@@ -81,15 +81,19 @@ struct FFastArrayReplicationFragmentHelper
 	 * We only want to do this for FastArrays that define PostReplicatedReceive since it might require extra work to calculate the required parameters
 	 */
 	template<typename FastArrayType>
-	static inline typename TEnableIf<TModels_V<FFastArraySerializer::CPostReplicatedReceiveFuncable, FastArrayType, const FFastArraySerializer::FPostReplicatedReceiveParameters&>, void>::Type CallPostReplicatedReceiveOrNot(FastArrayType& ArraySerializer, bool bHasUnresolvedReferences)
+	static inline typename TEnableIf<TModels_V<FFastArraySerializer::CPostReplicatedReceiveFuncable, FastArrayType, const FFastArraySerializer::FPostReplicatedReceiveParameters&>, void>::Type CallPostReplicatedReceiveOrNot(FastArrayType& ArraySerializer, int32 OldArraySize, bool bHasUnresolvedReferences)
 	{
 		FFastArraySerializer::FPostReplicatedReceiveParameters PostReceivedParameters;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		PostReceivedParameters.bHasMoreUnmappedReferences = bHasUnresolvedReferences;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		PostReceivedParameters.OldArraySize = OldArraySize;
+
 		ArraySerializer.PostReplicatedReceive(PostReceivedParameters);
 	}
 
 	template<typename FastArrayType>
-	static inline typename TEnableIf<!TModels_V<FFastArraySerializer::CPostReplicatedReceiveFuncable, FastArrayType, const FFastArraySerializer::FPostReplicatedReceiveParameters&>, void>::Type CallPostReplicatedReceiveOrNot(FastArrayType& ArraySerializer, bool bHasUnresolvedReferences) {}
+	static inline typename TEnableIf<!TModels_V<FFastArraySerializer::CPostReplicatedReceiveFuncable, FastArrayType, const FFastArraySerializer::FPostReplicatedReceiveParameters&>, void>::Type CallPostReplicatedReceiveOrNot(FastArrayType& ArraySerializer, int32 OldArraySize, bool bHasUnresolvedReferences) {}
 };
 
 class FFastArrayReplicationFragmentBase : public FReplicationFragment
@@ -217,6 +221,9 @@ void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* Ds
 	ConditionalRebuildItemMap(*DstArraySerializer, *DstWrappedArray, false);
 	ConditionalRebuildItemMap(*SrcArraySerializer, *SrcWrappedArray, bForceRebuildItemMap);
 
+	// We need this for callback
+	const int32 OriginalSize = DstWrappedArray->Num();
+
 	// Find removed elements in received data, that is elements that exist in old map but not in new map
 	TArray<int32> RemovedIndices;
 	{
@@ -341,7 +348,7 @@ void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* Ds
 	}
 
 	// Invoke PostReplicatedReceive if is defined by the serializer
-	CallPostReplicatedReceiveOrNot(*DstArraySerializer, Context.bHasUnresolvableReferences);
+	CallPostReplicatedReceiveOrNot(*DstArraySerializer, OriginalSize, Context.bHasUnresolvableReferences);
 }
 
 }} // End of namespaces

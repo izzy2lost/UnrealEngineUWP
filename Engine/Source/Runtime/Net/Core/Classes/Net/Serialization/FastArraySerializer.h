@@ -520,6 +520,7 @@ struct FFastArraySerializer
 	{
 		// This is the size that the array had before the receive.
 		int32 OldArraySize;
+		UE_DEPRECATED(5.4, "This is unsafe to use and will be removed.")
 		uint32 bHasMoreUnmappedReferences : 1U;
 	};
 
@@ -693,6 +694,7 @@ private:
 			TArray<int32, TInlineAllocator<8>>& AddedIndices,
 			GuidMapType& GuidMap);
 	
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		/** Conditionally invoke PostReplicatedReceive method depending on if is defined or not */
 		template<typename FastArrayType = SerializerType>
 		inline typename TEnableIf<TModels_V<CPostReplicatedReceiveFuncable, FastArrayType, const FFastArraySerializer::FPostReplicatedReceiveParameters>, void>::Type CallPostReplicatedReceiveOrNot(int32 OldArraySize)
@@ -702,6 +704,7 @@ private:
 			PostReceivedParameters.bHasMoreUnmappedReferences = Parms.bOutHasMoreUnmapped;
 			ArraySerializer.PostReplicatedReceive(PostReceivedParameters);
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		template<typename FastArrayType = SerializerType>
 		inline typename TEnableIf<!TModels_V<CPostReplicatedReceiveFuncable, FastArrayType, const FFastArraySerializer::FPostReplicatedReceiveParameters>, void>::Type CallPostReplicatedReceiveOrNot(int32) {}
