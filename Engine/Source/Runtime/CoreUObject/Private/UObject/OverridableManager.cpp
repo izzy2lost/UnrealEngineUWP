@@ -129,8 +129,8 @@ void FOverridableManager::OverrideProperty(UObject& Object, const FPropertyChang
 {
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
-		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PreEdit, FPropertyChangedEvent(nullptr), PropertyChain.GetActiveNode() ? PropertyChain.GetActiveNode() : PropertyChain.GetHead(), &Object);
-		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PostEdit, PropertyEvent, PropertyChain.GetActiveNode() ? PropertyChain.GetActiveNode() : PropertyChain.GetHead(), &Object);
+		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PreEdit, FPropertyChangedEvent(nullptr), PropertyChain.GetHead(), &Object);
+		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PostEdit, PropertyEvent, PropertyChain.GetHead(), &Object);
 	}
 }
 
@@ -147,7 +147,7 @@ void FOverridableManager::PreOverrideProperty(UObject& Object, const FEditProper
 {
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
-		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PreEdit, FPropertyChangedEvent(nullptr), PropertyChain.GetActiveNode() ? PropertyChain.GetActiveNode() : PropertyChain.GetHead(), &Object);
+		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PreEdit, FPropertyChangedEvent(nullptr), PropertyChain.GetHead(), &Object);
 	}
 }
 
@@ -155,7 +155,7 @@ void FOverridableManager::PostOverrideProperty(UObject& Object, const FPropertyC
 {
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
-		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PostEdit, PropertyEvent, PropertyChain.GetActiveNode() ? PropertyChain.GetActiveNode() : PropertyChain.GetHead(), &Object);
+		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PostEdit, PropertyEvent, PropertyChain.GetHead(), &Object);
 	}
 }
 
