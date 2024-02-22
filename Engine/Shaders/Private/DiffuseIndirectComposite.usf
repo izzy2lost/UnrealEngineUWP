@@ -2,7 +2,7 @@
 
 //------------------------------------------------------- ENUM VALUES
 
-#include "ScreenSpaceDenoise/SSDDefinitions.ush"
+#include "ScreenSpaceDenoise/SSDDefinitions.ush" 
 
 
 //------------------------------------------------------- CONFIGS
