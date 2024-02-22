@@ -170,6 +170,73 @@ const TCHAR* LexToString(const EOS_Presence_EStatus PresenceStatus)
 	}
 }
 
+bool LexFromString(EOS_EExternalAccountType& OutEnum, const TCHAR* InString)
+{
+	if (FCString::Stricmp(InString, TEXT("Amazon")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_AMAZON;
+	}
+	else if (FCString::Stricmp(InString, TEXT("Apple")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_APPLE;
+	}
+	else if (FCString::Stricmp(InString, TEXT("Discord")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_DISCORD;
+	}
+	else if (FCString::Stricmp(InString, TEXT("Epic")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_EPIC;
+	}
+	else if (FCString::Stricmp(InString, TEXT("GOG")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_GOG;
+	}
+	else if (FCString::Stricmp(InString, TEXT("Google")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_GOOGLE;
+	}
+	else if (FCString::Stricmp(InString, TEXT("ItchIO")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_ITCHIO;
+	}
+	else if (FCString::Stricmp(InString, TEXT("Nintendo")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_NINTENDO;
+	}
+	else if (FCString::Stricmp(InString, TEXT("Oculus")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_OCULUS;
+	}
+	else if (FCString::Stricmp(InString, TEXT("OpenID")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_OPENID;
+	}
+	else if (FCString::Stricmp(InString, TEXT("PSN")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_PSN;
+	}
+	else if (FCString::Stricmp(InString, TEXT("Steam")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_STEAM;
+	}
+	else if (FCString::Stricmp(InString, TEXT("UPlay")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_UPLAY;
+	}
+	else if (FCString::Stricmp(InString, TEXT("XBL")) == 0)
+	{
+		OutEnum = EOS_EExternalAccountType::EOS_EAT_XBL;
+	}
+	else
+	{
+		checkNoEntry();
+		return false;
+	}
+
+	return true;
+}
+
 bool LexFromString(EOS_EExternalCredentialType& OutEnum, const TCHAR* InString)
 {
 	if (FCString::Stricmp(InString, TEXT("Steam")) == 0)
