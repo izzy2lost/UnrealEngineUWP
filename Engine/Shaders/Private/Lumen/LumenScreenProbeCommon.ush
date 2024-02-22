@@ -63,7 +63,8 @@ Texture2D<uint> ScreenTileAdaptiveProbeHeader;
 Texture2D<uint> ScreenTileAdaptiveProbeIndices;
 
 #define SCREEN_TEMPORAL_INDEX			(FixedJitterIndex < 0 ? View.StateFrameIndexMod8 : FixedJitterIndex)
-#define RAY_DIRECTION_TEMPORAL_INDEX	(FixedJitterIndex < 0 ? View.StateFrameIndex : FixedJitterIndex)
+#define SCREEN_PROBE_JITTER_INDEX		(FixedJitterIndex < 0 ? View.StateFrameIndex : FixedJitterIndex)
+#define RAY_DIRECTION_TEMPORAL_INDEX	(FixedJitterIndex < 0 ? View.StateFrameIndexMod8 : FixedJitterIndex)
 #define GENERAL_TEMPORAL_INDEX			(FixedJitterIndex < 0 ? View.StateFrameIndexMod8 : FixedJitterIndex)
 
 // Returns the jitter offset in the range [0, ScreenProbeDownsampleFactor - 1]
