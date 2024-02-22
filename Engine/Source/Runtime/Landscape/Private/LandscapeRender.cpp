@@ -947,6 +947,13 @@ const TResourceArray<float>& FLandscapeRenderSystem::GetCachedSectionLODValues(c
 {
 	const uint32 ViewStateKey = InView.GetViewKey();
 	const TResourceArray<float>* CachedSectionLODValues = (ViewStateKey != 0) ? PerViewStateCachedSectionLODValues.Find(ViewStateKey) : PerViewCachedSectionLODValues.Find(&InView);
+	const FSceneView* SnapshotOriginView = InView.GetSnapshotOriginView();
+	// If we couldn't find this view or view state in our maps, it's possible the view originates from another one, which we must have recorded in our maps : 
+	if ((CachedSectionLODValues == nullptr) && (SnapshotOriginView != nullptr))
+	{
+		checkf(SnapshotOriginView != &InView, TEXT("Infinite loop will happen if the view originates from itself!"));
+		CachedSectionLODValues = &GetCachedSectionLODValues(*SnapshotOriginView);
+	}
 	checkf(CachedSectionLODValues != nullptr, TEXT("No section LOD value cached for this view. Make sure FLandscapeRenderSystem::ComputeSectionsLODForView (FLandscapeSceneViewExtension::PreRenderView_RenderThread) was called"));
 	return *CachedSectionLODValues;
 }

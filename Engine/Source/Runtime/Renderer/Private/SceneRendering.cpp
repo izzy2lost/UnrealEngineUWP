@@ -905,7 +905,6 @@ void FViewInfo::Init()
 	ShaderMap = GetGlobalShaderMap(FeatureLevel);
 
 	ViewState = (FSceneViewState*)State;
-	bIsSnapshot = false;
 	bHMDHiddenAreaMaskActive = IsHMDHiddenAreaMaskActive();
 	bUseComputePasses = IsPostProcessingWithComputeEnabled(FeatureLevel);
 	bHasCustomDepthPrimitives = false;
@@ -2228,7 +2227,7 @@ FViewInfo* FViewInfo::CreateSnapshot() const
 	static_assert(std::is_trivially_destructible_v<FGPUScenePrimitiveCollector> != 0, "The destructor is not invoked properly because of FMemory::Memcpy(*Result, *this) above");
 	Result->DynamicPrimitiveCollector = FGPUScenePrimitiveCollector(DynamicPrimitiveCollector);
 
-	Result->bIsSnapshot = true;
+	Result->SnapshotOriginView = this;
 	return Result;
 }
 
@@ -2261,6 +2260,8 @@ void FViewInfo::DestroyAllSnapshots(FParallelMeshDrawCommandPass::EWaitThread Wa
 		{
 			Snapshot->ParallelMeshDrawCommandPasses[i].FreeCreateSnapshot();
 		}
+
+		Snapshot->SnapshotOriginView = nullptr;
 
 		ViewInfoSnapshotCache.FreeSnapshots.Push(Snapshot);
 	}
