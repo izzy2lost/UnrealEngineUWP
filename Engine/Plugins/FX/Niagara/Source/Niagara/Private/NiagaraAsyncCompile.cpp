@@ -492,6 +492,7 @@ void FNiagaraAsyncCompileTask::CheckDDCResult()
 			{
 				ScriptPair.CompileResults = ExeData;
 				ScriptPair.bResultsReady = true;
+				bResultsFromDDC = true;
 				MoveToState(ENiagaraCompilationState::Finished);
 				UE_LOG(LogNiagara, Verbose, TEXT("Compilation data for %s could be pulled from the ddc."), *AssetPath);
 			}
@@ -919,14 +920,58 @@ void FNiagaraActiveCompilationDefault::Apply(const FNiagaraQueryCompilationOptio
 
 			// we also grab from the data contained in the ExeData, since that might be all we have if grabbed results from the DDC rather
 			// than actually issuing a precompile
-			auto IsUserVariable = [](const FNiagaraVariableBase& InVariable) -> bool
+			if (AsyncTask->bResultsFromDDC)
 			{
-				return InVariable.IsInNameSpace(FStringView(PARAM_MAP_USER_STR));
-			};
+				auto IsValidUserVariable = [](const FNiagaraVariableBase& InVariable) -> bool
+				{
+					if (!InVariable.IsInNameSpace(FStringView(PARAM_MAP_USER_STR)))
+					{
+						return false;
+					}
 
-			TArray<FNiagaraVariable> ScriptExposedVariables;
-			Algo::CopyIf(ExeData->Parameters.Parameters, ScriptExposedVariables, IsUserVariable);
-			AddUniqueExposedVariables(ScriptExposedVariables);
+					// check if this is a struct type, if it is make sure that we ignore the SWC version
+					if (const UStruct* Struct = InVariable.GetType().GetStruct())
+					{
+						if (FNiagaraTypeHelper::IsConvertedSWCStructure(Struct))
+						{
+							return false;
+						}
+					}
+					return true;
+				};
+
+				TArray<FNiagaraVariable> ScriptExposedVariables;
+				for (const FNiagaraVariable& Parameter : ExeData->Parameters.Parameters)
+				{
+					if (!Parameter.IsInNameSpace(FStringView(PARAM_MAP_USER_STR)))
+					{
+						continue;
+					}
+
+					// we need to also deal with SWC -> LWC conversions
+					if (const UStruct* Struct = Parameter.GetType().GetStruct())
+					{
+						if (FNiagaraTypeHelper::IsConvertedSWCStructure(Struct))
+						{
+							FNiagaraVariable ConvertedVariable(FNiagaraTypeHelper::GetLWCType(Parameter.GetType()), Parameter.GetName());
+							ConvertedVariable.AllocateData();
+
+							if (Parameter.IsDataAllocated())
+							{
+								FNiagaraLwcStructConverter DataConverter = FNiagaraTypeRegistry::GetStructConverter(ConvertedVariable.GetType());
+								DataConverter.ConvertDataFromSimulation(ConvertedVariable.GetData(), Parameter.GetData());
+							}
+							AddUniqueExposedVariables({ConvertedVariable});
+						}
+					}
+					else
+					{
+						AddUniqueExposedVariables({Parameter});
+					}
+				}
+
+				AddUniqueExposedVariables(ScriptExposedVariables);
+			}
 		}
 	}
 }
