@@ -19,7 +19,6 @@ struct FHttpClientConfig
 	TArray<FString> Endpoints;
 	int32 PrimaryEndpoint = 0;
 	int32 MaxConnectionCount = 8;
-	int32 PipelineLength = 1;
 	int32 MaxRetryCount = 1;
 	int32 ReceiveBufferSize = -1;
 	bool bChangeEndpointAfterSuccessfulRetry = true;

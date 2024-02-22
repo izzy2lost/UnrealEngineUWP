@@ -1237,14 +1237,13 @@ public:
 	enum class EDirection : uint8 { Send, Recv };
 	static const uint32 InvalidIp = 0x00ff'ffff;
 
-					FHost(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxConn, uint32 PipeLength=1);
+					FHost(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxConn);
 	void			SetBufferSize(EDirection Dir, int32 Size);
 	int32			GetBufferSize(EDirection Dir) const;
 	FResult			Connect(FSocket& Socket);
 	int32			IsResolved() const;
 	FResult			ResolveHostName();
 	uint32			GetMaxConnections() const	{ return MaxConnections; }
-	uint32			GetPipelineLength() const	{ return PipelineLength; }
 	uint32			GetIpAddress() const		{ return IpAddresses[0]; }
 	FAnsiStringView	GetHostName() const			{ return HostName; }
 	uint32			GetPort() const				{ return Port; }
@@ -1256,15 +1255,13 @@ private:
 	int16			RecvBufKb = -1;
 	uint16			Port;
 	uint8			MaxConnections;
-	uint8			PipelineLength;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-FHost::FHost(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxConn, uint32 PipeLength)
+FHost::FHost(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxConn)
 : HostName(InHostName)
 , Port(uint16(InPort))
 , MaxConnections(uint8(InMaxConn))
-, PipelineLength(uint8(PipeLength))
 {
 	check(MaxConnections && MaxConnections == InMaxConn);
 }
@@ -1461,8 +1458,7 @@ FConnectionPool::FConnectionPool(const FParams& Params)
 	new (Internal) FHost(
 		HostDest,
 		Params.Host.Port,
-		Params.ConnectionCount,
-		Params.PipelineLength
+		Params.ConnectionCount
 	);
 	Internal->SetBufferSize(FHost::EDirection::Send, Params.SendBufSize);
 	Internal->SetBufferSize(FHost::EDirection::Recv, Params.RecvBufSize);
@@ -3798,7 +3794,6 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 		FConnectionPool::FParams Params;
 		Params.SetHostFromUrl(BuildUrl());
 		Params.ConnectionCount = (i % 2) + 1;
-		Params.PipelineLength = (i % 5) + 1;
 		FConnectionPool Pool(Params);
 		for (int32 j = 0; j < i; ++j)
 		{

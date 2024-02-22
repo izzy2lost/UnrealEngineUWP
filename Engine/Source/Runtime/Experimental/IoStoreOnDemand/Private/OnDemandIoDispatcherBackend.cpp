@@ -112,13 +112,6 @@ static FAutoConsoleVariableRef CVar_IasHttpConnectionCount(
 	TEXT("Number of open HTTP connections to the on demand endpoint(s).")
 );
 
-static int32 GIasHttpPipelineLength = 2;
-static FAutoConsoleVariableRef CVar_GIasHttpPipelineLength(
-	TEXT("ias.HttpPipelineLength"),
-	GIasHttpPipelineLength,
-	TEXT("Number of concurrent requests on one connection")
-);
-
 /**
  *This is only applied when the connection was made to a single ServiceUrl rather than a DistributedUrl.
  * In the latter case we will make two attempts on the primary CDN followed by a single attempt for the
@@ -2502,7 +2495,6 @@ uint32 FOnDemandIoBackend::Run()
 		.Endpoints = AvailableEps.Urls,
 		.PrimaryEndpoint = FMath::Min(GIasHttpPrimaryEndpoint, AvailableEps.Urls.Num() -1),
 		.MaxConnectionCount = GIasHttpConnectionCount,
-		.PipelineLength = GIasHttpPipelineLength,
 		.MaxRetryCount = FMath::Max(AvailableEps.Urls.Num() + 1, GIasHttpRetryCount),
 		.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1,
 		.bChangeEndpointAfterSuccessfulRetry = GIasHttpChangeEndpointAfterSuccessfulRetry,
