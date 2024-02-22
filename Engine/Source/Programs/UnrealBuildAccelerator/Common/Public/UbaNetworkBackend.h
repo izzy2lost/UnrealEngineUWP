@@ -25,10 +25,8 @@ namespace uba
 		virtual ~NetworkBackend() {}
 
 		// Shutdown the connection (stops/finishes traffic)
+		// External code should wait for disconnect callback before assuming that no more recv callbacks can happen
 		virtual void Shutdown(void* connection) = 0;
-
-		// Close the connection
-		virtual void Close(void* connection) = 0;
 
 		enum : u8
 		{

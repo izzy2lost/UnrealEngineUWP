@@ -153,9 +153,8 @@ namespace uba
 				Sleep(1);
 			}
 
-			m_disconnectCallbackCalled.IsSet(~0u);
-			if (m_backendConnection)
-				m_backend.Close(m_backendConnection);
+			if (!m_disconnectCallbackCalled.IsSet(60000)) // This should never time out!
+				m_server.m_logger.Warning(TC("This should never happen!! Unknown conseqences"));
 			return true;
 		}
 
@@ -340,8 +339,8 @@ namespace uba
 				return;
 			if (m_disconnected)
 				return;
-			m_backend.Shutdown(m_backendConnection);
 			lock.Leave();
+			m_backend.Shutdown(m_backendConnection);
 			if (m_client && m_client->connectionCount.fetch_sub(1) == 1)
 			{
 				for (auto& entry : m_server.m_onDisconnectFunctions)

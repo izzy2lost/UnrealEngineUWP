@@ -14,7 +14,6 @@ namespace uba
 		NetworkBackendTcp(LogWriter& writer, const tchar* prefix = TC("NetworkBackendTcp"));
 		virtual ~NetworkBackendTcp();
 		virtual void Shutdown(void* connection) override;
-		virtual void Close(void* connection) override;
 		virtual bool Send(Logger& logger, void* connection, const void* data, u32 dataSize, SendContext& sendContext) override;
 		virtual void SetDataSentCallback(void* connection, void* context, DataSentCallback* callback) override;
 		virtual void SetRecvCallbacks(void* connection, void* context, u32 headerSize, RecvHeaderCallback* h, RecvBodyCallback* b, const tchar* recvHint) override;
