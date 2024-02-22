@@ -166,43 +166,75 @@ void UOptimusEditorGraphSchema::GetGraphActions(
 		IoActionBuilder.AddAction(Action);
 	}
 
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-
-	TArray<FAssetData> AssetDatas;
-
-	// This triggers the gathering of asset tags across assets
-	AssetRegistryModule.Get().GetAssetsByClass(UOptimusDeformer::StaticClass()->GetClassPathName(), AssetDatas);
-
-	for (FAssetData& AssetData : AssetDatas)
+	// Private functions
 	{
-		FString PublicFunctionString = AssetData.GetTagValueRef<FString>(UOptimusDeformer::PublicFunctionsAssetTagName);
-
-		if (!PublicFunctionString.IsEmpty())
+		if (const UOptimusEditorGraph* Graph = Cast<UOptimusEditorGraph>(InGraph))
 		{
-			FOptimusFunctionNodeGraphHeaderArray PublicFunctionHeaderArray;
-
-			FOptimusFunctionNodeGraphHeaderArray::StaticStruct()->ImportText(*PublicFunctionString, &PublicFunctionHeaderArray, nullptr, PPF_None, nullptr, {});
-
-			for (const FOptimusFunctionNodeGraphHeader& Header : PublicFunctionHeaderArray.Headers)
+			if (UOptimusNodeGraph* ModelGraph = Graph->GetModelGraph())
 			{
-				const FText FunctionName = FText::FromName(Header.FunctionName);
+				if (UOptimusDeformer* Deformer = Cast<UOptimusDeformer>(ModelGraph->GetCollectionRoot()))
+				{
+					for (UOptimusFunctionNodeGraph* FunctionNodeGraph : Deformer->GetFunctionGraphs(UOptimusFunctionNodeGraph::AccessSpecifierPrivateName))
+					{
+						FOptimusFunctionNodeGraphHeader Header = FunctionNodeGraph->GetHeader();
+				
+						TSharedPtr< FOptimusGraphSchemaAction_NewFunctionReferenceNode> Action(
+									new FOptimusGraphSchemaAction_NewFunctionReferenceNode(
+										FText::FromName(Header.Category),
+										FText::FromName(Header.FunctionName),
+										/* Tooltip */{}, 0, /* Keywords */{}
+								));
 
-				const FText Category = FText::FromName(Header.Category);
+						Action->GraphPath = Header.GraphPath;
 
-				TSharedPtr< FOptimusGraphSchemaAction_NewFunctionReferenceNode> Action(
-					new FOptimusGraphSchemaAction_NewFunctionReferenceNode(
-						Category,
-						FunctionName,
-						/* Tooltip */{}, 0, /* Keywords */{}
-				));
-
-				Action->GraphPath = Header.GraphPath;
-
-				IoActionBuilder.AddAction(Action);	
+						IoActionBuilder.AddAction(Action);
+					}
+				}	
 			}
 		}
 	}
+	
+	// Public functions
+	{
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
+		TArray<FAssetData> AssetDatas;
+
+		// This triggers the gathering of asset tags across assets
+		AssetRegistryModule.Get().GetAssetsByClass(UOptimusDeformer::StaticClass()->GetClassPathName(), AssetDatas);
+
+		for (FAssetData& AssetData : AssetDatas)
+		{
+			FString PublicFunctionString = AssetData.GetTagValueRef<FString>(UOptimusDeformer::PublicFunctionsAssetTagName);
+
+			if (!PublicFunctionString.IsEmpty())
+			{
+				FOptimusFunctionNodeGraphHeaderArray PublicFunctionHeaderArray;
+
+				FOptimusFunctionNodeGraphHeaderArray::StaticStruct()->ImportText(*PublicFunctionString, &PublicFunctionHeaderArray, nullptr, PPF_None, nullptr, {});
+
+				for (const FOptimusFunctionNodeGraphHeader& Header : PublicFunctionHeaderArray.Headers)
+				{
+					const FText FunctionName = FText::FromName(Header.FunctionName);
+
+					const FText Category = FText::FromName(Header.Category);
+
+					TSharedPtr< FOptimusGraphSchemaAction_NewFunctionReferenceNode> Action(
+						new FOptimusGraphSchemaAction_NewFunctionReferenceNode(
+							Category,
+							FunctionName,
+							/* Tooltip */{}, 0, /* Keywords */{}
+					));
+
+					Action->GraphPath = Header.GraphPath;
+
+					IoActionBuilder.AddAction(Action);	
+				}
+			}
+		}	
+	}
+	
+	// Loop nodes
 	{
 		TSharedPtr< FOptimusGraphSchemaAction_NewLoopTerminalNodes> Action(
 			new FOptimusGraphSchemaAction_NewLoopTerminalNodes(

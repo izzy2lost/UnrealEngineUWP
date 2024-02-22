@@ -184,6 +184,27 @@ UOptimusNode* UOptimusDeformer::GetSubGraphReferenceNode(const UOptimusNodeSubGr
 	return UsedNode;
 }
 
+TArray<UOptimusFunctionNodeGraph*> UOptimusDeformer::GetFunctionGraphs(FName InAccessSpecifier) const
+{
+	TArray<UOptimusFunctionNodeGraph*> FunctionGraphs;
+	for (UOptimusNodeGraph* Graph : Graphs)
+	{
+		if (UOptimusFunctionNodeGraph* FunctionNodeGraph = Cast<UOptimusFunctionNodeGraph>(Graph))
+		{
+			if (InAccessSpecifier.IsNone())
+			{
+				FunctionGraphs.Add(FunctionNodeGraph);
+			}
+			else if (FunctionNodeGraph->AccessSpecifier == InAccessSpecifier)
+			{
+				FunctionGraphs.Add(FunctionNodeGraph);
+			}
+		}
+	}
+
+	return FunctionGraphs;
+}
+
 
 UOptimusVariableDescription* UOptimusDeformer::AddVariable(
 	FOptimusDataTypeRef InDataTypeRef, 
@@ -3456,15 +3477,9 @@ void UOptimusDeformer::GetAssetRegistryTags(FAssetRegistryTagsContext Context) c
 	// Expose all the public functions
 	{
 		FOptimusFunctionNodeGraphHeaderArray PublicFunctionHeadersArray;
-		for (UOptimusNodeGraph* Graph : Graphs)
+		for (const UOptimusFunctionNodeGraph* FunctionNodeGraph: GetFunctionGraphs(UOptimusFunctionNodeGraph::AccessSpecifierPublicName))
 		{
-			if (UOptimusFunctionNodeGraph* FunctionNodeGraph = Cast<UOptimusFunctionNodeGraph>(Graph))
-			{
-				if (FunctionNodeGraph->AccessSpecifier == UOptimusFunctionNodeGraph::AccessSpecifierPublicName)
-				{
-					PublicFunctionHeadersArray.Headers.Add(FunctionNodeGraph->GetHeader());
-				}
-			}
+			PublicFunctionHeadersArray.Headers.Add(FunctionNodeGraph->GetHeader());
 		}
 
 	
@@ -3659,7 +3674,7 @@ UOptimusNodeGraph* UOptimusDeformer::CreateGraphDirect(
 		{
 			return nullptr;
 		}
-		// Not fully implemented yet.
+		
 		GraphClass = UOptimusFunctionNodeGraph::StaticClass();
 
 		// If there's already an object with this name, then attempt to make the name unique.

@@ -168,6 +168,9 @@ public:
 	UOptimusNode* GetSubGraphReferenceNode(
 		const UOptimusNodeSubGraph* InSubGraph
 		) const;
+
+	/// Returns all function graphs with the given access specifier. If InAccessSpecifier is None, it performs no filtering
+	TArray<UOptimusFunctionNodeGraph*> GetFunctionGraphs(FName InAccessSpecifier = NAME_None) const;
 	
 	// Variables
 	UOptimusVariableDescription* AddVariable(
