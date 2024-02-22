@@ -33,6 +33,9 @@ function generateDockerfile {
 		# This sets the Build ID, disables building the Engine for AArch64, and enables support for client and dedicated server targets
 		--opt buildgraph-args='-set:BuildIdOverride=UE_5.4 -set:WithLinuxArm64=false -set:WithClient=true -set:WithServer=true'
 		
+		# This ensures we do not exclude binary files for any platforms
+		--opt gitdependencies-args=''
+		
 		# This enables the use of BuildKit build secrets, which is necessary in order to build images independently of ue4-docker itself
 		--opt credential-mode=secrets
 		
