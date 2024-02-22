@@ -463,7 +463,7 @@ namespace Horde.Server
 		/// <summary>
 		/// Issuer for tokens from the auth provider
 		/// </summary>
-		public AuthMethod AuthMethod { get; set; } = AuthMethod.Anonymous;
+		public AuthMethod AuthMethod { get; set; } = AuthMethod.Horde;
 
 		/// <summary>
 		/// Audience for OIDC validation

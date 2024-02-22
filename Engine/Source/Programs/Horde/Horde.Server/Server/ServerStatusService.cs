@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Configuration;
 using HordeCommon;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
@@ -103,7 +102,6 @@ public class ServerStatusService : IHostedService
 	/// </summary>
 	public const int MaxHistoryLength = 10;
 	
-	private const string CategoryDefault = "default";
 	private readonly IClock _clock;
 	private readonly MongoService _mongoService;
 	private readonly RedisService _redisService;

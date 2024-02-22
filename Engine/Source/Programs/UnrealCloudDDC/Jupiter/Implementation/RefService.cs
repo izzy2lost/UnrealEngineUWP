@@ -312,7 +312,7 @@ namespace Jupiter.Implementation
 			return true;
 		}
 
-		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId name)
+		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId name, bool ignoreMissingBlobs = false)
 		{
 			byte[] blob;
 			RefRecord o = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload, IReferencesStore.OperationFlags.None);
@@ -328,7 +328,7 @@ namespace Jupiter.Implementation
 
 			CbObject cbObject = new CbObject(blob);
 
-			List<BlobId> referencedBlobs = await _referenceResolver.GetReferencedBlobs(ns, cbObject).ToListAsync();
+			List<BlobId> referencedBlobs = await _referenceResolver.GetReferencedBlobs(ns, cbObject, ignoreMissingBlobs).ToListAsync();
 			return referencedBlobs;
 		}
 	}

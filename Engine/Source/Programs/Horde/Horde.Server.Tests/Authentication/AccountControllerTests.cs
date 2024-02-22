@@ -28,7 +28,6 @@ public class AccountControllerTest : IAsyncDisposable
 	{
 		Dictionary<string, string> settings = new()
 		{
-			{ "Horde:DisableAuth", "false" },
 			{ "Horde:AuthMethod", "Horde" },
 		};
 		_app = new FakeHordeWebApp(settings, allowAutoRedirect: false);

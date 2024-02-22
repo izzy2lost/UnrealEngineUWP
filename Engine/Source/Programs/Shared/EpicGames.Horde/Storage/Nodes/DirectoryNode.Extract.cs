@@ -172,13 +172,13 @@ namespace EpicGames.Horde.Storage.Nodes
 					{
 						if (FileInfo.Exists)
 						{
-							if ((FileInfo.Attributes & FileAttributes.ReadOnly) != 0)
-							{
-								FileInfo.Attributes &= ~FileAttributes.ReadOnly;
-							}
 							if (FileInfo.LinkTarget != null)
 							{
 								FileInfo.Delete();
+							}
+							else if (FileInfo.IsReadOnly)
+							{
+								FileInfo.IsReadOnly = false;
 							}
 						}
 						else
@@ -638,6 +638,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			// Set correct permissions on the output file
 			if (remainingChunks == 0)
 			{
+				file.FileInfo.Refresh();
 				FileEntry.SetPermissions(file.FileInfo!, file.FileEntry.Flags);
 				copyStats?.Update(1, 0);
 			}

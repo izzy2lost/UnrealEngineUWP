@@ -70,7 +70,7 @@ namespace Jupiter.Implementation
 
 			ulong countOfRefsChecked = 0;
 			ulong countOfMissingLastAccessTime = 0;
-			await foreach ((NamespaceId ns, BucketId bucket, RefId refId, DateTime lastAccess) in _referencesStore.GetRecordsAsync())
+			await foreach ((NamespaceId ns, BucketId bucket, RefId refId) in _referencesStore.GetRecordsWithoutAccessTimeAsync())
 			{
 				using TelemetrySpan scope = _tracer.StartActiveSpan("consistency_check.ref_store")
 					.SetAttribute("operation.name", "consistency_check.ref_store")

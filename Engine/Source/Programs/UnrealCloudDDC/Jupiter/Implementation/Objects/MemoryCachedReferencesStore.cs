@@ -117,6 +117,11 @@ namespace Jupiter.Implementation.Objects
 			return _actualStore.GetRecordsAsync();
 		}
 
+		public IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync()
+		{
+			return _actualStore.GetRecordsWithoutAccessTimeAsync();
+		}
+
 		public IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
 		{
 			return _actualStore.GetRecordsInBucketAsync(ns, bucket);

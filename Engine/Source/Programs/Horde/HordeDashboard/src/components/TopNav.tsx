@@ -5,7 +5,7 @@ import { observer } from 'mobx-react-lite';
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import backend, { useBackend } from '../backend';
-import { ProjectData } from "../backend/Api";
+import { AuthMethod, ProjectData } from "../backend/Api";
 import dashboard from '../backend/Dashboard';
 import { ProjectStore } from '../backend/ProjectStore';
 import { PreviewChangesModal } from './PreviewChanges';
@@ -13,7 +13,6 @@ import { VersionModal } from './VersionModal';
 import { getHordeTheme } from '../styles/theme';
 import { getHordeStyling } from '../styles/Styles';
 
-const logoutURL = "/account";
 
 const getStyles = () => {
 
@@ -347,6 +346,8 @@ const RequestLogout: React.FC = observer(() => {
    // subscribe
    if (dashboard.updated) { }
 
+   const logoutURL = dashboard.authMethod === AuthMethod.Horde ? "/index" : "/account";
+
    if (!dashboard.requestLogout || hasShown || globalHasShown) {
       return null
    }
@@ -402,6 +403,8 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
    // subscribe
    if (dashboard.updated) { }
+
+   const logoutURL = dashboard.authMethod === AuthMethod.Horde ? "/index" : "/account";
 
    const hordeTheme = getHordeTheme();
 

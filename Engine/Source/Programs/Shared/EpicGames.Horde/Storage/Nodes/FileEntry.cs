@@ -203,7 +203,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				if ((flags & FileEntryFlags.ReadOnly) != 0)
 				{
-					fileInfo.Attributes |= FileAttributes.ReadOnly;
+					fileInfo.IsReadOnly = true;
 				}
 			}
 		}
