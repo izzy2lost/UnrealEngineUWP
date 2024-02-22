@@ -33,64 +33,62 @@ void FLevelInstanceEditorModeToolkit::Init(const TSharedPtr<IToolkitHost>& InitT
 {
 	FModeToolkit::Init(InitToolkitHost, InOwningMode);
 
-	const ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(InitToolkitHost->GetWorld());
+	ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(InitToolkitHost->GetWorld());
 	check(LevelInstanceSubsystem);
 
-	const ILevelInstanceInterface* EditingLevelInstance = LevelInstanceSubsystem->GetEditingLevelInstance();
-	check(EditingLevelInstance);
-	const TSoftObjectPtr<UWorld> WorldAsset = EditingLevelInstance->GetWorldAsset();
-	const FString WorldAssetName = WorldAsset.GetAssetName();
-	FText DisplayText = FText::FromString(WorldAsset.GetAssetName());
-
-	ILevelInstanceEditorModule& EditorModule = FModuleManager::GetModuleChecked<ILevelInstanceEditorModule>("LevelInstanceEditor");
-	
 	// ViewportOverlay
 	SAssignNew(ViewportOverlayWidget, SHorizontalBox)
-		+SHorizontalBox::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Bottom)
-		.Padding(FMargin(0.0f, 0.0f, 0.f, 15.f))
+	+SHorizontalBox::Slot()
+	.HAlign(HAlign_Center)
+	.VAlign(VAlign_Bottom)
+	.Padding(FMargin(0.0f, 0.0f, 0.f, 15.f))
+	[
+		SNew(SBorder)
+		.BorderImage(FAppStyle::Get().GetBrush("EditorViewport.OverlayBrush"))
+		.Padding(8.f)
 		[
-			SNew(SBorder)
-			.BorderImage(FAppStyle::Get().GetBrush("EditorViewport.OverlayBrush"))
-			.Padding(8.f)
+			SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
 			[
-				SNew(SHorizontalBox)
-				+SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
-				[
-					SNew(SImage)
-					.Image(FSlateIconFinder::FindIconBrushForClass(ALevelInstance::StaticClass()))
-				]
-				+SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
-				[
-					SNew(STextBlock)
-					.Text(DisplayText)
-				]
-				+SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(FMargin(2.0, 0.f, 0.f, 0.f))
-				[
-					SNew(SButton)
-					.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
-					.TextStyle(FAppStyle::Get(), "DialogButtonText")
-					.Text(LOCTEXT("ExitEdit", "Exit"))
-					.ToolTipText(LOCTEXT("ExitTooltip", "Exit Level Instance Edit"))
-					.HAlign(HAlign_Center)
-					.OnClicked_Lambda([&EditorModule]() 
-					{ 
-						EditorModule.BroadcastTryExitEditorMode(); 
-						return FReply::Handled(); 
-					})
-				]
+				SNew(SImage)
+				.Image(FSlateIconFinder::FindIconBrushForClass(ALevelInstance::StaticClass()))
 			]
-		];
-
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
+			[
+				SNew(STextBlock)
+				.Text_Lambda([LevelInstanceSubsystem]()
+				{
+					return LevelInstanceSubsystem->GetToolKitDisplayText();
+				})
+			]
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(FMargin(2.0, 0.f, 0.f, 0.f))
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
+				.TextStyle(FAppStyle::Get(), "DialogButtonText")
+				.Text(LOCTEXT("ExitEdit", "Exit"))
+				.ToolTipText_Lambda([LevelInstanceSubsystem]()
+				{
+					return LevelInstanceSubsystem->GetToolKitExitToolTip();
+				})
+				.HAlign(HAlign_Center)
+				.OnClicked_Lambda([LevelInstanceSubsystem]() 
+				{ 
+					LevelInstanceSubsystem->ToolKitExit();
+					return FReply::Handled(); 
+				})
+			]
+		]
+	];
+	
 	GetToolkitHost()->AddViewportOverlayWidget(ViewportOverlayWidget.ToSharedRef());
 }
 

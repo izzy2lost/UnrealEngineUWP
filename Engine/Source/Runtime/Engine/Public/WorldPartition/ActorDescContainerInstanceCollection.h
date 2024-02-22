@@ -63,6 +63,9 @@ public:
 	DECLARE_EVENT_OneParam(UWorldPartition, FActorDescInstanceRemovedEvent, FWorldPartitionActorDescInstance*);
 	FActorDescInstanceRemovedEvent OnActorDescInstanceRemovedEvent;
 
+	DECLARE_EVENT_OneParam(UWorldPartition, FActorReplacedEvent, FWorldPartitionActorDescInstance*);
+	FActorReplacedEvent OnActorReplacedEvent;
+
 	void ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func, bool bRecursive = false);
 	void ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func, bool bRecursive = false) const;
 
@@ -80,6 +83,7 @@ private:
 
 	void OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* ActorDescInstance);
 	void OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* ActorDescInstance);
+	void OnActorReplaced(FWorldPartitionActorDescInstance* ActorDescInstance);
 
 public:
 	template<bool bConst, class ActorType>
@@ -297,6 +301,7 @@ void TActorDescContainerInstanceCollection<ActorDescContPtrType>::RegisterDelega
 {
 	ConstCast(Container)->OnActorDescInstanceAddedEvent.AddRaw(this, &TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorDescInstanceAdded);
 	ConstCast(Container)->OnActorDescInstanceRemovedEvent.AddRaw(this, &TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorDescInstanceRemoved);
+	ConstCast(Container)->OnActorReplacedEvent.AddRaw(this, &TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorReplaced);
 }
 
 template<class ActorDescContPtrType>
@@ -304,6 +309,7 @@ void TActorDescContainerInstanceCollection<ActorDescContPtrType>::UnregisterDele
 {
 	ConstCast(Container)->OnActorDescInstanceAddedEvent.RemoveAll(this);
 	ConstCast(Container)->OnActorDescInstanceRemovedEvent.RemoveAll(this);
+	ConstCast(Container)->OnActorReplacedEvent.RemoveAll(this);
 }
 
 template<class ActorDescContPtrType>
@@ -502,6 +508,12 @@ template<class ActorDescContPtrType>
 void TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* ActorDescInstance)
 {
 	OnActorDescInstanceRemovedEvent.Broadcast(ActorDescInstance);
+}
+
+template<class ActorDescContPtrType>
+void TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorReplaced(FWorldPartitionActorDescInstance* ActorDescInstance)
+{
+	OnActorReplacedEvent.Broadcast(ActorDescInstance);
 }
 
 #endif 

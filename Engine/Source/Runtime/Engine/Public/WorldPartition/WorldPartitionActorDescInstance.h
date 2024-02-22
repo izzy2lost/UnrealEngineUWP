@@ -78,6 +78,7 @@ public:
 
 	virtual bool IsChildContainerInstance() const { return ChildContainerInstance || ActorDesc->IsChildContainerInstance(); }
 	virtual FName GetChildContainerPackage() const { return ActorDesc->GetChildContainerPackage(); }
+	virtual FString GetChildContainerName() const { return ActorDesc->GetChildContainerName(); }
 	virtual EWorldPartitionActorFilterType GetChildContainerFilterType() const { return ActorDesc->GetChildContainerFilterType(); }
 	virtual const FWorldPartitionActorFilter* GetChildContainerFilter() const { return ActorDesc->GetChildContainerFilter(); }
 	virtual bool GetChildContainerInstance(FWorldPartitionActorDesc::FContainerInstance& OutContainerInstance) const { return ActorDesc->GetChildContainerInstance(this, OutContainerInstance); }

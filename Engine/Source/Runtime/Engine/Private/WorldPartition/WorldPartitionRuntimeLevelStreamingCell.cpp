@@ -330,7 +330,7 @@ void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FStreamingGe
 		}
 	}
 
-	Packages.Emplace(
+	FWorldPartitionRuntimeCellObjectMapping ActorMapping(
 		ActorDescView.GetActorPackage(), 
 		*ActorDescView.GetActorSoftPath().ToString(), 
 		ActorDescView.GetBaseClass(),
@@ -342,6 +342,15 @@ void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FStreamingGe
 		ContainerID.GetActorGuid(ActorDescView.GetGuid()),
 		false
 	);
+
+	TArray<FWorldPartitionRuntimeCellPropertyOverride> PropertyOverrides;
+	ContainerInstance->GetPropertyOverridesForActor(ContainerID, ActorDescView.GetGuid(), PropertyOverrides);
+	if (PropertyOverrides.Num())
+	{
+		ActorMapping.PropertyOverrides = MoveTemp(PropertyOverrides);
+	}
+
+	Packages.Add(MoveTemp(ActorMapping));
 }
 
 void UWorldPartitionRuntimeLevelStreamingCell::Fixup()
@@ -385,7 +394,7 @@ bool UWorldPartitionRuntimeLevelStreamingCell::OnPrepareGeneratorPackageForCook(
 			.SetLoadAsync(false)
 			.SetInstancingContext(FLinkerInstancingContext(false)); // Don't do SoftObjectPath remapping for PersistentLevel actors because references can end up in different cells
 
-		verify(FWorldPartitionLevelHelper::LoadActors(Params));
+		verify(FWorldPartitionLevelHelper::LoadActors(MoveTemp(Params)));
 
 		FWorldPartitionLevelHelper::MoveExternalActorsToLevel(Packages, OuterWorld->PersistentLevel, OutModifiedPackages);
 
@@ -454,7 +463,7 @@ bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook
 			.SetLoadAsync(false)
 			.SetInstancingContext(FLinkerInstancingContext(false)); // Don't do SoftObjectPath remapping for PersistentLevel actors because references can end up in different cells
 
-		verify(FWorldPartitionLevelHelper::LoadActors(Params));
+		verify(FWorldPartitionLevelHelper::LoadActors(MoveTemp(Params)));
 
 		// Create a level and move these actors in it
 		ULevel* NewLevel = FWorldPartitionLevelHelper::CreateEmptyLevelForRuntimeCell(this, OuterWorld, LevelStreaming->GetWorldAsset().ToString(), InPackage);

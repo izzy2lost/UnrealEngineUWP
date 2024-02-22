@@ -64,6 +64,7 @@ public:
 	ENGINE_API virtual void OnLevelInstanceLoaded();
 
 #if WITH_EDITOR
+	ENGINE_API virtual bool SupportsPropertyOverrides() const;
 	ENGINE_API virtual bool SupportsPartialEditorLoading() const;
 	ENGINE_API virtual bool ResolveSubobject(const TCHAR* SubObjectPath, UObject*& OutObject, bool bLoadIfExists);
 #endif

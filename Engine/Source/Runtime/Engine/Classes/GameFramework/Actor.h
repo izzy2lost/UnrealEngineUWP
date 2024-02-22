@@ -966,7 +966,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = DataLayers)
 	TArray<FActorDataLayer> DataLayers;
 
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = DataLayers)
+	// There is currently an issue where if we allow property override of DataLayerAssets and it contains Private datalayers
+	// then it will always serialize a diff since those are outered to the instanced level and will get remapped differently between the Override instance and Archetype instance we are comparing against
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = DataLayers, meta=(DisableLevelInstancePropertyOverride))
 	TArray<TSoftObjectPtr<UDataLayerAsset>> DataLayerAssets;
 
 	TArray<TSoftObjectPtr<UDataLayerAsset>> PreEditChangeDataLayers;
@@ -4514,6 +4516,7 @@ private:
 
 	friend class ULevelStreamingLevelInstance;
 	friend class ULevelStreamingLevelInstanceEditor;
+	friend class ULevelStreamingLevelInstanceEditorPropertyOverride;
 };
 #endif
 

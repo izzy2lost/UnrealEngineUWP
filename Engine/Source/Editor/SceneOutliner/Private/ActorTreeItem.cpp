@@ -231,6 +231,10 @@ private:
 			{
 				return FAppStyle::Get().GetSlateColor("Colors.AccentGreen");
 			}
+			else if (LevelInstance->IsEditingPropertyOverrides())
+			{
+				return FAppStyle::Get().GetSlateColor("Colors.AccentBlue");
+			}
 		}
 
 		auto TreeItem = TreeItemPtr.Pin();

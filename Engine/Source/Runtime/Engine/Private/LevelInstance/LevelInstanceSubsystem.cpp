@@ -3,6 +3,7 @@
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "Engine/LevelStreaming.h"
 #include "LevelInstance/LevelInstanceLevelStreaming.h"
+#include "LevelInstance/LevelInstanceSettings.h"
 #include "Misc/StringFormatArg.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/Package.h"
@@ -16,11 +17,13 @@
 #include "Settings/LevelEditorMiscSettings.h"
 #include "ActorEditorContext/ScopedActorEditorContextSetExternalDataLayerAsset.h"
 #include "LevelInstance/LevelInstanceEditorLevelStreaming.h"
+#include "LevelInstance/LevelInstanceEditorPropertyOverrideLevelStreaming.h"
 #include "LevelInstance/ILevelInstanceEditorModule.h"
 #include "LevelInstance/LevelInstanceEditorInstanceActor.h"
 #include "LevelInstance/LevelInstanceEditorObject.h"
 #include "LevelInstance/LevelInstanceEditorPivotActor.h"
 #include "LevelInstance/LevelInstanceComponent.h"
+#include "WorldPartition/LevelInstance/LevelInstanceContainerInstance.h"
 #include "WorldPartition/LevelInstance/LevelInstanceActorDesc.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
@@ -88,9 +91,15 @@ void ULevelInstanceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 #if WITH_EDITOR
+	// Make sure Policy is initialized
+	ULevelInstanceSettings::Get()->UpdatePropertyOverridePolicy();
+	
 	if (GEditor)
 	{
 		ILevelInstanceEditorModule& EditorModule = FModuleManager::LoadModuleChecked<ILevelInstanceEditorModule>("LevelInstanceEditor");
+		EditorModule.OnExitEditorMode().AddUObject(this, &ULevelInstanceSubsystem::OnExitEditorMode);
+		EditorModule.OnTryExitEditorMode().AddUObject(this, &ULevelInstanceSubsystem::OnTryExitEditorMode);
+		
 		FEditorDelegates::OnAssetsPreDelete.AddUObject(this, &ULevelInstanceSubsystem::OnAssetsPreDelete);
 		FEditorDelegates::PreSaveWorldWithContext.AddUObject(this, &ULevelInstanceSubsystem::OnPreSaveWorldWithContext);
 		FWorldDelegates::OnPreWorldRename.AddUObject(this, &ULevelInstanceSubsystem::OnPreWorldRename);
@@ -106,6 +115,12 @@ void ULevelInstanceSubsystem::Deinitialize()
 	FEditorDelegates::PreSaveWorldWithContext.RemoveAll(this);
 	FWorldDelegates::OnPreWorldRename.RemoveAll(this);
 	FWorldDelegates::OnWorldCleanup.RemoveAll(this);
+
+	if (ILevelInstanceEditorModule* EditorModule = FModuleManager::GetModulePtr<ILevelInstanceEditorModule>("LevelInstanceEditor"))
+	{
+		EditorModule->OnExitEditorMode().RemoveAll(this);
+		EditorModule->OnTryExitEditorMode().RemoveAll(this);
+	}
 #endif
 }
 
@@ -184,7 +199,7 @@ void ULevelInstanceSubsystem::RequestLoadLevelInstance(ILevelInstanceInterface* 
 	if (LevelInstance->IsWorldAssetValid())
 	{
 #if WITH_EDITOR
-		if (!IsEditingLevelInstance(LevelInstance))
+		if (!IsEditingLevelInstance(LevelInstance) && !IsEditingLevelInstancePropertyOverrides(LevelInstance))
 #endif
 		{
 			LevelInstancesToUnload.Remove(LevelInstance->GetLevelInstanceID());
@@ -363,7 +378,11 @@ ULevel* ULevelInstanceSubsystem::GetLevelInstanceLevel(const ILevelInstanceInter
 #if WITH_EDITOR
 		if (const FLevelInstanceEdit* CurrentEdit = GetLevelInstanceEdit(LevelInstance))
 		{
-			return LevelInstanceEdit->LevelStreaming->GetLoadedLevel();
+			return CurrentEdit->LevelStreaming->GetLoadedLevel();
+		}
+		else if (const FPropertyOverrideEdit* CurrentPropertyOverrideEdit = GetLevelInstancePropertyOverrideEdit(LevelInstance))
+		{
+			return CurrentPropertyOverrideEdit->LevelStreaming->GetLoadedLevel();
 		}
 		else 
 #endif // WITH_EDITOR
@@ -449,17 +468,8 @@ void ULevelInstanceSubsystem::OnWorldCleanup(UWorld* InWorld, bool bSessionEnded
 		}
 
 		LoadedLevelInstances.Empty();
-		if (LevelInstanceEdit)
-		{
-			// If we are inside an Edit, null out streaming pointer so that destructor doesn't cause a call to RemoveLevelsFromWorld
-			LevelInstanceEdit->LevelStreaming = nullptr;
-			LevelInstanceEdit.Reset();
-
-			if (ILevelInstanceEditorModule* EditorModule = (ILevelInstanceEditorModule*)FModuleManager::Get().GetModule("LevelInstanceEditor"))
-			{
-				EditorModule->DeactivateEditorMode();
-			}
-		}	
+		LevelInstanceEdit.Reset();
+		PropertyOverrideEdit.Reset();
 	}
 }
 
@@ -478,6 +488,52 @@ void ULevelInstanceSubsystem::ForEachLevelStreaming(TFunctionRef<bool(ULevelStre
 	{
 		Operation(LevelInstanceEdit->LevelStreaming);
 	}
+
+	if (PropertyOverrideEdit)
+	{
+		Operation(PropertyOverrideEdit->LevelStreaming);
+	}
+}
+
+FString ULevelInstanceSubsystem::GetActorNameToSelectFromContext(const ILevelInstanceInterface* LevelInstance, const AActor* ContextActor, const FString& DefaultActorNameToSelect) const
+{
+	FString ActorNameToSelect = DefaultActorNameToSelect;
+	if (ContextActor)
+	{
+		ActorNameToSelect = ContextActor->GetName();
+		ForEachLevelInstanceAncestorsAndSelf(ContextActor, [&ActorNameToSelect, LevelInstance](const ILevelInstanceInterface* AncestorLevelInstance)
+		{
+			// stop when we hit the LevelInstance we are about to edit
+			if (AncestorLevelInstance == LevelInstance)
+			{
+				return false;
+			}
+
+			ActorNameToSelect = CastChecked<AActor>(AncestorLevelInstance)->GetName();
+			return true;
+		});
+	}
+
+	return ActorNameToSelect;
+}
+
+void ULevelInstanceSubsystem::SelectActorFromActorName(ILevelInstanceInterface* LevelInstance, const FString& ActorName) const
+{
+	// Try and select something meaningful
+	AActor* ActorToSelect = nullptr;
+	if (!ActorName.IsEmpty())
+	{
+		ActorToSelect = FindObject<AActor>(LevelInstance->GetLoadedLevel(), *ActorName);
+	}
+
+	// default to LevelInstance
+	AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance);
+	if (!ActorToSelect)
+	{
+		ActorToSelect = LevelInstanceActor;
+	}
+		
+	GEditor->SelectActor(ActorToSelect, true, true);
 }
 
 
@@ -488,36 +544,9 @@ void ULevelInstanceSubsystem::RegisterLoadedLevelStreamingLevelInstanceEditor(UL
 		check(!LevelInstanceEdit.IsValid());
 		ILevelInstanceInterface* LevelInstance = LevelStreaming->GetLevelInstance();
 		LevelInstanceEdit = MakeUnique<FLevelInstanceEdit>(LevelStreaming, LevelInstance);
-
-		if (ILevelInstanceEditorModule* EditorModule = FModuleManager::GetModulePtr<ILevelInstanceEditorModule>("LevelInstanceEditor"))
-		{
-			EditorModule->OnExitEditorMode().AddUObject(this, &ULevelInstanceSubsystem::OnExitEditorMode);
-			EditorModule->OnTryExitEditorMode().AddUObject(this, &ULevelInstanceSubsystem::OnTryExitEditorMode);
-		}
 	}
 }
 
-void ULevelInstanceSubsystem::ResetEdit(TUniquePtr<FLevelInstanceEdit>& InLevelInstanceEdit)
-{
-	if (InLevelInstanceEdit)
-	{
-		if (InLevelInstanceEdit == LevelInstanceEdit)
-		{
-			if (ILevelInstanceEditorModule* EditorModule = FModuleManager::GetModulePtr<ILevelInstanceEditorModule>("LevelInstanceEditor"))
-			{
-				EditorModule->OnExitEditorMode().RemoveAll(this);
-				EditorModule->OnTryExitEditorMode().RemoveAll(this);
-			}
-		}
-		else
-		{
-			// Only case supported where we are using a tmp FLevelInstanceEdit
-			check(bIsCreatingLevelInstance);
-		}
-
-		InLevelInstanceEdit.Reset();
-	}
-}
 #endif
 
 void ULevelInstanceSubsystem::LoadLevelInstance(ILevelInstanceInterface* LevelInstance)
@@ -690,7 +719,10 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::GetOwningLevelInstance(const U
 		{
 			return LevelStreamingEditor->GetLevelInstance();
 		}
-		else 
+		else if (ULevelStreamingLevelInstanceEditorPropertyOverride* LevelStreamingPropertyOverride = Cast<ULevelStreamingLevelInstanceEditorPropertyOverride>(BaseLevelStreaming))
+		{
+			return LevelStreamingPropertyOverride->GetLevelInstance();
+		}
 #endif
 		if (ULevelStreamingLevelInstance* LevelStreaming = Cast<ULevelStreamingLevelInstance>(BaseLevelStreaming))
 		{
@@ -836,41 +868,125 @@ void ULevelInstanceSubsystem::Tick()
 	if (!GetWorld()->IsGameWorld())
 	{
 		UpdateStreamingState();
+
+		// Update Editor Mode if we are the GEditor world's Subsystem
+		if (GEditor->GetEditorWorldContext().World() == GetWorld())
+		{
+			if (ILevelInstanceEditorModule* EditorModule = (ILevelInstanceEditorModule*)FModuleManager::Get().GetModule("LevelInstanceEditor"))
+			{
+				const bool bActivated = LevelInstanceEdit || PropertyOverrideEdit;
+				EditorModule->UpdateEditorMode(bActivated);
+			}
+		}
 	}
 }
 
 void ULevelInstanceSubsystem::OnExitEditorMode()
 {
-	OnExitEditorModeInternal(/*bForceExit=*/true);
+	if (LevelInstanceEdit || PropertyOverrideEdit)
+	{
+		OnExitEditorModeInternal(/*bForceExit=*/true);
+	}
 }
 
 void ULevelInstanceSubsystem::OnTryExitEditorMode()
-{	
-	if (OnExitEditorModeInternal(/*bForceExit=*/false))
+{
+	if (LevelInstanceEdit || PropertyOverrideEdit)
 	{
-		ILevelInstanceEditorModule& EditorModule = FModuleManager::GetModuleChecked<ILevelInstanceEditorModule>("LevelInstanceEditor");
-		EditorModule.DeactivateEditorMode();
+		OnExitEditorModeInternal(/*bForceExit=*/false);
 	}
 }
 
-bool ULevelInstanceSubsystem::OnExitEditorModeInternal(bool bForceExit)
+FText ULevelInstanceSubsystem::GetToolKitExitToolTip() const
 {
-	if (bIsCommittingLevelInstance || bIsCreatingLevelInstance)
+	if (ILevelInstanceInterface* PropertyOverrideInstance = GetEditingPropertyOverridesLevelInstance())
 	{
-		return false;
+		AActor* Actor = CastChecked<AActor>(PropertyOverrideInstance);
+		return FText::FromString(Actor->GetActorLabel());
+	}
+	else if (ILevelInstanceInterface* EditingLevelInstance = GetEditingLevelInstance())
+	{
+		const TSoftObjectPtr<UWorld> WorldAsset = EditingLevelInstance->GetWorldAsset();
+		return FText::FromString(WorldAsset.GetAssetName());
 	}
 
+	return FText::GetEmpty();
+}
+
+FText ULevelInstanceSubsystem::GetToolKitDisplayText() const
+{
+	if (ILevelInstanceInterface* PropertyOverrideInstance = GetEditingPropertyOverridesLevelInstance())
+	{
+		return LOCTEXT("ExitTooltip", "Exit Property Override Edit");
+	}
+	else if (ILevelInstanceInterface* EditingLevelInstance = GetEditingLevelInstance())
+	{
+		return LOCTEXT("ExitTooltip", "Exit Level Instance Edit");
+	}
+
+	return FText::GetEmpty();
+}
+
+void ULevelInstanceSubsystem::ToolKitExit()
+{
+	const bool bForceExit = false;
+	if (PropertyOverrideEdit)
+	{
+		TryCommitLevelInstancePropertyOverrideEdit(bForceExit);
+	}
+	else if (LevelInstanceEdit)
+	{
+		TryCommitLevelInstanceEdit(bForceExit);
+	}
+}
+
+bool ULevelInstanceSubsystem::TryCommitLevelInstanceEdit(bool bForceExit)
+{
 	if (LevelInstanceEdit)
 	{
 		TGuardValue<bool> CommitScope(bIsCommittingLevelInstance, true);
 		bool bDiscard = false;
-		if (PromptUserForCommit(LevelInstanceEdit.Get(), bDiscard, bForceExit))
+		if (!PromptUserForCommit(LevelInstanceEdit.Get(), bDiscard, bForceExit))
 		{
-			return CommitLevelInstanceInternal(LevelInstanceEdit, bDiscard, /*bDiscardOnFailure=*/bForceExit);
+			return false;
 		}
+
+		return CommitLevelInstanceInternal(LevelInstanceEdit, bDiscard, /*bDiscardOnFailure=*/bForceExit);
 	}
 
-	return false;
+	return true;
+}
+
+bool ULevelInstanceSubsystem::TryCommitLevelInstancePropertyOverrideEdit(bool bForceExit)
+{
+	if (PropertyOverrideEdit)
+	{
+		TGuardValue<bool> CommitScope(bIsCommittingLevelInstance, true);
+		bool bDiscard = false;
+		if (!PromptUserForCommitPropertyOverrides(PropertyOverrideEdit.Get(), bDiscard, bForceExit))
+		{
+			return false;
+		}
+
+		return CommitLevelInstancePropertyOverridesInternal(PropertyOverrideEdit, bDiscard);
+	}
+
+	return true;
+}
+
+void ULevelInstanceSubsystem::OnExitEditorModeInternal(bool bForceExit)
+{
+	if (bIsCommittingLevelInstance || bIsCreatingLevelInstance)
+	{
+		return;
+	}
+
+	if (!TryCommitLevelInstancePropertyOverrideEdit(bForceExit))
+	{
+		return;
+	}
+
+	TryCommitLevelInstanceEdit(bForceExit);
 }
 
 bool ULevelInstanceSubsystem::GetLevelInstanceBounds(const ILevelInstanceInterface* LevelInstance, FBox& OutBounds) const
@@ -1160,17 +1276,40 @@ ULevelStreamingLevelInstanceEditor* ULevelInstanceSubsystem::CreateNewStreamingL
 	return Cast<ULevelStreamingLevelInstanceEditor>(EditorLevelUtils::CreateNewStreamingLevelForWorld(*GetWorld(), CreateNewStreamingLevelParamsCopy));
 }
 
+bool ULevelInstanceSubsystem::CanCreateLevelInstanceFrom(const TArray<AActor*>& ActorsToMove, FText* OutReason)
+{
+	if (ActorsToMove.IsEmpty())
+	{
+		if (OutReason != nullptr)
+		{
+			*OutReason = LOCTEXT("CanCreateLevelInstanceFromEmptyActorArray", "Failed to create Level Instance from actor array");
+		}
+		return false;
+	}
+
+	for (AActor* ActorToMove : ActorsToMove)
+	{
+		if (!CanMoveActorToLevel(ActorToMove, OutReason))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const TArray<AActor*>& ActorsToMove, const FNewLevelInstanceParams& CreationParams)
 {
+	FText Reason;
+	if (!CanCreateLevelInstanceFrom(ActorsToMove, &Reason))
+	{
+		UE_LOG(LogLevelInstance, Warning, TEXT("Failed to create Level Instance : %s"), *Reason.ToString());
+		return nullptr;
+	}
+
 	check(!bIsCreatingLevelInstance);
 	TGuardValue<bool> CreateLevelInstanceGuard(bIsCreatingLevelInstance, true);
 	ULevel* CurrentLevel = GetWorld()->GetCurrentLevel();
-		
-	if (ActorsToMove.Num() == 0)
-	{
-		UE_LOG(LogLevelInstance, Warning, TEXT("Failed to create Level Instance from empty actor array"));
-		return nullptr;
-	}
 	
 	TOptional<const UExternalDataLayerAsset*> CommonExternalDataLayerAsset;
 	FBox ActorLocationBox(ForceInit);
@@ -1185,13 +1324,6 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 			LocalActorLocationBox = FBox({ ActorToMove->GetActorLocation() });
 		}
 		ActorLocationBox += LocalActorLocationBox;
-
-		FText Reason;
-		if (!CanMoveActorToLevel(ActorToMove, &Reason))
-		{
-			UE_LOG(LogLevelInstance, Warning, TEXT("%s"), *Reason.ToString());
-			return nullptr;
-		}
 
 		if (!CommonExternalDataLayerAsset.IsSet())
 		{
@@ -1448,13 +1580,6 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 		FEditorFileUtils::PromptForCheckoutAndSave({ NewLevelInstanceActor->GetPackage() }, /*bCheckDirty*/false, /*bPromptToSave*/false);
 	}
 
-	// EditorLevelUtils::CreateNewStreamingLevelForWorld deactivates all modes. Re-activate if needed
-	if (LevelInstanceEdit)
-	{
-		ILevelInstanceEditorModule& EditorModule = FModuleManager::GetModuleChecked<ILevelInstanceEditorModule>("LevelInstanceEditor");
-		EditorModule.ActivateEditorMode();
-	}
-
 	// After commit, CurrentLevel goes back to world's PersistentLevel. Set it back to the current editing level instance (if any).
 	if (ILevelInstanceInterface* EditingLevelInstance = GetEditingLevelInstance())
 	{
@@ -1464,9 +1589,19 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 	return GetLevelInstance(NewLevelInstanceID);
 }
 
+bool ULevelInstanceSubsystem::CanBreakLevelInstance(const ILevelInstanceInterface* LevelInstance) const
+{
+	return !IsEditingLevelInstance(LevelInstance) && !IsEditingLevelInstancePropertyOverrides(LevelInstance) && !HasParentPropertyOverridesEdit(LevelInstance) && !LevelInstanceHasLevelScriptBlueprint(LevelInstance);
+}
+
 bool ULevelInstanceSubsystem::BreakLevelInstance(ILevelInstanceInterface* LevelInstance, uint32 Levels /* = 1 */,
 	TArray<AActor*>* OutMovedActors /* = nullptr */, ELevelInstanceBreakFlags Flags /* = None */)
 {
+	if (!CanBreakLevelInstance(LevelInstance))
+	{
+		return false;
+	}
+
 	const double StartTime = FPlatformTime::Seconds();
 
 	const uint32 bAvoidRelabelOnPasteSelected = GetMutableDefault<ULevelEditorMiscSettings>()->bAvoidRelabelOnPasteSelected;
@@ -1756,6 +1891,15 @@ bool ULevelInstanceSubsystem::CanMoveActorToLevel(const AActor* Actor, FText* Ou
 				return false;
 			}
 
+			if (IsEditingLevelInstancePropertyOverrides(LevelInstance))
+			{
+				if (OutReason != nullptr)
+				{
+					*OutReason = LOCTEXT("CanMoveActorLevelPropertyOverries", "Can't move Level Instance actor while it is in property override edit");
+				}
+				return false;
+			}
+
 			bool bEditingChildren = false;
 			ForEachLevelInstanceChild(LevelInstance, true, [this, &bEditingChildren](const ILevelInstanceInterface* ChildLevelInstance)
 			{
@@ -1772,6 +1916,18 @@ bool ULevelInstanceSubsystem::CanMoveActorToLevel(const AActor* Actor, FText* Ou
 				if (OutReason != nullptr)
 				{
 					*OutReason = LOCTEXT("CantMoveActorToLevelChildEditing", "Can't move Level Instance actor while one of its child Level Instance is being edited");
+				}
+				return false;
+			}
+		}
+
+		if (ILevelInstanceInterface* ParentLevelInstance = GetParentLevelInstance(Actor))
+		{
+			if (ParentLevelInstance->IsEditingPropertyOverrides())
+			{
+				if (OutReason != nullptr)
+				{
+					*OutReason = LOCTEXT("CanMoveActorToLevelParentPropertyOverrides", "Can't move actor while its parent is in property override edit");
 				}
 				return false;
 			}
@@ -1823,7 +1979,7 @@ void ULevelInstanceSubsystem::OnActorDeleted(AActor* Actor)
 				if (const FLevelInstanceEdit* ChildLevelInstanceEdit = GetLevelInstanceEdit(ChildLevelInstance))
 				{
 					check(!IsLevelInstanceEditDirty(ChildLevelInstanceEdit));
-					ResetEdit(LevelInstanceEdit);
+					LevelInstanceEdit.Reset();
 					return false;
 				}
 				return true;
@@ -1948,6 +2104,16 @@ const ULevelInstanceSubsystem::FLevelInstanceEdit* ULevelInstanceSubsystem::GetL
 	return nullptr;
 }
 
+const ULevelInstanceSubsystem::FPropertyOverrideEdit* ULevelInstanceSubsystem::GetLevelInstancePropertyOverrideEdit(const ILevelInstanceInterface* LevelInstance) const
+{
+	if (LevelInstance && PropertyOverrideEdit && PropertyOverrideEdit->GetLevelInstance() == LevelInstance)
+	{
+		return PropertyOverrideEdit.Get();
+	}
+
+	return nullptr;
+}
+
 bool ULevelInstanceSubsystem::IsEditingLevelInstanceDirty(const ILevelInstanceInterface* LevelInstance) const
 {
 	const FLevelInstanceEdit* CurrentEdit = GetLevelInstanceEdit(LevelInstance);
@@ -2004,7 +2170,35 @@ bool ULevelInstanceSubsystem::PromptUserForCommit(const FLevelInstanceEdit* InLe
 	return true;
 }
 
-bool ULevelInstanceSubsystem::CanEditLevelInstance(const ILevelInstanceInterface* LevelInstance, FText* OutReason) const
+bool ULevelInstanceSubsystem::PromptUserForCommitPropertyOverrides(const FPropertyOverrideEdit* InPropertyOverrideEdit, bool& bOutDiscard, bool bForceCommit) const
+{
+	bOutDiscard = false;
+	// Can commit no pending changes
+	if (!InPropertyOverrideEdit->IsDirty())
+	{
+		return true;
+	}
+
+	// If changes can be discarded prompt user
+	if (CanCommitLevelInstancePropertyOverrides(InPropertyOverrideEdit->GetLevelInstance(), /*bDiscardEdits=*/true))
+	{
+		// if bForceExit we can't cancel the exiting of the mode so the user needs to decide between saving or discarding
+		EAppReturnType::Type Ret = FMessageDialog::Open(
+			bForceCommit ? EAppMsgType::YesNo : EAppMsgType::YesNoCancel, LOCTEXT("CommitOrDiscardPropertyOverrideChangesMsg", "Unsaved Property override changes will get discarded. Do you want to save them now?"),
+			LOCTEXT("CommitOrDiscardPropertyOverrideChangesTitle", "Save changes?"));
+		if (Ret == EAppReturnType::Cancel && !bForceCommit)
+		{
+			return false;
+		}
+
+		bOutDiscard = (Ret != EAppReturnType::Yes);
+	}
+
+	// Can commit but can't discard changes
+	return true;
+}
+
+bool ULevelInstanceSubsystem::CanEditLevelInstanceCommon(const ILevelInstanceInterface* LevelInstance, FText* OutReason) const
 {
 	// Only allow Editing in Editor World
 	if (GetWorld()->WorldType != EWorldType::Editor)
@@ -2012,16 +2206,32 @@ bool ULevelInstanceSubsystem::CanEditLevelInstance(const ILevelInstanceInterface
 		return false;
 	}
 
-	if (LevelInstanceEdit)
+	if (IsEditingLevelInstance(LevelInstance))
 	{
-		if (LevelInstanceEdit->GetLevelInstance() == LevelInstance)
+		if (OutReason)
 		{
-			if (OutReason)
-			{
-				*OutReason = FText::Format(LOCTEXT("CanEditLevelInstanceAlreadyBeingEdited", "Level Instance already being edited ({0})."), FText::FromString(LevelInstance->GetWorldAssetPackage()));
-			}
-			return false;
+			*OutReason = FText::Format(LOCTEXT("CanEditLevelInstanceAlreadyBeingEdited", "Level Instance already being edited ({0})."), FText::FromString(LevelInstance->GetWorldAssetPackage()));
 		}
+		return false;
+	}
+
+	if (IsEditingLevelInstancePropertyOverrides(LevelInstance))
+	{
+		if (OutReason)
+		{
+			*OutReason = FText::Format(LOCTEXT("CanEditLevelInstanceAlreadyBeingEdited", "Level Instance already in property override edit ({0})."), FText::FromString(LevelInstance->GetWorldAssetPackage()));
+		}
+		return false;
+	}
+
+	return true;
+}
+
+bool ULevelInstanceSubsystem::CanEditLevelInstance(const ILevelInstanceInterface* LevelInstance, FText* OutReason) const
+{
+	if (!CanEditLevelInstanceCommon(LevelInstance, OutReason))
+	{
+		return false;
 	}
 	
 	if (LevelInstance->IsWorldAssetValid())
@@ -2071,11 +2281,71 @@ bool ULevelInstanceSubsystem::CanEditLevelInstance(const ILevelInstanceInterface
 	return true;
 }
 
+bool ULevelInstanceSubsystem::CanEditLevelInstancePropertyOverrides(const ILevelInstanceInterface* LevelInstance, FText* OutReason) const
+{
+	if (!CanEditLevelInstanceCommon(LevelInstance, OutReason))
+	{
+		return false;
+	}
+
+	if (!ULevelInstanceSettings::Get()->IsPropertyOverrideEnabled())
+	{
+		if (OutReason)
+		{
+			*OutReason = LOCTEXT("LevelInstanceNoSupportPropertyOverrides", "Level Instance property override feature is not enabled");
+		}
+		return false;
+	}
+
+	if (!LevelInstance->SupportsPropertyOverrides())
+	{
+		if (OutReason)
+		{
+			*OutReason = LOCTEXT("LevelInstanceNoSupportPropertyOverrides", "Level Instance does not support property overrides");
+		}
+		return false;
+	}
+		
+	const ILevelInstanceInterface* TopLevelAncestor = nullptr;
+	bool bAllWorldPartitions = true;
+	ForEachLevelInstanceAncestorsAndSelf(CastChecked<AActor>(LevelInstance), [this, &bAllWorldPartitions, &TopLevelAncestor](const ILevelInstanceInterface* AncestorOrSelf)
+	{
+		// Get the level loaded by this Level Instance
+		ULevel* LoadedLevel = GetLevelInstanceLevel(AncestorOrSelf);
+		// Check that it is World Partitioned
+		bAllWorldPartitions &= LoadedLevel && !!LoadedLevel->GetWorldPartition();
+
+		TopLevelAncestor = AncestorOrSelf;
+		return bAllWorldPartitions;
+	});
+		
+	// If any of the levels in the edit hierarchy are non-partitioned, we can't edit
+	if (!bAllWorldPartitions || !GetWorld()->IsPartitionedWorld())
+	{
+		if (OutReason)
+		{
+			*OutReason = LOCTEXT("LevelInstancePropertyOverridesWorldPartitionOnly", "Property overrides are only supported on world partition level hierarchies");
+		}
+		return false;
+	}
+
+	if (GetWorld()->GetPackage()->HasAnyPackageFlags(PKG_NewlyCreated))
+	{
+		if (OutReason)
+		{
+			*OutReason = LOCTEXT("LevelInstancePropertyOverridesNewlyCreated", "Property overrides are only supported on saved worlds. Please save world first.");
+		}
+		return false;
+	}
+
+	return true;
+}
+
 bool ULevelInstanceSubsystem::CanCommitLevelInstance(const ILevelInstanceInterface* LevelInstance, bool bDiscardEdits, FText* OutReason) const
 {
 	if (const FLevelInstanceEdit* CurrentEdit = GetLevelInstanceEdit(LevelInstance))
 	{
-		return !bDiscardEdits || LevelInstanceEdit->CanDiscard(OutReason);
+		return !bDiscardEdits || CurrentEdit->CanDiscard(OutReason);
 	}
 
 	if (OutReason)
@@ -2085,46 +2355,61 @@ bool ULevelInstanceSubsystem::CanCommitLevelInstance(const ILevelInstanceInterfa
 	return false;
 }
 
+bool ULevelInstanceSubsystem::CanCommitLevelInstancePropertyOverrides(const ILevelInstanceInterface* LevelInstance, bool bDiscardEdits, FText* OutReason) const
+{
+	if (const FPropertyOverrideEdit* CurrentEdit = GetLevelInstancePropertyOverrideEdit(LevelInstance))
+	{
+		return !bDiscardEdits || CurrentEdit->CanDiscard(OutReason);
+	}
+
+	if (OutReason)
+	{
+		*OutReason = LOCTEXT("CanCommitLevelInstanceNotEditing", "Level Instance is not currently in property override edit");
+	}
+	return false;
+}
+
 void ULevelInstanceSubsystem::EditLevelInstance(ILevelInstanceInterface* LevelInstance, TWeakObjectPtr<AActor> ContextActorPtr)
 {
-	if (EditLevelInstanceInternal(LevelInstance, ContextActorPtr, FString(), false))
-	{
-		ILevelInstanceEditorModule& EditorModule = FModuleManager::GetModuleChecked<ILevelInstanceEditorModule>("LevelInstanceEditor");
-		EditorModule.ActivateEditorMode();
-	}
+	EditLevelInstanceInternal(LevelInstance, ContextActorPtr, FString(), false);
 }
 
 bool ULevelInstanceSubsystem::EditLevelInstanceInternal(ILevelInstanceInterface* LevelInstance, TWeakObjectPtr<AActor> ContextActorPtr, const FString& InActorNameToSelect, bool bRecursive)
 {
 	check(CanEditLevelInstance(LevelInstance));
 		
-	// If there is a current edit and it is dirty, offer the user a chance to Save/Discard/Cancel
+	const FLevelInstanceID EditLevelInstanceID = LevelInstance->GetLevelInstanceID();
+
 	bool bDiscard = false;
+	bool bDiscardPropertyOverride = false;
+
+	// If there is a current property override edit and it is dirty, offer the user a chance to Save/Discard/Cancel
+	if (PropertyOverrideEdit && !PromptUserForCommitPropertyOverrides(PropertyOverrideEdit.Get(), bDiscardPropertyOverride))
+	{
+		return false;
+	}
+
+	// If there is a current edit and it is dirty, offer the user a chance to Save/Discard/Cancel
 	if (LevelInstanceEdit && !PromptUserForCommit(LevelInstanceEdit.Get(), bDiscard))
 	{
 		return false;
 	}
 
+	// Once we've promted the user and he accepted, if we do have a PropertyOverride edit, commit it first
+	if (PropertyOverrideEdit && !CommitLevelInstancePropertyOverridesInternal(PropertyOverrideEdit, bDiscardPropertyOverride))
+	{
+		return false;
+	}
+	check(!PropertyOverrideEdit);
+
+	// In case we committed some overrides
+	LevelInstance = GetLevelInstance(EditLevelInstanceID);
+		
 	FScopedSlowTask SlowTask(0, LOCTEXT("BeginEditLevelInstance", "Loading Level Instance for edit..."), !GetWorld()->IsGameWorld());
 	SlowTask.MakeDialog();
 
 	// Gather information from the context actor to try and select something meaningful after the loading
-	FString ActorNameToSelect = InActorNameToSelect;
-	if (AActor* ContextActor = ContextActorPtr.Get())
-	{
-		ActorNameToSelect = ContextActor->GetName();
-		ForEachLevelInstanceAncestorsAndSelf(ContextActor, [&ActorNameToSelect,LevelInstance](const ILevelInstanceInterface* AncestorLevelInstance)
-		{
-			// stop when we hit the LevelInstance we are about to edit
-			if (AncestorLevelInstance == LevelInstance)
-			{
-				return false;
-			}
-			
-			ActorNameToSelect = CastChecked<AActor>(AncestorLevelInstance)->GetName();
-			return true;
-		});
-	}
+	FString ActorNameToSelect = GetActorNameToSelectFromContext(LevelInstance, ContextActorPtr.Get(), InActorNameToSelect);
 
 	// Make sure selection is refreshed (Edit can have impact on details view)
 	GEditor->SelectNone(true, true);
@@ -2150,24 +2435,23 @@ bool ULevelInstanceSubsystem::EditLevelInstanceInternal(ILevelInstanceInterface*
 	{	
 		// Only support one level of recursion to commit current edit
 		check(!bRecursive);
-		FLevelInstanceID PendingEditId = LevelInstance->GetLevelInstanceID();
 
 		// Make sure to keep the top level instance actor loaded when we commit the current one
 		FWorldPartitionReference CurrentEditLevelInstanceActorRef = CurrentEditLevelInstanceActor;
 		
 		CommitLevelInstanceInternal(LevelInstanceEdit, bDiscard);
 
-		ILevelInstanceInterface* LevelInstanceToEdit = GetLevelInstance(PendingEditId);
+		ILevelInstanceInterface* LevelInstanceToEdit = GetLevelInstance(EditLevelInstanceID);
 		check(LevelInstanceToEdit);
 
 		return EditLevelInstanceInternal(LevelInstanceToEdit, nullptr, ActorNameToSelect, /*bRecursive=*/true);
 	}
 
 	// Cleanup async requests in case
-	LevelInstancesToUnload.Remove(LevelInstance->GetLevelInstanceID());
+	LevelInstancesToUnload.Remove(EditLevelInstanceID);
 	LevelInstancesToLoadOrUpdate.Remove(LevelInstance);
 	// Unload right away
-	UnloadLevelInstance(LevelInstance->GetLevelInstanceID());
+	UnloadLevelInstance(EditLevelInstanceID);
 	
 	// When editing a Level Instance, push a new empty actor editor context
 	UActorEditorContextSubsystem::Get()->PushContext();
@@ -2186,24 +2470,13 @@ bool ULevelInstanceSubsystem::EditLevelInstanceInternal(ILevelInstanceInterface*
 	check(LevelInstanceEdit->LevelStreaming == LevelStreaming);
 		
 	// Try and select something meaningful
-	AActor* ActorToSelect = nullptr;
-	if (!ActorNameToSelect.IsEmpty())
-	{		
-		ActorToSelect = FindObject<AActor>(LevelStreaming->GetLoadedLevel(), *ActorNameToSelect);
-	}
-
-	// default to LevelInstance
+	SelectActorFromActorName(LevelInstance, ActorNameToSelect);
+	
 	AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance);
-	if (!ActorToSelect)
-	{
-		ActorToSelect = LevelInstanceActor;
-	}
 	LevelInstanceActor->SetIsTemporarilyHiddenInEditor(false);
 
 	// Notify
 	LevelInstance->OnEdit();
-
-	GEditor->SelectActor(ActorToSelect, true, true);
 
 	for (const auto& Actor : LevelStreaming->LoadedLevel->Actors)
 	{
@@ -2265,16 +2538,13 @@ void ULevelInstanceSubsystem::ResetLoadersForWorldAssetInternal(const FString& W
 
 bool ULevelInstanceSubsystem::CommitLevelInstance(ILevelInstanceInterface* LevelInstance, bool bDiscardEdits, TSet<FName>* DirtyPackages)
 {
-	check(LevelInstanceEdit.Get() == GetLevelInstanceEdit(LevelInstance));
-	check(CanCommitLevelInstance(LevelInstance));
-	if (CommitLevelInstanceInternal(LevelInstanceEdit, bDiscardEdits, /*bDiscardOnFailure=*/false, DirtyPackages))
+	if (GetEditingLevelInstance() == LevelInstance)
 	{
-		ILevelInstanceEditorModule& EditorModule = FModuleManager::GetModuleChecked<ILevelInstanceEditorModule>("LevelInstanceEditor");
-		EditorModule.DeactivateEditorMode();
-
-		return true;
+		check(LevelInstanceEdit.Get() == GetLevelInstanceEdit(LevelInstance));
+		check(CanCommitLevelInstance(LevelInstance));
+		return CommitLevelInstanceInternal(LevelInstanceEdit, bDiscardEdits, /*bDiscardOnFailure=*/false, DirtyPackages);
 	}
-
+	
 	return false;
 }
 
@@ -2292,6 +2562,14 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 		bDiscardEdits = false;
 	}
 
+	// Check if we need to Commit a Property Override Edit before
+	bool bChangesCommitted = false;
+	if (PropertyOverrideEdit)
+	{
+		bChangesCommitted |= CommitLevelInstancePropertyOverridesInternal(PropertyOverrideEdit, bDiscardEdits);
+		check(!PropertyOverrideEdit);
+	}
+		
 	// Build list of Packages to save
 	TSet<FName> PackagesToSave;
 
@@ -2308,9 +2586,15 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	{
 		PackagesToSave.Append(*DirtyPackages);
 	}
-		
+	
+	const FString WorldAssetPackageStr = LevelInstance->GetWorldAssetPackage();
+	const FName WorldAssetPackage(*WorldAssetPackageStr);
+
+	// Backup ID on Commit in case Actor gets recreated
+	const FLevelInstanceID LevelInstanceID = LevelInstance->GetLevelInstanceID();
+
 	// Did some change get saved outside of the commit (regular saving in editor while editing)
-	bool bChangesCommitted = InLevelInstanceEdit->HasCommittedChanges();
+	bChangesCommitted |= InLevelInstanceEdit->HasCommittedChanges();
 	if (PackagesToSave.Num() > 0 && !bDiscardEdits)
 	{
 		const bool bPromptUserToSave = false;
@@ -2345,18 +2629,13 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	// Make sure selection is refreshed (Commit can have impact on details view)
 	GEditor->SelectNone(true, true);
 
-	const FString EditPackage = LevelInstance->GetWorldAssetPackage();
-
 	// Remove from streaming level...
-	ResetEdit(InLevelInstanceEdit);
+	InLevelInstanceEdit.Reset();
 
 	if (bChangesCommitted)
 	{
-		ULevel::ScanLevelAssets(EditPackage);
+		ULevel::ScanLevelAssets(WorldAssetPackageStr);
 	}
-	
-	// Backup ID on Commit in case Actor gets recreated
-	const FLevelInstanceID LevelInstanceID = LevelInstance->GetLevelInstanceID();
 
 	// Notify (Actor might get destroyed by this call if its a packed bp)
 	LevelInstance->OnCommit(bChangesCommitted);
@@ -2365,7 +2644,8 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	LevelInstance = GetLevelInstance(LevelInstanceID);
 
 	// Update Registered Container Bounds
-	UActorDescContainerSubsystem::GetChecked().NotifyContainerUpdated(*LevelInstance->GetWorldAssetPackage());
+	UActorDescContainerSubsystem::GetChecked().NotifyContainerUpdated(WorldAssetPackage);
+
 	
 	TArray<TPair<ULevelInstanceSubsystem*, FLevelInstanceID>> LevelInstancesToUpdate;
 	// Gather list to update
@@ -2376,7 +2656,7 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 		{
 			if (ULevelInstanceSubsystem* LevelInstanceSubsystem = CurrentWorld->GetSubsystem<ULevelInstanceSubsystem>())
 			{
-				TArray<ILevelInstanceInterface*> WorldLevelInstances = LevelInstanceSubsystem->GetLevelInstances(EditPackage);
+				TArray<ILevelInstanceInterface*> WorldLevelInstances = LevelInstanceSubsystem->GetLevelInstances(WorldAssetPackageStr);
 				for (ILevelInstanceInterface* CurrentLevelInstance : WorldLevelInstances)
 				{
 					if (CurrentLevelInstance == LevelInstance || bChangesCommitted)
@@ -2427,7 +2707,7 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	// Send out Event if changes were committed
 	if (bChangesCommitted)
 	{
-		LevelInstanceChangedEvent.Broadcast(FName(*EditPackage));
+		LevelInstanceChangedEvent.Broadcast(WorldAssetPackage);
 	}
 
 	GEngine->BroadcastLevelActorListChanged();
@@ -2494,6 +2774,20 @@ bool ULevelInstanceSubsystem::HasParentEdit(const ILevelInstanceInterface* Level
 	return bResult;
 }
 
+bool ULevelInstanceSubsystem::HasParentPropertyOverridesEdit(const ILevelInstanceInterface* LevelInstance) const
+{
+	bool bResult = false;
+
+	const AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance);
+	ForEachLevelInstanceAncestors(LevelInstanceActor, [LevelInstance, &bResult](const ILevelInstanceInterface* Ancestor)
+	{
+		bResult = Ancestor->IsEditingPropertyOverrides();
+		return !bResult;
+	});
+
+	return bResult;
+}
+
 void ULevelInstanceSubsystem::OnCommitChild(const FLevelInstanceID& LevelInstanceID, bool bChildChanged)
 {
 	int32& ChildEditCount = ChildEdits.FindChecked(LevelInstanceID);
@@ -2520,12 +2814,26 @@ void ULevelInstanceSubsystem::OnEditChild(const FLevelInstanceID& LevelInstanceI
 	}
 }
 
-TArray<ILevelInstanceInterface*> ULevelInstanceSubsystem::GetLevelInstances(const FString& WorldAssetPackage)
+TArray<ILevelInstanceInterface*> ULevelInstanceSubsystem::GetLevelInstances(const FString& WorldAssetPackage) const
 {
 	TArray<ILevelInstanceInterface*> MatchingLevelInstances;
 	for (const auto& KeyValuePair : RegisteredLevelInstances)
 	{
 		if (KeyValuePair.Value->GetWorldAssetPackage() == WorldAssetPackage)
+		{
+			MatchingLevelInstances.Add(KeyValuePair.Value);
+		}
+	}
+
+	return MatchingLevelInstances;
+}
+
+TArray<ILevelInstanceInterface*> ULevelInstanceSubsystem::GetLevelInstances(const TSoftObjectPtr<ULevelInstancePropertyOverrideAsset>& PropertyOverrideAsset) const
+{
+	TArray<ILevelInstanceInterface*> MatchingLevelInstances;
+	for (const auto& KeyValuePair : RegisteredLevelInstances)
+	{
+		if (ULevelInstancePropertyOverrideAsset* PropertyOverride = KeyValuePair.Value->GetPropertyOverrideAsset(); PropertyOverride && PropertyOverride->GetSourceAssetPtr() == PropertyOverrideAsset)
 		{
 			MatchingLevelInstances.Add(KeyValuePair.Value);
 		}
@@ -2604,6 +2912,408 @@ bool ULevelInstanceSubsystem::PassLevelInstanceFilter(UWorld* World, const FWorl
 		}
 	}
 	
+	return true;
+}
+
+void ULevelInstanceSubsystem::EditLevelInstancePropertyOverrides(ILevelInstanceInterface* LevelInstance, AActor* ContextActor)
+{
+	if (!CanEditLevelInstancePropertyOverrides(LevelInstance))
+	{
+		return;
+	}
+
+	const FLevelInstanceID LevelInstanceID = LevelInstance->GetLevelInstanceID();
+
+	bool bDiscard = false;
+	bool bCommitEdit = false;
+	// Not in same hierarchy, prompt user to commit edit first
+	if (LevelInstanceEdit && !LevelInstance->HasParentEdit())
+	{
+		if (!PromptUserForCommit(LevelInstanceEdit.Get(), bDiscard))
+		{
+			return;
+		}
+		// Edit isn't our parent so commit it
+		bCommitEdit = true;
+	}
+
+	// Gather information from the context actor to try and select something meaningful after the loading
+	FString ActorNameToSelect = GetActorNameToSelectFromContext(LevelInstance, ContextActor);
+
+	bool bDiscardPropertyOverride = false;
+	if (PropertyOverrideEdit && !PromptUserForCommitPropertyOverrides(PropertyOverrideEdit.Get(), bDiscardPropertyOverride))
+	{
+		return;
+	}
+
+	if (PropertyOverrideEdit && !CommitLevelInstancePropertyOverridesInternal(PropertyOverrideEdit, bDiscardPropertyOverride))
+	{
+		return;
+	}
+
+	if (bCommitEdit && LevelInstanceEdit && !CommitLevelInstanceInternal(LevelInstanceEdit, bDiscard))
+	{
+		return;
+	}
+
+	// Make sure selection is refreshed (Edit can have impact on details view)
+	GEditor->SelectNone(true, true);
+
+	// Cleanup async requests in case
+	LevelInstancesToUnload.Remove(LevelInstanceID);
+	LevelInstancesToLoadOrUpdate.Remove(GetLevelInstance(LevelInstanceID));
+	// Unload right away
+	UnloadLevelInstance(LevelInstanceID);
+
+	// When editing a Level Instance, push a new empty actor editor context
+	UActorEditorContextSubsystem::Get()->PushContext();
+
+	// Load Edit LevelInstance level
+	ULevelStreamingLevelInstanceEditorPropertyOverride::Load(GetLevelInstance(LevelInstanceID));
+
+	// Select Context Actor
+	SelectActorFromActorName(GetLevelInstance(LevelInstanceID), ActorNameToSelect);
+}
+
+bool ULevelInstanceSubsystem::CanResetPropertyOverridesForActor(AActor* Actor) const
+{
+	// Resetting individual Actor overrides requires that we are currently in Property Override Edit
+	if (!PropertyOverrideEdit)
+	{
+		return false;
+	}
+
+	// And that the Actor's parent level instance is the current property override edit
+	ILevelInstanceInterface* ParentLevelInstance = GetParentLevelInstance(Actor);
+	if (ParentLevelInstance != PropertyOverrideEdit->GetLevelInstance())
+	{
+		return false;
+	}
+
+	return true;
+}
+
+void ULevelInstanceSubsystem::ResetPropertyOverridesForActor(AActor* Actor)
+{
+	if (!CanResetPropertyOverridesForActor(Actor))
+	{
+		return;
+	}
+	PropertyOverrideEdit->GetLevelInstance()->GetPropertyOverrideAsset()->ResetPropertyOverridesForActor(PropertyOverrideEdit->LevelStreaming, Actor);
+}
+
+bool ULevelInstanceSubsystem::IsEditingLevelInstancePropertyOverrides(const ILevelInstanceInterface* LevelInstance) const
+{
+	return PropertyOverrideEdit && PropertyOverrideEdit->GetLevelInstance() == LevelInstance;
+}
+
+bool ULevelInstanceSubsystem::CommitLevelInstancePropertyOverrides(ILevelInstanceInterface* LevelInstance, bool bDiscardEdits)
+{
+	if (GetEditingPropertyOverridesLevelInstance() == LevelInstance)
+	{
+		check(PropertyOverrideEdit.Get() == GetLevelInstancePropertyOverrideEdit(LevelInstance));
+		check(CanCommitLevelInstancePropertyOverrides(LevelInstance));
+		return CommitLevelInstancePropertyOverridesInternal(PropertyOverrideEdit, bDiscardEdits);
+	}
+
+	return false;
+}
+
+bool ULevelInstanceSubsystem::CommitLevelInstancePropertyOverridesInternal(TUniquePtr<FPropertyOverrideEdit>& InPropertyOverrideEdit, bool bDiscardEdits)
+{
+	ILevelInstanceInterface* LevelInstance = InPropertyOverrideEdit->GetLevelInstance();
+	ILevelInstanceInterface* LevelInstanceWithOverrides = GetLevelInstancePropertyOverridesEditOwner(LevelInstance);
+	TSoftObjectPtr<ULevelInstancePropertyOverrideAsset> PreviousOverrideAsset = LevelInstanceWithOverrides->GetPropertyOverrideAsset() ? LevelInstanceWithOverrides->GetPropertyOverrideAsset()->GetSourceAssetPtr() : nullptr;
+
+	bool bSaved = false;
+	if (InPropertyOverrideEdit->IsDirty() && !bDiscardEdits)
+	{
+		bSaved = InPropertyOverrideEdit->Save(LevelInstanceWithOverrides);
+	}
+
+	// Make sure selection is refreshed (Commit can have impact on details view)
+	GEditor->SelectNone(true, true);
+
+	// Restore actor editor context
+	UActorEditorContextSubsystem::Get()->PopContext();
+		
+	InPropertyOverrideEdit.Reset();
+
+	// Update Level Instance (saved or not it needs to reload)
+	LevelInstanceWithOverrides->UpdateLevelInstanceFromWorldAsset();
+
+	// If it was saved reload other affected level instances
+	if (bSaved)
+	{
+		UpdateLevelInstancesFromPropertyOverrideAsset(PreviousOverrideAsset, LevelInstanceWithOverrides->GetPropertyOverrideAsset());
+	}
+
+	BlockOnLoading();
+			
+	return true;
+}
+
+bool ULevelInstanceSubsystem::CanResetPropertyOverrides(ILevelInstanceInterface* LevelInstance) const
+{
+	// Don't allow reset of the level instances property overrides if there is a current Property Override Edit in progress
+	if (PropertyOverrideEdit)
+	{
+		return false;
+	}
+
+	if (!LevelInstance->GetPropertyOverrideAsset())
+	{
+		return false;
+	}
+		
+	// Allow reset of the overrides if this level instance is not parented or if it's parent is currently in edit
+	ILevelInstanceInterface* ParentLevelInstance = GetParentLevelInstance(CastChecked<AActor>(LevelInstance));
+	return !ParentLevelInstance || ParentLevelInstance->IsEditing();
+}
+
+void ULevelInstanceSubsystem::ResetPropertyOverrides(ILevelInstanceInterface* LevelInstance)
+{
+	if (!CanResetPropertyOverrides(LevelInstance))
+	{
+		return;
+	}
+
+	const TSoftObjectPtr<ULevelInstancePropertyOverrideAsset> AssetPath = LevelInstance->GetPropertyOverrideAsset()->GetSourceAssetPtr();
+	ULevelInstancePropertyOverrideAsset* PropertyOverrideAsset = LevelInstance->GetPropertyOverrideAsset();
+	
+	AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance);
+	const bool bWasDirty = LevelInstanceActor->GetPackage()->IsDirty();
+
+	LevelInstance->SetPropertyOverrideAsset(nullptr);
+
+	if (FEditorFileUtils::PromptForCheckoutAndSave({ LevelInstanceActor->GetPackage() }, /*bCheckDirty*/false, /*bPromptToSave*/false) != FEditorFileUtils::PR_Success)
+	{
+		LevelInstance->SetPropertyOverrideAsset(PropertyOverrideAsset);
+		LevelInstanceActor->GetPackage()->SetDirtyFlag(bWasDirty);
+		return;
+	}
+
+	LevelInstance->UpdateLevelInstanceFromWorldAsset();
+	UpdateLevelInstancesFromPropertyOverrideAsset(AssetPath, nullptr);
+	BlockOnLoading();
+	
+	// Make sure selection is refreshed (Reset can have impact on details view)
+	GEditor->SelectNone(true, true);
+}
+
+void ULevelInstanceSubsystem::UpdateLevelInstancesFromPropertyOverrideAsset(const TSoftObjectPtr<ULevelInstancePropertyOverrideAsset>& PreviousAssetPath, ULevelInstancePropertyOverrideAsset* NewAsset)
+{
+	if (PreviousAssetPath.IsNull())
+	{
+		return;
+	}
+
+	TArray<TPair<ULevelInstanceSubsystem*, FLevelInstanceID>> LevelInstancesToUpdate;
+	// Gather list to update
+	for (TObjectIterator<UWorld> It(RF_ClassDefaultObject | RF_ArchetypeObject, true); It; ++It)
+	{
+		UWorld* CurrentWorld = *It;
+		if (IsValid(CurrentWorld))
+		{
+			if (ULevelInstanceSubsystem* LevelInstanceSubsystem = CurrentWorld->GetSubsystem<ULevelInstanceSubsystem>())
+			{
+				TArray<ILevelInstanceInterface*> WorldLevelInstances = LevelInstanceSubsystem->GetLevelInstances(PreviousAssetPath);
+				for (ILevelInstanceInterface* CurrentLevelInstance : WorldLevelInstances)
+				{
+					AActor* CurrentActor = CastChecked<AActor>(CurrentLevelInstance);
+
+					// We are updating a instanced property override so we need to patchup the other instance's property override assets so that reload can be done properly
+					ULevelInstancePropertyOverrideAsset* CurrentAsset = CurrentLevelInstance->GetPropertyOverrideAsset();
+					check(CurrentAsset && CurrentAsset->GetSourceAssetPtr() == PreviousAssetPath);
+
+					// This is always the case for now but check anyways in case we do end up supporting public override assets
+					// Public assets wouldn't need to be patched up
+					if (CurrentAsset->IsInOuter(CurrentActor))
+					{
+						// If there is a new property override duplicate it into the level instance
+						ULevelInstancePropertyOverrideAsset* NewAssetCopy = nullptr;
+						if (NewAsset)
+						{	
+							NewAssetCopy = CastChecked<ULevelInstancePropertyOverrideAsset>(StaticDuplicateObject(NewAsset, CurrentActor, NewAsset->GetFName(), CurrentActor->GetFlags()));
+						}
+						// Set new duplicated asset or nullptr
+						CurrentLevelInstance->SetPropertyOverrideAsset(NewAssetCopy);
+					}
+
+					// Request update for level instance now that its property override asset has been patched up
+					LevelInstancesToUpdate.Add({ LevelInstanceSubsystem, CurrentLevelInstance->GetLevelInstanceID() });
+				}
+			}
+		}
+	}
+
+	// Do update
+	for (const auto& KeyValuePair : LevelInstancesToUpdate)
+	{
+		if (ILevelInstanceInterface* LevelInstanceToUpdate = KeyValuePair.Key->GetLevelInstance(KeyValuePair.Value))
+		{
+			LevelInstanceToUpdate->UpdateLevelInstanceFromWorldAsset();
+		}
+	}
+}
+
+ILevelInstanceInterface* ULevelInstanceSubsystem::GetEditingPropertyOverridesLevelInstance() const
+{
+	if (PropertyOverrideEdit)
+	{
+		return PropertyOverrideEdit->GetLevelInstance();
+	}
+
+	return nullptr;
+}
+
+FActorContainerID ULevelInstanceSubsystem::GetLevelInstancePropertyOverridesContext(ILevelInstanceInterface* LevelInstance) const
+{
+	// Default to Main container
+	FActorContainerID Context;
+	check(Context.IsMainContainer());
+
+	// Return the top level ContainerID for which we want to apply properties from.
+	// By default we apply everything (main container) but if an ancestor is being edited we want to apply up to the edited ancestor (same as opening that ancestor level)
+	ForEachLevelInstanceAncestors(CastChecked<AActor>(LevelInstance), [&Context](ILevelInstanceInterface* Ancestor)
+	{
+		// If Ancestor of current LevelInstanceOverrideEditOwner is being edited then we stop because we've found the override owner
+		if (Ancestor->IsEditing())
+		{
+			Context = Ancestor->GetLevelInstanceID().GetContainerID();
+			return false;
+		}
+		return true;
+	});
+
+	return Context;
+}
+
+ILevelInstanceInterface* ULevelInstanceSubsystem::GetLevelInstancePropertyOverridesEditOwner(ILevelInstanceInterface* LevelInstance) const
+{
+	ILevelInstanceInterface* LevelInstanceOverrideEditOwner = LevelInstance;
+
+	// Find where to save the overrides
+	ForEachLevelInstanceAncestorsAndSelf(CastChecked<AActor>(LevelInstance), [&LevelInstanceOverrideEditOwner](ILevelInstanceInterface* Ancestor)
+	{
+		// If Ancestor of current LevelInstanceOverrideEditOwner is being edited then we stop because we've found the override owner
+		if (Ancestor->IsEditing())
+		{
+			return false;
+		}
+
+		LevelInstanceOverrideEditOwner = Ancestor;
+		return true;
+	});
+
+	return LevelInstanceOverrideEditOwner;
+}
+
+const ILevelInstanceInterface* ULevelInstanceSubsystem::GetLevelInstancePropertyOverridesEditOwner(const ILevelInstanceInterface* LevelInstance) const
+{
+	return GetLevelInstancePropertyOverridesEditOwner(const_cast<ILevelInstanceInterface*>(LevelInstance));
+}
+
+bool ULevelInstanceSubsystem::GetLevelInstancePropertyOverridesForActor(const AActor* Actor, FActorContainerID PropertyOverrideContext, TArray<const FActorPropertyOverride*>& OutPropertyOverrides) const
+{
+	if (ILevelInstanceInterface* OwningLevelInstance = GetParentLevelInstance(Actor))
+	{
+		if (ULevel* Level = GetLevelInstanceLevel(OwningLevelInstance))
+		{
+			if (UWorldPartition* WorldPartition = Level->GetWorldPartition())
+			{
+				if (ULevelInstanceContainerInstance* LevelInstanceContainerInstance = Cast<ULevelInstanceContainerInstance>(WorldPartition->FActorDescContainerInstanceCollection::GetActorDescContainerInstance(Actor->GetActorGuid())))
+				{
+					LevelInstanceContainerInstance->GetPropertyOverridesForActor(OwningLevelInstance->GetLevelInstanceID().GetContainerID(), PropertyOverrideContext, Actor->GetActorGuid(), OutPropertyOverrides);
+					return !OutPropertyOverrides.IsEmpty();
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+ULevelInstanceSubsystem::FPropertyOverrideEdit::FPropertyOverrideEdit(ULevelStreamingLevelInstanceEditorPropertyOverride* InLevelStreaming)
+	: LevelStreaming(InLevelStreaming)
+{
+}
+
+ULevelInstanceSubsystem::FPropertyOverrideEdit::~FPropertyOverrideEdit()
+{
+	ULevelStreamingLevelInstanceEditorPropertyOverride::Unload(LevelStreaming);
+}
+
+ILevelInstanceInterface* ULevelInstanceSubsystem::FPropertyOverrideEdit::GetLevelInstance() const
+{
+	return LevelStreaming->GetLevelInstance();
+}
+
+
+void ULevelInstanceSubsystem::RegisterLoadedLevelStreamingPropertyOverride(ULevelStreamingLevelInstanceEditorPropertyOverride* LevelStreaming)
+{
+	check(!PropertyOverrideEdit.IsValid());
+	PropertyOverrideEdit = MakeUnique<FPropertyOverrideEdit>(LevelStreaming);
+}
+
+bool ULevelInstanceSubsystem::FPropertyOverrideEdit::IsDirty() const
+{
+	if (ULevel* LoadedLevel = LevelStreaming->GetLoadedLevel())
+	{
+		for (AActor* Actor : LoadedLevel->Actors)
+		{
+			if (IsValid(Actor) && Actor->GetPackage()->IsDirty())
+			{
+				return true;
+			}
+		}
+	}
+	
+	return false;
+}
+
+bool ULevelInstanceSubsystem::FPropertyOverrideEdit::Save(ILevelInstanceInterface* LevelInstanceOverrideOwner) const
+{
+	check(LevelInstanceOverrideOwner);
+			
+	AActor* OverrideOwnerActor = CastChecked<AActor>(LevelInstanceOverrideOwner);
+	check(OverrideOwnerActor->IsPackageExternal());
+	const bool bWasDirty = OverrideOwnerActor->GetPackage()->IsDirty();
+
+	// Create a unique name so that we can update other instances and be sure that their patched PropertyOverrides can have same name
+	const FGuid PropertyOverrideGuid = FGuid::NewGuid();
+	const FName PropertyOverrideName(*FString::Format(TEXT("PropertyOverride_{0}"), { PropertyOverrideGuid.ToString() }));
+	
+	ULevelInstancePropertyOverrideAsset* NewPropertyOverride = nullptr;
+	ULevelInstancePropertyOverrideAsset* ExistingPropertyOverride = LevelInstanceOverrideOwner->GetPropertyOverrideAsset();
+	if (ExistingPropertyOverride)
+	{
+		// Duplicate previous override object as it contains the overrides that we aren't currently editing that we don't want to lose
+		NewPropertyOverride = CastChecked<ULevelInstancePropertyOverrideAsset>(StaticDuplicateObject(ExistingPropertyOverride, OverrideOwnerActor, PropertyOverrideName, OverrideOwnerActor->GetFlags()));
+	}
+	else
+	{
+		NewPropertyOverride = NewObject<ULevelInstancePropertyOverrideAsset>(OverrideOwnerActor, PropertyOverrideName, OverrideOwnerActor->GetFlags());
+		NewPropertyOverride->Initialize(LevelInstanceOverrideOwner->GetWorldAsset());
+	}
+	check(NewPropertyOverride->GetWorldAsset() == LevelInstanceOverrideOwner->GetWorldAsset());
+			
+	// Serialize current edit overrides
+	NewPropertyOverride->SerializePropertyOverrides(LevelInstanceOverrideOwner, LevelStreaming);
+			
+	// Set new property override before saving
+	LevelInstanceOverrideOwner->SetPropertyOverrideAsset(NewPropertyOverride);
+
+	// This will be used when initializing the ActorDesc to distinguish between saving the LevelInstance actor normally or through Property override save
+	TGuardValue<bool> SavingGuard(NewPropertyOverride->bSavingOverrideEdit, true);
+	if (FEditorFileUtils::PromptForCheckoutAndSave({ OverrideOwnerActor->GetPackage() }, /*bCheckDirty*/false, /*bPromptToSave*/false) != FEditorFileUtils::PR_Success)
+	{
+		// Save failed, set property override to previous (could be null)
+		LevelInstanceOverrideOwner->SetPropertyOverrideAsset(ExistingPropertyOverride);
+		OverrideOwnerActor->GetPackage()->SetDirtyFlag(bWasDirty);
+		return false;
+	}	
+
 	return true;
 }
 

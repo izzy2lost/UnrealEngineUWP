@@ -31,6 +31,13 @@ struct FWorldPartitionActorDescUtils
 	 */
 	static ENGINE_API UClass* GetActorNativeClassFromAssetData(const FAssetData& InAssetData);
 
+	/**
+	 * Retrieve the actor's native class from the string.
+	 * @param InClassPath	The class path to resolve.
+	 * @return				The actor's native class.
+	 */
+	static ENGINE_API UClass* GetActorNativeClassFromString(const FString& InClassPath);
+
 	/** 
 	 * Creates a valid actor descriptor from the provided asset data.
 	 * @param InAssetData	The asset data to look into.

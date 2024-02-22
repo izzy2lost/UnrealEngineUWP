@@ -139,31 +139,50 @@ bool ULevelInstanceEditorMode::IsSelectionDisallowed(AActor* InActor, bool bInSe
 	if (bRestrict)
 	{
 		check(World);
-		if (ILevelInstanceInterface* LevelInstance = Cast<ILevelInstanceInterface>(InActor))
+		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(World))
 		{
-			if (LevelInstance->IsEditing())
-			{
-				return false;
-			}
-		}
+			const ILevelInstanceInterface* PropertyOverrideLevelInstance = LevelInstanceSubsystem->GetEditingPropertyOverridesLevelInstance();
+			const ILevelInstanceInterface* EditLevelInstance = LevelInstanceSubsystem->GetEditingLevelInstance();
 
-		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = World->GetSubsystem<ULevelInstanceSubsystem>())
-		{
-			ILevelInstanceInterface* EditingLevelInstance = LevelInstanceSubsystem->GetEditingLevelInstance();
-			ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(InActor);
-			// Allow selection on actors that are part of the currently edited Level Instance hierarchy because AActor::GetRootSelectionParent() will eventually
-			// Bubble up the selection to its parent.
-			while (LevelInstance != nullptr)
+			if (ILevelInstanceInterface* LevelInstance = Cast<ILevelInstanceInterface>(InActor))
 			{
-				if (LevelInstance == EditingLevelInstance)
+				// If Actor is itself a Level Instance and is one of the edits, allow selection
+				if (LevelInstance == PropertyOverrideLevelInstance || LevelInstance == EditLevelInstance)
 				{
 					return false;
 				}
-
-				LevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(CastChecked<AActor>(LevelInstance));
 			}
 
-			return EditingLevelInstance != nullptr;
+			const ILevelInstanceInterface* ParentLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(InActor);
+						
+			auto IsAncestorOrSelf = [LevelInstanceSubsystem](const ILevelInstanceInterface* LevelInstance, const ILevelInstanceInterface* Ancestor)
+			{
+				while (LevelInstance != nullptr)
+				{
+					if (LevelInstance == Ancestor)
+					{
+						return true;
+					}
+
+					LevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(CastChecked<AActor>(LevelInstance));
+				}
+
+				return false;
+			};
+
+			// If we have a PropertyOverride Edit in progress, actor can be selected if it is part of the PropertyOverrides hierarchy
+			if (PropertyOverrideLevelInstance)
+			{
+				return !IsAncestorOrSelf(ParentLevelInstance, PropertyOverrideLevelInstance);
+			}
+
+			// If we have a Edit in progress, actor can be selected if it is part of the Edit hierarchy
+			if (EditLevelInstance)
+			{
+				return !IsAncestorOrSelf(ParentLevelInstance, EditLevelInstance);
+			}
+
+			return false;
 		}
 	}
 
@@ -200,7 +219,12 @@ bool ULevelInstanceEditorMode::IsContextRestrictedForWorld(UWorld* InWorld) cons
 {
 	if (ULevelInstanceSubsystem* LevelInstanceSubsystem = InWorld? InWorld->GetSubsystem<ULevelInstanceSubsystem>() : nullptr)
 	{
-		if (ILevelInstanceInterface* EditingLevelInstance = LevelInstanceSubsystem->GetEditingLevelInstance())
+		if (ILevelInstanceInterface* EditingPropertyOverrides = LevelInstanceSubsystem->GetEditingPropertyOverridesLevelInstance())
+		{
+			// Always restrict outside selection while editing property overrides
+			return true;
+		}
+		else if (ILevelInstanceInterface* EditingLevelInstance = LevelInstanceSubsystem->GetEditingLevelInstance())
 		{
 			return bContextRestriction && LevelInstanceSubsystem->GetLevelInstanceLevel(EditingLevelInstance) == InWorld->GetCurrentLevel();
 		}

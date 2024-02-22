@@ -36,6 +36,8 @@
 #if WITH_EDITOR
 #include "Editor.h"
 #include "LevelEditorViewport.h"
+#include "LevelUtils.h"
+#include "WorldPartition/WorldPartitionPropertyOverride.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionSubsystem)
@@ -1024,6 +1026,25 @@ void UWorldPartitionSubsystem::UpdateStreamingState()
 	SCOPE_CYCLE_COUNTER(STAT_WorldPartitionUpdateStreaming);
 
 	UWorldPartitionSubsystem::UpdateStreamingStateInternal(GetWorld());
+}
+
+void UWorldPartitionSubsystem::OnWorldComponentsUpdated(UWorld& World)
+{
+	Super::OnWorldComponentsUpdated(World);
+
+#if WITH_EDITOR
+	// While Cooking Cells will get initialized for Save and UpdateWorldComponents will get called rerunning ConstructionScripts, we then want to apply Post Construction Script Overrides on Actors
+	if (IsRunningCookCommandlet())
+	{
+		for (AActor* Actor : World.PersistentLevel->Actors)
+		{
+			if (IsValid(Actor))
+			{
+				FWorldPartitionLevelHelper::ApplyConstructionScriptPropertyOverridesFromAnnotation(Actor);
+			}
+		}
+	}
+#endif
 }
 
 bool UWorldPartitionSubsystem::IncrementalUpdateStreamingState()

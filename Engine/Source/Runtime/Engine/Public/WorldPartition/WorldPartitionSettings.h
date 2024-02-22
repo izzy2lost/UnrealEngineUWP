@@ -5,6 +5,8 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartitionSettings.generated.h"
 
+class UWorldPartitionPropertyOverridePolicy;
+
 UCLASS(config = Engine, defaultconfig, DisplayName = "World Partition")
 class ENGINE_API UWorldPartitionSettings : public UDeveloperSettings
 {
@@ -22,7 +24,17 @@ public:
 	TSubclassOf<UWorldPartitionEditorHash> GetEditorHashDefaultClass() const { return EditorHashDefaultClass; }
 	TSubclassOf<UWorldPartitionRuntimeHash> GetRuntimeHashDefaultClass() const { return RuntimeHashDefaultClass; }
 
+	UWorldPartitionPropertyOverridePolicy* GetPropertyOverridePolicy() const
+	{
+		return PropertyOverridePolicy;
+	}
 protected:
+	friend class ULevelInstanceSettings;
+	void SetPropertyOverridePolicy(UWorldPartitionPropertyOverridePolicy* InPropertyOverridePolicy)
+	{
+		PropertyOverridePolicy = InPropertyOverridePolicy;
+	}
+	
 	/** Set the default logical operator for actor data layers activation for new maps */
 	UPROPERTY(EditAnywhere, Config, Category = WorldPartition)
 	EWorldPartitionDataLayersLogicOperator NewMapsDataLayersLogicOperator = EWorldPartitionDataLayersLogicOperator::Or;
@@ -42,4 +54,7 @@ protected:
 	/** Set the default runtime hash class to use for new maps  */
 	UPROPERTY(EditAnywhere, Config, NoClear, Category = WorldPartition)
 	TSubclassOf<UWorldPartitionRuntimeHash> RuntimeHashDefaultClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UWorldPartitionPropertyOverridePolicy> PropertyOverridePolicy;
 };

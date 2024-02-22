@@ -97,6 +97,9 @@ public:
 	DECLARE_EVENT_OneParam(UActorDescContainerInstance, FActorDescInstanceUpdatedEvent, FWorldPartitionActorDescInstance*);
 	FActorDescInstanceUpdatedEvent OnActorDescInstanceUpdatedEvent;
 
+	DECLARE_EVENT_OneParam(UActorDescContainerInstance, FActorReplacedEvent, FWorldPartitionActorDescInstance*);
+	FActorReplacedEvent OnActorReplacedEvent;
+
 	ENGINE_API virtual void Initialize(const FInitializeParams& InParams);
 	ENGINE_API bool IsInitialized() const { return bIsInitialized; }
 	ENGINE_API virtual void Uninitialize();
@@ -116,6 +119,8 @@ public:
 	ENGINE_API FString GetExternalActorPath() const;
 	ENGINE_API FString GetExternalObjectPath() const;
 		
+	ENGINE_API virtual void GetPropertyOverridesForActor(const FActorContainerID& InContainerID, const FGuid& InActorGuid, TArray<FWorldPartitionRuntimeCellPropertyOverride>& OutPropertyOverrides) const {}
+
 	ENGINE_API TUniquePtr<FWorldPartitionActorDescInstance>* GetActorDescInstancePtr(const FGuid& InActorGuid) const;
 	ENGINE_API FWorldPartitionActorDescInstance* GetActorDescInstance(const FGuid& InActorGuid) const;
 	ENGINE_API FWorldPartitionActorDescInstance& GetActorDescInstanceChecked(const FGuid& InActorGuid) const;
@@ -135,6 +140,7 @@ public:
 
 	ENGINE_API const TMap<FGuid, TObjectPtr<UActorDescContainerInstance>>& GetChildContainerInstances() const { return ChildContainerInstances; }
 		
+	const UActorDescContainerInstance* GetParentContainerInstance() const { return ParentContainerInstance.Get(); }
 protected:
 	virtual void RegisterContainer(const FInitializeParams& InParams);
 	virtual void UnregisterContainer();
@@ -143,8 +149,8 @@ protected:
 	virtual FWorldPartitionActorDesc* GetActorDesc(const FGuid& InActorGuid) const;
 	virtual FWorldPartitionActorDesc* GetActorDescChecked(const FGuid& InActorGuid) const;
 
+	virtual FWorldPartitionActorDescInstance CreateActorDescInstance(FWorldPartitionActorDesc* InActorDesc) { return FWorldPartitionActorDescInstance(this, InActorDesc); }
 private:
-	void OnContainerUpdated(FName ContainerPackage);
 	void OnContainerReplaced(UActorDescContainer* InOldContainer, UActorDescContainer* InNewContainer);
 	void SetContainerPackage(FName InContainerPackageName);
 		
@@ -171,7 +177,7 @@ private:
 	friend class UGameFeatureActionConvertContentBundleWorldPartitionBuilder;
 #endif
 
-private:
+protected:
 #if WITH_EDITORONLY_DATA
 	FSoftObjectPath												WorldContainerPath;
 	FSoftObjectPath												SourceWorldContainerPath;
@@ -180,6 +186,7 @@ private:
 	FActorContainerID											ContainerID;
 	FGuid														ContainerActorGuid;
 	TOptional<FTransform>										Transform;
+	TWeakObjectPtr<const UActorDescContainerInstance>			ParentContainerInstance;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UActorDescContainer>								Container;

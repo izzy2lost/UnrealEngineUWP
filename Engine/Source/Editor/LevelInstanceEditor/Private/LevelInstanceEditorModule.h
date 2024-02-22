@@ -3,6 +3,8 @@
 
 #include "CoreMinimal.h"
 #include "LevelInstance/ILevelInstanceEditorModule.h"
+#include "PropertyEditorArchetypePolicy.h"
+#include "PropertyEditorEditConstPolicy.h"
 #include "Tools/Modes.h"
 
 class AActor;
@@ -27,9 +29,6 @@ public:
 	 */
 	virtual void ShutdownModule();
 
-	virtual void ActivateEditorMode() override;
-	virtual void DeactivateEditorMode() override;
-		
 	virtual void BroadcastTryExitEditorMode() override;
 
 	DECLARE_DERIVED_EVENT(FLevelInstanceEditorModule, ILevelInstanceEditorModule::FExitEditorModeEvent, FExitEditorModeEvent);
@@ -41,12 +40,76 @@ public:
 	virtual bool IsEditInPlaceStreamingEnabled() const override;
 
 private:
+	virtual void UpdateEditorMode(bool bActivated) override;
+	
 	void OnEditorModeIDChanged(const FEditorModeID& InModeID, bool bIsEnteringMode);
 	void OnLevelActorDeleted(AActor* Actor);
 	void CanMoveActorToLevel(const AActor* ActorToMove, const ULevel* DestLevel, bool& bOutCanMove);
 
 	void ExtendContextMenu();
+		
+	class FPropertyEditorPolicy : public PropertyEditorPolicy::IEditConstPolicy, 
+								  public PropertyEditorPolicy::IArchetypePolicy
+	{
+	public:
+		FPropertyEditorPolicy(ILevelInstanceEditorModule::IPropertyOverridePolicy* InPropertyOverridePolicy)
+			: PropertyOverridePolicy(InPropertyOverridePolicy)
+		{
+			check(PropertyOverridePolicy);
+			PropertyEditorPolicy::RegisterEditConstPolicy(this);
+			PropertyEditorPolicy::RegisterArchetypePolicy(this);
+		}
 
+		virtual ~FPropertyEditorPolicy()
+		{
+			PropertyEditorPolicy::UnregisterEditConstPolicy(this);
+			PropertyEditorPolicy::UnregisterArchetypePolicy(this);
+		}
+
+		virtual UObject* GetArchetypeForObject(const UObject* Object) const override
+		{
+			return PropertyOverridePolicy->GetArchetypeForObject(Object);
+		}
+
+		virtual bool CanEditProperty(const FEditPropertyChain& PropertyChain, const UObject* Object) const override
+		{
+			return PropertyOverridePolicy->CanEditProperty(PropertyChain, Object);
+		}
+
+		virtual bool CanEditProperty(const FProperty* Property, const UObject* Object) const override
+		{
+			return PropertyOverridePolicy->CanEditProperty(Property, Object);
+		}
+
+		ILevelInstanceEditorModule::IPropertyOverridePolicy* PropertyOverridePolicy = nullptr;
+	};
+
+	TUniquePtr<FPropertyEditorPolicy> PropertyEditorPolicy;
+		
+	virtual bool IsPropertyEditConst(const FEditPropertyChain& PropertyChain, UObject* Object) override
+	{
+		return PropertyEditorPolicy::IsPropertyEditConst(PropertyChain, Object);
+	}
+	
+	virtual bool IsPropertyEditConst(const FProperty* Property, UObject* Object) override
+	{
+		return PropertyEditorPolicy::IsPropertyEditConst(Property, Object);
+	}
+
+	virtual UObject* GetArchetype(const UObject* Object) override
+	{
+		return PropertyEditorPolicy::GetArchetype(Object);
+	}
+	
+	virtual void SetPropertyOverridePolicy(ILevelInstanceEditorModule::IPropertyOverridePolicy* InPropertyOverridePolicy) override
+	{
+		PropertyEditorPolicy.Reset();
+		if (InPropertyOverridePolicy)
+		{
+			PropertyEditorPolicy = MakeUnique<FPropertyEditorPolicy>(InPropertyOverridePolicy);
+		}
+	}
+	
 	FExitEditorModeEvent ExitEditorModeEvent;
 	FTryExitEditorModeEvent TryExitEditorModeEvent;
 };

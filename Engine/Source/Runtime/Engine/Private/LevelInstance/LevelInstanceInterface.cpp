@@ -26,7 +26,7 @@ bool ILevelInstanceInterface::SupportsPartialEditorLoading() const
 	{
 		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem())
 		{
-			if (LevelInstanceSubsystem->IsEditingLevelInstance(this) || HasChildEdit())
+			if (LevelInstanceSubsystem->IsEditingLevelInstance(this) || LevelInstanceSubsystem->IsEditingLevelInstancePropertyOverrides(this) || LevelInstanceSubsystem->HasChildEdit(this))
 			{
 				return false;
 			}
@@ -185,6 +185,18 @@ bool ILevelInstanceInterface::IsEditing() const
 	return false;
 }
 
+bool ILevelInstanceInterface::IsEditingPropertyOverrides() const
+{
+	// No need to check LevelInstanceID here since Override Level Instance is referenced directly:
+	// Level Instance ID can become invalid while Actor is being edited through AActor property change events causing component unregisters
+	if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem())
+	{
+		return LevelInstanceSubsystem->IsEditingLevelInstancePropertyOverrides(this);
+	}
+
+	return false;
+}
+
 bool ILevelInstanceInterface::HasChildEdit() const
 {
 	if (HasValidLevelInstanceID())
@@ -237,6 +249,19 @@ bool ILevelInstanceInterface::HasDirtyChildren() const
 	return false;
 }
 
+bool ILevelInstanceInterface::CanEnterEditPropertyOverrides(FText* OutReason) const
+{
+	if (HasValidLevelInstanceID())
+	{
+		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem())
+		{
+			return LevelInstanceSubsystem->CanEditLevelInstancePropertyOverrides(this, OutReason);
+		}
+	}
+
+	return false;
+}
+
 bool ILevelInstanceInterface::CanEnterEdit(FText* OutReason) const
 {
 	if (HasValidLevelInstanceID())
@@ -248,6 +273,14 @@ bool ILevelInstanceInterface::CanEnterEdit(FText* OutReason) const
 	}
 
 	return false;
+}
+
+bool ILevelInstanceInterface::EnterEditPropertyOverrides(AActor* ContextActor)
+{
+	ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem();
+	check(LevelInstanceSubsystem);
+	LevelInstanceSubsystem->EditLevelInstancePropertyOverrides(this, ContextActor);
+	return true;
 }
 
 bool ILevelInstanceInterface::EnterEdit(AActor* ContextActor)
@@ -266,6 +299,27 @@ void ILevelInstanceInterface::OnEdit()
 	}
 }
 
+void ILevelInstanceInterface::OnEditPropertyOverrides()
+{
+	if (ULevelInstanceComponent* LevelInstanceComponent = GetLevelInstanceComponent())
+	{
+		LevelInstanceComponent->OnEditOverrides();
+	}
+}
+
+bool ILevelInstanceInterface::CanExitEditPropertyOverrides(bool bDiscardEdits, FText* OutReason) const
+{
+	if (HasValidLevelInstanceID())
+	{
+		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem())
+		{
+			return LevelInstanceSubsystem->CanCommitLevelInstancePropertyOverrides(this, bDiscardEdits, OutReason);
+		}
+	}
+
+	return false;
+}
+
 bool ILevelInstanceInterface::CanExitEdit(bool bDiscardEdits, FText* OutReason) const
 {
 	if (HasValidLevelInstanceID())
@@ -279,11 +333,27 @@ bool ILevelInstanceInterface::CanExitEdit(bool bDiscardEdits, FText* OutReason) 
 	return false;
 }
 
+bool ILevelInstanceInterface::ExitEditPropertyOverrides(bool bDiscardEdits)
+{
+	ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem();
+	check(LevelInstanceSubsystem);
+	return LevelInstanceSubsystem->CommitLevelInstancePropertyOverrides(this, bDiscardEdits);
+}
+
+
 bool ILevelInstanceInterface::ExitEdit(bool bDiscardEdits)
 {
 	ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem();
 	check(LevelInstanceSubsystem);
 	return LevelInstanceSubsystem->CommitLevelInstance(this, bDiscardEdits);
+}
+
+void ILevelInstanceInterface::OnCommitPropertyOverrides(bool bChanged)
+{
+	if (ULevelInstanceComponent* LevelInstanceComponent = GetLevelInstanceComponent())
+	{
+		LevelInstanceComponent->OnCommitOverrides();
+	}
 }
 
 void ILevelInstanceInterface::OnCommit(bool bChanged)

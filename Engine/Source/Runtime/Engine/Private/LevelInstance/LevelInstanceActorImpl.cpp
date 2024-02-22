@@ -9,6 +9,7 @@
 #include "LevelInstance/LevelInstancePrivate.h"
 #include "LevelInstance/LevelInstanceComponent.h"
 #include "LevelInstance/LevelInstanceEditorInstanceActor.h"
+#include "LevelInstance/LevelInstanceSettings.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
@@ -114,6 +115,11 @@ bool FLevelInstanceActorImpl::ResolveSubobject(const TCHAR* SubObjectPath, UObje
 	}
 
 	return false;
+}
+
+bool FLevelInstanceActorImpl::SupportsPropertyOverrides() const
+{
+	return ULevelInstanceSettings::Get()->IsPropertyOverrideEnabled();
 }
 
 bool FLevelInstanceActorImpl::SupportsPartialEditorLoading() const
@@ -315,7 +321,7 @@ bool FLevelInstanceActorImpl::IsLockedActor() const
 		return true;
 	}
 
-	if (LevelInstance->IsEditing())
+	if (LevelInstance->IsEditing() || LevelInstance->IsEditingPropertyOverrides())
 	{
 		return true;
 	}

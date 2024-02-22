@@ -13,7 +13,7 @@ struct FWorldPartitionAssetDataPatcher;
 class FActorDescArchive : public FArchiveProxy
 {
 public:
-	FActorDescArchive(FArchive& InArchive, FWorldPartitionActorDesc* InActorDesc);
+	FActorDescArchive(FArchive& InArchive, FWorldPartitionActorDesc* InActorDesc, const FWorldPartitionActorDesc* InBaseActorDesc = nullptr);
 
 	void Init(const FTopLevelAssetPath InClassPath = FTopLevelAssetPath());
 
@@ -46,23 +46,23 @@ public:
 		{
 			FActorDescArchive& ActorDescAr = (FActorDescArchive&)Ar;
 			
-			check(ActorDescAr.ClassDesc || Ar.IsSaving());
+			check(ActorDescAr.BaseDesc || Ar.IsSaving());
 			check(ActorDescAr.ActorDesc);
 
 			Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
-			auto GetClassDefaultValue = [&V, &ActorDescAr]() -> const DestPropertyType*
+			auto GetBaseDefaultValue = [&V, &ActorDescAr]() -> const DestPropertyType*
 			{
 				const UPTRINT PropertyOffset = (UPTRINT)&V.Value - *(UPTRINT*)&ActorDescAr.ActorDesc;
 
-				if (PropertyOffset < ActorDescAr.ClassDescSizeof)
+				if (PropertyOffset < ActorDescAr.BaseDescSizeof)
 				{
-					check((PropertyOffset + sizeof(V.Value)) <= ActorDescAr.ClassDescSizeof);
-					const DestPropertyType* RefValue = (const DestPropertyType*)(*(UPTRINT*)&ActorDescAr.ClassDesc + PropertyOffset);
+					check((PropertyOffset + sizeof(V.Value)) <= ActorDescAr.BaseDescSizeof);
+					const DestPropertyType* RefValue = (const DestPropertyType*)(*(UPTRINT*)&ActorDescAr.BaseDesc + PropertyOffset);
 					return RefValue;
 				}
 
-				check(ActorDescAr.bIsMissingClassDesc);
+				check(ActorDescAr.bIsMissingBaseDesc);
 				return nullptr;
 			};
 
@@ -70,15 +70,15 @@ public:
 
 			if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::WorldPartitionActorClassDescSerialize)
 			{
-				if (Ar.IsSaving() && ActorDescAr.ClassDesc)
+				if (Ar.IsSaving() && ActorDescAr.BaseDesc)
 				{
 					if constexpr (std::is_same_v<DestPropertyType, SourcePropertyType>)
 					{
 						// When saving, we expect the class descriptor to be the exact type as what we are serializing.
-						const DestPropertyType* ClassDefaultValue = GetClassDefaultValue();
-						check(ClassDefaultValue);
+						const DestPropertyType* BaseDefaultValue = GetBaseDefaultValue();
+						check(BaseDefaultValue);
 
-						bSerialize = (V.Value != *ClassDefaultValue) ? 1 : 0;
+						bSerialize = (V.Value != *BaseDefaultValue) ? 1 : 0;
 					}
 				}
 
@@ -103,9 +103,9 @@ public:
 			else if (Ar.IsLoading())
 			{
 				// When loading, we need to handle a different class descriptor in case of missing classes, etc.
-				if (const DestPropertyType* ClassDefaultValue = GetClassDefaultValue())
+				if (const DestPropertyType* BaseDefaultValue = GetBaseDefaultValue())
 				{
-					V.Value = *ClassDefaultValue;
+					V.Value = *BaseDefaultValue;
 				}
 			}
 
@@ -117,9 +117,9 @@ public:
 	};
 
 	FWorldPartitionActorDesc* ActorDesc;
-	const FWorldPartitionActorDesc* ClassDesc;
-	uint32 ClassDescSizeof;
-	bool bIsMissingClassDesc;
+	const FWorldPartitionActorDesc* BaseDesc;
+	uint32 BaseDescSizeof;
+	bool bIsMissingBaseDesc;
 };
 
 class FActorDescArchivePatcher : public FActorDescArchive

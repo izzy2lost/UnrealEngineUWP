@@ -33,8 +33,12 @@ UActorDescContainer::UActorDescContainer(const FObjectInitializer& ObjectInitial
 void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UActorDescContainer::Initialize);
-
 	check(!bContainerInitialized);
+	if (InitParams.PreInitialize)
+	{
+		InitParams.PreInitialize(this);
+	}
+
 	ContainerPackageName = InitParams.PackageName;
 	if (InitParams.ExternalDataLayerAsset)
 	{
@@ -210,7 +214,7 @@ bool UActorDescContainer::HasExternalContent() const
 	return ExternalDataLayerAsset ? true : GetContentBundleGuid().IsValid();
 }
 
-bool UActorDescContainer::IsActorDescHandled(const AActor* InActor) const
+bool UActorDescContainer::IsActorDescHandled(const AActor* InActor, bool bInUseLoadedPath) const
 {
 	// Actor External Content Guid must match Container's External Content Guid to be considered
 	// AWorldDataLayers actors are an exception as they don't have an External Content Guid
@@ -218,14 +222,20 @@ bool UActorDescContainer::IsActorDescHandled(const AActor* InActor) const
 		(!HasExternalContent() && !InActor->HasExternalContent()) ||
 		(ExternalDataLayerAsset && (ExternalDataLayerAsset == InActor->GetExternalDataLayerAsset())) ||
 		(ContentBundleGuid.IsValid() && (ContentBundleGuid == InActor->GetContentBundleGuid()));
-	
+
 	if (bIsCandidateActor)
 	{
-		const FString ActorPackageName = InActor->GetPackage()->GetName();
+		const FName LoadedPackageName = InActor->GetPackage()->GetLoadedPath().GetPackageFName();
+		const FString ActorPackageName = bInUseLoadedPath && !LoadedPackageName.IsNone() ? LoadedPackageName.ToString() : InActor->GetPackage()->GetName();
 		const FString ExternalActorPath = GetExternalActorPath() / TEXT("");
 		return ActorPackageName.StartsWith(ExternalActorPath);
 	}
 	return false;
+}
+
+bool UActorDescContainer::IsActorDescHandled(const AActor* InActor) const
+{
+	return IsActorDescHandled(InActor, false);
 }
 
 void UActorDescContainer::RegisterActorDescriptor(FWorldPartitionActorDesc* ActorDesc)
@@ -244,9 +254,14 @@ void UActorDescContainer::UnregisterActorDescriptor(FWorldPartitionActorDesc* Ac
 	verifyf(ActorsByName.Remove(ActorDesc->GetActorName()), TEXT("Missing actor '%s' from container '%s'"), *ActorDesc->GetActorName().ToString(), *ContainerPackageName.ToString());
 }
 
+bool UActorDescContainer::ShouldHandleActorEvent(const AActor* Actor, bool bInUseLoadedPath) const
+{
+	return Actor && IsActorDescHandled(Actor, bInUseLoadedPath) && Actor->IsMainPackageActor() && Actor->GetLevel();
+}
+
 bool UActorDescContainer::ShouldHandleActorEvent(const AActor* Actor)
 {
-	return Actor && IsActorDescHandled(Actor) && Actor->IsMainPackageActor() && Actor->GetLevel();
+	return ShouldHandleActorEvent(Actor, false);
 }
 
 const FWorldPartitionActorDesc* UActorDescContainer::GetActorDescByPath(const FString& ActorPath) const
@@ -376,7 +391,7 @@ bool UActorDescContainer::RemoveActor(const FGuid& ActorGuid)
 	return false;
 }
 
-bool UActorDescContainer::ShouldRegisterDelegates()
+bool UActorDescContainer::ShouldRegisterDelegates() const
 {
 	return GEditor && !IsTemplate() && !IsRunningCookCommandlet();
 }

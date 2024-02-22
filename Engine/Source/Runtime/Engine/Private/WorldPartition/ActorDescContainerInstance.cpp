@@ -49,23 +49,6 @@ void UActorDescContainerInstance::UnregisterContainer()
 	Container = nullptr;
 }
 
-void UActorDescContainerInstance::OnContainerUpdated(FName ContainerPackage)
-{
-	if (ChildContainerInstances.Num())
-	{
-		TMap<FGuid, TObjectPtr<UActorDescContainerInstance>> CopyChildContainerInstances(ChildContainerInstances);
-		for (auto& [ContainerGuid, ContainerInstance] : CopyChildContainerInstances)
-		{
-			if (ContainerInstance->GetContainerPackage() == ContainerPackage)
-			{
-				FWorldPartitionActorDescInstance* ContainerDescInstance = GetActorDescInstance(ContainerGuid);
-				check(ContainerDescInstance);
-				ContainerDescInstance->UpdateChildContainerInstance();
-			}
-		}
-	}
-}
-
 void UActorDescContainerInstance::OnContainerReplaced(UActorDescContainer* InOldContainer, UActorDescContainer* InNewContainer)
 {
 	if (ChildContainerInstances.Num())
@@ -96,6 +79,7 @@ void UActorDescContainerInstance::Initialize(const FInitializeParams& InParams)
 		// It is possible to not have a ParentContainerInstance if we are in a non-WP main world
 		// We want this ContainerInstance to still not have a Main ContainerID to properly handle IsMainWorldOnly() actors
 		ContainerID = FActorContainerID(InParams.ParentContainerInstance ? InParams.ParentContainerInstance->GetContainerID() : FActorContainerID(), InParams.ContainerActorGuid);
+		ParentContainerInstance = InParams.ParentContainerInstance;
 	}
 				
 	// Only consider world if we are outered to a WorldPartition directly
@@ -150,7 +134,7 @@ void UActorDescContainerInstance::Initialize(const FInitializeParams& InParams)
 	// Create ActorDescInstances
 	for (FActorDescList::TIterator<> It(Container); It; ++It)
 	{
-		FWorldPartitionActorDescInstance ActorDescInstance(this, *It);
+		FWorldPartitionActorDescInstance ActorDescInstance = CreateActorDescInstance(*It);
 		if (bIsInstanced)
 		{
 			const FString LongActorPackageName = It->GetActorPackage().ToString();
@@ -246,7 +230,6 @@ void UActorDescContainerInstance::RegisterDelegates()
 		// Only listen to this event if we have registered Child Container Instances
 		if (bCreateChildContainerHierarchy)
 		{
-			UActorDescContainerSubsystem::GetChecked().ContainerUpdated().AddUObject(this, &UActorDescContainerInstance::OnContainerUpdated);
 			UActorDescContainerSubsystem::GetChecked().ContainerReplaced().AddUObject(this, &UActorDescContainerInstance::OnContainerReplaced);
 		}
 
@@ -279,7 +262,6 @@ void UActorDescContainerInstance::UnregisterDelegates()
 
 		if (UActorDescContainerSubsystem* ActorDescContainerSubsystem = UActorDescContainerSubsystem::Get())
 		{
-			ActorDescContainerSubsystem->ContainerUpdated().RemoveAll(this);
 			ActorDescContainerSubsystem->ContainerReplaced().RemoveAll(this);
 		}
 	}
@@ -414,7 +396,7 @@ FWorldPartitionActorDescInstance* UActorDescContainerInstance::AddActor(FWorldPa
 	// We don't support adding actors when instanced
 	check(!InstancingContext.IsSet());
 
-	return AddActorDescInstance(FWorldPartitionActorDescInstance(this, InActorDesc));
+	return AddActorDescInstance(CreateActorDescInstance(InActorDesc));
 }
 
 FWorldPartitionActorDescInstance* UActorDescContainerInstance::AddActorDescInstance(FWorldPartitionActorDescInstance&& InActorDescInstance)
@@ -513,12 +495,15 @@ void UActorDescContainerInstance::OnObjectsReplaced(const TMap<UObject*, UObject
 	{
 		if (AActor* OldActor = Cast<AActor>(OldObject))
 		{
-			if (Container->ShouldHandleActorEvent(OldActor))
+			if (Container->ShouldHandleActorEvent(OldActor, InstancingContext.GetPtrOrNull() != nullptr))
 			{
-				AActor* NewActor = Cast<AActor>(NewObject);
-				if (FWorldPartitionActorDescInstance* ActorDescInstance = GetActorDescInstance(OldActor->GetActorGuid()))
+				// Only replace if OldActor matches ActorDescInstance ActorPtr.
+				// No need to replace the ActorDescInstance ActorPtr if it isn't set, it will get refreshed on its next GetActor call. This avoids replacing pointers on the wrong ActorDescInstance for Instanced worlds
+				if (FWorldPartitionActorDescInstance* ActorDescInstance = GetActorDescInstance(OldActor->GetActorGuid()); ActorDescInstance && ActorDescInstance->ActorPtr == OldActor)
 				{
+					AActor* NewActor = Cast<AActor>(NewObject);
 					FWorldPartitionActorDescUtils::ReplaceActorDescriptorPointerFromActor(OldActor, NewActor, ActorDescInstance);
+					OnActorReplacedEvent.Broadcast(ActorDescInstance);
 				}
 			}
 		}
@@ -552,6 +537,11 @@ void UActorDescContainerInstance::OnActorDescUpdating(FWorldPartitionActorDesc* 
 	TUniquePtr<FWorldPartitionActorDescInstance>* ActorDescInstance = GetActorDescInstancePtr(InActorDesc->GetGuid());
 	check(ActorDescInstance && ActorDescInstance->IsValid());
 		
+	if (bCreateChildContainerHierarchy && ActorDescInstance->Get()->IsChildContainerInstance())
+	{
+		ActorDescInstance->Get()->UnregisterChildContainerInstance();
+	}
+
 	if (UWorldPartition* WorldPartition = GetOuterWorldPartition())
 	{
 		WorldPartition->OnActorDescInstanceUpdating(ActorDescInstance->Get());
@@ -571,7 +561,7 @@ void UActorDescContainerInstance::OnActorDescUpdated(FWorldPartitionActorDesc* I
 	// Re-register container
 	if (bCreateChildContainerHierarchy && ActorDescInstance->Get()->IsChildContainerInstance())
 	{
-		ActorDescInstance->Get()->UpdateChildContainerInstance();
+		ActorDescInstance->Get()->RegisterChildContainerInstance();
 	}
 
 	if (UWorldPartition* WorldPartition = GetOuterWorldPartition())

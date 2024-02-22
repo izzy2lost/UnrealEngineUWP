@@ -14,10 +14,11 @@
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryHelpers.h"
 
-FActorDescArchive::FActorDescArchive(FArchive& InArchive, FWorldPartitionActorDesc* InActorDesc)
+FActorDescArchive::FActorDescArchive(FArchive& InArchive, FWorldPartitionActorDesc* InActorDesc, const FWorldPartitionActorDesc* InBaseActorDesc)
 	: FArchiveProxy(InArchive)
 	, ActorDesc(InActorDesc)
-	, bIsMissingClassDesc(false)
+	, BaseDesc(InBaseActorDesc)
+	, bIsMissingBaseDesc(false)
 {
 	check(InArchive.IsPersistent());
 
@@ -89,29 +90,32 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TryRedirectClass(ActorDesc->BaseClass);
 	}
 
-	// Get the class descriptor to do delta serialization
-	FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
-	const FTopLevelAssetPath ClassPath = InClassPath.IsValid() ? InClassPath : (ActorDesc->BaseClass.IsValid() ? ActorDesc->BaseClass : ActorDesc->NativeClass);
-	ClassDesc = (ActorDesc->bIsDefaultActorDesc && !InClassPath.IsValid()) ? ClassDescRegistry.GetClassDescDefaultForClass(ClassPath) : ClassDescRegistry.GetClassDescDefaultForActor(ClassPath);
-
-	if (!ClassDesc)
+	// Get the class descriptor to do delta serialization if no base desc was provided
+	if (!BaseDesc)
 	{
-		if (IsLoading())
-		{
-			bIsMissingClassDesc = true;
+		FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
+		const FTopLevelAssetPath ClassPath = InClassPath.IsValid() ? InClassPath : (ActorDesc->BaseClass.IsValid() ? ActorDesc->BaseClass : ActorDesc->NativeClass);
+		BaseDesc = (ActorDesc->bIsDefaultActorDesc && !InClassPath.IsValid()) ? ClassDescRegistry.GetClassDescDefaultForClass(ClassPath) : ClassDescRegistry.GetClassDescDefaultForActor(ClassPath);
 
-			ClassDesc = ClassDescRegistry.GetClassDescDefault(FTopLevelAssetPath(TEXT("/Script/Engine.Actor")));
-			check(ClassDesc);			
-
-			UE_LOG(LogWorldPartition, Log, TEXT("Can't find class descriptor '%s' for loading '%s', using '%s'"), *ClassPath.ToString(), *ActorDesc->GetActorSoftPath().ToString(), *ClassDesc->GetActorSoftPath().ToString());
-		}
-		else
+		if (!BaseDesc)
 		{
-			UE_LOG(LogWorldPartition, Log, TEXT("Can't find class descriptor '%s' for saving '%s'"), *ClassPath.ToString(), *ActorDesc->GetActorSoftPath().ToString());
+			if (IsLoading())
+			{
+				bIsMissingBaseDesc = true;
+
+				BaseDesc = ClassDescRegistry.GetClassDescDefault(FTopLevelAssetPath(TEXT("/Script/Engine.Actor")));
+				check(BaseDesc);
+
+				UE_LOG(LogWorldPartition, Log, TEXT("Can't find class descriptor '%s' for loading '%s', using '%s'"), *ClassPath.ToString(), *ActorDesc->GetActorSoftPath().ToString(), *BaseDesc->GetActorSoftPath().ToString());
+			}
+			else
+			{
+				UE_LOG(LogWorldPartition, Log, TEXT("Can't find class descriptor '%s' for saving '%s'"), *ClassPath.ToString(), *ActorDesc->GetActorSoftPath().ToString());
+			}
 		}
 	}
 
-	ClassDescSizeof = ClassDesc ? ClassDesc->GetSizeOf() : 0;
+	BaseDescSizeof = BaseDesc ? BaseDesc->GetSizeOf() : 0;
 }
 
 FArchive& FActorDescArchive::operator<<(FSoftObjectPath& Value)

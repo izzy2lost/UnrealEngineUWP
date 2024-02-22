@@ -112,7 +112,7 @@ private:
 			{
 				ActorDescContainer = NewObject<UActorDescContainer>(Owner, ContainerType::StaticClass(), NAME_None, RF_Transient);
 				RegisteredContainer->Container = ActorDescContainer;
-								
+							
 				// This will potentially invalidate RegisteredContainer due to RegisteredContainers reallocation
 				ActorDescContainer->Initialize(InitParams);
 

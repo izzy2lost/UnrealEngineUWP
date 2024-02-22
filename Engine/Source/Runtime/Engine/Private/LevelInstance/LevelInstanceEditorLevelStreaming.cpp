@@ -140,7 +140,12 @@ void ULevelStreamingLevelInstanceEditor::Unload(ULevelStreamingLevelInstanceEdit
 		if (ULevel* LoadedLevel = LevelStreaming->GetLoadedLevel())
 		{
 			LoadedLevel->OnLoadedActorAddedToLevelPreEvent.RemoveAll(LevelStreaming);
-			LevelInstanceSubsystem->RemoveLevelsFromWorld({ LoadedLevel });
+			
+			// Not needed if world is being cleaned up
+			if (!LevelStreaming->GetWorld()->IsBeingCleanedUp())
+			{
+				LevelInstanceSubsystem->RemoveLevelsFromWorld({ LoadedLevel });
+			}
 		}
 	}
 }

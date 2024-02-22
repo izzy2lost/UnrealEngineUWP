@@ -22,9 +22,12 @@
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionPackageHelper.h"
 #include "WorldPartition/ContentBundle/ContentBundleEditor.h"
+#include "WorldPartition/WorldPartitionPropertyOverride.h"
 #include "GameFramework/WorldSettings.h"
 #include "LevelUtils.h"
 #include "ActorFolder.h"
+
+FUObjectAnnotationSparse<FWorldPartitionLevelHelper::FActorPropertyOverridesAnnotation, true> FWorldPartitionLevelHelper::ActorPropertyOverridesAnnotation;
 
 #endif
 
@@ -96,6 +99,45 @@ void FWorldPartitionLevelHelper::PreGarbageCollect()
 		}
 	}
 	PreGCPackagesToUnload.Reset();
+}
+
+void FWorldPartitionLevelHelper::ApplyConstructionScriptPropertyOverridesFromAnnotation(AActor* InActor)
+{
+	if (IsValid(InActor))
+	{
+		FWorldPartitionLevelHelper::FActorPropertyOverridesAnnotation Annotation = FWorldPartitionLevelHelper::ActorPropertyOverridesAnnotation.GetAndRemoveAnnotation(InActor);
+		if (!Annotation.IsDefault())
+		{
+			if (InActor->GetRootComponent())
+			{
+				FTransform InverseTransform = Annotation.ContainerTransform.Inverse();
+				FLevelUtils::FApplyLevelTransformParams TransformParams(InActor->GetLevel(), InverseTransform);
+				TransformParams.Actor = InActor;
+				TransformParams.bDoPostEditMove = false;
+				TransformParams.bSetRelativeTransformDirectly = true;
+
+				FLevelUtils::ApplyLevelTransform(TransformParams);
+			}
+
+			for (const FActorPropertyOverride& ActorOverride : Annotation.ActorPropertyOverrides)
+			{
+				const bool bConstructionScriptProperties = true;
+				UWorldPartitionPropertyOverride::ApplyPropertyOverrides(&ActorOverride, InActor, bConstructionScriptProperties);
+			}
+
+			if (InActor->GetRootComponent())
+			{
+				FLevelUtils::FApplyLevelTransformParams TransformParams(InActor->GetLevel(), Annotation.ContainerTransform);
+				TransformParams.Actor = InActor;
+				TransformParams.bDoPostEditMove = false;
+				TransformParams.bSetRelativeTransformDirectly = true;
+
+				FLevelUtils::ApplyLevelTransform(TransformParams);
+				InActor->GetRootComponent()->UpdateComponentToWorld();
+				InActor->MarkComponentsRenderStateDirty();
+			}
+		}
+	}
 }
 
 void FWorldPartitionLevelHelper::AddReference(UPackage* InPackage, FPackageReferencer* InReferencer)
@@ -210,6 +252,7 @@ void FWorldPartitionLevelHelper::MoveExternalActorsToLevel(const TArray<FWorldPa
 				if (InLevel->GetWorld()->bIsWorldInitialized)
 				{
 					Actor->RerunConstructionScripts();
+					ApplyConstructionScriptPropertyOverridesFromAnnotation(Actor);
 				}
 			}
 			else if (!InLevel->Actors.Contains(Actor))
@@ -414,10 +457,137 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 		.SetLoadAsync(bInLoadAsync)
 		.SetInstancingContext(InInstancingContext);
 
-	return LoadActors(Params);
+	return LoadActors(MoveTemp(Params));
 }
 
+bool FWorldPartitionLevelHelper::LoadActorsWithPropertyOverridesInternal(FLoadActorsParams&& InParams)
+{
+	TMap<FString, FName> PropertyOverridesToLoad;
+
+	struct FLoadProgress
+	{
+		int32 NumPendingLoadRequests = 0;
+		int32 NumFailedLoadedRequests = 0;
+		
+		TMap<FSoftObjectPath, TSet<FActorContainerID>> AssetToContainerIDs;
+
+		FLoadActorsParams Params;
+		FLoadedPropertyOverrides LoadedPropertyOverrides;
+	};
+	TSharedPtr<FLoadProgress> LoadProgress = MakeShared<FLoadProgress>();
+	LoadProgress->Params = MoveTemp(InParams);
+
+	// Build up list of Property Overrides to load and an assocation between Property Override Asset Path and the overrides Owner Container ID
+	for (const FWorldPartitionRuntimeCellObjectMapping& PackageObjectMapping : LoadProgress->Params.ActorPackages)
+	{
+		for (const FWorldPartitionRuntimeCellPropertyOverride& PropertyOverride : PackageObjectMapping.PropertyOverrides)
+		{
+			FName PackageName = PropertyOverridesToLoad.FindOrAdd(PropertyOverride.AssetPath, PropertyOverride.PackageName);
+			check(PackageName == PropertyOverride.PackageName);
+			LoadProgress->AssetToContainerIDs.FindOrAdd(PropertyOverride.AssetPath).Add(PropertyOverride.OwnerContainerID);
+		}
+	}
+
+	// Nothing to load, move on to load actors
+	if (PropertyOverridesToLoad.IsEmpty())
+	{
+		return LoadActorsInternal(MoveTemp(LoadProgress->Params), MoveTemp(LoadProgress->LoadedPropertyOverrides));
+	}
+
+	LoadProgress->NumPendingLoadRequests = PropertyOverridesToLoad.Num();
+	
+	// Do Loading
+	for (auto const&[AssetPath, PackageName] : PropertyOverridesToLoad)
+	{
+		FSoftObjectPath SoftAssetPath(AssetPath);
+		
+		FLinkerInstancingContext InstancingContext;
+		InstancingContext.AddTag(ULevel::DontLoadExternalObjectsTag);
+
+		FSoftObjectPath RemappedPath = SoftAssetPath;
+
+		// Loading embedded asset
+		if (!SoftAssetPath.GetSubPathString().IsEmpty())
+		{
+			FString WorldPackageName = SoftAssetPath.GetLongPackageName();
+			FName RemappedContainerPackage = FName(*(WorldPackageName + TEXT("_LoadPropertyOverride")));
+			InstancingContext.AddPackageMapping(*WorldPackageName, RemappedContainerPackage);
+
+			const FName AssetPackageInstanceName = FName(*ULevel::GetExternalActorPackageInstanceName(RemappedContainerPackage.ToString(), PackageName.ToString()));
+
+			InstancingContext.AddPackageMapping(PackageName, AssetPackageInstanceName);
+			InstancingContext.FixupSoftObjectPath(RemappedPath);
+		}
+
+		FName RemappedPackageName = InstancingContext.RemapPackage(PackageName);
+		FName PackageToLoad = PackageName;
+
+		FLoadPackageAsyncDelegate CompletionCallback = FLoadPackageAsyncDelegate::CreateLambda([LoadProgress, SoftAssetPath, RemappedPath](const FName& LoadedPackageName, UPackage* LoadedPackage, EAsyncLoadingResult::Type Result)
+		{
+			check(LoadProgress->NumPendingLoadRequests);
+			LoadProgress->NumPendingLoadRequests--;
+			
+			if (UWorldPartitionPropertyOverride* LoadedOverride = Cast<UWorldPartitionPropertyOverride>(RemappedPath.ResolveObject()))
+			{
+				// Reference World Package and Actor Package
+				LoadProgress->Params.PackageReferencer->AddReference(LoadedOverride->GetOutermostObject()->GetPackage());
+				LoadProgress->Params.PackageReferencer->AddReference(LoadedOverride->GetPackage());
+
+				TSet<FActorContainerID>& OwnerContainerIDs = LoadProgress->AssetToContainerIDs.FindChecked(SoftAssetPath);
+				for (FActorContainerID OwnerContainerID : OwnerContainerIDs)
+				{
+					LoadProgress->LoadedPropertyOverrides.PropertyOverrides.Add(OwnerContainerID, LoadedOverride);
+				}
+			}
+
+			if (!LoadProgress->NumPendingLoadRequests)
+			{
+				LoadActorsInternal(MoveTemp(LoadProgress->Params), MoveTemp(LoadProgress->LoadedPropertyOverrides));
+			}
+		});
+
+		if (LoadProgress->Params.bLoadAsync)
+		{
+			FPackagePath PackagePath = FPackagePath::FromPackageNameChecked(PackageToLoad);
+
+			::LoadPackageAsync(PackagePath, RemappedPackageName, CompletionCallback, PKG_None, -1, 0, &InstancingContext);
+		}
+		else
+		{
+			UPackage* InstancingPackage = nullptr;
+			if (PackageName != PackageToLoad)
+			{
+				InstancingPackage = CreatePackage(*RemappedPackageName.ToString());
+			}
+
+			UPackage* Package = LoadPackage(InstancingPackage, *PackageToLoad.ToString(), LOAD_None, nullptr, &InstancingContext);
+			CompletionCallback.Execute(PackageToLoad, Package, Package ? EAsyncLoadingResult::Succeeded : EAsyncLoadingResult::Failed);
+		}
+	}
+
+	return LoadProgress->NumPendingLoadRequests == 0;
+}
+
+// deprecated
 bool FWorldPartitionLevelHelper::LoadActors(const FLoadActorsParams& InParams)
+{
+	FLoadActorsParams ParamsCopy = FLoadActorsParams()
+		.SetActorPackages(InParams.ActorPackages)
+		.SetCompletionCallback(InParams.CompletionCallback)
+		.SetDestLevel(InParams.DestLevel)
+		.SetInstancingContext(MoveTemp(InParams.InstancingContext))
+		.SetLoadAsync(InParams.bLoadAsync)
+		.SetOuterWorld(InParams.OuterWorld)
+		.SetPackageReferencer(InParams.PackageReferencer);
+	return LoadActors(MoveTemp(ParamsCopy));
+}
+
+bool FWorldPartitionLevelHelper::LoadActors(FLoadActorsParams&& InParams)
+{	
+	return FWorldPartitionLevelHelper::LoadActorsWithPropertyOverridesInternal(MoveTemp(InParams));
+}
+
+bool FWorldPartitionLevelHelper::LoadActorsInternal(FLoadActorsParams&& InParams, FLoadedPropertyOverrides&& InLoadedPropertyOverrides)
 {
 	TArray<FWorldPartitionRuntimeCellObjectMapping*> ActorPackagesToLoad;
 	TMap<FActorContainerID, FLinkerInstancingContext> LinkerInstancingContexts;
@@ -486,7 +656,7 @@ bool FWorldPartitionLevelHelper::LoadActors(const FLoadActorsParams& InParams)
 
 	for (FWorldPartitionRuntimeCellObjectMapping* PackageObjectMapping : ActorPackagesToLoad)
 	{
-		FLoadPackageAsyncDelegate CompletionCallback = FLoadPackageAsyncDelegate::CreateLambda([LoadProgress, PackageObjectMapping, PackageReferencer = InParams.PackageReferencer, OuterWorld = InParams.OuterWorld, DestLevel = InParams.DestLevel, CompletionCallback = InParams.CompletionCallback](const FName& LoadedPackageName, UPackage* LoadedPackage, EAsyncLoadingResult::Type Result)
+		FLoadPackageAsyncDelegate CompletionCallback = FLoadPackageAsyncDelegate::CreateLambda([LoadProgress, PackageObjectMapping, LoadedOverrides = InLoadedPropertyOverrides, PackageReferencer = InParams.PackageReferencer, OuterWorld = InParams.OuterWorld, DestLevel = InParams.DestLevel, CompletionCallback = InParams.CompletionCallback](const FName& LoadedPackageName, UPackage* LoadedPackage, EAsyncLoadingResult::Type Result)
 		{
 			const FName ActorName = *FPaths::GetExtension(PackageObjectMapping->Path.ToString());
 			check(LoadProgress->NumPendingLoadRequests);
@@ -553,6 +723,32 @@ bool FWorldPartitionLevelHelper::LoadActors(const FLoadActorsParams& InParams)
 						}
 					});
 					
+					// Apply Pre-ConstructionScript Properties
+					TArray<FActorPropertyOverride> ActorPropertyOverrides;
+					for (auto ActorOverrideMapping : PackageObjectMapping->PropertyOverrides)
+					{
+						if (const UWorldPartitionPropertyOverride*const* LoadedOverride = LoadedOverrides.PropertyOverrides.Find(ActorOverrideMapping.OwnerContainerID))
+						{
+							if (const FContainerPropertyOverride* ContainerOverride = (*LoadedOverride)->PropertyOverridesPerContainer.Find(ActorOverrideMapping.ContainerPath))
+							{
+								if (const FActorPropertyOverride* ActorOverride = ContainerOverride->ActorOverrides.Find(Actor->GetActorGuid()))
+								{
+									const bool bConstructionScriptProperties = false;
+									UWorldPartitionPropertyOverride::ApplyPropertyOverrides(ActorOverride, Actor, bConstructionScriptProperties);
+									
+									// Store ActorOverride for Post Construction Script apply
+									ActorPropertyOverrides.Add(*ActorOverride);
+								}
+							}
+						}
+					}
+
+					// Store annotation for Post RerunConstructionScript apply
+					if (ActorPropertyOverrides.Num() > 0)
+					{
+						ActorPropertyOverridesAnnotation.AddAnnotation(Actor, FWorldPartitionLevelHelper::FActorPropertyOverridesAnnotation(MoveTemp(ActorPropertyOverrides), PackageObjectMapping->ContainerTransform));
+					}
+															
 					FLevelUtils::FApplyLevelTransformParams TransformParams(nullptr, PackageObjectMapping->ContainerTransform);
 					TransformParams.Actor = Actor;
 					TransformParams.bDoPostEditMove = false;

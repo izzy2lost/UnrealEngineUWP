@@ -35,6 +35,38 @@ enum class EWorldPartitionRuntimeCellVisualizeMode
 };
 
 USTRUCT()
+struct FWorldPartitionRuntimeCellPropertyOverride
+{
+	GENERATED_USTRUCT_BODY()
+
+	FWorldPartitionRuntimeCellPropertyOverride()
+	{}
+
+	FWorldPartitionRuntimeCellPropertyOverride(const FActorContainerID& InOwnerContainerID, const FString& InAssetPath, FName InPackageName, const FActorContainerPath& InContainerPath)
+#if WITH_EDITORONLY_DATA
+		: OwnerContainerID(InOwnerContainerID)
+		, AssetPath(InAssetPath)
+		, PackageName(InPackageName)
+		, ContainerPath(InContainerPath)
+#endif
+	{}
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FActorContainerID OwnerContainerID;
+
+	UPROPERTY()
+	FString AssetPath;
+
+	UPROPERTY()
+	FName PackageName;
+
+	UPROPERTY()
+	FActorContainerPath ContainerPath;
+#endif
+};
+
+USTRUCT()
 struct FWorldPartitionRuntimeCellObjectMapping
 {
 	GENERATED_USTRUCT_BODY()
@@ -130,6 +162,9 @@ struct FWorldPartitionRuntimeCellObjectMapping
 
 	UPROPERTY()
 	bool bIsEditorOnly;
+		
+	UPROPERTY()
+	TArray<FWorldPartitionRuntimeCellPropertyOverride> PropertyOverrides;
 #endif
 };
 

@@ -17,6 +17,7 @@
 #include "ContentStreaming.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
 #include "WorldPartition/ContentBundle/ContentBundlePaths.h"
+#include "LevelUtils.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "World"
@@ -468,7 +469,7 @@ bool UWorldPartitionLevelStreamingDynamic::IssueLoadRequests()
 			.SetLoadAsync(World->IsGameWorld())
 			.SetInstancingContext(MoveTemp(InstancingContext));
 
-		FWorldPartitionLevelHelper::LoadActors(Params);
+		FWorldPartitionLevelHelper::LoadActors(MoveTemp(Params));
 	}
 	else
 	{
@@ -476,6 +477,22 @@ bool UWorldPartitionLevelStreamingDynamic::IssueLoadRequests()
 	}
 
 	return bLoadRequestInProgress;
+}
+
+void UWorldPartitionLevelStreamingDynamic::OnCurrentStateChanged(ELevelStreamingState InPrevState, ELevelStreamingState InNewState)
+{
+	Super::OnCurrentStateChanged(InPrevState, InNewState);
+
+	if (GetWorld()->IsPlayInEditor())
+	{
+		if (InNewState == ELevelStreamingState::LoadedVisible)
+		{
+			for (AActor* Actor : GetLoadedLevel()->Actors)
+			{
+				FWorldPartitionLevelHelper::ApplyConstructionScriptPropertyOverridesFromAnnotation(Actor);
+			}
+		}
+	}
 }
 
 void UWorldPartitionLevelStreamingDynamic::FinalizeRuntimeLevel()

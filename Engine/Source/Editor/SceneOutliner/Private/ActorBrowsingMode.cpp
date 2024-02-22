@@ -265,7 +265,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 					// then the actor should not be selectable.
 					if (const ILevelInstanceInterface* ParentLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(Actor))
 					{
-						if (!LevelInstanceSubsystem->IsEditingLevelInstance(ParentLevelInstance))
+						if (!LevelInstanceSubsystem->IsEditingLevelInstance(ParentLevelInstance) && !LevelInstanceSubsystem->IsEditingLevelInstancePropertyOverrides(ParentLevelInstance))
 						{
 							return false;
 						}

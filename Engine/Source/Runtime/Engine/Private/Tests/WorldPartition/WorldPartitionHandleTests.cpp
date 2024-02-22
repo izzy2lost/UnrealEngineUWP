@@ -329,7 +329,7 @@ namespace WorldPartitionTests
 					.SetPackageName(Iterator->GetActorPackage())
 					.SetActorPath(Iterator->GetActorSoftPath());
 			
-				Iterator->GetActorDesc()->SerializeTo(ActorDescInitData.SerializedData);
+				Iterator->GetActorDesc()->SerializeTo(ActorDescInitData.GetSerializedData());
 				NewActorDesc->Init(ActorDescInitData);
 
 				TestTrue(TEXT("Actor Descriptor Serialization"), NewActorDesc->Equals(Iterator->GetActorDesc()));

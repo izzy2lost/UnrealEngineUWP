@@ -11,7 +11,9 @@
 
 #include "Engine/World.h"
 #include "UObject/LinkerInstancingContext.h"
+#include "UObject/UObjectAnnotation.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
+#include "WorldPartition/WorldPartitionPropertyOverride.h"
 
 class FWorldPartitionPackageHelper;
 class UWorldPartition;
@@ -70,7 +72,7 @@ public:
 	};
 
 	static bool LoadActors(const FLoadActorsParams& InParams);
-	
+
 	static FSoftObjectPath RemapActorPath(const FActorContainerID& InContainerID, const FString& SourceWorldName, const FSoftObjectPath& InActorPath);
 
 private:
@@ -87,6 +89,15 @@ private:
 	friend class FContentBundleEditor;
 	static bool RemapLevelCellPathInContentBundle(ULevel* Level, const class FContentBundleEditor* ContentBundleEditor, const UWorldPartitionRuntimeCell* Cell);
 
+	struct FLoadedPropertyOverrides
+	{
+		TMap<FActorContainerID, const UWorldPartitionPropertyOverride*> PropertyOverrides;
+	};
+
+	static bool LoadActors(FLoadActorsParams&& InParams);
+	static bool LoadActorsInternal(FLoadActorsParams&& InParams, FLoadedPropertyOverrides&& InLoadedPropertyOverrides);
+	static bool LoadActorsWithPropertyOverridesInternal(FLoadActorsParams&& InParams);
+
 	struct FPackageReference
 	{
 		TSet<FPackageReferencer*> Referencers;
@@ -98,6 +109,30 @@ private:
 	TMap<FName, FPackageReference> PackageReferences;
 
 	TSet<TWeakObjectPtr<UPackage>> PreGCPackagesToUnload;
+
+	friend class UWorldPartitionLevelStreamingDynamic;
+	friend class UWorldPartitionSubsystem;
+	friend class UWorldPartitionRuntimeLevelStreamingCell;
+	// Cache of Property Overrides to apply after ReRunConstructionScript
+	// In PIE this will  be done when Streaming state changes to Visible on the UWorldPartitionLevelStreamingDynamic
+	// In Cook this will be done on save of the Level cell
+	class FActorPropertyOverridesAnnotation
+	{
+	public:
+		FActorPropertyOverridesAnnotation() {}
+		FActorPropertyOverridesAnnotation(TArray<FActorPropertyOverride>&& InActorPropertyOverrides, const FTransform& InContainerTransform) : ActorPropertyOverrides(MoveTemp(InActorPropertyOverrides)), ContainerTransform(InContainerTransform) {}
+
+		TArray<FActorPropertyOverride> ActorPropertyOverrides;
+		FTransform ContainerTransform;
+		FORCEINLINE bool IsDefault()
+		{
+			return ActorPropertyOverrides.IsEmpty();
+		}
+	};
+	static FUObjectAnnotationSparse<FActorPropertyOverridesAnnotation, true> ActorPropertyOverridesAnnotation;
+
+	// Apply Existing Property Override annotation to Actor
+	static void ApplyConstructionScriptPropertyOverridesFromAnnotation(AActor* InActor);
 #endif
 };
 

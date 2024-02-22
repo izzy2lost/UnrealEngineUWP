@@ -20,6 +20,7 @@
 #include "WorldPartition/WorldPartitionActorDescInstanceViewInterface.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/ActorDescContainer.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
@@ -208,30 +209,42 @@ void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& Desc
 	ActorNativeClass = DescData.NativeClass;
 	NativeClass = *DescData.NativeClass->GetPathName();
 
-	// Serialize actor metadata
-	FMemoryReader MetadataAr(DescData.SerializedData, true);
-
-	// Serialize metadata custom versions
-	FCustomVersionContainer CustomVersions;
-	CustomVersions.Serialize(MetadataAr);
-	MetadataAr.SetCustomVersions(CustomVersions);
-	
-	// Serialize metadata payload
-	FActorDescArchive ActorDescAr(MetadataAr, this);
-	ActorDescAr.Init();
-
-	Serialize(ActorDescAr);
-
-	// Call registered deprecator
-	TSubclassOf<AActor> DeprecatedClass = ActorNativeClass;
-	while (DeprecatedClass)
+	auto DeprecateClass = [this](FArchive& Archive)
 	{
-		if (FActorDescDeprecator* Deprecator = Deprecators.Find(DeprecatedClass))
+		// Call registered deprecator
+		TSubclassOf<AActor> DeprecatedClass = ActorNativeClass;
+		while (DeprecatedClass)
 		{
-			(*Deprecator)(MetadataAr, this);
-			break;
+			if (FActorDescDeprecator* Deprecator = Deprecators.Find(DeprecatedClass))
+			{
+				(*Deprecator)(Archive, this);
+				break;
+			}
+			DeprecatedClass = DeprecatedClass->GetSuperClass();
 		}
-		DeprecatedClass = DeprecatedClass->GetSuperClass();
+	};
+
+	// Serialize actor metadata
+	if (!DescData.IsUsingArchive())
+	{
+		FMemoryReader MetadataAr(DescData.GetSerializedData(), true);
+
+		// Serialize metadata custom versions
+		FCustomVersionContainer CustomVersions;
+		CustomVersions.Serialize(MetadataAr);
+		MetadataAr.SetCustomVersions(CustomVersions);
+	
+		// Serialize metadata payload
+		FActorDescArchive ActorDescAr(MetadataAr, this);
+		ActorDescAr.Init();
+
+		Serialize(ActorDescAr);
+		DeprecateClass(MetadataAr);
+	}
+	else
+	{
+		Serialize(*DescData.GetArchive());
+		DeprecateClass(*DescData.GetArchive());
 	}
 
 	Container = nullptr;
@@ -240,7 +253,7 @@ void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& Desc
 void FWorldPartitionActorDesc::Patch(const FWorldPartitionActorDescInitData& DescData, TArray<uint8>& OutData, FWorldPartitionAssetDataPatcher* InAssetDataPatcher)
 {
 	// Serialize actor metadata
-	FMemoryReader MetadataAr(DescData.SerializedData, true);
+	FMemoryReader MetadataAr(DescData.GetSerializedData(), true);
 
 	// Serialize metadata custom versions
 	FCustomVersionContainer CustomVersions;
@@ -347,14 +360,14 @@ bool FWorldPartitionActorDesc::ShouldResave(const FWorldPartitionActorDesc* Othe
 	return !bActorIsHLODRelevant && Other->bActorIsHLODRelevant;
 }
 
-void FWorldPartitionActorDesc::SerializeTo(TArray<uint8>& OutData) const
+void FWorldPartitionActorDesc::SerializeTo(TArray<uint8>& OutData, FWorldPartitionActorDesc* BaseDesc) const
 {
 	FWorldPartitionActorDesc* MutableThis = const_cast<FWorldPartitionActorDesc*>(this);
 
 	// Serialize to archive and gather custom versions
 	TArray<uint8> PayloadData;
 	FMemoryWriter PayloadAr(PayloadData, true);
-	FActorDescArchive ActorDescAr(PayloadAr, MutableThis);
+	FActorDescArchive ActorDescAr(PayloadAr, MutableThis, BaseDesc);
 	ActorDescAr.Init();
 
 	MutableThis->Serialize(ActorDescAr);

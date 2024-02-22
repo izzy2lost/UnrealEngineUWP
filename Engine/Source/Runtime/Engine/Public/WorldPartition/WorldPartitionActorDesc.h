@@ -12,21 +12,61 @@
 #include "UObject/WeakObjectPtr.h"
 #include "Templates/SubclassOf.h"
 #include "Misc/Guid.h"
+#include "Misc/TVariant.h"
 #include "WorldPartition/WorldPartitionActorDescType.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "WorldPartition/Filter/WorldPartitionActorFilter.h"
 
+class FActorDescArchive;
+
 // Struct used to create actor descriptor
 struct FWorldPartitionActorDescInitData
 {
+	FWorldPartitionActorDescInitData()
+		: DataSource(TInPlaceType<TArray<uint8>>(), TArray<uint8>())
+	{
+	}
+
+	FWorldPartitionActorDescInitData(FActorDescArchive* InArchive)
+		: DataSource(TInPlaceType<FActorDescArchive*>(), InArchive)
+	{
+	}
+
 	UClass* NativeClass;
 	FName PackageName;
 	FSoftObjectPath ActorPath;
-	TArray<uint8> SerializedData;
 
+	TArray<uint8>& GetSerializedData()
+	{
+		check(DataSource.IsType<TArray<uint8>>());
+		return DataSource.Get<TArray<uint8>>();
+	}
+
+	const TArray<uint8>& GetSerializedData() const
+	{
+		check(DataSource.IsType<TArray<uint8>>());
+		return DataSource.Get<TArray<uint8>>();
+	}
+
+	FActorDescArchive* GetArchive() const
+	{
+		check(DataSource.IsType<FActorDescArchive*>());
+		return DataSource.Get<FActorDescArchive*>();
+	}
+
+	bool IsUsingArchive() const
+	{
+		return DataSource.IsType<FActorDescArchive*>();
+	}
+		
 	FWorldPartitionActorDescInitData& SetNativeClass(UClass* InNativeClass) { NativeClass = InNativeClass; return *this; }
 	FWorldPartitionActorDescInitData& SetPackageName(FName InPackageName) { PackageName = InPackageName; return *this; }
 	FWorldPartitionActorDescInitData& SetActorPath(const FSoftObjectPath& InActorPath) { ActorPath = InActorPath; return *this; }
+
+private:
+	// Provide SerializedData or an already initialized Archive
+	TVariant<TArray<uint8>, FActorDescArchive*> DataSource;
+
 };
 
 struct FWorldPartitionAssetDataPatcher
@@ -95,6 +135,7 @@ class FWorldPartitionActorDesc
 	friend class FActorDescArchive;
 	friend class FWorldPartitionActorDescInstance;
 	friend class FStreamingGenerationUnsavedDirtyActorDescInstance;
+	friend class FPropertyOverrideUtils;
 	template<class U> friend class TActorDescContainerCollection;
 
 public:
@@ -161,6 +202,7 @@ public:
 		
 	virtual bool IsChildContainerInstance() const { return false; }
 	virtual FName GetChildContainerPackage() const { return NAME_None; }
+	virtual FString GetChildContainerName() const { return FString(); }
 	virtual EWorldPartitionActorFilterType GetChildContainerFilterType() const { return EWorldPartitionActorFilterType::None; }
 	virtual const FWorldPartitionActorFilter* GetChildContainerFilter() const { return nullptr; }
 	virtual UActorDescContainer* GetChildContainer() const { return nullptr; }
@@ -328,7 +370,7 @@ public:
 	 */
 	ENGINE_API virtual bool ShouldResave(const FWorldPartitionActorDesc* Other) const;
 
-	ENGINE_API void SerializeTo(TArray<uint8>& OutData) const;
+	ENGINE_API void SerializeTo(TArray<uint8>& OutData, FWorldPartitionActorDesc* BaseDesc = nullptr) const;
 
 	using FActorDescDeprecator = TFunction<void(FArchive&, FWorldPartitionActorDesc*)>;
 	static ENGINE_API void RegisterActorDescDeprecator(TSubclassOf<AActor> ActorClass, const FActorDescDeprecator& Deprecator);

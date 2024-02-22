@@ -426,6 +426,9 @@ struct FFortniteMainBranchObjectVersion
 		// Move workspaces to a seperate plugin
 		AnimNextMoveWorkspaces,
 
+		// Level Instance Property overrides
+		LevelInstancePropertyOverrides,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

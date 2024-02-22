@@ -57,20 +57,25 @@ UClass* FWorldPartitionActorDescUtils::GetActorNativeClassFromAssetData(const FA
 	FString ActorMetaDataClass;
 	if (InAssetData.GetTagValue(NAME_ActorMetaDataClass, ActorMetaDataClass))
 	{
-		// Avoid an assert when calling StaticFindObject during save to retrieve the actor's class.
-		// Since we are only looking for a native class, the call to StaticFindObject is legit.
-		TGuardValue<bool> GIsSavingPackageGuard(GIsSavingPackage, false);
-
-		// Look for a class redirectors
-		const FString ActorNativeClassName = ResolveClassRedirector(ActorMetaDataClass);
-		
-		// Handle deprecated short class names
-		const FTopLevelAssetPath ClassPath = FAssetData::TryConvertShortClassNameToPathName(*ActorNativeClassName, ELogVerbosity::Log);
-
-		// Lookup the native class
-		return UClass::TryFindTypeSlow<UClass>(ClassPath.ToString(), EFindFirstObjectOptions::ExactClass);
+		return GetActorNativeClassFromString(ActorMetaDataClass);
 	}
 	return nullptr;
+}
+
+UClass* FWorldPartitionActorDescUtils::GetActorNativeClassFromString(const FString& InClassPath)
+{
+	// Avoid an assert when calling StaticFindObject during save to retrieve the actor's class.
+		// Since we are only looking for a native class, the call to StaticFindObject is legit.
+	TGuardValue<bool> GIsSavingPackageGuard(GIsSavingPackage, false);
+
+	// Look for a class redirectors
+	const FString ActorNativeClassName = ResolveClassRedirector(InClassPath);
+
+	// Handle deprecated short class names
+	const FTopLevelAssetPath ClassPath = FAssetData::TryConvertShortClassNameToPathName(*ActorNativeClassName, ELogVerbosity::Log);
+
+	// Lookup the native class
+	return UClass::TryFindTypeSlow<UClass>(ClassPath.ToString(), EFindFirstObjectOptions::ExactClass);
 }
 
 TUniquePtr<FWorldPartitionActorDesc> FWorldPartitionActorDescUtils::GetActorDescriptorFromAssetData(const FAssetData& InAssetData)
@@ -89,7 +94,7 @@ TUniquePtr<FWorldPartitionActorDesc> FWorldPartitionActorDescUtils::GetActorDesc
 
 		FString ActorMetaDataStr;
 		verify(InAssetData.GetTagValue(NAME_ActorMetaData, ActorMetaDataStr));
-		verify(FBase64::Decode(ActorMetaDataStr, ActorDescInitData.SerializedData));
+		verify(FBase64::Decode(ActorMetaDataStr, ActorDescInitData.GetSerializedData()));
 
 		TUniquePtr<FWorldPartitionActorDesc> NewActorDesc(AActor::StaticCreateClassActorDesc(ActorDescInitData.NativeClass ? ActorDescInitData.NativeClass : AActor::StaticClass()));
 
@@ -174,7 +179,7 @@ bool FWorldPartitionActorDescUtils::GetPatchedAssetDataFromAssetData(const FAsse
 
 		FString ActorMetaDataStr;
 		verify(InAssetData.GetTagValue(NAME_ActorMetaData, ActorMetaDataStr));
-		verify(FBase64::Decode(ActorMetaDataStr, ActorDescInitData.SerializedData));
+		verify(FBase64::Decode(ActorMetaDataStr, ActorDescInitData.GetSerializedData()));
 
 		TArray<uint8> PatchedData;
 		FWorldPartitionActorDesc::Patch(ActorDescInitData, PatchedData, InAssetDataPatcher);

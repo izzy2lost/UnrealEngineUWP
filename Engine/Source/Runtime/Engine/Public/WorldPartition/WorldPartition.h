@@ -523,6 +523,12 @@ public:
 #if WITH_EDITOR
 	UActorDescContainerInstance* GetActorDescContainerInstance() const { return ActorDescContainerInstance; }
 
+	void SetContainerInstanceClass(TSubclassOf<UActorDescContainerInstance> InContainerInstanceClass)
+	{
+		check(!IsInitialized());
+		ContainerInstanceClass = InContainerInstanceClass;
+	}
+
 	UE_DEPRECATED(5.4, "Use ForEachActorDescContainerInstanceBreakable.")
 	void ForEachActorDescContainerBreakable(TFunctionRef<bool(UActorDescContainer*)> Func) {}
 	UE_DEPRECATED(5.4, "Use ForEachActorDescContainerInstanceBreakable.")
@@ -602,6 +608,8 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UActorDescContainerInstance> ActorDescContainerInstance;
 
+	UPROPERTY(Transient)
+	TSubclassOf<UActorDescContainerInstance> ContainerInstanceClass;
 public:
 	TOptional<bool> bOverrideEnableStreamingInEditor;
 

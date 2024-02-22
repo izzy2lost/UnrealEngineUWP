@@ -21,6 +21,7 @@ class UActorDescContainer : public UObject, public FActorDescList
 #if WITH_EDITOR
 	friend struct FWorldPartitionHandleUtils;
 	friend class FWorldPartitionActorDesc;
+	friend class UActorDescContainerInstance;
 
 	using FNameActorDescMap = TMap<FName, TUniquePtr<FWorldPartitionActorDesc>*>;
 
@@ -56,12 +57,15 @@ public:
 		/** The associated External Data Layer Asset */
 		const UExternalDataLayerAsset* ExternalDataLayerAsset = nullptr;
 
+		/* Custom pre-init function that is called before calling Initialize on the new container */
+		TUniqueFunction<void(UActorDescContainer*)> PreInitialize;
+
 		/* Custom filter function used to filter actors descriptors. */
 		TUniqueFunction<bool(const FWorldPartitionActorDesc*)> FilterActorDesc;
 	};
 
-	ENGINE_API void Initialize(const FInitializeParams& InitParams);
-	ENGINE_API void Uninitialize();
+	ENGINE_API virtual void Initialize(const FInitializeParams& InitParams);
+	ENGINE_API virtual void Uninitialize();
 
 	bool IsInitialized() const { return bContainerInitialized; }
 
@@ -115,9 +119,9 @@ public:
 
 	ENGINE_API bool ShouldHandleActorEvent(const AActor* Actor);
 
-	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByPath(const FString& ActorPath) const;
-	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByPath(const FSoftObjectPath& ActorPath) const;
-	ENGINE_API const FWorldPartitionActorDesc* GetActorDescByName(FName ActorName) const;
+	virtual ENGINE_API const FWorldPartitionActorDesc* GetActorDescByPath(const FString& ActorPath) const;
+	virtual ENGINE_API const FWorldPartitionActorDesc* GetActorDescByPath(const FSoftObjectPath& ActorPath) const;
+	virtual ENGINE_API const FWorldPartitionActorDesc* GetActorDescByName(FName ActorName) const;
 
 	bool bContainerInitialized;
 
@@ -162,14 +166,18 @@ protected:
 	ENGINE_API virtual void BeginDestroy() override;
 	//~ End UObject Interface
 
+	ENGINE_API virtual bool ShouldRegisterDelegates() const;
+
+	ENGINE_API bool ShouldHandleActorEvent(const AActor* Actor, bool bInUseLoadedPath) const;
+	ENGINE_API bool IsActorDescHandled(const AActor* InActor, bool bInUseLoadedPath) const;
 private:
 	// GetWorld() should never be called on an ActorDescContainer to avoid any confusion as it can be used as a template
 	UWorld* GetWorld() const override { return nullptr; }
 
-	ENGINE_API bool ShouldRegisterDelegates();
 	ENGINE_API void RegisterEditorDelegates();
 	ENGINE_API void UnregisterEditorDelegates();
 
+protected:
 	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;
 #endif
 };

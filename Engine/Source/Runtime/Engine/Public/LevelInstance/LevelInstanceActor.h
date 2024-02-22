@@ -10,6 +10,7 @@
 #include "LevelInstance/LevelInstanceInterface.h"
 #include "LevelInstance/LevelInstanceActorImpl.h"
 #include "LevelInstance/LevelInstanceActorGuid.h"
+#include "LevelInstance/LevelInstancePropertyOverrideAsset.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "LevelInstanceActor.generated.h"
 
@@ -24,8 +25,11 @@ public:
 protected:
 #if WITH_EDITORONLY_DATA
 	/** Level LevelInstance */
-	UPROPERTY(EditAnywhere, Category = Level, Meta = (NoCreate, DisplayName="Level"))
+	UPROPERTY(EditAnywhere, Category = Level, Meta = (NoCreate, DisplayName="Level", DisableLevelInstancePropertyOverride))
 	TSoftObjectPtr<UWorld> WorldAsset;
+
+	UPROPERTY(VisibleAnywhere, Category = Override, meta = (EditInline, NoResetToDefault, EditCondition="PropertyOverrides != nullptr", EditConditionHides))
+	TObjectPtr<ULevelInstancePropertyOverrideAsset> PropertyOverrides;
 #endif
 	UPROPERTY(VisibleAnywhere, Category = Default)
 	TObjectPtr<ULevelInstanceComponent> LevelInstanceComponent;
@@ -41,7 +45,7 @@ protected:
 
 public:
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category = Level, AdvancedDisplay, Meta = (DisplayName="Level Behavior"))
+	UPROPERTY(EditAnywhere, Category = Level, AdvancedDisplay, Meta = (DisplayName="Level Behavior", DisableLevelInstancePropertyOverride))
 	ELevelInstanceRuntimeBehavior DesiredRuntimeBehavior;
 #endif
 
@@ -71,6 +75,9 @@ public:
 	virtual ELevelInstanceRuntimeBehavior GetDefaultRuntimeBehavior() const override { return ELevelInstanceRuntimeBehavior::Partitioned; }
 	ENGINE_API virtual TSubclassOf<AActor> GetEditorPivotClass() const override;
 	ENGINE_API virtual bool SupportsPartialEditorLoading() const override;
+
+	ENGINE_API virtual bool SupportsPropertyOverrides() const override;
+	ENGINE_API ULevelInstancePropertyOverrideAsset* GetPropertyOverrideAsset() const override;
 	// End ILevelInstanceInterface
 			
 	// UObject overrides
@@ -111,6 +118,7 @@ public:
 	static ENGINE_API FOnLevelInstanceActorPostLoad OnLevelInstanceActorPostLoad;
 
 private:
+	ENGINE_API virtual void SetPropertyOverrideAsset(ULevelInstancePropertyOverrideAsset* InPropertyOverrideAsset) override;
 	ENGINE_API virtual bool ShouldCookWorldAsset() const;
 #endif
 };

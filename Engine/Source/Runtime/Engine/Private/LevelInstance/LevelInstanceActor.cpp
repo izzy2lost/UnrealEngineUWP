@@ -99,7 +99,7 @@ bool ALevelInstance::IsLoadingEnabled() const
 const TSoftObjectPtr<UWorld>& ALevelInstance::GetWorldAsset() const
 {
 #if WITH_EDITORONLY_DATA
-	return WorldAsset;
+	return GetPropertyOverrideAsset() ? GetPropertyOverrideAsset()->GetWorldAsset() : WorldAsset;
 #else
 	return CookedWorldAsset;
 #endif
@@ -126,6 +126,17 @@ void ALevelInstance::OnLevelInstanceLoaded()
 }
 
 #if WITH_EDITOR
+
+void ALevelInstance::SetPropertyOverrideAsset(ULevelInstancePropertyOverrideAsset* InPropertyOverrideAsset)
+{
+	if (PropertyOverrides != InPropertyOverrideAsset)
+	{
+		Modify();
+		PropertyOverrides = InPropertyOverrideAsset;
+	}
+}
+
+
 ULevelInstanceComponent* ALevelInstance::GetLevelInstanceComponent() const
 {
 	return Cast<ULevelInstanceComponent>(RootComponent);
@@ -139,6 +150,16 @@ TSubclassOf<AActor> ALevelInstance::GetEditorPivotClass() const
 bool ALevelInstance::SupportsPartialEditorLoading() const
 {
 	return ILevelInstanceInterface::SupportsPartialEditorLoading() && LevelInstanceActorImpl.SupportsPartialEditorLoading();
+}
+
+bool ALevelInstance::SupportsPropertyOverrides() const
+{
+	return LevelInstanceActorImpl.SupportsPropertyOverrides();
+}
+
+ULevelInstancePropertyOverrideAsset* ALevelInstance::GetPropertyOverrideAsset() const
+{
+	return SupportsPropertyOverrides() ? PropertyOverrides : nullptr;
 }
 
 TUniquePtr<FWorldPartitionActorDesc> ALevelInstance::CreateClassActorDesc() const
@@ -158,7 +179,7 @@ void ALevelInstance::PostLoad()
 #if WITH_EDITORONLY_DATA
 	if (IsRunningCookCommandlet() && ShouldCookWorldAsset())
 	{
-		CookedWorldAsset = WorldAsset;
+		CookedWorldAsset = GetWorldAsset();
 	}
 #endif
 }
@@ -300,9 +321,9 @@ bool ALevelInstance::GetReferencedContentObjects(TArray<UObject*>& Objects) cons
 
 bool ALevelInstance::GetSoftReferencedContentObjects(TArray<FSoftObjectPath>& SoftObjects) const
 {
-	if (WorldAsset.ToSoftObjectPath().IsValid())
+	if (GetWorldAsset().ToSoftObjectPath().IsValid())
 	{
-		SoftObjects.Add(WorldAsset.ToSoftObjectPath());
+		SoftObjects.Add(GetWorldAsset().ToSoftObjectPath());
 		return true;
 	}
 	return false;

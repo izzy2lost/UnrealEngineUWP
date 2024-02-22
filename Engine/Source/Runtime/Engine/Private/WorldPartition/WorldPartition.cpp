@@ -1992,7 +1992,8 @@ UActorDescContainerInstance* UWorldPartition::RegisterActorDescContainerInstance
 			}
 		};
 
-		UActorDescContainerInstance* ContainerInstanceToRegister = NewObject<UActorDescContainerInstance>(this, UActorDescContainerInstance::StaticClass(), NAME_None, RF_Transient);
+		UClass* ContainerInstanceClassPtr = ContainerInstanceClass.Get() ? ContainerInstanceClass.Get() : UActorDescContainerInstance::StaticClass();
+		UActorDescContainerInstance* ContainerInstanceToRegister = NewObject<UActorDescContainerInstance>(this, ContainerInstanceClassPtr, NAME_None, RF_Transient);
 		
 		OnActorDescContainerInstancePreInitialize.ExecuteIfBound(InitParams, ContainerInstanceToRegister);
 

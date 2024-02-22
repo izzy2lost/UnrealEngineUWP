@@ -109,6 +109,11 @@ void FLevelInstanceActorDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBu
 		return;
 	}
 
+	if (ULevelInstancePropertyOverrideAsset* PropertyOverride = LevelInstance->GetPropertyOverrideAsset())
+	{
+		DetailBuilder.HideProperty("WorldAsset");
+	}
+
 	IDetailCategoryBuilder& LevelInstanceEditingCategory = DetailBuilder.EditCategory("Level Edit", FText::GetEmpty(), ECategoryPriority::Transform);
 
 	LevelInstanceEditingCategory.AddCustomRow(FText::GetEmpty())
