@@ -80,6 +80,23 @@ bool UPCGAddAttributeSettings::CanEditChange(const FProperty* InProperty) const
 
 	return true;
 }
+
+void UPCGAddAttributeSettings::ApplyStructuralDeprecation(UPCGNode* InOutNode)
+{
+	check(InOutNode);
+	// Arbitrary version that approximatively matches the time when Add/Create attributes changed.
+	// It will convert any add attributes that have nothing connected to it to a create attribute.
+	if (DataVersion < FPCGCustomVersion::SupportPartitionedComponentsInNonPartitionedLevels)
+	{
+		if (!InOutNode->IsInputPinConnected(PCGPinConstants::DefaultInputLabel))
+		{
+			UPCGCreateAttributeSetSettings* NewSettings = NewObject<UPCGCreateAttributeSetSettings>(InOutNode);
+			NewSettings->OutputTarget.ImportFromOtherSelector(OutputTarget);
+			NewSettings->AttributeTypes = AttributeTypes;
+			InOutNode->SetSettingsInterface(NewSettings);
+		}
+	}
+}
 #endif // WITH_EDITOR
 
 FPCGElementPtr UPCGAddAttributeSettings::CreateElement() const
