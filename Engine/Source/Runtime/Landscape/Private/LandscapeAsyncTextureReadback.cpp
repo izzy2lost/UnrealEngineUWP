@@ -83,7 +83,7 @@ void FLandscapeAsyncTextureReadback::FinishReadback_RenderThread()
 	bFinishedOnRenderThread = true;
 }
 
-bool FLandscapeAsyncTextureReadback::CheckAndUpdate(bool& bOutFinishCommandQueued)
+bool FLandscapeAsyncTextureReadback::CheckAndUpdate(bool& bOutFinishCommandQueued, const bool bInForceFinish)
 {
 	// if we already queued the finish commands to render thread, then we're just waiting on it signaling readback complete	
 	if (bFinishQueuedFromGameThread)
@@ -92,7 +92,7 @@ bool FLandscapeAsyncTextureReadback::CheckAndUpdate(bool& bOutFinishCommandQueue
 	}
 	
 	// if we haven't started, or if the readback is not yet ready, then we have nothing to do but wait
-	if (!bStartedOnRenderThread || !AsyncReadback->IsReady())
+	if (!bStartedOnRenderThread || (!bInForceFinish && !AsyncReadback->IsReady()))
 	{
 		return false;
 	}
@@ -101,11 +101,11 @@ bool FLandscapeAsyncTextureReadback::CheckAndUpdate(bool& bOutFinishCommandQueue
 	// queue it to make the data available to the game thread
 	FLandscapeAsyncTextureReadback* Readback = this;
 	ENQUEUE_RENDER_COMMAND(FLandscapeAsyncTextureReadback_FinishReadback)(
-		[Readback](FRHICommandListImmediate& RHICmdList)
+		[Readback, bInForceFinish](FRHICommandListImmediate& RHICmdList)
 		{
 			// sanity check the state 
 			check(Readback->bStartedOnRenderThread && !Readback->bFinishedOnRenderThread);
-			check(Readback->AsyncReadback.IsValid() && Readback->AsyncReadback->IsReady());
+			check(Readback->AsyncReadback.IsValid() && (bInForceFinish || Readback->AsyncReadback->IsReady()));
 			Readback->FinishReadback_RenderThread();
 		});
 

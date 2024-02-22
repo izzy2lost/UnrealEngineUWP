@@ -91,10 +91,12 @@ public:
 
 	// If using the async readback path, check its status and update if needed. Return true when the AsyncReadbackResults are available.
 	// You must call this periodically, or the async readback may not complete.
-	bool CheckAndUpdateAsyncReadback(bool& bOutRenderCommandsQueued)
+	// bInForceFinish will force the RenderThread to wait until GPU completes the readback, ensuring the readback is completed after the render thread executes the command.
+	// NOTE: you may still see false returned, this just means the render thread hasn't executed the command yet.
+	bool CheckAndUpdateAsyncReadback(bool& bOutRenderCommandsQueued, const bool bInForceFinish = false)
 	{
 		check(AsyncReadbackPtr != nullptr);
-		return AsyncReadbackPtr->CheckAndUpdate(bOutRenderCommandsQueued);
+		return AsyncReadbackPtr->CheckAndUpdate(bOutRenderCommandsQueued, bInForceFinish);
 	}
 
 	// return true if the async readback is complete.  (Does not update the readback state)
