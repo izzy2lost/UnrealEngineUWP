@@ -1087,7 +1087,7 @@ namespace mu
             {
 				// Take the layouts from the first non-null connection.
 				// \TODO: Take them from the first connection that actually returns layouts?
-				if (!bFirstValidConnectionFound)
+				if (bFirstValidConnectionFound)
 				{
 					TargetOptions.OverrideLayouts = OutResult.GeneratedLayouts;
 				}
