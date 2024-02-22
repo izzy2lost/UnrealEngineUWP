@@ -18,5 +18,6 @@ public:
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 
 private:
-	void RegisterSelectionOutlineColorColumnToActor(ITypedElementDataStorageInterface& DataStorage) const;
+	void RegisterOutlineColorColumnToActor(ITypedElementDataStorageInterface& DataStorage);
+	void RegisterOverlayColorColumnToActor(ITypedElementDataStorageInterface& DataStorage);
 };

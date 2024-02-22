@@ -5957,7 +5957,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 					PrimitiveVirtualTextureLod.AddUninitialized();
 					PrimitiveOcclusionBounds.AddUninitialized();
 #if WITH_EDITOR
-					PrimitivesSelected.Add(PrimitiveSceneInfo->Proxy->IsSelected());
+					PrimitivesSelected.Add(PrimitiveSceneInfo->Proxy->WantsEditorEffects() || PrimitiveSceneInfo->Proxy->IsSelected());
 #endif
 #if RHI_RAYTRACING
 					PrimitiveRayTracingFlags.AddZeroed();
