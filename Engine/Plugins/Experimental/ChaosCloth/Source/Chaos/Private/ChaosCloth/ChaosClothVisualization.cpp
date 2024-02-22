@@ -2153,6 +2153,38 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 					DrawPoint(PDI, P, Orange, nullptr, 2.f);
 					DrawLine(PDI, Pos1, P, Orange);
 				}
+
+				const TArray<int32>& KinematicCollidingParticles = SelfCollisionConstraints->GetKinematicCollidingParticles();
+				const TArray<TMap<int32, Softs::FSolverReal>>& KinematicColliderTimers = SelfCollisionConstraints->GetKinematicColliderTimers();
+				const FTriangleMesh& TriangleMesh = SelfCollisionConstraints->GetTriangleMesh();
+				for (int32 Index1 : KinematicCollidingParticles)
+				{
+					const FVector P = LocalSpaceLocation + FVector(Positions[Index1]);
+
+					static const FLinearColor Orange(0.3f, 0.15f, 0.f);
+					DrawPoint(PDI, P, Orange, nullptr, 2.f);
+
+					const TMap<int32, Softs::FSolverReal>& Timers = KinematicColliderTimers[Index1 - Offset];
+					for (const TPair<int32, Softs::FSolverReal>& ElemAndTimer : Timers)
+					{
+						const int32 Index2 = TriangleMesh.GetElements()[ElemAndTimer.Get<0>()][0];
+						const int32 Index3 = TriangleMesh.GetElements()[ElemAndTimer.Get<0>()][1];
+						const int32 Index4 = TriangleMesh.GetElements()[ElemAndTimer.Get<0>()][2];
+
+						const Softs::FSolverVec3& P1 = Positions[Index1];
+						const Softs::FSolverVec3& P2 = Positions[Index2];
+						const Softs::FSolverVec3& P3 = Positions[Index3];
+						const Softs::FSolverVec3& P4 = Positions[Index4];
+						Softs::FSolverVec3 Bary;
+						const FVector Pos1 = LocalSpaceLocation + FVector(FindClosestPointAndBaryOnTriangle(P2, P3, P4, P1, Bary));
+
+						static const FLinearColor LtRed(0.6f, 0.f, 0.f);
+						static const FLinearColor DkRed(0.3f, 0.f, 0.f);
+						const FLinearColor& Color = ElemAndTimer.Get<1>() > 0.f ? LtRed : DkRed;
+						DrawPoint(PDI, Pos1, Color, nullptr, 2.f);
+						DrawLine(PDI, Pos1, P, Color);
+					}
+				}
 			}
 
 			if (const Softs::FPBDSelfCollisionSphereConstraints* const SelfCollisionSphereConstraints =

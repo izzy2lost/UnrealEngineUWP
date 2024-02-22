@@ -3,6 +3,7 @@
 
 #if !COMPILE_WITHOUT_UNREAL_SUPPORT
 #include "Chaos/Core.h"
+#include "Chaos/PBDFlatWeightMap.h"
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
 #include "Chaos/PBDTriangleMeshCollisions.h"
@@ -35,13 +36,14 @@ public:
 		const FTriangleMesh& InTriangleMesh,
 		const TArray<FSolverVec3>* InReferencePositions,
 		TSet<TVec2<int32>>&& InDisabledCollisionElements,
+		const TConstArrayView<FRealSingle>& InKinematicColliderFrictionMultipliers,
 		const TConstArrayView<int32>& InSelfCollisionLayers,
 		const FSolverReal InThickness = BackCompatThickness,
 		const FSolverReal InStiffness = BackCompatStiffness,
 		const FSolverReal InFrictionCoefficient = BackCompatFrictionCoefficient,
 		const FSolverReal InKinematicColliderThickness = DefaultKinematicColliderThickness,
 		const FSolverReal InKinematicColliderStiffness = DefaultKinematicColliderStiffness,
-		const FSolverReal InKinematicColliderFrictionCoefficient = DefaultKinematicColliderFrictionCoefficient,
+		const FSolverVec2 InKinematicColliderFrictionCoefficient = FSolverVec2(DefaultKinematicColliderFrictionCoefficient),
 		const FSolverReal InProximityStiffness = DefaultProximityStiffness);
 
 	UE_DEPRECATED(5.4, "Use constructor with SelfCollisionLayers")
@@ -55,7 +57,7 @@ public:
 		const FSolverReal InStiffness = BackCompatStiffness,
 		const FSolverReal InFrictionCoefficient = BackCompatFrictionCoefficient)
 		: FPBDCollisionSpringConstraintsBase(InOffset, InNumParticles, InTriangleMesh, InReferencePositions, MoveTemp(InDisabledCollisionElements),
-			TConstArrayView<int32>(), InThickness, InStiffness, InFrictionCoefficient)
+			TConstArrayView<FRealSingle>(), TConstArrayView<int32>(), InThickness, InStiffness, InFrictionCoefficient)
 	{}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -94,6 +96,10 @@ public:
 		return FlipNormal;
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
+
+	const TArray<int32>& GetKinematicCollidingParticles() const { return KinematicCollidingParticles; }
+	const TArray<TMap<int32, FSolverReal>>& GetKinematicColliderTimers() const { return KinematicColliderTimers; }
+	const FTriangleMesh& GetTriangleMesh() const { return TriangleMesh; }
 
 	void SetThickness(FSolverReal InThickness) { Thickness = FMath::Max(InThickness, (FSolverReal)0.);  }
 	void SetFrictionCoefficient(FSolverReal InFrictionCoefficient) { FrictionCoefficient = InFrictionCoefficient; }
@@ -151,8 +157,6 @@ public:
 		case EConstraintType::Default:
 		case EConstraintType::GIAFlipped:
 			return 2.f * Thickness;
-		case EConstraintType::Kinematic:
-			return Thickness + KinematicColliderThickness;
 		}		
 	}
 
@@ -164,8 +168,6 @@ public:
 		case EConstraintType::Default:
 		case EConstraintType::GIAFlipped:
 			return Stiffness;
-		case EConstraintType::Kinematic:
-			return KinematicColliderStiffness;
 		}
 	}
 
@@ -176,8 +178,6 @@ public:
 		default:
 		case EConstraintType::Default:
 			return FrictionCoefficient;
-		case EConstraintType::Kinematic:
-			return KinematicColliderFrictionCoefficient;
 		case EConstraintType::GIAFlipped:
 			return (FSolverReal)0.f;
 		}
@@ -189,7 +189,7 @@ protected:
 	FSolverReal FrictionCoefficient;
 	FSolverReal KinematicColliderThickness;
 	FSolverReal KinematicColliderStiffness;
-	FSolverReal KinematicColliderFrictionCoefficient;
+	FPBDFlatWeightMap KinematicColliderFrictionCoefficient;
 	FSolverReal ProximityStiffness; // (actual spring stiffness for force-based solver)
 
 	UE_DEPRECATED(5.4, "Constraints will be made private")
@@ -200,6 +200,8 @@ protected:
 	TArray<bool> FlipNormal;
 
 	CHAOS_API void UpdateCollisionLayers(const TConstArrayView<int32>& InFaceCollisionLayers);
+
+	int32 GetNumParticles() const { return NumParticles; }
 
 private:
 
@@ -215,7 +217,6 @@ private:
 	enum struct EConstraintType : uint8
 	{
 		Default,
-		Kinematic,
 		GIAFlipped,
 	};
 	TArray<EConstraintType> ConstraintTypes;

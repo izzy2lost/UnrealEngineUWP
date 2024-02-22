@@ -26,6 +26,7 @@ public:
 		const int32 InNumParticles,
 		const FTriangleMesh& InTriangleMesh,
 		const TArray<FSolverVec3>* InRestPositions,
+		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 		const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 		const FCollectionPropertyConstFacade& PropertyCollection)
 		: Base(
@@ -34,13 +35,14 @@ public:
 			InTriangleMesh,
 			InRestPositions,
 			GenerateDisabledCollisionElements(InTriangleMesh, PropertyCollection),
+			WeightMaps.FindRef(GetSelfCollisionKinematicColliderFrictionString(PropertyCollection, SelfCollisionKinematicColliderFrictionName.ToString())),
 			FaceIntMaps.FindRef(GetSelfCollisionLayersString(PropertyCollection, SelfCollisionLayersName.ToString())),
 			(FSolverReal)FMath::Max(GetSelfCollisionThickness(PropertyCollection, Base::BackCompatThickness), 0.f),
 			(FSolverReal)FMath::Clamp(GetSelfCollisionStiffness(PropertyCollection, Base::BackCompatStiffness), 0.f, 1.f),
 			FMath::Clamp((FSolverReal)GetSelfCollisionFriction(PropertyCollection, Base::BackCompatFrictionCoefficient), MinFrictionCoefficient, MaxFrictionCoefficient),
 			(FSolverReal)FMath::Max(GetSelfCollisionKinematicColliderThickness(PropertyCollection, Base::DefaultKinematicColliderThickness), 0.f),
 			(FSolverReal)FMath::Clamp((FSolverReal)GetSelfCollisionKinematicColliderStiffness(PropertyCollection, Base::DefaultKinematicColliderStiffness), 0.f, 1.f),
-			FMath::Clamp((FSolverReal)GetSelfCollisionKinematicColliderFriction(PropertyCollection, Base::DefaultKinematicColliderFrictionCoefficient), MinFrictionCoefficient, MaxFrictionCoefficient),
+			FSolverVec2(GetWeightedFloatSelfCollisionKinematicColliderFriction(PropertyCollection, Base::DefaultKinematicColliderFrictionCoefficient)).ClampAxes(MinFrictionCoefficient, MaxFrictionCoefficient),
 			(FSolverReal)GetSelfCollisionProximityStiffness(PropertyCollection, Base::DefaultProximityStiffness))
 		, SelfCollisionThicknessIndex(PropertyCollection)
 		, SelfCollisionStiffnessIndex(PropertyCollection)
@@ -65,6 +67,7 @@ public:
 			InNumParticles,
 			InTriangleMesh,
 			InRestPositions,
+			TMap<FString, TConstArrayView<FRealSingle>>(),
 			TMap<FString, TConstArrayView<int32>>(),
 			PropertyCollection
 		)
@@ -85,6 +88,7 @@ public:
 			InTriangleMesh,
 			InRestPositions,
 			MoveTemp(InDisabledCollisionElements),
+			TConstArrayView<FRealSingle>(),
 			TConstArrayView<int32>(),
 			InThickness,
 			InStiffness,
@@ -104,6 +108,7 @@ public:
 	using Base::Init;
 
 	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection,
+		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 		const TMap<FString, TConstArrayView<int32>>& FaceIntMaps)
 	{
 		if (IsSelfCollisionThicknessMutable(PropertyCollection))
@@ -130,16 +135,33 @@ public:
 				Base::UpdateCollisionLayers(FaceIntMaps.FindRef(FaceIntMapName));
 			}
 		}
+		if (IsSelfCollisionKinematicColliderThicknessMutable(PropertyCollection))
+		{
+			KinematicColliderThickness = FMath::Max(GetSelfCollisionKinematicColliderThickness(PropertyCollection), 0.f);
+		}
 		if (IsSelfCollisionKinematicColliderStiffnessMutable(PropertyCollection))
 		{
 			KinematicColliderStiffness = FMath::Clamp((FSolverReal)GetSelfCollisionKinematicColliderStiffness(PropertyCollection), 0.f, 1.f);
+		}
+		if (IsSelfCollisionKinematicColliderFrictionMutable(PropertyCollection))
+		{
+			const FSolverVec2 WeightedValue = FSolverVec2(GetWeightedFloatSelfCollisionKinematicColliderFriction(PropertyCollection)).ClampAxes(MinFrictionCoefficient, MaxFrictionCoefficient);
+			if (IsSelfCollisionKinematicColliderFrictionStringDirty(PropertyCollection))
+			{
+				const FString& WeightMapName = GetSelfCollisionKinematicColliderFrictionString(PropertyCollection);
+				KinematicColliderFrictionCoefficient = FPBDFlatWeightMap(WeightedValue, WeightMaps.FindRef(WeightMapName), GetNumParticles());
+			}
+			else
+			{
+				KinematicColliderFrictionCoefficient.SetWeightedValue(WeightedValue);
+			}
 		}
 	}
 
 	UE_DEPRECATED(5.4, "Use SetProperties with FaceIntMaps")
 	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
 	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<int32>>());
+		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>(), TMap<FString, TConstArrayView<int32>>());
 	}
 
 private:

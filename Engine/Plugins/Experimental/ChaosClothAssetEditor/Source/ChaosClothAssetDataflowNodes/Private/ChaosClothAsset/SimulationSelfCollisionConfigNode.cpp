@@ -13,6 +13,7 @@ FChaosClothAssetSimulationSelfCollisionConfigNode::FChaosClothAssetSimulationSel
 	RegisterInputConnection(&SelfCollisionLayers.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 	RegisterInputConnection(&SelfCollisionDisabledFaces.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 	RegisterInputConnection(&SelfCollisionEnabledKinematicFaces.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+	RegisterInputConnection(&SelfCollisionKinematicColliderFrictionWeighted.WeightMap);
 }
 
 void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
@@ -28,7 +29,7 @@ void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyH
 	PropertyHelper.SetPropertyString(this, &SelfCollisionEnabledKinematicFaces);
 	PropertyHelper.SetProperty(this, &SelfCollisionKinematicColliderThickness);
 	PropertyHelper.SetProperty(this, &SelfCollisionKinematicColliderStiffness);
-	PropertyHelper.SetProperty(this, &SelfCollisionKinematicColliderFriction);
+	PropertyHelper.SetPropertyWeighted(TEXT("SelfCollisionKinematicColliderFriction"), SelfCollisionKinematicColliderFrictionWeighted);
 
 	PropertyHelper.SetPropertyBool(this, &bUseSelfIntersections);
 	PropertyHelper.SetPropertyBool(this, &bUseGlobalIntersectionAnalysis);
@@ -36,4 +37,19 @@ void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyH
 	PropertyHelper.SetProperty(this, &NumContourMinimizationPostSteps);
 	PropertyHelper.SetPropertyBool(this, &bUseGlobalPostStepContours);
 	PropertyHelper.SetProperty(this, &SelfCollisionProximityStiffness);
+}
+
+void FChaosClothAssetSimulationSelfCollisionConfigNode::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+	if (Ar.IsLoading())
+	{
+#if WITH_EDITORONLY_DATA
+		if (SelfCollisionKinematicColliderFriction_DEPRECATED != FrictionDeprecatedValue)
+		{
+			SelfCollisionKinematicColliderFrictionWeighted.Low = SelfCollisionKinematicColliderFrictionWeighted.High = SelfCollisionKinematicColliderFriction_DEPRECATED;
+			SelfCollisionKinematicColliderFriction_DEPRECATED = FrictionDeprecatedValue;
+		}
+#endif
+	}
 }
