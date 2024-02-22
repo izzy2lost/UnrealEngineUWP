@@ -46,15 +46,7 @@ void FPCGEditorModule::StartupModule()
 	GraphNodeFactory = MakeShareable(new FPCGEditorGraphNodeFactory());
 	FEdGraphUtilities::RegisterVisualNodeFactory(GraphNodeFactory);
 
-	if (GEditor)
-	{
-		GEditor->ActorFactories.Add(NewObject<UPCGVolumeFactory>());
-	}
-
-	if (!IsRunningCommandlet())
-	{
-		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FPCGEditorModule::RegisterOnEditorModeChange);
-	}
+	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FPCGEditorModule::OnPostEngineInit);
 }
 
 void FPCGEditorModule::ShutdownModule()
@@ -71,16 +63,51 @@ void FPCGEditorModule::ShutdownModule()
 	if (GEditor)
 	{
 		GEditor->ActorFactories.RemoveAll([](const UActorFactory* ActorFactory) { return ActorFactory->IsA<UPCGVolumeFactory>(); });
+
+		GEditor->ShouldDisableCPUThrottlingDelegates.RemoveAll([this](const UEditorEngine::FShouldDisableCPUThrottling& Delegate)
+		{
+			return Delegate.GetHandle() == ShouldDisableCPUThrottlingDelegateHandle;
+		});
 	}
 
+	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 	if (!IsRunningCommandlet())
 	{
-		FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 		if (GLevelEditorModeToolsIsValid())
 		{
 			GLevelEditorModeTools().OnEditorModeIDChanged().RemoveAll(this);
 		}
 	}
+}
+
+void FPCGEditorModule::OnPostEngineInit()
+{
+	RegisterOnEditorModeChange();
+
+	if (GEditor)
+	{
+		// Factory should be auto-discovered by UEditorEngine::InitEditor
+		check(GEditor->ActorFactories.FindItemByClass<UPCGVolumeFactory>());
+
+		if (!IsRunningCommandlet())
+		{
+			GEditor->ShouldDisableCPUThrottlingDelegates.Add(UEditorEngine::FShouldDisableCPUThrottling::CreateRaw(this, &FPCGEditorModule::ShouldDisableCPUThrottling));
+			ShouldDisableCPUThrottlingDelegateHandle = GEditor->ShouldDisableCPUThrottlingDelegates.Last().GetHandle();
+		}
+	}
+}
+
+bool FPCGEditorModule::ShouldDisableCPUThrottling()
+{
+	if (const UPCGEditorSettings* EditorSettings = GetDefault<UPCGEditorSettings>(); EditorSettings && EditorSettings->bDisableCPUThrottlingDuringGraphExecution)
+	{
+		if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+		{
+			return PCGSubsystem->IsAnyGraphCurrentlyExecuting();
+		}
+	}
+
+	return false;
 }
 
 void FPCGEditorModule::OnEditorModeIDChanged(const FEditorModeID& EditorModeID, bool bIsEntering)

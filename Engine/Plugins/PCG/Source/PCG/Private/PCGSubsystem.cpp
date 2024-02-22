@@ -877,6 +877,11 @@ bool UPCGSubsystem::IsGraphCurrentlyExecuting(UPCGGraph* Graph)
 	return GraphExecutor->IsGraphCurrentlyExecuting(Graph);
 }
 
+bool UPCGSubsystem::IsAnyGraphCurrentlyExecuting() const
+{
+	return GraphExecutor && GraphExecutor->IsAnyGraphCurrentlyExecuting();
+}
+
 void UPCGSubsystem::ForAllRegisteredLocalComponents(UPCGComponent* InOriginalComponent, const TFunctionRef<void(UPCGComponent*)>& InFunc) const
 {
 	auto WrapperFunc = [&InFunc](UPCGComponent* Component) -> FPCGTaskId

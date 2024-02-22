@@ -471,6 +471,22 @@ bool FPCGGraphExecutor::IsGraphCurrentlyExecuting(UPCGGraph* InGraph)
 	return bAnyPresent;
 }
 
+bool FPCGGraphExecutor::IsAnyGraphCurrentlyExecuting() const
+{
+	if (GetNonScheduledRemainingTaskCount() > 0)
+	{
+		return true;
+	}
+
+	// No need for locking here as we don't need the value to be precise here and it can change right after a lock anyways.
+	return ScheduledTasks.Num() > 0;
+}
+
+int32 FPCGGraphExecutor::GetNonScheduledRemainingTaskCount() const
+{
+	return Tasks.Num() + ReadyTasks.Num() + ActiveTasks.Num() + SleepingTasks.Num();
+}
+
 FPCGTaskId FPCGGraphExecutor::ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies)
 {
 	return ScheduleGeneric(
@@ -1069,7 +1085,7 @@ void FPCGGraphExecutor::Execute()
 		// TODO: this is fine and will make sure any intermediate data is properly
 		// garbage collected, however, this goes a bit against our goals if we want to
 		// keep a cache of intermediate results.
-		if (ReadyTasks.Num() == 0 && ActiveTasks.Num() == 0 && SleepingTasks.Num() == 0 && Tasks.Num() == 0)
+		if (GetNonScheduledRemainingTaskCount() == 0)
 		{
 			if (!ensure(TaskSuccessors.IsEmpty()))
 			{
@@ -1675,7 +1691,7 @@ void FPCGGraphExecutor::NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType Ch
 
 void FPCGGraphExecutor::UpdateGenerationNotification()
 {
-	const int32 RemainingTaskNum = Tasks.Num() + ReadyTasks.Num() + ActiveTasks.Num() + SleepingTasks.Num();
+	const int32 RemainingTaskNum = GetNonScheduledRemainingTaskCount();
 
 	if (RemainingTaskNum > 0)
 	{

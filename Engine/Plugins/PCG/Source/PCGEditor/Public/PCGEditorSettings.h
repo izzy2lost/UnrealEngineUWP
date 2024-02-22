@@ -163,7 +163,11 @@ public:
 
 	/** Specify if we want to jump to definition in case of double click on native PCG Nodes */
 	UPROPERTY(EditAnywhere, config, Category = Workflow)
-	bool bEnableNavigateToNativeNodes;
+	bool bEnableNavigateToNativeNodes = true;
+
+	/** Specify if we want to disable CPU Throttling when a PCG Graph is executing, this will improve execution time when app is out of focus/minimized */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Disable CPU throttling during graph execution"))
+	bool bDisableCPUThrottlingDuringGraphExecution = false;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

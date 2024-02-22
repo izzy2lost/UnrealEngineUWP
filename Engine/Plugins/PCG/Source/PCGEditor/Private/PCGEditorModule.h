@@ -32,8 +32,11 @@ protected:
 	void RegisterSettings();
 	void UnregisterSettings();
 
+	void OnPostEngineInit();
 	void RegisterOnEditorModeChange();
 	void OnEditorModeIDChanged(const FEditorModeID& EditorModeID, bool bIsEntering);
+
+	bool ShouldDisableCPUThrottling();
 
 	TArray<TSharedRef<IAssetTypeActions>> RegisteredAssetTypeActions;
 	static EAssetTypeCategories::Type PCGAssetCategory;
@@ -42,4 +45,6 @@ protected:
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;
 
 	TSharedPtr<FPCGEditorGraphNodeFactory> GraphNodeFactory;
+
+	FDelegateHandle ShouldDisableCPUThrottlingDelegateHandle;
 };
