@@ -7,6 +7,7 @@
 #include "RHIBufferTests.h"
 #include "RHITextureTests.h"
 #include "RHIDrawTests.h"
+#include "RHIClearTextureTests.h"
 #include "RHIReadbackTests.h"
 #include "RHIReservedResourceTests.h"
 
@@ -54,7 +55,7 @@ void FAutomationRHITest::Define()
 
 		It("RHI Clear Render Targets", [this]()
 		{
-			bool bResult = RunOnRenderThreadSynchronous(FRHITextureTests::Test_ClearRenderTargets);
+			bool bResult = RunOnRenderThreadSynchronous(FRHIClearTextureTests::Test_ClearTexture);
 			TestEqual("Clear Render Targets failed", bResult, 1);
 		});
 	});

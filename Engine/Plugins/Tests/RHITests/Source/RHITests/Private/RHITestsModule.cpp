@@ -8,6 +8,7 @@
 #include "RHIBufferTests.h"
 #include "RHITextureTests.h"
 #include "RHIDrawTests.h"
+#include "RHIClearTextureTests.h"
 #include "RHIReadbackTests.h"
 #include "RHIReservedResourceTests.h"
 
@@ -89,7 +90,7 @@ static bool RunTests_RenderThread(FRHICommandListImmediate& RHICmdList)
 	// RT Operations
 	// ------------------------------------------------
 	{
-		RUN_TEST(FRHITextureTests::Test_ClearRenderTargets(RHICmdList));
+		RUN_TEST(FRHIClearTextureTests::Test_ClearTexture(RHICmdList));
 	}
 
 	// @todo - add more tests
