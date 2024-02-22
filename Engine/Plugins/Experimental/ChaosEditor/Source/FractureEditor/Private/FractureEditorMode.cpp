@@ -564,6 +564,7 @@ void UFractureEditorMode::OnActorSelectionChanged(const TArray<UObject*>& NewSel
 		for(UGeometryCollectionComponent* GeometryCollectionComponent : GeometryCollectionComponents)
 		{
 			GeometryCollectionComponent->SetEmbeddedGeometrySelectable(true);
+			GeometryCollectionComponent->EnableRootProxyStaticMeshComponents(false);
 			
 			FGeometryCollectionEdit RestCollectionEdit = GeometryCollectionComponent->EditRestCollection(GeometryCollection::EEditUpdate::None);
 			if (!RestCollectionEdit.GetRestCollection())
@@ -601,6 +602,9 @@ void UFractureEditorMode::OnActorSelectionChanged(const TArray<UObject*>& NewSel
 			ShowBoneColorsEdit.SetEnableBoneSelection(false);
 
 			ExistingSelection->SetEmbeddedGeometrySelectable(false);
+
+			// should we restore the previous state ? 
+			ExistingSelection->EnableRootProxyStaticMeshComponents(true);
 
 			// If we have a Hide array on the collection, remove it.
 			if (const UGeometryCollection* RestCollection = ExistingSelection->GetRestCollection())
