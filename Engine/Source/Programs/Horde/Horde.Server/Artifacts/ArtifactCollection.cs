@@ -13,6 +13,7 @@ using Horde.Server.Acls;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;
+using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
@@ -34,6 +35,9 @@ namespace Horde.Server.Artifacts
 			[BsonElement("typ")]
 			public ArtifactType Type { get; set; }
 
+			[BsonElement("dsc"), BsonIgnoreIfNull]
+			public string? Description { get; set; }
+
 			[BsonElement("str")]
 			public StreamId StreamId { get; set; }
 
@@ -54,45 +58,54 @@ namespace Horde.Server.Artifacts
 			[BsonElement("scp")]
 			public AclScopeName AclScope { get; set; }
 
+			[BsonElement("cre")]
+			public DateTime CreatedAtUtc { get; set; }
+
 			[BsonElement("exp")]
 			public DateTime? ExpireAtUtc { get; set; }
 
 			[BsonElement("upd")]
 			public int UpdateIndex { get; set; }
 
+			DateTime IArtifact.CreatedAtUtc => (CreatedAtUtc == default)? BinaryIdUtils.ToObjectId(Id.Id).CreationTime : CreatedAtUtc;
+
 			[BsonConstructor]
 			private Artifact()
 			{
 			}
 
-			public Artifact(ArtifactId id, ArtifactName name, ArtifactType type, StreamId streamId, int change, IEnumerable<string> keys, NamespaceId namespaceId, RefName refName, DateTime? expireAtUtc, AclScopeName scopeName)
+			public Artifact(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, NamespaceId namespaceId, RefName refName, DateTime createdAtUtc, DateTime? expireAtUtc, AclScopeName scopeName)
 			{
 				Id = id;
 				Name = name;
 				Type = type;
+				Description = description;
 				StreamId = streamId;
 				Change = change;
 				Keys.AddRange(keys);
 				NamespaceId = namespaceId;
 				RefName = refName;
+				CreatedAtUtc = createdAtUtc;
 				ExpireAtUtc = expireAtUtc;
 				AclScope = scopeName;
 			}
 		}
 
-		private readonly IMongoCollection<Artifact> _artifacts;
+		readonly IMongoCollection<Artifact> _artifacts;
+		readonly IClock _clock;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="mongoService">The database service</param>
-		public ArtifactCollection(MongoService mongoService)
+		public ArtifactCollection(MongoService mongoService, IClock clock)
 		{
 			List<MongoIndex<Artifact>> indexes = new List<MongoIndex<Artifact>>();
 			indexes.Add(keys => keys.Ascending(x => x.Keys));
 			indexes.Add(keys => keys.Ascending(x => x.ExpireAtUtc), sparse: true);
 			indexes.Add(keys => keys.Ascending(x => x.StreamId).Descending(x => x.Change).Ascending(x => x.Name).Descending(x => x.Id));
 			_artifacts = mongoService.GetCollection<Artifact>("ArtifactsV2", indexes);
+
+			_clock = clock;
 		}
 
 		/// <summary>
@@ -101,14 +114,14 @@ namespace Horde.Server.Artifacts
 		public static string GetArtifactPath(StreamId streamId, ArtifactName name, ArtifactType type) => $"{streamId}/{name}/{type}";
 
 		/// <inheritdoc/>
-		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, StreamId streamId, int change, IEnumerable<string> keys, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken)
+		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken)
 		{
 			ArtifactId id = new ArtifactId(BinaryIdUtils.CreateNew());
 
 			NamespaceId namespaceId = Namespace.Artifacts;
 			RefName refName = new RefName($"{GetArtifactPath(streamId, name, type)}/{change}/{id}");
 
-			Artifact artifact = new Artifact(id, name, type, streamId, change, keys, namespaceId, refName, expireAtUtc, scopeName);
+			Artifact artifact = new Artifact(id, name, type, description, streamId, change, keys, namespaceId, refName, _clock.UtcNow, expireAtUtc, scopeName);
 			await _artifacts.InsertOneAsync(artifact, null, cancellationToken);
 			return artifact;
 		}

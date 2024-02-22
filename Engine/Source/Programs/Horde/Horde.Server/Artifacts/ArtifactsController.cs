@@ -76,7 +76,7 @@ namespace Horde.Server.Artifacts
 			{
 				if (streamConfig.Authorize(ArtifactAclAction.WriteArtifact, User))
 				{
-					return await CreateArtifactInternalAsync(request.Name, request.Type, request.StreamId.Value, request.Change.Value, request.Keys, AclScopeName.Root, cancellationToken);
+					return await CreateArtifactInternalAsync(request.Name, request.Type, request.Description, request.StreamId.Value, request.Change.Value, request.Keys, AclScopeName.Root, cancellationToken);
 				}
 			}
 
@@ -128,13 +128,13 @@ namespace Horde.Server.Artifacts
 					scopeName = templateRefConfig.Acl.ScopeName;
 				}
 
-				return await CreateArtifactInternalAsync(request.Name, request.Type, streamId, request.Change ?? job.Change, keys, scopeName, cancellationToken);
+				return await CreateArtifactInternalAsync(request.Name, request.Type, request.Description, streamId, request.Change ?? job.Change, keys, scopeName, cancellationToken);
 			}
 
 			return Forbid(ArtifactAclAction.WriteArtifact);
 		}
 
-		async Task<ActionResult<CreateArtifactResponse>> CreateArtifactInternalAsync(ArtifactName name, ArtifactType type, StreamId streamId, int change, List<string> keys, AclScopeName scopeName, CancellationToken cancellationToken)
+		async Task<ActionResult<CreateArtifactResponse>> CreateArtifactInternalAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, List<string> keys, AclScopeName scopeName, CancellationToken cancellationToken)
 		{
 			DateTime? expireAt = null;
 			if (_globalConfig.TryGetArtifactType(type, out ArtifactTypeConfig? typeConfig) && typeConfig.KeepDays != null && typeConfig.KeepDays.Value >= 0)
@@ -142,7 +142,7 @@ namespace Horde.Server.Artifacts
 				expireAt = DateTime.UtcNow + TimeSpan.FromDays(typeConfig.KeepDays.Value);
 			}
 
-			IArtifact artifact = await _artifactCollection.AddAsync(name, type, streamId, change, keys, expireAt, scopeName, cancellationToken);
+			IArtifact artifact = await _artifactCollection.AddAsync(name, type, description, streamId, change, keys, expireAt, scopeName, cancellationToken);
 			RefName? prevRefName = await GetPrevRefNameForArtifactAsync(artifact, cancellationToken);
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
@@ -193,7 +193,7 @@ namespace Horde.Server.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
 
-			return PropertyFilter.Apply(new GetArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.StreamId, artifact.Change, artifact.Keys), filter);
+			return PropertyFilter.Apply(new GetArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, artifact.StreamId, artifact.Change, artifact.Keys), filter);
 		}
 
 		/// <summary>
@@ -562,7 +562,7 @@ namespace Horde.Server.Artifacts
 			{
 				if (_globalConfig.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
 				{
-					response.Artifacts.Add(new GetArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.StreamId, artifact.Change, artifact.Keys));
+					response.Artifacts.Add(new GetArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, artifact.StreamId, artifact.Change, artifact.Keys));
 				}
 			}
 

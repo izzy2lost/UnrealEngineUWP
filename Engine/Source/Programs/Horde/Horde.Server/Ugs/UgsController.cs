@@ -132,10 +132,10 @@ namespace Horde.Server.Ugs
 				response.SequenceNumber = sequence.Value;
 			}
 
-			HashSet<string>? projectSet = null;
-			if (projects != null && projects.Count > 0)
+			HashSet<string>? projectSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			if (projects != null)
 			{
-				projectSet = new HashSet<string>(projects, StringComparer.OrdinalIgnoreCase);
+				projectSet.UnionWith(projects);
 			}
 
 			foreach (IUgsMetadata metadata in metadataList)
@@ -144,7 +144,7 @@ namespace Horde.Server.Ugs
 				{
 					response.SequenceNumber = metadata.UpdateTicks;
 				}
-				if (projectSet == null || projectSet.Contains(metadata.Project))
+				if (String.IsNullOrEmpty(metadata.Project) || projectSet.Contains(metadata.Project))
 				{
 					response.Items.Add(new GetUgsMetadataResponse(metadata));
 				}
