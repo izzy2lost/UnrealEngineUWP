@@ -61,7 +61,7 @@ struct FPropertyTag
 
 	// Constructors.
 	FPropertyTag();
-	FPropertyTag( FArchive& InSaveAr, FProperty* Property, int32 InIndex, uint8* Value, const uint8* Defaults );
+	UE_INTERNAL COREUOBJECT_API FPropertyTag( FArchive& InSaveAr, FProperty* Property, int32 InIndex, uint8* Value, const uint8* Defaults );
 
 	// Set optional property guid
 	void SetPropertyGuid(const FGuid& InPropertyGuid);
@@ -72,7 +72,7 @@ struct FPropertyTag
 
 	// Property serializer.
 	void SerializeTaggedProperty( FArchive& Ar, FProperty* Property, uint8* Value, const uint8* Defaults ) const;
-	void SerializeTaggedProperty(FStructuredArchive::FSlot Slot, FProperty* Property, uint8* Value, const uint8* Defaults) const;
+	UE_INTERNAL COREUOBJECT_API void SerializeTaggedProperty(FStructuredArchive::FSlot Slot, FProperty* Property, uint8* Value, const uint8* Defaults) const;
 };
 
 struct FPropertyTagScope

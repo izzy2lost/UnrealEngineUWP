@@ -157,7 +157,15 @@ TSet<FPropertyPath> FInstanceDataObjectNameWidgetOverride::GetRedirectOptions(co
 void FInstanceDataObjectNameWidgetOverride::GetRedirectOptions(const UStruct* Struct, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const
 {
 	for (FProperty* SubProperty : TFieldRange<FProperty>(Struct))
-    {
+	{
+		if (SubProperty->HasAnyPropertyFlags(CPF_Transient))
+		{
+			continue;
+		}
+		if (!SubProperty->HasAnyPropertyFlags(CPF_Edit | CPF_EditConst))
+		{
+			continue;
+		}
 		if (SubProperty->ArrayDim == 1)
 		{
 			const FPropertyPath SubPath = Path.ExtendPath(FPropertyInfo(SubProperty)).Get();
@@ -277,6 +285,20 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 						, EUserInterfaceActionType::RadioButton);
 	}
 	MenuBuilder.EndSection();
+	
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("Delete", "Delete"));
+	{
+		if (!Panel->MarkedForDelete.Contains(OriginalPath)) // check that it wasn't already marked as deleted
+		{
+			FText DisplayName = LOCTEXT("MarkForDeletion", "Mark For Deletion");
+			FText Tooltip = LOCTEXT("MarkForDeletionTooltip", "Mark this property for deletion");
+			MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
+						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnMarkForDelete, Path))
+						, NAME_None
+						, EUserInterfaceActionType::RadioButton);
+		}
+	}
+	MenuBuilder.EndSection();
 
 	UObject* FirstInstanceDataObject = Panel->Instances[0];
 	TSet<FPropertyPath> RedirectOptions = GetRedirectOptions(FirstInstanceDataObject->GetClass(), FirstInstanceDataObject);
@@ -326,22 +348,71 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	}
 	MenuBuilder.EndSection();
 
-	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ChangeToDifferingTypeConversion", "Convert Type (potential data loss)"));
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ChangeToDifferingTypeConversion", "Convert Type"));
 	{
-		// TODO: Add type conversions?
+		for (const FPropertyPath& Option : RedirectOptions)
+		{
+			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			if (OptionProperty->SameType(ThisProperty))
+			{
+				continue; // same type handled above
+			}
+			if (ThisProperty->GetFName() != OptionProperty->GetFName())
+			{
+				continue; // renames to handled below
+			}
+			if (FInstanceDataObjectFixupPanel::FTypeConverter Converter = Panel->CreateTypeConverter(Path, Option))
+			{
+				FText DisplayName = FText::FromString(Option.ToString());
+				FText TypeName = FText::FromName(Option.GetLeafMostProperty().Property->GetID());
+				FText Warning = Converter.GetWarning();
+				FText Tooltip = FText::Format(LOCTEXT("ConvertTypeTooltip", "Change type to {0}"), TypeName);
+				if (!Warning.IsEmpty())
+				{
+					DisplayName = FText::Format(LOCTEXT("ConvertTypeDisplayNameWithWarning", "⚠{0}"), DisplayName);
+					Tooltip = FText::Format(LOCTEXT("ConvertTypeTooltipWithWarning", "⚠{0}\n Warning: {1}"), Tooltip, Warning);
+				}
+				MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
+				, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option, Converter))
+				, NAME_None
+				, EUserInterfaceActionType::RadioButton);
+			}
+		}
 	}
 	MenuBuilder.EndSection();
-	
-	MenuBuilder.BeginSection(NAME_None, LOCTEXT("Delete", "Delete"));
+
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("RenameToDifferingTypeConversion", "Convert Type and Rename"));
 	{
-		if (!Panel->MarkedForDelete.Contains(OriginalPath)) // check that it wasn't already marked as deleted
+		for (const FPropertyPath& Option : RedirectOptions)
 		{
-			FText DisplayName = LOCTEXT("MarkForDeletion", "Mark For Deletion");
-			FText Tooltip = LOCTEXT("MarkForDeletionTooltip", "Mark this property for deletion");
-			MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
-						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnMarkForDelete, Path))
-						, NAME_None
-						, EUserInterfaceActionType::RadioButton);
+			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			if (OptionProperty->SameType(ThisProperty))
+			{
+				continue; // same type handled above
+			}
+			if (ThisProperty->GetFName() == OptionProperty->GetFName())
+			{
+				continue; // renames to handled below
+			}
+			if (FInstanceDataObjectFixupPanel::FTypeConverter Converter = Panel->CreateTypeConverter(Path, Option))
+			{
+				FText DisplayName = FText::FromString(Option.ToString());
+				FText PropDisplayName = Option.GetLeafMostProperty().Property->GetDisplayNameText();
+				FText TypeName = FText::FromName(Option.GetLeafMostProperty().Property->GetID());
+				FText Warning = Converter.GetWarning();
+				FText Tooltip = FText::Format(LOCTEXT("ConvertTypeAndRenameTooltip", "Change type to {0} and rename to {1}"), TypeName, PropDisplayName);
+				if (!Warning.IsEmpty())
+				{
+					DisplayName = FText::Format(LOCTEXT("ConvertTypeAndRenameDisplayNameWithWarning", "⚠{0}"), DisplayName);
+					Tooltip = FText::Format(LOCTEXT("ConvertTypeAndRenameTooltipWithWarning", "⚠{0}\n Warning: {1}"), Tooltip, Warning);
+				}
+				MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
+				, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option, Converter))
+				, NAME_None
+				, EUserInterfaceActionType::RadioButton);
+			}
 		}
 	}
 	MenuBuilder.EndSection();
