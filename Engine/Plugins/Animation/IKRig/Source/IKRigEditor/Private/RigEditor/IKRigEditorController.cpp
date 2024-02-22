@@ -555,18 +555,16 @@ void FIKRigEditorController::AutoGenerateRetargetChains() const
 				FText::FromName(Results.BestTemplateName)));
 			}
 
-			// expanded chains
-			if (Results.NumBonesAddedToSpineChain > 0)
+			// inform user if any chains were expanded beyond what the template defined
+			for (TPair<FName, int32> ExpandedChain : Results.ExpandedChains)
 			{
-				Log.LogWarning(FText::Format(
-				LOCTEXT("ExpandedSpineChain", "The Spine chain was expanded beyond the template by {0} bones."),
-				FText::AsNumber(Results.NumBonesAddedToSpineChain)));
-			}
-			if (Results.NumBonesAddedToNeckChain > 0)
-			{
-				Log.LogWarning(FText::Format(
-				LOCTEXT("ExpandedNeckChain", "The Neck chain was expanded beyond the template by {0} bones."),
-				FText::AsNumber(Results.NumBonesAddedToNeckChain)));
+				if (ExpandedChain.Value > 0)
+				{
+					Log.LogWarning(FText::Format(
+						LOCTEXT("ExpandedChain", "The '{0}' chain was expanded beyond the template by {1} bones."),
+						FText::FromName(ExpandedChain.Key),
+						FText::AsNumber(ExpandedChain.Value)));
+				}
 			}
 		}
 	}
