@@ -908,7 +908,7 @@ private:
 			LastTimeRange = TRange<FTimespan>::Empty();
 			RangeIsDirty = false;
 			OnBlockPrimaryIndex = 0;
-			OnBlockSecondaryIndex = 0;
+			OnBlockSecondaryIndexOffset = 0;
 		}
 
 	private:
@@ -930,8 +930,8 @@ private:
 		/** Primary ("seek") sequence index used during blocked playback processing */
 		mutable int32 OnBlockPrimaryIndex;
 
-		/** Secondary (loop) sequence index used during blocked playback processing */
-		mutable int32 OnBlockSecondaryIndex;
+		/** Secondary (loop) sequence index offset used during blocked playback processing */
+		mutable int32 OnBlockSecondaryIndexOffset;
 	};
 
 	FBlockOnRange BlockOnRange;
