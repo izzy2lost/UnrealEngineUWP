@@ -332,25 +332,31 @@ namespace Chaos
 		FAutoConsoleVariableRef CVarChaosSolverJointMaxInertiaRatio(TEXT("p.Chaos.Solver.Joint.MaxInertiaRatio"), ChaosSolverJointMaxInertiaRatio, TEXT("6Dof joint MaxInertiaRatio (if > 0)"));
 
 		// Collision detection cvars
+
+		// Utility to support runtime changes to some high-level collision configuration that requires we update all existing collisions (actually we just destroy them)
+		// This is only intended for testing and debugging and handling the change is not fast.
+		bool bChaosCollisionConfigChanged = false;
+		FConsoleVariableDelegate OnCollisionConfigCVarChanged = FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* CVar) -> void { bChaosCollisionConfigChanged = true; });
+
 		// These override the engine config if >= 0
 		FRealSingle ChaosSolverCullDistance = -1.0f;
-		FAutoConsoleVariableRef CVarChaosSolverCullDistance(TEXT("p.Chaos.Solver.Collision.CullDistance"), ChaosSolverCullDistance, TEXT("Override cull distance (if >= 0)"));
+		FAutoConsoleVariableRef CVarChaosSolverCullDistance(TEXT("p.Chaos.Solver.Collision.CullDistance"), ChaosSolverCullDistance, TEXT("Override cull distance (if >= 0)"), OnCollisionConfigCVarChanged);
 
 		// @todo(chaos): move to physics project settings and set these to -1 when we are settled on values...
 		FRealSingle ChaosSolverVelocityBoundsMultiplier = 1.0f;
 		FRealSingle ChaosSolverMaxVelocityBoundsExpansion = 3.0f;			// This should probably be a fraction of object size (see FParticlePairMidPhase::GenerateCollisions)
 		FRealSingle ChaosSolverVelocityBoundsMultiplierMACD = 1.0f;
 		FRealSingle ChaosSolverMaxVelocityBoundsExpansionMACD = 1000.0f;	// For use when Movement-Aware Collision Detection (MACD) is enabled
-		FAutoConsoleVariableRef CVarChaosSolverVelocityBoundsMultiplier(TEXT("p.Chaos.Solver.Collision.VelocityBoundsMultiplier"), ChaosSolverVelocityBoundsMultiplier, TEXT("Override velocity bounds multiplier (if >= 0)"));
-		FAutoConsoleVariableRef CVarChaosSolverMaxVelocityBoundsExpansion(TEXT("p.Chaos.Solver.Collision.MaxVelocityBoundsExpansion"), ChaosSolverMaxVelocityBoundsExpansion, TEXT("Override max velocity bounds expansion (if >= 0)"));
-		FAutoConsoleVariableRef CVarChaosSolverVelocityBoundsMultiplierMACD(TEXT("p.Chaos.Solver.Collision.VelocityBoundsMultiplierMACD"), ChaosSolverVelocityBoundsMultiplierMACD, TEXT("Override velocity bounds multiplier for MACD (if >= 0)"));
-		FAutoConsoleVariableRef CVarChaosSolverMaxVelocityBoundsExpansionMACD(TEXT("p.Chaos.Solver.Collision.MaxVelocityBoundsExpansionMACD"), ChaosSolverMaxVelocityBoundsExpansionMACD, TEXT("Override max velocity bounds expansion for MACD (if >= 0)"));
+		FAutoConsoleVariableRef CVarChaosSolverVelocityBoundsMultiplier(TEXT("p.Chaos.Solver.Collision.VelocityBoundsMultiplier"), ChaosSolverVelocityBoundsMultiplier, TEXT("Override velocity bounds multiplier (if >= 0)"), OnCollisionConfigCVarChanged);
+		FAutoConsoleVariableRef CVarChaosSolverMaxVelocityBoundsExpansion(TEXT("p.Chaos.Solver.Collision.MaxVelocityBoundsExpansion"), ChaosSolverMaxVelocityBoundsExpansion, TEXT("Override max velocity bounds expansion (if >= 0)"), OnCollisionConfigCVarChanged);
+		FAutoConsoleVariableRef CVarChaosSolverVelocityBoundsMultiplierMACD(TEXT("p.Chaos.Solver.Collision.VelocityBoundsMultiplierMACD"), ChaosSolverVelocityBoundsMultiplierMACD, TEXT("Override velocity bounds multiplier for MACD (if >= 0)"), OnCollisionConfigCVarChanged);
+		FAutoConsoleVariableRef CVarChaosSolverMaxVelocityBoundsExpansionMACD(TEXT("p.Chaos.Solver.Collision.MaxVelocityBoundsExpansionMACD"), ChaosSolverMaxVelocityBoundsExpansionMACD, TEXT("Override max velocity bounds expansion for MACD (if >= 0)"), OnCollisionConfigCVarChanged);
 
 		FRealSingle ChaosSolverMaxPushOutVelocity = -1.0f;
-		FAutoConsoleVariableRef CVarChaosSolverMaxPushOutVelocity(TEXT("p.Chaos.Solver.Collision.MaxPushOutVelocity"), ChaosSolverMaxPushOutVelocity, TEXT("Override max pushout velocity (if >= 0)"));
+		FAutoConsoleVariableRef CVarChaosSolverMaxPushOutVelocity(TEXT("p.Chaos.Solver.Collision.MaxPushOutVelocity"), ChaosSolverMaxPushOutVelocity, TEXT("Override max pushout velocity (if >= 0)"), OnCollisionConfigCVarChanged);
 
 		FRealSingle ChaosSolverDepenetrationVelocity = -1.0f;
-		FAutoConsoleVariableRef CVarChaosSolverInitialOverlapDepentrationVelocity(TEXT("p.Chaos.Solver.Collision.DepenetrationVelocity"), ChaosSolverDepenetrationVelocity, TEXT("Override initial overlap depenetration velocity (if >= 0)"));
+		FAutoConsoleVariableRef CVarChaosSolverInitialOverlapDepentrationVelocity(TEXT("p.Chaos.Solver.Collision.DepenetrationVelocity"), ChaosSolverDepenetrationVelocity, TEXT("Override initial overlap depenetration velocity (if >= 0)"), OnCollisionConfigCVarChanged);
 
 		int32 ChaosSolverCleanupCommandsOnDestruction = 1;
 		FAutoConsoleVariableRef CVarChaosSolverCleanupCommandsOnDestruction(TEXT("p.Chaos.Solver.CleanupCommandsOnDestruction"), ChaosSolverCleanupCommandsOnDestruction, TEXT("Whether or not to run internal command queue cleanup on solver destruction (0 = no cleanup, >0 = cleanup all commands)"));
@@ -368,11 +374,15 @@ namespace Chaos
 
 		// Enable/Disable CCD. Set to false to disable the system, regardless of particle settings
 		bool bChaosUseCCD = true;
-		FAutoConsoleVariableRef  CVarChaosUseCCD(TEXT("p.Chaos.Solver.UseCCD"), bChaosUseCCD, TEXT("Global flag to turn CCD on or off. Default is true (on)"));
+		FAutoConsoleVariableRef  CVarChaosUseCCD(TEXT("p.Chaos.Solver.UseCCD"), bChaosUseCCD, TEXT("Global flag to turn CCD on or off. Default is true (on)"), OnCollisionConfigCVarChanged);
 
 		// Enable/Disable MACD (Motion-Aware Collision Detection). Set to false to disable the system, regardless of particle settings
 		bool bChaosUseMACD = true;
-		FAutoConsoleVariableRef CVarChaos_Collision_UseMACD(TEXT("p.Chaos.Solver.UseMACD"), bChaosUseMACD, TEXT("Global flag to turn Movement-Aware Collision Detection (MACD) on or off. Default is true (on)"));
+		FAutoConsoleVariableRef CVarChaos_Collision_UseMACD(TEXT("p.Chaos.Solver.UseMACD"), bChaosUseMACD, TEXT("Global flag to turn Movement-Aware Collision Detection (MACD) on or off. Default is true (on)"), OnCollisionConfigCVarChanged);
+
+		// Use to force all collisions to use MACD for testing (must also have bChaosUseMACD enabled)
+		bool bChaosForceMACD = false;
+		FAutoConsoleVariableRef CVarChaos_Collision_ForceMACD(TEXT("p.Chaos.Solver.bChaosForceMACD"), bChaosForceMACD, TEXT("Force all collisions to use MACD for testing"), OnCollisionConfigCVarChanged);
 
 		// Joint cvars
 		float ChaosSolverJointMinSolverStiffness = 1.0f;
@@ -1253,24 +1263,12 @@ namespace Chaos
 
 	void FPBDRigidsSolver::SetVelocityBoundsExpansion(const FReal BoundsVelocityMultiplier, const FReal MaxBoundsVelocityExpansion)
 	{ 
-		FPBDCollisionConstraints& CollisionContainer = GetEvolution()->GetCollisionConstraints();
-		if ((CollisionContainer.GetDetectorSettings().BoundsVelocityInflation != BoundsVelocityMultiplier) || (CollisionContainer.GetDetectorSettings().MaxVelocityBoundsExpansion != MaxBoundsVelocityExpansion))
-		{
-			// If the settings change we must recreate collisions
-			GetEvolution()->DestroyTransientConstraints();
-		}
-		CollisionContainer.SetVelocityBoundsExpansion(BoundsVelocityMultiplier, MaxBoundsVelocityExpansion);
+		GetEvolution()->GetCollisionConstraints().SetVelocityBoundsExpansion(BoundsVelocityMultiplier, MaxBoundsVelocityExpansion);
 	}
 
 	void FPBDRigidsSolver::SetVelocityBoundsExpansionMACD(const FReal BoundsVelocityMultiplier, const FReal MaxBoundsVelocityExpansion)
 	{
-		FPBDCollisionConstraints& CollisionContainer = GetEvolution()->GetCollisionConstraints();
-		if ((CollisionContainer.GetDetectorSettings().BoundsVelocityInflationMACD != BoundsVelocityMultiplier) || (CollisionContainer.GetDetectorSettings().MaxVelocityBoundsExpansionMACD != MaxBoundsVelocityExpansion))
-		{
-			// If the settings change we must recreate collisions
-			GetEvolution()->DestroyTransientConstraints();
-		}
-		CollisionContainer.SetVelocityBoundsExpansionMACD(BoundsVelocityMultiplier, MaxBoundsVelocityExpansion);
+		GetEvolution()->GetCollisionConstraints().SetVelocityBoundsExpansionMACD(BoundsVelocityMultiplier, MaxBoundsVelocityExpansion);
 	}
 
 	void FPBDRigidsSolver::PrepareAdvanceBy(const FReal DeltaTime)
@@ -1303,6 +1301,14 @@ namespace Chaos
 
 		// Apply CVAR overrides if set
 		{
+			// To enable runtime support for switching collision features on/off we need to update existing constraints when config changes.
+			if (bChaosCollisionConfigChanged)
+			{
+				// For now destroy the collisions. This is a bit over the top and causes problems for sleeping islands, but it's only for debugging/testing.
+				GetEvolution()->DestroyTransientConstraints();
+				bChaosCollisionConfigChanged = false;
+			}
+
 			if (ChaosSolverCollisionPositionFrictionIterations >= 0)
 			{
 				MEvolution->GetCollisionConstraints().SetPositionFrictionIterations(ChaosSolverCollisionPositionFrictionIterations);
@@ -1330,14 +1336,13 @@ namespace Chaos
 			{
 				SetCollisionCullDistance(ChaosSolverCullDistance);
 			}
-			SetVelocityBoundsExpansion(FMath::Max(0.0f, ChaosSolverVelocityBoundsMultiplier), FMath::Max(0.0f, ChaosSolverMaxVelocityBoundsExpansion));
-			if (bChaosUseMACD)
+			if ((ChaosSolverVelocityBoundsMultiplier >= 0.0f) && (ChaosSolverMaxVelocityBoundsExpansion >= 0.0f))
 			{
-				SetVelocityBoundsExpansionMACD(FMath::Max(0.0f, ChaosSolverVelocityBoundsMultiplierMACD), FMath::Max(0.0f, ChaosSolverMaxVelocityBoundsExpansionMACD));
+				SetVelocityBoundsExpansion(ChaosSolverVelocityBoundsMultiplier, ChaosSolverMaxVelocityBoundsExpansion);
 			}
-			else
+			if ((ChaosSolverVelocityBoundsMultiplierMACD >= 0.0f) && (ChaosSolverMaxVelocityBoundsExpansionMACD >= 0.0f))
 			{
-				SetVelocityBoundsExpansionMACD(FMath::Max(0.0f, ChaosSolverVelocityBoundsMultiplier), FMath::Max(0.0f, ChaosSolverMaxVelocityBoundsExpansion));
+				SetVelocityBoundsExpansionMACD(ChaosSolverVelocityBoundsMultiplierMACD, ChaosSolverMaxVelocityBoundsExpansion);
 			}
 			if (ChaosSolverMaxPushOutVelocity >= 0.0f)
 			{
@@ -2504,18 +2509,18 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 #if CHAOS_DEBUG_DRAW
 		QUICK_SCOPE_CYCLE_COUNTER(SolverDebugDraw);
 
+		const bool bIsServer = GetDebugName().ToString().StartsWith(TEXT("Server"));
+		if (bIsServer && !ChaosSolverDebugDrawShowServer)
+		{
+			return;
+		}
+		if (!bIsServer && !ChaosSolverDebugDrawShowClient)
+		{
+			return;
+		}
+
 		if (ChaosSolverDebugDrawShapes == 1)
 		{
-			const bool bIsServer = GetDebugName().ToString().StartsWith(TEXT("Server"));
-			if (bIsServer && !ChaosSolverDebugDrawShowServer)
-			{
-				return;
-			}
-			if (!bIsServer && !ChaosSolverDebugDrawShowClient)
-			{
-				return;
-			}
-
 			if (ChaosSolverDebugDrawColorShapeByClientServer)
 			{
 				if (bIsServer)
@@ -2531,7 +2536,6 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 			{
 				ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = DebugDraw::GetDefaultShapesColorsByState();
 			}
-
 			DebugDrawShapes(!!ChaosSolverDrawShapesShowStatic, !!ChaosSolverDrawShapesShowKinematic, !!ChaosSolverDrawShapesShowDynamic);
 		}
 		if (ChaosSolverDebugDrawCollisions == 1)

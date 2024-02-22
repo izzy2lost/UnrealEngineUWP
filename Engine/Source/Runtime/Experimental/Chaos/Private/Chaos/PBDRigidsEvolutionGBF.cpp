@@ -38,6 +38,10 @@ namespace Chaos
 
 	namespace CVars
 	{
+		// Debug/testing MACD
+		extern bool bChaosUseMACD;
+		extern bool bChaosForceMACD;
+
 		FRealSingle HackMaxAngularVelocity = 1000.f;
 		FAutoConsoleVariableRef CVarHackMaxAngularVelocity(TEXT("p.HackMaxAngularVelocity"), HackMaxAngularVelocity, TEXT("Max cap on angular velocity: rad/s. This is only a temp solution and should not be relied on as a feature. -1.f to disable"));
 
@@ -733,6 +737,8 @@ void FPBDRigidsEvolutionGBF::Integrate(FReal Dt)
 	const FReal MaxVelocityBoundsExpansionMACD = GetCollisionConstraints().GetDetectorSettings().MaxVelocityBoundsExpansionMACD;
 	const FReal HackMaxAngularSpeedSq = CVars::HackMaxAngularVelocity * CVars::HackMaxAngularVelocity;
 	const FReal HackMaxLinearSpeedSq = CVars::HackMaxVelocity * CVars::HackMaxVelocity;
+	const bool bAllowMACD = CVars::bChaosUseMACD;
+	const bool bForceMACD = CVars::bChaosForceMACD;
 
 	FChaosVDContextWrapper CVDContext;
 	CVD_GET_WRAPPED_CURRENT_CONTEXT(CVDContext);
@@ -824,21 +830,13 @@ void FPBDRigidsEvolutionGBF::Integrate(FReal Dt)
 				// separated by more than Cull Distance at collision detection time.
 				// NOTE: We use a different (larger) max bounds expansion when MACD is enabled.
 				FVec3 VelocityBoundsDelta = FVec3(0);
-				if (!Particle.MACDEnabled())
+				const bool bIsMACD = bForceMACD || (bAllowMACD && Particle.MACDEnabled());
+				const FReal ParticleVelocityBoundsMultiplier = bIsMACD ? VelocityBoundsMultiplierMACD : VelocityBoundsMultiplier;
+				const FReal ParticleMaxVelocityBoundsExpansion = bIsMACD ? MaxVelocityBoundsExpansionMACD : MaxVelocityBoundsExpansion;
+				if ((ParticleVelocityBoundsMultiplier > 0) && (ParticleMaxVelocityBoundsExpansion > 0))
 				{
-					if ((VelocityBoundsMultiplier > 0) && (MaxVelocityBoundsExpansion > 0))
-					{
-						VelocityBoundsDelta = (-VelocityBoundsMultiplier * Dt) * V;
-						VelocityBoundsDelta = VelocityBoundsDelta.BoundToCube(MaxVelocityBoundsExpansion);
-					}
-				}
-				else
-				{
-					if ((VelocityBoundsMultiplierMACD > 0) && (MaxVelocityBoundsExpansionMACD > 0))
-					{
-						VelocityBoundsDelta = (-VelocityBoundsMultiplierMACD * Dt) * V;
-						VelocityBoundsDelta = VelocityBoundsDelta.BoundToCube(MaxVelocityBoundsExpansionMACD);
-					}
+					VelocityBoundsDelta = (-ParticleVelocityBoundsMultiplier * Dt) * V;
+					VelocityBoundsDelta = VelocityBoundsDelta.BoundToCube(ParticleMaxVelocityBoundsExpansion);
 				}
 
 				if (!Particle.CCDEnabled())
