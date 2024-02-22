@@ -292,7 +292,6 @@ float4 GetLightGridLocalLighting(
 		}
 
 		#if USE_HAIR_LIGHTING
-		LightAttenuation = 1.0f; // TODO: use shadow mask bits (e.g., subpixel shadow mask)
 		if (LightAttenuation.x > 0)
 		{
 			const float3 L = normalize(LightData.TranslatedWorldPosition - TranslatedWorldPosition);
