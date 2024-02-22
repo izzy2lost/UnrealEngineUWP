@@ -2,7 +2,7 @@
 
 #include "Features/IModularFeatures.h"
 #include "Modules/ModuleManager.h"
-#include "ClothAssetEditorStyle.h"
+#include "ChaosClothAsset/ClothAssetEditorStyle.h"
 #include "ClothComponentEditorStyle.h"
 #include "ClothingAssetToClothAssetExporter.h"
 

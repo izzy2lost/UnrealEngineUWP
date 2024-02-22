@@ -14,21 +14,11 @@ struct FChaosClothAssetSimulationFabricConfigNode : public FChaosClothAssetSimul
 
 public:
 	
-	/** Import properties to boolean the  fabric override */
-	UPROPERTY(EditAnywhere, Category = "Fabric Properties")
-	bool bImportProperties = false;
-	
 	FChaosClothAssetSimulationFabricConfigNode() = default;
 	
 	FChaosClothAssetSimulationFabricConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 	
 protected :
-
-	/** We can only use fabrics to set property values if the import settings is true and if the cloth facade has fabrics */
-	bool CanUseFabrics(const UE::Chaos::ClothAsset::FCollectionClothFacade& ClothFacade) const
-	{
-		return bImportProperties && ClothFacade.IsValid() && (ClothFacade.GetNumFabrics() > 0);
-	}
 	
 	/** Set an imported fabric value onto the weighted value property (animatable or not) */
 	template<typename PropertyType>

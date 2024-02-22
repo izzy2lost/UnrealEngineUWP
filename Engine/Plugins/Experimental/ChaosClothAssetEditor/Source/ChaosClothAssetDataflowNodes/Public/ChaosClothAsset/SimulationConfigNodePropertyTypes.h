@@ -28,15 +28,6 @@ enum class EChaosClothAssetBendingConstraintType : uint8
 };
 
 UENUM()
-enum class EChaosClothAssetStretchConstraintType : uint8
-{
-	/** Add a UV style stretch and shear constraint */
-	StretchShear,
-	/** Add edge and area springs in the 2d plane */
-	EdgeArea,
-};
-
-UENUM()
 enum class EChaosClothAssetConstraintDistributionType : uint8
 {
 	/** Having a separate stiffness along the warp, weft, bias direction */

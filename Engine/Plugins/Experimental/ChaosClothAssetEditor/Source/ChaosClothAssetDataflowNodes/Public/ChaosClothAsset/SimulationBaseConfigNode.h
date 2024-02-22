@@ -63,9 +63,6 @@ protected:
 		int32 SetPropertyWeighted(const FName& PropertyName, const FChaosClothAssetWeightedValue& PropertyValue, const TArray<FName>& SimilarPropertyNames = {}, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None);
 		int32 SetPropertyWeighted(const FName& PropertyName, const FChaosClothAssetWeightedValueNonAnimatable& PropertyValue, const TArray<FName>& SimilarPropertyNames = {}, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None);
 		int32 SetPropertyWeighted(const FName& PropertyName, const FChaosClothAssetWeightedValueNonAnimatableNoLowHighRange& PropertyValue, const TArray<FName>& SimilarPropertyNames = {}, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None);
-
-		template<typename WeightedValueType>
-		inline int32 SetPropertyWeighted(const FName& PropertyName, const UE::Chaos::ClothAsset::FWeightedValueBounds& PropertyBounds, const WeightedValueType& PropertyValue, const TArray<FName>& SimilarPropertyNames = {}, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None);
 		
 		template<typename T, typename WeightedValueType, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FChaosClothAssetSimulationBaseConfigNode>::Value)>
 		inline int32 SetPropertyWeighted(const T* ConfigStruct, const WeightedValueType* PropertyValue, const TArray<FName>& SimilarPropertyNames = {}, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None);
@@ -222,13 +219,6 @@ inline int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPrope
 	const FName PropertyName = FindPropertyNameByAddress(ConfigStruct, PropertyValue);
 	checkf(PropertyName != NAME_None, TEXT("Unknown property."));
 	return SetPropertyWeighted(PropertyName, *PropertyValue, SimilarPropertyNames, PropertyFlags);
-}
-
-template<typename WeightedValueType>
-inline int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeighted(const FName& PropertyName, const UE::Chaos::ClothAsset::FWeightedValueBounds& PropertyBounds, const WeightedValueType& PropertyValue, const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags)
-{
-	return SetPropertyWeighted(PropertyName, PropertyValue.bIsAnimatable, PropertyBounds.Low,
-		PropertyBounds.High, PropertyValue.WeightMap, PropertyValue.WeightMap_Override, SimilarPropertyNames, PropertyFlags);
 }
 
 template<typename T, typename ConnectableStringValueType, typename TEnableIf<TIsDerivedFrom<T, FChaosClothAssetSimulationBaseConfigNode>::Value, int>::type>

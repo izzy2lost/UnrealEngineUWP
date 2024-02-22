@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/WeightedValueCustomization.h"
+#include "ChaosClothAsset/ClothAssetEditorStyle.h"
 #include "ChaosClothAsset/WeightedValue.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SNumericEntryBox.h"
@@ -16,18 +17,67 @@ namespace UE::Chaos::ClothAsset
 	namespace Private
 	{
 		static const FString OverridePrefix = TEXT("_Override");
+		
+		static const FString ImportFabricBounds = TEXT("ImportFabricBounds");
+		static const FString BuildFabricMaps = TEXT("BuildFabricMaps");
+		static const FString CouldUseFabrics = TEXT("CouldUseFabrics");
 
 		static bool IsOverrideProperty(const TSharedPtr<IPropertyHandle>& Property)
 		{
 			const FStringView PropertyPath = Property ? Property->GetPropertyPath() : FStringView();
 			return PropertyPath.EndsWith(OverridePrefix, ESearchCase::CaseSensitive);
 		}
-
 		static bool IsOverridePropertyOf(const TSharedPtr<IPropertyHandle>& OverrideProperty, const TSharedPtr<IPropertyHandle>& Property)
 		{
 			const FStringView OverridePropertyPath = OverrideProperty ? OverrideProperty->GetPropertyPath() : FStringView();
 			const FStringView PropertyPath = Property ? Property->GetPropertyPath() : FStringView();
 			return OverridePropertyPath == FString(PropertyPath) + OverridePrefix;
+		}
+		static bool IsImportFabricBoundsProperty(const TSharedPtr<IPropertyHandle>& Property)
+		{
+			const FStringView PropertyPath = Property ? Property->GetPropertyPath() : FStringView();
+			return PropertyPath.EndsWith(ImportFabricBounds, ESearchCase::CaseSensitive);
+		}
+		static bool IsBuildFabricMapsProperty(const TSharedPtr<IPropertyHandle>& Property)
+		{
+			const FStringView PropertyPath = Property ? Property->GetPropertyPath() : FStringView();
+			return PropertyPath.EndsWith(BuildFabricMaps, ESearchCase::CaseSensitive);
+		}
+		static bool CouldUseFabricsProperty(const TSharedPtr<IPropertyHandle>& Property)
+		{
+			const FStringView PropertyPath = Property ? Property->GetPropertyPath() : FStringView();
+			return PropertyPath.EndsWith(CouldUseFabrics, ESearchCase::CaseSensitive);
+		}
+		
+		static void AddToggledCheckBox(const TSharedRef<IPropertyHandle>& PropertyHandle, const TSharedPtr<SHorizontalBox>& HorizontalBox, const FSlateBrush* SlateBrush)
+		{
+			TWeakPtr<IPropertyHandle> WeakHandle = PropertyHandle;
+		
+			HorizontalBox->AddSlot()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Left)
+				.AutoWidth()
+				[
+					SNew(SCheckBox)
+					.Style(&FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckBox"))
+					.Type(ESlateCheckBoxType::ToggleButton)
+					.ToolTipText(WeakHandle.Pin()->GetToolTipText())
+					.IsChecked_Lambda([WeakHandle]()->ECheckBoxState
+						{
+							bool bValue = false;
+							WeakHandle.Pin()->GetValue(bValue);
+							return bValue ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+						})
+						.OnCheckStateChanged_Lambda([WeakHandle](ECheckBoxState CheckBoxState)
+						{
+							WeakHandle.Pin()->SetValue(CheckBoxState == ECheckBoxState::Checked, EPropertyValueSetFlags::DefaultFlags);
+						})
+					[
+					SNew(SImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+						.Image(SlateBrush)
+					]
+				];
 		}
 	}
 
@@ -40,24 +90,57 @@ namespace UE::Chaos::ClothAsset
 	
 	FWeightedValueCustomization::~FWeightedValueCustomization() = default;
 
+
 	void FWeightedValueCustomization::MakeHeaderRow(TSharedRef<class IPropertyHandle>& StructPropertyHandle, FDetailWidgetRow& Row)
 	{
-		TWeakPtr<IPropertyHandle> StructWeakHandlePtr = StructPropertyHandle;
+		const TWeakPtr<IPropertyHandle> StructWeakHandlePtr = StructPropertyHandle;
 
-		TSharedPtr<SHorizontalBox> HorizontalBox;
+		TSharedPtr<SHorizontalBox> ValueHorizontalBox;
+		TSharedPtr<SHorizontalBox> NameHorizontalBox;
 
 		Row.NameContent()
 			[
-				StructPropertyHandle->CreatePropertyNameWidget()
+				SAssignNew(NameHorizontalBox, SHorizontalBox)
+				.IsEnabled(this, &FMathStructCustomization::IsValueEnabled, StructWeakHandlePtr)
 			]
 		.ValueContent()
 			// Make enough space for each child handle
 			.MinDesiredWidth(125.f * SortedChildHandles.Num())
 			.MaxDesiredWidth(125.f * SortedChildHandles.Num())
 			[
-				SAssignNew(HorizontalBox, SHorizontalBox)
+				SAssignNew(ValueHorizontalBox, SHorizontalBox)
 				.IsEnabled(this, &FMathStructCustomization::IsValueEnabled, StructWeakHandlePtr)
 			];
+		
+		for (int32 ChildIndex = 0; ChildIndex < SortedChildHandles.Num(); ++ChildIndex)
+		{
+			TSharedRef<IPropertyHandle> ChildHandle = SortedChildHandles[ChildIndex];
+			
+			if (Private::CouldUseFabricsProperty(ChildHandle))
+			{
+				bool bValue = false;
+				ChildHandle->GetValue(bValue);
+				if(!bValue)
+				{
+					break;
+				}
+			}
+			if (Private::IsImportFabricBoundsProperty(ChildHandle))
+			{
+				Private::AddToggledCheckBox(ChildHandle, NameHorizontalBox, FAppStyle::Get().GetBrush("Icons.Import"));
+			}
+			else if (Private::IsBuildFabricMapsProperty(ChildHandle))
+			{
+				Private::AddToggledCheckBox(ChildHandle, NameHorizontalBox, UE::Chaos::ClothAsset::FClothAssetEditorStyle::Get().GetBrush("ClassIcon.ChaosClothPreset"));
+			}
+		}
+		
+		NameHorizontalBox->AddSlot().VAlign(VAlign_Center)
+				.HAlign(HAlign_Right)
+				.AutoWidth()
+				[
+					StructPropertyHandle->CreatePropertyNameWidget()
+				];
 
 		for (int32 ChildIndex = 0; ChildIndex < SortedChildHandles.Num(); ++ChildIndex)
 		{
@@ -84,28 +167,30 @@ namespace UE::Chaos::ClothAsset
 			const bool bLastChild = SortedChildHandles.Num() - 1 == ChildIndex;
 
 			TSharedRef<SWidget> ChildWidget = MakeChildWidget(StructPropertyHandle, ChildHandle);
-			
-			if (ChildHandle->GetPropertyClass() == FBoolProperty::StaticClass())
+			if(ChildWidget != SNullWidget::NullWidget)
 			{
-				HorizontalBox->AddSlot()
-					.Padding(FMargin(0.f, 2.f, bLastChild ? 0.f : 3.f, 2.f))
-					.AutoWidth()  // keep the check box slots small
-					[
-						ChildWidget
-					];
-			}
-			else
-			{
-				if (ChildHandle->GetPropertyClass() == FFloatProperty::StaticClass())
+				if (ChildHandle->GetPropertyClass() == FBoolProperty::StaticClass())
 				{
-					NumericEntryBoxWidgetList.Add(ChildWidget);
+					ValueHorizontalBox->AddSlot()
+						.Padding(FMargin(0.f, 2.f, bLastChild ? 0.f : 3.f, 2.f))
+						.AutoWidth()  // keep the check box slots small
+						[
+							ChildWidget
+						];
 				}
+				else
+				{
+					if (ChildHandle->GetPropertyClass() == FFloatProperty::StaticClass())
+					{
+						NumericEntryBoxWidgetList.Add(ChildWidget);
+					}
 
-				HorizontalBox->AddSlot()
-					.Padding(FMargin(0.f, 2.f, bLastChild ? 0.f : 3.f, 2.f))
-					[
-						ChildWidget
-					];
+					ValueHorizontalBox->AddSlot()
+						.Padding(FMargin(0.f, 2.f, bLastChild ? 0.f : 3.f, 2.f))
+						[
+							ChildWidget
+						];
+				}
 			}
 		}
 	}
@@ -123,24 +208,23 @@ namespace UE::Chaos::ClothAsset
 		if (PropertyClass == FBoolProperty::StaticClass())
 		{
 			TWeakPtr<IPropertyHandle> WeakHandlePtr = PropertyHandle;
-			return
-				SNew(SCheckBox)
-				.ToolTipText(
-					LOCTEXT(
-						"IsAnimatable",
-						"Whether the property can ever be updated/animated in real time.\n"
-						"This could make the simulation takes more CPU time, even more so if the weight maps needs updating."))
-				.Type(ESlateCheckBoxType::CheckBox)
-				.IsChecked_Lambda([WeakHandlePtr]()->ECheckBoxState
-					{
-						bool bValue = false;
-						WeakHandlePtr.Pin()->GetValue(bValue);
-						return bValue ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-					})
-				.OnCheckStateChanged_Lambda([WeakHandlePtr](ECheckBoxState CheckBoxState)
-					{
-						WeakHandlePtr.Pin()->SetValue(CheckBoxState == ECheckBoxState::Checked, EPropertyValueSetFlags::DefaultFlags);
-					});
+			if (!Private::IsImportFabricBoundsProperty(PropertyHandle) && !Private::IsBuildFabricMapsProperty(PropertyHandle) && !Private::CouldUseFabricsProperty(PropertyHandle))
+			{
+				return
+					SNew(SCheckBox)
+					.ToolTipText(PropertyHandle->GetToolTipText())
+					.Type(ESlateCheckBoxType::CheckBox)
+					.IsChecked_Lambda([WeakHandlePtr]()->ECheckBoxState
+						{
+							bool bValue = false;
+							WeakHandlePtr.Pin()->GetValue(bValue);
+							return bValue ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+						})
+					.OnCheckStateChanged_Lambda([WeakHandlePtr](ECheckBoxState CheckBoxState)
+						{
+							WeakHandlePtr.Pin()->SetValue(CheckBoxState == ECheckBoxState::Checked, EPropertyValueSetFlags::DefaultFlags);
+						});
+			}
 		}
 		if (PropertyClass == FStrProperty::StaticClass())
 		{
@@ -199,8 +283,6 @@ namespace UE::Chaos::ClothAsset
 					})
 				.Font(IPropertyTypeCustomizationUtils::GetRegularFont());
 		}
-
-		checkf(false, TEXT("Unsupported property class for the Weighted Values customization."));
 		return SNullWidget::NullWidget;
 	}
 

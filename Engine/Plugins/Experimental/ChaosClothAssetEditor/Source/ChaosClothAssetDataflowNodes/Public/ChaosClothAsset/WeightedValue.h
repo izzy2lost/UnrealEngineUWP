@@ -50,8 +50,8 @@ struct FChaosClothAssetWeightedValue
 	 * A Weight of 0 always corresponds to the Low parameter value, and a Weight of 1 to the High parameter value.
 	 * The value for Low can be set to be bigger than for High in order to reverse the effect of the Weight Map.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DisplayName = "Low Weight", ChaosClothAssetShortName = "Lo"))
-	float Low = 0.f;
+	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DisplayName = "Low Weight", ChaosClothAssetShortName = "Lo", EditCondition = "!bImportFabricBounds"))
+	mutable float Low = 0.f;
 
 	/**
 	 * Property value corresponding to the upper bound of the Weight Map.
@@ -60,16 +60,34 @@ struct FChaosClothAssetWeightedValue
 	 * A Weight of 0 always corresponds to the Low parameter value, and a Weight of 1 to the High parameter value.
 	 * The value for Low can be set to be bigger than for High in order to reverse the effect of the Weight Map.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DisplayName = "High Weight", ChaosClothAssetShortName = "Hi"))
-	float High = 1.f;
+	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DisplayName = "High Weight", ChaosClothAssetShortName = "Hi", EditCondition = "!bImportFabricBounds"))
+	mutable float High = 1.f;
 
 	/** The name of the weight map for this property. */
 	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DataflowInput))
 	mutable FString WeightMap = TEXT("WeightMap");  // Mutable so that it can be name checked in the evaluate function
 
+	/**
+	 * Whether the property could import fabrics datas or not
+	 */
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
+	bool bCouldUseFabrics = false;
+
 	/** The weight map override value for when the WeightMap has a connection that replaces the provided weight map value. */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
 	mutable FString WeightMap_Override = UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden;  // _Override has a special meaning to the property customization, mutable because this property is set while getting the original value
+	
+	/**
+	 * Whether the property can use the fabric bounds (low/high) values imported from USD
+	 */
+	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (EditCondition = "bCouldUseFabrics", EditConditionHides))
+	bool bImportFabricBounds = false;
+
+	/**
+	 * Whether the property can override the weight map based on the imported fabrics
+	 */
+	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (EditCondition = "bCouldUseFabrics", EditConditionHides))
+	bool bBuildFabricMaps = false;
 };
 
 USTRUCT()
@@ -86,8 +104,8 @@ struct FChaosClothAssetWeightedValueNonAnimatable
 	 * A Weight of 0 always corresponds to the Low parameter value, and a Weight of 1 to the High parameter value.
 	 * The value for Low can be set to be bigger than for High in order to reverse the effect of the Weight Map.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DisplayName = "Low Weight", ChaosClothAssetShortName = "Lo"))
-	float Low = 0.f;
+	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DisplayName = "Low Weight", ChaosClothAssetShortName = "Lo", EditCondition = "!bImportFabricBounds"))
+	mutable float Low = 0.f;
 
 	/**
 	 * Property value corresponding to the upper bound of the Weight Map.
@@ -96,18 +114,35 @@ struct FChaosClothAssetWeightedValueNonAnimatable
 	 * A Weight of 0 always corresponds to the Low parameter value, and a Weight of 1 to the High parameter value.
 	 * The value for Low can be set to be bigger than for High in order to reverse the effect of the Weight Map.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DisplayName = "High Weight", ChaosClothAssetShortName = "Hi"))
-	float High = 1.f;
-
+	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DisplayName = "High Weight", ChaosClothAssetShortName = "Hi", EditCondition = "!bImportFabricBounds"))
+	mutable float High = 1.f;
+	
 	/** The name of the weight map for this property. */
 	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DataflowInput))
 	mutable FString WeightMap = TEXT("WeightMap");  // Mutable so that it can be name checked in the evaluate function
 
+	/**
+	 * Whether the property could import fabrics datas or not
+	 */
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
+	bool bCouldUseFabrics = false;
+	
 	/** The weight map override value for when the WeightMap has a connection that replaces the provided weight map value. */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
 	mutable FString WeightMap_Override = UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden;  // _Override has a special meaning to the property customization, mutable because this property is set while getting the original value
-};
+	
+	/**
+	 * Whether the property can use the fabric bounds (low/high) values imported from USD
+	 */
+	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (EditCondition = "bCouldUseFabrics", EditConditionHides))
+	bool bImportFabricBounds = false;
 
+	/**
+	 * Whether the property can override the weight map based on the imported fabrics
+	 */
+	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (EditCondition = "bCouldUseFabrics", EditConditionHides))
+	bool bBuildFabricMaps = false;
+};
 
 USTRUCT()
 struct FChaosClothAssetWeightedValueNonAnimatableNoLowHighRange

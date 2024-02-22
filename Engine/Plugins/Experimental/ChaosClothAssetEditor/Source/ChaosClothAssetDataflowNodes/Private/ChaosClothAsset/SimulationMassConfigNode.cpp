@@ -19,38 +19,32 @@ FChaosClothAssetSimulationMassConfigNode::FChaosClothAssetSimulationMassConfigNo
 void FChaosClothAssetSimulationMassConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
 	UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(PropertyHelper.GetClothCollection());
-	if(!CanUseFabrics(ClothFacade))
+	if(!ClothFacade.IsValid())
 	{
-		PropertyHelper.SetPropertyEnum(this, &MassMode, {}, ECollectionPropertyFlags::Intrinsic);
-		switch (MassMode)
-		{
-		default:
-		case EClothMassMode::UniformMass:
-			{
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("MassValue")), UniformMassWeighted, {}, ECollectionPropertyFlags::Intrinsic);
-			}
-			break;
-		case EClothMassMode::TotalMass:
-			{
-				PropertyHelper.SetProperty(FName(TEXT("MassValue")), TotalMass, {}, ECollectionPropertyFlags::Intrinsic);
-			}
-			break;
-		case EClothMassMode::Density:
-			{
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("MassValue")), DensityWeighted, {}, ECollectionPropertyFlags::Intrinsic);
-			}
-			break;
-		}
+		return;
 	}
-	else
+	PropertyHelper.SetPropertyEnum(this, &MassMode, {}, ECollectionPropertyFlags::Intrinsic);
+	switch (MassMode)
 	{
-		constexpr EClothMassMode MassModeProperty = EClothMassMode::Density;
-		PropertyHelper.SetPropertyEnum(FName(TEXT("MassMode")), MassModeProperty, {}, ECollectionPropertyFlags::Intrinsic);
-
-		SetFabricPropertyWeighted(FName(TEXT("MassValue")), DensityWeighted, ClothFacade, PropertyHelper, [](const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
-		 {
-			 return FabricFacade.GetDensityWeighted();
-		 }, {}, ECollectionPropertyFlags::Intrinsic);
+	default:
+	case EClothMassMode::UniformMass:
+		{
+			PropertyHelper.SetPropertyWeighted(FName(TEXT("MassValue")), UniformMassWeighted, {}, ECollectionPropertyFlags::Intrinsic);
+		}
+		break;
+	case EClothMassMode::TotalMass:
+		{
+			PropertyHelper.SetProperty(FName(TEXT("MassValue")), TotalMass, {}, ECollectionPropertyFlags::Intrinsic);
+		}
+		break;
+	case EClothMassMode::Density:
+		{
+			SetFabricPropertyWeighted(FName(TEXT("MassValue")), DensityWeighted, ClothFacade, PropertyHelper, [](const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+			 {
+				 return FabricFacade.GetDensityWeighted();
+			 }, {}, ECollectionPropertyFlags::Intrinsic);
+		}
+		break;
 	}
 	PropertyHelper.SetProperty(this, &MinPerParticleMass, {}, ECollectionPropertyFlags::Intrinsic);
 }

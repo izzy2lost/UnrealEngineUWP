@@ -14,6 +14,7 @@ FChaosClothAssetSimulationStretchConfigNode::FChaosClothAssetSimulationStretchCo
 	RegisterInputConnection(&StretchStiffnessWeft.WeightMap);
 	RegisterInputConnection(&StretchStiffnessBias.WeightMap);
 	RegisterInputConnection(&StretchDamping.WeightMap);
+	RegisterInputConnection(&StretchAnisoDamping.WeightMap);
 	RegisterInputConnection(&StretchWarpScale.WeightMap);
 	RegisterInputConnection(&StretchWeftScale.WeightMap);
 	RegisterInputConnection(&AreaStiffness.WeightMap);
@@ -22,99 +23,78 @@ FChaosClothAssetSimulationStretchConfigNode::FChaosClothAssetSimulationStretchCo
 void FChaosClothAssetSimulationStretchConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
 	UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(PropertyHelper.GetClothCollection());
-	if(!CanUseFabrics(ClothFacade))
+	if(!ClothFacade.IsValid())
 	{
-		if(SolverType == EChaosClothAssetConstraintSolverType::XPBD)
+		return;
+	}
+	
+	if(SolverType == EChaosClothAssetConstraintSolverType::XPBD)
+	{
+		if (DistributionType == EChaosClothAssetConstraintDistributionType::Anisotropic)
 		{
-			if (DistributionType == EChaosClothAssetConstraintDistributionType::Anisotropic)
-			{
-				PropertyHelper.SetPropertyBool(FName(TEXT("XPBDAnisoSpringUse3dRestLengths")), bStretchUse3dRestLengths, {
-					FName(TEXT("XPBDAnisoStretchUse3dRestLengths")) }, ECollectionPropertyFlags::None);  // Non animatable
+			PropertyHelper.SetPropertyBool(FName(TEXT("XPBDAnisoSpringUse3dRestLengths")), bStretchUse3dRestLengths, {
+				FName(TEXT("XPBDAnisoStretchUse3dRestLengths"))}, ECollectionPropertyFlags::None);  // Non animatable
 
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessWarp")), StretchStiffnessWarp, {
-					FName(TEXT("EdgeSpringStiffness")),
-					FName(TEXT("XPBDEdgeSpringStiffness")),
-					FName(TEXT("XPBDAnisoStretchStiffnessWarp")) });
+			SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessWarp")), StretchStiffnessWarp,ClothFacade, PropertyHelper, [](
+				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+			 {
+				 return FabricFacade.GetXPBDAnisoSpringStiffness().Warp;
+			 }, {
+				FName(TEXT("EdgeSpringStiffness")),
+				FName(TEXT("XPBDEdgeSpringStiffness")),
+				FName(TEXT("XPBDAnisoStretchStiffnessWarp"))});
 
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessWeft")), StretchStiffnessWeft, {
-					FName(TEXT("XPBDAnisoStretchStiffnessWeft")) });
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessBias")), StretchStiffnessBias, {
-					FName(TEXT("XPBDAnisoStretchStiffnessBias")) });
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAnisoSpringDamping")), StretchDamping, {
-					FName(TEXT("XPBDAnisoStretchDamping")),
-					FName(TEXT("XPBDEdgeSpringDamping")) });
+			SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessWeft")), StretchStiffnessWeft, ClothFacade, PropertyHelper, [](
+				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+			 {
+				 return FabricFacade.GetXPBDAnisoSpringStiffness().Weft;
+			 }, { FName(TEXT("XPBDAnisoStretchStiffnessWeft")) });
+	
+			SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessBias")), StretchStiffnessBias, ClothFacade, PropertyHelper, [](
+				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+			 {
+				 return FabricFacade.GetXPBDAnisoSpringStiffness().Bias;
+			 }, { FName(TEXT("XPBDAnisoStretchStiffnessBias")) });
 
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAnisoSpringWarpScale")), StretchWarpScale, {
-					FName(TEXT("XPBDAnisoStretchWarpScale")) });
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAnisoSpringWeftScale")), StretchWeftScale, {
-					FName(TEXT("XPBDAnisoStretchWeftScale")) });
-			}
-			else
-			{
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDEdgeSpringStiffness")), StretchStiffness, {
-					FName(TEXT("EdgeSpringStiffness")),
-					FName(TEXT("XPBDAnisoStretchStiffnessWarp")),
-					FName(TEXT("XPBDAnisoSpringStiffnessWarp"))});
-				
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDEdgeSpringDamping")), StretchDamping, {
-					FName(TEXT("XPBDAnisoStretchDamping")),
-					FName(TEXT("XPBDAnisoSpringDamping"))});
+			SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringDamping")), StretchAnisoDamping, ClothFacade, PropertyHelper, [](
+				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+			 {
+				 return FabricFacade.GetXPBDAnisoDamping();
+			 }, { FName(TEXT("XPBDEdgeSpringDamping")),
+				FName(TEXT("XPBDAnisoStretchDamping")) });
 
-				if(bAddAreaConstraint)
-				{
-					PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAreaSpringStiffness")), AreaStiffness,{
-						FName(TEXT("AreaSpringStiffness"))});
-				}
-			}
+			PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAnisoSpringWarpScale")), StretchWarpScale, { FName(TEXT("XPBDAnisoStretchWarpScale")) });
+			PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAnisoSpringWeftScale")), StretchWeftScale, { FName(TEXT("XPBDAnisoStretchWeftScale")) });
 		}
 		else
 		{
-			PropertyHelper.SetPropertyWeighted(FName(TEXT("EdgeSpringStiffness")), StretchStiffness, {
-				FName(TEXT("XPBDEdgeSpringStiffness")), 
+			PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDEdgeSpringStiffness")), StretchStiffness, {
+				FName(TEXT("EdgeSpringStiffness")),
 				FName(TEXT("XPBDAnisoStretchStiffnessWarp")),
 				FName(TEXT("XPBDAnisoSpringStiffnessWarp"))});
-			
+
+			PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDEdgeSpringDamping")), StretchDamping, {
+				FName(TEXT("XPBDAnisoStretchDamping")),
+				FName(TEXT("XPBDAnisoSpringDamping"))});
+
 			if(bAddAreaConstraint)
 			{
-				PropertyHelper.SetPropertyWeighted(FName(TEXT("AreaSpringStiffness")), AreaStiffness,{
-					FName(TEXT("XPBDAreaSpringStiffness"))});
+				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAreaSpringStiffness")), AreaStiffness,{
+					FName(TEXT("AreaSpringStiffness"))});
 			}
 		}
 	}
 	else
 	{
-		PropertyHelper.SetPropertyBool(FName(TEXT("XPBDAnisoSpringUse3dRestLengths")), bStretchUse3dRestLengths, {
-						FName(TEXT("XPBDAnisoStretchUse3dRestLengths"))}, ECollectionPropertyFlags::None);  // Non animatable
-
-		SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessWarp")), StretchStiffnessWarp,ClothFacade, PropertyHelper, [](
-			const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
-		 {
-			 return FabricFacade.GetXPBDAnisoSpringStiffness().Warp;
-		 }, {
-			FName(TEXT("EdgeSpringStiffness")),
-			FName(TEXT("XPBDEdgeSpringStiffness")),
-			FName(TEXT("XPBDAnisoStretchStiffnessWarp"))});
-
-		SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessWeft")), StretchStiffnessWeft, ClothFacade, PropertyHelper, [](
-			const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
-		 {
-			 return FabricFacade.GetXPBDAnisoSpringStiffness().Weft;
-		 }, { FName(TEXT("XPBDAnisoStretchStiffnessWeft")) });
+		PropertyHelper.SetPropertyWeighted(FName(TEXT("EdgeSpringStiffness")), StretchStiffness, {
+			FName(TEXT("XPBDEdgeSpringStiffness")), 
+			FName(TEXT("XPBDAnisoStretchStiffnessWarp")),
+			FName(TEXT("XPBDAnisoSpringStiffnessWarp"))});
 		
-		SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessBias")), StretchStiffnessBias, ClothFacade, PropertyHelper, [](
-			const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
-		 {
-			 return FabricFacade.GetXPBDAnisoSpringStiffness().Bias;
-		 }, { FName(TEXT("XPBDAnisoStretchStiffnessBias")) });
-
-		SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringDamping")), StretchDamping, ClothFacade, PropertyHelper, [](
-			const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
-		 {
-			 return FabricFacade.GetXPBDAnisoDamping();
-		 }, { FName(TEXT("XPBDEdgeSpringDamping")),
-			FName(TEXT("XPBDAnisoStretchDamping")) });
-
-		PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAnisoSpringWarpScale")), StretchWarpScale, { FName(TEXT("XPBDAnisoStretchWarpScale")) });
-		PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDAnisoSpringWeftScale")), StretchWeftScale, { FName(TEXT("XPBDAnisoStretchWeftScale")) });
+		if(bAddAreaConstraint)
+		{
+			PropertyHelper.SetPropertyWeighted(FName(TEXT("AreaSpringStiffness")), AreaStiffness,{
+				FName(TEXT("XPBDAreaSpringStiffness"))});
+		}
 	}
 }
