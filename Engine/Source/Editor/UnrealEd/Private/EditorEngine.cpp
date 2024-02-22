@@ -550,15 +550,14 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 				FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*PropertyColorCustomProperty.Text, TEXT("PropertyColor"), *PropertyColorCustomProperty.Name.ToString()),
 				[this, PropertyColorCustomProperty](const UPrimitiveComponent* InPrimitiveComponent)
 				{
-					FColor PropertyColor(FColor::White);
 					if (AActor* Actor = InPrimitiveComponent->GetOwner())
 					{
 						if (GetPropertyColorationMatch(Actor))
 						{
-							PropertyColor = PropertyColorCustomProperty.PropertyColor;
+							return PropertyColorCustomProperty.PropertyColor;
 						}
 					}
-					return PropertyColor;
+					return PropertyColorCustomProperty.DefaultColor;
 				},
 				[this, PropertyColorCustomProperty]()
 				{

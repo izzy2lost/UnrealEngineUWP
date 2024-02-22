@@ -26,6 +26,9 @@ struct FPropertyColorCustomProperty
 
 	UPROPERTY(Config)
 	FColor PropertyColor = FColor::Red;
+
+	UPROPERTY(Config)
+	FColor DefaultColor = FColor::White;
 };
 
 /**
