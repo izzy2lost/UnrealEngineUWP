@@ -4,6 +4,7 @@
 
 #include "PCGCommon.h"
 #include "PCGContext.h"
+#include "PCGCustomVersion.h"
 #include "Data/PCGPointData.h"
 #include "Helpers/PCGAsync.h"
 #include "Helpers/PCGHelpers.h"
@@ -96,6 +97,26 @@ UPCGAttributeNoiseSettings::UPCGAttributeNoiseSettings()
 	InputSource.SetPointProperty(EPCGPointProperties::Density);
 }
 
+#if WITH_EDITOR
+TArray<FPCGPreConfiguredSettingsInfo> UPCGAttributeNoiseSettings::GetPreconfiguredInfo() const
+{
+	TArray<FPCGPreConfiguredSettingsInfo> PreconfiguredInfo;
+	PreconfiguredInfo.Emplace(0, GetDefaultNodeTitle());
+	PreconfiguredInfo.Emplace(1, LOCTEXT("DensityNoiseNodeTitle", "Density Noise"));
+
+	return PreconfiguredInfo;
+}
+#endif
+
+void UPCGAttributeNoiseSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo)
+{
+	// If index is 1, it is the default ($Density)
+	if (PreconfigureInfo.PreconfiguredIndex == 0)
+	{
+		InputSource.SetAttributeName(PCGMetadataAttributeConstants::LastAttributeName);
+	}
+}
+
 void UPCGAttributeNoiseSettings::PostLoad()
 {
 	Super::PostLoad();
@@ -124,6 +145,12 @@ void UPCGAttributeNoiseSettings::PostLoad()
 		bInvertSource = bInvertSourceDensity_DEPRECATED;
 		bInvertSourceDensity_DEPRECATED = false;
 	}
+
+	// Check for the data spatial to point gate version
+	if (DataVersion < FPCGCustomVersion::NoMoreSpatialDataConversionToPointDataByDefaultOnNonPointPins)
+	{
+		bHasSpatialToPointDeprecation = true;
+	}
 #endif // WITH_EDITOR
 }
 
@@ -145,6 +172,18 @@ void UPCGAttributeNoiseSettings::ApplyDeprecationBeforeUpdatePins(UPCGNode* InOu
 	{
 		InOutNode->RenameInputPin(OldToNew.Key, OldToNew.Value);
 	}
+
+	// Param | Point type was not explicitly defined in the data types, and therefore was not serialized correctly, resulting in an Input/Output pin serialized to None.
+	auto FixInvalidAllowedTypes = [](UPCGPin* InPin)
+	{
+		if (InPin && InPin->Properties.AllowedTypes == EPCGDataType::None)
+		{
+			InPin->Properties.AllowedTypes = EPCGDataType::PointOrParam;
+		}
+	};
+
+	FixInvalidAllowedTypes(InOutNode->GetInputPin(PCGPinConstants::DefaultInputLabel));
+	FixInvalidAllowedTypes(InOutNode->GetOutputPin(PCGPinConstants::DefaultOutputLabel));
 }
 #endif // WITH_EDITOR
 
@@ -156,7 +195,7 @@ FPCGElementPtr UPCGAttributeNoiseSettings::CreateElement() const
 TArray<FPCGPinProperties> UPCGAttributeNoiseSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point | EPCGDataType::Param);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::PointOrParam);
 	InputPinProperty.SetRequiredPin();
 	return PinProperties;
 }
@@ -164,9 +203,31 @@ TArray<FPCGPinProperties> UPCGAttributeNoiseSettings::InputPinProperties() const
 TArray<FPCGPinProperties> UPCGAttributeNoiseSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Point | EPCGDataType::Param);
+	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::PointOrParam);
 
 	return PinProperties;
+}
+
+EPCGDataType UPCGAttributeNoiseSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
+{
+	check(InPin);
+	if (!InPin->IsOutputPin())
+	{
+		return Super::GetCurrentPinTypes(InPin);
+	}
+
+	// Output pin narrows to union of inputs on first pin
+	const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
+
+	// Spatial is collapsed into points
+	if (InputTypeUnion != EPCGDataType::None && (InputTypeUnion & EPCGDataType::Spatial) == InputTypeUnion)
+	{
+		return EPCGDataType::Point;
+	}
+	else
+	{
+		return (InputTypeUnion != EPCGDataType::None) ? InputTypeUnion : (EPCGDataType::PointOrParam);
+	}
 }
 
 FPCGContext* FPCGAttributeNoiseElement::CreateContext()
@@ -205,6 +266,15 @@ bool FPCGAttributeNoiseElement::ExecuteInternal(FPCGContext* InContext) const
 				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InputUnsuportedData", "Data {0} is neither spatial nor an attribute set, unsupported."), Context->CurrentInput));
 				Context->CurrentInput++;
 				continue;
+			}
+
+			// For deprecation
+			if (const UPCGSpatialData* InputSpatialData = Cast<const UPCGSpatialData>(InputData))
+			{
+				if (Settings->bHasSpatialToPointDeprecation)
+				{
+					InputData = InputSpatialData->ToPointData();
+				}
 			}
 
 			Context->InputSource = Settings->InputSource.CopyAndFixLast(InputData);

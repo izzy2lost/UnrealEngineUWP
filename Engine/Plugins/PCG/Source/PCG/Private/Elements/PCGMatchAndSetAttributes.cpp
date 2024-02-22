@@ -44,6 +44,27 @@ FText UPCGMatchAndSetAttributesSettings::GetNodeTooltipText() const
 {
 	return LOCTEXT("NodeTooltip", "Matches or randomly assigns values from the Attribute Set to the input data");
 }
+
+void UPCGMatchAndSetAttributesSettings::ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins)
+{
+	Super::ApplyDeprecationBeforeUpdatePins(InOutNode, InputPins, OutputPins);
+
+	check(InOutNode);
+
+	// Param | Point type was not explicitly defined in the data types, and therefore was not serialized correctly, resulting in an Input/Output pin serialized to None.
+	// Restoring the right value here, before update pins.
+	auto FixInvalidAllowedTypes = [](UPCGPin* InPin)
+	{
+		if (InPin && InPin->Properties.AllowedTypes == EPCGDataType::None)
+		{
+			InPin->Properties.AllowedTypes = EPCGDataType::PointOrParam;
+		}
+	};
+
+	FixInvalidAllowedTypes(InOutNode->GetInputPin(PCGPinConstants::DefaultInputLabel));
+	FixInvalidAllowedTypes(InOutNode->GetInputPin(PCGMatchAndSetAttributesConstants::MaxDistanceLabel));
+	FixInvalidAllowedTypes(InOutNode->GetOutputPin(PCGPinConstants::DefaultOutputLabel));
+}
 #endif // WITH_EDITOR
 
 UPCGMatchAndSetAttributesSettings::UPCGMatchAndSetAttributesSettings()
@@ -55,7 +76,7 @@ UPCGMatchAndSetAttributesSettings::UPCGMatchAndSetAttributesSettings()
 TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point | EPCGDataType::Param);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::PointOrParam);
 	InputPinProperty.SetRequiredPin();
 
 	PinProperties.Emplace(PCGMatchAndSetAttributesConstants::MatchDataLabel, 
@@ -68,7 +89,7 @@ TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::InputPinProperties(
 	if (bFindNearest && MaxDistanceMode == EPCGMatchMaxDistanceMode::AttributeMaxDistance)
 	{
 		PinProperties.Emplace(PCGMatchAndSetAttributesConstants::MaxDistanceLabel,
-			EPCGDataType::Point | EPCGDataType::Param,
+			EPCGDataType::PointOrParam,
 			/*bAllowMultipleConnections=*/false,
 			/*bAllowMultipleData=*/true,
 			LOCTEXT("MaxDistanceTooltip", "Input containing the maximum distance allowed for nearest search, selected by the Max Distance Attribute.")
@@ -81,7 +102,7 @@ TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::InputPinProperties(
 TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Point | EPCGDataType::Param);
+	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::PointOrParam);
 
 	return PinProperties;
 }

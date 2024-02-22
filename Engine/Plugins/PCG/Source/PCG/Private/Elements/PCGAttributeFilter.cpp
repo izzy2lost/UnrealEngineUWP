@@ -249,6 +249,10 @@ void FPCGAttributeFilterThresholdSettings::OnPostLoad()
 }
 #endif
 
+////////////////////////////////////////
+// UPCGAttributeFilteringSettings
+////////////////////////////////////////
+
 EPCGDataType UPCGAttributeFilteringSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
 	check(InPin);
@@ -274,7 +278,7 @@ EPCGDataType UPCGAttributeFilteringSettings::GetCurrentPinTypes(const UPCGPin* I
 TArray<FPCGPinProperties> UPCGAttributeFilteringSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	FPCGPinProperties& DataToFilterPinProperty = PinProperties.Emplace_GetRef(PCGAttributeFilterConstants::DataToFilterLabel, EPCGDataType::Any);
+	FPCGPinProperties& DataToFilterPinProperty = PinProperties.Emplace_GetRef(PCGAttributeFilterConstants::DataToFilterLabel, EPCGDataType::PointOrParam);
 	DataToFilterPinProperty.SetRequiredPin();
 
 #if WITH_EDITOR
@@ -296,8 +300,8 @@ TArray<FPCGPinProperties> UPCGAttributeFilteringSettings::InputPinProperties() c
 TArray<FPCGPinProperties> UPCGAttributeFilteringSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInFilterLabel, EPCGDataType::Any);
-	PinProperties.Emplace(PCGPinConstants::DefaultOutFilterLabel, EPCGDataType::Any);
+	PinProperties.Emplace(PCGPinConstants::DefaultInFilterLabel, EPCGDataType::PointOrParam);
+	PinProperties.Emplace(PCGPinConstants::DefaultOutFilterLabel, EPCGDataType::PointOrParam);
 
 	return PinProperties;
 }
@@ -330,24 +334,83 @@ UPCGAttributeFilteringSettings::UPCGAttributeFilteringSettings()
 	ThresholdAttribute.SetPointProperty(EPCGPointProperties::Density);
 }
 
+#if WITH_EDITOR
+TArray<FPCGPreConfiguredSettingsInfo> UPCGAttributeFilteringSettings::GetPreconfiguredInfo() const
+{
+	TArray<FPCGPreConfiguredSettingsInfo> PreconfiguredInfo;
+	PreconfiguredInfo.Emplace(0, GetDefaultNodeTitle());
+	PreconfiguredInfo.Emplace(1, LOCTEXT("PointRangeNodeTitle", "Point Filter"));
+
+	return PreconfiguredInfo;
+}
+#endif
+
+void UPCGAttributeFilteringSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo)
+{
+	// If index is 1, it is the default ($Density)
+	if (PreconfigureInfo.PreconfiguredIndex == 0)
+	{
+		TargetAttribute.SetAttributeName(PCGMetadataAttributeConstants::LastAttributeName);
+		ThresholdAttribute.SetAttributeName(PCGMetadataAttributeConstants::LastAttributeName);
+	}
+}
+
 void UPCGAttributeFilteringSettings::PostLoad()
 {
 	Super::PostLoad();
 
 #if WITH_EDITOR
 	AttributeTypes.OnPostLoad();
+
+	// Check for the data spatial to point gate version
+	if (DataVersion < FPCGCustomVersion::NoMoreSpatialDataConversionToPointDataByDefaultOnNonPointPins)
+	{
+		bHasSpatialToPointDeprecation = true;
+	}
 #endif // WITH_EDITOR
 }
 
-#if WITH_EDITOR
+////////////////////////////////////////
+// UPCGAttributeFilteringRangeSettings
+////////////////////////////////////////
+
 void UPCGAttributeFilteringRangeSettings::PostLoad()
 {
 	Super::PostLoad();
 
+#if WITH_EDITOR
 	MinThreshold.OnPostLoad();
 	MaxThreshold.OnPostLoad();
+
+	// Check for the data spatial to point gate version
+	if (DataVersion < FPCGCustomVersion::NoMoreSpatialDataConversionToPointDataByDefaultOnNonPointPins)
+	{
+		bHasSpatialToPointDeprecation = true;
+	}
+#endif
+}
+
+#if WITH_EDITOR
+TArray<FPCGPreConfiguredSettingsInfo> UPCGAttributeFilteringRangeSettings::GetPreconfiguredInfo() const
+{
+	TArray<FPCGPreConfiguredSettingsInfo> PreconfiguredInfo;
+	PreconfiguredInfo.Emplace(0, GetDefaultNodeTitle());
+	PreconfiguredInfo.Emplace(1, LOCTEXT("PointRangeNodeTitle", "Point Filter Range"));
+
+	return PreconfiguredInfo;
 }
 #endif
+
+void UPCGAttributeFilteringRangeSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo)
+{
+	// If index is 1, it is the default ($Density)
+	if (PreconfigureInfo.PreconfiguredIndex == 0)
+	{
+		TargetAttribute.SetAttributeName(PCGMetadataAttributeConstants::LastAttributeName);
+		MinThreshold.ThresholdAttribute.SetAttributeName(PCGMetadataAttributeConstants::LastAttributeName);
+		MaxThreshold.ThresholdAttribute.SetAttributeName(PCGMetadataAttributeConstants::LastAttributeName);
+	}
+}
 
 FString UPCGAttributeFilteringRangeSettings::GetAdditionalTitleInformation() const
 {
@@ -404,7 +467,7 @@ EPCGDataType UPCGAttributeFilteringRangeSettings::GetCurrentPinTypes(const UPCGP
 TArray<FPCGPinProperties> UPCGAttributeFilteringRangeSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	FPCGPinProperties& DataToFilterPinProperty = PinProperties.Emplace_GetRef(PCGAttributeFilterConstants::DataToFilterLabel, EPCGDataType::Any);
+	FPCGPinProperties& DataToFilterPinProperty = PinProperties.Emplace_GetRef(PCGAttributeFilterConstants::DataToFilterLabel, EPCGDataType::PointOrParam);
 	DataToFilterPinProperty.SetRequiredPin();
 
 #if WITH_EDITOR
@@ -435,13 +498,17 @@ TArray<FPCGPinProperties> UPCGAttributeFilteringRangeSettings::InputPinPropertie
 TArray<FPCGPinProperties> UPCGAttributeFilteringRangeSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInFilterLabel, EPCGDataType::Any);
-	PinProperties.Emplace(PCGPinConstants::DefaultOutFilterLabel, EPCGDataType::Any);
+	PinProperties.Emplace(PCGPinConstants::DefaultInFilterLabel, EPCGDataType::PointOrParam);
+	PinProperties.Emplace(PCGPinConstants::DefaultOutFilterLabel, EPCGDataType::PointOrParam);
 
 	return PinProperties;
 }
 
-bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& InTargetAttribute, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold) const
+////////////////////////////////////////
+// FPCGAttributeFilterElementBase
+////////////////////////////////////////
+
+bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& InTargetAttribute, bool bHasSpatialToPointDeprecation, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeFilterElementBase::DoFiltering);
 	check(Context);
@@ -502,15 +569,29 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 
 		if (const UPCGSpatialData* SpatialInput = Cast<const UPCGSpatialData>(OriginalData))
 		{
-			const UPCGPointData* OriginalPointData = SpatialInput->ToPointData(Context);
-			if (!OriginalPointData)
+			if (!SpatialInput->IsA<UPCGPointData>())
 			{
-				PCGE_LOG(Error, GraphAndLog, LOCTEXT("NoPointDataInInput", "Unable to get point data from input"));
-				continue;
-			}
+				const UPCGPointData* OriginalPointData = nullptr;
 
-			OperationData.bIsInputPointData = true;
-			OriginalData = OriginalPointData;
+				if (bHasSpatialToPointDeprecation)
+				{
+					OriginalPointData = SpatialInput->ToPointData(Context);
+				}
+
+				if (!OriginalPointData)
+				{
+					PCGE_LOG(Error, GraphAndLog, LOCTEXT("NoPointDataInInput", "Unable to get point data from input. Use a conversion node before this node to transform it to points."));
+					continue;
+				}
+
+				OperationData.bIsInputPointData = true;
+				OriginalData = OriginalPointData;
+			}
+			else
+			{
+				OperationData.bIsInputPointData = true;
+				OriginalData = SpatialInput;
+			}
 		}
 		else if (OriginalData->IsA<UPCGParamData>())
 		{
@@ -526,17 +607,21 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 
 		// Helper lambdas to fail nicely and forward input to in/out filter pin
 		// If there is a problem with threshold -> forward to InFilter
-		auto ForwardInputToInFilterPin = [&Outputs, Input]()
+		auto ForwardInputToInFilterPin = [&Outputs, Input, OriginalData]()
 		{
 			FPCGTaggedData& InFilterOutput = Outputs.Add_GetRef(Input);
 			InFilterOutput.Pin = PCGPinConstants::DefaultInFilterLabel;
+			// Use original data because it could have been collapsed
+			InFilterOutput.Data = OriginalData;
 		};
 
 		// If there is a problem with target -> forward to OutFilter
-		auto ForwardInputToOutFilterPin = [&Outputs, Input]()
+		auto ForwardInputToOutFilterPin = [&Outputs, Input, OriginalData]()
 		{
 			FPCGTaggedData& OutFilterOutput = Outputs.Add_GetRef(Input);
 			OutFilterOutput.Pin = PCGPinConstants::DefaultOutFilterLabel;
+			// Use original data because it could have been collapsed
+			OutFilterOutput.Data = OriginalData;
 		};
 
 		FPCGAttributePropertyInputSelector TargetAttribute = InTargetAttribute.CopyAndFixLast(OriginalData);
@@ -766,6 +851,10 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 	return true;
 }
 
+////////////////////////////////////////
+// FPCGAttributeFilterElement
+////////////////////////////////////////
+
 bool FPCGAttributeFilterElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeFilterElement::Execute);
@@ -790,8 +879,12 @@ bool FPCGAttributeFilterElement::ExecuteInternal(FPCGContext* Context) const
 	ThresholdSettings.ThresholdAttribute = Settings->ThresholdAttribute;
 	ThresholdSettings.AttributeTypes = Settings->AttributeTypes;
 
-	return DoFiltering(Context, Settings->Operator, Settings->TargetAttribute, ThresholdSettings);
+	return DoFiltering(Context, Settings->Operator, Settings->TargetAttribute, Settings->bHasSpatialToPointDeprecation, ThresholdSettings);
 }
+
+////////////////////////////////////////
+// FPCGAttributeFilterRangeElement
+////////////////////////////////////////
 
 bool FPCGAttributeFilterRangeElement::ExecuteInternal(FPCGContext* Context) const
 {
@@ -811,7 +904,7 @@ bool FPCGAttributeFilterRangeElement::ExecuteInternal(FPCGContext* Context) cons
 	const UPCGAttributeFilteringRangeSettings* Settings = Context->GetInputSettings<UPCGAttributeFilteringRangeSettings>();
 	check(Settings);
 
-	return DoFiltering(Context, EPCGAttributeFilterOperator::InRange, Settings->TargetAttribute, Settings->MinThreshold, &Settings->MaxThreshold);
+	return DoFiltering(Context, EPCGAttributeFilterOperator::InRange, Settings->TargetAttribute, Settings->bHasSpatialToPointDeprecation, Settings->MinThreshold, &Settings->MaxThreshold);
 }
 
 #undef LOCTEXT_NAMESPACE

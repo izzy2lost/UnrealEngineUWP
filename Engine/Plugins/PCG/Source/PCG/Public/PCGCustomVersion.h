@@ -74,6 +74,9 @@ struct PCG_API FPCGCustomVersion
 		// Supporting partitioned components in non-partitioned levels
 		SupportPartitionedComponentsInNonPartitionedLevels = 21,
 
+		// New gate for new data, so any node that has a non Point pin don't do any ToPointData by default.
+		NoMoreSpatialDataConversionToPointDataByDefaultOnNonPointPins = 22,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
