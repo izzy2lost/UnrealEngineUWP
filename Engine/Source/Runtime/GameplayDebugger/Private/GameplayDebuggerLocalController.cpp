@@ -152,6 +152,12 @@ void UGameplayDebuggerLocalController::Cleanup()
 	}
 #endif // WITH_EDITOR
 
+	// If we are cleaning up while enabled, restore the screen messages flag
+	if (bIsLocallyEnabled && !GAreScreenMessagesEnabled)
+	{
+		GAreScreenMessagesEnabled = bPrevScreenMessagesEnabled;
+	}
+
 	bNeedsCleanup = false;
 }
 
