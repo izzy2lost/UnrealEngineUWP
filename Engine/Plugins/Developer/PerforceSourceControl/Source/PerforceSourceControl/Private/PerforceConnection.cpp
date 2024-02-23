@@ -295,20 +295,21 @@ public:
 
 	virtual void OutputInfo(char Indent, const char* InInfo) override
 	{
-		// Should be caught by ::Message
-		checkNoEntry();
+		// We don't expect this to ever be called (info messages should come
+		// via ClientUser::Message) but implemented just to be safe.
+
+		ResultInfo.InfoMessages.Add(FText::FromString(FString(TO_TCHAR(InInfo, IsUnicodeServer()))));
 	}
 
 	virtual void OutputError(const char* errBuf) override
 	{
-		// Should be caught by ::Message
-		checkNoEntry();
-	}
+		// In general we expect errors to be passed to use via ClientUser::Message but some
+		// errors raised by the p4 cpp api can call ::HandleError or ::OutputError directly.
+		// Since the default implementation of ::HandleError calls ::OutputError we only need
+		// to implement this method to make sure we capture all of the errors being passed in
+		// this way.
 
-	virtual void HandleError(Error* InError) override
-	{
-		// Should be caught by ::Message
-		checkNoEntry();
+		ResultInfo.ErrorMessages.Add(FText::FromString(FString(TO_TCHAR(errBuf, IsUnicodeServer()))));
 	}
 
 	inline bool IsUnicodeServer() const
