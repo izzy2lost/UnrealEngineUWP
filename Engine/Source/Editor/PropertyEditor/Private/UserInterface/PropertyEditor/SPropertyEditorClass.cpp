@@ -118,7 +118,9 @@ bool SPropertyEditorClass::CanEdit() const
 void SPropertyEditorClass::Construct(const FArguments& InArgs, const TSharedPtr< FPropertyEditor >& InPropertyEditor)
 {
 	PropertyEditor = InPropertyEditor;
-	
+
+	TArray<TSharedRef<class IClassViewerFilter>> ClassViewerFilters = InArgs._ClassViewerFilters;
+
 	if (PropertyEditor.IsValid())
 	{
 		const TSharedRef<FPropertyNode> PropertyNode = PropertyEditor->GetPropertyNode();
@@ -189,6 +191,11 @@ void SPropertyEditorClass::Construct(const FArguments& InArgs, const TSharedPtr<
 					DisallowedClassFilters.Add(DisabledClass);
 				}
 			}
+
+			for (TArray<TSharedRef<IClassViewerFilter>>::TConstIterator Iter = ClassRestriction.Get().GeClassViewFilterIterator(); Iter; ++Iter)
+			{
+				ClassViewerFilters.Add(*Iter);
+			}
 		}
 	}
 	else
@@ -212,7 +219,7 @@ void SPropertyEditorClass::Construct(const FArguments& InArgs, const TSharedPtr<
 		OnSetClass = InArgs._OnSetClass;
 	}
 
-	CreateClassFilter(InArgs._ClassViewerFilters);
+	CreateClassFilter(ClassViewerFilters);
 
 	SAssignNew(ComboButton, SComboButton)
 		.OnGetMenuContent(this, &SPropertyEditorClass::GenerateClassPicker)
