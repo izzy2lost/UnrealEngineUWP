@@ -1068,7 +1068,7 @@ void FAnimNode_RigidBody::InitPhysics(const UAnimInstance* InAnimInstance)
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 		PhysicsSimulation->GetChaosVDContextData().Id = FChaosVDRuntimeModule::Get().GenerateUniqueID();
-		PhysicsSimulation->GetChaosVDContextData().Id = static_cast<int32>(EChaosVDContextType::Solver);
+		PhysicsSimulation->GetChaosVDContextData().Type = static_cast<int32>(EChaosVDContextType::Solver);
 #endif
 
 		const int32 NumBodies = UsePhysicsAsset->SkeletalBodySetups.Num();

@@ -258,8 +258,8 @@ void FChaosVDScene::CreateSolverInfoActor(int32 SolverID)
 		const FName FolderPath("ChaosVisualDebugger/SolverDataContainer");
 		SolverDataInfo->SetFolderPath(FolderPath);
 
-		const bool bIsServer = IsSolverForServer(SolverID);
 		FString SolverName = LoadedRecording->GetSolverName_AssumedLocked(SolverID);
+		const bool bIsServer = SolverName.Contains(TEXT("Server"));
 
 		SolverDataInfo->SetSolverID(SolverID);
 		SolverDataInfo->SetSolverName(SolverName);
