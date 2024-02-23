@@ -79,7 +79,7 @@ namespace uba
 	public:
 		HttpConnection();
 		~HttpConnection();
-		bool Get(Logger& logger, StringBufferBase& outResponse, u32& outStatusCode, const char* host, const char* path);
+		bool Query(Logger& logger, const char* type, StringBufferBase& outResponse, u32& outStatusCode, const char* host, const char* path, const char* header = "");
 
 	private:
 		bool Connect(Logger& logger, const char* host);

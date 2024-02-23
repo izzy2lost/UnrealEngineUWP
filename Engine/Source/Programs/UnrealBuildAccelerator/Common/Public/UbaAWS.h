@@ -22,6 +22,7 @@ namespace uba
 		static constexpr char g_imdsAutoScalingLifeCycleState[] = "latest/meta-data/autoscaling/target-lifecycle-state";
 		static constexpr char g_imdsInstanceAvailabilityZone[]	= "latest/meta-data/placement/availability-zone";
 		static constexpr char g_imdsSpotInstanceAction[]		= "latest/meta-data/spot/instance-action";
+		static constexpr char g_imdsToken[]						= "latest/api/token";
 
 
 		bool QueryInformation(Logger& logger, StringBufferBase& outExtraInfo, const tchar* rootDir)
@@ -33,21 +34,36 @@ namespace uba
 
 			u32 statusCode = 0;
 
+			StringBuffer<128> token;
+			token.Append(TC("X-aws-ec2-metadata-token: "));
+			if (!http.Query(logger, "PUT", token, statusCode, g_imdsHost, g_imdsToken, "X-aws-ec2-metadata-token-ttl-seconds: 21600\r\n"))
+				return false;
+			token.Append("\r\n");
+
+			#if PLATFORM_WINDOWS
+			char tokenString[512];
+			size_t tokenStringLen;
+			wcstombs_s(&tokenStringLen, tokenString, sizeof_array(tokenString), token.data, _TRUNCATE);
+			m_tokenString = tokenString;
+			#else
+			m_tokenString = token.data;
+			#endif
+
 			StringBuffer<128> instanceId;
-			if (!http.Get(logger, instanceId, statusCode, g_imdsHost, g_imdsInstanceId))
+			if (!http.Query(logger, "GET", instanceId, statusCode, g_imdsHost, g_imdsInstanceId, m_tokenString.c_str()))
 				return WriteIsNotAws(logger, rootDir);
 
 			outExtraInfo.Append(TC(", AWS: ")).Append(instanceId);
 
 			StringBuffer<32> instanceLifeCycle;
-			if (http.Get(logger, instanceLifeCycle, statusCode, g_imdsHost, g_imdsInstanceLifeCycle))
+			if (http.Query(logger, "GET", instanceLifeCycle, statusCode, g_imdsHost, g_imdsInstanceLifeCycle, m_tokenString.c_str()))
 			{
 				outExtraInfo.Append(' ').Append(instanceLifeCycle);
 				m_isSpot = instanceLifeCycle.Contains(TC("spot"));
 			}
 
 			StringBuffer<32> autoscaling;
-			if (http.Get(logger, autoscaling, statusCode, g_imdsHost, g_imdsAutoScalingLifeCycleState) && statusCode == 200)
+			if (http.Query(logger, "GET", autoscaling, statusCode, g_imdsHost, g_imdsAutoScalingLifeCycleState, m_tokenString.c_str()) && statusCode == 200)
 			{
 				outExtraInfo.Append(m_isSpot ? '/' : ' ').Append(TC("autoscale"));
 				m_isAutoscaling = true;
@@ -68,7 +84,7 @@ namespace uba
 
 			StringBuffer<128> availabilityZone;
 			u32 statusCode = 0;
-			if (!http.Get(logger, availabilityZone, statusCode, g_imdsHost, g_imdsInstanceAvailabilityZone))
+			if (!http.Query(logger, "GET", availabilityZone, statusCode, g_imdsHost, g_imdsInstanceAvailabilityZone, m_tokenString.c_str()))
 			{
 				if (rootDir)
 					WriteIsNotAws(logger, rootDir);
@@ -109,7 +125,7 @@ namespace uba
 			{
 				StringBuffer<1024> content;
 				u32 statusCode = 0;
-				if (http.Get(logger, content, statusCode, g_imdsHost, g_imdsSpotInstanceAction) && statusCode == 200)
+				if (http.Query(logger, "GET", content, statusCode, g_imdsHost, g_imdsSpotInstanceAction, m_tokenString.c_str()) && statusCode == 200)
 				{
 					outReason.Append(TC("AWS spot instance interruption"));
 					return true;
@@ -120,7 +136,7 @@ namespace uba
 			{
 				StringBuffer<1024> content;
 				u32 statusCode = 0;
-				if (http.Get(logger, content, statusCode, g_imdsHost, g_imdsAutoScalingLifeCycleState) && statusCode == 200)
+				if (http.Query(logger, "GET", content, statusCode, g_imdsHost, g_imdsAutoScalingLifeCycleState, m_tokenString.c_str()) && statusCode == 200)
 				{
 					//if (!content.Equals(L"InService"))
 					//{
@@ -144,6 +160,7 @@ namespace uba
 		}
 
 		TString m_availabilityZone;
+		std::string m_tokenString;
 		bool m_isSpot = false;
 		bool m_isAutoscaling = false;
 	};
