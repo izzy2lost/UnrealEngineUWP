@@ -123,6 +123,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 SupportsBarycentricsIntrinsics : 1;
 	uint32 SupportsBarycentricsSemantic : int32(ERHIFeatureSupport::NumBits);
 	uint32 bSupportsWave64 : 1;
+	uint32 bSupportsIndependentSamplers : 1;
 
 	// NOTE: When adding fields, you must also add to ParseDataDrivenShaderInfo!
 	uint32 bContainsValidPlatformInfo : 1;
@@ -785,6 +786,12 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].bSupportsWave64;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const bool GetSupportsIndependentSamplers(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bSupportsIndependentSamplers;
 	}
 
 	static FORCEINLINE_DEBUGGABLE const bool IsValid(const FStaticShaderPlatform Platform)
