@@ -31,6 +31,10 @@ protected:
 #endif
 	{}
 
+	//~ Begin UObject Interface
+	virtual void BeginDestroy() override;
+	//~ End UObject Interface
+
 #if WITH_EDITOR
 	friend FWorldPartitionActorDescInstance;
 	friend UWorldPartition;

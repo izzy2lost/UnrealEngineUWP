@@ -16,6 +16,16 @@
 #if WITH_EDITOR
 UActorDescContainerInstance::FActorDescContainerInstanceInitializeDelegate UActorDescContainerInstance::OnActorDescContainerInstanceInitialized;
 
+void UActorDescContainerInstance::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	if (bIsInitialized)
+	{
+		Uninitialize();
+	}
+}
+
 FName UActorDescContainerInstance::GetContainerPackageNameFromWorld(UWorld* InWorld)
 {
 	check(InWorld);
