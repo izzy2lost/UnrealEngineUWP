@@ -306,7 +306,20 @@ namespace UE::ConcertSharedSlate
 		/** Includes ALL items in the hierarchy that have passed the filter. */
 		TSet<TSharedPtr<TItemType>> AllFilteredItems;
 
+		struct FItemMetaData
+		{
+			/** Whether the item is expanded */
+			bool bIsExpanded = false;
+		};
+		/** Additional data about items needed for misc operations, like expansion. */
+		TMap<TSharedPtr<TItemType>, FItemMetaData> ItemMetaData;
+
+		/** Whether all items should be expanded. True while searching and false otherwise. */
+		bool bForceParentItemsExpanded = false;
+
+		/** Whether to call ReapplyFilters next Tick(). */
 		bool bFilterChanged = false;
+		/** Whether to call Resort next Tick(). */
 		bool bRequestedSort = false;
 
 		FColumnSortInfo PrimarySortInfo;
@@ -347,11 +360,17 @@ namespace UE::ConcertSharedSlate
 			ItemOrChildrenPassFilter,
 			NoneInHierarchyPassFilter
 		};
-		
 		void PopulateSearchStrings(const TSharedPtr<TItemType>& Item, TArray<FString>& OutSearchStrings);
 		void ReapplyFilters();
 		EFilterResult ApplyFiltersRecursive(const TSharedPtr<TItemType>& Item, TSet<TSharedPtr<TItemType>>& FilteredItemsToShow);
 		bool PassesFilters(const TSharedPtr<TItemType>& Item);
+
+		/** Called after RootItems has changed. Removes all invalidated ItemMetaData entries */
+		void CleanseItemMetaData();
+		/** Applies the cached expansion states to all items */
+		void ReapplyExpansionStates();
+		/** Callback into tree view when expansion state is changed. */
+		void OnItemExpansionChanged(TSharedPtr<TItemType> Item, bool bIsExpanded);
 
 		// Sorting
 		void Resort();
@@ -408,6 +427,7 @@ namespace UE::ConcertSharedSlate
 					.OnGenerateRow(this, &SReplicationTreeView::OnGenerateRowWidget)
 					.OnContextMenuOpening(InArgs._OnContextMenuOpening)
 					.OnSelectionChanged_Lambda([OnSelectionChanged = InArgs._OnSelectionChanged](auto, auto){ OnSelectionChanged.ExecuteIfBound(); })
+					.OnExpansionChanged(this, &SReplicationTreeView::OnItemExpansionChanged)
 					.SelectionMode(InArgs._SelectionMode)
 					.AllowOverscroll(EAllowOverscroll::No)
 					.HeaderRow(CreateHeaderRow(InArgs))
@@ -619,6 +639,10 @@ namespace UE::ConcertSharedSlate
 			TreeView->RequestScrollIntoView(SelectedItems[0]);
 		}
 
+		// Update expansion after items have potentially changed
+		CleanseItemMetaData();
+		ReapplyExpansionStates();
+
 		bFilterChanged = false;
 		RequestResort();
 		TreeView->RequestListRefresh();
@@ -650,6 +674,55 @@ namespace UE::ConcertSharedSlate
 	{
 		return SearchTextFilter->PassesFilter(Item)
 			&& (!CustomFilterDelegate.IsBound() || CustomFilterDelegate.Execute(Item));
+	}
+
+	template <typename TItemType>
+	void SReplicationTreeView<TItemType>::CleanseItemMetaData()
+	{
+		TMap<TSharedPtr<TItemType>, FItemMetaData> NewItemMetaData;
+		for (const TSharedPtr<TItemType>& Item : *AllRootItems)
+		{
+			NewItemMetaData.Add(Item, ItemMetaData.FindOrAdd(Item));
+		}
+		ItemMetaData = MoveTemp(NewItemMetaData);
+	}
+
+	template <typename TItemType>
+	void SReplicationTreeView<TItemType>::ReapplyExpansionStates()
+	{
+		// While searching, expand all items
+		bForceParentItemsExpanded = !SearchTextFilter->GetRawFilterText().IsEmpty();
+		
+		for (const TPair<TSharedPtr<TItemType>, FItemMetaData> MetaDataPair : ItemMetaData)
+		{
+			const TSharedPtr<TItemType>& Item = MetaDataPair.Key;
+			TreeView->SetItemExpansion(Item, MetaDataPair.Value.bIsExpanded || bForceParentItemsExpanded);
+		}
+	}
+
+	template <typename TItemType>
+	void SReplicationTreeView<TItemType>::OnItemExpansionChanged(TSharedPtr<TItemType> Item, bool bIsExpanded)
+	{
+		// We don't want to be overriding the cached state while everything is expanded
+		if (bForceParentItemsExpanded)
+		{
+			return;
+		}
+		
+		ItemMetaData.FindOrAdd(Item).bIsExpanded = bIsExpanded;
+		if (!bIsExpanded || !OnGetChildrenDelegate.IsBound())
+		{
+			return;
+		}
+		
+		// Also expand its children
+		OnGetChildrenDelegate.Execute(Item, [this](const TSharedPtr<TItemType>& Child)
+		{
+			if (const FItemMetaData* ChildMetaData = ItemMetaData.Find(Child))
+			{
+				TreeView->SetItemExpansion(Child, ChildMetaData->bIsExpanded);
+			}
+		});
 	}
 
 	template <typename TItemType>

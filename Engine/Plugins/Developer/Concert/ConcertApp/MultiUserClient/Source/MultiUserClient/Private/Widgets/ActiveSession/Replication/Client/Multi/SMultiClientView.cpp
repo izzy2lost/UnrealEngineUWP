@@ -90,8 +90,7 @@ namespace UE::MultiUserClient
 				ReplicationColumns::Property::LabelColumn(),
 				ReplicationColumns::Property::TypeColumn(),
 				MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, InClientManager)
-			},
-			.PrimaryPropertySort = { MultiStreamColumns::AssignPropertyColumnId, EColumnSortMode::Ascending }
+			}
 		};
 		TSharedRef<IPropertyTreeView> PropertyTreeView = CreateFilterablePropertyTreeView(MoveTemp(TreeViewParams));
 		
