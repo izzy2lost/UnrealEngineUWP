@@ -513,6 +513,58 @@ UUMGSequencePlayer* UUserWidget::GetOrAddSequencePlayer(UWidgetAnimation* InAnim
 	return nullptr;
 }
 
+void UUserWidget::ExecuteQueuedAnimationTransitions()
+{
+	// In case any users queue animations in respose to animation transitions, operate on a copy array
+	TArray<FQueuedWidgetAnimationTransition, TInlineAllocator<8>> CurrentWidgetAnimationTransitions(QueuedWidgetAnimationTransitions);
+
+	for (FQueuedWidgetAnimationTransition& QueuedWidgetAnimationTransition : CurrentWidgetAnimationTransitions)
+	{
+		switch (QueuedWidgetAnimationTransition.TransitionMode)
+		{
+		case EQueuedWidgetAnimationMode::Play:
+			PlayAnimation(QueuedWidgetAnimationTransition.WidgetAnimation
+				, QueuedWidgetAnimationTransition.StartAtTime.GetValue()
+				, QueuedWidgetAnimationTransition.NumLoopsToPlay.GetValue()
+				, QueuedWidgetAnimationTransition.PlayMode.GetValue()
+				, QueuedWidgetAnimationTransition.PlaybackSpeed.GetValue()
+				, QueuedWidgetAnimationTransition.bRestoreState.GetValue());
+			break;
+		case EQueuedWidgetAnimationMode::PlayTo:
+			PlayAnimationTimeRange(QueuedWidgetAnimationTransition.WidgetAnimation
+				, QueuedWidgetAnimationTransition.StartAtTime.GetValue()
+				, QueuedWidgetAnimationTransition.EndAtTime.GetValue()
+				, QueuedWidgetAnimationTransition.NumLoopsToPlay.GetValue()
+				, QueuedWidgetAnimationTransition.PlayMode.GetValue()
+				, QueuedWidgetAnimationTransition.PlaybackSpeed.GetValue()
+				, QueuedWidgetAnimationTransition.bRestoreState.GetValue());
+			break;
+		case EQueuedWidgetAnimationMode::Forward:
+			PlayAnimationForward(QueuedWidgetAnimationTransition.WidgetAnimation
+				, QueuedWidgetAnimationTransition.PlaybackSpeed.GetValue()
+				, QueuedWidgetAnimationTransition.bRestoreState.GetValue());
+			break;
+		case EQueuedWidgetAnimationMode::Reverse:
+			PlayAnimationReverse(QueuedWidgetAnimationTransition.WidgetAnimation
+				, QueuedWidgetAnimationTransition.PlaybackSpeed.GetValue()
+				, QueuedWidgetAnimationTransition.bRestoreState.GetValue());
+			break;
+		case EQueuedWidgetAnimationMode::Stop:
+			StopAnimation(QueuedWidgetAnimationTransition.WidgetAnimation);
+			break;
+		case EQueuedWidgetAnimationMode::Pause:
+			PauseAnimation(QueuedWidgetAnimationTransition.WidgetAnimation);
+			break;
+		}
+	}
+
+	if (QueuedWidgetAnimationTransitions.Num() > 0)
+	{
+		QueuedWidgetAnimationTransitions.Empty();
+		UpdateCanTick();
+	}
+}
+
 void UUserWidget::ConditionalTearDownAnimations()
 {
 	for (auto It = ActiveSequencePlayers.CreateIterator(); It; ++It)
@@ -575,6 +627,142 @@ void UUserWidget::Invalidate(EInvalidateWidgetReason InvalidateReason)
 	}
 }
 
+void UUserWidget::QueuePlayAnimation(UWidgetAnimation* InAnimation, float StartAtTime, int32 NumLoopsToPlay, EUMGSequencePlayMode::Type PlayMode, float PlaybackSpeed, bool bRestoreState)
+{
+	if (!InAnimation)
+	{
+		return;
+	}
+
+	FQueuedWidgetAnimationTransition* QueuedTransitionPtr = QueuedWidgetAnimationTransitions.FindByPredicate([&](const FQueuedWidgetAnimationTransition& QueuedTransition) { return QueuedTransition.WidgetAnimation == InAnimation; });
+	FQueuedWidgetAnimationTransition& QueuedTransition = QueuedTransitionPtr ? *QueuedTransitionPtr : QueuedWidgetAnimationTransitions.AddDefaulted_GetRef();
+
+	QueuedTransition = FQueuedWidgetAnimationTransition();
+	QueuedTransition.WidgetAnimation = InAnimation;
+	QueuedTransition.TransitionMode = EQueuedWidgetAnimationMode::Play;
+	QueuedTransition.StartAtTime = StartAtTime;
+	QueuedTransition.NumLoopsToPlay = NumLoopsToPlay;
+	QueuedTransition.PlayMode = PlayMode;
+	QueuedTransition.PlaybackSpeed = PlaybackSpeed;
+	QueuedTransition.bRestoreState = bRestoreState;
+
+	UpdateCanTick();
+}
+
+void UUserWidget::QueuePlayAnimationTimeRange(UWidgetAnimation* InAnimation, float StartAtTime, float EndAtTime, int32 NumLoopsToPlay, EUMGSequencePlayMode::Type PlayMode, float PlaybackSpeed, bool bRestoreState)
+{
+	if (!InAnimation)
+	{
+		return;
+	}
+
+	FQueuedWidgetAnimationTransition* QueuedTransitionPtr = QueuedWidgetAnimationTransitions.FindByPredicate([&](const FQueuedWidgetAnimationTransition& QueuedTransition) { return QueuedTransition.WidgetAnimation == InAnimation; });
+	FQueuedWidgetAnimationTransition& QueuedTransition = QueuedTransitionPtr ? *QueuedTransitionPtr : QueuedWidgetAnimationTransitions.AddDefaulted_GetRef();
+
+	QueuedTransition.WidgetAnimation = InAnimation;
+	QueuedTransition.TransitionMode = EQueuedWidgetAnimationMode::PlayTo;
+	QueuedTransition.StartAtTime = StartAtTime;
+	QueuedTransition.EndAtTime = EndAtTime;
+	QueuedTransition.NumLoopsToPlay = NumLoopsToPlay;
+	QueuedTransition.PlayMode = PlayMode;
+	QueuedTransition.PlaybackSpeed = PlaybackSpeed;
+	QueuedTransition.bRestoreState = bRestoreState;
+
+	UpdateCanTick();
+}
+
+void UUserWidget::QueuePlayAnimationForward(UWidgetAnimation* InAnimation, float PlaybackSpeed, bool bRestoreState)
+{
+	if (!InAnimation)
+	{
+		return;
+	}
+
+	FQueuedWidgetAnimationTransition* QueuedTransitionPtr = QueuedWidgetAnimationTransitions.FindByPredicate([&](const FQueuedWidgetAnimationTransition& QueuedTransition) { return QueuedTransition.WidgetAnimation == InAnimation; });
+	FQueuedWidgetAnimationTransition& QueuedTransition = QueuedTransitionPtr ? *QueuedTransitionPtr : QueuedWidgetAnimationTransitions.AddDefaulted_GetRef();
+
+	QueuedTransition.WidgetAnimation = InAnimation;
+	QueuedTransition.TransitionMode = EQueuedWidgetAnimationMode::Forward;
+	QueuedTransition.PlaybackSpeed = PlaybackSpeed;
+	QueuedTransition.bRestoreState = bRestoreState;
+
+	UpdateCanTick();
+}
+
+void UUserWidget::QueuePlayAnimationReverse(UWidgetAnimation* InAnimation, float PlaybackSpeed, bool bRestoreState)
+{
+	if (!InAnimation)
+	{
+		return;
+	}
+
+	FQueuedWidgetAnimationTransition* QueuedTransitionPtr = QueuedWidgetAnimationTransitions.FindByPredicate([&](const FQueuedWidgetAnimationTransition& QueuedTransition) { return QueuedTransition.WidgetAnimation == InAnimation; });
+	FQueuedWidgetAnimationTransition& QueuedTransition = QueuedTransitionPtr ? *QueuedTransitionPtr : QueuedWidgetAnimationTransitions.AddDefaulted_GetRef();
+
+	QueuedTransition.WidgetAnimation = InAnimation;
+	QueuedTransition.TransitionMode = EQueuedWidgetAnimationMode::Reverse;
+	QueuedTransition.PlaybackSpeed = PlaybackSpeed;
+	QueuedTransition.bRestoreState = bRestoreState;
+
+	UpdateCanTick();
+}
+
+void UUserWidget::QueueStopAnimation(const UWidgetAnimation* InAnimation)
+{
+	if (!InAnimation)
+	{
+		return;
+	}
+
+	FQueuedWidgetAnimationTransition* QueuedTransitionPtr = QueuedWidgetAnimationTransitions.FindByPredicate([&](const FQueuedWidgetAnimationTransition& QueuedTransition) { return QueuedTransition.WidgetAnimation == InAnimation; });
+	FQueuedWidgetAnimationTransition& QueuedTransition = QueuedTransitionPtr ? *QueuedTransitionPtr : QueuedWidgetAnimationTransitions.AddDefaulted_GetRef();
+
+	QueuedTransition.WidgetAnimation = const_cast<UWidgetAnimation*>(InAnimation);
+	QueuedTransition.TransitionMode = EQueuedWidgetAnimationMode::Stop;
+
+	UpdateCanTick();
+}
+
+void UUserWidget::QueueStopAllAnimations()
+{
+	for (FQueuedWidgetAnimationTransition& QueuedWidgetAnimationTransition : QueuedWidgetAnimationTransitions)
+	{
+		QueuedWidgetAnimationTransition.TransitionMode = EQueuedWidgetAnimationMode::Stop;
+	}
+
+	TArray<UUMGSequencePlayer*, TInlineAllocator<8>> CurrentActivePlayers(ActiveSequencePlayers);
+	for (UUMGSequencePlayer* FoundPlayer : ActiveSequencePlayers)
+	{
+		if (FoundPlayer->GetPlaybackStatus() == EMovieScenePlayerStatus::Playing)
+		{
+			QueueStopAnimation(FoundPlayer->GetAnimation());
+		}
+	}
+
+	UpdateCanTick();
+}
+
+float UUserWidget::QueuePauseAnimation(const UWidgetAnimation* InAnimation)
+{
+	if (InAnimation)
+	{
+		FQueuedWidgetAnimationTransition* QueuedTransitionPtr = QueuedWidgetAnimationTransitions.FindByPredicate([&](const FQueuedWidgetAnimationTransition& QueuedTransition) { return QueuedTransition.WidgetAnimation == InAnimation; });
+		FQueuedWidgetAnimationTransition& QueuedTransition = QueuedTransitionPtr ? *QueuedTransitionPtr : QueuedWidgetAnimationTransitions.AddDefaulted_GetRef();
+
+		QueuedTransition.WidgetAnimation = const_cast<UWidgetAnimation*>(InAnimation);
+		QueuedTransition.TransitionMode = EQueuedWidgetAnimationMode::Pause;
+
+		UpdateCanTick();
+
+		if (UUMGSequencePlayer* FoundPlayer = GetSequencePlayer(InAnimation))
+		{
+			return (float)FoundPlayer->GetCurrentTime().AsSeconds();
+		}
+	}
+
+	return 0;
+}
+
 UUMGSequencePlayer* UUserWidget::PlayAnimation(UWidgetAnimation* InAnimation, float StartAtTime, int32 NumberOfLoops, EUMGSequencePlayMode::Type PlayMode, float PlaybackSpeed, bool bRestoreState)
 {
 	SCOPED_NAMED_EVENT_TEXT("Widget::PlayAnimation", FColor::Emerald);
@@ -587,7 +775,7 @@ UUMGSequencePlayer* UUserWidget::PlayAnimation(UWidgetAnimation* InAnimation, fl
 		OnAnimationStartedPlaying(*Player);
 
 		UpdateCanTick();
-}
+	}
 
 	return Player;
 }
@@ -1615,6 +1803,8 @@ void UUserWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 #endif
 		if (bTickAnimations)
 		{
+			ExecuteQueuedAnimationTransitions();
+
 			if (AnimationTickManager)
 			{
 				AnimationTickManager->OnWidgetTicked(this);
@@ -1853,6 +2043,7 @@ void UUserWidget::UpdateCanTick()
 			bCanTick |= bHasScriptImplementedTick;
 			bCanTick |= World->GetLatentActionManager().GetNumActionsForObject(this) != 0;
 			bCanTick |= ActiveSequencePlayers.Num() > 0;
+			bCanTick |= QueuedWidgetAnimationTransitions.Num() > 0;
 
 			if (!bCanTick && bAreExtensionsConstructed)
 			{

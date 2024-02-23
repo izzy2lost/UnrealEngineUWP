@@ -45,6 +45,64 @@ class UWidgetTree;
 class UNamedSlot;
 class UUserWidgetExtension;
 
+/** Describes overall action driving this animation transition. */
+enum class EQueuedWidgetAnimationMode : uint8
+{
+	/** Animation plays with given params. */
+	Play,
+	/** Animation plays with given params to given point. */
+	PlayTo,
+	/** Animation plays from current position forward. */
+	Forward,
+	/** Animation plays from current position reverse. */
+	Reverse,
+	/** Animation stops playing. */
+	Stop,
+	/** Animation stops playing. */
+	Pause,
+	/** Default state, should not be used. */
+	None,
+};
+
+/**
+ * Struct that maintains state of currently queued animation transtions to be evaluated next frame.
+ */
+USTRUCT()
+struct UMG_API FQueuedWidgetAnimationTransition
+{
+	GENERATED_BODY()
+
+	/** Animation with a queued transition */
+	UPROPERTY(Transient)
+	TObjectPtr<UWidgetAnimation> WidgetAnimation;
+
+	/** Overall action driving this animation transition */
+	EQueuedWidgetAnimationMode TransitionMode;
+
+	/** The time in the animation from which to start playing, relative to the start position. For looped animations, this will only affect the first playback of the animation */
+	TOptional<float> StartAtTime;
+
+	/** The absolute time in the animation where to stop, this is only considered in the last loop. */
+	TOptional<float> EndAtTime;
+
+	/** The number of times to loop this animation (0 to loop indefinitely) */
+	TOptional<int32> NumLoopsToPlay;
+
+	/** Specifies the playback mode (Forward, Reverse) */
+	TOptional<EUMGSequencePlayMode::Type> PlayMode;
+
+	/** The speed at which the animation should play */
+	TOptional<float> PlaybackSpeed;
+
+	/** Restores widgets to their pre-animated state when the animation stops */
+	TOptional<bool> bRestoreState;
+
+	FQueuedWidgetAnimationTransition()
+		: WidgetAnimation(nullptr)
+		, TransitionMode(EQueuedWidgetAnimationMode::None)
+	{}
+};
+
 /** Determines what strategy we use to determine when and if the widget ticks. */
 UENUM()
 enum class EWidgetTickFrequency : uint8
@@ -1008,6 +1066,82 @@ public:
 	 * @param bRestoreState Restores widgets to their pre-animated state when the animation stops
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "User Interface|Animation")
+	UMG_API void QueuePlayAnimation(UWidgetAnimation* InAnimation, float StartAtTime = 0.0f, int32 NumLoopsToPlay = 1, EUMGSequencePlayMode::Type PlayMode = EUMGSequencePlayMode::Forward, float PlaybackSpeed = 1.0f, bool bRestoreState = false);
+
+	/**
+	 * Plays an animation in this widget a specified number of times stopping at a specified time
+	 * 
+	 * @param InAnimation The animation to play
+	 * @param StartAtTime The time in the animation from which to start playing, relative to the start position. For looped animations, this will only affect the first playback of the animation.
+	 * @param EndAtTime The absolute time in the animation where to stop, this is only considered in the last loop.
+	 * @param NumLoopsToPlay The number of times to loop this animation (0 to loop indefinitely)
+	 * @param PlayMode Specifies the playback mode
+	 * @param PlaybackSpeed The speed at which the animation should play
+	 * @param bRestoreState Restores widgets to their pre-animated state when the animation stops
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "User Interface|Animation")
+	UMG_API void QueuePlayAnimationTimeRange(UWidgetAnimation* InAnimation, float StartAtTime = 0.0f, float EndAtTime = 0.0f, int32 NumLoopsToPlay = 1, EUMGSequencePlayMode::Type PlayMode = EUMGSequencePlayMode::Forward, float PlaybackSpeed = 1.0f, bool bRestoreState = false);
+
+	/**
+	 * Plays an animation on this widget relative to it's current state forward.  You should use this version in situations where
+	 * say a user can click a button and that causes a panel to slide out, and you want to reverse that same animation to begin sliding
+	 * in the opposite direction.
+	 * 
+	 * @param InAnimation The animation to play
+	 * @param PlayMode Specifies the playback mode
+	 * @param PlaybackSpeed The speed at which the animation should play
+	 * @param bRestoreState Restores widgets to their pre-animated state when the animation stops
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "User Interface|Animation")
+	UMG_API void QueuePlayAnimationForward(UWidgetAnimation* InAnimation, float PlaybackSpeed = 1.0f, bool bRestoreState = false);
+
+	/**
+	 * Plays an animation on this widget relative to it's current state in reverse.  You should use this version in situations where
+	 * say a user can click a button and that causes a panel to slide out, and you want to reverse that same animation to begin sliding
+	 * in the opposite direction.
+	 *
+	 * @param InAnimation The animation to play
+	 * @param PlayMode Specifies the playback mode
+	 * @param PlaybackSpeed The speed at which the animation should play
+	 * @param bRestoreState Restores widgets to their pre-animated state when the animation stops
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "User Interface|Animation")
+	UMG_API void QueuePlayAnimationReverse(UWidgetAnimation* InAnimation, float PlaybackSpeed = 1.0f, bool bRestoreState = false);
+
+	/**
+	 * Stops an already running animation in this widget
+	 * 
+	 * @param The name of the animation to stop
+	 */
+	UFUNCTION(BlueprintCallable, Category="User Interface|Animation")
+	UMG_API void QueueStopAnimation(const UWidgetAnimation* InAnimation);
+
+	/**
+	 * Stop All actively running animations.
+	 */
+	UFUNCTION(BlueprintCallable, Category="User Interface|Animation")
+	UMG_API void QueueStopAllAnimations();
+
+	/**
+	 * Pauses an already running animation in this widget
+	 * 
+	 * @param The name of the animation to pause
+	 * @return the time point the animation was at when it was paused, relative to its start position.  Use this as the StartAtTime when you trigger PlayAnimation.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category="User Interface|Animation")
+	UMG_API float QueuePauseAnimation(const UWidgetAnimation* InAnimation);
+
+	/**
+	 * Plays an animation in this widget a specified number of times
+	 * 
+	 * @param InAnimation The animation to play
+	 * @param StartAtTime The time in the animation from which to start playing, relative to the start position. For looped animations, this will only affect the first playback of the animation.
+	 * @param NumLoopsToPlay The number of times to loop this animation (0 to loop indefinitely)
+	 * @param PlaybackSpeed The speed at which the animation should play
+	 * @param PlayMode Specifies the playback mode
+	 * @param bRestoreState Restores widgets to their pre-animated state when the animation stops
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "User Interface|Animation")
 	UMG_API UUMGSequencePlayer* PlayAnimation(UWidgetAnimation* InAnimation, float StartAtTime = 0.0f, int32 NumLoopsToPlay = 1, EUMGSequencePlayMode::Type PlayMode = EUMGSequencePlayMode::Forward, float PlaybackSpeed = 1.0f, bool bRestoreState = false);
 
 	/**
@@ -1286,6 +1420,10 @@ private:
 
 public:
 
+	/** Animation transitions to trigger on next tick */
+	UPROPERTY(Transient)
+	TArray<FQueuedWidgetAnimationTransition> QueuedWidgetAnimationTransitions;
+
 	/** All the sequence players currently playing */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UUMGSequencePlayer>> ActiveSequencePlayers;
@@ -1427,6 +1565,8 @@ protected:
 
 	UMG_API UUMGSequencePlayer* GetSequencePlayer(const UWidgetAnimation* InAnimation) const;
 	UMG_API UUMGSequencePlayer* GetOrAddSequencePlayer(UWidgetAnimation* InAnimation);
+
+	UMG_API void ExecuteQueuedAnimationTransitions();
 
 	UMG_API void ConditionalTearDownAnimations();
 
