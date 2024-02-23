@@ -48,33 +48,36 @@ namespace Horde.Server.Tests.Accounts
 		[TestMethod]
 		public async Task GetBySecretTokenAsync()
 		{
-			IAccount sa = (await _hordeAccounts.GetBySecretTokenAsync(_hordeAccount.SecretToken!))!;
+			IAccount sa = (await _hordeAccounts.FindBySecretTokenAsync(_hordeAccount.SecretToken!))!;
 			Assert.AreEqual(_hordeAccount, sa);
 		}
 		
 		[TestMethod]
 		public async Task GetByLoginAsync()
 		{
-			IAccount sa = (await _hordeAccounts.GetByLoginAsync(_hordeAccount.Login))!;
+			IAccount sa = (await _hordeAccounts.FindByLoginAsync(_hordeAccount.Login))!;
 			Assert.AreEqual(_hordeAccount.Id, sa.Id);
 			Assert.AreEqual(_hordeAccount.Login, sa.Login);
 			
-			Assert.IsNull(await _hordeAccounts.GetByLoginAsync("does-not-exist"));
+			Assert.IsNull(await _hordeAccounts.FindByLoginAsync("does-not-exist"));
 		}
 		
 		[TestMethod]
 		public async Task UpdateAsync()
 		{
+			IAccount? account = await _hordeAccounts.GetAsync(_hordeAccount.Id);
+			Assert.IsNotNull(account);
+
 			List<UserClaim> newClaims = new () {new UserClaim("newClaim1","newValue1"), new UserClaim("newClaim2","newValue2")};
-			await _hordeAccounts.UpdateAsync(_hordeAccount.Id,
-				name: "newName",
-				login: "newLogin",
-				claims: newClaims,
-				email: "foo@bar.com",
-				secretToken: "newToken",
-				password: "password12345",
-				enabled: false,
-				description: "newDesc");
+			await account.UpdateAsync(new UpdateAccountOptions{
+				Name = "newName",
+				Login = "newLogin",
+				Claims = newClaims,
+				Email = "foo@bar.com",
+				SecretToken = "newToken",
+				Password = "password12345",
+				Enabled = false,
+				Description = "newDesc"});
 			IAccount sa = (await _hordeAccounts.GetAsync(_hordeAccount.Id))!;
 			
 			Assert.AreEqual("newName", sa.Name);

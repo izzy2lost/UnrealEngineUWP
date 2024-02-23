@@ -115,7 +115,25 @@ namespace Horde.Server.Accounts
 				return BadRequest("User is not logged in through a Horde account");
 			}
 
-			await _accountCollection.UpdateAsync(accountId.Value, password: request.Password, cancellationToken: cancellationToken);
+			for (; ; )
+			{
+				IAccount? account = await _accountCollection.GetAsync(accountId.Value, cancellationToken);
+				if (account == null)
+				{
+					return NotFound(accountId.Value);
+				}
+				if (request.NewPassword != null && !account.ValidatePassword(request.OldPassword ?? string.Empty))
+				{
+					return Unauthorized($"Invalid password for user");
+				}
+
+				account = await account.TryUpdateAsync(new UpdateAccountOptions { Password = request.NewPassword }, cancellationToken);
+				if (account != null)
+				{
+					break;
+				}
+			}
+
 			return Ok();
 		}
 
@@ -157,13 +175,26 @@ namespace Horde.Server.Accounts
 				return Forbid(AccountAclAction.UpdateAccount);
 			}
 
+			IAccount? account = await _accountCollection.GetAsync(id, cancellationToken);
+			if (account == null)
+			{
+				return NotFound(id);
+			}
+
 			IReadOnlyList<IUserClaim>? claims = null;
 			if (request.Claims != null)
 			{
 				claims = request.Claims.ConvertAll(x => new UserClaim(x.Type, x.Value));
 			}
 
-			await _accountCollection.UpdateAsync(id, request.Name, request.Login, claims, request.Description, request.Email, request.SecretToken, request.Password, request.Enabled, cancellationToken);
+			UpdateAccountOptions options = new UpdateAccountOptions(request.Name, request.Login, claims, request.Description, request.Email, request.SecretToken, request.Password, request.Enabled);
+
+			account = await account.UpdateAsync(options, cancellationToken);
+			if (account == null)
+			{
+				return NotFound(id);
+			}
+
 			return Ok();
 		}
 

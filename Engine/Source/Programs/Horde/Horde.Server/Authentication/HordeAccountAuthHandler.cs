@@ -51,7 +51,7 @@ namespace Horde.Server.Authentication
 			}
 
 			string token = header.Replace(Prefix, "", StringComparison.Ordinal).Trim();
-			IAccount? serviceAccount = await _hordeAccounts.GetBySecretTokenAsync(token);
+			IAccount? serviceAccount = await _hordeAccounts.FindBySecretTokenAsync(token);
 
 			if (serviceAccount == null)
 			{

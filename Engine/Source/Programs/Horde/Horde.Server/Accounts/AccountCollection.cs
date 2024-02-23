@@ -115,6 +115,9 @@ namespace Horde.Server.Accounts
 		/// </summary>
 		private class AccountDocument : IAccount
 		{
+			[BsonIgnore]
+			AccountCollection? _accountCollection;
+
 			/// <inheritdoc/>
 			[BsonRequired, BsonId]
 			public AccountId Id { get; set; }
@@ -146,6 +149,9 @@ namespace Horde.Server.Accounts
 			/// <inheritdoc/>
 			public string Description { get; set; } = "";
 
+			[BsonIgnoreIfDefault, BsonDefaultValue(0)]
+			public int UpdateIndex { get; set; }
+
 			IReadOnlyList<IUserClaim> IAccount.Claims => Claims;
 
 			[BsonConstructor]
@@ -158,6 +164,11 @@ namespace Horde.Server.Accounts
 				Id = id;
 				Name = name;
 				Login = login;
+			}
+
+			public void PostLoad(AccountCollection accountCollection)
+			{
+				_accountCollection = accountCollection;
 			}
 
 			protected bool Equals(AccountDocument other)
@@ -188,6 +199,15 @@ namespace Horde.Server.Accounts
 			{
 				return HashCode.Combine(Id, SecretToken, Claims, Enabled, Description);
 			}
+
+			public bool ValidatePassword(string password)
+				=> PasswordSalt != null && PasswordHash != null && PasswordHasher.ValidatePassword(password, PasswordHasher.SaltFromString(PasswordSalt), PasswordHasher.HashFromString(PasswordHash));
+
+			public async Task<IAccount?> RefreshAsync(CancellationToken cancellationToken)
+				=> await _accountCollection!.GetAsync(Id, cancellationToken);
+
+			public async Task<IAccount?> TryUpdateAsync(UpdateAccountOptions options, CancellationToken cancellationToken)
+				=> await _accountCollection!.TryUpdateAsync(this, options, cancellationToken);
 		}
 
 		private static AccountId s_defaultAdminAccountId = AccountId.Parse("65d4f282ff286703e0609ccd");
@@ -237,6 +257,8 @@ namespace Horde.Server.Accounts
 			}
 
 			await _accounts.InsertOneAsync(account, (InsertOneOptions?)null, cancellationToken);
+
+			account.PostLoad(this);
 			return account;
 		}
 
@@ -260,86 +282,105 @@ namespace Horde.Server.Accounts
 		public async Task<IReadOnlyList<IAccount>> FindAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
 			await CreateAdminAccountAsync(cancellationToken);
-			return await _accounts.Find(FilterDefinition<AccountDocument>.Empty).Range(index, count).ToListAsync(cancellationToken);
+
+			List<IAccount> accounts = new List<IAccount>();
+			await foreach (AccountDocument account in _accounts.Find(FilterDefinition<AccountDocument>.Empty).Range(index, count).ToAsyncEnumerable(cancellationToken))
+			{
+				account.PostLoad(this);
+				accounts.Add(account);
+			}
+
+			return accounts;
 		}
 
 		/// <inheritdoc/>
 		public async Task<IAccount?> GetAsync(AccountId id, CancellationToken cancellationToken = default)
 		{
 			await CreateAdminAccountAsync(cancellationToken);
-			return await _accounts.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
+
+			AccountDocument? account = await _accounts.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
+			account?.PostLoad(this);
+			return account;
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAccount?> GetBySecretTokenAsync(string secretToken, CancellationToken cancellationToken = default)
+		public async Task<IAccount?> FindBySecretTokenAsync(string secretToken, CancellationToken cancellationToken = default)
 		{
-			return await _accounts.Find(x => x.SecretToken == secretToken).FirstOrDefaultAsync(cancellationToken);
+			AccountDocument? account = await _accounts.Find(x => x.SecretToken == secretToken).FirstOrDefaultAsync(cancellationToken);
+			account?.PostLoad(this);
+			return account;
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAccount?> GetByLoginAsync(string login, CancellationToken cancellationToken = default)
-		{
-			await CreateAdminAccountAsync(cancellationToken);
-			return await _accounts.Find(x => x.Login == login).FirstOrDefaultAsync(cancellationToken);
-		}
-
-		/// <inheritdoc/>
-		public async Task<IAccount?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
+		public async Task<IAccount?> FindByLoginAsync(string login, CancellationToken cancellationToken = default)
 		{
 			await CreateAdminAccountAsync(cancellationToken);
-			return await _accounts.Find(x => x.Name == username).FirstOrDefaultAsync(cancellationToken);
+
+			AccountDocument? account = await _accounts.Find(x => x.Login == login).FirstOrDefaultAsync(cancellationToken);
+			account?.PostLoad(this);
+			return account;
 		}
 
 		/// <inheritdoc/>
-		public Task UpdateAsync(AccountId id,
-			string? name,
-			string? login,
-			IReadOnlyList<IUserClaim>? claims,
-			string? description,
-			string? email,
-			string? secretToken,
-			string? password,
-			bool? enabled,
-			CancellationToken cancellationToken = default)
+		public async Task<IAccount?> FindByUsernameAsync(string username, CancellationToken cancellationToken = default)
 		{
-			UpdateDefinitionBuilder<AccountDocument> update = Builders<AccountDocument>.Update;
-			List<UpdateDefinition<AccountDocument>> updates = new List<UpdateDefinition<AccountDocument>>();
+			await CreateAdminAccountAsync(cancellationToken);
 
-			if (name != null)
+			AccountDocument? account = await _accounts.Find(x => x.Name == username).FirstOrDefaultAsync(cancellationToken);
+			account?.PostLoad(this);
+			return account;
+		}
+
+		/// <inheritdoc/>
+		Task<AccountDocument?> TryUpdateAsync(AccountDocument document, UpdateAccountOptions options, CancellationToken cancellationToken = default)
+		{
+			UpdateDefinition<AccountDocument> update = Builders<AccountDocument>.Update.Set(x => x.UpdateIndex, document.UpdateIndex + 1);
+
+			if (options.Name != null)
 			{
-				updates.Add(update.Set(x => x.Name, name));
+				update = update.Set(x => x.Name, options.Name);
 			}
-			if (login != null)
+			if (options.Login != null)
 			{
-				updates.Add(update.Set(x => x.Login, login));
+				update = update.Set(x => x.Login, options.Login);
 			}
-			if (email != null)
+			if (options.Email != null)
 			{
-				updates.Add(update.Set(x => x.Email, email));
+				update = update.Set(x => x.Email, options.Email);
 			}
-			if (secretToken != null)
+			if (options.SecretToken != null)
 			{
-				updates.Add(update.Set(x => x.SecretToken, secretToken));
+				update = update.Set(x => x.SecretToken, options.SecretToken);
 			}
-			if (password != null)
+			if (options.Password != null)
 			{
-				(string salt, string hash) = CreateSaltAndHashPassword(password);
-				updates.Add(update.Set(x => x.PasswordSalt, salt).Set(x => x.PasswordHash, hash));
+				(string salt, string hash) = CreateSaltAndHashPassword(options.Password);
+				update = update.Set(x => x.PasswordSalt, salt).Set(x => x.PasswordHash, hash);
 			}
-			if (claims != null)
+			if (options.Claims != null)
 			{
-				updates.Add(update.Set(x => x.Claims, claims.ConvertAll(x => new ClaimDocument(x))));
+				update = update.Set(x => x.Claims, options.Claims.ConvertAll(x => new ClaimDocument(x)));
 			}
-			if (enabled != null)
+			if (options.Enabled != null)
 			{
-				updates.Add(update.Set(x => x.Enabled, enabled));
+				update = update.Set(x => x.Enabled, options.Enabled);
 			}
-			if (description != null)
+			if (options.Description != null)
 			{
-				updates.Add(update.Set(x => x.Description, description));
+				update = update.Set(x => x.Description, options.Description);
 			}
 
-			return _accounts.FindOneAndUpdateAsync(x => x.Id == id, update.Combine(updates), cancellationToken: cancellationToken);
+			FilterDefinition<AccountDocument> filter;
+			if (document.UpdateIndex == 0)
+			{
+				filter = Builders<AccountDocument>.Filter.Eq(x => x.Id, document.Id) & Builders<AccountDocument>.Filter.Exists(x => x.UpdateIndex, false);
+			}
+			else
+			{
+				filter = Builders<AccountDocument>.Filter.Eq(x => x.Id, document.Id) & Builders<AccountDocument>.Filter.Eq(x => x.UpdateIndex, document.UpdateIndex);
+			}
+
+			return _accounts.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<AccountDocument, AccountDocument?> { ReturnDocument = ReturnDocument.After }, cancellationToken);
 		}
 
 		/// <inheritdoc/>

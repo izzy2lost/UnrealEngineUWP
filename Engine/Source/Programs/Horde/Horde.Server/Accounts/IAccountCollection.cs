@@ -46,20 +46,12 @@ namespace Horde.Server.Accounts
 		Task<IReadOnlyList<IAccount>> FindAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Get service account via ID
-		/// </summary>
-		/// <param name="id">The unique service account id</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>The service account</returns>
-		Task<IAccount?> GetAsync(AccountId id, CancellationToken cancellationToken = default);
-
-		/// <summary>
 		/// Get service account via secret token
 		/// </summary>
 		/// <param name="secretToken">Secret token to use for searching</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The service account</returns>
-		Task<IAccount?> GetBySecretTokenAsync(string secretToken, CancellationToken cancellationToken = default);
+		Task<IAccount?> FindBySecretTokenAsync(string secretToken, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Get an account via login ID
@@ -67,7 +59,7 @@ namespace Horde.Server.Accounts
 		/// <param name="login">Login or username to use for searching</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The service account</returns>
-		Task<IAccount?> GetByLoginAsync(string login, CancellationToken cancellationToken = default);
+		Task<IAccount?> FindByLoginAsync(string login, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Get an account via Username
@@ -75,33 +67,15 @@ namespace Horde.Server.Accounts
 		/// <param name="username">Username to use for searching</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The service account</returns>
-		Task<IAccount?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default);
+		Task<IAccount?> FindByUsernameAsync(string username, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Update an account from the collection
+		/// Get service account via ID
 		/// </summary>
-		/// <param name="id">Account ID</param>
-		/// <param name="name">If set, name of account to update</param>
-		/// <param name="login">If set, login ID/username to update</param>
-		/// <param name="claims">If set, claims to update</param>
-		/// <param name="description">If set, description to update</param>
-		/// <param name="email">If set, email to update</param>
-		/// <param name="secretToken">If set, secret token will be set</param>
-		/// <param name="password">If set, password hash to update</param>
-		/// <param name="enabled">If set, enabled flag to update</param>
+		/// <param name="id">The unique service account id</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Async task</returns>
-		Task UpdateAsync(
-			AccountId id,
-			string? name = null,
-			string? login = null,
-			IReadOnlyList<IUserClaim>? claims = null,
-			string? description = null,
-			string? email = null,
-			string? secretToken = null,
-			string? password = null,
-			bool? enabled = null,
-			CancellationToken cancellationToken = default);
+		/// <returns>The service account</returns>
+		Task<IAccount?> GetAsync(AccountId id, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Delete a service account from the collection
