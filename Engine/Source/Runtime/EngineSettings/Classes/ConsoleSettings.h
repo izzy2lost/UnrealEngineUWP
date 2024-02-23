@@ -22,11 +22,7 @@ struct FAutoCompleteCommand
 	UPROPERTY(config, EditAnywhere, Category=Command)
 	FString Desc;
 
-	FColor Color;
-
-	FAutoCompleteCommand()
-		: Color(180, 180, 180)
-	{}
+	FColor Color = FColor(180, 180, 180);
 
 	bool operator<(const FAutoCompleteCommand& rhs) const
 	{
