@@ -36,6 +36,10 @@ namespace PCGUserParameterGetSettings
 		TArray<FPCGTaggedData> UserParameterData = InContext.InputData.GetTaggedTypedInputs<UPCGUserParametersData>(PCGBaseSubgraphConstants::UserParameterTagData);
 		if (!UserParameterData.IsEmpty())
 		{
+#if WITH_EDITOR
+			// Safe guard to make sure we always have one and only one data of this type.
+			ensure(UserParameterData.Num() == 1);
+#endif // WITH_EDITOR
 			if (const UPCGUserParametersData* OverrideParametersData = CastChecked<UPCGUserParametersData>(UserParameterData[0].Data))
 			{
 				GraphInterface = OverrideParametersData->OriginalGraph;

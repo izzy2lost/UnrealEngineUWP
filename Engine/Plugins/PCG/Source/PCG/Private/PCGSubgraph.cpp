@@ -540,12 +540,19 @@ void FPCGSubgraphElement::PrepareSubgraphData(const UPCGSubgraphSettings* Settin
 	{
 		OutputData = InputData;
 	}
+
+	// We also need to make sure we are not forwarding any UserParameterData from previous parents. So we remove all of them.
+	OutputData.TaggedData.RemoveAllSwap([](const FPCGTaggedData& OutData) { return Cast<UPCGUserParametersData>(OutData.Data); });
+
+	// Note for the future: Dynamic subgraphs are forwarding any data coming from the PreTask of their parent, so if you ever get data that should not be there,
+	// you should probably do some filtering, like the UPCGUserParametersData.
 }
 
 void FPCGSubgraphElement::PrepareSubgraphUserParameters(const UPCGSubgraphSettings* Settings, FPCGSubgraphContext* Context, FPCGDataCollection& OutputData) const
 {
 	// Also create a new data containing information about the original subgraph and the parameters override
 	// It is used mainly by the UserParameterGetElement to access the correct value.
+	// By construction, there should be one and only one of this data. (Filtering of previous data is done in PrepareSubgraphData)
 	if (const UPCGGraphInterface* SubgraphInterface = Settings->GetSubgraphInterface())
 	{
 		UPCGUserParametersData* UserParamData = NewObject<UPCGUserParametersData>();
