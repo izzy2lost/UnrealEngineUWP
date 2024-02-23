@@ -106,7 +106,10 @@ namespace UE::Anim::FootPlacement
 		{
 			// Interpolated foot lock offset
 			FTransform UnalignedFootOffsetCS = FTransform::Identity;
-			// Foot lock pring states
+			// Separating plane spring states
+			FVectorSpringState SeparatingPlaneOffsetSpringState;
+			FVector SeparatingPlaneOffset = FVector::ZeroVector;
+			// Foot lock spring states
 			FVectorSpringState PlantOffsetTranslationSpringState;
 			FQuaternionSpringState PlantOffsetRotationSpringState;
 			// Ground alignment spring states
@@ -232,6 +235,12 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Plant Settings")
 	float UnplantAngularDamping = 1.0f;
+	
+	UPROPERTY(EditAnywhere, Category = "Plant Settings", meta=(EditCondition="bEnableSeparationInterpolation", DisplayAfter="bEnableSeparationInterpolation"))
+	float SeparationStiffness = 1000.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Plant Settings", meta=(EditCondition="bEnableSeparationInterpolation", DisplayAfter="bEnableSeparationInterpolation"))
+	float SeparationDamping = 1.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Plant Settings", meta=(EditCondition="bEnableFloorInterpolation", DisplayAfter="bEnableFloorInterpolation"))
 	float FloorLinearStiffness = 1000.0f;
@@ -247,6 +256,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Plant Settings")
 	bool bEnableFloorInterpolation = true;
+	
+	UPROPERTY(EditAnywhere, Category = "Plant Settings")
+	bool bEnableSeparationInterpolation = true;
 };
 
 USTRUCT(BlueprintType)
@@ -472,7 +484,7 @@ public:
 	// Value of 0 disables this
 	UPROPERTY(EditAnywhere, Category = "Plant Settings", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float SeparatingDistance = 0.0f;
-
+	
 	// Speed at which we transition to fully unplanted.
 	// The range between SpeedThreshold and UnalignmentSpeedThreshold should roughly represent the roll-phase of the foot
 	// TODO: This feels innaccurate most of the time, and varies depending on anim speed. Improve this
