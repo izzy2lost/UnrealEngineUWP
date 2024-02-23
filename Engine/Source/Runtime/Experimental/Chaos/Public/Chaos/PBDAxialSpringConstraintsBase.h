@@ -157,7 +157,7 @@ private:
 		Barys.Reset(Constraints.Num());
 		Dists.Reset(Constraints.Num());
 
-		for (int32 Index = 0; Index < Constraints.Num(); ++Index)
+		for (int32 Index = 0; Index < Constraints.Num();)
 		{
 			TVec3<int32>& Constraint = Constraints[Index];
 			int32 i1 = Constraint[0];
@@ -207,7 +207,10 @@ private:
 
 			Barys.Add(Bary);
 			Dists.Add((P1 - P).Size());
+			++Index;
 		}
+		check(Barys.Num() == Constraints.Num());
+		check(Dists.Num() == Constraints.Num());
 	}
 
 protected:
