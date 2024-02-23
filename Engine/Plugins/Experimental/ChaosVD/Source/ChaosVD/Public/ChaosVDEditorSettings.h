@@ -7,6 +7,7 @@
 #include "Engine/StaticMesh.h"
 #include "UObject/Object.h"
 #include "UObject/SoftObjectPtr.h"
+#include "Visualizers/ChaosVDJointConstraintsDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDParticleDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDSceneQueryDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
@@ -185,9 +186,43 @@ struct FChaosParticleDataDebugDrawSettings
 	float CenterOfMassRadius = 10.0f;
 
 	float GetScaleFortDataID(EChaosVDParticleDataVisualizationFlags DataID) const;
-	
+
 	UPROPERTY(EditAnywhere, Category=DebugDraw)
 	FChaosParticleDataDebugDrawColors ColorSettings;
+};
+
+USTRUCT()
+struct FChaosVDJointsDebugDrawSettings
+{
+	GENERATED_BODY()
+
+	/** The depth priority used for while drawing data. Can be World or Foreground (with this one the shapes will be drawn on top of the geometry and be always visible) */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	TEnumAsByte<ESceneDepthPriorityGroup> DepthPriority = ESceneDepthPriorityGroup::SDPG_Foreground;
+
+	/** Scale to apply to the Linear Impulse vector before draw it. */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float LinearImpulseScale = 0.001;
+
+	/** Scale to apply to the Angular Impulse vector before draw it. */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float AngularImpulseScale = 0.1f;
+
+	/** Scale to apply to anything that does not have a dedicated scale setting before draw it. */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float GeneralScale = 1.0f;
+
+	/** Line thickness to use as a base to calculate the different line thickness values used to debug draw the data. */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float BaseLineThickness = 2.0f;
+
+	/** Size of the debug drawn Center Of Mass. */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float CenterOfMassSize = 1.0f;
+
+	/** Size of the debug drawn if the Constraint Axis */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+    float ConstraintAxisLength = 10.0f;
 };
 
 /** Structure holding the settings using to debug draw Particles shape based on their shape type on the Chaos Visual Debugger */
@@ -295,6 +330,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDSceneQueryVisualizationFlags"))
 	uint32 GlobalSceneQueriesVisualizationFlags = static_cast<uint32>(EChaosVDSceneQueryVisualizationFlags::DrawClientQueries | EChaosVDSceneQueryVisualizationFlags::DrawServerQueries |  EChaosVDSceneQueryVisualizationFlags::DrawHits | EChaosVDSceneQueryVisualizationFlags::DrawLineTraceQueries);
 
+	/** Set of flags to enable/disable visualization of specific scene queries data as debug draw */
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDJointsDataVisualizationFlags"))
+	uint32 GlobalJointsDataVisualizationFlags = static_cast<uint32>(EChaosVDJointsDataVisualizationFlags::EnableClientDraw | EChaosVDJointsDataVisualizationFlags::EnableServerDraw | EChaosVDJointsDataVisualizationFlags::ActorConnector | EChaosVDJointsDataVisualizationFlags::DrawKinematic);
+
 	/** If true, text information (if available) will be drawn alongside any other debug draw shape */
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization")
 	bool bShowDebugText = false;
@@ -304,6 +343,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization",  meta=(EditCondition = "GlobalParticleDataVisualizationFlags != 0", EditConditionHides))
 	FChaosParticleDataDebugDrawSettings ParticleDataDebugDrawSettings;
+
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization",  meta=(EditCondition = "GlobalParticleDataVisualizationFlags != 0", EditConditionHides))
+	FChaosVDJointsDebugDrawSettings JointsDataDebugDrawSettings;
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization")
 	EChaosVDParticleDebugColorMode ParticleColorMode;

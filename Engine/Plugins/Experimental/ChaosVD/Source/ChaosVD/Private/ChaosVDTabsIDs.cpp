@@ -13,3 +13,4 @@ const FName FChaosVDTabID::CVDEditorSettings = TEXT("CVDEditorSettings");
 const FName FChaosVDTabID::StatusBar = TEXT("StatusBar");
 const FName FChaosVDTabID::CollisionDataDetails = TEXT("CollisionDataDetails");
 const FName FChaosVDTabID::SceneQueryDataDetails = TEXT("SceneQueryDataDetails");
+const FName FChaosVDTabID::JointsDataDetails = TEXT("JointsDataDetails");

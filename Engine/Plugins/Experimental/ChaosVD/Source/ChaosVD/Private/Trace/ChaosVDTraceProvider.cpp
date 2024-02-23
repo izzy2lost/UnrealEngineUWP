@@ -12,6 +12,7 @@
 #include "Compression/OodleDataCompressionUtil.h"
 #include "Serialization/MemoryReader.h"
 #include "Trace/DataProcessors/ChaosVDConstraintDataProcessor.h"
+#include "Trace/DataProcessors/ChaosVDJointConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDMidPhaseDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDSceneQueryDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDSceneQueryVisitDataProcessor.h"
@@ -223,6 +224,10 @@ void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()
 	TSharedPtr<FChaosVDSerializedNameEntryDataProcessor> NameEntryDataProcessor = MakeShared<FChaosVDSerializedNameEntryDataProcessor>();
 	NameEntryDataProcessor->SetTraceProvider(AsShared());
 	RegisterDataProcessor(NameEntryDataProcessor);
+	
+	TSharedPtr<FChaosVDJointConstraintDataProcessor> JointConstraintDataProcessor = MakeShared<FChaosVDJointConstraintDataProcessor>();
+	JointConstraintDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(JointConstraintDataProcessor);
 
 	bDefaultDataProcessorsRegistered = true;
 }

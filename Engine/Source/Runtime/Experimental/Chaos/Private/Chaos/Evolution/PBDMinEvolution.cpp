@@ -15,6 +15,7 @@
 #include "Chaos/PerParticlePBDGroundConstraint.h"
 #include "Chaos/PerParticlePBDUpdateFromDeltaPosition.h"
 #include "ChaosStats.h"
+#include "Chaos/PBDJointConstraints.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 
 //UE_DISABLE_OPTIMIZATION
@@ -144,6 +145,8 @@ namespace Chaos
 
 			ScatterOutput(Dt);
 		}
+
+		CVD_TRACE_CONSTRAINTS_CONTAINER(ConstraintContainers);
 
 		CVD_TRACE_PARTICLES(Particles.GetParticleHandles());
 	}

@@ -30,6 +30,7 @@ typedef TMap<int32, AChaosVDSolverInfoActor*> FChaosVDSolverInfoByIDMap;
 DECLARE_MULTICAST_DELEGATE(FChaosVDSceneUpdatedDelegate)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDActorActiveStateUpdateDelegate, AChaosVDParticleActor*)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDOnObjectSelectedDelegate, UObject*)
+DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDSolverInfoActorCreatedDelegate, AChaosVDSolverInfoActor*)
 
 /** Recreates a UWorld from a recorded Chaos VD Frame */
 class FChaosVDScene : public FGCObject , public TSharedFromThis<FChaosVDScene>
@@ -54,6 +55,7 @@ public:
 	void UpdateFromRecordedStepData(const int32 SolverID, const FChaosVDStepData& InRecordedStepData, const FChaosVDSolverFrameData& InFrameData);
 
 	void UpdateParticlesCollisionData(const FChaosVDStepData& InRecordedStepData, int32 SolverID);
+	void UpdateJointConstraintsData(const FChaosVDStepData& InRecordedStepData, int32 SolverID);
 
 	// No need to deprecate the old version since it is not a public API nor inline 
 	void HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& Geometry, const uint32 GeometryID) const;
@@ -110,6 +112,8 @@ public:
 	UChaosVDSceneQueryDataComponent* GetSceneQueryDataContainerComponent() const;
 
 	FChaosVDActorActiveStateUpdateDelegate& OnActorActiveStateChanged() { return ParticleActorUpdateDelegate; }
+
+	FChaosVDSolverInfoActorCreatedDelegate& OnSolverInfoActorCreated() { return SolverInfoActorCreatedDelegate; }
 
 	TSharedPtr<FChaosVDRecording> LoadedRecording;
 
@@ -189,4 +193,6 @@ private:
 	FChaosVDActorActiveStateUpdateDelegate ParticleActorUpdateDelegate;
 
 	FDelegateHandle ActorDestroyedHandle;
+
+	FChaosVDSolverInfoActorCreatedDelegate SolverInfoActorCreatedDelegate;
 };

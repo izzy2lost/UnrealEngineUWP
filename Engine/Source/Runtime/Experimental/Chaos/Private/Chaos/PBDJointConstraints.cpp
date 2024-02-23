@@ -127,6 +127,11 @@ namespace Chaos
 		return ConcreteContainer()->SetConstraintEnabledDuringResim(ConstraintIndex, bEnabled);
 	}
 
+	bool FPBDJointConstraintHandle::IsEnabledDuringResim() const
+	{
+		return ConcreteContainer()->IsConstraintEnabledDuringResim(ConstraintIndex);
+	}
+
 	EResimType FPBDJointConstraintHandle::ResimType() const
 	{
 		return ConcreteContainer()->GetConstraintResimType(ConstraintIndex);
@@ -894,6 +899,11 @@ namespace Chaos
 	void FPBDJointConstraints::SetConstraintEnabledDuringResim(int32 ConstraintIndex, bool bEnabled)
 	{
 		ConstraintStates[ConstraintIndex].bEnabledDuringResim = bEnabled;
+	}
+
+	bool FPBDJointConstraints::IsConstraintEnabledDuringResim(int32 ConstraintIndex) const
+	{
+		return ConstraintStates[ConstraintIndex].bEnabledDuringResim;
 	}
 
 	EResimType FPBDJointConstraints::GetConstraintResimType(int32 ConstraintIndex) const

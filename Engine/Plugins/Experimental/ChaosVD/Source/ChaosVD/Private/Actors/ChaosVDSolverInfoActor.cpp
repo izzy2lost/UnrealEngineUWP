@@ -8,6 +8,7 @@
 #include "EditorActorFolders.h"
 #include "Components/ChaosVDParticleDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
+#include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Engine/World.h"
 #include "Misc/ScopedSlowTask.h"
@@ -18,6 +19,7 @@ AChaosVDSolverInfoActor::AChaosVDSolverInfoActor(const FObjectInitializer& Objec
 {
 	CollisionDataComponent = CreateDefaultSubobject<UChaosVDSolverCollisionDataComponent>(TEXT("SolverCollisionDataComponent"));
 	ParticleDataComponent = CreateDefaultSubobject<UChaosVDParticleDataComponent>(TEXT("ParticleCollisionDataComponent"));
+	JointsDataComponent = CreateDefaultSubobject<UChaosVDSolverJointConstraintDataComponent>(TEXT("JointDataComponent"));
 	bIsServer = false;
 }
 

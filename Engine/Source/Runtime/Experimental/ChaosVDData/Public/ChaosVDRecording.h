@@ -10,6 +10,7 @@
 #include "Containers/UnrealString.h"
 #include "Chaos/ImplicitFwd.h"
 #include "Chaos/ImplicitObject.h"
+#include "DataWrappers/ChaosVDJointDataWrappers.h"
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
 
 namespace Chaos::VisualDebugger
@@ -25,6 +26,7 @@ struct FChaosVDStepData
 	FString StepName;
 	TArray<TSharedPtr<FChaosVDParticleDataWrapper>> RecordedParticlesData;
 	TArray<TSharedPtr<FChaosVDParticlePairMidPhase>> RecordedMidPhases;
+	TArray<TSharedPtr<FChaosVDJointConstraint>> RecordedJointConstraints;
 	TArray<FChaosVDConstraint> RecordedConstraints;
 	TMap<int32, TArray<FChaosVDConstraint>> RecordedConstraintsByParticleID;
 	TMap<int32, TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>> RecordedMidPhasesByParticleID;

@@ -99,6 +99,7 @@ namespace Chaos
 		CHAOS_API void SetSyncState(ESyncState SyncState);
 
 		CHAOS_API void SetEnabledDuringResim(bool bEnabled);
+		CHAOS_API bool IsEnabledDuringResim() const;
 		CHAOS_API EResimType ResimType() const;
 
 		UE_DEPRECATED(5.2, "No longer used")
@@ -336,6 +337,8 @@ namespace Chaos
 		CHAOS_API void SetConstraintSyncState(int32 ConstraintIndex, ESyncState SyncState);
 		
 		CHAOS_API void SetConstraintEnabledDuringResim(int32 ConstraintIndex, bool bEnabled);
+		
+		CHAOS_API bool IsConstraintEnabledDuringResim(int32 ConstraintIndex) const;
 		
 		CHAOS_API EResimType GetConstraintResimType(int32 ConstraintIndex) const;
 

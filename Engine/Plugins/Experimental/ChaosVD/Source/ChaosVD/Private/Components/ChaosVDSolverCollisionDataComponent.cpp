@@ -22,31 +22,27 @@ void UChaosVDSolverCollisionDataComponent::UpdateCollisionData(const TArray<TSha
 
 	for (const TSharedPtr<FChaosVDParticlePairMidPhase>& ParticleIDMidPhase : InMidPhaseData)
 	{
-		AddCollisionDataToParticleIDMap(MidPhasesByParticleID0, ParticleIDMidPhase, ParticleIDMidPhase->Particle0Idx);
-		AddCollisionDataToParticleIDMap(MidPhasesByParticleID1, ParticleIDMidPhase, ParticleIDMidPhase->Particle1Idx);
+		Chaos::VisualDebugger::Utils::AddDataDataToParticleIDMap(MidPhasesByParticleID0, ParticleIDMidPhase, ParticleIDMidPhase->Particle0Idx);
+		Chaos::VisualDebugger::Utils::AddDataDataToParticleIDMap(MidPhasesByParticleID1, ParticleIDMidPhase, ParticleIDMidPhase->Particle1Idx);
 
 		ConstraintsByParticleID0.Reserve(ParticleIDMidPhase->Constraints.Num());
 		ConstraintsByParticleID1.Reserve(ParticleIDMidPhase->Constraints.Num());
 		for (FChaosVDConstraint& Constraint : ParticleIDMidPhase->Constraints)
 		{
-			AddCollisionDataToParticleIDMap<FChaosVDConstraintByParticleMap, FChaosVDConstraint*>(ConstraintsByParticleID0, &Constraint, Constraint.Particle0Index);
-			AddCollisionDataToParticleIDMap<FChaosVDConstraintByParticleMap, FChaosVDConstraint*>(ConstraintsByParticleID1, &Constraint, Constraint.Particle1Index);
+			Chaos::VisualDebugger::Utils::AddDataDataToParticleIDMap<FChaosVDConstraintByParticleMap, FChaosVDConstraint*>(ConstraintsByParticleID0, &Constraint, Constraint.Particle0Index);
+			Chaos::VisualDebugger::Utils::AddDataDataToParticleIDMap<FChaosVDConstraintByParticleMap, FChaosVDConstraint*>(ConstraintsByParticleID1, &Constraint, Constraint.Particle1Index);
 		}
 	}
 }
 
-const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* UChaosVDSolverCollisionDataComponent::GetMidPhasesForParticle(int32 ParticleID, EChaosVDCollisionParticlePairSlot Options) const
+const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* UChaosVDSolverCollisionDataComponent::GetMidPhasesForParticle(int32 ParticleID, EChaosVDParticlePairSlot Options) const
 {
-	return GetCollisionDataFromMap<FChaosVDMidPhaseByParticleMap, TSharedPtr<FChaosVDParticlePairMidPhase>>(MidPhasesByParticleID0, MidPhasesByParticleID1, ParticleID, Options);
+	return Chaos::VisualDebugger::Utils::GetDataFromParticlePairMaps<FChaosVDMidPhaseByParticleMap, TSharedPtr<FChaosVDParticlePairMidPhase>>(MidPhasesByParticleID0, MidPhasesByParticleID1, ParticleID, Options);
 }
 
-const TArray<FChaosVDConstraint*>* UChaosVDSolverCollisionDataComponent::GetConstraintsForParticle(int32 ParticleID, EChaosVDCollisionParticlePairSlot Options) const
+const TArray<FChaosVDConstraint*>* UChaosVDSolverCollisionDataComponent::GetConstraintsForParticle(int32 ParticleID, EChaosVDParticlePairSlot Options) const
 {
-	return GetCollisionDataFromMap<FChaosVDConstraintByParticleMap, FChaosVDConstraint*>(ConstraintsByParticleID0, ConstraintsByParticleID1, ParticleID, Options);
-}
-
-void UChaosVDSolverCollisionDataComponent::DrawVisualization(const FSceneView* View, FPrimitiveDrawInterface* PDI)
-{
+	return Chaos::VisualDebugger::Utils::GetDataFromParticlePairMaps<FChaosVDConstraintByParticleMap, FChaosVDConstraint*>(ConstraintsByParticleID0, ConstraintsByParticleID1, ParticleID, Options);
 }
 
 void UChaosVDSolverCollisionDataComponent::ClearCollisionData()

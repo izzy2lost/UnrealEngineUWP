@@ -27,6 +27,7 @@
 #include "Selection.h"
 #include "UObject/Package.h"
 #include "WorldPersistentFolders.h"
+#include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Engine/Level.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
@@ -201,6 +202,8 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChao
 	}
 
 	UpdateParticlesCollisionData(InRecordedStepData, SolverID);
+
+	UpdateJointConstraintsData(InRecordedStepData, SolverID);
 	
 	const TMap<int32, AChaosVDParticleActor*>& AllSolverParticlesByID = SolverSceneData->GetAllParticleActorsByIDMap();
 
@@ -243,6 +246,17 @@ void FChaosVDScene::UpdateParticlesCollisionData(const FChaosVDStepData& InRecor
 	}
 }
 
+void FChaosVDScene::UpdateJointConstraintsData(const FChaosVDStepData& InRecordedStepData, int32 SolverID)
+{
+	if (AChaosVDSolverInfoActor* SolverDataInfoContainer = SolverDataContainerBySolverID.FindChecked(SolverID))
+	{
+		if (UChaosVDSolverJointConstraintDataComponent* JointsDataContainer = SolverDataInfoContainer->GetJointsDataComponent())
+		{
+			JointsDataContainer->UpdateConstraintData(InRecordedStepData.RecordedJointConstraints);
+		}
+	}
+}
+
 void FChaosVDScene::HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& GeometryData, const uint32 GeometryID) const
 {
 	NewGeometryAvailableDelegate.Broadcast(GeometryData, GeometryID);
@@ -267,9 +281,10 @@ void FChaosVDScene::CreateSolverInfoActor(int32 SolverID)
 		SolverDataInfo->SetIsServer(bIsServer);
 
 		SolverDataContainerBySolverID.Add(SolverID, SolverDataInfo);
+
+		SolverInfoActorCreatedDelegate.Broadcast(SolverDataInfo);
 	}
 }
-
 
 void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData)
 {

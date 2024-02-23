@@ -34,3 +34,8 @@ private:
 
 	static TQueue<FChaosVDQueuedTextToDraw> TexToDrawQueue;
 };
+
+namespace Chaos::VisualDebugger::Utils
+{
+	FString GenerateDebugTextForVector(const FVector& InVector, const FString& VectorName, const FString& InVectorUnits);
+}

@@ -20,6 +20,7 @@
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDParticleDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
+#include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 #include "Widgets/SChaosVDMainTab.h"
@@ -369,6 +370,14 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 				if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(CollisionDataComponent->StaticClass()))
 				{
 					Visualizer->DrawVisualization(CollisionDataComponent, View, PDI);
+				}
+			}
+
+			if (const UChaosVDSolverJointConstraintDataComponent* JointConstraintDataComponent = SolverInfoWithID.Value ? SolverInfoWithID.Value->GetJointsDataComponent() : nullptr)
+			{
+				if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(JointConstraintDataComponent->StaticClass()))
+				{
+					Visualizer->DrawVisualization(JointConstraintDataComponent, View, PDI);
 				}
 			}
 		}
