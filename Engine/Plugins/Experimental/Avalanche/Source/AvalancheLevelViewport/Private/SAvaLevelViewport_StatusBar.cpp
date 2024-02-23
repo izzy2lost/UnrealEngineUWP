@@ -3,9 +3,14 @@
 #include "SAvaLevelViewport.h"
 #include "AvaViewportPostProcessManager.h"
 #include "AvaViewportSettings.h"
+#include "Engine/Texture.h"
+#include "ScopedTransaction.h"
+#include "Viewport/Interaction/IAvaViewportDataProvider.h"
 #include "ViewportClient/AvaLevelViewportClient.h"
 #include "Visualizers/IAvaViewportBoundingBoxVisualizer.h"
 #include "Visualizers/IAvaViewportPostProcessVisualizer.h"
+
+#define LOCTEXT_NAMESPACE "SAvaLevelViewport"
 
 void SAvaLevelViewport::ExecuteToggleChildActorLock()
 {
@@ -765,3 +770,254 @@ void SAvaLevelViewport::ExecuteAddVerticalGuide()
 {
 	AddGuide(EOrientation::Orient_Vertical, 0.5f);
 }
+
+FString SAvaLevelViewport::GetBackgroundTextureObjectPath() const
+{
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return "";
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return "";
+	}
+
+	FAvaViewportPostProcessInfo* PostProcessInfo = ViewportClient->GetPostProcessManager()->GetPostProcessInfo();
+
+	if (!PostProcessInfo)
+	{
+		return "";
+	}
+
+	return PostProcessInfo->Texture.ToString();
+}
+
+void SAvaLevelViewport::OnBackgroundTextureChanged(const FAssetData& InAssetData)
+{
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return;
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return;
+	}
+
+	FAvaViewportPostProcessInfo* PostProcessInfo = ViewportClient->GetPostProcessManager()->GetPostProcessInfo();
+
+	if (!PostProcessInfo)
+	{
+		return;
+	}
+
+	BeginPostProcessInfoTransaction();
+
+	PostProcessInfo->Texture = Cast<UTexture>(InAssetData.GetAsset());
+	ViewportClient->GetPostProcessManager()->LoadPostProcessInfo();
+	ViewportClient->Invalidate();
+
+	EndPostProcessInfoTransaction();
+}
+
+float SAvaLevelViewport::GetBackgroundOpacity() const
+{
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return 1.f;
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return 1.f;
+	}
+
+	FAvaViewportPostProcessInfo* PostProcessInfo = ViewportClient->GetPostProcessManager()->GetPostProcessInfo();
+
+	return ViewportClient->GetPostProcessManager()->GetOpacity();
+}
+
+void SAvaLevelViewport::BeginPostProcessInfoTransaction()
+{
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return;
+	}
+
+	IAvaViewportDataProvider* DataProvider = ViewportClient->GetViewportDataProvider();
+
+	if (!DataProvider)
+	{
+		return;
+	}
+
+	UObject* DataObject = DataProvider->ToUObject();
+
+	if (!DataObject)
+	{
+		return;
+	}
+
+	if (!PostProcessInfoTransaction.IsValid())
+	{
+		PostProcessInfoTransaction = MakeShared<FScopedTransaction>(LOCTEXT("PostProcessSettingsChange", "Post Process Settings Change"));
+	}
+
+	DataObject->Modify();
+}
+
+void SAvaLevelViewport::EndPostProcessInfoTransaction()
+{
+	PostProcessInfoTransaction.Reset();
+}
+
+void SAvaLevelViewport::OnBackgroundOpacitySliderBegin()
+{
+	BeginPostProcessInfoTransaction();
+}
+
+void SAvaLevelViewport::OnBackgroundOpacitySliderEnd(float InValue)
+{
+	EndPostProcessInfoTransaction();
+}
+
+void SAvaLevelViewport::OnBackgroundOpacityChanged(float InValue)
+{
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return;
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return;
+	}
+
+	ViewportClient->GetPostProcessManager()->SetOpacity(InValue);
+	ViewportClient->Invalidate();
+}
+
+void SAvaLevelViewport::OnBackgroundOpacityCommitted(float InValue, ETextCommit::Type InCommitType)
+{
+	if (InCommitType == ETextCommit::OnCleared)
+	{
+		return;
+	}
+
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return;
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return;
+	}
+
+	if (InCommitType == ETextCommit::OnEnter)
+	{
+		BeginPostProcessInfoTransaction();
+	}
+
+	ViewportClient->GetPostProcessManager()->SetOpacity(InValue);
+	ViewportClient->Invalidate();
+
+	if (InCommitType == ETextCommit::OnEnter)
+	{
+		EndPostProcessInfoTransaction();
+	}
+}
+
+FString SAvaLevelViewport::GetTextureOverlayTextureObjectPath() const
+{
+	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
+	{
+		return AvaViewportSettings->TextureOverlayTexture.ToString();
+	}
+
+	return "";
+}
+
+void SAvaLevelViewport::OnTextureOverlayTextureChanged(const FAssetData& InAssetData)
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->TextureOverlayTexture = Cast<UTexture>(InAssetData.GetAsset());
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, TextureOverlayTexture));
+		AvaViewportSettings->SaveConfig();
+	}
+}
+
+float SAvaLevelViewport::GetTextureOverlayOpacity() const
+{
+	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
+	{
+		return AvaViewportSettings->TextureOverlayOpacity;
+	}
+
+	return 0.f;
+}
+
+void SAvaLevelViewport::OnTextureOverlayOpacitySliderEnd(float InValue)
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->TextureOverlayOpacity = InValue;
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, TextureOverlayOpacity));
+		AvaViewportSettings->SaveConfig();
+	}
+}
+
+void SAvaLevelViewport::OnTextureOverlayOpacityChanged(float InValue)
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->TextureOverlayOpacity = InValue;
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, TextureOverlayOpacity));
+	}
+}
+
+void SAvaLevelViewport::OnTextureOverlayOpacityCommitted(float InValue, ETextCommit::Type InCommitType)
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->TextureOverlayOpacity = InValue;
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, TextureOverlayOpacity));
+		AvaViewportSettings->SaveConfig();
+	}
+}
+
+bool SAvaLevelViewport::CanToggleTextureOverlay() const
+{
+	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
+	{
+		return AvaViewportSettings->bEnableViewportOverlay;
+	}
+
+	return false;
+}
+
+void SAvaLevelViewport::ExecuteToggleTextureOverlay()
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->bEnableTextureOverlay = !AvaViewportSettings->bEnableTextureOverlay;
+		AvaViewportSettings->SaveConfig();
+		ApplySettings(AvaViewportSettings);
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

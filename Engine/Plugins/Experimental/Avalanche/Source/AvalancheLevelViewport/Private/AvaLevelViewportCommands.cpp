@@ -37,13 +37,13 @@ void FAvaLevelViewportCommands::RegisterViewportCommands()
 	UI_COMMAND(ToggleBoundingBoxes
 		, "Toggle Bounding Boxes"
 		, "Toggles the display of selected actor bounding boxes."
-		, EUserInterfaceActionType::Check
+		, EUserInterfaceActionType::ToggleButton
 		, FInputChord(EKeys::B));
 
 	UI_COMMAND(ToggleIsolateActors
 		, "Isolate Selected Actors"
 		, "Changes the viewport and outliner to only show the selected actors. Also removes non-selected actors from snapping consideration. Changing the actor selection will not change which actors are isolated. Camera Preview Viewport Cameras are always visible (and their associated Canvas.)"
-		, EUserInterfaceActionType::Button
+		, EUserInterfaceActionType::ToggleButton
 		, FInputChord(EKeys::Q, EModifierKey::Alt))
 
 	UI_COMMAND(ToggleSafeFrames
@@ -104,6 +104,12 @@ void FAvaLevelViewportCommands::RegisterViewportCommands()
 		, "Checkerboard"
 		, "Switch to the checkerboard post process filter."
 		, EUserInterfaceActionType::Check
+		, FInputChord())
+
+	UI_COMMAND(ToggleTextureOverlay
+		, "Toggle Texture Overlay"
+		, "Turns on and off the texture overlay."
+		, EUserInterfaceActionType::ToggleButton
 		, FInputChord())
 }
 

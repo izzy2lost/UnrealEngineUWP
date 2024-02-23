@@ -35,6 +35,7 @@ public:
 	TSharedPtr<FUICommandInfo> TogglePostProcessChannelBlue;
 	TSharedPtr<FUICommandInfo> TogglePostProcessChannelAlpha;
 	TSharedPtr<FUICommandInfo> TogglePostProcessCheckerboard;
+	TSharedPtr<FUICommandInfo> ToggleTextureOverlay;
 
 	// Camera
 	TSharedPtr<FUICommandInfo> CameraZoomInCenter;

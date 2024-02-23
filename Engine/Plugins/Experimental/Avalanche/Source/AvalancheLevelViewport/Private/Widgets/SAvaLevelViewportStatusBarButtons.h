@@ -30,6 +30,12 @@ protected:
 
 	TSharedPtr<SWidget> GridSizeSlider;
 
+	TSharedPtr<SWidget> TextureOverlayTextureSelector;
+
+	TSharedPtr<SWidget> TextureOverlayOpacitySlider;
+
+	TSharedPtr<SWidget> TextureOverlayStretchCheckBox;
+
 	void CreateContextMenuWigets();
 
 	void PopulateActorButtons(TSharedPtr<SHorizontalBox> InContainer);
@@ -104,4 +110,9 @@ protected:
 	bool GetViewportInfoEnabled() const;
 	FSlateColor GetViewportInfoColor() const;
 	TSharedRef<SWidget> GetViewportInfoWidget() const;
+
+	FSlateColor GetTextureOverlayColor() const;
+	bool GetTextureOverlayEnabled() const;
+	TSharedRef<SWidget> GetTextureOverlayMenuContent();
+	FReply ToggleTextureOverlay();
 };

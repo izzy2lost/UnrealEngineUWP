@@ -4,10 +4,12 @@
 
 #include "Engine/DeveloperSettings.h"
 #include "Interaction/AvaSnapDefs.h"
+#include "UObject/SoftObjectPtr.h"
 #include "Types/SlateEnums.h"
 #include "AvaViewportSettings.generated.h"
 
 class UMaterial;
+class UTexture;
 
 USTRUCT(BlueprintType)
 struct FAvaLevelViewportSafeFrame
@@ -168,6 +170,18 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Camera Bounds")
 	FLinearColor CameraBoundsShadeColor;
 
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Texture Overlay")
+	bool bEnableTextureOverlay = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Texture Overlay")
+	TSoftObjectPtr<UTexture> TextureOverlayTexture;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Texture Overlay", Meta = (UIMin = 0.01, UIMax = 1, ClampMin = 0, ClampMax = 1))
+	float TextureOverlayOpacity = 0.25;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Texture Overlay")
+	bool bTextureOverlayStretch = false;
+
 	UFUNCTION(BlueprintPure, Category = "Motion Design")
 	EAvaViewportSnapState GetSnapState() const;
 
@@ -179,6 +193,8 @@ public:
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAvaViewportSettingsChanged, const UAvaViewportSettings* /* This */, FName /* Setting name */)
 	FOnAvaViewportSettingsChanged OnChange;
+
+	void BroadcastSettingChanged(FName InSettingName);
 
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 };

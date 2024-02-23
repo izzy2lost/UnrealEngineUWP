@@ -22,6 +22,7 @@
 #include "ToolMenu.h"
 #include "ToolMenus.h"
 #include "ViewportClient/AvaLevelViewportClient.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SSeparator.h"
@@ -223,6 +224,45 @@ void SAvaLevelViewportStatusBarButtons::CreateContextMenuWigets()
 				.OnValueCommitted(this, &SAvaLevelViewportStatusBarButtons::OnGridSizeCommitted)
 			];
 	}
+
+	if (!TextureOverlayOpacitySlider.IsValid())
+	{
+		TextureOverlayOpacitySlider = SNew(SSpinBox<float>)
+			.ClearKeyboardFocusOnCommit(true)
+			.MaxFractionalDigits(3)
+			.MinDesiredWidth(50.f)
+			.OnEndSliderMovement(LevelViewport, &SAvaLevelViewport::OnTextureOverlayOpacitySliderEnd)
+			.OnValueCommitted(LevelViewport, &SAvaLevelViewport::OnTextureOverlayOpacityCommitted)
+			.OnValueChanged(LevelViewport, &SAvaLevelViewport::OnTextureOverlayOpacityChanged)
+			.Value(LevelViewport, &SAvaLevelViewport::GetTextureOverlayOpacity)
+			.MinValue(0.f)
+			.MinSliderValue(0.f)
+			.MaxValue(1.f)
+			.MaxSliderValue(1.f);
+	}
+
+	if (!TextureOverlayTextureSelector.IsValid())
+	{
+		TextureOverlayTextureSelector = SNew(SObjectPropertyEntryBox)
+			.AllowClear(true)
+			.AllowedClass(UTexture::StaticClass())
+			.DisplayBrowse(true)
+			.DisplayThumbnail(true)
+			.DisplayCompactSize(true)
+			.DisplayUseSelected(true)
+			.ThumbnailPool(UThumbnailManager::Get().GetSharedThumbnailPool())
+			.EnableContentPicker(true)
+			.ObjectPath(LevelViewport, &SAvaLevelViewport::GetTextureOverlayTextureObjectPath)
+			.OnObjectChanged(LevelViewport, &SAvaLevelViewport::OnTextureOverlayTextureChanged)
+			.OnShouldSetAsset(FOnShouldSetAsset::CreateLambda([](const FAssetData& InAssetData) { return false; }));
+	}
+
+	if (!TextureOverlayStretchCheckBox.IsValid())
+	{
+		TextureOverlayStretchCheckBox = SNew(SCheckBox)
+			.IsChecked(LevelViewport, &SAvaLevelViewport::GetTextureOverlayStretchEnabledCheckBoxState)
+			.OnCheckStateChanged(LevelViewport, &SAvaLevelViewport::OnTextureOverlayStretchEnabledCheckBoxChanged);
+	}
 }
 
 void SAvaLevelViewportStatusBarButtons::PopulateActorButtons(TSharedPtr<SHorizontalBox> InContainer)
@@ -282,22 +322,6 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 				&SAvaLevelViewportStatusBarButtons::GetHighResScreenshotEnabled,
 				&SAvaLevelViewportStatusBarButtons::GetHighResScreenshotColor
 			)
-		];
-
-	TSharedRef<SComboButton> PostProcessButton = ViewportStatusBarButton::MakeMenuButton(
-		LOCTEXT("PostProcessEffects", "Post Process Effects"),
-		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessMenuContent),
-		TAttribute<const FSlateBrush*>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessIcon),
-		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessColor)
-	);
-
-	PostProcessButton->SetEnabled(TAttribute<bool>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabled));
-
-	InContainer->AddSlot()
-		.AutoWidth()
-		.Padding(ViewportStatusBarButton::Padding)
-		[
-			PostProcessButton
 		];
 
 	InContainer->AddSlot()
@@ -382,6 +406,39 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 				&SAvaLevelViewportStatusBarButtons::GetToggleShapeEditorOverlayEnabled,
 				&SAvaLevelViewportStatusBarButtons::GetToggleShapeEditorOverlayColor
 			)
+		];
+
+	TSharedRef<SComboButton> PostProcessButton = ViewportStatusBarButton::MakeMenuButton(
+		LOCTEXT("PostProcessEffects", "Post Process Effects"),
+		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessMenuContent),
+		TAttribute<const FSlateBrush*>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessIcon),
+		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessColor)
+	);
+
+	PostProcessButton->SetEnabled(TAttribute<bool>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabled));
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			PostProcessButton
+		];
+
+	TSharedRef<SAvaMultiComboButton> TextureOverlayButton = ViewportStatusBarButton::MakeMultiMenuButton(
+		CommandsRef.ToggleTextureOverlay->GetDescription(),
+		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetTextureOverlayMenuContent),
+		FAppStyle::Get().GetBrush(TEXT("GenericCommands.Paste")),
+		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetTextureOverlayColor),
+		FOnClicked::CreateSP(this, &SAvaLevelViewportStatusBarButtons::ToggleTextureOverlay)
+	);
+
+	TextureOverlayButton->SetEnabled(TAttribute<bool>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabled));
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			TextureOverlayButton
 		];
 
 	InContainer->AddSlot()
@@ -947,7 +1004,7 @@ FReply SAvaLevelViewportStatusBarButtons::ToggleShapeEditorOverlay()
 	{
 		AvaViewportSettings->bEnableShapesEditorOverlay = !AvaViewportSettings->bEnableShapesEditorOverlay;
 		AvaViewportSettings->SaveConfig();
-		AvaViewportSettings->OnChange.Broadcast(AvaViewportSettings, GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, bEnableShapesEditorOverlay));
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, bEnableShapesEditorOverlay));
 
 		return FReply::Handled();
 	}
@@ -1162,6 +1219,105 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetViewportInfoWidget() c
 	}
 
 	return SNullWidget::NullWidget;
+}
+
+FSlateColor SAvaLevelViewportStatusBarButtons::GetTextureOverlayColor() const
+{
+	using namespace UE::AvaLevelViewport::Private;
+
+	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
+
+	if (FrameAndWidget.IsValid() && FrameAndWidget.ViewportWidget->CanToggleTextureOverlay())
+	{
+		if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
+		{
+			return AvaViewportSettings->bEnableTextureOverlay ? ViewportStatusBarButton::ActiveColor : ViewportStatusBarButton::EnabledColor;
+		}
+	}
+
+	return ViewportStatusBarButton::DisabledColor;
+}
+
+bool SAvaLevelViewportStatusBarButtons::GetTextureOverlayEnabled() const
+{
+	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
+
+	if (FrameAndWidget.IsValid())
+	{
+		return FrameAndWidget.ViewportWidget->CanToggleTextureOverlay();
+	}
+
+	return false;
+}
+
+TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetTextureOverlayMenuContent()
+{
+	UToolMenus* Menus = UToolMenus::Get();
+
+	check(Menus);
+
+	static const FName TextureOverlayMenuName = TEXT("AvaLevelViewport.StatusBar.TextureOverlay");
+
+	UToolMenu* ContextMenu = Menus->FindMenu(TextureOverlayMenuName);
+
+	if (!ContextMenu)
+	{
+		using namespace UE::Ava::LevelViewportStatusBarButtons::Private;
+
+		ContextMenu = Menus->RegisterMenu(TextureOverlayMenuName, NAME_None, EMultiBoxType::Menu);
+
+		FToolMenuSection& OptionsSection = ContextMenu->AddSection("TextureOverlay", LOCTEXT("TextureOverlay", "Texture Overlay"));
+
+		if (TextureOverlayOpacitySlider.IsValid())
+		{
+			OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
+				"TextureOverlayOpacity",
+				TextureOverlayOpacitySlider.ToSharedRef(),
+				LOCTEXT("TextureOverlayOpacity", "Opacity"),
+				true
+			));
+		}
+
+		if (TextureOverlayTextureSelector.IsValid())
+		{
+			OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
+				"TextureOverlayTexture",
+				TextureOverlayTextureSelector.ToSharedRef(),
+				LOCTEXT("TextureOverlayTexture", "Texture"),
+				true
+			));
+		}
+
+		if (TextureOverlayStretchCheckBox.IsValid())
+		{
+			OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
+				"TextureOverlayStretch",
+				TextureOverlayStretchCheckBox.ToSharedRef(),
+				LOCTEXT("TextureOverlayStretch", "Stretch Texture"),
+				true
+			));
+		}
+	}
+
+	if (!ContextMenu)
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	return Menus->GenerateWidget(ContextMenu);
+}
+
+FReply SAvaLevelViewportStatusBarButtons::ToggleTextureOverlay()
+{
+	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
+
+	if (FrameAndWidget.IsValid() && FrameAndWidget.ViewportWidget->CanToggleSnapping())
+	{
+		FrameAndWidget.ViewportWidget->ExecuteToggleTextureOverlay();
+		return FReply::Handled();
+	}
+
+	return FReply::Unhandled();
 }
 
 bool SAvaLevelViewportStatusBarButtons::CanChangeGridSize() const

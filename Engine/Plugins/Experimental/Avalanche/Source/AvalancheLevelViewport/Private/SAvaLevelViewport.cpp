@@ -26,6 +26,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SAvaLevelViewportCameraBounds.h"
 #include "Widgets/SAvaLevelViewportGuide.h"
+#include "Widgets/SAvaLevelViewportTextureOverlay.h"
 #include "Widgets/SAvaLevelViewportPixelGrid.h"
 #include "Widgets/SAvaLevelViewportSafeFrames.h"
 #include "Widgets/SAvaLevelViewportScreenGrid.h"
@@ -156,6 +157,11 @@ void SAvaLevelViewport::BindCommands()
 		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessCheckerboard),
 		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessCheckerboard),
 		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessCheckerboardEnabled)
+	);
+	CommandListRef.MapAction(
+		AvaLevelViewportCommands.ToggleTextureOverlay,
+		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteToggleTextureOverlay),
+		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanToggleTextureOverlay)
 	);
 
 	// Grid
@@ -355,6 +361,11 @@ void SAvaLevelViewport::PopulateViewportOverlays(TSharedRef<SOverlay> Overlay)
 		Overlay->AddSlot(-2)
 		[
 			SAssignNew(PixelGrid, SAvaLevelViewportPixelGrid, ViewportClient.ToSharedRef())
+		];
+
+		Overlay->AddSlot(-2)
+		[
+			SAssignNew(TextureOverlay, SAvaLevelViewportTextureOverlay, ViewportClient.ToSharedRef())
 		];
 
 		Overlay->AddSlot(-2)
@@ -647,6 +658,11 @@ void SAvaLevelViewport::ApplySettings(const UAvaViewportSettings* InSettings)
 	if (SnapIndicators.IsValid())
 	{
 		SnapIndicators->SetVisibility(InSettings->bEnableViewportOverlay && InSettings->bSnapIndicatorsEnabled ? EVisibility::HitTestInvisible : EVisibility::Collapsed);
+	}
+
+	if (TextureOverlay.IsValid())
+	{
+		TextureOverlay->SetVisibility(InSettings->bEnableTextureOverlay ? EVisibility::HitTestInvisible : EVisibility::Collapsed);
 	}
 
 	if (CameraBounds.IsValid())
@@ -946,6 +962,28 @@ void SAvaLevelViewport::UnregisterPanelExtension()
 	}
 
 	PanelExtensionSubsystem->UnregisterPanelFactory(PanelExtensionFactory.Identifier, TEXT("LevelViewportToolBar.RightExtension"));
+}
+
+ECheckBoxState SAvaLevelViewport::GetTextureOverlayStretchEnabledCheckBoxState() const
+{
+	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
+	{
+		return AvaViewportSettings->bTextureOverlayStretch
+			? ECheckBoxState::Checked
+			: ECheckBoxState::Unchecked;
+	}
+
+	return ECheckBoxState::Undetermined;
+}
+
+void SAvaLevelViewport::OnTextureOverlayStretchEnabledCheckBoxChanged(ECheckBoxState InState)
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->bTextureOverlayStretch = (InState == ECheckBoxState::Checked);
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, bTextureOverlayStretch));
+		AvaViewportSettings->SaveConfig();
+	}
 }
 
 int32 SAvaLevelViewport::GetVirtualSizeX() const

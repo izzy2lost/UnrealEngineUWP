@@ -73,6 +73,11 @@ void UAvaViewportSettings::SetSnapState(EAvaViewportSnapState InSnapState)
 	SnapState = static_cast<int32>(InSnapState);
 }
 
+void UAvaViewportSettings::BroadcastSettingChanged(FName InSettingName)
+{
+	OnChange.Broadcast(this, InSettingName);
+}
+
 void UAvaViewportSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -81,6 +86,6 @@ void UAvaViewportSettings::PostEditChangeProperty(FPropertyChangedEvent& Propert
 
 	if (MemberName != NAME_None)
 	{
-		OnChange.Broadcast(this, MemberName);
+		BroadcastSettingChanged(MemberName);
 	}
 }

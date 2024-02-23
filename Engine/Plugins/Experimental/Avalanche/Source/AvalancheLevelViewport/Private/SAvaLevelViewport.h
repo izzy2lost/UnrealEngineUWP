@@ -9,6 +9,7 @@
 #include "Subsystems/PanelExtensionSubsystem.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtrFwd.h"
+#include "Widgets/SAvaLevelViewportTextureOverlay.h"
 
 class ACameraActor;
 class FAvaLevelViewportClient;
@@ -22,6 +23,7 @@ class SAvaLevelViewportPixelGrid;
 class SAvaLevelViewportSafeFrames;
 class SAvaLevelViewportScreenGrid;
 class SAvaLevelViewportSnapIndicators;
+class SAvaLevelViewportTextureOverlay;
 class SCanvas;
 class SOverlay;
 class SWidget;
@@ -153,6 +155,9 @@ public:
 	bool IsPostProcessCheckerboardEnabled() const;
 	bool CanTogglePostProcessCheckerboard() const;
 	void ExecuteTogglePostProcessCheckerboard();
+
+	bool CanToggleTextureOverlay() const;
+	void ExecuteToggleTextureOverlay();
 	
 	FIntPoint GetVirtualSize() const;
 	bool IsVirtualSizeActive(FIntPoint InVirtualSize) const;
@@ -183,6 +188,7 @@ public:
 private:
 	TWeakPtr<SAvaLevelViewportFrame> ViewportFrameWeak;
 	TSharedPtr<SAvaLevelViewportCameraBounds> CameraBounds;
+	TSharedPtr<SAvaLevelViewportTextureOverlay> TextureOverlay;
 	TSharedPtr<SAvaLevelViewportPixelGrid> PixelGrid;
 	TSharedPtr<SAvaLevelViewportScreenGrid> ScreenGrid;
 	TSharedPtr<SAvaLevelViewportSafeFrames> SafeFrames;
@@ -245,6 +251,17 @@ private:
 	void OnBackgroundOpacitySliderEnd(float InValue);
 	void OnBackgroundOpacityChanged(float InValue);
 	void OnBackgroundOpacityCommitted(float InValue, ETextCommit::Type InCommitType);
+
+	FString GetTextureOverlayTextureObjectPath() const;
+	void OnTextureOverlayTextureChanged(const FAssetData& InAssetData);
+
+	float GetTextureOverlayOpacity() const;
+	void OnTextureOverlayOpacitySliderEnd(float InValue);
+	void OnTextureOverlayOpacityChanged(float InValue);
+	void OnTextureOverlayOpacityCommitted(float InValue, ETextCommit::Type InCommitType);
+
+	ECheckBoxState GetTextureOverlayStretchEnabledCheckBoxState() const;
+	void OnTextureOverlayStretchEnabledCheckBoxChanged(ECheckBoxState InState);
 
 	int32 GetVirtualSizeX() const;
 	int32 GetVirtualSizeY() const;
