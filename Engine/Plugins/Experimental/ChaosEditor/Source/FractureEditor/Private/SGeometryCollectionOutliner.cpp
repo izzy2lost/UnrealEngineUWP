@@ -195,7 +195,8 @@ UOutlinerSettings::UOutlinerSettings(const FObjectInitializer& ObjInit)
 
 TSharedRef<SWidget> SGeometryCollectionOutlinerRow::GenerateWidgetForColumn(const FName& ColumnName)
 {
-	if (!ensure(Item->IsValidBone()))
+	// This can happen because sometimes slate retains old items until the next tick, and keeps calling callbacks on them until then
+	if (!Item->IsValidBone())
 	{
 		return Item->MakeEmptyColumnWidget();
 	}
@@ -483,6 +484,14 @@ void SGeometryCollectionOutliner::SetComponents(const TArray<UGeometryCollection
 	TGuardValue<bool> ExternalSelectionGuard(bPerformingSelection, true);
 	TreeView->ClearSelection();
 
+	// explicitly mark the root nodes as invalid before emptying, so we know we can safely ignore them in case slate still triggers callbacks for them (they will not be deleted until the tree view refresh, on tick)
+	for (TSharedPtr<FGeometryCollectionTreeItemComponent>& RootNode : RootNodes)
+	{
+		if (RootNode)
+		{
+			RootNode->Invalidate();
+		}
+	}
 	RootNodes.Empty();
 
 	for (UGeometryCollectionComponent* Component : InNewComponents)
@@ -689,6 +698,11 @@ static T GetAttributeValue(const TManagedArrayAccessor<T>& Attribute, int32 Inde
 bool FGeometryCollectionItemDataFacade::IsValidBoneIndex(int32 BoneIndex) const
 {
 	return BoneIndex >= 0 && BoneIndex < BoneNameAttribute.Num();
+}
+
+int32 FGeometryCollectionItemDataFacade::GetBoneCount() const
+{
+	return BoneNameAttribute.Num();
 }
 
 FString FGeometryCollectionItemDataFacade::GetBoneName(int32 Index) const
@@ -1198,10 +1212,33 @@ TSharedRef<ITableRow> FGeometryCollectionTreeItemBone::MakeTreeRowWidget(const T
 	return SNew(SGeometryCollectionOutlinerRow, InOwnerTable, SharedThis(this));
 }
 
+bool FGeometryCollectionTreeItemComponent::IsValid() const
+{
+	if (bInvalidated)
+	{
+		return false;
+	}
+	if (const UGeometryCollectionComponent* Comp = GetComponent())
+	{
+		if (const UGeometryCollection* RestCollection = Comp->GetRestCollection())
+		{
+			if (const FGeometryCollection* Collection = RestCollection->GetGeometryCollection().Get())
+			{
+				return Collection->NumElements(FGeometryCollection::TransformGroup) == DataCollectionFacade.GetBoneCount();
+			}
+		}
+	}
+	return false;
+}
+
 bool FGeometryCollectionTreeItemBone::IsValidBone() const
 {
-	const FGeometryCollectionItemDataFacade& DataCollectionFacade = GetDataCollectionFacade();
-	return DataCollectionFacade.IsValidBoneIndex(BoneIndex);
+	if (ParentComponentItem && ParentComponentItem->IsValid())
+	{
+		const FGeometryCollectionItemDataFacade& DataCollectionFacade = GetDataCollectionFacade();
+		return DataCollectionFacade.IsValidBoneIndex(BoneIndex);
+	}
+	return false;
 }
 
 TSharedRef<SWidget> FGeometryCollectionTreeItemBone::MakeBoneIndexColumnWidget() const
