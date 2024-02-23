@@ -268,6 +268,22 @@ void UExternalDataLayerEngineSubsystem::UnregisterExternalDataLayerAsset(const U
 	}
 };
 
+TArray<UObject*> UExternalDataLayerEngineSubsystem::GetClientsForExternalDataLayerAsset(const UExternalDataLayerAsset* InExternalDataLayerAsset) const
+{
+	const FRegisteredExternalDataLayers* RegisteredEDL = ExternalDataLayerAssets.Find(InExternalDataLayerAsset);
+	TSet<UObject*> Clients;
+	for (const FObjectKey Client : RegisteredEDL->RegisteredClients)
+	{
+		Clients.Add(Client.ResolveObjectPtr());
+	}
+	for (const FObjectKey Client : RegisteredEDL->ActiveClients)
+	{
+		Clients.Add(Client.ResolveObjectPtr());
+	}
+	Clients.Remove(nullptr);
+	return Clients.Array();
+}
+
 EExternalDataLayerRegistrationState UExternalDataLayerEngineSubsystem::GetExternalDataLayerAssetRegistrationState(const UExternalDataLayerAsset* InExternalDataLayerAsset) const
 {
 	const FRegisteredExternalDataLayers* RegisteredEDL = ExternalDataLayerAssets.Find(InExternalDataLayerAsset);

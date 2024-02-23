@@ -1860,6 +1860,29 @@ void FDataLayerMode::RegisterContextMenu()
 			{
 				FToolMenuSection& Section = InMenu->AddSection("AssetOptionsSection", LOCTEXT("AssetOptionsText", "Asset Options"));
 				Section.AddMenuEntryWithCommandList(FGlobalEditorCommonCommands::Get().FindInContentBrowser, Mode->Commands);
+				const UExternalDataLayerInstance* ExternalDataLayerInstance = SelectedDataLayers.Num() == 1 ? Cast<UExternalDataLayerInstance>(SelectedDataLayers[0]) : nullptr;
+				if (const UExternalDataLayerAsset* ExternalDataLayerAsset = ExternalDataLayerInstance ? ExternalDataLayerInstance->GetExternalDataLayerAsset() : nullptr)
+				{
+					Section.AddMenuEntry("BrowseToPluginAsset", LOCTEXT("BrowseToPluginAsset", "Browse to Plugin Asset"), FText(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "SystemWideCommands.FindInContentBrowser"),
+						FUIAction(
+							FExecuteAction::CreateLambda([ExternalDataLayerAsset]()
+							{
+								UExternalDataLayerEngineSubsystem& ExternalDataLayerEngineSubsystem = UExternalDataLayerEngineSubsystem::Get();
+								TArray<UObject*> Objects;;
+								for (UObject* Client : ExternalDataLayerEngineSubsystem.GetClientsForExternalDataLayerAsset(ExternalDataLayerAsset))
+								{
+									if (UDataAsset* DataAsset = Client->GetTypedOuter<UDataAsset>())
+									{
+										Objects.Add(DataAsset);
+									}
+								}
+								if (!Objects.IsEmpty())
+								{
+									GEditor->SyncBrowserToObjects(Objects);
+								}
+							})
+						));
+				}
 			}
 		}));
 	}

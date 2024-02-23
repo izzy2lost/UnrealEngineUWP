@@ -48,6 +48,7 @@ public:
 	ENGINE_API bool IsExternalDataLayerAssetRegistered(const UExternalDataLayerAsset* InExternalDataLayerAsset, const UObject* InClient = nullptr) const;
 	ENGINE_API bool IsExternalDataLayerAssetActive(const UExternalDataLayerAsset* InExternalDataLayerAsset, const UObject* InClient = nullptr) const;
 	ENGINE_API EExternalDataLayerRegistrationState GetExternalDataLayerAssetRegistrationState(const UExternalDataLayerAsset* InExternalDataLayerAsset) const;
+	ENGINE_API TArray<UObject*> GetClientsForExternalDataLayerAsset(const UExternalDataLayerAsset* InExternalDataLayerAsset) const;
 
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FExternalDataLayerAssetRegistrationStateChangedEventDelegate, const UExternalDataLayerAsset* ExternalDataLayerAsset, EExternalDataLayerRegistrationState OldState, EExternalDataLayerRegistrationState NewState);
 	FExternalDataLayerAssetRegistrationStateChangedEventDelegate OnExternalDataLayerAssetRegistrationStateChanged;
