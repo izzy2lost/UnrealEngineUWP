@@ -327,9 +327,12 @@ void URigVMHost::Evaluate_AnyThread()
 	// and we don't want other systems to see that.
 	FScopeLock EvaluateLock(&GetEvaluateMutex());
 	
+	// The EventQueueToRun should only be modified in this function
+	ensureMsgf(EventQueueToRun.IsEmpty(), TEXT("Detected a recursive call to the control rig evaluation function %s"), *GetPackage()->GetPathName());
+	
 	// create a copy since we need to change it here temporarily,
 	// and UI / the rig may change the event queue while it is running
-	EventQueueToRun = EventQueue;
+	TGuardValue<TArray<FName>> EventQueueToRunGuard(EventQueueToRun, EventQueue);
 
 	AdaptEventQueueForEvaluate(EventQueueToRun);
 	
@@ -391,8 +394,6 @@ void URigVMHost::Evaluate_AnyThread()
 		}
 #endif
 	}
-
-	EventQueueToRun.Reset();
 }
 
 TArray<FRigVMExternalVariable> URigVMHost::GetExternalVariables() const

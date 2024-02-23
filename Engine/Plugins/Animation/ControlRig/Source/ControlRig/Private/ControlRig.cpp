@@ -706,14 +706,17 @@ bool UControlRig::Execute(const FName& InEventName)
 		bJustRanInit = true;
 	}
 
-	if(EventQueueToRun.IsEmpty())
+	// The EventQueueToRun should only be modified in URigVMHost::Evaluate_AnyThread
+	// We create a temporary queue for the execution of only this event
+	TArray<FName> TempEventQueueToRun = EventQueueToRun;
+	if(TempEventQueueToRun.IsEmpty())
 	{
-		EventQueueToRun = EventQueue;
+		TempEventQueueToRun = EventQueue;
 	}
 
-	const bool bIsEventInQueue = EventQueueToRun.Contains(InEventName);
-	const bool bIsEventFirstInQueue = !EventQueueToRun.IsEmpty() && EventQueueToRun[0] == InEventName; 
-	const bool bIsEventLastInQueue = !EventQueueToRun.IsEmpty() && EventQueueToRun.Last() == InEventName;
+	const bool bIsEventInQueue = TempEventQueueToRun.Contains(InEventName);
+	const bool bIsEventFirstInQueue = !TempEventQueueToRun.IsEmpty() && TempEventQueueToRun[0] == InEventName; 
+	const bool bIsEventLastInQueue = !TempEventQueueToRun.IsEmpty() && TempEventQueueToRun.Last() == InEventName;
 	const bool bIsConstructionEvent = InEventName == FRigUnit_PrepareForExecution::EventName;
 	const bool bIsForwardSolve = InEventName == FRigUnit_BeginExecution::EventName;
 	const bool bIsInteractionEvent = InEventName == FRigUnit_InteractionExecution::EventName;
