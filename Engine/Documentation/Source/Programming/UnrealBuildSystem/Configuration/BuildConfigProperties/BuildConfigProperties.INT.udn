@@ -450,6 +450,8 @@ $ bUseKnownInputs : Set to true to provide known inputs to processes that are ru
 
 $ ActionsOutputFile : Write yaml file with all actions that are queued for build. This can be used to replay using "UbaCli.exe local file.yaml"
 
+$ bDetailedLog : Set to true to see more info about what is happening inside uba and also log output from agents
+
 $ HordeMaxCores : Max cores allowed to be used by build session
 
 $ HordeDelay : How long UBT should wait to ask for help. Useful in build configs where machine can delay remote work and still get same wall time results (pch dependencies etc)
