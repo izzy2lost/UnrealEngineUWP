@@ -1113,10 +1113,6 @@ namespace Jupiter.Controllers
 			try
 			{
 				bool deleted = await _refService.DeleteAsync(ns, bucket, key);
-				if (!deleted)
-				{
-					return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });
-				}
 				return Ok(new RefDeletedResponse(deleted ? 1 : 0));
 			}
 			catch (NamespaceNotFoundException e)
@@ -1125,7 +1121,7 @@ namespace Jupiter.Controllers
 			}
 			catch (RefNotFoundException)
 			{
-				return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });
+				return Ok(new RefDeletedResponse(0));
 			}
 		}
 	}

@@ -1585,10 +1585,10 @@ namespace Jupiter.FunctionalTests.References
 				Assert.AreEqual(HttpStatusCode.NotFound, result.StatusCode);
 			}
 
-			// delete the object again which doesn't exist anymore
+			// delete the object again which doesn't exist anymore, but we do not return that in the api (as it causes us to need to do extra work for some backends)
 			{
 				HttpResponseMessage result = await _httpClient!.DeleteAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative));
-				Assert.AreEqual(HttpStatusCode.NotFound, result.StatusCode);
+				result.EnsureSuccessStatusCode();
 			}
 		}
 

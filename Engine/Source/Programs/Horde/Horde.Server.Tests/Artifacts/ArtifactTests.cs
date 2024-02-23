@@ -6,13 +6,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Streams;
 using Horde.Server.Acls;
 using Horde.Server.Artifacts;
+using Horde.Server.Server;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EpicGames.Horde.Streams;
-using Horde.Server.Server;
 
 namespace Horde.Server.Tests.Artifacts
 {
@@ -112,7 +112,6 @@ namespace Horde.Server.Tests.Artifacts
 				List<IArtifact> artifacts = await artifactCollection.FindAsync(streamId, keys: new[] { "test1" }).ToListAsync();
 				Assert.AreEqual(0, artifacts.Count);
 			}
-
 		}
 	}
 }
