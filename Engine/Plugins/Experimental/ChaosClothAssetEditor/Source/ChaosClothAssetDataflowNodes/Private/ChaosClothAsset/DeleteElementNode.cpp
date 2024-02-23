@@ -366,6 +366,8 @@ void FChaosClothAssetDeleteElementNode::Evaluate(Dataflow::FContext& Context, co
 			{
 				FClothGeometryTools::DeleteRenderMesh(ClothCollection);
 			}
+
+			FClothGeometryTools::CleanupAndCompactMesh(ClothCollection);
 		}
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
 	}
