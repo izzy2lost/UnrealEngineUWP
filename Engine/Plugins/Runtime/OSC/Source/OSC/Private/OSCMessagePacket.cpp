@@ -23,9 +23,9 @@ namespace UE::OSC
 	{
 	}
 
-	void FMessagePacket::AddArgument(FOSCData&& InOSCData)
+	void FMessagePacket::AddArgument(FOSCData OSCData)
 	{
-		Arguments.Add(MoveTemp(InOSCData));
+		Arguments.Add(MoveTemp(OSCData));
 	}
 
 	void FMessagePacket::EmptyArguments()
@@ -43,14 +43,14 @@ namespace UE::OSC
 		return Arguments;
 	}
 
-	void FMessagePacket::SetAddress(const FOSCAddress& InAddress)
-	{
-		Address = InAddress;
-	}
-
-	void FMessagePacket::SetAddress(FOSCAddress&& InAddress)
+	void FMessagePacket::SetAddress(FOSCAddress InAddress)
 	{
 		Address = MoveTemp(InAddress);
+	}
+
+	void FMessagePacket::SetArguments(TArray<FOSCData> OSCData)
+	{
+		Arguments = MoveTemp(OSCData);
 	}
 
 	bool FMessagePacket::IsBundle()

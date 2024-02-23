@@ -10,6 +10,15 @@ FOSCMessage::FOSCMessage()
 {
 }
 
+FOSCMessage::FOSCMessage(FOSCAddress Address, TArray<UE::OSC::FOSCData> Args)
+	: Packet(MakeShared<UE::OSC::FMessagePacket>())
+{
+	using namespace UE::OSC;
+	TSharedRef<FMessagePacket> MsgPacket = StaticCastSharedRef<FMessagePacket>(Packet);
+	MsgPacket->SetAddress(MoveTemp(Address));
+	MsgPacket->SetArguments(MoveTemp(Args));
+}
+
 FOSCMessage::FOSCMessage(const TSharedRef<UE::OSC::IPacket>& InPacket)
 	: Packet(InPacket)
 {
@@ -18,13 +27,12 @@ FOSCMessage::FOSCMessage(const TSharedRef<UE::OSC::IPacket>& InPacket)
 FOSCMessage::FOSCMessage(const TSharedPtr<UE::OSC::IPacket>& InPacket)
 	: FOSCMessage::FOSCMessage()
 {
-	Packet = TSharedRef<UE::OSC::IPacket>(InPacket.Get());
+	Packet = InPacket.ToSharedRef();
 }
 
 void FOSCMessage::SetPacket(TSharedPtr<UE::OSC::IPacket>& InPacket)
 {
-	using namespace UE::OSC;
-	Packet = TSharedRef<IPacket>(InPacket.Get());
+	Packet = InPacket.ToSharedRef();
 }
 
 void FOSCMessage::SetPacket(TSharedRef<UE::OSC::IPacket>& InPacket)

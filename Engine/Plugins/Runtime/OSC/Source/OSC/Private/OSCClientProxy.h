@@ -31,8 +31,8 @@ namespace UE::OSC
 
 		bool IsActive() const override;
 
-		void SendMessage(FOSCMessage& Message) override;
-		void SendBundle(FOSCBundle& Bundle) override;
+		void SendMessage(const FOSCMessage& Message) override;
+		void SendBundle(const FOSCBundle& Bundle) override;
 
 		void Stop() override;
 

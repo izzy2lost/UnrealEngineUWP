@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreMinimal.h"
 #include "OSCLog.h"
 #include "OSCPacket.h"
 #include "OSCStream.h"
+#include "OSCTypes.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "UObject/WeakObjectPtr.h"
@@ -18,6 +18,7 @@ struct OSC_API FOSCMessage
 	GENERATED_USTRUCT_BODY()
 
 	FOSCMessage();
+	FOSCMessage(FOSCAddress Address, TArray<UE::OSC::FOSCData> Args);
 	FOSCMessage(const TSharedRef<UE::OSC::IPacket>& InPacket);
 
 	UE_DEPRECATED(5.5, "Use shared ref ctor instead")

@@ -19,12 +19,6 @@ namespace UE::OSC
 		/** Get endpoint IP address and port responsible for creation/forwarding of packet */
 		virtual const FIPv4Endpoint& GetIPEndpoint() const override;
 
-		UE_DEPRECATED(5.5, "Packets now have address and port set using endpoints.")
-		virtual const FString& GetIPAddress() const override { static const FString None; return None; }
-
-		UE_DEPRECATED(5.5, "Packets now have address and port set using endpoints.")
-		virtual uint16 GetPort() const override { return 0; };
-
 	protected:
 		FIPv4Endpoint IPEndpoint;
 	};
@@ -38,14 +32,16 @@ namespace UE::OSC
 		virtual ~FMessagePacket() = default;
 
 		/** Adds argument to argument array */
-		void AddArgument(FOSCData&& InOSCType);
+		void AddArgument(FOSCData OSCData);
 
 		/** Empties all arguments */
 		void EmptyArguments();
 
 		/** Set OSC message address. */
-		void SetAddress(const FOSCAddress& InAddress);
-		void SetAddress(FOSCAddress&& InAddress);
+		void SetAddress(FOSCAddress InAddress);
+
+		/** Sets argument array to the given values */
+		void SetArguments(TArray<FOSCData> Args);
 
 		/** Get OSC message address. */
 		virtual const FOSCAddress& GetAddress() const;

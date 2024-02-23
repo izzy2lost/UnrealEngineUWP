@@ -32,8 +32,8 @@ namespace UE::OSC
 
 		virtual bool IsActive() const = 0;
 
-		virtual void SendMessage(FOSCMessage& Message) = 0;
-		virtual void SendBundle(FOSCBundle& Bundle) = 0;
+		virtual void SendMessage(const FOSCMessage& Message) = 0;
+		virtual void SendBundle(const FOSCBundle& Bundle) = 0;
 
 		virtual void Stop() = 0;
 	};

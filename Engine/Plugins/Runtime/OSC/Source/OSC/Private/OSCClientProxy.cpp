@@ -95,13 +95,13 @@ namespace UE::OSC
 		}
 	}
 
-	void FClientProxy::SendMessage(FOSCMessage& Message)
+	void FClientProxy::SendMessage(const FOSCMessage& Message)
 	{
 		const TSharedRef<UE::OSC::IPacket>& Packet = Message.GetPacketRef();
 		SendPacket(Packet.Get());
 	}
 
-	void FClientProxy::SendBundle(FOSCBundle& Bundle)
+	void FClientProxy::SendBundle(const FOSCBundle& Bundle)
 	{
 		const TSharedRef<UE::OSC::IPacket>& Packet = Bundle.GetPacketRef();
 		SendPacket(Packet.Get());

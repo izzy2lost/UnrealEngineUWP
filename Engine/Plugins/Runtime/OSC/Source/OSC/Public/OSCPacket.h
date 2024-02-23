@@ -31,11 +31,19 @@ namespace UE::OSC
 		/** Returns true if packet is bundle */
 		virtual bool IsBundle() = 0;
 
-		UE_DEPRECATED(5.5, "Packets now have address and port set using endpoints.")
-		virtual const FString& GetIPAddress() const = 0;
+		UE_DEPRECATED(5.5, "Packet port can now be accessed via GetIPEndpoint() call.")
+		virtual const FString& GetIPAddress() const
+		{
+			static FString Addr;
+			Addr = GetIPEndpoint().ToString();
+			return Addr;
+		}
 
-		UE_DEPRECATED(5.5, "Packets now have port and port set using endpoints.")
-		virtual uint16 GetPort() const = 0;
+		UE_DEPRECATED(5.5, "Packet address can now be accessed via GetIPEndpoint() call.")
+		virtual uint16 GetPort() const
+		{
+			return GetIPEndpoint().Port;
+		};
 
 		virtual const FIPv4Endpoint& GetIPEndpoint() const = 0;
 
