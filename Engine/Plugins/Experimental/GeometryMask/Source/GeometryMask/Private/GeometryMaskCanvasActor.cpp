@@ -5,6 +5,7 @@
 #include "Engine/Engine.h"
 #include "GeometryMaskCanvas.h"
 #include "GeometryMaskSubsystem.h"
+#include "GeometryMaskWorldSubsystem.h"
 #include "GeometryMaskWriteComponent.h"
 
 AGeometryMaskCanvasActor::AGeometryMaskCanvasActor(const FObjectInitializer& ObjectInitializer)
@@ -61,7 +62,7 @@ bool AGeometryMaskCanvasActor::TryResolveCanvas()
 {
 	if (!Canvas)
 	{
-		if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+		if (UGeometryMaskWorldSubsystem* Subsystem = GetWorld()->GetSubsystem<UGeometryMaskWorldSubsystem>())
 		{
 			Canvas = Subsystem->GetNamedCanvas(CanvasName);
 		}

@@ -3,7 +3,6 @@
 #include "GeometryMaskCanvas.h"
 
 #include "Algo/RemoveIf.h"
-#include "CanvasTypes.h"
 #include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -38,7 +37,8 @@ void UGeometryMaskCanvas::PostEditChangeProperty(FPropertyChangedEvent& InProper
 		InnerFeatherRadiusPropertyName
 	};
 
-	if (UpdateRenderParameterProperties.Contains(InPropertyChangedEvent.GetPropertyName()))
+	FName PropertyName = InPropertyChangedEvent.GetPropertyName();
+	if (UpdateRenderParameterProperties.Contains(PropertyName))
 	{
 		UpdateRenderParameters();
 	}
@@ -63,6 +63,14 @@ void UGeometryMaskCanvas::AddWriter(const TScriptInterface<IGeometryMaskWriteInt
 	if (Writers.IsEmpty())
 	{
 		OnActivated().ExecuteIfBound();
+	}
+
+	if (Writers.ContainsByPredicate([InWriter](const TWeakInterfacePtr<IGeometryMaskWriteInterface>& InExistingWriter)
+	{
+		return InExistingWriter.IsValid() && InExistingWriter.GetObject() == InWriter.GetObject();
+	}))
+	{
+		return;
 	}
 
 	Writers.Add(InWriter.GetObject());
@@ -90,7 +98,28 @@ void UGeometryMaskCanvas::RemoveWriter(const TScriptInterface<IGeometryMaskWrite
 	}
 
 	RemoveInvalidWriters();
-	Writers.Remove(InWriter.GetObject());
+
+	Writers.SetNum(Algo::RemoveIf(Writers, [InWriter](const TWeakInterfacePtr<IGeometryMaskWriteInterface>& InExistingWriter)
+	{
+		return InExistingWriter.GetObject() == InWriter.GetObject();
+	}));
+}
+
+int32 UGeometryMaskCanvas::GetNumWriters() const
+{
+	return Writers.Num();
+}
+
+bool UGeometryMaskCanvas::IsDefaultCanvas() const
+{
+	return CanvasId.IsDefault();
+}
+
+void UGeometryMaskCanvas::Free()
+{
+	Writers.Empty();
+	FreeResource();
+	OnDeactivated().ExecuteIfBound();
 }
 
 UCanvasRenderTarget2D* UGeometryMaskCanvas::GetTexture() const
@@ -101,6 +130,11 @@ UCanvasRenderTarget2D* UGeometryMaskCanvas::GetTexture() const
 	}
 
 	return nullptr;
+}
+
+const FGeometryMaskCanvasId& UGeometryMaskCanvas::GetCanvasId() const
+{
+	return CanvasId;
 }
 
 bool UGeometryMaskCanvas::IsBlurApplied() const
@@ -197,7 +231,7 @@ void UGeometryMaskCanvas::RemoveInvalidWriters()
 	}
 }
 
-void UGeometryMaskCanvas::OnDrawToCanvas(FCanvas* InCanvas)
+void UGeometryMaskCanvas::OnDrawToCanvas(const FGeometryMaskDrawingContext& InDrawingContext, FCanvas* InCanvas)
 {
 	// Sort so subtract happens after additive, etc.
 	SortWriters();
@@ -221,6 +255,12 @@ void UGeometryMaskCanvas::UpdateRenderParameters()
 	}
 }
 
+void UGeometryMaskCanvas::Initialize(const UWorld* InWorld, FName InCanvasName)
+{
+	CanvasName = InCanvasName;
+	CanvasId = FGeometryMaskCanvasId(InWorld, CanvasName);
+}
+
 void UGeometryMaskCanvas::Update(
 	UWorld* InWorld,
 	FSceneView& InView)
@@ -232,13 +272,16 @@ void UGeometryMaskCanvas::AssignResource(
 	UGeometryMaskCanvasResource* InResource,
 	const EGeometryMaskColorChannel InColorChannel)
 {
-	// Cleanup existing resource, if assigned
-	FreeResource();
+	// If we're already using this resource (just changing channel), no need to free
+	if (!CanvasResource
+		|| (CanvasResource && CanvasResource != InResource))
+	{
+		FreeResource();
+		CanvasResource = InResource;
+		CanvasResource->OnDrawToCanvas().AddUObject(this, &UGeometryMaskCanvas::OnDrawToCanvas);
+	}
 
-	CanvasResource = InResource;
 	ColorChannel = InColorChannel;
-
-	CanvasResource->OnDrawToCanvas().AddUObject(this, &UGeometryMaskCanvas::OnDrawToCanvas);
 
 	UpdateRenderParameters();
 }
@@ -251,7 +294,7 @@ void UGeometryMaskCanvas::FreeResource()
 		ColorChannel = EGeometryMaskColorChannel::None;
 	
 		// Free up the resource
-		CanvasResource->Checkin(CanvasName);
+		CanvasResource->Checkin(CanvasId);
 		CanvasResource = nullptr;
 	}
 }

@@ -48,12 +48,21 @@ public:
 	/** Remove a writer from this canvas. */
 	void RemoveWriter(const TScriptInterface<IGeometryMaskWriteInterface>& InWriter);
 
+	/** Gets the number of writers for the canvas. */
+	int32 GetNumWriters() const;
+
 	/** Returns true if this is the default/blank canvas. */
-	bool IsDefaultCanvas() const { return CanvasName == NAME_None; }
+	bool IsDefaultCanvas() const;
+
+	/** Forcibly free the canvas - removed all writers and frees the resource. */
+	void Free();
 
 	/** Get the underlying render target. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Rendering")
 	UCanvasRenderTarget2D* GetTexture() const;
+
+	/** Get the unique canvas id based on the world and canvas name. */
+	const FGeometryMaskCanvasId& GetCanvasId() const;
 
 	/** Whether blur is applied or not. */
 	bool IsBlurApplied() const;
@@ -95,6 +104,9 @@ public:
 	/** Called when Writers becomes empty. */
 	FOnGeometryMaskCanvasDeactivated& OnDeactivated() { return OnDeactivatedDelegate; }
 
+	/** Setup with identifying info. */
+	void Initialize(const UWorld* InWorld, FName InCanvasName);
+	
 	/** Updates the canvas, intended to be called every frame. */
 	void Update(UWorld* InWorld, FSceneView& InView);
 	
@@ -117,6 +129,8 @@ private:
 	static const FName InnerFeatherRadiusPropertyName;
 
 private:
+	friend class UGeometryMaskCanvasResource;
+	
 	/** Sorts writers by various criteria for proper rendering order. */
 	void SortWriters();
 	
@@ -124,18 +138,17 @@ private:
 	void RemoveInvalidWriters();
 
 	/** Draws all writers to the canvas. */
-	void OnDrawToCanvas(FCanvas* InCanvas);
+	void OnDrawToCanvas(const FGeometryMaskDrawingContext& InDrawingContext, FCanvas* InCanvas);
 
 	/** Updates relevant shader parameters for the given color channel. */
 	void UpdateRenderParameters();
 	
 private:
-	// Allow the subsystem to set the CanvasName
-	friend class UGeometryMaskSubsystem;
-	friend class UGeometryMaskWorldSubsystem;
-
 	FOnGeometryMaskCanvasActivated OnActivatedDelegate;
 	FOnGeometryMaskCanvasDeactivated OnDeactivatedDelegate;
+
+	UPROPERTY(Transient, DuplicateTransient)
+	FGeometryMaskCanvasId CanvasId;
 
 	/** Uniquely identifies this canvas. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Getter = "Auto", Category = "Canvas", meta = (AllowPrivateAccess = "true"))

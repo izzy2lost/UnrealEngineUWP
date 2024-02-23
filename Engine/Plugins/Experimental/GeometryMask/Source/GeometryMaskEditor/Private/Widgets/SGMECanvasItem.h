@@ -4,8 +4,6 @@
 
 #include "SGMEImageItem.h"
 #include "Templates/SharedPointer.h"
-#include "Widgets/Views/SListView.h"
-#include "Widgets/Views/STableRow.h"
 
 class FGMECanvasItemViewModel;
 class IGMETreeNodeViewModel;
@@ -23,6 +21,7 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, const TSharedRef<FGMECanvasItemViewModel>& InViewModel);
 
 protected:
+	FText GetLabel() const;
 	virtual FOptionalSize GetAspectRatio() override;
 
 private:

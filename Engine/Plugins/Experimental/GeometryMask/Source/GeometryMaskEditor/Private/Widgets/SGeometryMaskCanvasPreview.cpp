@@ -2,12 +2,15 @@
 
 #include "Widgets/SGeometryMaskCanvasPreview.h"
 
+#include "EditorSupportDelegates.h"
 #include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Engine.h"
 #include "Engine/Texture.h"
+#include "GeometryMaskCanvasResource.h"
 #include "GeometryMaskEditorLog.h"
 #include "GeometryMaskSubsystem.h"
 #include "GeometryMaskTypes.h"
+#include "GeometryMaskWorldSubsystem.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "SlateMaterialBrush.h"
@@ -38,12 +41,18 @@ SGeometryMaskCanvasPreview::SGeometryMaskCanvasPreview()
 {
 }
 
+SGeometryMaskCanvasPreview::~SGeometryMaskCanvasPreview()
+{
+	FEditorSupportDelegates::PrepareToCleanseEditorObject.RemoveAll(this);
+}
+
 void SGeometryMaskCanvasPreview::Construct(const FArguments& InArgs)
 {
-	CanvasName = InArgs._CanvasName;
+	CanvasId = InArgs._CanvasId;
 	ColorChannel = InArgs._Channel;
-	bInvert = InArgs._Invert;
-	bHasSolidBackground = InArgs._SolidBackground;
+	bShowPaddingFrame = InArgs._PaddingFrameVisibility;
+	Invert = InArgs._Invert;
+	HasSolidBackground = InArgs._SolidBackground;
 	OpacityMultiplier = InArgs._Opacity;
 	AspectRatio = 1920.0f / 1080.0f;
 
@@ -84,7 +93,7 @@ void SGeometryMaskCanvasPreview::Construct(const FArguments& InArgs)
 				SNew(SImage)
 				.Visibility_Lambda([this]()
 				{
-					return HasSolidBackground()
+					return GetSolidBackground()
 						? EVisibility::Visible
 						: EVisibility::Hidden;
 				})
@@ -107,18 +116,23 @@ void SGeometryMaskCanvasPreview::Tick(const FGeometry& InAllottedGeometry, const
 	UpdateBrush(CanvasWeak.Get(), nullptr);
 }
 
-const FName SGeometryMaskCanvasPreview::GetCanvasName() const
+const FGeometryMaskCanvasId& SGeometryMaskCanvasPreview::GetCanvasId() const
 {
-	return CanvasName.Get(NAME_None);
+	return CanvasId.Get(FGeometryMaskCanvasId::None);
 }
 
-void SGeometryMaskCanvasPreview::SetCanvasName(const FName InCanvasName)
+void SGeometryMaskCanvasPreview::SetCanvasId(const FGeometryMaskCanvasId& InCanvasId)
 {
-	if (GetCanvasName() != InCanvasName)
+	if (GetCanvasId() != InCanvasId)
 	{
-		CanvasName.Set(InCanvasName);
+		CanvasId.Set(InCanvasId);
 		TryResolveCanvas();
 	}
+}
+
+const FName SGeometryMaskCanvasPreview::GetCanvasName() const
+{
+	return GetCanvasId().Name;
 }
 
 const EGeometryMaskColorChannel SGeometryMaskCanvasPreview::GetColorChannel(const bool bOnlyValid) const
@@ -147,24 +161,34 @@ void SGeometryMaskCanvasPreview::SetColorChannel(const EGeometryMaskColorChannel
 	}
 }
 
+const bool SGeometryMaskCanvasPreview::IsPaddingFrameVisible() const
+{
+	return bShowPaddingFrame.Get(true);
+}
+
+void SGeometryMaskCanvasPreview::SetPaddingFrameVisiblity(const bool bInInverted)
+{
+	bShowPaddingFrame.Set(bInInverted);
+}
+
 const bool SGeometryMaskCanvasPreview::IsInverted() const
 {
-	return bInvert.Get(false);
+	return Invert.Get(false);
 }
 
 void SGeometryMaskCanvasPreview::SetInvert(const bool bInInverted)
 {
-	bInvert.Set(bInInverted);
+	Invert.Set(bInInverted);
 }
 
-const bool SGeometryMaskCanvasPreview::HasSolidBackground() const
+const bool SGeometryMaskCanvasPreview::GetSolidBackground() const
 {
-	return bHasSolidBackground.Get();
+	return HasSolidBackground.Get();
 }
 
 void SGeometryMaskCanvasPreview::SetSolidBackground(const bool bInHasSolidBackground)
 {
-	bHasSolidBackground.Set(bInHasSolidBackground);
+	HasSolidBackground.Set(bInHasSolidBackground);
 }
 
 const float SGeometryMaskCanvasPreview::GetOpacity() const
@@ -220,10 +244,18 @@ FString SGeometryMaskCanvasPreview::GetReferencerName() const
 
 bool SGeometryMaskCanvasPreview::TryResolveCanvas()
 {
-	if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	if (!CanvasId.IsSet())
 	{
-		CanvasWeak = Subsystem->GetNamedCanvas(GetCanvasName());
-		UpdateBrush(CanvasWeak.Get(), nullptr);
+		return false;
+	}
+
+	if (UWorld* CanvasWorld = CanvasId.Get().World.ResolveObjectPtr())
+	{
+		if (UGeometryMaskWorldSubsystem* Subsystem = CanvasWorld->GetSubsystem<UGeometryMaskWorldSubsystem>())
+		{
+			CanvasWeak = Subsystem->GetNamedCanvas(GetCanvasName());
+			UpdateBrush(CanvasWeak.Get(), nullptr);
+		}
 	}
 
 	return CanvasWeak != nullptr;
@@ -247,11 +279,13 @@ void SGeometryMaskCanvasPreview::UpdateBrush(const UGeometryMaskCanvas* InCanvas
 			InTexture = CanvasTexture;
 		}
 
+		FGeometryMaskDrawingContext DrawingContext(InCanvas->GetCanvasId().World);
+
 		FVector4f Padding(ForceInitToZero);
 		if (const UGeometryMaskCanvasResource* CanvasResource = InCanvas->GetResource())
 		{
-			FIntPoint ViewportPadding(CanvasResource->GetViewportPadding());
-			FVector2f ViewportPaddingF = FVector2f(ViewportPadding) / CanvasResource->GetViewportSize();
+			FIntPoint ViewportPadding(CanvasResource->GetViewportPadding(DrawingContext));
+			FVector2f ViewportPaddingF = FVector2f(ViewportPadding) / CanvasResource->GetMaxViewportSize();
 			Padding.X = ViewportPaddingF.X;
 			Padding.Y = ViewportPaddingF.Y;
 		}

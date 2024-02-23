@@ -13,6 +13,19 @@ TSharedRef<FGMEResourceItemViewModel> FGMEResourceItemViewModel::Create(
 	return ViewModel;
 }
 
+FGMEResourceItemViewModel::FGMEResourceItemViewModel(
+	FPrivateToken,
+	const TWeakObjectPtr<const UGeometryMaskCanvasResource>& InResource)
+	: ResourceWeak(InResource)
+{
+	if (const UGeometryMaskCanvasResource* Resource = InResource.Get())
+	{
+		UniqueId = Resource->GetUniqueID();
+		ResourceTextureWeak = const_cast<UGeometryMaskCanvasResource*>(Resource)->GetRenderTargetTexture();
+		UpdateInfoText();
+	}
+}
+
 float FGMEResourceItemViewModel::GetMemoryUsage() const
 {
 	if (const UCanvasRenderTarget2D* Texture = GetResourceTexture())
@@ -33,18 +46,36 @@ FIntPoint FGMEResourceItemViewModel::GetDimensions() const
 	return {0, 0};
 }
 
-FGMEResourceItemViewModel::FGMEResourceItemViewModel(
-	FPrivateToken,
-	const TWeakObjectPtr<const UGeometryMaskCanvasResource>& InResource)
+void FGMEResourceItemViewModel::UpdateInfoText()
 {
-	if (const UGeometryMaskCanvasResource* Resource = InResource.Get())
+	if (const UGeometryMaskCanvasResource* Resource = ResourceWeak.Get())
 	{
-		UniqueId = Resource->GetUniqueID();
-		ResourceTextureWeak = const_cast<UGeometryMaskCanvasResource*>(Resource)->GetRenderTargetTexture();
+		FString UsedChannelsList = FString::JoinBy(Resource->GetDependentCanvasIds(), TEXT("\n"), [](const FGeometryMaskCanvasId& InCanvasId)
+		{
+			return TEXT("\t") + InCanvasId.ToString();
+		});
+		
+		InfoText = FText::FromString(
+    		FString::Printf(TEXT("%-18s: %s\n%-18s: %s\n%-18s: %u of 3\n%s"),
+    			TEXT("Name"), *Resource->GetName(),
+    			TEXT("Size"), *GetDimensions().ToString(),
+    			TEXT("Num. Used Channels"), Resource->GetNumChannelsUsed(),
+    			*UsedChannelsList));
 	}
+}
+
+bool FGMEResourceItemViewModel::Tick(const float InDeltaSeconds)
+{
+	UpdateInfoText();
+	return true;
 }
 
 bool FGMEResourceItemViewModel::GetChildren(TArray<TSharedPtr<IGMETreeNodeViewModel>>& OutChildren)
 {
 	return false;
+}
+
+const FText& FGMEResourceItemViewModel::GetResourceInfo() const
+{
+	return InfoText;
 }

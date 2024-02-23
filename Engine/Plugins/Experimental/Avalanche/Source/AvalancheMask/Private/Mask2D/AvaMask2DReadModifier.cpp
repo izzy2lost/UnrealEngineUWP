@@ -109,8 +109,10 @@ bool UAvaMask2DReadModifier::ApplyRead(AActor* InActor, FAvaMask2DActorData& InA
 			ApplyParameters.MaterialParameters.ChannelAsVector = UE::GeometryMask::MaskChannelEnumToVector[ApplyParameters.MaterialParameters.Channel];
 			ApplyParameters.MaterialParameters.bInvert = bInverted;
 
-			const FIntPoint ViewportSize = GeometryCanvas->GetResource()->GetViewportSize();
-			const FVector2f ViewportPadding = FVector2f::One() - FVector2f(ViewportSize + GeometryCanvas->GetResource()->GetViewportPadding()) / ViewportSize;
+			FGeometryMaskDrawingContext DrawingContext(GeometryCanvas->GetCanvasId().World);
+
+			const FIntPoint ViewportSize = GeometryCanvas->GetResource()->GetMaxViewportSize();
+			const FVector2f ViewportPadding = FVector2f::One() - FVector2f(ViewportSize + GeometryCanvas->GetResource()->GetViewportPadding(DrawingContext)) / ViewportSize;
 			ApplyParameters.MaterialParameters.Padding = ViewportPadding;
 
 			ApplyParameters.MaterialParameters.bApplyFeathering = bUseFeathering;

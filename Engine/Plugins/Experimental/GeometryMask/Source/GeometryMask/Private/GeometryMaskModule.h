@@ -8,7 +8,7 @@
 #include "Modules/ModuleInterface.h"
 #include "Stats/Stats2.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogGeometryMask, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogGeometryMask, All, All);
 DECLARE_STATS_GROUP(TEXT("GeometryMask"), STATGROUP_GeometryMask, STATCAT_Advanced);
 
 class FGeometryMaskModule

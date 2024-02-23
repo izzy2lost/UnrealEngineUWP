@@ -4,6 +4,7 @@
 
 #include "Components/ActorComponent.h"
 #include "CoreTypes.h"
+#include "UObject/ObjectKey.h"
 
 #include "GeometryMaskTypes.generated.h"
 
@@ -70,6 +71,91 @@ namespace UE::GeometryMask
 
 	GEOMETRYMASK_API FStringView ChannelToString(EGeometryMaskColorChannel InColorChannel);
 };
+
+USTRUCT()
+struct GEOMETRYMASK_API FGeometryMaskCanvasId
+{
+	GENERATED_BODY()
+
+public:
+	TObjectKey<UWorld> World;
+
+	UPROPERTY()
+	uint8 SceneViewIndex = 0;
+
+	UPROPERTY()
+	FName Name;
+
+public:
+	static const FGeometryMaskCanvasId& None;
+	static const FName DefaultCanvasName;
+
+public:
+	FGeometryMaskCanvasId() = default;
+	explicit FGeometryMaskCanvasId(const UWorld* InWorld, const FName InName);
+	explicit FGeometryMaskCanvasId(EForceInit);
+	
+	bool IsDefault() const;
+	bool IsNone() const;
+	void ResetToNone();
+
+	FString ToString() const;
+
+public:
+	bool operator==(const FGeometryMaskCanvasId& InOther) const
+	{
+		return World == InOther.World && Name.IsEqual(InOther.Name) && SceneViewIndex == InOther.SceneViewIndex;
+	}
+	
+	bool operator!=(const FGeometryMaskCanvasId& InOther) const
+	{
+		return !(*this == InOther);
+	}
+
+	friend uint32 GetTypeHash(const FGeometryMaskCanvasId& InCanvasId);
+};
+
+/** Uniquely identified by world and scene view index. */
+USTRUCT()
+struct GEOMETRYMASK_API FGeometryMaskDrawingContext
+{
+	GENERATED_BODY()
+
+public:
+	TObjectKey<UWorld> World;
+	
+	UPROPERTY()
+	uint8 SceneViewIndex = 0;
+
+	UPROPERTY()
+	FIntPoint ViewportSize;
+
+	/** The last resolved ViewProjectionMatrix. */
+	UPROPERTY()
+	FMatrix ViewProjectionMatrix;
+
+public:
+	FGeometryMaskDrawingContext() = default;
+	explicit FGeometryMaskDrawingContext(TObjectKey<UWorld> InWorld, const uint8 InSceneViewIndex = 0);
+	explicit FGeometryMaskDrawingContext(const UWorld* InWorld, const uint8 InSceneViewIndex = 0);
+	explicit FGeometryMaskDrawingContext(EForceInit);
+	
+	bool IsValid() const;
+
+public:
+	bool operator==(const FGeometryMaskDrawingContext& InOther) const
+	{
+		return World == InOther.World && SceneViewIndex == InOther.SceneViewIndex;
+	}
+
+	bool operator!=(const FGeometryMaskDrawingContext& InOther) const
+	{
+		return !(*this == InOther);
+	}
+
+	friend uint32 GetTypeHash(const FGeometryMaskDrawingContext& InUpdateContext);
+};
+
 
 UENUM(BlueprintType)
 enum class EGeometryMaskCompositeOperation : uint8

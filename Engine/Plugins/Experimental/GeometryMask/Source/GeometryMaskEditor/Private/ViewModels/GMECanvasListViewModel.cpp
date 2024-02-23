@@ -4,6 +4,7 @@
 
 #include "Editor.h"
 #include "GeometryMaskSubsystem.h"
+#include "GeometryMaskWorldSubsystem.h"
 #include "GMECanvasItemViewModel.h"
 
 TSharedRef<FGMECanvasListViewModel> FGMECanvasListViewModel::Create()
@@ -16,50 +17,101 @@ TSharedRef<FGMECanvasListViewModel> FGMECanvasListViewModel::Create()
 
 FGMECanvasListViewModel::~FGMECanvasListViewModel()
 {
-	FTSTicker::GetCoreTicker().RemoveTicker(UpdateCheckHandle);
-	
-	if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	for (const TObjectKey<UWorld>& WorldKey : LoadedWorlds)
 	{
-		Subsystem->OnGeometryMaskCanvasCreated().Remove(OnCanvasCreatedHandle);
+		if (UWorld* World = WorldKey.ResolveObjectPtr())
+		{
+			if (UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
+			{
+				if (FDelegateHandle* DelegateHandle = OnCanvasCreatedHandles.Find(World))
+				{
+					Subsystem->OnGeometryMaskCanvasCreated().Remove(*DelegateHandle);
+				}
+
+				if (FDelegateHandle* DelegateHandle = OnCanvasDestroyedHandles.Find(World))
+				{
+					Subsystem->OnGeometryMaskCanvasDestroyed().Remove(*DelegateHandle);
+				}
+			}
+		}
 	}
+
+	OnCanvasCreatedHandles.Reset();
+	OnCanvasDestroyedHandles.Reset();
 	
 	CanvasItems.Reset();
 }
 
-FGMECanvasListViewModel::FGMECanvasListViewModel(FPrivateToken)
+bool FGMECanvasListViewModel::RefreshItems()
 {
-	UpdateCheckHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FGMECanvasListViewModel::Tick), UpdateCheckInterval);
+	int32 NumCurrentCanvasItems = CanvasItems.Num();
+
+	// Add currently registered canvases
+	{
+		CanvasItems.Reset();
+
+		for (const TObjectKey<UWorld>& WorldKey : LoadedWorlds)
+		{
+			if (UWorld* World = WorldKey.ResolveObjectPtr())
+			{
+				if (UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
+				{
+					TArray<FName> CanvasNames = Subsystem->GetCanvasNames();
+					for (const FName CanvasName : CanvasNames)
+					{
+						UGeometryMaskCanvas* Canvas = Subsystem->GetNamedCanvas(CanvasName);
+						CanvasItems.Add(FGMECanvasItemViewModel::Create(Canvas));
+					}
+
+					OnCanvasCreatedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasCreated().AddRaw(this, &FGMECanvasListViewModel::OnCanvasCreated));
+					OnCanvasDestroyedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasDestroyed().AddRaw(this, &FGMECanvasListViewModel::OnCanvasDestroyed));
+				}
+			}
+		}
+	}
+
+	return NumCurrentCanvasItems != CanvasItems.Num();
 }
 
-void FGMECanvasListViewModel::Initialize()
+void FGMECanvasListViewModel::OnPostWorldInit(UWorld* InWorld, const UWorld::InitializationValues InWorldValues)
 {
-	if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	FGMEListViewModelBase::OnPostWorldInit(InWorld, InWorldValues);
+
+	// Listen for new canvases, and destroyed ones
 	{
-		RefreshCanvases();
-
-		// And listen for new ones
+		for (const TObjectKey<UWorld>& WorldKey : LoadedWorlds)
 		{
-			OnCanvasCreatedHandle = Subsystem->OnGeometryMaskCanvasCreated().AddRaw(this, &FGMECanvasListViewModel::OnCanvasCreated);
+			if (UWorld* World = WorldKey.ResolveObjectPtr())
+			{
+				if (UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
+				{
+					OnCanvasCreatedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasCreated().AddRaw(this, &FGMECanvasListViewModel::OnCanvasCreated));
+					OnCanvasDestroyedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasDestroyed().AddRaw(this, &FGMECanvasListViewModel::OnCanvasDestroyed));
+				}
+			}
 		}
-
-		OnChanged().Broadcast();
 	}
 }
 
-void FGMECanvasListViewModel::RefreshCanvases()
+void FGMECanvasListViewModel::OnPreWorldDestroyed(UWorld* InWorld)
 {
-	if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	FGMEListViewModelBase::OnPreWorldDestroyed(InWorld);
+
+	for (const TObjectKey<UWorld>& WorldKey : LoadedWorlds)
 	{
-		// Add currently registered canvases
+		if (UWorld* World = WorldKey.ResolveObjectPtr())
 		{
-			TArray<FName> CanvasNames = Subsystem->GetCanvasNames();
-			CanvasItems.Reset();
-			CanvasItems.Reserve(CanvasNames.Num());
-		
-			for (const FName CanvasName : CanvasNames)
+			if (UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
 			{
-				UGeometryMaskCanvas* Canvas = Subsystem->GetNamedCanvas(CanvasName);
-				CanvasItems.Add(FGMECanvasItemViewModel::Create(Canvas));
+				if (FDelegateHandle* DelegateHandle = OnCanvasCreatedHandles.Find(World))
+				{
+					Subsystem->OnGeometryMaskCanvasCreated().Remove(*DelegateHandle);
+				}
+
+				if (FDelegateHandle* DelegateHandle = OnCanvasDestroyedHandles.Find(World))
+				{
+					Subsystem->OnGeometryMaskCanvasDestroyed().Remove(*DelegateHandle);
+				}
 			}
 		}
 	}
@@ -81,22 +133,14 @@ void FGMECanvasListViewModel::OnCanvasCreated(const UGeometryMaskCanvas* InGeome
 	OnChanged().Broadcast();
 }
 
-bool FGMECanvasListViewModel::Tick(const float InDeltaSeconds)
+void FGMECanvasListViewModel::OnCanvasDestroyed(const FGeometryMaskCanvasId& InGeometryMaskCanvasId)
 {
-	if (const UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	CanvasItems.RemoveAll([&InGeometryMaskCanvasId](const TSharedPtr<FGMECanvasItemViewModel>& InItem)
 	{
-		const TArray<FName> CanvasNames = Subsystem->GetCanvasNames();
-		if (LastCanvasNames != CanvasNames)
-		{
-			// Canvas Names changed
-			LastCanvasNames = CanvasNames;
-			RefreshCanvases();
-			OnChanged().Broadcast();
-		}
-	}
-
-	// Always loop
-	return true;
+		return InItem->GetCanvasId() == InGeometryMaskCanvasId;
+	});
+	
+	OnChanged().Broadcast();
 }
 
 bool FGMECanvasListViewModel::GetChildren(TArray<TSharedPtr<IGMETreeNodeViewModel>>& OutChildren)

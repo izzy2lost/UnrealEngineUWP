@@ -13,6 +13,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/AvaGizmoComponent.h"
 #include "GeometryMaskSubsystem.h"
+#include "GeometryMaskWorldSubsystem.h"
 #include "IAvaMaskEditor.h"
 #include "IGeometryMaskWriteInterface.h"
 #include "LevelEditor.h"
@@ -268,7 +269,7 @@ void UAvaMaskEditorMode::OnSelectionChanged(const UTypedElementSelectionSet* InS
 {
 	if (InSelectionSet)
 	{
-		PreviewCanvasName = NAME_None;
+		PreviewCanvasId.ResetToNone();
 		PreviewCanvasChannel = EGeometryMaskColorChannel::None;
 		
 		if (const UTypedElementSelectionSet* SelectionSet = WeakActorSelectionSet.Get())
@@ -297,7 +298,7 @@ void UAvaMaskEditorMode::OnSelectionChanged(const UTypedElementSelectionSet* InS
 						}
 					}
 
-					PreviewCanvasName = SelectedMaskCanvas->GetCanvasName();
+					PreviewCanvasId = SelectedMaskCanvas->GetCanvasId();
 					PreviewCanvasChannel = SelectedMaskCanvas->GetColorChannel();
 				}
 			}
@@ -327,7 +328,7 @@ UGeometryMaskCanvas* UAvaMaskEditorMode::GetCanvasReferencedByActor(const AActor
 		CanvasName = ReadComponentParameters.CanvasName;
 	}
 
-	if (UGeometryMaskCanvas* Canvas = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>()->GetNamedCanvas(CanvasName))
+	if (UGeometryMaskCanvas* Canvas = GetWorld()->GetSubsystem<UGeometryMaskWorldSubsystem>()->GetNamedCanvas(CanvasName))
 	{
 		return Canvas;
 	}
@@ -339,7 +340,7 @@ void UAvaMaskEditorMode::UpdatePreviewWidget()
 {
 	if (CanvasPreviewWidget.IsValid())
 	{
-		CanvasPreviewWidget->SetCanvasName(PreviewCanvasName);
+		CanvasPreviewWidget->SetCanvasId(PreviewCanvasId);
 		CanvasPreviewWidget->SetColorChannel(PreviewCanvasChannel);
 	}
 }
@@ -383,12 +384,12 @@ bool UAvaMaskEditorMode::AddMaskToSelected(const TArray<AActor*>& InMaskingActor
 			MaskWriteModifier->SetUseParentChannel(true);
 
 			// Flush unused canvases, in case temporary actors were created/destroyed
-			if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+			if (UGeometryMaskWorldSubsystem* Subsystem = GetWorld()->GetSubsystem<UGeometryMaskWorldSubsystem>())
 			{
 				Subsystem->RemoveWithoutWriters();
 			}
 
-			PreviewCanvasName = ChannelName;
+			PreviewCanvasId = FGeometryMaskCanvasId(ParentActor->GetWorld(), ChannelName);
 			PreviewCanvasChannel = ColorChannel;
 		}
 	}

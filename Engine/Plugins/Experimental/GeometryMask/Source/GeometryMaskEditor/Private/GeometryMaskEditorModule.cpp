@@ -6,6 +6,7 @@
 #include "Framework/Docking/TabManager.h"
 #include "GeometryMaskEditorLog.h"
 #include "GeometryMaskSubsystem.h"
+#include "GeometryMaskWorldSubsystem.h"
 #include "Materials/Material.h"
 #include "Styling/SlateIconFinder.h"
 #include "ViewModels/GMECanvasListViewModel.h"
@@ -143,12 +144,20 @@ void FGeometryMaskEditorModule::ExecutePause(const TArray<FString>& InArgs)
 
 void FGeometryMaskEditorModule::ExecuteFlush(const TArray<FString>& InArgs)
 {
-	if (UGeometryMaskSubsystem* GeometryMaskSubsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	for (const FWorldContext& WorldContext : GEngine->GetWorldContexts())
 	{
-		const int32 RemovedCanvasNum = GeometryMaskSubsystem->RemoveWithoutWriters();
-		const int32 ActiveCanvasNum = GeometryMaskSubsystem->GetCanvasNames().Num();
-		UE_LOG(LogGeometryMaskEditor, Display, TEXT("%u canvas's removed because they had no writers - %u canvas's remaining."), RemovedCanvasNum, ActiveCanvasNum);
+		if (UWorld* World = WorldContext.World())
+		{
+			if (UGeometryMaskWorldSubsystem* GeometryMaskSubsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
+			{
+				const int32 RemovedCanvasNum = GeometryMaskSubsystem->RemoveWithoutWriters();
+				const int32 ActiveCanvasNum = GeometryMaskSubsystem->GetCanvasNames().Num();
+				UE_LOG(LogGeometryMaskEditor, Display, TEXT("%u canvas's removed because they had no writers - %u canvas's remaining."), RemovedCanvasNum, ActiveCanvasNum);
+			}
+		}
 	}
+	
+
 }
 
 #undef LOCTEXT_NAMESPACE

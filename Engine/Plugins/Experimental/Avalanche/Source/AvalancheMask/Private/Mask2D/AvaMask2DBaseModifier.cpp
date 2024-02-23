@@ -370,7 +370,10 @@ void UAvaMask2DBaseModifier::SaveActorPreState(AActor* InActor, FAvaMask2DActorD
 			, [this, InActor]()
 			{
 				TSharedPtr<IAvaMaskMaterialCollectionHandle> Handle = GetObjectHandleSubsystem()->MakeHandle<IAvaMaskMaterialCollectionHandle>(InActor, UE::AvaMask::Internal::HandleTag);
-				Handle->OnSourceMaterialsChanged().BindUObject(this, &UAvaMask2DBaseModifier::OnMaterialsChanged);
+				if (!Handle->OnSourceMaterialsChanged().IsBoundToObject(this))
+				{
+					Handle->OnSourceMaterialsChanged().BindUObject(this, &UAvaMask2DBaseModifier::OnMaterialsChanged);
+				}
 				return Handle;
 			});
 
@@ -653,9 +656,15 @@ void UAvaMask2DBaseModifier::OnMaskSetCanvas(const UGeometryMaskCanvas* InCanvas
 
 void UAvaMask2DBaseModifier::TryResolveCanvas()
 {
-	if (UGeometryMaskSubsystem* GeometryMaskSubsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	const UWorld* World = GetWorld();
+	if (!World)
 	{
-		UGeometryMaskCanvas* Canvas = GeometryMaskSubsystem->GetNamedCanvas(GetChannel());
+		return;
+	}
+	
+	if (UGeometryMaskWorldSubsystem* MaskSubsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
+	{
+		UGeometryMaskCanvas* Canvas = MaskSubsystem->GetNamedCanvas(GetChannel());
 		LastResolvedCanvasName = Canvas->GetCanvasName();
 		CanvasWeak = Canvas;
 	}
@@ -674,13 +683,13 @@ UTexture* UAvaMask2DBaseModifier::TryResolveCanvasTexture(AActor* InActor, FAvaM
 		return CanvasTexture;
 	}
 	
-	if (!GEngine)
+	if (!GetWorld())
 	{
 		return nullptr;
 	}
 
 	// Try get canvas texture if already available
-	UGeometryMaskSubsystem* MaskSubsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>();
+	UGeometryMaskWorldSubsystem* MaskSubsystem = GetWorld()->GetSubsystem<UGeometryMaskWorldSubsystem>();
 	if (!MaskSubsystem)
 	{
 		return nullptr;

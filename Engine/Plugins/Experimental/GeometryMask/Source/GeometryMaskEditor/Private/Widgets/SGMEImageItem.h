@@ -45,6 +45,7 @@ public:
 			[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
+				.AutoHeight()
 				.VAlign(VAlign_Top)
 				[
 					SAssignNew(ImageContainerWidget, SBox)
@@ -57,12 +58,14 @@ public:
 				]
 
 				+ SVerticalBox::Slot()
+				.AutoHeight()
 				.Padding(1, 1, 1, Padding)
 				[
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot()
 					[
 						SNew(STextBlock)
+						.Font(FCoreStyle::GetDefaultFontStyle("Mono", 9))
 						.Text(InArgs._Label)
 					]
 				]
@@ -82,7 +85,7 @@ protected:
 			const FGeometry& WidgetGeometry = ImageContainerWidget->GetCachedGeometry();
 			const float AspectRatio = 1.0f / GetAspectRatio().Get();
 			const float Height = static_cast<int32>(WidgetGeometry.GetLocalSize().X) * AspectRatio;
-			return Height * 2; // Don't know why it's x2, it just is.
+			return Height;
 		}
 
 		return {};

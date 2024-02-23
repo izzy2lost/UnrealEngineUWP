@@ -23,6 +23,7 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, const TSharedRef<FGMEResourceItemViewModel>& InViewModel);
 
 protected:
+	FText GetLabel() const;
 	virtual FOptionalSize GetAspectRatio() override;
 	
 private:

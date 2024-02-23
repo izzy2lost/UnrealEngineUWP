@@ -58,7 +58,7 @@ private:
 	TWeakObjectPtr<UGeometryMaskCanvas> SelectedMaskCanvas;
 
 	// @note: these can differ from the selection when interacting
-	FName PreviewCanvasName = NAME_None;
+	FGeometryMaskCanvasId PreviewCanvasId;
 	EGeometryMaskColorChannel PreviewCanvasChannel = EGeometryMaskColorChannel::Red;
 	
 	AActor* GetActorToParentTo() const;

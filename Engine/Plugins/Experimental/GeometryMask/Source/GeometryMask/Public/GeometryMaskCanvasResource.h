@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "GeometryMaskTypes.h"
 #include "UObject/Object.h"
 
 #include "GeometryMaskCanvasResource.generated.h"
@@ -16,7 +17,7 @@ class UCanvas;
 class UCanvasRenderTarget2D;
 enum class EGeometryMaskColorChannel : uint8;
 
-using FOnGeometryMaskCanvasDraw = TMulticastDelegate<void(FCanvas*)>;
+using FOnGeometryMaskCanvasDraw = TMulticastDelegate<void(const FGeometryMaskDrawingContext&, FCanvas*)>;
 
 /**  */
 UCLASS()
@@ -28,6 +29,7 @@ class GEOMETRYMASK_API UGeometryMaskCanvasResource
 public:
 	/** (R, G, B, A) */
 	static constexpr int32 MaxNumChannels = 4;
+	static constexpr int32 MaxNumAvailableChannels = 3; // Skip alpha, as it's not universally supported (RT format)
 	static constexpr int32 MaxTextureSize = 8192;
 	
 	UGeometryMaskCanvasResource();
@@ -37,17 +39,27 @@ public:
 	const EGeometryMaskColorChannel GetNextAvailableColorChannel() const;
 
 	/** Requests usage of the given color channel for this resource. Will return true if successful. */
-	bool Checkout(const EGeometryMaskColorChannel InColorChannel, const FName InRequestingCanvasName);
+	bool Checkout(const EGeometryMaskColorChannel InColorChannel, const FGeometryMaskCanvasId& InRequestingCanvasId);
 
 	/** Returns/frees the color channel associated with the given canvas name. Returns true if canvas name found. */
-	bool Checkin(const FName InRequestingCanvasName);
+	bool Checkin(const FGeometryMaskCanvasId& InRequestingCanvasId);
+
+	/** Re-arranges used channels such that they are used sequentially. Returns number of unused channels. */
+	int32 Compact();
+
+	int32 GetNumChannelsUsed() const;
+
+	bool IsAnyChannelUsed() const;
+
+	/** Get the list of dependent canvases, for debug purposes. */
+	TArray<FGeometryMaskCanvasId> GetDependentCanvasIds() const;
 
 	void UpdateViewportSize();
 
-	void SetViewportSize(const FIntPoint& InViewportSize);
+	void SetViewportSize(FGeometryMaskDrawingContext& InDrawingContext, const FIntPoint& InViewportSize);
 
 	/** Returns required viewport padding, in pixels - determined by certain effects. */
-	int32 GetViewportPadding() const;
+	int32 GetViewportPadding(const FGeometryMaskDrawingContext& InDrawingContext) const;
 
 	UCanvasRenderTarget2D* GetRenderTargetTexture();
 
@@ -59,32 +71,44 @@ public:
 	void ResetRenderParameters(EGeometryMaskColorChannel InColorChannel);
 
 	/** Updates the canvas, intended to be called every frame. */
-	void Update(UWorld* InWorld, FSceneView& InView);
+	void Update(UWorld* InWorld, FSceneView& InView, int32 InViewIndex = 0);
 
 private:
 	/** Draws all writers to the canvas. */
-	void Draw(UWorld* InWorld, FSceneView& InView);
+	void Draw(UWorld* InWorld, FSceneView& InView, int32 InViewIndex = 0);
+
+	FGeometryMaskDrawingContext* GetDrawingContextForWorld(const UWorld* InWorld, uint8 InSceneViewIndex);
+	FGeometryMaskDrawingContext* GetDrawingContextForCanvas(const FGeometryMaskCanvasId& InCanvasId);
+	FGeometryMaskDrawingContext* GetDrawingContextForChannel(EGeometryMaskColorChannel InColorChannel);
+
+	[[maybe_unused]] bool RemoveInvalidDrawingContexts();
 
 private:
 	UPROPERTY(NoClear, EditFixedSize, meta = (EditFixedOrder))
-	TMap<EGeometryMaskColorChannel, FName> DependentCanvasNames;
+	TMap<EGeometryMaskColorChannel, FGeometryMaskCanvasId> DependentCanvasIds;
+
+	TBitArray<TInlineAllocator<MaxNumChannels>> UsedChannelMask;
+
+	UPROPERTY()
+	int32 NumUsedChannels = 0;
 
 	/** Underlying UCanvas object. */
 	UPROPERTY(Transient)
 	TObjectPtr<UCanvas> CanvasObject;
 
 	/** The default viewport size to use when it can't be resolved from the actual viewport. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = "Auto", Setter, Category = "Rendering", meta = (AllowPrivateAccess = "true"))
-	FIntPoint ViewportSize = FIntPoint(1920, 1080);
-	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = "Auto", Category = "Rendering", meta = (AllowPrivateAccess = "true"))
+	FIntPoint MaxViewportSize = FIntPoint(1920, 1080);
+
 	/** The underlying Render Target texture. */
 	UPROPERTY(DuplicateTransient)
 	TObjectPtr<UCanvasRenderTarget2D> RenderTargetTexture;
 
 	FOnGeometryMaskCanvasDraw OnDrawToCanvasDelegate;
 
-	/** The last resolved ViewProjectionMatrix. */
-	FMatrix CachedViewProjectionMatrix;
+	TSet<FGeometryMaskDrawingContext> DrawingContextCache;
+
+	FGeometryMaskDrawingContext DefaultDrawingContext;
 
 	bool bApplyBlur = false;
 	bool bApplyDF = false;
