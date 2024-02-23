@@ -105,9 +105,7 @@ void FPCGRuntimeGenScheduler::Tick(APCGWorldActor* InPCGWorldActor)
 		}
 	}
 
-	// Remove any generation keys that have been registered for deferred removal.
-	GeneratedComponents = GeneratedComponents.Difference(GeneratedComponentsToRemove);
-	GeneratedComponentsToRemove.Empty();
+	CleanupDelayedRefreshComponents();
 
 	// 1. Queue nearby components for generation.
 	
@@ -894,6 +892,52 @@ void FPCGRuntimeGenScheduler::CleanupComponent(const FGridGenerationKey& Generat
 	}
 
 	GeneratedComponents.Remove(GenerationKey);
+}
+
+void FPCGRuntimeGenScheduler::CleanupDelayedRefreshComponents()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::CleanupDelayedRefreshComponents);
+
+	check(ActorAndComponentMapping);
+
+	// Check that each refreshed local component is still inside its original component.
+	// If it is not, it would be leaked instead of refreshed, so we should force a full cleanup.
+	for (const FGridGenerationKey& GenerationKey : GeneratedComponentsToRemove)
+	{
+		const uint32 GridSize = GenerationKey.GetGridSize();
+		const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(GridSize);
+
+		// The unbounded grid level will always lie inside the original component, so we can skip it.
+		if (Grid == EPCGHiGenGrid::Unbounded)
+		{
+			continue;
+		}
+
+		const UPCGComponent* OriginalComponent = GenerationKey.GetOriginalComponent();
+		const FIntVector& GridCoords = GenerationKey.GetGridCoords();
+
+		UPCGComponent* LocalComponent = OriginalComponent ? ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true) : nullptr;
+
+		if (LocalComponent)
+		{
+			const FBox OriginalBounds = OriginalComponent->GetGridBounds();
+			const FBox LocalBounds = LocalComponent->GetGridBounds();
+
+			if (!LocalBounds.IsInsideOrOn(OriginalBounds))
+			{
+				CleanupComponent(GenerationKey, LocalComponent);
+			}
+		}
+		else
+		{
+			// If the original or local component no longer exists, just clean up.
+			CleanupComponent(GenerationKey, /*GenerationKey=*/nullptr);
+		}
+	}
+
+	// Remove any remaining generation keys that have been registered for deferred removal.
+	GeneratedComponents = GeneratedComponents.Difference(GeneratedComponentsToRemove);
+	GeneratedComponentsToRemove.Empty();
 }
 
 void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool bRemovePartitionActors)
