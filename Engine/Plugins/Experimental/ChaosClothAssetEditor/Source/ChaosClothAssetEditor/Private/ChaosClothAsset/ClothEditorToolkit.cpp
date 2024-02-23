@@ -207,6 +207,7 @@ FChaosClothAssetEditorToolkit::FChaosClothAssetEditorToolkit(UAssetEditor* InOwn
 
 FChaosClothAssetEditorToolkit::~FChaosClothAssetEditorToolkit()
 {
+	// This code is also called in OnRequestClose. Leaving this here as well in case the toolkit gets destroyed without having OnRequestClose called
 	if (SelectedDataflowNode && OnNodeInvalidatedDelegateHandle.IsValid())
 	{
 		SelectedDataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
@@ -379,6 +380,13 @@ bool FChaosClothAssetEditorToolkit::OnRequestClose(EAssetEditorCloseReason InClo
 		// simply return true because there's nothing left to do.
 		return true;
 	}
+
+	if (SelectedDataflowNode && OnNodeInvalidatedDelegateHandle.IsValid())
+	{
+		SelectedDataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
+		SelectedDataflowNode->OnDeselected();
+	}
+	SelectedDataflowNode.Reset();
 
 	return FAssetEditorToolkit::OnRequestClose(InCloseReason);
 }
