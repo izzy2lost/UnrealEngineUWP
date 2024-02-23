@@ -6,9 +6,8 @@
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/VolumetricCloudComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
-#include "Components/SkyLightComponent.h"
-#include "Components/SphereReflectionCaptureComponent.h"
 #include "EngineUtils.h"
+#include "Engine/RendererSettings.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Materials/MaterialInterface.h"
 #include "Modules/ModuleManager.h"
@@ -173,6 +172,16 @@ void UMovieGraphRenderPropertyModifier::ApplyModifier(const UWorld* World)
 	NewComponentState.bCastShadowWhileHidden = bCastShadowWhileHidden;
 	NewComponentState.bAffectIndirectLightingWhileHidden = bAffectIndirectLightingWhileHidden;
 	NewComponentState.bHoldout = bHoldout;
+
+	// Generate a warning if holdout is being used, but alpha is not enabled in post processing. Without that setting enabled, holdout will not work.
+	const URendererSettings* RendererSettings = GetDefault<URendererSettings>();
+	if (bHoldout && (RendererSettings->bEnableAlphaChannelInPostProcessing != EAlphaChannelMode::AllowThroughTonemapper))
+	{
+		// TODO: Ideally this is called in a general-purpose validation step instead, but that framework does not exist yet.
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("A modifier with 'Holdout' is active, but 'Enable alpha channel support in post processing' in "
+													 "the project's Rendering settings is not set to 'Allow through tonemapper'. Holdout requires 'Allow "
+													 "through tonemapper' to work properly."));
+	}
 	
 	for (const UMovieGraphCollection* Collection : Collections)
 	{

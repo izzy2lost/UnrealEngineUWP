@@ -3,6 +3,7 @@
 #include "Graph/Nodes/MovieGraphPathTracerPassNode.h"
 #include "Graph/Renderers/MovieGraphPathTracerPass.h"
 #include "Engine/EngineBaseTypes.h"
+#include "RenderUtils.h"
 #include "ShowFlags.h"
 
 TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> UMovieGraphPathTracerRenderPassNode::CreateInstance() const
@@ -49,6 +50,24 @@ void UMovieGraphPathTracerRenderPassNode::SetupImpl(const FMovieGraphRenderPassS
 	{
 		bOriginalProgressDisplayCvarValue = ProgressDisplayCvar->GetBool();
 		ProgressDisplayCvar->Set(false);
+	}
+
+	bool bSupportsPathTracing = false;
+	if (IsRayTracingEnabled())
+	{
+		if (const IConsoleVariable* PathTracingCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PathTracing")))
+		{
+			bSupportsPathTracing = PathTracingCVar->GetInt() != 0;
+		}
+	}
+
+	// Warn if the path tracer is being used, but it's not enabled in the Rendering settings. The path tracer won't work otherwise.
+	if (!bSupportsPathTracing)
+	{
+		// TODO: Ideally this is called in a general-purpose validation step instead, but that framework does not exist yet.
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("An active Path Traced Renderer node was found, but path tracing support is not enabled. To get "
+													 "renders with path tracing, enable 'Support Hardware Ray Tracing' and 'Path Tracing' in the "
+													 "project's Rendering settings."));
 	}
 }
 
