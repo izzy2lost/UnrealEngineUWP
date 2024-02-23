@@ -893,6 +893,19 @@ TConstArrayView<FRealSingle> FClothingSimulationCloth::GetWeightMapByProperty(co
 	return GetWeightMapByName(Solver, PropertyString);
 }
 
+TConstArrayView<int32> FClothingSimulationCloth::GetFaceIntMapByName(const FClothingSimulationSolver* Solver, const FString& Name) const
+{
+	const int32 LODIndex = LODIndices.FindChecked(Solver);
+	return LODData.IsValidIndex(LODIndex) ? LODData[LODIndex]->FaceIntMaps.FindRef(Name) : TConstArrayView<int32>();
+}
+
+TConstArrayView<int32> FClothingSimulationCloth::GetFaceIntMapByProperty(const FClothingSimulationSolver* Solver, const FString& Property) const
+{
+	check(Config);
+	const FString PropertyString = Config->GetProperties(GetLODIndex(Solver)).GetStringValue(Property);
+	return GetFaceIntMapByName(Solver, PropertyString);
+}
+
 const TArray<TConstArrayView<TTuple<int32, int32, float>>>& FClothingSimulationCloth::GetTethers(const FClothingSimulationSolver* Solver) const
 {
 	const int32 LODIndex = LODIndices.FindChecked(Solver);
