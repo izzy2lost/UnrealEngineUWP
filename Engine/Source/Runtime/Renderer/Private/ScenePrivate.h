@@ -2865,6 +2865,7 @@ public:
 	/** Nanite raster and shading pipelines. These are stored on the scene as they are computed at FPrimitiveSceneInfo::AddToScene time. */
 	FNaniteRasterPipelines  NaniteRasterPipelines[ENaniteMeshPass::Num];
 	FNaniteShadingPipelines NaniteShadingPipelines[ENaniteMeshPass::Num];
+	bool bReloadNaniteFixedFunctionBins = false;
 
 	/** Nanite material visibility references. These are stored on the scene as they are computed at FPrimitiveSceneInfo::AddToScene time. */
 	FNaniteVisibility NaniteVisibility[ENaniteMeshPass::Num];

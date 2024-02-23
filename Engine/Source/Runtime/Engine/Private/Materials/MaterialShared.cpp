@@ -4558,6 +4558,8 @@ FMaterialUpdateContext::~FMaterialUpdateContext()
 		return;
 	}
 
+	UE::RenderCommandPipe::FSyncScope SyncScope;
+
 	// Flush rendering commands even though we already did so in the constructor.
 	// Anything may have happened since the constructor has run. The flush is
 	// done once here to avoid calling it once per static permutation we update.
@@ -4639,6 +4641,16 @@ FMaterialUpdateContext::~FMaterialUpdateContext()
 	{
 		UpdateInstance(InstancesToUpdate.Last());
 	}
+	
+	ENQUEUE_RENDER_COMMAND(ReloadNaniteFixedFunctionBins)(
+		[](FRHICommandListImmediate& RHICmdList) mutable
+		{
+			for (FSceneInterface* Scene : GetRendererModule().GetAllocatedScenes())
+			{
+				Scene->ReloadNaniteFixedFunctionBins();
+			}
+		}
+	);
 
 	if (bUpdateStaticDrawLists)
 	{
@@ -4653,18 +4665,6 @@ FMaterialUpdateContext::~FMaterialUpdateContext()
 	}
 	else if (ComponentRecreateRenderStateContext)
 	{
-		UE::RenderCommandPipe::FSyncScope SyncScope;
-
-		ENQUEUE_RENDER_COMMAND(ReloadNaniteFixedFunctionBins)(
-			[](FRHICommandListImmediate& RHICmdList) mutable
-			{
-				for (FSceneInterface* Scene : GetRendererModule().GetAllocatedScenes())
-				{
-					Scene->ReloadNaniteFixedFunctionBins();
-				}
-			}
-		);
-
 		ComponentRecreateRenderStateContext.Reset();
 	}
 
