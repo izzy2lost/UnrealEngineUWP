@@ -1276,10 +1276,7 @@ void FScene::RefreshNaniteRasterBins(FPrimitiveSceneInfo& PrimitiveSceneInfo)
 
 void FScene::ReloadNaniteFixedFunctionBins()
 {
-	for (int32 NanitePass = 0; NanitePass < ENaniteMeshPass::Num; ++NanitePass)
-	{
-		NaniteRasterPipelines[NanitePass].ReloadFixedFunctionBins();
-	}
+	bReloadNaniteFixedFunctionBins = true;
 }
 
 SIZE_T FScene::GetSizeBytes() const
@@ -6390,7 +6387,16 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 	{
 		SCOPED_NAMED_EVENT(UpdateStaticMeshes, FColor::Emerald);
-		
+
+		if (bReloadNaniteFixedFunctionBins)
+		{
+			for (int32 NanitePass = 0; NanitePass < ENaniteMeshPass::Num; ++NanitePass)
+			{
+				NaniteRasterPipelines[NanitePass].ReloadFixedFunctionBins();
+			}
+			bReloadNaniteFixedFunctionBins = false;
+		}
+
 		if (bScenesPrimitivesNeedStaticMeshElementUpdate || CachedDefaultBasePassDepthStencilAccess != DefaultBasePassDepthStencilAccess)
 		{
 			// Mark all primitives as needing an update
