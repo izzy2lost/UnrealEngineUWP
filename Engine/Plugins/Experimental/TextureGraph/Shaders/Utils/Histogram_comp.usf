@@ -8,7 +8,7 @@
 Texture2D SourceTiles;
 
 RWTexture2D<float4> Result;
-RWStructuredBuffer<uint4> Histogram : register(u0);
+RWStructuredBuffer<uint4> Histogram;
 
 #ifndef THREADGROUPSIZE_X
 #define THREADGROUPSIZE_X 16
