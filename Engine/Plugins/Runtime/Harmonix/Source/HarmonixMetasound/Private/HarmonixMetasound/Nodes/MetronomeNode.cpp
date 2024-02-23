@@ -444,7 +444,9 @@ namespace HarmonixMetasound
 				return EMusicPlayerTransportState::Playing;
 
 			case EMusicPlayerTransportState::Seeking:
+				BuildMidiData();
 				DrivingMidiClock.SeekTo(StartFrameIndex, TransportInPin->GetNextSeekDestination(), SeekPreRollBarsInPin);
+				LastClockTickUpdate = DrivingMidiClock.GetCurrentMidiTick();
 				// Here we will return that we want to be in the same state we were in before this request to 
 				// seek since we can seek "instantaneously"...
 				return GetTransportState();
