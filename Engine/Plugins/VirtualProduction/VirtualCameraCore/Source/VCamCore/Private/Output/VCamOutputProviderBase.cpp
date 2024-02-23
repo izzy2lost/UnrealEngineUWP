@@ -146,6 +146,8 @@ bool UVCamOutputProviderBase::IsOuterComponentEnabled() const
 void UVCamOutputProviderBase::SetTargetViewport(EVCamTargetViewportID Value)
 {
 	TargetViewport = Value;
+	
+	ReinitializeViewportIfNeeded();
 }
 
 void UVCamOutputProviderBase::SetUMGClass(const TSubclassOf<UUserWidget> InUMGClass)
@@ -159,78 +161,6 @@ void UVCamOutputProviderBase::SetUMGClass(const TSubclassOf<UUserWidget> InUMGCl
 UVCamComponent* UVCamOutputProviderBase::GetVCamComponent() const
 {
 	return GetTypedOuter<UVCamComponent>();
-}
-
-void UVCamOutputProviderBase::CreateUMG()
-{
-	if (!UMGClass)
-	{
-		return;
-	}
-
-	if (UMGWidget)
-	{
-		UE_LOG(LogVCamOutputProvider, Error, TEXT("CreateUMG widget already set - failed to create"));
-		return;
-	}
-
-	// Warn the user if the viewport is not available ...
-	const TSharedPtr<FSceneViewport> Viewport = GetSceneViewport(TargetViewport);
-	if (!Viewport
-#if WITH_EDITOR
-		// ... but only if not undoing because the user was already shown the message
-		// nor while replaying transactions via Multi User since old transactions in the chain should not trigger this message.
-		&& !bIsUndoing
-#endif
-		)
-	{
-		AActor* OwningActor = GetTypedOuter<AActor>();
-		check(OwningActor);
-		
-		using namespace UE::VCamCore;
-		const FString ActorName =
-#if WITH_EDITOR
-			OwningActor->GetActorLabel();
-#else
-			OwningActor->GetPathName();
-#endif
-		AddAggregatedNotification(*OwningActor,
-			{
-				NotificationKey_MissingTargetViewport,
-				FText::Format(LOCTEXT("MissingTargetViewport.Title", "Missing target viewport: {0}"), FText::FromString(ActorName)),
-				FText::Format(LOCTEXT("MissingTargetViewport.Subtext", "Edit output provider {1} or open {0} (Window > Viewports)."), FText::FromString(ViewportIdToString(TargetViewport)), FindOwnIndexInOwner())
-			});
-		return;
-	}
-
-	UMGWidget = NewObject<UVPFullScreenUserWidget>(this, UVPFullScreenUserWidget::StaticClass());
-	UMGWidget->SetDisplayTypes(DisplayType, DisplayType, DisplayType);
-	if (UMGWidget->DoesDisplayTypeUsePostProcessSettings(DisplayType))
-	{
-		UMGWidget->GetPostProcessDisplayTypeSettingsFor(DisplayType)->bReceiveHardwareInput = true;
-	}
-
-#if WITH_EDITOR
-	// Only register in editor because editor has multiple viewports. In games, there is only one viewport (ignore split screen).
-	if (UMGWidget->GetDisplayType(GetWorld()) == EVPWidgetDisplayType::PostProcessSceneViewExtension)
-	{
-		FSceneViewExtensionIsActiveFunctor IsActiveFunctor;
-		IsActiveFunctor.IsActiveFunction = [WeakThis = TWeakObjectPtr<UVCamOutputProviderBase>(this)](const ISceneViewExtension* SceneViewExtension, const FSceneViewExtensionContext& Context) 
-		{
-			if (WeakThis.IsValid())
-			{
-				return WeakThis->GetRenderWidgetStateInContext(SceneViewExtension, Context);
-			}
-			return TOptional<bool>{};
-		};
-		UMGWidget->GetPostProcessDisplayTypeWithSceneViewExtensionsSettings().RegisterIsActiveFunctor(MoveTemp(IsActiveFunctor));
-	}
-	
-	UMGWidget->SetEditorTargetViewport(Viewport);
-#endif
-
-	UMGWidget->SetWidgetClass(UMGClass);
-	UE_LOG(LogVCamOutputProvider, Log, TEXT("CreateUMG widget named %s from class %s"), *UMGWidget->GetName(), *UMGWidget->GetWidgetClass()->GetName());
 }
 
 void UVCamOutputProviderBase::ReapplyOverrideResolution()
@@ -275,29 +205,55 @@ void UVCamOutputProviderBase::OnDeactivate()
 	OnActivatedDelegate.Broadcast(false);
 }
 
-void UVCamOutputProviderBase::OnSetTargetCamera(const UCineCameraComponent* InTargetCamera)
+void UVCamOutputProviderBase::CreateUMG()
 {
-	if (InTargetCamera != TargetCamera)
+	if (!UMGClass)
 	{
-		TargetCamera = InTargetCamera;
-		NotifyAboutComponentChange();
+		return;
 	}
-}
 
-void UVCamOutputProviderBase::RestoreOverrideResolutionForViewport(EVCamTargetViewportID ViewportToRestore)
-{
-	if (const TSharedPtr<FSceneViewport> TargetSceneViewport = GetSceneViewport(ViewportToRestore))
+	if (UMGWidget)
 	{
-		TargetSceneViewport->SetFixedViewportSize(0, 0);
+		UE_LOG(LogVCamOutputProvider, Error, TEXT("CreateUMG widget already set - failed to create"));
+		return;
 	}
-}
 
-void UVCamOutputProviderBase::ApplyOverrideResolutionForViewport(EVCamTargetViewportID Viewport)
-{
-	if (const TSharedPtr<FSceneViewport> TargetSceneViewport = GetSceneViewport(Viewport))
+	// Warn the user if the viewport is not available ...
+	const TSharedPtr<FSceneViewport> Viewport = GetSceneViewport(TargetViewport);
+	if (!Viewport)
 	{
-		TargetSceneViewport->SetFixedViewportSize(OverrideResolution.X, OverrideResolution.Y);
+		DisplayNotification_ViewportNotFound();
+		return;
 	}
+
+	UMGWidget = NewObject<UVPFullScreenUserWidget>(this, UVPFullScreenUserWidget::StaticClass());
+	UMGWidget->SetDisplayTypes(DisplayType, DisplayType, DisplayType);
+	if (UMGWidget->DoesDisplayTypeUsePostProcessSettings(DisplayType))
+	{
+		UMGWidget->GetPostProcessDisplayTypeSettingsFor(DisplayType)->bReceiveHardwareInput = true;
+	}
+
+#if WITH_EDITOR
+	// Only register in editor because editor has multiple viewports. In games, there is only one viewport (ignore split screen).
+	if (UMGWidget->GetDisplayType(GetWorld()) == EVPWidgetDisplayType::PostProcessSceneViewExtension)
+	{
+		FSceneViewExtensionIsActiveFunctor IsActiveFunctor;
+		IsActiveFunctor.IsActiveFunction = [WeakThis = TWeakObjectPtr<UVCamOutputProviderBase>(this)](const ISceneViewExtension* SceneViewExtension, const FSceneViewExtensionContext& Context) 
+		{
+			if (WeakThis.IsValid())
+			{
+				return WeakThis->GetRenderWidgetStateInContext(SceneViewExtension, Context);
+			}
+			return TOptional<bool>{};
+		};
+		UMGWidget->GetPostProcessDisplayTypeWithSceneViewExtensionsSettings().RegisterIsActiveFunctor(MoveTemp(IsActiveFunctor));
+	}
+	
+	UMGWidget->SetEditorTargetViewport(Viewport);
+#endif
+
+	UMGWidget->SetWidgetClass(UMGClass);
+	UE_LOG(LogVCamOutputProvider, Log, TEXT("CreateUMG widget named %s from class %s"), *UMGWidget->GetName(), *UMGWidget->GetWidgetClass()->GetName());
 }
 
 void UVCamOutputProviderBase::DisplayUMG()
@@ -386,6 +342,60 @@ void UVCamOutputProviderBase::DestroyUMG()
 
 		UMGWidget->ConditionalBeginDestroy();
 		UMGWidget = nullptr;
+	}
+}
+
+void UVCamOutputProviderBase::DisplayNotification_ViewportNotFound() const
+{
+#if WITH_EDITOR
+	// Only show if not undoing because the user was already shown the message before.
+	// Also not while replaying transactions via Multi User since old transactions in the chain should not trigger this message.
+	if (bIsUndoing)
+	{
+		return;
+	}
+#endif
+	
+	AActor* OwningActor = GetTypedOuter<AActor>();
+	check(OwningActor);
+		
+	using namespace UE::VCamCore;
+	const FString ActorName =
+#if WITH_EDITOR
+		OwningActor->GetActorLabel();
+#else
+			OwningActor->GetPathName();
+#endif
+	AddAggregatedNotification(*OwningActor,
+		{
+			NotificationKey_MissingTargetViewport,
+			FText::Format(LOCTEXT("MissingTargetViewport.Title", "Missing target viewport: {0}"), FText::FromString(ActorName)),
+			FText::Format(LOCTEXT("MissingTargetViewport.Subtext", "Edit output provider {1} or open {0} (Window > Viewports)."), FText::FromString(ViewportIdToString(TargetViewport)), FindOwnIndexInOwner())
+		});
+}
+
+void UVCamOutputProviderBase::OnSetTargetCamera(const UCineCameraComponent* InTargetCamera)
+{
+	if (InTargetCamera != TargetCamera)
+	{
+		TargetCamera = InTargetCamera;
+		NotifyAboutComponentChange();
+	}
+}
+
+void UVCamOutputProviderBase::RestoreOverrideResolutionForViewport(EVCamTargetViewportID ViewportToRestore)
+{
+	if (const TSharedPtr<FSceneViewport> TargetSceneViewport = GetSceneViewport(ViewportToRestore))
+	{
+		TargetSceneViewport->SetFixedViewportSize(0, 0);
+	}
+}
+
+void UVCamOutputProviderBase::ApplyOverrideResolutionForViewport(EVCamTargetViewportID Viewport)
+{
+	if (const TSharedPtr<FSceneViewport> TargetSceneViewport = GetSceneViewport(Viewport))
+	{
+		TargetSceneViewport->SetFixedViewportSize(OverrideResolution.X, OverrideResolution.Y);
 	}
 }
 
@@ -609,6 +619,59 @@ TSharedPtr<SLevelViewport> UVCamOutputProviderBase::GetTargetLevelViewport() con
 	return UE::VCamCore::LevelViewportUtils::Private::GetLevelViewport(TargetViewport);
 }
 
+void UVCamOutputProviderBase::ReinitializeViewportIfNeeded()
+{
+	for (int32 i = 0; i < static_cast<int32>(EVCamTargetViewportID::Count); ++i)
+	{
+		RestoreOverrideResolutionForViewport(static_cast<EVCamTargetViewportID>(i));
+	}
+	ReapplyOverrideResolution();
+
+	const TSharedPtr<FSceneViewport> Viewport = GetSceneViewport(TargetViewport);
+	if (!Viewport)
+	{
+		DisplayNotification_ViewportNotFound();
+		return;
+	}
+	
+	if (IsOutputting())
+	{
+		ReinitializeViewport();
+	}
+}
+
+void UVCamOutputProviderBase::ReinitializeViewport()
+{
+	// This new flow is introduced with 5.4.
+	// Before 5.4, changing the target viewport would reinitialize the output provider with the below SetActive(false) SetActive(true) flow.
+	// This is undesirable because SetActive(false) kills current resources, like a connection to an external device (e.g. pixel stream), and then re-initializes them with the new target settings in SetActive(true).
+	// Starting 5.4, we give the output provider the option to rebind the viewport's UMG widget dynamically.
+	// So e.g. instead of killing the pixel stream and then starting it fully up again the underlying streamed buffer would be changed.
+
+	// However, this new flow needs to be supported by the user output providers. When 5.4 goes out, users have obviously not implemented the new flow yet so we must stay backwards compatible.
+	// We use PreReapplyViewport to inform and ask the implementation whether the new flow is supported.
+	// By default, PreReapplyViewport returns EViewportChangeReply::Reinitialize, which causes us to run the same logic that happened before 5.4.
+	// If EViewportChangeReply::ApplyViewportChange is returned, the output provider acknowledges support for the dynamic change and performs it in PostReapplyViewport.
+	
+	const UE::VCamCore::EViewportChangeReply ViewportChangeReply = PreReapplyViewport();
+	if (ViewportChangeReply != UE::VCamCore::EViewportChangeReply::ApplyViewportChange)
+	{
+		// Backwards compatible path:
+		// Pre 5.4, output providers would fully reinitialize everything like this.
+		SetActive(false);
+		SetActive(true);
+		return;
+	}
+
+	// 5.4 dynamic path:
+	DestroyUMG();
+	CreateUMG();
+	DisplayUMG();
+
+	// Implementation will now rebind the outputting resources to the buffers of the new target viewport:
+	PostReapplyViewport();
+}
+
 void UVCamOutputProviderBase::PreEditUndo()
 {
 	bIsUndoing = true;
@@ -679,17 +742,7 @@ void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& Prop
 		}
 		else if (PropertyName == NAME_TargetViewport)
 		{
-			for (int32 i = 0; i < static_cast<int32>(EVCamTargetViewportID::Count); ++i)
-			{
-				RestoreOverrideResolutionForViewport(static_cast<EVCamTargetViewportID>(i));
-			}
-			ReapplyOverrideResolution();
-
-			if (bIsActive)
-			{
-				SetActive(false);
-				SetActive(true);
-			}
+			ReinitializeViewportIfNeeded();
 		}
 		else if (PropertyName == NAME_OverrideResolution || PropertyName == NAME_bUseOverrideResolution)
 		{

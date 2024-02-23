@@ -26,6 +26,23 @@ class FLevelEditorViewportClient;
 class ISceneViewExtension;
 #endif
 
+namespace UE::VCamCore
+{
+	/** Result of UVCamOutputProviderBase::PreReapplyViewport */
+	enum class EViewportChangeReply : uint8
+	{
+		/**
+		 * Returned by PreReapplyViewport that the subclass wants the entire output provider to be reinitialized.
+		 * This could be returned e.g. because changing the viewport while outputting is not supported by this implementation.
+		 * Do not call PostReapplyViewport after reinitialization is performed.
+		 */
+		Reinitialize,
+		/** The viewport change will be processed by the implementation. Continue reapplying the output widget to the new target viewport and then call PostReapplyViewport.*/
+		ApplyViewportChange
+	};
+}
+
+
 UCLASS(Abstract, BlueprintType, EditInlineNew)
 class VCAMCORE_API UVCamOutputProviderBase : public UObject
 {
@@ -61,9 +78,6 @@ public:
 	virtual void Initialize();
 	/** Called when the provider is being shutdown such as before changing level or on exit */
 	virtual void Deinitialize();
-	
-	/** Called to create the UMG overlay widget. */
-	virtual void CreateUMG();
 	
 	virtual void Tick(const float DeltaTime);
 	
@@ -118,6 +132,9 @@ public:
 	TSharedPtr<FSceneViewport> GetSceneViewport(EVCamTargetViewportID InTargetViewport) const;
 	TWeakPtr<SWindow> GetTargetInputWindow() const;
 
+	/** @return Whether this output provider is currently outputting (initialized, active, and owning VCam is enabled). */
+	bool IsOutputting() const { return IsActive() && IsInitialized() && IsOuterComponentEnabled(); }
+
 	//~ Begin UObject Interface
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
@@ -156,6 +173,13 @@ protected:
 	/** Called when the provider is Deactivated */
 	virtual void OnDeactivate();
 	
+	/** Called to create the UMG overlay widget. */
+	virtual void CreateUMG();
+	void DisplayUMG();
+	void DestroyUMG();
+
+	void DisplayNotification_ViewportNotFound() const;
+	
 	/** Called by owning UVCamComponent when the target camera changes. */
 	void OnSetTargetCamera(const UCineCameraComponent* InTargetCamera);
 	
@@ -163,13 +187,29 @@ protected:
 	void RestoreOverrideResolutionForViewport(EVCamTargetViewportID ViewportToRestore);
 	/** Applies OverrideResolution to the passed in viewport - bUseOverrideResolution was already checked. */
 	void ApplyOverrideResolutionForViewport(EVCamTargetViewportID Viewport);
-	void DisplayUMG();
-	void DestroyUMG();
 
 #if WITH_EDITOR
 	FLevelEditorViewportClient* GetTargetLevelViewportClient() const;
 	TSharedPtr<SLevelViewport> GetTargetLevelViewport() const;
 #endif
+
+	/**
+	 * Called after changing viewport. Handles processing all updates that must happen in response:
+	 * 1. Updating the override viewport resolutions
+	 * 2. Warning user that the target viewport is not available (they should open the viewport x tab)
+	 * 3. If currently outputting, recreate the UMG widget into the new target viewport.
+	 */
+	void ReinitializeViewportIfNeeded();
+	/** Called while a UMG widget is being outputted. This moves the displayed UMG widget from the old viewport to the new target viewport. */
+	void ReinitializeViewport();
+
+	/**
+	 * Called a new target viewport has been set while outputting but before the viewport change is processed.
+	 * Subclass can indicate whether the dynamic change is supported or not.
+	 */
+	virtual UE::VCamCore::EViewportChangeReply PreReapplyViewport() { return UE::VCamCore::EViewportChangeReply::Reinitialize; }
+	/** If PreReapplyViewport returned EVCamViewportChangeReply::ApplyViewportChange, then this function is called after the UMG widget has been placed in the new target viewport. */
+	virtual void PostReapplyViewport() {}
 	
 	UVPFullScreenUserWidget* GetUMGWidget() const { return UMGWidget; }
 	
