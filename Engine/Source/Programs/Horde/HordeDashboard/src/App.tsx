@@ -38,6 +38,7 @@ import { TelemetryView } from './components/telemetry/TelemetryView';
 import { PoolsView } from './components/PoolsView';
 import { AccountsView } from './components/accounts/AccountsView';
 import { HordeLoginView } from './components/accounts/HordeLoginView';
+import { ServerStatusView } from './components/server/ServerStatus';
 
 let router: any;
 
@@ -129,6 +130,7 @@ const Main: React.FC = () => {
                { path: "dashboard", element: <DashboardView /> },
                { path: "perforce/servers", element: <PerforceServerView /> },
                { path: "notices", element: <NoticeView /> },
+               { path: "serverstatus", element: <ServerStatusView /> },
                { path: "devices", element: <DeviceView /> },
                { path: "audit/agent/:agentId", element: <AuditLogView /> },
                { path: "audit/issue/:issueId", element: <AuditLogView /> },

@@ -495,6 +495,11 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       }
 
       // Monitoring
+      monitoringItems.push({
+         key: "admin_serverstatus",
+         text: "Server Status",
+         link: `/serverstatus`
+      });
 
       if (features?.showAgents !== false) {
          monitoringItems.push({
