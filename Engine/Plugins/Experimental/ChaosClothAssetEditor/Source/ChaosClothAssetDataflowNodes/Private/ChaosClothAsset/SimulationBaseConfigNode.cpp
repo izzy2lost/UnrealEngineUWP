@@ -96,7 +96,7 @@ int32 FChaosClothAssetSimulationBaseConfigNode::AddPropertyHelper(
 	{
 		KeyIndex = Properties.AddProperty(PropertyName.ToString());
 	}
-	else if (!Properties.IsLegacy(KeyIndex))  // Only warns of duplicates when the property hasn't been set using a legacy Chaos config
+	else if (bWarnDuplicateProperty && !Properties.IsLegacy(KeyIndex))  // Only warns of duplicates when the property hasn't been set using a legacy Chaos config
 	{
 		Private::LogAndToastDuplicateProperty(*this, PropertyName);
 	}
@@ -209,6 +209,64 @@ int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeig
 {
 	return SetPropertyWeighted(PropertyName, false, 0.0f,
 		1.0f, PropertyValue.WeightMap, PropertyValue.WeightMap_Override, SimilarPropertyNames, PropertyFlags);
+}
+
+void FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::OverridePropertiesBool(const TArray<FName>& PropertyNames, bool bPropertyValue)
+{
+	for (const FName& PropertyName : PropertyNames)
+	{
+		const int32 PropertyKeyIndex = Properties.GetKeyIndex(PropertyName.ToString());
+		if (PropertyKeyIndex != INDEX_NONE)
+		{
+			Properties.SetValue(PropertyKeyIndex, bPropertyValue);
+		}
+	}
+}
+
+void FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::OverridePropertiesFloat(const TArray<FName>& PropertyNames, const EChaosClothAssetConstraintOverrideType OverrideType, const float OverrideValue)
+{
+	if (OverrideType == EChaosClothAssetConstraintOverrideType::None)
+	{
+		return;
+	}
+	for (const FName& PropertyName : PropertyNames)
+	{
+		const int32 PropertyKeyIndex = Properties.GetKeyIndex(PropertyName.ToString());
+		if (PropertyKeyIndex != INDEX_NONE)
+		{
+			if (OverrideType == EChaosClothAssetConstraintOverrideType::Override)
+			{
+				Properties.SetValue(PropertyKeyIndex, OverrideValue);
+			}
+			else if (OverrideType == EChaosClothAssetConstraintOverrideType::Multiply)
+			{
+				Properties.SetValue(PropertyKeyIndex, Properties.GetValue<float>(PropertyKeyIndex) * OverrideValue);
+			}
+		}
+	}
+}
+
+void FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::OverridePropertiesWeighted(const TArray<FName>& PropertyNames, const EChaosClothAssetConstraintOverrideType OverrideType, const FChaosClothAssetWeightedValueOverride& OverrideValue)
+{
+	if (OverrideType == EChaosClothAssetConstraintOverrideType::None)
+	{
+		return;
+	}
+	for (const FName& PropertyName : PropertyNames)
+	{
+		const int32 PropertyKeyIndex = Properties.GetKeyIndex(PropertyName.ToString());
+		if (PropertyKeyIndex != INDEX_NONE)
+		{
+			if (OverrideType == EChaosClothAssetConstraintOverrideType::Override)
+			{
+				Properties.SetWeightedValue(PropertyKeyIndex, OverrideValue.Low, OverrideValue.High);
+			}
+			else if (OverrideType == EChaosClothAssetConstraintOverrideType::Multiply)
+			{
+				Properties.SetWeightedValue(PropertyKeyIndex, Properties.GetLowValue<float>(PropertyKeyIndex) * OverrideValue.Low, Properties.GetHighValue<float>(PropertyKeyIndex) * OverrideValue.High);
+			}
+		}
+	}
 }
 
 int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyString(

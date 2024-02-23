@@ -44,3 +44,14 @@ enum class EChaosClothAssetConstraintSolverType : uint8
 	/** PBD style with no damping/stiffness */
 	PBD,
 };
+
+UENUM()
+enum class EChaosClothAssetConstraintOverrideType : uint8
+{
+	/** Do not override */
+	None,
+	/** Override any existing values with this new value.*/
+	Override,
+	/** Multiply any existing values with this new value.*/
+	Multiply
+};
