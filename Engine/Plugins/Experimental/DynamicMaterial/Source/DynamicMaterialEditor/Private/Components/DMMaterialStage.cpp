@@ -1213,7 +1213,7 @@ UDMMaterialStageSource* UDMMaterialStage::ChangeSource(TSubclassOf<UDMMaterialSt
 	check(InSourceClass);
 	check(!(InSourceClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
 
-	UDMMaterialStageSource* NewSource = NewObject<UDMMaterialStageExpression>(this, InSourceClass, NAME_None, RF_Transactional);
+	UDMMaterialStageSource* NewSource = NewObject<UDMMaterialStageSource>(this, InSourceClass, NAME_None, RF_Transactional);
 	check(NewSource);
 
 	if (InPreInit)
