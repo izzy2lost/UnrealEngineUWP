@@ -31,11 +31,11 @@ protected:
 #endif
 	{}
 
+#if WITH_EDITOR
 	//~ Begin UObject Interface
 	virtual void BeginDestroy() override;
 	//~ End UObject Interface
 
-#if WITH_EDITOR
 	friend FWorldPartitionActorDescInstance;
 	friend UWorldPartition;
 		
