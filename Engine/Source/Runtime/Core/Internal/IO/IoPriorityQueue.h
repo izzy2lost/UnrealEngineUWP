@@ -136,7 +136,7 @@ public:
 		T* Next;
 	};
 
-	bool IsEmpty()
+	bool IsEmpty() const
 	{
 		return InternalQueues.IsEmpty();
 	}
