@@ -10,7 +10,6 @@
 #include "MuCOE/CustomizableObjectEditorStyle.h"
 #include "MuCOE/SMutableCodeViewer.h"
 #include "MuCOE/SMutableGraphViewer.h"
-#include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Input/SNumericDropDown.h"
@@ -23,100 +22,6 @@ class SWidget;
 struct FSlateBrush;
 
 #define LOCTEXT_NAMESPACE "SMutableDebugger"
-
-// \todo: multi-column tree
-namespace MutableObjectTreeViewColumns
-{
-	static const FName Name("Property");
-	static const FName Value("Value");
-};
-
-
-class SMutableObjectTreeRow : public STableRow<TSharedPtr<FMutableObjectTreeElement>>
-{
-public:
-
-	void Construct(const FArguments& Args, const TSharedRef<STableViewBase>& InOwnerTableView, const TSharedPtr<FMutableObjectTreeElement>& InRowItem, const UCustomizableObject* InObject )
-	{
-		RowItem = InRowItem;
-
-		FText MainLabel;;
-		switch (RowItem->Type)
-		{
-		case FMutableObjectTreeElement::EType::SectionCaption:
-		{
-			switch (RowItem->Section)
-			{
-			case FMutableObjectTreeElement::ESection::General:
-				MainLabel = FText::FromString(TEXT("General"));
-				break;
-			case FMutableObjectTreeElement::ESection::ChildObjects:
-				MainLabel = FText::FromString(TEXT("Children"));
-				break;
-			default:
-				MainLabel = FText::FromString(TEXT("Unknown"));
-				break;
-			}
-			break;
-		}
-
-		case FMutableObjectTreeElement::EType::Name:
-			MainLabel = FText::FromString(InObject->GetName() );
-
-		default:
-			MainLabel = FText::FromString(TEXT("Unknown"));
-			break;
-		}
-
-
-		// TODO
-		const FSlateBrush* IconBrush = nullptr;
-
-		this->ChildSlot
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.VAlign(VAlign_Center)
-			.AutoWidth()
-			[
-				SNew(SExpanderArrow, SharedThis(this))
-			]
-
-			+ SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				.Padding(FMargin(5.f, 0.f, 5.f, 0.f))
-				.AutoWidth()
-				[
-					SNew(SOverlay)
-					+ SOverlay::Slot()
-					[
-						SNew(SImage)
-						.Image(IconBrush ? IconBrush : FCoreStyle::Get().GetDefaultBrush())
-						.ColorAndOpacity(IconBrush ? FLinearColor::White : FLinearColor::Transparent)
-					]
-				]
-
-			+ SHorizontalBox::Slot()
-				[
-					SNew(STextBlock)
-					.Text(MainLabel)
-				]
-		];
-
-		STableRow< TSharedPtr<FMutableObjectTreeElement> >::ConstructInternal(
-			STableRow::FArguments()
-			//.Style(FAppStyle::Get(), "DetailsView.TreeView.TableRow")
-			.ShowSelection(true)
-			, InOwnerTableView
-		);
-
-	}
-
-
-private:
-
-	TSharedPtr<FMutableObjectTreeElement> RowItem;
-};
 
 
 void SMutableObjectViewer::AddReferencedObjects(FReferenceCollector& Collector)
@@ -131,12 +36,9 @@ FString SMutableObjectViewer::GetReferencerName() const
 }
 
 
-void SMutableObjectViewer::Construct(const FArguments& InArgs, UCustomizableObject* InObject, 
-	TWeakPtr<FTabManager> InParentTabManager, const FName& InParentNewTabId )
+void SMutableObjectViewer::Construct(const FArguments& InArgs, UCustomizableObject* InObject)
 {
 	CustomizableObject = InObject;
-	ParentTabManager = InParentTabManager;
-	ParentNewTabId = InParentNewTabId;
 
 	// Initialize the debugger compile options
 	CompileOptions.TextureCompression = ECustomizableObjectTextureCompression::Fast;
@@ -180,11 +82,7 @@ void SMutableObjectViewer::Construct(const FArguments& InArgs, UCustomizableObje
 		true);
 
 	ToolbarBuilder.EndSection();
-
-	// Initialize the root tree nodes
-	RootTreeNodes.Add(MakeShareable(new FMutableObjectTreeElement(FMutableObjectTreeElement::EType::SectionCaption, FMutableObjectTreeElement::ESection::General, InObject)));
-	RootTreeNodes.Add(MakeShareable(new FMutableObjectTreeElement(FMutableObjectTreeElement::EType::SectionCaption, FMutableObjectTreeElement::ESection::ChildObjects, InObject)));
-
+	
 	ChildSlot
 	[
 		SNew(SVerticalBox)
@@ -195,20 +93,11 @@ void SMutableObjectViewer::Construct(const FArguments& InArgs, UCustomizableObje
 			ToolbarBuilder.MakeWidget()
 		]
 		+ SVerticalBox::Slot()
-		.VAlign(VAlign_Fill)
+		.FillHeight(1.0f)
 		[
-			SNew(SBorder)
-			.BorderImage(UE_MUTABLE_GET_BRUSH("ToolPanel.GroupBorder"))
-			.Padding(FMargin(4.0f, 4.0f))
-			[
-				SAssignNew(TreeView, STreeView<TSharedPtr<FMutableObjectTreeElement>>)
-				.TreeItemsSource(&RootTreeNodes)
-				.OnGenerateRow(this,&SMutableObjectViewer::GenerateRowForNodeTree)
-				.OnGetChildren(this, &SMutableObjectViewer::GetChildrenForInfo)
-				.SelectionMode(ESelectionMode::None)					
-			]
+			SAssignNew(DebuggerContentsBox, SBorder)
 		]
-	];	
+	];
 }
 
 
@@ -224,20 +113,15 @@ void SMutableObjectViewer::GenerateMutableGraphPressed()
 		return;
 	}
 
-	FString DataTag = FString::Printf(TEXT("%s for %s"), *CustomizableObject->GetName(), *CompileOptions.TargetPlatform->PlatformName());
+	FString DataTag = FString::Printf(TEXT("Mutable Graph : %s"), *CompileOptions.TargetPlatform->PlatformName());
 
-	TSharedPtr<SDockTab> NewMutableGraphTab = SNew(SDockTab)
-		.Label(LOCTEXT("MutableGraph", "Mutable Graph"))
-		[
-			SNew(SMutableGraphViewer, RootNode, CompileOptions, ParentTabManager, ParentNewTabId)
-			.DataTag(DataTag)
-			.ReferencedRuntimeTextures(RuntimeTextures)
-			.ReferencedCompileTextures(CompilerTextures)
-		];
-
-	TSharedPtr<FTabManager> TabManager = ParentTabManager.Pin();
-	check(TabManager);
-	TabManager->InsertNewDocumentTab(ParentNewTabId, FTabManager::ESearchPreference::PreferLiveTab, NewMutableGraphTab.ToSharedRef());
+	TSharedRef<SMutableGraphViewer> GraphViewer = SNew(SMutableGraphViewer, RootNode)
+		.DataTag(DataTag)
+		.ReferencedRuntimeTextures(RuntimeTextures)
+		.ReferencedCompileTextures(CompilerTextures);
+	
+	DebuggerContentsBox->ClearContent();
+	DebuggerContentsBox->SetContent(GraphViewer);
 }
 
 
@@ -247,8 +131,8 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 	TArray<TSoftObjectPtr<UTexture>> CompilerTextures;
 	if (CompileOptions.bForceLargeLODBias)
 	{
-		// Debug compile with many different biasses
-		const int32 MaxBias = 15;
+		// Debug compile with many different biases
+		constexpr int32 MaxBias = 15;
 		for (int32 Bias = 0; Bias < MaxBias; ++Bias)
 		{
 			CompileOptions.DebugBias = Bias;
@@ -270,7 +154,6 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 			CompileTask->Init();
 			CompileTask->Run();
 		}
-
 	}
 
 	// Convert from Unreal graph to Mutable graph.
@@ -291,18 +174,13 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 	CompileTask->Init();
 	CompileTask->Run();
 
-	FString DataTag = FString::Printf( TEXT("%s for %s opt %d "), *CustomizableObject->GetName(), *CompileOptions.TargetPlatform->PlatformName(), CompileOptions.OptimizationLevel );
+	FString DataTag = FString::Printf( TEXT("Mutable Code : %s opt %d"), *CompileOptions.TargetPlatform->PlatformName(), CompileOptions.OptimizationLevel );
 
-	TSharedPtr<SDockTab> NewMutableCodeTab = SNew(SDockTab)
-		.Label(LOCTEXT("MutableCode", "Mutable Code"))
-		[
-			SNew(SMutableCodeViewer, CompileTask->Model, RuntimeTextures)
-			.DataTag(DataTag)
-		];
-
-	TSharedPtr<FTabManager> TabManager = ParentTabManager.Pin();
-	check(TabManager);
-	TabManager->InsertNewDocumentTab(ParentNewTabId, FTabManager::ESearchPreference::PreferLiveTab, NewMutableCodeTab.ToSharedRef());
+	TSharedRef<SMutableCodeViewer> CodeViewer = SNew(SMutableCodeViewer, CompileTask->Model, RuntimeTextures)
+		.DataTag(DataTag);
+	
+	DebuggerContentsBox->ClearContent();
+	DebuggerContentsBox->SetContent(CodeViewer);
 }
 
 
@@ -470,45 +348,5 @@ void SMutableObjectViewer::OnChangeDebugPlatform(TSharedPtr<FString> NewSelectio
 		}
 	}
 }
-
-
-TSharedRef<ITableRow> SMutableObjectViewer::GenerateRowForNodeTree(TSharedPtr<FMutableObjectTreeElement> InTreeNode, const TSharedRef<STableViewBase>& InOwnerTable)
-{
-	TSharedRef<SMutableObjectTreeRow> Row = SNew(SMutableObjectTreeRow, InOwnerTable, InTreeNode, CustomizableObject);
-	return Row;
-}
-
-
-void SMutableObjectViewer::GetChildrenForInfo(TSharedPtr<FMutableObjectTreeElement> InInfo, TArray<TSharedPtr<FMutableObjectTreeElement>>& OutChildren)
-{
-	switch (InInfo->Type)
-	{
-	case FMutableObjectTreeElement::EType::SectionCaption:
-		switch (InInfo->Section)
-		{
-
-		case FMutableObjectTreeElement::ESection::General:
-		{
-			OutChildren.Add(MakeShareable(new FMutableObjectTreeElement(FMutableObjectTreeElement::EType::Name, InInfo->Section, CustomizableObject )));
-			break;
-		}
-
-		case FMutableObjectTreeElement::ESection::ChildObjects:
-		{
-			// TODO: based on what is done in FCustomizableObjectCompiler::ProcessChildObjectsRecursively
-			//OutChildren.Add(MakeShareable(new FMutableObjectTreeElement(FMutableObjectTreeElement::EType::Name, InInfo->Section)));
-			break;
-		}
-
-		default:
-			break;
-		}
-		break;
-
-	default:
-		break;
-	}
-}
-
 
 #undef LOCTEXT_NAMESPACE 

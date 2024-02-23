@@ -119,17 +119,12 @@ FString SMutableGraphViewer::GetReferencerName() const
 }
 
 
-void SMutableGraphViewer::Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode,
-	const FCompilationOptions& InCompileOptions,
-	TWeakPtr<FTabManager> InParentTabManager, const FName& InParentNewTabId)
+void SMutableGraphViewer::Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode)
 {
 	DataTag = InArgs._DataTag;
 	ReferencedRuntimeTextures = InArgs._ReferencedRuntimeTextures;
 	ReferencedCompileTextures = InArgs._ReferencedCompileTextures;
 	RootNode = InRootNode;
-	CompileOptions = InCompileOptions;
-	ParentTabManager = InParentTabManager;
-	ParentNewTabId = InParentNewTabId;
 
 	FToolBarBuilder ToolbarBuilder(TSharedPtr<const FUICommandList>(), FMultiBoxCustomization::None, TSharedPtr<FExtender>(), true);
 	ToolbarBuilder.SetLabelVisibility(EVisibility::Visible);
@@ -177,28 +172,6 @@ void SMutableGraphViewer::Construct(const FArguments& InArgs, const mu::NodePtr&
 			EUserInterfaceActionType::Button
 		);
 		
-	ToolbarBuilder.EndSection();
-
-
-	ToolbarBuilder.BeginSection("Compilation");
-
-	ToolbarBuilder.AddToolBarButton(
-		FUIAction(FExecuteAction::CreateSP(this, &SMutableGraphViewer::CompileMutableCodePressed)),
-		NAME_None,
-		LOCTEXT("GenerateMutableCode", "Unreal to Mutable Code"),
-		LOCTEXT("GenerateMutableCodeTooltip", "Generate a mutable code from the mutable graph."),
-		FSlateIcon(FCustomizableObjectEditorStyle::Get().GetStyleSetName(), "CustomizableObjectDebugger.CompileMutableCode", "CustomizableObjectDebugger.CompileMutableCode.Small"),
-		EUserInterfaceActionType::Button
-	);
-
-	ToolbarBuilder.AddComboButton(
-		FUIAction(),
-		FOnGetContent::CreateSP(this, &SMutableGraphViewer::GenerateCompileOptionsMenuContent),
-		LOCTEXT("Compile_Options_Label", "Compile Options"),
-		LOCTEXT("Compile_Options_Tooltip", "Change Compile Options"),
-		TAttribute<FSlateIcon>(),
-		true);
-
 	ToolbarBuilder.EndSection();
 
 	ToolbarBuilder.AddWidget(SNew(STextBlock).Text(MakeAttributeLambda([this]() { return FText::FromString(DataTag); })));
@@ -254,122 +227,6 @@ void SMutableGraphViewer::Construct(const FArguments& InArgs, const mu::NodePtr&
 	];
 	
 	RebuildTree();
-}
-
-
-void SMutableGraphViewer::CompileMutableCodePressed()
-{
-	// Do the compilation to Mutable Code synchronously.
-	TSharedPtr<FCustomizableObjectCompileRunnable> CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(RootNode));
-	CompileTask->Options = CompileOptions;
-	CompileTask->ReferencedTextures = ReferencedCompileTextures;
-	CompileTask->Init();
-	CompileTask->Run();
-
-	FString NewDataTag = FString::Printf(TEXT("%s graph, opt %d "), *DataTag, CompileOptions.OptimizationLevel);
-
-	TSharedPtr<SDockTab> NewMutableCodeTab = SNew(SDockTab)
-		.Label(LOCTEXT("MutableCode", "Mutable Code"))
-		[
-			SNew(SMutableCodeViewer, CompileTask->Model, ReferencedRuntimeTextures)
-			.DataTag(NewDataTag)
-		];
-
-	TSharedPtr<FTabManager> TabManager = ParentTabManager.Pin();
-	check(TabManager);
-	TabManager->InsertNewDocumentTab(ParentNewTabId, FTabManager::ESearchPreference::PreferLiveTab, NewMutableCodeTab.ToSharedRef());
-}
-
-
-TSharedRef<SWidget> SMutableGraphViewer::GenerateCompileOptionsMenuContent()
-{
-	const bool bShouldCloseWindowAfterMenuSelection = false;
-	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, nullptr);
-
-	// settings
-	MenuBuilder.BeginSection("Optimization", LOCTEXT("MutableCompileOptimizationHeading", "Optimization"));
-	{
-		// Compilation options
-		//-----------------------------------
-
-		// Optimisation level
-		CompileOptimizationStrings.Empty();
-		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("CustomizableObjectEditor", "Debugger_OptimizationNone", "None").ToString())));
-		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("CustomizableObjectEditor", "Debugger_OptimizationMin", "Minimal").ToString())));
-		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("CustomizableObjectEditor", "Debugger_OptimizationMax", "Maximum").ToString())));
-
-		CompileOptions.OptimizationLevel = FMath::Min(CompileOptions.OptimizationLevel, CompileOptimizationStrings.Num() - 1);
-
-		CompileOptimizationCombo =
-			SNew(STextComboBox)
-			.OptionsSource(&CompileOptimizationStrings)
-			.InitiallySelectedItem(CompileOptimizationStrings[CompileOptions.OptimizationLevel])
-			.OnSelectionChanged(this, &SMutableGraphViewer::OnChangeCompileOptimizationLevel)
-			;
-		MenuBuilder.AddWidget(CompileOptimizationCombo.ToSharedRef(), LOCTEXT("MutableCompileOptimizationLevel", "Optimization Level"));
-
-		{
-			CompileTextureCompressionStrings.Empty();
-			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionNone", "None").ToString())));
-			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionFast", "Fast").ToString())));
-			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionHighQuality", "High Quality").ToString())));
-
-			int32 SelectedCompression = FMath::Clamp(int32(CompileOptions.TextureCompression), 0, CompileTextureCompressionStrings.Num() - 1);
-			CompileTextureCompressionCombo =
-				SNew(STextComboBox)
-				.OptionsSource(&CompileTextureCompressionStrings)
-				.InitiallySelectedItem(CompileTextureCompressionStrings[SelectedCompression])
-				.OnSelectionChanged(this, &SMutableGraphViewer::OnChangeCompileTextureCompressionType)
-				;
-
-			MenuBuilder.AddWidget(CompileTextureCompressionCombo.ToSharedRef(), LOCTEXT("MutableCompileTextureCompressionType", "Texture Compression"));
-		}
-
-		// Image tiling
-		// Unfortunately SNumericDropDown doesn't work with integers at the time of writing.
-		TArray<SNumericDropDown<float>::FNamedValue> TilingOptions;
-		TilingOptions.Add(SNumericDropDown<float>::FNamedValue(0, FText::FromString(TEXT("0")), FText::FromString(TEXT("Disabled"))));
-		TilingOptions.Add(SNumericDropDown<float>::FNamedValue(64, FText::FromString(TEXT("64")), FText::FromString(TEXT("64"))));
-		TilingOptions.Add(SNumericDropDown<float>::FNamedValue(128, FText::FromString(TEXT("128")), FText::FromString(TEXT("128"))));
-		TilingOptions.Add(SNumericDropDown<float>::FNamedValue(256, FText::FromString(TEXT("256")), FText::FromString(TEXT("256"))));
-		TilingOptions.Add(SNumericDropDown<float>::FNamedValue(512, FText::FromString(TEXT("512")), FText::FromString(TEXT("512"))));
-
-		CompileTilingCombo = SNew(SNumericDropDown<float>)
-			.DropDownValues(TilingOptions)
-			.Value_Lambda([&]() { return float(CompileOptions.ImageTiling); })
-			.OnValueChanged_Lambda([&](float Value) { CompileOptions.ImageTiling = int32(Value); })
-			;
-		MenuBuilder.AddWidget(CompileTilingCombo.ToSharedRef(), LOCTEXT("MutableCompileImageTiling", "Image Tiling"));
-
-		// Disk as cache
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("MutableDiskAsMemory", "Enable compiling using the disk as memory."),
-			LOCTEXT("MutableDiskAsMemoryTooltip", "This is very slow but supports compiling huge objects. It requires a lot of free space in the OS disk."),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateLambda([this]() { CompileOptions.bUseDiskCompilation = !CompileOptions.bUseDiskCompilation; }),
-				FCanExecuteAction(),
-				FIsActionChecked::CreateLambda([this]() { return CompileOptions.bUseDiskCompilation; })),
-			NAME_None,
-			EUserInterfaceActionType::ToggleButton
-		);
-	}
-	MenuBuilder.EndSection();
-
-	return MenuBuilder.MakeWidget();
-}
-
-
-void SMutableGraphViewer::OnChangeCompileOptimizationLevel(TSharedPtr<FString> NewSelection, ESelectInfo::Type)
-{
-	CompileOptions.OptimizationLevel = CompileOptimizationStrings.Find(NewSelection);
-}
-
-
-void SMutableGraphViewer::OnChangeCompileTextureCompressionType(TSharedPtr<FString> NewSelection, ESelectInfo::Type)
-{
-	const FScopedTransaction Transaction(LOCTEXT("ChangedOptimizationLevelTransaction", "Changed Optimization Level"));
-	CompileOptions.TextureCompression = ECustomizableObjectTextureCompression(CompileTextureCompressionStrings.Find(NewSelection));
 }
 
 

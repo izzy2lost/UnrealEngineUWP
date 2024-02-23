@@ -40,9 +40,7 @@ public:
 
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode, 
-		const FCompilationOptions& InCompileOptions,
-		TWeakPtr<FTabManager> InParentTabManager, const FName& InParentNewTabId);
+	void Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode);
 
 	// SWidget interface
 	FReply OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
@@ -64,15 +62,8 @@ private:
 	TArray<TSoftObjectPtr<UTexture>> ReferencedRuntimeTextures;
 	TArray<TSoftObjectPtr<UTexture>> ReferencedCompileTextures;
 
-	/** Compilation options to use in the debugger operations. */
-	FCompilationOptions CompileOptions;
-
 	/** Object compiler. */
 	FCustomizableObjectCompiler Compiler;
-
-	/** UI references used to create new tabs. */
-	TWeakPtr<FTabManager> ParentTabManager;
-	FName ParentNewTabId;
 
 	/** Root nodes of the tree widget. */
 	TArray<TSharedPtr<FMutableGraphTreeElement>> RootNodes;
@@ -106,18 +97,7 @@ private:
 
 	/** */
 	void RebuildTree();
-
-	/** UI callbacks */
-	void CompileMutableCodePressed();
-	TSharedRef<SWidget> GenerateCompileOptionsMenuContent();
-	TSharedPtr<STextComboBox> CompileOptimizationCombo;
-	TArray< TSharedPtr<FString> > CompileOptimizationStrings;
-	TSharedPtr<STextComboBox> CompileTextureCompressionCombo;
-	TArray< TSharedPtr<FString> > CompileTextureCompressionStrings;
-	TSharedPtr<SNumericDropDown<float>> CompileTilingCombo;
-	void OnChangeCompileOptimizationLevel(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
-	void OnChangeCompileTextureCompressionType(TSharedPtr<FString> NewSelection, ESelectInfo::Type);
-
+	
 	/** Callbacks from the tree widget. */
  	TSharedRef<ITableRow> GenerateRowForNodeTree(TSharedPtr<FMutableGraphTreeElement> InTreeNode, const TSharedRef<STableViewBase>& InOwnerTable);
 	void GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement> InInfo, TArray< TSharedPtr<FMutableGraphTreeElement> >& OutChildren);
