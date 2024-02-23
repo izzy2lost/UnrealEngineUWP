@@ -130,7 +130,7 @@ public:
 	 * Available Named Slots for content in a subclass.  These are slots that are accumulated from all super
 	 * classes on compile.  They will exclude any named slots that are filled by a parent class.
 	 **/
-	UPROPERTY()
+	UPROPERTY(AssetRegistrySearchable)
 	TArray<FName> AvailableNamedSlots;
 
 	/**
