@@ -59,6 +59,7 @@
 #include "Materials/MaterialExpressionArctangent2Fast.h"
 #include "Materials/MaterialExpressionAtmosphericFogColor.h"
 #include "Materials/MaterialExpressionBentNormalCustomOutput.h"
+#include "Materials/MaterialExpressionBindlessSwitch.h"
 #include "Materials/MaterialExpressionBlackBody.h"
 #include "Materials/MaterialExpressionBlendMaterialAttributes.h"
 #include "Materials/MaterialExpressionBreakMaterialAttributes.h"
@@ -10026,6 +10027,75 @@ void UMaterialExpressionDataDrivenShaderPlatformInfoSwitch::PostEditChangeProper
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif // WITH_EDITOR
+
+//
+//	UMaterialExpressionBindlessSwitch
+//
+
+UMaterialExpressionBindlessSwitch::UMaterialExpressionBindlessSwitch(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+}
+
+#if WITH_EDITOR
+static bool IsBindlessEnabledForCompiler(FMaterialCompiler* Compiler)
+{
+	const EShaderPlatform ShaderPlatform = Compiler->GetShaderPlatform();
+	const ERHIBindlessConfiguration BindlessConfiguration = UE::ShaderCompiler::GetBindlessResourcesConfiguration(LegacyShaderPlatformToShaderFormat(ShaderPlatform));
+
+	if (BindlessConfiguration == ERHIBindlessConfiguration::AllShaders)
+	{
+		return true;
+	}
+
+	if (BindlessConfiguration == ERHIBindlessConfiguration::RayTracingShaders && IsRayTracingShaderFrequency(Compiler->GetCurrentShaderFrequency()))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+int32 UMaterialExpressionBindlessSwitch::Compile(FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	if (IsBindlessEnabledForCompiler(Compiler))
+	{
+		return Bindless.Compile(Compiler);
+	}
+
+	return Default.Compile(Compiler);
+}
+
+void UMaterialExpressionBindlessSwitch::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("Bindless Switch"));
+}
+
+bool UMaterialExpressionBindlessSwitch::IsInputConnectionRequired(int32 InputIndex) const
+{
+	return true;
+}
+
+bool UMaterialExpressionBindlessSwitch::IsResultMaterialAttributes(int32 OutputIndex)
+{
+	check(OutputIndex == 0);
+	for (FExpressionInput* ExpressionInput : GetInputsView())
+	{
+		// If there is a loop anywhere in this expression's inputs then we can't risk checking them
+		if (ExpressionInput->Expression && ExpressionInput->Expression->IsResultMaterialAttributes(ExpressionInput->OutputIndex))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void UMaterialExpressionBindlessSwitch::GetExpressionToolTip(TArray<FString>& OutToolTip)
+{
+	ConvertToMultilineToolTip(TEXT("Allows material to define specialized behavior when being rendered with bindless enabled."), 40, OutToolTip);
+}
+#endif
 
 //
 //	UMaterialExpressionRequiredSamplersSwitch
