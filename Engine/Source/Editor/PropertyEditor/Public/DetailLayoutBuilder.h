@@ -122,6 +122,16 @@ public:
 	virtual IDetailCategoryBuilder& EditCategory(FName CategoryName, const FText& NewLocalizedDisplayName = FText::GetEmpty(), ECategoryPriority::Type CategoryType = ECategoryPriority::Default) = 0;
 
 	/**
+	* Edits an existing category or creates a new one
+	* If CategoryName is NAME_None, will enable access to properties without categories
+	* 
+	* @param CategoryName				The name of the category
+	* @param NewLocalizedDisplayName	The new display name of the category (optional)
+	* @param CategoryType				Category type to define sort order.  Category display order is sorted by this type (optional)
+	*/
+	virtual IDetailCategoryBuilder& EditCategoryAllowNone(FName CategoryName, const FText& NewLocalizedDisplayName = FText::GetEmpty(), ECategoryPriority::Type CategoryType = ECategoryPriority::Default) = 0;
+
+	/**
 	 * Gets the current set of existing category names. This includes both categories derived from properties and categories added via EditCategory.
 	 * @param	OutCategoryNames	 The array of category names
 	 */
