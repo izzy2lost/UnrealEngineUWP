@@ -246,6 +246,46 @@ namespace Horde.Server.Acls
 				}
 			}
 		}
+
+		/// <summary>
+		/// Find all entitlements for a user
+		/// </summary>
+		public Dictionary<AclScopeName, HashSet<AclAction>> FindEntitlements(Predicate<AclClaimConfig> predicate)
+		{
+			Dictionary<AclScopeName, HashSet<AclAction>> scopeToActions = new Dictionary<AclScopeName, HashSet<AclAction>>();
+			FindEntitlements(predicate, scopeToActions);
+			return scopeToActions;
+		}
+
+		/// <summary>
+		/// Find all entitlements for a user
+		/// </summary>
+		public void FindEntitlements(Predicate<AclClaimConfig> predicate, Dictionary<AclScopeName, HashSet<AclAction>> scopeToActions)
+		{
+			if (Entries != null)
+			{
+				foreach (AclEntryConfig entry in Entries)
+				{
+					if (predicate(entry.Claim))
+					{
+						HashSet<AclAction>? actions;
+						if (!scopeToActions.TryGetValue(ScopeName, out actions))
+						{
+							actions = new HashSet<AclAction>();
+							scopeToActions.Add(ScopeName, actions);
+						}
+						actions.UnionWith(entry.ComputedActions);
+					}
+				}
+			}
+			if (Children != null)
+			{
+				foreach (AclConfig childAclConfig in Children)
+				{
+					childAclConfig.FindEntitlements(predicate, scopeToActions);
+				}
+			}
+		}
 	}
 
 	/// <summary>

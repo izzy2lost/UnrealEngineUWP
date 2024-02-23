@@ -162,6 +162,30 @@ namespace Horde.Server.Accounts
 		}
 
 		/// <summary>
+		/// Gets information about the current account
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/accounts/{id}/entitlements")]
+		[ProducesResponseType(typeof(GetAccountEntitlementsResponse), 200)]
+		[ProducesResponseType(404)]
+		public async Task<ActionResult<object>> GetAccountEntitlementsAsync(AccountId id, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		{
+			if (!_globalConfig.Authorize(AccountAclAction.ViewAccount, User))
+			{
+				return Forbid(AccountAclAction.ViewAccount);
+			}
+
+			IAccount? account = await _accountCollection.GetAsync(id, cancellationToken);
+			if (account == null)
+			{
+				return NotFound(id);
+			}
+
+			GetAccountEntitlementsResponse response = AccountController.CreateGetAccountEntitlementsResponse(_globalConfig.Acl, claim => account.HasClaim(claim));
+			return PropertyFilter.Apply(response, filter);
+		}
+
+		/// <summary>
 		/// Updates an account by id
 		/// </summary>
 		[HttpPut]

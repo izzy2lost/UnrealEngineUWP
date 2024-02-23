@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Accounts;
+using Horde.Server.Acls;
 using Horde.Server.Users;
 
 namespace Horde.Server.Accounts
@@ -114,6 +116,34 @@ namespace Horde.Server.Accounts
 	/// </summary>
 	public static class AccountExtensions
 	{
+		/// <summary>
+		/// Test whether a user has a particular claim
+		/// </summary>
+		/// <param name="account">Account to test</param>
+		/// <param name="type">Claim type to check for</param>
+		/// <param name="value">Claim value to check for</param>
+		/// <returns>True if the user has the claim</returns>
+		public static bool HasClaim(this IAccount account, string type, string value)
+		{
+			foreach (IUserClaim claim in account.Claims)
+			{
+				if (claim.Type.Equals(type, StringComparison.OrdinalIgnoreCase) && claim.Value.Equals(value, StringComparison.Ordinal))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/// <summary>
+		/// Test whether a user has a particular claim
+		/// </summary>
+		/// <param name="account">Account to test</param>
+		/// <param name="claim">Claim to test for</param>
+		/// <returns>True if the user has the claim</returns>
+		public static bool HasClaim(this IAccount account, AclClaimConfig claim)
+			=> HasClaim(account, claim);
+
 		/// <summary>
 		/// Update settings for the account, retrying if the account object has changed
 		/// </summary>

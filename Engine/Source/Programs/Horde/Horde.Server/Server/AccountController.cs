@@ -3,13 +3,16 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Horde.Accounts;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Server;
 using Horde.Server.Accounts;
+using Horde.Server.Acls;
 using Horde.Server.Authentication;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
@@ -318,6 +321,31 @@ namespace Horde.Server.Server
 
 			string content = $"<html><style>{StyleSheet}</style><body onload=\"setTimeout(function(){{ window.location = '/account'; }}, 2000)\"><p>User has been logged out. Returning to login page.</p></body></html>";
 			return new ContentResult { ContentType = "text/html", StatusCode = (int)HttpStatusCode.OK, Content = content };
+		}
+
+		/// <summary>
+		/// Gets information about the current account
+		/// </summary>
+		[HttpGet]
+		[Route("/account/entitlements")]
+		[ProducesResponseType(typeof(GetAccountEntitlementsResponse), 200)]
+		public ActionResult<object> GetCurrentAccountEntitlements([FromQuery] PropertyFilter? filter = null)
+		{
+			GetAccountEntitlementsResponse response = CreateGetAccountEntitlementsResponse(_globalConfig.Value.Acl, claim => User.HasClaim(claim.Type, claim.Value));
+			return PropertyFilter.Apply(response, filter);
+		}
+
+		internal static GetAccountEntitlementsResponse CreateGetAccountEntitlementsResponse(AclConfig rootAclConfig, Predicate<AclClaimConfig> predicate)
+		{
+			Dictionary<AclScopeName, HashSet<AclAction>> scopeToActions = rootAclConfig.FindEntitlements(predicate);
+
+			List<GetAccountScopeEntitlementsResponse> scopes = new List<GetAccountScopeEntitlementsResponse>();
+			foreach ((AclScopeName scopeName, HashSet<AclAction> actions) in scopeToActions)
+			{
+				scopes.Add(new GetAccountScopeEntitlementsResponse(scopeName.Text, actions.OrderBy(x => x.Name).ToList()));
+			}
+
+			return new GetAccountEntitlementsResponse(predicate(HordeClaims.AdminClaim), scopes);
 		}
 	}
 }

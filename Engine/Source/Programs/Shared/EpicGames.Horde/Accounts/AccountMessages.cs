@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Acls;
 using System.Collections.Generic;
 
 #pragma warning disable CA1054 // URI-like parameters should not be strings
@@ -71,5 +72,18 @@ namespace EpicGames.Horde.Accounts
 	/// <param name="Password">Password</param>
 	/// <param name="ReturnUrl">Url to return to upon success</param>
 	public record class DashboardLoginRequest(string Username, string? Password, string? ReturnUrl);
-	
+
+	/// <summary>
+	/// Gets all entitlements for an account
+	/// </summary>
+	/// <param name="Administrator">Whether the user is an administrator</param>
+	/// <param name="Scopes">List of scopes with entitlements</param>
+	public record class GetAccountEntitlementsResponse(bool Administrator, List<GetAccountScopeEntitlementsResponse> Scopes);
+
+	/// <summary>
+	/// Creates a new user account
+	/// </summary>
+	/// <param name="Name">Name of the scope</param>
+	/// <param name="Actions">Actions for this scope</param>
+	public record class GetAccountScopeEntitlementsResponse(string Name, List<AclAction> Actions);
 }
