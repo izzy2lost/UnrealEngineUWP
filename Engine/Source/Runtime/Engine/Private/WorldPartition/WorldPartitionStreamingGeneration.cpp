@@ -2204,6 +2204,7 @@ void FStreamingGenerationContainerInstanceCollection::InitializeCollection()
 	{
 		// When type is set to BaseAndEDL, we remove ContentBundle containers from the collection.
 		// BaseAndEDL type assumes ContentBundle containers are generated separately one at a time.
+		check(!ShouldRegisterDelegates());
 		ActorDescContainerInstanceCollection.SetNum(Algo::RemoveIf(ActorDescContainerInstanceCollection, [](const UActorDescContainerInstance* ActorDescContainerInstance) { return ActorDescContainerInstance->GetContentBundleGuid().IsValid(); }));
 	}
 

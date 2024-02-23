@@ -74,6 +74,7 @@ public:
 
 protected:
 	virtual void OnCollectionChanged() {};
+	virtual bool ShouldRegisterDelegates() const { return true; }
 
 	TArray<ActorDescContPtrType> ActorDescContainerInstanceCollection;
 
@@ -299,17 +300,23 @@ void TActorDescContainerInstanceCollection<ActorDescContPtrType>::Empty()
 template<class ActorDescContPtrType>
 void TActorDescContainerInstanceCollection<ActorDescContPtrType>::RegisterDelegates(ActorDescContPtrType Container)
 {
-	ConstCast(Container)->OnActorDescInstanceAddedEvent.AddRaw(this, &TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorDescInstanceAdded);
-	ConstCast(Container)->OnActorDescInstanceRemovedEvent.AddRaw(this, &TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorDescInstanceRemoved);
-	ConstCast(Container)->OnActorReplacedEvent.AddRaw(this, &TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorReplaced);
+	if (ShouldRegisterDelegates())
+	{
+		ConstCast(Container)->OnActorDescInstanceAddedEvent.AddRaw(this, &TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorDescInstanceAdded);
+		ConstCast(Container)->OnActorDescInstanceRemovedEvent.AddRaw(this, &TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorDescInstanceRemoved);
+		ConstCast(Container)->OnActorReplacedEvent.AddRaw(this, &TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnActorReplaced);
+	}
 }
 
 template<class ActorDescContPtrType>
 void TActorDescContainerInstanceCollection<ActorDescContPtrType>::UnregisterDelegates(ActorDescContPtrType Container)
 {
-	ConstCast(Container)->OnActorDescInstanceAddedEvent.RemoveAll(this);
-	ConstCast(Container)->OnActorDescInstanceRemovedEvent.RemoveAll(this);
-	ConstCast(Container)->OnActorReplacedEvent.RemoveAll(this);
+	if (ShouldRegisterDelegates())
+	{
+		ConstCast(Container)->OnActorDescInstanceAddedEvent.RemoveAll(this);
+		ConstCast(Container)->OnActorDescInstanceRemovedEvent.RemoveAll(this);
+		ConstCast(Container)->OnActorReplacedEvent.RemoveAll(this);
+	}
 }
 
 template<class ActorDescContPtrType>
