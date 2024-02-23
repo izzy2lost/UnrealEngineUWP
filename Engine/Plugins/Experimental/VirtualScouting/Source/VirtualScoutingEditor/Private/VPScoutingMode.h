@@ -6,7 +6,7 @@
 #include "VPScoutingMode.generated.h"
 
 
-UCLASS(meta=(DisplayName="Virtual Scouting (Legacy VPUtilities)"))
+UCLASS(meta=(DisplayName="Legacy Virtual Scouting"))
 class UVPScoutingMode : public UVREditorMode
 {
 	GENERATED_BODY()
