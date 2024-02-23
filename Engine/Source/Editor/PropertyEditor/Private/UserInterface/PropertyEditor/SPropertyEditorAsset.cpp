@@ -549,8 +549,16 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 		TSharedPtr<IAssetTypeActions> AssetTypeActions;
 		if (ObjectClass != nullptr)
 		{
+			const UClass* EffectiveClass = ObjectClass;
+			if (EffectiveClass->GetPathName() != Value.AssetData.AssetClassPath.ToString())
+			{
+				if (UClass* AssetDataClass = FindObject<UClass>(Value.AssetData.AssetClassPath); AssetDataClass && AssetDataClass->IsChildOf(EffectiveClass))
+				{
+					EffectiveClass = AssetDataClass;
+				}
+			}
 			FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
-			AssetTypeActions = AssetToolsModule.Get().GetAssetTypeActionsForClass(ObjectClass).Pin();
+			AssetTypeActions = AssetToolsModule.Get().GetAssetTypeActionsForClass(EffectiveClass).Pin();
 
 			if (AssetTypeActions.IsValid())
 			{
