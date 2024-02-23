@@ -117,6 +117,25 @@ namespace UE::GeometryMask
 
 			return KernelSize;
 		}
+		
+		// @see: SBackgroundBlur::ComputeEffectiveKernelSize
+		int32 ComputeEffectiveKernelSize2(double InStrength)
+		{
+			// If the radius isn't set, auto-compute it based on the strength
+			// @note: * 4.0 differs from * 0.3 in the slate code as it seems to produce better auto-computed results
+			int32 KernelSize = FMath::RoundToInt((InStrength * 2) + 1);
+
+			if (KernelSize % 2 == 0)
+			{
+				++KernelSize;
+			}
+
+			static constexpr int32 MinKernelSize = 3;
+			static constexpr int32 MaxKernelSize = 255;
+			KernelSize = FMath::Clamp(KernelSize, MinKernelSize, MaxKernelSize);
+
+			return KernelSize;
+		}
 	}
 }
 

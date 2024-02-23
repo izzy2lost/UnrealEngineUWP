@@ -26,11 +26,18 @@ void SGMEResourceItem::Construct(
 	
 	SGMEImageItem::Construct(
 		SGMEImageItem::FArguments()
-			.Label_Lambda([InViewModel]()
-			{
-				return FText::FromString(InViewModel->GetDimensions().ToString());
-			})
+			.Label(this, &SGMEResourceItem::GetLabel)
 		, InOwnerTableView);
+}
+
+FText SGMEResourceItem::GetLabel() const
+{
+	if (ViewModel.IsValid())
+	{
+		return ViewModel->GetResourceInfo();
+	}
+
+	return FText::GetEmpty();
 }
 
 FOptionalSize SGMEResourceItem::GetAspectRatio()

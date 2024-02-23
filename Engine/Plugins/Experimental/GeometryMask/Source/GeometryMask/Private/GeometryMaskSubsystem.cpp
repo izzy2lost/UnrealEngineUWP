@@ -10,53 +10,29 @@
 #include "GeometryMaskCanvas.h"
 #include "GeometryMaskCanvasResource.h"
 #include "GeometryMaskModule.h"
+#include "GeometryMaskWorldSubsystem.h"
 #include "SceneView.h"
 #include "UnrealClient.h"
 
-UGeometryMaskCanvas* UGeometryMaskSubsystem::GetNamedCanvas(FName InName)
+UGeometryMaskCanvas* UGeometryMaskSubsystem::GetDefaultCanvas()
 {
-	if (InName.IsNone())
+	if (!DefaultCanvas)
 	{
-		static FName DefaultCanvasName = TEXT("Default");
-		InName = DefaultCanvasName;
-	}
-
-	const FName ObjectName = MakeUniqueObjectName(this, UGeometryMaskCanvas::StaticClass(), FName(FString::Printf(TEXT("GeometryMaskCanvas_%s_"), *InName.ToString())));
-	if (TObjectPtr<UGeometryMaskCanvas>* FoundCanvas = NamedCanvases.Find(InName))
-	{
-		return *FoundCanvas;
-	}
-
-	const TObjectPtr<UGeometryMaskCanvas>& NewCanvas = NamedCanvases.Emplace(InName, NewObject<UGeometryMaskCanvas>(this, ObjectName));
-	NewCanvas->CanvasName = InName;
-	AssignResourceToCanvas(NewCanvas);
-
-	NewCanvas->OnActivated().BindUObject(this, &UGeometryMaskSubsystem::OnCanvasActivated, NewCanvas.Get());
-	NewCanvas->OnDeactivated().BindUObject(this, &UGeometryMaskSubsystem::OnCanvasDeactivated, NewCanvas.Get());
-	
-	OnGeometryMaskCanvasCreatedDelegate.Broadcast(NewCanvas);
-
-	return NewCanvas;
-}
-
-TArray<FName> UGeometryMaskSubsystem::GetCanvasNames()
-{
-	if (const UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
-	{
-		TArray<FName> CanvasNames;
-		Subsystem->NamedCanvases.GenerateKeyArray(CanvasNames);
-		return CanvasNames;
+		const FName DefaultCanvasObjectName = FName(TEXT("GeometryMaskCanvas_Default"));
+		DefaultCanvas = NewObject<UGeometryMaskCanvas>(this, DefaultCanvasObjectName);
+		DefaultCanvas->Initialize(nullptr, FGeometryMaskCanvasId::DefaultCanvasName);
+		AssignResourceToCanvas(DefaultCanvas);
 	}
 	
-	return {};
+	return DefaultCanvas;
 }
 
-int32 UGeometryMaskSubsystem::GetNumActiveCanvasResources() const
+int32 UGeometryMaskSubsystem::GetNumCanvasResources() const
 {
-	return NamedCanvases.Num();
+	return CanvasResources.Num();
 }
 
-const TArray<TObjectPtr<UGeometryMaskCanvasResource>>& UGeometryMaskSubsystem::GetCanvasResources() const
+const TSet<TObjectPtr<UGeometryMaskCanvasResource>>& UGeometryMaskSubsystem::GetCanvasResources() const
 {
 	return CanvasResources;
 }
@@ -69,26 +45,30 @@ void UGeometryMaskSubsystem::Update(
 	{
 		return;
 	}
+
+	UE_LOG(LogGeometryMask, VeryVerbose, TEXT("UGeometryMaskSubsystem::Update World: %s, Num. Views: %u"), *InWorld->GetName(), InViewFamily.Views.Num());
 	
-	if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	if (UGeometryMaskWorldSubsystem* Subsystem = InWorld->GetSubsystem<UGeometryMaskWorldSubsystem>())
 	{
 		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("UGeometryMaskSubsystem::Update"), STAT_GeometryMask_UpdateAll, STATGROUP_GeometryMask);
-	
+
+		int32 ViewIndex = 0;
 		for (const FSceneView*& View : InViewFamily.Views)
 		{
-			FSceneView* MutableView = const_cast<FSceneView*>(View);
+			FSceneView* MutableSceneView = const_cast<FSceneView*>(View);
 
-			// Removes invalid writers
 			for (const TPair<FName, TObjectPtr<UGeometryMaskCanvas>>& NamedCanvas : Subsystem->NamedCanvases)
 			{
-				NamedCanvas.Value->Update(InWorld, *MutableView);			
+				NamedCanvas.Value->Update(InWorld, *MutableSceneView);		
 			}
 
 			// Updates the texture resource
 			for (const TObjectPtr<UGeometryMaskCanvasResource>& Resource : CanvasResources)
 			{
-				Resource->Update(InWorld, *MutableView);
+				Resource->Update(InWorld, *MutableSceneView, ViewIndex);
 			}
+
+			++ViewIndex;
 		}
 	}
 }
@@ -103,32 +83,6 @@ void UGeometryMaskSubsystem::ToggleUpdate(const TOptional<bool>& bInShouldUpdate
 	}
 }
 
-int32 UGeometryMaskSubsystem::RemoveWithoutWriters()
-{
-	int32 NumRemoved = 0;
-	
-	TMap<FName, TObjectPtr<UGeometryMaskCanvas>> UsedCanvases;
-	UsedCanvases.Reserve(NamedCanvases.Num());
-	
-	for (const TPair<FName, TObjectPtr<UGeometryMaskCanvas>>& NamedCanvas : NamedCanvases)
-	{
-		if (NamedCanvas.Key == NAME_None
-			|| !NamedCanvas.Value->GetWriters().IsEmpty())
-		{
-			UsedCanvases.Emplace(NamedCanvas.Key, NamedCanvas.Value);
-		}
-		else
-		{
-			NamedCanvas.Value->FreeResource();
-			++NumRemoved;
-		}
-	}
-	
-	NamedCanvases = UsedCanvases;
-
-	return NumRemoved;
-}
-
 void UGeometryMaskSubsystem::AssignResourceToCanvas(UGeometryMaskCanvas* InCanvas)
 {
 	UGeometryMaskCanvasResource* AvailableResource = nullptr;
@@ -141,45 +95,69 @@ void UGeometryMaskSubsystem::AssignResourceToCanvas(UGeometryMaskCanvas* InCanva
 			AvailableResource = CanvasResource;
 		}
 	}
-	
+
 	// Nothing available, create new resource
 	if (AvailableChannel == EGeometryMaskColorChannel::None)
 	{
-		AvailableResource = CanvasResources.Emplace_GetRef(NewObject<UGeometryMaskCanvasResource>(this));
+		AvailableResource = NewObject<UGeometryMaskCanvasResource>(this);
+		CanvasResources.Emplace(AvailableResource);
 		AvailableChannel = AvailableResource->GetNextAvailableColorChannel();
+		OnGeometryMaskResourceCreatedDelegate.Broadcast(AvailableResource);
 	}
 
-	AvailableResource->Checkout(AvailableChannel, InCanvas->GetCanvasName());
+	AvailableResource->Checkout(AvailableChannel, InCanvas->GetCanvasId());
 	InCanvas->AssignResource(AvailableResource, AvailableChannel);
 }
 
-void UGeometryMaskSubsystem::OnCanvasActivated(UGeometryMaskCanvas* InCanvas)
+void UGeometryMaskSubsystem::CompactResources()
 {
-	if (InCanvas->IsDefaultCanvas())
+	if (CanvasResources.Num() <= 1)
 	{
 		return;
 	}
 
-	// Already has a resource
-	if (InCanvas->GetResource())
+	TSet<TObjectPtr<UGeometryMaskCanvasResource>> UsedResources;
+	UsedResources.Reserve(CanvasResources.Num());
+	
+	for (UGeometryMaskCanvasResource* CanvasResource : CanvasResources)
 	{
-		return;
+		CanvasResource->Compact();
+		if (CanvasResource->IsAnyChannelUsed())
+		{
+			UsedResources.Emplace(CanvasResource);
+		}
+		else
+		{
+			OnGeometryMaskResourceDestroyedDelegate.Broadcast(CanvasResource);
+		}
 	}
 
-	// Provide a new resource for the canvas to write to
-	AssignResourceToCanvas(InCanvas);
+	if (UsedResources.Num() != CanvasResources.Num())
+	{
+		CanvasResources = UsedResources;
+	}
 }
 
-void UGeometryMaskSubsystem::OnCanvasDeactivated(UGeometryMaskCanvas* InCanvas)
+void UGeometryMaskSubsystem::OnWorldDestroyed(UWorld* InWorld)
 {
-	if (InCanvas->IsDefaultCanvas())
+	CompactResources();
+	
+	TSet<TObjectPtr<UGeometryMaskCanvasResource>> UnusedResources;
+	UnusedResources.Reserve(CanvasResources.Num());
+	
+	for (UGeometryMaskCanvasResource* CanvasResource : CanvasResources)
+	{
+		if (!CanvasResource->IsAnyChannelUsed())
+		{
+			OnGeometryMaskResourceDestroyedDelegate.Broadcast(CanvasResource);
+			UnusedResources.Emplace(CanvasResource);
+		}
+	}
+
+	if (UnusedResources.IsEmpty())
 	{
 		return;
 	}
 
-	if (const UGeometryMaskCanvasResource* CanvasResource = InCanvas->GetResource())
-	{
-		// Resource assigned, so free it up
-		InCanvas->FreeResource();
-	}
+	CanvasResources = CanvasResources.Difference(UnusedResources);
 }

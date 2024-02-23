@@ -3,7 +3,9 @@
 #include "GMEResourceListViewModel.h"
 
 #include "Engine/Engine.h"
+#include "GeometryMaskCanvasResource.h"
 #include "GeometryMaskSubsystem.h"
+#include "GeometryMaskWorldSubsystem.h"
 #include "GMEResourceItemViewModel.h"
 
 TSharedRef<FGMEResourceListViewModel> FGMEResourceListViewModel::Create()
@@ -18,7 +20,11 @@ FGMEResourceListViewModel::~FGMEResourceListViewModel()
 {
 	if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
 	{
-		Subsystem->OnGeometryMaskCanvasCreated().Remove(OnResourceCreatedHandle);
+		Subsystem->OnGeometryMaskResourceCreated().Remove(OnResourceCreatedHandle);
+		OnResourceCreatedHandle.Reset();
+		
+		Subsystem->OnGeometryMaskResourceDestroyed().Remove(OnResourceDestroyedHandle);
+		OnResourceDestroyedHandle.Reset();
 	}
 	
 	ResourceItems.Reset();
@@ -36,13 +42,16 @@ void FGMEResourceListViewModel::Initialize()
 			ResourceItems.Add(FGMEResourceItemViewModel::Create(Resource));
 		}
 
-		// And listen for new ones
-		{
-			OnResourceCreatedHandle = Subsystem->OnGeometryMaskResourceCreated().AddRaw(this, &FGMEResourceListViewModel::OnResourceCreated);
-		}
-
-		OnChanged().Broadcast();
+		OnResourceCreatedHandle = Subsystem->OnGeometryMaskResourceCreated().AddRaw(this, &FGMEResourceListViewModel::OnResourceCreated);
+		OnResourceDestroyedHandle = Subsystem->OnGeometryMaskResourceDestroyed().AddRaw(this, &FGMEResourceListViewModel::OnResourceDestroyed);
 	}
+
+	FGMEListViewModelBase::Initialize();
+}
+
+bool FGMEResourceListViewModel::RefreshItems()
+{
+	return true;
 }
 
 void FGMEResourceListViewModel::OnResourceCreated(const UGeometryMaskCanvasResource* InGeometryMaskResource)
@@ -57,6 +66,21 @@ void FGMEResourceListViewModel::OnResourceCreated(const UGeometryMaskCanvasResou
 	}
 
 	ResourceItems.Add(FGMEResourceItemViewModel::Create(InGeometryMaskResource));
+
+	OnChanged().Broadcast();
+}
+
+void FGMEResourceListViewModel::OnResourceDestroyed(const UGeometryMaskCanvasResource* InGeometryMaskResource)
+{
+	if (!InGeometryMaskResource)
+	{
+		return;
+	}
+	
+	ResourceItems.RemoveAll([InGeometryMaskResource](const TSharedPtr<FGMEResourceItemViewModel>& InViewModel)
+	{
+		return InViewModel->GetId() == InGeometryMaskResource->GetUniqueID();		
+	});
 
 	OnChanged().Broadcast();
 }

@@ -21,14 +21,24 @@ void SGMECanvasItem::Construct(
 	ImageWidget = SNew(SGeometryMaskCanvasPreview)
 					.Invert(true)
 					.SolidBackground(true)
-					.CanvasName(ViewModel->GetCanvasName())
+					.CanvasId(ViewModel->GetCanvasId())
 					.Channel(ViewModel->GetColorChannel())
 					.Opacity(1.0f);
 
 	SGMEImageItem::Construct(
 		SGMEImageItem::FArguments()
-			.Label(FText::FromName(ViewModel->GetCanvasName()))
+		.Label(this, &SGMECanvasItem::GetLabel)
 		, InOwnerTableView);
+}
+
+FText SGMECanvasItem::GetLabel() const
+{
+	if (ViewModel.IsValid())
+	{
+		return ViewModel->GetCanvasInfo();
+	}
+
+	return FText::GetEmpty();
 }
 
 FOptionalSize SGMECanvasItem::GetAspectRatio()

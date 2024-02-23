@@ -11,8 +11,8 @@
 
 #include "GeometryMaskSubsystem.generated.h"
 
-using FOnGeometryMaskCanvasCreated = TMulticastDelegate<void(const UGeometryMaskCanvas*)>;
 using FOnGeometryMaskResourceCreated = TMulticastDelegate<void(const UGeometryMaskCanvasResource*)>;
+using FOnGeometryMaskResourceDestroyed = TMulticastDelegate<void(const UGeometryMaskCanvasResource*)>;
 
 /** Maintains the registered named canvases. */
 UCLASS(BlueprintType)
@@ -21,52 +21,49 @@ class GEOMETRYMASK_API UGeometryMaskSubsystem
 {
 	GENERATED_BODY()
 
-public:	
-	/** Retrieves a Canvas, uniquely identified by it's name. */
+public:
+	/** Returns the default, blank canvas. */
 	UFUNCTION(BlueprintCallable, Category = "Canvas")
-	UGeometryMaskCanvas* GetNamedCanvas(FName InName);
+	UGeometryMaskCanvas* GetDefaultCanvas();
 
-	/** Returns all registered canvas names. */
-	UFUNCTION(BlueprintCallable, Category = "Canvas")
-	static TArray<FName> GetCanvasNames();
+	int32 GetNumCanvasResources() const;
 
-	int32 GetNumActiveCanvasResources() const;
-
-	const TArray<TObjectPtr<UGeometryMaskCanvasResource>>& GetCanvasResources() const;
+	const TSet<TObjectPtr<UGeometryMaskCanvasResource>>& GetCanvasResources() const;
 
 	void Update(UWorld* InWorld, FSceneViewFamily& InViewFamily);
 
 	/** Toggles if no arg given. */
 	void ToggleUpdate(const TOptional<bool>& bInShouldUpdate = {});
 
-	/** Remove all canvases without any Readers or Writers. Return the number of canvases removed. */
-	int32 RemoveWithoutWriters();
-
-	/** Called when a new canvas is created due to a unique name being requested. */
-	FOnGeometryMaskCanvasCreated& OnGeometryMaskCanvasCreated() { return OnGeometryMaskCanvasCreatedDelegate; }
-
 	/** Called when a new canvas resource is created. */
 	FOnGeometryMaskResourceCreated& OnGeometryMaskResourceCreated() { return OnGeometryMaskResourceCreatedDelegate; }
 
-private:
+	/** Called when a canvas resource is destroyed. */
+	FOnGeometryMaskResourceDestroyed& OnGeometryMaskResourceDestroyed() { return OnGeometryMaskResourceDestroyedDelegate; }
+
+private:	
 	/** Find and assign the next available resource to the given canvas. */
 	void AssignResourceToCanvas(UGeometryMaskCanvas* InCanvas);
 
-	void OnCanvasActivated(UGeometryMaskCanvas* InCanvas);
-	void OnCanvasDeactivated(UGeometryMaskCanvas* InCanvas);
+	/** Re-arrange used canvases such that they use as few Canvas Resource's as possible.
+	 *  Note that this could cause momentary visual artifacts.
+	 *  This won't check for unused canvas's, only resource channels. */
+	void CompactResources();
+
+	void OnWorldDestroyed(UWorld* InWorld);
 
 private:
 	friend class UGeometryMaskWorldSubsystem;
 
-	FOnGeometryMaskCanvasCreated OnGeometryMaskCanvasCreatedDelegate;
 	FOnGeometryMaskResourceCreated OnGeometryMaskResourceCreatedDelegate;
+	FOnGeometryMaskResourceDestroyed OnGeometryMaskResourceDestroyedDelegate;
 
 	std::atomic<bool> bDoUpdates = true;
 
 	UPROPERTY()
-	TMap<FName, TObjectPtr<UGeometryMaskCanvas>> NamedCanvases;
+	TObjectPtr<UGeometryMaskCanvas> DefaultCanvas;
 
 	/** Pool of GPU/Texture resources used by the canvases. */
 	UPROPERTY(Getter)
-	TArray<TObjectPtr<UGeometryMaskCanvasResource>> CanvasResources;
+	TSet<TObjectPtr<UGeometryMaskCanvasResource>> CanvasResources;
 };

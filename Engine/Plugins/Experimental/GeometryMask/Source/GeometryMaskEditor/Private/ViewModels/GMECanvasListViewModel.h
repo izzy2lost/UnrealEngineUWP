@@ -11,50 +11,42 @@ class FGMECanvasItemViewModel;
 
 class FGMECanvasListViewModel
 	: public TSharedFromThis<FGMECanvasListViewModel>
+	, public FGMEListViewModelBase
 	, public FEditorUndoClient
 	, public IGMETreeNodeViewModel
 {
+	using Super = FGMEListViewModelBase;
+
+protected:
+	// Private token only allows members or friends to call MakeShared
+	struct FPrivateToken { explicit FPrivateToken() = default; };
+	
 public:
-	/**  */
 	static TSharedRef<FGMECanvasListViewModel> Create();
+
+	explicit FGMECanvasListViewModel(FPrivateToken)
+		: Super(Super::FPrivateToken{}) { }
 	virtual ~FGMECanvasListViewModel() override;
 
 	// ~Begin IGMETreeNodeViewModel
 	virtual bool GetChildren(TArray<TSharedPtr<IGMETreeNodeViewModel>>& OutChildren) override;
 	// ~End IGMETreeNodeViewModel
 
-public:
-	using FOnChanged = TMulticastDelegate<void()>;;
-
-	/** Something has changed within the ViewModel */
-	FOnChanged& OnChanged() { return OnChangedDelegate; }
-
 private:
-	// Private token only allows members or friends to call MakeShared
-	struct FPrivateToken { explicit FPrivateToken() = default; };
-	
-public:
-	explicit FGMECanvasListViewModel(FPrivateToken);
+	virtual bool RefreshItems() override;
 
-private:
-	void Initialize();
-
-	void RefreshCanvases();
+	virtual void OnPostWorldInit(UWorld* InWorld, const UWorld::InitializationValues InWorldValues) override;
+	virtual void OnPreWorldDestroyed(UWorld* InWorld) override;
 
 	void OnCanvasCreated(const UGeometryMaskCanvas* InGeometryMaskCanvas);
-
-	bool Tick(const float InDeltaSeconds);
+	void OnCanvasDestroyed(const FGeometryMaskCanvasId& InGeometryMaskCanvasId);
 
 private:
-	/** In seconds. */
-	static constexpr float UpdateCheckInterval = 1.0f;
-	FTSTicker::FDelegateHandle UpdateCheckHandle;
-	
-	FOnChanged OnChangedDelegate;
-	FDelegateHandle OnCanvasCreatedHandle;
+	TMap<TObjectKey<UWorld>, FDelegateHandle> OnCanvasCreatedHandles;
+	TMap<TObjectKey<UWorld>, FDelegateHandle> OnCanvasDestroyedHandles;
 
 	/** Cached canvas names for comparison/refresh. */
-	TArray<FName> LastCanvasNames;
+	TMap<TObjectKey<UWorld>, TArray<FName>> LastCanvasNames;
 
 	/** Canvas ViewModels */
 	TArray<TSharedPtr<FGMECanvasItemViewModel>> CanvasItems;

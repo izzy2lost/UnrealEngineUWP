@@ -2,6 +2,7 @@
 
 #include "GeometryMaskSVE.h"
 
+#include "GeometryMaskModule.h"
 #include "GeometryMaskSubsystem.h"
 
 #if WITH_EDITOR
@@ -13,11 +14,12 @@ FGeometryMaskSceneViewExtension::FGeometryMaskSceneViewExtension(
 	UWorld* InWorld)
 	: FWorldSceneViewExtension(AutoRegister, InWorld)
 {
+	UE_LOG(LogGeometryMask, VeryVerbose, TEXT("SVE registered for world: %s"), *InWorld->GetName());
+	
 	GeometryMaskSubsystemWeak = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>();
 }
 
-void FGeometryMaskSceneViewExtension::BeginRenderViewFamily(
-	FSceneViewFamily& InViewFamily)
+void FGeometryMaskSceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
 	if (UGeometryMaskSubsystem* Subsystem = GeometryMaskSubsystemWeak.Get())
 	{
@@ -38,16 +40,20 @@ bool FGeometryMaskSceneViewExtension::IsActiveThisFrame_Internal(const FSceneVie
 	{
 		if (GEditor->IsSimulatingInEditor())
 		{
-			bIsActive = GetWorld()->WorldType == EWorldType::Editor;
+			if (Context.GetWorld()->WorldType == EWorldType::Editor)
+			{
+				return true;
+			}
 		}
-		else if (GEditor->PlayWorld)
+		
+		if (GEditor->PlayWorld)
 		{
-			bIsActive = GetWorld()->WorldType == EWorldType::PIE;
+			bIsActive = Context.GetWorld()->WorldType == EWorldType::PIE;
 		}
 		else
 		{
-			bIsActive = GetWorld()->WorldType == EWorldType::Editor;	
-		}		
+			bIsActive = Context.GetWorld()->WorldType == EWorldType::Editor || GetWorld()->WorldType == EWorldType::Game;
+		}
 	}
 #endif
 
