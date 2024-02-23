@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LandscapeNaniteComponent.h"
+#include "DerivedDataCacheInterface.h"
 #include "LandscapeEdit.h"
 #include "LandscapeRender.h"
 #include "MaterialDomain.h"
@@ -162,8 +163,9 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 	FGraphEventRef StaticMeshBuildCompleteEvent = FGraphEvent::CreateGraphEvent();
 	
 	TSharedRef<UE::Landscape::Nanite::FAsyncBuildData> AsyncBuildData = Landscape->MakeAsyncNaniteBuildData(GetLandscapeActor()->GetNaniteLODIndex(), InComponentsToExport);
-	
-	FGraphEventRef ExportMeshEvent = FFunctionGraphTask::CreateAndDispatchWhenReady([AsyncBuildData,  Name = Landscape->GetActorNameOrLabel()]()
+
+	FGraphEventRef ExportMeshEvent = FFunctionGraphTask::CreateAndDispatchWhenReady(
+		[AsyncBuildData, ProxyContentId = NewProxyContentId, Name = Landscape->GetActorNameOrLabel()]()
 		{			
 			TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync-ExportMeshTask);
 
@@ -186,6 +188,22 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			AsyncBuildData->NaniteStaticMesh = NewObject<UStaticMesh>(/*Outer = */Package, MakeUniqueObjectName(/*Parent = */Package, UStaticMesh::StaticClass(), TEXT("LandscapeNaniteMesh")));
 			AsyncBuildData->SourceModel = &AsyncBuildData->NaniteStaticMesh->AddSourceModel();
 			AsyncBuildData->NaniteMeshDescription = AsyncBuildData->NaniteStaticMesh->CreateMeshDescription(0);
+
+			// create a hash key for the DDC cache of the landscape static mesh export
+			FString ExportDDCKey;
+			{
+				// Mesh Export Version, expressed as a GUID string.  Change this if any of the mesh building code here changes.
+				static const char* MeshExportVersion = "d317ef8d-b9f4-44df-ac06-0724bfed912a";
+
+				FSHA1 Hasher;
+				check(PLATFORM_LITTLE_ENDIAN); // not sure if NewProxyContentId byte order is platform agnostic or not
+				Hasher.Update(reinterpret_cast<const uint8*>(&ProxyContentId), sizeof(FGuid));
+				Hasher.Update(reinterpret_cast<const uint8*>(MeshExportVersion), strlen(MeshExportVersion));
+				int32 LightmapUVVersionForHash = INTEL_ORDER32(AsyncBuildData->NaniteStaticMesh->GetLightmapUVVersion());
+				Hasher.Update(reinterpret_cast<const uint8*>(&LightmapUVVersionForHash), sizeof(int32));
+
+				ExportDDCKey = Hasher.Finalize().ToString();
+			}
 
 			// Don't allow the engine to recalculate normals
 			AsyncBuildData->SourceModel->BuildSettings.bRecomputeNormals = false;
@@ -224,20 +242,43 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			//ExportParams.UVConfiguration.ExportUVMappingTypes[4] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::LightmapUV; // In LandscapeVertexFactory, Texcoords4 = lightmap UV
 			//ExportParams.UVConfiguration.ExportUVMappingTypes[5] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::HeightmapUV; // // In LandscapeVertexFactory, Texcoords5 = heightmap UV
 
-			bool bSuccess = AsyncBuildData->LandscapeWeakRef->ExportToRawMeshDataCopy(ExportParams, *AsyncBuildData->NaniteMeshDescription, AsyncBuildData.Get());
+			bool bSuccess = false;
+			TArray<uint8> MeshDescriptionData;
+			if (GetDerivedDataCacheRef().GetSynchronous(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName()))
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync - ReadExportedMeshFromDDC);
+
+				FMemoryReader Reader(MeshDescriptionData);
+				AsyncBuildData->NaniteMeshDescription->Serialize(Reader);
+
+				bSuccess = true;
+			}
+			else
+			{
+				// build the nanite mesh description
+				bSuccess = AsyncBuildData->LandscapeWeakRef->ExportToRawMeshDataCopy(ExportParams, *AsyncBuildData->NaniteMeshDescription, AsyncBuildData.Get());
+
+				// Apply the mesh description cleanup/optimization here instead of during DDC build (avoids expensive large mesh copies)
+				FMeshDescriptionHelper MeshDescriptionHelper(&AsyncBuildData->SourceModel->BuildSettings);
+				MeshDescriptionHelper.SetupRenderMeshDescription(AsyncBuildData->NaniteStaticMesh, *AsyncBuildData->NaniteMeshDescription, true /* Is Nanite */, false /* bNeedTangents */);
+
+				// cache mesh description, only if we succeeded (failure may be non-deterministic)
+				if (bSuccess)
+				{
+					// serialize the nanite mesh description and submit it to DDC 
+					FMemoryWriter Writer(MeshDescriptionData);
+					AsyncBuildData->NaniteMeshDescription->Serialize(Writer);
+					GetDerivedDataCacheRef().Put(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName());
+				}
+			}
 
 			if (!bSuccess)
 			{
 				AsyncBuildData->bCancelled = true;
 				return;
 			}
-		
-			// Apply the mesh description cleanup/optimization here instead of during DDC build (avoids expensive large mesh copies)
-			{
-				FMeshDescriptionHelper MeshDescriptionHelper(&AsyncBuildData->SourceModel->BuildSettings);
-				MeshDescriptionHelper.SetupRenderMeshDescription(AsyncBuildData->NaniteStaticMesh, *AsyncBuildData->NaniteMeshDescription, true /* Is Nanite */, false /* bNeedTangents */);
-			}
 
+			// check we have one polygon group per component
 			const FPolygonGroupArray& PolygonGroups = AsyncBuildData->NaniteMeshDescription->PolygonGroups();
 			checkf(bSuccess && (PolygonGroups.Num() == AsyncBuildData->InputComponents.Num()), TEXT("Invalid landscape static mesh raw mesh export for actor %s (%i components)"), *Name, AsyncBuildData->InputComponents.Num());
 			check(AsyncBuildData->InputMaterials.Num() == AsyncBuildData->InputComponents.Num());
@@ -245,6 +286,9 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 
 			UE_LOG(LogLandscape, Verbose, TEXT("Successful export of raw static mesh for Nanite landscape (%i components) for actor %s"), AsyncBuildData->InputComponents.Num(), *Name);
 
+			TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync - CommitMeshDescription);
+
+			// commit the mesh description to build the static mesh for realz
 			UStaticMesh::FCommitMeshDescriptionParams CommitParams;
 			CommitParams.bMarkPackageDirty = false;
 			CommitParams.bUseHashAsGuid = true;
