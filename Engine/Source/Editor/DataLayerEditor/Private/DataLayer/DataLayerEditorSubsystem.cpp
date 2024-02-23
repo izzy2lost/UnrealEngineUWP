@@ -926,6 +926,47 @@ bool UDataLayerEditorSubsystem::SelectActorsInDataLayers(const TArray<UDataLayer
 	return bChangesOccurred;
 }
 
+void UDataLayerEditorSubsystem::SetActorsPinStateInDataLayers(const TArray<UDataLayerInstance*>& DataLayerInstances, const bool bPinned)
+{
+	UWorld* World = GetWorld();
+	if (UWorldPartition* WorldPartition = World ? World->GetWorldPartition() : nullptr)
+	{
+		TSet<FName> DataLayerInstanceNames;
+		Algo::TransformIf(DataLayerInstances, DataLayerInstanceNames, [](UDataLayerInstance* DataLayerInstance) { return !!DataLayerInstance; }, [](UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->GetDataLayerFName(); });
+
+		if (DataLayerInstanceNames.Num())
+		{
+			TArray<FGuid> ActorGuids;
+			for (FActorDescContainerInstanceCollection::TIterator<> Iterator(WorldPartition); Iterator; ++Iterator)
+			{
+				const FDataLayerInstanceNames& ActorDescDataLayerInstanceNames = Iterator->GetDataLayerInstanceNames();
+				if (ActorDescDataLayerInstanceNames.Num())
+				{
+					for (const FName& DataLayerInstance : DataLayerInstanceNames)
+					{
+						if (ActorDescDataLayerInstanceNames.Contains(DataLayerInstance))
+						{
+							ActorGuids.Add(Iterator->GetGuid());
+						}
+					}
+				}
+			}
+
+			if (ActorGuids.Num())
+			{
+				if (bPinned)
+				{
+					WorldPartition->PinActors(ActorGuids);
+				}
+				else
+				{
+					WorldPartition->UnpinActors(ActorGuids);
+				}
+			}
+		}
+	}
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // Operations on actor viewport visibility regarding DataLayers

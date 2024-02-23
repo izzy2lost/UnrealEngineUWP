@@ -362,6 +362,15 @@ public:
 	 */
 	bool SelectActorsInDataLayers(const TArray<UDataLayerInstance*>& DataLayers, const bool bSelect, const bool bNotify, const bool bSelectEvenIfHidden, const TSharedPtr<FActorFilter>& Filter);
 
+	/** 
+	 * Pin/unpin actors belonging to the DataLayers.
+	 * 
+	 * @param	DataLayerInstances				A valid list of Data Layer Instances.
+	 * @param	bPinned							If true actors are pinned; if false, actors are unpinned.
+	 * 
+	 */
+	void SetActorsPinStateInDataLayers(const TArray<UDataLayerInstance*>& DataLayerInstances, const bool bPinned);
+
 
 	/////////////////////////////////////////////////
 	// Operations on actor viewport visibility regarding DataLayers

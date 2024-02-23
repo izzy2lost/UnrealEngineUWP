@@ -449,6 +449,10 @@ void FDataLayerMode::OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item)
 			GEditor->MoveViewportCamerasToActor(*Actor, /*bActiveViewportOnly*/false);
 		}
 	}
+	else if (FDataLayerActorDescTreeItem* DataLayerActorDescItem = Item->CastTo<FDataLayerActorDescTreeItem>())
+	{
+		GEditor->BroadcastSelectUnloadedActors({ DataLayerActorDescItem->GetGuid() });
+	}
 }
 
 void FDataLayerMode::DeleteItems(const TArray<TWeakPtr<ISceneOutlinerTreeItem>>& Items)
@@ -1715,6 +1719,32 @@ void FDataLayerMode::RegisterContextMenu()
 							const FScopedTransaction Transaction(LOCTEXT("DeselectActors", "Deselect Actor(s) in Data Layer(s)"));
 							UDataLayerEditorSubsystem::Get()->SelectActorsInDataLayers(SelectedDataLayers, /*bSelect*/false, /*bNotifySelectActors*/true);
 						}}),
+						FCanExecuteAction::CreateLambda([SelectedDataLayers] { return !SelectedDataLayers.IsEmpty(); })
+					));
+			}
+
+			{
+				FToolMenuSection& Section = InMenu->AddSection("DataLayerLoading", LOCTEXT("DataLayerLoading", "Loading"));
+
+				Section.AddMenuEntry("PinActorsInDataLayers", LOCTEXT("PinActorsInDataLayers", "Pin Actor(s) in Data Layer(s)"), FText(), FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateLambda([SelectedDataLayers]() 
+						{
+							check(!SelectedDataLayers.IsEmpty());
+							const FScopedTransaction Transaction(LOCTEXT("PinActorsInDataLayers", "Pin Actor(s) in Data Layer(s)"));
+							UDataLayerEditorSubsystem::Get()->SetActorsPinStateInDataLayers(SelectedDataLayers, true);
+						}),
+						FCanExecuteAction::CreateLambda([SelectedDataLayers] { return !SelectedDataLayers.IsEmpty(); })
+					));
+
+				Section.AddMenuEntry("UnpinActorsInDataLayers", LOCTEXT("UnpinActorsInDataLayers", "Unpin Actor(s) in Data Layer(s)"), FText(), FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateLambda([SelectedDataLayers]()
+							{
+								check(!SelectedDataLayers.IsEmpty());
+								const FScopedTransaction Transaction(LOCTEXT("UnpinActorsInDataLayers", "Unpin Actor(s) in Data Layer(s)"));
+								UDataLayerEditorSubsystem::Get()->SetActorsPinStateInDataLayers(SelectedDataLayers, false);
+							}),
 						FCanExecuteAction::CreateLambda([SelectedDataLayers] { return !SelectedDataLayers.IsEmpty(); })
 					));
 			}
