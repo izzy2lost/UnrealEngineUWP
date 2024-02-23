@@ -662,7 +662,7 @@
                     "type": "Text",
                     "label": "Platforms",
                     "argument": "-set:Platforms=",
-					"default": "Win64+Linux"
+					"default": "Win64"
                 },
                 {
                     "type": "Text",
