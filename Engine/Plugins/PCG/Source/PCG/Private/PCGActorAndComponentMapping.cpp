@@ -716,8 +716,6 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 		return;
 	}
 
-	TSet<TObjectPtr<APCGPartitionActor>> RemovedActors;
-
 	if (const APCGWorldActor* WorldActor = PCGSubsystem->GetPCGWorldActor())
 	{
 		// Get the generation grids as a bitflag to compare against.
@@ -732,53 +730,60 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 			ValidGrids |= GridSize;
 		}
 
-		auto UpdateMapping = [this, InComponent, &Bounds, &RemovedActors, WorldActor, ValidGrids](TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>>& Map, FRWLock& Lock)
+		auto UpdateMapping = [this, InComponent, &Bounds, WorldActor, ValidGrids](bool bIsRuntimeGenerated)
 		{
-			FWriteScopeLock WriteLock(Lock);
-			TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = Map.Find(InComponent);
+			TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>>& Map = bIsRuntimeGenerated ? ComponentToRuntimeGenPartitionActorsMap : ComponentToPartitionActorsMap;
+			TSet<TObjectPtr<APCGPartitionActor>> RemovedActors;
 
-			if (!PartitionActorsPtr)
 			{
-				// Does not yet exists, add it
-				PartitionActorsPtr = &Map.Emplace(InComponent);
-				check(PartitionActorsPtr);
+				FWriteScopeLock WriteLock(bIsRuntimeGenerated ? ComponentToRuntimeGenPartitionActorsMapLock : ComponentToPartitionActorsMapLock);
+				TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = Map.Find(InComponent);
+
+				if (!PartitionActorsPtr)
+				{
+					// Does not yet exists, add it
+					PartitionActorsPtr = &Map.Emplace(InComponent);
+					check(PartitionActorsPtr);
+				}
+
+				TSet<TObjectPtr<APCGPartitionActor>> NewMapping;
+				ForAllIntersectingPartitionActors(Bounds, [&NewMapping, InComponent, WorldActor, ValidGrids, bIsRuntimeGenerated](APCGPartitionActor* Actor)
+				{
+					if (!Actor)
+					{
+						return;
+					}
+
+					// TODO: This will need to be revisited when execution domains become a broader concept.
+					const bool bSameDomain = Actor->IsRuntimeGenerated() == bIsRuntimeGenerated;
+
+					// Only add a graph instance to partition actors that are:
+					// * In the same execution domain as the original component.
+					// * On a valid grid for the original component.
+					if (bSameDomain && (ValidGrids & Actor->GetPCGGridSize()))
+					{
+						Actor->AddGraphInstance(InComponent);
+						NewMapping.Add(Actor);
+					}
+				});
+
+				// Find the ones that were removed
+				RemovedActors = PartitionActorsPtr->Difference(NewMapping);
+
+				*PartitionActorsPtr = MoveTemp(NewMapping);
 			}
 
-			TSet<TObjectPtr<APCGPartitionActor>> NewMapping;
-			ForAllIntersectingPartitionActors(Bounds, [&NewMapping, InComponent, WorldActor, ValidGrids](APCGPartitionActor* Actor)
+			// No need to be locked to do this.
+			for (APCGPartitionActor* RemovedActor : RemovedActors)
 			{
-				if (!Actor)
+				if (RemovedActor)
 				{
-					return;
+					RemovedActor->RemoveGraphInstance(InComponent);
 				}
-
-				// TODO: This will need to be revisited when execution domains become a broader concept.
-				const bool bSameDomain = Actor->IsRuntimeGenerated() == InComponent->IsManagedByRuntimeGenSystem();
-
-				// Only add a graph instance to partition actors that are:
-				// * In the same execution domain as the original component.
-				// * On a valid grid for the original component.
-				if (bSameDomain && (ValidGrids & Actor->GetPCGGridSize()))
-				{
-					Actor->AddGraphInstance(InComponent);
-					NewMapping.Add(Actor);
-				}
-			});
-
-			// Find the ones that were removed
-			RemovedActors = PartitionActorsPtr->Difference(NewMapping);
-
-			*PartitionActorsPtr = MoveTemp(NewMapping);
+			}
 		};
 
-		UpdateMapping(ComponentToPartitionActorsMap, ComponentToPartitionActorsMapLock);
-		UpdateMapping(ComponentToRuntimeGenPartitionActorsMap, ComponentToRuntimeGenPartitionActorsMapLock);
-	}
-
-	// No need to be locked to do this.
-	for (APCGPartitionActor* RemovedActor : RemovedActors)
-	{
-		RemovedActor->RemoveGraphInstance(InComponent);
+		UpdateMapping(InComponent->IsManagedByRuntimeGenSystem());
 	}
 }
 

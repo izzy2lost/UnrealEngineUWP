@@ -79,6 +79,9 @@ protected:
 	/** Cleanup a component and remove it from the GeneratedComponents set. */
 	void CleanupComponent(const FGridGenerationKey& GenerationKey, UPCGComponent* GeneratedComponent);
 
+	/** Remove components from the GeneratedComponents set that have been marked for delayed refresh. Fully cleanup any that would be leaked otherwise. */
+	void CleanupDelayedRefreshComponents();
+
 	/** Refresh a generated component. bRemovePartitionActors will also perform a full cleanup of PAs and local components. */
 	void RefreshComponent(UPCGComponent* InComponent, bool bRemovePartitionActors = false);
 	
