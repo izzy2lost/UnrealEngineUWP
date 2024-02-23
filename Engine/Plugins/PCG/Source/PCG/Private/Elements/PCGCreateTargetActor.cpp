@@ -37,6 +37,15 @@ namespace PCGCreateTargetActorConstants
 	const FText ActorPropertyOverridesTooltip = LOCTEXT("ActorOverrideToolTip", "Provide property overrides for the created target actor. The attribute name must match the InputSource name in the actor property override description.");
 }
 
+UPCGCreateTargetActor::UPCGCreateTargetActor(const FObjectInitializer& ObjectInitializer)
+	: UPCGSettings(ObjectInitializer)
+{
+	if (PCGHelpers::IsNewObjectAndNotDefault(this))
+	{
+		AttachOptions = EPCGAttachOptions::InFolder;
+	}
+}
+
 FPCGElementPtr UPCGCreateTargetActor::CreateElement() const
 {
 	return MakeShared<FPCGCreateTargetActorElement>();

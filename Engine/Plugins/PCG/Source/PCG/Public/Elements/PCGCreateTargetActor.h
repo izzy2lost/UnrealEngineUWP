@@ -15,6 +15,8 @@ class PCG_API UPCGCreateTargetActor : public UPCGSettings
 	GENERATED_BODY()
 
 public:
+	UPCGCreateTargetActor(const FObjectInitializer& ObjectInitializer);
+
 	//~Begin UObject interface
 	virtual void PostLoad() override;
 	virtual void BeginDestroy() override;
@@ -61,14 +63,17 @@ public:
 	bool bAllowTemplateActorEditing = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	EPCGAttachOptions AttachOptions = EPCGAttachOptions::Attached;
+	EPCGAttachOptions AttachOptions = EPCGAttachOptions::Attached; // Note that this is no longer the default value for new nodes, it is now EPCGAttachOptions::InFolder
 
+	/** Actor to attach to if the option is Attached. Default to the Component owner. */
 	UPROPERTY(meta = (PCG_Overridable))
 	TSoftObjectPtr<AActor> RootActor;
 
+	/** Name of the actor that will be created. */
 	UPROPERTY(meta = (PCG_Overridable))
 	FString ActorLabel;
 
+	/** Transform of the actor that will be created. */
 	UPROPERTY(meta = (PCG_Overridable))
 	FTransform ActorPivot;
 

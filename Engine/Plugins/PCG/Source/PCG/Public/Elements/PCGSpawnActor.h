@@ -41,6 +41,8 @@ class PCG_API UPCGSpawnActorSettings : public UPCGBaseSubgraphSettings
 	GENERATED_BODY()
 
 public:
+	UPCGSpawnActorSettings(const FObjectInitializer& ObjectInitializer);
+
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Settings, meta = (OnlyPlaceable, DisallowCreateNew))
 	TSubclassOf<AActor> TemplateActorClass = nullptr;
 
@@ -80,7 +82,7 @@ public:
 	TSoftObjectPtr<AActor> RootActor;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Option != EPCGSpawnActorOption::CollapseActors", EditConditionHides))
-	EPCGAttachOptions AttachOptions = EPCGAttachOptions::Attached;
+	EPCGAttachOptions AttachOptions = EPCGAttachOptions::Attached; // Note that this is no longer the default value for new nodes, it is now EPCGAttachOptions::InFolder
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))
 	bool bSpawnByAttribute = false;
