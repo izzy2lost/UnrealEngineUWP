@@ -139,19 +139,31 @@ public:
 	bool IsSetDrawUVOverlayChecked() const;
 
 	// Set the material index whose UVs will be drawn.
-	void SetDrawUVOverlayMaterial(const FString& MaterialName, FString UVChannel);
+	void SetDrawUVOverlayMaterial(const FString& MaterialName, const FString& UVChannel);
 
 	/** Callback for toggling the grid show flag. */
-	void SetShowGrid();
+	void UpdateShowGridFromButton();
+
+	/** 
+	 * Updates the visual state of the ShowGrid Button and CheckBox in the Preview Settings
+	 * @param bKeepOldValue - If true, it will keep the visibility of the grid and floor, otherwise it will invert it
+	*/
+	void UpdateShowGrid(bool bKeepOldValue);
 	
 	/** Callback for checking the grid show flag. */
-	bool IsSetShowGridChecked() const;
+	bool IsShowGridChecked() const;
 
 	/** Callback for toggling the sky show flag. */
-	void SetShowSky();
+	void UpdateShowSkyFromButton();
+
+	/**
+	 * Updates the visual state of the ShowSky Button and CheckBox in the Preview Settings
+	 * @param bKeepOldValue - If true, it will keep the visibility of the sky end environment, otherwise it will invert it
+	*/
+	void UpdateShowSky(bool bKeepOldValue);
 
 	/** Callback for checking the sky show flag. */
-	bool IsSetShowSkyChecked() const;
+	bool IsShowSkyChecked() const;
 
 	/** Callback for toggling the bounds show flag. */
 	void SetShowBounds();

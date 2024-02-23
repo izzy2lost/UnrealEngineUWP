@@ -353,15 +353,15 @@ void SCustomizableObjectEditorViewportTabBody::BindCommands()
 
 	CommandList.MapAction(
 		Commands.SetShowGrid,
-		FExecuteAction::CreateSP( EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::SetShowGrid ),
+		FExecuteAction::CreateSP( EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::UpdateShowGridFromButton),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP( EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsSetShowGridChecked ) );
+		FIsActionChecked::CreateSP( EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsShowGridChecked ) );
 
 	CommandList.MapAction(
 		Commands.SetShowSky,
-		FExecuteAction::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::SetShowSky),
+		FExecuteAction::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::UpdateShowSkyFromButton),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsSetShowSkyChecked));
+		FIsActionChecked::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsShowSkyChecked));
 
 	CommandList.MapAction(
 		Commands.SetShowBounds,
