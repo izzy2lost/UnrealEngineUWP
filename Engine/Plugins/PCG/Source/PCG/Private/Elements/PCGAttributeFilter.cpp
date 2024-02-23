@@ -339,7 +339,7 @@ TArray<FPCGPreConfiguredSettingsInfo> UPCGAttributeFilteringSettings::GetPreconf
 {
 	TArray<FPCGPreConfiguredSettingsInfo> PreconfiguredInfo;
 	PreconfiguredInfo.Emplace(0, GetDefaultNodeTitle());
-	PreconfiguredInfo.Emplace(1, LOCTEXT("PointRangeNodeTitle", "Point Filter"));
+	PreconfiguredInfo.Emplace(1, LOCTEXT("PointNodeTitle", "Point Filter"));
 
 	return PreconfiguredInfo;
 }
