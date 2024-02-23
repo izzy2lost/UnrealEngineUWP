@@ -3,6 +3,7 @@
 #include "Backends/MoverNetworkPredictionLiaison.h"
 #include "NetworkPredictionModelDefRegistry.h"
 #include "NetworkPredictionProxyInit.h"
+#include "NetworkPredictionProxyWrite.h"
 #include "GameFramework/Actor.h"
 #include "MoverComponent.h"
 
@@ -89,6 +90,28 @@ float UMoverNetworkPredictionLiaisonComponent::GetCurrentSimTimeMs()
 int32 UMoverNetworkPredictionLiaisonComponent::GetCurrentSimFrame()
 {
 	return NetworkPredictionProxy.GetPendingFrame();
+}
+
+
+bool UMoverNetworkPredictionLiaisonComponent::ReadPendingSyncState(OUT FMoverSyncState& OutSyncState)
+{
+	if (const FMoverSyncState* PendingSyncState = NetworkPredictionProxy.ReadSyncState<FMoverSyncState>())
+	{
+		OutSyncState = *PendingSyncState;
+		return true;
+	}
+
+	return false;
+}
+
+bool UMoverNetworkPredictionLiaisonComponent::WritePendingSyncState(const FMoverSyncState& SyncStateToWrite)
+{
+	NetworkPredictionProxy.WriteSyncState<FMoverSyncState>([&SyncStateToWrite](FMoverSyncState& PendingSyncStateRef)
+		{
+			PendingSyncStateRef = SyncStateToWrite;
+		});
+
+	return true;
 }
 
 void UMoverNetworkPredictionLiaisonComponent::BeginPlay()

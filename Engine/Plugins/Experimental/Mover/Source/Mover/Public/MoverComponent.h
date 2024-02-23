@@ -371,6 +371,8 @@ protected:
 	FMoverTimeStep CachedLastSimTickTimeStep;	// Saved timestep info from our last simulation tick, used during rollback handling. This will rewind during corrections.
 	FMoverTimeStep CachedNewestSimTickTimeStep;	// Saved timestep info from the newest (farthest-advanced) simulation tick. This will not rewind during corrections.
 
+	TWeakInterfacePtr<IMoverBackendLiaisonInterface> BackendLiaisonComp;
+
 private:
 	/** Collection of settings objects that are shared between movement modes. This list is automatically managed based on the @MovementModes contents. */
 	UPROPERTY(EditDefaultsOnly, EditFixedSize, Instanced, Category = Mover, meta = (NoResetToDefault, MustImplement = "/Script/Mover.MovementSettingsInterface"))
@@ -400,8 +402,6 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMoverBlackboard> SimBlackboard;
 
-	
-	TWeakInterfacePtr<IMoverBackendLiaisonInterface> BackendLiaisonComp;
 
 	friend class UBaseMovementMode;
 	friend class UMoverNetworkPhysicsLiaisonComponent;
