@@ -43,6 +43,15 @@ void FOverridableManager::InheritEnabledFrom(UObject& Object, const UObject* Def
 	}
 }
 
+bool FOverridableManager::NeedSubObjectTemplateInstantiation(const UObject& Object)
+{
+	if( const FOverriddenPropertySet* OverriddenProperties = OverriddenObjectAnnotations.Find(Object))
+	{
+		return OverriddenProperties->bNeedsSubobjectTemplateInstantiation;
+	}
+	return false;
+}
+
 FOverriddenPropertySet* FOverridableManager::GetOverriddenProperties(UObject& Object)
 {
 	return OverriddenObjectAnnotations.Find(Object);

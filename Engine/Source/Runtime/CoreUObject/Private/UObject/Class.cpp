@@ -1431,6 +1431,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 			{
 				ControlContext.bEnableOverridableSerialization = true;
 				ControlContext.OverriddenProperties = &FOverridableManager::Get().SetOverriddenProperties(*(UObject*)Data, Operation);
+				ControlContext.OverriddenProperties->bNeedsSubobjectTemplateInstantiation = true;
 			}
 		}
 	}
