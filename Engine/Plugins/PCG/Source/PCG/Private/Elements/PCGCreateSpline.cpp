@@ -21,6 +21,15 @@
 
 #define LOCTEXT_NAMESPACE "PCGCreateSpline"
 
+UPCGCreateSplineSettings::UPCGCreateSplineSettings(const FObjectInitializer& ObjectInitializer)
+	: UPCGSettings(ObjectInitializer)
+{
+	if (PCGHelpers::IsNewObjectAndNotDefault(this))
+	{
+		AttachOptions = EPCGAttachOptions::InFolder;
+	}
+}
+
 #if WITH_EDITOR
 FText UPCGCreateSplineSettings::GetNodeTooltipText() const
 {

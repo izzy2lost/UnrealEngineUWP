@@ -127,6 +127,15 @@ public:
 	FName SpawnAttribute = NAME_None;
 };
 
+UPCGSpawnActorSettings::UPCGSpawnActorSettings(const FObjectInitializer& ObjectInitializer)
+	: UPCGBaseSubgraphSettings(ObjectInitializer)
+{
+	if (PCGHelpers::IsNewObjectAndNotDefault(this))
+	{
+		AttachOptions = EPCGAttachOptions::InFolder;
+	}
+}
+
 UPCGNode* UPCGSpawnActorSettings::CreateNode() const
 {
 	return NewObject<UPCGSpawnActorNode>();
