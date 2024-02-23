@@ -641,7 +641,7 @@
             "name": "Remote Execution Test",
             "arguments":
             [
-                "-Script=Engine/Restricted/NotForLicensees/Build/RemoteExecutionTest.xml",
+                "-Script=Engine/Build/Graph/Tasks/RemoteExecutionTest.xml",
 				"-Target=Compile Target"
             ],
             "parameters":
