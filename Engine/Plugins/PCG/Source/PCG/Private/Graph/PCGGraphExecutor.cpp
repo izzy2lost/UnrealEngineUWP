@@ -637,6 +637,11 @@ void FPCGGraphExecutor::Execute()
 	bool bAnyTaskEnded = false;
 	bool bHasAlreadyCheckedSleepingTasks = false;
 
+#if WITH_EDITOR
+	// Update Notifications before capturing StartTime so that this call doesn't eat up task budget
+	UpdateGenerationNotification();
+#endif
+
 	const double StartTime = FPlatformTime::Seconds();
 
 	double VarTimePerFrame = PCGGraphExecutor::CVarTimePerFrame.GetValueOnAnyThread() / 1000.0;
@@ -653,10 +658,6 @@ void FPCGGraphExecutor::Execute()
 	const int32 MaxNumThreads = FMath::Max(0, FMath::Min((int32)(FPlatformMisc::NumberOfCoresIncludingHyperthreads() * MaxPercentageOfThreadsToUse), CVarMaxNumTasks.GetValueOnAnyThread() - 1));
 	const bool bAllowMultiDispatch = PCGGraphExecutor::CVarGraphMultithreading.GetValueOnAnyThread();
 	const bool bDynamicTaskCulling = PCGGraphExecutor::CVarDynamicTaskCulling.GetValueOnAnyThread();
-
-#if WITH_EDITOR
-	UpdateGenerationNotification();
-#endif
 
 	while (ReadyTasks.Num() > 0 || ActiveTasks.Num() > 0 || (!bHasAlreadyCheckedSleepingTasks && SleepingTasks.Num() > 0))
 	{
