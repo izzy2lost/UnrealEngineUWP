@@ -857,21 +857,42 @@ bool FAutomationTestInequalityPointer::RunTest(const FString& Parameters)
 	UWorld* SameWorld = World;
 	UWorld* OtherWorld = UWorld::CreateWorld(EWorldType::Game, false);
 	
-	TestSame("Identity stack primitive", StackPointer, StackPointer);
-	TestSame("Identity world object", World, World);
-	/*
-	* Disabled due to UE-207121
-	* TestSame("Same stack primitive", SameStackPointer, StackPointer);
-	* TestSame("Same world object", SameWorld, World);
-	* TestNotSame("Other stack primitive", OtherStackPointer, StackPointer);
-	* TestNotSame("Other world object", OtherWorld, World);
-	*/
+	TestSamePtr("Identity stack primitive", StackPointer, StackPointer);
+	TestSamePtr("Identity world object", World, World);
+	TestSamePtr("Same stack primitive", SameStackPointer, StackPointer);
+	TestSamePtr("Same world object", SameWorld, World);
+	TestNotSamePtr("Other stack primitive", OtherStackPointer, StackPointer);
+	TestNotSamePtr("Other world object", OtherWorld, World);
 	TestNotNull("Stack primitive not null", StackPointer);
 	TestNotNull("Constructed World object not null", World);
 	TestNull("Nullptr", nullptr);
 
 	World->DestroyWorld(false);
 	OtherWorld->DestroyWorld(false);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTestInequalityReference, "TestFramework.Validation.TestInequalityReference", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+bool FAutomationTestInequalityReference::RunTest(const FString& Parameters)
+{
+	int32 StackValue = 42;
+	int32& StackRef = StackValue;
+	int32& SameStackRef = StackValue;
+	int32 OtherStackValue = 42;
+	int32& OtherStackRef = OtherStackValue;
+	int32&& StackRValRef = 42;
+	int32& StackLValFromRvalRef = StackRValRef;
+
+	TestSame("Identity primitive", StackRef, StackRef);
+	TestSame("Identity value", StackValue, StackRef);
+	TestSame("Same primitive", SameStackRef, StackRef);
+	TestSame("Identity rvalue", StackRValRef, StackRValRef);
+	TestSame("Same rvalue and lvalue", StackLValFromRvalRef, StackRValRef);
+	TestNotSame("Other primitive", OtherStackRef, StackRef);
+	TestNotSame("Other value", OtherStackValue, StackRef);
+	TestNotSame("Other rvalue", StackRValRef, StackRef);
+	TestNotSame("Other lvalue from rvalue", StackLValFromRvalRef, StackRef);
 
 	return true;
 }
@@ -1200,6 +1221,18 @@ bool FAutomationSameNotSameEXPR::RunTest(const FString& Parameters)
 	UTEST_SAME(CustomDescriptionString, ActualFStringValue, ActualFStringValue);
 	UTEST_NOT_SAME_EXPR(ActualFStringValue, ExpectedFStringValueLowerCase);
 	UTEST_NOT_SAME(CustomDescriptionString, ActualFStringValue, ExpectedFStringValueLowerCase);
+
+	return true;
+}
+
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationSameNotSamePtrEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestSameNotSamePtr", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+bool FAutomationSameNotSamePtrEXPR::RunTest(const FString& Parameters)
+{
+
+	UTEST_SAME_PTR_EXPR(&ActualFStringValue, &ActualFStringValue);
+	UTEST_SAME_PTR(CustomDescriptionString, &ActualFStringValue, &ActualFStringValue);
+	UTEST_NOT_SAME_PTR_EXPR(&ActualFStringValue, &ExpectedFStringValueLowerCase);
+	UTEST_NOT_SAME_PTR(CustomDescriptionString, &ActualFStringValue, &ExpectedFStringValueLowerCase);
 
 	return true;
 }

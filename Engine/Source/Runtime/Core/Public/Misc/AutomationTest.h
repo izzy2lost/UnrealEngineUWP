@@ -2239,13 +2239,13 @@ public:
 	}
 
 	/**
-	 * Logs an error if the two values are the same object in memory.
+	 * Logs an error if the two values reference the same object in memory.
 	 *
 	 * @param Description - Description text for the test.
-	 * @param A - The first value.
-	 * @param B - The second value.
+	 * @param A - The first reference.
+	 * @param B - The second reference.
 	 *
-	 * @see TestSame
+	 * @see TestSame, TestNotSamePtr
 	 */
 	template<typename ValueType>
 	FORCEINLINE bool TestNotSame(const TCHAR* Description, const ValueType& Actual, const ValueType& Expected)
@@ -2264,6 +2264,39 @@ public:
 	}
 
 	/**
+	 * Logs an error if the two pointers point to the same object in memory.
+	 *
+	 * @param Description - Description text for the test.
+	 * @param A - The first pointer.
+	 * @param B - The second pointer.
+	 *
+	 * @see TestNotSamePtr, TestSame
+	 */
+	template<typename ValueType>
+	FORCEINLINE bool TestNotSamePtr(const TCHAR* Description, const ValueType* Actual, const ValueType* Expected)
+	{
+		if (nullptr == Actual)
+		{
+			AddWarning(FString::Printf(TEXT("%s: Actual value is nullptr."), Description));
+		}
+		if (nullptr == Expected)
+		{
+			AddWarning(FString::Printf(TEXT("%s: Expected value is nullptr, which may be unintended. If intentional consider instead using TestNotNull()."), Description));
+		}
+		if (Actual == Expected)
+		{
+			AddError(FString::Printf(TEXT("%s: The two pointers are the same."), Description));
+			return false;
+		}
+		return true;
+	}
+
+	template<typename ValueType> bool TestNotSamePtr(const FString& Description, const ValueType* Actual, const ValueType* Expected)
+	{
+		return TestNotSamePtr(*Description, Actual, Expected);
+	}
+
+	/**
 	 * Logs an error if the specified pointer is not NULL.
 	 *
 	 * @param Description - Description text for the test.
@@ -2279,13 +2312,13 @@ public:
 	}
 
 	/**
-	 * Logs an error if the two values are not the same object in memory.
+	 * Logs an error if the two values do not reference the same object in memory.
 	 *
 	 * @param Description - Description text for the test.
-	 * @param Actual - The actual value.
-	 * @param Expected - The expected value.
+	 * @param Actual - The actual reference.
+	 * @param Expected - The expected reference.
 	 *
-	 * @see TestNotSame
+	 * @see TestNotSame, TestSamePtr
 	 */
 	template<typename ValueType>
 	FORCEINLINE bool TestSame(const TCHAR* Description, const ValueType& Actual, const ValueType& Expected)
@@ -2301,6 +2334,39 @@ public:
 	template<typename ValueType> bool TestSame(const FString& Description, const ValueType& Actual, const ValueType& Expected)
 	{
 		return TestSame(*Description, Actual, Expected);
+	}
+
+	/**
+	 * Logs an error if the two pointers do not point to the same object in memory.
+	 *
+	 * @param Description - Description text for the test.
+	 * @param Actual - The actual pointer.
+	 * @param Expected - The expected pointer.
+	 *
+	 * @see TestNotSamePtr, TestNotSame
+	 */
+	template<typename ValueType>
+	FORCEINLINE bool TestSamePtr(const TCHAR* Description, const ValueType* Actual, const ValueType* Expected)
+	{
+		if (nullptr == Actual)
+		{
+			AddWarning(FString::Printf(TEXT("%s: Actual value is nullptr."), Description));
+		}
+		if (nullptr == Expected)
+		{
+			AddWarning(FString::Printf(TEXT("%s: Expected value is nullptr, which may be unintended. If intentional consider instead using TestNull()."), Description));
+		}
+		if (Actual != Expected)
+		{
+			AddError(FString::Printf(TEXT("%s: The two pointers are not the same."), Description));
+			return false;
+		}
+		return true;
+	}
+
+	template<typename ValueType> bool TestSamePtr(const FString& Description, const ValueType* Actual, const ValueType* Expected)
+	{
+		return TestSamePtr(*Description, Actual, Expected);
 	}
 
 	/**
@@ -4255,6 +4321,30 @@ public: \
 
 #define UTEST_NOT_SAME_EXPR(Actual, Expected)\
 	if (!TestNotSame(FString::Printf(TEXT("%s != %s"), TEXT(#Actual), TEXT(#Expected)), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_SAME_PTR(What, Actual, Expected)\
+	if (!TestSamePtr(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_SAME_PTR_EXPR(Actual, Expected)\
+	if (!TestSamePtr(FString::Printf(TEXT("%s == %s"), TEXT(#Actual), TEXT(#Expected)), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NOT_SAME_PTR(What, Actual, Expected)\
+	if (!TestNotSamePtr(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NOT_SAME_PTR_EXPR(Actual, Expected)\
+	if (!TestNotSamePtr(FString::Printf(TEXT("%s != %s"), TEXT(#Actual), TEXT(#Expected)), Actual, Expected))\
 	{\
 		return false;\
 	}
