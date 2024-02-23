@@ -93,7 +93,7 @@ struct FChaosVDGeometryTraceContext
 			return;
 		}
 
-		FWriteScopeLock WriteLock(TracedGeometrySetLock);
+		FWriteScopeLock WriteLock(CachedGeometryHashesLock);
 		CachedGeometryHashes.Remove((void*)Implicit);
 	}
 
@@ -819,6 +819,8 @@ void FChaosVisualDebuggerTrace::Reset()
 	{
 		FWriteScopeLock GeometryWriteLock(GeometryTracerObject.TracedGeometrySetLock);
 		GeometryTracerObject.GeometryTracedIDs.Reset();
+
+		FWriteScopeLock GeometryHashWriteLock(GeometryTracerObject.CachedGeometryHashesLock);
 		GeometryTracerObject.CachedGeometryHashes.Reset();
 	}
 }
