@@ -396,6 +396,9 @@ public:
 	TArray<FName> EventQueueToRun;
 	TMap<FName, int32> EventsToRunOnce;
 
+	/** Returns true if Evaluate_AnyThread is currently executing */
+	bool IsEvaluating() const { return !EventQueueToRun.IsEmpty(); }
+
 	/** Copy the VM from the default object */
 	void InstantiateVMFromCDO();
 	

@@ -58,7 +58,7 @@ bool UTransformableControlHandle::IsValid(const bool bDeepCheck) const
 
 void UTransformableControlHandle::PreEvaluate(const bool bTick) const
 {
-	if (!ControlRig.IsValid())
+	if (!ControlRig.IsValid() || ControlRig->IsEvaluating())
 	{
 		return;
 	}
