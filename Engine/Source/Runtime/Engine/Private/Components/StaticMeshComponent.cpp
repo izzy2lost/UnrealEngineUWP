@@ -3166,15 +3166,7 @@ FBox UStaticMeshComponent::GetNavigationBounds() const
 	{
 		if (ensureMsgf(!Mesh->IsCompiling(), TEXT("%s is not considered relevant to navigation until associated mesh is compiled."), *GetFullName()))
 		{
-			if (const UNavCollisionBase* NavCollision = Mesh->GetNavCollision())
-			{
-				FBox NavBounds = NavCollision->GetBounds();
-				if (!NavBounds.IsValid)
-				{
-					NavBounds = Mesh->GetBounds().GetBox();
-				}
-				return NavBounds.TransformBy(GetComponentTransform());
-			}
+			return Mesh->GetNavigationBounds(GetComponentTransform());
 		}
 	}
 
