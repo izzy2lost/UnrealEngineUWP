@@ -322,16 +322,6 @@ namespace Horde.Server.Accounts
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAccount?> FindByUsernameAsync(string username, CancellationToken cancellationToken = default)
-		{
-			await CreateAdminAccountAsync(cancellationToken);
-
-			AccountDocument? account = await _accounts.Find(x => x.Name == username).FirstOrDefaultAsync(cancellationToken);
-			account?.PostLoad(this);
-			return account;
-		}
-
-		/// <inheritdoc/>
 		Task<AccountDocument?> TryUpdateAsync(AccountDocument document, UpdateAccountOptions options, CancellationToken cancellationToken = default)
 		{
 			UpdateDefinition<AccountDocument> update = Builders<AccountDocument>.Update.Set(x => x.UpdateIndex, document.UpdateIndex + 1);

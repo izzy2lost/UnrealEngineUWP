@@ -62,14 +62,6 @@ namespace Horde.Server.Accounts
 		Task<IAccount?> FindByLoginAsync(string login, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Get an account via Username
-		/// </summary>
-		/// <param name="username">Username to use for searching</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>The service account</returns>
-		Task<IAccount?> FindByUsernameAsync(string username, CancellationToken cancellationToken = default);
-
-		/// <summary>
 		/// Get service account via ID
 		/// </summary>
 		/// <param name="id">The unique service account id</param>

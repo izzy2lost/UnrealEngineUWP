@@ -230,17 +230,17 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Sign into a Horde auth account
 		/// </summary>
-		/// <param name="username"></param>
+		/// <param name="login"></param>
 		/// <param name="password"></param>
 		/// <returns></returns>
-		async Task<bool> SignInAsync(string? username, string? password)
+		async Task<bool> SignInAsync(string? login, string? password)
 		{
-			if (String.IsNullOrEmpty(username))
+			if (String.IsNullOrEmpty(login))
 			{
 				return false;
 			}
 
-			IAccount? account = await _hordeAccounts.FindByUsernameAsync(username);
+			IAccount? account = await _hordeAccounts.FindByLoginAsync(login);
 			if (account == null)
 			{
 				return false;
