@@ -46,6 +46,7 @@
 				NETStandard.Library@2.0.0
 				Serilog.Enrichers.OpenTracing@0.0.2
 				SharpCompress@0.30.1
+				Humanizer.Core@2.2.0
 			</Property>
 			<NuGet-LicenseCheck BaseDir="Engine/Source/Programs/Horde/Horde.Server" IgnorePackages="$(IgnorePackages)" LicenseDir="Engine/Source/Programs/Horde/ThirdParty/Licenses" DotNetPath="$(DotNetPath)"/>
 		</Node>
@@ -217,6 +218,9 @@
 			<!-- Stage the server -->
 			<Delete Files="$(StagingDir)/Server/..."/>
 			<DotNet Arguments="publish &quot;$(RootDir)/Engine/Source/Programs/Horde/Horde.Server/Horde.Server.csproj&quot; --output &quot;$(StagingDir)/Server&quot; --runtime win-x64 --self-contained $(VersionArguments)" DotNetPath="$(DotNetPath)" />
+
+			<!-- Remove the local config file. This is only used for local iteration. -->
+			<Delete Files="$(StagingDir)/Server/appsettings.Local.json"/>
 
 			<!-- Add the bundled tools into the installer -->
 			<DotNet Arguments="run --project &quot;$(RootDir)/Engine/Source/Programs/Horde/Horde.Server/Horde.Server.csproj&quot; -- generate tooldata -id=horde-cmd -name=&quot;Horde (Command-Line)&quot; -description=&quot;Command-line tool for interacting with the Horde Server.&quot; -version=&quot;$(InformationalVersion)&quot; -inputdir=&quot;$(ServerToolsStagingDir_HordeCmd)&quot; -serverdir=&quot;$(StagingDir)/Server&quot; -public" DotNetPath="$(DotNetPath)" />
