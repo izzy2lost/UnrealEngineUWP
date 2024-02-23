@@ -699,6 +699,14 @@ IQueuedWork* FImgMediaLoader::GetWork()
 	// Update minimum mip level to upscale
 	MinimumMipLevelToUpscale = GetDesiredMinimumMipLevelToUpscale();
 
+	if (MinimumMipLevelToUpscale >= 0 && NumMipLevels <= 1)
+	{
+		UE_CALL_ONCE([ImagePath = GetImagePath(0, 0)]
+			{
+				UE_LOG(LogImgMedia, Display, TEXT("No upscaling for sequence without mips: %s"), *ImagePath);
+			});
+	}
+
 	FImgMediaLoaderWork* Work = (WorkPool.Num() > 0) ? WorkPool.Pop() : new FImgMediaLoaderWork(AsShared(), Reader.ToSharedRef());
 	
 	// Get the existing frame so we can add the mip level to it.
