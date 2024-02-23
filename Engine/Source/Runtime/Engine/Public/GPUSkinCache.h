@@ -146,6 +146,7 @@ public:
 		uint32 RevisionNumber, 
 		int32 Section,
 		int32 LOD,
+		bool bRecreating,
 		FGPUSkinCacheEntry*& InOutEntry
 		);
 
@@ -396,6 +397,21 @@ public:
 				}
 			}
 			return Result;
+		}
+
+		// On recreate of the render state where the GPU skin cache entry is preserved, the bone buffer will have been reallocated,
+		// even though the transforms didn't change.  We need to force the Find() call above to treat the data as up-to-date, which
+		// can be accomplished by updating the BoneBuffer pointer for the previous Revision, so it matches again.
+		void UpdatePreviousBoneBuffer(const FVertexBufferAndSRV& PreviousBoneBuffer, uint32 PreviousRevision)
+		{
+			for (int32 Index = 0; Index < NUM_BUFFERS; ++Index)
+			{
+				if (Revisions[Index] == PreviousRevision)
+				{
+					BoneBuffers[Index] = &PreviousBoneBuffer;
+					break;
+				}
+			}
 		}
 
 	private:

@@ -124,6 +124,11 @@ public:
 	 */
 	virtual bool IsCPUSkinned() const = 0;
 
+	/**
+	 * Returns true if this mesh is an FSkeletalMeshObjectGPUSkin
+	 */
+	virtual bool IsGPUSkinMesh() const { return false; }
+
 	/** 
 	 *	Get the array of component-space bone transforms. 
 	 *	Not safe to hold this point between frames, because it exists in dynamic data passed from main thread.

@@ -303,7 +303,7 @@ private:
 /**
 * Pooled morph vertex buffers that store the vertex deltas.
 */
-class FMorphVertexBufferPool
+class FMorphVertexBufferPool : public FThreadSafeRefCountedObject
 {
 public:
 	FMorphVertexBufferPool(FSkeletalMeshRenderData* InSkelMeshRenderData, int32 InLOD, ERHIFeatureLevel::Type InFeatureLevel)
@@ -312,10 +312,21 @@ public:
 		MorphVertexBuffers[1] = FMorphVertexBuffer(InSkelMeshRenderData, InLOD, InFeatureLevel);
 	}
 
+	~FMorphVertexBufferPool()
+	{
+		// Note that destruction of this class must occur on the render thread if InitResources has been called!
+		// This is normally pointed to by FSkeletalMeshObjectGPUSkin, which is defer deleted on the render thread.
+		if (bInitializedResources)
+		{
+			ReleaseResources();
+		}
+	}
+
 	void InitResources(const FName& OwnerName);
 	void ReleaseResources();
 	SIZE_T GetResourceSize() const;
 	void EnableDoubleBuffer(FRHICommandListBase& RHICmdList);
+	bool IsInitialized() const						{ return bInitializedResources; }
 	bool IsDoubleBuffered() const					{ return bDoubleBuffer; }
 	void SetUpdatedFrameNumber(uint32 FrameNumber)	{ UpdatedFrameNumber = FrameNumber; }
 	uint32 GetUpdatedFrameNumber() const			{ return UpdatedFrameNumber; }
@@ -326,6 +337,8 @@ public:
 private:
 	/** Vertex buffer that stores the morph target vertex deltas. */
 	FMorphVertexBuffer MorphVertexBuffers[2];
+	/** If data is preserved when recreating render state, resources will already be initialized, so we need a flag to track that. */
+	bool bInitializedResources = false;
 	/** whether to double buffer. If going through skin cache, then use single buffer; otherwise double buffer. */
 	bool bDoubleBuffer = false;
 
@@ -352,11 +365,12 @@ public:
 	ENGINE_API virtual void InitResources(USkinnedMeshComponent* InMeshComponent) override;
 	ENGINE_API virtual void ReleaseResources() override;
 	ENGINE_API virtual void Update(int32 LODIndex,USkinnedMeshComponent* InMeshComponent,const FMorphTargetWeightMap& InActiveMorphTargets, const TArray<float>& InMorphTargetWeights, EPreviousBoneTransformUpdateMode PreviousBoneTransformUpdateMode, const FExternalMorphWeightData& InExternalMorphWeightData) override;
-	ENGINE_API void UpdateDynamicData_RenderThread(FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, FDynamicSkelMeshObjectDataGPUSkin* InDynamicData, FSceneInterface* Scene, uint64 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber);
+	ENGINE_API void UpdateDynamicData_RenderThread(FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, FDynamicSkelMeshObjectDataGPUSkin* InDynamicData, FSceneInterface* Scene, uint64 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber, bool bRecreating);
 	ENGINE_API virtual void PreGDMECallback(FRHICommandList& RHICmdList, FGPUSkinCache* GPUSkinCache, uint32 FrameNumber) override;
 	ENGINE_API virtual const FVertexFactory* GetSkinVertexFactory(const FSceneView* View, int32 LODIndex,int32 ChunkIdx, ESkinVertexFactoryMode VFMode = ESkinVertexFactoryMode::Default) const override;
 	ENGINE_API virtual const FSkinBatchVertexFactoryUserData* GetVertexFactoryUserData(const int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const override;
 	virtual bool IsCPUSkinned() const override { return false; }
+	virtual bool IsGPUSkinMesh() const override { return true; }
 	ENGINE_API virtual TArray<FTransform>* GetComponentSpaceTransforms() const override;
 	ENGINE_API virtual const TArray<FMatrix44f>& GetReferenceToLocalMatrices() const override;
 	ENGINE_API virtual bool GetCachedGeometry(FCachedGeometry& OutCachedGeometry) const override;
@@ -565,14 +579,21 @@ protected:
 	/** vertex data for rendering a single LOD */
 	struct FSkeletalMeshObjectLOD
 	{
-		FSkeletalMeshObjectLOD(FSkeletalMeshRenderData* InSkelMeshRenderData,int32 InLOD, ERHIFeatureLevel::Type InFeatureLevel)
+		FSkeletalMeshObjectLOD(FSkeletalMeshRenderData* InSkelMeshRenderData,int32 InLOD, ERHIFeatureLevel::Type InFeatureLevel, FMorphVertexBufferPool* InRecreateBufferPool)
 			: SkelMeshRenderData(InSkelMeshRenderData)
 			, LODIndex(InLOD)
 			, FeatureLevel(InFeatureLevel)
-			, MorphVertexBufferPool(InSkelMeshRenderData, LODIndex, FeatureLevel)
 			, MeshObjectWeightBuffer(nullptr)
 			, MeshObjectColorBuffer(nullptr)
 		{
+			if (InRecreateBufferPool)
+			{
+				MorphVertexBufferPool = InRecreateBufferPool;
+			}
+			else
+			{
+				MorphVertexBufferPool = new FMorphVertexBufferPool(InSkelMeshRenderData, LODIndex, FeatureLevel);
+			}
 		}
 
 		/** 
@@ -604,7 +625,7 @@ protected:
 		 */
 		void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 		{
-			CumulativeResourceSize.AddUnknownMemoryBytes(MorphVertexBufferPool.GetResourceSize());
+			CumulativeResourceSize.AddUnknownMemoryBytes(MorphVertexBufferPool->GetResourceSize());
 			CumulativeResourceSize.AddUnknownMemoryBytes(GPUSkinVertexFactories.GetResourceSize());
 		}
 
@@ -615,7 +636,7 @@ protected:
 		ERHIFeatureLevel::Type FeatureLevel;
 
 		/** Pooled vertex buffers that store the morph target vertex deltas. */
-		FMorphVertexBufferPool	MorphVertexBufferPool;
+		TRefCountPtr<FMorphVertexBufferPool> MorphVertexBufferPool;
 
 		/** Default GPU skinning vertex factories and matrices */
 		FVertexFactoryData GPUSkinVertexFactories;
@@ -665,7 +686,7 @@ protected:
 	*/
 	ENGINE_API void ReleaseMorphResources();
 
-	ENGINE_API void ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode Mode, FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, uint32 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber, bool bMorphNeedsUpdate, int32 LODIndex);
+	ENGINE_API void ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode Mode, FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, uint32 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber, bool bMorphNeedsUpdate, int32 LODIndex, bool bRecreating);
 
 	ENGINE_API virtual void UpdateMorphVertexBuffer(FRHICommandList& RHICmdList, EGPUSkinCacheEntryMode Mode, FSkeletalMeshObjectLOD& LOD, const FSkeletalMeshLODRenderData& LODData, bool bGPUSkinCacheEnabled, FMorphVertexBuffer& MorphVertexBuffer);
 

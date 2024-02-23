@@ -138,22 +138,30 @@ FMorphVertexBufferPool
 -----------------------------------------------------------------------------*/
 void FMorphVertexBufferPool::InitResources(const FName& OwnerName)
 {
-	MorphVertexBuffers[0].SetOwnerName(OwnerName);
-	MorphVertexBuffers[1].SetOwnerName(OwnerName);
-
-	check(!MorphVertexBuffers[0].VertexBufferRHI.IsValid());
-	check(!MorphVertexBuffers[1].VertexBufferRHI.IsValid());
-	BeginInitResource(&MorphVertexBuffers[0], &UE::RenderCommandPipe::SkeletalMesh);
-	if (bDoubleBuffer)
+	// InitResources may be called again when morph vertex data is persisted during render state re-creation.
+	if (!bInitializedResources)
 	{
-		BeginInitResource(&MorphVertexBuffers[1], &UE::RenderCommandPipe::SkeletalMesh);
+		MorphVertexBuffers[0].SetOwnerName(OwnerName);
+		MorphVertexBuffers[1].SetOwnerName(OwnerName);
+
+		check(!MorphVertexBuffers[0].VertexBufferRHI.IsValid());
+		check(!MorphVertexBuffers[1].VertexBufferRHI.IsValid());
+		BeginInitResource(&MorphVertexBuffers[0], &UE::RenderCommandPipe::SkeletalMesh);
+		if (bDoubleBuffer)
+		{
+			BeginInitResource(&MorphVertexBuffers[1], &UE::RenderCommandPipe::SkeletalMesh);
+		}
+
+		bInitializedResources = true;
 	}
 }
 
 void FMorphVertexBufferPool::ReleaseResources()
 {
-	BeginReleaseResource(&MorphVertexBuffers[0], &UE::RenderCommandPipe::SkeletalMesh);
-	BeginReleaseResource(&MorphVertexBuffers[1], &UE::RenderCommandPipe::SkeletalMesh);
+	check(bInitializedResources);
+	MorphVertexBuffers[0].ReleaseResource();
+	MorphVertexBuffers[1].ReleaseResource();
+	bInitializedResources = false;
 }
 
 SIZE_T FMorphVertexBufferPool::GetResourceSize() const
@@ -231,11 +239,44 @@ FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectGPUSkin(USkinnedMeshComponent* In
 	, 	LastBoneTransformRevisionNumber(0)
 	,	bAlwaysUpdateMorphVertexBuffer(false)
 {
+	FSkeletalMeshObjectGPUSkin* PreviousMeshObject = nullptr;
+	if (InMeshComponent->PreviousMeshObject && InMeshComponent->PreviousMeshObject->IsGPUSkinMesh())
+	{
+		PreviousMeshObject = (FSkeletalMeshObjectGPUSkin*)InMeshComponent->PreviousMeshObject;
+
+		// Don't use re-create data if the mesh or feature level changed
+		if (PreviousMeshObject->SkeletalMeshRenderData != InSkelMeshRenderData || PreviousMeshObject->FeatureLevel != InFeatureLevel)
+		{
+			PreviousMeshObject = nullptr;
+		}
+	}
+
+	if (PreviousMeshObject)
+	{
+		// Transfer GPU skin cache from PreviousMeshObject -- needs to happen on render thread.  PreviousMeshObject is defer deleted, so it's safe to access it there.
+		ENQUEUE_RENDER_COMMAND(ReleaseSkeletalMeshSkinCacheResources)(UE::RenderCommandPipe::SkeletalMesh,
+			[this, PreviousMeshObject](FRHICommandList& RHICmdList)
+			{
+				SkinCacheEntry = PreviousMeshObject->SkinCacheEntry;
+				SkinCacheEntryForRayTracing = PreviousMeshObject->SkinCacheEntryForRayTracing;
+
+				PreviousMeshObject->SkinCacheEntry = nullptr;
+				PreviousMeshObject->SkinCacheEntryForRayTracing = nullptr;
+			}
+		);
+	}
+
 	// create LODs to match the base mesh
 	LODs.Empty(SkeletalMeshRenderData->LODRenderData.Num());
 	for( int32 LODIndex=0;LODIndex < SkeletalMeshRenderData->LODRenderData.Num();LODIndex++ )
 	{
-		new(LODs) FSkeletalMeshObjectLOD(SkeletalMeshRenderData, LODIndex, InFeatureLevel);
+		FMorphVertexBufferPool* RecreateMorphVertexBuffer = nullptr;
+		if (PreviousMeshObject)
+		{
+			RecreateMorphVertexBuffer = PreviousMeshObject->LODs[LODIndex].MorphVertexBufferPool;
+		}
+
+		new(LODs) FSkeletalMeshObjectLOD(SkeletalMeshRenderData, LODIndex, InFeatureLevel, RecreateMorphVertexBuffer);
 	}
 
 	InitResources(InMeshComponent);
@@ -410,10 +451,10 @@ void FSkeletalMeshObjectGPUSkin::Update(
 
 	FGPUSkinCache* GPUSkinCache = nullptr;
 	FSceneInterface* Scene = nullptr;
-	if (InMeshComponent && InMeshComponent->SceneProxy)
+	if (InMeshComponent && InMeshComponent->GetScene())
 	{
 		// We allow caching of per-frame, per-scene data
-		Scene = &(InMeshComponent->SceneProxy->GetScene());
+		Scene = InMeshComponent->GetScene();
 		GPUSkinCache = Scene->GetGPUSkinCache();
 		RevisionNumber = InMeshComponent->GetBoneTransformRevisionNumber();
 		PreviousRevisionNumber = InMeshComponent->GetPreviousBoneTransformRevisionNumber();
@@ -421,11 +462,12 @@ void FSkeletalMeshObjectGPUSkin::Update(
 
 	// queue a call to update this data
 	FSkeletalMeshObjectGPUSkin* MeshObject = this;
+	bool bRecreating = InMeshComponent ? InMeshComponent->IsRenderStateRecreating() : false;
 	ENQUEUE_RENDER_COMMAND(SkelMeshObjectUpdateDataCommand)(UE::RenderCommandPipe::SkeletalMesh,
-		[MeshObject, FrameNumberToPrepare, RevisionNumber, PreviousRevisionNumber, NewDynamicData, GPUSkinCache, Scene](FRHICommandList& RHICmdList)
+		[MeshObject, FrameNumberToPrepare, RevisionNumber, PreviousRevisionNumber, NewDynamicData, GPUSkinCache, Scene, bRecreating](FRHICommandList& RHICmdList)
 		{
 			FScopeCycleCounter Context(MeshObject->GetStatId());
-			MeshObject->UpdateDynamicData_RenderThread(GPUSkinCache, RHICmdList, NewDynamicData, Scene, FrameNumberToPrepare, RevisionNumber, PreviousRevisionNumber);
+			MeshObject->UpdateDynamicData_RenderThread(GPUSkinCache, RHICmdList, NewDynamicData, Scene, FrameNumberToPrepare, RevisionNumber, PreviousRevisionNumber, bRecreating);
 		}
 	);
 }
@@ -483,7 +525,7 @@ FORCEINLINE bool IsDeferredSkeletalDynamicDataUpdateEnabled()
 	return CVarDeferSkeletalDynamicDataUpdateUntilGDME.GetValueOnRenderThread() > 0 && !IsParallelGatherDynamicMeshElementsEnabled();
 }
 
-void FSkeletalMeshObjectGPUSkin::UpdateDynamicData_RenderThread(FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, FDynamicSkelMeshObjectDataGPUSkin* InDynamicData, FSceneInterface* Scene, uint64 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber)
+void FSkeletalMeshObjectGPUSkin::UpdateDynamicData_RenderThread(FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, FDynamicSkelMeshObjectDataGPUSkin* InDynamicData, FSceneInterface* Scene, uint64 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber, bool bRecreating)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(GPUSkin::UpdateDynamicData_RT);
 
@@ -522,13 +564,13 @@ void FSkeletalMeshObjectGPUSkin::UpdateDynamicData_RenderThread(FGPUSkinCache* G
 	}
 	else
 	{
-		ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode::Raster, GPUSkinCache, RHICmdList, FrameNumberToPrepare, RevisionNumber, PreviousRevisionNumber, bMorphNeedsUpdate, DynamicData->LODIndex);
+		ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode::Raster, GPUSkinCache, RHICmdList, FrameNumberToPrepare, RevisionNumber, PreviousRevisionNumber, bMorphNeedsUpdate, DynamicData->LODIndex, bRecreating);
 
 	#if RHI_RAYTRACING
 		if (ShouldUseSeparateSkinCacheEntryForRayTracing() && FGPUSkinCache::IsGPUSkinCacheRayTracingSupported() && GPUSkinCache && SkeletalMeshRenderData->bSupportRayTracing)
 		{
 			// Morph delta is updated in raster pass above, no need to update again for ray tracing
-			ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode::RayTracing, GPUSkinCache, RHICmdList, FrameNumberToPrepare, RevisionNumber, PreviousRevisionNumber, /*bMorphNeedsUpdate=*/false, DynamicData->RayTracingLODIndex);
+			ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode::RayTracing, GPUSkinCache, RHICmdList, FrameNumberToPrepare, RevisionNumber, PreviousRevisionNumber, /*bMorphNeedsUpdate=*/false, DynamicData->RayTracingLODIndex, bRecreating);
 		}
 		else
 		{
@@ -552,11 +594,11 @@ void FSkeletalMeshObjectGPUSkin::PreGDMECallback(FRHICommandList& RHICmdList, FG
 {
 	if (bNeedsUpdateDeferred)
 	{
-		ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode::Raster, GPUSkinCache, RHICmdList, FrameNumber, LastBoneTransformRevisionNumber, 0, bMorphNeedsUpdateDeferred, DynamicData->LODIndex);
+		ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode::Raster, GPUSkinCache, RHICmdList, FrameNumber, LastBoneTransformRevisionNumber, 0, bMorphNeedsUpdateDeferred, DynamicData->LODIndex, false);
 	}
 }
 
-void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode Mode, FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, uint32 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber, bool bMorphNeedsUpdate, int32 LODIndex)
+void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode Mode, FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, uint32 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber, bool bMorphNeedsUpdate, int32 LODIndex, bool bRecreating)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FSkeletalMeshObjectGPUSkin_ProcessUpdatedDynamicData);
 	bNeedsUpdateDeferred = false;
@@ -577,10 +619,10 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMod
 	if (bMorph && bMorphNeedsUpdate)
 	{
 		// Morph vertex buffer needs updating so advance the revision number
-		LOD.MorphVertexBufferPool.SetCurrentRevisionNumber(RevisionNumber);
+		LOD.MorphVertexBufferPool->SetCurrentRevisionNumber(RevisionNumber);
 	}
 
-	FMorphVertexBuffer& MorphVertexBuffer = LOD.MorphVertexBufferPool.GetMorphVertexBufferForWriting();
+	FMorphVertexBuffer& MorphVertexBuffer = LOD.MorphVertexBufferPool->GetMorphVertexBufferForWriting();
 	// if morph buffer hasn't been updated, force update it
 	bMorphNeedsUpdate = MorphVertexBuffer.bHasBeenUpdated ? bMorphNeedsUpdate : true;
 
@@ -622,7 +664,7 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMod
 		if(bMorphNeedsUpdate)
 		{
 			UpdateMorphVertexBuffer(RHICmdList, Mode, LOD, LODData, bGPUSkinCacheEnabled, MorphVertexBuffer);
-			LOD.MorphVertexBufferPool.SetUpdatedFrameNumber(FrameNumberToPrepare);
+			LOD.MorphVertexBufferPool->SetUpdatedFrameNumber(FrameNumberToPrepare);
 		}
 	}
 	else
@@ -733,6 +775,7 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMod
 						RevisionNumber,
 						SectionIdx,
 						LODIndex,
+						bRecreating,
 						Mode == EGPUSkinCacheEntryMode::RayTracing ? SkinCacheEntryForRayTracing : SkinCacheEntry
 						);
 				}
@@ -749,10 +792,10 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMod
 	}
 
 	// Mobile doesn't support motion blur so no need to double buffer morph deltas
-	if (bMorph && !bIsMobile && !SkinCacheEntry && Mode == EGPUSkinCacheEntryMode::Raster && !LOD.MorphVertexBufferPool.IsDoubleBuffered())
+	if (bMorph && !bIsMobile && !SkinCacheEntry && Mode == EGPUSkinCacheEntryMode::Raster && !LOD.MorphVertexBufferPool->IsDoubleBuffered())
 	{
 		// Going through GPU skinned vertex factory, turn on double buffering for motion blur
-		LOD.MorphVertexBufferPool.EnableDoubleBuffer(RHICmdList);
+		LOD.MorphVertexBufferPool->EnableDoubleBuffer(RHICmdList);
 	}
 }
 
@@ -1076,7 +1119,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateMorphVertexBuffer(FRHICommandList& RHICmd
 		LOD.UpdateMorphVertexBufferCPU(RHICmdList, DynamicData->ActiveMorphTargets, DynamicData->MorphTargetWeights, DynamicData->SectionIdsUseByActiveMorphTargets, bGPUSkinCacheEnabled, MorphVertexBuffer);
 	}
 
-	if (LOD.MorphVertexBufferPool.IsDoubleBuffered())
+	if (LOD.MorphVertexBufferPool->IsDoubleBuffered())
 	{
 		// Update vertex stream binding when morphed delta data is double buffered
 		for (int32 SectionIdx = 0; SectionIdx < LODData.RenderSections.Num(); ++SectionIdx)
@@ -2019,7 +2062,7 @@ void FSkeletalMeshObjectGPUSkin::GetUsedVertexFactoryData(
 	}
 
 	// Setup tmp MeshObjectLOD object to extract the vertex factory buffers
-	FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD SkeletalMeshObjectLOD(SkelMeshRenderData, LODIndex, InFeatureLevel);
+	FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD SkeletalMeshObjectLOD(SkelMeshRenderData, LODIndex, InFeatureLevel, nullptr);
 	SkeletalMeshObjectLOD.MeshObjectWeightBuffer = FSkeletalMeshObject::GetSkinWeightVertexBuffer(LODRenderData, CompLODInfo);
 	SkeletalMeshObjectLOD.MeshObjectColorBuffer = FSkeletalMeshObject::GetColorVertexBuffer(LODRenderData, CompLODInfo);
 
@@ -2071,7 +2114,7 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::GetVertexBuffers(FVerte
 	OutVertexBuffers.StaticVertexBuffers = &LODData.StaticVertexBuffers;
 	OutVertexBuffers.ColorVertexBuffer = MeshObjectColorBuffer;
 	OutVertexBuffers.SkinWeightVertexBuffer = MeshObjectWeightBuffer;
-	OutVertexBuffers.MorphVertexBufferPool = &MorphVertexBufferPool;
+	OutVertexBuffers.MorphVertexBufferPool = MorphVertexBufferPool;
 	OutVertexBuffers.APEXClothVertexBuffer = &LODData.ClothVertexBuffer;
 	OutVertexBuffers.NumVertices = LODData.GetNumVertices();
 }
@@ -2240,7 +2283,7 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::InitMorphResources(cons
 
 	// init the delta vertex buffer for this LOD
 	const FName OwnerName = LODData.MorphTargetVertexInfoBuffers.GetOwnerName();
-	MorphVertexBufferPool.InitResources(OwnerName);
+	MorphVertexBufferPool->InitResources(OwnerName);
 
 	// Vertex buffers available for the LOD
 	FVertexFactoryBuffers VertexBuffers;
@@ -2256,8 +2299,9 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::ReleaseMorphResources()
 {
 	// Release morph vertex factories
 	GPUSkinVertexFactories.ReleaseMorphVertexFactories();
-	// release the delta vertex buffer
-	MorphVertexBufferPool.ReleaseResources();
+
+	// By design, we do not release MorphVertexBufferPool, as it may persist when render state gets re-created.  Instead, it gets released
+	// when its ref count goes to zero in the FSkeletalMeshObjectLOD destructor.
 }
 
 

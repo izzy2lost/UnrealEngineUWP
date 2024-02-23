@@ -396,6 +396,7 @@ USkinnedMeshComponent::USkinnedMeshComponent(const FObjectInitializer& ObjectIni
 	: Super(ObjectInitializer)
 	, MeshObjectFactory(nullptr)
 	, MeshObjectFactoryUserData(nullptr)
+	, PreviousMeshObject(nullptr)
 	, AnimUpdateRateParams(nullptr)
 {
 	bAutoActivate = true;
@@ -1006,6 +1007,16 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 		}
 	}
 
+	// Any data needed from PreviousMeshObject will have been propagated in the construction of the new MeshObject above,
+	// so we can delete it now.
+	if (PreviousMeshObject)
+	{
+		PreviousMeshObject->ReleaseResources();
+		BeginCleanup(PreviousMeshObject);
+
+		PreviousMeshObject = nullptr;
+	}
+
 	Super::CreateRenderState_Concurrent(Context);
 
 	if (GetSkinnedAsset())
@@ -1080,14 +1091,23 @@ void USkinnedMeshComponent::DestroyRenderState_Concurrent()
 
 	if(MeshObject)
 	{
-		// Begin releasing the RHI resources used by this skeletal mesh component.
-		// This doesn't immediately destroy anything, since the rendering thread may still be using the resources.
-		MeshObject->ReleaseResources();
+		if (bRenderStateRecreating)
+		{
+			// Preserve previous mesh object for recreate purposes
+			PreviousMeshObject = MeshObject;
+			MeshObject = nullptr;
+		}
+		else
+		{
+			// Begin releasing the RHI resources used by this skeletal mesh component.
+			// This doesn't immediately destroy anything, since the rendering thread may still be using the resources.
+			MeshObject->ReleaseResources();
 
-		// Begin a deferred delete of MeshObject.  BeginCleanup will call MeshObject->FinishDestroy after the above release resource
-		// commands execute in the rendering thread.
-		BeginCleanup(MeshObject);
-		MeshObject = nullptr;
+			// Begin a deferred delete of MeshObject.  BeginCleanup will call MeshObject->FinishDestroy after the above release resource
+			// commands execute in the rendering thread.
+			BeginCleanup(MeshObject);
+			MeshObject = nullptr;
+		}
 	}
 }
 

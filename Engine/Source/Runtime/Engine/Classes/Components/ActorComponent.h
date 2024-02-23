@@ -181,6 +181,14 @@ protected:
 	/** If the render state is currently created for this component */
 	uint8 bRenderStateCreated:1;
 
+	/**
+	 * Render state is being recreated for this component.  Useful if a component wants to preserve certain render state across recreate -- set before a
+	 * call to DestroyRenderState_Concurrent and cleared after the corresponding call to CreateRenderState_Concurrent.  By design, only set for re-creation
+	 * due to MarkRenderStateDirty, not RecreateRenderStateContext variations.  The latter are used for editor operations, file loads, or bulk setting
+	 * changes, which are assumed to potentially change render data in a way that could make preserved render state incompatible.
+	 */
+	uint8 bRenderStateRecreating:1;
+
 	/** If the physics state is currently created for this component */
 	uint8 bPhysicsStateCreated:1;
 
@@ -983,6 +991,12 @@ public:
 	bool IsRenderStateCreated() const
 	{
 		return bRenderStateCreated;
+	}
+
+	/** Returns true if the render 'state' is being recreated for this component (see additional comments on variable above) */
+	bool IsRenderStateRecreating() const
+	{
+		return bRenderStateRecreating;
 	}
 
 	/** Returns true if the physics 'state' (e.g. physx bodies) are created for this component */
