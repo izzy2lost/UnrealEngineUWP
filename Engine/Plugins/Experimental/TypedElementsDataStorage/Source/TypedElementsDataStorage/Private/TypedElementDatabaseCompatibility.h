@@ -103,6 +103,7 @@ private:
 	void TickPendingExternalObjectRegistration();
 	void TickObjectSync();
 
+	void OnPrePropertyChanged(UObject* Object, const FEditPropertyChain& PropertyChain);
 	void OnPostEditChangeProperty(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
 	void OnObjectModified(UObject* Object);
 	void OnObjectAdded(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
@@ -189,9 +190,23 @@ private:
 	 * Reference of objects (UObject and AActor) that need to be fully synced from the world to the database.
 	 * Caution: Could point to objects that have been GC-ed
 	 */
-	TSet<TObjectKey<const UObject>> ObjectsNeedingFullSync;
+	struct FSyncTagInfo
+	{
+		TWeakObjectPtr<const UScriptStruct> ColumnType;
+		bool bAddColumn;
+
+		bool operator==(const FSyncTagInfo& Rhs) const = default;
+		bool operator!=(const FSyncTagInfo& Rhs) const = default;
+	};
+	friend SIZE_T GetTypeHash(const FSyncTagInfo& Column);
+	static constexpr uint32 MaxExpectedTagsForObjectSync = 2;
+	using ObjectsNeedingSyncTagsMapKey = TObjectKey<const UObject>;
+	using ObjectsNeedingSyncTagsMapValue = TArray<FSyncTagInfo, TInlineAllocator<MaxExpectedTagsForObjectSync>>;
+	using ObjectsNeedingSyncTagsMap = TMap<ObjectsNeedingSyncTagsMapKey, ObjectsNeedingSyncTagsMapValue>;
+	ObjectsNeedingSyncTagsMap ObjectsNeedingSyncTags;
 
 	TMap<UWorld*, FDelegateHandle> ActorDestroyedDelegateHandles;
+	FDelegateHandle PreEditChangePropertyDelegateHandle;
 	FDelegateHandle PostEditChangePropertyDelegateHandle;
 	FDelegateHandle ObjectModifiedDelegateHandle;
 	FDelegateHandle PostWorldInitializationDelegateHandle;
@@ -201,6 +216,8 @@ private:
 	TypedElementDataStorage::QueryHandle ClassTypeInfoQuery;
 	TypedElementDataStorage::QueryHandle ScriptStructTypeInfoQuery;
 };
+
+SIZE_T GetTypeHash(const UTypedElementDatabaseCompatibility::FSyncTagInfo& Column);
 
 enum class ETypedElementDatabaseCompatibilityObjectType : uint8
 {

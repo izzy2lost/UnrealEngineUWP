@@ -27,9 +27,11 @@ void UTypedElementDatabaseCompatibility::Initialize(ITypedElementDataStorageInte
 
 	StorageInterface->OnUpdate().AddUObject(this, &UTypedElementDatabaseCompatibility::Tick);
 
+	PreEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnPreObjectPropertyChanged.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPrePropertyChanged);
 	PostEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostEditChangeProperty);
 	ObjectModifiedDelegateHandle = FCoreUObjectDelegates::OnObjectModified.AddUObject(this, &UTypedElementDatabaseCompatibility::OnObjectModified);
 	ObjectReinstancedDelegateHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTypedElementDatabaseCompatibility::OnObjectReinstanced);
+
 
 	PostWorldInitializationDelegateHandle = FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostWorldInitialization);
 	PreWorldFinishDestroyDelegateHandle = FWorldDelegates::OnPreWorldFinishDestroy.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy);
@@ -48,6 +50,7 @@ void UTypedElementDatabaseCompatibility::Deinitialize()
 	FCoreUObjectDelegates::OnObjectsReinstanced.Remove(ObjectReinstancedDelegateHandle);
 	FCoreUObjectDelegates::OnObjectModified.Remove(ObjectModifiedDelegateHandle);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(PostEditChangePropertyDelegateHandle);
+	FCoreUObjectDelegates::OnPreObjectPropertyChanged.Remove(PreEditChangePropertyDelegateHandle);
 	
 	Reset();
 }
@@ -632,52 +635,65 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 
 void UTypedElementDatabaseCompatibility::TickObjectSync()
 {
-	if (!ObjectsNeedingFullSync.IsEmpty())
+	using namespace TypedElementDataStorage;
+	
+	if (!ObjectsNeedingSyncTags.IsEmpty())
 	{
-		TEDS_EVENT_SCOPE(TEXT("Process ObjectsNeedingFullSync"));
+		TEDS_EVENT_SCOPE(TEXT("Process ObjectsNeedingSyncTags"));
 		
-		TArray<TypedElementRowHandle> RowHandles;
+		using ColumnArray = TArray<const UScriptStruct*, TInlineAllocator<MaxExpectedTagsForObjectSync>>;
+		ColumnArray ColumnsToAdd;
+		ColumnArray ColumnsToRemove;
+		ColumnArray* ColumnsToAddPtr = &ColumnsToAdd;
+		ColumnArray* ColumnsToRemovePtr = &ColumnsToRemove;
+		bool bHasUpdates = false;
+		for (TPair<ObjectsNeedingSyncTagsMapKey, ObjectsNeedingSyncTagsMapValue>& ObjectToSync : ObjectsNeedingSyncTags)
 		{
-			TEDS_EVENT_SCOPE(TEXT("Reverse lookup Rows from Objects"));
-
-			RowHandles.SetNumUninitialized(ObjectsNeedingFullSync.Num());
+			const RowHandle Row = FindRowWithCompatibleObject(ObjectToSync.Key);
+			if (Storage->IsRowAvailable(Row))
 			{
-				int32 RowHandleIndex = 0;
-				for (TObjectKey<const UObject> ObjectKey : ObjectsNeedingFullSync)
+				for (FSyncTagInfo& Column : ObjectToSync.Value)
 				{
-					const TypedElementRowHandle Row = FindRowWithCompatibleObject(ObjectKey);
-					if (Row != TypedElementInvalidRowHandle)
+					if (Column.ColumnType.IsValid())
 					{
-						RowHandles[RowHandleIndex++] = Row;
+						ColumnArray* TargetColumn = Column.bAddColumn ? ColumnsToAddPtr : ColumnsToRemovePtr;
+						TargetColumn->Add(Column.ColumnType.Get());
+						bHasUpdates = true;
 					}
 				}
-				const int32 RowHandleCount = RowHandleIndex;
-				RowHandles.SetNum(RowHandleCount, EAllowShrinking::No);
+				if (bHasUpdates)
+				{
+					Storage->AddRemoveColumns(Row, ColumnsToAdd, ColumnsToRemove);
+				}
 			}
-
-			ObjectsNeedingFullSync.Reset();
+			bHasUpdates = false;
+			ColumnsToAdd.Reset();
+			ColumnsToRemove.Reset();
 		}
 
-		{
-			TEDS_EVENT_SCOPE(TEXT("Add SyncFromWorld Tag"));
-			// Tag the rows containing object data that so they get synced
-			// Note: Watch out for the performance of this, may end up doing a lot of row moves
-			for (TypedElementRowHandle Row : RowHandles)
-			{
-				Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
-			}
-		}
+		ObjectsNeedingSyncTags.Reset();
 	}
+}
+
+void UTypedElementDatabaseCompatibility::OnPrePropertyChanged(UObject* Object, const FEditPropertyChain& PropertyChain)
+{
+	ObjectsNeedingSyncTags.FindOrAdd(Object).AddUnique(
+		FSyncTagInfo{ .ColumnType = FTypedElementSyncFromWorldInteractiveTag::StaticStruct(), .bAddColumn = true });
 }
 
 void UTypedElementDatabaseCompatibility::OnPostEditChangeProperty(
 	UObject* Object,
-	FPropertyChangedEvent& /*PropertyChangedEvent*/)
+	FPropertyChangedEvent& PropertyChangedEvent)
 {
 	// Determining the object is being tracked in the database can't be done safely as it may be queued for addition.
 	// It would also add a small bit of performance overhead as access the lookup table can be done faster as a
 	// batch operation during the tick step.
-	ObjectsNeedingFullSync.FindOrAdd(Object);
+	if (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+	{
+		ObjectsNeedingSyncTagsMapValue& SyncValue = ObjectsNeedingSyncTags.FindOrAdd(Object);
+		SyncValue.AddUnique(FSyncTagInfo{ .ColumnType = FTypedElementSyncFromWorldTag::StaticStruct(), .bAddColumn = true });
+		SyncValue.AddUnique(FSyncTagInfo{ .ColumnType = FTypedElementSyncFromWorldInteractiveTag::StaticStruct(), .bAddColumn = false });
+	}
 }
 
 void UTypedElementDatabaseCompatibility::OnObjectModified(UObject* Object)
@@ -685,7 +701,8 @@ void UTypedElementDatabaseCompatibility::OnObjectModified(UObject* Object)
 	// Determining the object is being tracked in the database can't be done safely as it may be queued for addition.
 	// It would also add a small bit of performance overhead as access the lookup table can be done faster as a
 	// batch operation during the tick step.
-	ObjectsNeedingFullSync.FindOrAdd(Object);
+	ObjectsNeedingSyncTags.FindOrAdd(Object).AddUnique(
+		FSyncTagInfo{ .ColumnType = FTypedElementSyncFromWorldTag::StaticStruct(), .bAddColumn = true });
 }
 
 void UTypedElementDatabaseCompatibility::OnObjectAdded(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const
@@ -732,7 +749,10 @@ void UTypedElementDatabaseCompatibility::OnActorDestroyed(AActor* Actor)
 	RemoveCompatibleObjectExplicit(Actor);
 }
 
-
+SIZE_T GetTypeHash(const UTypedElementDatabaseCompatibility::FSyncTagInfo& Column)
+{
+	return HashCombine(Column.ColumnType.GetWeakPtrTypeHash(), Column.bAddColumn);
+}
 
 //
 // UTypedElementDatabaseCompatibility::FRegistrationCommandChange
