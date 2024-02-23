@@ -62,7 +62,7 @@ public:
 
 public:
 	//~ Begin UObject Interface.
-	virtual void PostLoad() override;
+	ENGINE_API virtual void PostLoad() override;
 	//~ End UObject Interface.
 
 #if WITH_EDITOR
