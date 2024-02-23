@@ -21,6 +21,7 @@
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "DynamicMesh/NonManifoldMappingSupport.h"
+#include "Selections/GeometrySelectionUtil.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ClothMeshSelectionTool)
 
@@ -535,6 +536,15 @@ void UClothMeshSelectionTool::ApplyAction(EClothMeshSelectionToolActions ActionT
 	case EClothMeshSelectionToolActions::TogglePrimarySecondary:
 		TogglePrimarySecondaryAction();
 		break;
+	case EClothMeshSelectionToolActions::GrowSelection:
+		GrowSelection();
+		break;
+	case EClothMeshSelectionToolActions::ShrinkSelection:
+		ShrinkSelection();
+		break;
+	case EClothMeshSelectionToolActions::FloodSelection:
+		FloodSelection();
+		break;
 	}
 }
 
@@ -692,6 +702,89 @@ void UClothMeshSelectionTool::UpdatePrimarySecondaryMessage()
 {
 	const FText Message = ToolProperties->bSecondarySelection ? LOCTEXT("SecondarySelectionMode", "Secondary Selection") : LOCTEXT("PrimarySelectionMode", "Primary Selection");
 	GetToolManager()->DisplayMessage(Message, EToolMessageLevel::UserWarning);
+}
+
+void UClothMeshSelectionTool::GrowSelection()
+{
+	using namespace UE::Geometry;
+
+	PreviewMesh->ProcessMesh([this](const FDynamicMesh3& Mesh)
+		{
+			FGeometrySelection Selection;
+			Selection.ElementType = SelectionMechanic->Properties->bSelectFaces ? EGeometryElementType::Face : EGeometryElementType::Vertex;
+			SelectionMechanic->GetSelection_AsTriangleTopology(Selection);
+
+			FGeometrySelection BoundarySelection;
+			BoundarySelection.ElementType = SelectionMechanic->Properties->bSelectFaces ? EGeometryElementType::Face : EGeometryElementType::Vertex;
+			MakeBoundaryConnectedSelection(Mesh,
+				Topology.Get(),
+				Selection,
+				[](FGeoSelectionID) { return true; },
+				BoundarySelection
+			);
+			CombineSelectionInPlace(Selection, BoundarySelection, EGeometrySelectionCombineModes::Add);
+			SelectionMechanic->SetSelection_AsTriangleTopology(Selection);
+		});
+
+	PreviewMesh->FastNotifySecondaryTrianglesChanged();
+}
+
+
+void UClothMeshSelectionTool::ShrinkSelection()
+{
+	using namespace UE::Geometry;
+
+	PreviewMesh->ProcessMesh([this](const FDynamicMesh3& Mesh)
+		{
+			FGeometrySelection Selection;
+			Selection.ElementType = SelectionMechanic->Properties->bSelectFaces ? EGeometryElementType::Face : EGeometryElementType::Vertex;
+			SelectionMechanic->GetSelection_AsTriangleTopology(Selection);
+
+			FGeometrySelection BoundarySelection;
+			BoundarySelection.ElementType = SelectionMechanic->Properties->bSelectFaces ? EGeometryElementType::Face : EGeometryElementType::Vertex;
+			MakeBoundaryConnectedSelection(Mesh,
+				Topology.Get(),
+				Selection,
+				[](FGeoSelectionID) { return true; },
+				BoundarySelection
+			);
+
+			CombineSelectionInPlace(Selection, BoundarySelection, EGeometrySelectionCombineModes::Subtract);
+			
+			// TODO: SetSelection_AsTriangleTopology doesn't overwrite the selection, it only adds to it. Fix that.
+			FGroupTopologySelection ClearSelection;
+			SelectionMechanic->SetSelection(ClearSelection, false);
+
+			SelectionMechanic->SetSelection_AsTriangleTopology(Selection);
+		});
+
+	PreviewMesh->FastNotifySecondaryTrianglesChanged();
+}
+
+
+void UClothMeshSelectionTool::FloodSelection()
+{
+	using namespace UE::Geometry;
+
+	PreviewMesh->ProcessMesh([this](const FDynamicMesh3& Mesh)
+		{
+			FGeometrySelection Selection;
+			Selection.ElementType = SelectionMechanic->Properties->bSelectFaces ? EGeometryElementType::Face : EGeometryElementType::Vertex;
+			SelectionMechanic->GetSelection_AsTriangleTopology(Selection);
+
+			FGeometrySelection ConnectedSelection;
+			ConnectedSelection.ElementType = SelectionMechanic->Properties->bSelectFaces ? EGeometryElementType::Face : EGeometryElementType::Vertex;
+			MakeSelectAllConnectedSelection(Mesh,
+				Topology.Get(),
+				Selection,
+				[](FGeoSelectionID) { return true; },
+				[](FGeoSelectionID, FGeoSelectionID) { return true; },
+				ConnectedSelection
+			);
+			SelectionMechanic->SetSelection_AsTriangleTopology(ConnectedSelection);
+		});
+
+	PreviewMesh->FastNotifySecondaryTrianglesChanged();
 }
 
 #undef LOCTEXT_NAMESPACE
