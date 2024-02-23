@@ -67,6 +67,8 @@ enum class EStorageDeviceType : uint8
 	SSD = 2,
 	/** Drive is an NVMe . */
 	NVMe = 3,
+	/** Drive is a hybrid SSD/HDD */
+	Hybrid = 4,
 
 	Other = 0xff
 };
