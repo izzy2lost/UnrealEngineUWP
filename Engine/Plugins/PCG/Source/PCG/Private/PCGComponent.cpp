@@ -1580,7 +1580,14 @@ void UPCGComponent::PreEditChange(FProperty* PropertyAboutToChange)
 {
 	Super::PreEditChange(PropertyAboutToChange);
 
-	if (PropertyAboutToChange && PropertyAboutToChange->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGComponent, GenerationTrigger))
+	if (!PropertyAboutToChange)
+	{
+		return;
+	}
+
+	const FName PropName = PropertyAboutToChange->GetFName();
+
+	if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, GenerationTrigger))
 	{
 		if (IsManagedByRuntimeGenSystem())
 		{
@@ -1592,6 +1599,17 @@ void UPCGComponent::PreEditChange(FProperty* PropertyAboutToChange)
 
 			// Reset to the the editing mode we were in before entering GenerateAtRuntime mode.
 			SetEditingMode(PreviousEditingMode, SerializedEditingMode);
+		}
+	}
+	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, bIsComponentPartitioned))
+	{
+		if (IsManagedByRuntimeGenSystem())
+		{
+			if (UPCGSubsystem* Subsystem = GetSubsystem())
+			{
+				// When toggling IsPartitioned, we should proactively flush the RuntimeGenScheduler.
+				Subsystem->RefreshRuntimeGenComponent(this, EPCGChangeType::GenerationGrid);
+			}
 		}
 	}
 }
