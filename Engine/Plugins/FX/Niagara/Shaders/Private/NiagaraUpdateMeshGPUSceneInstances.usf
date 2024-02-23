@@ -160,9 +160,9 @@ void UpdateMeshInstancesCS(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_Grou
 	Params.PrevCameraOrigin 			= PrimaryView.TileOffset.PrevWorldCameraOrigin;
 	Params.PrevCameraForwardDir			= View.PrevViewToTranslatedWorld[2].xyz;
 	Params.PrevCameraUpDir				= View.PrevViewToTranslatedWorld[1].xyz;
-	Params.PrimitiveLocalToWorld		= DFFastToTileOffset(PrimitiveData.LocalToWorld);
-	Params.PrimitiveWorldToLocal 		= DFFastToTileOffset(PrimitiveData.WorldToLocal);
-	Params.PrimitivePrevLocalToWorld 	= DFFastToTileOffset(PrimitiveData.PreviousLocalToWorld);
+	Params.PrimitiveLocalToWorld		= DFToTileOffset(PrimitiveData.LocalToWorld);
+	Params.PrimitiveWorldToLocal 		= DFToTileOffset(PrimitiveData.WorldToLocal);
+	Params.PrimitivePrevLocalToWorld 	= DFToTileOffset(PrimitiveData.PreviousLocalToWorld);
 	Params.PrimitiveInvNonUniformScale	= PrimitiveData.InvNonUniformScale;
 
 	NiagaraMeshParticleTransforms Transforms = NiagaraCalculateMeshParticleTransforms(Params);
