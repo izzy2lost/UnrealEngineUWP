@@ -1682,6 +1682,7 @@ bool FGPUSkinCache::ProcessEntry(
 	uint32 RevisionNumber, 
 	int32 Section,
 	int32 LODIndex,
+	bool bRecreating,
 	FGPUSkinCacheEntry*& InOutEntry
 	)
 {
@@ -1725,6 +1726,12 @@ bool FGPUSkinCache::ProcessEntry(
 
 	if (InOutEntry)
 	{
+		// If re-creating, the FSkeletalMeshObjectGPUSkin will have changed, update it here so the "IsValid" call below succeeds
+		if (bRecreating)
+		{
+			InOutEntry->GPUSkin = Skin;
+		}
+
 		// If the LOD changed, the entry has to be invalidated
 		if (!InOutEntry->IsValid(Skin, LODIndex))
 		{
@@ -1745,6 +1752,9 @@ bool FGPUSkinCache::ProcessEntry(
 	// Try to allocate a new entry
 	if (!InOutEntry)
 	{
+		// If something caused the existing entry to be invalid, disable recreate logic for the rest of the function
+		bRecreating = false;
+
 		const bool WithTangents = true;
 		int32 TotalNumVertices = VertexFactory->GetNumVertices();
 		
@@ -1789,6 +1799,8 @@ bool FGPUSkinCache::ProcessEntry(
 		Entries.Add(InOutEntry);
 	}
 
+	FGPUSkinCacheEntry::FSectionDispatchData& SectionDispatchData = InOutEntry->DispatchData[Section];
+
 	const bool bMorph = MorphVertexBuffer && MorphVertexBuffer->SectionIds.Contains(Section);
 	if (bMorph)
 	{
@@ -1800,12 +1812,12 @@ bool FGPUSkinCache::ProcessEntry(
 		// see GPU code "check(MorphStride == sizeof(float) * 6);"
 		check(MorphStride == sizeof(float) * 6);
 
-		InOutEntry->DispatchData[Section].MorphBufferOffset = BatchElement.BaseVertexIndex;
+		SectionDispatchData.MorphBufferOffset = BatchElement.BaseVertexIndex;
 
 		// weight buffer
 		FSkinWeightVertexBuffer* WeightBuffer = Skin->GetSkinWeightVertexBuffer(LODIndex);
 		uint32 WeightStride = WeightBuffer->GetConstantInfluencesVertexStride();
-		InOutEntry->DispatchData[Section].InputWeightStart = (WeightStride * BatchElement.BaseVertexIndex) / sizeof(float);
+		SectionDispatchData.InputWeightStart = (WeightStride * BatchElement.BaseVertexIndex) / sizeof(float);
 		InOutEntry->InputWeightStride = WeightStride;
 		InOutEntry->InputWeightStreamSRV = WeightBuffer->GetDataVertexBuffer()->GetSRV();
 	}
@@ -1839,7 +1851,7 @@ bool FGPUSkinCache::ProcessEntry(
 
 				// Set the buffer offset depending on whether enough deformer mapping data exists (RaytracingMinLOD/RaytracingLODBias/ClothLODBiasMode settings)
 				const uint32 NumInfluences = NumVertices ? ClothBufferIndexMapping.LODBiasStride / NumVertices : 1;
-				InOutEntry->DispatchData[Section].ClothBufferOffset = (ClothBufferOffset + NumVertices * NumInfluences <= ClothVertexBuffer->GetNumVertices()) ?
+				SectionDispatchData.ClothBufferOffset = (ClothBufferOffset + NumVertices * NumInfluences <= ClothVertexBuffer->GetNumVertices()) ?
 					ClothBufferOffset :                     // If the offset is valid, set the calculated LODBias offset
 					ClothBufferIndexMapping.MappingOffset;  // Otherwise fallback to a 0 ClothLODBias to prevent from reading pass the buffer (but still raytrace broken shadows/reflections/etc.)
 			}
@@ -1856,18 +1868,29 @@ bool FGPUSkinCache::ProcessEntry(
 	        FRHIResourceCreateInfo CreateInfo(TEXT("ClothPositionAndNormalsBuffer"), ResourceArray);
 	        ClothPositionAndNormalsBuffer.VertexBufferRHI = RHICmdList.CreateVertexBuffer( ResourceArray->GetResourceDataSize(), BUF_Static | BUF_ShaderResource, CreateInfo);
 	        ClothPositionAndNormalsBuffer.VertexBufferSRV = RHICmdList.CreateShaderResourceView(ClothPositionAndNormalsBuffer.VertexBufferRHI, sizeof(FVector2f), PF_G32R32F);
-	        InOutEntry->DispatchData[Section].ClothPositionsAndNormalsBuffer = ClothPositionAndNormalsBuffer.VertexBufferSRV;
+			SectionDispatchData.ClothPositionsAndNormalsBuffer = ClothPositionAndNormalsBuffer.VertexBufferSRV;
 		}
 		else
 		{
 			UE_LOG(LogSkinCache, Error, TEXT("Cloth sim data is missing on mesh %s"), *GetSkeletalMeshObjectName(Skin));
 		}
 
-        InOutEntry->DispatchData[Section].ClothBlendWeight = ClothBlendWeight;
-        InOutEntry->DispatchData[Section].ClothToLocal = ClothToLocal;
-		InOutEntry->DispatchData[Section].WorldScale = WorldScale;
+		SectionDispatchData.ClothBlendWeight = ClothBlendWeight;
+		SectionDispatchData.ClothToLocal = ClothToLocal;
+		SectionDispatchData.WorldScale = WorldScale;
     }
-    InOutEntry->DispatchData[Section].SkinType = ClothVertexBuffer && InOutEntry->DispatchData[Section].ClothPositionsAndNormalsBuffer ? 2 : (bMorph ? 1 : 0);
+	SectionDispatchData.SkinType = ClothVertexBuffer && SectionDispatchData.ClothPositionsAndNormalsBuffer ? 2 : (bMorph ? 1 : 0);
+
+	// Need to update the previous bone buffer pointer, so logic that checks if the bone buffers changed (FGPUSkinCache::FRWBufferTracker::Find)
+	// doesn't invalidate the previous frame position data.  Recreating the render state will have generated new bone buffers.
+	if (bRecreating)
+	{
+		FGPUBaseSkinVertexFactory::FShaderDataType& ShaderData = VertexFactory->GetShaderData();
+		if (ShaderData.HasBoneBufferForReading(true))
+		{
+			SectionDispatchData.PositionTracker.UpdatePreviousBoneBuffer(ShaderData.GetBoneBufferForReading(true), VertexFactory->GetShaderData().GetRevisionNumber(true));
+		}
+	}
 
 	if (bShouldBatchDispatches)
 	{
@@ -1875,16 +1898,16 @@ bool FGPUSkinCache::ProcessEntry(
 
 		bool bFoundEntry = false;
 
-		if (InOutEntry->DispatchData[Section].RevisionNumber != 0)
+		if (SectionDispatchData.RevisionNumber != 0)
 		{
 			// Check if the combo of skin cache entry and section index already exists, if so use the entry and update to latest revision number.
-			InOutEntry->DispatchData[Section].RevisionNumber = FMath::Max(InOutEntry->DispatchData[Section].RevisionNumber, RevisionNumber);
+			SectionDispatchData.RevisionNumber = FMath::Max(InOutEntry->DispatchData[Section].RevisionNumber, RevisionNumber);
 			bFoundEntry = true;
 		}
 
 		if (!bFoundEntry)
 		{
-			InOutEntry->DispatchData[Section].RevisionNumber = RevisionNumber;
+			SectionDispatchData.RevisionNumber = RevisionNumber;
 			BatchDispatches.Add({ InOutEntry, uint32(Section) });
 		}
 	}

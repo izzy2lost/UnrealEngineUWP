@@ -843,6 +843,9 @@ public:
 	/** Passed into MeshObjectFactory */
 	void* MeshObjectFactoryUserData;
 
+	/** Previous copy of MeshObject set during recreate of the render state */
+	class FSkeletalMeshObject* PreviousMeshObject;
+
 	/** Gets the skeletal mesh resource used for rendering the component. */
 	ENGINE_API FSkeletalMeshRenderData* GetSkeletalMeshRenderData() const;
 

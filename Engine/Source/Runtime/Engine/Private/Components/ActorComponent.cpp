@@ -1807,16 +1807,26 @@ void UActorComponent::ReregisterComponent()
 
 void UActorComponent::RecreateRenderState_Concurrent()
 {
+	bool bCanRecreate = IsRegistered() && WorldPrivate->Scene;
+
 	if(bRenderStateCreated)
 	{
+		// Only set bRenderStateRecreating if we know for sure we are going to actually re-create it, so components can always count on the
+		// calls happening in sequence if bRenderStateRecreating is set, and don't need to handle edge cases where the latter isn't called.
+		if (bCanRecreate)
+		{
+			check(bRenderStateRecreating == false);
+			bRenderStateRecreating = true;
+		}
 		check(IsRegistered()); // Should never have render state unless registered
 		DestroyRenderState_Concurrent();
 		checkf(!bRenderStateCreated, TEXT("Failed to route DestroyRenderState_Concurrent (%s)"), *GetFullName());
 	}
 
-	if(IsRegistered() && WorldPrivate->Scene)
+	if (bCanRecreate)
 	{
 		CreateRenderState_Concurrent(nullptr);
+		bRenderStateRecreating = false;
 		checkf(bRenderStateCreated, TEXT("Failed to route CreateRenderState_Concurrent (%s)"), *GetFullName());
 	}
 }
