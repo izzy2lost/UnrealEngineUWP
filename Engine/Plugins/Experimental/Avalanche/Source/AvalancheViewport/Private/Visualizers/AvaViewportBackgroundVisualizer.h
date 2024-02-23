@@ -20,7 +20,8 @@ public:
 	void SetTexture(UTexture* InTexture);
 
 	//~ Begin FAvaViewportPostProcessVisualizer
-	virtual void UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, const FVector2f& InCameraOffset) override;
+	virtual void UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InVisibleAreaOffset, 
+		const FVector2f& InWidgetSize, const FVector2f& InCameraOffset) override;
 	//~ End FAvaViewportPostProcessVisualizer
 
 	//~ Begin FGCObject

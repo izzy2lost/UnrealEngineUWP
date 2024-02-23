@@ -42,7 +42,8 @@ public:
 	virtual void OnActivate();
 	virtual void OnDeactivate();
 
-	virtual void UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, const FVector2f& InCameraOffset);
+	virtual void UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InVisibleAreaOffset, 
+		const FVector2f& InWidgetSize, const FVector2f& InCameraOffset);
 
 	void ApplyToSceneView(FSceneView* InSceneView) const;
 

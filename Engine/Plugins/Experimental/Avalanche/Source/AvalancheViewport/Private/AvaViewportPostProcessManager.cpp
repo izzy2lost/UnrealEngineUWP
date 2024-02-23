@@ -75,6 +75,7 @@ void FAvaViewportPostProcessManager::UpdateSceneView(FSceneView* InSceneView)
 
 	Visualizer->UpdateForViewport(
 		AvaViewportClient->GetZoomedVisibleArea(),
+		AvaViewportClient->GetViewportOffset(),
 		AvaViewportClient->GetViewportWidgetSize(),
 		PanOffset
 	);

@@ -112,7 +112,8 @@ void FAvaViewportPostProcessVisualizer::OnDeactivate()
 {
 }
 
-void FAvaViewportPostProcessVisualizer::UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, const FVector2f& InCameraOffset)
+void FAvaViewportPostProcessVisualizer::UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InVisibleAreaOffset, 
+	const FVector2f& InWidgetSize, const FVector2f& InCameraOffset)
 {
 }
 
