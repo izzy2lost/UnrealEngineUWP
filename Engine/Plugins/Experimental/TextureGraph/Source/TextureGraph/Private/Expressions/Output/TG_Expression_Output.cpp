@@ -128,5 +128,8 @@ void UTG_Expression_Output::SetExport(bool bExport)
 {
 	OutputSettings.bExport = bExport;
 	UTG_Pin* Settings = GetParentNode()->GetPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, OutputSettings));
-	Settings->SetValue(OutputSettings.ToString());
+
+	// We are calling this instead of SetValue() to avoid rendering trigger.
+	// TODO: Better solution is that we should have NoInvalidate meta in UProperty or come up with a better solution.
+	Settings->EditSelfVar()->SetValueFromStr(OutputSettings.ToString());
 }

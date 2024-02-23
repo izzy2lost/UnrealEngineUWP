@@ -90,24 +90,21 @@ void STG_OutputSelectionDlg::AddExportItems()
 				TSharedPtr<SWidget> ThumbnailWidget;
 				if (Variant.IsTexture())
 				{
-					TiledBlobPtr ThumbBlob = EdGraph->GetCachedThumbBlob(Id);
-
-					if (!ThumbBlob)
-					{
-						ThumbBlob = TextureHelper::GetBlack();
-					}
-
 					TSharedPtr<STG_NodeThumbnail> NodeThumbnail = SNew(STG_NodeThumbnail);
-					ThumbBlob->OnFinalise()
-					.then([ThumbBlob, NodeThumbnail]
+					TiledBlobPtr CachedThumb = EdGraph->GetCachedThumbBlob(Id);
+
+					if(!CachedThumb)
+					{
+						CachedThumb = TextureHelper::GetBlack();						
+					}
+					
+					if (CachedThumb->IsFinalised())
+					{
+						if (NodeThumbnail.IsValid())
 						{
-							// NOTE: If later, "this" were to be captured here, we should check DoesSharedInstanceExist()
-							// as there is a chance this might be invoked when the slate widgets have already been destroyed
-							if (NodeThumbnail.IsValid())
-							{
-								NodeThumbnail->UpdateBlob(ThumbBlob);
-							}
-						});
+							NodeThumbnail->UpdateBlob(CachedThumb);
+						}
+					}
 
 					ThumbnailWidget = NodeThumbnail;
 				}

@@ -27,7 +27,8 @@ struct TEXTUREGRAPHENGINE_API FInvalidationDetails
 	bool								bReload = false;							/// Whether to reload the sources or not
 	bool								bSelective = true;							/// Selective invalidation [tile based]
 	bool								bTweaking = false;							/// Whether being tweaked or not
-
+	bool								bExporting = false;							/// Should only be true in case of exporting.
+	
 	/// The list of things that have been invalidated
 	bool								bForceInvalidateParent = false;				/// Force invalidates the parent
 	bool								bRender = false;							/// Re-render
