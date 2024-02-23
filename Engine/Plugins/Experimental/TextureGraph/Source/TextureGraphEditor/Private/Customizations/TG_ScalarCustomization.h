@@ -11,7 +11,7 @@
 #include "Widgets/Input/SSlider.h"
 #include "Editor.h"
 #include "STG_TextureHistogram.h"
-
+#include "TG_SystemTypes.h"
 
 #define LOCTEXT_NAMESPACE "FTextureGraphEditorModule"
 

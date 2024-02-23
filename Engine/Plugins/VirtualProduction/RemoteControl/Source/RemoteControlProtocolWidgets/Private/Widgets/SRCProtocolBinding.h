@@ -8,6 +8,7 @@
 #include "UObject/StructOnScope.h"
 #include "ViewModels/ProtocolBindingViewModel.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
 struct FRemoteControlProtocolEntity;
@@ -19,7 +20,7 @@ class ITableRow;
 class SRCProtocolRangeList;
 class STableViewBase;
 
-class REMOTECONTROLPROTOCOLWIDGETS_API SRCProtocolBinding : public STableRow<TSharedPtr<FProtocolBindingViewModel>>
+class SRCProtocolBinding : public STableRow<TSharedPtr<FProtocolBindingViewModel>>
 {
 public:
 	/** Delegate when start recording input from protocol */
@@ -40,16 +41,16 @@ public:
 
 private:
 	/** Constructs the masking widget. */
-	TSharedRef<SWidget> ConstructMaskingWidget();
+	REMOTECONTROLPROTOCOLWIDGETS_API TSharedRef<SWidget> ConstructMaskingWidget();
 
 	/** Called when Delete button pressed. */
-	FReply OnDelete();
+	REMOTECONTROLPROTOCOLWIDGETS_API FReply OnDelete();
 
 	/** Toggle recording button handler */
-	FReply ToggleRecording() const;
+	REMOTECONTROLPROTOCOLWIDGETS_API FReply ToggleRecording() const;
 
 	/** Get Recording button color based on binding status of protocol entity */
-	FSlateColor GetRecordingButtonColor() const;
+	REMOTECONTROLPROTOCOLWIDGETS_API FSlateColor GetRecordingButtonColor() const;
 
 private:
 	/** ViewModel for the Protocol Binding. */

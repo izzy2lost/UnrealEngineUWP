@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AppleARKitAvailability.h"
 #include "AppleARKitSettings.h"
 
 #if SUPPORTS_ARKIT_1_0

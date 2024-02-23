@@ -141,7 +141,7 @@ struct TListTypeTraits<FMVVMBlueprintPropertyPath>
 
 	static bool IsPtrValid(const FMVVMBlueprintPropertyPath& InPtr)
 	{
-		return !InPtr.IsEmpty();
+		return InPtr.IsValid();
 	}
 
 	static void ResetPtr(FMVVMBlueprintPropertyPath& InPtr)

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
 class UChooserTable;

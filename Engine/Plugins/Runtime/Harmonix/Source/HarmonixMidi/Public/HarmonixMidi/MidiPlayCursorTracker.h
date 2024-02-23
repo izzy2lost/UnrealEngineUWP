@@ -5,7 +5,7 @@
 
 class FMidiPlayCursor;
 
-struct HARMONIXMIDI_API FMidiPlayCursorTracker
+struct FMidiPlayCursorTracker
 {
 	int32   CurrentTick; // We've broadcast all events up through this tick
 	float   CurrentMs;   // We've broadcast all events up through this Ms
@@ -31,19 +31,19 @@ struct HARMONIXMIDI_API FMidiPlayCursorTracker
 
 	TIntrusiveDoubleLinkedList<FMidiPlayCursor> Cursors;
 
-	explicit FMidiPlayCursorTracker(bool InIsLowRes);
+	HARMONIXMIDI_API explicit FMidiPlayCursorTracker(bool InIsLowRes);
 
-	bool IsAtStart();
-	void AddCursor(FMidiPlayCursor* Cursor);
-	bool ContainsCursor(FMidiPlayCursor* Cursor);
-	bool RemoveCursor(FMidiPlayCursor* Cursor);
-	void Clear();
+	HARMONIXMIDI_API bool IsAtStart();
+	HARMONIXMIDI_API void AddCursor(FMidiPlayCursor* Cursor);
+	HARMONIXMIDI_API bool ContainsCursor(FMidiPlayCursor* Cursor);
+	HARMONIXMIDI_API bool RemoveCursor(FMidiPlayCursor* Cursor);
+	HARMONIXMIDI_API void Clear();
 
-	void RecalculateExtents();
-	int32 GetFarthestAheadCursorTick() const;
-	int32 GetFarthestBehindCursorTick() const;
+	HARMONIXMIDI_API void RecalculateExtents();
+	HARMONIXMIDI_API int32 GetFarthestAheadCursorTick() const;
+	HARMONIXMIDI_API int32 GetFarthestBehindCursorTick() const;
 
-	void MoveToLoopStart(int32 NewThruTick, float NewThruMs);
+	HARMONIXMIDI_API void MoveToLoopStart(int32 NewThruTick, float NewThruMs);
 
 	bool HasQueuedReset = true;
 	int32 NewQueuedTick = 0;
@@ -52,10 +52,10 @@ struct HARMONIXMIDI_API FMidiPlayCursorTracker
 	float NewQueuedPreRollMs = 0.0f;
 	bool  NewQueuedBroadcast = false;
 
-	void QueueReset(int32 NewCurrentTick, float NewCurrentMs, int32 PreRollStartTick, float PreRollStartMs, bool Broadcast);
-	void HandleQueuedReset();
-	void Reset(int32 NewCurrentTick, float NewCurrentMs, int32 PreRollStartTick, float PreRollStartMs, bool Broadcast);
-	void ResetNewCursor(FMidiPlayCursor* Cursor, int32 PreRollStartTick, float PreRollStartMs, bool Broadcast);
-	void Reset(int32 NewCurrentTick, float NewCurrentMs, bool Broadcast);
+	HARMONIXMIDI_API void QueueReset(int32 NewCurrentTick, float NewCurrentMs, int32 PreRollStartTick, float PreRollStartMs, bool Broadcast);
+	HARMONIXMIDI_API void HandleQueuedReset();
+	HARMONIXMIDI_API void Reset(int32 NewCurrentTick, float NewCurrentMs, int32 PreRollStartTick, float PreRollStartMs, bool Broadcast);
+	HARMONIXMIDI_API void ResetNewCursor(FMidiPlayCursor* Cursor, int32 PreRollStartTick, float PreRollStartMs, bool Broadcast);
+	HARMONIXMIDI_API void Reset(int32 NewCurrentTick, float NewCurrentMs, bool Broadcast);
 };
 

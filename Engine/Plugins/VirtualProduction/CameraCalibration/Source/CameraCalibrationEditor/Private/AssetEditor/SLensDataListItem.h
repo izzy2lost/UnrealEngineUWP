@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
 #include "CameraCalibrationEditorCommon.h"

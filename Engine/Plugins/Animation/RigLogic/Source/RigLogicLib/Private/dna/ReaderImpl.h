@@ -4,6 +4,8 @@
 
 #include "dna/BaseImpl.h"
 #include "dna/DenormalizedData.h"
+#include "dna/layers/Geometry.h"
+#include "dna/layers/MachineLearnedBehavior.h"
 #include "dna/TypeDefs.h"
 
 #ifdef _MSC_VER

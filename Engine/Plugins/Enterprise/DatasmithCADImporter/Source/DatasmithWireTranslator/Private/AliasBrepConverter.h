@@ -3,6 +3,7 @@
 #pragma once
 
 class AlDagNode;
+struct FColor;
 
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {

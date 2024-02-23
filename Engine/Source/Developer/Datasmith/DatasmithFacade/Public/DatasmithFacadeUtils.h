@@ -6,10 +6,10 @@
 
 class FDatasmithUniqueNameProvider;
 
-class DATASMITHFACADE_API FDatasmithFacadeUniqueNameProvider
+class FDatasmithFacadeUniqueNameProvider
 {
 public:
-	FDatasmithFacadeUniqueNameProvider();
+	DATASMITHFACADE_API FDatasmithFacadeUniqueNameProvider();
 	
 	/**
 	 * Generates a unique name
@@ -17,25 +17,25 @@ public:
 	 * @return TCHAR* Unique name. Calling "Contains()" with this name will be false. 
 	 *                Pointer is only valid until the next GenerateUniqueName() call.
 	 */
-	const TCHAR* GenerateUniqueName(const TCHAR* BaseName);
+	DATASMITHFACADE_API const TCHAR* GenerateUniqueName(const TCHAR* BaseName);
 
 	/**
 	 * Reserves space in the internal data structures to contain at least the number of name specified.
 	 * @param NumberOfName The number of name to reserve for.
 	 */
-	void Reserve( int32 NumberOfName );
+	DATASMITHFACADE_API void Reserve( int32 NumberOfName );
 
 	/**
 	 * Register a name as known
 	 * @param Name name to register
 	 */
-	void AddExistingName(const TCHAR* Name);
+	DATASMITHFACADE_API void AddExistingName(const TCHAR* Name);
 	
 	/**
 	 * Remove a name from the list of existing name
 	 * @param Name name to unregister
 	 */
-	void RemoveExistingName(const TCHAR* Name);
+	DATASMITHFACADE_API void RemoveExistingName(const TCHAR* Name);
 
 private:
 	TUniquePtr<FDatasmithUniqueNameProvider> InternalNameProvider;

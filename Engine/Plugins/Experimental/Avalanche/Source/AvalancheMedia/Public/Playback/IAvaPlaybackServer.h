@@ -3,8 +3,11 @@
 #pragma once
 
 #include "IMessageContext.h"
+#include "UObject/SoftObjectPath.h"
 
 class FAvaPlaybackManager;
+class IAvaBroadcastSettings;
+struct FAvaInstanceSettings;
 
 class IAvaPlaybackServer
 {

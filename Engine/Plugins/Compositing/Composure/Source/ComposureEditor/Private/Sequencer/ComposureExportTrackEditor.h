@@ -3,8 +3,7 @@
 #pragma once
 
 #include "KeyframeTrackEditor.h"
-
-class UMovieSceneComposureExportTrack;
+#include "MovieScene/MovieSceneComposureExportTrack.h"
 
 class FComposureExportTrackEditor : public FKeyframeTrackEditor<UMovieSceneComposureExportTrack>
 {

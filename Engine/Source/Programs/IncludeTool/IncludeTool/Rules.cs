@@ -566,6 +566,8 @@ namespace IncludeTool
 			AddCounterpart(BranchRoot, "Engine\\Source\\Runtime\\Core\\Public\\Windows\\AllowWindowsPlatformAtomics.h", "Engine\\Source\\Runtime\\Core\\Public\\Windows\\HideWindowsPlatformAtomics.h");
 			AddCounterpart(BranchRoot, "Engine\\Source\\Runtime\\Core\\Public\\Windows\\PreWindowsApi.h", "Engine\\Source\\Runtime\\Core\\Public\\Windows\\PostWindowsApi.h");
 			AddCounterpart(BranchRoot, "Engine\\Plugins\\Runtime\\OpenCV\\Source\\OpenCVHelper\\Public\\PreOpenCVHeaders.h", "Engine\\Plugins\\Runtime\\OpenCV\\Source\\OpenCVHelper\\Public\\PostOpenCVHeaders.h");
+			AddCounterpart(BranchRoot, "Engine\\Plugins\\Media\\AjaMedia\\Source\\AjaMedia\\Private\\AjaMediaAllowPlatformTypes.h", "Engine\\Plugins\\Media\\AjaMedia\\Source\\AjaMedia\\Private\\AjaMediaHidePlatformTypes.h");
+			AddCounterpart(BranchRoot, "Engine\\Plugins\\Enterprise\\DatasmithC4DImporter\\Source\\DatasmithC4DTranslator\\Private\\DatasmithC4DMelangeSDKEnterGuard.h", "Engine\\Plugins\\Enterprise\\DatasmithC4DImporter\\Source\\DatasmithC4DTranslator\\Private\\DatasmithC4DMelangeSDKLeaveGuard.h");
 		}
 
 		/// <summary>

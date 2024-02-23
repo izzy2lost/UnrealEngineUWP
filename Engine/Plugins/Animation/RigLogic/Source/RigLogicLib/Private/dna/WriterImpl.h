@@ -3,7 +3,11 @@
 #pragma once
 
 #include "dna/BaseImpl.h"
+#include "dna/layers/Descriptor.h"
+#include "dna/layers/Geometry.h"
+#include "dna/layers/MachineLearnedBehavior.h"
 #include "dna/TypeDefs.h"
+#include "dna/types/Vector3.h"
 #include "dna/utils/Extd.h"
 
 #ifdef _MSC_VER

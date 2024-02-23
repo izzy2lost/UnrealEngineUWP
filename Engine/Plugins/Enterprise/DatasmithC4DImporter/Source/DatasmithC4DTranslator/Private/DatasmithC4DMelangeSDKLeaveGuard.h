@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// HEADER_UNIT_SKIP - Not included directly
+
 #ifdef __clang__
 
 _Pragma( "clang diagnostic pop" )

@@ -5,6 +5,7 @@
 #include "Video/VideoEncoder.h"
 #include "Video/VideoDecoder.h"
 #if PLATFORM_WINDOWS
+	#include "DynamicRHI.h"
 	#include "Video/Resources/D3D/VideoResourceD3D.h"
 	#include "Video/Resources/Vulkan/VideoResourceVulkan.h"
 #elif PLATFORM_LINUX

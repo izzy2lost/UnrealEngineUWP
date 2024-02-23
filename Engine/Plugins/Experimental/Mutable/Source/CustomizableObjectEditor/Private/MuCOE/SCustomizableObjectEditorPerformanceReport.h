@@ -7,6 +7,7 @@
 #include "MuCOE/StressTest.h"
 #include "MuCOE/Widgets/SMutableExpandableTableRow.h"
 
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/ITableRow.h"
 #include "SCustomizableObjectEditorPerformanceReport.generated.h"
 

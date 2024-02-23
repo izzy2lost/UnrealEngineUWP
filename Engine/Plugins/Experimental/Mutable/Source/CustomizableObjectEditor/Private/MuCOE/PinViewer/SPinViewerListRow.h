@@ -4,6 +4,7 @@
 
 #include "EdGraph/EdGraphPin.h"
 #include "MuCOE/Widgets/SMutableExpandableTableRow.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/ITableRow.h"
 
 class SPinViewer;

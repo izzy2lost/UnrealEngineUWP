@@ -8,8 +8,11 @@
 
 #if WITH_CEF3
 
+#include "HAL/PlatformAtomics.h"
+
 #if PLATFORM_WINDOWS
 #	include "Windows/AllowWindowsPlatformTypes.h"
+#	include "Windows/AllowWindowsPlatformAtomics.h"
 #endif
 #pragma push_macro("OVERRIDE")
 #	undef OVERRIDE // cef headers provide their own OVERRIDE macro
@@ -22,6 +25,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 #pragma pop_macro("OVERRIDE")
 #if PLATFORM_WINDOWS
+#	include "Windows/HideWindowsPlatformAtomics.h"
 #	include "Windows/HideWindowsPlatformTypes.h"
 #endif
 

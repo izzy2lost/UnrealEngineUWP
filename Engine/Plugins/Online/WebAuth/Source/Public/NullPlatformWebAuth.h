@@ -7,7 +7,7 @@ class IWebAuth;
 /**
  * Null implementation of Web Authentication
  */
-class WEBAUTH_API FNullPlatformWebAuth
+class FNullPlatformWebAuth
 {
 public:
 	/**

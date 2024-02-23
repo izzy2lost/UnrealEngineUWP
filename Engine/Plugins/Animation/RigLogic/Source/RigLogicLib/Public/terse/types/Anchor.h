@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <utility>
+
 namespace terse {
 
 // Anchor is a virtual, utility type only (meaning it does not write or read any data from the stream)

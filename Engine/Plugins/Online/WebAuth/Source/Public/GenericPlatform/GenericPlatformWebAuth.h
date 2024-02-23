@@ -8,7 +8,7 @@ class IWebAuth;
  * Platform specific WebAuth implementations
  * Intended usage is to use FPlatformWebAuth instead of FGenericPlatformWebAuth
  */
-class WEBAUTH_API FGenericPlatformWebAuth
+class FGenericPlatformWebAuth
 {
 public:
 	/**

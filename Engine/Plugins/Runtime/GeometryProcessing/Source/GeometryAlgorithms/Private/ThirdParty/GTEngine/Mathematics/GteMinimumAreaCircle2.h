@@ -12,6 +12,7 @@
 #include <ThirdParty/GTEngine/Mathematics/GteHypersphere.h>
 #include <ThirdParty/GTEngine/Mathematics/GteLinearSystem.h>
 #include <algorithm>
+#include <functional>
 #include <random>
 #include <utility>
 

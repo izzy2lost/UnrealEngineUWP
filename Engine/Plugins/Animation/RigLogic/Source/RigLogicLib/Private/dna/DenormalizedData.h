@@ -3,6 +3,7 @@
 #pragma once
 
 #include "dna/LODMapping.h"
+#include "dna/layers/DefinitionReader.h"
 #include "dna/types/Aliases.h"
 #include "dna/utils/Extd.h"
 

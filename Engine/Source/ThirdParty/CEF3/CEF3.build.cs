@@ -14,6 +14,7 @@ public class CEF3 : ModuleRules
 		string CEFPlatform = "";
 
 		Type = ModuleType.External;
+		IWYUSupport = IWYUSupport.None;
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{

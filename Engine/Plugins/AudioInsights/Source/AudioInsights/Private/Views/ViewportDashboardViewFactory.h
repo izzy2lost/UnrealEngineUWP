@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "AudioInsightsStyle.h"
 #include "Views/DashboardViewFactory.h"
 #include "Widgets/SNullWidget.h"
 // #include "LevelEditor.h"

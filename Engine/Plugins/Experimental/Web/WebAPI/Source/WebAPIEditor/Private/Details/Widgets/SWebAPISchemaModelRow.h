@@ -5,6 +5,7 @@
 #include "Details/Widgets/SWebAPISchemaTreeTableRow.h"
 #include "SWebAPISchemaTreeTableRow.inl"
 #include "Widgets/Views/ITableRow.h"
+#include "Widgets/Views/SListView.h"
 
 class FWebAPIModelViewModel;
 
