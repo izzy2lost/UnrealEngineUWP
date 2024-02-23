@@ -425,8 +425,7 @@ export type GetDashboardPoolCategoryResponse = {
 	condition?: string;
 }
 
-export enum AuthMethod
-{
+export enum AuthMethod {
 	Anonymous = "Anonymous",
 	Okta = "Okta",
 	OpenIdConnect = "OpenIdConnect",
@@ -3558,6 +3557,50 @@ export type UpdateUserRequest = {
 
 }
 
+// Server Status
+
+/// Status for a subsystem within Hord
+export type ServerStatusSubsystem = {	
+	/// Category of this subsystem
+	category: string;
+	
+	/// Name of the subsystem
+	name: string;
+	
+	/// List of updates
+	updates: ServerStatusUpdate[];
+}
+
+/// Type of status result for a single updat
+export enum ServerStatusResult {	
+	/// Indicates that the health check determined that the subsystem was unhealthy
+	Unhealthy = "Unhealthy",
+	
+	/// Indicates that the health check determined that the component was in a subsystem state
+	Degraded = "Degraded",
+	
+	/// Indicates that the health check determined that the subsystem was healthy
+	Healthy = "Healthy"
+}
+
+/// A single status updat
+export type ServerStatusUpdate = {	
+	/// Result of status update
+	result: ServerStatusResult;
+	
+	/// Optional message describing the result
+	message?: string;
+	
+	/// Time this update was created
+	updatedAt: Date;
+}
+
+/// Response from server status controller
+export type ServerStatusResponse = {	
+	/// List of subsystem statuses
+	statuses: ServerStatusSubsystem[];
+}
+
 export type GetPerforceServerStatusResponse = {
 	serverAndPort: string;
 	baseServerAndPort: string;
@@ -5121,9 +5164,9 @@ export type UpdateBisectTaskRequest = {
 export type DashboardLoginRequest = {
 	username: string;
 	password?: string;
-	returnUrl?: string;	
+	returnUrl?: string;
 }
-	
+
 /// Update request for the current user account
 export type UpdateCurrentAccountRequest = {
 	password?: string;

@@ -163,7 +163,7 @@ spec:
     {{- end }}
     {{- if .Values.nginx.enabled }}
       - name: nginx
-        image: nginx:1.23.3
+        image: nginx:1.25.4
         {{- if .Values.nginx.env }}
         env:
         {{- include "common.tplvalues.render" ( dict "value" .Values.nginx.env "context" $ ) | nindent 8 }}
