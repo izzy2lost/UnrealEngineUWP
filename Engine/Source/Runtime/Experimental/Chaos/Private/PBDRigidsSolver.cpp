@@ -2029,8 +2029,9 @@ namespace Chaos
 							}
 #endif
 							MRewindCallback->PreResimStep_Internal(Step, bFirst);
-							
-							FAllSolverTasks ImmediateTask(*this, PushData);
+
+							// Run the advance but omit the game thread callbacks as we're executing during the physics tick
+							FSolverTasksPTOnly ImmediateTask(*this, PushData);
 							//ensure(bSolverHasFrozenGameThreadCallbacks == false);	//We don't support this for resim as it's very expensive and difficult to schedule
 							ImmediateTask.AdvanceSolver();
 							MRewindCallback->PostResimStep_Internal(Step);

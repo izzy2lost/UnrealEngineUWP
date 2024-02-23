@@ -152,6 +152,9 @@ public:
 			const FPendingAsyncPhysicsCommand& PendingCommand = PendingCommands[Idx];
 			bool bRemove = PendingCommand.OwningObject.IsStale() || !PendingCommand.Command;
 
+			/* #TODO implement and re-enable resim commands. This callback must run on the main thread and resim currently does
+			 * not defer its callbacks to the main thread making its execution unsafe. 
+
 			if (!bRemove && bAllowResim && PendingCommand.bEnableResim && PendingCommand.PhysicsStep > (CurrentFrame - NumFrames))
 			{
 				if (PendingCommand.PhysicsStep < CurrentFrame)
@@ -172,6 +175,7 @@ public:
 				}
 			}
 			else
+			*/
 			{
 				if (!bRemove && PendingCommand.PhysicsStep <= CurrentFrame)
 				{

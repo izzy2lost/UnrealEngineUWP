@@ -168,6 +168,7 @@ namespace Chaos
 #endif
 	};
 
+	// Container for all steps required to fully update a solver
 	struct FAllSolverTasks
 	{
 		FAllSolverTasks(FPhysicsSolverBase& InSolver, FPushPhysicsData* PushData)
@@ -180,6 +181,30 @@ namespace Chaos
 
 		FPhysicsSolverProcessPushDataTask ProcessPushData;
 		FPhysicsSolverFrozenGTPreSimCallbacks GTPreSimCallbacks;
+		FPhysicsSolverAdvanceTask AdvanceTask;
+
+		CHAOS_API void AdvanceSolver();
+
+		FPhysicsSolverBase& Solver;
+	};
+
+	// Container for all physics-thread steps required to update a solver
+	// This leaves out the game thread callbacks for situations that require and update only in a physics-thread context
+	struct FSolverTasksPTOnly
+	{
+		FSolverTasksPTOnly() = delete;
+		FSolverTasksPTOnly(const FSolverTasksPTOnly&) = delete;
+		FSolverTasksPTOnly(FSolverTasksPTOnly&&) = delete;
+		FSolverTasksPTOnly& operator=(const FSolverTasksPTOnly&) = delete;
+		FSolverTasksPTOnly& operator=(FSolverTasksPTOnly&&) = delete;
+
+		FSolverTasksPTOnly(FPhysicsSolverBase& InSolver, FPushPhysicsData* InPushData)
+			: ProcessPushData(InSolver, InPushData)
+			, AdvanceTask(InSolver, InPushData)
+			, Solver(InSolver)
+		{}
+
+		FPhysicsSolverProcessPushDataTask ProcessPushData;
 		FPhysicsSolverAdvanceTask AdvanceTask;
 
 		CHAOS_API void AdvanceSolver();
@@ -530,6 +555,7 @@ namespace Chaos
 
 		void SetGameThreadFrozen(bool InGameThreadFrozen)
 		{
+			check(IsInGameThread());
 			bGameThreadFrozen = InGameThreadFrozen;
 		}
 
