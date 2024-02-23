@@ -97,7 +97,7 @@ namespace UnrealBuildTool
 	class AndroidArchitectureConfig : UnrealArchitectureConfig
 	{
 		public AndroidArchitectureConfig()
-			: base(UnrealArchitectureMode.SingleTargetLinkSeparately, new[] { UnrealArch.X64, UnrealArch.Arm64 })
+			: base(UnrealArchitectureMode.SingleTargetLinkSeparately, new[] { UnrealArch.Arm64, UnrealArch.X64 })
 		{
 
 		}
@@ -129,15 +129,7 @@ namespace UnrealBuildTool
 				}
 				if (Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bBuildForx8664", out bBuild) && bBuild)
 				{
-					if (File.Exists(Path.Combine(Unreal.EngineDirectory.FullName, "Build", "InstalledBuild.txt")))
-					{
-						bUnsupportedBinaryBuildArch = true;
-						Log.TraceWarningOnce("Please install source to build for x86_64 (-x64); ignoring this architecture target.");
-					}
-					else
-					{
-						ActiveArches.Add("x64");
-					}
+					ActiveArches.Add("x64");
 				}
 
 				// we expect one to be specified
