@@ -50,7 +50,9 @@ public:
 	// Returns true when the AsyncReadbackResults are available to the game thread, at which point you can call TakeResults() to access them.
 	// bOutFinishCommandQueued is set to true if the finish render command was queued in this call, othwerwise unchanged.
 	// You must call this function occasionally or the readback will never complete, as the finish command is required.
-	bool CheckAndUpdate(bool& bOutFinishCommandQueued);
+	// bInForceFinish will force the finish process to be queued on the render thread (potentially stalling render thread, but forcing it to finish the readback)
+	// bInForceFinish may not make the results immediately available, but will ensure they are available after the render thread executes the command.
+	bool CheckAndUpdate(bool& bOutFinishCommandQueued, const bool bInForceFinish);
 
 	// Call from game thread to terminate any readback in flight and queue deletion of this (FLandscapeAsyncTextureReadback) on the render thread
 	void CancelAndSelfDestruct();

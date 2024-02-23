@@ -447,17 +447,25 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 
 			case EComponentStage::Rendering:
 				check(State->ActiveRender != nullptr);
-				if (State->ActiveRender->CheckAndUpdateAsyncReadback(bRenderCommandsQueuedByLastUpdate))
 				{
-					if (GGrassMapUseAsyncFetch != 0)
+					// NOTE: on RHI platforms that don't support fences (D3D11), the IsReady() async check will never return true within a single frame (i.e. BuildGrassMapsNow)
+					// So it will never signal complete, unless we force it to finish after a number of ticks
+					// in general 3 ticks should be the max latency we should ever see in an amortized use case
+					const bool bForceFinish = (State->TickCount > 4);
+					const bool bComplete = State->ActiveRender->CheckAndUpdateAsyncReadback(bRenderCommandsQueuedByLastUpdate, bForceFinish);
+
+					if (bComplete)
 					{
-						LaunchAsyncFetchTask(*State);
+						if (GGrassMapUseAsyncFetch != 0)
+						{
+							LaunchAsyncFetchTask(*State);
+						}
+						else
+						{
+							PopulateGrassDataFromReadback(*State);
+						}
+						bChanged = true;
 					}
-					else
-					{
-						PopulateGrassDataFromReadback(*State);
-					}
-					bChanged = true;
 				}
 				continue; // next!
 
@@ -901,7 +909,10 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 
 	if (UpToDateCount != LandscapeComponents.Num())
 	{
-		UE_LOG(LogGrass, Warning, TEXT("Failed to build grass maps for %d landscape components, check if you are using a render preview mode, or a non-SM5 capable render device"), LandscapeComponents.Num() - UpToDateCount);
+		UE_LOG(LogGrass, Warning, TEXT("Failed to build grass maps for %d/%d landscape components, check if you are using a render preview mode, or a non-SM5 capable render device.  (%d pending, %d streaming, %d rendering, %d fetching, %d built)"),
+			LandscapeComponents.Num() - UpToDateCount,
+			LandscapeComponents.Num(),
+			PendingCount, StreamingCount, RenderingCount, AsyncFetchCount, PopulatedCount);
 	}
 
 	return (UpToDateCount == LandscapeComponents.Num());
@@ -960,7 +971,7 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State, bool bCa
 					FLandscapeGrassWeightExporter* Render = State.ActiveRender.Release();
 					Render->CancelAndSelfDestruct();
 				}
-				else if (!State.ActiveRender->CheckAndUpdateAsyncReadback(bNewRenderCommands))
+				else if (!State.ActiveRender->CheckAndUpdateAsyncReadback(bNewRenderCommands, State.TickCount > 4))
 				{
 					// we can't cancel yet.. must wait for the readback to complete
 					return false;
