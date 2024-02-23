@@ -29,6 +29,39 @@ namespace UE::ConcertSharedSlate
 				});
 			return bAddedAtLeastOne;
 		}
+
+		/** After removing RemovedProperty from Selection, walk up the chain property chain and remove any parent properties that now have 0 children. */
+		static int32 RemoveParentPropertiesWithoutChildren(const FConcertPropertyChain& RemovedProperty, FConcertPropertySelection& Selection)
+		{
+			const auto HasNoChildren = [&Selection](const FConcertPropertyChain& CheckedProperty)
+			{
+				const bool bHasNoChildren = Algo::AllOf(Selection.ReplicatedProperties, [&CheckedProperty](const FConcertPropertyChain& SelectedProperty)
+				{
+					return !SelectedProperty.IsChildOf(CheckedProperty) || CheckedProperty == SelectedProperty;
+				});
+				return bHasNoChildren;
+			};
+
+			int32 NumRemoved = 0;
+			bool bFollowChain = true;
+			FConcertPropertyChain ParentProperty = RemovedProperty;
+			while (!ParentProperty.IsEmpty() && bFollowChain)
+			{
+				ParentProperty = ParentProperty.GetParent();
+				
+				const bool bHasNoChildren = HasNoChildren(ParentProperty);
+				if (bHasNoChildren)
+				{
+					++NumRemoved;
+					Selection.ReplicatedProperties.Remove(ParentProperty);
+				}
+
+				// If current property still has children then transitively its parents will also continue to have a child
+				bFollowChain = bHasNoChildren;
+			}
+
+			return NumRemoved;
+		}
 	}
 
 	FGenericReplicationStreamModel::FGenericReplicationStreamModel(
@@ -254,6 +287,8 @@ namespace UE::ConcertSharedSlate
 				}
 				return EBreakBehavior::Continue;
 			});
+
+			NumRemoved += Private::RemoveParentPropertiesWithoutChildren(RemovedProperty, AssignedProperties->PropertySelection);
 		}
 		
 		if (NumRemoved > 0)

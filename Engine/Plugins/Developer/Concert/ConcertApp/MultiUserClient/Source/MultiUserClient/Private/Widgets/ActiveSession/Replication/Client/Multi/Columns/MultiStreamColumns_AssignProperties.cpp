@@ -111,7 +111,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 					.DisplayedProperty(InArgs.RowItem.RowData.GetProperty())
 					.EditedObjects(DisplayedObjects)
 					.HighlightText(InArgs.HighlightText)
-					.OnOptionSelected_Lambda([this](auto)
+					.OnPropertyAssignmentChanged_Lambda([this]()
 					{
 						if (const TSharedPtr<IMultiReplicationStreamEditor> Editor = MultiStreamEditor.Get())
 						{

@@ -15,10 +15,12 @@
 
 #include "Algo/AnyOf.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Widgets/Input/SComboButton.h"
+#include "GameFramework/Actor.h"
+#include "UObject/Class.h"
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateTypes.h"
+#include "Widgets/Input/SComboButton.h"
 
 #define LOCTEXT_NAMESPACE "SAssignPropertyComboBox"
 
@@ -77,7 +79,7 @@ namespace UE::MultiUserClient
 		HighlightText = InArgs._HighlightText;
 		check(!EditedObjects.IsEmpty());
 
-		OnOptionClickedDelegate = InArgs._OnOptionSelected;
+		OnOptionClickedDelegate = InArgs._OnPropertyAssignmentChanged;
 		
 		ChildSlot
 		[
@@ -125,6 +127,19 @@ namespace UE::MultiUserClient
 		};
 		
 		FMenuBuilder MenuBuilder(true, nullptr);
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("Clear.Label", "Clear"),
+			LOCTEXT("Clear.Tooltip", "Stop this property from being replicated"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SAssignPropertyComboBox::OnClickClear),
+				FCanExecuteAction::CreateSP(this, &SAssignPropertyComboBox::CanClickClear)
+				),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+		
+		MenuBuilder.BeginSection(TEXT("AssignTo"), LOCTEXT("AssignTo", "Assign to"));
 		for (const FReplicationClient* Client : ClientUtils::GetSortedClientList(*ConcertClient, *ClientManager))
 		{
 			TAttribute<FText> Tooltip = TAttribute<FText>::CreateLambda([this, EndpointId = Client->GetEndpointId()]()
@@ -154,9 +169,10 @@ namespace UE::MultiUserClient
 				MakeWidget(Client->GetEndpointId()),
 				NAME_None,
 				Tooltip,
-				EUserInterfaceActionType::ToggleButton
+				EUserInterfaceActionType::Check
 				);
 		}
+		MenuBuilder.EndSection();
 		
 		return MenuBuilder.MakeWidget();
 	}
@@ -173,35 +189,23 @@ namespace UE::MultiUserClient
 		const FText TransactionText = FText::Format(LOCTEXT("AllClientsAssignFmt", "Assign {0} property"), FText::FromString(Property.ToString(FConcertPropertyChain::EToStringMethod::LeafProperty)));
 		FScopedTransaction Transaction(TransactionText);
 
-		// Only one client is supposed to own the object: remove the other clients (if possible)
-		ClientManager->ForEachClient([this, Client](const FReplicationClient& ClientToRemoveFrom)
-		{
-			if (*Client != ClientToRemoveFrom
-				&& ClientToRemoveFrom.AllowsEditing())
-			{
-				for (const FSoftObjectPath& ObjectPath : EditedObjects)
-				{
-					ClientToRemoveFrom.GetClientEditModel()->RemoveProperties(ObjectPath, { Property });
-				}
-			}
-			
-			return EBreakBehavior::Continue;
-		});
-
 		const ECheckBoxState CheckBoxState = GetOptionCheckState(EndpointId);
-		const bool bRemoveProperty = CheckBoxState == ECheckBoxState::Checked; 
-		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = Client->GetClientEditModel();
-		for (const FSoftObjectPath& ObjectPath : EditedObjects)
+		const bool bRemovePropertyFromEditedClient = CheckBoxState == ECheckBoxState::Checked;
+		
+		// To make it simpler for the user, at most one client is supposed to be assigned to the object at any given time so ...
+		if (bRemovePropertyFromEditedClient)
 		{
-			if (bRemoveProperty)
-			{
-				EditModel->RemoveProperties(ObjectPath, { Property });
-				if (!EditModel->HasAnyPropertyAssigned(ObjectPath))
-				{
-					EditModel->RemoveObjects({ ObjectPath });
-				}
-			}
-			else
+			// ... remove property from all clients
+			UnassignPropertyFromClients([](const FReplicationClient& ClientToRemoveFrom){ return true; });
+		}
+		else
+		{
+			// ... remove the property from all clients but the one we'll assign to ...
+			UnassignPropertyFromClients([Client](const FReplicationClient& ClientToRemoveFrom){ return *Client != ClientToRemoveFrom; });
+
+			// ... and then assign the property
+			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = Client->GetClientEditModel();
+			for (const FSoftObjectPath& ObjectPath : EditedObjects)
 			{
 				if (!EditModel->ContainsObjects({ ObjectPath }))
 				{
@@ -215,7 +219,7 @@ namespace UE::MultiUserClient
 			}
 		}
 		
-		OnOptionClickedDelegate.ExecuteIfBound(EndpointId);
+		OnOptionClickedDelegate.ExecuteIfBound();
 	}
 
 #define SET_REASON(Text) if (Reason) { *Reason = Text; }
@@ -304,7 +308,67 @@ namespace UE::MultiUserClient
 
 		return CheckBoxState;
 	}
-	
+
+	void SAssignPropertyComboBox::OnClickClear()
+	{
+		const FText TransactionText = FText::Format(LOCTEXT("ClearAllClientsFmt", "Clear {0} property"), FText::FromString(Property.ToString(FConcertPropertyChain::EToStringMethod::LeafProperty)));
+		FScopedTransaction Transaction(TransactionText);
+
+		UnassignPropertyFromClients([](const FReplicationClient& ClientToRemoveFrom){ return true; });
+		OnOptionClickedDelegate.ExecuteIfBound();
+	}
+
+	bool SAssignPropertyComboBox::CanClickClear() const
+	{
+		bool bIsAssignedToAnyClient = false;
+		ClientManager->ForEachClient([this, &bIsAssignedToAnyClient](const FReplicationClient& Client)
+		{
+			for (int32 i = 0; !bIsAssignedToAnyClient && i < EditedObjects.Num(); ++i)
+			{
+				const FSoftObjectPath& ObjectPath = EditedObjects[i];
+				const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Model = Client.GetClientEditModel();
+				const bool bHasProperty = Model->HasProperty(ObjectPath, Property);
+				bIsAssignedToAnyClient |= bHasProperty;
+			}
+			
+			return bIsAssignedToAnyClient ? EBreakBehavior::Break : EBreakBehavior::Continue;
+		});
+		return bIsAssignedToAnyClient;
+	}
+
+	void SAssignPropertyComboBox::UnassignPropertyFromClients(TFunctionRef<bool(const FReplicationClient& Client)> ShouldRemoveFromClient) const
+	{
+		ClientManager->ForEachClient([this, &ShouldRemoveFromClient](const FReplicationClient& ClientToRemoveFrom)
+		{
+			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = ClientToRemoveFrom.GetClientEditModel();
+			if (ClientToRemoveFrom.AllowsEditing() && ShouldRemoveFromClient(ClientToRemoveFrom))
+			{
+				for (const FSoftObjectPath& ObjectPath : EditedObjects)
+				{
+					EditModel->RemoveProperties(ObjectPath, { Property });
+					
+					if (EditModel->HasAnyPropertyAssigned(ObjectPath))
+					{
+						continue;
+					}
+
+					// We want to remove subobjects that have no properties. Retain actors because they cause their entire component / subobject hierarchy to be displayed.
+					// Skipping this check would close the entire property tree view and remove the actor hierarchy from the view.
+					// That would feel very unnatural / unexpected for the user. 
+					// If the user does not want the actor anymore, they should click it and delete it.
+					const UClass* ObjectClass = EditModel->GetObjectClass(ObjectPath).TryLoadClass<UObject>();
+					const bool bIsTopLevelObject = !ObjectClass->IsChildOf<AActor>();
+					if (bIsTopLevelObject)
+					{
+						EditModel->RemoveObjects({ ObjectPath });
+					}
+				}
+			}
+			
+			return EBreakBehavior::Continue;
+		});
+	}
+
 	void SAssignPropertyComboBox::RebuildSubscriptions()
 	{
 		ClientManager->ForEachClient([this](FReplicationClient& Client)

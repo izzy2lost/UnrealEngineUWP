@@ -30,6 +30,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "ConcertSharedSlate",
+			"Enabled": true
+		},
+		{
 			"Name": "ConcertSyncClient",
 			"Enabled": true
 		},
