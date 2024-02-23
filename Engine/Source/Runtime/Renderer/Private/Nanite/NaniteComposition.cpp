@@ -563,6 +563,7 @@ void EmitCustomDepthStencilTargets(
 	FRDGBuilder& GraphBuilder,
 	const FScene& Scene,
 	const FViewInfo& View,
+	bool bDrawSceneViewsInOneNanitePass,
 	const FIntVector4& PageConstants,
 	FRDGBufferRef VisibleClustersSWHW,
 	FRDGBufferRef ViewsBuffer,
@@ -595,12 +596,13 @@ void EmitCustomDepthStencilTargets(
 			);
 		}
 
-		// TODO: Don't currently support offset views.
-		checkf(View.ViewRect.Min.X == 0 && View.ViewRect.Min.Y == 0, TEXT("Viewport offset support is not implemented."));
+		const FIntRect ViewRect = bDrawSceneViewsInOneNanitePass ? View.GetFamilyViewRect() : View.ViewRect;
+		const int32 kHTileSize = 8;
+		checkf((ViewRect.Min.X % kHTileSize) == 0 && (ViewRect.Min.Y % kHTileSize) == 0, TEXT("Viewport rect must be %d-pixel aligned."), kHTileSize);
 
 		// Export depth
 		{
-			const FIntVector DispatchDim = FComputeShaderUtils::GetGroupCount(View.ViewRect.Max, 8); // Only run DepthExport shader on viewport. We have already asserted that ViewRect.Min=0.
+			const FIntVector DispatchDim = FComputeShaderUtils::GetGroupCount(ViewRect.Size(), kHTileSize);
 			const uint32 PlatformConfig = RHIGetHTilePlatformConfig(CustomDepthExtent.X, CustomDepthExtent.Y);
 
 			FRDGTextureUAVRef CustomDepthUAV		= GraphBuilder.CreateUAV(FRDGTextureUAVDesc::CreateForMetaData(CustomDepth, ERDGTextureMetaDataAccess::CompressedSurface));
@@ -616,7 +618,7 @@ void EmitCustomDepthStencilTargets(
 			PassParameters->PageConstants			= PageConstants;
 			PassParameters->ClusterPageData			= Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 			PassParameters->DepthExportConfig		= FIntVector4(PlatformConfig, CustomDepthExtent.X, 0, Nanite::FGlobalResources::GetMaxVisibleClusters());
-			PassParameters->ViewRect				= FUint32Vector4((uint32)View.ViewRect.Min.X, (uint32)View.ViewRect.Min.Y, (uint32)View.ViewRect.Max.X, (uint32)View.ViewRect.Max.Y);
+			PassParameters->ViewRect				= FUint32Vector4((uint32)ViewRect.Min.X, (uint32)ViewRect.Min.Y, (uint32)ViewRect.Max.X, (uint32)ViewRect.Max.Y);
 			PassParameters->bWriteCustomStencil		= bWriteCustomStencil;
 			PassParameters->MeshPassIndex			= ENaniteMeshPass::BasePass;
 			PassParameters->VisBuffer64				= VisBuffer64;
@@ -677,7 +679,7 @@ void EmitCustomDepthStencilTargets(
 			OutCustomStencil ? RDG_EVENT_NAME("Emit Custom Depth/Stencil") : RDG_EVENT_NAME("Emit Custom Depth"),
 			PixelShader,
 			PassParameters,
-			View.ViewRect,
+			bDrawSceneViewsInOneNanitePass ? View.GetFamilyViewRect() : View.ViewRect,
 			TStaticBlendState<>::GetRHI(),
 			TStaticRasterizerState<>::GetRHI(),
 			TStaticDepthStencilState<true, CF_Always>::GetRHI()
