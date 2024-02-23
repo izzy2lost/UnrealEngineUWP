@@ -1077,7 +1077,7 @@ void UGeometryCollectionComponent::UpdateCachedBounds()
 
 bool UGeometryCollectionComponent::ShouldCreateRenderState() const
 {
-	return !CanUseCustomRenderer() && RootProxyStaticMeshComponents.IsEmpty();
+	return !CanUseCustomRenderer();
 }
 
 void UGeometryCollectionComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
@@ -1092,7 +1092,8 @@ FPrimitiveSceneProxy* UGeometryCollectionComponent::CreateSceneProxy()
 
 	FPrimitiveSceneProxy* LocalSceneProxy = nullptr;
 
-	if (RestCollection && !CanUseCustomRenderer())
+	const bool bNotUsingRootProxyComponents = RootProxyStaticMeshComponents.IsEmpty();
+	if (RestCollection && !CanUseCustomRenderer() && bNotUsingRootProxyComponents)
 	{
 		if (UseNanite(GetScene()->GetShaderPlatform()) &&
 			RestCollection->EnableNanite &&
@@ -3547,12 +3548,30 @@ void UGeometryCollectionComponent::OnUnregister()
 	}
 }
 
+void UGeometryCollectionComponent::EnableRootProxyStaticMeshComponents(bool bEnabled)
+{
+	if (bEnabled != bEnableRootProxyStaticMeshComponents)
+	{
+		bEnableRootProxyStaticMeshComponents = bEnabled;
+
+		if (bEnabled)
+		{
+			CreateRootProxyComponentsIfNeeded();
+		}
+		else
+		{
+			ClearRootProxyComponents();
+		}	
+		MarkRenderStateDirty();
+	}
+	
+}
+
 bool UGeometryCollectionComponent::ShouldCreateRootProxyComponents() const
 {
 	const bool bHasRootProxyMeshes = RestCollection && RestCollection->RootProxyData.ProxyMeshes.Num() > 0;
-	const bool bHasMeshData = RestCollection && (RestCollection->HasNaniteData() || RestCollection->HasMeshData());
 	const bool bHasCustomRenderer = CanUseCustomRenderer();
-	return bHasRootProxyMeshes && !bHasCustomRenderer && !bHasMeshData;
+	return bHasRootProxyMeshes && !bHasCustomRenderer && bEnableRootProxyStaticMeshComponents;
 }
 
 void UGeometryCollectionComponent::CreateRootProxyComponentsIfNeeded()

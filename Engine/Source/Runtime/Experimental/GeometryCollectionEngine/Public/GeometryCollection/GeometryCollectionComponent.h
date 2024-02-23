@@ -1327,6 +1327,10 @@ public:
 	/** Get any custom renderer. Returns nullptr if none is set. */
 	GEOMETRYCOLLECTIONENGINE_API IGeometryCollectionExternalRenderInterface* GetCustomRenderer() { return CustomRenderer.GetInterface(); }
 
+	
+	/** Enable or disable root proxy component creation when not using a custom renderer - this can be set at runtime */
+	GEOMETRYCOLLECTIONENGINE_API void EnableRootProxyStaticMeshComponents(bool bEnabled);
+
 	/** Enable or disable root proxy for custom rendering - this can be set at runtime */
 	UFUNCTION(BlueprintCallable, Category = "Physics")
 	GEOMETRYCOLLECTIONENGINE_API void EnableRootProxyForCustomRenderer(bool bEnable);
@@ -1831,6 +1835,7 @@ private:
 	void ClearRootProxyComponents();
 
 	TArray<TObjectPtr<UStaticMeshComponent>> RootProxyStaticMeshComponents;
+	bool bEnableRootProxyStaticMeshComponents = true;
 
 private:
 
