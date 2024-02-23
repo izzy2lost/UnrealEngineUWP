@@ -610,6 +610,8 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API virtual void BeginPlay() override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void EndPlay(const EEndPlayReason::Type ReasonEnd) override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void OnVisibilityChanged() override;
+	GEOMETRYCOLLECTIONENGINE_API virtual void OnActorVisibilityChanged() override;
+	GEOMETRYCOLLECTIONENGINE_API virtual void OnHiddenInGameChanged() override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
 
@@ -642,8 +644,6 @@ public:
 	
 	GEOMETRYCOLLECTIONENGINE_API virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
-
-	GEOMETRYCOLLECTIONENGINE_API virtual void OnHiddenInGameChanged() override;
 	//~ End USceneComponent Interface.
 
 

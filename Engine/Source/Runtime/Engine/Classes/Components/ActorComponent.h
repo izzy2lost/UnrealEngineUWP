@@ -1017,6 +1017,9 @@ public:
 	/** See if this component is in the persistent level */
 	ENGINE_API bool ComponentIsInPersistentLevel(bool bIncludeLevelStreamingPersistent) const;
 
+	/** Called on each component when the Actor's visibility state changes */
+	virtual void OnActorVisibilityChanged() { MarkRenderStateDirty(); }
+
 	/** Called on each component when the Actor's bEnableCollisionChanged flag changes */
 	virtual void OnActorEnableCollisionChanged() {}
 

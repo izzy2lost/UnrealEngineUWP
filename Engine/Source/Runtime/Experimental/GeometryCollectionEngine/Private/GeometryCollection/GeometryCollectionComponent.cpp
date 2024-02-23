@@ -753,7 +753,18 @@ void UGeometryCollectionComponent::EndPlay(const EEndPlayReason::Type ReasonEnd)
 void UGeometryCollectionComponent::OnVisibilityChanged()
 {
 	Super::OnVisibilityChanged();
+	RefreshCustomRenderer();
+}
 
+void UGeometryCollectionComponent::OnActorVisibilityChanged()
+{
+	Super::OnVisibilityChanged();
+	RefreshCustomRenderer();
+}
+
+void UGeometryCollectionComponent::OnHiddenInGameChanged()
+{
+	Super::OnHiddenInGameChanged();
 	RefreshCustomRenderer();
 }
 
@@ -3495,12 +3506,6 @@ void UGeometryCollectionComponent::AsyncPhysicsTickComponent(float DeltaTime, fl
 
 	Super::AsyncPhysicsTickComponent(DeltaTime, SimTime);
 	UpdateRepData();
-}
-
-void UGeometryCollectionComponent::OnHiddenInGameChanged()
-{
-	Super::OnHiddenInGameChanged();
-	RefreshCustomRenderer();
 }
 
 void UGeometryCollectionComponent::OnRegister()
@@ -6272,7 +6277,7 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 					const bool bRenderRootProxy = bEnableRootProxyForCustomRenderer && !bIsBroken && (RestCollection->RootProxyData.ProxyMeshes.Num() > 0);
 
 					uint32 StateFlags = 0;
-					StateFlags |= bHiddenInGame || !IsVisible() ? 0 : IGeometryCollectionExternalRenderInterface::EState_Visible;
+					StateFlags |= bHiddenInGame || !IsVisible() || GetOwner()->IsHidden() ? 0 : IGeometryCollectionExternalRenderInterface::EState_Visible;
 					StateFlags |= bRenderRootProxy ? 0 : IGeometryCollectionExternalRenderInterface::EState_Broken;
 					StateFlags |= bEnableRootProxyForCustomRenderer ? 0 : IGeometryCollectionExternalRenderInterface::EState_ForcedBroken;
 

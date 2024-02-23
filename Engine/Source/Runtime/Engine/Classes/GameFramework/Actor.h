@@ -3057,6 +3057,9 @@ public:
 	/** Update all components transforms */
 	ENGINE_API void UpdateComponentTransforms();
 
+	/** Update all components visibility state */
+	ENGINE_API void UpdateComponentVisibility();
+
 	/** Iterate over components array and call InitializeComponent, which happens once per actor */
 	ENGINE_API void InitializeComponents();
 

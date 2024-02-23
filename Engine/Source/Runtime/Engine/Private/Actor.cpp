@@ -4720,7 +4720,7 @@ void AActor::SetActorHiddenInGame( bool bNewHidden )
 	if (IsHidden() != bNewHidden)
 	{
 		SetHidden(bNewHidden);
-		MarkComponentsRenderStateDirty();
+		UpdateComponentVisibility();
 	}
 }
 
@@ -5536,6 +5536,24 @@ void AActor::UpdateComponentTransforms()
 		if (ActorComp && ActorComp->IsRegistered())
 		{
 			ActorComp->UpdateComponentToWorld();
+		}
+	}
+}
+
+void AActor::UpdateComponentVisibility()
+{
+	for (UActorComponent* ActorComp : GetComponents())
+	{
+		if (ActorComp && ActorComp->IsRegistered())
+		{
+			ActorComp->OnActorVisibilityChanged();
+			if (UChildActorComponent* ChildActorComponent = Cast<UChildActorComponent>(ActorComp))
+			{
+				if (ChildActorComponent->GetChildActor())
+				{
+					ChildActorComponent->GetChildActor()->UpdateComponentVisibility();
+				}
+			}
 		}
 	}
 }
