@@ -338,7 +338,7 @@ void SDMSlot::OnSourceBlendTypedSelected(const TSubclassOf<UDMMaterialStageBlend
 				{
 					FScopedTransaction Transaction(LOCTEXT("SetStageBlendMode", "Material Designer Set Blend Mode"));
 					BaseStage->Modify();
-					UDMMaterialStageInputExpression::ChangeStageSource_Expression(BaseStage, InNewItem.Get());
+					BaseStage->ChangeSource<UDMMaterialStageBlend>(InNewItem);
 
 					RefreshSlotSettingsRowWidget();
 				}
