@@ -13,9 +13,10 @@ TObjectPtr<UMaterialInstanceDynamic> FAudioMaterialWidgetStyle::GetDynamicMateri
 	return DynamicMaterial;
 }
 
-void FAudioMaterialWidgetStyle::CreateDynamicMaterial(UObject* InOuter) const
+UMaterialInstanceDynamic* FAudioMaterialWidgetStyle::CreateDynamicMaterial(UObject* InOuter) const
 {
 	DynamicMaterial = UMaterialInstanceDynamic::Create(Material, InOuter);
+	return DynamicMaterial;
 }
 
 FAudioMaterialButtonStyle::FAudioMaterialButtonStyle()
@@ -75,7 +76,7 @@ FAudioMaterialKnobStyle::FAudioMaterialKnobStyle()
 	, KnobBarFillMaxColor(FLinearColor::White)
 	, KnobBarFillTintColor(FLinearColor::White)
 {
-	DesiredSize = FVector2f(256.f,256.f);
+	DesiredSize = FVector2f(128.f,128.f);
 }
 
 const FName FAudioMaterialKnobStyle::TypeName(TEXT("FAudioMaterialKnobStyle"));

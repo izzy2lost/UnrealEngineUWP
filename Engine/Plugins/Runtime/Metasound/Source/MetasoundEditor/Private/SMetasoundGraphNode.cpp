@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "SMetasoundGraphNode.h"
 
+#include "AudioMaterialSlate/SAudioMaterialKnob.h"
 #include "AudioParameterControllerInterface.h"
 #include "Components/AudioComponent.h"
 #include "GraphEditorSettings.h"
@@ -55,11 +56,21 @@
 
 #define LOCTEXT_NAMESPACE "MetasoundEditor"
 
-
 namespace Metasound
 {
 	namespace Editor
 	{
+		namespace GraphNodePrivate
+		{
+			int32 UseAudioMaterialWidgets = 0;
+			FAutoConsoleVariableRef CVarUseAudioMaterialWidgets(
+				TEXT("au.MetaSound.Editor.UseAudioMaterialSlates"),
+				UseAudioMaterialWidgets,
+				TEXT("Are new AudioMaterialWidgets used for visualization in the Metasound editor, if implemented.\n")
+				TEXT("0: Disabled (default), !0: Enabled"),
+				ECVF_Default);
+		}// Metasound::Editor::GraphNodePrivate
+
 		SMetaSoundGraphNode::~SMetaSoundGraphNode()
 		{
 			// Clean up input widgets
@@ -822,29 +833,40 @@ namespace Metasound
 								}
 							};
 
-							// Create slider 
-							if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Frequency)
+							if (Metasound::Editor::GraphNodePrivate::UseAudioMaterialWidgets)
 							{
-								SAssignNew(InputWidget, SAudioFrequencyRadialSlider)
-									.OnValueChanged_Lambda(OnValueChangedLambda)
+								SAssignNew(InputWidget, SAudioMaterialKnob)
+									.Owner(GraphMember->GetOwningGraph())
+									.OnFloatValueChanged_Lambda(OnValueChangedLambda)
 									.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
 									.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
-							}
-							else if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Volume)
-							{
-								SAssignNew(InputWidget, SAudioVolumeRadialSlider)
-									.OnValueChanged_Lambda(OnValueChangedLambda)
-									.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
-									.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
-								StaticCastSharedPtr<SAudioVolumeRadialSlider>(InputWidget)->SetUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput);
 							}
 							else
 							{
-								SAssignNew(InputWidget, SAudioRadialSlider)
-									.OnValueChanged_Lambda(OnValueChangedLambda)
-									.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
-									.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
-								InputWidget->SetShowUnitsText(false);
+								// Create slider 
+								if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Frequency)
+								{
+									SAssignNew(InputWidget, SAudioFrequencyRadialSlider)
+										.OnValueChanged_Lambda(OnValueChangedLambda)
+										.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
+										.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
+								}
+								else if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Volume)
+								{
+									SAssignNew(InputWidget, SAudioVolumeRadialSlider)
+										.OnValueChanged_Lambda(OnValueChangedLambda)
+										.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
+										.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
+									StaticCastSharedPtr<SAudioVolumeRadialSlider>(InputWidget)->SetUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput);
+								}
+								else
+								{
+									SAssignNew(InputWidget, SAudioRadialSlider)
+										.OnValueChanged_Lambda(OnValueChangedLambda)
+										.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
+										.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
+									InputWidget->SetShowUnitsText(false);
+								}
 							}
 							// Only vertical layout for radial slider
 							SAssignNew(OuterContentBox, SVerticalBox)
@@ -863,7 +885,10 @@ namespace Metasound
 								[
 									InputWidget.ToSharedRef()
 								];
-							InputWidget->SetDesiredSizeOverride(RadialSliderDesiredSize);
+							if (!Metasound::Editor::GraphNodePrivate::UseAudioMaterialWidgets)
+							{
+								InputWidget->SetDesiredSizeOverride(RadialSliderDesiredSize);
+							}
 						}
 
 						InputWidget->SetOutputRange(DefaultFloat->GetRange());

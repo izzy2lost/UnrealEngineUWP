@@ -31,12 +31,12 @@ public:
 
 public:
 
-	void CreateDynamicMaterial(UObject* InOuter) const;
+	UMaterialInstanceDynamic* CreateDynamicMaterial(UObject* InOuter) const;
 	TObjectPtr<UMaterialInstanceDynamic> GetDynamicMaterial() const;
 
 private:
 
-	UPROPERTY()
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "keep the reference instead as a TWeakObjectPtr in the AudioMaterialSlates.  This will be removed when all AudioMaterialSlates are updated."))
 	mutable TObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
 };
 
