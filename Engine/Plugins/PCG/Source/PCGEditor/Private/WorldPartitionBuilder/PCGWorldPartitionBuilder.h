@@ -53,4 +53,10 @@ private:
 
 	/** If non empty, only components on actors with given ID(s) will be generated. */
 	TArray<FString> IncludeActorIDs;
+
+	/** Submit dirty files even if errors occurred during generation. */
+	bool bIgnoreGenerationErrors = false;
+
+	/** Flag to register if any error occurred during generation. */
+	bool bErrorOccurredWhileGenerating = false;
 };
