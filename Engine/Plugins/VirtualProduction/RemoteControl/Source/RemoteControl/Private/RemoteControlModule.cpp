@@ -19,6 +19,7 @@
 #include "IRemoteControlModule.h"
 #include "IStructDeserializerBackend.h"
 #include "IStructSerializerBackend.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Misc/ScopeExit.h"
 #include "RCPropertyUtilities.h"
 #include "RCVirtualProperty.h"
@@ -798,6 +799,8 @@ void FRemoteControlModule::StartupModule()
 
 	// Register PropertyIdHandler
 	RegisterPropertyIdHandler();
+
+	PopulateDisallowedFunctions();
 }
 
 void FRemoteControlModule::ShutdownModule()
@@ -1104,7 +1107,8 @@ bool FRemoteControlModule::ResolveCall(const FString& ObjectPath, const FString&
 					ErrorText = FString::Printf(TEXT("Function: %s does not exist on object: %s"), *FunctionName, *ObjectPath);
 					bSuccess = false;
 				}
-				else if ((!Function->HasAllFunctionFlags(FUNC_BlueprintCallable | FUNC_Public) && !Function->HasAllFunctionFlags(FUNC_BlueprintEvent))
+				else if (!IsFunctionAllowed(Function)
+						|| (!Function->HasAllFunctionFlags(FUNC_BlueprintCallable | FUNC_Public) && !Function->HasAllFunctionFlags(FUNC_BlueprintEvent))
 	#if WITH_EDITOR
 						|| Function->HasMetaData(RemoteControlUtil::NAME_DeprecatedFunction)
 						|| Function->HasMetaData(RemoteControlUtil::NAME_ScriptNoExport)
@@ -2715,6 +2719,11 @@ void FRemoteControlModule::RegisterPropertyIdHandler()
 	RegisterPropertyIdPropertyHandler<FObjectPropertyIdHandler>();
 }
 
+void FRemoteControlModule::PopulateDisallowedFunctions()
+{
+	FunctionDisallowList.Add(GetDefault<UKismetSystemLibrary>()->FindFunction(GET_FUNCTION_NAME_CHECKED(UKismetSystemLibrary, LaunchURL)));
+}
+
 bool FRemoteControlModule::CanInterceptFunction(const FRCCall& RCCall) const
 {
 	if (RCCall.IsValid())
@@ -2864,6 +2873,11 @@ bool FRemoteControlModule::ModifyArrayProperty(const FRCObjectReference& ObjectA
 	}
 
 	return false;
+}
+
+bool FRemoteControlModule::IsFunctionAllowed(UFunction* Function)
+{
+	return !FunctionDisallowList.Contains(Function);
 }
 
 #if WITH_EDITOR
