@@ -90,6 +90,27 @@ void UDecoupledOutputProvider::OnDeactivate()
 	SafeModuleCall([&](FDecoupledOutputProviderModule& Module){ Module.OnDeactivate(EventScope); });
 }
 
+UE::VCamCore::EViewportChangeReply UDecoupledOutputProvider::PreReapplyViewport()
+{
+	using namespace UE::DecoupledOutputProvider::Private;
+	const auto SuperFunc = [this](){ Super::PreReapplyViewport(); };
+	FOutputProviderEvent EventScope(*this, SuperFunc);
+	
+	if (FDecoupledOutputProviderModule::IsAvailable())
+	{
+		return FDecoupledOutputProviderModule::Get().PreReapplyViewport(EventScope).Get(UE::VCamCore::EViewportChangeReply::Reinitialize);
+	}
+	return UE::VCamCore::EViewportChangeReply::Reinitialize;
+}
+
+void UDecoupledOutputProvider::PostReapplyViewport()
+{
+	using namespace UE::DecoupledOutputProvider::Private;
+	const auto SuperFunc = [this](){ Super::PostReapplyViewport(); };
+	FOutputProviderEvent EventScope(*this, SuperFunc);
+	SafeModuleCall([&](FDecoupledOutputProviderModule& Module){ Module.PostReapplyViewport(EventScope); });
+}
+
 void UDecoupledOutputProvider::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
 	using namespace UE::DecoupledOutputProvider::Private;

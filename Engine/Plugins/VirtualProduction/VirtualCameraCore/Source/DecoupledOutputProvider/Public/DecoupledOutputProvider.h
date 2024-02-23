@@ -29,6 +29,8 @@ public:
 	virtual void Tick(const float DeltaTime) override;
 	virtual void OnActivate() override;
 	virtual void OnDeactivate() override;
+	virtual UE::VCamCore::EViewportChangeReply PreReapplyViewport() override;
+	virtual void PostReapplyViewport() override;
 	//~ End UVCamOutputProviderBase Interface
 
 	//~ Begin UObject Interface

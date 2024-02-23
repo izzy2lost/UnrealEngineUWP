@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IDecoupledOutputProviderModule.h"
+#include "Misc/Optional.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -39,6 +40,8 @@ namespace UE::DecoupledOutputProvider::Private
 		void OnTick(IOutputProviderEvent& Args, const float DeltaTime);
 		void OnActivate(IOutputProviderEvent& Args);
 		void OnDeactivate(IOutputProviderEvent& Args);
+		TOptional<VCamCore::EViewportChangeReply> PreReapplyViewport(IOutputProviderEvent& Args);
+		void PostReapplyViewport(IOutputProviderEvent& Args);
 		void OnAddReferencedObjects(IOutputProviderEvent& Args, FReferenceCollector& Collector);
 		void OnBeginDestroy(IOutputProviderEvent& Args);
 		void OnSerialize(IOutputProviderEvent& Args, FArchive& Ar);

@@ -4,6 +4,7 @@
 
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
+#include "Output/VCamOutputProviderBase.h"
 
 class FReferenceCollector;
 class UDecoupledOutputProvider;
@@ -49,7 +50,9 @@ namespace UE::DecoupledOutputProvider
 		virtual void OnDeinitialize(IOutputProviderEvent& Args) {}
 		virtual void OnActivate(IOutputProviderEvent& Args) {}
 		virtual void OnDeactivate(IOutputProviderEvent& Args) {}
-		virtual void OnTick(IOutputProviderEvent& Args, const float DeltaTime) {} 
+		virtual void OnTick(IOutputProviderEvent& Args, const float DeltaTime) {}
+		virtual VCamCore::EViewportChangeReply PreReapplyViewport(IOutputProviderEvent& Args) { return VCamCore::EViewportChangeReply::Reinitialize; }
+		virtual void PostReapplyViewport(IOutputProviderEvent& Args) {}
 
 		// UObject events
 		virtual void OnAddReferencedObjects(IOutputProviderEvent& Args, FReferenceCollector& Collector) {}

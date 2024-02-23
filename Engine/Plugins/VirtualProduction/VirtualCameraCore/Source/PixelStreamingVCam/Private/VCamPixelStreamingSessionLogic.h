@@ -25,6 +25,8 @@ namespace UE::PixelStreamingVCam::Private
 		virtual void OnDeinitialize(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 		virtual void OnActivate(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 		virtual void OnDeactivate(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
+		virtual VCamCore::EViewportChangeReply PreReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
+		virtual void PostReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 		virtual void OnAddReferencedObjects(DecoupledOutputProvider::IOutputProviderEvent& Args, FReferenceCollector& Collector) override;
 #if WITH_EDITOR
 		virtual void OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent) override;

@@ -86,6 +86,23 @@ namespace UE::DecoupledOutputProvider::Private
 		}
 	}
 
+	TOptional<VCamCore::EViewportChangeReply> FDecoupledOutputProviderModule::PreReapplyViewport(IOutputProviderEvent& Args)
+	{
+		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))
+		{
+			return Logic->PreReapplyViewport(Args);
+		}
+		return {};
+	}
+
+	void FDecoupledOutputProviderModule::PostReapplyViewport(IOutputProviderEvent& Args)
+	{
+		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))
+		{
+			Logic->PostReapplyViewport(Args);
+		}
+	}
+
 	void FDecoupledOutputProviderModule::OnAddReferencedObjects(IOutputProviderEvent& Args, FReferenceCollector& Collector)
 	{
 		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))

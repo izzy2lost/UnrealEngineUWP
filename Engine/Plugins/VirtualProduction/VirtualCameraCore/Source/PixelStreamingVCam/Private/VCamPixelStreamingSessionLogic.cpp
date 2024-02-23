@@ -136,9 +136,25 @@ namespace UE::PixelStreamingVCam::Private
 		FPixelStreamingVCamModule::Get().RemoveActiveSession(WeakThisPtr);
 	}
 
+	VCamCore::EViewportChangeReply FVCamPixelStreamingSessionLogic::PreReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args)
+	{
+		return VCamCore::EViewportChangeReply::ApplyViewportChange;
+	}
+
+	void FVCamPixelStreamingSessionLogic::PostReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args)
+	{
+		StopCapture();
+		
+		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
+		check(This);
+		
+		SetupCapture(This);
+		SetupCustomInputHandling(This);
+	}
+
 	void FVCamPixelStreamingSessionLogic::StopCapture()
 	{
-		if(MediaCapture)
+		if (MediaCapture)
 		{
 			MediaCapture->StopCapture(false);
 			MediaCapture = nullptr;
