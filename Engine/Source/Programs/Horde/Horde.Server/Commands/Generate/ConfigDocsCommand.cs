@@ -11,7 +11,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using Horde.Server.Acls;
+using EpicGames.Horde.Acls;
 using Horde.Server.Projects;
 using Horde.Server.Server;
 using Horde.Server.Streams;
@@ -148,7 +148,7 @@ namespace Horde.Server.Commands.Generate
 							{
 								await writer.WriteLineAsync("Name | Type | Description");
 								await writer.WriteLineAsync("---- | ---- | -----------");
-							
+
 								foreach (JsonSchemaProperty property in schemaObj.Properties)
 								{
 									string name = property.CamelCaseName;
@@ -163,7 +163,7 @@ namespace Horde.Server.Commands.Generate
 							await writer.WriteLineAsync("Name | Description");
 							await writer.WriteLineAsync("---- | -----------");
 
-							for(int idx = 0; idx < schemaEnum.Values.Count; idx++)
+							for (int idx = 0; idx < schemaEnum.Values.Count; idx++)
 							{
 								string name = schemaEnum.Values[idx];
 								string description = GetMarkdownDescription(schemaEnum.Descriptions[idx]);

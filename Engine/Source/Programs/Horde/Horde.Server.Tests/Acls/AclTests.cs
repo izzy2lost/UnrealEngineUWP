@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Security.Claims;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using Horde.Server.Acls;
@@ -25,9 +26,9 @@ namespace Horde.Server.Tests.Acls
 				globalConfig.Acl.Profiles = new List<AclProfileConfig>
 				{
 					new AclProfileConfig
-					{ 
-						Id = new AclProfileId("global-profile"), 
-						Actions = new List<AclAction>{ JobAclAction.CreateJob, JobAclAction.RetryJobStep } 
+					{
+						Id = new AclProfileId("global-profile"),
+						Actions = new List<AclAction>{ JobAclAction.CreateJob, JobAclAction.RetryJobStep }
 					},
 				};
 

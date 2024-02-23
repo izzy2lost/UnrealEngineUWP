@@ -4,7 +4,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using Horde.Server.Acls;
+using EpicGames.Horde.Acls;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 using Microsoft.AspNetCore.Http;

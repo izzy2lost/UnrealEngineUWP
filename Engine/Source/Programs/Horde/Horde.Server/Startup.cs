@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Mime;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -21,31 +22,44 @@ using Amazon.Extensions.NETCore.Setup;
 using Amazon.SQS;
 using EpicGames.AspNet;
 using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Server;
-using EpicGames.Horde.Streams;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.ObjectStores;
+using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using EpicGames.Redis;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
 using Horde.Server.Accounts;
 using Horde.Server.Acls;
-using Horde.Server.Authentication;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
+using Horde.Server.Agents.Relay;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Agents.Utilization;
+using Horde.Server.Artifacts;
+using Horde.Server.Auditing;
+using Horde.Server.Authentication;
+using Horde.Server.Aws;
+using Horde.Server.Compute;
 using Horde.Server.Configuration;
 using Horde.Server.Dashboard;
+using Horde.Server.Ddc;
 using Horde.Server.Devices;
 using Horde.Server.Issues;
 using Horde.Server.Issues.External;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Artifacts;
+using Horde.Server.Jobs.Bisect;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Schedules;
 using Horde.Server.Jobs.Templates;
@@ -54,12 +68,22 @@ using Horde.Server.Jobs.Timing;
 using Horde.Server.Logs;
 using Horde.Server.Logs.Storage;
 using Horde.Server.Notifications;
+using Horde.Server.Notifications.Sinks;
+using Horde.Server.Perforce;
+using Horde.Server.Replicators;
 using Horde.Server.Secrets;
 using Horde.Server.Server;
+using Horde.Server.Server.Notices;
 using Horde.Server.Storage;
 using Horde.Server.Storage.ObjectStores;
+using Horde.Server.Streams;
 using Horde.Server.Tasks;
+using Horde.Server.Telemetry;
+using Horde.Server.Telemetry.Metrics;
+using Horde.Server.Telemetry.Sinks;
 using Horde.Server.Tools;
+using Horde.Server.Ugs;
+using Horde.Server.Users;
 using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.AspNetCore.Authentication;
@@ -80,44 +104,21 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
 using MongoDB.Bson.Serialization.Serializers;
-using Serilog;
-using Serilog.Events;
-using Status = Grpc.Core.Status;
-using Horde.Server.Users;
-using Horde.Server.Perforce;
-using Horde.Server.Streams;
-using Horde.Server.Telemetry;
-using Horde.Server.Ugs;
-using Horde.Server.Auditing;
-using Horde.Server.Server.Notices;
-using Horde.Server.Notifications.Sinks;
-using StatusCode = Grpc.Core.StatusCode;
-using Horde.Server.Artifacts;
-using Horde.Server.Compute;
 using Polly;
 using Polly.Extensions.Http;
-using Horde.Server.Jobs.Bisect;
-using EpicGames.Horde;
-using Horde.Server.Ddc;
-using System.Net.Mime;
-using Microsoft.Extensions.Logging.Abstractions;
-using EpicGames.Redis;
-using Horde.Server.Agents.Relay;
-using Horde.Server.Aws;
+using Serilog;
+using Serilog.Events;
 using StackExchange.Redis;
-using Horde.Server.Telemetry.Sinks;
-using Horde.Server.Telemetry.Metrics;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
-using Horde.Server.Replicators;
 using Swashbuckle.AspNetCore.SwaggerGen;
-using EpicGames.Horde.Storage.ObjectStores;
+using Status = Grpc.Core.Status;
+using StatusCode = Grpc.Core.StatusCode;
 
 namespace Horde.Server
 {
@@ -251,7 +252,7 @@ namespace Horde.Server
 				writer.WriteStringValue(objectId.ToString());
 			}
 		}
-		
+
 		class JsonDateTimeConverter : JsonConverter<DateTime>
 		{
 			public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -328,17 +329,17 @@ namespace Horde.Server
 				{
 					throw new ConfigurationException($"Unable to parse sink type '{typeStr}'");
 				}
-				
+
 				switch (sinkType)
 				{
 					case TelemetrySinkType.Epic:
-						EpicTelemetryConfig epic = new ();
+						EpicTelemetryConfig epic = new();
 						child.Bind(epic);
 						telemetryConfigs.Add(epic);
 						break;
-						
+
 					case TelemetrySinkType.ClickHouse:
-						ClickHouseTelemetryConfig clickHouse = new ();
+						ClickHouseTelemetryConfig clickHouse = new();
 						child.Bind(clickHouse);
 						telemetryConfigs.Add(clickHouse);
 						break;
@@ -401,7 +402,7 @@ namespace Horde.Server
 		{
 			// IOptionsMonitor pattern for live updating of configuration settings
 			services.Configure<ServerSettings>(x => BindServerSettings(Configuration, x));
-			
+
 			// Bind the settings again for local variable access in this method
 			ServerSettings settings = new();
 			BindServerSettings(Configuration, settings);
@@ -503,7 +504,7 @@ namespace Horde.Server
 			services.AddSingleton<AwsAutoScalingLifecycleService>();
 			services.AddSingleton<FleetService>();
 			services.AddSingleton<IFleetManagerFactory, FleetManagerFactory>();
-			
+
 			// Associate IFleetManager interface with the default implementation from config for convenience
 			// Though most fleet managers are created on a per-pool basis
 			services.AddSingleton<IFleetManager>(ctx => ctx.GetRequiredService<IFleetManagerFactory>().CreateFleetManager(FleetManagerType.Default));
@@ -515,7 +516,7 @@ namespace Horde.Server
 			// Runs the agent relay service for all run modes to notify long-polling requests
 			services.AddSingleton<AgentRelayService>();
 			services.AddHostedService(provider => provider.GetRequiredService<AgentRelayService>());
-			
+
 			services.AddSingleton<AclService>();
 			services.AddSingleton<AgentService>();
 			services.AddHostedService<ArtifactExpirationService>();
@@ -611,12 +612,12 @@ namespace Horde.Server
 				{
 					awsOptions.Region = RegionEndpoint.USEast1;
 				}
-				
+
 				services.AddAWSService<IAmazonCloudWatch>();
 				services.AddAWSService<IAmazonAutoScaling>();
 				services.AddAWSService<IAmazonSQS>();
 				services.AddAWSService<IAmazonEC2>();
-				
+
 				services.AddSingleton<AwsCloudWatchMetricExporter>();
 			}
 
@@ -631,7 +632,7 @@ namespace Horde.Server
 							options.DefaultSignInScheme = AnonymousAuthenticationHandler.AuthenticationScheme;
 							options.DefaultChallengeScheme = AnonymousAuthenticationHandler.AuthenticationScheme;
 							break;
-						
+
 						case AuthMethod.Okta:
 							// If an authentication cookie is present, use it to get authentication information
 							options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
@@ -640,7 +641,7 @@ namespace Horde.Server
 							// If authentication is required, and no cookie is present, use OIDC to sign in
 							options.DefaultChallengeScheme = OktaDefaults.AuthenticationScheme;
 							break;
-						
+
 						case AuthMethod.OpenIdConnect:
 							// If an authentication cookie is present, use it to get authentication information
 							options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
@@ -649,13 +650,13 @@ namespace Horde.Server
 							// If authentication is required, and no cookie is present, use OIDC to sign in
 							options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
 							break;
-						
+
 						case AuthMethod.Horde:
 							options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 							options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 							options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 							break;
-						
+
 						default:
 							throw new ArgumentException($"Invalid auth method {settings.AuthMethod}");
 					}
@@ -696,20 +697,19 @@ namespace Horde.Server
 			authBuilder.AddHordeAccount(options => { });
 			schemes.Add(HordeAccountAuthHandler.AuthenticationScheme);
 
-			
 			switch (settings.AuthMethod)
 			{
 				case AuthMethod.Anonymous:
 					authBuilder.AddAnonymous(options => { });
 					schemes.Add(AnonymousAuthenticationHandler.AuthenticationScheme);
 					break;
-						
+
 				case AuthMethod.Okta:
 					authBuilder.AddOkta(settings, OktaDefaults.AuthenticationScheme, OpenIdConnectDefaults.DisplayName, options =>
 						{
 							options.Authority = settings.OidcAuthority;
 							options.ClientId = settings.OidcClientId;
-								options.Scope.Remove("groups");								
+							options.Scope.Remove("groups");
 
 							if (!String.IsNullOrEmpty(settings.OidcSigninRedirect))
 							{
@@ -725,7 +725,7 @@ namespace Horde.Server
 						});
 					schemes.Add(OktaDefaults.AuthenticationScheme);
 					break;
-						
+
 				case AuthMethod.OpenIdConnect:
 					authBuilder.AddHordeOpenId(settings, OpenIdConnectDefaults.AuthenticationScheme, OpenIdConnectDefaults.DisplayName, options =>
 						{
@@ -751,11 +751,11 @@ namespace Horde.Server
 						});
 					schemes.Add(OpenIdConnectDefaults.AuthenticationScheme);
 					break;
-				
+
 				case AuthMethod.Horde:
 					// No extra handling needed, cookie-based auth is used
 					break;
-						
+
 				default:
 					throw new ArgumentException($"Invalid auth method {settings.AuthMethod}");
 			}
@@ -779,18 +779,18 @@ namespace Horde.Server
 
 			if (settings.OidcAuthority != null && settings.OidcAudience != null)
 			{
-				HordeJwtBearerHandler hordeJwtBearer = new(settings);  
-				hordeJwtBearer.AddHordeJwtBearerConfiguration(authBuilder);  
-				schemes.Add(HordeJwtBearerHandler.AuthenticationScheme);				
+				HordeJwtBearerHandler hordeJwtBearer = new(settings);
+				hordeJwtBearer.AddHordeJwtBearerConfiguration(authBuilder);
+				schemes.Add(HordeJwtBearerHandler.AuthenticationScheme);
 			}
 
 			services.AddAuthorization(options =>
 				{
 					options.DefaultPolicy = new AuthorizationPolicyBuilder(schemes.ToArray())
-						.RequireAuthenticatedUser()							
+						.RequireAuthenticatedUser()
 						.Build();
 				});
-			
+
 			// Hosted service that needs to run no matter the run mode of the process (server vs worker)
 			services.AddHostedService(provider => (DowntimeService)provider.GetRequiredService<IDowntimeService>());
 
@@ -814,7 +814,7 @@ namespace Horde.Server
 				services.AddHostedService<DeviceReportService>();
 				services.AddHostedService(provider => provider.GetRequiredService<TestDataService>());
 				services.AddHostedService(provider => provider.GetRequiredService<ComputeService>());
-				
+
 				if (settings.Commits.ReplicateMetadata)
 				{
 					services.AddHostedService(provider => provider.GetRequiredService<PerforceServiceCache>());
@@ -834,7 +834,7 @@ namespace Horde.Server
 				{
 					services.AddHostedService(provider => provider.GetRequiredService<SlackNotificationSink>());
 				}
-				
+
 				if (settings.WithAws)
 				{
 					services.AddHostedService(provider => provider.GetRequiredService<AwsAutoScalingLifecycleService>());
@@ -878,7 +878,7 @@ namespace Horde.Server
 
 			services.AddMvc().AddJsonOptions(options => ConfigureJsonSerializer(options.JsonSerializerOptions));
 			services.AddControllersWithViews().AddRazorRuntimeCompilation();
-			
+
 			services.AddControllers(options =>
 			{
 				options.InputFormatters.Add(new CbInputFormatter());
@@ -912,7 +912,7 @@ namespace Horde.Server
 			{
 				options.InvalidModelStateResponseFactory = context =>
 				{
-					foreach(KeyValuePair<string, ModelStateEntry> pair in context.ModelState)
+					foreach (KeyValuePair<string, ModelStateEntry> pair in context.ModelState)
 					{
 						ModelError? error = pair.Value.Errors.FirstOrDefault();
 						if (error != null)
@@ -930,7 +930,7 @@ namespace Horde.Server
 			});
 
 			DirectoryReference dashboardDir = DirectoryReference.Combine(ServerApp.AppDir, "DashboardApp");
-			if (DirectoryReference.Exists(dashboardDir)) 
+			if (DirectoryReference.Exists(dashboardDir))
 			{
 				services.AddSpaStaticFiles(config => { config.RootPath = "DashboardApp"; });
 			}
@@ -987,7 +987,7 @@ namespace Horde.Server
 				.HandleTransientHttpError()
 				.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10) });
 		}
-		
+
 		public sealed class BlobLocatorBsonSerializer : SerializerBase<BlobLocator>
 		{
 			/// <inheritdoc/>
@@ -1227,13 +1227,13 @@ namespace Horde.Server
 
 			if (!env.IsDevelopment())
 			{
-				app.UseMiddleware<RequestTrackerMiddleware>();	
+				app.UseMiddleware<RequestTrackerMiddleware>();
 			}
 
 			app.UseExceptionHandler("/api/v1/exception");
 
 			DirectoryReference dashboardDir = DirectoryReference.Combine(ServerApp.AppDir, "DashboardApp");
-			if (DirectoryReference.Exists(dashboardDir)) 
+			if (DirectoryReference.Exists(dashboardDir))
 			{
 				app.UseDefaultFiles();
 				app.UseStaticFiles();
@@ -1260,7 +1260,7 @@ namespace Horde.Server
 				endpoints.MapHealthChecks("/health/live");
 			});
 
-			if (DirectoryReference.Exists(dashboardDir)) 
+			if (DirectoryReference.Exists(dashboardDir))
 			{
 				app.MapWhen(IsSpaRequest, builder => builder.UseSpa(spa => spa.Options.SourcePath = "DashboardApp"));
 			}

@@ -6,9 +6,15 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Security.Claims;
 using EpicGames.Core;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using Horde.Server.Acls;
@@ -21,11 +27,6 @@ using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
-using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Agents.Sessions;
-using EpicGames.Horde.Jobs.Bisect;
 
 namespace Horde.Server.Jobs
 {
@@ -136,7 +137,7 @@ namespace Horde.Server.Jobs
 		/// Signal if a step should be aborted
 		/// </summary>
 		public bool AbortRequested { get; }
-		
+
 		/// <summary>
 		/// If an abort is requested, stores the id of the user that requested it
 		/// </summary>
@@ -494,7 +495,7 @@ namespace Horde.Server.Jobs
 		/// <param name="others">Other timing info objects to wait for</param>
 		public void WaitForAll(IEnumerable<TimingInfo> others)
 		{
-			foreach(TimingInfo other in others)
+			foreach (TimingInfo other in others)
 			{
 				WaitFor(other);
 			}
@@ -713,12 +714,12 @@ namespace Horde.Server.Jobs
 		/// Notification channel for this job.
 		/// </summary>
 		public string? NotificationChannel { get; }
-		
+
 		/// <summary>
 		/// Notification channel filter for this job.
 		/// </summary>
 		public string? NotificationChannelFilter { get; }
-		
+
 		/// <summary>
 		/// Mapping of label ids to notification trigger ids for notifications
 		/// </summary>
@@ -1110,7 +1111,7 @@ namespace Horde.Server.Jobs
 					jobTiming.TryGetStepTiming(node.Name, out stepTimingInfo);
 
 					// If the step has already started, update the actual time to reach this point
-					if(step.StartTimeUtc != null)
+					if (step.StartTimeUtc != null)
 					{
 						timingInfo.TotalTimeToComplete = step.StartTimeUtc.Value - job.CreateTimeUtc;
 					}
@@ -1166,7 +1167,7 @@ namespace Horde.Server.Jobs
 			foreach (IJobStep step in batch.Steps)
 			{
 				INode node = graph.Groups[batch.GroupIdx].Nodes[step.NodeIdx];
-				if(jobTiming.TryGetStepTiming(node.Name, out IJobStepTiming? timingInfo))
+				if (jobTiming.TryGetStepTiming(node.Name, out IJobStepTiming? timingInfo))
 				{
 					if (timingInfo.AverageWaitTime != null)
 					{
@@ -1414,12 +1415,12 @@ namespace Horde.Server.Jobs
 
 					// Figure out the overall label state
 					newState = anyPending ? LabelState.Running : LabelState.Complete;
-					newOutcome = anyFailed ? LabelOutcome.Failure : anyWarnings ? LabelOutcome.Warnings : anySkipped? LabelOutcome.Unspecified : LabelOutcome.Success;
+					newOutcome = anyFailed ? LabelOutcome.Failure : anyWarnings ? LabelOutcome.Warnings : anySkipped ? LabelOutcome.Unspecified : LabelOutcome.Success;
 				}
 
 				states.Add((newState, newOutcome));
 			}
-			return states;	
+			return states;
 		}
 
 		/// <summary>
@@ -1457,47 +1458,47 @@ namespace Horde.Server.Jobs
 				switch (state)
 				{
 					case LabelState.Complete:
-					{
-						switch (outcome)
 						{
-							case LabelOutcome.Success:
+							switch (outcome)
 							{
-								ugsBadgeStates.Add(labelIdx, UgsBadgeState.Success);
-								break;
-							}
+								case LabelOutcome.Success:
+									{
+										ugsBadgeStates.Add(labelIdx, UgsBadgeState.Success);
+										break;
+									}
 
-							case LabelOutcome.Warnings:
-							{
-								ugsBadgeStates.Add(labelIdx, UgsBadgeState.Warning);
-								break;
-							}
+								case LabelOutcome.Warnings:
+									{
+										ugsBadgeStates.Add(labelIdx, UgsBadgeState.Warning);
+										break;
+									}
 
-							case LabelOutcome.Failure:
-							{
-								ugsBadgeStates.Add(labelIdx, UgsBadgeState.Failure);
-								break;
-							}
+								case LabelOutcome.Failure:
+									{
+										ugsBadgeStates.Add(labelIdx, UgsBadgeState.Failure);
+										break;
+									}
 
-							case LabelOutcome.Unspecified:
-							{
-								ugsBadgeStates.Add(labelIdx, UgsBadgeState.Skipped);
-								break;
+								case LabelOutcome.Unspecified:
+									{
+										ugsBadgeStates.Add(labelIdx, UgsBadgeState.Skipped);
+										break;
+									}
 							}
+							break;
 						}
-						break;
-					}
 
 					case LabelState.Running:
-					{
-						ugsBadgeStates.Add(labelIdx, UgsBadgeState.Starting);
-						break;
-					}
+						{
+							ugsBadgeStates.Add(labelIdx, UgsBadgeState.Starting);
+							break;
+						}
 
 					case LabelState.Unspecified:
-					{
-						ugsBadgeStates.Add(labelIdx, UgsBadgeState.Skipped);
-						break;
-					}
+						{
+							ugsBadgeStates.Add(labelIdx, UgsBadgeState.Skipped);
+							break;
+						}
 				}
 			}
 			return ugsBadgeStates;
@@ -1522,7 +1523,7 @@ namespace Horde.Server.Jobs
 			}
 			GetLabelState(nodes, stepForNode, out newState, out newOutcome);
 		}
-		
+
 		/// <summary>
 		/// Gets the state of a label
 		/// </summary>
