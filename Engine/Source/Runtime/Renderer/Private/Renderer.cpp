@@ -282,6 +282,34 @@ TRDGUniformBufferRef<FBatchedPrimitiveParameters> FRendererModule::CreateSingleP
 	return GraphBuilder.CreateUniformBuffer(BatchedPrimitiveParameters);
 }
 
+static float GetEmissiveMaxValueForPixelFormat(EPixelFormat PixelFormat)
+{
+	switch (PixelFormat)
+	{
+	// R11G11B10
+	case PF_FloatR11G11B10:
+	case PF_FloatRGB:
+		return 64512.0f; // Max10BitsFloat
+
+	// FP16
+	case PF_FloatRGBA:
+	case PF_G16R16F:
+	case PF_G16R16F_FILTER:
+	case PF_R16F:
+	case PF_R16F_FILTER:
+		return FFloat16::MaxF16Float;
+
+	// FP32
+	//case PF_R32_FLOAT:
+	//case PF_G32R32F:
+	//case PF_A32B32G32R32F:
+	//default:
+		// fall through
+	}
+
+	return UE_MAX_FLT; // default for FP32 and all other formats for now
+}
+
 void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPassProcessorRenderState& DrawRenderState, const FSceneView& SceneView, FMeshBatch& Mesh, bool bIsHitTesting, const FHitProxyId& HitProxyId, bool bUse128bitRT)
 {
 	if (!GUsingNullRHI)
@@ -294,6 +322,12 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 		ViewFamily->Views.Add(&View);
 		ViewFamily->AllViews.Add(&View);
 		View.Family = ViewFamily;
+
+		// When rendering tiles, this may be to render data in a URenderTargetTexture. In this case we should not clamp so that all the expected values setup by the artists go through.
+		if (RenderContext.GetRenderTarget())
+		{
+			View.MaterialMaxEmissiveValue = GetEmissiveMaxValueForPixelFormat(RenderContext.GetRenderTarget()->Desc.Format);
+		}
 
 		// Default init of SceneTexturesConfig will take extents from FSceneTextureExtentState.
 		// We want the view extents, so explicitly set that.

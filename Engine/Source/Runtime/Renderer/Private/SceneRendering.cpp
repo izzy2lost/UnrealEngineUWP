@@ -914,6 +914,12 @@ void FViewInfo::Init()
 	bUsesCustomDepth = false;
 	bUsesCustomStencil = false;
 
+	// Sky dome, or any emissive, materials can result in high luminance values, e.g. the sun disk. 
+	// This Min here is to we make sure pre-exposed luminance remains within the boundaries of fp10 and not cause NaN on some platforms.
+	// We also half that range to also make sure we have room for other additive elements such as bloom, clouds or particle visual effects.
+	const static float Max10BitsFloat = 64512.0f;
+	MaterialMaxEmissiveValue = Max10BitsFloat * 0.5f;
+
 	NumBoxReflectionCaptures = 0;
 	NumSphereReflectionCaptures = 0;
 	FurthestReflectionCaptureDistance = 0;
@@ -1478,6 +1484,8 @@ void FViewInfo::SetupUniformBufferParameters(
 			ViewUniformShaderParameters.EnvironmentComponentsFlags |= Fog.bRenderInMainPass ? ENVCOMP_FLAG_EXPONENTIALFOG_RENDERINMAIN : 0;
 		}
 	}
+
+	ViewUniformShaderParameters.MaterialMaxEmissiveValue = MaterialMaxEmissiveValue;
 
 	// This should probably be in SetupCommonViewUniformBufferParameters, but drags in too many dependencies
 	UpdateNoiseTextureParameters(ViewUniformShaderParameters);

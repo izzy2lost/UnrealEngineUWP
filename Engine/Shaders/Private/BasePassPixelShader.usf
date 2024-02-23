@@ -2125,10 +2125,7 @@ void FPixelShaderInOut_MainPS(
 	}
 #endif // OIT_ENABLED
 
-	// Sky dome, or any emissive, materials can result in high luminance values, e.g. the sun disk. 
-	// This Min here is to we make sure pre-exposed luminance remains within the boundaries of fp10 and not cause NaN on some platforms.
-	// We also half that range to also make sure we have room for other additive elements such as bloom, clouds or particle visual effects.
-	Out.MRT[0].xyz = min(Out.MRT[0].xyz, Max10BitsFloat.xxx * 0.5f);
+	Out.MRT[0].xyz = min(Out.MRT[0].xyz, View.MaterialMaxEmissiveValue.xxx);
 
 #if MATERIAL_VIRTUALTEXTURE_FEEDBACK || LIGHTMAP_VT_ENABLED
 #if OUTPUT_PIXEL_DEPTH_OFFSET

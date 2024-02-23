@@ -1538,6 +1538,9 @@ public:
 	// Optional stencil dithering optimization during prepasses
 	bool bAllowStencilDither;
 
+	// Max emissive luminance ouput by any material for this view.
+	float MaterialMaxEmissiveValue;
+
 	/** Custom visibility query for view */
 	ICustomVisibilityQuery* CustomVisibilityQuery;
 
