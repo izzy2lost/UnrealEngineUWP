@@ -338,15 +338,17 @@ bool FSoftObjectPath::ExportTextItem(FString& ValueStr, FSoftObjectPath const& D
 		FSoftObjectPath Temp = *this;
 		Temp.PreSavePath();
 
+		const FString UndelimitedValue = (PortFlags & PPF_SimpleObjectText) ? Temp.GetAssetName() : Temp.ToString();
+
 		if (PortFlags & PPF_Delimited)
 		{
 			ValueStr += TEXT("\"");
-			ValueStr += Temp.ToString().ReplaceQuotesWithEscapedQuotes();
+			ValueStr += UndelimitedValue.ReplaceQuotesWithEscapedQuotes();
 			ValueStr += TEXT("\"");
 		}
 		else
 		{
-			ValueStr += Temp.ToString();
+			ValueStr += UndelimitedValue;
 		}
 	}
 	else
