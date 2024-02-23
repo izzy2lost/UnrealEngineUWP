@@ -229,6 +229,11 @@ class USkyAtmosphereComponent : public USceneComponent
 	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (DisplayName = "Get Atmosphere Transmitance On Ground At Planet Top"))
 	ENGINE_API FLinearColor GetAtmosphereTransmitanceOnGroundAtPlanetTop(UDirectionalLightComponent* DirectionalLight);
 
+	// This function can be used for instance in order to evaluate a directional atmospheric light outer space illuminance for a desired illuminance on ground given a direction. 
+	// This is given for the position at the top of the virtual planet. Plus the output outer space illuminance into the light intensity.
+	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (DisplayName = "Get Atmospheric Light To Match Illuminance On Ground"))
+	ENGINE_API float GetAtmosphericLightToMatchIlluminanceOnGround(FVector LightDirection = FVector(0.0f, 0.0f, 1.0f), float IlluminanceOnGround = 1.0);
+
 	// This is used to position the SkyAtmosphere similarly to the deprecated AtmosphericFog component
 	void SetPositionToMatchDeprecatedAtmosphericFog();
 

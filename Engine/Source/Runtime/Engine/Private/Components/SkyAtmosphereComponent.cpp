@@ -17,6 +17,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Components/DirectionalLightComponent.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
+#include "ColorSpace.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkyAtmosphereComponent)
 
@@ -417,6 +418,14 @@ FLinearColor USkyAtmosphereComponent::GetAtmosphereTransmitanceOnGroundAtPlanetT
 		return TransmittanceAtDirLight;
 	}
 	return FLinearColor::White;
+}
+
+float USkyAtmosphereComponent::GetAtmosphericLightToMatchIlluminanceOnGround(FVector LightDirection, float IlluminanceOnGround)
+{
+	FAtmosphereSetup AtmosphereSetup(*this);
+	const FLinearColor TransmittanceAtDirLight = AtmosphereSetup.GetTransmittanceAtGroundLevel(LightDirection);
+	const float OuterSpaceIlluminance = IlluminanceOnGround / FMath::Max(UE_SMALL_NUMBER, UE::Color::FColorSpace::GetWorking().GetLuminance(TransmittanceAtDirLight));
+	return OuterSpaceIlluminance;
 }
 
 /*=============================================================================
