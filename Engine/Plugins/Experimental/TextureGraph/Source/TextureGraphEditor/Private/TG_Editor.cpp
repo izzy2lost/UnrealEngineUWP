@@ -1812,8 +1812,34 @@ void FTG_Editor::OnNodeRemoved(UTG_Node* InNode, FName Title)
 			}
 		}
 
+		FViewportSettings& ViewportSettings = EditedTextureGraph->GetSettings()->GetViewportSettings();
+		
 		// Update Viewport material mapping for deleted output node
-		EditedTextureGraph->GetSettings()->GetViewportSettings().RemoveMaterialMappingForTarget(Title);
+		ViewportSettings.RemoveMaterialMappingForTarget(Title);
+
+		if(ViewportSettings.MaterialMappingInfos.Num() > 0)
+		{
+			// We should have atleast one target assigned.
+			const int AssignedTargets = ViewportSettings.NumAssignedTargets();
+
+			// if We dont have a valid target then we will try to assign 
+			if(AssignedTargets <= 0)
+			{
+				// Check if we have output node available
+				const FName FirstOutputName;
+				EditedTextureGraph->Graph()->ForEachParams([&](const UTG_Pin* Pin, uint32 index)
+					{
+						if(Pin->IsOutput() && (Pin->IsArgTexture() || Pin->IsArgColor()))
+						{
+							if (FirstOutputName.IsNone())
+							{
+								ViewportSettings.SetDefaultTarget(Pin->GetAliasName());
+								GetEditorViewport()->UpdateRenderMode();
+							}
+						}
+					});
+			}
+		}
 	}
 }
 

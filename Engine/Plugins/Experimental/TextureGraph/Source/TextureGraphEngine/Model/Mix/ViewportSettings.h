@@ -43,6 +43,8 @@ struct TEXTUREGRAPHENGINE_API FViewportSettings
 	bool RemoveMaterialMappingForTarget(FName OutputNode);
 	void OnMaterialUpdate();
 	void OnTargetRename(const FName OldName, const FName NewName);
+
+	int  NumAssignedTargets();
 	
 	DECLARE_MULTICAST_DELEGATE(FViewportSettingsUpdateEvent)
 	FViewportSettingsUpdateEvent OnViewportMaterialChangeEvent;

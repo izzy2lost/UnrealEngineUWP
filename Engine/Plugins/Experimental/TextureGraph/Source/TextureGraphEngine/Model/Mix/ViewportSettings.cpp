@@ -133,3 +133,17 @@ void FViewportSettings::OnTargetRename(const FName OldName,const FName NewName)
 		OnMaterialMappingChangedEvent.Broadcast();
 	}
 }
+
+int FViewportSettings::NumAssignedTargets()
+{
+	int ValidTargets = 0;
+	for(const FMaterialMappingInfo& MappingInfo : MaterialMappingInfos)
+	{
+		if(MappingInfo.HasTarget())
+		{
+			ValidTargets++;
+		}
+	}
+
+	return ValidTargets;
+}
