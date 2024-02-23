@@ -8,6 +8,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
+#include "Cooker/CookConfigAccessTracker.h"
 #include "Cooker/PackageBuildDependencyTracker.h"
 #include "DerivedDataBuildDefinition.h"
 #include "DerivedDataBuildKey.h"
@@ -22,6 +23,7 @@
 #include "Misc/ScopeRWLock.h"
 #include "Misc/StringBuilder.h"
 #include "Serialization/CompactBinary.h"
+#include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/PackageWriter.h"
 #include "ZenStoreHttpClient.h"
@@ -29,6 +31,9 @@
 namespace UE::TargetDomain
 {
 
+constexpr uint32 CookDependenciesVersion = 0x00000001;
+static const FUtf8StringView CookDependenciesAttachmentKey = UTF8TEXTVIEW("CookDependencies");
+static const FUtf8StringView BuildDefinitionsAttachmentKey = UTF8TEXTVIEW("BuildDefinitionsAttachmentKey");
 /**
  * Reads / writes an oplog for EditorDomain BuildDefinitionLists.
  * TODO: Reduce duplication between this class and FZenStoreWriter
@@ -75,9 +80,39 @@ private:
 };
 TUniquePtr<FEditorDomainOplog> GEditorDomainOplog;
 
-bool TryCreateKey(FName PackageName, TConstArrayView<FName> SortedBuildDependencies, FIoHash* OutHash, FString* OutErrorMessage)
+bool FCookDependencies::IsValid() const
+{
+	return bValid;
+}
+
+bool FCookDependencies::HasKeyMatch()
+{
+	if (!bValid)
+	{
+		return false;
+	}
+	if (StoredKey.IsZero())
+	{
+		return false;
+	}
+	if (CurrentKey.IsZero())
+	{
+		if (!TryCalculateCurrentKey())
+		{
+			return false;
+		}
+	}
+	return CurrentKey == StoredKey;
+}
+
+bool FCookDependencies::TryCalculateCurrentKey(FString* OutErrorMessage)
 {
 	IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
+	if (PackageName.IsNone())
+	{
+		if (OutErrorMessage) *OutErrorMessage = TEXT("PackageName is not set.");
+		return false;
+	}
 	if (!AssetRegistry)
 	{
 		if (OutErrorMessage) *OutErrorMessage = TEXT("AssetRegistry is unavailable.");
@@ -96,290 +131,421 @@ bool TryCreateKey(FName PackageName, TConstArrayView<FName> SortedBuildDependenc
 		if (OutErrorMessage) *OutErrorMessage = PackageDigest.GetStatusString();
 		return false;
 	}
+
 	KeyBuilder.Update(&PackageDigest.Hash, sizeof(PackageDigest.Hash));
 
-	for (FName DependencyName : SortedBuildDependencies)
+	for (FName PackageDependency : PackageDependencies)
 	{
-		PackageDigest = EditorDomain->GetPackageDigest(PackageName);
+		PackageDigest = EditorDomain->GetPackageDigest(PackageDependency);
 		if (!PackageDigest.IsSuccessful())
 		{
 			if (OutErrorMessage)
 			{
 				*OutErrorMessage = FString::Printf(TEXT("Could not create PackageDigest for %s: %s"),
-					*DependencyName.ToString(), *PackageDigest.GetStatusString());
+					*PackageDependency.ToString(), *PackageDigest.GetStatusString());
 			}
 			return false;
 		}
 		KeyBuilder.Update(&PackageDigest.Hash, sizeof(PackageDigest.Hash));
 	}
 
-	if (OutHash)
+	if (!ConfigDependencies.IsEmpty())
 	{
-		*OutHash = KeyBuilder.Finalize();
+#if UE_WITH_CONFIG_TRACKING
+		using namespace UE::ConfigAccessTracking;
+		FCookConfigAccessTracker& ConfigTracker = FCookConfigAccessTracker::Get();
+#endif
+		for (const FString& ConfigDependency : ConfigDependencies)
+		{
+			FString Value;
+#if UE_WITH_CONFIG_TRACKING
+			Value = ConfigTracker.GetValue(ConfigDependency);
+#endif
+			uint8 Marker = 0;
+			KeyBuilder.Update(&Marker, sizeof(Marker));
+			if (!Value.IsEmpty())
+			{
+				KeyBuilder.Update(*Value, Value.Len() * sizeof(Value[0]));
+			}
+		}
 	}
+
+	if (OutErrorMessage) OutErrorMessage->Reset();
+	CurrentKey = KeyBuilder.Finalize();
 	return true;
 }
 
-bool TryCollectKeyAndDependencies(UPackage* Package, const ITargetPlatform* TargetPlatform, FIoHash* OutHash, TArray<FName>* OutBuildDependencies,
-	TArray<FName>* OutRuntimeOnlyDependencies, FString* OutErrorMessage)
+void FCookDependencies::Reset()
+{
+	PackageDependencies.Reset();
+	ConfigDependencies.Reset();
+	RuntimePackageDependencies.Reset();
+	PackageName = FName();
+	StoredKey = FIoHash::Zero;
+	CurrentKey = FIoHash::Zero;
+	bValid = false;
+}
+
+void FCookDependencies::Empty()
+{
+	Reset();
+	PackageDependencies.Empty();
+	ConfigDependencies.Empty();
+	RuntimePackageDependencies.Empty();
+}
+
+FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPlatform* TargetPlatform, FString* OutErrorMessage)
 {
 	if (!Package)
 	{
 		if (OutErrorMessage) *OutErrorMessage = TEXT("Invalid null package.");
-		return false;
+		return FCookDependencies();
 	}
 	IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
 	if (!AssetRegistry)
 	{
 		if (OutErrorMessage) *OutErrorMessage = TEXT("AssetRegistry is unavailable.");
-		return false;
+		return FCookDependencies();
 	}
 	FEditorDomain* EditorDomain = FEditorDomain::Get();
 	if (!EditorDomain)
 	{
 		if (OutErrorMessage) *OutErrorMessage = TEXT("EditorDomain is unavailable.");
-		return false;
+		return FCookDependencies();
 	}
 
-	FName PackageName = Package->GetFName();
-	TSet<FName> BuildDependencies;
-	TSet<FName> RuntimeOnlyDependencies;
+	FCookDependencies Result;
+	Result.PackageName = Package->GetFName();
+	TSet<FName> PackageDependenciesSet;
+	TSet<FName> RuntimePackageDependenciesSet;
 
 	TArray<FName> AssetDependencies;
-	AssetRegistry->GetDependencies(PackageName, AssetDependencies, UE::AssetRegistry::EDependencyCategory::Package,
-		UE::AssetRegistry::EDependencyQuery::Game);
+	AssetRegistry->GetDependencies(Result.PackageName, AssetDependencies,
+		UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Game);
 
 	FPackageBuildDependencyTracker& Tracker = FPackageBuildDependencyTracker::Get();
 
+#if UE_WITH_PACKAGE_ACCESS_TRACKING
 	if (Tracker.IsEnabled())
 	{
-		TArray<FBuildDependencyAccessData> AccessDatas = Tracker.GetAccessDatas(PackageName);
+		TArray<FBuildDependencyAccessData> AccessDatas = Tracker.GetAccessDatas(Result.PackageName);
 
-		BuildDependencies.Reserve(AccessDatas.Num());
+		PackageDependenciesSet.Reserve(AccessDatas.Num());
 		for (FBuildDependencyAccessData& AccessData : AccessDatas)
 		{
 			if (AccessData.TargetPlatform == TargetPlatform || AccessData.TargetPlatform == nullptr)
 			{
-				BuildDependencies.Add(AccessData.ReferencedPackage);
+				PackageDependenciesSet.Add(AccessData.ReferencedPackage);
 			}
 		}
 
-		RuntimeOnlyDependencies.Reserve(AssetDependencies.Num());
+		RuntimePackageDependenciesSet.Reserve(AssetDependencies.Num());
 		for (FName DependencyName : AssetDependencies)
 		{
-			if (!BuildDependencies.Contains(DependencyName))
+			if (!PackageDependenciesSet.Contains(DependencyName))
 			{
-				RuntimeOnlyDependencies.Add(DependencyName);
+				RuntimePackageDependenciesSet.Add(DependencyName);
 			}
 		}
 	}
 	else
+#endif
 	{
 		// Defensively treat all asset dependencies as build dependencies and have zero runtime only dependencies
-		BuildDependencies.Append(AssetDependencies);
+		PackageDependenciesSet.Append(AssetDependencies);
 	}
 
-	TArray<FName> SortedBuild;
-	SortedBuild = BuildDependencies.Array();
 	TStringBuilder<256> StringBuffer;
 	FName TransientPackageName = GetTransientPackage()->GetFName();
-	auto IsTransientPackageName = [&StringBuffer, TransientPackageName](FName PackageName)
+	auto IsTransientPackageName = [&StringBuffer, TransientPackageName](FName InPackageName)
 	{
-		PackageName.ToString(StringBuffer);
-		return PackageName == TransientPackageName ||
-			FPackageName::IsMemoryPackage(StringBuffer) ||
+		if (InPackageName == TransientPackageName)
+		{
+			return true;
+		}
+		InPackageName.ToString(StringBuffer);
+		return FPackageName::IsMemoryPackage(StringBuffer) ||
 			FPackageName::IsScriptPackage(StringBuffer);
 	};
-	SortedBuild.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
-	SortedBuild.Sort(FNameLexicalLess());
-	TArray<FName> SortedRuntimeOnly;
-	SortedRuntimeOnly = RuntimeOnlyDependencies.Array();
-	SortedRuntimeOnly.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
-	SortedRuntimeOnly.Sort(FNameLexicalLess());
+	Result.PackageDependencies = PackageDependenciesSet.Array();
+	Result.PackageDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
+	Result.PackageDependencies.Sort(FNameLexicalLess());
+	Result.PackageDependencies.Shrink();
 
-	if (!TryCreateKey(PackageName, SortedBuild, OutHash, OutErrorMessage))
+	Result.RuntimePackageDependencies = RuntimePackageDependenciesSet.Array();
+	Result.RuntimePackageDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
+	Result.RuntimePackageDependencies.Sort(FNameLexicalLess());
+	Result.RuntimePackageDependencies.Shrink();
+
+#if UE_WITH_CONFIG_TRACKING
+	{
+		using namespace UE::ConfigAccessTracking;
+		FCookConfigAccessTracker& ConfigTracker = FCookConfigAccessTracker::Get();
+		if (ConfigTracker.IsEnabled())
+		{
+			TArray<FConfigAccessData> ConfigKeys = ConfigTracker.GetPackageRecords(Result.PackageName, TargetPlatform);
+			Result.ConfigDependencies.Reserve(ConfigKeys.Num());
+			for (const FConfigAccessData& ConfigKey : ConfigKeys)
+			{
+				Result.ConfigDependencies.Add(ConfigKey.FullPathToString());
+			}
+		}
+	}
+#endif
+	if (!Result.TryCalculateCurrentKey(OutErrorMessage))
+	{
+		return FCookDependencies();
+	}
+	Result.StoredKey = Result.CurrentKey;
+	Result.bValid = true;
+
+	if (OutErrorMessage) OutErrorMessage->Reset();
+	return Result;
+}
+
+}
+
+bool LoadFromCompactBinary(FCbObjectView ObjectView, UE::TargetDomain::FCookDependencies& Dependencies)
+{
+	using namespace UE::TargetDomain;
+
+	Dependencies.Reset();
+	int32 Version = -1;
+	for (FCbFieldView FieldView : ObjectView)
+	{
+		FUtf8StringView FieldName = FieldView.GetName();
+		if (FieldName == "Version")
+		{
+			Version = FieldView.AsInt32();
+			if (FieldView.HasError() || Version != CookDependenciesVersion)
+			{
+				return false;
+			}
+		}
+		else if (FieldName == "StoredKey")
+		{
+			if (!LoadFromCompactBinary(FieldView, Dependencies.StoredKey))
+			{
+				return false;
+			}
+		}
+		else if (FieldName == "PackageDependencies")
+		{
+			if (!LoadFromCompactBinary(FieldView, Dependencies.PackageDependencies))
+			{
+				return false;
+			}
+		}
+		else if (FieldName == "ConfigDependencies")
+		{
+			if (!LoadFromCompactBinary(FieldView, Dependencies.ConfigDependencies))
+			{
+				return false;
+			}
+		}
+		else if (FieldName == "RuntimePackageDependencies")
+		{
+			if (!LoadFromCompactBinary(FieldView, Dependencies.RuntimePackageDependencies))
+			{
+				return false;
+			}
+		}
+		// else ignore
+	}
+	if (Version == -1)
 	{
 		return false;
 	}
-
-	if (OutBuildDependencies)
-	{
-		*OutBuildDependencies = MoveTemp(SortedBuild);
-	}
-	if (OutRuntimeOnlyDependencies)
-	{
-		*OutRuntimeOnlyDependencies = MoveTemp(SortedRuntimeOnly);
-	}
-	if (OutErrorMessage)
-	{
-		OutErrorMessage->Reset();
-	}
-	
+	Dependencies.bValid = true;
 	return true;
 }
 
-FCbObject CollectDependenciesObject(UPackage* Package, const ITargetPlatform* TargetPlatform, FString* ErrorMessage)
+FCbWriter& operator<<(FCbWriter& Writer, const UE::TargetDomain::FCookDependencies& CookDependencies)
 {
-	FIoHash TargetDomainKey;
-	TArray<FName> BuildDependencies;
-	TArray<FName> RuntimeOnlyDependencies;
-	if (!UE::TargetDomain::TryCollectKeyAndDependencies(Package, TargetPlatform, &TargetDomainKey, &BuildDependencies, &RuntimeOnlyDependencies, ErrorMessage))
-	{
-		return FCbObject();
-	}
+	using namespace UE::TargetDomain;
 
-	FCbWriter Writer;
 	Writer.BeginObject();
-	Writer << "targetdomainkey" << TargetDomainKey;
-	TStringBuilder<128> PackageNameBuffer;
-	if (!BuildDependencies.IsEmpty())
+	Writer << "Version" << CookDependenciesVersion;
+	Writer << "StoredKey" << CookDependencies.StoredKey;
+	if (!CookDependencies.PackageDependencies.IsEmpty())
 	{
-		Writer.BeginArray("builddependencies");
-		for (FName DependencyName : BuildDependencies)
-		{
-			DependencyName.ToString(PackageNameBuffer);
-			Writer << PackageNameBuffer;
-		}
-		Writer.EndArray();
+		Writer << "PackageDependencies" << CookDependencies.PackageDependencies;
 	}
-	if (!RuntimeOnlyDependencies.IsEmpty())
+	if (!CookDependencies.ConfigDependencies.IsEmpty())
 	{
-		Writer.BeginArray("runtimeonlydependencies");
-		for (FName DependencyName : RuntimeOnlyDependencies)
-		{
-			DependencyName.ToString(PackageNameBuffer);
-			Writer << PackageNameBuffer;
-		}
-		Writer.EndArray();
+		Writer << "ConfigDependencies" << CookDependencies.ConfigDependencies;
+	}
+	if (!CookDependencies.RuntimePackageDependencies.IsEmpty())
+	{
+		Writer << "RuntimePackageDependencies" << CookDependencies.RuntimePackageDependencies;
 	}
 	Writer.EndObject();
-	return Writer.Save().AsObject();
+	return Writer;
 }
 
-FCbObject BuildDefinitionListToObject(TConstArrayView<UE::DerivedData::FBuildDefinition> BuildDefinitionList)
+namespace UE::TargetDomain
+{
+
+FBuildDefinitionList FBuildDefinitionList::Collect(UPackage* Package, const ITargetPlatform* TargetPlatform,
+	FString* OutErrorMessage)
 {
 	using namespace UE::DerivedData;
 
-	if (BuildDefinitionList.IsEmpty())
+	FBuildDefinitionList Result;
+
+	// TODO_BuildDefinitionList: Calculate and store BuildDefinitionList on the PackageData, or collect it here from some other source.
+	if (Result.Definitions.IsEmpty())
 	{
-		return FCbObject();
+		if (OutErrorMessage) *OutErrorMessage = TEXT("Not yet implemented");
+		return FBuildDefinitionList();
 	}
 
-	TArray<const FBuildDefinition*> Sorted;
-	Sorted.Reserve(BuildDefinitionList.Num());
-	for (const FBuildDefinition& BuildDefinition : BuildDefinitionList)
-	{
-		Sorted.Add(&BuildDefinition);
-	}
-	Sorted.Sort([](const FBuildDefinition& A, const FBuildDefinition& B)
+	TArray<FBuildDefinition>& Defs = Result.Definitions;
+	Algo::Sort(Defs, [](const FBuildDefinition& A, const FBuildDefinition& B)
 		{
 			return A.GetKey().Hash < B.GetKey().Hash;
 		});
 
-	FCbWriter Writer;
-	Writer.BeginObject();
-	Writer.BeginArray("BuildDefinitions");
-	for (const FBuildDefinition* BuildDefinition : Sorted)
-	{
-		BuildDefinition->Save(Writer);
-	}
-	Writer.EndArray();
-	return Writer.Save().AsObject();
+	if (OutErrorMessage) OutErrorMessage->Reset();
+	return Result;
 }
 
-void FetchCookAttachments(TArrayView<FName> PackageNames, const ITargetPlatform* TargetPlatform, ICookedPackageWriter* PackageWriter,
-	TUniqueFunction<void(FName PackageName, FCookAttachments&& Results)>&& Callback)
+void FBuildDefinitionList::Reset()
+{
+	Definitions.Reset();
+}
+
+void FBuildDefinitionList::Empty()
+{
+	Definitions.Empty();
+}
+
+}
+
+bool LoadFromCompactBinary(FCbObject&& Object, UE::TargetDomain::FBuildDefinitionList& Definitions)
+{
+	using namespace UE::DerivedData;
+
+	FCbField DefinitionsField = Object["BuildDefinitions"];
+	FCbArray DefinitionsArrayField = DefinitionsField.AsArray();
+	if (DefinitionsField.HasError())
+	{
+		return false;
+	}
+	TArray<FBuildDefinition>& Defs = Definitions.Definitions;
+	Defs.Empty(DefinitionsArrayField.Num());
+	for (FCbField& BuildDefinitionObj : DefinitionsArrayField)
+	{
+		FOptionalBuildDefinition BuildDefinition = FBuildDefinition::Load(TEXTVIEW("TargetDomainBuildDefinitionList"),
+			BuildDefinitionObj.AsObject());
+		if (!BuildDefinition)
+		{
+			Defs.Empty();
+			return false;
+		}
+		Defs.Add(MoveTemp(BuildDefinition).Get());
+	}
+
+	return true;
+}
+
+FCbWriter& operator<<(FCbWriter& Writer, const UE::TargetDomain::FBuildDefinitionList& Definitions)
+{
+	using namespace UE::DerivedData;
+
+	Writer.BeginObject();
+	Writer.BeginArray("BuildDefinitions");
+	for (const FBuildDefinition& BuildDefinition : Definitions.Definitions)
+	{
+		BuildDefinition.Save(Writer);
+	}
+	Writer.EndArray();
+	return Writer;
+}
+
+namespace UE::TargetDomain
+{
+
+void FCookAttachments::Reset()
+{
+	Dependencies.Reset();
+	BuildDefinitions.Reset();
+}
+
+void FCookAttachments::Empty()
+{
+	Dependencies.Empty();
+	BuildDefinitions.Empty();
+}
+
+bool TryCollectAndStoreCookDependencies(UPackage* Package, const ITargetPlatform* TargetPlatform,
+	IPackageWriter::FCommitAttachmentInfo& OutResult)
+{
+	FCookDependencies CookDependencies = FCookDependencies::Collect(Package, TargetPlatform);
+	if (!CookDependencies.IsValid())
+	{
+		OutResult.Value = FCbObject();
+		return false;
+	}
+
+	FCbWriter Writer;
+	Writer << CookDependencies;
+	OutResult.Key = CookDependenciesAttachmentKey;
+	OutResult.Value = Writer.Save().AsObject();
+	return true;
+}
+
+bool TryCollectAndStoreBuildDefinitionList(UPackage* Package, const ITargetPlatform* TargetPlatform,
+	IPackageWriter::FCommitAttachmentInfo& OutResult)
+{
+	FBuildDefinitionList Definitions = FBuildDefinitionList::Collect(Package, TargetPlatform);
+	if (Definitions.Definitions.IsEmpty())
+	{
+		OutResult.Value = FCbObject();
+		return false;
+	}
+
+	FCbWriter Writer;
+	Writer << Definitions;
+	OutResult.Key = BuildDefinitionsAttachmentKey;
+	OutResult.Value = Writer.Save().AsObject();
+	return true;
+}
+
+void FCookAttachments::Fetch(TArrayView<FName> PackageNames, const ITargetPlatform* TargetPlatform,
+	ICookedPackageWriter* PackageWriter,
+	TUniqueFunction<void(FName PackageName, FCookAttachments&& Result)>&& Callback)
 {
 	for (FName PackageName : PackageNames)
 	{
-		FCookAttachments Result;
-		const ANSICHAR* DependenciesKey = "Dependencies";
 		FCbObject DependenciesObj;
+		FCbObject BuildDefinitionsObj;
 		if (TargetPlatform)
 		{
 			check(PackageWriter);
-			DependenciesObj = PackageWriter->GetOplogAttachment(PackageName, DependenciesKey);
+			DependenciesObj = PackageWriter->GetOplogAttachment(PackageName, CookDependenciesAttachmentKey);
+			BuildDefinitionsObj = PackageWriter->GetOplogAttachment(PackageName, CookDependenciesAttachmentKey);
 		}
 		else
 		{
 			if (!GEditorDomainOplog)
 			{
-				Callback(PackageName, MoveTemp(Result));
+				Callback(PackageName, FCookAttachments());
 				continue;
 			}
-			DependenciesObj = GEditorDomainOplog->GetOplogAttachment(PackageName, DependenciesKey);
+			DependenciesObj = GEditorDomainOplog->GetOplogAttachment(PackageName, CookDependenciesAttachmentKey);
+			BuildDefinitionsObj = GEditorDomainOplog->GetOplogAttachment(PackageName, BuildDefinitionsAttachmentKey);
 		}
 
-		Result.StoredKey = DependenciesObj["targetdomainkey"].AsHash();
-		if (Result.StoredKey.IsZero())
+		FCookAttachments Result;
+		if (LoadFromCompactBinary(DependenciesObj, Result.Dependencies))
 		{
-			Callback(PackageName, MoveTemp(Result));
-			continue;
+			Result.Dependencies.PackageName = PackageName;
 		}
+		LoadFromCompactBinary(MoveTemp(BuildDefinitionsObj), Result.BuildDefinitions);
 
-		for (FCbFieldView DepObj : DependenciesObj["builddependencies"])
-		{
-			if (FUtf8StringView DependencyName(DepObj.AsString()); !DependencyName.IsEmpty())
-			{
-				Result.BuildDependencies.Add(FName(DependencyName));
-			}
-		}
-
-		for (FCbFieldView DepObj : DependenciesObj["runtimeonlydependencies"])
-		{
-			if (FUtf8StringView DependencyName(DepObj.AsString()); !DependencyName.IsEmpty())
-			{
-				Result.RuntimeOnlyDependencies.Add(FName(DependencyName));
-			}
-		}
-
-		const ANSICHAR* BuildDefinitionListKey = "BuildDefinitionList";
-		FCbObject BuildDefinitionListObj;
-		if (TargetPlatform)
-		{
-			BuildDefinitionListObj = PackageWriter->GetOplogAttachment(PackageName, BuildDefinitionListKey);
-		}
-		else
-		{
-			BuildDefinitionListObj = GEditorDomainOplog->GetOplogAttachment(PackageName, BuildDefinitionListKey);
-		}
-
-		for (FCbField BuildDefinitionObj : BuildDefinitionListObj)
-		{
-			UE::DerivedData::FOptionalBuildDefinition BuildDefinition =
-				UE::DerivedData::FBuildDefinition::Load(TEXTVIEW("TargetDomainBuildDefinitionList"),
-					BuildDefinitionObj.AsObject());
-			if (!BuildDefinition)
-			{
-				Result.BuildDefinitionList.Empty();
-				break;
-			}
-			Result.BuildDefinitionList.Add(MoveTemp(BuildDefinition).Get());
-		}
-		Result.bValid = true;
 		Callback(PackageName, MoveTemp(Result));
 	}
-}
-
-bool IsCookAttachmentsValid(FName PackageName, const FCookAttachments& CookAttachments)
-{
-	if (!CookAttachments.bValid)
-	{
-		return false;
-	}
-
-	FIoHash CurrentKey;
-	if (!TryCreateKey(PackageName, CookAttachments.BuildDependencies, &CurrentKey, nullptr /* OutErrorMessage */))
-	{
-		return false;
-	}
-
-	if (CookAttachments.StoredKey != CurrentKey)
-	{
-		return false;
-	}
-
-	return true;
 }
 
 bool IsIterativeEnabled(FName PackageName, bool bAllowAllClasses)

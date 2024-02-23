@@ -1095,7 +1095,7 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 
 	auto ProcessPlatformAttachments = [this, PackageName, &PackageData, &PlatformAgnosticQueryPlatformData, &AddPlatformDependencyRange]
 		(int32 PlatformIndex, const ITargetPlatform* TargetPlatform, FFetchPlatformData& FetchPlatformData,
-			FPackagePlatformData& PackagePlatformData, const FCookAttachments& PlatformAttachments, bool bExploreDependencies)
+			FPackagePlatformData& PackagePlatformData, FCookAttachments& PlatformAttachments, bool bExploreDependencies)
 	{
 		bool bFoundBuildDefinitions = false;
 		ICookedPackageWriter* PackageWriter = FetchPlatformData.Writer;
@@ -1103,7 +1103,8 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 		if (Cluster.IsIncrementalCook() && PackagePlatformData.IsCookable())
 		{
 			bool bIterativelyUnmodified = false;
-			if (IsCookAttachmentsValid(PackageName, PlatformAttachments))
+			UE::TargetDomain::FCookDependencies& CookDependencies = PlatformAttachments.Dependencies;
+			if (CookDependencies.HasKeyMatch())
 			{
 				if (IsIterativeEnabled(PackageName, Cluster.COTFS.bHybridIterativeAllowAllClasses))
 				{
@@ -1112,11 +1113,11 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 				}
 				if (bExploreDependencies)
 				{
-					AddPlatformDependencyRange(PlatformAttachments.BuildDependencies, PlatformIndex,
+					AddPlatformDependencyRange(CookDependencies.GetPackageDependencies(), PlatformIndex,
 						EInstigator::HardDependency);
 					if (Cluster.bAllowSoftDependencies)
 					{
-						AddPlatformDependencyRange(PlatformAttachments.RuntimeOnlyDependencies, PlatformIndex,
+						AddPlatformDependencyRange(CookDependencies.GetRuntimePackageDependencies(), PlatformIndex,
 							EInstigator::HardDependency);
 					}
 				}
@@ -1125,7 +1126,7 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 				{
 					bFoundBuildDefinitions = true;
 					Cluster.BuildDefinitions.AddBuildDefinitionList(PackageName, TargetPlatform,
-						PlatformAttachments.BuildDefinitionList);
+						PlatformAttachments.BuildDefinitions.Definitions);
 				}
 			}
 			bool bShouldIterativelySkip = bIterativelyUnmodified;
@@ -1147,10 +1148,10 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 		if (Cluster.bPreQueueBuildDefinitions && !bFoundBuildDefinitions)
 		{
 			if (PlatformAgnosticQueryPlatformData.bActive &&
-				IsCookAttachmentsValid(PackageName, PlatformAgnosticQueryPlatformData.CookAttachments))
+				PlatformAgnosticQueryPlatformData.CookAttachments.Dependencies.HasKeyMatch())
 			{
 				Cluster.BuildDefinitions.AddBuildDefinitionList(PackageName, TargetPlatform,
-					PlatformAgnosticQueryPlatformData.CookAttachments.BuildDefinitionList);
+					PlatformAgnosticQueryPlatformData.CookAttachments.BuildDefinitions.Definitions);
 			}
 		}
 	};
@@ -1486,7 +1487,7 @@ void FRequestCluster::FQueryVertexBatch::Send()
 			{
 				RecordCacheResults(PackageName, PlatformIndex, MoveTemp(Attachments));
 			};
-			UE::TargetDomain::FetchCookAttachments(PlatformData.PackageNames, FetchPlatformData.Platform,
+			UE::TargetDomain::FCookAttachments::Fetch(PlatformData.PackageNames, FetchPlatformData.Platform,
 				FetchPlatformData.Writer, MoveTemp(Callback));
 		}
 		else

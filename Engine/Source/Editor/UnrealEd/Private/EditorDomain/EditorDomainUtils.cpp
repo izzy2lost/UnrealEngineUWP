@@ -1916,16 +1916,10 @@ bool TrySavePackage(UPackage* Package)
 
 	if (bStorageResultValid)
 	{
-		// TODO_BuildDefinitionList: Calculate and store BuildDefinitionList on the PackageData, or collect it here from some other source.
-		TArray<UE::DerivedData::FBuildDefinition> BuildDefinitions;
-		FCbObject BuildDefinitionList = UE::TargetDomain::BuildDefinitionListToObject(BuildDefinitions);
-		FCbObject TargetDomainDependencies = UE::TargetDomain::CollectDependenciesObject(Package, nullptr, nullptr);
-		if (TargetDomainDependencies)
+		TArray<IPackageWriter::FCommitAttachmentInfo, TInlineAllocator<2>> Attachments;
+		UE::TargetDomain::CollectAndStoreCookAttachments(Package, nullptr, Attachments);
+		if (!Attachments.IsEmpty())
 		{
-			TArray<IPackageWriter::FCommitAttachmentInfo, TInlineAllocator<2>> Attachments;
-			Attachments.Add({ "Dependencies", TargetDomainDependencies });
-			// TODO: Reenable BuildDefinitionList once FCbPackage support for empty FCbObjects is in
-			//Attachments.Add({ "BuildDefinitionList", BuildDefinitionList });
 			UE::TargetDomain::CommitEditorDomainCookAttachments(Package->GetFName(), Attachments);
 		}
 	}

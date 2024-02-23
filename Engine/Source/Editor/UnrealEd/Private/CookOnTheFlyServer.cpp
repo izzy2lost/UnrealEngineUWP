@@ -6388,17 +6388,12 @@ void FSaveCookedPackageContext::FinishPlatform()
 	{
 		TOptional<FAssetPackageData> AssetPackageData = COTFS.AssetRegistry->GetAssetPackageDataCopy(Package->GetFName());
 
-		// TODO_BuildDefinitionList: Calculate and store BuildDefinitionList on the PackageData, or collect it here from some other source.
-		TArray<UE::DerivedData::FBuildDefinition> BuildDefinitions;
-		FCbObject BuildDefinitionList = UE::TargetDomain::BuildDefinitionListToObject(BuildDefinitions);
-		FCbObject TargetDomainDependencies;
+		ICookedPackageWriter::FCommitPackageInfo Info;
 		if (COTFS.bHybridIterativeEnabled)
 		{
 			UE_SCOPED_HIERARCHICAL_COOKTIMER(TargetDomainDependencies);
-			TargetDomainDependencies = UE::TargetDomain::CollectDependenciesObject(Package, TargetPlatform, nullptr /* ErrorMessage */);
+			UE::TargetDomain::CollectAndStoreCookAttachments(Package, TargetPlatform, Info.Attachments);
 		}
-
-		ICookedPackageWriter::FCommitPackageInfo Info;
 		if (bSuccessful)
 		{
 			Info.Status = IPackageWriter::ECommitStatus::Success;
@@ -6413,12 +6408,6 @@ void FSaveCookedPackageContext::FinishPlatform()
 		}
 		Info.PackageName = Package->GetFName();
 		Info.PackageHash = AssetPackageData ? AssetPackageData->GetPackageSavedHash() : FIoHash();
-		if (TargetDomainDependencies)
-		{
-			Info.Attachments.Add({ "Dependencies", TargetDomainDependencies });
-		}
-		// TODO: Reenable BuildDefinitionList once FCbPackage support for empty FCbObjects is in
-		//Info.Attachments.Add({ "BuildDefinitionList", BuildDefinitionList });
 		Info.WriteOptions = IPackageWriter::EWriteOptions::None;
 		if (!COTFS.bSkipSave)
 		{
@@ -7714,6 +7703,8 @@ bool UCookOnTheFlyServer::GetCurrentIniVersionStrings( const ITargetPlatform* Ta
 	IniVersionStrings.Reset();
 	return true;
 #else
+	using namespace UE::ConfigAccessTracking;
+
 	// This function should be called after the cook is finished
 	TArray<UE::ConfigAccessTracking::FConfigAccessData> AccessedRecordsArray =
 		UE::ConfigAccessTracking::FCookConfigAccessTracker::Get().GetCookRecords(TargetPlatform);
@@ -7726,7 +7717,7 @@ bool UCookOnTheFlyServer::GetCurrentIniVersionStrings( const ITargetPlatform* Ta
 	while (ConfigFileEndIndex < EndIndex)
 	{
 		int32 ConfigFileStartIndex = ConfigFileEndIndex;
-		const UE::ConfigAccessTracking::FConfigAccessData& FileStartRecord = AccessedRecords[ConfigFileStartIndex];
+		const FConfigAccessData& FileStartRecord = AccessedRecords[ConfigFileStartIndex];
 		++ConfigFileEndIndex;
 		while (ConfigFileEndIndex < EndIndex && AccessedRecords[ConfigFileEndIndex].IsSameConfigFile(FileStartRecord))
 		{
@@ -7734,8 +7725,8 @@ bool UCookOnTheFlyServer::GetCurrentIniVersionStrings( const ITargetPlatform* Ta
 		}
 
 		FConfigFile Temp;
-		FName ConfigPlatform(FileStartRecord.GetConfigPlatform());
 		FName ConfigFileName(FileStartRecord.GetFileName());
+		FConfigAccessData FileRecord = FileStartRecord.GetFileOnlyData();
 		TStringBuilder<64> ConfigFileNameStr(InPlace, ConfigFileName);
 		using UE::String::FindFirst;
 
@@ -7746,19 +7737,11 @@ bool UCookOnTheFlyServer::GetCurrentIniVersionStrings( const ITargetPlatform* Ta
 		{
 			continue;
 		}
-		TStringBuilder<32> ConfigPlatformStr;
-		const TCHAR* SavePlatformStr = TEXT("<Editor>");
-		if (!ConfigPlatform.IsNone())
-		{
-			ConfigPlatformStr << ConfigPlatform;
-			SavePlatformStr = *ConfigPlatformStr;
-		}
-		const TCHAR* LoadTypeStr = LexToString(FileStartRecord.LoadType);
+
 		FullConfigFileNameStr.Reset();
-		FullConfigFileNameStr << LoadTypeStr << TEXT(".") << SavePlatformStr << TEXT(".") << ConfigFileNameStr;
+		FileRecord.AppendFullPath(FullConfigFileNameStr);
 		FName FullConfigFileName(FullConfigFileNameStr);
-		const FConfigFile* ConfigFile = UE::ConfigAccessTracking::FindOrLoadConfigFile(FileStartRecord.LoadType,
-			*ConfigPlatformStr, *ConfigFileNameStr, Temp);
+		const FConfigFile* ConfigFile = UE::ConfigAccessTracking::FindOrLoadConfigFile(FileRecord, Temp);
 		if (!ConfigFile)
 		{
 			// This is logged as Warning; it is unexpected that we were able to load a file from disk that
@@ -7901,79 +7884,6 @@ bool UCookOnTheFlyServer::GetCurrentIniVersionStrings( const ITargetPlatform* Ta
 #endif // !UE_WITH_CONFIG_TRACKING
 }
 
-namespace
-{
-
-void EscapeUsedSettingsToken(FName Token, FStringBuilderBase& Result)
-{
-	Result.Reset();
-	Result << Token;
-	if (Result.ToView().Contains(TEXTVIEW(":")))
-	{
-		FString ReplaceText(Result);
-		ReplaceText.ReplaceInline(TEXT(":"), TEXT("::"));
-		Result.Reset();
-		Result << ReplaceText;
-	}
-}
-
-bool TryTokenizeUsedSettingsString(FStringView Text, TArrayView<FStringBuilderBase*> OutTokens)
-{
-	int32 TextLen = Text.Len();
-	if (TextLen == 0)
-	{
-		return false;
-	}
-	const TCHAR* TextData = Text.GetData();
-
-	int32 NumTokens = OutTokens.Num();
-	check(NumTokens > 0);
-	int32 TokenIndex = 0;
-	FStringBuilderBase* OutToken = OutTokens[TokenIndex++];
-	OutToken->Reset();
-	for (int32 Index = 0; Index < TextLen; ++Index)
-	{
-		TCHAR C = TextData[Index];
-		if (C != ':')
-		{
-			OutToken->AppendChar(C);
-		}
-		else if (Index < TextLen - 1 && TextData[Index + 1] == ':')
-		{
-			++Index;
-			OutToken->AppendChar(':');
-		}
-		else
-		{
-			if (OutToken->Len() == 0)
-			{
-				// Empty token
-				return false;
-			}
-			if (TokenIndex >= NumTokens)
-			{
-				// Too many tokens
-				return false;
-			}
-			OutToken = OutTokens[TokenIndex++];
-			OutToken->Reset();
-		}
-	}
-	if (OutToken->Len() == 0)
-	{
-		// Empty token
-		return false;
-	}
-	if (TokenIndex < NumTokens)
-	{
-		// too few tokens
-		return false;
-	}
-	return true;
-}
-
-} // anonymous namespace
-
 bool UCookOnTheFlyServer::GetCookedIniVersionStrings(const ITargetPlatform* TargetPlatform, UE::Cook::FIniSettingContainer& OutIniSettings, TMap<FString,FString>& OutAdditionalSettings) const
 {
 	const FString EditorIni = GetMetadataDirectory() / TEXT("CookedIniVersion.txt");
@@ -8005,11 +7915,12 @@ bool UCookOnTheFlyServer::GetCookedIniVersionStrings(const ITargetPlatform* Targ
 	FStringBuilderBase* TokenBuffer[] = { &Filename, &SectionName, &ValueName, &ValueIndexStr };
 	TArrayView<FStringBuilderBase*> Tokens = TokenBuffer;
 
+	using namespace UE::ConfigAccessTracking;
 	for (const auto& UsedSetting : *UsedSettings )
 	{
 		KeyStr.Reset();
 		KeyStr << UsedSetting.Key;
-		if (!TryTokenizeUsedSettingsString(KeyStr, Tokens))
+		if (!TryTokenizeConfigTrackingString(KeyStr, Tokens))
 		{
 			UE_LOG(LogCook, Warning, TEXT("Found unparsable ini setting %s for platform %s, invalidating cook."),
 				*KeyStr, *TargetPlatform->PlatformName());
@@ -8198,7 +8109,9 @@ bool UCookOnTheFlyServer::IniSettingsOutOfDate(const ITargetPlatform* TargetPlat
 #if !UE_WITH_CONFIG_TRACKING
 	return false;
 #else
-	UE::ConfigAccessTracking::FIgnoreScope IgnoreScope;
+	using namespace UE::ConfigAccessTracking;
+
+	FIgnoreScope IgnoreScope;
 
 	UE::Cook::FIniSettingContainer OldIniSettings;
 	TMap<FString, FString> OldAdditionalSettings;
@@ -8239,64 +8152,17 @@ bool UCookOnTheFlyServer::IniSettingsOutOfDate(const ITargetPlatform* TargetPlat
 	{
 		OldIniFile.Key.ToString(ConfigNameKeyStr);
 
-		// ConfigSystem.<Editor>.../../../Engine/Config/ConsoleVariables.ini
-		//   -> "ConfigSystem", "<Editor>", "../../../Engine/Config/ConsoleVariables.ini"
-		// 3rd token might have dots, first two cannot.
-		FStringView ConfigNameArray[3];
-		ConfigNameArray[0] = ConfigNameKeyStr;
-		int32 NumTokens = 1;
-		for (NumTokens = 1; NumTokens < UE_ARRAY_COUNT(ConfigNameArray); ++NumTokens)
-		{
-			FStringView& Current = ConfigNameArray[NumTokens-1];
-			FStringView& Next= ConfigNameArray[NumTokens];
-			int32 DotIndex = Current.Find(TEXTVIEW("."));
-			if (DotIndex == INDEX_NONE)
-			{
-				break;
-			}
-			Next = Current.RightChop(DotIndex+1);
-			Current.LeftInline(DotIndex);
-			if (Next.IsEmpty())
-			{
-				// break before incrementing NumTokens so that we do not count the empty Next as a token
-				break; 
-			}
-		}
-		UE::ConfigAccessTracking::ELoadType LoadType = UE::ConfigAccessTracking::ELoadType::Uninitialized;
-		// The input NameKey is of the form 
-		//   LoadType.Platform.ConfigName
-		// Platform is <Editor> if the configfile was an editor config file rather than a platform-specific config file
-		if (NumTokens == 3)
-		{
-			LexFromString(LoadType, ConfigNameArray[0]);
-			if (!UE::ConfigAccessTracking::IsLoadableLoadType(LoadType))
-			{
-				LoadType = UE::ConfigAccessTracking::ELoadType::Uninitialized;
-			}
-			else
-			{
-				PlatformName.Reset();
-				PlatformName << ConfigNameArray[1];
-				Filename.Reset();
-				Filename << ConfigNameArray[2];
-			}
-		}
-		if (LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
+		FConfigAccessData FullFilePathData = FConfigAccessData::Parse(ConfigNameKeyStr);
+		if (!IsLoadableLoadType(FullFilePathData.LoadType))
 		{
 			UE_LOG(LogCook, Warning,
 				TEXT("Invalidating inisettings: Invalid filename key in old ini settings file used by platform %s: key '%s' is invalid."),
 				*TargetPlatform->PlatformName(), *ConfigNameKeyStr);
 			return true;
 		}
-		const TCHAR* PlatformNameToLoad = *PlatformName;
-		if (FCString::Stricmp(PlatformNameToLoad, TEXT("<Editor>")) == 0)
-		{
-			PlatformNameToLoad = TEXT("");
-		}
 
 		FConfigFile Temp;
-		const FConfigFile* ConfigFile = UE::ConfigAccessTracking::FindOrLoadConfigFile(LoadType, PlatformNameToLoad,
-			*Filename, Temp);
+		const FConfigFile* ConfigFile = UE::ConfigAccessTracking::FindOrLoadConfigFile(FullFilePathData, Temp);
 		if (!ConfigFile)
 		{
 			UE_LOG(LogCook, Display,
@@ -8391,6 +8257,7 @@ bool UCookOnTheFlyServer::SaveCurrentIniSettings(const ITargetPlatform* TargetPl
 	const static TCHAR* NAME_UsedSettings =TEXT("UsedSettings");
 	ConfigFile.Remove(NAME_UsedSettings);
 
+	using namespace UE::ConfigAccessTracking;
 	{
 		TStringBuilder<256> NewKey;
 		TStringBuilder<128> FilenameStr;
@@ -8400,15 +8267,15 @@ bool UCookOnTheFlyServer::SaveCurrentIniSettings(const ITargetPlatform* TargetPl
 		for (const auto& CurrentIniFilename : CurrentIniSettings)
 		{
 			FName Filename = CurrentIniFilename.Key;
-			EscapeUsedSettingsToken(Filename, FilenameStr);
+			EscapeConfigTrackingTokenToString(Filename, FilenameStr);
 			for (const auto& CurrentSection : CurrentIniFilename.Value)
 			{
 				FName Section = CurrentSection.Key;
-				EscapeUsedSettingsToken(Section, SectionStr);
+				EscapeConfigTrackingTokenToString(Section, SectionStr);
 				for (const auto& CurrentValue : CurrentSection.Value)
 				{
 					FName ValueName = CurrentValue.Key;
-					EscapeUsedSettingsToken(ValueName, ValueNameStr);
+					EscapeConfigTrackingTokenToString(ValueName, ValueNameStr);
 
 					const TArray<FString>& Values = CurrentValue.Value;
 					for (int Index = 0; Index < Values.Num(); ++Index)

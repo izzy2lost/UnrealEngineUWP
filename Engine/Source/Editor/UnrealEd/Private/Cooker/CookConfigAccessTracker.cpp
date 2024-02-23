@@ -17,6 +17,90 @@
 
 #endif
 
+namespace UE::ConfigAccessTracking
+{
+
+void EscapeConfigTrackingTokenToString(FName Token, FStringBuilderBase& Result)
+{
+	Result.Reset();
+	EscapeConfigTrackingTokenAppendString(Token, Result);
+}
+
+void EscapeConfigTrackingTokenAppendString(FName Token, FStringBuilderBase& Result)
+{
+	int32 InitialLength = Result.Len();
+	Result << Token;
+	FStringView AddedView = Result.ToView().RightChop(InitialLength);
+	if (AddedView.Contains(TEXTVIEW(":")))
+	{
+		FString ReplaceText(AddedView);
+		ReplaceText.ReplaceInline(TEXT(":"), TEXT("::"));
+		Result.RemoveSuffix(AddedView.Len());
+		Result << ReplaceText;
+	}
+}
+
+bool TryTokenizeConfigTrackingString(FStringView Text, TArrayView<FStringBuilderBase*> OutTokens)
+{
+	int32 TextLen = Text.Len();
+	if (TextLen == 0)
+	{
+		for (FStringBuilderBase* Token : OutTokens) Token->Reset();
+		return false;
+	}
+	const TCHAR* TextData = Text.GetData();
+
+	int32 NumTokens = OutTokens.Num();
+	check(NumTokens > 0);
+	int32 NextTokenIndex = 0;
+	FStringBuilderBase* OutToken = OutTokens[NextTokenIndex++];
+	OutToken->Reset();
+	for (int32 Index = 0; Index < TextLen; ++Index)
+	{
+		TCHAR C = TextData[Index];
+		if (C != ':')
+		{
+			OutToken->AppendChar(C);
+		}
+		else if (Index < TextLen - 1 && TextData[Index + 1] == ':')
+		{
+			++Index;
+			OutToken->AppendChar(':');
+		}
+		else
+		{
+			if (OutToken->Len() == 0)
+			{
+				// An empty token and therefore the string is invalid; abandon anything that follows it
+				while (NextTokenIndex < NumTokens) OutTokens[NextTokenIndex++]->Reset();
+				return false;
+			}
+			if (NextTokenIndex >= NumTokens)
+			{
+				// Too many tokens
+				return false;
+			}
+			OutToken = OutTokens[NextTokenIndex++];
+			OutToken->Reset();
+		}
+	}
+	if (OutToken->Len() == 0)
+	{
+		// Empty token
+		while (NextTokenIndex < NumTokens) OutTokens[NextTokenIndex++]->Reset();
+		return false;
+	}
+	if (NextTokenIndex < NumTokens)
+	{
+		// too few tokens
+		while (NextTokenIndex < NumTokens) OutTokens[NextTokenIndex++]->Reset();
+		return false;
+	}
+	return true;
+}
+
+} // namespace UE::ConfigAccessTracking
+
 #if UE_WITH_CONFIG_TRACKING
 
 DEFINE_LOG_CATEGORY_STATIC(LogConfigBuildDependencyTracker, Log, All);
@@ -26,22 +110,147 @@ namespace UE::ConfigAccessTracking
 
 FCookConfigAccessTracker FCookConfigAccessTracker::Singleton;
 
-thread_local bool bIgnoreAccess = false;
+FConfigAccessData::FConfigAccessData(ELoadType InLoadType, FNameEntryId InConfigPlatform, FNameEntryId InFileName)
+	: ConfigPlatform(InConfigPlatform)
+	, FileName(InFileName)
+	, LoadType(InLoadType)
+{
+}
+
+FConfigAccessData::FConfigAccessData(ELoadType InLoadType, FNameEntryId InConfigPlatform, FNameEntryId InFileName,
+	FNameEntryId InSectionName, FMinimalName InValueName, const ITargetPlatform* InRequestingPlatform)
+	: ConfigPlatform(InConfigPlatform)
+	, FileName(InFileName)
+	, SectionName(InSectionName)
+	, ValueName(InValueName)
+	, RequestingPlatform(InRequestingPlatform)
+	, LoadType(InLoadType)
+{
+}
+
+FConfigAccessData FConfigAccessData::GetFileOnlyData() const
+{
+	return FConfigAccessData(LoadType, ConfigPlatform, FileName);
+}
+
+FConfigAccessData FConfigAccessData::GetPathOnlyData() const
+{
+	return FConfigAccessData(LoadType, ConfigPlatform, FileName, SectionName, ValueName, nullptr);
+}
+
+FString FConfigAccessData::FullPathToString() const
+{
+	TStringBuilder<256> Out;
+	AppendFullPath(Out);
+	return FString(*Out);
+}
+
+void FConfigAccessData::AppendFullPath(FStringBuilderBase& Out) const
+{
+	if (LoadType == ELoadType::Uninitialized || FileName.IsNone())
+	{
+		Out << TEXTVIEW("<Invalid>");
+		return;
+	}
+
+	Out << LexToString(LoadType) << TEXTVIEW(".");
+	if (ConfigPlatform.IsNone())
+	{
+		Out << PlatformAgnosticName;
+	}
+	else
+	{
+		EscapeConfigTrackingTokenAppendString(GetConfigPlatform(), Out);
+	}
+	Out << TEXTVIEW(".");
+	EscapeConfigTrackingTokenAppendString(GetFileName(), Out);
+	if (!SectionName.IsNone())
+	{
+		Out << TEXTVIEW(":[");
+		EscapeConfigTrackingTokenAppendString(GetSectionName(), Out);
+		Out << TEXTVIEW("]");
+		if (!ValueName.IsNone())
+		{
+			Out << TEXTVIEW(":");
+			EscapeConfigTrackingTokenAppendString(GetValueName(), Out);
+		}
+	}
+}
+
+FConfigAccessData FConfigAccessData::Parse(FStringView Text)
+{
+	// ConfigSystem.<Editor>.../../../Engine/Config/ConsoleVariables.ini:Section:ValueName
+	//   -> "ConfigSystem", "<Editor>", "../../../Engine/Config/ConsoleVariables.ini", "Section", "ValueName"
+	// No tokens can contain a single colon, but they might contain double colon, which is the escape code for a single colon.
+	// 3rd token might have dots, first two cannot.
+
+	TStringBuilder<128> FullFilePath;
+	TStringBuilder<64> SectionNameStr;
+	TStringBuilder<64> ValueNameStr;
+	FStringBuilderBase* TokenBuffer[] = { &FullFilePath, &SectionNameStr, &ValueNameStr };
+	TArrayView<FStringBuilderBase*> ColonDelimitedTokens = TokenBuffer;
+	TryTokenizeConfigTrackingString(Text, ColonDelimitedTokens);
+	if (FullFilePath.Len() == 0)
+	{
+		return FConfigAccessData();
+	}
+
+	FStringView FullFilePathTokens[3];
+	FullFilePathTokens[0] = FullFilePath;
+	int32 NumFilePathTokens = 1;
+	for (NumFilePathTokens = 1; NumFilePathTokens < UE_ARRAY_COUNT(FullFilePathTokens); ++NumFilePathTokens)
+	{
+		FStringView& Current = FullFilePathTokens[NumFilePathTokens - 1];
+		FStringView& Next = FullFilePathTokens[NumFilePathTokens];
+		int32 DotIndex = Current.Find(TEXTVIEW("."));
+		if (DotIndex == INDEX_NONE)
+		{
+			break;
+		}
+		Next = Current.RightChop(DotIndex + 1);
+		Current.LeftInline(DotIndex);
+		if (Next.IsEmpty())
+		{
+			// break before incrementing NumFilePathTokens so that we do not count the empty Next as a token
+			break;
+		}
+	}
+	// FullFilePath is of the form 
+	//   LoadType.Platform.ConfigName
+	// Platform is <Editor> if the configfile was an editor config file rather than a platform-specific config file
+	if (NumFilePathTokens < 3)
+	{
+		// Not a valid FConfigAccessData text; we always require all 3 of LoadType,Platform,ConfigName
+		return FConfigAccessData();
+	}
+
+	FConfigAccessData Result;
+	LexFromString(Result.LoadType, FullFilePathTokens[0]);
+	if (Result.LoadType == ELoadType::Uninitialized)
+	{
+		return FConfigAccessData();
+	}
+
+	FName LocalConfigPlatform = FullFilePathTokens[1] == PlatformAgnosticName
+		? NAME_None : FName(FullFilePathTokens[1]);
+	FStringView SectionNameView(SectionNameStr);
+	// We write out sectionnames with [] for readability; remove them if they exist.
+	if (SectionNameView.StartsWith('[')) SectionNameView.RightChopInline(1);
+	if (SectionNameView.EndsWith(']')) SectionNameView.LeftChopInline(1);
+	FName LocalSectionName = SectionNameView.Len() == 0 ? NAME_None : FName(SectionNameView, NAME_NO_NUMBER);
+	FName LocalValueName = ValueNameStr.Len() == 0 ? NAME_None : FName(ValueNameStr);
+
+	Result.ConfigPlatform = LocalConfigPlatform.GetComparisonIndex();
+	Result.FileName = FName(FullFilePathTokens[2]).GetComparisonIndex();
+	Result.SectionName = LocalSectionName.GetComparisonIndex();
+	Result.ValueName = FMinimalName(LocalValueName);
+
+	return Result;
+}
 
 TStringBuilder<256> ToString(FNameEntryId FileName, FNameEntryId SectionName, FMinimalName ValueName)
 {
 	return TStringBuilder<256>(InPlace, FileName, TEXT(":["), SectionName, TEXT("]:"), FName(ValueName));
-}
-
-FIgnoreScope::FIgnoreScope()
-	: bPreviousIgnoreAccess(bIgnoreAccess)
-{
-	bIgnoreAccess = true;
-}
-
-FIgnoreScope::~FIgnoreScope()
-{
-	bIgnoreAccess = bPreviousIgnoreAccess;
 }
 
 void FCookConfigAccessTracker::Disable()
@@ -204,13 +413,99 @@ FCookConfigAccessTracker::~FCookConfigAccessTracker()
 	Disable();
 }
 
+static FConfigFile* FindConfigCacheIniFile(FName ConfigPlatform, FName FileName)
+{
+	// ForPlatform will return GConfig if ConfigPlatform is NAME_None
+	FConfigCacheIni* ConfigSystem = FConfigCacheIni::ForPlatform(ConfigPlatform);
+
+	// The ini files may have been recorded by fullpath or by shortname; search first for a fullpath match using
+	// FindConfigFile and if that fails search for the shortname match by iterating over all files in GConfig
+	FConfigFile* ConfigFile = ConfigSystem->FindConfigFile(FileName.ToString());
+	if (ConfigFile)
+	{
+		return ConfigFile;
+	}
+
+	for (const FString& ConfigFilename : ConfigSystem->GetFilenames())
+	{
+		ConfigFile = ConfigSystem->FindConfigFile(ConfigFilename);
+		if (ConfigFile->Name == FileName)
+		{
+			return ConfigFile;
+		}
+	}
+	return nullptr;
+}
+
+FString FCookConfigAccessTracker::GetValue(const FConfigAccessData& AccessData)
+{
+	if (AccessData.SectionName.IsNone() || AccessData.ValueName.IsNone())
+	{
+		return FString();
+	}
+
+	switch (AccessData.LoadType)
+	{
+	case ELoadType::ConfigSystem:
+	{
+		FIgnoreScope IgnoreScope;
+		FConfigFile* ConfigFile = FindConfigCacheIniFile(AccessData.GetConfigPlatform(), AccessData.GetFileName());
+		if (!ConfigFile)
+		{
+			return FString();
+		}
+		const FConfigSection* ConfigSection = ConfigFile->FindSection(AccessData.GetSectionName().ToString());
+		if (!ConfigSection)
+		{
+			return FString();
+		}
+		return MultiValueToString(*ConfigSection, AccessData.GetValueName());
+	}
+	case ELoadType::LocalIniFile:
+	case ELoadType::LocalSingleIniFile:
+	case ELoadType::ExternalIniFile:
+	case ELoadType::ExternalSingleIniFile:
+	{
+		FConfigAccessData PathOnlyData = AccessData.GetPathOnlyData();
+		FConfigAccessData FileOnlyData = PathOnlyData.GetFileOnlyData();
+		uint32 PathOnlyDataHash = GetTypeHash(PathOnlyData);
+		uint32 FileOnlyDataHash = GetTypeHash(FileOnlyData);
+		{
+			UE::TUniqueLock ConfigCacheScopeLock(ConfigCacheLock);
+			if (LoadedConfigFiles.ContainsByHash(FileOnlyDataHash, FileOnlyData))
+			{
+				FString* Result = LoadedValues.FindByHash(PathOnlyDataHash, PathOnlyData);
+				return Result ? *Result : FString();
+			}
+		}
+
+		FIgnoreScope IgnoreScope;
+		FConfigFile Buffer;
+		const FConfigFile* LoadedFile = FindOrLoadConfigFile(FileOnlyData, Buffer);
+		if (!LoadedFile)
+		{
+			return FString();
+		}
+		RecordValuesFromFile(FileOnlyData, *LoadedFile);
+		{
+			UE::TUniqueLock ConfigCacheScopeLock(ConfigCacheLock);
+			FString* Result = LoadedValues.FindByHash(PathOnlyDataHash, PathOnlyData);
+			return Result ? *Result : FString();
+		}
+	}
+	default:
+		return FString();
+	}
+}
+
+FString FCookConfigAccessTracker::GetValue(FStringView AccessDataFullPath)
+{
+	return GetValue(FConfigAccessData::Parse(AccessDataFullPath));
+}
+
 void FCookConfigAccessTracker::StaticOnConfigValueRead(UE::ConfigAccessTracking::FSection* Section, FMinimalName ValueName,
 	const FConfigValue& ConfigValue)
 {
-	if (bIgnoreAccess)
-	{
-		return;
-	}
 	if (!Section)
 	{
 		return;
@@ -260,59 +555,98 @@ void FCookConfigAccessTracker::StaticOnConfigValueRead(UE::ConfigAccessTracking:
 #endif
 
 	LLM_SCOPE_BYNAME(TEXTVIEW("ConfigAccessTracking"));
-	FConfigAccessData AccessData{ ConfigPlatform, FileName, SectionName, ValueName, RequestedPlatform, ConfigFile->LoadType };
+	FConfigAccessData AccessData(ConfigFile->LoadType, ConfigPlatform, FileName, SectionName, ValueName, RequestedPlatform);
 	uint32 ReferencerHash = GetTypeHash(Referencer);
 	uint32 AccessDataHash = GetTypeHash(AccessData);
-	UE::TUniqueLock RecordsScopeLock(Singleton.RecordsLock);
-	Singleton.PackageRecords.FindOrAddByHash(ReferencerHash, Referencer).AddByHash(AccessDataHash, MoveTemp(AccessData));
+	FConfigAccessData FileOnlyData = AccessData.GetFileOnlyData();
+	uint32 FileOnlyHash = GetTypeHash(FileOnlyData);
+	{
+		UE::TUniqueLock RecordsScopeLock(Singleton.RecordsLock);
+		Singleton.PackageRecords.FindOrAddByHash(ReferencerHash, Referencer).AddByHash(AccessDataHash, MoveTemp(AccessData));
+	}
+	bool bNeedRecordValuesFromFile = false;
+	{
+		UE::TUniqueLock ConfigCacheScopeLock(Singleton.ConfigCacheLock);
+		bNeedRecordValuesFromFile = !Singleton.LoadedConfigFiles.ContainsByHash(FileOnlyHash, FileOnlyData);
+	}
+	if (bNeedRecordValuesFromFile)
+	{
+		Singleton.RecordValuesFromFile(FileOnlyData, *ConfigFile);
+	}
 }
 
-const FConfigFile* FindOrLoadConfigFile(ELoadType LoadType, const TCHAR* ConfigPlatform, const TCHAR* Filename,
-	FConfigFile& Buffer)
+void FCookConfigAccessTracker::RecordValuesFromFile(const FConfigAccessData& FileOnlyData,
+	const FConfigFile& ConfigFile)
 {
-	bool bHasPlatformName = ConfigPlatform && ConfigPlatform[0] != '\0';
-	FName ConfigPlatformFName;
-	if (bHasPlatformName)
-	{
-		ConfigPlatformFName = FName(ConfigPlatform);
-	}
+	FConfigAccessData FullPathData = FileOnlyData.GetFileOnlyData();
 
-	switch (LoadType)
+	uint32 FullPathHash = GetTypeHash(FullPathData);
+	bool bAlreadyExists = false;
+	UE::TUniqueLock ConfigCacheScopeLock(ConfigCacheLock);
+	LoadedConfigFiles.FindOrAddByHash(FullPathHash, FullPathData, &bAlreadyExists);
+	if (bAlreadyExists)
+	{
+		return;
+	}
+	FIgnoreScope IgnoreScope;
+
+	TArray<FName> ValueNames;
+	for (const TPair<FString, FConfigSection>& SectionPair : ConfigFile)
+	{
+		FullPathData.SectionName = FName(FStringView(SectionPair.Key), NAME_NO_NUMBER).GetComparisonIndex();
+		const FConfigSection& Section = SectionPair.Value;
+		ValueNames.Reset();
+		SectionPair.Value.GetKeys(ValueNames);
+		for (FName ValueName : ValueNames)
+		{
+			FullPathData.ValueName = FMinimalName(ValueName);
+			LoadedValues.FindOrAdd(FullPathData) = MultiValueToString(Section, ValueName);
+		}
+	}
+}
+
+FString FCookConfigAccessTracker::MultiValueToString(const FConfigSection& Section, FName ValueName)
+{
+	TArray<const FConfigValue*, TInlineAllocator<8>> Values;
+	Section.MultiFindPointer(ValueName, Values, true /* bMaintainOrder */);
+	if (Values.IsEmpty())
+	{
+		return FString();
+	}
+	if (Values.Num() == 1)
+	{
+		return Values[0]->GetValue();
+	}
+	TStringBuilder<256> ArrayValueStr;
+	ArrayValueStr << Values[0]->GetValue();
+	for (const FConfigValue* Value : TConstArrayView<const FConfigValue*>(Values).RightChop(1))
+	{
+		ArrayValueStr << TEXT("\n") << Value->GetValue();
+	}
+	return FString(*ArrayValueStr);
+}
+
+const FConfigFile* FindOrLoadConfigFile(const FConfigAccessData& AccessData, FConfigFile& Buffer)
+{
+	FName ConfigPlatform(AccessData.GetConfigPlatform());
+	FName FileName(AccessData.GetFileName());
+
+	switch (AccessData.LoadType)
 	{
 	case ELoadType::ConfigSystem:
 	{
-		// ForPlatform will return GConfig if ConfigPlatform is NAME_None
-		FConfigCacheIni* ConfigSystem = FConfigCacheIni::ForPlatform(ConfigPlatformFName);
-
-		// The ini files may have been recorded by fullpath or by shortname; search first for a fullpath match using
-		// FindConfigFile and if that fails search for the shortname match by iterating over all files in GConfig
-		FConfigFile* ConfigFile = ConfigSystem->FindConfigFile(FString(Filename));
-		if (ConfigFile)
-		{
-			return ConfigFile;
-		}
-		if (!ConfigFile)
-		{
-			FName FileFName = FName(Filename);
-			for (const FString& ConfigFilename : ConfigSystem->GetFilenames())
-			{
-				ConfigFile = ConfigSystem->FindConfigFile(ConfigFilename);
-				if (ConfigFile->Name == FileFName)
-				{
-					return ConfigFile;
-				}
-			}
-		}
-		return nullptr;
+		return FindConfigCacheIniFile(ConfigPlatform, FileName);
 	}
 	case ELoadType::LocalIniFile:
-		if (FConfigCacheIni::LoadLocalIniFile(Buffer, Filename, true /* bIsBaseIniName */, ConfigPlatform))
+		if (FConfigCacheIni::LoadLocalIniFile(Buffer, *WriteToString<128>(FileName), true /* bIsBaseIniName */,
+			*WriteToString<64>(ConfigPlatform)))
 		{
 			return &Buffer;
 		}
 		return nullptr;
 	case ELoadType::LocalSingleIniFile:
-		if (FConfigCacheIni::LoadLocalIniFile(Buffer, Filename, false /* bIsBaseIniName */, ConfigPlatform))
+		if (FConfigCacheIni::LoadLocalIniFile(Buffer, *WriteToString<128>(FileName), false /* bIsBaseIniName */,
+			*WriteToString<64>(ConfigPlatform)))
 		{
 			return &Buffer;
 		}
@@ -321,14 +655,16 @@ const FConfigFile* FindOrLoadConfigFile(ELoadType LoadType, const TCHAR* ConfigP
 		// TODO: LoadExternalIniFile is the same as LoadLocalIniFile, but with possibly redirected
 		// EngineConfigDir and ProjectConfigDir. We can not load them without that extra information.
 		// For now, assume it used the default EngineConfigDir and ProjectConfigDir.
-		if (FConfigCacheIni::LoadLocalIniFile(Buffer, Filename, true /* bIsBaseIniName */, ConfigPlatform))
+		if (FConfigCacheIni::LoadLocalIniFile(Buffer, *WriteToString<128>(FileName), true /* bIsBaseIniName */,
+			*WriteToString<64>(ConfigPlatform)))
 		{
 			return &Buffer;
 		}
 		return nullptr;
 	case ELoadType::ExternalSingleIniFile:
 		// TODO: Same comment as in ExternalIniFile
-		if (FConfigCacheIni::LoadLocalIniFile(Buffer, Filename, false /* bIsBaseIniName */, ConfigPlatform))
+		if (FConfigCacheIni::LoadLocalIniFile(Buffer, *WriteToString<128>(FileName), false /* bIsBaseIniName */,
+			*WriteToString<64>(ConfigPlatform)))
 		{
 			return &Buffer;
 		}

@@ -103,6 +103,17 @@ CORE_API FConfigValueReadCallbackId AddConfigValueReadCallback(FConfigValueReadC
 /** Remove a subscriber that was added via FConfigValue. */
 CORE_API void RemoveConfigValueReadCallback(FConfigValueReadCallbackId DelegateHandle);
 
+/** Disables recording of ConfigValues read on the current thread while in scope. */
+struct FIgnoreScope
+{
+public:
+	CORE_API FIgnoreScope();
+	CORE_API ~FIgnoreScope();
+
+private:
+	bool bPreviousIgnoreReads = false;
+};
+
 namespace Private
 {
 
@@ -130,9 +141,19 @@ inline void OnConfigValueRead(UE::ConfigAccessTracking::FSection* Section, FMini
 
 #else  // UE_WITH_CONFIG_TRACKING
 
+namespace UE::ConfigAccessTracking
+{
+
 // Declare FSection even though it is undefined so that we can pass FSection* as an argument to FConfigSection and FConfigValue
 // constructors rather than having to create separate constructors under #ifdef UE_WITH_CONFIG_TRACKING
-namespace UE::ConfigAccessTracking { struct FSection; }
+struct FSection;
+
+// Define FIgnoreScope even when !UE_WITH_CONFIG_TRACKING so we don't need to wrap its use in a macro.
+struct FIgnoreScope
+{
+};
+
+} // namespace UE::ConfigAccessTracking
 
 #endif // else !UE_WITH_CONFIG_TRACKING
 

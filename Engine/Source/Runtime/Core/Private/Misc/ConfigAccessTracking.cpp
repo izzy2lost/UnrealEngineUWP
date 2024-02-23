@@ -20,6 +20,8 @@
 namespace UE::ConfigAccessTracking
 {
 
+thread_local bool bIgnoreReads = false;
+
 FFile::FFile(const FConfigFile* InConfigFile)
 	: ConfigFile(InConfigFile)
 	, bSavedHasConfigFile(false)
@@ -153,6 +155,17 @@ FSection::FSection(FFile& InFileAccess, FStringView InSectionName)
 {
 }
 
+FIgnoreScope::FIgnoreScope()
+	: bPreviousIgnoreReads(bIgnoreReads)
+{
+	bIgnoreReads = true;
+}
+
+FIgnoreScope::~FIgnoreScope()
+{
+	bIgnoreReads = bPreviousIgnoreReads;
+}
+
 namespace Private
 {
 
@@ -271,6 +284,13 @@ void OnConfigValueReadInternal(UE::ConfigAccessTracking::FSection* Section, FMin
 	{
 		return;
 	}
+
+	// Implementation of FIgnoreScope
+	if (bIgnoreReads)
+	{
+		return;
+	}
+
 	FConfigReadCallbacks::Get().OnConfigValueRead(Section, ValueName, ConfigValue);
 }
 
