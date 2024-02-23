@@ -1121,7 +1121,7 @@ namespace Jupiter.Controllers
 			}
 			catch (RefNotFoundException)
 			{
-				return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });
+				return Ok(new RefDeletedResponse(0));
 			}
 		}
 	}
