@@ -563,6 +563,7 @@ public:
 
 
 	GEOMETRYFRAMEWORK_API virtual bool GetPhysicsTriMeshData(struct FTriMeshCollisionData* CollisionData, bool InUseAllTriData) override;
+	GEOMETRYFRAMEWORK_API virtual bool GetTriMeshSizeEstimates(struct FTriMeshCollisionDataEstimates& OutTriMeshEstimates, bool bInUseAllTriData) const override;
 	GEOMETRYFRAMEWORK_API virtual bool ContainsPhysicsTriMeshData(bool InUseAllTriData) const override;
 	GEOMETRYFRAMEWORK_API virtual bool WantsNegXTriMesh() override;
 
