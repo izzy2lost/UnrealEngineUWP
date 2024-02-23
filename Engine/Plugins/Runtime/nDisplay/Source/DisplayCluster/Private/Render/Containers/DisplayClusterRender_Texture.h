@@ -59,6 +59,12 @@ public:
 		return TextureResource.IsValid() ? TextureResource->GetPixelFormat() : PF_Unknown;
 	}
 
+	virtual uint32 GetComponentDepth() const override
+	{
+		const TSharedPtr<FDisplayClusterRender_TextureResource, ESPMode::ThreadSafe>& TextureResource = GetTextureResource();
+		return TextureResource.IsValid() ? TextureResource->GetComponentDepth() : 0;
+	}
+
 	virtual FRHITexture* GetRHITexture() const override
 	{
 		const TSharedPtr<FDisplayClusterRender_TextureResource, ESPMode::ThreadSafe>& TextureResource = GetTextureResource();

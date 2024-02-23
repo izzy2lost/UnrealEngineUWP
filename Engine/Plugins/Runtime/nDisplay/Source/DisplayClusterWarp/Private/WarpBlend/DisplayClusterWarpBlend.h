@@ -47,6 +47,11 @@ public:
 		return pTexture.IsValid() ? pTexture->GetRHITexture() : nullptr;
 	}
 
+	virtual TSharedPtr<IDisplayClusterRender_Texture, ESPMode::ThreadSafe> GetTextureInterface(EDisplayClusterWarpBlendTextureType InTextureType) const override
+	{
+		return GeometryContext.GeometryProxy.ImplGetTexture(InTextureType);
+	}
+
 	virtual float GetAlphaMapEmbeddedGamma() const override
 	{ 
 		return GeometryContext.GeometryProxy.AlphaMapEmbeddedGamma; 
