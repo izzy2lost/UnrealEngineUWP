@@ -1630,6 +1630,15 @@ bool UWorldPartitionRuntimeSpatialHash::IsValidGrid(FName GridName) const
 		}
 	}
 
+	/*const UWorldPartition* WorldPartition = GetOuterUWorldPartition();
+	for (FActorDescContainerInstanceCollection::TConstIterator<ASpatialHashRuntimeGridInfo> Iterator(WorldPartition); Iterator; ++Iterator)
+	{
+		if (Iterator->GetRuntimeGrid() == GridName)
+		{
+			return true;
+		}
+	}*/
+
 	return false;
 }
 

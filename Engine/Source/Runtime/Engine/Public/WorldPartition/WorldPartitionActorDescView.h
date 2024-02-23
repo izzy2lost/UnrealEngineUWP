@@ -74,9 +74,6 @@ public:
 
 	ENGINE_API FName GetActorLabelOrName() const;
 
-	UE_DEPRECATED(5.2, "ShouldValidateRuntimeGrid is deprecated and should not be used.")
-		ENGINE_API bool ShouldValidateRuntimeGrid() const;
-
 	ENGINE_API void SetForcedNonSpatiallyLoaded();
 	ENGINE_API void SetForcedNoRuntimeGrid();
 	ENGINE_API void SetForcedNoDataLayers();
