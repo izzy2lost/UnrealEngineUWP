@@ -96,6 +96,7 @@ AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FStrin
 	FInvalidationDetails Details;
 	Details.All();
 	Details.Mix = InTextureGraph;
+	Details.bExporting = true;
 	auto Batch = JobBatch::Create(Details);
 	/// Update the mix so that the rendering Cycle gets populated
 	MixUpdateCyclePtr Cycle = Batch->GetCycle();

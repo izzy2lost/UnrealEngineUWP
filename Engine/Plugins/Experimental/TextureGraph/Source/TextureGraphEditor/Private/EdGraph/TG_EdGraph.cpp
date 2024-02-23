@@ -134,31 +134,34 @@ void UTG_EdGraph::RefreshEditorDetails() const
 
 void UTG_EdGraph::OnNodeCreateThumbnail(UTG_Node* InNode, const FTG_EvaluationContext* InContext)
 {
-	UTG_EdGraphNode* EdGraphNode = GetViewModelNode(InNode->GetId());
-	if (EdGraphNode)
+	if(!InContext->Cycle->GetDetails().bExporting)
 	{
-		TArray<UTG_Pin*> OutputPins;
-		InNode->GetOutputPins(OutputPins);
-		// Loop over all Output pins
-		for(UTG_Pin* Pin : OutputPins)
+		UTG_EdGraphNode* EdGraphNode = GetViewModelNode(InNode->GetId());
+		if (EdGraphNode)
 		{
-			check (Pin);
-			if (Pin->IsArgTexture())
+			TArray<UTG_Pin*> OutputPins;
+			InNode->GetOutputPins(OutputPins);
+			// Loop over all Output pins
+			for(UTG_Pin* Pin : OutputPins)
 			{
-				FTG_Texture OutTexture;
-				if(Pin->GetValue(OutTexture))
+				check (Pin);
+				if (Pin->IsArgTexture())
 				{
-					UMixInterface* Mix = InContext->Cycle->GetMix();
-					auto TargetId = InContext->TargetId;
-
-					if (!OutTexture.RasterBlob)
+					FTG_Texture OutTexture;
+					if(Pin->GetValue(OutTexture))
 					{
-						OutTexture = FTG_Texture::GetBlack();
+						UMixInterface* Mix = InContext->Cycle->GetMix();
+						auto TargetId = InContext->TargetId;
+
+						if (!OutTexture.RasterBlob)
+						{
+							OutTexture = FTG_Texture::GetBlack();
+						}
+
+						TiledBlobPtr ThumbBlob = T_Thumbnail::Bind(Mix, Pin, OutTexture.RasterBlob, TargetId);
+
+						CacheThumbBlob(Pin->GetId(), ThumbBlob);
 					}
-
-					TiledBlobPtr ThumbBlob = T_Thumbnail::Bind(Mix, Pin, OutTexture.RasterBlob, TargetId);
-
-					CacheThumbBlob(Pin->GetId(), ThumbBlob);
 				}
 			}
 		}
