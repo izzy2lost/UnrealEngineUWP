@@ -344,17 +344,6 @@ static void BuildSingleAssetAddReplaceActorMenu(FToolMenuSection& Section, const
 		return;
 	}
 
-#if PLATFORM_MAC
-	// Cannot use asset tile if this is being shown in the Mac global menu bar, force a normal menu entry
-	if (ULevelEditorContextMenuContext* Context = Section.FindContext<ULevelEditorContextMenuContext>())
-	{
-		if (Context->ContextType == ELevelEditorMenuContext::MainMenu)
-		{
-			bUseAssetTile = false;
-		}
-	}
-#endif
-
 	if ( AssetMenuOptions.Num() == 1 )
 	{
 		const FActorFactoryAssetProxy::FMenuItem& MenuItem = AssetMenuOptions[0];
