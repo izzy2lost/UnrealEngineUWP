@@ -248,6 +248,7 @@ private:
 	TArrayView<const UActorDescContainerInstance* const> GetExternalDataLayerContainerInstances() const;
 	TArrayView<const UActorDescContainerInstance* const> GetContentBundleContainerInstances() const;
 	ENGINE_API virtual void OnCollectionChanged() override;
+	virtual bool ShouldRegisterDelegates() const override { return false; }
 
 	ECollectionType CollectionType;
 	int32 ExternalDataLayerStartIdx = INDEX_NONE;
