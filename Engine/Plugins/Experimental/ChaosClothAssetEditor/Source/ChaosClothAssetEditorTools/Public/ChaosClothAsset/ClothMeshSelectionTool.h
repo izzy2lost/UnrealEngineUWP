@@ -38,6 +38,10 @@ enum class EClothMeshSelectionToolActions
 	ImportFromCollection,
 	ImportSecondaryFromCollection,
 	TogglePrimarySecondary,
+
+	GrowSelection,
+	ShrinkSelection,
+	FloodSelection
 };
 
 UCLASS()
@@ -69,6 +73,24 @@ public:
 	void TogglePrimarySecondary()
 	{
 		PostAction(EClothMeshSelectionToolActions::TogglePrimarySecondary);
+	}
+
+	UFUNCTION(CallInEditor, Category = Selection)
+	void GrowSelection()
+	{
+		PostAction(EClothMeshSelectionToolActions::GrowSelection);
+	}
+
+	UFUNCTION(CallInEditor, Category = Selection)
+	void ShrinkSelection()
+	{
+		PostAction(EClothMeshSelectionToolActions::ShrinkSelection);
+	}
+
+	UFUNCTION(CallInEditor, Category = Selection)
+	void FloodSelection()
+	{
+		PostAction(EClothMeshSelectionToolActions::FloodSelection);
 	}
 
 };
@@ -163,7 +185,10 @@ private:
 
 	void ImportFromCollection(bool bImportFromSecondarySet);
 	void TogglePrimarySecondaryAction();
-	
 	void UpdatePrimarySecondaryMessage();
+
+	void GrowSelection();
+	void ShrinkSelection();
+	void FloodSelection();
 };
 
