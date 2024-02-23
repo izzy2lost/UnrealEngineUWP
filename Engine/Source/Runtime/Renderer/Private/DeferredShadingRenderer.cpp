@@ -1319,6 +1319,7 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 					);
 
 					OutViews.Add(SecondaryPackedView);
+					PrimaryNaniteViews.Add(SecondaryPackedView);
 				}
 			}
 

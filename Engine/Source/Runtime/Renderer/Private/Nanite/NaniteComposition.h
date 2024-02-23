@@ -43,6 +43,7 @@ void EmitCustomDepthStencilTargets(
 	FRDGBuilder& GraphBuilder,
 	const FScene& Scene,
 	const FViewInfo& View,
+	bool bDrawSceneViewsInOneNanitePass,
 	const FIntVector4& PageConstants,
 	FRDGBufferRef VisibleClustersSWHW,
 	FRDGBufferRef ViewsBuffer,
