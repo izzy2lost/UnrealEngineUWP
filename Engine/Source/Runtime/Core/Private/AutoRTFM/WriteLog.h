@@ -16,8 +16,8 @@ namespace AutoRTFM
         void* Copy;
 
         UE_AUTORTFM_FORCEINLINE FWriteLogEntry() = default;
-        UE_AUTORTFM_FORCEINLINE FWriteLogEntry(FWriteLogEntry&) = default;
-        UE_AUTORTFM_FORCEINLINE FWriteLogEntry& operator=(FWriteLogEntry&) = default;
+        UE_AUTORTFM_FORCEINLINE FWriteLogEntry(const FWriteLogEntry&) = default;
+        UE_AUTORTFM_FORCEINLINE FWriteLogEntry& operator=(const FWriteLogEntry&) = default;
 
         UE_AUTORTFM_FORCEINLINE explicit FWriteLogEntry(void* Original, size_t Size, void* Copy) :
             OriginalAndSize(Original), Copy(Copy)

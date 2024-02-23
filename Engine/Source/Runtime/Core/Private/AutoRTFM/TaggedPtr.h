@@ -58,7 +58,7 @@ namespace AutoRTFM
 			return *this;
 		}
 
-		UE_AUTORTFM_FORCEINLINE TTaggedPtr& operator=(TTaggedPtr& Other)
+		UE_AUTORTFM_FORCEINLINE TTaggedPtr& operator=(const TTaggedPtr& Other)
 		{
 			Payload = Other.Payload;
 			return *this;
@@ -158,7 +158,7 @@ namespace AutoRTFM
 			return *this;
 		}
 
-		UE_AUTORTFM_FORCEINLINE TTaggedPtr& operator=(TTaggedPtr& Other)
+		UE_AUTORTFM_FORCEINLINE TTaggedPtr& operator=(const TTaggedPtr& Other)
 		{
 			Payload = Other.Payload;
 			return *this;

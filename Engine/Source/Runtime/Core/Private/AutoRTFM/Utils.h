@@ -45,11 +45,18 @@ template<size_t A, size_t B> struct PrettyStaticAssert final
 
 } // namespace AutoRTFM
 
-#define ASSERT(exp) do { if (UNLIKELY(!(exp))) { UE_DEBUG_BREAK(); PrettyAbort(__FILE__, __LINE__, __PRETTY_FUNCTION__, #exp); } } while (false)
-
-
-#if defined(__has_feature) && __has_feature(address_sanitizer)
-#define AUTORTFM_NO_ASAN [[clang::no_sanitize("address")]]
+#if defined(_MSC_VER) && !defined(__clang__)
+	#define ASSERT(exp) do { if (UNLIKELY(!(exp))) { UE_DEBUG_BREAK(); PrettyAbort(__FILE__, __LINE__, __FUNCSIG__, #exp); } } while (false)
 #else
-#define AUTORTFM_NO_ASAN
+	#define ASSERT(exp) do { if (UNLIKELY(!(exp))) { UE_DEBUG_BREAK(); PrettyAbort(__FILE__, __LINE__, __PRETTY_FUNCTION__, #exp); } } while (false)
+#endif
+
+#if defined(__has_feature)
+	#if __has_feature(address_sanitizer)
+		#define AUTORTFM_NO_ASAN [[clang::no_sanitize("address")]]
+	#endif
+#endif
+
+#if !defined(AUTORTFM_NO_ASAN)
+	#define AUTORTFM_NO_ASAN
 #endif
