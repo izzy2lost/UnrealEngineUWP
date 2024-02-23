@@ -7,6 +7,15 @@
 
 namespace Chaos
 {
+	namespace CVars
+	{
+		float Chaos_CharacterGroundConstraint_InputMovementThreshold = 0.1f;
+		FAutoConsoleVariableRef CVarChaos_CharacterGroundConstraint_InputMovementThreshold(TEXT("p.Chaos.CharacterGroundConstraint.InputMovementThreshold"), Chaos_CharacterGroundConstraint_InputMovementThreshold, TEXT("Minimum per frame input movement distance in cm."));
+		
+		float Chaos_CharacterGroundConstraint_ExternalMovementThreshold = 2.0f;
+		FAutoConsoleVariableRef CVarChaos_CharacterGroundConstraint_ExternalMovementThreshold(TEXT("p.Chaos.CharacterGroundConstraint.ExternalMovementThreshold"), Chaos_CharacterGroundConstraint_ExternalMovementThreshold, TEXT("If distance moved is less than this then retain current movement target relative to ground."));
+	}
+	
 	FCharacterGroundConstraintContainer::FCharacterGroundConstraintContainer()
 		: Base(FCharacterGroundConstraintHandle::StaticType())
 		, ConstraintPool(16, 0)
