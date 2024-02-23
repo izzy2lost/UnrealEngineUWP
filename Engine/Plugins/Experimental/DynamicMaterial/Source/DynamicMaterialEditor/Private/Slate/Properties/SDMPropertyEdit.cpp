@@ -2,6 +2,7 @@
 
 #include "Slate/Properties/SDMPropertyEdit.h"
 #include "Components/DMMaterialValue.h"
+#include "DMPrivate.h"
 #include "DMWorldSubsystem.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailRowMenuContext.h"
@@ -13,7 +14,6 @@
 #include "IDetailKeyframeHandler.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
-#include "ScopedTransaction.h"
 #include "Slate/SDMEditor.h"
 #include "Slate/SDMSlot.h"
 #include "Slate/SDMComponentEdit.h"
@@ -409,7 +409,7 @@ void SDMPropertyEdit::StartTransaction(FText InDescription)
 		}
 	}
 
-	ScrubbingTransaction = MakeShared<FScopedTransaction>(InDescription);
+	ScrubbingTransaction = MakeShared<FDMScopedUITransaction>(InDescription);
 
 	if (IsValid(Object))
 	{

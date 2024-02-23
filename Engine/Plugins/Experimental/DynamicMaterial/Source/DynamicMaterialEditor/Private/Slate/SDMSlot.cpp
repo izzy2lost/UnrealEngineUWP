@@ -32,7 +32,6 @@
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Properties/Editors/SDMPropertyEditOpacity.h"
-#include "ScopedTransaction.h"
 #include "Slate/Layers/SDMSlotLayerItem.h"
 #include "Slate/Layers/SDMSlotLayerView.h"
 #include "Slate/Properties/SDMMaterialProperty.h"
@@ -336,7 +335,7 @@ void SDMSlot::OnSourceBlendTypedSelected(const TSubclassOf<UDMMaterialStageBlend
 			{
 				if (UDMMaterialStage* BaseStage = BaseStageWidget->GetStage())
 				{
-					FScopedTransaction Transaction(LOCTEXT("SetStageBlendMode", "Material Designer Set Blend Mode"));
+					FDMScopedUITransaction Transaction(LOCTEXT("SetStageBlendMode", "Material Designer Set Blend Mode"));
 					BaseStage->Modify();
 					BaseStage->ChangeSource<UDMMaterialStageBlend>(InNewItem);
 
@@ -982,7 +981,7 @@ void SDMSlot::StartTransaction(const FText InDescription)
 		return;
 	}
 
-	ScrubbingTransaction = MakeShared<FScopedTransaction>(InDescription);
+	ScrubbingTransaction = MakeShared<FDMScopedUITransaction>(InDescription);
 }
 
 void SDMSlot::EndTransaction()
@@ -1171,7 +1170,7 @@ void SDMSlot::RemoveLayerByIndex(const int32 InLayerIndex, const bool bInSelectN
 		return;
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("RemoveLayer", "Material Designer Remove Layer"));
+	FDMScopedUITransaction Transaction(LOCTEXT("RemoveLayer", "Material Designer Remove Layer"));
 	Slot->Modify();
 	Slot->RemoveLayer(LayerToRemove);
 
@@ -1218,7 +1217,7 @@ void SDMSlot::RemoveSlot()
 	{
 		if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
 		{
-			FScopedTransaction Transaction(LOCTEXT("RemoveSlot", "Material Designer Remove Slot"));
+			FDMScopedUITransaction Transaction(LOCTEXT("RemoveSlot", "Material Designer Remove Slot"));
 			ModelEditorOnlyData->Modify();
 			ModelEditorOnlyData->RemoveSlot(Slot->GetIndex());
 
@@ -1246,7 +1245,7 @@ void SDMSlot::AddPropertyToSlot(EDMMaterialPropertyType Property)
 		return;
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("AssignPropertyToSlot", "Assign Property To Slot"));
+	FDMScopedUITransaction Transaction(LOCTEXT("AssignPropertyToSlot", "Assign Property To Slot"));
 	ModelEditorOnlyData->Modify();
 	ModelEditorOnlyData->AssignMaterialPropertyToSlot(Property, Slot);
 }
@@ -1275,7 +1274,7 @@ UDMMaterialLayerObject* SDMSlot::AddNewLayer(UDMMaterialStage* InNewBaseStage, U
 	{
 		const FDMUpdateGuard Guard;
 
-		FScopedTransaction Transaction(LOCTEXT("AddLayer", "Material Designer Add Layer"));
+		FDMScopedUITransaction Transaction(LOCTEXT("AddLayer", "Material Designer Add Layer"));
 		Slot->Modify();
 
 		EDMMaterialPropertyType MaterialProperty = EDMMaterialPropertyType::None;
@@ -1450,7 +1449,7 @@ void SDMSlot::AddNewLayer_Expression(TSubclassOf<UDMMaterialStageExpression> InE
 	}
 
 	// Extra transaction here because there are changes to the slot afterwards.
-	FScopedTransaction Transaction(LOCTEXT("AddLayerExpression", "Material Designer Add Layer (Expression)"));
+	FDMScopedUITransaction Transaction(LOCTEXT("AddLayerExpression", "Material Designer Add Layer (Expression)"));
 	Slot->Modify();
 
 	UDMMaterialStage* NewStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());

@@ -24,6 +24,7 @@ class UDMMaterialStageInputValue;
 class UDMMaterialValue;
 class UDMMaterialValueFloat1;
 enum class EDMMaterialLayerStage : uint8;
+struct FDMScopedUITransaction;
 struct FPropertyChangedEvent;
 
 class SDMSlot : public SCompoundWidget
@@ -103,7 +104,7 @@ protected:
 
 	TSharedPtr<SDMSlotLayerView> LayerView;
 
-	TSharedPtr<FScopedTransaction> ScrubbingTransaction;
+	TSharedPtr<FDMScopedUITransaction> ScrubbingTransaction;
 	float OriginalOpacity;
 
 	TWeakObjectPtr<UDMMaterialStageInputValue> SelectedOpacityStageInputValue;

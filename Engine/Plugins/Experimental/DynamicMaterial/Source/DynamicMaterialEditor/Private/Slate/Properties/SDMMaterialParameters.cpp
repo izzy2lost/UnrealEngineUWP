@@ -4,12 +4,12 @@
 #include "Components/DMMaterialParameter.h"
 #include "Components/DMMaterialValue.h"
 #include "DetailLayoutBuilder.h"
+#include "DMPrivate.h"
 #include "DMValueDefinition.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "DynamicMaterialModule.h"
 #include "Model/DynamicMaterialModel.h"
-#include "ScopedTransaction.h"
 #include "Slate/Properties/SDMDetailsGrid.h"
 #include "SlateOptMacros.h"
 #include "Styling/StyleColors.h"
@@ -240,7 +240,7 @@ FReply SDMMaterialParameters::OnAddValueButtonClicked(EDMValueType Type)
 		return FReply::Unhandled();
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("AddGlobalValue", "Add Global Value"));
+	FDMScopedUITransaction Transaction(LOCTEXT("AddGlobalValue", "Add Global Value"));
 	MaterialModel->Modify();
 	MaterialModel->AddValue(Type);
 
@@ -269,7 +269,7 @@ FReply SDMMaterialParameters::OnRemoveValueButtonClicked(int32 Index)
 		return FReply::Unhandled();
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("RemoveGlobalValue", "Remove Global Value"));
+	FDMScopedUITransaction Transaction(LOCTEXT("RemoveGlobalValue", "Remove Global Value"));
 	MaterialModel->Modify();
 	MaterialModel->RemoveValueByIndex(Index);
 
@@ -327,7 +327,7 @@ void SDMMaterialParameters::OnAcceptValueNameChanged(const FText& InNewName, int
 
 	const TArray<UDMMaterialValue*>& Values = ModelWeak->GetValues();
 
-	FScopedTransaction Transaction(LOCTEXT("SetGlobalValueName", "Set Global Value Name"));
+	FDMScopedUITransaction Transaction(LOCTEXT("SetGlobalValueName", "Set Global Value Name"));
 	Values[Index]->Modify();
 
 	if (UDMMaterialParameter* Parameter = Values[Index]->GetParameter())

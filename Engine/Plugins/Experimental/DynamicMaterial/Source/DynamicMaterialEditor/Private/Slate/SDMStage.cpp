@@ -12,12 +12,12 @@
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
+#include "DMPrivate.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "DragDrop/DMStageDragDropOperation.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "Engine/Texture.h"
-#include "ScopedTransaction.h"
 #include "SDMEditor.h"
 #include "Slate/Previews/SDMStagePreview.h"
 #include "Slate/SMaterialToolTip.h"
@@ -557,7 +557,7 @@ void SDMStage::HandleAssetDragDropOperation(FAssetDragDropOp& AssetDragDropOpera
 		return;
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("DragTextureOntoStage", "Material Designer Drag Texture onto Stage"), !FDMInitializationGuard::IsInitializing());
+	FDMScopedUITransaction Transaction(LOCTEXT("DragTextureOntoStage", "Material Designer Drag Texture onto Stage"), !FDMInitializationGuard::IsInitializing());
 	UDMMaterialValueTexture* TextureValue = nullptr;
 
 	DraggedOverStage->Modify();

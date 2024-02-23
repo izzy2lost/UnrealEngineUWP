@@ -9,11 +9,11 @@
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/SCompoundWidget.h"
 
-class FScopedTransaction;
 class SDMComponentEdit;
 class SHorizontalBox;
 class UDMMaterialValue;
 enum class ECheckBoxState : uint8;
+struct FDMScopedUITransaction;
 
 /**
  * Material Designer Property Edit
@@ -52,7 +52,7 @@ protected:
 	TWeakObjectPtr<UDMMaterialValue> PropertyMaterialValue;
 
 	FProperty* Property = nullptr;
-	TSharedPtr<FScopedTransaction> ScrubbingTransaction;
+	TSharedPtr<FDMScopedUITransaction> ScrubbingTransaction;
 
 	static void CreateKey(TWeakObjectPtr<UDMMaterialValue> InValueWeak);
 

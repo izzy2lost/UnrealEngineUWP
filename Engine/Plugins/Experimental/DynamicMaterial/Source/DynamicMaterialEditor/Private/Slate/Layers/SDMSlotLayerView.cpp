@@ -8,7 +8,6 @@
 #include "DynamicMaterialEditorSettings.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Menus/DMMaterialSlotLayerMenus.h"
-#include "ScopedTransaction.h"
 #include "SDMLayerEffectsItem.h"
 #include "Slate/Layers/SDMSlotLayerItem.h"
 #include "Slate/SDMSlot.h"
@@ -243,7 +242,7 @@ void SDMSlotLayerView::ExecuteMoveLayer(int32 InOffset)
 
 	if (UDMMaterialLayerObject* Layer = Slot->GetLayer(SelectedSlotLayerIndex))
 	{
-		FScopedTransaction Transaction(LOCTEXT("MoveLayer", "Material Designer Move Layer"));
+		FDMScopedUITransaction Transaction(LOCTEXT("MoveLayer", "Material Designer Move Layer"));
 		Slot->Modify();
 
 		if (Slot->MoveLayer(Layer, NewSlotIndex))
@@ -336,7 +335,7 @@ void SDMSlotLayerView::OnLayerItemSelectionChanged(TSharedPtr<FDMMaterialLayerRe
 
 	TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin();
 
-	FScopedTransaction Transaction(LOCTEXT("SelectLayer", "Material Designer Select Layer"));
+	FDMScopedUITransaction Transaction(LOCTEXT("SelectLayer", "Material Designer Select Layer"));
 
 	for (int32 LayerItemIdx = 0; LayerItemIdx < LayerItems.Num(); ++LayerItemIdx)
 	{
@@ -712,7 +711,7 @@ void SDMSlotLayerView::Tick(const FGeometry& AllottedGeometry, const double InCu
 
 	if (bPostRegenSelect && LayerItems.IsValidIndex(PostRegenSelectedLayerIndex))
 	{
-		FScopedTransaction Transaction(LOCTEXT("SelectLayer", "Material Designer Select Layer"));
+		FDMScopedUITransaction Transaction(LOCTEXT("SelectLayer", "Material Designer Select Layer"));
 
 		for (const TWeakObjectPtr<UDMMaterialStage>& SelectedStageWeak : PostRegenSelectedStages)
 		{

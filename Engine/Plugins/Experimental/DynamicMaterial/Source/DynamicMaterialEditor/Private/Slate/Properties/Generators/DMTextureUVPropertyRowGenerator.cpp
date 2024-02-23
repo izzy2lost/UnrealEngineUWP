@@ -4,10 +4,10 @@
 #include "Components/DMMaterialComponent.h"
 #include "Components/DMTextureUV.h"
 #include "DMEDefs.h"
+#include "DMPrivate.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
-#include "ScopedTransaction.h"
 #include "Slate/SDMEditor.h"
 #include "Slate/Properties/Editors/SDMPropertyEditFloat.h"
 #include "Slate/Properties/Editors/SDMPropertyEditVector.h"
@@ -361,7 +361,7 @@ TSharedRef<SWidget> UE::DynamicMaterialEditor::Private::CreateMirrorExtensionBut
 						{
 							if (TextureUV->GetMirrorOnX() || TextureUV->GetMirrorOnY())
 							{
-								FScopedTransaction Transaction(LOCTEXT("ResetMirror", "Reset Texture UV Mirror to default."));
+								FDMScopedUITransaction Transaction(LOCTEXT("ResetMirror", "Reset Texture UV Mirror to default."));
 								TextureUV->Modify();
 								TextureUV->SetMirrorOnX(false);
 								TextureUV->SetMirrorOnY(false);

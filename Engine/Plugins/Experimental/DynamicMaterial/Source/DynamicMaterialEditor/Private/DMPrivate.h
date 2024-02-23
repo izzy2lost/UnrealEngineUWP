@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "HAL/Platform.h"
+#include "ScopedTransaction.h"
 #include "Slate/SDMSlot.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -29,7 +30,7 @@ namespace UE::DynamicMaterialEditor::Private
 
 	bool IsCustomMaterialProperty(EDMMaterialPropertyType InMaterialProperty);
 
-	void LogError(const FString& InMessage, bool bInToast = false);
+	void LogError(const FString& InMessage, bool bInToast = true);
 }
 
 struct FDMMaterialLayerReference
@@ -45,4 +46,12 @@ struct FDMMaterialLayerReference
 	bool IsBaseBeingEdited() const;
 	bool IsMaskEnabled() const;
 	bool IsMaskBeingEdited() const;
+};
+
+struct FDMScopedUITransaction
+{
+	FScopedTransaction Transaction;
+	TGuardValue<bool> UIFeedbackGuard;
+
+	FDMScopedUITransaction(const FText& InSessionName, bool bInShouldActuallyTransact = true);
 };

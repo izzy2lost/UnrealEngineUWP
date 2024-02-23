@@ -15,6 +15,7 @@
 #include "CustomDetailsViewArgs.h"
 #include "CustomDetailsViewModule.h"
 #include "CustomDetailsViewSequencer.h"
+#include "DMPrivate.h"
 #include "DetailLayoutBuilder.h"
 #include "DMEDefs.h"
 #include "DMWorldSubsystem.h"
@@ -35,7 +36,6 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
-#include "ScopedTransaction.h"
 #include "Slate/Properties/Editors/SDMPropertyEditBool.h"
 #include "Slate/Properties/Editors/SDMPropertyEditColor.h"
 #include "Slate/Properties/Editors/SDMPropertyEditEnum.h"
@@ -451,7 +451,7 @@ TSharedRef<SWidget> SDMComponentEdit::CreateExtensionButtons(const TSharedPtr<SW
 
 					if (Outers.IsEmpty() == false && IsValid(Outers[0]))
 					{
-						FScopedTransaction Transaction(LOCTEXT("ResetValue", "Reset Value to default."));
+						FDMScopedUITransaction Transaction(LOCTEXT("ResetValue", "Reset Value to default."));
 
 						if (FProperty* Property = PropertyHandle->GetProperty())
 						{

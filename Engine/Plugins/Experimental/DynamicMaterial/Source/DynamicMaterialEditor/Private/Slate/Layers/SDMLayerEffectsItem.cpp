@@ -4,9 +4,9 @@
 #include "Components/DMMaterialEffect.h"
 #include "Components/DMMaterialEffectStack.h"
 #include "Components/DMMaterialStage.h"
+#include "DMPrivate.h"
 #include "DragDrop/DMLayerEffectsDragDropOperation.h"
 #include "DynamicMaterialEditorStyle.h"
-#include "ScopedTransaction.h"
 #include "Slate/SDMStage.h"
 #include "SlateOptMacros.h"
 #include "Widgets/Images/SImage.h"
@@ -343,7 +343,7 @@ FReply SDMLayerEffectsItem::OnLayerBypassButtonClick()
 	{
 		if (UDMMaterialEffect* Effect = LayerItem->MaterialEffectWeak.Get())
 		{
-			FScopedTransaction Transaction(LOCTEXT("ToggleEffectEnabled", "Material Designer Toggle Effect"));
+			FDMScopedUITransaction Transaction(LOCTEXT("ToggleEffectEnabled", "Material Designer Toggle Effect"));
 			Effect->Modify();
 			Effect->SetEnabled(!Effect->IsEnabled());
 		}
@@ -379,7 +379,7 @@ FReply SDMLayerEffectsItem::OnLayerRemoveButtonClick()
 		{
 			if (UDMMaterialEffectStack* EffectStack = Effect->GetEffectStack())
 			{
-				FScopedTransaction Transaction(LOCTEXT("RemoveEffect", "Material Designer Remove Effect"));
+				FDMScopedUITransaction Transaction(LOCTEXT("RemoveEffect", "Material Designer Remove Effect"));
 				EffectStack->Modify();
 				EffectStack->RemoveEffect(Effect);
 			}

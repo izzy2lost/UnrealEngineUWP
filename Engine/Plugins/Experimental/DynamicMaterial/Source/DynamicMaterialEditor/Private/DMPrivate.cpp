@@ -69,11 +69,13 @@ namespace UE::DynamicMaterialEditor::Private
 		return (InMaterialProperty >= EDMMaterialPropertyType::Custom1 && InMaterialProperty <= EDMMaterialPropertyType::Custom4);
 	}
 
+	static bool bAllowUIFeedback = false;
+
 	void LogError(const FString& InMessage, bool bInToast)
 	{
 		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("%s"), *InMessage);
 
-		if (bInToast)
+		if (bAllowUIFeedback && bInToast)
 		{
 			FNotificationInfo Info(FText::FromString(InMessage));
 			Info.ExpireDuration = 5.0f;
@@ -135,4 +137,10 @@ bool FDMMaterialLayerReference::IsMaskBeingEdited() const
 	}
 
 	return false;
+}
+
+FDMScopedUITransaction::FDMScopedUITransaction(const FText& InSessionName, bool bInShouldActuallyTransact)
+	: Transaction(FScopedTransaction(InSessionName, bInShouldActuallyTransact))
+	, UIFeedbackGuard(TGuardValue<bool>(UE::DynamicMaterialEditor::Private::bAllowUIFeedback, true))
+{
 }

@@ -12,6 +12,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "DetailLayoutBuilder.h"
 #include "DMBlueprintFunctionLibrary.h"
+#include "DMPrivate.h"
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorCommands.h"
 #include "DynamicMaterialEditorModule.h"
@@ -32,7 +33,6 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
-#include "ScopedTransaction.h"
 #include "SEnumCombo.h"
 #include "Slate/Properties/Editors/SDMPropertyEditOpacity.h"
 #include "Slate/Properties/SDMBlendMode.h"
@@ -1074,7 +1074,7 @@ void SDMEditor::OnOpacitySlotCheckStateChanged_NoSlot(ECheckBoxState InCheckStat
 		{
 			if (UDMMaterialLayerObject* Layer = NewSlot->GetLayer(0))
 			{
-				FScopedTransaction Transaction(LOCTEXT("AddOpacitySlot", "Material Designer Add Opacity Slot"));
+				FDMScopedUITransaction Transaction(LOCTEXT("AddOpacitySlot", "Material Designer Add Opacity Slot"));
 				Layer->Modify();
 
 				switch (ModelEditorOnlyData->GetBlendMode())
@@ -1166,7 +1166,7 @@ void SDMEditor::InsertNewLayer()
 			if (UDMMaterialSlot* Slot = SelectedLayer->GetSlot())
 			{
 				// Added here because stuff is done after the layer is added
-				FScopedTransaction Transaction(LOCTEXT("InsertNewLayer", "Material Designer Insert Layer"));
+				FDMScopedUITransaction Transaction(LOCTEXT("InsertNewLayer", "Material Designer Insert Layer"));
 				Slot->Modify();
 
 				SlotWidgets[ActiveSlotIndex]->AddNewLayer_Expression(
@@ -1236,7 +1236,7 @@ void SDMEditor::PasteLayer()
 
 			if (UDMMaterialLayerObject* PastedLayer = UDMMaterialLayerObject::DeserializeFromString(Slot, SerializeString))
 			{
-				FScopedTransaction Transaction(LOCTEXT("PasteLayer", "Material Designer Paste Layer"));
+				FDMScopedUITransaction Transaction(LOCTEXT("PasteLayer", "Material Designer Paste Layer"));
 				Slot->Modify();
 				Slot->PasteLayer(PastedLayer);
 
@@ -1258,7 +1258,7 @@ void SDMEditor::DuplicateSelectedLayer()
 	FPlatformApplicationMisc::ClipboardPaste(PastedText);
 
 	// Added here to set the transaction description
-	FScopedTransaction Transaction(LOCTEXT("DuplicateLayer", "Material Designer Duplicate Layer"));
+	FDMScopedUITransaction Transaction(LOCTEXT("DuplicateLayer", "Material Designer Duplicate Layer"));
 
 	CopySelectedLayer();
 	PasteLayer();
@@ -1387,7 +1387,7 @@ void SDMEditor::OnDomainChanged(const EMaterialDomain InDomain)
 {
 	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
 	{
-		FScopedTransaction Transaction(LOCTEXT("ChangeDomain", "Material Designer Change Domain"));
+		FDMScopedUITransaction Transaction(LOCTEXT("ChangeDomain", "Material Designer Change Domain"));
 		ModelEditorOnlyData->Modify();
 		ModelEditorOnlyData->SetDomain(InDomain);
 
@@ -1419,7 +1419,7 @@ void SDMEditor::OnBlendModeChanged(const EBlendMode InBlendMode)
 {
 	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
 	{
-		FScopedTransaction Transaction(LOCTEXT("ChangeBlendMode", "Material Designer Change Blend Mode"));
+		FDMScopedUITransaction Transaction(LOCTEXT("ChangeBlendMode", "Material Designer Change Blend Mode"));
 		ModelEditorOnlyData->Modify();
 		ModelEditorOnlyData->SetBlendMode(InBlendMode);
 
@@ -1457,7 +1457,7 @@ void SDMEditor::OnMaterialUnlitChanged(const ECheckBoxState InNewCheckState)
 {
 	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
 	{
-		FScopedTransaction Transaction(LOCTEXT("ChangeShadingModel", "Material Designer Change Shading Model"));
+		FDMScopedUITransaction Transaction(LOCTEXT("ChangeShadingModel", "Material Designer Change Shading Model"));
 		ModelEditorOnlyData->Modify();
 		ModelEditorOnlyData->SetShadingModel(InNewCheckState == ECheckBoxState::Checked
 			? EDMMaterialShadingModel::Unlit : EDMMaterialShadingModel::DefaultLit);
@@ -1507,7 +1507,7 @@ void SDMEditor::OnMaterialAnimatedChanged(const ECheckBoxState InNewCheckState)
 {
 	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
 	{
-		FScopedTransaction Transaction(LOCTEXT("ToggleAnimated", "Material Designer Toggle Animated"));
+		FDMScopedUITransaction Transaction(LOCTEXT("ToggleAnimated", "Material Designer Toggle Animated"));
 		ModelEditorOnlyData->Modify();
 		ModelEditorOnlyData->SetPixelAnimationFlag(InNewCheckState == ECheckBoxState::Checked);
 	}

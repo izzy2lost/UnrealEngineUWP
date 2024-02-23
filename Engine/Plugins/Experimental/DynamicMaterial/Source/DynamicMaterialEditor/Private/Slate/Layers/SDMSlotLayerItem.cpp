@@ -17,7 +17,6 @@
 #include "Materials/MaterialFunctionInterface.h"
 #include "Menus/DMMaterialSlotLayerAddEffectMenus.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
-#include "ScopedTransaction.h"
 #include "Slate/Layers/SDMLayerEffectsView.h"
 #include "Slate/SDMSlot.h"
 #include "Slate/SDMStage.h"
@@ -694,7 +693,7 @@ FReply SDMSlotLayerItem::OnLayerItemAcceptDrop(const FDragDropEvent& InDragDropE
 		}
 
 		{
-			FScopedTransaction Transaction(LOCTEXT("MoveLayer", "Move Material Designer Layer"));
+			FDMScopedUITransaction Transaction(LOCTEXT("MoveLayer", "Move Material Designer Layer"));
 			Slot->Modify();
 			Slot->MoveLayer(DraggedLayer, ThisLayerIndex);
 
@@ -996,7 +995,7 @@ FReply SDMSlotLayerItem::OnStageAcceptDrop(const FDragDropEvent& InDragDropEvent
 	}
 
 	{
-		FScopedTransaction Transaction(LOCTEXT("MoveLayer", "Move Material Designer Layer"));
+		FDMScopedUITransaction Transaction(LOCTEXT("MoveLayer", "Move Material Designer Layer"));
 		Slot->Modify();
 		Slot->MoveLayer(DraggedLayerItem, ThisBaseStageIndex);
 	}
@@ -1030,7 +1029,7 @@ FReply SDMSlotLayerItem::OnCreateLayerBypassButtonClicked()
 {
 	if (UDMMaterialLayerObject* Layer = GetLayer())
 	{
-		FScopedTransaction Transaction(LOCTEXT("ToggledLayerVisibility", "Toggle Material Designer Layer Visibility"));
+		FDMScopedUITransaction Transaction(LOCTEXT("ToggledLayerVisibility", "Toggle Material Designer Layer Visibility"));
 		Layer->Modify();
 		Layer->SetEnabled(!Layer->IsEnabled());
 
@@ -1064,12 +1063,12 @@ FReply SDMSlotLayerItem::OnBaseToggleButtonClicked()
 
 		if (UDMMaterialStage* Stage = Layer->GetStage(StageType))
 		{
-			FScopedTransaction Transaction(LOCTEXT("ToggleBaseStageEnabled", "Toggle Material Designer Base Stage Enabled"));
+			FDMScopedUITransaction Transaction(LOCTEXT("ToggleBaseStageEnabled", "Toggle Material Designer Base Stage Enabled"));
 			Stage->Modify();
 
 			if (!Stage->SetEnabled(!Stage->IsEnabled()))
 			{
-				Transaction.Cancel();
+				Transaction.Transaction.Cancel();
 			}
 		}
 	}
@@ -1098,12 +1097,12 @@ FReply SDMSlotLayerItem::OnLayerMaskToggleButtonClicked()
 
 		if (UDMMaterialStage* Stage = Layer->GetStage(StageType))
 		{
-			FScopedTransaction Transaction(LOCTEXT("ToggleMaskStageEnabled", "Toggle Material Designer Mask Stage Enabled"));
+			FDMScopedUITransaction Transaction(LOCTEXT("ToggleMaskStageEnabled", "Toggle Material Designer Mask Stage Enabled"));
 			Stage->Modify();
 
 			if (!Stage->SetEnabled(!Stage->IsEnabled()))
 			{
-				Transaction.Cancel();
+				Transaction.Transaction.Cancel();
 			}
 		}
 	}
@@ -1128,7 +1127,7 @@ FReply SDMSlotLayerItem::OnLayerLinkToggleButton()
 {
 	if (UDMMaterialLayerObject* Layer = GetLayer())
 	{
-		FScopedTransaction Transaction(LOCTEXT("UVLayerLinkToggle", "Toggle Material Designer Layer UV Link"));
+		FDMScopedUITransaction Transaction(LOCTEXT("UVLayerLinkToggle", "Toggle Material Designer Layer UV Link"));
 		Layer->Modify();
 		Layer->ToggleTextureUVLinkEnabled();
 
@@ -1259,7 +1258,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateLayerHeaderEditableText() const
 						{
 							if (UDMMaterialLayerObject* Layer = Stage->GetLayer())
 							{
-								FScopedTransaction Transaction(LOCTEXT("ChangeLayerName", "Material Designer Change Layer Name"));
+								FDMScopedUITransaction Transaction(LOCTEXT("ChangeLayerName", "Material Designer Change Layer Name"));
 								Layer->Modify();
 								Layer->SetLayerName(InText);
 							}
