@@ -562,4 +562,10 @@ namespace Chaos
 		GTPreSimCallbacks.GTPreSimCallbacks();
 		AdvanceTask.AdvanceSolver();
 	}
+
+	void FSolverTasksPTOnly::AdvanceSolver()
+	{
+		ProcessPushData.ProcessPushData();
+		AdvanceTask.AdvanceSolver();
+	}
 }
