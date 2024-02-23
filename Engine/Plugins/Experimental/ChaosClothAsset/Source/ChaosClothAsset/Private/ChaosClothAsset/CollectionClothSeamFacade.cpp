@@ -709,6 +709,17 @@ namespace UE::Chaos::ClothAsset
 			Index3D[2] = WeldingMappedValue(WeldingMap, Index3D[2]);
 		}
 
+		// Weld the deformer's SimIndices3D
+		for (TArray<FIntVector3>& SimIndices3D : Cloth.GetRenderDeformerSimIndices3D())
+		{
+			for (FIntVector3& Index3D : SimIndices3D)
+			{
+				Index3D[0] = WeldingMappedValue(WeldingMap, Index3D[0]);
+				Index3D[1] = WeldingMappedValue(WeldingMap, Index3D[1]);
+				Index3D[2] = WeldingMappedValue(WeldingMap, Index3D[2]);
+			}
+		}
+
 		// Weld maps
 		const TArray<FName> WeightMapNames = Cloth.GetWeightMapNames();
 		for (const FName& WeightMapName : WeightMapNames)

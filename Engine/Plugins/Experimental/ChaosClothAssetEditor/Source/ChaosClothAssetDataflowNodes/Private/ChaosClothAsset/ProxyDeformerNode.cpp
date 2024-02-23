@@ -429,7 +429,7 @@ TArray<FName> FChaosClothAssetProxyDeformerNode::GetSelectionFilterNames(Dataflo
 
 	for (int32 FilterSetIndex = 1; FilterSetIndex < NumFilterSets; ++FilterSetIndex)
 	{
-		SelectionFilterSets[FilterSetIndex] = FName(*GetValue(Context, &Non0SelectionFilterSets[FilterSetIndex]->StringValue));
+		SelectionFilterSets[FilterSetIndex] = FName(*GetValue(Context, &Non0SelectionFilterSets[FilterSetIndex - 1]->StringValue));
 	}
 	return SelectionFilterSets;
 }
