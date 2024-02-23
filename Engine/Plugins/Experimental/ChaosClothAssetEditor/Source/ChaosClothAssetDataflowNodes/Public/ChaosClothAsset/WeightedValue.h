@@ -157,3 +157,21 @@ struct FChaosClothAssetWeightedValueNonAnimatableNoLowHighRange
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
 	mutable FString WeightMap_Override = UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden;  // _Override has a special meaning to the property customization, mutable because this property is set while getting the original value
 };
+
+USTRUCT()
+struct FChaosClothAssetWeightedValueOverride
+{
+	GENERATED_BODY()
+
+	/**
+	 * Low value override.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DisplayName = "Low Weight", ChaosClothAssetShortName = "Lo"))
+	float Low = 1.f;
+
+	/**
+	 * High value override
+	 */
+	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DisplayName = "High Weight", ChaosClothAssetShortName = "Hi"))
+	float High = 1.f;
+};
