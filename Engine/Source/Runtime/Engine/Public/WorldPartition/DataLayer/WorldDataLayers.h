@@ -111,6 +111,8 @@ public:
 	ENGINE_API bool SupportsExternalPackageDataLayerInstances() const;
 	ENGINE_API bool IsUsingExternalPackageDataLayerInstances() const { return bUseExternalPackageDataLayerInstances; }
 	ENGINE_API bool SetUseExternalPackageDataLayerInstances(bool bInNewValue, bool bInInteractiveMode = false);
+
+	ENGINE_API bool CanReferenceDataLayerAsset(const UDataLayerAsset* InDataLayerAsset, FText* OutFailureReason) const;
 #endif
 
 	UE_DEPRECATED(5.4, "Use GetWorldPartitionWorldDataLayersName() instead.")

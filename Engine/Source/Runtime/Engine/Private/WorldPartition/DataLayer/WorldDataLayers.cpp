@@ -1329,6 +1329,22 @@ void AWorldDataLayers::UpdateAccelerationTable(const UDataLayerInstance* DataLay
 #endif
 
 #if WITH_EDITOR
+
+bool AWorldDataLayers::CanReferenceDataLayerAsset(const UDataLayerAsset* InDataLayerAsset, FText* OutFailureReason) const
+{
+	auto PassesAssetReferenceFiltering = [](const UObject* InReferencingObject, const UDataLayerAsset* InDataLayerAsset, FText* OutReason)
+	{
+		FAssetReferenceFilterContext AssetReferenceFilterContext;
+		AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(InReferencingObject));
+		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
+		return AssetReferenceFilter.IsValid() ? AssetReferenceFilter->PassesFilter(FAssetData(InDataLayerAsset), OutReason) : true;
+	};
+
+	const UExternalDataLayerAsset* RootExternalDataLayerAsset = GetRootExternalDataLayerAsset();
+	const UObject* ReferencingObject = RootExternalDataLayerAsset ? Cast<UObject>(RootExternalDataLayerAsset) : Cast<UObject>(this);
+	return PassesAssetReferenceFiltering(ReferencingObject, InDataLayerAsset, OutFailureReason);
+}
+
 void AWorldDataLayers::RemoveEditorDataLayers()
 {
 	TArray<UDataLayerInstance*> EditorDataLayers;
