@@ -328,6 +328,9 @@ public:
 	/** Ticks this application */
 	SLATE_API void Tick(ESlateTickType TickType = ESlateTickType::All);
 
+	/** Returns true if we are currently ticking the SlateApplication. */
+	SLATE_API bool IsTicking() const;
+
 	/** Pumps OS messages when a modal window or intra-frame debugging session exists */
 	SLATE_API void PumpMessages();
 
@@ -2022,6 +2025,9 @@ private:
 
 	/** Did we synthesize cursor input this frame? */
 	bool bSynthesizedCursorMove = false;
+	
+	/** Are we ticking the SlateApplication. */
+	bool bIsTicking = false;
 
 	/** Platform mouse movement event count. */
 	uint64 PlatformMouseMovementEvents = 0;
