@@ -144,6 +144,9 @@ private:
 	virtual bool HasAccept() const override { return true; }
 	virtual bool CanAccept() const override;
 
+	// IInteractiveToolCameraFocusAPI implementation
+	virtual FBox GetWorldSpaceFocusBox() override;
+
 	void SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject);
 	bool GetSelectedNodeInfo(FString& OutMapName, UE::Geometry::FGroupTopologySelection& OutSelection);
 	void UpdateSelectedNode();

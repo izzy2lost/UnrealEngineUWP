@@ -348,6 +348,13 @@ bool UClothMeshSelectionTool::CanAccept() const
 	return bAnyChangeMade;
 }
 
+FBox UClothMeshSelectionTool::GetWorldSpaceFocusBox()
+{
+	static constexpr bool bWorld = true;
+	return FBox(SelectionMechanic->GetSelectionBounds(bWorld));
+}
+
+
 void UClothMeshSelectionTool::SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject)
 {
 	ClothEditorContextObject = InClothEditorContextObject;

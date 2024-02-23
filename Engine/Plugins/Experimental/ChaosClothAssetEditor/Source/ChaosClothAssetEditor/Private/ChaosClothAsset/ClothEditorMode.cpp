@@ -1155,6 +1155,17 @@ FBox UChaosClothAssetEditorMode::SceneBoundingBox() const
 
 FBox UChaosClothAssetEditorMode::SelectionBoundingBox() const
 {
+	// if Tool supports custom Focus box, use that first
+	if (GetToolManager()->HasAnyActiveTool())
+	{
+		UInteractiveTool* const Tool = GetToolManager()->GetActiveTool(EToolSide::Mouse);
+		IInteractiveToolCameraFocusAPI* const FocusAPI = Cast<IInteractiveToolCameraFocusAPI>(Tool);
+		if (FocusAPI && FocusAPI->SupportsWorldSpaceFocusBox())
+		{
+			return FocusAPI->GetWorldSpaceFocusBox();
+		}
+	}
+
 	const USelection* const SelectedComponents = GetModeManager()->GetSelectedComponents();
 
 	if (DynamicMeshComponent && SelectedComponents->IsSelected(DynamicMeshComponent))
