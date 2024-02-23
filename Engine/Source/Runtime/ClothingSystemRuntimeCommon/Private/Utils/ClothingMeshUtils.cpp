@@ -99,7 +99,7 @@ namespace ClothingMeshUtils
 
 		const int32 NumTris = NumFilteredTriangles ? NumFilteredTriangles : Indices.Num() / 3;
 
-		if (NumTris > MinNumTrianglesForBVHCreation)
+		if (!NumFilteredTriangles && NumTris > MinNumTrianglesForBVHCreation)  // Don't use the BVH when using filtered triangle sets  TODO: Fix this
 		{
 			// This is not thread safe
 			if (!bHasValidBVH)
