@@ -84,6 +84,9 @@ public:
 	// Settings controlling whether and how to generate a simpler hull
 	TConvexHullSimplificationSettings<RealType> SimplificationSettings;
 
+	// Helper to compute the a convex hull and return only its volume. If the hull cannot be constructed, a volume of 0 will be returned.
+	GEOMETRYCORE_API static double ComputeVolume(const TArrayView<const TVector<RealType>> Vertices);
+
 	/**
 	 * Generate convex hull as long as input is not degenerate
 	 * If input is degenerate, this will return false, and caller can call GetDimension()

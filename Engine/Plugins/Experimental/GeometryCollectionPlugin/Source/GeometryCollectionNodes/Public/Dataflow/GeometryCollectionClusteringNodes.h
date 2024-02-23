@@ -72,6 +72,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = ClusterSize, meta = (DataflowInput, ClampMin = "0"))
 	float MinimumSize = 0;
 
+	/** Whether to favor clusters that have a convex shape. (Note: Does not support ByGrid clustering.)  */
+	UPROPERTY(EditAnywhere, Category = AutoCluster, meta = (EditCondition = "ClusterSizeMethod != EClusterSizeMethod::ByGrid"))
+	bool bPreferConvexity = false;
+
+	/** If > 0, cube root of maximum concave volume to add per cluster (ignoring concavity of individual parts) */
+	UPROPERTY(EditAnywhere, Category = AutoCluster, meta = (EditCondition = "bPreferConvexity && ClusterSizeMethod != EClusterSizeMethod::ByGrid"))
+	float ConcavityTolerance = 0;
+
 	/** If true, bones will only be added to the same cluster if they are physically connected (either directly, or via other bones in the same cluster) */
 	UPROPERTY(EditAnywhere, Category = AutoCluster, meta = (DisplayName = "Enforce Cluster Connectivity"))
 	bool AutoCluster = true;
@@ -104,6 +112,8 @@ public:
 		RegisterInputConnection(&ClusterGridDepth);
 		RegisterInputConnection(&ClusterGridHeight);
 		RegisterInputConnection(&MinimumSize);
+		RegisterInputConnection(&bPreferConvexity);
+		RegisterInputConnection(&ConcavityTolerance);
 
 		RegisterOutputConnection(&Collection, &Collection);
 	}

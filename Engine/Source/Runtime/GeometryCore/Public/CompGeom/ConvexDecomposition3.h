@@ -40,13 +40,33 @@ struct FNegativeSpaceSampleSettings
 		: TargetNumSamples(TargetNumSamples), MinSpacing(MinSpacing), ReduceRadiusMargin(ReduceRadiusMargin)
 	{}
 
-	enum class ESampleMethod
+	enum class ESampleMethod : uint8
 	{
 		// Place sample spheres in a uniform grid pattern
 		Uniform,
 		// Use voxel-based subtraction and offsetting methods to specifically target concavities
-		VoxelSearch
+		VoxelSearch,
+		// Use a variant of VoxelSearch that aims to limit negative space to the space that can be accessed by a ball of radius >= MinRadius
+		NavigableVoxelSearch
 	};
+
+	// Enum to manage settings configurations for FNegativeSpaceSampleSettings
+	enum class EConfigDefaults : uint8
+	{
+		Latest
+	};
+
+	// Note: Class member default values are held fixed to avoid changing results for existing callers
+	// Use this method to request newer, recommended defaults
+	void ApplyDefaults(EConfigDefaults Settings = EConfigDefaults::Latest)
+	{
+		SampleMethod = ESampleMethod::NavigableVoxelSearch;
+		MarchingCubesGridScale = 1.0;
+		MaxVoxelsPerDim = 1024;
+		MinSpacing = 0.0;
+		TargetNumSamples = 0;
+		VoxelExpandBoundsFactor = UE_DOUBLE_KINDA_SMALL_NUMBER;
+	}
 
 	// Method used to place samples
 	ESampleMethod SampleMethod = ESampleMethod::Uniform;
@@ -56,6 +76,9 @@ struct FNegativeSpaceSampleSettings
 
 	// Minimum desired spacing between sampling spheres; not a strictly enforced bound.
 	double MinSpacing = 3.0;
+	
+	// Whether to allow samples w/ center inside other negative space spheres
+	bool bAllowSamplesInsideSpheres = false;
 
 	// Space to allow between spheres and actual surface
 	double ReduceRadiusMargin = 3.0;
@@ -68,12 +91,24 @@ struct FNegativeSpaceSampleSettings
 	// Whether to require that all candidate sample locations identified by Voxel Search are covered by negative space samples, up to the specified Min Sample Spacing.
 	// Note: This takes priority over TargetNumSamples if the TargetNumSamples did not achieve the required coverage.
 	bool bRequireSearchSampleCoverage = false;
-	// Whether to only consider negative space that is connected to the bounding convex hull, i.e., to ignore hollow inner pockets of negative space that cannot be reached from the outside via a larger-than-ReduceRadiusMargin-wide path
+	// Whether to only consider negative space that is connected to the bounding convex hull, i.e., to ignore hollow inner pockets of negative space that cannot be reached from the outside (for VoxelSearch and Navigable methods)
 	bool bOnlyConnectedToHull = false;
 	// Maximum number of voxels to use per dimension, when performing VoxelSearch
 	int32 MaxVoxelsPerDim = 128;
 	// Attempt to keep negative space computation deterministic, at some additional runtime cost
 	bool bDeterministic = true;
+	// Scale factor for marching cubes grid used for VoxelSearch-based methods
+	double MarchingCubesGridScale = .5;
+
+	// Whether to allow samples to be added inside the mesh, based on winding number. Can enabled for non-solid meshes; note the convex decomposition should then set bTreatAsSolid to false as well.
+	bool bAllowSamplesInsideMesh = false;
+
+	// How much to expand the bounding box used for voxel search algorithms
+	double VoxelExpandBoundsFactor = 1.0;
+
+	// Optional function to define an obstacle SDF which the negative space should also stay out of. Can be used for example to ignore anything below a ground plane.
+	// Note: Assumed to be in world space
+	TFunction<double(FVector Pos)> OptionalObstacleSDF;
 
 	// @return the scale factor that has been applied by Rescale()
 	double GetAppliedScaleFactor() const
@@ -81,12 +116,20 @@ struct FNegativeSpaceSampleSettings
 		return AppliedScaleFactor;
 	}
 
+	UE_DEPRECATED(5.4, "Use SetResultTransform instead")
 	void Rescale(double ScaleFactor)
 	{
-		MinSpacing *= ScaleFactor;
-		ReduceRadiusMargin *= ScaleFactor;
-		MinRadius *= ScaleFactor;
-		AppliedScaleFactor *= ScaleFactor;
+		RescaleSettings(ScaleFactor);
+	}
+	
+	void SetResultTransform(FTransform InResultTransform)
+	{
+		RescaleSettings(ResultTransform.GetScale3D().X / InResultTransform.GetScale3D().X);
+		ResultTransform = InResultTransform;
+	}
+	FTransform GetResultTransform() const
+	{
+		return ResultTransform;
 	}
 
 	// Make sure the settings values are in valid ranges
@@ -98,11 +141,31 @@ struct FNegativeSpaceSampleSettings
 		MinRadius = FMath::Max(0.0, MinRadius);
 		MaxVoxelsPerDim = FMath::Clamp(MaxVoxelsPerDim, 4, 4096);
 	}
+
+	// helper to evaluate OptionalObstacleSDF for local positions
+	inline double ObstacleDistance(const FVector3d& LocalPos) const
+	{
+		checkSlow(OptionalObstacleSDF);
+		FVector3d WorldPos = ResultTransform.TransformPosition(LocalPos);
+		double WorldSD = OptionalObstacleSDF(WorldPos);
+		return WorldSD * AppliedScaleFactor;
+	}
 	
 private:
 
 	// Track how the settings have been rescaled
 	double AppliedScaleFactor = 1;
+
+	// Track how to transform back to the original space
+	FTransform ResultTransform = FTransform::Identity;
+	
+	void RescaleSettings(double ScaleFactor)
+	{
+		MinSpacing *= ScaleFactor;
+		ReduceRadiusMargin *= ScaleFactor;
+		MinRadius *= ScaleFactor;
+		AppliedScaleFactor *= ScaleFactor;
+	}
 };
 
 // Define a volume with a set of spheres
@@ -183,6 +246,12 @@ public:
 		}
 	}
 
+	void AddSphere(FVector3d InCenter, double InRadius)
+	{
+		Position.Add(InCenter);
+		Radius.Add(InRadius);
+	}
+
 private:
 	// Sphere centers
 	TArray<FVector3d> Position;
@@ -240,7 +309,7 @@ public:
 	 * @param Settings	Settings to use to find the negative space
 	 * @return			False on failure -- e.g., if there was no mesh available
 	 */
-	GEOMETRYCORE_API bool InitializeNegativeSpace(const FNegativeSpaceSampleSettings& Settings);
+	GEOMETRYCORE_API bool InitializeNegativeSpace(const FNegativeSpaceSampleSettings& Settings, TArrayView<const FVector3d> RequestedSamples = TArrayView<const FVector3d>());
 
 	//
 	// Settings
@@ -272,6 +341,16 @@ public:
 	// Larger values will cost more to run but can let the algorithm find a cleaner decomposition
 	int32 MaxConvexEdgePlanes = 50;
 
+	// Whether to, after each split, also detect whether a part is made up of disconnected pieces and further split them if so
+	bool bSplitDisconnectedComponents = true;
+
+	// Whether to treat the input mesh as a solid shape -- controls whether, e.g., a hole-fill is performed after splitting the mesh to close off the resulting parts
+	bool bTreatAsSolid = true;
+
+	// If greater than zero, we can 'inflate' the input shape by this amount along any degenerate axes in cases where the hull failed to construct due to the input being coplanar/colinear.
+	// Note: This should be less than the smallest tolerance used negative space spheres. Do not use this parameter to control minimum thickness of the output shapes; that can be better enforced later (after merges).
+	double ThickenAfterHullFailure = 0;
+
 
 	// If > 0, search for best merges will be restricted to a greedy local search after testing this many connections. Helpful when there are many potential merges.
 	int32 RestrictMergeSearchToLocalAfterTestNumConnections = -1;
@@ -296,10 +375,42 @@ public:
 	// Note: could return 0 if no splits were possible
 	// @param bCanSkipUnreliableGeoVolumes		if true, don't split hulls where we have questionable geometry volume results, unless there is no hull with good geometry volume results
 	// @param bOnlySplitIfNegativeSpaceCovered	if true, don't split hulls unless they overlap with some covered Negative Space (stored in the corresponding member variable)
-	GEOMETRYCORE_API int32 SplitWorst(bool bCanSkipUnreliableGeoVolumes = false, double ErrorTolerance = 0.0, bool bOnlySplitIfNegativeSpaceCovered = false);
+	// @param MinSplitSize						if > 0, don't split hulls with max bounds dimension lower than this
+	GEOMETRYCORE_API int32 SplitWorst(bool bCanSkipUnreliableGeoVolumes = false, double ErrorTolerance = 0.0, bool bOnlySplitIfNegativeSpaceCovered = false, double MinSplitSizeInWorldSpace = -1);
+	
+	struct FConvexPart;
+
+	struct FMergeSettings
+	{
+		// Desired number of output parts
+		int32 TargetNumParts = 1;
+		// If > 0, allow merging parts with error less than this tolerance
+		double ErrorTolerance = 0;
+		// Whether ErrorTolerance is allowed to keep merging below the TargetNumParts
+		bool bErrorToleranceOverridesNumParts = true;
+		// If > 0, maximum number of output parts; overrides ErrorTolerance and TargetNumParts if they would create more parts than this
+		int32 MaxOutputHulls = -1;
+		
+		// Optionally specify a minimum thickness (in cm) for convex parts; parts below this thickness will always be merged away. Overrides TargetNumParts and ErrorTolerance when needed.
+		double MinThicknessTolerance = 0;
+		// Allow the algorithm to discard underlying geometry once it will no longer be used, resulting in a smaller representation and faster merges
+		bool bAllowCompact = true;
+		// Require all hulls to have associated triangles after MergeBest is completed. (If using InitializeFromHulls, will need to triangulate any un-merged hulls.)
+		bool bRequireHullTriangles = false;
+		
+		// Optional representation of negative space that should not be covered by merges
+		const FSphereCovering* OptionalNegativeSpace = nullptr;
+		// Optional transform from space of the convex hulls into the space of the sphere covering; if not provided, assume spheres are in the same coordinate space as the hulls
+		const FTransform* OptionalTransformIntoNegativeSpace = nullptr;
+
+		// Optional callback, to be called when two parts are merged. Takes the original (pre-merge) convex decomposition part indices as input.
+		TFunction<void(int32, int32)> MergeCallback = nullptr;
+
+		// Optional custom function to control whether parts are allowed to merge
+		TFunction<bool(const FConvexDecomposition3::FConvexPart& A, const FConvexDecomposition3::FConvexPart& B)> CustomAllowMergeParts = nullptr;
+	};
 
 	// Merge the pairs of convex hulls in the decomposition that will least increase the error.  Intermediate results can be used across merges, so it is best to do all merges in one call.
-	// Note: A future version of this function may replace NumOutputHulls with MaxOutputHulls, but this version keeps both parameters for compatibility / consistent behavior.
 	// @param TargetNumParts		The target number of parts for the decomposition; will be overriden by non-default ErrorTolerance or MinPartThickness
 	// @param ErrorTolerance		If > 0, continue to merge (if there are possible merges) until the resulting error would be greater than this value. Overrides TargetNumParts as the stopping condition.
 	//								Note: ErrorTolerance is expressed in cm, and will be cubed for volumetric error.
@@ -311,8 +422,12 @@ public:
 	// @param OptionalNegativeSpace Optional representation of negative space that should not be covered by merges
 	// @param OptionalNegativeSpaceTransform Optional transform from space of the convex hulls into the space of the sphere covering; if not provided, assume spheres are in the same coordinate space as the hulls
 	// @return						The number of merges performed
-	GEOMETRYCORE_API int32 MergeBest(int32 TargetNumParts, double ErrorTolerance = 0, double MinThicknessTolerance = 0, bool bAllowCompact = true, bool bRequireHullTriangles = false, int MaxOutputHulls = -1,
+	GEOMETRYCORE_API int32 MergeBest(int32 TargetNumParts, double ErrorTolerance = 0, double MinThicknessTolerance = 0, bool bAllowCompact = true, bool bRequireHullTriangles = false, int32 MaxOutputHulls = -1,
 		const FSphereCovering* OptionalNegativeSpace = nullptr, const FTransform* OptionalTransformIntoNegativeSpace = nullptr);
+
+	// Merge the pairs of convex hulls in the decomposition that will least increase the error.  Intermediate results can be used across merges, so it is best to do all merges in one call.
+	// @return The number of merges performed
+	GEOMETRYCORE_API int32 MergeBest(const FMergeSettings& Settings);
 
 	// simple helper to convert an error tolerance expressed in world space to a local-space volume tolerance
 	inline double ConvertDistanceToleranceToLocalVolumeTolerance(double DistTolerance) const
@@ -475,6 +590,7 @@ public:
 		FVector3d GeoCenter = FVector3d::ZeroVector; // Some central point of the geometry (e.g., an average of vertices)
 		FAxisAlignedBox3d Bounds;
 		bool bGeometryVolumeUnreliable = false;
+		bool bSplitFailed = false; // flag indicating that cutting has been attempted and failed, so the part should not be considered for splitting
 
 		// Flag indicating the hull should be merged into another part during a MergeBest() call
 		bool bMustMerge = false;
@@ -625,6 +741,9 @@ private:
 
 	// Negative space to attempt to protect; can be referenced by the Decomposition parts
 	FSphereCovering NegativeSpace;
+
+	// Helper to implement SplitWorst
+	bool SplitWorstHelper(bool bCanSkipUnreliableGeoVolumes, double ErrorTolerance, bool bOnlySplitIfNegativeSpaceCovered, double MinSplitSizeInWorldSpace);
 };
 
 } // end namespace UE::Geometry
