@@ -79,7 +79,6 @@ class FShaderPipelineType;
 class FShaderType;
 class FVertexFactoryType;
 struct FShaderCompiledShaderInitializerType;
-struct FShaderCompileJobKey;
 struct FShaderCompilerOutput;
 using FShaderMapAssetPaths = TSet<FName>; // Copied from ShaderCodeLibrary.h
 
@@ -493,13 +492,9 @@ public:
 		 *  Does not contain errors since if there were any errors, this object wouldn't exist. */
 		TArray<FString> CompilerWarnings;
 
-		/** An array of the hash of all FShaderType names which generate this particular shader (i.e. the return value
-		 * of FShaderType::GetHashedName().GetHash()). */
-		TArray<uint64> ShaderTypeHashes;
-
 		friend FArchive& operator<<(FArchive& Ar, FShaderEditorOnlyDataEntry& Entry)
 		{
-			return Ar << Entry.PlatformDebugData << Entry.ShaderTypeHashes << Entry.CompilerWarnings;
+			return Ar << Entry.PlatformDebugData << Entry.CompilerWarnings;
 		}
 	};
 #endif // WITH_EDITORONLY_DATA
@@ -517,16 +512,13 @@ public:
 
 	RENDERCORE_API uint32 GetSizeBytes() const;
 
-	UE_DEPRECATED(5.4, "AddShaderCompilerOutput now accepts an FShaderCompileJobKey instead of DebugName")
-	inline void AddShaderCompilerOutput(const FShaderCompilerOutput& Output, const FString& DebugName = FString()) {}
-
-	RENDERCORE_API void AddShaderCompilerOutput(const FShaderCompilerOutput& Output, const FShaderCompileJobKey& Key);
+	RENDERCORE_API void AddShaderCompilerOutput(const FShaderCompilerOutput& Output, const FString& DebugName = FString());
 
 	int32 FindShaderIndex(const FSHAHash& InHash) const;
 
 #if WITH_EDITORONLY_DATA
-	void AddEditorOnlyData(int32 Index, const FString& DebugName, uint64 ShaderTypeHash, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings);
-	void AppendToEditorOnlyData(int32 Index, const FString& DebugName, uint64 ShaderTypeHash, TConstArrayView<FShaderCompilerError> InCompilerWarnings);
+	void AddEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings);
+	void AppendWarningsToEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<FShaderCompilerError> InCompilerWarnings);
 	RENDERCORE_API void LogShaderCompilerWarnings();
 #endif
 
@@ -1391,7 +1383,6 @@ public:
 		return ShaderTypeForDynamicCast;
 	}
 
-
 	// Accessors.
 	inline const FTypeLayoutDesc& GetLayout() const
 	{
@@ -1503,23 +1494,6 @@ protected:
 	TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>> ReferencedUniformBufferNames;
 #endif // WITH_EDITOR
 };
-
-inline FString LexToString(FShaderType::EShaderTypeForDynamicCast ShaderType)
-{
-	static const TCHAR* TypeStrings[] =
-	{
-		TEXT("Global"),
-		TEXT("Material"),
-		TEXT("MeshMaterial"),
-		TEXT("Niagara"),
-		TEXT("OCIO"),
-		TEXT("ComputeKernel")
-	};
-	checkf(ShaderType < FShaderType::EShaderTypeForDynamicCast::NumShaderTypes, TEXT("Invalid shader type"));
-
-	return TypeStrings[static_cast<uint32>(ShaderType)];
-}
-
 
 /**
  * Registers a shader type in various systems. Should be created as a static field/global.

@@ -105,9 +105,6 @@ public:
 	/** Mapping from shadermap hashes to an array of asset names - this is used for on-disk storage as it is shorter. */
 	TMap<FSHAHash, FShaderMapAssetPaths> ShaderCodeToAssets;
 
-	/** Array of shader types for each individual shader; indexed as ShaderEntries array */
-	TArray<TArray<uint64>> ShaderTypes;
-
 	enum class EAssetInfoVersion : uint8
 	{
 		CurrentVersion = 2
@@ -165,7 +162,6 @@ public:
 			ShaderIndices.GetAllocatedSize()
 #if WITH_EDITOR
 			+ ShaderCodeToAssets.GetAllocatedSize()
-			+ ShaderTypes.GetAllocatedSize()
 #endif // WITH_EDITOR
 			;
 	}
@@ -188,7 +184,6 @@ public:
 		ShaderMapHashTable.Clear();
 #if WITH_EDITOR
 		ShaderCodeToAssets.Empty();
-		ShaderTypes.Empty();
 #endif
 	}
 
@@ -207,7 +202,6 @@ public:
 		return ShaderMapEntries.IsEmpty() && ShaderEntries.IsEmpty() && PreloadEntries.IsEmpty()
 #if WITH_EDITOR
 			&& ShaderCodeToAssets.IsEmpty()
-			&& ShaderTypes.IsEmpty()
 #endif
 			;
 	}

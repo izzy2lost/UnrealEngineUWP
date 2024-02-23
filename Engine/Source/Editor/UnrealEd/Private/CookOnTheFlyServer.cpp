@@ -10287,8 +10287,6 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 					// Save shader code map
 					SaveShaderLibrary(TargetPlatform, LibraryName);
 					CreatePipelineCache(TargetPlatform, LibraryName);
-
-					FShaderLibraryCooker::DumpShaderTypeStats(GShaderCompilingManager->GetAbsoluteShaderDebugInfoDirectory(), ConvertToFullSandboxPath(GetMetadataDirectory(), true, PlatformNameString));
 				}
 				if (FParse::Param(FCommandLine::Get(), TEXT("fastcook")))
 				{
