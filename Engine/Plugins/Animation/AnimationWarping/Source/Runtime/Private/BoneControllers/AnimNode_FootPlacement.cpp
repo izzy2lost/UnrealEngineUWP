@@ -1705,10 +1705,34 @@ void FAnimNode_FootPlacement::ProcessFootAlignment(
 		const float DistanceToSeparatingPlane =
 			UE::Anim::FootPlacement::GetDistanceToPlaneAlongDirection(FootUnalignedLocationCS, SeparatingPlane, -PlaneNormal);
 
-		if (DistanceToSeparatingPlane < 0.0f)
+		if (Plant.PlantType == UE::Anim::FootPlacement::EPlantType::Unplanted)
 		{
-			FootUnalignedLocationCS -= PlaneNormal * DistanceToSeparatingPlane;
+			FVector SeparatingPlaneOffset(FVector::ZeroVector);
+			if (DistanceToSeparatingPlane < 0.0f)
+			{
+				SeparatingPlaneOffset = -PlaneNormal * DistanceToSeparatingPlane ;
+			}
+
+			if (InterpolationSettings.bEnableSeparationInterpolation)
+			{
+				Interpolation.SeparatingPlaneOffset = UKismetMathLibrary::VectorSpringInterp(
+					Interpolation.SeparatingPlaneOffset, SeparatingPlaneOffset, Interpolation.SeparatingPlaneOffsetSpringState,
+					InterpolationSettings.FloorLinearStiffness,
+					InterpolationSettings.FloorLinearDamping,
+					Context.UpdateDeltaTime, 1.0f, 0.0f);
+			}
+			else
+			{
+				Interpolation.SeparatingPlaneOffset = SeparatingPlaneOffset;
+			}
+			
+			FootUnalignedLocationCS  += Interpolation.SeparatingPlaneOffset;
 			FootUnalignedTransformCS.SetLocation(FootUnalignedLocationCS);
+		}
+		else
+		{
+			Interpolation.SeparatingPlaneOffset = FVector::ZeroVector;
+			Interpolation.SeparatingPlaneOffsetSpringState.Reset();
 		}
 
 #if ENABLE_FOOTPLACEMENT_DEBUG
