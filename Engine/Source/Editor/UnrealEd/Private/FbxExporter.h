@@ -30,6 +30,7 @@ class UModel;
 class UMovieScene;
 class UMovieSceneSkeletalAnimationTrack;
 class UMovieScene3DTransformTrack;
+class UMovieSceneColorTrack;
 class UMovieScenePropertyTrack;
 class UMovieSceneTrack;
 class USkeletalMesh;
@@ -436,6 +437,11 @@ private:
 	 * Exports a level sequence 3D transform track that's getting baked (sample all sections) onto the FBX animation stack.
 	 */
 	UNREALED_API void ExportLevelSequenceBaked3DTransformTrack(IAnimTrackAdapter& AnimTrackAdapter, FbxNode* FbxActor, IMovieScenePlayer* MovieScenePlayer, FMovieSceneSequenceIDRef InSequenceID, TArray<TWeakObjectPtr<UMovieScene3DTransformTrack> > TransformTracks, UObject* BoundObject, const TRange<FFrameNumber>& InPlaybackRange, const FMovieSceneSequenceTransform& RootToLocalTransform);
+
+	/**
+	 * Exports a level sequence color track into the FBX animation stack. (only works for light)
+	 */
+	UNREALED_API void ExportLevelSequenceColorTrack(FbxNode* FbxActor, UMovieSceneColorTrack& ColorTrack, UObject* BoundObject, const TRange<FFrameNumber>& InPlaybackRange, const FMovieSceneSequenceTransform& RootToLocalTransform);
 
 	/**
 	 * Exports a level sequence property track into the FBX animation stack. 
