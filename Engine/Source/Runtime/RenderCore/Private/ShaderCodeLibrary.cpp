@@ -31,7 +31,6 @@ ShaderCodeLibrary.cpp: Bound shader state cache implementation.
 #include "Misc/StringBuilder.h"
 #include "PipelineFileCache.h"
 #include "ProfilingDebugging/LoadTimeTracker.h"
-#include "ProfilingDebugging/DiagnosticTable.h"
 #include "RenderingThread.h"
 #include "Shader.h"
 #include "ShaderCodeArchive.h"
@@ -1285,14 +1284,11 @@ bool FShaderMapResource_SharedCode::TryRelease()
 #if WITH_EDITOR
 struct FShaderCodeStats
 {
-	struct FPerTypeStats
-	{
-		int64 ShadersSize = 0;
-		int32 NumShaders = 0;
-	};
+	int64 ShadersSize;
+	int64 ShadersUniqueSize;
+	int32 NumShaders;
+	int32 NumUniqueShaders;
 	int32 NumShaderMaps;
-
-	TMap<uint64, FPerTypeStats> ShaderTypeStats;
 };
 
 struct FEditorShaderCodeArchive
@@ -1356,9 +1352,9 @@ struct FEditorShaderCodeArchive
 			UE_LOG(LogShaderLibrary, Warning, TEXT("Shadermap %s does not have assets associated with it, library layout may be inconsistent between builds"), *Code->ResourceHash.ToString());
 		}
 
-		const int32 NumShaders = Code->ShaderEntries.Num();
 		if (SerializedShaders.FindOrAddShaderMap(Code->ResourceHash, ShaderMapIndex, &AssociatedAssets))
 		{
+			const int32 NumShaders = Code->ShaderEntries.Num();
 			FShaderMapEntry& ShaderMapEntry = SerializedShaders.ShaderMapEntries[ShaderMapIndex];
 			ShaderMapEntry.NumShaders = NumShaders;
 			ShaderMapEntry.ShaderIndicesOffset = SerializedShaders.ShaderIndices.AddZeroed(NumShaders);
@@ -1369,38 +1365,26 @@ struct FEditorShaderCodeArchive
 				if (SerializedShaders.FindOrAddShader(Code->ShaderHashes[i], ShaderIndex))
 				{
 					const FShaderMapResourceCode::FShaderEntry& SourceShaderEntry = Code->ShaderEntries[i];
-					int32 CodeSize = SourceShaderEntry.Code.Num();
 					FShaderCodeEntry& SerializedShaderEntry = SerializedShaders.ShaderEntries[ShaderIndex];
 					SerializedShaderEntry.Frequency = SourceShaderEntry.Frequency;
-					SerializedShaderEntry.Size = CodeSize;
+					SerializedShaderEntry.Size = SourceShaderEntry.Code.Num();
 					SerializedShaderEntry.UncompressedSize = SourceShaderEntry.UncompressedSize;
 					check(!SourceShaderEntry.Code.IsEmpty());
 					ShaderCode.Add(SourceShaderEntry.Code);
 					check(ShaderCode.Num() == SerializedShaders.ShaderEntries.Num());
+
+					CodeStats.NumUniqueShaders++;
+					CodeStats.ShadersUniqueSize += SourceShaderEntry.Code.Num();
 				}
+				CodeStats.ShadersSize += Code->ShaderEntries[i].Code.Num();
 				SerializedShaders.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i] = ShaderIndex;
 			}
 
+			// for total shaders, only count shaders when we're adding a new shadermap. AddShaderCode() for the same shadermap can be called several times during
+			// the cook because of serialization path being reused for other purposes than actual saving, so counting them every time artificially inflates number of shaders.
+			CodeStats.NumShaders += Code->ShaderEntries.Num();
 			CodeStats.NumShaderMaps++;
 		}
-
-		for (int32 i = 0; i < NumShaders; ++i)
-		{
-			for (uint64 ShaderTypeHash : Code->ShaderEditorOnlyDataEntries[i].ShaderTypeHashes)
-			{
-				int32 ShaderIndex = SerializedShaders.FindShader(Code->ShaderHashes[i]);
-				bool bExists = SerializedShaders.ShaderTypes[ShaderIndex].Find(ShaderTypeHash) != INDEX_NONE;
-				if (!bExists)
-				{
-					SerializedShaders.ShaderTypes[ShaderIndex].Add(ShaderTypeHash);
-					FShaderCodeStats::FPerTypeStats& TypeCodeStats = CodeStats.ShaderTypeStats.FindOrAdd(ShaderTypeHash);
-					int32 CodeSize = SerializedShaders.ShaderEntries[ShaderIndex].Size;
-					TypeCodeStats.NumShaders++;
-					TypeCodeStats.ShadersSize += CodeSize;
-				}
-			}
-		}
-
 		// always mark the shadermap dirty, because it might have gotten new asset associations
 		MarkShaderMapDirty(ShaderMapIndex);
 		return ShaderMapIndex;
@@ -1532,10 +1516,6 @@ struct FEditorShaderCodeArchive
 						++NumShadersSentWithCode;
 
 						TargetFlatShaderCode.Append(SourceShaderCode);
-						for (uint64 ShaderTypeHash : SerializedShaders.ShaderTypes[SourceShaderIndex])
-						{
-							TargetArchive.ShaderTypes[TargetShaderIndex].Add(ShaderTypeHash);
-						}
 
 						// Empty the ShaderCode to save memory in the local process. The consumer of the TargetArchive and
 						// TargetFlatShaderCode will be the only one that needs to read it.
@@ -1568,24 +1548,6 @@ struct FEditorShaderCodeArchive
 			const FSHAHash& SourceShaderHash = SourceArchive.ShaderHashes[SourceShaderIndex];
 			int32 TargetShaderIndex = INDEX_NONE;
 			const bool bShaderIsNew = TargetArchive.FindOrAddShader(SourceShaderHash, TargetShaderIndex);
-			const TArray<uint64>& ShaderTypeHashes = SourceArchive.ShaderTypes[SourceShaderIndex];
-			const FShaderCodeEntry& SourceShaderEntry = SourceArchive.ShaderEntries[SourceShaderIndex];
-
-			TArray<uint64>& ExistingShaderTypeHashes = TargetArchive.ShaderTypes[TargetShaderIndex];
-			bool bAnyTypesAdded = false;
-			for (uint64 ShaderTypeHash : ShaderTypeHashes)
-			{
-				bool bExists = ExistingShaderTypeHashes.Find(ShaderTypeHash) != INDEX_NONE;
-				if (!bExists)
-				{
-					ExistingShaderTypeHashes.Add(ShaderTypeHash);
-					bAnyTypesAdded = true;
-					FShaderCodeStats::FPerTypeStats& TypeCodeStats = CodeStats.ShaderTypeStats.FindOrAdd(ShaderTypeHash);
-					TypeCodeStats.NumShaders++;
-					TypeCodeStats.ShadersSize += SourceShaderEntry.Size;
-				}
-			}
-
 			if (!bShaderIsNew)
 			{
 				continue;
@@ -1594,9 +1556,13 @@ struct FEditorShaderCodeArchive
 				TargetShaderCodes.Num() == TargetArchive.ShaderEntries.Num() - 1);
 			TArray<uint8>& TargetShaderCode = TargetShaderCodes.Emplace_GetRef();
 
+			const FShaderCodeEntry& SourceShaderEntry = SourceArchive.ShaderEntries[SourceShaderIndex];
 			FShaderCodeEntry& TargetShaderEntry = TargetArchive.ShaderEntries[TargetShaderIndex];
 			TargetShaderEntry = SourceShaderEntry;
 			TargetShaderEntry.Offset = 0;
+
+			CodeStats.NumUniqueShaders++;
+			CodeStats.ShadersUniqueSize += SourceShaderEntry.Size;
 
 			if (SourceShaderEntry.Offset == INDEX_NONE)
 			{
@@ -1656,6 +1622,8 @@ struct FEditorShaderCodeArchive
 				// Every shader in the SourceArchive should have already been added by the loop above over SourceArchive.ShaderHashes
 				check(!bShaderIsNew);
 			}
+
+			CodeStats.NumShaders += TargetEntry.NumShaders; // Sum of shader counts used by each ShaderMap, without removing duplicates
 			CodeStats.NumShaderMaps++;
 		}
 		return bOk;
@@ -1709,7 +1677,6 @@ struct FEditorShaderCodeArchive
 				{
 					const FShaderCodeEntry& OtherShaderEntry = OtherArchive.SerializedShaders.ShaderEntries[OtherShaderIndex];
 					SerializedShaders.ShaderEntries[ShaderIndex] = OtherShaderEntry;
-					SerializedShaders.ShaderTypes[ShaderIndex] = OtherArchive.SerializedShaders.ShaderTypes[OtherShaderIndex];
 
 					const TArray<uint8>& OtherShaderCodeEntry = OtherArchive.ShaderCode[OtherShaderIndex];
 					check(!OtherShaderCodeEntry.IsEmpty());
@@ -1748,7 +1715,6 @@ struct FEditorShaderCodeArchive
 				{
 					const FShaderCodeEntry& OtherShaderEntry = OtherShaders.ShaderEntries[OtherShaderIndex];
 					SerializedShaders.ShaderEntries[ShaderIndex] = OtherShaderEntry;
-					SerializedShaders.ShaderTypes[ShaderIndex] = OtherShaders.ShaderTypes[OtherShaderIndex];
 
 					TArray<uint8>& Code = ShaderCode.AddDefaulted_GetRef();
 					check(ShaderCode.Num() == SerializedShaders.GetNumShaders());
@@ -3404,68 +3370,26 @@ public:
 		return bOK;
 	}
 
-	void DumpShaderTypeStats(const FString& DebugInfoDir, const FString& MetaDataDir)
+	void DumpShaderCodeStats()
 	{
 		int32 PlatformId = 0;
-		for (const FShaderCodeStats& PlatformCodeStats : EditorShaderCodeStats)
+		for (const FShaderCodeStats& CodeStats : EditorShaderCodeStats)
 		{
-			if (PlatformCodeStats.NumShaderMaps > 0)
+			if (CodeStats.NumShaders > 0)
 			{
-				FString PlatformName = FGenericDataDrivenShaderPlatformInfo::GetName((EShaderPlatform)PlatformId).ToString();
-				FString Filename = FString::Printf(TEXT("%s/%s/ShaderTypeStats.csv"), *DebugInfoDir, *PlatformName);
-				TMap<const FShaderType*, FShaderCodeStats::FPerTypeStats> CountersByTypeName;
-				for (const TPair<uint64, FShaderCodeStats::FPerTypeStats>& Pair : PlatformCodeStats.ShaderTypeStats)
-				{
-					const FShaderType* ShaderType = FindShaderTypeByName(FHashedName(Pair.Key));
-					CountersByTypeName.Add(ShaderType, Pair.Value);
-				}
-				
-				// sort first by the type of shadertype, then by the name (so all global, material, etc. shaders are grouped together in the CSV)
-				struct FShaderTypeSort
-				{
-					bool operator()(const FShaderType& A, const FShaderType& B) const
-					{
-						if (A.GetTypeForDynamicCast() == B.GetTypeForDynamicCast())
-						{
-							return FCString::Strcmp(A.GetName(), B.GetName()) < 0;
-						}
-						return A.GetTypeForDynamicCast() < B.GetTypeForDynamicCast();
-					}
-				};
-				CountersByTypeName.KeySort(FShaderTypeSort());
+				float UniqueSize = CodeStats.ShadersUniqueSize;
+				float UniqueSizeMB = FUnitConversion::Convert(UniqueSize, EUnit::Bytes, EUnit::Megabytes);
+				float TotalSize = CodeStats.ShadersSize;
+				float TotalSizeMB = FUnitConversion::Convert(TotalSize, EUnit::Bytes, EUnit::Megabytes);
 
-				{
-					TUniquePtr<FArchive> ShaderTypeStatsCsv(IFileManager::Get().CreateFileWriter(*Filename));
-					if (ShaderTypeStatsCsv)
-					{
-						FDiagnosticTableWriterCSV StatWriter(ShaderTypeStatsCsv.Get());
-						StatWriter.AddColumn(TEXT("ShaderTypeName"));
-						StatWriter.AddColumn(TEXT("ShaderType"));
-						StatWriter.AddColumn(TEXT("Frequency"));
-						StatWriter.AddColumn(TEXT("NumShaders"));
-						StatWriter.AddColumn(TEXT("ShadersSize"));
-						StatWriter.CycleRow();
-
-						for (const TPair<const FShaderType*, FShaderCodeStats::FPerTypeStats>& Pair : CountersByTypeName)
-						{
-							StatWriter.AddColumn(Pair.Key->GetName());
-							StatWriter.AddColumn(*LexToString(Pair.Key->GetTypeForDynamicCast()));
-							StatWriter.AddColumn(GetShaderFrequencyString(Pair.Key->GetFrequency()));
-							StatWriter.AddColumn(TEXT("%u"), Pair.Value.NumShaders);
-							StatWriter.AddColumn(TEXT("%u"), Pair.Value.ShadersSize);
-							StatWriter.CycleRow();
-						}
-					}
-					else
-					{
-						UE_LOG(LogShaderLibrary, Warning, TEXT("Failed to create shader type stats file '%s'"), *Filename);
-					}
-				}
-
-				// Add a copy of the type stats to the build metadata as well
-				FString MetaFilename = FString::Printf(TEXT("%s/ShaderTypeStats-%s.csv"), *MetaDataDir, *PlatformName);
-				IFileManager::Get().Copy(*MetaFilename, *Filename);
+				UE_LOG(LogShaderLibrary, Display, TEXT(""));
+				UE_LOG(LogShaderLibrary, Display, TEXT("Shader Code Stats: %s"), *LegacyShaderPlatformToShaderFormat((EShaderPlatform)PlatformId).ToString());
+				UE_LOG(LogShaderLibrary, Display, TEXT("================="));
+				UE_LOG(LogShaderLibrary, Display, TEXT("Unique Shaders: %d, Total Shaders: %d, Unique Shadermaps: %d"), CodeStats.NumUniqueShaders, CodeStats.NumShaders, CodeStats.NumShaderMaps);
+				UE_LOG(LogShaderLibrary, Display, TEXT("Unique Shaders Size: %.2fmb, Total Shader Size: %.2fmb"), UniqueSizeMB, TotalSizeMB);
+				UE_LOG(LogShaderLibrary, Display, TEXT("================="));
 			}
+
 			PlatformId++;
 		}
 	}
@@ -3855,6 +3779,8 @@ void FShaderLibraryCooker::Shutdown()
 {
 	if (FShaderLibrariesCollection::Impl)
 	{
+		//DumpShaderCodeStats();
+
 		delete FShaderLibrariesCollection::Impl;
 		FShaderLibrariesCollection::Impl = nullptr;
 	}
@@ -3949,11 +3875,11 @@ void FShaderLibraryCooker::AddShaderStableKeyValue(EShaderPlatform ShaderPlatfor
 	}
 }
 
-void FShaderLibraryCooker::DumpShaderTypeStats(const FString& DebugInfoDir, const FString& MetaDataDir)
+void FShaderLibraryCooker::DumpShaderCodeStats()
 {
 	if (FShaderLibrariesCollection::Impl)
 	{
-		FShaderLibrariesCollection::Impl->DumpShaderTypeStats(DebugInfoDir, MetaDataDir);
+		FShaderLibrariesCollection::Impl->DumpShaderCodeStats();
 	}
 }
 

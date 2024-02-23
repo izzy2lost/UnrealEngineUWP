@@ -18,7 +18,6 @@
 #include "UObject/RenderingObjectVersion.h"
 #include "Misc/MemStack.h"
 #include "ShaderCompilerCore.h"
-#include "ShaderCompilerJobTypes.h"
 #include "Compression/OodleDataCompression.h"
 #include "RHIResources.h"	// Access to FRHIRayTracingShader::RayTracingPayloadType requires this
 #include "DataDrivenShaderPlatformInfo.h"
@@ -238,21 +237,20 @@ int32 FShaderMapResourceCode::FindShaderIndex(const FSHAHash& InHash) const
 	return Algo::BinarySearch(ShaderHashes, InHash);
 }
 
-void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput& Output, const FShaderCompileJobKey& Key)
+void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput& Output, const FString& DebugName)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderMapResourceCode::AddShaderCode);
 
 	const FSHAHash& InHash = Output.OutputHash;
 	const FShaderCode& InCode = Output.ShaderCode;
 	const int32 Index = Algo::LowerBound(ShaderHashes, InHash);
-	FString DebugName = Key.ToString();
 	if (Index >= ShaderHashes.Num() || ShaderHashes[Index] != InHash)
 	{
 		ShaderHashes.Insert(InHash, Index);
 
 #if WITH_EDITORONLY_DATA
 		// Output.Errors contains warnings in the case any exist (no errors since if there were the job would have failed)
-		AddEditorOnlyData(Index, DebugName, Key.ShaderType->GetHashedName().GetHash(), Output.PlatformDebugData, Output.Errors);
+		AddEditorOnlyData(Index, DebugName, Output.PlatformDebugData, Output.Errors);
 #endif
 
 		FShaderEntry& Entry = ShaderEntries.InsertDefaulted_GetRef(Index);
@@ -320,23 +318,23 @@ void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput
 	else
 	{
 		// Output.Errors contains warnings in the case any exist (no errors since if there were the job would have failed)
-		// We append the warnings and shadertype hash for any additional jobs which resulted in the same bytecode for the 
-		// sake of determinism in the results saved to DDC. 
-		AppendToEditorOnlyData(Index, DebugName, Key.ShaderType->GetHashedName().GetHash(), Output.Errors);
+		// We append the warnings for any additional jobs which resulted in the same bytecode for the sake of determinism in the
+		// results saved to DDC. 
+		AppendWarningsToEditorOnlyData(Index, DebugName, Output.Errors);
 	}
 #endif
 }
 
 #if WITH_EDITORONLY_DATA
-void FShaderMapResourceCode::AddEditorOnlyData(int32 Index, const FString& DebugName, uint64 ShaderTypeHash, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings)
+void FShaderMapResourceCode::AddEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings)
 {
 	FShaderEditorOnlyDataEntry& Entry = ShaderEditorOnlyDataEntries.InsertDefaulted_GetRef(Index);
 	Entry.PlatformDebugData = InPlatformDebugData;
 
-	AppendToEditorOnlyData(Index, DebugName, ShaderTypeHash, InCompilerWarnings);
+	AppendWarningsToEditorOnlyData(Index, DebugName, InCompilerWarnings);
 }
 
-void FShaderMapResourceCode::AppendToEditorOnlyData(int32 Index, const FString& DebugName, uint64 ShaderTypeHash, TConstArrayView<FShaderCompilerError> InCompilerWarnings)
+void FShaderMapResourceCode::AppendWarningsToEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<FShaderCompilerError> InCompilerWarnings)
 {
 	FShaderEditorOnlyDataEntry& Entry = ShaderEditorOnlyDataEntries[Index];
 	for (const FShaderCompilerError& Warning : InCompilerWarnings)
@@ -349,7 +347,6 @@ void FShaderMapResourceCode::AppendToEditorOnlyData(int32 Index, const FString& 
 			Entry.CompilerWarnings.Insert(ModifiedWarning, WarningIndex);
 		}
 	}
-	Entry.ShaderTypeHashes.Add(ShaderTypeHash);
 }
 
 void FShaderMapResourceCode::LogShaderCompilerWarnings()
