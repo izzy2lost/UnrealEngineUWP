@@ -4,10 +4,12 @@
 
 #include "FrameNumberDisplayFormat.h"
 #include "Misc/FrameRate.h"
+#include "Misc/QualifiedFrameTime.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FLiveLinkHubPlaybackController;
 class ULiveLinkRecording;
+struct FFrameNumberInterface;
 
 /**
  * The playback widget for controlling live link hub animations.
@@ -17,9 +19,9 @@ class SLiveLinkHubPlaybackWidget : public SCompoundWidget
 public:
 	DECLARE_DELEGATE_RetVal(bool, FOnGetChecked);
 	DECLARE_DELEGATE_OneParam(FOnSetChecked, bool);
-	DECLARE_DELEGATE_RetVal(double, FOnGetTime);
-	DECLARE_DELEGATE_OneParam(FOnSetTime, double);
-	DECLARE_DELEGATE_RetVal(int32, FOnGetFrame);
+	DECLARE_DELEGATE_RetVal(FQualifiedFrameTime, FOnGetTime);
+	DECLARE_DELEGATE_OneParam(FOnSetTime, FQualifiedFrameTime);
+	DECLARE_DELEGATE_RetVal(FFrameRate, FOnGetFrame);
 	DECLARE_DELEGATE_OneParam(FOnSetViewRange, const TRange<double>&)
 	DECLARE_DELEGATE_RetVal(TRange<double>, FOnGetViewRange)
 
@@ -50,8 +52,6 @@ public:
 	SLATE_EVENT(FOnGetTime, GetCurrentTime)
 	/** Set the current time of the recording. */
 	SLATE_EVENT(FOnSetTime, SetCurrentTime)
-	/** Get the current frame of the recording. */
-	SLATE_EVENT(FOnGetFrame, GetCurrentFrame)
 	/** Get the total length of the recording. */
 	SLATE_EVENT(FOnGetTime, GetTotalLength)
 	/** Get the selection start of the recording. */
@@ -62,14 +62,13 @@ public:
 	SLATE_EVENT(FOnGetTime, GetSelectionEndTime)
 	/** Set the selection end of the recording. */
 	SLATE_EVENT(FOnSetTime, SetSelectionEndTime)
-
+	/** Retrieve the frame rate for the recording. */
+	SLATE_EVENT(FOnGetFrame, GetFrameRate)
+	
 	/** Get the view range (visible selection range). */
 	SLATE_EVENT(FOnSetViewRange, SetViewRange)
 	/** Set the view range (visible selection range). */
 	SLATE_EVENT(FOnGetViewRange, GetViewRange)
-	
-	/** Resolution for spinbox increments. */
-	SLATE_EVENT(FOnGetTime, GetTimeDelta)
 	
 	SLATE_END_ARGS()
 
@@ -103,8 +102,6 @@ private:
 	double GetCurrentTime() const;
 	/** The total length of the recording. */
 	double GetTotalLength() const;
-	/** The current frame being played. */
-	int32 GetCurrentFrame() const;
 
 	/** Retrieve the selection start time. */
 	double GetSelectionStartTime() const;
@@ -139,10 +136,20 @@ private:
 	/** Frame or seconds to display for text and input. */
 	EFrameNumberDisplayFormats GetDisplayFormat() const;
 
-	/** Tick resolution for number inputs. */
-	FFrameRate GetFocusedTickResolution() const;
-	/** The display rate for number inputs. */
-	FFrameRate GetFocusedDisplayRate() const;
+	/** Sets the display format. */
+	void SetDisplayFormat(EFrameNumberDisplayFormats InDisplayFormat);
+
+	/** Validates the current display format is set to the given format. */
+	bool CompareDisplayFormat(EFrameNumberDisplayFormats InDisplayFormat) const;
+
+	/** Retrieve the text version of the display format. */
+	FText GetDisplayFormatAsText() const;
+	
+	/** The frame rate, used for number inputs. */
+	FFrameRate GetFrameRate() const;
+
+	/** Convert raw seconds to frame time. */
+	FQualifiedFrameTime SecondsToFrameTime(double InTime) const;
 
 	/** The forward icon to use for the play forward button. */
 	const FSlateBrush* GetPlayForwardIcon() const;
@@ -152,6 +159,9 @@ private:
 	const FSlateBrush* GetLoopIcon() const;
 	/** The tooltip for the loop button. */
 	FText GetLoopTooltip() const;
+
+	/** Create the dropdown box for playback settings. */
+	TSharedRef<SWidget> MakePlaybackSettingsDropdown();
 private:
 	TWeakPtr<FLiveLinkHubPlaybackController> PlaybackController;
 	/** Delegate for pressing play forward. */
@@ -193,9 +203,6 @@ private:
 	/** Delegate for setting the current playhead time. */
 	FOnSetTime OnSetCurrentTimeDelegate;
 
-	/** Delegate for getting the current frame. */
-	FOnGetFrame OnGetCurrentFrameDelegate;
-
 	/** Delegate for getting the view range. */
 	FOnGetViewRange OnGetViewRangeDelegate;
 	
@@ -214,9 +221,12 @@ private:
 	/** Delegate for setting the selection start. */
 	FOnSetTime OnSetSelectionEndTimeDelegate;
 
-	/** Delegate for the spinbox delta. */
-	FOnGetTime OnGetTimeDelta;
+	/** Retrieve the frame rate. */
+	FOnGetFrame OnGetFrameRate;
+
+	/** The number interface for displaying the correct frame format. */
+	TSharedPtr<FFrameNumberInterface> NumberInterface;
 
 	/** The format to display/edit values in. */
-	EFrameNumberDisplayFormats DisplayFormat = EFrameNumberDisplayFormats::Seconds;
+	EFrameNumberDisplayFormats DisplayFormat = EFrameNumberDisplayFormats::NonDropFrameTimecode;
 };

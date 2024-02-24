@@ -17,11 +17,53 @@
 #include "UObject/Object.h"
 #include "UObject/Package.h"
 
+/**
+ * Thread safe way to load and store a FQualifiedFrameTime. This is necessary because atomic<FQualifiedFrameTime> isn't
+ * necessarily cross platform compatible when performing copy operations.
+ */
+class FLiveLinkHubAtomicQualifiedFrameTime {
+public:
+	FLiveLinkHubAtomicQualifiedFrameTime()
+		: Value(FQualifiedFrameTime()) {}
+
+	FLiveLinkHubAtomicQualifiedFrameTime(const FLiveLinkHubAtomicQualifiedFrameTime& Other) {
+		FScopeLock Lock(&Other.Mutex);
+		Value = Other.Value;
+	}
+
+	FLiveLinkHubAtomicQualifiedFrameTime& operator=(const FLiveLinkHubAtomicQualifiedFrameTime& Other) {
+		if (this != &Other) {
+			FScopeLock Lock(&Other.Mutex);
+			Value = Other.Value;
+		}
+		return *this;
+	}
+
+	/** Set the underlying value. */
+	void SetValue(const FQualifiedFrameTime& NewPlayhead) {
+		FScopeLock Lock(&Mutex);
+		Value = NewPlayhead;
+	}
+
+	/** Retrieve the underlying value. */
+	FQualifiedFrameTime GetValue() const {
+		FScopeLock Lock(&Mutex);
+		return Value;
+	}
+
+private:
+	/** Mutex for reading/writing underlying value. */
+	mutable FCriticalSection Mutex;
+	/** The underlying qualified frame time value. */
+	FQualifiedFrameTime Value;
+};
+
 FLiveLinkHubPlaybackController::FLiveLinkHubPlaybackController()
 {
 	Client = &IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
 	
 	RecordingPlayer = MakeUnique<FLiveLinkUAssetRecordingPlayer>();
+	Playhead = MakeShared<FLiveLinkHubAtomicQualifiedFrameTime, ESPMode::ThreadSafe>();
 }
 
 FLiveLinkHubPlaybackController::~FLiveLinkHubPlaybackController()
@@ -45,19 +87,19 @@ TSharedRef<SWidget> FLiveLinkHubPlaybackController::MakePlaybackWidget()
 		.OnPlayReverse_Raw(this, &FLiveLinkHubPlaybackController::BeginPlayback, true)
 		.OnFirstFrame_Lambda([this]()
 		{
-			GoToFrame(GetSelectionStartFrame());
+			GoToTime(GetSelectionStartTime());
 		})
 		.OnLastFrame_Lambda([this]()
 		{
-			GoToFrame(GetSelectionEndFrame());
+			GoToTime(GetSelectionEndTime());
 		})
 		.OnPreviousFrame_Lambda([this]()
 		{
-			GoToFrame(CurrentFrameIndex - 1);
+			GoToTime(FQualifiedFrameTime(FFrameTime(GetCurrentFrame() - 1), GetFrameRate()));
 		})
 		.OnNextFrame_Lambda([this]()
 		{
-			GoToFrame(CurrentFrameIndex + 1);
+			GoToTime(FQualifiedFrameTime(FFrameTime(GetCurrentFrame() + 1), GetFrameRate()));
 		})
 		.SetCurrentTime_Raw(this, &FLiveLinkHubPlaybackController::GoToTime)
 		.GetViewRange_Lambda([this]()
@@ -70,7 +112,6 @@ TSharedRef<SWidget> FLiveLinkHubPlaybackController::MakePlaybackWidget()
 		})
 		.GetTotalLength_Raw(this, &FLiveLinkHubPlaybackController::GetLength)
 		.GetCurrentTime_Raw(this, &FLiveLinkHubPlaybackController::GetCurrentTime)
-		.GetCurrentFrame_Raw(this, &FLiveLinkHubPlaybackController::GetCurrentFrame)
 		.GetSelectionStartTime_Raw(this, &FLiveLinkHubPlaybackController::GetSelectionStartTime)
 		.SetSelectionStartTime_Raw(this,& FLiveLinkHubPlaybackController::SetSelectionStartTime)
 		.GetSelectionEndTime_Raw(this, &FLiveLinkHubPlaybackController::GetSelectionEndTime)
@@ -79,7 +120,7 @@ TSharedRef<SWidget> FLiveLinkHubPlaybackController::MakePlaybackWidget()
 		.IsInReverse_Raw(this, &FLiveLinkHubPlaybackController::IsPlayingInReverse)
 		.IsLooping_Raw(this, &FLiveLinkHubPlaybackController::IsLooping)
 		.OnSetLooping_Raw(this, &FLiveLinkHubPlaybackController::SetLooping)
-		.GetTimeDelta_Raw(this, &FLiveLinkHubPlaybackController::GetTimeDelta);
+		.GetFrameRate_Raw(this, &FLiveLinkHubPlaybackController::GetFrameRate);
 }
 
 void FLiveLinkHubPlaybackController::StartPlayback()
@@ -95,9 +136,23 @@ void FLiveLinkHubPlaybackController::ResumePlayback()
 {
 	bIsInPlayback = true;
 	bIsPaused = false;
-	StartTimestamp = GetTimeFromFrameIndex(GetCurrentFrame());
+	FQualifiedFrameTime CurrentTime = GetCurrentTime();
+
+	// Clamp to selection start/end.
+	if (CurrentTime.AsSeconds() < GetSelectionStartTime().AsSeconds() && !bIsReverse)
+	{
+		CurrentTime = GetSelectionStartTime();
+	}
+	else if (CurrentTime.AsSeconds() > GetSelectionEndTime().AsSeconds() && bIsReverse)
+	{
+		CurrentTime = GetSelectionEndTime();
+	}
+
+	Playhead->SetValue(CurrentTime);
+	
+	StartTimestamp = CurrentTime.AsSeconds();
 	// Force sync so interpolation doesn't interfere if the first frame isn't the current frame
-	SyncToFrame(CurrentFrameIndex);
+	SyncToFrame(CurrentTime.Time.GetFrame());
 }
 
 void FLiveLinkHubPlaybackController::PreparePlayback(ULiveLinkRecording* InLiveLinkRecording)
@@ -114,19 +169,20 @@ void FLiveLinkHubPlaybackController::PreparePlayback(ULiveLinkRecording* InLiveL
 		}
 		
 		RecordingToPlay.Reset(InLiveLinkRecording);
+		RecordingPlayer->PreparePlayback(RecordingToPlay.Get());
+		
+		CurrentFrameRate = RecordingPlayer->GetInitialFramerate();
 
 		// The start and end of playback.
-		SelectionStartTime = 0.f;
-		SelectionEndTime = GetLength();
+		SetSelectionStartTime(FQualifiedFrameTime(FFrameTime::FromDecimal(0.f), GetFrameRate()));
+		SetSelectionEndTime(GetLength());
 		
 		// The range the user sees.
-		SliderViewRange = TRange<double>(SelectionStartTime, SelectionEndTime);
+		SliderViewRange = TRange<double>(SelectionStartTime.AsSeconds(), SelectionEndTime.AsSeconds());
 		
 		RollbackPreset.Reset(NewObject<ULiveLinkPreset>(GetTransientPackage(), TEXT("RecordingRollbackPreset")));
 		// Save the current state of the sources/subjects in a rollback preset.
 		RollbackPreset->BuildFromClient();
-
-		RecordingPlayer->PreparePlayback(RecordingToPlay.Get());
 
 		RecordingToPlay->RecordingPreset->ApplyToClientLatent([this](bool)
 		{
@@ -158,7 +214,7 @@ void FLiveLinkHubPlaybackController::BeginPlayback(bool bInReverse)
 		{
 			if (bIsReverse)
 			{
-				RecordingPlayer->RestartPlayback(CurrentFrameIndex);
+				RecordingPlayer->RestartPlayback(GetCurrentFrame().Value);
 			}
 			
 			// Resume as normal for anywhere else in the recording.
@@ -178,12 +234,10 @@ void FLiveLinkHubPlaybackController::BeginPlayback(bool bInReverse)
 
 void FLiveLinkHubPlaybackController::RestartPlayback()
 {
-	CurrentFrameIndex = INDEX_NONE;
-
 	const bool bOldReverse = bIsReverse; // Stop playback resets reverse
 	StopPlayback();
-	StartTimestamp = GetTimeFromFrameIndex(CurrentFrameIndex);
-	RecordingPlayer->RestartPlayback(CurrentFrameIndex);
+	StartTimestamp = GetCurrentTime().AsSeconds();
+	RecordingPlayer->RestartPlayback(GetCurrentFrame().Value);
 	bIsInPlayback = true;
 	bIsReverse = bOldReverse;
 }
@@ -205,11 +259,8 @@ void FLiveLinkHubPlaybackController::StopPlayback()
 	}
 	
 	const bool bReverse = bIsReverse.load();
-	Playhead = bReverse ? GetSelectionEndTime() : GetSelectionStartTime();
-	if (CurrentFrameIndex == INDEX_NONE)
-	{
-		CurrentFrameIndex = GetFrameIndexFromTime(bReverse ? GetSelectionEndTime() : GetSelectionStartTime());
-	}
+	Playhead->SetValue(bReverse ? GetSelectionEndTime() : GetSelectionStartTime());
+
 	PlaybackStartTime = FPlatformTime::Seconds();
 
 	RecordingPlayer->RestartPlayback();
@@ -223,12 +274,11 @@ void FLiveLinkHubPlaybackController::Eject()
 	StopPlayback();
 	
 	bIsPaused = false;
-	CurrentFrameIndex = 0;
-	RecordingPlayer->RestartPlayback(CurrentFrameIndex);
+	RecordingPlayer->RestartPlayback(0);
 
-	SetSelectionStartTime(0.f);
-	SetSelectionEndTime(0.f);
-	Playhead = 0.f;
+	SetSelectionStartTime(FQualifiedFrameTime(FFrameTime::FromDecimal(0), GetFrameRate()));
+	SetSelectionEndTime(FQualifiedFrameTime(FFrameTime::FromDecimal(0), GetFrameRate()));
+	Playhead->SetValue(FQualifiedFrameTime(FFrameTime::FromDecimal(0), GetFrameRate()));
 	StartTimestamp = 0.f;
 	
 	if (RollbackPreset.IsValid())
@@ -239,83 +289,69 @@ void FLiveLinkHubPlaybackController::Eject()
 	RecordingToPlay.Reset();
 }
 
-void FLiveLinkHubPlaybackController::GoToTime(double InTime)
+void FLiveLinkHubPlaybackController::GoToTime(FQualifiedFrameTime InTime)
 {
 	// Stop needs to occur to restart playback.
 	StopPlayback();
 
-	PlaybackStartTime -= InTime;
-	Playhead = InTime;
-
-	const int32 FrameIndex = GetFrameIndexFromTime(InTime);
-	SyncToFrame(FrameIndex);
-}
-
-void FLiveLinkHubPlaybackController::GoToFrame(int32 InFrameIndex)
-{
-	// Stop needs to occur to restart playback.
-	StopPlayback();
-
-	const double NewTime = GetTimeFromFrameIndex(InFrameIndex);
-	PlaybackStartTime -= NewTime;
-	Playhead = NewTime;
+	const double TimeDouble = InTime.AsSeconds();
 	
-	SyncToFrame(InFrameIndex);
+	PlaybackStartTime -= TimeDouble;
+	Playhead->SetValue(InTime);
+
+	SyncToFrame(InTime.Time.GetFrame());
 }
 
-int32 FLiveLinkHubPlaybackController::GetFrameIndexFromTime(double InTime, bool bReverse) const
-{
-	return RecordingPlayer->PlayheadToFrameIndex(InTime, bReverse);
-}
-
-double FLiveLinkHubPlaybackController::GetTimeFromFrameIndex(int32 InFrameIndex) const
-{
-	return RecordingPlayer->FrameIndexToPlayhead(InFrameIndex);
-}
-
-int32 FLiveLinkHubPlaybackController::GetSelectionStartFrame() const
-{
-	return GetFrameIndexFromTime(GetSelectionStartTime(), bIsReverse);
-}
-
-int32 FLiveLinkHubPlaybackController::GetSelectionEndFrame() const
-{
-	return GetFrameIndexFromTime(GetSelectionEndTime(), bIsReverse);
-}
-
-double FLiveLinkHubPlaybackController::GetSelectionStartTime() const
+FQualifiedFrameTime FLiveLinkHubPlaybackController::GetSelectionStartTime() const
 {
 	return SelectionStartTime;
 }
 
-void FLiveLinkHubPlaybackController::SetSelectionStartTime(double InTime)
+void FLiveLinkHubPlaybackController::SetSelectionStartTime(FQualifiedFrameTime InTime)
 {
 	SelectionStartTime = InTime;
 }
 
-double FLiveLinkHubPlaybackController::GetSelectionEndTime() const
+FQualifiedFrameTime FLiveLinkHubPlaybackController::GetSelectionEndTime() const
 {
 	return SelectionEndTime;
 }
 
-void FLiveLinkHubPlaybackController::SetSelectionEndTime(double InTime)
+void FLiveLinkHubPlaybackController::SetSelectionEndTime(FQualifiedFrameTime InTime)
 {
 	SelectionEndTime = InTime;
 }
 
-double FLiveLinkHubPlaybackController::GetLength() const
+FQualifiedFrameTime FLiveLinkHubPlaybackController::GetLength() const
 {
-	return RecordingToPlay ? RecordingToPlay->LengthInSeconds : 0.f;
+	const FFrameRate FrameRate = GetFrameRate();
+
+	const double Length = RecordingToPlay ? RecordingToPlay->LengthInSeconds : 0.f;
+	
+	const double TotalFramesDouble = Length * FrameRate.Numerator;
+	const int32 TotalFrames = FMath::FloorToInt(TotalFramesDouble);
+	
+	const FFrameNumber LastFrameNumber(TotalFrames - 1);
+	
+	const FQualifiedFrameTime FrameTime(LastFrameNumber, FrameRate);
+
+	return FrameTime;
 }
 
-double FLiveLinkHubPlaybackController::GetCurrentTime() const
+FQualifiedFrameTime FLiveLinkHubPlaybackController::GetCurrentTime() const
 {
-	return Playhead.load();
+	const FQualifiedFrameTime Time = Playhead->GetValue();
+	return Time;
 }
 
-int32 FLiveLinkHubPlaybackController::GetCurrentFrame() const
+FFrameNumber FLiveLinkHubPlaybackController::GetCurrentFrame() const
 {
-	return CurrentFrameIndex;
+	return GetCurrentTime().Time.GetFrame();
+}
+
+FFrameRate FLiveLinkHubPlaybackController::GetFrameRate() const
+{
+	return CurrentFrameRate;
 }
 
 void FLiveLinkHubPlaybackController::Start()
@@ -351,8 +387,9 @@ uint32 FLiveLinkHubPlaybackController::Run()
 				auto SetPlayhead = [&]()
 				{
 					const double Delta = FPlatformTime::Seconds() - PlaybackStartTime;
-					Playhead = bIsReverse ? StartTimestamp - Delta : StartTimestamp + Delta;
-					Playhead = FMath::Clamp(Playhead.load(), GetSelectionStartTime(), GetSelectionEndTime());
+					double Position = bIsReverse ? StartTimestamp - Delta : StartTimestamp + Delta;
+					Position = FMath::Clamp(Position, GetSelectionStartTime().AsSeconds(), GetSelectionEndTime().AsSeconds());
+					Playhead->SetValue(FQualifiedFrameTime(FFrameTime::FromDecimal(Position * GetFrameRate().Numerator), GetFrameRate()));
 				};
 
 				SetPlayhead();
@@ -406,11 +443,10 @@ void FLiveLinkHubPlaybackController::PushSubjectData(const FLiveLinkRecordedFram
 	}
 	else
 	{
-		// Record the frame index when pushing so it is accurate. If we only calculate based on time it may not match the actual frames sent.
-		CurrentFrameIndex = NextFrame.FrameIndex;
-		
 		FLiveLinkFrameDataStruct FrameDataStruct;
 		FrameDataStruct.InitializeWith(NextFrame.Data.GetScriptStruct(), (FLiveLinkBaseFrameData*)NextFrame.Data.GetMemory());
+
+		CurrentFrameRate = FrameDataStruct.GetBaseData()->MetaData.SceneTime.Rate;
 		
 		if (bForceSync)
 		{
@@ -422,7 +458,7 @@ void FLiveLinkHubPlaybackController::PushSubjectData(const FLiveLinkRecordedFram
 
 bool FLiveLinkHubPlaybackController::SyncToPlayhead()
 {
-	const double Timestamp = Playhead.load();
+	const double Timestamp = Playhead->GetValue().AsSeconds();
 	TArray<FLiveLinkRecordedFrame> NextFrames = bIsReverse ? RecordingPlayer->FetchPreviousFramesAtTimestamp(Timestamp)
 		: RecordingPlayer->FetchNextFramesAtTimestamp(Timestamp);
 	
@@ -436,9 +472,9 @@ bool FLiveLinkHubPlaybackController::SyncToPlayhead()
 	return NextFrames.Num() > 0;
 }
 
-bool FLiveLinkHubPlaybackController::SyncToFrame(int32 InFrameIndex)
+bool FLiveLinkHubPlaybackController::SyncToFrame(const FFrameNumber& InFrameNumber)
 {
-	TArray<FLiveLinkRecordedFrame> NextFrames = RecordingPlayer->FetchNextFramesAtIndex(InFrameIndex);
+	TArray<FLiveLinkRecordedFrame> NextFrames = RecordingPlayer->FetchNextFramesAtIndex(InFrameNumber.Value);
 	
 	for (const FLiveLinkRecordedFrame& NextFrame : NextFrames)
 	{
@@ -450,11 +486,7 @@ bool FLiveLinkHubPlaybackController::SyncToFrame(int32 InFrameIndex)
 
 bool FLiveLinkHubPlaybackController::ShouldRestart() const
 {
-	return RecordingToPlay.IsValid() && ((bIsReverse && CurrentFrameIndex <= GetSelectionStartFrame()) || (!bIsReverse && CurrentFrameIndex >= GetSelectionEndFrame()));
-}
-
-double FLiveLinkHubPlaybackController::GetTimeDelta() const
-{
-	// todo: get frame frate
-	return RecordingToPlay.IsValid() ? RecordingToPlay->LengthInSeconds / 60.f : 1.f;
+	const FFrameNumber CurrentFrame = GetCurrentFrame();
+	return RecordingToPlay.IsValid() && ((bIsReverse && CurrentFrame <= GetSelectionStartTime().Time.GetFrame())
+		|| (!bIsReverse && CurrentFrame >= GetSelectionEndTime().Time.GetFrame()));
 }
