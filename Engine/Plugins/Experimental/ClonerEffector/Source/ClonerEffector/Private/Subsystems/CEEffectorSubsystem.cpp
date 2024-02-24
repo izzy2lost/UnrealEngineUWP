@@ -59,8 +59,9 @@ bool UCEEffectorSubsystem::RegisterChannelEffector(ACEEffectorActor* InEffector)
 
 	if (InEffector->ChannelData.Identifier != EffectorIndex)
 	{
+		const int32 OldIdentifier = InEffector->ChannelData.Identifier;
 		InEffector->ChannelData.Identifier = EffectorIndex;
-		OnEffectorIdentifierChangedDelegate.Broadcast(InEffector);
+		OnEffectorIdentifierChangedDelegate.Broadcast(InEffector, OldIdentifier, EffectorIndex);
 	}
 
 	return true;
@@ -77,10 +78,11 @@ bool UCEEffectorSubsystem::UnregisterChannelEffector(ACEEffectorActor* InEffecto
 
 	if (bUnregistered)
 	{
-		InEffector->ChannelData.Identifier = INDEX_NONE;
-		OnEffectorIdentifierChangedDelegate.Broadcast(InEffector);
-
 		UE_LOG(LogACEEffectorSubsystem, Log, TEXT("%s effector unregistered from channel"), *InEffector->GetActorNameOrLabel());
+
+		const int32 OldIdentifier = InEffector->ChannelData.Identifier;
+		InEffector->ChannelData.Identifier = INDEX_NONE;
+		OnEffectorIdentifierChangedDelegate.Broadcast(InEffector, OldIdentifier, InEffector->ChannelData.Identifier);
 	}
 
 	return bUnregistered;
@@ -124,7 +126,8 @@ void UCEEffectorSubsystem::UpdateEffectorChannel()
 
 		FCEClonerEffectorChannelData& ChannelData = Effector->GetChannelData();
 
-		const bool bIdentifierChanged = ChannelData.Identifier != EffectorIndex;
+		const int32 PreviousIdentifier = ChannelData.Identifier;
+		const bool bIdentifierChanged = PreviousIdentifier != EffectorIndex;
 
 		// Set channel before writing
 		ChannelData.Identifier = EffectorIndex++;
@@ -135,7 +138,7 @@ void UCEEffectorSubsystem::UpdateEffectorChannel()
 		// When changed, update cloners DI linked to this effector
 		if (bIdentifierChanged)
 		{
-			OnEffectorIdentifierChangedDelegate.Broadcast(Effector);
+			OnEffectorIdentifierChangedDelegate.Broadcast(Effector, PreviousIdentifier, ChannelData.Identifier);
 		}
 	}
 }

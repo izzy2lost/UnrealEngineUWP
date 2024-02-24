@@ -81,6 +81,13 @@ FString ACEClonerActor::GetDefaultActorLabel() const
 	return DefaultLabel;
 }
 
+void ACEClonerActor::PostEditUndo()
+{
+	Super::PostEditUndo();
+
+	ForceUpdateCloner();
+}
+
 const TCEPropertyChangeDispatcher<ACEClonerActor> ACEClonerActor::PropertyChangeDispatcher =
 {
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bEnabled), &ACEClonerActor::OnEnabledChanged },
@@ -1046,10 +1053,20 @@ void ACEClonerActor::OnClonerSystemChanged()
 	UpdateLayoutOptions();
 }
 
-void ACEClonerActor::OnEffectorIdentifierChanged(ACEEffectorActor* InEffector)
+void ACEClonerActor::OnEffectorIdentifierChanged(ACEEffectorActor* InEffector, int32 InOldIdentifier, int32 InNewIdentifier)
 {
 	if (EffectorsWeak.Contains(InEffector))
 	{
+		// Remove effector if it is unregistered from channel
+		if (InNewIdentifier == INDEX_NONE)
+		{
+#if WITH_EDITOR
+			Modify();
+#endif
+
+			EffectorsWeak.Remove(InEffector);
+		}
+
 		OnEffectorsChanged();
 	}
 }
@@ -1091,8 +1108,8 @@ void ACEClonerActor::OnEffectorsChanged()
 		}
 	}
 
-	EffectorDataInterfaces->Clear();
 	TArray<int32>& EffectorIndexArray = EffectorDataInterfaces->GetIndexArray()->GetArrayReference();
+	EffectorIndexArray.Empty(EffectorIndexes.Num());
 
 	for (const int32 EffectorIndex : EffectorIndexes)
 	{
@@ -1223,9 +1240,11 @@ void ACEClonerActor::ForceUpdateCloner()
 {
 	if (ClonerComponent)
 	{
-		constexpr bool bReset = true;
-		ClonerComponent->UpdateClonerAttachmentTree(bReset);
-		TreeUpdateDeltaTime = TreeUpdateInterval;
+		ClonerComponent->UpdateClonerAttachmentTree();
+		ClonerComponent->UpdateClonerRenderState();
+
+		OnLayoutNameChanged();
+		OnEffectorsChanged();
 	}
 }
 
