@@ -7,7 +7,7 @@
 
 class UStaticMeshComponent;
 
-UCLASS(MinimalAPI, DisplayName = "Motion Design Test Static Mesh Actor")
+UCLASS(NotPlaceable, Hidden, DisplayName = "Motion Design Test Static Mesh Actor")
 class AAvaTestStaticMeshActor : public AActor
 {
 	GENERATED_BODY()

@@ -13,7 +13,7 @@ class UAvaSequencePlayer;
 class UMovieSceneSequenceTickManager;
 
 /** Base Actor for Ava Sequence Playback Management */
-UCLASS(DisplayName = "Motion Design Sequence Playback Actor")
+UCLASS(NotPlaceable, Hidden, DisplayName = "Motion Design Sequence Playback Actor")
 class AAvaSequencePlaybackActor : public AActor, public IAvaSequencePlaybackObject
 {
 	GENERATED_BODY()
