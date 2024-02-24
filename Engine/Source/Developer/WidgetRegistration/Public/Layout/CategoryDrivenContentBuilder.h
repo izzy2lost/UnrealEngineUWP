@@ -3,7 +3,7 @@
 #pragma once
 #include "ToolkitBuilder.h"
 #include "ToolkitStyle.h"
-#include "Layout\CategoryDrivenContentBuilderBase.h"
+#include "Layout/CategoryDrivenContentBuilderBase.h"
 
 /**
  * A builder which creates a widget that has a vertical toolbar category picker on the left
