@@ -512,6 +512,91 @@ void UVCamOutputProviderBase::PostLoad()
 	}
 }
 
+#if WITH_EDITOR
+
+void UVCamOutputProviderBase::PreEditUndo()
+{
+	bIsUndoing = true;
+	Super::PreEditUndo();
+
+	if (UE::VCamCore::CanInitVCamOutputProvider(this))
+	{
+		// If bIsActive is about to be set to false, we need to deactivate here because either
+		// - UMGWidget will be null-ed, or
+		// - the UVPFullScreenWidget::CurrentDisplayType will be set to Inactive
+		// Both prevent us from removing the widget from the viewport correctly so we'll just ALWAYS disable and optionally restore in PostEditUndo.
+		OnDeactivate();
+	}
+}
+
+void UVCamOutputProviderBase::PostEditUndo()
+{
+	ON_SCOPE_EXIT { bIsUndoing = false; };
+	Super::PostEditUndo();
+
+	if (UE::VCamCore::CanInitVCamOutputProvider(this) && IsActiveAndOuterComponentEnabled())
+	{
+		// Need to restore because we killed the widget in PreEditUndo
+		// The transaction has overwritten our properties, e.g. UMGWidget, which would make OnActivate fail 
+		OnDeactivate();
+
+		// Our initialized state may also not line up anymore - in that case we must be initialized before activating.
+		if (!IsInitialized())
+		{
+			Initialize();
+		}
+		
+		// Now we're in a clean base state to re-activate
+		OnActivate();
+	}
+}
+
+void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FProperty* Property = PropertyChangedEvent.MemberProperty;
+	if (UE::VCamCore::CanInitVCamOutputProvider(this)
+		&& Property
+		&& PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+	{
+		static FName NAME_IsActive = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, bIsActive);
+		static FName NAME_UMGClass = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, UMGClass);
+		static FName NAME_TargetViewport = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, TargetViewport);
+		static FName NAME_OverrideResolution = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, OverrideResolution);
+		static FName NAME_bUseOverrideResolution = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, bUseOverrideResolution);
+
+		const FName PropertyName = Property->GetFName();
+		if (PropertyName == NAME_IsActive)
+		{
+			SetActive(bIsActive);
+		}
+		else if (PropertyName == NAME_UMGClass)
+		{
+			WidgetSnapshot.Reset();
+			if (IsActiveAndOuterComponentEnabled())
+			{
+				// In case a child class resets UMGClass, reapply the correct value we got the PostEditChangeProperty for.
+				const TSubclassOf<UUserWidget> ProtectUMGClass = UMGClass;
+				SetActive(false);
+				// Does additional checks; Unreal Editor already ensures we do not get deprecated / abstract classes but we may add more checks in future.
+				SetUMGClass(ProtectUMGClass);
+				SetActive(true);
+			}
+		}
+		else if (PropertyName == NAME_TargetViewport)
+		{
+			ReinitializeViewportIfNeeded();
+		}
+		else if (PropertyName == NAME_OverrideResolution || PropertyName == NAME_bUseOverrideResolution)
+		{
+			ReapplyOverrideResolution();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+#endif
+
 TSharedPtr<FSceneViewport> UVCamOutputProviderBase::GetSceneViewport(EVCamTargetViewportID InTargetViewport) const
 {
 	TSharedPtr<FSceneViewport> SceneViewport;
@@ -619,6 +704,8 @@ TSharedPtr<SLevelViewport> UVCamOutputProviderBase::GetTargetLevelViewport() con
 	return UE::VCamCore::LevelViewportUtils::Private::GetLevelViewport(TargetViewport);
 }
 
+#endif
+
 void UVCamOutputProviderBase::ReinitializeViewportIfNeeded()
 {
 	for (int32 i = 0; i < static_cast<int32>(EVCamTargetViewportID::Count); ++i)
@@ -672,86 +759,7 @@ void UVCamOutputProviderBase::ReinitializeViewport()
 	PostReapplyViewport();
 }
 
-void UVCamOutputProviderBase::PreEditUndo()
-{
-	bIsUndoing = true;
-	Super::PreEditUndo();
-
-	if (UE::VCamCore::CanInitVCamOutputProvider(this))
-	{
-		// If bIsActive is about to be set to false, we need to deactivate here because either
-		// - UMGWidget will be null-ed, or
-		// - the UVPFullScreenWidget::CurrentDisplayType will be set to Inactive
-		// Both prevent us from removing the widget from the viewport correctly so we'll just ALWAYS disable and optionally restore in PostEditUndo.
-		OnDeactivate();
-	}
-}
-
-void UVCamOutputProviderBase::PostEditUndo()
-{
-	ON_SCOPE_EXIT { bIsUndoing = false; };
-	Super::PostEditUndo();
-
-	if (UE::VCamCore::CanInitVCamOutputProvider(this) && IsActiveAndOuterComponentEnabled())
-	{
-		// Need to restore because we killed the widget in PreEditUndo
-		// The transaction has overwritten our properties, e.g. UMGWidget, which would make OnActivate fail 
-		OnDeactivate();
-
-		// Our initialized state may also not line up anymore - in that case we must be initialized before activating.
-		if (!IsInitialized())
-		{
-			Initialize();
-		}
-		
-		// Now we're in a clean base state to re-activate
-		OnActivate();
-	}
-}
-
-void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	const FProperty* Property = PropertyChangedEvent.MemberProperty;
-	if (UE::VCamCore::CanInitVCamOutputProvider(this)
-		&& Property
-		&& PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
-	{
-		static FName NAME_IsActive = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, bIsActive);
-		static FName NAME_UMGClass = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, UMGClass);
-		static FName NAME_TargetViewport = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, TargetViewport);
-		static FName NAME_OverrideResolution = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, OverrideResolution);
-		static FName NAME_bUseOverrideResolution = GET_MEMBER_NAME_CHECKED(UVCamOutputProviderBase, bUseOverrideResolution);
-
-		const FName PropertyName = Property->GetFName();
-		if (PropertyName == NAME_IsActive)
-		{
-			SetActive(bIsActive);
-		}
-		else if (PropertyName == NAME_UMGClass)
-		{
-			WidgetSnapshot.Reset();
-			if (IsActiveAndOuterComponentEnabled())
-			{
-				// In case a child class resets UMGClass, reapply the correct value we got the PostEditChangeProperty for.
-				const TSubclassOf<UUserWidget> ProtectUMGClass = UMGClass;
-				SetActive(false);
-				// Does additional checks; Unreal Editor already ensures we do not get deprecated / abstract classes but we may add more checks in future.
-				SetUMGClass(ProtectUMGClass);
-				SetActive(true);
-			}
-		}
-		else if (PropertyName == NAME_TargetViewport)
-		{
-			ReinitializeViewportIfNeeded();
-		}
-		else if (PropertyName == NAME_OverrideResolution || PropertyName == NAME_bUseOverrideResolution)
-		{
-			ReapplyOverrideResolution();
-		}
-	}
-
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-}
+#if WITH_EDITOR
 
 void UVCamOutputProviderBase::ModifyViewportPostProcessSettings(FEditorViewportViewModifierParams& EditorViewportViewModifierParams)
 {
