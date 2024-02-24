@@ -65,6 +65,7 @@ public:
 				]
 			]
 			+ SVerticalBox::Slot()
+			.FillHeight(1.0f)
 			[
 				CreateRecordingPicker()
 			]
@@ -124,11 +125,11 @@ private:
 		MenuBuilder.BeginSection(NAME_None, LOCTEXT("ImportRecording_MenuSection", "Import Recording"));
 		{
 			TSharedRef<SWidget> PresetPicker = SNew(SBox)
-				.MinDesiredWidth(400.f)
-				.MinDesiredHeight(400.f)
-				[
-					ContentBrowser.CreateAssetPicker(AssetPickerConfig)
-				];
+			.VAlign(VAlign_Fill)
+			.HAlign(HAlign_Fill)
+			[
+				ContentBrowser.CreateAssetPicker(AssetPickerConfig)
+			];
 
 			MenuBuilder.AddWidget(PresetPicker, FText(), true, false);
 		}
