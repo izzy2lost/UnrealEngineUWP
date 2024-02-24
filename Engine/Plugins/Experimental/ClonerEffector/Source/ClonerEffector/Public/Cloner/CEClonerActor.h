@@ -393,6 +393,7 @@ protected:
 	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
 #if WITH_EDITOR
+	virtual void PostEditUndo() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
 	//~ End UObject
@@ -435,7 +436,7 @@ protected:
 	void OnClonerMeshUpdated(UCEClonerComponent* InClonerComponent);
 	void OnClonerSystemChanged();
 
-	void OnEffectorIdentifierChanged(ACEEffectorActor* InEffector);
+	void OnEffectorIdentifierChanged(ACEEffectorActor* InEffector, int32 InOldIdentifier, int32 InNewIdentifier);
 	void OnEffectorRefreshCloner(ACEEffectorActor* InEffector);
 
 	void OnEffectorsChanged();
