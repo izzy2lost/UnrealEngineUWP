@@ -4,11 +4,14 @@
 
 #include "AvaMediaEditorStyle.h"
 #include "ContentBrowserMenuContexts.h"
+#include "Framework/Commands/UIAction.h"
 #include "IAvaMediaEditorModule.h"
 #include "Misc/MessageDialog.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/AvaRundownEditorUtils.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "UAssetDefinition_AvaRundown"
 
