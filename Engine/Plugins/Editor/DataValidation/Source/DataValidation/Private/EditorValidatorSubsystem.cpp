@@ -218,6 +218,25 @@ void UEditorValidatorSubsystem::AddValidator(const FAssetData& InValidatorAssetD
 	}
 }
 
+void UEditorValidatorSubsystem::RemoveValidator(UEditorValidatorBase* InValidator)
+{
+	if (InValidator)
+	{
+		UClass* Class = InValidator->GetClass();
+		if (Cast<UBlueprintGeneratedClass>(Class))
+		{
+			if (UObject* ClassGenerator = Class->ClassGeneratedBy)
+			{
+				Validators.Remove(FTopLevelAssetPath(ClassGenerator));
+			}
+		}
+		else
+		{
+			Validators.Remove(InValidator->GetClass()->GetClassPathName());
+		}
+	}
+}
+
 void UEditorValidatorSubsystem::CleanupValidators()
 {
 	Validators.Empty();
