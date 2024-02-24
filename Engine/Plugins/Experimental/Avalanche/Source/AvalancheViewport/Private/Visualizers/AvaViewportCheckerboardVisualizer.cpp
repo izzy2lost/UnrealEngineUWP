@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Visualizers/AvaViewportCheckerboardVisualizer.h"
-
+#include "AvalancheViewportModule.h"
 #include "AvaViewportSettings.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -56,6 +56,10 @@ void FAvaViewportCheckerboardVisualizer::UpdatePostProcessMaterial()
 		PostProcessMaterial->SetVectorParameterValue(CheckerboardColor1Name, CheckerboardColor1);
 		PostProcessMaterial->SetVectorParameterValue(CheckerboardSizeName, CheckerboardSize);
 	}
+	else
+	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportCheckerboardVisualizer::UpdatePostProcessMaterial: Missing post process material."));
+	}
 }
 
 FString FAvaViewportCheckerboardVisualizer::GetReferencerName() const
@@ -100,6 +104,8 @@ bool FAvaViewportCheckerboardVisualizer::InitPostProcessMaterial()
 			return true;
 		}
 	}
+
+	UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportCheckerboardVisualizer::InitPostProcessMaterial: Failed to init post process material."));
 	return false;
 }
 
@@ -112,6 +118,8 @@ bool FAvaViewportCheckerboardVisualizer::UpdateFromViewportSettings()
 		CheckerboardSize = FVector(ViewportSettings->ViewportCheckerboardSize);
 		return true;
 	}
+
+	UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportCheckerboardVisualizer::UpdateFromViewportSettings: Failed to update from viewport settings."));
 	return false;
 }
 

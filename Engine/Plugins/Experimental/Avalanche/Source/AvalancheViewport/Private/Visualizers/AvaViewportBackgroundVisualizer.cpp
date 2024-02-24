@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Visualizers/AvaViewportBackgroundVisualizer.h"
+#include "AvalancheViewportModule.h"
 #include "AvaViewportPostProcessManager.h"
 #include "AvaViewportSettings.h"
 #include "AvaViewportUtils.h"
@@ -9,9 +10,6 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/Package.h"
-#include "Viewport/Interaction/AvaViewportPostProcessInfo.h"
-#include "Viewport/Interaction/IAvaViewportDataProvider.h"
-#include "Viewport/Interaction/IAvaViewportDataProxy.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
 #define LOCTEXT_NAMESPACE "AvaViewportBackgroundVisualizer"
@@ -36,6 +34,7 @@ FAvaViewportBackgroundVisualizer::FAvaViewportBackgroundVisualizer(TSharedRef<IA
 
 	if (!ViewportSettings)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportBackgroundVisualizer::FAvaViewportBackgroundVisualizer: Unable to find viewport settings."));
 		return;
 	}
 
@@ -43,6 +42,7 @@ FAvaViewportBackgroundVisualizer::FAvaViewportBackgroundVisualizer(TSharedRef<IA
 
 	if (!BackgroundMaterial)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportBackgroundVisualizer::FAvaViewportBackgroundVisualizer: Unable to find background material."));
 		return;
 	}
 
@@ -153,6 +153,7 @@ void FAvaViewportBackgroundVisualizer::UpdatePostProcessMaterial()
 {
 	if (!PostProcessMaterial)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportBackgroundVisualizer::UpdatePostProcessMaterial: Invalid post process material."));
 		return;
 	}
 

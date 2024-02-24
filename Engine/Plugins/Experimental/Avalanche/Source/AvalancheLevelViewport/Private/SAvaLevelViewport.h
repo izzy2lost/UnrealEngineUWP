@@ -29,6 +29,7 @@ class SOverlay;
 class SWidget;
 class UAvaViewportSettings;
 class UToolMenu;
+enum class EAvaViewportPostProcessType : uint8;
 enum class EAvaViewportVirtualSizeAspectRatioState : uint8;
 enum class ECheckBoxState : uint8;
 struct FAssetEditorViewportConstructionArgs;
@@ -128,33 +129,9 @@ public:
 
 	void ExecuteToggleChildActorLock();
 
-	bool IsPostProcessNoneEnabled() const;
-	bool CanTogglePostProcessNone() const;
-	void ExecuteTogglePostProcessNone();
-
-	bool IsPostProcessBackgroundEnabled() const;
-	bool CanTogglePostProcessBackground() const;
-	void ExecuteTogglePostProcessBackground();
-
-	bool IsPostProcessChannelRedEnabled() const;
-	bool CanTogglePostProcessChannelRed() const;
-	void ExecuteTogglePostProcessChannelRed();
-
-	bool IsPostProcessChannelGreenEnabled() const;
-	bool CanTogglePostProcessChannelGreen() const;
-	void ExecuteTogglePostProcessChannelGreen();
-
-	bool IsPostProcessChannelBlueEnabled() const;
-	bool CanTogglePostProcessChannelBlue() const;
-	void ExecuteTogglePostProcessChannelBlue();
-
-	bool IsPostProcessChannelAlphaEnabled() const;
-	bool CanTogglePostProcessChannelAlpha() const;
-	void ExecuteTogglePostProcessChannelAlpha();
-
-	bool IsPostProcessCheckerboardEnabled() const;
-	bool CanTogglePostProcessCheckerboard() const;
-	void ExecuteTogglePostProcessCheckerboard();
+	bool IsPostProcessTypeEnabled(EAvaViewportPostProcessType InPostProcessType) const;
+	bool CanTogglePostProcessType(EAvaViewportPostProcessType InPostProcessType) const;
+	void ExecuteTogglePostProcessType(EAvaViewportPostProcessType InPostProcessType);
 
 	bool CanToggleTextureOverlay() const;
 	void ExecuteToggleTextureOverlay();

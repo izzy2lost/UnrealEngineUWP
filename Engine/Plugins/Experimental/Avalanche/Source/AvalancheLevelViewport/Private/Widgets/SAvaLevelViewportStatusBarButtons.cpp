@@ -87,6 +87,14 @@ namespace UE::Ava::LevelViewportStatusBarButtons::Private
 					PostProcessManager->SetType(InPostProcessType);
 				}
 			}
+			else
+			{
+				UE_LOG(AvaLevelViewportLog, Warning, TEXT("TogglePostProcess: Unable to find post process manager."));
+			}
+		}
+		else
+		{
+			UE_LOG(AvaLevelViewportLog, Warning, TEXT("TogglePostProcess: Invalid viewport frame/client."));
 		}
 	}
 }
