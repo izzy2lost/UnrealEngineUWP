@@ -19,6 +19,7 @@
 #include "Layout/Geometry.h"
 #include "Layout/Visibility.h"
 #include "MediaOutput.h"
+#include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
 #include "Styling/SlateBrush.h"
