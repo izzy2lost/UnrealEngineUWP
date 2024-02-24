@@ -28,9 +28,6 @@ public:
 	FText GetDisplayName() const override;
 	void ConstructNode() override;
 
-	// UObject
-	void PostLoad() override;
-	
 	// IOptimusNodePinRouter implementation
 	FOptimusRoutedNodePin GetPinCounterpart(
 		UOptimusNodePin* InNodePin,
@@ -46,10 +43,11 @@ public:
 	UOptimusNodePin* GetDefaultComponentBindingPin() const override;
 
 	FSoftObjectPath GetSerializedGraphPath() const;
-
-	void SetSerializedGraphPath(const FSoftObjectPath& InNewGraphPath);
+	void InitializeSerializedGraphPath(const FSoftObjectPath& InInitialGraphPath);
+	void RefreshSerializedGraphPath(const FSoftObjectPath& InRenamedGraphPath);
 	
 protected:
+	void InitializeTransientData() override;
 	
 	/** The graph that owns us. This contains all the necessary pin information to add on
 	 * the terminal node.

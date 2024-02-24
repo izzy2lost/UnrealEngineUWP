@@ -79,7 +79,7 @@ void FOptimusCoreModule::UpdateFunctionReferences(const FSoftObjectPath& InOldGr
 			if (FunctionNode)
 			{
 				FunctionNode->Modify();
-				FunctionNode->SetSerializedGraphPath(InNewGraphPath);
+				FunctionNode->RefreshSerializedGraphPath(InNewGraphPath);
 				FunctionNode->MarkPackageDirty();
 			}
 		}

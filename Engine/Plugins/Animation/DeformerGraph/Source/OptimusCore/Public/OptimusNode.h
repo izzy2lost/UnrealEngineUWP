@@ -188,6 +188,7 @@ public:
 #endif
 	
 protected:
+	friend class FOptimusEditorClipboard;
 	friend class UOptimusNodeGraph;
 	friend class UOptimusNodeSubGraph;
 	friend class UOptimusNodePin;
@@ -216,6 +217,9 @@ protected:
 
 	// Called when the node is being constructed
 	virtual void ConstructNode();
+
+	// Allows the node to initialize any transient data that can be derived from serialized properties
+	virtual void InitializeTransientData();
 
 	virtual bool ValidateConnection(
 		const UOptimusNodePin& InThisNodesPin,
