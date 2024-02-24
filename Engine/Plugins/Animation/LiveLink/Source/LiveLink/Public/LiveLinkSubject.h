@@ -106,7 +106,10 @@ public:
 	FLiveLinkSubjectTimeSyncData GetTimeSyncData();
 	bool IsTimeSynchronized() const;
 
+	/** Get the timestamp of the last time a frame was received for this subject. */
 	double GetLastPushTime() const { return LastPushTime; }
+	/** Set the last time a frame was received. */
+	void SetLastPushTime(double InLastPushTime) { LastPushTime = InLastPushTime; }
 
 private:
 	int32 FindNewFrame_WorldTime(const FLiveLinkWorldTime& FrameTime) const;

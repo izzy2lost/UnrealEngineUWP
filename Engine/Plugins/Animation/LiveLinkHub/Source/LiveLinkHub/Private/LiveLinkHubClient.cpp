@@ -13,6 +13,7 @@
 #include "LiveLinkSubject.h"
 #include "LiveLinkSubjectSettings.h"
 #include "LiveLinkTimedDataInput.h"
+#include "Misc/App.h"
 #include "Modules/ModuleManager.h"
 #include "Recording/LiveLinkPlaybackSource.h"
 #include "Recording/LiveLinkPlaybackSubject.h"
@@ -405,6 +406,14 @@ void FLiveLinkHubClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKe
 {
 	SCOPE_CYCLE_COUNTER(STAT_LiveLinkHub_PushFrameData);
 
+	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectKey))
+	{
+		if (FLiveLinkSubject* LiveSubject = SubjectItem->GetLiveSubject())
+		{
+			LiveSubject->SetLastPushTime(FApp::GetCurrentTime());
+		}
+	}
+
 	OnFrameDataReceivedDelegate_AnyThread.Broadcast(SubjectKey, FrameData);
 }
 
@@ -423,7 +432,11 @@ bool FLiveLinkHubClient::IsSubjectValid(const FLiveLinkSubjectKey& InSubjectKey)
 	FScopeLock Lock(&CollectionAccessCriticalSection);
 	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
 	{
-		// todo LiveLinkHub : Get subject validity from the UE client since we don't store snapshots on the hub side yet
+		if (FLiveLinkSubject* LiveSubject = SubjectItem->GetLiveSubject())
+		{
+			// We don't store frame snapshots so we instead rely on the subject's last push time.
+			return FApp::GetCurrentTime() - LiveSubject->GetLastPushTime() < GetDefault<ULiveLinkSettings>()->GetTimeWithoutFrameToBeConsiderAsInvalid();
+		}
 		return true;
 	}
 	return false;
