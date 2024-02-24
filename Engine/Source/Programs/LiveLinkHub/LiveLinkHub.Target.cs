@@ -58,10 +58,10 @@ public class LiveLinkHubTarget : TargetRules
 		bCompileWithPluginSupport = true;
 		bBuildDeveloperTools = true;
 		bIsBuildingConsoleApplication = false;
+		bUseLoggingInShipping = true;
 
 		GlobalDefinitions.Add("WITH_LIVELINK_HUB=1");
 		GlobalDefinitions.Add("AUTOSDKS_ENABLED=0");
-		GlobalDefinitions.Add("NO_LOGGING=0");
 		GlobalDefinitions.Add("PLATFORM_SUPPORTS_MESSAGEBUS=1");
 
 		if (bCookedEditorDistribution)
@@ -75,7 +75,5 @@ public class LiveLinkHubTarget : TargetRules
 
 		OptedInModulePlatforms = new UnrealTargetPlatform[] { UnrealTargetPlatform.Win64, UnrealTargetPlatform.Mac,
 															  UnrealTargetPlatform.Linux, UnrealTargetPlatform.LinuxArm64 };
-
-		// todo: Look into using ExeBinariesSubFolder
 	}
 }

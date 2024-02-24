@@ -30,6 +30,9 @@ void FLiveLinkHub::Initialize()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHub::Initialize);
 
+	// Re-enable this since we've disabled it to avoid the creation of the console window.
+	GIsSilent = false;
+
 	// We must register the livelink client first since we might rely on the modular feature to initialize the controllers/managers.
 	LiveLinkHubClient = MakeShared<FLiveLinkHubClient>(AsShared());
 	IModularFeatures::Get().RegisterModularFeature(ILiveLinkClient::ModularFeatureName, LiveLinkHubClient.Get());
