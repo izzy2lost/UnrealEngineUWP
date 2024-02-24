@@ -265,10 +265,17 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 				// cache mesh description, only if we succeeded (failure may be non-deterministic)
 				if (bSuccess)
 				{
-					// serialize the nanite mesh description and submit it to DDC 
-					FMemoryWriter Writer(MeshDescriptionData);
-					AsyncBuildData->NaniteMeshDescription->Serialize(Writer);
-					GetDerivedDataCacheRef().Put(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName());
+					// don't bother to save large mesh descriptions into the DDC cache
+					// a 1k x 1k landscape ends up being around ~500 megs of serialized mesh description data
+					int32 PosCount = AsyncBuildData->NaniteMeshDescription->GetVertexPositions().GetNumElements();
+					if (PosCount <= (1024+32)*1024)
+					{
+						// serialize the nanite mesh description and submit it to DDC 
+						FMemoryWriter Writer(MeshDescriptionData);
+						AsyncBuildData->NaniteMeshDescription->Serialize(Writer);
+
+						GetDerivedDataCacheRef().Put(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName());
+					}
 				}
 			}
 
