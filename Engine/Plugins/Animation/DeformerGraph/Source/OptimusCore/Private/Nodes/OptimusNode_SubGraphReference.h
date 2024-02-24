@@ -31,7 +31,6 @@ public:
 	void ConstructNode() override;
 
 	// UObject overrides
-	void PostLoad() override;
 	void BeginDestroy() override;
 
 	// IOptimusNodePinRouter implementation
@@ -49,11 +48,15 @@ public:
 	UOptimusNodePin* GetDefaultComponentBindingPin() const override;
 
 	// Only used during node creation, cannot be used to reference a different graph once node is constructed
-	void SetSerializedSubGraphName(FName InSubGraphName);
+	void InitializeSerializedSubGraphName(FName InInitialSubGraphName);
 	void RefreshSerializedSubGraphName();
 	FName GetSerializedSubGraphName() const;
 	
 protected:
+	// UOptimusNode overrides
+	void InitializeTransientData() override;
+	
+	void ResolveSubGraphPointerAndSubscribe();
 	void SubscribeToSubGraph();
 	void UnsubscribeFromSubGraph() const;
 
@@ -73,9 +76,10 @@ protected:
 	TWeakObjectPtr<UOptimusNodePin> DefaultComponentPin;
 
 private:
+	
+	
 	/** The graph that owns us. This contains all the necessary pin information to add on
-	 * the terminal node.
+	 * the terminal node. Initialized when the node is loaded/created
 	 */
-	UPROPERTY()
 	TWeakObjectPtr<UOptimusNodeSubGraph> SubGraph;	
 };

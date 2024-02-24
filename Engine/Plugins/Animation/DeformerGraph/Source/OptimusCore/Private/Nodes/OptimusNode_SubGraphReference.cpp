@@ -48,16 +48,14 @@ void UOptimusNode_SubGraphReference::ConstructNode()
 		{
 			AddPinDirect(Binding, EOptimusNodePinDirection::Output);
 		}
-
-		SubscribeToSubGraph();
 	}
 }
 
-void UOptimusNode_SubGraphReference::PostLoad()
+void UOptimusNode_SubGraphReference::InitializeTransientData()
 {
-	Super::PostLoad();
-
-	SubscribeToSubGraph();
+	Super::InitializeTransientData();
+	
+	ResolveSubGraphPointerAndSubscribe();
 }
 
 void UOptimusNode_SubGraphReference::BeginDestroy()
@@ -151,11 +149,10 @@ UOptimusNodePin* UOptimusNode_SubGraphReference::GetDefaultComponentBindingPin()
 	return DefaultComponentPin.Get();
 }
 
-void UOptimusNode_SubGraphReference::SetSerializedSubGraphName(FName InSubGraphName)
+void UOptimusNode_SubGraphReference::InitializeSerializedSubGraphName(FName InInitialSubGraphName)
 {
-	SubGraphName = InSubGraphName;
-	FString SubGraphPath = GetOwningGraph()->ConstructSubGraphPath(SubGraphName.ToString());
-	SubGraph = Cast<UOptimusNodeSubGraph>(GetOwningGraph()->GetPathResolver()->ResolveGraphPath(SubGraphPath));
+	SubGraphName = InInitialSubGraphName;
+	// SubGraph object pointer is resolved during InitializeTransientData()
 }
 
 void UOptimusNode_SubGraphReference::RefreshSerializedSubGraphName()
@@ -168,9 +165,15 @@ FName UOptimusNode_SubGraphReference::GetSerializedSubGraphName() const
 	return SubGraphName;
 }
 
+void UOptimusNode_SubGraphReference::ResolveSubGraphPointerAndSubscribe()
+{
+	SubGraph = Cast<UOptimusNodeSubGraph>(GetOwningGraph()->FindGraphByName(GetSerializedSubGraphName()));
+	SubscribeToSubGraph();
+}
+
 void UOptimusNode_SubGraphReference::SubscribeToSubGraph()
 {
-	if (ensure(!SubGraph->GetOnBindingArrayPasted().IsBoundToObject(this)))
+	if (ensure(SubGraph.IsValid() && !SubGraph->GetOnBindingArrayPasted().IsBoundToObject(this)))
 	{
 		SubGraph->GetOnBindingArrayPasted().AddUObject(this, &UOptimusNode_SubGraphReference::RecreateBindingPins);
 		SubGraph->GetOnBindingValueChanged().AddUObject(this, &UOptimusNode_SubGraphReference::SyncPinsToBindings);

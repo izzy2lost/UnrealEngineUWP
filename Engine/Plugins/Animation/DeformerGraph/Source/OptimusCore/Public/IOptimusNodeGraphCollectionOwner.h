@@ -47,6 +47,8 @@ public:
 	/// Returns all immediately owned node graphs.
 	virtual const TArray<UOptimusNodeGraph*> &GetGraphs() const = 0;
 
+	virtual UOptimusNodeGraph* FindGraphByName(FName InGraphName) const = 0;
+
 	/// Create a new graph of a given type, with an optional name. The name may be changed to 
 	/// fit into the namespace. Only setup and trigger graphs can currently be created directly,
 	/// and only a single setup graph. The setup graph is always the first, and the trigger graphs

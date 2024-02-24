@@ -339,6 +339,8 @@ public:
 
 	const TArray<UOptimusNodeGraph*> &GetGraphs() const override { return Graphs; }
 
+	UOptimusNodeGraph* FindGraphByName(FName InGraphName) const override;
+
 	UOptimusNodeGraph* CreateGraph(
 		EOptimusNodeGraphType InType,
 		FName InName)

@@ -3632,6 +3632,18 @@ UOptimusNodePin* UOptimusDeformer::ResolvePinPath(const FString& InPinPath)
 }
 
 
+UOptimusNodeGraph* UOptimusDeformer::FindGraphByName(FName InGraphName) const
+{
+	for (UOptimusNodeGraph* Graph : GetGraphs())
+	{
+		if (Graph->GetFName() == InGraphName)
+		{
+			return Graph;
+		}
+	}
+
+	return nullptr;
+}
 
 UOptimusNodeGraph* UOptimusDeformer::CreateGraphDirect(
 	EOptimusNodeGraphType InType, 

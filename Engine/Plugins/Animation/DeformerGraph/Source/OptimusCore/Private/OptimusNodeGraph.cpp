@@ -491,11 +491,11 @@ bool UOptimusNodeGraph::DuplicateSubGraph(UOptimusNodeSubGraph* InSourceSubGraph
 	{
 		FOptimusActionScope(*GetActionStack(), TEXT("Duplicate SubGraph"));
 		GetActionStack()->RunAction<FOptimusNodeGraphAction_AddGraph>(this, EOptimusNodeGraphType::SubGraph, SubGraphName, INDEX_NONE,
-			[InSourceSubGraph](UOptimusNodeGraph* InGraph)
+			[InputBindings = InSourceSubGraph->InputBindings, OutputBindings = InSourceSubGraph->OutputBindings](UOptimusNodeGraph* InGraph)
 			{
 				UOptimusNodeSubGraph* SubGraph = CastChecked<UOptimusNodeSubGraph>(InGraph);
-				SubGraph->InputBindings = InSourceSubGraph->InputBindings;
-				SubGraph->OutputBindings = InSourceSubGraph->OutputBindings;
+				SubGraph->InputBindings = InputBindings;
+				SubGraph->OutputBindings = OutputBindings;
 				return true;
 			});
 	
@@ -536,13 +536,8 @@ bool UOptimusNodeGraph::DuplicateSubGraph(UOptimusNodeSubGraph* InSourceSubGraph
 		for (UOptimusNode* Node: NodesToDuplicate)
 		{
 			GetActionStack()->RunAction<FOptimusNodeGraphAction_DuplicateNode>(
-				SubGraphPath, Node, Node->GetFName(), [](UOptimusNode* InNode)
+				SubGraphPath, Node, Node->GetFName(), [](UOptimusNode*)
 				{
-					if (UOptimusNode_SubGraphReference* SubGraphNode = Cast<UOptimusNode_SubGraphReference>(InNode))
-					{
-						FName NewSubGraphName = SubGraphNode->GetReferencedSubGraph()->GetFName();
-						SubGraphNode->SetSerializedSubGraphName(NewSubGraphName);
-					}
 					return true;
 				});
 		}
@@ -657,7 +652,7 @@ UOptimusNode* UOptimusNodeGraph::AddFunctionReferenceNode(TSoftObjectPtr<UOptimu
 	[InFunctionGraph](UOptimusNode *InNode)
 	{
 		UOptimusNode_FunctionReference* FunctionNode = CastChecked<UOptimusNode_FunctionReference>(InNode);
-		FunctionNode->SetSerializedGraphPath(InFunctionGraph.ToSoftObjectPath());
+		FunctionNode->InitializeSerializedGraphPath(InFunctionGraph.ToSoftObjectPath());
 	});
 }
 
@@ -988,14 +983,15 @@ bool UOptimusNodeGraph::DuplicateNodes(
 		{
 			FOptimusNodeGraphAction_DuplicateNode *DuplicateNodeAction = new FOptimusNodeGraphAction_DuplicateNode(
 				GetGraphPath(), Node, NewNodeNameMap[Node],
-				[Node, NodeOffset, NewSubGraphNameMap](UOptimusNode *InNode) {
+				[SourceNodeGraphPosition = Node->GraphPosition, NodeOffset, NewSubGraphNameMap](UOptimusNode *InNode)
+				{
 					if (UOptimusNode_SubGraphReference* SubGraphNode = Cast<UOptimusNode_SubGraphReference>(InNode))
 					{
 						FName NewSubGraphName = NewSubGraphNameMap[SubGraphNode->GetSerializedSubGraphName()];
-						SubGraphNode->SetSerializedSubGraphName(NewSubGraphName);
+						SubGraphNode->InitializeSerializedSubGraphName(NewSubGraphName);
 					}
-					return InNode->SetGraphPositionDirect(Node->GraphPosition + NodeOffset); 
-			});
+					return InNode->SetGraphPositionDirect(SourceNodeGraphPosition + NodeOffset); 
+				});
 			
 			GetActionStack()->RunAction(DuplicateNodeAction);
 		}
@@ -1416,13 +1412,8 @@ UOptimusNode* UOptimusNodeGraph::CollapseNodesToSubGraph(
 	for (UOptimusNode* Node: NodesToDuplicate)
 	{
 		Action->AddSubAction<FOptimusNodeGraphAction_DuplicateNode>(
-			SubGraphPath, Node, Node->GetFName(), [](UOptimusNode* InNode)
+			SubGraphPath, Node, Node->GetFName(), [](UOptimusNode*)
 			{
-				if (UOptimusNode_SubGraphReference* SubGraphNode = Cast<UOptimusNode_SubGraphReference>(InNode))
-				{
-					FName NewSubGraphName = SubGraphNode->GetReferencedSubGraph()->GetFName();
-					SubGraphNode->SetSerializedSubGraphName(NewSubGraphName);
-				}	
 				return true;
 			});
 	}
@@ -1453,7 +1444,7 @@ UOptimusNode* UOptimusNodeGraph::CollapseNodesToSubGraph(
 		[NodeBox, SubGraphName](UOptimusNode* InNode)
 		{
 			UOptimusNode_SubGraphReference* SubGraphNode = Cast<UOptimusNode_SubGraphReference>(InNode); 
-			SubGraphNode->SetSerializedSubGraphName(SubGraphName);
+			SubGraphNode->InitializeSerializedSubGraphName(SubGraphName);
 			return SubGraphNode->SetGraphPositionDirect(NodeBox.GetCenter());
 		});
 	
@@ -1745,8 +1736,8 @@ TArray<UOptimusNode*> UOptimusNodeGraph::ExpandCollapsedNodes(
 		{
 			FOptimusNodeGraphAction_DuplicateNode *DuplicateNodeAction = new FOptimusNodeGraphAction_DuplicateNode(
 				GetGraphPath(), Node, NewNodeNameMap[Node],
-				[Node, Center, ExpandLocation](UOptimusNode *InNode) {
-					InNode->SetGraphPositionDirect(Node->GraphPosition - Center + ExpandLocation);
+				[SourceNodeGraphPosition = Node->GraphPosition, Center, ExpandLocation](UOptimusNode *InNode) {
+					InNode->SetGraphPositionDirect(SourceNodeGraphPosition - Center + ExpandLocation);
 					return true;
 			});
 		
@@ -1974,13 +1965,8 @@ bool UOptimusNodeGraph::ConvertToFunction(UOptimusNode* InSubGraphNode)
 		for (UOptimusNode* Node: NodesToDuplicate)
 		{
 			GetActionStack()->RunAction<FOptimusNodeGraphAction_DuplicateNode>(
-				FunctionGraphPath, Node, Node->GetFName(), [](UOptimusNode* InNode)
+				FunctionGraphPath, Node, Node->GetFName(), [](UOptimusNode*)
 				{
-					if (UOptimusNode_SubGraphReference* SubGraphNode = Cast<UOptimusNode_SubGraphReference>(InNode))
-					{
-						FName NewSubGraphName = SubGraphNode->GetReferencedSubGraph()->GetFName();
-						SubGraphNode->SetSerializedSubGraphName(NewSubGraphName);
-					}
 					return true;
 				});
 		}
@@ -2007,7 +1993,7 @@ bool UOptimusNodeGraph::ConvertToFunction(UOptimusNode* InSubGraphNode)
 			{
 				UOptimusNode_FunctionReference* FunctionNode = Cast<UOptimusNode_FunctionReference>(InNode); 
 				UOptimusFunctionNodeGraph* FunctionGraph = Cast<UOptimusFunctionNodeGraph>(PathResolver->ResolveGraphPath(FunctionGraphPath));
-				FunctionNode->SetSerializedGraphPath(FunctionGraph);
+				FunctionNode->InitializeSerializedGraphPath(FunctionGraph);
 				
 				return FunctionNode->SetGraphPositionDirect(ReferenceNodePosition);
 			});
@@ -2217,13 +2203,8 @@ bool UOptimusNodeGraph::ConvertToSubGraph(UOptimusNode* InFunctionNode)
 		for (UOptimusNode* Node: NodesToDuplicate)
 		{
 			GetActionStack()->RunAction<FOptimusNodeGraphAction_DuplicateNode>(
-				SubGraphPath, Node, Node->GetFName(), [](UOptimusNode* InNode)
+				SubGraphPath, Node, Node->GetFName(), [](UOptimusNode*)
 				{
-					if (UOptimusNode_SubGraphReference* SubGraphNode = Cast<UOptimusNode_SubGraphReference>(InNode))
-					{
-						FName NewSubGraphName = SubGraphNode->GetReferencedSubGraph()->GetFName();
-						SubGraphNode->SetSerializedSubGraphName(NewSubGraphName);
-					}
 					return true;
 				});
 		}
@@ -2249,7 +2230,7 @@ bool UOptimusNodeGraph::ConvertToSubGraph(UOptimusNode* InFunctionNode)
 			[ReferenceNodePosition, SubGraphName](UOptimusNode* InNode)
 			{
 				UOptimusNode_SubGraphReference* SubGraphNode = Cast<UOptimusNode_SubGraphReference>(InNode);
-				SubGraphNode->SetSerializedSubGraphName(SubGraphName);
+				SubGraphNode->InitializeSerializedSubGraphName(SubGraphName);
 				
 				return SubGraphNode->SetGraphPositionDirect(ReferenceNodePosition);
 			});
@@ -3220,6 +3201,19 @@ FString UOptimusNodeGraph::GetCollectionPath() const
 	return GetName();
 }
 
+
+UOptimusNodeGraph* UOptimusNodeGraph::FindGraphByName(FName InGraphName) const
+{
+	for (UOptimusNodeGraph* Graph : GetGraphs())
+	{
+		if (Graph->GetFName() == InGraphName)
+		{
+			return Graph;
+		}
+	}
+
+	return nullptr;
+}
 
 UOptimusNodeGraph* UOptimusNodeGraph::CreateGraphDirect(
 	EOptimusNodeGraphType InType,

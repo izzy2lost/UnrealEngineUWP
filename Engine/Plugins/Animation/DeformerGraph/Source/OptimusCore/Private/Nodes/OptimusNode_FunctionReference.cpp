@@ -33,7 +33,7 @@ FText UOptimusNode_FunctionReference::GetDisplayName() const
 
 void UOptimusNode_FunctionReference::ConstructNode()
 {
-	if (ensure(FunctionGraph.IsValid()))
+	if (FunctionGraph.IsValid())
 	{
 		const FOptimusDataTypeRegistry& TypeRegistry = FOptimusDataTypeRegistry::Get();
 		FOptimusDataTypeRef ComponentSourceType = TypeRegistry.FindType(*UOptimusComponentSourceBinding::StaticClass());
@@ -53,15 +53,6 @@ void UOptimusNode_FunctionReference::ConstructNode()
 }
 
 
-void UOptimusNode_FunctionReference::PostLoad()
-{
-	Super::PostLoad();
-
-	// Load the graph into memory
-	FunctionGraph.LoadSynchronous();
-}
-
-
 FOptimusRoutedNodePin UOptimusNode_FunctionReference::GetPinCounterpart(
 	UOptimusNodePin* InNodePin,
 	const FOptimusPinTraversalContext& InTraversalContext
@@ -72,7 +63,7 @@ FOptimusRoutedNodePin UOptimusNode_FunctionReference::GetPinCounterpart(
 		return {};
 	}
 
-	if (!ensure(FunctionGraph.IsValid()))
+	if (!FunctionGraph.IsValid())
 	{
 		return {};
 	}
@@ -150,11 +141,24 @@ FSoftObjectPath UOptimusNode_FunctionReference::GetSerializedGraphPath() const
 	return FunctionGraph.ToSoftObjectPath();
 }
 
-void UOptimusNode_FunctionReference::SetSerializedGraphPath(const FSoftObjectPath& InNewGraphPath)
+void UOptimusNode_FunctionReference::InitializeSerializedGraphPath(const FSoftObjectPath& InInitialGraphPath)
 {
-	FunctionGraph = InNewGraphPath;
+	FunctionGraph = InInitialGraphPath;
+}
+
+void UOptimusNode_FunctionReference::RefreshSerializedGraphPath(const FSoftObjectPath& InRenamedGraphPath)
+{
+	// Unlike subgraph reference where we can directly query the graph for its new name/path
+	// the function graph may not be loaded at the time of rename and thus
+	// the caller needs to provide the path to the renamed graph 
+	FunctionGraph = InRenamedGraphPath;
+	FunctionGraph.LoadSynchronous();
+	SetDisplayName(GetDisplayName());
+}
+
+void UOptimusNode_FunctionReference::InitializeTransientData()
+{
+	Super::InitializeTransientData();
 	// Making sure the pointer is alive such that we avoid loading on demand everywhere
 	FunctionGraph.LoadSynchronous();
-
-	SetDisplayName(GetDisplayName());
 }

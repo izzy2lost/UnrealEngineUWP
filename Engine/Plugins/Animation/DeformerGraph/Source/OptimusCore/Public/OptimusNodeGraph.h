@@ -401,6 +401,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
 	const TArray<UOptimusNodeGraph*> &GetGraphs() const override { return SubGraphs; }
 
+	UOptimusNodeGraph* FindGraphByName(FName InGraphName) const override;
+	
 	UOptimusNodeGraph* CreateGraphDirect(
 		EOptimusNodeGraphType InType,
 		FName InName,

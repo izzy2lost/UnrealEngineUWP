@@ -400,6 +400,8 @@ FName UOptimusNode::GetAvailablePinNameStable(const UObject* InNodeOrPin, FName 
 
 void UOptimusNode::PostCreateNode()
 {
+	InitializeTransientData();
+	
 	CachedPinLookup.Empty();
 	Pins.Empty();
 
@@ -429,6 +431,8 @@ void UOptimusNode::PostLoad()
 	{
 		Pin->ConditionalPostLoad();
 	}
+	
+	InitializeTransientData();
 }
 
 #if WITH_EDITOR
@@ -465,6 +469,14 @@ void UOptimusNode::Notify(EOptimusGraphNotifyType InNotifyType)
 void UOptimusNode::ConstructNode()
 {
 	CreatePinsFromStructLayout(GetClass(), nullptr);
+}
+
+void UOptimusNode::InitializeTransientData()
+{
+	// Called from three places, which are all possible way a node object can be created
+	// 1. PostCreateNode
+	// 2. PostLoad
+	// 3. FOptimusEditorClipboard::ProcessPostCreateObject
 }
 
 

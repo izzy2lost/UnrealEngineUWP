@@ -869,6 +869,8 @@ void FOptimusEditor::OnNodeDoubleClicked(class UEdGraphNode* Node)
 					
 					if (FoundAssetEditor.IsValid())
 					{
+						FoundAssetEditor->BringToolkitToFront();
+						
 						TSharedPtr<FOptimusEditor> OptimusEditorForExternalGraph = StaticCastSharedPtr<FOptimusEditor>(FoundAssetEditor);
 
 						OptimusEditorForExternalGraph->SetEditGraph(GraphToShow);
@@ -1287,7 +1289,13 @@ void FOptimusEditor::OnDeformerModified(
 	switch (InNotifyType)
 	{
 	case EOptimusGlobalNotifyType::GraphAdded:
-		SetEditGraph(Cast<UOptimusNodeGraph>(InModifiedObject));
+		if (UOptimusNodeGraph* Graph = Cast<UOptimusNodeGraph>(InModifiedObject))
+		{
+			if (Optimus::IsExecutionGraphType(Graph->GetGraphType()))
+			{
+				SetEditGraph(Graph);	
+			}
+		}
 		RefreshEvent.Broadcast();
 		break;
 
