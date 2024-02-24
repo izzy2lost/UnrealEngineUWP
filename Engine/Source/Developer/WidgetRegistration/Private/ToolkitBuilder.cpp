@@ -114,6 +114,18 @@ FToolkitBuilder::~FToolkitBuilder()
 	}
 }
 
+FToolkitBuilder::FToolkitBuilder(
+	FName InToolbarCustomizationName,
+	TSharedPtr<FUICommandList> InToolkitCommandList,
+	TSharedPtr<FToolkitSections> InToolkitSections) :
+	FCategoryDrivenContentBuilderBase("FToolkitBuilder"),
+	ToolbarCustomizationName(InToolbarCustomizationName),
+	ToolkitCommandList(InToolkitCommandList),
+	ToolkitSections(InToolkitSections)
+{
+	ResetWidget();
+}
+
 void FToolkitBuilder::GetCommandsForEditablePalette(TSharedRef<FEditablePalette> EditablePalette, TArray<TSharedPtr<const FUICommandInfo>>& OutCommands)
 {
 	TArray<FString> CommandNames = EditablePalette->GetPaletteCommandNames();
