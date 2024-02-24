@@ -70,6 +70,9 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 	IPluginManager::Get().AddPluginSearchPath(RemappedPlugins, /*bShouldRefresh*/ true);
 #endif
 
+	// Disable this when going through PreInit to prevent the console window from appearing.
+	GIsSilent = true;
+
 	// Start up the main loop, adding some extra command line arguments:
 	const int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), CommandLine, TEXT("LiveLinkHubCommandlet -Messaging -DDC=NoShared -NoShaderCompile")));
 
