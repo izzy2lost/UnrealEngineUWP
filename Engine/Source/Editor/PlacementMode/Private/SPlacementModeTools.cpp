@@ -24,16 +24,8 @@
 #include "AssetSelection.h"
 #include "ActorFactories/ActorFactory.h"
 #include "ScopedTransaction.h"
-#include "PlacementModeCommands.h"
-#include "Layout/CategoryDrivenContentBuilder.h"
-#include "Widgets/Layout/SScrollBox.h"
 
 #define LOCTEXT_NAMESPACE "PlacementMode"
-
-static TAutoConsoleVariable<bool> CVarEnableCategoryContentChooserView(
-	TEXT("PlaceActors.EnableCategoryChooserView"),
-	false,
-	TEXT("If enabled, the new category chooser view will be used for the Place Actors panel."));
 
 namespace PlacementModeTools
 {
@@ -600,12 +592,6 @@ void SPlacementModeTools::Construct( const FArguments& InArgs, TSharedRef<SDockT
 	bRefreshRecentlyPlaced = false;
 	bUpdateShownItems = true;
 
-	FCategoryDrivenContentBuilderArgs Args("PlacementModes");
-	CategoryContentBuilder = MakeShared<FCategoryDrivenContentBuilder>( Args );
-	CategoryContentBuilder->ProvideSelectedCategoryContentDelegate.BindSP(this, &SPlacementModeTools::ProvideCategoryContent);
-	UniformWrapPanel = SNew( SUniformWrapPanel );
-	SAssignNew(CustomContent, SBox);
-
 	ActiveTabName = FBuiltInPlacementCategories::Basic();
 
 	ParentTab->SetOnTabDrawerOpened(FSimpleDelegate::CreateSP(this, &SPlacementModeTools::OnTabDrawerOpened));
@@ -640,17 +626,7 @@ void SPlacementModeTools::Construct( const FArguments& InArgs, TSharedRef<SDockT
 				.OnTextCommitted(this, &SPlacementModeTools::OnSearchCommitted)
 			]
 		]
-		+ SVerticalBox::Slot()
-			.FillHeight(1)
-			[
-				SNew(SBorder)
-				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-				.Visibility_Lambda( [] () { return CVarEnableCategoryContentChooserView->GetBool()   ? EVisibility::Visible : EVisibility::Collapsed; })
-				.Padding(0)
-				[
-					CategoryContentBuilder->GenerateWidgetSharedRef()
-				]
-			]
+
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.HAlign(HAlign_Fill)
@@ -686,7 +662,6 @@ void SPlacementModeTools::Construct( const FArguments& InArgs, TSharedRef<SDockT
 		.Padding(FMargin(0.0f, 3.f))
 		[
 			SNew(SOverlay)
-			.Visibility(CVarEnableCategoryContentChooserView->GetBool() ? EVisibility::Collapsed : EVisibility::Visible)
 
 			+ SOverlay::Slot()
 			.HAlign(HAlign_Center)
@@ -762,7 +737,6 @@ void SPlacementModeTools::UpdateShownItems()
 	}
 	else if (Category->CustomGenerator)
 	{
-		UniformWrapPanel->AddSlot()[Category->CustomGenerator()];
 		CustomContent->SetContent(Category->CustomGenerator());
 
 		CustomContent->SetVisibility(EVisibility::Visible);
@@ -794,13 +768,10 @@ void SPlacementModeTools::UpdateShownItems()
 			}
 		}
 
-		if ( !CVarEnableCategoryContentChooserView->GetBool() )
-		{
-			CustomContent->SetVisibility(EVisibility::Collapsed);
-			DataDrivenContent->SetVisibility(EVisibility::Visible);
-			ListView->RequestListRefresh();
-			FilterLabelPtr->SetText(Category->DisplayName);
-		}
+		CustomContent->SetVisibility(EVisibility::Collapsed);
+		DataDrivenContent->SetVisibility(EVisibility::Visible);
+		ListView->RequestListRefresh();
+		FilterLabelPtr->SetText(Category->DisplayName);
 	}
 }
 
@@ -813,7 +784,7 @@ ECheckBoxState SPlacementModeTools::GetPlacementTabCheckedState( FName CategoryN
 {
 	return ActiveTabName == CategoryName ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
-	
+
 EVisibility SPlacementModeTools::GetFailedSearchVisibility() const
 {
 	if (!IsSearchActive() || FilteredItems.Num())
@@ -825,7 +796,7 @@ EVisibility SPlacementModeTools::GetFailedSearchVisibility() const
 
 EVisibility SPlacementModeTools::GetTabsVisibility() const
 {
-	return IsSearchActive() || CVarEnableCategoryContentChooserView->GetBool() ? EVisibility::Collapsed : EVisibility::Visible;
+	return IsSearchActive() ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 TSharedRef<ITableRow> SPlacementModeTools::OnGenerateWidgetForItem(TSharedPtr<FPlaceableItem> InItem, const TSharedRef<STableViewBase>& OwnerTable)
@@ -833,45 +804,9 @@ TSharedRef<ITableRow> SPlacementModeTools::OnGenerateWidgetForItem(TSharedPtr<FP
 	return SNew(STableRow<TSharedPtr<FPlaceableItem>>, OwnerTable)
 		.Style(&FAppStyle::Get(), "PlacementBrowser.PlaceableItemRow")
 		[
-			GetPlacementAssetWidget(InItem)
+			SNew(SPlacementAssetEntry, InItem.ToSharedRef())
+			.HighlightText(this, &SPlacementModeTools::GetHighlightText)
 		];
-}
-
-TSharedRef<SWidget> SPlacementModeTools::GetPlacementAssetWidget( const TSharedPtr<FPlaceableItem>& InItem ) const
-{
-	return SNew(SPlacementAssetEntry, InItem.ToSharedRef())
-		.HighlightText(this, &SPlacementModeTools::GetHighlightText);
-}
-
-TSharedRef<SWidget> SPlacementModeTools::ProvideCategoryContent(const FName& CategoryName)
-{
-	if (CVarEnableCategoryContentChooserView->GetBool())
-	{
-		SetActiveTab(CategoryName);
-		UniformWrapPanel->ClearChildren();
-		UpdateShownItems();
-
-		// else, add the items found for the category (and potentially filtered)to our display boxes to show 
-		if ( !FilteredItems.IsEmpty() && UniformWrapPanel->GetChildren()->Num() == 0 )
-		{
-			for (const TSharedPtr<FPlaceableItem>& Item : FilteredItems)
-			{
-				UniformWrapPanel->AddSlot()
-				[
-					GetPlacementAssetWidget(Item)
-				];
-			}
-		}
-
-		return UniformWrapPanel->GetChildren()->Num() == 0 ?
-			SNullWidget::NullWidget :
-			SNew( SScrollBox )
-						+ SScrollBox::Slot()
-						[
-							UniformWrapPanel.ToSharedRef()
-						];
-	}
-	return SNullWidget::NullWidget;
 }
 
 void SPlacementModeTools::OnCategoryChanged(const ECheckBoxState NewState, FName InCategory)
@@ -925,12 +860,6 @@ void SPlacementModeTools::UpdatePlacementCategories()
 
 	TArray<FPlacementCategoryInfo> Categories;
 	IPlacementModeModule::Get().GetSortedCategories(Categories);
-	
-	// register will make a command to load each Category
-	FPlacementModeCommands::Register();
-	// set the commands as the Categories in our category content chooser
-	CategoryContentBuilder->SetCommands(FPlacementModeCommands::Get().GetPlacementToolkitCategoryCommands());
-	
 	for (const FPlacementCategoryInfo& Category : Categories)
 	{
 		if (Category.UniqueHandle == FBuiltInPlacementCategories::Basic())
@@ -1009,9 +938,6 @@ void SPlacementModeTools::OnSearchChanged(const FText& InFilterText)
 
 	SearchTextFilter->SetRawFilterText( InFilterText );
 	SearchBoxPtr->SetError( SearchTextFilter->GetFilterErrorText() );
-
-	// update the category content which may have changed on search
-	CategoryContentBuilder->UpdateWidget();
 }
 
 void SPlacementModeTools::OnSearchCommitted(const FText& InFilterText, ETextCommit::Type InCommitType)

@@ -36,9 +36,6 @@ public:
 	/** Implements the generation of the TSharedPtr<SWidget> */
 	virtual TSharedPtr<SWidget> GenerateWidget();
 
-	/** Implements the generation of the TSharedRef<SWidget> */
-	virtual TSharedRef<SWidget> GenerateWidgetSharedRef();
-
 	/** Updates/reloads this widget. This should be called after a consumer has changed any Data in this */
 	virtual void UpdateWidget();
 

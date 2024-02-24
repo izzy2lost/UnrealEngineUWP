@@ -15,7 +15,6 @@
 #include "Misc/TextFilter.h"
 
 class STextBlock;
-class FCategoryDrivenContentBuilder;
 
 /**
  * A tile representation of the class or the asset.  These are embedded into the views inside
@@ -93,22 +92,6 @@ public:
 	void Construct(const FArguments& InArgs, TSharedRef<SDockTab> ParentTab);
 
 	virtual ~SPlacementModeTools();
-
-	/**
-	 *Creates and returns the TSharedRef<SPlacementAssetEntry>for the given TSharedPtr<SPlacementAssetEntry>
-	 *
-	 * @param InItem the FPlaceableItem for which  the TSharedRef<SPlacementAssetEntry> will be created and returned
-	 */
-	TSharedRef<SWidget> GetPlacementAssetWidget(const TSharedPtr<FPlaceableItem>& InItem) const;
-
-	/**
-	 * Given FName CategoryName as the Category that has been clicked, it should return the
-	 * TSharedRef<SWidget> that contains the content for that Category
-	 * 
-	 * @param CategoryName the name of the Category that the user has clicked
-	 * @return 
-	 */
-	TSharedRef<SWidget> ProvideCategoryContent(const FName& CategoryName);
 
 private:
 
@@ -210,10 +193,4 @@ private:
 
 	/** List view that shows placeable items */
 	TSharedPtr<SListView<TSharedPtr<FPlaceableItem>>> ListView;
-
-	/** Wrap panel containing the draggable content  */
-	TSharedPtr<SUniformWrapPanel> UniformWrapPanel;
-	
-	/** The FCategoryDrivenContentBuilder  which will build the UI for this mode, if defined */
-	TSharedPtr<FCategoryDrivenContentBuilder> CategoryContentBuilder;
 };

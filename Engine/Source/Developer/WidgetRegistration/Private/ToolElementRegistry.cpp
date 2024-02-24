@@ -32,15 +32,6 @@ TSharedPtr<SWidget> FToolElementRegistrationArgs::GenerateWidget()
 	return nullptr;
 }
 
-TSharedRef<SWidget> FToolElementRegistrationArgs::GenerateWidgetSharedRef()
-{
-	if (TSharedPtr<SWidget> Widget = GenerateWidget())
-	{
-		return Widget.ToSharedRef();
-	}
-	return SNullWidget::NullWidget;
-}
-
 FToolElementRegistrationKey::FToolElementRegistrationKey(FName InName, EToolElement InToolElementType ) :
 		Name(InName), ToolElementType(InToolElementType)
 {
