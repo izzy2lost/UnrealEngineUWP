@@ -48,4 +48,7 @@ public:
 
 	/** Restart the recording from the beginning. */
 	virtual void RestartPlayback(int32 InIndex = INDEX_NONE) = 0;
+
+	/** Retrieve the first frame's frame rate information. */
+	virtual FFrameRate GetInitialFramerate() = 0;
 };

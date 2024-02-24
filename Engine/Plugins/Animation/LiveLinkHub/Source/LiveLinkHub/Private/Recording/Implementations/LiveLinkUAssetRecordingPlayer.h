@@ -71,6 +71,9 @@ struct FLiveLinkPlaybackTracks
 	
 	void Restart(int32 InIndex);
 
+	/** Retrieve the framerate of the first frame */
+	FFrameRate GetInitialFrameRate() const;
+
 public:
 	/** LiveLink tracks to playback. */
 	TArray<FLiveLinkPlaybackTrack> Tracks;
@@ -109,6 +112,11 @@ public:
 	virtual void RestartPlayback(int32 InIndex) override
 	{
 		CurrentRecordingPlayback.Restart(InIndex);
+	}
+
+	virtual FFrameRate GetInitialFramerate() override
+	{
+		return CurrentRecordingPlayback.GetInitialFrameRate();
 	}
 	
 private:

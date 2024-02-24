@@ -5,13 +5,11 @@
 #include "HAL/Runnable.h"
 
 #include "HAL/Event.h"
-#include "HAL/ThreadSafeBool.h"
-#include "Misc/Timespan.h"
-#include "Misc/Optional.h"
+#include "Misc/FrameNumber.h"
+#include "Misc/FrameRate.h"
+#include "Misc/QualifiedFrameTime.h"
 #include "Recording/LiveLinkRecordingPlayer.h"
-#include "Templates/SubclassOf.h"
 #include "Templates/SharedPointer.h"
-#include "Templates/PimplPtr.h"
 #include "UObject/StrongObjectPtr.h"
 
 #include <atomic>
@@ -23,6 +21,7 @@ class ULiveLinkRecording;
 class ULiveLinkPreset;
 class ULiveLinkRecording;
 class SWidget;
+class FLiveLinkHubAtomicQualifiedFrameTime;
 
 class FLiveLinkHubPlaybackController : public FRunnable
 {
@@ -58,44 +57,32 @@ public:
 	void Eject();
 
 	/** Go to a specific time. */
-	void GoToTime(double InTime);
-
-	/** Go to a specific frame index. */
-	void GoToFrame(int32 InFrameIndex);
-
-	/** Calculate the frame index for the given time. */
-	int32 GetFrameIndexFromTime(double InTime, bool bReverse = false) const;
-
-	/** Retrieve the timestamp from the given frame index. */
-	double GetTimeFromFrameIndex(int32 InFrameIndex) const;
-
-	/** Retrieve the selection start frame. */
-	int32 GetSelectionStartFrame() const;
-
-	/** Retrieve the selection end frame. */
-	int32 GetSelectionEndFrame() const;
-
+	void GoToTime(FQualifiedFrameTime InTime);
+	
 	/** Retrieve the selection start time. */
-	double GetSelectionStartTime() const;
+	FQualifiedFrameTime GetSelectionStartTime() const;
 
 	/** Set the selection start time. */
-	void SetSelectionStartTime(double InTime);
+	void SetSelectionStartTime(FQualifiedFrameTime InTime);
 
 	/** Retrieve the selection end time. */
-	double GetSelectionEndTime() const;
+	FQualifiedFrameTime GetSelectionEndTime() const;
 
 	/** Set the selection end time. */
-	void SetSelectionEndTime(double InTime);
+	void SetSelectionEndTime(FQualifiedFrameTime InTime);
 
 	/** Retrieve the length of the recording. */
-	double GetLength() const;
-
+	FQualifiedFrameTime GetLength() const;
+	
 	/** Retrieve the playhead. */
-	double GetCurrentTime() const;
+	FQualifiedFrameTime GetCurrentTime() const;
 
-	/** Return the exact frame index of frames that have been processed. */
-	int32 GetCurrentFrame() const;
+	/** Retrieve the current frame of the animation. */
+	FFrameNumber GetCurrentFrame() const;
 
+	/** Retrieve the current framerate. */
+	FFrameRate GetFrameRate() const;
+	
 	/** If the controller is ready for commands. */
 	bool IsReady() const
 	{
@@ -172,14 +159,11 @@ private:
 	bool SyncToPlayhead();
 
 	/** Force sync to a specific frame. */
-	bool SyncToFrame(int32 InFrameIndex);
+	bool SyncToFrame(const FFrameNumber& InFrameNumber);
 
 	/** Checks if the current playback settings indicates the recording should restart. */
 	bool ShouldRestart() const;
 
-	/** Retrieve the time delta to use for the recording when dragging the playhead spinbox. */
-	double GetTimeDelta() const;
-	
 private:
 	/** If the system has established a connection with the client. */
 	bool bIsReady = false;
@@ -215,17 +199,17 @@ private:
 	/** Time that the playback started. */
 	double PlaybackStartTime = 0.0;
 	/** Playhead for the current playback. */
-	std::atomic<double> Playhead = 0.0;
+	TSharedPtr<FLiveLinkHubAtomicQualifiedFrameTime, ESPMode::ThreadSafe> Playhead;
 
 	/** The view range of the slider, defaults to start/end time. */
 	TRange<double> SliderViewRange = TRange<double>(0.f, 0.f);
 
 	/** The playback selection start time. */
-	double SelectionStartTime = 0.f;
+	FQualifiedFrameTime SelectionStartTime;
 
 	/** The playback selection end time. */
-	double SelectionEndTime = 0.f;
-	
-	/** The index of the latest processed frame. This may not exactly match the index calculated from the playhead. */
-	int32 CurrentFrameIndex = INDEX_NONE;
+	FQualifiedFrameTime SelectionEndTime;
+
+	/** Current framerate of the recording, sampled from the latest frame. */
+	FFrameRate CurrentFrameRate;
 };

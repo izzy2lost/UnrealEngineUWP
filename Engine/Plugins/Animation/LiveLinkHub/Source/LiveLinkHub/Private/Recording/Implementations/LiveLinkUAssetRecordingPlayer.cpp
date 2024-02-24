@@ -2,6 +2,7 @@
 
 #include "LiveLinkUAssetRecordingPlayer.h"
 
+#include "LiveLinkHubLog.h"
 #include "Recording/LiveLinkRecording.h"
 
 
@@ -284,6 +285,24 @@ void FLiveLinkPlaybackTracks::Restart(int32 InIndex)
 	{
 		Track.Restart(InIndex);
 	}
+}
+
+FFrameRate FLiveLinkPlaybackTracks::GetInitialFrameRate() const
+{
+	for (const FLiveLinkPlaybackTrack& Track : Tracks)
+	{
+		if (Track.LiveLinkRole == nullptr && Track.FrameData.Num() > 0)
+		{
+			FLiveLinkFrameDataStruct FrameDataStruct;
+			FrameDataStruct.InitializeWith(Track.FrameData[0].GetScriptStruct(), (FLiveLinkBaseFrameData*)Track.FrameData[0].GetMemory());
+
+			return FrameDataStruct.GetBaseData()->MetaData.SceneTime.Rate;
+		}
+	}
+
+	UE_LOG(LogLiveLinkHub, Warning, TEXT("Could not find an initial framerate for the recording. Using the defualt value."));
+	
+	return FFrameRate(30, 1);
 }
 
 void FLiveLinkUAssetRecordingPlayer::PreparePlayback(const ULiveLinkRecording* CurrentRecording)

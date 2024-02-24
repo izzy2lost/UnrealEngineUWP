@@ -3,8 +3,10 @@
 #include "SLiveLinkHubPlaybackWidget.h"
 
 #include "FrameNumberNumericInterface.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "SSimpleTimeSlider.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SSpinBox.h"
 
 #define LOCTEXT_NAMESPACE "SLiveLinkHubPlaybackWidget"
@@ -31,8 +33,6 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 	OnGetViewRangeDelegate = InArgs._GetViewRange;
 	OnSetViewRangeDelegate = InArgs._SetViewRange;
 
-	OnGetCurrentFrameDelegate = InArgs._GetCurrentFrame;
-
 	OnGetSelectionStartTimeDelegate = InArgs._GetSelectionStartTime;
 	OnGetSelectionEndTimeDelegate = InArgs._GetSelectionEndTime;
 	OnSetSelectionStartTimeDelegate = InArgs._SetSelectionStartTime;
@@ -41,15 +41,15 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 	OnSetLoopingDelegate = InArgs._OnSetLooping;
 	OnGetLoopingDelegate = InArgs._IsLooping;
 
-	OnGetTimeDelta = InArgs._GetTimeDelta;
+	OnGetFrameRate = InArgs._GetFrameRate;
 
-	TAttribute<EFrameNumberDisplayFormats> GetDisplayFormatAttr = TAttribute<EFrameNumberDisplayFormats>(this, &SLiveLinkHubPlaybackWidget::GetDisplayFormat);
-	TAttribute<FFrameRate> GetTickResolutionAttr = TAttribute<FFrameRate>(this, &SLiveLinkHubPlaybackWidget::GetFocusedTickResolution);
-	TAttribute<FFrameRate> GetDisplayRateAttr    = TAttribute<FFrameRate>(this, &SLiveLinkHubPlaybackWidget::GetFocusedDisplayRate);
+	const TAttribute<EFrameNumberDisplayFormats> GetDisplayFormatAttr = MakeAttributeSP(this, &SLiveLinkHubPlaybackWidget::GetDisplayFormat);
+	const TAttribute<FFrameRate> GetDisplayRateAttr = MakeAttributeSP(this, &SLiveLinkHubPlaybackWidget::GetFrameRate);
 	
 	// Create our numeric type interface so we can pass it to the time slider below.
-	TSharedPtr<FFrameNumberInterface> NumberInterface = MakeShareable(new FFrameNumberInterface(GetDisplayFormatAttr, 0, GetTickResolutionAttr, GetDisplayRateAttr));
-	
+	NumberInterface = MakeShareable(new FFrameNumberInterface(GetDisplayFormatAttr, 0, GetDisplayRateAttr, GetDisplayRateAttr));
+
+	NumberInterface->DisplayFormatChanged();
 	ChildSlot
 	[
 		SNew(SVerticalBox)
@@ -60,7 +60,12 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 			SNew(SSimpleTimeSlider)
 			.ClampRangeHighlightSize(0.15f)
 			.ClampRangeHighlightColor(FLinearColor::Gray.CopyWithNewOpacity(0.5f))
-			.ScrubPosition(this, &SLiveLinkHubPlaybackWidget::GetCurrentTime)
+			.ScrubPosition_Lambda([this]()
+			{
+				// TimeSlider needs actual time in seconds, not the frame time.
+				const double Seconds = GetCurrentTime() / GetFrameRate().Numerator;
+				return Seconds;
+			})
 			.ViewRange(this, &SLiveLinkHubPlaybackWidget::GetViewRange)
 			.OnViewRangeChanged(this, &SLiveLinkHubPlaybackWidget::SetViewRange)
 			.ClampRange(this, &SLiveLinkHubPlaybackWidget::GetClampRange)
@@ -69,7 +74,8 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 						{
 							if (bIsScrubbing)
 							{
-								SetCurrentTime(NewScrubTime);
+								//  Convert time in seconds to frame time as double.
+								SetCurrentTime(NewScrubTime * GetFrameRate().Numerator);
 							}
 						})
 		]
@@ -244,6 +250,17 @@ void SLiveLinkHubPlaybackWidget::Construct(const FArguments& InArgs)
 				.Style(&FAppStyle::Get().GetWidgetStyle<FSpinBoxStyle>("Sequencer.HyperlinkSpinBox"))
 				.TypeInterface(NumberInterface)
 			]
+			+SHorizontalBox::Slot()
+			.Padding(4.f, 0.f)
+			.AutoWidth()
+			[
+				SNew(SComboButton)
+				.HasDownArrow(true)
+				.OnGetMenuContent(this, &SLiveLinkHubPlaybackWidget::MakePlaybackSettingsDropdown)
+				.ForegroundColor(FSlateColor::UseStyle())
+				.ToolTipText(LOCTEXT("PlaybackSettings_Tooltip", "Change playback settings."))
+				.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
+			]
 		]
 	];
 }
@@ -294,7 +311,10 @@ FReply SLiveLinkHubPlaybackWidget::OnLoopPressed()
 void SLiveLinkHubPlaybackWidget::SetCurrentTime(double InTime)
 {
 	check(OnSetCurrentTimeDelegate.IsBound());
-	OnSetCurrentTimeDelegate.Execute(InTime);
+
+	const FQualifiedFrameTime FrameTime = SecondsToFrameTime(InTime);
+
+	OnSetCurrentTimeDelegate.Execute(FrameTime);
 }
 
 void SLiveLinkHubPlaybackWidget::OnCurrentTimeCommitted(double InTime, ETextCommit::Type InTextCommit)
@@ -305,25 +325,23 @@ void SLiveLinkHubPlaybackWidget::OnCurrentTimeCommitted(double InTime, ETextComm
 double SLiveLinkHubPlaybackWidget::GetCurrentTime() const
 {
 	check(OnGetCurrentTimeDelegate.IsBound());
-	return OnGetCurrentTimeDelegate.Execute();
+	const FQualifiedFrameTime FrameTime = OnGetCurrentTimeDelegate.Execute();
+		
+	return FrameTime.Time.AsDecimal();
 }
 
 double SLiveLinkHubPlaybackWidget::GetTotalLength() const
 {
 	check(OnGetTotalLengthDelegate.IsBound());
-	return OnGetTotalLengthDelegate.Execute();
-}
-
-int32 SLiveLinkHubPlaybackWidget::GetCurrentFrame() const
-{
-	check(OnGetCurrentFrameDelegate.IsBound());
-	return OnGetCurrentFrameDelegate.Execute();
+	const FQualifiedFrameTime FrameTime = OnGetTotalLengthDelegate.Execute();
+	return FrameTime.Time.AsDecimal();
 }
 
 double SLiveLinkHubPlaybackWidget::GetSelectionStartTime() const
 {
 	check(OnGetSelectionStartTimeDelegate.IsBound());
-	return OnGetSelectionStartTimeDelegate.Execute();
+	const FQualifiedFrameTime FrameTime = OnGetSelectionStartTimeDelegate.Execute();
+	return FrameTime.Time.AsDecimal();
 }
 
 void SLiveLinkHubPlaybackWidget::OnSelectionStartTimeCommitted(double InTime, ETextCommit::Type InTextCommit)
@@ -334,13 +352,16 @@ void SLiveLinkHubPlaybackWidget::OnSelectionStartTimeCommitted(double InTime, ET
 void SLiveLinkHubPlaybackWidget::SetSelectionStartTime(double InTime)
 {
 	check(OnSetSelectionStartTimeDelegate.IsBound());
-	OnSetSelectionStartTimeDelegate.Execute(InTime);
+	const FQualifiedFrameTime FrameTime = SecondsToFrameTime(InTime);
+	OnSetSelectionStartTimeDelegate.Execute(FrameTime);
 }
 
 double SLiveLinkHubPlaybackWidget::GetSelectionEndTime() const
 {
 	check(OnGetSelectionEndTimeDelegate.IsBound());
-	return OnGetSelectionEndTimeDelegate.Execute();
+	const FQualifiedFrameTime FrameTime = OnGetSelectionEndTimeDelegate.Execute();
+
+	return FrameTime.Time.AsDecimal();
 }
 
 void SLiveLinkHubPlaybackWidget::OnSelectionEndTimeCommitted(double InTime, ETextCommit::Type InTextCommit)
@@ -351,7 +372,8 @@ void SLiveLinkHubPlaybackWidget::OnSelectionEndTimeCommitted(double InTime, ETex
 void SLiveLinkHubPlaybackWidget::SetSelectionEndTime(double InTime)
 {
 	check(OnSetSelectionEndTimeDelegate.IsBound());
-	OnSetSelectionEndTimeDelegate.Execute(InTime);
+	const FQualifiedFrameTime FrameTime = SecondsToFrameTime(InTime);
+	OnSetSelectionEndTimeDelegate.Execute(FrameTime);
 }
 
 TRange<double> SLiveLinkHubPlaybackWidget::GetViewRange() const
@@ -368,7 +390,10 @@ void SLiveLinkHubPlaybackWidget::SetViewRange(TRange<double> InRange)
 
 TRange<double> SLiveLinkHubPlaybackWidget::GetClampRange() const
 {
-	return TRange<double>(GetSelectionStartTime(), GetSelectionEndTime());
+	const FFrameRate FrameRate = GetFrameRate();
+	const double Start = GetSelectionStartTime() / FrameRate.Numerator;
+	const double End = GetSelectionEndTime() / FrameRate.Numerator;
+	return TRange<double>(Start, End);
 }
 
 bool SLiveLinkHubPlaybackWidget::IsPaused() const
@@ -383,8 +408,7 @@ bool SLiveLinkHubPlaybackWidget::IsPlayingInReverse() const
 
 double SLiveLinkHubPlaybackWidget::GetSpinboxDelta() const
 {
-	check(OnGetTimeDelta.IsBound());
-	return OnGetTimeDelta.Execute();
+	return GetFrameRate().AsDecimal() * GetFrameRate().AsInterval();
 }
 
 EFrameNumberDisplayFormats SLiveLinkHubPlaybackWidget::GetDisplayFormat() const
@@ -392,18 +416,33 @@ EFrameNumberDisplayFormats SLiveLinkHubPlaybackWidget::GetDisplayFormat() const
 	return DisplayFormat;
 }
 
-FFrameRate SLiveLinkHubPlaybackWidget::GetFocusedTickResolution() const
+void SLiveLinkHubPlaybackWidget::SetDisplayFormat(EFrameNumberDisplayFormats InDisplayFormat)
 {
-	// todo
-	const int32 TickResolutionValue = 1000 * 24;
-	return FFrameRate(1, 1);
+	DisplayFormat = InDisplayFormat;
+	NumberInterface->DisplayFormatChanged();
 }
 
-FFrameRate SLiveLinkHubPlaybackWidget::GetFocusedDisplayRate() const
+bool SLiveLinkHubPlaybackWidget::CompareDisplayFormat(EFrameNumberDisplayFormats InDisplayFormat) const
 {
-	// todo
-	const int32 SequenceFrameRate = 24;
-	return FFrameRate(SequenceFrameRate, 1);
+	return DisplayFormat == InDisplayFormat;
+}
+
+FText SLiveLinkHubPlaybackWidget::GetDisplayFormatAsText() const
+{
+	return DisplayFormat == EFrameNumberDisplayFormats::Frames ? LOCTEXT("DisplayFormat_TimeFrames", "Frames") :
+		DisplayFormat == EFrameNumberDisplayFormats::Seconds ? LOCTEXT("DisplayFormat_TimeSeconds", "Seconds") :
+		LOCTEXT("DisplayFormat_Timecode", "Timecode") ;
+}
+
+FFrameRate SLiveLinkHubPlaybackWidget::GetFrameRate() const
+{
+	check(OnGetFrameRate.IsBound());
+	return OnGetFrameRate.Execute();
+}
+
+FQualifiedFrameTime SLiveLinkHubPlaybackWidget::SecondsToFrameTime(double InTime) const
+{
+	return FQualifiedFrameTime(FFrameTime::FromDecimal(InTime), GetFrameRate());
 }
 
 const FSlateBrush* SLiveLinkHubPlaybackWidget::GetPlayForwardIcon() const
@@ -430,6 +469,57 @@ FText SLiveLinkHubPlaybackWidget::GetLoopTooltip() const
 	const bool bLooping = OnGetLoopingDelegate.Execute();
 
 	return bLooping ? LOCTEXT("Loop", "Loop") : LOCTEXT("NoLoop", "No looping");
+}
+
+TSharedRef<SWidget> SLiveLinkHubPlaybackWidget::MakePlaybackSettingsDropdown()
+{
+	constexpr bool bCloseAfterSelection = true;
+	FMenuBuilder MenuBuilder(bCloseAfterSelection, nullptr);
+
+	const FCanExecuteAction AlwaysExecute = FCanExecuteAction::CreateLambda([]{ return true; });
+
+	MenuBuilder.BeginSection("ShowTimeAsSection", LOCTEXT("ShowTimeAs", "Show Time As"));
+	
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("Menu_TimecodeLabel", "Timecode"),
+		LOCTEXT("Menu_TimecodeTooltip", "Display values in timecode format."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &SLiveLinkHubPlaybackWidget::SetDisplayFormat, EFrameNumberDisplayFormats::NonDropFrameTimecode),
+			AlwaysExecute,
+			FIsActionChecked::CreateSP(this, &SLiveLinkHubPlaybackWidget::CompareDisplayFormat, EFrameNumberDisplayFormats::NonDropFrameTimecode)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("Menu_FramesLabel", "Frames"),
+		LOCTEXT("Menu_FramesTooltip", "Display values as frame numbers."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &SLiveLinkHubPlaybackWidget::SetDisplayFormat, EFrameNumberDisplayFormats::Frames),
+			AlwaysExecute,
+			FIsActionChecked::CreateSP(this, &SLiveLinkHubPlaybackWidget::CompareDisplayFormat, EFrameNumberDisplayFormats::Frames)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("Menu_SecondsLabel", "Seconds"),
+		LOCTEXT("Menu_SecondsTooltip", "Display values in seconds."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &SLiveLinkHubPlaybackWidget::SetDisplayFormat, EFrameNumberDisplayFormats::Seconds),
+			AlwaysExecute,
+			FIsActionChecked::CreateSP(this, &SLiveLinkHubPlaybackWidget::CompareDisplayFormat, EFrameNumberDisplayFormats::Seconds)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+	
+	MenuBuilder.EndSection();
+	
+	return MenuBuilder.MakeWidget();
 }
 
 #undef LOCTEXT_NAMESPACE
