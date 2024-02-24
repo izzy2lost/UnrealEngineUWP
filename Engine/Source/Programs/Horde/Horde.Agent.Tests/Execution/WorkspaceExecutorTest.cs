@@ -19,7 +19,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Horde.Agent.Tests.Execution;
 
 [TestClass]
-public sealed class WorkspaceExecutorTest : IDisposable
+public sealed class WorkspaceExecutorTest : IAsyncDisposable
 {
 	private readonly StreamId _streamId = new StreamId("foo-main");
 	private readonly JobId _jobId = JobId.Parse("65bd0655591b5d5d7d047b58");
@@ -57,10 +57,13 @@ public sealed class WorkspaceExecutorTest : IDisposable
 		_executor = new (executorOptions, _workspace, null, NullLogger.Instance);
 	}
 
-	public void Dispose()
+	public async ValueTask DisposeAsync()
 	{
-		_server.DisposeAsync().AsTask().Wait();
-		_session.DisposeAsync().AsTask().Wait();
+		_executor.Dispose();
+		await _session.DisposeAsync();
+		await _server.DisposeAsync();
+		_workspace.Dispose();
+		_autoSdkWorkspace.Dispose();
 	}
 	
 	[TestMethod]
@@ -77,7 +80,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	{
 		BeginBatchResponse batch = new BeginBatchResponse { Change = 1 };
 		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, _jobId, _batchId, batch, null!, new JobOptions());
-		WorkspaceExecutor executor = new (executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
+		using WorkspaceExecutor executor = new (executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
 
 		await executor.InitializeAsync(_logger, CancellationToken.None);
 		AssertWorkspaceFile(_autoSdkWorkspace, "HostWin64/Android/base.h", "base");
@@ -91,7 +94,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	{
 		BeginBatchResponse batch = new BeginBatchResponse { Change = 1, StreamName = "//UE5/Main" };
 		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, _jobId, _batchId, batch, null!, new JobOptions());
-		WorkspaceExecutor executor = new (executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
+		using WorkspaceExecutor executor = new (executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
 		await executor.InitializeAsync(_logger, CancellationToken.None);
 
 		WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(CancellationToken.None);
@@ -118,7 +121,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 
 		BeginBatchResponse batch = new BeginBatchResponse { Change = 1, PreflightChange = 1000 };
 		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, preflightJobId, _batchId, batch, null!, new JobOptions());
-		WorkspaceExecutor executor = new (executorOptions, _workspace, null, NullLogger.Instance);
+		using WorkspaceExecutor executor = new (executorOptions, _workspace, null, NullLogger.Instance);
 		
 		await executor.InitializeAsync(_logger, CancellationToken.None);
 		AssertWorkspaceFile(_workspace, "main.cpp", "main");
@@ -135,7 +138,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 		_server.AddJob(noChangeJobId, _streamId, 0, 0);
 		BeginBatchResponse batch = new BeginBatchResponse { };
 		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, noChangeJobId, _batchId, batch, null!, new JobOptions());
-		WorkspaceExecutor executor = new (executorOptions, _workspace, null, NullLogger.Instance);
+		using WorkspaceExecutor executor = new (executorOptions, _workspace, null, NullLogger.Instance);
 		await Assert.ThrowsExceptionAsync<WorkspaceMaterializationException>(() => executor.InitializeAsync(_logger, CancellationToken.None));
 	}
 

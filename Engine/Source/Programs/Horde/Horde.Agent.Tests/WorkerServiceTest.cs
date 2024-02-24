@@ -114,7 +114,7 @@ namespace Horde.Agent.Tests
 				using CancellationTokenSource cancelSource = new CancellationTokenSource();
 				using CancellationTokenSource stepCancelSource = new CancellationTokenSource();
 
-				IJobExecutor executor = new SimpleTestExecutor(async (stepResponse, logger, cancelToken) =>
+				using IJobExecutor executor = new SimpleTestExecutor(async (stepResponse, logger, cancelToken) =>
 				{
 					cancelSource.CancelAfter(10);
 					await Task.Delay(5000, cancelToken);
@@ -129,7 +129,7 @@ namespace Horde.Agent.Tests
 				using CancellationTokenSource cancelSource = new CancellationTokenSource();
 				using CancellationTokenSource stepCancelSource = new CancellationTokenSource();
 
-				IJobExecutor executor = new SimpleTestExecutor(async (stepResponse, logger, cancelToken) =>
+				using IJobExecutor executor = new SimpleTestExecutor(async (stepResponse, logger, cancelToken) =>
 				{
 					stepCancelSource.CancelAfter(10);
 					await Task.Delay(5000, cancelToken);
@@ -170,7 +170,7 @@ namespace Horde.Agent.Tests
 			GetStepResponse step2Res = new GetStepResponse(JobStepOutcome.Unspecified, JobStepState.Unspecified, true);
 			client.GetStepResponses[step2Req] = step2Res;
 
-			SimpleTestExecutor executor = new SimpleTestExecutor(async (step, logger, cancelToken) =>
+			using SimpleTestExecutor executor = new SimpleTestExecutor(async (step, logger, cancelToken) =>
 			{
 				await Task.Delay(50, cancelToken);
 				return JobStepOutcome.Success;
@@ -198,7 +198,7 @@ namespace Horde.Agent.Tests
 		[TestMethod]
 		public async Task PollForStepAbortFailureTestAsync()
 		{
-			IJobExecutor executor = new SimpleTestExecutor(async (step, logger, cancelToken) =>
+			using IJobExecutor executor = new SimpleTestExecutor(async (step, logger, cancelToken) =>
 			{
 				await Task.Delay(50, cancelToken);
 				return JobStepOutcome.Success;
@@ -236,7 +236,7 @@ namespace Horde.Agent.Tests
 		[TestMethod]
 		public async Task ShutdownAsync()
 		{
-			IJobExecutor executor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
+			using IJobExecutor executor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
 			{
 				await Task.Delay(50, cancellationToken);
 				return JobStepOutcome.Success;

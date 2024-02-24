@@ -201,6 +201,10 @@ namespace Horde.Agent.Tests
 			_func = func;
 		}
 
+		public void Dispose()
+		{
+		}
+
 		public Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)
 		{
 			logger.LogDebug("SimpleTestExecutor.InitializeAsync()");

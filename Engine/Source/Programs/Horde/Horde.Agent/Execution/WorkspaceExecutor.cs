@@ -25,6 +25,17 @@ namespace Horde.Agent.Execution
 			_autoSdkWorkspace = autoSdkWorkspace;
 		}
 
+		protected override void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+				_workspace.Dispose();
+				_autoSdkWorkspace?.Dispose();
+			}
+
+			base.Dispose(disposing);
+		}
+
 		public override async Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)
 		{
 			await base.InitializeAsync(logger, cancellationToken);
@@ -161,16 +172,26 @@ namespace Horde.Agent.Execution
 
 		public IJobExecutor CreateExecutor(AgentWorkspace workspaceInfo, AgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
 		{
-			WorkspaceMaterializerType type = GetMaterializerType(options.JobOptions.WorkspaceMaterializer, WorkspaceMaterializerType.ManagedWorkspace);
-			IWorkspaceMaterializer workspaceMaterializer = _materializerFactory.CreateMaterializer(type, workspaceInfo, options);
-			
+			IWorkspaceMaterializer? workspaceMaterializer = null;
 			IWorkspaceMaterializer? autoSdkMaterializer = null;
-			if (autoSdkWorkspaceInfo != null)
+			try
 			{
-				autoSdkMaterializer = _materializerFactory.CreateMaterializer(type, autoSdkWorkspaceInfo, options, forAutoSdk: true);
+				WorkspaceMaterializerType type = GetMaterializerType(options.JobOptions.WorkspaceMaterializer, WorkspaceMaterializerType.ManagedWorkspace);
+
+				workspaceMaterializer = _materializerFactory.CreateMaterializer(type, workspaceInfo, options);
+				if (autoSdkWorkspaceInfo != null)
+				{
+					autoSdkMaterializer = _materializerFactory.CreateMaterializer(type, autoSdkWorkspaceInfo, options, forAutoSdk: true);
+				}
+
+				return new WorkspaceExecutor(options, workspaceMaterializer, autoSdkMaterializer, _loggerFactory.CreateLogger<WorkspaceExecutor>());
 			}
-			
-			return new WorkspaceExecutor(options, workspaceMaterializer, autoSdkMaterializer, _loggerFactory.CreateLogger<WorkspaceExecutor>());
+			catch
+			{
+				autoSdkMaterializer?.Dispose();
+				workspaceMaterializer?.Dispose();
+				throw;
+			}
 		}
 
 		private static WorkspaceMaterializerType GetMaterializerType(string name, WorkspaceMaterializerType defaultValue)

@@ -228,7 +228,7 @@ namespace Horde.Agent.Leases.Handlers
 				return;
 			}
 
-			IJobExecutor executor = executorFactory.CreateExecutor(workspaceInfo, autoSdkWorkspaceInfo, options);
+			using IJobExecutor executor = executorFactory.CreateExecutor(workspaceInfo, autoSdkWorkspaceInfo, options);
 
 			// Try to initialize the executor
 			logger.LogInformation("Initializing executor...");

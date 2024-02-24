@@ -50,7 +50,7 @@ namespace Horde.Agent.Execution
 		}
 	}
 
-	interface IJobExecutor
+	interface IJobExecutor : IDisposable
 	{
 		Task InitializeAsync(ILogger logger, CancellationToken cancellationToken);
 		Task<JobStepOutcome> RunAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken);
@@ -238,6 +238,17 @@ namespace Horde.Agent.Execution
 			_envVars[HordeHttpClient.HordeTokenEnvVarName] = options.Token;
 
 			Logger = logger;
+		}
+
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			GC.SuppressFinalize(this);
+			Dispose(true);
+		}
+
+		protected virtual void Dispose(bool disposing)
+		{
 		}
 
 		public virtual Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)

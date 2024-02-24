@@ -15,7 +15,7 @@ namespace Horde.Agent.Utility
 	/// <summary>
 	/// Stores information about a managed Perforce workspace
 	/// </summary>
-	public class WorkspaceInfo
+	public sealed class WorkspaceInfo : IDisposable
 	{
 		/// <summary>
 		/// The perforce connection
@@ -111,6 +111,12 @@ namespace Horde.Agent.Utility
 			Repository = repository;
 		}
 
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			PerforceClient.Dispose();
+		}
+
 		/// <summary>
 		/// Creates a new managed workspace
 		/// </summary>
@@ -150,7 +156,7 @@ namespace Horde.Agent.Utility
 			}
 
 			// Create the connection
-			IPerforceConnection perforce = await PerforceConnection.CreateAsync(new PerforceSettings(serverAndPort, userName) { PreferNativeClient = options.PreferNativeClient, Password = ticket}, logger);
+			using IPerforceConnection perforce = await PerforceConnection.CreateAsync(new PerforceSettings(serverAndPort, userName) { PreferNativeClient = options.PreferNativeClient, Password = ticket}, logger);
 			if (userName != null)
 			{
 				if (ticket != null)
@@ -220,29 +226,36 @@ namespace Horde.Agent.Utility
 
 			// Create the client Perforce connection
 			IPerforceConnection perforceClient = await perforce.WithClientAsync(clientName);
-
-			// Get the view for this stream
-			StreamRecord stream = await perforceClient.GetStreamAsync(streamName, true, cancellationToken);
-			PerforceViewMap streamView = PerforceViewMap.Parse(stream.View);
-
-			// get the workspace names
-			DirectoryReference metadataDir = DirectoryReference.Combine(rootDir, identifier);
-			DirectoryReference workspaceDir = DirectoryReference.Combine(metadataDir, "Sync");
-
-			// Create the repository
-			ManagedWorkspace newRepository = await ManagedWorkspace.LoadOrCreateAsync(hostName, metadataDir, true, options, logger, cancellationToken);
-			if (removeUntrackedFiles)
+			try
 			{
-				await newRepository.DeleteClientAsync(perforceClient, cancellationToken);
+				// Get the view for this stream
+				StreamRecord stream = await perforceClient.GetStreamAsync(streamName, true, cancellationToken);
+				PerforceViewMap streamView = PerforceViewMap.Parse(stream.View);
+
+				// get the workspace names
+				DirectoryReference metadataDir = DirectoryReference.Combine(rootDir, identifier);
+				DirectoryReference workspaceDir = DirectoryReference.Combine(metadataDir, "Sync");
+
+				// Create the repository
+				ManagedWorkspace newRepository = await ManagedWorkspace.LoadOrCreateAsync(hostName, metadataDir, true, options, logger, cancellationToken);
+				if (removeUntrackedFiles)
+				{
+					await newRepository.DeleteClientAsync(perforceClient, cancellationToken);
+				}
+				await newRepository.SetupAsync(perforceClient, streamName, cancellationToken);
+
+				// Revert any open files
+				await newRepository.RevertAsync(perforceClient, cancellationToken);
+
+				// Create the workspace info
+				logger.LogInformation("Syncing {ClientName} to {BaseDir} from {Server}, using stream {Stream} and view:{View}", clientName, workspaceDir, info.ServerAddress, streamName, String.Join("", view.Select(x => $"\n  {x}")));
+				return new WorkspaceInfo(perforceClient, hostName, streamName, streamView, metadataDir, workspaceDir, view, removeUntrackedFiles, newRepository);
 			}
-			await newRepository.SetupAsync(perforceClient, streamName, cancellationToken);
-
-			// Revert any open files
-			await newRepository.RevertAsync(perforceClient, cancellationToken);
-
-			// Create the workspace info
-			logger.LogInformation("Syncing {ClientName} to {BaseDir} from {Server}, using stream {Stream} and view:{View}", clientName, workspaceDir, info.ServerAddress, streamName, String.Join("", view.Select(x => $"\n  {x}")));
-			return new WorkspaceInfo(perforceClient, hostName, streamName, streamView, metadataDir, workspaceDir, view, removeUntrackedFiles, newRepository);
+			catch
+			{
+				perforceClient.Dispose();
+				throw;
+			}
 		}
 
 		/// <summary>
