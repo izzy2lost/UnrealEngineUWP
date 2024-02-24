@@ -233,6 +233,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Validation")
 	void AddValidator(UEditorValidatorBase* InValidator);
 
+	/*
+	* Removes a validator
+	* Should be called during module shutdown if a validator was added.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Validation")
+	void RemoveValidator(UEditorValidatorBase* InValidator);
+
 	/**
 	 * Iterate the enabled set of validators.
 	 * @note Return true to continue iteration, or false to stop.
