@@ -179,9 +179,9 @@ public:
 	UPROPERTY()
 	TArray<TObjectPtr<UAvaRundownPlaybackInstancePlayer>> InstancePlayers;
 
-	/** Instances that are excluded from the next transition. */
+	/** Instances that should bypass the next transition. */
 	UPROPERTY(Transient)
-	TSet<FGuid> InstancesExcludedFromTransition;
+	TSet<FGuid> InstancesBypassingTransition;
 
 protected:
 	TWeakObjectPtr<UAvaRundown> RundownWeak;

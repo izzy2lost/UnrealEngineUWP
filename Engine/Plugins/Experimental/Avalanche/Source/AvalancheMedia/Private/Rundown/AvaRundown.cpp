@@ -1832,8 +1832,8 @@ bool UAvaRundown::PlayPageWithTransition(FAvaRundownPageTransitionBuilder& InBui
 				// Setup user instance data to be able to track this page.
 				UAvaRundownPagePlayer::SetInstanceUserDataFromPage(*InstancePlayer->PlaybackInstance, InPage);
 				
-				// This instance has to be excluded from the next playable transition.
-				NewPagePlayer->InstancesExcludedFromTransition.Add(InstancePlayer->GetPlaybackInstanceId());
+				// Mark this instance as "bypassing" the next playable transition.
+				NewPagePlayer->InstancesBypassingTransition.Add(InstancePlayer->GetPlaybackInstanceId());
 				bFoundExistingInstancePlayer = true;
 			}
 		}
