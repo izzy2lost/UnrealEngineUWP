@@ -2154,36 +2154,6 @@ static void SetRayTracingHitGroup(
 }
 
 
-void FVulkanCommandListContext::RHISetRayTracingHitGroup(
-	FRHIRayTracingScene* InScene, uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot,
-	FRHIRayTracingPipelineState* InPipeline, uint32 HitGroupIndex,
-	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-	uint32 LooseParameterDataSize, const void* LooseParameterData,
-	uint32 UserData)
-{
-	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
-	FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InPipeline);
-	FVulkanRayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline);
-
-	checkf(ShaderSlot < Scene->GetInitializer().ShaderSlotsPerGeometrySegment, TEXT("Shader slot is invalid. Make sure that ShaderSlotsPerGeometrySegment is correct on FRayTracingSceneInitializer."));
-
-	const uint32 WorkerIndex = 0;
-
-	SetRayTracingHitGroup(*this, Device, ShaderTable, Scene, Pipeline,
-		InstanceIndex,
-		SegmentIndex,
-		ShaderSlot,
-		HitGroupIndex,
-		NumUniformBuffers,
-		UniformBuffers,
-		LooseParameterDataSize,
-		LooseParameterData,
-		UserData,
-		WorkerIndex);
-}
-
-
-
 static void SetGenericSystemParameters(
 	FRHIRayTracingScene* InScene, uint32 ShaderSlotInScene,
 	FRHIRayTracingPipelineState* InPipeline, uint32 ShaderIndexInPipeline,
@@ -2203,26 +2173,6 @@ static void SetGenericSystemParameters(
 	ShaderTable->SetLocalShaderParameters(ShaderFrequency, ShaderSlotInScene, 0, SystemParameters);
 
 	ShaderTable->SetSlot(ShaderFrequency, ShaderSlotInScene, ShaderIndexInPipeline, Pipeline->GetShaderHandles(ShaderFrequency));
-}
-
-void FVulkanCommandListContext::RHISetRayTracingCallableShader(
-	FRHIRayTracingScene* InScene, uint32 ShaderSlotInScene,
-	FRHIRayTracingPipelineState* InPipeline, uint32 ShaderIndexInPipeline,
-	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-	uint32 UserData)
-{
-	SetGenericSystemParameters(InScene, ShaderSlotInScene, InPipeline, ShaderIndexInPipeline,
-		NumUniformBuffers, UniformBuffers, UserData, SF_RayCallable);
-}
-
-void FVulkanCommandListContext::RHISetRayTracingMissShader(
-	FRHIRayTracingScene* InScene, uint32 ShaderSlotInScene,
-	FRHIRayTracingPipelineState* InPipeline, uint32 ShaderIndexInPipeline,
-	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-	uint32 UserData)
-{
-	SetGenericSystemParameters(InScene, ShaderSlotInScene, InPipeline, ShaderIndexInPipeline,
-		NumUniformBuffers, UniformBuffers, UserData, SF_RayMiss);
 }
 
 

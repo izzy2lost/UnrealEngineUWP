@@ -2229,68 +2229,18 @@ FRHICOMMAND_MACRO(FRHICommandRayTraceDispatch)
 FRHICOMMAND_MACRO(FRHICommandSetRayTracingBindings)
 {
 	FRHIRayTracingScene* Scene = nullptr;
-	ERayTracingBindingType BindingType = ERayTracingBindingType::HitGroup;
-	uint32 InstanceIndex = 0;
-	uint32 SegmentIndex = 0;
-	uint32 ShaderSlot = 0;
 	FRayTracingPipelineState* Pipeline = nullptr;
-	uint32 ShaderIndex = 0;
-	uint32 NumUniformBuffers = 0;
-	FRHIUniformBuffer* const* UniformBuffers = nullptr; // Pointer to an array of uniform buffers, allocated inline within the command list
-	uint32 LooseParameterDataSize = 0;
-	const void* LooseParameterData = nullptr;
-	uint32 UserData = 0;
-
-	// Batched bindings
 	int32 NumBindings = -1;
 	const FRayTracingLocalShaderBindings* Bindings = nullptr;
-
-	// Hit group bindings
-	FRHICommandSetRayTracingBindings(FRHIRayTracingScene* InScene, uint32 InInstanceIndex, uint32 InSegmentIndex, uint32 InShaderSlot,
-		FRayTracingPipelineState* InPipeline, uint32 InHitGroupIndex, uint32 InNumUniformBuffers, FRHIUniformBuffer* const* InUniformBuffers,
-		uint32 InLooseParameterDataSize, const void* InLooseParameterData,
-		uint32 InUserData)
-		: Scene(InScene)
-		, BindingType(ERayTracingBindingType::HitGroup)
-		, InstanceIndex(InInstanceIndex)
-		, SegmentIndex(InSegmentIndex)
-		, ShaderSlot(InShaderSlot)
-		, Pipeline(InPipeline)
-		, ShaderIndex(InHitGroupIndex)
-		, NumUniformBuffers(InNumUniformBuffers)
-		, UniformBuffers(InUniformBuffers)
-		, LooseParameterDataSize(InLooseParameterDataSize)
-		, LooseParameterData(InLooseParameterData)
-		, UserData(InUserData)
-	{
-	}
-
-	// Callable and Miss shader bindings
-	FRHICommandSetRayTracingBindings(FRHIRayTracingScene* InScene, uint32 InShaderSlot,
-		FRayTracingPipelineState* InPipeline, uint32 InShaderIndex,
-		uint32 InNumUniformBuffers, FRHIUniformBuffer* const* InUniformBuffers,
-		uint32 InUserData, ERayTracingBindingType InBindingType)
-		: Scene(InScene)
-		, BindingType(InBindingType)
-		, InstanceIndex(0)
-		, SegmentIndex(0)
-		, ShaderSlot(InShaderSlot)
-		, Pipeline(InPipeline)
-		, ShaderIndex(InShaderIndex)
-		, NumUniformBuffers(InNumUniformBuffers)
-		, UniformBuffers(InUniformBuffers)
-		, UserData(InUserData)
-	{
-		checkf(InBindingType != ERayTracingBindingType::HitGroup, TEXT("Hit group bindings must specify Instance and Segment Index."));
-	}
+	ERayTracingBindingType BindingType = ERayTracingBindingType::HitGroup;
 
 	// Bindings Batch
 	FRHICommandSetRayTracingBindings(FRHIRayTracingScene* InScene, FRayTracingPipelineState* InPipeline, uint32 InNumBindings, const FRayTracingLocalShaderBindings* InBindings, ERayTracingBindingType InBindingType)
 		: Scene(InScene)
-		, BindingType(InBindingType)
 		, Pipeline(InPipeline)
 		, NumBindings(InNumBindings)
 		, Bindings(InBindings)
+		, BindingType(InBindingType)
 	{
 
 	}
@@ -3656,12 +3606,12 @@ public:
 		}
 		else
 		{
-			FRayTracingLocalShaderBindings* InlineBindings = nullptr;
-
 			// By default all batch binding data is stored in the command list memory.
 			// However, user may skip this copy if they take responsibility for keeping data alive until this command is executed.
 			if (bCopyDataToInlineStorage)
 			{
+				FRayTracingLocalShaderBindings* InlineBindings = nullptr;
+
 				if (NumBindings)
 				{
 					uint32 Size = sizeof(FRayTracingLocalShaderBindings) * NumBindings;
@@ -3727,37 +3677,34 @@ public:
 		uint32 LooseParameterDataSize, const void* LooseParameterData,
 		uint32 UserData)
 	{
-		if (Bypass())
-		{
-			GetContext().RHISetRayTracingHitGroup(Scene, InstanceIndex, SegmentIndex, ShaderSlot, GetRHIRayTracingPipelineState(Pipeline), HitGroupIndex, 
-				NumUniformBuffers, UniformBuffers,
-				LooseParameterDataSize, LooseParameterData,
-				UserData);
-		}
-		else
-		{
-			FRHIUniformBuffer** InlineUniformBuffers = nullptr;
-			if (NumUniformBuffers)
-			{
-				InlineUniformBuffers = (FRHIUniformBuffer**)Alloc(sizeof(FRHIUniformBuffer*) * NumUniformBuffers, alignof(FRHIUniformBuffer*));
-				for (uint32 Index = 0; Index < NumUniformBuffers; ++Index)
-				{
-					InlineUniformBuffers[Index] = UniformBuffers[Index];
-				}
-			}
+		check(NumUniformBuffers <= UINT16_MAX);
+		check(LooseParameterDataSize <= UINT16_MAX);
 
-			void* InlineLooseParameterData = nullptr;
-			if (LooseParameterDataSize)
-			{
-				InlineLooseParameterData = Alloc(LooseParameterDataSize, 16);
-				FMemory::Memcpy(InlineLooseParameterData, LooseParameterData, LooseParameterDataSize);
-			}
+		FRayTracingLocalShaderBindings* InlineBindings = Alloc<FRayTracingLocalShaderBindings>();
+		InlineBindings->InstanceIndex = InstanceIndex;
+		InlineBindings->SegmentIndex = SegmentIndex;
+		InlineBindings->ShaderSlot = ShaderSlot;
+		InlineBindings->ShaderIndexInPipeline = HitGroupIndex;
+		InlineBindings->UserData = UserData;
+		InlineBindings->NumUniformBuffers = (uint16)NumUniformBuffers;
+		InlineBindings->LooseParameterDataSize = (uint16)LooseParameterDataSize;
 
-			ALLOC_COMMAND(FRHICommandSetRayTracingBindings)(Scene, InstanceIndex, SegmentIndex, ShaderSlot, Pipeline, HitGroupIndex, 
-				NumUniformBuffers, InlineUniformBuffers, 
-				LooseParameterDataSize, InlineLooseParameterData,
-				UserData);
+		if (NumUniformBuffers)
+		{
+			InlineBindings->UniformBuffers = (FRHIUniformBuffer**)Alloc(sizeof(FRHIUniformBuffer*) * NumUniformBuffers, alignof(FRHIUniformBuffer*));
+			for (uint32 Index = 0; Index < NumUniformBuffers; ++Index)
+			{
+				InlineBindings->UniformBuffers[Index] = UniformBuffers[Index];
+			}
 		}
+
+		if (LooseParameterDataSize)
+		{
+			InlineBindings->LooseParameterData = (uint8*)Alloc(LooseParameterDataSize, 16);
+			FMemory::Memcpy(InlineBindings->LooseParameterData, LooseParameterData, LooseParameterDataSize);
+		}
+
+		SetRayTracingBindings(Scene, Pipeline, 1, InlineBindings, ERayTracingBindingType::HitGroup, /*bCopyDataToInlineStorage*/ false);
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetRayTracingCallableShader(
@@ -3766,24 +3713,22 @@ public:
 		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 		uint32 UserData)
 	{
-		if (Bypass())
-		{
-			GetContext().RHISetRayTracingCallableShader(Scene, ShaderSlotInScene, GetRHIRayTracingPipelineState(Pipeline), ShaderIndexInPipeline, NumUniformBuffers, UniformBuffers, UserData);
-		}
-		else
-		{
-			FRHIUniformBuffer** InlineUniformBuffers = nullptr;
-			if (NumUniformBuffers)
-			{
-				InlineUniformBuffers = (FRHIUniformBuffer**)Alloc(sizeof(FRHIUniformBuffer*) * NumUniformBuffers, alignof(FRHIUniformBuffer*));
-				for (uint32 Index = 0; Index < NumUniformBuffers; ++Index)
-				{
-					InlineUniformBuffers[Index] = UniformBuffers[Index];
-				}
-			}
+		FRayTracingLocalShaderBindings* InlineBindings = Alloc<FRayTracingLocalShaderBindings>();
+		InlineBindings->ShaderSlot = ShaderSlotInScene;
+		InlineBindings->ShaderIndexInPipeline = ShaderIndexInPipeline;
+		InlineBindings->UserData = UserData;
+		InlineBindings->NumUniformBuffers = (uint16)NumUniformBuffers;
 
-			ALLOC_COMMAND(FRHICommandSetRayTracingBindings)(Scene, ShaderSlotInScene, Pipeline, ShaderIndexInPipeline, NumUniformBuffers, InlineUniformBuffers, UserData, ERayTracingBindingType::CallableShader);
+		if (NumUniformBuffers)
+		{
+			InlineBindings->UniformBuffers = (FRHIUniformBuffer**)Alloc(sizeof(FRHIUniformBuffer*) * NumUniformBuffers, alignof(FRHIUniformBuffer*));
+			for (uint32 Index = 0; Index < NumUniformBuffers; ++Index)
+			{
+				InlineBindings->UniformBuffers[Index] = UniformBuffers[Index];
+			}
 		}
+
+		SetRayTracingBindings(Scene, Pipeline, 1, InlineBindings, ERayTracingBindingType::CallableShader, /*bCopyDataToInlineStorage*/ false);
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetRayTracingMissShader(
@@ -3792,24 +3737,22 @@ public:
 		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 		uint32 UserData)
 	{
-		if (Bypass())
-		{
-			GetContext().RHISetRayTracingMissShader(Scene, ShaderSlotInScene, GetRHIRayTracingPipelineState(Pipeline), ShaderIndexInPipeline, NumUniformBuffers, UniformBuffers, UserData);
-		}
-		else
-		{
-			FRHIUniformBuffer** InlineUniformBuffers = nullptr;
-			if (NumUniformBuffers)
-			{
-				InlineUniformBuffers = (FRHIUniformBuffer**)Alloc(sizeof(FRHIUniformBuffer*) * NumUniformBuffers, alignof(FRHIUniformBuffer*));
-				for (uint32 Index = 0; Index < NumUniformBuffers; ++Index)
-				{
-					InlineUniformBuffers[Index] = UniformBuffers[Index];
-				}
-			}
+		FRayTracingLocalShaderBindings* InlineBindings = Alloc<FRayTracingLocalShaderBindings>();
+		InlineBindings->ShaderSlot = ShaderSlotInScene;
+		InlineBindings->ShaderIndexInPipeline = ShaderIndexInPipeline;
+		InlineBindings->UserData = UserData;
+		InlineBindings->NumUniformBuffers = (uint16)NumUniformBuffers;
 
-			ALLOC_COMMAND(FRHICommandSetRayTracingBindings)(Scene, ShaderSlotInScene, Pipeline, ShaderIndexInPipeline, NumUniformBuffers, InlineUniformBuffers, UserData, ERayTracingBindingType::MissShader);
+		if (NumUniformBuffers)
+		{
+			InlineBindings->UniformBuffers = (FRHIUniformBuffer**)Alloc(sizeof(FRHIUniformBuffer*) * NumUniformBuffers, alignof(FRHIUniformBuffer*));
+			for (uint32 Index = 0; Index < NumUniformBuffers; ++Index)
+			{
+				InlineBindings->UniformBuffers[Index] = UniformBuffers[Index];
+			}
 		}
+
+		SetRayTracingBindings(Scene, Pipeline, 1, InlineBindings, ERayTracingBindingType::MissShader, /*bCopyDataToInlineStorage*/ false);
 	}
 
 #endif // RHI_RAYTRACING

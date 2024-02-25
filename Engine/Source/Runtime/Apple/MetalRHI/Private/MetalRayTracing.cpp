@@ -843,34 +843,6 @@ void FMetalRHICommandContext::RHIRayTraceDispatchIndirect(FRHIRayTracingPipeline
 	checkNoEntry();
 }
 
-void FMetalRHICommandContext::RHISetRayTracingHitGroup(
-	   FRHIRayTracingScene* InScene, uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot,
-	   FRHIRayTracingPipelineState* InPipeline, uint32 HitGroupIndex,
-	   uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-	   uint32 LooseParameterDataSize, const void* LooseParameterData,
-	   uint32 UserData)
-{
-	checkNoEntry();
-}
-
-void FMetalRHICommandContext::RHISetRayTracingCallableShader(
-	   FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-	   FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-	   uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-	   uint32 UserData)
-{
-	checkNoEntry();
-}
-
-void FMetalRHICommandContext::RHISetRayTracingMissShader(
-	   FRHIRayTracingScene* InScene, uint32 ShaderSlotInScene,
-	   FRHIRayTracingPipelineState* InPipeline, uint32 ShaderIndexInPipeline,
-	   uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-	   uint32 UserData)
-{
-	checkNoEntry();
-}
-
 void FMetalRHICommandContext::RHISetRayTracingBindings(
 	FRHIRayTracingScene* InScene, FRHIRayTracingPipelineState* InPipeline,
 	uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,

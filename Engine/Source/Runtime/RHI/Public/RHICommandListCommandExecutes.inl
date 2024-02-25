@@ -517,31 +517,7 @@ void FRHICommandRayTraceDispatch::Execute(FRHICommandListBase& CmdList)
 void FRHICommandSetRayTracingBindings::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(SetRayTracingHitGroup);
-	extern RHI_API FRHIRayTracingPipelineState* GetRHIRayTracingPipelineState(FRayTracingPipelineState*);
-	if (NumBindings >= 0)
-	{
-		check(Bindings != nullptr);
-		INTERNAL_DECORATOR(RHISetRayTracingBindings)(Scene, GetRHIRayTracingPipelineState(Pipeline), NumBindings, Bindings, BindingType);
-	}
-	else if (BindingType == ERayTracingBindingType::HitGroup)
-	{
-		INTERNAL_DECORATOR(RHISetRayTracingHitGroup)(Scene, InstanceIndex, SegmentIndex, ShaderSlot, GetRHIRayTracingPipelineState(Pipeline), ShaderIndex,
-			NumUniformBuffers, UniformBuffers,
-			LooseParameterDataSize, LooseParameterData,
-			UserData);
-	}
-	else if (BindingType == ERayTracingBindingType::CallableShader)
-	{
-		INTERNAL_DECORATOR(RHISetRayTracingCallableShader)(Scene, ShaderSlot, GetRHIRayTracingPipelineState(Pipeline), ShaderIndex, NumUniformBuffers, UniformBuffers, UserData);
-	}
-	else if(BindingType == ERayTracingBindingType::MissShader)
-	{
-		INTERNAL_DECORATOR(RHISetRayTracingMissShader)(Scene, ShaderSlot, GetRHIRayTracingPipelineState(Pipeline), ShaderIndex, NumUniformBuffers, UniformBuffers, UserData);
-	}
-	else
-	{
-		checkNoEntry();
-	}
+	INTERNAL_DECORATOR(RHISetRayTracingBindings)(Scene, GetRHIRayTracingPipelineState(Pipeline), NumBindings, Bindings, BindingType);
 }
 
 #endif // RHI_RAYTRACING
