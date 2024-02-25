@@ -3583,7 +3583,7 @@ void UGeometryCollectionComponent::CreateRootProxyComponentsIfNeeded()
 {
 	ClearRootProxyComponents();
 
-	if (ShouldCreateRootProxyComponents())
+	if (ShouldCreateRootProxyComponents() && GetOwner())
 	{
 		for (const TObjectPtr<UStaticMesh>& ProxyMesh : RestCollection->RootProxyData.ProxyMeshes)
 		{
