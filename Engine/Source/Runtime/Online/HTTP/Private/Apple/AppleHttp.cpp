@@ -192,7 +192,7 @@
 			*stop = bSerializeSucceed? NO : YES;
 		}];
 		
-		if (!bSerializeSucceed && !bCanceled)
+		if (!bSerializeSucceed)
 		{
 			[dataTask cancel];
 		}
