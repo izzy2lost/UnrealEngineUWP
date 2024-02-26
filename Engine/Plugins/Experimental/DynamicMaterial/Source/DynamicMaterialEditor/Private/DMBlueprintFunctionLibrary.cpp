@@ -237,7 +237,17 @@ UDynamicMaterialModel* UDMBlueprintFunctionLibrary::CreateDynamicMaterialInObjec
 		InMaterialProperty.SetMaterial(NewInstance);
 	}
 
-	return NewInstance->GetMaterialModel();
+	if (UDynamicMaterialModel* MaterialModel = NewInstance->GetMaterialModel())
+	{
+		if (IDynamicMaterialModelEditorOnlyDataInterface* EditorOnlyData = MaterialModel->GetEditorOnlyData())
+		{
+			EditorOnlyData->RequestMaterialBuild();
+		}
+
+		return MaterialModel;
+	}
+
+	return nullptr;
 }
 
 bool UDMBlueprintFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModel* InMaterialModel, const FString& InSavePath)
