@@ -39,7 +39,7 @@ namespace uba
 				{
 					while (true)
 					{
-						ScopedWriteLock lock(manager.m_workLock);
+						SCOPED_WRITE_LOCK(manager.m_workLock, lock);
 						if (manager.m_work.empty())
 							break;
 						Work work = manager.m_work.front();
@@ -49,8 +49,8 @@ namespace uba
 						work.func();
 					}
 
-					ScopedWriteLock lock1(manager.m_availableWorkersLock);
-					ScopedReadLock lock2(manager.m_workLock);
+					SCOPED_WRITE_LOCK(manager.m_availableWorkersLock, lock1);
+					SCOPED_READ_LOCK(manager.m_workLock, lock2);
 					if (!manager.m_work.empty())
 						continue;
 
@@ -86,12 +86,12 @@ namespace uba
 
 	void WorkManagerImpl::AddWork(const Function<void()>& work, u32 count, const tchar* desc)
 	{
-		ScopedWriteLock lock(m_workLock);
+		SCOPED_WRITE_LOCK(m_workLock, lock);
 		for (u32 i = 0; i != count; ++i)
 			m_work.push_back({ work });
 		lock.Leave();
 
-		ScopedWriteLock lock2(m_availableWorkersLock);
+		SCOPED_WRITE_LOCK(m_availableWorkersLock, lock2);
 		while (count--)
 		{
 			Worker* worker = PopWorkerNoLock();
@@ -108,7 +108,7 @@ namespace uba
 
 	void WorkManagerImpl::PushWorker(Worker* worker)
 	{
-		ScopedWriteLock lock(m_availableWorkersLock);
+		SCOPED_WRITE_LOCK(m_availableWorkersLock, lock);
 		PushWorkerNoLock(worker);
 	}
 
@@ -126,7 +126,7 @@ namespace uba
 	{
 		while (count--)
 		{
-			ScopedWriteLock lock(m_workLock);
+			SCOPED_WRITE_LOCK(m_workLock, lock);
 			if (m_work.empty())
 				break;
 			Work work = m_work.front();
@@ -141,7 +141,7 @@ namespace uba
 	{
 		while (true)
 		{
-			ScopedReadLock lock(m_workLock);
+			SCOPED_READ_LOCK(m_workLock, lock);
 			bool workEmpty = m_work.empty();
 			lock.Leave();
 			if (workEmpty)

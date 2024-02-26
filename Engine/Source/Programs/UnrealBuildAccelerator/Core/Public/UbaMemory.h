@@ -159,7 +159,7 @@ namespace uba
 
 		void* Allocate()
 		{
-			ScopedWriteLock lock(m_lock);
+			SCOPED_WRITE_LOCK(m_lock, lock);
 			if (m_nextFree)
 			{
 				void* ptr = (void*)m_nextFree;
@@ -175,7 +175,7 @@ namespace uba
 			#if UBA_DEBUG
 			memset(mem, 0xFE, sizeof(Type));
 			#endif
-			ScopedWriteLock lock(m_lock);
+			SCOPED_WRITE_LOCK(m_lock, lock);
 			*(u64*)mem = m_nextFree;
 			m_nextFree = u64(mem);
 		}

@@ -110,7 +110,7 @@ namespace uba
 	{
 		{
 			#if !PLATFORM_WINDOWS
-			ScopedWriteLock lock(m_comMemoryLock);
+			SCOPED_WRITE_LOCK(m_comMemoryLock, lock);
 			#endif
 			if (m_comMemory.memory)
 				m_cancelEvent.Set();
@@ -332,7 +332,7 @@ namespace uba
 		m_cancelEvent.Set();
 		#else
 		m_cancelled = true;
-		ScopedWriteLock lock(m_comMemoryLock);
+		SCOPED_WRITE_LOCK(m_comMemoryLock, lock);
 		if (m_comMemory.memory)
 			m_cancelEvent.Set();
 		#endif
@@ -475,7 +475,7 @@ namespace uba
 
 		{
 			#if !PLATFORM_WINDOWS
-			ScopedWriteLock lock(m_comMemoryLock);
+			SCOPED_WRITE_LOCK(m_comMemoryLock, lock);
 			m_cancelEvent.~Event();
 			m_writeEvent.~Event();
 			m_readEvent.~Event();
@@ -956,7 +956,7 @@ namespace uba
 			m_session.m_logger.Log(LogEntryType_Warning, line.c_str(), u32(line.size()));
 		if (m_startInfo.logLineFunc)
 			m_startInfo.logLineFunc(m_startInfo.logLineUserData, line.c_str(), u32(line.size()), logType);
-		ScopedWriteLock l(m_logLinesLock);
+		SCOPED_WRITE_LOCK(m_logLinesLock, l);
 		m_logLines.push_back({ std::move(line), logType });
 	}
 
@@ -977,7 +977,7 @@ namespace uba
 			return true;
 		}
 
-		ScopedWriteLock tempLock(m_tempFilesLock);
+		SCOPED_WRITE_LOCK(m_tempFilesLock, tempLock);
 		auto insres = m_tempFiles.try_emplace(key, WrittenFile{ nullptr, StringKeyZero, fileName.data, newHandle, mappingHandleSize, mappingHandle });
 		if (insres.second)
 			return true;
@@ -999,7 +999,7 @@ namespace uba
 		u64 mappingHandle = 0;
 		u64 mappingWritten = 0;
 
-		ScopedReadLock lock(m_tempFilesLock);
+		SCOPED_READ_LOCK(m_tempFilesLock, lock);
 		auto findIt = m_tempFiles.find(fileKey);
 		if (findIt != m_tempFiles.end())
 		{
@@ -1081,7 +1081,7 @@ namespace uba
 	bool ProcessImpl::WriteFilesToDisk()
 	{
 		TimerScope ts(m_processStats.writeFiles);
-		ScopedWriteLock lock(m_writtenFilesLock);
+		SCOPED_WRITE_LOCK(m_writtenFilesLock, lock);
 		for (auto& kv : m_writtenFiles)
 		{
 			if (kv.second.owner != this)
@@ -1125,7 +1125,7 @@ namespace uba
 
 	u32 ProcessImpl::InternalCreateProcess(bool runningRemote, void* environment, FileMappingHandle communicationHandle, u64 communicationOffset)
 	{
-		ScopedWriteLock initLock(m_initLock);
+		SCOPED_WRITE_LOCK(m_initLock, initLock);
 		Logger& logger = m_session.m_logger;
 
 #if PLATFORM_WINDOWS
@@ -1178,7 +1178,7 @@ namespace uba
 			creationFlags |= EXTENDED_STARTUPINFO_PRESENT;
 
 
-			ScopedReadLock jobObjectLock(m_session.m_processJobObjectLock);
+			SCOPED_READ_LOCK(m_session.m_processJobObjectLock, jobObjectLock);
 			if (!m_session.m_processJobObject)
 			{
 				m_cancelEvent.Set();
@@ -1629,7 +1629,7 @@ namespace uba
 
 	u32 ProcessImpl::InternalExitProcess(bool cancel)
 	{
-		ScopedWriteLock lock(m_initLock);
+		SCOPED_WRITE_LOCK(m_initLock, lock);
 		Logger& logger = m_session.m_logger;
 
 		ProcHandle handle = m_nativeProcessHandle;

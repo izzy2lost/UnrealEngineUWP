@@ -60,13 +60,13 @@ namespace uba
 
 	bool StorageClient::IsUsingProxy()
 	{
-		ScopedReadLock proxyLock(m_proxyClientLock);
+		SCOPED_READ_LOCK(m_proxyClientLock, proxyLock);
 		return m_proxyClient != nullptr;
 	}
 
 	void StorageClient::StopProxy()
 	{
-		ScopedWriteLock proxyLock(m_proxyClientLock);
+		SCOPED_WRITE_LOCK(m_proxyClientLock, proxyLock);
 		if (m_proxyClient)
 			m_proxyClient->client.Disconnect();
 	}
@@ -97,7 +97,7 @@ namespace uba
 #if !UBA_USE_SPARSEFILE
 	bool StorageClient::GetCasFileName(StringBufferBase& out, const CasKey& casKey)
 	{
-		ScopedReadLock tempLock(m_localStorageFilesLock);
+		SCOPED_READ_LOCK(m_localStorageFilesLock, tempLock);
 		auto findIt = m_localStorageFiles.find(AsCompressed(casKey, false));
 		if (findIt != m_localStorageFiles.end())
 		{
@@ -115,7 +115,7 @@ namespace uba
 
 	MappedView StorageClient::MapView(const CasKey& casKey, const tchar* hint)
 	{
-		ScopedReadLock tempLock(m_localStorageFilesLock);
+		SCOPED_READ_LOCK(m_localStorageFilesLock, tempLock);
 		auto findIt = m_localStorageFiles.find(AsCompressed(casKey, false));
 		bool isValid = findIt != m_localStorageFiles.end();
 		tempLock.Leave();
@@ -158,7 +158,7 @@ namespace uba
 
 		// Cas file might have been created by this client and in that case we can just reuse the file we just wrote. No need to fetch from server
 		// This needs to be first so it doesnt end up in the cas table even though it is not in there. (otherwise it might be garbage collected)
-		ScopedReadLock tempLock(m_localStorageFilesLock);
+		SCOPED_READ_LOCK(m_localStorageFilesLock, tempLock);
 		auto findIt = m_localStorageFiles.find(AsCompressed(casKey, false));
 		if (findIt != m_localStorageFiles.end())
 		{
@@ -182,7 +182,7 @@ namespace uba
 			if (EnsureCasFile(casKey, nullptr))
 				return true;
 
-			ScopedReadLock lock(m_casLookupLock);
+			SCOPED_READ_LOCK(m_casLookupLock, lock);
 			casEntry = &m_casLookup.find(casKey)->second;
 			lock.Leave();
 
@@ -233,7 +233,7 @@ namespace uba
 			bool wantsProxy = false;
 			if (allowProxy)
 			{
-				ScopedWriteLock proxyLock(m_proxyClientLock);
+				SCOPED_WRITE_LOCK(m_proxyClientLock, proxyLock);
 				if (m_proxyClient)
 				{
 					if (m_proxyClient->client.IsConnected())
@@ -257,7 +257,7 @@ namespace uba
 				{
 					if (proxy)
 					{
-						ScopedWriteLock proxyLock(m_proxyClientLock);
+						SCOPED_WRITE_LOCK(m_proxyClientLock, proxyLock);
 						if (!--proxy->refCount)
 						{
 							if (!proxy->client.IsConnected())
@@ -317,7 +317,7 @@ namespace uba
 						// TODO: Check if self, then use loopback.. this could be received before local proxy is started due to network ordering
 					}
 
-					ScopedWriteLock proxyLock2(m_proxyClientLock);
+					SCOPED_WRITE_LOCK(m_proxyClientLock, proxyLock2);
 					if (m_proxyClient)
 						continue;
 
@@ -658,7 +658,7 @@ namespace uba
 	bool StorageClient::HasCasFile(const CasKey& casKey, CasEntry** out)
 	{
 		CasKey localKey = AsCompressed(casKey, false);
-		ScopedReadLock lock(m_localStorageFilesLock);
+		SCOPED_READ_LOCK(m_localStorageFilesLock, lock);
 		auto findIt = m_localStorageFiles.find(localKey);
 		if (findIt != m_localStorageFiles.end())
 		{
@@ -710,7 +710,7 @@ namespace uba
 
 			if (keepMappingInMemory)
 			{
-				ScopedWriteLock lock(m_localStorageFilesLock);
+				SCOPED_WRITE_LOCK(m_localStorageFilesLock, lock);
 				auto insres = m_localStorageFiles.try_emplace(AsCompressed(casKey, false));
 				LocalFile& localFile = insres.first->second;
 				if (insres.second || !localFile.casEntry.mappingHandle.IsValid())
@@ -766,7 +766,7 @@ namespace uba
 
 	void StorageClient::Ping()
 	{
-		ScopedReadLock lock(m_proxyClientLock);
+		SCOPED_READ_LOCK(m_proxyClientLock, lock);
 		if (!m_proxyClient)
 			return;
 		u64 now = GetTime();
@@ -1075,7 +1075,7 @@ namespace uba
 				fullPath.Resize(dirLen).Append(e.name);
 				if (IsDirectory(e.attributes))
 				{
-					ScopedWriteLock lock(seenIdsLock);
+					SCOPED_WRITE_LOCK(seenIdsLock, lock);
 					if (!seenIds.insert(e.id).second)
 						return;
 					lock.Leave();
@@ -1099,7 +1099,7 @@ namespace uba
 							return;
 						}
 
-						ScopedWriteLock lookupLock(m_localStorageFilesLock);
+						SCOPED_WRITE_LOCK(m_localStorageFilesLock, lookupLock);
 						auto insres = m_localStorageFiles.try_emplace(AsCompressed(casKey, false));
 						if (!insres.second)
 							return;

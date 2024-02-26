@@ -130,7 +130,7 @@ namespace uba
 
 		u64 stringLen = TStrlen(string);
 
-		ScopedWriteLock lock(m_stringsLock);
+		SCOPED_WRITE_LOCK(m_stringsLock, lock);
 		auto insres = m_strings.try_emplace(ToStringKeyNoCheck(string, stringLen));
 		if (insres.second)
 		{

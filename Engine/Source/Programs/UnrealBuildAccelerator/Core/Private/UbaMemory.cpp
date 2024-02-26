@@ -60,7 +60,7 @@ namespace uba
 		if (!memory)
 			return aligned_alloc(alignment, bytes);
 
-		ScopedWriteLock l(lock);
+		SCOPED_WRITE_LOCK(lock, l);
 		return AllocateNoLock(bytes, alignment, hint);
 	}
 

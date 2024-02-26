@@ -122,7 +122,7 @@ namespace uba
 	{
 		StopListen();
 
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		for (auto& conn : m_connections)
 		{
 			ScopedCriticalSection lock2(conn.shutdownLock);
@@ -158,7 +158,7 @@ namespace uba
 		sendContext.isUsed = true;
 
 		#if UBA_LOCK_AROUND_SEND
-		ScopedWriteLock lock(conn.sendLock);
+		SCOPED_WRITE_LOCK(conn.sendLock, lock);
 		#endif
 
 		bool res = SendSocket(logger, conn.socket, data, dataSize);
@@ -378,7 +378,7 @@ namespace uba
 				continue;
 			}
 
-			ScopedWriteLock lock(m_connectionsLock);
+			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 			auto it = m_connections.emplace(m_connections.end(), clientSocket);
 			auto& conn = *it;
 			conn.recvThread.Start([this, connPtr = &conn] { ThreadRecv(*connPtr); return 0; });
@@ -389,7 +389,7 @@ namespace uba
 				shutdown(clientSocket, SD_BOTH);
 				conn.ready.Set();
 				conn.recvThread.Wait();
-				ScopedWriteLock lock2(m_connectionsLock);
+				SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
 				m_connections.erase(it);
 				continue;
 			}
@@ -616,7 +616,7 @@ namespace uba
 
 		socketClose.Cancel();
 
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		auto it = m_connections.emplace(m_connections.end(), socketFd);
 		auto& conn = *it;
 		conn.recvThread.Start([this, connPtr = &conn] { ThreadRecv(*connPtr); return 0; });
@@ -627,7 +627,7 @@ namespace uba
 			shutdown(socketFd, SD_BOTH);
 			conn.ready.Set();
 			conn.recvThread.Wait();
-			ScopedWriteLock lock2(m_connectionsLock);
+			SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
 			m_connections.erase(it);
 			return false;
 		}

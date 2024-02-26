@@ -28,7 +28,7 @@ namespace uba
 
 		m_server.RegisterOnClientConnected(ServiceId, [this](const Guid& clientUid, u32 clientId)
 			{
-				ScopedWriteLock lock(m_loadCasTableLock);
+				SCOPED_WRITE_LOCK(m_loadCasTableLock, lock);
 				if (!m_casTableLoaded)
 					LoadCasTable(true);
 			});
@@ -72,14 +72,14 @@ namespace uba
 		if (m_storeCompressed)
 			actualKey = AsCompressed(casKey, true);
 
-		ScopedWriteLock waitLock(m_waitEntriesLock);
+		SCOPED_WRITE_LOCK(m_waitEntriesLock, waitLock);
 		WaitEntry& waitEntry = m_waitEntries[actualKey];
 		++waitEntry.refCount;
 		waitLock.Leave();
 
 		auto g = MakeGuard([&]()
 			{
-				ScopedWriteLock waitLock2(m_waitEntriesLock);
+				SCOPED_WRITE_LOCK(m_waitEntriesLock, waitLock2);
 				if (!--waitEntry.refCount)
 					m_waitEntries.erase(actualKey);
 			});
@@ -120,7 +120,7 @@ namespace uba
 	void StorageServer::OnDisconnected(u32 clientId)
 	{
 		{
-			ScopedWriteLock lock(m_proxiesLock);
+			SCOPED_WRITE_LOCK(m_proxiesLock, lock);
 			for (auto it=m_proxies.begin(); it!=m_proxies.end(); ++it)
 			{
 				ProxyEntry& e = it->second;
@@ -132,7 +132,7 @@ namespace uba
 			}
 		}
 		{
-			ScopedWriteLock lock(m_activeStoresLock);
+			SCOPED_WRITE_LOCK(m_activeStoresLock, lock);
 			for (auto it=m_activeStores.begin(); it!=m_activeStores.end();)
 			{
 				ActiveStore& store = it->second;
@@ -143,7 +143,7 @@ namespace uba
 				}
 
 				{
-					ScopedWriteLock entryLock(store.casEntry->lock);
+					SCOPED_WRITE_LOCK(store.casEntry->lock, entryLock);
 					store.casEntry->verified = false;
 					store.casEntry->beingWritten = false;
 					if (m_traceStore)
@@ -155,7 +155,7 @@ namespace uba
 			}
 		}
 		{
-			ScopedWriteLock lock(m_activeFetchesLock);
+			SCOPED_WRITE_LOCK(m_activeFetchesLock, lock);
 			for (auto it=m_activeFetches.begin(); it!=m_activeFetches.end();)
 			{
 				ActiveFetch& fetch = it->second;
@@ -187,16 +187,16 @@ namespace uba
 		if (out == CasKeyZero)
 			return false;
 
-		ScopedWriteLock lookupLock(m_fileTableLookupLock);
+		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lookupLock);
 		auto insres = m_fileTableLookup.try_emplace(fileNameKey);
 		FileEntry& fileEntry = insres.first->second;
 		lookupLock.Leave();
-		ScopedWriteLock entryLock(fileEntry.lock);
+		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 		fileEntry.verified = true;
 		fileEntry.casKey = out;
 		fileEntry.size = fileSize;
 
-		ScopedWriteLock externalFileLock(m_externalFileMappingsLock);
+		SCOPED_WRITE_LOCK(m_externalFileMappingsLock, externalFileLock);
 		m_externalFileMappings.try_emplace(fileNameKey, ExternalFileMapping{mappingHandle, mappingOffset, fileSize});
 		externalFileLock.Leave();
 
@@ -214,7 +214,7 @@ namespace uba
 			fromForKey.MakeLower();
 		StringKey fileNameKey = ToStringKey(fromForKey);
 
-		ScopedWriteLock lock(m_externalFileMappingsLock);
+		SCOPED_WRITE_LOCK(m_externalFileMappingsLock, lock);
 		auto findIt = m_externalFileMappings.find(fileNameKey);
 		if (findIt == m_externalFileMappings.end())
 		{
@@ -282,7 +282,7 @@ namespace uba
 				if (reader.ReadBool()) // is proxy
 					return m_logger.Error(TC("Proxy is sending connect message. This path is not implemented"));
 				u16 proxyPort = reader.ReadU16();
-				ScopedWriteLock lock(m_connectionInfoLock);
+				SCOPED_WRITE_LOCK(m_connectionInfoLock, lock);
 				Info& info = m_connectionInfo[connectionInfo.GetId()];
 				info.zone = reader.ReadString();
 				info.storageSize = reader.ReadU64();
@@ -297,7 +297,7 @@ namespace uba
 			{
 				if (reader.ReadBool()) // Wants proxy
 				{
-					ScopedReadLock lock(m_connectionInfoLock);
+					SCOPED_READ_LOCK(m_connectionInfoLock, lock);
 					auto findIt = m_connectionInfo.find(connectionInfo.GetId());
 					UBA_ASSERT(findIt != m_connectionInfo.end());
 					Info& info = findIt->second;
@@ -330,7 +330,7 @@ namespace uba
 							writer.WriteByte(1 << 2);
 
 							auto proxyKey = ToStringKeyNoCheck(proxyName.data, proxyName.count);
-							ScopedWriteLock proxiesLock(m_proxiesLock);
+							SCOPED_WRITE_LOCK(m_proxiesLock, proxiesLock);
 							ProxyEntry& proxy = m_proxies[proxyKey];
 							if (proxy.clientId == ~0u)
 							{
@@ -376,13 +376,13 @@ namespace uba
 					CasKey checkedCasKey;
 					{
 						StringKey fileNameKey = CaseInsensitiveFs ? ToStringKeyLower(hint) : ToStringKey(hint);
-						ScopedReadLock lookupLock(m_fileTableLookupLock);
+						SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
 						auto findIt = m_fileTableLookup.find(fileNameKey);
 						if (findIt != m_fileTableLookup.end())
 						{
 							FileEntry& fileEntry = findIt->second;
 							lookupLock.Leave();
-							ScopedReadLock entryLock(fileEntry.lock);
+							SCOPED_READ_LOCK(fileEntry.lock, entryLock);
 							if (fileEntry.verified)
 								checkedCasKey = fileEntry.casKey;
 						}
@@ -411,7 +411,7 @@ namespace uba
 						writer.WriteU16(0);
 						return true;
 					}
-					ScopedWriteLock lookupLock(m_casLookupLock);
+					SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
 					auto findIt = m_casLookup.find(casKey);
 					UBA_ASSERT(findIt != m_casLookup.end());
 					casEntry = &findIt->second;
@@ -548,7 +548,7 @@ namespace uba
 
 				*fetchId = PopId();
 
-				ScopedWriteLock lock(m_activeFetchesLock);
+				SCOPED_WRITE_LOCK(m_activeFetchesLock, lock);
 				auto insres = m_activeFetches.try_emplace(*fetchId);
 				UBA_ASSERT(insres.second);
 				lock.Leave();
@@ -574,7 +574,7 @@ namespace uba
 				u16 fetchId = reader.ReadU16();
 				u32 fetchIndex = reader.ReadU32();
 
-				ScopedReadLock lock(m_activeFetchesLock);
+				SCOPED_READ_LOCK(m_activeFetchesLock, lock);
 				auto findIt = m_activeFetches.find(fetchId);
 				if (findIt == m_activeFetches.end())
 					return m_logger.Error(TC("Can't find active fetch %u, disconnected client? (index %u)"), fetchId, fetchIndex);
@@ -599,7 +599,7 @@ namespace uba
 				fetch.Release(*this, TC("FetchDone"));
 
 				u64 sendCasTime = fetch.sendCasTime;
-				ScopedWriteLock activeLock(m_activeFetchesLock);
+				SCOPED_WRITE_LOCK(m_activeFetchesLock, activeLock);
 				m_activeFetches.erase(fetchId);
 				activeLock.Leave();
 				PushId(fetchId);
@@ -621,12 +621,12 @@ namespace uba
 			{
 				CasKey casKey = reader.ReadCasKey();
 				UBA_ASSERT(IsCompressed(casKey));
-				ScopedWriteLock lookupLock(m_casLookupLock);
+				SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
 				auto casInsres = m_casLookup.try_emplace(casKey);
 				CasEntry& casEntry = casInsres.first->second;
 				lookupLock.Leave();
 
-				ScopedWriteLock entryLock(casEntry.lock);
+				SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 				
 				if (!WaitForWritten(casEntry, entryLock, TC("UNKNOWN")))
 					return false;
@@ -678,12 +678,12 @@ namespace uba
 				StringBuffer<> hint;
 				reader.ReadString(hint);
 
-				ScopedWriteLock lookupLock(m_casLookupLock);
+				SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
 				auto casInsres = m_casLookup.try_emplace(casKey);
 				CasEntry& casEntry = casInsres.first->second;
 				lookupLock.Leave();
 
-				ScopedWriteLock entryLock(casEntry.lock);
+				SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 				if (!casEntry.verified)
 				{
 					casEntry.key = casKey;
@@ -745,7 +745,7 @@ namespace uba
 				{
 					storeId = reader.ReadU16();
 					memOffset = reader.ReadU64();
-					ScopedReadLock activeLock(m_activeStoresLock);
+					SCOPED_READ_LOCK(m_activeStoresLock, activeLock);
 					auto storeIt = m_activeStores.find(storeId);
 					if (storeIt == m_activeStores.end())
 						return m_logger.Error(TC("Can't find active store %u, disconnected client?"), storeId);
@@ -767,7 +767,7 @@ namespace uba
 
 					CasEntry& casEntry = *activeStore.casEntry;
 					{
-						ScopedWriteLock entryLock(casEntry.lock);
+						SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 						casEntry.mappingHandle = activeStore.mappedView.handle;
 						casEntry.mappingOffset = activeStore.mappedView.offset;
 						casEntry.mappingSize = totalWritten;
@@ -786,7 +786,7 @@ namespace uba
 					stats.recvCasBytesComp += activeStore.fileSize;
 					stats.recvCasBytesRaw += activeStore.actualSize;
 
-					ScopedWriteLock waitLock(m_waitEntriesLock);
+					SCOPED_WRITE_LOCK(m_waitEntriesLock, waitLock);
 					auto waitFindIt = m_waitEntries.find(casEntry.key);
 					if (waitFindIt != m_waitEntries.end())
 					{
@@ -798,7 +798,7 @@ namespace uba
 
 					if (!firstStore)
 					{
-						ScopedWriteLock activeLock(m_activeStoresLock);
+						SCOPED_WRITE_LOCK(m_activeStoresLock, activeLock);
 						m_activeStores.erase(storeId);
 						activeLock.Leave();
 						PushId(storeId);
@@ -819,7 +819,7 @@ namespace uba
 					writer.WriteU16(storeId);
 					writer.WriteBool(m_traceStore);
 
-					ScopedWriteLock activeLock(m_activeStoresLock);
+					SCOPED_WRITE_LOCK(m_activeStoresLock, activeLock);
 					auto insres = m_activeStores.try_emplace(storeId);
 					UBA_ASSERT(insres.second);
 					activeLock.Leave();
@@ -850,7 +850,7 @@ namespace uba
 
 	u16 StorageServer::PopId()
 	{
-		ScopedWriteLock lock(m_availableIdsLock);
+		SCOPED_WRITE_LOCK(m_availableIdsLock, lock);
 		if (m_availableIds.empty())
 		{
 			UBA_ASSERT(m_availableIdsHigh < u16(~0) - 1);
@@ -863,7 +863,7 @@ namespace uba
 
 	void StorageServer::PushId(u16 id)
 	{
-		ScopedWriteLock lock(m_availableIdsLock);
+		SCOPED_WRITE_LOCK(m_availableIdsLock, lock);
 		m_availableIds.push_back(id);
 	}
 

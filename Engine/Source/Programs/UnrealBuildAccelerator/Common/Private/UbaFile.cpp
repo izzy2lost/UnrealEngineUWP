@@ -796,10 +796,10 @@ namespace uba
 		TString key(dir, dir + dirLen);
 		dir = key.c_str();
 
-		ScopedWriteLock lock(m_createdDirsLock);
+		SCOPED_WRITE_LOCK(m_createdDirsLock, lock);
 		CreatedDir& cd = m_createdDirs.try_emplace(key).first->second;
 		lock.Leave();
-		ScopedWriteLock dirLock(cd.lock);
+		SCOPED_WRITE_LOCK(cd.lock, dirLock);
 		if (cd.handled)
 			return true;
 		cd.handled = true;
@@ -827,7 +827,7 @@ namespace uba
 
 	void DirectoryCache::Clear()
 	{
-		ScopedWriteLock lock(m_createdDirsLock);
+		SCOPED_WRITE_LOCK(m_createdDirsLock, lock);
 		m_createdDirs.clear();
 	}
 }

@@ -21,7 +21,7 @@ namespace uba
 	{
 		BottleneckScope(Bottleneck& b) : bottleneck(b)
 		{
-			ScopedWriteLock lock(bottleneck.lock);
+			SCOPED_WRITE_LOCK(bottleneck.lock, lock);
 			while (true)
 			{
 				if (bottleneck.activeCount < bottleneck.maxCount)
@@ -40,7 +40,7 @@ namespace uba
 
 		~BottleneckScope()
 		{
-			ScopedWriteLock lock(bottleneck.lock);
+			SCOPED_WRITE_LOCK(bottleneck.lock, lock);
 			if (bottleneck.activeCount == bottleneck.maxCount)
 				bottleneck.underMax.Set();
 			--bottleneck.activeCount;

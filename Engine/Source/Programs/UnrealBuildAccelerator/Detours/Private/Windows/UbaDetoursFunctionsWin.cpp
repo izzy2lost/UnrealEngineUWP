@@ -494,7 +494,7 @@ GrowingUnorderedMap<const wchar_t*, const wchar_t*, HashString, EqualString> g_l
 void Rpc_AllocFailed(const wchar_t* allocType, u32 error)
 {
 	TimerScope ts(g_stats.virtualAllocFailed);
-	ScopedWriteLock pcs(g_communicationLock);
+	SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 	BinaryWriter writer;
 	writer.WriteByte(MessageType_VirtualAllocFailed);
 	writer.WriteString(allocType);
@@ -548,7 +548,7 @@ void SendExitMessage(DWORD exitCode, u64 startTime)
 		while (left)
 		{
 			u32 toWrite = Min(left, u32(30 * 1024));
-			ScopedWriteLock pcs(g_communicationLock);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 			BinaryWriter writer;
 			writer.WriteByte(MessageType_InputDependencies);
 			if (pos == 0)
@@ -563,7 +563,7 @@ void SendExitMessage(DWORD exitCode, u64 startTime)
 
 	g_stats.usedMemory = u32(g_memoryBlock.writtenSize);
 
-	ScopedWriteLock pcs(g_communicationLock);
+	SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 	BinaryWriter writer;
 	writer.WriteByte(MessageType_Exit);
 	writer.WriteU32(exitCode);
@@ -880,7 +880,7 @@ void Init(const DetoursPayload& payload, u64 startTime)
 
 	{
 		TimerScope ts(g_stats.init);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_Init);
 		writer.Flush();
@@ -1011,7 +1011,7 @@ extern "C"
 	UBA_DETOURED_API u32 UbaSendCustomMessage(const void* send, u32 sendSize, void* recv, u32 recvCapacity)
 	{
 		//TimerScope ts(g_stats.init);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_Custom);
 		writer.WriteU32(sendSize);
@@ -1026,7 +1026,7 @@ extern "C"
 
 	UBA_DETOURED_API bool UbaFlushWrittenFiles()
 	{
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_FlushWrittenFiles);
 		writer.Flush();
@@ -1037,7 +1037,7 @@ extern "C"
 	UBA_DETOURED_API bool UbaUpdateEnvironment(const wchar_t* reason, bool resetStats)
 	{
 		{
-			ScopedWriteLock pcs(g_communicationLock);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 			BinaryWriter writer;
 			writer.WriteByte(MessageType_UpdateEnvironment);
 			writer.WriteString(reason ? reason : L"");
@@ -1065,7 +1065,7 @@ extern "C"
 		*outArguments = 0;
 		bool newProcess;
 		{
-			ScopedWriteLock pcs(g_communicationLock);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 			BinaryWriter writer;
 			writer.WriteByte(MessageType_GetNextProcess);
 			writer.WriteU32(prevExitCode);

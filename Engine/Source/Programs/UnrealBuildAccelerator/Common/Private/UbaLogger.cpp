@@ -5,6 +5,7 @@
 #include "UbaFileAccessor.h"
 #include "UbaPlatform.h"
 #include "UbaStringBuffer.h"
+#include "UbaTimer.h"
 
 #if PLATFORM_WINDOWS
 #include <io.h>
@@ -22,7 +23,7 @@ namespace uba
 	ANALYSIS_NORETURN void UbaAssert(const tchar* text, const char* file, u32 line, const char* expr, u32 terminateCode)
 	{
 		static ReaderWriterLock assertLock;
-		ScopedWriteLock lock(assertLock);
+		SCOPED_WRITE_LOCK(assertLock, lock);
 
 		StringBuffer<4096> b;
 		WriteAssertInfo(b, text, file, line, expr, 1);
@@ -227,7 +228,7 @@ namespace uba
 	{
 		if (t_consoleLogScopeCount)
 			return LogNoLock(type, str, strLen, prefix, prefixLen);
-		ScopedWriteLock lock(m_lock);
+		SCOPED_WRITE_LOCK(m_lock, lock);
 		LogNoLock(type, str, strLen, prefix, prefixLen);
 #if PLATFORM_WINDOWS
 		if (!m_stdout)
@@ -341,7 +342,7 @@ namespace uba
 				return;
 			if (t_debugLogScopeCount)
 				return LogNoLock(type, str, strLen, prefix, prefixLen);
-			ScopedWriteLock lock(m_logLock);
+			SCOPED_WRITE_LOCK(m_logLock, lock);
 			LogNoLock(type, str, strLen, prefix, prefixLen);
 		}
 
@@ -395,4 +396,35 @@ namespace uba
 
 	LoggerWithWriter g_debugLogger(g_debugLogWriter);
 #endif
+
+	#if UBA_TRACK_CONTENTION
+	List<ContentionTracker>& GetContentionTrackerList();
+	#endif
+
+
+	void PrintContentionSummary(Logger& logger)
+	{
+	#if UBA_TRACK_CONTENTION
+		logger.Info(TC("Contention summary:"));
+		List<ContentionTracker*> list;
+		for (auto& ct : GetContentionTrackerList())
+			if (TimeToMs(ct.time) > 1)
+				list.push_back(&ct);
+		list.sort([](const ContentionTracker* a, const ContentionTracker* b)
+			{
+				if (a->time != b->time)
+					return a->time > b->time;
+				return a < b;
+			});
+
+		for (auto& ct : list)
+		{
+			StringBuffer<512> fn;
+			fn.Append(ct->file);
+			StringBuffer<256> s;
+			s.Append(TC("  ")).AppendFileName(fn.data).Append(':').AppendValue(ct->line).Append(TC(" - ")).AppendValue(ct->count).Append(TC(" calls in ")).Append(TimeToText(ct->time).str);
+			logger.Info(s.data);
+		}
+	#endif
+	}
 }

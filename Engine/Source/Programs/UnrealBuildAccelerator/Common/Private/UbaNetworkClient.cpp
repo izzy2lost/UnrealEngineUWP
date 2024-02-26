@@ -42,7 +42,8 @@ namespace uba
 		StopListen();
 
 		Disconnect();
-		ScopedWriteLock lock(m_connectionsLock);
+
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		m_connections.clear(); // Before tcpBackend
 
 		delete m_tcpBackend;
@@ -102,7 +103,7 @@ namespace uba
 
 				if (!rc.error)
 				{
-					ScopedWriteLock lock(rc.client.m_serverUidLock);
+					SCOPED_WRITE_LOCK(rc.client.m_serverUidLock, lock);
 					if (rc.client.m_serverUid == Guid())
 						rc.client.m_serverUid = serverUid;
 					else if (rc.client.m_serverUid != serverUid) // Seems like two different servers tried to connect to this client.. keep the first one and ignore the others
@@ -189,7 +190,7 @@ namespace uba
 		if (m_connectionCount.fetch_add(1) != 0)
 			return true;
 
-		ScopedWriteLock lock(m_onConnectedFunctionsLock);
+		SCOPED_WRITE_LOCK(m_onConnectedFunctionsLock, lock);
 		for (auto& f : m_onConnectedFunctions)
 			f();
 		lock.Leave();
@@ -203,13 +204,16 @@ namespace uba
 
 	void NetworkClient::ConnectedCallback(NetworkBackend& backend, void* backendConnection)
 	{
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		m_connections.emplace_back(*this);
 		Connection* connection = &m_connections.back();
 		connection->backendConnection = backendConnection;
 		connection->connected = 1;
 		connection->backend = &backend;
-		m_connectionsItLock.ScopedWrite([&]() { m_connectionsIt = m_connections.begin(); });
+		{
+			SCOPED_WRITE_LOCK(m_connectionsItLock, l);
+			m_connectionsIt = m_connections.begin();
+		}
 		lock.Leave();
 
 		backend.SetDisconnectCallback(backendConnection, connection, [](void* context, void* connection)
@@ -229,7 +233,7 @@ namespace uba
 		u16 messageId = u16(headerData[0] << 8) | u16((*(u32*)(headerData + 1) & 0xff000000) >> 24);
 		u32 messageSize = *(u32*)(headerData + 1) & 0x00FFFFFF;
 
-		ScopedReadLock lock(client.m_activeMessagesLock);
+		SCOPED_READ_LOCK(client.m_activeMessagesLock, lock);
 		if (!connection.connected)
 			return false;
 		UBA_ASSERTF(messageId < client.m_activeMessages.size(), TC("Message id %u is higher than max %u"), messageId, u32(client.m_activeMessages.size()));
@@ -275,7 +279,7 @@ namespace uba
 
 	void NetworkClient::Disconnect()
 	{
-		ScopedReadLock lock(m_connectionsLock);
+		SCOPED_READ_LOCK(m_connectionsLock, lock);
 		for (auto& c : m_connections)
 		{
 			OnDisconnected(c, false);
@@ -335,7 +339,7 @@ namespace uba
 		u64 recvBytes = 0;
 		u32 recvCount = 0;
 
-		ScopedReadLock lock(m_connectionsLock);
+		SCOPED_READ_LOCK(m_connectionsLock, lock);
 		u32 connectionsCount = u32(m_connections.size());
 		for (auto& c : m_connections)
 		{
@@ -365,7 +369,7 @@ namespace uba
 
 	void NetworkClient::RegisterOnConnected(const OnConnectedFunction& function)
 	{
-		ScopedWriteLock lock(m_onConnectedFunctionsLock);
+		SCOPED_WRITE_LOCK(m_onConnectedFunctionsLock, lock);
 		m_onConnectedFunctions.push_back(function);
 		if (m_connectionCount.load() == 0)
 			return;
@@ -422,7 +426,7 @@ namespace uba
 		}
 
 		u16 messageId = 0;
-		ScopedWriteLock lock(m_activeMessagesLock);
+		SCOPED_WRITE_LOCK(m_activeMessagesLock, lock);
 		for (auto m : m_activeMessages)
 		{
 			if (m && m->m_connection == &connection)
@@ -437,8 +441,8 @@ namespace uba
 
 	bool NetworkClient::Send(NetworkMessage& message, void* response, u32 responseCapacity, bool async)
 	{
-		ScopedReadLock connectionLock(m_connectionsLock);
-		ScopedWriteLock connectionItLock(m_connectionsItLock);
+		SCOPED_READ_LOCK(m_connectionsLock, connectionLock);
+		SCOPED_WRITE_LOCK(m_connectionsItLock, connectionItLock);
 		if (m_connectionsIt == m_connections.end())
 			return false;
 
@@ -461,7 +465,7 @@ namespace uba
 		{
 			while (true)
 			{
-				ScopedWriteLock lock(m_activeMessagesLock);
+				SCOPED_WRITE_LOCK(m_activeMessagesLock, lock);
 				if (m_availableMessageIds.empty())
 				{
 					if (!connection.connected)
@@ -559,7 +563,7 @@ namespace uba
 
 	void NetworkClient::ReturnMessageId(u16 id)
 	{
-		ScopedWriteLock lock(m_activeMessagesLock);
+		SCOPED_WRITE_LOCK(m_activeMessagesLock, lock);
 		m_availableMessageIds.push_back(id);
 		m_activeMessages[id] = nullptr;
 	}

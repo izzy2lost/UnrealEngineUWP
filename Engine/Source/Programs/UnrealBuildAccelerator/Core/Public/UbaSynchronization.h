@@ -6,6 +6,11 @@
 #include <atomic>
 #include <utility>
 
+#define UBA_TRACK_CONTENTION 0
+
+#define STRING_JOIN(arg1, arg2) STRING_JOIN_INNER(arg1, arg2)
+#define STRING_JOIN_INNER(arg1, arg2) arg1 ## arg2
+
 namespace uba
 {
 	template<typename Type>
@@ -67,9 +72,6 @@ namespace uba
 		void EnterWrite();
 		void LeaveWrite();
 
-		template<class Functor> auto ScopedRead(const Functor& f);
-		template<class Functor> auto ScopedWrite(const Functor& f);
-
 	private:
 
 		#if PLATFORM_WINDOWS
@@ -83,6 +85,25 @@ namespace uba
 		ReaderWriterLock(const ReaderWriterLock&) = delete;
 		ReaderWriterLock& operator=(const ReaderWriterLock&) = delete;
 	};
+
+	#if !UBA_TRACK_CONTENTION
+	#define SCOPED_READ_LOCK(readerWriterLock, name) ScopedReadLock name(readerWriterLock);
+	#define SCOPED_WRITE_LOCK(readerWriterLock, name) ScopedWriteLock name(readerWriterLock);
+	#else
+	u64 GetTime();
+	struct ContentionTracker { void Add(u64 t) { time += t; ++count; }; Atomic<u64> time; Atomic<u64> count; const char* file; u64 line; };
+	ContentionTracker& GetContentionTracker(const char* file, u64 line);
+
+	#define SCOPED_LOCK(readerWriterLock, lockType, name) \
+		u64 STRING_JOIN(contentionStart, __LINE__) = GetTime(); \
+		lockType name(readerWriterLock); \
+		static ContentionTracker& STRING_JOIN(tracker, __LINE__) = GetContentionTracker(__FILE__, __LINE__); \
+		STRING_JOIN(tracker, __LINE__).Add(GetTime() - STRING_JOIN(contentionStart, __LINE__));
+
+	#define SCOPED_READ_LOCK(readerWriterLock, name) SCOPED_LOCK(readerWriterLock, ScopedReadLock, name)
+	#define SCOPED_WRITE_LOCK(readerWriterLock, name) SCOPED_LOCK(readerWriterLock, ScopedWriteLock, name)
+	#endif
+
 
 	class ScopedReadLock
 	{
@@ -106,10 +127,6 @@ namespace uba
 		ReaderWriterLock& m_lock;
 		bool m_active = true;
 	};
-
-	template<class Functor> auto ReaderWriterLock::ScopedRead(const Functor& f) { ScopedReadLock l(*this); return f(); }
-	template<class Functor> auto ReaderWriterLock::ScopedWrite(const Functor& f) { ScopedWriteLock l(*this); return f(); }
-
 
 	template<typename Lambda>
 	struct ScopeGuard

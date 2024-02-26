@@ -122,4 +122,24 @@ namespace uba
 		pthread_rwlock_unlock((pthread_rwlock_t*)data);
 		#endif
 	}
+
+	#if UBA_TRACK_CONTENTION
+
+	List<ContentionTracker>& GetContentionTrackerList()
+	{
+		static List<ContentionTracker> trackers;
+		return trackers;
+	}
+
+
+	ContentionTracker& GetContentionTracker(const char* file, u64 line)
+	{
+		static ReaderWriterLock rwl;
+		ScopedWriteLock l(rwl);
+		ContentionTracker& ct = GetContentionTrackerList().emplace_back();
+		ct.file = file;
+		ct.line = line;
+		return ct;
+	}
+	#endif
 }

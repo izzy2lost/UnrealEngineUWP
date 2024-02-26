@@ -9,6 +9,7 @@
 #include "UbaApplicationRules.h"
 #include "UbaPathUtils.h"
 #include "UbaProtocol.h"
+#include "UbaWorkManager.h"
 
 #if PLATFORM_WINDOWS
 #include "UbaWinBinDependencyParser.h"
@@ -274,7 +275,7 @@ namespace uba
 
 		u32 tableOffset;
 
-		ScopedWriteLock memoryLock(dirTable.m_memoryLock);
+		SCOPED_WRITE_LOCK(dirTable.m_memoryLock, memoryLock);
 		u32 writePos = dirTable.m_memorySize;
 		BinaryWriter tableWriter(dirTable.m_memory + dirTable.m_memorySize);
 
@@ -319,12 +320,12 @@ namespace uba
 	void Session::WriteDirectoryEntriesRecursive(const StringKey& dirKey, tchar* dirPath, u32& outTableOffset)
 	{
 		auto& dirTable = m_directoryTable;
-		ScopedWriteLock lookupLock(dirTable.m_lookupLock);
+		SCOPED_WRITE_LOCK(dirTable.m_lookupLock, lookupLock);
 		auto res = dirTable.m_lookup.try_emplace(dirKey, dirTable.m_memoryBlock);
 		DirectoryTable::Directory& dir = res.first->second;
 		lookupLock.Leave();
 
-		ScopedWriteLock dirLock(dir.lock);
+		SCOPED_WRITE_LOCK(dir.lock, dirLock);
 
 		if (dir.parseOffset == 1)
 		{
@@ -382,24 +383,24 @@ namespace uba
 	{
 		auto& dirTable = m_directoryTable;
 		WriteDirectoryEntriesRecursive(dirKey, dirPath, outTableOffset);
-		ScopedReadLock memoryLock(dirTable.m_memoryLock);
+		SCOPED_READ_LOCK(dirTable.m_memoryLock, memoryLock);
 		return dirTable.m_memorySize;
 	}
 
 	u32 Session::AddFileMapping(StringKey fileNameKey, const tchar* fileName, const tchar* newFileName, u64 fileSize)
 	{
 		UBA_ASSERT(fileNameKey != StringKeyZero);
-		ScopedWriteLock lookupLock(m_fileMappingTableLookupLock);
+		SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
 		auto insres = m_fileMappingTableLookup.try_emplace(fileNameKey);
 		FileMappingEntry& entry = insres.first->second;
 		lookupLock.Leave();
 
-		ScopedWriteLock entryCs(entry.lock);
+		SCOPED_WRITE_LOCK(entry.lock, entryCs);
 
 		if (entry.handled)
 		{
 			entryCs.Leave();
-			ScopedReadLock lookupCs2(m_fileMappingTableMemLock);
+			SCOPED_READ_LOCK(m_fileMappingTableMemLock, lookupCs2);
 			return entry.success ? m_fileMappingTableSize : 0;
 		}
 
@@ -409,7 +410,7 @@ namespace uba
 		entry.mapping = {};
 		entry.handled = true;
 
-		ScopedWriteLock lock(m_fileMappingTableMemLock);
+		SCOPED_WRITE_LOCK(m_fileMappingTableMemLock, lock);
 		BinaryWriter writer(m_fileMappingTableMem, m_fileMappingTableSize);
 		writer.WriteStringKey(fileNameKey);
 		writer.WriteString(newFileName);
@@ -423,12 +424,12 @@ namespace uba
 	{
 		TimerScope ts(Stats().waitMmapFromFile);
 
-		ScopedWriteLock lookupLock(m_fileMappingTableLookupLock);
+		SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
 		auto insres = m_fileMappingTableLookup.try_emplace(fileNameKey);
 		FileMappingEntry& entry = insres.first->second;
 		lookupLock.Leave();
 
-		ScopedWriteLock entryCs(entry.lock);
+		SCOPED_WRITE_LOCK(entry.lock, entryCs);
 
 		if (entry.handled)
 		{
@@ -520,7 +521,7 @@ namespace uba
 		entry.success = true;
 
 		{
-			ScopedWriteLock lock(m_fileMappingTableMemLock);
+			SCOPED_WRITE_LOCK(m_fileMappingTableMemLock, lock);
 			BinaryWriter writer(m_fileMappingTableMem, m_fileMappingTableSize);
 			writer.WriteStringKey(fileNameKey);
 			writer.WriteString(out.name);
@@ -537,12 +538,12 @@ namespace uba
 
 	bool Session::CreateMemoryMapFromView(MemoryMap& out, StringKey fileNameKey, const tchar* fileName, const CasKey& casKey, u64 alignment)
 	{
-		ScopedWriteLock lookupLock(m_fileMappingTableLookupLock);
+		SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
 		auto insres = m_fileMappingTableLookup.try_emplace(fileNameKey);
 		FileMappingEntry& entry = insres.first->second;
 		lookupLock.Leave();
 
-		ScopedWriteLock entryCs(entry.lock);
+		SCOPED_WRITE_LOCK(entry.lock, entryCs);
 
 		if (entry.handled)
 		{
@@ -604,7 +605,7 @@ namespace uba
 		entry.success = true;
 
 		{
-			ScopedWriteLock lock(m_fileMappingTableMemLock);
+			SCOPED_WRITE_LOCK(m_fileMappingTableMemLock, lock);
 			BinaryWriter writer(m_fileMappingTableMem, m_fileMappingTableSize);
 			writer.WriteStringKey(fileNameKey);
 			writer.WriteString(out.name);
@@ -649,13 +650,13 @@ namespace uba
 			
 		#if 0//_DEBUG  // Bring this back, turned off right now because a few lines above the call to this method we add a mapping
 		{
-			ScopedWriteLock lookupLock(m_fileMappingTableLookupLock);
+			SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
 			auto findIt = m_fileMappingTableLookup.find(fileNameKey);
 			if (findIt != m_fileMappingTableLookup.end())
 			{
 				FileMappingEntry& entry = findIt->second;
 				lookupLock.Leave();
-				ScopedWriteLock entryCs(entry.lock);
+				SCOPED_WRITE_LOCK(entry.lock, entryCs);
 				UBA_ASSERT(!entry.mapping);
 			}
 		}
@@ -671,7 +672,7 @@ namespace uba
 			UBA_ASSERT(res); (void)res;
 		}
 
-		ScopedReadLock lookupCs(dirTable.m_lookupLock);
+		SCOPED_READ_LOCK(dirTable.m_lookupLock, lookupCs);
 		auto findIt = dirTable.m_lookup.find(dirKey);
 		if (findIt == dirTable.m_lookup.end())
 			return true;
@@ -679,7 +680,7 @@ namespace uba
 		DirectoryTable::Directory& dir = findIt->second;
 		lookupCs.Leave();
 
-		ScopedWriteLock dirLock(dir.lock);
+		SCOPED_WRITE_LOCK(dir.lock, dirLock);
 
 		// To prevent race where code creating dir manage to add to lookup but then got here later than this thread.
 		while (dir.parseOffset == 0)
@@ -781,7 +782,7 @@ namespace uba
 		#endif
 
 
-		ScopedWriteLock memoryLock(dirTable.m_memoryLock);
+		SCOPED_WRITE_LOCK(dirTable.m_memoryLock, memoryLock);
 		u8* startPos = dirTable.m_memory + dirTable.m_memorySize;
 		BinaryWriter writer(startPos);
 		writer.Write7BitEncoded(written); // Storage size
@@ -808,13 +809,13 @@ namespace uba
 		if (!GetDirKey(dirKey, dirName, lastSlash, fileName))
 			return InvalidTableOffset;
 
-		ScopedReadLock lookupCs(dirTable.m_lookupLock);
+		SCOPED_READ_LOCK(dirTable.m_lookupLock, lookupCs);
 		auto res = dirTable.m_lookup.find(dirKey);
 		if (res == dirTable.m_lookup.end())
 			return 0;
 		DirectoryTable::Directory& dir = res->second;
 		lookupCs.Leave();
-		ScopedWriteLock dirLock(dir.lock);
+		SCOPED_WRITE_LOCK(dir.lock, dirLock);
 
 		while (dir.parseOffset == 0)
 		{
@@ -857,7 +858,7 @@ namespace uba
 		g_debugLogger.Info(TC("TRACKDEL    %s (Key: %s)\n"), fileName, KeyToString(fileNameKey).data);
 		#endif
 
-		ScopedWriteLock memoryLock(dirTable.m_memoryLock);
+		SCOPED_WRITE_LOCK(dirTable.m_memoryLock, memoryLock);
 		u8* startPos = dirTable.m_memory + dirTable.m_memorySize;
 		BinaryWriter writer(startPos);
 		writer.Write7BitEncoded(written); // Storage size
@@ -1134,7 +1135,7 @@ namespace uba
 		{
 			Vector<ProcessHandle> processes;
 			{
-				ScopedWriteLock lock(m_processesLock);
+				SCOPED_WRITE_LOCK(m_processesLock, lock);
 				isEmpty = m_processes.empty();
 				processes.reserve(m_processes.size());
 				for (auto& pair : m_processes)
@@ -1154,7 +1155,7 @@ namespace uba
 			#if PLATFORM_WINDOWS
 			if (m_processJobObject != NULL)
 			{
-				ScopedWriteLock lock(m_processJobObjectLock);
+				SCOPED_WRITE_LOCK(m_processJobObjectLock, lock);
 				CloseHandle(m_processJobObject);
 				m_processJobObject = NULL;
 			}
@@ -1229,13 +1230,13 @@ namespace uba
 		StringKey dirKey = CaseInsensitiveFs ? ToStringKeyLower(dirPath) : ToStringKey(dirPath);
 
 		auto& dirTable = m_directoryTable;
-		ScopedReadLock lookupLock(dirTable.m_lookupLock);
+		SCOPED_READ_LOCK(dirTable.m_lookupLock, lookupLock);
 		auto res = dirTable.m_lookup.find(dirKey);
 		if (res == dirTable.m_lookup.end())
 			return;
 		DirectoryTable::Directory& dir = res->second;
 		lookupLock.Leave();
-		ScopedWriteLock dirLock(dir.lock);
+		SCOPED_WRITE_LOCK(dir.lock, dirLock);
 
 		while (dir.parseOffset == 0)
 		{
@@ -1313,7 +1314,7 @@ namespace uba
 		if (!process.IsChild())
 			m_trace.ProcessAdded(sessionId, processId, process.GetStartInfo().description);
 
-		ScopedWriteLock lock(m_processesLock);
+		SCOPED_WRITE_LOCK(m_processesLock, lock);
 		m_processes.try_emplace(processId, ProcessHandle(&process));
 	}
 
@@ -1335,11 +1336,11 @@ namespace uba
 			Vector<ProcessLogLine> emptyLines;
 			auto& logLines = (exitCode != 0 || m_detailedTrace) ? process.m_logLines : emptyLines;
 			m_trace.ProcessExited(id, exitCode, writer.GetData(), writer.GetPosition(), logLines);
-			ScopedWriteLock lock(m_processStatsLock);
+			SCOPED_WRITE_LOCK(m_processStatsLock, lock);
 			m_processStats.Add(process.m_processStats);
 		}
 
-		ScopedWriteLock lock(m_processesLock);
+		SCOPED_WRITE_LOCK(m_processesLock, lock);
 		m_deadProcesses.emplace_back(&process); // Here to prevent Process thread call trigger a delete of Process which causes a deadlock
 		auto& stats = m_applicationStats[applicationName.data];
 		stats.count++;
@@ -1349,7 +1350,7 @@ namespace uba
 
 	void Session::FlushDeadProcesses()
 	{
-		ScopedWriteLock lock(m_processesLock);
+		SCOPED_WRITE_LOCK(m_processesLock, lock);
 		Vector<ProcessHandle> deadProcesses;
 		deadProcesses.swap(m_deadProcesses);
 		lock.Leave();
@@ -1358,23 +1359,35 @@ namespace uba
 	bool Session::GetInitResponse(InitResponse& out, const InitMessage& msg)
 	{
 		out.directoryTableHandle = m_directoryTableHandle.ToU64();
-		out.directoryTableSize = m_directoryTable.m_memoryLock.ScopedRead([&]() { return (u32)m_directoryTable.m_memorySize; });
-		out.directoryTableCount = m_directoryTable.m_lookupLock.ScopedRead([&]() { return (u32)m_directoryTable.m_lookup.size(); });
+		{
+			SCOPED_READ_LOCK(m_directoryTable.m_memoryLock, l);
+			out.directoryTableSize = (u32)m_directoryTable.m_memorySize;
+		}
+		{
+			SCOPED_READ_LOCK(m_directoryTable.m_lookupLock, l);
+			out.directoryTableCount = (u32)m_directoryTable.m_lookup.size();
+		}
 		out.mappedFileTableHandle = m_fileMappingTableHandle.ToU64();
-		out.mappedFileTableSize = m_fileMappingTableMemLock.ScopedRead([&]() { return m_fileMappingTableSize; });
-		out.mappedFileTableCount = m_fileMappingTableLookupLock.ScopedRead([&]() { return (u32)m_fileMappingTableLookup.size(); });
+		{
+			SCOPED_READ_LOCK(m_fileMappingTableMemLock, l);
+			out.mappedFileTableSize = m_fileMappingTableSize;
+		}
+		{
+			SCOPED_READ_LOCK(m_fileMappingTableLookupLock, l);
+			out.mappedFileTableCount = (u32)m_fileMappingTableLookup.size();
+		}
 		return true;
 	}
 
 	u32 Session::GetDirectoryTableSize()
 	{
-		ScopedReadLock lock(m_directoryTable.m_memoryLock);
+		SCOPED_READ_LOCK(m_directoryTable.m_memoryLock, lock);
 		return m_directoryTable.m_memorySize;
 	}
 
 	u32 Session::GetFileMappingSize()
 	{
-		ScopedReadLock lock(m_fileMappingTableMemLock);
+		SCOPED_READ_LOCK(m_fileMappingTableMemLock, lock);
 		return m_fileMappingTableSize;
 	}
 
@@ -1387,7 +1400,7 @@ namespace uba
 
 	u32 Session::GetActiveProcessCount()
 	{
-		ScopedReadLock cs(m_processesLock);
+		SCOPED_READ_LOCK(m_processesLock, cs);
 		return u32(m_processes.size());
 	}
 
@@ -1514,7 +1527,7 @@ namespace uba
 
 	void* Session::GetProcessEnvironmentVariables()
 	{
-		ScopedWriteLock lock(m_environmentVariablesLock);
+		SCOPED_WRITE_LOCK(m_environmentVariablesLock, lock);
 		if (!m_environmentVariables.empty())
 			return m_environmentVariables.data();
 
@@ -1653,7 +1666,7 @@ namespace uba
 
 		if (m_runningRemote && !fileName.StartsWith(m_tempPath.data))
 		{
-			ScopedWriteLock lock(m_outputFilesLock);
+			SCOPED_WRITE_LOCK(m_outputFilesLock, lock);
 			auto insres = m_outputFiles.try_emplace(fileName.data);
 			if (insres.second)
 			{
@@ -1670,7 +1683,7 @@ namespace uba
 			out.fileName.Append(fileName);
 		}
 
-		ScopedWriteLock lock(m_activeFilesLock);
+		SCOPED_WRITE_LOCK(m_activeFilesLock, lock);
 		u32 wantsOnCloseId = m_wantsOnCloseIdCounter++;
 		out.closeId = wantsOnCloseId;
 		auto insres = m_activeFiles.try_emplace(wantsOnCloseId);
@@ -1684,7 +1697,7 @@ namespace uba
 
 	void RemoveWrittenFile(ProcessImpl& process, const TString& name)
 	{
-		ScopedWriteLock writtenLock(process.m_writtenFilesLock);
+		SCOPED_WRITE_LOCK(process.m_writtenFilesLock, writtenLock);
 		auto& writtenFiles = process.m_writtenFiles;
 		auto findIt = writtenFiles.find(name);
 		if (findIt == writtenFiles.end())
@@ -1699,7 +1712,7 @@ namespace uba
 
 	bool Session::CloseFile(CloseFileResponse& out, const CloseFileMessage& msg)
 	{
-		ScopedWriteLock lock(m_activeFilesLock);
+		SCOPED_WRITE_LOCK(m_activeFilesLock, lock);
 		auto findIt = m_activeFiles.find(msg.closeId);
 		if (findIt == m_activeFiles.end())
 			return m_logger.Error(TC("This should not happen. Got unknown closeId %u - %s"), msg.closeId, msg.fileName.data);
@@ -1735,7 +1748,7 @@ namespace uba
 					msgName = msg.newName.data;
 			}
 
-			ScopedWriteLock writtenLock(msg.process.m_writtenFilesLock);
+			SCOPED_WRITE_LOCK(msg.process.m_writtenFilesLock, writtenLock);
 			auto insres = msg.process.m_writtenFiles.try_emplace(name);
 			WrittenFile& writtenFile = insres.first->second;
 
@@ -1828,12 +1841,12 @@ namespace uba
 	{
 		if (msg.closeId != 0)
 		{
-			ScopedWriteLock lock(m_activeFilesLock);
+			SCOPED_WRITE_LOCK(m_activeFilesLock, lock);
 			m_activeFiles.erase(msg.closeId);
 		}
 
 		{
-			ScopedWriteLock lock(m_outputFilesLock);
+			SCOPED_WRITE_LOCK(m_outputFilesLock, lock);
 			m_outputFiles.erase(msg.fileName.data);
 		}
 
@@ -1850,7 +1863,7 @@ namespace uba
 		out.fromName.Append(msg.fromName);
 		out.toName.Append(msg.toName);
 
-		ScopedWriteLock lock(m_activeFilesLock);
+		SCOPED_WRITE_LOCK(m_activeFilesLock, lock);
 		u32 closeId = m_wantsOnCloseIdCounter++;
 		if (!m_activeFiles.try_emplace(closeId, ActiveFile{ msg.toName.data, msg.toKey }).second)
 		{
@@ -1977,11 +1990,11 @@ namespace uba
 		{
 			StringBuffer<> name;
 			Storage::GetMappingString(name, file.mappingHandle, 0);
-			ScopedWriteLock lookupLock(m_fileMappingTableLookupLock);
+			SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
 			auto insres = m_fileMappingTableLookup.try_emplace(file.key);
 			FileMappingEntry& entry = insres.first->second;
 			lookupLock.Leave();
-			ScopedWriteLock entryCs(entry.lock);
+			SCOPED_WRITE_LOCK(entry.lock, entryCs);
 			entry.handled = true;
 			entry.mapping = file.mappingHandle;
 			entry.mappingOffset = 0;
@@ -1989,7 +2002,7 @@ namespace uba
 			entry.isDir = false;
 			entry.success = true;
 
-			ScopedWriteLock lock(m_fileMappingTableMemLock);
+			SCOPED_WRITE_LOCK(m_fileMappingTableMemLock, lock);
 			BinaryWriter writer(m_fileMappingTableMem, m_fileMappingTableSize);
 			writer.WriteStringKey(file.key);
 			writer.WriteString(name);

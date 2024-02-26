@@ -57,7 +57,7 @@ namespace uba
 	void NetworkBackendQuic::Close(void* connection)
 	{
 		auto& conn = *(Connection*)connection;
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		bool erased = m_connections.erase(conn.connectionHandle);
 		lock.Leave();
 		if (erased)
@@ -353,7 +353,7 @@ namespace uba
 
 	NetworkBackendQuic::~NetworkBackendQuic()
 	{
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		for (auto& kv : m_connections)
 			kv.second->Release();
 		m_connections.clear();
@@ -433,7 +433,7 @@ namespace uba
 			nc.Info->RemoteAddress->Ipv4;
 
 			auto connPtr = new Connection{ *this, nc.Connection };
-			ScopedWriteLock lock(m_connectionsLock);
+			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 			auto insres = m_connections.try_emplace(nc.Connection, connPtr);
 			UBA_ASSERT(insres.second);
 			Connection& conn = *connPtr;
@@ -548,14 +548,14 @@ namespace uba
 		Connection& conn = *connPtr;
 		conn.connectionHandle = connection;
 
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		auto insres = m_connections.try_emplace(connection, connPtr);
 		UBA_ASSERT(insres.second);
 		lock.Leave();
 
 		auto connectionGuard = MakeGuard([&]()
 			{
-				ScopedWriteLock lock(m_connectionsLock);
+				SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 				if (m_connections.erase(connection))
 					conn.Release();
 			});
@@ -609,7 +609,7 @@ namespace uba
 		case QUIC_CONNECTION_EVENT_CONNECTED:
 		{
 			m_logger.Info(L"[conn][%p] Connected", connection); // The handshake has completed for the connection.
-			ScopedReadLock lock(m_connectionsLock);
+			SCOPED_READ_LOCK(m_connectionsLock, lock);
 			Connection& conn = *m_connections.find(connection)->second;
 			lock.Leave();
 
@@ -670,7 +670,7 @@ namespace uba
 
 	void NetworkBackendQuic::StreamCreated(HQUIC connection, HQUIC streamHandle)
 	{
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		auto findIt = m_connections.find(connection);
 		UBA_ASSERT(findIt != m_connections.end());
 		Connection& conn = *findIt->second;
@@ -700,7 +700,7 @@ namespace uba
 
 	void NetworkBackendQuic::CloseConnection(HQUIC connection)
 	{
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		auto findIt = m_connections.find(connection);
 		if (findIt == m_connections.end())
 			return;

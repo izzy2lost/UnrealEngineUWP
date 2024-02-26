@@ -46,13 +46,13 @@ namespace uba
 
 	void MappedFileTable::Parse(u32 tableSize)
 	{
-		ScopedWriteLock lock(m_lookupLock);
+		SCOPED_WRITE_LOCK(m_lookupLock, lock);
 		ParseNoLock(tableSize);
 	}
 
 	void MappedFileTable::SetDeleted(const StringKey& key, const tchar* name, bool deleted)
 	{
-		ScopedWriteLock lock(m_lookupLock);
+		SCOPED_WRITE_LOCK(m_lookupLock, lock);
 		auto it = m_lookup.find(key);
 		if (it == m_lookup.end())
 			return;
@@ -64,7 +64,7 @@ namespace uba
 	void Rpc_CreateFileW(const tchar* fileName, const StringKey& fileNameKey, u8 access, tchar* outNewName, u64 newNameCapacity, u64& outSize, u32& outCloseId, bool lock)
 	{
 		TimerScope ts(g_stats.createFile);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_CreateFileW);
 		writer.WriteString(fileName);
@@ -93,7 +93,7 @@ namespace uba
 		u32 tableOffset;
 		{
 			TimerScope ts(g_stats.listDirectory);
-			ScopedWriteLock pcs(g_communicationLock);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 			BinaryWriter writer;
 			writer.WriteByte(MessageType_ListDirectory);
 			writer.WriteString(dirName, dirNameLen);
@@ -118,7 +118,7 @@ namespace uba
 		u32 directoryTableSize;
 		{
 			TimerScope ts(g_stats.closeFile);
-			ScopedWriteLock pcs(g_communicationLock);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 			BinaryWriter writer;
 			writer.WriteByte(MessageType_CloseFile);
 			writer.WriteString(handleName);
@@ -153,7 +153,7 @@ namespace uba
 	void Rpc_UpdateTables()
 	{
 		TimerScope ts(g_stats.updateTables);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_UpdateTables);
 		writer.Flush();
@@ -192,7 +192,7 @@ namespace uba
 		if (Rpc_UpdateDirectory(hash.key, entryName, dirNameLen) == ~u32(0))
 			return ~u32(0);
 
-		ScopedWriteLock lookLock(g_directoryTable.m_lookupLock);
+		SCOPED_WRITE_LOCK(g_directoryTable.m_lookupLock, lookLock);
 		auto dirFindIt = g_directoryTable.m_lookup.find(hash.key);
 		if (dirFindIt == g_directoryTable.m_lookup.end())
 			return ~u32(0);
@@ -203,7 +203,7 @@ namespace uba
 
 		g_directoryTable.PopulateDirectory(hash.open, dir);
 
-		ScopedReadLock lock(dir.lock);
+		SCOPED_READ_LOCK(dir.lock, lock);
 		auto findIt = dir.files.find(entryNameKey);
 		if (findIt == dir.files.end())
 			return ~u32(0);
@@ -227,7 +227,7 @@ namespace uba
 
 		{
 			TimerScope ts(g_stats.getFullFileName);
-			ScopedWriteLock pcs(g_communicationLock);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 			BinaryWriter writer;
 			writer.WriteByte(MessageType_GetFullFileName);
 			writer.WriteString(path);
