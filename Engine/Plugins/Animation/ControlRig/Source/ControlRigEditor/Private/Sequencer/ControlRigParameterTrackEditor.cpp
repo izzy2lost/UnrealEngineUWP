@@ -2005,7 +2005,7 @@ void FControlRigParameterTrackEditor::OnActivateSequenceChanged(FMovieSceneSeque
 		
 		return false;
 	});
-	if (bControlRigEditModeWasOpen)
+	if (bControlRigEditModeWasOpen && GetSequencer()->IsLevelEditorSequencer())
 	{
 		GEditor->GetTimerManager()->SetTimerForNextTick([this]()
 		{
