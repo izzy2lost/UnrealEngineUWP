@@ -390,6 +390,12 @@ namespace UnrealBuildTool
 		FileReference? IgnoredFile = null;
 
 		/// <summary>
+		/// The maximum level of warnings to print
+		/// </summary>
+		[CommandLine("-PrintLevel")]
+		public int PrintLevel { get; set; } = 1;
+
+		/// <summary>
 		/// If all ThirdParty code should be ignored
 		/// </summary>
 		bool IgnoreThirdParty = true;
@@ -466,7 +472,7 @@ namespace UnrealBuildTool
 									RawWriter.WriteLine(Line);
 
 									// Output the line to the log
-									if (!bFalseAlarm && Level == 1)
+									if (!bFalseAlarm && Level <= PrintLevel)
 									{
 										Logger.LogWarning(KnownLogEvents.Compiler, "{Path}({LineNumber}): warning {WarningCode}: {WarningMessage}", LogValue.SourceFile(file, FileName), LineNumber, WarningCode, WarningMessage);
 									}
@@ -883,7 +889,7 @@ namespace UnrealBuildTool
 			AnalyzeAction.ActionType = ActionType.PostBuildStep;
 			AnalyzeAction.CommandDescription = "Process PVS-Studio Results";
 			AnalyzeAction.CommandPath = Unreal.DotnetPath;
-			AnalyzeAction.CommandArguments = $"\"{Unreal.UnrealBuildToolDllPath}\" -Mode=PVSGather -Input=\"{InputFileListItem.Location}\" -Output=\"{OutputFile}\" -Ignored=\"{IgnoredFileListeItem.Location}\" ";
+			AnalyzeAction.CommandArguments = $"\"{Unreal.UnrealBuildToolDllPath}\" -Mode=PVSGather -Input=\"{InputFileListItem.Location}\" -Output=\"{OutputFile}\" -Ignored=\"{IgnoredFileListeItem.Location}\" -PrintLevel={Target.StaticAnalyzerPVSPrintLevel} ";
 			AnalyzeAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 			AnalyzeAction.PrerequisiteItems.Add(InputFileListItem);
 			AnalyzeAction.PrerequisiteItems.Add(IgnoredFileListeItem);

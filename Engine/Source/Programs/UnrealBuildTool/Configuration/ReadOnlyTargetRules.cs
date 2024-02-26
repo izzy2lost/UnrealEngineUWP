@@ -403,6 +403,8 @@ namespace UnrealBuildTool
 
 		public StaticAnalyzerMode StaticAnalyzerMode => Inner.StaticAnalyzerMode;
 
+		public int StaticAnalyzerPVSPrintLevel => Inner.StaticAnalyzerPVSPrintLevel;
+
 		public bool bStaticAnalyzerProjectOnly => Inner.bStaticAnalyzerProjectOnly;
 
 		public bool bStaticAnalyzerIncludeGenerated => Inner.bStaticAnalyzerIncludeGenerated;
