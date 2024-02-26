@@ -9,6 +9,8 @@
 
 namespace uba
 {
+	class WorkManager;
+
 #if PLATFORM_WINDOWS
 	struct FileMappingHandle
 	{
@@ -71,7 +73,7 @@ namespace uba
 	class FileMappingBuffer
 	{
 	public:
-		FileMappingBuffer(Logger& logger);
+		FileMappingBuffer(Logger& logger, WorkManager* workManager);
 		~FileMappingBuffer();
 
 		bool AddTransient(const tchar* name);
@@ -103,6 +105,7 @@ namespace uba
 		File& GetFile(FileMappingHandle handle, u8& outStorageIndex);
 
 		Logger& m_logger;
+		WorkManager* m_workManager;
 		u64 m_pageSize = 0;
 
 		struct MappingStorage
@@ -123,6 +126,9 @@ namespace uba
 		void CloseMappingStorage(MappingStorage& storage);
 
 		MappingStorage m_storage[2];
+
+		FileMappingBuffer(const FileMappingBuffer&) = delete;
+		void operator=(const FileMappingBuffer&) = delete;
 	};
 
 
@@ -161,5 +167,8 @@ namespace uba
 		u64 m_mappingCount = 0;
 
 		Set<u64> m_availableBlocks;
+
+		FileMappingAllocator(const FileMappingAllocator&) = delete;
+		void operator=(const FileMappingAllocator&) = delete;
 	};
 }

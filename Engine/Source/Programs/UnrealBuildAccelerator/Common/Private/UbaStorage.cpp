@@ -258,7 +258,14 @@ namespace uba
 				if (!uncompressedData)
 					return m_logger.Error(TC("Failed to map view of file mapping for %s (%s)"), from, LastErrorToText().data);
 
-				auto udg = MakeGuard([&]() { UnmapViewOfFile(uncompressedData, fileSize, from); });
+				auto udg = MakeGuard([&]()
+					{
+						#if UBA_EXPERIMENTAL
+						m_workManager->AddWork([=, f = TString(from)]() { UnmapViewOfFile(uncompressedData, fileSize, f.c_str()); }, 1, TC("UnmapFile"));
+						#else
+						UnmapViewOfFile(uncompressedData, fileSize, from);
+						#endif
+					});
 
 				if (!WriteMemToCompressedFile(destinationFile, workCount, uncompressedData, fileSize, maxUncompressedBlock, totalWritten))
 					return false;
@@ -1046,7 +1053,7 @@ namespace uba
 	:	m_workManager(info.workManager)
 	,	m_logger(info.writer, logPrefix)
 	,	m_activeCopyOrLinkEvent(false)
-	,	m_casDataBuffer(m_logger)
+	,	m_casDataBuffer(m_logger, info.workManager)
 	{
 		m_casCapacityBytes = info.casCapacityBytes;
 		m_storeCompressed = info.storeCompressed;
@@ -2310,7 +2317,13 @@ namespace uba
 				m_logger.Error(TC("Failed to map view of file mapping for %s (%s)"), fileName, LastErrorToText().data);
 				return CasKeyZero;
 			}
-			auto udg = MakeGuard([&]() { UnmapViewOfFile(fileData, fileSize, fileName); });
+			auto udg = MakeGuard([&]() { 
+					#if UBA_EXPERIMENTAL
+					m_workManager->AddWork([=, fn = TString(fileName)]() { UnmapViewOfFile(fileData, fileSize, fn.c_str()); }, 1, TC("UnmapFile"));
+					#else
+					UnmapViewOfFile(fileData, fileSize, fileName);
+					#endif
+				});
 
 			struct WorkRec
 			{

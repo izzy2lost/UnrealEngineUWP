@@ -89,7 +89,7 @@ namespace uba
 
 
 	SessionServer::SessionServer(const SessionServerCreateInfo& info)
-	:	Session(info, TC("UbaSessionServer"), false)
+	:	Session(info, TC("UbaSessionServer"), false, &info.server)
 	,	m_server(info.server)
 	,	m_maxRemoteProcessCount(~0u)
 	{
