@@ -1832,6 +1832,7 @@ private:
 
 	bool ShouldCreateRootProxyComponents() const;
 	void CreateRootProxyComponentsIfNeeded();
+	void UpdateRootProxyComponentsIfNeeded();
 	void ClearRootProxyComponents();
 
 	TArray<TObjectPtr<UStaticMeshComponent>> RootProxyStaticMeshComponents;
