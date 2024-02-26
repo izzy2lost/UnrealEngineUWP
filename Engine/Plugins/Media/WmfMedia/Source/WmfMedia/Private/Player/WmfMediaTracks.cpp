@@ -403,7 +403,7 @@ void FWmfMediaTracks::SeekStarted(const FTimespan& InTime)
 /* IMediaSamples interface
  *****************************************************************************/
 
-bool FWmfMediaTracks::FetchAudio(TRange<FTimespan> TimeRange, TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe>& OutSample)
+bool FWmfMediaTracks::FetchAudio(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe>& OutSample)
 {
 	TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe> Sample;
 
@@ -412,9 +412,9 @@ bool FWmfMediaTracks::FetchAudio(TRange<FTimespan> TimeRange, TSharedPtr<IMediaA
 		return false;
 	}
 
-	const FTimespan SampleTime = Sample->GetTime().Time;
+	const FMediaTimeStamp SampleTime = Sample->GetTime();
 
-	if (!TimeRange.Overlaps(TRange<FTimespan>(SampleTime, SampleTime + Sample->GetDuration())))
+	if (!TimeRange.Overlaps(TRange<FMediaTimeStamp>(SampleTime, SampleTime + Sample->GetDuration())))
 	{
 		return false;
 	}
@@ -430,7 +430,7 @@ bool FWmfMediaTracks::FetchAudio(TRange<FTimespan> TimeRange, TSharedPtr<IMediaA
 }
 
 
-bool FWmfMediaTracks::FetchCaption(TRange<FTimespan> TimeRange, TSharedPtr<IMediaOverlaySample, ESPMode::ThreadSafe>& OutSample)
+bool FWmfMediaTracks::FetchCaption(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaOverlaySample, ESPMode::ThreadSafe>& OutSample)
 {
 	TSharedPtr<IMediaOverlaySample, ESPMode::ThreadSafe> Sample;
 
@@ -439,9 +439,9 @@ bool FWmfMediaTracks::FetchCaption(TRange<FTimespan> TimeRange, TSharedPtr<IMedi
 		return false;
 	}
 
-	const FTimespan SampleTime = Sample->GetTime().Time;
+	const FMediaTimeStamp SampleTime = Sample->GetTime();
 
-	if (!TimeRange.Overlaps(TRange<FTimespan>(SampleTime, SampleTime + Sample->GetDuration())))
+	if (!TimeRange.Overlaps(TRange<FMediaTimeStamp>(SampleTime, SampleTime + Sample->GetDuration())))
 	{
 		return false;
 	}
@@ -457,7 +457,7 @@ bool FWmfMediaTracks::FetchCaption(TRange<FTimespan> TimeRange, TSharedPtr<IMedi
 }
 
 
-bool FWmfMediaTracks::FetchMetadata(TRange<FTimespan> TimeRange, TSharedPtr<IMediaBinarySample, ESPMode::ThreadSafe>& OutSample)
+bool FWmfMediaTracks::FetchMetadata(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaBinarySample, ESPMode::ThreadSafe>& OutSample)
 {
 	TSharedPtr<IMediaBinarySample, ESPMode::ThreadSafe> Sample;
 
@@ -466,9 +466,9 @@ bool FWmfMediaTracks::FetchMetadata(TRange<FTimespan> TimeRange, TSharedPtr<IMed
 		return false;
 	}
 
-	const FTimespan SampleTime = Sample->GetTime().Time;
+	const FMediaTimeStamp SampleTime = Sample->GetTime();
 
-	if (!TimeRange.Overlaps(TRange<FTimespan>(SampleTime, SampleTime + Sample->GetDuration())))
+	if (!TimeRange.Overlaps(TRange<FMediaTimeStamp>(SampleTime, SampleTime + Sample->GetDuration())))
 	{
 		return false;
 	}
@@ -484,7 +484,7 @@ bool FWmfMediaTracks::FetchMetadata(TRange<FTimespan> TimeRange, TSharedPtr<IMed
 }
 
 
-bool FWmfMediaTracks::FetchVideo(TRange<FTimespan> TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample)
+bool FWmfMediaTracks::FetchVideo(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample)
 {
 	TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe> Sample;
 
@@ -493,9 +493,9 @@ bool FWmfMediaTracks::FetchVideo(TRange<FTimespan> TimeRange, TSharedPtr<IMediaT
 		return false;
 	}
 
-	const FTimespan SampleTime = Sample->GetTime().Time;
+	const FMediaTimeStamp SampleTime = Sample->GetTime();
 
-	if (!TimeRange.Overlaps(TRange<FTimespan>(SampleTime, SampleTime + Sample->GetDuration())))
+	if (!TimeRange.Overlaps(TRange<FMediaTimeStamp>(SampleTime, SampleTime + Sample->GetDuration())))
 	{
 		return false;
 	}

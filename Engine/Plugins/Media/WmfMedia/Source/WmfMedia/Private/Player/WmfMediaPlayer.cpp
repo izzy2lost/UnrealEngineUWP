@@ -19,6 +19,10 @@
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 
+/*
+*/
+#define WMF_PLAYER_ENABLE_INTERNALCLOCK_ONLY	1
+
 
 /* FWmfVideoPlayer structors
  *****************************************************************************/
@@ -254,6 +258,9 @@ bool FWmfMediaPlayer::GetPlayerFeatureFlag(EFeatureFlag Flag) const
 	{
 		case EFeatureFlag::UsePlaybackTimingV2:
 		case EFeatureFlag::PlayerUsesInternalFlushOnSeek:
+#if WMF_PLAYER_ENABLE_INTERNALCLOCK_ONLY
+		case EFeatureFlag::AlwaysPullNewestVideoFrame:
+#endif
 			return true;
 	}
 	return IMediaPlayer::GetPlayerFeatureFlag(Flag);
