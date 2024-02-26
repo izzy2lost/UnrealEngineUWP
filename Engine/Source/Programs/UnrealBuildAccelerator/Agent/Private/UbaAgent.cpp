@@ -49,7 +49,7 @@ namespace uba
 	}();
 	u32				DefaultProcessorCount = []() { return GetLogicalProcessorCount(); }();
 	const tchar*	DefaultAgentName = []() { static tchar buf[256]; GetComputerNameW(buf, sizeof_array(buf)); return buf; }();
-	u32				DefaultMaxConnectionCount = 4;
+	u32				DefaultMaxConnectionCount = 8;
 
 	int PrintHelp(const tchar* message)
 	{
@@ -1028,7 +1028,7 @@ namespace uba
 					auto& proxy = *(Proxy*)userData;
 
 					NetworkServerCreateInfo nsci(proxy.logWriter);
-					nsci.workerCount = 16;
+					nsci.workerCount = 192;
 					nsci.receiveTimeoutSeconds = 60;
 
 					StringBuffer<256> prefix;
@@ -1132,8 +1132,7 @@ namespace uba
 						LoggerWithWriter(g_consoleLogWriter, TC("")).Info(TC("Proxy timed out waiting for zero active fetches"));
 				if (proxy.server)
 					proxy.server->StopAll();
-				client->StopListen();
-				client->Disconnect();
+				client->StopAll();
 				sessionClient->Stop();
 				storageClient->StopProxy();
 				loopLogging = false;
