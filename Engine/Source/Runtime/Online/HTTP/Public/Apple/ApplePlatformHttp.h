@@ -34,13 +34,6 @@ public:
 	 */
 	static IHttpRequest* ConstructRequest();
 
-	/**
-	 * Check if a platform uses the HTTP thread
-	 *
-	 * @return true if the platform uses threaded HTTP, false if not
-	 */
-	static bool UsesThreadedHttp();
-
 private:
     /** Session used to create Apple based requests */
     static inline NSURLSession* Session = nil;

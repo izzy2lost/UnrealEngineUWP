@@ -90,6 +90,7 @@ public:
 	 *
 	 * @return true if the platform uses threaded HTTP, false if not
 	 */
+	UE_DEPRECATED(5.5, "UsesThreadedHttp is deprecated and will be removed")
 	static HTTP_API bool UsesThreadedHttp();
 
 	/**

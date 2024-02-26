@@ -275,7 +275,3 @@ IHttpRequest* FApplePlatformHttp::ConstructRequest()
 	return new FAppleHttpRequest(Session);
 }
 
-bool FApplePlatformHttp::UsesThreadedHttp()
-{
-	return true;
-}
