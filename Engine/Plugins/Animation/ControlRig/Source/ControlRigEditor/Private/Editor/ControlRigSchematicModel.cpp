@@ -605,7 +605,7 @@ void FControlRigSchematicModel::HandleModularRigModified(EModularRigNotification
 	{
 		case EModularRigNotification::ConnectionChanged:
 		{
-			if (ControlRigBeingDebuggedPtr.IsValid())
+			if (ControlRigBeingDebuggedPtr.IsValid() && InModule)
 			{
 				if (const URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
 				{

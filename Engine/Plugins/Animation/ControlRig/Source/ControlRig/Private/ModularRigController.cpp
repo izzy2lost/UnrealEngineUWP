@@ -224,10 +224,10 @@ bool UModularRigController::CanConnectConnectorToElement(const FRigElementKey& I
 	return true;
 }
 
-bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo, bool bAutoResolveOtherConnectors)
+bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo, bool bAutoResolveOtherConnectors, bool bCheckValidConnection)
 {
 	FText ErrorMessage;
-	if (!CanConnectConnectorToElement(InConnectorKey, InTargetKey, ErrorMessage))
+	if (bCheckValidConnection && !CanConnectConnectorToElement(InConnectorKey, InTargetKey, ErrorMessage))
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Could not connect %s to %s: %s"), *InConnectorKey.ToString(), *InTargetKey.ToString(), *ErrorMessage.ToString());
 		return false;
@@ -1315,6 +1315,7 @@ FString UModularRigController::MirrorModule(const FString& InModulePath, const F
 	if (!InSettings.SearchString.IsEmpty())
 	{
 		NewModuleName = NewModuleName.Replace(*InSettings.SearchString, *InSettings.ReplaceString, ESearchCase::CaseSensitive);
+		NewModuleName = GetSafeNewName(OriginalModule->ParentPath, FRigName(NewModuleName)).ToString();
 	}
 
 	FModularRigControllerCompileBracketScope CompileBracketScope(this);
@@ -1335,7 +1336,10 @@ FString UModularRigController::MirrorModule(const FString& InModulePath, const F
 
 		FString NewConnectorPath = URigHierarchy::JoinNameSpace(NewModulePath, Pair.Key.Name.ToString());
 		FRigElementKey NewConnectorKey(*NewConnectorPath, ERigElementType::Connector);
-		ConnectConnectorToElement(NewConnectorKey, NewTargetKey, bSetupUndo);
+		ConnectConnectorToElement(NewConnectorKey, NewTargetKey, bSetupUndo, false, false);
+
+		// Path might change after connecting
+		NewModulePath = NewModule->GetPath();
 	}
 
 	for (const TPair<FName, FString>& Pair : OriginalModule->Bindings)
