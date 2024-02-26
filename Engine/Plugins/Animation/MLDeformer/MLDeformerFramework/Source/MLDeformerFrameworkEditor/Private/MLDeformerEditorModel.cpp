@@ -2401,7 +2401,7 @@ namespace UE::MLDeformer
 		const int32 NumRenderVertices = RenderData->LODRenderData[LOD].GetNumVertices();
 
 		// Release any existing morph buffer data.
-		if (OutMorphBuffers.IsRHIIntialized() && OutMorphBuffers.IsInitialized())
+		if (OutMorphBuffers.IsRHIInitialized() && OutMorphBuffers.IsInitialized())
 		{
 			ReleaseResourceAndFlush(&OutMorphBuffers);
 		}
