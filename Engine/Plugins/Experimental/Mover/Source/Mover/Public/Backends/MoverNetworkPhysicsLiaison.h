@@ -117,6 +117,8 @@ public:
 	virtual void OnCreatePhysicsState() override;
 	virtual void OnDestroyPhysicsState() override;
 	virtual bool CanCreatePhysics() const;
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	// Required for Network Physics Rewind/Resim data
 	void GetCurrentInputData(OUT FMoverInputCmdContext& InputCmd) const;
