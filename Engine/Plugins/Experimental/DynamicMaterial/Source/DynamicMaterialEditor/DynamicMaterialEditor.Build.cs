@@ -7,7 +7,6 @@ public class DynamicMaterialEditor : ModuleRules
 	public DynamicMaterialEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		bUseUnity = false;
 
 		PublicDependencyModuleNames.AddRange(
 			new string[]
@@ -28,6 +27,7 @@ public class DynamicMaterialEditor : ModuleRules
 				"ContentBrowserData",
 				"CustomDetailsView",
 				"DeveloperSettings",
+				"DynamicMaterialShadersEditor",
 				"EditorWidgets",
 				"Engine",
 				"InputCore",
@@ -37,6 +37,8 @@ public class DynamicMaterialEditor : ModuleRules
 				"Projects",
 				"PropertyEditor",
 				"RenderCore",
+				"Renderer",
+				"RHI",
 				"Slate",
 				"SlateCore",
 				"ToolMenus",

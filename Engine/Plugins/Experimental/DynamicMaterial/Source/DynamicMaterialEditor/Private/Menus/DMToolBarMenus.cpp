@@ -2,12 +2,17 @@
 
 #include "DMToolBarMenus.h"
 #include "ContentBrowserModule.h"
+#include "DesktopPlatformModule.h"
 #include "DMBlueprintFunctionLibrary.h"
 #include "DMPrivate.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
+#include "Engine/Engine.h"
+#include "Engine/Texture2D.h"
 #include "EngineAnalytics.h"
+#include "Framework/Application/SlateApplication.h"
 #include "IContentBrowserSingleton.h"
+#include "IDesktopPlatform.h"
 #include "ISinglePropertyView.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Materials/Material.h"
@@ -19,6 +24,7 @@
 #include "Slate/SDMSlot.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "Helpers/DMMaterialSnapshotLibrary.h"
 #include "Widgets/SWidget.h"
 
 #define LOCTEXT_NAMESPACE "FDMToolBarMenus"
@@ -103,6 +109,62 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 	}
 
+	void SnapshotMaterial(TWeakObjectPtr<UDynamicMaterialModel> InMaterialModelWeak, FIntPoint InTextureSize)
+	{
+		UDynamicMaterialModel* MaterialModel = InMaterialModelWeak.Get();
+
+		if (!IsValid(MaterialModel))
+		{
+			return;
+		}
+
+		UMaterialInterface* Material = MaterialModel->GetGeneratedMaterial();
+
+		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
+		{
+			if (!IsValid(MaterialInstance->Parent.Get()))
+			{
+				UE_LOG(LogDynamicMaterialEditor, Warning, TEXT("Unable to find world to find material instance parent."));
+				return;
+			}
+
+			Material = MaterialInstance;
+		}
+
+		if (!Material)
+		{
+			UE_LOG(LogDynamicMaterialEditor, Warning, TEXT("Unable to find material to snapshot."));
+			return;
+		}
+
+		TArray<FString> OutFilenames;
+
+		if (IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get())
+		{
+			DesktopPlatform->SaveFileDialog(
+				FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+				LOCTEXT("SaveSnapshotAs", "Save Snapshot As").ToString(),
+				FPaths::ProjectSavedDir(),
+				Material->GetName() + "_Snapshot_" + FString::FromInt(InTextureSize.X) + "x" + FString::FromInt(InTextureSize.Y),
+				TEXT("HDR File (*.hdr)|*.hdr|EXR File (*.exr)|*.exr|PNG File (*.png)|*.png"),
+				EFileDialogFlags::None,
+				OutFilenames
+			);
+		}
+
+		if (OutFilenames.Num() == 0)
+		{
+			return;
+		}
+
+		FDMMaterialShapshotLibrary::SnapshotMaterial(Material, InTextureSize, OutFilenames[0]);
+
+		if (FEngineAnalytics::IsAvailable())
+		{
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.SnapshotMaterial"));
+		}
+	}
+
 	void AddToolBarBoolOptionMenuEntry(FToolMenuSection& InSection, const FName& InPropertyName, const FUIAction InAction)
 	{
 		const FProperty* const OptionProperty = UDynamicMaterialEditorSettings::StaticClass()->FindPropertyByName(InPropertyName);
@@ -161,6 +223,74 @@ namespace UE::DynamicMaterialEditor::Private
 		);
 	}
 
+	void CreateSnapshotMaterialMenu(UToolMenu* InMenu)
+	{
+		const UDMMenuContext* const MenuContext = InMenu->FindContext<UDMMenuContext>();
+
+		if (!MenuContext)
+		{
+			return;
+		}
+
+		UDynamicMaterialModel* const MaterialModel = MenuContext->GetModel();
+
+		if (!MaterialModel)
+		{
+			return;
+		}
+
+		TWeakObjectPtr<UDynamicMaterialModel> MaterialModelWeak = MaterialModel;
+		FToolMenuSection& NewSection = InMenu->AddSection("SnapshotMaterial", LOCTEXT("SnapshotMaterial", "Snapshop Material"));
+
+		NewSection.AddMenuEntry(
+			NAME_None,
+			LOCTEXT("SnapshotMaterial512", "512x512"),
+			LOCTEXT("SnapshotMaterial512Tooltip", "Take a snapshot of the material with the current settings and export it as a texture with a resolution of 512x512 pixels."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(
+				&UE::DynamicMaterialEditor::Private::SnapshotMaterial,
+				MaterialModelWeak,
+				FIntPoint(512, 512)
+			))
+		);
+
+		NewSection.AddMenuEntry(
+			NAME_None,
+			LOCTEXT("SnapshotMaterial1024", "1024x1024"),
+			LOCTEXT("SnapshotMaterial1024Tooltip", "Take a snapshot of the material with the current settings and export it as a texture with a resolution of 1024x1024 pixels."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(
+				&UE::DynamicMaterialEditor::Private::SnapshotMaterial,
+				MaterialModelWeak,
+				FIntPoint(1024, 1024)
+			))
+		);
+
+		NewSection.AddMenuEntry(
+			NAME_None,
+			LOCTEXT("SnapshotMaterial2048", "2048x2048"),
+			LOCTEXT("SnapshotMaterial2048Tooltip", "Take a snapshot of the material with the current settings and export it as a texture with a resolution of 2048x2048 pixels."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(
+				&UE::DynamicMaterialEditor::Private::SnapshotMaterial,
+				MaterialModelWeak,
+				FIntPoint(2048, 2048)
+			))
+		);
+
+		NewSection.AddMenuEntry(
+			NAME_None,
+			LOCTEXT("SnapshotMaterial4096", "4096x4096"),
+			LOCTEXT("SnapshotMaterial4096Tooltip", "Take a snapshot of the material with the current settings and export it as a texture with a resolution of 4096x4096 pixels."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(
+				&UE::DynamicMaterialEditor::Private::SnapshotMaterial,
+				MaterialModelWeak,
+				FIntPoint(4096, 4096)
+			))
+		);
+	}
+
 	void AddToolbarExportMenu(UToolMenu* InMenu)
 	{
 		if (!IsValid(InMenu) || InMenu->ContainsSection(ToolBarExportSectionName))
@@ -197,7 +327,7 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		FToolMenuSection& NewSection = InMenu->AddSection("Export", LOCTEXT("ExportSection", "Export Material"));
+		FToolMenuSection& NewSection = InMenu->AddSection("Export", LOCTEXT("ExportSection", "Export"));
 
 		if (bAllowInstanceExport)
 		{
@@ -220,10 +350,19 @@ namespace UE::DynamicMaterialEditor::Private
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateStatic(
 					&UE::DynamicMaterialEditor::Private::ExportMaterialModelFromModel,
-					TWeakObjectPtr<UDynamicMaterialModel>(MaterialModel))
-				)
+					TWeakObjectPtr<UDynamicMaterialModel>(MaterialModel)
+				))
 			);
 		}
+
+		NewSection.AddSubMenu(
+			NAME_None,
+			LOCTEXT("SnapshotMaterial", "Snapshop Material"),
+			LOCTEXT("SnapshotMaterialTooltip", "Take a snapshot of the material with the current settings and export it as a texture."),
+			FNewToolMenuChoice(FNewToolMenuDelegate::CreateStatic(
+				&UE::DynamicMaterialEditor::Private::CreateSnapshotMaterialMenu
+			))
+		);
 	}
 
 	void AddToolBarTooltipOptionsSection(UToolMenu* InMenu)
@@ -314,7 +453,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		AddToolbarExportMenu(InMenu);
 
-		FToolMenuSection& NewSection = InMenu->AddSection("MaterialDesigner", LOCTEXT("MaterialDesignerSection", "MaterialDesigner"));
+		FToolMenuSection& NewSection = InMenu->AddSection("MaterialDesigner", LOCTEXT("MaterialDesignerSection", "Material Designer"));
 
 		UDMMenuContext* MenuContext = InMenu->FindContext<UDMMenuContext>();
 

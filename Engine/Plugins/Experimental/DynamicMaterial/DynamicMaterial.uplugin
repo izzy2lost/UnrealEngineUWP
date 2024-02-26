@@ -24,6 +24,11 @@
 			"Name": "DynamicMaterialEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "DynamicMaterialShadersEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostConfigInit"
 		}
 	],
 	"Plugins": [
