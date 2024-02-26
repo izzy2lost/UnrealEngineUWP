@@ -20,11 +20,15 @@ namespace Horde.Agent.Commands.Utilities
 		[Description("Channel to use for tool updates")]
 		public ToolId Id { get; set; }
 
+		[CommandLine("-RootDir=")]
+		[Description("Root directory for the installation to update")]
+		public DirectoryReference? RootDir { get; set; }
+
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			// Update the agent to recognize the server certificate, and give it a custom token for being able to connect
-			FileReference agentConfigFile = FileReference.Combine(AgentApp.AppDir, "appsettings.json");
+			FileReference agentConfigFile = FileReference.Combine(RootDir ?? AgentApp.AppDir, "appsettings.json");
 			JsonObject agentConfig = await JsonConfig.ReadAsync(agentConfigFile);
 
 			JsonObject hordeConfig = JsonConfig.FindOrAddNode(agentConfig, "Horde", () => new JsonObject());
