@@ -1112,6 +1112,7 @@ static void InitRHICapabilitiesForGL()
 	GSupportsShaderMRTFramebufferFetch = FOpenGL::SupportsShaderMRTFramebufferFetch();
 	GSupportsShaderDepthStencilFetch = FOpenGL::SupportsShaderDepthStencilFetch();
 	GSupportsPixelLocalStorage = FOpenGL::SupportsPixelLocalStorage();
+	GSupportsShaderFramebufferFetchProgrammableBlending = FOpenGL::SupportsShaderFramebufferFetchProgrammableBlending();
 
 	GMaxShadowDepthBufferSizeX = FMath::Min<int32>(Value_GL_MAX_RENDERBUFFER_SIZE, 4096); // Limit to the D3D11 max.
 	GMaxShadowDepthBufferSizeY = FMath::Min<int32>(Value_GL_MAX_RENDERBUFFER_SIZE, 4096);

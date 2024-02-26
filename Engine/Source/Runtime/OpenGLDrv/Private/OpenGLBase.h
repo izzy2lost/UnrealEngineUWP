@@ -86,6 +86,7 @@ public:
 	static FORCEINLINE bool SupportsColorBufferHalfFloat()				{ return true; }
 	static FORCEINLINE bool SupportsVolumeTextureRendering()			{ return false; }
 	static FORCEINLINE bool SupportsShaderFramebufferFetch()			{ return false; }
+	static FORCEINLINE bool SupportsShaderFramebufferFetchProgrammableBlending() { return false; }
 	static FORCEINLINE bool SupportsShaderMRTFramebufferFetch()			{ return false; }
 	static FORCEINLINE bool SupportsShaderDepthStencilFetch()			{ return false; }
 	static FORCEINLINE bool SupportsPixelLocalStorage()					{ return false; }

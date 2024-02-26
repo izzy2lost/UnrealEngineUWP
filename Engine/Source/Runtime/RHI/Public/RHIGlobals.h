@@ -152,6 +152,9 @@ struct FRHIGlobals
 	/** true if mobile framebuffer fetch is supported from MRT's*/
 	bool SupportsShaderMRTFramebufferFetch = false;
 
+	/** true if mobile framebuffer fetch can be used for programmable blending, does not imply that framebuffer fetch is supported*/
+	bool SupportsShaderFramebufferFetchProgrammableBlending = true;
+
 	/** true if mobile pixel local storage is supported */
 	bool SupportsPixelLocalStorage = false;
 
@@ -679,6 +682,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GSupportsRenderTargetFormat_PF_G8                      GRHIGlobals.SupportsRenderTargetFormat_PF_G8
 #define GSupportsRenderTargetFormat_PF_FloatRGBA               GRHIGlobals.SupportsRenderTargetFormat_PF_FloatRGBA
 #define GSupportsShaderFramebufferFetch                        GRHIGlobals.SupportsShaderFramebufferFetch
+#define GSupportsShaderFramebufferFetchProgrammableBlending    GRHIGlobals.SupportsShaderFramebufferFetchProgrammableBlending
 #define GSupportsShaderMRTFramebufferFetch                     GRHIGlobals.SupportsShaderMRTFramebufferFetch
 #define GSupportsPixelLocalStorage                             GRHIGlobals.SupportsPixelLocalStorage
 #define GSupportsShaderDepthStencilFetch                       GRHIGlobals.SupportsShaderDepthStencilFetch

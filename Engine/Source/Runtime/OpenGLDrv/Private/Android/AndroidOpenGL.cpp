@@ -13,6 +13,8 @@
 #include "Android/AndroidJNI.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 #include "Misc/ConfigCacheIni.h"
+#include "String/Find.h"
+#include "String/LexFromString.h"
 
 int32 FAndroidOpenGL::GLMajorVerion = 0;
 int32 FAndroidOpenGL::GLMinorVersion = 0;
@@ -879,10 +881,31 @@ void FAndroidOpenGL::ProcessExtensions(const FString& ExtensionsString)
 
 	if (bIsAdrenoBased)
 	{
+		uint32 AdrenoDriverMajorVersion = 0;
+		FStringView VersionStringView = MakeStringView(VersionString);
+		FStringView AdrenoDriverVersionPrefix = TEXT("V@");
+		int32 VersionStart = UE::String::FindFirst(VersionStringView, AdrenoDriverVersionPrefix, ESearchCase::CaseSensitive);
+		if (VersionStart != INDEX_NONE)
+		{
+			VersionStart += AdrenoDriverVersionPrefix.Len();
+			const int32 VersionCharCount = UE::String::FindFirst(VersionStringView.Mid(VersionStart), TEXT("."), ESearchCase::CaseSensitive);
+			if (VersionCharCount != INDEX_NONE)
+			{
+				LexFromString(AdrenoDriverMajorVersion, VersionStringView.SubStr(VersionStart, VersionCharCount));
+			}
+		}
+
 		GMaxmimumOcclusionQueries = 510;
 		// This is to avoid a bug in Adreno drivers that define GL_ARM_shader_framebuffer_fetch_depth_stencil even when device does not support this extension
 		// OpenGL ES 3.1 V@127.0 (GIT@I1af360237c)
 		bRequiresARMShaderFramebufferFetchDepthStencilUndef = !bSupportsShaderDepthStencilFetch;
+
+		if (AdrenoDriverMajorVersion > 0 && AdrenoDriverMajorVersion < 331)
+		{
+			// Shader compiler causes a freeze on older drivers
+			// version 331 is known to work, 313 known not to work
+			bSupportsShaderFramebufferFetchProgrammableBlending = false;
+		}
 
 		// FORT-221329's broken adreno driver not common on Android 9 and above. TODO: check adreno driver version instead.
 		bRequiresAdrenoTilingHint = FAndroidMisc::GetAndroidBuildVersion() < 28 || CVarEnableAdrenoTilingHint.GetValueOnAnyThread() == 2;
