@@ -829,10 +829,10 @@ float4 PrepareOutput(float3 PreExposedLuminance, float3 Transmittance = float3(1
 	float4 LuminanceAlpha = float4(SafePreExposedLuminance, GreyScaleTransmittance);
 	
 #if POST_PROCESS_ALPHA
-	if (IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) && View.RenderingReflectionCaptureMask == 0.0f)
+	if (View.RenderingReflectionCaptureMask == 0.0f)
 	{
-		LuminanceAlpha.rgb = 0.0f;
-		LuminanceAlpha.a = 1 - GreyScaleTransmittance;
+		LuminanceAlpha.rgb	= IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) ? 0.0f : LuminanceAlpha.rgb;
+		LuminanceAlpha.a	= 1 - GreyScaleTransmittance;
 	}
 #endif
 	
@@ -955,7 +955,7 @@ void RenderSkyAtmosphereRayMarchingPS(
 
 		float3 SkyGreyTransmittance = 1.0f;
 	#if POST_PROCESS_ALPHA
-		if (IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) && View.RenderingReflectionCaptureMask == 0.0f)
+		if (View.RenderingReflectionCaptureMask == 0.0f)
 		{
 			SkyGreyTransmittance = SkyLuminanceTransmittance.aaa;
 		}
