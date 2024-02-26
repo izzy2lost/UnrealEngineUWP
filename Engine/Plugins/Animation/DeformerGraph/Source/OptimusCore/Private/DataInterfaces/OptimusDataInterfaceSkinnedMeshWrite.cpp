@@ -142,6 +142,10 @@ bool FOptimusSkinnedMeshWriteDataProviderProxy::IsValid(FValidationData const& I
 	{
 		return false;
 	}
+	if (SkeletalMeshObject->IsCPUSkinned())
+	{
+		return false;
+	}
 	if (SkeletalMeshObject->GetSkeletalMeshRenderData().LODRenderData[SkeletalMeshObject->GetLOD()].RenderSections.Num() != InValidationData.NumInvocations)
 	{
 		return false;
