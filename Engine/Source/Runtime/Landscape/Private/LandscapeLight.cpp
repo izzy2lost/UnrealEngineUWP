@@ -45,6 +45,10 @@ FStaticLightingTextureMapping(
 {
 }
 
+FLandscapeStaticLightingGlobalVolumeMapping::FLandscapeStaticLightingGlobalVolumeMapping(ULandscapeComponent* InComponent,FStaticLightingMesh* InMesh,int32 InLightMapWidth,int32 InLightMapHeight,bool bPerformFullQualityRebuild) :	
+	FLandscapeStaticLightingTextureMapping(InComponent, InMesh, InLightMapWidth, InLightMapHeight, bPerformFullQualityRebuild)
+{}
+
 void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext)
 {
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
@@ -692,9 +696,17 @@ void ULandscapeComponent::GetStaticLightingInfo(FStaticLightingPrimitiveInfo& Ou
 		{
 			FLandscapeStaticLightingMesh* StaticLightingMesh = new FLandscapeStaticLightingMesh(this, InRelevantLights, PatchExpandCountX, PatchExpandCountY, LightMapRatio, LightingLOD);
 			OutPrimitiveInfo.Meshes.Add(StaticLightingMesh);
-			// Create a static lighting texture mapping
-			OutPrimitiveInfo.Mappings.Add(new FLandscapeStaticLightingTextureMapping(
-				this,StaticLightingMesh,SizeX,SizeY,true));
+			if (GetLightmapType() == ELightmapType::ForceVolumetric)
+			{
+				OutPrimitiveInfo.Mappings.Add(new FLandscapeStaticLightingGlobalVolumeMapping(
+					this,StaticLightingMesh,SizeX,SizeY,true));
+			}
+			else
+			{
+				// Create a static lighting texture mapping
+				OutPrimitiveInfo.Mappings.Add(new FLandscapeStaticLightingTextureMapping(
+					this,StaticLightingMesh,SizeX,SizeY,true));
+			}
 		}
 	}
 }

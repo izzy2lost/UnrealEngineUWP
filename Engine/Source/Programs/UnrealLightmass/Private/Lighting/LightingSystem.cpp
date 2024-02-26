@@ -180,7 +180,7 @@ FStaticLightingSystem::FStaticLightingSystem(const FLightingBuildOptions& InOpti
 	int32 NumTriangles = 0;
 	int32 NumMappings = InScene.TextureLightingMappings.Num() +
 		InScene.FluidMappings.Num() + InScene.LandscapeMappings.Num() + InScene.BspMappings.Num();
-	int32 NumMeshInstances = InScene.BspMappings.Num() + InScene.StaticMeshInstances.Num() + InScene.VolumeMappings.Num();
+	int32 NumMeshInstances = InScene.BspMappings.Num() + InScene.StaticMeshInstances.Num() + InScene.VolumeMappings.Num() + InScene.LandscapeVolumeMappings.Num();
 	AllMappings.Reserve( NumMappings );
 	Meshes.Reserve( NumMeshInstances );
 
@@ -259,6 +259,17 @@ FStaticLightingSystem::FStaticLightingSystem(const FLightingBuildOptions& InOpti
 	for (int32 MappingIndex = 0; MappingIndex < InScene.VolumeMappings.Num(); MappingIndex++)
 	{
 		FStaticLightingGlobalVolumeMapping* Mapping = &InScene.VolumeMappings[MappingIndex];
+		Mappings.Add(Mapping->Guid, Mapping);
+		AllMappings.Add(Mapping);
+		if (bDumpAllMappings)
+		{
+			UE_LOG(LogLightmass, Log, TEXT("\t%s"), *(Mapping->Guid.ToString()));
+		}
+	}
+
+	for (int32 MappingIndex = 0; MappingIndex < InScene.LandscapeVolumeMappings.Num(); MappingIndex++)
+	{
+		FLandscapeStaticLightingGlobalVolumeMapping* Mapping = &InScene.LandscapeVolumeMappings[MappingIndex];
 		Mappings.Add(Mapping->Guid, Mapping);
 		AllMappings.Add(Mapping);
 		if (bDumpAllMappings)
@@ -1869,6 +1880,10 @@ void TCompleteStaticLightingList<StaticLightingDataType>::ApplyAndClear(FStaticL
 
 		do { LocalFirstElement = FirstElement; }
 		while(FPlatformAtomics::InterlockedCompareExchangePointer((void**)&FirstElement,NULL,LocalFirstElement) != LocalFirstElement);
+
+		// Should never be null, but this satisfies static-analysis
+		if (!LocalFirstElement)
+			continue;
 
 		// Traverse the local list, count the number of entries, and find the minimum guid
 		TList<StaticLightingDataType>* PreviousElement = NULL;

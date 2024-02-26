@@ -46,6 +46,38 @@ private:
 	ULandscapeComponent* const LandscapeComponent;
 };
 
+class FLandscapeStaticLightingGlobalVolumeMapping  : public FLandscapeStaticLightingTextureMapping 
+{
+public:
+	LANDSCAPE_API FLandscapeStaticLightingGlobalVolumeMapping(ULandscapeComponent* InPrimitive,FStaticLightingMesh* InMesh,int32 InLightMapWidth,int32 InLightMapHeight,bool bPerformFullQualityRebuild);
+
+	virtual void Apply(struct FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,class FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext) override
+	{
+		// Should never be processed
+		check(false);
+	}
+
+#if WITH_EDITOR
+	virtual bool DebugThisMapping() const override
+	{
+		return false;
+	}
+
+	/** 
+	 * Export static lighting mapping instance data to an exporter 
+	 * @param Exporter - export interface to process static lighting data
+	 */
+	UNREALED_API virtual void ExportMapping(class FLightmassExporter* Exporter) override;
+#endif	//WITH_EDITOR
+
+	/** Whether or not this mapping should be processed or imported */
+	virtual bool IsValidMapping() const override {return true;} 
+
+	virtual FString GetDescription() const override
+	{
+		return FString(TEXT("LandscapeVolumeMapping"));
+	}
+};
 
 
 /** Represents the triangles of a Landscape component to the static lighting system. */

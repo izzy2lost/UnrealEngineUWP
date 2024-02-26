@@ -656,6 +656,7 @@ void FLightmassExporter::WriteToChannel( FLightmassStatistics& Stats, FGuid& Deb
 			Scene.NumLandscapeTextureMappings = LandscapeTextureMappings.Num();
 			Scene.NumSpeedTreeMappings = 0;
 			Scene.NumVolumeMappings = VolumeMappings.Num();
+			Scene.NumLandscapeVolumeMappings = LandscapeVolumeMappings.Num();
 			Scene.NumPrecomputedVisibilityBuckets = VisibilityBucketGuids.Num();
 			Scene.NumVolumetricLightmapTasks = VolumetricLightmapTaskGuids.Num();
 			Swarm.WriteChannel( Channel, &Scene, sizeof(Scene) );
@@ -1993,6 +1994,13 @@ void FLightmassExporter::WriteMappings( int32 Channel )
 	for (int32 MappingIdx = 0; MappingIdx < VolumeMappings.Num(); MappingIdx++)
 	{
 		const FStaticLightingGlobalVolumeMapping* VolumeMapping = VolumeMappings[MappingIdx];
+		WriteBaseTextureMappingData( Channel, VolumeMapping );
+		UpdateExportProgress();
+	}
+
+	for (int32 MappingIdx = 0; MappingIdx < LandscapeVolumeMappings.Num(); MappingIdx++)
+	{
+		const FLandscapeStaticLightingGlobalVolumeMapping* VolumeMapping = LandscapeVolumeMappings[MappingIdx];
 		WriteBaseTextureMappingData( Channel, VolumeMapping );
 		UpdateExportProgress();
 	}

@@ -61,6 +61,7 @@ FSceneFileHeader::FSceneFileHeader(const FSceneFileHeader& Other)
 	NumLandscapeTextureMappings = Other.NumLandscapeTextureMappings;
 	NumSpeedTreeMappings = Other.NumSpeedTreeMappings;
 	NumVolumeMappings = Other.NumVolumeMappings;
+	NumLandscapeVolumeMappings = Other.NumLandscapeVolumeMappings;
 	NumPortals = Other.NumPortals;
 }
 
@@ -211,6 +212,7 @@ void FScene::Import( FLightmassImporter& Importer )
 	Importer.ImportObjectArray( FluidMappings, NumFluidSurfaceTextureMappings, Importer.GetFluidMappings() );
 	Importer.ImportObjectArray( LandscapeMappings, NumLandscapeTextureMappings, Importer.GetLandscapeMappings() );
 	Importer.ImportObjectArray( VolumeMappings, NumVolumeMappings, Importer.GetVolumeMappings() );
+	Importer.ImportObjectArray( LandscapeVolumeMappings, NumLandscapeVolumeMappings, Importer.GetLandscapeVolumeMappings() );
 
 	DebugMapping = FindMappingByGuid(DebugInput.MappingGuid);
 	if (DebugMapping)
@@ -387,6 +389,15 @@ const FStaticLightingMapping* FScene::FindMappingByGuid(FGuid FindGuid) const
 			return &VolumeMappings[i];
 		}
 	}
+
+	for (int32 i = 0; i < LandscapeVolumeMappings.Num(); i++)
+	{
+		if (LandscapeVolumeMappings[i].Guid == FindGuid)
+		{
+			return &LandscapeVolumeMappings[i];
+		}
+	}
+
 
 	return NULL;
 }

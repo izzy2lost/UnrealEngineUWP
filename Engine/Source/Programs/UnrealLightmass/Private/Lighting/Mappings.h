@@ -149,6 +149,16 @@ public:
 		return NULL;
 	}
 
+	virtual const class FLandscapeStaticLightingGlobalVolumeMapping* GetLandscapeVolumeMapping()
+	{
+		return NULL;
+	}
+
+	virtual const class FLandscapeStaticLightingGlobalVolumeMapping* GetLandscapeVolumeMapping() const
+	{
+		return NULL;
+	}
+
 	/**
 	 * Returns the relative processing cost used to sort tasks from slowest to fastest.
 	 *

@@ -253,6 +253,7 @@ private:
 	TArray<FLandscapeStaticLightingTextureMapping*> LandscapeTextureMappings;
 
 	TArray<class FStaticLightingGlobalVolumeMapping*> VolumeMappings;
+	TArray<class FLandscapeStaticLightingGlobalVolumeMapping*> LandscapeVolumeMappings;
 
 	// materials
 	TArray<UMaterialInterface*> Materials;
@@ -281,6 +282,7 @@ private:
 	friend class FLandscapeStaticLightingMesh;
 	friend class FLandscapeStaticLightingTextureMapping;
 	friend class FStaticLightingGlobalVolumeMapping;
+	friend class FLandscapeStaticLightingGlobalVolumeMapping;
 };
 
 /** Lightmass Importer class */

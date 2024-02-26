@@ -710,6 +710,11 @@ class FLandscapeComponentSceneProxy : public FPrimitiveSceneProxy, public FLands
 		FLandscapeLCI(const ULandscapeComponent* InComponent, ERHIFeatureLevel::Type FeatureLevel, bool bVFRequiresPrimitiveUniformBuffer)
 			: FLightCacheInterface()
 		{
+			if (InComponent->GetLightmapType() == ELightmapType::ForceVolumetric)
+			{
+				SetGlobalVolumeLightmap(true);
+			}
+
 			const FMeshMapBuildData* MapBuildData = InComponent->GetMeshMapBuildData();
 
 			if (MapBuildData)

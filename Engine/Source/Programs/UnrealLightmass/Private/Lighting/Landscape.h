@@ -46,4 +46,27 @@ namespace Lightmass
 		virtual void Import( class FLightmassImporter& Importer );
 	};
 
+	/** 
+	 * A mapping that represents an object which is going to use the global volumetric lightmap.
+	 * Hack: currently represented as a texture lightmap to Lightmass for the purposes of surface caching of light (radiosity + direct lighting).
+	 */
+	class FLandscapeStaticLightingGlobalVolumeMapping : public FLandscapeStaticLightingTextureMapping
+	{
+	public:
+
+		FLandscapeStaticLightingGlobalVolumeMapping() 
+		{}
+
+		virtual class FLandscapeStaticLightingGlobalVolumeMapping* GetLandscapeVolumeMapping() override
+		{
+			return this;
+		}
+
+		virtual const FLandscapeStaticLightingGlobalVolumeMapping* GetLandscapeVolumeMapping() const override
+		{
+			return this;
+		}
+	};
+
+
 } //namespace Lightmass
