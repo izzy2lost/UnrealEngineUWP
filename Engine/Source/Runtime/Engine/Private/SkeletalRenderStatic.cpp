@@ -107,12 +107,13 @@ void FSkeletalMeshObjectStatic::InitResources(USkinnedMeshComponent* InMeshCompo
 							}
 							Initializer.Segments = GeometrySections;
 
-							RayTracingGeometry.SetInitializer(Initializer);
-
-							if (LODIndex >= SkelMeshRenderData->CurrentFirstLODIdx) // According to GetMeshElementsConditionallySelectable(), non-resident LODs should just be skipped
+							if (LODIndex < SkelMeshRenderData->CurrentFirstLODIdx) // According to GetMeshElementsConditionallySelectable(), non-resident LODs should just be skipped
 							{
-								RayTracingGeometry.InitResource(RHICmdList);
+								Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
 							}
+
+							RayTracingGeometry.SetInitializer(Initializer);
+							RayTracingGeometry.InitResource(RHICmdList);
 
 							bReferencedByStaticSkeletalMeshObjects_RenderThread = true;
 						}

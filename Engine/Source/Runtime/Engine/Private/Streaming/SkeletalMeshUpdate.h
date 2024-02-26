@@ -12,6 +12,7 @@ SkeletalMeshUpdate.h: Helpers to stream in and out skeletal mesh LODs.
 #include "RenderAssetUpdate.h"
 #include "Rendering/SkinWeightVertexBuffer.h"
 #include "Serialization/BulkData.h"
+#include "RayTracingGeometry.h"
 
 /**
 * A context used to update or proceed with the next update step.
@@ -90,6 +91,23 @@ protected:
 		void TransferBuffers(FSkeletalMeshLODRenderData& LODResource, FRHIResourceReplaceBatcher& Batcher);
 	};
 
+#if RHI_RAYTRACING
+	struct FIntermediateRayTracingGeometry
+	{
+	private:
+		FRayTracingGeometryInitializer Initializer;
+		FRayTracingGeometryRHIRef RayTracingGeometryRHI;
+		bool bRequiresBuild = false;
+
+	public:
+		void CreateFromCPUData(FRHICommandListBase& RHICmdList, FRayTracingGeometry& RayTracingGeometry);
+
+		void SafeRelease();
+
+		void TransferRayTracingGeometry(FRayTracingGeometry& RayTracingGeometry, FRHIResourceReplaceBatcher& Batcher);
+	};
+#endif
+
 	/** Create buffers with new LOD data */
 	void CreateBuffers(const FContext& Context);
 
@@ -104,6 +122,10 @@ protected:
 
 	/** The intermediate buffers created in the update process. */
 	FIntermediateBuffers IntermediateBuffersArray[MAX_MESH_LOD_COUNT];
+
+#if RHI_RAYTRACING
+	FIntermediateRayTracingGeometry IntermediateRayTracingGeometry[MAX_MESH_LOD_COUNT];
+#endif
 
 	/** RHI command list used for creating buffers and replacing the streaming placeholders. Submitted in DoFinishUpdate */
 	FRHICommandList* StreamingRHICmdList = nullptr;

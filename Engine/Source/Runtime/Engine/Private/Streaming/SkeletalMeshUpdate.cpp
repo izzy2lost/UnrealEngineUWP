@@ -74,6 +74,48 @@ void FSkeletalMeshStreamIn::FIntermediateBuffers::TransferBuffers(FSkeletalMeshL
 	LODResource.SkinWeightProfilesData.InitRHIForStreaming(AltSkinWeightVertexBuffers, Batcher);
 }
 
+#if RHI_RAYTRACING
+
+void FSkeletalMeshStreamIn::FIntermediateRayTracingGeometry::CreateFromCPUData(FRHICommandListBase& RHICmdList, FRayTracingGeometry& RayTracingGeometry)
+{
+	Initializer = RayTracingGeometry.Initializer;
+	Initializer.Type = ERayTracingGeometryInitializerType::StreamingSource;
+
+	if (RayTracingGeometry.RawData.Num())
+	{
+		check(Initializer.OfflineData == nullptr);
+		Initializer.OfflineData = &RayTracingGeometry.RawData;
+	}
+
+	static const auto CVarDebugForceRuntimeBLAS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Raytracing.DebugForceRuntimeBLAS"));
+	const bool bDebugForceRuntimeBLAS = (!CVarDebugForceRuntimeBLAS) || (CVarDebugForceRuntimeBLAS->GetValueOnAnyThread() != 0);
+
+	if (bDebugForceRuntimeBLAS && Initializer.OfflineData != nullptr)
+	{
+		Initializer.OfflineData->Discard();
+		Initializer.OfflineData = nullptr;
+	}
+
+	RayTracingGeometryRHI = RHICmdList.CreateRayTracingGeometry(Initializer);
+	bRequiresBuild = Initializer.OfflineData == nullptr || RayTracingGeometryRHI->IsCompressed();
+}
+
+void FSkeletalMeshStreamIn::FIntermediateRayTracingGeometry::SafeRelease()
+{
+	Initializer = {};
+	RayTracingGeometryRHI.SafeRelease();
+}
+
+void FSkeletalMeshStreamIn::FIntermediateRayTracingGeometry::TransferRayTracingGeometry(FRayTracingGeometry& RayTracingGeometry, FRHIResourceReplaceBatcher& Batcher)
+{
+	RayTracingGeometry.InitRHIForStreaming(RayTracingGeometryRHI, Batcher);
+	RayTracingGeometry.SetRequiresBuild(bRequiresBuild);
+
+	SafeRelease();
+}
+
+#endif
+
 FSkeletalMeshStreamIn::FSkeletalMeshStreamIn(const USkeletalMesh* InMesh, EThreadType CreateResourcesThread)
 	: FSkeletalMeshUpdate(InMesh)
 	, CreateResourcesThread(CreateResourcesThread)
@@ -104,6 +146,14 @@ void FSkeletalMeshStreamIn::CreateBuffers(const FContext& Context)
 		{
 			FSkeletalMeshLODRenderData& LODResource = *Context.LODResourcesView[LODIndex];
 			IntermediateBuffersArray[LODIndex].CreateFromCPUData(*StreamingRHICmdList, LODResource);
+
+#if RHI_RAYTRACING
+			// Skip LODs that have their render data stripped
+			if (IsRayTracingEnabled() && Context.Mesh->GetSupportRayTracing() && LODResource.GetNumVertices() > 0 && LODResource.bReferencedByStaticSkeletalMeshObjects_RenderThread)
+			{
+				IntermediateRayTracingGeometry[LODIndex].CreateFromCPUData(*StreamingRHICmdList, LODResource.StaticRayTracingGeometry);
+			}
+#endif
 		}
 
 		// Use a scope to flush the batcher before updating CurrentFirstLODIdx
@@ -118,25 +168,6 @@ void FSkeletalMeshStreamIn::CreateBuffers(const FContext& Context)
 				IntermediateBuffersArray[LODIndex].TransferBuffers(LODResource, Batcher);
 			}
 		}
-
-#if RHI_RAYTRACING
-		// Must happen after the batched updates have been flushed
-		if (IsRayTracingAllowed())
-		{
-			for (int32 LODIndex = PendingFirstLODIdx; LODIndex < CurrentFirstLODIdx; ++LODIndex)
-			{
-				// Skip LODs that have their render data stripped
-				if (Context.RenderData->LODRenderData[LODIndex].GetNumVertices() > 0)
-				{
-					if (Context.RenderData->LODRenderData[LODIndex].bReferencedByStaticSkeletalMeshObjects_RenderThread)
-					{
-						ensure(!Context.RenderData->LODRenderData[LODIndex].StaticRayTracingGeometry.IsInitialized());
-						Context.RenderData->LODRenderData[LODIndex].StaticRayTracingGeometry.InitResource(*StreamingRHICmdList);
-					}
-				}
-			}
-		}
-#endif
 	}
 
 	StreamingRHICmdList->FinishRecording();
@@ -164,6 +195,42 @@ void FSkeletalMeshStreamIn::DoFinishUpdate(const FContext& Context)
 		FRHICommandListImmediate::Get().QueueAsyncCommandListSubmit(StreamingRHICmdList);
 		StreamingRHICmdList = nullptr;
 	}
+
+#if RHI_RAYTRACING
+	if (IsRayTracingAllowed() && Context.Mesh->GetSupportRayTracing())
+	{
+		// Use a scope to flush the batcher before updating CurrentFirstLODIdx
+		{
+			FRHIResourceReplaceBatcher Batcher(FRHICommandListImmediate::Get(), GSkelMeshMaxNumResourceUpdatesPerBatch);
+			for (int32 LODIdx = PendingFirstLODIdx; LODIdx < CurrentFirstLODIdx; ++LODIdx)
+			{
+				FSkeletalMeshLODRenderData& LODResource = *Context.LODResourcesView[LODIdx];
+
+				if (LODResource.GetNumVertices() > 0 && LODResource.bReferencedByStaticSkeletalMeshObjects_RenderThread)
+				{
+					IntermediateRayTracingGeometry[LODIdx].TransferRayTracingGeometry(LODResource.StaticRayTracingGeometry, Batcher);
+				}
+			}
+		}
+
+		// Must happen after the batched updates have been flushed
+		for (int32 LODIndex = PendingFirstLODIdx; LODIndex < CurrentFirstLODIdx; ++LODIndex)
+		{
+			FSkeletalMeshLODRenderData& LODResource = *Context.LODResourcesView[LODIndex];
+
+			// Skip LODs that have their render data stripped
+			if (LODResource.GetNumVertices() > 0 && LODResource.bReferencedByStaticSkeletalMeshObjects_RenderThread)
+			{
+				// Under very rare circumstances that we switch ray tracing on/off right in the middle of streaming RayTracingGeometryRHI might not be valid.
+				if (IsRayTracingEnabled() && ensure(LODResource.StaticRayTracingGeometry.IsValid()))
+				{
+					LODResource.StaticRayTracingGeometry.RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority::Normal);
+				}
+			}
+		}
+
+	}
+#endif
 
 	Context.RenderData->PendingFirstLODIdx = Context.RenderData->CurrentFirstLODIdx = ResourceState.LODCountToAssetFirstLODIdx(ResourceState.NumRequestedLODs);
 	MarkAsSuccessfullyFinished();
