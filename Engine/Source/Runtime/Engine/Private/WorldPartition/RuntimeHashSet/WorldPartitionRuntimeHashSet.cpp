@@ -151,7 +151,7 @@ void UWorldPartitionRuntimeHashSet::FlushStreamingContent()
 	RuntimeStreamingData.Empty();
 }
 
-bool UWorldPartitionRuntimeHashSet::IsValidGrid(FName GridName) const
+bool UWorldPartitionRuntimeHashSet::IsValidGrid(FName GridName, const UClass* ActorClass) const
 {
 	TArray<FName> MainPartitionTokens;
 	TArray<FName> HLODPartitionTokens;
