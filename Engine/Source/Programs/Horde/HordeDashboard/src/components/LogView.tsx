@@ -981,7 +981,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
          custom?.forEach(c => {
             opsList.push({
                key: `stepops_artifacts_${c.type}`,
-               text: c.type,
+               text: c.description ?? c.name,
                iconProps: { iconName: "Clean" },
                onClick: () => { navigateToArtifacts(c.type) }
             });

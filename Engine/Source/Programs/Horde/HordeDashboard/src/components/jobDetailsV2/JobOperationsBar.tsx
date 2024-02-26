@@ -277,7 +277,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
    custom?.forEach(c => {
       opsList.push({
          key: `stepops_artifacts_${c.type}`,
-         text: c.type,
+         text: c.description ?? c.name,
          iconProps: { iconName: "Clean" },
          onClick: () => { navigate(`${baseUrl}&artifactContext=${c.type}`, { replace: true }) }
       });   

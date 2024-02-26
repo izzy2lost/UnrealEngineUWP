@@ -1578,11 +1578,10 @@ export type CreateZipRequest = {
 export type GetArtifactResponseV2 = {
 
 	id: string;
-
 	type: ArtifactContextType;
-
 	keys: string[]
-
+	name: string;
+	description?: string;
 }
 
 /** Result of an artifact search */
