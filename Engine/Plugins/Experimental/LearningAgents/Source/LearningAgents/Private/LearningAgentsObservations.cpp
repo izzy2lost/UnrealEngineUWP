@@ -491,7 +491,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyNull
 	return { Schema->ObservationSchema.CreateNull(Tag)};
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyContinuousObservation(ULearningAgentsObservationSchema* Schema, const int32 Size, const FName Tag)
+FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyContinuousObservation(ULearningAgentsObservationSchema* Schema, const int32 Size, const float Scale, const FName Tag)
 {
 	if (!Schema)
 	{
@@ -505,27 +505,33 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyCont
 		return FLearningAgentsObservationSchemaElement();
 	}
 	
+	if (Scale < UE_SMALL_NUMBER)
+	{
+		UE_LOG(LogLearning, Error, TEXT("SpecifyContinuousObservation: Invalid Scale for Continuous Observation '%f', must be greater than '%f'."), Scale, UE_SMALL_NUMBER);
+		return FLearningAgentsObservationSchemaElement();
+	}
+
 	if (Size == 0)
 	{
 		UE_LOG(LogLearning, Warning, TEXT("SpecifyContinuousObservation: Specifying zero-sized Continuous Observation."));
 	}
 
-	return { Schema->ObservationSchema.CreateContinuous({ Size }, Tag) };
+	return { Schema->ObservationSchema.CreateContinuous({ Size, Scale }, Tag) };
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyExclusiveDiscreteObservation(ULearningAgentsObservationSchema* Schema, const int32 Size, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, Size, Tag);
+	return SpecifyContinuousObservation(Schema, Size, 1.0f, Tag);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyInclusiveDiscreteObservation(ULearningAgentsObservationSchema* Schema, const int32 Size, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, Size, Tag);
+	return SpecifyContinuousObservation(Schema, Size, 1.0f, Tag);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyCountObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, 1, Tag);
+	return SpecifyContinuousObservation(Schema, 1, 1.0f, Tag);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyStructObservation(ULearningAgentsObservationSchema* Schema, const TMap<FName, FLearningAgentsObservationSchemaElement>& Elements, const FName Tag)
@@ -913,7 +919,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyEnum
 		return FLearningAgentsObservationSchemaElement();
 	}
 
-	return SpecifyContinuousObservation(Schema, Enum->NumEnums() - 1, Tag);
+	return SpecifyContinuousObservation(Schema, Enum->NumEnums() - 1, 1.0f, Tag);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyBitmaskObservation(ULearningAgentsObservationSchema* Schema, const UEnum* Enum, const FName Tag)
@@ -930,7 +936,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyBitm
 		return FLearningAgentsObservationSchemaElement();
 	}
 
-	return SpecifyContinuousObservation(Schema, Enum->NumEnums() - 1, Tag);
+	return SpecifyContinuousObservation(Schema, Enum->NumEnums() - 1, 1.0f, Tag);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyOptionalObservation(ULearningAgentsObservationSchema* Schema, const FLearningAgentsObservationSchemaElement Element, const int32 EncodingSize, const FName Tag)
@@ -974,30 +980,30 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyEnco
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyBoolObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, 1, Tag);
+	return SpecifyContinuousObservation(Schema, 1, 1.0f, Tag);
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyFloatObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
+FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyFloatObservation(ULearningAgentsObservationSchema* Schema, const float FloatScale, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, 1, Tag);
+	return SpecifyContinuousObservation(Schema, 1, FloatScale, Tag);
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyLocationObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
+FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyLocationObservation(ULearningAgentsObservationSchema* Schema, const float LocationScale, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, 3, Tag);
+	return SpecifyContinuousObservation(Schema, 3, LocationScale, Tag);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyRotationObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, 6, Tag);
+	return SpecifyContinuousObservation(Schema, 6, 1.0f, Tag);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyScaleObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, 3, Tag);
+	return SpecifyContinuousObservation(Schema, 3, 1.0f, Tag);
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyTransformObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
+FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyTransformObservation(ULearningAgentsObservationSchema* Schema, const float LocationScale, const FName Tag)
 {
 	return SpecifyStructObservationFromArrayViews(Schema,
 		{
@@ -1006,7 +1012,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyTran
 			TEXT("Scale")
 		},
 		{
-			SpecifyLocationObservation(Schema),
+			SpecifyLocationObservation(Schema, LocationScale),
 			SpecifyRotationObservation(Schema),
 			SpecifyScaleObservation(Schema)
 		}, 
@@ -1015,22 +1021,22 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyTran
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyAngleObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, 2, Tag);
+	return SpecifyContinuousObservation(Schema, 2, 1.0f, Tag);
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyVelocityObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
+FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyVelocityObservation(ULearningAgentsObservationSchema* Schema, const float VelocityScale, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, 3, Tag);
+	return SpecifyContinuousObservation(Schema, 3, VelocityScale, Tag);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyDirectionObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
 {
-	return SpecifyContinuousObservation(Schema, 3, Tag);
+	return SpecifyContinuousObservation(Schema, 3, 1.0f, Tag);
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyLocationAlongSplineObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
+FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyLocationAlongSplineObservation(ULearningAgentsObservationSchema* Schema, const float LocationScale, const FName Tag)
 {
-	return SpecifyLocationObservation(Schema, Tag);
+	return SpecifyLocationObservation(Schema, LocationScale, Tag);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyProportionAlongSplineObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
@@ -1055,7 +1061,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyDire
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyProportionAlongRayObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
 {
-	return SpecifyFloatObservation(Schema, Tag);
+	return SpecifyFloatObservation(Schema, 1.0f, Tag);
 }
 
 void ULearningAgentsObservations::LogObservation(const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element)
@@ -1121,12 +1127,11 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeContinu
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nValues: %s\nEncoded: %s"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nValues: %s"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
-			*UE::Learning::Array::FormatFloat(Values),
-			*UE::Learning::Array::FormatFloat(Values)); // Encoded is identical to provided values
+			*UE::Learning::Array::FormatFloat(Values));
 	}
 #endif
 
@@ -1821,7 +1826,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeBoolObs
 FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeFloatObservation(
 	ULearningAgentsObservationObject* Object,
 	const float Value,
-	const float FloatScale,
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -1829,8 +1833,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeFloatOb
 	const FVector VisualLoggerLocation,
 	const FLinearColor VisualLoggerColor)
 {
-	const float EncodedValue = Value / FMath::Max(FloatScale, UE_SMALL_NUMBER);
-
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
@@ -1838,24 +1840,21 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeFloatOb
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nValue: [% 6.1f]\nScale: [% 6.2f]\nEncoded: [% 6.2f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nValue: [% 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
-			Value,
-			FloatScale,
-			EncodedValue);
+			Value);
 	}
 #endif
 
-	return MakeContinuousObservationFromArrayView(Object, { EncodedValue }, Tag);
+	return MakeContinuousObservationFromArrayView(Object, { Value }, Tag);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeLocationObservation(
 	ULearningAgentsObservationObject* Object,
 	const FVector Location,
 	const FTransform RelativeTransform,
-	const float LocationScale,
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -1864,10 +1863,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeLocatio
 	const FLinearColor VisualLoggerColor)
 {
 	const FVector LocalLocation = RelativeTransform.InverseTransformPosition(Location);
-	const FVector EncodedLocation = FVector(
-		LocalLocation.X / FMath::Max(LocationScale, UE_SMALL_NUMBER),
-		LocalLocation.Y / FMath::Max(LocationScale, UE_SMALL_NUMBER),
-		LocalLocation.Z / FMath::Max(LocationScale, UE_SMALL_NUMBER));
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
@@ -1894,21 +1889,19 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeLocatio
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocation: [% 6.1f % 6.1f % 6.1f]\nLocal Location: [% 6.1f % 6.1f % 6.1f]\nScale: [% 6.2f]\nEncoded: [% 6.2f % 6.2f % 6.2f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocation: [% 6.1f % 6.1f % 6.1f]\nLocal Location: [% 6.1f % 6.1f % 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
 			Location.X, Location.Y, Location.Z,
-			LocalLocation.X, LocalLocation.Y, LocalLocation.Z,
-			LocationScale,
-			EncodedLocation.X, EncodedLocation.Y, EncodedLocation.Z);
+			LocalLocation.X, LocalLocation.Y, LocalLocation.Z);
 	}
 #endif
 
 	return MakeContinuousObservationFromArrayView(Object, {
-		(float)EncodedLocation.X,
-		(float)EncodedLocation.Y,
-		(float)EncodedLocation.Z,
+		(float)LocalLocation.X,
+		(float)LocalLocation.Y,
+		(float)LocalLocation.Z,
 		}, Tag);
 }
 
@@ -2025,7 +2018,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeTransfo
 	ULearningAgentsObservationObject* Object,
 	const FTransform Transform,
 	const FTransform RelativeTransform,
-	const float LocationScale,
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -2056,7 +2048,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeTransfo
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocation: [% 6.1f % 6.1f % 6.1f]\nLocal Location: [% 6.1f % 6.1f % 6.1f]\nRotation: [% 6.1f % 6.1f % 6.1f]\nLocal Rotation: [% 6.1f % 6.1f % 6.1f]\nScale: [% 6.1f % 6.1f % 6.1f]\nLocal Scale: [% 6.1f % 6.1f % 6.1f]\nLocation Scale: [% 6.1f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocation: [% 6.1f % 6.1f % 6.1f]\nLocal Location: [% 6.1f % 6.1f % 6.1f]\nRotation: [% 6.1f % 6.1f % 6.1f]\nLocal Rotation: [% 6.1f % 6.1f % 6.1f]\nScale: [% 6.1f % 6.1f % 6.1f]\nLocal Scale: [% 6.1f % 6.1f % 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
@@ -2065,8 +2057,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeTransfo
 			Rotation.Roll, Rotation.Pitch, Rotation.Yaw,
 			LocalRotation.Roll, LocalRotation.Pitch, LocalRotation.Yaw,
 			Scale.X, Scale.Y, Scale.Z,
-			LocalScale.X, LocalScale.Y, LocalScale.Z,
-			LocationScale);
+			LocalScale.X, LocalScale.Y, LocalScale.Z);
 	}
 #endif
 
@@ -2077,7 +2068,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeTransfo
 			TEXT("Scale")
 		},
 		{
-			MakeLocationObservation(Object, LocalTransform.GetLocation(), FTransform::Identity, LocationScale),
+			MakeLocationObservation(Object, LocalTransform.GetLocation(), FTransform::Identity),
 			MakeRotationObservationFromQuat(Object, LocalTransform.GetRotation(), FQuat::Identity),
 			MakeScaleObservation(Object, LocalTransform.GetScale3D(), FVector::OneVector)
 		},
@@ -2155,7 +2146,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeVelocit
 	ULearningAgentsObservationObject* Object, 
 	const FVector Velocity, 
 	const FTransform RelativeTransform, 
-	const float VelocityScale, 
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -2165,10 +2155,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeVelocit
 	const FLinearColor VisualLoggerColor)
 {
 	const FVector LocalVelocity = RelativeTransform.InverseTransformVectorNoScale(Velocity);
-	const FVector EncodedVelocity = FVector(
-		LocalVelocity.X / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
-		LocalVelocity.Y / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
-		LocalVelocity.Z / FMath::Max(VelocityScale, UE_SMALL_NUMBER));
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
@@ -2189,17 +2175,16 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeVelocit
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nVelocity: [% 6.1f % 6.1f % 6.1f]\nLocal Velocity: [% 6.1f % 6.1f % 6.1f]\nEncoded: [% 6.2f % 6.2f % 6.2f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nVelocity: [% 6.1f % 6.1f % 6.1f]\nLocal Velocity: [% 6.1f % 6.1f % 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
 			Velocity.X, Velocity.Y, Velocity.Z,
-			LocalVelocity.X, LocalVelocity.Y, LocalVelocity.Z,
-			EncodedVelocity.X, EncodedVelocity.Y, EncodedVelocity.Z);
+			LocalVelocity.X, LocalVelocity.Y, LocalVelocity.Z);
 	}
 #endif
 
-	return MakeContinuousObservationFromArrayView(Object, { (float)EncodedVelocity.X, (float)EncodedVelocity.Y, (float)EncodedVelocity.Z }, Tag);
+	return MakeContinuousObservationFromArrayView(Object, { (float)LocalVelocity.X, (float)LocalVelocity.Y, (float)LocalVelocity.Z }, Tag);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeDirectionObservation(
@@ -2236,13 +2221,12 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeDirecti
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nDirection: [% 6.1f % 6.1f % 6.1f]\nLocal Direction: [% 6.1f % 6.1f % 6.1f]\nEncoded: [% 6.2f % 6.2f % 6.2f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nDirection: [% 6.1f % 6.1f % 6.1f]\nLocal Direction: [% 6.1f % 6.1f % 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
 			Direction.X, Direction.Y, Direction.Z,
-			LocalDirection.X, LocalDirection.Y, LocalDirection.Z,
-			LocalDirection.X, LocalDirection.Y, LocalDirection.Z); // We don't have a scaling so the encoded value is the same
+			LocalDirection.X, LocalDirection.Y, LocalDirection.Z);
 	}
 #endif
 
@@ -2258,7 +2242,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeLocatio
 	const USplineComponent* SplineComponent,
 	const float DistanceAlongSpline,
 	const FTransform RelativeTransform,
-	const float LocationScale,
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -2279,7 +2262,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeLocatio
 		Object, 
 		SplineComponent->GetLocationAtDistanceAlongSpline(LoopedDistance, ESplineCoordinateSpace::World), 
 		RelativeTransform, 
-		LocationScale, 
 		Tag, 
 		bVisualLoggerEnabled, 
 		VisualLoggerListener, 
@@ -2330,7 +2312,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProport
 		return MakeExclusiveUnionObservation(Object, TEXT("Proportion"), MakeFloatObservation(
 			Object, 
 			Proportion, 
-			1.0f, 
 			TEXT("FloatObservation"),
 			bVisualLoggerEnabled, 
 			VisualLoggerListener, 
@@ -2452,7 +2433,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProport
 	}
 #endif
 
-	return MakeFloatObservation(Object, Encoded, 1.0f, Tag);
+	return MakeFloatObservation(Object, Encoded, Tag);
 }
 
 
@@ -3696,7 +3677,7 @@ bool ULearningAgentsObservations::GetEncodingObservation(FLearningAgentsObservat
 bool ULearningAgentsObservations::GetBoolObservation(bool& bOutValue, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
 {
 	float OutValue = 0.0f;
-	if (!GetFloatObservation(OutValue, Object, Element, 1.0f, Tag))
+	if (!GetFloatObservation(OutValue, Object, Element, Tag))
 	{
 		bOutValue = false;
 		return false;
@@ -3706,20 +3687,18 @@ bool ULearningAgentsObservations::GetBoolObservation(bool& bOutValue, const ULea
 	return true;
 }
 
-bool ULearningAgentsObservations::GetFloatObservation(float& OutValue, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const float FloatScale, const FName Tag)
+bool ULearningAgentsObservations::GetFloatObservation(float& OutValue, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
 {
-	float OutValuesData;
-	if (!GetContinuousObservationToArrayView(MakeArrayView(&OutValuesData, 1), Object, Element, Tag))
+	if (!GetContinuousObservationToArrayView(MakeArrayView(&OutValue, 1), Object, Element, Tag))
 	{
 		OutValue = 0.0f;
 		return false;
 	}
 
-	OutValue = OutValuesData * FloatScale;
 	return true;
 }
 
-bool ULearningAgentsObservations::GetLocationObservation(FVector& OutLocation, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const FName Tag)
+bool ULearningAgentsObservations::GetLocationObservation(FVector& OutLocation, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const FName Tag)
 {
 	TStaticArray<float, 3> OutValues;
 	if (!GetContinuousObservationToArrayView(OutValues, Object, Element, Tag))
@@ -3728,7 +3707,7 @@ bool ULearningAgentsObservations::GetLocationObservation(FVector& OutLocation, c
 		return false;
 	}
 
-	OutLocation = RelativeTransform.TransformPosition(LocationScale * FVector(OutValues[0], OutValues[1], OutValues[2]));
+	OutLocation = RelativeTransform.TransformPosition(FVector(OutValues[0], OutValues[1], OutValues[2]));
 	return true;
 }
 
@@ -3782,7 +3761,7 @@ bool ULearningAgentsObservations::GetScaleObservation(FVector& OutScale, const U
 	return true;
 }
 
-bool ULearningAgentsObservations::GetTransformObservation(FTransform& OutTransform, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const FName Tag)
+bool ULearningAgentsObservations::GetTransformObservation(FTransform& OutTransform, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const FName Tag)
 {
 	TStaticArray<FName, 3> OutElementNames;
 	TStaticArray<FLearningAgentsObservationObjectElement, 3> OutElements;
@@ -3794,7 +3773,7 @@ bool ULearningAgentsObservations::GetTransformObservation(FTransform& OutTransfo
 
 	const int32 LocationElement = MakeArrayView(OutElementNames).Find(TEXT("Location"));
 	FVector OutLocation;
-	if (LocationElement == INDEX_NONE || !GetLocationObservation(OutLocation, Object, OutElements[LocationElement], RelativeTransform, LocationScale))
+	if (LocationElement == INDEX_NONE || !GetLocationObservation(OutLocation, Object, OutElements[LocationElement], RelativeTransform))
 	{
 		OutTransform = FTransform::Identity;
 		return false;
@@ -3845,7 +3824,7 @@ bool ULearningAgentsObservations::GetAngleObservation(float& OutAngle, const ULe
 	return true;
 }
 
-bool ULearningAgentsObservations::GetVelocityObservation(FVector& OutVelocity, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float VelocityScale, const FName Tag)
+bool ULearningAgentsObservations::GetVelocityObservation(FVector& OutVelocity, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const FName Tag)
 {
 	TStaticArray<float, 3> OutValues;
 	if (!GetContinuousObservationToArrayView(OutValues, Object, Element, Tag))
@@ -3854,7 +3833,7 @@ bool ULearningAgentsObservations::GetVelocityObservation(FVector& OutVelocity, c
 		return false;
 	}
 
-	OutVelocity = RelativeTransform.TransformVectorNoScale(VelocityScale * FVector(OutValues[0], OutValues[1], OutValues[2]));
+	OutVelocity = RelativeTransform.TransformVectorNoScale(FVector(OutValues[0], OutValues[1], OutValues[2]));
 	return true;
 }
 
@@ -3871,9 +3850,9 @@ bool ULearningAgentsObservations::GetDirectionObservation(FVector& OutDirection,
 	return true;
 }
 
-bool ULearningAgentsObservations::GetLocationAlongSplineObservation(FVector& OutLocation, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const FName Tag)
+bool ULearningAgentsObservations::GetLocationAlongSplineObservation(FVector& OutLocation, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const FName Tag)
 {
-	return GetLocationObservation(OutLocation, Object, Element, RelativeTransform, LocationScale, Tag);
+	return GetLocationObservation(OutLocation, Object, Element, RelativeTransform, Tag);
 }
 
 bool ULearningAgentsObservations::GetProportionAlongSplineObservation(bool& bOutIsClosedLoop, float& OutAngle, float& OutPropotion, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
@@ -3909,7 +3888,7 @@ bool ULearningAgentsObservations::GetDirectionAlongSplineObservation(FVector& Ou
 
 bool ULearningAgentsObservations::GetProportionAlongRayObservation(float& OutProportion, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
 {
-	if (!GetFloatObservation(OutProportion, Object, Element, 1.0f, Tag))
+	if (!GetFloatObservation(OutProportion, Object, Element, Tag))
 	{
 		OutProportion = 0.0f;
 		return false;

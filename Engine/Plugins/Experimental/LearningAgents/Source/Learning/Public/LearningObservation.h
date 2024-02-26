@@ -58,6 +58,9 @@ namespace UE::Learning::Observation
 	{
 		// Number of values in the continuous observation
 		int32 Num = 0;
+
+		// Scale factor for the continuous observation
+		float Scale = 1.0f;
 	};
 
 	struct FSchemaAndParameters
@@ -204,7 +207,7 @@ namespace UE::Learning::Observation
 		struct FContinuousData
 		{
 			int32 Num = INDEX_NONE;
-			float Scale = 1.0f;
+			float Scale = 0.0f;
 		};
 
 		struct FAndData

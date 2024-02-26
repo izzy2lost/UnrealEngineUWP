@@ -61,6 +61,9 @@ namespace UE::Learning::Action
 	{
 		// Number of values in the continuous action
 		int32 Num = 0;
+
+		// Scale factor for the continuous action
+		float Scale = 1.0f;
 	};
 
 	struct FSchemaDiscreteExclusiveParameters
@@ -206,6 +209,7 @@ namespace UE::Learning::Action
 		struct FContinuousData
 		{
 			int32 Num = INDEX_NONE;
+			float Scale = 0.0f;
 		};
 
 		struct FDiscreteExclusiveData

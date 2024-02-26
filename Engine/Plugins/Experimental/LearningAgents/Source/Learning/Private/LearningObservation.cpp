@@ -78,9 +78,11 @@ namespace UE::Learning::Observation
 	FSchemaElement FSchema::CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Num >= 0);
+		UE_LEARNING_CHECK(Parameters.Scale >= 0.0f);
 
 		FContinuousData ElementData;
 		ElementData.Num = Parameters.Num;
+		ElementData.Scale = Parameters.Scale;
 
 		const int32 Index = Types.Add(EType::Continuous);
 		Tags.Add(Tag);
@@ -259,9 +261,11 @@ namespace UE::Learning::Observation
 	FSchemaContinuousParameters FSchema::GetContinuous(const FSchemaElement Element) const
 	{
 		UE_LEARNING_CHECK(IsValid(Element) && GetType(Element) == EType::Continuous);
+		const FContinuousData& ElementData = ContinuousData[TypeDataIndices[Element.Index]];
 
 		FSchemaContinuousParameters Parameters;
-		Parameters.Num = ContinuousData[TypeDataIndices[Element.Index]].Num;
+		Parameters.Num = ElementData.Num;
+		Parameters.Scale = ElementData.Scale;
 		return Parameters;
 	}
 
@@ -1106,13 +1110,23 @@ namespace UE::Learning::Observation
 		{
 			// Check the input sizes match
 
+			const FSchemaContinuousParameters SchemaParameters = Schema.GetContinuous(SchemaElement);
+
 			const TArrayView<const float> ObservationValues = Object.GetContinuous(ObjectElement).Values;
 			UE_LEARNING_CHECK(Schema.GetObservationVectorSize(SchemaElement) == ObservationValues.Num());
 			UE_LEARNING_CHECK(Schema.GetObservationVectorSize(SchemaElement) == OutObservationVector.Num());
+			UE_LEARNING_CHECK(Schema.GetObservationVectorSize(SchemaElement) == SchemaParameters.Num);
 
-			// Copy in the values from the observation object
+			// Copy in and scale the values from the observation object
 
-			Array::Copy<1, float>(OutObservationVector, ObservationValues);
+			const int32 ValueNum = SchemaParameters.Num;
+			const float ValueScale = FMath::Max(SchemaParameters.Scale, UE_SMALL_NUMBER);
+
+			for (int32 ValueIdx = 0; ValueIdx < ValueNum; ValueIdx++)
+			{
+				OutObservationVector[ValueIdx] = ObservationValues[ValueIdx] / ValueScale;
+			}
+
 			return;
 		}
 
@@ -1342,9 +1356,20 @@ namespace UE::Learning::Observation
 
 		case EType::Continuous:
 		{
-			UE_LEARNING_CHECK(ObservationVectorSize == Schema.GetContinuous(SchemaElement).Num);
+			const FSchemaContinuousParameters SchemaParameters = Schema.GetContinuous(SchemaElement);
+			UE_LEARNING_CHECK(ObservationVectorSize == SchemaParameters.Num);
 
-			OutObjectElement = OutObject.CreateContinuous({ MakeArrayView(ObservationVector.GetData(), ObservationVector.Num()) }, SchemaElementTag);
+			const int32 ValueNum = SchemaParameters.Num;
+			const float ValueScale = FMath::Max(SchemaParameters.Scale, UE_SMALL_NUMBER);
+
+			TLearningArray<1, float, TInlineAllocator<32>> ObservationValues;
+			ObservationValues.SetNumUninitialized({ ValueNum });
+			for (int32 ValueIdx = 0; ValueIdx < ValueNum; ValueIdx++)
+			{
+				ObservationValues[ValueIdx] = ValueScale * ObservationVector[ValueIdx];
+			}
+
+			OutObjectElement = OutObject.CreateContinuous({ MakeArrayView(ObservationValues.GetData(), ObservationValues.Num()) }, SchemaElementTag);
 			return;
 		}
 

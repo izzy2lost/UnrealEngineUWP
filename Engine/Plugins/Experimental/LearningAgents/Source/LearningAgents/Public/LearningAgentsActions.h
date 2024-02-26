@@ -146,11 +146,12 @@ public:
 	 *
 	 * @param Schema The Action Schema
 	 * @param Size The number of float values in the action.
+	 * @param Scale The scale used for this action.
 	 * @param Tag The tag of this new action. Used during action object validation and debugging.
 	 * @return The newly created action schema element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
-	static FLearningAgentsActionSchemaElement SpecifyContinuousAction(ULearningAgentsActionSchema* Schema, const int32 Size, const FName Tag = TEXT("ContinuousAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	static FLearningAgentsActionSchemaElement SpecifyContinuousAction(ULearningAgentsActionSchema* Schema, const int32 Size, const float Scale = 1.0f, const FName Tag = TEXT("ContinuousAction"));
 
 	/**
 	 * Specifies a new exclusive discrete action. This represents an action which is an exclusive choice from a number of discrete options, sampled 
@@ -468,71 +469,85 @@ public:
 	 * catch-all for situations where a type-specific action does not exist.
 	 *
 	 * @param Schema The Action Schema
+	 * @param FloatScale The scale used for this action.
 	 * @param Tag The tag of this new action. Used during action object validation and debugging.
 	 * @return The newly created action schema element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 1))
-	static FLearningAgentsActionSchemaElement SpecifyFloatAction(ULearningAgentsActionSchema* Schema, const FName Tag = TEXT("FloatAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	static FLearningAgentsActionSchemaElement SpecifyFloatAction(ULearningAgentsActionSchema* Schema, const float FloatScale = 1.0f, const FName Tag = TEXT("FloatAction"));
 
 	/**
 	 * Specifies a new location action. This represents an action which is a location sampled from a Gaussian distribution.
 	 *
 	 * @param Schema The Action Schema
+	 * @param LocationScale The scale used for this action in cm.
 	 * @param Tag The tag of this new action. Used during action object validation and debugging.
 	 * @return The newly created action schema element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 1))
-	static FLearningAgentsActionSchemaElement SpecifyLocationAction(ULearningAgentsActionSchema* Schema, const FName Tag = TEXT("LocationAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	static FLearningAgentsActionSchemaElement SpecifyLocationAction(ULearningAgentsActionSchema* Schema, const float LocationScale = 100.0f, const FName Tag = TEXT("LocationAction"));
 
 	/**
 	 * Specifies a new rotation action. This represents an action which is a rotation sampled from a Gaussian distribution in the angle-axis space.
 	 *
 	 * @param Schema The Action Schema
+	 * @param RotationScale The scale used for this action in degrees.
 	 * @param Tag The tag of this new action. Used during action object validation and debugging.
 	 * @return The newly created action schema element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 1))
-	static FLearningAgentsActionSchemaElement SpecifyRotationAction(ULearningAgentsActionSchema* Schema, const FName Tag = TEXT("RotationAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	static FLearningAgentsActionSchemaElement SpecifyRotationAction(ULearningAgentsActionSchema* Schema, const float RotationScale = 90.0f, const FName Tag = TEXT("RotationAction"));
 
 	/**
 	 * Specifies a new scale action. This represents an action which is a scale sampled from a Gaussian distribution in the log space.
 	 *
 	 * @param Schema The Action Schema
+	 * @param ScaleScale The scale used for this action.
 	 * @param Tag The tag of this new action. Used during action object validation and debugging.
 	 * @return The newly created action schema element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 1))
-	static FLearningAgentsActionSchemaElement SpecifyScaleAction(ULearningAgentsActionSchema* Schema, const FName Tag = TEXT("ScaleAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	static FLearningAgentsActionSchemaElement SpecifyScaleAction(ULearningAgentsActionSchema* Schema, const float ScaleScale = 1.0f, const FName Tag = TEXT("ScaleAction"));
 
 	/**
 	 * Specifies a new transform action.
 	 *
 	 * @param Schema The Action Schema
+	 * @param LocationScale The scale used for the Location part of the transform in this action in cm.
+	 * @param RotationScale The scale used for the Rotation part of the transform in this action in degrees.
+	 * @param ScaleScale The scale used for the Scale part of the transform in this action.
 	 * @param Tag The tag of this new action. Used during action object validation and debugging.
 	 * @return The newly created action schema element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 1))
-	static FLearningAgentsActionSchemaElement SpecifyTransformAction(ULearningAgentsActionSchema* Schema, const FName Tag = TEXT("TransformAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
+	static FLearningAgentsActionSchemaElement SpecifyTransformAction(
+		ULearningAgentsActionSchema* Schema, 
+		const float LocationScale = 100.0f, 
+		const float RotationScale = 90.0f, 
+		const float ScaleScale = 1.0f, 
+		const FName Tag = TEXT("TransformAction"));
 
 	/**
 	 * Specifies a new angle action. This represents an action which is an angle sampled from a Gaussian distribution centered around zero.
 	 *
 	 * @param Schema The Action Schema
+	 * @param AngleScale The scale used for this action in degrees.
 	 * @param Tag The tag of this new action. Used during action object validation and debugging.
 	 * @return The newly created action schema element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 1))
-	static FLearningAgentsActionSchemaElement SpecifyAngleAction(ULearningAgentsActionSchema* Schema, const FName Tag = TEXT("AngleAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	static FLearningAgentsActionSchemaElement SpecifyAngleAction(ULearningAgentsActionSchema* Schema, const float AngleScale = 90.0f, const FName Tag = TEXT("AngleAction"));
 
 	/**
 	 * Specifies a new velocity action. This represents an action which is a velocity sampled from a Gaussian distribution.
 	 *
 	 * @param Schema The Action Schema
+	 * @param VelocityScale The scale used for this action in cm/s.
 	 * @param Tag The tag of this new action. Used during action object validation and debugging.
 	 * @return The newly created action schema element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 1))
-	static FLearningAgentsActionSchemaElement SpecifyVelocityAction(ULearningAgentsActionSchema* Schema, const FName Tag = TEXT("VelocityAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	static FLearningAgentsActionSchemaElement SpecifyVelocityAction(ULearningAgentsActionSchema* Schema, const float VelocityScale = 200.0f, const FName Tag = TEXT("VelocityAction"));
 
 	/**
 	 * Specifies a new direction action. This represents an action which is a direction sampled from a Gaussian distribution and normalized.
@@ -614,32 +629,32 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
 	static FLearningAgentsActionObjectElement MakeBoolAction(ULearningAgentsActionObject* Object, const bool bValue, const FName Tag = TEXT("BoolAction"));
 
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	static FLearningAgentsActionObjectElement MakeFloatAction(ULearningAgentsActionObject* Object, const float Value, const FName Tag = TEXT("FloatAction"));
+
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
-	static FLearningAgentsActionObjectElement MakeFloatAction(ULearningAgentsActionObject* Object, const float Value, const float FloatScale = 1.0f, const FName Tag = TEXT("FloatAction"));
+	static FLearningAgentsActionObjectElement MakeLocationAction(ULearningAgentsActionObject* Object, const FVector Location, const FTransform RelativeTransform = FTransform(), const FName Tag = TEXT("LocationAction"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
-	static FLearningAgentsActionObjectElement MakeLocationAction(ULearningAgentsActionObject* Object, const FVector Location, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Tag = TEXT("LocationAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	static FLearningAgentsActionObjectElement MakeRotationAction(ULearningAgentsActionObject* Object, const FRotator Rotation, const FRotator RelativeRotation = FRotator::ZeroRotator, const FName Tag = TEXT("RotationAction"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
-	static FLearningAgentsActionObjectElement MakeRotationAction(ULearningAgentsActionObject* Object, const FRotator Rotation, const FRotator RelativeRotation = FRotator::ZeroRotator, const float RotationScale = 90.0f, const FName Tag = TEXT("RotationAction"));
-
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
-	static FLearningAgentsActionObjectElement MakeRotationActionFromQuat(ULearningAgentsActionObject* Object, const FQuat Rotation, const FQuat RelativeRotation, const float RotationScale = 90.0f, const FName Tag = TEXT("RotationAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	static FLearningAgentsActionObjectElement MakeRotationActionFromQuat(ULearningAgentsActionObject* Object, const FQuat Rotation, const FQuat RelativeRotation, const FName Tag = TEXT("RotationAction"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
 	static FLearningAgentsActionObjectElement MakeScaleAction(ULearningAgentsActionObject* Object, const FVector Scale, const FVector RelativeScale = FVector(1, 1, 1), const FName Tag = TEXT("ScaleAction"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
-	static FLearningAgentsActionObjectElement MakeTransformAction(ULearningAgentsActionObject* Object, const FTransform Transform, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Tag = TEXT("TransformAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	static FLearningAgentsActionObjectElement MakeTransformAction(ULearningAgentsActionObject* Object, const FTransform Transform, const FTransform RelativeTransform = FTransform(), const FName Tag = TEXT("TransformAction"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
-	static FLearningAgentsActionObjectElement MakeAngleAction(ULearningAgentsActionObject* Object, const float Angle, const float RelativeAngle = 0.0f, const float AngleScale = 90.0f, const FName Tag = TEXT("AngleAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	static FLearningAgentsActionObjectElement MakeAngleAction(ULearningAgentsActionObject* Object, const float Angle, const float RelativeAngle = 0.0f, const FName Tag = TEXT("AngleAction"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
-	static FLearningAgentsActionObjectElement MakeAngleActionRadians(ULearningAgentsActionObject* Object, const float Angle, const float RelativeAngle = 0.0f, const float AngleScale = 1.57079632679f, const FName Tag = TEXT("AngleAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	static FLearningAgentsActionObjectElement MakeAngleActionRadians(ULearningAgentsActionObject* Object, const float Angle, const float RelativeAngle = 0.0f, const FName Tag = TEXT("AngleAction"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
-	static FLearningAgentsActionObjectElement MakeVelocityAction(ULearningAgentsActionObject* Object, const FVector Velocity, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Tag = TEXT("VelocityAction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	static FLearningAgentsActionObjectElement MakeVelocityAction(ULearningAgentsActionObject* Object, const FVector Velocity, const FTransform RelativeTransform = FTransform(), const FName Tag = TEXT("VelocityAction"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
 	static FLearningAgentsActionObjectElement MakeDirectionAction(ULearningAgentsActionObject* Object, const FVector Direction, const FTransform RelativeTransform = FTransform(), const FName Tag = TEXT("DirectionAction"));
@@ -1093,7 +1108,6 @@ public:
 	 * @param OutValue The output float value.
 	 * @param Object The Action Object
 	 * @param Element The Action Object Element
-	 * @param FloatScale The scale used to control the overall magnitude of the outputted float action.
 	 * @param Tag The tag of the corresponding action. Must match the tag given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
 	 * @param VisualLoggerListener The listener object which is making this action. This must be set to use logging.
@@ -1102,12 +1116,11 @@ public:
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return true if the provided Element is the correct type, otherwise false.
 	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 4, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 3, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
 	static bool GetFloatAction(
 		float& OutValue, 
 		const ULearningAgentsActionObject* Object, 
 		const FLearningAgentsActionObjectElement Element, 
-		const float FloatScale = 1.0f, 
 		const FName Tag = TEXT("FloatAction"),
 		const bool bVisualLoggerEnabled = false,
 		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
@@ -1122,7 +1135,6 @@ public:
 	 * @param Object The Action Object
 	 * @param Element The Action Object Element
 	 * @param RelativeTransform The relative transform to transform the location by.
-	 * @param LocationScale The scale used to control the overall magnitude of the outputted location action.
 	 * @param Tag The tag of the corresponding action. Must match the tag given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
 	 * @param VisualLoggerListener The listener object which is making this action. This must be set to use logging.
@@ -1131,13 +1143,12 @@ public:
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return true if the provided Element is the correct type, otherwise false.
 	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 5, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 4, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
 	static bool GetLocationAction(
 		FVector& OutLocation, 
 		const ULearningAgentsActionObject* Object, 
 		const FLearningAgentsActionObjectElement Element, 
 		const FTransform RelativeTransform = FTransform(), 
-		const float LocationScale = 100.0f, 
 		const FName Tag = TEXT("LocationAction"),
 		const bool bVisualLoggerEnabled = false,
 		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
@@ -1152,7 +1163,6 @@ public:
 	 * @param Object The Action Object
 	 * @param Element The Action Object Element
 	 * @param RelativeRotation The relative rotation to transform the rotation by.
-	 * @param RotationScale The scale used to control the overall magnitude of the outputted rotation action.
 	 * @param Tag The tag of the corresponding action. Must match the tag given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
 	 * @param VisualLoggerListener The listener object which is making this action. This must be set to use logging.
@@ -1162,13 +1172,12 @@ public:
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return true if the provided Element is the correct type, otherwise false.
 	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 5, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 4, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
 	static bool GetRotationAction(
 		FRotator& OutRotation, 
 		const ULearningAgentsActionObject* Object, 
 		const FLearningAgentsActionObjectElement Element, 
 		const FRotator RelativeRotation = FRotator::ZeroRotator, 
-		const float RotationScale = 90.0f, 
 		const FName Tag = TEXT("RotationAction"),
 		const bool bVisualLoggerEnabled = false,
 		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
@@ -1184,7 +1193,6 @@ public:
 	 * @param Object The Action Object
 	 * @param Element The Action Object Element
 	 * @param RelativeRotation The relative rotation to transform the rotation by.
-	 * @param RotationScale The scale used to control the overall magnitude of the outputted rotation action.
 	 * @param Tag The tag of the corresponding action. Must match the tag given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
 	 * @param VisualLoggerListener The listener object which is making this action. This must be set to use logging.
@@ -1194,13 +1202,12 @@ public:
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return true if the provided Element is the correct type, otherwise false.
 	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 5, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 4, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
 	static bool GetRotationActionAsQuat(
 		FQuat& OutRotation, 
 		const ULearningAgentsActionObject* Object, 
 		const FLearningAgentsActionObjectElement Element, 
 		const FQuat RelativeRotation, 
-		const float RotationScale = 90.0f, 
 		const FName Tag = TEXT("RotationAction"),
 		const bool bVisualLoggerEnabled = false,
 		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
@@ -1216,7 +1223,6 @@ public:
 	 * @param Object The Action Object
 	 * @param Element The Action Object Element
 	 * @param RelativeScale The relative scale to transform the scale by.
-	 * @param Scale The scale used to control the overall magnitude of the outputted scale action.
 	 * @param Tag The tag of the corresponding action. Must match the tag given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
 	 * @param VisualLoggerListener The listener object which is making this action. This must be set to use logging.
@@ -1225,13 +1231,12 @@ public:
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return true if the provided Element is the correct type, otherwise false.
 	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 5, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 4, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
 	static bool GetScaleAction(
 		FVector& OutScale, 
 		const ULearningAgentsActionObject* Object, 
 		const FLearningAgentsActionObjectElement Element, 
 		const FVector RelativeScale = FVector(1, 1, 1), 
-		const float Scale = 1.0f, 
 		const FName Tag = TEXT("ScaleAction"),
 		const bool bVisualLoggerEnabled = false,
 		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
@@ -1246,9 +1251,6 @@ public:
 	 * @param Object The Action Object
 	 * @param Element The Action Object Element
 	 * @param RelativeTransform The relative transform.
-	 * @param LocationScale The scale used to control the overall magnitude of the outputted location action.
-	 * @param RotationScale The scale used to control the overall magnitude of the outputted rotation action.
-	 * @param ScaleScale The scale used to control the overall magnitude of the outputted scale action.
 	 * @param Tag The tag of the corresponding action. Must match the tag given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
 	 * @param VisualLoggerListener The listener object which is making this action. This must be set to use logging.
@@ -1257,15 +1259,12 @@ public:
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return true if the provided Element is the correct type, otherwise false.
 	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 7, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 6, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
 	static bool GetTransformAction(
 		FTransform& OutTransform, 
 		const ULearningAgentsActionObject* Object, 
 		const FLearningAgentsActionObjectElement Element, 
 		const FTransform RelativeTransform = FTransform(), 
-		const float LocationScale = 100.0f, 
-		const float RotationScale = 1.0f, 
-		const float ScaleScale = 1.0f, 
 		const FName Tag = TEXT("TransformAction"),
 		const bool bVisualLoggerEnabled = false,
 		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
@@ -1280,7 +1279,6 @@ public:
 	 * @param Object The Action Object
 	 * @param Element The Action Object Element
 	 * @param RelativeAngle The relative angle to transform the angle by.
-	 * @param AngleScale The scale used to control the overall magnitude of the outputted scale action.
 	 * @param Tag The tag of the corresponding action. Must match the tag given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
 	 * @param VisualLoggerListener The listener object which is making this action. This must be set to use logging.
@@ -1290,13 +1288,12 @@ public:
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return true if the provided Element is the correct type, otherwise false.
 	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 5, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 4, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
 	static bool GetAngleAction(
 		float& OutAngle, 
 		const ULearningAgentsActionObject* Object, 
 		const FLearningAgentsActionObjectElement Element, 
 		const float RelativeAngle = 0.0f, 
-		const float AngleScale = 90.0f, 
 		const FName Tag = TEXT("AngleAction"),
 		const bool bVisualLoggerEnabled = false,
 		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
@@ -1312,7 +1309,6 @@ public:
 	 * @param Object The Action Object
 	 * @param Element The Action Object Element
 	 * @param RelativeAngle The relative angle to transform the angle by.
-	 * @param AngleScale The scale used to control the overall magnitude of the outputted scale action.
 	 * @param Tag The tag of the corresponding action. Must match the tag given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
 	 * @param VisualLoggerListener The listener object which is making this action. This must be set to use logging.
@@ -1322,13 +1318,12 @@ public:
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return true if the provided Element is the correct type, otherwise false.
 	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 5, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 4, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
 	static bool GetAngleActionRadians(
 		float& OutAngle, 
 		const ULearningAgentsActionObject* Object,
 		const FLearningAgentsActionObjectElement Element, 
 		const float RelativeAngle = 0.0f,
-		const float AngleScale = 1.57079632679f, 
 		const FName Tag = TEXT("AngleAction"),
 		const bool bVisualLoggerEnabled = false,
 		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
@@ -1344,7 +1339,6 @@ public:
 	 * @param Object The Action Object
 	 * @param Element The Action Object Element
 	 * @param RelativeTransform The relative transform to transform the velocity by.
-	 * @param VelocityScale The scale used to control the overall magnitude of the outputted velocity action.
 	 * @param Tag The tag of the corresponding action. Must match the tag given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
 	 * @param VisualLoggerListener The listener object which is making this action. This must be set to use logging.
@@ -1354,13 +1348,12 @@ public:
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return true if the provided Element is the correct type, otherwise false.
 	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 5, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 4, ReturnDisplayName = "Success", DefaultToSelf = "VisualLoggerListener"))
 	static bool GetVelocityAction(
 		FVector& OutVelocity, 
 		const ULearningAgentsActionObject* Object, 
 		const FLearningAgentsActionObjectElement Element, 
 		const FTransform RelativeTransform = FTransform(), 
-		const float VelocityScale = 200.0f, 
 		const FName Tag = TEXT("VelocityAction"),
 		const bool bVisualLoggerEnabled = false,
 		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,

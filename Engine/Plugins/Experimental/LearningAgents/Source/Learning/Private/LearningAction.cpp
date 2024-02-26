@@ -131,8 +131,12 @@ namespace UE::Learning::Action
 
 	FSchemaElement FSchema::CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Tag)
 	{
+		UE_LEARNING_CHECK(Parameters.Num >= 0);
+		UE_LEARNING_CHECK(Parameters.Scale >= 0.0f);
+
 		FContinuousData ElementData;
 		ElementData.Num = Parameters.Num;
+		ElementData.Scale = Parameters.Scale;
 
 		const int32 Index = Types.Add(EType::Continuous);
 		Tags.Add(Tag);
@@ -346,9 +350,11 @@ namespace UE::Learning::Action
 	FSchemaContinuousParameters FSchema::GetContinuous(const FSchemaElement Element) const
 	{
 		UE_LEARNING_CHECK(IsValid(Element) && GetType(Element) == EType::Continuous);
+		const FContinuousData& ElementData = ContinuousData[TypeDataIndices[Element.Index]];
 
 		FSchemaContinuousParameters Parameters;
-		Parameters.Num = ContinuousData[TypeDataIndices[Element.Index]].Num;
+		Parameters.Num = ElementData.Num;
+		Parameters.Scale = ElementData.Scale;
 		return Parameters;
 	}
 
@@ -1491,13 +1497,23 @@ namespace UE::Learning::Action
 		{
 			// Check the input sizes match
 
+			const FSchemaContinuousParameters SchemaParameters = Schema.GetContinuous(SchemaElement);
+
 			TArrayView<const float> ActionValues = Object.GetContinuous(ObjectElement).Values;
 			UE_LEARNING_CHECK(Schema.GetActionVectorSize(SchemaElement) == ActionValues.Num());
 			UE_LEARNING_CHECK(Schema.GetActionVectorSize(SchemaElement) == OutActionVector.Num());
+			UE_LEARNING_CHECK(Schema.GetActionVectorSize(SchemaElement) == SchemaParameters.Num);
 
-			// Copy in the values from the action object
+			// Copy in and scale the values from the action object
 
-			Array::Copy<1, float>(OutActionVector, ActionValues);
+			const int32 ValueNum = SchemaParameters.Num;
+			const float ValueScale = FMath::Max(SchemaParameters.Scale, UE_SMALL_NUMBER);
+
+			for (int32 ValueIdx = 0; ValueIdx < ValueNum; ValueIdx++)
+			{
+				OutActionVector[ValueIdx] = ActionValues[ValueIdx] / ValueScale;
+			}
+
 			return;
 		}
 
@@ -1719,9 +1735,20 @@ namespace UE::Learning::Action
 
 		case EType::Continuous:
 		{
-			UE_LEARNING_CHECK(ActionVectorSize == Schema.GetContinuous(SchemaElement).Num);
+			const FSchemaContinuousParameters SchemaParameters = Schema.GetContinuous(SchemaElement);
+			UE_LEARNING_CHECK(ActionVectorSize == SchemaParameters.Num);
 
-			OutObjectElement = OutObject.CreateContinuous({ MakeArrayView(ActionVector.GetData(), ActionVector.Num()) }, SchemaElementTag);
+			const int32 ValueNum = SchemaParameters.Num;
+			const float ValueScale = FMath::Max(SchemaParameters.Scale, UE_SMALL_NUMBER);
+
+			TLearningArray<1, float, TInlineAllocator<32>> ActionValues;
+			ActionValues.SetNumUninitialized({ ValueNum });
+			for (int32 ValueIdx = 0; ValueIdx < ValueNum; ValueIdx++)
+			{
+				ActionValues[ValueIdx] = ValueScale * ActionVector[ValueIdx];
+			}
+
+			OutObjectElement = OutObject.CreateContinuous({ MakeArrayView(ActionValues.GetData(), ActionValues.Num()) }, SchemaElementTag);
 			return;
 		}
 
