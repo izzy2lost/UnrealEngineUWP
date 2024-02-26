@@ -232,6 +232,15 @@ bool FRigModuleInstance::IsRootModule() const
 	return ParentPath.IsEmpty();
 }
 
+void UModularRig::PostInitProperties()
+{
+	Super::PostInitProperties();
+
+	ModularRigModel.UpdateCachedChildren();
+	ModularRigModel.Connections.UpdateFromConnectionList();
+	UpdateSupportedEvents();
+}
+
 void UModularRig::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
@@ -407,6 +416,20 @@ void UModularRig::Evaluate_AnyThread()
 {
 	ResetExecutionQueue();
 	Super::Evaluate_AnyThread();
+}
+
+bool UModularRig::SupportsEvent(const FName& InEventName) const
+{
+	return GetSupportedEvents().Contains(InEventName);
+}
+
+const TArray<FName>& UModularRig::GetSupportedEvents() const
+{
+	if (SupportedEvents.IsEmpty())
+	{
+		UpdateSupportedEvents();
+	}
+	return SupportedEvents;
 }
 
 const FModularRigSettings& UModularRig::GetModularRigSettings() const
@@ -670,17 +693,20 @@ void UModularRig::UpdateCachedChildren()
 	}
 }
 
-void UModularRig::UpdateSupportedEvents()
+void UModularRig::UpdateSupportedEvents() const
 {
 	SupportedEvents.Reset();
-	ForEachModule([this](const FRigModuleInstance* Module) -> bool
+	ModularRigModel.ForEachModule([this](const FRigModuleReference* Module) -> bool
 	{
-		if (const UControlRig* ModuleRig = Module->GetRig())
+		if (Module->Class.IsValid())
 		{
-			const TArray<FName>& ModuleEvents = ModuleRig->GetSupportedEvents();
-			for (const FName& EventName : ModuleEvents)
+			if (UControlRig* CDO = Module->Class->GetDefaultObject<UControlRig>())
 			{
-				SupportedEvents.AddUnique(EventName);
+				TArray<FName> Events = CDO->GetSupportedEvents();
+				for (const FName& Event : Events)
+				{
+					SupportedEvents.AddUnique(Event);
+				}
 			}
 		}
 		return true;
