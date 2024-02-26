@@ -87,6 +87,8 @@ private:
 		FileContentHashCache.Reset();
 		if (!Filename.IsEmpty())
 		{
+			// @todo : this is slow and not multi-threaded.  Use FXxHash64::HashBufferChunked instead?
+
 			FileContentHashCache = FMD5Hash::HashFile(*Filename);
 		}
 	}
