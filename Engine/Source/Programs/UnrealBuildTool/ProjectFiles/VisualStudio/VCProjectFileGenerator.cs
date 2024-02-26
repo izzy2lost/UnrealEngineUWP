@@ -256,13 +256,49 @@ namespace UnrealBuildTool
 			VCProjectFileContent.AppendLine("    <PlatformToolset>{0}</PlatformToolset>", PlatformToolsetVersionString);
 		}
 
+		// parses project ini for Android to get architecture(s) enabled
+		private static UnrealArchitectures GetAndroidProjectArchitectures(FileReference? ProjectFile, bool bGetAllSupported)
+		{
+			List<string> ActiveArches = new();
+
+			// look in ini settings for what platforms to compile for
+			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(ProjectFile), UnrealTargetPlatform.Android);
+			bool bBuild;
+
+			if (Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bBuildForArm64", out bBuild) && bBuild)
+			{
+				ActiveArches.Add("arm64");
+			}
+			if (Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bBuildForx8664", out bBuild) && bBuild)
+			{
+				ActiveArches.Add("x64");
+			}
+
+			// we expect one to be specified
+			if (ActiveArches.Count == 0)
+			{
+				ActiveArches.Add("arm64");
+			}
+
+			return new UnrealArchitectures(ActiveArches);
+		}
+
 		/// <summary>
 		/// Returns a list of architectures to generate unique VS platforms for.
 		/// </summary>
-		public static UnrealArchitectures? GetPlatformArchitecturesToGenerate(UEBuildPlatform BuildPlatform)
+		public static UnrealArchitectures? GetPlatformArchitecturesToGenerate(UEBuildPlatform BuildPlatform, ProjectTarget InProjectTarget)
 		{
-			return (BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.OneTargetPerArchitecture ||
-				BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.SingleTargetLinkSeparately) ?
+			if (BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.SingleTargetLinkSeparately)
+			{
+				// this should only be Android at the moment
+				if (BuildPlatform.Platform == UnrealTargetPlatform.Android)
+				{
+					return InProjectTarget.UnrealProjectFilePath == null ? BuildPlatform.ArchitectureConfig.AllSupportedArchitectures
+						: GetAndroidProjectArchitectures(InProjectTarget.UnrealProjectFilePath, true);
+				}
+				return BuildPlatform.ArchitectureConfig.AllSupportedArchitectures;
+			}
+			return (BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.OneTargetPerArchitecture) ?
 				BuildPlatform.ArchitectureConfig.AllSupportedArchitectures : null;
 		}
 
@@ -815,7 +851,12 @@ namespace UnrealBuildTool
 							foreach (VCSolutionConfigCombination SolutionConfigCombination in SolutionConfigCombinations)
 							{
 								// Get the context for the current solution context
-								MSBuildProjectContext ProjectContext = CurProject.GetMatchingProjectContext(SolutionConfigCombination.TargetConfigurationName, SolutionConfigCombination.Configuration, SolutionConfigCombination.Platform, PlatformProjectGenerators, SolutionConfigCombination.Architecture, Logger);
+								MSBuildProjectContext? ProjectContext = CurProject.GetMatchingProjectContext(SolutionConfigCombination.TargetConfigurationName, SolutionConfigCombination.Configuration, SolutionConfigCombination.Platform, PlatformProjectGenerators, SolutionConfigCombination.Architecture, Logger);
+
+								if (ProjectContext == null)
+								{
+									continue;
+								}
 
 								// Override the configuration to build for UBT
 								if (Settings.bBuildUBTInDebug && CurProject == UBTProject)
@@ -1065,7 +1106,7 @@ namespace UnrealBuildTool
 							);
 						};
 
-						UnrealArchitectures? Architectures = GetPlatformArchitecturesToGenerate(BuildPlatform);
+						UnrealArchitectures? Architectures = GetPlatformArchitecturesToGenerate(BuildPlatform, ProjectTarget);
 						if (Architectures == null)
 						{
 							AddSolutionConfig(null, OutSolutionConfigs);
