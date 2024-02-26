@@ -137,7 +137,7 @@ public:
 
 	/**
 	 * Call this to seek to the specified playback time.
-	 * 
+	 *
 	 * @param Time			Time to seek to.
 	 * @return				True on success, false otherwise.
 	 */
@@ -337,6 +337,19 @@ private:
 	/** Desired rate of play that we want. */
 	float CurrentRate = 0.0f;
 
+	enum class EPlaybackState
+	{
+		Unset,
+		Paused,
+		Playing,
+		Resume
+	};
+	/** State transitions. */
+	EPlaybackState IntendedPlaybackState = EPlaybackState::Unset;
+	EPlaybackState PendingPlaybackState = EPlaybackState::Unset;
+	EPlaybackState ActualPlaybackState = EPlaybackState::Unset;
+
+
 	/** If true then only allow playback when the media plate is visible. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Control", meta = (AllowPrivateAccess = true))
 	bool bPlayOnlyWhenVisible = false;
@@ -369,7 +382,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = "EXR Tiles & Mips", meta = (DisplayName = "Adaptive Pole Mip Upscale", EditCondition = "VisibleMipsTilesCalculations == EMediaTextureVisibleMipsTiles::Sphere", EditConditionHides, AllowPrivateAccess = true))
 	bool bAdaptivePoleMipUpscaling = true;
 
-	/** If > 0, then this is the aspect ratio of our screen and 
+	/** If > 0, then this is the aspect ratio of our screen and
 	 * letterboxes will be added if the media is smaller than the screen. */
 	UPROPERTY()
 	float LetterboxAspectRatio = 0.0f;
@@ -408,7 +421,7 @@ private:
 	/** Our media clock sink. */
 	TSharedPtr<FMediaComponentClockSink, ESPMode::ThreadSafe> ClockSink;
 	/** Game time when we paused playback. */
-	float TimeWhenPlaybackPaused = 0.0f;
+	double TimeWhenPlaybackPaused = -1.0;
 	/** True if our media should be playing when visible. */
 	bool bWantsToPlayWhenVisible = false;
 	/** True if we should resume where we left off when we open the media. */
@@ -438,7 +451,7 @@ private:
 
 	/**
 	 * Plays a media source.
-	 * 
+	 *
 	 * @param	InMediaSource		Media source to play.
 	 * @param	bInPlayOnOpen		True to play, false to just open.
 	 * @return	True if we played anything.
@@ -507,6 +520,18 @@ private:
 	 */
 	UFUNCTION()
 	void OnMediaEnd();
+
+	/**
+	 * Called by the media player when the video resumes.
+	 */
+	UFUNCTION()
+	void OnMediaResumed();
+
+	/**
+	 * Called by the media player when the video pauses.
+	 */
+	UFUNCTION()
+	void OnMediaSuspended();
 
 	/**
 	 * Sets up the textures we have.
