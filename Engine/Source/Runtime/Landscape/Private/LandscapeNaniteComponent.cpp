@@ -13,6 +13,7 @@
 #include "NaniteDefinitions.h"
 #include "UObject/Package.h"
 #include "RenderUtils.h"
+#include "Serialization/MemoryReader.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LandscapeNaniteComponent)
 
