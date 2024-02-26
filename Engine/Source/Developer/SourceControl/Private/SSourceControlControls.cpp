@@ -11,13 +11,21 @@
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Layout/SSeparator.h"
 
-
 #define LOCTEXT_NAMESPACE "SSkeinSourceControlWidgets"
 
-bool SSourceControlControls::bRewoundMode = false;
-bool SSourceControlControls::bStaticDisableSyncLatestOverride = false;
-FOnClicked SSourceControlControls::OnSyncLatestClickedStaticOverride;
-FOnClicked SSourceControlControls::OnRestoreAsLatestClickedStaticOverride;
+int32 SSourceControlControls::NumConflictsRemaining = 0;
+
+FIsEnabled SSourceControlControls::IsSyncLatestEnabled;
+FIsEnabled SSourceControlControls::IsCheckInChangesEnabled;
+FIsEnabled SSourceControlControls::IsRestoreAsLatestEnabled;
+
+FIsVisible SSourceControlControls::IsSyncLatestVisible;
+FIsVisible SSourceControlControls::IsCheckInChangesVisible;
+FIsVisible SSourceControlControls::IsRestoreAsLatestVisible;
+
+FOnClicked SSourceControlControls::OnSyncLatestClicked;
+FOnClicked SSourceControlControls::OnCheckInChangesClicked;
+FOnClicked SSourceControlControls::OnRestoreAsLatestClicked;
 
 /**
  * Construct this widget
@@ -26,15 +34,8 @@ FOnClicked SSourceControlControls::OnRestoreAsLatestClickedStaticOverride;
  */
 void SSourceControlControls::Construct(const FArguments& InArgs)
 {
-	OnSyncLatestClicked = InArgs._OnClickedSyncLatest;
-	OnCheckInChangesClicked = InArgs._OnClickedCheckInChanges;
-	OnRestoreAsLatestClicked = InArgs._OnClickedRestoreAsLatest;
-
-	IsSyncLatestEnabled = InArgs._IsEnabledSyncLatest;
-	IsCheckInChangesEnabled = InArgs._IsEnabledCheckInChanges;
-
-	IsSyncLatestSeparatorEnabled = InArgs._IsEnabledSyncLatestSeparator;
-	IsCheckInChangesSeparatorEnabled = InArgs._IsEnabledCheckInChangesSeparator;
+	IsMiddleSeparatorEnabled = InArgs._IsEnabledMiddleSeparator;
+	IsRightSeparatorEnabled = InArgs._IsEnabledRightSeparator;
 
 	ChildSlot
 	[
@@ -46,9 +47,9 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 		[
 			SNew(SButton)
 			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("StatusBar.StatusBarButton"))
-			.ToolTipText(this, &SSourceControlControls::GetSourceControlCheckInStatusTooltipText)
-			.Visibility(this, &SSourceControlControls::GetSourceControlCheckInStatusVisibility)
-			.IsEnabled(this, &SSourceControlControls::IsSourceControlCheckInEnabled)
+			.ToolTipText_Static(&SSourceControlControls::GetSourceControlCheckInStatusToolTipText)
+			.Visibility_Static(&SSourceControlControls::GetSourceControlCheckInStatusVisibility)
+			.IsEnabled_Static(&SSourceControlControls::IsSourceControlCheckInEnabled)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -57,7 +58,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 				.HAlign(HAlign_Center)
 				[
 					SNew(SImage)
-					.Image(this, &SSourceControlControls::GetSourceControlCheckInStatusIcon)
+					.Image_Static(&SSourceControlControls::GetSourceControlCheckInStatusIcon)
 				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
@@ -66,10 +67,10 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))
-					.Text(this, &SSourceControlControls::GetSourceControlCheckInStatusText)
+					.Text_Static(&SSourceControlControls::GetSourceControlCheckInStatusText)
 				]
 			]
-			.OnClicked(this, &SSourceControlControls::OnSourceControlCheckInChangesClicked)
+			.OnClicked_Static(&SSourceControlControls::OnSourceControlCheckInChangesClicked)
 		]
 		+ SHorizontalBox::Slot() // Restore as Latest button
 		.VAlign(VAlign_Center)
@@ -78,8 +79,9 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 		[
 			SNew(SButton)
 			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("StatusBar.StatusBarButton"))
-			.ToolTipText(LOCTEXT("RestoreAsLatestTooltipText", "Restore this snapshot to be the latest version of the project for all team members."))
-			.Visibility(this, &SSourceControlControls::GetSourceControlRestoreAsLatestVisibility)
+			.ToolTipText_Static(&SSourceControlControls::GetSourceControlRestoreAsLatestToolTipText)
+			.Visibility_Static(&SSourceControlControls::GetSourceControlRestoreAsLatestVisibility)
+			.IsEnabled_Static(&SSourceControlControls::IsSourceControlRestoreAsLatestEnabled)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -88,7 +90,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 				.HAlign(HAlign_Center)
 				[
 					SNew(SImage)
-					.Image(FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.Promote"))
+					.Image_Static(&SSourceControlControls::GetSourceControlRestoreAsLatestStatusIcon)
 				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
@@ -97,10 +99,10 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))
-					.Text(LOCTEXT("RestoreAsLatestButtonText", "Restore as Latest"))
+					.Text_Static(&SSourceControlControls::GetSourceControlRestoreAsLatestText)
 				]
 			]
-			.OnClicked(this, &SSourceControlControls::OnSourceControlRestoreAsLatestClicked)
+			.OnClicked_Static(&SSourceControlControls::OnSourceControlRestoreAsLatestClicked)
 		]
 		+SHorizontalBox::Slot() // Check In Kebab Combo button
 		.VAlign(VAlign_Center)
@@ -110,7 +112,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 			.ContentPadding(FMargin(7.f, 0.f))
 			.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("StatusBar.StatusBarEllipsisComboButton"))
 			.MenuPlacement(MenuPlacement_AboveAnchor)
-			.Visibility(this, &SSourceControlControls::GetSourceControlCheckInStatusVisibility)
+			.Visibility_Static(&SSourceControlControls::GetSourceControlCheckInStatusVisibility)
 			.OnGetMenuContent(InArgs._OnGenerateKebabMenu)
 		]
 		+ SHorizontalBox::Slot()
@@ -118,7 +120,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 		.AutoWidth()
 		[
 			SNew(SSeparator)
-			.Visibility(this, &SSourceControlControls::GetSourceControlCheckInSeparatorVisibility)
+			.Visibility(this, &SSourceControlControls::GetSourceControlMiddleSeparatorVisibility)
 			.Thickness(1.0)
 			.Orientation(EOrientation::Orient_Vertical)
 		]
@@ -128,9 +130,9 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 		[
 			SNew(SButton)
 			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("StatusBar.StatusBarButton"))
-			.ToolTipText(this, &SSourceControlControls::GetSourceControlSyncStatusTooltipText)
-			.Visibility(this, &SSourceControlControls::GetSourceControlSyncStatusVisibility)
-			.IsEnabled(this, &SSourceControlControls::IsSourceControlSyncEnabled)
+			.ToolTipText_Static(&SSourceControlControls::GetSourceControlSyncStatusToolTipText)
+			.Visibility_Static(&SSourceControlControls::GetSourceControlSyncStatusVisibility)
+			.IsEnabled_Static(&SSourceControlControls::IsSourceControlSyncEnabled)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -139,7 +141,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 				.HAlign(HAlign_Center)
 				[
 					SNew(SImage)
-					.Image(this, &SSourceControlControls::GetSourceControlSyncStatusIcon)
+					.Image_Static(&SSourceControlControls::GetSourceControlSyncStatusIcon)
 				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
@@ -148,17 +150,17 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))
-					.Text(this, &SSourceControlControls::GetSourceControlSyncStatusText)
+					.Text_Static(&SSourceControlControls::GetSourceControlSyncStatusText)
 				]
 			]
-			.OnClicked(this, &SSourceControlControls::OnSourceControlSyncClicked)
+			.OnClicked_Static(&SSourceControlControls::OnSourceControlSyncClicked)
 		]
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		.AutoWidth()
 		[
 			SNew(SSeparator)
-			.Visibility(this, &SSourceControlControls::GetSourceControlSyncSeparatorVisibility)
+			.Visibility(this, &SSourceControlControls::GetSourceControlRightSeparatorVisibility)
 			.Thickness(1.0)
 			.Orientation(EOrientation::Orient_Vertical)
 		]
@@ -209,30 +211,17 @@ void SSourceControlControls::OnSourceControlStateChanged()
 		}
 	);
 
-	NumConflictsRemaining = Conflicts.Num();
-	bConflictsRemaining = (NumConflictsRemaining > 0);
+	NumConflictsRemaining = Conflicts.Num(); // Atomic write.
 }
 
-bool SSourceControlControls::AreConflictsRemaining() const
-{
-	const bool bExiting = IsEngineExitRequested();
-
-	if (!bExiting)
-	{
-		return bConflictsRemaining;
-	}
-
-	return false;
-}
-
-int32 SSourceControlControls::GetNumConflictsRemaining() const
+int32 SSourceControlControls::GetNumConflictsRemaining()
 {
 	return NumConflictsRemaining;
 }
 
 /** Sync Status */
 
-bool SSourceControlControls::IsAtLatestRevision() const
+bool SSourceControlControls::IsAtLatestRevision()
 {
 	ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
 	return SourceControlModule.IsEnabled() &&
@@ -241,22 +230,27 @@ bool SSourceControlControls::IsAtLatestRevision() const
 		SourceControlModule.GetProvider().IsAtLatestRevision().GetValue();
 }
 
-bool SSourceControlControls::IsSourceControlSyncEnabled() const
+bool SSourceControlControls::IsSourceControlSyncEnabled()
 {
 	if (!HasSourceControlChangesToSync())
 	{
 		return false;
 	}
 
-	return IsSyncLatestEnabled.Get(true) && !bStaticDisableSyncLatestOverride;
+	if (IsSyncLatestEnabled.IsBound())
+	{
+		return IsSyncLatestEnabled.Execute();
+	}
+
+	return false;
 }
 
-bool SSourceControlControls::HasSourceControlChangesToSync() const
+bool SSourceControlControls::HasSourceControlChangesToSync()
 {
 	return !IsAtLatestRevision();
 }
 
-EVisibility SSourceControlControls::GetSourceControlSyncStatusVisibility() const
+EVisibility SSourceControlControls::GetSourceControlSyncStatusVisibility()
 {
 	if (!GIsEditor)
 	{
@@ -264,10 +258,16 @@ EVisibility SSourceControlControls::GetSourceControlSyncStatusVisibility() const
 		return EVisibility::Visible;
 	}
 
+	bool bVisibleSourceControlSyncStatus = true;
+	if (IsSyncLatestVisible.IsBound())
+	{
+		bVisibleSourceControlSyncStatus = IsSyncLatestVisible.Execute();
+	}
+
 	bool bDisplaySourceControlSyncStatus = false;
 	GConfig->GetBool(TEXT("SourceControlSettings"), TEXT("DisplaySourceControlSyncStatus"), bDisplaySourceControlSyncStatus, GEditorIni);
 
-	if (bDisplaySourceControlSyncStatus)
+	if (bVisibleSourceControlSyncStatus && bDisplaySourceControlSyncStatus)
 	{
 		ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
 		if (SourceControlModule.IsEnabled() &&
@@ -277,10 +277,11 @@ EVisibility SSourceControlControls::GetSourceControlSyncStatusVisibility() const
 			return EVisibility::Visible;
 		}
 	}
+
 	return EVisibility::Collapsed;
 }
 
-EVisibility SSourceControlControls::GetSourceControlSyncSeparatorVisibility() const
+EVisibility SSourceControlControls::GetSourceControlRightSeparatorVisibility() const
 {
 	EVisibility StatusVisibility = GetSourceControlSyncStatusVisibility();
 	if (StatusVisibility != EVisibility::Visible)
@@ -288,21 +289,22 @@ EVisibility SSourceControlControls::GetSourceControlSyncSeparatorVisibility() co
 		return StatusVisibility;
 	}
 
-	return IsSyncLatestSeparatorEnabled.Get(true) ? EVisibility::Visible : EVisibility::Collapsed;
+	return IsRightSeparatorEnabled.Get(true) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-FText SSourceControlControls::GetSourceControlSyncStatusText() const
+FText SSourceControlControls::GetSourceControlSyncStatusText()
 {
 	if (HasSourceControlChangesToSync())
 	{
 		return LOCTEXT("SyncLatestButtonNotAtHeadText", "Sync Latest");
 	}
+
 	return LOCTEXT("SyncLatestButtonAtHeadText", "At Latest");
 }
 
-FText SSourceControlControls::GetSourceControlSyncStatusTooltipText() const
+FText SSourceControlControls::GetSourceControlSyncStatusToolTipText()
 {
-	if (AreConflictsRemaining())
+	if (GetNumConflictsRemaining() > 0)
 	{
 		return LOCTEXT("SyncLatestButtonNotAtHeadTooltipTextConflict", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
 	}
@@ -310,16 +312,17 @@ FText SSourceControlControls::GetSourceControlSyncStatusTooltipText() const
 	{
 		return LOCTEXT("SyncLatestButtonNotAtHeadTooltipText", "Sync to the latest Snapshot for this project");
 	}
+
 	return LOCTEXT("SyncLatestButtonAtHeadTooltipText", "Currently at the latest Snapshot for this project");
 }
 
-const FSlateBrush* SSourceControlControls::GetSourceControlSyncStatusIcon() const
+const FSlateBrush* SSourceControlControls::GetSourceControlSyncStatusIcon()
 {
 	static const FSlateBrush* ConflictBrush = FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.Conflicted");
 	static const FSlateBrush* AtHeadBrush = FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.AtLatestRevision");
 	static const FSlateBrush* NotAtHeadBrush = FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.NotAtLatestRevision");
 
-	if (AreConflictsRemaining())
+	if (GetNumConflictsRemaining() > 0)
 	{
 		return ConflictBrush;
 	}
@@ -327,12 +330,13 @@ const FSlateBrush* SSourceControlControls::GetSourceControlSyncStatusIcon() cons
 	{
 		return NotAtHeadBrush;
 	}
+
 	return AtHeadBrush;
 }
 
-FReply SSourceControlControls::OnSourceControlSyncClicked() const
+FReply SSourceControlControls::OnSourceControlSyncClicked()
 {
-	if (AreConflictsRemaining())
+	if (GetNumConflictsRemaining() > 0)
 	{
 		if (IConsoleObject* CObj = IConsoleManager::Get().FindConsoleObject(TEXT("UnrealRevisionControl.FocusConflictResolution")))
 		{
@@ -341,11 +345,7 @@ FReply SSourceControlControls::OnSourceControlSyncClicked() const
 	}
 	else if (HasSourceControlChangesToSync())
 	{
-		if (OnSyncLatestClickedStaticOverride.IsBound())
-		{
-			OnSyncLatestClickedStaticOverride.Execute();
-		}
-		else if (OnSyncLatestClicked.IsBound())
+		if (OnSyncLatestClicked.IsBound())
 		{
 			OnSyncLatestClicked.Execute();
 		}
@@ -356,7 +356,7 @@ FReply SSourceControlControls::OnSourceControlSyncClicked() const
 
 /** Check-in Status */
 
-int SSourceControlControls::GetNumLocalChanges() const
+int SSourceControlControls::GetNumLocalChanges()
 {
 	ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
 	if (SourceControlModule.IsEnabled() &&
@@ -365,25 +365,31 @@ int SSourceControlControls::GetNumLocalChanges() const
 	{
 		return SourceControlModule.GetProvider().GetNumLocalChanges().GetValue();
 	}
+
 	return 0;
 }
 
-bool SSourceControlControls::IsSourceControlCheckInEnabled() const
+bool SSourceControlControls::IsSourceControlCheckInEnabled()
 {
 	if (!HasSourceControlChangesToCheckIn())
 	{
 		return false;
 	}
 
-	return IsCheckInChangesEnabled.Get(true);
+	if (IsCheckInChangesEnabled.IsBound())
+	{
+		return IsCheckInChangesEnabled.Execute();
+	}
+
+	return false;
 }
 
-bool SSourceControlControls::HasSourceControlChangesToCheckIn() const
+bool SSourceControlControls::HasSourceControlChangesToCheckIn()
 {
 	return (GetNumLocalChanges() > 0);
 }
 
-EVisibility SSourceControlControls::GetSourceControlCheckInStatusVisibility() const
+EVisibility SSourceControlControls::GetSourceControlCheckInStatusVisibility()
 {
 	if (!GIsEditor)
 	{
@@ -391,15 +397,16 @@ EVisibility SSourceControlControls::GetSourceControlCheckInStatusVisibility() co
 		return EVisibility::Visible;
 	}
 
-	if (bRewoundMode)
+	bool bVisibleSourceControlCheckInStatus = true;
+	if (IsCheckInChangesVisible.IsBound())
 	{
-		return EVisibility::Collapsed;
+		bVisibleSourceControlCheckInStatus = IsCheckInChangesVisible.Execute();
 	}
 
 	bool bDisplaySourceControlCheckInStatus = false;
 	GConfig->GetBool(TEXT("SourceControlSettings"), TEXT("DisplaySourceControlCheckInStatus"), bDisplaySourceControlCheckInStatus, GEditorIni);
 
-	if (bDisplaySourceControlCheckInStatus)
+	if (bVisibleSourceControlCheckInStatus && bDisplaySourceControlCheckInStatus)
 	{
 		ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
 		if (SourceControlModule.IsEnabled() &&
@@ -409,10 +416,11 @@ EVisibility SSourceControlControls::GetSourceControlCheckInStatusVisibility() co
 			return EVisibility::Visible;
 		}
 	}
+
 	return EVisibility::Collapsed;
 }
 
-EVisibility SSourceControlControls::GetSourceControlCheckInSeparatorVisibility() const
+EVisibility SSourceControlControls::GetSourceControlMiddleSeparatorVisibility() const
 {
 	EVisibility StatusVisibility = GetSourceControlCheckInStatusVisibility();
 	if (StatusVisibility != EVisibility::Visible)
@@ -420,21 +428,22 @@ EVisibility SSourceControlControls::GetSourceControlCheckInSeparatorVisibility()
 		return StatusVisibility;
 	}
 
-	return IsCheckInChangesSeparatorEnabled.Get(true) ? EVisibility::Visible : EVisibility::Collapsed;
+	return IsMiddleSeparatorEnabled.Get(true) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-FText SSourceControlControls::GetSourceControlCheckInStatusText() const
+FText SSourceControlControls::GetSourceControlCheckInStatusText()
 {
 	if (HasSourceControlChangesToCheckIn())
 	{
 		return LOCTEXT("CheckInButtonChangesText", "Check-in Changes");
 	}
+
 	return LOCTEXT("CheckInButtonNoChangesText", "No Changes");
 }
 
-FText SSourceControlControls::GetSourceControlCheckInStatusTooltipText() const
+FText SSourceControlControls::GetSourceControlCheckInStatusToolTipText()
 {
-	if (AreConflictsRemaining())
+	if (GetNumConflictsRemaining() > 0)
 	{
 		return LOCTEXT("CheckInButtonChangesTooltipTextConflict", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
 	}
@@ -442,16 +451,17 @@ FText SSourceControlControls::GetSourceControlCheckInStatusTooltipText() const
 	{
 		return FText::Format(LOCTEXT("CheckInButtonChangesTooltipText", "Check-in {0} change(s) to this project"), GetNumLocalChanges());
 	}
+
 	return LOCTEXT("CheckInButtonNoChangesTooltipText", "No Changes to check in for this project");
 }
 
-const FSlateBrush* SSourceControlControls::GetSourceControlCheckInStatusIcon() const
+const FSlateBrush* SSourceControlControls::GetSourceControlCheckInStatusIcon()
 {
 	static const FSlateBrush* ConflictBrush = FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.Conflicted");
 	static const FSlateBrush* NoLocalChangesBrush = FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.NoLocalChanges");
 	static const FSlateBrush* HasLocalChangesBrush = FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.HasLocalChanges");
 
-	if (AreConflictsRemaining())
+	if (GetNumConflictsRemaining() > 0)
 	{
 		return ConflictBrush;
 	}
@@ -459,12 +469,13 @@ const FSlateBrush* SSourceControlControls::GetSourceControlCheckInStatusIcon() c
 	{
 		return HasLocalChangesBrush;
 	}
+
 	return NoLocalChangesBrush;
 }
 
-FReply SSourceControlControls::OnSourceControlCheckInChangesClicked() const
+FReply SSourceControlControls::OnSourceControlCheckInChangesClicked()
 {
-	if (AreConflictsRemaining())
+	if (GetNumConflictsRemaining() > 0)
 	{
 		if (IConsoleObject* CObj = IConsoleManager::Get().FindConsoleObject(TEXT("UnrealRevisionControl.FocusConflictResolution")))
 		{
@@ -484,22 +495,44 @@ FReply SSourceControlControls::OnSourceControlCheckInChangesClicked() const
 
 /** Restore as Latest */
 
-EVisibility SSourceControlControls::GetSourceControlRestoreAsLatestVisibility() const
+bool SSourceControlControls::IsSourceControlRestoreAsLatestEnabled()
 {
-	if (bRewoundMode)
+	if (IsRestoreAsLatestEnabled.IsBound())
 	{
-		return EVisibility::Visible;
+		return IsRestoreAsLatestEnabled.Execute();
 	}
+
+	return false;
+}
+
+EVisibility SSourceControlControls::GetSourceControlRestoreAsLatestVisibility()
+{
+	if (IsRestoreAsLatestVisible.IsBound())
+	{
+		return IsRestoreAsLatestVisible.Execute() ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
 	return EVisibility::Collapsed;
 }
 
-FReply SSourceControlControls::OnSourceControlRestoreAsLatestClicked() const
+FText SSourceControlControls::GetSourceControlRestoreAsLatestText()
 {
-	if (OnRestoreAsLatestClickedStaticOverride.IsBound())
-	{
-		OnRestoreAsLatestClickedStaticOverride.Execute();
-	}
-	else if (OnRestoreAsLatestClicked.IsBound())
+	return LOCTEXT("RestoreAsLatestButtonText", "Restore as Latest");
+}
+
+FText SSourceControlControls::GetSourceControlRestoreAsLatestToolTipText()
+{
+	return LOCTEXT("RestoreAsLatestTooltipText", "Restore this snapshot to be the latest version of the project for all team members.");
+}
+
+const FSlateBrush* SSourceControlControls::GetSourceControlRestoreAsLatestStatusIcon()
+{
+	return FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.Promote");
+}
+
+FReply SSourceControlControls::OnSourceControlRestoreAsLatestClicked()
+{
+	if (OnRestoreAsLatestClicked.IsBound())
 	{
 		OnRestoreAsLatestClicked.Execute();
 	}
