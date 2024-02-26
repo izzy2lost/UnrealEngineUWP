@@ -123,6 +123,28 @@ UActorComponent* FPropertyAnimatorCoreData::GetOwningComponent() const
 	return Owner->GetTypedOuter<UActorComponent>();
 }
 
+TArray<UObject*> FPropertyAnimatorCoreData::GetOuters(const UObject* InStopOuter) const
+{
+	TArray<UObject*> Owners;
+
+	UObject* Outer = OwnerWeak.Get();
+
+	if (!Outer)
+	{
+		return Owners;
+	}
+
+	while (Outer && Outer != InStopOuter)
+	{
+		Owners.Add(Outer);
+		Outer = Outer->GetOuter();
+	}
+
+	Algo::Reverse(Owners);
+
+	return Owners;
+}
+
 FName FPropertyAnimatorCoreData::GetMemberPropertyName() const
 {
 	const FProperty* MemberProperty = GetMemberProperty();

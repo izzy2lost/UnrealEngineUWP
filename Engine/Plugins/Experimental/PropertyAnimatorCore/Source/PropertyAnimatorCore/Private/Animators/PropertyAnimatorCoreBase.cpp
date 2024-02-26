@@ -130,12 +130,26 @@ void UPropertyAnimatorCoreBase::PostLoad()
 	OnAnimatorEnabledChanged();
 }
 
-void UPropertyAnimatorCoreBase::PreDuplicate(FObjectDuplicationParameters& InDupParams)
+void UPropertyAnimatorCoreBase::PostEditImport()
 {
-	Super::PreDuplicate(InDupParams);
+	Super::PostEditImport();
+
+	ResolveProperties();
+}
+
+void UPropertyAnimatorCoreBase::PreDuplicate(FObjectDuplicationParameters& InParams)
+{
+	Super::PreDuplicate(InParams);
 
 	constexpr bool bForceReset = true;
 	RestoreProperties(bForceReset);
+}
+
+void UPropertyAnimatorCoreBase::PostDuplicate(EDuplicateMode::Type InMode)
+{
+	Super::PostDuplicate(InMode);
+
+	ResolveProperties();
 }
 
 #if WITH_EDITOR
@@ -367,6 +381,31 @@ void UPropertyAnimatorCoreBase::OnTimeSourceNameChanged()
 	if (ActiveTimeSource)
 	{
 		ActiveTimeSource->ActivateTimeSource();
+	}
+
+	OnTimeSourceChanged();
+}
+
+void UPropertyAnimatorCoreBase::ResolveProperties()
+{
+	// Resolve linked properties against current actor
+	TSet<FPropertyAnimatorCoreData> UnresolvedProperties;
+
+	ForEachLinkedProperty<UPropertyAnimatorCoreContext>(
+		[this, &UnresolvedProperties](UPropertyAnimatorCoreContext* InContext, const FPropertyAnimatorCoreData& InProperty)->bool
+		{
+			if (!InContext->ResolveProperty())
+			{
+				UnresolvedProperties.Add(InProperty);
+			}
+
+			return true;
+		}, false);
+
+	// Remove unresolved properties
+	for (const FPropertyAnimatorCoreData& UnresolvedProperty : UnresolvedProperties)
+	{
+		UnlinkProperty(UnresolvedProperty);
 	}
 }
 
@@ -624,20 +663,7 @@ bool UPropertyAnimatorCoreBase::LinkProperty(const FPropertyAnimatorCoreData& In
 
 bool UPropertyAnimatorCoreBase::UnlinkProperty(const FPropertyAnimatorCoreData& InUnlinkProperty)
 {
-	if (!InUnlinkProperty.IsResolved())
-	{
-		return false;
-	}
-
 	if (!IsPropertyLinked(InUnlinkProperty))
-	{
-		return false;
-	}
-
-	const UObject* Owner = InUnlinkProperty.GetOwner();
-	const AActor* OwningActor = GetTypedOuter<AActor>();
-
-	if (Owner != OwningActor && !Owner->IsIn(OwningActor))
 	{
 		return false;
 	}

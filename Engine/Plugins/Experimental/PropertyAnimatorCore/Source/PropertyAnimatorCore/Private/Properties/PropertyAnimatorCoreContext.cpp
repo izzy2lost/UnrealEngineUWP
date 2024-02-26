@@ -200,6 +200,46 @@ void UPropertyAnimatorCoreContext::OnGroupNameChanged()
 	}
 }
 
+bool UPropertyAnimatorCoreContext::ResolveProperty()
+{
+	UObject* NewOwner = GetTypedOuter<AActor>();
+
+	if (AnimatedProperty.GetOwningActor() == NewOwner)
+	{
+		return true;
+	}
+
+	bool bFound = IsValid(NewOwner);
+
+	for (const UObject* OtherOuter : AnimatedProperty.GetOuters(AnimatedProperty.GetOwningActor()))
+	{
+		bFound = false;
+		TArray<UObject*> ThisOwnedObjects;
+		GetObjectsWithOuter(NewOwner, ThisOwnedObjects, false);
+
+		for (UObject* ThisOuter : ThisOwnedObjects)
+		{
+			if (ThisOuter->GetClass() == OtherOuter->GetClass()
+				&& ThisOuter->GetFName() == OtherOuter->GetFName())
+			{
+				bFound = true;
+				NewOwner = ThisOuter;
+				break;
+			}
+		}
+	}
+
+	if (bFound
+		&& NewOwner->GetClass() == AnimatedProperty.GetOwner()->GetClass()
+		&& FindFProperty<FProperty>(NewOwner->GetClass(), AnimatedProperty.GetMemberPropertyName()))
+	{
+		SetAnimatedPropertyOwner(NewOwner);
+		return true;
+	}
+
+	return false;
+}
+
 void UPropertyAnimatorCoreContext::ConstructInternal(const FPropertyAnimatorCoreData& InProperty)
 {
 	AnimatedProperty = InProperty;

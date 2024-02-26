@@ -47,7 +47,7 @@ public:
 	}
 
 	/** Process a function for each controller, stops when false is returned otherwise continue until the end */
-	void ForEachAnimator(TFunctionRef<bool(UPropertyAnimatorCoreBase*)> InFunction) const;
+	PROPERTYANIMATORCORE_API void ForEachAnimator(TFunctionRef<bool(UPropertyAnimatorCoreBase*)> InFunction) const;
 
 protected:
 	static FName GetAnimatorName(const UPropertyAnimatorCoreBase* InAnimator);
@@ -74,6 +74,9 @@ protected:
 
 	/** Adds a new animator of that class */
 	UPropertyAnimatorCoreBase* AddAnimator(const UClass* InAnimatorClass);
+
+	/** Clones an existing animator */
+	UPropertyAnimatorCoreBase* CloneAnimator(UPropertyAnimatorCoreBase* InAnimator);
 
 	/** Removes an existing animator */
 	bool RemoveAnimator(UPropertyAnimatorCoreBase* InAnimator);

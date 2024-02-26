@@ -2,11 +2,13 @@
 
 #include "AvaPropertyAnimatorEditorModule.h"
 
+#include "DragDropOps/AvaOutlinerItemDragDropOp.h"
 #include "IAvaOutliner.h"
 #include "IAvaOutlinerModule.h"
 #include "Item/AvaOutlinerActor.h"
 #include "ItemProxies/AvaOutlinerItemProxyRegistry.h"
 #include "Outliner/AvaPropertyAnimatorEditorOutlinerContextMenu.h"
+#include "Outliner/AvaPropertyAnimatorEditorOutlinerDropHandler.h"
 #include "Outliner/AvaPropertyAnimatorEditorOutlinerProxy.h"
 
 #define LOCTEXT_NAMESPACE "AvaPropertyAnimatorEditorModule"
@@ -41,6 +43,12 @@ void FAvaPropertyAnimatorEditorModule::RegisterOutlinerItems()
 
 	OutlinerContextDelegateHandle = IAvaOutlinerModule::Get().GetOnExtendOutlinerItemContextMenu()
 		.AddStatic(&FAvaPropertyAnimatorEditorOutlinerContextMenu::OnExtendOutlinerContextMenu);
+
+	OutlinerDropHandlerDelegateHandle = FAvaOutlinerItemDragDropOp::OnItemDragDropOpInitialized().AddStatic(
+		[](FAvaOutlinerItemDragDropOp& InDragDropOp)
+		{
+			InDragDropOp.AddDropHandler<FAvaPropertyAnimatorEditorOutlinerDropHandler>();
+		});
 }
 
 void FAvaPropertyAnimatorEditorModule::UnregisterOutlinerItems()
@@ -57,6 +65,9 @@ void FAvaPropertyAnimatorEditorModule::UnregisterOutlinerItems()
 
 		OutlinerModule.GetOnExtendOutlinerItemContextMenu().Remove(OutlinerContextDelegateHandle);
 		OutlinerContextDelegateHandle.Reset();
+
+		FAvaOutlinerItemDragDropOp::OnItemDragDropOpInitialized().Remove(OutlinerDropHandlerDelegateHandle);
+		OutlinerDropHandlerDelegateHandle.Reset();
 	}
 }
 

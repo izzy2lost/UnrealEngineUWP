@@ -26,6 +26,30 @@ UPropertyAnimatorCoreBase* UPropertyAnimatorCoreComponent::AddAnimator(const UCl
 	return NewAnimator;
 }
 
+UPropertyAnimatorCoreBase* UPropertyAnimatorCoreComponent::CloneAnimator(UPropertyAnimatorCoreBase* InAnimator)
+{
+	UPropertyAnimatorCoreBase* CloneAnimator = nullptr;
+
+	if (!InAnimator)
+	{
+		return CloneAnimator;
+	}
+
+	// Duplicate animator
+	FObjectDuplicationParameters Parameters = InitStaticDuplicateObjectParams(InAnimator, this);
+	CloneAnimator = Cast<UPropertyAnimatorCoreBase>(StaticDuplicateObjectEx(Parameters));
+
+	// Force current state
+	CloneAnimator->OnAnimatorEnabledChanged();
+
+	AnimatorsInternal = Animators;
+	Animators.Add(CloneAnimator);
+
+	OnAnimatorsChanged();
+
+	return CloneAnimator;
+}
+
 bool UPropertyAnimatorCoreComponent::RemoveAnimator(UPropertyAnimatorCoreBase* InAnimator)
 {
 	if (!Animators.Contains(InAnimator))

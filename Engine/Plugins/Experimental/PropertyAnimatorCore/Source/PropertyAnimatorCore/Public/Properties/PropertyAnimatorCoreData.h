@@ -77,6 +77,9 @@ struct FPropertyAnimatorCoreData
 		return OwnerWeak;
 	}
 
+	/** Returns chain of owner until it reaches StopOuter */
+	TArray<UObject*> GetOuters(const UObject* InStopOuter) const;
+
 	/** The member property of the owner, top property inside the owner itself */
 	FProperty* GetMemberProperty() const
 	{

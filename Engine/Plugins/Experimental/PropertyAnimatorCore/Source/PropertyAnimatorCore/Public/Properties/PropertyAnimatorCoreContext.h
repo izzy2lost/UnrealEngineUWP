@@ -79,6 +79,9 @@ public:
 		return static_cast<InRuleType*>(GetConverterRulePtr(InRuleType::StaticStruct()));
 	}
 
+	/** Called when the owner has changed and we want to update the animated property */
+	bool ResolveProperty();
+
 protected:
 	//~ Begin UObject
 	PROPERTYANIMATORCORE_API virtual void PostLoad() override;

@@ -374,12 +374,56 @@ TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::CreateAnimators
 	return NewAnimators;
 }
 
+TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::CloneAnimators(const TSet<UPropertyAnimatorCoreBase*>& InAnimators, AActor* InTargetActor, bool bInTransact) const
+{
+	TSet<UPropertyAnimatorCoreBase*> CopyAnimators;
+
+	if (!IsValid(InTargetActor))
+	{
+		return CopyAnimators;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = LOCTEXT("CloneAnimators", "Cloning {0} animator(s) on actor %s");
+	const FText AnimatorCount = FText::FromString(FString::FromInt(InAnimators.Num()));
+	const FText ActorName = FText::FromString(InTargetActor->GetActorNameOrLabel());
+
+	FScopedTransaction Transaction(FText::Format(TransactionText, AnimatorCount, ActorName), bInTransact);
+#endif
+
+	UPropertyAnimatorCoreComponent* Component = UPropertyAnimatorCoreComponent::FindOrAdd(InTargetActor);
+	if (!Component)
+	{
+		return CopyAnimators;
+	}
+
+#if WITH_EDITOR
+	Component->Modify();
+#endif
+
+	CopyAnimators.Reserve(InAnimators.Num());
+
+	for (UPropertyAnimatorCoreBase* Animator : InAnimators)
+	{
+		if (UPropertyAnimatorCoreBase* CopyAnimator = Component->CloneAnimator(Animator))
+		{
+#if WITH_EDITOR
+			CopyAnimator->Modify();
+#endif
+
+			CopyAnimators.Add(CopyAnimator);
+		}
+	}
+
+	return CopyAnimators;
+}
+
 bool UPropertyAnimatorCoreSubsystem::RemoveAnimator(UPropertyAnimatorCoreBase* InAnimator, bool bInTransact) const
 {
 	return RemoveAnimators({InAnimator}, bInTransact);
 }
 
-bool UPropertyAnimatorCoreSubsystem::RemoveAnimators(const TSet<UPropertyAnimatorCoreBase*> InAnimators, bool bInTransact) const
+bool UPropertyAnimatorCoreSubsystem::RemoveAnimators(const TSet<UPropertyAnimatorCoreBase*>& InAnimators, bool bInTransact) const
 {
 	if (InAnimators.IsEmpty())
 	{

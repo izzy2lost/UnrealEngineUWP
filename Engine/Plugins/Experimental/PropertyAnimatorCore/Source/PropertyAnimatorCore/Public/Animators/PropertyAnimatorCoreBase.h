@@ -149,7 +149,9 @@ protected:
 	//~ Begin UObject
 	PROPERTYANIMATORCORE_API virtual void BeginDestroy() override;
 	PROPERTYANIMATORCORE_API virtual void PostLoad() override;
+	PROPERTYANIMATORCORE_API virtual void PostEditImport() override;
 	PROPERTYANIMATORCORE_API virtual void PreDuplicate(FObjectDuplicationParameters& InDupParams) override;
+	PROPERTYANIMATORCORE_API virtual void PostDuplicate(EDuplicateMode::Type InDuplicateMode) override;
 #if WITH_EDITOR
 	PROPERTYANIMATORCORE_API virtual void PreEditUndo() override;
 	PROPERTYANIMATORCORE_API virtual void PostEditUndo() override;
@@ -242,6 +244,8 @@ protected:
 	PROPERTYANIMATORCORE_API virtual void OnAnimatorEnabled();
 	PROPERTYANIMATORCORE_API virtual void OnAnimatorDisabled();
 
+	virtual void OnTimeSourceChanged() {}
+
 	/** Returns the property context class to use */
 	PROPERTYANIMATORCORE_API virtual TSubclassOf<UPropertyAnimatorCoreContext> GetPropertyContextClass(const FPropertyAnimatorCoreData& InProperty);
 
@@ -273,6 +277,9 @@ private:
 	void CleanTimeSources();
 
 	void OnTimeSourceNameChanged();
+
+	/** Called after an action that causes the owner to change */
+	void ResolveProperties();
 
 	UPropertyAnimatorCoreTimeSourceBase* FindOrAddTimeSource(FName InTimeSourceName);
 
