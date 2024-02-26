@@ -31,9 +31,10 @@ public class FakeHealthMonitor<T> : IHealthMonitor<T>
 	public void SetName(string name) { Name = name; }
 
 	/// <inheritdoc/>
-	public void Update(HealthStatus result, string? message = null, DateTimeOffset? timestamp = null)
+	public Task UpdateAsync(HealthStatus result, string? message = null, DateTimeOffset? timestamp = null)
 	{
 		Updates.Add((result, message, timestamp));
+		return Task.CompletedTask;
 	}
 }
 

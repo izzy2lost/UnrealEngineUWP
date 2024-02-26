@@ -16,14 +16,14 @@ namespace Horde.Server.Tests.Server
 	public class ServerStatusServiceTest : TestSetup
 	{
 		[TestMethod]
-		public void UpdatesAreStoredNewToOld()
+		public async Task UpdatesAreStoredNewToOldAsync()
 		{
 			IHealthMonitor<ConfigService> health = new HealthMonitor<ConfigService>(ServerStatusService);
-			health.Update(HealthStatus.Unhealthy, "foo", DateTimeOffset.UtcNow - TimeSpan.FromSeconds(15));
-			health.Update(HealthStatus.Healthy, "bar", DateTimeOffset.UtcNow);
-			health.Update(HealthStatus.Unhealthy, "baz", DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5));
+			await health.UpdateAsync(HealthStatus.Unhealthy, "foo", DateTimeOffset.UtcNow - TimeSpan.FromSeconds(15));
+			await health.UpdateAsync(HealthStatus.Healthy, "bar", DateTimeOffset.UtcNow);
+			await health.UpdateAsync(HealthStatus.Unhealthy, "baz", DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5));
 			
-			SubsystemStatus gcStatus = GetSubsystemStatus(typeof(ConfigService));
+			SubsystemStatus gcStatus = await GetSubsystemStatusAsync(typeof(ConfigService));
 			Assert.AreEqual(3, gcStatus.Updates.Count);
 			Assert.AreEqual("bar", gcStatus.Updates[0].Message);
 			Assert.AreEqual("baz", gcStatus.Updates[1].Message);
@@ -31,16 +31,16 @@ namespace Horde.Server.Tests.Server
 		}
 		
 		[TestMethod]
-		public void OnlyLastNUpdatesAreKept()
+		public async Task OnlyLastNUpdatesAreKeptAsync()
 		{
 			IHealthMonitor<ConfigService> health = new HealthMonitor<ConfigService>(ServerStatusService);
 
 			for (int i = 0; i < ServerStatusService.MaxHistoryLength + 10; i++)
 			{
-				health.Update(HealthStatus.Healthy, "foo", DateTimeOffset.UtcNow);	
+				await health.UpdateAsync(HealthStatus.Healthy, "foo", DateTimeOffset.UtcNow);	
 			}
 
-			Assert.AreEqual(ServerStatusService.MaxHistoryLength, GetSubsystemStatus(typeof(ConfigService)).Updates.Count);
+			Assert.AreEqual(ServerStatusService.MaxHistoryLength, (await GetSubsystemStatusAsync(typeof(ConfigService))).Updates.Count);
 		}
 		
 		[TestMethod]
@@ -48,7 +48,7 @@ namespace Horde.Server.Tests.Server
 		{
 			// A MongoDB server is always present during test runs
 			await ServerStatusService.UpdateMongoDbHealthAsync(CancellationToken.None);
-			SubsystemStatus mongoDb = GetSubsystemStatus(typeof(MongoService));
+			SubsystemStatus mongoDb = await GetSubsystemStatusAsync(typeof(MongoService));
 			Assert.AreEqual(1, mongoDb.Updates.Count);
 			Assert.AreEqual(HealthStatus.Healthy, mongoDb.Updates[0].Result);
 		}
@@ -58,15 +58,15 @@ namespace Horde.Server.Tests.Server
 		{
 			// A Redis server is always present during test runs
 			await ServerStatusService.UpdateRedisHealthAsync(CancellationToken.None);
-			SubsystemStatus redis = GetSubsystemStatus(typeof(RedisService));
+			SubsystemStatus redis = await GetSubsystemStatusAsync(typeof(RedisService));
 			Assert.AreEqual(1, redis.Updates.Count);
 			Assert.AreEqual(HealthStatus.Healthy, redis.Updates[0].Result);
 		}
 
-		private SubsystemStatus GetSubsystemStatus(Type type)
+		private async Task<SubsystemStatus> GetSubsystemStatusAsync(Type type)
 		{
-			IReadOnlyList<SubsystemStatus> statuses = ServerStatusService.GetSubsystemStatuses();
-			return statuses.First(x => x.Type == type);
+			IReadOnlyList<SubsystemStatus> statuses = await ServerStatusService.GetSubsystemStatusesAsync();
+			return statuses.First(x => x.Id == type.Name);
 		}
 	}
 }

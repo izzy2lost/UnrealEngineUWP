@@ -358,13 +358,13 @@ namespace Horde.Server.Configuration
 				}
 
 				ConfigState state = new ConfigState(IoHash.Compute(data.Span), CreateGlobalConfig(data));
-				_health.Update(HealthStatus.Healthy);
+				await _health.UpdateAsync(HealthStatus.Healthy);
 
 				return state;
 			}
 			catch (Exception ex)
 			{
-				_health.Update(HealthStatus.Unhealthy, ex.Message);
+				await _health.UpdateAsync(HealthStatus.Unhealthy, ex.Message);
 				throw;
 			}
 		}
@@ -447,14 +447,14 @@ namespace Horde.Server.Configuration
 			try
 			{
 				ConfigSnapshot snapshot = await CreateSnapshotAsync(cancellationToken);
-				_health.Update(HealthStatus.Healthy);
+				await _health.UpdateAsync(HealthStatus.Healthy);
 				OnConfigUpdate?.Invoke(null);
 				return snapshot;
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Exception while updating config: {Message}", ex.Message);
-				_health.Update(HealthStatus.Unhealthy, ex.Message);
+				await _health.UpdateAsync(HealthStatus.Unhealthy, ex.Message);
 				OnConfigUpdate?.Invoke(ex);
 				return null;
 			}

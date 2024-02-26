@@ -460,7 +460,7 @@ namespace Horde.Server.Perforce
 			(HealthStatus health, string message) = GetPerforceHealth(list.Servers);
 			span.SetAttribute("health.status", health.ToString());
 			span.SetAttribute("health.message", message);
-			_health.Update(health, message);
+			await _health.UpdateAsync(health, message);
 		}
 
 		static (HealthStatus health, string message) GetPerforceHealth(List<PerforceServerEntry> servers)
