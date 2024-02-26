@@ -4741,51 +4741,6 @@ static bool SaveAssetRegistry(const FString& InAssetRegistryFileName, FAssetRegi
 	return true;
 }
 
-static int32 DoAssetRegistryWritebackAfterStage(const FString& InAssetRegistryFileName, FString&& InContainerDirectory, const FKeyChain& InKeyChain)
-{
-	// This version called after the containers are already created, when you
-	// have a bunch of containers on disk and you want to add chunk info back to
-	// an asset registry.
-
-	FAssetRegistryState AssetRegistry;
-	if (LoadAssetRegistry(InAssetRegistryFileName, AssetRegistry) == 0)
-	{
-		UE_LOG(LogIoStore, Error, TEXT("Unabled to open source asset registry: %s"), *InAssetRegistryFileName);
-		return 1;
-	}
-
-	// Grab all containers in the directory
-	FPaths::NormalizeDirectoryName(InContainerDirectory);
-	TArray<FString> FoundContainerFiles;
-	IFileManager::Get().FindFiles(FoundContainerFiles, *(InContainerDirectory / TEXT("*.utoc")), true, false);
-	
-	uint64 TotalCompressedSize = 0;
-	
-	// Grab all the package infos.
-	TMap<FPackageId, TArray<FIoStoreChunkSource, TInlineAllocator<2>>> PackageToChunks;
-	for (const FString& Filename : FoundContainerFiles)
-	{
-		TUniquePtr<FIoStoreReader> Reader = CreateIoStoreReader(*(InContainerDirectory / Filename), InKeyChain);
-		if (Reader.IsValid() == false)
-		{
-			return 1; // already logged.
-		}
-		
-		Reader->EnumerateChunks([&](const FIoStoreTocChunkInfo& ChunkInfo)
-		{
-			FPackageId PackageId = FPackageId::FromValue(*(int64*)(ChunkInfo.Id.GetData()));
-			// (Deployment can't be ascertained after staging - plugin jsons are not generated.)
-			PackageToChunks.FindOrAdd(PackageId).Add({ChunkInfo, UE::Cook::EPluginSizeTypes::COUNT});
-			TotalCompressedSize += ChunkInfo.CompressedSize;
-			return true;
-		});
-	}
-
-	AddChunkInfoToAssetRegistry(MoveTemp(PackageToChunks), AssetRegistry, nullptr, 0, 0, TotalCompressedSize);
-
-	return SaveAssetRegistry(InAssetRegistryFileName, AssetRegistry, nullptr) ? 0 : 1;
-}
-
 enum class ECookMetadataFiles
 {
 	None = 0,
@@ -9544,22 +9499,6 @@ int32 CreateIoStoreContainerFiles(const TCHAR* CmdLine)
 		}
 
 		return ListContainer(Arguments.KeyChain, ContainerPathOrWildcard, Arguments.CsvPath);
-	}
-	else if (FParse::Value(FCommandLine::Get(), TEXT("AssetRegistryWriteback="), ArgumentValue))
-	{
-		//
-		// Opens a given directory of containers and a given asset registry, and adds chunk size information
-		// for an asset's package to its asset tags in the asset registry. This can also be done during the staging
-		// process with -WriteBackMetadataToAssetRegistry (below).
-		//
-		FString AssetRegistryFileName = MoveTemp(ArgumentValue);
-		FString PathToContainers;
-		if (!FParse::Value(FCommandLine::Get(), TEXT("ContainerDirectory="), PathToContainers))
-		{
-			UE_LOG(LogIoStore, Error, TEXT("Asset registry writeback requires -ContainerDirectory=Path/To/Containers"));
-		}
-		UE_LOG(LogIoStore, Warning, TEXT("AssetRegistryWriteback after stage is deprecated and will be removed in 5.5. Use writeback during stage via project packaging settings."));
-		return DoAssetRegistryWritebackAfterStage(AssetRegistryFileName, MoveTemp(PathToContainers), Arguments.KeyChain);
 	}
 	else if (FParse::Value(FCommandLine::Get(), TEXT("Describe="), ArgumentValue))
 	{

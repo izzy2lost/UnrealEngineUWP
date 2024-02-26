@@ -50,7 +50,7 @@ int32 UAssetSizeQueryCommandlet::Main(const FString& FullCommandLine)
 		UE_LOG(LogAssetSize, Display, TEXT("Params:"));
 		UE_LOG(LogAssetSize, Display, TEXT("    -AssetRegistry=path                     Provides the path to the Development asset registry. This"));
 		UE_LOG(LogAssetSize, Display, TEXT("                                            asset registry must have staging size metadata via ProjectSettings->"));
-		UE_LOG(LogAssetSize, Display, TEXT("                                            Packaging->WriteBackMetadataToAssetRegistry or iostore -AssetRegistryWriteback."));
+		UE_LOG(LogAssetSize, Display, TEXT("                                            Packaging->WriteBackMetadataToAssetRegistry."));
 		UE_LOG(LogAssetSize, Display, TEXT("    -Filter=wildcard                        (optional) Filteres the list of assets using a wildcard match."));
 		UE_LOG(LogAssetSize, Display, TEXT("    -Show=#                                 (optional) Shows only the top # classes, sorted on size (0 is all, default 10)."));
 		UE_LOG(LogAssetSize, Display, TEXT("    -CSV=path                               (optional) Output the filtered per class infomation to the given CSV file."));
@@ -181,8 +181,7 @@ int32 UAssetSizeQueryCommandlet::Main(const FString& FullCommandLine)
 	if (ImportantAssetCount == 0)
 	{
 		UE_LOG(LogAssetSize, Display, TEXT("No assets with size information found - staging metadata needs to be added to the asset registry"));
-		UE_LOG(LogAssetSize, Display, TEXT("via ProjectSettings->Packaging->WriteBackMetadataToAssetRegistry or using iostore "));
-		UE_LOG(LogAssetSize, Display, TEXT("-AssetRegistryWriteback."));
+		UE_LOG(LogAssetSize, Display, TEXT("via ProjectSettings->Packaging->WriteBackMetadataToAssetRegistry."));
 		return 1;
 	}
 
