@@ -471,6 +471,8 @@ void UModularRig::ExecuteQueue()
 #endif
 				RigPublicContext.SetFramesPerSecond(PublicContext.GetFramesPerSecond());
 				RigPublicContext.SetToWorldSpaceTransform(PublicContext.GetToWorldSpaceTransform());
+				RigPublicContext.OnAddShapeLibraryDelegate = PublicContext.OnAddShapeLibraryDelegate;
+				RigPublicContext.OnShapeExistsDelegate = PublicContext.OnShapeExistsDelegate;
 				RigPublicContext.RuntimeSettings = PublicContext.RuntimeSettings;
 
 #if WITH_EDITOR
