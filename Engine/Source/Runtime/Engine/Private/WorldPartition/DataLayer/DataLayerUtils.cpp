@@ -244,11 +244,11 @@ FString FDataLayerUtils::GenerateUniqueDataLayerShortName(const UDataLayerManage
 	return UniqueNewDataLayerShortName;
 }
 
-bool FDataLayerUtils::AreDataLayerTypesCompatible(EDataLayerType ParentDataLayerType, EDataLayerType ChildDataLayerType, FText* OutReason)
+bool FDataLayerUtils::AreDataLayerTypesCompatible(EDataLayerType ParentDataLayerType, EDataLayerType ChildDataLayerType, bool bIsParentExternalDataLayer, FText* OutReason)
 {
 	if ((ChildDataLayerType == EDataLayerType::Unknown) ||
 		(ParentDataLayerType == EDataLayerType::Unknown) ||
-		(ParentDataLayerType != EDataLayerType::Editor && ChildDataLayerType != EDataLayerType::Runtime))
+		(!bIsParentExternalDataLayer && ParentDataLayerType != EDataLayerType::Editor && ChildDataLayerType != EDataLayerType::Runtime))
 	{
 		if (OutReason)
 		{

@@ -871,7 +871,7 @@ FSceneOutlinerDragValidationInfo FDataLayerMode::ValidateDataLayerAssetDrop(cons
 		for (const UDataLayerAsset* DataLayerAssetToDrop : DataLayerAssetsToDrop)
 		{
 			FText Reason;
-			if (!FDataLayerUtils::AreDataLayerTypesCompatible(ParentType, DataLayerAssetToDrop->GetType(), &Reason))
+			if (!FDataLayerUtils::AreDataLayerTypesCompatible(ParentType, DataLayerAssetToDrop->GetType(), DropTargetDataLayerWithAsset->IsA<UExternalDataLayerInstance>(), &Reason))
 			{
 				return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, FText::Format(LOCTEXT("CantCreateDataLayerInstanceIncompatibleChildType", "Cannot create Data Layer Instance : {0}"), Reason));
 			}

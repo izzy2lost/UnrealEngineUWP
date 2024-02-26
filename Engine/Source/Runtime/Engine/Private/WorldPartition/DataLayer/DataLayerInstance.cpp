@@ -457,7 +457,7 @@ bool UDataLayerInstance::IsParentDataLayerTypeCompatible(const UDataLayerInstanc
 		return false;
 	}
 
-	if (!FDataLayerUtils::AreDataLayerTypesCompatible(InParent->GetType(), GetType(), OutReasonText))
+	if (!FDataLayerUtils::AreDataLayerTypesCompatible(InParent->GetType(), GetType(), InParent->IsA<UExternalDataLayerInstance>(), OutReasonText))
 	{
 		if (OutReason)
 		{
