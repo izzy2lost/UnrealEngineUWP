@@ -341,6 +341,13 @@ namespace uba
 		return 1u;
 	}
 
+	void ElevateCurrentThreadPriority()
+	{
+		#if PLATFORM_WINDOWS
+		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+		#endif
+	}
+
 
 #if !PLATFORM_WINDOWS
 	void GetMappingHandleName(StringBufferBase& out, u64 uid)

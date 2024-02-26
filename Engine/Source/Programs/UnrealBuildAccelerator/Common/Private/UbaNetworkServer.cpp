@@ -501,6 +501,8 @@ namespace uba
 
 	void NetworkServer::Worker::ThreadWorker(NetworkServer& server)
 	{
+		ElevateCurrentThreadPriority();
+
 		t_worker = this;
 		while (m_context->workAvailable.IsSet(~0u) && m_loop)
 			Update(*m_context, true);
