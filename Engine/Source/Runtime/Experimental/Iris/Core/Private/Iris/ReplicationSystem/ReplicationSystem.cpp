@@ -330,24 +330,31 @@ public:
 
 	void UpdateFilterPostPoll()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateFilterPostPoll);
 		LLM_SCOPE_BYTAG(Iris);
 
 		FReplicationFiltering& Filtering = ReplicationSystemInternal.GetFiltering();
-		Filtering.FilterPostPoll();
 
-		// Iterate over all valid connections and propagate updated scopes
-		FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
-		
-		auto UpdateConnectionScope = [&Filtering, &Connections](uint32 ConnectionId)
 		{
-			FReplicationConnection* Conn = Connections.GetConnection(ConnectionId);
-			const FNetBitArrayView ObjectsInScope = Filtering.GetRelevantObjectsInScope(ConnectionId);
-			Conn->ReplicationWriter->UpdateScope(ObjectsInScope);
-		};
+			IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateFilterPostPoll);
+			Filtering.FilterPostPoll();
+		}
 
-		const FNetBitArray& ValidConnections = Connections.GetValidConnections();
-		ValidConnections.ForAllSetBits(UpdateConnectionScope);
+		{
+			IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateConnectionsScope);
+		
+			// Iterate over all valid connections and propagate updated scopes
+			FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
+		
+			auto UpdateConnectionScope = [&Filtering, &Connections](uint32 ConnectionId)
+			{
+				FReplicationConnection* Conn = Connections.GetConnection(ConnectionId);
+				const FNetBitArrayView ObjectsInScope = Filtering.GetRelevantObjectsInScope(ConnectionId);
+				Conn->ReplicationWriter->UpdateScope(ObjectsInScope);
+			};
+
+			const FNetBitArray& ValidConnections = Connections.GetValidConnections();
+			ValidConnections.ForAllSetBits(UpdateConnectionScope);
+		}
 	}
 
 	// Can run at any time between scoping and replication.

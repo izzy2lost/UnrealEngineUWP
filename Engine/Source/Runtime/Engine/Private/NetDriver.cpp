@@ -6812,6 +6812,8 @@ void UNetDriver::UpdateIrisReplicationViews() const
 {
 	using namespace UE::Net;
 
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateIrisReplicationViews);
+
 	FReplicationView::FView DefaultView;
 	{
 		const APlayerCameraManager* CameraManager = GetDefault<APlayerCameraManager>();
@@ -6901,6 +6903,8 @@ void UNetDriver::UpdateIrisReplicationViews() const
 
 void UNetDriver::SendClientMoveAdjustments()
 {
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_SendClientMoveAdjustments);
+
 	for (UNetConnection* Connection : ClientConnections)
 	{
 		if (Connection == nullptr || Connection->ViewTarget == nullptr)
