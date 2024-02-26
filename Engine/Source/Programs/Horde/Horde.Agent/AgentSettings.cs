@@ -2,6 +2,7 @@
 
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
+using EpicGames.Horde.Tools;
 using Microsoft.Extensions.Configuration;
 
 namespace Horde.Agent
@@ -178,7 +179,7 @@ namespace Horde.Agent
 		/// The default server, unless overridden from the command line
 		/// </summary>
 		public string? Server { get; set; }
-		
+
 		/// <summary>
 		/// Name of agent to report as when connecting to server.
 		/// By default, the computer's hostname will be used.
@@ -206,6 +207,11 @@ namespace Horde.Agent
 		public string Executor { get; set; } = Execution.WorkspaceExecutor.Name;
 
 		/// <summary>
+		/// Default channel for downloading updates
+		/// </summary>
+		public ToolId UpdateChannel { get; set; }
+
+		/// <summary>
 		/// Settings for the local executor
 		/// </summary>
 		public LocalExecutorSettings LocalExecutor { get; set; } = new LocalExecutorSettings();
@@ -224,7 +230,7 @@ namespace Horde.Agent
 		/// Whether to mount the specified list of network shares
 		/// </summary>
 		public bool ShareMountingEnabled { get; set; } = true;
-		
+
 		/// <summary>
 		/// List of network shares to mount
 		/// </summary>
@@ -240,7 +246,7 @@ namespace Horde.Agent
 		/// List of process names to terminate after a lease completes, but not after a job step
 		/// </summary>
 		public List<ProcessToTerminate> ProcessesToTerminate { get; } = new List<ProcessToTerminate>();
-		
+
 		/// <summary>
 		/// Path to Wine executable. If null, execution under Wine is disabled
 		/// </summary>
@@ -270,12 +276,12 @@ namespace Horde.Agent
 		/// Incoming port for listening for compute work. Needs to be tied with a lease.
 		/// </summary>
 		public int ComputePort { get; set; } = 7000;
-		
+
 		/// <summary>
 		/// Whether to send telemetry back to Horde server
 		/// </summary>
 		public bool EnableTelemetry { get; set; } = false;
-		
+
 		/// <summary>
 		/// How often to report telemetry events to server in milliseconds
 		/// </summary>
