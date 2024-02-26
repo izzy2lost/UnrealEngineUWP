@@ -187,7 +187,7 @@ void UMLDeformerMorphModel::ClearMorphTargetSets()
 		if (GetMorphTargetSet(LOD).IsValid())
 		{
 			FMorphTargetVertexInfoBuffers& MorphBuffer = GetMorphTargetSet(LOD)->MorphBuffers;
-			if (MorphBuffer.IsRHIIntialized() && MorphBuffer.IsInitialized())
+			if (MorphBuffer.IsRHIInitialized() && MorphBuffer.IsInitialized())
 			{
 				ReleaseResourceAndFlush(&MorphBuffer);
 			}

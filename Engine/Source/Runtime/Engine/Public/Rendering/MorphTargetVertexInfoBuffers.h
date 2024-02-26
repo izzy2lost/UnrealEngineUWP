@@ -18,7 +18,7 @@ public:
 	ENGINE_API void InitMorphResources(EShaderPlatform ShaderPlatform, const TArray<FSkelMeshRenderSection>& RenderSections, const TArray<UMorphTarget*>& MorphTargets, int NumVertices, int32 LODIndex, float TargetPositionErrorTolerance);
 
 	inline bool IsMorphResourcesInitialized() const { return bResourcesInitialized; }
-	inline bool IsRHIIntialized() const { return bRHIIntialized; }
+	inline bool IsRHIInitialized() const { return bRHIInitialized; }
 	inline bool IsMorphCPUDataValid() const{ return bIsMorphCPUDataValid; }
 	
 	bool GetEmptyMorphCPUDataOnInitRHI() const { return bEmptyMorphCPUDataOnInitRHI; }
@@ -102,7 +102,7 @@ protected:
 
 	bool bIsMorphCPUDataValid = false;
 	bool bResourcesInitialized = false;
-	bool bRHIIntialized = false;
+	bool bRHIInitialized = false;
 	bool bEmptyMorphCPUDataOnInitRHI = true;
 
 	friend class FSkeletalMeshLODRenderData;
