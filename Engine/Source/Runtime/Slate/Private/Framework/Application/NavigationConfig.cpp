@@ -205,6 +205,20 @@ FString FNavigationConfig::ToString() const
 	return Builder.ToString();
 }
 
+bool FNavigationConfig::IsAnalogEventBeyondNavigationThreshold(const FAnalogInputEvent& InAnalogEvent) const
+{
+	if (bAnalogNavigation)
+	{
+		const FKey& AnalogKey = InAnalogEvent.GetKey();
+		const float AbsAnalogValue = FMath::Abs(InAnalogEvent.GetAnalogValue());
+	 
+	 	return (IsAnalogHorizontalKey(AnalogKey) && AbsAnalogValue > AnalogNavigationHorizontalThreshold)
+			|| (IsAnalogVerticalKey(AnalogKey) 	 && AbsAnalogValue > AnalogNavigationVerticalThreshold);
+	}
+
+	return false;
+}
+
 FTwinStickNavigationConfig::FTwinStickNavigationConfig()
 {
 	bTabNavigation = false;
