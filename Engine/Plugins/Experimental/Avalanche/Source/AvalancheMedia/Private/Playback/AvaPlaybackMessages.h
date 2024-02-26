@@ -577,7 +577,7 @@ struct FAvaBroadcastChannelSettingsUpdate : public FAvaPlaybackClientMessageBase
 	UPROPERTY()
 	FString Channel;
 
-	UPROPERTY()
+	UPROPERTY(meta = (HideHeader, ShowPresets))
 	FAvaViewportQualitySettings QualitySettings;
 };
 

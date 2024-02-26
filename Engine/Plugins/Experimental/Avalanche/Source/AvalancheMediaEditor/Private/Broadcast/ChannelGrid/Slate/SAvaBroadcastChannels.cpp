@@ -88,20 +88,7 @@ void SAvaBroadcastChannels::Construct(const FArguments& InArgs, const TSharedPtr
 	.HAlign(EHorizontalAlignment::HAlign_Fill)
 	.VAlign(EVerticalAlignment::VAlign_Fill)
 	[
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(EHorizontalAlignment::HAlign_Center)
-		[
-			MakeChannelsToolbar()
-		]
-		+ SVerticalBox::Slot()
-		.FillHeight(1.f)
-		.HAlign(EHorizontalAlignment::HAlign_Fill)
-		.VAlign(EVerticalAlignment::VAlign_Fill)
-		[
-			ChannelGrid.ToSharedRef()
-		]
+		ChannelGrid.ToSharedRef()
 	];
 
 	RefreshChannelGrid();
@@ -115,26 +102,6 @@ SAvaBroadcastChannels::~SAvaBroadcastChannels()
 	}
 }
 
-bool SAvaBroadcastChannels::CanAddChannel()
-{
-	const int32 ChannelCount = UAvaBroadcast::Get().GetCurrentProfile().GetChannels().Num();
-					
-	const UAvaMediaEditorSettings& MediaSettings = UAvaMediaEditorSettings::Get();
-	
-	return !MediaSettings.bBroadcastEnforceMaxChannelCount
-		|| ChannelCount < MediaSettings.BroadcastMaxChannelCount;
-}
-
-void SAvaBroadcastChannels::AddChannel()
-{
-	if (UAvaBroadcast* const Broadcast = BroadcastWeak.Get())
-	{
-		FScopedTransaction Transaction(LOCTEXT("AddChannel", "Add Channel"));
-		Broadcast->Modify();
-		Broadcast->GetCurrentProfile().AddChannel();
-	}
-}
-
 float SAvaBroadcastChannels::GetRowFill(int32 RowId) const
 {
 	return ChannelMaximizer.GetRowFill(RowId);
@@ -143,27 +110,6 @@ float SAvaBroadcastChannels::GetRowFill(int32 RowId) const
 float SAvaBroadcastChannels::GetColumnFill(int32 ColumnId) const
 {
 	return ChannelMaximizer.GetColumnFill(ColumnId);
-}
-
-TSharedRef<SWidget> SAvaBroadcastChannels::MakeChannelsToolbar()
-{
-	FSlimHorizontalToolBarBuilder ToolBarBuilder(nullptr, FMultiBoxCustomization::None);
-	
-	ToolBarBuilder.BeginSection(TEXT("Channels"));
-	{
-		const FUIAction AddChannelAction(FExecuteAction::CreateSP(this, &SAvaBroadcastChannels::AddChannel)
-			, FCanExecuteAction::CreateSP(this, &SAvaBroadcastChannels::CanAddChannel));
-		
-		ToolBarBuilder.AddToolBarButton(AddChannelAction
-			, NAME_None
-			, LOCTEXT("NewChannel_Label", "New Channel")
-			, LOCTEXT("NewChannel_ToolTip", "New Channel")
-			, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Plus")
-		);		
-	}
-	ToolBarBuilder.EndSection();
-	
-	return ToolBarBuilder.MakeWidget();
 }
 
 bool SAvaBroadcastChannels::CanMaximizeChannel() const

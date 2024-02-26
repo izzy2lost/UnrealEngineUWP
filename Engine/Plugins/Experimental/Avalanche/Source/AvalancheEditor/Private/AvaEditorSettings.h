@@ -12,31 +12,6 @@
 #include "Viewport/AvaViewportQualitySettings.h"
 #include "AvaEditorSettings.generated.h"
 
-USTRUCT()
-struct FAvaPaletteSettings
-{
-	GENERATED_BODY()
-
-	UPROPERTY(Config, VisibleAnywhere, Category = "Interface")
-	FName Name;
-
-	// Name is the TMap key
-	UPROPERTY(Config, EditAnywhere, Category = "Interface")
-	bool bEnablePalette = true;
-
-	UPROPERTY(Config)
-	bool bExpanded = false;
-};
-
-USTRUCT()
-struct FAvaPaletteTabSettings
-{
-	GENERATED_BODY()
-
-	UPROPERTY(Config, EditAnywhere, EditFixedSize, Category = "Interface", meta = (TitleProperty = "Name", FullyExpand))
-	TArray<FAvaPaletteSettings> Palettes;
-};
-
 /**
  * Motion Design Editor Settings
  */
@@ -67,14 +42,6 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Behavior")
 	float CameraDistance = 500.0f;
 
-	/**  */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Toolbox")
-	TArray<FString> FavoriteTools;
-
-	/**  */
-	UPROPERTY(Config, EditAnywhere, EditFixedSize, Category = "Interface", meta = (EditFixedOrder, ShowOnlyInnerProperties))
-	TArray<FAvaPaletteTabSettings> PaletteTabs;
-
 	/** Default viewport quality settings for all newly created Motion Design blueprints. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Quality")
 	FAvaViewportQualitySettings DefaultViewportQualitySettings = FAvaViewportQualitySettings(true);
@@ -83,12 +50,8 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Quality")
 	TMap<FName, FAvaViewportQualitySettings> ViewportQualityPresets;
 
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSettingsChanged, const UAvaEditorSettings* InSettings, FName InSetting)
-	FOnSettingsChanged OnChanged;
-
 	//~ Begin UObject
 	virtual void PostInitProperties() override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~ End UObject
 
 	void OpenEditorSettingsWindow() const;

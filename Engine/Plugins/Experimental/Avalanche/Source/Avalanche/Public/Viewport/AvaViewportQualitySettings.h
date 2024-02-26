@@ -10,9 +10,19 @@ class FText;
 struct FEngineShowFlags;
 
 USTRUCT(BlueprintType)
-struct FAvaViewportQualitySettingsFeature
+struct AVALANCHE_API FAvaViewportQualitySettingsFeature
 {
 	GENERATED_BODY()
+
+	FAvaViewportQualitySettingsFeature() {}
+	FAvaViewportQualitySettingsFeature(const FString& InName, const bool bInEnabled)
+		: Name(InName), bEnabled(bInEnabled)
+	{}
+
+	bool operator==(const FAvaViewportQualitySettingsFeature& InOther) const
+	{
+		return Name.Equals(InOther.Name);
+	}
 
 	/** The name of the feature in the engine show flags. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quality")
@@ -20,17 +30,7 @@ struct FAvaViewportQualitySettingsFeature
 
 	/** True if this engine feature show flag should be enabled. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quality")
-	bool Enabled = false;
-
-	FAvaViewportQualitySettingsFeature() {}
-	FAvaViewportQualitySettingsFeature(const FString& InName, const bool InEnabled)
-		: Name(InName), Enabled(InEnabled)
-	{}
-
-	bool operator==(const FAvaViewportQualitySettingsFeature& InOther) const
-	{
-		return Name.Equals(InOther.Name);
-	}
+	bool bEnabled = false;
 };
 
 /** 
@@ -46,15 +46,6 @@ struct AVALANCHE_API FAvaViewportQualitySettings
 	GENERATED_BODY()
 
 public:
-	/** Advanced viewport client engine features indexed by FEngineShowFlags names. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, EditFixedSize, Category = "Quality", meta=(EditFixedOrder))
-	TArray<FAvaViewportQualitySettingsFeature> Features;
-
-	FAvaViewportQualitySettings();
-	FAvaViewportQualitySettings(const bool bInUseAllFeatures);
-	FAvaViewportQualitySettings(const FEngineShowFlags& InShowFlags);
-	FAvaViewportQualitySettings(const TArray<FAvaViewportQualitySettingsFeature>& InFeatures);
-
 	static TArray<FAvaViewportQualitySettingsFeature> DefaultFeatures();
 	static TArray<FAvaViewportQualitySettingsFeature> AllFeatures(const bool bUseAllFeatures);
 
@@ -64,16 +55,31 @@ public:
 
 	static void FeatureNameAndTooltipText(const FString& InFeatureName, FText& OutNameText, FText& OutTooltipText);
 
+	static FAvaViewportQualitySettingsFeature* FindFeatureByName(TArray<FAvaViewportQualitySettingsFeature>& InFeatures, const FString& InFeatureName);
+	static const FAvaViewportQualitySettingsFeature* FindFeatureByName(const TArray<FAvaViewportQualitySettingsFeature>& InFeatures, const FString& InFeatureName);
+
+	static void VerifyIntegrity(TArray<FAvaViewportQualitySettingsFeature>& InFeatures);
+
+	static void SortFeaturesByDisplayText(TArray<FAvaViewportQualitySettingsFeature>& InFeatures);
+
+	FAvaViewportQualitySettings();
+	FAvaViewportQualitySettings(const bool bInUseAllFeatures);
+	FAvaViewportQualitySettings(const FEngineShowFlags& InShowFlags);
+	FAvaViewportQualitySettings(const TArray<FAvaViewportQualitySettingsFeature>& InFeatures);
+
+	bool operator==(const FAvaViewportQualitySettings& InOther) const;
+	bool operator!=(const FAvaViewportQualitySettings& InOther) const;
+
 	/** Applies the settings to the FEngineShowFlags structure provided. */
 	void Apply(FEngineShowFlags& InFlags);
 
 	void EnableFeaturesByName(const bool bInEnabled, const TArray<FString>& InFeatureNames);
 
-	static FAvaViewportQualitySettingsFeature* FindFeatureByName(TArray<FAvaViewportQualitySettingsFeature>& InFeatures, const FString& InFeatureName);
-
-	static void VerifyIntegrity(TArray<FAvaViewportQualitySettingsFeature>& InFeatures);
 	void VerifyIntegrity();
 
-	static void SortFeaturesByDisplayText(TArray<FAvaViewportQualitySettingsFeature>& InFeatures);
 	void SortFeaturesByDisplayText();
+
+	/** Advanced viewport client engine features indexed by FEngineShowFlags names. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, EditFixedSize, Category = "Quality", meta = (EditFixedOrder))
+	TArray<FAvaViewportQualitySettingsFeature> Features;
 };

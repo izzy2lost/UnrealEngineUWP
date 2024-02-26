@@ -2,6 +2,7 @@
 
 #include "Broadcast/AvaBroadcastEditor.h"
 #include "AppModes/AvaBroadcastDefaultMode.h"
+#include "AvaMediaEditorSettings.h"
 #include "AvaMediaSettings.h"
 #include "Broadcast/AvaBroadcast.h"
 #include "Broadcast/ChannelGrid/AvaBroadcastOutputTileItem.h"
@@ -200,6 +201,15 @@ void FAvaBroadcastEditor::FillPlayToolBar(FToolBarBuilder& ToolBarBuilder)
 	//TODO: Change Lambdas to their Own Command Action
 	ToolBarBuilder.BeginSection(TEXT("Player"));
 	{
+		ToolBarBuilder.AddToolBarButton(
+			FUIAction(FExecuteAction::CreateSP(this, &FAvaBroadcastEditor::AddChannel)
+				, FCanExecuteAction::CreateSP(this, &FAvaBroadcastEditor::CanAddChannel))
+			, NAME_None
+			, LOCTEXT("NewChannel_Label", "New Channel")
+			, LOCTEXT("NewChannel_ToolTip", "New Channel")
+			, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Plus")
+		);
+
 		ToolBarBuilder.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([Broadcast]
 				{
 					Broadcast->StartBroadcast();
@@ -547,6 +557,26 @@ FText FAvaBroadcastEditor::GetLaunchLocalServerTooltip()
 		return LOCTEXT("LaunchLocalServerAuto_ToolTip", "Launches Game Mode Local Server Process");
 	}
 	return LOCTEXT("LaunchLocalServerManual_ToolTip", "Launches Game Mode Local Server Process (disabled, start client first)");
+}
+
+bool FAvaBroadcastEditor::CanAddChannel()
+{
+	const int32 ChannelCount = UAvaBroadcast::Get().GetCurrentProfile().GetChannels().Num();
+
+	const UAvaMediaEditorSettings& MediaSettings = UAvaMediaEditorSettings::Get();
+
+	return !MediaSettings.bBroadcastEnforceMaxChannelCount
+		|| ChannelCount < MediaSettings.BroadcastMaxChannelCount;
+}
+
+void FAvaBroadcastEditor::AddChannel()
+{
+	if (UAvaBroadcast* const Broadcast = BroadcastWeak.Get())
+	{
+		FScopedTransaction Transaction(LOCTEXT("AddChannel", "Add Channel"));
+		Broadcast->Modify();
+		Broadcast->GetCurrentProfile().AddChannel();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

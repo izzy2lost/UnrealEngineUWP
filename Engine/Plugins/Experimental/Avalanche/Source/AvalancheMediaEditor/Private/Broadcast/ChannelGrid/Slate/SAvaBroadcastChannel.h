@@ -13,11 +13,13 @@
 class FAvaBroadcastEditor;
 class FName;
 class FReply;
+class FStructOnScope;
 class FText;
 class FUICommandList;
 class IStructureDetailsView;
 class ITableRow;
 class SAvaBroadcastChannel;
+class SAvaViewportQualitySettings;
 class SInlineEditableTextBlock;
 class SlateBrush;
 class SMenuAnchor;
@@ -86,7 +88,6 @@ public:
 	void OnChannelNameTextCommitted(const FText& InText, ETextCommit::Type CommitInfo);
 
 	FReply OnChannelStatusButtonClicked();
-	FReply OnChannelSettingsButtonClicked();
 	FReply OnChannelPinButtonClicked();
 	FReply OnChannelTypeToggleButtonClicked();
 	FReply OnChannelMaximizeButtonClicked();
@@ -111,6 +112,12 @@ public:
 	
 protected:
 	FText GetChannelMaximizeRestoreTooltipText() const;
+
+	void CreateQualitySettingsDetails();
+
+	void OnChannelQualitySettingsChanged(const FPropertyChangedEvent& InEvent);
+
+	TSharedRef<SWidget> GetQualitySettingsDetails() const;
 	
 	FName ChannelName = NAME_None;
 
@@ -118,9 +125,9 @@ protected:
 	
 	TSharedPtr<SListView<FAvaBroadcastOutputTileItemPtr>> OutputTileListView;
 	
-	TSharedPtr<IStructureDetailsView> ChannelSettings;
+	TSharedPtr<FStructOnScope> QualitySettingsStruct;
 
-	TSharedPtr<SMenuAnchor> ChannelSettingsMenuAnchor;
+	TSharedPtr<IStructureDetailsView> QualitySettingsDetails;
 
 	TArray<FAvaBroadcastOutputTileItemPtr> OutputTileItems;
 	

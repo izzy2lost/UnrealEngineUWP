@@ -40,14 +40,9 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedPtr<FAvaBroadcastEditor>& InBroadcastEditor);
 	
 	virtual ~SAvaBroadcastChannels() override;
-
-	bool CanAddChannel();
-	void AddChannel();
 	
 	float GetRowFill(int32 RowId) const;
 	float GetColumnFill(int32 ColumnId) const;
-
-	TSharedRef<SWidget> MakeChannelsToolbar();
 	
 	bool CanMaximizeChannel() const;
 	void ToggleMaximizeChannel(const TSharedRef<SAvaBroadcastChannel>& InWidget);

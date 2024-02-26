@@ -8,8 +8,8 @@
 #include "Containers/Map.h"
 #include "Containers/StringFwd.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "Viewport/AvaViewportQualitySettings.h"
 #include "UObject/ObjectPtr.h"
+#include "Viewport/AvaViewportQualitySettings.h"
 #include "AvaBroadcastOutputChannel.generated.h"
 
 class FAudioDeviceHandle;
@@ -223,7 +223,7 @@ protected:
 	UPROPERTY()
 	TArray<FAvaBroadcastMediaOutputInfo> MediaOutputInfos;
 
-	UPROPERTY(EditAnywhere, Category = "Motion Design")
+	UPROPERTY(EditAnywhere, Category = "Motion Design", meta = (HideHeader, ShowPresets))
 	FAvaViewportQualitySettings QualitySettings;
 
 	/*
