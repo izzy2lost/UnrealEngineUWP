@@ -669,6 +669,12 @@ void FCustomizableObjectCompiler::AddCachedReferencers(const FName& PathName, TA
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	AssetRegistryModule.Get().GetReferencers(PathName, ArrayReferenceNames, UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Hard);
 
+	// Required to make compilations deterministic within editor runs.
+	ArrayReferenceNames.Sort([](const FName& A, const FName& B)
+	{
+		return A.LexicalLess(B);
+	});
+	
 	FARFilter Filter;
 	for (const FName& ReferenceName : ArrayReferenceNames)
 	{
@@ -692,12 +698,6 @@ void FCustomizableObjectCompiler::AddCachedReferencers(const FName& PathName, TA
 			ArrayAssetData.Add(ArrayAssetDataTemp[i]);
 		}
 	}
-
-	// Required to make compilations deterministic within editor runs.
-	ArrayReferenceNames.Sort([](const FName& A, const FName& B)
-	{
-		return A.LexicalLess(B);
-	});
 }
 
 
