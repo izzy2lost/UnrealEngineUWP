@@ -460,6 +460,11 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 	{
 		check(!InBlockSourcesData.IsEmpty());
 
+		// note if only one image in UDIM set is found,
+		//	then SetupTexture2DSourceDataFromBulkData_Editor will wind up discarding the UDIM parse
+		//	and instead import it as a single image.
+		// eg. if you have something like "test_1024.bmp" it will not be treated as UDIM with offsets of X=3 and Y=2
+
 		TArray<const TPair<int32, FString>*> UDIMsAndSourcesFileArray;
 		UDIMsAndSourcesFileArray.Reserve(InBlockSourcesData.Num());
 		int32 OrginalSourceDataIndex = INDEX_NONE;
@@ -790,7 +795,8 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 		}
 		else
 		{
-			//Import as a normal texture
+			// only 1 image in UDIM set found
+			//Import as a normal texture (not VT/not UDIM)
 			FImportImage Image;
 			Image.Format = BlockedImage.Format;
 			Image.CompressionSettings = BlockedImage.CompressionSettings;
@@ -801,6 +807,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 			Image.SizeX = Block.SizeX;
 			Image.SizeY = Block.SizeY;
 			Image.NumMips = Block.NumMips;
+			// note any UDIM block X,Y offset is discarded
 
 			SetupTextureSourceDataFromBulkData_Editor(Texture2D, Image, MoveTemp(BufferAndId), bIsReimport);
 		}
@@ -1093,6 +1100,9 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	FGraphEventArray GenerateHashSourceFilesTasks(const UInterchangeSourceData* SourceData, TArray<FString>&& FilesToHash, TArray<FAssetImportInfo::FSourceFile>& OutSourceFiles)
 	{
+		// This hashing is quite slow (MD5 single threaded)
+		// it is needed for the auto-reimport feature that detects changed files by comparing their hashes
+
 		struct FHashSourceTaskBase
 		{
 			/**

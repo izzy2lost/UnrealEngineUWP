@@ -45,13 +45,24 @@ namespace UE
 				// UDIM starts with 1001 as the origin
 				return INDEX_NONE;
 			}
+			if ( UdimValue > 1100 )
+			{
+				return INDEX_NONE;
+			}
 
 			return UdimValue;
 		}
 
 		int32 GetUDIMIndex(int32 BlockX, int32 BlockY)
 		{
-			return BlockY * 10 + BlockX + 1001;
+			check( BlockX >= 0 && BlockX <= 9 );
+			check( BlockY >= 0 && BlockY <= 9 );
+
+			int32 Ret = BlockY * 10 + BlockX + 1001;
+
+			check( Ret >= 1001 && Ret <= 1100 );
+
+			return Ret;
 		}
 
 		TMap<int32, FString> GetUDIMBlocksFromSourceFile(const FString& File, const FString& UdimRegexPattern, FString* OutFilenameWithoutUdimPatternAndExtension)
@@ -91,8 +102,15 @@ namespace UE
 
 		void ExtractUDIMCoordinates(int32 UDIMIndex, int32& OutBlockX, int32& OutBlockY)
 		{
+			check( UDIMIndex != INDEX_NONE );
+			check( UDIMIndex >= 1001 && UDIMIndex <= 1100 );
+
+			// note 1010 is X=9, Y=0 , that is the tens column is not Y
 			OutBlockX = (UDIMIndex - 1001) % 10;
 			OutBlockY = (UDIMIndex - 1001) / 10;
+
+			check( OutBlockX >= 0 && OutBlockX <= 9 );
+			check( OutBlockY >= 0 && OutBlockY <= 9 );
 		}
 	}
 }

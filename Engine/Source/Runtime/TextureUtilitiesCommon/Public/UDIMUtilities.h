@@ -12,6 +12,13 @@ namespace UE
 {
 	namespace TextureUtilitiesCommon
 	{
+		// UDIM = 1001 + X + Y*10
+		// valid UDIM is in "1001" to "1100"
+		//	X and Y are in [0,9]
+		//	note the tens digit is not Y ; eg. 1010 is X=9,Y=0
+
+		// this Regex is unnecessarily complex and broad
+		//	UDIM must start with "10" then two digits, or "1100"
 		constexpr const TCHAR* DefaultUdimRegexPattern = TEXT(R"((.+?)[._](\d{4})$)");
 
 		TEXTUREUTILITIESCOMMON_API uint32 ParseUDIMName(const FString& Name, const FString& UdimRegexPattern, FString& OutPrefixName, FString& OutPostfixName);
