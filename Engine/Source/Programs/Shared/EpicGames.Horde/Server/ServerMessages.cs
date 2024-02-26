@@ -165,11 +165,7 @@ namespace EpicGames.Horde.Server
 	/// </summary>
 	public class ServerStatusSubsystem
 	{
-		/// <summary>
-		/// Category of this subsystem
-		/// </summary>
-		public string Category { get; set; } = "";
-		
+	
 		/// <summary>
 		/// Name of the subsystem
 		/// </summary>
