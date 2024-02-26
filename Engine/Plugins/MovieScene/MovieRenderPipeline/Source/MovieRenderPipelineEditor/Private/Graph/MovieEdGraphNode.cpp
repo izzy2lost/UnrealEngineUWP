@@ -544,10 +544,11 @@ void UMoviePipelineEdGraphNodeBase::ReconstructNode()
 		return;
 	}
 
+	UMoviePipelineEdGraph* Graph = CastChecked<UMoviePipelineEdGraph>(GetGraph());
+	Graph->Modify();
+
 	ReconstructPins();
 
-	UMoviePipelineEdGraph* Graph = CastChecked<UMoviePipelineEdGraph>(GetGraph());
-	
 	// Reconstruct connections
 	const bool bCreateInbound = true;
 	const bool bCreateOutbound = true;
@@ -558,6 +559,8 @@ void UMoviePipelineEdGraphNodeBase::ReconstructNode()
 
 void UMoviePipelineEdGraphNodeBase::ReconstructPins()
 {
+	Modify();
+	
 	// Store copy of old pins
 	TArray<UEdGraphPin*> OldPins = MoveTemp(Pins);
 	Pins.Reset();

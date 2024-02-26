@@ -8,6 +8,7 @@
 #include "Graph/MovieGraphSchema.h"
 #include "Graph/Nodes/MovieGraphVariableNode.h"
 #include "MovieEdGraphNode.h"
+#include "ScopedTransaction.h"
 #include "SGraphActionMenu.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
@@ -170,8 +171,9 @@ void SMovieGraphMembersTabContent::DeleteSelectedMembers()
 	{
 		if (UMovieGraphMember* GraphMember = UE::MovieGraph::Private::GetMemberFromAction(SelectedAction.Get()))
 		{
-			MemberChangedHandles.Remove(GraphMember);
+			FScopedTransaction Transaction(LOCTEXT("DeleteGraphMember", "Delete Graph Member"));
 			
+			MemberChangedHandles.Remove(GraphMember);
 			CurrentGraph->DeleteMember(GraphMember);
 		}
 	}
@@ -202,6 +204,18 @@ bool SMovieGraphMembersTabContent::CanDeleteSelectedMembers() const
 	}
 
 	return true;
+}
+
+void SMovieGraphMembersTabContent::PostUndo(bool bSuccess)
+{
+	// Normally the UI relies on delegates to determine when to refresh. However, undo/redo do not fire those delegates, so refresh whenever there
+	// is an undo/redo.
+	RefreshMemberActions();
+}
+
+void SMovieGraphMembersTabContent::PostRedo(bool bSuccess)
+{
+	RefreshMemberActions();
 }
 
 void SMovieGraphMembersTabContent::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
@@ -390,14 +404,17 @@ FReply SMovieGraphMembersTabContent::OnAddButtonClickedOnSection(const int32 InS
 
 	if (Section == EActionSection::Inputs)
 	{
+		FScopedTransaction Transaction(LOCTEXT("AddNewInput", "Add New Input"));
 		CurrentGraph->AddInput();
 	}
 	else if (Section == EActionSection::Outputs)
 	{
+		FScopedTransaction Transaction(LOCTEXT("AddNewOutput", "Add New Output"));
 		CurrentGraph->AddOutput();
 	}
 	else if (Section == EActionSection::Variables)
 	{
+		FScopedTransaction Transaction(LOCTEXT("AddNewVariable", "Add New Variable"));
 		CurrentGraph->AddVariable();
 	}
 

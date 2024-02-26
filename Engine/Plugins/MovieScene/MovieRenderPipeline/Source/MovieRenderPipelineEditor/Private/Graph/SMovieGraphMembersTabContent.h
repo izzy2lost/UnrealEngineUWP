@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "EditorUndoClient.h"
 #include "GraphEditorDragDropAction.h"
 #include "SGraphActionMenu.h"
 #include "Widgets/Input/SButton.h"
@@ -16,7 +17,7 @@ struct FGraphActionListBuilderBase;
 /**
  * Contents of the "Members" tab in the graph asset editor.
  */
-class SMovieGraphMembersTabContent : public SCompoundWidget
+class SMovieGraphMembersTabContent : public SCompoundWidget, public FSelfRegisteringEditorUndoClient
 {
 public:
 	DECLARE_DELEGATE_TwoParams(FOnActionSelected, const TArray<TSharedPtr<FEdGraphSchemaAction>>&, ESelectInfo::Type);
@@ -54,6 +55,11 @@ public:
 
 	/** Determines if all selected member(s) can be deleted. */
 	bool CanDeleteSelectedMembers() const;
+
+	//~ Begin FSelfRegisteringEditorUndoClient Interface
+	virtual void PostUndo(bool bSuccess) override;
+	virtual void PostRedo(bool bSuccess) override;
+	//~ End FSelfRegisteringEditorUndoClient Interface
 
 private:
 	/** The section identifier in the action widget. */
