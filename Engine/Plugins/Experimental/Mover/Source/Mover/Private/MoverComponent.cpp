@@ -20,6 +20,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Blueprint/BlueprintExceptionInfo.h"
+#include "UObject/ObjectSaveContext.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -536,7 +537,15 @@ void UMoverComponent::ProcessFirstSimTickAfterRollback(const FMoverTimeStep& Tim
 	bHasRolledBack = false;
 }
 
+
 #if WITH_EDITOR
+
+void UMoverComponent::PreSave(FObjectPreSaveContext ObjectSaveContext)
+{
+	Super::PreSave(ObjectSaveContext);
+
+	RefreshSharedSettings();
+}
 
 void UMoverComponent::PostCDOCompiled(const FPostCDOCompiledContext& Context)
 {
@@ -614,7 +623,7 @@ bool UMoverComponent::ValidateSetup(FDataValidationContext& Context) const
 		if (Element.Value && Element.Value->SharedSettingsClass &&
 			FindSharedSettings(Element.Value->SharedSettingsClass) == nullptr)
 		{
-			Context.AddError(FText::Format(LOCTEXT("MissingModeSettingsError", "Movement mode on {0}, mapped as {1}, is missing its desired SharedSettingsClass {2} and may not function properly."),
+			Context.AddError(FText::Format(LOCTEXT("MissingModeSettingsError", "Movement mode on {0}, mapped as {1}, is missing its desired SharedSettingsClass {2}. You may need to save the asset and/or recompile."),
 				FText::FromString(GetNameSafe(GetOwner())),
 				FText::FromName(Element.Key),
 				FText::FromString(Element.Value->SharedSettingsClass->GetName())));
