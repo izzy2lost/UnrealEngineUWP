@@ -42,6 +42,16 @@ static TAutoConsoleVariable<bool> CVarNaniteMaterialBufferDefrag(
 	ECVF_RenderThreadSafe
 );
 
+static int32 GNaniteMaterialBufferForceDefrag = 0;
+static FAutoConsoleVariableRef CVarNaniteMaterialBufferDefragForce(
+	TEXT("r.Nanite.MaterialBuffers.Defrag.Force"),
+	GNaniteMaterialBufferForceDefrag,
+	TEXT("0: Do not force a full defrag.\n")
+	TEXT("1: Force one full defrag on the next update.\n")
+	TEXT("2: Force a full defrag every frame."),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<float> CVarNaniteMaterialBufferDefragLowWaterMark(
 	TEXT("r.Nanite.MaterialBuffers.Defrag.LowWaterMark"),
 	0.375f,
@@ -73,12 +83,16 @@ IMPLEMENT_SCENE_EXTENSION(FMaterialsSceneExtension);
 
 bool FMaterialsSceneExtension::ShouldCreateExtension(FScene& InScene)
 {
-	return UseNanite(GetFeatureLevelShaderPlatform(InScene.GetFeatureLevel()));
+	return DoesRuntimeSupportNanite(GetFeatureLevelShaderPlatform(InScene.GetFeatureLevel()), true, true);
 }
 
 void FMaterialsSceneExtension::InitExtension(FScene& InScene)
 {
 	Scene = &InScene;
+
+	// Determine if we want to be initially enabled or disabled
+	const bool bNaniteEnabled = UseNanite(GetFeatureLevelShaderPlatform(InScene.GetFeatureLevel()));
+	SetEnabled(bNaniteEnabled);
 }
 
 ISceneExtensionUpdater* FMaterialsSceneExtension::CreateUpdater()
@@ -88,6 +102,12 @@ ISceneExtensionUpdater* FMaterialsSceneExtension::CreateUpdater()
 
 ISceneExtensionRenderer* FMaterialsSceneExtension::CreateRenderer()
 {
+	// We only need to create renderers when we're enabled
+	if (!IsEnabled())
+	{
+		return nullptr;
+	}
+
 	return new FRenderer(*this);
 }
 
@@ -117,10 +137,36 @@ FRDGBufferRef FMaterialsSceneExtension::CreateHitProxyIDBuffer(FRDGBuilder& Grap
 
 #endif // WITH_EDITOR
 
+void FMaterialsSceneExtension::SetEnabled(bool bEnabled)
+{
+	if (bEnabled != IsEnabled())
+	{
+		if (bEnabled)
+		{
+			MaterialBuffers = MakeUnique<FMaterialBuffers>();
+		}
+		else
+		{
+			MaterialBuffers = nullptr;
+			MaterialBufferAllocator.Reset();
+			PrimitiveData.Reset();
+		#if WITH_EDITOR
+			HitProxyIDAllocator.Reset();
+			HitProxyIDs.Reset();
+		#endif
+		}
+	}
+}
+
 void FMaterialsSceneExtension::FinishMaterialBufferUpload(
 	FRDGBuilder& GraphBuilder,
 	FNaniteMaterialsParameters* OutParams)
 {
+	if (!IsEnabled())
+	{
+		return;
+	}
+
 	FRDGBufferRef PrimitiveBuffer = nullptr;
 	FRDGBufferRef MaterialBuffer = nullptr;
 
@@ -140,20 +186,20 @@ void FMaterialsSceneExtension::FinishMaterialBufferUpload(
 		);
 		PrimitiveBuffer = MaterialUploader->PrimitiveDataUploader.ResizeAndUploadTo(
 			GraphBuilder,
-			MaterialBuffers.PrimitiveDataBuffer,
+			MaterialBuffers->PrimitiveDataBuffer,
 			MinPrimitiveDataSize
 		);
 		MaterialBuffer = MaterialUploader->MaterialDataUploader.ResizeAndUploadTo(
 			GraphBuilder,
-			MaterialBuffers.MaterialDataBuffer,
+			MaterialBuffers->MaterialDataBuffer,
 			MinMaterialDataSize
 		);
 		MaterialUploader = nullptr;
 	}
 	else
 	{
-		PrimitiveBuffer = MaterialBuffers.PrimitiveDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinPrimitiveDataSize);
-		MaterialBuffer = MaterialBuffers.MaterialDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinMaterialDataSize);
+		PrimitiveBuffer = MaterialBuffers->PrimitiveDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinPrimitiveDataSize);
+		MaterialBuffer = MaterialBuffers->MaterialDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinMaterialDataSize);
 	}
 
 	if (OutParams != nullptr)
@@ -187,9 +233,19 @@ bool FMaterialsSceneExtension::ProcessBufferDefragmentation()
 	const int32 LowWaterMark = uint32(EffectiveMaxSize * LowWaterMarkRatio);
 	const int32 UsedSize = MaterialBufferAllocator.GetSparselyAllocatedSize();
 	
-	if (!bAllowDefrag ||
-		EffectiveMaxSize <= MinMaterialBufferSizeDwords ||
-		UsedSize > LowWaterMark)
+	if (!bAllowDefrag)
+	{
+		return false;
+	}
+
+	// check to force a defrag
+	const bool bForceDefrag = GNaniteMaterialBufferForceDefrag != 0;
+	if (GNaniteMaterialBufferForceDefrag == 1)
+	{
+		GNaniteMaterialBufferForceDefrag = 0;
+	}
+	
+	if (!bForceDefrag && (EffectiveMaxSize <= MinMaterialBufferSizeDwords || UsedSize > LowWaterMark))
 	{
 		// No need to defragment
 		return false;
@@ -250,6 +306,15 @@ void FMaterialsSceneExtension::FUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilde
 	// updates that overlap primitives.
 	SceneData->FinishMaterialBufferUpload(GraphBuilder);
 
+	// Update whether or not we are enabled based on in Nanite is enabled
+	const bool bNaniteEnabled = UseNanite(GetFeatureLevelShaderPlatform(SceneData->Scene->GetFeatureLevel()));
+	SceneData->SetEnabled(bNaniteEnabled);
+
+	if (!SceneData->IsEnabled())
+	{
+		return;
+	}
+
 	SceneData->TaskHandles[FreeBufferSpaceTask] = GraphBuilder.AddSetupTask(
 		[this, RemovedList=ChangeSet.RemovedPrimitiveIds]
 		{
@@ -293,6 +358,11 @@ void FMaterialsSceneExtension::FUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilde
 
 void FMaterialsSceneExtension::FUpdater::PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet)
 {
+	if (!SceneData->IsEnabled())
+	{
+		return;
+	}
+
 	// Cache the updated PrimitiveSceneInfos (this is safe as long as we only access it in updater funcs and RDG setup tasks)
 	AddedList = ChangeSet.AddedPrimitiveSceneInfos;
 
@@ -402,6 +472,11 @@ void FMaterialsSceneExtension::FUpdater::PostCacheNaniteMaterialBins(
 	FRDGBuilder& GraphBuilder,
 	const TConstArrayView<FPrimitiveSceneInfo*>& SceneInfosWithStaticDrawListUpdate)
 {
+	if (!SceneData->IsEnabled())
+	{
+		return;
+	}
+
 	// Again, caching because we can assume the lifetime of this list lives as long as the graph builder
 	MaterialUpdateList = SceneInfosWithStaticDrawListUpdate;
 
@@ -623,6 +698,8 @@ void FMaterialsSceneExtension::FRenderer::UpdateSceneUniformBuffer(
 	FRDGBuilder& GraphBuilder,
 	FSceneUniformBuffer& SceneUniformBuffer)
 {
+	check(SceneData->IsEnabled());
+
 	FNaniteMaterialsParameters Parameters;
 	Parameters.PrimitiveMaterialElementStride = sizeof(FPackedPrimitiveData);
 	SceneData->FinishMaterialBufferUpload(GraphBuilder, &Parameters);
