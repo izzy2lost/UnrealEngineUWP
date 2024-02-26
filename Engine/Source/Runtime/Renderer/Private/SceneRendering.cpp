@@ -968,11 +968,11 @@ void FViewInfo::Init()
 	ViewLumenSceneData = nullptr;
 }
 
-void FViewInfo::WaitForTasks(FParallelMeshDrawCommandPass::EWaitThread WaitThread)
+void FViewInfo::WaitForTasks()
 {
 	for (int32 MeshDrawIndex = 0; MeshDrawIndex < EMeshPass::Num; MeshDrawIndex++)
 	{
-		ParallelMeshDrawCommandPasses[MeshDrawIndex].WaitForTasksAndEmpty(WaitThread);
+		ParallelMeshDrawCommandPasses[MeshDrawIndex].WaitForTasksAndEmpty();
 	}
 }
 
@@ -2239,7 +2239,7 @@ FViewInfo* FViewInfo::CreateSnapshot() const
 	return Result;
 }
 
-void FViewInfo::DestroyAllSnapshots(FParallelMeshDrawCommandPass::EWaitThread WaitThread)
+void FViewInfo::DestroyAllSnapshots()
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FViewInfo_DestroyAllSnapshots);
 
@@ -2261,7 +2261,7 @@ void FViewInfo::DestroyAllSnapshots(FParallelMeshDrawCommandPass::EWaitThread Wa
 
 		for (int32 Index = 0; Index < Snapshot->ParallelMeshDrawCommandPasses.Num(); ++Index)
 		{
-			Snapshot->ParallelMeshDrawCommandPasses[Index].WaitForTasksAndEmpty(WaitThread);
+			Snapshot->ParallelMeshDrawCommandPasses[Index].WaitForTasksAndEmpty();
 		}
 
 		for (int i = 0; i < EMeshPass::Num; i++)
@@ -4437,7 +4437,7 @@ static void FinishCleanUp(FRHICommandListImmediate& RHICmdList)
 	FRDGBuilder::WaitForAsyncDeleteTask();
 }
 
-static void DeleteSceneRenderers(const TArray<FSceneRenderer*>& SceneRenderers, FParallelMeshDrawCommandPass::EWaitThread WaitThread)
+static void DeleteSceneRenderers(const TArray<FSceneRenderer*>& SceneRenderers)
 {
 	SCOPED_NAMED_EVENT_TEXT("DeleteSceneRenderer", FColor::Red);
 
@@ -4446,16 +4446,16 @@ static void DeleteSceneRenderers(const TArray<FSceneRenderer*>& SceneRenderers, 
 		// Wait for all dispatched shadow mesh draw tasks.
 		for (int32 PassIndex = 0; PassIndex < SceneRenderer->DispatchedShadowDepthPasses.Num(); ++PassIndex)
 		{
-			SceneRenderer->DispatchedShadowDepthPasses[PassIndex]->WaitForTasksAndEmpty(WaitThread);
+			SceneRenderer->DispatchedShadowDepthPasses[PassIndex]->WaitForTasksAndEmpty();
 		}
 
 		for (FViewInfo* View : SceneRenderer->AllViews)
 		{
-			View->WaitForTasks(WaitThread);
+			View->WaitForTasks();
 		}
 	}
 
-	FViewInfo::DestroyAllSnapshots(WaitThread);
+	FViewInfo::DestroyAllSnapshots();
 
 	for (FSceneRenderer* SceneRenderer : SceneRenderers)
 	{
@@ -4470,7 +4470,7 @@ static void WaitForTasksAndDeleteSceneRenderers(FRHICommandListImmediate& RHICmd
 		RHICmdList.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
 	}
 
-	DeleteSceneRenderers(SceneRenderers, FParallelMeshDrawCommandPass::EWaitThread::Render);
+	DeleteSceneRenderers(SceneRenderers);
 }
 
 void FSceneRenderer::RenderThreadBegin(FRHICommandListImmediate& RHICmdList)
@@ -4603,7 +4603,7 @@ void FSceneRenderer::RenderThreadEnd(FRHICommandListImmediate& RHICmdList, const
 
 			GSceneRenderCleanUpState.Task = FFunctionGraphTask::CreateAndDispatchWhenReady([LocalSceneRenderers = CopyTemp(SceneRenderers)]
 			{
-				DeleteSceneRenderers(LocalSceneRenderers, FParallelMeshDrawCommandPass::EWaitThread::TaskAlreadyWaited);
+				DeleteSceneRenderers(LocalSceneRenderers);
 			}, TStatId(), &CommandListTasks);
 		}
 	}

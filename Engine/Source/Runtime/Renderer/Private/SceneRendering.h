@@ -1791,9 +1791,9 @@ public:
 	FViewInfo* CreateSnapshot() const;
 
 	/** Destroy all snapshots before we wipe the scene allocator. */
-	static void DestroyAllSnapshots(FParallelMeshDrawCommandPass::EWaitThread WaitThread);
+	static void DestroyAllSnapshots();
 
-	void WaitForTasks(FParallelMeshDrawCommandPass::EWaitThread WaitThread);
+	void WaitForTasks();
 
 	// Get the range in DynamicMeshElements[] for a given PrimitiveIndex
 	// @return range (start is inclusive, end is exclusive)
