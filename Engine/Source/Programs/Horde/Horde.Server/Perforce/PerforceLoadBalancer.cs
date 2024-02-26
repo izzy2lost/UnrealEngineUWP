@@ -23,6 +23,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Attributes;
+using OpenTelemetry.Trace;
 using StackExchange.Redis;
 
 namespace Horde.Server.Perforce
@@ -155,19 +156,21 @@ namespace Horde.Server.Perforce
 		readonly HttpClient _httpClient;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly IHealthMonitor _health;
+		readonly Tracer _tracer;
 		readonly ILogger _logger;
 		readonly ITicker _ticker;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PerforceLoadBalancer(MongoService mongoService, RedisService redisService, ILeaseCollection leaseCollection, IClock clock, HttpClient httpClient, IOptionsMonitor<GlobalConfig> globalConfig, IHealthMonitor<PerforceLoadBalancer> health, ILogger<PerforceLoadBalancer> logger)
+		public PerforceLoadBalancer(MongoService mongoService, RedisService redisService, ILeaseCollection leaseCollection, IClock clock, HttpClient httpClient, IOptionsMonitor<GlobalConfig> globalConfig, IHealthMonitor<PerforceLoadBalancer> health, Tracer tracer, ILogger<PerforceLoadBalancer> logger)
 		{
 			_redisService = redisService;
 			_leaseCollection = leaseCollection;
 			_serverListSingleton = new SingletonDocument<PerforceServerList>(mongoService);
 			_httpClient = httpClient;
 			_globalConfig = globalConfig;
+			_tracer = tracer;
 			_logger = logger;
 			if (mongoService.ReadOnlyMode)
 			{
@@ -417,6 +420,8 @@ namespace Horde.Server.Perforce
 		/// <inheritdoc/>
 		async ValueTask TickInternalAsync(CancellationToken cancellationToken)
 		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PerforceLoadBalancer)}.{nameof(TickInternalAsync)}");
+			
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
 			// Set of new server entries
@@ -453,6 +458,8 @@ namespace Horde.Server.Perforce
 
 			list = await _serverListSingleton.GetAsync(cancellationToken);
 			(HealthStatus health, string message) = GetPerforceHealth(list.Servers);
+			span.SetAttribute("health.status", health.ToString());
+			span.SetAttribute("health.message", message);
 			_health.Update(health, message);
 		}
 

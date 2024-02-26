@@ -113,7 +113,7 @@ public class PerforceLoadBalancerTests : TestSetup
 	{
 #pragma warning disable CA2000 // Dispose objects before losing scope
 		HttpClient httpClient = new (new StubMessageHandler(HttpStatusCode.OK, httpCheckResponse));
-		return new(MongoService, GetRedisServiceSingleton(), LeaseCollection, Clock, httpClient, new TestOptionsMonitor<GlobalConfig>(gc), new FakeHealthMonitor<PerforceLoadBalancer>(), _logger);
+		return new(MongoService, GetRedisServiceSingleton(), LeaseCollection, Clock, httpClient, new TestOptionsMonitor<GlobalConfig>(gc), new FakeHealthMonitor<PerforceLoadBalancer>(), Tracer, _logger);
 #pragma warning restore CA2000 // Dispose objects before losing scope		
 	}
 	
