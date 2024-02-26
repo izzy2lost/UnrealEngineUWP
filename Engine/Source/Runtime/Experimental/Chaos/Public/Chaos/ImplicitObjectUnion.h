@@ -57,7 +57,7 @@ class FImplicitObjectUnion : public FImplicitObject
 	// The total number of leaf objects in the hierarchy
 	int32 GetNumLeafObjects() const
 	{
-		return NumLeafObjects;
+		return int32(NumLeafObjects);
 	}
 
 	// Enable BVH suport for this Union. This should only be done for the root Union in a hierarchy
@@ -296,7 +296,7 @@ protected:
 	// BVH is only created when there are many objects.
 	// @todo(chaos): consider registering particles that may need BVH updated in evolution instead
 	TUniquePtr<Private::FImplicitBVH> BVH;
-	int32 NumLeafObjects;
+	uint16 NumLeafObjects;
 	FFLags Flags;
 };
 

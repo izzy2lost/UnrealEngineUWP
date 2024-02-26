@@ -160,7 +160,7 @@ void FImplicitObjectUnion::SetNumLeafObjects(int32 InNumLeafObjects)
 	ensure(InNumLeafObjects <= MaxNumLeafObjects);
 	check(InNumLeafObjects >= 0);
 
-	NumLeafObjects = FMath::Min(InNumLeafObjects, MaxNumLeafObjects);
+	NumLeafObjects = uint16(FMath::Min(InNumLeafObjects, MaxNumLeafObjects));
 }
 
 void FImplicitObjectUnion::CreateBVH()
