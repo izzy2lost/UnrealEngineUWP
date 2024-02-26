@@ -112,6 +112,7 @@ FArchive& operator<<(FArchive& Ar,FPrecomputedVolumetricLightmapData& Volume)
 {
 	Ar.UsingCustomVersion(FMobileObjectVersion::GUID);
 	Ar.UsingCustomVersion(FRenderingObjectVersion::GUID);
+	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
 
 	Ar << Volume.Bounds;
 	Ar << Volume.IndirectionTextureDimensions;
@@ -674,6 +675,26 @@ void FPrecomputedVolumetricLightmap::AddToScene(FSceneInterface* Scene, UMapBuil
 		return;
 	}
 
+	FPrecomputedVolumetricLightmapData* NewData = NULL;
+
+	if (Registry)
+	{
+		NewData = Registry->GetLevelPrecomputedVolumetricLightmapBuildData(LevelBuildDataId);
+	}
+
+	if (NewData && Scene)
+	{		
+		AddToScene(Scene, Registry, NewData, bIsPersistentLevel);
+	}	
+}
+
+void FPrecomputedVolumetricLightmap::AddToScene(FSceneInterface* Scene, UMapBuildDataRegistry* Registry, FPrecomputedVolumetricLightmapData* NewData, bool bIsPersistentLevel)
+{
+	if (!IsStaticLightingAllowed())
+	{
+		return;
+	}
+
 	// FIXME: temp fix for ordering issue between WorldContext.World()->InitWorld(); and GShaderCompilingManager->ProcessAsyncResults(false, true); in UnrealEngine.cpp
 	if (GShaderCompilingManager)
 	{
@@ -681,13 +702,6 @@ void FPrecomputedVolumetricLightmap::AddToScene(FSceneInterface* Scene, UMapBuil
 	}
 
 	check(!bAddedToScene);
-
-	FPrecomputedVolumetricLightmapData* NewData = NULL;
-
-	if (Registry)
-	{
-		NewData = Registry->GetLevelPrecomputedVolumetricLightmapBuildData(LevelBuildDataId);
-	}
 
 	if (NewData && Scene)
 	{

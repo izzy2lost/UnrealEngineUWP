@@ -21,6 +21,7 @@ MapBuildData.cpp
 #include "UObject/ReflectionCaptureObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "ContentStreaming.h"
 #include "Components/ReflectionCaptureComponent.h"
 #include "Interfaces/ITargetPlatform.h"
@@ -34,7 +35,7 @@ MapBuildData.cpp
 #include "Engine/TextureCube.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "UnrealEngine.h"
-
+#include "WorldPartition/StaticLightingData/VolumetricLightmapGrid.h"
 
 DECLARE_MEMORY_STAT(TEXT("Stationary Light Static Shadowmap"),STAT_StationaryLightBuildData,STATGROUP_MapBuildData);
 DECLARE_MEMORY_STAT(TEXT("Reflection Captures"),STAT_ReflectionCaptureBuildData,STATGROUP_MapBuildData);
@@ -438,6 +439,8 @@ UMapBuildDataRegistry::UMapBuildDataRegistry(const FObjectInitializer& ObjectIni
 {
 	LevelLightingQuality = Quality_MAX;
 	bSetupResourceClusters = false;
+	VolumetricLightMapGridDesc = nullptr;
+
 
 #if WITH_EDITOR
 	FAssetCompilingManager::Get().OnAssetPostCompileEvent().AddUObject(this, &ThisClass::HandleAssetPostCompileEvent);
@@ -525,6 +528,7 @@ void UMapBuildDataRegistry::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FReflectionCaptureObjectVersion::GUID);
 	Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
 	if (!StripFlags.IsAudioVisualDataStripped())
 	{
@@ -556,6 +560,24 @@ void UMapBuildDataRegistry::Serialize(FArchive& Ar)
 		if (Ar.CustomVer(FRenderingObjectVersion::GUID) >= FRenderingObjectVersion::SkyAtmosphereStaticLightingVersioning)
 		{
 			Ar << SkyAtmosphereBuildData;
+		}
+
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::VolumetricLightMapGridDescSupport)
+		{			
+			bool bHasGrid = VolumetricLightMapGridDesc != nullptr;
+			Ar << bHasGrid;
+
+			if (bHasGrid)
+			{
+				// Create the grid when loading for the 1st time
+				if (!VolumetricLightMapGridDesc)
+				{
+					VolumetricLightMapGridDesc = new FVolumetricLightMapGridDesc();
+				}
+
+				FVolumetricLightMapGridDesc::StaticStruct()->SerializeItem(Ar, VolumetricLightMapGridDesc, nullptr);
+				VolumetricLightMapGridDesc->SerializeBulkData(Ar, this);
+			}
 		}
 	}
 }
@@ -748,6 +770,12 @@ FPrecomputedLightVolumeData* UMapBuildDataRegistry::GetLevelPrecomputedLightVolu
 
 FPrecomputedVolumetricLightmapData& UMapBuildDataRegistry::AllocateLevelPrecomputedVolumetricLightmapBuildData(const FGuid& LevelId)
 {
+	if (VolumetricLightMapGridDesc && VolumetricLightMapGridDesc->GetCell(LevelId) )
+	{
+		FPrecomputedVolumetricLightmapData* DataPtr = VolumetricLightMapGridDesc->GetOrCreatePrecomputedVolumetricLightmapBuildData(LevelId);		
+		return *DataPtr;	
+	}
+	
 	check(LevelId.IsValid());
 	MarkPackageDirty();
 	return *LevelPrecomputedVolumetricLightmapBuildData.Add(LevelId, new FPrecomputedVolumetricLightmapData());
@@ -761,6 +789,12 @@ void UMapBuildDataRegistry::AddLevelPrecomputedVolumetricLightmapBuildData(const
 
 const FPrecomputedVolumetricLightmapData* UMapBuildDataRegistry::GetLevelPrecomputedVolumetricLightmapBuildData(FGuid LevelId) const
 {
+	if (VolumetricLightMapGridDesc)
+	{
+		const FPrecomputedVolumetricLightmapData* DataPtr = VolumetricLightMapGridDesc->GetPrecomputedVolumetricLightmapBuildData(LevelId);		
+		return DataPtr;
+	}
+
 	const FPrecomputedVolumetricLightmapData* const * DataPtr = LevelPrecomputedVolumetricLightmapBuildData.Find(LevelId);
 
 	if (DataPtr)
@@ -773,6 +807,16 @@ const FPrecomputedVolumetricLightmapData* UMapBuildDataRegistry::GetLevelPrecomp
 
 FPrecomputedVolumetricLightmapData* UMapBuildDataRegistry::GetLevelPrecomputedVolumetricLightmapBuildData(FGuid LevelId)
 {
+	if (VolumetricLightMapGridDesc)
+	{
+		FPrecomputedVolumetricLightmapData* DataPtr = VolumetricLightMapGridDesc->GetPrecomputedVolumetricLightmapBuildData(LevelId);		
+		
+		if (DataPtr)
+		{
+			return DataPtr;
+		}
+	}
+
 	FPrecomputedVolumetricLightmapData** DataPtr = LevelPrecomputedVolumetricLightmapBuildData.Find(LevelId);
 
 	if (DataPtr)
@@ -1140,6 +1184,9 @@ void UMapBuildDataRegistry::EmptyLevelData(const TSet<FGuid>* ResourcesToKeep)
 			LevelPrecomputedVolumetricLightmapBuildData.Add(It.Key(), It.Value());
 		}
 	}
+	
+	delete VolumetricLightMapGridDesc;
+	VolumetricLightMapGridDesc = nullptr;
 
 	LightmapResourceClusters.Empty();
 }
@@ -1173,6 +1220,14 @@ UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const AActor* Actor)
 	UWorld* World = OwnerLevel ? OwnerLevel->GetWorld() : nullptr;
 	UMapBuildDataRegistry* MapBuildData = nullptr;
 	
+	if (World && World->IsPartitionedWorld())
+	{
+		//@todo_ow: At current level of support there's no reason to return a ptr and force a look-up later on
+		//No lighting scenario support in WP maps
+		MapBuildData = World->PersistentLevel->MapBuildData;
+		return MapBuildData;
+	}
+
 	if (OwnerLevel && World)
 	{
 		ULevel* ActiveLightingScenario = World->GetActiveLightingScenario();
@@ -1188,6 +1243,12 @@ UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const AActor* Actor)
 	}
 
 	return MapBuildData;
+}
+
+void UMapBuildDataRegistry::SetVolumetricLightMapGridDesc(FVolumetricLightMapGridDesc* GridDesc)
+{	 
+	delete VolumetricLightMapGridDesc;
+	VolumetricLightMapGridDesc = GridDesc;
 }
 
 FUObjectAnnotationSparse<FMeshMapBuildLegacyData, true> GComponentsWithLegacyLightmaps;

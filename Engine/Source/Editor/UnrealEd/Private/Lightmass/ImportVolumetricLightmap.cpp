@@ -15,6 +15,7 @@
 #include "Logging/TokenizedMessage.h"
 #include "Logging/MessageLog.h"
 #include "RenderUtils.h"
+#include "WorldPartition/StaticLightingData/VolumetricLightmapGrid.h"
 
 #define LOCTEXT_NAMESPACE "ImportVolumetricLightmap"
 
@@ -996,6 +997,11 @@ bool bStitchDetailBricksWithLowDensityNeighbors = true;
 bool bCopyPaddingFromUniqueData = true;
 bool bCopyVolumeBorderFromInterior = true;
 
+void FLightmassProcessor::SetVolumetricLightMapImportMode(bool bUseVLMCellGrid)
+{
+	bSplitToVLMCellGrid = bUseVLMCellGrid;
+}
+
 void FLightmassProcessor::ImportVolumetricLightmap()
 {
 	const double StartTime = FPlatformTime::Seconds();
@@ -1079,7 +1085,10 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 	const int32 NumBottomLevelBricksTrimmedByInterpolationError = TrimBricksByInterpolationError(BricksByDepth, VolumetricLightmapSettings);
 
 	const float MaximumBrickMemoryMb = System.GetWorld()->GetWorldSettings()->LightmassSettings.VolumetricLightmapMaximumBrickMemoryMb;
-	const int32 NumBottomLevelBricksTrimmedForMemoryLimit = TrimBricksForMemoryLimit(BricksByDepth, VolumetricLightmapSettings, CurrentLevelData.BrickData.GetMinimumVoxelSize(), MaximumBrickMemoryMb);
+
+	// avoid trimming for memory if we're going to output the bricks to streaming grid
+	// @todo_ow: Have a trim limit for base data + one limit per cell for the highest level bricks
+	const int32 NumBottomLevelBricksTrimmedForMemoryLimit = bSplitToVLMCellGrid ? 0 : TrimBricksForMemoryLimit(BricksByDepth, VolumetricLightmapSettings, CurrentLevelData.BrickData.GetMinimumVoxelSize(), MaximumBrickMemoryMb);
 
 	int32 BrickTextureLinearAllocator = 0;
 
@@ -1295,9 +1304,18 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 
 				FGuid LevelGuid;
 
+				// assign to proper data container
 				if (CurrentDepth == VolumetricLightmapSettings.MaxRefinementLevels - 1)
 				{
-					LevelGuid = Brick.IntersectingLevelGuid;
+					if (bSplitToVLMCellGrid)
+					{
+						LevelGuid = System.LightingContext.GetLevelGuidForVLMBrick(Brick.IndirectionTexturePosition);
+						const_cast<FImportedVolumetricLightmapBrick&>(Brick).IntersectingLevelGuid = LevelGuid;	// change the level guid for this brick, I use a const cast since it preserves the intent everywhere else
+					}
+                    else
+                    {
+						LevelGuid = Brick.IntersectingLevelGuid;
+                    }
 				}
 				else
 				{
@@ -1329,8 +1347,7 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 			SubLevelBrickLayoutDimension.Z = FMath::Min(SubLevelBrickTextureLinearAllocator, MaxBricksInLayoutOneDim);
 
 			{
-				UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(Pair.Key);
-				FPrecomputedVolumetricLightmapData& SubLevelData = SubLevelRegistry->AllocateLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(Pair.Key));
+				FPrecomputedVolumetricLightmapData& SubLevelData =  System.LightingContext.GetOrCreateLevelPrecomputedVolumetricLightmapBuildData(Pair.Key);
 
 				SubLevelData.InitializeOnImport(FBox(VolumetricLightmapSettings.VolumeMin, VolumetricLightmapSettings.VolumeMin + VolumetricLightmapSettings.VolumeSize), BrickSize);
 				{
@@ -1388,8 +1405,7 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 					LevelGuid = PersistentLevelGuid;
 				}
 
-				UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(LevelGuid);
-				FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(LevelGuid));
+				FPrecomputedVolumetricLightmapData& SubLevelData =  System.LightingContext.GetOrCreateLevelPrecomputedVolumetricLightmapBuildData(LevelGuid);
 
 				const FIntVector BrickLayoutPosition = ComputeBrickLayoutPosition(BrickStartAllocation + BrickIndex, BrickLayoutDimensions) * PaddedBrickSize;
 				const FIntVector SubLevelBrickLayoutPosition = ComputeBrickLayoutPosition(SubLevelBrickAllocator[LevelGuid], SubLevelBrickLayoutDimensions[LevelGuid]) * PaddedBrickSize;
@@ -1457,8 +1473,7 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 			CurrentLevelData.IndirectionTexture.Resize(TotalIndirectionTextureSize * IndirectionTextureDataStride);
 			BuildIndirectionTexture(BricksByDepth, VolumetricLightmapSettings, MaxBricksInLayoutOneDim, SubLevelBrickLayoutDimensions[FGuid()], IndirectionTextureDataStride, CurrentLevelData, true);
 
-			UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(PersistentLevelGuid);
-			FPrecomputedVolumetricLightmapData& PersistentLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(PersistentLevelGuid));
+			FPrecomputedVolumetricLightmapData& PersistentLevelData =  System.LightingContext.GetOrCreateLevelPrecomputedVolumetricLightmapBuildData(PersistentLevelGuid);
 
 			PersistentLevelData.InitializeOnImport(FBox(VolumetricLightmapSettings.VolumeMin, VolumetricLightmapSettings.VolumeMin + VolumetricLightmapSettings.VolumeSize), BrickSize);
 			PersistentLevelData.IndirectionTexture = CurrentLevelData.IndirectionTexture;
@@ -1488,8 +1503,7 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 
 					if (LevelGuid != PersistentLevelGuid)
 					{
-						UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(LevelGuid);
-						FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(LevelGuid));
+						FPrecomputedVolumetricLightmapData& SubLevelData =  System.LightingContext.GetOrCreateLevelPrecomputedVolumetricLightmapBuildData(LevelGuid);
 
 						FIntVector IndirectionBrickOffset;
 						int32 IndirectionBrickSize;
@@ -1508,8 +1522,7 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 			{
 				FGuid LevelGuid = Pair.Key;
 
-				UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(LevelGuid);
-				FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(LevelGuid));
+				FPrecomputedVolumetricLightmapData& SubLevelData =  System.LightingContext.GetOrCreateLevelPrecomputedVolumetricLightmapBuildData(LevelGuid);
 
 				ConvertBGRA8ToRGBA8ForLayer(SubLevelData.BrickData.SkyBentNormal);
 
@@ -1538,8 +1551,7 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 
 		for (auto Pair : SubLevelTotalBricks)
 		{
-			UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(Pair.Key);
-			FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(Pair.Key));
+			FPrecomputedVolumetricLightmapData& SubLevelData =  System.LightingContext.GetOrCreateLevelPrecomputedVolumetricLightmapBuildData(Pair.Key);
 
 			SubLevelData.FinalizeImport();
 
@@ -1557,6 +1569,13 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 				SubLevelData.BrickData.DirectionalLightShadowing.Data.Num() +
 				SubLevelData.SubLevelBrickPositions.Num() * SubLevelData.SubLevelBrickPositions.GetTypeSize() +
 				SubLevelData.IndirectionTextureOriginalValues.Num() * SubLevelData.IndirectionTextureOriginalValues.GetTypeSize();
+		}
+
+		if (bSplitToVLMCellGrid)
+		{
+			// Export the data			
+			FVolumetricLightMapGridDesc& GridDesc = *System.LightingContext.GetVolumetricLightMapGridDesc();
+			GridDesc.InitializeBulkData();
 		}
 
 		int32 TotalNumBricks = 0;
@@ -1610,8 +1629,18 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 
 		for (auto Pair : SubLevelTotalBricks)
 		{
-			FString LevelName = FindLevel(Pair.Key)->GetOuter()->GetName();
-			if (FindLevel(Pair.Key)->IsPersistentLevel())
+			ULevel* Level = FindLevel(Pair.Key);
+			FString LevelName;
+			if (Level)
+			{
+				LevelName = Level->GetOuter()->GetName();
+			}
+			else
+			{				
+				LevelName = System.LightingContext.GetVolumetricLightMapGridDesc()->GetCellDesc(Pair.Key);
+			}
+
+			if (Level && Level->IsPersistentLevel())
 			{
 				UE_LOG(LogVolumetricLightmapImport, Log, TEXT("         %s \t\t\t %d bricks \t %.1f%% (Persistent Level)"), *LevelName, Pair.Value, 100.0f * Pair.Value / TotalNumBricks);
 			}

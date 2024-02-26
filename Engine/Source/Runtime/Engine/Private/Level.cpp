@@ -22,6 +22,7 @@ Level.cpp: Level-related functions
 #include "SceneInterface.h"
 #include "PrecomputedLightVolume.h"
 #include "PrecomputedVolumetricLightmap.h"
+#include "PrecomputedVolumetricLightmapStreaming.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "Components/LightComponent.h"
 #include "Model.h"
@@ -1480,6 +1481,9 @@ void ULevel::FinishDestroy()
 
 	delete PrecomputedVolumetricLightmap;
 	PrecomputedVolumetricLightmap = NULL;
+
+	delete VolumetricLightmapGridManager;
+	VolumetricLightmapGridManager = NULL;
 
 	Super::FinishDestroy();
 }
@@ -3311,6 +3315,11 @@ void ULevel::InitializeRenderingResources()
 			PrecomputedLightVolume->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId);
 		}
 
+		if (EffectiveMapBuildData && EffectiveMapBuildData->GetVolumetricLightMapGridDesc())
+		{
+			VolumetricLightmapGridManager = new FVolumetricLightmapGridManager(OwningWorld, EffectiveMapBuildData->GetVolumetricLightMapGridDesc());
+		}
+
 		if (!PrecomputedVolumetricLightmap->IsAddedToScene())
 		{
 			PrecomputedVolumetricLightmap->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId, IsPersistentLevel());
@@ -3327,6 +3336,11 @@ void ULevel::ReleaseRenderingResources()
 {
 	if (OwningWorld && FApp::CanEverRender())
 	{
+		if (VolumetricLightmapGridManager)
+		{
+			VolumetricLightmapGridManager->RemoveFromScene(OwningWorld->Scene);
+		}
+
 		if (PrecomputedLightVolume)
 		{
 			PrecomputedLightVolume->RemoveFromScene(OwningWorld->Scene);

@@ -21,6 +21,7 @@
 class FPrecomputedLightVolumeData;
 class FPrecomputedVolumetricLightmapData;
 struct FAssetCompileData;
+struct FVolumetricLightMapGridDesc;
 
 struct FPerInstanceLightmapData
 {
@@ -389,6 +390,9 @@ public:
 	/** Returns the associated UUMapBuildDataRegistry for an Actor */
 	ENGINE_API static UMapBuildDataRegistry* Get(const AActor* Actor);
 	
+	FVolumetricLightMapGridDesc* GetVolumetricLightMapGridDesc() { return VolumetricLightMapGridDesc; } 
+	ENGINE_API void SetVolumetricLightMapGridDesc(FVolumetricLightMapGridDesc* GridDesc); 
+
 private:
 #if WITH_EDITOR
 	void HandleAssetPostCompileEvent(const TArray<FAssetCompileData>& CompiledAssets);
@@ -409,6 +413,8 @@ private:
 	TArray<FLightmapResourceCluster> LightmapResourceClusters;
 
 	FRenderCommandFence DestroyFence;
+
+	FVolumetricLightMapGridDesc*	VolumetricLightMapGridDesc;
 };
 
 extern ENGINE_API FUObjectAnnotationSparse<FMeshMapBuildLegacyData, true> GComponentsWithLegacyLightmaps;

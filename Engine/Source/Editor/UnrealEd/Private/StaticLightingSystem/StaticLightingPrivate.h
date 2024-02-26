@@ -269,7 +269,7 @@ public:
 	 * @param InOptions - The static lighting build options.
 	 * @param InContext - The context (world, lighting scenario, world subsection, data layers)  we wish to build the lighting for
 	 */
-	FStaticLightingSystem(const FLightingBuildOptions& InOptions, const FStaticLightingBuildContext& InContext);
+	FStaticLightingSystem(const FLightingBuildOptions& InOptions, FStaticLightingBuildContext&& InContext);
 	~FStaticLightingSystem();
 
 	bool CheckLightmassExecutableVersion();

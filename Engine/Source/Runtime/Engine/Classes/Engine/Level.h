@@ -538,6 +538,9 @@ public:
 	UPROPERTY()
 	FIntVector LightBuildLevelOffset;
 
+	/** The volumetric lightmap grid manager for this map */
+	class FVolumetricLightmapGridManager* VolumetricLightmapGridManager = nullptr;
+
 	/** 
 	 * Whether the level is a lighting scenario.  Lighting is built separately for each lighting scenario level with all other scenario levels hidden. 
 	 * Only one lighting scenario level should be visible at a time for correct rendering, and lightmaps from that level will be used on the rest of the world.

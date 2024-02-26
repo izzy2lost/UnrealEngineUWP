@@ -5,8 +5,10 @@
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "WorldPartition/StaticLightingData/VolumetricLightmapGrid.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "WorldPartition/WorldPartition.h"
+#include "PrecomputedVolumetricLightmap.h"
 
 #if WITH_EDITOR
 
@@ -35,14 +37,47 @@ FStaticLightingBuildContext::FStaticLightingBuildContext(UWorld* InWorld, ULevel
 	
 	FGuid FirstGuid = FGuid(0, 0, 0, 0);
 	check(GetLevelForGuid(FirstGuid) == World->PersistentLevel);
+
+	if (InWorld->IsPartitionedWorld())
+	{
+		VolumetricLightMapGridDesc = new FVolumetricLightMapGridDesc;
+		VolumetricLightMapGridDesc->Initialize(InWorld, InWorld->GetWorldPartition()->GetRuntimeWorldBounds());
+	}	
+	else
+	{
+		VolumetricLightMapGridDesc = nullptr;
+	}
 }
 
-FStaticLightingBuildContext::FStaticLightingBuildContext(const FStaticLightingBuildContext& InFrom)
+FStaticLightingBuildContext::FStaticLightingBuildContext(FStaticLightingBuildContext&& InFrom)
 {
 	MapBuildDataRegistry = InFrom.MapBuildDataRegistry;
-	LevelGuids = InFrom.LevelGuids;
+	LevelGuids = MoveTemp(InFrom.LevelGuids);
 	World = InFrom.World;
 	LightingScenario = InFrom.LightingScenario;
+	ImportanceBounds = InFrom.ImportanceBounds;
+	LocalToGlobalIndirectionOffset = InFrom.LocalToGlobalIndirectionOffset;
+	VolumetricLightMapGridDesc = InFrom.VolumetricLightMapGridDesc;
+
+	InFrom.VolumetricLightMapGridDesc = nullptr;
+}
+
+FStaticLightingBuildContext::~FStaticLightingBuildContext()
+{
+	delete VolumetricLightMapGridDesc;	
+}
+
+void FStaticLightingBuildContext::SetImportanceBounds(const FBox& Bounds)
+{
+	// ImportanceBounds passed to Lightmass, may not encompass the whole world (for 
+	// example when using distributed VLM computations). 
+	// All indirections are local this value, so we recompute an indirection offset
+	// to be able to move our local results to world results	
+	check(VolumetricLightMapGridDesc);
+	ImportanceBounds = Bounds;
+
+	FVector Offset =  ImportanceBounds.Min - VolumetricLightMapGridDesc->GridBounds.Min;
+	LocalToGlobalIndirectionOffset = (FIntVector)(Offset / VolumetricLightMapGridDesc->BrickSize);
 }
 
 bool FStaticLightingBuildContext::ShouldIncludeActor(AActor* Actor) const
@@ -128,6 +163,45 @@ FGuid FStaticLightingBuildContext::GetLevelGuidForLevel(ULevel* Level) const
 {
 	return *LevelGuids.FindKey(Level);
 }
+
+FPrecomputedVolumetricLightmapData& FStaticLightingBuildContext::GetOrCreateLevelPrecomputedVolumetricLightmapBuildData(const FGuid& LevelId) const
+{	
+	if (VolumetricLightMapGridDesc && LevelId.IsValid())
+	{
+		if (FVolumetricLightMapGridCell* Cell = VolumetricLightMapGridDesc->GetCell(LevelId))
+		{	
+			if (!Cell->Data)
+			{
+				Cell->Data = new FPrecomputedVolumetricLightmapData();
+			}
+			return *Cell->Data;
+		}
+	}
+
+	UMapBuildDataRegistry* Registry = GetOrCreateRegistryForLevelGuid(LevelId);
+	FGuid BuildDataID = GetLevelBuildDataID(LevelId);
+	if (FPrecomputedVolumetricLightmapData* Data = Registry->GetLevelPrecomputedVolumetricLightmapBuildData(BuildDataID))
+	{
+		return *Data;
+	}
+	
+	return Registry->AllocateLevelPrecomputedVolumetricLightmapBuildData(BuildDataID);
+}
+
+FGuid FStaticLightingBuildContext::GetLevelGuidForVLMBrick(const FIntVector& BrickCoordinates) const
+{
+	FVolumetricLightMapGridDesc& Desc = *VolumetricLightMapGridDesc;
+	FVector BrickInWorld = (FVector)(BrickCoordinates * Desc.BrickSize) + Desc.GridBounds.Min;
+	BrickInWorld += FVector(Desc.DetailCellSize/2, Desc.DetailCellSize/2, Desc.DetailCellSize/2);	// offset by half detail cell size to avoid being on the edge
+	
+	if (FVolumetricLightMapGridCell* Cell = Desc.GetCell(BrickInWorld))
+	{
+		return Desc.GetCellGuid(Cell->CellID);
+	}
+	
+	return FGuid();
+}
+
 
 FGuid FStaticLightingBuildContext::GetLevelGuidForActor(AActor* Actor) const
 {		

@@ -223,6 +223,7 @@ public:
 	ENGINE_API ~FPrecomputedVolumetricLightmap();
 
 	ENGINE_API void AddToScene(class FSceneInterface* Scene, class UMapBuildDataRegistry* Registry, FGuid LevelBuildDataId, bool bIsPersistentLevel);
+	ENGINE_API void AddToScene(class FSceneInterface* Scene, class UMapBuildDataRegistry* Registry, FPrecomputedVolumetricLightmapData* NewData, bool bIsPersistentLevel);
 
 	ENGINE_API void RemoveFromScene(FSceneInterface* Scene);
 	

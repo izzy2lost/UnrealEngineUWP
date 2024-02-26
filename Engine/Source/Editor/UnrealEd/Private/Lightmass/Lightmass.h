@@ -399,6 +399,8 @@ public:
 	{
 		bImportCompletedMappingsImmediately = bInImportCompletedMappingsImmediately;
 	}
+	
+	void SetVolumetricLightMapImportMode(bool bUseVLMCellGrid);
 
 	/** Exports everything but the materials */
 	void InitiateExport();
@@ -683,6 +685,8 @@ protected:
 
 	/** Queue of messages from the swarm callback, to be processed by the main thread */
 	TArray<FLightmassAlertMessage> SwarmCallbackMessages;
+
+	bool bSplitToVLMCellGrid = false;
 
 	/**
 	 *	Import all mappings that have been completed so far.

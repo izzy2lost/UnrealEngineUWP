@@ -160,8 +160,12 @@ struct FLightmassWorldInfoSettings
 	/** 
 	 * Maximum amount of memory to spend on Volumetric Lightmap Brick data.  High density bricks will be discarded until this limit is met, with bricks furthest from geometry discarded first.
 	 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=LightmassVolumeLighting, meta=(UIMin = "1", UIMax = "500"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=LightmassVolumeLighting, meta=(UIMin = "1", UIMax = "500"), meta = (EditConditionHides, EditCondition = "!bWorldPartition"))
 	float VolumetricLightmapMaximumBrickMemoryMb;
+
+	/**  Size of an Volumetric Lightmap high detail loading cell.  */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = LightmassVolumeLighting, meta = (UIMin = "1600", UIMax = "102400"), meta = (EditConditionHides, EditCondition = "bWorldPartition"))
+	float VolumetricLightmapLoadingCellSize;
 
 	/** 
 	 * Controls how much smoothing should be done to Volumetric Lightmap samples during Spherical Harmonic de-ringing.  
@@ -199,6 +203,9 @@ struct FLightmassWorldInfoSettings
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=LightmassOcclusion)
 	float MaxOcclusionDistance;
 
+	UPROPERTY(transient)
+	bool bWorldPartition;
+
 	FLightmassWorldInfoSettings()
 		: StaticLightingLevelScale(1)
 		, NumIndirectLightingBounces(3)
@@ -217,6 +224,7 @@ struct FLightmassWorldInfoSettings
 		, bCompressLightmaps(true)
 		, VolumetricLightmapDetailCellSize(200)
 		, VolumetricLightmapMaximumBrickMemoryMb(30)
+		, VolumetricLightmapLoadingCellSize(3200)		
 		, VolumetricLightmapSphericalHarmonicSmoothing(.02f)
 		, VolumeLightSamplePlacementScale(1)
 		, DirectIlluminationOcclusionFraction(0.5f)
@@ -224,6 +232,7 @@ struct FLightmassWorldInfoSettings
 		, OcclusionExponent(1.0f)
 		, FullyOccludedSamplesFraction(1.0f)
 		, MaxOcclusionDistance(200.0f)
+		, bWorldPartition(false)
 	{
 	}
 };
@@ -556,6 +565,12 @@ public:
 	UPROPERTY(EditAnywhere, Category=Lightmass, AdvancedDisplay)
 	uint8 bForceNoPrecomputedLighting:1;
 
+	/** 
+	 * Force precomputed lighting to only use VolumetricLightmaps.
+	 */
+	UPROPERTY(EditAnywhere, Category=Lightmass, AdvancedDisplay)
+	uint8 bForceVolumetricLightmapsOnly:1;
+
 	/** when this flag is set, more time is allocated to background loading (replicated) */
 	UPROPERTY(replicated)
 	uint8 bHighPriorityLoading:1;
@@ -739,6 +754,11 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Lightmass)
 	struct FLightmassWorldInfoSettings LightmassSettings;
 #endif
+
+	/**  Range in which volumetric lightmaps will be loaded.  */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = LightmassVolumeLighting, meta = (UIMin = "1600", UIMax = "102400"), meta = (EditConditionHides, EditCondition = "bWorldPartition"))
+	float VolumetricLightmapLoadingRange;
+
 
 	/************************************/
 	/** NANITE SETTINGS **/

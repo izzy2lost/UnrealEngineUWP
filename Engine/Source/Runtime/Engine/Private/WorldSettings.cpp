@@ -115,6 +115,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	bPlaceCellsOnlyAlongCameraTracks = false;
 	VisibilityCellSize = 200;
 	VisibilityAggressiveness = VIS_LeastAggressive;
+	
+	VolumetricLightmapLoadingRange = 6400;
 
 #if WITH_EDITORONLY_DATA
 	bActorLabelEditable = false;
@@ -227,9 +229,22 @@ void AWorldSettings::SetWorldPartition(UWorldPartition* InWorldPartition)
 
 void AWorldSettings::ApplyWorldPartitionForcedSettings()
 {
+	const auto CVarAllowStaticLightingOnWPMaps = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLightingInWorldPartitionMaps"));
+
 	bEnableWorldComposition = false;
-	bForceNoPrecomputedLighting = true;
 	bPrecomputeVisibility = false;
+	if (CVarAllowStaticLightingOnWPMaps->GetValueOnAnyThread() != 0)
+	{
+		// leave static lighting options alone
+	}
+	else
+	{
+		bForceNoPrecomputedLighting = true;	
+	}
+#if WITH_EDITOR
+
+	LightmassSettings.bWorldPartition = true;
+#endif
 }
 
 float AWorldSettings::GetGravityZ() const
@@ -561,7 +576,7 @@ void AWorldSettings::PostLoad()
 #if WITH_EDITOR
 	if (WorldPartition)
 	{
-		// Force to re-apply WorldPartition restrictions on WorldSettings (in case they changed)
+		// Force to re-apply WorldPartition restrictions on WorldSettings (in case they changed)	
 		ApplyWorldPartitionForcedSettings();
 	}
 #endif// WITH_EDITOR
@@ -678,7 +693,9 @@ bool AWorldSettings::CanEditChange(const FProperty* InProperty) const
 
 			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FLightmassWorldInfoSettings, VolumetricLightmapDetailCellSize)
 				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FLightmassWorldInfoSettings, VolumetricLightmapMaximumBrickMemoryMb)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FLightmassWorldInfoSettings, VolumetricLightmapSphericalHarmonicSmoothing))
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FLightmassWorldInfoSettings, VolumetricLightmapSphericalHarmonicSmoothing)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FLightmassWorldInfoSettings, VolumetricLightmapLoadingCellSize)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(AWorldSettings, VolumetricLightmapLoadingRange))
 			{
 				return LightmassSettings.VolumeLightingMethod == VLM_VolumetricLightmap;
 			}
@@ -694,7 +711,6 @@ bool AWorldSettings::CanEditChange(const FProperty* InProperty) const
 			}
 		}
 		else if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(AWorldSettings, bEnableWorldComposition ) ||
-				 PropertyName == GET_MEMBER_NAME_STRING_CHECKED(AWorldSettings, bForceNoPrecomputedLighting ) ||
 				 PropertyName == GET_MEMBER_NAME_STRING_CHECKED(AWorldSettings, bPrecomputeVisibility))
 		{
 			return !IsPartitionedWorld();

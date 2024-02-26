@@ -3756,6 +3756,15 @@ static TAutoConsoleVariable<int32> CVarAllowStaticLighting(
 		 "Games that only use dynamic lighting should set this to 0 to save some static lighting overhead."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarAllowStaticLightingInWorldPartitionMaps(
+	TEXT("r.AllowStaticLightingInWorldPartitionMaps"),
+	0,
+	TEXT("Whether to allow any static lighting to be generated and used in WorldPartition maps, like lightmaps and shadowmaps.\n"
+		 "Games that only use dynamic lighting should set this to 0 to save some static lighting overhead."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+
+
 static TAutoConsoleVariable<int32> CVarNormalMaps(
 	TEXT("r.NormalMapsForStaticLighting"),
 	0,

@@ -419,6 +419,17 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 ELightmapType UPrimitiveComponent::GetLightmapType() const
 {
+	if (UWorld* World = GetWorld())	
+	{
+		if (AWorldSettings* WorldSettings = World->GetWorldSettings())
+		{
+			if (WorldSettings->bForceVolumetricLightmapsOnly)
+			{
+				return ELightmapType::ForceVolumetric;
+			}
+		}
+	}
+
 	return LightmapType;
 }
 

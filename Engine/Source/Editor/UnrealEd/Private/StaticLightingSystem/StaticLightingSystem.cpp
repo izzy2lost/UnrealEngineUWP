@@ -50,6 +50,7 @@
 #include "EditorModes.h"
 #include "Dialogs/Dialogs.h"
 #include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/StaticLightingData/VolumetricLightmapGrid.h"
 
 FSwarmDebugOptions GSwarmDebugOptions;
 
@@ -474,13 +475,13 @@ bool FStaticLightingManager::IsLightingBuildCurrentlyExporting() const
 	return ActiveStaticLightingSystem != NULL && ActiveStaticLightingSystem->IsAmortizedExporting();
 }
 
-FStaticLightingSystem::FStaticLightingSystem(const FLightingBuildOptions& InOptions, const FStaticLightingBuildContext& context)
+FStaticLightingSystem::FStaticLightingSystem(const FLightingBuildOptions& InOptions, FStaticLightingBuildContext&& context)
 	: Options(InOptions)
 	, bBuildCanceled(false)
 	, DeterministicIndex(0)
 	, NextVisibilityId(0)
 	, CurrentBuildStage(FStaticLightingSystem::NotRunning)
-	, LightingContext(context)
+	, LightingContext(MoveTemp(context))
 	, LightmassProcessor(NULL)
 {
 }
@@ -1368,6 +1369,14 @@ void FStaticLightingSystem::ApplyNewLightingData(bool bLightingSuccessful)
 			const bool bBuildLightingForLevel = Options.ShouldBuildLightingForLevel( Level );
 
 			UMapBuildDataRegistry* Registry = LightingContext.GetRegistryForLevel(Level);
+		
+			if (Level->IsPersistentLevel() && LightingContext.World->IsPartitionedWorld())
+			{
+				// Transfer the new VolumetricLightMapGrid to the PersistentLevel
+				Registry->SetVolumetricLightMapGridDesc(LightingContext.GetVolumetricLightMapGridDesc());
+				LightingContext.ReleaseVolumetricLightMapGridDesc();
+			}
+			
 
 			// Store off the quality of the lighting for the level if lighting was successful and we build lighting for this level.
 			if( bLightingSuccessful && bBuildLightingForLevel )
@@ -2030,6 +2039,12 @@ bool FStaticLightingSystem::CreateLightmassProcessor()
 	check(LightmassProcessor == NULL);
 	LightmassProcessor = new FLightmassProcessor(*this, Options.bDumpBinaryResults, Options.bOnlyBuildVisibility);
 	check(LightmassProcessor);
+
+	if (LightingContext.World->IsPartitionedWorld())
+	{		
+		LightmassProcessor->SetVolumetricLightMapImportMode(true);
+	}	
+
 	if (LightmassProcessor->IsSwarmConnectionIsValid() == false)
 	{
 		UE_LOG(LogStaticLightingSystem, Warning, TEXT("Failed to connect to Swarm."));
@@ -2079,15 +2094,30 @@ void FStaticLightingSystem::GatherScene()
 	{
 		LightmassExporter->SetLevelName(LightingContext.World->PersistentLevel->GetPathName());
 	}
-
+	
 	LightmassExporter->ClearImportanceVolumes();
-	for( TObjectIterator<ALightmassImportanceVolume> It ; It ; ++It )
+
+	if (!LightingContext.World->IsPartitionedWorld())
 	{
-		ALightmassImportanceVolume* LMIVolume = *It;
-		if (LightingContext.World->ContainsActor(LMIVolume) && IsValid(LMIVolume) && ShouldOperateOnLevel(LMIVolume->GetLevel()))
+		for( TObjectIterator<ALightmassImportanceVolume> It ; It ; ++It )
 		{
-			LightmassExporter->AddImportanceVolume(LMIVolume);
+			ALightmassImportanceVolume* LMIVolume = *It;
+			if (LightingContext.World->ContainsActor(LMIVolume) && IsValid(LMIVolume) && ShouldOperateOnLevel(LMIVolume->GetLevel()))
+			{
+				LightmassExporter->AddImportanceVolume(LMIVolume);
+			}			
 		}
+	}
+	else
+	{
+		// Ignore all user set ImportanceVolumes and add a LightMassImportanceVolume per VLM cell 
+		//@todo_ow: Possibly interesect user specified ALightmassImportanceVolume with world bounds to restrict area in which we compute static lighting
+		FBox ImportanceBounds(ForceInit);
+				
+		LightmassExporter->AddImportanceVolumeBoundingBox(LightingContext.GetVolumetricLightMapGridDesc()->GridBounds);
+		ImportanceBounds += LightingContext.GetVolumetricLightMapGridDesc()->GridBounds;
+
+		LightingContext.SetImportanceBounds(ImportanceBounds);
 	}
 
 	for( TObjectIterator<ALightmassCharacterIndirectDetailVolume> It ; It ; ++It )

@@ -429,6 +429,9 @@ struct FFortniteMainBranchObjectVersion
 		// Level Instance Property overrides
 		LevelInstancePropertyOverrides,
 
+		// Added FVolumetricLightMapGridDesc in MapBuildData
+		VolumetricLightMapGridDescSupport,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

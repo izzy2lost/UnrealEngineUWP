@@ -35,7 +35,8 @@ void RemoveSubLevelBricksCS(uint3 BrickID : SV_DispatchThreadID)
 		SubLevelBrickPositions[BrickID.x * 3 + 2]
 	);
 	
-	uint4 IndirectionTextureOriginalValue = IndirectionTextureOriginalValues[BrickID.x];
+	// IndirectionTextureOriginalValues is stored as an FColor which is a bgra memory layout so we swizzle on read to get the correct values
+	uint4 IndirectionTextureOriginalValue = IndirectionTextureOriginalValues[BrickID.x].bgra;	
 	uint OriginalBrickLinearAddress = IndirectionTextureOriginalValue.x + IndirectionTextureOriginalValue.y * 256 + IndirectionTextureOriginalValue.z * 256 * 256;
 	IndirectionTexture[BrickPos] = uint4(ComputeBrickLayoutPosition(OriginalBrickLinearAddress + PersistentLevelBrickDataBaseOffset, uint3(256, 256, 256)), IndirectionTextureOriginalValue.w);
 }
