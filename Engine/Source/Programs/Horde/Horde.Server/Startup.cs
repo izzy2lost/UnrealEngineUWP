@@ -74,6 +74,7 @@ using Horde.Server.Replicators;
 using Horde.Server.Secrets;
 using Horde.Server.Server;
 using Horde.Server.Server.Notices;
+using Horde.Server.ServiceAccounts;
 using Horde.Server.Storage;
 using Horde.Server.Storage.ObjectStores;
 using Horde.Server.Streams;
@@ -469,6 +470,7 @@ namespace Horde.Server
 			services.AddSingleton<IPoolCollection, PoolCollection>();
 			services.AddSingleton<IBisectTaskCollection, BisectTaskCollection>();
 			services.AddSingleton<IReplicatorCollection, ReplicatorCollection>();
+			services.AddSingleton<IServiceAccountCollection, ServiceAccountCollection>();
 			services.AddSingleton<ISessionCollection, SessionCollection>();
 			services.AddSingleton<ISubscriptionCollection, SubscriptionCollection>();
 			services.AddSingleton<IStreamCollection, StreamCollection>();
@@ -629,9 +631,9 @@ namespace Horde.Server
 					switch (settings.AuthMethod)
 					{
 						case AuthMethod.Anonymous:
-							options.DefaultAuthenticateScheme = AnonymousAuthenticationHandler.AuthenticationScheme;
-							options.DefaultSignInScheme = AnonymousAuthenticationHandler.AuthenticationScheme;
-							options.DefaultChallengeScheme = AnonymousAuthenticationHandler.AuthenticationScheme;
+							options.DefaultAuthenticateScheme = AnonymousAuthHandler.AuthenticationScheme;
+							options.DefaultSignInScheme = AnonymousAuthHandler.AuthenticationScheme;
+							options.DefaultChallengeScheme = AnonymousAuthHandler.AuthenticationScheme;
 							break;
 
 						case AuthMethod.Okta:
@@ -695,14 +697,14 @@ namespace Horde.Server
 			});
 			schemes.Add(CookieAuthenticationDefaults.AuthenticationScheme);
 
-			authBuilder.AddHordeAccount(options => { });
-			schemes.Add(HordeAccountAuthHandler.AuthenticationScheme);
+			authBuilder.AddServiceAccounts(options => { });
+			schemes.Add(ServiceAccountAuthHandler.AuthenticationScheme);
 
 			switch (settings.AuthMethod)
 			{
 				case AuthMethod.Anonymous:
 					authBuilder.AddAnonymous(options => { });
-					schemes.Add(AnonymousAuthenticationHandler.AuthenticationScheme);
+					schemes.Add(AnonymousAuthHandler.AuthenticationScheme);
 					break;
 
 				case AuthMethod.Okta:

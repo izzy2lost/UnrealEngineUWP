@@ -17,11 +17,11 @@ namespace Horde.Server.Authentication
 	{
 	}
 
-	class AnonymousAuthenticationHandler : AuthenticationHandler<AnonymousAuthenticationOptions>
+	class AnonymousAuthHandler : AuthenticationHandler<AnonymousAuthenticationOptions>
 	{
 		public const string AuthenticationScheme = "Anonymous";
 
-		public AnonymousAuthenticationHandler(IOptionsMonitor<AnonymousAuthenticationOptions> options, ILoggerFactory logger, UrlEncoder encoder)
+		public AnonymousAuthHandler(IOptionsMonitor<AnonymousAuthenticationOptions> options, ILoggerFactory logger, UrlEncoder encoder)
 			: base(options, logger, encoder)
 		{
 		}
@@ -47,7 +47,7 @@ namespace Horde.Server.Authentication
 	{
 		public static AuthenticationBuilder AddAnonymous(this AuthenticationBuilder builder, Action<AnonymousAuthenticationOptions> configure)
 		{
-			return builder.AddScheme<AnonymousAuthenticationOptions, AnonymousAuthenticationHandler>(AnonymousAuthenticationHandler.AuthenticationScheme, configure);
+			return builder.AddScheme<AnonymousAuthenticationOptions, AnonymousAuthHandler>(AnonymousAuthHandler.AuthenticationScheme, configure);
 		}
 	}
 }

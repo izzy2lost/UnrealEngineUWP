@@ -15,14 +15,14 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 #pragma warning disable CA2234 // Pass system uri objects instead of strings
 #pragma warning disable CA1307 // Specify StringComparison for clarity
 
-namespace Horde.Server.Tests.Authentication;
+namespace Horde.Server.Tests.Accounts;
 
 [TestClass]
 public class AccountControllerTest : IAsyncDisposable
 {
 	private readonly FakeHordeWebApp _app;
-	private readonly IAccountCollection _hordeAccounts;
-	private IAccount _sa1 = null!;
+	private readonly IAccountCollection _accountCollection;
+	private IAccount _account1 = null!;
 
 	public AccountControllerTest()
 	{
@@ -31,7 +31,7 @@ public class AccountControllerTest : IAsyncDisposable
 			{ "Horde:AuthMethod", "Horde" },
 		};
 		_app = new FakeHordeWebApp(settings, allowAutoRedirect: false);
-		_hordeAccounts = _app.ServiceProvider.GetRequiredService<IAccountCollection>();
+		_accountCollection = _app.ServiceProvider.GetRequiredService<IAccountCollection>();
 	}
 	
 	public async ValueTask DisposeAsync()
@@ -48,7 +48,7 @@ public class AccountControllerTest : IAsyncDisposable
 			new UserClaim("myClaimType1", "myClaimValue1"),
 			new UserClaim("myClaimType2", "myClaimValue2")
 		};
-		_sa1 = await _hordeAccounts.AddAsync("name1", "login1", claims, email: "foo@horde", description: "desc1", password: "pass1");
+		_account1 = await _accountCollection.CreateAsync(new CreateAccountOptions("name1", "login1", claims, Email: "foo@horde", Description: "desc1", Password: "pass1"));
 	}
 
 	[TestMethod]
@@ -85,7 +85,7 @@ public class AccountControllerTest : IAsyncDisposable
 		}
 
 		{
-			HttpResponseMessage res = await LoginAsync(_sa1.Login, "wrong-password");
+			HttpResponseMessage res = await LoginAsync(_account1.Login, "wrong-password");
 			Assert.AreEqual(HttpStatusCode.BadRequest, res.StatusCode);
 			Assert.IsTrue((await res.Content.ReadAsStringAsync()).Contains("Invalid username or password"));
 		}
@@ -94,7 +94,7 @@ public class AccountControllerTest : IAsyncDisposable
 	[TestMethod]
 	public async Task NotLoggedIn_CorrectCredentialsLogsInAsync()
 	{
-		HttpResponseMessage res = await LoginAsync(_sa1.Login, "pass1");
+		HttpResponseMessage res = await LoginAsync(_account1.Login, "pass1");
 		Assert.AreEqual(HttpStatusCode.Redirect, res.StatusCode);
 		Assert.AreEqual("/", res.Headers.Location!.ToString());
 	}
@@ -102,7 +102,7 @@ public class AccountControllerTest : IAsyncDisposable
 	[TestMethod]
 	public async Task LoggedIn_ShowsCredentialsAsync()
 	{
-		await LoginAsync(_sa1.Login, "pass1");
+		await LoginAsync(_account1.Login, "pass1");
 		HttpResponseMessage res2 = await _app.HttpClient.GetAsync("account");
 		Assert.AreEqual(HttpStatusCode.OK, res2.StatusCode);
 

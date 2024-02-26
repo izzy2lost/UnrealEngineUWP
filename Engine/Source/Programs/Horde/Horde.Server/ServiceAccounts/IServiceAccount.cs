@@ -4,54 +4,23 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Horde.Accounts;
+using EpicGames.Horde.ServiceAccounts;
 using Horde.Server.Acls;
 using Horde.Server.Users;
 
-namespace Horde.Server.Accounts
+namespace Horde.Server.ServiceAccounts
 {
 	/// <summary>
-	/// An internal Horde account representing a user or service
+	/// An internal Horde account representing a service
 	///
-	/// Service-to-service authentication always use this for authentication (for example, Robomerge accessing Horde)
-	/// When external authentication is enabled (such as OpenID Connect) users cannot be authenticated through this.
+	/// Service-to-service authentication always use this for authentication (for example, Robomerge accessing Horde).
 	/// </summary>
-	public interface IAccount
+	public interface IServiceAccount
 	{
 		/// <summary>
 		/// Unique internal ID for this Horde account
 		/// </summary>
-		AccountId Id { get; }
-
-		/// <summary>
-		/// Full name of the user
-		/// </summary>
-		string Name { get; }
-
-		/// <summary>
-		/// A login ID or username
-		/// </summary>
-		string Login { get; }
-
-		/// <summary>
-		/// Email associated with account
-		/// </summary>
-		string? Email { get; }
-
-		/// <summary>
-		/// Hashed password
-		/// </summary>
-		string? PasswordHash { get; }
-
-		/// <summary>
-		/// Salt for password hash (if PasswordHash is set)
-		/// </summary>
-		string? PasswordSalt { get; }
-
-		/// <summary>
-		/// If the account is active
-		/// </summary>
-		bool Enabled { get; }
+		ServiceAccountId Id { get; }
 
 		/// <summary>
 		/// Description of the account (who is it for, is there an owner etc)
@@ -65,16 +34,16 @@ namespace Horde.Server.Accounts
 		IReadOnlyList<IUserClaim> Claims { get; }
 
 		/// <summary>
-		/// Validate that a password is correct for this account
+		/// If the account is active
 		/// </summary>
-		bool ValidatePassword(string password);
+		bool Enabled { get; }
 
 		/// <summary>
 		/// Get the latest version of this account
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New account object</returns>
-		Task<IAccount?> RefreshAsync(CancellationToken cancellationToken = default);
+		Task<IServiceAccount?> RefreshAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Attempt to update settings for the account
@@ -82,26 +51,20 @@ namespace Horde.Server.Accounts
 		/// <param name="options">Options for the update</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>On success, returns the updated account object</returns>
-		Task<IAccount?> TryUpdateAsync(UpdateAccountOptions options, CancellationToken cancellationToken = default);
+		Task<(IServiceAccount?, string?)> TryUpdateAsync(UpdateServiceAccountOptions options, CancellationToken cancellationToken = default);
 	}
 
 	/// <summary>
 	/// Options for updating an account
 	/// </summary>
-	/// <param name="Name">If set, name of account to update</param>
-	/// <param name="Login">If set, login ID/username to update</param>
 	/// <param name="Claims">If set, claims to update</param>
 	/// <param name="Description">If set, description to update</param>
-	/// <param name="Email">If set, email to update</param>
-	/// <param name="Password">If set, password hash to update</param>
+	/// <param name="ResetToken">Whether to reset the secret token for this account</param>
 	/// <param name="Enabled">If set, enabled flag to update</param>
-	public record class UpdateAccountOptions(
-		string? Name = null,
-		string? Login = null,
-		IReadOnlyList<IUserClaim>? Claims = null,
+	public record class UpdateServiceAccountOptions(
 		string? Description = null,
-		string? Email = null,
-		string? Password = null,
+		IReadOnlyList<IUserClaim>? Claims = null,
+		bool? ResetToken = null,
 		bool? Enabled = null);
 
 	/// <summary>
@@ -116,7 +79,7 @@ namespace Horde.Server.Accounts
 		/// <param name="type">Claim type to check for</param>
 		/// <param name="value">Claim value to check for</param>
 		/// <returns>True if the user has the claim</returns>
-		public static bool HasClaim(this IAccount account, string type, string value)
+		public static bool HasClaim(this IServiceAccount account, string type, string value)
 		{
 			foreach (IUserClaim claim in account.Claims)
 			{
@@ -134,7 +97,7 @@ namespace Horde.Server.Accounts
 		/// <param name="account">Account to test</param>
 		/// <param name="claim">Claim to test for</param>
 		/// <returns>True if the user has the claim</returns>
-		public static bool HasClaim(this IAccount account, AclClaimConfig claim)
+		public static bool HasClaim(this IServiceAccount account, AclClaimConfig claim)
 			=> HasClaim(account, claim);
 
 		/// <summary>
@@ -144,20 +107,20 @@ namespace Horde.Server.Accounts
 		/// <param name="options">Options for the update</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>On success, returns the updated account object</returns>
-		public static async Task<IAccount?> UpdateAsync(this IAccount account, UpdateAccountOptions options, CancellationToken cancellationToken = default)
+		public static async Task<(IServiceAccount?, string?)> UpdateAsync(this IServiceAccount account, UpdateServiceAccountOptions options, CancellationToken cancellationToken = default)
 		{
-			IAccount? updatedAccount = account;
+			IServiceAccount? updatedAccount = account;
 			while (updatedAccount != null)
 			{
-				updatedAccount = await updatedAccount.TryUpdateAsync(options, cancellationToken);
-				if (updatedAccount != null)
+				(IServiceAccount? newAccount, string? newToken) = await updatedAccount.TryUpdateAsync(options, cancellationToken);
+				if (newAccount != null)
 				{
-					return updatedAccount;
+					return (newAccount, newToken);
 				}
 
 				updatedAccount = await account.RefreshAsync(cancellationToken);
 			}
-			return null;
+			return (null, null);
 		}
 	}
 }

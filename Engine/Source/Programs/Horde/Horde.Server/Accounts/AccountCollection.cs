@@ -132,9 +132,6 @@ namespace Horde.Server.Accounts
 			public string? Email { get; set; }
 
 			/// <inheritdoc/>
-			public string? SecretToken { get; set; }
-
-			/// <inheritdoc/>
 			public string? PasswordHash { get; set; }
 
 			/// <inheritdoc/>
@@ -171,35 +168,6 @@ namespace Horde.Server.Accounts
 				_accountCollection = accountCollection;
 			}
 
-			protected bool Equals(AccountDocument other)
-			{
-				bool areClaimsEqual = !Claims.Except(other.Claims).Any();
-
-				return Id.Equals(other.Id) && SecretToken == other.SecretToken && areClaimsEqual && Enabled == other.Enabled && Description == other.Description;
-			}
-
-			public override bool Equals(object? obj)
-			{
-				if (obj is null)
-				{
-					return false;
-				}
-				if (ReferenceEquals(this, obj))
-				{
-					return true;
-				}
-				if (obj.GetType() != GetType())
-				{
-					return false;
-				}
-				return Equals((AccountDocument)obj);
-			}
-
-			public override int GetHashCode()
-			{
-				return HashCode.Combine(Id, SecretToken, Claims, Enabled, Description);
-			}
-
 			public bool ValidatePassword(string password)
 				=> PasswordSalt != null && PasswordHash != null && PasswordHasher.ValidatePassword(password, PasswordHasher.SaltFromString(PasswordSalt), PasswordHasher.HashFromString(PasswordHash));
 
@@ -221,37 +189,29 @@ namespace Horde.Server.Accounts
 		/// <param name="mongoService">The database service</param>
 		public AccountCollection(MongoService mongoService)
 		{
-			_accounts = mongoService.GetCollection<AccountDocument>("ServiceAccounts", keys => keys.Ascending(x => x.SecretToken));
+			_accounts = mongoService.GetCollection<AccountDocument>("Accounts", keys => keys.Ascending(x => x.Login));
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAccount> AddAsync(
-			string name,
-			string login,
-			IReadOnlyList<IUserClaim>? claims,
-			string? description,
-			string? email,
-			string? secretToken,
-			string? password,
-			bool? enabled,
+		public async Task<IAccount> CreateAsync(
+			CreateAccountOptions options,
 			CancellationToken cancellationToken = default)
 		{
-			AccountDocument account = new(new AccountId(BinaryIdUtils.CreateNew()), name, login)
+			AccountDocument account = new(new AccountId(BinaryIdUtils.CreateNew()), options.Name, options.Login)
 			{
-				Email = email,
-				SecretToken = secretToken,
-				Description = description ?? "",
-				Enabled = enabled ?? true
+				Email = options.Email,
+				Description = options.Description ?? "",
+				Enabled = options.Enabled ?? true
 			};
 
-			if (claims != null)
+			if (options.Claims != null)
 			{
-				account.Claims = claims.ConvertAll(x => new ClaimDocument(x));
+				account.Claims = options.Claims.ConvertAll(x => new ClaimDocument(x));
 			}
 
-			if (password != null)
+			if (options.Password != null)
 			{
-				(string passwordSalt, string passwordHash) = CreateSaltAndHashPassword(password);
+				(string passwordSalt, string passwordHash) = CreateSaltAndHashPassword(options.Password);
 				account.PasswordSalt = passwordSalt;
 				account.PasswordHash = passwordHash;
 			}
@@ -304,14 +264,6 @@ namespace Horde.Server.Accounts
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAccount?> FindBySecretTokenAsync(string secretToken, CancellationToken cancellationToken = default)
-		{
-			AccountDocument? account = await _accounts.Find(x => x.SecretToken == secretToken).FirstOrDefaultAsync(cancellationToken);
-			account?.PostLoad(this);
-			return account;
-		}
-
-		/// <inheritdoc/>
 		public async Task<IAccount?> FindByLoginAsync(string login, CancellationToken cancellationToken = default)
 		{
 			await CreateAdminAccountAsync(cancellationToken);
@@ -337,10 +289,6 @@ namespace Horde.Server.Accounts
 			if (options.Email != null)
 			{
 				update = update.Set(x => x.Email, options.Email);
-			}
-			if (options.SecretToken != null)
-			{
-				update = update.Set(x => x.SecretToken, options.SecretToken);
 			}
 			if (options.Password != null)
 			{

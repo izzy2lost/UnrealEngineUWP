@@ -6,7 +6,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
-using Horde.Server.Accounts;
+using Horde.Server.ServiceAccounts;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,22 +14,22 @@ using Microsoft.Net.Http.Headers;
 
 namespace Horde.Server.Authentication
 {
-	class HordeAccountAuthOptions : AuthenticationSchemeOptions
+	class ServiceAccountAuthOptions : AuthenticationSchemeOptions
 	{
 	}
 
-	class HordeAccountAuthHandler : AuthenticationHandler<HordeAccountAuthOptions>
+	class ServiceAccountAuthHandler : AuthenticationHandler<ServiceAccountAuthOptions>
 	{
 		public const string AuthenticationScheme = "ServiceAccount";
 		public const string Prefix = "ServiceAccount";
 
-		private readonly IAccountCollection _hordeAccounts;
+		private readonly IServiceAccountCollection _serviceAccountCollection;
 
-		public HordeAccountAuthHandler(IOptionsMonitor<HordeAccountAuthOptions> options,
-			ILoggerFactory logger, UrlEncoder encoder, IAccountCollection hordeAccounts)
+		public ServiceAccountAuthHandler(IOptionsMonitor<ServiceAccountAuthOptions> options,
+			ILoggerFactory logger, UrlEncoder encoder, IServiceAccountCollection serviceAccountCollection)
 			: base(options, logger, encoder)
 		{
-			_hordeAccounts = hordeAccounts;
+			_serviceAccountCollection = serviceAccountCollection;
 		}
 
 		protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -51,7 +51,7 @@ namespace Horde.Server.Authentication
 			}
 
 			string token = header.Replace(Prefix, "", StringComparison.Ordinal).Trim();
-			IAccount? serviceAccount = await _hordeAccounts.FindBySecretTokenAsync(token);
+			IServiceAccount? serviceAccount = await _serviceAccountCollection.FindBySecretTokenAsync(token);
 
 			if (serviceAccount == null)
 			{
@@ -70,11 +70,11 @@ namespace Horde.Server.Authentication
 		}
 	}
 
-	static class HordeAccountExtensions
+	static class ServiceAccountAuthExtensions
 	{
-		public static AuthenticationBuilder AddHordeAccount(this AuthenticationBuilder builder, Action<HordeAccountAuthOptions> config)
+		public static AuthenticationBuilder AddServiceAccounts(this AuthenticationBuilder builder, Action<ServiceAccountAuthOptions> config)
 		{
-			return builder.AddScheme<HordeAccountAuthOptions, HordeAccountAuthHandler>(HordeAccountAuthHandler.AuthenticationScheme, config);
+			return builder.AddScheme<ServiceAccountAuthOptions, ServiceAccountAuthHandler>(ServiceAccountAuthHandler.AuthenticationScheme, config);
 		}
 	}
 }

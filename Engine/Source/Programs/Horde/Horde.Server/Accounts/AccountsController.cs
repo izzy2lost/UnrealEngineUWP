@@ -47,7 +47,7 @@ namespace Horde.Server.Accounts
 			}
 
 			List<IUserClaim> claims = request.Claims.ConvertAll<IUserClaim>(x => new UserClaim(x.Type, x.Value));
-			IAccount account = await _accountCollection.AddAsync(request.Name, request.Login, claims, request.Description, request.Email, request.SecretToken, request.Password, request.Enabled, cancellationToken);
+			IAccount account = await _accountCollection.CreateAsync(new CreateAccountOptions(request.Name, request.Login, claims, request.Description, request.Email, request.Password, request.Enabled), cancellationToken);
 			return new CreateAccountResponse(account.Id);
 		}
 
@@ -211,7 +211,7 @@ namespace Horde.Server.Accounts
 				claims = request.Claims.ConvertAll(x => new UserClaim(x.Type, x.Value));
 			}
 
-			UpdateAccountOptions options = new UpdateAccountOptions(request.Name, request.Login, claims, request.Description, request.Email, request.SecretToken, request.Password, request.Enabled);
+			UpdateAccountOptions options = new UpdateAccountOptions(request.Name, request.Login, claims, request.Description, request.Email, request.Password, request.Enabled);
 
 			account = await account.UpdateAsync(options, cancellationToken);
 			if (account == null)

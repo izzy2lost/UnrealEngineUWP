@@ -84,7 +84,7 @@ namespace Horde.Server.Server
 		{
 			return method switch
 			{
-				AuthMethod.Anonymous => AnonymousAuthenticationHandler.AuthenticationScheme,
+				AuthMethod.Anonymous => AnonymousAuthHandler.AuthenticationScheme,
 				AuthMethod.Okta => OktaDefaults.AuthenticationScheme,
 				AuthMethod.OpenIdConnect => OpenIdConnectDefaults.AuthenticationScheme,
 				AuthMethod.Horde => CookieAuthenticationDefaults.AuthenticationScheme,
