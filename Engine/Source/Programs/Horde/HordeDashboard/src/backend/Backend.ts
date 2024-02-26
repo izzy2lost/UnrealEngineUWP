@@ -1778,6 +1778,16 @@ export class Backend {
     }
 
     // Accounts
+
+    getAccountEntitlements(): Promise<any> {
+        return new Promise<any>((resolve, reject) => {
+            this.backend.get(`/account/entitlements`).then((value) => {
+                resolve(value.data as any);
+            }).catch(reason => {
+                reject(reason);
+            });
+        });
+    }
     
     // update current account 
     updateCurrentAccount(request: UpdateCurrentAccountRequest): Promise<boolean> {
