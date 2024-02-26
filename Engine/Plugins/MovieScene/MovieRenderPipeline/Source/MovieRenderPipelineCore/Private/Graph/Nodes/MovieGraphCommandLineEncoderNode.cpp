@@ -205,9 +205,24 @@ bool UMovieGraphCommandLineEncoderNode::AreSettingsValid(TArray<FText>& OutError
 
 	// Validate project settings
 	{
-		if (EncoderSettings->ExecutablePath.IsEmpty())
+		FString EncoderPath = EncoderSettings->ExecutablePath;
+		if (EncoderPath.IsEmpty())
 		{
 			OutErrors.Add(LOCTEXT("CommandLineEncode_MissingExecutable", "No encoder executable has been specified in the Project Settings. Please set an encoder executable in Project Settings > Movie Pipeline CLI Encoder."));
+		}
+		else
+		{
+			if (FPaths::IsRelative(EncoderPath))
+			{
+				EncoderPath = FPaths::ConvertRelativePathToFull(EncoderPath);
+			}
+		
+			if (!FPaths::FileExists(EncoderPath))
+			{
+				OutErrors.Add(FText::Format(
+					LOCTEXT("CommandLineEncode_InvalidExecutable", "Invalid encoder executable path [{0}] was specified in the Project Settings. Please set a valid encoder executable in Project Settings > Movie Pipeline CLI Encoder."),
+					FText::FromString(EncoderPath)));
+			}
 		}
 	}
 
@@ -569,7 +584,8 @@ void UMovieGraphCommandLineEncoderNode::LaunchEncoder(const FEncoderParams& InPa
 	else
 	{
 		UE_LOG(LogMovieRenderPipeline, Error, TEXT("Failed to launch encoder process, see output log for more details."));
-		CachedPipeline->Shutdown(true);
+		constexpr bool bIsError = true;
+		CachedPipeline->RequestShutdown(bIsError);
 	}
 }
 

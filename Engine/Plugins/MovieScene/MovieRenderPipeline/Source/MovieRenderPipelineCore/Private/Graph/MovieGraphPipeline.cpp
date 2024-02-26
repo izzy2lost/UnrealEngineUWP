@@ -32,6 +32,7 @@ FString UMovieGraphPipeline::DefaultPreviewWidgetAsset = TEXT("/MovieRenderPipel
 UMovieGraphPipeline::UMovieGraphPipeline()
 	: CurrentShotIndex(-1)
 	, bIsTransitioningState(false)
+	, bIsTearingDownShot(false)
 	, PipelineState(EMovieRenderPipelineState::Uninitialized)
 {
 	OutputMerger = MakeShared<UE::MovieGraph::FMovieGraphOutputMerger>(this);
@@ -821,6 +822,14 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 
 void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
 {
+	// No re-entrancy. Multiple TeardownShot() calls can occur in some situations when the pipeline is shutting down early.
+	if (bIsTearingDownShot)
+	{
+		return;
+	}
+
+	TGuardValue<bool> TeardownShotGuard(bIsTearingDownShot, true);
+	
 	// Teardown happens at the start of the first frame the shot is finished so we'll stop recording
 	// audio, which will prevent it from capturing any samples for this frame. We don't do a similar
 	// start in InitializeShot() because we don't want to record samples during warm up/motion blur.

@@ -277,6 +277,9 @@ protected:
 	/** True if we're in a TransitionToState call. Used to prevent reentrancy. */
 	bool bIsTransitioningState;
 
+	/** True if we're in a TeardownShot call. Used to prevent reentrancy. */
+	bool bIsTearingDownShot;
+
 	/** When we originally initialize we store the offset from UTC (which is what GetInitializationTime() is in), but we clear this if you call SetInitializationTime. */
 	FTimespan InitializationTimeOffset;
 
