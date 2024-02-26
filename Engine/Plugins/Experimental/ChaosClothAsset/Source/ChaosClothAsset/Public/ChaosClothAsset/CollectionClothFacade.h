@@ -222,6 +222,8 @@ namespace UE::Chaos::ClothAsset
 		void RemoveSimVertices3D(const TArray<int32>& SortedDeletionList);
 		/** Compact SimVertex2DLookup to remove any references to INDEX_NONE that may have been created by deleting 2D vertices. */
 		void CompactSimVertex2DLookup();
+		/** Compact SeamStitchLookup to remove any references to INDEX_NONE that may have been created by deleting stitches. */
+		void CompactSeamStitchLookup();
 
 		//~ Pattern Sim Faces Group
 		/** SetNumSimFaces per pattern within pattern facade. */

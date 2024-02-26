@@ -515,6 +515,13 @@ namespace UE::Chaos::ClothAsset
 
 	void FCollectionClothFacade::Append(const FCollectionClothConstFacade& Other)
 	{
+#if DO_ENSURE
+		for (int32 SeamIndex = 0; SeamIndex < GetNumSeams(); ++SeamIndex)
+		{
+			GetSeam(SeamIndex).ValidateSeam();
+		}
+#endif
+
 		// LODs Group 
 		// Just keep original data.
 
@@ -556,11 +563,13 @@ namespace UE::Chaos::ClothAsset
 		}
 
 		// Seams Group
+		const int32 StartNumSeamStitches = ClothCollection->GetNumElements(ClothCollectionGroup::SeamStitches);
 		const int32 StartNumSeams = GetNumSeams();
 		const int32 OtherNumSeams = Other.GetNumSeams();
 		SetNumSeams(StartNumSeams + OtherNumSeams);
 		for (int32 SeamIndex = 0; SeamIndex < OtherNumSeams; ++SeamIndex)
 		{
+			Other.GetSeam(SeamIndex).ValidateSeam();
 			GetSeam(SeamIndex + StartNumSeams).Initialize(Other.GetSeam(SeamIndex), StartNumSimVertices2D, StartNumSimVertices3D);
 		}
 		
@@ -570,7 +579,14 @@ namespace UE::Chaos::ClothAsset
 			Other.GetSimVertex2DLookup(), StartNumSimVertices2D);
 		FClothCollection::CopyArrayViewDataAndApplyOffset(
 			GetClothCollection()->GetElements(GetClothCollection()->GetSeamStitchLookup()).Right(OtherNumSimVertices3D), 
-			Other.GetSeamStitchLookup(), StartNumSeams);
+			Other.GetSeamStitchLookup(), StartNumSeamStitches);
+
+#if DO_ENSURE
+		for (int32 SeamIndex = 0; SeamIndex < OtherNumSeams; ++SeamIndex)
+		{
+			GetSeam(SeamIndex + StartNumSeams).ValidateSeam();
+		}
+#endif
 
 		// Render Patterns Group
 		const int32 StartNumRenderPatterns = GetNumRenderPatterns();
@@ -681,12 +697,31 @@ namespace UE::Chaos::ClothAsset
 		TArrayView<TArray<int32>> SimVertex2DLookup = GetSimVertex2DLookupPrivate();
 		for (TArray<int32>& VertexLookup : SimVertex2DLookup)
 		{
-			for (int32 Idx = VertexLookup.Num() - 1; Idx >= 0; --Idx)
+			for (int32 Idx = 0; Idx < VertexLookup.Num();)
 			{
 				if (VertexLookup[Idx] == INDEX_NONE)
 				{
 					VertexLookup.RemoveAtSwap(Idx);
+					continue;
 				}
+				++Idx;
+			}
+		}
+	}
+
+	void FCollectionClothFacade::CompactSeamStitchLookup()
+	{
+		TArrayView<TArray<int32>> SeamStitchLookup = GetSeamStitchLookupPrivate();
+		for (TArray<int32>& StitchLookup : SeamStitchLookup)
+		{
+			for (int32 Idx = 0; Idx < StitchLookup.Num();)
+			{
+				if (StitchLookup[Idx] == INDEX_NONE)
+				{
+					StitchLookup.RemoveAtSwap(Idx);
+					continue;
+				}
+				++Idx;
 			}
 		}
 	}
