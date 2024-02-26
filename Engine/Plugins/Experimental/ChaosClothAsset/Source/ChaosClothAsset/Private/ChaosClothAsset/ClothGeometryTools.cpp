@@ -1030,7 +1030,6 @@ namespace UE::Chaos::ClothAsset
 			// Clean up any references to vertices that no longer exist.
 			// NOTE: should not need to clean up 2D vertices pointing to INDEX_NONE 3D vertices since this should have
 			// meant the 2D vertex either was unused in the faces, or was associated with an invalid face (it should already be cleaned up).
-			// NOTE: not cleaning up seam references for now as they aren't exported as part of the final mesh/sim data.
 			Cloth.CompactSimVertex2DLookup();
 
 			TArrayView<TArray<int32>> TetherKinematicIndex = Cloth.GetTetherKinematicIndex();
@@ -1038,16 +1037,34 @@ namespace UE::Chaos::ClothAsset
 			const int32 NumVertices = TetherKinematicIndex.Num();
 			for (int32 VertexIdx = 0; VertexIdx < NumVertices; ++VertexIdx)
 			{
-				const int32 NumTethers = TetherKinematicIndex[VertexIdx].Num();
-				for (int32 TetherIdx = NumTethers - 1; TetherIdx >= 0; --TetherIdx)
+				for (int32 TetherIdx = 0; TetherIdx < TetherKinematicIndex[VertexIdx].Num(); )
 				{
 					if (TetherKinematicIndex[VertexIdx][TetherIdx] == INDEX_NONE)
 					{
 						TetherKinematicIndex[VertexIdx].RemoveAtSwap(TetherIdx);
 						TetherReferenceLength[VertexIdx].RemoveAtSwap(TetherIdx);
+						continue;
 					}
+					++TetherIdx;
 				}
 			}
+
+			// Clean up seams. Update stitches that refer to invalid indices.
+			TArray<int32> SeamsToRemove;
+			for (int32 SeamIndex = 0; SeamIndex < Cloth.GetNumSeams(); ++SeamIndex)
+			{
+				FCollectionClothSeamFacade Seam = Cloth.GetSeam(SeamIndex);
+				Seam.CleanupAndCompact();
+				if (Seam.GetNumSeamStitches() == 0)
+				{
+					SeamsToRemove.Add(SeamIndex);
+				}
+			}
+			if (!SeamsToRemove.IsEmpty())
+			{
+				Cloth.RemoveSeams(SeamsToRemove);
+			}
+			Cloth.CompactSeamStitchLookup();
 		}
 
 		TArray<int32> RenderPatternsToRemove;
@@ -1112,6 +1129,12 @@ namespace UE::Chaos::ClothAsset
 		{
 			Cloth.RemoveRenderPatterns(RenderPatternsToRemove);
 		}
+#if DO_ENSURE
+		for (int32 SeamIndex = 0; SeamIndex < Cloth.GetNumSeams(); ++SeamIndex)
+		{
+			Cloth.GetSeam(SeamIndex).ValidateSeam();
+		}
+#endif
 	}
 
 

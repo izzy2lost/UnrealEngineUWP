@@ -9,6 +9,10 @@
 
 namespace UE::Chaos::ClothAsset
 {
+#if DO_ENSURE
+static bool bEnableSeamChecks = false;
+static FAutoConsoleVariableRef CVarEnableSeamChecks(TEXT("p.ChaosCloth.EnableSeamChecks"), bEnableSeamChecks, TEXT("Enable seam validation checks"));
+#endif
 	namespace Private
 	{
 		//
@@ -462,6 +466,116 @@ namespace UE::Chaos::ClothAsset
 			}
 		}
 
+		// Cleanup methods
+		TArray<TSet<int32>> BuildStitchGroupsForVertex3D(const TArray<int32>& StitchLookup, const TArray<int32>& Vertex2DLookup, const TArrayView<FIntVector2>& AllEnds, const int32 OurIndex, bool& bFoundOtherInvalidStitches)
+		{
+			bFoundOtherInvalidStitches = false;
+			TArray<TSet<int32>> Vertex2DGroups;
+			for (int32 OtherStitchIndex : StitchLookup)
+			{
+				if (OtherStitchIndex == OurIndex || OtherStitchIndex == INDEX_NONE)
+				{
+					// This is us
+					continue;
+				}
+				const FIntVector2& OtherStitchEnds = AllEnds[OtherStitchIndex];
+				if (OtherStitchEnds[0] == INDEX_NONE || OtherStitchEnds[1] == INDEX_NONE)
+				{
+					bFoundOtherInvalidStitches = true;
+					continue;
+				}
+				int32 GroupIndex0 = INDEX_NONE;
+				int32 GroupIndex1 = INDEX_NONE;
+				for (int32 GroupIndex = 0; GroupIndex < Vertex2DGroups.Num(); ++GroupIndex)
+				{
+					if (Vertex2DGroups[GroupIndex].Contains(OtherStitchEnds[0]))
+					{
+						GroupIndex0 = GroupIndex;
+					}
+					if (Vertex2DGroups[GroupIndex].Contains(OtherStitchEnds[1]))
+					{
+						GroupIndex1 = GroupIndex;
+					}
+					else
+					{
+						continue;
+					}
+					if (GroupIndex0 != INDEX_NONE && GroupIndex1 != INDEX_NONE)
+					{
+						break;
+					}
+				}
+
+				if (GroupIndex0 == INDEX_NONE)
+				{
+					if (GroupIndex1 == INDEX_NONE)
+					{
+						// Start a new group
+						Vertex2DGroups.Emplace(TSet<int32>({ OtherStitchEnds[0], OtherStitchEnds[1]}));
+					}
+					else
+					{
+						// Add to Group1
+						Vertex2DGroups[GroupIndex1].Add(OtherStitchEnds[0]);
+					}
+				}
+				else if (GroupIndex1 == INDEX_NONE)
+				{
+					Vertex2DGroups[GroupIndex0].Add(OtherStitchEnds[1]);
+				}
+				else
+				{
+					// Both in different groups. Merge them.
+					Vertex2DGroups[GroupIndex0].Append(Vertex2DGroups[GroupIndex1]);
+					Vertex2DGroups.RemoveAtSwap(GroupIndex1);
+				}
+			}
+
+			// Add all Vertex2D that aren't in one any groups
+			for (const int32 Vertex2D : Vertex2DLookup)
+			{
+				if (Vertex2D == INDEX_NONE)
+				{
+					continue;
+				}
+				bool bFoundInGroup = false;
+				for (const TSet<int32>& Group : Vertex2DGroups)
+				{
+					if (Group.Contains(Vertex2D))
+					{
+						bFoundInGroup = true;
+						break;
+					}
+				}
+				if (!bFoundInGroup)
+				{
+					Vertex2DGroups.Emplace(TSet<int32>({ Vertex2D }));
+				}
+			}
+			return Vertex2DGroups;
+		}
+
+		TArray<FIntVector2> GenerateRemainderStitchesAfterCleanup(const TArray<TSet<int32>>& Vertex2DGroups)
+		{
+			TArray<FIntVector2> Stitches;
+			if (Vertex2DGroups.Num() > 1)
+			{
+				Stitches.Reserve(Vertex2DGroups.Num() - 1);
+				FIntVector2* Stitch = &Stitches.AddDefaulted_GetRef();
+				(*Stitch)[0] = *Vertex2DGroups[0].CreateConstIterator();
+				for (int32 GroupIndex = 1; GroupIndex < Vertex2DGroups.Num(); ++GroupIndex)
+				{
+					(*Stitch)[1] = *Vertex2DGroups[GroupIndex].CreateConstIterator();
+					if (GroupIndex < Vertex2DGroups.Num() - 1)
+					{
+						const int32 NextEnd = (*Stitch)[1];
+						Stitch = &Stitches.AddDefaulted_GetRef();
+						(*Stitch)[0] = NextEnd;
+					}
+				}
+			}
+			return Stitches;
+		}
 	} // namespace Private
 
 	int32 FCollectionClothSeamConstFacade::GetNumSeamStitches() const
@@ -496,6 +610,37 @@ namespace UE::Chaos::ClothAsset
 			ClothCollection->GetSeamStitchStart(),
 			ClothCollection->GetSeamStitchEnd(),
 			GetElementIndex());
+	}
+	
+	void FCollectionClothSeamConstFacade::ValidateSeam() const
+	{
+#if DO_ENSURE
+		if (bEnableSeamChecks)
+		{
+			FCollectionClothConstFacade Cloth(ClothCollection);
+			TConstArrayView<FIntVector2> Ends = GetSeamStitch2DEndIndices();
+			TConstArrayView<int32> Index3D = GetSeamStitch3DIndex();
+			TConstArrayView<TArray<int32>> Lookup2D = Cloth.GetSimVertex2DLookup();
+			TConstArrayView<TArray<int32>> StitchLookup = Cloth.GetSeamStitchLookup();
+			TConstArrayView<int32> Lookup3D = Cloth.GetSimVertex3DLookup();
+
+			const int32 StitchOffset = GetSeamStitchesOffset();
+			for (int32 StitchIndex = 0; StitchIndex < GetNumSeamStitches(); ++StitchIndex)
+			{
+				if (Ends[StitchIndex][0] != INDEX_NONE && Ends[StitchIndex][1] != INDEX_NONE)
+				{
+					if (Index3D[StitchIndex] != INDEX_NONE)
+					{
+						ensureAlways(StitchLookup[Index3D[StitchIndex]].Contains(StitchOffset + StitchIndex));
+						ensureAlways(Lookup2D[Index3D[StitchIndex]].Contains(Ends[StitchIndex][0]));
+						ensureAlways(Lookup2D[Index3D[StitchIndex]].Contains(Ends[StitchIndex][1]));
+						ensureAlways(Lookup3D[Ends[StitchIndex][0]] == Index3D[StitchIndex]);
+						ensureAlways(Lookup3D[Ends[StitchIndex][1]] == Index3D[StitchIndex]);
+					}
+				}
+			}
+		}
+#endif
 	}
 
 	FCollectionClothSeamConstFacade::FCollectionClothSeamConstFacade(const TSharedRef<const FClothCollection>& ClothCollection, int32 SeamIndex)
@@ -740,6 +885,8 @@ namespace UE::Chaos::ClothAsset
 		}
 		VerticesToRemove.Sort();
 		GetClothCollection()->RemoveElements(ClothCollectionGroup::SimVertices3D, VerticesToRemove);
+
+		ValidateSeam();
 	}
 
 	void FCollectionClothSeamFacade::Initialize(const FCollectionClothSeamConstFacade& Other, const int32 SimVertex2DOffset, const int32 SimVertex3DOffset)
@@ -747,6 +894,142 @@ namespace UE::Chaos::ClothAsset
 		SetNumSeamStitches(Other.GetNumSeamStitches());
 		FClothCollection::CopyArrayViewDataAndApplyOffset(GetSeamStitch2DEndIndices(), Other.GetSeamStitch2DEndIndices(), FIntVector2(SimVertex2DOffset));
 		FClothCollection::CopyArrayViewDataAndApplyOffset(GetSeamStitch3DIndex(), Other.GetSeamStitch3DIndex(), SimVertex3DOffset);
+	}
+
+	void FCollectionClothSeamFacade::CleanupAndCompact()
+	{
+		FCollectionClothFacade Cloth(GetClothCollection());
+		TArrayView<FIntVector2> AllEnds = GetClothCollection()->GetElements(GetClothCollection()->GetSeamStitch2DEndIndices());
+		TArrayView<int32> Index3D = GetSeamStitch3DIndex();
+		TConstArrayView<TArray<int32>> SimVertex2DLookup = Cloth.GetSimVertex2DLookup();
+		TConstArrayView<int32> Lookup3D = Cloth.GetSimVertex3DLookup();
+		TArrayView<TArray<int32>> SeamStitchLookup = Cloth.GetSeamStitchLookupPrivate();
+
+		const int32 StitchOffset = GetSeamStitchesOffset();
+		TArray<int32> StitchesToRemoveGlobal;
+		struct FNewStitches
+		{
+			int32 Vertex3D;
+			TArray<FIntVector2> StitchEnds;
+		};
+		TArray<FNewStitches> NewStitchesToAdd;
+		for (int32 StitchIndex = 0; StitchIndex < GetNumSeamStitches(); ++StitchIndex)
+		{
+			if (Index3D[StitchIndex] == INDEX_NONE)
+			{
+				// This stitch is no longer stitching anything together. It can be removed.
+				StitchesToRemoveGlobal.Add(StitchIndex + StitchOffset);
+				continue;
+			}
+
+			FIntVector2& StitchEnds = AllEnds[StitchIndex + StitchOffset];
+			if (StitchEnds[0] == INDEX_NONE || StitchEnds[1] == INDEX_NONE)
+			{
+				// Try to fix up the stitches that go to this 3D vertex 
+				bool bFoundOtherInvalidStitches = false;
+				TArray<TSet<int32>> Vertex2DGroups = Private::BuildStitchGroupsForVertex3D(SeamStitchLookup[Index3D[StitchIndex]], SimVertex2DLookup[Index3D[StitchIndex]], AllEnds, StitchIndex + StitchOffset, bFoundOtherInvalidStitches);
+
+				if (Vertex2DGroups.Num() < 2)
+				{
+					// All 2D vertices going to this 3D vertex are stitched together. Can discard this stitch.
+					StitchesToRemoveGlobal.Add(StitchIndex + StitchOffset);
+					continue;
+				}
+
+				if (StitchEnds[1] != INDEX_NONE)
+				{
+					// Swap ends just to make next bits a little easier.
+					StitchEnds[0] = StitchEnds[1];
+					StitchEnds[1] = INDEX_NONE;
+				}
+
+				int32 GroupIndex0 = INDEX_NONE;
+				if (StitchEnds[0] != INDEX_NONE)
+				{
+					// Find which group our first end is in.
+					for (int32 GroupIndex = 0; GroupIndex < Vertex2DGroups.Num(); ++GroupIndex)
+					{
+						if (Vertex2DGroups[GroupIndex].Contains(StitchEnds[0]))
+						{
+							GroupIndex0 = GroupIndex;
+							break;
+						}
+					}
+				}
+				else
+				{
+					GroupIndex0 = 0;
+					StitchEnds[0] = *Vertex2DGroups[GroupIndex0].CreateConstIterator();
+				}
+				check(GroupIndex0 != INDEX_NONE);
+				const int32 GroupIndex1 = GroupIndex0 == 0 ? 1 : 0;
+				StitchEnds[1] = *Vertex2DGroups[GroupIndex1].CreateConstIterator();
+
+				if (Vertex2DGroups.Num() > 2 && !bFoundOtherInvalidStitches)
+				{
+					Vertex2DGroups[GroupIndex0].Append(Vertex2DGroups[GroupIndex1]);
+					Vertex2DGroups.RemoveAtSwap(GroupIndex1);
+					// There are more groups to stitch together and there aren't any other invalid stitches that correspond with this 3D index that 
+					// can be used to fix this up.
+					NewStitchesToAdd.Emplace(Index3D[StitchIndex], Private::GenerateRemainderStitchesAfterCleanup(Vertex2DGroups));
+				}
+			}
+		}
+
+		// Determine how many remainder stitches we need to add.
+		int32 NumStitchesToAdd = 0;
+		for (const FNewStitches& NewStitches : NewStitchesToAdd)
+		{
+			NumStitchesToAdd += NewStitches.StitchEnds.Num();
+		}
+
+		// Reuse indices for stitches marked to remove to create new stitches.
+		const int32 OrigNumStitches = GetNumSeamStitches();
+		if (NumStitchesToAdd > StitchesToRemoveGlobal.Num())
+		{
+			SetNumSeamStitches(OrigNumStitches + NumStitchesToAdd - StitchesToRemoveGlobal.Num());
+			// Allocating new stitches can cause the SeamStitches group pointers to change.
+			AllEnds = GetClothCollection()->GetElements(GetClothCollection()->GetSeamStitch2DEndIndices());
+			Index3D = GetSeamStitch3DIndex();
+		}
+
+		int32 NewStitchIndex = OrigNumStitches;
+		for (const FNewStitches& NewStitches : NewStitchesToAdd)
+		{
+			for (const FIntVector2& StitchEnds : NewStitches.StitchEnds)
+			{
+				if (StitchesToRemoveGlobal.Num() > 0)
+				{
+					const int32 RecycledStitchIndex = StitchesToRemoveGlobal.Pop() - StitchOffset;
+					if (Index3D[RecycledStitchIndex] != INDEX_NONE)
+					{
+						// Remove RecycledStitchIndex from this SeamStitchLookup
+						SeamStitchLookup[Index3D[RecycledStitchIndex]].Remove(RecycledStitchIndex);
+					}
+					Index3D[RecycledStitchIndex] = NewStitches.Vertex3D;
+					AllEnds[RecycledStitchIndex + StitchOffset] = StitchEnds;
+					SeamStitchLookup[NewStitches.Vertex3D].Add(RecycledStitchIndex + StitchOffset);
+				}
+				else
+				{
+					Index3D[NewStitchIndex] = NewStitches.Vertex3D;
+					AllEnds[NewStitchIndex + StitchOffset] = StitchEnds;
+					SeamStitchLookup[NewStitches.Vertex3D].Add(NewStitchIndex + StitchOffset);
+					++NewStitchIndex;
+				}
+			}
+		}
+		check(NewStitchIndex == GetNumSeamStitches());
+
+		if (!StitchesToRemoveGlobal.IsEmpty())
+		{
+			GetClothCollection()->RemoveElements(
+				ClothCollectionGroup::SeamStitches,
+				StitchesToRemoveGlobal,
+				GetClothCollection()->GetSeamStitchStart(),
+				GetClothCollection()->GetSeamStitchEnd(),
+				GetElementIndex());
+		}
 	}
 
 	void FCollectionClothSeamFacade::SetNumSeamStitches(int32 NumStitches)

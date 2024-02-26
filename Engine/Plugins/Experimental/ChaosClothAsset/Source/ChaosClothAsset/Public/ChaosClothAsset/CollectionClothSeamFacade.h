@@ -38,6 +38,8 @@ namespace UE::Chaos::ClothAsset
 		/** Return the seam index this facade has been created with. */
 		int32 GetSeamIndex() const { return SeamIndex; }
 
+		void ValidateSeam() const;
+
 	protected:
 		friend class FCollectionClothSeamFacade;  // For other instances access
 		friend class FCollectionClothConstFacade;
@@ -76,6 +78,9 @@ namespace UE::Chaos::ClothAsset
 
 		/** Initialize from another seam. */
 		void Initialize(const FCollectionClothSeamConstFacade& Other, const int32 SimVertex2DOffset, const int32 SimVertex3DOffset);
+
+		/** Clean up references to invalid indices, including updating stitches to maintain topology. */
+		void CleanupAndCompact();
 
 private:
 		friend class FCollectionClothFacade;
