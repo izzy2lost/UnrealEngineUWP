@@ -7,6 +7,7 @@
 #include "Tasks/Pipe.h"
 #include "Tasks/TaskConcurrencyLimiter.h"
 #include "HAL/Thread.h"
+#include "Experimental/Misc/ExecutionResource.h"
 #include "Async/ParallelFor.h"
 #include "Async/ManualResetEvent.h"
 #include "Tests/TestHarnessAdapter.h"
@@ -1712,6 +1713,108 @@ namespace UE { namespace TasksTests
 
 		// Now busy waiting will run since we just unblocked all workers.
 		verify(Done.WaitFor(UE::FMonotonicTimeSpan::FromSeconds(1)));
+
+		// Do not exit the test before all blocked workers' tasks are done.
+		LowLevelTasks::BusyWaitForTasks<LowLevelTasks::FTask>(WorkerBlockers);
+	}
+
+	// Test that validates each tasks have their own execution resource stack and that busy wait cannot interfere with other tasks' resources.
+	TEST_CASE_NAMED(FTasksCaptureExecutionResourceInsideBusyWait, "System::Core::Async::Tasks::CaptureExecutionResourceInsideBusyWait", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		using namespace LowLevelTasks;
+		
+		FPlatformProcess::Sleep(0.1f); // give workers time to fall asleep, to avoid any reserve worker messing around
+
+		uint32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers();
+
+		// Block all workers but one so we can prevent the busywait task from running outside the busywait
+		FTaskEvent ResumeEvent{ UE_SOURCE_LOCATION };
+		TArray<LowLevelTasks::FTask> WorkerBlockers = BlockWorkers(ResumeEvent, NumWorkers - 1);
+
+		std::atomic<bool>     NormalResourceHeld{ false };
+		std::atomic<bool>     BusyWaitResourceHeld{ false };
+
+		class FResource : public FThreadSafeRefCountedObject, public IExecutionResource
+		{
+			std::atomic<bool>& ResourceHeld;
+		public:
+			FResource(std::atomic<bool>& ResourceToHold)
+				: ResourceHeld(ResourceToHold)
+			{
+				ResourceHeld = true;
+			}
+			virtual ~FResource() override
+			{
+				ResourceHeld = false;
+			}
+			uint32 AddRef() const override
+			{
+				return FThreadSafeRefCountedObject::AddRef();
+			}
+
+			uint32 Release() const override
+			{
+				return FThreadSafeRefCountedObject::Release();
+			}
+
+			uint32 GetRefCount() const override
+			{
+				return FThreadSafeRefCountedObject::GetRefCount();
+			}
+		};
+
+		TRefCountPtr<IExecutionResource> NormalResource;
+		TRefCountPtr<IExecutionResource> BusyWaitResource;
+
+		FTask NormalTask =
+			Launch(TEXT("NormalTask"),
+				[&]()
+				{
+					verify(!LowLevelTasks::FScheduler::Get().IsBusyWaiting());
+
+					FExecutionResourceContextScope ExecutionResourceScope(new FResource(NormalResourceHeld));
+
+					NormalResource = FExecutionResourceContext::Get();
+
+					BusyWaitUntil([&]() { return BusyWaitResourceHeld.load(); });
+				}
+			);
+
+		FTask BusyWaitTask =
+			Launch(TEXT("BusyWaitTask"),
+				[&]()
+				{
+					verify(LowLevelTasks::FScheduler::Get().IsBusyWaiting());
+
+					FExecutionResourceContextScope ExecutionResourceScope(new FResource(BusyWaitResourceHeld));
+
+					BusyWaitResource = FExecutionResourceContext::Get();
+				}
+		);
+
+		NormalTask.Wait();
+		
+		// This should have been completed as part of the normal task
+		verify(BusyWaitTask.IsCompleted());
+
+		// Verify now that both resource are held
+		verify(NormalResource.IsValid());
+		verify(BusyWaitResource.IsValid());
+
+		verify(NormalResourceHeld.load());
+		verify(BusyWaitResourceHeld.load());
+
+		// Now confirm that we can release the normal resource and its not also being held by the busy wait resource
+		NormalResource.SafeRelease();
+		verify(!NormalResourceHeld.load());
+		verify(BusyWaitResourceHeld.load());
+
+		// Now verify that we can release the busy wait resource too.
+		BusyWaitResource.SafeRelease();
+		verify(!BusyWaitResourceHeld.load());
+
+		// Unblock all workers
+		ResumeEvent.Trigger();
 
 		// Do not exit the test before all blocked workers' tasks are done.
 		LowLevelTasks::BusyWaitForTasks<LowLevelTasks::FTask>(WorkerBlockers);
