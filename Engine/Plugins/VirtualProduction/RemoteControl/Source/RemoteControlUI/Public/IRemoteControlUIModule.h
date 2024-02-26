@@ -61,6 +61,7 @@ struct FRCExposesPropertyArgs
 	FRCExposesPropertyArgs(const FOnGenerateGlobalRowExtensionArgs& InExtensionArgs);
 	FRCExposesPropertyArgs(FOnGenerateGlobalRowExtensionArgs&& InExtensionArgs);
 	FRCExposesPropertyArgs(TSharedPtr<IPropertyHandle>& InPropertyHandle);
+	FRCExposesPropertyArgs(const TSharedPtr<IPropertyHandle>& InPropertyHandle);
 	FRCExposesPropertyArgs(UObject* InOwnerObject, const FString& InPropertyPath, FProperty* InProperty);
 
 

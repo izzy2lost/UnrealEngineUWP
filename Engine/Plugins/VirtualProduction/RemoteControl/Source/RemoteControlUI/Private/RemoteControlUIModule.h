@@ -117,6 +117,15 @@ private:
 	void RegisterEvents();
 	void UnregisterEvents();
 
+	/** Extend context row menu */
+	void ExtendPropertyRowContextMenu() const;
+
+	/** Fills the RemoteControl details view row context menu  */
+	void FillRemoteControlRowContextSection(UToolMenu* InToolMenu) const;
+
+	/** Create the SubProperty expose/unexpose sub menu for the details view row context menu */
+	void GetSubPropertySubMenu(UToolMenu* InToolMenu, FRCExposesPropertyArgs InExposesPropertyArgs) const;
+
 	/** Handle creating the row extensions.  */
 	void HandleCreatePropertyRowExtension(const FOnGenerateGlobalRowExtensionArgs& InArgs, TArray<FPropertyRowExtensionButton>& OutExtensions);
 
@@ -138,7 +147,7 @@ private:
 	ECheckBoxState GetPropertyExposedCheckState(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Handle clicking the expose button. */
-	void OnToggleExposeProperty(const FRCExposesPropertyArgs InArgs);
+	void OnToggleExposeProperty(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Handle clicking the expose SubProperty button. */
 	void OnToggleExposeSubProperty(const FRCExposesPropertyArgs InArgs, const FString InDesiredName = TEXT("")) const;
