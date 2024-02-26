@@ -117,6 +117,14 @@ void FSequenceInstance::Initialize()
 
 FSequenceInstance::~FSequenceInstance()
 {
+	if (RootInstanceHandle == InstanceHandle && !SharedPlaybackState.IsUnique())
+	{
+#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
+		UE_LOG(LogMovieScene, Error, TEXT("References to SharedPlaybackState should not be held past the lifetime of its root sequence instance (%s)"), *RootSequenceName);
+#else
+		UE_LOG(LogMovieScene, Error, TEXT("References to SharedPlaybackState should not be held past the lifetime of its root sequence instance (<no sequence info>)"));
+#endif
+	}
 }
 
 FSequenceInstance::FSequenceInstance(FSequenceInstance&&) = default;

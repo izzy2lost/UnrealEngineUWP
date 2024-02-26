@@ -35,18 +35,23 @@ void FMovieSceneRootEvaluationTemplateInstance::TearDown()
 {
 	using namespace UE::MovieScene;
 
+	// Let's clear our shared pointer before destroying the sequence instance. This is because the sequence
+	// instance checks that no one is holding onto it, making sure it's destroyed along with it and that nobody
+	// is leaking it.
+	FRootInstanceHandle RootInstanceHandle = SharedPlaybackState ?
+		SharedPlaybackState->GetRootInstanceHandle() : FRootInstanceHandle();
+	SharedPlaybackState.Reset();
+
 	// Avoid redundant work if the linker is being destroyed anyway
-	if (SharedPlaybackState.IsValid() && 
-			SharedPlaybackState->GetRootInstanceHandle().IsValid() &&
+	if (RootInstanceHandle.IsValid() &&
 			EntitySystemLinker && 
 			IsValidChecked(EntitySystemLinker) && 
 			!EntitySystemLinker->IsUnreachable() && 
 			!EntitySystemLinker->HasAnyFlags(RF_BeginDestroyed))
 	{
-		EntitySystemLinker->DestroyInstanceImmediately(SharedPlaybackState->GetRootInstanceHandle());
+		EntitySystemLinker->DestroyInstanceImmediately(RootInstanceHandle);
 	}
 
-	SharedPlaybackState.Reset();
 	EntitySystemLinker = nullptr;
 }
 
@@ -469,6 +474,11 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 		{
 			Player.RestorePreAnimatedState();
 		}
+
+		// Forget our previous shared playback state before we destroy our root instance, because the instance
+		// wants to make sure the state will be destroyed with it.
+		SharedPlaybackState.Reset();
+
 		EntitySystemLinker->GetInstanceRegistry()->DestroyInstance(PreviousRootInstanceHandle);
 	}
 
