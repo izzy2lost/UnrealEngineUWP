@@ -19,6 +19,11 @@ static TAutoConsoleVariable<float> CVarWaveOutputDelay(
 	TEXT("encoder runs, the encoder may fail.\n"),
 	ECVF_Default);
 
+UMovieGraphAudioOutputNode::UMovieGraphAudioOutputNode()
+{
+	FileNameFormat = TEXT("{sequence_name}");
+}
+
 void UMovieGraphAudioOutputNode::BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const
 {
 	// Always add this so that audio is muted, it'll never line up during preview anyways.
@@ -109,10 +114,12 @@ bool UMovieGraphAudioOutputNode::IsFinishedWritingToDiskImpl() const
 
 FString UMovieGraphAudioOutputNode::GenerateOutputPath(const FMovieGraphRenderDataIdentifier& InRenderIdentifier, const TObjectPtr<UMoviePipelineExecutorShot>& InShot) const
 {
+	// Note that we fetch the audio node from the evaluated graph because this method is executing on the CDO (and we want the evaluated FileNameFormat)
 	constexpr bool bIncludeCDOs = true;
 	constexpr bool bExactMatch = true;
 	const UMovieGraphGlobalOutputSettingNode* OutputNode = EvaluatedGraph->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
-	FString FileNameFormatString = OutputNode->OutputDirectory.Path / FileNameFormat;
+	const UMovieGraphAudioOutputNode* AudioNode = EvaluatedGraph->GetSettingForBranch<UMovieGraphAudioOutputNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
+	FString FileNameFormatString = OutputNode->OutputDirectory.Path / AudioNode->FileNameFormat;
 
 	constexpr bool bIncludeRenderPass = false;
 	constexpr bool bTestFrameNumber = false;

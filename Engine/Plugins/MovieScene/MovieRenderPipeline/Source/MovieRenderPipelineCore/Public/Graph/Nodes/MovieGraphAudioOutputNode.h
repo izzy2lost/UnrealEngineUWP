@@ -16,7 +16,7 @@ class UMovieGraphAudioOutputNode : public UMovieGraphFileOutputNode
 	GENERATED_BODY()
 	
 public:
-	UMovieGraphAudioOutputNode() = default;
+	UMovieGraphAudioOutputNode();
 
 	// UMovieGraphSettingNode Interface
 	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const override;
