@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "TraitCore/TraitBinding.h"			// Derived types will need to implement the binding specialization
 #include "TraitCore/TraitInterfaceUID.h"
 
 // Helper macros

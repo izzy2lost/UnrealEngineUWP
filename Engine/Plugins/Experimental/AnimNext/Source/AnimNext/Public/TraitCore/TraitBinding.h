@@ -3,8 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "TraitCore/NodeTemplate.h"
+#include "TraitCore/Trait.h"
 #include "TraitCore/TraitPtr.h"
 #include "TraitCore/TraitInterfaceUID.h"
+#include "TraitCore/TraitStackBinding.h"
 #include "TraitCore/TraitTemplate.h"
 
 #include <type_traits>
@@ -13,6 +16,7 @@ struct FAnimNextTraitSharedData;
 
 namespace UE::AnimNext
 {
+	struct FExecutionContext;
 	struct FTraitInstanceData;
 	struct ITraitInterface;
 	struct FNodeDescription;
@@ -25,11 +29,17 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXT_API FTraitBinding
 	{
-		// Creates an empty binding.
+		// Creates an empty/invalid binding.
 		FTraitBinding() = default;
 
 		// Returns whether or not this binding is valid.
-		bool IsValid() const { return TraitTemplate != nullptr; }
+		bool IsValid() const { return TraitImpl != nullptr; }
+
+		// Resets the trait binding to an invalid state.
+		void Reset()
+		{
+			new (this) FTraitBinding();
+		}
 
 		// Queries a node for a pointer to its trait shared data.
 		// If the trait handle is invalid, a null pointer is returned.
@@ -43,7 +53,10 @@ namespace UE::AnimNext
 				return nullptr;
 			}
 
-			return static_cast<const SharedDataType*>(TraitTemplate->GetTraitDescription(*NodeDescription));
+			const FTraitTemplate* TraitDescs = Stack->NodeTemplate->GetTraits();
+			const FTraitTemplate* TraitTemplate = TraitDescs + TraitIndex;
+
+			return static_cast<const SharedDataType*>(TraitTemplate->GetTraitDescription(*Stack->NodeDescription));
 		}
 
 		// Queries a node for a pointer to its trait instance data.
@@ -58,19 +71,30 @@ namespace UE::AnimNext
 				return nullptr;
 			}
 
-			return static_cast<InstanceDataType*>(TraitTemplate->GetTraitInstance(*TraitPtr.GetNodeInstance()));
+			const FTraitTemplate* TraitDescs = Stack->NodeTemplate->GetTraits();
+			const FTraitTemplate* TraitTemplate = TraitDescs + TraitIndex;
+
+			return static_cast<InstanceDataType*>(TraitTemplate->GetTraitInstance(*Stack->NodeInstance));
 		}
 
 		// Queries a node for a pointer to its trait latent properties.
 		// If the trait handle is invalid or if we have no latent properties, a null pointer is returned.
 		const FLatentPropertyHandle* GetLatentPropertyHandles() const
 		{
-			if (!IsValid() || !TraitTemplate->HasLatentProperties())
+			if (!IsValid())
 			{
 				return nullptr;
 			}
 
-			return TraitTemplate->GetTraitLatentPropertyHandles(*NodeDescription);
+			const FTraitTemplate* TraitDescs = Stack->NodeTemplate->GetTraits();
+			const FTraitTemplate* TraitTemplate = TraitDescs + TraitIndex;
+
+			if (!TraitTemplate->HasLatentProperties())
+			{
+				return nullptr;
+			}
+
+			return TraitTemplate->GetTraitLatentPropertyHandles(*Stack->NodeDescription);
 		}
 
 		// Returns a pointer to the latent property specified by the provided handle or nullptr if the binding/handle are invalid
@@ -87,50 +111,105 @@ namespace UE::AnimNext
 				return nullptr;
 			}
 
-			const uint8* NodeInstance = (const uint8*)TraitPtr.GetNodeInstance();
+			const uint8* NodeInstance = (const uint8*)Stack->NodeInstance;
 			return (const PropertyType*)(NodeInstance + Handle.GetLatentPropertyOffset());
 		}
 
+		// Queries the trait stack for a trait that implements the specified interface.
+		// If no such trait exists, false is returned.
+		template<class TraitInterface>
+		bool GetStackInterface(TTraitBinding<TraitInterface>& OutBinding) const
+		{
+			return IsValid() && Stack->GetInterface<TraitInterface>(OutBinding);
+		}
+
+		// Queries the trait stack for a trait lower on the stack that implements the specified interface.
+		// If no such trait exists, false is returned.
+		template<class TraitInterface>
+		bool GetStackInterfaceSuper(TTraitBinding<TraitInterface>& OutSuperBinding) const
+		{
+			return IsValid() && Stack->GetInterfaceSuper<TraitInterface>(*this, OutSuperBinding);
+		}
+
+		// Queries the current trait for a new interface.
+		// If no such interface is found, false it returned.
+		template<class TraitInterface>
+		bool AsInterface(TTraitBinding<TraitInterface>& OutBinding) const
+		{
+			static_assert(std::is_base_of<ITraitInterface, TraitInterface>::value, "TraitInterface type must derive from ITraitInterface");
+
+			constexpr FTraitInterfaceUID InterfaceUID = TraitInterface::InterfaceUID;
+			return AsInterfaceImpl(InterfaceUID, OutBinding);
+		}
+
+		// Returns the trait stack binding backing this trait binding.
+		const FTraitStackBinding* GetStack() const { return Stack; }
+
 		// Returns the trait pointer we are bound to.
-		FWeakTraitPtr GetTraitPtr() const { return TraitPtr; }
+		FWeakTraitPtr GetTraitPtr() const { return FWeakTraitPtr(Stack != nullptr ? Stack->NodeInstance : nullptr, TraitIndex); }
+
+		// Returns the trait index on the stack we are bound to.
+		uint32 GetTraitIndex() const { return Stack != nullptr ? (TraitIndex - Stack->BaseTraitIndex) : 0; }
 
 		// Returns the trait interface UID when bound, an invalid UID otherwise.
 		FTraitInterfaceUID GetInterfaceUID() const;
 
 		// Equality and inequality tests
-		bool operator==(const FTraitBinding& RHS) const { return TraitPtr == RHS.TraitPtr && Interface == RHS.Interface; }
-		bool operator!=(const FTraitBinding& RHS) const { return TraitPtr != RHS.TraitPtr || Interface != RHS.Interface; }
+		bool operator==(const FTraitBinding& RHS) const { return Stack == RHS.Stack && TraitIndex == RHS.TraitIndex && InterfaceThisOffset == RHS.InterfaceThisOffset; }
+		bool operator!=(const FTraitBinding& RHS) const { return !operator==(RHS); }
 
 	protected:
-		// Creates a valid binding
-		FTraitBinding(const ITraitInterface* InInterface, const FTraitTemplate* InTraitTemplate, const FNodeDescription* InNodeDescription, FWeakTraitPtr InTraitPtr)
-			: Interface(InInterface)
-			, TraitTemplate(InTraitTemplate)
-			, NodeDescription(InNodeDescription)
-			, TraitPtr(InTraitPtr)
-		{}
+		FTraitBinding(const FTraitStackBinding* InStack, const FTrait* InTraitImpl, uint32 InTraitIndex, int32 InInterfaceThisOffset = -1)
+			: Stack(InStack)
+			, TraitImpl(InTraitImpl)
+			, TraitIndex(InTraitIndex)
+			, InterfaceThisOffset(InInterfaceThisOffset)
+		{
+		}
 
 		// Performs a naked cast to the desired interface type
 		template<class TraitInterfaceType>
 		const TraitInterfaceType* GetInterfaceTyped() const
 		{
 			static_assert(std::is_base_of<ITraitInterface, TraitInterfaceType>::value, "Trait interface data must derive from ITraitInterface");
-			return static_cast<const TraitInterfaceType*>(Interface);
+			check(InterfaceThisOffset != -1);
+			return reinterpret_cast<const TraitInterfaceType*>(reinterpret_cast<const uint8*>(TraitImpl) + InterfaceThisOffset);
 		}
 
-		// A pointer to the bound interface or nullptr if we are bound to a trait but none of its interfaces
-		const ITraitInterface*				Interface = nullptr;
+		bool AsInterfaceImpl(FTraitInterfaceUID InterfaceUID, FTraitBinding& OutBinding) const
+		{
+			if (!IsValid())
+			{
+				return false;
+			}
 
-		// A pointer to the trait template that implements the interface we are bound to or nullptr if we are invalid
-		const FTraitTemplate*				TraitTemplate = nullptr;
+			if (const ITraitInterface* NewInterface = TraitImpl->GetTraitInterface(InterfaceUID))
+			{
+				const int32 NewInterfaceThisOffset = reinterpret_cast<const uint8*>(NewInterface) - reinterpret_cast<const uint8*>(TraitImpl);
 
-		// A pointer to the node shared data we are bound to
-		const FNodeDescription*				NodeDescription = nullptr;
+				OutBinding = FTraitBinding(Stack, TraitImpl, TraitIndex, NewInterfaceThisOffset);
+				return true;
+			}
 
-		// A weak handle to the trait instance data we are bound to
-		FWeakTraitPtr						TraitPtr;
+			return false;
+		}
 
-		friend struct FExecutionContext;
+		// A pointer to the bound trait stack or nullptr if we are not bound
+		const FTraitStackBinding* Stack = nullptr;
+
+		// A pointer to the trait implementation from which interfaces are found
+		// Can be null if the trait is present at runtime but the trait implementation hasn't been registered/found
+		const FTrait* TraitImpl = nullptr;
+
+		// The index of the trait on the bound stack relative to the base of the stack (not relative to the base of the node)
+		uint32 TraitIndex = 0;
+
+		// The offset of the typed interface we are bound to or -1 if we are untyped
+		// The offset is relative to the trait implementation pointer
+		int32 InterfaceThisOffset = -1;
+
+		friend FExecutionContext;
+		friend FTraitStackBinding;
 	};
 
 	/**

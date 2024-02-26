@@ -10,16 +10,15 @@ DEFINE_STAT(STAT_AnimNext_EvaluateGraph);
 
 namespace UE::AnimNext
 {
-	FEvaluateTraversalContext::FEvaluateTraversalContext(const FExecutionContext& InExecutionContext, FEvaluationProgram& InEvaluationProgram)
-		: FExecutionContextProxy(InExecutionContext)
-		, EvaluationProgram(InEvaluationProgram)
+	FEvaluateTraversalContext::FEvaluateTraversalContext(FEvaluationProgram& InEvaluationProgram)
+		: EvaluationProgram(InEvaluationProgram)
 	{
 	}
 
 	void IEvaluate::PreEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
 	{
 		TTraitBinding<IEvaluate> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			SuperBinding.PreEvaluate(Context);
 		}
@@ -28,7 +27,7 @@ namespace UE::AnimNext
 	void IEvaluate::PostEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
 	{
 		TTraitBinding<IEvaluate> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			SuperBinding.PostEvaluate(Context);
 		}
@@ -48,6 +47,9 @@ namespace UE::AnimNext
 
 		// Which step we wish to perform when we next see this entry
 		EEvaluateStep		DesiredStep = EEvaluateStep::PreEvaluate;
+
+		// The trait stack binding for this evaluate entry
+		FTraitStackBinding	TraitStack;
 
 		// Once we've called PreUpdate, we cache the trait binding to avoid a redundant query to call PostUpdate
 		TTraitBinding<IEvaluate> EvaluateTrait;
@@ -93,8 +95,8 @@ namespace UE::AnimNext
 		FChildrenArray Children;
 		Children.Reserve(16);
 
-		FExecutionContext ExecutionContext;
-		FEvaluateTraversalContext TraversalContext(ExecutionContext, EvaluationProgram);
+		FEvaluateTraversalContext TraversalContext(EvaluationProgram);
+		TraversalContext.BindTo(GraphRootPtr);
 
 		// Add the graph root to kick start the evaluation process
 		FEvaluateEntry GraphRootEntry(GraphRootPtr, EEvaluateStep::PreEvaluate);
@@ -114,12 +116,12 @@ namespace UE::AnimNext
 
 			const FWeakTraitPtr& EntryTraitPtr = Entry->TraitPtr;
 
-			// Make sure the execution context is bound to our graph instance
-			ExecutionContext.BindTo(EntryTraitPtr);
-
 			if (Entry->DesiredStep == EEvaluateStep::PreEvaluate)
 			{
-				if (ExecutionContext.GetInterface(EntryTraitPtr, Entry->EvaluateTrait))
+				// Bind and cache our trait stack
+				ensure(TraversalContext.GetStack(EntryTraitPtr, Entry->TraitStack));
+
+				if (Entry->TraitStack.GetInterface(Entry->EvaluateTrait))
 				{
 					// This is the first time we visit this node, time to pre-evaluate
 					Entry->EvaluateTrait.PreEvaluate(TraversalContext);
@@ -135,13 +137,19 @@ namespace UE::AnimNext
 					bIsEntryUsed = false;
 				}
 
-				if (ExecutionContext.GetInterface(EntryTraitPtr, HierarchyTrait))
+				if (Entry->TraitStack.GetInterface(HierarchyTrait))
 				{
-					HierarchyTrait.GetChildren(ExecutionContext, Children);
+					IHierarchy::GetStackChildren(TraversalContext, Entry->TraitStack, Children);
 
 					// Append our children in reserve order so that they are visited in the same order they were added
 					for (int32 ChildIndex = Children.Num() - 1; ChildIndex >= 0; --ChildIndex)
 					{
+						const FWeakTraitPtr& ChildPtr = Children[ChildIndex];
+						if (!ChildPtr.IsValid())
+						{
+							continue;
+						}
+
 						// Insert our new child on top of the stack
 
 						FEvaluateEntry* ChildEntry;
@@ -151,14 +159,14 @@ namespace UE::AnimNext
 							ChildEntry = FreeEntryList;
 							FreeEntryList = ChildEntry->NextFreeEntry;
 
-							ChildEntry->TraitPtr = Children[ChildIndex];
+							ChildEntry->TraitPtr = ChildPtr;
 							ChildEntry->DesiredStep = EEvaluateStep::PreEvaluate;
 							ChildEntry->PrevStackEntry = NodesPendingUpdateStackTop;
 						}
 						else
 						{
 							// Allocate a new entry
-							ChildEntry = new(MemStack) FEvaluateEntry(Children[ChildIndex], EEvaluateStep::PreEvaluate, NodesPendingUpdateStackTop);
+							ChildEntry = new(MemStack) FEvaluateEntry(ChildPtr, EEvaluateStep::PreEvaluate, NodesPendingUpdateStackTop);
 						}
 
 						NodesPendingUpdateStackTop = ChildEntry;

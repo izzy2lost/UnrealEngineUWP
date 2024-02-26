@@ -19,6 +19,7 @@ namespace UE::AnimNext
 	struct FExecutionContext;
 	struct FGraphInstanceComponent;
 	struct FLatentPropertyHandle;
+	struct FTraitStackBinding;
 }
 
 using GraphInstanceComponentMapType = TMap<FName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>>;
@@ -134,6 +135,7 @@ private:
 	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance
 	friend UE::AnimNext::FExecutionContext;
 	friend FAnimNextGraphInstancePtr;
+	friend UE::AnimNext::FTraitStackBinding;
 };
 
 template<>

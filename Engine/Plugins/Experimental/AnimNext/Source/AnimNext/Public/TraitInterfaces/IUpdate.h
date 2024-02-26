@@ -3,16 +3,23 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "TraitCore/ExecutionContextProxy.h"
+#include "TraitCore/ExecutionContext.h"
 #include "TraitCore/ITraitInterface.h"
+#include "TraitCore/TraitBinding.h"
+
+#include <type_traits>
 
 struct FAnimNextGraphInstancePtr;
 class FMemStack;
 
 namespace UE::AnimNext
 {
-	struct FUpdateEntry;
 	struct FUpdateTraversalQueue;
+
+	namespace Private
+	{
+		struct FUpdateEntry;
+	}
 
 	/**
 	  * FTraitUpdateState
@@ -87,45 +94,44 @@ namespace UE::AnimNext
 		int32 bIsBlendingOut = false;
 	};
 
+	static_assert(sizeof(FTraitUpdateState) <= 16, "Keep the size to 16 bytes for efficient copying");
+
 	/**
 	 * FUpdateTraversalContext
 	 *
 	 * Contains all relevant transient data for an update traversal and wraps the execution context.
 	 */
-	struct FUpdateTraversalContext final : FExecutionContextProxy
+	struct FUpdateTraversalContext final : FExecutionContext
 	{
 	private:
-		// Constructs a new traversal context and wraps the specified execution context
-		explicit FUpdateTraversalContext(const FExecutionContext& InExecutionContext, FMemStack& InMemStack);
+		// Constructs a new traversal context
+		FUpdateTraversalContext() = default;
 
 		// Pops entries from the traversal queue and pushes them onto the update stack
 		void PushQueuedUpdateEntries(FUpdateTraversalQueue& TraversalQueue);
 
 		// Pushes an entry onto the update stack
-		void PushUpdateEntry(FUpdateEntry* Entry);
+		void PushUpdateEntry(Private::FUpdateEntry* Entry);
 
 		// Pops an entry from the top of the update stack
-		FUpdateEntry* PopUpdateEntry();
+		Private::FUpdateEntry* PopUpdateEntry();
 
 		// Pushes an entry onto the free entry stack
-		void PushFreeEntry(FUpdateEntry* Entry);
+		void PushFreeEntry(Private::FUpdateEntry* Entry);
 
 		// Returns a new entry suitable for update queuing
 		// If an entry isn't found in the free stack, a new one is allocated from the memstack
-		FUpdateEntry* GetNewEntry(const FWeakTraitPtr& TraitPtr, const FTraitUpdateState& TraitState);
-
-		// The memstack of the local thread
-		FMemStack& MemStack;
+		Private::FUpdateEntry* GetNewEntry(const FWeakTraitPtr& TraitPtr, const FTraitUpdateState& TraitState);
 
 		// The head pointer of the update stack
 		// This is the traversal execution stack and it contains entries that are
 		// pending their pre-update call and entries waiting for post-update to be called
-		FUpdateEntry* UpdateStackHead = nullptr;
+		Private::FUpdateEntry* UpdateStackHead = nullptr;
 
 		// The head pointer of the free entry stack
 		// Entries are allocated from the memstack and are re-used in LIFO since they'll
 		// be warmer in the CPU cache
-		FUpdateEntry* FreeEntryStackHead = nullptr;
+		Private::FUpdateEntry* FreeEntryStackHead = nullptr;
 
 		friend ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
 		friend FUpdateTraversalQueue;
@@ -135,7 +141,7 @@ namespace UE::AnimNext
 	 * FUpdateTraversalQueue
 	 *
 	 * A queue of children to traverse.
-	 * @see IUpdate::QueueChildrenForTraversal
+	 * @see IUpdateTraversal::QueueChildrenForTraversal
 	 */
 	struct FUpdateTraversalQueue final
 	{
@@ -153,7 +159,7 @@ namespace UE::AnimNext
 		// When a child is queued for traversal, it is first appended to this stack
 		// Once all children have been queued and pre-update terminates, this stack is
 		// emptied and pushed onto the update stack
-		FUpdateEntry* QueuedUpdateStackHead = nullptr;
+		Private::FUpdateEntry* QueuedUpdateStackHead = nullptr;
 
 		friend ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
 		friend FUpdateTraversalContext;
@@ -168,11 +174,6 @@ namespace UE::AnimNext
 	 * the call to the next trait that implements this interface on the trait stack of the node. Once
 	 * all traits have had the chance to PreUpdate, the children will then evaluate and PostUpdate will
 	 * then be called afterwards on the original trait.
-	 * 
-	 * If this interface is implemented on a node, it is responsible for queuing the children for traversal
-	 * using the QueueChildrenForTraversal function. If the interface isn't implemented, children
-	 * are discovered through the IHierarchy interface and traversal propagates to them using the current
-	 * trait state.
 	 */
 	struct ANIMNEXT_API IUpdate : ITraitInterface
 	{
@@ -181,11 +182,28 @@ namespace UE::AnimNext
 		// Called before a traits children are updated
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const;
 
-		// Called after PreUpdate to request that children be queued with the provided context
-		virtual void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const;
-
 		// Called after a traits children have been updated
 		virtual void PostUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const;
+	};
+
+	/**
+	 * IUpdateTraversal
+	 *
+	 * This interface is called during the update traversal.
+	 *
+	 * If a trait needs to modify the update state of its children, it needs to implement this interface.
+	 * There is no need to call the Super to forward the call down the trait stack as the update traversal
+	 * takes care of it.
+	 * 
+	 * If this interface is not implemented, the IHierarchy interface will be used to retrieve and queue
+	 * the children with the same update state as the owning trait.
+	 */
+	struct ANIMNEXT_API IUpdateTraversal : ITraitInterface
+	{
+		DECLARE_ANIM_TRAIT_INTERFACE(IUpdateTraversal, 0x256c21b1)
+
+		// Called after PreUpdate to request that children be queued with the provided context
+		virtual void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const;
 	};
 
 	/**
@@ -200,12 +218,6 @@ namespace UE::AnimNext
 			GetInterface()->PreUpdate(Context, *this, TraitState);
 		}
 
-		// @see IUpdate::QueueChildrenForTraversal
-		void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
-		{
-			GetInterface()->QueueChildrenForTraversal(Context, *this, TraitState, TraversalQueue);
-		}
-
 		// @see IUpdate::PostUpdate
 		void PostUpdate(FUpdateTraversalContext& Context, const FTraitUpdateState& TraitState) const
 		{
@@ -214,6 +226,22 @@ namespace UE::AnimNext
 
 	protected:
 		const IUpdate* GetInterface() const { return GetInterfaceTyped<IUpdate>(); }
+	};
+
+	/**
+	 * Specialization for trait binding.
+	 */
+	template<>
+	struct TTraitBinding<IUpdateTraversal> : FTraitBinding
+	{
+		// @see IUpdateTraversal::QueueChildrenForTraversal
+		void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
+		{
+			GetInterface()->QueueChildrenForTraversal(Context, *this, TraitState, TraversalQueue);
+		}
+
+	protected:
+		const IUpdateTraversal* GetInterface() const { return GetInterfaceTyped<IUpdateTraversal>(); }
 	};
 
 	/**

@@ -9,7 +9,7 @@ namespace UE::AnimNext
 	float IDiscreteBlend::GetBlendWeight(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TTraitBinding<IDiscreteBlend> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			return SuperBinding.GetBlendWeight(Context, ChildIndex);
 		}
@@ -20,7 +20,7 @@ namespace UE::AnimNext
 	const FAlphaBlend* IDiscreteBlend::GetBlendState(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TTraitBinding<IDiscreteBlend> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			return SuperBinding.GetBlendState(Context, ChildIndex);
 		}
@@ -31,7 +31,7 @@ namespace UE::AnimNext
 	int32 IDiscreteBlend::GetBlendDestinationChildIndex(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding) const
 	{
 		TTraitBinding<IDiscreteBlend> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			return SuperBinding.GetBlendDestinationChildIndex(Context);
 		}
@@ -42,7 +42,7 @@ namespace UE::AnimNext
 	void IDiscreteBlend::OnBlendTransition(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
 	{
 		TTraitBinding<IDiscreteBlend> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			return SuperBinding.OnBlendTransition(Context, OldChildIndex, NewChildIndex);
 		}
@@ -51,7 +51,7 @@ namespace UE::AnimNext
 	void IDiscreteBlend::OnBlendInitiated(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TTraitBinding<IDiscreteBlend> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			return SuperBinding.OnBlendInitiated(Context, ChildIndex);
 		}
@@ -60,7 +60,7 @@ namespace UE::AnimNext
 	void IDiscreteBlend::OnBlendTerminated(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TTraitBinding<IDiscreteBlend> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			return SuperBinding.OnBlendTerminated(Context, ChildIndex);
 		}

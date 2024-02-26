@@ -3,6 +3,7 @@
 #include "Traits/SubGraphHost.h"
 
 #include "TraitCore/ExecutionContext.h"
+#include "TraitCore/NodeInstance.h"
 #include "Graph/AnimNextGraphInstance.h"
 
 namespace UE::AnimNext
@@ -15,6 +16,7 @@ namespace UE::AnimNext
 		GeneratorMacro(IGarbageCollection) \
 		GeneratorMacro(IHierarchy) \
 		GeneratorMacro(IUpdate) \
+		GeneratorMacro(IUpdateTraversal) \
 
 	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FSubGraphHostTrait, TRAIT_INTERFACE_ENUMERATOR)
 	#undef TRAIT_INTERFACE_ENUMERATOR
@@ -76,14 +78,19 @@ namespace UE::AnimNext
 			CurrentActiveEntryPoint = SubGraphSlot.EntryPoint;
 		}
 
-		const TObjectPtr<const UAnimNextGraph> DesiredSubGraph = SharedData->GetSubGraph(Context, Binding);
-		const FName EntryPoint = SharedData->GetEntryPoint(Context, Binding);
+		const TObjectPtr<const UAnimNextGraph> DesiredSubGraph = SharedData->GetSubGraph(Binding);
+		const FName EntryPoint = SharedData->GetEntryPoint(Binding);
 
-		// Check for reentrancy and early-out if we are linking back to the current instance
-		FAnimNextGraphInstance& GraphInstance = Context.GetGraphInstance();
-		if(GraphInstance.UsesGraph(DesiredSubGraph) && GraphInstance.UsesEntryPoint(EntryPoint))
+		// Check for re-entrancy and early-out if we are linking back to the current instance or one of its parents
+		const FAnimNextGraphInstance* OwnerGraphInstance = &Binding.GetTraitPtr().GetNodeInstance()->GetOwner();
+		while (OwnerGraphInstance != nullptr)
 		{
-			return;
+			if (OwnerGraphInstance->UsesGraph(DesiredSubGraph) && OwnerGraphInstance->UsesEntryPoint(EntryPoint))
+			{
+				return;
+			}
+
+			OwnerGraphInstance = OwnerGraphInstance->GetParentGraphInstance();
 		}
 
 		if (!bHasActiveSubGraph || CurrentActiveSubGraph != DesiredSubGraph || CurrentActiveEntryPoint != EntryPoint)
@@ -119,13 +126,13 @@ namespace UE::AnimNext
 			InstanceData->CurrentlyActiveSubGraphIndex = FreeSlotIndex;
 
 			TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-			Context.GetInterface(Binding, DiscreteBlendTrait);
+			Binding.GetStackInterface(DiscreteBlendTrait);
 
 			DiscreteBlendTrait.OnBlendTransition(Context, OldChildIndex, NewChildIndex);
 		}
 	}
 
-	void FSubGraphHostTrait::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
+	void FSubGraphHostTrait::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -136,7 +143,7 @@ namespace UE::AnimNext
 		}
 
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-		Context.GetInterface(Binding, DiscreteBlendTrait);
+		Binding.GetStackInterface(DiscreteBlendTrait);
 
 		for (int32 SubGraphIndex = 0; SubGraphIndex < NumSubGraphs; ++SubGraphIndex)
 		{
@@ -181,7 +188,7 @@ namespace UE::AnimNext
 	void FSubGraphHostTrait::OnBlendTransition(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
 	{
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-		Context.GetInterface(Binding, DiscreteBlendTrait);
+		Binding.GetStackInterface(DiscreteBlendTrait);
 
 		// We initiate immediately when we transition
 		DiscreteBlendTrait.OnBlendInitiated(Context, NewChildIndex);
@@ -201,7 +208,7 @@ namespace UE::AnimNext
 
 			if (SubGraphEntry.State == ESlotState::ActiveWithGraph)
 			{
-				SubGraphEntry.SubGraph->AllocateInstance(Context.GetGraphInstance(), SubGraphEntry.GraphInstance, SubGraphEntry.EntryPoint);
+				SubGraphEntry.SubGraph->AllocateInstance(Binding.GetTraitPtr().GetNodeInstance()->GetOwner(), SubGraphEntry.GraphInstance, SubGraphEntry.EntryPoint);
 			}
 		}
 	}

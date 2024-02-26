@@ -56,7 +56,7 @@ namespace UE::AnimNext
 	void IInterfaceA::FuncA(const FExecutionContext& Context, const TTraitBinding<IInterfaceA>& Binding) const
 	{
 		TTraitBinding<IInterfaceA> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			SuperBinding.FuncA(Context);
 		}
@@ -86,7 +86,7 @@ namespace UE::AnimNext
 	void IInterfaceB::FuncB(const FExecutionContext& Context, const TTraitBinding<IInterfaceB>& Binding) const
 	{
 		TTraitBinding<IInterfaceB> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			SuperBinding.FuncB(Context);
 		}
@@ -116,7 +116,7 @@ namespace UE::AnimNext
 	void IInterfaceC::FuncC(const FExecutionContext& Context, const TTraitBinding<IInterfaceC>& Binding) const
 	{
 		TTraitBinding<IInterfaceC> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			SuperBinding.FuncC(Context);
 		}
@@ -591,11 +591,10 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 
 		// Validate handle bookkeeping
 		{
-			FTraitBinding RootBinding;									// Empty, no parent
 			FAnimNextTraitHandle TraitHandle00(NodeHandles[0], 0);	// Point to first node, first base trait
 
 			// Allocate a node
-			FTraitPtr TraitPtr00 = Context.AllocateNodeInstance(RootBinding, TraitHandle00);
+			FTraitPtr TraitPtr00 = Context.AllocateNodeInstance(*GraphInstance.GetImpl(), TraitHandle00);
 			AddErrorIfFalse(TraitPtr00.IsValid(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Failed to allocate a node instance");
 			AddErrorIfFalse(TraitPtr00.GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated trait pointer should point to root trait");
 			AddErrorIfFalse(!TraitPtr00.IsWeak(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated trait pointer should not be weak, we have no parent");
@@ -641,13 +640,12 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 
 		// Validate parent support
 		{
-			FTraitBinding RootBinding;									// Empty, no parent
 			FAnimNextTraitHandle TraitHandle00(NodeHandles[0], 0);		// Point to first node, first base trait
 			FAnimNextTraitHandle TraitHandle03(NodeHandles[0], 3);		// Point to first node, second base trait
 			FAnimNextTraitHandle TraitHandle10(NodeHandles[1], 0);		// Point to second node, first base trait
 
 			// Allocate our first node
-			FTraitPtr TraitPtr00 = Context.AllocateNodeInstance(RootBinding, TraitHandle00);
+			FTraitPtr TraitPtr00 = Context.AllocateNodeInstance(*GraphInstance.GetImpl(), TraitHandle00);
 			AddErrorIfFalse(TraitPtr00.IsValid(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Failed to allocate a node instance");
 
 			// Allocate a new node, using the first as a parent
@@ -680,11 +678,10 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 			Private::DestructedTraits = &DestructedTraits;
 
 			{
-				FTraitBinding RootBinding;									// Empty, no parent
 				FAnimNextTraitHandle TraitHandle00(NodeHandles[0], 0);		// Point to first node, first base trait
 
 				// Allocate our node instance
-				FTraitPtr TraitPtr00 = Context.AllocateNodeInstance(RootBinding, TraitHandle00);
+				FTraitPtr TraitPtr00 = Context.AllocateNodeInstance(*GraphInstance.GetImpl(), TraitHandle00);
 				AddErrorIfFalse(TraitPtr00.IsValid(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Failed to allocate a node instance");
 
 				// Validate instance constructors
@@ -722,9 +719,9 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_GetTraitInterface, "Animation.AnimNext.Runtime.GetTraitInterface", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_TraitStackBinding, "Animation.AnimNext.Runtime.TraitStackBinding", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FAnimationAnimNextRuntimeTest_GetTraitInterface::RunTest(const FString& InParameters)
+bool FAnimationAnimNextRuntimeTest_TraitStackBinding::RunTest(const FString& InParameters)
 {
 	using namespace UE::AnimNext;
 
@@ -735,11 +732,12 @@ bool FAnimationAnimNextRuntimeTest_GetTraitInterface::RunTest(const FString& InP
 
 		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
 		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
-		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Failed to create animation graph");
+		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to create animation graph");
 
 		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 		FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
 
+		// Build a node with 2 stacks
 		TArray<FTraitUID> NodeTemplateTraitList;
 		NodeTemplateTraitList.Add(FTraitA_Base::TraitUID);
 		NodeTemplateTraitList.Add(FTraitAB_Add::TraitUID);
@@ -752,7 +750,7 @@ bool FAnimationAnimNextRuntimeTest_GetTraitInterface::RunTest(const FString& InP
 		const FNodeTemplate* NodeTemplate0 = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateTraitList, NodeTemplateBuffer0);
 
 		FNodeTemplateRegistryHandle TemplateHandle0 = Registry.FindOrAdd(NodeTemplate0);
-		AddErrorIfFalse(TemplateHandle0.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Registry should contain our template");
+		AddErrorIfFalse(TemplateHandle0.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Registry should contain our template");
 
 		TArray<FNodeHandle> NodeHandles;
 
@@ -778,7 +776,7 @@ bool FAnimationAnimNextRuntimeTest_GetTraitInterface::RunTest(const FString& InP
 				});
 			TraitWriter.EndNodeWriting();
 
-			AddErrorIfFalse(TraitWriter.GetErrorState() == FTraitWriter::EErrorState::None, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Failed to write traits");
+			AddErrorIfFalse(TraitWriter.GetErrorState() == FTraitWriter::EErrorState::None, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to write traits");
 			GraphSharedDataArchiveBuffer = TraitWriter.GetGraphSharedData();
 			GraphReferencedObjects = TraitWriter.GetGraphReferencedObjects();
 		}
@@ -793,407 +791,352 @@ bool FAnimationAnimNextRuntimeTest_GetTraitInterface::RunTest(const FString& InP
 
 		// Validate from the first base trait
 		{
-			FTraitBinding ParentBinding;								// Empty, no parent
-			FAnimNextTraitHandle TraitHandle00(NodeHandles[0], 0);		// Point to first node, first base trait
+			FAnimNextTraitHandle TraitHandle0(NodeHandles[0], 0);		// Point to first node, first base trait
 
-			FTraitPtr TraitPtr00 = Context.AllocateNodeInstance(ParentBinding, TraitHandle00);
-			AddErrorIfFalse(TraitPtr00.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Failed to allocate a node instance");
+			FTraitPtr TraitPtr0 = Context.AllocateNodeInstance(*GraphInstance.GetImpl(), TraitHandle0);
+			AddErrorIfFalse(TraitPtr0.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to allocate a node instance");
 
-			// Validate GetInterface from a trait handle
-			TTraitBinding<IInterfaceC> Binding00C;
-			AddErrorIfFalse(Context.GetInterface(TraitPtr00, Binding00C), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found");
-			AddErrorIfFalse(Binding00C.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC binding not valid");
-			AddErrorIfFalse(Binding00C.GetInterfaceUID() == IInterfaceC::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected interface UID found in trait binding");
-			AddErrorIfFalse(Binding00C.GetTraitPtr().GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found on expected trait");
-			AddErrorIfFalse(Binding00C.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found on expected node");
-			AddErrorIfFalse(Binding00C.GetSharedData<FTraitAC_Add::FSharedData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected shared data in trait binding");
-			AddErrorIfFalse(Binding00C.GetInstanceData<FTraitAC_Add::FInstanceData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected instance data in trait binding");
+			FTraitStackBinding Stack0;
+			AddErrorIfFalse(Context.GetStack(TraitPtr0, Stack0), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to bind to trait stack");
 
-			TTraitBinding<IInterfaceB> Binding00B;
-			AddErrorIfFalse(Context.GetInterface(TraitPtr00, Binding00B), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB not found");
-			AddErrorIfFalse(Binding00B.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB binding not valid");
-			AddErrorIfFalse(Binding00B.GetInterfaceUID() == IInterfaceB::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected interface UID found in trait binding");
-			AddErrorIfFalse(Binding00B.GetTraitPtr().GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB not found on expected trait");
-			AddErrorIfFalse(Binding00B.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB not found on expected node");
-			AddErrorIfFalse(Binding00B.GetSharedData<FTraitAB_Add::FSharedData>()->TraitUID == FTraitAB_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected shared data in trait binding");
-			AddErrorIfFalse(Binding00B.GetInstanceData<FTraitAB_Add::FInstanceData>()->TraitUID == FTraitAB_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected instance data in trait binding");
-
-			TTraitBinding<IInterfaceA> Binding00A;
-			AddErrorIfFalse(Context.GetInterface(TraitPtr00, Binding00A), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found");
-			AddErrorIfFalse(Binding00A.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA binding not valid");
-			AddErrorIfFalse(Binding00A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected interface UID found in trait binding");
-			AddErrorIfFalse(Binding00A.GetTraitPtr().GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found on expected trait");
-			AddErrorIfFalse(Binding00A.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found on expected node");
-			AddErrorIfFalse(Binding00A.GetSharedData<FTraitAC_Add::FSharedData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected shared data in trait binding");
-			AddErrorIfFalse(Binding00A.GetInstanceData<FTraitAC_Add::FInstanceData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected instance data in trait binding");
-
-			// Validate GetInterface from a trait binding
+			// Test the first stack
 			{
+				AddErrorIfFalse(Stack0.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack binding should be valid");
+				AddErrorIfFalse(Stack0.GetBaseTraitPtr() == TraitPtr0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected base trait ptr");
+
+				// Stack binding copying and equality testing
 				{
-					{
-						TTraitBinding<IInterfaceC> Binding00C_;
-						AddErrorIfFalse(Context.GetInterface(Binding00C, Binding00C_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found");
-						AddErrorIfFalse(Binding00C == Binding00C_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					FTraitStackBinding Stack0Copy = Stack0;
+					AddErrorIfFalse(Stack0Copy.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack binding should be valid");
+					AddErrorIfFalse(Stack0Copy.GetBaseTraitPtr() == TraitPtr0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected base trait ptr");
+					AddErrorIfFalse(Stack0 == Stack0Copy, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack bindings should be equal");
+					AddErrorIfFalse(!(Stack0 != Stack0Copy), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack bindings should be equal");
 
-					{
-						TTraitBinding<IInterfaceC> Binding00C_;
-						AddErrorIfFalse(Context.GetInterface(Binding00B, Binding00C_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found");
-						AddErrorIfFalse(Binding00C == Binding00C_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					Stack0Copy.Reset();
+					AddErrorIfFalse(!Stack0Copy.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack binding should be not valid");
 
-					{
-						TTraitBinding<IInterfaceC> Binding00C_;
-						AddErrorIfFalse(Context.GetInterface(Binding00A, Binding00C_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found");
-						AddErrorIfFalse(Binding00C == Binding00C_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					FTraitStackBinding Stack1;
+					AddErrorIfFalse(Context.GetStack(FWeakTraitPtr(TraitPtr0.GetNodeInstance(), 1), Stack1), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to bind to trait stack");
+					AddErrorIfFalse(Stack1.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack binding should be valid");
+					AddErrorIfFalse(Stack1.GetBaseTraitPtr() == TraitPtr0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected base trait ptr");
+					AddErrorIfFalse(Stack0 == Stack1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack bindings should be equal");
 				}
 
+				// Stack binding iteration from top to bottom
 				{
-					{
-						TTraitBinding<IInterfaceB> Binding00B_;
-						AddErrorIfFalse(Context.GetInterface(Binding00C, Binding00B_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB not found");
-						AddErrorIfFalse(Binding00B == Binding00B_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					FTraitBinding TraitBinding;
+					AddErrorIfFalse(Stack0.GetTopTrait(TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve top trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
 
-					{
-						TTraitBinding<IInterfaceB> Binding00B_;
-						AddErrorIfFalse(Context.GetInterface(Binding00B, Binding00B_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB not found");
-						AddErrorIfFalse(Binding00B == Binding00B_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					AddErrorIfFalse(Stack0.GetParentTrait(TraitBinding, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve parent trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
 
-					{
-						TTraitBinding<IInterfaceB> Binding00B_;
-						AddErrorIfFalse(Context.GetInterface(Binding00A, Binding00B_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB not found");
-						AddErrorIfFalse(Binding00B == Binding00B_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					AddErrorIfFalse(Stack0.GetParentTrait(TraitBinding, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve parent trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr() == Stack0.GetBaseTraitPtr(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack base trait ptr");
+
+					AddErrorIfFalse(!Stack0.GetParentTrait(TraitBinding, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected parent trait");
 				}
 
+				// Stack binding iteration from bottom to top
 				{
-					{
-						TTraitBinding<IInterfaceA> Binding00A_;
-						AddErrorIfFalse(Context.GetInterface(Binding00C, Binding00A_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found");
-						AddErrorIfFalse(Binding00A == Binding00A_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					FTraitBinding TraitBinding;
+					AddErrorIfFalse(Stack0.GetBaseTrait(TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve base trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr() == Stack0.GetBaseTraitPtr(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack base trait ptr");
 
-					{
-						TTraitBinding<IInterfaceA> Binding00A_;
-						AddErrorIfFalse(Context.GetInterface(Binding00B, Binding00A_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found");
-						AddErrorIfFalse(Binding00A == Binding00A_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					AddErrorIfFalse(Stack0.GetChildTrait(TraitBinding, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve child trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
 
-					{
-						TTraitBinding<IInterfaceA> Binding00A_;
-						AddErrorIfFalse(Context.GetInterface(Binding00A, Binding00A_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found");
-						AddErrorIfFalse(Binding00A == Binding00A_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					AddErrorIfFalse(Stack0.GetChildTrait(TraitBinding, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve child trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
+
+					AddErrorIfFalse(!Stack0.GetChildTrait(TraitBinding, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected child trait");
+				}
+
+				// Stack binding arbitrary iteration
+				{
+					AddErrorIfFalse(Stack0.GetNumTraits() == 3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack size");
+
+					FTraitBinding TraitBinding;
+					AddErrorIfFalse(Stack0.GetTrait(0, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr() == Stack0.GetBaseTraitPtr(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack base trait ptr");
+
+					AddErrorIfFalse(Stack0.GetTrait(1, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
+
+					AddErrorIfFalse(Stack0.GetTrait(2, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
+				}
+
+				// Interface query validation
+				{
+					TTraitBinding<IInterfaceC> Binding0C;
+					AddErrorIfFalse(Stack0.GetInterface(Binding0C), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC not found");
+					AddErrorIfFalse(Binding0C.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC binding not valid");
+					AddErrorIfFalse(Binding0C.GetInterfaceUID() == IInterfaceC::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding0C.GetTraitPtr().GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC not found on expected trait");
+					AddErrorIfFalse(Binding0C.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC not found on expected node");
+					AddErrorIfFalse(Binding0C.GetSharedData<FTraitAC_Add::FSharedData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding0C.GetInstanceData<FTraitAC_Add::FInstanceData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
+
+					TTraitBinding<IInterfaceC> Binding0CCachedValid = Binding0C;
+					TTraitBinding<IInterfaceC> Binding0CCachedInvalid = Binding0C;	// Invalidated when we query for the super just below
+
+					AddErrorIfFalse(!Stack0.GetInterfaceSuper(Binding0C, Binding0C), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC should not be found");
+					AddErrorIfFalse(!Binding0CCachedInvalid.GetStackInterfaceSuper(Binding0CCachedInvalid), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC should not be found");
+
+					TTraitBinding<IInterfaceA> Binding0ACasted;
+					AddErrorIfFalse(Binding0CCachedValid.AsInterface(Binding0ACasted), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA should be found");
+					AddErrorIfFalse(Binding0ACasted.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA binding not valid");
+					AddErrorIfFalse(Binding0ACasted.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding0ACasted.GetTraitPtr().GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected trait");
+					AddErrorIfFalse(Binding0ACasted.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected node");
+					AddErrorIfFalse(Binding0ACasted.GetSharedData<FTraitAC_Add::FSharedData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding0ACasted.GetInstanceData<FTraitAC_Add::FInstanceData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
+					AddErrorIfFalse(Binding0CCachedValid != Binding0ACasted, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait bindings should not be equal");
+
+					TTraitBinding<IInterfaceB> Binding0BCasted;
+					AddErrorIfFalse(!Binding0CCachedValid.AsInterface(Binding0BCasted), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceB should not be found");
+
+					// Test the same interface query but from an existing trait binding
+					TTraitBinding<IInterfaceC> Binding0CFromTrait;
+					AddErrorIfFalse(Binding0CCachedValid.GetStackInterface(Binding0CFromTrait), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC not found");
+					AddErrorIfFalse(Binding0CFromTrait.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC binding not valid");
+					AddErrorIfFalse(Binding0CFromTrait.GetInterfaceUID() == IInterfaceC::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding0CFromTrait.GetTraitPtr().GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC not found on expected trait");
+					AddErrorIfFalse(Binding0CFromTrait.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC not found on expected node");
+					AddErrorIfFalse(Binding0CFromTrait.GetSharedData<FTraitAC_Add::FSharedData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding0CFromTrait.GetInstanceData<FTraitAC_Add::FInstanceData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
+					AddErrorIfFalse(Binding0CCachedValid == Binding0CFromTrait, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait bindings should be equal");
+
+					TTraitBinding<IInterfaceB> Binding0B;
+					AddErrorIfFalse(Stack0.GetInterface(Binding0B), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceB not found");
+					AddErrorIfFalse(Binding0B.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceB binding not valid");
+					AddErrorIfFalse(Binding0B.GetInterfaceUID() == IInterfaceB::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding0B.GetTraitPtr().GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceB not found on expected trait");
+					AddErrorIfFalse(Binding0B.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceB not found on expected node");
+					AddErrorIfFalse(Binding0B.GetSharedData<FTraitAB_Add::FSharedData>()->TraitUID == FTraitAB_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding0B.GetInstanceData<FTraitAB_Add::FInstanceData>()->TraitUID == FTraitAB_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
+					AddErrorIfFalse(!Stack0.GetInterfaceSuper(Binding0B, Binding0B), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceB should not be found");
+					AddErrorIfFalse(!Binding0B.GetStackInterfaceSuper(Binding0B), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceB should not be found");
+
+					TTraitBinding<IInterfaceA> Binding0A;
+					AddErrorIfFalse(Stack0.GetInterface(Binding0A), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found");
+					AddErrorIfFalse(Binding0A.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA binding not valid");
+					AddErrorIfFalse(Binding0A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding0A.GetTraitPtr().GetTraitIndex() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected trait");
+					AddErrorIfFalse(Binding0A.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected node");
+					AddErrorIfFalse(Binding0A.GetSharedData<FTraitAC_Add::FSharedData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding0A.GetInstanceData<FTraitAC_Add::FInstanceData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
+
+					AddErrorIfFalse(Stack0.GetInterfaceSuper(Binding0A, Binding0A), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found");
+					AddErrorIfFalse(Binding0A.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA binding not valid");
+					AddErrorIfFalse(Binding0A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding0A.GetTraitPtr().GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected trait");
+					AddErrorIfFalse(Binding0A.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected node");
+					AddErrorIfFalse(Binding0A.GetSharedData<FTraitAB_Add::FSharedData>()->TraitUID == FTraitAB_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding0A.GetInstanceData<FTraitAB_Add::FInstanceData>()->TraitUID == FTraitAB_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
+
+					TTraitBinding<IInterfaceA> Binding0ACached = Binding0A;
+
+					AddErrorIfFalse(Stack0.GetInterfaceSuper(Binding0A, Binding0A), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found");
+					AddErrorIfFalse(Binding0A.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA binding not valid");
+					AddErrorIfFalse(Binding0A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding0A.GetTraitPtr().GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected trait");
+					AddErrorIfFalse(Binding0A.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected node");
+					AddErrorIfFalse(Binding0A.GetSharedData<FTraitA_Base::FSharedData>()->TraitUID == FTraitA_Base::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding0A.GetInstanceData<FTraitA_Base::FInstanceData>()->TraitUID == FTraitA_Base::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
+					AddErrorIfFalse(!Stack0.GetInterfaceSuper(Binding0A, Binding0A), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA should not be found");
+
+					// Test the same interface query but from an existing trait binding
+					TTraitBinding<IInterfaceA> Binding0AFromTrait;
+					AddErrorIfFalse(Binding0ACached.GetStackInterfaceSuper(Binding0AFromTrait), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found");
+					AddErrorIfFalse(Binding0AFromTrait.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA binding not valid");
+					AddErrorIfFalse(Binding0AFromTrait.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding0AFromTrait.GetTraitPtr().GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected trait");
+					AddErrorIfFalse(Binding0AFromTrait.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected node");
+					AddErrorIfFalse(Binding0AFromTrait.GetSharedData<FTraitA_Base::FSharedData>()->TraitUID == FTraitA_Base::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding0AFromTrait.GetInstanceData<FTraitA_Base::FInstanceData>()->TraitUID == FTraitA_Base::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
+					AddErrorIfFalse(!Binding0AFromTrait.GetStackInterfaceSuper(Binding0AFromTrait), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA should not be found");
+				}
+
+				// Trait binding misc
+				{
+					FTraitBinding TraitBinding;
+					AddErrorIfFalse(Stack0.GetTrait(0, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+
+					FTraitBinding TraitBinding1 = TraitBinding;
+					AddErrorIfFalse(TraitBinding1.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding == TraitBinding1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait bindings should be equal");
+					AddErrorIfFalse(!(TraitBinding != TraitBinding1), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait bindings should be equal");
 				}
 			}
-		}
 
-		// Validate from the second base trait
-		{
-			FTraitBinding ParentBinding;								// Empty, no parent
-			FAnimNextTraitHandle TraitHandle03(NodeHandles[0], 3);		// Point to first node, second base trait
+			FAnimNextTraitHandle TraitHandle3(NodeHandles[0], 3);		// Point to first node, second base trait
 
-			FTraitPtr TraitPtr03 = Context.AllocateNodeInstance(ParentBinding, TraitHandle03);
-			AddErrorIfFalse(TraitPtr03.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Failed to allocate a node instance");
+			FTraitPtr TraitPtr3 = Context.AllocateNodeInstance(*GraphInstance.GetImpl(), TraitHandle3);
+			AddErrorIfFalse(TraitPtr3.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to allocate a node instance");
 
-			// Validate GetInterface from a trait handle
-			TTraitBinding<IInterfaceC> Binding03C;
-			AddErrorIfFalse(Context.GetInterface(TraitPtr03, Binding03C), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found");
-			AddErrorIfFalse(Binding03C.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC binding not valid");
-			AddErrorIfFalse(Binding03C.GetInterfaceUID() == IInterfaceC::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected interface UID found in trait binding");
-			AddErrorIfFalse(Binding03C.GetTraitPtr().GetTraitIndex() == 4, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found on expected trait");
-			AddErrorIfFalse(Binding03C.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found on expected node");
-			AddErrorIfFalse(Binding03C.GetSharedData<FTraitAC_Add::FSharedData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected shared data in trait binding");
-			AddErrorIfFalse(Binding03C.GetInstanceData<FTraitAC_Add::FInstanceData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected instance data in trait binding");
+			FTraitStackBinding Stack3;
+			AddErrorIfFalse(Context.GetStack(TraitPtr3, Stack3), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to bind to trait stack");
 
-			TTraitBinding<IInterfaceB> Binding03B;
-			AddErrorIfFalse(!Context.GetInterface(TraitPtr03, Binding03B), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB found");
-			AddErrorIfFalse(!Binding03B.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB binding should not be valid");
-
-			TTraitBinding<IInterfaceA> Binding03A;
-			AddErrorIfFalse(Context.GetInterface(TraitPtr03, Binding03A), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found");
-			AddErrorIfFalse(Binding03A.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA binding not valid");
-			AddErrorIfFalse(Binding03A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected interface UID found in trait binding");
-			AddErrorIfFalse(Binding03A.GetTraitPtr().GetTraitIndex() == 4, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found on expected trait");
-			AddErrorIfFalse(Binding03A.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found on expected node");
-			AddErrorIfFalse(Binding03A.GetSharedData<FTraitAC_Add::FSharedData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected shared data in trait binding");
-			AddErrorIfFalse(Binding03A.GetInstanceData<FTraitAC_Add::FInstanceData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Unexpected instance data in trait binding");
-
-			// Validate GetInterface from a trait binding
+			// Test the second stack
 			{
+				AddErrorIfFalse(Stack3.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack binding should be valid");
+				AddErrorIfFalse(Stack3.GetBaseTraitPtr() == TraitPtr3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected base trait ptr");
+
+				// Stack binding copying and equality testing
 				{
-					{
-						TTraitBinding<IInterfaceC> Binding03C_;
-						AddErrorIfFalse(Context.GetInterface(Binding03C, Binding03C_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found");
-						AddErrorIfFalse(Binding03C == Binding03C_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					AddErrorIfFalse(Stack0 != Stack3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack bindings should not be equal");
 
-					{
-						TTraitBinding<IInterfaceC> Binding03C_;
-						AddErrorIfFalse(!Context.GetInterface(Binding03B, Binding03C_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC found");
-					}
+					FTraitStackBinding Stack3Copy = Stack3;
+					AddErrorIfFalse(Stack3Copy.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack binding should be valid");
+					AddErrorIfFalse(Stack3Copy.GetBaseTraitPtr() == TraitPtr3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected base trait ptr");
+					AddErrorIfFalse(Stack3 == Stack3Copy, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack bindings should be equal");
+					AddErrorIfFalse(!(Stack3 != Stack3Copy), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack bindings should be equal");
 
-					{
-						TTraitBinding<IInterfaceC> Binding03C_;
-						AddErrorIfFalse(Context.GetInterface(Binding03A, Binding03C_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceC not found");
-						AddErrorIfFalse(Binding03C == Binding03C_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					Stack3Copy.Reset();
+					AddErrorIfFalse(!Stack3Copy.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack binding should be not valid");
+
+					FTraitStackBinding Stack4;
+					AddErrorIfFalse(Context.GetStack(FWeakTraitPtr(TraitPtr3.GetNodeInstance(), 4), Stack4), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to bind to trait stack");
+					AddErrorIfFalse(Stack4.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack binding should be valid");
+					AddErrorIfFalse(Stack4.GetBaseTraitPtr() == TraitPtr3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected base trait ptr");
+					AddErrorIfFalse(Stack3 == Stack4, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait stack bindings should be equal");
 				}
 
+				// Stack binding iteration from top to bottom
 				{
-					{
-						TTraitBinding<IInterfaceB> Binding03B_;
-						AddErrorIfFalse(!Context.GetInterface(Binding03C, Binding03B_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB found");
-						AddErrorIfFalse(Binding03B == Binding03B_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					FTraitBinding TraitBinding;
+					AddErrorIfFalse(Stack3.GetTopTrait(TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve top trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 4, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
 
-					{
-						TTraitBinding<IInterfaceB> Binding03B_;
-						AddErrorIfFalse(!Context.GetInterface(Binding03B, Binding03B_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB found");
-						AddErrorIfFalse(Binding03B == Binding03B_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					AddErrorIfFalse(Stack3.GetParentTrait(TraitBinding, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve parent trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr() == Stack3.GetBaseTraitPtr(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack base trait ptr");
 
-					{
-						TTraitBinding<IInterfaceB> Binding03B_;
-						AddErrorIfFalse(!Context.GetInterface(Binding03A, Binding03B_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceB found");
-						AddErrorIfFalse(Binding03B == Binding03B_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					AddErrorIfFalse(!Stack3.GetParentTrait(TraitBinding, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected parent trait");
 				}
 
+				// Stack binding iteration from bottom to top
 				{
-					{
-						TTraitBinding<IInterfaceA> Binding03A_;
-						AddErrorIfFalse(Context.GetInterface(Binding03C, Binding03A_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found");
-						AddErrorIfFalse(Binding03A == Binding03A_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					FTraitBinding TraitBinding;
+					AddErrorIfFalse(Stack3.GetBaseTrait(TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve base trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr() == Stack3.GetBaseTraitPtr(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack base trait ptr");
 
-					{
-						TTraitBinding<IInterfaceA> Binding03A_;
-						AddErrorIfFalse(!Context.GetInterface(Binding03B, Binding03A_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA found");
-					}
+					AddErrorIfFalse(Stack3.GetChildTrait(TraitBinding, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve child trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 4, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
 
-					{
-						TTraitBinding<IInterfaceA> Binding03A_;
-						AddErrorIfFalse(Context.GetInterface(Binding03A, Binding03A_), "FAnimationAnimNextRuntimeTest_GetTraitInterface -> InterfaceA not found");
-						AddErrorIfFalse(Binding03A == Binding03A_, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> GetInterface methods should return the same result");
-					}
+					AddErrorIfFalse(!Stack3.GetChildTrait(TraitBinding, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected child trait");
 				}
-			}
-		}
 
-		Registry.Unregister(NodeTemplate0);
-
-		AddErrorIfFalse(Registry.GetNum() == 0, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Registry should contain 0 templates");
-	}
-
-	Tests::FUtils::CleanupAfterTests();
-	
-	return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper, "Animation.AnimNext.Runtime.GetTraitInterfaceSuper", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper::RunTest(const FString& InParameters)
-{
-	using namespace UE::AnimNext;
-
-	{
-		AUTO_REGISTER_ANIM_TRAIT(FTraitA_Base)
-		AUTO_REGISTER_ANIM_TRAIT(FTraitAB_Add)
-		AUTO_REGISTER_ANIM_TRAIT(FTraitAC_Add)
-
-		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
-		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
-		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Failed to create animation graph");
-
-		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
-		FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
-
-		TArray<FTraitUID> NodeTemplateTraitList;
-		NodeTemplateTraitList.Add(FTraitA_Base::TraitUID);
-		NodeTemplateTraitList.Add(FTraitAB_Add::TraitUID);
-		NodeTemplateTraitList.Add(FTraitAC_Add::TraitUID);
-		NodeTemplateTraitList.Add(FTraitA_Base::TraitUID);
-		NodeTemplateTraitList.Add(FTraitAC_Add::TraitUID);
-
-		// Populate our node template registry
-		TArray<uint8> NodeTemplateBuffer0;
-		const FNodeTemplate* NodeTemplate0 = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateTraitList, NodeTemplateBuffer0);
-
-		FNodeTemplateRegistryHandle TemplateHandle0 = Registry.FindOrAdd(NodeTemplate0);
-		AddErrorIfFalse(Registry.GetNum() == 1, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Registry should contain 1 template");
-		AddErrorIfFalse(TemplateHandle0.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Registry should contain our template");
-
-		TArray<FNodeHandle> NodeHandles;
-
-		// Write our graph
-		TArray<uint8> GraphSharedDataArchiveBuffer;
-		TArray<TObjectPtr<UObject>> GraphReferencedObjects;
-		{
-			FTraitWriter TraitWriter;
-
-			NodeHandles.Add(TraitWriter.RegisterNode(*NodeTemplate0));
-
-			// We don't have trait properties
-
-			TraitWriter.BeginNodeWriting();
-			TraitWriter.WriteNode(NodeHandles[0],
-				[](uint32 TraitIndex, FName PropertyName)
+				// Stack binding arbitrary iteration
 				{
-					return FString();
-				},
-				[](uint32 TraitIndex, FName PropertyName)
+					AddErrorIfFalse(Stack3.GetNumTraits() == 2, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack size");
+
+					FTraitBinding TraitBinding;
+					AddErrorIfFalse(Stack3.GetTrait(0, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr() == Stack3.GetBaseTraitPtr(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack base trait ptr");
+
+					AddErrorIfFalse(Stack3.GetTrait(1, TraitBinding), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Failed to retrieve trait");
+					AddErrorIfFalse(TraitBinding.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Trait binding should be valid");
+					AddErrorIfFalse(TraitBinding.GetStack() == &Stack3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected trait stack binding");
+					AddErrorIfFalse(TraitBinding.GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected stack local trait index");
+					AddErrorIfFalse(TraitBinding.GetTraitPtr().GetTraitIndex() == 4, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected node local trait index");
+				}
+
+				// AC -> A
+				// Interface query validation
 				{
-					return MAX_uint16;
-				});
-			TraitWriter.EndNodeWriting();
+					TTraitBinding<IInterfaceC> Binding3C;
+					AddErrorIfFalse(Stack3.GetInterface(Binding3C), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC not found");
+					AddErrorIfFalse(Binding3C.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC binding not valid");
+					AddErrorIfFalse(Binding3C.GetInterfaceUID() == IInterfaceC::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding3C.GetTraitPtr().GetTraitIndex() == 4, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC not found on expected trait");
+					AddErrorIfFalse(Binding3C.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC not found on expected node");
+					AddErrorIfFalse(Binding3C.GetSharedData<FTraitAC_Add::FSharedData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding3C.GetInstanceData<FTraitAC_Add::FInstanceData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
+					AddErrorIfFalse(!Stack3.GetInterfaceSuper(Binding3C, Binding3C), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceC should not be found");
 
-			AddErrorIfFalse(TraitWriter.GetErrorState() == FTraitWriter::EErrorState::None, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Failed to write traits");
-			GraphSharedDataArchiveBuffer = TraitWriter.GetGraphSharedData();
-			GraphReferencedObjects = TraitWriter.GetGraphReferencedObjects();
-		}
+					TTraitBinding<IInterfaceB> Binding3B;
+					AddErrorIfFalse(!Stack3.GetInterface(Binding3B), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceB should not be found");
+					AddErrorIfFalse(!Binding3B.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceB binding not valid");
 
-		// Read our graph
-		FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
+					TTraitBinding<IInterfaceA> Binding3A;
+					AddErrorIfFalse(Stack3.GetInterface(Binding3A), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found");
+					AddErrorIfFalse(Binding3A.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA binding not valid");
+					AddErrorIfFalse(Binding3A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding3A.GetTraitPtr().GetTraitIndex() == 4, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected trait");
+					AddErrorIfFalse(Binding3A.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected node");
+					AddErrorIfFalse(Binding3A.GetSharedData<FTraitAC_Add::FSharedData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding3A.GetInstanceData<FTraitAC_Add::FInstanceData>()->TraitUID == FTraitAC_Add::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
 
-		FAnimNextGraphInstancePtr GraphInstance;
-		AnimNextGraph->AllocateInstance(GraphInstance);
-
-		FExecutionContext Context(GraphInstance);
-
-		// Validate from the first base trait
-		{
-			FTraitBinding ParentBinding;								// Empty, no parent
-			FAnimNextTraitHandle TraitHandle00(NodeHandles[0], 0);		// Point to first node, first base trait
-
-			FTraitPtr TraitPtr00 = Context.AllocateNodeInstance(ParentBinding, TraitHandle00);
-			AddErrorIfFalse(TraitPtr00.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Failed to allocate a node instance");
-
-			{
-				// Get a valid trait binding: FTraitAC_Add
-				TTraitBinding<IInterfaceC> Binding02C;
-				AddErrorIfFalse(Context.GetInterface(TraitPtr00, Binding02C), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceC not found");
-
-				// Validate GetInterfaceSuper from a trait handle
-				TTraitBinding<IInterfaceC> SuperBinding02C;
-				AddErrorIfFalse(!Context.GetInterfaceSuper(Binding02C.GetTraitPtr(), SuperBinding02C), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceC found");
-
-				// Validate GetInterfaceSuper from a trait binding
-				TTraitBinding<IInterfaceC> SuperBinding02C_;
-				AddErrorIfFalse(!Context.GetInterfaceSuper(Binding02C, SuperBinding02C_), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceC found");
-				AddErrorIfFalse(SuperBinding02C == SuperBinding02C_, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> GetInterfaceSuper methods should return the same result");
-			}
-
-			{
-				// Get a valid trait binding: FTraitAC_Add
-				TTraitBinding<IInterfaceA> Binding02A;
-				AddErrorIfFalse(Context.GetInterface(TraitPtr00, Binding02A), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found");
-
-				// Validate GetInterfaceSuper from a trait handle, FTraitAB_Add
-				TTraitBinding<IInterfaceA> SuperBinding02A;
-				AddErrorIfFalse(Context.GetInterfaceSuper(Binding02A.GetTraitPtr(), SuperBinding02A), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found");
-				AddErrorIfFalse(SuperBinding02A.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA binding not valid");
-				AddErrorIfFalse(SuperBinding02A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Unexpected interface UID found in trait binding");
-				AddErrorIfFalse(SuperBinding02A.GetTraitPtr().GetTraitIndex() == 1, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found on expected trait");
-				AddErrorIfFalse(SuperBinding02A.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found on expected node");
-				AddErrorIfFalse(SuperBinding02A.GetSharedData<FTraitAB_Add::FSharedData>()->TraitUID == FTraitAB_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Unexpected shared data in trait binding");
-				AddErrorIfFalse(SuperBinding02A.GetInstanceData<FTraitAB_Add::FInstanceData>()->TraitUID == FTraitAB_Add::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Unexpected instance data in trait binding");
-
-				// Validate GetInterfaceSuper from a trait binding, FTraitAB_Add
-				TTraitBinding<IInterfaceA> SuperBinding02A_;
-				AddErrorIfFalse(Context.GetInterfaceSuper(Binding02A, SuperBinding02A_), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found");
-				AddErrorIfFalse(SuperBinding02A == SuperBinding02A_, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> GetInterfaceSuper methods should return the same result");
-
-				// Validate GetInterfaceSuper from a trait handle, FTraitA_Base
-				TTraitBinding<IInterfaceA> SuperBinding01A;
-				AddErrorIfFalse(Context.GetInterfaceSuper(SuperBinding02A.GetTraitPtr(), SuperBinding01A), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found");
-				AddErrorIfFalse(SuperBinding01A.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA binding not valid");
-				AddErrorIfFalse(SuperBinding01A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Unexpected interface UID found in trait binding");
-				AddErrorIfFalse(SuperBinding01A.GetTraitPtr().GetTraitIndex() == 0, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found on expected trait");
-				AddErrorIfFalse(SuperBinding01A.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found on expected node");
-				AddErrorIfFalse(SuperBinding01A.GetSharedData<FTraitA_Base::FSharedData>()->TraitUID == FTraitA_Base::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Unexpected shared data in trait binding");
-				AddErrorIfFalse(SuperBinding01A.GetInstanceData<FTraitA_Base::FInstanceData>()->TraitUID == FTraitA_Base::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Unexpected instance data in trait binding");
-
-				// Validate GetInterfaceSuper from a trait binding, FTraitA_Base
-				TTraitBinding<IInterfaceA> SuperBinding01A_;
-				AddErrorIfFalse(Context.GetInterfaceSuper(SuperBinding02A, SuperBinding01A_), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found");
-				AddErrorIfFalse(SuperBinding01A == SuperBinding01A_, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> GetInterfaceSuper methods should return the same result");
-
-				// Validate GetInterfaceSuper from a trait handle
-				TTraitBinding<IInterfaceA> SuperBinding00A;
-				AddErrorIfFalse(!Context.GetInterfaceSuper(SuperBinding01A.GetTraitPtr(), SuperBinding00A), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA found");
-
-				// Validate GetInterfaceSuper from a trait binding
-				TTraitBinding<IInterfaceA> SuperBinding00A_;
-				AddErrorIfFalse(!Context.GetInterfaceSuper(SuperBinding01A, SuperBinding00A_), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA found");
-				AddErrorIfFalse(SuperBinding00A == SuperBinding00A_, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> GetInterfaceSuper methods should return the same result");
-			}
-		}
-
-		// Validate from the second base trait
-		{
-			FTraitBinding ParentBinding;								// Empty, no parent
-			FAnimNextTraitHandle TraitHandle03(NodeHandles[0], 3);		// Point to first node, second base trait
-
-			FTraitPtr TraitPtr03 = Context.AllocateNodeInstance(ParentBinding, TraitHandle03);
-			AddErrorIfFalse(TraitPtr03.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Failed to allocate a node instance");
-
-			{
-				// Get a valid trait binding: FTraitAC_Add
-				TTraitBinding<IInterfaceC> Binding04C;
-				AddErrorIfFalse(Context.GetInterface(TraitPtr03, Binding04C), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceC not found");
-
-				// Validate GetInterfaceSuper from a trait handle
-				TTraitBinding<IInterfaceC> SuperBinding04C;
-				AddErrorIfFalse(!Context.GetInterfaceSuper(Binding04C.GetTraitPtr(), SuperBinding04C), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceC found");
-
-				// Validate GetInterfaceSuper from a trait binding
-				TTraitBinding<IInterfaceC> SuperBinding04C_;
-				AddErrorIfFalse(!Context.GetInterfaceSuper(Binding04C, SuperBinding04C_), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceC found");
-				AddErrorIfFalse(SuperBinding04C == SuperBinding04C_, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> GetInterfaceSuper methods should return the same result");
-			}
-
-			{
-				// Get a valid trait binding: FTraitAC_Add
-				TTraitBinding<IInterfaceA> Binding04A;
-				AddErrorIfFalse(Context.GetInterface(TraitPtr03, Binding04A), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found");
-
-				// Validate GetInterfaceSuper from a trait handle, FTraitA_Base
-				TTraitBinding<IInterfaceA> SuperBinding04A;
-				AddErrorIfFalse(Context.GetInterfaceSuper(Binding04A.GetTraitPtr(), SuperBinding04A), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found");
-				AddErrorIfFalse(SuperBinding04A.IsValid(), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA binding not valid");
-				AddErrorIfFalse(SuperBinding04A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Unexpected interface UID found in trait binding");
-				AddErrorIfFalse(SuperBinding04A.GetTraitPtr().GetTraitIndex() == 3, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found on expected trait");
-				AddErrorIfFalse(SuperBinding04A.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found on expected node");
-				AddErrorIfFalse(SuperBinding04A.GetSharedData<FTraitA_Base::FSharedData>()->TraitUID == FTraitA_Base::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Unexpected shared data in trait binding");
-				AddErrorIfFalse(SuperBinding04A.GetInstanceData<FTraitA_Base::FInstanceData>()->TraitUID == FTraitA_Base::TraitUID, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> Unexpected instance data in trait binding");
-
-				// Validate GetInterfaceSuper from a trait binding, FTraitA_Base
-				TTraitBinding<IInterfaceA> SuperBinding04A_;
-				AddErrorIfFalse(Context.GetInterfaceSuper(Binding04A, SuperBinding04A_), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA not found");
-				AddErrorIfFalse(SuperBinding04A == SuperBinding04A_, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> GetInterfaceSuper methods should return the same result");
-
-				// Validate GetInterfaceSuper from a trait handle
-				TTraitBinding<IInterfaceA> SuperBinding03A;
-				AddErrorIfFalse(!Context.GetInterfaceSuper(SuperBinding04A.GetTraitPtr(), SuperBinding03A), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA found");
-
-				// Validate GetInterfaceSuper from a trait binding
-				TTraitBinding<IInterfaceA> SuperBinding03A_;
-				AddErrorIfFalse(!Context.GetInterfaceSuper(SuperBinding04A, SuperBinding03A_), "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> InterfaceA found");
-				AddErrorIfFalse(SuperBinding03A == SuperBinding03A_, "FAnimationAnimNextRuntimeTest_GetTraitInterfaceSuper -> GetInterfaceSuper methods should return the same result");
+					AddErrorIfFalse(Stack3.GetInterfaceSuper(Binding3A, Binding3A), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found");
+					AddErrorIfFalse(Binding3A.IsValid(), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA binding not valid");
+					AddErrorIfFalse(Binding3A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected interface UID found in trait binding");
+					AddErrorIfFalse(Binding3A.GetTraitPtr().GetTraitIndex() == 3, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected trait");
+					AddErrorIfFalse(Binding3A.GetTraitPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA not found on expected node");
+					AddErrorIfFalse(Binding3A.GetSharedData<FTraitA_Base::FSharedData>()->TraitUID == FTraitA_Base::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected shared data in trait binding");
+					AddErrorIfFalse(Binding3A.GetInstanceData<FTraitA_Base::FInstanceData>()->TraitUID == FTraitA_Base::TraitUID, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Unexpected instance data in trait binding");
+					AddErrorIfFalse(!Stack3.GetInterfaceSuper(Binding3A, Binding3A), "FAnimationAnimNextRuntimeTest_TraitStackBinding -> InterfaceA should not be found");
+				}
 			}
 		}
 
 		Registry.Unregister(NodeTemplate0);
 
-		AddErrorIfFalse(Registry.GetNum() == 0, "FAnimationAnimNextRuntimeTest_GetTraitInterface -> Registry should contain 0 templates");
+		AddErrorIfFalse(Registry.GetNum() == 0, "FAnimationAnimNextRuntimeTest_TraitStackBinding -> Registry should contain 0 templates");
 	}
 
 	Tests::FUtils::CleanupAfterTests();
-	
+
 	return true;
 }
 
@@ -1425,20 +1368,25 @@ bool FAnimationAnimNextRuntimeTest_TraitSerialization::RunTest(const FString& In
 
 			// Validate trait serialization
 			{
-				FTraitBinding ParentBinding;								// Empty, no parent
 				FAnimNextTraitHandle TraitHandle0(NodeHandles[0], 0);		// Point to first node, first base trait
 				FAnimNextTraitHandle TraitHandle1(NodeHandles[1], 0);		// Point to second node, first base trait
 
-				FTraitPtr TraitPtr0 = Context.AllocateNodeInstance(ParentBinding, TraitHandle0);
+				FTraitPtr TraitPtr0 = Context.AllocateNodeInstance(*GraphInstance.GetImpl(), TraitHandle0);
 				AddErrorIfFalse(TraitPtr0.IsValid(), "FAnimationAnimNextRuntimeTest_TraitSerialization -> Failed to allocate a node instance");
 
-				FTraitPtr TraitPtr1 = Context.AllocateNodeInstance(ParentBinding, TraitHandle1);
+				FTraitPtr TraitPtr1 = Context.AllocateNodeInstance(*GraphInstance.GetImpl(), TraitHandle1);
 				AddErrorIfFalse(TraitPtr1.IsValid(), "FAnimationAnimNextRuntimeTest_TraitSerialization -> Failed to allocate a node instance");
+
+				FTraitStackBinding StackNode0;
+				AddErrorIfFalse(Context.GetStack(TraitPtr0, StackNode0), "FAnimationAnimNextRuntimeTest_TraitSerialization -> Failed to bind to trait stack");
+
+				FTraitStackBinding StackNode1;
+				AddErrorIfFalse(Context.GetStack(TraitPtr1, StackNode1), "FAnimationAnimNextRuntimeTest_TraitSerialization -> Failed to bind to trait stack");
 
 				// Validate shared data for base trait on node 0
 				{
 					TTraitBinding<IInterfaceA> BindingA0;
-					AddErrorIfFalse(Context.GetInterface(TraitPtr0, BindingA0), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceA not found");
+					AddErrorIfFalse(StackNode0.GetInterface(BindingA0), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceA not found");
 
 					const auto* SharedDataA0 = BindingA0.GetSharedData<FTraitSerialization_Base::FSharedData>();
 
@@ -1455,7 +1403,7 @@ bool FAnimationAnimNextRuntimeTest_TraitSerialization::RunTest(const FString& In
 				// Validate shared data for additive trait on node 0
 				{
 					TTraitBinding<IInterfaceB> BindingB0;
-					AddErrorIfFalse(Context.GetInterface(TraitPtr0, BindingB0), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceB not found");
+					AddErrorIfFalse(StackNode0.GetInterface(BindingB0), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceB not found");
 
 					const auto* SharedDataB0 = BindingB0.GetSharedData<FTraitSerialization_Add::FSharedData>();
 
@@ -1472,7 +1420,7 @@ bool FAnimationAnimNextRuntimeTest_TraitSerialization::RunTest(const FString& In
 				// Validate shared data for native trait on node 0
 				{
 					TTraitBinding<IInterfaceC> BindingC0;
-					AddErrorIfFalse(Context.GetInterface(TraitPtr0, BindingC0), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceC not found");
+					AddErrorIfFalse(StackNode0.GetInterface(BindingC0), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceC not found");
 
 					const auto* SharedDataC0 = BindingC0.GetSharedData<FTraitNativeSerialization_Add::FSharedData>();
 
@@ -1490,7 +1438,7 @@ bool FAnimationAnimNextRuntimeTest_TraitSerialization::RunTest(const FString& In
 				// Validate shared data for base trait on node 1
 				{
 					TTraitBinding<IInterfaceA> BindingA1;
-					AddErrorIfFalse(Context.GetInterface(TraitPtr1, BindingA1), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceA not found");
+					AddErrorIfFalse(StackNode1.GetInterface(BindingA1), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceA not found");
 
 					const auto* SharedDataA1 = BindingA1.GetSharedData<FTraitSerialization_Base::FSharedData>();
 
@@ -1507,7 +1455,7 @@ bool FAnimationAnimNextRuntimeTest_TraitSerialization::RunTest(const FString& In
 				// Validate shared data for additive trait on node 1
 				{
 					TTraitBinding<IInterfaceB> BindingB1;
-					AddErrorIfFalse(Context.GetInterface(TraitPtr1, BindingB1), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceB not found");
+					AddErrorIfFalse(StackNode1.GetInterface(BindingB1), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceB not found");
 
 					const auto* SharedDataB1 = BindingB1.GetSharedData<FTraitSerialization_Add::FSharedData>();
 
@@ -1524,7 +1472,7 @@ bool FAnimationAnimNextRuntimeTest_TraitSerialization::RunTest(const FString& In
 				// Validate shared data for native trait on node 1
 				{
 					TTraitBinding<IInterfaceC> BindingC1;
-					AddErrorIfFalse(Context.GetInterface(TraitPtr1, BindingC1), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceC not found");
+					AddErrorIfFalse(StackNode1.GetInterface(BindingC1), "FAnimationAnimNextRuntimeTest_TraitSerialization -> InterfaceC not found");
 
 					const auto* SharedDataC1 = BindingC1.GetSharedData<FTraitNativeSerialization_Add::FSharedData>();
 

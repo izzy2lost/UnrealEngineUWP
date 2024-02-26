@@ -140,7 +140,7 @@ namespace UE::AnimNext
 		}
 
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-		Context.GetInterface(Binding, DiscreteBlendTrait);
+		Binding.GetStackInterface(DiscreteBlendTrait);
 
 		// Free any newly inactive children
 		const int32 NumChildren = InstanceData->PerChildBlendData.Num();
@@ -195,7 +195,7 @@ namespace UE::AnimNext
 		const float WeightDifference = FMath::Clamp(FMath::Abs(NewChildDesiredWeight - NewChildCurrentWeight), 0.0f, 1.0f);
 
 		TTraitBinding<ISmoothBlend> SmoothBlendTrait;
-		Context.GetInterface(Binding, SmoothBlendTrait);
+		Binding.GetStackInterface(SmoothBlendTrait);
 
 		const float BlendTime = SmoothBlendTrait.GetBlendTime(Context, NewChildIndex);
 		const float RemainingBlendTime = OldChildIndex != INDEX_NONE ? (BlendTime * WeightDifference) : 0.0f;
@@ -226,7 +226,7 @@ namespace UE::AnimNext
 		// We just initiate the new blend manually
 
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-		Context.GetInterface(Binding, DiscreteBlendTrait);
+		Binding.GetStackInterface(DiscreteBlendTrait);
 
 		DiscreteBlendTrait.OnBlendInitiated(Context, NewChildIndex);
 	}
@@ -256,10 +256,7 @@ namespace UE::AnimNext
 	{
 		check(InstanceData->PerChildBlendData.IsEmpty());
 
-		TTraitBinding<IHierarchy> HierarchyTrait;
-		Context.GetInterface(Binding, HierarchyTrait);
-
-		const uint32 NumChildren = HierarchyTrait.GetNumChildren(Context);
+		const uint32 NumChildren = IHierarchy::GetNumStackChildren(Context, Binding);
 
 		InstanceData->PerChildBlendData.SetNum(NumChildren);
 

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Misc/MemStack.h"
 #include "TraitCore/ITraitInterface.h"
+#include "TraitCore/TraitBinding.h"
 
 namespace UE::AnimNext
 {
@@ -21,14 +22,26 @@ namespace UE::AnimNext
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(IHierarchy, 0x846d8a37)
 
-		// Returns the number of children
+		// Returns the number of children of the trait implementation (not the whole stack)
 		// Includes inactive children
 		virtual uint32 GetNumChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding) const;
 
-		// Appends weak handles to any children we wish to traverse.
+		// Appends weak handles to any children we wish to traverse on the trait implementation (not the whole stack).
 		// Traits are responsible for allocating and releasing child instance data.
-		// Empty handles and duplicates can be appended.
+		// Empty handles can be appended.
 		virtual void GetChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding, FChildrenArray& Children) const;
+
+		// Queries the trait stack and calls GetChildren for each trait, appending the result.
+		static void GetStackChildren(const FExecutionContext& Context, const FTraitStackBinding& Binding, FChildrenArray& Children);
+
+		// Queries the trait stack of the specified binding and calls GetChildren for each trait, appending the result.
+		static void GetStackChildren(const FExecutionContext& Context, const FTraitBinding& Binding, FChildrenArray& Children);
+
+		// Queries the trait stack and calls GetNumChildren for each trait, accumulating the result.
+		static uint32 GetNumStackChildren(const FExecutionContext& Context, const FTraitStackBinding& Binding);
+
+		// Queries the trait stack of the specified binding and calls GetNumChildren for each trait, accumulating the result.
+		static uint32 GetNumStackChildren(const FExecutionContext& Context, const FTraitBinding& Binding);
 	};
 
 	/**
@@ -52,4 +65,20 @@ namespace UE::AnimNext
 	protected:
 		const IHierarchy* GetInterface() const { return GetInterfaceTyped<IHierarchy>(); }
 	};
+
+	//////////////////////////////////////////////////////////////////////////
+	// Inline implementations
+
+	inline void IHierarchy::GetStackChildren(const FExecutionContext& Context, const FTraitBinding& Binding, FChildrenArray& Children)
+	{
+		if (Binding.IsValid())
+		{
+			GetStackChildren(Context, *Binding.GetStack(), Children);
+		}
+	}
+
+	inline uint32 IHierarchy::GetNumStackChildren(const FExecutionContext& Context, const FTraitBinding& Binding)
+	{
+		return Binding.IsValid() ? GetNumStackChildren(Context, *Binding.GetStack()) : 0;
+	}
 }

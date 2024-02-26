@@ -16,6 +16,7 @@ namespace UE::AnimNext
 		GeneratorMacro(IEvaluate) \
 		GeneratorMacro(IHierarchy) \
 		GeneratorMacro(IUpdate) \
+		GeneratorMacro(IUpdateTraversal) \
 
 	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FBlendTwoWayTrait, TRAIT_INTERFACE_ENUMERATOR)
 	#undef TRAIT_INTERFACE_ENUMERATOR
@@ -29,7 +30,7 @@ namespace UE::AnimNext
 			// We have two children, interpolate them
 
 			TTraitBinding<IContinuousBlend> ContinuousBlendTrait;
-			Context.GetInterface(Binding, ContinuousBlendTrait);
+			Binding.GetStackInterface(ContinuousBlendTrait);
 
 			const float BlendWeight = ContinuousBlendTrait.GetBlendWeight(Context, 1);
 			Context.AppendTask(FAnimNextBlendTwoKeyframesTask::Make(BlendWeight));
@@ -46,7 +47,7 @@ namespace UE::AnimNext
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
 		TTraitBinding<IContinuousBlend> ContinuousBlendTrait;
-		Context.GetInterface(Binding, ContinuousBlendTrait);
+		Binding.GetStackInterface(ContinuousBlendTrait);
 
 		const float BlendWeightB = ContinuousBlendTrait.GetBlendWeight(Context, 1);
 		if (!FAnimWeight::IsFullWeight(BlendWeightB))
@@ -80,12 +81,12 @@ namespace UE::AnimNext
 		}
 	}
 
-	void FBlendTwoWayTrait::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
+	void FBlendTwoWayTrait::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
 		TTraitBinding<IContinuousBlend> ContinuousBlendTrait;
-		Context.GetInterface(Binding, ContinuousBlendTrait);
+		Binding.GetStackInterface(ContinuousBlendTrait);
 
 		const float BlendWeightB = ContinuousBlendTrait.GetBlendWeight(Context, 1);
 		if (InstanceData->ChildA.IsValid())
@@ -118,7 +119,7 @@ namespace UE::AnimNext
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 
-		const float BlendWeight = SharedData->GetBlendWeight(Context, Binding);
+		const float BlendWeight = SharedData->GetBlendWeight(Binding);
 		const float ClampedWeight = FMath::Clamp(BlendWeight, 0.0f, 1.0f);
 
 		if (ChildIndex == 0)

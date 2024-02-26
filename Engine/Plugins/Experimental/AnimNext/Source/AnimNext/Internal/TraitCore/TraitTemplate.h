@@ -33,21 +33,24 @@ namespace UE::AnimNext
 		// Returns the trait registry handle
 		FTraitRegistryHandle GetRegistryHandle() const noexcept { return RegistryHandle; }
 
+		// Returns whether or not this trait template is valid
+		// A trait template is invalid if the trait implementation hasn't been registered
+		bool IsValid() const noexcept { return RegistryHandle.IsValid(); }
+
 		// Returns the trait mode
 		ETraitMode GetMode() const noexcept { return static_cast<ETraitMode>(Mode); }
 
-		// For base traits only, returns the number of additive traits on top in the stack
-		uint32 GetNumAdditiveTraits() const
+		// For base traits only, returns the number of traits on the sub-stack
+		uint32 GetNumStackTraits() const
 		{
 			check(GetMode() == ETraitMode::Base);
-			return AdditiveIndexOrNumAdditive;
+			return TraitIndexOrNumTraits;
 		}
 
-		// For additive traits only, returns the trait index relative to the base trait on the stack
-		uint32 GetAdditiveTraitIndex() const
+		// Returns the trait index relative to the base trait on the sub-stack
+		uint32 GetTraitIndex() const
 		{
-			check(GetMode() == ETraitMode::Additive);
-			return AdditiveIndexOrNumAdditive;
+			return GetMode() == ETraitMode::Base ? 0 : TraitIndexOrNumTraits;
 		}
 
 		// Returns the number of latent properties on this trait
@@ -128,11 +131,11 @@ namespace UE::AnimNext
 		friend struct FNodeTemplate;
 		friend struct FNodeTemplateBuilder;
 
-		FTraitTemplate(FTraitUID InUID, FTraitRegistryHandle InRegistryHandle, ETraitMode InMode, uint32 InAdditiveIndexOrNumAdditive) noexcept
+		FTraitTemplate(FTraitUID InUID, FTraitRegistryHandle InRegistryHandle, ETraitMode InMode, uint32 InTraitIndexOrNumTraits) noexcept
 			: UID(InUID.GetUID())
 			, RegistryHandle(InRegistryHandle)
 			, Mode(static_cast<uint8>(InMode))
-			, AdditiveIndexOrNumAdditive(InAdditiveIndexOrNumAdditive)
+			, TraitIndexOrNumTraits(InTraitIndexOrNumTraits)
 			, NumLatentProperties(0)
 			, NumSubStackLatentProperties(0)
 			// For shared and instance data, 0 is an invalid offset since the data follows their respective header (FNodeDescription or FNodeInstance)
@@ -140,7 +143,8 @@ namespace UE::AnimNext
 			, NodeSharedLatentPropertyHandlesOffset(0)
 			, NodeInstanceOffset(0)
 			, Padding0(0)
-		{}
+		{
+		}
 
 		// Trait globally unique identifier (32 bits)
 		FTraitUIDRaw				UID;
@@ -151,10 +155,10 @@ namespace UE::AnimNext
 		// Trait mode (we only need 1 bit, we could store other flags here)
 		uint8	Mode;
 
-		// For base traits, this contains the number of additive traits on top
-		// For additive traits, this contains its index relative to the base trait
-		// The first additive trait has index 1, there is no index 0 (we re-purpose it for the base trait)
-		uint8	AdditiveIndexOrNumAdditive;
+		// For base traits, this contains the number of traits on our sub-stack
+		// For additive traits, this contains the trait index relative to the base trait
+		// The first additive trait has index 1, there is no index 0 (we re-purpose the value for the base trait)
+		uint8	TraitIndexOrNumTraits;
 
 		// For each latent property defined on a trait, we store a handle in the per node shared data
 		// These handles specify various metadata of the latent property: RigVM memory handle index, whether the property can freeze, instance data offset

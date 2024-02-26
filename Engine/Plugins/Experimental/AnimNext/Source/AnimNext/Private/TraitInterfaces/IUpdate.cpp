@@ -10,83 +10,82 @@ DEFINE_STAT(STAT_AnimNext_UpdateGraph);
 
 namespace UE::AnimNext
 {
+	namespace Private
+	{
+		// This structure is transient and lives either on the stack or the memstack and its destructor may not be called
+		struct FUpdateEntry
+		{
+			// The trait state for this entry
+			FTraitUpdateState			TraitState;
+
+			// The trait handle that points to our node to update
+			FWeakTraitPtr				TraitPtr;
+
+			// Whether or not PreUpdate had been called already
+			// TODO: Store bHasPreUpdated in the LSB of the entry pointer to save padding?
+			bool						bHasPreUpdated = false;
+
+			// The trait stack binding for this update entry
+			FTraitStackBinding			TraitStack;
+
+			// Once we've called PreUpdate, we cache the trait binding to avoid a redundant query to call PostUpdate
+			TTraitBinding<IUpdate>		UpdateTrait;
+
+			// These pointers are mutually exclusive
+			// An entry is either part of the queued update stack, the update stack, the free list, or none of the above
+			union
+			{
+				// Next entry in the stack of free entries
+				FUpdateEntry* NextFreeEntry = nullptr;
+
+				// Previous entry on the update stack
+				FUpdateEntry* PrevUpdateStackEntry;
+
+				// Previous entry on the queued update stack
+				FUpdateEntry* PrevQueuedUpdateStackEntry;
+			};
+
+			FUpdateEntry(const FWeakTraitPtr& InTraitPtr, const FTraitUpdateState InTraitState)
+				: TraitState(InTraitState)
+				, TraitPtr(InTraitPtr)
+			{
+			}
+		};
+	}
+
 	void IUpdate::PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
 	{
 		TTraitBinding<IUpdate> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			SuperBinding.PreUpdate(Context, TraitState);
-		}
-	}
-
-	void IUpdate::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
-	{
-		TTraitBinding<IUpdate> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
-		{
-			SuperBinding.QueueChildrenForTraversal(Context, TraitState, TraversalQueue);
 		}
 	}
 
 	void IUpdate::PostUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
 	{
 		TTraitBinding<IUpdate> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			SuperBinding.PostUpdate(Context, TraitState);
 		}
 	}
 
+	void IUpdateTraversal::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
+	{
+		// Nothing to do
+		// This function is called for each trait on the stack, one by one
+		// No need to forward to our super
+	}
+
 	//////////////////////////////////////////////////////////////////////////
 	// Traversal implementation
-
-	// This structure is transient and lives either on the stack or the memstack and its destructor may not be called
-	struct FUpdateEntry
-	{
-		// The trait state for this entry
-		FTraitUpdateState			TraitState;
-
-		// The trait handle that points to our node to update
-		FWeakTraitPtr				TraitPtr;
-
-		// Whether or not PreUpdate had been called already
-		// TODO: Store bHasPreUpdated in the LSB of the entry pointer to save padding?
-		bool						bHasPreUpdated = false;
-
-		// Once we've called PreUpdate, we cache the trait binding to avoid a redundant query to call PostUpdate
-		TTraitBinding<IUpdate>		UpdateTrait;
-
-		// These pointers are mutually exclusive
-		// An entry is either part of the queued update stack, the update stack, the free list, or none of the above
-		union
-		{
-			// Next entry in the stack of free entries
-			FUpdateEntry*			NextFreeEntry = nullptr;
-
-			// Previous entry on the update stack
-			FUpdateEntry*			PrevUpdateStackEntry;
-
-			// Previous entry on the queued update stack
-			FUpdateEntry*			PrevQueuedUpdateStackEntry;
-		};
-
-		FUpdateEntry(const FWeakTraitPtr& InTraitPtr, const FTraitUpdateState InTraitState)
-			: TraitState(InTraitState)
-			, TraitPtr(InTraitPtr)
-		{
-		}
-	};
-
-	FUpdateTraversalContext::FUpdateTraversalContext(const FExecutionContext& InExecutionContext, FMemStack& InMemStack)
-		: FExecutionContextProxy(InExecutionContext)
-		, MemStack(InMemStack)
-	{}
 
 	void FUpdateTraversalContext::PushQueuedUpdateEntries(FUpdateTraversalQueue& TraversalQueue)
 	{
 		// Pop every entry from the queued update stack and push them onto the update stack
 		// reversing their order
-		while (FUpdateEntry* Entry = TraversalQueue.QueuedUpdateStackHead)
+		while (Private::FUpdateEntry* Entry = TraversalQueue.QueuedUpdateStackHead)
 		{
 			// Update our queued stack head
 			TraversalQueue.QueuedUpdateStackHead = Entry->PrevQueuedUpdateStackEntry;
@@ -96,15 +95,15 @@ namespace UE::AnimNext
 		}
 	}
 
-	void FUpdateTraversalContext::PushUpdateEntry(FUpdateEntry* Entry)
+	void FUpdateTraversalContext::PushUpdateEntry(Private::FUpdateEntry* Entry)
 	{
 		Entry->PrevUpdateStackEntry = UpdateStackHead;
 		UpdateStackHead = Entry;
 	}
 
-	FUpdateEntry* FUpdateTraversalContext::PopUpdateEntry()
+	Private::FUpdateEntry* FUpdateTraversalContext::PopUpdateEntry()
 	{
-		FUpdateEntry* ChildEntry = UpdateStackHead;
+		Private::FUpdateEntry* ChildEntry = UpdateStackHead;
 		if (ChildEntry != nullptr)
 		{
 			// We have a child, set our new head
@@ -114,15 +113,15 @@ namespace UE::AnimNext
 		return ChildEntry;
 	}
 
-	void FUpdateTraversalContext::PushFreeEntry(FUpdateEntry* Entry)
+	void FUpdateTraversalContext::PushFreeEntry(Private::FUpdateEntry* Entry)
 	{
 		Entry->NextFreeEntry = FreeEntryStackHead;
 		FreeEntryStackHead = Entry;
 	}
 
-	FUpdateEntry* FUpdateTraversalContext::GetNewEntry(const FWeakTraitPtr& TraitPtr, const FTraitUpdateState& TraitState)
+	Private::FUpdateEntry* FUpdateTraversalContext::GetNewEntry(const FWeakTraitPtr& TraitPtr, const FTraitUpdateState& TraitState)
 	{
-		FUpdateEntry* FreeEntry = FreeEntryStackHead;
+		Private::FUpdateEntry* FreeEntry = FreeEntryStackHead;
 		if (FreeEntry != nullptr)
 		{
 			// We have a free entry, set our new head
@@ -137,7 +136,7 @@ namespace UE::AnimNext
 		else
 		{
 			// Allocate a new entry
-			FreeEntry = new(MemStack) FUpdateEntry(TraitPtr, TraitState);
+			FreeEntry = new(MemStack) Private::FUpdateEntry(TraitPtr, TraitState);
 		}
 
 		return FreeEntry;
@@ -155,7 +154,7 @@ namespace UE::AnimNext
 			return;	// Don't queue invalid pointers
 		}
 
-		FUpdateEntry* ChildEntry = TraversalContext.GetNewEntry(ChildPtr, ChildTraitState);
+		Private::FUpdateEntry* ChildEntry = TraversalContext.GetNewEntry(ChildPtr, ChildTraitState);
 
 		// We push children that are queued onto a stack
 		// Once pre-update is done, we'll pop queued entries one by one and push them
@@ -222,44 +221,48 @@ namespace UE::AnimNext
 			return;	// We can only update starting at the root
 		}
 
-		FMemStack& MemStack = FMemStack::Get();
+		FUpdateTraversalContext TraversalContext;
+
+		FMemStack& MemStack = TraversalContext.GetMemStack();
 		FMemMark Mark(MemStack);
 
 		FChildrenArray Children;
 		TTraitBinding<IHierarchy> HierarchyTrait;
+		TTraitBinding<IUpdateTraversal> UpdateTraversalTrait;
+		FTraitBinding TraitBinding;
 
-		FExecutionContext ExecutionContext;
-		FUpdateTraversalContext TraversalContext(ExecutionContext, MemStack);
 		FUpdateTraversalQueue TraversalQueue(TraversalContext);
 
 		// Before we start the traversal, we give the graph instance components the chance to do some work
-		ExecutionContext.BindTo(GraphInstance);
-		for (auto It = ExecutionContext.GetComponentIterator(); It; ++It)
+		TraversalContext.BindTo(GraphInstance);
+		for (auto It = TraversalContext.GetComponentIterator(); It; ++It)
 		{
-			It.Value()->PreUpdate(ExecutionContext);
+			It.Value()->PreUpdate(TraversalContext);
 		}
 
 		// Add the graph root to start the update process
-		FUpdateEntry RootEntry(GraphInstance.GetGraphRootPtr(), FTraitUpdateState(DeltaTime));
+		Private::FUpdateEntry RootEntry(GraphInstance.GetGraphRootPtr(), FTraitUpdateState(DeltaTime));
 		TraversalContext.PushUpdateEntry(&RootEntry);
 
-		while (FUpdateEntry* Entry = TraversalContext.PopUpdateEntry())
+		while (Private::FUpdateEntry* Entry = TraversalContext.PopUpdateEntry())
 		{
 			const FWeakTraitPtr& EntryTraitPtr = Entry->TraitPtr;
-
-			// Make sure the execution context is bound to our graph instance
-			ExecutionContext.BindTo(EntryTraitPtr);
 
 			if (!Entry->bHasPreUpdated)
 			{
 				// This is the first time we visit this node, time to pre-update
-				// But first, if it has latent pins, we must execute and cache their results
+
+				// Bind and cache our trait stack
+				ensure(TraversalContext.GetStack(EntryTraitPtr, Entry->TraitStack));
+
+				// First, if it has latent pins, we must execute and cache their results
 				// This will ensure that other calls into this node will have a consistent view of
 				// what the node saw when it started to update. We thus take a snapshot.
 				const bool bIsFrozen = false;	// Not yet supported
-				ExecutionContext.SnapshotLatentProperties(EntryTraitPtr, bIsFrozen);
+				Entry->TraitStack.SnapshotLatentProperties(bIsFrozen);
 
-				if (ExecutionContext.GetInterface(EntryTraitPtr, Entry->UpdateTrait))
+				// If this trait stack implements IUpdate, call into it
+				if (Entry->TraitStack.GetInterface(Entry->UpdateTrait))
 				{
 					Entry->UpdateTrait.PreUpdate(TraversalContext, Entry->TraitState);
 
@@ -268,42 +271,56 @@ namespace UE::AnimNext
 
 					// Push this entry onto the update stack, we'll call it once all our children have finished executing
 					TraversalContext.PushUpdateEntry(Entry);
-
-					// Request that the trait queues the children it wants to visit
-					// This is a separate function from PreUpdate to simplify traversal management. It is often the case that
-					// the base trait is the one best placed to figure out how to optimally queue children since it
-					// owns the handles to them. However, if an additive trait wishes to override PreUpdate, it might want
-					// to perform logic after the base PreUpdate but before children are queued. Without a separate function,
-					// we would have to rewrite the base PreUpdate entirely and use IHierarchy to query the handles of our children.
-					Entry->UpdateTrait.QueueChildrenForTraversal(TraversalContext, Entry->TraitState, TraversalQueue);
-
-					// Iterate over our queued children and push them onto the update stack
-					// We do this to allow children to be queued in traversal order which is intuitive
-					// but to traverse them in that order, they must be pushed in reverse order onto the update stack
-					TraversalContext.PushQueuedUpdateEntries(TraversalQueue);
 				}
 				else
 				{
-					// This node doesn't implement IUpdate
-					// We'll grab its children and traverse them
-					if (ExecutionContext.GetInterface(EntryTraitPtr, HierarchyTrait))
+					// We don't need this entry anymore
+					TraversalContext.PushFreeEntry(Entry);
+				}
+
+				// Now visit the trait stack and queue our children
+				ensure(Entry->TraitStack.GetTopTrait(TraitBinding));
+				do
+				{
+					if (TraitBinding.AsInterface(UpdateTraversalTrait))
 					{
-						HierarchyTrait.GetChildren(ExecutionContext, Children);
+						// Request that the trait queues the children it wants to visit
+						// This is a separate function from PreUpdate to simplify traversal management. It is often the case that
+						// the base trait is the one best placed to figure out how to optimally queue children since it
+						// owns the handles to them. However, if an additive trait wishes to override PreUpdate, it might want
+						// to perform logic after the base PreUpdate but before children are queued. Without a separate function,
+						// we would have to rewrite the base PreUpdate entirely and use IHierarchy to query the handles of our children.
+						UpdateTraversalTrait.QueueChildrenForTraversal(TraversalContext, Entry->TraitState, TraversalQueue);
+
+
+						// Iterate over our queued children and push them onto the update stack
+						// We do this to allow children to be queued in traversal order which is intuitive
+						// but to traverse them in that order, they must be pushed in reverse order onto the update stack
+						TraversalContext.PushQueuedUpdateEntries(TraversalQueue);
+					}
+					else if (TraitBinding.AsInterface(HierarchyTrait))
+					{
+						HierarchyTrait.GetChildren(TraversalContext, Children);
 
 						// Append our children in reserve order so that they are visited in the same order they were added
 						for (int32 ChildIndex = Children.Num() - 1; ChildIndex >= 0; --ChildIndex)
 						{
-							FUpdateEntry* ChildEntry = TraversalContext.GetNewEntry(Children[ChildIndex], Entry->TraitState);
-							TraversalContext.PushUpdateEntry(ChildEntry);
+							const FWeakTraitPtr& ChildPtr = Children[ChildIndex];
+							if (ChildPtr.IsValid())
+							{
+								Private::FUpdateEntry* ChildEntry = TraversalContext.GetNewEntry(ChildPtr, Entry->TraitState);
+								TraversalContext.PushUpdateEntry(ChildEntry);
+							}
 						}
 
 						// Reset our container for the next time we need it
 						Children.Reset();
 					}
-
-					// We don't need this entry anymore
-					TraversalContext.PushFreeEntry(Entry);
-				}
+					else
+					{
+						// We don't have any children since we don't implement any of the relevant interfaces
+					}
+				} while (Entry->TraitStack.GetParentTrait(TraitBinding, TraitBinding));
 			}
 			else
 			{
@@ -317,10 +334,10 @@ namespace UE::AnimNext
 		}
 
 		// After we finish the traversal, we give the graph instance components the chance to do some work
-		ExecutionContext.BindTo(GraphInstance);
-		for (auto It = ExecutionContext.GetComponentIterator(); It; ++It)
+		TraversalContext.BindTo(GraphInstance);
+		for (auto It = TraversalContext.GetComponentIterator(); It; ++It)
 		{
-			It.Value()->PostUpdate(ExecutionContext);
+			It.Value()->PostUpdate(TraversalContext);
 		}
 	}
 }

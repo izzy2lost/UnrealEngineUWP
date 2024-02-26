@@ -9,7 +9,7 @@ namespace UE::AnimNext
 	float ITimeline::GetPlayRate(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding) const
 	{
 		TTraitBinding<ITimeline> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			return SuperBinding.GetPlayRate(Context);
 		}
@@ -20,7 +20,7 @@ namespace UE::AnimNext
 	float ITimeline::AdvanceBy(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
 	{
 		TTraitBinding<ITimeline> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			return SuperBinding.AdvanceBy(Context, DeltaTime);
 		}
@@ -31,7 +31,7 @@ namespace UE::AnimNext
 	void ITimeline::AdvanceToRatio(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const
 	{
 		TTraitBinding<ITimeline> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			SuperBinding.AdvanceToRatio(Context, ProgressRatio);
 		}

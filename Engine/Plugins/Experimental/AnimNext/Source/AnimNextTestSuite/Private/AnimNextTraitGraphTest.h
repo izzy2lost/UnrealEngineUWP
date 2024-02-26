@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "TraitCore/TraitBinding.h"
 #include "TraitCore/TraitSharedData.h"
 #include "Graph/AnimNextGraph.h"
 

@@ -25,7 +25,7 @@ namespace UE::AnimNext
 		if (SharedData->AnimSequence != nullptr)
 		{
 			const float SequenceLength = SharedData->AnimSequence->GetPlayLength();
-			InternalTimeAccumulator = FMath::Clamp(SharedData->GetStartPosition(Context, Binding), 0.0f, SequenceLength);
+			InternalTimeAccumulator = FMath::Clamp(SharedData->GetStartPosition(Binding), 0.0f, SequenceLength);
 		}
 	}
 
@@ -45,7 +45,7 @@ namespace UE::AnimNext
 	float FSequencePlayerTrait::GetPlayRate(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-		return SharedData->GetPlayRate(Context, Binding);
+		return SharedData->GetPlayRate(Binding);
 	}
 
 	float FSequencePlayerTrait::AdvanceBy(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
@@ -56,10 +56,10 @@ namespace UE::AnimNext
 			FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
 			TTraitBinding<ITimeline> TimelineTrait;
-			Context.GetInterface(Binding, TimelineTrait);
+			Binding.GetStackInterface(TimelineTrait);
 
 			const float PlayRate = TimelineTrait.GetPlayRate(Context);
-			const bool bIsLooping = SharedData->GetbLoop(Context, Binding);
+			const bool bIsLooping = SharedData->GetbLoop(Binding);
 			const float SequenceLength = AnimSeq->GetPlayLength();
 
 			FAnimationRuntime::AdvanceTime(bIsLooping, DeltaTime * PlayRate, InstanceData->InternalTimeAccumulator, SequenceLength);
@@ -87,7 +87,7 @@ namespace UE::AnimNext
 	{
 		// We just advance the timeline
 		TTraitBinding<ITimeline> TimelineTrait;
-		Context.GetInterface(Binding, TimelineTrait);
+		Binding.GetStackInterface(TimelineTrait);
 
 		TimelineTrait.AdvanceBy(Context, TraitState.GetDeltaTime());
 	}

@@ -52,9 +52,9 @@ namespace UE::AnimNext
 			ParamStack.GetMutableParam<int32>("SomeInt32") = SharedData->SomeInt32;
 			ParamStack.GetMutableParam<float>("SomeFloat") = SharedData->SomeFloat;
 
-			ParamStack.GetMutableParam<int32>("SomeLatentInt32") = SharedData->GetSomeLatentInt32(Context, Binding);				// MathAdd with constants, latent
-			ParamStack.GetMutableParam<int32>("SomeOtherLatentInt32") = SharedData->GetSomeOtherLatentInt32(Context, Binding);		// GetParameter, latent
-			ParamStack.GetMutableParam<float>("SomeLatentFloat") = SharedData->GetSomeLatentFloat(Context, Binding);				// Inline value, not latent
+			ParamStack.GetMutableParam<int32>("SomeLatentInt32") = SharedData->GetSomeLatentInt32(Binding);				// MathAdd with constants, latent
+			ParamStack.GetMutableParam<int32>("SomeOtherLatentInt32") = SharedData->GetSomeOtherLatentInt32(Binding);	// GetParameter, latent
+			ParamStack.GetMutableParam<float>("SomeLatentFloat") = SharedData->GetSomeLatentFloat(Binding);				// Inline value, not latent
 		}
 
 		// IEvaluate impl

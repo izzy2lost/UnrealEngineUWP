@@ -69,11 +69,11 @@ namespace UE::AnimNext
 		const FTrait* Trait = TraitRegistry.Find(TraitHandle);
 		const ETraitMode TraitMode = Trait->GetTraitMode();
 
-		uint32 AdditiveIndexOrNumAdditive;
+		uint32 TraitIndexOrNumTraits;
 		if (TraitMode == ETraitMode::Base)
 		{
-			// Find out how many additive traits we have
-			AdditiveIndexOrNumAdditive = 0;
+			// Find out how many traits we have
+			TraitIndexOrNumTraits = 1;
 			for (int32 Index = TraitIndex + 1; Index < InTraitUIDs.Num(); ++Index)	// Skip ourself
 			{
 				const FTrait* ChildTrait = TraitRegistry.Find(InTraitUIDs[Index]);
@@ -83,13 +83,14 @@ namespace UE::AnimNext
 				}
 
 				// We are additive
-				AdditiveIndexOrNumAdditive++;
+				TraitIndexOrNumTraits++;
 			}
 		}
 		else
 		{
-			// Find out our additive index
-			AdditiveIndexOrNumAdditive = 1;	// Skip ourself
+			// Find out our stack trait index (as opposed to the node trait index)
+			// Iterate from this additive trait until we find our base trait
+			TraitIndexOrNumTraits = 1;	// We are at least the second trait (first additive)
 			for (int32 Index = TraitIndex - 1; Index >= 0; --Index)
 			{
 				const FTrait* ParentTrait = TraitRegistry.Find(InTraitUIDs[Index]);
@@ -99,12 +100,12 @@ namespace UE::AnimNext
 				}
 
 				// We are additive
-				AdditiveIndexOrNumAdditive++;
+				TraitIndexOrNumTraits++;
 			}
 		}
 
 		// Append our trait template
 		const int32 BufferIndex = NodeTemplateBuffer.AddUninitialized(sizeof(FTraitTemplate));
-		new(&NodeTemplateBuffer[BufferIndex]) FTraitTemplate(TraitUID, TraitHandle, TraitMode, AdditiveIndexOrNumAdditive);
+		new(&NodeTemplateBuffer[BufferIndex]) FTraitTemplate(TraitUID, TraitHandle, TraitMode, TraitIndexOrNumTraits);
 	}
 }

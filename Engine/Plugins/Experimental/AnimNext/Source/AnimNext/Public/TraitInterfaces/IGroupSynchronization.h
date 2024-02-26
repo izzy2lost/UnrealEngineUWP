@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Animation/AnimationAsset.h"
 #include "TraitCore/ITraitInterface.h"
+#include "TraitCore/TraitBinding.h"
 
 namespace UE::AnimNext
 {

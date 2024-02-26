@@ -15,6 +15,7 @@ namespace UE::AnimNext
 		GeneratorMacro(IDiscreteBlend) \
 		GeneratorMacro(IHierarchy) \
 		GeneratorMacro(IUpdate) \
+		GeneratorMacro(IUpdateTraversal) \
 
 	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FBlendByBoolTrait, TRAIT_INTERFACE_ENUMERATOR)
 	#undef TRAIT_INTERFACE_ENUMERATOR
@@ -28,7 +29,7 @@ namespace UE::AnimNext
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-		Context.GetInterface(Binding, DiscreteBlendTrait);
+		Binding.GetStackInterface(DiscreteBlendTrait);
 
 		const int32 DestinationChildIndex = DiscreteBlendTrait.GetBlendDestinationChildIndex(Context);
 		if (InstanceData->PreviousChildIndex != DestinationChildIndex)
@@ -39,7 +40,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	void FBlendByBoolTrait::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
+	void FBlendByBoolTrait::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -47,7 +48,7 @@ namespace UE::AnimNext
 		const int32 DestinationChildIndex = InstanceData->PreviousChildIndex;
 
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-		Context.GetInterface(Binding, DiscreteBlendTrait);
+		Binding.GetStackInterface(DiscreteBlendTrait);
 
 		const float BlendWeightTrue = DiscreteBlendTrait.GetBlendWeight(Context, TRUE_CHILD_INDEX);
 		if (InstanceData->TrueChild.IsValid() && FAnimWeight::IsRelevant(BlendWeightTrue))
@@ -91,7 +92,7 @@ namespace UE::AnimNext
 	float FBlendByBoolTrait::GetBlendWeight(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-		Context.GetInterface(Binding, DiscreteBlendTrait);
+		Binding.GetStackInterface(DiscreteBlendTrait);
 
 		const float DestinationChildIndex = DiscreteBlendTrait.GetBlendDestinationChildIndex(Context);
 
@@ -114,14 +115,14 @@ namespace UE::AnimNext
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 
-		const bool bCondition = SharedData->GetbCondition(Context, Binding);
+		const bool bCondition = SharedData->GetbCondition(Binding);
 		return bCondition ? TRUE_CHILD_INDEX : FALSE_CHILD_INDEX;
 	}
 
 	void FBlendByBoolTrait::OnBlendTransition(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
 	{
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-		Context.GetInterface(Binding, DiscreteBlendTrait);
+		Binding.GetStackInterface(DiscreteBlendTrait);
 
 		// We initiate immediately when we transition
 		DiscreteBlendTrait.OnBlendInitiated(Context, NewChildIndex);

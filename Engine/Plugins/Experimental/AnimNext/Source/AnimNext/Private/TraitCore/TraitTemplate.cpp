@@ -48,6 +48,6 @@ namespace UE::AnimNext
 		}
 
 		Ar << Mode;
-		Ar << AdditiveIndexOrNumAdditive;
+		Ar << TraitIndexOrNumTraits;
 	}
 }

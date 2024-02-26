@@ -10,7 +10,7 @@ namespace UE::AnimNext
 	void IGarbageCollection::RegisterWithGC(const FExecutionContext& Context, const FTraitBinding& Binding)
 	{
 		FGCGraphInstanceComponent& Component = Context.GetComponent<FGCGraphInstanceComponent>();
-		Component.Register(Context.GetGraphInstance(), Binding.GetTraitPtr());
+		Component.Register(Binding.GetTraitPtr());
 	}
 
 	void IGarbageCollection::UnregisterWithGC(const FExecutionContext& Context, const FTraitBinding& Binding)
@@ -22,7 +22,7 @@ namespace UE::AnimNext
 	void IGarbageCollection::AddReferencedObjects(const FExecutionContext& Context, const TTraitBinding<IGarbageCollection>& Binding, FReferenceCollector& Collector) const
 	{
 		TTraitBinding<IGarbageCollection> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			SuperBinding.AddReferencedObjects(Context, Collector);
 		}

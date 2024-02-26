@@ -17,7 +17,7 @@ namespace UE::AnimNext
 			const FTraitTemplate& BaseTraitTemplate = TraitTemplates[BaseTraitIndex];
 			check(BaseTraitTemplate.GetMode() == ETraitMode::Base);
 
-			const uint32 NumSubStackTraits = BaseTraitTemplate.GetNumAdditiveTraits() + 1;
+			const uint32 NumSubStackTraits = BaseTraitTemplate.GetNumStackTraits();
 			uint32 NumSubStackLatentProperties = 0;
 
 			for (uint32 SubStackTraitIndex = 0; SubStackTraitIndex < NumSubStackTraits; ++SubStackTraitIndex)

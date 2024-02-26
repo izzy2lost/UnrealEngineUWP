@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 
-#include "TraitCore/TraitBinding.h"
 #include "TraitCore/TraitHandle.h"			// Derived types are likely to refer to other traits as children
 #include "TraitCore/TraitInstanceData.h"
 #include "TraitCore/TraitMode.h"
@@ -130,6 +129,7 @@ class FArchive;
 namespace UE::AnimNext
 {
 	struct FTrait;
+	struct FTraitBinding;
 	struct FTraitMemoryLayout;
 	class FTraitReader;
 	class FTraitWriter;

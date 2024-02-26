@@ -3,8 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "TraitCore/TraitBinding.h"
-#include "TraitCore/ExecutionContext.h"
 #include "TraitCore/LatentPropertyHandle.h"
 
 #include <type_traits>
@@ -37,7 +35,7 @@
 	} \
 
 #define ANIM_NEXT_IMPL_DEFINE_LATENT_GETTER(PropertyName) \
-	decltype(PropertyName) Get##PropertyName(const UE::AnimNext::FExecutionContext& Context, const UE::AnimNext::FTraitBinding& Binding) const \
+	decltype(PropertyName) Get##PropertyName(const UE::AnimNext::FTraitBinding& Binding) const \
 	{ \
 		/* We need a mapping of latent property name/offset to latent property index */ \
 		/* This can be built once at runtime using the UE reflection and cached on first call or using a constexpr function, see below */ \

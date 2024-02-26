@@ -88,7 +88,7 @@ namespace UE::AnimNext
 		}
 
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-		Context.GetInterface(Binding, DiscreteBlendTrait);
+		Binding.GetStackInterface(DiscreteBlendTrait);
 
 		const int32 DestinationChildIndex = DiscreteBlendTrait.GetBlendDestinationChildIndex(Context);
 
@@ -138,7 +138,7 @@ namespace UE::AnimNext
 		}
 
 		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
-		Context.GetInterface(Binding, DiscreteBlendTrait);
+		Binding.GetStackInterface(DiscreteBlendTrait);
 
 		for (int32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
 		{
@@ -158,10 +158,7 @@ namespace UE::AnimNext
 			return;	// No blend profile set, nothing to do
 		}
 
-		TTraitBinding<IHierarchy> HierarchyTrait;
-		Context.GetInterface(Binding, HierarchyTrait);
-
-		const uint32 NumChildren = HierarchyTrait.GetNumChildren(Context);
+		const uint32 NumChildren = IHierarchy::GetNumStackChildren(Context, Binding);
 
 		InstanceData->PerChildBlendData.SetNum(NumChildren);
 		InstanceData->PerBoneSampleData.SetNum(NumChildren);

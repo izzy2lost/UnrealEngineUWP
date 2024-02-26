@@ -21,7 +21,7 @@ namespace UE::AnimNext
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
 		TTraitBinding<IGroupSynchronization> GroupSyncTrait;
-		Context.GetInterface(Binding, GroupSyncTrait);
+		Binding.GetStackInterface(GroupSyncTrait);
 
 		const FName GroupName = GroupSyncTrait.GetGroupName(Context);
 		const bool bHasGroupName = !GroupName.IsNone();
@@ -66,7 +66,7 @@ namespace UE::AnimNext
 		InstanceData->bFreezeTimeline = false;
 
 		TTraitBinding<ITimeline> TimelineTrait;
-		Context.GetInterface(Binding, TimelineTrait);
+		Binding.GetStackInterface(TimelineTrait);
 
 		const float ProgressRatio = TimelineTrait.AdvanceBy(Context, DeltaTime);
 
@@ -83,7 +83,7 @@ namespace UE::AnimNext
 		InstanceData->bFreezeTimeline = false;
 
 		TTraitBinding<ITimeline> TimelineTrait;
-		Context.GetInterface(Binding, TimelineTrait);
+		Binding.GetStackInterface(TimelineTrait);
 
 		TimelineTrait.AdvanceToRatio(Context, ProgressRatio);
 

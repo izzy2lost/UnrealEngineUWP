@@ -31,6 +31,9 @@ namespace UE::AnimNext
 		ExecuteDefinition.Hash = 0;
 		ExecuteDefinition.MethodName = TEXT("Execute_0");
 
+		// Manually add our entry point since we didn't go through a full RigVM graph
+		Graph.EntryPoints.Reset();
+
 		FAnimNextGraphEntryPoint& EntryPoint = Graph.EntryPoints.AddDefaulted_GetRef();
 		EntryPoint.EntryPointName = FRigUnit_AnimNextGraphRoot::DefaultEntryPoint;
 		EntryPoint.RootTraitHandle = FAnimNextEntryPointHandle(NodeHandles[0]);

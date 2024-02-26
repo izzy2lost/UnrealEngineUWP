@@ -9,7 +9,7 @@ namespace UE::AnimNext
 	float ISmoothBlend::GetBlendTime(const FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
 	{
 		TTraitBinding<ISmoothBlend> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			return SuperBinding.GetBlendTime(Context, ChildIndex);
 		}

@@ -43,7 +43,7 @@ namespace UE::AnimNext
 	 * 
 	 * A trait that can blend two discrete inputs through a boolean.
 	 */
-	struct FBlendByBoolTrait : FBaseTrait, IUpdate, IHierarchy, IDiscreteBlend
+	struct FBlendByBoolTrait : FBaseTrait, IUpdate, IUpdateTraversal, IHierarchy, IDiscreteBlend
 	{
 		DECLARE_ANIM_TRAIT(FBlendByBoolTrait, 0x452572ff, FBaseTrait)
 
@@ -59,7 +59,9 @@ namespace UE::AnimNext
 
 		// IUpdate impl
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const override;
-		virtual void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const override;
+
+		// IUpdateTraversal impl
+		virtual void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const override;
 
 		// IHierarchy impl
 		virtual uint32 GetNumChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding) const override;

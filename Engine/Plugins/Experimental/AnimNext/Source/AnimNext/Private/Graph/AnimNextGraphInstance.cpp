@@ -161,7 +161,7 @@ void FAnimNextGraphInstance::Thaw()
 			UE::AnimNext::FExecutionContext Context(*this);
 			if(const FAnimNextTraitHandle* FoundHandle = GraphPtr->ResolvedRootTraitHandles.Find(EntryPoint))
 			{
-				GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakTraitPtr(), *FoundHandle);
+				GraphInstancePtr = Context.AllocateNodeInstance(*this, *FoundHandle);
 			}
 		}
 

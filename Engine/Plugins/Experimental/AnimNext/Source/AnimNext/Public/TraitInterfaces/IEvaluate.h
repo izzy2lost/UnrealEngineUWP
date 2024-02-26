@@ -3,8 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "TraitCore/ExecutionContextProxy.h"
+#include "TraitCore/ExecutionContext.h"
 #include "TraitCore/ITraitInterface.h"
+#include "TraitCore/TraitBinding.h"
 #include "EvaluationVM/EvaluationProgram.h"
 #include "EvaluationVM/KeyframeState.h"
 
@@ -15,7 +16,7 @@ namespace UE::AnimNext
 	 *
 	 * Contains all relevant transient data for an evaluate traversal and wraps the execution context.
 	 */
-	struct FEvaluateTraversalContext final : FExecutionContextProxy
+	struct FEvaluateTraversalContext final : FExecutionContext
 	{
 		// Appends a new task into the evaluation program, tasks mutate state in the order they have been appended in
 		// This means that child nodes need to evaluate first, tasks will usually be appended in IEvaluate::PostEvaluate
@@ -25,7 +26,7 @@ namespace UE::AnimNext
 		void AppendTask(TaskType&& Task) { EvaluationProgram.AppendTask(MoveTemp(Task)); }
 
 	private:
-		FEvaluateTraversalContext(const FExecutionContext& InExecutionContext, FEvaluationProgram& InEvaluationProgram);
+		explicit FEvaluateTraversalContext(FEvaluationProgram& InEvaluationProgram);
 
 		FEvaluationProgram& EvaluationProgram;
 

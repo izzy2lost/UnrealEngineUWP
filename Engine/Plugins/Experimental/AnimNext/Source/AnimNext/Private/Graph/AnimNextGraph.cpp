@@ -78,7 +78,7 @@ void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphIns
 
 	{
 		UE::AnimNext::FExecutionContext Context(Instance);
-		Instance.Impl->GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakTraitPtr(), ResolvedRootTraitHandle);
+		Instance.Impl->GraphInstancePtr = Context.AllocateNodeInstance(*Instance.Impl, ResolvedRootTraitHandle);
 	}
 
 	if (!Instance.IsValid())

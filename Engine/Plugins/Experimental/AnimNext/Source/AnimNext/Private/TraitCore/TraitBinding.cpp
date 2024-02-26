@@ -8,6 +8,6 @@ namespace UE::AnimNext
 {
 	FTraitInterfaceUID FTraitBinding::GetInterfaceUID() const
 	{
-		return Interface != nullptr ? Interface->GetInterfaceUID() : FTraitInterfaceUID();
+		return InterfaceThisOffset != -1 ? GetInterfaceTyped<ITraitInterface>()->GetInterfaceUID() : FTraitInterfaceUID();
 	}
 }

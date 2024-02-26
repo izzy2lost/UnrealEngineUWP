@@ -19,6 +19,7 @@ namespace UE::AnimNext
 
 	void FSyncGroupGraphInstanceComponent::PostUpdate(FExecutionContext& Context)
 	{
+		FTraitStackBinding TraitStack;
 		TTraitBinding<IGroupSynchronization> GroupSyncTrait;
 
 		// Now that we have discovered all groups and their memberships, we can perform synchronization
@@ -74,7 +75,8 @@ namespace UE::AnimNext
 				const FSyncGroupMember& GroupLeader = GroupState.Members[LeaderIndex];
 
 				Context.BindTo(GroupLeader.TraitPtr);
-				ensure(Context.GetInterface(GroupLeader.TraitPtr, GroupSyncTrait));
+				ensure(Context.GetStack(GroupLeader.TraitPtr, TraitStack));
+				ensure(TraitStack.GetInterface(GroupSyncTrait));
 
 				LeaderProgressRatio = GroupSyncTrait.AdvanceBy(Context, GroupLeader.TraitState.GetDeltaTime());
 			}
@@ -90,7 +92,8 @@ namespace UE::AnimNext
 				const FSyncGroupMember& GroupMember = GroupState.Members[MemberIndex];
 
 				Context.BindTo(GroupMember.TraitPtr);
-				ensure(Context.GetInterface(GroupMember.TraitPtr, GroupSyncTrait));
+				ensure(Context.GetStack(GroupMember.TraitPtr, TraitStack));
+				ensure(TraitStack.GetInterface(GroupSyncTrait));
 
 				GroupSyncTrait.AdvanceToRatio(Context, LeaderProgressRatio);
 			}

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "TraitCore/ITraitInterface.h"
+#include "TraitCore/TraitBinding.h"
 
 struct FAlphaBlend;
 

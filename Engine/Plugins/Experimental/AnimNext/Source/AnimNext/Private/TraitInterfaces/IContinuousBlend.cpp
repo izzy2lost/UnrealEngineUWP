@@ -9,7 +9,7 @@ namespace UE::AnimNext
 	float IContinuousBlend::GetBlendWeight(const FExecutionContext& Context, const TTraitBinding<IContinuousBlend>& Binding, int32 ChildIndex) const
 	{
 		TTraitBinding<IContinuousBlend> SuperBinding;
-		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
 		{
 			return SuperBinding.GetBlendWeight(Context, ChildIndex);
 		}

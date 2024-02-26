@@ -44,7 +44,7 @@ namespace UE::AnimNext
 	 * 
 	 * A trait that can blend two inputs.
 	 */
-	struct FBlendTwoWayTrait : FBaseTrait, IEvaluate, IUpdate, IHierarchy, IContinuousBlend
+	struct FBlendTwoWayTrait : FBaseTrait, IEvaluate, IUpdate, IUpdateTraversal, IHierarchy, IContinuousBlend
 	{
 		DECLARE_ANIM_TRAIT(FBlendTwoWayTrait, 0x62f40e2b, FBaseTrait)
 
@@ -61,7 +61,9 @@ namespace UE::AnimNext
 
 		// IUpdate impl
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const override;
-		virtual void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const override;
+
+		// IUpdateTraversal impl
+		virtual void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const override;
 
 		// IHierarchy impl
 		virtual uint32 GetNumChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding) const override;
