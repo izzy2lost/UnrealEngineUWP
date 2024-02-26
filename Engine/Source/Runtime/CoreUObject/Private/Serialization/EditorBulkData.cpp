@@ -264,6 +264,8 @@ static FIoHash HashPayload(const FSharedBuffer& InPayload)
 {
 	if (InPayload.GetSize() > 0)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(EditorBulkData.HashPayload);
+
 		return FIoHash::HashBuffer(InPayload);
 	}
 	else
