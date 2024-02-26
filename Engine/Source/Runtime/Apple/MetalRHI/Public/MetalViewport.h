@@ -78,10 +78,8 @@ public:
 	void Swap();
 	
 #if PLATFORM_VISIONOS
-    void BeginRenderingImmersive(cp_frame_t SwiftFrame);
-    void PresentImmersive(TRefCountPtr<FMetalSurface> CompleteFrame, const MetalRHIVisionOS::PresentImmersiveParams* Params);
-private:
-	void EndFrameImmersive();
+	void GetDrawableImmersiveTextures(EMetalViewportAccessFlag Accessor, cp_frame_t SwiftLayerFrame, MTL::Texture*& OutColorTexture, MTL::Texture*& OutDepthTexture );
+    void PresentImmersive(TRefCountPtr<FMetalSurface> CompleteFrame, const MetalRHIVisionOS::PresentImmersiveParams& Params);
 #endif
 	
 private:
@@ -90,7 +88,6 @@ private:
 private:
 #if PLATFORM_VISIONOS
 	CP_OBJECT_cp_layer_renderer* SwiftLayer = nullptr;
-	cp_frame_t SwiftLayerFrame = nullptr;
 #endif
 	
 	CA::MetalDrawable* Drawable;
