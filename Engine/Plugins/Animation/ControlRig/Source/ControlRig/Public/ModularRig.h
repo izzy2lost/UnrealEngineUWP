@@ -131,9 +131,11 @@ class CONTROLRIG_API UModularRig : public UControlRig
 	TArray<FRigModuleInstance> Modules;
 	TArray<FRigModuleInstance*> RootModules;
 
-	TArray<FName> SupportedEvents;
+	mutable TArray<FName> SupportedEvents;
 
 public:
+
+	virtual void PostInitProperties() override;
 
 	// BEGIN ControlRig
 	virtual void Serialize(FArchive& Ar) override;
@@ -147,8 +149,8 @@ public:
 	virtual void Evaluate_AnyThread() override;
 	virtual FRigElementKeyRedirector& GetElementKeyRedirector() override { return ElementKeyRedirector; }
 	virtual FRigElementKeyRedirector GetElementKeyRedirector() const override { return ElementKeyRedirector; }
-	virtual bool SupportsEvent(const FName& InEventName) const override { return SupportedEvents.Contains(InEventName); }
-	virtual const TArray<FName>& GetSupportedEvents() const override { return SupportedEvents; }
+	virtual bool SupportsEvent(const FName& InEventName) const override;
+	virtual const TArray<FName>& GetSupportedEvents() const override;
 	// END ControlRig
 
 	UPROPERTY()
@@ -177,7 +179,7 @@ public:
 	const FModularRigModel& GetModularRigModel() const;
 	void UpdateModuleHierarchyFromCDO();
 	void UpdateCachedChildren();
-	void UpdateSupportedEvents();
+	void UpdateSupportedEvents() const;
 
 	const FRigModuleInstance* FindModule(const FString& InPath) const;
 	const FRigModuleInstance* FindModule(const UControlRig* InModuleInstance) const;
