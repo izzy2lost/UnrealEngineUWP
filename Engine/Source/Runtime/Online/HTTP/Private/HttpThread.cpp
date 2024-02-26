@@ -5,6 +5,7 @@
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/RunnableThread.h"
+#include "HAL/IConsoleManager.h"
 #include "HttpManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CommandLine.h"
@@ -14,6 +15,13 @@
 #include "Http.h"
 #include "PlatformHttp.h"
 #include "Stats/Stats.h"
+
+TAutoConsoleVariable<int32> CVarHttpMaxConcurrentRequests(
+	TEXT("http.MaxConcurrentRequests"),
+	UE_HTTP_DEFAULT_MAX_CONCURRENT_REQUESTS,
+	TEXT("The max number of http requests to run in parallel"),
+	ECVF_SaveForNextBoot
+);
 
 DECLARE_STATS_GROUP(TEXT("HTTP Thread"), STATGROUP_HTTPThread, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("Process"), STAT_HTTPThread_Process, STATGROUP_HTTPThread);
@@ -48,7 +56,6 @@ FHttpThreadBase::FHttpThreadBase()
 	: Thread(nullptr)
 	, bIsSingleThread(false)
 	, bIsStopped(true)
-	, RunningThreadedRequestLimit(UE_HTTP_DEFAULT_MAX_CONCURRENT_REQUESTS)
 {
 }
 
@@ -141,25 +148,6 @@ bool FHttpThreadBase::NeedsSingleThreadTick() const
 
 void FHttpThreadBase::UpdateConfigs()
 {
-	int32 LocalRunningThreadedRequestLimit = -1;
-	const bool bFoundLocalRunningThreadedRequestLimit =
-	(
-#if WITH_EDITOR
-		GConfig->GetInt(TEXT("HTTP.HttpThread"), TEXT("RunningThreadedRequestLimitEditor"), LocalRunningThreadedRequestLimit, GEditorIni) ||
-#endif
-		GConfig->GetInt(TEXT("HTTP.HttpThread"), TEXT("RunningThreadedRequestLimit"), LocalRunningThreadedRequestLimit, GEngineIni)
-	);
-	if (bFoundLocalRunningThreadedRequestLimit)
-	{
-		if (LocalRunningThreadedRequestLimit < 1)
-		{
-			UE_LOG(LogHttp, Warning, TEXT("RunningThreadedRequestLimit must be configured as a number greater than 0. The configured value is %d. Ignored. The current value is still %d"), LocalRunningThreadedRequestLimit, RunningThreadedRequestLimit.load());
-		}
-		else
-		{
-			RunningThreadedRequestLimit = LocalRunningThreadedRequestLimit;
-		}
-	}
 }
 
 void FHttpThreadBase::HttpThreadTick(float DeltaSeconds)
@@ -174,11 +162,6 @@ bool FHttpThreadBase::StartThreadedRequest(IHttpThreadedRequest* Request)
 void FHttpThreadBase::CompleteThreadedRequest(IHttpThreadedRequest* Request)
 {
 	// empty
-}
-
-int32 FHttpThreadBase::GetRunningThreadedRequestLimit() const
-{
-	return RunningThreadedRequestLimit.load();
 }
 
 void FHttpThreadBase::Stop()
@@ -235,10 +218,10 @@ void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<IHttpThreadedRequest*>&
 	// Tick new requests separately from existing RunningThreadedRequests so they get a chance 
 	// to send unaffected by possibly large ElapsedTime above
 	int32 RunningThreadedRequestsCounter = RunningThreadedRequests.Num();
-	const int32 LocalRunningThreadedRequestLimit = GetRunningThreadedRequestLimit();
-	if (RunningThreadedRequestsCounter < LocalRunningThreadedRequestLimit)
+	const int32 MaxConcurrentRequests = CVarHttpMaxConcurrentRequests.GetValueOnAnyThread();
+	if (RunningThreadedRequestsCounter < MaxConcurrentRequests)
 	{
-		while(RunningThreadedRequestsCounter < LocalRunningThreadedRequestLimit && !RateLimitedThreadedRequests.IsEmpty())
+		while(RunningThreadedRequestsCounter < MaxConcurrentRequests && !RateLimitedThreadedRequests.IsEmpty())
 		{
 			SCOPE_CYCLE_COUNTER(STAT_HTTPThread_StartThreadedRequest);
 

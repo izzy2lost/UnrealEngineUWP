@@ -120,7 +120,6 @@ protected:
 	virtual void CompleteThreadedRequest(IHttpThreadedRequest* Request);
 
 protected:
-	int32 GetRunningThreadedRequestLimit() const;
 
 	// Threading functions
 
@@ -155,9 +154,6 @@ private:
 
 	/** Tells if the runnable thread is running or stopped */
 	bool bIsStopped;
-
-	/** Limit for threaded http requests running at the same time. If not specified through configuration values, there will be no limit */
-	std::atomic<int32> RunningThreadedRequestLimit;
 
 	/** Last time the thread has been processed. Used in the non-game thread. */
 	double LastTime;
