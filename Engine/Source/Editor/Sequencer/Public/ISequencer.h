@@ -740,6 +740,9 @@ public:
 	/** Whether the sequence is read-only */
 	virtual bool IsReadOnly() const = 0;
 
+	/** @return Whether or not this sequencer is used in the level editor */
+	virtual bool IsLevelEditorSequencer() const = 0;
+
 	/**
 	 * Create a widget containing the spinboxes for setting the working and playback range
 	 * 

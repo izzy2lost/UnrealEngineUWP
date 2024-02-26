@@ -518,7 +518,7 @@ public:
 	const FSequencerHostCapabilities& GetHostCapabilities() const { return HostCapabilities; }
 
 	/** @return Whether or not this sequencer is used in the level editor */
-	bool IsLevelEditorSequencer() const { return bIsEditingWithinLevelEditor; }
+	virtual bool IsLevelEditorSequencer() const override { return bIsEditingWithinLevelEditor; }
 
 	/** @return Whether to show the curve editor or not */
 	virtual void SetShowCurveEditor(bool bInShowCurveEditor) override;
