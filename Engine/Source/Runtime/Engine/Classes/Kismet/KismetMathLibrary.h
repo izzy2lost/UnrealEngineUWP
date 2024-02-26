@@ -177,6 +177,8 @@ struct FQuaternionSpringState
 	}
 };
 
+struct FRuntimeFloatCurve;
+
 UCLASS(meta=(BlueprintThreadSafe, ScriptName = "MathLibrary"), MinimalAPI)
 class UKismetMathLibrary : public UBlueprintFunctionLibrary
 {
@@ -872,6 +874,20 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	/** Interpolate between A and B, applying an ease in/out function.  Exp controls the degree of the curve. */
 	UFUNCTION(BlueprintPure, Category = "Math|Float")
 	static ENGINE_API double FInterpEaseInOut(double A, double B, double Alpha, double Exponent);
+
+	/**
+	* Evaluate this runtime float curve at the specified time 
+	* 
+	* @param Curve				The runtime float curve to evaluate
+	* @param InTime				The time at which to evaluate the curve
+	* @param InDefaultValue		The default value which should be used if the curve cannot be evaluated at the given time.
+	* 
+	* @return					The curve's value at the given time.
+	* 
+	* @see FRichCurve::Eval
+	*/
+	UFUNCTION(BlueprintPure, Category = "Math|Curves")
+	static ENGINE_API float GetRuntimeFloatCurveValue(const FRuntimeFloatCurve& Curve, const float InTime, const float InDefaultValue = 0.0f);
 
 	/**
 	* Simple function to create a pulsating scalar value

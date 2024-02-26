@@ -2,6 +2,7 @@
 
 #include "Kismet/KismetMathLibrary.h"
 #include "Engine/Engine.h"
+#include "Curves/CurveFloat.h"
 #include "DrawDebugHelpers.h"
 
 #include "Blueprint/BlueprintSupport.h"
@@ -350,6 +351,16 @@ double UKismetMathLibrary::MapRangeClamped(double Value, double InRangeA, double
 double UKismetMathLibrary::FInterpEaseInOut(double A, double B, double Alpha, double Exponent)
 {
 	return FMath::InterpEaseInOut<double>(A, B, Alpha, Exponent);
+}
+
+float UKismetMathLibrary::GetRuntimeFloatCurveValue(const FRuntimeFloatCurve& Curve, const float InTime, const float InDefaultValue /*= 0.0f*/)
+{
+	if (const FRichCurve* RichCurve = Curve.GetRichCurveConst())
+	{
+		return RichCurve->Eval(InTime, InDefaultValue);
+	}
+
+	return InDefaultValue;
 }
 
 float UKismetMathLibrary::MakePulsatingValue(float InCurrentTime, float InPulsesPerSecond, float InPhase)
