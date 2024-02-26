@@ -356,7 +356,7 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 	if (FEngineAnalytics::IsAvailable())
 	{
 		SessionStartTime = FDateTime::Now();
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.TextureGraph"), TEXT("SessionStarted"), OriginalTextureGraph.GetName());
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.TextureGraph.SessionStarted"));
 	}
 }
 
@@ -1567,8 +1567,7 @@ void FTG_Editor::OnClose()
 	if (FEngineAnalytics::IsAvailable())
 	{
 		TArray<FAnalyticsEventAttribute> Attributes;
-		Attributes.Add(FAnalyticsEventAttribute(TEXT("GraphName"), OriginalTextureGraph.GetName()));
-		Attributes.Add(FAnalyticsEventAttribute(TEXT("TimeActive"),  (FDateTime::Now() - SessionStartTime).ToString()));
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("TimeActive.Seconds"),  (FDateTime::Now() - SessionStartTime).GetTotalSeconds()));
 				
 		// Send Analytics event 
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.TextureGraph.SessionEnded"), Attributes);

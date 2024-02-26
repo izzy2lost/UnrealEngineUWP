@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TG_HelperFunctions.h"
+
+#include "EngineAnalytics.h"
 #include "Job/Scheduler.h"
 #include "TG_Texture.h"
 #include "TG_Graph.h"
@@ -102,8 +104,6 @@ AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FStrin
 	MixUpdateCyclePtr Cycle = Batch->GetCycle();
 	InTextureGraph->Update(Cycle);
 	
-	//auto SettingsSet = InTextureGraph->GetOutputSettingsSet();
-
 	InTextureGraph->Graph()->ForEachNodes([=,&TargetExportSettings](const UTG_Node* Node, uint32 Index)
 	{
 		UTG_Expression_Output* TargetExpression = Cast<UTG_Expression_Output>(Node->GetExpression());
@@ -162,9 +162,22 @@ AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FStrin
 	});
 
 	return RenderAsync(InTextureGraph, Batch)
-	.then([InTextureGraph, TargetExportSettings, ExportPath](auto result) 
+	.then([InTextureGraph, &TargetExportSettings, ExportPath](auto result) 
 	{
 		return TextureExporter::ExportAsUAsset(InTextureGraph, TargetExportSettings, ExportPath);
+	})
+	.then([InTextureGraph, &TargetExportSettings]()
+	{
+		// Add analytics tag
+		if (FEngineAnalytics::IsAvailable())
+		{
+			TArray<FAnalyticsEventAttribute> Attributes;
+			Attributes.Add(FAnalyticsEventAttribute(TEXT("NumExports"),  TargetExportSettings.MapsExported));
+					
+			// Send Analytics event 
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.TextureGraph.Export"), Attributes);
+		}
+		return cti::make_ready_continuable(true);
 	});
 }
 
