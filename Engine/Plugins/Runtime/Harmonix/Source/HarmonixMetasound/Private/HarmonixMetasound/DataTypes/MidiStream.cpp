@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
+
+#include "MetasoundDataTypeRegistrationMacro.h"
 #include "Algo/BinarySearch.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
-
-#include "MetasoundDataTypeRegistrationMacro.h"
 
 REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMidiStream, "MIDIStream")
 
@@ -14,29 +15,39 @@ namespace HarmonixMetasound
 
 	using namespace Metasound;
 
-	FMidiStream::FMidiStream(const FOperatorSettings& InSettings)
-		: NumFramesPerBlock(InSettings.GetNumFramesPerBlock())
-		, SampleRate(InSettings.GetSampleRate())
+	TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> FMidiStream::DummyClock{};
+	
+	FMidiStream::FMidiStream(const FOperatorSettings&)
 	{
-
+		// We have to create the dummy clock here because otherwise registration with the clock update subsystem fails when launching.
+		if (!DummyClock.IsValid())
+		{
+			DummyClock = MakeShared<FMidiClock, ESPMode::NotThreadSafe>(FOperatorSettings{ 48000, 100 });
+		}
+		
+		Clock = DummyClock;
 	}
+
+	void FMidiStream::SetClock(const FMidiClock& InClock)
+	{
+		Clock = InClock.AsWeak();
+	}
+
+	void FMidiStream::ResetClock()
+	{
+		Clock = DummyClock;
+	}
+
+	TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> FMidiStream::GetClock() const
+	{
+		const TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> ClockPtr = Clock.Pin();
+		return ClockPtr.IsValid() ? ClockPtr : DummyClock;
+	}
+
 
 	void FMidiStream::PrepareBlock()
 	{
-		TransportChangesInBlock.Empty(4);
 		EventsInBlock.Empty(32);
-	}
-
-	void FMidiStream::AddTransportStateChangeMessage(int32 SampleFrameIndexInBlock, EMusicPlayerTransportState State)
-	{
-		if (State == CurrentTransportState.TransportState)
-		{
-			return;
-		}
-		CurrentTransportState.BlockSampleFrameIndex = SampleFrameIndexInBlock;
-		CurrentTransportState.BlockSampleFrameIndex = 0.0f;
-		CurrentTransportState.TransportState        = State;
-		TransportChangesInBlock.Add(CurrentTransportState);
 	}
 
 	void FMidiStream::AddMidiEvent(const FMidiStreamEvent& Event)
@@ -101,282 +112,93 @@ namespace HarmonixMetasound
 		return &(*Repository)[TextIndex];
 	}
 
-	void FMidiStream::Copy(const TArray<FMidiStreamReadRef>& InStreams, bool EventsOnly)
+	void FMidiStream::Copy(const FMidiStream& From, FMidiStream& To, const FEventFilter& Filter, const FEventTransformer& Transformer)
 	{
-		if (!InStreams.Num())
+		// Copy the clock from the other stream
 		{
-			return;
-		}
-
-		if (InStreams.Num() == 1)
-		{
-			Copy(InStreams[0]);
-			return;
-		}
-
-		TArray<FMidiStreamReadRef> SameClockStreams;
-		FilterArrayToStreamsWithTheSameClock(InStreams, SameClockStreams);
-		if (!EventsOnly)
-		{
-			CopyTransportEvents(SameClockStreams);
-		}
-		CopyMidiEvents(SameClockStreams);
-	}
-
-	void FMidiStream::Copy(const FMidiStream& InStream, const FCopyMidiEventsPredicate& Predicate, bool IncludeTransportEvents)
-	{
-		if (IncludeTransportEvents)
-		{
-			CopyTransportEvents(InStream);
-		}
-
-		CopyMidiEvents(InStream, Predicate);
-	}
-
-	void FMidiStream::CopyTransportEvents(const FMidiStream& InStream)
-	{
-		const TArray<FMidiTimestampTransportState>& TransportChanges = InStream.GetTransportChangesInBlock();
-		TransportChangesInBlock.Empty(TransportChanges.Num());
-		for (const FMidiTimestampTransportState& Change : TransportChanges)
-		{
-			AddTransportStateChangeMessage(Change.BlockSampleFrameIndex, Change.TransportState);
-		}
-	}
-
-	void FMidiStream::CopyMidiEvents(const FMidiStream& InStream, const FCopyMidiEventsPredicate& Predicate)
-	{
-		const TArray<FMidiStreamEvent>& MidiEvents = InStream.GetEventsInBlock();
-		if (!ensureAlwaysMsgf(EventsInBlock.Num()==0, TEXT("Existing MIDI events in MIDI stream are being destroyed during copy!")))
-		{
-			EventsInBlock.Empty(FMath::Max(MidiEvents.Num(), 32));
-			ActiveVoices.Reset();
-		}
-		for (const FMidiStreamEvent& Event : MidiEvents)
-		{
-			if (Predicate(Event))
+			const TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> FromClock = From.GetClock();
+			
+			if (!ensure(FromClock.IsValid()))
 			{
-				AddMidiEvent(Event);
-			}
-		}
-	}
-
-	void FMidiStream::Copy(FMidiStreamReadRef InStream, bool EventsOnly)
-	{
-		if (GetMidiClockSource() && GetMidiClockSource()->Get() != InStream->GetMidiClockSource()->Get())
-		{
-			UE_LOG(LogMidiStreamDataType, Warning, TEXT("Cannot copy MIDI events from one stream to another if they have different clocks."));
-			return;
-		}
-		if (EventsOnly)
-		{
-			CopyTransportEvents(InStream);
-		}
-		CopyMidiEvents(InStream);
-	}
-
-	void FMidiStream::FilterArrayToStreamsWithTheSameClock(const TArray<FMidiStreamReadRef>& InStreams, TArray<FMidiStreamReadRef>& OutStreams)
-	{
-		// This has no clock so pass all events
-		if (!GetMidiClockSource())
-		{
-			OutStreams.Append(InStreams);
-			return;
-		}
-
-		for (const FMidiStreamReadRef& Stream : InStreams)
-		{
-			// Allow the copy if the stream matches or the stream has no clock
-			// Streams with no clock are ok because they won't conflict with our clock
-			// And chances are, that stream has no events
-			if (!Stream->GetMidiClockSource() || Stream->GetMidiClockSource()->Get() == GetMidiClockSource()->Get())
-			{
-				OutStreams.Add(Stream);
-			}
-			else
-			{
-				UE_LOG(LogMidiStreamDataType, Warning, TEXT("Cannot copy MIDI events from one stream to another if they have different clocks."));
-			}
-		}
-	}
-
-	void FMidiStream::CopyTransportEvents(const TArray<FMidiStreamReadRef>& InStreams)
-	{
-		TransportChangesInBlock.Empty(4);
-
-		using TransportIterator = TArray<FMidiTimestampTransportState>::RangedForConstIteratorType;
-
-		int32 NumInStreams = InStreams.Num();
-		TArray<TransportIterator> WalkingIterators;
-		WalkingIterators.Reserve(NumInStreams);
-		TArray<TransportIterator> IteratorEnds;
-		IteratorEnds.Reserve(NumInStreams);
-
-		for (int32 i = 0; i < NumInStreams; ++i)
-		{
-			WalkingIterators.Add(InStreams[i]->GetTransportChangesInBlock().begin());
-			IteratorEnds.Add(InStreams[i]->GetTransportChangesInBlock().end());
-		}
-
-		while(1)
-		{
-			int32 StreamWithEarliestEvent = -1;
-			int32 EarliestBlockSampleFrameIndex = MAX_int32;
-
-			for (int32 IteratorIndex = 0; IteratorIndex < NumInStreams; ++IteratorIndex)
-			{
-				if (WalkingIterators[IteratorIndex] != IteratorEnds[IteratorIndex])
-				{
-					if ((*WalkingIterators[IteratorIndex]).BlockSampleFrameIndex < EarliestBlockSampleFrameIndex)
-					{
-						EarliestBlockSampleFrameIndex = (*WalkingIterators[IteratorIndex]).BlockSampleFrameIndex;
-						StreamWithEarliestEvent = IteratorIndex;
-					}
-				}
+				return;
 			}
 
-			// done?
-			if (StreamWithEarliestEvent == -1)
-			{
-				break;
-			}
-
-			AddTransportStateChangeMessage((*WalkingIterators[StreamWithEarliestEvent]).BlockSampleFrameIndex, (*WalkingIterators[StreamWithEarliestEvent]).TransportState);
-
-			++WalkingIterators[StreamWithEarliestEvent];
+			To.SetClock(*FromClock);
 		}
-	}
 
-	void FMidiStream::CopyTransportEvents(const FMidiStreamReadRef& InStream)
-	{
-		CopyTransportEvents(*InStream);
-	}
-
-	void FMidiStream::CopyMidiEvents(const TArray<FMidiStreamReadRef>& InStreams)
-	{
-		using MidiStreamIterator = TArray<FMidiStreamEvent>::RangedForConstIteratorType;
+		// Reset the target
+		To.EventsInBlock.Reset();
+		To.ActiveVoices.Reset();
 		
-		int32 NumInStreams = InStreams.Num();
-		TArray<MidiStreamIterator> WalkingIterators;
-		WalkingIterators.Reserve(NumInStreams);
-		TArray<MidiStreamIterator> IteratorEnds;
-		IteratorEnds.Reserve(NumInStreams);
-
-		int32 NumTotalEvents = 0;
-		for (int32 i = 0; i < NumInStreams; ++i)
+		// Copy the events
+		for (const FMidiStreamEvent& Event : From.GetEventsInBlock())
 		{
-			WalkingIterators.Add(InStreams[i]->GetEventsInBlock().begin());
-			IteratorEnds.Add(InStreams[i]->GetEventsInBlock().end());
-			NumTotalEvents += InStreams[i]->GetEventsInBlock().Num();
-
-			// Ensure that the active voices from the source streams are in this stream
-			ActiveVoices.Append(InStreams[i]->ActiveVoices);
-		}
-
-		EventsInBlock.Empty(FMath::Max(32, NumTotalEvents));
-
-		while (1)
-		{
-			int32 StreamWithEarliestEvent = -1;
-			int32 EarliestBlockSampleIndex = MAX_int32;
-
-			for (int32 IteratorIndex = 0; IteratorIndex < NumInStreams; ++IteratorIndex)
+			if (Filter(Event))
 			{
-				if (WalkingIterators[IteratorIndex] != IteratorEnds[IteratorIndex])
-				{
-					if ((*WalkingIterators[IteratorIndex]).BlockSampleFrameIndex == EarliestBlockSampleIndex)
-					{
-						if ((*WalkingIterators[StreamWithEarliestEvent]).MidiMessage.IsNoteOn() && (*WalkingIterators[IteratorIndex]).MidiMessage.IsNoteOff())
-						{
-							StreamWithEarliestEvent = IteratorIndex;
-						}
-					}
-					else if ((*WalkingIterators[IteratorIndex]).BlockSampleFrameIndex < EarliestBlockSampleIndex)
-					{
-						EarliestBlockSampleIndex = (*WalkingIterators[IteratorIndex]).BlockSampleFrameIndex;
-						StreamWithEarliestEvent = IteratorIndex;
-					}
-				}
+				To.AddMidiEvent(Transformer(Event));
 			}
-
-			// done?
-			if (StreamWithEarliestEvent == -1)
-			{
-				break;
-			}
-
-			AddMidiEvent(*WalkingIterators[StreamWithEarliestEvent]);
-			++WalkingIterators[StreamWithEarliestEvent];
 		}
 	}
 
-	void FMidiStream::MergeMidiEvents(const TArray<FMidiStreamReadRef>& InStreams)
+	void FMidiStream::Merge(const FMidiStream& From, FMidiStream& To, const FEventFilter& Filter, const FEventTransformer& Transformer)
 	{
-		using MidiStreamIterator = TArray<FMidiStreamEvent>::RangedForConstIteratorType;
-
-		int32 NumInStreams = InStreams.Num();
-		TArray<MidiStreamIterator> WalkingIterators;
-		WalkingIterators.Reserve(NumInStreams);
-		TArray<MidiStreamIterator> IteratorEnds;
-		IteratorEnds.Reserve(NumInStreams);
-
-		int32 NumTotalEvents = 0;
-		for (int32 i = 0; i < NumInStreams; ++i)
+		// We need to make sure that the clocks match, or that one of them is using the dummy clock.
+		// Otherwise a merge is invalid.
 		{
-			WalkingIterators.Add(InStreams[i]->GetEventsInBlock().begin());
-			IteratorEnds.Add(InStreams[i]->GetEventsInBlock().end());
-			NumTotalEvents += InStreams[i]->GetEventsInBlock().Num();
-		}
+			const auto FromClock = From.GetClock();
+			const auto ToClock = To.GetClock();
 
-		EventsInBlock.Reserve(FMath::Max(32, NumTotalEvents + EventsInBlock.Num()));
-
-		while (1)
-		{
-			int32 StreamWithEarliestEvent = -1;
-			int32 EarliestBlockSampleIndex = MAX_int32;
-
-			for (int32 IteratorIndex = 0; IteratorIndex < NumInStreams; ++IteratorIndex)
+			// We shouldn't get a null clock at any time
+			if (!ensure(FromClock.IsValid()) || !ensure(ToClock.IsValid()))
 			{
-				if (WalkingIterators[IteratorIndex] != IteratorEnds[IteratorIndex])
-				{
-					if ((*WalkingIterators[IteratorIndex]).BlockSampleFrameIndex < EarliestBlockSampleIndex)
-					{
-						EarliestBlockSampleIndex = (*WalkingIterators[IteratorIndex]).BlockSampleFrameIndex;
-						StreamWithEarliestEvent = IteratorIndex;
-					}
-				}
+				return;
+			}
+			
+			const bool FromClockIsDummy = FromClock.Get() == DummyClock.Get();
+			const bool ToClockIsDummy = ToClock.Get() == DummyClock.Get();
+			const bool ClocksAreSame = FromClock.Get() == ToClock.Get();
+			
+			if (!ClocksAreSame && !FromClockIsDummy && !ToClockIsDummy)
+			{
+				return;
 			}
 
-			// done?
-			if (StreamWithEarliestEvent == -1)
+			// If the "to" clock is the dummy, and the "from" clock isn't, overwrite the "to" clock
+			if (FromClockIsDummy && !ToClockIsDummy)
 			{
-				break;
+				To.SetClock(*FromClock);
 			}
+		}
 
-			InsertMidiEvent(*WalkingIterators[StreamWithEarliestEvent]);
-			++WalkingIterators[StreamWithEarliestEvent];
+		// Insert the events
+		for (const FMidiStreamEvent& Event : From.GetEventsInBlock())
+		{
+			if (Filter(Event))
+			{
+				To.InsertMidiEvent(Transformer(Event));
+			}
 		}
 	}
-
-	void FMidiStream::CopyMidiEvents(const FMidiStreamReadRef& InStream)
+	
+	void FMidiStream::Merge(
+		const FMidiStream& FromA,
+		const FMidiStream& FromB,
+		FMidiStream& To,
+		const FEventFilter& Filter,
+		const FEventTransformer& Transformer)
 	{
-		const TArray<FMidiStreamEvent>& MidiEvents = InStream->GetEventsInBlock();
-		EventsInBlock.Empty(FMath::Max(MidiEvents.Num(), 32));
-		// Ensure that the active voices from the source match this stream
-		ActiveVoices = InStream->ActiveVoices;
-		for (auto& Event : MidiEvents)
-		{
-			AddMidiEvent(Event);
-		}
-	}
+		// Merge in stream A
+		Merge(FromA, To, Filter, Transformer);
 
-	void FMidiStream::MergeMidiEvents(const FMidiStreamReadRef& InStream)
-	{
-		const TArray<FMidiStreamEvent>& NewMidiEvents = InStream->GetEventsInBlock();
-		EventsInBlock.Reserve(FMath::Max(32, EventsInBlock.Num() + NewMidiEvents.Num()));
-		for (auto& Event : NewMidiEvents)
+		// Merge in stream B and re-map the voice ids
+		const auto RemapTransform = [&To, &Transformer](const FMidiStreamEvent& Event)
 		{
-			InsertMidiEvent(Event);
-		}
+			FMidiStreamEvent TransformedEvent = Transformer(Event);
+			const auto GeneratorId = TransformedEvent.GetVoiceId().GetGeneratorId();
+			TransformedEvent.ReassignOwner(&To.GeneratorMap.FindOrAdd(GeneratorId));
+			return TransformedEvent;
+		};
+		Merge(FromB, To, Filter, RemapTransform);
 	}
 
 	void FMidiStream::UpdateActiveVoice(const FMidiStreamEvent& Event)

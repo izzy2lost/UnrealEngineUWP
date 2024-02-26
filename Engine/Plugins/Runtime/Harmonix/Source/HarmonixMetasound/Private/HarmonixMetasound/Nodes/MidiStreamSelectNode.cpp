@@ -210,31 +210,30 @@ namespace HarmonixMetasound
 
 	void FMidiStreamSelectOperator::CopyFromSelectedStream(int32 SelectedStreamIndex)
 	{
-		FMidiStreamReadRef SourceStream = SelectedStreamIndex == 0 ? MidiStreamAInPin : MidiStreamBInPin;
+		const FMidiStreamReadRef SourceStream = SelectedStreamIndex == 0 ? MidiStreamAInPin : MidiStreamBInPin;
 
 		// Copy, but keep track of 'note-on' messages so we can appropriately send 'note-off' messages later...
-		MidiStreamOutPin->Copy(SourceStream,
-			[&](const FMidiStreamEvent& MidiEvent)
+		FMidiStream::Copy(
+			*SourceStream,
+			*MidiStreamOutPin,
+			[this](const FMidiStreamEvent& Event)
 			{
-				if (MidiEvent.MidiMessage.IsStd())
+				if (Event.MidiMessage.IsNoteOn())
 				{
-					if (MidiEvent.MidiMessage.IsNoteOn())
-					{
-						PlayingVoices.Add(MidiEvent.GetVoiceId());
-					}
-					else
-					{
-						PlayingVoices.Remove(MidiEvent.GetVoiceId());
-					}
+					PlayingVoices.Add(Event.GetVoiceId());
 				}
+				else if (Event.MidiMessage.IsNoteOff())
+				{
+					PlayingVoices.Remove(Event.GetVoiceId());
+				}
+				
 				return true;
-			},
-			true);
+			});
 	}
 
 	void FMidiStreamSelectOperator::MergeOrCreateNoteOffsForDeselectedStream(int32 SelectedStreamIndex)
 	{
-		FMidiStreamReadRef InActiveStream = SelectedStreamIndex == 0 ? MidiStreamBInPin : MidiStreamAInPin;
+		FMidiStreamReadRef InactiveStream = SelectedStreamIndex == 0 ? MidiStreamBInPin : MidiStreamAInPin;
 
 		if (*ImmediateNoteOffInPin)
 		{
@@ -260,13 +259,17 @@ namespace HarmonixMetasound
 		else if (*CopyInactiveNoteOffsInPin)
 		{
 			// Merge note offs from inactive midi stream
-			MidiStreamOutPin->MergeMidiEvents(InActiveStream, [&](const FMidiStreamEvent& MidiEvent)
+			FMidiStream::Merge(
+				*InactiveStream,
+				*MidiStreamOutPin,
+				[this](const FMidiStreamEvent& Event)
 				{
-					if (MidiEvent.MidiMessage.IsStd() && MidiEvent.MidiMessage.IsNoteOff() && PlayingVoices.Contains(MidiEvent.GetVoiceId()))
+					if (Event.MidiMessage.IsNoteOff() && PlayingVoices.Contains(Event.GetVoiceId()))
 					{
-						PlayingVoices.Remove(MidiEvent.GetVoiceId());
+						PlayingVoices.Remove(Event.GetVoiceId());
 						return true;
 					}
+
 					return false;
 				});
 		}
@@ -278,16 +281,7 @@ namespace HarmonixMetasound
 		PlayingVoices.Empty();
 
 		MidiStreamOutPin->PrepareBlock();
-		
-		if (MidiStreamAInPin.Get() && MidiStreamAInPin->GetMidiClockSource())
-		{
-			MidiStreamOutPin->SetClockSource(*(MidiStreamAInPin->GetMidiClockSource()));
-		}
-		else if (MidiStreamBInPin.Get() && MidiStreamBInPin->GetMidiClockSource())
-		{
-			// Try the B stream if the A stream isn't hooked up
-			MidiStreamOutPin->SetClockSource(*(MidiStreamBInPin->GetMidiClockSource()));
-		}
+		MidiStreamOutPin->ResetClock();
 	}
 }
 

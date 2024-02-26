@@ -143,33 +143,19 @@ namespace HarmonixMetasound::Nodes::MidiTrackFilter
 			InVertexData.BindReadVertex(Inputs::MinTrackIndexName, Inputs.MinTrackIndex);
 			InVertexData.BindReadVertex(Inputs::MaxTrackIndexName, Inputs.MaxTrackIndex);
 			InVertexData.BindReadVertex(Inputs::IncludeConductorTrackName, Inputs.IncludeConductorTrack);
-
-			ReassignOutputClock = true;
 		}
 
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override
 		{
 			InVertexData.BindReadVertex(Outputs::MidiStreamName, Outputs.MidiStream);
-			
-			ReassignOutputClock = true;
 		}
 
-		void Reset(const FResetParams& ResetParams)
+		void Reset(const FResetParams&)
 		{
-			ReassignOutputClock = true;
 		}
 
 		void Execute()
 		{
-			if (ReassignOutputClock)
-			{
-				if (auto* Clock = Inputs.MidiStream->GetMidiClockSource())
-				{
-					Outputs.MidiStream->SetClockSource(*Clock);
-				}
-				ReassignOutputClock = false;
-			}
-
 			Filter.SetTrackRange(*Inputs.MinTrackIndex, *Inputs.MaxTrackIndex, *Inputs.IncludeConductorTrack);
 
 			Outputs.MidiStream->PrepareBlock();
@@ -183,7 +169,6 @@ namespace HarmonixMetasound::Nodes::MidiTrackFilter
 		FInputs Inputs;
 		FOutputs Outputs;
 		Harmonix::Midi::Ops::FMidiTrackFilter Filter;
-		bool ReassignOutputClock = true;
 	};
 
 	class FMidiStreamTrackFilterNode_V1 final : public FNodeFacade

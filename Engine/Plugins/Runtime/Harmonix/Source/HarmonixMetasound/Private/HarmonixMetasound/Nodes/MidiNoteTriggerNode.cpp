@@ -153,15 +153,13 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 				return;
 			}
 
-			const TArray<FMidiTimestampTransportState> TransportChanges = MidiStreamInPin->GetTransportChangesInBlock();
-			if (!TransportChanges.IsEmpty())
+			// Note off if the transport has stopped and we have a sounding note
+			if (SoundingNote >= 0)
 			{
-				if (TransportChanges.Last().TransportState != EMusicPlayerTransportState::Playing)
+				const TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> Clock = MidiStreamInPin->GetClock();
+				if (Clock.IsValid() && Clock->GetTransportStateAtEndOfBlock() != EMusicPlayerTransportState::Playing)
 				{
-					if (SoundingNote >= 0)
-					{
-						TriggerNoteOff(0, SoundingNote);
-					}
+					TriggerNoteOff(0, SoundingNote);
 					return;
 				}
 			}

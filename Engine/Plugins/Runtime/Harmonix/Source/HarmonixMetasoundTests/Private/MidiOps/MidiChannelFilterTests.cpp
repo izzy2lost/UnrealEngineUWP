@@ -51,7 +51,6 @@ namespace Harmonix::Midi::Ops::Tests
 		HarmonixMetasound::FMidiStream OutputStream{ OperatorSettings };
 
 		// Add some events to the input stream
-		InputStream.AddTransportStateChangeMessage(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 		constexpr uint8 NoteChannelIdx = 1;
 		constexpr uint8 NoteNumber = 76;
 		constexpr uint8 NoteVelocity = 67;
@@ -64,7 +63,6 @@ namespace Harmonix::Midi::Ops::Tests
 
 		// Default: only transport events pass
 		Filter.Process(InputStream, OutputStream);
-		UTEST_EQUAL("Got transport events", OutputStream.GetTransportChangesInBlock().Num(), 1);
 		UTEST_EQUAL("No MIDI events", OutputStream.GetEventsInBlock().Num(), 0);
 
 		// Channel mismatch: no MIDI events pass, transport state hasn't changed, so we won't get another one of those

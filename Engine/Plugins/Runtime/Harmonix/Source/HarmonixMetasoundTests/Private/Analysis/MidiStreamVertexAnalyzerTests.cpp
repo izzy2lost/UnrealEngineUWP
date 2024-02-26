@@ -105,7 +105,7 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 		UTEST_TRUE("MIDI input is valid", MidiIn.IsSet());
 		constexpr float Tempo = 87;
 		HarmonixMetasound::FMidiClockWriteRef Clock = HarmonixMetasound::FMidiClockWriteRef::CreateNew(Generator->OperatorSettings);
-		(*MidiIn)->SetClockSource(Clock);
+		(*MidiIn)->SetClock(*Clock);
 		
 		bool CallbackSuccess = false;
 

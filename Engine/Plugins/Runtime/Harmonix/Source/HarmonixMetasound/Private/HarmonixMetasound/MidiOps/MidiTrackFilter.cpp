@@ -25,10 +25,7 @@ namespace Harmonix::Midi::Ops
 		};
 		
 		// Copy events which pass the filter to the output
-		OutStream.Copy(
-			InStream,
-			Filter,
-			true /* include transport events */);
+		HarmonixMetasound::FMidiStream::Copy(InStream, OutStream, Filter);
 
 		// Unstick notes if necessary
 		StuckNoteGuard.Process(InStream, OutStream, Filter);

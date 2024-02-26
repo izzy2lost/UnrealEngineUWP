@@ -613,7 +613,7 @@ namespace HarmonixMetasound
 		auto MidiEventIterator = MidiEvents.begin();
 
 		// create an iterator for the midi clock 
-		const FMidiClockReadRef* MidiClock = MidiStreamInPin->GetMidiClockSource();
+		const TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> MidiClock = MidiStreamInPin->GetClock();
 		
 		while (FramesRequired > 0)
 		{
@@ -649,13 +649,13 @@ namespace HarmonixMetasound
 				}
 			}
 
-			if (MidiClock)
+			if (MidiClock.IsValid())
 			{
-				float ClockSpeed = (*MidiClock)->GetSpeedAtBlockSampleFrame(CurrentBlockFrameIndex);
+				const float ClockSpeed = MidiClock->GetSpeedAtBlockSampleFrame(CurrentBlockFrameIndex);
 				SetSpeed(ClockSpeed, !(*ClockSpeedAffectsPitchInPin));
-				float ClockTempo = (*MidiClock)->GetTempoAtBlockSampleFrame(CurrentBlockFrameIndex);
+				const float ClockTempo = MidiClock->GetTempoAtBlockSampleFrame(CurrentBlockFrameIndex);
 				SetTempo(ClockTempo);
-				float Beat = (*MidiClock)->GetQuarterNoteIncludingCountIn();
+				const float Beat = MidiClock->GetQuarterNoteIncludingCountIn();
 				SetBeat(Beat);
 			}
 
