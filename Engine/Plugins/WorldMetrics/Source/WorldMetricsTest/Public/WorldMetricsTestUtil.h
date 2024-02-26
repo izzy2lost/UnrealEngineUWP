@@ -5,13 +5,16 @@
 #include "Containers/Array.h"
 
 #ifndef REQUIRE_MESSAGE
+
+#include "WorldMetricsLog.h"
+
 #define REQUIRE_MESSAGE(Message, Expr)           \
 	if (!(Expr))                                 \
 	{                                            \
 		UE_LOG(LogWorldMetrics, Error, Message); \
 		return;                                  \
 	}
-#endif
+#endif // REQUIRE_MESSAGE
 
 namespace UE::WorldMetrics
 {
