@@ -23,7 +23,6 @@ public:
 	// implementation friends
 	friend class FAppleHttpResponse;
 
-
 	//~ Begin IHttpBase Interface
 	virtual FString GetURL() const override;
 	virtual FString GetHeader(const FString& HeaderName) const override;
@@ -42,7 +41,6 @@ public:
 	virtual void SetContentAsString(const FString& ContentString) override;
     virtual bool SetContentAsStreamedFile(const FString& Filename) override;
 	virtual bool SetContentFromStream(TSharedRef<FArchive, ESPMode::ThreadSafe> Stream) override;
-	virtual bool SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream) override;
 	virtual void SetHeader(const FString& HeaderName, const FString& HeaderValue) override;
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
 	virtual bool ProcessRequest() override;
@@ -74,11 +72,12 @@ PACKAGE_SCOPE:
 	using FHttpRequestCommon::ResetActivityTimeoutTimer;
 	using FHttpRequestCommon::StopActivityTimeoutTimer;
 
-	const TSharedPtr<FArchive> GetResponseBodyReceiveStream() const;
-
 PACKAGE_SCOPE:
 	using FHttpRequestCommon::TriggerStatusCodeReceivedDelegate;
 	using FHttpRequestCommon::SetEffectiveURL;
+	using FHttpRequestCommon::PassReceivedDataToStream;
+
+	bool IsInitializedWithValidStream() const;
 
 private:
 	/**
@@ -104,8 +103,8 @@ private:
 	/** This is the NSMutableURLRequest, all our Apple functionality will deal with this. */
 	NSMutableURLRequest* Request;
 
-    /** This is the session our request belongs to */
-    NSURLSession* Session;
+	/** This is the session our request belongs to */
+	NSURLSession* Session;
 	
 	/** This is the Task associated to the sessionin charge of our request */
 	NSURLSessionTask* Task;
@@ -118,9 +117,6 @@ private:
 
 	/** Array used to retrieve back content set on the ObjC request when calling GetContent*/
 	mutable TArray<uint8> StorageForGetContent;
-
-	/** The stream to receive response body */
-	TSharedPtr<FArchive> ResponseBodyReceiveStream;
 
 	/** Time taken to complete/cancel the request. */
 	float ElapsedTime;

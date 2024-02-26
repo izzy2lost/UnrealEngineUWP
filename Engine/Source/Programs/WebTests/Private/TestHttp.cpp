@@ -136,7 +136,7 @@ public:
 	FHttpTestLogLevelInitializer HttpTestLogLevelInitializer;
 };
 
-TEST_CASE_METHOD(FHttpModuleTestFixture, "Shutdown http module without issue when there are ongoing http requests.", HTTP_TAG)
+TEST_CASE_METHOD(FHttpModuleTestFixture, "Shutdown http module without issue when there are ongoing upload http requests.", HTTP_TAG)
 {
 	DisableWarningsInThisTest();
 
@@ -542,6 +542,101 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_
 	}
 
 	HttpRequest->ProcessRequest();
+}
+
+// This user streaming class is supposed to be used to receive streaming data through function OnReceivedData 
+// and it's not supposed to be called once destroyed
+class FUserStreamingClass
+{
+public:
+	FUserStreamingClass()
+		: TotalBytesReceived(new int64(0))
+	{
+	}
+
+	~FUserStreamingClass()
+	{
+		delete TotalBytesReceived;
+		TotalBytesReceived = nullptr;
+	}
+
+	bool OnReceivedData(void* Ptr, int64 Length)
+	{
+		*TotalBytesReceived += Length;
+		return true;
+	}
+
+	int64* TotalBytesReceived;
+};
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "In streaming downloading http request won't trigger response body receive delegate after canceling", HTTP_TAG)
+{
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlStreamDownload(30, 1024*1024));
+
+	TSharedPtr<FUserStreamingClass> UserInstance = MakeShared<FUserStreamingClass>();
+
+	FHttpRequestStreamDelegate Delegate;
+	Delegate.BindThreadSafeSP(UserInstance.ToSharedRef(), &FUserStreamingClass::OnReceivedData);
+	CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(!bSucceeded);
+		CHECK(HttpResponse != nullptr);
+	});
+	HttpRequest->ProcessRequest();
+
+	while (*UserInstance->TotalBytesReceived == 0) // Make sure it started receiving data
+	{
+		FPlatformProcess::Sleep(0.001f);
+	}
+	CHECK(*UserInstance->TotalBytesReceived < 60 * 1024 * 1024);
+	CHECK(UserInstance.GetSharedReferenceCount() == 1);
+	HttpRequest->CancelRequest();
+	UserInstance.Reset();
+}
+
+class FInvalidateDelegateShutdownFixture : public FHttpModuleTestFixture
+{
+public:
+	FInvalidateDelegateShutdownFixture()
+	{
+		UserStreamingInstance = new FUserStreamingClass;
+	}
+
+	~FInvalidateDelegateShutdownFixture()
+	{
+		delete UserStreamingInstance;
+		UserStreamingInstance = nullptr;
+	}
+
+	FUserStreamingClass* UserStreamingInstance;
+};
+
+TEST_CASE_METHOD(FInvalidateDelegateShutdownFixture, "Shutdown http module without issue when there are ongoing download http requests", HTTP_TAG)
+{
+	DisableWarningsInThisTest();
+
+	for (int32 i = 0; i < 10; ++i)
+	{
+		TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
+		HttpRequest->SetURL(UrlStreamDownload(10, 1024*1024));
+		FHttpRequestStreamDelegate Delegate;
+		Delegate.BindRaw(UserStreamingInstance, &FUserStreamingClass::OnReceivedData);
+		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
+
+		HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			CHECK(bSucceeded);
+		});
+		HttpRequest->ProcessRequest();
+	}
+
+	while (*UserStreamingInstance->TotalBytesReceived == 0) // Make sure it started receiving data
+	{
+		FPlatformProcess::Sleep(0.001f);
+	}
+
+	HttpModule->GetHttpManager().Tick(0.1f);
 }
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can run parallel stream download requests", HTTP_TAG)

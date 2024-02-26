@@ -219,6 +219,8 @@ void FHttpRequestCommon::CancelRequest()
 
 	StopActivityTimeoutTimer();
 
+	StopPassingReceivedData();
+
 	bCanceled = true;
 	UE_LOG(LogHttp, Verbose, TEXT("HTTP request canceled. URL=%s"), *GetURL());
 
@@ -402,6 +404,7 @@ void FHttpRequestCommon::Shutdown()
 {
 	FHttpRequestImpl::Shutdown();
 
+	StopPassingReceivedData();
 	StopActivityTimeoutTimer();
 	StopTotalTimeoutTimer();
 }
@@ -444,4 +447,34 @@ void FHttpRequestCommon::SetEffectiveURL(const FString& InEffectiveURL)
 	{
 		ResponseCommon->SetEffectiveURL(EffectiveURL);
 	}
+}
+
+bool FHttpRequestCommon::SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream)
+{
+	const FScopeLock StreamLock(&ResponseBodyReceiveStreamCriticalSection);
+
+	ResponseBodyReceiveStream = Stream;
+	bInitializedWithValidStream = true;
+	return true;
+}
+
+bool FHttpRequestCommon::PassReceivedDataToStream(void* Ptr, int64 Length)
+{
+	const FScopeLock StreamLock(&ResponseBodyReceiveStreamCriticalSection);
+
+	if (!ResponseBodyReceiveStream)
+	{
+		return false;
+	}
+
+	ResponseBodyReceiveStream->Serialize(Ptr, Length);
+
+	return !ResponseBodyReceiveStream->GetError();
+}
+
+void FHttpRequestCommon::StopPassingReceivedData()
+{
+	const FScopeLock StreamLock(&ResponseBodyReceiveStreamCriticalSection);
+
+	ResponseBodyReceiveStream = nullptr;
 }

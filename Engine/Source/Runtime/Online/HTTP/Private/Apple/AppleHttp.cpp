@@ -18,21 +18,14 @@
 {
 	/** Holds the payload as we receive it. */
 	@public TArray<uint8> Payload;
-	
-	/** This stream is shared between the request and the delegate. This field is accessed through a thread out of out control 
-	 * from the delegates methods and through mehthods in FAppleHttpRequest. Once we cancel or have an error this can 
-	 * is nullified as soon as possible to avoid receiving more data after completion delegates were triggered */
-	TSharedPtr<FArchive> ResponseBodyReceiveStream;
 
-	/** critical section to properly clear stream */
-	FCriticalSection ResponseStreamLock;
-	
-	/** flag meant to reduce locking on ResponseStreamLock*/
-	BOOL bInitializedWithValidStream;
-	
+	// Flag to indicate the request was initialized with stream. In that case even if stream was set to 
+	// null later on internally, the request itself won't cache received data anymore
+	@public BOOL bInitializedWithValidStream;
+
 	/** Have we received any data? */
 	BOOL bAnyHttpActivity;
-	
+
 	/** Delegate invoked after processing URLSession:dataTask:didReceiveData or URLSession:task:didCompleteWithError:*/
 	@public FNewAppleHttpEventDelegate NewAppleHttpEventDelegate;
 }
@@ -83,20 +76,14 @@
 	FailureReason = EHttpFailureReason::None;
 	bAnyHttpActivity = false;
 	SourceRequest = StaticCastWeakPtr<FAppleHttpRequest>(TWeakPtr<IHttpRequest>(Request.AsShared()));
-	ResponseBodyReceiveStream = Request.GetResponseBodyReceiveStream();
-	bInitializedWithValidStream = (ResponseBodyReceiveStream != nullptr);
-
+	bInitializedWithValidStream = Request.IsInitializedWithValidStream();
+	
 	return self;
 }
 
 - (void)CleanSharedObjects
 {
 	self.SourceRequest = {};
-	if (bInitializedWithValidStream)
-	{
-	    FScopeLock Lock(&ResponseStreamLock);
-		ResponseBodyReceiveStream = nullptr;
-	}
 }
 
 - (void)dealloc
@@ -111,6 +98,15 @@
 	{
 		Request->TriggerStatusCodeReceivedDelegate(StatusCode);
 	}
+}
+
+- (bool)HandleBodyDataReceived:(void*)Ptr Size:(int64)InSize
+{
+	if (TSharedPtr<FAppleHttpRequest> Request = SourceRequest.Pin())
+	{
+		return Request->PassReceivedDataToStream(Ptr, InSize);
+	}
+	return false;
 }
 
 - (void) SaveEffectiveURL:(const FString&) InEffectiveURL
@@ -189,21 +185,16 @@
 	__block int64 NewBytesReceived = 0;
 	if (bInitializedWithValidStream)
 	{
-		if (FScopeLock Lock(&ResponseStreamLock); ResponseBodyReceiveStream)
+		__block bool bSerializeSucceed = false;
+		[data enumerateByteRangesUsingBlock:^(const void *bytes, NSRange byteRange, BOOL *stop) {
+			NewBytesReceived += byteRange.length;
+			bSerializeSucceed = [self HandleBodyDataReceived : const_cast<void*>(bytes) Size : byteRange.length];
+			*stop = bSerializeSucceed? NO : YES;
+		}];
+		
+		if (!bSerializeSucceed && !bCanceled)
 		{
-			__block bool bHadError = false;
-			[data enumerateByteRangesUsingBlock:^(const void *bytes, NSRange byteRange, BOOL *stop) {
-				NewBytesReceived += byteRange.length;
-				ResponseBodyReceiveStream->Serialize(const_cast<void*>(bytes), byteRange.length);
-				bHadError = ResponseBodyReceiveStream->GetError();
-				*stop = bHadError? YES : NO;
-			}];
-			
-			if (bHadError)
-			{
-				[dataTask cancel];
-				ResponseBodyReceiveStream = nullptr;
-			}
+			[dataTask cancel];
 		}
 	}
 	else
@@ -493,11 +484,6 @@ FAppleHttpRequest::~FAppleHttpRequest()
     [Session release];
 }
 
-const TSharedPtr<FArchive> FAppleHttpRequest::GetResponseBodyReceiveStream() const
-{
-	return ResponseBodyReceiveStream;
-}
-
 FString FAppleHttpRequest::GetURL() const
 {
 	SCOPED_AUTORELEASE_POOL;
@@ -712,17 +698,6 @@ bool FAppleHttpRequest::SetContentFromStream(TSharedRef<FArchive, ESPMode::Threa
 	return true;
 }
 
-bool FAppleHttpRequest::SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream)
-{
-	if (CompletionStatus == EHttpRequestStatus::Processing)
-	{
-		UE_LOG(LogHttp, Warning, TEXT("FCurlHttpRequest::SetContentFromStream() - attempted to set content on a request that is inflight"));
-		return false;
-	}
-	ResponseBodyReceiveStream = Stream;
-	return true;
-}
-
 FString FAppleHttpRequest::GetVerb() const
 {
 	FString ConvertedVerb(Request.HTTPMethod);
@@ -886,6 +861,11 @@ void FAppleHttpRequest::Tick(float DeltaSeconds)
 	{
 		CheckProgressDelegate();
 	}
+}
+
+bool FAppleHttpRequest::IsInitializedWithValidStream() const
+{ 
+	return bInitializedWithValidStream;
 }
 
 void FAppleHttpRequest::CheckProgressDelegate()

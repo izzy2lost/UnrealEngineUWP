@@ -361,12 +361,6 @@ bool FCurlHttpRequest::SetContentFromStream(TSharedRef<FArchive, ESPMode::Thread
 	return true;
 }
 
-bool FCurlHttpRequest::SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream)
-{
-	ResponseBodyReceiveStream = Stream;
-	return true;
-}
-
 void FCurlHttpRequest::SetHeader(const FString& HeaderName, const FString& HeaderValue)
 {
 	if (CompletionStatus == EHttpRequestStatus::Processing)
@@ -599,12 +593,16 @@ size_t FCurlHttpRequest::ReceiveResponseBodyCallback(void* Ptr, size_t SizeInBlo
 		return NumberOfBytesProcessed;
 	}
 
-	if (ResponseBodyReceiveStream)
+	if (bInitializedWithValidStream)
 	{
-		ResponseBodyReceiveStream->Serialize(Ptr, SizeToDownload);
-
-		if (!ResponseBodyReceiveStream->GetError())
+		if (PassReceivedDataToStream(Ptr, SizeToDownload))
 		{
+			NumberOfBytesProcessed = SizeToDownload;
+		}
+		else if (bCanceled)
+		{
+			// If it's because of cancellation, set processed size as well so curl don't raise a warning caused by CURLE_WRITE_ERROR 
+			// The transfer will be stopped by cancel flow anyway
 			NumberOfBytesProcessed = SizeToDownload;
 		}
 	}
