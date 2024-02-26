@@ -459,6 +459,10 @@ public:
 
 public:
 
+	// Free FImage.RawData
+	//	if bAsyncDetached free is done on a Task, not immediately, but the RawData member is empty upon return
+	IMAGECORE_API void FreeData(bool bAsyncDetached);
+
 	// Swap the contents of this FImage with another
 	IMAGECORE_API void Swap(FImage & Other);
 	

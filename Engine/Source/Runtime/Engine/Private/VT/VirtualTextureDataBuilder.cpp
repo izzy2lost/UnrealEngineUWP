@@ -245,6 +245,8 @@ FVirtualTextureDataBuilder::~FVirtualTextureDataBuilder()
 
 bool FVirtualTextureBuilderDerivedInfo::InitializeFromBuildSettings(const FTextureSourceData& InSourceData, const FTextureBuildSettings* InSettingsPerLayer)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.VT.Initialize);
+
 	const int32 NumLayers = InSourceData.Layers.Num();
 	checkf(NumLayers <= (int32)VIRTUALTEXTURE_DATA_MAXLAYERS, TEXT("The maximum amount of layers is exceeded."));
 	checkf(NumLayers > 0, TEXT("No layers to build."));
@@ -290,6 +292,7 @@ bool FVirtualTextureBuilderDerivedInfo::InitializeFromBuildSettings(const FTextu
 	check(InSettingsPerLayer[0].MaxTextureResolution >= (uint32)TileSize);
 
 	// Clamp BlockSizeX and BlockSizeY to MaxTextureResolution, but don't change aspect ratio
+	//	(this is not right if MaxTextureResolution is not power of two)
 	const uint32 ClampBlockSize = InSettingsPerLayer[0].MaxTextureResolution;
 	if (FMath::Max<uint32>(BlockSizeX, BlockSizeY) > ClampBlockSize)
 	{
@@ -302,6 +305,9 @@ bool FVirtualTextureBuilderDerivedInfo::InitializeFromBuildSettings(const FTextu
 	// We require VT blocks (UDIM pages) to be PoT, but multi block textures may have full logical dimension that's not PoT
 	if ( ! FMath::IsPowerOfTwo(BlockSizeX) || ! FMath::IsPowerOfTwo(BlockSizeY) )
 	{
+		UE_LOG(LogVirtualTexturing,Warning,TEXT("InitializeFromBuildSettings failed : Block dimensions not power of 2 (%d x %d) [%s]"),
+			BlockSizeX,BlockSizeY,*InSourceData.TextureFullName);
+
 		return false;
 	}
 
@@ -316,8 +322,45 @@ bool FVirtualTextureBuilderDerivedInfo::InitializeFromBuildSettings(const FTextu
 
 	SizeInBlocksX = InSourceData.SizeInBlocksX;
 	SizeInBlocksY = InSourceData.SizeInBlocksY;
+
+	// total dimensions (of virtual canvas of UDIM blocks) must fit in INT32 on each axis
+	//	  there is a limit of 16 bits of the tile index for the U32 morton code, maybe that's stricter?
+	//	  that's something like 128*65536 maximum virtual dimension?
+	//	  in practice that's hard to hit because the total pixel count will limit you first
+	const int64 VTCanvasMaxDimension = 128*65536; // must fit in INT32_MAX
+	if ( (int64)BlockSizeX * SizeInBlocksX > VTCanvasMaxDimension ||
+		 (int64)BlockSizeY * SizeInBlocksY > VTCanvasMaxDimension )
+	{
+		UE_LOG(LogVirtualTexturing,Warning,TEXT("InitializeFromBuildSettings failed : dimensions exceed VTCanvasMaxDimension "
+			"(%d x %d = %lld) (%d x %d = %lld) [%s]"),
+			BlockSizeX,SizeInBlocksX,(int64)BlockSizeX * SizeInBlocksX,
+			BlockSizeY,SizeInBlocksY,(int64)BlockSizeY * SizeInBlocksY,
+			*InSourceData.TextureFullName);
+
+		return false;
+	}
+
 	SizeX = BlockSizeX * SizeInBlocksX;
 	SizeY = BlockSizeY * SizeInBlocksY;
+	
+	// there is no strict limit on total pixel count
+	//	but output must fit in 4 GB
+	//	so as a sanity check, test if pixel count is over 4G
+	// see FImageCoreUtils::IsImageImportPossible
+	//	this is sort of the wrong check, it really depends on output pixel format
+	// @todo : I'm not sure this check is right; is there actually a limit on the virtual canvas size?
+	//	  or is it only on the actual output data size?
+	//		(note that SizeX is the VT canvas size, not a pixel count, when you have UDIM blocks where not all tiles are present)
+	//		(eg. see "bigoffsets" test case)
+	if ( (int64)SizeX * SizeY > (1ULL<<32) )
+	{
+		UE_LOG(LogVirtualTexturing,Warning,TEXT("InitializeFromBuildSettings failed : total pixel count over 4G "
+			"(%d x %d = %lld) [%s]"),
+			SizeX,SizeY,(int64)SizeX * SizeY,
+			*InSourceData.TextureFullName);
+
+		return false;
+	}
 
 	const uint32 Size = FMath::Max(SizeX, SizeY);
 
@@ -327,6 +370,7 @@ bool FVirtualTextureBuilderDerivedInfo::InitializeFromBuildSettings(const FTextu
 	// in projects, however saving this work to a separate CL since this is old and presumably stable code, due to
 	// the fact that the Min(x, VIRTUALTEXTURE_LOG2_MAX_PAGETABLE_SIZE) is load bearing. In order to get an incorrect
 	// mip count, you need Size to be non pow2 and the result to be larger than VIRTUALTEXTURE_LOG2_MAX_PAGETABLE_SIZE.
+	//	(Size can be non-pow2 because UDIM blocks must be pow2 but UDIM count can be non-pow2)
 	NumMips = FMath::Min<uint32>(FMath::CeilLogTwo(Size) + 1, VIRTUALTEXTURE_LOG2_MAX_PAGETABLE_SIZE);
 
 	return true;
@@ -334,6 +378,8 @@ bool FVirtualTextureBuilderDerivedInfo::InitializeFromBuildSettings(const FTextu
 
 bool FVirtualTextureDataBuilder::Build(FTextureSourceData& InSourceData, FTextureSourceData& InCompositeSourceData, const FTextureBuildSettings* InSettingsPerLayer, bool bAllowAsync)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.VT.Build);
+
 	const int32 NumBlocks = InSourceData.Blocks.Num();
 
 	const int32 NumLayers = InSourceData.Layers.Num();
@@ -345,7 +391,10 @@ bool FVirtualTextureDataBuilder::Build(FTextureSourceData& InSourceData, FTextur
 	const FTextureBuildSettings& BuildSettingsLayer0 = SettingsPerLayer[0];
 	const int32 TileSize = BuildSettingsLayer0.VirtualTextureTileSize;
 
-	DerivedInfo.InitializeFromBuildSettings(InSourceData, InSettingsPerLayer);
+	if ( ! DerivedInfo.InitializeFromBuildSettings(InSourceData, InSettingsPerLayer) )
+	{
+		return false;
+	}
 
 	//NOTE: OutData may point to a previously build data so it is important to
 	//properly initialize all fields and not assume this is a freshly constructed object
@@ -377,7 +426,7 @@ bool FVirtualTextureDataBuilder::Build(FTextureSourceData& InSourceData, FTextur
 
 	{
 		FScopedSlowTask BuildTask(NumLayers * NumBlocks);
-
+		
 		// Process source texture layer by layer
 		// Layer blocks will be freed from inside of BuildLayerBlocks() as soon as they are done
 		for (int32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
@@ -419,7 +468,9 @@ bool FVirtualTextureDataBuilder::Build(FTextureSourceData& InSourceData, FTextur
 					const TArray<FImage>& SourceMips = InSourceData.Blocks[BlockIndex].MipsPerLayer[LayerIndex];
 					if (!SourceMips.IsEmpty())
 					{
-						LayerData.bHasAlpha = DetectAlphaChannel(SourceMips[0]);
+						// @todo Oodle : use FImageCore::DetectAlphaChannel instead
+						//	VT_DetectAlphaChannel is slow and not threaded and unnecessary code dupe
+						LayerData.bHasAlpha = VT_DetectAlphaChannel(SourceMips[0]);
 						if (LayerData.bHasAlpha)
 						{
 							break;
@@ -445,6 +496,8 @@ bool FVirtualTextureDataBuilder::Build(FTextureSourceData& InSourceData, FTextur
 
 bool FVirtualTextureDataBuilder::BuildChunks()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.VT.BuildChunks);
+
 	static const uint32 MinSizePerChunk = 1024u; // Each chunk will contain a mip level of at least this size (MinSizePerChunk x MinSizePerChunk)
 	const uint32 NumLayers = LayerPayload.Num();
 	const int32 TileSize = SettingsPerLayer[0].VirtualTextureTileSize;
@@ -455,16 +508,25 @@ bool FVirtualTextureDataBuilder::BuildChunks()
 
 	uint32 MipWidthInTiles = FMath::DivideAndRoundUp(DerivedInfo.SizeX, TileSize);
 	uint32 MipHeightInTiles = FMath::DivideAndRoundUp(DerivedInfo.SizeY, TileSize);
-	uint32 NumTiles = 0u;
+	int64 NumTiles64 = 0;
+
+	check(MipWidthInTiles <= (1<<16));
+	check(MipHeightInTiles <= (1<<16));
 
 	for (uint32 Mip = 0; Mip < OutData.NumMips; ++Mip)
 	{
 		const uint32 MaxTileInMip = FMath::MortonCode2(MipWidthInTiles - 1) | (FMath::MortonCode2(MipHeightInTiles - 1) << 1);
-		NumTiles += (MaxTileInMip + 1u);
+		NumTiles64 += (MaxTileInMip + 1u);
 		MipWidthInTiles = FMath::DivideAndRoundUp(MipWidthInTiles, 2u);
 		MipHeightInTiles = FMath::DivideAndRoundUp(MipHeightInTiles, 2u);
 	}
+	
+	if ( NumTiles64 > INT32_MAX )
+	{
+		return false;
+	}
 
+	uint32 NumTiles = (uint32)NumTiles64;
 	FScopedSlowTask BuildTask(NumTiles);
 
 	TArray<FVTSourceTileEntry> TilesInChunk;
@@ -937,6 +999,7 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 		}
 		else
 		{
+			// @@ I think this is wrong for non-square blocks in UDIM (see "dimensionstress")
 			const uint32 BlockSizeInTilesXY = FMath::DivideAndRoundUp<uint32>(BlockSizeXY, TileSize);
 			const uint32 MaxMipInBlockXY = FMath::CeilLogTwo(BlockSizeInTilesXY);
 			BlockData.NumMips = FMath::Min<int32>(CompressedMips.Num(), MaxMipInBlockXY + 1);
@@ -1012,6 +1075,7 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 		BlockData.NumMips = OutData.NumMips - MaxMipInBlock - 1;//   FMath::CeilLogTwo(MipInputSize); // Don't add 1, since 'MipInputSize' is one mip larger
 		BlockData.NumSlices = 1; // TODO?
 		BlockData.MipBias = MaxMipInBlock + 1;
+		// @@ BlockData.NumMips is negative for non-square blocks in UDIM (see "dimensionstress")
 		check(BlockData.NumMips > 0);
 
 		// Total number of mips should be equal to number of mips per block plus number of miptail mips
@@ -1353,8 +1417,10 @@ void FVirtualTextureDataBuilder::BuildMipTails()
 }
 #endif // 0
 
-bool FVirtualTextureDataBuilder::DetectAlphaChannel(const FImage &Image)
+bool FVirtualTextureDataBuilder::VT_DetectAlphaChannel(const FImage &Image)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VT.DetectAlphaChannel);
+
 	// note : VT DetectAlphaChannel slightly different than the same function in TextureCompressorModule
 	//	  could factor them out and share
 	//		technically could change output so may need a ddc key bump and verify

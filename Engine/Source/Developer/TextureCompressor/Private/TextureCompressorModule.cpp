@@ -932,7 +932,7 @@ static void GenerateMipSharpenedSeparable(
 * @param FilterTable2D - [FilterTableSize * FilterTableSize]
 * @param FilterTableSize - >= 2
 * @param ScaleFactor 1 / 2:for downsampling
-* @param bUseNewMipFilter - pass true to use new separatble mip filter
+* @param bUseNewMipFilter - pass true to use new separable mip filter
 */
 template <EMipGenAddressMode AddressMode>
 static void GenerateSharpenedMipB8G8R8A8Templ(
@@ -3471,8 +3471,7 @@ static bool CompressMipChain(
 	// unbalanced and there's not much use spawning extra tasks past that: for a 2D texture,
 	// the entire tail after the base mip (all remaining mips combined) has 1/3 the number of
 	// pixels the base mip does.
-	OutMips.Empty(MipCount);
-	OutMips.AddDefaulted(MipCount);
+	OutMips.SetNum(MipCount);
 
 	FIntVector3 Mip0Dimensions = TextureDescription.GetMipDimensions(0);
 	int32 Mip0NumSlicesNoDepth = TextureDescription.GetNumSlices_NoDepth();
@@ -3508,7 +3507,13 @@ static bool CompressMipChain(
 				OutMips[MipIndex]
 			);
 
-			MipChain[MipIndex].RawData.Empty();
+			{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Texture.CompressImage.Free);
+			// CompressImageEx can free images as it works on them
+			//	go ahead and always immediately free here for consistency
+
+			MipChain[MipIndex].FreeData(true);
+			}
 		}
 
 		return bSuccess;
@@ -3526,6 +3531,7 @@ static bool CompressMipChain(
 				return ProcessMips(1, FirstMipTailIndex + 1);
 			},
 			LowLevelTasks::ETaskPriority::BackgroundNormal
+			//IsInGameThread() ? ETaskPriority::Normal : ETaskPriority::BackgroundNormal // ??
 		);
 
 		// Compress base mip on this thread, join with async compress of other mips
@@ -3742,12 +3748,16 @@ public:
 	// compute a hash used to identify the contents of a mip chain
 	// this is used by bulkdata diff tool, stored in asset registry
 	// it is for debug tools only and skipping it is optional
-	static uint64 ComputeMipChainHash(TArray<FImage>& IntermediateMipChain)
+	// ComputeMipChainHash is synchronous; it starts tasks but waits on them before returning
+	static uint64 ComputeMipChainHash(const TArray<FImage>& IntermediateMipChain)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Texture.ComputeMipChainHash);
 
 		TArray<UE::Tasks::TTask<FXxHash64>, TInlineAllocator<16>> MipHashTasks;
 		MipHashTasks.Reserve(IntermediateMipChain.Num());
+
+		TArray<FXxHash64> MipHashResults;
+		MipHashResults.Reserve(IntermediateMipChain.Num());
 
 		// Hash the mips before we compress them. This gets saved as part of the derived data and then added to the
 		// diff tags during cook so we can catch determinism issues.
@@ -3763,13 +3773,32 @@ public:
 			MipHashBuilder.Update(&Info->GammaSpace, sizeof(Info->GammaSpace));
 
 			check( Mip.RawData.Num() != 0 );
+			
+			const int64 ChunkSize = 256*1024;
+			auto MipMem = MakeMemoryView(Mip.RawData);
 
-			MipHashTasks.Add(UE::Tasks::Launch(TEXT("ComputeMipChainHash"), [&Mip] { return FXxHash64::HashBufferChunked(MakeMemoryView(Mip.RawData), 256 << 10); }));
+			if ( Mip.RawData.Num() >= ChunkSize )
+			{
+				// large mip, start async task
+				MipHashTasks.Add(UE::Tasks::Launch(TEXT("ComputeMipChainHash"), [MipMem] { return FXxHash64::HashBufferChunked(MipMem, ChunkSize); }));
+			}
+			else
+			{
+				// do tiny mips here on the calling thread while the large mip tasks run
+				MipHashResults.Add( FXxHash64::HashBufferChunked(MipMem, ChunkSize) );
+			}
 		}
 
+		// now wait on the async tasks for the large mips :
 		for (UE::Tasks::TTask<FXxHash64>& HashTask : MipHashTasks)
 		{
-			FXxHash64 MipHash = HashTask.GetResult();
+			FXxHash64 MipHash = HashTask.GetResult(); // <- wait
+			MipHashBuilder.Update(&MipHash.Hash, sizeof(MipHash.Hash));
+		}
+		
+		// add in the hashes of the small mips :
+		for (const FXxHash64 & MipHash : MipHashResults)
+		{
 			MipHashBuilder.Update(&MipHash.Hash, sizeof(MipHash.Hash));
 		}
 
@@ -3929,59 +3958,23 @@ public:
 				}
 			}
 		}
-
 		
-		UE::Tasks::TTask<uint64> HashingTask;
-		TArray<FImageInfo> SaveImageInfos;
-
 		if (OutMetadata)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Texture.MipHashBuilder);
 
-			SaveImageInfos.SetNum(IntermediateMipChain.Num());
-			for (int32 i=0;i<IntermediateMipChain.Num();++i)
-			{
-				SaveImageInfos[i] = IntermediateMipChain[i];
-			}
-
 			OutMetadata->PreEncodeMipsHash = ComputeMipChainHash(IntermediateMipChain);
 		}
 		
+		// CompressMipChain may free IntermediateMipChain
 		bool bCompressSucceeded = CompressMipChain(TextureFormat, IntermediateMipChain, BuildSettings, bImageHasAlphaChannel, DebugTexturePathName,
 					OutTextureMips, OutNumMipsInTail, OutExtData);
-
-		if (OutMetadata)
-		{
-			// (rough) check that IntermediateMipChain was not modified by the TextureFormats :
-			check( SaveImageInfos.Num() == IntermediateMipChain.Num() );
-			for (int32 i=0;i<IntermediateMipChain.Num();++i)
-			{
-				// check that FImageInfo is the same
-				// does not check pixel values
-				check( SaveImageInfos[i] == IntermediateMipChain[i] );
-			}
-		}
 
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Texture.Free_IntermediateMipChain);
 
-			// this is quite slow; detach to an async task?
-			//IntermediateMipChain.Empty();
-
-			TArray<FImage>* PtrIntermediateMipChain = new TArray<FImage>( MoveTemp(IntermediateMipChain) );
-			
-			//TArray<FImage>* PtrIntermediateMipChain = new TArray<FImage>;
-			//Swap(*PtrIntermediateMipChain,IntermediateMipChain);
-
-			UE::Tasks::Launch(TEXT("Texture.Free_IntermediateMipChain.Task"),
-				[PtrIntermediateMipChain]() // by value, not ref
-				{
-					TRACE_CPUPROFILER_EVENT_SCOPE(Texture.Free_IntermediateMipChain.Task);
-					PtrIntermediateMipChain->Empty();
-					delete PtrIntermediateMipChain;
-					return true;
-				},
-				LowLevelTasks::ETaskPriority::BackgroundNormal);
+			// this is no longer slow because mips are freed as they're consumed in CompressMipChain
+			IntermediateMipChain.Empty();
 		}
 
 		return bCompressSucceeded;
@@ -4486,8 +4479,11 @@ private:
 				}
 			}
 
+			{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Texture.BuildTextureMips.Free);
 			// free pSourceMips as we consume them
-			Image.RawData.Empty();
+			Image.FreeData(true);
+			}
 
 			if (BuildSettings.Downscale > 1.f)
 			{		

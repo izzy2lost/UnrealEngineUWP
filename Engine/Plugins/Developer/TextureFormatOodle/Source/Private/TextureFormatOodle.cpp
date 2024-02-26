@@ -946,10 +946,7 @@ public:
 		EPixelFormat CompressedPixelFormat;
 		bool bDebugColor;
 
-		// @todo Oodle this is not quite the same "bHasAlpha" that Compress will see
-		//	bHasAlpha is used for AutoDXT -> DXT1/5
-		//	we do have Texture.bForceNoAlphaChannel/CompressionNoAlpha but that's not quite what we want
-		// do go ahead and read bForceNoAlphaChannel/CompressionNoAlpha so that we invalidate DDC when that changes
+		// @todo Oodle : use InBuildSettings.GetOutputAlphaFromKnownAlphaOrFallback() instead (but that could change DDC keys)
 		bool bHasAlpha = !InBuildSettings.bForceNoAlphaChannel; 
 		
 		GlobalFormatConfig.GetOodleCompressParameters(&CompressedPixelFormat, &RDOLambda, &EffortLevel, &bDebugColor, &RDOUniversalTiling, &BCNFlags, InBuildSettings, bHasAlpha);
@@ -1100,7 +1097,7 @@ public:
 	virtual bool CompressImage(const FImage& InImage, const FTextureBuildSettings& InBuildSettings, const FIntVector3& InMip0Dimensions,
 		int32 InMip0NumSlicesNoDepth, int32 InMipIndex, int32 InMipCount, FStringView DebugTexturePathName, const bool bInHasAlpha, FCompressedImage2D& OutImage) const override
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle_CompressImage);
+		TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle.CompressImage);
 
 		check(InImage.SizeX > 0);
 		check(InImage.SizeY > 0);
@@ -1214,6 +1211,8 @@ public:
 
 		if (OodleBCN == OodleTex_BC6U)
 		{
+			// @todo Oodle: if source image is RGBA16F or other non-float, then do SanitizeFloat16AndSetAlphaOpaqueForBC6H and pass that to Oodle without conversion
+
 			ImageFormat = ERawImageFormat::RGBA32F;
 			OodlePF = OodleTex_PixelFormat_4_F32_RGBA;
 			// BC6 is assumed to be a linear-light HDR Image by default
@@ -1231,17 +1230,14 @@ public:
 			// for BC4/5 use 16-bit integer U16 pixels :
 			//	BC4/5 should always have linear gamma
 
-			// input image format now can be BGRA8 (used to always be RGBA32F)
-			// but to maintain matching output with previous RGBA32F format, still do convert to RGBA16
-			// ideally should pass BGRA8 directly to Oodle, but that changes output bits
-
 			/*
-			// -> need DDC key bump for this
+			// @todo Oodle: allow 8-bit to be passed directly to Oodle without converting to 16 bit (and bump DDC key)
 			if ( InImage.Format == ERawImageFormat::BGRA8 && InBuildSettings.bUseNewMipFilter )
 			{
 				ImageFormat = ERawImageFormat::BGRA8;
 				OodlePF = OodleTex_PixelFormat_4_U8_BGRA;
 			}
+			else
 			*/
 
 			if ( InImage.Format == ERawImageFormat::RGBA16 )
@@ -1273,10 +1269,10 @@ public:
 		FImage ImageCopy;
 		if (bNeedsImageCopy)
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(Texture.Oodle_FormatChange);
+			TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle.FormatChange);
 
-                        //not sure if we should bill this alloc to OodleTexture or the calling context (TextureCompressor)
-                        //we are freeing the previous Image alloc to replace it with a changed format
+            //not sure if we should bill this alloc to OodleTexture or the calling context (TextureCompressor)
+            //we are freeing the previous Image alloc to replace it with a changed format
 			//LLM_SCOPE_BYTAG(OodleTexture);
 
 			if ( bIsSpecial2U16 )
@@ -1296,11 +1292,10 @@ public:
 			//	can reduce peak mem use to do so immediately
 			//	(source is usually/often F32 RGBA (when not VT) so quite fat)
 
-			// InImage.RawData.Empty();
-			// -> no longer possible because Hashing Source is on a thread
-			//  needs a refcount on the source Image to make that work again
-			// @todo Oodle : peak memory use is a lot higher if we don't free the float temp image here
-
+			{
+			TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle.Free);
+			const_cast<FImage &>(InImage).FreeData(true);
+			}
 		}
 		const FImage& Image = bNeedsImageCopy ? ImageCopy : InImage;
 
@@ -1493,7 +1488,7 @@ public:
 		// note: cubes come in as 6 slices and go out as 1
 		OutImage.SizeZ = (InBuildSettings.bVolume || InBuildSettings.bTextureArray) ? Image.NumSlices : 1;
 		{
-		TRACE_CPUPROFILER_EVENT_SCOPE(Texture.Oodle_Alloc);
+		TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle.Alloc);
 		OutImage.RawData.AddUninitialized(OutBytesTotal);
 		}
 
@@ -1592,7 +1587,7 @@ public:
 				}
 
 				{
-					TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle_EncodeBCN);
+					TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle.EncodeBCN);
 
 					// if RDOLambda == 0, does non-RDO encode :
 					OodleTex_Err OodleErr = (VTable->fp_OodleTex_EncodeBCN_RDO_Ex)(OodleBCN, OutSlicePtr, NumBlocksPerSlice, 
@@ -1660,10 +1655,10 @@ static OO_U64 OODLE_CALLBACK TFO_RunJob(t_fp_Oodle_Job* JobFunction, void* JobDa
 
 	FTask* Task = new FTask;
 	Task->Launch(
-		TEXT("TFOodle_EncodeBCN_Task"),
+		TEXT("TFOodle.EncodeBCN_Task"),
 		[JobFunction, JobData]
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle_EncodeBCN_Task);
+			TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle.EncodeBCN_Task);
 			JobFunction(JobData);
 		},
 		TArrayView<FTask*>{ reinterpret_cast<FTask**>(Dependencies), NumDependencies },
@@ -1682,7 +1677,7 @@ static void OODLE_CALLBACK TFO_WaitJob(OO_U64 JobHandle, void* UserPtr)
 	// DebugInfo to inspect:
 	const FOodleJobDebugInfo * DebugInfo = (FOodleJobDebugInfo *)UserPtr;
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle_WaitJob);
+	TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle.WaitJob);
 
 	FTask* Task = reinterpret_cast<FTask*>(JobHandle);
 	Task->Wait();

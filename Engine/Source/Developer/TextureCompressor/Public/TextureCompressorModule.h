@@ -365,6 +365,20 @@ struct FTextureBuildSettings
 		return bInSourceMipsAlphaDetected;
 	}
 
+	// the return value is whether the *output* has alpha
+	// the argument is whether we should treat the source as having alpha, in cases where the source alpha is unknown
+	bool GetOutputAlphaFromKnownAlphaOrFallback(bool bUnknownSourceAlphaFallback = true) const
+	{
+		if ( bKnowAlphaTransparency )
+		{
+			return bHasTransparentAlpha;
+		}
+		else
+		{
+			// fallback without known alpha
+			return GetTextureExpectsAlphaInPixelFormat(bUnknownSourceAlphaFallback);
+		}
+	}
 
 	/*
 	* Convert the build settings to an actual texture description containing enough information to describe the texture

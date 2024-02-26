@@ -225,6 +225,8 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 	}
 
 	Blocks.Reserve(NumBlocks);
+	SizeInBlocksX = SizeInBlocksY = 0;
+	BlockSizeX = BlockSizeY = 0;
 	for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
 	{
 		FTextureSourceBlock SourceBlock;
@@ -267,7 +269,7 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 		if (MipBiasX != MipBiasY)
 		{
 			// @todo Oodle: this is failing even if "pad to pow2 square" is set, can we allow it through in that case?
-			UE_LOG(LogTexture, Warning, TEXT("VT has blocks with mismatched aspect ratios, cannot build."), *InTexture.GetPathName());  // <- should be an Error, not a Warning
+			UE_LOG(LogTexture, Warning, TEXT("VT has blocks with mismatched aspect ratios, cannot build. [%s]"), *InTexture.GetPathName());  // <- should be an Error, not a Warning
 			return;
 		}
 
@@ -355,6 +357,10 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSourceData::GetSourceMips_CopyMips);
+
+			// @todo Oodle : this is slow
+			// it looks like there are unnecessary allocs and memcpys here
+
 			for (int32 BlockIndex = 0; BlockIndex < Blocks.Num(); ++BlockIndex)
 			{
 				FTextureSourceBlock SourceBlock;
@@ -735,6 +741,8 @@ static void DDC1_BuildTexture(
 
 	if (bForVirtualTextureStreamingBuild)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Texture.VT);
+
 		if (DerivedData->VTData == nullptr)
 		{
 			DerivedData->VTData = new FVirtualTextureBuiltData();
@@ -845,9 +853,8 @@ static void DDC1_BuildTexture(
 			CompressedMips,
 			NumMipsInTail,
 			ExtData,
-			nullptr);
+			nullptr); // OutMetadata
 			
-
 		if ( bSucceeded )
 		{
 			// BuildTexture can free the source images passed to it
@@ -909,8 +916,7 @@ EPixelFormat GetOutputPixelFormat(const FTextureBuildSettings & BuildSettings)
 		return PF_Unknown; /* Unknown */
 	}
 	
-	// if alpha is unknown, assume yes to be conservative about pixel size
-	bool bHasAlpha = ( BuildSettings.bKnowAlphaTransparency ) ? BuildSettings.bHasTransparentAlpha : true;
+	bool bHasAlpha = BuildSettings.GetOutputAlphaFromKnownAlphaOrFallback(true);
 
 	EPixelFormat PixelFormat = TextureFormat->GetEncodedPixelFormat(BuildSettings,bHasAlpha);
 	check( PixelFormat != PF_Unknown );

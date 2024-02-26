@@ -635,8 +635,7 @@ static void GetBuiltTextureSizeBytesEstimate(
 	int64 NumMips = FImageCoreUtils::GetMipCountFromDimensions(TopMipSizeX,TopMipSizeY,TopMipSizeZ,bIsVolume);
 	check( NumMips > 0 );
 
-	// if alpha is unknown, assume yes to be conservative about pixel size
-	bool bHasAlpha = (BuildSettings.bKnowAlphaTransparency) ? BuildSettings.bHasTransparentAlpha : true;
+	bool bHasAlpha = BuildSettings.GetOutputAlphaFromKnownAlphaOrFallback(true);
 
 	FEncodedTextureDescription TextureDescription;
 	BuildSettings.GetEncodedTextureDescription(&TextureDescription, TextureFormat, TopMipSizeX, TopMipSizeY, TopMipSizeZ, NumMips, bHasAlpha);

@@ -7,6 +7,7 @@
 #include "TransferFunctions.h"
 #include "ColorSpace.h"
 #include "ImageParallelFor.h"
+#include "Tasks/Task.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogImageCore, Log, All);
 
@@ -993,6 +994,35 @@ void FImage::Init(int32 InSizeX, int32 InSizeY, ERawImageFormat::Type InFormat, 
 /* FImage interface
  *****************************************************************************/
  
+void FImage::FreeData(bool bAsyncDetached)
+{
+	if ( !bAsyncDetached )
+	{
+		RawData.Empty();
+	}
+	else
+	{
+		// do the free on a task, without waiting for it (detached)
+		// but do immediately invalidate the RawData member
+
+		TArray64<uint8>* PtrImageData = new TArray64<uint8> ();
+		::Swap(RawData,*PtrImageData);
+			
+		UE::Tasks::Launch(TEXT("FImage.FreeData.Task"),
+			[PtrImageData]() // by value, not ref
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(FImage.FreeData.Task);
+				delete PtrImageData;
+				return true;
+			},
+			LowLevelTasks::ETaskPriority::BackgroundHigh);
+
+		// beware this can cause false out-of-memory conditions
+		//	because the next time an alloc tries to find memory, there may still be pending free tasks
+		//	to fix that, use "robust detached frees"
+	}
+}
+
 void FImage::Swap(FImage & Other)
 {
 	::Swap(RawData,Other.RawData);
