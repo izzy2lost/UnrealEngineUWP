@@ -13,30 +13,8 @@ public class TVOSTargetPlatform : ModuleRules
 			new string[]
 			{
 				"Core",
-				"CoreUObject",
 				"TargetPlatform",
 				"DesktopPlatform",
-				"LaunchDaemonMessages",
-				"IOSTargetPlatform",
-				"Projects"
-			}
-		);
-
-		PrivateIncludePathModuleNames.AddRange(
-			new string[] {
-			"Messaging",
-			"TargetDeviceServices",
-		}
-		);
-
-		if (Target.bCompileAgainstEngine)
-		{
-			PrivateDependencyModuleNames.Add("Engine");
-		}
-
-		PrivateIncludePaths.AddRange(
-			new string[] {
-			"Developer/IOS/IOSTargetPlatform/Private"
 			}
 		);
 	}

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "IOSDeviceHelper.h"
-#include "IOSTargetPlatform.h"
+#include "IOSTargetPlatformControls.h"
 #include "IOSTargetDeviceOutput.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/Runnable.h"

@@ -4,7 +4,7 @@
 
 #include "HAL/PlatformProcess.h"
 #include "IOSMessageProtocol.h"
-#include "Interfaces/ITargetPlatform.h"
+#include "Interfaces/ITargetPlatformControls.h"
 #include "Async/Async.h"
 #include "MessageEndpoint.h"
 #include "MessageEndpointBuilder.h"
@@ -14,8 +14,8 @@
 #include "Windows/AllowWindowsPlatformTypes.h"
 #endif // #if PLATFORM_WINDOWS
 
-FIOSTargetDevice::FIOSTargetDevice(const ITargetPlatform& InTargetPlatform)
-	: TargetPlatform(InTargetPlatform)
+FIOSTargetDevice::FIOSTargetDevice(const ITargetPlatformControls& InTargetPlatformControls)
+	: TargetPlatformControls(InTargetPlatformControls)
 	, DeviceEndpoint()
 	, AppId()
 	, bCanReboot(false)
@@ -24,7 +24,7 @@ FIOSTargetDevice::FIOSTargetDevice(const ITargetPlatform& InTargetPlatform)
 	, DeviceType(ETargetDeviceTypes::Indeterminate)
 	, DeviceModelId(TEXT(""))
 {
-	DeviceId = FTargetDeviceId(TargetPlatform.PlatformName(), FPlatformProcess::ComputerName());
+	DeviceId = FTargetDeviceId(TargetPlatformControls.PlatformName(), FPlatformProcess::ComputerName());
 	DeviceName = FPlatformProcess::ComputerName();
 	MessageEndpoint = FMessageEndpoint::Builder("FIOSTargetDevice").Build();
 	DeviceConnectionType = ETargetDeviceConnectionTypes::USB;
@@ -70,7 +70,7 @@ FString FIOSTargetDevice::GetName() const
 
 FString FIOSTargetDevice::GetOperatingSystemName()
 {
-	return TargetPlatform.PlatformName();
+	return TargetPlatformControls.PlatformName();
 }
 
 FString FIOSTargetDevice::GetModelId() const
@@ -83,9 +83,13 @@ FString FIOSTargetDevice::GetOSVersion() const
 	return DeviceOSVersion;
 }
 
-const class ITargetPlatform& FIOSTargetDevice::GetTargetPlatform() const
+const class ITargetPlatformSettings& FIOSTargetDevice::GetPlatformSettings() const
 {
-	return TargetPlatform;
+	return *(TargetPlatformControls.GetTargetPlatformSettings());
+}
+const class ITargetPlatformControls& FIOSTargetDevice::GetPlatformControls() const
+{
+	return TargetPlatformControls;
 }
 
 bool FIOSTargetDevice::IsConnected()

@@ -53,8 +53,10 @@ namespace UnrealBuildTool
 		{
 			base.ModifyModuleRulesForOtherPlatform(ModuleName, Rules, Target);
 
+			bool bIsPlatformAvailableForTarget = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target, bIgnoreSDKCheck: true);
+			bool bIsPlatformAvailableForTargetWithSDK = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target);
 			// don't do any target platform stuff if SDK is not available
-			if (!UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target))
+			if (!bIsPlatformAvailableForTarget)
 			{
 				return;
 			}
@@ -66,12 +68,17 @@ namespace UnrealBuildTool
 				    if ((ModuleName == "Engine" && Target.bBuildDeveloperTools) ||
 					    (ModuleName == "TargetPlatform" && Target.bForceBuildTargetPlatforms))
 				    {
-					    Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatform");
+						Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatformSettings");
+						if (bIsPlatformAvailableForTargetWithSDK)
+						{
+							Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatformControls");
+						}
 				    }
 			    }
 			}
 
-			if (ModuleName == "UnrealEd")
+			if (ModuleName == "UnrealEd" && bIsPlatformAvailableForTargetWithSDK)
 			{
 				Rules.DynamicallyLoadedModuleNames.Add("VisionOSPlatformEditor");
 			}

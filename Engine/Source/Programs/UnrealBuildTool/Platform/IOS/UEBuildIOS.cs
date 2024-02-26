@@ -1022,8 +1022,11 @@ namespace UnrealBuildTool
 		/// <param name="Target">The target being build</param>
 		public override void ModifyModuleRulesForOtherPlatform(string ModuleName, ModuleRules Rules, ReadOnlyTargetRules Target)
 		{
+			bool bIsPlatformAvailableForTarget = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target, bIgnoreSDKCheck: true);
+			bool bIsPlatformAvailableForTargetWithSDK = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target);
+
 			// don't do any target platform stuff if SDK is not available
-			if (!UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target))
+			if (!bIsPlatformAvailableForTarget)
 			{
 				return;
 			}
@@ -1037,18 +1040,29 @@ namespace UnrealBuildTool
 					{
 						if (Target.bBuildDeveloperTools)
 						{
-							Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
-							Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatformSettings");
+							Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatformSettings");
+
+							if (bIsPlatformAvailableForTargetWithSDK)
+							{
+								Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
+								Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatformControls");
+								Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
+								Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatformControls");
+							}
 						}
 					}
 					else if (ModuleName == "TargetPlatform")
 					{
-						bBuildShaderFormats = true;
-						Rules.DynamicallyLoadedModuleNames.Add("TextureFormatASTC");
-						Rules.DynamicallyLoadedModuleNames.Add("TextureFormatETC2");
-						if (Target.bBuildDeveloperTools && Target.bCompileAgainstEngine)
+						if (bIsPlatformAvailableForTargetWithSDK)
 						{
-							Rules.DynamicallyLoadedModuleNames.Add("AudioFormatADPCM");
+							bBuildShaderFormats = true;
+							Rules.DynamicallyLoadedModuleNames.Add("TextureFormatASTC");
+							Rules.DynamicallyLoadedModuleNames.Add("TextureFormatETC2");
+							if (Target.bBuildDeveloperTools && Target.bCompileAgainstEngine)
+							{
+								Rules.DynamicallyLoadedModuleNames.Add("AudioFormatADPCM");
+							}
 						}
 					}
 				}
@@ -1058,17 +1072,25 @@ namespace UnrealBuildTool
 				{
 					if (Target.bForceBuildTargetPlatforms)
 					{
-						Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
-						Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
+						Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatformSettings");
+						Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatformSettings");
+
+						if (bIsPlatformAvailableForTargetWithSDK)
+						{
+							Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatformControls");
+							Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatformControls");
+						}
 					}
 
-					if (bBuildShaderFormats)
+					if (bBuildShaderFormats && bIsPlatformAvailableForTargetWithSDK)
 					{
 						Rules.DynamicallyLoadedModuleNames.Add("MetalShaderFormat");
 					}
 				}
 
-				if (ModuleName == "UnrealEd")
+				if (ModuleName == "UnrealEd" && bIsPlatformAvailableForTargetWithSDK)
 				{
 					Rules.DynamicallyLoadedModuleNames.Add("IOSPlatformEditor");
 				}

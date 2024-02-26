@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
-	IOSTargetPlatform.cpp: Implements the FIOSTargetPlatform class.
+	IOSTargetPlatformControls.cpp: Implements the FIOSTargetPlatformControls class.
 =============================================================================*/
 
-#include "IOSTargetPlatform.h"
+#include "IOSTargetPlatformControls.h"
 #include "Interfaces/IProjectManager.h"
 #include "InstalledPlatformInfo.h"
 #include "HAL/FileManager.h"
@@ -25,36 +25,23 @@
 #include "AudioCompressionSettings.h"
 #endif
 
-/* FIOSTargetPlatform structors
+/* FIOSTargetPlatformControls structors
  *****************************************************************************/
 
-FIOSTargetPlatform::FIOSTargetPlatform(bool bInIsTVOS, bool bInIsVisionOS, bool bIsClientOnly)
+FIOSTargetPlatformControls::FIOSTargetPlatformControls(bool bInIsTVOS, bool bInIsVisionOS, bool bIsClientOnly, ITargetPlatformSettings* TargetPlatformSettings)
 	// override the ini name up in the base classes, which will go into the FTargetPlatformInfo
-	: TNonDesktopTargetPlatformBase(bIsClientOnly, nullptr, bInIsTVOS ? TEXT("TVOS") : bInIsVisionOS ? TEXT("VisionOS") : nullptr)
+	: TNonDesktopTargetPlatformControlsBase(bIsClientOnly, TargetPlatformSettings, nullptr, bInIsTVOS ? TEXT("TVOS") : bInIsVisionOS ? TEXT("VisionOS") : nullptr)
 	, bIsTVOS(bInIsTVOS)
 	, bIsVisionOS(bInIsVisionOS)
-	, MobileShadingPath(0)
-	, bDistanceField(false)
-	, bMobileForwardEnableClusteredReflections(false)
-	, bMobileVirtualTextures(false)
 {
-#if WITH_ENGINE
-	TextureLODSettings = nullptr; // TextureLODSettings are registered by the device profile.
-	StaticMeshLODSettings.Initialize(this);
-	GetConfigSystem()->GetBool(TEXT("/Script/Engine.RendererSettings"), TEXT("r.DistanceFields"), bDistanceField, GEngineIni);
-	GetConfigSystem()->GetInt(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.ShadingPath"), MobileShadingPath, GEngineIni);
-	GetConfigSystem()->GetBool(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.Forward.EnableClusteredReflections"), bMobileForwardEnableClusteredReflections, GEngineIni);
-	GetConfigSystem()->GetBool(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.VirtualTextures"), bMobileVirtualTextures, GEngineIni);
-#endif // #if WITH_ENGINE
-
 	// initialize the connected device detector
-	DeviceHelper.OnDeviceConnected().AddRaw(this, &FIOSTargetPlatform::HandleDeviceConnected);
-	DeviceHelper.OnDeviceDisconnected().AddRaw(this, &FIOSTargetPlatform::HandleDeviceDisconnected);
+	DeviceHelper.OnDeviceConnected().AddRaw(this, &FIOSTargetPlatformControls::HandleDeviceConnected);
+	DeviceHelper.OnDeviceDisconnected().AddRaw(this, &FIOSTargetPlatformControls::HandleDeviceDisconnected);
 	DeviceHelper.Initialize(bIsTVOS || bIsVisionOS);
 }
 
 
-FIOSTargetPlatform::~FIOSTargetPlatform()
+FIOSTargetPlatformControls::~FIOSTargetPlatformControls()
 {
 }
 
@@ -62,12 +49,12 @@ FIOSTargetPlatform::~FIOSTargetPlatform()
 /* ITargetPlatform interface
  *****************************************************************************/
 
-void FIOSTargetPlatform::EnableDeviceCheck(bool OnOff)
+void FIOSTargetPlatformControls::EnableDeviceCheck(bool OnOff)
 {
 	FIOSDeviceHelper::EnableDeviceCheck(OnOff);
 }
 
-void FIOSTargetPlatform::GetAllDevices( TArray<ITargetDevicePtr>& OutDevices ) const
+void FIOSTargetPlatformControls::GetAllDevices( TArray<ITargetDevicePtr>& OutDevices ) const
 {
 	OutDevices.Reset();
 
@@ -78,7 +65,7 @@ void FIOSTargetPlatform::GetAllDevices( TArray<ITargetDevicePtr>& OutDevices ) c
 }
 
 
-ITargetDevicePtr FIOSTargetPlatform::GetDefaultDevice() const
+ITargetDevicePtr FIOSTargetPlatformControls::GetDefaultDevice() const
 {
 	if (Devices.Num() > 0)
 	{
@@ -94,7 +81,7 @@ ITargetDevicePtr FIOSTargetPlatform::GetDefaultDevice() const
 }
 
 
-ITargetDevicePtr FIOSTargetPlatform::GetDevice( const FTargetDeviceId& DeviceId )
+ITargetDevicePtr FIOSTargetPlatformControls::GetDevice( const FTargetDeviceId& DeviceId )
 {
 	return Devices.FindRef(DeviceId);
 }
@@ -106,7 +93,7 @@ static void OnOutput(FString Message)
     UE_LOG(LogTemp, Display, TEXT("%s\n"), *Message);
 }
 
-bool FIOSTargetPlatform::IsSdkInstalled(bool bProjectHasCode, FString& OutTutorialPath) const
+bool FIOSTargetPlatformControls::IsSdkInstalled(bool bProjectHasCode, FString& OutTutorialPath) const
 {
 #if PLATFORM_MAC
 	OutTutorialPath = FString("Shared/Tutorials/InstallingXCodeTutorial");
@@ -229,7 +216,7 @@ bool FIOSTargetPlatform::IsSdkInstalled(bool bProjectHasCode, FString& OutTutori
 	return biOSSDKInstalled;
 }
 
-int32 FIOSTargetPlatform::CheckRequirements(bool bProjectHasCode, EBuildConfiguration Configuration, bool bRequiresAssetNativization, FString& OutTutorialPath, FString& OutDocumentationPath, FText& CustomizedLogMessage) const
+int32 FIOSTargetPlatformControls::CheckRequirements(bool bProjectHasCode, EBuildConfiguration Configuration, bool bRequiresAssetNativization, FString& OutTutorialPath, FString& OutDocumentationPath, FText& CustomizedLogMessage) const
 {
 	OutDocumentationPath = TEXT("Platforms/iOS/QuickStart/6");
 
@@ -349,10 +336,10 @@ int32 FIOSTargetPlatform::CheckRequirements(bool bProjectHasCode, EBuildConfigur
 
 
 
-/* FIOSTargetPlatform callbacks
+/* FIOSTargetPlatformControls callbacks
  *****************************************************************************/
 
-void FIOSTargetPlatform::HandlePongMessage( const FIOSLaunchDaemonPong& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context )
+void FIOSTargetPlatformControls::HandlePongMessage( const FIOSLaunchDaemonPong& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context )
 {
 	FTargetDeviceId DeviceId;
 	FTargetDeviceId::Parse(Message.DeviceID, DeviceId);
@@ -381,7 +368,7 @@ void FIOSTargetPlatform::HandlePongMessage( const FIOSLaunchDaemonPong& Message,
 	Device->LastPinged = FDateTime::UtcNow();
 }
 
-void FIOSTargetPlatform::HandleDeviceConnected(const FIOSLaunchDaemonPong& Message)
+void FIOSTargetPlatformControls::HandleDeviceConnected(const FIOSLaunchDaemonPong& Message)
 {
 	FTargetDeviceId DeviceId;
 	FTargetDeviceId::Parse(Message.DeviceID, DeviceId);
@@ -410,9 +397,9 @@ void FIOSTargetPlatform::HandleDeviceConnected(const FIOSLaunchDaemonPong& Messa
 			Device->SetModelId(Message.DeviceModelId);
 			Device->SetOSVersion(Message.DeviceOSVersion);
 			Device->SetDeviceConnectionType(Message.DeviceConnectionType);
-			Device->SetIsSimulated(Message.DeviceConnectionType.Contains(TEXT("Simulator")));
+			Device->SetIsSimulated(Message.DeviceID.Contains(TEXT("Simulator")));
 
-			ITargetPlatformControls::OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
+			OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
 		}
 		else
 		{
@@ -425,7 +412,7 @@ void FIOSTargetPlatform::HandleDeviceConnected(const FIOSLaunchDaemonPong& Messa
 }
 
 
-void FIOSTargetPlatform::HandleDeviceDisconnected(const FIOSLaunchDaemonPong& Message)
+void FIOSTargetPlatformControls::HandleDeviceDisconnected(const FIOSLaunchDaemonPong& Message)
 {
 	FTargetDeviceId DeviceId;
 	FTargetDeviceId::Parse(Message.DeviceID, DeviceId);
@@ -466,7 +453,7 @@ static bool SupportsA8Devices()
     return bSupportAppleA8;
 }
 
-bool FIOSTargetPlatform::CanSupportRemoteShaderCompile() const
+bool FIOSTargetPlatformControls::CanSupportRemoteShaderCompile() const
 {
 	// for 4.22 we are disabling support for XGE Shader compile on IOS
 	bool bRemoteCompilingEnabled = false;
@@ -474,100 +461,9 @@ bool FIOSTargetPlatform::CanSupportRemoteShaderCompile() const
 	return false; // !bRemoteCompilingEnabled;
 }
 
-bool FIOSTargetPlatform::SupportsFeature( ETargetPlatformFeatures Feature ) const
+void FIOSTargetPlatformControls::GetPlatformSpecificProjectAnalytics( TArray<FAnalyticsEventAttribute>& AnalyticsParamArray ) const
 {
-	switch (Feature)
-	{
-		case ETargetPlatformFeatures::Packaging:
-		case ETargetPlatformFeatures::DeviceOutputLog:
-			return true;
-
-		case ETargetPlatformFeatures::MobileRendering:
-		case ETargetPlatformFeatures::LowQualityLightmaps:
-			return SupportsMetal();
-			
-		case ETargetPlatformFeatures::DeferredRendering:
-		case ETargetPlatformFeatures::HighQualityLightmaps:
-			return SupportsMetalMRT();
-
-		case ETargetPlatformFeatures::VirtualTextureStreaming:
-			// TODO: should it check r.VirtualTextures for SM5 renderer?
-			return bMobileVirtualTextures;
-
-		case ETargetPlatformFeatures::DistanceFieldAO:
-			return UsesDistanceFields();
-
-		case ETargetPlatformFeatures::NormalmapLAEncodingMode:
-		{
-			static IConsoleVariable* CompressorCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("cook.ASTCTextureCompressor"));
-			const bool bUsesARMCompressor = (CompressorCVar ? (CompressorCVar->GetInt() != 0) : false);
-			return bUsesARMCompressor;
-		}
-
-		case ETargetPlatformFeatures::ShowAsPlatformGroup:
-			return false;
-
-		case ETargetPlatformFeatures::SupportsMultipleConnectionTypes:
-			return true;
-
-		default:
-			break;
-	}
-	
-	return TTargetPlatformBase<FIOSPlatformProperties>::SupportsFeature(Feature);
-}
-
-void FIOSTargetPlatform::GetAllPossibleShaderFormats( TArray<FName>& OutFormats ) const
-{
-	static FName NAME_SF_METAL(TEXT("SF_METAL"));
-	static FName NAME_SF_METAL_SIM(TEXT("SF_METAL_SIM"));
-	static FName NAME_SF_METAL_MRT(TEXT("SF_METAL_MRT"));
-	static FName NAME_SF_METAL_TVOS(TEXT("SF_METAL_TVOS"));
-	static FName NAME_SF_METAL_MRT_TVOS(TEXT("SF_METAL_MRT_TVOS"));
-
-	if (bIsTVOS)
-	{
-		if (SupportsMetalMRT())
-		{
-			OutFormats.AddUnique(NAME_SF_METAL_MRT_TVOS);
-		}
-
-		// because we are currently using IOS settings, we will always use metal, even if Metal isn't listed as being supported
-		// however, if MetalMRT is specific and Metal is set to false, then we will just use MetalMRT
-		if (SupportsMetal() || !SupportsMetalMRT())
-		{
-			OutFormats.AddUnique(NAME_SF_METAL_TVOS);
-		}
-	}
-	else
-	{
-		if (SupportsMetal())
-		{
-			OutFormats.AddUnique(NAME_SF_METAL);
-
-			bool bEnableSimulatorSupport = false;
-			GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bEnableSimulatorSupport"), bEnableSimulatorSupport, GEngineIni);
-			if (bEnableSimulatorSupport)
-			{
-				OutFormats.AddUnique(NAME_SF_METAL_SIM);
-			}
-		}
-
-		if (SupportsMetalMRT())
-		{
-			OutFormats.AddUnique(NAME_SF_METAL_MRT);
-		}
-	}
-}
-
-void FIOSTargetPlatform::GetAllTargetedShaderFormats( TArray<FName>& OutFormats ) const
-{
-	GetAllPossibleShaderFormats(OutFormats);
-}
-
-void FIOSTargetPlatform::GetPlatformSpecificProjectAnalytics( TArray<FAnalyticsEventAttribute>& AnalyticsParamArray ) const
-{
-	TNonDesktopTargetPlatformBase<FIOSPlatformProperties>::GetPlatformSpecificProjectAnalytics( AnalyticsParamArray );
+	TNonDesktopTargetPlatformControlsBase<FIOSPlatformProperties>::GetPlatformSpecificProjectAnalytics( AnalyticsParamArray );
 
 	AppendAnalyticsEventAttributeArray(AnalyticsParamArray,
 		TEXT("SupportsMetalMRT"), SupportsMetalMRT()
@@ -575,18 +471,6 @@ void FIOSTargetPlatform::GetPlatformSpecificProjectAnalytics( TArray<FAnalyticsE
 }
 
 #if WITH_ENGINE
-
-void FIOSTargetPlatform::GetReflectionCaptureFormats( TArray<FName>& OutFormats ) const
-{
-	const bool bMobileDeferredShading = (MobileShadingPath == 1);
-
-	if (SupportsMetalMRT() || bMobileDeferredShading || bMobileForwardEnableClusteredReflections)
-	{
-		OutFormats.Add(FName(TEXT("FullHDR")));
-	}
-
-	OutFormats.Add(FName(TEXT("EncodedHDR")));
-}
 
 static const FName NameASTC_RGB_HDR(TEXT("ASTC_RGB_HDR"));
 static const FName NameBC5(TEXT("BC5"));
@@ -608,7 +492,7 @@ static const FName FormatRemap[] =
 static const FName NameG8(TEXT("G8"));
 static const FName NameRGBA16F(TEXT("RGBA16F"));
 
-void FIOSTargetPlatform::GetTextureFormats( const UTexture* Texture, TArray< TArray<FName> >& OutFormats) const
+void FIOSTargetPlatformControls::GetTextureFormats( const UTexture* Texture, TArray< TArray<FName> >& OutFormats) const
 {
 	check(Texture);
 
@@ -636,11 +520,11 @@ void FIOSTargetPlatform::GetTextureFormats( const UTexture* Texture, TArray< TAr
 		// min spec for TVOS is AppleTV HD which is MTLGPUFamilyApple2 (A8)
 		bool bSupportCompressedVolumeTexture = !bIsTVOS && !SupportsA8Devices();
 		bool bSupportFilteredFloat32Textures = false;
-		GetDefaultTextureFormatNamePerLayer(TextureFormatNames, this, Texture, bSupportCompressedVolumeTexture, BlockSize, bSupportFilteredFloat32Textures);
+		GetDefaultTextureFormatNamePerLayer(TextureFormatNames, this->GetTargetPlatformSettings(), this, Texture, bSupportCompressedVolumeTexture, BlockSize, bSupportFilteredFloat32Textures);
 	}
 
 	// L+A mode for normal map compression
-	const bool bSupportsNormalLA = SupportsFeature(ETargetPlatformFeatures::NormalmapLAEncodingMode);
+	const bool bSupportsNormalLA = GetTargetPlatformSettings()->SupportsFeature(ETargetPlatformFeatures::NormalmapLAEncodingMode);
 
 	// include the formats we want
 	for (FName& TextureFormatName : TextureFormatNames)
@@ -661,7 +545,7 @@ void FIOSTargetPlatform::GetTextureFormats( const UTexture* Texture, TArray< TAr
 		}
 	}
 	
-	bool bSupportASTCHDR = UsesASTCHDR();
+	bool bSupportASTCHDR = GetTargetPlatformSettings()->UsesASTCHDR();
 
 	if ( ! bSupportASTCHDR )
 	{
@@ -700,11 +584,11 @@ void FIOSTargetPlatform::GetTextureFormats( const UTexture* Texture, TArray< TAr
 	}
 }
 
-void FIOSTargetPlatform::GetAllTextureFormats(TArray<FName>& OutFormats) const 
+void FIOSTargetPlatformControls::GetAllTextureFormats(TArray<FName>& OutFormats) const 
 {
 	bool bFoundRemap = false;
 
-	GetAllDefaultTextureFormats(this, OutFormats);
+	GetAllDefaultTextureFormats(this->GetTargetPlatformSettings(), OutFormats);
 
 	for (int32 RemapIndex = 0; RemapIndex < UE_ARRAY_COUNT(FormatRemap); RemapIndex += 2)
 	{
@@ -718,7 +602,7 @@ void FIOSTargetPlatform::GetAllTextureFormats(TArray<FName>& OutFormats) const
 	}
 }
 
-FName FIOSTargetPlatform::FinalizeVirtualTextureLayerFormat(FName Format) const
+FName FIOSTargetPlatformControls::FinalizeVirtualTextureLayerFormat(FName Format) const
 {
 #if WITH_EDITOR
 
@@ -757,11 +641,5 @@ FName FIOSTargetPlatform::FinalizeVirtualTextureLayerFormat(FName Format) const
 #endif
 	return Format;
 }
-
-const UTextureLODSettings& FIOSTargetPlatform::GetTextureLODSettings() const
-{
-	return *TextureLODSettings;
-}
-
 #endif // WITH_ENGINE
 

@@ -10,7 +10,7 @@
 #include "Containers/Queue.h"
 
 class FMessageEndpoint;
-class ITargetPlatform;
+class ITargetPlatformControls;
 
 
 /** Type definition for shared pointers to instances of FIOSTargetDevice. */
@@ -100,9 +100,9 @@ public:
 	/**
 	 * Create and initialize a new instance.
 	 *
-	 * @param InTargetPlatform The target platform that owns the device.
+	 * @param InTargetPlatformControls The target platform that owns the device.
 	 */
-	FIOSTargetDevice(const ITargetPlatform& InTargetPlatform);
+	FIOSTargetDevice(const ITargetPlatformControls& InTargetPlatformControls);
 
 public:
 
@@ -118,7 +118,8 @@ public:
 	virtual FString GetOperatingSystemName() override;
 	virtual FString GetModelId() const override;
 	virtual FString GetOSVersion() const override;
-	virtual const class ITargetPlatform& GetTargetPlatform() const override;
+	virtual const class ITargetPlatformSettings& GetPlatformSettings() const override;
+	virtual const class ITargetPlatformControls& GetPlatformControls() const override;
 	virtual bool IsConnected() override;
 	virtual bool IsDefault() const override;
 	virtual bool PowerOff(bool Force) override;
@@ -142,8 +143,8 @@ private:
 	/** The current status of this device. */
 //	ETargetDeviceStatus::Type Status;
 
-/** Holds a reference to the device's target platform. */
-	const ITargetPlatform& TargetPlatform;
+/** Holds a reference to the device's target platform controls. */
+	const ITargetPlatformControls& TargetPlatformControls;
 
 	/** Contains the address of the remote device */
 	FMessageAddress DeviceEndpoint;
