@@ -140,6 +140,8 @@ private:
 		TByteAddressBufferScatterUploader<uint32, MaterialScatterStride> MaterialDataUploader;
 	};
 	
+	bool IsEnabled() const { return MaterialBuffers.IsValid(); }
+	void SetEnabled(bool bEnabled);
 	void SyncAllTasks() const { UE::Tasks::Wait(TaskHandles); }
 	void FinishMaterialBufferUpload(
 		FRDGBuilder& GraphBuilder,
@@ -150,7 +152,7 @@ private:
 	FScene* Scene = nullptr;
 	FSpanAllocator MaterialBufferAllocator;
 	TSparseArray<FPrimitiveData> PrimitiveData;
-	FMaterialBuffers MaterialBuffers;
+	TUniquePtr<FMaterialBuffers> MaterialBuffers;
 	TUniquePtr<FUploader> MaterialUploader;
 #if WITH_EDITOR
 	FSpanAllocator HitProxyIDAllocator;
