@@ -32,45 +32,38 @@ struct VValue;
 #define VCPPCLASSINFO_PORTABLE_MSC_SUPER Super
 #endif
 
-#define DECLARE_BASE_VCPPCLASSINFO(API)                             \
-protected:                                                          \
-	auto CheckSuperClass()                                          \
-	{                                                               \
-		return this;                                                \
-	}                                                               \
-                                                                    \
-	template <typename TVisitor>                                    \
-	void VisitInheritedAndNonInheritedReferences(TVisitor& Visitor) \
-	{                                                               \
-		VisitReferencesImpl(Visitor);                               \
-	}                                                               \
-                                                                    \
-public:                                                             \
+#define DECLARE_BASE_VCPPCLASSINFO(API)                                                    \
+protected:                                                                                 \
+	auto CheckSuperClass()                                                                 \
+	{                                                                                      \
+		return this;                                                                       \
+	}                                                                                      \
+                                                                                           \
+	API void VisitInheritedAndNonInheritedReferences(::Verse::FAbstractVisitor& Visitor);  \
+	API void VisitInheritedAndNonInheritedReferences(::Verse::FMarkStackVisitor& Visitor); \
+                                                                                           \
+public:                                                                                    \
 	API static ::Verse::VCppClassInfo StaticCppClassInfo;
 
-#define DECLARE_DERIVED_VCPPCLASSINFO(API, SuperClass)                                  \
-private:                                                                                \
-	template <typename TVisitor>                                                        \
-	void VisitReferencesImpl(TVisitor&); /* to be implemented by the user. */           \
-                                                                                        \
-protected:                                                                              \
-	auto CheckSuperClass()                                                              \
-	{                                                                                   \
-		auto SuperThis = VCPPCLASSINFO_PORTABLE_MSC_SUPER::CheckSuperClass();           \
-		static_assert(std::is_same_v<decltype(SuperThis), SuperClass*>,                 \
-			"Declared super-class " #SuperClass " does not match actual super-class."); \
-		return this;                                                                    \
-	}                                                                                   \
-                                                                                        \
-	template <typename TVisitor>                                                        \
-	void VisitInheritedAndNonInheritedReferences(TVisitor& Visitor)                     \
-	{                                                                                   \
-		Super::VisitInheritedAndNonInheritedReferences(Visitor);                        \
-		VisitReferencesImpl(Visitor);                                                   \
-	}                                                                                   \
-                                                                                        \
-public:                                                                                 \
-	using Super = SuperClass;                                                           \
+#define DECLARE_DERIVED_VCPPCLASSINFO(API, SuperClass)                                     \
+private:                                                                                   \
+	template <typename TVisitor>                                                           \
+	void VisitReferencesImpl(TVisitor&); /* to be implemented by the user. */              \
+                                                                                           \
+protected:                                                                                 \
+	auto CheckSuperClass()                                                                 \
+	{                                                                                      \
+		auto SuperThis = VCPPCLASSINFO_PORTABLE_MSC_SUPER::CheckSuperClass();              \
+		static_assert(std::is_same_v<decltype(SuperThis), SuperClass*>,                    \
+			"Declared super-class " #SuperClass " does not match actual super-class.");    \
+		return this;                                                                       \
+	}                                                                                      \
+                                                                                           \
+	API void VisitInheritedAndNonInheritedReferences(::Verse::FAbstractVisitor& Visitor);  \
+	API void VisitInheritedAndNonInheritedReferences(::Verse::FMarkStackVisitor& Visitor); \
+                                                                                           \
+public:                                                                                    \
+	using Super = SuperClass;                                                              \
 	API static ::Verse::VCppClassInfo StaticCppClassInfo;
 
 #define DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, SuperClassInfoPtr)                                                                                                       \
@@ -110,14 +103,35 @@ public:                                                                         
 		::Verse::Details::GetSerializeNewMethod<CellType>()};                                                                                                                   \
 	::Verse::VCppClassInfoRegister CellType##_Register(&CellType::StaticCppClassInfo);
 
-#define DEFINE_BASE_VCPPCLASSINFO(CellType) DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, nullptr)
+#define DEFINE_BASE_VCPPCLASSINFO(CellType)                                                     \
+	DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, nullptr)                                     \
+	void CellType::VisitInheritedAndNonInheritedReferences(::Verse::FAbstractVisitor& Visitor)  \
+	{                                                                                           \
+		VisitReferencesImpl(Visitor);                                                           \
+	}                                                                                           \
+                                                                                                \
+	void CellType::VisitInheritedAndNonInheritedReferences(::Verse::FMarkStackVisitor& Visitor) \
+	{                                                                                           \
+		VisitReferencesImpl(Visitor);                                                           \
+	}
 
 #define DEFINE_DERIVED_VCPPCLASSINFO(CellType)                                                                                                                              \
 	static_assert(!std::is_same_v<CellType::Super, CellType>, #CellType " declares itself as its super-class in DECLARE_DERIVED_VCPPCLASSINFO.");                           \
 	static_assert(std::is_base_of_v<CellType::Super, CellType>, #CellType " doesn't derive from the super-class declared by DECLARE_DERIVED_VCPPCLASSINFO.");               \
 	static_assert(std::is_base_of_v<::Verse::VCell, CellType::Super>, #CellType "'s super-class as declared by DECLARE_DERIVED_VCPPCLASSINFO does not derive from VCell."); \
 	static_assert(!std::is_polymorphic_v<CellType>, "VCell-derived C++ classes must not have virtual methods.");                                                            \
-	DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, &CellType::Super::StaticCppClassInfo)
+	DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, &CellType::Super::StaticCppClassInfo)                                                                                    \
+	void CellType::VisitInheritedAndNonInheritedReferences(::Verse::FAbstractVisitor& Visitor)                                                                              \
+	{                                                                                                                                                                       \
+		Super::VisitInheritedAndNonInheritedReferences(Visitor);                                                                                                            \
+		VisitReferencesImpl(Visitor);                                                                                                                                       \
+	}                                                                                                                                                                       \
+                                                                                                                                                                            \
+	void CellType::VisitInheritedAndNonInheritedReferences(::Verse::FMarkStackVisitor& Visitor)                                                                             \
+	{                                                                                                                                                                       \
+		Super::VisitInheritedAndNonInheritedReferences(Visitor);                                                                                                            \
+		VisitReferencesImpl(Visitor);                                                                                                                                       \
+	}
 
 #define DEFINE_TRIVIAL_VISIT_REFERENCES(CellType) \
 	template <typename TVisitor>                  \
@@ -173,13 +187,13 @@ struct VCppClassInfoRegister
 	VCppClassInfo* CppClassInfo;
 	VCppClassInfoRegister* Next;
 
-	VCppClassInfoRegister(VCppClassInfo* InCppClassInfo);
-	~VCppClassInfoRegister();
+	COREUOBJECT_API VCppClassInfoRegister(VCppClassInfo* InCppClassInfo);
+	COREUOBJECT_API ~VCppClassInfoRegister();
 };
 
 struct VCppClassInfoRegistry
 {
-	static VCppClassInfo* GetCppClassInfo(FStringView Name);
+	COREUOBJECT_API static VCppClassInfo* GetCppClassInfo(FStringView Name);
 };
 
 } // namespace Verse
