@@ -65,7 +65,7 @@ RHI_API FString FRHIBreadcrumbNode::GetFullPath() const
 
 	auto Recurse = [&Result, &Buffer, this](auto& Recurse, FRHIBreadcrumbNode const* Current) -> void
 	{
-		if (!Current)
+		if (!Current || Current == Sentinel)
 			return;
 
 		Recurse(Recurse, Current->Parent);

@@ -485,7 +485,7 @@
 		{
 			auto Recurse = [](FRHIBreadcrumbNode* Current, auto& Recurse) -> void
 			{
-				if (!Current)
+				if (!Current || Current == Sentinel)
 					return;
 
 				Recurse(Current->GetParent(), Recurse);
@@ -501,7 +501,7 @@
 #if RHI_BREADCRUMBS_EMIT_CPU
 		if (TRACE_CPUPROFILER_EVENT_MANUAL_IS_ENABLED())
 		{
-			while (Node)
+			while (Node && Node != Sentinel)
 			{
 				Node->EndCPU();
 				Node = Node->GetParent();

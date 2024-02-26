@@ -1288,7 +1288,7 @@ FRHICommandList_RecursiveHazardous::FRHICommandList_RecursiveHazardous(IRHIComma
 
 	Contexts[ERHIPipeline::Graphics] = GraphicsContext;
 
-	PersistentState.bAsyncPSOCompileAllowed = false;
+	PersistentState.bRecursive = true;
 }
 
 FRHICommandList_RecursiveHazardous::~FRHICommandList_RecursiveHazardous()
@@ -1316,7 +1316,7 @@ FRHIComputeCommandList_RecursiveHazardous::FRHIComputeCommandList_RecursiveHazar
 	ComputeContext = &Context->GetHighestLevelContext();
 	Contexts[ActivePipeline] = ComputeContext;
 
-	PersistentState.bAsyncPSOCompileAllowed = false;
+	PersistentState.bRecursive = true;
 }
 
 FRHIComputeCommandList_RecursiveHazardous::~FRHIComputeCommandList_RecursiveHazardous()

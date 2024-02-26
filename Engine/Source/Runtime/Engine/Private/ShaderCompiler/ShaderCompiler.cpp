@@ -9524,8 +9524,9 @@ void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, con
 			{
 				for (TShaderRef<FShader> GlobalShader : ComputeShadersToPrecache)
 				{
+					const TCHAR* TypeName = GlobalShader.GetType()->GetName();
 					FRHIComputeShader* RHIComputeShader = GlobalShader.GetComputeShader();
-					PipelineStateCache::PrecacheComputePipelineState(RHIComputeShader);
+					PipelineStateCache::PrecacheComputePipelineState(RHIComputeShader, TypeName);
 				}
 			});
 	}

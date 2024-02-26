@@ -587,7 +587,7 @@ public:
 
 	FORCEINLINE FRHIGPUMask GetGPUMask() const { return PersistentState.CurrentGPUMask; }
 
-	bool AsyncPSOCompileAllowed() const { return PersistentState.bAsyncPSOCompileAllowed; }
+	bool IsRecursive		   () const { return PersistentState.bRecursive; }
 	bool IsOutsideRenderPass   () const { return !PersistentState.bInsideRenderPass; }
 	bool IsInsideRenderPass    () const { return PersistentState.bInsideRenderPass;  }
 	bool IsInsideComputePass   () const { return PersistentState.bInsideComputePass; }
@@ -978,7 +978,7 @@ protected:
 
 		PersistentState.CachedNumSimultanousRenderTargets = RTInfo.NumColorRenderTargets;
 		PersistentState.CachedDepthStencilTarget = RTInfo.DepthStencilRenderTarget;
-		PersistentState.HasFragmentDensityAttachment = RTInfo.ShadingRateTexture != nullptr;
+		PersistentState.bHasFragmentDensityAttachment = RTInfo.ShadingRateTexture != nullptr;
 		PersistentState.MultiViewCount = RTInfo.MultiViewCount;
 	}
 
@@ -1082,13 +1082,14 @@ protected:
 		ESubpassHint SubpassHint = ESubpassHint::None;
 		uint8 SubpassIndex = 0;
 		uint8 MultiViewCount = 0;
-		bool HasFragmentDensityAttachment = false;
 
-		bool bInsideRenderPass = false;
-		bool bInsideComputePass = false;
-		bool bInsideOcclusionQueryBatch = false;
-		bool bAsyncPSOCompileAllowed = true;
-		bool bImmediate = false;
+		uint8 bHasFragmentDensityAttachment		: 1 = false;
+
+		uint8 bInsideRenderPass					: 1 = false;
+		uint8 bInsideComputePass				: 1 = false;
+		uint8 bInsideOcclusionQueryBatch		: 1 = false;
+		uint8 bRecursive						: 1 = false;
+		uint8 bImmediate						: 1 = false;
 
 		FRHIGPUMask CurrentGPUMask;
 		FRHIGPUMask InitialGPUMask;
@@ -3275,7 +3276,7 @@ public:
 		GraphicsPSOInit.SubpassHint = PersistentState.SubpassHint;
 		GraphicsPSOInit.SubpassIndex = PersistentState.SubpassIndex;
 		GraphicsPSOInit.MultiViewCount = PersistentState.MultiViewCount;
-		GraphicsPSOInit.bHasFragmentDensityAttachment = PersistentState.HasFragmentDensityAttachment;
+		GraphicsPSOInit.bHasFragmentDensityAttachment = PersistentState.bHasFragmentDensityAttachment;
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetGraphicsPipelineState(class FGraphicsPipelineState* GraphicsPipelineState, const FBoundShaderStateInput& ShaderInput, uint32 StencilRef, bool bApplyAdditionalState)

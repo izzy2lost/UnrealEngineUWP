@@ -142,7 +142,7 @@ namespace PipelineStateCache
 	extern RHI_API bool						IsPSOPrecachingEnabled();
 
 	/* Precache the compute shader and return a request ID if precached async */
-	extern RHI_API FPSOPrecacheRequestResult PrecacheComputePipelineState(FRHIComputeShader* ComputeShader, bool bForcePrecache = false);
+	extern RHI_API FPSOPrecacheRequestResult PrecacheComputePipelineState(FRHIComputeShader* ComputeShader, const TCHAR* Name = nullptr, bool bForcePrecache = false);
 
 	/* Precache the graphic PSO and return an optional graph event if precached async */
 	extern RHI_API FPSOPrecacheRequestResult PrecacheGraphicsPipelineState(const FGraphicsPipelineStateInitializer& PipelineStateInitializer);
@@ -170,6 +170,9 @@ namespace PipelineStateCache
 
 	/* Return number of active or pending PSO precache requests */
 	extern RHI_API uint32					NumActivePrecacheRequests();
+
+	/* Reset the PSO hitch tracking counters */
+	extern RHI_API void						ResetPSOHitchTrackingStats();
 }
 
 // Returns the shader index within the ray tracing pipeline or INDEX_NONE if given shader does not exist.
