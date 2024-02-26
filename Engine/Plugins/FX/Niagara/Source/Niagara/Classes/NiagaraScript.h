@@ -522,16 +522,16 @@ public:
 	TArray<FNiagaraStatScope> StatScopes;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY()
+	UPROPERTY(Transient)
 	FString LastHlslTranslation;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	FString LastHlslTranslationGPU;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	FString LastAssemblyTranslation;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	uint32 LastOpCount;
 #endif
 
