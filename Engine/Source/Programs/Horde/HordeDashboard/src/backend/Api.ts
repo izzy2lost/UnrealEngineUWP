@@ -5168,7 +5168,8 @@ export type DashboardLoginRequest = {
 
 /// Update request for the current user account
 export type UpdateCurrentAccountRequest = {
-	password?: string;
+	oldPassword?: string;
+	newPassword?: string;
 }
 
 /// Message describing a claim for an account	

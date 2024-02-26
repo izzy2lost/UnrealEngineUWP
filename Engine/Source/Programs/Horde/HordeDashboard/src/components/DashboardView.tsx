@@ -2,7 +2,6 @@
 
 import { ColorPicker, DefaultButton, DialogFooter, IColorPickerStyles, Label, MessageBar, MessageBarType, Modal, Pivot, PivotItem, PrimaryButton, Spinner, SpinnerSize, Stack, Text, TextField, Toggle } from '@fluentui/react';
 import { observer } from 'mobx-react-lite';
-import moment from 'moment';
 import React, { useState } from 'react';
 import backend from '../backend';
 import { AuthMethod, DashboardPreference, UpdateCurrentAccountRequest } from '../backend/Api';
@@ -10,7 +9,6 @@ import dashboard, { StatusColor, WebBrowser } from '../backend/Dashboard';
 import { useWindowSize } from '../base/utilities/hooks';
 import { getHordeStyling } from '../styles/Styles';
 import { Breadcrumbs } from './Breadcrumbs';
-import ErrorHandler from './ErrorHandler';
 import { TopNav } from './TopNav';
 import { UserAccountPanel } from './accounts/UserAccountPanel';
 
@@ -240,14 +238,18 @@ const ChangePasswordModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
    const [submitting, setSubmitting] = useState(false);
    const { hordeClasses } = getHordeStyling();
    const [error, setError] = useState("");
-   const [secrets, setSecrets] = useState<{ password?: string }>({});
+   const [secrets, setSecrets] = useState<{ currentPassword?: string, newPassword?: string, confirmPassword?: string }>({});
 
 
    const onValidate = () => {
 
 
-      if (!secrets.password) {
+      if (!secrets.newPassword) {
          return "Please enter a password";
+      }
+
+      if (secrets.newPassword !== secrets.confirmPassword) {
+         return "New and confirm passwords don't match";
       }
 
       return undefined;
@@ -267,19 +269,14 @@ const ChangePasswordModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
       try {
 
          setSubmitting(true);
-         const uaccount: UpdateCurrentAccountRequest = { password: secrets.password };
+         const uaccount: UpdateCurrentAccountRequest = { newPassword: secrets.newPassword, oldPassword: secrets.currentPassword ?? "" };
          await backend.updateCurrentAccount(uaccount);
          setSubmitting(false);
          onClose();
 
       } catch (reason) {
          console.error(reason);
-         ErrorHandler.set({
-            reason: `${reason}`,
-            title: `User Modification Error`,
-            message: `There was an issue modifying the user.\n\nReason: ${reason}\n\nTime: ${moment.utc().format("MMM Do, HH:mm z")}`
-         }, true);
-
+         setError("Error updating password, please make sure the current password matches");
          setSubmitting(false);
       }
 
@@ -300,7 +297,7 @@ const ChangePasswordModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
       </Modal>
    }
 
-   return <Modal className={hordeClasses.modal} isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 640, hasBeenOpened: false, top: "120px", position: "absolute" } }} >
+   return <Modal className={hordeClasses.modal} isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 512, hasBeenOpened: false, top: "120px", position: "absolute" } }} >
       <Stack style={{ padding: 8 }}>
          <Stack style={{ paddingBottom: 16 }}>
             <Text variant="mediumPlus" style={{ fontFamily: "Horde Open Sans SemiBold" }}>Change Password</Text>
@@ -308,10 +305,19 @@ const ChangePasswordModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
          {!!error && <Stack>
             <MessageBar key={`validation_error`} messageBarType={MessageBarType.error} isMultiline={false}>{error}</MessageBar>
          </Stack>}
+
          <Stack style={{ padding: 8 }}>
-            <TextField label={"New Password"} autoComplete="off" spellCheck={false} placeholder="Enter New Password" type="password" canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, password: value ?? "" }) }} />
+            <TextField label={"Current Password"} autoComplete="off" defaultValue={ secrets.currentPassword} spellCheck={false} type="password" canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, currentPassword: value ?? "" }) }} />
          </Stack>
 
+         <Stack style={{ padding: 8 }}>
+            <TextField label={"New Password"} autoComplete="off" spellCheck={false} type="password" defaultValue={ secrets.newPassword} canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, newPassword: value ?? "" }) }} />
+         </Stack>
+
+         <Stack style={{ padding: 8 }}>
+            <TextField label={"Confirm Password"} autoComplete="off" spellCheck={false} type="password" defaultValue={ secrets.confirmPassword} canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, confirmPassword: value ?? "" }) }} />
+         </Stack>
+         
          <Stack horizontal style={{ paddingTop: 64 }}>
             <Stack grow />
             <Stack horizontal tokens={{ childrenGap: 28 }}>
@@ -379,7 +385,7 @@ const GeneralPanel: React.FC = observer(() => {
             {pivotKey === "Claims" && <UserAccountPanel mode={pivotKey} />}
             {pivotKey === "Entitlements" && <UserAccountPanel mode={pivotKey}/>}
             {pivotKey === "Settings" && <Stack style={{ paddingLeft: 12 }} tokens={{ childrenGap: 12 }}>
-               <Stack style={{ paddingLeft: 12 }}>
+               <Stack style={{ paddingLeft: 8 }}>
                   <Toggle label="Dark Mode" inlineLabel={true} defaultChecked={dashboard.darktheme} onChange={(ev, checked) => {
                      dashboard.setDarkTheme(checked ? true : false);
                      setColorState({ ...colorState });
@@ -404,12 +410,12 @@ const GeneralPanel: React.FC = observer(() => {
                   }} />
                </Stack>
 
-               <Stack className="horde-no-darktheme" tokens={{ childrenGap: 12 }}>
+               <Stack className="horde-no-darktheme" style={{paddingLeft: 8}} tokens={{ childrenGap: 12 }}>
                   <Label>Status Colors</Label>
                   <BadgeColors />
                </Stack>
 
-               {dashboard.authMethod === AuthMethod.Horde && <Stack style={{ paddingTop: 24 }}>
+               {dashboard.authMethod === AuthMethod.Horde && <Stack style={{ paddingTop: 24, paddingLeft: 8 }}>
                   <PrimaryButton style={{ width: 180 }} text="Change Password" onClick={() => setChangePassword(true)} />
                </Stack>}
 

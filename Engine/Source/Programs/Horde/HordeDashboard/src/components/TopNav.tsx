@@ -697,10 +697,8 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
                   <Stack styles={{ root: {} }} onMouseEnter={() => setShowMenu(true)}
                      onMouseLeave={() => { setShowMenu(false) }} >
                      <div ref={divRef}>
-                        <a href="/" onClick={(ev) => { ev.preventDefault(); setShowMenu(true); }}>
-                           <Persona styles={{ root: { selectors: { ".ms-Persona-initials": { fontWeight: "unset", fontFamily: "Horde Open Sans SemiBold" } } } }} imageShouldFadeIn={false} imageInitials={initials} imageUrl={dashboard.userImage32} size={PersonaSize.size32}
-                              onClick={() => { navigate("/index") }} />
-                        </a>
+                        <Persona styles={{ root: { selectors: { ".ms-Persona-initials": { fontWeight: "unset", fontFamily: "Horde Open Sans SemiBold", cursor: "pointer" } } } }} imageShouldFadeIn={false} imageInitials={initials} imageUrl={dashboard.userImage32} size={PersonaSize.size32}
+                           onClick={() => { navigate("/dashboard"); }} />
                      </div>
                      <ContextualMenu
                         items={menuItems}

@@ -241,7 +241,7 @@ namespace Horde.Server.Server
 			}
 
 			IAccount? account = await _hordeAccounts.FindByLoginAsync(login);
-			if (account == null)
+			if (account == null || !account.Enabled)
 			{
 				return false;
 			}
