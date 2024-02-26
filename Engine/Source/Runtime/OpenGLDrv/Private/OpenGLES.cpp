@@ -128,6 +128,9 @@ bool FOpenGLES::bRequiresReadOnlyBuffersWorkaround = false;
 /* This is to avoid a bug in Adreno drivers that define GL_ARM_shader_framebuffer_fetch_depth_stencil even when device does not support this extension  */
 bool FOpenGLES::bRequiresARMShaderFramebufferFetchDepthStencilUndef = false;
 
+/** Framebuffer fetch can be used to do programmable blending without running into driver issues */
+bool FOpenGLES::bSupportsShaderFramebufferFetchProgrammableBlending = true;
+
 /** GL_EXT_buffer_storage */
 bool FOpenGLES::bSupportsBufferStorage = false;
 

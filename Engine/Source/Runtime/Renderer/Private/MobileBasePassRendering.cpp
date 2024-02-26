@@ -111,7 +111,7 @@ EMobileTranslucentColorTransmittanceMode MobileActiveTranslucentColorTransmittan
 	}
 	else if (DefaultMode == EMobileTranslucentColorTransmittanceMode::PROGRAMMABLE_BLENDING)
 	{
-		if (!GSupportsShaderFramebufferFetch)
+		if (!GSupportsShaderFramebufferFetch || !GSupportsShaderFramebufferFetchProgrammableBlending)
 		{
 			check(SupportsTranslucentColorTransmittanceFallback(Platform, EMobileTranslucentColorTransmittanceMode::SINGLE_SRC_BLENDING));
 			return EMobileTranslucentColorTransmittanceMode::SINGLE_SRC_BLENDING;
