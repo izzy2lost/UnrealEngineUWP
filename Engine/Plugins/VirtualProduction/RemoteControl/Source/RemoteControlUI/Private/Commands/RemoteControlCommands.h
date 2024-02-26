@@ -47,9 +47,14 @@ public:
 	TSharedPtr<FUICommandInfo> DeleteEntity;
 
 	/**
-	 * Holds the information about UI Command that  renames selected group/exposed entity.
+	 * Holds the information about UI Command that renames selected group/exposed entity.
 	 */
 	TSharedPtr<FUICommandInfo> RenameEntity;
+
+	/**
+	 * Holds the information about UI Command that change the selected property Ids.
+	 */
+	TSharedPtr<FUICommandInfo> ChangePropId;
 
 	/**
 	 * UI Command for copying a UI item in the Remote Control preset. Currently used for Logic panel

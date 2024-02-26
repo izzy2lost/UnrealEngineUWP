@@ -1419,6 +1419,11 @@ void SRemoteControlPanel::BindRemoteControlCommands()
 		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanRenameEntity));
 
 	ActionList.MapAction(
+		Commands.ChangePropId,
+		FExecuteAction::CreateSP(this, &SRemoteControlPanel::ChangePropertyId_Execute),
+		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanChangePropertyId));
+
+	ActionList.MapAction(
 		Commands.CopyItem,
 		FExecuteAction::CreateSP(this, &SRemoteControlPanel::CopyItem_Execute),
 		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanCopyItem));
@@ -2544,6 +2549,39 @@ bool SRemoteControlPanel::CanRenameEntity() const
 	}
 
 	return false;
+}
+
+void SRemoteControlPanel::ChangePropertyId_Execute() const
+{
+	if (!LastSelectedEntity.IsValid())
+	{
+		return;
+	}
+
+	if (LastSelectedEntity->GetRCType() == SRCPanelTreeNode::Field)
+	{
+		LastSelectedEntity->FocusPropertyIdWidget();
+	}
+}
+
+bool SRemoteControlPanel::CanChangePropertyId() const
+{
+	if (bIsInLiveMode)
+	{
+		return false;
+	}
+
+	if (!LastSelectedEntity.IsValid())
+	{
+		return false;
+	}
+
+	if (LastSelectedEntity->GetRCType() != SRCPanelTreeNode::Field)
+	{
+		return false;
+	}
+
+	return true;
 }
 
 void SRemoteControlPanel::SetLogicClipboardItems(const TArray<UObject*>& InItems, const TSharedPtr<SRCLogicPanelBase>& InSourcePanel)

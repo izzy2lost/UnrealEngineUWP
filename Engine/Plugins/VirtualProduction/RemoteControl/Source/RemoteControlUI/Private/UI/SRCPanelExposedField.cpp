@@ -7,6 +7,7 @@
 #include "Components/SceneComponent.h"
 #include "EditorFontGlyphs.h"
 #include "Factories/IRCDefaultValueFactory.h"
+#include "Framework/Application/SlateApplication.h"
 #include "IDetailTreeNode.h"
 #include "IRCProtocolBindingList.h"
 #include "IRemoteControlModule.h"
@@ -169,6 +170,14 @@ SRCPanelTreeNode::ENodeType SRCPanelExposedField::GetRCType() const
 	return SRCPanelTreeNode::Field;
 }
 
+void SRCPanelExposedField::FocusPropertyIdWidget() const
+{
+	if (GetFieldType() == EExposedFieldType::Property && PropertyIdWidget.IsValid())
+	{
+		FSlateApplication::Get().SetUserFocus(0, PropertyIdWidget);
+	}
+}
+
 bool SRCPanelExposedField::HasChildren() const
 {
 	return ChildWidgets.Num() > 0;
@@ -188,16 +197,20 @@ SRCPanelTreeNode::FMakeNodeWidgetArgs SRCPanelExposedField::CreateEntityWidgetIn
 {
 	FMakeNodeWidgetArgs Args = SRCPanelExposedEntity::CreateEntityWidgetInternal(ValueWidget, ResetWidget, OptionalWarningMessage, EditConditionWidget);
 
-	Args.PropertyIdWidget = SNew(SBox)
-		[
-			SNew(SEditableTextBox)
-			.MinDesiredWidth(50.f)
-			.SelectAllTextWhenFocused(true)
-			.RevertTextOnEscape(true)
-			.ClearKeyboardFocusOnCommit(true)
-			.Text_Lambda([this] () { return GetPropertyIdText(); })
-			.OnTextCommitted(this, &SRCPanelExposedField::OnPropertyIdTextCommitted)
-		];
+	// TODO: Add support for function PropertyId
+	if (GetFieldType() == EExposedFieldType::Property)
+	{
+		Args.PropertyIdWidget = SNew(SBox)
+			[
+				SAssignNew(PropertyIdWidget, SEditableTextBox)
+				.MinDesiredWidth(50.f)
+				.SelectAllTextWhenFocused(true)
+				.RevertTextOnEscape(true)
+				.ClearKeyboardFocusOnCommit(true)
+				.Text_Lambda([this] () { return GetPropertyIdText(); })
+				.OnTextCommitted(this, &SRCPanelExposedField::OnPropertyIdTextCommitted)
+			];
+	}
 
 	return Args;
 }

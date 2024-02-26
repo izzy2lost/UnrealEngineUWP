@@ -45,6 +45,7 @@ struct SRCPanelExposedField : public SRCPanelExposedEntity
 	//~ SRCPanelTreeNode Interface 
 	virtual void GetNodeChildren(TArray<TSharedPtr<SRCPanelTreeNode>>& OutChildren) const override;
 	virtual ENodeType GetRCType() const override;
+	virtual void FocusPropertyIdWidget() const override;
 	virtual bool HasChildren() const override;
 	virtual void Refresh() override;
 	virtual TSharedRef<SWidget> GetWidget(const FName ForColumnName, const FName InActiveProtocol) override;
@@ -118,6 +119,8 @@ private:
 	TUniquePtr<uint8[]> DefaultValue;
 	/** Holds the shared reference of reset button for this field. */
 	TSharedPtr<SWidget> ResetButtonWidget;
+	/** Holds the SharedPtr of the PropertyId widget of this field. */
+	TSharedPtr<SWidget> PropertyIdWidget;
 };
 
 

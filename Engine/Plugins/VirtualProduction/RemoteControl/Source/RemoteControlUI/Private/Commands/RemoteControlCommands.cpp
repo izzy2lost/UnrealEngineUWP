@@ -32,10 +32,13 @@ void FRemoteControlCommands::RegisterCommands()
 	UI_COMMAND(ToggleLogicEditor, "Logic", "View the logic applied to active selection.", EUserInterfaceActionType::ToggleButton, FInputChord());
 
 	// Delete Entity
-	UI_COMMAND(DeleteEntity, "Delete", "Delete the selected  group/exposed entity from the list.", EUserInterfaceActionType::Button, FInputChord(EKeys::Delete));
+	UI_COMMAND(DeleteEntity, "Delete", "Delete the selected group/exposed entity from the list.", EUserInterfaceActionType::Button, FInputChord(EKeys::Delete));
 
 	// Rename Entity
-	UI_COMMAND(RenameEntity, "Rename", "Rename the selected  group/exposed entity.", EUserInterfaceActionType::Button, FInputChord(EKeys::F2));
+	UI_COMMAND(RenameEntity, "Rename", "Rename the selected group/exposed entity.", EUserInterfaceActionType::Button, FInputChord(EKeys::F2));
+
+	// Modify Entity Prop Id
+	UI_COMMAND(ChangePropId, "ChangePropid", "Change the selected property Ids", EUserInterfaceActionType::Button, FInputChord(EKeys::F3, EModifierKey::Control));
 
 	// Copy Item
 	UI_COMMAND(CopyItem, "Copy", "Copy the selected UI item", EUserInterfaceActionType::Button, FInputChord(EKeys::C, EModifierKey::Control));

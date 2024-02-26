@@ -319,6 +319,12 @@ private:
 	/** Called to test if user is able to rename a group/exposed entity. */
 	bool CanRenameEntity() const;
 
+	/** Called when user attempts to change property Ids. */
+	void ChangePropertyId_Execute() const;
+
+	/** Called to test if user is able to change property Ids. */
+	bool CanChangePropertyId() const;
+
 	/** Called when user attempts to Copy a logic UI item. */
 	void CopyItem_Execute();
 

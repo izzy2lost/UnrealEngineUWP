@@ -69,36 +69,54 @@ struct SRCPanelTreeNode : public SCompoundWidget, public IHasProtocolExtensibili
 
 	/** Get this tree node's childen. */
 	virtual void GetNodeChildren(TArray<TSharedPtr<SRCPanelTreeNode>>& OutChildren) const {}
+
 	/** Get this node's ID if any. */
 	virtual FGuid GetRCId() const { return FGuid(); }
+
 	/** Get get this node's type. */
 	virtual ENodeType GetRCType() const { return ENodeType::Invalid; }
+
 	/** Returns true if this tree node has childen. */
 	virtual bool HasChildren() const { return false; }
+
 	/** Refresh the node. */
-	virtual void Refresh() {};
+	virtual void Refresh() {}
+
 	/** Get the context menu for this node. */
 	virtual TSharedPtr<SWidget> GetContextMenu() { return nullptr; }
+
 	/** Set whether this widget is currently hovered when drag and dropping. */
 	virtual void SetIsHovered(bool bIsBeingHovered) {}
+
 	/** Make the node name's text box editable. */
-	virtual void EnterRenameMode() {};
+	virtual void EnterRenameMode() {}
+
 	/** Get the PropertyId of this Node. */
 	virtual FName GetPropertyId() { return FName(TEXT("")); }
+
 	/** Set the PropertyId of this Node. */
-	virtual void SetPropertyId(FName InNewPropertyId) {};
+	virtual void SetPropertyId(FName InNewPropertyId) {}
+
+	/** Focus the PropertyId widget. */
+	virtual void FocusPropertyIdWidget() const {}
+
 	/** Set the Name of this Node. */
-	virtual void SetName(FName InNewName) {};
+	virtual void SetName(FName InNewName) {}
+
 	/** Updates the highlight text to active search term. */
-	virtual void SetHighlightText(const FText& InHightlightText = FText::GetEmpty()) {};
+	virtual void SetHighlightText(const FText& InHightlightText = FText::GetEmpty()) {}
+
 	/** Retrieves the referenced widget corresponding to the given column name. */
 	virtual TSharedRef<SWidget> GetWidget(const FName ForColumnName, const FName InActiveProtocol);
-	/** Retrieves the DragAndDropWidget if possible otherwise returns a NullWidget */
+
+	/** Retrieves the DragAndDropWidget if possible otherwise returns a NullWidget. */
 	TSharedRef<SWidget> GetDragAndDropWidget(int32 InSelectedEntitiesNum = 1);
-	/** Executed when the Name of the node is changed */
-	FOnLabelModified& OnLabelModified() { return OnLabelModifiedDelegate; };
-	/** Executed when the PropertyId of the node is changed */
-	FOnPropertyIdRenamed& OnPropertyIdRenamed() { return OnPropertyIdRenamedDelegate; };
+
+	/** Executed when the Name of the node is changed. */
+	FOnLabelModified& OnLabelModified() { return OnLabelModifiedDelegate; }
+
+	/** Executed when the PropertyId of the node is changed. */
+	FOnPropertyIdRenamed& OnPropertyIdRenamed() { return OnPropertyIdRenamedDelegate; }
 
 protected:
 	struct FMakeNodeWidgetArgs
@@ -113,8 +131,10 @@ protected:
 	
 	/** Create a widget that represents a row with a splitter. */
 	TSharedRef<SWidget> MakeSplitRow(TSharedRef<SWidget> LeftColumn, TSharedRef<SWidget> RightColumn);
+
 	/** Create a widget that represents a node in the panel tree hierarchy. */
 	TSharedRef<SWidget> MakeNodeWidget(const FMakeNodeWidgetArgs& Args);
+
 	/** Creates cached copies of underlying widgets. */
 	void MakeNodeWidgets(const FMakeNodeWidgetArgs& Args);
 
