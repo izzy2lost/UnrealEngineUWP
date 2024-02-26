@@ -33,6 +33,8 @@ namespace uba
 		NetworkClient(bool& outCtorSuccess, const NetworkClientCreateInfo& info = {}, const tchar* name = TC("UbaClient"));
 		~NetworkClient();
 
+		void StopAll();
+
 		bool Connect(NetworkBackend& backend, const tchar* ip, u16 port = DefaultPort, bool* timedOut = nullptr);
 		void Disconnect();
 
