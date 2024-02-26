@@ -29,7 +29,7 @@ namespace Horde.Server.Tests.Accounts
 		[TestMethod]
 		public async Task AddAsync()
 		{
-			(IServiceAccount sa, string token) = await _serviceAccountCollection.CreateAsync(new CreateServiceAccountOptions(Description: "myDesc",
+			(IServiceAccount sa, _) = await _serviceAccountCollection.CreateAsync(new CreateServiceAccountOptions(Description: "myDesc",
 				Claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue")}
 				));
 			Assert.AreEqual(1, sa.Claims.Count);
