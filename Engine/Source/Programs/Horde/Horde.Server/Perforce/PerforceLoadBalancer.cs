@@ -18,6 +18,7 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -153,13 +154,14 @@ namespace Horde.Server.Perforce
 		readonly Random _random = new Random();
 		readonly HttpClient _httpClient;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
+		readonly IHealthMonitor _health;
 		readonly ILogger _logger;
 		readonly ITicker _ticker;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PerforceLoadBalancer(MongoService mongoService, RedisService redisService, ILeaseCollection leaseCollection, IClock clock, HttpClient httpClient, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<PerforceLoadBalancer> logger)
+		public PerforceLoadBalancer(MongoService mongoService, RedisService redisService, ILeaseCollection leaseCollection, IClock clock, HttpClient httpClient, IOptionsMonitor<GlobalConfig> globalConfig, IHealthMonitor<PerforceLoadBalancer> health, ILogger<PerforceLoadBalancer> logger)
 		{
 			_redisService = redisService;
 			_leaseCollection = leaseCollection;
@@ -175,6 +177,9 @@ namespace Horde.Server.Perforce
 			{
 				_ticker = clock.AddSharedTicker<PerforceLoadBalancer>(TimeSpan.FromMinutes(1.0), TickInternalAsync, logger);
 			}
+			
+			_health = health;
+			_health.SetName("Perforce");
 		}
 
 		/// <inheritdoc/>
@@ -445,6 +450,37 @@ namespace Horde.Server.Perforce
 				tasks.Add(Task.Run(() => UpdateHealthAsync(entry, cancellationToken), cancellationToken));
 			}
 			await Task.WhenAll(tasks);
+
+			list = await _serverListSingleton.GetAsync(cancellationToken);
+			(HealthStatus health, string message) = GetPerforceHealth(list.Servers);
+			_health.Update(health, message);
+		}
+
+		static (HealthStatus health, string message) GetPerforceHealth(List<PerforceServerEntry> servers)
+		{
+			HealthStatus result = HealthStatus.Healthy;
+			foreach (PerforceServerEntry server in servers)
+			{
+				HealthStatus serverHealth = server.Status switch
+				{
+					PerforceServerStatus.Unknown => HealthStatus.Degraded,
+					PerforceServerStatus.Unhealthy => HealthStatus.Unhealthy,
+					PerforceServerStatus.Degraded => HealthStatus.Degraded,
+					PerforceServerStatus.Healthy => HealthStatus.Healthy,
+					_ => throw new ArgumentOutOfRangeException($"Unknown health status: {server.Status}")
+				};
+				result = serverHealth < result ? serverHealth : result;
+			}
+
+			string message = result switch
+			{
+				HealthStatus.Unhealthy => "One or more Perforce servers are unhealthy. Check Perforce servers page for details.",
+				HealthStatus.Degraded => "One or more Perforce servers are degraded. Check Perforce servers page for details.",
+				HealthStatus.Healthy => "All Perforce servers are healthy",
+				_ => throw new ArgumentOutOfRangeException($"Unknown health status: {result}")
+			};
+
+			return (result, message);
 		}
 
 		static void MergeServerList(PerforceServerList serverList, List<PerforceServerEntry> newEntries)

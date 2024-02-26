@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -8,10 +9,33 @@ using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Perforce;
 using Horde.Server.Server;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Perforce;
+
+/// <summary>
+/// Fake implementation of IHealthMonitor for tests
+/// </summary>
+/// <typeparam name="T"></typeparam>
+public class FakeHealthMonitor<T> : IHealthMonitor<T>
+{
+	/// <summary>Name set by SetName()</summary>
+	public string Name { get; set; } = "<not-set>";
+	
+	/// <summary>Updates sent</summary>
+	public List<(HealthStatus result, string? message, DateTimeOffset? timestamp)> Updates { get; } = [];
+	
+	/// <inheritdoc/>
+	public void SetName(string name) { Name = name; }
+
+	/// <inheritdoc/>
+	public void Update(HealthStatus result, string? message = null, DateTimeOffset? timestamp = null)
+	{
+		Updates.Add((result, message, timestamp));
+	}
+}
 
 [TestClass]
 public class PerforceLoadBalancerTests : TestSetup
@@ -89,7 +113,7 @@ public class PerforceLoadBalancerTests : TestSetup
 	{
 #pragma warning disable CA2000 // Dispose objects before losing scope
 		HttpClient httpClient = new (new StubMessageHandler(HttpStatusCode.OK, httpCheckResponse));
-		return new(MongoService, GetRedisServiceSingleton(), LeaseCollection, Clock, httpClient, new TestOptionsMonitor<GlobalConfig>(gc), _logger);
+		return new(MongoService, GetRedisServiceSingleton(), LeaseCollection, Clock, httpClient, new TestOptionsMonitor<GlobalConfig>(gc), new FakeHealthMonitor<PerforceLoadBalancer>(), _logger);
 #pragma warning restore CA2000 // Dispose objects before losing scope		
 	}
 	
