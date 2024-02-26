@@ -9,8 +9,15 @@
 #include "Math/UnitConversion.h"
 #include "MoveLibrary/MovementUtils.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
+#if WITH_EDITOR
+#include "Backends/MoverNetworkPhysicsLiaison.h"
+#include "Internationalization/Text.h"
+#include "Misc/DataValidation.h"
+#endif // WITH_EDITOR
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PhysicsDrivenFlyingMode)
+
+#define LOCTEXT_NAMESPACE "PhysicsDrivenFlyingMode"
 
 UPhysicsDrivenFlyingMode::UPhysicsDrivenFlyingMode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -24,6 +31,21 @@ void UPhysicsDrivenFlyingMode::UpdateConstraintSettings(Chaos::FCharacterGroundC
 	Constraint.SetSwingTorqueLimit(FUnitConversion::Convert(SwingTorqueLimit, EUnit::NewtonMeters, EUnit::KilogramCentimetersSquaredPerSecondSquared));
 	Constraint.SetTargetHeight(0.0f);
 }
+
+#if WITH_EDITOR
+EDataValidationResult UPhysicsDrivenFlyingMode::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+	const UClass* BackendClass = GetMoverComponent()->BackendClass;
+	if (BackendClass && !BackendClass->IsChildOf<UMoverNetworkPhysicsLiaisonComponent>())
+	{
+		Context.AddError(LOCTEXT("PhysicsMovementModeHasValidPhysicsLiaison", "Physics movement modes need to have a backend class that supports physics (UMoverNetworkPhysicsLiaisonComponent)."));
+		Result = EDataValidationResult::Invalid;
+	}
+		
+	return Result;
+}
+#endif // WITH_EDITOR
 
 void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
@@ -81,3 +103,5 @@ void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Par
 		TargetOrient,
 		TargetVel);
 }
+
+#undef LOCTEXT_NAMESPACE

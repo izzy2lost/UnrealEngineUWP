@@ -11,8 +11,15 @@
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
+#if WITH_EDITOR
+#include "Backends/MoverNetworkPhysicsLiaison.h"
+#include "Internationalization/Text.h"
+#include "Misc/DataValidation.h"
+#endif // WITH_EDITOR
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PhysicsDrivenSwimmingMode)
+
+#define LOCTEXT_NAMESPACE "PhysicsDrivenSwimmingMode"
 
 UPhysicsDrivenSwimmingMode::UPhysicsDrivenSwimmingMode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -26,6 +33,21 @@ void UPhysicsDrivenSwimmingMode::UpdateConstraintSettings(Chaos::FCharacterGroun
 	Constraint.SetFrictionForceLimit(0.0f);
 	Constraint.SetTwistTorqueLimit(0.0f);
 }
+
+#if WITH_EDITOR
+EDataValidationResult UPhysicsDrivenSwimmingMode::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+	const UClass* BackendClass = GetMoverComponent()->BackendClass;
+	if (BackendClass && !BackendClass->IsChildOf<UMoverNetworkPhysicsLiaisonComponent>())
+	{
+		Context.AddError(LOCTEXT("PhysicsMovementModeHasValidPhysicsLiaison", "Physics movement modes need to have a backend class that supports physics (UMoverNetworkPhysicsLiaisonComponent)."));
+		Result = EDataValidationResult::Invalid;
+	}
+		
+	return Result;
+}
+#endif // WITH_EDITOR
 
 void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
@@ -155,3 +177,5 @@ bool UPhysicsDrivenSwimmingMode::AttemptTeleport(USceneComponent* UpdatedCompone
 
 	return true;
 }
+
+#undef LOCTEXT_NAMESPACE
