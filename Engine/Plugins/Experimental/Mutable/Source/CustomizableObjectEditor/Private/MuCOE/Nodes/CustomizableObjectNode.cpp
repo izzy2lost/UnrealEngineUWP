@@ -21,21 +21,11 @@ struct FPropertyChangedEvent;
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-/** Copy pin data from old pin to new pin. Keeps the id of the new pin. */
-void CopyPin(UEdGraphPin& NewPin, UEdGraphPin& OldPin)
-{
-	FGuid PinId = NewPin.PinId;
-	
-	NewPin.CopyPersistentDataFromOldPin(OldPin);
-	NewPin.PinId = PinId;
-	NewPin.bHidden = OldPin.bHidden;
-}
-
-
 UCustomizableObjectGraph* UCustomizableObjectNode::GetCustomizableObjectGraph() const
 {
 	return Cast<UCustomizableObjectGraph>(GetOuter());
 }
+
 
 bool UCustomizableObjectNode::IsSingleOutputNode() const
 {
@@ -422,6 +412,16 @@ UCustomizableObjectNodeRemapPinsByName* UCustomizableObjectNode::CreateRemapPins
 }
 
 
+void UCustomizableObjectNode::RemapPin(UEdGraphPin& NewPin, const UEdGraphPin& OldPin)
+{
+	FGuid PinId = NewPin.PinId;
+	
+	NewPin.CopyPersistentDataFromOldPin(OldPin);
+	NewPin.PinId = PinId;
+	NewPin.bHidden = OldPin.bHidden;	
+}
+
+
 UCustomizableObjectNodeRemapPinsByPosition* UCustomizableObjectNode::CreateRemapPinsByPosition() const
 {
 	return NewObject<UCustomizableObjectNodeRemapPinsByPosition>();
@@ -432,7 +432,7 @@ void UCustomizableObjectNode::RemapPins(const TMap<UEdGraphPin*, UEdGraphPin*>& 
 {
 	for (const TTuple<UEdGraphPin*, UEdGraphPin*>& Pair : PinsToRemap)
 	{
-		CopyPin(*Pair.Value, *Pair.Key);
+		RemapPin(*Pair.Value, *Pair.Key);
 	}
 	
 	RemapPinsDelegate.Broadcast(PinsToRemap);

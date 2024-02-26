@@ -290,6 +290,10 @@ protected:
 	 */
 	virtual UCustomizableObjectNodeRemapPinsByPosition* CreateRemapPinsByPosition() const;
 	
+	/** Allows to perform work when remapping a pin.
+	  * Copies pin data from old pin to new pin. Keeps the id of the new pin. */
+	virtual void RemapPin(UEdGraphPin& NewPin, const UEdGraphPin& OldPin);
+
 	/** Allows to perform work when remapping a pin. */
 	virtual void RemapPins(const TMap<UEdGraphPin*, UEdGraphPin*>& PinsToRemap);
 
