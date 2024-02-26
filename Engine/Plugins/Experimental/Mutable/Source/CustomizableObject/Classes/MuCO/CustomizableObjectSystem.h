@@ -341,6 +341,9 @@ private:
 	// Most of the work in this plugin happens here.
 	bool Tick(float DeltaTime);
 
+	/** Returns the number of remaining operations. */
+	int32 TickInternal(float DeltaTime);
+
 	// If there is an on-going operation, advance it.
 	void AdvanceCurrentOperation();
 

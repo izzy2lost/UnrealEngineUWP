@@ -23,6 +23,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "MuCO/FMutableTaskGraph.h"
 #include "AssetRegistry/AssetData.h"
+#include "ContentStreaming.h"
 
 // This define could come from MuR/System.h
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
@@ -611,7 +612,7 @@ struct FPendingReleaseSkeletalMeshInfo
 
 
 UCLASS()
-class UCustomizableObjectSystemPrivate : public UObject
+class UCustomizableObjectSystemPrivate : public UObject, public IStreamingManager
 {
 	GENERATED_BODY()
 	
@@ -663,6 +664,18 @@ public:
 	mu::FImageOperator::FImagePixelFormatFunc ImageFormatOverrideFunc;
 #endif
 
+	// IStreamingManager interface
+	virtual void UpdateResourceStreaming(float DeltaTime, bool bProcessEverything = false) override;
+	virtual int32 BlockTillAllRequestsFinished(float TimeLimit = 0.0f, bool bLogResults = false) override;
+	virtual void CancelForcedResources() override {}
+	virtual void AddLevel(ULevel* Level) override {}
+	virtual void RemoveLevel(ULevel* Level) override {}
+	virtual void NotifyLevelChange() override {}
+	virtual void SetDisregardWorldResourcesForFrames(int32 NumFrames) override {}
+	virtual void NotifyLevelOffset(ULevel* Level, const FVector& Offset) override {}
+
+	UCustomizableObjectSystem* GetPublic() const;
+	
 	void AddGameThreadTask(const FMutableTask& Task);
 
 	// Remove references to cached objects that have been deleted in the unreal

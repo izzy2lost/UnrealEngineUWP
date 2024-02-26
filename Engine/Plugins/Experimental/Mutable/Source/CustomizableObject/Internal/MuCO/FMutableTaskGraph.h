@@ -65,8 +65,9 @@ public:
 	/** Allow or disallow launching Mutable Tasks with Low priority.
 	 @param bFromMutableTask true if called from a Mutable Task. */
 	void AllowLaunchingMutableTaskLowPriority(bool bAllow, bool bFromMutableTask);
-	
-	void Tick();
+
+	/** Returns the number of remaining tasks. */
+	int32 Tick();
 	
 private:
 	/** A Mutable Task Low Priority will only be launched if:
