@@ -35,4 +35,20 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Viewmodel", meta = (DisplayName = "Destroy Instance"))
 	void K2_DestroyInstance(const UObject* ViewModel, const UMVVMView* View) const;
+
+public:
+#if WITH_EDITOR
+	virtual bool DoesSupportViewModelClass(const UClass* Class) const;
+#endif
+
+private:
+#if WITH_EDITORONLY_DATA
+	/** Viewmodel class that the resolver supports.*/
+	UPROPERTY(EditDefaultsOnly, Category = "Viewmodel", meta=(MustImplement="/Script/FieldNotification.NotifyFieldValueChanged", DisallowedClasses="/Script/UMG.Widget"))
+	TArray<FSoftClassPath> AllowedViewModelClasses;
+
+	/** Viewmodel class that the resolver explicitly does not support. */
+	UPROPERTY(EditDefaultsOnly, Category = "Viewmodel", meta=(MustImplement="/Script/FieldNotification.NotifyFieldValueChanged", DisallowedClasses="/Script/UMG.Widget"))
+	TArray<FSoftClassPath> DeniedViewModelClasses;
+#endif
 };
