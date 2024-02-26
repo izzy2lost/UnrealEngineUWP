@@ -1468,7 +1468,7 @@ export class Backend {
     getServerStatus(): Promise<ServerStatusResponse> {
 
         return new Promise<ServerStatusResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/server-status`).then((value) => {
+            this.backend.get(`/api/v1/server/status`).then((value) => {
                 const result = value.data as ServerStatusResponse;
                 // convert from string date to Date
                 result.statuses.forEach(s => s.updates.forEach(u => u.updatedAt = new Date(u.updatedAt)))
