@@ -59,6 +59,9 @@ public:
 	void EditorInvalidateViewports();
 
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Level Utility", meta = (DevelopmentOnly))
+	void EditorSetViewportRealtime(bool bInRealtime, FName ViewportConfigKey = NAME_None);
+
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Level Utility", meta = (DevelopmentOnly))
 	void EditorSetGameView(bool bGameView, FName ViewportConfigKey = NAME_None);
 
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Level Utility", meta = (DevelopmentOnly))

@@ -239,6 +239,26 @@ void ULevelEditorSubsystem::EditorInvalidateViewports()
 	}
 }
 
+void ULevelEditorSubsystem::EditorSetViewportRealtime(bool bInRealtime, FName ViewportConfigKey)
+{
+	TSharedPtr<SLevelViewport> LevelViewport = InternalEditorLevelLibrary::GetLevelViewport(ViewportConfigKey);
+	if (LevelViewport.IsValid())
+	{
+		FLevelEditorViewportClient& LevelViewportClient = LevelViewport->GetLevelViewportClient();
+
+		FText RealTimeOverrideSystemName = LOCTEXT("LevelEditorSubsystemRealtimeOverride", "Level Editor Subsystem Realtime Override");
+
+		if (bInRealtime)
+		{
+			LevelViewportClient.RemoveRealtimeOverride(RealTimeOverrideSystemName);
+		}
+		else
+		{
+			LevelViewportClient.AddRealtimeOverride(false, RealTimeOverrideSystemName);
+		}
+	}
+}
+
 void ULevelEditorSubsystem::EditorSetGameView(bool bGameView, FName ViewportConfigKey)
 {
 	TSharedPtr<SLevelViewport> LevelViewport = InternalEditorLevelLibrary::GetLevelViewport(ViewportConfigKey);
