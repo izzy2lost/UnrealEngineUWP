@@ -156,6 +156,7 @@ protected:
 
 	FReply OnEffectsToggleButtonClicked();
 	const FSlateBrush* GetEffectsToggleButtonImage() const;
+	EVisibility GetEffectsToggleButtonVisibility() const;
 
 	FVector2D GetStagePreviewSize() const;
 

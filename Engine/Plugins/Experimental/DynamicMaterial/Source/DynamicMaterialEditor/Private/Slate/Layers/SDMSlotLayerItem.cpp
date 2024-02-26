@@ -439,10 +439,10 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateLayerLinkToggleButton()
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("MaterialStageLinkTooltip", "Click to toggle UV Link on and off."))
 		.OnClicked(this, &SDMSlotLayerItem::OnLayerLinkToggleButton)
+		.Visibility(this, &SDMSlotLayerItem::GetLayerLinkToggleButtonVisibility)
 		[
 			SNew(SImage)
 			.Image(this, &SDMSlotLayerItem::GetLayerLinkToggleButtonImage)
-			.Visibility(this, &SDMSlotLayerItem::GetLayerLinkToggleButtonVisibility)
 		];
 }
 
@@ -454,6 +454,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateEffectsToggleButton()
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("MaterialLayerFxTooltip", "Toggle the visibility of this slot layer's effects.\n\nNot implemented."))
 		.OnClicked(this, &SDMSlotLayerItem::OnEffectsToggleButtonClicked)
+		.Visibility(this, &SDMSlotLayerItem::GetEffectsToggleButtonVisibility)
 		[
 			SNew(SImage)
 			.Image(this, &SDMSlotLayerItem::GetEffectsToggleButtonImage)
@@ -1193,6 +1194,25 @@ const FSlateBrush* SDMSlotLayerItem::GetEffectsToggleButtonImage() const
 	}
 
 	return Hidden;
+}
+
+EVisibility SDMSlotLayerItem::GetEffectsToggleButtonVisibility() const
+{
+	if (LayerItem.IsValid())
+	{
+		if (UDMMaterialLayerObject* Layer = LayerItem->GetLayer())
+		{
+			if (UDMMaterialEffectStack* EffectStack = Layer->GetEffectStack())
+			{
+				if (!EffectStack->GetEffects().IsEmpty())
+				{
+					return EVisibility::Visible;
+				}
+			}
+		}
+	}
+
+	return EVisibility::Hidden;
 }
 
 FVector2D SDMSlotLayerItem::GetStagePreviewSize() const
