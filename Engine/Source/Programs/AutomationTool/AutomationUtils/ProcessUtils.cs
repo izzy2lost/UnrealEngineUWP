@@ -41,7 +41,6 @@ namespace AutomationTool
 	{
 		public delegate bool CtrlHandlerDelegate(CtrlTypes EventType);
 
-		// @todo: Add mono support
 		[DllImport("Kernel32")]
 		public static extern bool SetConsoleCtrlHandler(CtrlHandlerDelegate Handler, bool Add);
 
