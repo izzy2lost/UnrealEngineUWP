@@ -29,7 +29,7 @@ namespace uba
 	{
 		NetworkServerCreateInfo(LogWriter& w = g_consoleLogWriter) : logWriter(w) {}
 		LogWriter& logWriter;
-		u32 workerCount = 64;
+		u32 workerCount = 0; // Zero means it will use the number of logical cores as worker count
 		u32 sendSize = SendDefaultSize;
 		u32 receiveTimeoutSeconds = 0;
 	};
@@ -66,8 +66,10 @@ namespace uba
 		//void RegisterOnConnection(u8 id, const OnConnectionFunction& func);
 		//void UnregisterOnConnection(u8 id);
 
-		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc) override;
-		virtual u32 GetWorkerCount() override;
+		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc) override final;
+		virtual u32 GetWorkerCount() override final;
+		virtual u32 TrackWorkStart(const tchar* desc) override final;
+		virtual void TrackWorkEnd(u32 id) override final;
 
 		struct ClientStats
 		{
