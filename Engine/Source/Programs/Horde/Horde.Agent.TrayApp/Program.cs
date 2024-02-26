@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using EpicGames.Core;
@@ -35,8 +36,55 @@ namespace Horde.Agent.TrayApp
 				return 1;
 			}
 
+			if (args.Any(x => x.Equals("-shadowcopy", StringComparison.OrdinalIgnoreCase)))
+			{
+				DirectoryReference? localAppData = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData);
+				if (localAppData != null)
+				{
+					FileReference sourceExe = new FileReference(Assembly.GetExecutingAssembly().Location).ChangeExtension(".exe");
+					if (FileReference.Exists(sourceExe) && !sourceExe.IsUnderDirectory(localAppData))
+					{
+						DirectoryReference sourceDir = sourceExe.Directory;
+						DirectoryReference targetDir = DirectoryReference.Combine(localAppData, "Epic Games", "HordeTrayApp");
+						try
+						{
+							DirectoryReference.CreateDirectory(targetDir);
+							FileUtils.ForceDeleteDirectoryContents(targetDir);
+
+							CopyFiles(sourceDir, targetDir);
+							mutex.Release();
+
+							FileReference targetExe = FileReference.Combine(targetDir, sourceExe.MakeRelativeTo(sourceDir)).ChangeExtension(".exe");
+							using Process process = Process.Start(targetExe.FullName, args);
+
+							return 0;
+						}
+						catch (Exception ex)
+						{
+							MessageBox.Show($"Unable to copy app to temp location. Error:\n\n{ex}");
+							return 1;
+						}
+					}
+				}
+			}
+
 			MainAsync(closeEvent).GetAwaiter().GetResult();
 			return 0;
+		}
+
+		static void CopyFiles(DirectoryReference sourceDir, DirectoryReference targetDir)
+		{
+			DirectoryReference.CreateDirectory(targetDir);
+			foreach (DirectoryReference sourceSubDir in DirectoryReference.EnumerateDirectories(sourceDir))
+			{
+				DirectoryReference targetSubDir = DirectoryReference.Combine(targetDir, sourceSubDir.GetDirectoryName());
+				CopyFiles(sourceSubDir, targetSubDir);
+			}
+			foreach (FileReference sourceFile in DirectoryReference.EnumerateFiles(sourceDir))
+			{
+				FileReference targetFile = FileReference.Combine(targetDir, sourceFile.GetFileName());
+				FileReference.Copy(sourceFile, targetFile, true);
+			}
 		}
 
 		static async Task MainAsync(EventWaitHandle closeEvent)
@@ -60,6 +108,15 @@ namespace Horde.Agent.TrayApp
 			_mutex = new Mutex(true, name);
 		}
 
+		public void Release()
+		{
+			if (_locked)
+			{
+				_mutex.ReleaseMutex();
+				_locked = false;
+			}
+		}
+
 		public bool Wait(int timeout)
 		{
 			if (!_locked)
@@ -78,10 +135,7 @@ namespace Horde.Agent.TrayApp
 
 		public void Dispose()
 		{
-			if (_locked)
-			{
-				_mutex.ReleaseMutex();
-			}
+			Release();
 			_mutex.Dispose();
 		}
 	}
