@@ -49,6 +49,9 @@ UCEClonerComponent::UCEClonerComponent()
 #if WITH_EDITOR
 	// Do not show bounding box around cloner for better visibility
 	SetIsVisualizationComponent(true);
+
+	// Disable use of bounds to focus to avoid de-zoom
+	SetIgnoreBoundsForEditorFocus(true);
 #endif
 
 	bIsEditorOnly = false;
