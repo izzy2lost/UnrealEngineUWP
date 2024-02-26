@@ -67,24 +67,6 @@ FString FNiagaraAssetTagDefinition::GetGuidAsString() const
 	return TagGuid.ToString(EGuidFormats::DigitsWithHyphens);
 }
 
-void FNiagaraAssetTagDefinition::AddTagToAssetRegistryTags(TArray<UObject::FAssetRegistryTag>& OutTags) const
-{
-	UObject::FAssetRegistryTag* FoundAssetTag = OutTags.FindByPredicate([this](const UObject::FAssetRegistryTag& Candidate)
-	{
-		return Candidate.Name == FName(GetGuidAsString());
-	});
-
-	if(FoundAssetTag)
-	{
-		return;
-	}
-	else
-	{
-		// Value has to be >1 of data to be considered non-empty to not get thrown away
-		OutTags.Add(UObject::FAssetRegistryTag(FName(GetGuidAsString()), "  ", UObject::FAssetRegistryTag::TT_Alphabetical));
-	}
-}
-
 FNiagaraAssetTagDefinitionReference::FNiagaraAssetTagDefinitionReference(const FNiagaraAssetTagDefinition& InTagDefinition)
 {
 	SetTagDefinitionReference(InTagDefinition);

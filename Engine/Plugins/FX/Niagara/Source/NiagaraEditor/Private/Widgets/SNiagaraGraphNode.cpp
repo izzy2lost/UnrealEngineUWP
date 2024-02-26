@@ -84,7 +84,7 @@ void SNiagaraGraphNode::UpdateErrorInfo()
 	ErrorMsg.Reset();
 	if (NiagaraNode.IsValid())
 	{
-		if (NiagaraEditorSettings->IsAllowedClass(GraphNode->GetClass()) == false || 
+		if (NiagaraEditorSettings->IsReferenceableClass(GraphNode->GetClass()) == false || 
 			(NiagaraNode->GetReferencedAsset() != nullptr && NiagaraEditorSettings->IsAllowedAssetObjectByClassUsage(*NiagaraNode->GetReferencedAsset()) == false))
 		{
 			ErrorMsg = FString(TEXT("UNSUPPORTED!"));

@@ -77,7 +77,8 @@ public:
 		const UNiagaraEditorSettings* NiagaraEditorSettings = GetDefault<UNiagaraEditorSettings>();
 		for (const FNiagaraRendererCreationInfo& RendererCreationInfo : RendererCreationInfos)
 		{
-			if (NiagaraEditorSettings->IsAllowedClassPath(RendererCreationInfo.RendererClassPath) && RenderersOwner->IsRenderCreationInfoSupported(RendererCreationInfo))
+			FSoftClassPath SoftClassPath(RendererCreationInfo.RendererClassPath.ToString());
+			if (NiagaraEditorSettings->IsVisibleClass(SoftClassPath.ResolveClass()) && RenderersOwner->IsRenderCreationInfoSupported(RendererCreationInfo))
 			{
 				OutAddActions.Add(MakeShared<FRenderItemGroupAddAction>(RendererCreationInfo));
 			}

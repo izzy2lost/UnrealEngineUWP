@@ -474,11 +474,13 @@ public:
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FOnIsClassPathAllowed, const FTopLevelAssetPath& /*InClassPath*/);
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FOnShouldFilterAsset, const FTopLevelAssetPath& /*InAssetPath*/)
 	
-	/** Sets a delegate that allows external code to restrict which features can be used within the niagara editor by filtering which classes are allowed. */
-	NIAGARAEDITOR_API void SetOnIsClassAllowed(const FOnIsClassAllowed& InOnIsClassAllowed);
+	/** Sets a delegate that allows external code to restrict which features can be used within the niagara editor by filtering which classes are visible in various menus.
+	 * A non-visible class might still be referenceable, and can be selected through actions as copy pasting content. */
+	NIAGARAEDITOR_API void SetOnIsClassVisible(const FOnIsClassAllowed& InOnIsClassAllowed);
 
-	/** Sets a delegate that allows external code to restrict which features can be used within the niagara editor by filtering which classes are allowed by class path. */
-	NIAGARAEDITOR_API void SetOnIsClassPathAllowed(const FOnIsClassPathAllowed& InOnIsClassPathAllowed);
+	/** Sets a delegate that allows external code to restrict which features can be used within the niagara editor by filtering which classes are actually referenceable.
+	 * A referenceable class is considered 'valid' content, but might or might not be visible in menus. */
+	NIAGARAEDITOR_API void SetOnIsClassReferenceable(const FOnIsClassAllowed& InOnIsClassAllowed);
 
 	/** Sets a delegate that allows external code to restrict which features can be used within the niagara editor by filtering which assets are allowed. */
 	NIAGARAEDITOR_API void SetOnShouldFilterAssetByClassUsage(const FOnShouldFilterAsset& InOnShouldFilterAssetByClassUsage);
@@ -486,14 +488,14 @@ public:
 	/** Sets a delegate that allows external code to restrict what assets will show up in the Niagara Asset Browser. */
 	NIAGARAEDITOR_API void SetOnShouldFilterAssetInNiagaraAssetBrowser(const FOnShouldFilterAsset& InOnShouldFilterAssetByClassUsage);
 
-	/** Returns whether or not the supplied class can be used in the current editor context. */
-	NIAGARAEDITOR_API bool IsAllowedClass(const UClass* InClass) const;
+	/** Returns whether or not the supplied class is visible for UI purposes in the current editor context. */
+	NIAGARAEDITOR_API bool IsVisibleClass(const UClass* InClass) const;
 
-	/** Returns whether or not the class referenced by the supplied class path can be used in the current editor context. */
-	NIAGARAEDITOR_API bool IsAllowedClassPath(const FTopLevelAssetPath& InClassPath) const;
+	/** Returns whether or not the supplied class is valid to be used in the current editor context. */
+	NIAGARAEDITOR_API bool IsReferenceableClass(const UClass* InClass) const;
 
 	/** Returns whether or not the supplied niagara type definition can be used in the current editor context. */
-	NIAGARAEDITOR_API bool IsAllowedTypeDefinition(const FNiagaraTypeDefinition& InTypeDefinition) const;
+	NIAGARAEDITOR_API bool IsVisibleTypeDefinition(const FNiagaraTypeDefinition& InTypeDefinition) const;
 
 	NIAGARAEDITOR_API FAssetRegistryTag CreateClassUsageAssetRegistryTag(const UObject* SourceObject) const;
 
@@ -594,7 +596,8 @@ private:
 	UPROPERTY(config)
 	bool bForceSilentLoadingOfCachedAssets;
 	
-	FOnIsClassAllowed OnIsClassAllowedDelegate;
+	FOnIsClassAllowed OnIsClassVisibleDelegate;
+	FOnIsClassAllowed OnIsClassReferenceableDelegate;
 	FOnIsClassPathAllowed OnIsClassPathAllowedDelegate;
 	FOnShouldFilterAsset OnShouldFilterAssetByClassUsage;
 	FOnShouldFilterAsset OnShouldFilterAssetInNiagaraAssetBrowser;

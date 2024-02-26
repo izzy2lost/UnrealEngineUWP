@@ -3535,7 +3535,7 @@ bool UNiagaraStackFunctionInput::OpenSourceAsset() const
 bool UNiagaraStackFunctionInput::SupportsCustomExpressions() const
 {
 	const UNiagaraEditorSettings* NiagaraEditorSettings = GetDefault<UNiagaraEditorSettings>();
-	return NiagaraEditorSettings->IsAllowedClass(UNiagaraNodeCustomHlsl::StaticClass());
+	return NiagaraEditorSettings->IsVisibleClass(UNiagaraNodeCustomHlsl::StaticClass());
 }
 
 #undef LOCTEXT_NAMESPACE
