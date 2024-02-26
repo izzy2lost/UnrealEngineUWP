@@ -45,5 +45,17 @@ public class AppleARKitFaceSupport : ModuleRules
 		{
 			PublicFrameworks.Add( "ARKit" );
 		}
+		
+		if (Target.bCompileAgainstEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"Slate",
+					"SlateCore",
+					"PropertyEditor"
+				}
+			);
+		}
 	}
 }
