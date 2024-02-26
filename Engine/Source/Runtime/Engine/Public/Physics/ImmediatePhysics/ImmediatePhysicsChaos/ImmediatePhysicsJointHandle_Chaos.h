@@ -14,6 +14,8 @@ namespace Chaos
 	class FPBDJointSettings;
 }
 
+struct FConstraintProfileProperties;
+
 namespace ImmediatePhysics_Chaos
 {
 	/** handle associated with a physics joint. This is the proper way to read/write to the physics simulation */
@@ -43,4 +45,8 @@ namespace ImmediatePhysics_Chaos
 		FChaosConstraintContainer* Constraints;
 		FChaosConstraintHandle* ConstraintHandle;
 	};
+
+	/** Transfers parameters from a constraint profile into the joint settings */
+	ENGINE_API void UpdateJointSettingsFromConstraintProfile(
+		const FConstraintProfileProperties& Profile, Chaos::FPBDJointSettings& JointSettings);
 }
