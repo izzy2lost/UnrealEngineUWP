@@ -211,7 +211,7 @@ private:
 				PrintOp();
 				String += ArgSeparator();
 				String += FString::Printf(TEXT("%s: "), *FString(Name));
-				if constexpr (!Operand.bIsVValue)
+				if constexpr (!std::decay_t<decltype(Operand)>::bIsVValue)
 					String += ToString(Context, FDefaultCellFormatter{}, *Operand.Get());
 				else
 					String += ToString(Context, FDefaultCellFormatter{}, Operand.Get());
