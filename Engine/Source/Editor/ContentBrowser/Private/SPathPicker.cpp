@@ -68,6 +68,11 @@ void SPathPicker::Construct( const FArguments& InArgs )
 		}
 
 		PathViewPtr->SetSelectedPaths({ VirtualPath.ToString() });
+
+		if (InArgs._PathPickerConfig.bNotifyDefaultPathSelected)
+		{
+			OnPathSelected.ExecuteIfBound(VirtualPath.ToString());
+		}
 	}
 }
 
