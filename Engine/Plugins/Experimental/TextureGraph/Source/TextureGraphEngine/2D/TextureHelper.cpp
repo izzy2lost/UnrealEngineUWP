@@ -837,11 +837,15 @@ RawBufferPtr TextureHelper::RawFromResource(const FTextureRHIRef& ResourceRHI, c
 		const uint32 BytesPerPixel = BitsPerPixel / 8;
 
 		const TUniquePtr<FRHIGPUTextureReadback> TextureReadback = MakeUnique<FRHIGPUTextureReadback>(TEXT("RawFromResourceTextureReadback"));
-
 		RHICmdList.FlushResources();
 		RHICmdList.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
 
+		RHICmdList.Transition(FRHITransitionInfo(ResourceRHI, ERHIAccess::Unknown, ERHIAccess::CopySrc));
+
 		TextureReadback->EnqueueCopy(RHICmdList, ResourceRHI);
+
+		RHICmdList.Transition(FRHITransitionInfo(ResourceRHI, ERHIAccess::CopySrc, ERHIAccess::SRVMask));
+
 		RHICmdList.BlockUntilGPUIdle();
 
 		//check(TextureReadback->IsReady());

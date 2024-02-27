@@ -184,6 +184,8 @@ public:
 		TShaderRef<FSH_Type> PixelShader = MaterialShaderMap->GetShader<FSH_Type>();
 		FRHIPixelShader* RHIPixelShader = PixelShader.GetPixelShader();
 
+		// Target render target needs to transition to RTV for rendering
+		RHI.Transition(FRHITransitionInfo(Target, ERHIAccess::Unknown, ERHIAccess::RTV));
 
 		FRHIRenderPassInfo passInfo(Target, ERenderTargetActions::Clear_Store);
 		RHI.BeginRenderPass(passInfo, TEXT("FxMaterial_UMaterial"));
@@ -205,6 +207,9 @@ public:
 		RHI.DrawPrimitive(0, 2, 1);
 
 		RHI.EndRenderPass();
+
+		// Target render target has been rendered, transition to the default SRV state for read
+		RHI.Transition(FRHITransitionInfo(Target, ERHIAccess::RTV, ERHIAccess::SRVMask));
 	}
 
 	static bool ValidateMaterial(UMaterialInterface* InMaterial)

@@ -365,6 +365,9 @@ public:
 				FMath::DivideAndRoundUp(NumThreadsZ, groupSize.Z)
 			)
 		);
+
+		// UAV target has been rendered, transition to the default SRV state for read
+		RHI.Transition(FRHITransitionInfo(Target, ERHIAccess::UAVMask, ERHIAccess::SRVMask));
 	}
 };
 
@@ -433,8 +436,13 @@ public:
 
 		//check(target->IsRenderTarget());
 
+		// Target render target needs to transition to RTV for rendering
+		RHI.Transition(FRHITransitionInfo(Target, ERHIAccess::Unknown, ERHIAccess::RTV));
+
 		FRHIRenderPassInfo passInfo(Target, ERenderTargetActions::Clear_Store);
 		RHI.BeginRenderPass(passInfo, TEXT("FxMaterial_Render"));
+
+
 		//RHI.BindDebugLabelName(target, *target->GetName().ToString());
 		auto shaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 		TShaderMapRef<VSH_Type> VSH(shaderMap, VSHPermDomain);
@@ -471,7 +479,11 @@ public:
 		{
 			MeshObj->Render_Now(RHI, InTargetId);
 		}
+		
 		RHI.EndRenderPass();
+
+		// Target render target has been rendered, transition to the default SRV state for read
+		RHI.Transition(FRHITransitionInfo(Target, ERHIAccess::RTV, ERHIAccess::SRVMask));
 	}
 };
 

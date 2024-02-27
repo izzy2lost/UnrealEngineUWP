@@ -326,6 +326,9 @@ AsyncDeviceBufferRef Device_FX::DrawTilesToBuffer_Deferred(DeviceBufferRef Buffe
 			const uint32 ViewportHeight = DstTex->GetHeight();
 			const FIntPoint TargetSize(ViewportWidth, ViewportHeight);
 
+			//Render target is about to be renderered into, transition to RTV 
+			DevRHI.Transition(FRHITransitionInfo(RTResDest, ERHIAccess::Unknown, ERHIAccess::RTV));
+
 			FRHIRenderPassInfo RenderPassInfo(RTResDest, ERenderTargetActions::Load_Store);
 			DevRHI.BeginRenderPass(RenderPassInfo, TEXT("CopyTexture"));
 			{
@@ -362,7 +365,8 @@ AsyncDeviceBufferRef Device_FX::DrawTilesToBuffer_Deferred(DeviceBufferRef Buffe
 						const float SrcTextureWidth = TileTex->GetWidth();
 						const float SrcTextureHeight = TileTex->GetHeight();
 
-						DevRHI.Transition(FRHITransitionInfo(TileResource, ERHIAccess::Unknown, ERHIAccess::SRVGraphics));
+				//// This was here but shouldn't be needed if default state is SRV 
+				///		DevRHI.Transition(FRHITransitionInfo(TileResource, ERHIAccess::Unknown, ERHIAccess::SRVGraphics));
 
 						int32 X1 = TileX * SrcTextureWidth;
 						int32 Y1 = TileY * SrcTextureHeight;
@@ -386,6 +390,9 @@ AsyncDeviceBufferRef Device_FX::DrawTilesToBuffer_Deferred(DeviceBufferRef Buffe
 				}
 			}
 			DevRHI.EndRenderPass();
+
+			//Render target is done rendering transition to Read 
+			DevRHI.Transition(FRHITransitionInfo(RTResDest, ERHIAccess::RTV, ERHIAccess::SRVMask));
 
 			return 0;
 		});
