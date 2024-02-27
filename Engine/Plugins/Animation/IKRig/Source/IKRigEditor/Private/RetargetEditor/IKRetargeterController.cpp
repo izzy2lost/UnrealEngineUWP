@@ -245,6 +245,17 @@ bool UIKRetargeterController::RemoveRetargetOp(const int32 OpIndex) const
 	return true;
 }
 
+bool UIKRetargeterController::RemoveAllOps() const
+{
+	check(Asset)
+
+	FScopedTransaction Transaction(LOCTEXT("RemoveAllRetargetOps_Label", "Remove All Retarget Ops"));
+	FScopedReinitializeIKRetargeter Reinitialize(this);
+	Asset->OpStack->Modify();
+	Asset->OpStack->RetargetOps.Empty();
+	return true;
+}
+
 URetargetOpBase* UIKRetargeterController::GetRetargetOpAtIndex(int32 Index) const
 {
 	check(Asset)

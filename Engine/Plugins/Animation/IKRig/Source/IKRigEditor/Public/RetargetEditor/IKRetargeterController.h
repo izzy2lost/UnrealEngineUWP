@@ -117,6 +117,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category=RetargetOps)
 	bool RemoveRetargetOp(const int32 OpIndex) const;
 
+	// Remove all ops in the stack.
+	UFUNCTION(BlueprintCallable, Category=RetargetOps)
+	bool RemoveAllOps() const;
+
 	// Get access to the given retarget operation. 
 	UFUNCTION(BlueprintCallable, Category=RetargetOps)
 	URetargetOpBase* GetRetargetOpAtIndex(int32 Index) const;

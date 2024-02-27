@@ -2,6 +2,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "RetargetEditor/IKRetargetEditorController.h"
 #include "Rig/IKRigDefinition.h"
 
 enum class EPBIKLimitType : uint8;
@@ -71,23 +72,19 @@ struct FCharacterizationStandard
 	static const FName RightMiddleToe;
 	static const FName RightRingToe;
 	static const FName RightPinkyToe;
-
-	// TODO add support for arbitrary bone chains (ie, 6-legged characters w/ LeftLegA, LeftLegB etc...)
-	// FName GenerateStandardizedName(TArray<FName> BoneNames, LimbType, Side, LimbNum etc...)
-
 	// standard bipedal IK goal names
-	static const FName LeftHandIK;
-	static const FName LeftFootIK;
-	static const FName RightHandIK;
-	static const FName RightFootIK;
-
-	// TODO add support for arbitrary bone chains (ie, 6-legged characters w/ LeftLegA, LeftLegB etc...)
-	// FName GenerateStandardizedIKGoalName(TArray<FName> BoneNames, LimbType, Side, LimbNum etc...)
-
+	static const FName LeftHandIKGoal;
+	static const FName LeftFootIKGoal;
+	static const FName RightHandIKGoal;
+	static const FName RightFootIKGoal;
+	
 	// standard bone settings for IK
 	static constexpr float PelvisRotationStiffness = 0.95f;
 	static constexpr float ClavicleRotationStiffness = 0.95f;
 	static constexpr float FootRotationStiffness = 0.85f;
+
+	// TODO add support for arbitrary bone chains (ie, 6-legged characters w/ LeftLegA, LeftLegB etc...)
+	// FName GenerateStandardizedIKGoalName(TArray<FName> BoneNames, LimbType, Side, LimbNum etc...)
 };
 
 // clean names are used for comparison
@@ -177,27 +174,6 @@ private:
 	TArray<int32> ParentIndices;
 };
 
-// the results of auto characterizing an input skeletal mesh
-struct FAutoCharacterizeResults
-{
-	// the retarget root and a list of bone chains
-	FRetargetDefinition RetargetDefinition;
-	// did the auto characterizer use a template or procedurally generate the retarget definition?
-	bool bUsedTemplate = false;
-	// the template that most closely matched with the input skeleton
-	FName BestTemplateName = NAME_None;
-	// the number of bones that matched
-	int32 BestNumMatchingBones = 0;
-	// the score of how closely the template matched the input skeleton (0-1)
-	float BestPercentageOfTemplateScore = 0.0f;
-	// bones that were in the template, but not found in the input
-	TArray<FName> MissingBones;
-	// bones that do not have the same parent as the equivalent in the template
-	TArray<FName> BonesWithMissingParent;
-	// number of bones we extended the spine/neck chains beyond what the template provides
-	TMap<FName,int32> ExpandedChains;
-};
-
 struct FBoneSettingsForIK
 {
 	FBoneSettingsForIK(const FName InBoneName) : BoneToApplyTo(InBoneName) {}
@@ -227,6 +203,62 @@ private:
 	TArray<FBoneSettingsForIK> AllBoneSettings;
 };
 
+struct FBoneToPin
+{
+	FBoneToPin( const FName InBoneToPin, const FName InBoneToPinTo, const ERetargetSourceOrTarget InSkeletonToPinTo) :
+		BoneToPin(InBoneToPin),
+		BoneToPinTo(InBoneToPinTo),
+		SkeletonToPinTo(InSkeletonToPinTo) {}
+
+	FName BoneToPin;
+	FName BoneToPinTo;
+	ERetargetSourceOrTarget SkeletonToPinTo;
+};
+
+struct FBonesToPin
+{
+	void AddBoneToPin(
+		const FName BoneToPin,
+		const FName BoneToPinTo,
+		ERetargetSourceOrTarget SkeletonToPinTo = ERetargetSourceOrTarget::Target)
+	{
+		AllBonesToPin.Emplace(BoneToPin,BoneToPinTo, SkeletonToPinTo);
+	}
+
+	const TArray<FBoneToPin>& GetBonesToPin() const { return AllBonesToPin; };
+
+private:
+	TArray<FBoneToPin> AllBonesToPin;
+};
+
+struct FAutoRetargetDefinition
+{
+	FRetargetDefinition RetargetDefinition;
+	FAllBoneSettingsForIK BoneSettingsForIK;
+	FBonesToPin BonesToPin;
+};
+
+// the results of auto characterizing an input skeletal mesh
+struct FAutoCharacterizeResults
+{
+	// the retarget root and a list of bone chains
+	FAutoRetargetDefinition AutoRetargetDefinition;
+	// did the auto characterizer use a template or procedurally generate the retarget definition?
+	bool bUsedTemplate = false;
+	// the template that most closely matched with the input skeleton
+	FName BestTemplateName = NAME_None;
+	// the number of bones that matched
+	int32 BestNumMatchingBones = 0;
+	// the score of how closely the template matched the input skeleton (0-1)
+	float BestPercentageOfTemplateScore = 0.0f;
+	// bones that were in the template, but not found in the input
+	TArray<FName> MissingBones;
+	// bones that do not have the same parent as the equivalent in the template
+	TArray<FName> BonesWithMissingParent;
+	// number of bones we extended the spine/neck chains beyond what the template provides
+	TMap<FName,int32> ExpandedChains;
+};
+
 // a hard coded template representing a "known" hierarchy that is used in the world (ie UE5 Mannequin, Fortnite skeleton etc..)
 // contains the recommended retarget definition to use for this template, including the retarget root, retarget chains and bone settings
 struct FTemplateHierarchy
@@ -235,8 +267,7 @@ struct FTemplateHierarchy
 
 	FName Name;
 	FAbstractHierarchy Hierarchy;
-	FRetargetDefinition RetargetDefinition;
-	FAllBoneSettingsForIK BoneSettingsForIK;
+	FAutoRetargetDefinition AutoRetargetDefinition;
 };
 
 // a collection of FTemplateHierarchy to compare against

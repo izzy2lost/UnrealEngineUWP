@@ -26,6 +26,8 @@
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "RetargetEditor/IKRetargetAnimInstance.h"
 #include "RetargetEditor/IKRetargetEditorController.h"
+#include "Retargeter/RetargetOps/PinBoneOp.h"
+#include "Retargeter/RetargetOps/RootMotionGeneratorOp.h"
 #include "RigEditor/IKRigAutoCharacterizer.h"
 #include "RigEditor/IKRigController.h"
 #include "Settings/SkeletalMeshEditorSettings.h"
@@ -634,7 +636,7 @@ void FProceduralRetargetAssets::AutoGenerateIKRigAsset(USkeletalMesh* Mesh, ERet
 	Controller->SetSkeletalMesh(Mesh);
 	FAutoCharacterizeResults& CharacterizationResults = SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceCharacterizationResults : TargetCharacterizationResults;
 	Controller->AutoGenerateRetargetDefinition(CharacterizationResults);
-	Controller->SetRetargetDefinition(CharacterizationResults.RetargetDefinition);
+	Controller->SetRetargetDefinition(CharacterizationResults.AutoRetargetDefinition.RetargetDefinition);
 	FAutoFBIKResults IKResults = SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceIKResults : TargetIKResults;
 	Controller->AutoGenerateFBIK(IKResults);
 
@@ -669,8 +671,21 @@ void FProceduralRetargetAssets::AutoGenerateIKRetargetAsset()
 	GlobalSettings.bEnableIK = false;
 	RetargetController->SetGlobalSettings(GlobalSettings);
 
-	// set up pin ops for IK bones
-	//RetargetController->
+	// clear the op stack and regenerate it
+	RetargetController->RemoveAllOps();
+	
+	// add a root motion generator
+	RetargetController->AddRetargetOp(URootMotionGeneratorOp::StaticClass());
+	
+	// setup a "Pin Bone Op" to pin IK bones to the new target locations
+	const int32 PinBonesOpIndex = RetargetController->AddRetargetOp(UPinBoneOp::StaticClass());
+	UPinBoneOp* PinBoneOp = CastChecked<UPinBoneOp>(RetargetController->GetRetargetOpAtIndex(PinBonesOpIndex));
+	PinBoneOp->bMaintainOffset = false;
+	const TArray<FBoneToPin>& AllBonesToPin = TargetCharacterizationResults.AutoRetargetDefinition.BonesToPin.GetBonesToPin();
+	for (const FBoneToPin& BonesToPin : AllBonesToPin)
+	{
+		PinBoneOp->BonesToPin.Emplace(BonesToPin.BoneToPin, BonesToPin.BoneToPinTo);
+	}
 }
 
 TSharedRef<FEditorViewportClient> SRetargetPoseViewport::MakeEditorViewportClient()
