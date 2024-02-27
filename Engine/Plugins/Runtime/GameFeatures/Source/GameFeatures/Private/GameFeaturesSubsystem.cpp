@@ -1901,7 +1901,7 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugins(FBuiltInPluginAdditio
 		{
 			if (Dependency.bEnabled)
 			{
-				if (TSharedPtr<IPlugin> FoundPlugin = PluginManager.FindPlugin(Dependency.Name))
+				if (TSharedPtr<IPlugin> FoundPlugin = PluginManager.FindEnabledPlugin(Dependency.Name))
 				{
 					Dependencies.Add(FoundPlugin.ToSharedRef());
 				}

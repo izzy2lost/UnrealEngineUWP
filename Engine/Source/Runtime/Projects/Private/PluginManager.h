@@ -157,6 +157,15 @@ public:
 	virtual TSharedPtr<IPlugin> FindPluginFromPath(const FString& PluginPath) override;
 	virtual TSharedPtr<IPlugin> FindPluginFromDescriptor(const FPluginReferenceDescriptor& PluginDesc) override;
 
+	virtual TSharedPtr<IPlugin> FindEnabledPlugin(const FStringView Name) override;
+	virtual TSharedPtr<IPlugin> FindEnabledPlugin(const ANSICHAR* Name) override
+	{
+		FString NameString(Name);
+		return FindEnabledPlugin(FStringView(NameString));
+	}
+	virtual TSharedPtr<IPlugin> FindEnabledPluginFromPath(const FString& PluginPath) override;
+	virtual TSharedPtr<IPlugin> FindEnabledPluginFromDescriptor(const FPluginReferenceDescriptor& PluginDesc) override;
+
 	virtual void FindPluginsUnderDirectory(const FString& Directory, TArray<FString>& OutPluginFilePaths) override;
 
 	virtual TArray<TSharedRef<IPlugin>> GetEnabledPlugins() override;

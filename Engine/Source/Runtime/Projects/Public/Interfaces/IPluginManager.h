@@ -321,6 +321,17 @@ public:
 	virtual TSharedPtr<IPlugin> FindPluginFromPath(const FString& PluginPath) = 0;
 	virtual TSharedPtr<IPlugin> FindPluginFromDescriptor(const FPluginReferenceDescriptor& PluginDesc) = 0;
 
+	/**
+	 * Finds information for an enabled plugin.
+	 *
+	 * @return	 Pointer to the enabled plugin's information, or nullptr if not enabled or can't be found.
+	 */
+	virtual TSharedPtr<IPlugin> FindEnabledPlugin(const FStringView Name) = 0;
+	virtual TSharedPtr<IPlugin> FindEnabledPlugin(const ANSICHAR* Name) = 0;
+
+	virtual TSharedPtr<IPlugin> FindEnabledPluginFromPath(const FString& PluginPath) = 0;
+	virtual TSharedPtr<IPlugin> FindEnabledPluginFromDescriptor(const FPluginReferenceDescriptor& PluginDesc) = 0;
+
 	/** 
 	 * Finds all plugin descriptors underneath a given directory (recursively)
 	 * @param Directory Search folder

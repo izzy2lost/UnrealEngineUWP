@@ -3004,6 +3004,45 @@ TSharedPtr<IPlugin> FPluginManager::FindPluginFromDescriptor(const FPluginRefere
 	}
 }
 
+TSharedPtr<IPlugin> FPluginManager::FindEnabledPlugin(const FStringView Name)
+{
+	const TSharedPtr<IPlugin> Plugin = FindPlugin(Name);
+	if (Plugin.IsValid() && Plugin->IsEnabled())
+	{
+		return Plugin;
+	}
+	else
+	{
+		return TSharedPtr<IPlugin>();
+	}
+}
+
+TSharedPtr<IPlugin> FPluginManager::FindEnabledPluginFromPath(const FString& PluginPath)
+{
+	const TSharedPtr<IPlugin> Plugin = FindPluginFromPath(PluginPath);
+	if (Plugin.IsValid() && Plugin->IsEnabled())
+	{
+		return Plugin;
+	}
+	else
+	{
+		return TSharedPtr<IPlugin>();
+	}
+}
+
+TSharedPtr<IPlugin> FPluginManager::FindEnabledPluginFromDescriptor(const FPluginReferenceDescriptor& PluginDesc)
+{
+	const TSharedPtr<IPlugin> Plugin = FindPluginFromDescriptor(PluginDesc);
+	if (Plugin.IsValid() && Plugin->IsEnabled())
+	{
+		return Plugin;
+	}
+	else
+	{
+		return TSharedPtr<IPlugin>();
+	}
+}
+
 TArray<TSharedRef<IPlugin>> FPluginManager::GetEnabledPlugins()
 {
 	TArray<TSharedRef<IPlugin>> Plugins;
