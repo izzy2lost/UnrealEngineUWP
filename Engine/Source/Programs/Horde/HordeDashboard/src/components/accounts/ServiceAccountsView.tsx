@@ -4,7 +4,7 @@ import { Checkbox, DefaultButton, DetailsList, DetailsListLayoutMode, Dialog, Di
 import { observer } from "mobx-react-lite";
 import React, { useEffect, useState } from "react";
 import backend from "../../backend";
-import { AccountClaimMessage, CreateAccountRequest, GetAccountResponse, UpdateAccountRequest } from "../../backend/Api";
+import { AccountClaimMessage, CreateServiceAccountRequest, GetServiceAccountResponse, UpdateServiceAccountRequest } from "../../backend/Api";
 import { PollBase } from "../../backend/PollBase";
 import { useWindowSize } from "../../base/utilities/hooks";
 import { getHordeStyling } from "../../styles/Styles";
@@ -13,7 +13,7 @@ import { TopNav } from "../TopNav";
 import ErrorHandler from "../ErrorHandler";
 import moment from "moment";
 
-class AccountHandler extends PollBase {
+class ServiceAccountHandler extends PollBase {
 
    constructor(pollTime = 60000) {
 
@@ -31,7 +31,7 @@ class AccountHandler extends PollBase {
 
       try {
 
-         this.accounts = (await backend.getAccounts()).sort((a, b) => a.name.localeCompare(b.name));
+         this.accounts = (await backend.getServiceAccounts()).sort((a, b) => a.description.localeCompare(b.description));
          this.accountGroups = await backend.getAccountGroups();
 
          this.setUpdated();
@@ -42,33 +42,36 @@ class AccountHandler extends PollBase {
 
    }
 
-   accounts: GetAccountResponse[] = [];
+   accounts: GetServiceAccountResponse[] = [];
    accountGroups: AccountClaimMessage[] = [];
 }
 
-const handler = new AccountHandler();
+const handler = new ServiceAccountHandler();
 
 const AccountPanel: React.FC = observer(() => {
 
-   const [state, setState] = useState<{ showEditor?: boolean, editAccount?: GetAccountResponse }>({});
+   const [state, setState] = useState<{ showEditor?: boolean, editAccount?: GetServiceAccountResponse }>({});
+   const [newToken, setNewToken] = useState("");
 
    // subscribe
    if (handler.updated) { };
 
-   const columns:IColumn[] = [
-      { key: 'column_name', name: 'Full Name', minWidth: 240, maxWidth: 240, isResizable: false },
+   const columns: IColumn[] = [
+      { key: 'column_id', name: 'Id', minWidth: 240, maxWidth: 240, isResizable: false },
       { key: 'column_status', name: 'Status', minWidth: 80, maxWidth: 80, isResizable: false },
-      { key: 'column_login', name: 'Username', minWidth: 160, maxWidth: 160, isResizable: false },
-      { key: 'column_email', name: 'Email', minWidth: 240, maxWidth: 240, isResizable: false },
       { key: 'column_description', name: 'Description', minWidth: 440, maxWidth: 440, isResizable: false },
-      { key: 'column_edit', name: 'Edit', minWidth: 48, maxWidth: 48, isResizable: false, onRenderHeader:() => null },
+      { key: 'column_edit', name: 'Edit', minWidth: 48, maxWidth: 48, isResizable: false, onRenderHeader: () => null },
    ];
 
    let accounts = [...handler.accounts];
 
-   const renderItem = (item: GetAccountResponse, index?: number, column?: IColumn) => {
+   const renderItem = (item: GetServiceAccountResponse, index?: number, column?: IColumn) => {
       if (!column) {
          return null;
+      }
+
+      if (column.name === "Id") {
+         return <Stack><Text>{item.id}</Text></Stack>
       }
 
       if (column.name === "Status") {
@@ -76,21 +79,6 @@ const AccountPanel: React.FC = observer(() => {
          return <Stack>
             <Text>{item.enabled ? "Enabled" : "Disabled"}</Text>
          </Stack>
-      }
-
-      if (column.name === "Full Name") {
-
-         return <Stack><Text>{item.name}</Text></Stack>
-      }
-
-      if (column.name === "Username") {
-
-         return <Stack><Text>{item.login}</Text></Stack>
-      }
-
-      if (column.name === "Email") {
-
-         return <Stack><Text>{item.email ?? ""}</Text></Stack>
       }
 
       if (column.name === "Description") {
@@ -101,7 +89,7 @@ const AccountPanel: React.FC = observer(() => {
       if (column.name === "Edit") {
 
          return <Stack horizontalAlign="end" onClick={() => { setState({ showEditor: true, editAccount: item }) }} style={{ "cursor": "pointer" }}>
-               <Icon style={{ paddingTop: 4, paddingRight: 8 }} iconName="Edit" />
+            <Icon style={{ paddingTop: 4, paddingRight: 8 }} iconName="Edit" />
          </Stack>
       }
 
@@ -109,8 +97,25 @@ const AccountPanel: React.FC = observer(() => {
    };
 
    return (<Stack>
-      {!!state.showEditor && <AccountEditor accountIn={state.editAccount} onClose={() => {
+      {!!newToken && <Dialog
+         hidden={false}
+         onDismiss={() => setNewToken("")}
+         minWidth={560}
+         dialogContentProps={{
+            type: DialogType.normal,
+            title: `New Service Token`,
+            subText: `A new service token had been generated:\n\n ${newToken}`
+         }}
+         modalProps={{ isBlocking: true, topOffsetFixed: true, styles: { main: { padding: 8, width: 400, hasBeenOpened: false, top: "120px", position: "absolute" } } }} >
+         <DialogFooter>
+            <PrimaryButton onClick={() => { setNewToken("") }} text="Ok" />
+         </DialogFooter>
+      </Dialog>}
+      {!!state.showEditor && <ServiceAccountEditor accountIn={state.editAccount} onClose={(newToken?: string) => {
          setState({})
+         if (newToken?.length) {
+            setNewToken(newToken);
+         }
       }} />}
       <Stack styles={{ root: { paddingTop: 18, paddingLeft: 12, paddingRight: 12, width: "100%" } }} >
          <Stack tokens={{ childrenGap: 12 }} >
@@ -138,7 +143,7 @@ const AccountPanel: React.FC = observer(() => {
 });
 
 
-export const AccountsView: React.FC = () => {
+export const ServiceAccountsView: React.FC = () => {
 
    useEffect(() => {
 
@@ -156,7 +161,7 @@ export const AccountsView: React.FC = () => {
 
    return <Stack className={hordeClasses.horde}>
       <TopNav />
-      <Breadcrumbs items={[{ text: 'Accounts' }]} />
+      <Breadcrumbs items={[{ text: 'Service Accounts' }]} />
       <Stack horizontal>
          <div key={`windowsize_accountview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
          <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%" } }}>
@@ -172,14 +177,14 @@ export const AccountsView: React.FC = () => {
    </Stack>
 };
 
-const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => void }> = ({ accountIn, onClose }) => {
+const ServiceAccountEditor: React.FC<{ accountIn?: GetServiceAccountResponse, onClose: (newToken?: string) => void }> = ({ accountIn, onClose }) => {
 
    const [submitting, setSubmitting] = useState(false);
    const [confirmDelete, setConfirmDelete] = useState(false);
    const { hordeClasses } = getHordeStyling();
    const [error, setError] = useState("");
-   const [account, setAccount] = useState<GetAccountResponse>(accountIn ? { ...accountIn } : { id: "", name: "", login: "", claims: [], description: undefined, email: undefined, enabled: true });
-   const [secrets, setSecrets] = useState<{ password?: string }>({});
+   const [account, setAccount] = useState<GetServiceAccountResponse>(accountIn ? { ...accountIn } : { id: "", claims: [], description: "", enabled: true });
+   const [resetToken, setResetToken] = useState(false);
 
    type ClaimTag = ITag & {
       claimType: string;
@@ -192,12 +197,8 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
 
    const onValidate = () => {
 
-      if (!account.name) {
-         return "Please enter a name";
-      }
-
-      if (!account.login) {
-         return "Please enter a login";
+      if (!account.description?.trim().length) {
+         return "Please enter a description";
       }
 
       return undefined;
@@ -216,16 +217,20 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
 
       try {
 
+         let newToken: string | undefined;
+
          setSubmitting(true);
          if (accountIn?.id) {
-            const uaccount: UpdateAccountRequest = { ...account, password: secrets.password };
-            await backend.updateAccount(accountIn.id, uaccount);
+            const uaccount: UpdateServiceAccountRequest = { ...account, resetToken: resetToken };
+            const response = await backend.updateServiceAccount(accountIn.id, uaccount);
+            newToken = response?.newSecretToken;
          } else {
-            const naccount: CreateAccountRequest = { ...account };
-            await backend.createAccount(naccount)
+            const naccount: CreateServiceAccountRequest = { ...account };
+            const response = await backend.createServiceAccount(naccount)
+            newToken = response?.secretToken;
          }
          setSubmitting(false);
-         onClose();
+         onClose(newToken);
          handler.poll();
 
       } catch (reason) {
@@ -245,7 +250,7 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
 
       try {
          setSubmitting(true);
-         await backend.deleteAccount(account.id!);
+         await backend.deleteServiceAccount(account.id!);
          setSubmitting(false);
          onClose();
          handler.poll();
@@ -274,11 +279,11 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
       return <Dialog
          hidden={false}
          onDismiss={() => setConfirmDelete(false)}
-         minWidth={400}
+         minWidth={512}
          dialogContentProps={{
             type: DialogType.normal,
             title: `Delete Account`,
-            subText: `Confirm deletion of account ${account.name}`
+            subText: `Confirm deletion of account ${account.id}`,
          }}
          modalProps={{ isBlocking: true, topOffsetFixed: true, styles: { main: { padding: 8, width: 400, hasBeenOpened: false, top: "120px", position: "absolute" } } }} >
          <DialogFooter>
@@ -292,26 +297,14 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
    return <Modal className={hordeClasses.modal} isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 600, hasBeenOpened: false, top: "120px", position: "absolute" } }} >
       <Stack style={{ padding: 8 }}>
          <Stack style={{ paddingBottom: 16 }}>
-            <Text variant="mediumPlus" style={{ fontFamily: "Horde Open Sans SemiBold" }}>{accountIn ? "Edit Account" : "New Account"}</Text>
+            <Text variant="mediumPlus" style={{ fontFamily: "Horde Open Sans SemiBold" }}>{accountIn ? "Edit Service Account" : "New Service Account"}</Text>
          </Stack>
          {!!error && <Stack>
             <MessageBar key={`validation_error`} messageBarType={MessageBarType.error} isMultiline={false}>{error}</MessageBar>
          </Stack>}
 
          <Stack style={{ padding: 8 }}>
-            <TextField label="Username" autoComplete="off" spellCheck={false} placeholder="Username of the user" required defaultValue={account.login} onChange={(ev, value) => { setAccount({ ...account, login: value ?? "" }) }} />
-         </Stack>
-
-         <Stack style={{ padding: 8 }}>
-            <TextField label="Full Name" autoComplete="off" spellCheck={false} placeholder="Full name of the user" required defaultValue={account.name} onChange={(ev, value) => { setAccount({ ...account, name: value ?? "" }) }} />
-         </Stack>
-
-         <Stack style={{ padding: 8 }}>
-            <TextField label="Email" autoComplete="off" spellCheck={false} placeholder="Email address of the user" defaultValue={account.email} onChange={(ev, value) => { setAccount({ ...account, email: value ?? "" }) }} />
-         </Stack>
-
-         <Stack style={{ padding: 8 }}>
-            <TextField label="Description" autoComplete="off" spellCheck={false} placeholder="Description of the user" defaultValue={account.description} onChange={(ev, value) => { setAccount({ ...account, description: value ?? "" }) }} />
+            <TextField label="Description" autoComplete="off" spellCheck={false} placeholder="Description of the service" defaultValue={account.description} onChange={(ev, value) => { setAccount({ ...account, description: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
@@ -336,12 +329,12 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <TextField label={account.id ? "Change Password" : "Password"} autoComplete="off" spellCheck={false} placeholder="User Password" type="password" canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, password: value ?? "" }) }} />
-         </Stack>
-
-         <Stack style={{ padding: 8 }}>
             <Checkbox label="Enabled" checked={account.enabled} onChange={(ev, value) => { setAccount({ ...account, enabled: value ? true : false }) }} />
          </Stack>
+
+         {!!accountIn && <Stack style={{ padding: 8 }}>
+            <Checkbox label="Reset Token" checked={resetToken} onChange={(ev, value) => { setResetToken(value ? true : false) }} />
+         </Stack>}
 
          <Stack horizontal style={{ paddingTop: 64 }}>
             {!!accountIn && <PrimaryButton style={{ backgroundColor: "red", border: 0 }} onClick={() => setConfirmDelete(true)} text="Delete Account" />}

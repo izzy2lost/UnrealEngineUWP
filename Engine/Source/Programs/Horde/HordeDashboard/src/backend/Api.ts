@@ -3559,43 +3559,43 @@ export type UpdateUserRequest = {
 // Server Status
 
 /// Status for a subsystem within Hord
-export type ServerStatusSubsystem = {	
+export type ServerStatusSubsystem = {
 	/// Category of this subsystem
 	category: string;
-	
+
 	/// Name of the subsystem
 	name: string;
-	
+
 	/// List of updates
 	updates: ServerStatusUpdate[];
 }
 
 /// Type of status result for a single updat
-export enum ServerStatusResult {	
+export enum ServerStatusResult {
 	/// Indicates that the health check determined that the subsystem was unhealthy
 	Unhealthy = "Unhealthy",
-	
+
 	/// Indicates that the health check determined that the component was in a subsystem state
 	Degraded = "Degraded",
-	
+
 	/// Indicates that the health check determined that the subsystem was healthy
 	Healthy = "Healthy"
 }
 
 /// A single status updat
-export type ServerStatusUpdate = {	
+export type ServerStatusUpdate = {
 	/// Result of status update
 	result: ServerStatusResult;
-	
+
 	/// Optional message describing the result
 	message?: string;
-	
+
 	/// Time this update was created
 	updatedAt: Date;
 }
 
 /// Response from server status controller
-export type ServerStatusResponse = {	
+export type ServerStatusResponse = {
 	/// List of subsystem statuses
 	statuses: ServerStatusSubsystem[];
 }
@@ -5231,5 +5231,42 @@ export type GetAccountResponse = {
 	email?: string;
 	enabled?: boolean;
 }
+
+// Service Accounts
+
+/// Creates a new user account
+export type CreateServiceAccountRequest = {
+	description: string;
+	claims: AccountClaimMessage[],
+	enabled?: boolean;
+}
+
+/// Response from the request to create a new user account
+export type CreateServiceAccountResponse = {
+	id: string;
+	secretToken: string;
+}
+
+/// Update request for a user account
+export type UpdateServiceAccountRequest = {
+	description?: string;
+	claims?: AccountClaimMessage[];
+	resetToken?: boolean;
+	enabled?: boolean;
+}
+
+/// Response from updating a user account
+export type UpdateServiceAccountResponse = {
+	newSecretToken?: string
+}
+
+/// Creates a new user account
+export type GetServiceAccountResponse = {
+	id: string;
+	claims: AccountClaimMessage[];
+	description: string;
+	enabled: boolean;
+}
+
 
 

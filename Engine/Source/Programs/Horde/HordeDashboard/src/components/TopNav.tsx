@@ -484,10 +484,16 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
       if (features?.showAccounts) {
          resourceItems.push({
-            key: "admin_accounts",
-            text: "Accounts",
+            key: "admin_user_accounts",
+            text: "User Accounts",
             link: `/accounts`
          });
+         resourceItems.push({
+            key: "admin_service_accounts",
+            text: "Service Accounts",
+            link: `/accounts/service`
+         });
+
       }
 
       if (resourceItems.length) {
