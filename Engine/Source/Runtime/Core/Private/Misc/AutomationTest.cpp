@@ -154,6 +154,7 @@ CORE_API const TMap<FString, EAutomationTestFlags::Type>& EAutomationTestFlags::
 		{ TEXT("ClientContext"), Type::ClientContext},
 		{ TEXT("ServerContext"), Type::ServerContext},
 		{ TEXT("CommandletContext"), Type::CommandletContext},
+		{ TEXT("ProgramContext"), Type::ProgramContext},
 		{ TEXT("ApplicationContextMask"), Type::ApplicationContextMask},
 		{ TEXT("NonNullRHI"), Type::NonNullRHI},
 		{ TEXT("RequiresUser"), Type::RequiresUser},
@@ -680,8 +681,9 @@ void FAutomationTestFramework::GetValidTestNames( TArray<FAutomationTestInfo>& T
 	// Determine required application type (Editor, Game, or Commandlet)
 	const bool bRunningCommandlet = IsRunningCommandlet();
 	const bool bRunningEditor = GIsEditor && !bRunningCommandlet;
-	const bool bRunningClient = !GIsEditor && !IsRunningDedicatedServer();
-	const bool bRunningServer = !GIsEditor && !IsRunningClientOnly();
+	const bool bRunningClient = !GIsEditor && !IsRunningDedicatedServer() && !FPlatformProperties::IsProgram();
+	const bool bRunningServer = !GIsEditor && !IsRunningClientOnly() && !FPlatformProperties::IsProgram();
+	const bool bRunningProgram = !GIsEditor && FPlatformProperties::IsProgram();
 
 	//application flags
 	uint32 ApplicationSupportFlags = 0;
@@ -700,6 +702,10 @@ void FAutomationTestFramework::GetValidTestNames( TArray<FAutomationTestInfo>& T
 	if ( bRunningCommandlet )
 	{
 		ApplicationSupportFlags |= EAutomationTestFlags::CommandletContext;
+	}
+	if ( bRunningProgram )
+	{
+		ApplicationSupportFlags |= EAutomationTestFlags::ProgramContext;
 	}
 
 	//Feature support - assume valid RHI until told otherwise

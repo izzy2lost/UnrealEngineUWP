@@ -89,7 +89,9 @@ struct EAutomationTestFlags
 		ServerContext = 0x00000004,
 		// Test is suitable for running within a commandlet
 		CommandletContext = 0x00000008,
-		ApplicationContextMask = EditorContext | ClientContext | ServerContext | CommandletContext,
+		// Test is suitable for running within program application (not editor, nor game)
+		ProgramContext = 0x00000010,
+		ApplicationContextMask = EditorContext | ClientContext | ServerContext | CommandletContext | ProgramContext,
 
 		//~ Features required for the test - not specifying means it is valid for any feature combination
 		// Test requires a non-null RHI to run correctly
