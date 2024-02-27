@@ -176,10 +176,13 @@ struct FEvaluateConstraintChannels
 		bool Result = false;
 		ConstraintAndActiveChannel->ActiveChannel.Evaluate(FrameTime, Result);
 		Constraint->SetActive(Result);
-		Constraint->ResolveBoundObjects(TargetInstance.GetSequenceID(), *TargetInstance.GetPlayer());
+		
 		if (UTickableTransformConstraint* TransformConstraint = Cast< UTickableTransformConstraint>(Constraint))
 		{
 			TransformConstraint->InitConstraint(World);
+
+			// this has to be done once the constraint initialized
+			TransformConstraint->ResolveBoundObjects(TargetInstance.GetSequenceID(), *TargetInstance.GetPlayer());
 			
 			if (UTransformableComponentHandle* ComponentHandle = Cast<UTransformableComponentHandle>(TransformConstraint->ChildTRSHandle))
 			{
@@ -190,8 +193,11 @@ struct FEvaluateConstraintChannels
 				UpdateHandle.TransformHandle = ComponentHandle;
 				System->DynamicOffsets.Add(UpdateHandle);
 				TransformConstraint->EnsurePrimaryDependency(BoundObject->GetWorld());
-
 			}
+		}
+		else
+		{
+			Constraint->ResolveBoundObjects(TargetInstance.GetSequenceID(), *TargetInstance.GetPlayer());	
 		}
 	}
 

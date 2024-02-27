@@ -44,7 +44,7 @@ public:
 	CONSTRAINTS_API virtual bool HasBoundObjects() const override;
 	
 	/** Resolve the bound objects so that any object it references are resovled and correctly set up*/
-	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player,UObject* SubObject) override;
+	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject = nullptr) override;
 
 	/** Whether or not it's valid for example it may not be fully loaded*/
 	virtual bool IsValid(const bool bDeepCheck = true) const override;
@@ -505,4 +505,20 @@ struct FTransformConstraintUtils
 
 	/** Ensure default dependencies between constraints. */
 	static CONSTRAINTS_API bool BuildDependencies(UWorld* InWorld, UTickableTransformConstraint* Constraint);
+};
+
+/**
+ * FConstraintDependencyScope provides a way to build constraint dependencies when the constraint is not valid when added to the subsystem
+ * but after (when resolving sequencer or control rig bindings).
+ * The dependencies will be built on destruction if the constraint's validity changed within the lifetime of that object.
+ */
+
+struct FConstraintDependencyScope
+{
+	FConstraintDependencyScope(UTickableTransformConstraint* InConstraint, UWorld* InWorld = nullptr);
+	~FConstraintDependencyScope();
+private:
+	TWeakObjectPtr<UTickableTransformConstraint> WeakConstraint = nullptr;
+	TWeakObjectPtr<UWorld> WeakWorld = nullptr;
+	bool bPreviousValidity = false;
 };

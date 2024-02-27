@@ -561,6 +561,9 @@ bool UTickableTransformConstraint::HasBoundObjects() const
 
 void UTickableTransformConstraint::ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject)
 {
+	// update dependencies if the constraint becomes valid once resolved 
+	FConstraintDependencyScope Scope(this);
+	
 	if (ChildTRSHandle && ChildTRSHandle->HasBoundObjects())
 	{
 		ChildTRSHandle->ResolveBoundObjects(LocalSequenceID, Player, SubObject);
@@ -659,6 +662,8 @@ void UTickableTransformConstraint::OnHandleModified(UTransformableHandle* InHand
 		if (InNotification == EHandleEvent::ComponentUpdated)
 		{
 			SetupDependencies(World);
+			// update dependencies now the component has been updated. 
+			FTransformConstraintUtils::BuildDependencies(World, this);
 			return;
 		}
 	}
@@ -723,6 +728,14 @@ void UTickableTransformConstraint::OnHandleModified(UTransformableHandle* InHand
 			DirectEvaluation();
 		}
 		return;
+	}
+
+	if (InHandle == ChildTRSHandle && InNotification == EHandleEvent::GlobalTransformUpdated)
+	{
+		if (FConstraintsEvaluationGraph::UseEvaluationGraph())
+		{
+			return MarkForEvaluation();
+		}
 	}
 }
 
@@ -1893,6 +1906,11 @@ bool FTransformConstraintUtils::BuildDependencies(UWorld* InWorld, UTickableTran
 		return false;
 	}
 
+	if (bDebugDependencies)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Building dependencies for '%s' ..."), *GetConstraintLabel(InConstraint));
+	}
+
 	const UTransformableHandle* ParentHandle = InConstraint->ParentTRSHandle.Get();
 	const UTransformableHandle* ChildHandle = InConstraint->ChildTRSHandle.Get();
 	
@@ -2318,3 +2336,27 @@ void FTransformConstraintUtils::GetChildrenConstraints(
 	OutConstraints.Append(FilteredConstraints);
 }
 
+FConstraintDependencyScope::FConstraintDependencyScope(UTickableTransformConstraint* InConstraint, UWorld* InWorld)
+	: WeakConstraint(InConstraint)
+	, WeakWorld(InWorld)
+	, bPreviousValidity(InConstraint ? InConstraint->IsValid() : false)
+{}
+
+FConstraintDependencyScope::~FConstraintDependencyScope()
+{
+	if (!bPreviousValidity)
+	{
+		if (UTickableTransformConstraint* Constraint = WeakConstraint.IsValid() ? WeakConstraint.Get() : nullptr)
+		{
+			if (Constraint->IsValid())
+			{
+				const UObject* Target = ConstraintLocals::GetHandleTarget(Constraint->ChildTRSHandle);
+				UWorld* World = WeakWorld.IsValid() ? WeakWorld.Get() : Target ? Target->GetWorld() : nullptr;
+				if (::IsValid(World))
+				{
+					FTransformConstraintUtils::BuildDependencies(World, Constraint);
+				}
+			}
+		}
+	}
+}

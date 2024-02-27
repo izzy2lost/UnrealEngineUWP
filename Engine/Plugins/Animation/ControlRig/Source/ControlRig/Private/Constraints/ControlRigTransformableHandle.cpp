@@ -487,8 +487,16 @@ void UTransformableControlHandle::OnObjectBoundToControlRig(UObject* InObject)
 	const UObject* CurrentObject = Binding ? Binding->GetBoundObject() : nullptr;
 	if (CurrentObject == InObject)
 	{
-		const UWorld* ThisWorld = GetWorld();
-		if (ThisWorld && InObject->GetWorld() == ThisWorld)
+		const UWorld* World = GetWorld();
+		if (!World)
+		{
+			if (const USceneComponent* BoundComponent = GetBoundComponent())
+			{
+				World = BoundComponent->GetWorld();
+			}
+		}
+		
+		if (World && InObject->GetWorld() == World)
 		{
 			Notify(EHandleEvent::ComponentUpdated);
 		}
