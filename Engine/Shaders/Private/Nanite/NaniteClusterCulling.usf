@@ -937,7 +937,7 @@ void InitNodeCullArgs(uint GroupID : SV_GroupID, uint GroupIndex : SV_GroupIndex
 		OutNodeCullArgs1[Offset + 1] = 1;				// ThreadGroupCountY
 		OutNodeCullArgs1[Offset + 2] = 1;				// ThreadGroupCountZ
 		OutNodeCullArgs1[Offset + 3] = 0;				// NumNodes
-		OutNodeCullArgs0[Offset + 4] = 0;				// LevelStartIndex
+		OutNodeCullArgs1[Offset + 4] = 0;				// LevelStartIndex
 	}
 }
 
