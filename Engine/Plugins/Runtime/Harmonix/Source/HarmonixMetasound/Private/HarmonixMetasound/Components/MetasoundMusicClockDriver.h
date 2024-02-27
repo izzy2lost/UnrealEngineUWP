@@ -49,6 +49,8 @@ private:
 	FDelegateHandle GeneratorIOUpdatedCallbackHandle;
 	FDelegateHandle GraphChangedCallbackHandle;
 
+	void ResetCursorOwner(TSharedPtr<FMidiPlayCursorMgr> MidiPlayCursorMgr = nullptr);
+
 	bool AttemptToConnectToAudioComponentsMetasound();
 	void DetachAllCallbacks();
 	void TryToRegisterPlayCursor();
