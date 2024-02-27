@@ -615,6 +615,7 @@ namespace Horde.Agent.TrayApp
 
 					bool enabled = _enabled;
 					message.Set(AgentMessageType.SetEnabledRequest, new AgentEnabledMessage(enabled));
+					await message.SendAsync(pipeClient, cancellationToken);
 
 					message.Set(AgentMessageType.GetStatusRequest);
 					await message.SendAsync(pipeClient, cancellationToken);
