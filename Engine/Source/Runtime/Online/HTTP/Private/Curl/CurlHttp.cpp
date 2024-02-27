@@ -1091,17 +1091,7 @@ bool FCurlHttpRequest::StartThreadedRequest()
 
 bool FCurlHttpRequest::IsThreadedRequestComplete()
 {
-	if (bCanceled)
-	{
-		return true;
-	}
-
-	if (bTimedOut || bActivityTimedOut)
-	{
-		return true;
-	}
-	
-	if (bCurlRequestCompleted  && ElapsedTime >= FHttpModule::Get().GetHttpDelayTime())
+	if (bCurlRequestCompleted && ElapsedTime >= FHttpModule::Get().GetHttpDelayTime())
 	{
 		return true;
 	}

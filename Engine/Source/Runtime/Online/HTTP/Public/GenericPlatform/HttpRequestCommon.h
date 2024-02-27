@@ -93,7 +93,7 @@ protected:
 	/** Indicate the request is activity timed out, it should quit and fail with EHttpFailureReason::ConnectionError */
 	bool bActivityTimedOut = false;
 	/** Indicate the request is cancelled, it should quit and fail with EHttpFailureReason::Cancelled */
-	bool bCanceled = false;
+	std::atomic<bool> bCanceled = false;
 
 	/** TODO: Move this feature into CurlHttp */
 	bool bUsePlatformActivityTimeout = true;

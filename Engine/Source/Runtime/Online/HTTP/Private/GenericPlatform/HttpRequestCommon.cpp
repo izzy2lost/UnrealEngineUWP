@@ -177,7 +177,7 @@ void FHttpRequestCommon::SetStatus(EHttpRequestStatus::Type InCompletionStatus)
 
 void FHttpRequestCommon::SetFailureReason(EHttpFailureReason InFailureReason)
 {
-	check(FailureReason == EHttpFailureReason::None);
+	UE_CLOG(FailureReason != EHttpFailureReason::None, LogHttp, Warning, TEXT("FailureReason had been set to %s, now setting to %s"), LexToString(FailureReason), LexToString(InFailureReason));
 	FailureReason = InFailureReason;
 
 	if (FHttpResponsePtr Response = GetResponse())
@@ -210,14 +210,13 @@ float FHttpRequestCommon::GetTimeoutOrDefault() const
 
 void FHttpRequestCommon::CancelRequest()
 {
-	if (bCanceled)
+	bool bWasCanceled = bCanceled.exchange(true);
+	if (bWasCanceled)
 	{
 		return;
 	}
 
 	StopActivityTimeoutTimer();
-
-	bCanceled = true;
 	UE_LOG(LogHttp, Verbose, TEXT("HTTP request canceled. URL=%s"), *GetURL());
 
 	FHttpModule::Get().GetHttpManager().AddHttpThreadTask([StrongThis = StaticCastSharedRef<FHttpRequestCommon>(AsShared())]()
