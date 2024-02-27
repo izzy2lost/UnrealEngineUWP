@@ -1,10 +1,59 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PCGLoadAlembic.h"
+#include "PCGAssetExporterUtils.h"
+#include "PCGModule.h"
 
 #include "Elements/PCGLoadAlembicElement.h"
 
+void UPCGAlembicToPCGAssetExporter::SerializeMetadata(FArchive& Ar)
+{
+	FPCGLoadAlembicBPData::StaticStruct()->SerializeItem(Ar, &LoadSettings, nullptr);
+}
+
+bool UPCGAlembicToPCGAssetExporter::ExportAsset(const FString& PackageName, UPCGDataAsset* Asset)
+{
+	check(Asset);
+	UPCGLoadAlembicFunctionLibrary::LoadAlembicFileToPCG(LoadSettings, Asset->Data, Asset);
+	return true;
+}
+
+UPackage* UPCGAlembicToPCGAssetExporter::UpdateAsset(const FAssetData& PCGAsset)
+{
+	UPCGDataAsset* Asset = Cast<UPCGDataAsset>(PCGAsset.GetAsset());
+	if (!Asset)
+	{
+		UE_LOG(LogPCG, Error, TEXT("Asset '%s' isn't a PCG data asset or could not be properly loaded."), *PCGAsset.GetObjectPathString());
+		return nullptr;
+	}
+
+	UPackage* Package = Asset->GetPackage();
+	if (!Package)
+	{
+		UE_LOG(LogPCG, Error, TEXT("Unable to retrieve package from Asset '%s'."), *PCGAsset.GetObjectPathString());
+		return nullptr;
+	}
+
+	UPCGLoadAlembicFunctionLibrary::LoadAlembicFileToPCG(LoadSettings, Asset->Data, Asset);
+
+	return Package;
+}
+
+void UPCGLoadAlembicFunctionLibrary::ExportAlembicFileToPCG(const FPCGLoadAlembicBPData& InSettings, FPCGAssetExporterParameters Parameters)
+{
+	UPCGAlembicToPCGAssetExporter* Exporter = NewObject<UPCGAlembicToPCGAssetExporter>(GetTransientPackage());
+	check(Exporter);
+
+	Exporter->LoadSettings = InSettings;
+	UPCGAssetExporterUtils::CreateAsset(Exporter, Parameters);
+}
+
 void UPCGLoadAlembicFunctionLibrary::LoadAlembicFileToPCG(const FPCGLoadAlembicBPData& InSettings, FPCGDataCollection& Data, UObject* TargetOuter)
+{
+	LoadAlembicFileToPCGInternal(InSettings, Data, TargetOuter);
+}
+
+void UPCGLoadAlembicFunctionLibrary::LoadAlembicFileToPCGInternal(const FPCGLoadAlembicBPData& InSettings, FPCGDataCollection& Data, UObject* TargetOuter)
 {
 	// Simulate execution of the FPCGLoadAlembicElement.
 	UPCGLoadAlembicSettings* Settings = NewObject<UPCGLoadAlembicSettings>();

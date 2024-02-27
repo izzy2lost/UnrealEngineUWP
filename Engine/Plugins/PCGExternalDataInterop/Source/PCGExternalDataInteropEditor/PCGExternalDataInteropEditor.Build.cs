@@ -22,6 +22,7 @@ namespace UnrealBuildTool.Rules
 				PrivateDependencyModuleNames.AddRange(
 					new string[]
 					{
+						"PCGEditor",
 						"PCGExternalDataInterop",
 						"UnrealEd",
 						"AlembicLib",

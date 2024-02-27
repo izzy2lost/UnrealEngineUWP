@@ -18,6 +18,8 @@ class PCG_API UPCGLoadDataAssetSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
+	UPCGLoadDataAssetSettings();
+
 	//~UObject interface implementation
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -77,6 +79,10 @@ public:
 	/** By default, data table loading is asynchronous, can force it synchronous if needed. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
 	bool bSynchronousLoad = false;
+
+	/** Controls whether the data output from the loaded asset will be passed to the default pin with tags or on the proper pins. */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Settings", meta = (NoResetToDefaeult))
+	bool bTagOutputsBasedOnOutputPins = true;
 };
 
 struct FPCGLoadDataAssetContext : public FPCGContext, public IPCGAsyncLoadingContext {};
