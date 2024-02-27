@@ -48,6 +48,8 @@ public:
 class FPCGApplyOnActorElement : public IPCGElement
 {
 public:
+	// Calling a function on an actor might not be threadsafe, so taking the safe approach.
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 
 protected:

@@ -11,19 +11,27 @@
 UENUM()
 enum class PCGSpatialNoiseMode
 {
-	Perlin2D, // your classic perlin noise
-	Caustic2D, // based on underwater fake custic rendering, gives swirly look
-	Voronoi2D, // voronoi noise, result a the distance to edge and cell ID
-	FractionalBrownian2D, // based on fractional brownian motion
-	EdgeMask2D, // used to create masks to blend out edges
+	/** Your classic perlin noise. */
+	Perlin2D,
+	/** Based on underwater fake caustic rendering, gives swirly look. */
+	Caustic2D,
+	/** Voronoi noise, result a the distance to edge and cell ID. */
+	Voronoi2D,
+	/** Based on fractional brownian motion. */
+	FractionalBrownian2D,
+	/** Used to create masks to blend out edges. */
+	EdgeMask2D,
 };
 
 UENUM()
 enum class PCGSpatialNoiseMask2DMode
 {
-	Perlin, // your classic perlin noise
-	Caustic, // based on underwater fake custic rendering, gives swirly look
-	FractionalBrownian, // based on fractional brownian motion
+	/** Your classic perlin noise. */
+	Perlin,
+	/** Based on underwater fake caustic rendering, gives swirly look. */
+	Caustic,
+	/** Based on fractional brownian motion. */
+	FractionalBrownian,
 };
 
 namespace PCGSpatialNoise

@@ -122,6 +122,8 @@ public:
 class FPCGPrintElement : public IPCGElement
 {
 public:
+	// Print to screen is perhaps safe to be called from outside of the main thread, but taking the safe approach here.
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 
 protected:

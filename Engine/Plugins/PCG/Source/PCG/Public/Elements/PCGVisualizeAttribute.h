@@ -73,6 +73,8 @@ public:
 class FPCGVisualizeAttribute : public IPCGElement
 {
 public:
+	// Creating components (like the debug component for this node) is not thread safe.
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 
 protected:
