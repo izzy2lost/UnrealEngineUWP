@@ -16,6 +16,7 @@ class FDefinitionProvider : public IDefinitionProvider
 {
 public:
 	FDefinitionProvider(IAnalysisSession* InSession);
+	virtual ~FDefinitionProvider();
 
 	virtual void BeginRead() const override { Lock.ReadLock(); }
 	virtual void EndRead() const override { Lock.ReadUnlock(); }
@@ -33,7 +34,7 @@ private:
 private:
 	mutable FRWLock Lock;
 
-	TArray<TUniquePtr<uint8>> Pages;
+	TArray<uint8*> Pages;
 	static constexpr uint32 PageSize = 1024;
 	uint32 PageRemain;
 
