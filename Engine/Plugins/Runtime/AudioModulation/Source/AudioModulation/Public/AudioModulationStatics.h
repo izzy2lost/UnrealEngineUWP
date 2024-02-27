@@ -86,7 +86,7 @@ public:
 		WorldContext = "WorldContextObject",
 		Keywords = "make modulation LPF modulator")
 	)
-	static UPARAM(DisplayName = "Bus") USoundControlBus* CreateBus(UObject* WorldContextObject, FName Name, USoundModulationParameter* Parameter, bool Activate = true);
+	static UPARAM(DisplayName = "Bus") USoundControlBus* CreateBus(UObject* WorldContextObject, FName Name, USoundModulationParameter* Parameter, bool Activate = false);
 
 	/* Create a mix with stages created for each provided bus that are initialized to the supplied value and timing parameters.
 	 * @param Buses - Buses to assign stages within new mix to
@@ -208,20 +208,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Audio|Modulation", meta = (WorldContext = "WorldContextObject", Keywords = "modulator watch watcher"))
 	static UPARAM(DisplayName = "Destination") UAudioModulationDestination* CreateModulationDestination(
-		UObject* WorldContextObject,
-		FName Name,
-		USoundModulatorBase* Modulator);
-
-	/** SOFT DEPRECATED: Use CreateModulationDestination and store resulting destination instead!
-	 * Creates a modulation destination, which activates the given modulator (if not already active)
-	 * and provides a function to retrieve the last value computed of the given modulator on the modulation
-	 * processing thread.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Audio|Modulation", meta = (
-		DisplayName = "Create Modulation Watcher (Deprecated - 5.4)",
-		WorldContext = "WorldContextObject",
-		Keywords = "modulator watch watcher"))
-	static UPARAM(DisplayName = "Watcher") UAudioModulationDestination* CreateModulationWatcher(
 		UObject* WorldContextObject,
 		FName Name,
 		USoundModulatorBase* Modulator);
