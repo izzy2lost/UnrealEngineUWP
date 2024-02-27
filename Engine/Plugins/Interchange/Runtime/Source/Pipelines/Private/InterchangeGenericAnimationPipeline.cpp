@@ -353,10 +353,10 @@ void UInterchangeGenericAnimationPipeline::CreateLevelSequenceFactoryNode(UInter
 		// Update factory's dependencies
 		if (const UInterchangeAnimationTrackBaseNode* TrackNode = Cast<UInterchangeAnimationTrackBaseNode>(BaseNodeContainer->GetNode(AnimationTrackUid)))
 		{
-			if (const UInterchangeTransformAnimationTrackNode* TransformTrackNode = Cast<UInterchangeTransformAnimationTrackNode>(TrackNode))
+			if (const UInterchangeAnimationTrackNode* AnimationTrackNode = Cast<UInterchangeAnimationTrackNode>(TrackNode))
 			{
 				FString ActorNodeUid;
-				if (TransformTrackNode->GetCustomActorDependencyUid(ActorNodeUid))
+				if (AnimationTrackNode->GetCustomActorDependencyUid(ActorNodeUid))
 				{
 					const FString ActorFactoryNodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(ActorNodeUid);
 					FactoryNode->AddFactoryDependencyUid(ActorFactoryNodeUid);

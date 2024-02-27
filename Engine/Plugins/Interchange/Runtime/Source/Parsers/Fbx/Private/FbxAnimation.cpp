@@ -301,39 +301,38 @@ namespace UE::Interchange::Private
 		}
 	}
 
-	void ImportFloatStepCurve(const FbxAnimCurve* SourceCurves, FbxProperty& Property, FInterchangeStepCurve& DestinationCurve)
+	template<typename T>
+	void ImportStepCurve(const FbxAnimCurve* SourceCurves, FbxProperty& Property, FInterchangeStepCurve& DestinationCurve)
 	{
-		TArray<float> StepCurveValues;
-		FillStepCurveAttribute<float>(DestinationCurve.KeyTimes, StepCurveValues, SourceCurves, [&Property](const FbxAnimCurveKey* Key, const FbxTime* KeyTime)
+		TArray<T> StepCurveValues;
+		FillStepCurveAttribute<T>(DestinationCurve.KeyTimes, StepCurveValues, SourceCurves, [&Property](const FbxAnimCurveKey* Key, const FbxTime* KeyTime)
+		{
+			if(Key)
 			{
-				if (Key)
-				{
-					return Key->GetValue();
-				}
-				else
-				{
-					return Property.Get<float>();
-				}
-			});
-		DestinationCurve.FloatKeyValues = StepCurveValues;
-
-	}
-
-	void ImportIntegerStepCurve(const FbxAnimCurve* SourceCurves, FbxProperty& Property, FInterchangeStepCurve& DestinationCurve)
-	{
-		TArray<int32> StepCurveValues;
-		FillStepCurveAttribute<int32>(DestinationCurve.KeyTimes, StepCurveValues, SourceCurves, [&Property](const FbxAnimCurveKey* Key, const FbxTime* KeyTime)
+				return static_cast<T>(Key->GetValue());
+			}
+			else
 			{
-				if (Key)
-				{
-					return static_cast<int32>(Key->GetValue());
-				}
-				else
-				{
-					return static_cast<int32>(Property.Get<int32>());
-				}
-			});
-		DestinationCurve.IntegerKeyValues = StepCurveValues;
+				return static_cast<T>(Property.Get<T>());
+			}
+		});
+
+		if constexpr(std::is_same_v<T, bool>)
+		{
+			DestinationCurve.BooleanKeyValues = StepCurveValues;
+		}
+		else if constexpr(std::is_floating_point_v<T>)
+		{
+			check(false); //Float curve payload should be extract as FInterchangeCurve since we can interpolate them
+		}
+		else if constexpr(sizeof(T) == sizeof(uint8))
+		{
+			DestinationCurve.ByteKeyValues = StepCurveValues;
+		}
+		else if constexpr(std::is_integral_v<T> && sizeof(T) > sizeof(uint8))
+		{
+			DestinationCurve.IntegerKeyValues = StepCurveValues;
+		}
 	}
 
 	void ImportStringStepCurve(const FbxAnimCurve* SourceCurves, FbxProperty& Property, FInterchangeStepCurve& DestinationCurve)
@@ -352,34 +351,6 @@ namespace UE::Interchange::Private
 				{
 					return FString(UTF8_TO_TCHAR(Property.Get<FbxString>()));
 				}
-			});
-		DestinationCurve.StringKeyValues = StepCurveValues;
-	}
-
-	void ImportEnumStepCurve(const FbxAnimCurve* SourceCurves, FbxProperty& Property, FInterchangeStepCurve& DestinationCurve)
-	{
-		TArray<FString> StepCurveValues;
-		FillStepCurveAttribute<FString>(DestinationCurve.KeyTimes, StepCurveValues, SourceCurves, [&Property](const FbxAnimCurveKey* Key, const FbxTime* KeyTime)
-			{
-				int32 EnumIndex = -1;
-
-				if (KeyTime)
-				{
-					FbxPropertyValue& EvaluatedValue = Property.EvaluateValue(*KeyTime);
-					EvaluatedValue.Get(&EnumIndex, EFbxType::eFbxEnum);
-				}
-				else
-				{
-					EnumIndex = Property.Get<FbxEnum>();
-				}
-
-				if (EnumIndex < 0 || EnumIndex >= Property.GetEnumCount())
-				{
-					return FString();
-				}
-
-				const char* EnumValue = Property.GetEnumValue(EnumIndex);
-				return FString(UTF8_TO_TCHAR(EnumValue));
 			});
 		DestinationCurve.StringKeyValues = StepCurveValues;
 	}
@@ -598,15 +569,18 @@ namespace UE::Interchange::Private
 							switch (FetchPayloadData.PropertyType)
 							{
 							case EFbxType::eFbxBool:
+								ImportStepCurve<bool>(CurrentAnimCurve, FetchPayloadData.Property, InterchangeStepCurves.AddDefaulted_GetRef());
 							case EFbxType::eFbxChar:
 							case EFbxType::eFbxUChar:
+							case EFbxType::eFbxEnum:
+								ImportStepCurve<uint8>(CurrentAnimCurve, FetchPayloadData.Property, InterchangeStepCurves.AddDefaulted_GetRef());
 							case EFbxType::eFbxShort:
 							case EFbxType::eFbxUShort:
 							case EFbxType::eFbxInt:
 							case EFbxType::eFbxUInt:
 							case EFbxType::eFbxLongLong:
 							case EFbxType::eFbxULongLong:
-								ImportIntegerStepCurve(CurrentAnimCurve, FetchPayloadData.Property, InterchangeStepCurves.AddDefaulted_GetRef());
+								ImportStepCurve<int32>(CurrentAnimCurve, FetchPayloadData.Property, InterchangeStepCurves.AddDefaulted_GetRef());
 								break;
 							case EFbxType::eFbxHalfFloat:
 							case EFbxType::eFbxFloat:
@@ -615,10 +589,6 @@ namespace UE::Interchange::Private
 							case EFbxType::eFbxDouble3:
 							case EFbxType::eFbxDouble4:
 								check(false); //Float curve payload should be extract as FInterchangeCurve since we can interpolate them
-								ImportFloatStepCurve(CurrentAnimCurve, FetchPayloadData.Property, InterchangeStepCurves.AddDefaulted_GetRef());
-								break;
-							case EFbxType::eFbxEnum:
-								ImportEnumStepCurve(CurrentAnimCurve, FetchPayloadData.Property, InterchangeStepCurves.AddDefaulted_GetRef());
 								break;
 							case EFbxType::eFbxString:
 								ImportStringStepCurve(CurrentAnimCurve, FetchPayloadData.Property, InterchangeStepCurves.AddDefaulted_GetRef());

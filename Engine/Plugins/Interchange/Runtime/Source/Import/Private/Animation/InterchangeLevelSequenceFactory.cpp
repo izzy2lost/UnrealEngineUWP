@@ -533,40 +533,53 @@ namespace UE::Interchange::Private
 		for(const FMovieSceneChannelEntry& ChannelEntry : ChannelEntries)
 		{
 			const FName ChannelTypeName = ChannelEntry.GetChannelTypeName();
-			if(ChannelTypeName != DoubleChannelTypeName &&
-			   ChannelTypeName != FloatChannelTypeName &&
-			   ChannelTypeName != IntegerChannelTypeName &&
-			   ChannelTypeName != BoolChannelTypeName &&
-			   ChannelTypeName != EnumChannelTypeName)
+			const bool bIsBoolChannel = (ChannelTypeName == BoolChannelTypeName);
+			const bool bIsEnumChannel = (ChannelTypeName == EnumChannelTypeName);
+			const bool bIsIntegerChannel = (ChannelTypeName == IntegerChannelTypeName);
+			const bool bIsDoubleChannel = (ChannelTypeName == DoubleChannelTypeName);
+			const bool bIsFloatChannel = (ChannelTypeName == FloatChannelTypeName);
+
+			if(!bIsBoolChannel &&
+			   !bIsEnumChannel &&
+			   !bIsIntegerChannel &&
+			   !bIsDoubleChannel &&
+			   !bIsFloatChannel)
 			{
 				continue;
 			}
 
 			TArrayView<FMovieSceneChannel* const> Channels = ChannelEntry.GetChannels();
-			for(int32 Index = 0; Index < Channels.Num(); ++Index)
+			int32 NumChannels = (bIsBoolChannel || bIsEnumChannel || bIsIntegerChannel) ? PayloadData->StepCurves.Num() : PayloadData->Curves.Num();
+			NumChannels = FMath::Min(NumChannels, Channels.Num());
+			for(int32 Index = 0; Index < NumChannels; ++Index)
 			{
 				FMovieSceneChannelHandle Channel = ChannelProxy.MakeHandle(ChannelTypeName, Index);
-				if(ChannelTypeName == FMovieSceneBoolChannel::StaticStruct()->GetFName())
+				if(bIsBoolChannel)
 				{
 					UpdateStepChannel(*(Channel.Cast<FMovieSceneBoolChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].BooleanKeyValues.GetValue());
 				}
-				else if(ChannelTypeName == FMovieSceneByteChannel::StaticStruct()->GetFName())
+				else if(bIsEnumChannel)
 				{
 					UpdateStepChannel(*(Channel.Cast<FMovieSceneByteChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].ByteKeyValues.GetValue());
 				}
-				else if(ChannelTypeName == FMovieSceneIntegerChannel::StaticStruct()->GetFName())
+				else if(bIsIntegerChannel)
 				{
-					UpdateStepChannel(*(Channel.Cast<FMovieSceneBoolChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].BooleanKeyValues.GetValue());
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneIntegerChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].IntegerKeyValues.GetValue());
 				}
-				else if(ChannelTypeName == FMovieSceneFloatChannel::StaticStruct()->GetFName())
+				else if(bIsFloatChannel)
 				{
 					CopyToChannel(Channel.Cast<FMovieSceneFloatChannel>().Get(), PayloadData->Curves[Index]);
 				}
-				else if(ChannelTypeName == FMovieSceneDoubleChannel::StaticStruct()->GetFName())
+				else if(bIsDoubleChannel)
 				{
 					CopyToChannel(Channel.Cast<FMovieSceneDoubleChannel>().Get(), PayloadData->Curves[Index]);
 				}
 			}
+		}
+
+		if(USceneComponent* SceneComp = Actor->GetRootComponent())
+		{
+			SceneComp->SetMobility(EComponentMobility::Movable);
 		}
 	}
 
