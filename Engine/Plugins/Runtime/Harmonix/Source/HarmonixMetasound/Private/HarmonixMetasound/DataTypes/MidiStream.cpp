@@ -112,7 +112,7 @@ namespace HarmonixMetasound
 
 		// Reset the target
 		To.EventsInBlock.Reset();
-		To.ActiveVoices.Reset();
+		To.ActiveVoices = From.ActiveVoices;
 		
 		// Copy the events
 		for (const FMidiStreamEvent& Event : From.GetEventsInBlock())
