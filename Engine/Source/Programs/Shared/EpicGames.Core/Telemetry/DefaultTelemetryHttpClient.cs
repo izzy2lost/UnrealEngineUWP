@@ -10,8 +10,11 @@ namespace EpicGames.Core.Telemetry
 {
 	public static class HttpClientDefaults
 	{
-		// When services can be used, utilize this helper to get this policy that handles retries
-		//ex. ServicesCollection.AddHttpClient<TelemetryService>().AddPolicyHandler(HttpClientDefaults.GetPolicy());
+		/// <summary>
+		/// When services can be used, utilize this helper to get this policy that handles retries
+		/// ex. ServicesCollection.AddHttpClient<TelemetryService>().AddPolicyHandler(HttpClientDefaults.GetPolicy());
+		/// </summary>
+		/// <returns>The retry policy</returns>
 		public static Polly.Retry.AsyncRetryPolicy<HttpResponseMessage> GetRetryPolicy()
 		{
 			return HttpPolicyExtensions
@@ -23,7 +26,10 @@ namespace EpicGames.Core.Telemetry
 				.WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
 		}
 
-		// Returns new HttpClient configured with our default retry policy
+		/// <summary>
+		/// Creates a HttpClient with the default retry policy
+		/// </summary>
+		/// <returns>HttpClient</returns>
 		public static HttpClient GetClient()
 		{
 			// per MS documentation, with a lifetime specified we shouldn't have socket exhaustion issues

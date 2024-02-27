@@ -14,8 +14,15 @@ namespace EpicGames.Core.Telemetry
 	/// <typeparam name="T">Type of event this service should record</typeparam>
 	public interface ITelemetryService<T> : IDisposable where T : class
 	{
+		/// <summary>
+		/// Record an event to be processed
+		/// </summary>
+		/// <param name="eventData">The event to record</param>
 		public void RecordEvent(T eventData);
 
+		/// <summary>
+		/// Function to flush pending events
+		/// </summary>
 		public void FlushEvents();
 	}
 }
