@@ -216,6 +216,12 @@ FAutoConsoleVariableRef CVarLumenScreenProbeTemporalMaxFramesAccumulated(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
+TAutoConsoleVariable<int32> CVarLumenScreenProbeTemporalMaxRayDirections(
+	TEXT("r.Lumen.ScreenProbeGather.Temporal.MaxRayDirections"),
+	8,
+	TEXT("Number of possible random directions per pixel. Should be tweaked based on MaxFramesAccumulated."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
 float GLumenScreenProbeTemporalHistoryNormalThreshold = 45.0f;
 FAutoConsoleVariableRef CVarLumenScreenProbeTemporalHistoryNormalThreshold(
 	TEXT("r.Lumen.ScreenProbeGather.Temporal.NormalThreshold"),
@@ -1891,6 +1897,13 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 	{
 		ScreenProbeParameters.FixedJitterIndex = 6;
 	}
+
+	uint32 StateFrameIndex = View.ViewState ? View.ViewState->GetFrameIndex() : 0;
+	if (ScreenProbeParameters.FixedJitterIndex >= 0)
+	{
+		StateFrameIndex = ScreenProbeParameters.FixedJitterIndex;
+	}
+	ScreenProbeParameters.ScreenProbeRayDirectionFrameIndex = StateFrameIndex % FMath::Clamp(CVarLumenScreenProbeTemporalMaxRayDirections.GetValueOnRenderThread(), 1, 128);
 
 	FRDGTextureDesc DownsampledDepthDesc(FRDGTextureDesc::Create2D(ScreenProbeParameters.ScreenProbeAtlasBufferSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 	ScreenProbeParameters.ScreenProbeSceneDepth = GraphBuilder.CreateTexture(DownsampledDepthDesc, TEXT("Lumen.ScreenProbeGather.ScreenProbeSceneDepth"));
