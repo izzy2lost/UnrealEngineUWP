@@ -520,7 +520,7 @@ void FIKRigEditorController::AutoGenerateRetargetChains() const
 	{
 		// actually apply the auto-generated retarget definition
 		// TODO move this outside the condition once procedural retarget definitions are supported
-		AssetController->SetRetargetDefinition(Results.RetargetDefinition);
+		AssetController->SetRetargetDefinition(Results.AutoRetargetDefinition.RetargetDefinition);
 		
 		// notify user of which skeleton was detected
 		const FText ScoreAsText = FText::AsPercent(Results.BestPercentageOfTemplateScore);

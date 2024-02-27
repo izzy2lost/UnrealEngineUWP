@@ -24,7 +24,7 @@ enum class ERootMotionHeightSource : uint8
 };
 
 UCLASS(BlueprintType, EditInlineNew)
-class URootMotionGeneratorOp : public URetargetOpBase
+class IKRIG_API URootMotionGeneratorOp : public URetargetOpBase
 {
 	GENERATED_BODY()
 

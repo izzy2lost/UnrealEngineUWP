@@ -31,7 +31,7 @@ void FAutoFBIKCreator::CreateFBIKSetup(const UIKRigController& IKRigController, 
 	
 	// create all the goals in the template
 	TArray<FName> GoalNames;
-	const TArray<FBoneChain>& ExpectedChains = CharacterizeResults.RetargetDefinition.BoneChains;
+	const TArray<FBoneChain>& ExpectedChains = CharacterizeResults.AutoRetargetDefinition.RetargetDefinition.BoneChains;
 	for (const FBoneChain& ExpectedChain : ExpectedChains)
 	{
 		if (ExpectedChain.IKGoalName == NAME_None)
@@ -67,7 +67,7 @@ void FAutoFBIKCreator::CreateFBIKSetup(const UIKRigController& IKRigController, 
 	}
 
 	// set the root of the solver
-	const bool bSetRoot = IKRigController.SetRootBone(CharacterizeResults.RetargetDefinition.RootBone, SolverIndex);
+	const bool bSetRoot = IKRigController.SetRootBone(CharacterizeResults.AutoRetargetDefinition.RetargetDefinition.RootBone, SolverIndex);
 	if (!bSetRoot)
 	{
 		Results.Outcome = EAutoFBIKResult::MissingRootBone;
@@ -89,7 +89,7 @@ void FAutoFBIKCreator::CreateFBIKSetup(const UIKRigController& IKRigController, 
 		return;
 	}
 	const FAbstractHierarchy MeshAbstractHierarchy(Mesh);
-	const TArray<FBoneSettingsForIK>& AllBoneSettings = TemplateHierarchy->BoneSettingsForIK.GetBoneSettings();
+	const TArray<FBoneSettingsForIK>& AllBoneSettings = TemplateHierarchy->AutoRetargetDefinition.BoneSettingsForIK.GetBoneSettings();
 	for (const FBoneSettingsForIK& BoneSettings : AllBoneSettings)
 	{
 		// templates use "clean" names, free from prefixes, so we need to resolve this onto the actual skeletal mesh being setup

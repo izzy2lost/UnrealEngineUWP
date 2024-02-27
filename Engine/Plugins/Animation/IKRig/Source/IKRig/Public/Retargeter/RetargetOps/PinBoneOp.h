@@ -23,6 +23,15 @@ struct FPinBoneData
 {
 	GENERATED_BODY()
 
+	FPinBoneData() = default;
+	
+	FPinBoneData(FName InBoneToPin, FName InBoneToPinTo)
+	: BoneToPin(InBoneToPin)
+	, BoneToPinTo(InBoneToPinTo)
+	, BoneToPinIndex(INDEX_NONE)
+	, BoneToPinToIndex(INDEX_NONE)
+	, OffsetInRefPose(FTransform::Identity){}
+
 	// The bone to be affected by this op. Will have it's transform modified to match the BoneToPinTo
 	UPROPERTY(EditAnywhere, Category=Settings)
 	FName BoneToPin;
@@ -31,13 +40,13 @@ struct FPinBoneData
 	UPROPERTY(EditAnywhere, Category=Settings)
 	FName BoneToPinTo;
 	
-	int32 BoneToPinIndex = INDEX_NONE;
-	int32 BoneToPinToIndex = INDEX_NONE;
+	int32 BoneToPinIndex;
+	int32 BoneToPinToIndex;
 	FTransform OffsetInRefPose;
 };
 
 UCLASS(BlueprintType, EditInlineNew)
-class UPinBoneOp : public URetargetOpBase
+class IKRIG_API UPinBoneOp : public URetargetOpBase
 {
 	GENERATED_BODY()
 
