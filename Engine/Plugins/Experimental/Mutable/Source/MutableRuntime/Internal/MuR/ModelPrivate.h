@@ -218,18 +218,21 @@ namespace mu
 
 		//! Data for every rom.
 		TArray<FRomData> m_roms;
+	
+		/** Loaded roms worth tracking (only images and meshes for now). Stores the rom's data type.*/
+		TSparseArray<uint8> LoadedMemTrackedRoms;
 
 		//! Constant image mip data: the first is the index in m_roms for each image mip or -1 if it is always loaded.
-		TArray<TPair<int32, Ptr<const Image>>> m_constantImageLODs;
+		TArray<TPair<int32, Ptr<const Image>>> ConstantImageLODs;
 
-		//! Constant image mip chain indices: ranges in this array are defined in FImageLODRange and the indices here refer to m_constantImageLODs.
+		//! Constant image mip chain indices: ranges in this array are defined in FImageLODRange and the indices here refer to ConstantImageLODs.
 		TArray<uint32> m_constantImageLODIndices;
 
 		//! Constant image data.
 		TArray<FImageLODRange> m_constantImages;
 
         //! Constant mesh data: the first is the index in m_roms for each mesh or -1 if it is always loaded.
-		TArray<TPair<int32, Ptr<const Mesh>>> m_constantMeshes;
+		TArray<TPair<int32, Ptr<const Mesh>>> ConstantMeshes;
 
 		//! Constant ExtensionData
 		TArray<FExtensionDataConstant> m_constantExtensionData;
@@ -282,10 +285,10 @@ namespace mu
             arch << m_byteCode;
             arch << m_states;
 			arch << m_roms;
-			arch << m_constantImageLODs;
+			arch << ConstantImageLODs;
 			arch << m_constantImageLODIndices;
 			arch << m_constantImages;
-			arch << m_constantMeshes;
+			arch << ConstantMeshes;
 			arch << m_constantExtensionData;
 			arch << m_constantStrings;
             arch << m_constantLayouts;
@@ -307,10 +310,10 @@ namespace mu
             arch >> m_byteCode;
             arch >> m_states;
 			arch >> m_roms;
-			arch >> m_constantImageLODs;
+			arch >> ConstantImageLODs;
 			arch >> m_constantImageLODIndices;
 			arch >> m_constantImages;
-			arch >> m_constantMeshes;
+			arch >> ConstantMeshes;
 			arch >> m_constantExtensionData;
 			arch >> m_constantStrings;
             arch >> m_constantLayouts;
@@ -332,43 +335,49 @@ namespace mu
         void LogHistogram() const;
 
 		//! Return true if the given ROM is loaded.
-		inline bool IsRomLoaded( int32 RomIndex ) const
+		FORCEINLINE bool IsRomLoaded(int32 RomIndex) const
 		{
-			switch (m_roms[RomIndex].ResourceType)
+			const bool bIsRomLoaded = LoadedMemTrackedRoms.IsValidIndex(RomIndex);
+			check(bIsRomLoaded == Invoke([&]()
 			{
-			case DT_IMAGE:
-				return m_constantImageLODs[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
-			case DT_MESH:
-				return m_constantMeshes[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
-			default:
-				check(false);
-				break;
-			}
-			return false;
+				switch (m_roms[RomIndex].ResourceType)
+				{
+				case DT_IMAGE: return ConstantImageLODs[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
+				case DT_MESH: return ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
+				default: return false;
+				}
+			}));
+
+			return bIsRomLoaded;
 		}
 
 		/** Unload a rom resource. Return the size of the unloaded rom.*/
-		inline int32 UnloadRom(int32 RomIndex)
+		FORCEINLINE int32 UnloadRom(int32 RomIndex)
 		{
 			int32 RomSize = 0;
 
 			if (DebugRom && (DebugRomAll||RomIndex == DebugRomIndex))
 				UE_LOG(LogMutableCore, Log, TEXT("Unloading rom %d."), RomIndex);
 
+			if (LoadedMemTrackedRoms.IsValidIndex(RomIndex))
+			{
+				LoadedMemTrackedRoms.RemoveAt(RomIndex);
+			}
+
 			switch (m_roms[RomIndex].ResourceType)
 			{
 			case DT_IMAGE:
-				if (m_constantImageLODs[m_roms[RomIndex].ResourceIndex].Value)
+				if (ConstantImageLODs[m_roms[RomIndex].ResourceIndex].Value)
 				{
-					RomSize = m_constantImageLODs[m_roms[RomIndex].ResourceIndex].Value->GetDataSize();
-					m_constantImageLODs[m_roms[RomIndex].ResourceIndex].Value = nullptr;
+					RomSize = ConstantImageLODs[m_roms[RomIndex].ResourceIndex].Value->GetDataSize();
+					ConstantImageLODs[m_roms[RomIndex].ResourceIndex].Value = nullptr;
 				}
 				break;
 			case DT_MESH:
-				if (m_constantMeshes[m_roms[RomIndex].ResourceIndex].Value)
+				if (ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value)
 				{
-					RomSize = m_constantMeshes[m_roms[RomIndex].ResourceIndex].Value->GetDataSize();
-					m_constantMeshes[m_roms[RomIndex].ResourceIndex].Value = nullptr;
+					RomSize = ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value->GetDataSize();
+					ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value = nullptr;
 				}
 				break;
 			default:
@@ -379,11 +388,27 @@ namespace mu
 			return RomSize;
 		}
 
+		FORCEINLINE void SetMeshRomValue(int32 RomIndex, const Ptr<Mesh>& Value)
+		{
+			check(m_roms[RomIndex].ResourceType == DT_MESH);
+			
+			LoadedMemTrackedRoms.EmplaceAt(RomIndex, (uint8)m_roms[RomIndex].ResourceType);
+			ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value = Value;
+		}
+
+		FORCEINLINE void SetImageRomValue(int32 RomIndex, const Ptr<Image>& Value)
+		{
+			check(m_roms[RomIndex].ResourceType == DT_IMAGE);
+			
+			LoadedMemTrackedRoms.EmplaceAt(RomIndex, (uint8)m_roms[RomIndex].ResourceType);
+			ConstantImageLODs[m_roms[RomIndex].ResourceIndex].Value = Value;
+		}
+
 
 		int32 AddConstant(Ptr<const Mesh> pMesh)
 		{
 			// Uniques needs to be ensured outside
-			return m_constantMeshes.Add(TPair<int32, Ptr<const Mesh>>( -1, pMesh.get() ));
+			return ConstantMeshes.Add(TPair<int32, Ptr<const Mesh>>( -1, pMesh.get() ));
 		}
 
 		OP::ADDRESS AddConstant(Ptr<const ExtensionData> Data)
@@ -557,7 +582,7 @@ namespace mu
 
 			// Get the first mip
 			int32 ResultLODIndex = m_constantImageLODIndices[ResultLODIndexIndex];
-			Ptr<const Image> CurrentMip = m_constantImageLODs[ResultLODIndex].Value;
+			Ptr<const Image> CurrentMip = ConstantImageLODs[ResultLODIndex].Value;
 			check(CurrentMip);
 				
 			// Shortcut if we only want one mip
@@ -580,8 +605,8 @@ namespace mu
 					int32 TotalSize = 0;
 					for (int32 LOD = 0; LOD < FinalLODs; ++LOD)
 					{
-						int LODIndex = m_constantImageLODIndices[ResultLODIndexIndex + LOD];
-						int32 MipSizeBytes = m_constantImageLODs[LODIndex].Value->GetDataSize();
+						int32 LODIndex = m_constantImageLODIndices[ResultLODIndexIndex + LOD];
+						int32 MipSizeBytes = ConstantImageLODs[LODIndex].Value->GetDataSize();
 						TotalSize += MipSizeBytes;
 					}
 					Result->m_data.SetNum(TotalSize);
@@ -603,7 +628,7 @@ namespace mu
 					if (LOD + 1 < FinalLODs)
 					{
 						ResultLODIndex = m_constantImageLODIndices[ResultLODIndexIndex + LOD + 1];
-						CurrentMip = m_constantImageLODs[ResultLODIndex].Value;
+						CurrentMip = ConstantImageLODs[ResultLODIndex].Value;
 						check(CurrentMip);
 					}
 				}
@@ -613,9 +638,9 @@ namespace mu
 		}
 
 
-        void GetConstant(int32 ConstantIndex, MeshPtrConst& res ) const
+        void GetConstant(int32 ConstantIndex, MeshPtrConst& res) const
         {
-			res = m_constantMeshes[ConstantIndex].Value;
+			res = ConstantMeshes[ConstantIndex].Value;
 		}
 
 		void GetExtensionDataConstant(int32 ConstantIndex, ExtensionDataPtrConst& Result) const

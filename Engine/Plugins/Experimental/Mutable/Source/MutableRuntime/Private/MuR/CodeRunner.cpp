@@ -928,7 +928,7 @@ namespace mu
             OP::ADDRESS cat = args.value;
 
             // Assume the ROM has been loaded previously
-            check(Program.m_constantMeshes[cat].Value)
+            check(Program.ConstantMeshes[cat].Value)
 
             Ptr<const Mesh> SourceConst;
 			Program.GetConstant(cat, SourceConst);
