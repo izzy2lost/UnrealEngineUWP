@@ -693,6 +693,16 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 	}
 }
 
+
+void FLiveLinkClient::BroadcastFrameDataUpdate(const FLiveLinkSubjectKey& InSubjectKey, const FLiveLinkFrameDataStruct& InFrameData)
+{
+	FScopeLock BroadcastLock(&SubjectFrameReceivedHandleseCriticalSection);
+	if (const FSubjectFramesReceivedHandles* Handles = SubjectFrameReceivedHandles.Find(InSubjectKey))
+	{
+		Handles->OnFrameDataReceived.Broadcast(InFrameData);
+	}
+}
+
 void FLiveLinkClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkFrameDataStruct&& InFrameData)
 {
 	FPendingSubjectFrame SubjectFrame{ InSubjectKey, MoveTemp(InFrameData) };
@@ -713,13 +723,7 @@ void FLiveLinkClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& 
 
 	if (bCanPushFrame)
 	{
-		{
-			FScopeLock BroadcastLock(&SubjectFrameReceivedHandleseCriticalSection);
-			if (const FSubjectFramesReceivedHandles* Handles = SubjectFrameReceivedHandles.Find(InSubjectKey))
-			{
-				Handles->OnFrameDataReceived.Broadcast(SubjectFrame.FrameData);
-			}
-		}
+		BroadcastFrameDataUpdate(InSubjectKey, SubjectFrame.FrameData);
 			
 		// Since the lock was released between setting bCanPushFrame and adding to the array, it is possible that
 		// we exceed MaxNumBufferToCached. But this should be rare and also harmless.

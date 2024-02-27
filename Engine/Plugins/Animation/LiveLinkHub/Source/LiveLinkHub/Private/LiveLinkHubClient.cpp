@@ -415,6 +415,7 @@ void FLiveLinkHubClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKe
 	}
 
 	OnFrameDataReceivedDelegate_AnyThread.Broadcast(SubjectKey, FrameData);
+	BroadcastFrameDataUpdate(SubjectKey, FrameData);
 }
 
 FText FLiveLinkHubClient::GetSourceStatus(FGuid InEntryGuid) const
