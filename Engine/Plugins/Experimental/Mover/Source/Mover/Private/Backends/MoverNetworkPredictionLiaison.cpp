@@ -62,6 +62,7 @@ void UMoverNetworkPredictionLiaisonComponent::InitializeSimulationState(FMoverSy
 	check(MoverComp);
 	StartingOutSync = OutSync;
 	StartingOutAux = OutAux;
+	MoverComp->InitializeSimulationState(StartingOutSync, StartingOutAux);
 }
 
 void UMoverNetworkPredictionLiaisonComponent::SimulationTick(const FNetSimTimeStep& TimeStep, const TNetSimInput<KinematicMoverStateTypes>& SimInput, const TNetSimOutput<KinematicMoverStateTypes>& SimOutput)
@@ -119,9 +120,17 @@ void UMoverNetworkPredictionLiaisonComponent::BeginPlay()
 	Super::BeginPlay();
 	if (StartingOutSync && StartingOutAux)
 	{
-		MoverComp->InitializeSimulationState(StartingOutSync, StartingOutAux);
-		StartingOutSync = nullptr;
-		StartingOutAux = nullptr;
+		if (FMoverDefaultSyncState* StartingSyncState = StartingOutSync->SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
+		{
+			const FTransform UpdatedComponentTransform = MoverComp->GetUpdatedComponentTransform();
+			// if our location has changed between initialization and begin play (ex: Actors sharing an exact start location and one gets "pushed" to make them fit) lets write the new location to avoid any disagreements
+			if (!UpdatedComponentTransform.GetLocation().Equals(StartingSyncState->GetLocation_WorldSpace()))
+			{
+				StartingSyncState->SetTransforms_WorldSpace(UpdatedComponentTransform.GetLocation(),
+													 UpdatedComponentTransform.GetRotation().Rotator(),
+													 FVector::ZeroVector);	// no initial velocity
+			}
+		}
 	}
 }
 
