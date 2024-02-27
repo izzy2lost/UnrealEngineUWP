@@ -309,19 +309,21 @@ public:
 	 *
 	 * @param Search          The string to search for. Comparison is lexicographic.
 	 * @param StartPosition   The character position to start searching from.
+	 * @param SearchCase      Indicates whether the search is case sensitive or not
 	 * @return The index of the first occurrence of the search string if found, otherwise INDEX_NONE.
 	 */
-	[[nodiscard]] inline int32 Find(ViewType Search, int32 StartPosition = 0) const;
+	[[nodiscard]] inline int32 Find(ViewType Search, int32 StartPosition = 0, ESearchCase::Type SearchCase = ESearchCase::CaseSensitive) const;
 
 	/**
 	 * Returns whether this view contains the specified substring.
 	 *
-	 * @param Search   Text to search for
+	 * @param Search          Text to search for
+	 * @param SearchCase      Indicates whether the search is case sensitive or not
 	 * @return True if the view contains the search string, otherwise false.
 	 */
-	[[nodiscard]] inline bool Contains(ViewType Search) const
+	[[nodiscard]] inline bool Contains(ViewType Search, ESearchCase::Type SearchCase = ESearchCase::CaseSensitive) const
 	{
-		return Find(Search) != INDEX_NONE;
+		return Find(Search, 0, SearchCase) != INDEX_NONE;
 	}
 
 	/**
@@ -713,9 +715,9 @@ inline bool TStringView<CharType>::EndsWith(ViewType Suffix, ESearchCase::Type S
 }
 
 template <typename CharType>
-inline int32 TStringView<CharType>::Find(const ViewType Search, const int32 StartPosition) const
+inline int32 TStringView<CharType>::Find(const ViewType Search, const int32 StartPosition, ESearchCase::Type SearchCase) const
 {
-	const int32 Index = UE::String::FindFirst(RightChop(StartPosition), Search);
+	const int32 Index = UE::String::FindFirst(RightChop(StartPosition), Search, SearchCase);
 	return Index == INDEX_NONE ? INDEX_NONE : Index + StartPosition;
 }
 
