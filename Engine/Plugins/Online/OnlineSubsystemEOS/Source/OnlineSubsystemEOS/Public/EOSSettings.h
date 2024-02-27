@@ -71,6 +71,7 @@ struct FEOSSettings
 
 	FString CacheDir;
 	FString DefaultArtifactName;
+	FString SteamTokenType;
 	EOS_ERTCBackgroundMode RTCBackgroundMode;
 	int32 TickBudgetInMilliseconds;
 	int32 TitleStorageReadChunkLength;
@@ -171,6 +172,19 @@ public:
 	/** Set to true to have Epic Accounts presence information updated when the default platform is updated */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="Crossplay Settings")
 	bool bMirrorPresenceToEAS = false;
+
+	/**
+	 * When running with Steam, defines what TokenType OSSEOS will request from OSSSteam to login with.
+	 * Please see EOS documentation at https://dev.epicgames.com/docs/dev-portal/identity-provider-management#steam for more information.
+	 * Note the default is currently "Session" but this is deprecated. Please migrate to WebApi.
+	 * Possible values:
+	 *     "App" -> [DEPRECATED] Use Steam Encryption Application Tickets from ISteamUser::GetEncryptedAppTicket.
+	 *     "Session" -> [DEPRECATED] Use Steam Auth Session Tickets from ISteamUser::GetAuthSessionTicket.
+	 *     "WebApi" -> Use Steam Auth Tickets from ISteamUser::GetAuthTicketForWebApi, using the default remote service identity configured for OSSSteam.
+	 *     "WebApi:<remoteserviceidentity>" -> Use Steam Auth Tickets from ISteamUser::GetAuthTicketForWebApi, using an explicit remote service identity.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="Crossplay Settings")
+	FString SteamTokenType = TEXT("Session");
 
 	/** Get the settings for the selected artifact */
 	static bool GetSelectedArtifactSettings(FEOSArtifactSettings& OutSettings);
