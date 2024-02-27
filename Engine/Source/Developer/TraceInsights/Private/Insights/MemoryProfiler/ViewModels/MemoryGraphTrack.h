@@ -44,8 +44,15 @@ public:
 		MaxTotalMem,
 		MinLiveAllocs,
 		MaxLiveAllocs,
+		MinSwapMem,
+		MaxSwapMem,
+		MinCompressedSwapMem,
+		MaxCompressedSwapMem,
 		AllocEvents,
-		FreeEvents
+		FreeEvents,
+		PageInEvents,
+		PageOutEvents,
+		SwapFreeEvents
 	};
 
 public:

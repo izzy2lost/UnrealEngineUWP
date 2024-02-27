@@ -28,6 +28,7 @@
 SMemInvestigationView::SMemInvestigationView()
 	: ProfilerWindowWeakPtr()
 	, bIncludeHeapAllocs(false)
+	, bIncludeSwapAllocs(false)
 {
 }
 
@@ -161,6 +162,27 @@ TSharedRef<SWidget> SMemInvestigationView::ConstructInvestigationWidgetArea()
 				.Text(LOCTEXT("IncludeHeapAllocsText", "Include Heap Allocs"))
 			]
 			.ToolTipText(LOCTEXT("IncludeHeapAllocsToolTipText", "Include heap allocs."))
+		]
+
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+		[
+			SNew(SCheckBox)
+			.IsChecked_Lambda([this]()
+			{
+				return bIncludeSwapAllocs ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			})
+			.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
+			{
+				bIncludeSwapAllocs = (InCheckBoxState == ECheckBoxState::Checked);
+			})
+			.Content()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("IncludeSwapAllocsText", "Include Swap Entries"))
+			]
+			.ToolTipText(LOCTEXT("IncludeSwapAllocsToolTipText", "Include swap entries."))
 		]
 
 		+ SVerticalBox::Slot()
@@ -570,6 +592,7 @@ FReply SMemInvestigationView::RunQuery()
 		QueryParams.TimeMarkers[2] = (RuleNumTimeMarkers > 2) ? ProfilerWindow->GetCustomTimeMarker(2)->GetTime() : 0.0;
 		QueryParams.TimeMarkers[3] = (RuleNumTimeMarkers > 3) ? ProfilerWindow->GetCustomTimeMarker(3)->GetTime() : 0.0;
 		QueryParams.bIncludeHeapAllocs = bIncludeHeapAllocs;
+		QueryParams.bIncludeSwapAllocs = bIncludeSwapAllocs;
 		MemAllocTableTreeView->SetQueryParams(QueryParams);
 	}
 

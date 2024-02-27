@@ -62,6 +62,7 @@ public:
 	}
 
 	FMemAllocTable& GetMemTableChecked() const { return *MemAllocTable; }
+	FMemAllocTable* GetMemTable() const { return MemAllocTable; }
 
 	bool IsValidMemAlloc() const { return GetMemTableChecked().IsValidRowIndex(GetRowIndex()); }
 	const FMemoryAlloc* GetMemAlloc() const { return GetMemTableChecked().GetMemAlloc(GetRowIndex()); }

@@ -42,6 +42,8 @@ public:
 		AaBfC,   // limited lifetime
 		aABfC,   // decline of long living allocs
 		AaBCfD,  // specific lifetime
+		AoB,     // all paged out allocs between A and B
+		AiB,     // all paged in allocs between A and B
 		//A_vs_B,  // compare A vs. B; {aAf} vs. {aBf}
 		//A_or_B,  // live at A or at B; {aAf} U {aBf}
 		//A_xor_B, // live either at A or at B; ({aAf} U {aBf}) \ {aABf}
@@ -73,6 +75,7 @@ public:
 		TagIdType GetTag() const;
 		HeapId GetRootHeap() const;
 		bool IsHeap() const;
+		bool IsSwap() const;
 	};
 
 	class TRACESERVICES_API FAllocations
@@ -151,15 +154,38 @@ public:
 	// Enumerates the Max Live Allocations timeline points in the inclusive index interval [StartIndex, EndIndex].
 	virtual void EnumerateMaxLiveAllocationsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const = 0;
 
+	// Enumerates the Min Total Swap Memory timeline points in the inclusive index interval [StartIndex, EndIndex].
+	virtual void EnumerateMinTotalSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const = 0;
+
+	// Enumerates the Max Total Swap Memory timeline points in the inclusive index interval [StartIndex, EndIndex].
+	virtual void EnumerateMaxTotalSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const = 0;
+
+	// Enumerates the Min Total Compressed Swap Memory timeline points in the inclusive index interval [StartIndex, EndIndex].
+	virtual void EnumerateMinTotalCompressedSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const = 0;
+
+	// Enumerates the Max Total Compressed Swap Memory timeline points in the inclusive index interval [StartIndex, EndIndex].
+	virtual void EnumerateMaxTotalCompressedSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const = 0;
+
 	// Enumerates the Alloc Events timeline points in the inclusive index interval [StartIndex, EndIndex].
 	virtual void EnumerateAllocEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const = 0;
 
 	// Enumerates the Free Events timeline points in the inclusive index interval [StartIndex, EndIndex].
 	virtual void EnumerateFreeEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const = 0;
 
+	// Enumerates the Page In Events timeline points in the inclusive index interval [StartIndex, EndIndex].
+	virtual void EnumeratePageInEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const = 0;
+
+	// Enumerates the Page Out Events timeline points in the inclusive index interval [StartIndex, EndIndex].
+	virtual void EnumeratePageOutEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const = 0;
+
+	// Enumerates the Swap Free Events timeline points in the inclusive index interval [StartIndex, EndIndex].
+	virtual void EnumerateSwapFreeEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const = 0;
+
 	virtual FQueryHandle StartQuery(const FQueryParams& Params) const = 0;
 	virtual void CancelQuery(FQueryHandle Query) const = 0;
 	virtual const FQueryStatus PollQuery(FQueryHandle Query) const = 0;
+
+	virtual uint64 GetPlatformPageSize() const = 0;
 };
 
 TRACESERVICES_API FName GetAllocationsProviderName();

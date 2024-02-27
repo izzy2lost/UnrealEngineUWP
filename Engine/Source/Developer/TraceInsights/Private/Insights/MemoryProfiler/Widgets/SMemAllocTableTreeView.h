@@ -67,6 +67,7 @@ public:
 		TSharedPtr<FMemoryRuleSpec> Rule;
 		double TimeMarkers[4] = { 0.0, 0.0, 0.0, 0.0 };
 		bool bIncludeHeapAllocs = false;
+		bool bIncludeSwapAllocs = false;
 	};
 
 	void SetQueryParams(const FQueryParams& InQueryParams)
@@ -77,6 +78,7 @@ public:
 		TimeMarkers[2] = InQueryParams.TimeMarkers[2];
 		TimeMarkers[3] = InQueryParams.TimeMarkers[3];
 		bIncludeHeapAllocs = InQueryParams.bIncludeHeapAllocs;
+		bIncludeSwapAllocs = InQueryParams.bIncludeSwapAllocs;
 		OnQueryInvalidated();
 	}
 
@@ -148,6 +150,7 @@ private:
 	TSharedPtr<FMemoryRuleSpec> Rule = nullptr;
 	double TimeMarkers[4];
 	bool bIncludeHeapAllocs = false;
+	bool bIncludeSwapAllocs = false;
 	TraceServices::IAllocationsProvider::FQueryHandle Query = 0;
 	FText QueryInfo;
 	FText QueryInfoTooltip;

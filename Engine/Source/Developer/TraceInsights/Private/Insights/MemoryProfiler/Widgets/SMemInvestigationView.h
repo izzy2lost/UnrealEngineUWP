@@ -99,6 +99,7 @@ private:
 	TSharedPtr<SComboBox<TSharedPtr<Insights::FMemoryRuleSpec>>> QueryRuleComboBox;
 
 	bool bIncludeHeapAllocs;
+	bool bIncludeSwapAllocs;
 
 	TSharedPtr<SComboBox<TSharedPtr<Insights::FQueryTargetWindowSpec>>> QueryTargetComboBox;
 	

@@ -29,6 +29,8 @@ struct FMemAllocTableColumns
 	static const FName AddressColumnId;
 	static const FName MemoryPageColumnId;
 	static const FName CountColumnId;
+	static const FName SwapCompressedSizeColumnId;
+	static const FName SizeInSwapColumnId;
 	static const FName SizeColumnId;
 	static const FName LLMSizeColumnId;
 	static const FName LLMDeltaSizeColumnId;
@@ -66,12 +68,18 @@ public:
 	double GetTimeMarkerA() const { return TimeA; }
 	void SetTimeMarkerA(double InTime) { TimeA = InTime; }
 
+	uint64 GetAddressPage(uint64 Address) const { return Address & ~(PlatformPageSize - 1); }
+
+	void SetPlatformPageSize(uint64 InPlatformPageSize) { PlatformPageSize = InPlatformPageSize; }
+	uint64 GetPlatformPageSize() const { return PlatformPageSize; }
+
 private:
 	void AddDefaultColumns();
 
 private:
 	TArray<FMemoryAlloc> Allocs;
 	double TimeA = 0.0;
+	uint64 PlatformPageSize = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -34,6 +34,7 @@
 #include "Insights/MemoryProfiler/ViewModels/CallstackFormatting.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingByCallstack.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingByHeap.h"
+#include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingBySwapPage.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingBySize.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingByTag.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocNode.h"
@@ -144,8 +145,10 @@ void SMemAllocTableTreeView::RebuildTree(bool bResync)
 				TableRowNodes.Reserve(TotalAllocCount);
 
 				uint32 HeapAllocCount = 0;
+				uint32 SwapAllocCount = 0;
 				const FName BaseNodeName(TEXT("alloc"));
 				const FName BaseHeapName(TEXT("heap"));
+				const FName BaseSwapName(TEXT("swap"));
 				for (int32 AllocIndex = TableRowNodes.Num(); AllocIndex < TotalAllocCount; ++AllocIndex)
 				{
 					const FMemoryAlloc* Alloc = MemAllocTable->GetMemAlloc(AllocIndex);
@@ -159,11 +162,20 @@ void SMemAllocTableTreeView::RebuildTree(bool bResync)
 						}
 					}
 
-					FName NodeName(Alloc->bIsHeap ? BaseHeapName : BaseNodeName, static_cast<int32>(Alloc->GetStartEventIndex() + 1));
+					if (Alloc->bIsSwap)
+					{
+						++SwapAllocCount;
+						if (!bIncludeSwapAllocs)
+						{
+							continue;
+						}
+					}
+
+					FName NodeName(Alloc->bIsHeap ? BaseHeapName : (Alloc->bIsSwap ? BaseSwapName : BaseNodeName), static_cast<int32>(Alloc->GetStartEventIndex() + 1));
 					FMemAllocNodePtr NodePtr = MakeShared<FMemAllocNode>(NodeName, MemAllocTable, AllocIndex);
 					TableRowNodes.Add(NodePtr);
 				}
-				ensure(TableRowNodes.Num() == (bIncludeHeapAllocs ? TotalAllocCount : TotalAllocCount - HeapAllocCount));
+				ensure(TableRowNodes.Num() == TotalAllocCount - (bIncludeHeapAllocs ? 0 : HeapAllocCount) - (bIncludeSwapAllocs ? 0 : SwapAllocCount));
 			}
 		}
 	}
@@ -273,6 +285,13 @@ void SMemAllocTableTreeView::StartQuery()
 	{
 		const TraceServices::IAllocationsProvider& Provider = *AllocationsProvider;
 		TraceServices::FProviderReadScopeLock _(Provider);
+
+		TSharedPtr<Insights::FMemAllocTable> MemAllocTable = GetMemAllocTable();
+		if (MemAllocTable)
+		{
+			MemAllocTable->SetPlatformPageSize(Provider.GetPlatformPageSize());
+		}
+
 		TraceServices::IAllocationsProvider::FQueryParams Params = { Rule->GetValue(), TimeMarkers[0], TimeMarkers[1], TimeMarkers[2], TimeMarkers[3] };
 		Query = Provider.StartQuery(Params);
 	}
@@ -468,6 +487,7 @@ void SMemAllocTableTreeView::UpdateQuery(TraceServices::IAllocationsProvider::EQ
 
 					Alloc.RootHeap = Allocation->GetRootHeap();
 					Alloc.bIsHeap = Allocation->IsHeap();
+					Alloc.bIsSwap = Allocation->IsSwap();
 
 					Alloc.bIsDecline = false;
 					if (Rule->GetValue() == TraceServices::IAllocationsProvider::EQueryRule::aAfaBf)
@@ -1076,18 +1096,18 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 	AvailableViewPresets.Add(MakeShared<FCallstackViewPreset>(true, false));
 
 	//////////////////////////////////////////////////
-	// Address (4K Page) Breakdown View
+	// Address (Platform Page) Breakdown View
 
 	class FPageViewPreset : public ITableTreeViewPreset
 	{
 	public:
 		virtual FText GetName() const override
 		{
-			return LOCTEXT("Page_PresetName", "Address (4K Page)");
+			return LOCTEXT("Page_PresetName", "Address (Platform Page)");
 		}
 		virtual FText GetToolTip() const override
 		{
-			return LOCTEXT("Page_PresetToolTip", "4K Page Breakdown View\nConfigure the tree view to show a breakdown of allocations by their address.\nIt groups allocs into 4K aligned memory pages.");
+			return LOCTEXT("Page_PresetToolTip", "Platform Page Breakdown View\nConfigure the tree view to show a breakdown of allocations by their address.\nIt groups allocs into platform page size aligned memory pages.");
 		}
 		virtual FName GetSortColumn() const override
 		{
@@ -1126,6 +1146,58 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FPageViewPreset>());
+
+	//////////////////////////////////////////////////
+	// Swap Breakdown View
+
+	class FSwapViewPreset : public ITableTreeViewPreset
+	{
+	public:
+		virtual FText GetName() const override
+		{
+			return LOCTEXT("Swap_PresetName", "Swap");
+		}
+		virtual FText GetToolTip() const override
+		{
+			return LOCTEXT("Swap_PresetToolTip", "Swap Usage Breakdown View\nConfigure the tree view to show a breakdown of allocations by their swap page.\nIt groups allocs into corresponding swap pages.");
+		}
+		virtual FName GetSortColumn() const override
+		{
+			return FTable::GetHierarchyColumnId();
+		}
+		virtual EColumnSortMode::Type GetSortMode() const override
+		{
+			return EColumnSortMode::Type::Ascending;
+		}
+		virtual void SetCurrentGroupings(const TArray<TSharedPtr<FTreeNodeGrouping>>& InAvailableGroupings, TArray<TSharedPtr<FTreeNodeGrouping>>& InOutCurrentGroupings) const override
+		{
+			InOutCurrentGroupings.Reset();
+
+			const TSharedPtr<FTreeNodeGrouping>* HeapGrouping = InAvailableGroupings.FindByPredicate(
+				[](TSharedPtr<FTreeNodeGrouping>& Grouping)
+				{
+					return Grouping->Is<FMemAllocGroupingBySwapPage>();
+				});
+			if (HeapGrouping)
+			{
+				InOutCurrentGroupings.Add(*HeapGrouping);
+			}
+		}
+		virtual void GetColumnConfigSet(TArray<FTableColumnConfig>& InOutConfigSet) const override
+		{
+			InOutConfigSet.Add({ FTable::GetHierarchyColumnId(),                    true, 200.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::StartTimeColumnId,          true, 100.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::EndTimeColumnId,            true, 100.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AddressColumnId,            true, 120.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,              true, 100.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::SwapCompressedSizeColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::SizeInSwapColumnId,         true, 100.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,               true, 100.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::TagColumnId,                true, 120.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId,      true, 400.0f });
+		}
+	};
+	AvailableViewPresets.Add(MakeShared<FSwapViewPreset>());
 
 	//////////////////////////////////////////////////
 
@@ -1370,6 +1442,7 @@ void SMemAllocTableTreeView::InternalCreateGroupings()
 	if (AllocationsProvider)
 	{
 		AvailableGroupings.Insert(MakeShared<FMemAllocGroupingByHeap>(*AllocationsProvider), Index++);
+		AvailableGroupings.Insert(MakeShared<FMemAllocGroupingBySwapPage>(*AllocationsProvider), Index++);
 	}
 }
 

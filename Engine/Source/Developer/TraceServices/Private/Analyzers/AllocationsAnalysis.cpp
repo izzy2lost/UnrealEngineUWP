@@ -65,6 +65,7 @@ void FAllocationsAnalyzer::OnAnalysisBegin(const FOnAnalysisContext& Context)
 	Builder.RouteEvent(RouteId_HeapUnmarkAlloc,     "Memory", "HeapUnmarkAlloc");
 	Builder.RouteEvent(RouteId_MemScopeTag,         "Memory", "MemoryScope", true);
 	Builder.RouteEvent(RouteId_MemScopePtr,         "Memory", "MemoryScopePtr", true);
+	Builder.RouteEvent(RouteId_MemSwapOp,           "Memory", "MemorySwapOp");
 
 #if INSIGHTS_MEM_TRACE_METADATA_TEST
 	{
@@ -121,8 +122,14 @@ bool FAllocationsAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventC
 			const uint8 MinAlignment = EventData.GetValue<uint8>("MinAlignment");
 			SizeShift = EventData.GetValue<uint8>("SizeShift");
 
+			uint64 PlatformPageSize = EventData.GetValue<uint64>("PageSize");
+			if (PlatformPageSize < 4096) // PageSize is missing from older traces
+			{
+				PlatformPageSize = 4096;
+			}
+
 			FProviderEditScopeLock _(AllocationsProvider);
-			AllocationsProvider.EditInit(Time, MinAlignment);
+			AllocationsProvider.EditInit(Time, MinAlignment, PlatformPageSize);
 			break;
 		}
 
@@ -359,6 +366,21 @@ bool FAllocationsAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventC
 					AllocationsProvider.EditPopTagFromPtr(ThreadId, Tracker);
 				}
 			}
+			break;
+		}
+
+		case RouteId_MemSwapOp:
+		{
+			const uint32 ThreadId = Context.ThreadInfo.GetId();
+			const double Time = GetCurrentTime();
+
+			const uint64 Address = EventData.GetValue<uint64>("Address");
+			const uint32 CallstackId = EventData.GetValue<uint32>("CallstackId");
+			const uint32 CompressedSize = EventData.GetValue<uint32>("CompressedSize");
+			const EMemoryTraceSwapOperation SwapOp = (EMemoryTraceSwapOperation)EventData.GetValue<uint8>("SwapOp");
+
+			FProviderEditScopeLock _(AllocationsProvider);
+			AllocationsProvider.EditSwapOp(ThreadId, Time, Address, SwapOp, CompressedSize, CallstackId);
 			break;
 		}
 	}

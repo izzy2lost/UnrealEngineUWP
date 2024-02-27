@@ -57,11 +57,11 @@ namespace Trace {
 
 ////////////////////////////////////////////////////////////////////////////////
 UE_TRACE_EVENT_BEGIN(Memory, Init, NoSync|Important)
+	UE_TRACE_EVENT_FIELD(uint64, PageSize) // new in UE 5.5
 	UE_TRACE_EVENT_FIELD(uint32, MarkerPeriod)
 	UE_TRACE_EVENT_FIELD(uint8, Version)
 	UE_TRACE_EVENT_FIELD(uint8, MinAlignment)
 	UE_TRACE_EVENT_FIELD(uint8, SizeShift)
-	UE_TRACE_EVENT_FIELD(uint8, Mode) // unused
 UE_TRACE_EVENT_END()
 
 UE_TRACE_EVENT_BEGIN(Memory, Marker)
@@ -130,6 +130,13 @@ UE_TRACE_EVENT_END()
 UE_TRACE_EVENT_BEGIN(Memory, ReallocFreeSystem)
 	UE_TRACE_EVENT_FIELD(uint64, Address)
 	UE_TRACE_EVENT_FIELD(uint32, CallstackId)
+UE_TRACE_EVENT_END()
+
+UE_TRACE_EVENT_BEGIN(Memory, MemorySwapOp)
+	UE_TRACE_EVENT_FIELD(uint64, Address) // page fault real address
+	UE_TRACE_EVENT_FIELD(uint32, CallstackId)
+	UE_TRACE_EVENT_FIELD(uint32, CompressedSize)
+	UE_TRACE_EVENT_FIELD(uint8,  SwapOp)
 UE_TRACE_EVENT_END()
 
 UE_TRACE_EVENT_BEGIN(Memory, HeapSpec, NoSync|Important)
@@ -380,7 +387,10 @@ void MemoryTrace_Initialize()
 	// At this point we initialized the system to allow tracing.
 	GTraceAllowed = true;
 
+	const FPlatformMemoryConstants& MemoryConstants = FPlatformMemory::GetConstants();
+
 	UE_TRACE_LOG(Memory, Init, MemAllocChannel)
+		<< Init.PageSize(MemoryConstants.PageSize)
 		<< Init.MarkerPeriod(MarkerSamplePeriod + 1)
 		<< Init.Version(MemoryTraceVersion)
 		<< Init.MinAlignment(uint8(MIN_ALIGNMENT))
@@ -593,6 +603,23 @@ void MemoryTrace_ReallocFree(uint64 Address, HeapId RootHeap, uint32 ExternalCal
 			break;
 		}
 	}
+
+	MemoryTrace_UpdateInternal();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void MemoryTrace_SwapOp(uint64 PageAddress, EMemoryTraceSwapOperation SwapOperation, uint32 CompressedSize, uint32 CallstackId)
+{
+	if (!GTraceAllowed)
+	{
+		return;
+	}
+
+	UE_TRACE_LOG(Memory, MemorySwapOp, MemAllocChannel)
+		<< MemorySwapOp.Address(PageAddress)
+		<< MemorySwapOp.CallstackId(CallstackId)
+		<< MemorySwapOp.CompressedSize(CompressedSize)
+		<< MemorySwapOp.SwapOp((uint8)SwapOperation);
 
 	MemoryTrace_UpdateInternal();
 }

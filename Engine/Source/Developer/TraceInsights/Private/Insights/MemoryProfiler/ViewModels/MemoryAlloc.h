@@ -29,7 +29,6 @@ public:
 	double GetDuration() const { return EndTime - StartTime; }
 
 	uint64 GetAddress() const { return Address; }
-	uint64 GetPage() const { return Address & ~(4llu*1024-1); }
 
 	int64 GetSize() const { return Size; }
 
@@ -50,6 +49,7 @@ public:
 
 	HeapId GetRootHeap() const { return RootHeap; }
 	bool IsHeap() const { return bIsHeap; }
+	bool IsSwap() const { return bIsSwap; }
 
 	bool IsDecline() const { return bIsDecline; }
 
@@ -73,6 +73,7 @@ private:
 	const TraceServices::FCallstack* FreeCallstack = nullptr;
 	HeapId RootHeap = 0;
 	bool bIsHeap = false;
+	bool bIsSwap = false;
 	bool bIsDecline = false;
 };
 

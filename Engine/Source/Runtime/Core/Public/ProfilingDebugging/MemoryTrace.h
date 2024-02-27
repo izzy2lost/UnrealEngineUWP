@@ -56,8 +56,17 @@ enum class EMemoryTraceHeapAllocationFlags : uint8
 {
 	None = 0,
 	Heap = 1 << 0, // Is a heap, can be used to unmark alloc as heap.
+	Swap = 2 << 0, // Is a swap page
 };
 ENUM_CLASS_FLAGS(EMemoryTraceHeapAllocationFlags);
+
+////////////////////////////////////////////////////////////////////////////////
+enum class EMemoryTraceSwapOperation : uint8
+{
+	PageOut    = 0, // Paged out to swap
+	PageIn     = 1, // Read from swap via page fault
+	FreeInSwap = 2, // Freed while being paged out in swap
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 #if UE_MEMORY_TRACE_ENABLED
@@ -140,6 +149,14 @@ CORE_API void MemoryTrace_ReallocFree(uint64 Address, HeapId RootHeap = EMemoryT
  */
 CORE_API void MemoryTrace_ReallocAlloc(uint64 Address, uint64 NewSize, uint32 Alignment, HeapId RootHeap = EMemoryTraceRootHeap::SystemMemory, uint32 ExternalCallstackId = 0);
 
+/** Trace a swap operation. Only available for system memory root heap (EMemoryTraceRootHeap::SystemMemory).
+ * @param PageAddress Page address for operation, in case of PageIn can be address of the page fault (not aligned to page boundary).
+ * @param SwapOperation Which swap operation is happening to the address.
+ * @param CompressedSize Compressed size of the page for page out operation.
+ * @param CallstackId CallstackId to use, if 0 to ignore (will not use current callstack id).
+ */
+CORE_API void MemoryTrace_SwapOp(uint64 PageAddress, EMemoryTraceSwapOperation SwapOperation, uint32 CompressedSize = 0, uint32 CallstackId = 0);
+
 ////////////////////////////////////////////////////////////////////////////////
 #else // UE_MEMORY_TRACE_ENABLED
 
@@ -152,5 +169,6 @@ inline void MemoryTrace_Alloc(uint64 Address, uint64 Size, uint32 Alignment, Hea
 inline void MemoryTrace_Free(uint64 Address, HeapId RootHeap = EMemoryTraceRootHeap::SystemMemory, uint32 ExternalCallstackId = 0) {}
 inline void MemoryTrace_ReallocFree(uint64 Address, HeapId RootHeap = EMemoryTraceRootHeap::SystemMemory, uint32 ExternalCallstackId = 0) {}
 inline void MemoryTrace_ReallocAlloc(uint64 Address, uint64 NewSize, uint32 Alignment, HeapId RootHeap = EMemoryTraceRootHeap::SystemMemory, uint32 ExternalCallstackId = 0) {}
+inline void MemoryTrace_SwapOp(uint64 PageAddress, EMemoryTraceSwapOperation SwapOperation, uint32 CompressedSize = 0, uint32 CallstackId = 0) {}
 
 #endif // UE_MEMORY_TRACE_ENABLED

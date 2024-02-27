@@ -437,6 +437,46 @@ TSharedPtr<FMemoryGraphSeries> FMemoryGraphTrack::AddTimelineSeries(FMemoryGraph
 				break;
 			}
 
+			case FMemoryGraphSeries::ETimelineType::MinSwapMem:
+			{
+				Series->SetName(TEXT("Total Swap Memory (Min)"));
+				Series->SetDescription(TEXT("Minimum value per sample for the Total Swap Memory"));
+				const FLinearColor Color = FLinearColor(0.0f, 0.5f, 1.0f, 1.0f);
+				const FLinearColor BorderColor(FMath::Min(Color.R + 0.4f, 1.0f), FMath::Min(Color.G + 0.4f, 1.0f), FMath::Min(Color.B + 0.4f, 1.0f), 1.0f);
+				Series->SetColor(Color, BorderColor, Color.CopyWithNewOpacity(0.1f));
+				break;
+			}
+
+			case FMemoryGraphSeries::ETimelineType::MaxSwapMem:
+			{
+				Series->SetName(TEXT("Total Swap Memory (Max)"));
+				Series->SetDescription(TEXT("Maximum value per sample for the Total Swap Memory"));
+				const FLinearColor Color = FLinearColor(1.0f, 0.25f, 1.0f, 1.0f);
+				const FLinearColor BorderColor(FMath::Min(Color.R + 0.4f, 1.0f), FMath::Min(Color.G + 0.4f, 1.0f), FMath::Min(Color.B + 0.4f, 1.0f), 1.0f);
+				Series->SetColor(Color, BorderColor, Color.CopyWithNewOpacity(0.1f));
+				break;
+			}
+
+			case FMemoryGraphSeries::ETimelineType::MinCompressedSwapMem:
+			{
+				Series->SetName(TEXT("Total Compressed Swap Memory (Min)"));
+				Series->SetDescription(TEXT("Minimum value per sample for the Total Compressed Swap Memory"));
+				const FLinearColor Color = FLinearColor(1.0f, 1.0f, 0.25f, 1.0f);
+				const FLinearColor BorderColor(FMath::Min(Color.R + 0.4f, 1.0f), FMath::Min(Color.G + 0.4f, 1.0f), FMath::Min(Color.B + 0.4f, 1.0f), 1.0f);
+				Series->SetColor(Color, BorderColor, Color.CopyWithNewOpacity(0.1f));
+				break;
+			}
+
+			case FMemoryGraphSeries::ETimelineType::MaxCompressedSwapMem:
+			{
+				Series->SetName(TEXT("Total Compressed Swap Memory (Max)"));
+				Series->SetDescription(TEXT("Maximum value per sample for the Total Compressed Swap Memory"));
+				const FLinearColor Color = FLinearColor(1.0f, 0.25f, 1.0f, 1.0f);
+				const FLinearColor BorderColor(FMath::Min(Color.R + 0.4f, 1.0f), FMath::Min(Color.G + 0.4f, 1.0f), FMath::Min(Color.B + 0.4f, 1.0f), 1.0f);
+				Series->SetColor(Color, BorderColor, Color.CopyWithNewOpacity(0.1f));
+				break;
+			}
+
 			case FMemoryGraphSeries::ETimelineType::AllocEvents:
 			{
 				Series->SetName(TEXT("Alloc Event Count"));
@@ -452,6 +492,36 @@ TSharedPtr<FMemoryGraphSeries> FMemoryGraphTrack::AddTimelineSeries(FMemoryGraph
 				Series->SetName(TEXT("Free Event Count"));
 				Series->SetDescription(TEXT("Number of free events per sample"));
 				const FLinearColor Color = FLinearColor(1.0f, 0.5f, 0.25f, 1.0f);
+				const FLinearColor BorderColor(FMath::Min(Color.R + 0.4f, 1.0f), FMath::Min(Color.G + 0.4f, 1.0f), FMath::Min(Color.B + 0.4f, 1.0f), 1.0f);
+				Series->SetColor(Color, BorderColor, Color.CopyWithNewOpacity(0.1f));
+				break;
+			}
+
+			case FMemoryGraphSeries::ETimelineType::PageInEvents:
+			{
+				Series->SetName(TEXT("Page In Event Count"));
+				Series->SetDescription(TEXT("Number of page in events per sample"));
+				const FLinearColor Color = FLinearColor(0.0f, 1.0f, 0.5f, 1.0f);
+				const FLinearColor BorderColor(FMath::Min(Color.R + 0.4f, 1.0f), FMath::Min(Color.G + 0.4f, 1.0f), FMath::Min(Color.B + 0.4f, 1.0f), 1.0f);
+				Series->SetColor(Color, BorderColor, Color.CopyWithNewOpacity(0.1f));
+				break;
+			}
+
+			case FMemoryGraphSeries::ETimelineType::PageOutEvents:
+			{
+				Series->SetName(TEXT("Page Out Event Count"));
+				Series->SetDescription(TEXT("Number of page out events per sample"));
+				const FLinearColor Color = FLinearColor(1.0f, 0.5f, 0.25f, 1.0f);
+				const FLinearColor BorderColor(FMath::Min(Color.R + 0.4f, 1.0f), FMath::Min(Color.G + 0.4f, 1.0f), FMath::Min(Color.B + 0.4f, 1.0f), 1.0f);
+				Series->SetColor(Color, BorderColor, Color.CopyWithNewOpacity(0.1f));
+				break;
+			}
+
+			case FMemoryGraphSeries::ETimelineType::SwapFreeEvents:
+			{
+				Series->SetName(TEXT("Swap Free Event Count"));
+				Series->SetDescription(TEXT("Number of swap free events per sample"));
+				const FLinearColor Color = FLinearColor(0.25f, 0.5f, 1.0f, 1.0f);
 				const FLinearColor BorderColor(FMath::Min(Color.R + 0.4f, 1.0f), FMath::Min(Color.G + 0.4f, 1.0f), FMath::Min(Color.B + 0.4f, 1.0f), 1.0f);
 				Series->SetColor(Color, BorderColor, Color.CopyWithNewOpacity(0.1f));
 				break;
@@ -533,11 +603,32 @@ void FMemoryGraphTrack::PreUpdateAllocationsTimelineSeries(FMemoryGraphSeries& S
 			case FMemoryGraphSeries::ETimelineType::MaxLiveAllocs:
 				AllocationsProvider->EnumerateMaxLiveAllocationsTimeline(StartIndex, EndIndex, Callback32);
 				break;
+			case FMemoryGraphSeries::ETimelineType::MinSwapMem:
+				AllocationsProvider->EnumerateMinTotalSwapMemoryTimeline(StartIndex, EndIndex, Callback64);
+				break;
+			case FMemoryGraphSeries::ETimelineType::MaxSwapMem:
+				AllocationsProvider->EnumerateMaxTotalSwapMemoryTimeline(StartIndex, EndIndex, Callback64);
+				break;
+			case FMemoryGraphSeries::ETimelineType::MinCompressedSwapMem:
+				AllocationsProvider->EnumerateMinTotalCompressedSwapMemoryTimeline(StartIndex, EndIndex, Callback64);
+				break;
+			case FMemoryGraphSeries::ETimelineType::MaxCompressedSwapMem:
+				AllocationsProvider->EnumerateMaxTotalCompressedSwapMemoryTimeline(StartIndex, EndIndex, Callback64);
+				break;
 			case FMemoryGraphSeries::ETimelineType::AllocEvents:
 				AllocationsProvider->EnumerateAllocEventsTimeline(StartIndex, EndIndex, Callback32);
 				break;
 			case FMemoryGraphSeries::ETimelineType::FreeEvents:
 				AllocationsProvider->EnumerateFreeEventsTimeline(StartIndex, EndIndex, Callback32);
+				break;
+			case FMemoryGraphSeries::ETimelineType::PageInEvents:
+				AllocationsProvider->EnumeratePageInEventsTimeline(StartIndex, EndIndex, Callback32);
+				break;
+			case FMemoryGraphSeries::ETimelineType::PageOutEvents:
+				AllocationsProvider->EnumeratePageOutEventsTimeline(StartIndex, EndIndex, Callback32);
+				break;
+			case FMemoryGraphSeries::ETimelineType::SwapFreeEvents:
+				AllocationsProvider->EnumerateSwapFreeEventsTimeline(StartIndex, EndIndex, Callback32);
 				break;
 			}
 
@@ -632,11 +723,32 @@ void FMemoryGraphTrack::UpdateAllocationsTimelineSeries(FMemoryGraphSeries& Seri
 				case FMemoryGraphSeries::ETimelineType::MaxLiveAllocs:
 					AllocationsProvider->EnumerateMaxLiveAllocationsTimeline(StartIndex, EndIndex, Callback32);
 					break;
+				case FMemoryGraphSeries::ETimelineType::MinSwapMem:
+					AllocationsProvider->EnumerateMinTotalSwapMemoryTimeline(StartIndex, EndIndex, Callback64);
+					break;
+				case FMemoryGraphSeries::ETimelineType::MaxSwapMem:
+					AllocationsProvider->EnumerateMaxTotalSwapMemoryTimeline(StartIndex, EndIndex, Callback64);
+					break;
+				case FMemoryGraphSeries::ETimelineType::MinCompressedSwapMem:
+					AllocationsProvider->EnumerateMinTotalCompressedSwapMemoryTimeline(StartIndex, EndIndex, Callback64);
+					break;
+				case FMemoryGraphSeries::ETimelineType::MaxCompressedSwapMem:
+					AllocationsProvider->EnumerateMaxTotalCompressedSwapMemoryTimeline(StartIndex, EndIndex, Callback64);
+					break;
 				case FMemoryGraphSeries::ETimelineType::AllocEvents:
 					AllocationsProvider->EnumerateAllocEventsTimeline(StartIndex, EndIndex, Callback32);
 					break;
 				case FMemoryGraphSeries::ETimelineType::FreeEvents:
 					AllocationsProvider->EnumerateFreeEventsTimeline(StartIndex, EndIndex, Callback32Negative);
+					break;
+				case FMemoryGraphSeries::ETimelineType::PageInEvents:
+					AllocationsProvider->EnumeratePageInEventsTimeline(StartIndex, EndIndex, Callback32);
+					break;
+				case FMemoryGraphSeries::ETimelineType::PageOutEvents:
+					AllocationsProvider->EnumeratePageOutEventsTimeline(StartIndex, EndIndex, Callback32Negative);
+					break;
+				case FMemoryGraphSeries::ETimelineType::SwapFreeEvents:
+					AllocationsProvider->EnumerateSwapFreeEventsTimeline(StartIndex, EndIndex, Callback32);
 					break;
 				}
 			}

@@ -396,6 +396,36 @@ void FAllocationsQuery::QueryLiveAllocs(TArray<const FAllocationItem*>& OutAlloc
 		});
 	}
 	break;
+
+	case IAllocationsProvider::EQueryRule::AoB:
+	{
+		const double TimeA = Params.TimeA;
+		const double TimeB = Params.TimeB;
+		AllocationsProvider.EnumerateLiveAllocs([TimeA, TimeB, &OutAllocs](const FAllocationItem& Alloc)
+		{
+			if ((Alloc.IsSwap() && Alloc.StartTime >= TimeA && Alloc.StartTime <= TimeB) ||
+				(!Alloc.IsSwap() && Alloc.StartTime <= TimeB && Alloc.EndTime >= TimeA)) // include allocs that were freed between A and B
+			{
+				OutAllocs.Add(&Alloc);
+			}
+		});
+	}
+	break;
+
+	case IAllocationsProvider::EQueryRule::AiB:
+	{
+		const double TimeA = Params.TimeA;
+		const double TimeB = Params.TimeB;
+		AllocationsProvider.EnumerateLiveAllocs([TimeA, TimeB, &OutAllocs](const FAllocationItem& Alloc)
+		{
+			if ((Alloc.IsSwap() && Alloc.EndTime >= TimeA && Alloc.EndTime <= TimeB) ||
+				(!Alloc.IsSwap() && Alloc.StartTime <= TimeB && Alloc.EndTime >= TimeA)) // include allocs that were freed between A and B
+			{
+				OutAllocs.Add(&Alloc);
+			}
+		});
+	}
+	break;
 	}
 }
 

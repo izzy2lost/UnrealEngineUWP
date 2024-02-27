@@ -180,6 +180,8 @@ private:
 	TSharedPtr<FMemoryGraphTrack> MainGraphTrack; // the Main Memory Graph track; also hosts the Total Allocated Memory series
 	TSharedPtr<FMemoryGraphTrack> LiveAllocsGraphTrack; // the graph track for the Live Allocation Count series
 	TSharedPtr<FMemoryGraphTrack> AllocFreeGraphTrack; // the graph track for the Alloc Event Count and the Free Event Count series
+	TSharedPtr<FMemoryGraphTrack> SwapMemoryGraphTrack; // the swap memory graph for Total Swap Memory and Total Compressed Swap Memory series
+	TSharedPtr<FMemoryGraphTrack> PageSwapGraphTrack; // the graph track for the Page In Event Count and the Page Out Event Count series
 	TSet<TSharedPtr<FMemoryGraphTrack>> AllTracks;
 
 	EMemoryTrackHeightMode TrackHeightMode;

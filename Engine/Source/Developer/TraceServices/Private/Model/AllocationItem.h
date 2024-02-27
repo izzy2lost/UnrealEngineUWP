@@ -25,6 +25,7 @@ struct FAllocationItem
 	FORCEINLINE uint64 GetSize() const { return UnpackSize(SizeAndAlignment); }
 	FORCEINLINE uint32 GetAlignment() const { return UnpackAlignment(SizeAndAlignment); }
 	FORCEINLINE bool IsHeap() const { return EnumHasAnyFlags(Flags, EMemoryTraceHeapAllocationFlags::Heap); }
+	FORCEINLINE bool IsSwap() const { return EnumHasAnyFlags(Flags, EMemoryTraceHeapAllocationFlags::Swap); }
 
 	uint64 Address;
 	uint64 SizeAndAlignment; // (Alignment << AlignmentShift) | Size

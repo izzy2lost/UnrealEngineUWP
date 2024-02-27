@@ -528,6 +528,14 @@ bool IAllocationsProvider::FAllocation::IsHeap() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool IAllocationsProvider::FAllocation::IsSwap() const
+{
+	const auto* Inner = (const FAllocationItem*)this;
+	return Inner->IsSwap();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // IAllocationsProvider::FAllocations
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -995,6 +1003,7 @@ FLiveAllocCollection::FLiveAllocCollection()
 FLiveAllocCollection::~FLiveAllocCollection()
 {
 	HeapAllocs.Reset();
+	SwapAllocs.Reset();
 	LongLivingAllocs.Reset();
 	ShortLivingAllocs.Reset();
 
@@ -1053,6 +1062,20 @@ FAllocationItem* FLiveAllocCollection::FindHeapRef(uint64 Address) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+FAllocationItem* FLiveAllocCollection::FindSwapRef(uint64 Address) const
+{
+	FAllocationItem* FoundSwapAlloc = SwapAllocs.FindRef(Address);
+	if (FoundSwapAlloc)
+	{
+		INSIGHTS_SLOW_CHECK(FoundSwapAlloc->Address == Address);
+		return FoundSwapAlloc;
+	}
+
+	return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 FAllocationItem* FLiveAllocCollection::FindByAddressRange(uint64 Address) const
 {
 #if INSIGHTS_USE_LAST_ALLOC
@@ -1100,6 +1123,7 @@ FAllocationItem* FLiveAllocCollection::FindHeapByAddressRange(uint64 Address) co
 void FLiveAllocCollection::Enumerate(TFunctionRef<void(const FAllocationItem& Alloc)> Callback) const
 {
 	HeapAllocs.Enumerate(Callback);
+	SwapAllocs.Enumerate(Callback);
 
 #if INSIGHTS_USE_LAST_ALLOC
 	if (LastAlloc)
@@ -1120,6 +1144,7 @@ void FLiveAllocCollection::Enumerate(TFunctionRef<void(const FAllocationItem& Al
 void FLiveAllocCollection::Enumerate(uint64 StartAddress, uint64 EndAddress, TFunctionRef<void(const FAllocationItem& Alloc)> Callback) const
 {
 	HeapAllocs.Enumerate(StartAddress, EndAddress, Callback);
+	SwapAllocs.Enumerate(StartAddress, EndAddress, Callback);
 
 #if INSIGHTS_USE_LAST_ALLOC
 	if (LastAlloc && LastAlloc->Address >= StartAddress && LastAlloc->Address < EndAddress)
@@ -1262,6 +1287,46 @@ FAllocationItem* FLiveAllocCollection::RemoveHeap(uint64 Address)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FAllocationItem* FLiveAllocCollection::AddNewSwap(uint64 Address)
+{
+	FAllocationItem* NewAlloc = new FAllocationItem();
+	NewAlloc->Address = Address;
+
+	AddSwap(NewAlloc);
+	return NewAlloc;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FLiveAllocCollection::AddSwap(FAllocationItem* SwapAlloc)
+{
+	++TotalAllocCount;
+	if (TotalAllocCount > MaxAllocCount)
+	{
+		MaxAllocCount = TotalAllocCount;
+	}
+
+	SwapAllocs.Add(SwapAlloc);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FAllocationItem* FLiveAllocCollection::RemoveSwap(uint64 Address)
+{
+	FAllocationItem* RemovedSwapAlloc = SwapAllocs.Remove(Address);
+	if (RemovedSwapAlloc)
+	{
+		INSIGHTS_SLOW_CHECK(RemovedSwapAlloc->Address == Address);
+		INSIGHTS_SLOW_CHECK(TotalAllocCount > 0);
+		--TotalAllocCount;
+		return RemovedSwapAlloc;
+	}
+
+	return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // FAllocationsProvider
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1274,8 +1339,15 @@ FAllocationsProvider::FAllocationsProvider(IAnalysisSession& InSession, FMetadat
 	, MaxTotalAllocatedMemoryTimeline(Session.GetLinearAllocator(), 1024)
 	, MinLiveAllocationsTimeline(Session.GetLinearAllocator(), 1024)
 	, MaxLiveAllocationsTimeline(Session.GetLinearAllocator(), 1024)
+	, MinTotalSwapMemoryTimeline(Session.GetLinearAllocator(), 1024)
+	, MaxTotalSwapMemoryTimeline(Session.GetLinearAllocator(), 1024)
+	, MinTotalCompressedSwapMemoryTimeline(Session.GetLinearAllocator(), 1024)
+	, MaxTotalCompressedSwapMemoryTimeline(Session.GetLinearAllocator(), 1024)
 	, AllocEventsTimeline(Session.GetLinearAllocator(), 1024)
 	, FreeEventsTimeline(Session.GetLinearAllocator(), 1024)
+	, PageInEventsTimeline(Session.GetLinearAllocator(), 1024)
+	, PageOutEventsTimeline(Session.GetLinearAllocator(), 1024)
+	, SwapFreeEventsTimeline(Session.GetLinearAllocator(), 1024)
 {
 	// Initial number of heap spec locations. Actual number of heap specs is unlimited (uint32).
 	HeapSpecs.AddDefaulted(FMath::Max(1024u, MaxRootHeaps));
@@ -1322,7 +1394,7 @@ FAllocationsProvider::~FAllocationsProvider()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FAllocationsProvider::EditInit(double InTime, uint8 InMinAlignment)
+void FAllocationsProvider::EditInit(double InTime, uint8 InMinAlignment, uint64 InPlatformPageSize)
 {
 	EditAccessCheck();
 
@@ -1335,6 +1407,7 @@ void FAllocationsProvider::EditInit(double InTime, uint8 InMinAlignment)
 	INSIGHTS_API_LOGF(0u, InTime, 0ull, TEXT("Init : MinAlignment=%u)"), uint32(InMinAlignment));
 
 	InitTime = InTime;
+	PlatformPageSize = InPlatformPageSize;
 	MinAlignment = InMinAlignment;
 
 	// Create system root heap structures for backwards compatibility (before heap description events)
@@ -1608,6 +1681,153 @@ void FAllocationsProvider::EditFree(uint32 ThreadId, double Time, uint32 Callsta
 	}
 
 	++FreeCount;
+	if (RootHeap.EventIndex != ~0u)
+	{
+		RootHeap.EventIndex++;
+	}
+	else
+	{
+		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] Too many events!"));
+		bInitialized = false; // ignore further events
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FAllocationsProvider::EditSwapOp(uint32 ThreadId, double Time, uint64 UnmaskedPageAddress, EMemoryTraceSwapOperation SwapOp, uint64 CompressedPageSize, uint32 CallstackId)
+{
+	EditAccessCheck();
+
+	if (!bInitialized)
+	{
+		return;
+	}
+
+	HeapId RootHeapId = EMemoryTraceRootHeap::SystemMemory;
+
+	if (!IsValidRootHeap(RootHeapId))
+	{
+		return;
+	}
+
+	FRootHeap& RootHeap = *RootHeaps[RootHeapId];
+
+	const uint64 MaskedPagedAddress = UnmaskedPageAddress & (~(PlatformPageSize - 1)); 
+
+	// emit fake page in if there was previous page out with the same address
+	if (SwapOp == EMemoryTraceSwapOperation::PageOut && RootHeap.LiveAllocs->FindSwapRef(MaskedPagedAddress) != nullptr)
+	{
+		++SwapErrors;
+		if (SwapErrors <= MaxLogMessagesPerErrorType)
+		{
+			UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] EditSwapOp: Trying to swap out page 0x%llX that is currently already in swap (Time=%f, CallstackId=%u). A fake swap page in will be created."), MaskedPagedAddress, Time, CallstackId);
+		}
+
+		EditSwapOp(ThreadId, Time, UnmaskedPageAddress, EMemoryTraceSwapOperation::PageIn, CompressedPageSize, CallstackId);
+	}
+
+	RootHeap.SbTree->SetTimeForEvent(RootHeap.EventIndex, Time);
+
+	AdvanceTimelines(Time);
+
+	switch(SwapOp)
+	{
+	case EMemoryTraceSwapOperation::PageOut:
+	{
+		++SamplePageOutEvents;
+		break;
+	}
+	case EMemoryTraceSwapOperation::PageIn:
+	{
+		++SamplePageInEvents;
+		break;
+	}
+	case EMemoryTraceSwapOperation::FreeInSwap:
+	{
+		++SampleSwapFreeEvents;
+		break;
+	}
+	default:
+		break;
+	}
+
+	if (MaskedPagedAddress != 0)
+	{
+		switch(SwapOp)
+		{
+		case EMemoryTraceSwapOperation::PageOut:
+		{
+			TotalSwapMemory += PlatformPageSize;
+			TotalCompressedSwapMemory += CompressedPageSize;
+			SampleMaxSwapMemory = FMath::Max(SampleMaxSwapMemory, TotalSwapMemory);
+			SampleMaxCompressedSwapMemory = FMath::Max(SampleMaxCompressedSwapMemory, TotalCompressedSwapMemory);
+
+			FAllocationItem* AllocationPtr = RootHeap.LiveAllocs->AddNewSwap(MaskedPagedAddress);
+			FAllocationItem& Allocation = *AllocationPtr;
+
+			INSIGHTS_SLOW_CHECK(Allocation.Address == Address);
+			Allocation.SizeAndAlignment = FAllocationItem::PackSizeAndAlignment(CompressedPageSize, 0);
+			Allocation.StartEventIndex = RootHeap.EventIndex;
+			Allocation.EndEventIndex = (uint32)-1;
+			Allocation.StartTime = Time;
+			Allocation.EndTime = std::numeric_limits<double>::infinity();
+			Allocation.AllocThreadId = static_cast<uint16>(ThreadId);
+			check(uint32(AllocationPtr->AllocThreadId) == ThreadId);
+			Allocation.FreeThreadId = 0;
+			Allocation.AllocCallstackId = CallstackId;
+			Allocation.FreeCallstackId = 0; // no callstack yet
+			Allocation.MetadataId = MetadataProvider.InvalidMetadataId;
+			Allocation.Tag = 0;
+			Allocation.RootHeap = static_cast<uint8>(RootHeapId);
+			Allocation.Flags = EMemoryTraceHeapAllocationFlags::Swap;
+			break;
+		}
+		case EMemoryTraceSwapOperation::PageIn:
+		case EMemoryTraceSwapOperation::FreeInSwap:
+		{
+			if (TotalSwapMemory >= PlatformPageSize) // in case if we have imbalanced events
+			{
+				TotalSwapMemory -= PlatformPageSize;
+			}
+			SampleMinSwapMemory = FMath::Min(SampleMinSwapMemory, TotalSwapMemory);
+
+			FAllocationItem* AllocationPtr = RootHeap.LiveAllocs->RemoveSwap(MaskedPagedAddress);
+		
+			if (!AllocationPtr)
+			{
+				++SwapErrors;
+				if (SwapErrors <= MaxLogMessagesPerErrorType)
+				{
+					UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] EditSwapOp: Trying to page in swap page 0x%llX that is currently not in swap (Time=%f, CallstackId=%u). Ignoring page in. Swap total compressed memory value will be invalid."), MaskedPagedAddress, Time, CallstackId);
+				}
+			}
+
+			if (AllocationPtr)
+			{
+				CompressedPageSize = AllocationPtr->GetSize();
+				if (TotalCompressedSwapMemory >= CompressedPageSize)
+				{
+					TotalCompressedSwapMemory -= CompressedPageSize;
+				}
+				SampleMinCompressedSwapMemory = FMath::Min(SampleMinCompressedSwapMemory, TotalCompressedSwapMemory);
+
+				check(RootHeap.EventIndex > AllocationPtr->StartEventIndex);
+				AllocationPtr->EndEventIndex = RootHeap.EventIndex;
+				AllocationPtr->EndTime = Time;
+				AllocationPtr->FreeThreadId = static_cast<uint16>(ThreadId);
+				check(uint32(AllocationPtr->FreeThreadId) == ThreadId);
+				AllocationPtr->FreeCallstackId = CallstackId;
+
+				RootHeap.SbTree->AddAlloc(AllocationPtr); // SbTree takes ownership of AllocationPtr
+			}
+
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
 	if (RootHeap.EventIndex != ~0u)
 	{
 		RootHeap.EventIndex++;
@@ -2126,8 +2346,15 @@ void FAllocationsProvider::AdvanceTimelines(double Time)
 		MaxTotalAllocatedMemoryTimeline.EmplaceBack(SampleMaxTotalAllocatedMemory);
 		MinLiveAllocationsTimeline.EmplaceBack(SampleMinLiveAllocations);
 		MaxLiveAllocationsTimeline.EmplaceBack(SampleMaxLiveAllocations);
+		MinTotalSwapMemoryTimeline.EmplaceBack(SampleMinSwapMemory);
+		MaxTotalSwapMemoryTimeline.EmplaceBack(SampleMaxSwapMemory);
+		MinTotalCompressedSwapMemoryTimeline.EmplaceBack(SampleMinCompressedSwapMemory);
+		MaxTotalCompressedSwapMemoryTimeline.EmplaceBack(SampleMaxCompressedSwapMemory);
 		AllocEventsTimeline.EmplaceBack(SampleAllocEvents);
 		FreeEventsTimeline.EmplaceBack(SampleFreeEvents);
+		PageInEventsTimeline.EmplaceBack(SamplePageInEvents);
+		PageOutEventsTimeline.EmplaceBack(SamplePageOutEvents);
+		SwapFreeEventsTimeline.EmplaceBack(SampleSwapFreeEvents);
 
 		// Start a new sample.
 		SampleStartTimestamp = Time;
@@ -2135,8 +2362,15 @@ void FAllocationsProvider::AdvanceTimelines(double Time)
 		SampleMaxTotalAllocatedMemory = TotalAllocatedMemory;
 		SampleMinLiveAllocations = TotalLiveAllocations;
 		SampleMaxLiveAllocations = TotalLiveAllocations;
+		SampleMinSwapMemory = TotalSwapMemory;
+		SampleMaxSwapMemory = TotalSwapMemory;
+		SampleMinCompressedSwapMemory = TotalCompressedSwapMemory;
+		SampleMaxCompressedSwapMemory = TotalCompressedSwapMemory;
 		SampleAllocEvents = 0;
 		SampleFreeEvents = 0;
+		SamplePageInEvents = 0;
+		SamplePageOutEvents = 0;
+		SampleSwapFreeEvents = 0;
 
 		// If the previous sample is well distanced in time...
 		if (Time - SampleEndTimestamp > DefaultTimelineSampleGranularity)
@@ -2147,8 +2381,15 @@ void FAllocationsProvider::AdvanceTimelines(double Time)
 			MaxTotalAllocatedMemoryTimeline.EmplaceBack(TotalAllocatedMemory);
 			MinLiveAllocationsTimeline.EmplaceBack(TotalLiveAllocations);
 			MaxLiveAllocationsTimeline.EmplaceBack(TotalLiveAllocations);
+			MinTotalSwapMemoryTimeline.EmplaceBack(TotalSwapMemory);
+			MaxTotalSwapMemoryTimeline.EmplaceBack(TotalSwapMemory);
+			MinTotalCompressedSwapMemoryTimeline.EmplaceBack(TotalCompressedSwapMemory);
+			MaxTotalCompressedSwapMemoryTimeline.EmplaceBack(TotalCompressedSwapMemory);
 			AllocEventsTimeline.EmplaceBack(0);
 			FreeEventsTimeline.EmplaceBack(0);
+			PageInEventsTimeline.EmplaceBack(0);
+			PageOutEventsTimeline.EmplaceBack(0);
+			SwapFreeEventsTimeline.EmplaceBack(0);
 		}
 	}
 
@@ -2272,8 +2513,11 @@ void FAllocationsProvider::EditOnAnalysisCompleted(double Time)
 
 		// Update stats for the last timeline sample (reset to zero).
 		TotalAllocatedMemory = 0;
+		TotalSwapMemory = 0;
 		SampleMinTotalAllocatedMemory = 0;
 		SampleMinLiveAllocations = 0;
+		SampleMinSwapMemory = 0;
+		SampleMinCompressedSwapMemory = 0;
 		SampleFreeEvents += LiveAllocsTotalCount;
 	}
 #endif
@@ -2296,11 +2540,11 @@ void FAllocationsProvider::EditOnAnalysisCompleted(double Time)
 
 	//TODO: shrink live allocs buffers
 
-	if (AllocWarnings > 0 || FreeWarnings > 0 || HeapWarnings > 0 || MiscWarnings > 0)
+	if (AllocWarnings > 0 || FreeWarnings > 0 || HeapWarnings > 0 || SwapWarnings > 0 || MiscWarnings > 0)
 	{
-		UE_LOG(LogTraceServices, Warning, TEXT("[MemAlloc] %llu warnings (%llu ALLOC + %llu FREE + %llu HEAP + %llu other)"),
-			AllocWarnings + FreeWarnings + HeapWarnings + MiscWarnings,
-			AllocWarnings, FreeWarnings, HeapWarnings, MiscWarnings);
+		UE_LOG(LogTraceServices, Warning, TEXT("[MemAlloc] %llu warnings (%llu ALLOC + %llu FREE + %llu HEAP + %llu SWAP + %llu other)"),
+			AllocWarnings + FreeWarnings + HeapWarnings + SwapWarnings + MiscWarnings,
+			AllocWarnings, FreeWarnings, HeapWarnings, SwapWarnings, MiscWarnings);
 	}
 
 	if (AllocErrors > 0)
@@ -2314,6 +2558,10 @@ void FAllocationsProvider::EditOnAnalysisCompleted(double Time)
 	if (HeapErrors > 0)
 	{
 		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] HEAP event errors: %llu"), HeapErrors);
+	}
+	if (SwapErrors > 0)
+	{
+		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] SWAP event errors: %llu"), SwapErrors);
 	}
 	if (MiscErrors > 0)
 	{
@@ -2585,6 +2833,150 @@ void FAllocationsProvider::EnumerateMaxLiveAllocationsTimeline(int32 StartIndex,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void FAllocationsProvider::EnumerateMinTotalSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const
+{
+	ReadAccessCheck();
+
+	const int32 NumPoints = static_cast<int32>(Timeline.Num());
+	StartIndex = FMath::Max(StartIndex, 0);
+	EndIndex = FMath::Min(EndIndex + 1, NumPoints); // make it exclusive
+	if (StartIndex < EndIndex)
+	{
+		auto TimeIt = Timeline.GetIteratorFromItem(StartIndex);
+		auto ValueIt = MinTotalSwapMemoryTimeline.GetIteratorFromItem(StartIndex);
+		double PrevTime = *TimeIt;
+		uint64 PrevValue = *ValueIt;
+		++TimeIt;
+		++ValueIt;
+		for (int32 Index = StartIndex + 1; Index < EndIndex; ++Index, ++TimeIt, ++ValueIt)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+			PrevTime = *TimeIt;
+			PrevValue = *ValueIt;
+		}
+		if (EndIndex < NumPoints)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+		}
+		else
+		{
+			Callback(PrevTime, std::numeric_limits<double>::infinity(), PrevValue);
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FAllocationsProvider::EnumerateMaxTotalSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const
+{
+	ReadAccessCheck();
+
+	const int32 NumPoints = static_cast<int32>(Timeline.Num());
+	StartIndex = FMath::Max(StartIndex, 0);
+	EndIndex = FMath::Min(EndIndex + 1, NumPoints); // make it exclusive
+	if (StartIndex < EndIndex)
+	{
+		auto TimeIt = Timeline.GetIteratorFromItem(StartIndex);
+		auto ValueIt = MaxTotalSwapMemoryTimeline.GetIteratorFromItem(StartIndex);
+		double PrevTime = *TimeIt;
+		uint64 PrevValue = *ValueIt;
+		++TimeIt;
+		++ValueIt;
+		for (int32 Index = StartIndex + 1; Index < EndIndex; ++Index, ++TimeIt, ++ValueIt)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+			PrevTime = *TimeIt;
+			PrevValue = *ValueIt;
+		}
+		if (EndIndex < NumPoints)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+		}
+		else
+		{
+			Callback(PrevTime, std::numeric_limits<double>::infinity(), PrevValue);
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FAllocationsProvider::EnumerateMinTotalCompressedSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const
+{
+	ReadAccessCheck();
+
+	const int32 NumPoints = static_cast<int32>(Timeline.Num());
+	StartIndex = FMath::Max(StartIndex, 0);
+	EndIndex = FMath::Min(EndIndex + 1, NumPoints); // make it exclusive
+	if (StartIndex < EndIndex)
+	{
+		auto TimeIt = Timeline.GetIteratorFromItem(StartIndex);
+		auto ValueIt = MinTotalCompressedSwapMemoryTimeline.GetIteratorFromItem(StartIndex);
+		double PrevTime = *TimeIt;
+		uint64 PrevValue = *ValueIt;
+		++TimeIt;
+		++ValueIt;
+		for (int32 Index = StartIndex + 1; Index < EndIndex; ++Index, ++TimeIt, ++ValueIt)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+			PrevTime = *TimeIt;
+			PrevValue = *ValueIt;
+		}
+		if (EndIndex < NumPoints)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+		}
+		else
+		{
+			Callback(PrevTime, std::numeric_limits<double>::infinity(), PrevValue);
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FAllocationsProvider::EnumerateMaxTotalCompressedSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const
+{
+	ReadAccessCheck();
+
+	const int32 NumPoints = static_cast<int32>(Timeline.Num());
+	StartIndex = FMath::Max(StartIndex, 0);
+	EndIndex = FMath::Min(EndIndex + 1, NumPoints); // make it exclusive
+	if (StartIndex < EndIndex)
+	{
+		auto TimeIt = Timeline.GetIteratorFromItem(StartIndex);
+		auto ValueIt = MaxTotalCompressedSwapMemoryTimeline.GetIteratorFromItem(StartIndex);
+		double PrevTime = *TimeIt;
+		uint64 PrevValue = *ValueIt;
+		++TimeIt;
+		++ValueIt;
+		for (int32 Index = StartIndex + 1; Index < EndIndex; ++Index, ++TimeIt, ++ValueIt)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+			PrevTime = *TimeIt;
+			PrevValue = *ValueIt;
+		}
+		if (EndIndex < NumPoints)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+		}
+		else
+		{
+			Callback(PrevTime, std::numeric_limits<double>::infinity(), PrevValue);
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FAllocationsProvider::EnumerateAllocEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const
 {
 	ReadAccessCheck();
@@ -2657,6 +3049,114 @@ void FAllocationsProvider::EnumerateFreeEventsTimeline(int32 StartIndex, int32 E
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void FAllocationsProvider::EnumeratePageInEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const
+{
+	ReadAccessCheck();
+
+	const int32 NumPoints = static_cast<int32>(Timeline.Num());
+	StartIndex = FMath::Max(StartIndex, 0);
+	EndIndex = FMath::Min(EndIndex + 1, NumPoints); // make it exclusive
+	if (StartIndex < EndIndex)
+	{
+		auto TimeIt = Timeline.GetIteratorFromItem(StartIndex);
+		auto ValueIt = PageInEventsTimeline.GetIteratorFromItem(StartIndex);
+		double PrevTime = *TimeIt;
+		uint32 PrevValue = *ValueIt;
+		++TimeIt;
+		++ValueIt;
+		for (int32 Index = StartIndex + 1; Index < EndIndex; ++Index, ++TimeIt, ++ValueIt)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+			PrevTime = *TimeIt;
+			PrevValue = *ValueIt;
+		}
+		if (EndIndex < NumPoints)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+		}
+		else
+		{
+			Callback(PrevTime, std::numeric_limits<double>::infinity(), PrevValue);
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FAllocationsProvider::EnumeratePageOutEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const
+{
+	ReadAccessCheck();
+
+	const int32 NumPoints = static_cast<int32>(Timeline.Num());
+	StartIndex = FMath::Max(StartIndex, 0);
+	EndIndex = FMath::Min(EndIndex + 1, NumPoints); // make it exclusive
+	if (StartIndex < EndIndex)
+	{
+		auto TimeIt = Timeline.GetIteratorFromItem(StartIndex);
+		auto ValueIt = PageOutEventsTimeline.GetIteratorFromItem(StartIndex);
+		double PrevTime = *TimeIt;
+		uint32 PrevValue = *ValueIt;
+		++TimeIt;
+		++ValueIt;
+		for (int32 Index = StartIndex + 1; Index < EndIndex; ++Index, ++TimeIt, ++ValueIt)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+			PrevTime = *TimeIt;
+			PrevValue = *ValueIt;
+		}
+		if (EndIndex < NumPoints)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+		}
+		else
+		{
+			Callback(PrevTime, std::numeric_limits<double>::infinity(), PrevValue);
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FAllocationsProvider::EnumerateSwapFreeEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const
+{
+	ReadAccessCheck();
+
+	const int32 NumPoints = static_cast<int32>(Timeline.Num());
+	StartIndex = FMath::Max(StartIndex, 0);
+	EndIndex = FMath::Min(EndIndex + 1, NumPoints); // make it exclusive
+	if (StartIndex < EndIndex)
+	{
+		auto TimeIt = Timeline.GetIteratorFromItem(StartIndex);
+		auto ValueIt = SwapFreeEventsTimeline.GetIteratorFromItem(StartIndex);
+		double PrevTime = *TimeIt;
+		uint32 PrevValue = *ValueIt;
+		++TimeIt;
+		++ValueIt;
+		for (int32 Index = StartIndex + 1; Index < EndIndex; ++Index, ++TimeIt, ++ValueIt)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+			PrevTime = *TimeIt;
+			PrevValue = *ValueIt;
+		}
+		if (EndIndex < NumPoints)
+		{
+			const double Time = *TimeIt;
+			Callback(PrevTime, Time - PrevTime, PrevValue);
+		}
+		else
+		{
+			Callback(PrevTime, std::numeric_limits<double>::infinity(), PrevValue);
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FAllocationsProvider::EnumerateTags(TFunctionRef<void(const TCHAR*, const TCHAR*, TagIdType, TagIdType)> Callback) const
 {
 	ReadAccessCheck();
@@ -2702,6 +3202,13 @@ const IAllocationsProvider::FQueryStatus FAllocationsProvider::PollQuery(FQueryH
 {
 	auto* Inner = (FAllocationsQuery*)Query;
 	return Inner->Poll();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+uint64 FAllocationsProvider::GetPlatformPageSize() const
+{
+	return bInitialized ? PlatformPageSize : 4096;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

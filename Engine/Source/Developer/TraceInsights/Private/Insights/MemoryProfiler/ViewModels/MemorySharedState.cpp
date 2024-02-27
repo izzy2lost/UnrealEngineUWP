@@ -78,6 +78,8 @@ FMemorySharedState::FMemorySharedState()
 	, MainGraphTrack(nullptr)
 	, LiveAllocsGraphTrack(nullptr)
 	, AllocFreeGraphTrack(nullptr)
+	, SwapMemoryGraphTrack(nullptr)
+	, PageSwapGraphTrack(nullptr)
 	, TrackHeightMode(EMemoryTrackHeightMode::Medium)
 	, bShowHideAllMemoryTracks(false)
 	, CreatedDefaultTracks()
@@ -113,6 +115,8 @@ void FMemorySharedState::OnBeginSession(Insights::ITimingViewSession& InSession)
 	MainGraphTrack = nullptr;
 	LiveAllocsGraphTrack = nullptr;
 	AllocFreeGraphTrack = nullptr;
+	SwapMemoryGraphTrack = nullptr;
+	PageSwapGraphTrack = nullptr;
 	AllTracks.Reset();
 
 	bShowHideAllMemoryTracks = true;
@@ -138,6 +142,8 @@ void FMemorySharedState::OnEndSession(Insights::ITimingViewSession& InSession)
 	MainGraphTrack = nullptr;
 	LiveAllocsGraphTrack = nullptr;
 	AllocFreeGraphTrack = nullptr;
+	SwapMemoryGraphTrack = nullptr;
+	PageSwapGraphTrack = nullptr;
 	AllTracks.Reset();
 
 	bShowHideAllMemoryTracks = false;
@@ -215,6 +221,53 @@ void FMemorySharedState::Tick(Insights::ITimingViewSession& InSession, const Tra
 		AllocFreeGraphTrack->SetAvailableTrackHeight(EMemoryTrackHeightMode::Medium, 100.0f);
 		AllocFreeGraphTrack->SetAvailableTrackHeight(EMemoryTrackHeightMode::Large, 200.0f);
 		AllocFreeGraphTrack->SetCurrentTrackHeight(TrackHeightMode);
+
+		TimingView->InvalidateScrollableTracksOrder();
+	}
+
+	if (!SwapMemoryGraphTrack.IsValid())
+	{
+		SwapMemoryGraphTrack = CreateMemoryGraphTrack();
+		check(SwapMemoryGraphTrack);
+
+		SwapMemoryGraphTrack->SetOrder(FTimingTrackOrder::First + 3);
+		SwapMemoryGraphTrack->SetName(TEXT("Swap Memory Graph"));
+
+		SwapMemoryGraphTrack->AddTimelineSeries(FMemoryGraphSeries::ETimelineType::MaxSwapMem);
+		SwapMemoryGraphTrack->AddTimelineSeries(FMemoryGraphSeries::ETimelineType::MinSwapMem);
+		SwapMemoryGraphTrack->AddTimelineSeries(FMemoryGraphSeries::ETimelineType::MaxCompressedSwapMem);
+		SwapMemoryGraphTrack->AddTimelineSeries(FMemoryGraphSeries::ETimelineType::MinCompressedSwapMem);
+		SwapMemoryGraphTrack->SetLabelUnit(EGraphTrackLabelUnit::MiB, 1);
+
+		SwapMemoryGraphTrack->SetVisibilityFlag(false); // don't show swaps track by default
+
+		SwapMemoryGraphTrack->SetAvailableTrackHeight(EMemoryTrackHeightMode::Small, 50.0f);
+		SwapMemoryGraphTrack->SetAvailableTrackHeight(EMemoryTrackHeightMode::Medium, 100.0f);
+		SwapMemoryGraphTrack->SetAvailableTrackHeight(EMemoryTrackHeightMode::Large, 200.0f);
+		SwapMemoryGraphTrack->SetCurrentTrackHeight(TrackHeightMode);
+
+		TimingView->InvalidateScrollableTracksOrder();
+	}
+
+	if (!PageSwapGraphTrack.IsValid())
+	{
+		PageSwapGraphTrack = CreateMemoryGraphTrack();
+		check(PageSwapGraphTrack);
+
+		PageSwapGraphTrack->SetOrder(FTimingTrackOrder::First + 4);
+		PageSwapGraphTrack->SetName(TEXT("Page In/Out Event Count"));
+		PageSwapGraphTrack->SetLabelUnit(EGraphTrackLabelUnit::Count, 0);
+
+		PageSwapGraphTrack->AddTimelineSeries(FMemoryGraphSeries::ETimelineType::PageInEvents);
+		PageSwapGraphTrack->AddTimelineSeries(FMemoryGraphSeries::ETimelineType::PageOutEvents);
+		PageSwapGraphTrack->AddTimelineSeries(FMemoryGraphSeries::ETimelineType::SwapFreeEvents);
+
+		PageSwapGraphTrack->SetVisibilityFlag(false); // don't show swap tracks by default
+
+		PageSwapGraphTrack->SetAvailableTrackHeight(EMemoryTrackHeightMode::Small, 50.0f);
+		PageSwapGraphTrack->SetAvailableTrackHeight(EMemoryTrackHeightMode::Medium, 100.0f);
+		PageSwapGraphTrack->SetAvailableTrackHeight(EMemoryTrackHeightMode::Large, 200.0f);
+		PageSwapGraphTrack->SetCurrentTrackHeight(TrackHeightMode);
 
 		TimingView->InvalidateScrollableTracksOrder();
 	}
@@ -1027,6 +1080,18 @@ void FMemorySharedState::InitMemoryRules()
 		LOCTEXT("MemRule_AaBCfD_Short", "A*B C*D"),
 		LOCTEXT("MemRule_AaBCfD_Verbose", "Specific Lifetime"),
 		LOCTEXT("MemRule_AaBCfD_Desc", "Identifies allocations allocated between time A and time B and freed between time C and time D.\n(A ≤ a ≤ B ≤ C ≤ f ≤ D)")));
+
+	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+		ERule::AoB, 2,
+		LOCTEXT("MemRule_AoB_Short", "A ↓ B"),
+		LOCTEXT("MemRule_AoB_Verbose", "Paged-Out Allocs"),
+		LOCTEXT("MemRule_AoB_Desc", "Identifies allocations paged-out (swapped-out) between time A and time B.\n(A ≤ page-out ≤ B)")));
+
+	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+		ERule::AiB, 2,
+		LOCTEXT("MemRule_AiB_Short", "A ↑ B"),
+		LOCTEXT("MemRule_AiB_Verbose", "Paged-In Allocs"),
+		LOCTEXT("MemRule_AiB_Desc", "Identifies allocations paged-in (swapped-in) between time A and time B.\n(A ≤ page-in ≤ B)")));
 
 	//TODO
 	//MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(

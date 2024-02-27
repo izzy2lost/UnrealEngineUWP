@@ -12,6 +12,7 @@
 #include "Insights/MemoryProfiler/ViewModels/MemAllocFilterValueConverter.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingByTag.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocNode.h"
+#include "Insights/MemoryProfiler/ViewModels/MemAllocInSwapNode.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocTable.h"
 #include "Insights/Table/ViewModels/TableCellValueFormatter.h"
 #include "Insights/Table/ViewModels/TableCellValueGetter.h"
@@ -38,6 +39,8 @@ const FName FMemAllocTableColumns::FreeThreadColumnId(TEXT("FreeThread"));
 const FName FMemAllocTableColumns::AddressColumnId(TEXT("Address"));
 const FName FMemAllocTableColumns::MemoryPageColumnId(TEXT("MemoryPage"));
 const FName FMemAllocTableColumns::CountColumnId(TEXT("Count"));
+const FName FMemAllocTableColumns::SwapCompressedSizeColumnId(TEXT("SwapCompressedSize"));
+const FName FMemAllocTableColumns::SizeInSwapColumnId(TEXT("SizeInSwap"));
 const FName FMemAllocTableColumns::SizeColumnId(TEXT("Size"));
 const FName FMemAllocTableColumns::LLMSizeColumnId(TEXT("LLMSize"));
 const FName FMemAllocTableColumns::LLMDeltaSizeColumnId(TEXT("LLMDeltaSize"));
@@ -657,10 +660,11 @@ void FMemAllocTable::AddDefaultColumns()
 				else
 				{
 					const FMemAllocNode& MemAllocNode = static_cast<const FMemAllocNode&>(Node);
+					const FMemAllocTable& MemAllocTable = MemAllocNode.GetMemTableChecked();
 					const FMemoryAlloc* Alloc = MemAllocNode.GetMemAlloc();
 					if (Alloc)
 					{
-						return FTableCellValue(static_cast<int64>(Alloc->GetPage()));
+						return FTableCellValue(static_cast<int64>(MemAllocTable.GetAddressPage(Alloc->GetAddress())));
 					}
 				}
 
@@ -738,6 +742,128 @@ void FMemAllocTable::AddDefaultColumns()
 		AddColumn(ColumnRef);
 	}
 	//////////////////////////////////////////////////
+	// Swap Compressed Size
+	{
+		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemAllocTableColumns::SwapCompressedSizeColumnId);
+		FTableColumn& Column = *ColumnRef;
+
+		Column.SetIndex(ColumnIndex++);
+
+		Column.SetShortName(LOCTEXT("SwapCompressedSizeColumnName", "Compressed Size In Swap"));
+		Column.SetTitleName(LOCTEXT("SwapCompressedSizeColumnTitle", "Compressed Size In Swap"));
+		Column.SetDescription(LOCTEXT("SwapCompressedSizeColumnDesc", "Shows compressed size of swap page."));
+
+		Column.SetFlags(ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered);
+
+		Column.SetHorizontalAlignment(HAlign_Left);
+		Column.SetInitialWidth(100.0f);
+
+		Column.SetDataType(ETableCellDataType::Int64);
+
+		class FSwapCompressedSizeColumnValueGetter : public FTableCellValueGetter
+		{
+		public:
+			virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
+			{
+				if (Node.IsGroup())
+				{
+					const FTableTreeNode& NodePtr = static_cast<const FTableTreeNode&>(Node);
+					if (NodePtr.HasAggregatedValue(Column.GetId()))
+					{
+						return NodePtr.GetAggregatedValue(Column.GetId());
+					}
+				}
+				else if (Node.Is<FMemAllocNode>())
+				{
+					const FMemAllocNode& MemAllocNode = static_cast<const FMemAllocNode&>(Node);
+					const FMemoryAlloc* Alloc = MemAllocNode.GetMemAlloc();
+					if (Alloc && Alloc->IsSwap())
+					{
+						return FTableCellValue(static_cast<int64>(Alloc->GetSize()));
+					}
+				}
+
+				return TOptional<FTableCellValue>();
+			}
+		};
+
+		TSharedRef<ITableCellValueGetter> Getter = MakeShared<FSwapCompressedSizeColumnValueGetter>();
+		Column.SetValueGetter(Getter);
+
+		TSharedRef<ITableCellValueFormatter> Formatter = MakeShared<FInt64ValueFormatterAsMemory>();
+		Column.SetValueFormatter(Formatter);
+
+		TSharedRef<ITableCellValueSorter> Sorter = MakeShared<FSorterByInt64Value>(ColumnRef);
+		Column.SetValueSorter(Sorter);
+		Column.SetInitialSortMode(EColumnSortMode::Descending);
+
+		TSharedRef<IFilterValueConverter> Converter = MakeShared<FMemoryFilterValueConverter>();
+		Column.SetValueConverter(Converter);
+
+		Column.SetAggregation(ETableColumnAggregation::Sum);
+
+		AddColumn(ColumnRef);
+	}
+	//////////////////////////////////////////////////
+	// Page Size in Swap Column
+	{
+		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemAllocTableColumns::SizeInSwapColumnId);
+		FTableColumn& Column = *ColumnRef;
+
+		Column.SetIndex(ColumnIndex++);
+
+		Column.SetShortName(LOCTEXT("SizeInSwapColumnName", "Size in Swap"));
+		Column.SetTitleName(LOCTEXT("SizeInSwapColumnTitle", "Size in Swap"));
+		Column.SetDescription(LOCTEXT("SizeInSwapColumnDesc", "Shows (partial) size of allocation which is stored in the correponding swap page."));
+
+		Column.SetFlags(ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered);
+
+		Column.SetHorizontalAlignment(HAlign_Left);
+		Column.SetInitialWidth(100.0f);
+
+		Column.SetDataType(ETableCellDataType::Int64);
+
+		class FSizeInSwapColumnValueGetter : public FTableCellValueGetter
+		{
+		public:
+			virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
+			{
+				if (Node.IsGroup())
+				{
+					const FTableTreeNode& NodePtr = static_cast<const FTableTreeNode&>(Node);
+					if (NodePtr.HasAggregatedValue(Column.GetId()))
+					{
+						return NodePtr.GetAggregatedValue(Column.GetId());
+					}
+				}
+				else if (Node.Is<FMemAllocInSwapNode>())
+				{
+					const FMemAllocInSwapNode& MemAllocInSwapNode = static_cast<const FMemAllocInSwapNode&>(Node);
+					return FTableCellValue(static_cast<int64>(MemAllocInSwapNode.GetBytesInSwapPage()));
+				}
+
+				return TOptional<FTableCellValue>();
+			}
+		};
+
+		TSharedRef<ITableCellValueGetter> Getter = MakeShared<FSizeInSwapColumnValueGetter>();
+		Column.SetValueGetter(Getter);
+
+		TSharedRef<ITableCellValueFormatter> Formatter = MakeShared<FInt64ValueFormatterAsMemory>();
+		Column.SetValueFormatter(Formatter);
+
+		TSharedRef<ITableCellValueSorter> Sorter = MakeShared<FSorterByInt64Value>(ColumnRef);
+		Column.SetValueSorter(Sorter);
+		Column.SetInitialSortMode(EColumnSortMode::Descending);
+
+		TSharedRef<IFilterValueConverter> Converter = MakeShared<FMemoryFilterValueConverter>();
+		Column.SetValueConverter(Converter);
+
+		Column.SetAggregation(ETableColumnAggregation::Sum);
+
+		AddColumn(ColumnRef);
+	}
+	//////////////////////////////////////////////////
 	// Size Column
 	{
 		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemAllocTableColumns::SizeColumnId);
@@ -775,7 +901,14 @@ void FMemAllocTable::AddDefaultColumns()
 					const FMemoryAlloc* Alloc = MemAllocNode.GetMemAlloc();
 					if (Alloc)
 					{
-						return FTableCellValue(static_cast<int64>(Alloc->GetSize()));
+						if (Alloc->IsSwap())
+						{
+							return FTableCellValue(static_cast<int64>(MemAllocNode.GetMemTableChecked().GetPlatformPageSize()));
+						}
+						else
+						{
+							return FTableCellValue(static_cast<int64>(Alloc->GetSize()));
+						}
 					}
 				}
 
