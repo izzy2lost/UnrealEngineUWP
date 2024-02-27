@@ -525,7 +525,8 @@ public:
 	UPROPERTY(Transient)
 	FString LastHlslTranslation;
 
-	UPROPERTY(Transient)
+	// Note that this is currently needed to be non-transient because of how we kick off compilation of GPUComputeScripts
+	UPROPERTY()
 	FString LastHlslTranslationGPU;
 
 	UPROPERTY(Transient)
