@@ -24,7 +24,7 @@ struct FVolumetricLightMapGridCell
 	FByteBulkData		BulkData;
 	
 	UPROPERTY()
-	uint32 CellID;	
+	uint32 CellID = -1;
 };	
 
 USTRUCT()
