@@ -55,12 +55,13 @@ const AccountPanel: React.FC = observer(() => {
    // subscribe
    if (handler.updated) { };
 
-   const columns = [
-      { key: 'column_name', name: 'Name', minWidth: 240, maxWidth: 240, isResizable: false },
+   const columns:IColumn[] = [
+      { key: 'column_name', name: 'Full Name', minWidth: 240, maxWidth: 240, isResizable: false },
       { key: 'column_status', name: 'Status', minWidth: 80, maxWidth: 80, isResizable: false },
-      { key: 'column_login', name: 'Login', minWidth: 160, maxWidth: 160, isResizable: false },
+      { key: 'column_login', name: 'Username', minWidth: 160, maxWidth: 160, isResizable: false },
       { key: 'column_email', name: 'Email', minWidth: 240, maxWidth: 240, isResizable: false },
-      { key: 'column_description', name: 'Description', minWidth: 160, maxWidth: 160, isResizable: false },
+      { key: 'column_description', name: 'Description', minWidth: 440, maxWidth: 440, isResizable: false },
+      { key: 'column_edit', name: 'Edit', minWidth: 48, maxWidth: 48, isResizable: false, onRenderHeader:() => null },
    ];
 
    let accounts = [...handler.accounts];
@@ -77,17 +78,12 @@ const AccountPanel: React.FC = observer(() => {
          </Stack>
       }
 
-      if (column.name === "Name") {
+      if (column.name === "Full Name") {
 
-         return <div onClick={() => { setState({ showEditor: true, editAccount: item }) }} style={{ "cursor": "pointer" }}>
-            <Stack horizontal tokens={{ childrenGap: 12 }}>
-               <Icon style={{ paddingTop: 4 }} iconName="Edit" />
-               <Text>{item.name}</Text>
-            </Stack>
-         </div>
+         return <Stack><Text>{item.name}</Text></Stack>
       }
 
-      if (column.name === "Login") {
+      if (column.name === "Username") {
 
          return <Stack><Text>{item.login}</Text></Stack>
       }
@@ -102,6 +98,12 @@ const AccountPanel: React.FC = observer(() => {
          return <Stack><Text>{item.description ?? ""}</Text></Stack>
       }
 
+      if (column.name === "Edit") {
+
+         return <Stack horizontalAlign="end" onClick={() => { setState({ showEditor: true, editAccount: item }) }} style={{ "cursor": "pointer" }}>
+               <Icon style={{ paddingTop: 4, paddingRight: 8 }} iconName="Edit" />
+         </Stack>
+      }
 
       return null;
    };
@@ -286,7 +288,7 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
    }
 
 
-   return <Modal className={hordeClasses.modal} isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 800, hasBeenOpened: false, top: "120px", position: "absolute" } }} >
+   return <Modal className={hordeClasses.modal} isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 600, hasBeenOpened: false, top: "120px", position: "absolute" } }} >
       <Stack style={{ padding: 8 }}>
          <Stack style={{ paddingBottom: 16 }}>
             <Text variant="mediumPlus" style={{ fontFamily: "Horde Open Sans SemiBold" }}>{accountIn ? "Edit Account" : "New Account"}</Text>
@@ -294,24 +296,25 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
          {!!error && <Stack>
             <MessageBar key={`validation_error`} messageBarType={MessageBarType.error} isMultiline={false}>{error}</MessageBar>
          </Stack>}
+
          <Stack style={{ padding: 8 }}>
-            <TextField label="Name" autoComplete="off" spellCheck={false} placeholder="Name of the user" required defaultValue={account.name} onChange={(ev, value) => { setAccount({ ...account, name: value ?? "" }) }} />
+            <TextField label="Username" autoComplete="off" spellCheck={false} placeholder="Username of the user" required defaultValue={account.login} onChange={(ev, value) => { setAccount({ ...account, login: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <TextField label="Login" autoComplete="off" spellCheck={false} placeholder="Perforce login identifier" required defaultValue={account.login} onChange={(ev, value) => { setAccount({ ...account, login: value ?? "" }) }} />
+            <TextField label="Full Name" autoComplete="off" spellCheck={false} placeholder="Full name of the user" required defaultValue={account.name} onChange={(ev, value) => { setAccount({ ...account, name: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <TextField label="Email" autoComplete="off" spellCheck={false} placeholder="Email address of user" defaultValue={account.email} onChange={(ev, value) => { setAccount({ ...account, email: value ?? "" }) }} />
+            <TextField label="Email" autoComplete="off" spellCheck={false} placeholder="Email address of the user" defaultValue={account.email} onChange={(ev, value) => { setAccount({ ...account, email: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <TextField label="Description" autoComplete="off" spellCheck={false} placeholder="Description of user" defaultValue={account.description} onChange={(ev, value) => { setAccount({ ...account, description: value ?? "" }) }} />
+            <TextField label="Description" autoComplete="off" spellCheck={false} placeholder="Description of the user" defaultValue={account.description} onChange={(ev, value) => { setAccount({ ...account, description: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <Label >Claims</Label>
+            <Label >Groups</Label>
             <TagPicker inputProps={{ placeholder: account.claims.length === 0 ? "Select claims" : undefined }}
                selectedItems={claimTags.filter(c => !!account.claims.find(ac => c.name === ac.value))}
                onResolveSuggestions={(filter) => claimTags.filter(c => !account.claims.find(ac => c.name === ac.value)).filter(c => !filter || c.name.toLowerCase().indexOf(filter.toLowerCase()) !== -1)}

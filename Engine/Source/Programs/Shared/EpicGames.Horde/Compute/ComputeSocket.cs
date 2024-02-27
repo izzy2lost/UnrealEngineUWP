@@ -769,6 +769,9 @@ namespace EpicGames.Horde.Compute
 				sendBuffer.AddRef();
 			}
 
+			// Wait for the send task to complete
+			await sendBuffer.Task.DisposeAsync();
+
 			// Release the reader
 			await sendBuffer.Semaphore.WaitAsync(cancellationToken);
 			try
@@ -781,9 +784,6 @@ namespace EpicGames.Horde.Compute
 				sendBuffer.Semaphore.Release();
 				sendBuffer.Release(); // Added above
 			}
-
-			// Wait for the send task to complete
-			await sendBuffer.Task.DisposeAsync();
 
 			// Remove the buffer from the dictionary
 			lock (_lockObject)
@@ -815,6 +815,10 @@ namespace EpicGames.Horde.Compute
 					}
 					await reader.WaitToReadAsync(1, cancellationToken);
 				}
+			}
+			catch (OperationCanceledException e)
+			{
+				_logger.LogDebug(e, "Background send task cancelled for channel {ChannelId}", channelId);
 			}
 			catch (Exception e)
 			{

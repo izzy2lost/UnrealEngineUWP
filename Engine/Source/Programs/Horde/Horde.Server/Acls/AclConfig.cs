@@ -6,6 +6,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using EpicGames.Horde.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
@@ -242,6 +243,46 @@ namespace Horde.Server.Acls
 				foreach (AclEntryConfig entryConfig in Entries)
 				{
 					entryConfig.PostLoad(ScopeName, _profileLookup);
+				}
+			}
+		}
+
+		/// <summary>
+		/// Find all entitlements for a user
+		/// </summary>
+		public Dictionary<AclScopeName, HashSet<AclAction>> FindEntitlements(Predicate<AclClaimConfig> predicate)
+		{
+			Dictionary<AclScopeName, HashSet<AclAction>> scopeToActions = new Dictionary<AclScopeName, HashSet<AclAction>>();
+			FindEntitlements(predicate, scopeToActions);
+			return scopeToActions;
+		}
+
+		/// <summary>
+		/// Find all entitlements for a user
+		/// </summary>
+		public void FindEntitlements(Predicate<AclClaimConfig> predicate, Dictionary<AclScopeName, HashSet<AclAction>> scopeToActions)
+		{
+			if (Entries != null)
+			{
+				foreach (AclEntryConfig entry in Entries)
+				{
+					if (predicate(entry.Claim))
+					{
+						HashSet<AclAction>? actions;
+						if (!scopeToActions.TryGetValue(ScopeName, out actions))
+						{
+							actions = new HashSet<AclAction>();
+							scopeToActions.Add(ScopeName, actions);
+						}
+						actions.UnionWith(entry.ComputedActions);
+					}
+				}
+			}
+			if (Children != null)
+			{
+				foreach (AclConfig childAclConfig in Children)
+				{
+					childAclConfig.FindEntitlements(predicate, scopeToActions);
 				}
 			}
 		}

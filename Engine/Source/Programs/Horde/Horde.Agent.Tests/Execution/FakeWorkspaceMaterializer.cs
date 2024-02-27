@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Horde.Agent.Tests.Execution;
 
-public class FakeWorkspaceMaterializer : IWorkspaceMaterializer
+class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 {
 	private bool _isInitialized;
 	private DirectoryReference? _rootDir;
@@ -38,7 +38,12 @@ public class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 
 		pathToContent[path] = content;
 	}
-	
+
+	/// <inheritdoc/>
+	public void Dispose()
+	{
+	}
+
 	/// <inheritdoc/>
 	public Task<WorkspaceMaterializerSettings> InitializeAsync(ILogger logger, CancellationToken cancellationToken)
 	{

@@ -128,7 +128,7 @@ namespace Horde.Server.Users
 		/// <inheritdoc/>
 		public async Task<IUser?> FindUserByLoginAsync(string login, CancellationToken cancellationToken)
 		{
-			ClaimDocument primaryClaim = new ClaimDocument(ClaimTypes.Name, login);
+			ClaimDocument primaryClaim = new ClaimDocument(HordeClaimTypes.User, login);
 			return await _users.Find(x => x.PrimaryClaim == primaryClaim).FirstOrDefaultAsync(cancellationToken);
 		}
 

@@ -54,7 +54,7 @@ const ServerPanel: React.FC = observer(() => {
 
    }, []);
 
-   const { hordeClasses, modeColors } = getHordeStyling();
+   const { modeColors } = getHordeStyling();
 
    // subscribe
    if (handler.updated) { };
@@ -90,7 +90,6 @@ const ServerPanel: React.FC = observer(() => {
 
    return (<Stack>
       <Stack styles={{ root: { paddingTop: 18, paddingLeft: 12, paddingRight: 12, width: "100%" } }} >
-         <Stack className={hordeClasses.raised}>
             <Stack tokens={{ childrenGap: 12 }}>
                <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Servers</Text>
                <div style={{ overflowY: 'auto', overflowX: 'hidden', maxHeight: "calc(100vh - 312px)" }} data-is-scrollable={true}>
@@ -106,7 +105,6 @@ const ServerPanel: React.FC = observer(() => {
                   </Stack>
                </div>
             </Stack>
-         </Stack>
       </Stack>
    </Stack>);
 });

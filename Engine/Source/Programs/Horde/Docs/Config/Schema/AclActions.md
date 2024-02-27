@@ -138,6 +138,15 @@
 | `ViewCosts` | View estimated costs for particular operations |
 | `IssueBearerToken` | Issue bearer token for the current user |
 
+## ServiceAccounts
+
+| Name | Description |
+| ---- | ----------- |
+| `CreateAccount` | Ability to create new accounts |
+| `UpdateAccount` | Update an account settings |
+| `DeleteAccount` | Delete an account from the server |
+| `ViewAccount` | Ability to view account information |
+
 ## Sessions
 
 | Name | Description |

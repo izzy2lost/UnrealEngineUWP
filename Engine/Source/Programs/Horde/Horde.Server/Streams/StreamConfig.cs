@@ -3,14 +3,21 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Security.Claims;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Acls;
+using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Replicators;
+using EpicGames.Horde.Streams;
 using Horde.Server.Acls;
 using Horde.Server.Configuration;
 using Horde.Server.Issues;
@@ -18,17 +25,11 @@ using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Perforce;
 using Horde.Server.Projects;
+using Horde.Server.Replicators;
 using Horde.Server.Server;
+using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
-using System.Diagnostics;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Agents.Pools;
-using Horde.Server.Replicators;
-using EpicGames.Horde.Replicators;
-using System.Text.Json;
-using Horde.Server.Utilities;
-using System.Security.Claims;
 
 namespace Horde.Server.Streams
 {
@@ -165,7 +166,7 @@ namespace Horde.Server.Streams
 		public string? DefaultPreflightTemplate
 		{
 			get => DefaultPreflight?.TemplateId?.ToString();
-			set => DefaultPreflight = (value == null)? null : new DefaultPreflightConfig { TemplateId = new TemplateId(value) };
+			set => DefaultPreflight = (value == null) ? null : new DefaultPreflightConfig { TemplateId = new TemplateId(value) };
 		}
 
 		/// <summary>
@@ -711,7 +712,7 @@ namespace Horde.Server.Streams
 		/// Condition to evaluate before deciding to use this query. May query tags in a preflight.
 		/// </summary>
 		public Condition? Condition { get; set; }
-		
+
 		/// <summary>
 		/// The template id to query
 		/// </summary>
@@ -916,8 +917,8 @@ namespace Horde.Server.Streams
 		{
 			DaysOfWeek = daysOfWeek;
 			MinTime = new ScheduleTimeOfDay(minTime);
-			MaxTime = (maxTime != null)? new ScheduleTimeOfDay(maxTime.Value) : null;
-			Interval = (interval != null)? new ScheduleInterval(interval.Value) : null;
+			MaxTime = (maxTime != null) ? new ScheduleTimeOfDay(maxTime.Value) : null;
+			Interval = (interval != null) ? new ScheduleInterval(interval.Value) : null;
 		}
 
 		/// <summary>
@@ -980,7 +981,7 @@ namespace Horde.Server.Streams
 		/// </summary>
 		[return: NotNullIfNotNull("text")]
 		public static ScheduleTimeOfDay? Parse(string? text)
-			=> (text != null)? new ScheduleTimeOfDay((int)TimeOfDayJsonConverter.Parse(text).TotalMinutes) : null;
+			=> (text != null) ? new ScheduleTimeOfDay((int)TimeOfDayJsonConverter.Parse(text).TotalMinutes) : null;
 	}
 
 	class ScheduleTimeOfDayJsonConverter : JsonConverter<ScheduleTimeOfDay>

@@ -2,6 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Accounts;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Artifacts;

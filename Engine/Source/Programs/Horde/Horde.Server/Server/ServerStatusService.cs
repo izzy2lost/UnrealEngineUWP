@@ -3,12 +3,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using HordeCommon;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace Horde.Server.Server;
 
@@ -25,7 +27,7 @@ public interface IHealthMonitor
 	/// <summary>
 	/// Updates the current health of a system
 	/// </summary>
-	void Update(HealthStatus result, string? message = null, DateTimeOffset? timestamp = null);
+	Task UpdateAsync(HealthStatus result, string? message = null, DateTimeOffset? timestamp = null);
 }
 
 /// <summary>
@@ -36,50 +38,45 @@ public interface IHealthMonitor<T> : IHealthMonitor
 {
 }
 	
-class HealthMonitor<T> : IHealthMonitor<T>
+internal class HealthMonitor<T> : IHealthMonitor<T>
 {
-	readonly ServerStatusService _statusService;
+	private readonly ServerStatusService _statusService;
+	private string _name;
 
-	public HealthMonitor(ServerStatusService statusService)
-		: this(statusService, typeof(T).Name)
+	public HealthMonitor(ServerStatusService statusService) : this(statusService, typeof(T).Name)
 	{
 	}
 
 	public HealthMonitor(ServerStatusService statusService, string name)
 	{
 		_statusService = statusService;
-		_statusService.Register(typeof(T), name);
+		_name = name;
 	}
 
 	public void SetName(string name)
 	{
-		_statusService.Register(typeof(T), name);
+		_name = name;
 	}
 
-	public void Update(HealthStatus result, string? message, DateTimeOffset? timestamp)
+	public async Task UpdateAsync(HealthStatus result, string? message, DateTimeOffset? timestamp)
 	{
-		_statusService.Report(typeof(T), result, message, timestamp);
+		await _statusService.ReportAsync(typeof(T), _name, result, message, timestamp);
 	}
 }
 
 /// <summary>
-/// Represents the latest status of a subsystem inside Horde
+/// Represents status of a subsystem inside Horde
 /// </summary>
-/// <param name="Type"></param>
-/// <param name="Name"></param>
-/// <param name="Updates"></param>
-public record SubsystemStatus(Type Type, string Name, List<SubsystemStatusUpdate> Updates)
+/// <param name="Id">Unique ID</param>
+/// <param name="Name">Human-readable name</param>
+/// <param name="Updates">List of updates</param>
+public record SubsystemStatus(string Id, string Name, List<SubsystemStatusUpdate> Updates)
 {
-	internal SubsystemStatus Copy()
-	{
-		return this with { Updates = [..Updates] };
-	}
-
 	/// <inheritdoc/>
 	public override string ToString()
 	{
 		string updates = Updates.Count > 0 ? Updates.First().ToString() : "<no updates>";
-		return $"Subsystem({Type.Name} LastUpdate: {updates})";
+		return $"Subsystem(Id={Id} Name={Name} LastUpdate={updates})";
 	}
 }
 
@@ -104,9 +101,7 @@ public class ServerStatusService : IHostedService
 	
 	private readonly IClock _clock;
 	private readonly MongoService _mongoService;
-	private readonly RedisService _redisService;
-	private readonly object _lock = new();
-	private readonly Dictionary<Type, SubsystemStatus> _subsystemStatuses = new();
+	private readonly RedisService _redis;
 
 	private readonly IHealthMonitor<MongoService> _mongoDbHealth;
 	private readonly ITicker _mongoDbHealthTicker;
@@ -114,7 +109,7 @@ public class ServerStatusService : IHostedService
 	private readonly IHealthMonitor<RedisService> _redisHealth;
 	private readonly ITicker _redisHealthTicker;
 
-	private readonly ITicker _perforceHealthTicker;
+	private static string RedisHashKey() => "server-status";
 
 	/// <summary>
 	/// Constructor
@@ -126,7 +121,7 @@ public class ServerStatusService : IHostedService
 	public ServerStatusService(MongoService mongoService, RedisService redisService, IClock clock, ILogger<ServerStatusService> logger)
 	{
 		_mongoService = mongoService;
-		_redisService = redisService;
+		_redis = redisService;
 		_clock = clock;
 
 		_mongoDbHealth = new HealthMonitor<MongoService>(this, "MongoDB");
@@ -134,8 +129,6 @@ public class ServerStatusService : IHostedService
 
 		_redisHealth = new HealthMonitor<RedisService>(this, "Redis");
 		_redisHealthTicker = clock.AddTicker($"{nameof(ServerStatusService)}.Redis", TimeSpan.FromSeconds(30.0), UpdateRedisHealthAsync, logger);
-
-		_perforceHealthTicker = clock.AddTicker($"{nameof(ServerStatusService)}.Perforce", TimeSpan.FromSeconds(30.0), UpdatePerforceHealthAsync, logger);
 	}
 
 	/// <inheritdoc/>
@@ -143,7 +136,6 @@ public class ServerStatusService : IHostedService
 	{
 		await _mongoDbHealthTicker.StartAsync();
 		await _redisHealthTicker.StartAsync();
-		await _perforceHealthTicker.StartAsync();
 	}
 
 	/// <inheritdoc/>
@@ -151,7 +143,6 @@ public class ServerStatusService : IHostedService
 	{
 		await _mongoDbHealthTicker.StopAsync();
 		await _redisHealthTicker.StopAsync();
-		await _perforceHealthTicker.StopAsync();
 	}
 
 	/// <summary>
@@ -160,7 +151,7 @@ public class ServerStatusService : IHostedService
 	internal async ValueTask UpdateMongoDbHealthAsync(CancellationToken cancellationToken)
 	{
 		HealthCheckResult result = await _mongoService.CheckHealthAsync(new HealthCheckContext(), cancellationToken);
-		_mongoDbHealth.Update(result.Status, result.Description);
+		await _mongoDbHealth.UpdateAsync(result.Status, result.Description);
 	}
 
 	/// <summary>
@@ -168,69 +159,72 @@ public class ServerStatusService : IHostedService
 	/// </summary>
 	internal async ValueTask UpdateRedisHealthAsync(CancellationToken cancellationToken)
 	{
-		HealthCheckResult result = await _redisService.CheckHealthAsync(new HealthCheckContext(), cancellationToken);
-		_redisHealth.Update(result.Status, result.Description);
-	}
-
-	/// <summary>
-	/// Checks health and connectivity to Perforce servers
-	/// </summary>
-	/// <param name="cancellationToken">Cancellation token for the async task</param>
-	internal ValueTask UpdatePerforceHealthAsync(CancellationToken cancellationToken)
-	{
-		return ValueTask.CompletedTask;
-	}
-
-	/// <summary>
-	/// Register a new type for status reporting
-	/// </summary>
-	public void Register(Type type, string name)
-	{
-		lock (_lock)
-		{
-			SubsystemStatus? status;
-			if (_subsystemStatuses.TryGetValue(type, out status))
-			{
-				_subsystemStatuses[type] = status with { Name = name };
-			}
-			else
-			{
-				_subsystemStatuses[type] = new SubsystemStatus(type, name, []);
-			}
-		}
+		HealthCheckResult result = await _redis.CheckHealthAsync(new HealthCheckContext(), cancellationToken);
+		await _redisHealth.UpdateAsync(result.Status, result.Description);
 	}
 
 	/// <summary>
 	/// Report a status update for a given subsystem
 	/// </summary>
 	/// <param name="type">Service type reporting health</param>
+	/// <param name="name">Human-readable name</param>
 	/// <param name="result">Result of the update</param>
 	/// <param name="message">Human-readable message</param>
 	/// <param name="timestamp">Optional timestamp to be associated with the report. Defaults to UtcNow</param>
-	public void Report(Type type, HealthStatus result, string? message = null, DateTimeOffset? timestamp = null)
+	public async Task ReportAsync(Type type, string name, HealthStatus result, string? message = null, DateTimeOffset? timestamp = null)
 	{
+		string id = type.Name;
+		IDatabase redis = _redis.GetDatabase();
+		SubsystemStatus status = await GetSubsystemStatusFromRedisAsync(redis, id, name);
 		SubsystemStatusUpdate update = new (result, message, timestamp ?? _clock.UtcNow);
-		lock (_lock)
+		status.Updates.Add(update);
+		status.Updates.Sort((a, b) => b.UpdatedAt.CompareTo(a.UpdatedAt));
+
+		if (status.Updates.Count > MaxHistoryLength)
 		{
-			SubsystemStatus status = _subsystemStatuses[type];
-			status.Updates.Add(update);
-			status.Updates.Sort((a, b) => b.UpdatedAt.CompareTo(a.UpdatedAt));
-			if (status.Updates.Count > MaxHistoryLength)
+			status.Updates.RemoveRange(MaxHistoryLength, status.Updates.Count - MaxHistoryLength);
+		}
+		
+		string data = JsonSerializer.Serialize(status);
+		await redis.HashSetAsync(RedisHashKey(), id, data);
+	}
+
+	private async Task<SubsystemStatus> GetSubsystemStatusFromRedisAsync(IDatabase redis, string id, string name)
+	{
+		try
+		{
+			string? rawJson = await redis.HashGetAsync(RedisHashKey(), id);
+			if (rawJson != null)
 			{
-				status.Updates.RemoveRange(MaxHistoryLength, status.Updates.Count - MaxHistoryLength);
+				return JsonSerializer.Deserialize<SubsystemStatus>(rawJson) ?? throw new JsonException("Unable to parse JSON: " + rawJson);
 			}
 		}
+		catch (Exception)
+		{
+			// Ignored
+		}
+
+		return new SubsystemStatus(id, name, []);
 	}
 
 	/// <summary>
 	/// Get a list of status and updates for each subsystem
 	/// </summary>
 	/// <returns>A list of statuses</returns>
-	public IReadOnlyList<SubsystemStatus> GetSubsystemStatuses()
+	public async Task<IReadOnlyList<SubsystemStatus>> GetSubsystemStatusesAsync()
 	{
-		lock (_lock)
+		HashEntry[] entries = await _redis.GetDatabase().HashGetAllAsync(RedisHashKey());
+		List<SubsystemStatus> subsystems = [];
+		foreach (HashEntry entry in entries)
 		{
-			return _subsystemStatuses.Values.Select(status => status.Copy()).ToList();
+			try
+			{
+				SubsystemStatus status = JsonSerializer.Deserialize<SubsystemStatus>(entry.Value.ToString()) ?? throw new JsonException("Failed parsing JSON");
+				subsystems.Add(status);
+			}
+			catch (JsonException) { /* Ignored */ }
 		}
+
+		return subsystems;
 	}
 }

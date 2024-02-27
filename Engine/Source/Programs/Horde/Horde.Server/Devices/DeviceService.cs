@@ -7,11 +7,11 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Devices;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Users;
-using Horde.Server.Acls;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Notifications;
@@ -58,7 +58,7 @@ namespace Horde.Server.Devices
 		{
 			Pool = pool;
 			Read = read;
-			Write = write;				
+			Write = write;
 		}
 	}
 
@@ -100,8 +100,8 @@ namespace Horde.Server.Devices
 			_telemetryTicker = clock.AddSharedTicker("DeviceService.Telemetry", TimeSpan.FromMinutes(10.0), TickTelemetryAsync, logger);
 			_tracer = tracer;
 			_logger = logger;
-			_settings = settings;			
-			_globalConfig = globalConfig;			
+			_settings = settings;
+			_globalConfig = globalConfig;
 		}
 
 		/// <inheritdoc/>
@@ -119,10 +119,10 @@ namespace Horde.Server.Devices
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask DisposeAsync() 
-		{ 
-			await _ticker.DisposeAsync(); 
-			await _telemetryTicker.DisposeAsync(); 
+		public async ValueTask DisposeAsync()
+		{
+			await _ticker.DisposeAsync();
+			await _telemetryTicker.DisposeAsync();
 		}
 
 		/// <summary>
@@ -256,8 +256,8 @@ namespace Horde.Server.Devices
 			List<IDeviceReservation> reserves = await _devices.FindAllReservationsAsync();
 			List<IDeviceReservation> expired = new List<IDeviceReservation>();
 
-			DateTime utcNow = DateTime.UtcNow;			
-		
+			DateTime utcNow = DateTime.UtcNow;
+
 			List<IDeviceReservation> nodeReserves = reserves.FindAll(r => r.JobId != null && r.ReservedStepIds != null && r.ReservedStepIds.Count > 0).ToList();
 
 			for (int i = 0; i < reserves.Count; i++)
@@ -270,19 +270,19 @@ namespace Horde.Server.Devices
 					if ((utcNow - r.UpdateTimeUtc).TotalMinutes > 10)
 					{
 						expired.Add(r);
-					}					
+					}
 				}
 				else
-				{					
+				{
 					// expire when all reserve steps have completed
 					IJob? job = await _jobService.GetJobAsync(JobId.Parse(r.JobId!), cancellationToken);
 
 					if (job == null || CheckReservedNodesComplete(job, r.ReservedStepIds!))
 					{
-						expired.Add(r);						
+						expired.Add(r);
 					}
 				}
-			}		
+			}
 
 			bool result = true;
 			foreach (IDeviceReservation reservation in expired)
@@ -301,7 +301,7 @@ namespace Horde.Server.Devices
 		/// </summary>
 		public List<IDevicePlatform> GetPlatforms()
 		{
-			return _globalConfig.CurrentValue.Devices?.Platforms.ConvertAll(x => (IDevicePlatform) x) ?? new List<IDevicePlatform>() ;
+			return _globalConfig.CurrentValue.Devices?.Platforms.ConvertAll(x => (IDevicePlatform)x) ?? new List<IDevicePlatform>();
 		}
 		/// <summary>
 		/// Get a specific device platform
@@ -338,7 +338,7 @@ namespace Horde.Server.Devices
 		/// <summary>
 		/// Get device telemetry
 		/// </summary>
-		public async Task<List<IDeviceTelemetry>> GetDeviceTelemetryAsync(DeviceId[]? deviceIds = null, DateTimeOffset? minCreateTime=null, DateTimeOffset? maxCreateTime=null, int? index = null, int? count = null)
+		public async Task<List<IDeviceTelemetry>> GetDeviceTelemetryAsync(DeviceId[]? deviceIds = null, DateTimeOffset? minCreateTime = null, DateTimeOffset? maxCreateTime = null, int? index = null, int? count = null)
 		{
 			return await _devices.FindDeviceTelemetryAsync(deviceIds, minCreateTime, maxCreateTime, index, count);
 		}
@@ -385,7 +385,7 @@ namespace Horde.Server.Devices
 		/// <param name="enabled">Whether the device is enabled</param>
 		/// <param name="address">Address or hostname of device</param>
 		/// <param name="modelId">Vendor model id</param>
-        /// <param name="userId">User adding the device</param>
+		/// <param name="userId">User adding the device</param>
 		/// <returns></returns>
 		public async Task<IDevice?> TryCreateDeviceAsync(DeviceId id, string name, DevicePlatformId platformId, DevicePoolId poolId, bool? enabled, string? address, string? modelId, UserId? userId = null)
 		{
@@ -413,8 +413,8 @@ namespace Horde.Server.Devices
 		/// </summary>
 		public async Task CheckoutDeviceAsync(DeviceId deviceId, UserId? userId)
 		{
-           await _devices.CheckoutDeviceAsync(deviceId, userId);
-        }
+			await _devices.CheckoutDeviceAsync(deviceId, userId);
+		}
 
 		/// <summary>
 		/// Try to create a reservation satisfying the specified device platforms and models
@@ -424,11 +424,11 @@ namespace Horde.Server.Devices
 			IJob? job = null;
 			IGraph? graph = null;
 			string? stepName = null;
-			
+
 			List<JobStepId>? reserveStepIds = null;
 
 			if (jobId != null)
-			{				
+			{
 				IJobStepBatch? stepBatch = null;
 				IJobStep? jobStep = null;
 				INode? stepNode = null;
@@ -480,7 +480,7 @@ namespace Horde.Server.Devices
 							if (jobStep != null && !reserveSteps.Any(s => s.Id == stepId))
 							{
 								reserveSteps.Insert(0, jobStep);
-							}															
+							}
 						}
 
 						// Reserve begin/end markers
@@ -489,7 +489,7 @@ namespace Horde.Server.Devices
 						{
 							int index = stepBatch.Steps.FindIndex(x => x.Id == jobStep!.Id);
 							for (int i = index; i < stepBatch.Steps.Count; i++)
-							{								
+							{
 								INode node = graph!.Groups[stepBatch.GroupIdx].Nodes[stepBatch.Steps[i].NodeIdx];
 								// An end or begin starts a new reservation block
 								if (i != index && node.Annotations.TryGetValue("DeviceReserve", out deviceReserve) && (String.Equals(deviceReserve, "End", StringComparison.OrdinalIgnoreCase) || String.Equals(deviceReserve, "Begin", StringComparison.OrdinalIgnoreCase)))
@@ -528,18 +528,18 @@ namespace Horde.Server.Devices
 				{
 					errorMessage = $"Attempted to reserve a device from a non-automation pool, {poolId}";
 				}
-				
+
 				return (null, errorMessage, false);
 			}
 
-			(IDeviceReservation? reservation, bool installRequired) =  await _devices.TryAddReservationAsync(poolId, request, _settings.CurrentValue.DeviceProblemCooldownMinutes, hostname, reservationDetails, job, stepId, stepName, reserveStepIds);
+			(IDeviceReservation? reservation, bool installRequired) = await _devices.TryAddReservationAsync(poolId, request, _settings.CurrentValue.DeviceProblemCooldownMinutes, hostname, reservationDetails, job, stepId, stepName, reserveStepIds);
 
 			// check that only one step is running
 			if (job != null && reservation != null && reservation.ReservedStepIds != null)
 			{
 				List<IJobStep> reserveSteps = new List<IJobStep>();
 
-				foreach(JobStepId id in reservation.ReservedStepIds)
+				foreach (JobStepId id in reservation.ReservedStepIds)
 				{
 					IJobStep? step;
 					if (job!.TryGetStep(id, out step))
@@ -569,10 +569,10 @@ namespace Horde.Server.Devices
 					}
 
 					return (null, $"Reserved nodes must not run in parallel: {String.Join(',', errorSteps)}", false);
-				}				
+				}
 			}
 
-			if (reservation == null) 
+			if (reservation == null)
 			{
 				return (null, $"Unable to add reservation for {jobId}:{stepId}", false);
 			}
@@ -636,7 +636,7 @@ namespace Horde.Server.Devices
 		/// </summary>
 		public async Task NotifyDeviceServiceAsync(GlobalConfig globalConfig, string message, DeviceId? deviceId = null, string? jobId = null, string? stepId = null, UserId? userId = null, CancellationToken cancellationToken = default)
 		{
-			try 
+			try
 			{
 				IDevice? device = null;
 				IDevicePool? pool = null;
@@ -691,9 +691,9 @@ namespace Horde.Server.Devices
 			}
 			catch (Exception ex)
 			{
-                _logger.LogError(ex, "Error on device notification {Message}", ex.Message);
-            }
-        }
+				_logger.LogError(ex, "Error on device notification {Message}", ex.Message);
+			}
+		}
 
 		/// <summary>
 		/// Authorize device action
@@ -770,7 +770,7 @@ namespace Horde.Server.Devices
 			}
 
 			foreach (IDevicePool pool in allPools)
-			{				
+			{
 				if (pool.ProjectIds == null || pool.ProjectIds.Count == 0)
 				{
 					if (pool.PoolType == DevicePoolType.Shared && !globalPoolAccess)

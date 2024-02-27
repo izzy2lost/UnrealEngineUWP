@@ -482,6 +482,14 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
          });
       }
 
+      if (features?.showAccounts) {
+         resourceItems.push({
+            key: "admin_accounts",
+            text: "Accounts",
+            link: `/accounts`
+         });
+      }
+
       if (resourceItems.length) {
          subItems.push({
             itemType: ContextualMenuItemType.Section,
@@ -539,14 +547,6 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
          });
       }
 
-      if (features?.showAccounts) {
-         hordeItems.push({
-            key: "server_accounts",
-            text: "Accounts",
-            link: `/accounts`
-         });
-      }
-
       hordeItems.push({
          key: "server_docs",
          text: "Documentation",
@@ -554,23 +554,10 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       });
 
       hordeItems.push({
-         key: "server_api",
-         text: "API Browser",
-         href: `/swagger/index.html`
-      });
-
-      hordeItems.push({
-         key: "server_docs_releasenotes",
-         text: "Release Notes",
-         link: `/docs/ReleaseNotes.md`
-      });
-
-      hordeItems.push({
          key: "server_versions",
          text: "Version",
          onClick: () => { setShowVersion(true) }
       });
-
 
       subItems.push({
          itemType: ContextualMenuItemType.Section,
@@ -595,7 +582,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
       const cbItem: ICommandBarItemProps = {
          key: "admin_button",
-         text: "SERVER",
+         text: "TOOLS",
          subMenuProps: {
             contextualMenuItemAs: ProjectMenuItem,
             styles: style,
@@ -710,10 +697,8 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
                   <Stack styles={{ root: {} }} onMouseEnter={() => setShowMenu(true)}
                      onMouseLeave={() => { setShowMenu(false) }} >
                      <div ref={divRef}>
-                        <a href="/" onClick={(ev) => { ev.preventDefault(); setShowMenu(true); }}>
-                           <Persona styles={{ root: { selectors: { ".ms-Persona-initials": { fontWeight: "unset", fontFamily: "Horde Open Sans SemiBold" } } } }} imageShouldFadeIn={false} imageInitials={initials} imageUrl={dashboard.userImage32} size={PersonaSize.size32}
-                              onClick={() => { navigate("/index") }} />
-                        </a>
+                        <Persona styles={{ root: { selectors: { ".ms-Persona-initials": { fontWeight: "unset", fontFamily: "Horde Open Sans SemiBold", cursor: "pointer" } } } }} imageShouldFadeIn={false} imageInitials={initials} imageUrl={dashboard.userImage32} size={PersonaSize.size32}
+                           onClick={() => { navigate("/dashboard"); }} />
                      </div>
                      <ContextualMenu
                         items={menuItems}

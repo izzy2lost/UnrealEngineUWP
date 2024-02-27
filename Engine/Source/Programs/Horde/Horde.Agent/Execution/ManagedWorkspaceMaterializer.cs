@@ -13,13 +13,13 @@ namespace Horde.Agent.Execution;
 /// <summary>
 /// Workspace materializer wrapping ManagedWorkspace and WorkspaceInfo
 /// </summary>
-public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
+public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 {
 	private readonly AgentWorkspace _agentWorkspace;
 	private readonly DirectoryReference _workingDir;
 	private readonly bool _useCacheFile;
 	private WorkspaceInfo? _workspace;
-	
+
 	/// <summary>
 	/// Constructor
 	/// </summary>
@@ -34,6 +34,12 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 		_agentWorkspace = agentWorkspace;
 		_workingDir = workingDir;
 		_useCacheFile = useCacheFile;
+	}
+
+	/// <inheritdoc/>
+	public void Dispose()
+	{
+		_workspace?.Dispose();
 	}
 
 	/// <inheritdoc/>

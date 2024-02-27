@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 
-namespace Horde.Server.Acls
+namespace EpicGames.Horde.Acls
 {
 	/// <summary>
 	/// Wraps a string used to describe an ACL action

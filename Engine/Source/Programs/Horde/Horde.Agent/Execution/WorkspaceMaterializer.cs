@@ -101,7 +101,7 @@ public class SyncOptions
 /// Interface for materializing a file tree to the local file system.
 /// One instance roughly equals one Perforce stream.
 /// </summary>
-public interface IWorkspaceMaterializer
+public interface IWorkspaceMaterializer : IDisposable
 {
 	/// <summary>
 	/// Placeholder for resolving the latest available change number of stream during sync

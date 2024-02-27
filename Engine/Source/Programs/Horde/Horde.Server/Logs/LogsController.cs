@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
@@ -67,7 +68,7 @@ namespace Horde.Server.Logs
 			_jobService = jobService;
 			_storageService = storageService;
 			_globalConfig = globalConfig;
- 		}
+		}
 
 		/// <summary>
 		/// Retrieve metadata about a specific log file
@@ -92,7 +93,7 @@ namespace Horde.Server.Logs
 			}
 
 			LogMetadata metadata = await _logFileService.GetMetadataAsync(logFile, cancellationToken);
-			return new GetLogFileResponse(logFile, metadata).ApplyFilter(filter);       
+			return new GetLogFileResponse(logFile, metadata).ApplyFilter(filter);
 		}
 
 		/// <summary>
@@ -194,7 +195,7 @@ namespace Horde.Server.Logs
 				stream.Write(Encoding.UTF8.GetBytes($"\"index\":{index},"));
 				stream.Write(Encoding.UTF8.GetBytes($"\"count\":{lines.Count},"));
 				stream.Write(Encoding.UTF8.GetBytes($"\"maxLineIndex\":{Math.Max(metadata.MaxLineIndex, index + lines.Count)},"));
-				stream.Write(Encoding.UTF8.GetBytes($"\"format\":{ (logFile.Type == LogType.Json ? "\"JSON\"" : "\"TEXT\"")},"));
+				stream.Write(Encoding.UTF8.GetBytes($"\"format\":{(logFile.Type == LogType.Json ? "\"JSON\"" : "\"TEXT\"")},"));
 
 				stream.Write(Encoding.UTF8.GetBytes($"\"lines\":["));
 				stream.WriteByte((byte)'\n');

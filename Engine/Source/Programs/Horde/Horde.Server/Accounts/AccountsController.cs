@@ -47,7 +47,7 @@ namespace Horde.Server.Accounts
 			}
 
 			List<IUserClaim> claims = request.Claims.ConvertAll<IUserClaim>(x => new UserClaim(x.Type, x.Value));
-			IAccount account = await _accountCollection.AddAsync(request.Name, request.Login, claims, request.Description, request.Email, request.SecretToken, request.Password, request.Enabled, cancellationToken);
+			IAccount account = await _accountCollection.CreateAsync(new CreateAccountOptions(request.Name, request.Login, claims, request.Description, request.Email, request.Password, request.Enabled), cancellationToken);
 			return new CreateAccountResponse(account.Id);
 		}
 
@@ -115,7 +115,25 @@ namespace Horde.Server.Accounts
 				return BadRequest("User is not logged in through a Horde account");
 			}
 
-			await _accountCollection.UpdateAsync(accountId.Value, password: request.Password, cancellationToken: cancellationToken);
+			for (; ; )
+			{
+				IAccount? account = await _accountCollection.GetAsync(accountId.Value, cancellationToken);
+				if (account == null)
+				{
+					return NotFound(accountId.Value);
+				}
+				if (request.NewPassword != null && !account.ValidatePassword(request.OldPassword ?? string.Empty))
+				{
+					return Unauthorized($"Invalid password for user");
+				}
+
+				account = await account.TryUpdateAsync(new UpdateAccountOptions { Password = request.NewPassword }, cancellationToken);
+				if (account != null)
+				{
+					break;
+				}
+			}
+
 			return Ok();
 		}
 
@@ -144,6 +162,30 @@ namespace Horde.Server.Accounts
 		}
 
 		/// <summary>
+		/// Gets information about the current account
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/accounts/{id}/entitlements")]
+		[ProducesResponseType(typeof(GetAccountEntitlementsResponse), 200)]
+		[ProducesResponseType(404)]
+		public async Task<ActionResult<object>> GetAccountEntitlementsAsync(AccountId id, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		{
+			if (!_globalConfig.Authorize(AccountAclAction.ViewAccount, User))
+			{
+				return Forbid(AccountAclAction.ViewAccount);
+			}
+
+			IAccount? account = await _accountCollection.GetAsync(id, cancellationToken);
+			if (account == null)
+			{
+				return NotFound(id);
+			}
+
+			GetAccountEntitlementsResponse response = AccountController.CreateGetAccountEntitlementsResponse(_globalConfig.Acl, claim => account.HasClaim(claim));
+			return PropertyFilter.Apply(response, filter);
+		}
+
+		/// <summary>
 		/// Updates an account by id
 		/// </summary>
 		[HttpPut]
@@ -157,13 +199,26 @@ namespace Horde.Server.Accounts
 				return Forbid(AccountAclAction.UpdateAccount);
 			}
 
+			IAccount? account = await _accountCollection.GetAsync(id, cancellationToken);
+			if (account == null)
+			{
+				return NotFound(id);
+			}
+
 			IReadOnlyList<IUserClaim>? claims = null;
 			if (request.Claims != null)
 			{
 				claims = request.Claims.ConvertAll(x => new UserClaim(x.Type, x.Value));
 			}
 
-			await _accountCollection.UpdateAsync(id, request.Name, request.Login, claims, request.Description, request.Email, request.SecretToken, request.Password, request.Enabled, cancellationToken);
+			UpdateAccountOptions options = new UpdateAccountOptions(request.Name, request.Login, claims, request.Description, request.Email, request.Password, request.Enabled);
+
+			account = await account.UpdateAsync(options, cancellationToken);
+			if (account == null)
+			{
+				return NotFound(id);
+			}
+
 			return Ok();
 		}
 

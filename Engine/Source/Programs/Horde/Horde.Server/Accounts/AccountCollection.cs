@@ -115,6 +115,9 @@ namespace Horde.Server.Accounts
 		/// </summary>
 		private class AccountDocument : IAccount
 		{
+			[BsonIgnore]
+			AccountCollection? _accountCollection;
+
 			/// <inheritdoc/>
 			[BsonRequired, BsonId]
 			public AccountId Id { get; set; }
@@ -127,9 +130,6 @@ namespace Horde.Server.Accounts
 
 			/// <inheritdoc/>
 			public string? Email { get; set; }
-
-			/// <inheritdoc/>
-			public string? SecretToken { get; set; }
 
 			/// <inheritdoc/>
 			public string? PasswordHash { get; set; }
@@ -146,6 +146,9 @@ namespace Horde.Server.Accounts
 			/// <inheritdoc/>
 			public string Description { get; set; } = "";
 
+			[BsonIgnoreIfDefault, BsonDefaultValue(0)]
+			public int UpdateIndex { get; set; }
+
 			IReadOnlyList<IUserClaim> IAccount.Claims => Claims;
 
 			[BsonConstructor]
@@ -160,34 +163,19 @@ namespace Horde.Server.Accounts
 				Login = login;
 			}
 
-			protected bool Equals(AccountDocument other)
+			public void PostLoad(AccountCollection accountCollection)
 			{
-				bool areClaimsEqual = !Claims.Except(other.Claims).Any();
-
-				return Id.Equals(other.Id) && SecretToken == other.SecretToken && areClaimsEqual && Enabled == other.Enabled && Description == other.Description;
+				_accountCollection = accountCollection;
 			}
 
-			public override bool Equals(object? obj)
-			{
-				if (obj is null)
-				{
-					return false;
-				}
-				if (ReferenceEquals(this, obj))
-				{
-					return true;
-				}
-				if (obj.GetType() != GetType())
-				{
-					return false;
-				}
-				return Equals((AccountDocument)obj);
-			}
+			public bool ValidatePassword(string password)
+				=> PasswordSalt != null && PasswordHash != null && PasswordHasher.ValidatePassword(password, PasswordHasher.SaltFromString(PasswordSalt), PasswordHasher.HashFromString(PasswordHash));
 
-			public override int GetHashCode()
-			{
-				return HashCode.Combine(Id, SecretToken, Claims, Enabled, Description);
-			}
+			public async Task<IAccount?> RefreshAsync(CancellationToken cancellationToken)
+				=> await _accountCollection!.GetAsync(Id, cancellationToken);
+
+			public async Task<IAccount?> TryUpdateAsync(UpdateAccountOptions options, CancellationToken cancellationToken)
+				=> await _accountCollection!.TryUpdateAsync(this, options, cancellationToken);
 		}
 
 		private static AccountId s_defaultAdminAccountId = AccountId.Parse("65d4f282ff286703e0609ccd");
@@ -201,42 +189,36 @@ namespace Horde.Server.Accounts
 		/// <param name="mongoService">The database service</param>
 		public AccountCollection(MongoService mongoService)
 		{
-			_accounts = mongoService.GetCollection<AccountDocument>("ServiceAccounts", keys => keys.Ascending(x => x.SecretToken));
+			_accounts = mongoService.GetCollection<AccountDocument>("Accounts", keys => keys.Ascending(x => x.Login));
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAccount> AddAsync(
-			string name,
-			string login,
-			IReadOnlyList<IUserClaim>? claims,
-			string? description,
-			string? email,
-			string? secretToken,
-			string? password,
-			bool? enabled,
+		public async Task<IAccount> CreateAsync(
+			CreateAccountOptions options,
 			CancellationToken cancellationToken = default)
 		{
-			AccountDocument account = new(new AccountId(BinaryIdUtils.CreateNew()), name, login)
+			AccountDocument account = new(new AccountId(BinaryIdUtils.CreateNew()), options.Name, options.Login)
 			{
-				Email = email,
-				SecretToken = secretToken,
-				Description = description ?? "",
-				Enabled = enabled ?? true
+				Email = options.Email,
+				Description = options.Description ?? "",
+				Enabled = options.Enabled ?? true
 			};
 
-			if (claims != null)
+			if (options.Claims != null)
 			{
-				account.Claims = claims.ConvertAll(x => new ClaimDocument(x));
+				account.Claims = options.Claims.ConvertAll(x => new ClaimDocument(x));
 			}
 
-			if (password != null)
+			if (options.Password != null)
 			{
-				(string passwordSalt, string passwordHash) = CreateSaltAndHashPassword(password);
+				(string passwordSalt, string passwordHash) = CreateSaltAndHashPassword(options.Password);
 				account.PasswordSalt = passwordSalt;
 				account.PasswordHash = passwordHash;
 			}
 
 			await _accounts.InsertOneAsync(account, (InsertOneOptions?)null, cancellationToken);
+
+			account.PostLoad(this);
 			return account;
 		}
 
@@ -244,11 +226,16 @@ namespace Horde.Server.Accounts
 		{
 			if (!_hasCreatedAdminAccount)
 			{
+				const string DefaultAdminPassword = "";
+				(string passwordSalt, string passwordHash) = CreateSaltAndHashPassword(DefaultAdminPassword);
+
 				UpdateDefinition<AccountDocument> update = Builders<AccountDocument>.Update
 					.SetOnInsert(x => x.Name, "Admin")
 					.SetOnInsert(x => x.Login, "Admin")
 					.SetOnInsert(x => x.Description, "Default administrator account")
 					.SetOnInsert(x => x.Claims, new List<ClaimDocument> { new ClaimDocument(HordeClaims.AdminClaim) })
+					.SetOnInsert(x => x.PasswordSalt, passwordSalt)
+					.SetOnInsert(x => x.PasswordHash, passwordHash)
 					.SetOnInsert(x => x.Enabled, true);
 
 				await _accounts.UpdateOneAsync(x => x.Id == s_defaultAdminAccountId, update, new UpdateOptions { IsUpsert = true }, cancellationToken);
@@ -260,86 +247,83 @@ namespace Horde.Server.Accounts
 		public async Task<IReadOnlyList<IAccount>> FindAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
 			await CreateAdminAccountAsync(cancellationToken);
-			return await _accounts.Find(FilterDefinition<AccountDocument>.Empty).Range(index, count).ToListAsync(cancellationToken);
+
+			List<IAccount> accounts = new List<IAccount>();
+			await foreach (AccountDocument account in _accounts.Find(FilterDefinition<AccountDocument>.Empty).Range(index, count).ToAsyncEnumerable(cancellationToken))
+			{
+				account.PostLoad(this);
+				accounts.Add(account);
+			}
+
+			return accounts;
 		}
 
 		/// <inheritdoc/>
 		public async Task<IAccount?> GetAsync(AccountId id, CancellationToken cancellationToken = default)
 		{
 			await CreateAdminAccountAsync(cancellationToken);
-			return await _accounts.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
+
+			AccountDocument? account = await _accounts.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
+			account?.PostLoad(this);
+			return account;
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAccount?> GetBySecretTokenAsync(string secretToken, CancellationToken cancellationToken = default)
-		{
-			return await _accounts.Find(x => x.SecretToken == secretToken).FirstOrDefaultAsync(cancellationToken);
-		}
-
-		/// <inheritdoc/>
-		public async Task<IAccount?> GetByLoginAsync(string login, CancellationToken cancellationToken = default)
+		public async Task<IAccount?> FindByLoginAsync(string login, CancellationToken cancellationToken = default)
 		{
 			await CreateAdminAccountAsync(cancellationToken);
-			return await _accounts.Find(x => x.Login == login).FirstOrDefaultAsync(cancellationToken);
+
+			AccountDocument? account = await _accounts.Find(x => x.Login == login).FirstOrDefaultAsync(cancellationToken);
+			account?.PostLoad(this);
+			return account;
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAccount?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
+		Task<AccountDocument?> TryUpdateAsync(AccountDocument document, UpdateAccountOptions options, CancellationToken cancellationToken = default)
 		{
-			await CreateAdminAccountAsync(cancellationToken);
-			return await _accounts.Find(x => x.Name == username).FirstOrDefaultAsync(cancellationToken);
-		}
+			UpdateDefinition<AccountDocument> update = Builders<AccountDocument>.Update.Set(x => x.UpdateIndex, document.UpdateIndex + 1);
 
-		/// <inheritdoc/>
-		public Task UpdateAsync(AccountId id,
-			string? name,
-			string? login,
-			IReadOnlyList<IUserClaim>? claims,
-			string? description,
-			string? email,
-			string? secretToken,
-			string? password,
-			bool? enabled,
-			CancellationToken cancellationToken = default)
-		{
-			UpdateDefinitionBuilder<AccountDocument> update = Builders<AccountDocument>.Update;
-			List<UpdateDefinition<AccountDocument>> updates = new List<UpdateDefinition<AccountDocument>>();
-
-			if (name != null)
+			if (options.Name != null)
 			{
-				updates.Add(update.Set(x => x.Name, name));
+				update = update.Set(x => x.Name, options.Name);
 			}
-			if (login != null)
+			if (options.Login != null)
 			{
-				updates.Add(update.Set(x => x.Login, login));
+				update = update.Set(x => x.Login, options.Login);
 			}
-			if (email != null)
+			if (options.Email != null)
 			{
-				updates.Add(update.Set(x => x.Email, email));
+				update = update.Set(x => x.Email, options.Email);
 			}
-			if (secretToken != null)
+			if (options.Password != null)
 			{
-				updates.Add(update.Set(x => x.SecretToken, secretToken));
+				(string salt, string hash) = CreateSaltAndHashPassword(options.Password);
+				update = update.Set(x => x.PasswordSalt, salt).Set(x => x.PasswordHash, hash);
 			}
-			if (password != null)
+			if (options.Claims != null)
 			{
-				(string salt, string hash) = CreateSaltAndHashPassword(password);
-				updates.Add(update.Set(x => x.PasswordSalt, salt).Set(x => x.PasswordHash, hash));
+				update = update.Set(x => x.Claims, options.Claims.ConvertAll(x => new ClaimDocument(x)));
 			}
-			if (claims != null)
+			if (options.Enabled != null)
 			{
-				updates.Add(update.Set(x => x.Claims, claims.ConvertAll(x => new ClaimDocument(x))));
+				update = update.Set(x => x.Enabled, options.Enabled);
 			}
-			if (enabled != null)
+			if (options.Description != null)
 			{
-				updates.Add(update.Set(x => x.Enabled, enabled));
-			}
-			if (description != null)
-			{
-				updates.Add(update.Set(x => x.Description, description));
+				update = update.Set(x => x.Description, options.Description);
 			}
 
-			return _accounts.FindOneAndUpdateAsync(x => x.Id == id, update.Combine(updates), cancellationToken: cancellationToken);
+			FilterDefinition<AccountDocument> filter;
+			if (document.UpdateIndex == 0)
+			{
+				filter = Builders<AccountDocument>.Filter.Eq(x => x.Id, document.Id) & Builders<AccountDocument>.Filter.Exists(x => x.UpdateIndex, false);
+			}
+			else
+			{
+				filter = Builders<AccountDocument>.Filter.Eq(x => x.Id, document.Id) & Builders<AccountDocument>.Filter.Eq(x => x.UpdateIndex, document.UpdateIndex);
+			}
+
+			return _accounts.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<AccountDocument, AccountDocument?> { ReturnDocument = ReturnDocument.After }, cancellationToken);
 		}
 
 		/// <inheritdoc/>

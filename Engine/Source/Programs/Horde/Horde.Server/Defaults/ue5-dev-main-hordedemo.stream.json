@@ -123,8 +123,9 @@
 			"templates":
 			[
 				"installed-build",
-				"test-executor",
 				"parameter-demo",
+				"remote-execution-test",
+				"test-executor",
 				"custom"
 			],
 			"columns":
@@ -166,6 +167,11 @@
 		{
 			"pool": "win-ue5",
 			"workspace": "Full"
+		},
+		"IncrementalWin64":
+		{
+			"pool": "win-ue5",
+			"workspace": "IncrementalCompileOnly"
 		}
 	},
 	"workspaceTypes":
@@ -176,8 +182,26 @@
 			"identifier": "Demo",
 
 			// Use the native Perforce library to avoid p4.exe dependency
-			"method": "preferNativeClient=true"
-		}
+			"method": "name=managedWorkspace&preferNativeClient=true"
+		},
+		"IncrementalCompileOnly":
+		{
+			// Set a unique identifier to prevent overlap with other streams; will cause workspace to be synced to a different folder
+			"identifier": "Demo-Inc",
+
+			// Don't clean the contents of the workspace after building
+			"incremental": true,
+
+			// Filter out files not needed to compilation. Wildcards for these rules is similar to P4 clientspecs.
+			"view":
+			[
+				"-*.uasset",
+				"-*.umap"
+			],
+
+			// Use the native Perforce library to avoid p4.exe dependency
+			"method": "name=managedWorkspace&preferNativeClient=true"
+		},
 	},
 	"templates":
 	[
@@ -529,18 +553,6 @@
 				}
 			]
 		},
-		{
-			"id": "test-executor",
-			"name": "Run Test Executor",
-			"initialAgentType": "Win64",
-			"arguments": [
-				"-Target=Full Build",
-				"-Project=$(Project)"
-			],
-			"jobOptions": {
-				"executor": "Test"
-			}
-		},
         {
             "id": "parameter-demo",
             "name": "Parameter Demo",
@@ -647,6 +659,61 @@
 				}
 			]
         },
+		{
+            "id": "remote-execution-test",
+            "name": "Remote Execution Test",
+            "arguments":
+            [
+                "-Script=Engine/Build/Graph/Tasks/RemoteExecutionTest.xml",
+				"-Target=Compile Target"
+            ],
+            "parameters":
+            [
+                {
+                    "type": "Text",
+                    "label": "Target",
+                    "argument": "-set:Target=",
+					"default": "UnrealEditor"
+                },
+                {
+                    "type": "Text",
+                    "label": "Configuration",
+                    "argument": "-set:Configuration=",
+					"default": "Development"
+                },
+                {
+                    "type": "Text",
+                    "label": "Platforms",
+                    "argument": "-set:Platforms=",
+					"default": "Win64"
+                },
+                {
+                    "type": "Text",
+                    "label": "Arguments",
+                    "argument": "-set:Arguments=",
+					"default": "-UBA -UBAForceRemote -UBAStrict"
+                },
+                {
+                    "type": "Bool",
+                    "label": "Clean before build",
+                    "argumentIfEnabled": "-set:Clean=true",
+                    "argumentIfDisabled": "-set:Clean=false",
+                    "default": true
+                }
+            ]
+        },
+		{
+			"id": "test-executor",
+			"name": "Run Test Executor",
+			"initialAgentType": "Win64",
+			"arguments": [
+				"-Target=Full Build",
+				"-Project=$(Project)"
+			],
+			"jobOptions": {
+				"executor": "Test"
+			}
+		},
 		{
 			"id": "custom",
 			"name": "Custom...",

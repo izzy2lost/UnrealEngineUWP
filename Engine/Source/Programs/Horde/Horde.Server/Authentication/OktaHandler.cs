@@ -36,13 +36,18 @@ namespace Horde.Server.Authentication
 
 		public static void AddUserInfoClaims(JsonElement userInfo, ServerSettings settings, ClaimsIdentity identity)
 		{
-			JsonElement userElement;
-			if (userInfo.TryGetProperty("preferred_username", out userElement))
+			JsonElement nameElement;
+			if (userInfo.TryGetProperty("name", out nameElement))
 			{
 				if (identity.FindFirst(ClaimTypes.Name) == null)
 				{
-					identity.AddClaim(new Claim(ClaimTypes.Name, userElement.ToString()!));
+					identity.AddClaim(new Claim(ClaimTypes.Name, nameElement.ToString()!));
 				}
+			}
+
+			JsonElement userElement;
+			if (userInfo.TryGetProperty("preferred_username", out userElement))
+			{
 				if (identity.FindFirst(HordeClaimTypes.User) == null)
 				{
 					identity.AddClaim(new Claim(HordeClaimTypes.User, userElement.ToString()!));

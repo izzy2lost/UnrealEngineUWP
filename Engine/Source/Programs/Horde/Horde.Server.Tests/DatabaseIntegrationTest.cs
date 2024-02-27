@@ -226,6 +226,8 @@ namespace Horde.Server.Tests
 
 		protected override void ConfigureServices(IServiceCollection services)
 		{
+			base.ConfigureServices(services);
+
 			services.AddSingleton(GetMongoServiceSingleton());
 			services.AddSingleton(GetRedisServiceSingleton());
 		}

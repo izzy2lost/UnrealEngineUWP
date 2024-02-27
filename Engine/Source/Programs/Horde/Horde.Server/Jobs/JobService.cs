@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
@@ -17,7 +18,6 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Issues;
 using Horde.Server.Jobs.Bisect;
@@ -109,7 +109,7 @@ namespace Horde.Server.Jobs
 		/// Event triggered when a job step completes
 		/// </summary>
 		public event JobStepCompleteEvent? OnJobStepComplete;
-		
+
 		/// <summary>
 		/// Event triggered when a job is scheduled on the underlying JobTaskSource
 		///
@@ -217,7 +217,7 @@ namespace Horde.Server.Jobs
 			properties["TemplateId"] = templateRefId.ToString();
 			properties["JobId"] = jobIdValue.ToString();
 
-			for(int idx = 0; idx < options.Arguments.Count; idx++)
+			for (int idx = 0; idx < options.Arguments.Count; idx++)
 			{
 				options.Arguments[idx] = StringUtils.ExpandProperties(options.Arguments[idx], properties);
 			}
@@ -244,7 +244,7 @@ namespace Horde.Server.Jobs
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(AbortAnyDuplicateJobsAsync)}");
 			span.SetAttribute("JobId", newJob.Id.ToString());
 			span.SetAttribute("JobName", newJob.Name);
-			
+
 			IReadOnlyList<IJob> jobsToAbort = new List<IJob>();
 			if (newJob.PreflightChange > 0)
 			{
@@ -363,9 +363,9 @@ namespace Horde.Server.Jobs
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(UpdateJobAsync)}");
 			span.SetAttribute("JobId", job.Id.ToString());
 			span.SetAttribute("Name", name);
-			
+
 			using IDisposable? scope = _logger.BeginScope("UpdateJobAsync({JobId})", job.Id);
-			for(IJob? newJob = job; newJob != null; newJob = await GetJobAsync(job.Id, cancellationToken))
+			for (IJob? newJob = job; newJob != null; newJob = await GetJobAsync(job.Id, cancellationToken))
 			{
 				IGraph graph = await GetGraphAsync(newJob, cancellationToken);
 
@@ -473,7 +473,7 @@ namespace Horde.Server.Jobs
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(CancelLeaseAsync)}");
 			span.SetAttribute("AgentId", agentId.ToString());
 			span.SetAttribute("LeaseId", leaseId.ToString());
-			
+
 			for (; ; )
 			{
 				IAgent? agent = await _agents.GetAsync(agentId, cancellationToken);
@@ -557,10 +557,10 @@ namespace Horde.Server.Jobs
 		/// <param name="excludeCancelled">Whether to exclude cancelled jobs</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of jobs matching the given criteria</returns>
-		public async Task<IReadOnlyList<IJob>> FindJobsAsync(JobId[]? jobIds = null, StreamId? streamId = null, string? name = null, TemplateId[]? templates = null, int? minChange = null, int? maxChange = null, int? preflightChange = null, bool? preflightOnly = null, UserId? preflightStartedByUser = null, UserId? startedByUser = null, DateTimeOffset ? minCreateTime = null, DateTimeOffset? maxCreateTime = null, string? target = null, JobStepBatchState? batchState = null, JobStepState[]? state = null, JobStepOutcome[]? outcome = null, DateTimeOffset? modifiedBefore = null, DateTimeOffset? modifiedAfter = null, int? index = null, int? count = null, bool consistentRead = true, bool? excludeUserJobs = null, bool? excludeCancelled = null, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyList<IJob>> FindJobsAsync(JobId[]? jobIds = null, StreamId? streamId = null, string? name = null, TemplateId[]? templates = null, int? minChange = null, int? maxChange = null, int? preflightChange = null, bool? preflightOnly = null, UserId? preflightStartedByUser = null, UserId? startedByUser = null, DateTimeOffset? minCreateTime = null, DateTimeOffset? maxCreateTime = null, string? target = null, JobStepBatchState? batchState = null, JobStepState[]? state = null, JobStepOutcome[]? outcome = null, DateTimeOffset? modifiedBefore = null, DateTimeOffset? modifiedAfter = null, int? index = null, int? count = null, bool consistentRead = true, bool? excludeUserJobs = null, bool? excludeCancelled = null, CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(FindJobsAsync)}");
-			span.SetAttribute("JobIds", (jobIds == null)? null : String.Join(',', jobIds));
+			span.SetAttribute("JobIds", (jobIds == null) ? null : String.Join(',', jobIds));
 			span.SetAttribute("StreamId", streamId);
 			span.SetAttribute("Name", name);
 			span.SetAttribute("Templates", templates);
@@ -578,7 +578,7 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("ModifiedAfter", modifiedAfter);
 			span.SetAttribute("Index", index);
 			span.SetAttribute("Count", count);
-			
+
 			if (target == null && (state == null || state.Length == 0) && (outcome == null || outcome.Length == 0))
 			{
 				return await _jobs.FindAsync(jobIds, streamId, name, templates, minChange, maxChange, preflightChange, preflightOnly, preflightStartedByUser, startedByUser, minCreateTime, maxCreateTime, modifiedBefore, modifiedAfter, batchState, index, count, consistentRead, null, excludeUserJobs, cancellationToken);
@@ -642,7 +642,7 @@ namespace Horde.Server.Jobs
 		{
 			return job.AbortedByUserId != null || job.Batches.Any(x => x.Steps.Any(y => y.AbortedByUserId != null));
 		}
-		
+
 		/// <summary>
 		/// Searches for jobs matching a stream with given templates
 		/// </summary>
@@ -666,7 +666,7 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("ModifiedAfter", modifiedAfter);
 			span.SetAttribute("Index", index);
 			span.SetAttribute("Count", count);
-			
+
 			return await _jobs.FindLatestByStreamWithTemplatesAsync(streamId, templates, preflightStartedByUser, maxCreateTime, modifiedAfter, index, count, consistentRead, cancellationToken);
 		}
 
@@ -689,7 +689,7 @@ namespace Horde.Server.Jobs
 			IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates = job.GetLabelStates(newGraph);
 
 			IJob? newJob = await _jobs.TryUpdateGraphAsync(job, oldGraph, newGraph, cancellationToken);
-			if(newJob != null)
+			if (newJob != null)
 			{
 				await _jobTaskSource.UpdateUgsBadgesAsync(newJob, newGraph, oldLabelStates, cancellationToken);
 				_jobTaskSource.UpdateQueuedJob(newJob, newGraph);
@@ -784,7 +784,7 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("TemplateId", templateId);
 			span.SetAttribute("NodeName", nodeName);
 			span.SetAttribute("Change", change);
-			
+
 			// Find all the steps matching the given criteria
 			List<IJobStepRef> steps = await _jobStepRefs.GetStepsForNodeAsync(streamId, templateId, nodeName, change, false, 10, cancellationToken);
 
@@ -933,7 +933,7 @@ namespace Horde.Server.Jobs
 				}
 				return null;
 			}
-			catch(Exception ex)
+			catch (Exception ex)
 			{
 				_logger.LogWarning(ex, "Job {JobId} is no longer valid.", job.Id);
 				return JobStepBatchError.ExecutionError;
@@ -982,9 +982,9 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("Job", job.Id.ToString());
 			span.SetAttribute("BatchId", batchId.ToString());
 			span.SetAttribute("StepId", stepId.ToString());
-			
+
 			using IDisposable? scope = _logger.BeginScope("UpdateStepAsync({JobId}:{BatchId}:{StepId})", job.Id, batchId, stepId);
-			for (; ;)
+			for (; ; )
 			{
 				IJob? newJob = await TryUpdateStepAsync(job, batchId, stepId, streamConfig, newState, newOutcome, newError, newAbortRequested, newAbortByUserId, newLogId, newNotificationTriggerId, newRetryByUserId, newPriority, newReports, newProperties, cancellationToken);
 				if (newJob != null)
@@ -993,7 +993,7 @@ namespace Horde.Server.Jobs
 				}
 
 				newJob = await GetJobAsync(job.Id, cancellationToken);
-				if(newJob == null)
+				if (newJob == null)
 				{
 					return null;
 				}
@@ -1063,7 +1063,7 @@ namespace Horde.Server.Jobs
 				updateSpan.SetAttribute("JobId", job.Id.ToString());
 				updateSpan.SetAttribute("BatchId", batchId.ToString());
 				updateSpan.SetAttribute("StepId", stepId.ToString());
-				
+
 				if (oldState != newState || oldOutcome != newOutcome)
 				{
 					_logger.LogInformation("Transitioned job {JobId}, batch {BatchId}, step {StepId} from {OldState} to {NewState}", job.Id, batchId, stepId, oldState, newState);
@@ -1154,7 +1154,7 @@ namespace Horde.Server.Jobs
 							{
 								await _issueService.UpdateCompleteStepAsync(job, graph, batchId, stepId, cancellationToken);
 							}
-							catch(Exception ex)
+							catch (Exception ex)
 							{
 								_logger.LogError(ex, "Exception while updating issue service for job {JobId}:{BatchId}:{StepId}: {Message}", job.Id, batchId, stepId, ex.Message);
 							}
@@ -1187,7 +1187,7 @@ namespace Horde.Server.Jobs
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(AutoSubmitChangeAsync)}");
 			span.SetAttribute("Job", job.Id.ToString());
 			span.SetAttribute("Graph", graph.Id);
-			
+
 			int? change;
 			string message;
 			try
@@ -1292,18 +1292,18 @@ namespace Horde.Server.Jobs
 			_ = clusterName;
 			_logger.LogInformation("Leaving shelved change {Change}", change);
 			return Task.FromResult<bool>(true);
-/*
-			_logger.LogInformation("Removing shelf {Change}", change);
-			try
-			{
-				await _perforceService.DeleteShelvedChangeAsync(clusterName, change);
-				return true;
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Unable to delete shelved change {Change}", change);
-				return false;
-			}*/
+			/*
+						_logger.LogInformation("Removing shelf {Change}", change);
+						try
+						{
+							await _perforceService.DeleteShelvedChangeAsync(clusterName, change);
+							return true;
+						}
+						catch (Exception ex)
+						{
+							_logger.LogError(ex, "Unable to delete shelved change {Change}", change);
+							return false;
+						}*/
 		}
 
 		/// <summary>
@@ -1324,14 +1324,14 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("JobTrigger.Target", jobTrigger.Target);
 			span.SetAttribute("JobTrigger.JobId", jobTrigger.JobId?.ToString());
 			span.SetAttribute("JobTrigger.TemplateRefId", jobTrigger.TemplateRefId);
-			
+
 			for (; ; )
 			{
 				// Update the job
 				JobId chainedJobId = JobIdUtils.GenerateNewId();
 
 				IJob? newJob = await _jobs.TryUpdateJobAsync(job, graph, jobTrigger: new KeyValuePair<TemplateId, JobId>(jobTrigger.TemplateRefId, chainedJobId));
-				if(newJob != null)
+				if (newJob != null)
 				{
 					TemplateRefConfig? templateRefConfig;
 					if (!streamConfig.TryGetTemplate(jobTrigger.TemplateRefId, out templateRefConfig))
@@ -1381,7 +1381,7 @@ namespace Horde.Server.Jobs
 
 				// Fetch the job again
 				newJob = await _jobs.GetAsync(job.Id);
-				if(newJob == null)
+				if (newJob == null)
 				{
 					break;
 				}
@@ -1452,7 +1452,7 @@ namespace Horde.Server.Jobs
 			}
 			return false;
 		}
-		
+
 		/// <summary>
 		/// Get a list of each batch's session ID formatted as a string for debugging purposes
 		/// </summary>

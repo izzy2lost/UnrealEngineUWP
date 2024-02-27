@@ -1578,11 +1578,10 @@ export type CreateZipRequest = {
 export type GetArtifactResponseV2 = {
 
 	id: string;
-
 	type: ArtifactContextType;
-
 	keys: string[]
-
+	name: string;
+	description?: string;
 }
 
 /** Result of an artifact search */
@@ -5169,7 +5168,8 @@ export type DashboardLoginRequest = {
 
 /// Update request for the current user account
 export type UpdateCurrentAccountRequest = {
-	password?: string;
+	oldPassword?: string;
+	newPassword?: string;
 }
 
 /// Message describing a claim for an account	

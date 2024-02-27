@@ -1468,7 +1468,7 @@ export class Backend {
     getServerStatus(): Promise<ServerStatusResponse> {
 
         return new Promise<ServerStatusResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/server-status`).then((value) => {
+            this.backend.get(`/api/v1/server/status`).then((value) => {
                 const result = value.data as ServerStatusResponse;
                 // convert from string date to Date
                 result.statuses.forEach(s => s.updates.forEach(u => u.updatedAt = new Date(u.updatedAt)))
@@ -1778,6 +1778,16 @@ export class Backend {
     }
 
     // Accounts
+
+    getAccountEntitlements(): Promise<any> {
+        return new Promise<any>((resolve, reject) => {
+            this.backend.get(`/account/entitlements`).then((value) => {
+                resolve(value.data as any);
+            }).catch(reason => {
+                reject(reason);
+            });
+        });
+    }
     
     // update current account 
     updateCurrentAccount(request: UpdateCurrentAccountRequest): Promise<boolean> {

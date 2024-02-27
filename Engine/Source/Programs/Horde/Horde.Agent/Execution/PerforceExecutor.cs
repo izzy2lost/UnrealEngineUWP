@@ -38,6 +38,14 @@ namespace Horde.Agent.Execution
 			_workspace = null!;
 		}
 
+		protected override void Dispose(bool disposing)
+		{
+			_workspace?.Dispose();
+			_autoSdkWorkspace?.Dispose();
+
+			base.Dispose(disposing);
+		}
+
 		public override async Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)
 		{
 			await base.InitializeAsync(logger, cancellationToken);
@@ -244,22 +252,23 @@ namespace Horde.Agent.Execution
 			foreach (AgentWorkspace pendingWorkspace in pendingWorkspaces)
 			{
 				logger.LogInformation("  Identifier={Identifier}, Stream={StreamName}, Incremental={Incremental} Method={Method} Partitioned={Partitioned}", 
-					pendingWorkspace.Identifier, pendingWorkspace.Stream, pendingWorkspace.Incremental, pendingWorkspace.Method ,pendingWorkspace.Partitioned);
+					pendingWorkspace.Identifier, pendingWorkspace.Stream, pendingWorkspace.Incremental, pendingWorkspace.Method, pendingWorkspace.Partitioned);
 			}
 
 			// Make workspaces for all the unique configurations on this agent
 			List<WorkspaceInfo> workspaces = new List<WorkspaceInfo>();
-			foreach (AgentWorkspace pendingWorkspace in pendingWorkspaces)
-			{
-				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(pendingWorkspace);
-				WorkspaceInfo workspace = await WorkspaceInfo.SetupWorkspaceAsync(pendingWorkspace, rootDir, options, logger, cancellationToken);
-				workspaces.Add(workspace);
-			}
-
-			// Find all the unique Perforce servers
 			List<IPerforceConnection> perforceConnections = new List<IPerforceConnection>();
 			try
 			{
+				// Set up all the workspaces
+				foreach (AgentWorkspace pendingWorkspace in pendingWorkspaces)
+				{
+					ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(pendingWorkspace);
+					WorkspaceInfo workspace = await WorkspaceInfo.SetupWorkspaceAsync(pendingWorkspace, rootDir, options, logger, cancellationToken);
+					workspaces.Add(workspace);
+				}
+
+				// Find all the unique Perforce servers
 				foreach (WorkspaceInfo workspace in workspaces)
 				{
 					if (!perforceConnections.Any(x => x.Settings.ServerAndPort!.Equals(workspace.ServerAndPort, StringComparison.OrdinalIgnoreCase) && x.Settings.UserName!.Equals(workspace.PerforceClient.Settings.UserName, StringComparison.Ordinal)))
@@ -406,6 +415,10 @@ namespace Horde.Agent.Execution
 				foreach (IPerforceConnection perforceConnection in perforceConnections)
 				{
 					perforceConnection.Dispose();
+				}
+				foreach (WorkspaceInfo workspace in workspaces)
+				{
+					workspace.Dispose();
 				}
 			}
 		}

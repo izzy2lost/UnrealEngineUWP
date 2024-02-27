@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using EpicGames.Horde.Server;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -75,11 +76,11 @@ public class ServerStatusController : Controller
 	/// </summary>
 	/// <returns>Http result</returns>
 	[HttpGet]
-	[Route("/api/v1/server-status")]
+	[Route("/api/v1/server/status")]
 	[ProducesResponseType(typeof(ServerStatusResponse), 200)]
-	public ActionResult<ServerStatusResponse> GetUpdates([FromQuery] string? format = null)
+	public async Task<ActionResult<ServerStatusResponse>> GetUpdatesAsync([FromQuery] string? format = null)
 	{
-		IReadOnlyList<SubsystemStatus> subsystemStatuses = _serverStatus.GetSubsystemStatuses();
+		IReadOnlyList<SubsystemStatus> subsystemStatuses = await _serverStatus.GetSubsystemStatusesAsync();
 		
 		if (format == "html")
 		{

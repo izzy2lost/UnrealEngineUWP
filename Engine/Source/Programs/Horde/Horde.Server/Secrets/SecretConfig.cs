@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Security.Claims;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Secrets;
 using Horde.Server.Acls;
 using Horde.Server.Server;

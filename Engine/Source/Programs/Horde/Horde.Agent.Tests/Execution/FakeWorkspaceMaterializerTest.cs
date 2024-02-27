@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Horde.Agent.Tests.Execution;
 
 [TestClass]
-public class FakeWorkspaceMaterializerTest
+public sealed class FakeWorkspaceMaterializerTest : IDisposable
 {
 	private readonly FakeWorkspaceMaterializer _wm = new ();
 	private readonly WorkspaceMaterializerSettings _settings;
@@ -18,6 +19,11 @@ public class FakeWorkspaceMaterializerTest
 	public FakeWorkspaceMaterializerTest()
 	{
 		_settings = _wm.InitializeAsync(NullLogger.Instance, CancellationToken.None).Result;
+	}
+
+	public void Dispose()
+	{
+		_wm.Dispose();
 	}
 
 	[TestCleanup]
