@@ -36,6 +36,7 @@ Texture2DArray<float> TraceHit;
 
 uint ReflectionsStateFrameIndex;
 uint ReflectionsStateFrameIndexMod8;
+uint ReflectionsRayDirectionFrameIndex;
 
 // Returns the jitter offset in the range [0, ReflectionDownsampleFactor - 1]
 float2 GetScreenTileJitter()

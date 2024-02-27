@@ -90,7 +90,7 @@ void ScreenProbeCompositeTracesWithScatterCS(
 						// Since the bilinear dithering weight is based on the exact direction of the ray sample, it also responds better to directional movements within a single texel.
 						float2 GatherTexelCoord = (RayTexelCoord + ProbeTexelCenter) * ScreenProbeGatherOctahedronResolution / MipSize - 0.5;
 						// Offset by half of the period of blue noise to minimize correlation
-						float2 Random = BlueNoiseVec2(ScreenTileCoord, RAY_DIRECTION_TEMPORAL_INDEX + BlueNoise.ModuloMasks.z / 2);
+						float2 Random = BlueNoiseVec2(ScreenTileCoord, ScreenProbeRayDirectionFrameIndex + BlueNoise.ModuloMasks.z / 2);
 						int2 QuantizedGatherTexelCoordInt = floor(GatherTexelCoord) + select(frac(GatherTexelCoord) < Random, int2(0, 0), int2(1, 1));
 						QuantizedGatherTexelCoord = OctahedralMapWrapBorder(QuantizedGatherTexelCoordInt + 1, ScreenProbeGatherOctahedronResolution + 2, 1);
 					}

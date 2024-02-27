@@ -115,9 +115,14 @@ float GLumenReflectionTemporalMaxFramesAccumulated = 32.0f;
 FAutoConsoleVariableRef CVarLumenReflectionTemporalMaxFramesAccumulated(
 	TEXT("r.Lumen.Reflections.Temporal.MaxFramesAccumulated"),
 	GLumenReflectionTemporalMaxFramesAccumulated,
-	TEXT(""),
-	ECVF_RenderThreadSafe
-	);
+	TEXT("Lower values cause the temporal filter to propagate lighting changes faster, but also increase flickering from noise."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+TAutoConsoleVariable<int32> CVarLumenReflectionTemporalMaxRayDirections(
+	TEXT("r.Lumen.Reflections.Temporal.MaxRayDirections"),
+	16,
+	TEXT("Number of possible random directions per pixel. Should be tweaked based on MaxFramesAccumulated."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 float GLumenReflectionNeighborhoodClampExpandWithResolveVariance = .1f;
 FAutoConsoleVariableRef CVarLumenReflectionNeighborhoodClampExpandWithResolveVariance(
@@ -1060,6 +1065,7 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 
 		ReflectionTracingParameters.ReflectionsStateFrameIndex = StateFrameIndex;
 		ReflectionTracingParameters.ReflectionsStateFrameIndexMod8 = StateFrameIndex % 8;
+		ReflectionTracingParameters.ReflectionsRayDirectionFrameIndex = StateFrameIndex % FMath::Clamp(CVarLumenReflectionTemporalMaxRayDirections.GetValueOnRenderThread(), 1, 128);
 	}
 
 	FRDGBufferRef VisualizeTracesData = nullptr;

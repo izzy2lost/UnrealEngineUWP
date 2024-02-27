@@ -130,7 +130,7 @@ void ScreenProbeGenerateLightSamplesCS(
 				else
 				{
 					//@todo - ReSTIR or at least proportional to light power
-					float Random = BlueNoiseScalar(LightSampleBufferCoord, RAY_DIRECTION_TEMPORAL_INDEX * NumLightSamples + LightSampleIndex);
+					float Random = BlueNoiseScalar(LightSampleBufferCoord, ScreenProbeRayDirectionFrameIndex * NumLightSamples + LightSampleIndex);
 					LightIndex = LumenLightStartIndex + min((uint)(Random * NumLumenLights), NumLumenLights - 1);
 					PDF = (float)NumLightSamples / (float)NumLumenLights;
 				}
@@ -193,7 +193,7 @@ void ScreenProbeGenerateLightSamplesCS(
 							float3 Unused;
 							float Unused2;
 
-							float2 RandSample = BlueNoiseVec2(LightSampleBufferCoord, RAY_DIRECTION_TEMPORAL_INDEX);
+							float2 RandSample = BlueNoiseVec2(LightSampleBufferCoord, ScreenProbeRayDirectionFrameIndex);
 
 							bool bValid = GenerateShadowRay(
 								LightParameters,
