@@ -1497,7 +1497,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 							float3 LightContrib = Contrib * LightSample.RadianceOverPdf * GetVolumetricScatteringIntensity(LightSampleLightId) * MaterialEval.Weight * MaterialEval.Pdf;
 							if (MISMode == 2)
 							{
-								LightContrib *= MISWeightRobust(LightSample.Pdf, MaterialEval.Pdf);
+								LightContrib *= MISWeightPower(LightSample.Pdf, MaterialEval.Pdf);
 							}
 							LightContrib *= TraceTransparentVisibilityRay(LightRay, 1.0, MissShaderIndex, bCastShadows, PathState.RandSequence);
 
@@ -1522,7 +1522,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 							float3 LightContrib = Contrib * MaterialSample.Weight * LightResult.Radiance * GetVolumetricScatteringIntensity(LightSampleLightId);
 							if (MISMode == 2)
 							{
-								LightContrib *= MISWeightRobust(MaterialSample.Pdf, LightResult.Pdf);
+								LightContrib *= MISWeightPower(MaterialSample.Pdf, LightResult.Pdf);
 							}
 							MaterialRay.TMax = LightResult.HitT;
 							LightContrib *= TraceTransparentVisibilityRay(MaterialRay, MaterialSample.Roughness, MissShaderIndex, bCastShadows, PathState.RandSequence);
@@ -1665,7 +1665,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 					float3 LightContrib = PathState.PathThroughput * LightSample.RadianceOverPdf * MaterialEval.Weight * MaterialEval.Pdf;
 					if (MISMode == 2)
 					{
-						LightContrib *= MISWeightRobust(LightSample.Pdf, MaterialEval.Pdf);
+						LightContrib *= MISWeightPower(LightSample.Pdf, MaterialEval.Pdf);
 					}
 					const bool bCastShadows = bIsVolumeSample ? CastsVolumeShadow(LightId) : CastsShadow(LightId);
 					const uint MissShaderIndex = GetLightMissShaderIndex(LightId);
@@ -1803,7 +1803,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 
 			if (bUseMIS)
 			{
-				LightContrib *= MISWeightRobust(MaterialSample.Pdf, LightResult.Pdf * LightPickPdf);
+				LightContrib *= MISWeightPower(MaterialSample.Pdf, LightResult.Pdf * LightPickPdf);
 			}
 
 			if (any(LightContrib > 0))

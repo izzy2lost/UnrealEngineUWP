@@ -612,8 +612,8 @@ void PathTracingKernel(
 						float3 BentNormalVector = LightSample.Direction / LightSample.Pdf / PI * Visibility;
 						if (MISMode == 2)
 						{
-							LightContrib *= MISWeightRobust(LightSample.Pdf, MaterialEval.Pdf);
-							BentNormalVector *= MISWeightRobust(LightSample.Pdf, MaterialEval.Pdf);
+							LightContrib *= MISWeightPower(LightSample.Pdf, MaterialEval.Pdf);
+							BentNormalVector *= MISWeightPower(LightSample.Pdf, MaterialEval.Pdf);
 						}
 
 						// Record the contribution
@@ -768,10 +768,10 @@ void PathTracingKernel(
 					}
 					float LightPickPdf = (LightPickingCdf[Index] - PreviousCdfValue) / LightPickingCdfSum;
 
-					LightContrib *= MISWeightRobust(MaterialSample.Pdf, LightResult.Pdf * LightPickPdf);
+					LightContrib *= MISWeightPower(MaterialSample.Pdf, LightResult.Pdf * LightPickPdf);
 
 					// Separate direct lighting (bounce 0) for GPU Lightmass
-					BentNormalVector *= MISWeightRobust(MaterialSample.Pdf, LightResult.Pdf * LightPickPdf);
+					BentNormalVector *= MISWeightPower(MaterialSample.Pdf, LightResult.Pdf * LightPickPdf);
 				}
 
 				if (any(LightContrib > 0))

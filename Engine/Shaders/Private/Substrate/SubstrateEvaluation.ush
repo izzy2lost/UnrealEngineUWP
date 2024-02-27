@@ -1181,33 +1181,6 @@ float SubstrateLobeSelectionProb(float3 A, float3 B)
 	return SumA / (SumA + SumB + 1e-6);
 }
 
-// Takes as input the sample weight and pdf for a certain lobe of a mixed model, together with the probability of picking that lobe
-// This function then updates a running total Weight and Pdf value that represents the overall contribution of the BxDF
-// This function should be called when a BxDF is made up of multiple lobes combined with a sum to correctly account for the probability
-// of sampling directions via all lobes.
-// NOTE: this function also contains special logic to handle cases with infinite pdfs cleanly
-void SubstrateAddLobeWithMIS(inout float3 Weight, inout float Pdf, float3 LobeWeight, float LobePdf, float LobeProb)
-{
-	const float MinLobeProb = 1.1754943508e-38; // smallest normal float
-	if (LobeProb > MinLobeProb)
-	{
-		LobePdf *= LobeProb;
-		LobeWeight *= 1 / LobeProb;
-
-		// See discussion in MISWeightRobust for why this is better than LobePdf / (Pdf + LobePdf)
-		float LocalMISWeight;
-		if (Pdf < LobePdf)
-			LocalMISWeight = 1 / (1 + Pdf / LobePdf);
-		else if (LobePdf < Pdf)
-			LocalMISWeight = 1 - 1 / (1 + LobePdf / Pdf);
-		else
-			LocalMISWeight = 0.5f; // avoid (rare) inf/inf
-
-		Weight = lerp(Weight, LobeWeight, LocalMISWeight);
-		Pdf += LobePdf;
-	}
-}
-
 // Select a term based based on a random value and a PDF, and returns the selected term
 // The random value is rescale/updated to reusable after evaluation
 #define SubstrateSelectLobe_Type(TDataType) TDataType SubstrateSelectLobe(inout float InE, float InPDF, TDataType InA, TDataType InB)\
@@ -1306,15 +1279,15 @@ FSubstrateImportanceSampleResult SubstrateImportanceSampleBSDF(FSubstrateBSDFCon
 			Out.Weight = 0;
 			if (InTermMask & SHADING_TERM_DIFFUSE)
 			{
-				SubstrateAddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.DiffusePathValue / Evaluate.DiffusePDF, Evaluate.DiffusePDF, TermPDF);
+				AddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.DiffusePathValue / Evaluate.DiffusePDF, Evaluate.DiffusePDF, TermPDF);
 			}
 
 			if (InTermMask & SHADING_TERM_SPECULAR)
 			{
-				SubstrateAddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularPathValue / Evaluate.SpecularPDF, Evaluate.SpecularPDF, (1-TermPDF) * SpecularLobePDF);
+				AddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularPathValue / Evaluate.SpecularPDF, Evaluate.SpecularPDF, (1-TermPDF) * SpecularLobePDF);
 				if (bHaziness)
 				{
-					SubstrateAddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularHazePathValue / Evaluate.SpecularHazePDF, Evaluate.SpecularPDF, (1 - TermPDF) * (1-SpecularLobePDF));
+					AddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularHazePathValue / Evaluate.SpecularHazePDF, Evaluate.SpecularPDF, (1 - TermPDF) * (1-SpecularLobePDF));
 				}
 			}
 
@@ -1401,12 +1374,12 @@ FSubstrateImportanceSampleResult SubstrateImportanceSampleBSDF(FSubstrateBSDFCon
 			Out.Weight = 0;
 			if (InTermMask & SHADING_TERM_DIFFUSE)
 			{
-				SubstrateAddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.DiffusePathValue / Evaluate.DiffusePDF, Evaluate.DiffusePDF, TermPDF);
+				AddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.DiffusePathValue / Evaluate.DiffusePDF, Evaluate.DiffusePDF, TermPDF);
 			}
 
 			if (InTermMask & SHADING_TERM_SPECULAR)
 			{
-				SubstrateAddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularPathValue / Evaluate.SpecularPDF, Evaluate.SpecularPDF, (1-TermPDF));
+				AddLobeWithMIS(Out.Weight, Out.PDF, Evaluate.SpecularPathValue / Evaluate.SpecularPDF, Evaluate.SpecularPDF, (1-TermPDF));
 			}
 			break;
 		}
