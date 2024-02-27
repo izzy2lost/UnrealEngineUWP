@@ -68,10 +68,6 @@ $ InternalPluginDependencies (List&lt;String&gt;): A list of Plugin names that a
 
 $ DisableMergingModuleAndGeneratedFilesInUnityFiles (String[]): List of modules that disables merging module and generated cpp files in the same unity files.
 
-$ bStaticAnalyzerProjectOnly (Boolean): Only run static analysis against project modules, skipping engine modules
-
-$ bStaticAnalyzerIncludeGenerated (Boolean): When enabled, generated source files will be analyzed
-
 $ DisableUnityBuildForModules (String[]): List of modules to disable unity builds for
 
 $ EnableOptimizeCodeForModules (String[]): List of modules to enable optimizations for
@@ -423,6 +419,12 @@ $ StaticAnalyzer (StaticAnalyzer): Whether static code analysis should be enable
 $ StaticAnalyzerOutputType (StaticAnalyzerOutputType): The output type to use for the static analyzer. This is only supported for Clang.
 
 $ StaticAnalyzerMode (StaticAnalyzerMode): The mode to use for the static analyzer. This is only supported for Clang. Shallow mode completes quicker but is generally not recommended.
+
+$ StaticAnalyzerPVSPrintLevel (Int32): The level of warnings to print when analyzing using PVS-Studio
+
+$ bStaticAnalyzerProjectOnly (Boolean): Only run static analysis against project modules, skipping engine modules
+
+$ bStaticAnalyzerIncludeGenerated (Boolean): When enabled, generated source files will be analyzed
 
 $ MinFilesUsingPrecompiledHeader (Int32): The minimum number of files that must use a pre-compiled header before it will be created and used.
 
