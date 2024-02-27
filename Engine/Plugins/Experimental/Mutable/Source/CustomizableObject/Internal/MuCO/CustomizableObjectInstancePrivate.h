@@ -375,9 +375,6 @@ public:
 	bool bShowOnlyRuntimeParameters = true;
 	bool bShowOnlyRelevantParameters = true;
 	bool bShowUISections = false;
-
-	/** Flag to know if a property of this instance changed in the editor */
-	bool bEditorPropertyChanged = false;
 	
 	// TEMP VARIABLE to check the Min desired LODs for this instance
 	TWeakObjectPtr<UCustomizableObjectInstanceUsage> NearestToActor;

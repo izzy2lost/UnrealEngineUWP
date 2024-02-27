@@ -982,8 +982,6 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 			}
 		}
 	}
-
-	CustomizableObjectInstance->GetPrivate()->bEditorPropertyChanged = false;
 }
 
 

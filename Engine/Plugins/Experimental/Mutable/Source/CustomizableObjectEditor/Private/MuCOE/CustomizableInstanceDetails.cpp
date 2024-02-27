@@ -1849,11 +1849,8 @@ void FCustomizableInstanceDetails::OnBoolParameterChanged(ECheckBoxState InCheck
 
 FReply FCustomizableInstanceDetails::OnCopyAllParameters()
 {
-	FBufferArchive ParametersBuffer;
-	CustomInstance->SaveDescriptor(ParametersBuffer, true);
-
-	FString StringifyedData = FString::FromHexBlob(ParametersBuffer.GetData(), ParametersBuffer.Num());
-	FPlatformApplicationMisc::ClipboardCopy(StringifyedData.GetCharArray().GetData());
+	const FString ExportedText = CustomInstance->GetPrivate()->GetDescriptor().ToString();
+	FPlatformApplicationMisc::ClipboardCopy(*ExportedText);
 
 	return FReply::Handled();
 }
@@ -1861,27 +1858,31 @@ FReply FCustomizableInstanceDetails::OnCopyAllParameters()
 
 FReply FCustomizableInstanceDetails::OnPasteAllParameters()
 {
-	FString StringifiedData;
-	FPlatformApplicationMisc::ClipboardPaste(StringifiedData);
+	CustomInstance->Modify();
 
-	if (!StringifiedData.IsEmpty())
+	FString ClipText;
+	FPlatformApplicationMisc::ClipboardPaste(ClipText);
+	
+	FCustomizableObjectInstanceDescriptor& Descriptor = CustomInstance->GetPrivate()->GetDescriptor();
+	const UScriptStruct* Struct = Descriptor.StaticStruct();
+
+	const int32 MinLOD = Descriptor.GetMinLod();
+	const int32 MaxLOD = Descriptor.GetMaxLod();
+	const TArray<uint16> RequestedLODLevels = Descriptor.GetRequestedLODLevels();
+	
+	if (Struct->ImportText(*ClipText, &Descriptor, nullptr, 0, GLog, GetPathNameSafe(Struct)))
 	{
-		TArray<uint8> DescriptorData;
-		// Each char represents a hex number i.e. half byte.
-		DescriptorData.SetNum(StringifiedData.Len() * 2);
-		FString::ToHexBlob(StringifiedData, DescriptorData.GetData(), DescriptorData.Num());
-		FMemoryReader FromBinary = FMemoryReader(DescriptorData, true); //true, free data after done;
-		FromBinary.Seek(0);
-
-		CustomInstance->LoadDescriptor(FromBinary);
-		CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
-		CustomInstance->UpdateSkeletalMeshAsync(true, true);
-		CustomInstance->PostEditChange();
-
-		// Non-continuous change: collect garbage.
-		GEngine->ForceGarbageCollection();
+		// Keep current LOD
+		Descriptor.SetMinLod(MinLOD);
+		Descriptor.SetMaxLod(MaxLOD);
+		Descriptor.SetRequestedLODLevels(RequestedLODLevels);
+		
+		CustomInstance->UpdateSkeletalMeshAsync(true, true);		
 	}
 
+	CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
+
+	
 	return FReply::Handled();
 }
 
