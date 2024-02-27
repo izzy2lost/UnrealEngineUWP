@@ -227,6 +227,11 @@ bool UPoseSearchFeatureChannel::CanBeNormalizedWith(const UPoseSearchFeatureChan
 		return false;
 	}
 
+	if (!GetNormalizationGroup().IsNone() && GetNormalizationGroup() == Other->GetNormalizationGroup())
+	{
+		return true;
+	}
+
 	TLabelBuilder ThisLabelBuilder, OtherLabelBuilder;
 	if (GetLabel(ThisLabelBuilder).ToString() != Other->GetLabel(OtherLabelBuilder).ToString())
 	{
