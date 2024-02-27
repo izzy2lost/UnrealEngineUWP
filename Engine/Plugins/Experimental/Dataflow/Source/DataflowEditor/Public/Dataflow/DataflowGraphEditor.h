@@ -122,6 +122,15 @@ public:
 	/** */
 	void ZoomToFitGraph();
 
+	/** */
+	void CopySelectedNodes();
+
+	/** */
+	void CutSelectedNodes();
+
+	/** */
+	void PasteSelectedNodes();
+
 	SGraphEditor* GetGraphEditor() { return (SGraphEditor*)this; }
 
 	/** FGCObject interface */

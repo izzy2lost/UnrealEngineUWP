@@ -73,3 +73,28 @@ public:
 
 	TObjectPtr<UEdGraphNode_Comment> CommentNodeToDuplicate;
 };
+
+//
+// Action to paste a comment node in the graph
+//
+USTRUCT()
+struct DATAFLOWEDITOR_API FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode : public FEdGraphSchemaAction
+{
+	GENERATED_USTRUCT_BODY();
+
+public:
+	FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode(const TSharedPtr<SGraphEditor>& InGraphEditor) : FEdGraphSchemaAction()
+		, GraphEditor(InGraphEditor)
+	{}
+
+	FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode() {}
+
+	static TSharedPtr<FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode> CreateAction(UEdGraph* ParentGraph, const TSharedPtr<SGraphEditor>& GraphEditor);
+
+	virtual UEdGraphNode* PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) override;
+
+	TSharedPtr<SGraphEditor> GraphEditor;
+	FName NodeName;
+	FVector2D Size;
+	FLinearColor Color;
+};

@@ -158,6 +158,8 @@ namespace Dataflow
 		DATAFLOWCORE_API virtual void Serialize(FArchive& Ar, UObject* OwningObject);
 		const TSet<FName>& GetDisabledNodes() const { return DisabledNodes; }
 
+		DATAFLOWCORE_API static void SerializeForSaving(FArchive& Ar, FGraph* InGraph, TArray<TSharedPtr<FDataflowNode>>& InNodes, TArray<FLink>& InConnections);
+		DATAFLOWCORE_API static void SerializeForLoading(FArchive& Ar, FGraph* InGraph, UObject* OwningObject);
 	};
 }
 
