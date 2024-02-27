@@ -82,7 +82,7 @@ namespace UnrealBuildTool
 
 		private static Dictionary<UnrealArch, string[]> ModulesToSkip = new() {
 			{ UnrealArch.Arm64, new string[] {  } },
-			{ UnrealArch.X64,   new string[] { "OnlineSubsystemOculus", "OculusHMD", "OculusMR", "OnlineSubsystemGooglePlay" } }
+			{ UnrealArch.X64,   new string[] { "OnlineSubsystemOculus", "OculusHMD", "OculusMR" } }
 		};
 
 		private static Dictionary<UnrealArch, string[]> GeneratedModulesToSkip = new() {
