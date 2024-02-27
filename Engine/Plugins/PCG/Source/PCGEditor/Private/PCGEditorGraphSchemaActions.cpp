@@ -570,6 +570,8 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewSubgraphElement::MakeGraphNode(UPCG
 		return nullptr;
 	}
 
+	NewPCGNode->UpdateAfterSettingsChangeDuringCreation();
+
 	FGraphNodeCreator<UPCGEditorGraphNode> NodeCreator(*InEditorGraph);
 	UPCGEditorGraphNode* NewNode = NodeCreator.CreateUserInvokedNode(bInSelectNewNode);
 	NewNode->Construct(NewPCGNode);
