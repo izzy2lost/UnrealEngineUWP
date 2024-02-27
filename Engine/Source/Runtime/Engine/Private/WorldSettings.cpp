@@ -229,7 +229,7 @@ void AWorldSettings::SetWorldPartition(UWorldPartition* InWorldPartition)
 
 void AWorldSettings::ApplyWorldPartitionForcedSettings()
 {
-	const auto CVarAllowStaticLightingOnWPMaps = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLightingInWorldPartitionMaps"));
+	static const auto CVarAllowStaticLightingOnWPMaps = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLightingInWorldPartitionMaps"));
 
 	bEnableWorldComposition = false;
 	bPrecomputeVisibility = false;
