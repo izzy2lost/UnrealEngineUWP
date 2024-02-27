@@ -410,6 +410,10 @@ void MainPS(
 #include "HairStrandsVoxelPageTraversal.ush"
 #endif
 
+#define USE_BLUE_NOISE 1
+#include "../BlueNoise.ush"
+DEFINE_HAIR_BLUE_NOISE_JITTER_FUNCTION
+
 float4				Voxel_TranslatedLightPosition_LightDirection;
 uint				Voxel_MacroGroupCount;
 uint				Voxel_MacroGroupId;
@@ -443,7 +447,11 @@ float3 GetShadowMaskRandom(uint2 PixelPosition)
 	}
 	else if (Voxel_RandomType == 2)
 	{
+		#if USE_BLUE_NOISE
+		Random = GetHairBlueNoiseJitter(PixelPosition, 0 /*SampleIndex*/, 1 /*MaxSampleCount*/, View.StateFrameIndexMod8/*TimeIndex*/).xyz;
+		#else
 		Random = GetHairVoxelJitter2(PixelPosition, View.StateFrameIndexMod8, VirtualVoxel.JitterMode).xyz;
+		#endif
 	}
 	return Random;
 }

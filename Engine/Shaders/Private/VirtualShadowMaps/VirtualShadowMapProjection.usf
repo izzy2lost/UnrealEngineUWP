@@ -25,6 +25,9 @@
 #define VOXEL_TRAVERSAL_DEBUG 0
 #include "../HairStrands/HairStrandsVoxelPageCommon.ush"
 #include "../HairStrands/HairStrandsVoxelPageTraversal.ush"
+#if USE_BLUE_NOISE
+DEFINE_HAIR_BLUE_NOISE_JITTER_FUNCTION
+#endif
 #endif
 
 #ifndef DIRECTIONAL_LIGHT
@@ -364,7 +367,12 @@ FVirtualShadowMapSampleResult ProjectLight(
 			float4 Random = 0;
 			if (Result.ShadowFactor > 0)
 			{
+				#if USE_BLUE_NOISE
+				Random = GetHairBlueNoiseJitter(PixelPos, 0 /*SampleIndex*/, 1 /*MaxSampleCount*/, View.StateFrameIndexMod8/*TimeIndex*/);
+				#else
 				Random = ComputeRandom4(PixelPos);
+				#endif
+
 				uint RayIndex = min(Random.w * SMRTRayCount, SMRTRayCount - 1);
 
 			#if DIRECTIONAL_LIGHT

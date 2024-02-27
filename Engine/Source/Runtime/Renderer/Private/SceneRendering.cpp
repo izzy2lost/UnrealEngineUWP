@@ -2653,7 +2653,8 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 			ShouldRenderLumenReflections(*ViewInfo) || 
 			ShouldRenderVolumetricCloudWithBlueNoise_GameThread(Scene, *ViewInfo) || 
 			UseVirtualShadowMaps(Scene->GetShaderPlatform(), Scene->GetFeatureLevel()) ||
-			Substrate::IsGlintEnabled(ViewInfo->GetShaderPlatform()))
+			Substrate::IsGlintEnabled(ViewInfo->GetShaderPlatform()) ||
+			IsHairStrandsSupported(EHairStrandsShaderType::Strands, ViewInfo->GetShaderPlatform()))
 		{
 			GEngine->LoadBlueNoiseTexture();
 		}
