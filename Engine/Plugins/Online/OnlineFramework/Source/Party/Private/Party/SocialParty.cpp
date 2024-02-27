@@ -1785,6 +1785,7 @@ void USocialParty::DisconnectParty()
 
 void USocialParty::FinalizePartyLeave(EMemberExitedReason Reason)
 {
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_USocialParty_FinalizePartyLeave);
 	UE_LOG(LogParty, Verbose, TEXT("Local player [%s] is no longer in party [%s]. Reason [%s]."), *GetOwningLocalMember().ToDebugString(false), *ToDebugString(), ToString(Reason));
 
 	if (!bIsLeavingParty)
