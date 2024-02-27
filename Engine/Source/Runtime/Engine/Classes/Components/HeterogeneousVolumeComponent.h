@@ -119,6 +119,7 @@ private:
 	static USparseVolumeTexture* GetSparseVolumeTexture(UMaterialInterface* MaterialInterface, int32 ParameterIndex, FName* OutParamName = nullptr);
 	static UMaterialInstanceDynamic* CreateOrCastToMID(UMaterialInterface* MaterialInterface);
 	void OnSparseVolumeTextureChanged(const USparseVolumeTexture* SparseVolumeTexture);
+	UMaterialInterface* GetHeterogeneousVolumeMaterial() const; // Gets the UMaterialInterface* returned by GetMaterial(0), but returns nullptr if the material is incompatible with HeterogeneousVolumes.
 };
 
 /**
