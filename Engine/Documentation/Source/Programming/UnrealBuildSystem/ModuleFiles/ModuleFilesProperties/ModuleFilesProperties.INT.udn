@@ -12,8 +12,6 @@ $ Logger (ILogger): Accessor for the target logger
 
 $ HasPackageOverride (Boolean): Returns true if there has been an override type specified on this module
 
-$ SDKVersionRelevantPlatforms (List&lt;UnrealTargetPlatform&gt;): If this contains a platform and the project has had it's SDK version overriden from default, this module will be compiled as a project module, instead of shared engine module
-
 $ AutoSdkDirectory (String): The AutoSDK directory for the active host platform
 
 $ EngineDirectory (String): The current engine directory
