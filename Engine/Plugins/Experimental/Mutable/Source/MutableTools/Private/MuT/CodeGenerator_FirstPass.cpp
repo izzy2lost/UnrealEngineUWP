@@ -254,6 +254,8 @@ namespace mu
 		if (Surface)
 		{
 			FSurface::FEdit edit;
+			edit.PositiveTags = m_currentPositiveTags;
+			edit.NegativeTags = m_currentNegativeTags;
             edit.node = Private;
             edit.condition = m_currentCondition.Last().objectCondition;
 			Surface->edits.Add(edit);

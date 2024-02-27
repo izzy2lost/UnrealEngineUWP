@@ -108,6 +108,12 @@ namespace mu
 			// All surface editing nodes that edit this surface
             struct FEdit
             {
+            	// List of tags that are required for the presence of this surface
+            	TArray<FString> PositiveTags;
+
+            	// List of tags that block the presence of this surface
+            	TArray<FString> NegativeTags;
+            	
                 //! Condition that enables the effects of this edit node on the surface
                 Ptr<ASTOp> condition;
 
