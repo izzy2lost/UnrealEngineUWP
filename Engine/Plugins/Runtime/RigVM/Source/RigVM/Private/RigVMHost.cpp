@@ -154,22 +154,25 @@ void URigVMHost::PostLoad()
 
 	// In packaged builds, initialize the CDO VM
 	// In editor, the VM will be recompiled and initialized at URigVMBlueprint::HandlePackageDone::RecompileVM
-#if !WITH_EDITOR
-	if (VM != nullptr)
+#if WITH_EDITOR
+	if(GetPackage()->bIsCookedForEditor)
+#endif
 	{
-		if (HasAnyFlags(RF_ClassDefaultObject))
+		if (VM != nullptr)
 		{
-			VM->ConditionalPostLoad();
-			InitializeCDOVM();
-		}
+			if (HasAnyFlags(RF_ClassDefaultObject))
+			{
+				VM->ConditionalPostLoad();
+				InitializeCDOVM();
+			}
 
-		if (!ensure(VM->ValidateBytecode()))
-		{
-			UE_LOG(LogRigVM, Warning, TEXT("%s: Invalid bytecode detected. VM will be reset."), *GetPathName());
-			VM->Reset(ExtendedExecuteContext);
+			if (!ensure(VM->ValidateBytecode()))
+			{
+				UE_LOG(LogRigVM, Warning, TEXT("%s: Invalid bytecode detected. VM will be reset."), *GetPathName());
+				VM->Reset(ExtendedExecuteContext);
+			}
 		}
 	}
-#endif // !WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
 	if (VMSnapshotBeforeExecution)

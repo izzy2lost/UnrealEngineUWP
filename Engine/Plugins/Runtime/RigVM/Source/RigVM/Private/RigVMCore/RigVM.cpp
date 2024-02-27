@@ -294,29 +294,32 @@ void URigVM::PostLoad()
 
 	// In packaged builds, initialize the CDO VM
 	// In editor, the VM will be recompiled and initialized at URigVMBlueprint::HandlePackageDone::RecompileVM
-#if !WITH_EDITOR
-	Instructions.Reset();
-	FunctionsStorage.Reset();
-	FactoriesStorage.Reset();
-	ParametersNameMap.Reset();
-
-	for (int32 Index = 0; Index < Parameters.Num(); Index++)
+#if WITH_EDITOR
+	if (GetPackage()->bIsCookedForEditor)
+#endif
 	{
-		ParametersNameMap.Add(Parameters[Index].Name, Index);
+		Instructions.Reset();
+		FunctionsStorage.Reset();
+		FactoriesStorage.Reset();
+		ParametersNameMap.Reset();
+
+		for (int32 Index = 0; Index < Parameters.Num(); Index++)
+		{
+			ParametersNameMap.Add(Parameters[Index].Name, Index);
+		}
+
+		// Rebuild functions storage from serialized function names
+		ResolveFunctionsIfRequired();
+
+		// Rebuild instructions from ByteCodeStorage
+		RefreshInstructionsIfRequired();
+
+		// rebuild the bytecode to adjust for byte shifts in shipping
+		RebuildByteCodeOnLoad();
+
+		// rebuild the argument name cache, so it is already calculated during init
+		RefreshArgumentNameCaches();
 	}
-
-	// Rebuild functions storage from serialized function names
-	ResolveFunctionsIfRequired();
-
-	// Rebuild instructions from ByteCodeStorage
-	RefreshInstructionsIfRequired();
-
-	// rebuild the bytecode to adjust for byte shifts in shipping
-	RebuildByteCodeOnLoad();
-
-	// rebuild the argument name cache, so it is already calculated during init
-	RefreshArgumentNameCaches();
-#endif //!WITH_EDITOR
 }
 
 void URigVM::RefreshArgumentNameCaches()
