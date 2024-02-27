@@ -112,6 +112,8 @@ void FSkeletalMeshObjectStatic::InitResources(USkinnedMeshComponent* InMeshCompo
 								Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
 							}
 
+							RayTracingGeometry.LODIndex = LODIndex;
+
 							RayTracingGeometry.SetInitializer(Initializer);
 							RayTracingGeometry.InitResource(RHICmdList);
 

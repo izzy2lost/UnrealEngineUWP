@@ -548,8 +548,8 @@ public:
 
 	bool IsCachedRayTracingGeometryValid() const;
 
-	RENDERER_API FRayTracingGeometry* GetStaticRayTracingGeometry(int32 LodLevel) const;
-	RENDERER_API FRayTracingGeometry* GetValidStaticRayTracingGeometry(int32 MinLodLevel) const;
+	RENDERER_API FRayTracingGeometry* GetStaticRayTracingGeometry(int8 LODIndex) const;
+	RENDERER_API FRayTracingGeometry* GetValidStaticRayTracingGeometry(int8& InOutLODIndex) const;
 
 	UE_DEPRECATED(5.4, "GetStaticRayTracingGeometryInstance has been deprecated. Use GetStaticRayTracingGeometry / GetValidStaticRayTracingGeometry instead.")
 	RENDERER_API FRHIRayTracingGeometry* GetStaticRayTracingGeometryInstance(int LodLevel) const;

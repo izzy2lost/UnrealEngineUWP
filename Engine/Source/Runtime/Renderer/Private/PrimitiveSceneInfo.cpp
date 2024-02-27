@@ -398,11 +398,11 @@ bool FPrimitiveSceneInfo::IsCachedRayTracingGeometryValid() const
 	return false;
 }
 
-FRayTracingGeometry* FPrimitiveSceneInfo::GetStaticRayTracingGeometry(int32 LodLevel) const
+FRayTracingGeometry* FPrimitiveSceneInfo::GetStaticRayTracingGeometry(int8 LODIndex) const
 {
-	if (StaticRayTracingGeometries.Num() > LodLevel)
+	if (LODIndex < StaticRayTracingGeometries.Num())
 	{
-		return StaticRayTracingGeometries[LodLevel];
+		return StaticRayTracingGeometries[LODIndex];
 	}
 	else
 	{
@@ -410,20 +410,20 @@ FRayTracingGeometry* FPrimitiveSceneInfo::GetStaticRayTracingGeometry(int32 LodL
 	}
 }
 
-FRayTracingGeometry* FPrimitiveSceneInfo::GetValidStaticRayTracingGeometry(int32 MinLodLevel) const
+FRayTracingGeometry* FPrimitiveSceneInfo::GetValidStaticRayTracingGeometry(int8& InOutLODIndex) const
 {
 	// TODO: Move HasPendingBuildRequest() / BoostBuildPriority() out of this function
 
-	for (int32 Index = MinLodLevel; Index < StaticRayTracingGeometries.Num(); ++Index)
+	for (; InOutLODIndex < StaticRayTracingGeometries.Num(); ++InOutLODIndex)
 	{
-		if (StaticRayTracingGeometries[Index]->HasPendingBuildRequest())
+		if (StaticRayTracingGeometries[InOutLODIndex]->HasPendingBuildRequest())
 		{
-			ensure(StaticRayTracingGeometries[Index]->IsValid());
-			StaticRayTracingGeometries[Index]->BoostBuildPriority();
+			ensure(StaticRayTracingGeometries[InOutLODIndex]->IsValid());
+			StaticRayTracingGeometries[InOutLODIndex]->BoostBuildPriority();
 		}
-		else if (StaticRayTracingGeometries[Index]->IsValid())
+		else if (StaticRayTracingGeometries[InOutLODIndex]->IsValid())
 		{
-			return StaticRayTracingGeometries[Index];
+			return StaticRayTracingGeometries[InOutLODIndex];
 		}
 	}
 

@@ -1917,7 +1917,7 @@ void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel,
 	}
 
 #if RHI_RAYTRACING
-	if (IsRayTracingAllowed())
+	if (IsRayTracingAllowed()) // TODO: Could move most of this to FStaticMeshLODResources::InitResources
 	{
 		ENQUEUE_RENDER_COMMAND(InitRayTracingGeometryForInlinedLODs)(
 			[this](FRHICommandListImmediate& RHICmdList)
@@ -1936,6 +1936,7 @@ void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel,
 							LODResources[LODIndex].RayTracingGeometry.Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
 						}
 
+						LODResources[LODIndex].RayTracingGeometry.LODIndex = LODIndex;
 						LODResources[LODIndex].RayTracingGeometry.InitResource(RHICmdList);
 					}
 				}

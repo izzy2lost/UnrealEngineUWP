@@ -548,6 +548,8 @@ namespace RayTracing
 								return;
 							}
 
+							check(RayTracingGeometry->LODIndex == LODIndex);
+
 							// Sometimes LODIndex is out of range because it is clamped by ClampToFirstLOD, like the requested LOD is being streamed in and hasn't been available
 							// According to InitViews, we should hide the static mesh instance
 							if (SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD.IsValidIndex(LODIndex))
