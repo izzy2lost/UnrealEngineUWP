@@ -668,6 +668,8 @@ RetType* UMovieGraphConfig::AddMember(TArray<TObjectPtr<ArrType>>& InMemberArray
 {
 	static_assert(std::is_base_of_v<UMovieGraphMember, RetType>, "RetType is not derived from UMovieGraphMember");
 	
+	Modify();
+	
 	// TODO: This can be replaced with just CreateDefaultSubobject() when AddDefaultMembers() isn't called from PostLoad()
 	//
 	// This method will be called in two cases: 1) when default members are being added to a new graph when it is being
@@ -845,6 +847,8 @@ bool UMovieGraphConfig::DeleteVariableMember(UMovieGraphVariable* VariableMember
 	{
 		return false;
 	}
+
+	Modify();
 	
 	// Find all accessor nodes using this graph variable
 	TArray<TObjectPtr<UMovieGraphNode>> NodesToRemove =
@@ -898,6 +902,8 @@ bool UMovieGraphConfig::DeleteInputMember(UMovieGraphInput* InputMemberToDelete)
 {
 	if (InputMemberToDelete)
 	{
+		Modify();
+		
 		Inputs.RemoveSingle(InputMemberToDelete);
 		RemoveOutboundEdges(InputNode, FName(InputMemberToDelete->GetMemberName()));
 
@@ -914,6 +920,8 @@ bool UMovieGraphConfig::DeleteOutputMember(UMovieGraphOutput* OutputMemberToDele
 {
 	if (OutputMemberToDelete)
 	{
+		Modify();
+		
 		Outputs.RemoveSingle(OutputMemberToDelete);
 		RemoveInboundEdges(OutputNode, FName(OutputMemberToDelete->GetMemberName()));
 
