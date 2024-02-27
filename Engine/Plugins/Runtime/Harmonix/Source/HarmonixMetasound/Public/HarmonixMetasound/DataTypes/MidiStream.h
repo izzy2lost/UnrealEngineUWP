@@ -117,7 +117,6 @@ namespace HarmonixMetasound
 		void UpdateActiveVoice(const FMidiStreamEvent& Event);
 		TSet<FMidiVoiceId> ActiveVoices;
 
-		static TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> DummyClock;
 		TWeakPtr<const FMidiClock, ESPMode::NotThreadSafe> Clock;
 
 		// Map to handle re-mapping merged MIDI events, which helps to disambiguate split/transposed notes

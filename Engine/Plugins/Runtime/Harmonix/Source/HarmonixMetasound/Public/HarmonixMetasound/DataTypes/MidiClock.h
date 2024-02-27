@@ -63,11 +63,10 @@ namespace HarmonixMetasound
 		static constexpr int32 kMidiGranularity = 128;
 		
 		explicit FMidiClock(const Metasound::FOperatorSettings& InSettings);
+		virtual ~FMidiClock();
 
 		FMidiClock(const FMidiClock& Other);
 		FMidiClock& operator=(const FMidiClock& Other);
-
-		virtual ~FMidiClock();
 
 		void ResetAndStart(int32 FrameIndex, bool SeekToStart = true);
 
@@ -177,7 +176,7 @@ namespace HarmonixMetasound
 		void UnregisterPlayCursor(FMidiPlayCursor* PlayCursor, bool WarnOnFail = true) const      { DrivingMidiPlayCursorMgr->UnregisterPlayCursor(PlayCursor, WarnOnFail);    }
 		void UnregisterAllPlayCursors()                                                           { DrivingMidiPlayCursorMgr->UnregisterAllPlayCursors();                      }
 
-		const TSharedPtr<FMidiPlayCursorMgr>& GetDrivingMidiPlayCursorMgr() const { return DrivingMidiPlayCursorMgr; }
+		TSharedPtr<FMidiPlayCursorMgr> GetDrivingMidiPlayCursorMgr() const { return DrivingMidiPlayCursorMgr.ToSharedPtr(); }
 		//*****************************************************************************************
 
 		void WriteAdvance(int32 StartFrameIndex, int32 EndFrameIndex, float InSpeed = 1.0f);
@@ -237,7 +236,7 @@ namespace HarmonixMetasound
 		TArray<FMidiClockEvent> MidiClockEventsInBlock;
 
 		bool SmoothingEnabled = false;
-		TSharedPtr<FMidiPlayCursorMgr> DrivingMidiPlayCursorMgr;
+		TSharedRef<FMidiPlayCursorMgr> DrivingMidiPlayCursorMgr;
 	};
 
 	// Declare aliases IN the namespace...
