@@ -114,6 +114,8 @@ private:
 	void ResetControlRigItems();
 	void ResetSequencerItems();
 
+	FCachedRigElement& GetOwnerControlElement();
+
 public:
 
 	//if individual it will show up independently, this will happen for certain nested controls

@@ -396,7 +396,7 @@ void SControlRigDetails::UpdateProxies()
 							}
 							if (UControlRigControlsProxy* ExistingProxy = GetProxyWithSameType(AllProxies, ParentProxy->Type, EnumPtr != nullptr))
 							{
-								ParentProxy->AddChildProxy(Proxy);
+								ExistingProxy->AddChildProxy(Proxy);
 							}
 						}
 						else
