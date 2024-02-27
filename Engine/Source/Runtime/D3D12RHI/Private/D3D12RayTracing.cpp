@@ -1266,8 +1266,6 @@ private:
 #endif // DO_CHECK && DO_GUARD_SLOW
 
 		FMemory::Memcpy(Data.GetData() + WriteOffset, InData, InDataSize);
-
-		bIsDirty = true;
 	}
 
 	void WriteLocalShaderRecord(uint32 ShaderTableOffset, uint32 RecordIndex, uint32 OffsetWithinRecord, const void* InData, uint32 InDataSize)
@@ -1424,8 +1422,6 @@ public:
 			Data.GetData() + DestOffset,
 			Data.GetData() + SourceOffset,
 			CopySize);
-
-		bIsDirty = true;
 	}
 
 	void CopyHitGroupParameters(uint32 InDestRecordIndex, uint32 InSourceRecordIndex, uint32 InOffsetWithinRootSignature)
@@ -5038,6 +5034,8 @@ void FD3D12CommandContext::RHISetRayTracingBindings(
 	const int32 ItemsPerTask = 1024;
 
 	ParallelForWithExistingTaskContext(TEXT("SetRayTracingBindings"), MakeArrayView(TaskContexts), NumBindings, ItemsPerTask, BindingTask);
+
+	ShaderTable->bIsDirty = true;
 }
 
 void FD3D12CommandContext::RHISetRayTracingHitGroup(
@@ -5066,6 +5064,8 @@ void FD3D12CommandContext::RHISetRayTracingHitGroup(
 		LooseParameterData,
 		UserData,
 		WorkerIndex);
+
+	ShaderTable->bIsDirty = true;
 }
 
 void FD3D12CommandContext::RHISetRayTracingCallableShader(
@@ -5080,6 +5080,8 @@ void FD3D12CommandContext::RHISetRayTracingCallableShader(
 	const uint32 WorkerIndex = 0;
 
 	SetRayTracingCallableShader(GetParentDevice(), ShaderTable, Scene, Pipeline, ShaderSlotInScene, ShaderIndexInPipeline, NumUniformBuffers, UniformBuffers, 0, nullptr, UserData, WorkerIndex);
+
+	ShaderTable->bIsDirty = true;
 }
 
 void FD3D12CommandContext::RHISetRayTracingMissShader(
@@ -5098,6 +5100,8 @@ void FD3D12CommandContext::RHISetRayTracingMissShader(
 		0, nullptr, // Loose parameters
 		UserData,
 		WorkerIndex);
+
+	ShaderTable->bIsDirty = true;
 }
 
 #endif // D3D12_RHI_RAYTRACING
