@@ -1092,7 +1092,7 @@ FBulkDataBatchRequest::FBatchBuilder& FBulkDataBatchRequest::FBatchBuilder::Read
 
 	GetBatch().Read(
 		BulkData.BulkChunkId,
-		FIoReadOptions(ReadOffset, ReadSize, Dst.GetData()),
+		FIoReadOptions(ReadOffset, ReadSize, Dst.GetData(), (Priority & AIOP_FLAG_HW_TARGET_MEMORY) ? EIoReadOptionsFlags::HardwareTargetBuffer : EIoReadOptionsFlags::None),
 		Priority,
 		FIoReadCallback(),
 		OutRequest);

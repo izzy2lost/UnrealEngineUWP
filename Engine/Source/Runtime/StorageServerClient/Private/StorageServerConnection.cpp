@@ -344,7 +344,7 @@ void FStorageServerResponse::Serialize(void* V, int64 Length)
 	}
 }
 
-int64 FStorageServerResponse::SerializeChunk(FStorageServerSerializationContext& Context, FIoBuffer& OutChunk, void* TargetVa, uint64 RawOffset, uint64 RawSize)
+int64 FStorageServerResponse::SerializeChunk(FStorageServerSerializationContext& Context, FIoBuffer& OutChunk, void* TargetVa, uint64 RawOffset, uint64 RawSize, bool bHardwareTargetBuffer)
 {
 	if (ContentLength == 0)
 	{
@@ -377,7 +377,7 @@ int64 FStorageServerResponse::SerializeChunk(FStorageServerSerializationContext&
 			const uint64 ChunkSize = FMath::Min(Compressed.GetRawSize(), RawSize);
 			OutChunk = TargetVa ? FIoBuffer(FIoBuffer::Wrap, TargetVa, ChunkSize) : FIoBuffer(ChunkSize);
 			const uint64 CompressedOffset = GetCompressedOffset(Compressed, RawOffset);
-			if (Context.Decoder.TryDecompressTo(OutChunk.GetMutableView(), CompressedOffset))
+			if (Context.Decoder.TryDecompressTo(OutChunk.GetMutableView(), CompressedOffset, bHardwareTargetBuffer ? ECompressedBufferDecompressFlags::IntermediateBuffer :ECompressedBufferDecompressFlags::None ))
 			{
 				return ChunkSize;
 			}

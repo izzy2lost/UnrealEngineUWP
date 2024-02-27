@@ -108,7 +108,7 @@ void FTexture2DStreamIn_IO::SetIORequests(const FContext& Context)
 				}
 
 				FIoBuffer Dst(FIoBuffer::Wrap, MipData[MipIndex].Data, BulkDataSize);
-				Batch.Read(MipMap.BulkData, 0, BulkDataSize, Priority | AIOP_FLAG_DONTCACHE, Dst);
+				Batch.Read(MipMap.BulkData, 0, BulkDataSize, Priority | AIOP_FLAG_DONTCACHE | AIOP_FLAG_HW_TARGET_MEMORY, Dst);
 			}
 			else // Bulk data size can only be 0 when not available, in which case, we need to recache the file state.
 			{
@@ -197,7 +197,7 @@ void FTexture2DStreamIn_IO::SetIORequests(const FContext& Context)
 			IORequests[MipIndex] = MipMap.BulkData.CreateStreamingRequest(
 				0,
 				BulkDataSize,
-				Priority | AIOP_FLAG_DONTCACHE,
+				Priority | AIOP_FLAG_DONTCACHE | AIOP_FLAG_HW_TARGET_MEMORY,
 				&AsyncFileCallBack,
 				(uint8*)MipData[MipIndex].Data);
 		}

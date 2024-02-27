@@ -31,8 +31,10 @@ enum EAsyncIOPriorityAndFlags
 	AIOP_PRIORITY_MASK = 0x000000ff,
 
 	// Flags - combine with priorities if needed
-	AIOP_FLAG_PRECACHE	=	0x00000100,
-	AIOP_FLAG_DONTCACHE	=	0x00000200,
+	AIOP_FLAG_PRECACHE			= 0x00000100,
+	AIOP_FLAG_DONTCACHE			= 0x00000200,
+	// Use it to specify memory where read from cpu can be slow
+	AIOP_FLAG_HW_TARGET_MEMORY	= 0x00000400,	
 
 	// Priorities
 	AIOP_MIN = 0,

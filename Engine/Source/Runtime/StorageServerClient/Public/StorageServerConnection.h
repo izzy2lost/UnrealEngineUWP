@@ -129,12 +129,12 @@ public:
 
 	void Serialize(void* V, int64 Length) override;
 
-	int64 SerializeChunk(FStorageServerSerializationContext& Context, FIoBuffer& OutChunk, void* TargetVa = nullptr, uint64 RawOffset = 0, uint64 RawSize = MAX_uint64);
+	int64 SerializeChunk(FStorageServerSerializationContext& Context, FIoBuffer& OutChunk, void* TargetVa = nullptr, uint64 RawOffset = 0, uint64 RawSize = MAX_uint64, bool  bHardwareTargetBuffer = false);
 	
-	inline int64 SerializeChunk(FIoBuffer& OutChunk, void* TargetVa = nullptr, uint64 RawOffset = 0, uint64 RawSize = MAX_uint64)
+	inline int64 SerializeChunk(FIoBuffer& OutChunk, void* TargetVa = nullptr, uint64 RawOffset = 0, uint64 RawSize = MAX_uint64, bool bHardwareTargetBuffer = false)
 	{
 		FStorageServerSerializationContext SerializationContext;
-		return SerializeChunk(SerializationContext, OutChunk, TargetVa, RawOffset, RawSize);
+		return SerializeChunk(SerializationContext, OutChunk, TargetVa, RawOffset, RawSize, bHardwareTargetBuffer);
 	}
 
 	int64 SerializeChunkTo(FMutableMemoryView Memory, uint64 RawOffset = 0);

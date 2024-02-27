@@ -150,6 +150,16 @@ private:
 
 //////////////////////////////////////////////////////////////////////////
 
+enum class EIoReadOptionsFlags : uint32
+{
+	None = 0,
+	/**
+	 * Use this flag to inform the decompressor that the memory is uncached or write-combined and therefore the usage of staging might be needed if reading directly from the original memory
+	 */
+	HardwareTargetBuffer = 1 << 0,
+};
+ENUM_CLASS_FLAGS(EIoReadOptionsFlags);
+
 class FIoReadOptions
 {
 public:
@@ -166,6 +176,13 @@ public:
 		, TargetVa(InTargetVa)
 	{ }
 
+	FIoReadOptions(uint64 InOffset, uint64 InSize, void* InTargetVa, EIoReadOptionsFlags InFlags)
+		: RequestedOffset(InOffset)
+		, RequestedSize(InSize)
+		, TargetVa(InTargetVa)
+		, Flags(InFlags)
+	{ }
+
 	~FIoReadOptions() = default;
 
 	void SetRange(uint64 Offset, uint64 Size)
@@ -177,6 +194,11 @@ public:
 	void SetTargetVa(void* InTargetVa)
 	{
 		TargetVa = InTargetVa;
+	}
+
+	void SetFlags(EIoReadOptionsFlags InValue)
+	{
+		Flags = InValue;
 	}
 
 	uint64 GetOffset() const
@@ -194,10 +216,16 @@ public:
 		return TargetVa;
 	}
 
+	EIoReadOptionsFlags GetFlags() const
+	{
+		return Flags;
+	}
+
 private:
 	uint64	RequestedOffset = 0;
 	uint64	RequestedSize = ~uint64(0);
 	void* TargetVa = nullptr;
+	EIoReadOptionsFlags Flags = EIoReadOptionsFlags::None;
 };
 
 //////////////////////////////////////////////////////////////////////////

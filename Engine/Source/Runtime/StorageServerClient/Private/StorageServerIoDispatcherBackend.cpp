@@ -342,7 +342,8 @@ void FStorageServerIoDispatcherBackend::FBatch::DoThreadedWork()
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(SerializeResponse);
 				FIoBuffer Chunk;
-				if (Response.SerializeChunk(*SerializationContext, Chunk, Request->Options.GetTargetVa(), Request->Options.GetOffset(), Request->Options.GetSize()))
+				if (Response.SerializeChunk(*SerializationContext, Chunk, Request->Options.GetTargetVa(), Request->Options.GetOffset(), Request->Options.GetSize(), 
+					EnumHasAnyFlags(Request->Options.GetFlags(), EIoReadOptionsFlags::HardwareTargetBuffer) ? true : false ))
 				{
 					Request->SetResult(Chunk);
 				}
