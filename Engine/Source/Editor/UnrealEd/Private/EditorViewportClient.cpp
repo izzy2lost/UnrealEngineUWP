@@ -147,9 +147,6 @@ namespace EditorViewportClient
 	static const float LightRotSpeed = 0.22f;
 }
 
-// MIN_ORTHOZOOM defined in ULevelEditorViewportSettings
-#define MAX_ORTHOZOOM				MAX_FLT					/* Limit of 2D viewport zoom out */
-
 namespace OrbitConstants
 {
 	const float OrbitPanSpeed = 1.0f;
@@ -6511,7 +6508,7 @@ void FEditorViewportClient::DisableOverrideEngineShowFlags()
 
 float FEditorViewportClient::GetMinimumOrthoZoom() const
 {
-	return FMath::Max(GetDefault<ULevelEditorViewportSettings>()->MinimumOrthographicZoom, 1.0f);
+	return FMath::Max(GetDefault<ULevelEditorViewportSettings>()->MinimumOrthographicZoom, MIN_ORTHOZOOM);
 }
 
 ////////////////

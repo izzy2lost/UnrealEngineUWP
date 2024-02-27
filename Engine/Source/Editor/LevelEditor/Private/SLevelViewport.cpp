@@ -152,16 +152,17 @@ namespace UE::SLevelViewport::Internal
 			World->EditorViews = PerUserEditorViews->LevelViewportsInfo;
 		}
 
-		if (World->EditorViews[LevelEditorViewportClient->ViewportType].CamOrthoZoom == 0.0f)
-		{
-			World->EditorViews[LevelEditorViewportClient->ViewportType].CamOrthoZoom = DEFAULT_ORTHOZOOM;
-		}
-
 		LevelEditorViewportClient->ResetCamera();
 
 		bool bInitializedOrthoViewport = false;
 		for (int32 ViewportType = 0; ViewportType < LVT_MAX; ViewportType++)
 		{
+			float& CamOrthoZoom = World->EditorViews[ViewportType].CamOrthoZoom;
+			if (CamOrthoZoom < MIN_ORTHOZOOM || CamOrthoZoom > MAX_ORTHOZOOM)
+			{
+				CamOrthoZoom = DEFAULT_ORTHOZOOM;
+			}
+
 			if (ViewportType == LVT_Perspective || !bInitializedOrthoViewport)
 			{
 				LevelEditorViewportClient->SetInitialViewTransform(
