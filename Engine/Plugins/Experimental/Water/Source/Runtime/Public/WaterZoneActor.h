@@ -186,6 +186,10 @@ private:
 	UPROPERTY(Category = LocalTessellation, EditAnywhere, meta = (EditCondition = "bEnableLocalOnlyTessellation"))
 	FVector LocalTessellationExtent;
 
+	/** When set to true, all landscape proxies that intersect with the bounds of this water zone will be included as ground actors regardless if they have WaterTerrain components. */
+	UPROPERTY(Category = Terrain, EditAnywhere)
+	bool bAutoIncludeLandscapesAsTerrain = true;
+
 	bool bNeedsWaterInfoRebuild = true;
 
 	FVector2f WaterHeightExtents;

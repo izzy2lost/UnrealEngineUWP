@@ -15,6 +15,7 @@
 #include "Algo/AnyOf.h"
 #include "Engine/GameViewportClient.h"
 #include "WaterBodyInfoMeshComponent.h"
+#include "WaterTerrainComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WaterZoneActor)
 
@@ -202,7 +203,7 @@ void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& Upda
 		// Suppress water mesh updates which occur outside the bounds of the water quad tree.
 		if ((!UpdateRegion.bIsValid) || UpdateRegion.Intersect(WaterQuadTreeBounds))
 		{
-			UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterMesh) in region {%s} (triggered by %s)"), *UpdateRegion.ToString(), *GetNameSafe(DebugRequestingObject));
+			UE_LOG(LogWater, Verbose, TEXT("AWaterZone (%s) UpdateWaterMesh in region {%s} (triggered by %s)"), *GetNameSafe(this), *UpdateRegion.ToString(), *GetNameSafe(DebugRequestingObject));
 			WaterMesh->MarkWaterMeshGridDirty();
 			WaterMesh->MarkRenderStateDirty();
 		}
@@ -213,7 +214,7 @@ void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& Upda
 		const FBox2D WaterInfoBounds2D(FVector2D(WaterInfoBounds.Min), FVector2D(WaterInfoBounds.Max));
 		if ((!UpdateRegion.bIsValid) || UpdateRegion.Intersect(WaterInfoBounds2D))
 		{
-			UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterInfoTexture) in region {%s} (triggered by %s)"), *UpdateRegion.ToString(), *GetNameSafe(DebugRequestingObject));
+			UE_LOG(LogWater, Verbose, TEXT("AWaterZone (%s) UpdateWaterInfoTexture in region {%s} (triggered by %s)"), *GetNameSafe(this), *UpdateRegion.ToString(), *GetNameSafe(DebugRequestingObject));
 			bNeedsWaterInfoRebuild = true;
 		}
 	}
@@ -371,6 +372,10 @@ void AWaterZone::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 	{
 		MarkForRebuild(EWaterZoneRebuildFlags::All, /* DebugRequestingObject = */ this);
 	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AWaterZone, bAutoIncludeLandscapesAsTerrain))
+	{
+		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture, /* DebugRequestingObject = */ this);
+	}
 }
 
 void AWaterZone::OnActorSelectionChanged(const TArray<UObject*>& NewSelection, bool bForceRefresh)
@@ -524,16 +529,38 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		TArray<TWeakObjectPtr<UPrimitiveComponent>> GroundPrimitiveComponents;
 
 		const FBox WaterZoneBounds = GetZoneBounds();
-		for (ALandscapeProxy* LandscapeProxy : TActorRange<ALandscapeProxy>(World))
+		if (bAutoIncludeLandscapesAsTerrain)
 		{
-			const FBox LandscapeBox = LandscapeProxy->GetComponentsBoundingBox(/*bIncludeNonColliding = */ true);
-			// Only consider landscapes which this zone intersects with in XY and if the landscape volume is not zero sized
-			if (WaterZoneBounds.IntersectXY(LandscapeBox) && LandscapeBox.GetVolume() > 0.0)
+			for (ALandscapeProxy* LandscapeProxy : TActorRange<ALandscapeProxy>(World))
 			{
-				GroundZMin = FMath::Min(GroundZMin, LandscapeBox.Min.Z);
-				GroundZMax = FMath::Max(GroundZMax, LandscapeBox.Max.Z);
-				TInlineComponentArray<ULandscapeComponent*> LandscapeComponents(LandscapeProxy);
-				GroundPrimitiveComponents.Append(LandscapeComponents);
+				 const FBox LandscapeBox = LandscapeProxy->GetComponentsBoundingBox(/*bIncludeNonColliding = */ true);
+				 // Only consider landscapes which this zone intersects with in XY and if the landscape volume is not zero sized
+				 if (WaterZoneBounds.IntersectXY(LandscapeBox) && LandscapeBox.GetVolume() > 0.0)
+				 {
+					 GroundZMin = FMath::Min(GroundZMin, LandscapeBox.Min.Z);
+					 GroundZMax = FMath::Max(GroundZMax, LandscapeBox.Max.Z);
+					 TInlineComponentArray<ULandscapeComponent*> LandscapeComponents(LandscapeProxy);
+					 GroundPrimitiveComponents.Append(LandscapeComponents);
+				 }
+			}
+		}
+
+		UWaterSubsystem* WaterSubsystem = UWaterSubsystem::GetWaterSubsystem(World);
+		check(WaterSubsystem);
+
+		TArray<UWaterTerrainComponent*> WaterTerrainComponents;
+		WaterSubsystem->GetWaterTerrainComponents(WaterTerrainComponents);
+		
+		for (UWaterTerrainComponent* TerrainComponent : WaterTerrainComponents)
+		{
+			if (TerrainComponent->AffectsWaterZone(this))
+			{
+				TArray<UPrimitiveComponent*> TerrainPrimitives = TerrainComponent->GetTerrainPrimitives();
+
+				const FBox GroundActorBounds = TerrainComponent->GetOwner()->GetComponentsBoundingBox(true);
+				GroundZMin = FMath::Min(GroundZMin, GroundActorBounds.Min.Z);
+				GroundZMax = FMath::Max(GroundZMax, GroundActorBounds.Max.Z);
+				GroundPrimitiveComponents.Append(TerrainPrimitives);
 			}
 		}
 
@@ -550,9 +577,9 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		{
 			if (UPrimitiveComponent* GroundPrimComp = GroundPrimCompPtr.Get())
 			{
-					TArray<UMaterialInterface*> TmpUsedMaterials;
-					GroundPrimComp->GetUsedMaterials(TmpUsedMaterials, false);
-					UsedMaterials.Append(TmpUsedMaterials);
+				TArray<UMaterialInterface*> TmpUsedMaterials;
+				GroundPrimComp->GetUsedMaterials(TmpUsedMaterials, false);
+				UsedMaterials.Append(TmpUsedMaterials);
 			}
 		}
 
@@ -622,7 +649,7 @@ bool AWaterZone::UpdateWaterInfoTexture()
 			WaterViewExtension->MarkWaterInfoTextureForRebuild(Context);
 		}
 
-		UE_LOG(LogWater, Verbose, TEXT("Queued Water Info texture update"));
+		UE_LOG(LogWater, Verbose, TEXT("Water Zone (%s) queued Water Info texture update"), *GetNameSafe(this));
 	}
 
 	return true;

@@ -16,6 +16,7 @@
 #include "WaterBodyIslandActor.h"
 #include "WaterModule.h"
 #include "WaterRuntimeSettings.h"
+#include "WaterTerrainComponent.h"
 #include "WaterUtils.h"
 #include "WaterViewExtension.h"
 #include "Algo/MaxElement.h"
@@ -29,6 +30,9 @@ extern UNREALED_API UEditorEngine* GEditor;
 #else
 #include "BuoyancyTypes.h"
 #endif // WITH_DITOR
+
+#include "LandscapeComponent.h"
+#include "LandscapeProxy.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WaterSubsystem)
 
@@ -302,7 +306,14 @@ void UWaterSubsystem::PostInitialize()
 		check(!OnHeightmapStreamedHandle.IsValid());
 		OnHeightmapStreamedHandle = LandscapeSubsystem->GetOnHeightmapStreamedDelegate().AddUObject(this, &UWaterSubsystem::OnHeightmapStreamed);
 	}
+
+	if (GEngine)
+	{
+		GEngine->OnActorMoved().AddUObject(this, &UWaterSubsystem::OnActorMoved);
+	}
 #endif // WITH_EDITOR
+
+	UActorComponent::MarkRenderStateDirtyEvent.AddUObject(this, &UWaterSubsystem::OnMarkRenderStateDirty);
 }
 
 void UWaterSubsystem::Deinitialize()
@@ -319,7 +330,14 @@ void UWaterSubsystem::Deinitialize()
 		}
 		OnHeightmapStreamedHandle.Reset();
 	}
+
+	if (GEngine)
+	{
+		GEngine->OnActorMoved().RemoveAll(this);
+	}
 #endif // WITH_EDITOR
+
+	UActorComponent::MarkRenderStateDirtyEvent.RemoveAll(this);
 
 	FConsoleVariableDelegate NullCallback;
 	CVarShallowWaterSimulationRenderTargetSize->SetOnChangedCallback(NullCallback);
@@ -368,7 +386,59 @@ void UWaterSubsystem::ApplyRuntimeSettings(const UWaterRuntimeSettings* Settings
 #endif // WITH_EDITOR
 }
 
+
+void UWaterSubsystem::OnMarkRenderStateDirty(UActorComponent& Component)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWaterSubsystem::OnMarkRenderStateDirty);
+
+	const AActor* ComponentOwner = Component.GetOwner();
+
+	if (WaterTerrainActors.Find(ComponentOwner) != nullptr)
+	{
+		OnWaterTerrainActorChanged(ComponentOwner);
+	}
+}
+
+void UWaterSubsystem::OnWaterTerrainActorChanged(const AActor* TerrainActor)
+{
+	TArray<TWeakObjectPtr<UWaterTerrainComponent>, TInlineAllocator<4>> WaterTerrainComponentPtrs;
+	WaterTerrainActors.MultiFind(TerrainActor, WaterTerrainComponentPtrs);
+
+	check(TerrainActor != nullptr && TerrainActor->GetWorld() == GetWorld());
+
+	for (TWeakObjectPtr<UWaterTerrainComponent> WaterTerrainComponentPtr : WaterTerrainComponentPtrs)
+	{
+		 if (!WaterTerrainComponentPtr.IsValid())
+		 {
+			 continue;
+		 }
+
+		 if (const UWaterTerrainComponent* WaterTerrainComponent = WaterTerrainComponentPtr.Get())
+		 {
+			 const FBox2D TerrainBounds = WaterTerrainComponent->GetTerrainBounds();
+			 for (AWaterZone* WaterZone : TActorRange<AWaterZone>(GetWorld()))
+			 {
+				 if (WaterTerrainComponent->AffectsWaterZone(WaterZone))
+				 {
+					  WaterZone->MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture, TerrainBounds, TerrainActor);
+				 }
+			 }
+		 }
+		 
+	}
+}
+
 #if WITH_EDITOR
+void UWaterSubsystem::OnActorMoved(AActor* MovedActor)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWaterSubsystem::OnActorMoved);
+
+	if (WaterTerrainActors.Find(MovedActor) != nullptr)
+	{
+		OnWaterTerrainActorChanged(MovedActor);
+	}
+}
+
 void UWaterSubsystem::OnHeightmapStreamed(const FOnHeightmapStreamedContext& InContext)
 {
 	UE_LOG(LogWater, Verbose, TEXT("UWaterSubsystem::OnHeightmapStreamed() -- Rebuilding Water Info Texture..."));
@@ -622,6 +692,36 @@ TSoftObjectPtr<AWaterZone> UWaterSubsystem::FindWaterZone(const UWorld* World, c
 TSoftObjectPtr<AWaterZone> UWaterSubsystem::FindWaterZone(const FBox2D& Bounds, const TSoftObjectPtr<const ULevel> PreferredLevel) const
 {
 	return FindWaterZone(GetWorld(), Bounds, PreferredLevel);
+}
+
+void UWaterSubsystem::RegisterWaterTerrainComponent(UWaterTerrainComponent* InWaterTerrainComponent)
+{
+	check(InWaterTerrainComponent);
+	if (const AActor* TerrainActor = InWaterTerrainComponent->GetOwner())
+	{
+		 WaterTerrainActors.Add(TerrainActor,  InWaterTerrainComponent);
+	}
+}
+
+void UWaterSubsystem::UnregisterWaterTerrainComponent(UWaterTerrainComponent* InWaterTerrainComponent)
+{
+	check(InWaterTerrainComponent);
+	if (const AActor* TerrainActor = InWaterTerrainComponent->GetOwner())
+	{
+		WaterTerrainActors.RemoveSingle(TerrainActor, InWaterTerrainComponent);
+	}
+}
+
+void UWaterSubsystem::GetWaterTerrainComponents(TArray<UWaterTerrainComponent*>& OutWaterTerrainComponents) const
+{
+	OutWaterTerrainComponents.Empty(WaterTerrainActors.Num());
+	for (const TTuple<const AActor*, TWeakObjectPtr<UWaterTerrainComponent>>& Pair : WaterTerrainActors)
+	{
+		if (UWaterTerrainComponent* WaterTerrainComponent = Pair.Value.Get())
+		{
+			OutWaterTerrainComponents.Add(WaterTerrainComponent);
+		}
+	}
 }
 
 void UWaterSubsystem::NotifyWaterScalabilityChangedInternal(IConsoleVariable* CVar)
