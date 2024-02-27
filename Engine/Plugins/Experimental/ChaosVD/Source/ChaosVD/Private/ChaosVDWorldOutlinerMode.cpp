@@ -13,6 +13,97 @@ static FAutoConsoleVariable CVarChaosVDQueueAndCombineSceneOutlinerEvents(
 	true,
 	TEXT("If set to true, scene outliner events will be queued and sent once per frame. If there was a unprocessed event for an item, the las queued event will replace it"));
 
+const FSceneOutlinerTreeItemType FChaosVDActorTreeItem::Type(&FActorTreeItem::Type);
+
+#define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
+
+const TSharedRef<SWidget> FChaosVDSceneOutlinerGutter::ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row)
+{
+	if (TreeItem->ShouldShowVisibilityState())
+	{
+		return SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				SNew(SVisibilityWidget, SharedThis(this), WeakOutliner, TreeItem, &Row)
+				.IsEnabled_Raw(this, &FChaosVDSceneOutlinerGutter::IsEnabled, TreeItem->AsWeak())
+				.ToolTipText_Raw(this, &FChaosVDSceneOutlinerGutter::GetVisibilityTooltip, TreeItem->AsWeak())
+			];
+	}
+	return SNullWidget::NullWidget;
+}
+
+FText FChaosVDSceneOutlinerGutter::GetVisibilityTooltip(TWeakPtr<ISceneOutlinerTreeItem> WeakTreeItem) const
+{
+
+	return IsEnabled(WeakTreeItem) ? LOCTEXT("SceneOutlinerVisibilityToggleTooltip", "Toggles the visibility of this object in the level editor.") :
+										LOCTEXT("SceneOutlinerVisibilityToggleDisabkedTooltip", "Visibility of this object is being controlled by another visibility setting");
+}
+
+bool FChaosVDSceneOutlinerGutter::IsEnabled(TWeakPtr<ISceneOutlinerTreeItem> WeakTreeItem) const
+{
+	bool bIsEnabled = true;
+	if (const TSharedPtr<ISceneOutlinerTreeItem> TreeItem = WeakTreeItem.Pin())
+	{
+		if (const FActorTreeItem* ActorItem = TreeItem->CastTo<FActorTreeItem>())
+		{
+			if (const AChaosVDParticleActor* CVDActor = Cast<AChaosVDParticleActor>(ActorItem->Actor.Get()))
+			{
+				bIsEnabled = CVDActor->GetHideFlags() == EChaosVDHideParticleFlags::HiddenBySceneOutliner || CVDActor->GetHideFlags() == EChaosVDHideParticleFlags::None;
+			}
+		}
+	}
+
+	return bIsEnabled;
+}
+
+bool FChaosVDActorTreeItem::GetVisibility() const
+{
+	if (const AChaosVDParticleActor* CVDActor = Cast<AChaosVDParticleActor>(Actor.Get()))
+	{
+		return CVDActor->IsVisible();
+	}
+	else
+	{
+		return FActorTreeItem::GetVisibility();
+	}
+}
+
+void FChaosVDActorTreeItem::OnVisibilityChanged(const bool bNewVisibility)
+{
+	if (AChaosVDParticleActor* CVDActor = Cast<AChaosVDParticleActor>(Actor.Get()))
+	{
+		if (bNewVisibility)
+		{
+			CVDActor->RemoveHiddenFlag(EChaosVDHideParticleFlags::HiddenBySceneOutliner);
+		}
+		else
+		{
+			CVDActor->AddHiddenFlag(EChaosVDHideParticleFlags::HiddenBySceneOutliner);
+		}
+	}
+	else
+	{
+		FActorTreeItem::OnVisibilityChanged(bNewVisibility);
+	}
+}
+
+TUniquePtr<FChaosVDOutlinerHierarchy> FChaosVDOutlinerHierarchy::Create(ISceneOutlinerMode* Mode, const TWeakObjectPtr<UWorld>& World)
+{
+	FChaosVDOutlinerHierarchy* Hierarchy = new FChaosVDOutlinerHierarchy(Mode, World);
+
+	Create_Internal(Hierarchy, World);
+
+	return TUniquePtr<FChaosVDOutlinerHierarchy>(Hierarchy);
+}
+
+
+FSceneOutlinerTreeItemPtr FChaosVDOutlinerHierarchy::CreateItemForActor(AActor* InActor, bool bForce) const
+{
+	return Mode->CreateItemFor<FChaosVDActorTreeItem>(InActor, bForce);
+}
+
 FChaosVDWorldOutlinerMode::FChaosVDWorldOutlinerMode(const FActorModeParams& InModeParams, TWeakPtr<FChaosVDScene> InScene)
 	: FActorMode(InModeParams),
 	CVDScene(InScene)
@@ -95,6 +186,19 @@ bool FChaosVDWorldOutlinerMode::Tick(float DeltaTime)
 	return true;
 }
 
+TUniquePtr<ISceneOutlinerHierarchy> FChaosVDWorldOutlinerMode::CreateHierarchy()
+{
+	TUniquePtr<FChaosVDOutlinerHierarchy> ActorHierarchy = FChaosVDOutlinerHierarchy::Create(this, RepresentingWorld);
+
+	ActorHierarchy->SetShowingComponents(!bHideComponents);
+	ActorHierarchy->SetShowingOnlyActorWithValidComponents(!bHideComponents && bHideActorWithNoComponent);
+	ActorHierarchy->SetShowingLevelInstances(!bHideLevelInstanceHierarchy);
+	ActorHierarchy->SetShowingUnloadedActors(!bHideUnloadedActors);
+	ActorHierarchy->SetShowingEmptyFolders(!bHideEmptyFolders);
+	
+	return ActorHierarchy;
+}
+
 void FChaosVDWorldOutlinerMode::EnqueueAndCombineHierarchyEvent(const FSceneOutlinerTreeItemID& ItemID, const FSceneOutlinerHierarchyChangedData& EnventToProcess)
 {
 	if (FSceneOutlinerHierarchyChangedData* EventData = PendingOutlinerEventsMap.Find(ItemID))
@@ -116,7 +220,7 @@ void FChaosVDWorldOutlinerMode::HandleActorLabelChanged(AActor* ChangedActor)
 	if (IsActorDisplayable(ChangedActor) && RepresentingWorld.Get() == ChangedActor->GetWorld())
 	{
 		// Force create the item otherwise the outliner may not be notified of a change to the item if it is filtered out
-		if (FSceneOutlinerTreeItemPtr Item = CreateItemFor<FActorTreeItem>(ChangedActor, true))
+		if (FSceneOutlinerTreeItemPtr Item = CreateItemFor<FChaosVDActorTreeItem>(ChangedActor, true))
 		{
 			SceneOutliner->OnItemLabelChanged(Item);
 		}
@@ -137,7 +241,7 @@ void FChaosVDWorldOutlinerMode::HandleActorActiveStateChanged(AChaosVDParticleAc
 		if (ChangedActor->IsActive())
 		{
 			EventData.Type = FSceneOutlinerHierarchyChangedData::Added;
-			EventData.Items.Emplace(CreateItemFor<FActorTreeItem>(ChangedActor));
+			EventData.Items.Emplace(CreateItemFor<FChaosVDActorTreeItem>(ChangedActor));
 		}
 		else
 		{
@@ -181,3 +285,5 @@ void FChaosVDWorldOutlinerMode::HandlePostSelectionChange(const UTypedElementSel
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

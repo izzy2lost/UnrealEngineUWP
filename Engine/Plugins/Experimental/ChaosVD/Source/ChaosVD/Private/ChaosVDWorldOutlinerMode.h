@@ -2,12 +2,69 @@
 
 #pragma once
 #include "ActorBrowsingMode.h"
+#include "ActorHierarchy.h"
+#include "ActorTreeItem.h"
 #include "ChaosVDScene.h"
 #include "ChaosVDSceneSelectionObserver.h"
+#include "SceneOutlinerGutter.h"
 #include "Containers/Map.h"
 #include "Templates/SharedPointer.h"
 
 class FChaosVDScene;
+
+/** Outliner Gutter used to override the behaviour of the visibility widget in the Scene outliner  */
+class FChaosVDSceneOutlinerGutter final : public FSceneOutlinerGutter
+{
+public:
+	explicit FChaosVDSceneOutlinerGutter(ISceneOutliner& Outliner)
+		: FSceneOutlinerGutter(Outliner)
+	{
+	}
+
+	virtual const TSharedRef<SWidget> ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row) override;
+	
+	FText GetVisibilityTooltip(TWeakPtr<ISceneOutlinerTreeItem> WeakTreeItem) const;
+
+	bool IsEnabled(TWeakPtr<ISceneOutlinerTreeItem> WeakTreeItem) const;
+};
+
+/** Scene outliner Actor Tree Item used to override the behaviour of the visibility changes for CVD Actors in the Scene outliner  */
+class FChaosVDActorTreeItem final : public FActorTreeItem
+{
+public:
+	
+	FChaosVDActorTreeItem(AActor* InActor) : FActorTreeItem(InActor)
+	{
+		
+	};
+
+	FChaosVDActorTreeItem(const FSceneOutlinerTreeItemType& TypeIn, AActor* InActor)
+		: FActorTreeItem(TypeIn, InActor)
+	{
+	}
+
+	virtual bool GetVisibility() const override;
+
+	virtual void OnVisibilityChanged(const bool bNewVisibility) override;
+
+	static const FSceneOutlinerTreeItemType Type;
+};
+
+/** Actor Hierarchy used to override the what Tree items will be used for actors in CVD's Scene outliner  */
+class FChaosVDOutlinerHierarchy final : public FActorHierarchy
+{
+public:
+
+	static TUniquePtr<FChaosVDOutlinerHierarchy> Create(ISceneOutlinerMode* Mode, const TWeakObjectPtr<UWorld>& World);
+
+protected:
+
+	FChaosVDOutlinerHierarchy(ISceneOutlinerMode* Mode, const TWeakObjectPtr<UWorld>& Worlds)
+	: FActorHierarchy(Mode, Worlds)
+	{
+	}
+	virtual FSceneOutlinerTreeItemPtr CreateItemForActor(AActor* InActor, bool bForce) const override;
+};
 
 /**
  * Scene outliner mode used to represent a CVD (Chaos Visual Debugger) world
@@ -35,6 +92,8 @@ public:
 	virtual bool ShouldShowFolders() const override { return true;}
 
 	virtual bool Tick(float DeltaTime) override;
+
+	virtual TUniquePtr<ISceneOutlinerHierarchy> CreateHierarchy() override;
 
 private:
 

@@ -28,7 +28,7 @@ public:
 	void SetSolverID(int32 InSolverID) { SolverID = InSolverID; }
 	int32 GetSolverID() const { return SolverID; }
 
-	void SetSolverName(const FString& InSolverName) { SolverName = InSolverName; }
+	void SetSolverName(const FString& InSolverName);
 	const FString& GetSolverName() { return SolverName; }
 
 	void SetIsServer(bool bInIsServer) { bIsServer = bInIsServer; }
@@ -64,9 +64,14 @@ public:
 	void HandleColorsSettingsUpdated();
 	void RemoveSolverFolders(UWorld* World);
 
+#if WITH_EDITOR
+	void SetIsTemporarilyHiddenInEditor(bool bIsHidden) override;
+#endif
 	virtual void Destroyed() override;
 
 protected:
+
+	void ApplySolverVisibilityToParticle(AChaosVDParticleActor* ParticleActor, bool bIsHidden);
 
 	virtual void HandlePostSelectionChange(const UTypedElementSelectionSet* ChangesSelectionSet) override;
 
@@ -100,6 +105,7 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UChaosVDSolverJointConstraintDataComponent> JointsDataComponent;
+
 };
 
 template <typename TCallback>

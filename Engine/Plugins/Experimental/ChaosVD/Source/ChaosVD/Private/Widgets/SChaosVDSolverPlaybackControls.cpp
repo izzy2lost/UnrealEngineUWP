@@ -5,10 +5,12 @@
 #include "ChaosVDEditorSettings.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDPlaybackController.h"
+#include "ChaosVDScene.h"
 #include "Widgets/ChaosVDPlaybackControlsHelper.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SChaosVDPlaybackViewport.h"
 #include "Widgets/SChaosVDTimelineWidget.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -17,6 +19,12 @@
 void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 InSolverID, const TWeakPtr<FChaosVDPlaybackController>& InPlaybackController)
 {
 	SolverID = InSolverID;
+
+	static const FName NAME_VisibleNotHoveredBrush = TEXT("Level.VisibleIcon16x");
+	static const FName NAME_NotVisibleNotHoveredBrush = TEXT("Level.NotVisibleIcon16x");
+
+	SolverVisibleIconBrush = FAppStyle::Get().GetBrush(NAME_VisibleNotHoveredBrush);
+	SolverHiddenIconBrush = FAppStyle::Get().GetBrush(NAME_NotVisibleNotHoveredBrush);
 
 	ChildSlot
 	[
@@ -84,11 +92,22 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 				]
 				+SVerticalBox::Slot()
 				[
-					SAssignNew(StepsTimelineWidget, SChaosVDTimelineWidget)
-					.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllManualStepping))
-					.OnFrameLockStateChanged_Raw(this, &SChaosVDSolverPlaybackControls::HandleLockStateChanged)
-					.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnStepSelectionUpdated)
-					.MaxFrames(0)
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.FillWidth(0.6f)
+					[
+						
+						SAssignNew(StepsTimelineWidget, SChaosVDTimelineWidget)
+						.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllManualStepping))
+						.OnFrameLockStateChanged_Raw(this, &SChaosVDSolverPlaybackControls::HandleLockStateChanged)
+						.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnStepSelectionUpdated)
+						.MaxFrames(0)
+					]
+					+SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						CreateVisibilityWidget().ToSharedRef()
+					]
 				]
 			]
 		]
@@ -121,6 +140,31 @@ void SChaosVDSolverPlaybackControls::ConditionallyLockPlaybackControl(const TSha
 	// On Live Sessions, only the Game Frames timeline controls are allowed for now
 	FramesTimelineWidget->SetIsLocked(InControllerSharedRef->IsPlayingLiveSession() || !bUserCanControlPlayback);
 	StepsTimelineWidget->SetIsLocked(InControllerSharedRef->IsPlayingLiveSession() || !bUserCanControlPlayback);
+}
+
+void SChaosVDSolverPlaybackControls::HandleSolverVisibilityChanged(int32 InSolverID, bool bNewVisibility)
+{
+	if (SolverID != InSolverID)
+	{
+		return;
+	}
+
+	bIsVisible = bNewVisibility;
+}
+
+FReply SChaosVDSolverPlaybackControls::ToggleSolverVisibility() const
+{
+	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = PlaybackController.Pin())
+	{
+		CurrentPlaybackControllerPtr->UpdateTrackVisibility(EChaosVDTrackType::Solver, SolverID, !bIsVisible);
+	}
+
+	return FReply::Handled();
+}
+
+const FSlateBrush* SChaosVDSolverPlaybackControls::GetBrushForCurrentVisibility() const
+{
+	return bIsVisible ? SolverVisibleIconBrush : SolverHiddenIconBrush;
 }
 
 void SChaosVDSolverPlaybackControls::HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVDPlaybackController> InController)
@@ -238,6 +282,18 @@ const FSlateBrush* SChaosVDSolverPlaybackControls::GetFrameTypeBadgeBrush() cons
 	return bIsReSimFrame ? &ButtonStyle.Pressed : FCoreStyle::Get().GetBrush("Border");
 }
 
+TSharedPtr<SWidget> SChaosVDSolverPlaybackControls::CreateVisibilityWidget()
+{
+	return SNew(SButton)
+	.OnClicked_Raw(this, &SChaosVDSolverPlaybackControls::ToggleSolverVisibility)
+	[
+		SNew( SImage )
+		.Image_Raw(this,&SChaosVDSolverPlaybackControls::GetBrushForCurrentVisibility)
+		.DesiredSizeOverride(FVector2D(16.0f,16.0f))
+		.ColorAndOpacity(FSlateColor::UseForeground())
+	];	
+}
+
 void SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated(int32 NewFrameIndex)
 {
 	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
@@ -265,6 +321,27 @@ void SChaosVDSolverPlaybackControls::OnStepSelectionUpdated(int32 NewStepIndex)
 		UpdateStepsWidgetForFrame(*PlaybackControllerPtr.Get(), CurrentFrame, NewStepIndex, EChaosVDStepsWidgetUpdateFlags::UpdateText);
 
 		PlaybackControllerPtr->GoToTrackFrame(GetInstigatorID(), EChaosVDTrackType::Solver, SolverID, CurrentFrame, NewStepIndex);
+	}
+}
+
+void SChaosVDSolverPlaybackControls::RegisterNewController(TWeakPtr<FChaosVDPlaybackController> NewController)
+{
+	if (const TSharedPtr<FChaosVDPlaybackController> OldPlaybackControllerPtr = PlaybackController.Pin())
+	{
+		if (TSharedPtr<FChaosVDScene> Scene = OldPlaybackControllerPtr->GetControllerScene().Pin())
+		{
+			Scene->OnSolverVisibilityUpdated().RemoveAll(this);
+		}
+	}
+
+	FChaosVDPlaybackControllerObserver::RegisterNewController(NewController);
+
+	if (const TSharedPtr<FChaosVDPlaybackController> NewPlaybackControllerPtr = PlaybackController.Pin())
+	{
+		if (TSharedPtr<FChaosVDScene> Scene = NewPlaybackControllerPtr->GetControllerScene().Pin())
+		{
+			Scene->OnSolverVisibilityUpdated().AddRaw(this, &SChaosVDSolverPlaybackControls::HandleSolverVisibilityChanged);
+		}
 	}
 }
 

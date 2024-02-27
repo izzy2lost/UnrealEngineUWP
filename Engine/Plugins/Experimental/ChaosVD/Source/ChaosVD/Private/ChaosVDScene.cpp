@@ -269,11 +269,13 @@ void FChaosVDScene::CreateSolverInfoActor(int32 SolverID)
 		AChaosVDSolverInfoActor* SolverDataInfo = PhysicsVDWorld->SpawnActor<AChaosVDSolverInfoActor>();
 		check(SolverDataInfo);
 
-		const FName FolderPath("ChaosVisualDebugger/SolverDataContainer");
-		SolverDataInfo->SetFolderPath(FolderPath);
-
 		FString SolverName = LoadedRecording->GetSolverName_AssumedLocked(SolverID);
 		const bool bIsServer = SolverName.Contains(TEXT("Server"));
+
+		const FStringFormatOrderedArguments Args {SolverName, FString::FromInt(SolverID)};
+		const FName FolderPath = *FString::Format(TEXT("Solver {0} | ID {1}"), Args);
+
+		SolverDataInfo->SetFolderPath(FolderPath);
 
 		SolverDataInfo->SetSolverID(SolverID);
 		SolverDataInfo->SetSolverName(SolverName);
