@@ -163,6 +163,16 @@ public:
 		return false;
 	}
 
+	inline void VisitDirectives(TFunction<void(const FString*)> Action) const
+	{
+		const int32 NumberOfDirectives = PragmaDirectives.Num();
+		for (int32 i = 0; i < NumberOfDirectives; i++)
+		{
+			const FString& CurrentDirective = PragmaDirectives[i];
+			Action(&CurrentDirective);
+		}
+	}
+
 	inline void VisitDirectivesWithPrefix(const TCHAR* Prefix, TFunction<void(const FString*)> Action) const
 	{
 		const int32 NumberOfDirectives = PragmaDirectives.Num();

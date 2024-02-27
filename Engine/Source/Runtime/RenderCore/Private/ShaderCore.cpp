@@ -3588,14 +3588,15 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 		}
 		MergedEnvironment.SerializeCompilationDependencies(Hasher);
 		
-		auto HashVersion = [&Hasher](const FString* VersionDirective)
+		auto HashDirectives = [&Hasher](const FString* Directive)
 		{
-			check(VersionDirective && !VersionDirective->IsEmpty());
+			check(Directive && !Directive->IsEmpty());
 			// const_cast due to serialization API requiring non-const. better than not having const correctness in the API.
-			Hasher << const_cast<FString&>(*VersionDirective);
+			Hasher << const_cast<FString&>(*Directive);
 		};
+		// Hash all UESHADERMETADATA_ directives encountered during preprocessing (assume these may be used to modify compilation behaviour)
+		PreprocessOutput.VisitDirectives(HashDirectives);
 
-		PreprocessOutput.VisitDirectivesWithPrefix(TEXT("VERSION"), HashVersion);
 		// const_cast due to serialization API requiring non-const. better than not having const correctness in the API.
 		Hasher << PreprocessOutput.EditSource();
 		if (SecondaryPreprocessOutput.IsValid())
