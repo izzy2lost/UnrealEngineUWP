@@ -5179,7 +5179,13 @@ FFrameNumber FSequencer::OnGetNearestKey(FFrameTime InTime, ENearestKeyOption Ne
 {
 	const FFrameNumber CurrentTime = InTime.FloorToFrame();
 
-	if (EnumHasAnyFlags(NearestKeyOption, ENearestKeyOption::NKO_SearchAllTracks))
+	const bool bComputeNearest = EnumHasAnyFlags(NearestKeyOption, ENearestKeyOption::NKO_SearchKeys | ENearestKeyOption::NKO_SearchSections | ENearestKeyOption::NKO_SearchMarkers);
+	if (!bComputeNearest)
+	{
+		return CurrentTime;
+	}
+
+	if (ViewModel->GetSelection()->Outliner.Num() == 0)
 	{
 		GetAllKeys(SelectedKeyCollection, SMALL_NUMBER);
 	}

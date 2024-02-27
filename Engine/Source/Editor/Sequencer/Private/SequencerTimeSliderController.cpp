@@ -2058,13 +2058,6 @@ FFrameTime FSequencerTimeSliderController::SnapTimeToNearestKey(const FPointerEv
 	{
 		ENearestKeyOption NearestKeyOption = ENearestKeyOption::NKO_None;
 
-		// If there are any tracks selected we'll find the nearest key only on that track. If there are no keys selected,
-		// we will try to find the nearest keys on all tracks. This mirrors the behavior of the Jump to Next Keyframe commands.
-		if (WeakSequencer.Pin()->GetViewModel()->GetSelection()->Outliner.Num() == 0)
-		{
-			EnumAddFlags(NearestKeyOption, ENearestKeyOption::NKO_SearchAllTracks);
-		}
-
 		if (WeakSequencer.Pin()->GetSequencerSettings()->GetSnapPlayTimeToKeys() || MouseEvent.IsShiftDown())
 		{
 			EnumAddFlags(NearestKeyOption, ENearestKeyOption::NKO_SearchKeys);
