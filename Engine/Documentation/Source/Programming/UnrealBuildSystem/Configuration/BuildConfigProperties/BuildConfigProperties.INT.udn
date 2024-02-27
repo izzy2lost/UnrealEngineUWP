@@ -148,6 +148,12 @@ $ StaticAnalyzerOutputType : The output type to use for the static analyzer. Thi
 
 $ StaticAnalyzerMode : The mode to use for the static analyzer. This is only supported for Clang. Shallow mode completes quicker but is generally not recommended.
 
+$ StaticAnalyzerPVSPrintLevel : The level of warnings to print when analyzing using PVS-Studio
+
+$ bStaticAnalyzerProjectOnly : Only run static analysis against project modules, skipping engine modules
+
+$ bStaticAnalyzerIncludeGenerated : When enabled, generated source files will be analyzed
+
 $ MinFilesUsingPrecompiledHeader : The minimum number of files that must use a pre-compiled header before it will be created and used.
 
 $ bForcePrecompiledHeaderForGameModules : When enabled, a precompiled header is always generated for game modules, even if there are only a few source files in the module.  This greatly improves compile times for iterative changes on a few files in the project, at the expense of slower full rebuild times for small game projects.  This can be overridden by setting MinFilesUsingPrecompiledHeaderOverride in a module's Build.cs file.
@@ -443,6 +449,10 @@ $ Zone : The zone to use for UBA.
 $ bUseCrypto : Set to true to enable encryption when transfering files over the network.
 
 $ bUseKnownInputs : Set to true to provide known inputs to processes that are run remote. This is an experimental feature to speed up build times when ping is higher
+
+$ ActionsOutputFile : Write yaml file with all actions that are queued for build. This can be used to replay using "UbaCli.exe local file.yaml"
+
+$ bDetailedLog : Set to true to see more info about what is happening inside uba and also log output from agents
 
 $ HordeMaxCores : Max cores allowed to be used by build session
 

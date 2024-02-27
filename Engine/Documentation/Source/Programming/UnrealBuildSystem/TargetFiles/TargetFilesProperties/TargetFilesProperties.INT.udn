@@ -420,6 +420,12 @@ $ StaticAnalyzerOutputType (StaticAnalyzerOutputType): The output type to use fo
 
 $ StaticAnalyzerMode (StaticAnalyzerMode): The mode to use for the static analyzer. This is only supported for Clang. Shallow mode completes quicker but is generally not recommended.
 
+$ StaticAnalyzerPVSPrintLevel (Int32): The level of warnings to print when analyzing using PVS-Studio
+
+$ bStaticAnalyzerProjectOnly (Boolean): Only run static analysis against project modules, skipping engine modules
+
+$ bStaticAnalyzerIncludeGenerated (Boolean): When enabled, generated source files will be analyzed
+
 $ MinFilesUsingPrecompiledHeader (Int32): The minimum number of files that must use a pre-compiled header before it will be created and used.
 
 $ bForcePrecompiledHeaderForGameModules (Boolean): When enabled, a precompiled header is always generated for game modules, even if there are only a few source files in the module.  This greatly improves compile times for iterative changes on a few files in the project, at the expense of slower full rebuild times for small game projects.  This can be overridden by setting MinFilesUsingPrecompiledHeaderOverride in a module's Build.cs file.
@@ -535,6 +541,8 @@ $ LaunchModuleName (String): Specifies the name of the launch module. For modula
 $ ExportPublicHeader (String): Specifies the path to write a header containing public definitions for this target. Useful when building a DLL to be consumed by external build processes.
 
 $ BuildEnvironment (TargetBuildEnvironment): Specifies the build environment for this target. See TargetBuildEnvironment for more information on the available options.
+
+$ bAllowSDKOverrideModulesWithSharedEnvironment (Boolean): If this true, a Shared build environment target will allow for any modules that are SDK version sensitive to have a project side module when an SDK is overridden. For instance, if IOSTargetPlatform, which is marked as IOS SDK version relevant, is compiled for a Target with this set to true, and that target overrides the IOS SDK, then this would compile to e.g. MyProject/Binaries/Win64/IOS/MyProject-IOSTargetPlatform.dll
 
 $ bOverrideBuildEnvironment (Boolean): Whether to ignore violations to the shared build environment (eg. editor targets modifying definitions)
 
