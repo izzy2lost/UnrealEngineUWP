@@ -390,7 +390,7 @@ void UNearestNeighborModelInstance::RunNearestNeighborModel(float DeltaTime, flo
 		{
 			const float W = OutputView[MorphIndex] * ModelWeight;
 			using UE::NearestNeighborModel::Private::UpdateWeightWithDecay;
-			UpdateWeightWithDecay(WeightData->Weights[MorphIndex + 1], PreviousWeights[MorphIndex + 1], W, DecayCoeff);
+			UpdateWeightWithDecay(WeightData->Weights[MorphIndex + 1], PreviousWeights[MorphIndex + 1], W, 0.0f);
 		}
 
 		int32 NeighborOffset = NumNetworkWeights + 1;
