@@ -274,6 +274,22 @@ float4				ShadowChannelMask;
 Buffer<uint>		IndirectArgsBuffer;
 RWBuffer<uint>		OutTransmittanceMask;
 
+#define USE_BLUE_NOISE 1
+#include "../BlueNoise.ush"
+DEFINE_HAIR_BLUE_NOISE_JITTER_FUNCTION
+
+float3 InternalGetHairVoxelJitter(uint2 PixelCoord, uint SampleIndex, uint MaxSampleCount, uint TimeIndex, uint JitterMode)
+{
+	// Blue noise is cheaper to compute and h
+	#if USE_BLUE_NOISE
+	float3 RandomSample = GetHairBlueNoiseJitter(PixelCoord, SampleIndex, MaxSampleCount, TimeIndex).xyz;
+	#else
+	float3 RandomSample = GetHairVoxelJitter(PixelCoord, View.StateFrameIndexMod8, JitterMode);
+	#endif
+
+	return JitterMode > 0 ? RandomSample : float3(0,0,0);
+}
+
 FHairTransmittanceMask ComputeTransmittanceVoxel(
 	const uint2 PixelCoord,
 	const float PixelRadius,
@@ -301,14 +317,11 @@ FHairTransmittanceMask ComputeTransmittanceVoxel(
 	const uint SampleCount = 8; 
 	for (uint SampleIt = 0; SampleIt < SampleCount; ++SampleIt)
 	#else
+	const uint SampleCount = 1; 
 	const uint SampleIt = 0;
 	#endif
 	{
-		#if PERMUTATION_SUPERSAMPLING
-		const float3 SampleRandom = GetHairVoxelJitter(PixelCoord, SampleIt, VirtualVoxel.JitterMode);
-		#else
-		const float3 SampleRandom = GetHairVoxelJitter(PixelCoord, View.StateFrameIndexMod8, VirtualVoxel.JitterMode);
-		#endif
+		float3 SampleRandom = InternalGetHairVoxelJitter(PixelCoord, SampleIt, SampleCount, View.StateFrameIndexMod8, VirtualVoxel.JitterMode);
 	
 		const float PositionBiasScale = 0.5f;
 		const float3 DepthBias = NodeDesc.VoxelWorldSize * (VirtualVoxel.DepthBiasScale_Transmittance * Settings.LightDirection + PositionBiasScale*(SampleRandom*2-1));

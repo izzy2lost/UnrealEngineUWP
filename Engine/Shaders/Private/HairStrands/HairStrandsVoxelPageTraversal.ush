@@ -84,6 +84,17 @@ float4 GetHairVoxelJitter2(uint2 PixelCoord, uint Seed, uint JitterMode)
 	return JitterMode > 0 ? float4(Hammersley16(Seed, 8, Seed0), Hammersley16(Seed, 8, Seed1)) : float4(0, 0, 0, 0);
 }
 
+// Use define as this function use global resources not always available where this file is included
+#define DEFINE_HAIR_BLUE_NOISE_JITTER_FUNCTION float4 GetHairBlueNoiseJitter(uint2 PixelCoord, uint SampleIndex, uint MaxSampleCount, uint TimeIndex)\
+{\
+	int2 Offset1 = int2(R2Sequence(SampleIndex) * BlueNoise.Dimensions.xy);\
+	int2 Offset2 = int2(R2Sequence(SampleIndex + MaxSampleCount) * BlueNoise.Dimensions.xy);\
+	float4 RandomSample;\
+	RandomSample.xy = BlueNoiseVec2(PixelCoord + Offset1, TimeIndex);\
+	RandomSample.zw = BlueNoiseVec2(PixelCoord + Offset2, TimeIndex);\
+	return RandomSample;\
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool ShouldStopTraversal(const FHairTraversalResult InResult, float InHairCountThreshold, bool InUseOpaqueVisibility=true)
