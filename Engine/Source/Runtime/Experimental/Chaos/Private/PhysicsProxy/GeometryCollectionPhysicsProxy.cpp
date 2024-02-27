@@ -1893,7 +1893,7 @@ float FGeometryCollectionPhysicsProxy::AdjustMassForScale(float Mass) const
 	const FVector WorldScale = Parameters.WorldTransform.GetScale3D();
 	float MassScale = (float)(WorldScale.X * WorldScale.Y * WorldScale.Z);
 	MassScale *= Parameters.MaterialOverrideMassScaleMultiplier;
-	return (Mass * MassScale);
+	return FMath::Abs(Mass * MassScale);
 }
 
 Chaos::FVec3f FGeometryCollectionPhysicsProxy::AdjustInertiaForScale(const Chaos::FVec3f& Inertia) const
