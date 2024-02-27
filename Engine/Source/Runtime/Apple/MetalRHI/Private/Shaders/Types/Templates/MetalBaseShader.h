@@ -10,6 +10,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "Misc/FileHelper.h"
+#include "Misc/ScopeExit.h"
 #include "Shaders/Debugging/MetalShaderDebugCache.h"
 #include "Shaders/MetalCompiledShaderKey.h"
 #include "Shaders/MetalCompiledShaderCache.h"
@@ -453,6 +454,7 @@ MTLFunctionPtr TMetalBaseShader<BaseResourceType, ShaderType>::GetCompiledFuncti
             NS::String* Name = (LibraryFunctionIndex != -1)
             ? (NS::String*)Library->functionNames()->object(LibraryFunctionIndex) : FStringToNSString(FString::Printf(TEXT("Main_%0.8x_%0.8x"), SourceLen, SourceCRC));
 			MTL::FunctionConstantValues* ConstantValues = nullptr;
+			ON_SCOPE_EXIT { if (ConstantValues){ ConstantValues->release(); } };
 			if (bHasFunctionConstants)
 			{
 				ConstantValues = MTL::FunctionConstantValues::alloc()->init();

@@ -1899,11 +1899,10 @@ void FMetalDynamicRHI::RHIUnlockTextureCubeFace(FRHITextureCube* TextureCubeRHI,
 
 void FMetalDynamicRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHITexture* TextureRHI, const TCHAR* Name)
 {
-    MTL_SCOPED_AUTORELEASE_POOL;
-    
-    FMetalSurface* Surf = GetMetalSurfaceFromRHITexture(TextureRHI);
-    
-    NS::String* LabelString = (NS::String*)FString(Name).GetCFString();
+	MTL_SCOPED_AUTORELEASE_POOL;
+    FMetalSurface* Surf = GetMetalSurfaceFromRHITexture(TextureRHI);   
+	
+    NS::String* LabelString = FStringToNSString(Name);
     if(Surf->Texture)
     {
         Surf->Texture->setLabel(LabelString);
