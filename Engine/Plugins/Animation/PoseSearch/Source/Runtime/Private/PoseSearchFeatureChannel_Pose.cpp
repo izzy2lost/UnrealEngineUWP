@@ -20,13 +20,13 @@ UPoseSearchFeatureChannel_Pose::UPoseSearchFeatureChannel_Pose()
 
 	SampledBones.Add(FPoseSearchBone({ {"foot_l"}, int32(EPoseSearchBoneFlags::Position | EPoseSearchBoneFlags::Velocity)
 #if WITH_EDITORONLY_DATA
-		, 1.f, FLinearColor::Green
+		, FName(), 1.f, FLinearColor::Green
 #endif // WITH_EDITORONLY_DATA
 		}));
 
 	SampledBones.Add(FPoseSearchBone({ {"foot_r"}, int32(EPoseSearchBoneFlags::Position | EPoseSearchBoneFlags::Velocity)
 #if WITH_EDITORONLY_DATA
-		, 1.f, FLinearColor::Green
+		, FName(), 1.f, FLinearColor::Green
 #endif // WITH_EDITORONLY_DATA
 		}));
 }
@@ -45,6 +45,7 @@ bool UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 			Position->SampleRole = SampleRole;
 			Position->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
+			Position->NormalizationGroup = SampledBone.NormalizationGroup;
 			Position->Weight = SampledBone.Weight * Weight;
 			Position->DebugColor = SampledBone.DebugColor;
 #endif // WITH_EDITORONLY_DATA
@@ -60,6 +61,7 @@ bool UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 			HeadingX->SampleRole = SampleRole;
 			HeadingX->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
+			HeadingX->NormalizationGroup = SampledBone.NormalizationGroup;
 			HeadingX->Weight = SampledBone.Weight * Weight;
 			HeadingX->DebugColor = SampledBone.DebugColor;
 #endif // WITH_EDITORONLY_DATA
@@ -73,6 +75,7 @@ bool UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 			HeadingY->SampleRole = SampleRole;
 			HeadingY->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
+			HeadingY->NormalizationGroup = SampledBone.NormalizationGroup;
 			HeadingY->Weight = SampledBone.Weight * Weight;
 			HeadingY->DebugColor = SampledBone.DebugColor;
 #endif // WITH_EDITORONLY_DATA
@@ -89,6 +92,7 @@ bool UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 			Velocity->SampleRole = SampleRole;
 			Velocity->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
+			Velocity->NormalizationGroup = SampledBone.NormalizationGroup;
 			Velocity->Weight = SampledBone.Weight * Weight;
 			Velocity->DebugColor = SampledBone.DebugColor;
 #endif // WITH_EDITORONLY_DATA
@@ -104,6 +108,7 @@ bool UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 			Phase->Bone = SampledBone.Reference;
 			Phase->SampleRole = SampleRole;
 #if WITH_EDITORONLY_DATA
+			Phase->NormalizationGroup = SampledBone.NormalizationGroup;
 			Phase->Weight = SampledBone.Weight * Weight;
 			Phase->DebugColor = SampledBone.DebugColor;
 #endif // WITH_EDITORONLY_DATA

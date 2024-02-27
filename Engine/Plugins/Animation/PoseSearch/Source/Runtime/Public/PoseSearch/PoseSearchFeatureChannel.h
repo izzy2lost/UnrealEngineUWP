@@ -152,7 +152,15 @@ public:
 	// returns the TLabelBuilder used editor side to identify this UPoseSearchFeatureChannel (for instance in the pose search debugger)
 	virtual UE::PoseSearch::TLabelBuilder& GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat = UE::PoseSearch::ELabelFormat::Full_Horizontal) const;
 
+	// returns true if the data associated to this channel can be normalized toghether with the associated with Other
 	virtual bool CanBeNormalizedWith(const UPoseSearchFeatureChannel* Other) const;
+
+	// if this channel GetNormalizationGroup returns a valid FName, all the channels of the same class with the same cardinality, and the same NormalizationGroup, 
+	// will make CanBeNormalizedWith return true and will be normalized together.
+	// for example in a locomotion database of a character holding a weapon, containing non mirrorable animations, you'd still want to normalize togeter 
+	// left foot and right foot position and velocity, so you'd want those channels returning the same GetNormalizationGroup value
+	virtual FName GetNormalizationGroup() const { return FName(); }
+
 	const UPoseSearchSchema* GetSchema() const;
 
 	virtual const UE::PoseSearch::FRole GetDefaultRole() const;
