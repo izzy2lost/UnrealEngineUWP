@@ -242,6 +242,9 @@ private:
 	void RemoveRebroadcastedSubject(FLiveLinkSubjectKey InSubjectKey);
 
 protected:
+	/** Broadcast out to the SubjectFrameAddedHandles a frame data update. */
+	void BroadcastFrameDataUpdate(const FLiveLinkSubjectKey& InSubjectKey, const FLiveLinkFrameDataStruct& InFrameData);
+
 	/** The current collection used. */
 	TUniquePtr<FLiveLinkSourceCollection> Collection;
 private:
