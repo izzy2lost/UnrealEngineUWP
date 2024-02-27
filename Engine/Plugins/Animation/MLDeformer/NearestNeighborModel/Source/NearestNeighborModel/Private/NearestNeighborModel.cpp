@@ -53,6 +53,7 @@ namespace UE::NearestNeighborModel
 		enum Type
 		{
 			BeforeCustomVersionWasAdded = 0,
+			AddTrainedBasis = 1,
 	
 			VersionPlusOne,
 			LatestVersion = VersionPlusOne - 1
@@ -1202,6 +1203,11 @@ void UNearestNeighborModel::PostLoad()
 		UpdateForInference();
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
+
+	if (IsBeforeTrainedBasisAdded())
+	{
+		bUsePCA = true;
+	}
 #endif
 }
 
@@ -1425,6 +1431,11 @@ bool UNearestNeighborModel::IsBeforeCustomVersionWasAdded() const
 	return Version < FNearestNeighborModelCustomVersion::BeforeCustomVersionWasAdded;
 }
 
+bool UNearestNeighborModel::IsBeforeTrainedBasisAdded() const
+{
+	using UE::NearestNeighborModel::FNearestNeighborModelCustomVersion;
+	return Version < FNearestNeighborModelCustomVersion::AddTrainedBasis;
+}
 
 UE::NearestNeighborModel::EOpFlag UNearestNeighborModel::CheckHiddenLayerDims()
 {
