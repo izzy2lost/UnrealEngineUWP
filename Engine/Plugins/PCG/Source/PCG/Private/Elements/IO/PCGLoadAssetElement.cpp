@@ -7,6 +7,12 @@
 
 #include "AssetRegistry/AssetData.h"
 
+UPCGLoadDataAssetSettings::UPCGLoadDataAssetSettings()
+{
+	Pins = Super::OutputPinProperties();
+	bTagOutputsBasedOnOutputPins = true;
+}
+
 #if WITH_EDITOR
 void UPCGLoadDataAssetSettings::GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
@@ -85,6 +91,7 @@ void UPCGLoadDataAssetSettings::UpdateFromData()
 		}
 
 		Pins = NewPins;
+		bTagOutputsBasedOnOutputPins = false;
 
 		// Update rest of cached data (name, tooltip, color, ...)
 		AssetName = AssetData->Name;
@@ -95,7 +102,9 @@ void UPCGLoadDataAssetSettings::UpdateFromData()
 	}
 	else
 	{
-		Pins = TArray<FPCGPinProperties>();
+		Pins = Super::OutputPinProperties();
+		bTagOutputsBasedOnOutputPins = true;
+
 		AssetName = FString();
 #if WITH_EDITOR
 		AssetDescription = FText::GetEmpty();
@@ -149,6 +158,17 @@ bool FPCGLoadDataAssetElement::ExecuteInternal(FPCGContext* Context) const
 	if (UPCGDataAsset* AssetData = Settings->Asset.LoadSynchronous())
 	{
 		Context->OutputData = AssetData->Data;
+
+		if (Settings->bTagOutputsBasedOnOutputPins)
+		{
+			for (FPCGTaggedData& TaggedData : Context->OutputData.TaggedData)
+			{
+				if (TaggedData.Pin != NAME_None)
+				{
+					TaggedData.Tags.Add(TaggedData.Pin.ToString());
+				}
+			}
+		}
 	}
 	else if (!Settings->Asset.IsNull() || Settings->bWarnIfNoAsset)
 	{

@@ -8,5 +8,5 @@
 namespace PCGEditorMenuUtils
 {
 	PCGEDITOR_API FToolMenuSection& CreatePCGSection(UToolMenu* Menu);
-	PCGEDITOR_API void CreateOrUpdatePCGAssetFromMenu(UToolMenu* Menu, TArray<FAssetData>& WorldAssets);
+	PCGEDITOR_API void CreateOrUpdatePCGAssetFromMenu(UToolMenu* Menu, TArray<FAssetData>& Assets);
 }

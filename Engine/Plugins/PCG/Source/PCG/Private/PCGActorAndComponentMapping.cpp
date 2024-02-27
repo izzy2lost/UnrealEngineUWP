@@ -3,6 +3,7 @@
 #include "PCGActorAndComponentMapping.h"
 
 #include "PCGComponent.h"
+#include "PCGDataAsset.h"
 #include "PCGGraph.h"
 #include "PCGModule.h"
 #include "PCGSubsystem.h"
@@ -1509,10 +1510,10 @@ void FPCGActorAndComponentMapping::OnObjectSaved(UObject* InObject, FObjectPreSa
 		return;
 	}
 
-	// Only trigger a refresh a new user data and if it is a data table
-	// We only track data table because we probably will catch other changes with OnObjectPropertyChanged.
-	// To avoid to force the check multiple times (on change + on save)
-	if (!InObjectSaveContext.IsProceduralSave() && Cast<UDataTable>(InObject))
+	// Only trigger a refresh on save for limited data classes.
+	// At this point in time, We only track data tables and PCG data assets because in most cases we probably will catch other changes with OnObjectPropertyChanged.
+	// This is especially important to make sure we don't trigger refresh multiple times (less a problem for PCG assets, but a big problem for data tables).
+	if (!InObjectSaveContext.IsProceduralSave() && (Cast<UDataTable>(InObject) || Cast<UPCGDataAsset>(InObject)))
 	{
 		FPropertyChangedEvent Event{ nullptr };
 		OnObjectPropertyChanged(InObject, Event);

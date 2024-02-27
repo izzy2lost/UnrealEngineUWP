@@ -28,13 +28,21 @@ public:
 	FString Name;
 
 #if WITH_EDITORONLY_DATA
+	/** Custom exporter class that was used to create this PCG asset. Should derive from UPCGAssetExporter. Can be left empty. */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Data, AssetRegistrySearchable, meta = (NoResetToDefault))
+	TSoftClassPtr<UObject> ExporterClass;
+
+	/** Custom exporter metadata to be able to update data without user intervention */
+	UPROPERTY(AssetRegistrySearchable)
+	FString ExporterMetadata;
+
 	/** Custom class to create settings/node in the graph when dragged in the editor. Can be left empty. */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Data, AssetRegistrySearchable, meta = (NoResetToDefault));
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Data, AssetRegistrySearchable, meta = (NoResetToDefault))
 	TSubclassOf<UPCGSettings> SettingsClass;
 
-	/** Reference to originating level */
+	/** Reference to originating object (often will be a level) */
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Data, AssetRegistrySearchable, meta = (NoResetToDefault))
-	FSoftObjectPath LevelPath;
+	FSoftObjectPath ObjectPath;
 
 	/** Custom node color to use for this specific asset */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data)

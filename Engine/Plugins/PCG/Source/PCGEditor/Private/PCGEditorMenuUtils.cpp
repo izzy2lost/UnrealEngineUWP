@@ -2,6 +2,7 @@
 
 #include "PCGEditorMenuUtils.h"
 
+#include "PCGAssetExporterUtils.h"
 #include "PCGLevelToAsset.h"
 
 #include "Engine/World.h"
@@ -24,37 +25,65 @@ namespace PCGEditorMenuUtils
 		return Section;
 	}
 
-	void CreateOrUpdatePCGAssetFromMenu(UToolMenu* Menu, TArray<FAssetData>& InWorldAssets)
+	void CreateOrUpdatePCGAssetFromMenu(UToolMenu* Menu, TArray<FAssetData>& InAssets)
 	{
 		TArray<FAssetData> TempWorldAssets;
-		for (const FAssetData& Asset : InWorldAssets)
+		TArray<FAssetData> TempPCGAssets;
+
+		for (const FAssetData& Asset : InAssets)
 		{
 			if (Asset.IsInstanceOf<UWorld>())
 			{
 				TempWorldAssets.Add(Asset);
 			}
+
+			if (Asset.IsInstanceOf<UPCGDataAsset>())
+			{
+				TempPCGAssets.Add(Asset);
+			}
 		}
 
-		if (TempWorldAssets.IsEmpty())
+		if (TempWorldAssets.IsEmpty() && TempPCGAssets.IsEmpty())
 		{
 			return;
 		}
 
 		FToolMenuSection& Section = CreatePCGSection(Menu);
 
-		FToolUIAction UIAction;
-		UIAction.ExecuteAction.BindLambda([WorldAssets = MoveTemp(TempWorldAssets)](const FToolMenuContext& MenuContext)
+		if (!TempWorldAssets.IsEmpty())
 		{
-			FScopedSlowTask SlowTask(0.0f, LOCTEXT("CreateOrUpdatePCGAssetsInProgress", "Creating PCG Assets..."));
-			UPCGLevelToAsset::CreateOrUpdatePCGAssets(WorldAssets);
-		});
+			FToolUIAction UIAction;
+			UIAction.ExecuteAction.BindLambda([WorldAssets = MoveTemp(TempWorldAssets)](const FToolMenuContext& MenuContext)
+			{
+				FScopedSlowTask SlowTask(0.0f, LOCTEXT("CreateOrUpdatePCGAssetsInProgress", "Creating PCG Assets from Level(s)..."));
+				UPCGLevelToAsset::CreateOrUpdatePCGAssets(WorldAssets);
+			});
 
-		Section.AddMenuEntry(
-			"CreateOrUpdatePCGAssetFromMenu",
-			LOCTEXT("CreateOrUpdatePCGAssetFromMenu", "Create or Update PCG Asset from Level(s)"),
-			TAttribute<FText>(),
-			FSlateIcon(),
-			UIAction);
+			Section.AddMenuEntry(
+				"CreatePCGAssetFromMenu",
+				LOCTEXT("CreatePCGAssetFromMenu", "Create PCG Assets from Level(s)"),
+				TAttribute<FText>(),
+				FSlateIcon(),
+				UIAction);
+		}
+
+		if (!TempPCGAssets.IsEmpty())
+		{
+			FToolUIAction UIAction;
+			UIAction.ExecuteAction.BindLambda([PCGAssets = MoveTemp(TempPCGAssets)](const FToolMenuContext& MenuContext)
+			{
+				FScopedSlowTask SlowTask(0.0f, LOCTEXT("UpdatePCGAssetsInProgress", "Updating PCG Assets..."));
+				UPCGAssetExporterUtils::UpdateAssets(PCGAssets);
+			});
+
+			Section.AddMenuEntry(
+				"UpdatePCGAssetFromMenu",
+				LOCTEXT("UpdatePCGAssetFromMenu", "Update PCG Assets"),
+				TAttribute<FText>(),
+				FSlateIcon(),
+				UIAction);
+		}
+
 	}
 }
 

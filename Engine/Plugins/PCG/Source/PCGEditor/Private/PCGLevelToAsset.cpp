@@ -3,47 +3,55 @@
 #include "PCGLevelToAsset.h"
 
 #include "PCGEditorModule.h"
+#include "PCGEditorUtils.h"
+#include "PCGAssetExporterUtils.h"
 
 #include "Data/PCGPointData.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
 #include "Metadata/PCGMetadata.h"
 
+#include "ContentBrowserModule.h"
 #include "FileHelpers.h"
+#include "IContentBrowserSingleton.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
 
-void UPCGLevelToAsset::CreateOrUpdatePCGAssets(const TArray<FAssetData>& WorldAssets, TSubclassOf<UPCGLevelToAsset> ExporterSubclass)
+void UPCGLevelToAsset::CreateOrUpdatePCGAssets(const TArray<FAssetData>& WorldAssets, const FPCGAssetExporterParameters& InParameters, TSubclassOf<UPCGLevelToAsset> ExporterSubclass)
 {
 	TArray<UPackage*> PackagesToSave;
+	FPCGAssetExporterParameters Parameters = InParameters;
+
+	if (WorldAssets.Num() > 1)
+	{
+		Parameters.bOpenSaveDialog = false;
+	}
 
 	for (const FAssetData& WorldAsset : WorldAssets)
 	{
-		if (UPackage* Package = CreateOrUpdatePCGAsset(TSoftObjectPtr<UWorld>(WorldAsset.GetSoftObjectPath()), ExporterSubclass))
+		if (UPackage* Package = CreateOrUpdatePCGAsset(TSoftObjectPtr<UWorld>(WorldAsset.GetSoftObjectPath()), Parameters, ExporterSubclass))
 		{
 			PackagesToSave.Add(Package);
-			// TODO: consider if we should garbage collect?
 		}
 	}
 
 	// Save the file(s)
-	// TODO: check if we should just dirty and not save (could be an option here)
-	if (!PackagesToSave.IsEmpty())
+	if (!PackagesToSave.IsEmpty() && Parameters.bSaveOnExportEnded)
 	{
 		FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, false, false);
 	}
 }
 
-UPackage* UPCGLevelToAsset::CreateOrUpdatePCGAsset(TSoftObjectPtr<UWorld> WorldPath, TSubclassOf<UPCGLevelToAsset> ExporterSubclass)
+UPackage* UPCGLevelToAsset::CreateOrUpdatePCGAsset(TSoftObjectPtr<UWorld> WorldPath, const FPCGAssetExporterParameters& Parameters, TSubclassOf<UPCGLevelToAsset> ExporterSubclass)
 {
-	return CreateOrUpdatePCGAsset(WorldPath.LoadSynchronous(), ExporterSubclass);
+	return CreateOrUpdatePCGAsset(WorldPath.LoadSynchronous(), Parameters, ExporterSubclass);
 }
 
-UPackage* UPCGLevelToAsset::CreateOrUpdatePCGAsset(UWorld* Level, TSubclassOf<UPCGLevelToAsset> ExporterSubclass)
+UPackage* UPCGLevelToAsset::CreateOrUpdatePCGAsset(UWorld* World, const FPCGAssetExporterParameters& InParameters, TSubclassOf<UPCGLevelToAsset> ExporterSubclass)
 {
-	if (!Level)
+	if (!World)
 	{
 		return nullptr;
 	}
@@ -64,93 +72,77 @@ UPackage* UPCGLevelToAsset::CreateOrUpdatePCGAsset(UWorld* Level, TSubclassOf<UP
 		return nullptr;
 	}
 
-	const FString AssetName = Level->GetName() + TEXT("_PCG");
-	// TODO: since we store the level SOP in the PCG data assets, we can technically search if there is already an asset matching this level and select this one instead.
-	const FString PackageName = FPaths::Combine(FPackageName::GetLongPackagePath(Level->GetPackage()->GetName()), AssetName);
+	Exporter->WorldToExport = World;
 
-	// Implementation note: this will cause a warning if the file can't be loaded (if the file doesn't exist, for example). It doesn't seem possible to quiet this.
-	UPackage* Package = LoadPackage(nullptr, *PackageName, LOAD_None);
+	FPCGAssetExporterParameters Parameters = InParameters;
+	Parameters.AssetName = World->GetName() + TEXT("_PCG");
 
-	UPCGDataAsset* Asset = nullptr;
-	bool NewAssetCreated = false;
-
-	if (Package)
+	if (InParameters.AssetPath.IsEmpty() && World->GetPackage())
 	{
-		UObject* Object = FindObjectFast<UObject>(Package, *AssetName);
-		if (Object && Object->GetClass() != Exporter->GetAssetType())
-		{
-			Object->SetFlags(RF_Transient);
-			Object->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
-			NewAssetCreated = true;
-		}
-		else
-		{
-			Asset = Cast<UPCGDataAsset>(Object);
-		}
+		Parameters.AssetPath = FPackageName::GetLongPackagePath(World->GetPackage()->GetName());
+	}
+
+	return UPCGAssetExporterUtils::CreateAsset(Exporter, Parameters);
+}
+
+UPackage* UPCGLevelToAsset::UpdateAsset(const FAssetData& PCGAsset)
+{
+	UPCGDataAsset* Asset = Cast<UPCGDataAsset>(PCGAsset.GetAsset());
+	if (!Asset)
+	{
+		UE_LOG(LogPCG, Error, TEXT("Asset '%s' isn't a PCG data asset or could not be properly loaded."), *PCGAsset.GetObjectPathString());
+		return nullptr;
+	}
+
+	UPackage* Package = Asset->GetPackage();
+	if (!Package)
+	{
+		UE_LOG(LogPCG, Error, TEXT("Unable to retrieve package from Asset '%s'."), *PCGAsset.GetObjectPathString());
+		return nullptr;
+	}
+
+	TSoftObjectPtr<UWorld> WorldPtr(Asset->ObjectPath);
+	UWorld* World = WorldPtr.LoadSynchronous();
+
+	if (!World)
+	{
+		UE_LOG(LogPCGEditor, Error, TEXT("PCG asset was unable to load world '%s'."), *Asset->ObjectPath.ToString());
+		return nullptr;
+	}
+
+	WorldToExport = World;
+
+	if (ExportAsset(Package->GetPathName(), Asset))
+	{
+		FCoreUObjectDelegates::BroadcastOnObjectModified(Asset);
+		return Package;
 	}
 	else
 	{
-		Package = CreatePackage(*PackageName);
-		NewAssetCreated = true;
+		return nullptr;
 	}
-
-	if (!Asset)
-	{
-		const EObjectFlags Flags = RF_Public | RF_Standalone | RF_Transactional;
-		Asset = NewObject<UPCGDataAsset>(Package, Exporter->GetAssetType(), FName(*AssetName), Flags);
-	}
-
-	if (Asset)
-	{
-		if (NewAssetCreated)
-		{
-			// Notify the asset registry
-			FAssetRegistryModule::AssetCreated(Asset);
-		}
-
-		Exporter->ExportLevel(Level, PackageName, Asset);
-
-		// Mark the package dirty...
-		Package->MarkPackageDirty();
-
-		// Make sure everybody knows we changed these settings.
-		if (!NewAssetCreated)
-		{
-			FCoreUObjectDelegates::BroadcastOnObjectModified(Asset);
-		}
-	}
-
-	return Package;
 }
 
-TSubclassOf<UPCGDataAsset> UPCGLevelToAsset::BP_GetAssetType_Implementation() const
+bool UPCGLevelToAsset::ExportAsset(const FString& PackageName, UPCGDataAsset* Asset)
 {
-	return UPCGDataAsset::StaticClass();
+	return BP_ExportWorld(WorldToExport, PackageName, Asset);
 }
 
-TSubclassOf<UPCGDataAsset> UPCGLevelToAsset::GetAssetType() const
+bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FString& PackageName, UPCGDataAsset* Asset)
 {
-	return BP_GetAssetType();
-}
-
-bool UPCGLevelToAsset::ExportLevel(UWorld* Level, const FString& PackageName, UPCGDataAsset* Asset)
-{
-	return BP_ExportLevel(Level, PackageName, Asset);
-}
-
-bool UPCGLevelToAsset::BP_ExportLevel_Implementation(UWorld* Level, const FString& PackageName, UPCGDataAsset* Asset)
-{
-	check(Level && Asset);
-	Asset->LevelPath = FSoftObjectPath(Level);
-	Asset->Description = FText::Format(NSLOCTEXT("PCGLevelToAsset", "DefaultDescriptionOnExportedLevel", "Generated from level: {0}"), FText::FromString(Level->GetName()));
+	check(World && Asset);
+	Asset->ObjectPath = FSoftObjectPath(World);
+	Asset->Description = FText::Format(NSLOCTEXT("PCGLevelToAsset", "DefaultDescriptionOnExportedLevel", "Generated from world: {0}"), FText::FromString(World->GetName()));
+	Asset->ExporterClass = GetClass();
 
 	FPCGDataCollection& DataCollection = Asset->Data;
+	DataCollection.TaggedData.Reset();
 
 	// Create Root Data
 	UPCGPointData* RootPointData = NewObject<UPCGPointData>(Asset);
 	UPCGMetadata* RootMetadata = RootPointData->MutableMetadata();
 	TArray<FPCGPoint>& Roots = RootPointData->GetMutablePoints();
-	RootMetadata->CreateAttribute<FString>(TEXT("Name"), Level->GetName(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
+	RootMetadata->CreateAttribute<FString>(TEXT("Name"), World->GetName(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
 	RootMetadata->CreateAttribute<FSoftObjectPath>(TEXT("Source"), PackageName, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
 
 	// Add to data collection
@@ -175,15 +167,30 @@ bool UPCGLevelToAsset::BP_ExportLevel_Implementation(UWorld* Level, const FStrin
 	// Common data shared across steps
 	FBox AllActorBounds(EForceInit::ForceInit);
 
-	// Attribute setup on the points
-	FPCGMetadataAttribute<FSoftObjectPath>* MaterialAttribute = PointMetadata->CreateAttribute<FSoftObjectPath>(TEXT("Material"), FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
-	FPCGMetadataAttribute<FSoftObjectPath>* MeshAttribute = PointMetadata->CreateAttribute<FSoftObjectPath>(TEXT("Mesh"), FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
-	FPCGMetadataAttribute<int64>* HierarchyDepthAttribute = PointMetadata->CreateAttribute<int64>(TEXT("HierarchyDepth"), 0, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
-	FPCGMetadataAttribute<int64>* ActorIndexAttribute = PointMetadata->CreateAttribute<int64>(TEXT("ActorIndex"), -1, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
-	FPCGMetadataAttribute<int64>* ParentIndexAttribute = PointMetadata->CreateAttribute<int64>(TEXT("ParentIndex"), -1, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
-	FPCGMetadataAttribute<FTransform>* RelativeTransformAttribute = PointMetadata->CreateAttribute<FTransform>(TEXT("RelativeTransform"), FTransform::Identity, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
+	// Hardcoded attributes
+	const FName MaterialAttributeName = TEXT("Material");
+	const FName MeshAttributeName = TEXT("Mesh");
+	const FName HierarchyDepthAttributeName = TEXT("HierarchyDepth");
+	const FName ActorIndexAttributeName = TEXT("ActorIndex");
+	const FName ParentIndexAttributeName = TEXT("ParentIndex");
+	const FName RelativeTransformAttributeName = TEXT("RelativeTransform");
 
-	TMap<FName, FPCGMetadataAttribute<int64>*> TagToAttributeMap;
+	// Attribute setup on the points
+	FPCGMetadataAttribute<FSoftObjectPath>* MaterialAttribute = PointMetadata->CreateAttribute<FSoftObjectPath>(MaterialAttributeName, FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
+	FPCGMetadataAttribute<FSoftObjectPath>* MeshAttribute = PointMetadata->CreateAttribute<FSoftObjectPath>(MeshAttributeName, FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
+	FPCGMetadataAttribute<int64>* HierarchyDepthAttribute = PointMetadata->CreateAttribute<int64>(HierarchyDepthAttributeName, 0, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
+	FPCGMetadataAttribute<int64>* ActorIndexAttribute = PointMetadata->CreateAttribute<int64>(ActorIndexAttributeName, -1, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
+	FPCGMetadataAttribute<int64>* ParentIndexAttribute = PointMetadata->CreateAttribute<int64>(ParentIndexAttributeName, -1, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
+	FPCGMetadataAttribute<FTransform>* RelativeTransformAttribute = PointMetadata->CreateAttribute<FTransform>(RelativeTransformAttributeName, FTransform::Identity, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
+
+	TMap<FName, FPCGMetadataAttributeBase*> TagToAttributeMap;
+	TSet<FName> ReservedTags;
+	ReservedTags.Add(MaterialAttributeName);
+	ReservedTags.Add(MeshAttributeName);
+	ReservedTags.Add(HierarchyDepthAttributeName);
+	ReservedTags.Add(ActorIndexAttributeName);
+	ReservedTags.Add(ParentIndexAttributeName);
+	ReservedTags.Add(RelativeTransformAttributeName);
 
 	// Hierarchy root point
 	{
@@ -198,14 +205,14 @@ bool UPCGLevelToAsset::BP_ExportLevel_Implementation(UWorld* Level, const FStrin
 	// Build actor-index map
 	TMap<AActor*, int> ActorIndexMap;
 	int LastActorIndex = 1; // Since the root is the "first" point we'll have, we'll have the map start from 1.
-	UPCGActorHelpers::ForEachActorInWorld(Level, AActor::StaticClass(), [&ActorIndexMap, &LastActorIndex](AActor* Actor)
+	UPCGActorHelpers::ForEachActorInWorld(World, AActor::StaticClass(), [&ActorIndexMap, &LastActorIndex](AActor* Actor)
 	{
 		ActorIndexMap.Add(Actor, LastActorIndex++);
 		return true;
 	});
 
 	// Create points
-	UPCGActorHelpers::ForEachActorInWorld(Level, AActor::StaticClass(), [&](AActor* Actor)
+	UPCGActorHelpers::ForEachActorInWorld(World, AActor::StaticClass(), [&](AActor* Actor)
 	{
 		// TODO Actor-level decisions if any; if the actor is "consumed" at this step, make sure to update AllActorBounds as well.
 
@@ -223,9 +230,44 @@ bool UPCGLevelToAsset::BP_ExportLevel_Implementation(UWorld* Level, const FStrin
 
 		for (FName ActorTag : Actor->Tags)
 		{
-			if (!TagToAttributeMap.Contains(ActorTag))
+			if (ReservedTags.Contains(ActorTag) || TagToAttributeMap.Contains(ActorTag))
 			{
-				TagToAttributeMap.Add(ActorTag, PointMetadata->CreateAttribute<int64>(ActorTag, 0, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
+				continue;
+			}
+
+			const FString TagString = ActorTag.ToString();
+			int32 DividerPosition = INDEX_NONE;
+			
+			if (TagString.FindChar(':', DividerPosition))
+			{
+				const FString LeftSide = TagString.Left(DividerPosition);
+				const FString RightSide = TagString.RightChop(DividerPosition + 1);
+
+				if (LeftSide.IsEmpty() || RightSide.IsEmpty())
+				{
+					continue;
+				}
+
+				const FName AttributeName = FName(LeftSide);
+				if (ReservedTags.Contains(AttributeName) || TagToAttributeMap.Contains(AttributeName))
+				{
+					continue;
+				}
+
+				// Otherwise, create the attribute based on the type of the data after the colon.
+				if (RightSide.IsNumeric())
+				{
+					TagToAttributeMap.Add(AttributeName, PointMetadata->CreateAttribute<double>(AttributeName, 0.0f, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
+				}
+				else
+				{
+					TagToAttributeMap.Add(AttributeName, PointMetadata->CreateAttribute<FString>(AttributeName, FString(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
+				}
+			}
+			else
+			{
+				// Simple boolean attribute
+				TagToAttributeMap.Add(ActorTag, PointMetadata->CreateAttribute<bool>(ActorTag, false, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
 			}
 		}
 
@@ -264,10 +306,44 @@ bool UPCGLevelToAsset::BP_ExportLevel_Implementation(UWorld* Level, const FStrin
 			RelativeTransformAttribute->SetValue(Point.MetadataEntry, RelativeTransform);
 			HierarchyDepthAttribute->SetValue(Point.MetadataEntry, HierarchyDepth);
 
-			// For all tags, set attribute value to 1.
+			// For all tags, set attribute value to true.
 			for (FName ActorTag : Actor->Tags)
 			{
-				TagToAttributeMap[ActorTag]->SetValue(Point.MetadataEntry, 1);
+				const FString TagString = ActorTag.ToString();
+				int32 DividerPosition = INDEX_NONE;
+
+				if (TagString.FindChar(':', DividerPosition))
+				{
+					const FString LeftSide = TagString.Left(DividerPosition);
+					const FString RightSide = TagString.Right(DividerPosition + 1);
+
+					if (LeftSide.IsEmpty() || RightSide.IsEmpty())
+					{
+						continue;
+					}
+
+					const FName AttributeName = FName(LeftSide);
+					if (FPCGMetadataAttributeBase** Attribute = TagToAttributeMap.Find(AttributeName))
+					{
+						check(*Attribute);
+						if (RightSide.IsNumeric() && (*Attribute)->GetTypeId() == PCG::Private::MetadataTypes<double>::Id)
+						{
+							double RightSideValue = FCString::Atod(*RightSide);
+							static_cast<FPCGMetadataAttribute<double>*>(*Attribute)->SetValue(Point.MetadataEntry, RightSideValue);
+						}
+						else if ((*Attribute)->GetTypeId() == PCG::Private::MetadataTypes<FString>::Id)
+						{
+							static_cast<FPCGMetadataAttribute<FString>*>(*Attribute)->SetValue(Point.MetadataEntry, RightSide);
+						}
+					}
+				}
+				else if (FPCGMetadataAttributeBase** Attribute = TagToAttributeMap.Find(ActorTag))
+				{
+					if ((*Attribute)->GetTypeId() == PCG::Private::MetadataTypes<bool>::Id)
+					{
+						static_cast<FPCGMetadataAttribute<bool>*>(*Attribute)->SetValue(Point.MetadataEntry, true);
+					}
+				}
 			}
 		};
 

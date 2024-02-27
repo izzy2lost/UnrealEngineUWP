@@ -318,10 +318,9 @@ bool FPCGIndirectionElement::ExecuteInternal(FPCGContext* InContext) const
 	{
 		for (FPCGTaggedData& TaggedData : Context->OutputData.TaggedData)
 		{
-			if (TaggedData.Pin != NAME_None && TaggedData.Pin != PCGPinConstants::DefaultOutputLabel)
+			if (TaggedData.Pin != NAME_None)
 			{
 				TaggedData.Tags.Add(TaggedData.Pin.ToString());
-				TaggedData.Pin = NAME_None;
 			}
 		}
 	}
