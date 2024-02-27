@@ -64,7 +64,8 @@ void UControlRigControlsProxy::AddControlRigControl(UControlRig* InControlRig, c
 	{
 		Item.ControlElements.Add(InName);
 	}
-	if (ControlRigItems.Num() > 1 || Item.ControlElements.Num() > 1 || SequencerItems.Num() > 0)
+	//only change label to Multiple if not an individual(attribute) control
+	if (bIsIndividual == false && (ControlRigItems.Num() > 1 || Item.ControlElements.Num() > 1 || SequencerItems.Num() > 0))
 	{
 		FString DisplayString = TEXT("Multiple");
 		FName DisplayName(*DisplayString);
@@ -201,10 +202,37 @@ void UControlRigControlsProxy::ResetSequencerItems()
 	}
 }
 
+FCachedRigElement& UControlRigControlsProxy::GetOwnerControlElement()
+{
+	static FCachedRigElement EmptyElement;
+	if (OwnerControlRig.IsValid())
+	{
+		if (OwnerControlElement.UpdateCache(OwnerControlRig->GetHierarchy()))
+		{
+			return OwnerControlElement;
+		}
+	}
+	return EmptyElement;
+}
+
 void UControlRigControlsProxy::AddChildProxy(UControlRigControlsProxy* ControlProxy)
 {
+	//check to see if the child proxy already has attribute that matches in which case we reuse it and make it a multiple
 	if (ChildProxies.Contains(ControlProxy) == false)
 	{
+		for (UControlRigControlsProxy* ChildProxy : ChildProxies)
+		{
+			if(ChildProxy->GetClass() == ControlProxy->GetClass())
+			{
+				FCachedRigElement& ChildRigElement = ChildProxy->GetOwnerControlElement();
+				FCachedRigElement& ControlRigElement = ControlProxy->GetOwnerControlElement();
+				if (ChildRigElement.IsValid() && ControlRigElement.IsValid() && ChildRigElement.GetElement()->GetDisplayName() == ControlRigElement.GetElement()->GetDisplayName())
+				{
+					ChildProxy->AddItem(ControlProxy);
+					return;
+				}
+			}
+		}
 		ChildProxies.Add(ControlProxy);
 	}
 }
