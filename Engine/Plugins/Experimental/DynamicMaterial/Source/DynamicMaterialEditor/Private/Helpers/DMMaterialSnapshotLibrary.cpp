@@ -153,6 +153,9 @@ bool FDMMaterialShapshotLibrary::SnapshotMaterial(UMaterialInterface* InMaterial
 
 	FImageUtils::SaveImageByExtension(*InSavePath, Image);
 
+	RenderTarget->ReleaseResource();
+	FixedAlphaRenderTarget->ReleaseResource();
+
 	// Make a toast!
 	const FString HyperLinkText = FPaths::ConvertRelativePathToFull(InSavePath);
 
