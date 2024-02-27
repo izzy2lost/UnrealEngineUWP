@@ -3968,6 +3968,45 @@ namespace UnrealBuildTool
 				GradleBuildAdditionsContent.AppendLine("\t}");
 			}
 
+			string DebugKeyAlias, DebugKeyStore, DebugKeyStorePassword, DebugKeyPassword;
+			Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugKeyStore", out DebugKeyStore);
+			Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugKeyAlias", out DebugKeyAlias);
+			Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugKeyStorePassword", out DebugKeyStorePassword);
+			Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugKeyPassword", out DebugKeyPassword);
+
+			bool bHasCustomDebugKeystore = false;
+			if (!String.IsNullOrEmpty(DebugKeyStore) && !String.IsNullOrEmpty(DebugKeyAlias) && !String.IsNullOrEmpty(DebugKeyStorePassword))
+			{
+				if (String.IsNullOrEmpty(DebugKeyPassword) || DebugKeyPassword == "_sameaskeystore_")
+				{
+					DebugKeyPassword = DebugKeyStorePassword;
+				}
+
+				string DebugKeyStoreFilename = Path.Combine(UnrealBuildPath, DebugKeyStore);
+				if (!File.Exists(DebugKeyStoreFilename))
+				{
+					Logger?.LogWarning("Debug keystore file is missing. Check the DistributionSettings section in the Android tab of Project Settings");
+				}
+				else
+				{
+					bHasCustomDebugKeystore = true;
+
+					GradleProperties.AppendLine(String.Format("DEBUG_STORE_FILE={0}", DebugKeyStoreFilename.Replace("\\", "/")));
+					GradleProperties.AppendLine(String.Format("DEBUG_STORE_PASSWORD={0}", DebugKeyStorePassword));
+					GradleProperties.AppendLine(String.Format("DEBUG_KEY_ALIAS={0}", DebugKeyAlias));
+					GradleProperties.AppendLine(String.Format("DEBUG_KEY_PASSWORD={0}", DebugKeyPassword));
+
+					GradleBuildAdditionsContent.AppendLine("\tsigningConfigs {");
+					GradleBuildAdditionsContent.AppendLine("\t\tdebug {");
+					GradleBuildAdditionsContent.AppendLine(String.Format("\t\t\tstoreFile file('{0}')", DebugKeyStoreFilename.Replace("\\", "/")));
+					GradleBuildAdditionsContent.AppendLine(String.Format("\t\t\tstorePassword '{0}'", DebugKeyStorePassword));
+					GradleBuildAdditionsContent.AppendLine(String.Format("\t\t\tkeyAlias '{0}'", DebugKeyAlias));
+					GradleBuildAdditionsContent.AppendLine(String.Format("\t\t\tkeyPassword '{0}'", DebugKeyPassword));
+					GradleBuildAdditionsContent.AppendLine("\t\t}");
+					GradleBuildAdditionsContent.AppendLine("\t}");
+				}
+			}
+
 			if (bForDistribution)
 			{
 				string KeyAlias, KeyStore, KeyStorePassword, KeyPassword;
@@ -4050,6 +4089,10 @@ namespace UnrealBuildTool
 			GradleBuildAdditionsContent.AppendLine("\t\t}");
 			GradleBuildAdditionsContent.AppendLine("\t\tdebug {");
 			GradleBuildAdditionsContent.AppendLine("\t\t\tdebuggable true");
+			if (bHasCustomDebugKeystore)
+			{
+				GradleBuildAdditionsContent.AppendLine("\t\t\tsigningConfig signingConfigs.debug");
+			}
 			GradleBuildAdditionsContent.AppendLine("\t\t}");
 			GradleBuildAdditionsContent.AppendLine("\t}");
 			GradleBuildAdditionsContent.AppendLine("}");
@@ -4690,6 +4733,36 @@ namespace UnrealBuildTool
 						}
 
 						KeyStore = Path.Combine(UnrealBuildPath, KeyStore);
+					}
+					else
+					{
+						string DebugKeyAlias, DebugKeyStore, DebugKeyStorePassword, DebugKeyPassword;
+						Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugKeyStore", out DebugKeyStore);
+						Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugKeyAlias", out DebugKeyAlias);
+						Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugKeyStorePassword", out DebugKeyStorePassword);
+						Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugKeyPassword", out DebugKeyPassword);
+
+						if (!String.IsNullOrEmpty(DebugKeyStore) && !String.IsNullOrEmpty(DebugKeyAlias) && !String.IsNullOrEmpty(DebugKeyStorePassword))
+						{
+							Logger.LogInformation("Using custom debug keystore {KeyStore}", DebugKeyStore);
+
+							KeyStore = Path.Combine(UnrealBuildPath, DebugKeyStore);
+							KeyAlias = DebugKeyAlias;
+							KeyStorePassword = DebugKeyStorePassword;
+							KeyPassword = DebugKeyPassword;
+							if (String.IsNullOrEmpty(KeyPassword) || KeyPassword == "_sameaskeystore_")
+							{
+								KeyPassword = KeyStorePassword;
+							}
+						}
+						else if (!String.IsNullOrEmpty(DebugKeyStore) || !String.IsNullOrEmpty(DebugKeyAlias) || !String.IsNullOrEmpty(DebugKeyStorePassword))
+						{
+							throw new BuildException("Debug signing settings are not all or none set. Check the DistributionSettings section in the Android tab of Project Settings");
+						}
+						else
+						{
+							Logger.LogInformation("Using default keystore");
+						}
 					}
 
 					// Make sure the keystore file exists
@@ -5464,6 +5537,11 @@ popd
 									}
 
 									if (SourceProperties[Index].StartsWith("STORE_FILE=") && DestProperties[Index].StartsWith("STORE_FILE="))
+									{
+										continue;
+									}
+
+									if (SourceProperties[Index].StartsWith("DEBUG_STORE_FILE=") && DestProperties[Index].StartsWith("DEBUG_STORE_FILE="))
 									{
 										continue;
 									}

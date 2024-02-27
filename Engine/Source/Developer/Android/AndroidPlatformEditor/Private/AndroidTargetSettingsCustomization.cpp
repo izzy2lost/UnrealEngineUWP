@@ -106,8 +106,10 @@ void FAndroidTargetSettingsCustomization::BuildAppManifestSection(IDetailLayoutB
 	AdvancedBuildCategory.InitiallyCollapsed(true);
 	IDetailCategoryBuilder& SDKConfigCategory = DetailLayout.EditCategory(TEXT("Project SDK Override"));
 	SDKConfigCategory.InitiallyCollapsed(true);
+	IDetailCategoryBuilder& DebugSigningCategory = DetailLayout.EditCategory(TEXT("DebugSigning"));
+	DebugSigningCategory.InitiallyCollapsed(true);
 
-	IDetailCategoryBuilder& SigningCategory = DetailLayout.EditCategory(TEXT("DistributionSigning"));
+	IDetailCategoryBuilder& DistributionSigningCategory = DetailLayout.EditCategory(TEXT("DistributionSigning"));
 
 	TSharedRef<SPlatformSetupMessage> PlatformSetupMessage = SNew(SPlatformSetupMessage, GameProjectPropertiesPath)
 		.PlatformName(LOCTEXT("AndroidPlatformName", "Android"))
@@ -216,7 +218,7 @@ void FAndroidTargetSettingsCustomization::BuildAppManifestSection(IDetailLayoutB
 	SDKConfigCategory.AddProperty(NDKAPILevelOverrideProperty);
 
 	// Signing category
-	SigningCategory.AddCustomRow(LOCTEXT("SigningHyperlink", "Signing Hyperlink"), false)
+	DistributionSigningCategory.AddCustomRow(LOCTEXT("SigningHyperlink", "Signing Hyperlink"), false)
 		.WholeRowWidget
 		[
 			SNew(SBox)
