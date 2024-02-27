@@ -69,7 +69,7 @@ private:
 
 	void EnsureOutlinerViewCount(int32 InOutlinerViewId);
 
-	void UpdateItemIdContexts(FStringView InOldContext, FStringView InNewContext);
+	void UpdateItemIdContexts(FStringView InNewContext);
 
 	/**
 	 * Deprecated in favor of using Motion Design Scene Tree
