@@ -162,7 +162,7 @@ export class Dashboard {
     get development(): boolean {
 
         try {
-            return getSiteConfig().environment === "Development";
+            return getSiteConfig().environment === "dev";
         } catch (reason) {
             console.error(reason);
         }
