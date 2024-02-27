@@ -68,11 +68,10 @@ public:
 	virtual ~FAppleHttpRequest();
 
 PACKAGE_SCOPE:
+	using FHttpRequestCommon::BroadcastResponseHeadersReceived;
 	using FHttpRequestCommon::StartActivityTimeoutTimer;
 	using FHttpRequestCommon::ResetActivityTimeoutTimer;
 	using FHttpRequestCommon::StopActivityTimeoutTimer;
-
-PACKAGE_SCOPE:
 	using FHttpRequestCommon::TriggerStatusCodeReceivedDelegate;
 	using FHttpRequestCommon::SetEffectiveURL;
 	using FHttpRequestCommon::PassReceivedDataToStream;
