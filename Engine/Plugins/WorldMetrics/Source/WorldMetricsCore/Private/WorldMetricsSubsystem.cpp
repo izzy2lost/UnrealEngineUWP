@@ -106,7 +106,7 @@ void UWorldMetricsSubsystem::Enable(bool bEnable)
 			return;
 		}
 
-		if (!GetWorld()->IsGameWorld())
+		if (!CanHaveWorldMetrics(GetWorld()))
 		{
 			return;
 		}
