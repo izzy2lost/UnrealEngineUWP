@@ -131,7 +131,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 	int32 ElementCount = ArrayHelper.Num();
 
 	// Custom branch for UPS to try and take advantage of bulk serialization
-	if (bUPS && !bExperimentalOverridableLogic)
+	if (bUPS)
 	{
 		checkf(!UnderlyingArchive.ArUseCustomPropertyList, TEXT("Custom property lists are not supported with UPS"));
 		checkf(!bIsTextFormat, TEXT("Text-based archives are not supported with UPS"));
@@ -212,7 +212,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 	};
 
 	// Make sure the container is reloading accordingly to the value set in the property tag if any
-	if (!bUPS && UnderlyingArchive.IsLoading() && FPropertyTagScope::GetCurrentPropertyTag())
+	if (UnderlyingArchive.IsLoading() && FPropertyTagScope::GetCurrentPropertyTag())
 	{
 		bExperimentalOverridableLogic = FPropertyTagScope::GetCurrentPropertyTag()->bExperimentalOverridableLogic;
 	}
