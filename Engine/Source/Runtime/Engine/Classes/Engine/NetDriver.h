@@ -2171,7 +2171,13 @@ private:
 	/** Used with FNetDelegates::OnSyncLoadDetected to log sync loads */
 	void ReportSyncLoad(const FNetSyncLoadReport& Report);
 
-	void UpdateCrashContext();
+	enum class ECrashContextUpdate
+	{
+		Default,
+		UpdateRepModel,
+		ClearRepModel,
+	};
+	void UpdateCrashContext(ECrashContextUpdate UpdateType=ECrashContextUpdate::Default);
 
 	void RemoveDestroyedGuidsByLevel(const ULevel* Level, const TArray<FNetworkGUID>& RemovedGUIDs);
 

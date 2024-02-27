@@ -1520,8 +1520,14 @@ bool UNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, const FU
 	
 	if (NetDriverDefinition == NAME_GameNetDriver)
 	{
-		static FString CrashContext_ReplicationModel = TEXT("ReplicationModel");
-		FGenericCrashContext::SetEngineData(CrashContext_ReplicationModel, *GetReplicationModelName());
+		UpdateCrashContext(ECrashContextUpdate::UpdateRepModel);
+
+#if WITH_PUSH_MODEL
+		// Disable PushModel globally when the GameNetDriver is running with Iris.
+		// Temp until we fully integrate Iris PushModel support.
+		const bool bAllowPushModelHandles = !IsUsingIrisReplication();
+		UEPushModelPrivate::SetHandleCreationAllowed(bAllowPushModelHandles);
+#endif
 	}
 
 	UE_LOG(LogNet, Log, TEXT("InitBase %s (NetDriverDefinition %s) using replication model %s"), *NetDriverName.ToString(), *NetDriverDefinition.ToString(), *GetReplicationModelName());
@@ -2086,7 +2092,16 @@ void UNetDriver::Shutdown()
 		AnalyticsAggregator.Reset();
 	}
 
-	UpdateCrashContext();
+	// Clear repmodel flags for clients or listen servers when shutting down since they are considered offline.
+	// For dedicated servers let's keep the flag in case we crash post-shutdown.
+	if (GetNetMode() != NM_DedicatedServer)
+	{
+		UpdateCrashContext(ECrashContextUpdate::ClearRepModel);
+	}
+	else
+	{
+		UpdateCrashContext(ECrashContextUpdate::Default);
+	}
 
 	NetworkMetricsDatabase->Reset();
 	NetworkMetricsListeners.Reset();
@@ -6227,22 +6242,35 @@ void UNetDriver::AddClientConnection(UNetConnection* NewConnection)
 	UpdateCrashContext();
 }
 
-void UNetDriver::UpdateCrashContext()
+void UNetDriver::UpdateCrashContext(ECrashContextUpdate UpdateType)
 {
-	if (NetDriverName == NAME_GameNetDriver)
+	if (NetDriverDefinition != NAME_GameNetDriver)
 	{
-		int32 NumClients = 0;
+		return;
+	}
 
-		for (const UNetConnection* Connection : ClientConnections)
+	int32 NumClients = 0;
+
+	for (const UNetConnection* Connection : ClientConnections)
+	{
+		if (Connection && !Connection->IsReplay())
 		{
-			if (Connection && !Connection->IsReplay())
-			{
-				++NumClients;
-			}
+			++NumClients;
 		}
+	}
 
-		static FString Attrib_NumClients = TEXT("NumClients");
-		FGenericCrashContext::SetEngineData(Attrib_NumClients, LexToString(NumClients));
+	static FString Attrib_NumClients = TEXT("NumClients");
+	FGenericCrashContext::SetEngineData(Attrib_NumClients, LexToString(NumClients));
+
+	static FString CrashContext_ReplicationModel = TEXT("ReplicationModel");
+
+	if (UpdateType == ECrashContextUpdate::UpdateRepModel)
+	{		
+		FGenericCrashContext::SetEngineData(CrashContext_ReplicationModel, *GetReplicationModelName());
+	}
+	else if (UpdateType == ECrashContextUpdate::ClearRepModel)
+	{
+		FGenericCrashContext::SetEngineData(CrashContext_ReplicationModel, TEXT(""));
 	}
 }
 

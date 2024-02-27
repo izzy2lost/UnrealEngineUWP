@@ -12,6 +12,7 @@
 #include "EngineStats.h"
 #include "Engine/PackageMapClient.h"
 #include "Engine/NetConnection.h"
+#include "Net/Core/PushModel/PushModel.h"
 #include "Net/Core/PushModel/PushModelMacros.h"
 #include "Net/NetworkProfiler.h"
 #include "Engine/ActorChannel.h"
@@ -219,14 +220,10 @@ namespace UE_RepLayout_Private
 	{
 		const int32 NumReplicatedProperties = InRepLayout->GetNumParents();
 
-#if UE_WITH_IRIS
 		// Implement shared PushModelids/NetHandles for Iris and PushModel to avoid conflicts when we mix systems - JIRA: UE-158304
-		const bool bShouldUseIrisReplication = UE::Net::ShouldUseIrisReplication();
-#else
-		const bool bShouldUseIrisReplication = false;
-#endif
+		const bool bAllowedToCreateHandles = UEPushModelPrivate::IsHandleCreationAllowed();
 
-		if (UEPushModelPrivate::IsPushModelEnabled() && !bShouldUseIrisReplication &&
+		if (UEPushModelPrivate::IsPushModelEnabled() && bAllowedToCreateHandles &&
 			NumReplicatedProperties > 0 &&
 			EnumHasAnyFlags(InRepLayout->GetFlags(), ERepLayoutFlags::FullPushSupport | ERepLayoutFlags::PartialPushSupport))
 		{
