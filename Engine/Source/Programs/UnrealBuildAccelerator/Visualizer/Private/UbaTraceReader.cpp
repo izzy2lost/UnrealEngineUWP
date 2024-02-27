@@ -533,7 +533,17 @@ namespace uba
 				process.systemStats.Read(reader);
 			}
 
-			if (out.version >= 20)
+			if (out.version >= 22)
+			{
+				while (true)
+				{
+					auto type = (LogEntryType)reader.ReadByte();
+					if (type == 255)
+						break;
+					process.logLines.emplace_back(reader.ReadString(), type);
+				}
+			}
+			else if (out.version >= 20)
 			{
 				u64 logLineCount = reader.Read7BitEncoded();
 				process.logLines.reserve(logLineCount);

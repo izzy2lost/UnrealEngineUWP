@@ -51,7 +51,7 @@ namespace uba
 		TraceType_StatusUpdate,
 	};
 
-	static constexpr u32 TraceVersion = 21;
+	static constexpr u32 TraceVersion = 22;
 	static constexpr u32 TraceReadCompatibilityVersion = 6;
 
 	class Trace
