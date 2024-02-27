@@ -38,6 +38,8 @@ public class MoverTests : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"Mover",
+				"MoverExamples"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

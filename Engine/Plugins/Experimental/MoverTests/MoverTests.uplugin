@@ -25,6 +25,10 @@
 		{
 			"Name": "Mover",
 			"Enabled": true
+		},
+		{
+			"Name": "MoverExamples",
+			"Enabled": true
 		}
 	]
 }
