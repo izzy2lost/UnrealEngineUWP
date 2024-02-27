@@ -48,6 +48,7 @@ struct FOptionalVulkanDeviceExtensions
 			uint64 HasEXTFragmentDensityMap : 1;
 			uint64 HasEXTFragmentDensityMap2 : 1;
 			uint64 HasKHRFragmentShadingRate : 1;
+			uint64 HasKHRFragmentShaderBarycentric : 1;
 			uint64 HasEXTFullscreenExclusive : 1;
 			uint64 HasImageAtomicInt64 : 1;
 			uint64 HasAccelerationStructure : 1;
@@ -138,6 +139,9 @@ struct FOptionalVulkanDeviceExtensionProperties
 	VkPhysicalDeviceFragmentShadingRateFeaturesKHR FragmentShadingRateFeatures;
 	VkPhysicalDeviceFragmentDensityMapFeaturesEXT FragmentDensityMapFeatures;
 	VkPhysicalDeviceFragmentDensityMap2FeaturesEXT FragmentDensityMap2Features;
+
+	VkPhysicalDeviceFragmentShaderBarycentricPropertiesKHR FragmentShaderBarycentricProps;
+	VkPhysicalDeviceComputeShaderDerivativesFeaturesNV ComputeShaderDerivativesFeatures;
 };
 
 class FVulkanPhysicalDeviceFeatures
