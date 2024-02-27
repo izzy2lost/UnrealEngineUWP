@@ -48,6 +48,11 @@ public:
 		return Name;
 	}
 
+	const FString& GetContextName() const
+	{
+		return ContextName;
+	}
+
 	enum class EStatus : uint8
 	{
 		/** State graph has not attempted to start this node yet, or the node has been reset. */
@@ -103,9 +108,6 @@ public:
 		return StateGraphWeakPtr.Pin();
 	}
 
-	/** Get the name of the state graph, or NAME_None if the state graph is invalid. */
-	FName GetStateGraphName() const;
-
 	/**
 	 * Helper function to create a new node, add it to this node's StateGraph, and add this node as a dependency.
 	 * This allows for chaining nodes together such as:
@@ -113,7 +115,7 @@ public:
 	 *	StateGraph->CreateNode("NodeA", this, &SomeMemberFunction)
 	 *		->Next("NodeB", &SomeStaticFunction)
 	 *		->Next<SomeNodeClass>()
-	 *		->Next("NodeC", [](FStateGraphNodeFunctionComplete Complete) { Complete(); return true; });
+	 *		->Next("NodeC", [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); });
 	 */
 	template<typename NodeType, typename... ArgsTypes>
 	TSharedPtr<NodeType, ESPMode::ThreadSafe> Next(ArgsTypes&&... Args) const;
@@ -149,6 +151,7 @@ private:
 	void SetStatus(EStatus NewStatus);
 
 	FName Name;
+	FString ContextName;
 	FString ConfigSectionName;
 	EStatus Status = EStatus::NotStarted;
 	FStateGraphWeakPtr StateGraphWeakPtr;
@@ -160,7 +163,7 @@ private:
 };
 
 /** Start function delegate type for FStateGraphNodeFunction nodes. */
-DECLARE_DELEGATE_OneParam(FStateGraphNodeFunctionStart, FStateGraphNodeFunctionComplete /*Complete*/);
+DECLARE_DELEGATE_TwoParams(FStateGraphNodeFunctionStart, FStateGraph& /*StateGraph*/, FStateGraphNodeFunctionComplete /*Complete*/);
 
 /**
  * Node for wrapping functions as delegates.
@@ -187,7 +190,7 @@ class STATEGRAPH_API FStateGraph : public TSharedFromThis<FStateGraph>, public F
 {
 public:
 
-	FStateGraph(FName InName);
+	FStateGraph(FName InName, const FString& InContextName = FString());
 
 	virtual ~FStateGraph();
 
@@ -198,6 +201,11 @@ public:
 	FName GetName() const
 	{
 		return Name;
+	}
+
+	const FString& GetContextName() const
+	{
+		return ContextName;
 	}
 
 	enum class EStatus : uint8
@@ -291,7 +299,7 @@ public:
 
 	/** Create a new function node for member functions. */
 	template<typename ObjectType, typename FunctionType, typename... ArgsTypes>
-	typename TEnableIf<TIsClass<ObjectType>::Value && TIsInvocable<FunctionType, ObjectType, FStateGraphNodeFunctionComplete, ArgsTypes...>::Value, FStateGraphNodeFunctionRef>::Type
+	typename TEnableIf<TIsClass<ObjectType>::Value && TIsInvocable<FunctionType, ObjectType, FStateGraph&, FStateGraphNodeFunctionComplete, ArgsTypes...>::Value, FStateGraphNodeFunctionRef>::Type
 		CreateNode(FName NodeName, ObjectType* Object, FunctionType Function, ArgsTypes&&... Args)
 	{
 		if constexpr (IsDerivedFromSharedFromThis<ObjectType>())
@@ -310,7 +318,7 @@ public:
 
 	/** Create a new function node for lambdas tied to objects. */
 	template<typename ObjectType, typename FunctionType, typename... ArgsTypes>
-	typename TEnableIf<TIsClass<ObjectType>::Value && TIsInvocable<FunctionType, FStateGraphNodeFunctionComplete, ArgsTypes...>::Value, FStateGraphNodeFunctionRef>::Type
+	typename TEnableIf<TIsClass<ObjectType>::Value && TIsInvocable<FunctionType, FStateGraph&, FStateGraphNodeFunctionComplete, ArgsTypes...>::Value, FStateGraphNodeFunctionRef>::Type
 		CreateNode(FName NodeName, ObjectType* Object, FunctionType Function, ArgsTypes&&... Args)
 	{
 		if constexpr (IsDerivedFromSharedFromThis<ObjectType>())
@@ -325,7 +333,7 @@ public:
 
 	/** Create a new function node for lambas and static methods. */
 	template<typename FunctionType, typename... ArgsTypes>
-	typename TEnableIf<TIsInvocable<FunctionType, FStateGraphNodeFunctionComplete, ArgsTypes...>::Value, FStateGraphNodeFunctionRef>::Type
+	typename TEnableIf<TIsInvocable<FunctionType, FStateGraph&, FStateGraphNodeFunctionComplete, ArgsTypes...>::Value, FStateGraphNodeFunctionRef>::Type
 		CreateNode(FName NodeName, FunctionType Function, ArgsTypes&&... Args)
 	{
 		return CreateNode<FStateGraphNodeFunction>(NodeName, FStateGraphNodeFunctionStart::CreateLambda(Function, Forward<ArgsTypes>(Args)...));
@@ -365,6 +373,7 @@ protected:
 	void OnConfigSectionsChanged(const FString& IniFilename, const TSet<FString>& SectionNames);
 
 	FName Name;
+	FString ContextName;
 	FString ConfigSectionName;
 	EStatus Status = EStatus::NotStarted;
 	double StartTime = 0.f;
@@ -384,7 +393,7 @@ TSharedPtr<NodeType, ESPMode::ThreadSafe> FStateGraphNode::Next(ArgsTypes&&... A
 {
 	if (!StateGraphWeakPtr.IsValid())
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node attempted to be created with invalid state graph"), *Name.ToString());
+		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node attempted to be created with invalid state graph"), *ContextName);
 		return TSharedPtr<NodeType, ESPMode::ThreadSafe>();
 	}
 
@@ -398,7 +407,7 @@ FStateGraphNodeFunctionPtr FStateGraphNode::Next(ArgsTypes&&... Args) const
 {
 	if (!StateGraphWeakPtr.IsValid())
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node attempted to be created with invalid state graph"), *Name.ToString());
+		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node attempted to be created with invalid state graph"), *ContextName);
 		return FStateGraphNodeFunctionPtr();
 	}
 

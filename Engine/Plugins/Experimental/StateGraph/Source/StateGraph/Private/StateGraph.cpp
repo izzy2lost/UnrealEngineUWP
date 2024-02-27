@@ -21,14 +21,15 @@ namespace UE {
 // FStateGraphNode
 
 FStateGraphNode::FStateGraphNode(FName InName) :
-	Name(InName)
+	Name(InName),
+	ContextName(Name.ToString())
 {
-	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Created node"), *Name.ToString());
+	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Created node"), *ContextName);
 }
 
 FStateGraphNode::~FStateGraphNode()
 {
-	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Destroyed node"), *Name.ToString());
+	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Destroyed node"), *ContextName);
 }
 
 const TCHAR* FStateGraphNode::GetStatusName(EStatus Status)
@@ -64,7 +65,7 @@ bool FStateGraphNode::CheckDependencies() const
 	FStateGraphPtr StateGraphPtr(StateGraphWeakPtr.Pin());
 	if (!StateGraphPtr.IsValid())
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node checked with invalid state graph"), *Name.ToString());
+		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node checked with invalid state graph"), *ContextName);
 		return false;
 	}
 
@@ -84,12 +85,12 @@ void FStateGraphNode::Complete()
 {
 	if (Status == EStatus::Completed)
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s.%s] Node already completed"), *GetStateGraphName().ToString(), *Name.ToString());
+		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node already completed"), *ContextName);
 		return;
 	}
 
 	CompletedTime = FPlatformTime::Seconds();
-	UE_LOG_STATEGRAPH(Log, TEXT("[%s.%s] Completed node (Duration=%.6f Timeout=%.6f)"), *GetStateGraphName().ToString(), *Name.ToString(), CompletedTime - StartTime, Timeout);
+	UE_LOG_STATEGRAPH(Log, TEXT("[%s] Completed node (Duration=%.6f Timeout=%.6f)"), *ContextName, CompletedTime - StartTime, Timeout);
 
 	// Keep a reference to check if the node is destroyed during external functions.
 	FStateGraphNodeWeakPtr StateGraphNodeWeakPtr(AsWeak());
@@ -112,21 +113,16 @@ void FStateGraphNode::Complete()
 	}
 	else
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node completed with invalid state graph"), *Name.ToString());
+		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node completed with invalid state graph"), *ContextName);
 	}
 }
 
 void FStateGraphNode::Reset()
 {
-	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s.%s] Resetting node"), *GetStateGraphName().ToString(), *Name.ToString());
+	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Resetting node"), *ContextName);
 	StartTime = 0.f;
 	CompletedTime = 0.f;
 	SetStatus(EStatus::NotStarted);
-}
-
-FName FStateGraphNode::GetStateGraphName() const
-{
-	return StateGraphWeakPtr.IsValid() ? StateGraphWeakPtr.Pin()->GetName() : NAME_None;
 }
 
 void FStateGraphNode::UpdateConfig()
@@ -159,7 +155,7 @@ bool FStateGraphNodeFunction::CheckDependencies() const
 {
 	if (!StartFunction.IsBound())
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s.%s] Function node start not bound"), *GetStateGraphName().ToString(), *GetName().ToString());
+		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Function node start not bound"), *GetContextName());
 		return false;
 	}
 
@@ -171,8 +167,10 @@ void FStateGraphNodeFunction::Start()
 	// CheckDependencies verified the function is bound right before calling this in StateGraph->Run().
 	check(StartFunction.IsBound());
 
+	FStateGraph* StateGraph = GetStateGraph().Get();
+	check(StateGraph); // Must be valid since it is starting this node.
 	FStateGraphNodeWeakPtr WeakPtr(AsWeak());
-	StartFunction.Execute([WeakPtr, StateGraphName = GetStateGraphName(), NodeName = GetName()]()
+	StartFunction.Execute(*StateGraph, [WeakPtr, ContextName = GetContextName(), NodeName = GetName()]()
 	{
 		if (WeakPtr.IsValid())
 		{
@@ -180,23 +178,32 @@ void FStateGraphNodeFunction::Start()
 		}
 		else
 		{
-			UE_LOG_STATEGRAPH(Log, TEXT("[%s.%s] Function node completed after node was destroyed"), *StateGraphName.ToString(), *NodeName.ToString());
+			UE_LOG_STATEGRAPH(Log, TEXT("[%s] Function node completed after node was destroyed"), *ContextName);
 		}
 	});
 }
 
 // FStateGraph
 
-FStateGraph::FStateGraph(FName InName) :
+FStateGraph::FStateGraph(FName InName, const FString& InContextName) :
 	Name(InName),
 	ConfigSectionName(FString::Printf(TEXT("StateGraph.%s"), *InName.ToString()))
 {
-	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Created state graph"), *Name.ToString());
+	if (InContextName.IsEmpty())
+	{
+		ContextName = Name.ToString();
+	}
+	else
+	{
+		ContextName = FString::Printf(TEXT("%s(%s)"), *Name.ToString(), *InContextName);
+	}
+
+	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Created state graph"), *ContextName);
 }
 
 FStateGraph::~FStateGraph()
 {
-	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Destroyed state graph"), *Name.ToString());
+	UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Destroyed state graph"), *ContextName);
 	FCoreDelegates::TSOnConfigSectionsChanged().Remove(ConfigSectionsChangedDelegate);
 }
 
@@ -244,17 +251,18 @@ bool FStateGraph::AddNode(const FStateGraphNodeRef& Node)
 {
 	if (Node->StateGraphWeakPtr.IsValid())
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s.%s] Node already associated with a state graph"), *Name.ToString(), *Node->GetName().ToString());
+		UE_LOG_STATEGRAPH(Warning, TEXT("[%s.%s] Node already associated with a state graph %s"), *ContextName, *Node->GetName().ToString(), *Node->ContextName);
 		return false;
 	}
 
 	if (Nodes.Contains(Node->GetName()))
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s.%s] Node with the same name already exists"), *Name.ToString(), *Node->GetName().ToString());
+		UE_LOG_STATEGRAPH(Warning, TEXT("[%s.%s] Node with the same name already exists"), *ContextName, *Node->GetName().ToString());
 		return false;
 	}
 
-	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s.%s] Adding node"), *Name.ToString(), *Node->GetName().ToString());
+	Node->ContextName = FString::Printf(TEXT("%s.%s"), *ContextName, *Node->GetName().ToString());
+	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Adding node"), *Node->ContextName);
 	Node->StateGraphWeakPtr = AsWeak();
 	Node->ConfigSectionName = FString::Printf(TEXT("%s.%s"), *ConfigSectionName, *Node->GetName().ToString());
 	Nodes.Add(Node->GetName(), Node);
@@ -267,11 +275,12 @@ bool FStateGraph::RemoveNode(FName NodeName)
 	FStateGraphNodeRef* Node = GetNodeRef(NodeName);
 	if (!Node)
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s.%s] Failed to remove node"), *Name.ToString(), *NodeName.ToString());
+		UE_LOG_STATEGRAPH(Warning, TEXT("[%s.%s] Failed to remove node"), *ContextName, *NodeName.ToString());
 		return false;
 	}
 
-	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s.%s] Removing node"), *Name.ToString(), *NodeName.ToString());
+	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Removing node"), *(*Node)->ContextName);
+	(*Node)->ContextName = (*Node)->GetName().ToString();
 	(*Node)->StateGraphWeakPtr.Reset();
 
 	// Keep a reference to check if the state graph is destroyed during external functions.
@@ -336,7 +345,7 @@ void FStateGraph::Run()
 		NextTimeout = (StartTime + Timeout) - Now;
 		if (NextTimeout <= 0.f)
 		{
-			UE_LOG_STATEGRAPH(Log, TEXT("[%s] State graph timed out (Duration=%.6f Timeout=%.6f)"), *Name.ToString(), Now - StartTime, Timeout);
+			UE_LOG_STATEGRAPH(Log, TEXT("[%s] State graph timed out (Duration=%.6f Timeout=%.6f)"), *ContextName, Now - StartTime, Timeout);
 			SetStatus(EStatus::TimedOut);
 			return;
 		}
@@ -344,7 +353,7 @@ void FStateGraph::Run()
 
 	bRunning = true;
 
-	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Starting run loop (Now=%.06f)"), *Name.ToString(), Now);
+	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Starting run loop (Now=%.06f)"), *ContextName, Now);
 
 	uint32 Blocked = 0;
 	uint32 Started = 0;
@@ -405,7 +414,7 @@ void FStateGraph::Run()
 				break;
 			}
 
-			UE_LOG_STATEGRAPH(Log, TEXT("[%s.%s] Starting node"), *Name.ToString(), *NodeName.ToString());
+			UE_LOG_STATEGRAPH(Log, TEXT("[%s] Starting node"), *(*Node)->ContextName);
 			(*Node)->SetStatus(FStateGraphNode::EStatus::Started);
 
 			if (!StateGraphWeakPtr.IsValid())
@@ -462,7 +471,7 @@ void FStateGraph::Run()
 				if (NodeTimeout <= 0.f)
 				{
 					++TimedOut;
-					UE_LOG_STATEGRAPH(Log, TEXT("[%s.%s] Node timed out (Duration=%.6f Timeout=%.6f)"), *Name.ToString(), *NodeName.ToString(), Now - (*Node)->StartTime, (*Node)->Timeout);
+					UE_LOG_STATEGRAPH(Log, TEXT("[%s] Node timed out (Duration=%.6f Timeout=%.6f)"), *(*Node)->ContextName, Now - (*Node)->StartTime, (*Node)->Timeout);
 					(*Node)->SetStatus(FStateGraphNode::EStatus::TimedOut);
 
 					if (!StateGraphWeakPtr.IsValid())
@@ -505,7 +514,7 @@ void FStateGraph::Run()
 			break;
 
 		default:
-			UE_LOG_STATEGRAPH(Error, TEXT("[%s.%s] Unknown state"), *Name.ToString(), *NodeName.ToString());
+			UE_LOG_STATEGRAPH(Error, TEXT("[%s] Unknown state"), *(*Node)->ContextName);
 			checkNoEntry();
 			break;
 		}
@@ -513,7 +522,7 @@ void FStateGraph::Run()
 
 	bRunning = false;
 	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Duration=%.6f Timeout=%.6f Blocked=%d Started=%d Running=%d Completed=%d Removed=%d TimedOut=%d"),
-		*Name.ToString(), Now - StartTime, Timeout, Blocked, Started, Running, Completed, Removed, TimedOut);
+		*ContextName, Now - StartTime, Timeout, Blocked, Started, Running, Completed, Removed, TimedOut);
 
 	if (bRunAgain)
 	{
@@ -532,19 +541,19 @@ void FStateGraph::Run()
 		if (Blocked == 0 && TimedOut == 0)
 		{
 			CompletedTime = Now;
-			UE_LOG_STATEGRAPH(Log, TEXT("[%s] Completed (Duration=%.6f Timeout=%.6f)"), *Name.ToString(), CompletedTime - StartTime, Timeout);
+			UE_LOG_STATEGRAPH(Log, TEXT("[%s] Completed (Duration=%.6f Timeout=%.6f)"), *ContextName, CompletedTime - StartTime, Timeout);
 			SetStatus(EStatus::Completed);
 		}
 		else
 		{
-			UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Blocked on %d nodes, timed out %d nodes"), *Name.ToString(), Blocked, TimedOut);
+			UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Blocked on %d nodes, timed out %d nodes"), *ContextName, Blocked, TimedOut);
 			LogDebugInfo(true);
 			SetStatus(EStatus::Blocked);
 		}
 	}
 	else
 	{
-		UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Waiting on %d nodes"), *Name.ToString(), Started + Running);
+		UE_LOG_STATEGRAPH(VeryVerbose, TEXT("[%s] Waiting on %d nodes"), *ContextName, Started + Running);
 		SetStatus(EStatus::Waiting);
 	}
 
@@ -555,7 +564,7 @@ void FStateGraph::Run()
 
 	if ((Status == EStatus::Blocked || Status == EStatus::Waiting) && NextTimeout > 0.f)
 	{
-		UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Setting timer for %.6f"), *Name.ToString(), NextTimeout);
+		UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Setting timer for %.6f"), *ContextName, NextTimeout);
 		TimeoutTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSPLambda(this, [this](float DeltaTime) {
 			Run();
 			return false;
@@ -570,7 +579,7 @@ void FStateGraph::Reset()
 	// Keep a reference to check if the state graph is destroyed during external functions.
 	FStateGraphWeakPtr StateGraphWeakPtr(AsWeak());
 
-	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Resetting state graph"), *Name.ToString());
+	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Resetting state graph"), *ContextName);
 	StartTime = 0.f;
 	CompletedTime = 0.f;
 	bRunAgain = false;
@@ -599,7 +608,7 @@ void FStateGraph::Reset()
 
 void FStateGraph::Pause()
 {
-	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Pausing state graph"), *Name.ToString());
+	UE_LOG_STATEGRAPH(Verbose, TEXT("[%s] Pausing state graph"), *ContextName);
 	bRunAgain = false;
 	SetStatus(EStatus::Paused);
 }
@@ -611,7 +620,7 @@ void FStateGraph::LogDebugInfo(bool bWarning)
 		return;
 	}
 
-	FString Message = FString::Printf(TEXT("[%s] Status=%s Nodes=%d Duration=%.6f Timeout=%.6f"), *Name.ToString(), GetStatusName(), Nodes.Num(), GetDuration(), Timeout);
+	FString Message = FString::Printf(TEXT("[%s] Status=%s Nodes=%d Duration=%.6f Timeout=%.6f"), *ContextName, GetStatusName(), Nodes.Num(), GetDuration(), Timeout);
 
 	if (bWarning)
 	{
@@ -657,7 +666,7 @@ void FStateGraph::LogDebugInfo(bool bWarning)
 		}
 
 		Message = FString::Printf(TEXT("[%s.%s] Status=%s Duration=%.6f Timeout=%.6f Dependencies(%s)"),
-			*Name.ToString(), *Node.Key.ToString(), Node.Value->GetStatusName(), Node.Value->GetDuration(), Node.Value->Timeout, *FString::Join(Dependencies, TEXT(" ")));
+			*ContextName, *Node.Key.ToString(), Node.Value->GetStatusName(), Node.Value->GetDuration(), Node.Value->Timeout, *FString::Join(Dependencies, TEXT(" ")));
 
 		if (bWarning)
 		{

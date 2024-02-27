@@ -72,7 +72,7 @@ TEST_CASE("FStateGraphNodeFunction Basic Tests", "[FStateGraphNodeFunction]")
 {
 	FStateGraphRef StateGraph(MakeShared<FStateGraph>("Test"));
 	FStateGraphNodeFunctionComplete Complete;
-	FStateGraphNodeFunctionRef TestNodeA = StateGraph->CreateNode("TestNodeA", [&Complete](FStateGraphNodeFunctionComplete InComplete) { Complete = InComplete; });
+	FStateGraphNodeFunctionRef TestNodeA = StateGraph->CreateNode("TestNodeA", [&Complete](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete InComplete) { Complete = InComplete; });
 	CHECK(TestNodeA->GetStatus() == FStateGraphNode::EStatus::NotStarted);
 	CHECK(FString(TestNodeA->GetStatusName()) == FString(TEXT("NotStarted")));
 
@@ -85,6 +85,15 @@ TEST_CASE("FStateGraphNodeFunction Basic Tests", "[FStateGraphNodeFunction]")
 	CHECK(TestNodeA->GetStatus() == FStateGraphNode::EStatus::Completed);
 }
 
+TEST_CASE("FStateGraph ContextName", "[FStateGraphContextName]")
+{
+	FStateGraphRef StateGraph(MakeShared<FStateGraph>("Test", TEXT("TestContextName")));
+	FStateGraphNodeFunctionRef TestNodeA = StateGraph->CreateNode("TestNodeA", [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); });
+	StateGraph->Run();
+	CHECK(StateGraph->GetContextName() == TEXT("Test(TestContextName)"));
+	CHECK(TestNodeA->GetContextName() == TEXT("Test(TestContextName).TestNodeA"));
+}
+
 class FClassNode : public FStateGraphNode
 {
 public:
@@ -92,18 +101,18 @@ public:
 	virtual void Start() { Complete(); }
 };
 
-void StaticNode(FStateGraphNodeFunctionComplete Complete) { Complete(); }
+void StaticNode(FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); }
 
 class FRawClass
 {
 public:
-	void RawNode(FStateGraphNodeFunctionComplete Complete) { Complete(); }
+	void RawNode(FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); }
 };
 
 class FSPClass : public TSharedFromThis<FSPClass>
 {
 public:
-	void SPNode(FStateGraphNodeFunctionComplete Complete) { Complete(); }
+	void SPNode(FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); }
 };
 
 TEST_CASE("CreateNode for each supported type", "[CreateNodeFunctions]")
@@ -113,11 +122,11 @@ TEST_CASE("CreateNode for each supported type", "[CreateNodeFunctions]")
 	TSharedRef<FSPClass> SPClass(MakeShared<FSPClass>());
 
 	StateGraph->CreateNode<FClassNode>("TestClass")
-		->Next("TestLambda", [](FStateGraphNodeFunctionComplete Complete) { Complete(); })
+		->Next("TestLambda", [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); })
 		->Next("TestStatic", &StaticNode)
 		->Next("TestRaw", &RawClass, &FRawClass::RawNode)
 		->Next("TestSP", &SPClass.Get(), &FSPClass::SPNode)
-		->Next("TestSPLambda", &SPClass.Get(), [](FStateGraphNodeFunctionComplete Complete) { Complete(); });
+		->Next("TestSPLambda", &SPClass.Get(), [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); });
 
 	StateGraph->Run();
 	CHECK(StateGraph->GetStatus() == FStateGraph::EStatus::Completed);
@@ -233,10 +242,10 @@ TEST_CASE("Removing nodes", "[RemoveNodes]")
 	CHECK(!WeakTestNodeA.IsValid());
 
 	WeakTestNodeA = StateGraph->CreateNode<FTestNode>("TestNodeA");
-	FStateGraphNodePtr TestNodeB = StateGraph->CreateNode("TestNodeB", [StateGraph](FStateGraphNodeFunctionComplete Complete)
+	FStateGraphNodePtr TestNodeB = StateGraph->CreateNode("TestNodeB", [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete)
 	{
-		StateGraph->RemoveNode("TestNodeA");
-		StateGraph->RemoveNode("TestNodeC");
+		StateGraph.RemoveNode("TestNodeA");
+		StateGraph.RemoveNode("TestNodeC");
 	});
 	FStateGraphNodeWeakPtr WeakTestNodeC = StateGraph->CreateNode<FTestNode>("TestNodeC");
 	StateGraph->Run();
@@ -258,7 +267,7 @@ TEST_CASE("Resetting nodes", "[ResetNodes]")
 	FStateGraphRef StateGraph(MakeShared<FStateGraph>("Test"));
 
 	int32 StartCount = 0;
-	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [&StartCount, &TestNodeA](FStateGraphNodeFunctionComplete Complete)
+	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [&StartCount, &TestNodeA](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete)
 	{
 		CHECK(TestNodeA->GetStatus() == FStateGraphNode::EStatus::Started);
 
@@ -292,11 +301,11 @@ TEST_CASE("Resetting state graph", "[ResetStateGraph]")
 	FStateGraphRef StateGraph(MakeShared<FStateGraph>("Test"));
 
 	int32 StartCount = 0;
-	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [&StartCount, &StateGraph](FStateGraphNodeFunctionComplete Complete)
+	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [&StartCount](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete)
 	{
 		if (StartCount == 0)
 		{
-			StateGraph->Reset();
+			StateGraph.Reset();
 		}
 		else
 		{
@@ -321,7 +330,7 @@ TEST_CASE("Deleting state graph", "[DeleteStateGraph]")
 {
 	FStateGraphPtr StateGraph(MakeShared<FStateGraph>("Test"));
 	FStateGraphWeakPtr WeakStateGraph(StateGraph);
-	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [&StateGraph, &WeakStateGraph](FStateGraphNodeFunctionComplete Complete)
+	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [&StateGraph, &WeakStateGraph](FStateGraph& InStateGraph, FStateGraphNodeFunctionComplete Complete)
 	{
 		StateGraph.Reset();
 		CHECK(!WeakStateGraph.IsValid());
@@ -329,15 +338,14 @@ TEST_CASE("Deleting state graph", "[DeleteStateGraph]")
 
 	StateGraph->Run();
 	CHECK(!WeakStateGraph.IsValid());
-	CHECK(TestNodeA->GetStateGraphName() == NAME_None);
 }
 
 TEST_CASE("Pausing state graph", "[PauseStateGraph]")
 {
 	FStateGraphRef StateGraph(MakeShared<FStateGraph>("Test"));
-	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [&StateGraph](FStateGraphNodeFunctionComplete Complete) { StateGraph->Pause(); });
+	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { StateGraph.Pause(); });
 	FStateGraphNodeRef TestNodeB = StateGraph->CreateNode<FTestNode>("TestNodeB", TSet<FName>({"TestNodeA"}));
-	FStateGraphNodeRef TestNodeC = StateGraph->CreateNode("TestNodeC", [](FStateGraphNodeFunctionComplete Complete) { Complete(); });
+	FStateGraphNodeRef TestNodeC = StateGraph->CreateNode("TestNodeC", [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); });
 	TestNodeC->Dependencies.Add("TestNodeB");
 
 	StateGraph->Run();
@@ -379,7 +387,7 @@ TEST_CASE("State graph timeout", "[StateGraphTimeout]")
 		}
 	});
 
-	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [](FStateGraphNodeFunctionComplete Complete) {});
+	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) {});
 	StateGraph->Run();
 
 	while (StateGraph->GetStatus() == FStateGraph::EStatus::Waiting)
@@ -430,7 +438,7 @@ TEST_CASE("State graph config", "[StateGraphConfig]")
 
 	FStateGraphRef StateGraph(MakeShared<FStateGraph>("Test"));
 	StateGraph->Initialize();
-	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [](FStateGraphNodeFunctionComplete Complete) {});
+	FStateGraphNodeRef TestNodeA = StateGraph->CreateNode("TestNodeA", [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) {});
 	StateGraph->Run();
 
 	while (StateGraph->GetStatus() == FStateGraph::EStatus::Waiting)
