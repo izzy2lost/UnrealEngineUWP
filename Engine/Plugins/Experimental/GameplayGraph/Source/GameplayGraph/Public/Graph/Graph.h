@@ -6,7 +6,6 @@
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
-#include "Graph/GraphEdge.h"
 #include "Graph/GraphHandle.h"
 #include "Graph/GraphIsland.h"
 #include "Graph/GraphVertex.h"
@@ -31,14 +30,27 @@ struct FGraphProperties
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphVertexCreated, const FGraphVertexHandle&);
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphEdgeCreated, const FGraphEdgeHandle&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphIslandCreated, const FGraphIslandHandle&);
 
-struct FEdgeCreationParameters
+struct GAMEPLAYGRAPH_API FEdgeSpecifier
 {
+	FEdgeSpecifier(const FGraphVertexHandle& InVertexHandle1, const FGraphVertexHandle& InVertexHandle2);
+
+	// Comparison operators
+	friend bool operator==(const FEdgeSpecifier& Lhs, const FEdgeSpecifier& Rhs) = default;
+	friend bool operator!=(const FEdgeSpecifier& Lhs, const FEdgeSpecifier& Rhs) = default;
+
+	friend uint32 GAMEPLAYGRAPH_API GetTypeHash(const FEdgeSpecifier& InEdge)
+	{
+		return GetTypeHash(TPair<FGraphVertexHandle, FGraphVertexHandle>{InEdge.VertexHandle1, InEdge.VertexHandle2});
+	}
+
+	const FGraphVertexHandle& GetVertexHandle1() const { return VertexHandle1; }
+	const FGraphVertexHandle& GetVertexHandle2() const { return VertexHandle2; }
+
+private:
 	FGraphVertexHandle VertexHandle1;
 	FGraphVertexHandle VertexHandle2;
-	FGraphUniqueIndex EdgeIndex = FGraphUniqueIndex::CreateUniqueIndex();
 };
 
 /**
@@ -80,15 +92,12 @@ public:
 	FGraphVertexHandle CreateVertex(FGraphUniqueIndex InUniqueIndex = FGraphUniqueIndex::CreateUniqueIndex(false));
 
 	/** Creates edges in bulk. This is more efficient than calling CreateEdge multiple times since we will only try to assign a node to an island once. */
-	void CreateBulkEdges(TArray<FEdgeCreationParameters>&& NodesToConnect, TArray<FGraphEdgeHandle>* OutEdges = nullptr);
+	void CreateBulkEdges(TArray<FEdgeSpecifier>&& NodesToConnect);
 
 	/** Removes a node from the graph along with any edges that contain it. */
 	void RemoveVertex(const FGraphVertexHandle& NodeHandle);
 
 	void RemoveBulkVertices(const TArray<FGraphVertexHandle>& InHandles);
-
-	/** Removes an edge from the graph. */
-	void RemoveEdge(const FGraphEdgeHandle& EdgeHandle);
 
 	/** This should be called immediately after a node and any relevant edges have been added to the graph. */
 	virtual void FinalizeVertex(const FGraphVertexHandle& InHandle);
@@ -100,7 +109,6 @@ public:
 	void RefreshIslandConnectivity(const FGraphIslandHandle& IslandHandle);
 
 	int32 NumVertices() const { return Vertices.Num(); }
-	int32 NumEdges() const { return Edges.Num(); }
 	int32 NumIslands() const { return Islands.Num(); }
 
 	template<typename TLambda>
@@ -113,16 +121,13 @@ public:
 	}
 
 	FOnGraphVertexCreated OnVertexCreated;
-	FOnGraphEdgeCreated OnEdgeCreated;
 	FOnGraphIslandCreated OnIslandCreated;
 
 	const TMap<FGraphVertexHandle, TObjectPtr<UGraphVertex>>& GetVertices() const { return Vertices; }
-	const TMap<FGraphEdgeHandle, TObjectPtr<UGraphEdge>>& GetEdges() const { return Edges; }
 	const TMap<FGraphIslandHandle, TObjectPtr<UGraphIsland>>& GetIslands() const { return Islands; }
 	const FGraphProperties& GetProperties() const { return Properties; }
 
 	UGraphVertex* GetSafeVertexFromHandle(const FGraphVertexHandle& Handle) const;
-	UGraphEdge* GetSafeEdgeFromHandle(const FGraphEdgeHandle& Handle) const;
 	UGraphIsland* GetSafeIslandFromHandle(const FGraphIslandHandle& Handle) const;
 
 	GAMEPLAYGRAPH_API friend void operator<<(IGraphSerialization& Output, const UGraph& Graph);
@@ -130,21 +135,17 @@ public:
 
 protected:
 	/** When we add multiple edges into the graph. This function will ensure that the interactions we make externally are kept to a minimum. */
-	void MergeOrCreateIslands(const TArray<FGraphEdgeHandle>& InEdges);
+	void MergeOrCreateIslands(const TArray<FEdgeSpecifier>& InEdges);
 
 	/** After a change, this function will remove the island if it's empty or will attempt to split it into two smaller islands. */
 	void RemoveOrSplitIsland(TObjectPtr<UGraphIsland> Island);
 
 	/** Used for bulk loading in vertices/edges/islands. */
 	void ReserveVertices(int32 Delta);
-	void ReserveEdges(int32 Delta);
 	void ReserveIslands(int32 Delta);
 private:
 	UPROPERTY()
 	TMap<FGraphVertexHandle, TObjectPtr<UGraphVertex>> Vertices;
-
-	UPROPERTY()
-	TMap<FGraphEdgeHandle, TObjectPtr<UGraphEdge>> Edges;
 
 	UPROPERTY()
 	TMap<FGraphIslandHandle, TObjectPtr<UGraphIsland>> Islands;
@@ -154,22 +155,18 @@ private:
 	FGraphIslandHandle CreateIsland(TArray<FGraphVertexHandle> Nodes, FGraphUniqueIndex InUniqueIndex = FGraphUniqueIndex());
 
 	/** Creates an edge between the two nodes. */
-	FGraphEdgeHandle CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, FGraphUniqueIndex InUniqueIndex = FGraphUniqueIndex(), bool bMergeIslands = true);
+	bool CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, bool bMergeIslands = true);
 
 	/** Adds a node to the graph's node collection and modifies the NextAvailableNodeUniqueIndex as necessary to maintain its validity. */
 	void RegisterVertex(TObjectPtr<UGraphVertex> Node);
-
-	/** Add an edge to the graph and modifies the NextAvailableEdgeUniqueIndex as necessary to maintain its validity. */
-	void RegisterEdge(TObjectPtr<UGraphEdge> Edge);
 
 	/** Add an island to the graph and modifies the NextAvailableIslandUniqueIndex as necessary to maintain its validity. */
 	void RegisterIsland(TObjectPtr<UGraphIsland> Edge);
 
 	/** Need this so that users aren't able to pass in bHandleIslands = false. */
-	void RemoveEdgeInternal(const FGraphEdgeHandle& EdgeHandle, bool bHandleIslands);
+	void RemoveEdgeInternal(const FGraphVertexHandle& VertexHandleA, const FGraphVertexHandle& VertexHandleB, bool bHandleIslands);
 
 	/** Factory functions for creating an appropriately typed node/edge/island. */
 	virtual TObjectPtr<UGraphVertex> CreateTypedVertex() const;
-	virtual TObjectPtr<UGraphEdge> CreateTypedEdge() const;
 	virtual TObjectPtr<UGraphIsland> CreateTypedIsland() const;
 };

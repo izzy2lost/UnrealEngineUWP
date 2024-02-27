@@ -34,7 +34,6 @@ TEST_CASE("Graph::Default Constructor", "[graph]")
 	SECTION("State")
 	{
 		CHECK(Graph->NumVertices() == 0);
-		CHECK(Graph->NumEdges() == 0);
 		CHECK(Graph->NumIslands() == 0);
 	}
 }
@@ -67,7 +66,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Create Vertices", "[graph]")
 	{
 		CHECK(Node1.GetUniqueIndex() == Node1Index);
 		CHECK(Graph->NumVertices() == 1);
-		CHECK(Graph->NumEdges() == 0);
 		CHECK(Graph->NumIslands() == 0);
 		CHECK(Graph->GetVertices().Contains(Node1) == true);
 	}
@@ -77,7 +75,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Create Vertices", "[graph]")
 	{
 		CHECK(Node2.GetUniqueIndex() == Node2Index);
 		CHECK(Graph->NumVertices() == 2);
-		CHECK(Graph->NumEdges() == 0);
 		CHECK(Graph->NumIslands() == 0);
 		CHECK(Graph->GetVertices().Contains(Node2) == true);
 	}
@@ -125,7 +122,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Create Vertices", "[graph]")
 	{
 		Graph->FinalizeVertex(Node1);
 		CHECK(Graph->NumVertices() == 2);
-		CHECK(Graph->NumEdges() == 0);
 		CHECK(Graph->NumIslands() == 1);
 	}
 }
@@ -137,7 +133,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Create Vertices::Duplicate", "[graph
 	{
 		CHECK(Node1.GetUniqueIndex() == Node1Index);
 		CHECK(Graph->NumVertices() == 1);
-		CHECK(Graph->NumEdges() == 0);
 		CHECK(Graph->NumIslands() == 0);
 		CHECK(Graph->GetVertices().Contains(Node1) == true);
 	}
@@ -147,7 +142,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Create Vertices::Duplicate", "[graph
 		CHECK(Node2.IsValid() == false);
 		CHECK(Node2.IsComplete() == false);
 		CHECK(Graph->NumVertices() == 1);
-		CHECK(Graph->NumEdges() == 0);
 		CHECK(Graph->NumIslands() == 0);
 		CHECK(Graph->GetVertices().Contains(Node2) == false);
 	}
@@ -158,87 +152,63 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Create Edges::Single", "[graph]")
 	PopulateVertices(4, false);
 
 	{
-		FEdgeCreationParameters Params;
-		Params.VertexHandle1 = VertexHandles[1];
-		Params.VertexHandle2 = VertexHandles[0];
-		Params.EdgeIndex = FGraphUniqueIndex{ FGuid{ 1, 1, 1, 1 } };
-
-		TArray<FGraphEdgeHandle> Edges;
-		Graph->CreateBulkEdges({ Params }, &Edges);
-		CHECK(Graph->NumEdges() == 1);
+		FEdgeSpecifier Params{ VertexHandles[1], VertexHandles[0] };
+		Graph->CreateBulkEdges({ Params });
 		CHECK(Graph->NumIslands() == 1);
-
-		REQUIRE(Edges.Num() == 1);
-		CHECK(Edges[0].GetUniqueIndex() == Params.EdgeIndex);
-		CHECK(Edges[0].IsComplete());
-		CHECK(Graph->GetEdges().Contains(Edges[0]) == true);
+		VerifyEdges({ Params }, true);
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[0], {VertexHandles[1]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[1], {VertexHandles[0]});
 	}
 
 	{
 		FinalizeVertices();
-		CHECK(Graph->NumEdges() == 1);
 		CHECK(Graph->NumIslands() == 3);
 	}
 
 	{
-		FEdgeCreationParameters Params;
-		Params.VertexHandle1 = VertexHandles[2];
-		Params.VertexHandle2 = VertexHandles[3];
-		Params.EdgeIndex = FGraphUniqueIndex{ FGuid{ 2, 2, 2, 2 } };
-
-		TArray<FGraphEdgeHandle> Edges;
-		Graph->CreateBulkEdges({ Params }, &Edges);
-		CHECK(Graph->NumEdges() == 2);
+		FEdgeSpecifier Params{ VertexHandles[2], VertexHandles[3] };
+		Graph->CreateBulkEdges({ Params });
 		CHECK(Graph->NumIslands() == 2);
+		VerifyEdges({ Params }, true);
 
-		REQUIRE(Edges.Num() == 1);
-		CHECK(Edges[0].GetUniqueIndex() == Params.EdgeIndex);
-		CHECK(Edges[0].IsComplete());
-		CHECK(Graph->GetEdges().Contains(Edges[0]) == true);
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[2], {VertexHandles[3]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[3], {VertexHandles[2]});
 	}
 
 	{
-		FEdgeCreationParameters Params;
-		Params.VertexHandle1 = VertexHandles[0];
-		Params.VertexHandle2 = VertexHandles[2];
-		Params.EdgeIndex = FGraphUniqueIndex{ FGuid{ 3, 3, 3, 3 } };
-
-		TArray<FGraphEdgeHandle> Edges;
-		Graph->CreateBulkEdges({ Params }, &Edges);
-		CHECK(Graph->NumEdges() == 3);
+		FEdgeSpecifier Params{ VertexHandles[0], VertexHandles[2] };
+		Graph->CreateBulkEdges({ Params });
 		CHECK(Graph->NumIslands() == 1);
+		VerifyEdges( { Params }, true);
 
-		REQUIRE(Edges.Num() == 1);
-		CHECK(Edges[0].GetUniqueIndex() == Params.EdgeIndex);
-		CHECK(Graph->GetEdges().Contains(Edges[0]) == true);
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[0], {VertexHandles[1], VertexHandles[2]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[1], {VertexHandles[0]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[2], {VertexHandles[0], VertexHandles[3]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[3], {VertexHandles[2]});
 	}
 
 	{
-		FEdgeCreationParameters Params;
-		Params.VertexHandle1 = VertexHandles[0];
-		Params.VertexHandle2 = VertexHandles[2];
-		Params.EdgeIndex = FGraphUniqueIndex{ FGuid{ 4, 4, 4, 4 } };
-
-		TArray<FGraphEdgeHandle> Edges;
-		Graph->CreateBulkEdges({ Params }, &Edges);
-		CHECK(Graph->NumEdges() == 3);
+		FEdgeSpecifier Params{ VertexHandles[0], VertexHandles[2] };
+		Graph->CreateBulkEdges({ Params });
 		CHECK(Graph->NumIslands() == 1);
+		VerifyEdges({ Params }, true);
 
-		REQUIRE(Edges.Num() == 0);
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[0], {VertexHandles[1], VertexHandles[2]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[1], {VertexHandles[0]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[2], {VertexHandles[0], VertexHandles[3]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[3], {VertexHandles[2]});
 	}
 
 	{
-		FEdgeCreationParameters Params;
-		Params.VertexHandle1 = VertexHandles[2];
-		Params.VertexHandle2 = VertexHandles[0];
-		Params.EdgeIndex = FGraphUniqueIndex{ FGuid{ 5, 5, 5, 5 } };
-
-		TArray<FGraphEdgeHandle> Edges;
-		Graph->CreateBulkEdges({ Params }, &Edges);
-		CHECK(Graph->NumEdges() == 3);
+		FEdgeSpecifier Params{ VertexHandles[2], VertexHandles[0] };
+		Graph->CreateBulkEdges({ Params });
 		CHECK(Graph->NumIslands() == 1);
+		VerifyEdges({ Params }, true);
 
-		REQUIRE(Edges.Num() == 0);
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[0], {VertexHandles[1], VertexHandles[2]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[1], {VertexHandles[0]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[2], {VertexHandles[0], VertexHandles[3]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[3], {VertexHandles[2]});
 	}
 }
 
@@ -247,59 +217,31 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Create Edges::Bulk", "[graph]")
 	PopulateVertices(4, true);
 
 	{
-		FEdgeCreationParameters Params1;
-		Params1.VertexHandle1 = VertexHandles[1];
-		Params1.VertexHandle2 = VertexHandles[0];
-		Params1.EdgeIndex = FGraphUniqueIndex{ FGuid{ 1, 1, 1, 1 } };
-
-		FEdgeCreationParameters Params2;
-		Params2.VertexHandle1 = VertexHandles[2];
-		Params2.VertexHandle2 = VertexHandles[3];
-		Params2.EdgeIndex = FGraphUniqueIndex{ FGuid{ 2, 2, 2, 2 } };
-
-		FEdgeCreationParameters Params3;
-		Params3.VertexHandle1 = VertexHandles[0];
-		Params3.VertexHandle2 = VertexHandles[2];
-		Params3.EdgeIndex = FGraphUniqueIndex{ FGuid{ 3, 3, 3, 3 } };
-
-		TArray<FGraphEdgeHandle> Edges;
-		Graph->CreateBulkEdges({ Params1, Params2, Params3 }, &Edges);
-		CHECK(Graph->NumEdges() == 3);
+		FEdgeSpecifier Params1{ VertexHandles[1], VertexHandles[0] };
+		FEdgeSpecifier Params2{ VertexHandles[2], VertexHandles[3] };
+		FEdgeSpecifier Params3{ VertexHandles[0], VertexHandles[2] };
+		Graph->CreateBulkEdges({ Params1, Params2, Params3 });
 		CHECK(Graph->NumIslands() == 1);
 
-		REQUIRE(Edges.Num() == 3);
-		CHECK(Edges[0].GetUniqueIndex() == Params1.EdgeIndex);
-		CHECK(Edges[1].GetUniqueIndex() == Params2.EdgeIndex);
-		CHECK(Edges[2].GetUniqueIndex() == Params3.EdgeIndex);
-		CHECK(Graph->GetEdges().Contains(Edges[0]) == true);
-		CHECK(Graph->GetEdges().Contains(Edges[1]) == true);
-		CHECK(Graph->GetEdges().Contains(Edges[2]) == true);
-		CHECK(Edges[0].IsComplete() == true);
-		CHECK(Edges[1].IsComplete() == true);
-		CHECK(Edges[2].IsComplete() == true);
+		VerifyEdges({ Params1, Params2, Params3 }, true);
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[0], {VertexHandles[1], VertexHandles[2]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[1], {VertexHandles[0]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[2], {VertexHandles[0], VertexHandles[3]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[3], {VertexHandles[2]});
 	}
 
 	{
-		FEdgeCreationParameters Params1;
-		Params1.VertexHandle1 = VertexHandles[0];
-		Params1.VertexHandle2 = VertexHandles[1];
-		Params1.EdgeIndex = FGraphUniqueIndex{ FGuid{ 4, 4, 4, 4 } };
-
-		FEdgeCreationParameters Params2;
-		Params2.VertexHandle1 = VertexHandles[3];
-		Params2.VertexHandle2 = VertexHandles[2];
-		Params2.EdgeIndex = FGraphUniqueIndex{ FGuid{ 5, 5, 5, 5 } };
-
-		FEdgeCreationParameters Params3;
-		Params3.VertexHandle1 = VertexHandles[2];
-		Params3.VertexHandle2 = VertexHandles[0];
-		Params3.EdgeIndex = FGraphUniqueIndex{ FGuid{ 6, 6, 6, 6 } };
-
-		TArray<FGraphEdgeHandle> Edges;
-		Graph->CreateBulkEdges({ Params1, Params2, Params3 }, &Edges);
-		CHECK(Graph->NumEdges() == 3);
+		FEdgeSpecifier Params1{ VertexHandles[0], VertexHandles[1] };
+		FEdgeSpecifier Params2{ VertexHandles[3], VertexHandles[2] };
+		FEdgeSpecifier Params3{ VertexHandles[2], VertexHandles[0] };
+		Graph->CreateBulkEdges({ Params1, Params2, Params3 });
 		CHECK(Graph->NumIslands() == 1);
-		CHECK(Edges.Num() == 0);
+
+		VerifyEdges({ Params1, Params2, Params3 }, true);
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[0], {VertexHandles[1], VertexHandles[2]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[1], {VertexHandles[0]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[2], {VertexHandles[0], VertexHandles[3]});
+		VertexShouldOnlyHaveEdgesTo(VertexHandles[3], {VertexHandles[2]});
 	}
 }
 
@@ -318,11 +260,9 @@ public:
 			REQUIRE(Vertex != nullptr);
 
 			Vertex->ForEachAdjacentVertex(
-				[this](const FGraphVertexHandle& NeighborHandle, const FGraphEdgeHandle& EdgeHandle)
+				[this, &VertexHandle](const FGraphVertexHandle& NeighborHandle)
 				{
-					EdgeHandles.Add(EdgeHandle);
-					CHECK(Graph->GetEdges().Contains(EdgeHandle) == true);
-					CHECK(EdgeHandle.IsComplete() == true);
+					EdgeHandles.Add(FEdgeSpecifier{VertexHandle, NeighborHandle});
 				}
 			);
 		}
@@ -330,16 +270,23 @@ public:
 
 	~FScopedVertexEdgeCleanupChecker()
 	{
-		for (const FGraphEdgeHandle& EdgeHandle : EdgeHandles)
+		for (const FEdgeSpecifier& EdgeHandle : EdgeHandles)
 		{
-			CHECK(Graph->GetEdges().Contains(EdgeHandle) == false);
-			CHECK(EdgeHandle.IsComplete() == false);
+			if (UGraphVertex* V1 = EdgeHandle.GetVertexHandle1().GetVertex())
+			{
+				CHECK(V1->HasEdgeTo(EdgeHandle.GetVertexHandle2()) == false);
+			}
+
+			if (UGraphVertex* V2 = EdgeHandle.GetVertexHandle2().GetVertex())
+			{
+				CHECK(V2->HasEdgeTo(EdgeHandle.GetVertexHandle1()) == false);
+			}
 		}
 	}
 
 private:
 	UGraph* Graph;
-	TArray<FGraphEdgeHandle> EdgeHandles;
+	TArray<FEdgeSpecifier> EdgeHandles;
 };
 
 class FScopedVertexIslandCleanupChecker
@@ -383,7 +330,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Single::Fully Connect
 	BuildFullyConnectedEdges(5);
 
 	CHECK(Graph->NumVertices() == 5);
-	CHECK(Graph->NumEdges() == 10);
 	CHECK(Graph->NumIslands() == 1);
 
 	{
@@ -395,7 +341,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Single::Fully Connect
 	CHECK(Graph->GetCompleteNodeHandle(VertexHandles[0]).IsComplete() == false);
 	CHECK(Graph->GetVertices().Contains(VertexHandles[0]) == false);
 	CHECK(Graph->NumVertices() == 4);
-	CHECK(Graph->NumEdges() == 6);
 	CHECK(Graph->NumIslands() == 1);
 
 	{
@@ -407,7 +352,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Single::Fully Connect
 	CHECK(Graph->GetCompleteNodeHandle(VertexHandles[1]).IsComplete() == false);
 	CHECK(Graph->GetVertices().Contains(VertexHandles[1]) == false);
 	CHECK(Graph->NumVertices() == 3);
-	CHECK(Graph->NumEdges() == 3);
 	CHECK(Graph->NumIslands() == 1);
 
 	{
@@ -419,7 +363,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Single::Fully Connect
 	CHECK(Graph->GetCompleteNodeHandle(VertexHandles[2]).IsComplete() == false);
 	CHECK(Graph->GetVertices().Contains(VertexHandles[2]) == false);
 	CHECK(Graph->NumVertices() == 2);
-	CHECK(Graph->NumEdges() == 1);
 	CHECK(Graph->NumIslands() == 1);
 
 	{
@@ -431,7 +374,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Single::Fully Connect
 	CHECK(Graph->GetCompleteNodeHandle(VertexHandles[3]).IsComplete() == false);
 	CHECK(Graph->GetVertices().Contains(VertexHandles[3]) == false);
 	CHECK(Graph->NumVertices() == 1);
-	CHECK(Graph->NumEdges() == 0);
 	CHECK(Graph->NumIslands() == 1);
 
 	{
@@ -443,7 +385,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Single::Fully Connect
 	CHECK(Graph->GetCompleteNodeHandle(VertexHandles[4]).IsComplete() == false);
 	CHECK(Graph->GetVertices().Contains(VertexHandles[4]) == false);
 	CHECK(Graph->NumVertices() == 0);
-	CHECK(Graph->NumEdges() == 0);
 	CHECK(Graph->NumIslands() == 0);
 }
 
@@ -453,7 +394,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Single::Linear", "[gr
 	BuildLinearEdges(10);
 
 	CHECK(Graph->NumVertices() == 10);
-	CHECK(Graph->NumEdges() == 9);
 	CHECK(Graph->NumIslands() == 1);
 
 	SECTION("First Vertex")
@@ -468,7 +408,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Single::Linear", "[gr
 		CHECK(VertexHandles[0].IsComplete() == false);
 
 		CHECK(Graph->NumVertices() == 9);
-		CHECK(Graph->NumEdges() == 8);
 		CHECK(Graph->NumIslands() == 1);
 	}
 
@@ -484,7 +423,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Single::Linear", "[gr
 		CHECK(VertexHandles[5].IsComplete() == false);
 
 		CHECK(Graph->NumVertices() == 9);
-		CHECK(Graph->NumEdges() == 7);
 		CHECK(Graph->NumIslands() == 2);
 	}
 }
@@ -495,7 +433,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Bulk::Fully Connected
 	BuildFullyConnectedEdges(5);
 
 	CHECK(Graph->NumVertices() == 5);
-	CHECK(Graph->NumEdges() == 10);
 	CHECK(Graph->NumIslands() == 1);
 
 	{
@@ -508,7 +445,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Bulk::Fully Connected
 	CHECK(VertexHandles[0].IsComplete() == false);
 	CHECK(VertexHandles[1].IsComplete() == false);
 	CHECK(Graph->NumVertices() == 3);
-	CHECK(Graph->NumEdges() == 3);
 	CHECK(Graph->NumIslands() == 1);
 
 	{
@@ -523,7 +459,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Bulk::Fully Connected
 	CHECK(VertexHandles[3].IsComplete() == false);
 	CHECK(VertexHandles[4].IsComplete() == false);
 	CHECK(Graph->NumVertices() == 0);
-	CHECK(Graph->NumEdges() == 0);
 	CHECK(Graph->NumIslands() == 0);
 }
 
@@ -534,7 +469,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Bulk::Linear", "[grap
 	BuildLinearEdges(10);
 
 	CHECK(Graph->NumVertices() == 10);
-	CHECK(Graph->NumEdges() == 9);
 	CHECK(Graph->NumIslands() == 1);
 
 	TArray<FGraphVertexHandle> VerticesToRemove = { VertexHandles[1], VertexHandles[2], VertexHandles[8] };
@@ -553,7 +487,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Bulk::Linear", "[grap
 	}
 
 	CHECK(Graph->NumVertices() == 7);
-	CHECK(Graph->NumEdges() == 4);
 	CHECK(Graph->NumIslands() == 3);
 }
 
@@ -564,7 +497,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Incomplete Handle", "
 
 	FGraphVertexHandle RemoveHandle{ VertexHandles[0].GetUniqueIndex(), nullptr };
 	CHECK(Graph->NumVertices() == 5);
-	CHECK(Graph->NumEdges() == 4);
 	CHECK(Graph->NumIslands() == 1);
 
 	UGraphIsland* Island = IslandHandles[0].GetIsland();
@@ -574,7 +506,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Incomplete Handle", "
 	Graph->RemoveVertex(RemoveHandle);
 
 	CHECK(Graph->NumVertices() == 4);
-	CHECK(Graph->NumEdges() == 3);
 	CHECK(Graph->NumIslands() == 1);
 	CHECK(Island->Num() == 4);
 }
@@ -585,7 +516,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Island", "[graph]")
 	BuildFullyConnectedEdges(5);
 
 	CHECK(Graph->NumVertices() == 10);
-	CHECK(Graph->NumEdges() == 20);
 	CHECK(Graph->NumIslands() == 2);
 
 	{
@@ -611,7 +541,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Island", "[graph]")
 	}
 
 	CHECK(Graph->NumVertices() == 5);
-	CHECK(Graph->NumEdges() == 10);
 	CHECK(Graph->NumIslands() == 1);
 
 	{
@@ -637,56 +566,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Island", "[graph]")
 	}
 
 	CHECK(Graph->NumVertices() == 0);
-	CHECK(Graph->NumEdges() == 0);
 	CHECK(Graph->NumIslands() == 0);
-}
-
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Edge::Handle Islands", "[graph]")
-{
-	PopulateVertices(10, true);
-	BuildLinearEdges(10);
-
-	CHECK(Graph->NumVertices() == 10);
-	CHECK(Graph->NumEdges() == 9);
-	CHECK(Graph->NumIslands() == 1);
-
-	SECTION("First Vertex")
-	{
-		TArray<FGraphEdgeHandle> Edges = GetEdgesForVertex(VertexHandles[0]);
-		for (const FGraphEdgeHandle& EdgeHandle : Edges)
-		{
-			CHECK(Graph->GetEdges().Contains(EdgeHandle) == true);
-			CHECK(EdgeHandle.IsComplete() == true);
-
-			Graph->RemoveEdge(EdgeHandle);
-
-			CHECK(Graph->GetEdges().Contains(EdgeHandle) == false);
-			CHECK(EdgeHandle.IsComplete() == false);
-		}
-
-		CHECK(Graph->NumVertices() == 10);
-		CHECK(Graph->NumEdges() == 8);
-		CHECK(Graph->NumIslands() == 2);
-	}
-
-	SECTION("Split Island")
-	{
-		TArray<FGraphEdgeHandle> Edges = GetEdgesForVertex(VertexHandles[5]);
-		for (const FGraphEdgeHandle& EdgeHandle : Edges)
-		{
-			CHECK(Graph->GetEdges().Contains(EdgeHandle) == true);
-			CHECK(EdgeHandle.IsComplete() == true);
-
-			Graph->RemoveEdge(EdgeHandle);
-
-			CHECK(Graph->GetEdges().Contains(EdgeHandle) == false);
-			CHECK(EdgeHandle.IsComplete() == false);
-		}
-
-		CHECK(Graph->NumVertices() == 10);
-		CHECK(Graph->NumEdges() == 7);
-		CHECK(Graph->NumIslands() == 3);
-	}
 }
 
 TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Event::Vertex Created", "[graph]")
@@ -708,40 +588,11 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Event::Vertex Created", "[graph]")
 	CHECK(CreatedHandle.IsComplete() == true);
 }
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Event::Edge Created::Single", "[graph]")
-{
-	PopulateVertices(10, true);
-
-	FEdgeCreationParameters Params;
-	Params.VertexHandle1 = VertexHandles[1];
-	Params.VertexHandle2 = VertexHandles[0];
-	Params.EdgeIndex = FGraphUniqueIndex{ FGuid{ 1, 1, 1, 1 } };
-
-	FGraphEdgeHandle CreatedHandle;
-	Graph->OnEdgeCreated.AddLambda(
-		[&CreatedHandle, &Params](const FGraphEdgeHandle& InCreatedHandle)
-		{
-			CHECK(InCreatedHandle.IsComplete());
-			CHECK(InCreatedHandle.GetUniqueIndex() == Params.EdgeIndex);
-			CreatedHandle = InCreatedHandle;
-		}
-	);
-
-	TArray<FGraphEdgeHandle> Edges;
-	Graph->CreateBulkEdges({ Params }, &Edges);
-
-	REQUIRE(Edges.Num() == 1);
-	CHECK(Edges[0] == CreatedHandle);
-}
-
 TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Event::Island Created", "[graph]")
 {
 	PopulateVertices(10, false);
 
-	FEdgeCreationParameters Params;
-	Params.VertexHandle1 = VertexHandles[1];
-	Params.VertexHandle2 = VertexHandles[0];
-	Params.EdgeIndex = FGraphUniqueIndex{ FGuid{ 1, 1, 1, 1 } };
+	FEdgeSpecifier Params{ VertexHandles[1], VertexHandles[0] };
 
 	FGraphIslandHandle CreatedHandle;
 	Graph->OnIslandCreated.AddLambda(

@@ -77,39 +77,29 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Bulk Create Edges", "[graph]
 	BuildLinearEdges(2);
 
 	{
-		TArray<FEdgeCreationParameters> AllEdgeParams;
+		TArray<FEdgeSpecifier> AllEdgeParams;
 		{
-			FEdgeCreationParameters Params;
-			Params.VertexHandle1 = VertexHandles[1];
-			Params.VertexHandle2 = VertexHandles[2];
+			FEdgeSpecifier Params{ VertexHandles[1], VertexHandles[2] };
 			AllEdgeParams.Add(Params);
 		}
 
 		{
-			FEdgeCreationParameters Params;
-			Params.VertexHandle1 = VertexHandles[1];
-			Params.VertexHandle2 = VertexHandles[3];
+			FEdgeSpecifier Params{ VertexHandles[1], VertexHandles[3] };
 			AllEdgeParams.Add(Params);
 		}
 
 		{
-			FEdgeCreationParameters Params;
-			Params.VertexHandle1 = VertexHandles[4];
-			Params.VertexHandle2 = VertexHandles[9];
+			FEdgeSpecifier Params{ VertexHandles[4], VertexHandles[9] };
 			AllEdgeParams.Add(Params);
 		}
 
 		{
-			FEdgeCreationParameters Params;
-			Params.VertexHandle1 = VertexHandles[5];
-			Params.VertexHandle2 = VertexHandles[6];
+			FEdgeSpecifier Params{ VertexHandles[5], VertexHandles[6] };
 			AllEdgeParams.Add(Params);
 		}
 
 		{
-			FEdgeCreationParameters Params;
-			Params.VertexHandle1 = VertexHandles[4];
-			Params.VertexHandle2 = VertexHandles[7];
+			FEdgeSpecifier Params{ VertexHandles[4], VertexHandles[7] };
 			AllEdgeParams.Add(Params);
 		}
 
@@ -272,93 +262,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Remove Vertex::Split", "[gra
 	IslandVertexParentIslandSanityCheck(IslandHandle2);
 }
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Remove Edge::Still Connected", "[graph][island]")
-{
-	PopulateVertices(4, true);
-	BuildFullyConnectedEdges(4);
-
-	REQUIRE(IslandHandles.Num() == 1);
-
-	UGraphIsland* Island1 = IslandHandles[0].GetIsland();
-	REQUIRE(Island1 != nullptr);
-	IslandVertexParentIslandSanityCheck(IslandHandles[0]);
-
-	{
-		CHECK(Island1->Num() == 4);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[0]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[1]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[2]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[3]) == true);
-	}
-
-	TArray<FGraphEdgeHandle> Edges = GetEdgesForVertex(VertexHandles[0]);
-	CHECK(Edges.Num() == 3);
-
-	Graph->RemoveEdge(Edges[0]);
-	IslandVertexParentIslandSanityCheck(IslandHandles[0]);
-	{
-		CHECK(Island1->Num() == 4);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[0]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[1]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[2]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[3]) == true);
-	}
-
-	Graph->RemoveEdge(Edges[1]);
-	IslandVertexParentIslandSanityCheck(IslandHandles[0]);
-	{
-		CHECK(Island1->Num() == 4);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[0]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[1]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[2]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[3]) == true);
-	}
-}
-
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Remove Edge::Split", "[graph][island]")
-{
-	PopulateVertices(5, true);
-	BuildLinearEdges(5);
-
-	REQUIRE(IslandHandles.Num() == 1);
-	CHECK(Graph->NumIslands() == 1);
-
-	TArray<FGraphEdgeHandle> Edges = GetEdgesForVertex(VertexHandles[2]);
-	CHECK(Edges.Num() == 2);
-	Graph->RemoveEdge(Edges[0]);
-	Graph->RemoveEdge(Edges[1]);
-
-	UGraphIsland* Island1 = VertexHandles[0].GetVertex()->GetParentIsland().GetIsland();
-	REQUIRE(Island1 != nullptr);
-	{
-		CHECK(Island1->Num() == 2);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[0]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[1]) == true);
-	}
-
-	UGraphIsland* Island2 = VertexHandles[2].GetVertex()->GetParentIsland().GetIsland();
-	REQUIRE(Island2 != nullptr);
-	CHECK(Island1->Handle() != Island2->Handle());
-	{
-		CHECK(Island2->Num() == 1);
-		CHECK(Island2->GetVertices().Contains(VertexHandles[2]) == true);
-	}
-
-	UGraphIsland* Island3 = VertexHandles[3].GetVertex()->GetParentIsland().GetIsland();
-	REQUIRE(Island3 != nullptr);
-	CHECK(Island1->Handle() != Island3->Handle());
-	CHECK(Island2->Handle() != Island3->Handle());
-	{
-		CHECK(Island3->Num() == 2);
-		CHECK(Island3->GetVertices().Contains(VertexHandles[3]) == true);
-		CHECK(Island3->GetVertices().Contains(VertexHandles[4]) == true);
-	}
-
-	IslandVertexParentIslandSanityCheck(Island1->Handle());
-	IslandVertexParentIslandSanityCheck(Island2->Handle());
-	IslandVertexParentIslandSanityCheck(Island3->Handle());
-}
-
 TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Flag", "[graph][island]")
 {
 	PopulateVertices(2, true);
@@ -424,22 +327,18 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Disable A
 
 	FGraphVertexHandle NewVertex = Graph->CreateVertex();
 
-	FEdgeCreationParameters Params;
-	Params.VertexHandle1 = NewVertex;
-	Params.VertexHandle2 = VertexHandles[0];
+	FEdgeSpecifier Params{ NewVertex, VertexHandles[0] };
+	Graph->CreateBulkEdges({ Params });
 
-	TArray<FGraphEdgeHandle> Edges;
-	Graph->CreateBulkEdges({ Params }, &Edges);
-
-	CHECK(Edges.Num() == 0);
 	CHECK(Island->Num() == 4);
 	CHECK(Island->GetVertices().Contains(NewVertex) == false);
 	CHECK(NewVertex.GetVertex()->GetParentIsland() != Island->Handle());
 	CHECK(NewVertex.GetVertex()->GetParentIsland() == FGraphIslandHandle::Invalid);
 	CHECK(Graph->NumVertices() == 5);
-	CHECK(Graph->NumEdges() == 3);
 	CHECK(Graph->NumIslands() == 1);
 	IslandVertexParentIslandSanityCheck(IslandHandles[0]);
+	CHECK(NewVertex.GetVertex()->HasEdgeTo(VertexHandles[0]) == false);
+	CHECK(VertexHandles[0].GetVertex()->HasEdgeTo(NewVertex) == false);
 }
 
 TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Disable Split", "[graph][island]")
@@ -456,7 +355,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Disable S
 
 	CHECK(Island->Num() == 6);
 	CHECK(Graph->NumVertices() == 6);
-	CHECK(Graph->NumEdges() == 5);
 	CHECK(Graph->NumIslands() == 1);
 
 	UGraphVertex* Vertex = VertexHandles[2].GetVertex();
@@ -464,42 +362,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Disable S
 
 	UGraphIsland* Island1 = nullptr;
 	UGraphIsland* Island2 = nullptr;
-
-	SECTION("Remove Edge")
-	{
-		const FGraphEdgeHandle* EdgeHandle = Vertex->FindEdgeTo(VertexHandles[3]);
-		REQUIRE(EdgeHandle != nullptr);
-		Graph->RemoveEdge(*EdgeHandle);
-
-		IslandVertexParentIslandSanityCheck(IslandHandles[0]);
-		CHECK(Island->GetVertices().Contains(VertexHandles[0]) == true);
-		CHECK(Island->GetVertices().Contains(VertexHandles[1]) == true);
-		CHECK(Island->GetVertices().Contains(VertexHandles[2]) == true);
-		CHECK(Island->GetVertices().Contains(VertexHandles[3]) == true);
-		CHECK(Island->GetVertices().Contains(VertexHandles[4]) == true);
-		CHECK(Island->GetVertices().Contains(VertexHandles[5]) == true);
-		CHECK(Island->Num() == 6);
-		CHECK(Graph->NumVertices() == 6);
-		CHECK(Graph->NumEdges() == 4);
-
-		CHECK(Graph->NumIslands() == 1);
-		Island->SetOperationAllowed(EGraphIslandOperations::Split, true);
-		Graph->RefreshIslandConnectivity(Island->Handle());
-
-		Island1 = VertexHandles[0].GetVertex()->GetParentIsland().GetIsland();
-		Island2 = VertexHandles[5].GetVertex()->GetParentIsland().GetIsland();
-
-		CHECK(Island1->Num() == 3);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[0]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[1]) == true);
-		CHECK(Island1->GetVertices().Contains(VertexHandles[2]) == true);
-		CHECK(Island2->Num() == 3);
-		CHECK(Island2->GetVertices().Contains(VertexHandles[3]) == true);
-		CHECK(Island2->GetVertices().Contains(VertexHandles[4]) == true);
-		CHECK(Island2->GetVertices().Contains(VertexHandles[5]) == true);
-		CHECK(Graph->NumVertices() == 6);
-		CHECK(Graph->NumEdges() == 4);
-	}
 
 	SECTION("Remove Vertex")
 	{
@@ -512,7 +374,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Disable S
 		CHECK(Island->GetVertices().Contains(VertexHandles[5]) == true);
 		CHECK(Island->Num() == 5);
 		CHECK(Graph->NumVertices() == 5);
-		CHECK(Graph->NumEdges() == 3);
 
 		CHECK(Graph->NumIslands() == 1);
 		Island->SetOperationAllowed(EGraphIslandOperations::Split, true);
@@ -529,7 +390,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Disable S
 		CHECK(Island2->GetVertices().Contains(VertexHandles[4]) == true);
 		CHECK(Island2->GetVertices().Contains(VertexHandles[5]) == true);
 		CHECK(Graph->NumVertices() == 5);
-		CHECK(Graph->NumEdges() == 3);
 	}
 
 	CHECK(Graph->NumIslands() == 2);
@@ -548,17 +408,11 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Disable M
 
 	auto RunTest = [this]()
 	{
-		FEdgeCreationParameters Params;
-		Params.VertexHandle1 = VertexHandles[0];
-		Params.VertexHandle2 = VertexHandles[2];
-
-		TArray<FGraphEdgeHandle> Edges;
-		Graph->CreateBulkEdges({ Params }, &Edges);
-
-		CHECK(Edges.Num() == 0);
+		FEdgeSpecifier Params{ VertexHandles[0], VertexHandles[2] };
+		Graph->CreateBulkEdges({ Params });
 		CHECK(Graph->NumVertices() == 4);
-		CHECK(Graph->NumEdges() == 2);
 		CHECK(Graph->NumIslands() == 2);
+		VerifyEdges({ Params }, false);
 
 		UGraphIsland* Island0 = VertexHandles[0].GetVertex()->GetParentIsland().GetIsland();
 		REQUIRE(Island0 != nullptr);
@@ -572,7 +426,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Disable M
 		CHECK(Island0->Handle() != Island1->Handle());
 		CHECK(Island1->GetVertices().Contains(VertexHandles[2]) == true);
 		CHECK(Island1->GetVertices().Contains(VertexHandles[3]) == true);
-
 
 		IslandVertexParentIslandSanityCheck(Island0->Handle());
 		IslandVertexParentIslandSanityCheck(Island1->Handle());
@@ -622,21 +475,15 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Disable M
 	auto RunTest = [this]()
 	{
 		FGraphVertexHandle NewVertex = Graph->CreateVertex();
-		FEdgeCreationParameters Params1;
-		Params1.VertexHandle1 = VertexHandles[0];
-		Params1.VertexHandle2 = NewVertex;
-
-		FEdgeCreationParameters Params2;
-		Params2.VertexHandle1 = VertexHandles[3];
-		Params2.VertexHandle2 = NewVertex;
-
-		TArray<FGraphEdgeHandle> Edges;
-		Graph->CreateBulkEdges({ Params1, Params2 }, &Edges);
+		FEdgeSpecifier Params1{VertexHandles[0], NewVertex};
+		FEdgeSpecifier Params2{VertexHandles[3], NewVertex};
+		Graph->CreateBulkEdges({ Params1, Params2 });
 		Graph->FinalizeVertex(NewVertex);
 
-		CHECK(Edges.Num() == 1);
+		VerifyEdges( { Params1 }, true);
+		VerifyEdges( { Params2 }, false);
+
 		CHECK(Graph->NumVertices() == 5);
-		CHECK(Graph->NumEdges() == 3);
 		CHECK(Graph->NumIslands() == 2);
 
 		UGraphIsland* Island0 = VertexHandles[0].GetVertex()->GetParentIsland().GetIsland();
@@ -739,9 +586,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Events::Vertex Added", "[gra
 	);
 
 	FGraphVertexHandle NewVertex = Graph->CreateVertex();
-	FEdgeCreationParameters Params;
-	Params.VertexHandle1 = NewVertex;
-	Params.VertexHandle2 = VertexHandles[0];
+	FEdgeSpecifier Params{ NewVertex, VertexHandles[0] };
 	Graph->CreateBulkEdges({ Params });
 
 	CHECK(CallbackIslandHandle == Island->Handle());
@@ -772,15 +617,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Events::Vertex Removed", "[g
 	SECTION("Remove Vertex")
 	{
 		Graph->RemoveVertex(VertexHandles[0]);
-		CHECK(CallbackIslandHandle == Island->Handle());
-		CHECK(CallbackVertexHandle == VertexHandles[0]);
-	}
-
-	SECTION("Remove Edge")
-	{
-		TArray<FGraphEdgeHandle> Edges = GetEdgesForVertex(VertexHandles[0]);
-		CHECK(Edges.Num() == 1);
-		Graph->RemoveEdge(Edges[0]);
 		CHECK(CallbackIslandHandle == Island->Handle());
 		CHECK(CallbackVertexHandle == VertexHandles[0]);
 	}

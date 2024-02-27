@@ -3,7 +3,6 @@
 #include "TestHarness.h"
 
 #include "Graph/Graph.h"
-#include "Graph/GraphEdge.h"
 #include "Graph/GraphIsland.h"
 #include "Graph/GraphVertex.h"
 
@@ -13,12 +12,6 @@ TEST_CASE("Graph::Element::Element Type", "[graph][element]")
 	{
 		UGraphVertex* Vertex = NewObject<UGraphVertex>();
 		CHECK(Vertex->GetElementType() == EGraphElementType::Node);
-	}
-
-	SECTION("Edge")
-	{
-		UGraphEdge* Edge = NewObject<UGraphEdge>();
-		CHECK(Edge->GetElementType() == EGraphElementType::Edge);
 	}
 
 	SECTION("Island")

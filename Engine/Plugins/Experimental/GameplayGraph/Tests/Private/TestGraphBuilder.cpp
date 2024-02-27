@@ -41,7 +41,7 @@ void FTestGraphBuilder::BuildFullyConnectedEdges(int32 NodesPerIsland)
 {
 	for (int32 NodeIndex = 0; NodeIndex < VertexHandles.Num(); NodeIndex += NodesPerIsland)
 	{
-		TArray<FEdgeCreationParameters> AllEdges;
+		TArray<FEdgeSpecifier> AllEdges;
 		for (int32 SourceOffset = 0; SourceOffset < NodesPerIsland; ++SourceOffset)
 		{
 			if ((NodeIndex + SourceOffset) >= VertexHandles.Num())
@@ -56,14 +56,14 @@ void FTestGraphBuilder::BuildFullyConnectedEdges(int32 NodesPerIsland)
 					break;
 				}
 
-				FEdgeCreationParameters Params;
-				Params.VertexHandle1 = VertexHandles[NodeIndex + SourceOffset];
-				Params.VertexHandle2 = VertexHandles[NodeIndex + DestOffset];
+				FEdgeSpecifier Params{ VertexHandles[NodeIndex + SourceOffset], VertexHandles[NodeIndex + DestOffset] };
 				AllEdges.Add(Params);
 			}
 		}
 
+		TArray<FEdgeSpecifier> AllVerifyEdges = AllEdges;
 		Graph->CreateBulkEdges(MoveTemp(AllEdges));
+		VerifyEdges(AllVerifyEdges, true);
 	}
 
 	FinalizeEdges();
@@ -73,7 +73,7 @@ void FTestGraphBuilder::BuildLinearEdges(int32 NodesPerIsland)
 {
 	for (int32 NodeIndex = 0; NodeIndex < VertexHandles.Num(); NodeIndex += NodesPerIsland)
 	{
-		TArray<FEdgeCreationParameters> AllEdges;
+		TArray<FEdgeSpecifier> AllEdges;
 		for (int32 SourceOffset = 1; SourceOffset < NodesPerIsland; ++SourceOffset)
 		{
 			if ((NodeIndex + SourceOffset) >= VertexHandles.Num())
@@ -81,13 +81,13 @@ void FTestGraphBuilder::BuildLinearEdges(int32 NodesPerIsland)
 				break;
 			}
 
-			FEdgeCreationParameters Params;
-			Params.VertexHandle1 = VertexHandles[NodeIndex + SourceOffset - 1];
-			Params.VertexHandle2 = VertexHandles[NodeIndex + SourceOffset];
+			FEdgeSpecifier Params{VertexHandles[NodeIndex + SourceOffset - 1], VertexHandles[NodeIndex + SourceOffset]};
 			AllEdges.Add(Params);
 		}
 
+		TArray<FEdgeSpecifier> AllVerifyEdges = AllEdges;
 		Graph->CreateBulkEdges(MoveTemp(AllEdges));
+		VerifyEdges(AllVerifyEdges, true);
 	}
 
 	FinalizeEdges();
@@ -102,23 +102,23 @@ void FTestGraphBuilder::FinalizeEdges()
 	}
 }
 
-TArray<FGraphEdgeHandle> FTestGraphBuilder::GetEdgesForVertex(const FGraphVertexHandle& Handle) const
+TArray<FEdgeSpecifier> FTestGraphBuilder::GetEdgesForVertex(const FGraphVertexHandle& Handle) const
 {
-	TArray<FGraphEdgeHandle> Edges;
+	TArray<FEdgeSpecifier> Edges;
 	if (UGraphVertex* Vertex = Handle.GetVertex())
 	{
 		Edges.Reserve(Vertex->NumEdges());
 		Vertex->ForEachAdjacentVertex(
-			[&Edges](const FGraphVertexHandle& NeighborVertexHandle, const FGraphEdgeHandle& EdgeHandle)
+			[&Edges, &Handle](const FGraphVertexHandle& NeighborVertexHandle)
 			{
-				Edges.Add(EdgeHandle);
+				Edges.Add(FEdgeSpecifier{Handle, NeighborVertexHandle});
 			}
 		);
 	}
 	return Edges;
 }
 
-void FTestGraphBuilder::GraphSanityCheck()
+void FTestGraphBuilder::GraphSanityCheck() const
 {
 	for (const TPair<FGraphVertexHandle, TObjectPtr<UGraphVertex>>& Data : Graph->GetVertices())
 	{
@@ -136,31 +136,18 @@ void FTestGraphBuilder::GraphSanityCheck()
 		}
 
 		Data.Value->ForEachAdjacentVertex(
-			[this](const FGraphVertexHandle& NeighborVertexHandle, const FGraphEdgeHandle& EdgeHandle)
+			[this, &Data](const FGraphVertexHandle& NeighborVertexHandle)
 			{
 				CHECK(NeighborVertexHandle.IsComplete() == true);
 				CHECK(NeighborVertexHandle.GetVertex() == Graph->GetVertices().FindRef(NeighborVertexHandle));
 
-				CHECK(EdgeHandle.IsComplete() == true);
-				CHECK(EdgeHandle.GetEdge() == Graph->GetEdges().FindRef(EdgeHandle));
+				const UGraphVertex* AdjacentVertex = NeighborVertexHandle.GetVertex();
+				REQUIRE(AdjacentVertex != nullptr);
+
+				CHECK(Data.Value->HasEdgeTo(NeighborVertexHandle) == true);
+				CHECK(AdjacentVertex->HasEdgeTo(Data.Key) == true);
 			}
 		);
-	}
-
-	for (const TPair<FGraphEdgeHandle, TObjectPtr<UGraphEdge>>& Data : Graph->GetEdges())
-	{
-		CHECK(Data.Key.IsComplete() == true);
-		CHECK(Data.Value != nullptr);
-		CHECK(Data.Value == Data.Key.GetEdge());
-		CHECK(Data.Key == Data.Value->Handle());
-		CHECK(Data.Key.GetUniqueIndex().IsTemporary() == false);
-		CHECK(Data.Key.GetGraph() == Graph);
-
-		CHECK(Data.Value->NodeA().IsComplete() == true);
-		CHECK(Data.Value->NodeA().GetVertex() == Graph->GetVertices().FindRef(Data.Value->NodeA()));
-
-		CHECK(Data.Value->NodeB().IsComplete() == true);
-		CHECK(Data.Value->NodeB().GetVertex() == Graph->GetVertices().FindRef(Data.Value->NodeB()));
 	}
 
 	for (const TPair<FGraphIslandHandle, TObjectPtr<UGraphIsland>>& Data : Graph->GetIslands())
@@ -182,7 +169,7 @@ void FTestGraphBuilder::GraphSanityCheck()
 	}
 }
 
-void FTestGraphBuilder::IslandVertexParentIslandSanityCheck(const FGraphIslandHandle& IslandHandle)
+void FTestGraphBuilder::IslandVertexParentIslandSanityCheck(const FGraphIslandHandle& IslandHandle) const
 {
 	UGraphIsland* Island = IslandHandle.GetIsland();
 	REQUIRE(Island != nullptr);
@@ -193,4 +180,34 @@ void FTestGraphBuilder::IslandVertexParentIslandSanityCheck(const FGraphIslandHa
 			CHECK(VertexHandle.GetVertex()->GetParentIsland() == IslandHandle);
 		}
 	);
+}
+
+void FTestGraphBuilder::VerifyEdges(const TArray<FEdgeSpecifier>& Edges, bool bExist) const
+{
+	for (const FEdgeSpecifier& Edge : Edges)
+	{
+		UGraphVertex* V1 = Edge.GetVertexHandle1().GetVertex();
+		REQUIRE(V1 != nullptr);
+
+		UGraphVertex* V2 = Edge.GetVertexHandle2().GetVertex();
+		REQUIRE(V2 != nullptr);
+
+		CHECK(V1->HasEdgeTo(V2->Handle()) == bExist);
+		CHECK(V2->HasEdgeTo(V1->Handle()) == bExist);
+	}
+}
+
+void FTestGraphBuilder::VertexShouldOnlyHaveEdgesTo(const FGraphVertexHandle& Source, const TArray<FGraphVertexHandle>& Targets) const
+{
+	UGraphVertex* SourceVertex = Source.GetVertex();
+	REQUIRE(SourceVertex != nullptr);
+	CHECK(SourceVertex->NumEdges() == Targets.Num());
+	for (const FGraphVertexHandle& AdjacentHandle : Targets)
+	{
+		CHECK(SourceVertex->HasEdgeTo(AdjacentHandle) == true);
+		
+		UGraphVertex* AdjacentVertex = AdjacentHandle.GetVertex();
+		REQUIRE(AdjacentVertex != nullptr);
+		CHECK(AdjacentVertex->HasEdgeTo(Source) == true);
+	}
 }

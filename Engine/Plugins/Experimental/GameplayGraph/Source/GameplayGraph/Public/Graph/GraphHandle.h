@@ -8,7 +8,6 @@
 
 class UGraph;
 class UGraphVertex;
-class UGraphEdge;
 class UGraphIsland;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogGameplayGraph, Log, All);
@@ -144,22 +143,6 @@ struct GAMEPLAYGRAPH_API FGraphVertexHandle : public FGraphHandle
 	{}
 
 	UGraphVertex* GetVertex() const;
-	virtual bool HasElement() const override;
-};
-
-USTRUCT()
-struct GAMEPLAYGRAPH_API FGraphEdgeHandle : public FGraphHandle
-{
-	GENERATED_BODY()
-
-	static FGraphEdgeHandle Invalid;
-
-	FGraphEdgeHandle() = default;
-	FGraphEdgeHandle(FGraphUniqueIndex InUniqueIndex, UGraph* InGraph)
-		: FGraphHandle(InUniqueIndex, InGraph)
-	{}
-
-	UGraphEdge* GetEdge() const;
 	virtual bool HasElement() const override;
 };
 
