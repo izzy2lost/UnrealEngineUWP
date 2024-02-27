@@ -323,7 +323,7 @@ void FLinkerInstancedPackageMap::BuildPackageMapping(FName Original, FName Insta
 		FStringView OriginalView = TmpOriginal.ToView();
 		FStringView InstancedView = TmpInstanced.ToView();
 
-		const int32 Index = InstancedView.Find(OriginalView);
+		const int32 Index = InstancedView.Find(OriginalView, 0, ESearchCase::IgnoreCase);
 
 		// Stash the suffix used for this instance so we can also apply it to generated packages
 		if (Index != INDEX_NONE)
@@ -338,11 +338,11 @@ void FLinkerInstancedPackageMap::BuildPackageMapping(FName Original, FName Insta
 			const FStringView GeneratedFolderName = TEXTVIEW("/_Generated_/");
 			
 			// Does this package path include the generated folder?
-			if (const int32 GeneratedFolderStartIndex = OriginalView.Find(GeneratedFolderName); GeneratedFolderStartIndex != INDEX_NONE)
+			if (const int32 GeneratedFolderStartIndex = OriginalView.Find(GeneratedFolderName, 0, ESearchCase::IgnoreCase); GeneratedFolderStartIndex != INDEX_NONE)
 			{
 				// ... and is that generated folder immediately preceding the package name?
 				const int32 GeneratedFolderEndIndex = GeneratedFolderStartIndex + GeneratedFolderName.Len();
-				if (const int32 ExtraSlashIndex = OriginalView.Find(TEXTVIEW("/"), GeneratedFolderEndIndex); ExtraSlashIndex == INDEX_NONE)
+				if (const int32 ExtraSlashIndex = OriginalView.Find(TEXTVIEW("/"), GeneratedFolderEndIndex, ESearchCase::IgnoreCase); ExtraSlashIndex == INDEX_NONE)
 				{
 					GeneratedPackagesFolder = OriginalView.Left(GeneratedFolderEndIndex);
 					const FString PersistentSourcePackage(OriginalView.Left(GeneratedFolderStartIndex));
@@ -389,12 +389,12 @@ bool FLinkerInstancedPackageMap::FixupSoftObjectPath(FSoftObjectPath& InOutSoftO
 
 			// Does this package path start with the generated folder path?
 			FStringView TmpSoftObjectPathView = TmpSoftObjectPathBuilder.ToView();
-			if (const int32 GeneratedFolderIndex = TmpSoftObjectPathView.Find(GeneratedPackagesFolder); GeneratedFolderIndex != INDEX_NONE)
+			if (const int32 GeneratedFolderIndex = TmpSoftObjectPathView.Find(GeneratedPackagesFolder, 0, ESearchCase::IgnoreCase); GeneratedFolderIndex != INDEX_NONE)
 			{
 				check(GeneratedFolderIndex == 0 || (TmpSoftObjectPathView.StartsWith(InstancedPackagePrefix) && GeneratedFolderIndex == InstancedPackagePrefix.Len()));
 
 				// ... and is that generated folder path immediately preceding the package name?
-				if (const int32 ExtraSlashIndex = TmpSoftObjectPathView.Find(TEXTVIEW("/"), InstancedPackagePrefix.Len() + GeneratedPackagesFolder.Len()); ExtraSlashIndex == INDEX_NONE)
+				if (const int32 ExtraSlashIndex = TmpSoftObjectPathView.Find(TEXTVIEW("/"), InstancedPackagePrefix.Len() + GeneratedPackagesFolder.Len(), ESearchCase::IgnoreCase); ExtraSlashIndex == INDEX_NONE)
 				{
 					FNameBuilder PackageNameBuilder;
 
