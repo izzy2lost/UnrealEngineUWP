@@ -323,6 +323,22 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 			)
 		];
 
+	TSharedRef<SComboButton> PostProcessButton = ViewportStatusBarButton::MakeMenuButton(
+		LOCTEXT("PostProcessEffects", "Post Process Effects"),
+		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessMenuContent),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Advanced").GetIcon(),
+		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessColor)
+	);
+
+	PostProcessButton->SetEnabled(TAttribute<bool>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabled));
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			PostProcessButton
+		];
+
 	InContainer->AddSlot()
 		.AutoWidth()
 		.Padding(ViewportStatusBarButton::Padding)
@@ -393,22 +409,6 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 			)
 		];
 
-	TSharedRef<SComboButton> PostProcessButton = ViewportStatusBarButton::MakeMenuButton(
-		LOCTEXT("PostProcessEffects", "Post Process Effects"),
-		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessMenuContent),
-		TAttribute<const FSlateBrush*>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessIcon),
-		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessColor)
-	);
-
-	PostProcessButton->SetEnabled(TAttribute<bool>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabled));
-
-	InContainer->AddSlot()
-		.AutoWidth()
-		.Padding(ViewportStatusBarButton::Padding)
-		[
-			PostProcessButton
-		];
-
 	TSharedRef<SAvaMultiComboButton> TextureOverlayButton = ViewportStatusBarButton::MakeMultiMenuButton(
 		CommandsRef.ToggleTextureOverlay->GetDescription(),
 		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetTextureOverlayMenuContent),
@@ -417,13 +417,33 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 		FOnClicked::CreateSP(this, &SAvaLevelViewportStatusBarButtons::ToggleTextureOverlay)
 	);
 
-	TextureOverlayButton->SetEnabled(TAttribute<bool>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabled));
+	TextureOverlayButton->SetEnabled(TAttribute<bool>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetTextureOverlayEnabled));
 
 	InContainer->AddSlot()
 		.AutoWidth()
 		.Padding(ViewportStatusBarButton::Padding)
 		[
 			TextureOverlayButton
+		];
+
+	TSharedRef<SAvaMultiComboButton> GridButton = ViewportStatusBarButton::MakeMultiMenuButton(
+		CommandsRef.ToggleGrid->GetDescription(),
+		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetGridMenuContent),
+		FAvaLevelViewportStyle::Get().GetBrush(TEXT("Button.ToggleGrid")),
+		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetToggleGridColor),
+		FOnClicked::CreateSP(this, &SAvaLevelViewportStatusBarButtons::ToggleGrid)
+	);
+
+	GridButton->SetEnabled(TAttribute<bool>::CreateSP(
+		this,
+		&SAvaLevelViewportStatusBarButtons::GetToggleGridEnabled
+	));
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			GridButton
 		];
 
 	InContainer->AddSlot()
@@ -460,26 +480,6 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 			SnapButton
 		];
 
-	TSharedRef<SAvaMultiComboButton> GridButton = ViewportStatusBarButton::MakeMultiMenuButton(
-		CommandsRef.ToggleGrid->GetDescription(),
-		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetGridMenuContent),
-		FAvaLevelViewportStyle::Get().GetBrush(TEXT("Button.ToggleGrid")),
-		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetToggleGridColor),
-		FOnClicked::CreateSP(this, &SAvaLevelViewportStatusBarButtons::ToggleGrid)
-	);
-
-	GridButton->SetEnabled(TAttribute<bool>::CreateSP(
-		this,
-		&SAvaLevelViewportStatusBarButtons::GetToggleGridEnabled
-	));
-
-	InContainer->AddSlot()
-		.AutoWidth()
-		.Padding(ViewportStatusBarButton::Padding)
-		[
-			GridButton
-		];
-
 	TSharedRef<SComboButton> ViewportInfoButton = ViewportStatusBarButton::MakeMenuButton(
 		LOCTEXT("ViewportInfomation", "Viewport Information"),
 		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetViewportInfoWidget),
@@ -507,67 +507,13 @@ FSlateColor SAvaLevelViewportStatusBarButtons::GetPostProcessColor() const
 	{
 		if (const TSharedPtr<FAvaViewportPostProcessManager> PostProcessManager = FrameAndClient.ViewportClient->GetPostProcessManager())
 		{
-			switch (PostProcessManager->GetType())
-			{
-				// Alpha channel could be included here, but I feel it shouldn't.
-				case EAvaViewportPostProcessType::Background:
-				case EAvaViewportPostProcessType::Checkerboard:
-					return ViewportStatusBarButton::ActiveColor;
-
-				default:
-					return ViewportStatusBarButton::EnabledColor;
-			}
+			return PostProcessManager->GetType() != EAvaViewportPostProcessType::None
+				? ViewportStatusBarButton::ActiveColor
+				: ViewportStatusBarButton::EnabledColor;
 		}
 	}
 
 	return ViewportStatusBarButton::DisabledColor;
-}
-
-const FSlateBrush* SAvaLevelViewportStatusBarButtons::GetPostProcessIcon() const
-{
-	using namespace UE::Ava::LevelViewportStatusBarButtons::Private;
-
-	static const FSlateBrush* RGBBrush = RGBChannelIcon.GetIcon();
-	static const FSlateBrush* BackgroundBrush = BackgroundIcon.GetIcon();
-	static const FSlateBrush* RedChannelBrush = RedChannelIcon.GetIcon();
-	static const FSlateBrush* GreenChannelBrush = GreenChannelIcon.GetIcon();
-	static const FSlateBrush* BlueChannelBrush = BlueChannelIcon.GetIcon();
-	static const FSlateBrush* AlphaChannelBrush = AlphaChannelIcon.GetIcon();
-	static const FSlateBrush* CheckerBrush = CheckerboardIcon.GetIcon();
-
-	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
-
-	if (FrameAndClient.IsValid())
-	{
-		if (const TSharedPtr<FAvaViewportPostProcessManager> PostProcessManager = FrameAndClient.ViewportClient->GetPostProcessManager())
-		{
-			switch (PostProcessManager->GetType())
-			{
-				case EAvaViewportPostProcessType::None:
-					return RGBBrush;
-
-				case EAvaViewportPostProcessType::Background:
-					return BackgroundBrush;
-
-				case EAvaViewportPostProcessType::RedChannel:
-					return RedChannelBrush;
-
-				case EAvaViewportPostProcessType::GreenChannel:
-					return GreenChannelBrush;
-
-				case EAvaViewportPostProcessType::BlueChannel:
-					return BlueChannelBrush;
-
-				case EAvaViewportPostProcessType::AlphaChannel:
-					return AlphaChannelBrush;
-
-				case EAvaViewportPostProcessType::Checkerboard:
-					return CheckerBrush;
-			}
-		}
-	}
-
-	return RGBBrush;
 }
 
 bool SAvaLevelViewportStatusBarButtons::GetPostProcessEnabled() const
@@ -974,7 +920,10 @@ FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleShapeEditorOverlayColor(
 
 	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
 	{
-		return AvaViewportSettings->bEnableShapesEditorOverlay ? ViewportStatusBarButton::ActiveColor : ViewportStatusBarButton::EnabledColor;
+		if (AvaViewportSettings->bEnableViewportOverlay)
+		{
+			return AvaViewportSettings->bEnableShapesEditorOverlay ? ViewportStatusBarButton::ActiveColor : ViewportStatusBarButton::EnabledColor;
+		}
 	}
 
 	return ViewportStatusBarButton::DisabledColor;

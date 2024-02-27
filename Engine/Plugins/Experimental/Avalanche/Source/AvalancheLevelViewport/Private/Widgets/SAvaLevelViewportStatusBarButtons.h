@@ -50,7 +50,6 @@ protected:
 
 	// Post Process
 	FSlateColor GetPostProcessColor() const;
-	const FSlateBrush* GetPostProcessIcon() const;
 	bool GetPostProcessEnabled() const;
 	TSharedRef<SWidget> GetPostProcessMenuContent();
 
