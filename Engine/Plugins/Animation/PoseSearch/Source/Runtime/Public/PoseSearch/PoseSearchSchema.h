@@ -20,7 +20,10 @@ enum class EPoseSearchDataPreprocessor : int32
 	Normalize,
 
 	// The data will be normalized against its deviation
-	NormalizeOnlyByDeviation
+	NormalizeOnlyByDeviation UMETA(DisplayName = "Normalize Only By Deviation (Experimental)"),
+
+	// same behavior as Normalize, but it'll index all the databases in the normalization set with the same schema
+	NormalizeWithCommonSchema UMETA(DisplayName = "Normalize With Common Schema (Experimental)"),
 };
 
 
