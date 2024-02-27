@@ -184,7 +184,7 @@ void FAvfMediaCapturePlayer::HandleAuthStatusError(EAvfMediaCaptureAuthStatus Au
 	}
 }
 
-void FAvfMediaCapturePlayer::CreateCaptureSession(NSString* deviceIDString)
+void FAvfMediaCapturePlayer::CreateCaptureSession(NSString* DeviceIDString, AVMediaType MediaType)
 {
 	SCOPED_AUTORELEASE_POOL;
 	
@@ -193,8 +193,8 @@ void FAvfMediaCapturePlayer::CreateCaptureSession(NSString* deviceIDString)
 	if(MediaCaptureHelper == nil)
 	{
 		// Assuming only one Capture at the moment
-		MediaCaptureHelper = [[AvfMediaCaptureHelper alloc] init];
-		BOOL bResult = [MediaCaptureHelper setupCaptureSession:deviceIDString sampleBufferCallback:^(CMSampleBufferRef SampleBuffer)
+		MediaCaptureHelper = [[AvfMediaCaptureHelper alloc] init: MediaType];
+		BOOL bResult = [MediaCaptureHelper setupCaptureSession: DeviceIDString sampleBufferCallback: ^(CMSampleBufferRef SampleBuffer)
 		{
 			this->NewSampleBufferAvailable(SampleBuffer);
 		}
@@ -240,20 +240,20 @@ bool FAvfMediaCapturePlayer::Open(const FString& Url, const IMediaOptions* Optio
 		{
 			case EAvfMediaCaptureAuthStatus::Authorized:
 			{
-				CreateCaptureSession(nsDeviceID);
+				CreateCaptureSession(nsDeviceID, MediaType);
 				break;
 			}
 			case EAvfMediaCaptureAuthStatus::NotDetermined:
 			{
 				TWeakPtr<FAvfMediaCapturePlayer, ESPMode::ThreadSafe> WeakPtr = this->AsWeak();
-				[AvfMediaCaptureHelper requestAcessForMediaType:MediaType completionCallback:^(EAvfMediaCaptureAuthStatus ResultStatus)
+				[AvfMediaCaptureHelper requestAccessForMediaType:MediaType completionCallback:^(EAvfMediaCaptureAuthStatus ResultStatus)
 				{
 					TSharedPtr<FAvfMediaCapturePlayer, ESPMode::ThreadSafe> StrongPtr = WeakPtr.Pin();
 					if(StrongPtr.IsValid())
 					{
 						if(ResultStatus == EAvfMediaCaptureAuthStatus::Authorized)
 						{
-							StrongPtr->CreateCaptureSession(nsDeviceID);
+							StrongPtr->CreateCaptureSession(nsDeviceID, MediaType);
 						}
 						else
 						{
@@ -354,12 +354,25 @@ int32 FAvfMediaCapturePlayer::GetNumTrackFormats(EMediaTrackType TrackType, int3
 		FScopeLock Lock(&CriticalSection);
 		if(MediaCaptureHelper != nil)
 		{
-			AVMediaType MediaType = [MediaCaptureHelper getCaptureDeviceMediaType];
-			if	(	(TrackType == EMediaTrackType::Video && MediaType == AVMediaTypeVideo) ||
-					(TrackType == EMediaTrackType::Audio && MediaType == AVMediaTypeAudio)
-				)
+			AVMediaType MediaType;
+			switch (TrackType) {
+			case EMediaTrackType::Audio:
+				MediaType = AVMediaTypeAudio;
+				break;
+			case EMediaTrackType::Video:
+				MediaType = AVMediaTypeVideo;
+				break;
+			default:
+				return 0;
+			}
+
+			if ([[MediaCaptureHelper getCaptureDeviceMediaType] isEqualToString: MediaType])
 			{
-				return [MediaCaptureHelper getCaptureDeviceAvailableFormats].count;
+				return [[MediaCaptureHelper getCaptureDeviceAvailableFormats] count];
+			}
+			else
+			{
+				return 0;
 			}
 		}
 	}
@@ -372,7 +385,7 @@ int32 FAvfMediaCapturePlayer::GetSelectedTrack(EMediaTrackType TrackType) const
 	SCOPED_AUTORELEASE_POOL;
 	
 	FScopeLock Lock(&CriticalSection);
-	if(MediaCaptureHelper != nil)
+	if (MediaCaptureHelper != nil)
 	{
 		AVMediaType MediaType = [MediaCaptureHelper getCaptureDeviceMediaType];
 		if	(	(TrackType == EMediaTrackType::Video && MediaType == AVMediaTypeVideo) ||
@@ -394,10 +407,10 @@ int32 FAvfMediaCapturePlayer::GetTrackFormat(EMediaTrackType TrackType, int32 Tr
 {
 	SCOPED_AUTORELEASE_POOL;
 	
-	if(TrackIndex == 0)
+	if (TrackIndex == 0)
 	{
 		FScopeLock Lock(&CriticalSection);
-		if(MediaCaptureHelper != nil)
+		if (MediaCaptureHelper != nil)
 		{
 			AVMediaType MediaType = [MediaCaptureHelper getCaptureDeviceMediaType];
 			if	(	(TrackType == EMediaTrackType::Video && MediaType == AVMediaTypeVideo) ||
@@ -427,13 +440,13 @@ bool FAvfMediaCapturePlayer::GetVideoTrackFormat(int32 TrackIndex, int32 FormatI
 	
 	FScopeLock Lock(&CriticalSection);
 	
-	if(TrackIndex == 0 && FormatIndex >= 0)
+	if (TrackIndex == 0 && FormatIndex >= 0)
 	{
 		NSArray<AVCaptureDeviceFormat*>* deviceFormats = [MediaCaptureHelper getCaptureDeviceAvailableFormats];
-		if(FormatIndex < deviceFormats.count)
+		if (FormatIndex < deviceFormats.count)
 		{
 			AVCaptureDeviceFormat* availableFormat = deviceFormats[FormatIndex];
-			if(CMFormatDescriptionGetMediaType(availableFormat.formatDescription) == kCMMediaType_Video)
+			if (CMFormatDescriptionGetMediaType(availableFormat.formatDescription) == kCMMediaType_Video)
 			{
 				float fMinRate = FLT_MAX;
 				float fMaxRate = FLT_MIN;
@@ -442,18 +455,18 @@ bool FAvfMediaCapturePlayer::GetVideoTrackFormat(int32 TrackIndex, int32 FormatI
 				for(uint32 i = 0;i < rateRanges.count;++i)
 				{
 					AVFrameRateRange* range = rateRanges[i];
-					if(range.maxFrameRate > fMaxRate)
+					if (range.maxFrameRate > fMaxRate)
 					{
 						fMaxRate = range.maxFrameRate;
 					}
-					if(range.minFrameRate < fMinRate)
+					if (range.minFrameRate < fMinRate)
 					{
 						fMinRate = range.minFrameRate;
 					}
 				}
 				
 				// Missing rate info - set a sensible value
-				if(fMinRate > fMaxRate)
+				if (fMinRate > fMaxRate)
 				{
 					fMinRate = fMaxRate = 30.f;
 				}
@@ -483,12 +496,12 @@ bool FAvfMediaCapturePlayer::SetTrackFormat(EMediaTrackType TrackType, int32 Tra
 {
 	SCOPED_AUTORELEASE_POOL;
 	
-	if(TrackIndex == 0)
+	if (TrackIndex == 0)
 	{
 		FScopeLock Lock(&CriticalSection);
-		if(TrackType == EMediaTrackType::Video || TrackType == EMediaTrackType::Audio)
+		if (TrackType == EMediaTrackType::Video || TrackType == EMediaTrackType::Audio)
 		{
-			if([MediaCaptureHelper setCaptureDeviceActiveFormatIndex:FormatIndex])
+			if ([MediaCaptureHelper setCaptureDeviceActiveFormatIndex:FormatIndex])
 			{
 				return true;
 			}
@@ -520,9 +533,9 @@ EMediaState FAvfMediaCapturePlayer::GetState() const
 	SCOPED_AUTORELEASE_POOL;
 	
 	FScopeLock Lock(&CriticalSection);
-	if(MediaCaptureHelper != nil)
+	if (MediaCaptureHelper != nil)
 	{
-		if(CurrentRate == 0.f && ![MediaCaptureHelper isCaptureRunning])
+		if (CurrentRate == 0.f && ![MediaCaptureHelper isCaptureRunning])
 		{
 			return EMediaState::Paused;
 		}
@@ -575,13 +588,13 @@ bool FAvfMediaCapturePlayer::SetRate(float Rate)
 	SCOPED_AUTORELEASE_POOL
 	
 	FScopeLock Lock(&CriticalSection);
-	if(Rate != CurrentRate)
+	if (Rate != CurrentRate)
 	{
-		if(Rate == 0.f && CurrentRate != 0.f)
+		if (Rate == 0.f && CurrentRate != 0.f)
 		{
 			[MediaCaptureHelper stopCaptureSession];
 		}
-		else if(Rate != 0.f && CurrentRate == 0.f)
+		else if (Rate != 0.f && CurrentRate == 0.f)
 		{
 			[MediaCaptureHelper startCaptureSession];
 		}
@@ -594,32 +607,32 @@ bool FAvfMediaCapturePlayer::SetRate(float Rate)
 void FAvfMediaCapturePlayer::CaptureSystemNotification(NSNotification* Notification)
 {
 	NSString* NotificationName = Notification.name;
-	if(NotificationName == AVCaptureSessionRuntimeErrorNotification)
+	if (NotificationName == AVCaptureSessionRuntimeErrorNotification)
 	{
 		Close();
 	}
-	else if(NotificationName == AVCaptureSessionDidStartRunningNotification)
+	else if (NotificationName == AVCaptureSessionDidStartRunningNotification)
 	{
 		EventSink.ReceiveMediaEvent(EMediaEvent::PlaybackResumed);
 	}
-	else if(NotificationName == AVCaptureSessionDidStopRunningNotification)
+	else if (NotificationName == AVCaptureSessionDidStopRunningNotification)
 	{
 		EventSink.ReceiveMediaEvent(EMediaEvent::PlaybackSuspended);
 	}
-	else if(NotificationName == AVCaptureSessionWasInterruptedNotification)
+	else if (NotificationName == AVCaptureSessionWasInterruptedNotification)
 	{
 		EventSink.ReceiveMediaEvent(EMediaEvent::PlaybackSuspended);
 	}
-	else if(NotificationName == AVCaptureSessionInterruptionEndedNotification)
+	else if (NotificationName == AVCaptureSessionInterruptionEndedNotification)
 	{
 		EventSink.ReceiveMediaEvent(EMediaEvent::PlaybackResumed);
 	}
 #if PLATFORM_MAC && WITH_EDITOR
-	else if(NotificationName == NSApplicationDidBecomeActiveNotification)
+	else if (NotificationName == NSApplicationDidBecomeActiveNotification)
 	{
 		ThrottleDuration = 0.0;
 	}
-	else if(NotificationName == NSApplicationWillResignActiveNotification)
+	else if (NotificationName == NSApplicationWillResignActiveNotification)
 	{
 		ThrottleDuration = 1.0;
 	}
@@ -628,28 +641,28 @@ void FAvfMediaCapturePlayer::CaptureSystemNotification(NSNotification* Notificat
 
 void FAvfMediaCapturePlayer::NewSampleBufferAvailable(CMSampleBufferRef SampleBuffer)
 {
-	if(!CMSampleBufferIsValid(SampleBuffer) || !CMSampleBufferDataIsReady(SampleBuffer))
+	if (!CMSampleBufferIsValid(SampleBuffer) || !CMSampleBufferDataIsReady(SampleBuffer))
 	{
 		return;
 	}
 	
 	FScopeLock Lock(&CriticalSection);
 	
-	if(CurrentRate == 0.f)
+	if (CurrentRate == 0.f)
 	{
 		return;
 	}
 
 	// Allow each media type to compute the duration as CMSampleBuffer doesn't always report valid timings
 	CMFormatDescriptionRef FormatDescription = CMSampleBufferGetFormatDescription(SampleBuffer);
-	if(FormatDescription != NULL)
+	if (FormatDescription != NULL)
 	{
 		CMMediaType MediaType = CMFormatDescriptionGetMediaType(FormatDescription);
-		if(MediaType == kCMMediaType_Audio)
+		if (MediaType == kCMMediaType_Audio)
 		{
 			ProcessSampleBufferAudio(SampleBuffer);
 		}
-		else if(MediaType == kCMMediaType_Video)
+		else if (MediaType == kCMMediaType_Video)
 		{
 			ProcessSampleBufferVideo(SampleBuffer);
 		}
@@ -662,22 +675,22 @@ FTimespan FAvfMediaCapturePlayer::UpdateInternalTime(CMSampleBufferRef SampleBuf
 		
 	{
 		CMTime SampleBufferDuration = CMSampleBufferGetDuration(SampleBuffer);
-		if((SampleBufferDuration.flags & kCMTimeFlags_Valid) == kCMTimeFlags_Valid)
+		if ((SampleBufferDuration.flags & kCMTimeFlags_Valid) == kCMTimeFlags_Valid)
 		{
 			SampleDuration = FTimespan::FromSeconds(CMTimeGetSeconds(SampleBufferDuration));
 		}
 	}
 	
-	if(SampleDuration.IsZero())
+	if (SampleDuration.IsZero())
 	{
 		SampleDuration = ComputedBufferDuration;
 	}
 	
-	if(CurrentTime == FTimespan::MinValue())
+	if (CurrentTime == FTimespan::MinValue())
 	{
 		CurrentTime = FTimespan::Zero();
 	}
-	else if(CurrentTime >= FTimespan::Zero())
+	else if (CurrentTime >= FTimespan::Zero())
 	{
 		CurrentTime += SampleDuration;
 	}
@@ -694,7 +707,7 @@ void FAvfMediaCapturePlayer::ProcessSampleBufferVideo(CMSampleBufferRef SampleBu
 #if PLATFORM_MAC && WITH_EDITOR
 	// Throttle frames pasted to the editor when not in focus
 	double PlatformTime = FPlatformTime::Seconds();
-	if(ThrottleDuration > 0.0 && (PlatformTime - LastConsumedTimeStamp) < ThrottleDuration)
+	if (ThrottleDuration > 0.0 && (PlatformTime - LastConsumedTimeStamp) < ThrottleDuration)
 	{
 		return;
 	}
@@ -702,7 +715,7 @@ void FAvfMediaCapturePlayer::ProcessSampleBufferVideo(CMSampleBufferRef SampleBu
 #endif
 
 	CVPixelBufferRef PixelBuffer = CMSampleBufferGetImageBuffer(SampleBuffer);
-	if(PixelBuffer)
+	if (PixelBuffer)
 	{
 		check(CMSampleBufferGetNumSamples(SampleBuffer) == 1);
 		check(!CVPixelBufferIsPlanar(PixelBuffer));
@@ -754,14 +767,14 @@ void FAvfMediaCapturePlayer::ProcessSampleBufferAudio(CMSampleBufferRef SampleBu
 	
 	// Avoid using CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer as that appears to copy data - don't want to incurr the extra copy before we even copy out into the UE structure
 	CMFormatDescriptionRef FormatDescription = CMSampleBufferGetFormatDescription(SampleBuffer);
-	if(FormatDescription != NULL && CMFormatDescriptionGetMediaType(FormatDescription) == kCMMediaType_Audio)
+	if (FormatDescription != NULL && CMFormatDescriptionGetMediaType(FormatDescription) == kCMMediaType_Audio)
 	{
 		CMAudioFormatDescriptionRef AudioFormatDescription = (CMAudioFormatDescriptionRef)FormatDescription;
 		AudioStreamBasicDescription const* ASBD = CMAudioFormatDescriptionGetStreamBasicDescription(AudioFormatDescription);
 		check(ASBD);
 		
 		CMBlockBufferRef BlockBuffer = CMSampleBufferGetDataBuffer(SampleBuffer);
-		if(BlockBuffer != NULL)
+		if (BlockBuffer != NULL)
 		{
 			const size_t BufferSize = CMBlockBufferGetDataLength(BlockBuffer);
 			const size_t BitDepth = ASBD->mBitsPerChannel;
@@ -775,22 +788,22 @@ void FAvfMediaCapturePlayer::ProcessSampleBufferAudio(CMSampleBufferRef SampleBu
 			
 			// Get valid engine format
 			EMediaAudioSampleFormat SampleFormat = EMediaAudioSampleFormat::Undefined;
-			if((ASBD->mFormatFlags & kLinearPCMFormatFlagIsFloat) != 0)
+			if ((ASBD->mFormatFlags & kLinearPCMFormatFlagIsFloat) != 0)
 			{
-				if(BitDepth == 32)		SampleFormat = EMediaAudioSampleFormat::Float;
-				else if(BitDepth == 64)	SampleFormat = EMediaAudioSampleFormat::Double;
+				if (BitDepth == 32)		SampleFormat = EMediaAudioSampleFormat::Float;
+				else if (BitDepth == 64)	SampleFormat = EMediaAudioSampleFormat::Double;
 			}
 			else
 			{
-				if(BitDepth == 32)		SampleFormat = EMediaAudioSampleFormat::Int32;
-				else if(BitDepth == 24) SampleFormat = EMediaAudioSampleFormat::Undefined; // 24-bit int is not supported by UE
-				else if(BitDepth == 16)	SampleFormat = EMediaAudioSampleFormat::Int16;
-				else if(BitDepth == 8)	SampleFormat = EMediaAudioSampleFormat::Int8;
+				if (BitDepth == 32)		SampleFormat = EMediaAudioSampleFormat::Int32;
+				else if (BitDepth == 24) SampleFormat = EMediaAudioSampleFormat::Undefined; // 24-bit int is not supported by UE
+				else if (BitDepth == 16)	SampleFormat = EMediaAudioSampleFormat::Int16;
+				else if (BitDepth == 8)	SampleFormat = EMediaAudioSampleFormat::Int8;
 			}
 
 			FTimespan SampleDuration = UpdateInternalTime(SampleBuffer, FTimespan::FromSeconds(((double)NumFrames) / ASBD->mSampleRate));
 			
-			if(SampleFormat != EMediaAudioSampleFormat::Undefined)
+			if (SampleFormat != EMediaAudioSampleFormat::Undefined)
 			{
 				TSharedRef<FAvfMediaAudioSample, ESPMode::ThreadSafe> AudioSample = AudioSamplePool.AcquireShared();
 				if (AudioSample->Initialize(BufferSize,
@@ -811,12 +824,12 @@ void FAvfMediaCapturePlayer::ProcessSampleBufferAudio(CMSampleBufferRef SampleBu
 						size_t LengthAtOffset = 0;
 						size_t BlockTotalSize = 0;
 
-						if(CMBlockBufferGetDataPointer(BlockBuffer, CurrentOffset, &LengthAtOffset, &BlockTotalSize, &SrcData) != noErr)
+						if (CMBlockBufferGetDataPointer(BlockBuffer, CurrentOffset, &LengthAtOffset, &BlockTotalSize, &SrcData) != noErr)
 						{
 							break; // can't get data pointer force exit while loop
 						}
 
-						if(LengthAtOffset == 0)
+						if (LengthAtOffset == 0)
 						{
 							break; // no data force exit while loop
 						}
@@ -825,9 +838,9 @@ void FAvfMediaCapturePlayer::ProcessSampleBufferAudio(CMSampleBufferRef SampleBu
 						checkf(BlockTotalSize == BufferSize, TEXT("Total CMBlockBuffer size does not match data pointer total sizes"));
 						checkf(CMBlockBufferIsRangeContiguous(BlockBuffer, CurrentOffset, LengthAtOffset), TEXT("Returned data pointer for CMBlockBuffer range is not contiguous"));
 
-						if(SrcData != NULL)
+						if (SrcData != NULL)
 						{
-							if((ASBD->mFormatFlags & kAudioFormatFlagIsNonInterleaved) == 0 || NumChannels == 1)
+							if ((ASBD->mFormatFlags & kAudioFormatFlagIsNonInterleaved) == 0 || NumChannels == 1)
 							{
 								// Interleaved data OR single channel - direct copy
 								FMemory::Memcpy(DestData + CurrentOffset, SrcData, LengthAtOffset);
@@ -838,11 +851,11 @@ void FAvfMediaCapturePlayer::ProcessSampleBufferAudio(CMSampleBufferRef SampleBu
 								size_t SrcNumFrames = LengthAtOffset / (BitDepth / 8);
 								size_t SrcFrameOffset = CurrentOffset / (BitDepth / 8);
 								
-								if(SampleFormat == EMediaAudioSampleFormat::Float) 			InterleaveCopy<float>(DestData, SrcData, NumChannels, NumFrames, SrcFrameOffset, SrcNumFrames);
-								else if(SampleFormat == EMediaAudioSampleFormat::Double) 	InterleaveCopy<double>(DestData, SrcData, NumChannels, NumFrames, SrcFrameOffset, SrcNumFrames);
-								else if(SampleFormat == EMediaAudioSampleFormat::Int32) 	InterleaveCopy<int32>(DestData, SrcData, NumChannels, NumFrames, SrcFrameOffset, SrcNumFrames);
-								else if(SampleFormat == EMediaAudioSampleFormat::Int16) 	InterleaveCopy<int16>(DestData, SrcData, NumChannels, NumFrames, SrcFrameOffset, SrcNumFrames);
-								else if(SampleFormat == EMediaAudioSampleFormat::Int8) 		InterleaveCopy<int8>(DestData, SrcData, NumChannels, NumFrames, SrcFrameOffset, SrcNumFrames);
+								if (SampleFormat == EMediaAudioSampleFormat::Float) 			InterleaveCopy<float>(DestData, SrcData, NumChannels, NumFrames, SrcFrameOffset, SrcNumFrames);
+								else if (SampleFormat == EMediaAudioSampleFormat::Double) 	InterleaveCopy<double>(DestData, SrcData, NumChannels, NumFrames, SrcFrameOffset, SrcNumFrames);
+								else if (SampleFormat == EMediaAudioSampleFormat::Int32) 	InterleaveCopy<int32>(DestData, SrcData, NumChannels, NumFrames, SrcFrameOffset, SrcNumFrames);
+								else if (SampleFormat == EMediaAudioSampleFormat::Int16) 	InterleaveCopy<int16>(DestData, SrcData, NumChannels, NumFrames, SrcFrameOffset, SrcNumFrames);
+								else if (SampleFormat == EMediaAudioSampleFormat::Int8) 		InterleaveCopy<int8>(DestData, SrcData, NumChannels, NumFrames, SrcFrameOffset, SrcNumFrames);
 								else break;	// unsupported force exit while loop
 							}
 						}
@@ -850,7 +863,7 @@ void FAvfMediaCapturePlayer::ProcessSampleBufferAudio(CMSampleBufferRef SampleBu
 						CurrentOffset += LengthAtOffset;
 					}
 					
-					if(CurrentOffset < BufferSize)
+					if (CurrentOffset < BufferSize)
 					{
 						// Error case - clear the output buffer to avoid unwanted noise
 						FMemory::Memset(DestData, 0, BufferSize);

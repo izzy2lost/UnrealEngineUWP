@@ -80,7 +80,7 @@ protected:
 	
 private:
 
-	void CreateCaptureSession(NSString* deviceIDString);
+	void CreateCaptureSession(NSString* deviceIDString, AVMediaType MediaType);
 	void CaptureSystemNotification(NSNotification* Notification);
 	void HandleAuthStatusError(EAvfMediaCaptureAuthStatus AuthStatus, AVMediaType MediaType);
 
@@ -102,20 +102,20 @@ private:
 	AvfMediaCaptureHelper* MediaCaptureHelper;
 	
 	/** Reuse Sample Pool Objects */
-	FAvfMediaAudioSamplePool	AudioSamplePool;
-	FAvfMediaTextureSamplePool	VideoSamplePool;
+	FAvfMediaAudioSamplePool AudioSamplePool;
+	FAvfMediaTextureSamplePool VideoSamplePool;
 	
 	/** Internal CoreVideo Metal Texture cache to handle AVFoundation resource pooling and optimisations */
-	CVMetalTextureCacheRef		MetalTextureCache;
+	CVMetalTextureCacheRef MetalTextureCache;
 	
 	/** Media Playback Info and Control data */
-	float 		CurrentRate;
-	FTimespan 	CurrentTime;
-	FString 	URL;
+	float CurrentRate;
+	FTimespan CurrentTime;
+	FString URL;
 
 #if PLATFORM_MAC && WITH_EDITOR
-	double		ThrottleDuration;
-	double		LastConsumedTimeStamp;
+	double ThrottleDuration;
+	double LastConsumedTimeStamp;
 #endif
 
 	mutable FCriticalSection CriticalSection;

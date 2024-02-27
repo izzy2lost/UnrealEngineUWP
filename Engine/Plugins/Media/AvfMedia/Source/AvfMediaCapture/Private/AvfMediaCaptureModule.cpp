@@ -28,14 +28,24 @@ DEFINE_LOG_CATEGORY(LogAvfMediaCapture);
 
 #define LOCTEXT_NAMESPACE "FAvfMediaCaptureFactoryModule"
 
-
-// new API doesn't compile on old IOS sdk
 #if (PLATFORM_IOS && (defined(__IPHONE_17_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_17_0))
-	#define USE_NEW_MICROPHONE_API 1
+	#define IOS_17_APIS_AVAILABLE 1
 #else
-	#define USE_NEW_MICROPHONE_API 0
+	#define IOS_17_APIS_AVAILABLE 0
 #endif
 
+#if (PLATFORM_MAC && (defined(__MAC_14_0) && __MAC_OS_X_VERSION_MAX_ALLOWED >= __MAC_14_0))
+	#define MAC_14_APIS_AVAILABLE 1
+#else
+	#define MAC_14_APIS_AVAILABLE 0
+#endif
+
+// New AVCaptureDeviceType APIs don't compile on old IOS or MAC SDKs
+#if (IOS_17_APIS_AVAILABLE || MAC_14_APIS_AVAILABLE)
+	#define USE_NEW_CAPTURE_DEVICE_TYPE_API 1
+#else
+	#define USE_NEW_CAPTURE_DEVICE_TYPE_API 0
+#endif
 
 /**
  * Implements the AvfMediaCapture module.
@@ -50,51 +60,70 @@ public:
 	{
 		SCOPED_AUTORELEASE_POOL
 
-        NSArray* DeviceTypes = nil;
-        
-    #if USE_NEW_MICROPHONE_API
-        DeviceTypes = @[AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureDeviceTypeMicrophone];
-    #else
-        DeviceTypes = @[AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureDeviceTypeBuiltInMicrophone];
-    #endif
+        NSMutableArray* DeviceTypes = [[NSMutableArray alloc] init];
 
-		AVCaptureDeviceDiscoverySession* LocalDiscoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:DeviceTypes mediaType:nil position:AVCaptureDevicePositionUnspecified];
-		if(LocalDiscoverySession != nil)
+		FString Scheme;
+		AVMediaType MediaType;
+		if (TargetDeviceType == EMediaCaptureDeviceType::Audio)
+		{
+			Scheme = TEXT("audcap://");
+			MediaType = AVMediaTypeAudio;
+			#if USE_NEW_CAPTURE_DEVICE_TYPE_API
+				[DeviceTypes addObject: AVCaptureDeviceTypeMicrophone];
+			#else
+				[DeviceTypes addObject: AVCaptureDeviceTypeBuiltInMicrophone];
+			#endif
+		}
+		else if (TargetDeviceType == EMediaCaptureDeviceType::Video)
+		{
+			Scheme = TEXT("vidcap://");
+			MediaType = AVMediaTypeVideo;
+			[DeviceTypes addObject: AVCaptureDeviceTypeBuiltInWideAngleCamera];
+
+			#if PLATFORM_IOS
+				[DeviceTypes addObject: AVCaptureDeviceTypeBuiltInUltraWideCamera];
+				[DeviceTypes addObject: AVCaptureDeviceTypeBuiltInTelephotoCamera];
+			#endif
+
+			#if USE_NEW_CAPTURE_DEVICE_TYPE_API
+				[DeviceTypes addObject: AVCaptureDeviceTypeExternal];
+			#elif PLATFORM_MAC
+				// AVCaptureDeviceTypeExternalUnknown is only available on macOS 10.15 - 14.0
+				// https://developer.apple.com/documentation/avfoundation/avcapturedevicetypeexternalunknown?language=objc
+				[DeviceTypes addObject: AVCaptureDeviceTypeExternalUnknown]; 
+			#endif
+		}
+
+		if ([DeviceTypes count] == 0)
+		{
+			return;
+		}
+
+		AVCaptureDeviceDiscoverySession* LocalDiscoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes: DeviceTypes
+			                                                      mediaType: nil
+			                                                      position: AVCaptureDevicePositionUnspecified];
+		if (LocalDiscoverySession != nil)
 		{
 			NSArray<AVCaptureDevice*>* Devices = LocalDiscoverySession.devices;
-			for(uint32 i = 0;i < Devices.count;++i)
+			for(uint32 i = 0; i < Devices.count; ++i)
 			{
 				AVCaptureDevice* AvailableDevice = Devices[i];
-            #if USE_NEW_MICROPHONE_API
-                if(TargetDeviceType == EMediaCaptureDeviceType::Audio && AvailableDevice.deviceType == AVCaptureDeviceTypeMicrophone)
-            #else
-                if(TargetDeviceType == EMediaCaptureDeviceType::Audio && AvailableDevice.deviceType == AVCaptureDeviceTypeBuiltInMicrophone)
-            #endif
+
+				// It's not clear whether external media types will be limited to video.
+				// In which case we double check that the detected device supports the target media type.
+				if (![AvailableDevice hasMediaType: MediaType])
 				{
-					FMediaCaptureDeviceInfo DeviceInfo;
-					
-					DeviceInfo.Type = TargetDeviceType;
-					DeviceInfo.DisplayName = FText::FromString(FString(AvailableDevice.localizedName));
-					DeviceInfo.Url = TEXT("audcap://") + FString(AvailableDevice.uniqueID);
-					DeviceInfo.Info = FString(AvailableDevice.manufacturer);
-					
-					OutDeviceInfos.Add(MoveTemp(DeviceInfo));
+					continue;
 				}
-            #if USE_NEW_MICROPHONE_API
-                else if(TargetDeviceType == EMediaCaptureDeviceType::Video && AvailableDevice.deviceType != AVCaptureDeviceTypeMicrophone)
-            #else
-                else if(TargetDeviceType == EMediaCaptureDeviceType::Video && AvailableDevice.deviceType != AVCaptureDeviceTypeBuiltInMicrophone)
-            #endif
-				{
-					FMediaCaptureDeviceInfo DeviceInfo;
-				
-					DeviceInfo.Type = TargetDeviceType;
-					DeviceInfo.DisplayName = FText::FromString(FString(AvailableDevice.localizedName));
-					DeviceInfo.Url = TEXT("vidcap://") + FString(AvailableDevice.uniqueID);
-					DeviceInfo.Info = FString(AvailableDevice.manufacturer);
+
+				FMediaCaptureDeviceInfo DeviceInfo;
 					
-					OutDeviceInfos.Add(MoveTemp(DeviceInfo));
-				}
+				DeviceInfo.Type = TargetDeviceType;
+				DeviceInfo.DisplayName = FText::FromString(FString(AvailableDevice.localizedName));
+				DeviceInfo.Url = Scheme + FString(AvailableDevice.uniqueID);
+				DeviceInfo.Info = FString(AvailableDevice.manufacturer);
+					
+				OutDeviceInfos.Add(MoveTemp(DeviceInfo));
 			}
 		}
 	}

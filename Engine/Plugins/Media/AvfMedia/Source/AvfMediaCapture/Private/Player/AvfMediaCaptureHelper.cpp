@@ -14,34 +14,28 @@
 // 3) delete permissions database then reboot mac:
 //  ~/Library/Application\\ Support/com.apple.TCC
 
-// new API doesn't compile on old IOS sdk
-#if (PLATFORM_IOS && (defined(__IPHONE_17_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_17_0))
-	#define USE_NEW_MICROPHONE_API 1
-#else
-	#define USE_NEW_MICROPHONE_API 0
-#endif
-
-
 @interface AvfMediaCaptureHelper()<AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate>
 
-@property (nonatomic,readwrite,assign) AVCaptureSession* 		captureSession;
-@property (nonatomic,readwrite,assign) AVCaptureDevice*			captureDevice;
-@property (nonatomic,readwrite,assign) AVCaptureDeviceInput*	deviceInput;
-@property (nonatomic,readwrite,assign) AVCaptureOutput* 		captureOutput;
-@property (nonatomic,readwrite,assign) dispatch_queue_t 		callBackQueue;
+@property (nonatomic, assign) AVMediaType mediaType;
+@property (nonatomic, assign) AVCaptureSession* captureSession;
+@property (nonatomic, assign) AVCaptureDevice* captureDevice;
+@property (nonatomic, assign) AVCaptureDeviceInput*	deviceInput;
+@property (nonatomic, assign) AVCaptureOutput* captureOutput;
+@property (nonatomic, assign) dispatch_queue_t callBackQueue;
 
-@property (nonatomic,readwrite,assign) void (^sampleBufferCallback)(CMSampleBufferRef);
-@property (nonatomic,readwrite,assign) void (^notificationCallback)(NSNotification* const Notification);
+@property (nonatomic, assign) void (^sampleBufferCallback)(CMSampleBufferRef);
+@property (nonatomic, assign) void (^notificationCallback)(NSNotification* const Notification);
 
 @end
 
 @implementation AvfMediaCaptureHelper
 
-- (instancetype) init
+- (instancetype)init:(AVMediaType)mediaType
 {
 	self = [super init];
-	if(self != nil)
+	if (self != nil)
 	{
+		self.mediaType = mediaType;
 		self.captureSession = nil;
 		self.captureDevice = nil;
 		self.deviceInput = nil;
@@ -53,11 +47,11 @@
 	return self;
 }
 
-- (void) dealloc
+- (void)dealloc
 {
 	[self reset];
 	
-	if(self.callBackQueue != nil)
+	if (self.callBackQueue != nil)
 	{
 		dispatch_release(self.callBackQueue);
 		self.callBackQueue = nil;
@@ -66,60 +60,60 @@
 	[super dealloc];
 }
 
-- (void) reset
+- (void)reset
 {
-	if(self.captureSession.inputs.count > 0 && self.captureSession.outputs.count > 0)
+	if (self.captureSession.inputs.count > 0 && self.captureSession.outputs.count > 0)
 	{
 		[[NSNotificationCenter defaultCenter] removeObserver:self];
 	}
 	
-	if(self.captureSession.isRunning)
+	if (self.captureSession.isRunning)
 	{
 		[self.captureSession stopRunning];
 	}
 	
-	if(self.captureOutput != nil)
+	if (self.captureOutput != nil)
 	{
 		[self.captureSession removeOutput:self.captureOutput];
 		[self.captureOutput release];
 		self.captureOutput = nil;
 	}
 	
-	if(self.deviceInput != nil)
+	if (self.deviceInput != nil)
 	{
 		[self.captureSession removeInput:self.deviceInput];
 		[self.deviceInput release];
 		self.deviceInput = nil;
 	}
 	
-	if(self.captureSession != nil)
+	if (self.captureSession != nil)
 	{
 		[self.captureSession release];
 		self.captureSession = nil;
 	}
 	
-	if(self.captureDevice != nil)
+	if (self.captureDevice != nil)
 	{
 		[self.captureDevice release];
 		self.captureDevice = nil;
 	}
 	
-	if(self.sampleBufferCallback != nil)
+	if (self.sampleBufferCallback != nil)
 	{
 		Block_release(self.sampleBufferCallback);
 		self.sampleBufferCallback = nil;
 	}
 	
-	if(self.notificationCallback != nil)
+	if (self.notificationCallback != nil)
 	{
 		Block_release(self.notificationCallback);
 		self.notificationCallback = nil;
 	}
 }
 
-+ (EAvfMediaCaptureAuthStatus) authorizationStatusForMediaType:(AVMediaType)mediaType
++ (EAvfMediaCaptureAuthStatus)authorizationStatusForMediaType:(AVMediaType)mediaType
 {
-	if(mediaType != AVMediaTypeVideo && mediaType != AVMediaTypeAudio)
+	if (mediaType != AVMediaTypeVideo && mediaType != AVMediaTypeAudio)
 	{
 		return EAvfMediaCaptureAuthStatus::InvalidRequest;
 	}
@@ -128,9 +122,9 @@
 	
 	id entry = nil;
 	
-	if(infoDictionary != nil)
+	if (infoDictionary != nil)
 	{
-		if(mediaType == AVMediaTypeVideo)
+		if (mediaType == AVMediaTypeVideo)
 		{
 			entry = infoDictionary[@"NSCameraUsageDescription"];
 		}
@@ -140,7 +134,7 @@
 		}
 	}
 	
-	if(entry == nil)
+	if (entry == nil)
 	{
 		return EAvfMediaCaptureAuthStatus::MissingInfoPListEntry;
 	}
@@ -148,7 +142,7 @@
 	return (EAvfMediaCaptureAuthStatus)[AVCaptureDevice authorizationStatusForMediaType:mediaType];
 }
 
-+ (EAvfMediaCaptureAuthStatus) requestAcessForMediaType:(AVMediaType)mediaType completionCallback:(void (^)(EAvfMediaCaptureAuthStatus AuthStatus))cbHandler
++ (EAvfMediaCaptureAuthStatus)requestAccessForMediaType:(AVMediaType)mediaType completionCallback:(void (^)(EAvfMediaCaptureAuthStatus AuthStatus))cbHandler
 {
 	// Don't make request if the correct device access key is not in the info.plist otherwise the OS will terminate this app
 	EAvfMediaCaptureAuthStatus authStatus = [AvfMediaCaptureHelper authorizationStatusForMediaType:mediaType];
@@ -175,53 +169,28 @@
 	return authStatus;
 }
 
-- (AVCaptureDevice*) CaptureDeviceWithID:(NSString*)deviceID
-{
-	AVCaptureDevice* foundDevice = nil;
-    NSArray* deviceTypes = nil;
-    
-#if USE_NEW_MICROPHONE_API
-    deviceTypes = @[AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureDeviceTypeMicrophone];
-#else
-    deviceTypes = @[AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureDeviceTypeBuiltInMicrophone];
-#endif
-
-
-	AVCaptureDeviceDiscoverySession* localDiscoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:deviceTypes
-																													mediaType:nil
-																													 position:AVCaptureDevicePositionUnspecified];
-	if(localDiscoverySession != nil)
-	{
-		NSArray<AVCaptureDevice*>* devices = localDiscoverySession.devices;
-		
-		for(AVCaptureDevice* device in devices)
-		{
-			if([device.uniqueID isEqual:deviceID])
-			{
-				foundDevice = device;
-				break;
-			}
-		}
-	}
-
-	return foundDevice;
-}
-
-- (BOOL) setupCaptureSession:(NSString*)deviceID sampleBufferCallback:(void(^)(CMSampleBufferRef sampleBuffer))sampleCallbackBlock notificationCallback:(void(^)(NSNotification* const notification))notificationCallbackBlock
+- (BOOL)setupCaptureSession:(NSString*)deviceID sampleBufferCallback:(void(^)(CMSampleBufferRef sampleBuffer))sampleCallbackBlock notificationCallback:(void(^)(NSNotification* const notification))notificationCallbackBlock
 {
 	[self reset];
 	
-	if(sampleCallbackBlock != nil)
+	if (sampleCallbackBlock != nil)
 	{
 		self.sampleBufferCallback = Block_copy(sampleCallbackBlock);
 	}
-	if(notificationCallbackBlock != nil)
+	if (notificationCallbackBlock != nil)
 	{
 		self.notificationCallback = Block_copy(notificationCallbackBlock);
 	}
 	
-	self.captureDevice = [[self CaptureDeviceWithID:deviceID] retain];
-	if(self.captureDevice != nil)
+	self.captureDevice = [[AVCaptureDevice deviceWithUniqueID: deviceID] retain];
+
+	// Check that the chosen device supports the specified media type
+	if (![self.captureDevice hasMediaType: self.mediaType])
+	{
+		return NO;
+	}
+	
+	if (self.captureDevice != nil)
 	{
 		self.captureSession = [[AVCaptureSession alloc] init];
 		
@@ -232,21 +201,17 @@
 		{
 			self.deviceInput = [[AVCaptureDeviceInput alloc] initWithDevice:self.captureDevice error:nil];
 			
-			if(self.deviceInput != nil && [self.captureSession canAddInput:self.deviceInput])
+			if (self.deviceInput != nil && [self.captureSession canAddInput:self.deviceInput])
 			{
 				[self.captureSession addInput:self.deviceInput];
 			}
 		}
 		
 		// If we have an input add output capture
-		if(self.captureSession.inputs.count > 0)
+		if (self.captureSession.inputs.count > 0)
 		{
             // Video or Audio Device - need the correct output
-#if USE_NEW_MICROPHONE_API
-            if(self.captureDevice.deviceType != AVCaptureDeviceTypeMicrophone)
-#else
-            if(self.captureDevice.deviceType != AVCaptureDeviceTypeBuiltInMicrophone)
-#endif
+            if (self.mediaType == AVMediaTypeVideo)
 			{
 				AVCaptureVideoDataOutput* videoOutput = [[AVCaptureVideoDataOutput alloc] init];
 				
@@ -288,14 +253,14 @@
 				self.captureOutput = audioOutput;
 			}
 			
-			if(self.captureOutput != nil && [self.captureSession canAddOutput:self.captureOutput])
+			if (self.captureOutput != nil && [self.captureSession canAddOutput:self.captureOutput])
 			{
 				[self.captureSession addOutput:self.captureOutput];
 			}
 		}
 	}
 	
-	if(self.captureSession.inputs.count > 0 && self.captureSession.outputs.count > 0)
+	if (self.captureSession.inputs.count > 0 && self.captureSession.outputs.count > 0)
 	{
 		NSNotificationCenter* sharedCentre = [NSNotificationCenter defaultCenter];
 
@@ -306,92 +271,83 @@
 		[sharedCentre addObserver:self selector:@selector(captureNotification:) name:AVCaptureSessionRuntimeErrorNotification object:self.captureSession];
 		
 #if PLATFORM_MAC && WITH_EDITOR
-		if([self.captureOutput isKindOfClass:[AVCaptureVideoDataOutput class]])
+		if ([self.captureOutput isKindOfClass:[AVCaptureVideoDataOutput class]])
 		{
 			[sharedCentre addObserver:self selector:@selector(captureNotification:) name:NSApplicationDidBecomeActiveNotification object:nil];
 			[sharedCentre addObserver:self selector:@selector(captureNotification:) name:NSApplicationWillResignActiveNotification object:nil];
 		}
 #endif
 
-		return true;
+		return YES;
 	}
 
-	return false;
+	return NO;
 }
 
-- (void) stopCaptureSession
+- (void)stopCaptureSession
 {
-	if(self.captureSession.isRunning)
+	if (self.captureSession.isRunning)
 	{
 		[self.captureSession stopRunning];
 	}
 }
 
-- (void) startCaptureSession
+- (void)startCaptureSession
 {
-	if(!self.captureSession.isRunning)
+	if (!self.captureSession.isRunning)
 	{
 		[self.captureSession startRunning];
 	}
 }
 
-- (BOOL) isCaptureRunning
+- (BOOL)isCaptureRunning
 {
 	return self.captureSession.isRunning;
 }
 
 - (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection*)connection
 {
-	if(self.sampleBufferCallback != nil && sampleBuffer != NULL)
+	if (self.sampleBufferCallback != nil && sampleBuffer != NULL)
 	{
 		self.sampleBufferCallback(sampleBuffer);
 	}
 }
 
-- (void) captureNotification:(NSNotification*)notification
+- (void)captureNotification:(NSNotification*)notification
 {
-	if(self.notificationCallback != nil && notification != nil)
+	if (self.notificationCallback != nil && notification != nil)
 	{
 		self.notificationCallback(notification);
 	}
 }
 
-- (AVMediaType) getCaptureDeviceMediaType
+- (AVMediaType)getCaptureDeviceMediaType
 {
-	AVMediaType type = nil;
-	if(self.captureDevice != nil)
-	{
-#if USE_NEW_MICROPHONE_API
-		if(self.captureDevice.deviceType != AVCaptureDeviceTypeMicrophone)
-#else
-        if(self.captureDevice.deviceType != AVCaptureDeviceTypeBuiltInMicrophone)
-#endif
-		{
-			type = AVMediaTypeVideo;
-		}
-		else
-		{
-			type = AVMediaTypeAudio;
-		}
-	}
-	return type;
+	return self.mediaType;
 }
 
-- (NSString*) getCaptureDeviceName
+- (NSString*)getCaptureDeviceName
 {
 	return self.captureDevice.localizedName;
 }
 
-- (NSArray<AVCaptureDeviceFormat*>*) getCaptureDeviceAvailableFormats
+- (NSArray<AVCaptureDeviceFormat*>*)getCaptureDeviceAvailableFormats
 {
-	return self.captureDevice.formats;
+	AVMediaType helperMediaType = self.mediaType;
+	NSArray<AVCaptureDeviceFormat*>* filtered = [self.captureDevice.formats filteredArrayUsingPredicate: [NSPredicate predicateWithBlock:^BOOL(AVCaptureDeviceFormat* format, NSDictionary* bindings)
+	{
+		return [format.mediaType isEqualToString: helperMediaType];
+	}]];
+
+	return filtered;
 }
 
-- (NSInteger) getCaptureDeviceActiveFormatIndex
+- (NSInteger)getCaptureDeviceActiveFormatIndex
 {
-	for(NSInteger formatIndex = 0;formatIndex < self.captureDevice.formats.count;++formatIndex)
+	NSArray<AVCaptureDeviceFormat*>* formats = [self getCaptureDeviceAvailableFormats];
+	for (NSInteger formatIndex = 0; formatIndex < formats.count; ++formatIndex)
 	{
-		if([self.captureDevice.formats[formatIndex] isEqual:self.captureDevice.activeFormat])
+		if ([formats[formatIndex] isEqual:self.captureDevice.activeFormat])
 		{
 			return formatIndex;
 		}
@@ -399,11 +355,12 @@
 	return INDEX_NONE;
 }
 
-- (BOOL) setCaptureDeviceActiveFormatIndex:(NSInteger)formatIdx
+- (BOOL)setCaptureDeviceActiveFormatIndex:(NSInteger)formatIdx
 {
-	if(formatIdx >= 0 && formatIdx < self.captureDevice.formats.count && [self.captureDevice lockForConfiguration:nil])
+	NSArray<AVCaptureDeviceFormat*>* formats = [self getCaptureDeviceAvailableFormats];
+	if (formatIdx >= 0 && formatIdx < formats.count && [self.captureDevice lockForConfiguration: nil])
 	{
-		self.captureDevice.activeFormat = self.captureDevice.formats[formatIdx];
+		self.captureDevice.activeFormat = formats[formatIdx];
 		[self.captureDevice unlockForConfiguration];
 		return YES;
 	}
