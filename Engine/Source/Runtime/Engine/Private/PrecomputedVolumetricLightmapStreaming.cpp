@@ -348,7 +348,7 @@ int32 FVolumetricLightmapGridManager::ProcessRequests()
 				
 				delete Request.IORequest;
 				Request.IORequest = nullptr;
-				//Request.Status = CellRequest::Ready;
+				Request.Status = CellRequest::Ready;
 			}
 			else
 			{
