@@ -46,11 +46,6 @@ namespace Jupiter.Implementation
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("ScyllaContentIdStore.ResolveContentId").SetAttribute("resource.name", contentId.ToString());
 
 			BlobId contentIdBlob = contentId.AsBlobIdentifier();
-			Task<bool>? blobStoreExistsTask = null;
-			if (!mustBeContentId)
-			{
-				blobStoreExistsTask = _blobStore.ExistsAsync(ns, contentIdBlob);
-			}
 
 			{
 				using TelemetrySpan contentIdFetchScope = _tracer.BuildScyllaSpan("ScyllaContentIdStore.FetchContentId").SetAttribute("resource.name", contentId.ToString());
@@ -109,7 +104,7 @@ namespace Jupiter.Implementation
 			if (!mustBeContentId)
 			{
 				// if no content id is found, but we have a blob that matches the content id (so a unchunked and uncompressed version of the data) we use that instead
-				bool contentIdBlobExists = await blobStoreExistsTask!;
+				bool contentIdBlobExists = await _blobStore.ExistsAsync(ns, contentIdBlob)!;
 
 				if (contentIdBlobExists)
 				{
