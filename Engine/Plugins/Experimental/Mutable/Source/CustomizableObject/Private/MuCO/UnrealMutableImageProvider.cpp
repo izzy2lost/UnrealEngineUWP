@@ -85,18 +85,9 @@ mu::EImageFormat GetMutablePixelFormat(EPixelFormat InTextureFormat)
 }
 
 
-FUnrealMutableImageProvider::FUnrealMutableImageProvider()
-{
-#if WITH_EDITOR
-	TickDelegate = FTickerDelegate::CreateRaw(this, &FUnrealMutableImageProvider::Tick);
-	TickDelegateHandle = FTSTicker::GetCoreTicker().AddTicker(TickDelegate, 0.f);
-#endif 
-}
-
-
 #if WITH_EDITOR
 
-bool FUnrealMutableImageProvider::Tick(float DeltaTime)
+bool FUnrealMutableImageProvider::Tick()
 {
 	FReferencedImageRequest* Request=nullptr;
 
@@ -486,7 +477,7 @@ TTuple<FGraphEventRef, TFunction<void()>> FUnrealMutableImageProvider::GetRefere
 		// This may happen in the mutable debugger.
 		while (!Request->CompletionEvent.IsCompleted())
 		{
-			Tick(0.1f);
+			Tick();
 		}
 	}
 	else
