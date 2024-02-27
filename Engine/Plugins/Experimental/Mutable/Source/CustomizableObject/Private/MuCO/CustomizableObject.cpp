@@ -144,7 +144,6 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		}
 	}
 
-#if WITH_EDITOR
 	if (ObjectSaveContext.IsCooking() && !bIsChildObject)
 	{
 		const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
@@ -170,8 +169,23 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 			GetPrivate()->ClearCompiledData(true);
 		}
 	}
-#endif
 }
+
+
+void UCustomizableObject::PostSaveRoot(FObjectPostSaveRootContext ObjectSaveContext)
+{
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableObject::PostSaveRoot);
+
+	Super::PostSaveRoot(ObjectSaveContext);
+
+	if (ObjectSaveContext.IsCooking())
+	{
+		// Free cached data after saving;
+		const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
+		GetPrivate()->CachedPlatformsData.Remove(TargetPlatform->PlatformName());
+	}
+}
+
 
 bool UCustomizableObjectPrivate::TryUpdateIsChildObject()
 {

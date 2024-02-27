@@ -784,6 +784,7 @@ public:
 	FString GetDesc() override;
 	bool IsEditorOnly() const override;
 	void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
+	void PostSaveRoot(FObjectPostSaveRootContext ObjectSaveContext) override;
 	void PostRename(UObject* OldOuter, const FName OldName) override;	
 	void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform) override;
 	bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;
