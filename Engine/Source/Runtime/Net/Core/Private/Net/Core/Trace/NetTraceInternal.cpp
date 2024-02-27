@@ -5,6 +5,7 @@
 #include "Net/Core/Trace/NetDebugName.h"
 #include "Net/Core/Trace/Reporters/NetTraceReporter.h"
 #include "Hash/CityHash.h"
+#include "HAL/IConsoleManager.h"
 #include "Trace/Trace.h"
 #include "UObject/NameTypes.h"
 #include <atomic>
@@ -590,5 +591,21 @@ UE::Net::FNetDebugNameId FNetTrace::TraceName(const UE::Net::FNetDebugName* Debu
 		return DebugName->DebugNameId;
 	}
 }
+
+static FAutoConsoleCommand NeTraceSetVerbosityCmd = FAutoConsoleCommand(
+	TEXT("NetTrace.SetTraceVerbosity"),
+	TEXT("Start NetTrace with given verbositylevel."),
+	FConsoleCommandWithArgsDelegate::CreateStatic(
+		[](const TArray<FString>& Args)
+		{
+			if (Args.Num() == 0)
+			{
+				return;
+			}
+
+			FNetTrace::SetTraceVerbosity(FCString::Atoi(*Args[0]));
+		}
+		)
+	);
 
 #endif
