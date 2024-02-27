@@ -1339,12 +1339,10 @@ void UNiagaraSystem::PrecachePSOs()
 		return;
 	}
 
+	// Don't have an instance yet to retrieve the possible material override data from
+	FNiagaraEmitterInstance* EmitterInstance = nullptr;
+
 	FMaterialInterfacePSOPrecacheParamsList MaterialInterfacePSOPrecacheParamsList;
-
-	FMaterialInterfacePSOPrecacheParams NewEntry;
-	NewEntry.PSOPrecacheParams.SetMobility(EComponentMobility::Movable);
-	NewEntry.PSOPrecacheParams.bRenderCustomDepth = true;
-
 	for (const FNiagaraEmitterHandle& EmitterHandle : GetEmitterHandles())
 	{
 		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
@@ -1353,35 +1351,7 @@ void UNiagaraSystem::PrecachePSOs()
 			EmitterData->ForEachEnabledRenderer(
 				[&](UNiagaraRendererProperties* Properties)
 				{
-					const FVertexFactoryType* VFType = Properties->GetVertexFactoryType();
-					if (VFType == nullptr)
-					{
-						return;
-					}
-
-					NewEntry.PSOPrecacheParams.bDisableBackFaceCulling = Properties->IsBackfaceCullingDisabled();
-
-					// Don't have an instance yet to retrieve the possible material override data from
-					FNiagaraEmitterInstance* EmitterInstance = nullptr;
-
-					UNiagaraRendererProperties::FPSOPrecacheParamsList PSOPrecacheParamsList;
-					Properties->CollectPSOPrecacheData(EmitterInstance, PSOPrecacheParamsList);
-
-					for (UNiagaraRendererProperties::FPSOPrecacheParams& PSOPrecacheParams: PSOPrecacheParamsList)
-					{
-						NewEntry.MaterialInterface = PSOPrecacheParams.MaterialInterface;
-						NewEntry.VertexFactoryDataList = PSOPrecacheParams.VertexFactoryDataList;
-
-						NewEntry.PSOPrecacheParams.bReverseCulling = false;
-						AddMaterialInterfacePSOPrecacheParamsToList(NewEntry, MaterialInterfacePSOPrecacheParamsList);
-
-						// Also precache with reverse culling if not two sided because we don't know of the component using the asset will have negative determinant
-						if (!NewEntry.PSOPrecacheParams.bDisableBackFaceCulling)
-						{
-							NewEntry.PSOPrecacheParams.bReverseCulling = true;
-							AddMaterialInterfacePSOPrecacheParamsToList(NewEntry, MaterialInterfacePSOPrecacheParamsList);
-						}
-					}
+					Properties->CollectPSOPrecacheData(EmitterInstance, MaterialInterfacePSOPrecacheParamsList);
 				}
 			);
 		}
@@ -1389,7 +1359,6 @@ void UNiagaraSystem::PrecachePSOs()
 
 	LaunchPSOPrecaching(MaterialInterfacePSOPrecacheParamsList);
 }
-
 
 #if WITH_EDITORONLY_DATA
 

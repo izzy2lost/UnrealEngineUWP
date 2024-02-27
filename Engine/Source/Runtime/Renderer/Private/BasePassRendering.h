@@ -917,69 +917,6 @@ private:
 	float AutoBeforeDOFTranslucencyBoundary = 0.0f;
 };
 
-template<typename PassShadersType>
-void FBasePassMeshProcessor::AddBasePassGraphicsPipelineStateInitializer(
-	ERHIFeatureLevel::Type InFeatureLevel,
-	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
-	const FMaterial& RESTRICT MaterialResource,
-	const FMeshPassProcessorRenderState& RESTRICT DrawRenderState,
-	const FGraphicsPipelineRenderTargetsInfo& RESTRICT RenderTargetsInfo,
-	const PassShadersType& PassShaders,
-	ERasterizerFillMode MeshFillMode,
-	ERasterizerCullMode MeshCullMode,
-	EPrimitiveType PrimitiveType,
-	bool bPrecacheAlphaColorChannel,
-	int InPSOCollectorIndex,
-	TArray<FPSOPrecacheData>& PSOInitializers)
-{
-	AddGraphicsPipelineStateInitializer(
-		VertexFactoryData,
-		MaterialResource,
-		DrawRenderState,
-		RenderTargetsInfo,
-		PassShaders,
-		MeshFillMode,
-		MeshCullMode,
-		PrimitiveType,
-		EMeshPassFeatures::Default,
-		ESubpassHint::None,
-		0,
-		true /*bRequired*/,
-		InPSOCollectorIndex,
-		PSOInitializers);
-
-	// Planar reflections and scene captures use scene color alpha to keep track of where content has been rendered, for compositing into a different scene later
-	if (bPrecacheAlphaColorChannel)
-	{
-		FGraphicsPipelineRenderTargetsInfo AlphaColorRenderTargetsInfo = RenderTargetsInfo;
-
-		bool bRequiresAlphaChannel = true;
-		ETextureCreateFlags ExtraSceneColorCreateFlags = ETextureCreateFlags::None;
-		EPixelFormat SceneColorFormatWithAlpha;
-		ETextureCreateFlags SceneColorCreateFlagsWithAlpha;
-		GetSceneColorFormatAndCreateFlags(InFeatureLevel, bRequiresAlphaChannel, ExtraSceneColorCreateFlags, RenderTargetsInfo.NumSamples, false /*bMemorylessMSAA*/, SceneColorFormatWithAlpha, SceneColorCreateFlagsWithAlpha);
-
-		AlphaColorRenderTargetsInfo.RenderTargetFormats[0] = SceneColorFormatWithAlpha;
-		AlphaColorRenderTargetsInfo.RenderTargetFlags[0] = SceneColorCreateFlagsWithAlpha;
-
-		AddGraphicsPipelineStateInitializer(
-			VertexFactoryData,
-			MaterialResource,
-			DrawRenderState,
-			AlphaColorRenderTargetsInfo,
-			PassShaders,
-			MeshFillMode,
-			MeshCullMode,
-			PrimitiveType,
-			EMeshPassFeatures::Default,
-			ESubpassHint::None,
-			0,
-			true /*bRequired*/,
-			InPSOCollectorIndex,
-			PSOInitializers);
-	}
-}
-
 ENUM_CLASS_FLAGS(FBasePassMeshProcessor::EFlags);
 
 extern void SetupBasePassState(FExclusiveDepthStencil::Type BasePassDepthStencilAccess, const bool bShaderComplexity, FMeshPassProcessorRenderState& DrawRenderState);
