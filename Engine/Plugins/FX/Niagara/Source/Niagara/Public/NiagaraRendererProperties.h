@@ -325,7 +325,9 @@ public:
 	/** In the case that we need parameters bound in that aren't Particle variables, these should be set up here so that the data is appropriately populated after the simulation.*/
 	NIAGARA_API virtual bool PopulateRequiredBindings(FNiagaraParameterStore& InParameterStore);
 
-	
+	/** Collect PSO precache data using the optional emitter instance */
+	NIAGARA_API void CollectPSOPrecacheData(FNiagaraEmitterInstance* EmitterInstance, FMaterialInterfacePSOPrecacheParamsList& MaterialInterfacePSOPrecacheParamsList) const;
+
 	/**
 	* Collect all the data required for PSO precaching 
 	*/

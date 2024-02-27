@@ -24,6 +24,14 @@
 
 #define LOCTEXT_NAMESPACE "UNiagaraRendererProperties"
 
+static int GNiagaraPSOPrecacheReverseCulling = 1;
+static FAutoConsoleVariableRef CVarPSOPrecacheProjectedShadows(
+	TEXT("fx.Niagara.PSOPrecache.ReverseCulling"),
+	GNiagaraPSOPrecacheReverseCulling,
+	TEXT("Also Precache PSOs with with reverse culling set when not 2 sided. (default 1)"),
+	ECVF_Default
+);
+
 #if WITH_EDITORONLY_DATA
 int32 GNiagaraRendererCookOutStaticEnabledBinding = 1;
 static FAutoConsoleVariableRef CVarNiagaraRendererCookOutStaticEnabledBinding(
@@ -852,6 +860,39 @@ bool UNiagaraRendererProperties::PopulateRequiredBindings(FNiagaraParameterStore
 	}
 	return bAnyAdded;
 }
+
+void UNiagaraRendererProperties::CollectPSOPrecacheData(FNiagaraEmitterInstance* EmitterInstance, FMaterialInterfacePSOPrecacheParamsList& MaterialInterfacePSOPrecacheParamsList) const
+{
+	const FVertexFactoryType* VFType = GetVertexFactoryType();
+	if (VFType == nullptr)
+	{
+		return;
+	}
+
+	FMaterialInterfacePSOPrecacheParams NewEntry;
+	NewEntry.PSOPrecacheParams.SetMobility(EComponentMobility::Movable);
+	NewEntry.PSOPrecacheParams.bDisableBackFaceCulling = IsBackfaceCullingDisabled();
+
+	UNiagaraRendererProperties::FPSOPrecacheParamsList PSOPrecacheParamsList;
+	CollectPSOPrecacheData(EmitterInstance, PSOPrecacheParamsList);
+
+	for (UNiagaraRendererProperties::FPSOPrecacheParams& PSOPrecacheParams : PSOPrecacheParamsList)
+	{
+		NewEntry.MaterialInterface = PSOPrecacheParams.MaterialInterface;
+		NewEntry.VertexFactoryDataList = PSOPrecacheParams.VertexFactoryDataList;
+
+		NewEntry.PSOPrecacheParams.bReverseCulling = false;
+		AddMaterialInterfacePSOPrecacheParamsToList(NewEntry, MaterialInterfacePSOPrecacheParamsList);
+
+		// Also precache with reverse culling if not two sided because we don't know of the component using the asset will have negative determinant
+		if (!NewEntry.PSOPrecacheParams.bDisableBackFaceCulling && GNiagaraPSOPrecacheReverseCulling > 0)
+		{
+			NewEntry.PSOPrecacheParams.bReverseCulling = true;
+			AddMaterialInterfacePSOPrecacheParamsToList(NewEntry, MaterialInterfacePSOPrecacheParamsList);
+		}
+	}
+}
+
 
 bool UNiagaraRendererProperties::NeedsLoadForTargetPlatform(const ITargetPlatform* TargetPlatform) const
 {

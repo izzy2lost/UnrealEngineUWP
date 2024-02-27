@@ -32,6 +32,16 @@ static TAutoConsoleVariable<bool> CVarCustomDepthEnableFastClear(
 	TEXT("Enable HTile on the custom depth buffer (default:false).\n"),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarPSOPrecacheCustomDepth(
+	TEXT("r.PSOPrecache.CustomDepth"),
+	1,
+	TEXT("Also Precache PSOs with for custom depth pass.")  \
+	TEXT(" 0: No PSOs are compiled for this pass.\n") \
+	TEXT(" 1: PSOs are compiled for all primitives which explicitly request custom depth rendering (default).\n") \
+	TEXT(" 2: PSOs are compiled for all primitives which also request regular depth rendering.\n"),
+	ECVF_ReadOnly
+);
+
 DECLARE_DWORD_COUNTER_STAT(TEXT("Nanite Custom Depth Instances"), STAT_NaniteCustomDepthInstances, STATGROUP_Nanite);
 
 DECLARE_GPU_DRAWCALL_STAT_NAMED(CustomDepth, TEXT("Custom Depth"));
@@ -649,6 +659,12 @@ bool FCustomDepthPassMeshProcessor::Process(
 
 void FCustomDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
 {
+	int32 CustomDepthPrecacheMode = CVarPSOPrecacheCustomDepth.GetValueOnAnyThread();
+	if (CustomDepthPrecacheMode == 0)
+	{
+		return;
+	}
+
 	// Setup the depth stencil state to use
 	const bool bWriteCustomStencilValues = IsCustomDepthPassWritingStencil();
 	PassDrawRenderState.SetDepthStencilState(GetCustomDepthStencilState(bWriteCustomStencilValues, PreCacheParams.GetStencilWriteMask()));
@@ -676,8 +692,16 @@ void FCustomDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesC
 			EffectiveMaterial = UMaterial::GetDefaultMaterial(MD_Surface)->GetMaterialResource(FeatureLevel, ActiveQualityLevel);
 			bUseDefaultMaterial = false;
 		}		
+				
+		bool bPrecacheCustomDepth = PreCacheParams.bRenderCustomDepth;
 
-		if (!bUseDefaultMaterial && PreCacheParams.bRenderCustomDepth)
+		// If requested precache for all primitives in depth pass as well
+		if (CustomDepthPrecacheMode == 2)
+		{
+			bPrecacheCustomDepth = bPrecacheCustomDepth || PreCacheParams.bRenderInDepthPass;
+		}
+
+		if (!bUseDefaultMaterial && bPrecacheCustomDepth)
 		{
 			check(!bPositionOnly);
 

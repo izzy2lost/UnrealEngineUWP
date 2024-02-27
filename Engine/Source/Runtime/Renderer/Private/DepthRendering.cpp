@@ -78,6 +78,15 @@ static TAutoConsoleVariable<int32> CVarPSOPrecacheDitheredLODFadingOutMaskPass(
 	ECVF_ReadOnly
 );
 
+static TAutoConsoleVariable<int32> CVarPSOPrecacheProjectedShadows(
+	TEXT("r.PSOPrecache.ProjectedShadows"),
+	1,
+	TEXT("Also Precache PSOs with for projected shadows.")  \
+	TEXT(" 0: No PSOs are compiled for this pass.\n") \
+	TEXT(" 1: PSOs are compiled for all primitives which render to depth pass (default).\n"),
+	ECVF_ReadOnly
+);
+
 extern bool IsHMDHiddenAreaMaskActive();
 
 FDepthPassInfo GetDepthPassInfo(const FScene* Scene)
@@ -883,6 +892,7 @@ void FDepthPassMeshProcessor::CollectPSOInitializersInternal(
 		PSOInitializers);
 
 	// Also cache with project shadow depth stencil state (see FProjectedShadowInfo::SetupMeshDrawCommandsForProjectionStenciling)
+	if (CVarPSOPrecacheProjectedShadows.GetValueOnAnyThread() > 0)
 	{
 		// Set stencil to one.
 		DrawRenderState.SetDepthStencilState(

@@ -2716,7 +2716,6 @@ void UParticleSystem::PrecachePSOs()
 
 	FMaterialInterfacePSOPrecacheParams NewEntry;
 	NewEntry.PSOPrecacheParams.SetMobility(EComponentMobility::Movable);
-	NewEntry.PSOPrecacheParams.bRenderCustomDepth = true;
 
 	// No per component emitter materials known at this point in time
 	TArray<UMaterialInterface*> EmptyEmitterMaterials;
