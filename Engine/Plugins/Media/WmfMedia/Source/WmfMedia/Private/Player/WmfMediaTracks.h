@@ -201,15 +201,15 @@ public:
 
 	//~ IMediaSamples interface
 
-	virtual bool FetchAudio(TRange<FTimespan> TimeRange, TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe>& OutSample) override;
-	virtual bool FetchCaption(TRange<FTimespan> TimeRange, TSharedPtr<IMediaOverlaySample, ESPMode::ThreadSafe>& OutSample) override;
-	virtual bool FetchMetadata(TRange<FTimespan> TimeRange, TSharedPtr<IMediaBinarySample, ESPMode::ThreadSafe>& OutSample) override;
-	virtual bool FetchVideo(TRange<FTimespan> TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample) override;
+	virtual bool FetchAudio(TRange<FTimespan> TimeRange, TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe>& OutSample) override { return FetchAudio(TimeRange.GetLowerBound().IsOpen() ? TRange<FMediaTimeStamp>() : TRange<FMediaTimeStamp>(FMediaTimeStamp(TimeRange.GetLowerBoundValue(), 0), FMediaTimeStamp(TimeRange.GetUpperBoundValue(), 0)), OutSample); }
+	virtual bool FetchCaption(TRange<FTimespan> TimeRange, TSharedPtr<IMediaOverlaySample, ESPMode::ThreadSafe>& OutSample) override { return FetchCaption(TimeRange.GetLowerBound().IsOpen() ? TRange<FMediaTimeStamp>() : TRange<FMediaTimeStamp>(FMediaTimeStamp(TimeRange.GetLowerBoundValue(), 0), FMediaTimeStamp(TimeRange.GetUpperBoundValue(), 0)), OutSample); }
+	virtual bool FetchMetadata(TRange<FTimespan> TimeRange, TSharedPtr<IMediaBinarySample, ESPMode::ThreadSafe>& OutSample) override { return FetchMetadata(TimeRange.GetLowerBound().IsOpen() ? TRange<FMediaTimeStamp>() : TRange<FMediaTimeStamp>(FMediaTimeStamp(TimeRange.GetLowerBoundValue(), 0), FMediaTimeStamp(TimeRange.GetUpperBoundValue(), 0)), OutSample); }
+	virtual bool FetchVideo(TRange<FTimespan> TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample) override { return FetchVideo(TimeRange.GetLowerBound().IsOpen() ? TRange<FMediaTimeStamp>() : TRange<FMediaTimeStamp>(FMediaTimeStamp(TimeRange.GetLowerBoundValue(), 0), FMediaTimeStamp(TimeRange.GetUpperBoundValue(), 0)), OutSample); }
 
-	virtual bool FetchAudio(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe>& OutSample) override { return FetchAudio(TimeRange.GetLowerBound().IsOpen() ? TRange<FTimespan>() : TRange<FTimespan>(TimeRange.GetLowerBoundValue().Time, TimeRange.GetUpperBoundValue().Time), OutSample); }
-	virtual bool FetchCaption(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaOverlaySample, ESPMode::ThreadSafe>& OutSample) override { return FetchCaption(TRange<FTimespan>(TimeRange.GetLowerBoundValue().Time, TimeRange.GetUpperBoundValue().Time), OutSample); }
-	virtual bool FetchMetadata(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaBinarySample, ESPMode::ThreadSafe>& OutSample) override { return FetchMetadata(TRange<FTimespan>(TimeRange.GetLowerBoundValue().Time, TimeRange.GetUpperBoundValue().Time), OutSample); }
-	virtual bool FetchVideo(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample) override { return FetchVideo(TRange<FTimespan>(TimeRange.GetLowerBoundValue().Time, TimeRange.GetUpperBoundValue().Time), OutSample); }
+	virtual bool FetchAudio(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe>& OutSample) override;
+	virtual bool FetchCaption(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaOverlaySample, ESPMode::ThreadSafe>& OutSample) override;
+	virtual bool FetchMetadata(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaBinarySample, ESPMode::ThreadSafe>& OutSample) override;
+	virtual bool FetchVideo(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample) override;
 
 	virtual void FlushSamples() override;
 #if WMFMEDIA_PLAYER_VERSION >= 2
