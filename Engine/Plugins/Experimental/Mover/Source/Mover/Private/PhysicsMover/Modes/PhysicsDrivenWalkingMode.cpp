@@ -107,7 +107,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
 	SimBlackboard->Set(CommonBlackboard::LastWaterResult, WaterResult);
 
-	const bool bStartSwimming = (WaterResult.WaterSplineData.ImmersionDepth+TargetHeight) > CommonLegacySettings->SwimmingIdealImmersionDepth;
+	const bool bStartSwimming = WaterResult.WaterSplineData.ImmersionDepth > CommonLegacySettings->SwimmingStartImmersionDepth;
 	
 	if (WaterResult.IsSwimmableVolume() && bStartSwimming)
 	{
