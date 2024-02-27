@@ -276,8 +276,7 @@ const generateProjectMenu = (store: ProjectStore) => {
 };
 
 
-// Top level admin button component
-const AdminButton: React.FunctionComponent<IButtonProps> = (props) => {
+const MenuButton: React.FC<{ props: IButtonProps, link?: string }> = ({ props, link }) => {
 
    const navigate = useNavigate();
 
@@ -300,17 +299,23 @@ const AdminButton: React.FunctionComponent<IButtonProps> = (props) => {
             menuProps={{ subMenuHoverDelay: 0, items: [] }}
 
             onMouseUp={(ev => {
+               if (!link) {
+                  return;
+               }
                if (ev?.button === 1) {
-                  window.open(`/agents`);
+                  window.open(link);
                }
             })}
 
             onMenuClick={(ev) => {
 
+               if (!link) {
+                  return;
+               }
                if (ev?.metaKey || ev?.ctrlKey) {
-                  window.open(`/agents`);
+                  window.open(link);
                } else {
-                  navigate(`/agents`);
+                  navigate(link);
                }
             }}
             {...props}
@@ -335,6 +340,19 @@ const AdminButton: React.FunctionComponent<IButtonProps> = (props) => {
       </Stack>
    );
 };
+
+const ToolsButton: React.FunctionComponent<IButtonProps> = (props) => {
+   return <MenuButton props={props} />
+}
+
+
+const HelpButton: React.FunctionComponent<IButtonProps> = (props) => {
+   return <MenuButton props={props} link="/docs" />
+}
+
+const ServerButton: React.FunctionComponent<IButtonProps> = (props) => {
+   return <MenuButton props={props} link="/serverstatus" />
+}
 
 
 // this module global is needed to enforce showing dialog ony once, in case component is recreated
@@ -408,21 +426,15 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
    const hordeTheme = getHordeTheme();
 
-   const generateAdminMenu = () => {
+   const generateToolsMenu = () => {
 
       const [, menuStyles] = getStyles();
 
       const cbProps: ICommandBarItemProps[] = [];
 
-      const subItems: IContextualMenuItem[] = [];
-
-      // Resources
-      const serviceItems: IContextualMenuItem[] = [];
-      const resourceItems: IContextualMenuItem[] = [];
-      const monitoringItems: IContextualMenuItem[] = [];
-      const hordeItems: IContextualMenuItem[] = [];
-
       const features = dashboard.user?.dashboardFeatures;
+
+      const serviceItems: IContextualMenuItem[] = [];
 
       if (dashboard.telemetryViews.length) {
          serviceItems.push({
@@ -442,22 +454,41 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
       serviceItems.push({
          key: "software_tools",
-         text: "Tool Library",
+         text: "Downloads",
          link: `/tools`
       });
 
-      if (serviceItems.length) {
-         subItems.push({
-            itemType: ContextualMenuItemType.Section,
-            key: `admin_services`,
-            sectionProps: {
-               title: "Services",
-               items: serviceItems,
-               bottomDivider: true
-            }
-         });
-      }
+      const style = { ...menuStyles } as Partial<IContextualMenuStyles>;
 
+      const cbItem: ICommandBarItemProps = {
+         key: "tools_button",
+         text: "TOOLS",
+         subMenuProps: {
+            contextualMenuItemAs: ProjectMenuItem,
+            styles: style,
+            items: serviceItems
+         }
+      };
+
+      cbProps.push(cbItem);
+
+      return cbProps;
+
+   }
+
+   const generateServerMenu = () => {
+
+      const [, menuStyles] = getStyles();
+
+      const cbProps: ICommandBarItemProps[] = [];
+
+      const subItems: IContextualMenuItem[] = [];
+
+      // Resources      
+      const resourceItems: IContextualMenuItem[] = [];
+      const monitoringItems: IContextualMenuItem[] = [];
+
+      const features = dashboard.user?.dashboardFeatures;
 
 
       if (features?.showAgents !== false) {
@@ -553,28 +584,6 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
          });
       }
 
-      hordeItems.push({
-         key: "server_docs",
-         text: "Documentation",
-         link: `/docs`
-      });
-
-      hordeItems.push({
-         key: "server_versions",
-         text: "Version",
-         onClick: () => { setShowVersion(true) }
-      });
-
-      subItems.push({
-         itemType: ContextualMenuItemType.Section,
-         key: `server_horde_item`,
-         sectionProps: {
-            title: "Horde",
-            items: hordeItems,
-            bottomDivider: false
-         }
-      });
-
       const style = { ...menuStyles } as Partial<IContextualMenuStyles>;
 
       if (dashboard.preview) {
@@ -588,7 +597,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
       const cbItem: ICommandBarItemProps = {
          key: "admin_button",
-         text: "TOOLS",
+         text: "SERVER",
          subMenuProps: {
             contextualMenuItemAs: ProjectMenuItem,
             styles: style,
@@ -599,8 +608,57 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       cbProps.push(cbItem);
 
       return cbProps;
-   };
+   }
 
+   const generateHelpMenu = () => {
+
+      const [, menuStyles] = getStyles();
+
+      const cbProps: ICommandBarItemProps[] = [];
+
+      const hordeItems: IContextualMenuItem[] = [];
+
+      hordeItems.push({
+         key: "server_docs",
+         text: "Documentation",
+         link: `/docs`
+      });
+
+      hordeItems.push({
+         key: "server_api",
+         text: "API Browser",
+         href: `/swagger/index.html`
+      });
+
+      hordeItems.push({
+         key: "server_docs_releasenotes",
+         text: "Release Notes",
+         link: `/docs/ReleaseNotes.md`
+      });
+
+      hordeItems.push({
+         key: "server_versions",
+         text: "Version",
+         onClick: () => { setShowVersion(true) }
+      });
+
+      const style = { ...menuStyles } as Partial<IContextualMenuStyles>;
+
+      const cbItem: ICommandBarItemProps = {
+         key: "help_button",
+         text: "HELP",
+         subMenuProps: {
+            contextualMenuItemAs: ProjectMenuItem,
+            styles: style,
+            items: hordeItems
+         }
+      };
+
+      cbProps.push(cbItem);
+
+      return cbProps;
+
+   }
 
 
    let initials = "?.?";
@@ -693,10 +751,26 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
                <Stack grow />
                <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 0 }}>
                   <Stack>
-                     {showServer && <CommandBar styles={{ root: { paddingTop: 17, paddingLeft: 0, paddingRight: 32, backgroundColor: hordeTheme.horde.topNavBackground } }}
-                        buttonAs={AdminButton}
+                     <CommandBar styles={{ root: { paddingTop: 17, paddingLeft: 0, paddingRight: 12, backgroundColor: hordeTheme.horde.topNavBackground } }}
+                        buttonAs={ToolsButton}
                         onReduceData={() => undefined}
-                        items={generateAdminMenu()}
+                        items={generateToolsMenu()}
+                     />
+                  </Stack>
+
+                  <Stack>
+                     {showServer && <CommandBar styles={{ root: { paddingTop: 17, paddingLeft: 0, paddingRight: 12, backgroundColor: hordeTheme.horde.topNavBackground } }}
+                        buttonAs={ServerButton}
+                        onReduceData={() => undefined}
+                        items={generateServerMenu()}
+                     />}
+                  </Stack>
+
+                  <Stack>
+                     {showServer && <CommandBar styles={{ root: { paddingTop: 17, paddingLeft: 0, paddingRight: 32, backgroundColor: hordeTheme.horde.topNavBackground } }}
+                        buttonAs={HelpButton}
+                        onReduceData={() => undefined}
+                        items={generateHelpMenu()}
                      />}
                   </Stack>
 
