@@ -148,6 +148,7 @@ void FNetRPC::DeserializeWithObject(FNetSerializationContext& Context, FNetRefHa
 		// Just because the serialization didn't detect an error doesn't mean everything is ok. Validate stream position.
 		if (PostNetRPCPos != Context.GetBitStreamReader()->GetPosBits())
 		{
+			UE_LOG(LogIrisRpc, Error, TEXT("Bitstream mismatch while deserializing function %s. Actual stream position: %u Expected stream position: %u"), ToCStr(BlobDescriptor->DebugName), Context.GetBitStreamReader()->GetPosBits(), PostNetRPCPos);
 			ensureMsgf(PostNetRPCPos == Context.GetBitStreamReader()->GetPosBits(), TEXT("Bitstream mismatch while deserializing function %s. Actual stream position: %u Expected stream position: %u"), ToCStr(BlobDescriptor->DebugName), Context.GetBitStreamReader()->GetPosBits(), PostNetRPCPos);
 			Context.GetBitStreamReader()->Seek(PostNetRPCPos);
 			Context.SetError(GNetError_BitStreamError);
