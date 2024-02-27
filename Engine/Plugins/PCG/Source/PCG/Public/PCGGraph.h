@@ -333,10 +333,11 @@ public:
 	uint32 GetNodeGenerationGridSize(const UPCGNode* InNode, uint32 InDefaultGridSize) const;
 
 protected:
-	void OnNodeAdded(UPCGNode* InNode);
-	void OnNodesAdded(TArrayView<UPCGNode*> InNodes);
-	void OnNodeRemoved(UPCGNode* InNode);
-	void OnNodesRemoved(TArrayView<UPCGNode*> InNodes);
+	/** Internal function to react to add/remove nodes. bNotify can be set to false to not notify the world. */
+	void OnNodeAdded(UPCGNode* InNode, bool bNotify = true);
+	void OnNodesAdded(TArrayView<UPCGNode*> InNodes, bool bNotify = true);
+	void OnNodeRemoved(UPCGNode* InNode, bool bNotify = true);
+	void OnNodesRemoved(TArrayView<UPCGNode*> InNodes, bool bNotify = true);
 
 	void RemoveNodes_Internal(TArrayView<UPCGNode*> InNodes);
 	void AddNodes_Internal(TArrayView<UPCGNode*> InNodes);
