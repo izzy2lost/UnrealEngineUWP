@@ -109,7 +109,9 @@ namespace EpicGames.Core.Telemetry
 	/// </summary>
 	public class DataRouterPost
 	{
-		// List of objects to force polymorphic JSON serialization
+		/// <summary>
+		/// List of objects to force polymorphic JSON serialization
+		/// </summary>
 		public List<object> Events
 		{
 			get;
@@ -121,7 +123,9 @@ namespace EpicGames.Core.Telemetry
 	/// </summary>
 	public class SerializedDataRouterPost
 	{
-		// Used in conjunction with a JsonSerializer class to mimic serialization of DataRouterPost
+		/// <summary>
+		/// Used in conjunction with a JsonSerializer class to mimic serialization of DataRouterPost
+		/// </summary>
 		public List<string> EventsSerialized
 		{
 			get;
