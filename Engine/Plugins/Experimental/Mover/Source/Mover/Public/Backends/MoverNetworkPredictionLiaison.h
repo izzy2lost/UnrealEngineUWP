@@ -47,6 +47,8 @@ public:
 	// IMoverBackendLiaisonInterface
 	virtual float GetCurrentSimTimeMs() override;
 	virtual int32 GetCurrentSimFrame() override;
+	virtual bool ReadPendingSyncState(OUT FMoverSyncState& OutSyncState) override;
+	virtual bool WritePendingSyncState(const FMoverSyncState& SyncStateToWrite) override;
 	// End IMoverBackendLiaisonInterface
 
 	virtual void BeginPlay() override;
