@@ -4924,17 +4924,15 @@ bool FSlateApplication::ProcessAnalogInputEvent(const FAnalogInputEvent& InAnalo
 			}, ESlateDebuggingInputEvent::AnalogInput);
 	}
 
-	// If no one handled this, it was probably motion in the deadzone.  Don't treat it as activity.
-	if (Reply.IsEventHandled())
+	// Ensure the analog input event exceeds the thresholds set in the navigation config before considering as interaction.
+	const TSharedRef<FNavigationConfig> RelevantNavConfig = GetRelevantNavConfig(InAnalogInputEvent.GetUserIndex());
+	if (RelevantNavConfig->IsAnalogEventBeyondNavigationThreshold(InAnalogInputEvent))
 	{
 		SetLastUserInteractionTime(this->GetCurrentTime());
 		LastUserInteractionTimeForThrottling = LastUserInteractionTime;
-		return true;
 	}
-	else
-	{
-		return false;
-	}
+
+	return Reply.IsEventHandled();
 }
 
 FKey TranslateMouseButtonToKey( const EMouseButtons::Type Button )

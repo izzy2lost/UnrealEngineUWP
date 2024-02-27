@@ -89,6 +89,9 @@ public:
 	/** Simplification of config as string */
 	SLATE_API virtual FString ToString() const;
 
+	/** Returns whether the analog event is beyond the navigation thresholds set in this config. */
+	bool IsAnalogEventBeyondNavigationThreshold(const FAnalogInputEvent& InAnalogEvent) const;
+
 public:
 	/** Should the Tab key perform next and previous style navigation. */
 	bool bTabNavigation;
