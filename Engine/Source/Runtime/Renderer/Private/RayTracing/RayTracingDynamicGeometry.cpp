@@ -314,7 +314,7 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 		bRefit = false;
 	}
 
-	if (!Geometry.RayTracingGeometryRHI.IsValid())
+	if (!Geometry.IsValid())
 	{
 		bRefit = false;
 	}

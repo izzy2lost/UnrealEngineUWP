@@ -817,7 +817,7 @@ void FGeometryCollectionSceneProxy::GetDynamicRayTracingInstances(FRayTracingMat
 
 	UpdatingRayTracingGeometry_RenderingThread(SectionArray);
 
-	if (SectionArray.Num() && RayTracingGeometry.RayTracingGeometryRHI.IsValid())
+	if (SectionArray.Num() && RayTracingGeometry.IsValid())
 	{
 		FRayTracingInstance RayTracingInstance;
 		RayTracingInstance.Geometry = &RayTracingGeometry;

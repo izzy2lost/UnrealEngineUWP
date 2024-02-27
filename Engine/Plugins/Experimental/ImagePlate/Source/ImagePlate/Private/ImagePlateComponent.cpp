@@ -263,7 +263,7 @@ namespace
 
 			FMaterialRenderProxy* MaterialProxy = Material->GetRenderProxy();
 
-			if (RayTracingGeometry.RayTracingGeometryRHI.IsValid())
+			if (RayTracingGeometry.IsValid())
 			{
 				check(RayTracingGeometry.Initializer.IndexBuffer.IsValid());
 

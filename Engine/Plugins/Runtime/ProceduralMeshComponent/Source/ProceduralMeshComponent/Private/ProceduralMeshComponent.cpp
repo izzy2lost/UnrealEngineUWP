@@ -464,7 +464,7 @@ public:
 			{
 				FMaterialRenderProxy* MaterialProxy = Section->Material->GetRenderProxy();
 				
-				if (Section->RayTracingGeometry.RayTracingGeometryRHI.IsValid())
+				if (Section->RayTracingGeometry.IsValid())
 				{
 					check(Section->RayTracingGeometry.Initializer.IndexBuffer.IsValid());
 

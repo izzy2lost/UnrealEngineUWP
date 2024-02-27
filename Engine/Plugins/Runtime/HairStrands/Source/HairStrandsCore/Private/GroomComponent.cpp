@@ -697,7 +697,7 @@ public:
 				continue;
 			}
 
-			if (RTGeometry && RTGeometry->RayTracingGeometry.RayTracingGeometryRHI.IsValid())
+			if (RTGeometry && RTGeometry->RayTracingGeometry.IsValid())
 			{
 				for (const FRayTracingGeometrySegment& Segment : RTGeometry->RayTracingGeometry.Initializer.Segments)
 				{

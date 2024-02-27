@@ -565,7 +565,7 @@ void FBaseDynamicMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMateri
 
 		// draw primary index buffer
 		if (BufferSet->IndexBuffer.Indices.Num() > 0
-			&& BufferSet->PrimaryRayTracingGeometry.RayTracingGeometryRHI.IsValid())
+			&& BufferSet->PrimaryRayTracingGeometry.IsValid())
 		{
 			ensure(BufferSet->PrimaryRayTracingGeometry.Initializer.IndexBuffer.IsValid());
 			DrawRayTracingBatch(Context, *BufferSet, BufferSet->IndexBuffer, BufferSet->PrimaryRayTracingGeometry, MaterialProxy, DepthPriority, DynamicPrimitiveUniformBuffer, OutRayTracingInstances);
@@ -576,7 +576,7 @@ void FBaseDynamicMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMateri
 		if (bDrawSecondaryBuffers
 			&& BufferSet->SecondaryIndexBuffer.Indices.Num() > 0
 			&& UseSecondaryMaterialProxy != nullptr
-			&& BufferSet->SecondaryRayTracingGeometry.RayTracingGeometryRHI.IsValid())
+			&& BufferSet->SecondaryRayTracingGeometry.IsValid())
 		{
 			ensure(BufferSet->SecondaryRayTracingGeometry.Initializer.IndexBuffer.IsValid());
 			DrawRayTracingBatch(Context, *BufferSet, BufferSet->SecondaryIndexBuffer, BufferSet->SecondaryRayTracingGeometry, UseSecondaryMaterialProxy, DepthPriority, DynamicPrimitiveUniformBuffer, OutRayTracingInstances);
