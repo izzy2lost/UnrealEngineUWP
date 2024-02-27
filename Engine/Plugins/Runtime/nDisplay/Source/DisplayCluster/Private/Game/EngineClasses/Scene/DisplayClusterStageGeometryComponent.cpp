@@ -19,6 +19,7 @@ UDisplayClusterStageGeometryComponent::UDisplayClusterStageGeometryComponent()
 {
 	SetActive(true);
 	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bAllowTickOnDedicatedServer = false;
 
 	Renderer = MakeShared<FDisplayClusterMeshProjectionRenderer>();
 }

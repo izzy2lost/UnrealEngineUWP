@@ -164,7 +164,7 @@ void UDisplayClusterNetConnection::ProcessPacket(int32 PacketId)
 
 		bool bSkipAck = false;
 		bool bHasBunchErrors = false;
-		DispatchPacket(InPackets[CurrentPacketId], PacketId, bSkipAck, bHasBunchErrors);
+		DispatchPacket(InPackets[CurrentPacketId], CurrentPacketId, bSkipAck, bHasBunchErrors);
 
 		InPackets.Remove(CurrentPacketId);
 	}
