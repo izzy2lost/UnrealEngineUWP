@@ -10,6 +10,7 @@
 #include "VerseVM/VVMBytecodesAndCaptures.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMLog.h"
+#include "VerseVM/VVMPackage.h"
 
 namespace Verse
 {

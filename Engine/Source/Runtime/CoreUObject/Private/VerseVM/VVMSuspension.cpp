@@ -9,6 +9,7 @@
 #include "VerseVM/VVMCaptureSwitch.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMFailureContext.h"
+#include "VerseVM/VVMPackage.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMTask.h"
 

@@ -8,6 +8,7 @@
 #include "VerseVM/VVMBytecode.h"
 #include "VerseVM/VVMBytecodeDispatcher.h"
 #include "VerseVM/VVMLog.h"
+#include "VerseVM/VVMPackage.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMValuePrinting.h"
 #include <inttypes.h>

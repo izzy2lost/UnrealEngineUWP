@@ -277,8 +277,7 @@ class FInterpreter
 	{
 		if (Operand.IsConstant())
 		{
-			VValue Result = State.Constants[Operand.AsConstant().Index].Get();
-			checkSlow(!Result.IsPlaceholder());
+			VValue Result = State.Constants[Operand.AsConstant().Index].Get().Follow();
 			return Result;
 		}
 		else
@@ -1498,7 +1497,7 @@ class FInterpreter
 			REQUIRE_CONCRETE(CurrentArg);
 			InheritedClasses.Add(&CurrentArg.StaticCast<VClass>());
 		}
-		VClass& NewClass = VClass::New(Context, nullptr, VClass::EKind::Class, *Constructor, InheritedClasses, nullptr);
+		VClass& NewClass = VClass::New(Context, Op.Name.Get(), Op.ClassKind, *Constructor, InheritedClasses, Op.Package.Get());
 		DEF(Op.Dest, NewClass);
 		return {FOpResult::Return};
 	}
@@ -2453,6 +2452,7 @@ public:
 			&FailureContext,
 			&Task,
 			VValue::EffectDoneMarker());
+
 		AutoRTFM::TransactThenOpen([&] {
 			FailureContext.Transaction.Start(Context);
 			Interpreter.Execute();

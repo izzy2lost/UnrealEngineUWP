@@ -5,6 +5,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "VVMCell.h"
+#include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMNameValueMap.h"
 
 class UPackage;
@@ -28,7 +29,7 @@ struct VPackage : VCell
 
 	uint32 Num() const { return Map.Num(); }
 	const VUTF8String& GetName(uint32 Index) const { return Map.GetName(Index); }
-	VValue GetDefinition(uint32 Index) const { return Map.GetValue(Index); }
+	VValue GetDefinition(uint32 Index) const { return Map.GetValue(Index).Follow(); }
 	void AddDefinition(FAllocationContext Context, FUtf8StringView Name, VValue Definition) { Map.AddValue(Context, Name, Definition); }
 	void AddDefinition(FAllocationContext Context, VUTF8String& Name, VValue Definition) { Map.AddValue(Context, Name, Definition); }
 	VValue LookupDefinition(FUtf8StringView Name) const { return Map.Lookup(Name); }

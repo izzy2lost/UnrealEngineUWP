@@ -14,6 +14,7 @@ namespace UnrealBuildTool
 		internal enum CppType
 		{
 			LabelOffset,
+			ClassKind,
 		}
 
 		internal enum Role
@@ -72,6 +73,8 @@ namespace UnrealBuildTool
 				{
 					case CppType.LabelOffset:
 						return "FLabelOffset";
+					case CppType.ClassKind:
+						return "VClass::EKind";
 				}
 				return "#error";
 			}
@@ -429,11 +432,11 @@ namespace UnrealBuildTool
 						}
 					}));
 				S.Append(ArgumentsList);
+				if (Inst.Args.Count > 0 && Inst.Consts.Count > 0)
+				{
+					S.Append(", ");
+				}
 				string ConstantsList = string.Join(", ", Inst.Consts.Select(Const => $"{Const.Type.ToCpp()} {Const.Name}"));
-				if (ArgumentsList.Length > 1 && ConstantsList.Length > 1)
-                {
-                    S.Append(", ");
-                }
 				S.Append(ConstantsList);
 				S.Append(")\n");
 				S.Append("        : FOp(StaticOpcode)\n");
@@ -513,6 +516,10 @@ namespace UnrealBuildTool
                             S.Append($"    TWriteBarrier<VValue> {Arg.Name};  \n");
                     }
                 }
+				foreach (Constant Const in Inst.Consts)
+				{
+					S.Append($"    {Const.Type.ToCpp()} {Const.Name};\n");
+				}
 				if (Inst._CapturesEffectToken)
 				{
 					S.Append($"    TWriteBarrier<VValue> EffectToken;\n");
@@ -552,6 +559,10 @@ namespace UnrealBuildTool
 					{
 						S.Append(", VValue ReturnEffectToken");
 					}
+					foreach (Constant Const in Inst.Consts)
+					{
+						S.Append($", {Const.Type.ToCpp()} In{Const.Name}");
+					}
 					S.Append(")\n");
 					string Prefix = ":";
 					foreach (Argument Arg in Inst.Args)
@@ -582,6 +593,10 @@ namespace UnrealBuildTool
 					{
 						S.Append($"        {Prefix} ReturnEffectToken(Context, ReturnEffectToken)\n");
 						Prefix = ",";
+					}
+					foreach (Constant Const in Inst.Consts)
+					{
+						S.Append($"        {Prefix} {Const.Name}(In{Const.Name})\n");
 					}
 					S.Append("    {}\n");
 				}
@@ -620,6 +635,10 @@ namespace UnrealBuildTool
 					{
 						S.Append($"        {Prefix} ReturnEffectToken(Context, Other.ReturnEffectToken.Get())\n");
 						Prefix = ", ";
+					}
+					foreach (Constant Const in Inst.Consts)
+					{
+						S.Append($"        {Prefix} {Const.Name}(Other.{Const.Name})\n");
 					}
 					S.Append("    {\n    }\n");
 				}
@@ -697,6 +716,10 @@ namespace UnrealBuildTool
 				if (Inst._CreatesNewReturnEffectToken)
 				{
 					S.Append(", ReturnEffectToken");
+				}
+				foreach (Constant Const in Inst.Consts)
+				{
+					S.Append($", Op.{Const.Name}");
 				}
 				S.Append(");\n");
 
@@ -943,6 +966,9 @@ namespace UnrealBuildTool
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Constructor", Role.Immediate, Arity.Fixed, "VConstructor")
 				.Arg("Inherited", Role.Use, Arity.Variadic)
+				.Arg("Name", Role.Immediate, Arity.Fixed, "VUTF8String")
+				.Arg("Package", Role.Immediate, Arity.Fixed, "VPackage")
+				.Const("ClassKind", CppType.ClassKind)
 				.Suspends();
 
 			Inst("NewObject")
