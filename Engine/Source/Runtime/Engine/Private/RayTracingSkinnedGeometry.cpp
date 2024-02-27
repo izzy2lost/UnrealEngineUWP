@@ -167,7 +167,7 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRHICommandListImmediate & RH
 			FRayTracingUpdateInfo& UpdateInfo = Iter.Value();
 
 			FRayTracingGeometryBuildParams BuildParams;
-			BuildParams.Geometry = RayTracingGeometry->RayTracingGeometryRHI;
+			BuildParams.Geometry = RayTracingGeometry->GetRHI();
 			BuildParams.BuildMode = UpdateInfo.BuildMode;
 			BuildParams.Segments = RayTracingGeometry->Initializer.Segments;
 

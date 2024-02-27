@@ -20,6 +20,8 @@ static TAutoConsoleVariable<int32> CVarDebugForceRuntimeBLAS(
 	TEXT("Force building BLAS at runtime."),
 	ECVF_ReadOnly);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // Remove this in UE 5.6 once RayTracingGeometryRHI is made private
+
 FRayTracingGeometry::FRayTracingGeometry() = default;
 
 /** Destructor. */
@@ -295,3 +297,5 @@ void FRayTracingGeometry::BoostBuildPriority(float InBoostValue) const
 }
 
 #endif // RHI_RAYTRACING
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

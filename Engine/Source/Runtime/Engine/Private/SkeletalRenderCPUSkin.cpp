@@ -416,7 +416,7 @@ void FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectLOD::InitResources(FSkelMesh
 					GeometrySections.Add(Segment);
 				}
 				Initializer.Segments = GeometrySections;
-				Initializer.SourceGeometry = SourceGeometry.RayTracingGeometryRHI;
+				Initializer.SourceGeometry = SourceGeometry.GetRHI();
 
 				RayTracingGeometry.SetInitializer(Initializer);
 				RayTracingGeometry.InitResource(RHICmdList);

@@ -351,7 +351,7 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 	}
 
 	FRayTracingGeometryBuildParams Params;
-	Params.Geometry = Geometry.RayTracingGeometryRHI;
+	Params.Geometry = Geometry.GetRHI();
 	Params.BuildMode = Geometry.GetRequiresBuild()
 		? EAccelerationStructureBuildMode::Build
 		: EAccelerationStructureBuildMode::Update;

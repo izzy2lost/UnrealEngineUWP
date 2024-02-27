@@ -884,7 +884,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 				Initializer.Segments.Add(Segment);
 			}
 
-			if (RayTracingGeometry.RayTracingGeometryRHI.IsValid())
+			if (RayTracingGeometry.GetRHI() != nullptr)
 			{
 				// RayTracingGeometry.ReleaseRHI() releases the old RT geometry, however due to the deferred deletion nature of RHI resources
 				// they will not be released until the end of the frame. We may get OOM in the middle of batched updates if not flushing.
@@ -892,11 +892,11 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 
 				// Release the old data (make sure it's not pending build anymore either)
 				RayTracingUpdateQueue->Remove(&RayTracingGeometry, MemoryEstimation);
-				RayTracingGeometry.RayTracingGeometryRHI->DisableLifetimeExtension();
+				RayTracingGeometry.GetRHI()->DisableLifetimeExtension();
 				RayTracingGeometry.ReleaseRHI();
 			}
 
-			Initializer.SourceGeometry = LODModel.SourceRayTracingGeometry.RayTracingGeometryRHI;
+			Initializer.SourceGeometry = LODModel.SourceRayTracingGeometry.GetRHI();
 
 			// Get the scratch sizes used for build & update
 			RayTracingGeometryStructureSize = RHICalcRayTracingGeometrySize(Initializer);

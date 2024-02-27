@@ -662,7 +662,7 @@ void FGeometryCacheSceneProxy::UpdateAnimation(FRHICommandListBase& RHICmdList, 
 					{
 						// Request full build on same geometry because data might have changed to much for update call?
 						FRayTracingGeometryBuildParams BuildParams;
-						BuildParams.Geometry = Section->RayTracingGeometry.RayTracingGeometryRHI;
+						BuildParams.Geometry = Section->RayTracingGeometry.GetRHI();
 						BuildParams.BuildMode = EAccelerationStructureBuildMode::Build;
 						BuildParams.Segments = Section->RayTracingGeometry.Initializer.Segments;
 						FRHIComputeCommandList::Get(RHICmdList).BuildAccelerationStructures(MakeArrayView(&BuildParams, 1));

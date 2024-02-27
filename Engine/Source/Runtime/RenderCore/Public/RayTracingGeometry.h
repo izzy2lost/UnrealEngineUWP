@@ -47,7 +47,16 @@ public:
 	int64 DynamicGeometrySharedBufferGenerationID = NonSharedVertexBuffers;
 
 	FRayTracingGeometryInitializer Initializer;
+
+	UE_DEPRECATED(5.5, "Use GetRHI() instead.")
 	FRayTracingGeometryRHIRef RayTracingGeometryRHI;
+
+	FRHIRayTracingGeometry* GetRHI() const
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return RayTracingGeometryRHI;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 
 	RayTracing::GeometryGroupHandle GroupHandle = INDEX_NONE;
 

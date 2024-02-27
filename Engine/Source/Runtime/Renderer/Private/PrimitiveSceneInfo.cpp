@@ -389,7 +389,7 @@ bool FPrimitiveSceneInfo::IsCachedRayTracingGeometryValid() const
 	if (CachedRayTracingGeometry)
 	{
 		// TODO: Doesn't take Nanite Ray Tracing into account
-		check(CachedRayTracingGeometry->RayTracingGeometryRHI == CachedRayTracingInstance.GeometryRHI);
+		check(CachedRayTracingGeometry->GetRHI() == CachedRayTracingInstance.GeometryRHI);
 		check(!CachedRayTracingGeometry->GetRequiresBuild() && !CachedRayTracingGeometry->HasPendingBuildRequest());
 
 		return CachedRayTracingGeometry->IsValid();
@@ -442,7 +442,7 @@ FRHIRayTracingGeometry* FPrimitiveSceneInfo::GetStaticRayTracingGeometryInstance
 		}
 		else if (StaticRayTracingGeometries[LodLevel]->IsValid())
 		{
-			return StaticRayTracingGeometries[LodLevel]->RayTracingGeometryRHI;
+			return StaticRayTracingGeometries[LodLevel]->GetRHI();
 		}
 		else
 		{
@@ -1228,7 +1228,7 @@ void FPrimitiveSceneInfo::UpdateCachedRayTracingInstance(FPrimitiveSceneInfo* Sc
 		{
 			checkf(CachedRayTracingInstance.Geometry, TEXT("Cached ray tracing instances must have valid geometries.")); // unless using nanite ray tracing
 
-			SceneInfo->CachedRayTracingInstance.GeometryRHI = CachedRayTracingInstance.Geometry->RayTracingGeometryRHI;
+			SceneInfo->CachedRayTracingInstance.GeometryRHI = CachedRayTracingInstance.Geometry->GetRHI();
 		}
 
 		// At this point (in AddToScene()) PrimitiveIndex has been set

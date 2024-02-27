@@ -178,7 +178,7 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 			FScopeLock ScopeLock(&RequestCS);
 			for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 			{
-				checkf(Geometry->IsEvicted() || Geometry->RayTracingGeometryRHI == nullptr, TEXT("Ray tracing geometry should be evicted when ray tracing is disabled."));
+				checkf(Geometry->IsEvicted() || Geometry->GetRHI() == nullptr, TEXT("Ray tracing geometry should be evicted when ray tracing is disabled."));
 			}
 		}
 #endif
@@ -205,7 +205,7 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 		FScopeLock ScopeLock(&RequestCS);
 		for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 		{
-			if (Geometry->RayTracingGeometryRHI != nullptr)
+			if (Geometry->GetRHI() != nullptr)
 			{
 				Geometry->Evict();
 			}
@@ -325,7 +325,7 @@ void FRayTracingGeometryManager::SetupBuildParams(const FBuildRequest& InBuildRe
 	check(InBuildRequest.RequestIndex != INDEX_NONE && InBuildRequest.Owner->RayTracingBuildRequestIndex != INDEX_NONE);
 
 	FRayTracingGeometryBuildParams BuildParam;
-	BuildParam.Geometry = InBuildRequest.Owner->RayTracingGeometryRHI;
+	BuildParam.Geometry = InBuildRequest.Owner->GetRHI();
 	BuildParam.BuildMode = InBuildRequest.BuildMode;
 	InBuildParams.Add(BuildParam);
 

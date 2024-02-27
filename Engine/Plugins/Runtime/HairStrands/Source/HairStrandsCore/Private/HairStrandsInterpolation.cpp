@@ -1330,7 +1330,7 @@ static void UpdateHairAccelerationStructure(FRHICommandList& RHICmdList, FRayTra
 
 	FRayTracingGeometryBuildParams Params;
 	Params.BuildMode = InMode;
-	Params.Geometry = RayTracingGeometry->RayTracingGeometryRHI;
+	Params.Geometry = RayTracingGeometry->GetRHI();
 	Params.Segments = RayTracingGeometry->Initializer.Segments;
 
 	RHICmdList.BuildAccelerationStructures(MakeArrayView(&Params, 1));

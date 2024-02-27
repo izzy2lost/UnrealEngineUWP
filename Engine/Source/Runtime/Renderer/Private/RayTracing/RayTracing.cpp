@@ -559,7 +559,7 @@ namespace RayTracing
 								RelevantPrimitive->PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
 
 								RelevantPrimitive->LODIndex = LODIndex;
-								RelevantPrimitive->RayTracingGeometryRHI = RayTracingGeometry->RayTracingGeometryRHI;
+								RelevantPrimitive->RayTracingGeometryRHI = RayTracingGeometry->GetRHI();
 
 								RelevantPrimitive->CachedRayTracingMeshCommandIndices = SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD[LODIndex];
 								RelevantPrimitive->StateHash = SceneInfo->CachedRayTracingMeshCommandsHashPerLOD[LODIndex];
@@ -919,7 +919,7 @@ namespace RayTracing
 						}
 
 						FRayTracingGeometryInstance RayTracingInstance;
-						RayTracingInstance.GeometryRHI = Geometry->RayTracingGeometryRHI;
+						RayTracingInstance.GeometryRHI = Geometry->GetRHI();
 						checkf(RayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
 						RayTracingInstance.DefaultUserData = PersistentPrimitiveIndex.Index;
 						RayTracingInstance.bApplyLocalBoundsTransform = Instance.bApplyLocalBoundsTransform;
