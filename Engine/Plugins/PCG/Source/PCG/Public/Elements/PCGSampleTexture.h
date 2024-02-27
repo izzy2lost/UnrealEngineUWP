@@ -57,6 +57,10 @@ public:
 
 class FPCGSampleTextureElement : public IPCGElement
 {
+public:
+	// Loading needs to be done on the main thread and accessing objects outside of PCG might not be thread safe, so taking the safe approach
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
+
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

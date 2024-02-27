@@ -23,6 +23,7 @@
 
 UPCGSpatialNoiseSettings::UPCGSpatialNoiseSettings()
 {
+	bUseSeed = true;
 	ValueTarget.SetPointProperty(EPCGPointProperties::Density);
 }
 

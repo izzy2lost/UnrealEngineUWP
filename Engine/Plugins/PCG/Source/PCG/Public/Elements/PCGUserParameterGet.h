@@ -55,6 +55,8 @@ protected:
 class PCG_API FPCGUserParameterGetElement : public IPCGElement
 {
 public:
+	// Graph parameters access is not thread safe
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 
 protected:
