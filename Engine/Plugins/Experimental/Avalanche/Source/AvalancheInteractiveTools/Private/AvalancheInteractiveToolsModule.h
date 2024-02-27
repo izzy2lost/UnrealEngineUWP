@@ -8,7 +8,7 @@ class FUICommandInfo;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogAvaInteractiveTools, Log, All);
 
-class FAvalancheInteractiveToolsModule : public IAvalancheInteractiveToolsModule
+class FAvalancheInteractiveToolsModule : public IAvalancheInteractiveToolsModule, public FGCObject
 {
 public:
 	static FAvalancheInteractiveToolsModule& Get()
@@ -36,6 +36,11 @@ public:
 	virtual const TArray<FAvaInteractiveToolsToolParameters>* GetTools(FName InCategory) override;
 	virtual bool HasActiveTool() const override;
 	//~ End IAvalancheInteractiveToolsModule
+
+	// ~Begin FGCObject Interface
+	virtual void AddReferencedObjects(FReferenceCollector& InCollector) override;
+	virtual FString GetReferencerName() const override;
+	// ~End FGCObject Interface
 
 	void OnToolActivated();
 	void OnToolDeactivated();

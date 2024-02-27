@@ -132,6 +132,26 @@ bool FAvalancheInteractiveToolsModule::HasActiveTool() const
 	return bHasActiveTool;
 }
 
+void FAvalancheInteractiveToolsModule::AddReferencedObjects(FReferenceCollector& InCollector)
+{
+	for (TPair<FName, TArray<FAvaInteractiveToolsToolParameters>>& CategoryPair : Tools)
+	{
+		for (FAvaInteractiveToolsToolParameters& ToolParams : CategoryPair.Value)
+		{
+			if (ToolParams.Factory)
+			{
+				InCollector.AddReferencedObject<UActorFactory>(ToolParams.Factory);
+			}
+		}
+	}
+}
+
+FString FAvalancheInteractiveToolsModule::GetReferencerName() const
+{
+	static const FString ReferencerName = "AvaITFModule";
+	return ReferencerName;
+}
+
 void FAvalancheInteractiveToolsModule::OnToolActivated()
 {
 	bHasActiveTool = true;
@@ -239,7 +259,7 @@ void FAvalancheInteractiveToolsModule::OnPlacementCategoryRefreshed(FName InCate
 		if (Tool.Factory)
 		{
 			PlaceableItem = MakeShared<FPlaceableItem>(
-				Tool.Factory,
+				Tool.Factory.Get(),
 				FAssetData(Tool.Factory->NewActorClass->GetDefaultObject()),
 				Tool.Priority
 			);
