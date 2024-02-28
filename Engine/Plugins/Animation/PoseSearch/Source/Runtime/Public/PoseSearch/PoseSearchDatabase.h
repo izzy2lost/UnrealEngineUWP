@@ -364,11 +364,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Performance", meta = (DisplayName = "KNNQueryNumNeighborsWithDuplicates", EditCondition = "PoseSearchMode == EPoseSearchMode::PCAKDTree && PCAValuesPruningSimilarityThreshold > 0", EditConditionHides, ClampMin = "0", ClampMax = "600", UIMin = "1"))
 	int32 KDTreeQueryNumNeighborsWithDuplicates = 0;
 	
-	// pruning block transition poses from the PCA values (the KDTree will be smaller and faster). This will force pose filtering to be done after tree search,
-	// and in case all the KNNQueryNumNeighbors requested poses get filtered out, the search could end up with no valid results
-	UPROPERTY(EditAnywhere, Category = "Performance", meta = (EditCondition = "PoseSearchMode == EPoseSearchMode::PCAKDTree", EditConditionHides))
-	bool bPCAValuesPruningFromBlockTransitionPoses = false;
-
 private:
 	// Do not use it directly. Use GetSearchIndex / SetSearchIndex interact with it and validate that is ok to do so.
 	UE::PoseSearch::FSearchIndex SearchIndexPrivate;
