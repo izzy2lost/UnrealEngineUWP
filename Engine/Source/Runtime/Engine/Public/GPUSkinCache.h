@@ -129,6 +129,7 @@ public:
 	ENGINE_API ~FGPUSkinCache();
 
 	static void UpdateSkinWeightBuffer(FGPUSkinCacheEntry* Entry);
+	static void SetEntryGPUSkin(FGPUSkinCacheEntry* Entry, FSkeletalMeshObjectGPUSkin* Skin);
 
 	bool ProcessEntry(
 		EGPUSkinCacheEntryMode Mode,

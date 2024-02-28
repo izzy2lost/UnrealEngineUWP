@@ -1701,12 +1701,6 @@ bool FGPUSkinCache::ProcessEntry(
 
 	if (InOutEntry)
 	{
-		// If re-creating, the FSkeletalMeshObjectGPUSkin will have changed, update it here so the "IsValid" call below succeeds
-		if (bRecreating)
-		{
-			InOutEntry->GPUSkin = Skin;
-		}
-
 		// If the LOD changed, the entry has to be invalidated
 		if (!InOutEntry->IsValid(Skin, LODIndex))
 		{
@@ -2285,6 +2279,14 @@ void FGPUSkinCache::UpdateSkinWeightBuffer(FGPUSkinCacheEntry* Entry)
 	if (Entry)
 	{
 		Entry->UpdateSkinWeightBuffer();
+	}
+}
+
+void FGPUSkinCache::SetEntryGPUSkin(FGPUSkinCacheEntry* Entry, FSkeletalMeshObjectGPUSkin* Skin)
+{
+	if (Entry)
+	{
+		Entry->GPUSkin = Skin;
 	}
 }
 
