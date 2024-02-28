@@ -1,15 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using Google.Protobuf;
-using Google.Protobuf.WellKnownTypes;
-using HordeCommon;
-using EpicGames.Horde.Streams;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Logs;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Logs;
+using EpicGames.Horde.Streams;
+using Google.Protobuf;
+using Google.Protobuf.WellKnownTypes;
 
 namespace Horde.Server.Agents.Leases
 {

@@ -2,13 +2,11 @@
 
 using System;
 using System.Collections.Generic;
-using HordeCommon;
 using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Logs;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Logs;
 
-namespace Horde.Server.Agents
+namespace EpicGames.Horde.Agents
 {
 	/// <summary>
 	/// Parameters to update an agent

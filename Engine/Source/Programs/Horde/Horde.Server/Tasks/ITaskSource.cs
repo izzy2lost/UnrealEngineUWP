@@ -9,13 +9,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Leases;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
-using HordeCommon;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Tasks
 {
@@ -123,7 +122,7 @@ namespace Horde.Server.Tasks
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		ValueTask GetLeaseDetailsAsync(Any payload, Dictionary<string, string> details, CancellationToken cancellationToken);
 	}
-	
+
 	/// <summary>
 	/// Base implementation of <see cref="ITaskSource"/>
 	/// </summary>
@@ -233,36 +232,36 @@ namespace Horde.Server.Tasks
 			return default;
 		}
 
-        /// <summary>
-        /// Creates a lease task which will wait until the given cancellation token is signalled.
-        /// </summary>
-        /// <param name="token">The cancellation token</param>
-        /// <returns>Lease task</returns>
-        protected static Task<AgentLease?> SkipAsync(CancellationToken token)
-        {
+		/// <summary>
+		/// Creates a lease task which will wait until the given cancellation token is signalled.
+		/// </summary>
+		/// <param name="token">The cancellation token</param>
+		/// <returns>Lease task</returns>
+		protected static Task<AgentLease?> SkipAsync(CancellationToken token)
+		{
 			_ = token;
-            return Task.FromResult<AgentLease?>(null);
-        }
+			return Task.FromResult<AgentLease?>(null);
+		}
 
-        /// <summary>
-        /// Waits until the cancellation token is signalled, then return an cancelled lease task.
-        /// </summary>
-        /// <param name="token">The cancellation token</param>
-        /// <returns>Lease task</returns>
-        protected static async Task<Task<AgentLease?>> DrainAsync(CancellationToken token)
-        {
-            await token.AsTask();
-            return Task.FromResult<AgentLease?>(null);
-        }
+		/// <summary>
+		/// Waits until the cancellation token is signalled, then return an cancelled lease task.
+		/// </summary>
+		/// <param name="token">The cancellation token</param>
+		/// <returns>Lease task</returns>
+		protected static async Task<Task<AgentLease?>> DrainAsync(CancellationToken token)
+		{
+			await token.AsTask();
+			return Task.FromResult<AgentLease?>(null);
+		}
 
-        /// <summary>
-        /// Creates a lease task from a given lease
-        /// </summary>
-        /// <param name="lease">Lease to create the task from</param>
-        /// <returns></returns>
-        protected static Task<AgentLease?> LeaseAsync(AgentLease lease)
-        {
-            return Task.FromResult<AgentLease?>(lease);
-        }
-    }
+		/// <summary>
+		/// Creates a lease task from a given lease
+		/// </summary>
+		/// <param name="lease">Lease to create the task from</param>
+		/// <returns></returns>
+		protected static Task<AgentLease?> LeaseAsync(AgentLease lease)
+		{
+			return Task.FromResult<AgentLease?>(lease);
+		}
+	}
 }

@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using Horde.Server.Agents;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Server
 {

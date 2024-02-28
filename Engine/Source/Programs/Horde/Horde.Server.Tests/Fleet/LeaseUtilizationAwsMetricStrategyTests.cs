@@ -5,6 +5,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Amazon.CloudWatch.Model;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Streams;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
@@ -12,13 +15,9 @@ using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Utilities;
-using HordeCommon;
 using HordeCommon.Rpc.Tasks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Streams;
 using Microsoft.Extensions.Logging.Abstractions;
-using EpicGames.Horde.Agents.Pools;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Fleet
 {
@@ -26,7 +25,7 @@ namespace Horde.Server.Tests.Fleet
 	public class LeaseUtilizationAwsMetricStrategyTest : TestSetup
 	{
 		private readonly IPool _pool;
-		private readonly LeaseUtilizationAwsMetricSettings _settings = new (60, "myNamespace");
+		private readonly LeaseUtilizationAwsMetricSettings _settings = new(60, "myNamespace");
 		private readonly FakeAmazonCloudWatch _cloudWatch = new();
 		private readonly LeaseUtilizationAwsMetricStrategy _strategy;
 		private readonly NullLogger<LeaseUtilizationAwsMetricStrategy> _logger = NullLogger<LeaseUtilizationAwsMetricStrategy>.Instance;
@@ -34,12 +33,12 @@ namespace Horde.Server.Tests.Fleet
 		public LeaseUtilizationAwsMetricStrategyTest()
 		{
 			_pool = CreatePoolAsync(new() { Name = "my-pool", EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 }).Result;
-			_strategy = new (LeaseCollection, _cloudWatch.Get(), _settings, Clock, _logger);
+			_strategy = new(LeaseCollection, _cloudWatch.Get(), _settings, Clock, _logger);
 		}
 
 		private async Task<List<IAgent>> CreateAgentsAsync(IPool pool, int numAgents)
 		{
-			List<IAgent> agents = new (numAgents);
+			List<IAgent> agents = new(numAgents);
 			for (int i = 0; i < numAgents; i++)
 			{
 				agents.Add(await CreateAgentAsync(pool));
@@ -47,7 +46,7 @@ namespace Horde.Server.Tests.Fleet
 
 			return agents;
 		}
-		
+
 		[TestMethod]
 		public async Task MetadataAsync()
 		{
@@ -65,7 +64,7 @@ namespace Horde.Server.Tests.Fleet
 			Assert.AreEqual("Pool", datums[0].Dimensions[0].Name);
 			Assert.AreEqual("my-pool", datums[0].Dimensions[0].Value);
 		}
-		
+
 		[TestMethod]
 		public async Task UtilizationZeroAsync()
 		{
@@ -78,7 +77,7 @@ namespace Horde.Server.Tests.Fleet
 			// Assert
 			Assert.AreEqual(0.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
-		
+
 		[TestMethod]
 		public async Task NoAgentsAsync()
 		{
@@ -91,7 +90,7 @@ namespace Horde.Server.Tests.Fleet
 			// Assert
 			Assert.AreEqual(0.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
-		
+
 		[TestMethod]
 		public async Task UtilizationHalfAsync()
 		{
@@ -106,7 +105,7 @@ namespace Horde.Server.Tests.Fleet
 			// Assert
 			Assert.AreEqual(50.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
-		
+
 		[TestMethod]
 		public async Task UtilizationFullAsync()
 		{
@@ -123,7 +122,7 @@ namespace Horde.Server.Tests.Fleet
 			// Assert
 			Assert.AreEqual(100.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
-		
+
 		[TestMethod]
 		public async Task AgentMissingInParametersAsync()
 		{
@@ -141,7 +140,7 @@ namespace Horde.Server.Tests.Fleet
 			// Assert
 			Assert.AreEqual(100.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
-		
+
 		[TestMethod]
 		public async Task IgnoreOtherPoolsAsync()
 		{
@@ -160,7 +159,7 @@ namespace Horde.Server.Tests.Fleet
 			// Assert
 			Assert.AreEqual(50.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
-		
+
 		[TestMethod]
 		public async Task MoreLeasesThanAgentsAsync()
 		{
@@ -180,7 +179,7 @@ namespace Horde.Server.Tests.Fleet
 			// Assert
 			Assert.AreEqual(100.0, _cloudWatch.GetMetricData("myNamespace")[0].Value, 0.0001);
 		}
-		
+
 		[TestMethod]
 		public async Task LeasesInProgressAsync()
 		{
@@ -207,7 +206,7 @@ namespace Horde.Server.Tests.Fleet
 			ExecuteJob,
 			Compute
 		}
-		
+
 		private async Task<ILease> AddPlaceholderLeaseAsync(IAgent agent, IPool pool, DateTime startTime, TimeSpan? duration, LeaseType leaseType = LeaseType.ExecuteJob)
 		{
 			Assert.IsNotNull(agent.SessionId);
@@ -217,7 +216,7 @@ namespace Horde.Server.Tests.Fleet
 			executeJobTask.JobName = "placeholderJobName";
 			payload = Any.Pack(executeJobTask).ToByteArray();
 			PoolId? poolId = pool.Id;
-			
+
 			if (leaseType == LeaseType.Compute)
 			{
 				ComputeTask computeTask = new();
@@ -226,14 +225,14 @@ namespace Horde.Server.Tests.Fleet
 				payload = Any.Pack(computeTask).ToByteArray();
 				poolId = null;
 			}
-			
+
 			ILease lease = await LeaseCollection.AddAsync(new LeaseId(BinaryIdUtils.CreateNew()), null, "placeholderLease", agent.Id, agent.SessionId!.Value, new StreamId("placeholderStream"), poolId, null, startTime, payload);
 			if (duration != null)
 			{
 				bool wasModified = await LeaseCollection.TrySetOutcomeAsync(lease.Id, startTime + duration.Value, LeaseOutcome.Success, null);
-				Assert.IsTrue(wasModified);	
+				Assert.IsTrue(wasModified);
 			}
-			
+
 			return lease;
 		}
 	}

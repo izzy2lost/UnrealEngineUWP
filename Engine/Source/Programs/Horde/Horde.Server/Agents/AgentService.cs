@@ -25,6 +25,7 @@ using Horde.Server.Server;
 using Horde.Server.Tasks;
 using Horde.Server.Utilities;
 using HordeCommon;
+using HordeCommon.Rpc;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
@@ -726,7 +727,7 @@ namespace Horde.Server.Agents
 					if (lease.State == LeaseState.Cancelled)
 					{
 						HordeCommon.Rpc.Messages.Lease? newLease;
-						if (!leaseIdToNewState.TryGetValue(lease.Id, out newLease) || newLease.State == LeaseState.Cancelled || newLease.State == LeaseState.Completed)
+						if (!leaseIdToNewState.TryGetValue(lease.Id, out newLease) || newLease.State == RpcLeaseState.Cancelled || newLease.State == RpcLeaseState.Completed)
 						{
 							await RemoveLeaseAsync(agent, lease, utcNow, LeaseOutcome.Cancelled, null, cancellationToken);
 							leases.RemoveAt(idx--);
@@ -736,14 +737,14 @@ namespace Horde.Server.Agents
 					else
 					{
 						HordeCommon.Rpc.Messages.Lease? newLease;
-						if (leaseIdToNewState.TryGetValue(lease.Id, out newLease) && newLease.State != lease.State)
+						if (leaseIdToNewState.TryGetValue(lease.Id, out newLease) && (LeaseState)newLease.State != lease.State)
 						{
-							if (newLease.State == LeaseState.Cancelled || newLease.State == LeaseState.Completed)
+							if (newLease.State == RpcLeaseState.Cancelled || newLease.State == RpcLeaseState.Completed)
 							{
-								await RemoveLeaseAsync(agent, lease, utcNow, newLease.Outcome, newLease.Output.ToByteArray(), cancellationToken);
+								await RemoveLeaseAsync(agent, lease, utcNow, (LeaseOutcome)newLease.Outcome, newLease.Output.ToByteArray(), cancellationToken);
 								leases.RemoveAt(idx--);
 							}
-							else if (newLease.State == LeaseState.Active && lease.State == LeaseState.Pending)
+							else if (newLease.State == RpcLeaseState.Active && lease.State == LeaseState.Pending)
 							{
 								lease.State = LeaseState.Active;
 							}

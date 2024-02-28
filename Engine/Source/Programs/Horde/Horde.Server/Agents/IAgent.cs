@@ -23,6 +23,7 @@ using Horde.Server.Perforce;
 using Horde.Server.Server;
 using Horde.Server.Streams;
 using HordeCommon;
+using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using MongoDB.Bson;
@@ -407,7 +408,7 @@ namespace Horde.Server.Agents
 			HordeCommon.Rpc.Messages.Lease lease = new HordeCommon.Rpc.Messages.Lease();
 			lease.Id = Id.ToString();
 			lease.Payload = Google.Protobuf.WellKnownTypes.Any.Parser.ParseFrom(Payload); 
-			lease.State = State;
+			lease.State = (RpcLeaseState)State;
 			return lease;
 		}
 	}
