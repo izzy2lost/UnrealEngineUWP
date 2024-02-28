@@ -66,9 +66,19 @@ namespace Audio
 	{
 		if (bEnabled)
 		{
-			for (int32 SampleIndex = 0; SampleIndex < InNumSamples; SampleIndex += NumChannels)
+			if (NumChannels == 1)
 			{
-				ProcessAudioFrame(&InBuffer[SampleIndex], &OutBuffer[SampleIndex]);
+				for (int32 SampleIndex = 0; SampleIndex < InNumSamples; ++SampleIndex)
+				{
+					OutBuffer[SampleIndex] = Biquad->ProcessAudio(InBuffer[SampleIndex]);
+				}
+			}
+			else
+			{
+				for (int32 SampleIndex = 0; SampleIndex < InNumSamples; SampleIndex += NumChannels)
+				{
+					ProcessAudioFrame(&InBuffer[SampleIndex], &OutBuffer[SampleIndex]);
+				}
 			}
 		}
 	}
