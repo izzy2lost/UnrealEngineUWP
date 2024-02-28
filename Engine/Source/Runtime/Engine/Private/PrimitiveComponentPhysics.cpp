@@ -556,6 +556,23 @@ float UPrimitiveComponent::GetMass() const
 		WarnInvalidPhysicsOperations(LOCTEXT("GetMass", "GetMass"), BI, NAME_None);
 		return BI->GetBodyMass();
 	}
+	else
+	{
+		TArray<Chaos::FPhysicsObject*> PhysicsObjects = GetAllPhysicsObjects();
+		if (!PhysicsObjects.IsEmpty())
+		{
+			FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite(PhysicsObjects);
+
+			// Filter out inactive particles (E.g., inactive children in a geometry collection)
+			PhysicsObjects = PhysicsObjects.FilterByPredicate(
+				[&Interface](Chaos::FPhysicsObject* Object) 
+				{
+					return !Interface->AreAllDisabled({ &Object, 1 });
+				});
+
+			return Interface->GetMass(PhysicsObjects);
+		}
+	}
 
 	return 0.0f;
 }
