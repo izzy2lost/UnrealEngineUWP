@@ -70,6 +70,7 @@ namespace UE::Interchange::Private
 		MeshImportData->bImportMeshLODs = GenericAssetPipeline->CommonMeshesProperties->bImportLods;
 		MeshImportData->bReorderMaterialToFbxOrder = true;
 		MeshImportData->bTransformVertexToAbsolute = GenericAssetPipeline->CommonMeshesProperties->bBakeMeshes;
+		MeshImportData->bBakePivotInVertex = GenericAssetPipeline->CommonMeshesProperties->bBakePivotMeshes;
 
 		if (GenericAssetPipeline->CommonMeshesProperties->bUseMikkTSpace)
 		{
@@ -107,6 +108,7 @@ namespace UE::Interchange::Private
 		GenericAssetPipeline->CommonMeshesProperties->bComputeWeightedNormals = LegacyMeshImportData->bComputeWeightedNormals;
 		GenericAssetPipeline->CommonMeshesProperties->bImportLods = LegacyMeshImportData->bImportMeshLODs;
 		GenericAssetPipeline->CommonMeshesProperties->bBakeMeshes = LegacyMeshImportData->bTransformVertexToAbsolute;
+		GenericAssetPipeline->CommonMeshesProperties->bBakePivotMeshes = LegacyMeshImportData->bBakePivotInVertex;
 
 		if (LegacyMeshImportData->NormalGenerationMethod == EFBXNormalGenerationMethod::MikkTSpace)
 		{

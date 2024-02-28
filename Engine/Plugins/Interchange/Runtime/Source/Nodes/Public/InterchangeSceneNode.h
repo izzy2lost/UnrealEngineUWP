@@ -124,6 +124,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Scene")
 	bool SetCustomGeometricTransform(const FTransform& AttributeValue);
 
+	/** Get the node pivot geometric offset. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Scene")
+	bool GetCustomPivotNodeTransform(FTransform& AttributeValue) const;
+
+	/** Set the node pivot geometric offset. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Scene")
+	bool SetCustomPivotNodeTransform(const FTransform& AttributeValue);
+
 	/***********************************************************************************************
 	* Skeleton bind bone API Begin
 	* 
@@ -233,6 +241,9 @@ private:
 	
 	//A scene node can have a transform apply to the mesh it reference.
 	const UE::Interchange::FAttributeKey Macro_CustomGeometricTransformKey = UE::Interchange::FAttributeKey(TEXT("GeometricTransform"));
+
+	//A scene node can have a pivot transform apply to the mesh it reference (use this pivot only if you are not baking the vertices of the mesh).
+	const UE::Interchange::FAttributeKey Macro_CustomPivotNodeTransformKey = UE::Interchange::FAttributeKey(TEXT("PivotNodeTransform"));
 
 	//A scene node can reference an asset. Asset can be Mesh, Light, camera...
 	const UE::Interchange::FAttributeKey Macro_CustomAssetInstanceUidKey = UE::Interchange::FAttributeKey(TEXT("AssetInstanceUid"));

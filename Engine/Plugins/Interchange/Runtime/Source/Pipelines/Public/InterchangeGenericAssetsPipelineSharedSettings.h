@@ -72,6 +72,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes")
 	bool bBakeMeshes = true;
 	
+	/** If enabled, the inverse node rotation pivot will be apply to the mesh vertices. The pivot from the DCC will then be the origin of the mesh.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes", meta = (editcondition = "!bBakeMeshes"))
+	bool bBakePivotMeshes = false;
+	
 	/** If checked, sections with matching materials are kept separate and will not get combined. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes")
 	bool bKeepSectionsSeparate = false;
@@ -123,10 +127,6 @@ public:
 			return true;
 		}
 		if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, bAutoDetectMeshType))
-		{
-			return true;
-		}
-		if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, bBakeMeshes))
 		{
 			return true;
 		}

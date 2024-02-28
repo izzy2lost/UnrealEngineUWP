@@ -1121,8 +1121,8 @@ void UInterchangeGenericAssetsPipeline::ExecutePipeline(UInterchangeBaseNodeCont
 		UInterchangeCommonPipelineDataFactoryNode* CommonPipelineDataFactoryNode = UInterchangeCommonPipelineDataFactoryNode::FindOrCreateUniqueInstance(InBaseNodeContainer);
 		CommonPipelineDataFactoryNode->SetCustomGlobalOffsetTransform(InBaseNodeContainer, ImportOffsetTransform);
 
-		// In case all mesh types are forced to Static/Skeletal we bake the scene instance hierarchy transforms
-		CommonPipelineDataFactoryNode->SetBakeMeshes(InBaseNodeContainer, CommonMeshesProperties->ForceAllMeshAsType != EInterchangeForceMeshType::IFMT_None || CommonMeshesProperties->bBakeMeshes);
+		CommonPipelineDataFactoryNode->SetBakeMeshes(CommonMeshesProperties->bBakeMeshes);
+		CommonPipelineDataFactoryNode->SetBakePivotMeshes(CommonMeshesProperties->bBakePivotMeshes);
 	}
 
 	if (MaterialPipeline)

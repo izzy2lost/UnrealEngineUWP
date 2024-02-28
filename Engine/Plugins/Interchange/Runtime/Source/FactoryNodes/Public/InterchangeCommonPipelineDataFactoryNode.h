@@ -36,11 +36,20 @@ public:
 
 	/** Pipelines can set this Bake Meshes setting. Factories use this to identify whether they should apply global transforms to static meshes and skeletal meshes. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Common Pipeline Data")
-	bool SetBakeMeshes(const UInterchangeBaseNodeContainer* NodeContainer, const bool& AttributeValue);
+	bool SetBakeMeshes(const bool& AttributeValue);
+
+	/** Return the value of the Bake Meshes setting set by the pipelines. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Common Pipeline Data")
+	bool GetBakePivotMeshes(bool& AttributeValue) const;
+
+	/** Pipelines can set this Bake Meshes setting. Factories use this to identify whether they should apply global transforms to static meshes and skeletal meshes. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Common Pipeline Data")
+	bool SetBakePivotMeshes(const bool& AttributeValue);
 
 private:
 	UInterchangeCommonPipelineDataFactoryNode() {};
 
 	const UE::Interchange::FAttributeKey Macro_CustomGlobalOffsetTransformKey = UE::Interchange::FAttributeKey(TEXT("GlobalOffsetTransform"));
 	const UE::Interchange::FAttributeKey Macro_CustomBakeMeshesKey = UE::Interchange::FAttributeKey(TEXT("BakeMeshes"));
+	const UE::Interchange::FAttributeKey Macro_CustomBakePivotMeshesKey = UE::Interchange::FAttributeKey(TEXT("BakePivotMeshes"));
 };

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved. 
 #include "Mesh/InterchangeMeshHelper.h"
 
+#include "InterchangeSceneNode.h"
 #include "MeshDescription.h"
 #include "StaticMeshOperations.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
@@ -42,4 +43,28 @@ namespace UE::Interchange::Private::MeshHelper
 			RemapPolygonGroup.Add(SourcePolygonGroupID, TargetMatchingID);
 		}
 	}
+
+	void AddSceneNodeGeometricAndPivotToGlobalTransform(FTransform& GlobalTransform, const UInterchangeSceneNode* SceneNode, const bool bBakeMeshes, const bool bBakePivotMeshes)
+	{
+		FTransform SceneNodeGeometricTransform;
+		SceneNode->GetCustomGeometricTransform(SceneNodeGeometricTransform);
+
+		if (!bBakeMeshes)
+		{
+			if (bBakePivotMeshes)
+			{
+				FTransform SceneNodePivotNodeTransform;
+				if (SceneNode->GetCustomPivotNodeTransform(SceneNodePivotNodeTransform))
+				{
+					SceneNodeGeometricTransform = SceneNodePivotNodeTransform * SceneNodeGeometricTransform;
+				}
+			}
+			else
+			{
+				SceneNodeGeometricTransform.SetIdentity();
+			}
+		}
+		GlobalTransform = bBakeMeshes ? SceneNodeGeometricTransform * GlobalTransform : SceneNodeGeometricTransform;
+	}
+
 } //ns UE::Interchange::Private::MeshHelper

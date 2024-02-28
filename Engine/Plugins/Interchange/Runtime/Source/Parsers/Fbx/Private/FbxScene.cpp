@@ -29,8 +29,7 @@ namespace UE
 	{
 		namespace Private
 		{
-
-			void FFbxScene::CreateMeshNodeReference(UInterchangeSceneNode* UnrealSceneNode, FbxNodeAttribute* NodeAttribute, UInterchangeBaseNodeContainer& NodeContainer, const FTransform& GeometricTransform)
+			void FFbxScene::CreateMeshNodeReference(UInterchangeSceneNode* UnrealSceneNode, FbxNodeAttribute* NodeAttribute, UInterchangeBaseNodeContainer& NodeContainer, const FTransform& GeometricTransform, const FTransform& PivotNodeTransform)
 			{
 				const UInterchangeMeshNode* MeshNode = nullptr;
 				if (NodeAttribute->GetAttributeType() == FbxNodeAttribute::eMesh)
@@ -54,6 +53,11 @@ namespace UE
 					if (!GeometricTransform.Equals(FTransform::Identity))
 					{
 						UnrealSceneNode->SetCustomGeometricTransform(GeometricTransform);
+					}
+
+					if (!PivotNodeTransform.Equals(FTransform::Identity))
+					{
+						UnrealSceneNode->SetCustomPivotNodeTransform(PivotNodeTransform);
 					}
 
 					// @todo: Nothing is using the SceneInstanceUid in the MeshNode. Do we even need to support it?
@@ -304,6 +308,7 @@ namespace UE
 							//For Mesh attribute we add the fbx nodes materials
 							FFbxMaterial FbxMaterial(Parser);
 							FbxMaterial.AddAllNodeMaterials(UnrealNode, Node, NodeContainer);
+							
 							//Get the Geometric offset transform and set it in the mesh node
 							//The geometric offset is not part of the hierarchy transform, it is not inherited
 							FbxAMatrix Geometry;
@@ -315,7 +320,18 @@ namespace UE
 							Geometry.SetR(Rotation);
 							Geometry.SetS(Scaling);
 							FTransform GeometricTransform = GetConvertedTransform(Geometry);
-							CreateMeshNodeReference(UnrealNode, NodeAttribute, NodeContainer, GeometricTransform);
+
+							//Get the pivot geometry offset 
+							FbxAMatrix PivotGeometry;
+							FbxVector4 RotationPivot = Node->GetRotationPivot(FbxNode::eSourcePivot);
+							FbxVector4 FullPivot;
+							FullPivot[0] = -RotationPivot[0];
+							FullPivot[1] = -RotationPivot[1];
+							FullPivot[2] = -RotationPivot[2];
+							PivotGeometry.SetT(FullPivot);
+							FTransform PivotNodeTransform = GetConvertedTransform(PivotGeometry);
+
+							CreateMeshNodeReference(UnrealNode, NodeAttribute, NodeContainer, GeometricTransform, PivotNodeTransform);
 							break;
 						}
 						case FbxNodeAttribute::eLODGroup:

@@ -60,7 +60,17 @@ bool UInterchangeCommonPipelineDataFactoryNode::GetBakeMeshes(bool& AttributeVal
 	IMPLEMENT_NODE_ATTRIBUTE_GETTER(BakeMeshes, bool);
 }
 
-bool UInterchangeCommonPipelineDataFactoryNode::SetBakeMeshes(const UInterchangeBaseNodeContainer* NodeContainer, const bool& AttributeValue)
+bool UInterchangeCommonPipelineDataFactoryNode::SetBakeMeshes(const bool& AttributeValue)
 {
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(BakeMeshes, bool);
+}
+
+bool UInterchangeCommonPipelineDataFactoryNode::GetBakePivotMeshes(bool& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(BakePivotMeshes, bool);
+}
+
+bool UInterchangeCommonPipelineDataFactoryNode::SetBakePivotMeshes(const bool& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(BakePivotMeshes, bool);
 }

@@ -864,10 +864,15 @@ TArray<UInterchangeStaticMeshFactory::FMeshPayload> UInterchangeStaticMeshFactor
 
 	FTransform GlobalOffsetTransform = FTransform::Identity;
 	bool bBakeMeshes = false;
+	bool bBakePivotMeshes = false;
 	if (UInterchangeCommonPipelineDataFactoryNode* CommonPipelineDataFactoryNode = UInterchangeCommonPipelineDataFactoryNode::GetUniqueInstance(Arguments.NodeContainer))
 	{
 		CommonPipelineDataFactoryNode->GetCustomGlobalOffsetTransform(GlobalOffsetTransform);
 		CommonPipelineDataFactoryNode->GetBakeMeshes(bBakeMeshes);
+		if (!bBakeMeshes)
+		{
+			CommonPipelineDataFactoryNode->GetBakePivotMeshes(bBakePivotMeshes);
+		}
 	}
 
 	for (const FString& MeshUid : MeshUids)
@@ -895,6 +900,8 @@ TArray<UInterchangeStaticMeshFactory::FMeshPayload> UInterchangeStaticMeshFactor
 					Payload.Transform = SceneNodeGlobalTransform;
 				}
 			}
+
+			UE::Interchange::Private::MeshHelper::AddSceneNodeGeometricAndPivotToGlobalTransform(Payload.Transform, SceneNode, bBakeMeshes, bBakePivotMeshes);
 
 			// And get the mesh node which it references
 			FString MeshDependencyUid;
@@ -1768,11 +1775,17 @@ bool UInterchangeStaticMeshFactory::ImportSockets(const FImportAssetObjectParams
 	TSet<FName> ImportedSocketNames;
 
 	FTransform GlobalOffsetTransform = FTransform::Identity;
+
 	bool bBakeMeshes = false;
+	bool bBakePivotMeshes = false;
 	if (UInterchangeCommonPipelineDataFactoryNode* CommonPipelineDataFactoryNode = UInterchangeCommonPipelineDataFactoryNode::GetUniqueInstance(Arguments.NodeContainer))
 	{
 		CommonPipelineDataFactoryNode->GetCustomGlobalOffsetTransform(GlobalOffsetTransform);
 		CommonPipelineDataFactoryNode->GetBakeMeshes(bBakeMeshes);
+		if (!bBakeMeshes)
+		{
+			CommonPipelineDataFactoryNode->GetBakePivotMeshes(bBakePivotMeshes);
+		}
 	}
 
 	for (const FString& SocketUid : SocketUids)
@@ -1792,6 +1805,8 @@ bool UInterchangeStaticMeshFactory::ImportSockets(const FImportAssetObjectParams
 			{
 				SceneNode->GetCustomGlobalTransform(Arguments.NodeContainer, GlobalOffsetTransform, Transform);
 			}
+
+			UE::Interchange::Private::MeshHelper::AddSceneNodeGeometricAndPivotToGlobalTransform(Transform, SceneNode, bBakeMeshes, bBakePivotMeshes);
 
 			UStaticMeshSocket* Socket = StaticMesh->FindSocket(SocketName);
 			if (!Socket)

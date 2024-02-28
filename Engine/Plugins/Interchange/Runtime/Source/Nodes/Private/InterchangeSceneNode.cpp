@@ -258,6 +258,16 @@ bool UInterchangeSceneNode::SetCustomGeometricTransform(const FTransform& Attrib
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(GeometricTransform, FTransform);
 }
 
+bool UInterchangeSceneNode::GetCustomPivotNodeTransform(FTransform& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(PivotNodeTransform, FTransform);
+}
+
+bool UInterchangeSceneNode::SetCustomPivotNodeTransform(const FTransform& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(PivotNodeTransform, FTransform);
+}
+
 bool UInterchangeSceneNode::GetCustomAssetInstanceUid(FString& AttributeValue) const
 {
 	IMPLEMENT_NODE_ATTRIBUTE_GETTER(AssetInstanceUid, FString);

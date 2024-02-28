@@ -241,7 +241,7 @@ void UInterchangeGenericMeshPipeline::ExecutePreImportPipelineStaticMesh()
 			// Do not combine static meshes
 
 			bool bFoundMeshes = false;
-			if(CommonMeshesProperties->bBakeMeshes)
+			if(CommonMeshesProperties->bBakeMeshes || CommonMeshesProperties->bBakePivotMeshes)
 			{
 				TArray<FString> MeshUids;
 				PipelineMeshesUtilities->GetAllStaticMeshInstance(MeshUids);
