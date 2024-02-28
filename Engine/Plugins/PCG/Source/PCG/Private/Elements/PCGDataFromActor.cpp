@@ -485,13 +485,13 @@ void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* 
 			const FPCGTaskId GenerateTask = Component->GenerateLocalGetTaskId(EPCGComponentGenerationTrigger::GenerateOnDemand, /*bForce=*/false);
 			if (GenerateTask != InvalidPCGTaskId)
 			{
-				PCGGraphExecutionLogging::LogGraphScheduleDependency(Component);
+				PCGGraphExecutionLogging::LogGraphScheduleDependency(Component, Context->Stack);
 
 				OutWaitTasks.Add(GenerateTask);
 			}
 			else
 			{
-				PCGGraphExecutionLogging::LogGraphScheduleDependencyFailed(Component);
+				PCGGraphExecutionLogging::LogGraphScheduleDependencyFailed(Component, Context->Stack);
 			}
 		}
 	}

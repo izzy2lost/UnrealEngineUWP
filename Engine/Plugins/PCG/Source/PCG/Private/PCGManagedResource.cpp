@@ -88,7 +88,7 @@ bool UPCGManagedActors::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>&
 
 	if (!Super::Release(bHardRelease, OutActorsToDelete))
 	{
-		PCGGeneratedResourcesLogging::LogManagedActorsSoftRelease(GeneratedActors);
+		PCGGeneratedResourcesLogging::LogManagedActorsRelease(this, GeneratedActors, bHardRelease, /*bOnlyMarkedForCleanup=*/true);
 
 		// Mark actors as potentially-to-be-cleaned-up
 		for (TSoftObjectPtr<AActor> GeneratedActor : GeneratedActors)
@@ -123,7 +123,7 @@ bool UPCGManagedActors::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>&
 		OutActorsToDelete.Append(GeneratedActors);
 	}
 
-	PCGGeneratedResourcesLogging::LogManagedActorsHardRelease(GeneratedActors);
+	PCGGeneratedResourcesLogging::LogManagedActorsRelease(this, GeneratedActors, bHardRelease, /*bOnlyMarkedForCleanup=*/false);
 
 	// Cleanup recursively
 	TInlineComponentArray<UPCGComponent*, 1> ComponentsToCleanup;
@@ -344,6 +344,8 @@ bool UPCGManagedComponent::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor
 #if WITH_EDITOR
 		if (bMarkedTransientOnLoad)
 		{
+			PCGGeneratedResourcesLogging::LogManagedComponentHidden(this);
+
 			HideComponent();
 			bIsMarkedUnused = true;
 		}
@@ -352,11 +354,15 @@ bool UPCGManagedComponent::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor
 		{
 			if (bDeleteComponent)
 			{
+				PCGGeneratedResourcesLogging::LogManagedResourceHardRelease(this);
+
 				GeneratedComponent->DestroyComponent();
 				ForgetComponent();
 			}
 			else
 			{
+				PCGGeneratedResourcesLogging::LogManagedResourceSoftRelease(this);
+
 				// We can only mark it unused if we can reset the component.
 				bIsMarkedUnused = true;
 				GeneratedComponent->ComponentTags.Add(PCGHelpers::MarkedForCleanupPCGTag);
@@ -365,6 +371,8 @@ bool UPCGManagedComponent::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor
 	}
 	else
 	{
+		PCGGeneratedResourcesLogging::LogManagedComponentDeleteNull(this);
+
 		// Dead component reference - clear it out.
 		bDeleteComponent = true;
 	}

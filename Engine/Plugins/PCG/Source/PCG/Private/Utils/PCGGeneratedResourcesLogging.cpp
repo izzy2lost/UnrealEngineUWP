@@ -3,26 +3,27 @@
 #include "PCGGeneratedResourcesLogging.h"
 
 #include "PCGComponent.h"
+#include "PCGGraph.h"
 #include "PCGManagedResource.h"
 #include "PCGModule.h"
 
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
 
-#if WITH_EDITOR
-static TAutoConsoleVariable<bool> CVarGenResourcesLoggingEnable(
-	TEXT("pcg.GeneratedResourcesLogging.Enable"),
-	false,
-	TEXT("Enables fine grained log of generated resources management"));
-
-static TAutoConsoleVariable<int32> CVarGenResourcesLoggingMaxPrintCount(
-	TEXT("pcg.GeneratedResourcesLogging.MaxElementPrintCount"),
-	3,
-	TEXT("Enables fine grained log of generated resources management"));
-#endif
-
 namespace PCGGeneratedResourcesLogging
 {
+#if WITH_EDITOR
+	static TAutoConsoleVariable<bool> CVarGenResourcesLoggingEnable(
+		TEXT("pcg.ManagedResourcesLogging.Enable"),
+		false,
+		TEXT("Enables fine grained log of generated resources management"));
+
+	static TAutoConsoleVariable<int32> CVarGenResourcesLoggingMaxPrintCount(
+		TEXT("pcg.ManagedResourcesLogging.MaxElementPrintCount"),
+		3,
+		TEXT("Sets how many entries to display for resources that are arrays of objects"));
+#endif
+
 	bool LogEnabled()
 	{
 #if WITH_EDITOR
@@ -32,17 +33,15 @@ namespace PCGGeneratedResourcesLogging
 #endif
 	}
 
-	void LogAddToManagedResources(const UPCGManagedResource* Resource)
-	{
 #if WITH_EDITOR
-		if (!LogEnabled())
+	void LogResource(const UPCGComponent* InComponent, UPCGManagedResource* InResource)
+	{
+		if (const UPCGManagedActors* ManagedActors = Cast<UPCGManagedActors>(InResource))
 		{
-			return;
-		}
-
-		if (const UPCGManagedActors* ManagedActors = Cast<UPCGManagedActors>(Resource))
-		{
-			UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::AddToManagedResources, actor count %d"), ManagedActors->GeneratedActors.Num());
+			UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s]         Managed actors (%d):"),
+				(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+				(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+				ManagedActors->GeneratedActors.Num());
 
 			const int32 MaxPrint = CVarGenResourcesLoggingMaxPrintCount.GetValueOnAnyThread();
 			int32 Count = 0;
@@ -55,40 +54,80 @@ namespace PCGGeneratedResourcesLogging
 
 				if (Actor.Get())
 				{
-					UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- '%s' (%d/%d)"), *Actor->GetFName().ToString(), Count, ManagedActors->GeneratedActors.Num());
+					UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s]                 |- '%s' (%d/%d)"),
+						(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+						(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+						*Actor->GetFName().ToString(),
+						Count, ManagedActors->GeneratedActors.Num());
 				}
 				else
 				{
-					UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- NULL (%d/%d)"), Count, ManagedActors->GeneratedActors.Num());
+					UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s]                 |- NULL (%d/%d)"),
+						(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+						(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+						Count, ManagedActors->GeneratedActors.Num());
 				}
 			}
 		}
-		else if (const UPCGManagedComponent* ManagedComponent = Cast<UPCGManagedComponent>(Resource))
+		else if (const UPCGManagedComponent* ManagedComponent = Cast<UPCGManagedComponent>(InResource))
 		{
 			if (ManagedComponent->GeneratedComponent)
 			{
-				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::AddToManagedResources, managed component on actor '%s'"), *ManagedComponent->GeneratedComponent->GetReadableName());
+				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s]         Managed component: '%s'"),
+					(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+					(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+					*ManagedComponent->GeneratedComponent->GetReadableName());
 			}
 			else
 			{
-				UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::AddToManagedResources, managed component null or no owner"));
+				UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] [%s/%s]         NULL managed component or no owner"),
+					(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+					(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 			}
 		}
 		else
 		{
-			if (Resource)
+			if (InResource)
 			{
-				UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::AddToManagedResources, unidentified managed resource index"));
+				UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] [%s/%s]         Unidentified managed resource"),
+					(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+					(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 			}
 			else
 			{
-				UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::AddToManagedResources, encountered NULL managed resource index"));
+				UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] [%s/%s]         NULL unidentified resource"),
+					(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+					(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 			}
 		}
+	}
+
+	void LogResources(const UPCGComponent* InComponent, const TArray<UPCGManagedResource*>& Resources)
+	{
+		for (UPCGManagedResource* Resource : Resources)
+		{
+			LogResource(InComponent, Resource);
+		}
+	}
+#endif // WITH_EDITOR
+
+	void LogAddToManagedResources(const UPCGComponent* InComponent, UPCGManagedResource* InResource)
+	{
+#if WITH_EDITOR
+		if (!LogEnabled())
+		{
+			return;
+		}
+
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::AddToManagedResources:"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+
+		LogResource(InComponent, InResource);
 #endif
 	}
 
-	void LogCleanupInternal(bool bRemoveComponents)
+	void LogCleanupInternal(const UPCGComponent* InComponent, bool bRemoveComponents)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -97,11 +136,14 @@ namespace PCGGeneratedResourcesLogging
 		}
 
 		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]")); // Blank line
-		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupInternal, bRemoveComponents: %d"), bRemoveComponents);
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::CleanupInternal, bRemoveComponents: %d"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			bRemoveComponents);
 #endif
 	}
 
-	void LogCleanupLocalImmediate(bool bHardRelease, const TArray<UPCGManagedResource*>& GeneratedResources)
+	void LogCleanupLocalImmediate(const UPCGComponent* InComponent, bool bHardRelease, const TArray<UPCGManagedResource*>& GeneratedResources)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -110,11 +152,17 @@ namespace PCGGeneratedResourcesLogging
 		}
 
 		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]")); // Blank line
-		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupLocalImmediate BEGIN, bHardRelease: %d, GeneratedResources.Num() = %d"), bHardRelease, GeneratedResources.Num());
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::CleanupLocalImmediate BEGIN, bHardRelease: %d, GeneratedResources.Num() = %d"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			bHardRelease,
+			GeneratedResources.Num());
+
+		LogResources(InComponent, GeneratedResources);
 #endif
 	}
 
-	void LogCleanupLocalImmediateResource(const UPCGManagedResource* Resource)
+	void LogCleanupLocalImmediateResource(const UPCGComponent* InComponent, UPCGManagedResource* Resource)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -122,55 +170,15 @@ namespace PCGGeneratedResourcesLogging
 			return;
 		}
 
-		if (const UPCGManagedActors* ManagedActors = Cast<UPCGManagedActors>(Resource))
-		{
-			UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupLocalImmediate, actor count %d"), ManagedActors->GeneratedActors.Num());
-
-			const int32 MaxPrint = CVarGenResourcesLoggingMaxPrintCount.GetValueOnAnyThread();
-			int32 Count = 0;
-			for (const TSoftObjectPtr<AActor>& Actor : ManagedActors->GeneratedActors)
-			{
-				if (Count++ >= MaxPrint)
-				{
-					break;
-				}
-
-				if (Actor.Get())
-				{
-					UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- '%s' (%d/%d)"), *Actor->GetFName().ToString(), Count, ManagedActors->GeneratedActors.Num());
-				}
-				else
-				{
-					UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- NULL (%d/%d)"), Count, ManagedActors->GeneratedActors.Num());
-				}
-			}
-		}
-		else if (const UPCGManagedComponent* ManagedComponent = Cast<UPCGManagedComponent>(Resource))
-		{
-			if (ManagedComponent->GeneratedComponent)
-			{
-				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupLocalImmediate, managed component on actor '%s'"), *ManagedComponent->GeneratedComponent->GetReadableName());
-			}
-			else
-			{
-				UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupLocalImmediate, managed component null or no owner"));
-			}
-		}
-		else
-		{
-			if (Resource)
-			{
-				UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupLocalImmediate, unidentified managed resource"));
-			}
-			else
-			{
-				UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupLocalImmediate, encountered NULL managed resource"));
-			}
-		}
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::CleanupLocalImmediate:"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+		
+		LogResource(InComponent, Resource);
 #endif
 	}
 
-	void LogCleanupLocalImmediateFinished(const TArray<UPCGManagedResource*>& GeneratedResources)
+	void LogCleanupLocalImmediateFinished(const UPCGComponent* InComponent, const TArray<UPCGManagedResource*>& GeneratedResources)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -178,11 +186,16 @@ namespace PCGGeneratedResourcesLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupLocalImmediate FINISHED, GeneratedResources.Num() = %d"), GeneratedResources.Num());
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::CleanupLocalImmediate FINISHED, Final GeneratedResources (%d):"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			GeneratedResources.Num());
+
+		LogResources(InComponent, GeneratedResources);
 #endif
 	}
 
-	void LogCreateCleanupTask(bool bRemoveComponents)
+	void LogCreateCleanupTask(const UPCGComponent* InComponent, bool bRemoveComponents)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -190,11 +203,14 @@ namespace PCGGeneratedResourcesLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CreateCleanupTask, bRemoveComponents: %d"), bRemoveComponents);
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::CreateCleanupTask, bRemoveComponents: %d"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			bRemoveComponents);
 #endif
 	}
 
-	void LogCreateCleanupTaskResource(const UPCGManagedResource* Resource/*, TArray<UPCGManagedResource*>& GeneratedResources*/)
+	void LogCreateCleanupTaskResource(const UPCGComponent* InComponent, UPCGManagedResource* Resource)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -202,49 +218,15 @@ namespace PCGGeneratedResourcesLogging
 			return;
 		}
 
-		if (Resource)
-		{
-			if (const UPCGManagedActors* ManagedActors = Cast<UPCGManagedActors>(Resource))
-			{
-				const int32 MaxPrint = CVarGenResourcesLoggingMaxPrintCount.GetValueOnAnyThread();
-				int32 Count = 0;
-				for (const TSoftObjectPtr<AActor>& Actor : ManagedActors->GeneratedActors)
-				{
-					if (Count++ >= MaxPrint)
-					{
-						break;
-					}
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::CreateCleanupTask::CleanupTask:"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 
-					if (Actor.Get())
-					{
-						UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- '%s' (%d/%d)"), *Actor->GetFName().ToString(), Count, ManagedActors->GeneratedActors.Num());
-					}
-					else
-					{
-						UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- NULL (%d/%d)"), Count, ManagedActors->GeneratedActors.Num());
-					}
-				}
-			}
-			else if (const UPCGManagedComponent* ManagedComponent = Cast<UPCGManagedComponent>(Resource))
-			{
-				if (ManagedComponent->GeneratedComponent)
-				{
-					UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CreateCleanupTask::CleanupTask, managed component on actor '%s'"), *ManagedComponent->GeneratedComponent->GetReadableName());
-				}
-				else
-				{
-					UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CreateCleanupTask::CleanupTask, managed component null or no owner"));
-				}
-			}
-			else
-			{
-				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CreateCleanupTask::CleanupTask, unidentified resource or null"));
-			}
-		}
+		LogResource(InComponent, Resource);
 #endif
 	}
 
-	void LogCreateCleanupTaskFinished(const TArray<UPCGManagedResource*>& GeneratedResources)
+	void LogCreateCleanupTaskFinished(const UPCGComponent* InComponent, const TArray<TObjectPtr<UPCGManagedResource>>* InGeneratedResources)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -252,11 +234,14 @@ namespace PCGGeneratedResourcesLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CreateCleanupTask::CleanupTask FINISHED, GeneratedResources.Num() = %d"), GeneratedResources.Num());
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::CreateCleanupTask::CleanupTask FINISHED, GeneratedResources.Num() = %d"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			InGeneratedResources ? InGeneratedResources->Num() : -1);
 #endif
 	}
 
-	void LogCleanupUnusedManagedResources(const TArray<UPCGManagedResource*>& GeneratedResources)
+	void LogCreateCleanupTaskFinished(const TArray<UPCGManagedResource*>* InGeneratedResources)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -264,11 +249,12 @@ namespace PCGGeneratedResourcesLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupUnusedManagedResources BEGIN, GeneratedResources.Num() = %d"), GeneratedResources.Num());
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CreateCleanupTask::CleanupTask FINISHED, GeneratedResources.Num() = %d"),
+			InGeneratedResources ? InGeneratedResources->Num() : -1);
 #endif
 	}
 
-	void LogCleanupUnusedManagedResourcesResource(const UPCGManagedResource* Resource)
+	void LogCleanupUnusedManagedResources(const UPCGComponent* InComponent, const TArray<UPCGManagedResource*>& GeneratedResources)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -276,49 +262,14 @@ namespace PCGGeneratedResourcesLogging
 			return;
 		}
 
-		if (Resource)
-		{
-			if (const UPCGManagedActors* ManagedActors = Cast<UPCGManagedActors>(Resource))
-			{
-				const int32 MaxPrint = CVarGenResourcesLoggingMaxPrintCount.GetValueOnAnyThread();
-				int32 Count = 0;
-				for (const TSoftObjectPtr<AActor>& Actor : ManagedActors->GeneratedActors)
-				{
-					if (Count++ >= MaxPrint)
-					{
-						break;
-					}
-
-					if (Actor.Get())
-					{
-						UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- '%s' (%d/%d)"), *Actor->GetFName().ToString(), Count, ManagedActors->GeneratedActors.Num());
-					}
-					else
-					{
-						UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- NULL (%d/%d)"), Count, ManagedActors->GeneratedActors.Num());
-					}
-				}
-			}
-			else if (const UPCGManagedComponent* ManagedComponent = Cast<UPCGManagedComponent>(Resource))
-			{
-				if (ManagedComponent->GeneratedComponent)
-				{
-					UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupUnusedManagedResources, managed component on actor '%s'"), *ManagedComponent->GeneratedComponent->GetReadableName());
-				}
-				else
-				{
-					UE_LOG(LogPCG, Warning, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupUnusedManagedResources, managed component null or no owner"));
-				}
-			}
-			else
-			{
-				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupUnusedManagedResources, unidentified resource or null"));
-			}
-		}
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::CleanupUnusedManagedResources BEGIN, GeneratedResources.Num() = %d"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			GeneratedResources.Num());
 #endif
 	}
 
-	void LogCleanupUnusedManagedResourcesFinished(const TArray<UPCGManagedResource*>& GeneratedResources)
+	void LogCleanupUnusedManagedResourcesResource(const UPCGComponent* InComponent, UPCGManagedResource* InResource)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -326,11 +277,15 @@ namespace PCGGeneratedResourcesLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::CleanupUnusedManagedResources, FINISHED, GeneratedResources.Num() = %d"), GeneratedResources.Num());
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::CleanupUnusedManagedResources:"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+
+		LogResource(InComponent, InResource);
 #endif
 	}
 
-	void LogManagedActorsSoftRelease(const TSet<TSoftObjectPtr<AActor>>& GeneratedActors)
+	void LogCleanupUnusedManagedResourcesFinished(const UPCGComponent* InComponent, const TArray<UPCGManagedResource*>& GeneratedResources)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -338,30 +293,16 @@ namespace PCGGeneratedResourcesLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGManagedActors::Release, soft release, actor count %d"), GeneratedActors.Num());
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGComponent::CleanupUnusedManagedResources, FINISHED:"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			GeneratedResources.Num());
 
-		const int32 MaxPrint = CVarGenResourcesLoggingMaxPrintCount.GetValueOnAnyThread();
-		int32 Count = 0;
-		for (const TSoftObjectPtr<AActor>& Actor : GeneratedActors)
-		{
-			if (Count++ >= MaxPrint)
-			{
-				break;
-			}
-
-			if (!Actor.Get())
-			{
-				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- NULL (%d/%d)"), Count, GeneratedActors.Num());
-			}
-			else
-			{
-				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- '%s' (%d/%d)"), *Actor->GetFName().ToString(), Count, GeneratedActors.Num());
-			}
-		}
+		LogResources(InComponent, GeneratedResources);
 #endif
 	}
 
-	void LogManagedActorsHardRelease(const TSet<TSoftObjectPtr<AActor>>& ActorsToDelete)
+	void LogManagedResourceSoftRelease(UPCGManagedResource* InResource)
 	{
 #if WITH_EDITOR
 		if (!LogEnabled())
@@ -369,7 +310,52 @@ namespace PCGGeneratedResourcesLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGManagedActors::Release, hard release, actor count %d scheduled for delete"), ActorsToDelete.Num());
+		const UPCGComponent* Component = InResource ? Cast<UPCGComponent>(InResource->GetOuter()) : nullptr;
+
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGManagedResource::Release, SOFT release:"),
+			(Component && Component->GetOwner()) ? *Component->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(Component && Component->GetGraph()) ? *Component->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+
+		LogResource(Component, InResource);
+#endif
+	}
+
+	void LogManagedResourceHardRelease(UPCGManagedResource* InResource)
+	{
+#if WITH_EDITOR
+		if (!LogEnabled())
+		{
+			return;
+		}
+
+		const UPCGComponent* Component = InResource ? Cast<UPCGComponent>(InResource->GetOuter()) : nullptr;
+
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGManagedResource::Release, HARD release:"),
+			(Component && Component->GetOwner()) ? *Component->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(Component && Component->GetGraph()) ? *Component->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+
+		LogResource(Component, InResource);
+#endif
+	}
+
+	void LogManagedActorsRelease(const UPCGManagedResource* InResource, const TSet<TSoftObjectPtr<AActor>>& ActorsToDelete, bool bHardRelease, bool bOnlyMarkedForCleanup)
+	{
+#if WITH_EDITOR
+		if (!LogEnabled())
+		{
+			return;
+		}
+
+		const UPCGComponent* Component = InResource ? Cast<UPCGComponent>(InResource->GetOuter()) : nullptr;
+		const bool bMarkedTransientOnLoad = InResource && InResource->IsMarkedTransientOnLoad();
+
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGManagedActors::Release, %s release, bMarkedTransientOnLoad: %d, bOnlyMarkedForCleanup: %d, actor count %d scheduled for delete"),
+			(Component && Component->GetOwner()) ? *Component->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(Component && Component->GetGraph()) ? *Component->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			bHardRelease ? TEXT("HARD") : TEXT("SOFT"),
+			bMarkedTransientOnLoad,
+			bOnlyMarkedForCleanup,
+			ActorsToDelete.Num());
 
 		const uint32 MaxPrint = 3;
 		uint32 Count = 0;
@@ -382,13 +368,56 @@ namespace PCGGeneratedResourcesLogging
 
 			if (ActorToDelete)
 			{
-				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- '%s' (%d/%d)"), *ActorToDelete->GetFName().ToString(), Count, ActorsToDelete.Num());
+				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s]                 |- '%s' (%d/%d)"),
+					(Component && Component->GetOwner()) ? *Component->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+					(Component && Component->GetGraph()) ? *Component->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+					*ActorToDelete->GetFName().ToString(),
+					Count,
+					ActorsToDelete.Num());
 			}
 			else
 			{
-				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES]         |- NULL (%d/%d)"), Count, ActorsToDelete.Num());
+				UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s]                 |- NULL (%d/%d)"),
+					(Component && Component->GetOwner()) ? *Component->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+					(Component && Component->GetGraph()) ? *Component->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+					Count,
+					ActorsToDelete.Num());
 			}
 		}
+#endif
+	}
+
+	void LogManagedComponentHidden(UPCGManagedComponent* InResource)
+	{
+#if WITH_EDITOR
+		if (!LogEnabled())
+		{
+			return;
+		}
+
+		const UPCGComponent* Component = InResource ? Cast<UPCGComponent>(InResource->GetOuter()) : nullptr;
+
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGManagedComponent::Release, hidden, component:"),
+			(Component && Component->GetOwner()) ? *Component->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(Component && Component->GetGraph()) ? *Component->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+
+		LogResource(Component, InResource);
+#endif
+	}
+
+	void LogManagedComponentDeleteNull(UPCGManagedComponent* InResource)
+	{
+#if WITH_EDITOR
+		if (!LogEnabled())
+		{
+			return;
+		}
+
+		const UPCGComponent* Component = InResource ? Cast<UPCGComponent>(InResource->GetOuter()) : nullptr;
+
+		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] [%s/%s] UPCGManagedComponent::Release, delete null component"),
+			(Component && Component->GetOwner()) ? *Component->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(Component && Component->GetGraph()) ? *Component->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 #endif
 	}
 }

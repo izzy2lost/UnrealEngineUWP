@@ -7,27 +7,32 @@
 #include "UObject/SoftObjectPtr.h"
 
 class UPCGComponent;
+class UPCGManagedComponent;
 class UPCGManagedResource;
 class AActor;
 
 namespace PCGGeneratedResourcesLogging
 {
-	void LogAddToManagedResources(const UPCGManagedResource* Resource);
+	void LogAddToManagedResources(const UPCGComponent* InComponent, UPCGManagedResource* InResource);
 	
-	void LogCleanupInternal(bool bRemoveComponents);
+	void LogCleanupInternal(const UPCGComponent* InComponent, bool bRemoveComponents);
 	
-	void LogCleanupLocalImmediate(bool bHardRelease, const TArray<UPCGManagedResource*>& GeneratedResources);
-	void LogCleanupLocalImmediateResource(const UPCGManagedResource* Resource);
-	void LogCleanupLocalImmediateFinished(const TArray<UPCGManagedResource*>& GeneratedResources);
+	void LogCleanupLocalImmediate(const UPCGComponent* InComponent, bool bHardRelease, const TArray<UPCGManagedResource*>& GeneratedResources);
+	void LogCleanupLocalImmediateResource(const UPCGComponent* InComponent, UPCGManagedResource* InResource);
+	void LogCleanupLocalImmediateFinished(const UPCGComponent* InComponent, const TArray<UPCGManagedResource*>& GeneratedResources);
 	
-	void LogCreateCleanupTask(bool bRemoveComponents);
-	void LogCreateCleanupTaskResource(const UPCGManagedResource* Resource);
-	void LogCreateCleanupTaskFinished(const TArray<UPCGManagedResource*>& GeneratedResources);
+	void LogCreateCleanupTask(const UPCGComponent* InComponent, bool bRemoveComponents);
+	void LogCreateCleanupTaskResource(const UPCGComponent* InComponent, UPCGManagedResource* InResource);
+	void LogCreateCleanupTaskFinished(const UPCGComponent* InComponent, const TArray<TObjectPtr<UPCGManagedResource>>* InGeneratedResources);
 
-	void LogCleanupUnusedManagedResources(const TArray<UPCGManagedResource*>& GeneratedResources);
-	void LogCleanupUnusedManagedResourcesResource(const UPCGManagedResource* Resource);
-	void LogCleanupUnusedManagedResourcesFinished(const TArray<UPCGManagedResource*>& GeneratedResources);
+	void LogCleanupUnusedManagedResources(const UPCGComponent* InComponent, const TArray<UPCGManagedResource*>& GeneratedResources);
+	void LogCleanupUnusedManagedResourcesResource(const UPCGComponent* InComponent, UPCGManagedResource* Resource);
+	void LogCleanupUnusedManagedResourcesFinished(const UPCGComponent* InComponent, const TArray<UPCGManagedResource*>& GeneratedResources);
 
-	void LogManagedActorsSoftRelease(const TSet<TSoftObjectPtr<AActor>>& GeneratedActors);
-	void LogManagedActorsHardRelease(const TSet<TSoftObjectPtr<AActor>>& ActorsToDelete);
+	void LogManagedActorsRelease(const UPCGManagedResource* InResource, const TSet<TSoftObjectPtr<AActor>>& ActorsToDelete, bool bHardRelease, bool bOnlyMarkedForCleanup);
+
+	void LogManagedResourceSoftRelease(UPCGManagedResource* InResource);
+	void LogManagedResourceHardRelease(UPCGManagedResource* InResource);
+	void LogManagedComponentHidden(UPCGManagedComponent* InResource);
+	void LogManagedComponentDeleteNull(UPCGManagedComponent* InResource);
 }

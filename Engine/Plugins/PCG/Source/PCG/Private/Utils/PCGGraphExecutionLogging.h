@@ -8,11 +8,13 @@
 #include "HAL/Platform.h"
 
 class UPCGComponent;
+class UPCGGraph;
 enum class EPCGHiGenGrid : uint32;
 struct FPCGContext;
 struct FPCGGraphActiveTask;
 struct FPCGGraphTask;
 struct FPCGPinDependencyExpression;
+struct FPCGStack;
 
 namespace PCGGraphExecutionLogging
 {
@@ -23,9 +25,9 @@ namespace PCGGraphExecutionLogging
 	void LogGraphTasks(const TMap<FPCGTaskId, FPCGGraphTask>& Tasks, const TMap<FPCGTaskId, TSet<FPCGTaskId>>* TaskSuccessors = nullptr);
 	void LogGraphTasks(const TArray<FPCGGraphTask>& Tasks);
 
-	void LogGraphSchedule(const UPCGComponent* SourceComponent);
-	void LogGraphScheduleDependency(const UPCGComponent* InComponent);
-	void LogGraphScheduleDependencyFailed(const UPCGComponent* InComponent);
+	void LogGraphSchedule(const UPCGComponent* SourceComponent, const UPCGGraph* InScheduledGraph);
+	void LogGraphScheduleDependency(const UPCGComponent* InComponent, const FPCGStack* InFromStack);
+	void LogGraphScheduleDependencyFailed(const UPCGComponent* InComponent, const FPCGStack* InFromStack);
 
 	void LogGraphPostSchedule(const TMap<FPCGTaskId, FPCGGraphTask>& Tasks, const TMap<FPCGTaskId, TSet<FPCGTaskId>>& TaskSuccessors);
 	void LogPostProcessGraph(const UPCGComponent* InSourceComponent);
