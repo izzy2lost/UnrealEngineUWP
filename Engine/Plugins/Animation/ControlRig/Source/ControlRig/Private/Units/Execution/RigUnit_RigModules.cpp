@@ -34,11 +34,10 @@ FRigUnit_GetCurrentNameSpace_Execute()
 	if(!ExecuteContext.IsRigModule())
 	{
 #if WITH_EDITOR
-		if(ExecuteContext.GetLog() != nullptr)
-		{
-			static const FString Message = TEXT("This node should only be used in a Rig Module."); 
-			ExecuteContext.GetLog()->Report(EMessageSeverity::Warning, ExecuteContext.GetFunctionName(), ExecuteContext.GetInstructionIndex(), Message);
-		}
+		
+		static const FString Message = TEXT("This node should only be used in a Rig Module."); 
+		ExecuteContext.Report(EMessageSeverity::Warning, ExecuteContext.GetFunctionName(), ExecuteContext.GetInstructionIndex(), Message);
+		
 #endif
 	}
 	NameSpace = *ExecuteContext.GetRigModuleNameSpace();
