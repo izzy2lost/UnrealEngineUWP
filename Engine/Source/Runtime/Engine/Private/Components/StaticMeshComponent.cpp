@@ -2331,6 +2331,8 @@ bool UStaticMeshComponent::SetStaticMesh(UStaticMesh* NewMesh)
 	// Since we have new mesh, we need to update bounds
 	UpdateBounds();
 
+	FNavigationSystem::UpdateComponentData(*this);
+
 	// Mark cached material parameter names dirty
 	MarkCachedMaterialParameterNameIndicesDirty();
 
