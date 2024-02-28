@@ -203,8 +203,16 @@ namespace UnrealVS
 			string CheckoutQueueFile = GetCheckoutQueueFileName();
 			if (CheckoutQueueFile != null)
 			{
-				P4OutputPane.OutputStringThreadSafe($"UnrealVS started. Using checkout queue: {CheckoutQueueFile}" + Environment.NewLine);
-				PulseCheckoutQueue(CheckoutQueueFile);
+				P4OutputPane.OutputStringThreadSafe("UnrealVS started" + Environment.NewLine);
+				if (File.Exists(P4Exe))
+				{
+					P4OutputPane.OutputStringThreadSafe($"Using checkout queue: {CheckoutQueueFile}" + Environment.NewLine);
+					PulseCheckoutQueue(CheckoutQueueFile);
+				}
+				else
+				{
+					P4OutputPane.OutputStringThreadSafe($"Unable to find Perforce executable ({P4Exe}). Perforce checkout queue will be disabled." + Environment.NewLine);
+				}
 			}
 		}
 
@@ -890,6 +898,8 @@ namespace UnrealVS
 							CheckoutQueueFiles.Add(QueueFile);
 						}
 					}
+
+					await Task.Delay(TimeSpan.FromSeconds(10.0));
 				}
 			}
 		}
@@ -1076,7 +1086,7 @@ namespace UnrealVS
 			// Create a delegate for handling output messages
 			ChildProcess.OutputDataReceived += (s, a) => { if (a.Data != null) StdOutSB.AppendLine(a.Data); };
 			ChildProcess.ErrorDataReceived += (s, a) => { if (a.Data != null) StdErrSB.AppendLine(a.Data); };
-				ChildProcess.EnableRaisingEvents = true;
+			ChildProcess.EnableRaisingEvents = true;
 
 			TaskCompletionSource<bool> ProcessExitTaskSource = new TaskCompletionSource<bool>();
 			ChildProcess.Exited += (s, a) =>
@@ -1089,7 +1099,15 @@ namespace UnrealVS
 				ChildProcessList.Add(ChildProcess);
 			}
 
-			ChildProcess.Start();
+			try
+			{
+				ChildProcess.Start();
+			}
+			catch (Exception ex)
+			{
+				return (false, "", $"Unable to launch {CmdPath} ({ex.Message})");
+			}
+
 			ChildProcess.BeginOutputReadLine();
 			ChildProcess.BeginErrorReadLine();
 

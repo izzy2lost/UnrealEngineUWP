@@ -1,3 +1,6 @@
+1.84.3.6
+* Fix P4 checkout queue causing hang if p4.exe is not found in path.
+
 1.84.3.5
 * Fix null reference exception when setting command line for C# project without a Properties directory
 
