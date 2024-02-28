@@ -655,11 +655,8 @@ void UMeshAttributePaintTool::ApplyStamp_FloodFill(const FBrushStampData& Stamp,
 		QueueTempBuffer.Reset();
 		DoneTempBuffer.Reset();
 		InputTriROI.Reset();
-		for (int32 tid : RemainingTriangles)
-		{
-			InputTriROI.Add(tid);		// stupid way to get first set element
-			break;
-		}
+		// get a single set element via an iterator
+		InputTriROI.Add(*RemainingTriangles.CreateConstIterator());
 		FMeshConnectedComponents::GrowToConnectedTriangles(CurrentMesh, InputTriROI, OutputTriROI, &QueueTempBuffer, &DoneTempBuffer);
 		for (int32 tid : OutputTriROI)
 		{

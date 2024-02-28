@@ -28,15 +28,12 @@ void FMeshRepairOrientation::OrientComponents()
 	{
 		Remaining.Add(TID);
 	}
+	// note: this is only called after we've already verified there are elements in Remaining
 	auto PopOneTri = [&Remaining]()
 	{
-		for (int One : Remaining)
-		{
-			Remaining.Remove(One);
-			return One;
-		}
-		check(false);
-		return FDynamicMesh3::InvalidID;
+		int32 One = *Remaining.CreateConstIterator();
+		Remaining.Remove(One);
+		return One;
 	};
 	TArray<int> Stack;
 	while (Remaining.Num() > 0)
