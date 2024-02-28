@@ -15,6 +15,7 @@
 #include "Broadcast/OutputDevices/AvaBroadcastOutputRootItem.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputTreeItem.h"
 #include "Broadcast/OutputDevices/AvaBroadcastRenderTargetMediaUtils.h"
+#include "Editor.h"
 #include "IAvaMediaModule.h"
 #include "IRemoteControlModule.h"
 #include "ImageUtils.h"
@@ -30,6 +31,7 @@
 #include "Rundown/AvaRundownPagePlayer.h"
 #include "Rundown/AvaRundownPlaybackUtils.h"
 #include "ScopedTransaction.h"
+#include "Subsystems/EditorAssetSubsystem.h"
 #include "TextureResource.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAvaRundownServer, Log, All);
@@ -221,6 +223,7 @@ void FAvaRundownServer::Init(const FString& InAssignedHostName)
 	.Handling<FAvaRundownPing>(this, &FAvaRundownServer::HandleRundownPing)
 	.Handling<FAvaRundownGetRundowns>(this, &FAvaRundownServer::HandleGetRundowns)
 	.Handling<FAvaRundownLoadRundown>(this, &FAvaRundownServer::HandleLoadRundown)
+	.Handling<FAvaRundownSaveRundown>(this, &FAvaRundownServer::HandleSaveRundown)
 	.Handling<FAvaRundownCreatePage>(this, &FAvaRundownServer::HandleCreatePage)
 	.Handling<FAvaRundownDeletePage>(this, &FAvaRundownServer::HandleDeletePage)
 	.Handling<FAvaRundownCreateTemplate>(this, &FAvaRundownServer::HandleCreateTemplate)
@@ -485,6 +488,62 @@ void FAvaRundownServer::HandleLoadRundown(const FAvaRundownLoadRundown& InMessag
 
 	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
 		TEXT("Rundown \"%s\" loaded."), *RundownPlaybackCommandData.CurrentRundownPath.ToString());
+}
+
+void FAvaRundownServer::HandleSaveRundown(const FAvaRundownSaveRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
+{
+	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor ? GEditor->GetEditorSubsystem<UEditorAssetSubsystem>() : nullptr;
+	
+	if (!EditorAssetSubsystem)
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("Saving assets is only available in editor mode."));
+		return;
+	}
+	
+	if (InMessage.Rundown.IsEmpty())
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("Rundown asset not specified."));
+		return;
+	}
+
+	const FSoftObjectPath RundownAssetPath(InMessage.Rundown);
+
+	if (!RundownAssetPath.IsValid())
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("Rundown asset path \"%s\" is not valid."), *InMessage.Rundown);
+		return;
+	}
+
+	UObject* FoundObject = RundownAssetPath.ResolveObject();
+
+	if (!FoundObject)
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("Rundown asset \"%s\" is not loaded."), *InMessage.Rundown);
+		return;
+	}
+
+	UAvaRundown* FoundRundown = Cast<UAvaRundown>(FoundObject);
+	
+	if (!FoundRundown)
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("Asset path \"%s\" is loaded but is not a Rundown asset."), *InMessage.Rundown);
+		return;
+	}
+	
+	if (!EditorAssetSubsystem->SaveLoadedAsset(FoundRundown, InMessage.bOnlyIfIsDirty))
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("Unable to save asset \"%s\" to location \"%s\"."), *FoundRundown->GetName(), *RundownAssetPath.ToString());
+		return;
+	}
+
+	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
+		TEXT("Asset \"%s\" save to location \"%s\"."), *FoundRundown->GetName(), *RundownAssetPath.ToString());
 }
 
 void FAvaRundownServer::HandleGetPages(const FAvaRundownGetPages& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)

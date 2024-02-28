@@ -122,11 +122,12 @@ public:
 };
 
 /**
- *	Request that the given rundown be opened.
- *	Only one rundown can be opened at a time. If another rundown
+ *	Request that the given rundown be loaded for playback.
+ *	This will also open an associated playback context.
+ *	Only one rundown can be opened for playback at a time. If another rundown
  *	is opened, it will be closed and all currently playing pages stopped.
  *	If the path is empty, nothing will be done and the server will reply with
- *	a FAvaRundownLoadedRundown message indicating which rundown is currently loaded.
+ *	a FAvaRundownServerMsg message indicating which rundown is currently loaded.
  */
 USTRUCT()
 struct FAvaRundownLoadRundown : public FAvaRundownMsgBase
@@ -137,6 +138,26 @@ public:
 	UPROPERTY()
 	FString Rundown;
 };
+
+/**
+ * Request that the given rundown be saved to disk.
+ * The rundown asset must have been loaded, either by an edit command
+ * or playback, prior to this command.
+ * Unloaded assets will not be loaded by this command.
+ */
+USTRUCT()
+struct FAvaRundownSaveRundown : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	FString Rundown;
+
+	UPROPERTY()
+	bool bOnlyIfIsDirty = false;
+};
+
 
 /**
  * Request the list of pages from the given rundown.
