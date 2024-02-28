@@ -209,6 +209,7 @@
             "id": "incremental-build",
             "name": "Incremental Build",
             "initialAgentType": "Win64",
+			"showUgsBadges": true,
             "arguments":
             [
                 "-Script=Engine/Build/Graph/Examples/BuildEditorAndTools.xml",
