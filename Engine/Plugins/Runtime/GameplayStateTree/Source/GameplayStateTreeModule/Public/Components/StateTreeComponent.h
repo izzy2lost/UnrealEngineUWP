@@ -59,7 +59,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Gameplay|StateTree")
 	void SetStartLogicAutomatically(const bool bInStartLogicAutomatically);
-
+	 
 	/** Sends event to the running StateTree. */
 	UFUNCTION(BlueprintCallable, Category = "Gameplay|StateTree")
 	void SendStateTreeEvent(const FStateTreeEvent& Event);
@@ -85,8 +85,10 @@ protected:
 	virtual void PostLoad() override;
 #endif
 	
+	UE_DEPRECATED(5.4, "Please use UStateTreeComponentSchema::SetContextRequirements instead.")
 	bool SetContextRequirements(FStateTreeExecutionContext& Context, bool bLogErrors = false);
 	
+	UE_DEPRECATED(5.4, "Please use UStateTreeComponentSchema::CollectExternalData instead.")
 	bool CollectExternalData(const FStateTreeExecutionContext& Context, const UStateTree* StateTree, TArrayView<const FStateTreeExternalDataDesc> Descs, TArrayView<FStateTreeDataView> OutDataViews) const;
 	
 #if WITH_EDITORONLY_DATA
