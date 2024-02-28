@@ -44,7 +44,7 @@ public:
 	FSectionMap()
 		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 	{}
-	friend bool operator==(const FSectionMap& Left, const FSectionMap& Right);
+	bool operator==(const FSectionMap& Other) const;
 
 	void Finalize(int32 LastTick);
 

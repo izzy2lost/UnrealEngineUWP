@@ -46,5 +46,3 @@ namespace Harmonix::Testing::Utility::MidiTestUtility
 	void AddPolyPresEventsToFile(UMidiFile* InFile, uint8 InNoteNumber, uint8 InPolyPresValue, int32 InTrackIndex, int32 InChannel, float InBarIndex);
 
 }
-
-bool operator==(const UMidiFile& Left, const UMidiFile& Right);

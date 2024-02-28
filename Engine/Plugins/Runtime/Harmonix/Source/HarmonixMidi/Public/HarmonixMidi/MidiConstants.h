@@ -4,7 +4,7 @@
 
 #include "Logging/LogMacros.h"
 
-HARMONIXMIDI_API DECLARE_LOG_CATEGORY_EXTERN(LogMidi, Log, All);
+HARMONIXMIDI_API DECLARE_LOG_CATEGORY_EXTERN(LogMIDI, Log, All);
 
 namespace Harmonix::Midi::Constants
 {
@@ -29,9 +29,12 @@ namespace Harmonix::Midi::Constants
 	inline constexpr uint8 GMinVelocity    = 0;
 	inline constexpr uint8 GMaxVelocity    = 127;
 
-	inline constexpr int32   GTicksPerQuarterNoteInt  = 960;
+	inline constexpr int32 GTicksPerQuarterNoteInt  = 960;
 	inline constexpr float GTicksPerQuarterNote = 960.0f;
 	inline constexpr float GQuarterNotesPerTick = 1.0f / GTicksPerQuarterNote;
+
+	inline constexpr float GMinMidiFileTempo = 10.0f;
+	inline constexpr float GMaxMidiFileTempo = 960.0;
 
 	//////////////////////////////////////////////////////////////////////////
 	// Constants for the SMF (Standard Midi File) format.

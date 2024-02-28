@@ -101,7 +101,7 @@ public:
 	FBeatMap()
 		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 	{}
-	friend bool operator==(const FBeatMap& Left, const FBeatMap& Right);
+	bool operator==(const FBeatMap& Other) const;
 
 	void Empty();
 	void Copy(const FBeatMap& Other, int32 StartTick = 0, int32 EndTick = -1);

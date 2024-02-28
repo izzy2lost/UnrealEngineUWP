@@ -28,18 +28,19 @@ public:
 	int32 GetLastTick() const { return LastTick; }
 
 private:
-	virtual void Reset() override
+	virtual bool Reset() override
 	{
 		LastTick = 0;
 		CurrentTrackHasName = false;
+		return true;
 	}
-	virtual void OnNewTrack(int32 NewTrackIndex) override;
-	virtual void OnEndOfTrack(int32 InLastTick) override;
-	virtual void OnAllTracksRead() override {}
-	virtual void OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2) override;
-	virtual void OnTempo(int32 Tick, int32 Tempo) override;
-	virtual void OnText(int32 Tick, const FString& Str, uint8 Type) override;
-	virtual void OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError = true) override;
+	virtual bool OnNewTrack(int32 NewTrackIndex) override;
+	virtual bool OnEndOfTrack(int32 InLastTick) override;
+	virtual bool OnAllTracksRead() override { return true; }
+	virtual bool OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2) override;
+	virtual bool OnTempo(int32 Tick, int32 Tempo) override;
+	virtual bool OnText(int32 Tick, const FString& Str, uint8 Type) override;
+	virtual bool OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError = true) override;
 
 	UMidiFile& File;
 	int32  LastTick = 0;
@@ -52,6 +53,11 @@ UMidiFile::UMidiFile()
 {
 	// add a single conductor track as the 0th track:
 	TheMidiData.Tracks.Emplace("Conductor");
+}
+
+bool UMidiFile::operator==(const UMidiFile& Other) const
+{
+	return TheMidiData == Other.TheMidiData;
 }
 
 void UMidiFile::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
@@ -100,7 +106,6 @@ TSharedPtr<Audio::IProxyData> UMidiFile::CreateProxyData(const Audio::FProxyData
 	return Proxy;
 }
 
-
 void UMidiFile::BeginDestroy()
 {
 	RenderableCopyOfMidiFileData = nullptr;
@@ -122,13 +127,14 @@ void UMidiFile::PostInitProperties()
 void UMidiFile::LoadStdMidiFile(
 	const FString& FilePath,
 	int32 DesiredTicksPerQuarterNote,
-	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding)
+	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding,
+	bool EnsureNotFailed)
 {
 	FString Filename = FPaths::GetCleanFilename(FilePath);
 	IPlatformFile& PlatformFileApi = FPlatformFileManager::Get().GetPlatformFile();
 	IFileHandle* FileHandle = PlatformFileApi.OpenRead(*FilePath);
 	TSharedPtr<FArchiveFileReaderGeneric> Archive = MakeShared<FArchiveFileReaderGeneric>(FileHandle, *Filename, FileHandle->Size());
-	LoadStdMidiFile(Archive, Filename, DesiredTicksPerQuarterNote, InTextEncoding);
+	LoadStdMidiFile(Archive, Filename, DesiredTicksPerQuarterNote, InTextEncoding, EnsureNotFailed);
 
 #if WITH_EDITORONLY_DATA
 	if (!AssetImportData)
@@ -144,17 +150,19 @@ void UMidiFile::LoadStdMidiFile(
 	int32 BufferSize,
 	const FString& Filename,
 	int32 DesiredTicksPerQuarterNote,
-	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding)
+	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding,
+	bool EnsureNotFailed)
 {
 	TSharedPtr<FBufferReader> BufferArchive = MakeShared<FBufferReader>(Buffer, BufferSize, false);
-	LoadStdMidiFile(BufferArchive, Filename, DesiredTicksPerQuarterNote, InTextEncoding);
+	LoadStdMidiFile(BufferArchive, Filename, DesiredTicksPerQuarterNote, InTextEncoding, EnsureNotFailed);
 }
 
 void UMidiFile::LoadStdMidiFile(
 	TSharedPtr<FArchive> Archive,
 	const FString& Filename,
 	int32 DesiredTicksPerQuarterNote,
-	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding)
+	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding,
+	bool EnsureNotFailed)
 {
 	TheMidiData.TicksPerQuarterNote = DesiredTicksPerQuarterNote;
 	TheMidiData.SongMaps.Init(TheMidiData.TicksPerQuarterNote);
@@ -173,9 +181,18 @@ void UMidiFile::LoadStdMidiFile(
 	reader.ReadAllTracks();
 
 	TheMidiData.LastEventTick = EventReceiver.GetLastTick();
-	if (reader.GetFailed())
+
+	if (reader.IsFailed())
 	{
-		UE_LOG(LogMidi, Error, TEXT("MIDI import failed. Midi data is malformed."));
+		if (EnsureNotFailed)
+		{
+			ensureAlwaysMsgf(false, TEXT("%s: MIDI import failed. Midi data is malformed. Check the log for details."), *Filename);
+		}
+		else
+		{
+			UE_LOG(LogMIDI, Error, TEXT("%s MIDI import failed. Midi data is malformed. Check the log for details."), *Filename);
+		}
+		TheMidiData.Empty();
 	}
 
 	// we are now "dirty"... so make sure any new requests for renderable data 
@@ -183,19 +200,22 @@ void UMidiFile::LoadStdMidiFile(
 	RenderableCopyOfMidiFileData = nullptr;
 }
 
-void UMidiFile::SaveStdMidiFile(const FString& FilePath)
+void UMidiFile::SaveStdMidiFile(const FString& FilePath) const
 {
 	FString Filename = FPaths::GetCleanFilename(FilePath);
 	IPlatformFile& PlatformFileApi = FPlatformFileManager::Get().GetPlatformFile();
 	IFileHandle* FileHandle = PlatformFileApi.OpenWrite(*FilePath);
-	TSharedPtr<FArchiveFileWriterGeneric> Archive = MakeShared<FArchiveFileWriterGeneric>(FileHandle, *Filename, 0);
-	SaveStdMidiFile(Archive, Filename);
+	if (ensureAlwaysMsgf(FileHandle, TEXT("Failed to open file \"%s\" for writing."), *FilePath))
+	{
+		TSharedPtr<FArchiveFileWriterGeneric> Archive = MakeShared<FArchiveFileWriterGeneric>(FileHandle, *Filename, 0);
+		SaveStdMidiFile(Archive, Filename);
+	}
 }
 
-void UMidiFile::SaveStdMidiFile(TSharedPtr<FArchive> Archive, const FString& Filename)
+void UMidiFile::SaveStdMidiFile(TSharedPtr<FArchive> Archive, const FString& Filename) const
 {
 	FMidiWriter Writer(*Archive, TheMidiData.TicksPerQuarterNote);
-	Algo::ForEach(TheMidiData.Tracks, [&](FMidiTrack& track) { track.WriteStdMidi(Writer); });
+	Algo::ForEach(TheMidiData.Tracks, [&](const FMidiTrack& track) { track.WriteStdMidi(Writer); });
 }
 
 FMidiTrack* UMidiFile::AddTrack(const FString& Name)
@@ -206,32 +226,51 @@ FMidiTrack* UMidiFile::AddTrack(const FString& Name)
 
 void UMidiFile::Empty()
 {
-	TheMidiData.Tracks.Empty();
-	TheMidiData.Tracks.Emplace("Conductor");
+	TheMidiData.Empty();
 }
 
-void UMidiFile::SetConductorTrack(const FTempoMap* TempoMap, const FBarMap* BarMap)
+bool UMidiFile::IsEmpty() const 
 {
-	check(!TheMidiData.Tracks.IsEmpty());
-	// use assignment operator to properly clear string table, events, and other data.
-	TheMidiData.Tracks[0] = FMidiTrack("Conductor");
+	return TheMidiData.IsEmpty();
+}
 
-	int32 numTempoChanges = TempoMap->GetNumTempoChangePoints();
+//void UMidiFile::SetConductorTrack(const FTempoMap* TempoMap, const FBarMap* BarMap)
+void UMidiFile::BuildConductorTrack()
+{
+	if (TheMidiData.Tracks.IsEmpty())
+	{
+		TheMidiData.Tracks.Emplace("Conductor");
+	}
+	else if (TheMidiData.Tracks[0].GetName()->Compare("Conductor", ESearchCase::IgnoreCase))
+	{
+		TheMidiData.Tracks.Insert(FMidiTrack("Conductor"), 0);
+	}
+	else
+	{
+		// use assignment operator to properly clear string table, events, and other data.
+		TheMidiData.Tracks[0] = FMidiTrack("Conductor");
+	}
+
+	const FTempoMap& TempoMap = TheMidiData.SongMaps.GetTempoMap();
+
+	int32 numTempoChanges = TempoMap.GetNumTempoChangePoints();
 
 	int32 i;
 	for (i = 0; i < numTempoChanges; ++i)
 	{
-		int32 tick = TempoMap->GetTempoChangePointTick(i);
-		float msPerQuarterNote = TempoMap->GetMsPerQuarterNoteAtTick(tick);
+		int32 tick = TempoMap.GetTempoChangePointTick(i);
+		float msPerQuarterNote = TempoMap.GetMsPerQuarterNoteAtTick(tick);
 		int32 usecPerQuarterNote = int32(msPerQuarterNote * 1000);
 		TheMidiData.Tracks[0].AddEvent(FMidiEvent(tick, FMidiMsg(usecPerQuarterNote)));
 	}
 
-	int32 numTimeSigChanges = BarMap->GetNumTimeSignaturePoints();
+	const FBarMap& BarMap = TheMidiData.SongMaps.GetBarMap();
+
+	int32 numTimeSigChanges = BarMap.GetNumTimeSignaturePoints();
 
 	for (i = 0; i < numTimeSigChanges; ++i)
 	{
-		const FTimeSignaturePoint& sig = BarMap->GetTimeSignaturePoint(i);
+		const FTimeSignaturePoint& sig = BarMap.GetTimeSignaturePoint(i);
 		TheMidiData.Tracks[0].AddEvent(FMidiEvent(sig.StartTick, FMidiMsg(sig.TimeSignature.Numerator, sig.TimeSignature.Denominator)));
 	}
 
@@ -480,15 +519,19 @@ bool UMidiFile::ShouldConformMidiFileLength(EMidiFileLengthConformOption Option)
 	{
 		return true;
 	}
+	else if (!FMath::IsNearlyEqual(Timestamp.Beat, 1.0f))
+	{
+		ConformMidiFileLength(EMidiFileLengthConformOption::RoundDown, true);
+	}
 	return false;
 }
 
-void UMidiFile::ConformMidiFileLength(EMidiFileLengthConformOption Option)
+void UMidiFile::ConformMidiFileLength(EMidiFileLengthConformOption Option, bool Force)
 {
 	//check whether midi file length needs to be conformed
-	if (!ShouldConformMidiFileLength(Option))
+	if (!Force && !ShouldConformMidiFileLength(Option))
 	{
-		UE_LOG(LogMidi, Log, TEXT("Midi file does not need to be conformed."));
+		UE_LOG(LogMIDI, Log, TEXT("Midi file does not need to be conformed."));
 		return;
 	}
 	
@@ -720,7 +763,7 @@ void UMidiFile::ConformMidiFileLength(EMidiFileLengthConformOption Option)
 			if (NumControlEventsRemoved > 0) MidiFileLengthConformSummary.Append(FString::Printf(TEXT(" %d Control Change event(s),"), NumControlEventsRemoved));
 			MidiFileLengthConformSummary.Append(FString::Printf(TEXT(" at tick %d "), ConformedLastEventTick));
 		}
-		UE_LOG(LogMidi, Log, TEXT("%s"),*MidiFileLengthConformSummary);
+		UE_LOG(LogMIDI, Log, TEXT("%s"),*MidiFileLengthConformSummary);
 	}
 
 	//This prevents the current conform option affecting any midi file that is currently being obtained from RenderableCopyOfMidiFileData
@@ -748,13 +791,14 @@ FMidiEventReceiver::FMidiEventReceiver(UMidiFile& file)
 {
 }
 
-void FMidiEventReceiver::OnNewTrack(int32 newTrackIndex)
+bool FMidiEventReceiver::OnNewTrack(int32 newTrackIndex)
 {
 	File.GetTracks().Emplace();
 	CurrentTrackHasName = false;
+	return true;
 }
 
-void FMidiEventReceiver::OnEndOfTrack(int InLastTick)
+bool FMidiEventReceiver::OnEndOfTrack(int InLastTick)
 {
 	if (InLastTick > LastTick)
 	{
@@ -762,7 +806,10 @@ void FMidiEventReceiver::OnEndOfTrack(int InLastTick)
 	}
 	if (!CurrentTrackHasName)
 	{
-		check(!File.GetTracks().IsEmpty());
+		if (File.GetTracks().IsEmpty())
+		{
+			return false;
+		}
 
 		FMidiTrack& Track = File.GetTracks().Last();
 		uint16 StringIndex = Track.AddText("track_1");
@@ -771,25 +818,39 @@ void FMidiEventReceiver::OnEndOfTrack(int InLastTick)
 		Track.Sort();
 		CurrentTrackHasName = true;
 	}
+	return true;
 }
 
-void FMidiEventReceiver::OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2)
+bool FMidiEventReceiver::OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2)
 {
-	check(!File.GetTracks().IsEmpty());
+	if (File.GetTracks().IsEmpty())
+	{
+		return false;
+	}
 
 	File.GetTracks().Last().AddEvent(FMidiEvent(Tick, FMidiMsg(Status, Data1, Data2)));
+
+	return true;
 }
 
-void FMidiEventReceiver::OnTempo(int32 Tick, int32 Tempo)
+bool FMidiEventReceiver::OnTempo(int32 Tick, int32 Tempo)
 {
-	check(!File.GetTracks().IsEmpty());
+	if (File.GetTracks().IsEmpty())
+	{
+		return false;
+	}
 
 	File.GetTracks().Last().AddEvent(FMidiEvent(Tick, FMidiMsg(Tempo)));
+
+	return true;
 }
 
-void FMidiEventReceiver::OnText(int32 Tick, const FString& Str, uint8 Type)
+bool FMidiEventReceiver::OnText(int32 Tick, const FString& Str, uint8 Type)
 {
-	check(!File.GetTracks().IsEmpty());
+	if (File.GetTracks().IsEmpty())
+	{
+		return false;
+	}
 
 	FMidiTrack& Track = File.GetTracks().Last();
 	uint16 StringIndex = Track.AddText(Str);
@@ -799,26 +860,53 @@ void FMidiEventReceiver::OnText(int32 Tick, const FString& Str, uint8 Type)
 		// Track name should always appear at tick 0!
 		if (Tick != 0 && !CurrentTrackHasName)
 		{
-			UE_LOG(LogMidi, Warning, TEXT("MIDI track name (\"%s\") event found at tick %d but none found at tick 0! The first track name event on a midi track should be on tick 0. Shifting it to tick 0."),
+			UE_LOG(LogMIDI, Warning, TEXT("MIDI track name (\"%s\") event found at tick %d but none found at tick 0! The first track name event on a midi track should be on tick 0. Shifting it to tick 0."),
 				*Str, Tick);
 			Tick = 0;
 		}
 		else if (CurrentTrackHasName && Str != *Track.GetName())
 		{
-			UE_LOG(LogMidi, Warning, TEXT("2nd Track Name event found on MIDI track %s --> %s at tick %d"),
+			UE_LOG(LogMIDI, Warning, TEXT("2nd Track Name event found on MIDI track %s --> %s at tick %d"),
 				**Track.GetName(), *Str , Tick);
 		}
 		CurrentTrackHasName = true;
 	}
 
 	Track.AddEvent(FMidiEvent(Tick, FMidiMsg::CreateText(StringIndex, Type)));
+
+	return true;
 }
 
-void FMidiEventReceiver::OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError)
+bool FMidiEventReceiver::OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError)
 {
-	check(!File.GetTracks().IsEmpty());
+	if (File.GetTracks().IsEmpty())
+	{
+		return false;
+	}
 
 	File.GetTracks().Last().AddEvent(FMidiEvent(Tick, FMidiMsg(Numerator, Denominator)));
+
+	return true;
+}
+
+bool FMidiFileData::operator==(const FMidiFileData& Other) const
+{
+	if (Tracks.Num() != Other.Tracks.Num())
+	{
+		return false;
+	}
+	for (int32 TrackIndex = 0; TrackIndex < Tracks.Num(); ++TrackIndex)
+	{
+		if (Tracks[TrackIndex] != Other.Tracks[TrackIndex])
+		{
+			return false;
+		}
+	}
+
+	return MidiFileName == Other.MidiFileName &&
+		TicksPerQuarterNote == Other.TicksPerQuarterNote &&
+		SongMaps == Other.SongMaps &&
+		LastEventTick == Other.LastEventTick;
 }
 
 int32 FMidiFileData::FindTrackIndexByName(const FString& TrackName)
@@ -838,7 +926,7 @@ void FMidiFileData::PostSerialize(const FArchive& Ar)
 {
 	if (Ar.IsLoading() && SongMaps.BarMapIsEmpty() && Tracks.Num() > 0)
 	{
-		UE_LOG(LogMidi, Warning, TEXT("Empty bar map. Rebuilding."));
+		UE_LOG(LogMIDI, Warning, TEXT("Empty bar map. Rebuilding."));
 		const FMidiEventList& Events = Tracks[0].GetEvents();
 		FBarMap& BarMap = SongMaps.GetBarMap();
 		BarMap.SetStartBar(1);

@@ -3,6 +3,30 @@
 #include "HarmonixMidi/MidiConstants.h"
 #include "Misc/ScopeLock.h"
 
+bool FBeatMap::operator==(const FBeatMap& Other) const
+{
+	if (TicksPerQuarterNote != Other.TicksPerQuarterNote || Points.Num() != Other.Points.Num() || Bars.Num() != Other.Bars.Num())
+	{
+		return false;
+	}
+	for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
+	{
+		if (Points[PointIndex] != Other.Points[PointIndex])
+		{
+			return false;
+		}
+	}
+
+	for (int32 BarIndex = 0; BarIndex < Bars.Num(); ++BarIndex)
+	{
+		if (Bars[BarIndex] != Other.Bars[BarIndex])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 void FBeatMap::Empty()
 {
 	Points.Empty();

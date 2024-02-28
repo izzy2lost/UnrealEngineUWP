@@ -1,6 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "HarmonixMidi/ChordMap.h"
 
+bool FChordProgressionMap::operator==(const FChordProgressionMap& Other) const
+{
+	if (TicksPerQuarterNote != Other.TicksPerQuarterNote || Points.Num() != Other.Points.Num() || ChordTrackIndex != Other.ChordTrackIndex)
+	{
+		return false;
+	}
+
+	for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
+	{
+		if (Points[PointIndex] != Other.Points[PointIndex])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 void FChordProgressionMap::Finalize(int32 LastTick)
 {
 	FMusicMapUtl::Finalize(Points, LastTick);
@@ -35,6 +52,7 @@ const void FChordProgressionMap::GetChordListCopy(TArray<FChordMapPoint>& ChordL
 
 void FChordProgressionMap::Empty()
 {
+	Points.Empty();
 	ChordTrackIndex = -1;
 }
 

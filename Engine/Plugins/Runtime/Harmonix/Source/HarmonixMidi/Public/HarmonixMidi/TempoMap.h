@@ -65,7 +65,7 @@ public:
 	{}
 	virtual ~FTempoMap() {}
 
-	friend bool operator==(const FTempoMap& Left, const FTempoMap& Right);
+	bool operator==(const FTempoMap& Other) const;
 
 	void Empty();
 	void Copy(const FTempoMap& Other, int32 StartTick = 0, int32 EndTick = -1);

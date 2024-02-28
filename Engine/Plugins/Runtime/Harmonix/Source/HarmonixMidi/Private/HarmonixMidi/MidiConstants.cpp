@@ -2,7 +2,7 @@
 
 #include "HarmonixMidi/MidiConstants.h"
 
-DEFINE_LOG_CATEGORY(LogMidi);
+DEFINE_LOG_CATEGORY(LogMIDI);
 
 namespace Harmonix::Midi::Constants
 {

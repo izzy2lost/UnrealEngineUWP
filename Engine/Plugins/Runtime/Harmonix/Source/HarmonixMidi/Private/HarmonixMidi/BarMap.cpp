@@ -8,6 +8,22 @@
 #include "Serialization/Archive.h"
 
 
+bool FBarMap::operator==(const FBarMap& Other) const
+{
+	if (StartBar != Other.StartBar || TicksPerQuarterNote != Other.TicksPerQuarterNote || Points.Num() != Other.Points.Num())
+	{
+		return false;
+	}
+	for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
+	{
+		if (Points[PointIndex] != Other.Points[PointIndex])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 void FBarMap::Empty()
 {
 	Points.Empty();
@@ -31,12 +47,12 @@ float FBarMap::MusicTimestampToTick(const FMusicTimestamp& Timestamp) const
 	{
 		if (Beat >= 0.0f)
 		{
-			UE_LOG(LogMidi, Warning, TEXT("Beat %f specified in Music Timestamp! Beats in Music Timestamps are '1' based. Beat 1.0 is the first beat in the specified bar. Adding 1.0 to the specified Beat!"), Beat);
+			UE_LOG(LogMIDI, Warning, TEXT("Beat %f specified in Music Timestamp! Beats in Music Timestamps are '1' based. Beat 1.0 is the first beat in the specified bar. Adding 1.0 to the specified Beat!"), Beat);
 			Beat += 1.0f;
 		}
 		else
 		{
-			UE_LOG(LogMidi, Warning, TEXT("Negative beat (%f) specified in Music Timestamp. This is not allowed! Beats are '1' based in Music Timestamps and must be positive. Using beat 1!"), Beat);
+			UE_LOG(LogMIDI, Warning, TEXT("Negative beat (%f) specified in Music Timestamp. This is not allowed! Beats are '1' based in Music Timestamps and must be positive. Using beat 1!"), Beat);
 			Beat = 1.0f;
 		}
 	}
@@ -122,7 +138,7 @@ int32 FBarMap::BarBeatTickIncludingCountInToTick(int32 BarIndex, int32 BeatInBar
 {
 	if (BeatInBar < 1)
 	{
-		UE_LOG(LogMidi, Warning, TEXT("Beat %d specified as a \"beat in bar\". Beat 1 is the first beat in a bar. Using Beat 1!"), BeatInBar);
+		UE_LOG(LogMIDI, Warning, TEXT("Beat %d specified as a \"beat in bar\". Beat 1 is the first beat in a bar. Using Beat 1!"), BeatInBar);
 		BeatInBar = 0;
 	}
 	else
@@ -154,11 +170,11 @@ int32 FBarMap::BarBeatTickIncludingCountInToTick(int32 BarIndex, int32 BeatInBar
 	int32 TicksInBeat = GetTicksInBeatAfterPoint(TimeSigIndex);
 	if (BeatInBar >= Points[TimeSigIndex].TimeSignature.Numerator)
 	{
-		UE_LOG(LogMidi, Warning, TEXT("BarBeatTickToAbsoluteTick: Supplied 'BeatInBar' is greater than the number of beats in the specified bar!"));
+		UE_LOG(LogMIDI, Warning, TEXT("BarBeatTickToAbsoluteTick: Supplied 'BeatInBar' is greater than the number of beats in the specified bar!"));
 	}
 	if (TickInBeat >= TicksInBeat)
 	{
-		UE_LOG(LogMidi, Warning, TEXT("BarBeatTickToAbsoluteTick: Supplied 'TickInBeat' is greater than the number of ticks in each beat at the specified bar!"));
+		UE_LOG(LogMIDI, Warning, TEXT("BarBeatTickToAbsoluteTick: Supplied 'TickInBeat' is greater than the number of ticks in each beat at the specified bar!"));
 	}
 	return Points[TimeSigIndex].StartTick +
 			(BarDelta * GetTicksInBarAfterPoint(TimeSigIndex)) +

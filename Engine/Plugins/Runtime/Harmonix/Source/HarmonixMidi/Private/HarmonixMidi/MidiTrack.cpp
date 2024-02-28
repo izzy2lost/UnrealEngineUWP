@@ -24,6 +24,29 @@ FMidiTrack::FMidiTrack(const FString& Name)
 	AddEvent(FMidiEvent(0, FMidiMsg::CreateText(stringIndex, Harmonix::Midi::Constants::GMeta_TrackName)));
 }
 
+bool FMidiTrack::operator==(const FMidiTrack& Other) const
+{
+	if (Events.Num() != Other.Events.Num() || Strings.Num() != Other.Strings.Num())
+	{
+		return false;
+	}
+	for (int32 EventIndex = 0; EventIndex < Events.Num(); ++EventIndex)
+	{
+		if (Events[EventIndex] != Other.Events[EventIndex])
+		{
+			return false;
+		}
+	}
+	for (int32 StringIndex = 0; StringIndex < Strings.Num(); ++StringIndex)
+	{
+		if (Strings[StringIndex] != Other.Strings[StringIndex])
+		{
+			return false;
+		}
+	}
+	return Sorted == Other.Sorted && PrimaryMidiChannel == Other.PrimaryMidiChannel;
+}
+
 const FMidiEventList& FMidiTrack::GetEvents() const
 {
 	check(Sorted);
@@ -55,7 +78,7 @@ void FMidiTrack::SetName(const FString& InName)
 			}
 		}
 	}
-	UE_LOG(LogMidi, Warning, TEXT("Cannot set name of track to %s: track does not contain a track name event"), *InName);
+	UE_LOG(LogMIDI, Warning, TEXT("Cannot set name of track to %s: track does not contain a track name event"), *InName);
 }
 
 const FString* FMidiTrack::GetName() const
@@ -117,9 +140,9 @@ void FMidiTrack::ChangeTick(FMidiEventList::TIterator Iterator, int32 NewTick)
 	Sorted = false;
 }
 
-void FMidiTrack::WriteStdMidi(FMidiWriter& Writer)
+void FMidiTrack::WriteStdMidi(FMidiWriter& Writer) const
 {
-	Sort();
+	ensureAlwaysMsgf(Sorted, TEXT("Midi events on track \"%s\" are not sorted! Code that built this midi track should call Sort() before attempting to export Standard MIDI file."), GetName() ? **GetName() : TEXT("<unnamed>"));
 
 	for (auto& Event : Events)
 	{
@@ -232,4 +255,14 @@ int32 FMidiTrack::CopyEvents(FMidiTrack& SourceTrack,	int32 FromTick, int32 Thru
 	Sort();
 
 	return NumCopied;
+}
+
+SIZE_T FMidiTrack::GetAllocatedSize() const
+{
+	SIZE_T AllocatedSize = sizeof(FMidiTrack) + Events.GetAllocatedSize() + Strings.GetAllocatedSize();
+	for (const FString& String : Strings)
+	{
+		AllocatedSize += String.GetAllocatedSize();
+	}
+	return AllocatedSize;
 }

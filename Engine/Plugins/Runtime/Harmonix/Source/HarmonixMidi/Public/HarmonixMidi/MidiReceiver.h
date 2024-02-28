@@ -26,37 +26,37 @@ public:
 	virtual ~IMidiReceiver() {}
 
 	/** The reader is about to read a new MIDI file. Now is your chance to reset your state. */
-	virtual void Reset() = 0;
+	virtual bool Reset() = 0;
 
 	/** Called when the reader has determined how many tracks are in the midi data */
-	virtual void SetNumTracks(int32 Num) {}
+	virtual bool SetNumTracks(int32 Num) { return true; }
 
 	/** called when all tracks have been read. */
-	virtual void Finalize(int32 InLastFileTick) {}
+	virtual bool Finalize(int32 InLastFileTick) { return true; }
 
-	virtual void OnNewTrack(int32 NewTrackIndex) = 0;
-	virtual void OnEndOfTrack(int32 LastTick) = 0;
-	virtual void OnAllTracksRead() = 0;
+	virtual bool OnNewTrack(int32 NewTrackIndex) = 0;
+	virtual bool OnEndOfTrack(int32 LastTick) = 0;
+	virtual bool OnAllTracksRead() = 0;
 
 	/** For standard 1- or 2-byte MIDI message */
-	virtual void OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2) = 0;
+	virtual bool OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2) = 0;
 
 	/**
 	 * Text, Copyright, TrackName, InstName, Lyric, Marker, CuePoint meta-event:
 	 * "type" is the type of meta-event (constants defined in MidiConstants.h) 
 	 */
-	virtual void OnText(int32 Tick, const FString& Str, uint8 Type) = 0;
+	virtual bool OnText(int32 Tick, const FString& Str, uint8 Type) = 0;
 
 	/**
 	 * Tempo Change meta - event:
 	 * tempo is in microseconds per quarter-note
 	 */
-	virtual void OnTempo(int32 Tick, int32 Tempo) {}
+	virtual bool OnTempo(int32 Tick, int32 Tempo) { return true; }
 
 	/** Time Signature meta - event:
 	 *   time signature is numerator/denominator
 	 */
-	virtual void OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError = true) {}
+	virtual bool OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError = true) { return true; }
 
 	/**
 	 * Called by the reader before it starts processing the midi data stream.
@@ -86,56 +86,75 @@ protected:
  */
 class FMidiReceiverList : public IMidiReceiver
 {
-#define _FOR_EACH_MIDI_RECEIVER(func_body) Algo::ForEach(ReceiverList, [=](IMidiReceiver* recvr)func_body);
+#define _FOR_EACH_MIDI_RECEIVER(func_body) Algo::ForEach(ReceiverList, [&](IMidiReceiver* recvr){ if (Result) func_body });
 public:
-	virtual void Reset()
+	virtual bool Reset()
 	{
-		_FOR_EACH_MIDI_RECEIVER({ recvr->Reset(); });
+		bool Result = true;
+		_FOR_EACH_MIDI_RECEIVER({ Result = recvr->Reset(); });
+		return Result;
 	}
 
-	virtual void Finalize(int32 LastFileTick)
+	virtual bool Finalize(int32 LastFileTick)
 	{
-		_FOR_EACH_MIDI_RECEIVER({ recvr->Finalize(LastFileTick); });
+		bool Result = true;
+		_FOR_EACH_MIDI_RECEIVER({ Result =  recvr->Finalize(LastFileTick); });
+		return Result;
 	}
 
-	virtual void OnNewTrack(int32 NewTrackIndex)
+	virtual bool OnNewTrack(int32 NewTrackIndex)
 	{
-		_FOR_EACH_MIDI_RECEIVER({ recvr->OnNewTrack(NewTrackIndex); });
+		bool Result = true;
+		_FOR_EACH_MIDI_RECEIVER({ Result = recvr->OnNewTrack(NewTrackIndex); });
+		return Result;
 	}
 
-	virtual void OnEndOfTrack(int32 LastTick)
+	virtual bool OnEndOfTrack(int32 LastTick)
 	{
-		_FOR_EACH_MIDI_RECEIVER({ recvr->OnEndOfTrack(LastTick); });
+		bool Result = true;
+		_FOR_EACH_MIDI_RECEIVER({ Result = recvr->OnEndOfTrack(LastTick); });
+		return Result;
 	}
 
-	virtual void OnAllTracksRead()
+	virtual bool OnAllTracksRead()
 	{
-		_FOR_EACH_MIDI_RECEIVER({ recvr->OnAllTracksRead(); });
+		bool Result = true;
+		_FOR_EACH_MIDI_RECEIVER({ Result = recvr->OnAllTracksRead(); });
+		return Result;
 	}
 
-	virtual void OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2)
+	virtual bool OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2)
 	{
-		_FOR_EACH_MIDI_RECEIVER({ recvr->OnMidiMessage(Tick, Status, Data1, Data2); });
+		bool Result = true;
+		_FOR_EACH_MIDI_RECEIVER({ Result = recvr->OnMidiMessage(Tick, Status, Data1, Data2); });
+		return Result;
 	}
 
-	virtual void OnText(int32 Tick, const FString& Str, uint8 Type)
+	virtual bool OnText(int32 Tick, const FString& Str, uint8 Type)
 	{
-		_FOR_EACH_MIDI_RECEIVER({ recvr->OnText(Tick, Str, Type); });
+		bool Result = true;
+		_FOR_EACH_MIDI_RECEIVER({ Result = recvr->OnText(Tick, Str, Type); });
+		return Result;
 	}
 
-	virtual void OnTempo(int32 Tick, int32 Tempo)
+	virtual bool OnTempo(int32 Tick, int32 Tempo)
 	{
-		_FOR_EACH_MIDI_RECEIVER({ recvr->OnTempo(Tick, Tempo); });
+		bool Result = true;
+		_FOR_EACH_MIDI_RECEIVER({ Result = recvr->OnTempo(Tick, Tempo); });
+		return Result;
 	}
 
-	virtual void OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError = true)
+	virtual bool OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError = true)
 	{
-		_FOR_EACH_MIDI_RECEIVER({ recvr->OnTimeSignature(Tick, Numerator, Denominator, FailOnError); });
+		bool Result = true;
+		_FOR_EACH_MIDI_RECEIVER({ Result = recvr->OnTimeSignature(Tick, Numerator, Denominator, FailOnError); });
+		return Result;
 	}
 
 	virtual void SetMidiReader(IMidiReader* InReader)
 	{
 		IMidiReceiver::SetMidiReader(InReader);
+		bool Result = true;
 		_FOR_EACH_MIDI_RECEIVER({ recvr->SetMidiReader(InReader); });
 	}
 

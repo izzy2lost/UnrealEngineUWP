@@ -4,6 +4,23 @@
 #include "Misc/RuntimeErrors.h"
 #include "Algo/BinarySearch.h"
 
+bool FSectionMap::operator==(const FSectionMap& Other) const
+{
+	if (TicksPerQuarterNote != Other.TicksPerQuarterNote || Points.Num() != Other.Points.Num())
+	{
+		return false;
+	}
+
+	for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
+	{
+		if (Points[PointIndex] != Other.Points[PointIndex])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 void FSectionMap::Finalize(int32 LastTick)
 {
 	FMusicMapUtl::Finalize(Points, LastTick);

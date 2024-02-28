@@ -23,7 +23,7 @@ public:
 	FMidiTrack();
 	FMidiTrack(const FString& name);
 
-	friend bool operator==(const FMidiTrack& Left, const FMidiTrack& Right);
+	bool operator==(const FMidiTrack& Other) const;
 
 	const FMidiEventList& GetEvents() const;  		// this will ASSERT if events aren't sorted!
 	const FMidiEventList& GetUnsortedEvents() const; // this won't sort
@@ -48,7 +48,7 @@ public:
 		*/
 	void ChangeTick(FMidiEventList::TIterator Iterator, int32 NewTick);
 
-	void WriteStdMidi(FMidiWriter& writer);
+	void WriteStdMidi(FMidiWriter& writer) const;
 
 	void Sort();
 
@@ -71,6 +71,8 @@ public:
 	FMidiTextRepository* GetTextRepository() { return &Strings; }
 	const FMidiTextRepository* GetTextRepository() const { return &Strings; }
 	FString GetTextForMsg(const FMidiMsg& Message) const { check(Message.MsgType() == FMidiMsg::EType::Text); return GetTextAtIndex(Message.GetTextIndex()); }
+
+	SIZE_T GetAllocatedSize() const;
 
 private:
 	UPROPERTY()

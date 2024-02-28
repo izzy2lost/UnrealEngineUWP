@@ -4,8 +4,8 @@
 #include "HarmonixMidi/MidiReader.h"
 #include "HarmonixMidi/MusicTimeSpecifier.h"
 
-#define _LOG_SONGMAP_WARNING(t,...) UE_LOG(LogMidi,Warning,TEXT("%s (%s): " t), *Reader->GetFilename(), *Reader->GetCurrentTrackName(), ##__VA_ARGS__)
-#define _LOG_SONGMAP_ERROR(t,...) UE_LOG(LogMidi,Error,TEXT("%s (%s): " t), *Reader->GetFilename(), *Reader->GetCurrentTrackName(), ##__VA_ARGS__)
+#define _LOG_SONGMAP_WARNING(t,...) UE_LOG(LogMIDI,Warning,TEXT("%s (%s): " t), *Reader->GetFilename(), *Reader->GetCurrentTrackName(), ##__VA_ARGS__)
+#define _LOG_SONGMAP_ERROR(t,...) UE_LOG(LogMIDI,Error,TEXT("%s (%s): " t), *Reader->GetFilename(), *Reader->GetCurrentTrackName(), ##__VA_ARGS__)
 
 FSongMapReceiver::FSongMapReceiver(FSongMaps* Maps)
 	: SongMaps(Maps)
@@ -14,7 +14,7 @@ FSongMapReceiver::FSongMapReceiver(FSongMaps* Maps)
 	Reset();
 }
 
-void FSongMapReceiver::Reset()
+bool FSongMapReceiver::Reset()
 {
 	CurrentTrack      = EMidiTrack::UnknownTrack;
 	LastTick          = 0;
@@ -23,25 +23,29 @@ void FSongMapReceiver::Reset()
 	LastBeatType      = EMidiNoteAssignments::Invalid;
 	bHaveBeatFailure  = false;
 	SongMaps->EmptyAllMaps();
+	return true;
 }
 
-void FSongMapReceiver::Finalize(int32 InLastFileTick)
+bool FSongMapReceiver::Finalize(int32 InLastFileTick)
 {
 	if (InLastFileTick > LastTick)
 	{
 		LastTick = InLastFileTick;
 	}
-	SongMaps->FinalizeRead(Reader);
+	return SongMaps->FinalizeRead(Reader);
 }
 
-void FSongMapReceiver::OnNewTrack(int32 NewTrackIndex)
+bool FSongMapReceiver::OnNewTrack(int32 NewTrackIndex)
 {
 	TrackIndex = NewTrackIndex;
 	if (NewTrackIndex == 0)
+	{
 		CurrentTrack = EMidiTrack::FirstTrack;
+	}
+	return true;
 }
 
-void FSongMapReceiver::OnEndOfTrack(int32 InLastTick)
+bool FSongMapReceiver::OnEndOfTrack(int32 InLastTick)
 {
 	if (InLastTick > LastTick)
 	{
@@ -49,25 +53,26 @@ void FSongMapReceiver::OnEndOfTrack(int32 InLastTick)
 	}
 	TrackIndex = -1;
 	CurrentTrack = EMidiTrack::UnknownTrack;
+	return true;
 }
 
-void FSongMapReceiver::OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2)
+bool FSongMapReceiver::OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2)
 {
 	if (CurrentTrack != EMidiTrack::BeatTrack)
 	{
-		return;
+		return true;
 	}
 	
 	using namespace Harmonix::Midi::Constants;
 
 	if (GetType(Status) != GNoteOn)
 	{
-		return;
+		return true;
 	}
 
 	if ((EMidiNoteAssignments)Data1 != EMidiNoteAssignments::NormalBeatPitch && (EMidiNoteAssignments)Data1 != EMidiNoteAssignments::StrongBeatPitch)
 	{
-		return;
+		return true;
 	}
 
 
@@ -99,9 +104,10 @@ void FSongMapReceiver::OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint
 	SongMaps->BeatMap.AddBeat(BeatType, Tick, false);
 	LastBeatTick = Tick;
 	LastBeatType = (EMidiNoteAssignments)Data1;
+	return true;
 }
 
-void FSongMapReceiver::OnText(int32 Tick, const FString& Str, uint8 Type)
+bool FSongMapReceiver::OnText(int32 Tick, const FString& Str, uint8 Type)
 {
 	// we only care about track name
 	if (Type == Harmonix::Midi::Constants::GMeta_TrackName)
@@ -120,17 +126,30 @@ void FSongMapReceiver::OnText(int32 Tick, const FString& Str, uint8 Type)
 			break;
 		}
 	}
+	return true;
 }
 
-void FSongMapReceiver::OnTempo(int32 Tick, int32 Tempo)
+bool FSongMapReceiver::OnTempo(int32 Tick, int32 Tempo)
 {
+	using namespace Harmonix::Midi::Constants;
+
+	// Filter for reasonable tempos...
+	float Bpm = MidiTempoToBPM(Tempo);
+	if (Bpm < GMinMidiFileTempo || Bpm > GMaxMidiFileTempo)
+	{
+		_LOG_SONGMAP_ERROR("Unsupported MIDI tempo encountered (%f). Tempo must be between %f and %f.", Bpm, GMinMidiFileTempo, GMaxMidiFileTempo);
+		return false;
+	}
+
 	if (!SongMaps->TempoMap.AddTempoInfoPoint(Tempo, Tick))
 	{
 		_LOG_SONGMAP_WARNING("Tempo marker at %s (%.f bpm) conflicts with other tempo markers", *FmtTick(Tick), (60000000.0f / Tempo));
+		return false;
 	}
+	return true;
 }
 
-void FSongMapReceiver::OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError)
+bool FSongMapReceiver::OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError)
 {
 	check(Tick == 0 || SongMaps->BarMap.GetNumTimeSignaturePoints() > 0);
 	int32 BarIndex = SongMaps->BarMap.TickToBarIncludingCountIn(Tick);
@@ -138,7 +157,9 @@ void FSongMapReceiver::OnTimeSignature(int32 Tick, int32 Numerator, int32 Denomi
 	if (!SongMaps->BarMap.AddTimeSignatureAtBarIncludingCountIn(BarIndex, Numerator, Denominator, true, FailOnError))
 	{
 		_LOG_SONGMAP_WARNING("Time signature %d/%d at %s overlaps or conflicts with nearby time signatures", Numerator, Denominator, *FmtTick(Tick));
+		return false;
 	}
+	return true;
 }
 
 void FSongMapReceiver::ReadSectionTrackText(int32 Tick, const FString& Str)
