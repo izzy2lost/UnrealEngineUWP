@@ -441,68 +441,77 @@ bool UMovieGraphConditionGroupQueryBase::IsFirstConditionGroupQuery() const
 	return false;
 }
 
-void UMovieGraphConditionGroupQuery_Actor::Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const
+AActor* UMovieGraphConditionGroupQueryBase::GetActorForCurrentWorld(AActor* InActorToConvert)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UMovieGraphConditionGroupQuery_Actor::Evaluate);
-
 #if WITH_EDITOR
 	const bool bIsPIE = GEditor->IsPlaySessionInProgress();
 #else
 	const bool bIsPIE = false;
 #endif
+	
+	if (!InActorToConvert)
+	{
+		return nullptr;
+	}
+		
+	const UWorld* ActorWorld = InActorToConvert->GetWorld();
+	const bool bIsEditorActor = ActorWorld && ActorWorld->IsEditorWorld();
+
+	// If a PIE session is NOT in progress, make sure that the actor is the editor equivalent
+	if (!bIsPIE)
+	{
+		// Only do PIE -> editor actor conversion when the actor is NOT from the editor
+		if (!bIsEditorActor)
+		{
+#if WITH_EDITOR
+			if (AActor* EditorActor = EditorUtilities::GetEditorWorldCounterpartActor(InActorToConvert))
+			{
+				return EditorActor;
+			}
+#endif
+		}
+		else
+		{
+			// Just use InActorToConvert as-is if it's not from PIE
+			return InActorToConvert;
+		}
+	}
+
+	// If a PIE session IS active, try to get the PIE equivalent of the editor actor
+	else
+	{
+		// Only do editor -> PIE actor conversion when the actor is from an editor world
+		if (bIsEditorActor)
+		{
+#if WITH_EDITOR
+			if (AActor* PieActor = EditorUtilities::GetSimWorldCounterpartActor(InActorToConvert))
+			{
+				return PieActor;
+			}
+#endif
+		}
+		else
+		{
+			// Just use InActorToConvert as-is if it's not from an editor actor
+			return InActorToConvert;
+		}	
+	}
+
+	return nullptr;
+}
+
+void UMovieGraphConditionGroupQuery_Actor::Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UMovieGraphConditionGroupQuery_Actor::Evaluate);
 
 	// Convert the actors in the query to PIE (or editor) equivalents once, rather than constantly in the loop.
 	TArray<AActor*> ActorsToMatch_Converted;
 	ActorsToMatch_Converted.Reserve(ActorsToMatch.Num());
 	for (const TSoftObjectPtr<AActor>& SoftActorToMatch : ActorsToMatch)
 	{
-		if (!SoftActorToMatch.IsValid())
+		if (AActor* ConvertedActor = GetActorForCurrentWorld(SoftActorToMatch.Get()))
 		{
-			continue;
-		}
-		
-		AActor* ActorToMatch = SoftActorToMatch.Get();
-		const UWorld* ActorWorld = ActorToMatch->GetWorld();
-		const bool bIsEditorActor = ActorWorld && ActorWorld->IsEditorWorld();
-
-		// If a PIE session is NOT in progress, make sure that the actor is the editor equivalent
-		if (!bIsPIE)
-		{
-			// Only do PIE -> editor actor conversion when the actor is NOT from the editor
-			if (!bIsEditorActor)
-			{
-#if WITH_EDITOR
-				if (AActor* EditorActor = EditorUtilities::GetEditorWorldCounterpartActor(ActorToMatch))
-				{
-					ActorsToMatch_Converted.Add(EditorActor);
-				}
-#endif
-			}
-			else
-			{
-				// Just use ActorToMatch as-is if it's not from PIE
-				ActorsToMatch_Converted.Add(ActorToMatch);
-			}
-		}
-
-		// If a PIE session IS active, try to get the PIE equivalent of the editor actor
-		else
-		{
-			// Only do editor -> PIE actor conversion when the actor is from an editor world
-			if (bIsEditorActor)
-			{
-#if WITH_EDITOR
-				if (AActor* PieActor = EditorUtilities::GetSimWorldCounterpartActor(ActorToMatch))
-				{
-					ActorsToMatch_Converted.Add(PieActor);
-				}
-#endif
-			}
-			else
-			{
-				// Just use ActorToMatch as-is if it's not from an editor actor
-				ActorsToMatch_Converted.Add(ActorToMatch);
-			}	
+			OutMatchingActors.Add(ConvertedActor);
 		}
 	}
 	
@@ -1310,9 +1319,13 @@ void UMovieGraphConditionGroupQuery_Sublevel::Evaluate(const TArray<AActor*>& In
 			continue;
 		}
 
-		for (TObjectPtr<AActor>& LevelActor : CurrentLevel->Actors)
+		for (const TObjectPtr<AActor>& LevelActor : CurrentLevel->Actors)
 		{
-			OutMatchingActors.Add(LevelActor.Get());
+			// The actors accessed directly from the level may need to be converted into the current world (most likely editor -> PIE)
+			if (AActor* ConvertedActor = GetActorForCurrentWorld(LevelActor.Get()))
+			{
+				OutMatchingActors.Add(ConvertedActor);
+			}
 		}
 	}
 }
