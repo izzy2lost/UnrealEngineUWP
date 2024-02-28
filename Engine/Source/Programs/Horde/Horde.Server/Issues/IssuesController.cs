@@ -5,7 +5,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
@@ -140,7 +143,7 @@ namespace Horde.Server.Issues
 							// Convert each issue to a response
 							foreach (IIssueSpan span in spansForIssue)
 							{
-								spanResponses.Add(new FindIssueSpanResponse(span, span.LastFailure.Annotations.WorkflowId));
+								spanResponses.Add(NewFindIssueSpanResponse(span, span.LastFailure.Annotations.WorkflowId));
 							}
 
 							// Find which workflows are affected
@@ -179,7 +182,7 @@ namespace Horde.Server.Issues
 							quarantinedBy = await _userCollection.GetCachedUserAsync(issue.QuarantinedByUserId.Value, cancellationToken);
 						}
 
-						FindIssueResponse response = new FindIssueResponse(issue, owner, nominatedBy, resolvedBy, quarantinedBy, streamSeverity, spanResponses, openWorkflowIds.ToList());
+						FindIssueResponse response = NewFindIssueResponse(issue, owner, nominatedBy, resolvedBy, quarantinedBy, streamSeverity, spanResponses, openWorkflowIds.ToList());
 						responses.Add(PropertyFilter.Apply(response, filter));
 					}
 				}
@@ -190,6 +193,89 @@ namespace Horde.Server.Issues
 			}
 
 			return responses;
+		}
+
+		static FindIssueSpanResponse NewFindIssueSpanResponse(IIssueSpan span, WorkflowId? workflowId)
+		{
+			FindIssueSpanResponse response = new FindIssueSpanResponse();
+			response.Id = span.Id.ToString();
+			response.TemplateId = span.TemplateRefId.ToString();
+			response.Name = span.NodeName;
+			response.WorkflowId = workflowId;
+			if (span.LastSuccess != null)
+			{
+				response.LastSuccess = NewGetIssueStepResponse(span.LastSuccess);
+			}
+			if (span.NextSuccess != null)
+			{
+				response.NextSuccess = NewGetIssueStepResponse(span.NextSuccess);
+			}
+			return response;
+		}
+
+		static GetIssueStepResponse NewGetIssueStepResponse(IIssueStep issueStep)
+		{
+			GetIssueStepResponse response = new GetIssueStepResponse();
+			response.Change = issueStep.Change;
+			response.Severity = issueStep.Severity;
+			response.JobName = issueStep.JobName;
+			response.JobId = issueStep.JobId;
+			response.BatchId = issueStep.BatchId;
+			response.StepId = issueStep.StepId;
+			response.StepTime = issueStep.StepTime;
+			response.LogId = issueStep.LogId;
+			return response;
+		}
+
+		/// <summary>
+		/// Constructs a new issue
+		/// </summary>
+		/// <param name="issue">The isseu information</param>
+		/// <param name="owner">Owner of the issue</param>
+		/// <param name="nominatedBy">User that nominated the current fixer</param>
+		/// <param name="resolvedBy">User that resolved the issue</param>
+		/// <param name="quarantinedBy">User that quarantined the issue</param>
+		/// <param name="streamSeverity">The current severity in the stream</param>
+		/// <param name="spans">Spans for this issue</param>
+		/// <param name="openWorkflows">List of workflows for which this issue is open</param>
+		static FindIssueResponse NewFindIssueResponse(IIssue issue, IUser? owner, IUser? nominatedBy, IUser? resolvedBy, IUser? quarantinedBy, IssueSeverity? streamSeverity, List<FindIssueSpanResponse> spans, List<WorkflowId> openWorkflows)
+		{
+			FindIssueResponse response = new FindIssueResponse();
+			response.Id = issue.Id;
+			response.CreatedAt = issue.CreatedAt;
+			response.RetrievedAt = DateTime.UtcNow;
+			response.Summary = String.IsNullOrEmpty(issue.UserSummary) ? issue.Summary : issue.UserSummary;
+			response.Description = issue.Description;
+			response.Severity = issue.Severity;
+			response.StreamSeverity = streamSeverity;
+			response.Promoted = issue.Promoted;
+			if (owner != null)
+			{
+				response.Owner = owner.ToThinApiResponse();
+			}
+			if (nominatedBy != null)
+			{
+				response.NominatedBy = nominatedBy.ToThinApiResponse();
+			}
+			response.AcknowledgedAt = issue.AcknowledgedAt;
+			response.FixChange = issue.FixChange;
+			response.ResolvedAt = issue.ResolvedAt;
+			if (resolvedBy != null)
+			{
+				response.ResolvedBy = resolvedBy.ToThinApiResponse();
+			}
+			response.VerifiedAt = issue.VerifiedAt;
+			response.LastSeenAt = issue.LastSeenAt;
+			response.Spans = spans;
+			response.ExternalIssueKey = issue.ExternalIssueKey;
+			if (quarantinedBy != null)
+			{
+				response.QuarantinedBy = quarantinedBy.ToThinApiResponse();
+				response.QuarantineTimeUtc = issue.QuarantineTimeUtc;
+			}
+			response.WorkflowThreadUrl = issue.WorkflowThreadUrl;
+			response.OpenWorkflows = openWorkflows;
+			return response;
 		}
 
 		/// <summary>
@@ -328,14 +414,129 @@ namespace Horde.Server.Issues
 				try
 				{
 					_globalConfig.Value.TryGetStream(streamSpans.Key, out StreamConfig? streamConfig);
-					affectedStreams.Add(new GetIssueAffectedStreamResponse(details, streamConfig, streamSpans));
+					affectedStreams.Add(NewGetIssueAffectedStreamResponse(details, streamConfig, streamSpans));
 				}
 				catch (Exception ex)
 				{
 					_logger.LogError(ex, "Unable to get {StreamId} for span key on issue {IssueId}", streamSpans.Key, details.Issue.Id);
 				}
 			}
-			return new GetIssueResponse(details, affectedStreams, showDesktopAlerts);
+			return NewGetIssueResponse(details, affectedStreams, showDesktopAlerts);
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="details">Issue to construct from</param>
+		/// <param name="streamConfig"></param>
+		/// <param name="spans">The spans to construct from</param>
+		static GetIssueAffectedStreamResponse NewGetIssueAffectedStreamResponse(IIssueDetails details, StreamConfig? streamConfig, IEnumerable<IIssueSpan> spans)
+		{
+			GetIssueAffectedStreamResponse response = new GetIssueAffectedStreamResponse();
+
+			IIssueSpan firstSpan = spans.First();
+			response.StreamId = firstSpan.StreamId;
+			response.StreamName = firstSpan.StreamName;
+			response.Resolved = spans.All(x => x.NextSuccess != null);
+
+			response.AffectedTemplates = new List<GetIssueAffectedTemplateResponse>();
+			foreach (IGrouping<TemplateId, IIssueSpan> template in spans.GroupBy(x => x.TemplateRefId))
+			{
+				string templateName = template.Key.ToString();
+				if (streamConfig != null && streamConfig.TryGetTemplate(template.Key, out TemplateRefConfig? templateRefConfig))
+				{
+					templateName = templateRefConfig.Name;
+				}
+
+				HashSet<ObjectId> unresolvedTemplateSpans = new HashSet<ObjectId>(template.Where(x => x.NextSuccess == null).Select(x => x.Id));
+
+				IIssueStep? templateStep = details.Steps.Where(x => unresolvedTemplateSpans.Contains(x.SpanId)).OrderByDescending(x => x.StepTime).FirstOrDefault();
+
+				response.AffectedTemplates.Add(NewGetIssueAffectedTemplateResponse(template.Key, templateName, template.All(x => x.NextSuccess != null), templateStep?.Severity ?? IssueSeverity.Unspecified));
+			}
+
+			HashSet<TemplateId> templateIdsSet = new HashSet<TemplateId>(spans.Select(x => x.TemplateRefId));
+			response.TemplateIds = templateIdsSet.Select(x => x.ToString()).ToList();
+
+			HashSet<TemplateId> unresolvedTemplateIdsSet = new HashSet<TemplateId>(spans.Where(x => x.NextSuccess == null).Select(x => x.TemplateRefId));
+			response.UnresolvedTemplateIds = unresolvedTemplateIdsSet.Select(x => x.ToString()).ToList();
+			response.ResolvedTemplateIds = templateIdsSet.Except(unresolvedTemplateIdsSet).Select(x => x.ToString()).ToList();
+
+			return response;
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="templateId"></param>
+		/// <param name="templateName"></param>
+		/// <param name="resolved"></param>
+		/// <param name="severity"></param>
+		static GetIssueAffectedTemplateResponse NewGetIssueAffectedTemplateResponse(TemplateId templateId, string templateName, bool resolved, IssueSeverity severity = IssueSeverity.Unspecified)
+		{
+			GetIssueAffectedTemplateResponse response = new GetIssueAffectedTemplateResponse();
+			response.TemplateId = templateId;
+			response.TemplateName = templateName;
+			response.Resolved = resolved;
+			response.Severity = severity;
+			return response;
+		}
+
+		/// <summary>
+		/// Constructs a new issue
+		/// </summary>
+		/// <param name="details">Issue to construct from</param>
+		/// <param name="affectedStreams">The affected streams</param>
+		/// <param name="showDesktopAlerts">Whether to show alerts for this issue</param>
+		static GetIssueResponse NewGetIssueResponse(IIssueDetails details, List<GetIssueAffectedStreamResponse> affectedStreams, bool showDesktopAlerts)
+		{
+			GetIssueResponse response = new GetIssueResponse();
+			IIssue issue = details.Issue;
+			response.Id = issue.Id;
+			response.CreatedAt = issue.CreatedAt;
+			response.RetrievedAt = DateTime.UtcNow;
+			response.Summary = String.IsNullOrEmpty(issue.UserSummary) ? issue.Summary : issue.UserSummary;
+			response.Description = issue.Description;
+			response.Severity = issue.Severity;
+			response.Promoted = issue.Promoted;
+			response.Owner = details.Owner?.Login;
+			response.OwnerId = details.Owner?.Id.ToString();
+			response.OwnerInfo = details.Owner?.ToThinApiResponse();
+			response.NominatedBy = details.NominatedBy?.Login;
+			response.NominatedByInfo = details.NominatedBy?.ToThinApiResponse();
+			response.AcknowledgedAt = issue.AcknowledgedAt;
+			response.FixChange = issue.FixChange;
+			response.ResolvedAt = issue.ResolvedAt;
+			response.ResolvedBy = details.ResolvedBy?.Login;
+			response.ResolvedById = details.ResolvedBy?.Id.ToString();
+			response.ResolvedByInfo = details.ResolvedBy?.ToThinApiResponse();
+			response.VerifiedAt = issue.VerifiedAt;
+			response.LastSeenAt = issue.LastSeenAt;
+			response.Streams = details.Spans.Select(x => x.StreamName).Distinct().ToList()!;
+			response.ResolvedStreams = new List<string>();
+			response.UnresolvedStreams = new List<string>();
+			response.AffectedStreams = affectedStreams;
+			foreach (IGrouping<StreamId, IIssueSpan> stream in details.Spans.GroupBy(x => x.StreamId))
+			{
+				if (stream.All(x => x.NextSuccess != null))
+				{
+					response.ResolvedStreams.Add(stream.Key.ToString());
+				}
+				else
+				{
+					response.UnresolvedStreams.Add(stream.Key.ToString());
+				}
+			}
+			response.PrimarySuspects = details.SuspectUsers.Where(x => x.Login != null).Select(x => x.Login).ToList();
+			response.PrimarySuspectIds = details.SuspectUsers.Select(x => x.Id.ToString()).ToList();
+			response.PrimarySuspectsInfo = details.SuspectUsers.ConvertAll(x => x.ToThinApiResponse());
+			response.ShowDesktopAlerts = showDesktopAlerts;
+			response.ExternalIssueKey = details.ExternalIssueKey;
+			response.QuarantinedByUserInfo = details.QuarantinedBy?.ToThinApiResponse();
+			response.QuarantineTimeUtc = details.QuarantineTimeUtc;
+			response.ForceClosedByUserInfo = details.ForceClosedBy?.ToThinApiResponse();
+			response.WorkflowThreadUrl = issue.WorkflowThreadUrl;
+			return response;
 		}
 
 		/// <summary>
@@ -367,10 +568,43 @@ namespace Horde.Server.Issues
 				{
 					HashSet<ObjectId> spanIds = new HashSet<ObjectId>(spanGroup.Select(x => x.Id));
 					List<IIssueStep> steps = issue.Steps.Where(x => spanIds.Contains(x.SpanId)).ToList();
-					responses.Add(PropertyFilter.Apply(new GetIssueStreamResponse(spanGroup.Key, spanGroup.ToList(), steps), filter));
+					responses.Add(PropertyFilter.Apply(NewGetIssueStreamResponse(spanGroup.Key, spanGroup.ToList(), steps), filter));
 				}
 			}
 			return responses;
+		}
+
+		static GetIssueStreamResponse NewGetIssueStreamResponse(StreamId streamId, List<IIssueSpan> spans, List<IIssueStep> steps)
+		{
+			GetIssueStreamResponse response = new GetIssueStreamResponse();
+			response.StreamId = streamId;
+
+			foreach (IIssueSpan span in spans)
+			{
+				if (span.LastSuccess != null && (response.MinChange == null || span.LastSuccess.Change < response.MinChange.Value))
+				{
+					response.MinChange = span.LastSuccess.Change;
+				}
+				if (span.NextSuccess != null && (response.MaxChange == null || span.NextSuccess.Change > response.MaxChange.Value))
+				{
+					response.MaxChange = span.NextSuccess.Change;
+				}
+				response.Nodes.Add(NewGetIssueSpanResponse(span, steps.Where(y => y.SpanId == span.Id).ToList()));
+			}
+			return response;
+		}
+
+		static GetIssueSpanResponse NewGetIssueSpanResponse(IIssueSpan span, List<IIssueStep> steps)
+		{
+			GetIssueSpanResponse response = new GetIssueSpanResponse();
+			response.Id = span.Id.ToString();
+			response.Name = span.NodeName;
+			response.TemplateId = span.TemplateRefId;
+			response.WorkflowId = span.LastFailure.Annotations.WorkflowId;
+			response.LastSuccess = (span.LastSuccess != null) ? NewGetIssueStepResponse(span.LastSuccess) : null;
+			response.Steps = steps.ConvertAll(x => NewGetIssueStepResponse(x));
+			response.NextSuccess = (span.NextSuccess != null) ? NewGetIssueStepResponse(span.NextSuccess) : null;
+			return response;
 		}
 
 		/// <summary>
@@ -409,7 +643,7 @@ namespace Horde.Server.Issues
 			HashSet<ObjectId> spanIds = new HashSet<ObjectId>(spans.Select(x => x.Id));
 			List<IIssueStep> steps = details.Steps.Where(x => spanIds.Contains(x.SpanId)).ToList();
 
-			return PropertyFilter.Apply(new GetIssueStreamResponse(streamId, spans, steps), filter);
+			return PropertyFilter.Apply(NewGetIssueStreamResponse(streamId, spans, steps), filter);
 		}
 
 		/// <summary>
@@ -636,10 +870,24 @@ namespace Horde.Server.Issues
 
 				for (int i = 0; i < issues.Count; i++)
 				{
-					response.Add(new GetExternalIssueResponse(issues[i]));
+					response.Add(NewGetExternalIssueResponse(issues[i]));
 				}
 			}
 
+			return response;
+		}
+
+		static GetExternalIssueResponse NewGetExternalIssueResponse(IExternalIssue issue)
+		{
+			GetExternalIssueResponse response = new GetExternalIssueResponse();
+			response.Key = issue.Key;
+			response.Link = issue.Link;
+			response.StatusName = issue.StatusName;
+			response.ResolutionName = issue.ResolutionName;
+			response.PriorityName = issue.PriorityName;
+			response.AssigneeName = issue.AssigneeName;
+			response.AssigneeDisplayName = issue.AssigneeDisplayName;
+			response.AssigneeEmailAddress = issue.AssigneeEmailAddress;
 			return response;
 		}
 
@@ -715,9 +963,28 @@ namespace Horde.Server.Issues
 
 			projects.ForEach(project =>
 			{
-				response.Add(new GetExternalIssueProjectResponse(project.Key, project.Name, project.Id, project.Components, project.IssueTypes));
+				response.Add(NewGetExternalIssueProjectResponse(project.Key, project.Name, project.Id, project.Components, project.IssueTypes));
 			});
 
+			return response;
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="key"></param>
+		/// <param name="name"></param>
+		/// <param name="id"></param>
+		/// <param name="components"></param>
+		/// <param name="issueTypes"></param>
+		static GetExternalIssueProjectResponse NewGetExternalIssueProjectResponse(string key, string name, string id, Dictionary<string, string> components, Dictionary<string, string> issueTypes)
+		{
+			GetExternalIssueProjectResponse response = new GetExternalIssueProjectResponse();
+			response.ProjectKey = key;
+			response.Name = name;
+			response.Id = id;
+			response.Components = new Dictionary<string, string>(components);
+			response.IssueTypes = new Dictionary<string, string>(issueTypes);
 			return response;
 		}
 	}

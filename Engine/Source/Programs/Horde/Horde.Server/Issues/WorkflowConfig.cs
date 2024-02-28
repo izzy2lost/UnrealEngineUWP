@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using EpicGames.Horde.Issues;
 using Horde.Server.Jobs.Graphs;
 
 namespace Horde.Server.Issues

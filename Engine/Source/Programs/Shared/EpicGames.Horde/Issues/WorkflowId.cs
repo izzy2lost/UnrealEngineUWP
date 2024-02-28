@@ -2,10 +2,9 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Serialization;
 
-namespace Horde.Server.Issues
+namespace EpicGames.Horde.Issues
 {
 	/// <summary>
 	/// Identifier for a workflow

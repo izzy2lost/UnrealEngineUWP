@@ -15,6 +15,7 @@ using EpicGames.Horde;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
+using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Streams;

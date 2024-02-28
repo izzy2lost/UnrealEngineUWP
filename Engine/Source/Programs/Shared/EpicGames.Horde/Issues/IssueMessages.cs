@@ -2,18 +2,37 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using EpicGames.Core;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Issues.External;
-using Horde.Server.Streams;
-using Horde.Server.Users;
-using MongoDB.Bson;
 
-namespace Horde.Server.Issues
+#pragma warning disable CA2227 // Change collections to be read-only
+
+namespace EpicGames.Horde.Issues
 {
+	/// <summary>
+	/// The severity of an issue
+	/// </summary>
+	public enum IssueSeverity
+	{
+		/// <summary>
+		/// Unspecified severity
+		/// </summary>
+		Unspecified,
+
+		/// <summary>
+		/// This error represents a warning
+		/// </summary>
+		Warning,
+
+		/// <summary>
+		/// This issue represents an error
+		/// </summary>
+		Error,
+	}
+
 	/// <summary>
 	/// Identifies a particular changelist and job
 	/// </summary>
@@ -32,22 +51,22 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Name of the job containing this step
 		/// </summary>
-		public string JobName { get; set; }
+		public string JobName { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The unique job id
 		/// </summary>
-		public string JobId { get; set; }
+		public JobId JobId { get; set; }
 
 		/// <summary>
 		/// The unique batch id
 		/// </summary>
-		public string BatchId { get; set; }
+		public JobStepBatchId BatchId { get; set; }
 
 		/// <summary>
 		/// The unique step id
 		/// </summary>
-		public string StepId { get; set; }
+		public JobStepId StepId { get; set; }
 
 		/// <summary>
 		/// Time at which the step ran
@@ -57,23 +76,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// The unique log id
 		/// </summary>
-		public string? LogId { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="issueStep">The issue step to construct from</param>
-		public GetIssueStepResponse(IIssueStep issueStep)
-		{
-			Change = issueStep.Change;
-			Severity = issueStep.Severity;
-			JobName = issueStep.JobName;
-			JobId = issueStep.JobId.ToString();
-			BatchId = issueStep.BatchId.ToString();
-			StepId = issueStep.StepId.ToString();
-			StepTime = issueStep.StepTime;
-			LogId = issueStep.LogId?.ToString();
-		}
+		public LogId? LogId { get; set; }
 	}
 
 	/// <summary>
@@ -84,17 +87,17 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Unique id of this span
 		/// </summary>
-		public string Id { get; set; }
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The template containing this step
 		/// </summary>
-		public string TemplateId { get; set; }
+		public TemplateId TemplateId { get; set; }
 
 		/// <summary>
 		/// Name of the step
 		/// </summary>
-		public string Name { get; set; }
+		public string Name { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Workflow that this span belongs to
@@ -109,28 +112,12 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// The failing builds for a particular event
 		/// </summary>
-		public List<GetIssueStepResponse> Steps { get; set; }
+		public List<GetIssueStepResponse> Steps { get; set; } = new List<GetIssueStepResponse>();
 
 		/// <summary>
 		/// The following successful build
 		/// </summary>
 		public GetIssueStepResponse? NextSuccess { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="span">The node to construct from</param>
-		/// <param name="steps">Failing steps for this span</param>
-		public GetIssueSpanResponse(IIssueSpan span, List<IIssueStep> steps)
-		{
-			Id = span.Id.ToString();
-			Name = span.NodeName;
-			TemplateId = span.TemplateRefId.ToString();
-			WorkflowId = span.LastFailure.Annotations.WorkflowId;
-			LastSuccess = (span.LastSuccess != null) ? new GetIssueStepResponse(span.LastSuccess) : null;
-			Steps = steps.ConvertAll(x => new GetIssueStepResponse(x));
-			NextSuccess = (span.NextSuccess != null) ? new GetIssueStepResponse(span.NextSuccess) : null;
-		}
 	}
 
 	/// <summary>
@@ -141,7 +128,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Unique id of the stream
 		/// </summary>
-		public string StreamId { get; set; }
+		public StreamId StreamId { get; set; }
 
 		/// <summary>
 		/// Minimum changelist affected by this issue (ie. last successful build)
@@ -157,30 +144,6 @@ namespace Horde.Server.Issues
 		/// Map of steps to (event signature id -> trace id)
 		/// </summary>
 		public List<GetIssueSpanResponse> Nodes { get; set; } = new List<GetIssueSpanResponse>();
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="streamId">The stream to construct from</param>
-		/// <param name="spans">List of spans for the given stream</param>
-		/// <param name="steps">List of steps for the given stream</param>
-		public GetIssueStreamResponse(StreamId streamId, List<IIssueSpan> spans, List<IIssueStep> steps)
-		{
-			StreamId = streamId.ToString();
-
-			foreach (IIssueSpan span in spans)
-			{
-				if (span.LastSuccess != null && (MinChange == null || span.LastSuccess.Change < MinChange.Value))
-				{
-					MinChange = span.LastSuccess.Change;
-				}
-				if (span.NextSuccess != null && (MaxChange == null || span.NextSuccess.Change > MaxChange.Value))
-				{
-					MaxChange = span.NextSuccess.Change;
-				}
-				Nodes.Add(new GetIssueSpanResponse(span, steps.Where(y => y.SpanId == span.Id).ToList()));
-			}
-		}
 	}
 
 	/// <summary>
@@ -210,40 +173,6 @@ namespace Horde.Server.Issues
 	}
 
 	/// <summary>
-	/// Information about a diagnostic
-	/// </summary>
-	public class GetIssueDiagnosticResponse
-	{
-		/// <summary>
-		/// The corresponding build id
-		/// </summary>
-		public long? BuildId { get; set; }
-
-		/// <summary>
-		/// Message for the diagnostic
-		/// </summary>
-		public string Message { get; set; }
-
-		/// <summary>
-		/// Link to the error
-		/// </summary>
-		public Uri Url { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="buildId">The corresponding build id</param>
-		/// <param name="message">Message for the diagnostic</param>
-		/// <param name="url">Link to the diagnostic</param>
-		public GetIssueDiagnosticResponse(long? buildId, string message, Uri url)
-		{
-			BuildId = buildId;
-			Message = message;
-			Url = url;
-		}
-	}
-
-	/// <summary>
 	/// Information about a template affected by an issue
 	/// </summary>
 	public class GetIssueAffectedTemplateResponse
@@ -251,12 +180,12 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// The template id
 		/// </summary>
-		public string TemplateId { get; set; }
+		public TemplateId TemplateId { get; set; }
 
 		/// <summary>
 		/// The template name
 		/// </summary>
-		public string TemplateName { get; set; }
+		public string TemplateName { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Whether it has been resolved or not
@@ -267,21 +196,6 @@ namespace Horde.Server.Issues
 		/// The issue severity of the affected template
 		/// </summary>
 		public IssueSeverity Severity { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="templateId"></param>
-		/// <param name="templateName"></param>
-		/// <param name="resolved"></param>
-		/// <param name="severity"></param>
-		public GetIssueAffectedTemplateResponse(string templateId, string templateName, bool resolved, IssueSeverity severity = IssueSeverity.Unspecified)
-		{
-			TemplateId = templateId;
-			TemplateName = templateName;
-			Resolved = resolved;
-			Severity = severity;
-		}
 	}
 
 	/// <summary>
@@ -292,12 +206,12 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Id of the stream
 		/// </summary>
-		public string StreamId { get; set; }
+		public StreamId StreamId { get; set; }
 
 		/// <summary>
 		/// Name of the stream
 		/// </summary>
-		public string StreamName { get; set; }
+		public string StreamName { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Whether the issue has been resolved in this stream
@@ -307,59 +221,22 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// The affected templates
 		/// </summary>
-		public List<GetIssueAffectedTemplateResponse> AffectedTemplates { get; set; }
+		public List<GetIssueAffectedTemplateResponse> AffectedTemplates { get; set; } = new List<GetIssueAffectedTemplateResponse>();
 
 		/// <summary>
 		/// List of affected template ids
 		/// </summary>
-		public List<string> TemplateIds { get; set; }
+		public List<string> TemplateIds { get; set; } = new List<string>();
 
 		/// <summary>
 		/// List of resolved template ids
 		/// </summary>
-		public List<string> ResolvedTemplateIds { get; set; }
+		public List<string> ResolvedTemplateIds { get; set; } = new List<string>();
 
 		/// <summary>
 		/// List of unresolved template ids
 		/// </summary>
-		public List<string> UnresolvedTemplateIds { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="details">Issue to construct from</param>
-		/// <param name="streamConfig"></param>
-		/// <param name="spans">The spans to construct from</param>
-		public GetIssueAffectedStreamResponse(IIssueDetails details, StreamConfig? streamConfig, IEnumerable<IIssueSpan> spans)
-		{
-			IIssueSpan firstSpan = spans.First();
-			StreamId = firstSpan.StreamId.ToString();
-			StreamName = firstSpan.StreamName;
-			Resolved = spans.All(x => x.NextSuccess != null);
-
-			AffectedTemplates = new List<GetIssueAffectedTemplateResponse>();
-			foreach (IGrouping<TemplateId, IIssueSpan> template in spans.GroupBy(x => x.TemplateRefId))
-			{
-				string templateName = template.Key.ToString();
-				if (streamConfig != null && streamConfig.TryGetTemplate(template.Key, out TemplateRefConfig? templateRefConfig))
-				{
-					templateName = templateRefConfig.Name;
-				}
-
-				HashSet<ObjectId> unresolvedTemplateSpans = new HashSet<ObjectId>(template.Where(x => x.NextSuccess == null).Select(x => x.Id));
-
-				IIssueStep? templateStep = details.Steps.Where(x => unresolvedTemplateSpans.Contains(x.SpanId)).OrderByDescending(x => x.StepTime).FirstOrDefault();
-
-				AffectedTemplates.Add(new GetIssueAffectedTemplateResponse(template.Key.ToString(), templateName, template.All(x => x.NextSuccess != null), templateStep?.Severity ?? IssueSeverity.Unspecified));
-			}
-
-			HashSet<TemplateId> templateIdsSet = new HashSet<TemplateId>(spans.Select(x => x.TemplateRefId));
-			TemplateIds = templateIdsSet.Select(x => x.ToString()).ToList();
-
-			HashSet<TemplateId> unresolvedTemplateIdsSet = new HashSet<TemplateId>(spans.Where(x => x.NextSuccess == null).Select(x => x.TemplateRefId));
-			UnresolvedTemplateIds = unresolvedTemplateIdsSet.Select(x => x.ToString()).ToList();
-			ResolvedTemplateIds = templateIdsSet.Except(unresolvedTemplateIdsSet).Select(x => x.ToString()).ToList();
-		}
+		public List<string> UnresolvedTemplateIds { get; set; } = new List<string>();
 	}
 
 	/// <summary>
@@ -390,7 +267,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// The summary text for this issue
 		/// </summary>
-		public string Summary { get; set; }
+		public string Summary { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Detailed description text
@@ -475,37 +352,37 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// List of stream paths affected by this issue
 		/// </summary>
-		public List<string> Streams { get; set; }
+		public List<string> Streams { get; set; } = new List<string>();
 
 		/// <summary>
 		/// List of affected stream ids
 		/// </summary>
-		public List<string> ResolvedStreams { get; set; }
+		public List<string> ResolvedStreams { get; set; } = new List<string>();
 
 		/// <summary>
 		/// List of unresolved streams
 		/// </summary>
-		public List<string> UnresolvedStreams { get; set; }
+		public List<string> UnresolvedStreams { get; set; } = new List<string>();
 
 		/// <summary>
 		/// List of affected streams
 		/// </summary>
-		public List<GetIssueAffectedStreamResponse> AffectedStreams { get; set; }
+		public List<GetIssueAffectedStreamResponse> AffectedStreams { get; set; } = new List<GetIssueAffectedStreamResponse>();
 
 		/// <summary>
 		/// Most likely suspects for causing this issue [DEPRECATED]
 		/// </summary>
-		public List<string> PrimarySuspects { get; set; }
+		public List<string>? PrimarySuspects { get; set; }
 
 		/// <summary>
 		/// User ids of the most likely suspects [DEPRECATED]
 		/// </summary>
-		public List<string> PrimarySuspectIds { get; set; }
+		public List<string>? PrimarySuspectIds { get; set; }
 
 		/// <summary>
 		/// Most likely suspects for causing this issue
 		/// </summary>
-		public List<GetThinUserInfoResponse> PrimarySuspectsInfo { get; set; }
+		public List<GetThinUserInfoResponse> PrimarySuspectsInfo { get; set; } = new List<GetThinUserInfoResponse>();
 
 		/// <summary>
 		/// Whether to show alerts for this issue
@@ -536,61 +413,6 @@ namespace Horde.Server.Issues
 		/// The workflow thread url for this issue
 		/// </summary>
 		public Uri? WorkflowThreadUrl { get; set; }
-
-		/// <summary>
-		/// Constructs a new issue
-		/// </summary>
-		/// <param name="details">Issue to construct from</param>
-		/// <param name="affectedStreams">The affected streams</param>
-		/// <param name="showDesktopAlerts">Whether to show alerts for this issue</param>
-		public GetIssueResponse(IIssueDetails details, List<GetIssueAffectedStreamResponse> affectedStreams, bool showDesktopAlerts)
-		{
-			IIssue issue = details.Issue;
-			Id = issue.Id;
-			CreatedAt = issue.CreatedAt;
-			RetrievedAt = DateTime.UtcNow;
-			Summary = String.IsNullOrEmpty(issue.UserSummary)? issue.Summary : issue.UserSummary;
-			Description = issue.Description;
-			Severity = issue.Severity;
-			Promoted = issue.Promoted;
-			Owner = details.Owner?.Login;
-			OwnerId = details.Owner?.Id.ToString();
-			OwnerInfo = details.Owner?.ToThinApiResponse();
-			NominatedBy = details.NominatedBy?.Login;
-			NominatedByInfo = details.NominatedBy?.ToThinApiResponse();
-			AcknowledgedAt = issue.AcknowledgedAt;
-			FixChange = issue.FixChange;
-			ResolvedAt = issue.ResolvedAt;
-			ResolvedBy = details.ResolvedBy?.Login;
-			ResolvedById = details.ResolvedBy?.Id.ToString();
-			ResolvedByInfo = details.ResolvedBy?.ToThinApiResponse();
-			VerifiedAt = issue.VerifiedAt;
-			LastSeenAt = issue.LastSeenAt;
-			Streams = details.Spans.Select(x => x.StreamName).Distinct().ToList()!;
-			ResolvedStreams = new List<string>();
-			UnresolvedStreams = new List<string>();
-			AffectedStreams = affectedStreams;
-			foreach (IGrouping<StreamId, IIssueSpan> stream in details.Spans.GroupBy(x => x.StreamId))
-			{
-				if (stream.All(x => x.NextSuccess != null))
-				{
-					ResolvedStreams.Add(stream.Key.ToString());
-				}
-				else
-				{
-					UnresolvedStreams.Add(stream.Key.ToString());
-				}
-			}
-			PrimarySuspects = details.SuspectUsers.Where(x => x.Login != null).Select(x => x.Login).ToList();
-			PrimarySuspectIds= details.SuspectUsers.Select(x => x.Id.ToString()).ToList();
-			PrimarySuspectsInfo = details.SuspectUsers.ConvertAll(x => x.ToThinApiResponse());
-			ShowDesktopAlerts = showDesktopAlerts;
-			ExternalIssueKey = details.ExternalIssueKey;
-			QuarantinedByUserInfo = details.QuarantinedBy?.ToThinApiResponse();
-			QuarantineTimeUtc = details.QuarantineTimeUtc;
-			ForceClosedByUserInfo = details.ForceClosedBy?.ToThinApiResponse();
-			WorkflowThreadUrl = issue.WorkflowThreadUrl;
-		}
 	}
 
 	/// <summary>
@@ -601,17 +423,17 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Unique id of this span
 		/// </summary>
-		public string Id { get; set; }
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The template containing this step
 		/// </summary>
-		public string TemplateId { get; set; }
+		public string TemplateId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Name of the step
 		/// </summary>
-		public string Name { get; set; }
+		public string Name { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Workflow for this span
@@ -627,27 +449,6 @@ namespace Horde.Server.Issues
 		/// The following successful build
 		/// </summary>
 		public GetIssueStepResponse? NextSuccess { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="span"></param>
-		/// <param name="workflowId"></param>
-		public FindIssueSpanResponse(IIssueSpan span, WorkflowId? workflowId)
-		{
-			Id = span.Id.ToString();
-			TemplateId = span.TemplateRefId.ToString();
-			Name = span.NodeName;
-			WorkflowId = workflowId;
-			if (span.LastSuccess != null)
-			{
-				LastSuccess = new GetIssueStepResponse(span.LastSuccess);
-			}
-			if (span.NextSuccess != null)
-			{
-				NextSuccess = new GetIssueStepResponse(span.NextSuccess);
-			}
-		}
 	}
 
 	/// <summary>
@@ -678,7 +479,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// The summary text for this issue
 		/// </summary>
-		public string Summary { get; set; }
+		public string Summary { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Detailed description text
@@ -743,7 +544,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Spans for this issue
 		/// </summary>
-		public List<FindIssueSpanResponse> Spans { get; set; }
+		public List<FindIssueSpanResponse>? Spans { get; set; }
 
 		/// <summary>
 		/// Key for this issue in external issue tracker
@@ -768,56 +569,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Workflows for which this issue is open
 		/// </summary>
-		public List<WorkflowId> OpenWorkflows { get; set; }
-
-		/// <summary>
-		/// Constructs a new issue
-		/// </summary>
-		/// <param name="issue">The isseu information</param>
-		/// <param name="owner">Owner of the issue</param>
-		/// <param name="nominatedBy">User that nominated the current fixer</param>
-		/// <param name="resolvedBy">User that resolved the issue</param>
-		/// <param name="quarantinedBy">User that quarantined the issue</param>
-		/// <param name="streamSeverity">The current severity in the stream</param>
-		/// <param name="spans">Spans for this issue</param>
-		/// <param name="openWorkflows">List of workflows for which this issue is open</param>
-		public FindIssueResponse(IIssue issue, IUser? owner, IUser? nominatedBy, IUser? resolvedBy, IUser? quarantinedBy, IssueSeverity? streamSeverity, List<FindIssueSpanResponse> spans, List<WorkflowId> openWorkflows)
-		{
-			Id = issue.Id;
-			CreatedAt = issue.CreatedAt;
-			RetrievedAt = DateTime.UtcNow;
-			Summary = String.IsNullOrEmpty(issue.UserSummary) ? issue.Summary : issue.UserSummary;
-			Description = issue.Description;
-			Severity = issue.Severity;
-			StreamSeverity = streamSeverity;
-			Promoted = issue.Promoted;
-			if (owner != null)
-			{
-				Owner = owner.ToThinApiResponse();
-			}
-			if (nominatedBy != null)
-			{
-				NominatedBy = nominatedBy.ToThinApiResponse();
-			}
-			AcknowledgedAt = issue.AcknowledgedAt;
-			FixChange = issue.FixChange;
-			ResolvedAt = issue.ResolvedAt;
-			if (resolvedBy != null)
-			{
-				ResolvedBy = resolvedBy.ToThinApiResponse();
-			}
-			VerifiedAt = issue.VerifiedAt;
-			LastSeenAt = issue.LastSeenAt;
-			Spans = spans;
-			ExternalIssueKey = issue.ExternalIssueKey;
-			if (quarantinedBy != null)
-			{
-				QuarantinedBy = quarantinedBy.ToThinApiResponse();
-				QuarantineTimeUtc = issue.QuarantineTimeUtc;
-			}
-			WorkflowThreadUrl = issue.WorkflowThreadUrl;
-			OpenWorkflows = openWorkflows;
-		}
+		public List<WorkflowId>? OpenWorkflows { get; set; }
 	}
 
 	/// <summary>
@@ -904,44 +656,27 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// The project key
 		/// </summary>
-		public string ProjectKey { get; set; }
+		public string ProjectKey { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The name of the project
 		/// </summary>
-		public string Name { get; set; }
+		public string Name { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The id of the project
 		/// </summary>
-		public string Id { get; set; }
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// component id => name
 		/// </summary>
-		public Dictionary<string, string> Components { get; set; }
+		public Dictionary<string, string> Components { get; set; } = new Dictionary<string, string>();
 
 		/// <summary>
 		/// IssueType id => name
 		/// </summary>
-		public Dictionary<string, string> IssueTypes { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="key"></param>
-		/// <param name="name"></param>
-		/// <param name="id"></param>
-		/// <param name="components"></param>
-		/// <param name="issueTypes"></param>
-		public GetExternalIssueProjectResponse(string key, string name, string id, Dictionary<string, string> components, Dictionary<string, string> issueTypes)
-		{
-			ProjectKey = key;
-			Name = name; 
-			Id = id; 
-			Components = new Dictionary<string, string>(components); 
-			IssueTypes = new Dictionary<string, string>(issueTypes);
-		}
+		public Dictionary<string, string> IssueTypes { get; set; } = new Dictionary<string, string>();
 	}
 
 	/// <summary>
@@ -1036,12 +771,12 @@ namespace Horde.Server.Issues
 	/// <summary>
 	/// External issue response object
 	/// </summary>
-	public class GetExternalIssueResponse : IExternalIssue
+	public class GetExternalIssueResponse
 	{
 		/// <summary>
 		/// The external issue key
 		/// </summary>
-		public string Key { get; set; }
+		public string Key { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The issue link on external tracking site
@@ -1077,20 +812,5 @@ namespace Horde.Server.Issues
 		/// The current assignee's email address
 		/// </summary>
 		public string? AssigneeEmailAddress { get; set; }
-
-		/// <summary>
-		/// Response constructor
-		/// </summary>
-		public GetExternalIssueResponse(IExternalIssue issue)
-		{
-			Key = issue.Key;
-			Link = issue.Link;
-			StatusName = issue.StatusName;
-			ResolutionName = issue.ResolutionName;
-			PriorityName = issue.PriorityName;
-			AssigneeName = issue.AssigneeName;
-			AssigneeDisplayName = issue.AssigneeDisplayName;
-			AssigneeEmailAddress = issue.AssigneeEmailAddress;
-		}
 	}
 }
