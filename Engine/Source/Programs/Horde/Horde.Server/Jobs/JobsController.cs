@@ -508,7 +508,7 @@ namespace Horde.Server.Jobs
 			double? agentRate = null;
 			if (batch.AgentId != null && includeCosts)
 			{
-				agentRate = await _agentService.GetRateAsync(batch.AgentId.Value);
+				agentRate = await _agentService.GetRateAsync(batch.AgentId.Value, cancellationToken);
 			}
 
 			return new GetBatchResponse(batch, steps, agentRate);

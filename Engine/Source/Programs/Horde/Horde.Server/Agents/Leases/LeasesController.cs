@@ -100,7 +100,7 @@ namespace Horde.Server.Agents.Leases
 					double? agentRate = null;
 					if (includeCosts && !cachedAgentRates.TryGetValue(lease.AgentId, out agentRate))
 					{
-						agentRate = await _agentService.GetRateAsync(lease.AgentId);
+						agentRate = await _agentService.GetRateAsync(lease.AgentId, cancellationToken);
 						cachedAgentRates.Add(lease.AgentId, agentRate);
 					}
 
@@ -133,7 +133,7 @@ namespace Horde.Server.Agents.Leases
 				return NotFound(leaseId);
 			}
 
-			IAgent? agent = await _agentService.GetAgentAsync(lease.AgentId);
+			IAgent? agent = await _agentService.GetAgentAsync(lease.AgentId, cancellationToken);
 			if (agent == null)
 			{
 				return NotFound(lease.AgentId);
@@ -142,7 +142,7 @@ namespace Horde.Server.Agents.Leases
 			double? agentRate = null;
 			if (_globalConfig.Value.Authorize(ServerAclAction.ViewCosts, User))
 			{
-				agentRate = await _agentService.GetRateAsync(agent.Id);
+				agentRate = await _agentService.GetRateAsync(agent.Id, cancellationToken);
 			}
 
 			Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload, cancellationToken);
@@ -242,7 +242,7 @@ namespace Horde.Server.Agents.Leases
 				return NotFound(leaseId);
 			}
 
-			IAgent? agent = await _agentService.GetAgentAsync(lease.AgentId);
+			IAgent? agent = await _agentService.GetAgentAsync(lease.AgentId, cancellationToken);
 			if (agent == null)
 			{
 				return NotFound(lease.AgentId);
@@ -254,7 +254,7 @@ namespace Horde.Server.Agents.Leases
 				return NotFound(agent.Id, leaseId);
 			}
 
-			await _agentService.CancelLeaseAsync(agent, leaseId);
+			await _agentService.CancelLeaseAsync(agent, leaseId, cancellationToken);
 			return Ok();
 		}
 	}

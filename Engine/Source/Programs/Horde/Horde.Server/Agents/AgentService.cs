@@ -194,20 +194,22 @@ namespace Horde.Server.Agents
 		/// <param name="enabled">Whether the agent is currently enabled</param>
 		/// <param name="pools">Pools for this agent</param>
 		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique id for the agent</returns>
-		public Task<IAgent> CreateAgentAsync(string name, bool enabled, List<PoolId>? pools, bool ephemeral = false)
+		public Task<IAgent> CreateAgentAsync(string name, bool enabled, List<PoolId>? pools, bool ephemeral = false, CancellationToken cancellationToken = default)
 		{
-			return Agents.AddAsync(new AgentId(name), enabled, pools, ephemeral);
+			return Agents.AddAsync(new AgentId(name), enabled, pools, ephemeral, cancellationToken);
 		}
 
 		/// <summary>
 		/// Gets an agent by ID
 		/// </summary>
 		/// <param name="agentId">Unique id of the agent</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The agent document</returns>
-		public Task<IAgent?> GetAgentAsync(AgentId agentId)
+		public Task<IAgent?> GetAgentAsync(AgentId agentId, CancellationToken cancellationToken = default)
 		{
-			return Agents.GetAsync(agentId);
+			return Agents.GetAsync(agentId, cancellationToken);
 		}
 
 		/// <summary>
@@ -245,8 +247,9 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <param name="agent">The agent to delete</param>
 		/// <param name="forceDelete">Whether to fully delete the agent as opposed to just marking it as deleted</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
-		public async Task DeleteAgentAsync(IAgent? agent, bool forceDelete = false)
+		public async Task DeleteAgentAsync(IAgent? agent, bool forceDelete = false, CancellationToken cancellationToken = default)
 		{
 			if (agent == null)
 			{
@@ -255,18 +258,18 @@ namespace Horde.Server.Agents
 
 			if (forceDelete)
 			{
-				await Agents.ForceDeleteAsync(agent.Id);
+				await Agents.ForceDeleteAsync(agent.Id, cancellationToken);
 				return;
 			}
 
 			while (agent is { Deleted: false })
 			{
-				IAgent? newAgent = await Agents.TryDeleteAsync(agent);
+				IAgent? newAgent = await Agents.TryDeleteAsync(agent, cancellationToken);
 				if (newAgent != null)
 				{
 					break;
 				}
-				agent = await GetAgentAsync(agent.Id);
+				agent = await GetAgentAsync(agent.Id, cancellationToken);
 			}
 		}
 
@@ -362,7 +365,7 @@ namespace Horde.Server.Agents
 					}
 
 					// Create a new session document
-					ISession newSession = await _sessions.AddAsync(SessionIdUtils.GenerateNewId(), agent.Id, _clock.UtcNow, properties, resources, version);
+					ISession newSession = await _sessions.AddAsync(SessionIdUtils.GenerateNewId(), agent.Id, _clock.UtcNow, properties, resources, version, cancellationToken);
 					DateTime sessionExpiresAt = utcNow + SessionExpiryTime;
 
 					// Get the new pools for the agent
@@ -380,11 +383,11 @@ namespace Horde.Server.Agents
 					}
 
 					// Remove the session we didn't use
-					await _sessions.DeleteAsync(newSession.Id);
+					await _sessions.DeleteAsync(newSession.Id, cancellationToken);
 				}
 
 				// Get the current agent state
-				newAgent = await GetAgentAsync(agent.Id);
+				newAgent = await GetAgentAsync(agent.Id, cancellationToken);
 				if (newAgent == null)
 				{
 					throw new InvalidOperationException($"Invalid agent id '{agent.Id}'");
@@ -547,7 +550,7 @@ namespace Horde.Server.Agents
 				}
 
 				// Update the agent
-				agent = await GetAgentAsync(agent.Id);
+				agent = await GetAgentAsync(agent.Id, cancellationToken);
 			}
 			return agent;
 		}
@@ -606,8 +609,9 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <param name="agent">Agent to cancel the lease on</param>
 		/// <param name="leaseId">The lease id to cancel</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<bool> CancelLeaseAsync(IAgent agent, LeaseId leaseId)
+		public async Task<bool> CancelLeaseAsync(IAgent agent, LeaseId leaseId, CancellationToken cancellationToken)
 		{
 			int index = 0;
 			while (index < agent.Leases.Count && agent.Leases[index].Id != leaseId)
@@ -625,7 +629,7 @@ namespace Horde.Server.Agents
 				return false;
 			}
 
-			await Agents.TryCancelLeaseAsync(agent, index);
+			await Agents.TryCancelLeaseAsync(agent, index, cancellationToken);
 			return true;
 		}
 
@@ -759,7 +763,7 @@ namespace Horde.Server.Agents
 				}
 
 				// Fetch the agent again
-				agent = await GetAgentAsync(agent.Id);
+				agent = await GetAgentAsync(agent.Id, cancellationToken);
 			}
 
 			// If the agent is stopping, terminate the session
@@ -772,7 +776,7 @@ namespace Horde.Server.Agents
 					agent = terminatedAgent;
 					break;
 				}
-				agent = await GetAgentAsync(agent.Id);
+				agent = await GetAgentAsync(agent.Id, cancellationToken);
 			}
 
 			return agent;
@@ -818,7 +822,7 @@ namespace Horde.Server.Agents
 
 				// Update the session document
 				Agents.GetLogger(agent.Id).LogInformation("Terminated session {SessionId}", sessionId);
-				await _sessions.UpdateAsync(sessionId, finishTime, agent.Properties, agent.Resources);
+				await _sessions.UpdateAsync(sessionId, finishTime, agent.Properties, agent.Resources, cancellationToken);
 				return agent;
 			}
 			return null;
@@ -992,13 +996,14 @@ namespace Horde.Server.Agents
 		/// Gets the rate for the given agent
 		/// </summary>
 		/// <param name="agentId">Agent id to query</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Hourly rate of running the given agent</returns>
-		public async ValueTask<double?> GetRateAsync(AgentId agentId)
+		public async ValueTask<double?> GetRateAsync(AgentId agentId, CancellationToken cancellationToken = default)
 		{
 			RedisKey key = $"agent-rate/{agentId}";
 
 			// Try to get the current value
-			RedisValue value = await _redisService.GetDatabase().StringGetAsync(key);
+			RedisValue value = await _redisService.GetDatabase().StringGetAsync(key).WaitAsync(cancellationToken);
 			if (!value.IsNull)
 			{
 				double rate = (double)value;
@@ -1016,10 +1021,10 @@ namespace Horde.Server.Agents
 				double rate = 0.0;
 
 				// Get the rate table
-				AgentRateTable? rateTable = await _agentRateTable.GetAsync();
+				AgentRateTable? rateTable = await _agentRateTable.GetAsync(cancellationToken);
 				if (rateTable != null && rateTable.Entries.Count > 0)
 				{
-					IAgent? agent = await GetAgentAsync(agentId);
+					IAgent? agent = await GetAgentAsync(agentId, cancellationToken);
 					if (agent != null)
 					{
 						foreach (AgentRateConfig config in rateTable.Entries)
@@ -1034,7 +1039,7 @@ namespace Horde.Server.Agents
 				}
 
 				// Cache it for future reference
-				await _redisService.GetDatabase().StringSetAsync(key, rate, TimeSpan.FromMinutes(5.0), flags: CommandFlags.FireAndForget);
+				await _redisService.GetDatabase().StringSetAsync(key, rate, TimeSpan.FromMinutes(5.0), flags: CommandFlags.FireAndForget).WaitAsync(cancellationToken);
 				return rate;
 			}
 		}
@@ -1085,7 +1090,7 @@ namespace Horde.Server.Agents
 				if (agent.Status == AgentStatus.Stopped && agent.Ephemeral && noStatusChangeDuringPeriod)
 				{
 					_logger.LogDebug("Deleting ephemeral agent {Agent}", agent.Id);
-					await DeleteAgentAsync(agent, true);
+					await DeleteAgentAsync(agent, true, cancellationToken);
 				}
 			}
 		}

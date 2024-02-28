@@ -60,7 +60,7 @@ namespace Horde.Server.Server
 			_logger.LogInformation("Ticking consistency service...");
 
 			// Find all the active sessions
-			List<ISession> sessions = await _sessionCollection.FindActiveSessionsAsync();
+			List<ISession> sessions = await _sessionCollection.FindActiveSessionsAsync(cancellationToken: cancellationToken);
 			Dictionary<SessionId, ISession> sessionIdToInstance = sessions.ToDictionary(x => x.Id, x => x);
 
 			// Find all the active agents
@@ -77,7 +77,7 @@ namespace Horde.Server.Server
 					if (agent == null || agent.SessionId != session.Id)
 					{
 						_logger.LogWarning("Forcing agent {AgentId} session {SessionId} to complete.", session.AgentId, session.Id);
-						await _sessionCollection.UpdateAsync(session.Id, utcNow, null, null);
+						await _sessionCollection.UpdateAsync(session.Id, utcNow, null, null, cancellationToken);
 						sessionIdToInstance.Remove(session.Id);
 					}
 				}
@@ -89,7 +89,7 @@ namespace Horde.Server.Server
 			{
 				if (!sessionIdToInstance.ContainsKey(lease.SessionId))
 				{
-					ISession? session = await _sessionCollection.GetAsync(lease.SessionId);
+					ISession? session = await _sessionCollection.GetAsync(lease.SessionId, cancellationToken);
 					DateTime finishTime = session?.FinishTime ?? DateTime.UtcNow;
 					_logger.LogWarning("Setting finish time for lease {LeaseId} to {FinishTime}", lease.Id, finishTime);
 					await _leaseCollection.TrySetOutcomeAsync(lease.Id, finishTime, LeaseOutcome.Cancelled, null, cancellationToken);
