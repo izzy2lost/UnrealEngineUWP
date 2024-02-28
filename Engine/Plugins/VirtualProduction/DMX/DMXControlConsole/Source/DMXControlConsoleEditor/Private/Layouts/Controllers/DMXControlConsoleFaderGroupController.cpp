@@ -379,7 +379,7 @@ TArray<UDMXControlConsoleElementController*> UDMXControlConsoleFaderGroupControl
 
 FString UDMXControlConsoleFaderGroupController::GenerateUserNameByFaderGroupsNames() const
 {
-	FString NewName = TEXT("");
+	FString NewName = FaderGroups.Num() > 1 ? TEXT("Group_") : TEXT("");
 	for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
 	{
 		if (!FaderGroup.IsValid())

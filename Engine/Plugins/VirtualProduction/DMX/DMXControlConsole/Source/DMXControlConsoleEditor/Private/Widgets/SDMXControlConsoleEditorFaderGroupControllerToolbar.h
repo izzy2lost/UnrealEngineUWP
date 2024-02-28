@@ -57,9 +57,6 @@ namespace UE::DMX::Private
 		/** Called when the search text changed */
 		void OnSearchTextChanged(const FText& SearchText);
 
-		/** True if the use of the Controller Combo Box widget should be enabled */
-		bool IsControllerComboBoxEnabled() const;
-
 		/** Called to generate the Fader Group Controller Info Panel */
 		void OnGetInfoPanel();
 
