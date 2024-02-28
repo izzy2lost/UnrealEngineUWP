@@ -12,6 +12,7 @@ class IDetailCustomNodeBuilder;
 class IDetailGroup;
 class IDetailPropertyRow;
 class IPropertyHandle;
+class IStructureDataProvider;
 class SWidget;
 
 /**
@@ -110,6 +111,8 @@ public:
 	 */
 	virtual TArray<TSharedPtr<IPropertyHandle>> AddAllExternalStructureProperties(TSharedRef<FStructOnScope> ChildStructure) = 0;
 
+	virtual TArray<TSharedPtr<IPropertyHandle>> AddAllExternalStructureProperties(TSharedPtr<IStructureDataProvider> ChildStructure) = 0;
+	
 	/**
 	 * Generates a value widget from a customized struct
 	 * If the customized struct has no value widget an empty widget will be returned

@@ -98,7 +98,14 @@ IDetailPropertyRow* FCustomChildrenBuilder::AddExternalStructureProperty(TShared
 
 TArray<TSharedPtr<IPropertyHandle>> FCustomChildrenBuilder::AddAllExternalStructureProperties(TSharedRef<FStructOnScope> ChildStructure)
 {
-	return ParentCategory.Pin()->AddAllExternalStructureProperties(ChildStructure);
+	const TSharedPtr<FDetailCategoryImpl> ParentCategoryPinned = ParentCategory.Pin();
+	return ParentCategoryPinned ? ParentCategoryPinned->AddAllExternalStructureProperties(ChildStructure) : TArray<TSharedPtr<IPropertyHandle>>();
+}
+
+TArray<TSharedPtr<IPropertyHandle>> FCustomChildrenBuilder::AddAllExternalStructureProperties(TSharedPtr<IStructureDataProvider> ChildStructure)
+{
+	const TSharedPtr<FDetailCategoryImpl> ParentCategoryPinned = ParentCategory.Pin();
+	return ParentCategoryPinned ? ParentCategoryPinned->AddAllExternalStructureProperties(ChildStructure) : TArray<TSharedPtr<IPropertyHandle>>();
 }
 
 IDetailPropertyRow* FCustomChildrenBuilder::AddExternalObjects(const TArray<UObject*>& Objects, FName UniqueIdName)
