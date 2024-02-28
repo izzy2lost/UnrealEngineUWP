@@ -125,6 +125,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool IsFirstConditionGroupQuery() const;
 
+protected:
+	/**
+	 * Utility that returns the given actor in the current world. If currently in PIE, converts editor actors to PIE actors, and vice-versa. If no
+	 * conversion is needed, returns the provided actor as-is.
+	 */
+	static AActor* GetActorForCurrentWorld(AActor* InActorToConvert);
+
 private:
 	/** The operation type that the query is using. */
 	UPROPERTY()
