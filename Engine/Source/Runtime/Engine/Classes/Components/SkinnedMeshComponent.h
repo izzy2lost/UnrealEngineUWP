@@ -187,6 +187,31 @@ struct FVertexOffsetUsage
 	int32 Usage = 0;
 };
 
+/** Specifies which mesh deformer should be used on each LOD of a mesh */
+struct FMeshDeformerSet
+{
+	/** Each deformer in this array should be used on at least one LOD */
+	TArray<TObjectPtr<UMeshDeformer>, TInlineAllocator<2>> Deformers;
+
+	/**
+	 * Indexed by mesh LOD. Each element is either a valid index into the Deformers array, or
+	 * INDEX_NONE to signify that no deformer should be used for this LOD.
+	 */
+	TArray<int8, TFixedAllocator<MAX_MESH_LOD_COUNT>> DeformerIndexForLOD;
+};
+
+/** Same as FMeshDeformerSet, except for mesh deformer instances */
+USTRUCT()
+struct FMeshDeformerInstanceSet
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<TObjectPtr<UMeshDeformerInstance>> DeformerInstances;
+
+	TArray<int8, TFixedAllocator<MAX_MESH_LOD_COUNT>> InstanceIndexForLOD;
+};
+
 /** The map of external morph sets registered on the skinned mesh component. */
 using FExternalMorphSets = TMap<int32, TSharedPtr<FExternalMorphSet>>;
 
@@ -256,19 +281,38 @@ protected:
 	ENGINE_API void SetMeshDeformer(bool bInSetMeshDeformer, UMeshDeformer* InMeshDeformer);
 
 	/** Get the currently active MeshDeformer. This may come from the SkeletalMesh default or the Component override. */
-	ENGINE_API UMeshDeformer* GetActiveMeshDeformer() const;
+	ENGINE_API FMeshDeformerSet GetActiveMeshDeformers() const;
 
 	/** Object containing instance settings for the bound MeshDeformer. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Instanced, Category = "Deformer", meta = (DisplayName = "Deformer Settings", EditCondition = "MeshDeformerInstanceSettings!=nullptr", ShowOnlyInnerProperties))
 	TObjectPtr<UMeshDeformerInstanceSettings> MeshDeformerInstanceSettings;
 
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "Replaced by MeshDeformerInstances. Call GetMeshDeformerInstance() to get the same behavior as reading MeshDeformerInstance.")
+	UPROPERTY(Transient, BlueprintReadOnly, BlueprintGetter = GetMeshDeformerInstance, Category = "Deformer", meta = (DeprecatedProperty, DeprecationMessage = "Use the GetMeshDeformerInstance function instead"))
+	TObjectPtr<UMeshDeformerInstance> MeshDeformerInstance_DEPRECATED;
+#endif // WITH_EDITORONLY_DATA
+
 	/** Object containing state for the bound MeshDeformer. */
-	UPROPERTY(Transient, BlueprintReadOnly, BlueprintGetter = GetMeshDeformerInstance, Category = "Deformer")
-	TObjectPtr<UMeshDeformerInstance> MeshDeformerInstance;
+	UPROPERTY(Transient)
+	FMeshDeformerInstanceSet MeshDeformerInstances;
+
+private:
+	/** Initializes the MeshDeformerInstances property */
+	void CreateMeshDeformerInstances(const FMeshDeformerSet& DeformerSet);
 
 public:
-	UFUNCTION(BlueprintGetter)
-	UMeshDeformerInstance* GetMeshDeformerInstance() const { return MeshDeformerInstance; }
+	UFUNCTION(BlueprintPure, Category = "Components|SkinnedMesh")
+	UMeshDeformerInstance* GetMeshDeformerInstance() const;
+
+	/** 
+	 * Gets the MeshDeformer for the given LOD.
+	 * 
+	 * Returns null if the LOD doesn't use a deformer or if the index is out of range.
+	 * 
+	 * This function takes GetMeshDeformerMaxLOD() into account, so there's no need to call both.
+	 */
+	UMeshDeformerInstance* GetMeshDeformerInstanceForLOD(int32 LODIndex) const;
 
 	/** Max LOD at which to update or apply the MeshDeformer. */
 	ENGINE_API int32 GetMeshDeformerMaxLOD() const;
@@ -1052,7 +1096,7 @@ public:
 
 	ENGINE_API bool IsSkinCacheAllowed(int32 LodIdx) const;
 
-	bool HasMeshDeformer() const { return GetActiveMeshDeformer() != nullptr; }
+	bool HasMeshDeformer() const { return GetActiveMeshDeformers().Deformers.Num() > 0; }
 
 	bool GetForceUpdateDynamicDataImmediately() const { return bForceUpdateDynamicDataImmediately; }
 	void SetForceUpdateDynamicDataImmediately(bool bForceUpdateImmediately) { bForceUpdateDynamicDataImmediately = bForceUpdateImmediately; }

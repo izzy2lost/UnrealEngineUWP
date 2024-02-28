@@ -190,6 +190,10 @@ struct FSkeletalMeshLODInfo
 	 */
 	UPROPERTY(EditAnywhere, Category = SkeletalMeshLODInfo)
 	uint8 bBuildHalfEdgeBuffers : 1;
+
+	/** Whether a Mesh Deformer applied to the mesh asset or Skinned Mesh Component should be used on this LOD or not */
+	UPROPERTY(EditAnywhere, Category = SkeletalMeshLODInfo)
+	uint8 bAllowMeshDeformer : 1;
 	
 	/** List of vertex attributes to include for rendering and what type they should be */
 	UPROPERTY(EditAnywhere, Category = SkeletalMeshLODInfo, AdvancedDisplay, EditFixedSize, Meta=(NoResetToDefault))
@@ -228,6 +232,7 @@ struct FSkeletalMeshLODInfo
 		, bHasPerLODVertexColors(false)
 		, bAllowCPUAccess(false)
 		, bBuildHalfEdgeBuffers(false)
+		, bAllowMeshDeformer(true)
 		, bSupportUniformlyDistributedSampling(false)
 #if WITH_EDITORONLY_DATA
 		, bImportWithBaseMesh(false)

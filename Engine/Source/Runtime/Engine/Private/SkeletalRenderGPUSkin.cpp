@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "SkeletalRenderGPUSkin.h"
+#include "Animation/MeshDeformerInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "RenderUtils.h"
 #include "SkeletalRender.h"
@@ -2076,7 +2077,7 @@ void FSkeletalMeshObjectGPUSkin::GetUsedVertexFactoryData(
 	InitGPUSkinVertexFactoryComponents(&GPUSkinDataType, VertexBuffers, nullptr /*FGPUBaseSkinVertexFactory*/);
 
 	bool bIsSkinCacheAllowed = SkinnedMeshComponent ? SkinnedMeshComponent->IsSkinCacheAllowed(LODIndex) : false;
-	bool bHasMeshDeformer = SkinnedMeshComponent ? SkinnedMeshComponent->GetMeshDeformerInstance() != nullptr && LODIndex <= SkinnedMeshComponent->GetMeshDeformerMaxLOD() : false;
+	bool bHasMeshDeformer = SkinnedMeshComponent && SkinnedMeshComponent->GetMeshDeformerInstanceForLOD(LODIndex);
 	if (bIsSkinCacheAllowed || bHasMeshDeformer)
 	{
 		VertexFactoryDataList.AddUnique(FPSOPrecacheVertexFactoryData(&FGPUSkinPassthroughVertexFactory::StaticType));
@@ -2639,7 +2640,7 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 	}
 
 	bIsSkinCacheAllowed = InMeshComponent->IsSkinCacheAllowed(InLODIndex);
-	bHasMeshDeformer = InMeshComponent->GetMeshDeformerInstance() != nullptr && LODIndex <= InMeshComponent->GetMeshDeformerMaxLOD();
+	bHasMeshDeformer = InMeshComponent->GetMeshDeformerInstanceForLOD(LODIndex) != nullptr;
 	bForceUpdateDynamicDataImmediately = InMeshComponent->GetForceUpdateDynamicDataImmediately();
 	// Force immediate update when using mesh deformer.
 	bForceUpdateDynamicDataImmediately |= bHasMeshDeformer;

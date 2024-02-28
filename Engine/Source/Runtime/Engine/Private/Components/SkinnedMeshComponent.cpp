@@ -25,6 +25,7 @@
 #include "SkeletalMeshSceneProxy.h"
 #include "Animation/MeshDeformer.h"
 #include "Animation/MeshDeformerInstance.h"
+#include "Animation/MeshDeformerProvider.h"
 #include "AnimationRuntime.h"
 #include "BoneWeights.h"
 #include "Animation/SkinWeightProfileManager.h"
@@ -699,8 +700,7 @@ void USkinnedMeshComponent::OnRegister()
 
 	InvalidateCachedBounds();
 
-	UMeshDeformer* ActiveMeshDeformer = GetActiveMeshDeformer();
-	MeshDeformerInstance = ActiveMeshDeformer != nullptr ? ActiveMeshDeformer->CreateInstance(this, MeshDeformerInstanceSettings) : nullptr;
+	CreateMeshDeformerInstances(GetActiveMeshDeformers());
 
 	RefreshExternalMorphTargetWeights();
 
@@ -718,16 +718,15 @@ void USkinnedMeshComponent::OnUnregister()
 		AnimUpdateRateParams = nullptr;
 	}
 
-	MeshDeformerInstance = nullptr;
+	CreateMeshDeformerInstances(FMeshDeformerSet());
 }
 
 void USkinnedMeshComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Recreate the deformer instance to collect any changes for component bindings during startup.
-	UMeshDeformer* ActiveMeshDeformer = GetActiveMeshDeformer();
-	MeshDeformerInstance = ActiveMeshDeformer != nullptr ? ActiveMeshDeformer->CreateInstance(this, MeshDeformerInstanceSettings) : nullptr;
+	// Recreate the deformer instances to collect any changes for component bindings during startup.
+	CreateMeshDeformerInstances(GetActiveMeshDeformers());
 }
 
 const FExternalMorphWeightData& USkinnedMeshComponent::GetExternalMorphWeights(int32 LOD) const
@@ -1066,12 +1065,12 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 		// scene proxy update of material usage based on active morphs
 		UpdateMorphMaterialUsageOnProxy();
 	}
- 
- 	if (MeshDeformerInstance)
+
+ 	if (UMeshDeformerInstance* MeshDeformerInstance = GetMeshDeformerInstance())
  	{
 		MeshDeformerInstance->AllocateResources();
 		
-			// Enqueue immediate execution of work here to ensure that we have some deformer outputs written for the next frame.
+		// Enqueue immediate execution of work here to ensure that we have some deformer outputs written for the next frame.
 		UMeshDeformerInstance::FEnqueueWorkDesc Desc;
 		Desc.Scene = GetScene();
 		Desc.ExecutionGroup = UMeshDeformerInstance::ExecutionGroup_Immediate;
@@ -1084,7 +1083,7 @@ void USkinnedMeshComponent::DestroyRenderState_Concurrent()
 {
 	Super::DestroyRenderState_Concurrent();
 
-	if (MeshDeformerInstance)
+	if (UMeshDeformerInstance* MeshDeformerInstance = GetMeshDeformerInstance())
 	{
 		MeshDeformerInstance->ReleaseResources();
 	}
@@ -1192,7 +1191,8 @@ void USkinnedMeshComponent::SendRenderDynamicData_Concurrent()
 			UpdateMorphMaterialUsageOnProxy();
 		}
 
-		if (MeshDeformerInstance != nullptr && UseLOD <= GetMeshDeformerMaxLOD())
+		UMeshDeformerInstance* DeformerInstanceForLOD = GetMeshDeformerInstanceForLOD(UseLOD);
+		if (DeformerInstanceForLOD)
 		{
 			UMeshDeformerInstance::FEnqueueWorkDesc Desc;
 			Desc.Scene = GetScene();
@@ -1200,7 +1200,7 @@ void USkinnedMeshComponent::SendRenderDynamicData_Concurrent()
 			// Fallback is to reset the passthrough vertex factory if the deformer fails to run.
 			Desc.FallbackDelegate.BindLambda([MeshObjectPtr = MeshObject, UseLOD]() { FSkeletalMeshDeformerHelpers::ResetVertexFactoryBufferOverrides(MeshObjectPtr, UseLOD); });
 
-			MeshDeformerInstance->EnqueueWork(Desc);
+			DeformerInstanceForLOD->EnqueueWork(Desc);
 		}
 	}
 }
@@ -1278,7 +1278,12 @@ void USkinnedMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(USkinnedMeshComponent, MeshDeformer) ||
 			Property->GetFName() == GET_MEMBER_NAME_CHECKED(USkinnedMeshComponent, bSetMeshDeformer))
 		{
-			UMeshDeformer* ActiveMeshDeformer = GetActiveMeshDeformer();
+			const FMeshDeformerSet ActiveDeformers = GetActiveMeshDeformers();
+
+			// Only one deformer is supported for now
+			check(ActiveDeformers.Deformers.Num() <= 1);
+			UMeshDeformer* ActiveMeshDeformer = ActiveDeformers.Deformers.Num() > 0 ? ActiveDeformers.Deformers[0] : nullptr;
+
 			MeshDeformerInstanceSettings = ActiveMeshDeformer ? ActiveMeshDeformer->CreateSettingsInstance(this) : nullptr;
 		}
 	}
@@ -2044,7 +2049,7 @@ bool USkinnedMeshComponent::IsSkinCacheAllowed(int32 LodIdx) const
 	static const IConsoleVariable* CVarDefaultGPUSkinCacheBehavior = IConsoleManager::Get().FindConsoleVariable(TEXT("r.SkinCache.DefaultBehavior"));
 	const bool bGlobalDefault = CVarDefaultGPUSkinCacheBehavior && ESkinCacheDefaultBehavior(CVarDefaultGPUSkinCacheBehavior->GetInt()) == ESkinCacheDefaultBehavior::Inclusive;
 
-	if (MeshDeformerInstance != nullptr)
+	if (GetMeshDeformerInstance() != nullptr)
 	{
 		// Disable skin cache if a mesh deformer is in use.
 		// Any animation buffers are expected to be owned by the MeshDeformer.
@@ -2211,9 +2216,8 @@ void USkinnedMeshComponent::SetSkinnedAssetAndUpdate(USkinnedAsset* InSkinnedAss
 
 		PrecachePSOs();
 
-		// Re-init the MeshDeformer which might come from the SkelMesh.
-		UMeshDeformer* ActiveMeshDeformer = GetActiveMeshDeformer();
-		MeshDeformerInstance = ActiveMeshDeformer != nullptr ? ActiveMeshDeformer->CreateInstance(this, MeshDeformerInstanceSettings) : nullptr;
+		// Re-init the MeshDeformers which might come from the SkelMesh.
+		CreateMeshDeformerInstances(GetActiveMeshDeformers());
 	}
 
 	// Update external weight array sizes.
@@ -2242,17 +2246,136 @@ USkinnedAsset* USkinnedMeshComponent::GetSkinnedAsset() const
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-UMeshDeformer* USkinnedMeshComponent::GetActiveMeshDeformer() const
+FMeshDeformerSet USkinnedMeshComponent::GetActiveMeshDeformers() const
 {
+	const FSkeletalMeshRenderData* RenderData = GetSkeletalMeshRenderData();
+
+	if (!RenderData
+		|| !GetSkinnedAsset()
+		|| !GetScene())
+	{
+		// In order to select the right deformer, there needs to be a valid mesh and valid render data.
+		return FMeshDeformerSet();
+	}
+
+	UMeshDeformer* ActiveDeformer = nullptr;
 	if (bSetMeshDeformer)
 	{
-		return MeshDeformer;
+		ActiveDeformer = MeshDeformer;
 	}
-	if (GetSkinnedAsset())
+	else
 	{
-		return GetSkinnedAsset()->GetDefaultMeshDeformer();
+		ActiveDeformer = GetSkinnedAsset()->GetDefaultMeshDeformer();
 	}
-	return nullptr;
+
+	const bool bIsDeformerRequestedByUser = ActiveDeformer != nullptr;
+
+	// If there's no user-specified deformer, find out if we need to set a default deformer for
+	// Unlimited Bone Influences.
+	const bool bIsDeformerRequiredForUBI = FGPUBaseSkinVertexFactory::GetAlwaysUseDeformerForUnlimitedBoneInfluences(GetScene()->GetShaderPlatform());
+	if (bIsDeformerRequiredForUBI && !ActiveDeformer)
+	{
+		bool bMeshUsesUBI = false;
+		for (const FSkeletalMeshLODRenderData& LODRenderData : RenderData->LODRenderData)
+		{
+			if (LODRenderData.SkinWeightVertexBuffer.GetBoneInfluenceType() == UnlimitedBoneInfluence)
+			{
+				bMeshUsesUBI = true;
+				break;
+			}
+		}
+
+		if (bMeshUsesUBI)
+		{
+			static IMeshDeformerProvider* MeshDeformerProvider = IMeshDeformerProvider::Get();
+
+			if (MeshDeformerProvider)
+			{
+				IMeshDeformerProvider::FDefaultMeshDeformerSetup Setup;
+				Setup.bIsRequestingDeformer = true;
+
+				ActiveDeformer = MeshDeformerProvider->GetDefaultMeshDeformer(Setup);
+				if (!ActiveDeformer)
+				{
+					UE_LOG(LogSkinnedMeshComp, Error, TEXT("Failed to fetch default mesh deformer for a mesh that requires it: %s. ")
+						TEXT("Ensure DefaultDeformer is set to a valid Deformer Graph asset in the project settings"), *GetSkinnedAsset()->GetPathName());
+				}
+			}
+		}
+	}
+
+	if (!ActiveDeformer)
+	{
+		return FMeshDeformerSet();
+	}
+
+	// Currently only one active deformer is supported
+	FMeshDeformerSet Result;
+	Result.Deformers.Empty(1);
+	Result.Deformers.Add(ActiveDeformer);
+
+	const TArray<FSkeletalMeshLODInfo>& MeshLODInfoArray = GetSkinnedAsset()->GetLODInfoArray();
+	const int32 MaxLOD = GetMeshDeformerMaxLOD();
+
+	// Every entry of this array will be written by the loop below
+	Result.DeformerIndexForLOD.Empty(RenderData->LODRenderData.Num());
+	Result.DeformerIndexForLOD.AddUninitialized(RenderData->LODRenderData.Num());
+
+	for (int32 Index = 0; Index < RenderData->LODRenderData.Num(); Index++)
+	{
+		const FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[Index];
+		const bool bRequiredForUBI = bIsDeformerRequiredForUBI && LODRenderData.SkinWeightVertexBuffer.GetBoneInfluenceType() == UnlimitedBoneInfluence;
+
+		const bool bAllowedByMaxLOD = Index <= MaxLOD;
+		// There should be a LODInfo entry for this LOD, but if not, default to allowing the deformer
+		const bool bAllowedByLODInfo = !MeshLODInfoArray.IsValidIndex(Index) || MeshLODInfoArray[Index].bAllowMeshDeformer;
+
+		const bool bDeformerEnabledForThisLOD = bRequiredForUBI || (bIsDeformerRequestedByUser && bAllowedByMaxLOD && bAllowedByLODInfo);
+		Result.DeformerIndexForLOD[Index] = bDeformerEnabledForThisLOD ? 0 : INDEX_NONE;
+	}
+
+	return Result;
+}
+
+void USkinnedMeshComponent::CreateMeshDeformerInstances(const FMeshDeformerSet& DeformerSet)
+{
+	// Only one deformer is supported for now
+	check(DeformerSet.Deformers.Num() <= 1);
+	UMeshDeformer* ActiveMeshDeformer = DeformerSet.Deformers.Num() > 0 ? DeformerSet.Deformers[0] : nullptr;
+
+	UMeshDeformerInstance* MeshDeformerInstance = ActiveMeshDeformer ? ActiveMeshDeformer->CreateInstance(this, MeshDeformerInstanceSettings) : nullptr;
+	
+	MeshDeformerInstances = FMeshDeformerInstanceSet();
+	if (MeshDeformerInstance)
+	{
+		MeshDeformerInstances.DeformerInstances.Empty(1);
+		MeshDeformerInstances.DeformerInstances.Add(MeshDeformerInstance);
+
+		MeshDeformerInstances.InstanceIndexForLOD = DeformerSet.DeformerIndexForLOD;
+	}
+}
+
+UMeshDeformerInstance* USkinnedMeshComponent::GetMeshDeformerInstance() const
+{
+	return MeshDeformerInstances.DeformerInstances.Num() > 0 ? MeshDeformerInstances.DeformerInstances[0] : nullptr;
+}
+
+UMeshDeformerInstance* USkinnedMeshComponent::GetMeshDeformerInstanceForLOD(int32 LODIndex) const
+{
+	if (!MeshDeformerInstances.InstanceIndexForLOD.IsValidIndex(LODIndex))
+	{
+		return nullptr;
+	}
+	
+	const int8 InstanceIndex = MeshDeformerInstances.InstanceIndexForLOD[LODIndex];
+	if (InstanceIndex == INDEX_NONE)
+	{
+		// Don't use a deformer for this LOD
+		return nullptr;
+	}
+
+	check(MeshDeformerInstances.DeformerInstances.IsValidIndex(InstanceIndex));
+	return MeshDeformerInstances.DeformerInstances[InstanceIndex];
 }
 
 void USkinnedMeshComponent::SetMeshDeformer(bool bInSetMeshDeformer, UMeshDeformer* InMeshDeformer)
@@ -2260,9 +2383,15 @@ void USkinnedMeshComponent::SetMeshDeformer(bool bInSetMeshDeformer, UMeshDeform
 	bSetMeshDeformer = bInSetMeshDeformer;
 	MeshDeformer = InMeshDeformer;
 
-	UMeshDeformer* ActiveMeshDeformer = GetActiveMeshDeformer();
+	const FMeshDeformerSet ActiveDeformers = GetActiveMeshDeformers();
+
+	// Only one deformer is supported for now
+	check(ActiveDeformers.Deformers.Num() <= 1);
+	UMeshDeformer* ActiveMeshDeformer = ActiveDeformers.Deformers.Num() > 0 ? ActiveDeformers.Deformers[0] : nullptr;
+
 	MeshDeformerInstanceSettings = ActiveMeshDeformer ? ActiveMeshDeformer->CreateSettingsInstance(this) : nullptr;
-	MeshDeformerInstance = ActiveMeshDeformer ? ActiveMeshDeformer->CreateInstance(this, MeshDeformerInstanceSettings) : nullptr;
+
+	CreateMeshDeformerInstances(ActiveDeformers);
 
 	MarkRenderDynamicDataDirty();
 }

@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "GPUSkinVertexFactory.h"
+#include "Animation/MeshDeformerProvider.h"
 #include "MeshBatch.h"
 #include "GPUSkinCache.h"
 #include "MeshDrawShaderBindings.h"
@@ -59,6 +60,13 @@ static FAutoConsoleVariableRef CVarUnlimitedBoneInfluencesThreshold(
 	TEXT("r.GPUSkin.UnlimitedBoneInfluencesThreshold"),
 	GCVarUnlimitedBoneInfluencesThreshold,
 	TEXT("Unlimited Bone Influences Threshold to use unlimited bone influences buffer if r.GPUSkin.UnlimitedBoneInfluences is enabled. Should be unsigned int. Cannot be changed at runtime."),
+	ECVF_ReadOnly);
+
+static bool GCVarAlwaysUseDeformerForUnlimitedBoneInfluences = false;
+static FAutoConsoleVariableRef CVarAlwaysUseDeformerForUnlimitedBoneInfluences(
+	TEXT("r.GPUSkin.AlwaysUseDeformerForUnlimitedBoneInfluences"),
+	GCVarAlwaysUseDeformerForUnlimitedBoneInfluences,
+	TEXT("Any meshes using Unlimited Bone Influences will always be rendered with a Mesh Deformer. This reduces the number of shader permutations needed for skeletal mesh materials, saving memory at the cost of performance. Has no effect if either Unlimited Bone Influences or Deformer Graph is disabled. Cannot be changed at runtime."),
 	ECVF_ReadOnly);
 
 static TAutoConsoleVariable<bool> CVarMobileEnableCloth(
@@ -486,6 +494,25 @@ int32 FGPUBaseSkinVertexFactory::GetBoneInfluenceLimitForAsset(int32 AssetProvid
 	return MAX_TOTAL_INFLUENCES;
 }
 
+bool FGPUBaseSkinVertexFactory::GetAlwaysUseDeformerForUnlimitedBoneInfluences(EShaderPlatform Platform)
+{
+	auto InnerFunc = [](EShaderPlatform Platform)
+	{
+		FShaderPlatformCachedIniValue<bool> UseDeformerForUBICVar(TEXT("r.GPUSkin.AlwaysUseDeformerForUnlimitedBoneInfluences"));
+		const IMeshDeformerProvider* MeshDeformerProvider = IMeshDeformerProvider::Get();
+
+		return MeshDeformerProvider && MeshDeformerProvider->IsSupported(Platform) && UseDeformerForUBICVar.Get(Platform);
+	};
+
+#if WITH_EDITOR
+	return InnerFunc(Platform);
+#else
+	// This value can't change at runtime in a non-editor build, so it's safe to cache.
+	static const bool bCachedResult = InnerFunc(Platform);
+	return bCachedResult;
+#endif
+}
+
 void FGPUBaseSkinVertexFactory::SetData(const FGPUSkinDataType* InData)
 {
 	SetData(FRHICommandListExecutor::GetImmediateCommandList(), InData);
@@ -535,8 +562,14 @@ TGlobalResource<FBoneBufferPool> FGPUBaseSkinVertexFactory::BoneBufferPool;
 template <GPUSkinBoneInfluenceType BoneInfluenceType>
 bool TGPUSkinVertexFactory<BoneInfluenceType>::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
 {
-	static FShaderPlatformCachedIniValue<int32> PerPlatformCVar(TEXT("r.GPUSkin.UnlimitedBoneInfluences"));
-	const bool bUnlimitedBoneInfluences = BoneInfluenceType == UnlimitedBoneInfluence && PerPlatformCVar.Get(Parameters.Platform) != 0;
+	static FShaderPlatformCachedIniValue<int32> UBICVar(TEXT("r.GPUSkin.UnlimitedBoneInfluences"));
+	const bool bUseUBI = UBICVar.Get(Parameters.Platform) != 0;
+
+	static FShaderPlatformCachedIniValue<bool> UseDeformerForUBICVar(TEXT("r.GPUSkin.AlwaysUseDeformerForUnlimitedBoneInfluences"));
+	const bool bUseDeformerForUBI = UseDeformerForUBICVar.Get(Parameters.Platform);
+		
+	// Compile the shader for UBI if UBI is enabled and we're not forcing the use of a deformer for all UBI meshes
+	const bool bUnlimitedBoneInfluences = BoneInfluenceType == UnlimitedBoneInfluence && bUseUBI && !bUseDeformerForUBI;
 
 	return ShouldWeCompileGPUSkinVFShaders(Parameters.Platform, Parameters.MaterialParameters.FeatureLevel) &&
 		  (((Parameters.MaterialParameters.bIsUsedWithSkeletalMesh || Parameters.MaterialParameters.bIsUsedWithMorphTargets) && (BoneInfluenceType != UnlimitedBoneInfluence || bUnlimitedBoneInfluences)) 

@@ -32,7 +32,7 @@ public:
 	/** Structure for passing to GetDefaultMeshDeformer(). */
 	struct FDefaultMeshDeformerSetup
 	{
-		bool bIsUsingSkinCache = false;
+		bool bIsRequestingDeformer = false;
 		bool bIsRequestingRecomputeTangent = false;
 	};
 
