@@ -119,6 +119,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
 	bool bSynchronousLoad = false;
 
+	/** Opt-in option to silence errors when the property override attributes are not found. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
+	bool bSilenceOverrideAttributeNotFoundErrors = false;
+
 protected:
 	void RefreshMeshSelector();
 	void RefreshInstancePacker();

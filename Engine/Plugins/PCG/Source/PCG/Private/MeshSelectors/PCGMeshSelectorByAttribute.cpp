@@ -213,7 +213,7 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 		// If there are valid overrides, partition the points on those attributes so that an instance can be created for each
 		if (!ValidSelectorOverrides.IsEmpty())
 		{
-			Context.AttributeOverridePartition = PCGMetadataPartitionCommon::AttributeGenericPartition(InPointData, ValidSelectorOverrides, &Context);
+			Context.AttributeOverridePartition = PCGMetadataPartitionCommon::AttributeGenericPartition(InPointData, ValidSelectorOverrides, &Context, Settings->bSilenceOverrideAttributeNotFoundErrors);
 		}
 
 		// Set the descriptors to match the partition count. Uninitialized, because it will be copied from the template below
