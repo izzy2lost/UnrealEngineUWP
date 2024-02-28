@@ -752,9 +752,8 @@ void SModularRigModel::HandleMirrorModules(const TArray<FString>& InPaths)
 			UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
 			check(Controller);
 
-			// Make sure we delete the modules from children to root
+			// Make sure we mirror the modules from root to children
 			TArray<FString> SortedPaths = Controller->Model->SortPaths(InPaths);
-			Algo::Reverse(SortedPaths);
 			for (const FString& Path : SortedPaths)
 			{
 				Controller->MirrorModule(Path, Settings);
