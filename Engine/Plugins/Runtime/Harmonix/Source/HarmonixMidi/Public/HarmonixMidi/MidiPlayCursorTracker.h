@@ -2,11 +2,14 @@
 #pragma once
 
 #include "Containers/IntrusiveDoubleLinkedList.h"
+#include "HAL/CriticalSection.h"
 
 class FMidiPlayCursor;
 
 struct FMidiPlayCursorTracker
 {
+	mutable FCriticalSection CursorListLock;
+
 	int32   CurrentTick; // We've broadcast all events up through this tick
 	float   CurrentMs;   // We've broadcast all events up through this Ms
 	float   ElapsedMs;
@@ -27,7 +30,9 @@ struct FMidiPlayCursorTracker
 	bool    Loop;
 	bool    LoopIgnoringLookAhead;
 
-	bool    IsLowRes;
+	mutable bool TraversingCursors;
+
+	const bool IsLowRes;
 
 	TIntrusiveDoubleLinkedList<FMidiPlayCursor> Cursors;
 

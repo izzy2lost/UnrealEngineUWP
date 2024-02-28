@@ -19,6 +19,7 @@ FMidiPlayCursorTracker::FMidiPlayCursorTracker(bool InIsLowRes)
 	, LoopEndTick(0)
 	, Loop(false)
 	, LoopIgnoringLookAhead(false)
+	, TraversingCursors(false)
 	, IsLowRes(InIsLowRes)
 {
 }
