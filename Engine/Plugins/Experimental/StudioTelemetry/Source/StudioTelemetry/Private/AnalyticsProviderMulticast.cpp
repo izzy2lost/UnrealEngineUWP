@@ -8,7 +8,6 @@
 #include "Misc/ConfigCacheIni.h"
 #include "HttpModule.h"
 
-const FString TelemetrySection(TEXT("StudioTelemetry"));
 static FString ProviderSection;
 
 FString GetAnalyticsProviderConfiguration(const FString& Name, bool)
@@ -31,13 +30,15 @@ TWeakPtr<IAnalyticsProvider> FAnalyticsProviderMulticast::GetAnalyticsProvider(c
 
 FAnalyticsProviderMulticast::FAnalyticsProviderMulticast()
 {
+	const FString TelemetryProviderSection(TEXT("StudioTelemetry.Provider"));
+
 	TArray<FString> SectionNames;
 	
 	if (GConfig->GetSectionNames(GEngineIni, SectionNames))
 	{
 		for (const FString& SectionName : SectionNames)
 		{
-			if (SectionName.Find(TelemetrySection) != INDEX_NONE)
+			if (SectionName.Find(TelemetryProviderSection) != INDEX_NONE)
 			{
 				ProviderSection = SectionName;
 

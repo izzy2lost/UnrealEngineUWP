@@ -105,11 +105,25 @@ private:
 	/** Ends an existing analytics session*/
 	void EndSession();
 
+	/** Configure the plugin*/
+	void LoadConfiguration();
+
+	struct FConfig
+	{
+		bool bSendTelemetry = true; // Only send telemetry data if we have been requested to
+		bool bSendUserData = false;  // Never send user data unless specifically asked to
+		bool bSendHardwareData = true; // Always send hardware data unless specifically asked not to
+		bool bSendOSData = true; // Always send operating system data unless specifically asked not to
+	};
+	
 	FCriticalSection						CriticalSection;
 	TSharedPtr<FAnalyticsProviderMulticast>	AnalyticsProvider;
 	TSharedPtr<IAnalyticsTracer>			AnalyticsTracer;
 	OnRecordEvent							RecordEventCallback;
 	FGuid									SessionGUID;
+	FConfig									Config;
+
+	
 };
 
 #define STUDIO_TELEMETRY_SPAN_SCOPE(Name) FStudioTelemetry::ScopedSpan PREPROCESSOR_JOIN(ScopedSpan, __LINE__)(TEXT(#Name));
