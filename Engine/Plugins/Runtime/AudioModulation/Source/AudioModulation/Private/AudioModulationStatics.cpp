@@ -352,11 +352,6 @@ UAudioModulationDestination* UAudioModulationStatics::CreateModulationDestinatio
 	return nullptr;
 }
 
-UAudioModulationDestination* UAudioModulationStatics::CreateModulationWatcher(UObject* WorldContextObject, FName Name, USoundModulatorBase* Modulator)
-{
-	return CreateModulationDestination(WorldContextObject, Name, Modulator);
-}
-
 void UAudioModulationStatics::DeactivateBus(const UObject* WorldContextObject, USoundControlBus* Bus)
 {
 	if (Bus)
