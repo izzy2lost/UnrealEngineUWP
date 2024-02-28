@@ -269,7 +269,7 @@ namespace Horde.Server.Server
 			IAgent? agent = await _agentService.GetAgentAsync(new AgentId(request.Name));
 			if (agent == null)
 			{
-				agent = await _agentService.CreateAgentAsync(request.Name, _globalConfig.Value.ServerSettings.EnableNewAgentsByDefault, null, request.Ephemeral);
+				agent = await _agentService.CreateAgentAsync(new AgentId(request.Name), _globalConfig.Value.ServerSettings.EnableNewAgentsByDefault, null, request.Ephemeral);
 			}
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
@@ -309,7 +309,7 @@ namespace Horde.Server.Server
 					throw new StructuredRpcException(StatusCode.PermissionDenied, "User is not authenticated to create new agents");
 				}
 
-				agent = await _agentService.CreateAgentAsync(request.Id, true, null);
+				agent = await _agentService.CreateAgentAsync(agentId, true, null);
 			}
 
 			// Make sure we're allowed to create sessions on this agent

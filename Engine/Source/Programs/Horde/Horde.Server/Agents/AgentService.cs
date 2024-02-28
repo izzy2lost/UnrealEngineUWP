@@ -202,6 +202,20 @@ namespace Horde.Server.Agents
 		}
 
 		/// <summary>
+		/// Register a new agent
+		/// </summary>
+		/// <param name="agentId">Agent id</param>
+		/// <param name="enabled">Whether the agent is currently enabled</param>
+		/// <param name="pools">Pools for this agent</param>
+		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Unique id for the agent</returns>
+		public Task<IAgent> CreateAgentAsync(AgentId agentId, bool enabled, List<PoolId>? pools, bool ephemeral = false, CancellationToken cancellationToken = default)
+		{
+			return Agents.AddAsync(agentId, enabled, pools, ephemeral, cancellationToken);
+		}
+
+		/// <summary>
 		/// Gets an agent by ID
 		/// </summary>
 		/// <param name="agentId">Unique id of the agent</param>

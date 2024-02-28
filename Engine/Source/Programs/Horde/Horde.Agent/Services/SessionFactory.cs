@@ -1,12 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
+using Grpc.Core;
 using Grpc.Net.Client;
 using Horde.Agent.Utility;
+using Horde.Common.Rpc;
 using HordeCommon;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
@@ -185,7 +188,7 @@ namespace Horde.Agent.Services
 			}
 
 			// Read the registration settings
-			AgentRegistration registrationInfo = await GetAgentRegistrationAsync(grpcService, currentSettings, logger, cancellationToken);
+			AgentRegistration registrationInfo = await GetAgentRegistrationAsync(grpcService, currentSettings, capabilities, logger, cancellationToken);
 
 			// Create the session
 			CreateSessionResponse createSessionResponse;
@@ -226,7 +229,7 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Registers the agent with the server
 		/// </summary>
-		static async Task<AgentRegistration> GetAgentRegistrationAsync(GrpcService grpcService, AgentSettings currentSettings, ILogger logger, CancellationToken cancellationToken)
+		static async Task<AgentRegistration> GetAgentRegistrationAsync(GrpcService grpcService, AgentSettings currentSettings, AgentCapabilities capabilities, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Get the location of the registration file
 			DirectoryReference? settingsDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData);
@@ -256,28 +259,88 @@ namespace Horde.Agent.Services
 			AgentRegistration? registration = registrationList.Entries.FirstOrDefault(x => x.Server == grpcService.ServerProfile.Url);
 			if (registration == null)
 			{
-				ServerProfile serverProfile = currentSettings.GetCurrentServerProfile();
-				using (GrpcChannel channel = await grpcService.CreateGrpcChannelAsync(serverProfile.Token, cancellationToken))
-				{
-					HordeRpc.HordeRpcClient rpcClient = new HordeRpc.HordeRpcClient(channel);
+				registration = await RegisterAgentAsync(grpcService, currentSettings, capabilities, logger, cancellationToken);
+				registrationList.Entries.Add(registration);
 
-					CreateAgentRequest createAgentRequest = new CreateAgentRequest();
-					createAgentRequest.Name = currentSettings.GetAgentName();
-					createAgentRequest.Ephemeral = currentSettings.Ephemeral;
+				byte[] data = JsonSerializer.SerializeToUtf8Bytes(registrationList, new JsonSerializerOptions(AgentApp.DefaultJsonSerializerOptions) { WriteIndented = true });
+				DirectoryReference.CreateDirectory(settingsDir);
+				await FileReference.WriteAllBytesAsync(settingsFile, data, cancellationToken);
 
-					CreateAgentResponse createAgentResponse = await rpcClient.CreateAgentAsync(createAgentRequest, null, null, cancellationToken);
-					registration = new AgentRegistration(grpcService.ServerProfile.Url, createAgentResponse.Id, createAgentResponse.Token);
-					registrationList.Entries.Add(registration);
-
-					byte[] data = JsonSerializer.SerializeToUtf8Bytes(registrationList, new JsonSerializerOptions(AgentApp.DefaultJsonSerializerOptions) { WriteIndented = true });
-					DirectoryReference.CreateDirectory(settingsDir);
-					await FileReference.WriteAllBytesAsync(settingsFile, data, cancellationToken);
-
-					logger.LogInformation("Created agent (Id={AgentId}). Settings saved to {File}.", createAgentResponse.Id, settingsFile);
-				}
+				logger.LogInformation("Created agent (Id={AgentId}). Settings saved to {File}.", registration.Id, settingsFile);
 			}
 
 			return registration;
+		}
+
+		static async Task<AgentRegistration> RegisterAgentAsync(GrpcService grpcService, AgentSettings agentSettings, AgentCapabilities capabilities, ILogger logger, CancellationToken cancellationToken)
+		{
+			ServerProfile serverProfile = agentSettings.GetCurrentServerProfile();
+			using GrpcChannel grpcChannel = await grpcService.CreateGrpcChannelAsync(serverProfile.Token, cancellationToken);
+
+			if (!String.IsNullOrEmpty(serverProfile.Token))
+			{
+				logger.LogInformation("Registering agent directly...");
+				HordeRpc.HordeRpcClient rpcClient = new HordeRpc.HordeRpcClient(grpcChannel);
+
+				CreateAgentRequest createAgentRequest = new CreateAgentRequest();
+				createAgentRequest.Name = agentSettings.GetAgentName();
+				createAgentRequest.Ephemeral = agentSettings.Ephemeral;
+
+				CreateAgentResponse createAgentResponse = await rpcClient.CreateAgentAsync(createAgentRequest, null, null, cancellationToken);
+				return new AgentRegistration(serverProfile.Url, createAgentResponse.Id, createAgentResponse.Token);
+			}
+
+			const string FormatString = "$(CPU) ($(LogicalCores) cores, $(RAM)gb RAM, $(OSDistribution))";
+			string description = StringUtils.ExpandProperties(FormatString, name => GetProperty(capabilities, name));
+
+			string registrationKey = StringUtils.FormatHexString(RandomNumberGenerator.GetBytes(64));
+			for (; ; )
+			{
+				logger.LogInformation("Waiting for agent to be approved...");
+				RegistrationRpc.RegistrationRpcClient rpcClient = new RegistrationRpc.RegistrationRpcClient(grpcChannel);
+
+				RegisterAgentRequest registerAgentRequest = new RegisterAgentRequest();
+				registerAgentRequest.Key = registrationKey;
+				registerAgentRequest.HostName = Environment.MachineName;
+				registerAgentRequest.Description = description;
+
+				try
+				{
+					using AsyncDuplexStreamingCall<RegisterAgentRequest, RegisterAgentResponse> call = rpcClient.RegisterAgent(cancellationToken: cancellationToken);
+					await call.RequestStream.WriteAsync(registerAgentRequest, cancellationToken);
+
+					Task delayTask = Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+					Task<bool> responseTask = call.ResponseStream.MoveNext(cancellationToken);
+					Task completeTask = await Task.WhenAny(delayTask, responseTask);
+
+					if (completeTask == delayTask)
+					{
+						await call.RequestStream.WriteAsync(registerAgentRequest, cancellationToken);
+					}
+
+					if (await responseTask)
+					{
+						RegisterAgentResponse registerAgentResponse = call.ResponseStream.Current;
+						return new AgentRegistration(serverProfile.Url, registerAgentResponse.Id, registerAgentResponse.Token);
+					}
+				}
+				catch (RpcException ex)
+				{
+					logger.LogWarning(ex, "Exception in RPC: {Message}", ex.Message);
+				}
+			}
+		}
+
+		static string? GetProperty(AgentCapabilities capabilities, string name)
+		{
+			foreach (string property in capabilities.Devices[0].Properties)
+			{
+				if (property.Length > name.Length && property[name.Length] == '=' && property.StartsWith(name, StringComparison.OrdinalIgnoreCase))
+				{
+					return property.Substring(name.Length + 1);
+				}
+			}
+			return null;
 		}
 
 		/// <inheritdoc/>
