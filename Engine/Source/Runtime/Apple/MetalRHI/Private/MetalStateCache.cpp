@@ -1176,7 +1176,7 @@ void FMetalStateCache::SetVertexStream(uint32 const Index, FMetalBufferPtr Buffe
 #if METAL_USE_METAL_SHADER_CONVERTER
 	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
 	
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		// Update GPU VA (assuming the offset has changed since last time).
 		if (Buffer)
@@ -1535,12 +1535,18 @@ void FMetalStateCache::SetShaderBuffer(EMetalShaderStages const Frequency, MTL::
 }
 #endif // METAL_RHI_RAYTRACING
 
+static bool CanMakeTextureResidentViaHeaps(const MTL::Texture* Texture)
+{
+    return !(Texture->usage() & MTL::TextureUsageRenderTarget)
+        && !(Texture->usage() & MTL::TextureUsageShaderWrite);
+}
+
 #if METAL_USE_METAL_SHADER_CONVERTER
 void FMetalStateCache::IRMakeSRVResident(EMetalShaderStages const Frequency, FMetalShaderResourceView* SRV)
 {
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
 
-	if(!BindlessDescriptorManager->IsSupported())
+	if(!IsMetalBindlessEnabled())
 	{
 		return;
 	}
@@ -1555,7 +1561,7 @@ void FMetalStateCache::IRMakeSRVResident(EMetalShaderStages const Frequency, FMe
         {
             auto const& View = SRV->GetTextureView();
 			
-			if (!View->heap())
+            if (!View->heap() || !CanMakeTextureResidentViaHeaps(View.get()))
 			{
 				BindlessDescriptorManager->MakeResident(SRV->GetBindlessHandle(), View.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageSample), Frequency);
 			}
@@ -1590,7 +1596,7 @@ void FMetalStateCache::IRMakeSRVResident(EMetalShaderStages const Frequency, FMe
 void FMetalStateCache::IRMakeUAVResident(EMetalShaderStages const Frequency, FMetalUnorderedAccessView* UAV)
 {
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
-	if(!BindlessDescriptorManager->IsSupported())
+	if(!IsMetalBindlessEnabled())
 	{
 		return;
 	}
@@ -1605,10 +1611,7 @@ void FMetalStateCache::IRMakeUAVResident(EMetalShaderStages const Frequency, FMe
         {
             auto const& View = UAV->GetTextureView();
             
-			if (!View->heap())
-			{
-				BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
-			}
+			BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
 			break;
         }
             
@@ -1616,10 +1619,7 @@ void FMetalStateCache::IRMakeUAVResident(EMetalShaderStages const Frequency, FMe
         {
             auto const& View = UAV->GetBufferView();
             
-			if (!View.Buffer->GetMTLBuffer()->heap())
-			{
-				BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Buffer->GetMTLBuffer().get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
-			}
+			BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Buffer->GetMTLBuffer().get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
 			
 			break;
         }
@@ -1628,14 +1628,9 @@ void FMetalStateCache::IRMakeUAVResident(EMetalShaderStages const Frequency, FMe
         {
             auto const& View = UAV->GetTextureBufferBacked();
             
-			if (!View.Buffer->GetMTLBuffer()->heap())
-			{
-				BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Buffer->GetMTLBuffer().get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
-			}
-			if (!View.Texture->heap())
-			{
-				BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Texture.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
-			}
+			BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Buffer->GetMTLBuffer().get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
+			BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Texture.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
+
 			break;
         }
             
@@ -1654,7 +1649,7 @@ void FMetalStateCache::IRMakeTextureResident(EMetalShaderStages const Frequency,
 {
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
     
-	if (!Texture->heap())
+    if (!Texture->heap() || !CanMakeTextureResidentViaHeaps(Texture))
 	{
 		BindlessDescriptorManager->MakeResident(FRHIDescriptorHandle(), Texture, MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageSample), Frequency);
 	}
@@ -2574,7 +2569,7 @@ void FMetalStateCache::SetRenderPipelineState(FMetalCommandEncoder& CommandEncod
 #if METAL_USE_METAL_SHADER_CONVERTER
 		FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
 		
-		if(BindlessDescriptorManager->IsSupported())
+		if(IsMetalBindlessEnabled())
 		{
 #if PLATFORM_SUPPORTS_MESH_SHADERS
 			if (GraphicsPSO->VertexDeclaration != nullptr)
@@ -2596,7 +2591,7 @@ void FMetalStateCache::SetRenderPipelineState(FMetalCommandEncoder& CommandEncod
 #if METAL_DEBUG_OPTIONS
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
-	if(!BindlessDescriptorManager->IsSupported())
+	if(!IsMetalBindlessEnabled())
 #endif
 	{
 		Validate();

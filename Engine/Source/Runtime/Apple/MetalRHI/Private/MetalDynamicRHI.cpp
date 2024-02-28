@@ -13,10 +13,6 @@
 #include "MetalGraphicsPipelineState.h"
 #include "MetalComputePipelineState.h"
 #include "MetalTransitionData.h"
- 
-#if METAL_USE_METAL_SHADER_CONVERTER
-#include "metal_irconverter.h"
-#endif
 
 //------------------------------------------------------------------------------
 

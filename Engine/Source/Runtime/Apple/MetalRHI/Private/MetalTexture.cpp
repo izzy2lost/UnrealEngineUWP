@@ -831,7 +831,7 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 	
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		BindlessHandle = BindlessDescriptorManager->ReserveDescriptor(ERHIDescriptorHeapType::Standard);
 		
@@ -911,7 +911,7 @@ FMetalSurface::~FMetalSurface()
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		if (!(GetDesc().Flags & TexCreate_Presentable))
 		{
@@ -2090,7 +2090,7 @@ FTextureReferenceRHIRef FMetalDynamicRHI::RHICreateTextureReference(FRHICommandL
 	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
 	check(BindlessDescriptorManager);
 	
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		// If the referenced texture is configured for bindless, make sure we also create an SRV to use for bindless.
 		if (ReferencedTexture && ReferencedTexture->GetDefaultBindlessHandle().IsValid())
@@ -2115,12 +2115,17 @@ void FMetalDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList
 		FMetalTextureReference* MetalTextureReference = ResourceCast(TextureRef);
 		FMetalShaderResourceView* MetalTextureRefSRV = MetalTextureReference->BindlessView;
 		
-		FMetalSurface* NewSurface = GetMetalSurfaceFromRHITexture(NewTexture);
-		
-		FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
-		check(BindlessDescriptorManager);
-	
-		BindlessDescriptorManager->BindTexture(MetalTextureRefSRV->GetBindlessHandle(), NewSurface->Texture.get());
+        FRHIDescriptorHandle DestHandle = MetalTextureRefSRV->GetBindlessHandle();
+        
+        if(DestHandle.IsValid())
+        {
+            FMetalSurface* NewSurface = GetMetalSurfaceFromRHITexture(NewTexture);
+            
+            FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+            check(BindlessDescriptorManager);
+            
+            BindlessDescriptorManager->BindTexture(DestHandle, NewSurface->Texture.get());
+        }
 	}
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 

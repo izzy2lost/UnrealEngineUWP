@@ -402,20 +402,6 @@ void FMetalRHICommandContext::RHISetShaderParameters(FRHIGraphicsShader* Shader,
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if(IsMetalBindlessEnabled())
 	{
-		for (const FRHIShaderParameterResource& Parameter : InResourceParameters)
-		{
-			if(Parameter.Type == FRHIShaderParameterResource::EType::UniformBuffer)
-			{
-				continue;
-			}
-			const FRHIDescriptorHandle Handle = UE::RHICore::GetBindlessParameterHandle(Parameter);
-			if (Handle.IsValid())
-			{
-				const uint32 BindlessIndex = Handle.GetIndex();
-				RHISetShaderParameter(Shader, 0, Parameter.Index, 4, &BindlessIndex);
-			}
-		}
-		
 		EMetalShaderStages Stage = GetShaderStage(Shader);
 		Context->GetCurrentState().IRForwardBindlessParameters(Stage, InResourceParameters);
 		Context->GetCurrentState().IRForwardBindlessParameters(Stage, InBindlessParameters);
@@ -437,20 +423,6 @@ void FMetalRHICommandContext::RHISetShaderParameters(FRHIComputeShader* Shader, 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if(IsMetalBindlessEnabled())
 	{
-		for (const FRHIShaderParameterResource& Parameter : InResourceParameters)
-		{
-			if(Parameter.Type == FRHIShaderParameterResource::EType::UniformBuffer)
-			{
-				continue;
-			}
-			const FRHIDescriptorHandle Handle = UE::RHICore::GetBindlessParameterHandle(Parameter);
-			if (Handle.IsValid())
-			{
-				const uint32 BindlessIndex = Handle.GetIndex();
-				RHISetShaderParameter(Shader, 0, Parameter.Index, 4, &BindlessIndex);
-			}
-		}
-		
 		Context->GetCurrentState().IRForwardBindlessParameters(EMetalShaderStages::Compute, InResourceParameters);
 		Context->GetCurrentState().IRForwardBindlessParameters(EMetalShaderStages::Compute, InBindlessParameters);
 	}

@@ -86,7 +86,7 @@ FMetalShaderResourceView::FMetalShaderResourceView(FRHICommandListBase& RHICmdLi
 	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		BindlessHandle = BindlessDescriptorManager->ReserveDescriptor(ERHIDescriptorHeapType::Standard);
 	}
@@ -105,7 +105,7 @@ FMetalShaderResourceView::~FMetalShaderResourceView()
         FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
         check(BindlessDescriptorManager);
 
-		if(BindlessDescriptorManager->IsSupported())
+		if(IsMetalBindlessEnabled())
 		{
 			BindlessDescriptorManager->FreeDescriptor(BindlessHandle);
 		}
@@ -341,7 +341,7 @@ void FMetalShaderResourceView::UpdateView()
 	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		BindlessDescriptorManager->BindResource(BindlessHandle, this);
 	}
@@ -355,7 +355,7 @@ FMetalUnorderedAccessView::FMetalUnorderedAccessView(FRHICommandListBase& RHICmd
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
 	check(BindlessDescriptorManager);
 
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		BindlessHandle = BindlessDescriptorManager->ReserveDescriptor(ERHIDescriptorHeapType::Standard);
 	}
@@ -374,7 +374,7 @@ FMetalUnorderedAccessView::~FMetalUnorderedAccessView()
 	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
 	check(BindlessDescriptorManager);
 
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		BindlessDescriptorManager->FreeDescriptor(BindlessHandle);
 	}
@@ -579,7 +579,7 @@ void FMetalUnorderedAccessView::UpdateView()
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
 	check(BindlessDescriptorManager);
 
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		BindlessDescriptorManager->BindResource(BindlessHandle, this);
 	}
