@@ -160,7 +160,7 @@ static FAutoConsoleVariableRef CVarNiagaraRibbonGpuBufferAlign(
 
 static TAutoConsoleVariable<int32> CVarRayTracingNiagaraRibbons(
 	TEXT("r.RayTracing.Geometry.NiagaraRibbons"),
-	1,
+	0,
 	TEXT("Include Niagara ribbons in ray tracing effects (default = 1 (Niagara ribbons enabled in ray tracing))"));
 
 // max absolute error 9.0x10^-3
