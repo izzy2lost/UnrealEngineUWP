@@ -197,8 +197,7 @@ void UPathFollowingComponent::LogPathHelper(const AActor* LogOwner, FNavigationP
 	{
 		const FVector PathEnd = *InLogPath->GetPathPointLocation(InLogPath->GetPathPoints().Num() - 1);
 
-		FVisualLogEntry* Entry = Vlog.GetEntryToWrite(LogOwner, LogOwner->GetWorld()->TimeSeconds);
-		if (Entry)
+		if (FVisualLogEntry* Entry = FVisualLogger::GetEntryToWrite(LogOwner, LogPathFollowing))
 		{
 			InLogPath->DescribeSelfToVisLog(Entry);
 			if (LogGoalActor)

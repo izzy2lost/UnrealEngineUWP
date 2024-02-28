@@ -221,19 +221,36 @@ bool FVisualLogger::CheckVisualLogInputInternal(const UObject* Object, const FNa
 		return false;
 	}
 
-	*OutWorld = GetWorldForVisualLogger(Object);
-	if (!ensure(*OutWorld != nullptr))
+	if (OutWorld)
 	{
-		return false;
+		*OutWorld = GetWorldForVisualLogger(Object);
+		if (!ensure(*OutWorld != nullptr))
+		{
+			return false;
+		}
 	}
 
-	*OutCurrentEntry = VisualLogger.GetEntryToWrite(Object, VisualLogger.GetTimeStampForObject(Object));
-	if (*OutCurrentEntry == nullptr)
+	if (OutCurrentEntry)
 	{
-		return false;
+		*OutCurrentEntry = VisualLogger.GetEntryToWrite(Object, VisualLogger.GetTimeStampForObject(Object));
+		if (*OutCurrentEntry == nullptr)
+		{
+			return false;
+		}
 	}
 
 	return true;
+}
+
+FVisualLogEntry* FVisualLogger::GetEntryToWrite(const UObject* LogOwner, const FLogCategoryBase& LogCategory)
+{
+	FVisualLogEntry* LogEntry;
+	if (CheckVisualLogInputInternal(LogOwner, LogCategory.GetCategoryName(), ELogVerbosity::Log, /*OutWorld*/ nullptr, &LogEntry))
+	{
+		return LogEntry;
+	}
+
+	return nullptr;
 }
 
 double FVisualLogger::GetTimeStampForObject(const UObject* Object) const
@@ -764,8 +781,6 @@ FVisualLogger::FVisualLogger()
 	});
 
 #if WITH_EDITOR
-	// When PIE is Starting, we want to reset the EditorBaseTimeStamp on the very first PIE World Instance (but not the other instances).
-	// This gives us a pseudo-world time (that starts at zero) while still being synchronized across multiple PIE instances.
 	PIEStartedHandle = FWorldDelegates::OnPIEStarted.AddLambda(
 		[this](UGameInstance*) {
 			// We only want to do this if we are using unique log names, otherwise it makes more sense
@@ -809,7 +824,9 @@ void FVisualLogger::OnDataReset()
 		const UWorld* EditorWorld = EditorEngine->GetEditorWorldContext().World();
 		if (EditorWorld)
 		{
-			EditorOnly::EditorBaseTimeStamp = EditorWorld->TimeSeconds;
+			// Reset the base timestamp to zero so the next (aka first) log entry will set this variable to determine the global offset in GetTimeStampForObject
+			// This ensures that when you start recording, the first entry appears to be at 0.0 (computed as TimeStamp - EditorBaseTimeStamp)
+			EditorOnly::EditorBaseTimeStamp = 0.0;
 		}
 	}
 #endif
