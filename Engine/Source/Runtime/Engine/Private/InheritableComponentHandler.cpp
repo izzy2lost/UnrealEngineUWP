@@ -25,10 +25,8 @@ void UInheritableComponentHandler::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FBlueprintsObjectVersion::GUID);
 }
 
-void UInheritableComponentHandler::PostLoad()
+void UInheritableComponentHandler::FixComponentTemplateNames()
 {
-	Super::PostLoad();
-	
 #if WITH_EDITOR
 	if (!GIsDuplicatingClassForReinstancing)
 	{
@@ -514,7 +512,7 @@ void UInheritableComponentHandler::PreloadAll()
 	// this are not clear to me, but that the logic exists and occasionally
 	// runs means we should run it ASAP - otherwise we may use the wrong
 	// archetype on construction.
-	ConditionalPostLoad();
+	FixComponentTemplateNames();
 }
 
 FComponentKey UInheritableComponentHandler::FindKey(const FName VariableName) const

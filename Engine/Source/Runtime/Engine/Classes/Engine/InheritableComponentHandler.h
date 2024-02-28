@@ -126,7 +126,6 @@ public:
 
 	//~ Begin UObject Interface
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
-	ENGINE_API virtual void PostLoad() override;
 #if WITH_EDITOR
 	ENGINE_API virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
 #endif	// WITH_EDITOR
@@ -165,6 +164,8 @@ private:
 	/** Helper method used to assist with fixing up component template names at load time. */
 	ENGINE_API void FixComponentTemplateName(UActorComponent* ComponentTemplate, FName NewName);
 	
+	void FixComponentTemplateNames();
+
 	/** All component records */
 	UPROPERTY()
 	TArray<FComponentOverrideRecord> Records;
