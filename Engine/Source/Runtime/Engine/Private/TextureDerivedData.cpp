@@ -69,7 +69,8 @@ static TAutoConsoleVariable<int32> CVarTexturesCookToDerivedDataReferences(
 // This GUID is mixed into DDC version for virtual textures only, this allows updating DDC version for VT without invalidating DDC for all textures
 // This is useful during development, but once large numbers of VT are present in shipped content, it will have the same problem as TEXTURE_DERIVEDDATA_VER
 // This is put in the DDC1 key but NOT in the DDC2 key
-#define TEXTURE_VT_DERIVEDDATA_VER	TEXT("7C16439390E24F1F9468894FB4D4BC54")
+// VT key bumped 02-27-2024 for Alpha change
+#define TEXTURE_VT_DERIVEDDATA_VER	TEXT("7C16439390E24F1F9468894FB4D4BC55")
 
 // TEXTURE_DDC_STB_IMAGE_RESIZE_VERSION should change whenever the stb_image_resize2.h version number changes
 //	*if* it is a version change that changes output
