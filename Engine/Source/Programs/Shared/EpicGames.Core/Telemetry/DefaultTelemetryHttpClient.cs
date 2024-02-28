@@ -9,7 +9,7 @@ using System.Net.Http;
 namespace EpicGames.Core.Telemetry
 {
 	/// <summary>
-	/// 
+	/// Static class to set http client defaults
 	/// </summary>
 	public static class HttpClientDefaults
 	{
