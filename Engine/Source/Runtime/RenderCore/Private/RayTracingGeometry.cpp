@@ -22,11 +22,6 @@ static TAutoConsoleVariable<int32> CVarDebugForceRuntimeBLAS(
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS // Remove this in UE 5.6 once RayTracingGeometryRHI is made private
 
-FRayTracingGeometry::FRayTracingGeometry() = default;
-
-/** Destructor. */
-FRayTracingGeometry::~FRayTracingGeometry() = default;
-
 #if RHI_RAYTRACING
 
 void FRayTracingGeometry::InitRHIForStreaming(FRHIRayTracingGeometry* IntermediateGeometry, FRHIResourceReplaceBatcher& Batcher)
