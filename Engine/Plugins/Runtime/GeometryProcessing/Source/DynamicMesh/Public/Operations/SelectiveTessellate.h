@@ -426,6 +426,15 @@ public:
 																					 const int MaterialID);
 
 
+	/**
+	* Tessellate only triangles that are selected AND which belong to a given material (FDynamicMeshMaterialAttribute).
+	*
+	*  @return nullptr if InMesh has no attributes, no material attribute, if no material attribute with the given id exists, or if selection is invalid
+	*/
+	static TUniquePtr<FTessellationPattern> CreateConcentricRingsPatternFromSelectionAndMaterial(const FDynamicMesh3* InMesh,
+																					  const int InTessellationLevel,
+																					  const int MaterialID,
+																					  const TArray<int>& SelectedTriangles);
 
 
     /**

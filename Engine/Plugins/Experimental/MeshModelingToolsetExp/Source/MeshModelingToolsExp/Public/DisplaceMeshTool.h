@@ -13,6 +13,7 @@
 #include "Spatial/SampledScalarField2.h"
 #include "UObject/NoExportTypes.h"
 #include "WeightMapUtil.h"
+#include "BaseTools/SingleTargetWithSelectionTool.h"
 #include "DisplaceMeshTool.generated.h"
 
 struct FMeshDescription;
@@ -289,18 +290,18 @@ public:
  * Builder for Simple Mesh Displacement Tool
  */
 UCLASS()
-class MESHMODELINGTOOLSEXP_API UDisplaceMeshToolBuilder : public USingleSelectionMeshEditingToolBuilder
+class MESHMODELINGTOOLSEXP_API UDisplaceMeshToolBuilder : public USingleTargetWithSelectionToolBuilder
 {
 	GENERATED_BODY()
 public:
-	USingleSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const final;
+	virtual USingleTargetWithSelectionTool* CreateNewTool(const FToolBuilderState& SceneState) const override final;
 };
 
 /**
  * Simple Mesh Displacement Tool
  */
 UCLASS()
-class MESHMODELINGTOOLSEXP_API UDisplaceMeshTool : public USingleSelectionMeshEditingTool
+class MESHMODELINGTOOLSEXP_API UDisplaceMeshTool : public USingleTargetWithSelectionTool
 {
 	GENERATED_BODY()
 public:
@@ -365,6 +366,7 @@ private:
 
 	TSharedPtr<UE::Geometry::FDynamicMesh3, ESPMode::ThreadSafe> SubdividedMesh = nullptr;
 	TSharedPtr<TArray<int>, ESPMode::ThreadSafe> VerticesToDisplace = nullptr;
+	int32 NumTrianglesInSelection;
 	
 	UPROPERTY()
 	TObjectPtr<AInternalToolFrameworkActor> PreviewMeshActor = nullptr;
