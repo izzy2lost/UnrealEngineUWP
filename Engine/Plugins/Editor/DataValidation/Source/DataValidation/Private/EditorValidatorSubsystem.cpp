@@ -480,12 +480,11 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateAssetsInternal(
 			++OutResults.NumSkipped;
 			continue;
 		}
-		
+
 		DataValidationLog.Info()
 			->AddToken(FAssetDataToken::Create(Data))
 			->AddToken(FTextToken::Create(LOCTEXT("Data.ValidatingAsset", "Validating asset")));
-		UE_LOG(LogContentValidation, Display, TEXT("Validating asset %s"), *Data.ToSoftObjectPath().ToString());
-		
+
 		UObject* LoadedAsset = Data.FastGetAsset(false);
 		const bool bAlreadyLoaded = LoadedAsset != nullptr;
 
