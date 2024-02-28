@@ -61,7 +61,7 @@ public:
     virtual ETextureCreateFlags GetOutputTextureFlags() const override;
 	// We override the initialization of the pass output texture as we want to the `CreateRenderTarget` allocator as it doesn't force
 	// the SRV flag
-	virtual TRefCountPtr<IPooledRenderTarget> InitializePassOutputTexture(FRDGTextureDesc TextureDesc, const FString& TextureName) const override;
+	virtual TRefCountPtr<IPooledRenderTarget> InitializePassOutputTexture(FRDGTextureDesc TextureDesc, const TCHAR* TextureName) const override;
 	//~ End UMediaCapture interface
 
 	TSharedPtr<FSceneViewport> GetViewport() const { return SceneViewport.Pin(); }

@@ -155,7 +155,7 @@ namespace UE::MediaCapture
 		ColorConversionOutputTextureDesc.ClearValue = FClearValueBinding(FLinearColor::White);
 		ColorConversionOutputTextureDesc.Reset();
 
-		TRefCountPtr<IPooledRenderTarget> RenderTarget = Args.MediaCapture->InitializePassOutputTexture(ColorConversionOutputTextureDesc, FString::Printf(TEXT("MediaCapture ColorConversion RenderTarget %d"), FrameId));
+		TRefCountPtr<IPooledRenderTarget> RenderTarget = Args.MediaCapture->InitializePassOutputTexture(ColorConversionOutputTextureDesc, TEXT("MediaCapture ColorConversion RenderTarget"));
 		return RenderTargetResource(MoveTemp(RenderTarget));
 	}
 
@@ -173,7 +173,7 @@ namespace UE::MediaCapture
 		ResampleOutputTextureDesc.Flags |= TexCreate_RenderTargetable | TexCreate_UAV | TexCreate_NoFastClear;
 		ResampleOutputTextureDesc.ClearValue = FClearValueBinding(FLinearColor(0, 0, 0, 0));
 
-		TRefCountPtr<IPooledRenderTarget> RenderTarget = Args.MediaCapture->InitializePassOutputTexture(ResampleOutputTextureDesc, FString::Printf(TEXT("MediaCapture Resample RenderTarget %d"), FrameId));
+		TRefCountPtr<IPooledRenderTarget> RenderTarget = Args.MediaCapture->InitializePassOutputTexture(ResampleOutputTextureDesc, TEXT("MediaCapture Resample RenderTarget"));
 		return RenderTargetResource(MoveTemp(RenderTarget));
 	}
 
@@ -243,7 +243,7 @@ namespace UE::MediaCapture
 		ResamplePass.Name = "Resample";
 		ResamplePass.OutputType = ERDGViewableResourceType::Texture;
 		ResamplePass.InitializePassOutputDelegate = FRenderPass::FInitializePassOutput::CreateStatic(&InitializeResamplePassOutputTexture);
-		ResamplePass.ExecutePassDelegate = FRenderPass::FExecutePass::CreateLambda([](const UE::MediaCaptureData::FCaptureFrameArgs& Args, const TSharedPtr<UE::MediaCaptureData::FCaptureFrame> CapturingFrame, FRDGViewableResource* InputResource, FRDGViewableResource* OutputTexture)
+		ResamplePass.ExecutePassDelegate = FRenderPass::FExecutePass::CreateLambda([](const UE::MediaCaptureData::FCaptureFrameArgs& Args, const TSharedPtr<UE::MediaCaptureData::FCaptureFrame>& CapturingFrame, FRDGViewableResource* InputResource, FRDGViewableResource* OutputTexture)
 		{
 			check(InputResource->Type == ERDGViewableResourceType::Texture);
 
@@ -267,7 +267,7 @@ namespace UE::MediaCapture
 		ColorConversionPass.Name = "ColorConversion";
 		ColorConversionPass.OutputType = ERDGViewableResourceType::Texture;
 		ColorConversionPass.InitializePassOutputDelegate = FRenderPass::FInitializePassOutput::CreateStatic(&InitializeColorConversionPassOutputTexture);
-		ColorConversionPass.ExecutePassDelegate = FRenderPass::FExecutePass::CreateLambda([CachedOCIOResources = UE::MediaCapture::ColorConversion::GetColorConversionResources(MediaCapture)](const UE::MediaCaptureData::FCaptureFrameArgs& Args, const TSharedPtr<UE::MediaCaptureData::FCaptureFrame> CapturingFrame, FRDGViewableResource* InputResource, FRDGViewableResource* OutputTexture)
+		ColorConversionPass.ExecutePassDelegate = FRenderPass::FExecutePass::CreateLambda([CachedOCIOResources = UE::MediaCapture::ColorConversion::GetColorConversionResources(MediaCapture)](const UE::MediaCaptureData::FCaptureFrameArgs& Args, const TSharedPtr<UE::MediaCaptureData::FCaptureFrame>& CapturingFrame, FRDGViewableResource* InputResource, FRDGViewableResource* OutputTexture)
 		{
 			check(InputResource->Type == ERDGViewableResourceType::Texture);
 
@@ -310,7 +310,7 @@ namespace UE::MediaCapture
 		if (MediaCapture->GetConversionOperation() == EMediaCaptureConversionOperation::CUSTOM)
 		{
 			ConversionPass.Name = "CustomConversion";
-			ConversionPass.ExecutePassDelegate = FRenderPass::FExecutePass::CreateLambda([](const UE::MediaCaptureData::FCaptureFrameArgs& Args, const TSharedPtr<UE::MediaCaptureData::FCaptureFrame> CapturingFrame, FRDGViewableResource* InputResource, FRDGViewableResource* OutputResource)
+			ConversionPass.ExecutePassDelegate = FRenderPass::FExecutePass::CreateLambda([](const UE::MediaCaptureData::FCaptureFrameArgs& Args, const TSharedPtr<UE::MediaCaptureData::FCaptureFrame>& CapturingFrame, FRDGViewableResource* InputResource, FRDGViewableResource* OutputResource)
 			{
 				// We only support Texture inputs
 				check(InputResource->Type == ERDGViewableResourceType::Texture);
@@ -336,7 +336,7 @@ namespace UE::MediaCapture
 		else
 		{
 			ConversionPass.Name = "Conversion";
-			ConversionPass.ExecutePassDelegate = FRenderPass::FExecutePass::CreateLambda([](const UE::MediaCaptureData::FCaptureFrameArgs& Args, const TSharedPtr<UE::MediaCaptureData::FCaptureFrame> CapturingFrame, FRDGViewableResource* InputResource, FRDGViewableResource* OutputResource)
+			ConversionPass.ExecutePassDelegate = FRenderPass::FExecutePass::CreateLambda([](const UE::MediaCaptureData::FCaptureFrameArgs& Args, const TSharedPtr<UE::MediaCaptureData::FCaptureFrame>& CapturingFrame, FRDGViewableResource* InputResource, FRDGViewableResource* OutputResource)
 			{
 				// At the moment we only support Texture inputs
 				check(InputResource->Type == ERDGViewableResourceType::Texture);
