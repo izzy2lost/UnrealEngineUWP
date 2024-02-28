@@ -48,7 +48,7 @@ public:
 	* @param InRootTransform		Component space root transform
 	* @param InRootLocalTransforms	Root space local transforms
 	*/
-	virtual void UpdateRootTransforms(UGeometryCollection const& InGeometryCollection, FTransform const& InRootTransform, TArrayView<const FTransform3f> InRootLocalTransforms) = 0;
+	virtual void UpdateRootTransforms(UGeometryCollection const& InGeometryCollection, FTransform const& InRootTransform, TArrayView<const FTransform3f> InRootLocalTransforms) { check(false); };
 
 	/**
 	* Update all the bones transforms 
