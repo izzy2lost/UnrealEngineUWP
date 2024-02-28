@@ -343,7 +343,8 @@ TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe> FHttpRetrySystem::FM
 	const FRetryResponseCodes& InRetryResponseCodes,
 	const FRetryVerbs& InRetryVerbs,
 	const FRetryDomainsPtr& InRetryDomains,
-	const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride
+	const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride,
+	const FExponentialBackoffCurve& InExponentialBackoffCurve
 )
 {
 	return MakeShareable(new FRequest(
@@ -354,7 +355,8 @@ TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe> FHttpRetrySystem::FM
 		InRetryResponseCodes,
 		InRetryVerbs,
 		InRetryDomains,
-		InRetryLimitCountForConnectionErrorOverride
+		InRetryLimitCountForConnectionErrorOverride,
+		InExponentialBackoffCurve
 		));
 }
 

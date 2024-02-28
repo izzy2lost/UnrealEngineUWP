@@ -194,7 +194,8 @@ public:
 		const FRetryResponseCodes& InRetryResponseCodes = FRetryResponseCodes(),
 		const FRetryVerbs& InRetryVerbs = FRetryVerbs(),
 		const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr(),
-		const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride = FRetryLimitCountSetting()
+		const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride = FRetryLimitCountSetting(),
+		const FExponentialBackoffCurve & InExponentialBackoffCurve = FExponentialBackoffCurve()
 	);
 
 	HTTP_API virtual ~FManager();
