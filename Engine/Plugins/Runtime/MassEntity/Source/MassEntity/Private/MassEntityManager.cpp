@@ -718,6 +718,22 @@ void FMassEntityManager::AddFragmentToEntity(FMassEntityHandle Entity, const USc
 	ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
 }
 
+void FMassEntityManager::AddFragmentToEntity(FMassEntityHandle Entity, const UScriptStruct* FragmentType, const FStructInitializationCallback& Initializer)
+{
+	checkf(FragmentType, TEXT("Null fragment type passed in to %hs"), __FUNCTION__);
+	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
+
+	CheckIfEntityIsActive(Entity);
+
+	FMassFragmentBitSet Fragments = InternalAddFragmentListToEntityChecked(Entity, FMassFragmentBitSet(*FragmentType));
+	FEntityData& EntityData = Entities[Entity.Index];
+	void* FragmentData = EntityData.CurrentArchetype->GetFragmentDataForEntity(FragmentType, Entity.Index);
+	Initializer(FragmentData, *FragmentType);
+
+	const FMassArchetypeCompositionDescriptor Descriptor(MoveTemp(Fragments));
+	ObserverManager.OnPostCompositionAdded(Entity, Descriptor);
+}
+
 void FMassEntityManager::AddFragmentListToEntity(FMassEntityHandle Entity, TConstArrayView<const UScriptStruct*> FragmentList)
 {
 	CheckIfEntityIsActive(Entity);

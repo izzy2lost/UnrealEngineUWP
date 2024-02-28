@@ -92,7 +92,7 @@ namespace TypedElementDataStorage
 
 	struct ICommonQueryWithEnvironmentContext : public ICommonQueryContext
 	{
-		using ObjectCopyOrMove = void (*)(const UScriptStruct* TypeInfo, void* Destination, void* Source);
+		using ObjectCopyOrMove = void (*)(const UScriptStruct& TypeInfo, void* Destination, void* Source);
 
 		/**
 		 * Returns the id for the current update cycle. Every time TEDS goes through a cycle of running query callbacks, this is
@@ -304,7 +304,7 @@ namespace TypedElementDataStorage
 		if constexpr (std::is_move_constructible_v<ColumnType>)
 		{
 			void* Address = AddColumnUninitialized(Row, TypeInfo,
-				[](const UScriptStruct*, void* Destination, void* Source)
+				[](const UScriptStruct&, void* Destination, void* Source)
 				{
 					*reinterpret_cast<ColumnType*>(Destination) = MoveTemp(*reinterpret_cast<ColumnType*>(Source));
 				});

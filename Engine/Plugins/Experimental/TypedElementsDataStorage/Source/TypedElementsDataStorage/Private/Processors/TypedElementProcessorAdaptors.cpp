@@ -176,9 +176,9 @@ public:
 	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) override
 	{
 		return AddColumnUninitialized(Row, ObjectType,
-			[](const UScriptStruct* TypeInfo, void* Destination, void* Source)
+			[](const UScriptStruct& TypeInfo, void* Destination, void* Source)
 			{
-				TypeInfo->CopyScriptStruct(Destination, Source);
+				TypeInfo.CopyScriptStruct(Destination, Source);
 			});
 	}
 
@@ -226,19 +226,16 @@ public:
 					FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
 					if (!Fragment.IsValid())
 					{
-						System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
+						System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType, 
+							[AddedColumn](void* Fragment, const UScriptStruct& FragmentType)
+							{
+								AddedColumn->Relocator(FragmentType, Fragment, AddedColumn->Object);
+							});
 					}
-				}
-			});
-
-		this->Context.Defer().template PushCommand<FMassDeferredSetCommand>(
-			[AddedColumn](FMassEntityManager& System)
-			{
-				// Check entity before proceeding. It's possible it may have been invalidated before this deferred call fired.
-				if (System.IsEntityActive(AddedColumn->Entity))
-				{
-					FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
-					AddedColumn->Relocator(AddedColumn->FragmentType, Fragment.GetMemory(), AddedColumn->Object);
+					else
+					{
+						AddedColumn->Relocator(*AddedColumn->FragmentType, Fragment.GetMemory(), AddedColumn->Object);
+					}
 				}
 			});
 		

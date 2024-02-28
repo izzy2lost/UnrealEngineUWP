@@ -11,6 +11,7 @@
 #include "MassObserverManager.h"
 #include "Containers/MpscQueue.h"
 #include "MassRequirementAccessDetector.h"
+#include "Templates/FunctionFwd.h"
 
 
 struct FMassEntityQuery;
@@ -78,6 +79,7 @@ public:
 	private:
 		std::atomic<int32>& ScopedProcessingCount;
 	};
+	using FStructInitializationCallback = TFunctionRef<void(void* Fragment, const UScriptStruct& FragmentType)>;
 
 	const static FMassEntityHandle InvalidEntity;
 
@@ -250,6 +252,7 @@ public:
 	void BatchDestroyEntityChunks(const FMassArchetypeEntityCollection& Collection);
 
 	void AddFragmentToEntity(FMassEntityHandle Entity, const UScriptStruct* FragmentType);
+	void AddFragmentToEntity(FMassEntityHandle Entity, const UScriptStruct* FragmentType, const FStructInitializationCallback& Initializer);
 
 	/** 
 	 *  Ensures that only unique fragments are added. 
