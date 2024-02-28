@@ -1430,8 +1430,12 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 			if (UnderlyingArchive.IsLoading())
 			{
 				ControlContext.bEnableOverridableSerialization = true;
-				ControlContext.OverriddenProperties = &FOverridableManager::Get().SetOverriddenProperties(*(UObject*)Data, Operation);
-				ControlContext.OverriddenProperties->bNeedsSubobjectTemplateInstantiation = true;
+				// Overridden values are saved independently in transaction, so do no need to restore them here.
+				if (!UnderlyingArchive.IsTransacting())
+				{
+					ControlContext.OverriddenProperties = &FOverridableManager::Get().SetOverriddenProperties(*(UObject*)Data, Operation);
+					ControlContext.OverriddenProperties->bNeedsSubobjectTemplateInstantiation = true;
+				}
 			}
 		}
 	}
@@ -1661,12 +1665,16 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 						FStructuredArchive::FSlot ValueSlot = PropertyRecord.EnterField(TEXT("Value"));
 
 						// The operation was set part of the tag, now that we know the associated property, restore the overridden operation on the object
-						if (FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties())
+						// No need to rebuild the overridden state in transaction as it was serialized is one chunk
+						if (!UnderlyingArchive.IsTransacting())
 						{
-							// No need to restore none operations
-							if (Tag.OverrideOperation != EOverriddenPropertyOperation::None)
+							if (FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties())
 							{
-								OverriddenProperties->SetOverriddenPropertyOperation(Tag.OverrideOperation, UnderlyingArchive.GetSerializedPropertyChain(), Property);
+								// No need to restore none operations
+								if (Tag.OverrideOperation != EOverriddenPropertyOperation::None)
+								{
+									OverriddenProperties->SetOverriddenPropertyOperation(Tag.OverrideOperation, UnderlyingArchive.GetSerializedPropertyChain(), Property);
+								}
 							}
 						}
 
