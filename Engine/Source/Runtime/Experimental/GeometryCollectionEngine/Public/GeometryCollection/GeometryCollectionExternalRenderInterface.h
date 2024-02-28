@@ -29,8 +29,30 @@ public:
 
 	virtual void OnRegisterGeometryCollection(UGeometryCollectionComponent const& InComponent) = 0;
 	virtual void OnUnregisterGeometryCollection() = 0;
+
+	/** 
+	* Set the state of the geometry collection 
+	* this is used by the renderer to managed resources with regards to the state ( see EStateFlags )
+	*/
 	virtual void UpdateState(UGeometryCollection const& InGeometryCollection, FTransform const& InComponentTransform, uint32 InStateFlags) = 0;
+
+	/**
+	* Update the root bone transform of the geometry collection 
+	* if the geometry collection is using of multiple proxy root meshes this transform applies to all of them 
+	*/
 	virtual void UpdateRootTransform(UGeometryCollection const& InGeometryCollection, FTransform const& InRootTransform) = 0;
+
+	/**
+	* Update the root proxy transforms of the geometry collection
+	* if the geometry collection is using of multiple proxy root meshes, InRootTransforms is expected to contain an entry for each of them 
+	* @param InRootTransform		Component space root transform
+	* @param InRootLocalTransforms	Root space local transforms
+	*/
+	virtual void UpdateRootTransforms(UGeometryCollection const& InGeometryCollection, FTransform const& InRootTransform, TArrayView<const FTransform3f> InRootLocalTransforms) = 0;
+
+	/**
+	* Update all the bones transforms 
+	*/
 	virtual void UpdateTransforms(UGeometryCollection const& InGeometryCollection, TArrayView<const FTransform3f> InTransforms) = 0;
 
 	UE_DEPRECATED(5.4, "Use flags version of UpdateState instead")
