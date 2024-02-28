@@ -64,6 +64,8 @@ EOS_STRUCT_FORWARD_DECL(EOS_RTC_Option);
 DECLARE_LOG_CATEGORY_EXTERN(LogEOSSDK, Log, All);
 
 EOSSHARED_API FString LexToString(const EOS_EResult EosResult);
+EOSSHARED_API const char* LexToUtf8String(const EOS_EResult EosResult);
+
 EOSSHARED_API FString LexToString(const EOS_ProductUserId UserId);
 EOSSHARED_API void LexFromString(EOS_ProductUserId& UserId, const TCHAR* String);
 inline EOS_ProductUserId EOSProductUserIdFromString(const TCHAR* String)

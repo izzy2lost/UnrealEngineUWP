@@ -20,6 +20,11 @@ FString LexToString(const EOS_EResult EosResult)
 	return UTF8_TO_TCHAR(EOS_EResult_ToString(EosResult));
 }
 
+const char* LexToUtf8String(const EOS_EResult EosResult)
+{
+	return EOS_EResult_ToString(EosResult);
+}
+
 FString LexToString(const EOS_ProductUserId UserId)
 {
 	FString Result;
