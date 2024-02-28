@@ -1963,7 +1963,6 @@ void FMetalStateCache::SetResourcesFromTables(ShaderType Shader, CrossCompiler::
 		UE::RHICore::SetResourcesFromTables(
 			  FUniformResourceBinder { *this, Frequency }
 			, *Shader
-			, Shader->Bindings.ShaderResourceTable
 			, DirtyUniformBuffers[Frequency]
 			, BoundUniformBuffers[Frequency]
 #if ENABLE_RHI_VALIDATION

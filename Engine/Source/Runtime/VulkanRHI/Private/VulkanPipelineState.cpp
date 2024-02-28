@@ -535,7 +535,7 @@ void FVulkanCommandListContext::ApplyStaticUniformBuffers(TRHIShader* Shader)
 {
 	if (Shader)
 	{
-		const auto& StaticSlots = Shader->StaticSlots;
+		const auto& StaticSlots = Shader->GetStaticSlots();
 		const auto& UBInfos = Shader->GetCodeHeader().UniformBuffers;
 
 		for (int32 BufferIndex = 0; BufferIndex < StaticSlots.Num(); ++BufferIndex)

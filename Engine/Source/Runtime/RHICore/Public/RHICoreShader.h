@@ -29,8 +29,11 @@ extern RHICORE_API void DispatchShaderBundleEmulation(
 	TConstArrayView<FRHIShaderBundleDispatch> Dispatches
 );
 
-inline void InitStaticUniformBufferSlots(TArray<FUniformBufferStaticSlot>& StaticSlots, const FShaderResourceTable& ShaderResourceTable)
+inline void InitStaticUniformBufferSlots(FRHIShaderData* ShaderData)
 {
+	TArray<FUniformBufferStaticSlot>& StaticSlots = ShaderData->StaticSlots;
+	const FShaderResourceTable& ShaderResourceTable = ShaderData->GetShaderResourceTable();
+
 	StaticSlots.Reserve(ShaderResourceTable.ResourceTableLayoutHashes.Num());
 
 	for (uint32 LayoutHash : ShaderResourceTable.ResourceTableLayoutHashes)
@@ -49,12 +52,13 @@ inline void InitStaticUniformBufferSlots(TArray<FUniformBufferStaticSlot>& Stati
 template <typename TApplyFunction>
 void ApplyStaticUniformBuffers(
 	FRHIShader* Shader,
-	const TArray<FUniformBufferStaticSlot>& Slots,
-	const TArray<uint32>& LayoutHashes,
 	const TArray<FRHIUniformBuffer*>& UniformBuffers,
 	TApplyFunction&& ApplyFunction
 )
 {
+	const TArray<uint32>& LayoutHashes = Shader->GetShaderResourceTable().ResourceTableLayoutHashes;
+	const TArray<FUniformBufferStaticSlot>& Slots = Shader->GetStaticSlots();
+
 	checkf(LayoutHashes.Num() == Slots.Num(), TEXT("Shader %s, LayoutHashes %d, Slots %d"),
 		Shader->GetShaderName(), LayoutHashes.Num(), Slots.Num());
 
@@ -79,11 +83,9 @@ template <typename TRHIContext, typename TRHIShader>
 void ApplyStaticUniformBuffers(
 	TRHIContext* CommandContext,
 	TRHIShader* Shader,
-	const TArray<FUniformBufferStaticSlot>& Slots,
-	const TArray<uint32>& LayoutHashes,
 	const TArray<FRHIUniformBuffer*>& UniformBuffers)
 {
-	ApplyStaticUniformBuffers(Shader, Slots, LayoutHashes, UniformBuffers,
+	ApplyStaticUniformBuffers(Shader, UniformBuffers,
 		[CommandContext, Shader](int32 BufferIndex, FRHIUniformBuffer* Buffer)
 		{
 			CommandContext->RHISetShaderUniformBuffer(Shader, BufferIndex, Buffer);
@@ -130,13 +132,15 @@ inline void EnumerateUniformBufferResources(FRHIUniformBuffer* RESTRICT Buffer, 
 }
 
 template <typename TBinder, typename TUniformBufferArrayType, typename TBitMaskType>
-void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, FShaderResourceTable const& SRT, TBitMaskType& DirtyUniformBuffers, TUniformBufferArrayType const& BoundUniformBuffers
+void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, TBitMaskType& DirtyUniformBuffers, TUniformBufferArrayType const& BoundUniformBuffers
 #if ENABLE_RHI_VALIDATION
 	, RHIValidation::FTracker* Tracker
 #endif
 )
 {
 	float CurrentTimeForTextureTimes = FApp::GetCurrentTime();
+
+	FShaderResourceTable const& SRT = Shader.GetShaderResourceTable();
 
 	// Mask the dirty bits by those buffers from which the shader has bound resources.
 	uint32 DirtyBits = SRT.ResourceTableBits & DirtyUniformBuffers;

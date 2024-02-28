@@ -180,7 +180,6 @@ void FVulkanCommandListContext::SetResourcesFromTables(const ShaderType* Shader)
 		UE::RHICore::SetResourcesFromTables(
 			Binder
 			, *Shader
-			, Shader->ShaderResourceTable
 			, DirtyUniformBuffers[Frequency]
 			, BoundUniformBuffers[Frequency]
 #if ENABLE_RHI_VALIDATION
@@ -197,7 +196,6 @@ void FVulkanCommandListContext::SetResourcesFromTables(const ShaderType* Shader)
 		UE::RHICore::SetResourcesFromTables(
 			Binder
 			, *Shader
-			, Shader->ShaderResourceTable
 			, DirtyUniformBuffers[Frequency]
 			, BoundUniformBuffers[Frequency]
 #if ENABLE_RHI_VALIDATION

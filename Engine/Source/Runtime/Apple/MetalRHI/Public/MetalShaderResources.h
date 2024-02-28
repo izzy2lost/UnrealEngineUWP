@@ -103,52 +103,40 @@ struct FMetalShaderBindings
 {
 	TArray<TArray<CrossCompiler::FPackedArrayInfo>>	PackedUniformBuffers;
 	TArray<CrossCompiler::FPackedArrayInfo>			PackedGlobalArrays;
-	FShaderResourceTable							ShaderResourceTable;
 	TMap<uint8, TArray<uint8>>						ArgumentBufferMasks;
 	CrossCompiler::FShaderBindingInOutMask			InOutMask;
     FString                                         IRConverterReflectionJSON;
-    uint32                                          RSNumCBVs;
-    uint32                                          OutputSizeVS;
-    uint32                                          MaxInputPrimitivesPerMeshThreadgroupGS;
+    uint32                                          RSNumCBVs = 0;
+    uint32                                          OutputSizeVS = 0;
+    uint32                                          MaxInputPrimitivesPerMeshThreadgroupGS = 0;
 
-	uint32 	ConstantBuffers;
-	uint32  ArgumentBuffers;
-	uint8	NumSamplers;
-	uint8	NumUniformBuffers;
-	uint8	NumUAVs;
-	bool	bDiscards;
+	uint32 	ConstantBuffers = 0;
+	uint32  ArgumentBuffers = 0;
+	uint8	NumSamplers = 0;
+	uint8	NumUniformBuffers = 0;
+	uint8	NumUAVs = 0;
+	bool	bDiscards = false;
 
-	FMetalShaderBindings() :
-        RSNumCBVs(0),
-        OutputSizeVS(0),
-        MaxInputPrimitivesPerMeshThreadgroupGS(0),
-		ConstantBuffers(0),
-		ArgumentBuffers(0),
-		NumSamplers(0),
-		NumUniformBuffers(0),
-		NumUAVs(0),
-		bDiscards(false)
-	{
-	}
+	inline FArchive& Serialize(FArchive& Ar, FShaderResourceTable& SRT);
 };
 
-inline FArchive& operator<<(FArchive& Ar, FMetalShaderBindings& Bindings)
+inline FArchive& FMetalShaderBindings::Serialize(FArchive& Ar, FShaderResourceTable& SRT)
 {
-	Ar << Bindings.PackedUniformBuffers;
-	Ar << Bindings.PackedGlobalArrays;
-	Ar << Bindings.ShaderResourceTable;
-	Ar << Bindings.ArgumentBufferMasks;
-	Ar << Bindings.ConstantBuffers;
-	Ar << Bindings.ArgumentBuffers;
-	Ar << Bindings.InOutMask;
-	Ar << Bindings.NumSamplers;
-	Ar << Bindings.NumUniformBuffers;
-	Ar << Bindings.NumUAVs;
-	Ar << Bindings.bDiscards;
-    Ar << Bindings.IRConverterReflectionJSON;
-    Ar << Bindings.RSNumCBVs;
-    Ar << Bindings.OutputSizeVS;
-    Ar << Bindings.MaxInputPrimitivesPerMeshThreadgroupGS;
+	Ar << PackedUniformBuffers;
+	Ar << PackedGlobalArrays;
+	Ar << SRT;
+	Ar << ArgumentBufferMasks;
+	Ar << ConstantBuffers;
+	Ar << ArgumentBuffers;
+	Ar << InOutMask;
+	Ar << NumSamplers;
+	Ar << NumUniformBuffers;
+	Ar << NumUAVs;
+	Ar << bDiscards;
+    Ar << IRConverterReflectionJSON;
+    Ar << RSNumCBVs;
+    Ar << OutputSizeVS;
+    Ar << MaxInputPrimitivesPerMeshThreadgroupGS;
 	return Ar;
 }
 
@@ -261,45 +249,48 @@ struct FMetalCodeHeader
 	, bDeviceFunctionConstants(false)
 	{
 	}
+
+	inline FArchive& Serialize(FArchive& Ar, FShaderResourceTable& SRT);
 };
 
-inline FArchive& operator<<(FArchive& Ar, FMetalCodeHeader& Header)
-{
-	Ar << Header.Bindings;
 
-	int32 NumInfos = Header.UniformBuffersCopyInfo.Num();
+inline FArchive& FMetalCodeHeader::Serialize(FArchive& Ar, FShaderResourceTable& SRT)
+{
+	Bindings.Serialize(Ar, SRT);
+
+	int32 NumInfos = UniformBuffersCopyInfo.Num();
 	Ar << NumInfos;
 	if (Ar.IsSaving())
 	{
 		for (int32 Index = 0; Index < NumInfos; ++Index)
 		{
-			Ar << Header.UniformBuffersCopyInfo[Index];
+			Ar << UniformBuffersCopyInfo[Index];
 		}
 	}
 	else if (Ar.IsLoading())
 	{
-		Header.UniformBuffersCopyInfo.Empty(NumInfos);
+		UniformBuffersCopyInfo.Empty(NumInfos);
 		for (int32 Index = 0; Index < NumInfos; ++Index)
 		{
 			CrossCompiler::FUniformBufferCopyInfo Info;
 			Ar << Info;
-			Header.UniformBuffersCopyInfo.Add(Info);
+			UniformBuffersCopyInfo.Add(Info);
 		}
 	}
 	
-	Ar << Header.CompilerBuild;
-	Ar << Header.CompilerVersion;
-	Ar << Header.SourceLen;
-	Ar << Header.SourceCRC;
-	Ar << Header.NumThreadsX;
-	Ar << Header.NumThreadsY;
-	Ar << Header.NumThreadsZ;
-	Ar << Header.CompileFlags;
-	Ar << Header.Frequency;
-	Ar << Header.Version;
-	Ar << Header.SideTable;
-	Ar << Header.bDeviceFunctionConstants;
-	Ar << Header.RayTracing;
+	Ar << CompilerBuild;
+	Ar << CompilerVersion;
+	Ar << SourceLen;
+	Ar << SourceCRC;
+	Ar << NumThreadsX;
+	Ar << NumThreadsY;
+	Ar << NumThreadsZ;
+	Ar << CompileFlags;
+	Ar << Frequency;
+	Ar << Version;
+	Ar << SideTable;
+	Ar << bDeviceFunctionConstants;
+	Ar << RayTracing;
     return Ar;
 }
 

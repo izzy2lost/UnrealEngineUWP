@@ -81,8 +81,8 @@ ShaderType* FVulkanShaderFactory::CreateShader(TArrayView<const uint8> Code, FVu
 			}
 			else
 			{
-				RetShader = new ShaderType(Device);
-				RetShader->Setup(MoveTemp(CodeHeader), MoveTemp(SerializedSRT), MoveTemp(SpirvContainer), ShaderKey);
+				RetShader = new ShaderType(Device, MoveTemp(SerializedSRT), MoveTemp(CodeHeader), MoveTemp(SpirvContainer), ShaderKey);
+
 				ShaderMap[ShaderType::StaticFrequency].Add(ShaderKey, RetShader);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -159,8 +159,8 @@ FVulkanRayTracingShader* FVulkanShaderFactory::CreateRayTracingShader(TArrayView
 			}
 			else
 			{
-				RetShader = new FVulkanRayTracingShader(Device, ShaderFrequency);
-				RetShader->Setup(MoveTemp(CodeHeader), MoveTemp(SerializedSRT), MoveTemp(SpirvContainer), ShaderKey);
+				RetShader = new FVulkanRayTracingShader(Device, ShaderFrequency, MoveTemp(SerializedSRT), MoveTemp(CodeHeader), MoveTemp(SpirvContainer), ShaderKey);
+
 				if (bIsHitGroup)
 				{
 					RetShader->AnyHitSpirvContainer = MoveTemp(AnyHitSpirvContainer);
@@ -275,18 +275,16 @@ FVulkanShader::FSpirvCode FVulkanShader::GetSpirvCode(const FSpirvContainer& Con
 }
 
 
-void FVulkanShader::Setup(FVulkanShaderHeader&& InCodeHeader, FShaderResourceTable&& InSRT, FSpirvContainer&& InSpirvContainer, uint64 InShaderKey)
+FVulkanShader::FVulkanShader(FVulkanDevice* InDevice, EShaderFrequency InFrequency, FVulkanShaderHeader&& InCodeHeader, FSpirvContainer&& InSpirvContainer, uint64 InShaderKey, TArray<FUniformBufferStaticSlot>& InStaticSlots)
+	: StaticSlots(InStaticSlots)
+	, ShaderKey(InShaderKey)
+	, CodeHeader(MoveTemp(InCodeHeader))
+	, Frequency(InFrequency)
+	, SpirvContainer(MoveTemp(InSpirvContainer))
+	, Device(InDevice)
 {
 	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanShaders);
 	check(Device);
-
-	ShaderKey = InShaderKey;
-
-	CodeHeader = MoveTemp(InCodeHeader);
-
-	ShaderResourceTable = MoveTemp(InSRT);
-
-	SpirvContainer = MoveTemp(InSpirvContainer);
 
 	checkf(SpirvContainer.GetSizeBytes() != 0, TEXT("Empty SPIR-V! %s"), *CodeHeader.DebugName);
 

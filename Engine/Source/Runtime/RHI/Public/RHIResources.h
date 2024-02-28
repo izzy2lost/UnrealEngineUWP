@@ -758,7 +758,100 @@ public:
 	#define RHI_IF_SHADER_DEBUG_DATA(...)
 #endif
 
-class FRHIShader : public FRHIResource
+struct FShaderResourceTable
+{
+	/** Bits indicating which resource tables contain resources bound to this shader. */
+	uint32 ResourceTableBits = 0;
+
+	/** Mapping of bound SRVs to their location in resource tables. */
+	TArray<uint32> ShaderResourceViewMap;
+
+	/** Mapping of bound sampler states to their location in resource tables. */
+	TArray<uint32> SamplerMap;
+
+	/** Mapping of bound UAVs to their location in resource tables. */
+	TArray<uint32> UnorderedAccessViewMap;
+
+	/** Hash of the layouts of resource tables at compile time, used for runtime validation. */
+	TArray<uint32> ResourceTableLayoutHashes;
+
+	/** Mapping of bound Textures to their location in resource tables. */
+	TArray<uint32> TextureMap;
+
+	friend bool operator == (const FShaderResourceTable& A, const FShaderResourceTable& B)
+	{
+		bool bEqual = true;
+		bEqual &= (A.ResourceTableBits == B.ResourceTableBits);
+		bEqual &= (A.ShaderResourceViewMap    .Num() == B.ShaderResourceViewMap    .Num());
+		bEqual &= (A.SamplerMap               .Num() == B.SamplerMap               .Num());
+		bEqual &= (A.UnorderedAccessViewMap   .Num() == B.UnorderedAccessViewMap   .Num());
+		bEqual &= (A.ResourceTableLayoutHashes.Num() == B.ResourceTableLayoutHashes.Num());
+		bEqual &= (A.TextureMap               .Num() == B.TextureMap               .Num());
+
+		if (!bEqual)
+		{
+			return false;
+		}
+
+		bEqual &= (FMemory::Memcmp(A.ShaderResourceViewMap    .GetData(), B.ShaderResourceViewMap    .GetData(), A.ShaderResourceViewMap    .GetTypeSize() * A.ShaderResourceViewMap    .Num()) == 0);
+		bEqual &= (FMemory::Memcmp(A.SamplerMap               .GetData(), B.SamplerMap               .GetData(), A.SamplerMap               .GetTypeSize() * A.SamplerMap               .Num()) == 0);
+		bEqual &= (FMemory::Memcmp(A.UnorderedAccessViewMap   .GetData(), B.UnorderedAccessViewMap   .GetData(), A.UnorderedAccessViewMap   .GetTypeSize() * A.UnorderedAccessViewMap   .Num()) == 0);
+		bEqual &= (FMemory::Memcmp(A.ResourceTableLayoutHashes.GetData(), B.ResourceTableLayoutHashes.GetData(), A.ResourceTableLayoutHashes.GetTypeSize() * A.ResourceTableLayoutHashes.Num()) == 0);
+		bEqual &= (FMemory::Memcmp(A.TextureMap               .GetData(), B.TextureMap               .GetData(), A.TextureMap               .GetTypeSize() * A.TextureMap               .Num()) == 0);
+		return bEqual;
+	}
+
+	friend FArchive& operator << (FArchive& Ar, FShaderResourceTable& SRT)
+	{
+		Ar << SRT.ResourceTableBits;
+		Ar << SRT.ShaderResourceViewMap;
+		Ar << SRT.SamplerMap;
+		Ar << SRT.UnorderedAccessViewMap;
+		Ar << SRT.ResourceTableLayoutHashes;
+		Ar << SRT.TextureMap;
+	
+		return Ar;
+	}
+};
+
+namespace UE
+{
+	namespace RHICore
+	{
+		// Workaround for layering issue. FShaderParametersMetadata is in RenderCore,
+		// so we can't move the logic for initializing the StaticSlots array to the RHI module.
+		void InitStaticUniformBufferSlots(FRHIShaderData* ShaderData);
+	}
+}
+
+class FRHIShaderData
+{
+public:
+	const FShaderResourceTable& GetShaderResourceTable() const
+	{
+		return ShaderResourceTable;
+	}
+
+	const TArray<FUniformBufferStaticSlot>& GetStaticSlots() const
+	{
+		return StaticSlots;
+	}
+
+	void SerializeShaderResourceTable(FArchive& Ar)
+	{
+		Ar << ShaderResourceTable;
+	}
+
+protected:
+	FShaderResourceTable ShaderResourceTable;
+	TArray<FUniformBufferStaticSlot> StaticSlots;
+
+	// Workaround for layering issue. FShaderParametersMetadata is in RenderCore,
+	// so we can't move the logic for initializing the StaticSlots array to the RHI module.
+	friend void UE::RHICore::InitStaticUniformBufferSlots(FRHIShaderData* ShaderData);
+};
+
+class FRHIShader : public FRHIResource, public FRHIShaderData
 {
 public:
 	void SetHash(FSHAHash InHash) { Hash = InHash; }

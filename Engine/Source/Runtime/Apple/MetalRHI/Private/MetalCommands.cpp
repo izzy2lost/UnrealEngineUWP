@@ -101,7 +101,7 @@ void FMetalRHICommandContext::ApplyStaticUniformBuffers(TRHIShader* Shader)
 {
 	if (Shader)
 	{
-		UE::RHICore::ApplyStaticUniformBuffers(this, Shader, Shader->StaticSlots, Shader->Bindings.ShaderResourceTable.ResourceTableLayoutHashes, GlobalUniformBuffers);
+		UE::RHICore::ApplyStaticUniformBuffers(this, Shader, GlobalUniformBuffers);
 	}
 }
 

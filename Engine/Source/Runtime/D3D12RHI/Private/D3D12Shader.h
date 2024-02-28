@@ -70,12 +70,7 @@ struct FD3D12ShaderData
 	/** The shader's bytecode, with custom data in the last byte. */
 	TArray<uint8> Code;
 
-	FShaderResourceTable ShaderResourceTable;
-
 	FShaderCodePackedResourceCounts ResourceCounts{};
-
-	/** The static slot associated with the resource table index in ShaderResourceTable. */
-	TArray<FUniformBufferStaticSlot> StaticSlots;
 
 #if D3D12RHI_NEEDS_VENDOR_EXTENSIONS
 	TArray<FShaderCodeVendorExtension> VendorExtensions;

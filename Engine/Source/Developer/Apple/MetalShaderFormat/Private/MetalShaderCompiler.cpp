@@ -291,6 +291,8 @@ void BuildMetalShaderOutput(
 	}
 
 	FMetalCodeHeader Header;
+	FShaderResourceTable SRT;
+
 	Header.CompileFlags = (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Debug) ? (1 << CFLAG_Debug) : 0);
 	Header.CompileFlags |= (bNoFastMath ? (1 << CFLAG_NoFastMath) : 0);
 	Header.CompileFlags |= (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_ExtraShaderData) ? (1 << CFLAG_ExtraShaderData) : 0);
@@ -584,15 +586,15 @@ void BuildMetalShaderOutput(
 		CullGlobalUniformBuffers(ShaderInput.Environment.UniformBufferMap, ShaderOutput.ParameterMap);
 
 		// Copy over the bits indicating which resource tables are active.
-		Header.Bindings.ShaderResourceTable.ResourceTableBits = GenericSRT.ResourceTableBits;
+		SRT.ResourceTableBits = GenericSRT.ResourceTableBits;
 
-		Header.Bindings.ShaderResourceTable.ResourceTableLayoutHashes = GenericSRT.ResourceTableLayoutHashes;
+		SRT.ResourceTableLayoutHashes = GenericSRT.ResourceTableLayoutHashes;
 
 		// Now build our token streams.
-		BuildResourceTableTokenStream(GenericSRT.TextureMap, GenericSRT.MaxBoundResourceTable, Header.Bindings.ShaderResourceTable.TextureMap);
-		BuildResourceTableTokenStream(GenericSRT.ShaderResourceViewMap, GenericSRT.MaxBoundResourceTable, Header.Bindings.ShaderResourceTable.ShaderResourceViewMap);
-		BuildResourceTableTokenStream(GenericSRT.SamplerMap, GenericSRT.MaxBoundResourceTable, Header.Bindings.ShaderResourceTable.SamplerMap);
-		BuildResourceTableTokenStream(GenericSRT.UnorderedAccessViewMap, GenericSRT.MaxBoundResourceTable, Header.Bindings.ShaderResourceTable.UnorderedAccessViewMap);
+		BuildResourceTableTokenStream(GenericSRT.TextureMap, GenericSRT.MaxBoundResourceTable, SRT.TextureMap);
+		BuildResourceTableTokenStream(GenericSRT.ShaderResourceViewMap, GenericSRT.MaxBoundResourceTable, SRT.ShaderResourceViewMap);
+		BuildResourceTableTokenStream(GenericSRT.SamplerMap, GenericSRT.MaxBoundResourceTable, SRT.SamplerMap);
+		BuildResourceTableTokenStream(GenericSRT.UnorderedAccessViewMap, GenericSRT.MaxBoundResourceTable, SRT.UnorderedAccessViewMap);
 
 		Header.Bindings.NumUniformBuffers = FMath::Max((uint8)GetNumUniformBuffersUsed(GenericSRT), Header.Bindings.NumUniformBuffers);
 	}
@@ -627,7 +629,7 @@ void BuildMetalShaderOutput(
 		FMemoryWriter Ar(ShaderOutput.ShaderCode.GetWriteAccess(), true);
 		uint8 PrecompiledFlag = 0;
 		Ar << PrecompiledFlag;
-		Ar << Header;
+		Header.Serialize(Ar, SRT);
 		Ar.Serialize((void*)USFSource, SourceLen + 1 - (USFSource - InShaderSource));
 		
 		ShaderOutput.ModifiedShaderSource = MetalCode;
@@ -794,7 +796,7 @@ void BuildMetalShaderOutput(
 			FMemoryWriter Ar(ShaderOutput.ShaderCode.GetWriteAccess(), true);
 			uint8 PrecompiledFlag = 1;
 			Ar << PrecompiledFlag;
-			Ar << Header;
+            Header.Serialize(Ar, SRT);
 
 			// jam it into the output bytes
 			Ar.Serialize(Bytecode.OutputFile.GetData(), Bytecode.OutputFile.Num());
@@ -1123,7 +1125,8 @@ bool StripShader_Metal(TArray<uint8>& Code, class FString const& DebugPath, bool
 	{
 		// get the header
 		FMetalCodeHeader Header;
-		Ar << Header;
+        FShaderResourceTable SRT;
+        Header.Serialize(Ar, SRT);
 		
 		const FString ShaderName = ShaderCode.FindOptionalData(FShaderCodeName::Key);
 
@@ -1192,7 +1195,7 @@ bool StripShader_Metal(TArray<uint8>& Code, class FString const& DebugPath, bool
 				FShaderCode NewCode;
 				FMemoryWriter NewAr(NewCode.GetWriteAccess(), true);
 				NewAr << OfflineCompiledFlag;
-				NewAr << Header;
+                Header.Serialize(NewAr, SRT);
 				
 				// jam it into the output bytes
 				NewAr.Serialize(SourceCode.GetData(), SourceCode.Num());
@@ -1231,8 +1234,9 @@ uint64 AppendShader_Metal(FString const& WorkingDir, const FSHAHash& Hash, TArra
 		if (OfflineCompiledFlag == 1)
 		{
 			// get the header
-			FMetalCodeHeader Header;
-			Ar << Header;
+            FMetalCodeHeader Header;
+            FShaderResourceTable SRT;
+            Header.Serialize(Ar, SRT);
 
 			const FString ShaderName = ShaderCode.FindOptionalData(FShaderCodeName::Key);
 
@@ -1288,7 +1292,7 @@ uint64 AppendShader_Metal(FString const& WorkingDir, const FSHAHash& Hash, TArra
 						FShaderCode NewCode;
 						FMemoryWriter NewAr(NewCode.GetWriteAccess(), true);
 						NewAr << OfflineCompiledFlag;
-						NewAr << Header;
+                        Header.Serialize(NewAr, SRT);
 						
 						InShaderCode = NewCode.GetReadAccess();
 						

@@ -71,6 +71,7 @@ class FRHIRenderQueryPool;
 class FRHIResource;
 class FRHISamplerState;
 class FRHIShader;
+class FRHIShaderData;
 class FRHIShaderLibrary;
 class FRHIShaderResourceView;
 class FRHIShaderBundle;

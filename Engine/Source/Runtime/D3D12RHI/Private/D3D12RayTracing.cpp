@@ -4306,7 +4306,6 @@ static bool SetRayTracingShaderResources(
 		UE::RHICore::SetResourcesFromTables(
 			  Bindings
 			, *Shader
-			, Shader->ShaderResourceTable
 			, DirtyUniformBuffers
 			, UniformBuffers
 #if ENABLE_RHI_VALIDATION

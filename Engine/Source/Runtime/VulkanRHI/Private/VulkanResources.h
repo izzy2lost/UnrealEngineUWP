@@ -105,13 +105,6 @@ protected:
 	static FCriticalSection VulkanShaderModulesMapCS;
 
 public:
-	FVulkanShader(FVulkanDevice* InDevice, EShaderFrequency InFrequency)
-		: ShaderKey(0)
-		, Frequency(InFrequency)
-		, Device(InDevice)
-	{
-	}
-
 	virtual ~FVulkanShader();
 
 	void PurgeShaderModules();
@@ -190,6 +183,9 @@ public:
 	}
 	
 	FSpirvCode GetPatchedSpirvCode(const FGfxPipelineDesc& Desc, const FVulkanLayout* Layout);
+
+	TArray<FUniformBufferStaticSlot>& StaticSlots;
+
 protected:
 
 #if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
@@ -201,10 +197,6 @@ protected:
 	FVulkanShaderHeader				CodeHeader;
 	TMap<uint32, TRefCountPtr<FVulkanShaderModule>>	ShaderModules;
 	const EShaderFrequency			Frequency;
-
-	TArray<FUniformBufferStaticSlot> StaticSlots;
-
-	FShaderResourceTable			ShaderResourceTable;
 
 protected:
 	class FSpirvContainer
@@ -224,14 +216,14 @@ protected:
 	static FSpirvCode GetSpirvCode(const FSpirvContainer& Container);
 
 protected:
-	void Setup(FVulkanShaderHeader&& InCodeHeader, FShaderResourceTable&& InSRT, FSpirvContainer&& InSpirvContainer, uint64 InShaderKey);
-
 	FVulkanDevice*					Device;
 
 	TRefCountPtr<FVulkanShaderModule> CreateHandle(const FVulkanLayout* Layout, uint32 LayoutHash);
 	TRefCountPtr<FVulkanShaderModule> CreateHandle(const FGfxPipelineDesc& Desc, const FVulkanLayout* Layout, uint32 LayoutHash);
 
 	bool NeedsSpirvInputAttachmentPatching(const FGfxPipelineDesc& Desc) const;
+
+	FVulkanShader(FVulkanDevice* InDevice, EShaderFrequency InFrequency, FVulkanShaderHeader&& InCodeHeader, FSpirvContainer&& InSpirvContainer, uint64 InShaderKey, TArray<FUniformBufferStaticSlot>& InStaticSlots);
 
 	friend class FVulkanCommandListContext;
 	friend class FVulkanPipelineStateCacheManager;
@@ -245,9 +237,11 @@ template<typename BaseResourceType, EShaderFrequency ShaderType>
 class TVulkanBaseShader : public BaseResourceType, public FVulkanShader
 {
 private:
-	TVulkanBaseShader(FVulkanDevice* InDevice) :
-		FVulkanShader(InDevice, ShaderType)
+	TVulkanBaseShader(FVulkanDevice* InDevice, FShaderResourceTable&& InSRT, FVulkanShaderHeader&& InCodeHeader, FSpirvContainer&& InSpirvContainer, uint64 InShaderKey)
+		: BaseResourceType()
+		, FVulkanShader(InDevice, ShaderType, MoveTemp(InCodeHeader), MoveTemp(InSpirvContainer), InShaderKey, BaseResourceType::StaticSlots)
 	{
+		BaseResourceType::ShaderResourceTable = MoveTemp(InSRT);
 	}
 	friend class FVulkanShaderFactory;
 public:
@@ -277,10 +271,11 @@ typedef TVulkanBaseShader<FRHIGeometryShader, SF_Geometry>			FVulkanGeometryShad
 class FVulkanRayTracingShader : public FRHIRayTracingShader, public FVulkanShader
 {
 private:
-	FVulkanRayTracingShader(FVulkanDevice* InDevice, EShaderFrequency InFrequency)
+	FVulkanRayTracingShader(FVulkanDevice* InDevice, EShaderFrequency InFrequency, FShaderResourceTable&& InSRT, FVulkanShaderHeader&& InCodeHeader, FSpirvContainer&& InSpirvContainer, uint64 InShaderKey)
 		: FRHIRayTracingShader(InFrequency)
-		, FVulkanShader(InDevice, InFrequency)
+		, FVulkanShader(InDevice, InFrequency, MoveTemp(InCodeHeader), MoveTemp(InSpirvContainer), InShaderKey, FRHIRayTracingShader::StaticSlots)
 	{
+		ShaderResourceTable = MoveTemp(InSRT);
 	}
 
 	FSpirvContainer AnyHitSpirvContainer;

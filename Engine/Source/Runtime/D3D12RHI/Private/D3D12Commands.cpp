@@ -49,21 +49,20 @@ inline FD3D12ShaderData* GetShaderData(FRHIShader* InShaderRHI)
 	return nullptr;
 }
 
-inline void ValidateBoundUniformBuffer(FD3D12UniformBuffer * InUniformBuffer, FRHIShader* InShaderRHI, uint32 InBufferIndex)
+inline void ValidateBoundUniformBuffer(FD3D12UniformBuffer* InUniformBuffer, FRHIShader* InShaderRHI, uint32 InBufferIndex)
 {
 #if DO_CHECK
-	if (FD3D12ShaderData* ShaderData = GetShaderData(InShaderRHI))
+	auto const& LayoutHashes = InShaderRHI->GetShaderResourceTable().ResourceTableLayoutHashes;
+
+	if (InBufferIndex < (uint32)LayoutHashes.Num())
 	{
-		if (InBufferIndex < (uint32)ShaderData->ShaderResourceTable.ResourceTableLayoutHashes.Num())
-		{
-			uint32 UniformBufferHash = InUniformBuffer->GetLayout().GetHash();
-			uint32 ShaderTableHash = ShaderData->ShaderResourceTable.ResourceTableLayoutHashes[InBufferIndex];
-			ensureMsgf(ShaderTableHash == 0 || UniformBufferHash == ShaderTableHash,
-				TEXT("Invalid uniform buffer %s bound on %sShader at index %d."),
-				*(InUniformBuffer->GetLayout().GetDebugName()),
-				GetShaderFrequencyString(InShaderRHI->GetFrequency(), false),
-				InBufferIndex);
-		}
+		uint32 UniformBufferHash = InUniformBuffer->GetLayout().GetHash();
+		uint32 ShaderTableHash = LayoutHashes[InBufferIndex];
+		ensureMsgf(ShaderTableHash == 0 || UniformBufferHash == ShaderTableHash,
+			TEXT("Invalid uniform buffer %s bound on %sShader at index %d."),
+			*(InUniformBuffer->GetLayout().GetDebugName()),
+			GetShaderFrequencyString(InShaderRHI->GetFrequency(), false),
+			InBufferIndex);
 	}
 #endif
 }
@@ -804,7 +803,7 @@ void FD3D12CommandContext::RHISetScissorRect(bool bEnable, uint32 MinX, uint32 M
 	}
 }
 
-static void ApplyStaticUniformBuffersOnContext(FD3D12CommandContext& Context, FRHIShader* Shader, FD3D12ShaderData* ShaderData)
+static void ApplyStaticUniformBuffersOnContext(FD3D12CommandContext& Context, FRHIShader* Shader)
 {
 	if (Shader)
 	{
@@ -813,8 +812,6 @@ static void ApplyStaticUniformBuffersOnContext(FD3D12CommandContext& Context, FR
 
 		UE::RHICore::ApplyStaticUniformBuffers(
 			Shader,
-			ShaderData->StaticSlots,
-			ShaderData->ShaderResourceTable.ResourceTableLayoutHashes,
 			Context.GetStaticUniformBuffers(),
 			[&Context, Shader, ShaderFrequency, GpuIndex](int32 BufferIndex, FRHIUniformBuffer* Buffer)
 			{
@@ -822,12 +819,6 @@ static void ApplyStaticUniformBuffersOnContext(FD3D12CommandContext& Context, FR
 			}
 		);
 	}
-}
-
-template<typename TShader>
-static void ApplyStaticUniformBuffersOnContext(FD3D12CommandContext& Context, TShader* Shader)
-{
-	ApplyStaticUniformBuffersOnContext(Context, Shader, static_cast<FD3D12ShaderData*>(Shader));
 }
 
 void FD3D12CommandContext::RHISetGraphicsPipelineState(FRHIGraphicsPipelineState* GraphicsState, uint32 StencilRef, bool bApplyAdditionalState)
@@ -1479,7 +1470,6 @@ void FD3D12CommandContext::SetResourcesFromTables(const ShaderType* Shader)
 	UE::RHICore::SetResourcesFromTables(
 		  Binder
 		, *Shader
-		, Shader->ShaderResourceTable
 		, DirtyUniformBuffers[Frequency]
 		, BoundUniformBuffers[Frequency]
 #if ENABLE_RHI_VALIDATION

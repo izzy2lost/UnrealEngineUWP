@@ -87,9 +87,6 @@ public:
 	/* Tier1 Argument buffer bitmasks */
 	TMap<uint32, TBitArray<>> ArgumentBitmasks;
 
-	/* Uniform buffer static slots */
-	TArray<FUniformBufferStaticSlot> StaticSlots;
-
 	/** The binding for the buffer side-table if present */
 	int32 SideTableBinding = -1;
 
@@ -148,7 +145,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 	check(OfflineCompiledFlag == 0 || OfflineCompiledFlag == 1);
 
 	// get the header
-	Ar << Header;
+	Header.Serialize(Ar, BaseResourceType::ShaderResourceTable);
 
 	ValidateVersion(Header.Version);
 
@@ -380,7 +377,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 	UniformBuffersCopyInfo = Header.UniformBuffersCopyInfo;
 	SideTableBinding = Header.SideTable;
 
-	UE::RHICore::InitStaticUniformBufferSlots(StaticSlots, Bindings.ShaderResourceTable);
+	UE::RHICore::InitStaticUniformBufferSlots(this);
 
 #if RHI_INCLUDE_SHADER_DEBUG_DATA
     this->Debug.ShaderName = FString::Printf(TEXT("Main_%0.8x_%0.8x"), Header.SourceLen, Header.SourceCRC);

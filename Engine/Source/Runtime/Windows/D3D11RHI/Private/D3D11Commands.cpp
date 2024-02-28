@@ -120,7 +120,7 @@ void FD3D11DynamicRHI::ApplyStaticUniformBuffers(TRHIShader* Shader)
 {
 	if (Shader)
 	{
-		UE::RHICore::ApplyStaticUniformBuffers(Shader, Shader->StaticSlots, Shader->ShaderResourceTable.ResourceTableLayoutHashes, StaticUniformBuffers,
+		UE::RHICore::ApplyStaticUniformBuffers(Shader, StaticUniformBuffers,
 			[this](int32 BufferIndex, FRHIUniformBuffer* Buffer)
 			{
 				BindUniformBuffer<static_cast<EShaderFrequency>(TRHIShader::StaticFrequency)>(BufferIndex, Buffer);
@@ -1008,7 +1008,6 @@ void FD3D11DynamicRHI::SetResourcesFromTables(const ShaderType* RESTRICT Shader)
 	UE::RHICore::SetResourcesFromTables(
 		  FD3D11ResourceBinder<Frequency> { *this }
 		, *Shader
-		, Shader->ShaderResourceTable
 		, DirtyUniformBuffers[Frequency]
 		, BoundUniformBuffers[Frequency]
 #if ENABLE_RHI_VALIDATION

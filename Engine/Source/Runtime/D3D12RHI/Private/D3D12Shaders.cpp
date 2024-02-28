@@ -122,7 +122,7 @@ TShaderType* CreateStandardShader(TArrayView<const uint8> InCode)
 	TShaderType* Shader = new TShaderType();
 
 	FMemoryReaderView Ar(InCode, true);
-	Ar << Shader->ShaderResourceTable;
+	Shader->SerializeShaderResourceTable(Ar);
 
 	const int32 Offset = Ar.Tell();
 
@@ -133,7 +133,8 @@ TShaderType* CreateStandardShader(TArrayView<const uint8> InCode)
 		return nullptr;
 	}
 
-	UE::RHICore::InitStaticUniformBufferSlots(Shader->StaticSlots, Shader->ShaderResourceTable);
+	UE::RHICore::InitStaticUniformBufferSlots(Shader);
+
 	return Shader;
 }
 
@@ -184,7 +185,7 @@ FRayTracingShaderRHIRef FD3D12DynamicRHI::RHICreateRayTracingShader(TArrayView<c
 	FD3D12RayTracingShader* Shader = new FD3D12RayTracingShader(ShaderFrequency);
 
 	FMemoryReaderView Ar(Code, true);
-	Ar << Shader->ShaderResourceTable;
+	Shader->SerializeShaderResourceTable(Ar);
 	Ar << Shader->EntryPoint;
 	Ar << Shader->AnyHitEntryPoint;
 	Ar << Shader->IntersectionEntryPoint;
@@ -216,7 +217,7 @@ FRayTracingShaderRHIRef FD3D12DynamicRHI::RHICreateRayTracingShader(TArrayView<c
 		return nullptr;
 	}
 
-	UE::RHICore::InitStaticUniformBufferSlots(Shader->StaticSlots, Shader->ShaderResourceTable);
+	UE::RHICore::InitStaticUniformBufferSlots(Shader);
 
 	Shader->pRootSignature = GetAdapter().GetRootSignature(Shader);
 
