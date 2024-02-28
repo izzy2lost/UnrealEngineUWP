@@ -170,6 +170,7 @@ UMovieSceneSequencePlayer::UMovieSceneSequencePlayer(const FObjectInitializer& I
 	, bIsAsyncUpdate(false)
 	, bSkipNextUpdate(false)
 	, bUpdateNetSync(false)
+	, bWarnZeroDuration(true)
 	, Sequence(nullptr)
 	, StartTime(0)
 	, DurationFrames(0)
@@ -1100,11 +1101,17 @@ void UMovieSceneSequencePlayer::UpdateTimeCursorPosition_Internal(FFrameTime New
 	EMovieScenePlayerStatus::Type StatusOverride = UpdateMethodToStatus(Method);
 
 	const int32 Duration = DurationFrames;
-	if (Duration == 0)
+	if (Duration == 0 && DurationSubFrames == 0.f)
 	{
-		UE_LOG(LogMovieScene, Warning, TEXT("Attempting to play back a sequence with zero duration"));
+		if (bWarnZeroDuration)
+		{
+			bWarnZeroDuration = false;
+			const FString SequenceName = GetSequenceName(true);
+			UE_LOG(LogMovieScene, Warning, TEXT("Attempting to play back sequence %s with zero duration"), *SequenceName);
+		}
 		return;
 	}
+	bWarnZeroDuration = true;
 	
 	if (bPendingOnStartedPlaying)
 	{

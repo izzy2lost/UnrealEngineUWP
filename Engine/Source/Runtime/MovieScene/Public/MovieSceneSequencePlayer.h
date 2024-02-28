@@ -663,6 +663,9 @@ protected:
 	/** Flag that notifies the player to check network synchronization on next update */
 	uint32 bUpdateNetSync : 1;
 
+	/** Flag that indicates whether to warn on zero duration playback */
+	uint32 bWarnZeroDuration : 1;
+
 	/** The sequence to play back */
 	UPROPERTY(transient)
 	TObjectPtr<UMovieSceneSequence> Sequence;
