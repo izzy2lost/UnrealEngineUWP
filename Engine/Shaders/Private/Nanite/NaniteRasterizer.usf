@@ -875,6 +875,10 @@ struct VSOut
 	float2 BarycentricsUV						: TEXCOORD4;
 #endif
 
+#if NANITE_PIXEL_PROGRAMMABLE
+	float4 TexCoords							: TEXCOORD5;
+#endif
+
 	float4 Position								: SV_Position;
 
 #if USE_GLOBAL_CLIP_PLANE && !PIXELSHADER
@@ -1006,6 +1010,11 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 
 #if !NANITE_MESH_SHADER
 	Out.PrimitivePacked = PackPrimitiveAttributes(MakePrimitiveAttributes(NaniteView, VisibleCluster, PixelValue, bReverseWindingOrder));
+#endif
+
+#if NANITE_PIXEL_PROGRAMMABLE
+	Out.TexCoords.xy = InputVert.RawAttributeData.TexCoords[0];
+	Out.TexCoords.zw = InputVert.RawAttributeData.TexCoords[1];
 #endif
 
 #if !PIXELSHADER
@@ -1682,7 +1691,20 @@ void HWRasterizePS(VSOut In
 		Barycentrics.Value = float3(In.BarycentricsUV, 1.0f - In.BarycentricsUV.x - In.BarycentricsUV.y);
 	#endif
 		
-		FMaterialPixelParameters MaterialParameters = FetchNaniteMaterialPixelParameters(NaniteView, PackedPixel, VIRTUAL_TEXTURE_TARGET, Barycentrics, false, VertIndexes, bCalcVertIndexes, Interpolants, SvPosition );
+		FMaterialPixelParameters MaterialParameters = FetchNaniteMaterialPixelParameters(NaniteView, PackedPixel, VIRTUAL_TEXTURE_TARGET, Barycentrics, false, VertIndexes, bCalcVertIndexes, Interpolants, SvPosition);
+
+	#if NUM_TEX_COORD_INTERPOLATORS > 0
+		MaterialParameters.TexCoords[0]		= In.TexCoords.xy;
+		MaterialParameters.TexCoords_DDX[0]	= ddx( In.TexCoords.xy );
+		MaterialParameters.TexCoords_DDY[0]	= ddy( In.TexCoords.xy );
+	#endif
+
+	#if NUM_TEX_COORD_INTERPOLATORS > 1
+		MaterialParameters.TexCoords[1]		= In.TexCoords.zw;
+		MaterialParameters.TexCoords_DDX[1]	= ddx( In.TexCoords.zw );
+		MaterialParameters.TexCoords_DDY[1]	= ddy( In.TexCoords.zw );
+	#endif
+
 		FPixelMaterialInputs PixelMaterialInputs;
 #if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
 		CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, SvPosition, MaterialParameters.ScreenPosition, true, MaterialParameters.WorldPosition_CamRelative, MaterialParameters.WorldPosition_NoOffsets_CamRelative);
