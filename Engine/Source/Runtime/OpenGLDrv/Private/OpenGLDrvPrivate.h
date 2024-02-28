@@ -117,11 +117,6 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Uniform bind time"),STAT_OpenGLUniformBindTime,S
 DECLARE_CYCLE_STAT_EXTERN(TEXT("VBO setup time"),STAT_OpenGLVBOSetupTime,STATGROUP_OpenGLRHI, );
 #endif
 
-namespace OpenGLConsoleVariables
-{
-	extern int32 bBindlessTexture;
-};
-
 enum EOpenGLCurrentContext
 {
 	CONTEXT_Other = -2,

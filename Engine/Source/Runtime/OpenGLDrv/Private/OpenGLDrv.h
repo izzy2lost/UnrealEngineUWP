@@ -775,8 +775,7 @@ public:
 			false);
 	}
 
-	bool LinkComputeShader(FRHIComputeShader* ComputeShaderRHI, FOpenGLComputeShader* ComputeShader);
-	class FOpenGLLinkedProgram* GetLinkedComputeProgram(FRHIComputeShader* ComputeShaderRHI);
+	void LinkComputeProgram(FRHIComputeShader* ComputeShaderRHI);
 
 	FBoundShaderStateRHIRef RHICreateBoundShaderState_OnThisThread(FRHIVertexDeclaration* VertexDeclaration, FRHIVertexShader* VertexShader, FRHIPixelShader* PixelShader, FRHIGeometryShader* GeometryShader, bool FromPSOFileCache);
 	virtual void RHIAdvanceFrameFence() final override;
@@ -812,8 +811,6 @@ private:
 	}
 
 	void PrepareGFXBoundShaderState(const FGraphicsPipelineStateInitializer& Initializer);
-
-	FOpenGLLinkedProgram* LinkProgram(const class FOpenGLLinkedProgramConfiguration& Config);
 
 	/** called once per frame, used for resource processing */
 	void EndFrameTick();
@@ -873,8 +870,6 @@ private:
 	void InitializeStateResources();
 
 	void SetupVertexArrays(FOpenGLContextState& ContextCache, uint32 BaseVertexIndex, FOpenGLStream* Streams, uint32 NumStreams, uint32 MaxVertices);
-
-	void SetupBindlessTextures( FOpenGLContextState& ContextState, const TArray<FOpenGLBindlessSamplerInfo> &Samplers );
 
 	/** needs to be called before each draw call */
 	void BindPendingFramebuffer( FOpenGLContextState& ContextState );

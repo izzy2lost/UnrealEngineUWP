@@ -52,7 +52,6 @@ namespace OpenGLConsoleVariables
 	extern int32 bUseMapBuffer;
 	extern int32 MaxSubDataSize;
 	extern int32 bUseStagingBuffer;
-	extern int32 bBindlessTexture;
 	extern int32 bUseBufferDiscard;
 };
 
@@ -231,8 +230,7 @@ public:
 		// If we can then we should orphan the buffer name & reallocate the backing store only once as calls to glBufferData may do so even when the size is the same.
 		uint32 DiscardSize = (bDiscard && !bUseMapBuffer && InSize == BaseType::GetSize() && !RESTRICT_SUBDATA_SIZE) ? 0 : BaseType::GetSize();
 
-		// Don't call BufferData if Bindless is on, as bindless texture buffers make buffers immutable
-		if (bDiscard && !OpenGLConsoleVariables::bBindlessTexture && OpenGLConsoleVariables::bUseBufferDiscard)
+		if (bDiscard && OpenGLConsoleVariables::bUseBufferDiscard)
 		{
 			// @todo Lumin hack:
 			// When not hinted with GL_STATIC_DRAW, glBufferData() would introduce long uploading times
@@ -330,8 +328,7 @@ public:
 		// If we can then we should orphan the buffer name & reallocate the backing store only once as calls to glBufferData may do so even when the size is the same.
 		uint32 DiscardSize = (bDiscard && !bUseMapBuffer && InSize == BaseType::GetSize() && !RESTRICT_SUBDATA_SIZE) ? 0 : BaseType::GetSize();
 
-		// Don't call BufferData if Bindless is on, as bindless texture buffers make buffers immutable
-		if ( bDiscard && !OpenGLConsoleVariables::bBindlessTexture && OpenGLConsoleVariables::bUseBufferDiscard)
+		if (bDiscard && OpenGLConsoleVariables::bUseBufferDiscard)
 		{
 			glBufferData( Type, DiscardSize, NULL, GetAccess());
 		}
@@ -820,25 +817,26 @@ public:
  */
 class FOpenGLBoundShaderState : public FRHIBoundShaderState
 {
+	static FOpenGLLinkedProgram* FindOrCreateLinkedProgram(FOpenGLVertexShader* VertexShader, FOpenGLPixelShader* PixelShader, FOpenGLGeometryShader* GeometryShader);
+
 public:
 
 	FCachedBoundShaderStateLink CacheLink;
 
 	uint16 StreamStrides[MaxVertexElementCount];
 
-	FOpenGLLinkedProgram* LinkedProgram;
-	TRefCountPtr<FOpenGLVertexDeclaration> VertexDeclaration;
-	TRefCountPtr<FOpenGLVertexShader> VertexShader;
-	TRefCountPtr<FOpenGLPixelShader> PixelShader;
-	TRefCountPtr<FOpenGLGeometryShader> GeometryShader;
+	FOpenGLLinkedProgram* const LinkedProgram;
+	TRefCountPtr<FOpenGLVertexDeclaration> const VertexDeclaration;
+	TRefCountPtr<FOpenGLVertexShader     > const VertexShader;
+	TRefCountPtr<FOpenGLPixelShader      > const PixelShader;
+	TRefCountPtr<FOpenGLGeometryShader   > const GeometryShader;
 
 	/** Initialization constructor. */
 	FOpenGLBoundShaderState(
-		FOpenGLLinkedProgram* InLinkedProgram,
-		FRHIVertexDeclaration* InVertexDeclarationRHI,
-		FRHIVertexShader* InVertexShaderRHI,
-		FRHIPixelShader* InPixelShaderRHI,
-		FRHIGeometryShader* InGeometryShaderRHI
+		FOpenGLVertexDeclaration* InVertexDeclarationRHI,
+		FOpenGLVertexShader* InVertexShaderRHI,
+		FOpenGLPixelShader* InPixelShaderRHI,
+		FOpenGLGeometryShader* InGeometryShaderRHI
 		);
 
 	const TBitArray<>& GetTextureNeeds(int32& OutMaxTextureStageUsed);

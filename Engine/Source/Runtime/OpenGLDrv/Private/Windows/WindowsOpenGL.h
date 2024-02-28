@@ -117,11 +117,6 @@ struct FWindowsOpenGL : public FOpenGL4
 		return glDepthBoundsEXT != NULL;
 	}
 
-	static FORCEINLINE bool SupportsBindlessTexture()
-	{
-		return glGetTextureSamplerHandleARB != NULL;
-	}
-
 	static FORCEINLINE void BufferStorage(GLenum Target, GLsizeiptr Size, const void* Data, GLbitfield Flags)
 	{
 		glBufferStorage(Target, Size, Data, Flags);

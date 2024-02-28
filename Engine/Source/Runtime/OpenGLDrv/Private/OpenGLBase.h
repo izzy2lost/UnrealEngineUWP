@@ -108,7 +108,6 @@ public:
 	static FORCEINLINE bool SupportsBufferStorage()						{ return false; }
 	static FORCEINLINE bool SupportsDepthBoundsTest()					{ return false; }
 	static FORCEINLINE bool SupportsTextureRange()						{ return false; }
-	static FORCEINLINE bool SupportsBindlessTexture()					{ return false; }
 	static FORCEINLINE bool HasHardwareHiddenSurfaceRemoval()			{ return false; }
 	static FORCEINLINE bool AmdWorkaround()								{ return false; }
 	static FORCEINLINE bool SupportsProgramBinary()						{ return false; }

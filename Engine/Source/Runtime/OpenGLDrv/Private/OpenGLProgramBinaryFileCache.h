@@ -88,9 +88,6 @@ private:
 	*/
 	TMap<GLuint, FPendingShaderCode> ShadersPendingCompilation;
 
-	bool AppendProgramBinaryFile(FArchive& Ar, const FOpenGLProgramKey& ProgramKey, GLuint Program, uint32& ProgramBinaryOffsetOUT, uint32& ProgramBinarySizeOUT);
-	void AppendProgramBinaryFileEofEntry(FArchive& Ar);
-
 	void Reset();
 
 	void ScanProgramCacheFile();
@@ -106,8 +103,6 @@ private:
 	bool RequiresCaching_Internal(const FOpenGLProgramKey& ProgramKey);
 
 	void AddProgramBinaryDataToBinaryCache(const FOpenGLProgramKey& ProgramKey, const FOpenGLProgramBinary& BinaryProgramData);
-
-	void ReleaseGLProgram_internal(FOpenGLLinkedProgramConfiguration& Config, GLuint Program);
 
 	void CheckPendingGLProgramCreateRequests_internal();
 	bool CheckSinglePendingGLProgramCreateRequest_internal(const FOpenGLProgramKey& ProgramKey);

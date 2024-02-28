@@ -458,7 +458,7 @@ struct FOpenGLRHIState final : public FOpenGLCommonState
 	FOpenGLShaderParameterCache*	ShaderParameters;
 
 	TRefCountPtr<FOpenGLBoundShaderState>	BoundShaderState;
-	FComputeShaderRHIRef					CurrentComputeShader;	
+	TRefCountPtr<FOpenGLComputeShader>		CurrentComputeShader;
 
 	/** The RHI does not allow more than 14 constant buffers per shader stage due to D3D11 limits. */
 	enum { MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE = 14 };
