@@ -513,6 +513,55 @@ public class BlobService : IBlobService
 		return redirectUri;
 	}
 
+	public async Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId)
+	{
+		bool seenBlobNotFound = false;
+		bool seenNamespaceNotFound = false;
+		IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
+
+		foreach (IBlobStore store in _blobStores)
+		{
+			string storeName = store.GetType().Name;
+
+			using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.GetObjectMetadata")
+					.SetAttribute("operation.name", "HierarchicalStore.GetObjectMetadata")
+					.SetAttribute("resource.name", blobId.ToString())
+					.SetAttribute("BlobStore", storeName)
+					.SetAttribute("ObjectFound", false.ToString())
+				;
+
+			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope($"blob.get-metadata.{storeName}", $"Blob GET Metadata from: '{storeName}'");
+
+			try
+			{
+				BlobMetadata metadata = await store.GetObjectMetadataAsync(ns, blobId);
+				scope.SetAttribute("ObjectFound", true.ToString());
+				return metadata;
+			}
+			catch (BlobNotFoundException)
+			{
+				seenBlobNotFound = true;
+			}
+			catch (NamespaceNotFoundException)
+			{
+				seenNamespaceNotFound = true;
+			}
+		}
+
+		if (seenBlobNotFound)
+		{
+			throw new BlobNotFoundException(ns, blobId);
+		}
+
+		if (seenNamespaceNotFound)
+		{
+			throw new NamespaceNotFoundException(ns);
+		}
+
+		// the only way we get here is we can not find the blob in any store, thus it does not exist (should have triggered the blob not found above)
+		throw new BlobNotFoundException(ns, blobId);
+	}
+
 	public async Task<BlobContents> ReplicateObjectAsync(NamespaceId ns, BlobId blob, bool force = false)
 	{
 		if (!force && !ShouldFetchBlobOnDemand(ns))

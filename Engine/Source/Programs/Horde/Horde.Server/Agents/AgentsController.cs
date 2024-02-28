@@ -113,7 +113,7 @@ namespace Horde.Server.Agents
 			double? rate = null;
 			if (_globalConfig.Value.Authorize(ServerAclAction.ViewCosts, User))
 			{
-				rate = await _agentService.GetRateAsync(agent.Id);
+				rate = await _agentService.GetRateAsync(agent.Id, cancellationToken);
 			}
 
 			List<GetAgentLeaseResponse> leases = new List<GetAgentLeaseResponse>();
@@ -149,6 +149,7 @@ namespace Horde.Server.Agents
 				agent.Id,
 				agent.Id.ToString(),
 				agent.Enabled,
+				agent.Status,
 				rate,
 				agent.SessionId,
 				agent.Ephemeral,
@@ -378,7 +379,7 @@ namespace Horde.Server.Agents
 				return Forbid(LeaseAclAction.ViewLeases, agentId);
 			}
 
-			IAgent? agent = await _agentService.GetAgentAsync(agentId);
+			IAgent? agent = await _agentService.GetAgentAsync(agentId, cancellationToken);
 			if (agent == null)
 			{
 				return NotFound(agentId);
@@ -389,7 +390,7 @@ namespace Horde.Server.Agents
 			double? agentRate = null;
 			if (_globalConfig.Value.Authorize(ServerAclAction.ViewCosts, User))
 			{
-				agentRate = await _agentService.GetRateAsync(agentId);
+				agentRate = await _agentService.GetRateAsync(agentId, cancellationToken);
 			}
 
 			List<object> responses = new List<object>();
@@ -418,7 +419,7 @@ namespace Horde.Server.Agents
 				return Forbid(LeaseAclAction.ViewLeases, agentId);
 			}
 
-			IAgent? agent = await _agentService.GetAgentAsync(agentId);
+			IAgent? agent = await _agentService.GetAgentAsync(agentId, cancellationToken);
 			if (agent == null)
 			{
 				return NotFound(agentId);
@@ -433,7 +434,7 @@ namespace Horde.Server.Agents
 			double? agentRate = null;
 			if (_globalConfig.Value.Authorize(ServerAclAction.ViewCosts, User))
 			{
-				agentRate = await _agentService.GetRateAsync(agentId);
+				agentRate = await _agentService.GetRateAsync(agentId, cancellationToken);
 			}
 
 			Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload, cancellationToken);

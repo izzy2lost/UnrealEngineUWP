@@ -14,7 +14,6 @@ using Horde.Server.Auditing;
 using Horde.Server.Jobs;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
-using HordeCommon;
 using HordeCommon.Rpc.Messages;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -55,16 +54,17 @@ public class AgentServiceTest : TestSetup
 			new Dictionary<string, int>(),
 			"test");
 
-		Assert.IsTrue(AgentService.AuthorizeSession(agent, GetUser(agent)));
+		Assert.IsTrue(AgentService.AuthorizeSession(agent, GetUser(agent), out string _));
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(20));
-		Assert.IsFalse(AgentService.AuthorizeSession(agent, GetUser(agent)));
+		Assert.IsFalse(AgentService.AuthorizeSession(agent, GetUser(agent), out string reason));
+		Assert.IsTrue(reason.Contains("expired", StringComparison.Ordinal));
 	}
-	
+
 	private static long ToUnixTime(DateTime dateTime)
 	{
 		return new DateTimeOffset(dateTime).ToUnixTimeSeconds();
 	}
-	
+
 	[TestMethod]
 	public async Task LastStatusChangeDuringSessionCreateAsync()
 	{
@@ -72,15 +72,15 @@ public class AgentServiceTest : TestSetup
 		IAgent agent = await AgentService.CreateAgentAsync("agent1", true, null);
 		Assert.AreEqual(AgentStatus.Unspecified, agent.Status);
 		Assert.IsFalse(agent.LastStatusChange.HasValue);
-		
+
 		// A session has been created, status change timestamp is current time
 		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), "v1");
 		Assert.AreEqual(AgentStatus.Ok, agent.Status);
 		Assert.AreEqual(ToUnixTime(Clock.UtcNow), ToUnixTime(agent.LastStatusChange!.Value));
 		DateTime lastStatusChange = agent.LastStatusChange!.Value;
-		
+
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(1));
-		
+
 		// The session is re-created, status change timestamp is same as when it first got created
 		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), "v1");
 		Assert.AreEqual(AgentStatus.Ok, agent.Status);
@@ -100,7 +100,7 @@ public class AgentServiceTest : TestSetup
 		// When saved as MongoDB documents, some precision is lost. This compares only Unix seconds.
 		Assert.AreEqual(ToUnixTime(expected), ToUnixTime(actual!.Value));
 	}
-	
+
 	private static void AssertNotEqual(DateTime expected, DateTime? actual)
 	{
 		// When saved as MongoDB documents, some precision is lost. This compares only Unix seconds.
@@ -129,7 +129,7 @@ public class AgentServiceTest : TestSetup
 			AssertEqual(lastStatusChange, agent.LastStatusChange);
 		}
 	}
-	
+
 	[TestMethod]
 	public async Task AuditLogAwsInstanceTypeChangesAsync()
 	{
@@ -141,16 +141,16 @@ public class AgentServiceTest : TestSetup
 			await agentLogger.FlushAsync();
 			return await agentLogger.FindAsync().AnyAsync(x => x.Data.Contains(text, StringComparison.Ordinal));
 		}
-		
-		List<string> props = new () { $"{KnownPropertyNames.AwsInstanceType}=m5.large" };
+
+		List<string> props = new() { $"{KnownPropertyNames.AwsInstanceType}=m5.large" };
 		IAgent agent = await AgentService.CreateSessionAsync(fixture.Agent1, AgentStatus.Ok, props, new Dictionary<string, int>(), "test");
 		Assert.IsFalse(await AuditLogContains("AWS EC2 instance type changed"));
-		
-		props = new () { $"{KnownPropertyNames.AwsInstanceType}=c6.xlarge" };
+
+		props = new() { $"{KnownPropertyNames.AwsInstanceType}=c6.xlarge" };
 		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, props, new Dictionary<string, int>(), "test");
 		Assert.IsTrue(await AuditLogContains("AWS EC2 instance type changed"));
 	}
-	
+
 	[TestMethod]
 	public async Task GetAgentRateTestAsync()
 	{
@@ -158,27 +158,27 @@ public class AgentServiceTest : TestSetup
 		IAgent agent2 = await AgentService.CreateAgentAsync("agent2", true, null);
 		await AgentService.CreateSessionAsync(agent1, AgentStatus.Ok, new List<string>() { "aws-instance-type=c5.24xlarge", "osfamily=windows" }, new Dictionary<string, int>(), "test");
 		await AgentService.CreateSessionAsync(agent2, AgentStatus.Ok, new List<string>() { "aws-instance-type=c4.4xLARge", "osfamily=WinDowS" }, new Dictionary<string, int>(), "test");
-		
+
 		List<AgentRateConfig> agentRateConfigs = new()
 		{
 			new AgentRateConfig() { Condition = "aws-instance-type == 'c5.24xlarge' && osfamily == 'windows'", Rate = 200, },
 			new AgentRateConfig() { Condition = "aws-instance-type == 'c4.4xlarge' && osfamily == 'windows'", Rate = 300 }
 		};
 		await AgentService.UpdateRateTableAsync(agentRateConfigs);
-		
+
 		double? rate1 = await AgentService.GetRateAsync(agent1.Id);
 		Assert.AreEqual(200, rate1!.Value, 0.1);
-		
+
 		double? rate2 = await AgentService.GetRateAsync(agent2.Id);
 		Assert.AreEqual(300, rate2!.Value, 0.1);
 	}
-	
+
 	[TestMethod]
 	public async Task EphemeralTestAsync()
 	{
 		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), ephemeral: true);
 		Assert.IsTrue(agent.Ephemeral);
-		
+
 		agent = (await AgentService.GetAgentAsync(agent.Id))!;
 		Assert.IsTrue(agent.Ephemeral);
 		Assert.AreEqual(AgentStatus.Ok, agent.Status);
@@ -186,13 +186,13 @@ public class AgentServiceTest : TestSetup
 		// Let background task run for purging outdated sessions, which will terminate session for our agent
 		await Clock.AdvanceAsync(TimeSpan.FromHours(1));
 		await AgentService.TickAsync(CancellationToken.None);
-		
+
 		// Ephemeral agent is marked as deleted once its session is terminated
 		Assert.IsTrue((await AgentService.GetAgentAsync(agent.Id))!.Deleted);
-		
+
 		await Clock.AdvanceAsync(TimeSpan.FromDays(8));
 		await AgentService.TickAsync(CancellationToken.None);
-		
+
 		// Once more time has passed, the ephemeral agent marked as deleted is removed from database
 		Assert.IsNull(await AgentService.GetAgentAsync(agent.Id));
 	}

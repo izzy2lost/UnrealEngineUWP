@@ -69,6 +69,12 @@ namespace Jupiter.Implementation
 			return Task.FromResult<Uri?>(null);
 		}
 
+		public Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId)
+		{
+			string path = GetFilesystemPath(blobId);
+			return GetBackend(ns).GetMetadata(path);
+		}
+
 		public Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
@@ -437,6 +443,12 @@ namespace Jupiter.Implementation
 				string path = new FileReference(file).MakeRelativeTo(_baseDir).Replace(Path.DirectorySeparatorChar, '/');
 				yield return (path, file.LastWriteTime);
 			}
+		}
+
+		public Task<BlobMetadata> GetMetadata(string path)
+		{
+			FileInfo fileInfo = GetFilesystemPath(path);
+			return Task.FromResult(new BlobMetadata(fileInfo.Length, fileInfo.CreationTime));
 		}
 	}
 }

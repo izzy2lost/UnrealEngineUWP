@@ -3,6 +3,8 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Streams;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
@@ -10,11 +12,8 @@ using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Utilities;
-using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Tests.Fleet
 {
@@ -41,25 +40,25 @@ namespace Horde.Server.Tests.Fleet
 		{
 			IPool pool = await CreatePoolAsync(new PoolConfig { Name = "AutoscalePool1", EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
 			CreateAgents(pool);
-			
+
 			await AddPlaceholderLeaseAsync(_agent1, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 			await AddPlaceholderLeaseAsync(_agent2, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 			await AddPlaceholderLeaseAsync(_agent3, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 			await AddPlaceholderLeaseAsync(_agent4, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);
 			await AssertPoolSizeAsync(pool, 4);
 		}
-		
+
 		[TestMethod]
 		public async Task UtilizationHalfAsync()
 		{
 			IPool pool = await CreatePoolAsync(new PoolConfig { Name = "AutoscalePool1", EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
 			CreateAgents(pool);
-			
+
 			await AddPlaceholderLeaseAsync(_agent1, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 			await AddPlaceholderLeaseAsync(_agent2, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 			await AssertPoolSizeAsync(pool, 2);
 		}
-		
+
 		[TestMethod]
 		public async Task UtilizationZeroAsync()
 		{
@@ -68,28 +67,28 @@ namespace Horde.Server.Tests.Fleet
 
 			await AssertPoolSizeAsync(pool, 0);
 		}
-		
+
 		[TestMethod]
 		public async Task ReserveAgentsAsync()
 		{
 			IPool pool = await CreatePoolAsync(new PoolConfig { Name = "AutoscalePool1", EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 5 });
 			CreateAgents(pool);
-			
+
 			await AddPlaceholderLeaseAsync(_agent1, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 			await AddPlaceholderLeaseAsync(_agent2, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 			await AddPlaceholderLeaseAsync(_agent3, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
 			await AddPlaceholderLeaseAsync(_agent4, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
-			
+
 			// Full utilization should mean all agents plus the reserve agents
 			await AssertPoolSizeAsync(pool, 9);
 		}
-		
+
 		[TestMethod]
 		public async Task MinAgentsAsync()
 		{
 			IPool pool = await CreatePoolAsync(new PoolConfig { Name = "AutoscalePool1", EnableAutoscaling = true, MinAgents = 2, NumReserveAgents = 0 });
 			CreateAgents(pool);
-			
+
 			// Even with no utilization, expect at least the min number of agents
 			await AssertPoolSizeAsync(pool, 2);
 		}
@@ -106,7 +105,7 @@ namespace Horde.Server.Tests.Fleet
 			ExecuteJob,
 			Compute
 		}
-		
+
 		private async Task<ILease> AddPlaceholderLeaseAsync(IAgent agent, IPool pool, DateTime startTime, TimeSpan duration, LeaseType leaseType = LeaseType.ExecuteJob)
 		{
 			Assert.IsNotNull(agent.SessionId);
@@ -115,7 +114,7 @@ namespace Horde.Server.Tests.Fleet
 			ExecuteJobTask executeJobTask = new();
 			executeJobTask.JobName = "placeholderJobName";
 			payload = Any.Pack(executeJobTask).ToByteArray();
-			
+
 			if (leaseType == LeaseType.Compute)
 			{
 				ComputeTask computeTask = new();

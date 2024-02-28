@@ -15,7 +15,6 @@ using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Relay;
 using Horde.Server.Server;
 using Horde.Server.Tasks;
-using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -32,7 +31,7 @@ namespace Horde.Server.Compute
 		/// In direct connection mode, these two are identical.
 		/// </summary>
 		public int Port { get; }
-		
+
 		/// <summary>
 		/// Port the local process on the agent is listening on
 		/// </summary>
@@ -83,7 +82,7 @@ namespace Horde.Server.Compute
 			return $"Port={Port}, AgentPort={AgentPort}";
 		}
 	}
-	
+
 	/// <summary>
 	/// Information about a compute 
 	/// </summary>
@@ -91,15 +90,15 @@ namespace Horde.Server.Compute
 	{
 		/// <inheritdoc cref="AssignComputeResponse.ConnectionMode" />
 		public ConnectionMode ConnectionMode { get; }
-		
+
 		/// <summary>
 		/// IP address of the agent
 		/// </summary>
 		public IPAddress Ip { get; }
-		
+
 		/// <inheritdoc cref="AssignComputeResponse.ConnectionAddress" />
 		public string? ConnectionAddress { get; }
-		
+
 		/// <inheritdoc cref="AssignComputeResponse.Ports" />
 		public IReadOnlyDictionary<string, ComputeResourcePort> Ports { get; }
 
@@ -189,7 +188,7 @@ namespace Horde.Server.Compute
 		{
 			return Task.FromResult(WaitInternalAsync(agent, cancellationToken));
 		}
-		
+
 		/// <inheritdoc/>
 		public override async Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, ComputeTask payload, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger, CancellationToken cancellationToken)
 		{

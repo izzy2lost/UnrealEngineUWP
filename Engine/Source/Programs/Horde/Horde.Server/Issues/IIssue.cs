@@ -6,30 +6,10 @@ using System.Linq;
 using MongoDB.Bson;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using EpicGames.Horde.Issues;
 
 namespace Horde.Server.Issues
 {
-	/// <summary>
-	/// The severity of an issue
-	/// </summary>
-	public enum IssueSeverity
-	{
-		/// <summary>
-		/// Unspecified severity
-		/// </summary>
-		Unspecified,
-
-		/// <summary>
-		/// This error represents a warning
-		/// </summary>
-		Warning,
-
-		/// <summary>
-		/// This issue represents an error
-		/// </summary>
-		Error,
-	}
-
 	/// <summary>
 	/// Stores information about a build health issue
 	/// </summary>

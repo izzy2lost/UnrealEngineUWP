@@ -87,8 +87,8 @@ const ServerPanel: React.FC = observer(() => {
                }
             }
 
-            return <Stack horizontal style={{}} verticalAlign="center" tokens={{ childrenGap: 6 }} verticalFill>
-               <FontIcon style={{ color: color, paddingTop: 2, fontSize: 13 }} iconName="Square" />
+            return <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 6 }} verticalFill>
+               <FontIcon style={{ color: color, fontSize: 13 }} iconName="Square" />
                <Text variant="small">{status.name}</Text>
             </Stack>
 

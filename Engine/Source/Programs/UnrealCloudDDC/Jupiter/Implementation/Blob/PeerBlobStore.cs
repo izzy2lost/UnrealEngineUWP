@@ -171,6 +171,12 @@ namespace Jupiter.Implementation
 			return Task.FromResult<Uri?>(null);
 		}
 
+		public Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId)
+		{
+			// Do not call into other instances to determine metadata as we lack a endpoint for it
+			throw new BlobNotFoundException(ns, blobId);
+		}
+
 		public Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// not supported

@@ -3,6 +3,7 @@
 import { action, makeObservable, observable } from 'mobx';
 import backend from '.';
 import { AuthMethod, DashboardPreference, GetDashboardAgentCategoryResponse, GetDashboardConfigResponse, GetDashboardPoolCategoryResponse, GetJobTemplateSettingsResponse, GetTelemetryViewResponse, GetUserResponse, UserClaim } from './Api';
+import { getSiteConfig } from './Config';
 
 export enum StatusColor {
     Success,
@@ -161,7 +162,7 @@ export class Dashboard {
     get development(): boolean {
 
         try {
-            return window?.location?.hostname?.indexOf("devtools-dev") !== -1;
+            return getSiteConfig().environment === "dev";
         } catch (reason) {
             console.error(reason);
         }

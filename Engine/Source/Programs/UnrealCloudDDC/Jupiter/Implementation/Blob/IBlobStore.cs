@@ -33,6 +33,7 @@ namespace Jupiter.Implementation
 		IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns);
 		Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier);
 		Task<Uri?> GetObjectByRedirectAsync(NamespaceId ns, BlobId blob);
+		Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId);
 	}
 
 	public interface IStorageBackend

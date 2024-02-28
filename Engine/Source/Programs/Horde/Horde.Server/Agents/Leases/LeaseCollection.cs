@@ -13,7 +13,6 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
-using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using OpenTelemetry.Trace;

@@ -7,7 +7,6 @@ using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
-using HordeCommon;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.DependencyInjection;
@@ -278,22 +277,22 @@ namespace Horde.Agent.Leases
 				}
 
 				// Get the new agent status
-				bool paused = !_statusService.IsEnabled;
+				bool busy = _statusService.IsBusy;
 				if (stopping)
 				{
-					updateSessionRequest.Status = AgentStatus.Stopping;
+					updateSessionRequest.Status = RpcAgentStatus.Stopping;
 				}
 				else if (_unhealthy)
 				{
-					updateSessionRequest.Status = AgentStatus.Unhealthy;
+					updateSessionRequest.Status = RpcAgentStatus.Unhealthy;
 				}
-				else if (paused)
+				else if (busy)
 				{
-					updateSessionRequest.Status = AgentStatus.Paused;
+					updateSessionRequest.Status = RpcAgentStatus.Busy;
 				}
 				else
 				{
-					updateSessionRequest.Status = AgentStatus.Ok;
+					updateSessionRequest.Status = RpcAgentStatus.Ok;
 				}
 
 				// Update the capabilities whenever the background task has generated a new instance
@@ -322,7 +321,7 @@ namespace Horde.Agent.Leases
 						// Now reconcile the local state to match what the server reports
 						if (updateSessionResponse != null)
 						{
-							bool atLeastOneLeaseFinished = _activeLeases.Any(x => x.Lease.State is LeaseState.Completed or LeaseState.Cancelled);
+							bool atLeastOneLeaseFinished = _activeLeases.Any(x => x.Lease.State is RpcLeaseState.Completed or RpcLeaseState.Cancelled);
 							if (atLeastOneLeaseFinished && shutdownAfterFinishedLease)
 							{
 								_logger.LogInformation("At least one lease executed. Requesting shutdown.");
@@ -332,13 +331,13 @@ namespace Horde.Agent.Leases
 							PoolIds = updateSessionResponse.PoolIds;
 
 							// Remove any leases which have completed
-							int numRemoved = _activeLeases.RemoveAll(x => (x.Lease.State == LeaseState.Completed || x.Lease.State == LeaseState.Cancelled) && !updateSessionResponse.Leases.Any(y => y.Id == x.Lease.Id && y.State != LeaseState.Cancelled));
+							int numRemoved = _activeLeases.RemoveAll(x => (x.Lease.State == RpcLeaseState.Completed || x.Lease.State == RpcLeaseState.Cancelled) && !updateSessionResponse.Leases.Any(y => y.Id == x.Lease.Id && y.State != RpcLeaseState.Cancelled));
 							NumLeasesCompleted += numRemoved;
 
 							// Create any new leases and cancel any running leases
 							foreach (Lease serverLease in updateSessionResponse.Leases)
 							{
-								if (serverLease.State == LeaseState.Cancelled)
+								if (serverLease.State == RpcLeaseState.Cancelled)
 								{
 									LeaseInfo? info = _activeLeases.FirstOrDefault(x => x.Lease.Id == serverLease.Id);
 									if (info != null)
@@ -347,9 +346,9 @@ namespace Horde.Agent.Leases
 										info.CancellationTokenSource.Cancel();
 									}
 								}
-								if (serverLease.State == LeaseState.Pending && !_activeLeases.Any(x => x.Lease.Id == serverLease.Id))
+								if (serverLease.State == RpcLeaseState.Pending && !_activeLeases.Any(x => x.Lease.Id == serverLease.Id))
 								{
-									serverLease.State = LeaseState.Active;
+									serverLease.State = RpcLeaseState.Active;
 
 									_logger.LogInformation("Adding lease {LeaseId}", serverLease.Id);
 									LeaseInfo info = new LeaseInfo(serverLease);
@@ -360,7 +359,7 @@ namespace Horde.Agent.Leases
 							}
 
 							// Update the session result if we've transitioned to stopped
-							if (updateSessionResponse.Status == AgentStatus.Stopped)
+							if (updateSessionResponse.Status == RpcAgentStatus.Stopped)
 							{
 								_logger.LogInformation("Agent status is stopped; returning from session update loop.");
 								return _sessionResult ?? new SessionResult(SessionOutcome.BackOff);
@@ -380,7 +379,7 @@ namespace Horde.Agent.Leases
 					{
 						_statusService.Set(false, _activeLeases.Count, "Attempting to connect to server...");
 					}
-					else if (paused)
+					else if (busy)
 					{
 						_statusService.Set(true, 0, "Paused");
 					}
@@ -525,14 +524,14 @@ namespace Horde.Agent.Leases
 			{
 				if (leaseInfo.CancellationTokenSource.IsCancellationRequested)
 				{
-					leaseInfo.Lease.State = LeaseState.Cancelled;
-					leaseInfo.Lease.Outcome = LeaseOutcome.Failed;
+					leaseInfo.Lease.State = RpcLeaseState.Cancelled;
+					leaseInfo.Lease.Outcome = RpcLeaseOutcome.Failed;
 					leaseInfo.Lease.Output = ByteString.Empty;
 				}
 				else
 				{
-					leaseInfo.Lease.State = (result.Outcome == LeaseOutcome.Cancelled) ? LeaseState.Cancelled : LeaseState.Completed;
-					leaseInfo.Lease.Outcome = result.Outcome;
+					leaseInfo.Lease.State = (result.Outcome == LeaseOutcome.Cancelled) ? RpcLeaseState.Cancelled : RpcLeaseState.Completed;
+					leaseInfo.Lease.Outcome = (RpcLeaseOutcome)result.Outcome;
 					leaseInfo.Lease.Output = (result.Output != null) ? ByteString.CopyFrom(result.Output) : ByteString.Empty;
 				}
 				_logger.LogInformation("Transitioning lease {LeaseId} to {State}, outcome={Outcome}", leaseInfo.Lease.Id, leaseInfo.Lease.State, leaseInfo.Lease.Outcome);

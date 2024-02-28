@@ -269,7 +269,7 @@ namespace Horde.Server.Server
 			IAgent? agent = await _agentService.GetAgentAsync(new AgentId(request.Name));
 			if (agent == null)
 			{
-				agent = await _agentService.CreateAgentAsync(request.Name, _globalConfig.Value.ServerSettings.EnableNewAgentsByDefault, null, request.Ephemeral);
+				agent = await _agentService.CreateAgentAsync(new AgentId(request.Name), _globalConfig.Value.ServerSettings.EnableNewAgentsByDefault, null, request.Ephemeral);
 			}
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
@@ -309,7 +309,7 @@ namespace Horde.Server.Server
 					throw new StructuredRpcException(StatusCode.PermissionDenied, "User is not authenticated to create new agents");
 				}
 
-				agent = await _agentService.CreateAgentAsync(request.Id, true, null);
+				agent = await _agentService.CreateAgentAsync(agentId, true, null);
 			}
 
 			// Make sure we're allowed to create sessions on this agent
@@ -323,7 +323,7 @@ namespace Horde.Server.Server
 			GetCapabilities(request.Capabilities, out List<string> properties, out Dictionary<string, int> resources);
 
 			// Create a new session
-			agent = await _agentService.CreateSessionAsync(agent, request.Status, properties, resources, request.Version, context.CancellationToken);
+			agent = await _agentService.CreateSessionAsync(agent, (AgentStatus)request.Status, properties, resources, request.Version, context.CancellationToken);
 			if (agent == null)
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Agent {AgentId} not found", agentId);
@@ -380,9 +380,9 @@ namespace Horde.Server.Server
 					{
 						throw new StructuredRpcException(StatusCode.PermissionDenied, "Agent {AgentId} has completed session {SessionId}; now executing session {NewSessionId}. Cannot update state.", request.AgentId, sessionId, agent.SessionId?.ToString() ?? "(None)");
 					}
-					if (!_agentService.AuthorizeSession(agent, context.GetHttpContext().User))
+					if (!_agentService.AuthorizeSession(agent, context.GetHttpContext().User, out string authReason))
 					{
-						throw new StructuredRpcException(StatusCode.PermissionDenied, "Not authenticated for {AgentId}", request.AgentId);
+						throw new StructuredRpcException(StatusCode.PermissionDenied, "Not authenticated for {AgentId}. Reason {Reason}", request.AgentId, authReason);
 					}
 
 					// Get the new capabilities of this agent
@@ -396,7 +396,7 @@ namespace Horde.Server.Server
 					// Update the session
 					try
 					{
-						agent = await _agentService.UpdateSessionWithWaitAsync(agent, sessionId, request.Status, properties, resources, request.Leases, cancellationSource.Token);
+						agent = await _agentService.UpdateSessionWithWaitAsync(agent, sessionId, (AgentStatus)request.Status, properties, resources, request.Leases, cancellationSource.Token);
 					}
 					catch (OperationCanceledException)
 					{
@@ -421,7 +421,7 @@ namespace Horde.Server.Server
 					UpdateSessionResponse response = new UpdateSessionResponse();
 					response.Leases.Add(agent.Leases.Select(x => x.ToRpcMessage()));
 					response.ExpiryTime = (agent.SessionExpiresAt == null) ? new Timestamp() : Timestamp.FromDateTime(agent.SessionExpiresAt.Value);
-					response.Status = agent.Status;
+					response.Status = (RpcAgentStatus)agent.Status;
 					await writer.WriteAsync(response);
 				}
 

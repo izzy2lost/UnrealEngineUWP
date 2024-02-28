@@ -10,6 +10,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
+using System.Threading;
 
 namespace Horde.Server.Agents.Sessions
 {
@@ -78,21 +79,21 @@ namespace Horde.Server.Agents.Sessions
 		}
 
 		/// <inheritdoc/>
-		public async Task<ISession> AddAsync(SessionId id, AgentId agentId, DateTime startTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, string? version)
+		public async Task<ISession> AddAsync(SessionId id, AgentId agentId, DateTime startTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, string? version, CancellationToken cancellationToken = default)
 		{
 			SessionDocument newSession = new SessionDocument(id, agentId, startTime, properties, resources, version);
-			await _sessions.InsertOneAsync(newSession);
+			await _sessions.InsertOneAsync(newSession, null, cancellationToken);
 			return newSession;
 		}
 
 		/// <inheritdoc/>
-		public async Task<ISession?> GetAsync(SessionId sessionId)
+		public async Task<ISession?> GetAsync(SessionId sessionId, CancellationToken cancellationToken = default)
 		{
-			return await _sessions.Find(x => x.Id == sessionId).FirstOrDefaultAsync();
+			return await _sessions.Find(x => x.Id == sessionId).FirstOrDefaultAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<ISession>> FindAsync(AgentId agentId, DateTime? startTime, DateTime? finishTime, int index, int count)
+		public async Task<List<ISession>> FindAsync(AgentId agentId, DateTime? startTime, DateTime? finishTime, int index, int count, CancellationToken cancellationToken = default)
 		{
 			FilterDefinitionBuilder<SessionDocument> filterBuilder = Builders<SessionDocument>.Filter;
 
@@ -106,19 +107,19 @@ namespace Horde.Server.Agents.Sessions
 				filter &= filterBuilder.Or(filterBuilder.Eq(x => x.FinishTime, null), filterBuilder.Lte(x => x.FinishTime, finishTime.Value));
 			}
 
-			List<SessionDocument> results = await _sessions.Find(filter).SortByDescending(x => x.StartTime).Skip(index).Limit(count).ToListAsync();
+			List<SessionDocument> results = await _sessions.Find(filter).SortByDescending(x => x.StartTime).Skip(index).Limit(count).ToListAsync(cancellationToken);
 			return results.ConvertAll<ISession>(x => x);
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<ISession>> FindActiveSessionsAsync(int? index, int? count)
+		public async Task<List<ISession>> FindActiveSessionsAsync(int? index, int? count, CancellationToken cancellationToken = default)
 		{
-			List<SessionDocument> results = await _sessions.Find(x => x.FinishTime == null).Range(index, count).ToListAsync();
+			List<SessionDocument> results = await _sessions.Find(x => x.FinishTime == null).Range(index, count).ToListAsync(cancellationToken);
 			return results.ConvertAll<ISession>(x => x);
 		}
 
 		/// <inheritdoc/>
-		public Task UpdateAsync(SessionId sessionId, DateTime? finishTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources)
+		public Task UpdateAsync(SessionId sessionId, DateTime? finishTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, CancellationToken cancellationToken = default)
 		{
 			List<UpdateDefinition<SessionDocument>> updates = new List<UpdateDefinition<SessionDocument>>();
 			if (finishTime != null)
@@ -133,13 +134,13 @@ namespace Horde.Server.Agents.Sessions
 			{
 				updates.Add(Builders<SessionDocument>.Update.Set(x => x.Resources, new Dictionary<string, int>(resources)));
 			}
-			return _sessions.FindOneAndUpdateAsync(x => x.Id == sessionId, Builders<SessionDocument>.Update.Combine(updates));
+			return _sessions.FindOneAndUpdateAsync(x => x.Id == sessionId, Builders<SessionDocument>.Update.Combine(updates), cancellationToken: cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public Task DeleteAsync(SessionId sessionId)
+		public Task DeleteAsync(SessionId sessionId, CancellationToken cancellationToken = default)
 		{
-			return _sessions.DeleteOneAsync(x => x.Id == sessionId);
+			return _sessions.DeleteOneAsync(x => x.Id == sessionId, null, cancellationToken);
 		}
 	}
 }

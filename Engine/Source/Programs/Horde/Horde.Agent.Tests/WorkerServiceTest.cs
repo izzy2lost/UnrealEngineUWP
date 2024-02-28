@@ -388,7 +388,7 @@ namespace Horde.Agent.Tests
 			_leases[leaseId] = new Lease
 			{
 				Id = leaseId,
-				State = LeaseState.Pending,
+				State = RpcLeaseState.Pending,
 				Payload = Any.Pack(testTask)
 			};
 		}
@@ -499,7 +499,7 @@ namespace Horde.Agent.Tests
 				_logger.LogInformation("OnUpdateSessionRequest: {AgentId} {SessionId} {Status}", request.AgentId, request.SessionId, request.Status);
 				await Task.Delay(100, cancellationToken);
 				UpdateSessionResponse response = new () { ExpiryTime = Timestamp.FromDateTime(DateTime.UtcNow + TimeSpan.FromMinutes(120)) };
-				response.Leases.AddRange(_leases.Values.Where(x => x.State != LeaseState.Completed));
+				response.Leases.AddRange(_leases.Values.Where(x => x.State != RpcLeaseState.Completed));
 				await responseStream.Write(response);
 			}
 			

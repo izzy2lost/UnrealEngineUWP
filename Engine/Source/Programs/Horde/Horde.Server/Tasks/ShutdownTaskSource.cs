@@ -2,16 +2,15 @@
 
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
 using Horde.Server.Logs;
 using Horde.Server.Utilities;
-using HordeCommon;
 using HordeCommon.Rpc.Tasks;
-using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Tasks
 {

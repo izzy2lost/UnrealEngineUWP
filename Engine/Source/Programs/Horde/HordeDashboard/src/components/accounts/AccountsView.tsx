@@ -277,7 +277,8 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
          minWidth={400}
          dialogContentProps={{
             type: DialogType.normal,
-            title: `Confirm deletion of account ${account.name}`,
+            title: `Delete Account`,
+            subText: `Confirm deletion of account ${account.name}`
          }}
          modalProps={{ isBlocking: true, topOffsetFixed: true, styles: { main: { padding: 8, width: 400, hasBeenOpened: false, top: "120px", position: "absolute" } } }} >
          <DialogFooter>

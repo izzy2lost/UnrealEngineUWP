@@ -22,7 +22,7 @@ using Horde.Server.Agents.Pools;
 using Horde.Server.Perforce;
 using Horde.Server.Server;
 using Horde.Server.Streams;
-using HordeCommon;
+using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using MongoDB.Bson;
@@ -64,7 +64,7 @@ namespace Horde.Server.Agents
 		/// Whether to use an incremental workspace
 		/// </summary>
 		public bool Incremental { get; set; }
-		
+
 		/// <summary>
 		/// Method to use when syncing/materializing data from Perforce
 		/// </summary>
@@ -169,7 +169,7 @@ namespace Horde.Server.Agents
 			// Construct the message
 			AgentWorkspace result = new AgentWorkspace
 			{
-				ConfiguredCluster = Cluster, 
+				ConfiguredCluster = Cluster,
 				ConfiguredUserName = UserName,
 				ServerAndPort = server.ServerAndPort,
 				UserName = credentials?.UserName ?? UserName,
@@ -181,12 +181,12 @@ namespace Horde.Server.Agents
 				Partitioned = server.SupportsPartitionedWorkspaces,
 				Method = Method ?? String.Empty
 			};
-			
+
 			if (View != null)
 			{
 				result.View.AddRange(View);
 			}
-			
+
 			return result;
 		}
 	}
@@ -406,8 +406,8 @@ namespace Horde.Server.Agents
 		{
 			HordeCommon.Rpc.Messages.Lease lease = new HordeCommon.Rpc.Messages.Lease();
 			lease.Id = Id.ToString();
-			lease.Payload = Google.Protobuf.WellKnownTypes.Any.Parser.ParseFrom(Payload); 
-			lease.State = State;
+			lease.Payload = Google.Protobuf.WellKnownTypes.Any.Parser.ParseFrom(Payload);
+			lease.State = (RpcLeaseState)State;
 			return lease;
 		}
 	}
@@ -441,7 +441,7 @@ namespace Horde.Server.Agents
 		/// Pools requested by the agent to join when registering with server
 		/// </summary>
 		public const string RequestedPools = "RequestedPools";
-		
+
 		/// <summary>
 		/// Number of logical cores
 		/// </summary>
@@ -451,12 +451,12 @@ namespace Horde.Server.Agents
 		/// Amount of RAM, in GB
 		/// </summary>
 		public const string Ram = "RAM";
-		
+
 		/// <summary>
 		/// AWS: Instance ID
 		/// </summary>
 		public const string AwsInstanceId = "aws-instance-id";
-		
+
 		/// <summary>
 		/// AWS: Instance type
 		/// </summary>
@@ -487,7 +487,7 @@ namespace Horde.Server.Agents
 		/// Current status of this agent
 		/// </summary>
 		public AgentStatus Status { get; }
-		
+
 		/// <summary>
 		/// Time at which last status change took place.
 		/// </summary>
@@ -497,7 +497,7 @@ namespace Horde.Server.Agents
 		/// Whether the agent is enabled
 		/// </summary>
 		public bool Enabled { get; }
-		
+
 		/// <summary>
 		/// Whether the agent is ephemeral
 		/// </summary>
@@ -623,22 +623,22 @@ namespace Horde.Server.Agents
 		/// Default tool ID for agent software (multi-platform, shipped without a .NET runtime)
 		/// This is being deprecated in favor of the platform-specific and self-contained versions of the agent below
 		/// </summary>
-		public static ToolId AgentToolId { get; } = new ("horde-agent");
-		
+		public static ToolId AgentToolId { get; } = new("horde-agent");
+
 		/// <summary>
 		/// Tool ID for Windows-specific and self-contained agent software
 		/// </summary>
-		public static ToolId AgentWinX64ToolId { get; } = new ("horde-agent-win-x64");
-		
+		public static ToolId AgentWinX64ToolId { get; } = new("horde-agent-win-x64");
+
 		/// <summary>
 		/// Tool ID for Linux-specific and self-contained agent software
 		/// </summary>
-		public static ToolId AgentLinuxX64ToolId { get; } = new ("horde-agent-linux-x64");
-		
+		public static ToolId AgentLinuxX64ToolId { get; } = new("horde-agent-linux-x64");
+
 		/// <summary>
 		/// Tool ID for Mac-specific and self-contained agent software
 		/// </summary>
-		public static ToolId AgentMacX64ToolId { get; } = new ("horde-agent-osx-x64");
+		public static ToolId AgentMacX64ToolId { get; } = new("horde-agent-osx-x64");
 
 		/// <summary>
 		/// Gets the tool ID for the software the given agent should be running
@@ -664,7 +664,7 @@ namespace Horde.Server.Agents
 			{
 				// Skip support for condition-based software configs below by returning early when self-contained
 				// Getting this wrong can lead to a self-contained agent getting non-self-contained updates and vice versa.
-                return agent.GetOsFamily() switch
+				return agent.GetOsFamily() switch
 				{
 					RuntimePlatform.Type.Windows => AgentWinX64ToolId,
 					RuntimePlatform.Type.Linux => AgentLinuxX64ToolId,
@@ -672,7 +672,7 @@ namespace Horde.Server.Agents
 					_ => throw new ArgumentOutOfRangeException("Unknown platform " + agent.GetOsFamily())
 				};
 			}
-			
+
 			foreach (AgentSoftwareConfig softwareConfig in globalConfig.Software)
 			{
 				if (softwareConfig.Condition != null && agent.SatisfiesCondition(softwareConfig.Condition))
@@ -720,7 +720,7 @@ namespace Horde.Server.Agents
 				yield return poolId;
 			}
 		}
-		
+
 		/// <summary>
 		/// Tests whether an agent has reported as being a self-contained .NET package
 		/// </summary>
@@ -731,7 +731,7 @@ namespace Horde.Server.Agents
 			List<string> values = agent.GetPropertyValues(KnownPropertyNames.SelfContained).ToList();
 			return values.Count > 0 && values[0].Equals("true", StringComparison.OrdinalIgnoreCase);
 		}
-		
+
 		/// <summary>
 		/// Get operating system family of agent
 		/// </summary>
@@ -911,7 +911,7 @@ namespace Horde.Server.Agents
 		public static AgentWorkspaceInfo? GetAutoSdkWorkspace(this IAgent agent, PerforceCluster cluster, IEnumerable<IPool> pools)
 		{
 			AutoSdkConfig? autoSdkConfig = null;
-			foreach(IPool pool in pools)
+			foreach (IPool pool in pools)
 			{
 				autoSdkConfig = AutoSdkConfig.Merge(autoSdkConfig, pool.AutoSdkConfig);
 			}
@@ -960,7 +960,7 @@ namespace Horde.Server.Agents
 			bool partitioned;
 
 			AgentWorkspace? existingWorkspace = workspaceMessages.FirstOrDefault(x => x.ConfiguredCluster == workspace.Cluster);
-			if(existingWorkspace != null)
+			if (existingWorkspace != null)
 			{
 				baseServerAndPort = existingWorkspace.BaseServerAndPort;
 				serverAndPort = existingWorkspace.ServerAndPort;
@@ -1001,7 +1001,7 @@ namespace Horde.Server.Agents
 			// Construct the message
 			AgentWorkspace result = new AgentWorkspace
 			{
-				ConfiguredCluster = workspace.Cluster, 
+				ConfiguredCluster = workspace.Cluster,
 				ConfiguredUserName = workspace.UserName,
 				Cluster = cluster?.Name,
 				BaseServerAndPort = baseServerAndPort,
@@ -1020,7 +1020,7 @@ namespace Horde.Server.Agents
 			{
 				result.View.AddRange(workspace.View);
 			}
-			
+
 			workspaceMessages.Add(result);
 			return true;
 		}

@@ -39,6 +39,8 @@ import { PoolsView } from './components/PoolsView';
 import { AccountsView } from './components/accounts/AccountsView';
 import { HordeLoginView } from './components/accounts/HordeLoginView';
 import { ServerStatusView } from './components/server/ServerStatus';
+import { ServiceAccountsView } from './components/accounts/ServiceAccountsView';
+import { AgentRequestsView } from './components/agents/AgentRequestsView';
 
 let router: any;
 
@@ -123,6 +125,7 @@ const Main: React.FC = () => {
                { path: "testreport/:testdataId", element: <TestReportView /> },
                { path: "stream/:streamId", element: <StreamView /> },
                { path: "agents", element: <AgentView /> },
+               { path: "agents/registration", element: <AgentRequestsView /> },
                { path: "admin/token", element: <AdminToken /> },
                { path: "reports/utilization", element: <UtilizationReportView /> },
                { path: "preflight", element: <PreflightRedirector /> },
@@ -141,6 +144,7 @@ const Main: React.FC = () => {
                { path: "docs/*", element: <DocView /> },
                { path: "analytics", element: <TelemetryView /> },
                { path: "accounts", element: <AccountsView /> },
+               { path: "accounts/service", element: <ServiceAccountsView /> },
                { path: "test/stepissuereport", element: <StepIssueReportTest /> },
                { path: "test/theme", element: <ThemeTester /> }
             ]

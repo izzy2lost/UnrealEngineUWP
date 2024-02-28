@@ -333,7 +333,7 @@ namespace EpicGames.Core
 				}
 				catch (Exception ex)
 				{
-					_logger.LogError(ex, "Exception while parsing log event");
+					_logger.LogError(ex, "Exception while parsing log event: {Message}", ex.Message);
 				}
 			}
 

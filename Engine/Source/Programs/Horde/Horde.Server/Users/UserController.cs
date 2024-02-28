@@ -74,6 +74,7 @@ namespace Horde.Server.Users
 			response.ShowLandingPage = globalConfig.Dashboard.ShowLandingPage;
 			response.ShowCI = globalConfig.Dashboard.ShowCI;
 			response.ShowAgents = globalConfig.Dashboard.ShowAgents;
+			response.ShowAgentRegistration = globalConfig.Dashboard.ShowAgentRegistration;
 			response.ShowPerforceServers = globalConfig.Dashboard.ShowPerforceServers;
 			response.ShowDeviceManager = globalConfig.Dashboard.ShowDeviceManager;
 			response.ShowTests = globalConfig.Dashboard.ShowTests;

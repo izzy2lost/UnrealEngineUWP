@@ -25,6 +25,12 @@ namespace Jupiter.Implementation
 			return Task.FromResult<Uri?>(null);
 		}
 
+		public Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId)
+		{
+			// do not call into other instances to find metadata as we lack a endpoint for that
+			throw new BlobNotFoundException(ns, blobId);
+		}
+
 		public Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// TODO: It could be useful to support relaying the presigned url

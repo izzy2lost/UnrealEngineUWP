@@ -225,7 +225,7 @@ namespace Jupiter.Implementation
 								// if a blob is missing its not a error, the finalize will report this as missing and it will be uploaded and finalize ran again
 								try
 								{
-									BlobContents result = await _blobService.GetObjectAsync(ns, blobId);
+									BlobMetadata result = await _blobService.GetObjectMetadataAsync(ns, blobId);
 									await _blobIndex.AddBlobToBucketListAsync(ns, bucket, key, blobId, result.Length);
 								}
 								catch (BlobNotFoundException)

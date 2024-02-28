@@ -189,7 +189,7 @@ public class ServerStatusService : IHostedService
 		await redis.HashSetAsync(RedisHashKey(), id, data);
 	}
 
-	private async Task<SubsystemStatus> GetSubsystemStatusFromRedisAsync(IDatabase redis, string id, string name)
+	private static async Task<SubsystemStatus> GetSubsystemStatusFromRedisAsync(IDatabase redis, string id, string name)
 	{
 		try
 		{
