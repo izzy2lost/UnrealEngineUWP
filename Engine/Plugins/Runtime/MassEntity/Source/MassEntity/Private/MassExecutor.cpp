@@ -133,7 +133,7 @@ void RunProcessorsView(TArrayView<UMassProcessor* const> Processors, FMassProces
 		}
 		else if (CommandBuffer.Get() != &EntityManager.Defer())
 		{
-			EntityManager.Defer().MoveAppend(*CommandBuffer.Get());
+			EntityManager.AppendCommands(CommandBuffer);
 		}
 	}
 }

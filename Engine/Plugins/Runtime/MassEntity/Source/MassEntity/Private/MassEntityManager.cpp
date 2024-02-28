@@ -1517,6 +1517,24 @@ void FMassEntityManager::FlushCommands(const TSharedPtr<FMassCommandBuffer>& InC
 	}
 }
 
+void FMassEntityManager::AppendCommands(TSharedPtr<FMassCommandBuffer>& InOutCommandBuffer)
+{
+	if (!ensureMsgf(InOutCommandBuffer != DeferredCommandBuffer, TEXT("We don't expect AppendCommands to be called with EntityManager's command buffer as the input parameter")))
+	{
+		return;
+	}
+	else if (DeferredCommandBuffer->IsFlushing())
+	{
+		// in this case we'll add InOutCommandBuffer to FlushedCommandBufferQueue
+		FlushCommands(InOutCommandBuffer);
+	}
+	else
+	{
+		// otherwise we just move all the commands out of InOutCommandBuffer and into the main buffer
+		DeferredCommandBuffer->MoveAppend(*InOutCommandBuffer.Get());
+	}
+}
+
 void FMassEntityManager::SetDebugName(const FString& NewDebugGame) 
 { 
 #if WITH_MASSENTITY_DEBUG
