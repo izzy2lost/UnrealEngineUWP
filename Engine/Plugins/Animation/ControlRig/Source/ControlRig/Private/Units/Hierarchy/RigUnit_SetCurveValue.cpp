@@ -26,7 +26,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_SetCurveValue)
 {
 	const FRigElementKey CurveA = Controller->AddCurve(TEXT("CurveA"), 0.f);
 	const FRigElementKey CurveB = Controller->AddCurve(TEXT("CurveB"), 0.f);
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 	
 	Hierarchy->ResetCurveValues();
 	Unit.Curve = TEXT("CurveA");

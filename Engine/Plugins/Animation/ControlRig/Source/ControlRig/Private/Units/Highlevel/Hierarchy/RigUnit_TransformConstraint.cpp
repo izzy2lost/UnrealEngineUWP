@@ -381,7 +381,7 @@ FRigUnit_ParentConstraint_Execute()
 	const FRigElementKey Parent3 = Controller->AddBone(TEXT("Parent3"), FRigElementKey(), FTransform( AnimationCore::QuatFromEuler( FVector(-50, 50, -50), Order), FVector(60.f, 60.f, 60.f)), true, ERigBoneType::User);
 	const FRigElementKey Parent4 = Controller->AddBone(TEXT("Parent4"), FRigElementKey(), FTransform( AnimationCore::QuatFromEuler( FVector(60, 60, 60), Order), FVector(80.f, 80.f, 80.f)), true, ERigBoneType::User);
 	
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 	Unit.Child = Child;
 
 	Unit.Parents.Add(FConstraintParent(Parent1, 1.0));
@@ -565,7 +565,7 @@ FRigUnit_ParentConstraintMath_Execute()
 	const FRigElementKey Parent3 = Controller->AddBone(TEXT("Parent3"), FRigElementKey(), FTransform( AnimationCore::QuatFromEuler( FVector(-50, 50, -50), Order), FVector(60.f, 60.f, 60.f)), true, ERigBoneType::User);
 	const FRigElementKey Parent4 = Controller->AddBone(TEXT("Parent4"), FRigElementKey(), FTransform( AnimationCore::QuatFromEuler( FVector(60, 60, 60), Order), FVector(80.f, 80.f, 80.f)), true, ERigBoneType::User);
 	
-	ExecuteContext.Hierarchy = Hierarchy;
+	ExecuteContext.Hierarchy = Hierarchy.Get();
 	Unit.Input = Hierarchy->GetInitialGlobalTransform(Child);
 
 	Unit.Parents.Add(FConstraintParent(Parent1, 1.0));
@@ -747,7 +747,7 @@ FRigVMStructUpgradeInfo FRigUnit_PositionConstraint::GetUpgradeInfo() const
 	const FRigElementKey Parent2 = Controller->AddBone(TEXT("Parent2"), FRigElementKey(), FTransform(FVector(40.f, 40.f, 40.f)), true, ERigBoneType::User);
 	const FRigElementKey Parent3 = Controller->AddBone(TEXT("Parent3"), FRigElementKey(), FTransform(FVector(60.f, 60.f, 60.f)), true, ERigBoneType::User);
 	
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 	Unit.Child = Child;
 
 	Unit.Parents.Add(FConstraintParent(Parent1, 1.0));
@@ -952,7 +952,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_PositionConstraintLocalSpaceOffset)
     	const FRigElementKey Parent2 = Controller->AddBone(TEXT("Parent2"), FRigElementKey(), FTransform(FVector(40.f, 40.f, 40.f)), true, ERigBoneType::User);
     	const FRigElementKey Parent3 = Controller->AddBone(TEXT("Parent3"), FRigElementKey(), FTransform(FVector(60.f, 60.f, 60.f)), true, ERigBoneType::User);
     	
-    	Unit.ExecuteContext.Hierarchy = Hierarchy;
+    	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
     	Unit.Child = Child;
     
     	Unit.Parents.Add(FConstraintParent(Parent1, 1.0));
@@ -985,7 +985,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_PositionConstraintLocalSpaceOffset)
 		const FRigElementKey Knee = Controller->AddBone(TEXT("Knee"), FRigElementKey(TEXT("Thigh"), ERigElementType::Bone), FTransform(FVector(10.f, 0.f, -50.f)), true, ERigBoneType::User);
 		const FRigElementKey Corrective = Controller->AddBone(TEXT("Corrective"), FRigElementKey(TEXT("Knee"), ERigElementType::Bone), FTransform(FVector(-50.f, 0.f, 0.f)), false, ERigBoneType::User);
 
-		Unit.ExecuteContext.Hierarchy = Hierarchy;
+		Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 		Unit.Child = Corrective;
     
 		Unit.Parents.Add(FConstraintParent(Knee, 1.0));
@@ -1194,7 +1194,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_RotationConstraint)
 	const FRigElementKey Parent3 = Controller->AddBone(TEXT("Parent3"), FRigElementKey(), FTransform( AnimationCore::QuatFromEuler( FVector(-50, 50, -50), Order), FVector(60.f, 60.f, 60.f)), true, ERigBoneType::User);
 	const FRigElementKey Parent4 = Controller->AddBone(TEXT("Parent4"), FRigElementKey(), FTransform( AnimationCore::QuatFromEuler( FVector(60, 60, 60), Order), FVector(80.f, 80.f, 80.f)), true, ERigBoneType::User);
 	
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 	Unit.Child = Child;
 
 	Unit.Parents.Add(FConstraintParent(Parent1, 1.0));
@@ -1514,7 +1514,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_RotationConstraintLocalSpaceOffset)
 		const FRigElementKey Parent3 = Controller->AddBone(TEXT("Parent3"), FRigElementKey(), FTransform( AnimationCore::QuatFromEuler( FVector(-50, 50, -50), Order), FVector(60.f, 60.f, 60.f)), true, ERigBoneType::User);
 		const FRigElementKey Parent4 = Controller->AddBone(TEXT("Parent4"), FRigElementKey(), FTransform( AnimationCore::QuatFromEuler( FVector(60, 60, 60), Order), FVector(80.f, 80.f, 80.f)), true, ERigBoneType::User);
 		
-		Unit.ExecuteContext.Hierarchy = Hierarchy;
+		Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 		Unit.Child = Child;
 
 		Unit.Parents.Add(FConstraintParent(Parent1, 1.0));
@@ -1584,7 +1584,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_RotationConstraintLocalSpaceOffset)
 		const FRigElementKey Child = Controller->AddBone(TEXT("Child"), FRigElementKey(TEXT("Parent2"), ERigElementType::Bone),
 			FTransform(AnimationCore::QuatFromEuler(FVector(0,0,-45), Order), FVector(0.f, 0.f, 50.f)), false, ERigBoneType::User);
 
-		Unit.ExecuteContext.Hierarchy = Hierarchy;
+		Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 		Unit.Child = Child;
     
 		Unit.Parents.Add(FConstraintParent(Parent1, 1.0));
@@ -1803,7 +1803,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_ScaleConstraint)
 	const FRigElementKey Parent1 = Controller->AddBone(TEXT("Parent1"), FRigElementKey(), FTransform(FQuat::Identity, FVector::ZeroVector, FVector(4,4,4)), true, ERigBoneType::User);
 	const FRigElementKey Parent2 = Controller->AddBone(TEXT("Parent2"), FRigElementKey(), FTransform(FQuat::Identity, FVector::ZeroVector, FVector(1,1,1)), true, ERigBoneType::User);
 	
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 	Unit.Child = Child;
 
 	Unit.Parents.Add(FConstraintParent(Parent1, 1.0));
@@ -2049,7 +2049,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_ScaleConstraintLocalSpaceOffset)
 		const FRigElementKey Parent1 = Controller->AddBone(TEXT("Parent1"), FRigElementKey(), FTransform(FQuat::Identity, FVector::ZeroVector, FVector(4,4,4)), true, ERigBoneType::User);
 		const FRigElementKey Parent2 = Controller->AddBone(TEXT("Parent2"), FRigElementKey(), FTransform(FQuat::Identity, FVector::ZeroVector, FVector(1,1,1)), true, ERigBoneType::User);
 	
-		Unit.ExecuteContext.Hierarchy = Hierarchy;
+		Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 		Unit.Child = Child;
 
 		Unit.Parents.Add(FConstraintParent(Parent1, 1.0));
@@ -2090,7 +2090,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_ScaleConstraintLocalSpaceOffset)
 			FTransform(AnimationCore::QuatFromEuler(FVector(0,0,0), Order), FVector(0.f, 0.f, 50.f)),
 			false, ERigBoneType::User);
 
-		Unit.ExecuteContext.Hierarchy = Hierarchy;
+		Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 		Unit.Child = Child;
     
 		Unit.Parents.Add(FConstraintParent(Parent1, 1.0));

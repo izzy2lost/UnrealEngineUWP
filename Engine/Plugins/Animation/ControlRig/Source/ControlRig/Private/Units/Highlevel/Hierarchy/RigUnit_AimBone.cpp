@@ -684,7 +684,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_AimConstraintLocalSpaceOffset)
     	const FRigElementKey Parent1 = Controller->AddBone(TEXT("Parent1"), FRigElementKey(), FTransform(FVector(10.f, 10.f, 10.f)), true, ERigBoneType::User);
     	const FRigElementKey Parent2 = Controller->AddBone(TEXT("Parent2"), FRigElementKey(), FTransform(FVector(-10.f,10.f, 10.f)), true, ERigBoneType::User);
     	
-    	Unit.ExecuteContext.Hierarchy = Hierarchy;
+    	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 		Unit.AimAxis = FVector(0,1, 0);
 		Unit.UpAxis = FVector(0, 0,1);
     	
