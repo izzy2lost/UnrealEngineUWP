@@ -197,12 +197,13 @@ TSubclassOf<AGameModeBase> UMovieGraphGlobalGameOverridesNode::GetGameModeOverri
 		FString OutTraversalError;
 		if (const UMovieGraphEvaluatedConfig* EvaluatedGraph = GraphConfig->CreateFlattenedGraph(TraversalContext, OutTraversalError))
 		{
-			constexpr bool bIncludeCDOs = true;
+			// Note that the CDO is not fetched here. Users need to explicitly include the Global Game Overrides node and specify the game mode override.
+			constexpr bool bIncludeCDOs = false;
 			constexpr bool bExactMatch = true;
 			UMovieGraphGlobalGameOverridesNode* GameOverridesNode =
 				EvaluatedGraph->GetSettingForBranch<UMovieGraphGlobalGameOverridesNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
 
-			return GameOverridesNode->GameModeOverride;
+			return GameOverridesNode ? GameOverridesNode->GameModeOverride : nullptr;
 		}
 	}
 	else
