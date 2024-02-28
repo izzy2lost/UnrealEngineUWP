@@ -994,6 +994,12 @@ public:
 			}
 		}
 
+		if ( CompressedPixelFormat == PF_BC6H )
+		{
+			// BC6H output changed 20240226
+			DDCString += TEXT("20240226");
+		}
+
 		#ifdef DO_FORCE_UNIQUE_DDC_KEY_PER_BUILD
 		DDCString += TEXT(__DATE__);
 		DDCString += TEXT(__TIME__);
@@ -1208,20 +1214,61 @@ public:
 
 		ERawImageFormat::Type ImageFormat;
 		OodleTex_PixelFormat OodlePF;
-
+		bool bNeedsSanitizeFloat16AndSetAlphaOpaqueForBC6H = false;
+		
 		if (OodleBCN == OodleTex_BC6U)
 		{
-			// @todo Oodle: if source image is RGBA16F or other non-float, then do SanitizeFloat16AndSetAlphaOpaqueForBC6H and pass that to Oodle without conversion
-
-			ImageFormat = ERawImageFormat::RGBA32F;
-			OodlePF = OodleTex_PixelFormat_4_F32_RGBA;
 			// BC6 is assumed to be a linear-light HDR Image by default
 			// use OodleTex_BCNFlag_BC6_NonRGBData if it is some other kind of data
 			Gamma = EGammaSpace::Linear;
 
-			// TFO just passes the F32 to Oodle
-			// FImageCore::SanitizeFloat16AndSetAlphaOpaqueForBC6H is not needed here
-			// Oodle will convert the F32 to F16 and also clamp in [0,F16_max] (no negatives, no +inf)
+			/*
+			// can't do this because we support old version back to 2.9.5
+			// this works only in newer versions of Oodle Texture
+			if ( InImage.Format == ERawImageFormat::R32F )
+			{
+				ImageFormat = ERawImageFormat::R32F;
+				OodlePF = OodleTex_PixelFormat_1_F32;
+			}
+			else
+			*/
+
+			if ( InImage.Format == ERawImageFormat::RGBA32F )
+			{
+				ImageFormat = ERawImageFormat::RGBA32F;
+				OodlePF = OodleTex_PixelFormat_4_F32_RGBA;
+				
+				// (old comment) :
+				// FImageCore::SanitizeFloat16AndSetAlphaOpaqueForBC6H is not needed here
+				// Oodle will convert the F32 to F16 and also clamp in [0,F16_max] (no negatives, no +inf)
+				//	-> note this isn't quite true but maintains legacy behavior in this case
+			}
+			else
+			{
+				// use RGBA16F even for formats like BGRE and R32F that don't technically fit in F16
+				// BC6 will encode them in F16 anyway, so no harm in clamping now
+				// this avoids doing a big RGBA32F surface alloc
+				// (note that Oodle Texture will convert to RGBA32F internally, but that's per-tile)
+
+				// @todo Oodle : this uses the non-fast-path of CopyImage !
+
+				ImageFormat = ERawImageFormat::RGBA16F;
+				OodlePF = OodleTex_PixelFormat_4_F16_RGBA;
+
+				// if input format was BGRA8 or similar
+				//	it can't possibly be out of bounds and need sanitizing
+				//	(negatives, inf, nan)
+				switch(InImage.Format)
+				{
+				case ERawImageFormat::RGBA16F:
+				case ERawImageFormat::R16F:
+				case ERawImageFormat::R32F:
+					bNeedsSanitizeFloat16AndSetAlphaOpaqueForBC6H = true;
+					break;
+				default:
+					break;
+				}
+			}
 		}
 		else if ((OodleBCN == OodleTex_BC4U || OodleBCN == OodleTex_BC5U) &&
 			Gamma == EGammaSpace::Linear &&			
@@ -1291,13 +1338,15 @@ public:
 			// after we copy the image, we can free the source
 			//	can reduce peak mem use to do so immediately
 			//	(source is usually/often F32 RGBA (when not VT) so quite fat)
-
-			{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle.Free);
+			//	(detached)
 			const_cast<FImage &>(InImage).FreeData(true);
-			}
 		}
 		const FImage& Image = bNeedsImageCopy ? ImageCopy : InImage;
+		
+		if ( bNeedsSanitizeFloat16AndSetAlphaOpaqueForBC6H )
+		{
+			FImageCore::SanitizeFloat16AndSetAlphaOpaqueForBC6H(const_cast<FImage&>(Image));
+		}
 
 		// verify OodlePF matches Image :
 		check( Image.GetBytesPerPixel() == (VTable->fp_OodleTex_PixelFormat_BytesPerPixel)(OodlePF) );
