@@ -158,15 +158,16 @@ void UPCGGraphInputOutputSettings::ApplyDeprecationBeforeUpdatePins(UPCGNode* In
 }
 #endif // WITH_EDITOR
 
-TArray<FPCGPinProperties> UPCGGraphInputOutputSettings::DefaultInputPinProperties() const
+TArray<FPCGPinProperties> UPCGGraphInputOutputSettings::DefaultPinProperties(bool bInvisiblePin) const
 {
 	// It is important for serialization that this is not modified, or it could break existing graphs.
 	TArray<FPCGPinProperties> PinProperties;
 	const EPCGDataType DefaultPinDataType = bIsInput ? EPCGDataType::Spatial : EPCGDataType::Any;
 	const TArray<PCGInputOutputPrivate::FLabelAndTooltip>& StaticLabels = bIsInput ? PCGInputOutputPrivate::StaticInLabels : PCGInputOutputPrivate::StaticOutLabels;
 
-	Algo::Transform(StaticLabels, PinProperties, [DefaultPinDataType](const PCGInputOutputPrivate::FLabelAndTooltip& InLabelAndTooltip) {
+	Algo::Transform(StaticLabels, PinProperties, [bInvisiblePin, DefaultPinDataType](const PCGInputOutputPrivate::FLabelAndTooltip& InLabelAndTooltip) {
 		FPCGPinProperties Res = FPCGPinProperties(InLabelAndTooltip.Label, DefaultPinDataType, /*bMultiConnections=*/true, /*bMultiData=*/true, InLabelAndTooltip.Tooltip);
+		Res.bInvisiblePin = bInvisiblePin;
 		Res.SetAdvancedPin();
 		return Res;
 	});
@@ -174,9 +175,14 @@ TArray<FPCGPinProperties> UPCGGraphInputOutputSettings::DefaultInputPinPropertie
 	return PinProperties;
 }
 
+TArray<FPCGPinProperties> UPCGGraphInputOutputSettings::DefaultInputPinProperties() const
+{
+	return DefaultPinProperties(/*bInvisiblePin=*/bIsInput);
+}
+
 TArray<FPCGPinProperties> UPCGGraphInputOutputSettings::DefaultOutputPinProperties() const
 {
-	return DefaultInputPinProperties();
+	return DefaultPinProperties(/*bInvisiblePin=*/!bIsInput);
 }
 
 const FPCGPinProperties& UPCGGraphInputOutputSettings::AddPin(const FPCGPinProperties& NewPinProperties)

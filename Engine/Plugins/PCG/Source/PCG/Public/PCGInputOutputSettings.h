@@ -58,6 +58,7 @@ public:
 	[[nodiscard]] const FPCGPinProperties& AddPin(const FPCGPinProperties& NewCustomPinProperties);
 
 protected:
+	TArray<FPCGPinProperties> DefaultPinProperties(bool bInvisiblePin) const;
 	virtual FPCGElementPtr CreateElement() const override { return MakeShared<FPCGInputOutputElement>(); }
 	// ~End UPCGSettings interface
 
