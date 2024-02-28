@@ -533,6 +533,33 @@ export type UpdateAgentRequest = {
 
 }
 
+// Agent Registration
+
+/// Updates an existing lease
+export type GetPendingAgentsResponse = {
+	agents: GetPendingAgentResponse[];
+}
+	
+
+/// Information about an agent pending admission to the farm
+export type GetPendingAgentResponse = {
+	key: string;
+	hostName: string;
+	description: string;
+}
+
+/// Approve an agent for admission to the farm
+export type ApproveAgentsRequest = {
+	agents: ApproveAgentRequest[];
+}
+
+/// Approve an agent for admission to the farm
+export type ApproveAgentRequest = {
+	key: string;
+	agentId?: string;	
+}
+
+
 export type AuditLogQuery = {
 	minTime?: string;
 	maxTime?: string;

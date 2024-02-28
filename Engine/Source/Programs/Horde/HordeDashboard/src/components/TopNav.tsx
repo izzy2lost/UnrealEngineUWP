@@ -498,6 +498,12 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
             link: `/agents`
          });
 
+         resourceItems.push({
+            key: "admin_agents_registration",
+            text: "Agent Registration",
+            link: `/agents/registration`
+         });
+
          if (features?.showDeviceManager !== false) {
             resourceItems.push({
                key: "admin_devices",

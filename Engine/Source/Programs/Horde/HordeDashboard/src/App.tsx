@@ -40,6 +40,7 @@ import { AccountsView } from './components/accounts/AccountsView';
 import { HordeLoginView } from './components/accounts/HordeLoginView';
 import { ServerStatusView } from './components/server/ServerStatus';
 import { ServiceAccountsView } from './components/accounts/ServiceAccountsView';
+import { AgentRequestsView } from './components/agents/AgentRequestsView';
 
 let router: any;
 
@@ -124,6 +125,7 @@ const Main: React.FC = () => {
                { path: "testreport/:testdataId", element: <TestReportView /> },
                { path: "stream/:streamId", element: <StreamView /> },
                { path: "agents", element: <AgentView /> },
+               { path: "agents/registration", element: <AgentRequestsView /> },
                { path: "admin/token", element: <AdminToken /> },
                { path: "reports/utilization", element: <UtilizationReportView /> },
                { path: "preflight", element: <PreflightRedirector /> },
