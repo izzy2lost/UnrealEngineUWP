@@ -37,9 +37,7 @@ namespace UE::ConcertSyncClient::Replication
 			// TODO DP UE-193659: This is very hacky and leaves performance on the table... this is in case ApplyReplicationEvent updates the transform
 			if (USceneComponent* SceneComponent = Cast<USceneComponent>(Object))
 			{
-				FTransform TransformBefore = SceneComponent->GetComponentTransform();
 				ReplicationFormat->ApplyReplicationEvent(*Object, Payload);
-				SceneComponent->SetWorldTransform(TransformBefore);
 				SceneComponent->UpdateComponentToWorld();
 			}
 			else
