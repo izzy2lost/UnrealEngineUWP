@@ -391,13 +391,15 @@ void FWaterViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& 
 		// Check if the view location is no longer within the current update bounds of a water zone and if so, queue an update for it.
 		for (AWaterZone* WaterZone : TActorRange<AWaterZone>(WorldPtr.Get()))
 		{
-			FWaterZoneInfo* WaterZoneInfo = WaterZoneInfos.Find(WaterZone);
-			check(WaterZoneInfo != nullptr);
-			if (WaterZone->IsLocalOnlyTessellationEnabled())
+			if (WaterZone->HasActorRegisteredAllComponents())
 			{
-				if (!WaterZoneInfo->UpdateBounds.IsSet() || !WaterZoneInfo->UpdateBounds->IsInside(FVector2D(ViewLocation)))
+				FWaterZoneInfo& WaterZoneInfo = WaterZoneInfos.FindChecked(WaterZone);
+				if (WaterZone->IsLocalOnlyTessellationEnabled())
 				{
-					WaterZone->MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture);
+					if (!WaterZoneInfo.UpdateBounds.IsSet() || !WaterZoneInfo.UpdateBounds->IsInside(FVector2D(ViewLocation)))
+					{
+						WaterZone->MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture);
+					}
 				}
 			}
 		}
