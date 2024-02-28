@@ -155,10 +155,11 @@ static TAutoConsoleVariable<int32> CVarTreatDynamicInstancedAsUncullable(
 	TEXT("  This significantly reduces the hierarchy update cost on the CPU and for scenes with a large proportion of static elements, does not increase the GPU cost."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarSmallFootprintCellCountThreshold(
-	TEXT("r.SceneCulling.SmallFootprintCellCountThreshold"), 
-	512, 
-	TEXT("Queries with a smaller footprint (in number of cells in the lowest level) go down the footprint based path."), 
+static TAutoConsoleVariable<int32> CVarSmallFootprintSideThreshold(
+	TEXT("r.SceneCulling.SmallFootprintSideThreshold"), 
+	16, 
+	TEXT("Queries with a smaller footprint (maximum) side (in number of cells in the lowest level) go down the footprint based path.\n") 
+	TEXT("  The default (16) <=> a footprint of 16x16x16 cells or 8 blocks"), 
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarValidateAllInstanceAllocations(
@@ -404,10 +405,12 @@ SC_FORCEINLINE FSceneCulling::FFootprint8 ToBlockLocal(const FSceneCulling::FFoo
 	FInt64Vector3 BlockMin = BlockLoc.Coord * FSceneCulling::FSpatialHash::CellBlockDim;
 	FInt64Vector3 BlockMax = BlockMin + FInt64Vector3(FSceneCulling::FSpatialHash::CellBlockDim - 1);
 
-	// This can be packed to very few bits if need be.
+	FInt64Vector3 BlockLocalMin = ClampDim(ObjFootprint.Min - BlockMin, 0ll, FSceneCulling::FSpatialHash::CellBlockDim - 1ll);
+	FInt64Vector3 BlockLocalMax = ClampDim(ObjFootprint.Max - BlockMin, 0ll, FSceneCulling::FSpatialHash::CellBlockDim - 1ll);
+
 	FSceneCulling::FFootprint8 LocalFp = {
-		ClampDim(FInt8Vector3(ObjFootprint.Min - BlockMin), int8(0), int8(FSceneCulling::FSpatialHash::CellBlockDim - 1)),
-		ClampDim(FInt8Vector3(ObjFootprint.Max - BlockMin), int8(0), int8(FSceneCulling::FSpatialHash::CellBlockDim - 1)),
+		FInt8Vector3(BlockLocalMin),
+		FInt8Vector3(BlockLocalMax),
 		ObjFootprint.Level
 	};
 	return LocalFp;
@@ -430,7 +433,6 @@ SC_FORCEINLINE FSceneCulling::FLocation8 ToBlockLocal(const FSceneCulling::FLoca
 
 	return LocalLoc;
 };
-
 
 inline FInt64Vector3 ToLevelRelative(const FInt64Vector3& Coord, int32 LevelDelta)
 {
@@ -703,8 +705,7 @@ void FSceneCulling::Test(const FCullingVolume& CullingVolume, TArray<FCellDraw, 
 		const float Level0CellSize = SpatialHash.GetCellSize(SpatialHash.GetFirstLevel());
 		FFootprint64 LightFootprint = SpatialHash.CalcFootprintSphere(SpatialHash.GetFirstLevel(), CullingVolume.Sphere.Center, CullingVolume.Sphere.W + (Level0CellSize * 0.5f));
 
-		// Diagonal length
-		if ((LightFootprint.Max - LightFootprint.Min).Size() < SmallFootprintCellCountThreshold)
+		if ((LightFootprint.Max - LightFootprint.Min).GetMax() <= int64(SmallFootprintCellSideThreshold))
 		{
 			TestSphere(CullingVolume.Sphere, OutCellDraws, ViewGroupId, MaxNumViews, OutNumInstanceGroups);
 			return;
@@ -1437,6 +1438,12 @@ public:
 		return TempCell.CellOffset;
 	}
 
+	// Clamp the cell location to prevent overflows
+	SC_FORCEINLINE FSceneCulling::FLocation64 ClampCellLoc(const FSceneCulling::FLocation64 &InLoc)
+	{
+		return FSceneCulling::FLocation64(ClampDim(InLoc.Coord, -FSceneCulling::FBlockTraits::MaxCellCoord, FSceneCulling::FBlockTraits::MaxCellCoord), InLoc.Level);
+	}
+
 	template <EUpdateFrequencyCategory::EType UpdateFrequencyCategory, typename HashLocationComputerType>
 	SC_FORCEINLINE void BuildInstanceRange(int32 InstanceDataOffset, int32 NumInstances, HashLocationComputerType HashLocationComputer, FSceneCulling::FCellIndexCacheEntry &CellIndexCacheEntry)
 	{
@@ -1452,7 +1459,7 @@ public:
 		{
 			const int32 InstanceId = InstanceDataOffset + InstanceIndex;
 
-			FSceneCulling::FLocation64 InstanceCellLoc = HashLocationComputer.CalcLoc(InstanceIndex);
+			FSceneCulling::FLocation64 InstanceCellLoc = ClampCellLoc(HashLocationComputer.CalcLoc(InstanceIndex));
 
 			bool bSameLoc = bCompressRLE && SameInstanceLocRunCount > 0 && PrevInstanceCellLoc == InstanceCellLoc;
 
@@ -1969,12 +1976,12 @@ public:
 	}
 
 	template <typename HashLocationComputerType>
-	inline void UpdateProcessDynamicInstances(HashLocationComputerType &HashLocationComputer, int32 InstanceDataOffset, int32 NumInstances, int32 PrevNumInstances, FSceneCulling::FCellIndexCacheEntry &CacheEntry)
+	SC_FORCEINLINE void UpdateProcessDynamicInstances(HashLocationComputerType &HashLocationComputer, int32 InstanceDataOffset, int32 NumInstances, int32 PrevNumInstances, FSceneCulling::FCellIndexCacheEntry &CacheEntry)
 	{
 		for (int32 InstanceIndex = 0; InstanceIndex < NumInstances; ++InstanceIndex)
 		{
 			const int32 InstanceId = InstanceDataOffset + InstanceIndex;
-			FSceneCulling::FLocation64 InstanceCellLoc = HashLocationComputer.CalcLoc(InstanceIndex);
+			FSceneCulling::FLocation64 InstanceCellLoc = ClampCellLoc(HashLocationComputer.CalcLoc(InstanceIndex));
 
 			bool bNeedAdd = InstanceIndex >= PrevNumInstances;
 			if (!bNeedAdd)
@@ -2590,10 +2597,9 @@ FSceneCulling::FUpdater &FSceneCulling::BeginUpdate(FRDGBuilder& GraphBuilder, F
 
 	bUseExplictBounds = CVarSceneCullingUseExplicitCellBounds.GetValueOnRenderThread() != 0;
 
-	SmallFootprintCellCountThreshold = CVarSmallFootprintCellCountThreshold.GetValueOnRenderThread();
+	SmallFootprintCellSideThreshold = CVarSmallFootprintSideThreshold.GetValueOnRenderThread();
 	bUseAsyncUpdate = CVarSceneCullingAsyncUpdate.GetValueOnRenderThread() != 0;
 	bUseAsyncQuery = CVarSceneCullingAsyncQuery.GetValueOnRenderThread() != 0;
-	SmallFootprintCellCountThreshold = CVarSmallFootprintCellCountThreshold.GetValueOnRenderThread();
 
 	if (bIsEnabled)
 	{

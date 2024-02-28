@@ -2529,6 +2529,7 @@ static FCullingVolume GetCullingVolume(const FProjectedShadowInfo* ProjectedShad
 	else
 	{
 		CullingVolume.Sphere = ProjectedShadowInfo->GetLightSceneInfo().Proxy->GetBoundingSphere();
+		CullingVolume.ConvexVolume = ProjectedShadowInfo->CasterOuterFrustum;
 	}
 	return CullingVolume;
 }

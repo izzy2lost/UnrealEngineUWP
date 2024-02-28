@@ -132,6 +132,11 @@ public:
 	{
 		static constexpr int32 CellBlockDimLog2 = 3; // (8x8x8)
 		using FBlockLoc = FBlockLoc;
+
+		// The FBlockLocAligned represents the block locations as 32-bit ints.
+		static constexpr int64 MaxCellBlockCoord = MAX_int32;
+		// The cell coordinate may be larger by the block dimension and still can fit into a signed 32-bit integer
+		static constexpr int64 MaxCellCoord = MaxCellBlockCoord << CellBlockDimLog2;
 	};
 
 	using FSpatialHash = THierarchicalSpatialHashGrid<FBlockTraits>;
@@ -274,10 +279,8 @@ private:
 	TArray<FPersistentPrimitiveIndex> UnCullablePrimitives;
 	int32 UncullableItemChunksOffset = INDEX_NONE;
 	int32 UncullableNumItemChunks = 0;
-	// Number of cells in the finest level under which a footprint is considered "small" and should go down the direct footprint path
-	// TODO: Maybe better to use some other metric? A sphere could also be tested for insideness, and that process would be efficient for a large
-	//       enough sphere, and able to trim more than a set of planes But perhaps marginal anyway?
-	int32 SmallFootprintCellCountThreshold = 0;
+	// Largest dimension length, in cells, at the finest level under which a footprint is considered "small" and should go down the direct footprint path
+	int32 SmallFootprintCellSideThreshold = 16;
 	bool bTestCellVsQueryBounds = true;
 	bool bUseAsyncUpdate = true;
 	bool bUseAsyncQuery = true;
