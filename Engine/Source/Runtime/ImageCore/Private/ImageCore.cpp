@@ -396,7 +396,7 @@ IMAGECORE_API void FImageCore::CopyImage(const FImageView & SrcImage,const FImag
 		return;
 	}
 
-	bool bDoTrace = SrcImage.GetNumPixels() > 8192;
+	bool bDoTrace = SrcImage.GetNumPixels() > 16384;
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL("Texture.CopyImage",bDoTrace);
 
 	check(SrcImage.IsImageInfoValid());
@@ -879,9 +879,34 @@ IMAGECORE_API void FImageCore::CopyImage(const FImageView & SrcImage,const FImag
 		// Arbitrary conversion, use 32-bit linear float as an intermediate format.
 		// this is unnecessarily expensive to do something like G8 to R16F, but rare
 		// if this shows up as a hot spot, identify the formats using this path and add direct conversions between them
-		FImage TempImage(SrcImage.SizeX, SrcImage.SizeY, SrcImage.NumSlices, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
-		FImageCore::CopyImage(SrcImage, TempImage);
-		FImageCore::CopyImage(TempImage, DestImage);
+
+		if ( SrcImage.GetNumPixels()*16 < 65536 ) // RGBA32F fits in 64K
+		{
+			// whole image temp
+
+			FImage TempImage(SrcImage.SizeX, SrcImage.SizeY, SrcImage.NumSlices, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
+			FImageCore::CopyImage(SrcImage, TempImage);
+			FImageCore::CopyImage(TempImage, DestImage);
+		}
+		else
+		{
+			// use per-line temp, not whole image temp!
+
+			ImageParallelFor(TEXT("PF.CopyImage.TempLinear"),SrcImage,[&](const FImageView & SrcImagePart,int64 StartY)
+			{
+				FImage TempRow(SrcImage.SizeX, 1, 1, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
+				int64 NumRows = SrcImagePart.SizeY;
+
+				for(int64 RowY = StartY; RowY < StartY+NumRows; RowY++)
+				{
+					FImageView SrcRow  = ImageParallelForGetOneRowView(SrcImage,RowY);
+					FImageView DestRow = ImageParallelForGetOneRowView(DestImage,RowY);
+				
+					FImageCore::CopyImage(SrcRow, TempRow);
+					FImageCore::CopyImage(TempRow,DestRow);
+				}
+			});
+		}
 	}
 }
 
