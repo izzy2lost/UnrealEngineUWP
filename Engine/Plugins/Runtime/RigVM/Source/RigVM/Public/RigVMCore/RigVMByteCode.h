@@ -262,7 +262,7 @@ struct RIGVM_API FRigVMExecuteOp : public FRigVMBaseOp
 	, FunctionIndex(INDEX_NONE)
 	, ArgumentCount(0)
 	, FirstPredicateIndex(INDEX_NONE)
-	, PredicateCount(INDEX_NONE)
+	, PredicateCount(0)
 	{
 	}
 
@@ -270,6 +270,8 @@ struct RIGVM_API FRigVMExecuteOp : public FRigVMBaseOp
 	: FRigVMBaseOp(ERigVMOpCode::Execute)
 	, FunctionIndex(InFunctionIndex)
 	, ArgumentCount(InArgumentCount)
+	, FirstPredicateIndex(INDEX_NONE)
+	, PredicateCount(0)
 	{
 	}
 
