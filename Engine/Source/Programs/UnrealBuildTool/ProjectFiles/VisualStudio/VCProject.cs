@@ -2142,7 +2142,7 @@ namespace UnrealBuildTool
 				{
 					if (TargetRulesObject.Type == TargetType.Editor && bEditorDependsOnShaderCompileWorker && !Unreal.IsEngineInstalled())
 					{
-						string ProjParam = UProjectPath.Length > 0 ? $" -Project={UProjectPath}" : "";
+						string ProjParam = UProjectPath.Length > 0 ? $" -Project=\\\"{UProjectPath.Trim('"')}\\\"" : "";
 						ExtraTargets.Add($"ShaderCompileWorker Win64 Development{ProjParam}");
 					}
 					if (TargetRulesObject.bWithLiveCoding && bBuildLiveCodingConsole && !Unreal.IsEngineInstalled() && TargetRulesObject.Name != "LiveCodingConsole")
