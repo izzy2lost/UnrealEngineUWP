@@ -123,6 +123,33 @@ namespace Metasound
 			FName AnalyzerOutputName = NAME_None);
 
 		/**
+		 * Unwatch/Stop watching an output value
+		 *
+		 * @param OutputName - The user-specified name of the output in the Metasound
+		 * @param OnOutputValueChanged - The event or handle previously watched
+		 * @param AnalyzerName - (optional) The name of the analyzer to use on the output, defaults to a passthrough
+		 * @param AnalyzerOutputName - (optional) The name of the output on the analyzer to watch, defaults to the passthrough output
+		 * @returns true if the unwatch setup succeeded, false otherwise
+		 */
+		bool UnwatchOutput(
+			FName OutputName,
+			const FOnMetasoundOutputValueChanged& OnOutputValueChanged,
+			FName AnalyzerName = NAME_None,
+			FName AnalyzerOutputName = NAME_None);
+
+		bool UnwatchOutput(
+			FName OutputName,
+			const FOnMetasoundOutputValueChangedNative& OnOutputValueChanged,
+			FName AnalyzerName = NAME_None,
+			FName AnalyzerOutputName = NAME_None);
+
+		bool UnwatchOutput(
+			FName OutputName,
+			const FDelegateHandle& OnOutputValueChanged,
+			FName AnalyzerName = NAME_None,
+			FName AnalyzerOutputName = NAME_None);
+
+		/**
 		 * Update any watched outputs
 		 */
 		void UpdateOutputWatchers();
@@ -165,10 +192,12 @@ namespace Metasound
 		{
 			FOnMetasoundOutputValueChanged WatchDelegate;
 			FOnMetasoundOutputValueChangedNative NativeWatchDelegate;
+			FDelegateHandle NativeWatchDelegateHandle;
 
 			FWatchOutputUnifiedDelegate() {}
 			FWatchOutputUnifiedDelegate(const FOnMetasoundOutputValueChanged& Delegate) : WatchDelegate(Delegate) {}
-			FWatchOutputUnifiedDelegate(const FOnMetasoundOutputValueChangedNative& Delegate) : NativeWatchDelegate(Delegate) {}
+			FWatchOutputUnifiedDelegate(const FOnMetasoundOutputValueChangedNative& Delegate) : NativeWatchDelegate(Delegate), NativeWatchDelegateHandle(Delegate.GetHandle()){}
+			FWatchOutputUnifiedDelegate(const FDelegateHandle& DelegateHandle) : NativeWatchDelegateHandle(DelegateHandle) {}
 		};
 
 		bool WatchOutputInternal(
@@ -177,12 +206,28 @@ namespace Metasound
 			FName AnalyzerName = NAME_None,
 			FName AnalyzerOutputName = NAME_None);
 
+		bool UnwatchOutputInternal(
+			FName OutputName,
+			const FWatchOutputUnifiedDelegate& OnOutputValueChanged,
+			FName AnalyzerName = NAME_None,
+			FName AnalyzerOutputName = NAME_None);
+
+		bool TryCreateAnalyzerAddress(
+			const FName OutputName,
+			const FName AnalyzerName,
+			const FName AnalyzerOutputName,
+			Frontend::FAnalyzerAddress& OutAnalyzerAddress);
+
 		void FixUpOutputWatchers();
 
 		void CreateOutputWatcher(
 			const Frontend::FAnalyzerAddress& AnalyzerAddress,
 			const FWatchOutputUnifiedDelegate& OnOutputValueChanged);
-		
+
+		void RemoveOutputWatcher(
+			const Frontend::FAnalyzerAddress& AnalyzerAddress,
+			const FWatchOutputUnifiedDelegate& OnOutputValueChanged);
+
 		TWeakObjectPtr<UAudioComponent> AudioComponent;
 		const uint64 AudioComponentId;
 
@@ -261,6 +306,34 @@ namespace Metasound
 				{
 					NativeWatchDelegates.Add(Delegate.NativeWatchDelegate);
 				}
+			}
+
+			void Remove(const FWatchOutputUnifiedDelegate& Delegate)
+			{
+				if (Delegate.WatchDelegate.IsBound())
+				{
+					WatchDelegates.Remove(Delegate.WatchDelegate);
+				}
+
+				if (Delegate.NativeWatchDelegateHandle.IsValid())
+				{
+					NativeWatchDelegates.Remove(Delegate.NativeWatchDelegateHandle);
+				}
+			}
+
+			bool IsBound() const
+			{
+				if (WatchDelegates.IsBound())
+				{
+					return true;
+				}
+
+				if (NativeWatchDelegates.IsBound())
+				{
+					return true;
+				}
+
+				return false;
 			}
 
 			void Broadcast(FName OutputName, const FMetaSoundOutput& Output) const
