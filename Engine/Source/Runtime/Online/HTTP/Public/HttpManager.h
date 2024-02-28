@@ -342,6 +342,10 @@ PACKAGE_SCOPE:
 
 	/** Used to lock access to add/remove/find requests */
 	static FCriticalSection RequestLock;
+
+	/** Used to lock access to get completed requests */
+	static FCriticalSection CompletedRequestLock;
+
 	/**
 	 * Broadcast that a non-threaded HTTP request is complete.
 	 * Called automatically internally for threaded requests.
