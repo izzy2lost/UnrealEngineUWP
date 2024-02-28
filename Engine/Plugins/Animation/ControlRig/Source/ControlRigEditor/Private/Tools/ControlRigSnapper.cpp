@@ -168,7 +168,7 @@ bool FControlRigSnapper::GetControlRigControlTransforms(ISequencer* Sequencer,  
 	{
 		FMovieSceneSequenceIDRef Template = Sequencer->GetFocusedTemplateID();
 		FMovieSceneSequenceTransform RootToLocalTransform = Sequencer->GetFocusedMovieSceneSequenceTransform();
-		TOptional<FFrameNumber> FrameNumber = (Sequencer->GetLocalTime().Time * RootToLocalTransform.InverseNoLooping()).RoundToFrame();
+		TOptional<FFrameNumber> FrameNumber;
 		return LocalGetControlRigControlTransforms(Sequencer, FrameNumber, Sequencer->GetFocusedMovieSceneSequence(), Template, RootToLocalTransform,
 			ControlRig, ControlName, Frames, ParentTransforms, OutTransforms);
 	
