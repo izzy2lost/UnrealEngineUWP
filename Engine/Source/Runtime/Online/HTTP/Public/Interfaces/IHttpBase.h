@@ -77,6 +77,20 @@ enum class EHttpFailureReason : uint8
 	Other
 };
 
+/** @return the stringified version of the enum passed in */
+inline const TCHAR* LexToString(EHttpFailureReason HttpFailureReason)
+{
+	switch (HttpFailureReason)
+	{
+	case EHttpFailureReason::None: return TEXT("None");
+	case EHttpFailureReason::ConnectionError: return TEXT("ConnectionError");
+	case EHttpFailureReason::Cancelled: return TEXT("Cancelled");
+	case EHttpFailureReason::TimedOut: return TEXT("TimedOut");
+	case EHttpFailureReason::Other: return TEXT("Other");
+	default: checkNoEntry(); return TEXT("Invalid");
+	}
+}
+
 /**
  * Base interface for Http Requests and Responses.
  */
