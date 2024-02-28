@@ -6319,9 +6319,9 @@ TArray<const UDataLayerInstance*> AActor::GetDataLayerInstancesInternal(bool bUs
 		}
 		return DataLayerInstances;
 	}
-#endif
-	
+#else
 	return TArray<const UDataLayerInstance*>();
+#endif
 }
 
 bool AActor::ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const

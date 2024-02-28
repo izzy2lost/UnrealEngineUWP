@@ -326,8 +326,6 @@ ELiveLinkSubjectState FLiveLinkClient::GetSubjectState(FLiveLinkSubjectName InSu
 		ensureMsgf(false, TEXT("Unhandled ETimedDataInputState::%d"), InputState);
 		return ELiveLinkSubjectState::Unknown;
 	}
-
-	checkNoEntry();
 }
 
 FGuid FLiveLinkClient::AddSource(TSharedPtr<ILiveLinkSource> InSource)
