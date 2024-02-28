@@ -435,6 +435,9 @@ public:
 		return *this;
 	}
 
+	CORE_API FCbWriter& operator<<(const FString& Value);
+	CORE_API FCbWriter& operator<<(const FAnsiString& Value);
+	CORE_API FCbWriter& operator<<(const FUtf8String& Value);
 	CORE_API FCbWriter& operator<<(FName Value);
 
 	template <typename T, typename Allocator,
