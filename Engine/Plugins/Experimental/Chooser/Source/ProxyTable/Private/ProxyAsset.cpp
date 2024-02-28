@@ -71,6 +71,33 @@ void UProxyAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 /////////////////////////////////////////////////////////////////////////////////////////
 // Proxy Asset
 
+void UProxyAsset::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+#if WITH_EDITORONLY_DATA
+	if (Ar.IsLoading())
+	{
+		if (ContextClass_DEPRECATED)
+		{
+			ContextData.SetNum(1);
+			ContextData[0].InitializeAs<FContextObjectTypeClass>();
+			FContextObjectTypeClass& Context = ContextData[0].GetMutable<FContextObjectTypeClass>();
+			Context.Class = ContextClass_DEPRECATED;
+			Context.Direction = EContextObjectDirection::ReadWrite;
+			ContextClass_DEPRECATED = nullptr;
+		}
+
+		if (!Guid.IsValid())
+		{
+			// if we load a ProxyAsset that was created before the Guid, assign it a deterministic guid based on the name and path.
+			Guid.A = GetTypeHash(GetName());
+			Guid.B = GetTypeHash(GetPackage()->GetPathName());
+		}
+	}
+#endif
+}
+
 void UProxyAsset::PostLoad()
 {
 	Super::PostLoad();
@@ -79,24 +106,6 @@ void UProxyAsset::PostLoad()
 	CachedPreviousType = Type;
 	CachedPreviousResultType = ResultType;
 #endif
-	
-	if (ContextClass_DEPRECATED)
-	{
-		
-		ContextData.SetNum(1);
-		ContextData[0].InitializeAs<FContextObjectTypeClass>();
-		FContextObjectTypeClass& Context = ContextData[0].GetMutable<FContextObjectTypeClass>();
-		Context.Class = ContextClass_DEPRECATED;
-		Context.Direction = EContextObjectDirection::ReadWrite;
-		ContextClass_DEPRECATED = nullptr;
-	}
-
-	if (!Guid.IsValid())
-	{
-		// if we load a ProxyAsset that was created before the Guid, assign it a deterministic guid based on the name and path.
-		Guid.A = GetTypeHash(GetName());
-		Guid.B = GetTypeHash(GetPackage()->GetPathName());
-	}
 
 	if (ProxyTable.IsValid())
 	{

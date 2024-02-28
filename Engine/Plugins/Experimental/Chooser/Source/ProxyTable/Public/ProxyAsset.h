@@ -56,6 +56,7 @@ public:
 	UPROPERTY()
 	TObjectPtr<UClass> ContextClass_DEPRECATED;
 	
+	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 #endif

@@ -394,10 +394,7 @@ void UK2Node_EvaluateProxy2::AllocateDefaultPins()
 
 	if (Proxy)
 	{
-		// ensure any data upgrades have been applied to Proxy before generating pins
-		Proxy->ConditionalPostLoad();
-
-		for(FInstancedStruct& ContextDataEntry : Proxy->ContextData)
+		for (FInstancedStruct& ContextDataEntry : Proxy->ContextData)
 		{
 			if (ContextDataEntry.IsValid())
 			{
