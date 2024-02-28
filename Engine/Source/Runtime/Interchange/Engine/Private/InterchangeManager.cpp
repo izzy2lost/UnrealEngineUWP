@@ -935,7 +935,7 @@ UInterchangeManager& UInterchangeManager::GetInterchangeManager()
 
 		InterchangeManager->GCEndDelegate = FCoreUObjectDelegates::GetPostGarbageCollect().AddLambda([]()
 			{
-				if (IsInterchangeImportEnabled())
+				if (IsInterchangeImportEnabled() && InterchangeManager.IsValid())
 				{
 					InterchangeManager->StartQueuedTasks(InterchangeManager->bGCEndDelegateCancellAllTask);
 				}
