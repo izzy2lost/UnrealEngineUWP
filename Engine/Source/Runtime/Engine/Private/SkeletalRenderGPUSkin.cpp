@@ -261,6 +261,10 @@ FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectGPUSkin(USkinnedMeshComponent* In
 				SkinCacheEntry = PreviousMeshObject->SkinCacheEntry;
 				SkinCacheEntryForRayTracing = PreviousMeshObject->SkinCacheEntryForRayTracing;
 
+				// patch entries to point to new GPUSkin
+				FGPUSkinCache::SetEntryGPUSkin(SkinCacheEntry, this);
+				FGPUSkinCache::SetEntryGPUSkin(SkinCacheEntryForRayTracing, this);
+
 				PreviousMeshObject->SkinCacheEntry = nullptr;
 				PreviousMeshObject->SkinCacheEntryForRayTracing = nullptr;
 			}
@@ -356,7 +360,7 @@ void FSkeletalMeshObjectGPUSkin::ReleaseResources()
 		BeginReleaseResource(&RayTracingGeometry, &UE::RenderCommandPipe::SkeletalMesh);
 	}
 
-	// Only enqueue when intialized
+	// Only enqueue when initialized
 	if (RayTracingUpdateQueue != nullptr || RayTracingDynamicVertexBuffer.NumBytes > 0)
 	{
 		ENQUEUE_RENDER_COMMAND(ReleaseRayTracingDynamicVertexBuffer)(UE::RenderCommandPipe::SkeletalMesh,
@@ -636,9 +640,27 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMod
 
 	// Immediately release any stale entry if we've recently switched to a LOD level that disallows skin cache
 	// This saves memory and avoids confusing ShouldUseSeparateSkinCacheEntryForRayTracing() which checks SkinCacheEntry == nullptr
-	if (!bGPUSkinCacheEnabled && SkinCacheEntry)
+	if (!bGPUSkinCacheEnabled)
 	{
-		FGPUSkinCache::Release(SkinCacheEntry);
+#if RHI_RAYTRACING
+		if (Mode == EGPUSkinCacheEntryMode::Raster)
+#endif
+		{
+			if (SkinCacheEntry)
+			{
+				FGPUSkinCache::Release(SkinCacheEntry);
+			}
+		}
+#if RHI_RAYTRACING
+		else
+		{
+			check(Mode == EGPUSkinCacheEntryMode::RayTracing);
+			if (SkinCacheEntryForRayTracing)
+			{
+				FGPUSkinCache::Release(SkinCacheEntryForRayTracing);
+			}
+		}
+#endif
 	}
 
 	// We need to clear the external morph buffers when the weights are zero.
