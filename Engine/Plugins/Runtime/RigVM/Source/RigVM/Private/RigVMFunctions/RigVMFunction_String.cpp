@@ -418,7 +418,7 @@ void FRigDispatch_FromString::Execute(FRigVMExtendedExecuteContext& InContext, F
 #if WITH_EDITOR
 			if(ExecuteContext.GetLog() != nullptr)
 			{
-				ExecuteContext.GetLog()->Report(EMessageSeverity::Error, InContext.GetPublicData<>().GetFunctionName(), InContext.GetPublicData<>().GetInstructionIndex(), Error);
+				ExecuteContext.Report(EMessageSeverity::Error, InContext.GetPublicData<>().GetFunctionName(), InContext.GetPublicData<>().GetInstructionIndex(), Error);
 			}
 #endif
 			FString ObjectPath;

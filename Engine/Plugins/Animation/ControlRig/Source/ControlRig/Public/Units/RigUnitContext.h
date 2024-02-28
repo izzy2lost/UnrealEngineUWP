@@ -222,6 +222,22 @@ public:
 	FRigUnitContext UnitContext;
 	URigHierarchy* Hierarchy;
 
+#if WITH_EDITOR
+	virtual void Report(const FRigVMLogSettings& InLogSettings, const FName& InFunctionName, int32 InInstructionIndex, const FString& InMessage) const override
+	{
+		FString Prefix = GetRigModuleNameSpace();
+		if (!Prefix.IsEmpty())
+		{
+			const FString Name = FString::Printf(TEXT("%s %s"), *Prefix, *InFunctionName.ToString());
+			FRigVMExecuteContext::Report(InLogSettings, *Name, InInstructionIndex, InMessage);
+		}
+		else
+		{
+			FRigVMExecuteContext::Report(InLogSettings, InFunctionName, InInstructionIndex, InMessage);
+		}
+	}
+#endif
+
 private:
 	FString RigModuleNameSpace;
 	uint32 RigModuleNameSpaceHash;
@@ -247,10 +263,8 @@ private:
 
 #if WITH_EDITOR
 #define UE_CONTROLRIG_RIGUNIT_REPORT(Severity, Format, ...) \
-if(ExecuteContext.GetLog() != nullptr) \
-{ \
-	ExecuteContext.GetLog()->Report(EMessageSeverity::Severity, ExecuteContext.GetFunctionName(), ExecuteContext.GetInstructionIndex(), FString::Printf((Format), ##__VA_ARGS__)); \
-}
+ExecuteContext.Report(EMessageSeverity::Severity, ExecuteContext.GetFunctionName(), ExecuteContext.GetInstructionIndex(), FString::Printf((Format), ##__VA_ARGS__)); 
+
 #define UE_CONTROLRIG_RIGUNIT_LOG_MESSAGE(Format, ...) UE_CONTROLRIG_RIGUNIT_REPORT(Info, (Format), ##__VA_ARGS__)
 #define UE_CONTROLRIG_RIGUNIT_REPORT_WARNING(Format, ...) UE_CONTROLRIG_RIGUNIT_REPORT(Warning, (Format), ##__VA_ARGS__)
 #define UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(Format, ...) UE_CONTROLRIG_RIGUNIT_REPORT(Error, (Format), ##__VA_ARGS__)

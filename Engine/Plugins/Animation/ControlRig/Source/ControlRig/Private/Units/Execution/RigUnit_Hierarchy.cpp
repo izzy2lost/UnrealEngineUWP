@@ -214,10 +214,7 @@ FRigUnit_HierarchyGetChainItemArray_Execute()
 				{
 					Keys.Reset();
 #if WITH_EDITOR
-					if(ExecuteContext.GetLog())
-					{
-						ExecuteContext.GetLog()->Report(EMessageSeverity::Info, ExecuteContext.GetFunctionName(), ExecuteContext.GetInstructionIndex(), TEXT("Start and End are not part of the same chain."));
-					}
+					ExecuteContext.Report(EMessageSeverity::Info, ExecuteContext.GetFunctionName(), ExecuteContext.GetInstructionIndex(), TEXT("Start and End are not part of the same chain."));
 #endif
 				}
 				else if(bIncludeStart)

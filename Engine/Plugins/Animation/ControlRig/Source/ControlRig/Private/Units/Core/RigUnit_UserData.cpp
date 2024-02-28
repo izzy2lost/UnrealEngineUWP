@@ -109,7 +109,7 @@ void FRigDispatch_GetUserData::Execute(FRigVMExtendedExecuteContext& InContext, 
 #if WITH_EDITOR
 		if(ControlRigContext.GetLog())
 		{
-			ControlRigContext.GetLog()->Report(EMessageSeverity::Info, ControlRigContext.GetFunctionName(), ControlRigContext.GetInstructionIndex(), Message);
+			ControlRigContext.Report(EMessageSeverity::Info, ControlRigContext.GetFunctionName(), ControlRigContext.GetInstructionIndex(), Message);
 		}
 		else
 #endif
@@ -179,7 +179,7 @@ FRigUnit_SetupShapeLibraryFromUserData_Execute()
 #if WITH_EDITOR
 		if(ExecuteContext.GetLog())
 		{
-			ExecuteContext.GetLog()->Report(EMessageSeverity::Info, ExecuteContext.GetFunctionName(), ExecuteContext.GetInstructionIndex(), Message);
+			ExecuteContext.Report(EMessageSeverity::Info, ExecuteContext.GetFunctionName(), ExecuteContext.GetInstructionIndex(), Message);
 		}
 		else
 #endif

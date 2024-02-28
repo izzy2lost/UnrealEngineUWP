@@ -394,6 +394,13 @@ struct FRigVMExecuteContext
 #if WITH_EDITOR
 	FRigVMLog* GetLog() const { return LogPtr; }
 	void SetLog(FRigVMLog* InLog) { LogPtr = InLog; }
+	virtual void Report(const FRigVMLogSettings& InLogSettings, const FName& InFunctionName, int32 InInstructionIndex, const FString& InMessage) const
+	{
+		if (FRigVMLog* Log = GetLog())
+		{
+			Log->Report(InLogSettings, InFunctionName, InInstructionIndex, InMessage);
+		}
+	}
 #endif
 
 	FRigVMDrawInterface* GetDrawInterface() const { return DrawInterfacePtr; }

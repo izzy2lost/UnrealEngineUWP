@@ -3545,7 +3545,7 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 										MessageFormat,
 										*InTransformElement->GetName(),
 										*Child->GetName());
-									CRContext.GetLog()->Report(
+									CRContext.Report(
 										EMessageSeverity::Info,
 										ExecuteContext->GetPublicData<>().GetFunctionName(),
 										ExecuteContext->GetPublicData<>().GetInstructionIndex(),
