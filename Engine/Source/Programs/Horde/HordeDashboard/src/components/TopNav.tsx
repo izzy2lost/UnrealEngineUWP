@@ -490,26 +490,30 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
       const features = dashboard.user?.dashboardFeatures;
 
+      if (features?.showDeviceManager === true) {
+         resourceItems.push({
+            key: "admin_devices",
+            text: "Devices",
+            link: `/devices`
+         });
+      }
 
-      if (features?.showAgents !== false) {
+      if (features?.showAgents === true) {
+
          resourceItems.push({
             key: "admin_agents",
             text: "Agents",
             link: `/agents`
          });
 
-         resourceItems.push({
-            key: "admin_agents_registration",
-            text: "Agent Registration",
-            link: `/agents/registration`
-         });
+         if (features?.showAgentRegistration === true) {         
 
-         if (features?.showDeviceManager !== false) {
             resourceItems.push({
-               key: "admin_devices",
-               text: "Devices",
-               link: `/devices`
+               key: "admin_agents_registration",
+               text: "Agent Registration",
+               link: `/agents/registration`
             });
+   
          }
 
          resourceItems.push({
@@ -517,7 +521,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
             text: "Pools",
             link: `/pools`
          });
-      }
+      }      
 
       if (features?.showAccounts) {
          resourceItems.push({

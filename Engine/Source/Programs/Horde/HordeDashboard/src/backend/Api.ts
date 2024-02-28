@@ -439,7 +439,7 @@ export type GetDashboardConfigResponse = {
 	authMethod?: AuthMethod;
 
 	/** The name of the external issue service */
-	externalIssueServiceName?: string;
+externalIssueServiceName?: string;
 
 	/** The url of the external issue service */
 	externalIssueServiceUrl?: string;
@@ -3454,6 +3454,9 @@ export type GetDashboardFeaturesResponse = {
 
 	/** Whether to show functionality related to agents, pools, and utilization on the dashboard. */
 	showAgents?: boolean;
+
+	/** Whether to show the agent registration page. When using registration tokens from elsewhere this is not needed. */
+	showAgentRegistration?: boolean;
 
 	/** Show the Perforce server option on the server menu */
 	showPerforceServers?: boolean;
