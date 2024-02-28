@@ -48,6 +48,17 @@ namespace Jupiter.Implementation
 			return Task.FromResult<Uri?>(null);
 		}
 
+		public async Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId identifier)
+		{
+			BlobMetadata? metadata = await GetBackend(ns).GetObjectMetadataAsync(GetPath(identifier));
+			if (metadata == null)
+			{
+				throw new BlobNotFoundException(ns, identifier);
+			}
+
+			return metadata;
+		}
+
 		public Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			// not supported
@@ -194,6 +205,17 @@ namespace Jupiter.Implementation
 			{
 				blobContainer.LastModified = modifiedTime;
 			}
+		}
+
+		public Task<BlobMetadata?> GetObjectMetadataAsync(string path)
+		{
+			if (!_blobs.TryGetValue(path, value: out BlobContainer? blobContainer))
+			{
+				return Task.FromResult<BlobMetadata?>(null);
+			}
+
+			byte[] content = blobContainer.Contents;
+			return Task.FromResult<BlobMetadata?>(new BlobMetadata(content.LongLength, blobContainer.LastModified));
 		}
 	}
 }

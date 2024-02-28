@@ -25,6 +25,8 @@ public interface IBlobService
 	
 	Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null);
 
+	Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId);
+
 	Task<BlobContents> ReplicateObjectAsync(NamespaceId ns, BlobId blob, bool force = false);
 
 	Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null);
@@ -49,6 +51,18 @@ public interface IBlobService
 	Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] refRequestBlobReferences);
 
 	bool ShouldFetchBlobOnDemand(NamespaceId ns);
+}
+
+public class BlobMetadata
+{
+	public BlobMetadata(long length, DateTime creationTime)
+	{
+		Length = length;
+		CreationTime = creationTime;
+	}
+
+	public long Length { get; set; }
+	public DateTime CreationTime { get; set; }
 }
 
 public static class BlobServiceExtensions

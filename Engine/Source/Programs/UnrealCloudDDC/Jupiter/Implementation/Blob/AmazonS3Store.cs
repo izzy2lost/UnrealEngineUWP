@@ -56,6 +56,17 @@ namespace Jupiter.Implementation
 			return uri;
 		}
 
+		public async Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId identifier)
+		{
+			BlobMetadata? result = await GetBackend(ns).GetMetadataAsync(identifier.AsS3Key());
+			if (result == null)
+			{
+				throw new BlobNotFoundException(ns, identifier);
+			}
+
+			return result;
+		}
+
 		public async Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			Uri? uri = await GetBackend(ns).GetWriteRedirectAsync(identifier.AsS3Key());
@@ -460,6 +471,17 @@ namespace Jupiter.Implementation
 				_logger.LogWarning(ex, "Unable to get presigned url for {Path} from S3", path);
 				return null;
 			}
+		}
+
+		public async Task<BlobMetadata?> GetMetadataAsync(string path)
+		{
+			GetObjectAttributesResponse? metadata = await _amazonS3.GetObjectAttributesAsync(new GetObjectAttributesRequest {BucketName = _bucketName, Key = path});
+			if (metadata == null)
+			{
+				return null;
+			}
+
+			return new BlobMetadata(metadata.ObjectSize, metadata.LastModified);
 		}
 	}
 

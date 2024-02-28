@@ -78,6 +78,18 @@ namespace Jupiter.Implementation
 			return redirectUri;
 		}
 
+		public async Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId)
+		{
+			BlobMetadata? metadata = await GetBackend(ns).GetMetadataAsync(GetPath(blobId), CancellationToken.None);
+
+			if (metadata == null)
+			{
+				throw new BlobNotFoundException(ns, blobId);
+			}
+
+			return metadata;
+		}
+
 		public async Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			Uri? redirectUri = await GetBackend(ns).GetWriteRedirectAsync(GetPath(identifier));
@@ -322,6 +334,23 @@ namespace Jupiter.Implementation
 
 				throw;
 			}
+		}
+
+		public async Task<BlobMetadata?> GetMetadataAsync(string path, CancellationToken cancellationToken)
+		{
+			if (!await _blobContainer.ExistsAsync(cancellationToken))
+			{
+				throw new InvalidOperationException($"Container {_blobContainer.Name} did not exist");
+			}
+
+			BlobClient blob = _blobContainer.GetBlobClient(path);
+			Response<BlobProperties>? response = await blob.GetPropertiesAsync(cancellationToken: cancellationToken);
+			if (response == null)
+			{
+				return null;
+			}
+
+			return new BlobMetadata(response.Value.ContentLength, response.Value.CreatedOn.DateTime);
 		}
 	}
 }
