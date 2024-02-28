@@ -64,7 +64,7 @@ namespace Chaos
 		static constexpr FRealSingle DefaultCollisionMarginMax = 10.0f;
 		static constexpr FRealSingle DefaultCollisionCullDistance = 3.0f;
 		static constexpr FRealSingle DefaultCollisionMaxPushOutVelocity = 1000.0f;
-		static constexpr FRealSingle DefaultCollisionDepenetrationVelocity = 0.0f;
+		static constexpr FRealSingle DefaultCollisionDepenetrationVelocity = -1.0f;
 		static constexpr int32 DefaultRestitutionThreshold = 1000;
 
 		CHAOS_API FPBDRigidsEvolutionGBF(

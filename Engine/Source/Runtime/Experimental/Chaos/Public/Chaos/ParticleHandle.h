@@ -2398,7 +2398,7 @@ public:
 		{
 			return RigidHandle->InitialOverlapDepenetrationVelocity();
 		}
-		return 0;
+		return -1.0f;	// Use config
 	}
 
 	FRealSingle SleepThresholdMultiplier() const

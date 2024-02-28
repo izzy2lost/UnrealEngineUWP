@@ -238,7 +238,19 @@ public:
 
 	void SetDepenetrationVelocity(const FRealSingle InVel)
 	{
-		SolverSettings.DepenetrationVelocity = FMath::Max(InVel, FRealSingle(0));
+		// The user can specify a very large number up to float_max or any negative number to mean "infinity".
+		// However, we don't use float_max for infinity because we want to be able to perform simple math on
+		// it without numeric limit issues (search MaxDepenetrationVelocity).
+		constexpr float MaxDepenetrationVelocity = 1e10f;	// [cm/s] almost speed of light :)
+
+		if (InVel >= 0.0f)
+		{
+			SolverSettings.DepenetrationVelocity = FMath::Min(InVel, MaxDepenetrationVelocity);
+		}
+		else
+		{
+			SolverSettings.DepenetrationVelocity = MaxDepenetrationVelocity;
+		}
 	}
 
 	void SetPositionFrictionIterations(const int32 InNumIterations)

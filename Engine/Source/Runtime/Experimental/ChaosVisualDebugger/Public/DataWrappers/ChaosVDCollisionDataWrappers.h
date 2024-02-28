@@ -320,7 +320,7 @@ struct CHAOSVDRUNTIME_API FChaosVDConstraint
 	float MinInitialPhi = 0.f;
 
 	UPROPERTY(VisibleAnywhere, Category = ConstraintData)
-	float InitialOverlapDepenetrationVelocity = 0.f;
+	float InitialOverlapDepenetrationVelocity = -1.f;
 	
 	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	float CCDTimeOfImpact = 0.f;
