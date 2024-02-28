@@ -197,7 +197,6 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 			// 2. Actor Velocity
 			// 3. Skeletal Mesh Relative Rotation
 
-			
 			if (LocomotionDirection.SquaredLength() > UE_SMALL_NUMBER)
 			{
 				// if we have a LocomotionDirection vector, transform into root bone local space
@@ -225,6 +224,9 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 			}
 
 			FVector RootMotionDeltaTranslation = RootMotionTransformDelta.GetTranslation();
+
+			// Flatten root motion translation, along the rotation axis.
+			RootMotionDeltaTranslation = RootMotionDeltaTranslation - RotationAxisVector.Dot(RootMotionDeltaTranslation) * RotationAxisVector;
 			
 			const float RootMotionDeltaSpeed = RootMotionDeltaTranslation.Size() / DeltaSeconds;
 			if (RootMotionDeltaSpeed < MinRootMotionSpeedThreshold)
@@ -234,8 +236,6 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 			}
 			else
 			{
-				// Flatten root motion translation, along the rotation axis.
-				RootMotionDeltaTranslation = RootMotionDeltaTranslation - RotationAxisVector.Dot(RootMotionDeltaTranslation) * RotationAxisVector;
 
 				const FVector PreviousRootMotionDeltaDirection = RootMotionDeltaDirection;
 				// Hold previous direction if we can't calculate it from current move delta, because the root is no longer moving
