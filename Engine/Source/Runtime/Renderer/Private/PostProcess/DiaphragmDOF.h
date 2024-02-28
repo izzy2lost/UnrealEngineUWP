@@ -135,11 +135,12 @@ struct FBokehModel
 RENDERER_API bool IsSupported(const FStaticShaderPlatform ShaderPlatform);
 
 /** Wire all DOF's passes according to view settings and cvars to convolve the scene color. */
-RENDERER_API FRDGTextureRef AddPasses(
+RENDERER_API bool AddPasses(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextureParameters& SceneTextures,
 	const FViewInfo& View,
 	FRDGTextureRef InputSceneColor,
-	const FTranslucencyPassResources& TranslucencyViewResources);
+	const FTranslucencyPassResources& TranslucencyViewResources,
+	FRDGTextureRef& OutputColor);
 
 } // namespace DiaphragmDOF

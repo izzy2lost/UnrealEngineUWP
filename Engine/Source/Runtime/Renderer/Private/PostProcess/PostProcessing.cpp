@@ -708,13 +708,16 @@ void AddPostProcessingPasses(
 
 				bool bComposeTranslucency = PostDOFTranslucencyResources.IsValid() && !bComposeSeparateTranslucencyInTSR && MaterialChainTranslucencyAfterDOF.Num() == 0;
 
-				SceneColor.Texture = DiaphragmDOF::AddPasses(
+				if (DiaphragmDOF::AddPasses(
 					GraphBuilder,
 					SceneTextureParameters,
 					View,
-					SceneColor.Texture,
-					bComposeTranslucency ? PostDOFTranslucencyResources : DummyTranslucency);
-				bSceneColorHasPostDOFTranslucency = bComposeTranslucency;
+					InputSceneColorTexture,
+					bComposeTranslucency ? PostDOFTranslucencyResources : DummyTranslucency,
+					SceneColor.Texture))
+				{
+					bSceneColorHasPostDOFTranslucency = bComposeTranslucency;
+				}
 			}
 
 			if (GetHairStrandsComposition() == EHairStrandsCompositionType::AfterSeparateTranslucent)

@@ -1370,17 +1370,19 @@ bool DiaphragmDOF::IsEnabled(const FViewInfo& View)
 		((View.FinalPostProcessSettings.DepthOfFieldFstop > 0.f && View.FinalPostProcessSettings.DepthOfFieldFocalDistance > 0.f) || View.FinalPostProcessSettings.DepthOfFieldDepthBlurRadius > 0.f);
 }
 
-FRDGTextureRef DiaphragmDOF::AddPasses(
+bool DiaphragmDOF::AddPasses(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextureParameters& SceneTextures,
 	const FViewInfo& View,
 	FRDGTextureRef InputSceneColor,
-	const FTranslucencyPassResources& TranslucencyPassResources)
+	const FTranslucencyPassResources& TranslucencyPassResources,
+	FRDGTextureRef& OutputColor)
 {
 	if (View.Family->EngineShowFlags.VisualizeDOF)
 	{
 		// no need for this pass
-		return InputSceneColor;
+		OutputColor = InputSceneColor;
+		return false;
 	}
 
 	// Format of the scene color.
@@ -1527,7 +1529,8 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 	// If the max blurring radius is too small, do not wire any passes.
 	if (MaxBluringRadius < MinRequiredBlurringRadius)
 	{
-		return InputSceneColor;
+		OutputColor = InputSceneColor;
+		return false;
 	}
 
 	RDG_GPU_STAT_SCOPE(GraphBuilder, DepthOfField);
@@ -2773,5 +2776,6 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 			FComputeShaderUtils::GetGroupCount(PassViewRect.Size(), kDefaultGroupSize));
 	}
 
-	return NewSceneColor;
+	OutputColor = NewSceneColor;
+	return true;
 }
