@@ -223,7 +223,7 @@ private:
 		const FTransform& Transform,
 		const FVector& InNormal);
 
-	static FVector GetChainNormal(
+	static FVector GetChainAxisNormalized(
 		const TArray<int32>& BoneIndices,
 		const TArray<FTransform>& GlobalPose);
 };

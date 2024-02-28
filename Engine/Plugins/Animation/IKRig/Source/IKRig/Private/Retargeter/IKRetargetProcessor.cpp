@@ -1351,7 +1351,9 @@ void FPoleVectorMatcher::MatchPoleVector(
 	TArray<FTransform>& OutTargetGlobalPose,
 	FRetargetSkeleton& TargetSkeleton)
 {
-	if (Settings.PoleVectorMatching <= KINDA_SMALL_NUMBER && Settings.PoleVectorOffset <= KINDA_SMALL_NUMBER)
+	const bool bIsMatchingPoleVector = Settings.PoleVectorMatching > KINDA_SMALL_NUMBER;
+	const bool bIsOffsetingPoleVector = !FMath::IsNearlyZero(Settings.PoleVectorOffset);
+	if (!(bIsMatchingPoleVector || bIsOffsetingPoleVector))
 	{
 		return;
 	}
@@ -1371,20 +1373,33 @@ void FPoleVectorMatcher::MatchPoleVector(
 		LocalSpaces.Add(LocalTransform);
 	}
 
-	// calculate rotation to match the target to the source pole vector
-	const FVector SourcePoleVector = CalculatePoleVector(SourcePoleAxis, SourceIndices, SourceGlobalPose);
-	const FVector TargetPoleVector = CalculatePoleVector(TargetPoleAxis, TargetIndices, OutTargetGlobalPose);
-	
-	const float RotateTargetToSource = FMath::Acos(FVector::DotProduct(SourcePoleVector, TargetPoleVector));
-	const float MatchPoleAngle = RotateTargetToSource - TargetToSourceAngularOffsetAtRefPose + FMath::DegreesToRadians(Settings.PoleVectorOffset);
+	// normalized vector pointing from root to tip of chain
+	const FVector TargetChainAxisNorm = GetChainAxisNormalized(TargetIndices, OutTargetGlobalPose);
 
-	const FVector TargetChainNormal = GetChainNormal(TargetIndices, OutTargetGlobalPose);
-	const FQuat PoleVectorMatchingRotation = FQuat(TargetChainNormal, MatchPoleAngle);
-	const FQuat FinalRotation = FQuat::FastLerp(FQuat::Identity, PoleVectorMatchingRotation, Settings.PoleVectorMatching).GetNormalized();
+	// calculate rotation to match the target to the source pole vector
+	FQuat MatchingRotation = FQuat::Identity;
+	if (bIsMatchingPoleVector)
+	{
+		const FVector SourcePoleVector = CalculatePoleVector(SourcePoleAxis, SourceIndices, SourceGlobalPose);
+		const FVector TargetPoleVector = CalculatePoleVector(TargetPoleAxis, TargetIndices, OutTargetGlobalPose);
+	
+		const float RotateTargetToSource = FMath::Acos(FVector::DotProduct(SourcePoleVector, TargetPoleVector));
+		const float MatchPoleAngle = RotateTargetToSource - (Settings.PoleVectorMaintainOffset ? TargetToSourceAngularOffsetAtRefPose : 0);
+		
+		MatchingRotation = FQuat(TargetChainAxisNorm, MatchPoleAngle);
+		MatchingRotation = FQuat::FastLerp(FQuat::Identity, MatchingRotation, Settings.PoleVectorMatching).GetNormalized();
+	}
+
+	// manual offset rotation
+	FQuat OffsetRotation = FQuat::Identity;
+	if (bIsOffsetingPoleVector)
+	{
+		OffsetRotation = FQuat(TargetChainAxisNorm,FMath::DegreesToRadians(Settings.PoleVectorOffset));
+	}
 
 	// rotate the base of the chain to match the pole vectors
 	FTransform& BaseOfChain = OutTargetGlobalPose[TargetIndices[0]];
-	BaseOfChain.SetRotation(FinalRotation * BaseOfChain.GetRotation());
+	BaseOfChain.SetRotation(MatchingRotation * OffsetRotation * BaseOfChain.GetRotation());
 
 	// now update global pose of all bones within chain
 	for (int32 ChainIndex=0; ChainIndex < AllChildrenWithinChain.Num(); ++ChainIndex)
@@ -1431,7 +1446,7 @@ FVector FPoleVectorMatcher::CalculatePoleVector(
 {
 	check(!BoneIndices.IsEmpty())
 
-	const FVector ChainNormal = GetChainNormal(BoneIndices, GlobalPose);
+	const FVector ChainNormal = GetChainAxisNormalized(BoneIndices, GlobalPose);
 	const FVector UnitPoleAxis = GlobalPose[BoneIndices[0]].GetUnitAxis(PoleAxis);
 	const FVector PoleVector = FVector::VectorPlaneProject(UnitPoleAxis, ChainNormal);
 	return PoleVector.GetSafeNormal();
@@ -1458,7 +1473,7 @@ EAxis::Type FPoleVectorMatcher::GetMostDifferentAxis(
 	return MostDifferentAxis;
 }
 
-FVector FPoleVectorMatcher::GetChainNormal(
+FVector FPoleVectorMatcher::GetChainAxisNormalized(
 	const TArray<int32>& BoneIndices,
 	const TArray<FTransform>& GlobalPose)
 {

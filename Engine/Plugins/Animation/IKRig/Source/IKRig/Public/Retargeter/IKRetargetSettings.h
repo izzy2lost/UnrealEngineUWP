@@ -97,6 +97,10 @@ struct IKRIG_API FTargetChainFKSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FK Adjustments", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0"))
 	float PoleVectorMatching = 0.0f;
 
+	/** Default is False. When true, the original offset between the source/target pole vectors will be maintained when using Pole Vector Matching. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FK Adjustments")
+	bool PoleVectorMaintainOffset = false;
+
 	/** Range +/- 180. Default 0. An angular offset, in degrees, for the pole direction of the chain. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FK Adjustments", meta = (UIMin = "-180.0", UIMax = "180.0", ClampMin = "-180.0", ClampMax = "180.0"))
 	float PoleVectorOffset = 0.0f;
