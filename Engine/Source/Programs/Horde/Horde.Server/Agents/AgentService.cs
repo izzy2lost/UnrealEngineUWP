@@ -417,7 +417,7 @@ namespace Horde.Server.Agents
 		bool CanUseTaskSource(IAgent agent, ITaskSource taskSource)
 		{
 			TaskSourceFlags flags = taskSource.Flags;
-			if ((flags & TaskSourceFlags.AllowWhenPaused) == 0 && agent.Status == AgentStatus.Paused)
+			if ((flags & TaskSourceFlags.AllowWhenBusy) == 0 && agent.Status == AgentStatus.Busy)
 			{
 				return false;
 			}
@@ -753,7 +753,7 @@ namespace Horde.Server.Agents
 				}
 
 				// If the agent is stopping, cancel all the leases. Clear out the current session once it's complete.
-				if (status == AgentStatus.Stopping || status == AgentStatus.Paused)
+				if (status == AgentStatus.Stopping || status == AgentStatus.Busy)
 				{
 					foreach (AgentLease lease in leases)
 					{
@@ -1118,7 +1118,7 @@ namespace Horde.Server.Agents
 			int numAgentsTotalOk = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Ok);
 			int numAgentsTotalStopping = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Stopping);
 			int numAgentsTotalUnhealthy = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Unhealthy);
-			int numAgentsTotalPaused = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Paused);
+			int numAgentsTotalBusy = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Busy);
 			int numAgentsTotalUnspecified = agentList.Count(a => a.Enabled && a.Status == AgentStatus.Unspecified);
 
 			List<Measurement<int>> newMeasurements = new()
@@ -1129,7 +1129,7 @@ namespace Horde.Server.Agents
 				new Measurement<int>(numAgentsTotalOk, new KeyValuePair<string, object?>("status", "ok")),
 				new Measurement<int>(numAgentsTotalStopping, new KeyValuePair<string, object?>("status", "stopping")),
 				new Measurement<int>(numAgentsTotalUnhealthy, new KeyValuePair<string, object?>("status", "unhealthy")),
-				new Measurement<int>(numAgentsTotalPaused, new KeyValuePair<string, object?>("status", "paused")),
+				new Measurement<int>(numAgentsTotalBusy, new KeyValuePair<string, object?>("status", "paused")),
 				new Measurement<int>(numAgentsTotalUnspecified, new KeyValuePair<string, object?>("status", "unspecified")),
 			};
 

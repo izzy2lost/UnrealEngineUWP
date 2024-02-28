@@ -278,7 +278,7 @@ namespace Horde.Agent.Leases
 				}
 
 				// Get the new agent status
-				bool paused = !_statusService.IsEnabled;
+				bool busy = _statusService.IsBusy;
 				if (stopping)
 				{
 					updateSessionRequest.Status = AgentStatus.Stopping;
@@ -287,9 +287,9 @@ namespace Horde.Agent.Leases
 				{
 					updateSessionRequest.Status = AgentStatus.Unhealthy;
 				}
-				else if (paused)
+				else if (busy)
 				{
-					updateSessionRequest.Status = AgentStatus.Paused;
+					updateSessionRequest.Status = AgentStatus.Busy;
 				}
 				else
 				{
@@ -380,7 +380,7 @@ namespace Horde.Agent.Leases
 					{
 						_statusService.Set(false, _activeLeases.Count, "Attempting to connect to server...");
 					}
-					else if (paused)
+					else if (busy)
 					{
 						_statusService.Set(true, 0, "Paused");
 					}

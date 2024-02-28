@@ -41,9 +41,9 @@ namespace Horde.Server.Tasks
 		AllowWhenDisabled = 2,
 
 		/// <summary>
-		/// Allows this source to schedule tasks when the agent is paused
+		/// Allows this source to schedule tasks when the agent is busy executing external work
 		/// </summary>
-		AllowWhenPaused = 4,
+		AllowWhenBusy = 4,
 	}
 
 	/// <summary>

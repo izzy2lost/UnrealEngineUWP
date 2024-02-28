@@ -29,9 +29,9 @@ namespace Horde.Agent.Services
 		public AgentStatusMessage Current => _current;
 
 		/// <summary>
-		/// Whether the agent is currently enabled.
+		/// Whether the agent is busy performing other work.
 		/// </summary>
-		public bool IsEnabled { get; set; } = true;
+		public bool IsBusy { get; set; } = false;
 
 		/// <summary>
 		/// Constructor
@@ -158,7 +158,7 @@ namespace Horde.Agent.Services
 					switch (request.Type)
 					{
 						case AgentMessageType.SetEnabledRequest:
-							IsEnabled = request.Parse<AgentEnabledMessage>().IsEnabled;
+							IsBusy = !request.Parse<AgentEnabledMessage>().IsEnabled;
 							break;
 						case AgentMessageType.GetStatusRequest:
 							response.Set(AgentMessageType.GetStatusResponse, Current);
