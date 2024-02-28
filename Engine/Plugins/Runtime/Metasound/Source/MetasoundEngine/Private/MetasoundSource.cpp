@@ -1713,12 +1713,7 @@ TSharedPtr<const Metasound::IGraph> UMetaSoundSource::TryGetMetaSoundPresetBaseG
 	if (ReferencedAssetClassObjects.Num() == 1)
 	{
 		// Get first element from TSet<>
-		TObjectPtr<const UObject> BaseGraph;
-		for (const TObjectPtr<UObject>& ReferencedGraph : ReferencedAssetClassObjects)
-		{
-			BaseGraph = ReferencedGraph;
-			break;
-		}
+		TObjectPtr<const UObject> BaseGraph = *ReferencedAssetClassObjects.CreateConstIterator();
 
 		// Get the reference graph as a UMetaSoundSource
 		TObjectPtr<const UMetaSoundSource> BaseMetaSoundSource = Cast<const UMetaSoundSource>(BaseGraph);

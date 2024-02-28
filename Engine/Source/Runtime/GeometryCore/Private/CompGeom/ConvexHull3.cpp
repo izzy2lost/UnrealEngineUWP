@@ -531,14 +531,14 @@ struct FHullConnectivity
 		}
 		else
 		{
-			for (int32 TriIdx : TrisWithPoints)
+			if (const auto TriIdxItr = TrisWithPoints.CreateConstIterator())
 			{
+				int32 TriIdx = *TriIdxItr;
 				checkSlow(VisiblePoints[TriIdx].Num() > 0);
 
 				FoundTriPointPair[0] = TriIdx;
 				// choose the "max point" -- the point with the largest volume when it makes a tetrahedron w/ the triangle
 				FoundTriPointPair[1] = VisiblePoints[TriIdx].MaxPt();
-				break;
 			}
 		}
 		return FoundTriPointPair;
