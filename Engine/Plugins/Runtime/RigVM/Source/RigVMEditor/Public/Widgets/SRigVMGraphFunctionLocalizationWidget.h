@@ -34,7 +34,7 @@ public:
 	SLATE_BEGIN_ARGS(SRigVMGraphFunctionLocalizationWidget) {}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const FRigVMGraphFunctionIdentifier& InFunctionToLocalize, URigVMBlueprint* InTargetBlueprint);
+	void Construct(const FArguments& InArgs, const FRigVMGraphFunctionIdentifier& InFunctionToLocalize, IRigVMGraphFunctionHost* InTargetFunctionHost);
 
 	TSharedRef<ITableRow> GenerateFunctionListRow(TSharedPtr<SRigVMGraphFunctionLocalizationItem> InItem, const TSharedRef<STableViewBase>& InOwningTable);
 	ECheckBoxState IsFunctionEnabled(const FRigVMGraphFunctionIdentifier InFunction) const;
@@ -60,7 +60,7 @@ public:
 	}
 
 	SLATE_ARGUMENT(FRigVMGraphFunctionIdentifier, Function)
-	SLATE_ARGUMENT(URigVMBlueprint*, TargetBlueprint)
+	SLATE_ARGUMENT(IRigVMGraphFunctionHost*, GraphFunctionHost)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);

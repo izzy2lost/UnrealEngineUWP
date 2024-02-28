@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorkspaceEditorModule.h"
 
@@ -53,8 +53,17 @@ FObjectDocumentArgs FWorkspaceEditorModule::CreateGraphDocumentArgs(const FGraph
 				return FActionMenuContent();
 			})
 			.OnNodeTextCommitted(InArgs.OnNodeTextCommitted)
+			.OnGraphSelectionChanged(InArgs.OnGraphSelectionChanged)
+			.OnCanDeleteSelectedNodes(InArgs.OnCanDeleteSelectedNodes)
 			.OnDeleteSelectedNodes(InArgs.OnDeleteSelectedNodes)
-			.OnGraphSelectionChanged(InArgs.OnGraphSelectionChanged);
+			.OnCanCutSelectedNodes(InArgs.OnCanCutSelectedNodes)
+			.OnCutSelectedNodes(InArgs.OnCutSelectedNodes)
+			.OnCanCopySelectedNodes(InArgs.OnCanCopySelectedNodes)
+			.OnCopySelectedNodes(InArgs.OnCopySelectedNodes)
+			.OnCanPasteNodes(InArgs.OnCanPasteNodes)
+			.OnPasteNodes(InArgs.OnPasteNodes)
+			.OnCanDuplicateSelectedNodes(InArgs.OnCanDuplicateSelectedNodes)
+			.OnDuplicateSelectedNodes(InArgs.OnDuplicateSelectedNodes);
 	});
 	Args.OnGetTabIcon = FOnGetTabIcon::CreateLambda([](const FWorkspaceEditorContext& InContext)
 	{

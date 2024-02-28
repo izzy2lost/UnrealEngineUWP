@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -83,13 +83,20 @@ struct FObjectDocumentArgs
 	FName SpawnLocation = WorkspaceTabs::MiddleDocumentArea;
 };
 
-using FOnDeleteSelectedNodes = TDelegate<void(const FWorkspaceEditorContext&, const FGraphPanelSelectionSet&)>;
 
 using FOnGraphSelectionChanged = TDelegate<void(const FWorkspaceEditorContext&, const FGraphPanelSelectionSet&)>;
 
 using FOnCreateActionMenu = TDelegate<FActionMenuContent(const FWorkspaceEditorContext&, UEdGraph*, const FVector2D&, const TArray<UEdGraphPin*>&, bool, SGraphEditor::FActionMenuClosed)>;
 
 using FOnNodeTextCommitted = TDelegate<void(const FWorkspaceEditorContext&, const FText&, ETextCommit::Type, UEdGraphNode*)>;
+
+using FOnCanPerformActionOnSelectedNodes = TDelegate<bool(const FWorkspaceEditorContext&, const FGraphPanelSelectionSet&)>;
+using FOnPerformActionOnSelectedNodes = TDelegate<void(const FWorkspaceEditorContext&, const FGraphPanelSelectionSet&)>;
+
+using FOnCanPasteNodes = TDelegate<bool(const FWorkspaceEditorContext&, const FString&)>;
+using FOnPasteNodes = TDelegate<void(const FWorkspaceEditorContext&, const FVector2D&, const FString&)>;
+
+using FOnDuplicateSelectedNodes = TDelegate<void(const FWorkspaceEditorContext&, const FVector2D&, const FGraphPanelSelectionSet&)>;
 
 // Arguments used to make document widgets for graphs
 struct FGraphDocumentWidgetArgs
@@ -101,7 +108,23 @@ struct FGraphDocumentWidgetArgs
 
 	FOnNodeTextCommitted OnNodeTextCommitted;
 
-	FOnDeleteSelectedNodes OnDeleteSelectedNodes;
+	FOnCanPerformActionOnSelectedNodes OnCanCutSelectedNodes;
+	FOnPerformActionOnSelectedNodes OnCutSelectedNodes;
+
+	FOnCanPerformActionOnSelectedNodes OnCanCopySelectedNodes;
+	FOnPerformActionOnSelectedNodes OnCopySelectedNodes;
+
+	FOnCanPasteNodes OnCanPasteNodes;
+	FOnPasteNodes OnPasteNodes;
+
+	FOnCanPerformActionOnSelectedNodes OnCanDeleteSelectedNodes;
+	FOnPerformActionOnSelectedNodes OnDeleteSelectedNodes;
+
+	FOnCanPerformActionOnSelectedNodes OnCanDuplicateSelectedNodes;
+	FOnDuplicateSelectedNodes OnDuplicateSelectedNodes;
+
+	FOnCanPerformActionOnSelectedNodes OnCanSelectAllNodes;
+	FOnPerformActionOnSelectedNodes OnSelectAllNodes;
 
 	FOnGraphSelectionChanged OnGraphSelectionChanged;
 };

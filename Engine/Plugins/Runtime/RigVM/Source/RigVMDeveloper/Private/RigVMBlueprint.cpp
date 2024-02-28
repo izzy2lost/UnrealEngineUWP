@@ -4000,7 +4000,7 @@ void URigVMBlueprint::BroadcastPostEditChangeChainProperty(FPropertyChangedChain
 
 void URigVMBlueprint::BroadcastRequestLocalizeFunctionDialog(FRigVMGraphFunctionIdentifier InFunction, bool bForce)
 {
-	RequestLocalizeFunctionDialog.Broadcast(InFunction, this, bForce);
+	RequestLocalizeFunctionDialog.Broadcast(InFunction, GetController(GetDefaultModel()), GetRigVMGraphFunctionHost(), bForce);
 }
 
 void URigVMBlueprint::BroadCastReportCompilerMessage(EMessageSeverity::Type InSeverity, UObject* InSubject, const FString& InMessage)

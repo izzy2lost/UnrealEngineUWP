@@ -86,7 +86,7 @@ void SRigVMGraphFunctionLocalizationTableRow::Construct(const FArguments& InArgs
 /// SRigVMGraphFunctionLocalizationWidget
 ///////////////////////////////////////////////////////////
 
-void SRigVMGraphFunctionLocalizationWidget::Construct(const FArguments& InArgs, const FRigVMGraphFunctionIdentifier& InFunctionToLocalize, URigVMBlueprint* InTargetBlueprint)
+void SRigVMGraphFunctionLocalizationWidget::Construct(const FArguments& InArgs, const FRigVMGraphFunctionIdentifier& InFunctionToLocalize, IRigVMGraphFunctionHost* InTargetFunctionHost)
 {
 	FunctionsToLocalize.Add(InFunctionToLocalize);
 	FunctionItems.Reset();
@@ -100,7 +100,6 @@ void SRigVMGraphFunctionLocalizationWidget::Construct(const FArguments& InArgs, 
 		NodesToVisit.Add(InFunctionToLocalize);
 	}
 
-	IRigVMGraphFunctionHost* TargetFunctionHost = InTargetBlueprint->GetRigVMGraphFunctionHost();
 	for(int32 NodeToVisitIndex=0; NodeToVisitIndex<NodesToVisit.Num(); NodeToVisitIndex++)
 	{
 		const FRigVMGraphFunctionIdentifier& NodeToVisit = NodesToVisit[NodeToVisitIndex];
@@ -117,7 +116,7 @@ void SRigVMGraphFunctionLocalizationWidget::Construct(const FArguments& InArgs, 
 			NodesToVisit.AddUnique(Pair.Key);
 		}
 		
-		if (NodeToVisit.HostObject != Cast<UObject>(TargetFunctionHost))
+		if (NodeToVisit.HostObject != Cast<UObject>(InTargetFunctionHost))
 		{
 			FunctionsForTable.AddUnique(FunctionData);
 			if (bIsPublic)
@@ -245,7 +244,7 @@ void SRigVMGraphFunctionLocalizationDialog::Construct(const FArguments& InArgs)
                 .HAlign(HAlign_Left)
                 .Padding(2)
                 [
-                    SAssignNew(FunctionsWidget, SRigVMGraphFunctionLocalizationWidget, InArgs._Function, InArgs._TargetBlueprint)
+                    SAssignNew(FunctionsWidget, SRigVMGraphFunctionLocalizationWidget, InArgs._Function, InArgs._GraphFunctionHost)
                 ]
 
                 +SVerticalBox::Slot()

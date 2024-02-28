@@ -11,11 +11,13 @@
 #include "SSimpleComboButton.h"
 #include "UncookedOnlyUtils.h"
 #include "Common/SRigVMAssetView.h"
+#include "Editor/RigVMEditorTools.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraphPanelNodeFactory.h"
 #include "Graph/AnimNextGraph_EdGraphNodeCustomization.h"
 #include "Graph/AnimNextGraph_EditorData.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "Param/ParameterCustomization.h"
 #include "Param/ParameterPickerArgs.h"
 #include "Param/ParametersGraphPanelPinFactory.h"
@@ -306,7 +308,27 @@ class FModule : public IModule
 
 			RigVMEdGraph->GetController()->SetCommentTextByName(CommentBeingChanged->GetFName(), NewText.ToString(), CommentBeingChanged->FontSize, CommentBeingChanged->bCommentBubbleVisible, CommentBeingChanged->bColorCommentBubble, true, true);
 		});
-		GraphArgs.OnDeleteSelectedNodes = Workspace::FOnDeleteSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+		GraphArgs.OnCanDeleteSelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+		{
+			bool bCanUserDeleteNode = false;
+
+			if(InSelectedNodes.Num() > 0)
+			{
+				for(UObject* NodeObject : InSelectedNodes)
+				{
+					// If any nodes allow deleting, then do not disable the delete option
+					const UEdGraphNode* Node = Cast<UEdGraphNode>(NodeObject);
+					if(Node && Node->CanUserDeleteNode())
+					{
+						bCanUserDeleteNode = true;
+						break;
+					}
+				}
+			}
+
+			return bCanUserDeleteNode;
+		});
+		GraphArgs.OnDeleteSelectedNodes = Workspace::FOnPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
 		{
 			if(InSelectedNodes.IsEmpty())
 			{
@@ -378,6 +400,160 @@ class FModule : public IModule
 			Controller->RemoveNodes(NodesToRemove, true);
 			Controller->CloseUndoBracket();
 		});
+		GraphArgs.OnCanCopySelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+		{
+			bool bCanUserCopyNode = false;
+
+			if(InSelectedNodes.Num() > 0)
+			{
+				bCanUserCopyNode = true;
+			}
+
+			return bCanUserCopyNode;
+		});
+		GraphArgs.OnCopySelectedNodes = Workspace::FOnPerformActionOnSelectedNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+		{
+			if(InSelectedNodes.IsEmpty())
+			{
+				return;
+			}
+
+			URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
+			if (RigVMEdGraph == nullptr)
+			{
+				return;
+			}
+
+			URigVMController* Controller = RigVMEdGraph->GetController();
+
+			FString ExportedText = Controller->ExportSelectedNodesToText();
+			FPlatformApplicationMisc::ClipboardCopy(*ExportedText);
+		});
+		GraphArgs.OnCanPasteNodes = Workspace::FOnCanPasteNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FString& InImportData)
+		{
+			bool bCanUserImportNodes = false;
+
+			if (!InImportData.IsEmpty())
+			{
+				bCanUserImportNodes = true;
+			}
+
+			return bCanUserImportNodes;
+		});
+		GraphArgs.OnPasteNodes = Workspace::FOnPasteNodes::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FVector2D& InPasteLocation, const FString& InImportData)
+		{
+			if(InImportData.IsEmpty())
+			{
+				return;
+			}
+
+			URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
+			if (RigVMEdGraph == nullptr)
+			{
+				return;
+			}
+
+			if (IRigVMClientHost* RigVMClientHost = RigVMEdGraph->GetImplementingOuter<IRigVMClientHost>())
+			{
+				FString TextToImport;
+				FPlatformApplicationMisc::ClipboardPaste(TextToImport);
+				URigVMController* Controller = RigVMEdGraph->GetController();
+
+				Controller->OpenUndoBracket(TEXT("Pasted Nodes."));
+
+				if (UE::RigVM::Editor::Tools::PasteNodes(InPasteLocation, TextToImport, Controller, RigVMEdGraph->GetModel(), RigVMClientHost->GetLocalFunctionLibrary(), RigVMClientHost->GetRigVMGraphFunctionHost()))
+				{
+					Controller->CloseUndoBracket();
+				}
+				else
+				{
+					Controller->CancelUndoBracket();
+				}
+			}
+		});
+		UE::Workspace::FOnCanPerformActionOnSelectedNodes& OnCanCopySelectedNodes = GraphArgs.OnCanCopySelectedNodes;
+		UE::Workspace::FOnCanPerformActionOnSelectedNodes& OnCanDeleteSelectedNodes = GraphArgs.OnCanDeleteSelectedNodes;
+		GraphArgs.OnCanCutSelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([OnCanCopySelectedNodes, OnCanDeleteSelectedNodes](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+			{
+				bool bCanUserCopyNode = false;
+
+				if (OnCanCopySelectedNodes.IsBound() && OnCanDeleteSelectedNodes.IsBound())
+				{
+					bCanUserCopyNode = OnCanCopySelectedNodes.Execute(InContext, InSelectedNodes) && OnCanDeleteSelectedNodes.Execute(InContext, InSelectedNodes);
+				}
+
+				return bCanUserCopyNode;
+			});
+		UE::Workspace::FOnPerformActionOnSelectedNodes& OnCopySelectedNodes = GraphArgs.OnCopySelectedNodes;
+		UE::Workspace::FOnPerformActionOnSelectedNodes& OnDeleteSelectedNodes = GraphArgs.OnDeleteSelectedNodes;
+		GraphArgs.OnCutSelectedNodes = Workspace::FOnPerformActionOnSelectedNodes::CreateLambda([OnCopySelectedNodes, OnDeleteSelectedNodes](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+			{
+				if (InSelectedNodes.IsEmpty())
+				{
+					return;
+				}
+
+				URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
+				if (RigVMEdGraph == nullptr)
+				{
+					return;
+				}
+
+
+				if (OnCopySelectedNodes.IsBound() && OnDeleteSelectedNodes.IsBound())
+				{
+					URigVMController* Controller = RigVMEdGraph->GetController();
+
+					OnCopySelectedNodes.Execute(InContext, InSelectedNodes);
+
+					Controller->OpenUndoBracket(TEXT("Cut Nodes."));
+					OnDeleteSelectedNodes.Execute(InContext, InSelectedNodes);
+					Controller->CloseUndoBracket();
+				}
+			});
+		UE::Workspace::FOnCanPasteNodes& OnCanPasteNodes = GraphArgs.OnCanPasteNodes;
+		GraphArgs.OnCanDuplicateSelectedNodes = Workspace::FOnCanPerformActionOnSelectedNodes::CreateLambda([OnCanCopySelectedNodes, OnCanPasteNodes](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& InSelectedNodes)
+			{
+				bool bCanUserCopyNode = false;
+
+				if (OnCanCopySelectedNodes.IsBound() && OnCanPasteNodes.IsBound())
+				{
+					FString TextToImport;
+					FPlatformApplicationMisc::ClipboardPaste(TextToImport);
+
+					bCanUserCopyNode = OnCanCopySelectedNodes.Execute(InContext, InSelectedNodes) && OnCanPasteNodes.Execute(InContext, TextToImport);
+				}
+
+				return bCanUserCopyNode;
+			});
+		UE::Workspace::FOnPasteNodes& OnPasteNodes = GraphArgs.OnPasteNodes;
+		GraphArgs.OnDuplicateSelectedNodes = Workspace::FOnDuplicateSelectedNodes::CreateLambda([OnCopySelectedNodes, OnPasteNodes](const Workspace::FWorkspaceEditorContext& InContext, const FVector2D& InPasteLocation, const FGraphPanelSelectionSet& InSelectedNodes)
+			{
+				if (InSelectedNodes.IsEmpty())
+				{
+					return;
+				}
+
+				URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
+				if (RigVMEdGraph == nullptr)
+				{
+					return;
+				}
+
+				if (OnCopySelectedNodes.IsBound() && OnPasteNodes.IsBound())
+				{
+					OnCopySelectedNodes.Execute(InContext, InSelectedNodes);
+
+					FString TextToImport;
+					FPlatformApplicationMisc::ClipboardPaste(TextToImport);
+
+					URigVMController* Controller = RigVMEdGraph->GetController();
+
+					Controller->OpenUndoBracket(TEXT("Duplicate Nodes."));
+					OnPasteNodes.Execute(InContext, InPasteLocation, TextToImport);
+					Controller->CloseUndoBracket();
+				}
+			});
 		GraphArgs.OnGraphSelectionChanged = Workspace::FOnGraphSelectionChanged::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const FGraphPanelSelectionSet& NewSelection)
 		{
 			URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object);
