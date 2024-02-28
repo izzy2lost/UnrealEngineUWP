@@ -187,6 +187,11 @@ namespace EpicGames.Horde.Users
 		public bool ShowAgents { get; set; }
 
 		/// <summary>
+		/// Whether to show the agent registration page. When using registration tokens from elsewhere this is not needed.
+		/// </summary>
+		public bool ShowAgentRegistration { get; set; }
+
+		/// <summary>
 		/// Show the Perforce server option on the server menu
 		/// </summary>
 		public bool ShowPerforceServers { get; set; }
