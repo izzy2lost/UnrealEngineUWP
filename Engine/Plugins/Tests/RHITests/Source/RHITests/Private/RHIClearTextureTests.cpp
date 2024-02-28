@@ -603,16 +603,16 @@ static void DrawTextureTo2DAtlas(FRHICommandListImmediate& RHICmdList, FRHITextu
 
 	SetComputePipelineState(RHICmdList, ComputeShader.GetComputeShader());
 	FRHIBatchedShaderParameters ShaderParameters;
-	ShaderParameters.SetShaderParameter(ComputeShader->MipBiasMipNumsViewport.GetBufferIndex(), ComputeShader->MipBiasMipNumsViewport.GetBaseIndex(), sizeof(MipBiasMipNumsViewport), &MipBiasMipNumsViewport);
+	SetShaderValue(ShaderParameters, ComputeShader->MipBiasMipNumsViewport, MipBiasMipNumsViewport);
 	if (GUseCustomSRV)
 	{
-		ShaderParameters.SetShaderResourceViewParameter(ComputeShader->SrcResourceParam.GetBaseIndex(), SourceSRV);
+		SetSRVParameter(ShaderParameters, ComputeShader->SrcResourceParam, SourceSRV);
 	}
 	else
 	{
-		ShaderParameters.SetShaderTexture(ComputeShader->SrcResourceParam.GetBaseIndex(), SourceTexture); // this doesn't work for cubemaps/cubemaps arrays when doing .Load on a Texture2DArray
+		SetTextureParameter(ShaderParameters, ComputeShader->SrcResourceParam, SourceTexture); // this doesn't work for cubemaps/cubemaps arrays when doing .Load on a Texture2DArray
 	}
-	ShaderParameters.SetUAVParameter(ComputeShader->RWAtlas2D.GetBaseIndex(), DestTextureUAV);
+	SetUAVParameter(ShaderParameters, ComputeShader->RWAtlas2D, DestTextureUAV);
 	RHICmdList.SetBatchedShaderParameters(ComputeShader.GetComputeShader(), ShaderParameters);
 	RHICmdList.DispatchComputeShader((AtlasViewport.X + 7) / 8, (AtlasViewport.Y + 7) / 8, 1);
 }
@@ -831,7 +831,7 @@ static void DrawColoredQuad(FRHICommandListImmediate& RHICmdList, FRHIVertexDecl
 			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
 			FRHIBatchedShaderParameters ShaderParameters;
-			ShaderParameters.SetShaderParameter(PixelShader->TestFillTextureConstant.GetBufferIndex(), PixelShader->TestFillTextureConstant.GetBaseIndex(), sizeof(ConstColor), &ConstColor);
+			SetShaderValue(ShaderParameters, PixelShader->TestFillTextureConstant, ConstColor);
 			RHICmdList.SetBatchedShaderParameters(PixelShader.GetPixelShader(), ShaderParameters);
 
 			if (bAllSlicesInRTV)

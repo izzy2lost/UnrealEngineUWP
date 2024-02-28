@@ -34,7 +34,7 @@ class FTestDrawInstancedPS : public FGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 	}
-	LAYOUT_FIELD(FShaderParameter, OutDrawnInstances);
+	LAYOUT_FIELD(FShaderResourceParameter, OutDrawnInstances);
 };
 IMPLEMENT_GLOBAL_SHADER(FTestDrawInstancedPS, "/Plugin/RHITests/Private/TestDrawInstanced.usf", "TestDrawInstancedMainPS", SF_Pixel);
 
@@ -204,7 +204,7 @@ bool FRHIDrawTests::InternalDrawBaseVertexAndInstance(FRHICommandListImmediate& 
 	RHICmdList.SetStreamSource(1, Resources.InstanceIDBuffer, 0);
 
 	FRHIBatchedShaderParameters ShaderParameters;
-	ShaderParameters.SetUAVParameter(Resources.PixelShader->OutDrawnInstances.GetBaseIndex(), Resources.OutputBufferUAV);
+	SetUAVParameter(ShaderParameters, Resources.PixelShader->OutDrawnInstances, Resources.OutputBufferUAV);
 	RHICmdList.SetBatchedShaderParameters(Resources.PixelShader.GetPixelShader(), ShaderParameters);
 
 	if (DrawKind == EDrawKind::Direct)
@@ -313,7 +313,7 @@ bool FRHIDrawTests::Test_MultiDrawIndirect(FRHICommandListImmediate& RHICmdList)
 	RHICmdList.SetStreamSource(1, Resources.InstanceIDBuffer, 0);
 
 	FRHIBatchedShaderParameters ShaderParameters;
-	ShaderParameters.SetUAVParameter(Resources.PixelShader->OutDrawnInstances.GetBaseIndex(), Resources.OutputBufferUAV);
+	SetUAVParameter(ShaderParameters, Resources.PixelShader->OutDrawnInstances, Resources.OutputBufferUAV);
 	RHICmdList.SetBatchedShaderParameters(Resources.PixelShader.GetPixelShader(), ShaderParameters);
 
 	const uint32 DrawArgsStride = sizeof(DrawArgs[0]);
