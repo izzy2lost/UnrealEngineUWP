@@ -58,6 +58,7 @@ bool USkeletalMeshLODSettings::SetLODSettingsToMesh(USkeletalMesh* InMesh, int32
 		LODInfo->ScreenSize = Setting.ScreenSize;
 		LODInfo->LODHysteresis = Setting.LODHysteresis;
 		LODInfo->WeightOfPrioritization = Setting.WeightOfPrioritization;
+		LODInfo->bAllowMeshDeformer = Setting.bAllowMeshDeformer;
 		// if we have available bake pose
 		// it's possible for skeleton to be null if this happens in the middle of importing
 		// so if skeleton is null, we allow copy (the GetBakePose will check correct skeleton when get it)
@@ -291,6 +292,8 @@ int32 USkeletalMeshLODSettings::SetLODSettingsFromMesh(USkeletalMesh* InMesh)
 				NewFilter.BoneName = LODInfo->BonesToRemove[BoneIndex].BoneName;
 				Setting.BoneList.Add(NewFilter);
 			}
+
+			Setting.bAllowMeshDeformer = LODInfo->bAllowMeshDeformer;
 		}
 
 		return NumSettings;

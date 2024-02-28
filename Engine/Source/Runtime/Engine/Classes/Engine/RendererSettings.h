@@ -1252,6 +1252,12 @@ class URendererSettings : public UDeveloperSettings
 		uint32 bUseUnlimitedBoneInfluences : 1;
 		
 	UPROPERTY(config, EditAnywhere, Category = Skinning, meta = (
+		ConsoleVariable = "r.GPUSkin.AlwaysUseDeformerForUnlimitedBoneInfluences",
+		ToolTip = "Any mesh LODs using Unlimited Bone Influences will always be rendered with a Mesh Deformer. This reduces the number of shader permutations needed for skeletal mesh materials, saving memory at the cost of performance. Has no effect if either Unlimited Bone Influences or Deformer Graph is disabled.",
+		ConfigRestartRequired = true))
+		uint32 bAlwaysUseDeformerForUnlimitedBoneInfluences : 1;
+		
+	UPROPERTY(config, EditAnywhere, Category = Skinning, meta = (
 		ConsoleVariable = "r.GPUSkin.UnlimitedBoneInfluencesThreshold", DisplayName = "Unlimited Bone Influences Threshold",
 		ToolTip = "When Unlimited Bone Influence is enabled, it still uses a fixed bone inflence buffer until the max bone influence of a mesh exceeds this value"))
 		int32 UnlimitedBonInfluencesThreshold;
