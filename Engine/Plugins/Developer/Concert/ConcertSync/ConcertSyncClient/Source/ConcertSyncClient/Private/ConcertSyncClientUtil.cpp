@@ -616,10 +616,13 @@ void HotReloadPackages(TArrayView<const FName> InPackageNames)
 			{
 				ExistingPackage->ClearPackageFlags(PKG_NewlyCreated);
 			}
-			ExistingPackages.Add(ExistingPackage);
 			if (ExistingPackage->ContainsMap())
 			{
 				bAddPersistentLevel = ShouldReloadPersistentLevel(ExistingPackage);
+			}
+			else
+			{
+				ExistingPackages.Add(ExistingPackage);
 			}
 		}
 	}
