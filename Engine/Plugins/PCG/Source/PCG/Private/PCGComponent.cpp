@@ -145,7 +145,7 @@ void UPCGComponent::SetGraphInterfaceLocal(UPCGGraphInterface* InGraphInterface)
 
 void UPCGComponent::AddToManagedResources(UPCGManagedResource* InResource)
 {
-	PCGGeneratedResourcesLogging::LogAddToManagedResources(InResource);
+	PCGGeneratedResourcesLogging::LogAddToManagedResources(this, InResource);
 
 	if (InResource)
 	{
@@ -613,7 +613,7 @@ FPCGTaskId UPCGComponent::CleanupInternal(bool bRemoveComponents, const TArray<F
 		return InvalidPCGTaskId;
 	}
 
-	PCGGeneratedResourcesLogging::LogCleanupInternal(bRemoveComponents);
+	PCGGeneratedResourcesLogging::LogCleanupInternal(this, bRemoveComponents);
 
 	Modify(!IsInPreviewMode());
 
@@ -859,7 +859,7 @@ bool UPCGComponent::MoveResourcesToNewActor(AActor* InNewActor, bool bCreateChil
 
 void UPCGComponent::CleanupLocalImmediate(bool bRemoveComponents, bool bCleanupLocalComponents)
 {
-	PCGGeneratedResourcesLogging::LogCleanupLocalImmediate(bRemoveComponents, GeneratedResources);
+	PCGGeneratedResourcesLogging::LogCleanupLocalImmediate(this, bRemoveComponents, GeneratedResources);
 
 	UPCGSubsystem* Subsystem = GetSubsystem();
 
@@ -894,7 +894,7 @@ void UPCGComponent::CleanupLocalImmediate(bool bRemoveComponents, bool bCleanupL
 				// Note: resources can be null here in some loading + bp object cases
 				UPCGManagedResource* Resource = GeneratedResources[ResourceIndex];
 
-				PCGGeneratedResourcesLogging::LogCleanupLocalImmediateResource(Resource);
+				PCGGeneratedResourcesLogging::LogCleanupLocalImmediateResource(this, Resource);
 
 				if (!Resource || Resource->Release(bRemoveComponents, ActorsToDelete))
 				{
@@ -933,7 +933,7 @@ void UPCGComponent::CleanupLocalImmediate(bool bRemoveComponents, bool bCleanupL
 		Subsystem->CleanupLocalComponentsImmediate(this, bRemoveComponents);
 	}
 
-	PCGGeneratedResourcesLogging::LogCleanupLocalImmediateFinished(GeneratedResources);
+	PCGGeneratedResourcesLogging::LogCleanupLocalImmediateFinished(this, GeneratedResources);
 }
 
 FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray<FPCGTaskId>& Dependencies)
@@ -948,7 +948,7 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 		return InvalidPCGTaskId;
 	}
 
-	PCGGeneratedResourcesLogging::LogCreateCleanupTask(bRemoveComponents);
+	PCGGeneratedResourcesLogging::LogCreateCleanupTask(this, bRemoveComponents);
 
 	// Keep track of all the dependencies
 	TArray<FPCGTaskId> AdditionalDependencies;
@@ -1003,7 +1003,7 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 					UE_LOG(LogPCG, Error, TEXT("[UPCGComponent::CreateCleanupTask] Null generated resource encountered on actor \"%s\"."), *ThisComponent->GetOwner()->GetFName().ToString());
 				}
 
-				PCGGeneratedResourcesLogging::LogCreateCleanupTaskResource(Resource);
+				PCGGeneratedResourcesLogging::LogCreateCleanupTaskResource(ThisComponentWeakPtr.Get(), Resource);
 
 				if (!Resource || Resource->Release(bRemoveComponents, Context->ActorsToDelete))
 				{
@@ -1099,7 +1099,7 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 			}
 #endif
 
-			PCGGeneratedResourcesLogging::LogCreateCleanupTaskFinished(ThisComponentWeakPtr->GeneratedResources);
+			PCGGeneratedResourcesLogging::LogCreateCleanupTaskFinished(ThisComponentWeakPtr.Get(), ThisComponentWeakPtr.IsValid() ? &ThisComponentWeakPtr->GeneratedResources : nullptr);
 		}
 
 		return true;
@@ -1110,7 +1110,7 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 
 void UPCGComponent::CleanupUnusedManagedResources()
 {
-	PCGGeneratedResourcesLogging::LogCleanupUnusedManagedResources(GeneratedResources);
+	PCGGeneratedResourcesLogging::LogCleanupUnusedManagedResources(this, GeneratedResources);
 
 	TSet<TSoftObjectPtr<AActor>> ActorsToDelete;
 
@@ -1121,7 +1121,7 @@ void UPCGComponent::CleanupUnusedManagedResources()
 		{
 			UPCGManagedResource* Resource = GetValid(GeneratedResources[ResourceIndex]);
 
-			PCGGeneratedResourcesLogging::LogCleanupUnusedManagedResourcesResource(Resource);
+			PCGGeneratedResourcesLogging::LogCleanupUnusedManagedResourcesResource(this, Resource);
 
 			if (!Resource && GetOwner())
 			{
@@ -1151,7 +1151,7 @@ void UPCGComponent::CleanupUnusedManagedResources()
 
 	UPCGActorHelpers::DeleteActors(GetWorld(), ActorsToDelete.Array());
 
-	PCGGeneratedResourcesLogging::LogCleanupUnusedManagedResourcesFinished(GeneratedResources);
+	PCGGeneratedResourcesLogging::LogCleanupUnusedManagedResourcesFinished(this, GeneratedResources);
 }
 
 void UPCGComponent::BeginPlay()

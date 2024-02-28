@@ -22,8 +22,14 @@ namespace PCGWorldPartitionBuilder
 	void CollectComponentsToGenerate(UWorld* InWorld, TFunctionRef<bool(const UPCGComponent*)> ComponentFilter, TArray<TWeakObjectPtr<UPCGComponent>>& OutComponents);
 	
 	/** Generate the given components. Optionally generate only one component at a time with a wait on async processes after each. Optionally apply given filter to select components. */
-	bool GenerateComponents(TArray<TWeakObjectPtr<UPCGComponent>>& Components, UWorld* InWorld, bool bOneComponentAtATime, bool& bOutGenerationErrors);
-	bool GenerateComponents(TArray<TWeakObjectPtr<UPCGComponent>>& Components, UWorld* InWorld, bool bOneComponentAtATime, TFunctionRef<bool(const UPCGComponent*)> ComponentFilter, bool& bOutGenerationErrors);
+	bool GenerateComponents(TArray<TWeakObjectPtr<UPCGComponent>>& Components, UWorld* InWorld, bool bOneComponentAtATime, TArray<UPackage*>& InOutDeletedActorPackages, bool& bOutGenerationErrors);
+	bool GenerateComponents(
+		TArray<TWeakObjectPtr<UPCGComponent>>& Components,
+		UWorld* InWorld,
+		bool bOneComponentAtATime,
+		TFunctionRef<bool(const UPCGComponent*)> ComponentFilter,
+		TArray<UPackage*>& InOutDeletedActorPackages,
+		bool& bOutGenerationErrors);
 
 	/** Generate a component. Applies correct editing mode if necessary. */
 	void GenerateComponent(UPCGComponent* InComponent, UWorld* InWorld);
@@ -41,7 +47,7 @@ namespace PCGWorldPartitionBuilder
 			"\t[-GenerateComponentEditingModeNormal]\n"
 			"\t[-GenerateComponentEditingModePreview]\n"
 			"\t[-IgnoreGenerationErrors]\n"
-			"\t[-IncludeActorIDs=MyActor1_UID1234678;MyActor2_UID1234678]\n"
+			"\t[-IncludeActorIDs=MyActor1_UAID1234678;MyActor2_UAID1234678]\n"
 			"\t[-OneComponentAtATime]\n"),
 		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args) { PCGWorldPartitionBuilder::Build(Args); }));
 };
@@ -188,7 +194,7 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 			};
 
 			bool bErrorsOccurred = false;
-			bGeneratedAnyComponent |= PCGWorldPartitionBuilder::GenerateComponents(ComponentsToGenerate, World, bOneComponentAtATime, FilterOnGraphName, bErrorsOccurred);
+			bGeneratedAnyComponent |= PCGWorldPartitionBuilder::GenerateComponents(ComponentsToGenerate, World, bOneComponentAtATime, FilterOnGraphName, DeletedActorPackages, bErrorsOccurred);
 
 			bErrorOccurredWhileGenerating |= bErrorsOccurred;
 		}
@@ -196,7 +202,7 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 	else
 	{
 		bool bErrorsOccurred = false;
-		bGeneratedAnyComponent |= PCGWorldPartitionBuilder::GenerateComponents(ComponentsToGenerate, World, bOneComponentAtATime, bErrorsOccurred);
+		bGeneratedAnyComponent |= PCGWorldPartitionBuilder::GenerateComponents(ComponentsToGenerate, World, bOneComponentAtATime, DeletedActorPackages, bErrorsOccurred);
 
 		bErrorOccurredWhileGenerating |= bErrorsOccurred;
 	}
@@ -273,7 +279,19 @@ bool UPCGWorldPartitionBuilder::PostRun(UWorld* World, FPackageSourceControlHelp
 		}
 	}
 
-	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("PostRun: %d packages modified, %d packages deleted."), DirtyPackages.Num(), PackagesToDelete.Num());
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("PostRun: %d packages modified, %d actor packages deleted, %d empty packages marked for delete."),
+		DirtyPackages.Num(),
+		DeletedActorPackages.Num(),
+		PackagesToDelete.Num());
+
+	// Combine the empty-deleted packages with the actor-deleted packages.
+	for (UPackage* DeletedPackage : DeletedActorPackages)
+	{
+		PackagesToDelete.AddUnique(DeletedPackage);
+	}
+
+	// Log final changes after combining packages (there may have been duplicates in the two deleted package lists).
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("PostRun: Final package changes: %d modified, %d deleted."), DirtyPackages.Num(), PackagesToDelete.Num());
 
 	if (!SavePackages(DirtyPackages, PackageHelper))
 	{
@@ -339,9 +357,9 @@ void PCGWorldPartitionBuilder::CollectComponentsToGenerate(
 	}
 }
 
-bool PCGWorldPartitionBuilder::GenerateComponents(TArray<TWeakObjectPtr<UPCGComponent>>& Components, UWorld* InWorld, bool bOneComponentAtATime, bool& bOutGenerationErrors)
+bool PCGWorldPartitionBuilder::GenerateComponents(TArray<TWeakObjectPtr<UPCGComponent>>& Components, UWorld* InWorld, bool bOneComponentAtATime, TArray<UPackage*>& InOutDeletedActorPackages, bool& bOutGenerationErrors)
 {
-	return PCGWorldPartitionBuilder::GenerateComponents(Components, InWorld, bOneComponentAtATime, [](const UPCGComponent*) { return true; }, bOutGenerationErrors);
+	return PCGWorldPartitionBuilder::GenerateComponents(Components, InWorld, bOneComponentAtATime, [](const UPCGComponent*) { return true; }, InOutDeletedActorPackages, bOutGenerationErrors);
 }
 
 bool PCGWorldPartitionBuilder::GenerateComponents(
@@ -349,6 +367,7 @@ bool PCGWorldPartitionBuilder::GenerateComponents(
 	UWorld* InWorld,
 	bool bOneComponentAtATime,
 	TFunctionRef<bool(const UPCGComponent*)> ComponentFilter,
+	TArray<UPackage*>& InOutDeletedActorPackages,
 	bool& bOutGenerationErrors)
 {
 	if (!bOneComponentAtATime)
@@ -372,6 +391,28 @@ bool PCGWorldPartitionBuilder::GenerateComponents(
 
 		// Can be useful to let some things flush/update after generation.
 		FWorldPartitionHelpers::FakeEngineTick(InWorld);
+	};
+
+	// Hook actor deleted events and track any corresponding deleted packages, as the packages can be GC'd if PCG triggers a GC
+	// before generation.
+	FDelegateHandle ActorDeletedHandle = GEngine->OnLevelActorDeleted().AddLambda([&InOutDeletedActorPackages](AActor* InActor)
+	{
+		if (InActor && InActor->IsPackageExternal())
+		{
+			if (UPackage* ActorPackage = InActor->GetPackage())
+			{
+				UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("Actor '%s' deleted, package '%s' added to delete list."),
+					*InActor->GetName(),
+					*ActorPackage->GetName());
+
+				InOutDeletedActorPackages.AddUnique(ActorPackage);
+			}
+		}
+	});
+
+	ON_SCOPE_EXIT
+	{
+		GEngine->OnLevelActorDeleted().Remove(ActorDeletedHandle);
 	};
 
 	TSet<TObjectKey<UPCGComponent>> GeneratedComponents;

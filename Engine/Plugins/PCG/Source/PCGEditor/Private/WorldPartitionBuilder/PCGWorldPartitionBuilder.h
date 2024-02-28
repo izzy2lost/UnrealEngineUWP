@@ -39,6 +39,10 @@ private:
 	UPROPERTY(Transient)
 	TMap<FGuid, UPackage*> PendingDirtyPackages;
 
+	/** Packages that were logged as deleted through the OnActorDeleted event. UPROP to prevent GC. */
+	UPROPERTY(Transient)
+	TArray<UPackage*> DeletedActorPackages;
+
 	/** Include components which have editing mode set to Normal. */
 	bool bGenerateEditingModeNormalComponents = false;
 

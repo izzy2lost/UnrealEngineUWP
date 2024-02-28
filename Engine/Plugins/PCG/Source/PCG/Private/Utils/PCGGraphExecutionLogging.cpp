@@ -13,7 +13,7 @@
 
 namespace PCGGraphExecutionLogging
 {
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	static TAutoConsoleVariable<bool> CVarGraphExecutionLoggingEnable(
 		TEXT("pcg.GraphExecution.EnableLogging"),
 		false,
@@ -27,7 +27,7 @@ namespace PCGGraphExecutionLogging
 
 	bool LogEnabled()
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		return CVarGraphExecutionLoggingEnable.GetValueOnAnyThread();
 #else
 		return false;
@@ -36,16 +36,29 @@ namespace PCGGraphExecutionLogging
 
 	bool CullingLogEnabled()
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		return CVarGraphExecutionCullingLoggingEnable.GetValueOnAnyThread();
 #else
 		return false;
 #endif
 	}
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
+	FString GetOwnerName(const UPCGComponent* InComponent)
+	{
+		return (InComponent && InComponent->GetOwner()) ?
+#if WITH_EDITOR
+			InComponent->GetOwner()->GetActorLabel() :
+#else
+			InComponent->GetOwner()->GetName() :
+#endif
+			FString(TEXT("MISSINGOWNER"));
+	}
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
+
 	void LogGraphTask(FPCGTaskId TaskId, const FPCGGraphTask& Task, const TSet<FPCGTaskId>* SuccessorIds)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
@@ -81,20 +94,27 @@ namespace PCGGraphExecutionLogging
 			}
 		}
 
+		const FString PinDependencyString =
+#if WITH_EDITOR
+			Task.PinDependency.ToString();
+#else
+			TEXT("MISSINGPINDEPS");
+#endif
+
 		UE_LOG(LogPCG, Log, TEXT("\t\tID: %u\tParent: %u\tNode: %s\tInputs: %s\tPinDeps: %s\tSuccessors: %s"),
 			TaskId,
 			Task.ParentId != InvalidPCGTaskId ? Task.ParentId : 0,
 			Task.Node ? (*Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString()) : TEXT("NULL"),
 			*GenerateInputsString(Task.Inputs),
-			*Task.PinDependency.ToString(),
+			*PinDependencyString,
 			*SuccessorsString
 		);
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogGraphTasks(const TMap<FPCGTaskId, FPCGGraphTask>& Tasks, const TMap<FPCGTaskId, TSet<FPCGTaskId>>* TaskSuccessors)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
@@ -104,12 +124,12 @@ namespace PCGGraphExecutionLogging
 		{
 			PCGGraphExecutionLogging::LogGraphTask(TaskIdAndTask.Key, TaskIdAndTask.Value, TaskSuccessors ? TaskSuccessors->Find(TaskIdAndTask.Value.NodeId) : nullptr);
 		}
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogGraphTasks(const TArray<FPCGGraphTask>& Tasks)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
@@ -119,48 +139,69 @@ namespace PCGGraphExecutionLogging
 		{
 			LogGraphTask(Task.NodeId, Task);
 		}
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
-	void LogGraphSchedule(const UPCGComponent* SourceComponent)
+	void LogGraphSchedule(const UPCGComponent* SourceComponent, const UPCGGraph* InScheduledGraph)
 	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled() && !IsRunningCommandlet())
 		{
 			return;
 		}
 
-		UE_LOG(LogPCG, Display, TEXT("[%s/%s] --- SCHEDULE GRAPH ---"),
+		UE_LOG(LogPCG, Display, TEXT("[%s/%s] --- SCHEDULE GRAPH %s ---"),
 			(SourceComponent && SourceComponent->GetOwner()) ? *SourceComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
-			(SourceComponent && SourceComponent->GetGraph()) ? *SourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+			(SourceComponent && SourceComponent->GetGraph()) ? *SourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			InScheduledGraph ? *InScheduledGraph->GetName() : TEXT("MISSINGGRAPH)"));
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
-	void LogGraphScheduleDependency(const UPCGComponent* InComponent)
+	void LogGraphScheduleDependency(const UPCGComponent* InComponent, const FPCGStack* InFromStack)
 	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled() && !IsRunningCommandlet())
 		{
 			return;
 		}
 
-		UE_LOG(LogPCG, Display, TEXT("[%s/%s] --- SCHEDULE GRAPH FOR DEPENDENCY ---"),
+		FString FromStackString;
+		if (InFromStack)
+		{
+			InFromStack->CreateStackFramePath(FromStackString);
+		}
+
+		UE_LOG(LogPCG, Display, TEXT("[%s/%s] --- SCHEDULE GRAPH FOR DEPENDENCY, from stack: %s"),
 			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
-			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			*FromStackString);
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
-	void LogGraphScheduleDependencyFailed(const UPCGComponent* InComponent)
+	void LogGraphScheduleDependencyFailed(const UPCGComponent* InComponent, const FPCGStack* InFromStack)
 	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled() && !IsRunningCommandlet())
 		{
 			return;
 		}
 
-		UE_LOG(LogPCG, Warning, TEXT("[%s/%s] Failed to schedule dependency"),
+		FString FromStackString;
+		if (InFromStack)
+		{
+			InFromStack->CreateStackFramePath(FromStackString);
+		}
+
+		UE_LOG(LogPCG, Warning, TEXT("[%s/%s] Failed to schedule dependency, from stack: %s"),
 			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
-			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			*FromStackString);
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 	
 	void LogGraphPostSchedule(const TMap<FPCGTaskId, FPCGGraphTask>& Tasks, const TMap<FPCGTaskId, TSet<FPCGTaskId>>& TaskSuccessors)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!CullingLogEnabled())
 		{
 			return;
@@ -169,11 +210,12 @@ namespace PCGGraphExecutionLogging
 		UE_LOG(LogPCG, Log, TEXT("POST SCHEDULE:"));
 
 		LogGraphTasks(Tasks, &TaskSuccessors);
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogPostProcessGraph(const UPCGComponent* InSourceComponent)
 	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled() && !IsRunningCommandlet())
 		{
 			return;
@@ -182,10 +224,12 @@ namespace PCGGraphExecutionLogging
 		UE_LOG(LogPCG, Display, TEXT("[%s/%s] UPCGComponent::PostProcessGraph"),
 			(InSourceComponent && InSourceComponent->GetOwner()) ? *InSourceComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
 			(InSourceComponent && InSourceComponent->GetGraph()) ? *InSourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogComponentCancellation(const TSet<UPCGComponent*>& CancelledComponents)
 	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled() && !IsRunningCommandlet())
 		{
 			return;
@@ -197,11 +241,12 @@ namespace PCGGraphExecutionLogging
 				(Component && Component->GetOwner()) ? *Component->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
 				(Component && Component->GetGraph()) ? *Component->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 		}
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogChangeOriginIgnoredForComponent(const UObject* InObject, const UPCGComponent* InComponent)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
@@ -211,22 +256,22 @@ namespace PCGGraphExecutionLogging
 			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
 			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
 			InObject ? *InObject->GetName() : TEXT("MISSINGOBJECT"));
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogGraphExecuteFrameFinished()
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
 		}
 
 		UE_LOG(LogPCG, Log, TEXT("--- FINISH FPCGGRAPHEXECUTOR::EXECUTE ---"));
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	FString GetPinsToDeactivateString(const TArray<FPCGPinId>& PinIdsToDeactivate)
 	{
 		FString PinIdsToDeactivateString;
@@ -242,11 +287,11 @@ namespace PCGGraphExecutionLogging
 
 		return PinIdsToDeactivateString;
 	}
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 
 	void LogTaskExecute(const FPCGGraphTask& Task)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled() || !Task.SourceComponent.Get())
 		{
 			return;
@@ -256,12 +301,12 @@ namespace PCGGraphExecutionLogging
 			*Task.SourceComponent->GetOwner()->GetName(),
 			Task.SourceComponent->GetGraph() ? *Task.SourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
 			*FString::Printf(TEXT("%u'%s'"), Task.NodeId, Task.Node ? *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("")));
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogTaskExecuteCachingDisabled(const FPCGGraphTask& Task)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled() || !Task.SourceComponent.Get())
 		{
 			return;
@@ -271,12 +316,12 @@ namespace PCGGraphExecutionLogging
 			*Task.SourceComponent->GetOwner()->GetName(),
 			Task.SourceComponent->GetGraph() ? *Task.SourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
 			*FString::Printf(TEXT("%u'%s'"), Task.NodeId, Task.Node ? *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("")));
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogTaskCullingBegin(FPCGTaskId CompletedTaskId, uint64 InactiveOutputPinBitmask, const TArray<FPCGPinId>& PinIdsToDeactivate)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!CullingLogEnabled())
 		{
 			return;
@@ -284,151 +329,172 @@ namespace PCGGraphExecutionLogging
 
 		UE_LOG(LogPCG, Log, TEXT("BEGIN CullInactiveDownstreamNodes, CompletedTaskId: %u, InactiveOutputPinBitmask: %u, Deactivating pin IDs: %s"),
 			CompletedTaskId, InactiveOutputPinBitmask, *GetPinsToDeactivateString(PinIdsToDeactivate));
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogTaskCullingBeginLoop(FPCGTaskId PinTaskId, uint64 PinIndex, const TArray<FPCGPinId>& PinIdsToDeactivate)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!CullingLogEnabled())
 		{
 			return;
 		}
 
 		UE_LOG(LogPCG, Log, TEXT("LOOP: DEACTIVATE %u_%u, remaining IDs: %s"), PinTaskId, PinIndex, *GetPinsToDeactivateString(PinIdsToDeactivate));
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogTaskCullingUpdatedPinDeps(FPCGTaskId TaskId, const FPCGPinDependencyExpression& PinDependency, bool bDependencyExpressionBecameFalse)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!CullingLogEnabled())
 		{
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("UPDATED PIN DEP EXPRESSION (task ID %u): %s"), TaskId, *PinDependency.ToString());
+		const FString PinDependencyString =
+#if WITH_EDITOR
+			PinDependency.ToString();
+#else
+			TEXT("MISSINGPINDEPS");
+#endif
+
+		UE_LOG(LogPCG, Log, TEXT("UPDATED PIN DEP EXPRESSION (task ID %u): %s"), TaskId, *PinDependencyString);
 
 		if (bDependencyExpressionBecameFalse)
 		{
 			UE_LOG(LogPCG, Log, TEXT("CULL task ID %u"), TaskId);
 		}
-#endif
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogGridLinkageTaskExecuteStore(const FPCGContext* InContext, EPCGHiGenGrid InGenerationGrid, int32 InFromGridSize, int32 InToGridSize, const FString& InResourcePath)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
 		}
 		check(InContext);
 
-		const FString OwnerName = InContext->SourceComponent.Get() ? (InContext->SourceComponent->GetOwner() ? InContext->SourceComponent->GetOwner()->GetActorLabel() : FString()) : FString();
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] STORE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"), *OwnerName, PCGHiGenGrid::GridToGridSize(InGenerationGrid), InFromGridSize, InToGridSize, *InResourcePath);
-#endif
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] STORE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"),
+			*GetOwnerName(InContext->SourceComponent.Get()),
+			PCGHiGenGrid::GridToGridSize(InGenerationGrid),
+			InFromGridSize,
+			InToGridSize,
+			*InResourcePath);
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogGridLinkageTaskExecuteRetrieve(const FPCGContext* InContext, EPCGHiGenGrid InGenerationGrid, int32 InFromGridSize, int32 InToGridSize, const FString& InResourcePath)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
 		}
 		check(InContext);
 
-		const FString OwnerName = InContext->SourceComponent.Get() ? (InContext->SourceComponent->GetOwner() ? InContext->SourceComponent->GetOwner()->GetActorLabel() : FString()) : FString();
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"), *OwnerName, PCGHiGenGrid::GridToGridSize(InGenerationGrid), InFromGridSize, InToGridSize, *InResourcePath);
-#endif
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"),
+			*GetOwnerName(InContext->SourceComponent.Get()),
+			PCGHiGenGrid::GridToGridSize(InGenerationGrid),
+			InFromGridSize,
+			InToGridSize,
+			*InResourcePath);
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogGridLinkageTaskExecuteRetrieveSuccess(const FPCGContext* InContext, const UPCGComponent* InComponent, const FString& InResourcePath, int32 InDataItemCount)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
 		}
 		check(InContext);
 
-		const FString OwnerName = InContext->SourceComponent.Get() ? (InContext->SourceComponent->GetOwner() ? InContext->SourceComponent->GetOwner()->GetActorLabel() : FString()) : FString();
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SUCCESS. Component=%s Path=%s DataItems=%d"), *OwnerName, *InComponent->GetOwner()->GetActorLabel(), *InResourcePath, InDataItemCount);
-#endif
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SUCCESS. Path=%s DataItems=%d"),
+			*GetOwnerName(InContext->SourceComponent.Get()),
+			*InResourcePath,
+			InDataItemCount);
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogGridLinkageTaskExecuteRetrieveScheduleGraph(const FPCGContext* InContext, const UPCGComponent* InScheduledComponent, const FString& InResourcePath)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
 		}
 		check(InContext);
 
-		const FString OwnerName = (InContext->SourceComponent.Get() && InContext->SourceComponent->GetOwner()) ? InContext->SourceComponent->GetOwner()->GetActorLabel() : FString();
-		const FString OtherOwnerName = (InScheduledComponent && InScheduledComponent->GetOwner()) ? InScheduledComponent->GetOwner()->GetActorLabel() : FString();
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SCHEDULE GRAPH. Component=%s Path=%s"), *OwnerName, *OtherOwnerName, *InResourcePath);
-#endif
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SCHEDULE GRAPH. Component=%s Path=%s"),
+			*GetOwnerName(InContext->SourceComponent.Get()),
+			*GetOwnerName(InScheduledComponent),
+			*InResourcePath);
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogGridLinkageTaskExecuteRetrieveWaitOnScheduledGraph(const FPCGContext* InContext, const UPCGComponent* InWaitOnComponent, const FString& InResourcePath)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
 		}
 		check(InContext);
 
-		const FString OwnerName = (InContext->SourceComponent.Get() && InContext->SourceComponent->GetOwner()) ? InContext->SourceComponent->GetOwner()->GetActorLabel() : FString();
-		const FString OtherOwnerName = (InWaitOnComponent && InWaitOnComponent->GetOwner()) ? InWaitOnComponent->GetOwner()->GetActorLabel() : FString();
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: WAIT FOR SCHEDULED GRAPH. Component=%s Path=%s"), *OwnerName, *OtherOwnerName, *InResourcePath);
-#endif
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: WAIT FOR SCHEDULED GRAPH. Component=%s Path=%s"),
+			*GetOwnerName(InContext->SourceComponent.Get()),
+			*GetOwnerName(InWaitOnComponent),
+			*InResourcePath);
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 	
 	void LogGridLinkageTaskExecuteRetrieveWakeUp(const FPCGContext* InContext, const UPCGComponent* InWokenBy)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
 		}
 		check(InContext);
 
-		const FString OwnerName = (InContext->SourceComponent.Get() && InContext->SourceComponent->GetOwner()) ? InContext->SourceComponent->GetOwner()->GetActorLabel() : FString();
-		const FString OtherOwnerName = (InWokenBy && InWokenBy->GetOwner()) ? InWokenBy->GetOwner()->GetActorLabel() : FString();
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: WOKEN BY Component=%s"), *OwnerName, *OtherOwnerName);
-#endif
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: WOKEN BY Component=%s"),
+			*GetOwnerName(InContext->SourceComponent.Get()),
+			*GetOwnerName(InWokenBy));
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogGridLinkageTaskExecuteRetrieveNoLocalComponent(const FPCGContext* InContext, const FString& InResourcePath)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
 		}
 		check(InContext);
 
-		const FString OwnerName = (InContext->SourceComponent.Get() && InContext->SourceComponent->GetOwner()) ? InContext->SourceComponent->GetOwner()->GetActorLabel() : FString();
-		UE_LOG(LogPCG, Warning, TEXT("[GRIDLINKING] [%s] RETRIEVE: FAILED: No overlapping local component found. This may be expected. Path=%s"), *OwnerName, *InResourcePath);
-#endif
+		UE_LOG(LogPCG, Warning, TEXT("[GRIDLINKING] [%s] RETRIEVE: FAILED: No overlapping local component found. This may be expected. Path=%s"),
+			*GetOwnerName(InContext->SourceComponent.Get()),
+			*InResourcePath);
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
 	void LogGridLinkageTaskExecuteRetrieveNoData(const FPCGContext* InContext, const UPCGComponent* InComponent, const FString& InResourcePath)
 	{
-#if WITH_EDITOR
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
 		{
 			return;
 		}
 		check(InContext);
 
-		const FString OwnerName = (InContext->SourceComponent.Get() && InContext->SourceComponent->GetOwner()) ? InContext->SourceComponent->GetOwner()->GetActorLabel() : FString();
-		const FString OtherOwnerName = (InComponent && InComponent->GetOwner()) ? InComponent->GetOwner()->GetActorLabel() : FString();
-		UE_LOG(LogPCG, Warning, TEXT("[GRIDLINKING] [%s] RETRIEVE: FAILED: No data found on local component. Component=%s, Path=%s"), *OwnerName, *OtherOwnerName, *InResourcePath);
-#endif
+		UE_LOG(LogPCG, Warning, TEXT("[GRIDLINKING] [%s] RETRIEVE: FAILED: No data found on local component. Component=%s, Path=%s"),
+			*GetOwnerName(InContext->SourceComponent.Get()),
+			*GetOwnerName(InComponent),
+			*InResourcePath);
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 }

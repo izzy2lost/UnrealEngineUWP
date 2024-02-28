@@ -154,7 +154,7 @@ FPCGTaskId FPCGGraphExecutor::Schedule(
 {
 	check(SourceComponent);
 
-	PCGGraphExecutionLogging::LogGraphSchedule(SourceComponent);
+	PCGGraphExecutionLogging::LogGraphSchedule(SourceComponent, Graph);
 	
 	FPCGTaskId ScheduledId = InvalidPCGTaskId;
 
