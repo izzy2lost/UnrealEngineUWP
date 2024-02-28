@@ -380,9 +380,9 @@ namespace Horde.Server.Server
 					{
 						throw new StructuredRpcException(StatusCode.PermissionDenied, "Agent {AgentId} has completed session {SessionId}; now executing session {NewSessionId}. Cannot update state.", request.AgentId, sessionId, agent.SessionId?.ToString() ?? "(None)");
 					}
-					if (!_agentService.AuthorizeSession(agent, context.GetHttpContext().User))
+					if (!_agentService.AuthorizeSession(agent, context.GetHttpContext().User, out string authReason))
 					{
-						throw new StructuredRpcException(StatusCode.PermissionDenied, "Not authenticated for {AgentId}", request.AgentId);
+						throw new StructuredRpcException(StatusCode.PermissionDenied, "Not authenticated for {AgentId}. Reason {Reason}", request.AgentId, authReason);
 					}
 
 					// Get the new capabilities of this agent

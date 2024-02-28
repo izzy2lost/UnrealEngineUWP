@@ -1122,17 +1122,30 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <param name="agent">The agent to check</param>
 		/// <param name="user">The principal to authorize</param>
+		/// <param name="reason">Reason for being authorized or not</param>
 		/// <returns>True if the action is authorized</returns>
-		public bool AuthorizeSession(IAgent agent, ClaimsPrincipal user)
+		public bool AuthorizeSession(IAgent agent, ClaimsPrincipal user, out string reason)
 		{
-			if (agent.SessionId != null && user.HasSessionClaim(agent.SessionId.Value) && agent.IsSessionValid(_clock.UtcNow))
+			if (agent.SessionId == null)
 			{
-				return true;
-			}
-			else
-			{
+				reason = $"{nameof(agent.SessionId)} is null";
 				return false;
 			}
+
+			if (!user.HasSessionClaim(agent.SessionId.Value))
+			{
+				reason = $"Missing session claim for {agent.SessionId.Value}";
+				return false;
+			}
+			
+			if (!agent.IsSessionValid(_clock.UtcNow))
+			{
+				reason = $"Session has expired";
+				return false;
+			}
+
+			reason = "Session is valid";
+			return true;
 		}
 	}
 }

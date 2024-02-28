@@ -55,9 +55,10 @@ public class AgentServiceTest : TestSetup
 			new Dictionary<string, int>(),
 			"test");
 
-		Assert.IsTrue(AgentService.AuthorizeSession(agent, GetUser(agent)));
+		Assert.IsTrue(AgentService.AuthorizeSession(agent, GetUser(agent), out string _));
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(20));
-		Assert.IsFalse(AgentService.AuthorizeSession(agent, GetUser(agent)));
+		Assert.IsFalse(AgentService.AuthorizeSession(agent, GetUser(agent), out string reason));
+		Assert.IsTrue(reason.Contains("expired", StringComparison.Ordinal));
 	}
 	
 	private static long ToUnixTime(DateTime dateTime)
