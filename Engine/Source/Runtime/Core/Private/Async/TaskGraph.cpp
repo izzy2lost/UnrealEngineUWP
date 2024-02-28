@@ -16,6 +16,7 @@
 #include "HAL/ThreadSafeCounter.h"
 #include "Misc/NoopCounter.h"
 #include "Misc/ScopeLock.h"
+#include "Async/ManualResetEvent.h"
 #include "Containers/LockFreeList.h"
 #include "Templates/Function.h"
 #include "Stats/Stats.h"
@@ -24,6 +25,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Misc/App.h"
 #include "Misc/Fork.h"
+#include "Misc/Timeout.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/ThreadHeartBeat.h"
@@ -2811,28 +2813,55 @@ static FAutoConsoleCommand TaskThreadPriorityCmd(
 
 int32 WaitForAnyTaskCompleted(const FGraphEventArray& GraphEvents, FTimespan Timeout /*= FTimespan::MaxValue()*/)
 {
+#if TASKGRAPH_NEW_FRONTEND
+	return UE::Tasks::WaitAny(GraphEvents, Timeout);
+#else
 	if (UNLIKELY(GraphEvents.Num() == 0))
 	{
 		return INDEX_NONE;
 	}
 
-	FSharedEventRef SystemEvent;
-	std::atomic<int32> CompletedTaskIndex;
+	// Avoid memory allocations if any of the events are already completed
+	for (int32 Index = 0; Index < GraphEvents.Num(); ++Index)
+	{
+		if (GraphEvents[Index]->IsComplete())
+		{
+			return Index;
+		}
+	}
 
-	for (int32 Index = 0; Index != GraphEvents.Num(); ++Index)
+	struct FSharedData
+	{
+		UE::FManualResetEvent Event;
+		std::atomic<int32>    CompletedTaskIndex{ 0 };
+	};
+
+	// Shared data usage is important to avoid the variable to go out of scope
+	// before all the task have been run even if we exit after the first event
+	// is triggered.
+	TSharedRef<FSharedData> SharedData = MakeShared<FSharedData>();
+
+	for (int32 Index = 0; Index < GraphEvents.Num(); ++Index)
 	{
 		FFunctionGraphTask::CreateAndDispatchWhenReady(
-			[SystemEvent, Index, &CompletedTaskIndex] 
-			{ 
-				CompletedTaskIndex.store(Index, std::memory_order_relaxed);
-				SystemEvent->Trigger(); 
-			}, 
-			TStatId{}, 
-			GraphEvents[Index]
+			[SharedData, Index]
+			{
+				SharedData->CompletedTaskIndex.store(Index, std::memory_order_relaxed);
+				SharedData->Event.Notify();
+			},
+			TStatId{},
+			GraphEvents[Index],
+			ENamedThreads::AnyHiPriThreadHiPriTask /* Run as soon as possible. */
 		);
 	}
 
-	return SystemEvent->Wait(Timeout) ? CompletedTaskIndex.load(std::memory_order_relaxed) : INDEX_NONE;
+	if (SharedData->Event.WaitFor(UE::FMonotonicTimeSpan::FromMilliseconds(Timeout.GetTotalMilliseconds())))
+	{
+		return SharedData->CompletedTaskIndex.load(std::memory_order_relaxed);
+	}
+
+	return INDEX_NONE;
+#endif
 }
 
 FGraphEventRef AnyTaskCompleted(const FGraphEventArray& GraphEvents)

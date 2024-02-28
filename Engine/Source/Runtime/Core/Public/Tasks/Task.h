@@ -4,6 +4,7 @@
 
 #include "Tasks/TaskPrivate.h"
 #include "Async/Fundamental/Task.h"
+#include "Async/ManualResetEvent.h"
 #include "Containers/StaticArray.h"
 #include "HAL/Event.h"
 #include "HAL/IConsoleManager.h"
@@ -391,6 +392,18 @@ namespace UE::Tasks
 		{
 			Array[Index] = Task.Pimpl.GetReference();
 		}
+
+		template<typename HigherLevelTaskType, std::enable_if_t<std::is_same_v<HigherLevelTaskType, FTask>>* = nullptr>
+		bool IsCompleted(const HigherLevelTaskType& Prerequisite)
+		{
+			return Prerequisite.IsCompleted();
+		}
+
+		template<typename HigherLevelTaskType, std::enable_if_t<std::is_same_v<HigherLevelTaskType, FGraphEventRef>>* = nullptr>
+		bool IsCompleted(const HigherLevelTaskType& Prerequisite)
+		{
+			return Prerequisite.IsValid() ? Prerequisite->IsCompleted() : false;
+		}
 	}
 
 	template<typename... TaskTypes, 
@@ -423,16 +436,33 @@ namespace UE::Tasks
 			return INDEX_NONE;
 		}
 
-		FSharedEventRef Event;
-		TSharedPtr<std::atomic<int32>> CompletedTaskIndex = MakeShared<std::atomic<int32>>(INDEX_NONE);
+		// Avoid memory allocations if any of the events are already completed
+		for (int32 Index = 0; Index < Tasks.Num(); ++Index)
+		{
+			if (Private::IsCompleted(Tasks[Index]))
+			{
+				return Index;
+			}
+		}
 
-		for (int32 Index = 0; Index != Tasks.Num(); ++Index)
+		struct FSharedData
+		{
+			UE::FManualResetEvent Event;
+			std::atomic<int32>    CompletedTaskIndex{ 0 };
+		};
+
+		// Shared data usage is important to avoid the variable to go out of scope
+		// before all the task have been run even if we exit after the first event
+		// is triggered.
+		TSharedRef<FSharedData> SharedData = MakeShared<FSharedData>();
+
+		for (int32 Index = 0; Index < Tasks.Num(); ++Index)
 		{
 			Launch(UE_SOURCE_LOCATION, 
-				[Event, Index, CompletedTaskIndex] 
+				[SharedData, Index]
 				{ 
-					CompletedTaskIndex->store(Index, std::memory_order_relaxed);
-					Event->Trigger(); 
+					SharedData->CompletedTaskIndex.store(Index, std::memory_order_relaxed);
+					SharedData->Event.Notify();
 				}, 
 				Prerequisites(Tasks[Index]),
 				ETaskPriority::Default, 
@@ -440,7 +470,12 @@ namespace UE::Tasks
 			);
 		}
 
-		return Event->Wait(Timeout) ? CompletedTaskIndex->load(std::memory_order_relaxed) : INDEX_NONE;
+		if (SharedData->Event.WaitFor(UE::FMonotonicTimeSpan::FromMilliseconds(Timeout.GetTotalMilliseconds())))
+		{
+			return SharedData->CompletedTaskIndex.load(std::memory_order_relaxed);
+		}
+
+		return INDEX_NONE;
 	}
 
 	// Returns a task that gets completed as soon as any of the given tasks gets completed
