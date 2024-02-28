@@ -8,17 +8,6 @@ namespace UnrealBuildTool.Rules
 		{
 			PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-			PublicIncludePaths.AddRange(
-				new string[] {
-				}
-			);
-
-
-			PrivateIncludePaths.AddRange(
-				new string[] {
-				}
-			);
-
 			PublicDependencyModuleNames.AddRange(
 				new string[] {
 					"Core",
@@ -26,8 +15,17 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"GameplayTags",
 					"MassEntity",
+					"MassCommon",
+					"MassActors",
 					"MassRepresentation",
-					"StructUtils"
+					"MassSpawner",
+					"MassLOD",
+					"MassSmartObjects",
+					"MassSignals",
+					"StructUtils",
+					"DataRegistry",
+					"DeveloperSettings",
+					"NetCore",
 				}
 			);
 
@@ -35,6 +33,18 @@ namespace UnrealBuildTool.Rules
 			{
 				PrivateDependencyModuleNames.Add("UnrealEd");
 			}
+
+			if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+			{
+				PrivateDependencyModuleNames.AddRange(
+					new string[] {
+						"InputCore",
+						"MassGameplayDebug"
+					}
+				);
+			}
+
+			SetupGameplayDebuggerSupport(Target);
 		}
 	}
 }

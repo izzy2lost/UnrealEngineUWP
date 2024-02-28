@@ -38,7 +38,7 @@ FInstancedActorsVisualizationDesc::FInstancedActorsVisualizationDesc(const FInst
 }
 
 FInstancedActorsVisualizationDesc FInstancedActorsVisualizationDesc::FromActor(const AActor& ExemplarActor
-	, FInstancedActorsVisualizationDesc::FAdditionalSetupStepsFunction AdditionalSetupSteps)
+	, const FInstancedActorsVisualizationDesc::FAdditionalSetupStepsFunction& AdditionalSetupSteps)
 {
 	FInstancedActorsVisualizationDesc Visualization;
 
