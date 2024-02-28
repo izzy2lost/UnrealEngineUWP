@@ -18,8 +18,6 @@
 
 #include "ChaosLog.h"
 
-//PRAGMA_DISABLE_OPTIMIZATION
-
 namespace Chaos
 {
 	namespace CVars
@@ -137,7 +135,6 @@ namespace Chaos
 		}
 		else
 		{
-			// @todo(chaos): consider adding a multiplier to the initial contact friction
 			WorldFrictionDelta = ContactVel * Dt;
 		}
 
@@ -286,20 +283,22 @@ namespace Chaos
 		if (SolverSettings.NumPositionFrictionIterations > 0)
 		{
 			PositionStaticFriction = StaticFriction;
-			if (!Constraint->HasQuadraticShape())
+
+			// We have an option to apply dynamic friction in the velocity solver phase for spheres and capsules. 
+			// @todo(chaos): UE5.4: Remove quadratic special case when PBD static friction is enabled
+			const bool bUsePBDDynamicFriction = !Constraint->HasQuadraticShape() || (SolverSettings.NumVelocityFrictionIterations == 0);
+			if (bUsePBDDynamicFriction)
 			{
 				PositionDynamicFriction = DynamicFriction;
 			}
 			else
 			{
-				// Quadratic shapes don't use PBD dynamic friction - it has issues at slow speeds where the WxR is
-				// less than the position tolerance for friction point matching
-				// @todo(chaos): fix PBD dynamic friction on quadratic shapes
 				VelocityDynamicFriction = DynamicFriction;
 			}
 		}
-		else
+		else if (SolverSettings.NumVelocityFrictionIterations > 0)
 		{
+			// We have an option to run without static friction and velocity-based dynamic friction (for RBAN)
 			VelocityDynamicFriction = DynamicFriction;
 		}
 

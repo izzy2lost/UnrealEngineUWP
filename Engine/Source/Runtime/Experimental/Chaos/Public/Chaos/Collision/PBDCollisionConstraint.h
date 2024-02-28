@@ -714,6 +714,16 @@ namespace Chaos
 			SavedManifoldPoints.Reset();
 		}
 
+		int32 NumSavedManifoldPoints() const
+		{
+			return SavedManifoldPoints.Num();
+		}
+
+		const FSavedManifoldPoint& GetSavedManifoldPoint(const int32 PointIndex) const
+		{
+			return SavedManifoldPoints[PointIndex];
+		}
+
 		/**
 		 * @brief Time of impact from CCD sweep test if CCD is activate.Otherwise undefined.
 		*/
