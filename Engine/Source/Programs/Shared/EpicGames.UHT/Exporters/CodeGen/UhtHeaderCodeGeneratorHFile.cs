@@ -70,7 +70,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				builder.Append(DisableDeprecationWarnings).Append("\r\n");
 
 				string strippedName = Path.GetFileNameWithoutExtension(HeaderFile.FilePath);
-				string defineName = $"{Package.ShortName.ToString().ToUpper()}_{strippedName}_generated_h";
+				string defineName = $"{Package.ShortName.ToString().ToUpper()}_{strippedName}_generated_h".Replace('.', '_');
 
 				if (HeaderFile.References.ForwardDeclarations.Count > 0)
 				{
