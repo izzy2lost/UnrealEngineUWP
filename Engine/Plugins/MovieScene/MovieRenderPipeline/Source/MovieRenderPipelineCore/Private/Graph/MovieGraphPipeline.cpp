@@ -803,8 +803,9 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
 
 	// Apply any global game overrides, which includes cvars. This needs to be done before the CVarManager sets cvars
-	// so any user-specified cvars can override cvars set via the global game overrides.
-	constexpr bool bIncludeCDOs = true;
+	// so any user-specified cvars can override cvars set via the global game overrides. Note that the CDO is intentionally
+	// not fetched here so users have a way of opting out of this node if needed.
+	constexpr bool bIncludeCDOs = false;
 	constexpr bool bExactMatch = true;
 	if (UMovieGraphGlobalGameOverridesNode* GlobalGameOverridesNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalGameOverridesNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch))
 	{
@@ -896,7 +897,7 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 
 	// Revert cvars set by the global game overrides. Needs to be done after the CVarManager reverts (since the global
 	// game overrides are applied first in SetupShot).
-	bIncludeCDOs = true;
+	bIncludeCDOs = false;
 	bExactMatch = true;
 	if (UMovieGraphGlobalGameOverridesNode* GlobalGameOverridesNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalGameOverridesNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch))
 	{
