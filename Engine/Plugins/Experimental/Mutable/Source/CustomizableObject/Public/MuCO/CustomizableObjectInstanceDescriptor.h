@@ -73,9 +73,9 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 
 	void SetMinLod(int32 InMinLOD);
 
-	int32 GetMaxLod() const;
+	int32 GetMaxLod() const { return MAX_int32; }; // DEPRECATED
 
-	void SetMaxLod(int32 InMaxLOD);
+	void SetMaxLod(int32 InMaxLOD) {}; // DEPRECATED
 
 	void SetRequestedLODLevels(const TArray<uint16>& InRequestedLODLevels);
 
@@ -382,7 +382,6 @@ private:
 
 	/** These are the LODs Mutable can generate, they MUST NOT be used in an update (Mutable thread). */
 	int32 MinLOD = 0;
-	int32 MaxLOD = INT32_MAX;
 
 	/** Array of RequestedLODs per component to generate, they MUST NOT be used in an update (Mutable thread). */
 	TArray<uint16> RequestedLODLevels;

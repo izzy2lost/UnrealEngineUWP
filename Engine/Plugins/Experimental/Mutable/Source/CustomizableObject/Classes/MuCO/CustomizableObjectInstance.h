@@ -566,21 +566,15 @@ public:
 	/** Return the min LOD that will be used in the next Instance update. */
 	int32 GetMinLODToLoad() const;
 
-	/** Return the max LOD that will be used in the next Instance update. */
-	int32 GetMaxLODToLoad() const;
-	
 	int32 GetNumLODsAvailable() const;
 
 	/** Return the min LOD this Instance is using. */
 	int32 GetCurrentMinLOD() const;
 
-	/** Return the max LOD this Instance is using. */
-	int32 GetCurrentMaxLOD() const;
-
 	/** Sets an array of LODs to generate per component. Mutable will generate those plus the currently generated LODs (if any).
 	  * Requires mutable.EnableOnlyGenerateRequestedLODs and CurrentInstanceLODManagement->IsOnlyGenerateRequestedLODLevelsEnabled() to be true.
 	  * @param InMinLOD - MinLOD to generate.
-	  * @param InMaxLOD - MaxLOD to generate.
+	  * @param InMaxLOD - MaxLOD to generate - DEPRECATED.
 	  * @param InRequestedLODsPerComponent - Array with bitmasks of requested LODs per component with range from [0 .. CO->GetComponentCount()].
 	  * @param InOutRequestedUpdates - Map from Instance to Update data that stores a request for the Instance to be updated, which will be either processed or discarded by priority (to be rerequested the next tick) */
 	void SetRequestedLODs(int32 InMinLOD, int32 InMaxLOD, const TArray<uint16>& InRequestedLODsPerComponent, FMutableInstanceUpdateMap& InOutRequestedUpdates);

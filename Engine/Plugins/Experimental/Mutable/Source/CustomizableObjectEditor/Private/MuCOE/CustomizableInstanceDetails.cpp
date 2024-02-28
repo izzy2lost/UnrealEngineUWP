@@ -1867,14 +1867,12 @@ FReply FCustomizableInstanceDetails::OnPasteAllParameters()
 	const UScriptStruct* Struct = Descriptor.StaticStruct();
 
 	const int32 MinLOD = Descriptor.GetMinLod();
-	const int32 MaxLOD = Descriptor.GetMaxLod();
 	const TArray<uint16> RequestedLODLevels = Descriptor.GetRequestedLODLevels();
 	
 	if (Struct->ImportText(*ClipText, &Descriptor, nullptr, 0, GLog, GetPathNameSafe(Struct)))
 	{
 		// Keep current LOD
 		Descriptor.SetMinLod(MinLOD);
-		Descriptor.SetMaxLod(MaxLOD);
 		Descriptor.SetRequestedLODLevels(RequestedLODLevels);
 		
 		CustomInstance->UpdateSkeletalMeshAsync(true, true);		

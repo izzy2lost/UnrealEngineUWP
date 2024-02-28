@@ -54,7 +54,6 @@ FDescriptorHash::FDescriptorHash(const FCustomizableObjectInstanceDescriptor& De
 	}
 	
 	MinLOD = Descriptor.MinLOD;
-	MaxLOD = Descriptor.MaxLOD;	
 
 	RequestedLODsPerComponent = Descriptor.RequestedLODLevels;
 }
@@ -64,7 +63,6 @@ bool FDescriptorHash::operator==(const FDescriptorHash& Other) const
 {
 	return Hash == Other.Hash &&
 		MinLOD == Other.MinLOD &&
-		MaxLOD == Other.MaxLOD &&
 		RequestedLODsPerComponent == Other.RequestedLODsPerComponent;
 }
 
@@ -77,7 +75,7 @@ bool FDescriptorHash::operator!=(const FDescriptorHash& Other) const
 
 bool FDescriptorHash::IsSubset(const FDescriptorHash& Other) const
 {
-	if (Hash != Other.Hash || MinLOD < Other.MinLOD || MaxLOD != Other.MaxLOD)
+	if (Hash != Other.Hash || MinLOD < Other.MinLOD)
 	{
 		return false;
 	}
@@ -96,7 +94,7 @@ bool FDescriptorHash::IsSubset(const FDescriptorHash& Other) const
 	{
 		const int32 RequestedLODs = RequestedLODsPerComponent[ComponentIndex];
 		const int32 OtherRequestedLODs = Other.RequestedLODsPerComponent[ComponentIndex];
-		for (uint16 LODIndex = MinLOD; LODIndex <= MaxLOD; ++LODIndex)
+		for (uint16 LODIndex = MinLOD; LODIndex <= MAX_MESH_LOD_COUNT; ++LODIndex)
 		{
 			// To be a subset all bits set in RequestedLODs must be set in OtherRequestedLODs. OtherRequestedLODs can have additional bits set
 			if (RequestedLODs & (1 << LODIndex) && !(OtherRequestedLODs & (1 << LODIndex)))
@@ -116,7 +114,6 @@ FString FDescriptorHash::ToString() const
 
 	Builder.Appendf(TEXT("(Hash=%u,"), Hash);
 	Builder.Appendf(TEXT("MinLOD=%i,"), MinLOD);
-	Builder.Appendf(TEXT("MaxLOD=%i,"), MaxLOD);
 	Builder.Appendf(TEXT("RequestredLODLevels=["));
 
 	for (const uint16 RequestedLODs : RequestedLODsPerComponent)
