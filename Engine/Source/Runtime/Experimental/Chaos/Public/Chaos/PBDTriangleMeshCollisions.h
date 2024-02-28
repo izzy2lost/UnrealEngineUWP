@@ -117,7 +117,7 @@ public:
 		{}
 
 		template<typename SolverParticlesOrRange>
-		void Init(const SolverParticlesOrRange& Particles, const TSet<int32>& DisabledFaces, bool bCollideAgainstAllKinematicVertices, const TSet<int32>& EnabledKinematicFaces);
+		void Init(const SolverParticlesOrRange& Particles, const TSet<int32>& DisabledFaces, bool bCollideAgainstAllKinematicVertices, const TSet<int32>& EnabledKinematicFaces, const bool bOnlyCollideKinematics = false);
 
 		void InitAllDynamic();
 
@@ -164,6 +164,7 @@ public:
 
 		const TArray<int32>& GetDynamicVertices() const { return DynamicVertices; }
 
+
 	private:
 		const FTriangleMesh& FullMesh;
 		FTriangleMesh DynamicSubMesh;
@@ -206,6 +207,7 @@ public:
 		, bContourMinimization(GetUseSelfIntersections(PropertyCollection, false) && GetUseContourMinimization(PropertyCollection, true))
 		, NumContourMinimizationPostSteps(GetUseSelfIntersections(PropertyCollection, false) ? GetNumContourMinimizationPostSteps(PropertyCollection, 0) : 0)
 		, bUseGlobalPostStepContours(GetUseGlobalPostStepContours(PropertyCollection, true))
+		, bOnlyCollideWithKinematics(GetSelfCollideAgainstKinematicCollidersOnly(PropertyCollection, false))
 		, bSelfCollideAgainstAllKinematicVertices(GetSelfCollideAgainstAllKinematicVertices(PropertyCollection, false))
 		, bCollidableSubMeshDirty(true)
 		, UseSelfIntersectionsIndex(PropertyCollection)
@@ -213,6 +215,7 @@ public:
 		, UseContourMinimizationIndex(PropertyCollection)
 		, NumContourMinimizationPostStepsIndex(PropertyCollection)
 		, UseGlobalPostStepContoursIndex(PropertyCollection)
+		, SelfCollideAgainstKinematicCollidersOnlyIndex(PropertyCollection)
 		, SelfCollideAgainstAllKinematicVerticesIndex(PropertyCollection)
 		, SelfCollisionDisabledFacesIndex(PropertyCollection)
 		, SelfCollisionEnabledKinematicFacesIndex(PropertyCollection)
@@ -245,6 +248,7 @@ public:
 		, bUseSelfIntersections(bInGlobalIntersectionAnalysis || bInContourMinimization)
 		, bGlobalIntersectionAnalysis(bInGlobalIntersectionAnalysis)
 		, bContourMinimization(bInContourMinimization)
+		, bOnlyCollideWithKinematics(false)
 		, bSelfCollideAgainstAllKinematicVertices(false)
 		, bCollidableSubMeshDirty(true)
 		, UseSelfIntersectionsIndex(ForceInit)
@@ -252,6 +256,7 @@ public:
 		, UseContourMinimizationIndex(ForceInit)
 		, NumContourMinimizationPostStepsIndex(ForceInit)
 		, UseGlobalPostStepContoursIndex(ForceInit)
+		, SelfCollideAgainstKinematicCollidersOnlyIndex(ForceInit)
 		, SelfCollideAgainstAllKinematicVerticesIndex(ForceInit)
 		, SelfCollisionDisabledFacesIndex(ForceInit)
 		, SelfCollisionEnabledKinematicFacesIndex(ForceInit)
@@ -290,6 +295,16 @@ public:
 		{
 			bGlobalIntersectionAnalysis = bContourMinimization = false;
 			NumContourMinimizationPostSteps = 0;
+		}
+
+		if (IsSelfCollideAgainstKinematicCollidersOnlyMutable(PropertyCollection))
+		{
+			const bool bNewValue = GetSelfCollideAgainstKinematicCollidersOnly(PropertyCollection);
+			if (bNewValue != bOnlyCollideWithKinematics)
+			{
+				bOnlyCollideWithKinematics = bNewValue;
+				bCollidableSubMeshDirty = true;
+			}
 		}
 
 		if (IsSelfCollideAgainstAllKinematicVerticesMutable(PropertyCollection))
@@ -380,11 +395,13 @@ private:
 	bool bContourMinimization;	
 	int32 NumContourMinimizationPostSteps = 0;
 	bool bUseGlobalPostStepContours = true;
+	bool bOnlyCollideWithKinematics;
 	bool bSelfCollideAgainstAllKinematicVertices;
 	TSet<int32> DisabledFaces;
 	TSet<int32> EnabledKinematicFaces;
 
 	bool bCollidableSubMeshDirty = true;
+
 	
 	FTriangleMesh::TSpatialHashType<FSolverReal> DynamicSubMeshSpatialHash;
 	FTriangleMesh::TSpatialHashType<FSolverReal> KinematicSubMeshSpatialHash;
@@ -409,6 +426,7 @@ private:
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(UseContourMinimization, bool);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(NumContourMinimizationPostSteps, int32);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(UseGlobalPostStepContours, bool);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollideAgainstKinematicCollidersOnly, bool);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollideAgainstAllKinematicVertices, bool);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionDisabledFaces, bool);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionEnabledKinematicFaces, bool);

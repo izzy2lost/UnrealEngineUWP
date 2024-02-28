@@ -40,6 +40,7 @@ public:
 			(FSolverReal)FMath::Max(GetSelfCollisionThickness(PropertyCollection, Base::BackCompatThickness), 0.f),
 			(FSolverReal)FMath::Clamp(GetSelfCollisionStiffness(PropertyCollection, Base::BackCompatStiffness), 0.f, 1.f),
 			FMath::Clamp((FSolverReal)GetSelfCollisionFriction(PropertyCollection, Base::BackCompatFrictionCoefficient), MinFrictionCoefficient, MaxFrictionCoefficient),
+			GetSelfCollideAgainstKinematicCollidersOnly(PropertyCollection, false),
 			(FSolverReal)FMath::Max(GetSelfCollisionKinematicColliderThickness(PropertyCollection, Base::DefaultKinematicColliderThickness), 0.f),
 			(FSolverReal)FMath::Clamp((FSolverReal)GetSelfCollisionKinematicColliderStiffness(PropertyCollection, Base::DefaultKinematicColliderStiffness), 0.f, 1.f),
 			FSolverVec2(GetWeightedFloatSelfCollisionKinematicColliderFriction(PropertyCollection, Base::DefaultKinematicColliderFrictionCoefficient)).ClampAxes(MinFrictionCoefficient, MaxFrictionCoefficient),
@@ -49,6 +50,7 @@ public:
 		, SelfCollisionFrictionIndex(PropertyCollection)
 		, SelfCollisionProximityStiffnessIndex(PropertyCollection)
 		, SelfCollisionLayersIndex(PropertyCollection)
+		, SelfCollideAgainstKinematicCollidersOnlyIndex(PropertyCollection)
 		, SelfCollisionKinematicColliderThicknessIndex(PropertyCollection)
 		, SelfCollisionKinematicColliderStiffnessIndex(PropertyCollection)
 		, SelfCollisionKinematicColliderFrictionIndex(PropertyCollection)
@@ -98,6 +100,7 @@ public:
 		, SelfCollisionFrictionIndex(ForceInit)
 		, SelfCollisionProximityStiffnessIndex(ForceInit)
 		, SelfCollisionLayersIndex(ForceInit)
+		, SelfCollideAgainstKinematicCollidersOnlyIndex(ForceInit)
 		, SelfCollisionKinematicColliderThicknessIndex(ForceInit)
 		, SelfCollisionKinematicColliderStiffnessIndex(ForceInit)
 		, SelfCollisionKinematicColliderFrictionIndex(ForceInit)
@@ -134,6 +137,10 @@ public:
 				const FString& FaceIntMapName = GetSelfCollisionLayersString(PropertyCollection);
 				Base::UpdateCollisionLayers(FaceIntMaps.FindRef(FaceIntMapName));
 			}
+		}
+		if (IsSelfCollideAgainstKinematicCollidersOnlyMutable(PropertyCollection))
+		{
+			bOnlyCollideKinematics = GetSelfCollideAgainstKinematicCollidersOnly(PropertyCollection);
 		}
 		if (IsSelfCollisionKinematicColliderThicknessMutable(PropertyCollection))
 		{
@@ -197,6 +204,7 @@ private:
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionProximityStiffness, float);
 	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(SelfCollisionDisableNeighborDistance, int32);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionLayers, float);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollideAgainstKinematicCollidersOnly, bool);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionKinematicColliderThickness, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionKinematicColliderStiffness, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionKinematicColliderFriction, float);

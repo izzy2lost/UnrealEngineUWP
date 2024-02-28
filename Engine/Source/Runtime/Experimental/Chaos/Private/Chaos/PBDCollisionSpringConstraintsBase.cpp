@@ -70,6 +70,7 @@ FPBDCollisionSpringConstraintsBase::FPBDCollisionSpringConstraintsBase(
 	const FSolverReal InThickness,
 	const FSolverReal InStiffness,
 	const FSolverReal InFrictionCoefficient,
+	const bool bInOnlyCollideKinematics,
 	const FSolverReal InKinematicColliderThickness,
 	const FSolverReal InKinematicColliderStiffness,
 	const FSolverVec2 InKinematicColliderFrictionCoefficient,
@@ -77,6 +78,7 @@ FPBDCollisionSpringConstraintsBase::FPBDCollisionSpringConstraintsBase(
 	: Thickness(InThickness)
 	, Stiffness(InStiffness)
 	, FrictionCoefficient(InFrictionCoefficient)
+	, bOnlyCollideKinematics(bInOnlyCollideKinematics)
 	, KinematicColliderThickness(InKinematicColliderThickness)
 	, KinematicColliderStiffness(InKinematicColliderStiffness)
 	, KinematicColliderFrictionCoefficient(InKinematicColliderFrictionCoefficient, InKinematicColliderFrictionMultipliers, InNumParticles)
@@ -150,7 +152,7 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const int32 NumDynamicElements = CollidableSubMesh.GetDynamicSubMesh().GetNumElements();
 
-	if (!NumDynamicElements)
+	if (!NumDynamicElements && !bOnlyCollideKinematics)
 	{
 		Constraints.Reset();
 		Barys.Reset();
@@ -202,7 +204,7 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 
 				// Dynamic collisions
 				TArray< TTriangleCollisionPoint<FSolverReal> > DynamicResult;
-				if (CollidableSubMesh.GetDynamicSubMesh().PointProximityQuery(DynamicSpatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.X(Index), Thickness * ExtraThicknessMult, Thickness * ExtraThicknessMult,
+				if (!bOnlyCollideKinematics && CollidableSubMesh.GetDynamicSubMesh().PointProximityQuery(DynamicSpatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.X(Index), Thickness * ExtraThicknessMult, Thickness * ExtraThicknessMult,
 					[this, bVertexHasCollisionLayers, &Particles, &CollidableSubMesh, &VertexGIAColors, &TriangleGIAColors](const int32 PointIndex, const int32 SubMeshTriangleIndex)->bool
 					{
 						const TVector<int32, 3>& Elem = CollidableSubMesh.GetDynamicSubMesh().GetElements()[SubMeshTriangleIndex];
