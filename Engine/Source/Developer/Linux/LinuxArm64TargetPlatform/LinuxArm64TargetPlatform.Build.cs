@@ -14,8 +14,6 @@ public class LinuxArm64TargetPlatform : ModuleRules
 				"Core",
 				"DesktopPlatform",
 				"TargetPlatform",
-				"LinuxArm64TargetPlatformSettings",
-				"LinuxArm64TargetPlatformControls",
 			}
         );
     }
