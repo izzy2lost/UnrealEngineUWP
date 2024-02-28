@@ -37,6 +37,10 @@ public:
 #endif
 	//~ End UObject Interface
 
+private:
+	/** Removes mesh components that make up the checkerboard */
+	void ClearInstanceCheckeboardMeshComponents();
+
 public:
 
 	/** Root component, gives the Actor a transform */
