@@ -68,6 +68,9 @@ namespace ContentBrowserUtils
 	/** Check whether the given item is considered to be plugin content (engine or project) */
 	bool IsItemPluginContent(const FContentBrowserItem& InItem);
 
+	/** Check whether the given item is the root folder of a plugin */
+	bool IsItemPluginRootFolder(const FContentBrowserItem& InItem);
+
 	/** Check to see whether the given path is rooted against a collection directory, optionally extracting the collection name and share type from the path */
 	bool IsCollectionPath(const FString& InPath, FName* OutCollectionName = nullptr, ECollectionShareType::Type* OutCollectionShareType = nullptr);
 
