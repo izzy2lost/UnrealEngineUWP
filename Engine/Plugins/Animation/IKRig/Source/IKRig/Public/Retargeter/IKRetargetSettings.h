@@ -262,6 +262,7 @@ enum class EWarpingDirectionSource
 {
 	Goals,
 	Chain,
+	RootBone
 };
 
 USTRUCT(BlueprintType)
@@ -304,7 +305,8 @@ struct IKRIG_API FRetargetGlobalSettings
 	 * This global rotation is used to define the forward and sideways directions used when warping goals along those axes.
 	 * The options are:
 	 * Goals: uses the positions of the IK goals to approximate the facing direction. This is best used on characters with a vertical spine, like bipeds.
-	 * Chain: uses the positions of the bones in a retarget chain to approximate the facing direction. This is best for characters with a horizontal spine, like quadrupeds.
+	 * Chain: uses the positions of the bones in a retarget chain to approximate the facing direction. This is best when used with the spine chain for characters with a horizontal spine, like quadrupeds.
+	 * Root Bone: uses the rotation of the root bone of the skeleton. This is most robust, but character must have correct root motion with yaw rotation in movement direction.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Warping)
 	EWarpingDirectionSource DirectionSource = EWarpingDirectionSource::Goals;
