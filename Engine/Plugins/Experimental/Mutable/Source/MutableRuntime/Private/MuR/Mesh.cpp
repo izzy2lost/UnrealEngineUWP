@@ -13,6 +13,7 @@
 namespace mu
 {
 
+
 //---------------------------------------------------------------------------------------------
 void Mesh::Serialise( const Mesh* p, OutputArchive& arch )
 {
@@ -530,17 +531,14 @@ void Mesh::SetTag( int tagIndex, const FString& Name )
 
 
 //---------------------------------------------------------------------------------------------
-void Mesh::AddStreamedResource(int32 ResourceIndex)
+void Mesh::AddStreamedResource(uint32 ResourceId)
 {
-	if (ensure(ResourceIndex >= 0))
-	{
-		StreamedResources.AddUnique(ResourceIndex);
-	}
+	StreamedResources.AddUnique(ResourceId);
 }
 
 
 //---------------------------------------------------------------------------------------------
-const TArray<int32>& Mesh::GetStreamedResources() const
+const TArray<uint32>& Mesh::GetStreamedResources() const
 {
 	return StreamedResources;
 }

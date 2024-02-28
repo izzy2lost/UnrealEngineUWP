@@ -73,6 +73,24 @@ struct MutableCompiledDataStreamHeader
 	}
 };
 
+struct FCustomizableObjectStreameableResourceId
+{
+	enum class EType : uint8
+	{
+		None                  = 0,
+		AssetUserData         = 1,
+		RealTimeMorphTarget   = 2,
+	};
+
+	uint32 Id   : 24;
+	uint32 Type : 8;
+
+	friend bool operator==(FCustomizableObjectStreameableResourceId A, FCustomizableObjectStreameableResourceId B)
+	{
+		return BitCast<uint32>(A) == BitCast<uint32>(B);
+	}
+};
+static_assert(sizeof(FCustomizableObjectStreameableResourceId) == sizeof(uint32));
 
 USTRUCT()
 struct FMutableModelParameterValue
@@ -464,6 +482,30 @@ struct CUSTOMIZABLEOBJECT_API FMutableSkinWeightProfileInfo
 #endif
 };
 
+USTRUCT()
+struct FMorphTargetVertexData
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	FVector3f PositionDelta = FVector3f::ZeroVector;
+
+	UPROPERTY()
+	FVector3f TangentZDelta = FVector3f::ZeroVector;
+	
+	UPROPERTY()
+	uint32 MorphNameIndex = 0;
+
+	friend FArchive& operator<<(FArchive& Ar, FMorphTargetVertexData& Data)
+	{
+		Ar << Data.PositionDelta;
+		Ar << Data.TangentZDelta;
+		Ar << Data.MorphNameIndex;
+
+		return Ar;
+	}
+};
+template<> struct TCanBulkSerialize<FMorphTargetVertexData> { enum { Value = true }; };
 
 // Referenced materials, skeletons, passthrough textures...
 USTRUCT()
@@ -471,7 +513,8 @@ struct FModelResources
 {
 	GENERATED_BODY()
 
-	/** All the SkeletalMeshes generated for this CustomizableObject instances will use the Reference Skeletal Mesh
+	/** 
+	 * All the SkeletalMeshes generated for this CustomizableObject instances will use the Reference Skeletal Mesh
 	 * properties for everything that Mutable doesn't create or modify. This struct stores the information used from
 	 * the Reference Skeletal Meshes to avoid having them loaded at all times. This includes data like LOD distances,
 	 * LOD render data settings, Mesh sockets, Bounding volumes, etc.
@@ -528,8 +571,20 @@ struct FModelResources
 	/** State UI metadata information for all the dependencies of this Customizable Object */
 	UPROPERTY()
 	TMap<FString, FParameterUIData> StateUIDataMap;
-};
 
+	UPROPERTY()
+	TArray<FName> RealTimeMorphTargetNames;
+
+	UPROPERTY()
+	TArray<FMutableStreamableBlock> RealTimeMorphStreamableBlocks;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	TArray<FMorphTargetVertexData> EditorOnlyMorphTargetReconstructionData;
+#endif
+	
+
+};
 
 struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
 {
@@ -538,6 +593,9 @@ struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
 
 	/** */
 	TArray64<uint8> StreamableData;
+
+	/** */
+	TArray64<uint8> MorphData;
 };
 
 
@@ -546,6 +604,8 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectPrivate : public UObject
 {
 	GENERATED_BODY()
 
+	
+
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> MutableModel;
 
 	/** Stores resources to be used by MutableModel In-Game. Cooked resources. */
@@ -553,8 +613,10 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectPrivate : public UObject
 	FModelResources ModelResources;
 
 #if WITH_EDITORONLY_DATA
-	/** Stores resources to be used by MutableModel in the Editor. Editor resources.
-	 * Editor-Only to avoid packaging assets referenced by editor compilations. */
+	/** 
+	 * Stores resources to be used by MutableModel in the Editor. Editor resources.
+	 * Editor-Only to avoid packaging assets referenced by editor compilations. 
+	 */
 	UPROPERTY(Transient)
 	FModelResources ModelResourcesEditor;
 #endif
@@ -635,7 +697,7 @@ public:
 	void LoadCompiledDataFromDisk();
 
 	/** Cache platform data for cook */
-	void CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InObjectBytes, const TArray64<uint8>& InBulkBytes);
+	void CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InObjectBytes, const TArray64<uint8>& InBulkBytes, const TArray64<uint8>& InMorphBytes);
 	
 	/** Loads data previously compiled in BeginCacheForCookedPlatformData onto the UProperties in *this,
 	  * in preparation for saving the cooked package for *this or for a CustomizableObjectInstance using *this.
@@ -722,6 +784,6 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 429;
+	static constexpr int32 CurrentSupportedVersion = 431;
 };
 

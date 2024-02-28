@@ -98,6 +98,9 @@ public:
 	// Bytes where the streamed data files are stored
 	TArray64<uint8>& GetBulkBytes();
 
+	// Bytes where the streamed morph data files are stored
+	TArray64<uint8>& GetMorphBytes();
+
 	//
 	bool IsCompleted() const;
 
@@ -123,6 +126,9 @@ private:
 
 	// Bytes where the streamed data files are stored
 	TArray64<uint8> BulkDataBytes;
+
+	// Bytes store streameable files coming form the CO itself.
+	TArray64<uint8> MorphDataBytes;
 
 	bool bIsCooking = false;
 

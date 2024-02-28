@@ -47,6 +47,7 @@ struct FParameterUIData;
 struct FMutableRefSkeletalMeshData;
 struct FMutableRefSocket;
 struct FMutableSkinWeightProfileInfo;
+struct FMorphTargetVertexData;
 
 struct FGeneratedImageProperties
 {
@@ -700,8 +701,8 @@ struct FMutableGraphGenerationContext
 	TMap<class UCustomizableObjectNodeMeshClipWithMesh*, TArray<mu::Ptr<mu::NodeModifierMeshClipWithMesh>>> MapClipMeshNodeToMutableClipMeshNodeArray;
 
 	// Data used for MorphTarget reconstruction.
-	TArray<FMorphTargetInfo> ContributingMorphTargetsInfo;
-	TArray<FMorphTargetVertexData> MorphTargetReconstructionData;
+	TArray<FName> RealTimeMorphTargetsNames;
+	TArray<TArray<FMorphTargetVertexData>> RealTimeMorphTargetPerMeshData;
 
 	// Data used for Clothing reconstruction.
 	TArray<FCustomizableObjectMeshToMeshVertData> ClothMeshToMeshVertData;

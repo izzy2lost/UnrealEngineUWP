@@ -955,11 +955,36 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		ModelResources.ParameterUIDataMap = MoveTemp(GenerationContext.ParameterUIDataMap);
 		ModelResources.StateUIDataMap = MoveTemp(GenerationContext.StateUIDataMap);
 
-		// Morph target generated data does not need extra processing so move semantics can be used
-		// to avoid a possibly expensive copy.
-		Object->ContributingMorphTargetsInfo = MoveTemp(GenerationContext.ContributingMorphTargetsInfo);
-		Object->MorphTargetReconstructionData = MoveTemp(GenerationContext.MorphTargetReconstructionData);
+		ModelResources.RealTimeMorphTargetNames = MoveTemp(GenerationContext.RealTimeMorphTargetsNames);
+
+		if (GenerationContext.RealTimeMorphTargetPerMeshData.Num() >= TNumericLimits<uint16>::Max())
+		{
+			UE_LOG(LogMutable, Warning, TEXT("Maximum number of meshes with realtime morph targets reached. Some morphs may not work."));
+		}
+
+		// Create the RealTimeMorphsTargets Blocks from the per mesh Morph data.
+		uint64 RealTimeMorphDataSize = 0;
+		for (const TArray<FMorphTargetVertexData>& VertexDataArray : GenerationContext.RealTimeMorphTargetPerMeshData)
+		{
+			RealTimeMorphDataSize += VertexDataArray.Num();
+		}
 		
+		ModelResources.RealTimeMorphStreamableBlocks.Empty(32);
+		ModelResources.EditorOnlyMorphTargetReconstructionData.Empty(RealTimeMorphDataSize);
+
+		uint64 RealTimeMorphDataOffset = 0;
+		for (const TArray<FMorphTargetVertexData>& VertexDataArray : GenerationContext.RealTimeMorphTargetPerMeshData)
+		{
+			ModelResources.RealTimeMorphStreamableBlocks.Emplace(FMutableStreamableBlock
+					{
+						uint32(0),
+						(uint32)VertexDataArray.Num()*sizeof(FMorphTargetVertexData), 
+						RealTimeMorphDataOffset, 
+					});
+
+			RealTimeMorphDataOffset += VertexDataArray.Num()*sizeof(FMorphTargetVertexData);
+			ModelResources.EditorOnlyMorphTargetReconstructionData.Append(VertexDataArray);
+		}
 		
 		// Clothing	
 		Object->ClothMeshToMeshVertData = MoveTemp(GenerationContext.ClothMeshToMeshVertData);
@@ -974,7 +999,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		auto IsSharedConfigData = [](const FCustomizableObjectClothConfigData& ConfigData) -> bool
 		{
 			 const UClass* ConfigClass = FindObject<UClass>(nullptr, *ConfigData.ClassPath);
-			 return ConfigClass ? static_cast<bool>( Cast<UClothSharedConfigCommon>(ConfigClass->GetDefaultObject() ) ) : false;
+			 return ConfigClass ? static_cast<bool>(Cast<UClothSharedConfigCommon>(ConfigClass->GetDefaultObject())) : false;
 		};
 		
 		// Find shared configs to be used (One of each type) 
@@ -1261,7 +1286,11 @@ void FCustomizableObjectCompiler::FinishSavingDerivedData()
 
 	if (Options.bIsCooking)
 	{
-		CurrentObject->GetPrivate()->CachePlatformData(SaveDDTask->GetTargetPlatform(), SaveDDTask->GetModelBytes(), SaveDDTask->GetBulkBytes());
+		CurrentObject->GetPrivate()->CachePlatformData(
+				SaveDDTask->GetTargetPlatform(), 
+				SaveDDTask->GetModelBytes(), 
+				SaveDDTask->GetBulkBytes(),
+				SaveDDTask->GetMorphBytes());
 	}
 
 	// Order matters
