@@ -18,7 +18,7 @@
 
 #pragma mark - Private Console Variables -
 
-static int32 GMetalCommandBufferCommitThreshold = 256;
+static int32 GMetalCommandBufferCommitThreshold = 0;
 static FAutoConsoleVariableRef CVarMetalCommandBufferCommitThreshold(
 	TEXT("rhi.Metal.CommandBufferCommitThreshold"),
 	GMetalCommandBufferCommitThreshold,

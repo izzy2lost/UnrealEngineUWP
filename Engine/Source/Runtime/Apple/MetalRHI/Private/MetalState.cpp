@@ -307,7 +307,7 @@ FMetalSamplerState::FMetalSamplerState(FMetalDeviceContext* Context, const FSamp
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = Context->GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		BindlessHandle = BindlessDescriptorManager->ReserveDescriptor(ERHIDescriptorHeapType::Sampler);
 		BindlessDescriptorManager->BindSampler(BindlessHandle, State);
@@ -321,7 +321,7 @@ FMetalSamplerState::~FMetalSamplerState()
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 
-	if(BindlessDescriptorManager->IsSupported())
+	if(IsMetalBindlessEnabled())
 	{
 		BindlessDescriptorManager->FreeDescriptor(BindlessHandle);
 	}

@@ -179,7 +179,8 @@ void SafeReleaseFunction(TFunction<void()> ReleaseFunction);
 
 FORCEINLINE bool IsMetalBindlessEnabled()
 {
-	return GRHIBindlessSupport != ERHIBindlessSupport::Unsupported;
+	return GRHIBindlessSupport != ERHIBindlessSupport::Unsupported &&
+			GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM6;
 }
 
 // Access the underlying surface object from any kind of texture
