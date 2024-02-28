@@ -15,6 +15,7 @@ using Horde.Server.Agents.Pools;
 using Horde.Server.Streams;
 using EpicGames.Horde.Users;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Agents;
 
 namespace Horde.Server.Tests.Jobs
 {

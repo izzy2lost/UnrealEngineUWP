@@ -10,7 +10,6 @@ using Grpc.Core;
 using Grpc.Net.Client;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
-using HordeCommon;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
@@ -199,7 +198,7 @@ namespace Horde.Agent.Services
 				// Create the session information
 				CreateSessionRequest sessionRequest = new CreateSessionRequest();
 				sessionRequest.Id = registrationInfo.Id;
-				sessionRequest.Status = AgentStatus.Ok;
+				sessionRequest.Status = RpcAgentStatus.Ok;
 				sessionRequest.Capabilities = capabilities;
 				sessionRequest.Version = AgentApp.Version;
 
@@ -364,7 +363,7 @@ namespace Horde.Agent.Services
 			string fileName = imageFile.GetFileName();
 			if (_processNamesToTerminate.TryGetValue(fileName, out TerminateCondition terminateFlags))
 			{
-				if(terminateFlags == TerminateCondition.None || (terminateFlags & condition) != 0)
+				if (terminateFlags == TerminateCondition.None || (terminateFlags & condition) != 0)
 				{
 					return true;
 				}

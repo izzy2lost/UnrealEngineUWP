@@ -149,6 +149,7 @@ namespace Horde.Server.Agents
 				agent.Id,
 				agent.Id.ToString(),
 				agent.Enabled,
+				agent.Status,
 				rate,
 				agent.SessionId,
 				agent.Ephemeral,

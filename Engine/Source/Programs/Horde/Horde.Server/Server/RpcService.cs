@@ -323,7 +323,7 @@ namespace Horde.Server.Server
 			GetCapabilities(request.Capabilities, out List<string> properties, out Dictionary<string, int> resources);
 
 			// Create a new session
-			agent = await _agentService.CreateSessionAsync(agent, request.Status, properties, resources, request.Version, context.CancellationToken);
+			agent = await _agentService.CreateSessionAsync(agent, (AgentStatus)request.Status, properties, resources, request.Version, context.CancellationToken);
 			if (agent == null)
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Agent {AgentId} not found", agentId);
@@ -396,7 +396,7 @@ namespace Horde.Server.Server
 					// Update the session
 					try
 					{
-						agent = await _agentService.UpdateSessionWithWaitAsync(agent, sessionId, request.Status, properties, resources, request.Leases, cancellationSource.Token);
+						agent = await _agentService.UpdateSessionWithWaitAsync(agent, sessionId, (AgentStatus)request.Status, properties, resources, request.Leases, cancellationSource.Token);
 					}
 					catch (OperationCanceledException)
 					{
@@ -421,7 +421,7 @@ namespace Horde.Server.Server
 					UpdateSessionResponse response = new UpdateSessionResponse();
 					response.Leases.Add(agent.Leases.Select(x => x.ToRpcMessage()));
 					response.ExpiryTime = (agent.SessionExpiresAt == null) ? new Timestamp() : Timestamp.FromDateTime(agent.SessionExpiresAt.Value);
-					response.Status = agent.Status;
+					response.Status = (RpcAgentStatus)agent.Status;
 					await writer.WriteAsync(response);
 				}
 

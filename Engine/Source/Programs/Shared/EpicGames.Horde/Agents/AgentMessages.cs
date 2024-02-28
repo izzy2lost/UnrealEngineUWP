@@ -9,6 +9,42 @@ using EpicGames.Horde.Logs;
 namespace EpicGames.Horde.Agents
 {
 	/// <summary>
+	/// Status of an agent. Must match RpcAgentStatus.
+	/// </summary>
+	public enum AgentStatus
+	{
+		/// <summary>
+		/// Unspecified state.
+		/// </summary>
+		Unspecified = 0,
+
+		/// <summary>
+		/// Agent is running normally.
+		/// </summary>
+		Ok = 1,
+
+		/// <summary>
+		/// Agent is currently shutting down, and should not be assigned new leases.
+		/// </summary>
+		Stopping = 2,
+
+		/// <summary>
+		/// Agent is in an unhealthy state and should not be assigned new leases.
+		/// </summary>
+		Unhealthy = 3,
+
+		/// <summary>
+		/// Agent is currently stopped.
+		/// </summary>
+		Stopped = 4,
+
+		/// <summary>
+		/// Agent is busy performing other work (eg. serving an interactive user)
+		/// </summary>
+		Busy = 5,
+	}
+
+	/// <summary>
 	/// Parameters to update an agent
 	/// </summary>
 	/// <param name="Enabled"> Whether the agent is currently enabled </param>
@@ -67,6 +103,7 @@ namespace EpicGames.Horde.Agents
 	/// <param name="Id"> The agent's unique ID </param>
 	/// <param name="Name"> Friendly name of the agent </param>
 	/// <param name="Enabled"> Whether the agent is currently enabled </param>
+	/// <param name="Status">Status of the agent</param>
 	/// <param name="Rate"> Cost estimate per-hour for this agent </param>
 	/// <param name="SessionId"> The current session id </param>
 	/// <param name="Ephemeral"> Whether the agent is ephemeral </param>
@@ -90,5 +127,5 @@ namespace EpicGames.Horde.Agents
 	/// <param name="Leases"> Array of active leases. </param>
 	/// <param name="Workspaces">Current workspaces synced on the agent</param>
 	/// <param name="Comment"> Comment for this agent </param>
-	public record GetAgentResponse(AgentId Id, string Name, bool Enabled, double? Rate, SessionId? SessionId, bool Ephemeral, bool Online, bool Deleted, bool PendingConform, bool PendingFullConform, bool PendingRestart, bool PendingShutdown, string LastShutdownReason, DateTime LastConformTime, int? ConformAttemptCount, DateTime? NextConformTime, string? Version, List<string> Properties, Dictionary<string, int> Resources, DateTime? UpdateTime, DateTime? LastStatusChange, List<string>? Pools, object? Capabilities, List<GetAgentLeaseResponse> Leases, List<GetAgentWorkspaceResponse> Workspaces, string? Comment);
+	public record GetAgentResponse(AgentId Id, string Name, bool Enabled, AgentStatus Status, double? Rate, SessionId? SessionId, bool Ephemeral, bool Online, bool Deleted, bool PendingConform, bool PendingFullConform, bool PendingRestart, bool PendingShutdown, string LastShutdownReason, DateTime LastConformTime, int? ConformAttemptCount, DateTime? NextConformTime, string? Version, List<string> Properties, Dictionary<string, int> Resources, DateTime? UpdateTime, DateTime? LastStatusChange, List<string>? Pools, object? Capabilities, List<GetAgentLeaseResponse> Leases, List<GetAgentWorkspaceResponse> Workspaces, string? Comment);
 }

@@ -7,7 +7,6 @@ using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
-using HordeCommon;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.DependencyInjection;
@@ -281,19 +280,19 @@ namespace Horde.Agent.Leases
 				bool busy = _statusService.IsBusy;
 				if (stopping)
 				{
-					updateSessionRequest.Status = AgentStatus.Stopping;
+					updateSessionRequest.Status = RpcAgentStatus.Stopping;
 				}
 				else if (_unhealthy)
 				{
-					updateSessionRequest.Status = AgentStatus.Unhealthy;
+					updateSessionRequest.Status = RpcAgentStatus.Unhealthy;
 				}
 				else if (busy)
 				{
-					updateSessionRequest.Status = AgentStatus.Busy;
+					updateSessionRequest.Status = RpcAgentStatus.Busy;
 				}
 				else
 				{
-					updateSessionRequest.Status = AgentStatus.Ok;
+					updateSessionRequest.Status = RpcAgentStatus.Ok;
 				}
 
 				// Update the capabilities whenever the background task has generated a new instance
@@ -360,7 +359,7 @@ namespace Horde.Agent.Leases
 							}
 
 							// Update the session result if we've transitioned to stopped
-							if (updateSessionResponse.Status == AgentStatus.Stopped)
+							if (updateSessionResponse.Status == RpcAgentStatus.Stopped)
 							{
 								_logger.LogInformation("Agent status is stopped; returning from session update loop.");
 								return _sessionResult ?? new SessionResult(SessionOutcome.BackOff);

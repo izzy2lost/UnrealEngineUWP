@@ -2,14 +2,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Auditing;
-using HordeCommon;
-using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
-using System.Threading;
+using Horde.Server.Auditing;
 
 namespace Horde.Server.Agents
 {
