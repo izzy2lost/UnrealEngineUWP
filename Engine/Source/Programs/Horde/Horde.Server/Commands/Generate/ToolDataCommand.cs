@@ -40,6 +40,10 @@ namespace Horde.Server.Commands.Generate
 		[Description("If true, the tool may be downloaded by any user without authentication")]
 		public bool Public { get; set; }
 
+		[CommandLine]
+		[Description("Shows the tool for download in UGS")]
+		public bool ShowInUgs { get; set; }
+
 		[CommandLine(Required = true)]
 		[Description("Source directory for tool data")]
 		public DirectoryReference InputDir { get; set; } = null!;
@@ -104,6 +108,10 @@ namespace Horde.Server.Commands.Generate
 				if (Public)
 				{
 					bundledTool[nameof(BundledToolConfig.Public)] = true;
+				}
+				if (ShowInUgs)
+				{
+					bundledTool[nameof(BundledToolConfig.ShowInUgs)] = true;
 				}
 
 				logger.LogInformation("Updating {File}", serverConfigFile);
