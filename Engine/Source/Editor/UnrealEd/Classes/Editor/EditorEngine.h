@@ -548,7 +548,7 @@ public:
 	DECLARE_MULTICAST_DELEGATE(FPreviewPlatformChanged);
 	FPreviewPlatformChanged PreviewPlatformChanged;
 
-	/** An array of delegates that can force disable throttling cpu usage if any of them return false. */
+	/** An array of delegates that can force disable throttling cpu usage if any of them return true. */
 	DECLARE_DELEGATE_RetVal(bool, FShouldDisableCPUThrottling);
 	TArray<FShouldDisableCPUThrottling> ShouldDisableCPUThrottlingDelegates;
 
