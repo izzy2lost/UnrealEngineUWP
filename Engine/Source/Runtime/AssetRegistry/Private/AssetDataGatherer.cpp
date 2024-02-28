@@ -61,6 +61,12 @@ namespace AssetDataGathererConstants
 	 * In theory higher minimum values could reduce the cost of waking up workers, but in practice it does not have a significant effect.
 	 */
 	static int32 GARDiscoverMinBatchSize = 1;
+	/**
+	 * The maximum number of threads used in the ParallelFor around ReadAssetFile in FAssetDataGatherer::TickInternal.
+	 * Very high numbers of threads does not reduce wall time of the gather because the threads become IO limited.
+	 * Capping the number of threads allows those threads to be used in other async operations in Engine startup.
+	 */
+	static int32 GARGatherThreads = 60;
 }
 
 namespace UE::AssetDataGather::Private
@@ -1554,8 +1560,10 @@ FAssetDataDiscovery::FAssetDataDiscovery(const TArray<FString>& InLongPackageNam
 
 	FParse::Value(FCommandLine::Get(), TEXT("-ARDiscoverThreads="), AssetDataGathererConstants::GARDiscoverThreads);
 	FParse::Value(FCommandLine::Get(), TEXT("-ARDiscoverMinBatchSize="), AssetDataGathererConstants::GARDiscoverMinBatchSize);
+	FParse::Value(FCommandLine::Get(), TEXT("-ARGatherThreads="), AssetDataGathererConstants::GARGatherThreads);
 	AssetDataGathererConstants::GARDiscoverThreads = FMath::Max(0, AssetDataGathererConstants::GARDiscoverThreads);
 	AssetDataGathererConstants::GARDiscoverMinBatchSize = FMath::Max(1, AssetDataGathererConstants::GARDiscoverMinBatchSize);
+	AssetDataGathererConstants::GARGatherThreads = FMath::Max(0, AssetDataGathererConstants::GARGatherThreads);
 }
 
 FAssetDataDiscovery::~FAssetDataDiscovery()
@@ -3583,7 +3591,12 @@ FAssetDataGatherer::FAssetDataGatherer(const TArray<FString>& InLongPackageNames
 {
 	using namespace UE::AssetDataGather::Private;
 
-	TickInternalBatchSize = FMath::Max(1, FTaskGraphInterface::Get().GetNumWorkerThreads()) * AssetDataGathererConstants::SingleThreadFilesPerBatch;
+	int32 NumGatherThreads = FMath::Max(1, FTaskGraphInterface::Get().GetNumWorkerThreads());
+	if (AssetDataGathererConstants::GARGatherThreads > 0)
+	{
+		NumGatherThreads = FMath::Min(NumGatherThreads, AssetDataGathererConstants::GARGatherThreads);
+	}
+	TickInternalBatchSize = NumGatherThreads * AssetDataGathererConstants::SingleThreadFilesPerBatch;
 
 	GPreloadSettings.Initialize();
 	bGatherAssetPackageData = GIsEditor || GPreloadSettings.IsForceDependsGathering();
@@ -4181,7 +4194,13 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 			}
 			return ReturnFlags;
 		}();
-	ParallelFor(ReadContexts.Num(),
+	// We want to restrict the number of threads, but ParallelFor only provides an API for restricting MinBatchSize
+	// NumberOfThreads == ParallelForNum/MinBatchSize == TickInternalBatchSize/SingleThreadFilesPerBatch
+	//                 == Min(WorkerThreads, GARGatherThreads)*SingleThreadFilesPerBatch / SingleThreadFilesPerBatch
+	//                 <= GARGatherThreads
+	const int32 MinBatchSize = AssetDataGathererConstants::SingleThreadFilesPerBatch;
+
+	ParallelFor(TEXT("AssetDataGatherReadAssetFile"), ReadContexts.Num(), MinBatchSize,
 		[this, &ReadContexts](int32 Index)
 		{
 			FReadContext& ReadContext = ReadContexts[Index];
@@ -4463,6 +4482,7 @@ FAssetGatherDiagnostics FAssetDataGatherer::GetDiagnostics()
 	Diag.GatherTimeSeconds = CumulativeGatherTime;
 	Diag.NumCachedAssetFiles = NumCachedAssetFiles;
 	Diag.NumUncachedAssetFiles = NumUncachedAssetFiles;
+	Diag.WallTimeSeconds = static_cast<float>((FDateTime::Now() - GatherStartTime).GetTotalSeconds());
 	return Diag;
 }
 

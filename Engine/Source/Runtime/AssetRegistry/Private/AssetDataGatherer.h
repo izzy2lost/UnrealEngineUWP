@@ -58,6 +58,8 @@ struct FAssetGatherDiagnostics
 	float DiscoveryTimeSeconds;
 	/** Time spent reading asset files on disk / from cache */
 	float GatherTimeSeconds;
+	/** Time in between gatherer start and the call to GetDiagnostics. */
+	float WallTimeSeconds;
 	/** How many directories in the search results were read from the cache. */
 	int32 NumCachedDirectories;
 	/** How many directories in the search results were not in the cache and were read by scanning the disk. */
