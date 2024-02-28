@@ -1282,7 +1282,7 @@ struct FPBDTriangleMeshCollisions::FScratchBuffers
 };
 
 template<typename SolverParticlesOrRange>
-void FPBDTriangleMeshCollisions::FTriangleSubMesh::Init(const SolverParticlesOrRange& Particles, const TSet<int32>& InDisabledFaces, bool bCollideAgainstAllKinematicVertices, const TSet<int32>& InEnabledKinematicFaces)
+void FPBDTriangleMeshCollisions::FTriangleSubMesh::Init(const SolverParticlesOrRange& Particles, const TSet<int32>& InDisabledFaces, bool bCollideAgainstAllKinematicVertices, const TSet<int32>& InEnabledKinematicFaces, const bool bOnlyCollideKinematics)
 {
 	FullMeshToSubMeshIndices.Reset();
 	DynamicSubMeshToFullMeshIndices.Reset();
@@ -1291,7 +1291,10 @@ void FPBDTriangleMeshCollisions::FTriangleSubMesh::Init(const SolverParticlesOrR
 
 	TArray<TVec3<int32>> DynamicMeshElements;
 	TArray<TVec3<int32>> KinematicMeshElements;
-	DynamicMeshElements.Reserve(FullMesh.GetNumElements());
+	if (!bOnlyCollideKinematics)
+	{
+		DynamicMeshElements.Reserve(FullMesh.GetNumElements());
+	}
 	KinematicMeshElements.Reserve(InEnabledKinematicFaces.Num());
 
 	FullMeshToSubMeshIndices.SetNumZeroed(FullMesh.GetNumElements());
@@ -1325,7 +1328,7 @@ void FPBDTriangleMeshCollisions::FTriangleSubMesh::Init(const SolverParticlesOrR
 				FullMeshToSubMeshIndices[FullElementIndex].SubMeshType = ESubMeshType::Invalid;
 			}
 		}
-		else
+		else if (!bOnlyCollideKinematics)
 		{
 			const int32 SubMeshIndex = DynamicMeshElements.Add(FullElements[FullElementIndex]);
 			DynamicSubMeshToFullMeshIndices.Add(FullElementIndex);
@@ -1380,13 +1383,13 @@ void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, c
 	const bool bDoSelfIntersections = bGlobalIntersectionAnalysis || bContourMinimization;
 	if (bCollidableSubMeshDirty)
 	{		
-		CollidableSubMesh.Init(Particles, DisabledFaces, bSelfCollideAgainstAllKinematicVertices, EnabledKinematicFaces);
+		CollidableSubMesh.Init(Particles, DisabledFaces, bSelfCollideAgainstAllKinematicVertices, EnabledKinematicFaces, bOnlyCollideWithKinematics);
 		bCollidableSubMeshDirty = false;
 	}
 
 	const FTriangleMesh& DynamicSubMesh = CollidableSubMesh.GetDynamicSubMesh();
 
-	if (DynamicSubMesh.GetNumElements() == 0)
+	if (DynamicSubMesh.GetNumElements() == 0 && !bOnlyCollideWithKinematics)
 	{
 		return;
 	}
@@ -1408,7 +1411,7 @@ void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, c
 	IntersectionContourPoints.Reset();
 	IntersectionContourTypes.Reset();
 
-	if (!bDoSelfIntersections)
+	if (!bDoSelfIntersections || bOnlyCollideWithKinematics)
 	{
 		return;
 	}

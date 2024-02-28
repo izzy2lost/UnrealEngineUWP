@@ -41,6 +41,7 @@ public:
 		const FSolverReal InThickness = BackCompatThickness,
 		const FSolverReal InStiffness = BackCompatStiffness,
 		const FSolverReal InFrictionCoefficient = BackCompatFrictionCoefficient,
+		const bool bInOnlyCollideKinematics = false,
 		const FSolverReal InKinematicColliderThickness = DefaultKinematicColliderThickness,
 		const FSolverReal InKinematicColliderStiffness = DefaultKinematicColliderStiffness,
 		const FSolverVec2 InKinematicColliderFrictionCoefficient = FSolverVec2(DefaultKinematicColliderFrictionCoefficient),
@@ -186,7 +187,8 @@ protected:
 
 	FSolverReal Thickness;
 	FSolverReal Stiffness; // (0-1 compliance for PBD)
-	FSolverReal FrictionCoefficient;
+	FSolverReal FrictionCoefficient; 
+	bool bOnlyCollideKinematics;
 	FSolverReal KinematicColliderThickness;
 	FSolverReal KinematicColliderStiffness;
 	FPBDFlatWeightMap KinematicColliderFrictionCoefficient;

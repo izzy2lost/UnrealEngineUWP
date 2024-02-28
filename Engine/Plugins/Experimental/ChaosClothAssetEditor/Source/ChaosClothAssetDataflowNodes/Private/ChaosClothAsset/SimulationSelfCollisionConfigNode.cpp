@@ -25,6 +25,7 @@ void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyH
 	PropertyHelper.SetProperty(this, &SelfCollisionDisableNeighborDistance, {}, ECollectionPropertyFlags::None); // Non animatable
 	PropertyHelper.SetPropertyString(this, &SelfCollisionLayers);
 	PropertyHelper.SetPropertyString(this, &SelfCollisionDisabledFaces);
+	PropertyHelper.SetPropertyBool(this, &bSelfCollideAgainstKinematicCollidersOnly);
 	PropertyHelper.SetPropertyBool(this, &bSelfCollideAgainstAllKinematicVertices);
 	PropertyHelper.SetPropertyString(this, &SelfCollisionEnabledKinematicFaces);
 	PropertyHelper.SetProperty(this, &SelfCollisionKinematicColliderThickness);
