@@ -596,6 +596,15 @@ const FStaticLightingMapping* FLightmassExporter::FindMappingByGuid(FGuid FindGu
 		}
 	}
 
+	for( int32 MappingIdx=0; MappingIdx < LandscapeVolumeMappings.Num(); MappingIdx++ )
+	{
+		const FStaticLightingMapping* CurrentMapping = LandscapeVolumeMappings[MappingIdx];
+		if (CurrentMapping->GetLightingGuid() == FindGuid)
+		{
+			return CurrentMapping;
+		}
+	}
+
 	return NULL;
 }
 
@@ -615,7 +624,7 @@ void FLightmassExporter::WriteToChannel( FLightmassStatistics& Stats, FGuid& Deb
 				DirectionalLights.Num() + PointLights.Num() + SpotLights.Num() + RectLights.Num() + SkyLights.Num() + 
 				StaticMeshes.Num() + StaticMeshLightingMeshes.Num() + StaticMeshTextureMappings.Num() + 
 				BSPSurfaceMappings.Num() + VolumeMappings.Num() + Materials.Num() + 
-				+ LandscapeLightingMeshes.Num() + LandscapeTextureMappings.Num();
+				+ LandscapeLightingMeshes.Num() + LandscapeTextureMappings.Num() + LandscapeVolumeMappings.Num();
 
 			CurrentProgress = 0;
 
@@ -2001,7 +2010,7 @@ void FLightmassExporter::WriteMappings( int32 Channel )
 	for (int32 MappingIdx = 0; MappingIdx < LandscapeVolumeMappings.Num(); MappingIdx++)
 	{
 		const FLandscapeStaticLightingGlobalVolumeMapping* VolumeMapping = LandscapeVolumeMappings[MappingIdx];
-		WriteBaseTextureMappingData( Channel, VolumeMapping );
+		WriteLandscapeMapping( Channel, VolumeMapping );
 		UpdateExportProgress();
 	}
 }
