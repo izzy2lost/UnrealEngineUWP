@@ -267,15 +267,8 @@ UPCGGraph::UPCGGraph(const FObjectInitializer& ObjectInitializer)
 	InputNode->SetSettingsInterface(InputSettings, /*bUpdatePins=*/false);
 
 	// Only allocate default pins if this is the default object
-	if (this->HasAnyFlags(RF_ClassDefaultObject))
-	{
-		InputNode->CreateDefaultPins(PinAllocator);
-	}
-	else
-	{
-		InputNode->UpdatePins();
-	}
-
+	InputNode->CreateDefaultPins(PinAllocator);
+	
 	OutputNode = ObjectInitializer.CreateDefaultSubobject<UPCGNode>(this, TEXT("DefaultOutputNode"));
 	OutputNode->SetFlags(RF_Transactional);
 
@@ -284,15 +277,8 @@ UPCGGraph::UPCGGraph(const FObjectInitializer& ObjectInitializer)
 	OutputNode->SetSettingsInterface(OutputSettings, /*bUpdatePins=*/false);
 
 	// Only allocate default pins if this is the default object
-	if (this->HasAnyFlags(RF_ClassDefaultObject))
-	{
-		OutputNode->CreateDefaultPins(PinAllocator);
-	}
-	else
-	{
-		OutputNode->UpdatePins();
-	}
-
+	OutputNode->CreateDefaultPins(PinAllocator);
+	
 #if WITH_EDITOR
 	OutputNode->PositionX = 200;
 #endif
