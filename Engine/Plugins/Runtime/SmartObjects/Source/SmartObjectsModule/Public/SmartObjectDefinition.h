@@ -108,7 +108,8 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 
 		for (const FSmartObjectDefinitionDataProxy& DataProxy : DefinitionData)
 		{
-			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			if (DataProxy.Data.GetScriptStruct()
+				&& DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
 			{
 				return DataProxy.Data.Get<T>();
 			}
@@ -129,7 +130,8 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 
 		for (const FSmartObjectDefinitionDataProxy& DataProxy : DefinitionData)
 		{
-			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			if (DataProxy.Data.GetScriptStruct()
+				&& DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
 			{
 				return DataProxy.Data.GetPtr<T>();
 			}
@@ -572,7 +574,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		for (const FSmartObjectDefinitionDataProxy& DataProxy : DefinitionData)
 		{
-			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			if (DataProxy.Data.GetScriptStruct()
+				&& DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
 			{
 				return DataProxy.Data.GetPtr<T>();
 			}
