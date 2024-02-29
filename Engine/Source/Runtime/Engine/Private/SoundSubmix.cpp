@@ -875,18 +875,26 @@ void USoundSubmixBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 }
 
 TArray<TObjectPtr<USoundSubmixBase>> USoundSubmixBase::BackupChildSubmixes;
+#endif
 
-void USoundSubmixWithParentBase::SetParentSubmix(USoundSubmixBase* InParentSubmix)
+
+void USoundSubmixWithParentBase::SetParentSubmix(USoundSubmixBase* InParentSubmix, bool bModifyAssets)
 {
 	if (ParentSubmix != InParentSubmix)
 	{
 		if (ParentSubmix)
 		{
-			ParentSubmix->Modify();
+			if (bModifyAssets)
+			{
+				ParentSubmix->Modify();
+			}
 			ParentSubmix->ChildSubmixes.Remove(this);
 		}
 
-		Modify();
+		if (bModifyAssets)
+		{
+			Modify();
+		}
 		ParentSubmix = InParentSubmix;
 		if (ParentSubmix)
 		{
@@ -953,7 +961,6 @@ void USoundSubmixWithParentBase::PostDuplicate(EDuplicateMode::Type DuplicateMod
 
 	Super::PostDuplicate(DuplicateMode);
 }
-#endif
 
 void USoundSubmixBase::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
