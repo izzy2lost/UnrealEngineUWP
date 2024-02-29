@@ -8,6 +8,8 @@
 #include "MetasoundGenerator.h"
 #include "Misc/Guid.h"
 #include "HAL/CriticalSection.h"
+#include "Tasks/Pipe.h"
+#include "Tasks/Task.h"
 #include "Templates/UniquePtr.h"
 
 #ifndef METASOUND_OPERATORCACHEPROFILER_ENABLED
@@ -69,12 +71,16 @@ namespace Metasound
 		FGuid AssetClassID;
 		int32 NumInstances;
 
+		// If true, touches existing assets and only builds remaining number if required
+		bool bTouchExisting = false; 
+
 		FOperatorBuildData() = delete;
 		FOperatorBuildData(
 			  FMetasoundGeneratorInitParams&& InInitParams
 			, Frontend::FGraphRegistryKey InRegistryKey
 			, FGuid InAssetID
 			, int32 InNumInstances = 1
+			, bool bInTouchExisting = false
 		);
 
 	}; // struct FOperatorPrecacheData
@@ -90,13 +96,14 @@ namespace Metasound
 		FOperatorAndInputs ClaimOperator(const FGuid& InOperatorID);
 
 		void AddOperator(const FGuid& InOperatorID, TUniquePtr<IOperator>&& InOperator, FInputVertexInterfaceData&& InputData);
-		void AddOperator(const FGuid& InOperatorID, FOperatorAndInputs && OperatorAndInputs);
+		void AddOperator(const FGuid& InOperatorID, FOperatorAndInputs&& OperatorAndInputs);
+
 		void BuildAndAddOperator(TUniquePtr<FOperatorBuildData> InBuildData);
 
-		void TouchOperators(const FGuid& InOpeoratorID, const int32& NumToTouch = 1);
-		void TouchOperatorsViaAssetClassID(const FGuid& InAssetClassID, const int32& NumToTouch = 1);
+		void TouchOperators(const FGuid& InOperatorID, int32 NumToTouch = 1);
+		void TouchOperatorsViaAssetClassID(const FGuid& InAssetClassID, int32 NumToTouch = 1);
 
-		bool IsStopping() const { return bStopping.load(); }
+		bool IsStopping() const;
 
 		void RemoveOperatorsWithID(const FGuid& InOperatorID);
 		void RemoveOperatorsWithAssetClassID(const FGuid& InAssetClassID);
@@ -104,19 +111,28 @@ namespace Metasound
 		int32 GetNumCachedOperatorsWithID(const FGuid& InOperatorID) const;
 		int32 GetNumCachedOperatorsWithAssetClassID(const FGuid& InAssetClassID) const;
 
-		void AddAssetIdToGraphIdLookUp(const FGuid& InAssetClassID, const FGuid& InOperatorID);
+		UE_DEPRECATED(5.5, "Adding id to look-up is now private implementation")
+		void AddAssetIdToGraphIdLookUp(const FGuid& InAssetClassID, const FGuid& InOperatorID) { }
 
 		void SetMaxNumOperators(uint32 InMaxNumOperators);
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 		void UpdateHitRateTracker();
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 
+		UE_DEPRECATED(5.5, "Use StopAsyncTasks")
 		void CancelAllBuildEvents();
 
-	private:
-		void RemoveBuildEvent(const FGraphEventRef& InEventRef);
+		void StopAsyncTasks();
 
-		void BuildAndAddAsync(TUniqueFunction<void()>&& InBuildFunc);
+		using FTaskId = int32;
+		using FTaskFunction = TUniqueFunction<void(FOperatorPool::FTaskId, TWeakPtr<FOperatorPool>)>;
+
+	private:
+		FTaskId LastTaskId = 0;
+
+		void AddAssetIdToGraphIdLookUpInternal(const FGuid& InAssetClassID, const FGuid& InOperatorID);
+		void AddOperatorInternal(const FGuid& InOperatorID, FOperatorAndInputs&& OperatorAndInputs);
+		bool ExecuteTaskAsync(FTaskFunction&& InFunction);
 		void Trim();
 
 		FOperatorPoolSettings Settings;
@@ -126,14 +142,17 @@ namespace Metasound
 		OperatorPoolPrivate::FWindowedHitRate HitRateTracker;
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 
+		// Notifies active build tasks to abort as soon as possible
+		// and gates additional build tasks from being added.
 		std::atomic<bool> bStopping;
-		TSet<FGraphEventRef> ActiveBuildEvents;
+
+		TMap<FTaskId, UE::Tasks::FTask> ActiveBuildTasks;
+		UE::Tasks::FPipe AsyncBuildPipe;
 
 		TMap<FGuid, TArray<FOperatorAndInputs>> Operators;
 		TMap<FGuid, FGuid> AssetIdToGraphIdLookUp;
 		TArray<FGuid> Stack;
 	};
-
 } // namespace Metasound
 
 

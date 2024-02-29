@@ -64,8 +64,8 @@ namespace Metasound
 
 			// Clear the pool reference and cancel independent of resetting
 			// the shared pointer to ensure if any references are held elsewhere,
-			// they are properly invalidate.
-			PoolShuttingDown->CancelAllBuildEvents();
+			// they are properly invalidated.
+			PoolShuttingDown->StopAsyncTasks();
 		}
 
 		OperatorInstanceCounterManager.Reset();

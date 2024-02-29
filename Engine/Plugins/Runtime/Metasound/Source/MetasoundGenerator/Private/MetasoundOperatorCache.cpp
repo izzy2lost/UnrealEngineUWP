@@ -165,51 +165,58 @@ namespace Metasound
 		, Frontend::FGraphRegistryKey InRegistryKey
 		, FGuid InAssetClassID
 		, int32 InNumInstances
+		, bool bInTouchExisting
 	)
 	: InitParams(InInitParams)
 	, RegistryKey(InRegistryKey)
 	, AssetClassID(InAssetClassID)
 	, NumInstances(InNumInstances)
+	, bTouchExisting(bInTouchExisting)
 	{
 	}
 
 
 	FOperatorPool::FOperatorPool(const FOperatorPoolSettings& InSettings)
 	: Settings(InSettings)
+	, AsyncBuildPipe(UE_SOURCE_LOCATION)
 	{
 	}
 
 	FOperatorPool::~FOperatorPool()
 	{
-		CancelAllBuildEvents();
+		StopAsyncTasks();
 	}
 
 	FOperatorAndInputs FOperatorPool::ClaimOperator(const FGuid& InOperatorID)
 	{
-		FScopeLock Lock(&CriticalSection);
-
 		FOperatorAndInputs OpAndInputs;
 
-		bool bCacheHit = false;
-		if (TArray<FOperatorAndInputs>* OperatorsWithID = Operators.Find(InOperatorID))
+		if (!IsStopping())
 		{
-			if (OperatorsWithID->Num() > 0)
+			FScopeLock Lock(&CriticalSection);
+
+			bool bCacheHit = false;
+			if (TArray<FOperatorAndInputs>* OperatorsWithID = Operators.Find(InOperatorID))
 			{
-				OpAndInputs = OperatorsWithID->Pop();
-				Stack.RemoveAt(Stack.FindLast(InOperatorID));
+				if (OperatorsWithID->Num() > 0)
+				{
+					OpAndInputs = OperatorsWithID->Pop();
+					Stack.RemoveAt(Stack.FindLast(InOperatorID));
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
-				OperatorPoolPrivate::CacheHitCount++;
-				bCacheHit = true;
-				TRACE_COUNTER_DECREMENT(MetaSound_OperatorPool_NumOperators);
+					OperatorPoolPrivate::CacheHitCount++;
+					bCacheHit = true;
+					TRACE_COUNTER_DECREMENT(MetaSound_OperatorPool_NumOperators);
 #endif
+				}
 			}
-		}
 
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
-		bCacheHit? HitRateTracker.AddHit() : HitRateTracker.AddMiss();
-		OperatorPoolPrivate::CacheAttemptCount++;
-		TRACE_COUNTER_SET(MetaSound_OperatorPool_HitRatio, OperatorPoolPrivate::GetHitRatio());
+			bCacheHit ? HitRateTracker.AddHit() : HitRateTracker.AddMiss();
+			OperatorPoolPrivate::CacheAttemptCount++;
+			TRACE_COUNTER_SET(MetaSound_OperatorPool_HitRatio, OperatorPoolPrivate::GetHitRatio());
 #endif
+		}
+
 		return OpAndInputs;
 	}
 
@@ -218,7 +225,52 @@ namespace Metasound
 		AddOperator(InOperatorID, { MoveTemp(InOperator), MoveTemp(InInputData) });
 	}
 
-	void FOperatorPool::AddOperator(const FGuid& InOperatorID, FOperatorAndInputs && OperatorAndInputs)
+	bool FOperatorPool::ExecuteTaskAsync(FOperatorPool::FTaskFunction&& InFunction)
+	{
+		using namespace UE::Tasks;
+
+		if (IsStopping())
+		{
+			return false;
+		}
+
+		TWeakPtr<FOperatorPool> WeakOpPool = AsShared();
+		const int32 TaskId = ++LastTaskId;
+		FTask NewTask = AsyncBuildPipe.Launch(UE_SOURCE_LOCATION, [WeakOpPool, TaskId, PoolFunction = MoveTemp(InFunction)]() mutable
+		{
+			PoolFunction(TaskId, WeakOpPool);
+
+			if (TSharedPtr<FOperatorPool> ThisPool = WeakOpPool.Pin())
+			{
+				FScopeLock Lock(&ThisPool->CriticalSection);
+				ThisPool->ActiveBuildTasks.Remove(TaskId);
+			}
+		});
+
+		{
+			FScopeLock Lock(&CriticalSection);
+			ActiveBuildTasks.Add(TaskId, MoveTemp(NewTask));
+		}
+
+		return true;
+	}
+
+	void FOperatorPool::AddOperator(const FGuid& InOperatorID, FOperatorAndInputs&& OperatorAndInputs)
+	{
+		using namespace UE::Tasks;
+
+		check(OperatorAndInputs.Operator.IsValid());
+
+		ExecuteTaskAsync([OperatorID = InOperatorID, OpAndInputs = MoveTemp(OperatorAndInputs)](FTaskId, TWeakPtr<FOperatorPool> WeakPoolPtr) mutable
+		{
+			if (TSharedPtr<FOperatorPool> Pool = WeakPoolPtr.Pin())
+			{
+				Pool->AddOperatorInternal(OperatorID, MoveTemp(OpAndInputs));
+			}
+		});
+	}	
+
+	void FOperatorPool::AddOperatorInternal(const FGuid& InOperatorID, FOperatorAndInputs && OperatorAndInputs)
 	{
 		if (!OperatorAndInputs.Operator.IsValid())
 		{
@@ -247,82 +299,53 @@ namespace Metasound
 		Trim();
 	}
 
-	void FOperatorPool::BuildAndAddAsync(TUniqueFunction<void()>&& InBuildFunc)
+	bool FOperatorPool::IsStopping() const
 	{
-		struct FBuildAndAddOpTask : public FAsyncGraphTaskBase
-		{
-			TUniqueFunction<void()> TaskFunc;
-
-			FBuildAndAddOpTask(TUniqueFunction<void()>&& InTaskFunc)
-				: TaskFunc(MoveTemp(InTaskFunc))
-			{
-			}
-
-			void DoTask(ENamedThreads::Type, const FGraphEventRef& EventRef)
-			{
-				TaskFunc();
-
-				const FName ModuleName = TEXT("MetasoundGenerator");
-				if (FModuleManager::Get().IsModuleLoaded(ModuleName))
-				{
-					FMetasoundGeneratorModule& Module = FModuleManager::GetModuleChecked<FMetasoundGeneratorModule>(ModuleName);
-					TSharedPtr<FOperatorPool> Pool = Module.GetOperatorPool();
-
-					if (Pool.IsValid() && !Pool->IsStopping())
-					{
-						Pool->RemoveBuildEvent(EventRef);
-					}
-				}
-			}
-
-			ENamedThreads::Type GetDesiredThread()
-			{
-				return ENamedThreads::AnyThread;
-			}
-		};
-
-		FGraphEventRef EventRef = TGraphTask<FBuildAndAddOpTask>::CreateTask()
-			.ConstructAndDispatchWhenReady(MoveTemp(InBuildFunc));
-
-		{
-			FScopeLock Lock(&CriticalSection);
-			ActiveBuildEvents.Add(MoveTemp(EventRef));
-		}
+		return bStopping.load();
 	}
 
 	void FOperatorPool::CancelAllBuildEvents()
 	{
-		if (!ActiveBuildEvents.IsEmpty())
+		StopAsyncTasks();
+	}
+
+	void FOperatorPool::StopAsyncTasks()
+	{
+		using namespace UE::Tasks;
+
+		bStopping.store(true);
+
+		// Move tasks to local copy in crit section to allow for safe mutation
+		// of ActiveBuildTasks from within tasks and avoid deadlocks with
+		// mutation of other pool resources while canceling remaining tasks.
+		TMap<FTaskId, FTask> TasksToCancel;
+		{
+			FScopeLock Lock(&CriticalSection);
+			TasksToCancel = MoveTemp(ActiveBuildTasks);
+			ActiveBuildTasks.Reset();
+		}
+
+		if (!TasksToCancel.IsEmpty())
 		{
 			UE_LOG(LogMetasoundGenerator, Display, TEXT("Cancelling active MetaSound Cache Pool Operator build requests..."));
 
-			bStopping.store(true);
-			for (FGraphEventRef& EventRef : ActiveBuildEvents)
+			for (TPair<FTaskId, FTask>& Pair : TasksToCancel)
 			{
-				if (EventRef.IsValid())
+				FTask& TaskToCancel = Pair.Value;
+				if (!TaskToCancel.IsCompleted())
 				{
-					EventRef->Wait();
+					TaskToCancel.BusyWait();
 				}
 			}
-			ActiveBuildEvents.Reset();
-			bStopping.store(false);
 		}
-	}
 
-	void FOperatorPool::RemoveBuildEvent(const FGraphEventRef& InEventRef)
-	{
-		FScopeLock Lock(&CriticalSection);
-		ActiveBuildEvents.Remove(InEventRef);
+		bStopping.store(false);
 	}
 
 	void FOperatorPool::BuildAndAddOperator(TUniquePtr<FOperatorBuildData> InBuildData)
 	{
+		using namespace UE::Tasks;
 		using namespace OperatorPoolPrivate;
-
-		if (bStopping.load())
-		{
-			return;
-		}
 
 		if (!ensure(InBuildData))
 		{
@@ -342,8 +365,7 @@ namespace Metasound
 		}
 
 		// Build operations should never keep the operator pool alive as this can delay app shutdown arbitrarily.
-		TWeakPtr<FOperatorPool> WeakOpPool = AsShared();
-		BuildAndAddAsync([Graph, PreCacheData = MoveTemp(InBuildData), WeakOpPool]()
+		ExecuteTaskAsync([Graph, PreCacheData = MoveTemp(InBuildData)](FTaskId, TWeakPtr<FOperatorPool> WeakPoolPtr)
 		{
 			using namespace OperatorPoolPrivate;
 
@@ -378,13 +400,30 @@ namespace Metasound
 				return;
 			}
 
-			const int32 NumInstances = PreCacheData->NumInstances;
-			for (int32 i = 0; i < NumInstances; ++i)
+			int32 NumToBuild = PreCacheData->NumInstances;
+
+			if (PreCacheData->bTouchExisting)
 			{
-				TSharedPtr<FOperatorPool> OperatorPool = WeakOpPool.Pin();
+				TSharedPtr<FOperatorPool> OperatorPool = WeakPoolPtr.Pin();
+				if (OperatorPool.IsValid())
+				{
+					// Get the number of instances already in the cache & move pre-existing to the top of the cache
+					const int32 NumInCache = OperatorPool->GetNumCachedOperatorsWithAssetClassID(PreCacheData->AssetClassID);
+					OperatorPool->TouchOperatorsViaAssetClassID(PreCacheData->AssetClassID, FMath::Min(NumInCache, NumToBuild));
+					NumToBuild -= NumInCache;
+				}
+			}
+
+			for (int32 i = 0; i < NumToBuild; ++i)
+			{
+				// These build operations can take a fair bit of time, so
+				// check continually for the validity of the operator pool
+				// on each build request to abort if necessary if cancellation
+				// is requested.
+				TSharedPtr<FOperatorPool> OperatorPool = WeakPoolPtr.Pin();
 				if (!OperatorPool.IsValid() || OperatorPool->IsStopping())
 				{
-					break;
+					return;
 				}
 
 				FBuildResults BuildResults;
@@ -392,55 +431,73 @@ namespace Metasound
 				GeneratorBuilder::LogBuildErrors(PreCacheData->InitParams.MetaSoundName, BuildResults);
 
 				const FGuid& GraphID = PreCacheData->InitParams.Graph->GetInstanceID();
-				OperatorPool->AddOperator(GraphID, MoveTemp(OperatorAndInputs));
-				OperatorPool->AddAssetIdToGraphIdLookUp(PreCacheData->AssetClassID, GraphID);
+				OperatorPool->AddOperatorInternal(GraphID, MoveTemp(OperatorAndInputs));
+				OperatorPool->AddAssetIdToGraphIdLookUpInternal(PreCacheData->AssetClassID, GraphID);
 			}
 		});
 	}
 
-	void FOperatorPool::TouchOperators(const FGuid& InOpeoratorID, const int32& NumToTouch)
+	void FOperatorPool::TouchOperators(const FGuid& InOperatorID, int32 NumToTouch)
 	{
-		const int32 NumToMove = FMath::Min(NumToTouch, GetNumCachedOperatorsWithID(InOpeoratorID));
-		if (!NumToMove)
+		if (!IsStopping())
 		{
-			return;
+			FScopeLock Lock(&CriticalSection);
+
+			const int32 NumToMove = FMath::Min(NumToTouch, GetNumCachedOperatorsWithID(InOperatorID));
+			if (!NumToMove)
+			{
+				return;
+			}
+
+			// add to the "top" (end)
+			for (int32 i = 0; i < NumToMove; ++i)
+			{
+				Stack.Add(InOperatorID);
+			}
+
+			// remove from the "bottom" (beginning)
+			for (int32 i = 0; i < NumToMove; ++i)
+			{
+				Stack.RemoveSingle(InOperatorID);
+			}
 		}
-
-		FScopeLock Lock(&CriticalSection);
-
-		// add to the "top" (end)
-		for (int32 i = 0; i < NumToMove; ++i)
-		{
-			Stack.Add(InOpeoratorID);
-		}
-
-		// remove from the "bottom" (begining)
-		for (int32 i = 0; i < NumToMove; ++i)
-		{
-			Stack.RemoveSingle(InOpeoratorID);
-		}
-
 	}
 
-	void FOperatorPool::TouchOperatorsViaAssetClassID(const FGuid& InAssetClassID, const int32& NumToTouch)
+	void FOperatorPool::TouchOperatorsViaAssetClassID(const FGuid& InAssetClassID, int32 NumToTouch)
 	{
-		FScopeLock Lock(&CriticalSection);
-		FGuid* GraphIdPtr = AssetIdToGraphIdLookUp.Find(InAssetClassID);
-		if (GraphIdPtr)
+		if (!IsStopping())
 		{
-			TouchOperators(*GraphIdPtr, NumToTouch);
+			FScopeLock Lock(&CriticalSection);
+			FGuid* GraphIdPtr = AssetIdToGraphIdLookUp.Find(InAssetClassID);
+			if (GraphIdPtr)
+			{
+				TouchOperators(*GraphIdPtr, NumToTouch);
+			}
 		}
 	}
 
 	void FOperatorPool::RemoveOperatorsWithID(const FGuid& InOperatorID)
 	{
-		FScopeLock Lock(&CriticalSection);
-		Operators.Remove(InOperatorID);
-		const int32 NumRemoved = Stack.Remove(InOperatorID);
+		using namespace UE::Tasks;
+
+		if (IsStopping())
+		{
+			return;
+		}
+
+		ExecuteTaskAsync([OperatorID = InOperatorID](FTaskId, TWeakPtr<FOperatorPool> WeakPoolPtr)
+		{
+			if (TSharedPtr<FOperatorPool> Pool = WeakPoolPtr.Pin())
+			{
+				FScopeLock Lock(&Pool->CriticalSection);
+				Pool->Operators.Remove(OperatorID);
+				const int32 NumRemoved = Pool->Stack.Remove(OperatorID);
 
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
-		TRACE_COUNTER_SUBTRACT(MetaSound_OperatorPool_NumOperators, int64(NumRemoved));
+				TRACE_COUNTER_SUBTRACT(MetaSound_OperatorPool_NumOperators, int64(NumRemoved));
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
+			}
+		});
 	}
 
 	void FOperatorPool::RemoveOperatorsWithAssetClassID(const FGuid& InAssetClassID)
@@ -456,9 +513,12 @@ namespace Metasound
 		
 	void FOperatorPool::SetMaxNumOperators(uint32 InMaxNumOperators)
 	{
-		FScopeLock Lock(&CriticalSection);
-		Settings.MaxNumOperators = InMaxNumOperators;
-		Trim();
+		if (!IsStopping())
+		{
+			FScopeLock Lock(&CriticalSection);
+			Settings.MaxNumOperators = InMaxNumOperators;
+			Trim();
+		}
 	}
 
 	int32 FOperatorPool::GetNumCachedOperatorsWithID(const FGuid& InOperatorID) const
@@ -483,7 +543,7 @@ namespace Metasound
 		return 0;
 	}
 
-	void FOperatorPool::AddAssetIdToGraphIdLookUp(const FGuid& InAssetClassID, const FGuid& InOperatorID)
+	void FOperatorPool::AddAssetIdToGraphIdLookUpInternal(const FGuid& InAssetClassID, const FGuid& InOperatorID)
 	{
 		FScopeLock Lock(&CriticalSection);
 		AssetIdToGraphIdLookUp.Add(InAssetClassID, InOperatorID);
@@ -506,7 +566,6 @@ namespace Metasound
 			for (int32 i = 0; i < NumToTrim; i++)
 			{
 				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Trimming operator with ID %s"), *LexToString(Stack[i]));
-				// Destructor called by TUniquePtr going out of scope.
 				TArray<FOperatorAndInputs>* OperatorArray = Operators.Find(Stack[i]);
 				if (ensure(OperatorArray))
 				{
