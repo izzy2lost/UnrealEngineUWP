@@ -852,14 +852,12 @@ void FD3D12CommandContextBase::UpdateMemoryStats()
 
 void FD3D12CommandContext::RHIBeginScene()
 {
-	ensure(!bDrawingScene);
-	bDrawingScene = true;
+	// Nothing to do
 }
 
 void FD3D12CommandContext::RHIEndScene()
 {
-	ensure(bDrawingScene);
-	bDrawingScene = false;
+	// Nothing to do
 }
 
 IRHIComputeContext* FD3D12DynamicRHI::RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask)

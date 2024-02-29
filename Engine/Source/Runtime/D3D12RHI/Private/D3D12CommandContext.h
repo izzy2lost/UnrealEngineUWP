@@ -445,8 +445,6 @@ public:
 
 	virtual void RHISetAsyncComputeBudget(EAsyncComputeBudget Budget) {}
 
-	bool IsDrawingSceneOrViewport() const {	return bDrawingScene || bDrawingViewport; }
-
 	virtual class FD3D12CommandContextRedirector* AsRedirector() { return nullptr; }
 
 	static FD3D12CommandContextBase& Get(FRHICommandListBase& RHICmdList)
@@ -462,9 +460,6 @@ protected:
 
 	FRHIGPUMask GPUMask;
 	FRHIGPUMask PhysicalGPUMask;
-
-	bool bDrawingViewport = false;
-	bool bDrawingScene = false;
 };
 
 // RHI Context type used for graphics and async compute command lists.
