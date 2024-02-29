@@ -616,6 +616,27 @@ FString UChaosClothAsset::GetAsyncPropertyName(uint64 Property) const
 	return StaticEnum<EClothAssetAsyncProperties>()->GetNameByValue(Property).ToString();
 }
 
+int32 UChaosClothAsset::GetMinLodIdx(bool bForceLowestLODIndex) const
+{
+	// #TODO Add quality level controls alongside per-platform taking precedence when enabled
+	return GetMinLod().GetValue();
+}
+
+int32 UChaosClothAsset::GetPlatformMinLODIdx(const ITargetPlatform* InTargetPlatform) const
+{
+	// #TODO Add quality level controls alongside per-platform taking precedence when enabled
+#if WITH_EDITOR
+	return GetMinLod().GetValueForPlatform(*InTargetPlatform->IniPlatformName());
+#else
+	return 0;
+#endif
+}
+
+const FPerPlatformInt& UChaosClothAsset::GetMinLod() const
+{
+	return MinLod;
+}
+
 #if WITH_EDITOR
 void UChaosClothAsset::CacheDerivedData(FSkinnedAssetCompilationContext* Context)
 {

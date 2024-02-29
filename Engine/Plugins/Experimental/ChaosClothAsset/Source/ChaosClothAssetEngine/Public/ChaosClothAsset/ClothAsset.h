@@ -84,12 +84,12 @@ public:
 	virtual class UMaterialInterface* GetOverlayMaterial() const override		{ return nullptr; }
 	virtual float GetOverlayMaterialMaxDrawDistance() const override			{ return 0.f; }
 	virtual bool IsValidLODIndex(int32 Index) const override					{ return LODInfo.IsValidIndex(Index); }
-	virtual int32 GetMinLodIdx(bool bForceLowestLODIdx = false) const override	{ return 0; }
+	virtual int32 GetMinLodIdx(bool bForceLowestLODIdx = false) const override;
 	virtual bool NeedCPUData(int32 LODIndex) const override						{ return false; }
 	virtual bool GetHasVertexColors() const override							{ return false; }
-	virtual int32 GetPlatformMinLODIdx(const ITargetPlatform* TargetPlatform) const override { return 0; }
+	virtual int32 GetPlatformMinLODIdx(const ITargetPlatform* TargetPlatform) const override;
 	virtual const FPerPlatformBool& GetDisableBelowMinLodStripping() const override { return DisableBelowMinLodStripping; }
-	virtual const FPerPlatformInt& GetMinLod() const override					{ return MinLod; }
+	virtual const FPerPlatformInt& GetMinLod() const override;
 #if WITH_EDITOR
 	/* Build a LOD model for the targeted platform. */
 	virtual void BuildLODModel(const ITargetPlatform* TargetPlatform, int32 LODIndex) override;
