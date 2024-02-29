@@ -1286,6 +1286,8 @@ void UDMXEntityFixturePatch::SendResetDataToAllAttributes(bool bUseDefaultValues
 				{
 					DMXChannelToValueMap.Add(AbsoluteCellStartingChannel + AttributeOffset + ByteIndex, ByteArray[ByteIndex]);
 				}
+
+				AttributeOffset += CellAttribute.GetNumChannels();
 			}
 		}
 	}
