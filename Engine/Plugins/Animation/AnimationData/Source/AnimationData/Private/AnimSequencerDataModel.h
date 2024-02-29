@@ -13,7 +13,6 @@ class UControlRig;
 class UMovieSceneControlRigParameterTrack;
 class UMovieSceneControlRigParameterSection;
 class UFKControlRig;
-class URigHierarchy;
 
 USTRUCT()
 struct FAnimationCurveMetaData
@@ -156,10 +155,8 @@ protected:
 
 	UMovieSceneControlRigParameterTrack* GetControlRigTrack() const;
 	UMovieSceneControlRigParameterSection* GetFKControlRigSection() const;
-	URigHierarchy* GetControlRigHierarchy() const;
 	USkeleton* GetSkeleton() const;
-	void InitializeRigHierarchy(UFKControlRig* FKControlRig, USkeleton* Skeleton) const;
-	void InitializeFKControlRig(UFKControlRig* FKControlRig, USkeleton* Skeleton, bool bForceHierarchyInitialization=false) const;
+	void InitializeFKControlRig(UFKControlRig* FKControlRig, USkeleton* Skeleton) const;
 	UControlRig* GetControlRig() const;
 	
 	void IterateTransformControlCurve(const FName& BoneName, TFunction<void(const FTransform&, const FFrameNumber&)> IterationFunction, const TArray<FFrameNumber>* InFrameNumbers = nullptr) const;
@@ -167,7 +164,6 @@ protected:
 	void RemoveOutOfDateControls() const;
 	
 	void GenerateTransformKeysForControl(const FName& BoneName, const TArray<FFrameNumber>& FrameNumbers, TArray<FTransform>& InOutTransforms) const;
-	void ClearControlRigData();
 private:	
 	/** Dynamic delegate event allows scripting to register to any broadcast-ed notify. */
 	UPROPERTY(BlueprintAssignable, Transient, Category = AnimationDataModel, meta = (ScriptName = "ModifiedEvent", AllowPrivateAccess = "true"))
@@ -196,9 +192,6 @@ private:
 	// Raw data GUID taken from UAnimSequence when initially populating - this allows for retaining compressed data state initially
 	UPROPERTY(VisibleAnywhere, Category=AnimSequencer)
 	FGuid CachedRawDataGUID;
-
-	UPROPERTY(VisibleAnywhere, Transient, Category=AnimSequencer)
-	mutable bool bRigHierarchyInitialized = false;
 
 	// Scope lock to prevent contention around ControlRig->Evaluation()
 	mutable FCriticalSection EvaluationLock;
