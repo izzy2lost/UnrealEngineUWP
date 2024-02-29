@@ -590,45 +590,38 @@ const UPCGPin* UPCGNode::GetPassThroughInputPin() const
 		return nullptr;
 	}
 
-	const EPCGDataType OutputType = PassThroughOutput->GetCurrentTypes();
-	// We assume a node whose primary output is params is a param processing node.
-	const bool bNodeOutputsParams = (OutputType == EPCGDataType::Param);
-
-	if (bNodeOutputsParams)
+	const TArray<TObjectPtr<UPCGPin>>& AllInputPins = GetInputPins();
+	if (AllInputPins.IsEmpty())
 	{
-		// If this node primarily processes params, then look for a params pin, if we find it then we will pass it through
-		auto FindParams = [](const TObjectPtr<UPCGPin>& InPin) { return InPin->GetCurrentTypes() == EPCGDataType::Param; };
-		const TObjectPtr<UPCGPin>* FirstParamsPinPtr = Algo::FindByPredicate(GetInputPins(), FindParams);
-		return FirstParamsPinPtr ? *FirstParamsPinPtr : nullptr;
-	}
-	else
-	{
-		// 'Normal' node. Look for the first pin that is not of type Params to pass through. If the node is disabled, the params are unused.
-		// Params-only pins will be rejected/ignored.
-		auto FindNonParams = [](const TObjectPtr<UPCGPin>& InPin) { return InPin->GetCurrentTypes() != EPCGDataType::Param; };
-		const TObjectPtr<UPCGPin>* FirstNonParamsPinPtr = Algo::FindByPredicate(GetInputPins(), FindNonParams);
-
-		if (FirstNonParamsPinPtr)
-		{
-			// Finally in order to be a candidate for passing through, data must be compatible.
-			const UPCGPin* InputPin = *FirstNonParamsPinPtr;
-			const EPCGDataType InputType = InputPin->GetCurrentTypes();
-			const bool bTypesOverlap = !!(InputType & OutputType);
-			
-			// Misc note - it would be nice if we could be stricter, like line below this comment. However it would mean it will stop an Any
-			// input being passed through to a Point output, even if the incoming edge will be receiving points dynamically/during execution. If a
-			// user creates a BP node with an Any input, which they may do lazily or unknowingly, this blocks passthrough. So instead we'll indicate
-			// that this pin *may* be used as a passthrough, and during execution in DisabledPassThroughData() we check dynamic types.
-			//const bool bInputTypeNotWiderThanOutputType = !(InputType & ~OutputType);
-			
-			if (bTypesOverlap)
-			{
-				return *FirstNonParamsPinPtr;
-			}
-		}
-
 		return nullptr;
 	}
+
+	const UPCGSettings* Settings = GetSettings();
+	if (!Settings)
+	{
+		return nullptr;
+	}
+
+	// Always take the first valid input pin as the pass-through pin
+	auto FindFirstPassThrough = [Settings](const TObjectPtr<UPCGPin>& InPin) { return Settings->DoesPinSupportPassThrough(InPin); };
+	if (const TObjectPtr<UPCGPin>* FirstPassThroughPin = Algo::FindByPredicate(AllInputPins, FindFirstPassThrough))
+	{
+		// Finally in order to be a candidate for passing through, data must be compatible.
+		const EPCGDataType InputType = FirstPassThroughPin->Get()->GetCurrentTypes();
+		const EPCGDataType OutputType = PassThroughOutput->GetCurrentTypes();
+
+		// Misc note - it would be nice if we could be stricter, like line below this comment. However it would mean it will stop an Any
+		// input being passed through to a Point output, even if the incoming edge will be receiving points dynamically/during execution. If a
+		// user creates a BP node with an Any input, which they may do lazily or unknowingly, this blocks passthrough. So instead we'll indicate
+		// that this pin *may* be used as a passthrough, and during execution in DisabledPassThroughData() we check dynamic types.
+		//const bool bInputTypeNotWiderThanOutputType = !(InputType & ~OutputType);
+		if (!!(InputType & OutputType))
+		{
+			return FirstPassThroughPin->Get();
+		}
+	}
+
+	return nullptr;
 }
 
 const UPCGPin* UPCGNode::GetPassThroughOutputPin() const
