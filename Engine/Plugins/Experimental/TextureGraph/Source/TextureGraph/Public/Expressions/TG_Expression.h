@@ -128,6 +128,22 @@ protected:
 	virtual void NotifyCommonVariantTypeChanged(FTG_Variant::EType NewType) const {}
 	FTG_Variant::EType EvalExpressionCommonVariantType() const { return GetParentNode()->EvalExpressionCommonVariantType(); }
 
+	// In some cases, evaluation or change in the Expression needs to be feedback to the matching pin's value
+	// This is not needed for the standard flow of evaluation but is sometime required for coupled member.
+	template<typename T> bool FeedbackPinValue(const FName& InPinName, const T& InValue)
+	{
+		UTG_Node* ParentNode = GetParentNode();
+		if (ParentNode)
+		{
+			UTG_Pin* Pin = ParentNode->GetPin(InPinName);
+			if (Pin)
+			{
+				return Pin->SetValue(InValue);
+			}
+		}
+		return false;
+	}
+
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditUndo() override;
