@@ -6,6 +6,7 @@
 #include "Iris/ReplicationSystem/ReplicationProtocol.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/WorldLocations.h"
+#include "Iris/Core/IrisCsv.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisProfiler.h"
 
@@ -78,6 +79,9 @@ void UNetObjectGridFilter::RemoveObject(uint32 ObjectIndex, const FNetObjectFilt
 void UNetObjectGridFilter::PreFilter(FNetObjectPreFilteringParams&)
 {
 	++FrameIndex;
+#if UE_NET_IRIS_CSV_STATS
+	Stats.Reset();
+#endif
 }
 
 void UNetObjectGridFilter::Filter(FNetObjectFilteringParams& Params)
@@ -139,13 +143,18 @@ void UNetObjectGridFilter::Filter(FNetObjectFilteringParams& Params)
 	 * object indices and then iterate over that. In both cases one do need to iterate over all
 	 * objects in all relevant cells anyway and setting a bit should be faster than inserting into a set.
 	 */
-	for (const FCellAndTimestamp& CellAndTimestamp : NewCells)
+
+	if (Config->bUseExactCullDistance)
 	{
-		if (FCellObjects* Objects = Cells.Find(CellAndTimestamp.Cell))
+#if UE_NET_IRIS_CSV_STATS
+		const uint64 StartTimeInCycles = FPlatformTime::Cycles64();
+		uint32 CullTestedObjects = 0;
+#endif
+		for (const FCellAndTimestamp& CellAndTimestamp : NewCells)
 		{
-			for (const uint32 ObjectIndex : Objects->ObjectIndices)
+			if (FCellObjects* Objects = Cells.Find(CellAndTimestamp.Cell))
 			{
-				if (Config->bUseExactCullDistance)
+				for (const uint32 ObjectIndex : Objects->ObjectIndices)
 				{
 					const FObjectLocationInfo& ObjectLocationInfo = static_cast<const FObjectLocationInfo&>(Params.FilteringInfos[ObjectIndex]);
 					const FPerObjectInfo& PerObjectInfo = ObjectInfos[ObjectLocationInfo.GetInfoIndex()];
@@ -158,19 +167,21 @@ void UNetObjectGridFilter::Filter(FNetObjectFilteringParams& Params)
 						if (ObjectToViewDistSq <= DistSq)
 						{
 							ConnectionInfo.RecentObjectFrameCount.Add(ObjectIndex, Config->ViewPosRelevancyFrameCount);
+							break; // Don't need to test all connections once one is within Distance
 						}
 					}
 				}
-				else
-				{
-					AllowedObjects.SetBit(ObjectIndex);
-				}
+#if UE_NET_IRIS_CSV_STATS
+				Stats.CullTestedObjects += Objects->ObjectIndices.Num();
+#endif
 			}
 		}
-	}
 
-	if (Config->bUseExactCullDistance)
-	{
+#if UE_NET_IRIS_CSV_STATS
+		Stats.CullTestingTimeInCycles += (FPlatformTime::Cycles64() - StartTimeInCycles);
+#endif
+
+		// Set the AllowedObjects and decrease their frame count
 		for (TMap<uint32, uint32>::TIterator It = ConnectionInfo.RecentObjectFrameCount.CreateIterator(); It; ++It)
 		{
 			if (It->Value > 0)
@@ -184,6 +195,27 @@ void UNetObjectGridFilter::Filter(FNetObjectFilteringParams& Params)
 			}
 		}
 	}
+	else
+	{
+		for (const FCellAndTimestamp& CellAndTimestamp : NewCells)
+		{
+			if (FCellObjects* Objects = Cells.Find(CellAndTimestamp.Cell))
+			{
+				for (const uint32 ObjectIndex : Objects->ObjectIndices)
+				{
+					AllowedObjects.SetBit(ObjectIndex);
+				}
+			}
+		}
+	}
+}
+
+void UNetObjectGridFilter::PostFilter(FNetObjectPostFilteringParams&)
+{
+#if UE_NET_IRIS_CSV_STATS
+	CSV_CUSTOM_STAT(Iris, CullTestingTimeInMS, FPlatformTime::ToMilliseconds64(Stats.CullTestingTimeInCycles), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(Iris, CullTestedObjectsCount, (int32)Stats.CullTestedObjects, ECsvCustomStatOp::Set);
+#endif
 }
 
 uint32 UNetObjectGridFilter::AllocObjectInfo()

@@ -208,4 +208,4 @@ private:
 	bool bIsEnabled = false;
 };
 
-}
+} // end namespace UE::Net::Private

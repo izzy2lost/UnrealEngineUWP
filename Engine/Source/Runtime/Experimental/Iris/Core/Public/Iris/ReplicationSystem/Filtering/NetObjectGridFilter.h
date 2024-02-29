@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
+#include "Iris/IrisConfig.h"
 #include "Net/Core/NetBitArray.h"
 #include "Containers/ChunkedArray.h"
 #include "Math/Vector.h"
@@ -67,6 +68,7 @@ protected:
 	IRISCORE_API virtual void RemoveObject(uint32 ObjectIndex, const FNetObjectFilteringInfo&) override;
 	IRISCORE_API virtual void PreFilter(FNetObjectPreFilteringParams&) override;
 	IRISCORE_API virtual void Filter(FNetObjectFilteringParams&) override;
+	IRISCORE_API virtual void PostFilter(FNetObjectPostFilteringParams&) override;
 
 protected:
 	struct FObjectLocationInfo : public FNetObjectFilteringInfo
@@ -196,6 +198,18 @@ private:
 		TMap<uint32, uint32> RecentObjectFrameCount;
 	};
 
+	/** Aggregator for stats */
+	struct FNetGridFilterStats
+	{
+		FNetGridFilterStats() = default;
+
+		void Reset() { *this = FNetGridFilterStats(); }
+		
+		/** GridFilter stats */
+		uint64 CullTestingTimeInCycles = 0;
+		uint32 CullTestedObjects = 0;
+	};
+
 private:
 	uint32 AllocObjectInfo();
 	void FreeObjectInfo(uint32 Index);
@@ -211,6 +225,10 @@ private:
 	TArray<FPerConnectionInfo> PerConnectionInfos;
 	TChunkedArray<FPerObjectInfo, ObjectInfosChunkSize> ObjectInfos;
 	UE::Net::FNetBitArray AssignedObjectInfoIndices;
+
+#if UE_NET_IRIS_CSV_STATS
+	FNetGridFilterStats Stats;
+#endif
 
 	TMap<FCellCoord, FCellObjects> Cells;
 	uint32 FrameIndex = 0;
