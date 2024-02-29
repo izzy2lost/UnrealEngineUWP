@@ -3043,6 +3043,22 @@ struct FEndLoadPackageContext
 	bool bSynchronous;
 };
 
+enum class ECompiledInUObjectsRegisteredStatus
+{
+
+	// Registration for the given module has been delayed and will be registered with a layer notification where the package name is NAME_None.
+	// Calls to FindObject<> for any delayed registrations will return nullptr.
+	Delayed,
+
+	// All pending registrations have been done but CDOs have not been created.  This may be invoked multiple times for the same package name.
+	// Calls to FindObject<> for all pending registrations will return the UObject in question.
+	PreCDO,
+
+	// All pending registrations and CDO creation has been done.  Calls to FindObject<> for all pending registrations will return the UObject 
+	// in question.  The CDO will also be available for any registered UClasses.
+	PostCDO,
+};
+
 /**
  * Global CoreUObject delegates
  */
@@ -3171,8 +3187,14 @@ struct FCoreUObjectDelegates
 	UE_DEPRECATED(5.0, "ReinstanceHotReloadedClassesDelegate has been deprecated, use FReload for class re-instancing or ReloadReinstancingCompleteDelegate for notification")
 	static COREUOBJECT_API FReinstanceHotReloadedClassesDelegate ReinstanceHotReloadedClassesDelegate;
 
-	/** Delegate for catching when UClasses/UStructs/UEnums would be available via FindObject<>(), but before their CDOs would be constructed. */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FCompiledInUObjectsRegisteredDelegate, FName /*Package*/);
+	/** 
+	 * Delegate invoked when requests are made to process pending UObject registrations.  This will be invoked during the loading of modules
+	 * and outside of module load to register any delayed registrations.  This callback will be invoked regardless of if the module contained
+	 * any UObject definitions.  The callback will also be invoked during module load in monolithic builds.
+	 * 
+	 * See ECompiledInUObjectsRegisteredStatus for more detailed information about the notifications.
+	 */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FCompiledInUObjectsRegisteredDelegate, FName /*Package*/, ECompiledInUObjectsRegisteredStatus Status);
 	static COREUOBJECT_API FCompiledInUObjectsRegisteredDelegate CompiledInUObjectsRegisteredDelegate;
 
 	/** Sent at the very beginning of LoadMap */

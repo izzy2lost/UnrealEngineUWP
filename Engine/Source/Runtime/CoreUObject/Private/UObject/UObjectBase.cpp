@@ -861,6 +861,7 @@ void ProcessNewlyLoadedUObjects(FName Package, bool bCanProcessNewlyLoadedObject
 #endif
 	if (!bCanProcessNewlyLoadedObjects)
 	{
+		FCoreUObjectDelegates::CompiledInUObjectsRegisteredDelegate.Broadcast(Package, ECompiledInUObjectsRegisteredStatus::Delayed);
 		return;
 	}
 	LLM_SCOPE(ELLMTag::UObject);
@@ -888,10 +889,12 @@ void ProcessNewlyLoadedUObjects(FName Package, bool bCanProcessNewlyLoadedObject
 		UObjectProcessRegistrants();
 		UObjectLoadAllCompiledInStructs();
 
-		FCoreUObjectDelegates::CompiledInUObjectsRegisteredDelegate.Broadcast(Package);
+		FCoreUObjectDelegates::CompiledInUObjectsRegisteredDelegate.Broadcast(Package, ECompiledInUObjectsRegisteredStatus::PreCDO);
 
 		UObjectLoadAllCompiledInDefaultProperties(AllNewClasses);
 	}
+
+	FCoreUObjectDelegates::CompiledInUObjectsRegisteredDelegate.Broadcast(Package, ECompiledInUObjectsRegisteredStatus::PostCDO);
 
 #if WITH_RELOAD
 	IReload* Reload = GetActiveReloadInterface();
