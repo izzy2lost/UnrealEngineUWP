@@ -17,5 +17,5 @@ class UCustomizableObjectSettings : public UObject
 public:
 	/** If true, use the new StreamManager ticker. If false, use the old FTSTicker. */
 	UPROPERTY(Config)
-	bool bEnableStreamingManager = false;
+	bool bEnableStreamingManager = true;
 };
