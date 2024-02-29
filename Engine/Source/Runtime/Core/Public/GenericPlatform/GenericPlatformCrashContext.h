@@ -141,7 +141,7 @@ enum class EUnattendedStatus : uint8
 	Unattended
 };
 
-CORE_API const TCHAR* AttendedStatusToString(const EUnattendedStatus Status);
+const TCHAR* AttendedStatusToString(const EUnattendedStatus Status);
 
 #define CR_MAX_ERROR_MESSAGE_CHARS 2048
 #define CR_MAX_DIRECTORY_CHARS 256
@@ -746,7 +746,7 @@ private:
 	static void SerializeUserSettings(FString& Buffer);
 
 	/** Writes a common property to the buffer. */
-	CORE_API static void AddCrashPropertyInternal(FString& Buffer, FStringView PropertyName, FStringView PropertyValue);
+	static void AddCrashPropertyInternal(FString& Buffer, FStringView PropertyName, FStringView PropertyValue);
 
 	/** Writes a common property to the buffer. */
 	template <typename Type>
