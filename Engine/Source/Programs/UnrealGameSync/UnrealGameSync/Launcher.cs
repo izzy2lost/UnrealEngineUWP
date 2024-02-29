@@ -32,8 +32,13 @@ namespace UnrealGameSync
 			LauncherSettings launcherSettings = new LauncherSettings();
 			launcherSettings.Read();
 
+			async Task SyncAndRunWrapper(IPerforceConnection? perforce, LauncherSettings settings, ILogger logWriter, CancellationToken cancellationToken)
+			{
+				List<string> childArgs = args.Except(new[] { "-settings", "-updatecheck", "-noupdatecheck" }, StringComparer.OrdinalIgnoreCase).ToList();
+				await SyncAndRun(perforce, settings, args, instanceMutex, logWriter, cancellationToken);
+			}
+
 			// If the shift key is held down, immediately show the settings window
-			Task SyncAndRunWrapper(IPerforceConnection? perforce, LauncherSettings settings, ILogger logWriter, CancellationToken cancellationToken) => SyncAndRun(perforce, settings, args, instanceMutex, logWriter, cancellationToken);
 			if ((Control.ModifierKeys & Keys.Shift) != 0 || openSettings || launcherSettings.UpdateSource == LauncherUpdateSource.Unknown)
 			{
 				// Show the settings window immediately
@@ -255,20 +260,9 @@ namespace UnrealGameSync
 				}
 				logger.LogInformation("");
 
-				// Build the command line for the synced application, including the sync path to monitor for updates
-				string originalExecutable = Assembly.GetEntryAssembly()!.Location;
-                if (Path.GetExtension(originalExecutable).Equals(".dll", StringComparison.OrdinalIgnoreCase))
-                {
-                    string newExecutable = Path.ChangeExtension(originalExecutable, ".exe");
-                    if (File.Exists(newExecutable))
-                    {
-                        originalExecutable = newExecutable;
-                    }
-                }
-
 				// Create the new argument list
 				List<string> newArguments = new List<string>(args);
-				newArguments.Add($"-updatespawn={originalExecutable}");
+				newArguments.Add($"-updatespawn={Program.GetCurrentExecutable()}");
 				if (updatePath != null)
 				{
 					newArguments.Add($"-updatepath={updatePath}");
