@@ -46,6 +46,7 @@ struct FGizmoState;
 enum class EMovieSceneDataChangeType;
 struct FMovieSceneChannelMetaData;
 class UMovieSceneSection;
+class UControlRigEditModeSettings;
 
 DECLARE_DELEGATE_RetVal_ThreeParams(FTransform, FOnGetRigElementTransform, const FRigElementKey& /*RigElementKey*/, bool /*bLocal*/, bool /*bOnDebugInstance*/);
 DECLARE_DELEGATE_ThreeParams(FOnSetRigElementTransform, const FRigElementKey& /*RigElementKey*/, const FTransform& /*Transform*/, bool /*bLocal*/);
@@ -134,7 +135,7 @@ public:
 	void SetObjects(UControlRig* InControlRig, UObject* BindingObject, TWeakPtr<ISequencer> InSequencer);
 
 	/** Add a Control Rig object if it doesn't exist, will return true if it was added, false if it wasn't since it's already there. You can also set the Sequencer.*/
-	bool AddControlRigObject(UControlRig* InControlRig, TWeakPtr<ISequencer> InSequencer);
+	bool AddControlRigObject(UControlRig* InControlRig, const TWeakPtr<ISequencer>& InSequencer);
 
 	/* Remove control rig */
 	void RemoveControlRig(UControlRig* InControlRig);
@@ -328,7 +329,7 @@ private:
 	void BindCommands();
 
 	/** It creates if it doesn't have it */
-	void RecreateControlShapeActors(const TArray<FRigElementKey>& InSelectedElements = TArray<FRigElementKey>());
+	void RecreateControlShapeActors();
 
 	/** Let the preview scene know how we want to select components */
 	bool ShapeSelectionOverride(const UPrimitiveComponent* InComponent) const;
@@ -468,6 +469,9 @@ private:
 	bool bIsChangingCoordSystem;
 
 	bool CanChangeControlShapeTransform();
+
+	void OnSettingsChanged(const UControlRigEditModeSettings* InSettings);
+	
 public:
 	//Toolbar functions
 	void SetOnlySelectRigControls(bool val);
@@ -477,9 +481,10 @@ public:
 private:
 	TSet<FName> GetActiveControlsFromSequencer(UControlRig* ControlRig);
 
-	/** Create/Delete for the specified ControlRig*/
+	/** Create/Delete/Update shape actors for the specified ControlRig */
 	void CreateShapeActors(UControlRig* InControlRig);
 	void DestroyShapesActors(UControlRig* InControlRig);
+	bool TryUpdatingControlsShapes(UControlRig* InControlRig);
 
 	/*Internal function for adding ControlRig*/
 	void AddControlRigInternal(UControlRig* InControlRig);
@@ -510,7 +515,7 @@ protected:
 	FTransform	GetHostingSceneComponentTransform(const UControlRig* ControlRig =  nullptr) const;
 
 	//Get if the hosted component is visible
-	bool IsControlRigSkelMeshVisible(UControlRig* ControlRig) const;
+	bool IsControlRigSkelMeshVisible(const UControlRig* InControlRig) const;
 	
 public:  
 		TSharedPtr<FDetailKeyFrameCacheAndHandler> DetailKeyFrameCache;
@@ -589,3 +594,27 @@ private:
 	friend class UControlRigEditModeDelegateHelper;
 	friend class SControlRigEditModeTools;
 };
+
+namespace ControlRigEditMode::Shapes
+{
+	// Returns the list of controls for which a shape is expected
+	void GetControlsEligibleForShapes(UControlRig* InControlRig, TArray<FRigControlElement*>& OutControls);
+
+	// Destroys shape actors and removes them from their UWorld
+	void DestroyShapesActorsFromWorld(const TArray<TObjectPtr<AControlRigShapeActor>>& InShapeActorsToDestroy);
+
+	// Parameters used to update shape actors (transform, visibility, etc.)
+	struct FShapeUpdateParams
+	{
+		FShapeUpdateParams(const UControlRig* InControlRig, const FTransform& InComponentTransform, const bool InSkeletalMeshVisible);
+		const UControlRig* ControlRig = nullptr;
+		const URigHierarchy* Hierarchy = nullptr;
+		const UControlRigEditModeSettings* Settings = nullptr;
+		const FTransform& ComponentTransform = FTransform::Identity;
+		const bool bIsSkeletalMeshVisible = false;
+		bool IsValid() const;
+	};
+
+	// Updates shape actors transform, visibility, etc.
+	void UpdateControlShape(AControlRigShapeActor* InShapeActor, FRigControlElement* InControlElement, const FShapeUpdateParams& InUpdateParams);
+}

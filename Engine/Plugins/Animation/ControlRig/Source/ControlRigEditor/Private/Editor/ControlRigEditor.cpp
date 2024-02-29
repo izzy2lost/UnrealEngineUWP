@@ -955,7 +955,7 @@ void FControlRigEditor::SetEventQueue(TArray<FName> InEventQueue, bool bCompile)
 
 	if (FControlRigEditMode* EditMode = GetEditMode())
 	{
-		EditMode->RecreateControlShapeActors(GetHierarchyBeingDebugged()->GetSelectedKeys());
+		EditMode->RecreateControlShapeActors();
 
 		UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>();
 		Settings->bDisplayNulls = IsConstructionModeEnabled();
@@ -1424,7 +1424,7 @@ void FControlRigEditor::Compile()
 
 		if (FControlRigEditMode* EditMode = GetEditMode())
 		{
-			EditMode->RecreateControlShapeActors(GetHierarchyBeingDebugged()->GetSelectedKeys());
+			EditMode->RecreateControlShapeActors();
 		}
 	}
 }

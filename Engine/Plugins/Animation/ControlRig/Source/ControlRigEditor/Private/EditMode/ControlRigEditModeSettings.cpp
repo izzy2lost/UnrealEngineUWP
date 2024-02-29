@@ -6,6 +6,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigEditModeSettings)
 
+UControlRigEditModeSettings::FOnUpdateSettings UControlRigEditModeSettings::OnSettingsChange;
+
 void UControlRigEditModeSettings::PreEditChange(FProperty* PropertyAboutToChange)
 {
 	Super::PreEditChange(PropertyAboutToChange);
@@ -25,12 +27,14 @@ void UControlRigEditModeSettings::PostEditChangeProperty(struct FPropertyChanged
 		// Dragging spinboxes causes this to be called every frame so we wait until they've finished dragging before saving.
 		SaveConfig();
 	}
+	OnSettingsChange.Broadcast(this);
 }
 
 #if WITH_EDITOR
 void UControlRigEditModeSettings::PostEditUndo()
 {
 	GizmoScaleDelegate.Broadcast(GizmoScale);
+	OnSettingsChange.Broadcast(this);
 }
 #endif
 
