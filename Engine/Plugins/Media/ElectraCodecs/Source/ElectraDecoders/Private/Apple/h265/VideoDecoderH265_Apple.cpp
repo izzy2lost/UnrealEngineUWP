@@ -364,11 +364,11 @@ void IElectraVideoDecoderH265_Apple::PlatformGetSupportedConfigurations(TArray<F
 		// What is really supported isn't quite clear so allow for UHD.
 
 		// Main
-		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 1, 0, 153, 60, 4096, 2304, 0));
-		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 1, 0, 153, 0, 0, 0, (3840 / 8) * (2160 / 8) * 60));
+		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 1, 0, 153, 120, 4096, 2304, 0));
+		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 1, 0, 153, 0, 0, 0, (3840 / 8) * (2160 / 8) * 120));
 		// Main10
-		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 2, 0, 153, 60, 4096, 2304, 0));
-		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 2, 0, 153, 0, 0, 0, (3840 / 8) * (2160 / 8) * 60));
+		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 2, 0, 153, 120, 4096, 2304, 0));
+		IElectraVideoDecoderH265_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH265_Apple::FSupportedConfiguration(0, 2, 0, 153, 0, 0, 0, (3840 / 8) * (2160 / 8) * 120));
 
 		IElectraVideoDecoderH265_Apple_Platform::bDecoderConfigurationsDirty = false;
 	}
