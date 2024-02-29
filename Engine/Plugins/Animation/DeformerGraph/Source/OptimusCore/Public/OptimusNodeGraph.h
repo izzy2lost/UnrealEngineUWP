@@ -80,7 +80,7 @@ public:
 	static const FName DefaultSubGraphRefNodeName;
 	
 	// Function Graphs are addressed in a special way
-	static FString GetFunctionGraphPath(const FString& InFunctionName);
+	static FString GetFunctionGraphCollectionPath(const FString& InFunctionName);
 
 	
 	// Check if the duplication took place at the asset level
@@ -93,8 +93,6 @@ public:
 
 	UOptimusNodeGraph *GetParentGraph() const;
 	
-	FString GetGraphPath() const;
-
 	/** Verify if the given name is a valid graph name. */
 	static bool IsValidUserGraphName(
 		const FString& InGraphName,
@@ -196,9 +194,9 @@ public:
 	bool RemoveNodes(
 		const TArray<UOptimusNode*>& InNodes
 	);
-	bool RemoveNodes(
-		const TArray<UOptimusNode*>& InNodes,
-		const FString& InActionName
+
+	int32 RemoveNodesAndCount(
+		const TArray<UOptimusNode*>& InNodes
 	);
 
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
@@ -390,6 +388,7 @@ public:
 
 	const TArray<UOptimusNode*>& GetAllNodes() const { return Nodes; }
 	const TArray<UOptimusNodeLink*>& GetAllLinks() const { return Links; }
+	const TArray<UOptimusNodePair*>& GetAllNodePairs() const { return NodePairs; }
 
 	UOptimusActionStack* GetActionStack() const;      
 
@@ -466,10 +465,9 @@ protected:
 		UOptimusNode* InNode
 	);
 	
-	bool RemoveNodesToAction(
-		FOptimusCompoundAction* InOutAction,
-		const TArray<UOptimusNode*>& InNodes
-		) const;
+	void RemoveGraph(
+		UOptimusNodeGraph* InNodeGraph
+		);
 	
 	// Remove a node directly. If a node still has connections this call will fail. 
 	bool RemoveNodeDirect(
@@ -535,7 +533,12 @@ private:
 		TArray<UOptimusNodeSubGraph*>& OutSubGraphs
 		);
 
-	bool DuplicateSubGraph(UOptimusNodeSubGraph* InSourceSubGraph, FName InNewGraphName);
+	static bool DuplicateSubGraph(
+		UOptimusActionStack* InActionStack,
+		const FString& InGraphOwnerPath,
+		UOptimusNodeSubGraph* InSourceSubGraph,
+		FName InNewGraphName
+		);
 
 	void RemoveNodePairByIndex(int32 NodePairIndex);
 	
@@ -564,6 +567,7 @@ private:
 		) const;
 
 	FString ConstructSubGraphPath(const FString& InSubGraphName) const;
+	static FString ConstructSubGraphPath(const FString& InGraphOwnerPath, const FString& InSubGraphName);
 	
 	UPROPERTY(NonTransactional)
 	TArray<TObjectPtr<UOptimusNode>> Nodes;
@@ -575,7 +579,7 @@ private:
 	UPROPERTY(NonTransactional)
 	TArray<TObjectPtr<UOptimusNodePair>> NodePairs;
 	
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	TArray<TObjectPtr<UOptimusNodeGraph>> SubGraphs;
 
 	FOptimusGraphNotifyDelegate GraphNotifyDelegate;

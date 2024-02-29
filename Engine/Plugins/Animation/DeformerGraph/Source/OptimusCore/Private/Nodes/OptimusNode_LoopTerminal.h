@@ -66,7 +66,6 @@ public:
 #endif
 	
 	// UOptimusNode overrides
-	bool CanUserDeleteNode() const override { return true; }
 	FName GetNodeCategory() const override { return NAME_None; }
 	FText GetDisplayName() const override;
 	void ConstructNode() override;

@@ -308,18 +308,6 @@ TSharedRef<SWidget> SOptimusEditorGraphExplorer::OnCreateWidgetForAction(FCreate
 	return SNew(SOptimusEditorGraphExplorerItem, InCreateData, OptimusEditor.Pin());
 }
 
-static FText GetGraphSubCategory(UOptimusNodeGraph* InGraph)	
-{
-	if (InGraph->GetGraphType() == EOptimusNodeGraphType::ExternalTrigger)
-	{
-		return FText::FromString(TEXT("Triggered Graphs"));
-	}
-	else
-	{
-		return FText::GetEmpty();
-	}
-}
-
 void SOptimusEditorGraphExplorer::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
 {
 	TSharedPtr<FOptimusEditor> Editor = OptimusEditor.Pin();
@@ -337,11 +325,10 @@ void SOptimusEditorGraphExplorer::CollectAllActions(FGraphActionListBuilderBase&
 	
 	for (UOptimusNodeGraph* Graph : Deformer->GetGraphs())
 	{
-		FText GraphCategory = GetGraphSubCategory(Graph);
 		TSharedPtr<FOptimusSchemaAction_Graph> GraphAction = MakeShared<FOptimusSchemaAction_Graph>(Graph);
 		OutAllActions.AddAction(GraphAction);
 
-		CollectChildGraphActions(OutAllActions, Graph, GraphCategory);
+		CollectChildGraphActions(OutAllActions, Graph, {});
 	}
 	
 	for (UOptimusComponentSourceBinding* Binding : Deformer->GetComponentBindings())

@@ -14,6 +14,7 @@
 #include "OptimusNode.h"
 #include "OptimusNodePin.h"
 #include "IOptimusNodeAdderPinProvider.h"
+#include "IOptimusNonCopyableNode.h"
 #include "IOptimusPinMutabilityDefiner.h"
 #include "OptimusComponentSource.h"
 #include "OptimusDataTypeRegistry.h"
@@ -264,6 +265,11 @@ void UOptimusEditorGraphNode::SyncDiagnosticStateWithModelNode()
 	}
 }
 
+
+bool UOptimusEditorGraphNode::CanDuplicateNode() const
+{
+	return Super::CanDuplicateNode() && (!ModelNode || Cast<IOptimusNonCopyableNode>(ModelNode) == nullptr);
+}
 
 bool UOptimusEditorGraphNode::CanUserDeleteNode() const
 {

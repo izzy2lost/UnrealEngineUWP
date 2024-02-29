@@ -34,7 +34,7 @@ public:
 	FOptimusNodeGraphAction_AddGraph() = default;
 
 	FOptimusNodeGraphAction_AddGraph(
-	    const IOptimusNodeGraphCollectionOwner* InGraphOwner,
+		const FString& InGraphOwnerPath,
 		EOptimusNodeGraphType InGraphType,
 		FName InGraphName,
 		int32 InGraphIndex,

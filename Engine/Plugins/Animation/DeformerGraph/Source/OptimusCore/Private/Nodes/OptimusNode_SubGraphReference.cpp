@@ -84,11 +84,11 @@ FOptimusRoutedNodePin UOptimusNode_SubGraphReference::GetPinCounterpart(
 	UOptimusNode_GraphTerminal* CounterpartNode = nullptr;
 	if (InNodePin->GetDirection() == EOptimusNodePinDirection::Input)
 	{
-		CounterpartNode = SubGraph->EntryNode.Get();
+		CounterpartNode = SubGraph->GetTerminalNode(EOptimusTerminalType::Entry);
 	}
 	else if (InNodePin->GetDirection() == EOptimusNodePinDirection::Output)
 	{
-		CounterpartNode = SubGraph->ReturnNode.Get();
+		CounterpartNode = SubGraph->GetTerminalNode(EOptimusTerminalType::Return);
 	}
 
 	if (!ensure(CounterpartNode))

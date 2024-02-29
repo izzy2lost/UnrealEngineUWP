@@ -159,7 +159,7 @@ FOptimusSchemaAction_Graph::FOptimusSchemaAction_Graph(
 		), 
 		GraphType(InGraph->GetGraphType())
 {
-	GraphPath = InGraph->GetGraphPath();
+	GraphPath = InGraph->GetCollectionPath();
 }
 
 

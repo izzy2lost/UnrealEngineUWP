@@ -53,11 +53,11 @@ namespace Optimus
 	struct FUniqueNameGenerator
 	{
 		explicit FUniqueNameGenerator(UObject* InScopeObject);
+		FName GetUniqueName(FName InName);
 		
+	private:	
 		UObject* ScopeObject = nullptr;
 		TArray<FName> GeneratedName;
-
-		FName GetUniqueName(FName InName);
 	};
 	
 	/** A small helper class to enable binary reads on an archive, since the 

@@ -123,7 +123,7 @@ FString UOptimusNode::GetNodePath() const
 	FString GraphPath(TEXT("<Unknown>"));
 	if (Graph)
 	{
-		GraphPath = Graph->GetGraphPath();
+		GraphPath = Graph->GetCollectionPath();
 	}
 
 	return UOptimusNodeGraph::ConstructPath(GraphPath, GetName(), {});

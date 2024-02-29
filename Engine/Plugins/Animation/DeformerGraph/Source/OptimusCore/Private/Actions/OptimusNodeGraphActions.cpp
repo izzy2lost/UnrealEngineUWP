@@ -26,23 +26,21 @@
 // ---- Add graph
 
 FOptimusNodeGraphAction_AddGraph::FOptimusNodeGraphAction_AddGraph(
-	const IOptimusNodeGraphCollectionOwner* InGraphOwner, 
+	const FString& InGraphOwnerPath, 
 	EOptimusNodeGraphType InGraphType, 
 	FName InGraphName, 
 	int32 InGraphIndex,
 	TFunction<bool(UOptimusNodeGraph*)> InConfigureGraphFunc
 	)
 {
-	if (ensure(InGraphOwner))
-	{
-		GraphOwnerPath = InGraphOwner->GetCollectionPath();
-		GraphType = InGraphType;
-		GraphName = InGraphName;
-		GraphIndex = InGraphIndex;
-		ConfigureGraphFunc = InConfigureGraphFunc;
+	GraphOwnerPath = InGraphOwnerPath;
+	GraphType = InGraphType;
+	GraphName = InGraphName;
+	GraphIndex = InGraphIndex;
+	ConfigureGraphFunc = InConfigureGraphFunc;
 
-		SetTitlef(TEXT("Add graph"));
-	}
+	SetTitlef(TEXT("Add graph"));
+
 }
 
 
@@ -89,7 +87,7 @@ bool FOptimusNodeGraphAction_AddGraph::Do(
 		GraphName = Graph->GetFName();
 	}
 
-	GraphPath = Graph->GetGraphPath();
+	GraphPath = Graph->GetCollectionPath();
 	return true;
 }
 
@@ -116,7 +114,7 @@ FOptimusNodeGraphAction_RemoveGraph::FOptimusNodeGraphAction_RemoveGraph(
 {
 	if (ensure(InGraph))
 	{
-		GraphPath = InGraph->GetGraphPath();
+		GraphPath = InGraph->GetCollectionPath();
 		GraphOwnerPath = InGraph->GetCollectionOwner()->GetCollectionPath();
 		GraphType = InGraph->GetGraphType();
 		GraphName = InGraph->GetFName();
@@ -192,7 +190,7 @@ FOptimusNodeGraphAction_RenameGraph::FOptimusNodeGraphAction_RenameGraph(
 {
 	if (ensure(InGraph) && InGraph->GetFName() != InNewName)
 	{
-		GraphPath = InGraph->GetGraphPath();
+		GraphPath = InGraph->GetCollectionPath();
 		GraphOwnerPath = InGraph->GetCollectionOwner()->GetCollectionPath();
 
 		// Ensure the name is unique within our namespace.
@@ -227,7 +225,7 @@ bool FOptimusNodeGraphAction_RenameGraph::Do(
 
 	if (GraphOwner->RenameGraphDirect(Graph, NewGraphName.ToString()))
 	{
-		GraphPath = Graph->GetGraphPath();
+		GraphPath = Graph->GetCollectionPath();
 		return true;
 	}
 
@@ -253,7 +251,7 @@ bool FOptimusNodeGraphAction_RenameGraph::Undo(
 
 	if (GraphOwner->RenameGraphDirect(Graph, OldGraphName.ToString()))
 	{
-		GraphPath = Graph->GetGraphPath();
+		GraphPath = Graph->GetCollectionPath();
 		return true;
 	}
 
@@ -449,7 +447,7 @@ FOptimusNodeGraphAction_RemoveNode::FOptimusNodeGraphAction_RemoveNode(
 	{
 		NodePath = InNode->GetNodePath();
 
-		GraphPath = InNode->GetOwningGraph()->GetGraphPath();
+		GraphPath = InNode->GetOwningGraph()->GetCollectionPath();
 		NodeName = InNode->GetFName();
 		NodeClassPath = InNode->GetClass()->GetPathName();
 
@@ -847,7 +845,7 @@ FOptimusNodeGraphAction_PackageKernelFunction::FOptimusNodeGraphAction_PackageKe
 {
 	if (ensure(InKernelNode))
 	{
-		GraphPath = InKernelNode->GetOwningGraph()->GetGraphPath();
+		GraphPath = InKernelNode->GetOwningGraph()->GetCollectionPath();
 
 		NodeName = InNodeName;
 		NodePosition = InKernelNode->GetGraphPosition();
@@ -957,7 +955,7 @@ FOptimusNodeGraphAction_UnpackageKernelFunction::FOptimusNodeGraphAction_Unpacka
 {
 	if (ensure(InKernelFunction))
 	{
-		GraphPath = InKernelFunction->GetOwningGraph()->GetGraphPath();
+		GraphPath = InKernelFunction->GetOwningGraph()->GetCollectionPath();
 		ClassPath = InKernelFunction->GetClass()->GetPathName();
 		NodeName = InNodeName;
 		NodePosition = InKernelFunction->GetGraphPosition();

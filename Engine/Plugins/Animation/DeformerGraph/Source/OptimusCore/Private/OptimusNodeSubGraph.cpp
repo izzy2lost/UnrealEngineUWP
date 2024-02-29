@@ -45,12 +45,29 @@ EOptimusDataTypeUsageFlags UOptimusNodeSubGraph::GetTypeUsageFlags(const FOptimu
 
 UOptimusComponentSourceBinding* UOptimusNodeSubGraph::GetDefaultComponentBinding(const FOptimusPinTraversalContext& InTraversalContext) const
 {
-	if (!ensure(EntryNode.IsValid()))
+	UOptimusNode_GraphTerminal* EntryNode = GetTerminalNode(EOptimusTerminalType::Entry);
+	if (!ensure(EntryNode))
 	{
 		return nullptr;
 	}
 
 	return EntryNode->GetDefaultComponentBinding(InTraversalContext);
+}
+
+UOptimusNode_GraphTerminal* UOptimusNodeSubGraph::GetTerminalNode(EOptimusTerminalType InTerminalType) const
+{
+	for (UOptimusNode* Node : GetAllNodes())
+	{
+		if (UOptimusNode_GraphTerminal* TerminalNode = Cast<UOptimusNode_GraphTerminal>(Node))
+		{
+			if (TerminalNode->TerminalType == InTerminalType)
+			{
+				return TerminalNode;
+			}
+		}
+	}
+	
+	return nullptr;
 }
 
 #if WITH_EDITOR
@@ -119,8 +136,11 @@ FName UOptimusNodeSubGraph::GetSanitizedBindingName(FName InNewName, FName InOld
 
 	if (Name != InOldName)
 	{
-		Name = UOptimusNode::GetAvailablePinNameStable(EntryNode.Get(), Name);
-		Name = UOptimusNode::GetAvailablePinNameStable(ReturnNode.Get(), Name);
+		const UOptimusNode_GraphTerminal* EntryNode = GetTerminalNode(EOptimusTerminalType::Entry);
+		const UOptimusNode_GraphTerminal* ReturnNode = GetTerminalNode(EOptimusTerminalType::Return);
+
+		Name = UOptimusNode::GetAvailablePinNameStable(EntryNode, Name);
+		Name = UOptimusNode::GetAvailablePinNameStable(ReturnNode, Name);
 	}
 	
 	return Name;
@@ -155,6 +175,9 @@ void UOptimusNodeSubGraph::PropertyArrayPasted(const FPropertyChangedEvent& InPr
 
 void UOptimusNodeSubGraph::PropertyValueChanged(const FPropertyChangedEvent& InPropertyChangedEvent)
 {
+	UOptimusNode_GraphTerminal* EntryNode = GetTerminalNode(EOptimusTerminalType::Entry);
+	UOptimusNode_GraphTerminal* ReturnNode = GetTerminalNode(EOptimusTerminalType::Return);
+	
 	FOptimusParameterBindingArray* BindingArrayPtr = nullptr;
 	TArray<UOptimusNodePin*> BindingPins;
 	bool bAllowParameter = false;

@@ -4,6 +4,7 @@
 #include "IOptimusAlternativeSelectedObjectProvider.h"
 #include "IOptimusNodePinRouter.h"
 #include "IOptimusNonCollapsibleNode.h"
+#include "IOptimusNonCopyableNode.h"
 #include "OptimusNode.h"
 
 #include "OptimusNode_GraphTerminal.generated.h"
@@ -26,7 +27,8 @@ class UOptimusNode_GraphTerminal :
 	public UOptimusNode,
 	public IOptimusNodePinRouter,
 	public IOptimusAlternativeSelectedObjectProvider,
-	public IOptimusNonCollapsibleNode
+	public IOptimusNonCollapsibleNode,
+	public IOptimusNonCopyableNode
 {
 	GENERATED_BODY()
 	
@@ -42,7 +44,6 @@ public:
 	void ConstructNode() override;
 
 	// UObject overrides
-	void PostLoad() override;
 	void BeginDestroy() override;
 	
 	// IOptimusNodePinRouter implementation
@@ -60,6 +61,7 @@ protected:
 	friend class UOptimusNodeGraph;
 	friend class UOptimusNodeSubGraph;
 
+	void InitializeTransientData() override;
 	void SubscribeToOwningGraph();
 
 	void UnsubscribeFromOwningGraph() const;
@@ -75,12 +77,12 @@ protected:
 	UPROPERTY()
 	EOptimusTerminalType TerminalType;
 
-	/** The graph that owns us. This contains all the necessary pin information to add on
-	 * the terminal node.
-	 */
-	UPROPERTY()
-	TWeakObjectPtr<UOptimusNodeSubGraph> OwningGraph;
 
 	UPROPERTY()
 	TWeakObjectPtr<UOptimusNodePin> DefaultComponentPin;
+	
+	/** The graph that owns us. This contains all the necessary pin information to add on
+	 * the terminal node. Initialized during InitializeTransientData()
+	 */
+	TWeakObjectPtr<UOptimusNodeSubGraph> OwningGraph;
 };

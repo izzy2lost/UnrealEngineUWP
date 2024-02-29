@@ -497,7 +497,21 @@ void FOptimusEditor::CopySelectedNodes() const
 
 bool FOptimusEditor::CanCopyNodes() const
 {
-	return !GetSelectedModelNodes().IsEmpty();
+	if (GraphEditorWidget->GetSelectedNodes().IsEmpty())
+	{
+		return false;
+	}
+	
+	for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
+	{
+		UEdGraphNode* GraphNode = Cast<UEdGraphNode>(Object);
+		if (GraphNode && !GraphNode->CanDuplicateNode())
+		{
+			return false;
+		}
+	}
+	
+	return true;
 }
 
 
@@ -509,7 +523,10 @@ void FOptimusEditor::CutSelectedNodes() const
 	const TArray<UOptimusNode*> ModelNodes = GetSelectedModelNodes();
 	Clipboard.SetClipboardFromNodes(ModelNodes);
 
-	ModelGraph->RemoveNodes(ModelNodes, TEXT("Cut"));
+	FOptimusActionScope ActionScope(*GetActionStack(), {});
+	int32 NumCut = ModelGraph->RemoveNodesAndCount(ModelNodes);
+	const FString& ActionTitle = NumCut == 1 ? TEXT("Cut Node") : FString::Printf(TEXT("Cut %d Nodes"), NumCut);
+	ActionScope.SetTitle(ActionTitle);
 }
 
 
@@ -556,12 +573,7 @@ void FOptimusEditor::DuplicateNodes() const
 
 bool FOptimusEditor::CanDuplicateNodes() const
 {
-	if (IsGraphReadOnly())
-	{
-		return false;
-	}
-	
-	return !GetSelectedModelNodes().IsEmpty();
+	return CanCopyNodes() && !IsGraphReadOnly();
 }
 
 
@@ -669,11 +681,12 @@ bool FOptimusEditor::CanCollapseNodes() const
 
 void FOptimusEditor::ExpandCollapsedNode()
 {
-	FOptimusActionScope ActionScope(*GetActionStack(), TEXT("Expand Collapsed Nodes"));
 	UOptimusNodeGraph* ModelGraph = EditorGraph->GetModelGraph();
 	TArray<UObject*> NewNodes;
 	for (UOptimusNode* ModelNode: GetSelectedModelNodes())
 	{
+		// Note: currently each expand is one undo step due to limitation on move node not able to move a
+		// node that were removed as part of a previous expansion
 		ModelGraph->ExpandCollapsedNodes(ModelNode);
 	}
 }
@@ -686,7 +699,15 @@ bool FOptimusEditor::CanExpandCollapsedNode() const
 		return false;
 	}
 	
-	const TArray<UOptimusNode*> ModelNodes = GetSelectedModelNodes();	
+	const TArray<UOptimusNode*> ModelNodes = GetSelectedModelNodes();
+
+	// Note: currently we only allow one node expansion at a time due to limitation on move node not able to move a
+	// node that were removed as part of a previous expansion 
+	if (ModelNodes.Num() != 1)
+	{
+		return false;
+	}
+	
 	const UOptimusNodeGraph* ModelGraph = EditorGraph->GetModelGraph();	
 	for (UOptimusNode* ModelNode: ModelNodes)
 	{
