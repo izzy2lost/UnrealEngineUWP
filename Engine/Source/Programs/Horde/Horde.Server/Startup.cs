@@ -43,7 +43,7 @@ using Horde.Server.Agents;
 using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
-using Horde.Server.Agents.Registration;
+using Horde.Server.Agents.Enrollment;
 using Horde.Server.Agents.Relay;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Agents.Utilization;
@@ -535,7 +535,7 @@ namespace Horde.Server
 			services.AddSingleton<JobService>();
 			services.AddSingleton<LifetimeService>();
 			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
-			services.AddSingleton<RegistrationService>();
+			services.AddSingleton<EnrollmentService>();
 			services.AddSingleton<ServerStatusService>();
 			services.AddHostedService(provider => provider.GetRequiredService<ServerStatusService>());
 			services.AddSingleton<ILogFileService, LogFileService>();
@@ -819,7 +819,7 @@ namespace Horde.Server
 				services.AddHostedService<DeviceReportService>();
 				services.AddHostedService(provider => provider.GetRequiredService<TestDataService>());
 				services.AddHostedService(provider => provider.GetRequiredService<ComputeService>());
-				services.AddHostedService(provider => provider.GetRequiredService<RegistrationService>());
+				services.AddHostedService(provider => provider.GetRequiredService<EnrollmentService>());
 
 				if (settings.Commits.ReplicateMetadata)
 				{
@@ -1258,7 +1258,7 @@ namespace Horde.Server
 				endpoints.MapGrpcService<JobRpcService>();
 				endpoints.MapGrpcService<LogRpcService>();
 				endpoints.MapGrpcService<AgentRelayService>();
-				endpoints.MapGrpcService<RegistrationRpc>();
+				endpoints.MapGrpcService<EnrollmentRpc>();
 
 				endpoints.MapGrpcReflectionService();
 

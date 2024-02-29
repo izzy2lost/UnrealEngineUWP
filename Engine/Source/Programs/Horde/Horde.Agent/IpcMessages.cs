@@ -42,6 +42,16 @@ namespace Horde.Agent
 		/// Sets the paused state
 		/// </summary>
 		SetEnabledRequest = 3,
+
+		/// <summary>
+		/// Gets information about the server we're connected to.
+		/// </summary>
+		GetSettingsRequest = 4,
+
+		/// <summary>
+		/// Returns information about the server we're connected to.
+		/// </summary>
+		GetSettingsResponse = 5,
 	}
 
 	/// <summary>
@@ -142,6 +152,12 @@ namespace Horde.Agent
 	}
 
 	/// <summary>
+	/// Settings for the agent
+	/// </summary>
+	/// <param name="ServerUrl">Url of the Horde server</param>
+	public record class AgentSettingsMessage(Uri? ServerUrl);
+
+	/// <summary>
 	/// Sets the enabled state for the agent
 	/// </summary>
 	/// <param name="IsEnabled">Whether the agent is enabled or not</param>
@@ -159,5 +175,15 @@ namespace Horde.Agent
 		/// Static status object for starting an agent
 		/// </summary>
 		public static AgentStatusMessage Starting { get; } = new AgentStatusMessage(false, 0, "Starting up...");
+
+		/// <summary>
+		/// Agent is waiting to be enrolled with the server
+		/// </summary>
+		public static AgentStatusMessage WaitingForEnrollment { get; } = new AgentStatusMessage(false, 0, "Waiting for enrollment...");
+
+		/// <summary>
+		/// Agent is connecting to the server
+		/// </summary>
+		public static AgentStatusMessage ConnectingToServer { get; } = new AgentStatusMessage(false, 0, "Connecting to server...");
 	}
 }

@@ -475,13 +475,34 @@ namespace Jupiter.Implementation
 
 		public async Task<BlobMetadata?> GetMetadataAsync(string path)
 		{
-			GetObjectAttributesResponse? metadata = await _amazonS3.GetObjectAttributesAsync(new GetObjectAttributesRequest {BucketName = _bucketName, Key = path});
-			if (metadata == null)
+			try
 			{
-				return null;
-			}
+				GetObjectAttributesResponse? metadata = await _amazonS3.GetObjectAttributesAsync(new GetObjectAttributesRequest
+				{
+					BucketName = _bucketName,
+					Key = path,
+					ObjectAttributes = new List<ObjectAttributes>()
+					{
+						ObjectAttributes.ObjectSize
+					}
+				});
+				if (metadata == null)
+				{
+					return null;
+				}
 
-			return new BlobMetadata(metadata.ObjectSize, metadata.LastModified);
+				return new BlobMetadata(metadata.ObjectSize, metadata.LastModified);
+			}
+			catch (AmazonS3Exception e)
+			{
+				// if the object does not exist we get a not found status code
+				if (e.StatusCode == HttpStatusCode.NotFound)
+				{
+					return null;
+				}
+
+				throw;
+			}
 		}
 	}
 

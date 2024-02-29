@@ -85,7 +85,7 @@ namespace UnrealGameSync
 				changeType.Good = definitionObject.GetValue("bGood", false);
 				changeType.Starred = definitionObject.GetValue("bStarred", false);
 				changeType.FindNewestGoodContent = definitionObject.GetValue("bFindNewestGoodContent", false);
-				changeType.RequiredBadges.AddRange(definitionObject.GetValue("RequiredBadges", "").Split(new char[] { ',',' '}, StringSplitOptions.RemoveEmptyEntries));
+				changeType.RequiredBadges.AddRange(definitionObject.GetValue("RequiredBadges", "").Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
 				changeType.ReadFrom = definitionObject.GetValue("ReadFrom", null);
 				return true;

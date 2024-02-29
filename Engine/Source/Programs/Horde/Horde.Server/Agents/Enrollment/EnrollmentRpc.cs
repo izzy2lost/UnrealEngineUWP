@@ -13,15 +13,15 @@ using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Agents.Registration
+namespace Horde.Server.Agents.Enrollment
 {
 	/// <summary>
 	/// Allow agents to register with the server
 	/// </summary>
 	[AllowAnonymous]
-	public class RegistrationRpc : Common.Rpc.RegistrationRpc.RegistrationRpcBase
+	public class EnrollmentRpc : Common.Rpc.EnrollmentRpc.EnrollmentRpcBase
 	{
-		readonly RegistrationService _registrationService;
+		readonly EnrollmentService _registrationService;
 		readonly AgentService _agentService;
 		readonly AclService _aclService;
 		readonly ILogger _logger;
@@ -29,7 +29,7 @@ namespace Horde.Server.Agents.Registration
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public RegistrationRpc(RegistrationService registrationService, AgentService agentService, AclService aclService, ILogger<RegistrationRpc> logger)
+		public EnrollmentRpc(EnrollmentService registrationService, AgentService agentService, AclService aclService, ILogger<EnrollmentRpc> logger)
 		{
 			_registrationService = registrationService;
 			_agentService = agentService;
@@ -38,12 +38,12 @@ namespace Horde.Server.Agents.Registration
 		}
 
 		/// <inheritdoc/>
-		public override async Task RegisterAgent(IAsyncStreamReader<RegisterAgentRequest> requestStream, IServerStreamWriter<RegisterAgentResponse> responseStream, ServerCallContext context)
+		public override async Task EnrollAgent(IAsyncStreamReader<EnrollAgentRequest> requestStream, IServerStreamWriter<EnrollAgentResponse> responseStream, ServerCallContext context)
 		{
 			Task<bool> nextRequestTask = requestStream.MoveNext();
 			if (await nextRequestTask)
 			{
-				RegisterAgentRequest request = requestStream.Current;
+				EnrollAgentRequest request = requestStream.Current;
 				using IDisposable? scope = _logger.BeginScope("Attempting to register {HostName} with key {Key}", request.HostName, request.Key);
 
 				using CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken);
@@ -72,7 +72,7 @@ namespace Horde.Server.Agents.Registration
 					List<AclClaimConfig> claims = new List<AclClaimConfig>();
 					claims.Add(new AclClaimConfig(HordeClaimTypes.Agent, agentId.ToString()));
 
-					RegisterAgentResponse response = new RegisterAgentResponse();
+					EnrollAgentResponse response = new EnrollAgentResponse();
 					response.Id = agentId.ToString();
 					response.Token = await _aclService.IssueBearerTokenAsync(claims, null, context.CancellationToken);
 

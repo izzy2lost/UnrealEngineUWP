@@ -136,7 +136,7 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Creates a new agent session
 		/// </summary>
-		public static async Task<Session> CreateAsync(CapabilitiesService capabilitiesService, GrpcService grpcService, IOptions<AgentSettings> settings, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<Session> CreateAsync(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> settings, ILogger logger, CancellationToken cancellationToken)
 		{
 			AgentSettings currentSettings = settings.Value;
 
@@ -187,9 +187,11 @@ namespace Horde.Agent.Services
 			}
 
 			// Read the registration settings
-			AgentRegistration registrationInfo = await GetAgentRegistrationAsync(grpcService, currentSettings, capabilities, logger, cancellationToken);
+			AgentRegistration registrationInfo = await GetAgentRegistrationAsync(grpcService, statusService, currentSettings, capabilities, logger, cancellationToken);
 
 			// Create the session
+			statusService.Set(AgentStatusMessage.ConnectingToServer);
+
 			CreateSessionResponse createSessionResponse;
 			using (GrpcChannel channel = await grpcService.CreateGrpcChannelAsync(registrationInfo.Token, cancellationToken))
 			{
@@ -228,7 +230,7 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Registers the agent with the server
 		/// </summary>
-		static async Task<AgentRegistration> GetAgentRegistrationAsync(GrpcService grpcService, AgentSettings currentSettings, AgentCapabilities capabilities, ILogger logger, CancellationToken cancellationToken)
+		static async Task<AgentRegistration> GetAgentRegistrationAsync(GrpcService grpcService, StatusService statusService, AgentSettings currentSettings, AgentCapabilities capabilities, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Get the location of the registration file
 			DirectoryReference? settingsDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData);
@@ -258,6 +260,8 @@ namespace Horde.Agent.Services
 			AgentRegistration? registration = registrationList.Entries.FirstOrDefault(x => x.Server == grpcService.ServerProfile.Url);
 			if (registration == null)
 			{
+				statusService.Set(AgentStatusMessage.WaitingForEnrollment);
+
 				registration = await RegisterAgentAsync(grpcService, currentSettings, capabilities, logger, cancellationToken);
 				registrationList.Entries.Add(registration);
 
@@ -296,17 +300,17 @@ namespace Horde.Agent.Services
 			for (; ; )
 			{
 				logger.LogInformation("Waiting for agent to be approved...");
-				RegistrationRpc.RegistrationRpcClient rpcClient = new RegistrationRpc.RegistrationRpcClient(grpcChannel);
+				EnrollmentRpc.EnrollmentRpcClient rpcClient = new EnrollmentRpc.EnrollmentRpcClient(grpcChannel);
 
-				RegisterAgentRequest registerAgentRequest = new RegisterAgentRequest();
-				registerAgentRequest.Key = registrationKey;
-				registerAgentRequest.HostName = Environment.MachineName;
-				registerAgentRequest.Description = description;
+				EnrollAgentRequest enrollAgentRequest = new EnrollAgentRequest();
+				enrollAgentRequest.Key = registrationKey;
+				enrollAgentRequest.HostName = Environment.MachineName;
+				enrollAgentRequest.Description = description;
 
 				try
 				{
-					using AsyncDuplexStreamingCall<RegisterAgentRequest, RegisterAgentResponse> call = rpcClient.RegisterAgent(cancellationToken: cancellationToken);
-					await call.RequestStream.WriteAsync(registerAgentRequest, cancellationToken);
+					using AsyncDuplexStreamingCall<EnrollAgentRequest, EnrollAgentResponse> call = rpcClient.EnrollAgent(cancellationToken: cancellationToken);
+					await call.RequestStream.WriteAsync(enrollAgentRequest, cancellationToken);
 
 					Task delayTask = Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
 					Task<bool> responseTask = call.ResponseStream.MoveNext(cancellationToken);
@@ -314,13 +318,13 @@ namespace Horde.Agent.Services
 
 					if (completeTask == delayTask)
 					{
-						await call.RequestStream.WriteAsync(registerAgentRequest, cancellationToken);
+						await call.RequestStream.WriteAsync(enrollAgentRequest, cancellationToken);
 					}
 
 					if (await responseTask)
 					{
-						RegisterAgentResponse registerAgentResponse = call.ResponseStream.Current;
-						return new AgentRegistration(serverProfile.Url, registerAgentResponse.Id, registerAgentResponse.Token);
+						EnrollAgentResponse enrollAgentResponse = call.ResponseStream.Current;
+						return new AgentRegistration(serverProfile.Url, enrollAgentResponse.Id, enrollAgentResponse.Token);
 					}
 				}
 				catch (RpcException ex)
@@ -380,21 +384,23 @@ namespace Horde.Agent.Services
 	{
 		readonly CapabilitiesService _capabilitiesService;
 		readonly GrpcService _grpcService;
+		readonly StatusService _statusService;
 		readonly IOptions<AgentSettings> _settings;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SessionFactory(CapabilitiesService capabilitiesService, GrpcService grpcService, IOptions<AgentSettings> settings, ILogger<SessionFactory> logger)
+		public SessionFactory(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> settings, ILogger<SessionFactory> logger)
 		{
 			_capabilitiesService = capabilitiesService;
 			_grpcService = grpcService;
+			_statusService = statusService;
 			_settings = settings;
 			_logger = logger;
 		}
 
 		/// <inheritdoc/>
-		public async Task<ISession> CreateAsync(CancellationToken cancellationToken) => await Session.CreateAsync(_capabilitiesService, _grpcService, _settings, _logger, cancellationToken);
+		public async Task<ISession> CreateAsync(CancellationToken cancellationToken) => await Session.CreateAsync(_capabilitiesService, _grpcService, _statusService, _settings, _logger, cancellationToken);
 	}
 }

@@ -8,6 +8,7 @@ using System.Security.Principal;
 using EpicGames.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Agent.Services
 {
@@ -20,6 +21,7 @@ namespace Horde.Agent.Services
 
 		private AgentStatusMessage _current;
 
+		readonly IOptionsMonitor<AgentSettings> _settings;
 		readonly BackgroundTask _task;
 		readonly ILogger _logger;
 
@@ -36,9 +38,10 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StatusService(ILogger<StatusService> logger)
+		public StatusService(IOptionsMonitor<AgentSettings> settings, ILogger<StatusService> logger)
 		{
 			_current = AgentStatusMessage.Starting;
+			_settings = settings;
 			_task = new BackgroundTask(RunPipeServerAsync);
 			_logger = logger;
 		}
@@ -132,6 +135,13 @@ namespace Horde.Agent.Services
 			}
 		}
 
+		AgentSettingsMessage GetSettingsMessage()
+		{
+			AgentSettings settings = _settings.CurrentValue;
+			ServerProfile profile = settings.GetCurrentServerProfile();
+			return new AgentSettingsMessage(profile.Url);
+		}
+
 		[SupportedOSPlatform("windows")]
 		private async Task RunPipeServerInternalAsync(CancellationToken cancellationToken)
 		{
@@ -142,10 +152,10 @@ namespace Horde.Agent.Services
 
 			PipeSecurity pipeSecurity = new PipeSecurity();
 			pipeSecurity.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().Name, PipeAccessRights.FullControl, AccessControlType.Allow));
-			
+
 			IdentityReference usersReference = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null).Translate(typeof(NTAccount));
 			string users = usersReference.ToString().Replace(@"builtin\", "", StringComparison.InvariantCultureIgnoreCase);
-			
+
 			pipeSecurity.AddAccessRule(new PipeAccessRule(users, PipeAccessRights.ReadWrite, AccessControlType.Allow));
 
 			using (NamedPipeServerStream pipeServer = NamedPipeServerStreamAcl.Create(AgentMessagePipe.PipeName, PipeDirection.InOut, NumPipes, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0, pipeSecurity))
@@ -162,6 +172,10 @@ namespace Horde.Agent.Services
 							break;
 						case AgentMessageType.GetStatusRequest:
 							response.Set(AgentMessageType.GetStatusResponse, Current);
+							await response.SendAsync(pipeServer, cancellationToken);
+							break;
+						case AgentMessageType.GetSettingsRequest:
+							response.Set(AgentMessageType.GetSettingsResponse, GetSettingsMessage());
 							await response.SendAsync(pipeServer, cancellationToken);
 							break;
 						default:

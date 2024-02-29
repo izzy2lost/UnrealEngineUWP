@@ -2624,7 +2624,10 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
             }
             // if there are no leases, we'll push some other state.
             if (leases.length === 0) {
-               let title = "Ready";
+               let title = agent.status ?? "";
+               if (title === "Ok") {
+                  title = "Ready";
+               }
                let subtitle = "";
                if (!agent.online) {
                   title = `Offline - ${agent.lastShutdownReason}`;

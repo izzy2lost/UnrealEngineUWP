@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
-using Horde.Server.Agents.Registration;
+using Horde.Server.Agents.Enrollment;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -18,7 +18,7 @@ namespace Horde.Server.Tests.Agents.Registration
 		[TestMethod]
 		public async Task ApproveAgentAsync()
 		{
-			RegistrationService registrationService = ServiceProvider.GetRequiredService<RegistrationService>();
+			EnrollmentService registrationService = ServiceProvider.GetRequiredService<EnrollmentService>();
 
 			string key = RandomNumberGenerator.GetHexString(64);
 
@@ -26,7 +26,7 @@ namespace Horde.Server.Tests.Agents.Registration
 			const string Description = "This is a test";
 			await registrationService.AddAsync(key, HostName, Description, CancellationToken.None);
 
-			IReadOnlyList<RegistrationRequest> requests = await registrationService.FindAsync();
+			IReadOnlyList<EnrollmentRequest> requests = await registrationService.FindAsync();
 			Assert.AreEqual(1, requests.Count);
 
 			Assert.AreEqual(null, await registrationService.GetApprovalAsync(key, CancellationToken.None));

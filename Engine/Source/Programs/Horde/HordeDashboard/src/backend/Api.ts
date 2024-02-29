@@ -794,6 +794,9 @@ export type GetAgentResponse = {
 	/**Pools for this agent */
 	pools?: string[];
 
+	/**Status for this agent */
+	status?: string;
+
 	/**Capabilities of this agent */
 	capabilities?: GetAgentCapabilitiesResponse;
 

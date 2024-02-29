@@ -94,7 +94,7 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 		AgentSettings settings = new () { WorkingDir = new DirectoryReference(tempDir) };
 		_terminationSignalFile = settings.GetTerminationSignalFile();
 
-		_statusService  = new(loggerFactory.CreateLogger<StatusService>());
+		_statusService  = new(new TestOptionsMonitor<AgentSettings>(settings), loggerFactory.CreateLogger<StatusService>());
 		_httpClient = _fakeImds.GetHttpClient();
 		_service = new AwsInstanceLifecycleService(_statusService, _httpClient, new OptionsWrapper<AgentSettings>(settings), loggerFactory.CreateLogger<AwsInstanceLifecycleService>());
 		_service._timeToLiveAsg = TimeSpan.FromMilliseconds(10);
