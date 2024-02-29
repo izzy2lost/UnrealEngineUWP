@@ -197,8 +197,9 @@ static void LoadModules()
 {
 	// Always attempt to load CoreUObject. It requires additional pre-init which is called from its module's StartupModule method.
 #if WITH_COREUOBJECT
-	// Always register the UObjects callback for VNI and general consistency with the callbacks ProcessNewlyLoadedUObjects calls.
+#if USE_PER_MODULE_UOBJECT_BOOTSTRAP // otherwise do it later
 	FModuleManager::Get().OnProcessLoadedObjectsCallback().AddStatic(ProcessNewlyLoadedUObjects);
+#endif
 	FModuleManager::Get().LoadModule(TEXT("CoreUObject"));
 
 	FCoreDelegates::OnInit.Broadcast();
