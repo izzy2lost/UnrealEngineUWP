@@ -130,15 +130,19 @@ void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& 
 	if (bReinitialize)
 	{
 		// Tear down previous sequence first.
-		if (SharedPlaybackState.IsValid() && SharedPlaybackState->GetRootInstanceHandle().IsValid())
+		FRootInstanceHandle OldRootInstanceHandle = SharedPlaybackState ?
+			SharedPlaybackState->GetRootInstanceHandle() : FRootInstanceHandle();
+		SharedPlaybackState.Reset();
+
+		if (OldRootInstanceHandle.IsValid())
 		{
 			if (PreviousRunner)
 			{
-				PreviousRunner->AbandonAndDestroyInstance(SharedPlaybackState->GetRootInstanceHandle());
+				PreviousRunner->AbandonAndDestroyInstance(OldRootInstanceHandle);
 			}
 			else if (EntitySystemLinker)
 			{
-				EntitySystemLinker->GetInstanceRegistry()->DestroyInstance(SharedPlaybackState->GetRootInstanceHandle());
+				EntitySystemLinker->GetInstanceRegistry()->DestroyInstance(OldRootInstanceHandle);
 			}
 			else
 			{
@@ -167,23 +171,19 @@ void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& 
 		}
 
 		// Create the new root instance and save its new shared playback state.
-		FRootInstanceHandle RootInstanceHandle;
+		FRootInstanceHandle NewRootInstanceHandle;
 		if (EntitySystemLinker != nullptr && EntitySystemLinker->GetInstanceRegistry())
 		{
 			UObject* PlaybackContext = Player.GetPlaybackContext();
 			FInstanceRegistry* InstanceRegistry = EntitySystemLinker->GetInstanceRegistry();
-			RootInstanceHandle = InstanceRegistry->AllocateRootInstance(InRootSequence, PlaybackContext, InRunner, InCompiledDataManager);
-			SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
+			NewRootInstanceHandle = InstanceRegistry->AllocateRootInstance(InRootSequence, PlaybackContext, InRunner, InCompiledDataManager);
+			SharedPlaybackState = InstanceRegistry->GetInstance(NewRootInstanceHandle).GetSharedPlaybackState();
 			Player.InitializeRootInstance(SharedPlaybackState.ToSharedRef());
 		}
-		else
-		{
-			SharedPlaybackState.Reset();
-		}
 
-		if (RootInstanceHandle.IsValid())
+		if (NewRootInstanceHandle.IsValid())
 		{
-			Player.PreAnimatedState.Initialize(EntitySystemLinker, RootInstanceHandle);
+			Player.PreAnimatedState.Initialize(EntitySystemLinker, NewRootInstanceHandle);
 		}
 	}
 }
