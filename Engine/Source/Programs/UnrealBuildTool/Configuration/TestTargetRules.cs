@@ -181,7 +181,7 @@ namespace UnrealBuildTool
 
 			if (target.Platform == UnrealTargetPlatform.Win64)
 			{
-				string outputName = "$(TargetName)";
+				string outputName = target.Name;
 				if (target.Configuration != UndecoratedConfiguration)
 				{
 					outputName = outputName + "-" + target.Platform + "-" + target.Configuration;
