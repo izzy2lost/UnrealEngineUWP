@@ -475,7 +475,10 @@ namespace Jupiter.Implementation
 
 		public async Task<BlobMetadata?> GetMetadataAsync(string path)
 		{
-			GetObjectAttributesResponse? metadata = await _amazonS3.GetObjectAttributesAsync(new GetObjectAttributesRequest {BucketName = _bucketName, Key = path});
+			GetObjectAttributesResponse? metadata = await _amazonS3.GetObjectAttributesAsync(new GetObjectAttributesRequest {BucketName = _bucketName, Key = path, ObjectAttributes = new List<ObjectAttributes>()
+			{
+				ObjectAttributes.ObjectSize
+			}});
 			if (metadata == null)
 			{
 				return null;
