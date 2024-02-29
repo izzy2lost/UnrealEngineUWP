@@ -205,12 +205,13 @@ namespace Jupiter.Implementation
 				: Task.CompletedTask;
 			ContentId[] missingReferences = Array.Empty<ContentId>();
 			BlobId[] missingBlobs = Array.Empty<BlobId>();
+
+			List<Task> addToBucketTasks = new List<Task>();
+			List<Task> addRefMappingTasks = new List<Task>();
+
 			bool hasReferences = HasAttachments(payload);
 			if (hasReferences)
 			{
-				List<Task> addToBucketTasks = new List<Task>();
-				List<Task> addRefMappingTasks = new List<Task>();
-
 				using TelemetrySpan _ = _tracer.StartActiveSpan("ObjectService.ResolveReferences").SetAttribute("operation.name", "ObjectService.ResolveReferences");
 				try
 				{
@@ -236,8 +237,6 @@ namespace Jupiter.Implementation
 
 						addRefMappingTasks.Add(_blobIndex.AddRefToBlobsAsync(ns, bucket, key, new BlobId[] {blobId}));
 					}
-
-					await Task.WhenAll(addRefToBlobsTask, addToBucketListTask, Task.WhenAll(addToBucketTasks), Task.WhenAll(addRefMappingTasks));
 				}
 				catch (PartialReferenceResolveException e)
 				{
@@ -248,16 +247,16 @@ namespace Jupiter.Implementation
 					missingBlobs = e.MissingBlobs.ToArray();
 				}
 			}
-			else
-			{
-				await Task.WhenAll(addRefToBlobsTask, addToBucketListTask);
-			}
+
+			await Task.WhenAll(addRefToBlobsTask, addToBucketListTask);
 
 			if (missingReferences.Length == 0 && missingBlobs.Length == 0)
 			{
 				await _referencesStore.FinalizeAsync(ns, bucket, key, blobHash);
 				await _replicationLog.InsertAddEventAsync(ns, bucket, key, blobHash);
 			}
+
+			await Task.WhenAll(Task.WhenAll(addToBucketTasks), Task.WhenAll(addRefMappingTasks));
 
 			return (missingReferences, missingBlobs);
 		}
