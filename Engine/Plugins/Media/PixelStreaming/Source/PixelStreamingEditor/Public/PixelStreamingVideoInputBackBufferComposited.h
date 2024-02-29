@@ -55,8 +55,10 @@ private:
     void CompositeWindows();
 
     void OnBackBufferReady(SWindow &SlateWindow, const FTextureRHIRef &FrameBuffer);
+    void OnPreTick(float DeltaTime);
 
-    FDelegateHandle DelegateHandle;
+    FDelegateHandle OnBackBufferReadyToPresentHandle;
+    FDelegateHandle OnPreTickHandle;
 
     TArray<FTexturedWindow> TopLevelWindows;
 
