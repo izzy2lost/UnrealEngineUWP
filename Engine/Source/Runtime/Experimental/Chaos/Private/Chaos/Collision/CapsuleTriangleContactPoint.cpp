@@ -102,69 +102,6 @@ namespace Chaos
 			return;
 		}
 
-		// Cull based on signed distance to capsule segment
-		// The edge-segment data is saved for used later on to generate contacts if necessary
-		FVec3 EdgeSegmentDeltas[3];
-		FVec3 EdgeEdgePs[3];
-		FVec3 EdgeSegmentPs[3];
-		FReal EdgeEdgeTs[3];
-		FReal EdgeSegmentTs[3];
-		FReal EdgeDistSqs[3];
-		FReal EdgeDistSigns[3];
-		FReal EdgeDotFace[3];
-		int32 EdgeVertexIndex0 = 2;
-		for (int32 EdgeIndex = 0; EdgeIndex < 3; ++EdgeIndex)
-		{
-			const int32 EdgeVertexIndex1 = EdgeIndex;
-			const FVec3& EdgeP0 = Triangle.GetVertex(EdgeVertexIndex0);
-			const FVec3& EdgeP1 = Triangle.GetVertex(EdgeVertexIndex1);
-			EdgeVertexIndex0 = EdgeVertexIndex1;
-
-			// Find the nearest point on the capsule segment to the edge segment
-			FReal SegmentT, EdgeT;
-			FVec3 SegmentP, EdgeP;
-			Utilities::NearestPointsOnLineSegments(P0, P1, EdgeP0, EdgeP1, SegmentT, EdgeT, SegmentP, EdgeP);
-
-			// Calculate the separation vector, correct for sign
-			FVec3 SegmentEdgeN = SegmentP - EdgeP;
-			FReal SegmentEdgeDistSign = FReal(1);
-			const FReal SegmentEdgeDistSq = SegmentEdgeN.SizeSquared();
-
-			// Separating axis always points away from the triangle
-			if (FVec3::DotProduct(EdgeP1 - Centroid, SegmentEdgeN) < FReal(0))
-			{
-				SegmentEdgeN = -SegmentEdgeN;
-				SegmentEdgeDistSign = FReal(-1);
-			}
-
-			const FReal DotFace = FVec3::DotProduct(SegmentEdgeN, FaceN);
-
-			if (SegmentEdgeDistSign > FReal(0))
-			{
-				// We generate contacts when separation is within cull distance
-				// Treat CullDistance as zero when colliding with the underneath of a triangle
-				FReal SeparationAxisCullDistance = RejectDistance;
-				if (DotFace < -NormalTolerance)
-				{
-					SeparationAxisCullDistance = R;
-				}
-
-				if (SegmentEdgeDistSq > FMath::Square(SeparationAxisCullDistance))
-				{
-					return;
-				}
-			}
-
-			EdgeSegmentDeltas[EdgeIndex] = SegmentEdgeN;
-			EdgeEdgePs[EdgeIndex] = EdgeP;
-			EdgeSegmentPs[EdgeIndex] = SegmentP;
-			EdgeEdgeTs[EdgeIndex] = EdgeT;
-			EdgeSegmentTs[EdgeIndex] = SegmentT;
-			EdgeDistSqs[EdgeIndex] = SegmentEdgeDistSq;
-			EdgeDistSigns[EdgeIndex] = SegmentEdgeDistSign;
-			EdgeDotFace[EdgeIndex] = DotFace;
-		}
-
 		// Edge plane normals and signed distances to each segment point
 		FVec3 EdgeNs[3];
 		FReal EdgeD0s[3];
@@ -198,6 +135,70 @@ namespace Chaos
 		{
 			// Separated from triangle
 			return;
+		}
+
+		// Cull based on signed distance to capsule segment
+		// The edge-segment data is saved for used later on to generate contacts if necessary
+		FVec3 EdgeSegmentDeltas[3];
+		FVec3 EdgeEdgePs[3];
+		FVec3 EdgeSegmentPs[3];
+		FReal EdgeEdgeTs[3];
+		FReal EdgeSegmentTs[3];
+		FReal EdgeDistSqs[3];
+		FReal EdgeDistSigns[3];
+		FReal EdgeDotFace[3];
+		int32 EdgeVertexIndex0 = 2;
+		for (int32 EdgeIndex = 0; EdgeIndex < 3; ++EdgeIndex)
+		{
+			const int32 EdgeVertexIndex1 = EdgeIndex;
+			const FVec3& EdgeP0 = Triangle.GetVertex(EdgeVertexIndex0);
+			const FVec3& EdgeP1 = Triangle.GetVertex(EdgeVertexIndex1);
+			EdgeVertexIndex0 = EdgeVertexIndex1;
+
+			// Find the nearest point on the capsule segment to the edge segment
+			FReal SegmentT, EdgeT;
+			FVec3 SegmentP, EdgeP;
+			Utilities::NearestPointsOnLineSegments(P0, P1, EdgeP0, EdgeP1, SegmentT, EdgeT, SegmentP, EdgeP);
+
+			// Calculate the separation vector, correct for sign
+			FVec3 SegmentEdgeN = SegmentP - EdgeP;
+			FReal SegmentEdgeDistSign = FReal(1);
+			const FReal SegmentEdgeDistSq = SegmentEdgeN.SizeSquared();
+
+			// Separating axis always points away from the triangle
+			const FReal DotEdge = FVec3::DotProduct(SegmentEdgeN, EdgeNs[EdgeIndex]);
+			if (DotEdge < FReal(0))
+			{
+				SegmentEdgeN = -SegmentEdgeN;
+				SegmentEdgeDistSign = FReal(-1);
+			}
+
+			const FReal DotFace = FVec3::DotProduct(SegmentEdgeN, FaceN);
+
+			if (SegmentEdgeDistSign > FReal(0))
+			{
+				// We generate contacts when separation is within cull distance
+				// Treat CullDistance as zero when colliding with the underneath of a triangle
+				FReal SeparationAxisCullDistance = RejectDistance;
+				if (DotFace < -NormalTolerance)
+				{
+					SeparationAxisCullDistance = R;
+				}
+
+				if (SegmentEdgeDistSq > FMath::Square(SeparationAxisCullDistance))
+				{
+					return;
+				}
+			}
+
+			EdgeSegmentDeltas[EdgeIndex] = SegmentEdgeN;
+			EdgeEdgePs[EdgeIndex] = EdgeP;
+			EdgeSegmentPs[EdgeIndex] = SegmentP;
+			EdgeEdgeTs[EdgeIndex] = EdgeT;
+			EdgeSegmentTs[EdgeIndex] = SegmentT;
+			EdgeDistSqs[EdgeIndex] = SegmentEdgeDistSq;
+			EdgeDistSigns[EdgeIndex] = SegmentEdgeDistSign;
+			EdgeDotFace[EdgeIndex] = DotFace;
 		}
 
 		// Handle the case where the end cap(s) are inside all the edge planes. This should be fairly common unless the triangles are
@@ -436,7 +437,7 @@ namespace Chaos
 					ContactPoint.ContactType = EContactPointType::VertexPlane;
 					ContactPoint.FaceIndex = INDEX_NONE;
 				}
-				else 
+				else
 				{
 					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
 					ContactPoint.ShapeContactPoints[0] = SegmentP - R * SegmentEdgeN;
