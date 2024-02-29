@@ -15,16 +15,10 @@ public:
 		check(InComputeShader);
 	}
 
-	virtual ~FMetalComputePipelineState()
-	{
-		// void
-	}
-
 	FMetalComputeShader* GetComputeShader()
 	{
 		return ComputeShader;
 	}
 
-private:
 	TRefCountPtr<FMetalComputeShader> ComputeShader;
 };

@@ -41,8 +41,57 @@ extern MTL::LanguageVersion ValidateVersion(uint32 Version);
 
 #pragma mark - Metal RHI Base Shader Class Template
 
+struct FMetalShaderData
+{
+    /** External bindings for this shader. */
+    FMetalShaderBindings Bindings;
+    
+    // List of memory copies from RHIUniformBuffer to packed uniforms
+    TArray<CrossCompiler::FUniformBufferCopyInfo> UniformBuffersCopyInfo;
+
+    /* Argument encoders for shader IABs */
+    TMap<uint32, MTL::ArgumentEncoder*> ArgumentEncoders;
+
+    /* Tier1 Argument buffer bitmasks */
+    TMap<uint32, TBitArray<>> ArgumentBitmasks;
+
+    /* Uniform buffer static slots */
+    TArray<FUniformBufferStaticSlot> StaticSlots;
+
+    /** The binding for the buffer side-table if present */
+    int32 SideTableBinding = -1;
+
+    /** CRC & Len for name disambiguation */
+    uint32 SourceLen = 0;
+    uint32 SourceCRC = 0;
+
+    /** Hash for the shader/material permutation constants */
+    uint32 ConstantValueHash = 0;
+    
+    // this is the compiler shader
+    MTLFunctionPtr Function;
+    // This is the MTLLibrary for the shader so we can dynamically refine the MTLFunction
+    MTLLibraryPtr Library;
+
+    /** The debuggable text source */
+    NS::String* GlslCodeNSString = nullptr;
+
+    /** The compressed text source */
+    TArray<uint8> CompressedSource;
+
+    /** The uncompressed text source size */
+    uint32 CodeSize = 0;
+
+    // Function constant states
+    bool bHasFunctionConstants = false;
+    bool bDeviceFunctionConstants = false;
+
+    /** Index of the function (in the library) pointing to the function requested by the user (when GetCompiledFunction() is called with an explicit index). */
+    uint32 LibraryFunctionIndex = -1;
+};
+
 template<typename BaseResourceType, int32 ShaderType>
-class TMetalBaseShader : public BaseResourceType, public IRefCountedObject
+class TMetalBaseShader : public BaseResourceType, public FMetalShaderData
 {
 public:
 	enum
@@ -70,58 +119,8 @@ public:
 	 */
 	NS::String* GetSourceCode();
 
-	// IRefCountedObject interface:
-	virtual uint32 AddRef() const override final;
-	virtual uint32 Release() const override final;
-	virtual uint32 GetRefCount() const override final;
-
-	/** External bindings for this shader. */
-	FMetalShaderBindings Bindings;
-
-	// List of memory copies from RHIUniformBuffer to packed uniforms
-	TArray<CrossCompiler::FUniformBufferCopyInfo> UniformBuffersCopyInfo;
-
-	/* Argument encoders for shader IABs */
-	TMap<uint32, MTL::ArgumentEncoder*> ArgumentEncoders;
-
-	/* Tier1 Argument buffer bitmasks */
-	TMap<uint32, TBitArray<>> ArgumentBitmasks;
-
-	/** The binding for the buffer side-table if present */
-	int32 SideTableBinding = -1;
-
-	/** CRC & Len for name disambiguation */
-	uint32 SourceLen = 0;
-	uint32 SourceCRC = 0;
-
-	/** Hash for the shader/material permutation constants */
-	uint32 ConstantValueHash = 0;
-
 protected:
 	MTLFunctionPtr GetCompiledFunction(bool const bAsync = false, const int32 FunctionIndex = -1);
-
-	// this is the compiler shader
-	MTLFunctionPtr Function;
-
-private:
-	// This is the MTLLibrary for the shader so we can dynamically refine the MTLFunction
-	MTLLibraryPtr Library;
-
-	/** The debuggable text source */
-	NS::String* GlslCodeNSString = nullptr;
-
-	/** The compressed text source */
-	TArray<uint8> CompressedSource;
-
-	/** The uncompressed text source size */
-	uint32 CodeSize = 0;
-
-	// Function constant states
-	bool bHasFunctionConstants = false;
-	bool bDeviceFunctionConstants = false;
-
-    /** Index of the function (in the library) pointing to the function requested by the user (when GetCompiledFunction() is called with an explicit index). */
-    uint32 LibraryFunctionIndex = -1;
 };
 
 
@@ -408,24 +407,6 @@ inline NS::String* TMetalBaseShader<BaseResourceType, ShaderType>::GetSourceCode
         GlslCodeNSString->retain();
 	}
 	return GlslCodeNSString;
-}
-
-template<typename BaseResourceType, int32 ShaderType>
-uint32 TMetalBaseShader<BaseResourceType, ShaderType>::AddRef() const
-{
-	return FRHIResource::AddRef();
-}
-
-template<typename BaseResourceType, int32 ShaderType>
-uint32 TMetalBaseShader<BaseResourceType, ShaderType>::Release() const
-{
-	return FRHIResource::Release();
-}
-
-template<typename BaseResourceType, int32 ShaderType>
-uint32 TMetalBaseShader<BaseResourceType, ShaderType>::GetRefCount() const
-{
-	return FRHIResource::GetRefCount();
 }
 
 template<typename BaseResourceType, int32 ShaderType>
