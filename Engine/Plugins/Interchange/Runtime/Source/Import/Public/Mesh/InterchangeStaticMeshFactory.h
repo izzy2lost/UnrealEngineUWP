@@ -72,6 +72,7 @@ private:
 #endif
 	struct FImportAssetObjectData
 	{
+		bool bIsAppGame = false;
 		bool bImportedCustomCollision = false;
 		bool bImportCollision = false;
 		TArray<FMeshDescription> LodMeshDescriptions;

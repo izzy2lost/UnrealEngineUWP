@@ -149,6 +149,10 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Begin
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeStaticMeshFactory::BeginImportAsset_GameThread);
 
+	//We must ensure we use the same settings until the import is finish, FApp::IsGame() can return a different
+	//value during an asynchronous import
+	ImportAssetObjectData.bIsAppGame = FApp::IsGame();
+
 	FImportAssetResult ImportAssetResult;
 	UStaticMesh* StaticMesh = nullptr;
 	if (!Arguments.AssetNode || !Arguments.AssetNode->GetObjectClass()->IsChildOf(GetFactoryClass()))
@@ -209,7 +213,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Begin
 	StaticMesh->CreateBodySetup();
 	
 #if WITH_EDITOR
-	if (!FApp::IsGame())
+	if (!ImportAssetObjectData.bIsAppGame)
 	{
 		StaticMesh->PreEditChange(nullptr);
 	}
@@ -529,7 +533,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 		return ImportAssetResult;
 	}
 
-	if (FApp::IsGame())
+	if (ImportAssetObjectData.bIsAppGame)
 	{
 		if (!Arguments.ReimportObject)
 		{
@@ -728,7 +732,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 void UInterchangeStaticMeshFactory::CommitMeshDescriptions(UStaticMesh& StaticMesh)
 {
 #if WITH_EDITOR
-	if (FApp::IsGame())
+	if (ImportAssetObjectData.bIsAppGame)
 	{
 		return;
 	}
@@ -751,7 +755,7 @@ void UInterchangeStaticMeshFactory::CommitMeshDescriptions(UStaticMesh& StaticMe
 
 void UInterchangeStaticMeshFactory::BuildFromMeshDescriptions(UStaticMesh& StaticMesh)
 {
-	if (!FApp::IsGame())
+	if (!ImportAssetObjectData.bIsAppGame)
 	{
 		return;
 	}
