@@ -1580,6 +1580,38 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 		FSkinWeightsVertexAttributesRef SkinWeightAttribute = MeshAttributes.GetVertexSkinWeights(SkinWeightProfileInfo.Key);
 		const FImportedSkinWeightProfileData& SkinWeightProfileData = SkinWeightProfileInfo.Value;
 
+#if 1
+		TMultiMap<int32, int32> InfluenceMap;
+		for (int32 Index = 0; Index < SkinWeightProfileData.SourceModelInfluences.Num(); Index++)
+		{
+			const SkeletalMeshImportData::FVertInfluence& Influence = SkinWeightProfileData.SourceModelInfluences[Index];
+			InfluenceMap.Add(Influence.VertIndex, Index);
+		}
+
+		TArray<FBoneIndexType> BoneIndexes;
+		TArray<float> BoneWeights;
+		TArray<int32> InfluenceIndexes;
+		for (int32 Index = 0; Index < VertexIDs.Num(); Index++)
+		{
+			InfluenceIndexes.Reset();
+			InfluenceMap.MultiFind(Index, InfluenceIndexes);
+
+			if (!InfluenceIndexes.IsEmpty())
+			{
+				BoneIndexes.Reset();
+				BoneWeights.Reset();
+				for (int32 InfluenceIndex: InfluenceIndexes)
+				{
+					const SkeletalMeshImportData::FVertInfluence& Influence = SkinWeightProfileData.SourceModelInfluences[InfluenceIndex];
+					BoneIndexes.Add(Influence.BoneIndex);
+					BoneWeights.Add(Influence.Weight);
+				}
+
+				FBoneWeights Weights = FBoneWeights::Create(BoneIndexes.GetData(), BoneWeights.GetData(), BoneIndexes.Num());
+				SkinWeightAttribute.Set(VertexIDs[Index], Weights);
+			}
+		}
+#else
 		check(SkinWeightProfileData.SkinWeights.Num() == NumVertices);
 		
 		for (int32 Index = 0; Index < SkinWeightProfileData.SkinWeights.Num(); Index++)
@@ -1591,6 +1623,7 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 			FBoneWeights Weights = FBoneWeights::Create(RawSkinWeights.InfluenceBones, RawSkinWeights.InfluenceWeights);
 			SkinWeightAttribute.Set(VertexID, Weights);
 		}
+#endif
 	}
 	
 	// Set Bone Attributes
