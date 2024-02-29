@@ -546,6 +546,8 @@ namespace uba
 			else if (out.version >= 20)
 			{
 				u64 logLineCount = reader.Read7BitEncoded();
+				if (logLineCount >= 101)
+					logLineCount = 101;
 				process.logLines.reserve(logLineCount);
 				while (logLineCount--)
 				{
