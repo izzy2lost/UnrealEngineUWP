@@ -94,6 +94,8 @@ public:
 	COREUOBJECT_API explicit FLinkerInstancingContext(TSet<FName> InTags);
 	COREUOBJECT_API explicit FLinkerInstancingContext(bool bInSoftObjectPathRemappingEnabled);
 
+	COREUOBJECT_API static FLinkerInstancingContext DuplicateContext(const FLinkerInstancingContext& InLinkerInstancingContext);
+
 	COREUOBJECT_API bool IsInstanced() const;
 
 	/** Remap the package name from the import table to its instanced counterpart, otherwise return the name unmodified. */

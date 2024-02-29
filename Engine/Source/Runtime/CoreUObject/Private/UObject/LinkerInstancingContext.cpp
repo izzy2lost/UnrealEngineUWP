@@ -37,6 +37,15 @@ public:
 		: bSoftObjectPathRemappingEnabled(bInSoftObjectPathRemappingEnabled)
 	{
 	}
+
+	explicit FSharedLinkerInstancingContextData(const FSharedLinkerInstancingContextData& Other)
+		: InstancedPackageMap(Other.InstancedPackageMap)
+		, InstancedPackageMapFunc(Other.InstancedPackageMapFunc)
+		, PathMapping(Other.PathMapping)
+		, Tags(Other.Tags)
+		, bSoftObjectPathRemappingEnabled(Other.GetSoftObjectPathRemappingEnabled())
+	{
+	}
 		
 	void AddPackageMapping(FName Original, FName Instanced)
 	{
@@ -183,6 +192,13 @@ FLinkerInstancingContext::FLinkerInstancingContext(bool bInSoftObjectPathRemappi
 {
 	LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
 	SharedData = MakeShared<FSharedLinkerInstancingContextData>(bInSoftObjectPathRemappingEnabled);
+}
+
+FLinkerInstancingContext FLinkerInstancingContext::DuplicateContext(const FLinkerInstancingContext& InLinkerInstancingContext)
+{
+	FLinkerInstancingContext OutLinkerInstancingContext = InLinkerInstancingContext;
+	OutLinkerInstancingContext.SharedData = MakeShared<FSharedLinkerInstancingContextData>(*OutLinkerInstancingContext.SharedData.Get());
+	return OutLinkerInstancingContext;
 }
 
 void FLinkerInstancingContext::EnableAutomationTest() 
