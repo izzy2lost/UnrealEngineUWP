@@ -154,6 +154,9 @@ namespace UE::Anim::FootPlacement
 			FVector PelvisTranslationOffset = FVector::ZeroVector;
 			FVectorSpringState PelvisTranslationSpringState;
 		} Interpolation;
+
+		
+		float DisablePelvis = 0.0f;
 	};
 
 	struct FCharacterData
@@ -394,6 +397,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Pelvis Settings")
 	bool bEnableInterpolation = true;
+
+	UPROPERTY(EditAnywhere, Category = "Pelvis Settings")
+	bool bDisablePelvisOffsetInAir = true;
 	
 	UPROPERTY(EditAnywhere, Category = "Pelvis Settings")
 	FName DisablePelvisCurveName = NAME_None;
