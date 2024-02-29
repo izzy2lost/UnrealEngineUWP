@@ -66,7 +66,7 @@ using Horde.Server.Telemetry.Sinks;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Storage.ObjectStores;
 using Horde.Server.Tests.Server;
-using Horde.Server.Agents.Registration;
+using Horde.Server.Agents.Enrollment;
 
 namespace Horde.Server.Tests
 {
@@ -272,7 +272,7 @@ namespace Horde.Server.Tests
 			services.AddSingleton<DeviceService>();
 			services.AddSingleton<TestDataService>();
 			services.AddSingleton<ComputeService>();
-			services.AddSingleton<RegistrationService>();
+			services.AddSingleton<EnrollmentService>();
 
 			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
 			services.AddSingleton<ServerStatusService>();

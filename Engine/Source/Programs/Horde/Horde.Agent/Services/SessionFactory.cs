@@ -296,17 +296,17 @@ namespace Horde.Agent.Services
 			for (; ; )
 			{
 				logger.LogInformation("Waiting for agent to be approved...");
-				RegistrationRpc.RegistrationRpcClient rpcClient = new RegistrationRpc.RegistrationRpcClient(grpcChannel);
+				EnrollmentRpc.EnrollmentRpcClient rpcClient = new EnrollmentRpc.EnrollmentRpcClient(grpcChannel);
 
-				RegisterAgentRequest registerAgentRequest = new RegisterAgentRequest();
-				registerAgentRequest.Key = registrationKey;
-				registerAgentRequest.HostName = Environment.MachineName;
-				registerAgentRequest.Description = description;
+				EnrollAgentRequest enrollAgentRequest = new EnrollAgentRequest();
+				enrollAgentRequest.Key = registrationKey;
+				enrollAgentRequest.HostName = Environment.MachineName;
+				enrollAgentRequest.Description = description;
 
 				try
 				{
-					using AsyncDuplexStreamingCall<RegisterAgentRequest, RegisterAgentResponse> call = rpcClient.RegisterAgent(cancellationToken: cancellationToken);
-					await call.RequestStream.WriteAsync(registerAgentRequest, cancellationToken);
+					using AsyncDuplexStreamingCall<EnrollAgentRequest, EnrollAgentResponse> call = rpcClient.EnrollAgent(cancellationToken: cancellationToken);
+					await call.RequestStream.WriteAsync(enrollAgentRequest, cancellationToken);
 
 					Task delayTask = Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
 					Task<bool> responseTask = call.ResponseStream.MoveNext(cancellationToken);
@@ -314,13 +314,13 @@ namespace Horde.Agent.Services
 
 					if (completeTask == delayTask)
 					{
-						await call.RequestStream.WriteAsync(registerAgentRequest, cancellationToken);
+						await call.RequestStream.WriteAsync(enrollAgentRequest, cancellationToken);
 					}
 
 					if (await responseTask)
 					{
-						RegisterAgentResponse registerAgentResponse = call.ResponseStream.Current;
-						return new AgentRegistration(serverProfile.Url, registerAgentResponse.Id, registerAgentResponse.Token);
+						EnrollAgentResponse enrollAgentResponse = call.ResponseStream.Current;
+						return new AgentRegistration(serverProfile.Url, enrollAgentResponse.Id, enrollAgentResponse.Token);
 					}
 				}
 				catch (RpcException ex)

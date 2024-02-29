@@ -2,7 +2,7 @@
 
 using System.Collections.Generic;
 
-namespace EpicGames.Horde.Agents.Registration
+namespace EpicGames.Horde.Agents.Enrollment
 {
 	/// <summary>
 	/// Updates an existing lease

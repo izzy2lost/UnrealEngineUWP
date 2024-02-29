@@ -12,24 +12,24 @@ using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using StackExchange.Redis;
 
-namespace Horde.Server.Agents.Registration
+namespace Horde.Server.Agents.Enrollment
 {
 	/// <summary>
 	/// Information about a machine requesting to be registered
 	/// </summary>
 	[RedisConverter(typeof(RedisJsonConverter<>))]
-	public record class RegistrationRequest(string Key, string HostName, string Description);
+	public record class EnrollmentRequest(string Key, string HostName, string Description);
 
 	/// <summary>
-	/// Service which tracks agents pending registration
+	/// Service which tracks agents pending enrollment
 	/// </summary>
-	public sealed class RegistrationService : IHostedService, IAsyncDisposable
+	public sealed class EnrollmentService : IHostedService, IAsyncDisposable
 	{
 		readonly RedisService _redisService;
 		readonly IClock _clock;
 		readonly RedisChannel _updateChannel;
 		readonly RedisSortedSetKey<string> _keys = new("agents:registration:expire");
-		readonly RedisHashKey<string, RegistrationRequest> _requests = new("agents:registration:requests");
+		readonly RedisHashKey<string, EnrollmentRequest> _requests = new("agents:registration:requests");
 		readonly RedisHashKey<string, string> _approvals = new("agents:registration:approvals");
 		readonly AsyncEvent _approvalEvent = new AsyncEvent();
 
@@ -38,7 +38,7 @@ namespace Horde.Server.Agents.Registration
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public RegistrationService(RedisService redisService, IClock clock)
+		public EnrollmentService(RedisService redisService, IClock clock)
 		{
 			_redisService = redisService;
 			_clock = clock;
@@ -105,7 +105,7 @@ namespace Horde.Server.Agents.Registration
 			ITransaction transaction = redis.CreateTransaction();
 			_ = transaction.AddCondition(Condition.HashNotExists(_approvals.Inner, key));
 			_ = transaction.SortedSetAddAsync(_keys, key, GetTimestamp(_clock.UtcNow + TimeSpan.FromMinutes(2.0)));
-			_ = transaction.HashSetAsync(_requests, key, new RegistrationRequest(key, hostName, description));
+			_ = transaction.HashSetAsync(_requests, key, new EnrollmentRequest(key, hostName, description));
 
 			return await transaction.ExecuteAsync().WaitAsync(cancellationToken);
 		}
@@ -125,7 +125,7 @@ namespace Horde.Server.Agents.Registration
 				IDatabase redis = _redisService.GetDatabase();
 				await ExpireKeysAsync(redis, cancellationToken);
 
-				RegistrationRequest? request = await redis.HashGetAsync(_requests, key).WaitAsync(cancellationToken);
+				EnrollmentRequest? request = await redis.HashGetAsync(_requests, key).WaitAsync(cancellationToken);
 				if (request == null)
 				{
 					return false;
@@ -151,12 +151,12 @@ namespace Horde.Server.Agents.Registration
 		/// Find all candidate machines that we can allow to connect
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<IReadOnlyList<RegistrationRequest>> FindAsync(CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyList<EnrollmentRequest>> FindAsync(CancellationToken cancellationToken = default)
 		{
 			IDatabase redis = _redisService.GetDatabase();
 			await ExpireKeysAsync(redis, cancellationToken);
 
-			HashEntry<string, RegistrationRequest>[] entries = await redis.HashGetAllAsync(_requests).WaitAsync(cancellationToken);
+			HashEntry<string, EnrollmentRequest>[] entries = await redis.HashGetAllAsync(_requests).WaitAsync(cancellationToken);
 			return entries.ConvertAll(x => x.Value);
 		}
 

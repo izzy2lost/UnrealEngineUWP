@@ -4,29 +4,29 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Agents.Registration;
+using EpicGames.Horde.Agents.Enrollment;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Agents.Registration
+namespace Horde.Server.Agents.Enrollment
 {
 	/// <summary>
-	/// Controller for the /api/v1/registration endpoint
+	/// Controller for the /api/v1/enrollment endpoint
 	/// </summary>
 	[ApiController]
 	[Authorize]
-	public class RegistrationController : HordeControllerBase
+	public class EnrollmentController : HordeControllerBase
 	{
-		readonly RegistrationService _registrationService;
+		readonly EnrollmentService _registrationService;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public RegistrationController(RegistrationService registrationService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public EnrollmentController(EnrollmentService registrationService, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_registrationService = registrationService;
 			_globalConfig = globalConfig;
@@ -39,6 +39,7 @@ namespace Horde.Server.Agents.Registration
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
+		[Route("/api/v1/enrollment")]
 		[Route("/api/v1/registration")]
 		[ProducesResponseType(typeof(GetPendingAgentsResponse), 200)]
 		public async Task<ActionResult<object>> GetPendingAgentsAsync([FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
@@ -48,7 +49,7 @@ namespace Horde.Server.Agents.Registration
 				return Forbid(AgentAclAction.ListAgents);
 			}
 
-			IReadOnlyList<RegistrationRequest> requests = await _registrationService.FindAsync(cancellationToken);
+			IReadOnlyList<EnrollmentRequest> requests = await _registrationService.FindAsync(cancellationToken);
 
 			GetPendingAgentsResponse response = new GetPendingAgentsResponse(requests.ConvertAll(x => new GetPendingAgentResponse(x.Key, x.HostName, x.Description)));
 			return PropertyFilter.Apply(response, filter);
@@ -60,6 +61,7 @@ namespace Horde.Server.Agents.Registration
 		/// <param name="request">List of agents to approve</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpPost]
+		[Route("/api/v1/enrollment")]
 		[Route("/api/v1/registration")]
 		public async Task<ActionResult> ApproveAgentsAsync([FromBody] ApproveAgentsRequest request, CancellationToken cancellationToken)
 		{
