@@ -1,13 +1,37 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/PropertyTag.h"
-#include "UObject/DebugSerializationFlags.h"
-#include "Serialization/SerializedPropertyScope.h"
+
+#include "Misc/AsciiSet.h"
 #include "Serialization/ArchiveUObjectFromStructuredArchive.h"
+#include "Serialization/SerializedPropertyScope.h"
+#include "String/ParseTokens.h"
+#include "String/Split.h"
+#include "UObject/BlueprintsObjectVersion.h"
+#include "UObject/DebugSerializationFlags.h"
+#include "UObject/OverriddenPropertySet.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
-#include "UObject/BlueprintsObjectVersion.h"
-#include "UObject/OverriddenPropertySet.h"
+
+/**
+ * Enum flags that indicate that additional data was serialized for that property tag.
+ * Registered flags should be serialized in ascending order.
+ */
+enum class EPropertyTagExtension : uint8
+{
+	NoExtension					= 0x00,
+	ReserveForFutureUse			= 0x01, // Can be used to add a next group of extensions
+
+	////////////////////////////////////////////////
+	// First extension group
+	OverridableInformation		= 0x02,
+
+	//
+	// Add more extensions for the first group here
+	//
+};
+
+ENUM_CLASS_FLAGS(EPropertyTagExtension);
 
 thread_local const FPropertyTag* FPropertyTagScope::CurrentPropertyTag = nullptr;
 
@@ -15,33 +39,131 @@ thread_local const FPropertyTag* FPropertyTagScope::CurrentPropertyTag = nullptr
 FPropertyTag
 -----------------------------------------------------------------------------*/
 FPropertyTag::FPropertyTag()
-: OverrideOperation(EOverriddenPropertyOperation::None)
-{}
-
-FPropertyTag::FPropertyTag( FArchive& InSaveAr, FProperty* Property, int32 InIndex, uint8* Value, const uint8* Defaults )
-	: ArrayIndex(InIndex)
-	, OverrideOperation(EOverriddenPropertyOperation::None)
+	: OverrideOperation(EOverriddenPropertyOperation::None)
 {
-	check(!InSaveAr.GetArchiveState().UseUnversionedPropertySerialization());
-	Property->SaveToTag(*this);
-	if (FBoolProperty* Bool = CastField<FBoolProperty>(Property))
-		{
-			BoolVal = Bool->GetPropertyValue(Value);
-		}
 }
 
-// Set optional property guid
+FPropertyTag::FPropertyTag(FProperty* Property, int32 InIndex, uint8* Value)
+	: Prop(Property)
+	, Name(Property->GetFName())
+	, ArrayIndex(InIndex)
+	, OverrideOperation(EOverriddenPropertyOperation::None)
+{
+	UE::FPropertyTypeNameBuilder TypeBuilder;
+	Property->SaveTypeName(TypeBuilder);
+	SetType(TypeBuilder.Build());
+
+	Property->SaveToTag(*this);
+
+	if (FBoolProperty* Bool = CastField<FBoolProperty>(Property))
+	{
+		BoolVal = Bool->GetPropertyValue(Value);
+	}
+}
+
+void FPropertyTag::SetProperty(FProperty* Property)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	Prop = Property;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
 void FPropertyTag::SetPropertyGuid(const FGuid& InPropertyGuid)
 {
-	if (InPropertyGuid.IsValid())
+	HasPropertyGuid = InPropertyGuid.IsValid();
+	PropertyGuid = InPropertyGuid;
+}
+
+void FPropertyTag::SetType(UE::FPropertyTypeName InFullType)
+{
+	TypeName = InFullType;
+	Type = TypeName.GetName();
+
+	if (const EName* TagType = Type.ToEName(); TagType && Type.GetNumber() == NAME_NO_NUMBER_INTERNAL)
 	{
-		PropertyGuid = InPropertyGuid;
-		HasPropertyGuid = true;
+		switch (*TagType)
+		{
+		case NAME_StructProperty:
+			StructName = TypeName.GetParameterName(0);
+			if (FName StructGuidName = TypeName.GetParameterName(1);
+				StructGuidName.IsNone() || !FGuid::Parse(StructGuidName.ToString(), StructGuid))
+			{
+				StructGuid.Invalidate();
+			}
+			break;
+		case NAME_ByteProperty:
+		case NAME_EnumProperty:
+			EnumName = TypeName.GetParameterName();
+			break;
+		case NAME_ArrayProperty:
+		case NAME_OptionalProperty:
+		case NAME_SetProperty:
+			InnerType = TypeName.GetParameterName();
+			break;
+		case NAME_MapProperty:
+			InnerType = TypeName.GetParameterName(0);
+			ValueType = TypeName.GetParameterName(1);
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+static EPropertyTagExtension CalculatePropertyExtensionFlags(FArchive& UnderlyingArchive, FPropertyTag& Tag)
+{
+	EPropertyTagExtension PropertyTagExtensions = EPropertyTagExtension::NoExtension;
+
+	if (UnderlyingArchive.IsSaving())
+	{
+		// OverridableInformation
+		const FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties();
+		Tag.bExperimentalOverridableLogic = Tag.GetProperty()->HasAnyPropertyFlags(CPF_ExperimentalOverridableLogic);
+		if (OverriddenProperties || Tag.bExperimentalOverridableLogic)
+		{
+			Tag.OverrideOperation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation(UnderlyingArchive.GetSerializedPropertyChain(), Tag.GetProperty()) : EOverriddenPropertyOperation::None;
+			PropertyTagExtensions |= EPropertyTagExtension::OverridableInformation;
+		}
+	}
+
+	return PropertyTagExtensions;
+}
+
+static void SerializePropertyExtensions(FStructuredArchive::FSlot Slot, EPropertyTagExtension PropertyTagExtensions, FPropertyTag& Tag)
+{
+	// Serialize tag extensions, consider doing an init function and context as `EClassSerializationControlExtension` if we add more extensions
+	Slot << SA_ATTRIBUTE(TEXT("PropertyExtensions"), PropertyTagExtensions);
+
+	// OverridableInformation
+	if (EnumHasAnyFlags(PropertyTagExtensions, EPropertyTagExtension::OverridableInformation))
+	{
+		Slot << SA_ATTRIBUTE(TEXT("OverriddenPropertyOperation"), Tag.OverrideOperation);
+		Slot << SA_ATTRIBUTE(TEXT("ExperimentalOverridableLogic"), Tag.bExperimentalOverridableLogic);
+	}
+}
+
+static void ParsePathName(FStringView Path, UE::FPropertyTypeNameBuilder& Builder)
+{
+	FStringView OuterChain;
+	FStringView ObjectName;
+	if (UE::String::SplitLastOfAnyChar(Path, {TEXT('.'), TEXT(':')}, OuterChain, ObjectName))
+	{
+		Builder.AddName(FName(ObjectName));
+		Builder.BeginParameters();
+		UE::String::ParseTokensMultiple(OuterChain, {TEXT('.'), TEXT(':')}, [&Builder](FStringView Outer)
+		{
+			Builder.AddName(FName(Outer));
+		});
+		Builder.EndParameters();
+	}
+	else
+	{
+		Builder.AddName(FName(Path));
 	}
 }
 
 // Serializer.
-FArchive& operator<<( FArchive& Ar, FPropertyTag& Tag )
+FArchive& operator<<(FArchive& Ar, FPropertyTag& Tag)
 {
 	FStructuredArchiveFromArchive(Ar).GetSlot() << Tag;
 	return Ar;
@@ -55,7 +177,20 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 	const FPackageFileVersion Version = UnderlyingArchive.UEVer();
 
 	check(!UnderlyingArchive.GetArchiveState().UseUnversionedPropertySerialization());
-	checkf(!UnderlyingArchive.IsSaving() || Tag.Prop, TEXT("FPropertyTag must be constructed with a valid property when used for saving data!"));
+	checkf(!UnderlyingArchive.IsSaving() || Tag.GetProperty(), TEXT("FPropertyTag must be constructed with a valid property when used for saving data!"));
+
+	const auto AddEnumPath = [](UE::FPropertyTypeNameBuilder& Builder, FName EnumName)
+	{
+		TStringBuilder<256> EnumPath(InPlace, EnumName);
+		if (FAsciiSet::HasNone(EnumPath.ToView(), ".:"))
+		{
+			Builder.AddName(EnumName);
+		}
+		else
+		{
+			ParsePathName(EnumPath, Builder);
+		}
+	};
 
 	if (!bIsTextFormat)
 	{
@@ -84,12 +219,18 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 
 	if (Tag.Type.GetNumber() == 0)
 	{
+		// Build Tag.TypeName from the partial type name that was saved in older versions.
+		UE::FPropertyTypeNameBuilder TypeBuilder;
+		TypeBuilder.AddName(Tag.Type);
+
 		FNameEntryId TagType = Tag.Type.GetComparisonIndex();
 
 		// only need to serialize this for structs
 		if (TagType == NAME_StructProperty)
 		{
+			TypeBuilder.BeginParameters();
 			Slot << SA_ATTRIBUTE(TEXT("StructName"), Tag.StructName);
+			TypeBuilder.AddName(Tag.StructName);
 			if (Version >= VER_UE4_STRUCT_GUID_IN_PROPERTY_TAG)
 			{
 				if (bIsTextFormat)
@@ -100,14 +241,19 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 				{
 					Slot << SA_ATTRIBUTE(TEXT("StructGuid"), Tag.StructGuid);
 				}
+				if (Tag.StructGuid.IsValid())
+				{
+					TypeBuilder.AddGuid(Tag.StructGuid);
+				}
 			}
+			TypeBuilder.EndParameters();
 		}
 		// only need to serialize this for bools
 		else if (TagType == NAME_BoolProperty && !UnderlyingArchive.IsTextFormat())
 		{
 			if (UnderlyingArchive.IsSaving())
 			{
-				FSerializedPropertyScope SerializedProperty(UnderlyingArchive, Tag.Prop);
+				FSerializedPropertyScope SerializedProperty(UnderlyingArchive, Tag.GetProperty());
 				Slot << SA_ATTRIBUTE(TEXT("BoolVal"), Tag.BoolVal);
 			}
 			else
@@ -126,10 +272,20 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 			{
 				Slot << SA_ATTRIBUTE(TEXT("EnumName"), Tag.EnumName);
 			}
+			if (!Tag.EnumName.IsNone())
+			{
+				TypeBuilder.BeginParameters();
+				AddEnumPath(TypeBuilder, Tag.EnumName);
+				TypeBuilder.EndParameters();
+			}
 		}
 		else if (TagType == NAME_EnumProperty)
 		{
 			Slot << SA_ATTRIBUTE(TEXT("EnumName"), Tag.EnumName);
+			TypeBuilder.BeginParameters();
+			AddEnumPath(TypeBuilder, Tag.EnumName);
+			TypeBuilder.AddName(NAME_ByteProperty);
+			TypeBuilder.EndParameters();
 		}
 		// need to serialize the InnerType for arrays
 		else if (TagType == NAME_ArrayProperty)
@@ -138,23 +294,41 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 			{
 				Slot << SA_ATTRIBUTE(TEXT("InnerType"), Tag.InnerType);
 			}
+			TypeBuilder.BeginParameters();
+			TypeBuilder.AddName(Tag.InnerType);
+			TypeBuilder.EndParameters();
 		}
 		// need to serialize the InnerType for optionals.
 		else if (TagType == NAME_OptionalProperty)
 		{
 			Slot << SA_ATTRIBUTE(TEXT("InnerType"), Tag.InnerType);
+			TypeBuilder.BeginParameters();
+			TypeBuilder.AddName(Tag.InnerType);
+			TypeBuilder.EndParameters();
 		}
 		else if (Version >= VER_UE4_PROPERTY_TAG_SET_MAP_SUPPORT)
 		{
 			if (TagType == NAME_SetProperty)
 			{
 				Slot << SA_ATTRIBUTE(TEXT("InnerType"), Tag.InnerType);
+				TypeBuilder.BeginParameters();
+				TypeBuilder.AddName(Tag.InnerType);
+				TypeBuilder.EndParameters();
 			}
 			else if (TagType == NAME_MapProperty)
 			{
 				Slot << SA_ATTRIBUTE(TEXT("InnerType"), Tag.InnerType);
 				Slot << SA_ATTRIBUTE(TEXT("ValueType"), Tag.ValueType);
+				TypeBuilder.BeginParameters();
+				TypeBuilder.AddName(Tag.InnerType);
+				TypeBuilder.AddName(Tag.ValueType);
+				TypeBuilder.EndParameters();
 			}
+		}
+
+		if (UnderlyingArchive.IsLoading())
+		{
+			Tag.TypeName = TypeBuilder.Build();
 		}
 	}
 
@@ -176,31 +350,10 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		}
 	}
 
-	// Serialize tag extensions, consider doing a init function and context as `EClassSerializationControlExtension` if we add more extensions
-	if (UnderlyingArchive.UEVer() >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_EXTENSION_AND_OVERRIDABLE_SERIALIZATION)
+	if (Version >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_EXTENSION_AND_OVERRIDABLE_SERIALIZATION)
 	{
-		EPropertyTagExtension PropertyTagExtensions = EPropertyTagExtension::NoExtension;
-
-		if (UnderlyingArchive.IsSaving())
-		{
-			// Overridable information extension
-			const FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties();
-			Tag.bExperimentalOverridableLogic = Tag.Prop->HasAnyPropertyFlags(CPF_ExperimentalOverridableLogic);
-			if (OverriddenProperties || Tag.bExperimentalOverridableLogic)
-			{
-				Tag.OverrideOperation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation(UnderlyingArchive.GetSerializedPropertyChain(), Tag.Prop) : EOverriddenPropertyOperation::None;
-				PropertyTagExtensions |= EPropertyTagExtension::OverridableInformation;
-			}
-		}
-
-		Slot << SA_ATTRIBUTE(TEXT("PropertyExtensions"), PropertyTagExtensions);
-
-		// Overridable information extension
-		if (EnumHasAnyFlags(PropertyTagExtensions,EPropertyTagExtension::OverridableInformation))
-		{
-			Slot << SA_ATTRIBUTE(TEXT("OverriddenPropertyOperation"), Tag.OverrideOperation);
-			Slot << SA_ATTRIBUTE(TEXT("ExperimentalOverridableLogic"), Tag.bExperimentalOverridableLogic);
-		}
+		EPropertyTagExtension PropertyTagExtensions = CalculatePropertyExtensionFlags(UnderlyingArchive, Tag);
+		SerializePropertyExtensions(Slot, PropertyTagExtensions, Tag);
 	}
 }
 

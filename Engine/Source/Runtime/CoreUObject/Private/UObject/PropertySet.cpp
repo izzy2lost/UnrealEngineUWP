@@ -900,7 +900,8 @@ EConvertFromTypeResult FSetProperty::ConvertFromType(const FPropertyTag& Tag, FS
 		return EConvertFromTypeResult::UseSerializeItem;
 	}
 
-	if (Tag.InnerType.IsNone() || Tag.InnerType == ElementProp->GetID())
+	const FName InnerTypeName = Tag.GetType().GetParameterName();
+	if (InnerTypeName.IsNone() || InnerTypeName == ElementProp->GetID())
 	{
 		return EConvertFromTypeResult::UseSerializeItem;
 	}
@@ -917,7 +918,7 @@ EConvertFromTypeResult FSetProperty::ConvertFromType(const FPropertyTag& Tag, FS
 	};
 
 	FPropertyTag InnerPropertyTag;
-	InnerPropertyTag.Type = Tag.InnerType;
+	InnerPropertyTag.SetType(Tag.GetType().GetParameter());
 	InnerPropertyTag.ArrayIndex = 0;
 
 	bool bConversionSucceeded = true;
@@ -1018,8 +1019,10 @@ EConvertFromTypeResult FSetProperty::ConvertFromType(const FPropertyTag& Tag, FS
 	// if we could not convert the property ourself, then indicate that calling code needs to advance the property
 	if (!bConversionSucceeded)
 	{
+		UE::FPropertyTypeNameBuilder Builder;
+		ElementProp->SaveTypeName(Builder);
 		UE_LOG(LogClass, Warning, TEXT("Set Element Type mismatch in %s - Previous (%s) Current (%s) for package: %s"),
-			*WriteToString<32>(Tag.Name), *WriteToString<32>(InnerPropertyTag.Type), *WriteToString<32>(ElementProp->GetID()), *UnderlyingArchive.GetArchiveName());
+			*WriteToString<32>(Tag.Name), *WriteToString<32>(InnerPropertyTag.GetType()), *WriteToString<32>(Builder.Build()), *UnderlyingArchive.GetArchiveName());
 	}
 
 	return bConversionSucceeded ? EConvertFromTypeResult::Converted : EConvertFromTypeResult::CannotConvert;

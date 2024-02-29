@@ -1457,7 +1457,12 @@ public:
 				if constexpr (TIsUECoreType<CPPSTRUCT>::Value)
 				{
 					// Custom version of SerializeFromMismatchedTag for core types, which don't have access to FPropertyTag.
-					return ((CPPSTRUCT*)Data)->SerializeFromMismatchedTag(Tag.StructName, Ar);
+					FName StructName;
+					if (Tag.GetType().GetName() == NAME_StructProperty && Tag.GetType().GetParameterCount() >= 1)
+					{
+						StructName = Tag.GetType().GetParameterName();
+					}
+					return ((CPPSTRUCT*)Data)->SerializeFromMismatchedTag(StructName, Ar);
 				}
 				else
 				{
@@ -1477,7 +1482,12 @@ public:
 				if constexpr (TIsUECoreType<CPPSTRUCT>::Value)
 				{
 					// Custom version of SerializeFromMismatchedTag for core types, which don't understand FPropertyTag.
-					return ((CPPSTRUCT*)Data)->SerializeFromMismatchedTag(Tag.StructName, Slot);
+					FName StructName;
+					if (Tag.GetType().GetName() == NAME_StructProperty && Tag.GetType().GetParameterCount() >= 1)
+					{
+						StructName = Tag.GetType().GetParameterName();
+					}
+					return ((CPPSTRUCT*)Data)->SerializeFromMismatchedTag(StructName, Slot);
 				}
 				else
 				{

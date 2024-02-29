@@ -538,7 +538,7 @@ bool FInstanceDataObjectFixupPanel::FTypeConverter::TryConvert(FProperty* Source
 	void* DestinationContainer = static_cast<uint8*>(DestinationData) - DestinationProperty->GetOffset_ForInternal();
 
 	// todo: handle static arrays
-	FPropertyTag SourceTag(MemoryReader, SourceProperty, 0, (uint8*)SourceData, nullptr);
+	FPropertyTag SourceTag(SourceProperty, 0, (uint8*)SourceData);
 
 	bool bResult = false;
 	switch(DestinationProperty->ConvertFromType(SourceTag, StructuredReader.GetSlot(), (uint8*)DestinationContainer, SourceProperty->GetOwnerStruct(), nullptr))

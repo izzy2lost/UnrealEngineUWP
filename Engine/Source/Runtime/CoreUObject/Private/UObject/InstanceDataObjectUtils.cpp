@@ -290,19 +290,34 @@ namespace UE
 		{
 			if (!AsStructProperty->Struct->UseNativeSerialization())
 			{
-				const FString* OriginalType = nullptr;
 #if WITH_EDITORONLY_DATA
 				//@note: Transfer existing metadata over as we build the InstanceDataObject from the struct or it owner, if any, this is useful for testing purposes
-				OriginalType = AsStructProperty->FindMetaData(NAME_StructOriginalTypeMetadata);
-				FField* OwnerField = OriginalType == nullptr ? AsStructProperty->Owner.ToField() : nullptr;
-				OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOriginalTypeMetadata) : OriginalType;
+				FString OriginalName;
+				if (const FString* OriginalType = AsStructProperty->FindMetaData(NAME_StructOriginalTypeMetadata))
+				{
+					OriginalName = *OriginalType;
+				}
+				//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
+				else if (FField* OwnerField = AsStructProperty->Owner.ToField())
+				{
+					if (const FString* OwnerOriginalType = OwnerField->FindMetaData(NAME_StructOriginalTypeMetadata))
+					{
+						OriginalName = *OwnerOriginalType;
+					}
+				}
+
+				if (OriginalName.IsEmpty())
+				{
+					UE::FPropertyTypeNameBuilder OriginalNameBuilder;
+					OriginalNameBuilder.AddPath(AsStructProperty->Struct);
+					OriginalName = WriteToString<256>(OriginalNameBuilder.Build()).ToView();
+				}
 #endif
-				const FName StructOriginalName = OriginalType ? FName(**OriginalType) : AsStructProperty->Struct->GetFName();
 				AsStructProperty->Struct = CreateInstanceDataObjectStructRec<UScriptStruct>(AsStructProperty->Struct, Outer, LooseProperties, Path);
 #if WITH_EDITORONLY_DATA
-				AsStructProperty->SetMetaData(NAME_StructOriginalTypeMetadata, StructOriginalName.ToString());
-				AsStructProperty->SetMetaData(NAME_PresentAsTypeMetadata, StructOriginalName.ToString());
-				AsStructProperty->Struct->SetMetaData(NAME_PresentAsTypeMetadata, *StructOriginalName.ToString());
+				AsStructProperty->SetMetaData(NAME_StructOriginalTypeMetadata, *OriginalName);
+				AsStructProperty->SetMetaData(NAME_PresentAsTypeMetadata, *OriginalName);
+				AsStructProperty->Struct->SetMetaData(NAME_PresentAsTypeMetadata, *OriginalName);
 #endif
 			}
 		}

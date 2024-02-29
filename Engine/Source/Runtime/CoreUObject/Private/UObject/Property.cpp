@@ -2097,14 +2097,14 @@ bool FProperty::LoadFromTag(const FPropertyTag& Tag)
 
 void FProperty::SaveToTag(FPropertyTag& Tag)
 {
-	Tag.Prop = this;
+	Tag.SetProperty(this);
 	Tag.Type = GetID();
 	Tag.Name = GetFName();
 }
 
 void FProperty::AssignToTag(FPropertyTag& Tag)
 {
-	Tag.Prop = this;
+	Tag.SetProperty(this);
 }
 
 bool FProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)

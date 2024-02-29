@@ -108,7 +108,7 @@ public:
 		inline bool operator!=(const FConstIterator& Rhs) const { return CurrentValue != Rhs.CurrentValue; }
 
 		inline const FPropertyPathName& GetPath() const { return CurrentPath; }
-		inline const FProperty* GetProperty() const { return CurrentValue->Tag.Prop; }
+		inline const FProperty* GetProperty() const { return CurrentValue->Tag.GetProperty(); }
 		inline void* GetValue() const { return CurrentValue->Data; }
 		inline int32 GetValueSize() const { return CurrentValue->GetSize(); }
 

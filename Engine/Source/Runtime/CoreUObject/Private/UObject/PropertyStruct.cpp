@@ -388,21 +388,12 @@ bool FStructProperty::SameType(const FProperty* Other) const
 
 EConvertFromTypeResult FStructProperty::ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults)
 {
-	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
-
-	auto CanSerializeFromStructWithDifferentName = [](const FArchive& InAr, const FPropertyTag& PropertyTag, const FStructProperty* StructProperty)
-	{
-		if (InAr.UEVer() < VER_UE4_STRUCT_GUID_IN_PROPERTY_TAG)
-		{
-			// Old Implementation
-			return StructProperty && !StructProperty->UseBinaryOrNativeSerialization(InAr);
-		}
-		return PropertyTag.StructGuid.IsValid() && StructProperty && StructProperty->Struct && (PropertyTag.StructGuid == StructProperty->Struct->GetCustomGuid());
-	};
-
 	if (Struct)
 	{
-		if ((Struct->StructFlags & STRUCT_SerializeFromMismatchedTag) && (Tag.Type != NAME_StructProperty || (Tag.StructName != Struct->GetFName())))
+		FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
+		const bool bCanSerialize = CanSerializeFromTypeName(Tag.GetType());
+
+		if ((Struct->StructFlags & STRUCT_SerializeFromMismatchedTag) && !bCanSerialize)
 		{
 			UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps();
 			check(CppStructOps && (CppStructOps->HasSerializeFromMismatchedTag() || CppStructOps->HasStructuredSerializeFromMismatchedTag())); // else should not have STRUCT_SerializeFromMismatchedTag
@@ -411,18 +402,17 @@ EConvertFromTypeResult FStructProperty::ConvertFromType(const FPropertyTag& Tag,
 			{
 				return EConvertFromTypeResult::Converted;
 			}
-			else 
+			else
 			{
 				FArchiveUObjectFromStructuredArchive Adapter(Slot);
-				FArchive& Ar = Adapter.GetArchive();
-				if (CppStructOps->HasSerializeFromMismatchedTag() && CppStructOps->SerializeFromMismatchedTag(Tag, Ar, DestAddress))
+				if (CppStructOps->HasSerializeFromMismatchedTag() && CppStructOps->SerializeFromMismatchedTag(Tag, Adapter.GetArchive(), DestAddress))
 				{
 					return EConvertFromTypeResult::Converted;
 				}
-				else if(((Struct->StructFlags & STRUCT_SerializeNative) == 0) && CppStructOps->HasSerializeFromMismatchedTag() && CppStructOps->IsUECoreVariant())
+				else if (((Struct->StructFlags & STRUCT_SerializeNative) == 0) && CppStructOps->HasSerializeFromMismatchedTag() && CppStructOps->IsUECoreVariant())
 				{
 					// Special case for Transform, as the f/d variants are immutable whilst the default is not, so we must call SerializeTaggedProperties directly to perform the conversion.
-					if(Tag.StructName == NAME_Transform)
+					if (Tag.GetType().GetParameterName(0) == NAME_Transform)
 					{
 						Struct->SerializeTaggedProperties(Slot, (uint8*)DestAddress, Struct, nullptr);
 						return EConvertFromTypeResult::Converted;
@@ -433,16 +423,19 @@ EConvertFromTypeResult FStructProperty::ConvertFromType(const FPropertyTag& Tag,
 				}
 				else
 				{
-					UE_LOG(LogClass, Warning, TEXT("SerializeFromMismatchedTag failed: Type mismatch in %s of %s - Previous (%s) Current(StructProperty) for package:  %s"), *Tag.Name.ToString(), *GetName(), *Tag.Type.ToString(), *UnderlyingArchive.GetArchiveName());
+					UE::FPropertyTypeNameBuilder Builder;
+					SaveTypeName(Builder);
+					UE_LOG(LogClass, Warning, TEXT("SerializeFromMismatchedTag failed: Type mismatch in %s - Previous (%s) Current(%s) in package: %s"),
+						*WriteToString<32>(Tag.Name), *WriteToString<32>(Tag.GetType()), *WriteToString<32>(Builder.Build()), *UnderlyingArchive.GetArchiveName());
 					return EConvertFromTypeResult::CannotConvert;
 				}
 			}
 		}
 
-		if (Tag.Type == NAME_StructProperty && Tag.StructName != Struct->GetFName() && !CanSerializeFromStructWithDifferentName(UnderlyingArchive, Tag, this))
+		if (Tag.Type == NAME_StructProperty && !bCanSerialize && (UnderlyingArchive.UEVer() >= VER_UE4_STRUCT_GUID_IN_PROPERTY_TAG || !UseBinaryOrNativeSerialization(UnderlyingArchive)))
 		{
-			UE_LOG(LogClass, Warning, TEXT("Property %s of %s has a struct type mismatch (tag %s != prop %s) in package:  %s. If that struct got renamed, add an entry to ActiveStructRedirects."),
-				*Tag.Name.ToString(), *GetName(), *Tag.StructName.ToString(), *Struct->GetName(), *UnderlyingArchive.GetArchiveName());
+			UE_LOG(LogClass, Warning, TEXT("Struct Property %s has a struct type mismatch (tag %s != prop %s) in package: %s. If that struct got renamed, add an entry to ActiveStructRedirects."),
+				*WriteToString<32>(Tag.Name), *WriteToString<32>(Tag.GetType().GetParameterName(0)), *WriteToString<32>(Struct->GetFName()), *UnderlyingArchive.GetArchiveName());
 			return EConvertFromTypeResult::CannotConvert;
 		}
 	}
@@ -463,7 +456,7 @@ void FStructProperty::AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) c
 
 static const FName NAME_StructOriginalType(ANSITEXTVIEW("OriginalType"));
 
-static const FString* FindOriginalType(const FStructProperty* Struct)
+static const FString* FindOriginalTypeName(const FStructProperty* Struct)
 {
 	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
 	if (Context && Context->bImpersonateProperties)
@@ -507,7 +500,7 @@ void FStructProperty::SaveToTag(FPropertyTag& Tag)
 {
 	Super::SaveToTag(Tag);
 
-	const FString* OriginalType = FindOriginalType(this);
+	const FString* OriginalType = FindOriginalTypeName(this);
 	const UScriptStruct* LocalStruct = Struct;
 	check(LocalStruct);
 	Tag.StructName = OriginalType ? FName(**OriginalType) : LocalStruct->GetFName();
@@ -518,7 +511,7 @@ void FStructProperty::AssignToTag(FPropertyTag& Tag)
 {
 	Super::AssignToTag(Tag);
 
-	const FString* OriginalType = FindOriginalType(this);
+	const FString* OriginalType = FindOriginalTypeName(this);
 	const UScriptStruct* LocalStruct = Struct;
 	check(LocalStruct);
 	if (OriginalType && FName(**OriginalType) == Tag.StructName)
@@ -526,6 +519,33 @@ void FStructProperty::AssignToTag(FPropertyTag& Tag)
 		Tag.StructName = LocalStruct->GetFName();
 	}
 }
+
+#if WITH_EDITORONLY_DATA
+static UE::FPropertyTypeName FindOriginalType(const FStructProperty* Struct)
+{
+	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
+	if (Context && Context->bImpersonateProperties)
+	{
+		const FString* OriginalType = Struct->FindMetaData(NAME_StructOriginalType);
+		if (!OriginalType)
+		{
+			//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
+			if (FField* OwnerField = Struct->Owner.ToField())
+			{
+				OriginalType = OwnerField->FindMetaData(NAME_StructOriginalType);
+			}
+		}
+		if (OriginalType)
+		{
+			if (UE::FPropertyTypeNameBuilder Type; Type.TryParse(*OriginalType))
+			{
+				return Type.Build();
+			}
+		}
+	}
+	return {};
+}
+#endif // WITH_EDITORONLY_DATA
 
 bool FStructProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
@@ -552,12 +572,20 @@ void FStructProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 {
 	Super::SaveTypeName(Type);
 
-	const FString* OriginalType = FindOriginalType(this);
 	const UScriptStruct* LocalStruct = Struct;
 	check(LocalStruct);
 
 	Type.BeginParameters();
-	Type.AddName(OriginalType ? FName(**OriginalType) : LocalStruct->GetFName());
+#if WITH_EDITORONLY_DATA
+	if (const UE::FPropertyTypeName OriginalType = FindOriginalType(this); !OriginalType.IsEmpty())
+	{
+		Type.AddType(OriginalType);
+	}
+	else
+#endif // WITH_EDITORONLY_DATA
+	{
+		Type.AddPath(LocalStruct);
+	}
 	if (const FGuid StructGuid = LocalStruct->GetCustomGuid(); StructGuid.IsValid())
 	{
 		Type.AddGuid(StructGuid);
@@ -587,6 +615,12 @@ bool FStructProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 		return StructGuid == LocalStruct->GetCustomGuid();
 	}
 
-	const FString* OriginalType = FindOriginalType(this);
-	return StructName == (OriginalType ? FName(**OriginalType) : LocalStruct->GetFName());
+#if WITH_EDITORONLY_DATA
+	if (const UE::FPropertyTypeName OriginalType = FindOriginalType(this); !OriginalType.IsEmpty())
+	{
+		return StructName == OriginalType.GetName();
+	}
+#endif // WITH_EDITORONLY_DATA
+
+	return false;
 }

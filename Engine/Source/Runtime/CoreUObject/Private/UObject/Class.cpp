@@ -1232,8 +1232,6 @@ void UStruct::LoadTaggedPropertiesFromText(FStructuredArchive::FSlot Slot, uint8
 
 		if (Property && Property->ShouldSerializeValue(UnderlyingArchive))
 		{
-			FName PropID = Property->GetID();
-
 			// Static arrays of tagged properties are special cases where the slot is always an array with no tag data attached. We currently have no TryEnterArray we can't 
 			// react based on what is in the file (yet) so we'll just have to assume that nobody converts a property from an array to a single value and go with whatever 
 			// the code property tells us.
@@ -1260,60 +1258,52 @@ void UStruct::LoadTaggedPropertiesFromText(FStructuredArchive::FSlot Slot, uint8
 
 				FPropertyTag Tag;
 				ItemSlot.GetValue() << Tag;
-				Tag.Prop = Property;
+				Tag.SetProperty(Property);
 				Tag.ArrayIndex = ItemIndex;
 				Tag.Name = PropertyName;
 
 				if (bUseRedirects)
 				{
-					if (Tag.Type == NAME_StructProperty && PropID == NAME_StructProperty)
+					if (UE::FPropertyTypeName NewTypeName = ApplyRedirectsToPropertyType(Tag.GetType(), Property); !NewTypeName.IsEmpty())
 					{
-						const FName NewName = FLinkerLoad::FindNewNameForStruct(Tag.StructName);
-						const FName StructName = CastFieldChecked<FStructProperty>(Property)->Struct->GetFName();
-						if (NewName == StructName)
-						{
-							Tag.StructName = NewName;
-						}
+						Tag.SetType(NewTypeName);
 					}
-					else if ((PropID == NAME_EnumProperty) && ((Tag.Type == NAME_EnumProperty) || (Tag.Type == NAME_ByteProperty)))
+				}
+
+				if (BreakRecursionIfFullyLoad && BreakRecursionIfFullyLoad->HasAllFlags(RF_LoadCompleted))
+				{
+					continue;
+				}
+
+				switch (Property->ConvertFromType(Tag, ItemSlot.GetValue(), Data, DefaultsStruct, Defaults))
+				{
+				case EConvertFromTypeResult::Converted:
+				case EConvertFromTypeResult::Serialized:
+					break;
+
+				case EConvertFromTypeResult::UseSerializeItem:
+					if (const FName PropID = Property->GetID(); Tag.Type != PropID)
 					{
-						const FName NewName = FLinkerLoad::FindNewNameForEnum(Tag.EnumName);
-						if (!NewName.IsNone())
-						{
-							Tag.EnumName = NewName;
-						}
+						UE_LOG(LogClass, Warning, TEXT("Type mismatch in %s of %s - Previous (%s) Current(%s) in package: %s"),
+							*WriteToString<32>(Tag.Name), *WriteToString<32>(GetFName()),
+							*WriteToString<32>(Tag.Type), *WriteToString<32>(PropID),
+							*UnderlyingArchive.GetArchiveName());
 					}
-
-					if (!(BreakRecursionIfFullyLoad && BreakRecursionIfFullyLoad->HasAllFlags(RF_LoadCompleted)))
+					else
 					{
-						switch (Property->ConvertFromType(Tag, ItemSlot.GetValue(), Data, DefaultsStruct, Defaults))
-						{
-						case EConvertFromTypeResult::Converted:
-						case EConvertFromTypeResult::Serialized:
-							break;
+						uint8* DestAddress = Property->ContainerPtrToValuePtr<uint8>(Data, Tag.ArrayIndex);
+						uint8* DefaultsFromParent = Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex);
 
-						case EConvertFromTypeResult::UseSerializeItem:
-							if (Tag.Type != PropID)
-							{
-								UE_LOG(LogClass, Warning, TEXT("Type mismatch in %s of %s - Previous (%s) Current(%s) for package:  %s"), *Tag.Name.ToString(), *GetName(), *Tag.Type.ToString(), *PropID.ToString(), *UnderlyingArchive.GetArchiveName());
-							}
-							else
-							{
-								uint8* DestAddress = Property->ContainerPtrToValuePtr<uint8>(Data, Tag.ArrayIndex);
-								uint8* DefaultsFromParent = Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex);
-
-								// This property is ok.
-								Tag.SerializeTaggedProperty(ItemSlot.GetValue(), Property, DestAddress, DefaultsFromParent);
-							}
-							break;
-
-						case EConvertFromTypeResult::CannotConvert:
-							break;
-
-						default:
-							check(false);
-						}
+						// This property is ok.
+						Tag.SerializeTaggedProperty(ItemSlot.GetValue(), Property, DestAddress, DefaultsFromParent);
 					}
+					break;
+
+				case EConvertFromTypeResult::CannotConvert:
+					break;
+
+				default:
+					check(false);
 				}
 			}
 		}
@@ -1574,71 +1564,25 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					Property = CustomFindProperty(Tag.Name);
 				}
 
-				if (Property)
+				Tag.SetProperty(Property);
+
+				if (bUseRedirects)
 				{
-					Property->AssignToTag(Tag);
+					if (UE::FPropertyTypeName NewTypeName = ApplyRedirectsToPropertyType(Tag.GetType(), Property); !NewTypeName.IsEmpty())
+					{
+						Tag.SetType(NewTypeName);
+					}
 				}
 
 				if (SerializeContext && SerializeContext->bTrackSerializedPropertyPath)
 				{
-					FPropertyTypeNameBuilder TypeBuilder;
-					TypeBuilder.AddName(Tag.Type);
-
-					if (!Tag.StructName.IsNone())
-					{
-						TypeBuilder.BeginParameters();
-						TypeBuilder.AddName(Tag.StructName);
-						TypeBuilder.EndParameters();
-					}
-					else if (!Tag.EnumName.IsNone())
-					{
-						TypeBuilder.BeginParameters();
-						TypeBuilder.AddName(Tag.EnumName);
-						TypeBuilder.EndParameters();
-					}
-					else if (!Tag.InnerType.IsNone())
-					{
-						TypeBuilder.BeginParameters();
-						TypeBuilder.AddName(Tag.InnerType);
-						if (!Tag.ValueType.IsNone())
-						{
-							TypeBuilder.AddName(Tag.ValueType);
-						}
-						TypeBuilder.EndParameters();
-					}
-
 					const FName Name = Property ? Property->GetFName() : Tag.Name;
 					const int32 Index = Tag.ArrayIndex > 0 || (Property && Property->ArrayDim > 1) ? Tag.ArrayIndex : INDEX_NONE;
-					SerializeContext->SerializedPropertyPath.Push({Name, TypeBuilder.Build(), Index});
+					SerializeContext->SerializedPropertyPath.Push({Name, Tag.GetType(), Index});
 				}
 
 				if (Property)
 				{
-					FName PropID = Property->GetID();
-
-					// Check if this is a struct property and we have a redirector
-					// No need to check redirects on platforms where everything is cooked. Always check for save games
-					if (bUseRedirects)
-					{
-						if (Tag.Type == NAME_StructProperty && PropID == NAME_StructProperty)
-						{
-							const FName NewName = FLinkerLoad::FindNewNameForStruct(Tag.StructName);
-							const FName StructName = CastFieldChecked<FStructProperty>(Property)->Struct->GetFName();
-							if (NewName == StructName)
-							{
-								Tag.StructName = NewName;
-							}
-						}
-						else if ((PropID == NAME_EnumProperty) && ((Tag.Type == NAME_EnumProperty) || (Tag.Type == NAME_ByteProperty)))
-						{
-							const FName NewName = FLinkerLoad::FindNewNameForEnum(Tag.EnumName);
-							if (!NewName.IsNone())
-							{
-								Tag.EnumName = NewName;
-							}
-						}
-					}
-
 	#if WITH_EDITOR
 					if (BreakRecursionIfFullyLoad && BreakRecursionIfFullyLoad->HasAllFlags(RF_LoadCompleted))
 					{
@@ -1653,8 +1597,8 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					// check for valid array index
 					else if (Tag.ArrayIndex >= Property->ArrayDim || Tag.ArrayIndex < 0)
 					{
-						UE_LOG(LogClass, Warning, TEXT("Array bound exceeded (var %s=%d, exceeds %s [0-%d] in package:  %s"),
-							*Tag.Name.ToString(), Tag.ArrayIndex, *GetName(), Property->ArrayDim - 1, *UnderlyingArchive.GetArchiveName());
+						UE_LOG(LogClass, Warning, TEXT("Array bound exceeded in %s of %s - %d exceeds [0-%d] in package: %s"),
+							*WriteToString<32>(Tag.Name), *WriteToString<32>(GetFName()), Tag.ArrayIndex, Property->ArrayDim - 1, *UnderlyingArchive.GetArchiveName());
 					}
 					else if (!Property->ShouldSerializeValue(UnderlyingArchive))
 					{
@@ -1686,22 +1630,25 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 								{
 									UnderlyingArchive.Seek(StartOfProperty);
 									FStructuredArchive::FSlot CopySlot = PropertyRecord.EnterField(TEXT("Value"));
-									Tag.Prop = nullptr;
+									Tag.SetProperty(nullptr);
 									PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, CopySlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
 								}
 								break;
 
 							case EConvertFromTypeResult::Serialized:
-								bAdvanceProperty = true;
+								bAdvanceProperty = !UnderlyingArchive.IsCriticalError();
 								break;
 
 							case EConvertFromTypeResult::UseSerializeItem:
-								if (Tag.Type != PropID)
+								if (const FName PropID = Property->GetID(); Tag.Type != PropID)
 								{
-									UE_LOG(LogClass, Warning, TEXT("Type mismatch in %s of %s - Previous (%s) Current(%s) for package:  %s"), *Tag.Name.ToString(), *GetName(), *Tag.Type.ToString(), *PropID.ToString(), *UnderlyingArchive.GetArchiveName());
+									UE_LOG(LogClass, Warning, TEXT("Type mismatch in %s of %s - Previous (%s) Current(%s) in package: %s"),
+										*WriteToString<32>(Tag.Name), *WriteToString<32>(GetFName()),
+										*WriteToString<32>(Tag.Type), *WriteToString<32>(PropID),
+										*UnderlyingArchive.GetArchiveName());
 									if (FPropertyBag* PropertyBag = TryFindPropertyBag())
 									{
-										Tag.Prop = nullptr;
+										Tag.SetProperty(nullptr);
 										PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
 										bAdvanceProperty = !UnderlyingArchive.IsCriticalError();
 									}
@@ -1720,7 +1667,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 							case EConvertFromTypeResult::CannotConvert:
 								if (FPropertyBag* PropertyBag = TryFindPropertyBag())
 								{
-									Tag.Prop = nullptr;
+									Tag.SetProperty(nullptr);
 									PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
 									bAdvanceProperty = !UnderlyingArchive.IsCriticalError();
 								}
@@ -1753,7 +1700,9 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 				}
 				else
 				{
-					check(Tag.Size == Loaded);
+					checkf(Tag.Size == Loaded,
+						TEXT("Size mismatch in %s of %s of type %s. Loaded %" INT64_FMT " bytes but expected %d. Package: %s"),
+						*Tag.Name.ToString(), *GetName(), *WriteToString<64>(Tag.GetType()), Loaded, Tag.Size, *UnderlyingArchive.GetArchiveName());
 				}
 			}
 		}
@@ -1818,7 +1767,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 #endif
 						TestCollector.RecordSavedProperty(Property);
 
-						FPropertyTag Tag( UnderlyingArchive, Property, Idx, DataPtr, DefaultValue );
+						FPropertyTag Tag(Property, Idx, DataPtr);
 						// If available use the property guid from BlueprintGeneratedClasses, provided we aren't cooking data.
 						if (bArePropertyGuidsAvailable && !UnderlyingArchive.IsCooking())
 						{

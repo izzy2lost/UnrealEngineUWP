@@ -222,29 +222,27 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 		return EConvertFromTypeResult::UseSerializeItem;
 	case NAME_ByteProperty:
 	{
-		if ((Tag.EnumName == NAME_None) != (Enum == nullptr))
+		if ((Tag.GetType().GetParameterCount() == 0) != (Enum == nullptr))
 		{
 			// A byte property gained or lost an enum.
 			uint8 PreviousValue = 0;
-			if (Tag.EnumName == NAME_None)
+			if (Enum)
 			{
-				// If we're a nested property the EnumName tag got lost. Fail to read in this case
-				FProperty* const PropertyOwner = GetOwner<FProperty>();
-				if (PropertyOwner)
+				// A nested property loses its enum name in the property tag. Handle this case for backward compatibility reasons.
+				if (GetOwner<FProperty>())
 				{
 					return EConvertFromTypeResult::UseSerializeItem;
 				}
 
-				// simply pretend the property still doesn't have an enum and serialize the single byte
+				// Read the byte and assume its value corresponds to a valid enumerator.
 				Slot << PreviousValue;
 			}
 			else
 			{
-				// attempt to find the old enum and get the byte value from the serialized enum name
+				// Attempt to find the enum from the tag and find the byte value from the enum.
 				PreviousValue = (uint8)ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
 			}
 
-			// now copy the value into the object's address space
 			SetPropertyValue_InContainer(Data, PreviousValue, Tag.ArrayIndex);
 			return EConvertFromTypeResult::Converted;
 		}
@@ -252,17 +250,11 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 	}
 	case NAME_EnumProperty:
 	{
-		if (Enum == nullptr || Tag.EnumName == Enum->GetFName() || Tag.EnumName.ToString() == Enum->GetPathName())
-		{
-			// an enum property became a byte
-			// attempt to find the old enum and get the byte value from the serialized enum name
-			uint8 PreviousValue = (uint8)ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
+		// Attempt to find the enum from the tag and find the byte value from the enum.
+		uint8 PreviousValue = (uint8)ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
 
-			// now copy the value into the object's address space
-			SetPropertyValue_InContainer(Data, PreviousValue, Tag.ArrayIndex);
-			return EConvertFromTypeResult::Converted;
-		}
-		return EConvertFromTypeResult::UseSerializeItem;
+		SetPropertyValue_InContainer(Data, PreviousValue, Tag.ArrayIndex);
+		return EConvertFromTypeResult::Converted;
 	}
 	case NAME_Int8Property:
 		if (Enum)
@@ -610,14 +602,7 @@ bool FByteProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	const FName EnumName = Type.GetParameterName();
 	if (const UEnum* LocalEnum = Enum)
 	{
-		if (EnumName == LocalEnum->GetFName())
-		{
-			return true;
-		}
-
-		TStringBuilder<256> EnumNameString;
-		LocalEnum->GetPathName(nullptr, EnumNameString);
-		return EnumName == EnumNameString.ToView();
+		return EnumName == LocalEnum->GetFName();
 	}
 	return EnumName.IsNone();
 }

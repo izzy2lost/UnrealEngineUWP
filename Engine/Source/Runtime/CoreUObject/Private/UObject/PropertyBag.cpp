@@ -23,15 +23,12 @@ void FPropertyBag::Add(const FPropertyPathName& Path, FProperty* Property, void*
 {
 	FValue& Value = FindOrCreateValue(Path);
 
-	const bool bPropertyChanged = Value.Tag.Prop != Property;
+	const bool bPropertyChanged = Value.Tag.GetProperty() != Property;
 
 	if (bPropertyChanged)
 	{
-		// TODO: NullAr is a workaround to FPropertyTag requiring an archive to assert on versioned property serialization.
-		FNullArchive NullAr;
-
 		Value.Destroy();
-		Value.Tag = FPropertyTag(NullAr, Property, INDEX_NONE, (uint8*)Data, nullptr);
+		Value.Tag = FPropertyTag(Property, INDEX_NONE, (uint8*)Data);
 	}
 
 	Value.AllocateAndInitializeValue();
@@ -83,14 +80,9 @@ void FPropertyBag::LoadPropertyByTag(const FPropertyPathName& Path, const FPrope
 	FValue& Value = FindOrCreateValue(Path);
 
 	const bool bPropertyChanged =
-		(Value.Tag.Prop != Tag.Prop && (Tag.Prop || !Value.bOwnsProperty)) ||
-		Value.Tag.Type != Tag.Type ||
+		(Value.Tag.GetProperty() != Tag.GetProperty() && (Tag.GetProperty() || !Value.bOwnsProperty)) ||
+		Value.Tag.GetType() != Tag.GetType() ||
 		Value.Tag.Name != Tag.Name ||
-		Value.Tag.StructName != Tag.StructName ||
-		Value.Tag.EnumName != Tag.EnumName ||
-		Value.Tag.InnerType != Tag.InnerType ||
-		Value.Tag.ValueType != Tag.ValueType ||
-		Value.Tag.StructGuid != Tag.StructGuid ||
 		Value.Tag.PropertyGuid != Tag.PropertyGuid;
 
 	if (bPropertyChanged)
@@ -101,7 +93,7 @@ void FPropertyBag::LoadPropertyByTag(const FPropertyPathName& Path, const FPrope
 	}
 
 	// Serialize the value using the existing property from the tag.
-	if (FProperty* Property = Value.Tag.Prop)
+	if (FProperty* Property = Value.Tag.GetProperty())
 	{
 		Value.AllocateAndInitializeValue();
 		Tag.SerializeTaggedProperty(ValueSlot, Property, (uint8*)Value.Data, (const uint8*)Defaults);
@@ -114,7 +106,7 @@ void FPropertyBag::LoadPropertyByTag(const FPropertyPathName& Path, const FPrope
 	{
 		Property->Link(UnderlyingArchive);
 		Value.bOwnsProperty = true;
-		Value.Tag.Prop = Property;
+		Value.Tag.SetProperty(Property);
 		Value.AllocateAndInitializeValue();
 		Tag.SerializeTaggedProperty(ValueSlot, Property, (uint8*)Value.Data, nullptr);
 		return;
@@ -168,7 +160,7 @@ void FPropertyBag::FValue::AllocateAndInitializeValue()
 		return;
 	}
 
-	if (const FProperty* Property = Tag.Prop)
+	if (const FProperty* Property = Tag.GetProperty())
 	{
 		// TODO: Need to allocate only one element for arrays.
 		Data = Property->AllocateAndInitializeValue();
@@ -181,7 +173,7 @@ void FPropertyBag::FValue::AllocateAndInitializeValue()
 
 void FPropertyBag::FValue::Destroy()
 {
-	if (const FProperty* Property = Tag.Prop)
+	if (const FProperty* Property = Tag.GetProperty())
 	{
 		if (Data)
 		{
@@ -194,7 +186,7 @@ void FPropertyBag::FValue::Destroy()
 		{
 			bOwnsProperty = false;
 			delete Property;
-			Tag.Prop = nullptr;
+			Tag.SetProperty(nullptr);
 		}
 	}
 	else
@@ -210,12 +202,12 @@ int32 FPropertyBag::FValue::GetSize() const
 	{
 		return 0;
 	}
-	if (!Tag.Prop)
+	if (!Tag.GetProperty())
 	{
 		return Tag.Size;
 	}
 	// TODO: Need to include the size of only one element for arrays.
-	return Tag.Prop->GetSize();
+	return Tag.GetProperty()->GetSize();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

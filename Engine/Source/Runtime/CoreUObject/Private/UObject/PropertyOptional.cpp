@@ -264,7 +264,7 @@ void FOptionalProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Data
 			void* ValueData = GetValuePointerForReadOrReplace(Data);
 
 			// Construct and serialize a tag for the value.
-			FPropertyTag ValueTag(UnderlyingArchive, GetValueProperty(), 0, static_cast<uint8*>(ValueData), static_cast<const uint8*>(ValueDefaults));
+			FPropertyTag ValueTag(GetValueProperty(), 0, static_cast<uint8*>(ValueData));
 			ValueSlot << ValueTag;
 
 			// Serialize the value.

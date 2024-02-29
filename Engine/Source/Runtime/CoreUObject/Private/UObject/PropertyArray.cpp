@@ -178,14 +178,27 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 
 	if (bIsTextFormat && Inner->IsA<FStructProperty>())
 	{
-		MaybeInnerTag.Emplace(UnderlyingArchive, Inner, 0, (uint8*)Value, (uint8*)Defaults);
-		Slot << SA_ATTRIBUTE(TEXT("InnerStructName"), MaybeInnerTag.GetValue().StructName);
-		Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("InnerStructGuid"), MaybeInnerTag.GetValue().StructGuid, FGuid());
+		MaybeInnerTag.Emplace(Inner, /*Index*/ 0, (uint8*)Value);
+
+		FName StructName;
+		FGuid StructGuid;
+		Slot << SA_ATTRIBUTE(TEXT("InnerStructName"), StructName);
+		Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("InnerStructGuid"), StructGuid, FGuid());
+
+		UE::FPropertyTypeNameBuilder Builder;
+		Builder.AddName(NAME_StructProperty);
+		Builder.BeginParameters();
+		Builder.AddName(StructName);
+		if (StructGuid.IsValid())
+		{
+			Builder.AddGuid(StructGuid);
+		}
+		Builder.EndParameters();
+		MaybeInnerTag->SetType(Builder.Build());
 	}
 
 	TOptional<FPropertyTag> SerializeFromMismatchedTag;
 
-	// TODO: Should work for maps + sets too.
 	auto SerializeContainerItem = [this, &SerializeFromMismatchedTag](FStructuredArchiveSlot Slot, uint8* Item)
 	{
 		if (const FPropertyTag* Tag = SerializeFromMismatchedTag.GetPtrOrNull())
@@ -203,7 +216,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 					Slot.GetUnderlyingArchive().Seek(StartOfProperty + Tag->Size);	// Skip this item
 					return;
 				case EConvertFromTypeResult::UseSerializeItem:
-					// Fall through to default serialize
+					// Fall through to default SerializeItem
 					break;
 			}
 		}
@@ -542,50 +555,42 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 	}
 	ArrayHelper.CountBytes(UnderlyingArchive);
 
+	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
+
 	// Serialize a PropertyTag for the inner property of this array, allows us to validate the inner struct to see if it has changed
-	if (UnderlyingArchive.UEVer() >= VER_UE4_INNER_ARRAY_TAG_INFO && Inner->IsA<FStructProperty>())
+	if (UnderlyingArchive.UEVer() >= VER_UE4_INNER_ARRAY_TAG_INFO &&
+		Inner->IsA<FStructProperty>())
 	{
 		if (!MaybeInnerTag)
 		{
-			MaybeInnerTag.Emplace(UnderlyingArchive, Inner, 0, (uint8*)Value, (uint8*)Defaults);
+			MaybeInnerTag.Emplace(Inner, 0, (uint8*)Value);
 			UnderlyingArchive << MaybeInnerTag.GetValue();
-			Inner->AssignToTag(MaybeInnerTag.GetValue());
 		}
 
 		FPropertyTag& InnerTag = MaybeInnerTag.GetValue();
 
 		if (UnderlyingArchive.IsLoading())
 		{
-			auto CanSerializeFromStructWithDifferentName = [](const FPropertyTag& PropertyTag, const FStructProperty* StructProperty)
+			if (UE::FPropertyTypeName NewTypeName = ApplyRedirectsToPropertyType(InnerTag.GetType(), Inner); !NewTypeName.IsEmpty())
 			{
-				return StructProperty
-					&& StructProperty->Struct
-					&& PropertyTag.StructGuid.IsValid()
-					&& PropertyTag.StructGuid == StructProperty->Struct->GetCustomGuid();
-			};
-
-			// Check if the Inner property can successfully serialize, the type may have changed
-			FStructProperty* StructProperty = CastFieldChecked<FStructProperty>(Inner);
-			// if check redirector to make sure if the name has changed
-			FName NewName = FLinkerLoad::FindNewNameForStruct(InnerTag.StructName);
-			FName StructName = StructProperty->Struct->GetFName();
-			if (NewName != NAME_None && NewName == StructName)
-			{
-				InnerTag.StructName = NewName;
+				InnerTag.SetType(NewTypeName);
 			}
 
-			if (InnerTag.StructName != StructProperty->Struct->GetFName()
-				&& !CanSerializeFromStructWithDifferentName(InnerTag, StructProperty))
+			// Check if the Inner property can successfully serialize, the type may have changed
+			if (!Inner->CanSerializeFromTypeName(InnerTag.GetType()))
 			{
+				FStructProperty* StructProperty = CastFieldChecked<FStructProperty>(Inner);
+
 				// Attempt mismatched tag serialization if available
-				if ((StructProperty->Struct->StructFlags & STRUCT_SerializeFromMismatchedTag) && (InnerTag.Type != NAME_StructProperty || (InnerTag.StructName != StructProperty->Struct->GetFName())))
+				const FName StructName = InnerTag.GetType().GetParameterName();
+				if ((StructProperty->Struct->StructFlags & STRUCT_SerializeFromMismatchedTag) && (InnerTag.Type != NAME_StructProperty || StructName != StructProperty->Struct->GetFName()))
 				{
 					SerializeFromMismatchedTag = InnerTag;
 				}
 				else
 				{
-					UE_LOG(LogClass, Warning, TEXT("Array Property %s of %s contains a struct type mismatch (tag %s != prop %s) in package:  %s. If that struct got renamed, add an entry to ActiveStructRedirects."),
-					*InnerTag.Name.ToString(), *GetName(), *InnerTag.StructName.ToString(), *CastFieldChecked<FStructProperty>(Inner)->Struct->GetName(), *UnderlyingArchive.GetArchiveName());
+					UE_LOG(LogClass, Warning, TEXT("Array Property %s contains a struct type mismatch (tag %s != prop %s) in package: %s. If that struct got renamed, add an entry to ActiveStructRedirects."),
+						*WriteToString<32>(InnerTag.Name), *WriteToString<32>(StructName), *WriteToString<32>(StructProperty->Struct->GetFName()), *UnderlyingArchive.GetArchiveName());
 
 #if WITH_EDITOR
 					// Ensure the structure is initialized
@@ -610,30 +615,26 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 				}
 			}
 		}
-	}
 
-	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
-	if (Context && Context->bTrackSerializedPropertyPath)
-	{
-		// Update the path with types from the inner tag if the outer tag is incomplete.
-		if (const int32 SegmentIndex = Context->SerializedPropertyPath.GetSegmentCount() - 1; SegmentIndex >= 0)
+		if (Context && Context->bTrackSerializedPropertyPath)
 		{
-			UE::FPropertyPathNameSegment Segment = Context->SerializedPropertyPath.GetSegment(SegmentIndex);
-			if (Segment.Type.GetName() == NAME_ArrayProperty)
+			// Update the path with types from the inner tag if the outer tag is incomplete.
+			if (const int32 SegmentIndex = Context->SerializedPropertyPath.GetSegmentCount() - 1; SegmentIndex >= 0)
 			{
-				const UE::FPropertyTypeName InnerTypeName = Segment.Type.GetParameter();
-				if (InnerTypeName.GetName() == NAME_StructProperty && InnerTypeName.GetParameterCount() == 0)
+				UE::FPropertyPathNameSegment Segment = Context->SerializedPropertyPath.GetSegment(SegmentIndex);
+				if (Segment.Type.GetName() == NAME_ArrayProperty)
 				{
-					UE::FPropertyTypeNameBuilder NewTypeBuilder;
-					NewTypeBuilder.AddName(NAME_ArrayProperty);
-					NewTypeBuilder.BeginParameters();
-					NewTypeBuilder.AddName(NAME_StructProperty);
-					NewTypeBuilder.BeginParameters();
-					NewTypeBuilder.AddName(MaybeInnerTag->StructName);
-					NewTypeBuilder.EndParameters();
-					NewTypeBuilder.EndParameters();
-					Segment.Type = NewTypeBuilder.Build();
-					Context->SerializedPropertyPath.SetSegment(SegmentIndex, Segment);
+					const UE::FPropertyTypeName InnerTypeName = Segment.Type.GetParameter();
+					if (InnerTypeName.GetName() == NAME_StructProperty && InnerTypeName.GetParameterCount() == 0)
+					{
+						UE::FPropertyTypeNameBuilder NewTypeBuilder;
+						NewTypeBuilder.AddName(NAME_ArrayProperty);
+						NewTypeBuilder.BeginParameters();
+						NewTypeBuilder.AddType(InnerTag.GetType());
+						NewTypeBuilder.EndParameters();
+						Segment.Type = NewTypeBuilder.Build();
+						Context->SerializedPropertyPath.SetSegment(SegmentIndex, Segment);
+					}
 				}
 			}
 		}
@@ -1162,66 +1163,71 @@ bool FArrayProperty::SameType(const FProperty* Other) const
 
 EConvertFromTypeResult FArrayProperty::ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults)
 {
-	// TODO: The ArrayProperty Tag really doesn't have adequate information for
-	// many types. This should probably all be moved in to ::SerializeItem
-
-	if (Tag.Type == NAME_ArrayProperty && Tag.InnerType != NAME_None && Tag.InnerType != Inner->GetID())
+	if (Tag.Type != NAME_ArrayProperty)
 	{
-		void* ArrayPropertyData = ContainerPtrToValuePtr<void>(Data);
-
-		int32 ElementCount = 0;
-
-		if (Slot.GetUnderlyingArchive().IsTextFormat())
-		{
-			Slot.EnterArray(ElementCount);
-		}
-		else
-		{
-			Slot.GetUnderlyingArchive() << ElementCount;
-		}
-
-		FScriptArrayHelper ScriptArrayHelper(this, ArrayPropertyData);
-		ScriptArrayHelper.EmptyAndAddValues(ElementCount);
-
-		FPropertyTag InnerPropertyTag;
-		InnerPropertyTag.Type = Tag.InnerType;
-		InnerPropertyTag.ArrayIndex = 0;
-
-		if (Slot.GetArchiveState().UEVer() >= VER_UE4_INNER_ARRAY_TAG_INFO && Tag.InnerType == NAME_StructProperty)
-		{
-			Slot.GetUnderlyingArchive() << InnerPropertyTag;
-		}
-
-		// Convert properties from old type to new type automatically if types are compatible (array case)
-		if (ElementCount > 0)
-		{
-			FStructuredArchive::FStream ValueStream = Slot.EnterStream();
-
-			EConvertFromTypeResult ConvertResult = Inner->ConvertFromType(InnerPropertyTag, ValueStream.EnterElement(), ScriptArrayHelper.GetRawPtr(0), DefaultsStruct, nullptr);
-			if (ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized)
-			{
-				for (int32 i = 1; i < ElementCount; ++i)
-				{
-					ConvertResult = Inner->ConvertFromType(InnerPropertyTag, ValueStream.EnterElement(), ScriptArrayHelper.GetRawPtr(i), DefaultsStruct, nullptr);
-					check(ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized);
-				}
-
-				return EConvertFromTypeResult::Converted;
-			}
-			// TODO: Implement SerializeFromMismatchedTag handling for arrays of structs
-			else
-			{
-				UE_LOG(LogClass, Warning, TEXT("Array Inner Type mismatch in %s of %s - Previous (%s) Current(%s) for package:  %s"), *Tag.Name.ToString(), *GetName(), *Tag.InnerType.ToString(), *Inner->GetID().ToString(), *Slot.GetUnderlyingArchive().GetArchiveName());
-				return EConvertFromTypeResult::CannotConvert;
-			}
-		}
-		else
-		{
-			return EConvertFromTypeResult::Converted;
-		}
+		return EConvertFromTypeResult::UseSerializeItem;
 	}
 
-	return EConvertFromTypeResult::UseSerializeItem;
+	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
+
+	const FName InnerTypeName = Tag.GetType().GetParameterName();
+	if (InnerTypeName.IsNone() || InnerTypeName == Inner->GetID())
+	{
+		return EConvertFromTypeResult::UseSerializeItem;
+	}
+
+	if (Tag.bExperimentalOverridableLogic)
+	{
+		return EConvertFromTypeResult::CannotConvert;
+	}
+
+	int32 ElementCount = 0;
+	if (UnderlyingArchive.IsTextFormat())
+	{
+		Slot.EnterArray(ElementCount);
+	}
+	else
+	{
+		UnderlyingArchive << ElementCount;
+	}
+
+	FScriptArrayHelper ScriptArrayHelper(this, ContainerPtrToValuePtr<void>(Data));
+	ScriptArrayHelper.EmptyAndAddValues(ElementCount);
+
+	FPropertyTag InnerPropertyTag;
+	InnerPropertyTag.SetType(Tag.GetType().GetParameter());
+	InnerPropertyTag.ArrayIndex = 0;
+
+	if (UnderlyingArchive.UEVer() >= VER_UE4_INNER_ARRAY_TAG_INFO && InnerPropertyTag.Type == NAME_StructProperty)
+	{
+		UnderlyingArchive << InnerPropertyTag;
+	}
+
+	if (ElementCount == 0)
+	{
+		return EConvertFromTypeResult::Converted;
+	}
+
+	FStructuredArchive::FStream ValueStream = Slot.EnterStream();
+
+	EConvertFromTypeResult ConvertResult = Inner->ConvertFromType(InnerPropertyTag, ValueStream.EnterElement(), ScriptArrayHelper.GetRawPtr(0), DefaultsStruct, nullptr);
+	if (ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized)
+	{
+		for (int32 ElementIndex = 1; ElementIndex < ElementCount; ++ElementIndex)
+		{
+			ConvertResult = Inner->ConvertFromType(InnerPropertyTag, ValueStream.EnterElement(), ScriptArrayHelper.GetRawPtr(ElementIndex), DefaultsStruct, nullptr);
+			check(ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized);
+		}
+		return ConvertResult;
+	}
+	else
+	{
+		UE::FPropertyTypeNameBuilder Builder;
+		Inner->SaveTypeName(Builder);
+		UE_LOG(LogClass, Warning, TEXT("Array Inner Type mismatch in %s - Previous (%s) Current(%s) in package: %s"),
+			*WriteToString<32>(Tag.Name), *WriteToString<32>(InnerPropertyTag.GetType()), *WriteToString<32>(Builder.Build()), *UnderlyingArchive.GetArchiveName());
+		return EConvertFromTypeResult::CannotConvert;
+	}
 }
 
 FField* FArrayProperty::GetInnerFieldByName(const FName& InName)

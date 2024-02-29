@@ -1434,18 +1434,26 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 		return EConvertFromTypeResult::UseSerializeItem;
 	}
 
-	const bool bKeyTypeMatches = (Tag.InnerType == KeyProp->GetID());
-	const bool bValueTypeMatches = (Tag.ValueType == ValueProp->GetID());
-	if ((bKeyTypeMatches || Tag.InnerType.IsNone()) && (bValueTypeMatches || Tag.ValueType.IsNone()))
+	const UE::FPropertyTypeName KeyType = Tag.GetType().GetParameter(0);
+	const UE::FPropertyTypeName ValueType = Tag.GetType().GetParameter(1);
+	const FName KeyTypeName = KeyType.GetName();
+	const FName ValueTypeName = ValueType.GetName();
+	const bool bCanSerializeKey = (KeyTypeName == KeyProp->GetID());
+	const bool bCanSerializeValue = (ValueTypeName == ValueProp->GetID());
+	if ((bCanSerializeKey || KeyTypeName.IsNone()) && (bCanSerializeValue || ValueTypeName.IsNone()))
 	{
 		return EConvertFromTypeResult::UseSerializeItem;
 	}
 
-	const auto SerializeOrConvert = [](bool bTypeMatches, FProperty* Inner, const FPropertyTag& InnerTag, FStructuredArchive::FSlot InnerSlot, uint8* InnerData, UStruct* InnerDefaultsStruct) -> bool
+	if (Tag.bExperimentalOverridableLogic)
 	{
-		if (!bTypeMatches)
+		return EConvertFromTypeResult::CannotConvert;
+	}
+
+	const auto SerializeOrConvert = [](bool bCanSerialize, FProperty* Inner, const FPropertyTag& InnerTag, FStructuredArchive::FSlot InnerSlot, uint8* InnerData, UStruct* InnerDefaultsStruct) -> bool
+	{
+		if (!bCanSerialize)
 		{
-			const int64 StartOfProperty = InnerSlot.GetUnderlyingArchive().Tell();
 			switch (Inner->ConvertFromType(InnerTag, InnerSlot, InnerData, InnerDefaultsStruct, nullptr))
 			{
 				default:
@@ -1483,11 +1491,11 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 	};
 
 	FPropertyTag KeyPropertyTag;
-	KeyPropertyTag.Type = Tag.InnerType;
+	KeyPropertyTag.SetType(KeyType);
 	KeyPropertyTag.ArrayIndex = 0;
 
 	FPropertyTag ValuePropertyTag;
-	ValuePropertyTag.Type = Tag.ValueType;
+	ValuePropertyTag.SetType(ValueType);
 	ValuePropertyTag.ArrayIndex = 0;
 
 	bool bConversionSucceeded = true;
@@ -1505,7 +1513,7 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 		TempKeyValueStorage = (uint8*)FMemory::Malloc(MapLayout.SetLayout.Size);
 		KeyProp->InitializeValue(TempKeyValueStorage);
 
-		if (SerializeOrConvert(bKeyTypeMatches, KeyProp, KeyPropertyTag, KeysToRemoveArray.EnterElement(), TempKeyValueStorage, DefaultsStruct))
+		if (SerializeOrConvert(bCanSerializeKey, KeyProp, KeyPropertyTag, KeysToRemoveArray.EnterElement(), TempKeyValueStorage, DefaultsStruct))
 		{
 			// If the key is in the map, remove it
 			int32 Found = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
@@ -1517,7 +1525,7 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 			// things are going fine, remove the rest of the keys:
 			for (int32 I = 1; I < NumKeysToRemove; ++I)
 			{
-				verify(SerializeOrConvert(bKeyTypeMatches, KeyProp, KeyPropertyTag, KeysToRemoveArray.EnterElement(), TempKeyValueStorage, DefaultsStruct));
+				verify(SerializeOrConvert(bCanSerializeKey, KeyProp, KeyPropertyTag, KeysToRemoveArray.EnterElement(), TempKeyValueStorage, DefaultsStruct));
 				Found = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
 				if (Found != INDEX_NONE)
 				{
@@ -1546,7 +1554,7 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 
 			FStructuredArchive::FRecord FirstPropertyRecord = EntriesArray.EnterElement().EnterRecord();
 
-			if (SerializeOrConvert(bKeyTypeMatches, KeyProp, KeyPropertyTag, FirstPropertyRecord.EnterField(TEXT("Key")), TempKeyValueStorage, DefaultsStruct))
+			if (SerializeOrConvert(bCanSerializeKey, KeyProp, KeyPropertyTag, FirstPropertyRecord.EnterField(TEXT("Key")), TempKeyValueStorage, DefaultsStruct))
 			{
 				// Add a new default value if the key doesn't currently exist in the map
 				bool bKeyAlreadyPresent = true;
@@ -1562,14 +1570,14 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 				KeyProp->CopyCompleteValue_InContainer(NextPairPtr, TempKeyValueStorage);
 
 				// Deserialize value
-				if (SerializeOrConvert(bValueTypeMatches, ValueProp, ValuePropertyTag, FirstPropertyRecord.EnterField(TEXT("Value")), NextPairPtr, DefaultsStruct))
+				if (SerializeOrConvert(bCanSerializeValue, ValueProp, ValuePropertyTag, FirstPropertyRecord.EnterField(TEXT("Value")), NextPairPtr, DefaultsStruct))
 				{
 					// first entry went fine, convert the rest:
 					for (int32 I = 1; I < Num; ++I)
 					{
 						FStructuredArchive::FRecord PropertyRecord = EntriesArray.EnterElement().EnterRecord();
 
-						verify(SerializeOrConvert(bKeyTypeMatches, KeyProp, KeyPropertyTag, PropertyRecord.EnterField(TEXT("Key")), TempKeyValueStorage, DefaultsStruct));
+						verify(SerializeOrConvert(bCanSerializeKey, KeyProp, KeyPropertyTag, PropertyRecord.EnterField(TEXT("Key")), TempKeyValueStorage, DefaultsStruct));
 						NextPairIndex = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
 						if (NextPairIndex == INDEX_NONE)
 						{
@@ -1579,7 +1587,7 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 						NextPairPtr = MapHelper.GetPairPtrWithoutCheck(NextPairIndex);
 						// This copy is unnecessary when the key was already in the map:
 						KeyProp->CopyCompleteValue_InContainer(NextPairPtr, TempKeyValueStorage);
-						verify(SerializeOrConvert(bValueTypeMatches, ValueProp, ValuePropertyTag, PropertyRecord.EnterField(TEXT("Value")), NextPairPtr, DefaultsStruct));
+						verify(SerializeOrConvert(bCanSerializeValue, ValueProp, ValuePropertyTag, PropertyRecord.EnterField(TEXT("Value")), NextPairPtr, DefaultsStruct));
 					}
 				}
 				else
@@ -1604,13 +1612,17 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 	// if we could not convert the property ourself, then indicate that calling code needs to advance the property
 	if (!bConversionSucceeded)
 	{
+		UE::FPropertyTypeNameBuilder KeyBuilder;
+		UE::FPropertyTypeNameBuilder ValueBuilder;
+		KeyProp->SaveTypeName(KeyBuilder);
+		ValueProp->SaveTypeName(ValueBuilder);
 		UE_LOG(LogClass, Warning,
 			TEXT("Map Element Type mismatch in %s - Previous (%s to %s) Current (%s to %s) for package: %s"),
 			*WriteToString<32>(Tag.Name),
-			*WriteToString<32>(KeyPropertyTag.Type),
-			*WriteToString<32>(ValuePropertyTag.Type),
-			*WriteToString<32>(KeyProp->GetID()),
-			*WriteToString<32>(ValueProp->GetID()),
+			*WriteToString<32>(KeyPropertyTag.GetType()),
+			*WriteToString<32>(ValuePropertyTag.GetType()),
+			*WriteToString<32>(KeyBuilder.Build()),
+			*WriteToString<32>(ValueBuilder.Build()),
 			*UnderlyingArchive.GetArchiveName());
 	}
 
