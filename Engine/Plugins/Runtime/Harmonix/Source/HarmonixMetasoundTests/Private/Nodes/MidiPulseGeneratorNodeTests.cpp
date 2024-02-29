@@ -34,6 +34,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode::Tests
 		for (int32 BlockIdx = 0; BlockIdx < NumBlocks; ++BlockIdx)
 		{
 			// Advance the clock, which will advance the play cursor in the pulse generators
+			(*Clock)->PrepareBlock();
 			(*Clock)->WriteAdvance(0, Generator->OperatorSettings.GetNumFramesPerBlock());
 
 			// Process
