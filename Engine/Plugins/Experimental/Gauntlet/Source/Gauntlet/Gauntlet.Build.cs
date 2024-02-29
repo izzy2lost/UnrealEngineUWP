@@ -10,8 +10,16 @@ namespace UnrealBuildTool.Rules
 				new string[] {
 					"Core",
 					"CoreUObject",
-					"Engine",
+					"Engine"
 				});
+
+			if (Target.bCompileAgainstEditor)
+			{
+				PublicDependencyModuleNames.AddRange(new string[]
+				{
+				"UnrealEd"
+				});
+			}
 
 			PublicIncludePaths.AddRange(
 				new string[]

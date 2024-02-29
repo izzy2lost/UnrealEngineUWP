@@ -9,7 +9,9 @@
 #include "Containers/Ticker.h"
 #include "GameFramework/GameStateBase.h"
 #include "UnrealClient.h"
-
+#if WITH_EDITOR
+#include "Editor.h"
+#endif
 
 
 class GAUNTLET_API FGauntletModuleImpl
@@ -129,6 +131,12 @@ void FGauntletModuleImpl::StartupModule()
 		UE_LOG(LogGauntlet, Display, TEXT("Gauntlet Initialized"));
 		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FGauntletModuleImpl::OnPostEngineInit);	
 	}
+#if WITH_EDITOR
+	else
+	{
+		FEditorDelegates::PreBeginPIE.AddLambda([this](bool bIsSimulating){ this->OnPostEngineInit(); });
+	}
+#endif
 }
 
 void FGauntletModuleImpl::OnPostEngineInit()
@@ -316,7 +324,18 @@ void FGauntletModuleImpl::InnerTick(const float TimeDelta)
 {
     QUICK_SCOPE_CYCLE_COUNTER(STAT_FGauntletModuleImpl_InnerTick);
 	
-    if (AGameStateBase* GameState = GWorld->GetGameState())
+	UWorld* World = GWorld;
+
+#if WITH_EDITOR
+	UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine);
+	if (GIsEditor && EditorEngine != nullptr && EditorEngine->PlayWorld != nullptr)
+	{
+		// lets use PlayWorld during PIE/Simulate
+		World = EditorEngine->PlayWorld;
+	}
+#endif
+
+    if (AGameStateBase* GameState = World->GetGameState())
 	{
 		if (GameState->GetClass() != CurrentGameStateClass)
 		{

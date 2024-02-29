@@ -4,6 +4,9 @@
 #include "Engine/World.h"
 #include "GauntletModule.h"
 #include "Modules/ModuleManager.h"
+#if WITH_EDITOR
+#include "Editor/EditorEngine.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GauntletTestController)
 
@@ -35,7 +38,7 @@ double UGauntletTestController::GetTimeInCurrentState() const
 
 FString UGauntletTestController::GetCurrentMap() const
 {
-	return GWorld->GetName();
+	return GetWorld()->GetName();
 }
 
 /**
@@ -59,6 +62,14 @@ void UGauntletTestController::MarkHeartbeatActive(const FString& OptionalStatusM
 
 UWorld* UGauntletTestController::GetWorld() const
 {
+#if WITH_EDITOR
+	UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine);
+	if (GIsEditor && EditorEngine != nullptr && EditorEngine->PlayWorld != nullptr)
+	{
+		// lets use PlayWorld during PIE/Simulate
+		return EditorEngine->PlayWorld;
+	}
+#endif
 	return GWorld;
 }
 
@@ -72,6 +83,13 @@ void UGauntletTestController::EndTest(int32 ExitCode /*= 0*/)
 	UE_LOG(LogGauntlet, Display, TEXT("**** TEST COMPLETE. EXIT CODE: %d ****"), ExitCode);
 	// we flush logs because we don't (currently...) want to treat shutdown errors as failures
 	GLog->FlushThreadedLogs();
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		GEngine->DeferredCommands.Add(TEXT("QUIT_EDITOR"));
+		return;
+	}
+#endif
 	// force exit only if platform doesn't support quitting
 	FPlatformMisc::RequestExitWithStatus(!FPlatformProperties::SupportsQuit(), static_cast<uint8>(ExitCode));
 }
