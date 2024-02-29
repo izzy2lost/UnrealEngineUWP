@@ -349,7 +349,8 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 
 		if (Texture->GetViewType() == VK_IMAGE_VIEW_TYPE_2D || Texture->GetViewType() == VK_IMAGE_VIEW_TYPE_2D_ARRAY)
 		{
-			uint32 ArraySliceIndex, NumArraySlices;
+			uint32 ArraySliceIndex = 0;
+			uint32 NumArraySlices = 1;
 			if (InRTInfo.ColorRenderTarget[Index].ArraySliceIndex == -1)
 			{
 				ArraySliceIndex = 0;
@@ -360,6 +361,13 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 				ArraySliceIndex = InRTInfo.ColorRenderTarget[Index].ArraySliceIndex;
 				NumArraySlices = 1;
 				check(ArraySliceIndex < Texture->GetNumberOfArrayLevels());
+			}
+
+			// About !RTLayout.GetIsMultiView(), from https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkFramebufferCreateInfo.html: 
+			// If the render pass uses multiview, then layers must be one
+			if (Texture->GetViewType() == VK_IMAGE_VIEW_TYPE_2D_ARRAY && !RTLayout.GetIsMultiView())
+			{
+				NumLayers = NumArraySlices;
 			}
 
 			CreateOwnedView()->InitAsTextureView(

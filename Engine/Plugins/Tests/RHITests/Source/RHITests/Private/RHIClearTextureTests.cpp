@@ -1432,10 +1432,9 @@ bool FRHIClearTextureTests::Test_ClearTexture(FRHICommandListImmediate& RHICmdLi
 	}
 
 	bool bSupportsSM5 = IsFeatureLevelSupported(GMaxRHIShaderPlatform, ERHIFeatureLevel::SM5);
-	bool bVulkanPlatform = IsVulkanPlatform(GMaxRHIShaderPlatform);
 
 	// Prune not only invalid combinations, but also try to keep the number of clear as low as possible to keep testing time acceptable
-	auto AddValidTextureDescIfValid = [bSupportsSM5, bVulkanPlatform](const FRHITextureCreateDesc& InRHITextureCreateDesc, TArray<FRHITextureCreateDesc>& OutRHITextureCreateDescs)
+	auto AddValidTextureDescIfValid = [bSupportsSM5](const FRHITextureCreateDesc& InRHITextureCreateDesc, TArray<FRHITextureCreateDesc>& OutRHITextureCreateDescs)
 	{
 		FRHITextureCreateDesc RHITextureCreateDesc = InRHITextureCreateDesc;
 		if (RHITextureCreateDesc.Dimension == ETextureDimension::Texture2D)
@@ -1482,9 +1481,7 @@ bool FRHIClearTextureTests::Test_ClearTexture(FRHICommandListImmediate& RHICmdLi
 				RHITextureCreateDescCopy.Flags |= TexCreate_TargetArraySlicesIndependently;
 				OutRHITextureCreateDescs.Add(RHITextureCreateDescCopy);
 			}
-
 			
-			if (bVulkanPlatform) return; // Workaround for VK not clearing 2D arrays properly. Follow up in UE-208082
 			if (!bSupportsSM5) return; // non sm5 platforms do not support write to multiple slices
 		}
 
@@ -1568,7 +1565,7 @@ bool FRHIClearTextureTests::Test_ClearTexture(FRHICommandListImmediate& RHICmdLi
 			}
 
 			CLEAR_TEST_SCOPED_NAMED_EVENT_F(TEXT("Test_ClearTexture %s"), FColor::Magenta, *GetTextureName(RHITextureCreateDescs[TextureIndex]));
-			CLEAR_TEST_SCOPED_DRAW_EVENTF(RHICmdList, ClearTextureTest, TEXT("Test_ClearTexture %s"), *GetTextureName(RHITextureCreateDescs[TextureIndex]));
+			CLEAR_TEST_SCOPED_DRAW_EVENTF(RHICmdList, ClearTextureTest, TEXT("Test_ClearTexture %s"), GetTextureName(RHITextureCreateDescs[TextureIndex]));
 
 			FTextureRHIRef Texture;
 			FShaderResourceViewRHIRef TextureSRV;
