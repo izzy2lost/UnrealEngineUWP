@@ -28,6 +28,7 @@
 #include "Templates/UniqueObj.h"
 #include "Containers/Ticker.h"
 #include "DynamicRenderScaling.h"
+#include "Misc/StatusLog.h"
 #include "Engine.generated.h"
 
 #define WITH_DYNAMIC_RESOLUTION (!UE_SERVER)
@@ -2176,6 +2177,7 @@ public:
 	/** Called by internal engine systems after a travel failure has occurred */
 	void BroadcastTravelFailure(UWorld* InWorld, ETravelFailure::Type FailureType, const FString& ErrorString = TEXT(""))
 	{
+		UE_LOGSTATUS(Warning, TEXT("Travel failed, type: %s, reason: \"%s\""), *UEnum::GetValueAsString(FailureType), *ErrorString);
 		TravelFailureEvent.Broadcast(InWorld, FailureType, ErrorString);
 	}
 

@@ -14615,6 +14615,8 @@ EBrowseReturnVal::Type UEngine::Browse( FWorldContext& WorldContext, FURL URL, F
 	Error = TEXT("");
 	WorldContext.TravelURL = TEXT("");
 
+	UE_LOGSTATUS(Log, TEXT("Started Browse: \"%s\""), *URL.ToString());
+
 	if (WorldContext.World() && WorldContext.World()->GetNetDriver())
 	{
 		const TCHAR* InTickErrorString = TEXT("Attempting to call UEngine::Browse and destroy the net driver while the net driver is ticking. Instead try using UWorld::ServerTravel or APlayerController::ClientTravel.");
@@ -15657,6 +15659,7 @@ bool UEngine::LoadMap( FWorldContext& WorldContext, FURL URL, class UPendingNetG
 	}
 
 	// Successfully started local level.
+	UE_LOGSTATUS(Log, TEXT("Load map complete %s"), *URL.Map);
 	return true;
 }
 
