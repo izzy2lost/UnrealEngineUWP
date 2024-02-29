@@ -3610,7 +3610,7 @@ void UGeometryCollectionComponent::UpdateRootProxyComponentsIfNeeded()
 {
 	if (RootProxyStaticMeshComponents.Num() > 0 && !bUpdateComponentTransformToRootBone)
 	{
-		if (RestCollection && DynamicCollection && !IsRootBroken())
+		if (RestCollection && !IsRootBroken())
 		{
 			const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> AssetCollection = RestCollection->GetGeometryCollection();
 			if (AssetCollection)
