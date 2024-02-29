@@ -227,7 +227,7 @@ void IPCGElement::DisabledPassThroughData(FPCGContext* Context) const
 		Data.Pin = PassThroughOutputPin->Properties.Label;
 	}
 
-	// Pass through input data if it is not params, and if the output type supports it (e.g. if we have a incoming
+	// Pass through input data if both it and the output are params, or if the output type supports it (e.g. if we have a incoming
 	// surface connected to an input pin of type Any, do not pass the surface through to an output pin of type Point).
 	auto InputDataShouldPassThrough = [OutputType](const FPCGTaggedData& InData)
 	{
@@ -235,12 +235,12 @@ void IPCGElement::DisabledPassThroughData(FPCGContext* Context) const
 		const bool bInputTypeNotWiderThanOutputType = !(InputType & ~OutputType);
 
 		// Right now we allow edges from Spatial to Concrete. This can happen for example if a point processing node
-		// is receving a Spatial data, and the node is disabled, it will want to pass the Spatial data through. In the
+		// is receiving a Spatial data, and the node is disabled, it will want to pass the Spatial data through. In the
 		// future we will force collapses/conversions. For now, allow an incoming Spatial to pass out through a Concrete.
 		// TODO remove!
 		const bool bAllowSpatialToConcrete = !!(InputType & EPCGDataType::Spatial) && !!(OutputType & EPCGDataType::Concrete);
 
-		return InputType != EPCGDataType::Param && (bInputTypeNotWiderThanOutputType || bAllowSpatialToConcrete);
+		return (InputType != EPCGDataType::Param || OutputType == EPCGDataType::Param) && (bInputTypeNotWiderThanOutputType || bAllowSpatialToConcrete);
 	};
 
 	// Now remove any non-params edges, and if only one edge should come through, remove the others

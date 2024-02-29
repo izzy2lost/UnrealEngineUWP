@@ -94,6 +94,7 @@ public:
 #endif
 	virtual bool HasFlippedTitleLines() const override { return true; }
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
+	virtual bool DoesPinSupportPassThrough(UPCGPin* InPin) const override;
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

@@ -693,6 +693,11 @@ bool UPCGSettings::IsPropertyOverriddenByPin(const TArrayView<const FName>& Prop
 	return false;
 }
 
+bool UPCGSettings::DoesPinSupportPassThrough(UPCGPin* InPin) const
+{
+	return InPin && !InPin->Properties.IsAdvancedPin();
+}
+
 EPCGDataType UPCGSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
 	check(InPin);

@@ -188,6 +188,11 @@ void UPCGMetadataSettingsBase::ApplyDeprecation(UPCGNode* InOutNode)
 }
 #endif // WITH_EDITOR
 
+bool UPCGMetadataSettingsBase::DoesPinSupportPassThrough(UPCGPin* InPin) const
+{
+	return InPin && !InPin->IsOutputPin() && GetInputPinIndex(InPin->Properties.Label) == GetInputPinToForward();
+}
+
 TArray<FPCGPinProperties> UPCGMetadataSettingsBase::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
