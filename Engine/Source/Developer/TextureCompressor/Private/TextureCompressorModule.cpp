@@ -1507,17 +1507,62 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 				
 		// choose Filter from ETextureDownscaleOptions
 		FImageCore::EResizeImageFilter Filter;
-
-		if ( Settings.DownscaleOptions == (uint8)ETextureDownscaleOptions::Unfiltered )
+		
+		// unlike MinGen, the ETextureDownscaleOptions does not have "Blur" options, only Sharpen
+		/*0=no sharpening but better quality which is softer, 1=little, 5=medium, 10=extreme. */
+		
+		switch( (ETextureDownscaleOptions)Settings.DownscaleOptions )
+		{
+		case ETextureDownscaleOptions::Default:
+			Filter = FImageCore::EResizeImageFilter::CubicMitchell;
+			break;
+		case ETextureDownscaleOptions::Unfiltered:
 			Filter = FImageCore::EResizeImageFilter::PointSample;
-		else if ( Settings.DownscaleOptions == (uint8)ETextureDownscaleOptions::SimpleAverage ) // <- Default maps to SimpleAverage
+			break;
+		case ETextureDownscaleOptions::SimpleAverage:
 			Filter = FImageCore::EResizeImageFilter::Triangle;
-		else if ( Settings.DownscaleOptions >= (uint8)ETextureDownscaleOptions::Sharpen5 ) // sharpest
+			break;
+			
+		// cubic Mitchells in order of B: (from highest B to lowest; eg. smoothest to sharpest)
+		// CubicGaussian  // B = 1
+		// CubicMitchell // B = 1/3
+		// MitchellOneQuarter // B = 1/4
+		// MitchellOneSixth // B = 1/6
+		// CubicSharp  // B = 0
+
+		case ETextureDownscaleOptions::Sharpen0:
+			Filter = FImageCore::EResizeImageFilter::CubicGaussian;
+			break;
+		case ETextureDownscaleOptions::Sharpen1:
+		case ETextureDownscaleOptions::Sharpen2:
+			Filter = FImageCore::EResizeImageFilter::CubicMitchell;
+			break;
+		case ETextureDownscaleOptions::Sharpen3:
+		case ETextureDownscaleOptions::Sharpen4:
+			Filter = FImageCore::EResizeImageFilter::MitchellOneQuarter;
+			break;
+		case ETextureDownscaleOptions::Sharpen5:
+		case ETextureDownscaleOptions::Sharpen6:
+			Filter = FImageCore::EResizeImageFilter::MitchellOneSixth;
+			break;			
+		case ETextureDownscaleOptions::Sharpen7:
+		case ETextureDownscaleOptions::Sharpen8:
 			Filter = FImageCore::EResizeImageFilter::CubicSharp;
-		else if ( Settings.DownscaleOptions >= (uint8)ETextureDownscaleOptions::Sharpen0 ) // sharp
-			Filter = FImageCore::EResizeImageFilter::AdaptiveSharp;		 // winds up as CubicMitchell
-		else
-			Filter = FImageCore::EResizeImageFilter::AdaptiveSmooth; // <- this can't be reached, Blur is not available as a DownscaleOptions
+			break;
+		case ETextureDownscaleOptions::Sharpen9:
+			//Filter = FImageCore::EResizeImageFilter::Lanczos4;
+			Filter = FImageCore::EResizeImageFilter::MitchellNegOneSixth;
+			break;
+		case ETextureDownscaleOptions::Sharpen10:
+			//Filter = FImageCore::EResizeImageFilter::Lanczos5;
+			Filter = FImageCore::EResizeImageFilter::MitchellNegOneThird;
+			break;
+
+		default:
+			UE_LOG(LogTextureCompressor, Warning, TEXT("Downscale option not recognized : %d"),(int)Settings.DownscaleOptions);
+			Filter = FImageCore::EResizeImageFilter::CubicMitchell;
+			break;
+		}
 
 		FImage Temp; // needed because Src == Dst
 		FImageCore::ResizeImageAllocDest(SrcImage,Temp,FinalSizeX,FinalSizeY,Filter);
@@ -1552,7 +1597,7 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 	AllocateTempForMips(TempData, SrcImage.SizeX, SrcImage.SizeY, FMath::Max(1, SrcImage.SizeX / 2), FMath::Max(1, SrcImage.SizeY / 2), false, AvgKernel, 2, false, bUnfiltered, bUseNewMipFilter);
 
 	int32 NumIterations = 0;
-	while(Downscale > 2.0f)
+	while(Downscale > 2.0f) // NOT == 2.0
 	{
 		int32 DstSizeX = FMath::Max(1, ImageChain[0]->SizeX / 2 );
 		int32 DstSizeY = FMath::Max(1, ImageChain[0]->SizeY / 2 );
@@ -1592,14 +1637,21 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 	
 	int32 KernelSize = 2;
 	float Sharpening = 0.0f;
+	bool bBilinear = false;
 	if (Settings.DownscaleOptions >= (uint8)ETextureDownscaleOptions::Sharpen0 && Settings.DownscaleOptions <= (uint8)ETextureDownscaleOptions::Sharpen10)
 	{
 		// 0 .. 2.0f
 		Sharpening = (float)((int32)Settings.DownscaleOptions - (int32)ETextureDownscaleOptions::Sharpen0) * 0.2f;
 		KernelSize = 8;
 	}
-	
-	bool bBilinear = Settings.DownscaleOptions == (uint8)ETextureDownscaleOptions::SimpleAverage;
+	else
+	{
+		// Default should have mapped to SimpleAverage before getting here (in GetDownscaleOptions)
+		check( Settings.DownscaleOptions != (uint8)ETextureDownscaleOptions::Default );
+
+		bBilinear = Settings.DownscaleOptions == (uint8)ETextureDownscaleOptions::SimpleAverage;
+		check( bBilinear || bUnfiltered );
+	}	
 	
 	FImageKernel2D KernelSharpen;
 	KernelSharpen.BuildSeparatableGaussWithSharpen(KernelSize, Sharpening);
@@ -1641,6 +1693,12 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 			}
 			else if(bBilinear)
 			{
+				// in the common case of Downscale == 2.0
+				//	this is actually not bilinar at all, or a 2x2 downsample
+				//	it's just point sampled
+				//	because of the way the pixel centers are not offset correctly
+				//	this is just sampling pixels at 0,2,4,..
+				//FilteredColor = LookupSourceMipBilinear(SrcImageData, SourceX + 0.5, SourceY + 0.5); // <- correct offsets for Downscale == 2.0
 				FilteredColor = LookupSourceMipBilinear(SrcImageData, SourceX, SourceY);
 			}
 			else

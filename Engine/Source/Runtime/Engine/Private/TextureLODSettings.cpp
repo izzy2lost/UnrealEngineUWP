@@ -338,7 +338,15 @@ void UTextureLODSettings::GetDownscaleOptions(const UTexture& Texture, const ITa
 	ETextureDownscaleOptions GroupDownscaleOptions = TextureLODGroups[Texture.LODGroup].DownscaleOptions;
 	if (GroupDownscaleOptions == ETextureDownscaleOptions::Default)
 	{
-		GroupDownscaleOptions = ETextureDownscaleOptions::SimpleAverage;
+		if ( Texture.bUseNewMipFilter )
+		{
+			// leave Default alone
+		}
+		else
+		{
+			// legacy behavior, change Default to SimpleAverage
+			GroupDownscaleOptions = ETextureDownscaleOptions::SimpleAverage;
+		}
 	}
 		
 	Downscale = Texture.Downscale.GetValueForPlatform(*CurrentPlatform.IniPlatformName());

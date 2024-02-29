@@ -264,6 +264,8 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 			// downscale behavior changed to use ResizeImage
 			TempName = TEXTURE_DDC_STB_IMAGE_RESIZE_VERSION;
 			Ar << TempName;
+			TempName = TEXT("Downscale ResizeImage changed 02-29-2024");
+			Ar << TempName;
 		}
 	}
 

@@ -863,10 +863,26 @@ IMAGECORE_API void TransformToWorkingColorSpace(const FImageView& InLinearImage,
 		Triangle, 
 		Bilinear = Triangle, // synonym
 		CubicGaussian, // smooth Mitchell B=1,C=0, B-spline, Gaussian-like
-		CubicSharp, // sharp interpolating cubic, Catmull-ROM (has negative lobes)
+		CubicSharp, // sharp interpolating cubic, Catmull-Rom (has negative lobes) (Mitchell B=0)
 		CubicMitchell, // compromise between sharp and smooth cubic, Mitchell-Netrevalli filter with B=1/3, C=1/3 (has negative lobes)
 		AdaptiveSharp,  // sharper adaptive filter; uses CubicSharp for upsample and CubicMitchell for downsample, nop for same size
 		AdaptiveSmooth,  // smoother adaptive filter; uses CubicMitchell for upsample and CubicGaussian for downsample, nop for same size
+
+		MitchellOneQuarter, // B=1/4 ("Robidoux")
+		MitchellOneSixth, // B=1/6
+		MitchellNegOneSixth, // B=-1/6 , over-sharpening
+		MitchellNegOneThird, // B=-1/3 , over-sharpening
+		Lanczos4, // sharp
+		Lanczos5, // very sharp, often ringy
+
+		// cubic Mitchells in order of B: (from highest B to lowest; eg. smoothest to sharpest)
+		// CubicGaussian  // B = 1
+		// CubicMitchell // B = 1/3
+		// MitchellOneQuarter // B = 1/4
+		// MitchellOneSixth // B = 1/6
+		// CubicSharp  // B = 0
+		// MitchellNegOneSixth // B = -1/6
+		// MitchellNegOneThird // B = -1/3
 
 		WithoutFlagsMask = 63,
 		Flag_WrapX = 64,  // default edge mode is clamp; set these to wrap instead

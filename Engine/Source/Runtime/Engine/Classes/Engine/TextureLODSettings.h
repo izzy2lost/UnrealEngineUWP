@@ -37,7 +37,7 @@ struct FTextureLODGroup
 		, HighPriorityLoad(false)
 		, DuplicateNonOptionalMips(false)
 		, Downscale(1.0)
-		, DownscaleOptions(ETextureDownscaleOptions::SimpleAverage)
+		, DownscaleOptions(ETextureDownscaleOptions::Default)
 		, VirtualTextureTileCountBias(0)
 		, VirtualTextureTileSizeBias(0)
 		, LossyCompressionAmount(TLCA_Default)

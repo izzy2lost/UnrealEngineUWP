@@ -1918,6 +1918,12 @@ static bool FilterIsNopWhenSameSize(EResizeImageFilter FilterWithFlags)
 		case EResizeImageFilter::CubicGaussian:
 		case EResizeImageFilter::CubicSharp:
 		case EResizeImageFilter::CubicMitchell:
+		case EResizeImageFilter::MitchellOneQuarter:
+		case EResizeImageFilter::MitchellOneSixth:
+		case EResizeImageFilter::MitchellNegOneSixth:
+		case EResizeImageFilter::MitchellNegOneThird:
+		case EResizeImageFilter::Lanczos4:
+		case EResizeImageFilter::Lanczos5:
 			return false;
 
 		default: // all enum values should be explicitly listed above
@@ -1926,7 +1932,88 @@ static bool FilterIsNopWhenSameSize(EResizeImageFilter FilterWithFlags)
 	}
 }
 
-static stbir_filter MapFilterToStb(EResizeImageFilter FilterWithFlags,int64 SizeFm,int64 SizeTo,uint32 WrapFlag, stbir_edge & OutStbirEdgeMode)
+// B in [0,5/3]
+//	smaller B = sharper, larger B = blurrier
+//  B = 0 is the catmull-rom interpolating b-spline
+//	B = 1/3 is standard compromise Mitchell
+//  B = 1 is the cubic Gaussian
+// in between pulse_cubic_mitchell_B = lerp( catrom, cubic, B )
+static float pulse_cubic_mitchell_B(const float signed_x,const float B)
+{
+	float ax = signed_x < 0.0 ? -signed_x : signed_x;
+	if (ax<1.0) return (  ax*ax* ( (9.0-6.0*B)*ax - 15.0 + 9.0*B ) + 6.0 - 2.0*B ) *(1.0/6.0);
+	else if (ax<2.0) return ( ax*ax* ((2.0*B - 3.0)*ax + (15.0 - 9.0*B)) + (12.0*B - 24.0)*ax + (12.0 - 4.0*B) ) *(1.0/6.0);
+	else return 0.0;
+}
+
+// sharp (upsample) :
+template <int denom> 
+static float my_filter_mitchell_B(float x, float s, void * user_data)
+{
+	const float B = 1.f/denom;
+
+	return (float) pulse_cubic_mitchell_B(x,B);
+}
+
+static float my_pulse_sinc(const float x) 
+{
+	const float pix = (3.141592653590f) * x;
+
+	const float tiny = 1e-4f;
+	if ( fabsf(pix) < tiny )
+	{
+		// Taylor series of sin for x small
+		return 1.f - (pix*pix)*(1/6.f);
+	}
+	else
+	{
+		return sinf(pix) / pix;
+	}
+}
+
+static float my_filter_lanczos(float x, float support)
+{
+	if ( fabsf(x) >= support ) return 0.f;
+
+	float pulse = my_pulse_sinc(x);
+	float window = my_pulse_sinc(x * (1.f/support));
+	return pulse * window;
+}
+
+static float my_filter_lanczos4(float x, float s, void * user_data)
+{
+	return my_filter_lanczos(x,2.f);
+}
+static float my_filter_lanczos5(float x, float s, void * user_data)
+{	
+	return my_filter_lanczos(x,2.5f);
+}
+
+static float my_filter_support_two(float s, void * user_data) 
+{
+	return 2;
+}
+static float my_filter_support_twoandhalf(float s, void * user_data) 
+{
+	return 2.5f;
+}
+
+struct stbir_kernel_and_support
+{
+	stbir__kernel_callback * kernel = nullptr;
+	stbir__support_callback * support = nullptr;
+};
+
+static const stbir_kernel_and_support c_my_ks_mitchell_onequarter = { my_filter_mitchell_B<4> , my_filter_support_two };
+static const stbir_kernel_and_support c_my_ks_mitchell_onesixth = { my_filter_mitchell_B<6> , my_filter_support_two };
+static const stbir_kernel_and_support c_my_ks_mitchell_negonesixth = { my_filter_mitchell_B<-6> , my_filter_support_two };
+static const stbir_kernel_and_support c_my_ks_mitchell_negonethird = { my_filter_mitchell_B<-3> , my_filter_support_two };
+static const stbir_kernel_and_support c_my_ks_lanczos4 = { my_filter_lanczos4 , my_filter_support_two };
+static const stbir_kernel_and_support c_my_ks_lanczos5 = { my_filter_lanczos5 , my_filter_support_twoandhalf };
+
+
+static stbir_filter MapFilterToStb(EResizeImageFilter FilterWithFlags,int64 SizeFm,int64 SizeTo,uint32 WrapFlag, stbir_edge & OutStbirEdgeMode,
+	stbir_kernel_and_support & OutCustomKS)
 {
 	if ( SizeFm == SizeTo && FilterIsNopWhenSameSize(FilterWithFlags) )
 	{
@@ -1937,6 +2024,9 @@ static stbir_filter MapFilterToStb(EResizeImageFilter FilterWithFlags,int64 Size
 	OutStbirEdgeMode = WrapFlag ? STBIR_EDGE_WRAP : STBIR_EDGE_CLAMP;
 	
 	EResizeImageFilter Filter = FilterWithFlags & EResizeImageFilter::WithoutFlagsMask;
+	
+	//const stbir_filter STBIR_FILTER_OutCustomKS = STBIR_FILTER_OTHER; // <- not allowed
+	const stbir_filter STBIR_FILTER_OutCustomKS = STBIR_FILTER_DEFAULT;
 
 	switch(Filter)
 	{
@@ -1946,6 +2036,25 @@ static stbir_filter MapFilterToStb(EResizeImageFilter FilterWithFlags,int64 Size
 		case EResizeImageFilter::CubicSharp: return STBIR_FILTER_CATMULLROM;
 		case EResizeImageFilter::CubicMitchell: return STBIR_FILTER_MITCHELL;
 		case EResizeImageFilter::PointSample: return STBIR_FILTER_POINT_SAMPLE;
+		
+		case EResizeImageFilter::MitchellOneQuarter:
+			OutCustomKS = c_my_ks_mitchell_onequarter;
+			return STBIR_FILTER_OutCustomKS;
+		case EResizeImageFilter::MitchellOneSixth:
+			OutCustomKS = c_my_ks_mitchell_onesixth;
+			return STBIR_FILTER_OutCustomKS;
+		case EResizeImageFilter::MitchellNegOneSixth:
+			OutCustomKS = c_my_ks_mitchell_negonesixth;
+			return STBIR_FILTER_OutCustomKS;
+		case EResizeImageFilter::MitchellNegOneThird:
+			OutCustomKS = c_my_ks_mitchell_negonethird;
+			return STBIR_FILTER_OutCustomKS;
+		case EResizeImageFilter::Lanczos4:
+			OutCustomKS = c_my_ks_lanczos4;
+			return STBIR_FILTER_OutCustomKS;
+		case EResizeImageFilter::Lanczos5:
+			OutCustomKS = c_my_ks_lanczos5;
+			return STBIR_FILTER_OutCustomKS;
 
 		case EResizeImageFilter::Default: // AdaptiveSharp matches STBIR_FILTER_DEFAULT
 		case EResizeImageFilter::AdaptiveSharp:
@@ -2070,15 +2179,18 @@ IMAGECORE_API void FImageCore::ResizeImage(const FImageView & SourceImage,const 
 		SourceImage.RawData,SourceImage.SizeX,SourceImage.SizeY,SourceImage.GetBytesPerPixel()*SourceImage.SizeX,
 		DestImage.RawData,DestImage.SizeX,DestImage.SizeY,DestImage.GetBytesPerPixel()*DestImage.SizeX,
 		SourceLayout,SourceDataType);
-
-	stbir_edge StbirEdgeX,StbirEdgeY;
-	stbir_filter StbirFilterX = MapFilterToStb(Filter,SourceImage.SizeX,DestImage.SizeX, (uint32)(Filter & EResizeImageFilter::Flag_WrapX), StbirEdgeX);
-	stbir_filter StbirFilterY = MapFilterToStb(Filter,SourceImage.SizeY,DestImage.SizeY, (uint32)(Filter & EResizeImageFilter::Flag_WrapY), StbirEdgeY);
-
-	stbir_set_filters(&resize, StbirFilterX, StbirFilterY);
+		
 	stbir_set_pixel_layouts(&resize,SourceLayout,DestLayout);
 	stbir_set_datatypes(&resize,SourceDataType,DestDataType);
-	stbir_set_edgemodes(&resize, StbirEdgeX, StbirEdgeY);
+
+	stbir_edge StbirEdgeX,StbirEdgeY;
+	stbir_kernel_and_support StbirKSX,StbirKSY;
+	stbir_filter StbirFilterX = MapFilterToStb(Filter,SourceImage.SizeX,DestImage.SizeX, (uint32)(Filter & EResizeImageFilter::Flag_WrapX), StbirEdgeX, StbirKSX);
+	stbir_filter StbirFilterY = MapFilterToStb(Filter,SourceImage.SizeY,DestImage.SizeY, (uint32)(Filter & EResizeImageFilter::Flag_WrapY), StbirEdgeY, StbirKSY);
+
+	stbir_set_edgemodes(&resize, StbirEdgeX, StbirEdgeY);	
+	stbir_set_filters(&resize, StbirFilterX, StbirFilterY);
+	stbir_set_filter_callbacks(&resize,StbirKSX.kernel,StbirKSX.support,StbirKSY.kernel,StbirKSY.support);
 
 	const int32 NumWorkers = FTaskGraphInterface::Get().GetNumWorkerThreads();
 
