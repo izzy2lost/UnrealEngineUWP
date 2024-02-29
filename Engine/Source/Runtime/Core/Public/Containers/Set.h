@@ -317,10 +317,10 @@ public:
 		*this = Copy;
 	}
 
-	FORCEINLINE explicit TSet(const TArray<ElementType>& InArray)
+	FORCEINLINE explicit TSet(TArrayView<const ElementType> InArrayView)
 		: HashSize(0)
 	{
-		Append(InArray);
+		Append(InArrayView);
 	}
 
 	FORCEINLINE explicit TSet(TArray<ElementType>&& InArray)
@@ -774,28 +774,7 @@ public:
 		return FSetElementId(NewHashIndex);
 	}
 
-	template<typename ViewSizeType>
-	void Append(TArrayView<ElementType, ViewSizeType> InElements)
-	{
-		Reserve(Elements.Num() + InElements.Num());
-		for (const ElementType& Element : InElements)
-		{
-			Add(Element);
-		}
-	}
-
-	template<typename ViewSizeType>
-	void Append(TArrayView<const ElementType, ViewSizeType> InElements)
-	{
-		Reserve(Elements.Num() + InElements.Num());
-		for (const ElementType& Element : InElements)
-		{
-			Add(Element);
-		}
-	}
-
-	template<typename ArrayAllocator>
-	void Append(const TArray<ElementType, ArrayAllocator>& InElements)
+	void Append(TArrayView<const ElementType> InElements)
 	{
 		Reserve(Elements.Num() + InElements.Num());
 		for (const ElementType& Element : InElements)
@@ -1808,6 +1787,9 @@ public:
 	FORCEINLINE TRangedForIterator      end()         { return TRangedForIterator     (Elements.end());   }
 	FORCEINLINE TRangedForConstIterator end() const   { return TRangedForConstIterator(Elements.end());   }
 };
+
+template <typename RangeType>
+TSet(RangeType&&) -> TSet<TElementType_T<RangeType>>;
 
 namespace Freeze
 {
