@@ -5140,15 +5140,15 @@ void FEngineLoop::Exit()
 
 	TermGamePhys();
 
+#if WITH_EDITOR
+	IBulkDataRegistry::Shutdown();
+#endif
+
 #if WITH_COREUOBJECT
 	// PackageResourceManager depends on AssetRegistry, so must be shutdown before we unload the AssetRegistry module
 	IPackageResourceManager::Shutdown();
 #endif
 	FModuleManager::Get().UnloadModule("AssetRegistry", true);
-
-#if WITH_EDITOR
-	IBulkDataRegistry::Shutdown();
-#endif
 
 	// Stop the rendering thread.
 	StopRenderingThread();
