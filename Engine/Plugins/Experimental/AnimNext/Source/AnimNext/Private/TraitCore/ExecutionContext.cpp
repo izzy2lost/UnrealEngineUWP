@@ -14,6 +14,67 @@
 
 namespace UE::AnimNext
 {
+	namespace Private
+	{
+		// Represents an entry for a scoped interface
+		struct FScopedInterfaceEntry
+		{
+			// The trait stack, copied from the source when we push a scoped interface
+			FTraitStackBinding Stack;
+
+			// The trait that implements the interface
+			// We lazily cache the binding of the scoped interface
+			FTraitBinding Trait;
+
+			// The scoped interface
+			FTraitInterfaceUID InterfaceUID;
+
+			// The trait index on the stack that implements our scoped interface
+			uint8 TraitIndex = 0;
+
+			// Whether or not the scoped interface trait binding has been cached
+			bool bIsTraitCached = false;
+
+			union
+			{
+				// Next entry in the stack of free entries
+				FScopedInterfaceEntry* NextFreeEntry = nullptr;
+
+				// The previous entry on the scoped interface stack
+				FScopedInterfaceEntry* PrevScopedInterfaceStackEntry;
+			};
+
+			FScopedInterfaceEntry(const FTraitBinding& InTrait, FTraitInterfaceUID InInterfaceUID)
+				: Stack(*InTrait.GetStack())
+				, InterfaceUID(InInterfaceUID)
+				, TraitIndex(InTrait.GetTraitIndex())
+			{
+			}
+
+			// Lazily construct the trait binding to our scoped interface
+			bool LazilyCacheTrait()
+			{
+				if (bIsTraitCached)
+				{
+					return true;	// Already cached
+				}
+
+				if (!Stack.GetTrait(TraitIndex, Trait))
+				{
+					return false;
+				}
+
+				if (!Trait.AsInterfaceImpl(InterfaceUID, Trait))
+				{
+					return false;
+				}
+
+				bIsTraitCached = true;
+				return true;
+			}
+		};
+	}
+
 	FExecutionContext::FExecutionContext()
 		: MemStack(FMemStack::Get())
 		, NodeTemplateRegistry(FNodeTemplateRegistry::Get())
@@ -320,6 +381,157 @@ namespace UE::AnimNext
 
 		OutStackBinding = FTraitStackBinding(*this, TraitPtr);
 		return OutStackBinding.IsValid();	// Construction can fail in rare cases, see constructor
+	}
+
+	void FExecutionContext::PushScopedInterfaceImpl(FTraitInterfaceUID InterfaceUID, const FTraitBinding& Binding)
+	{
+		if (!Binding.IsValid())
+		{
+			return;	// Don't queue invalid pointers
+		}
+
+		// We don't have any specific handling for duplicate entries, if a scoped interface is pushed twice,
+		// it must also be popped twice (if popped manually)
+
+		Private::FScopedInterfaceEntry* ScopedEntry = FreeScopedInterfaceEntryStackHead;
+		if (ScopedEntry != nullptr)
+		{
+			// We have a free entry, set our new head
+			FreeScopedInterfaceEntryStackHead = ScopedEntry->NextFreeEntry;
+
+			// Update our entry
+			ScopedEntry->Stack = *Binding.GetStack();
+			ScopedEntry->TraitIndex = Binding.GetTraitIndex();
+			ScopedEntry->InterfaceUID = InterfaceUID;
+			ScopedEntry->bIsTraitCached = false;
+			ScopedEntry->NextFreeEntry = nullptr;		// Mark it as not being a member of any list
+		}
+		else
+		{
+			// Allocate a new entry
+			ScopedEntry = new(MemStack) Private::FScopedInterfaceEntry(Binding, InterfaceUID);
+		}
+
+		ScopedEntry->PrevScopedInterfaceStackEntry = ScopedInterfaceStackHead;
+		ScopedInterfaceStackHead = ScopedEntry;
+
+#if !UE_BUILD_TEST && !UE_BUILD_SHIPPING
+		// In development builds, we lazily query right away to ensure the interface we push is present
+		// In Test and Shipping, we'll do so only when/if the interface is actually queried
+		ensure(ScopedEntry->LazilyCacheTrait());
+#endif
+	}
+
+	bool FExecutionContext::PopScopedInterfaceImpl(FTraitInterfaceUID InterfaceUID, const FTraitBinding& Binding)
+	{
+		if (!Binding.IsValid())
+		{
+			return false;
+		}
+
+		// We don't have any specific handling for duplicate entries, if a scoped interface is pushed twice,
+		// it must also be popped twice (if popped manually)
+
+		// Start searching at the top of the stack
+		Private::FScopedInterfaceEntry* Entry = ScopedInterfaceStackHead;
+		if (Entry->InterfaceUID == InterfaceUID &&				// Same interface
+			Entry->Stack == *Binding.GetStack() &&				// Same stack
+			Entry->TraitIndex == Binding.GetTraitIndex())		// Same trait
+		{
+			// We found the interface we were looking for, pop it
+			// Add our entry to the free list
+			Private::FScopedInterfaceEntry* PrevEntry = Entry->PrevScopedInterfaceStackEntry;
+			Entry->NextFreeEntry = FreeScopedInterfaceEntryStackHead;
+			FreeScopedInterfaceEntryStackHead = Entry;
+			ScopedInterfaceStackHead = PrevEntry;
+
+			return true;
+		}
+
+		return false;
+	}
+
+	bool FExecutionContext::PopStackScopedInterfaces(const FTraitStackBinding& StackBinding)
+	{
+		if (!StackBinding.IsValid())
+		{
+			return false;
+		}
+
+		bool bAnyPopped = false;
+
+		// Start searching at the top of the stack
+		Private::FScopedInterfaceEntry* Entry = ScopedInterfaceStackHead;
+		while (Entry != nullptr)
+		{
+			if (Entry->Stack != StackBinding)
+			{
+				// This entry doesn't match our trait stack, stop searching
+				break;
+			}
+
+			// We found a scoped interface owned by the trait stack, pop it
+			// Add our entry to the free list
+			Private::FScopedInterfaceEntry* PrevEntry = Entry->PrevScopedInterfaceStackEntry;
+			Entry->NextFreeEntry = FreeScopedInterfaceEntryStackHead;
+			FreeScopedInterfaceEntryStackHead = Entry;
+			ScopedInterfaceStackHead = PrevEntry;
+			bAnyPopped = true;
+
+			// Continue execution in case this trait stack pushed multiple scoped interfaces
+
+			// Move to the next entry on the stack
+			Entry = PrevEntry;
+		}
+
+		return bAnyPopped;
+	}
+
+	bool FExecutionContext::GetScopedInterfaceImpl(FTraitInterfaceUID InterfaceUID, FTraitBinding& OutBinding) const
+	{
+		// Start searching at the top of the stack
+		Private::FScopedInterfaceEntry* Entry = ScopedInterfaceStackHead;
+		while (Entry != nullptr)
+		{
+			if (Entry->InterfaceUID == InterfaceUID)
+			{
+				// We found the interface we were looking for, return it
+				Entry->LazilyCacheTrait();
+
+				OutBinding = Entry->Trait;
+				return true;
+			}
+
+			// Move to the next entry on the stack
+			Entry = Entry->PrevScopedInterfaceStackEntry;
+		}
+
+		// We didn't find the interface we were looking for
+		OutBinding.Reset();
+		return false;
+	}
+
+	void FExecutionContext::ForEachScopedInterfaceImpl(FTraitInterfaceUID InterfaceUID, TFunctionRef<bool(FTraitBinding& Binding)> InFunction) const
+	{
+		// Start searching at the top of the stack
+		Private::FScopedInterfaceEntry* Entry = ScopedInterfaceStackHead;
+		while (Entry != nullptr)
+		{
+			if (Entry->InterfaceUID == InterfaceUID)
+			{
+				// We found the interface we were looking for, forward it to our callback
+				Entry->LazilyCacheTrait();
+
+				const bool bContinueSearching = InFunction(Entry->Trait);
+				if (!bContinueSearching)
+				{
+					break;	// The callback returned false, we are done searching
+				}
+			}
+
+			// Move to the next entry on the stack
+			Entry = Entry->PrevScopedInterfaceStackEntry;
+		}
 	}
 
 	FGraphInstanceComponent* FExecutionContext::TryGetComponent(int32 ComponentNameHash, FName ComponentName) const

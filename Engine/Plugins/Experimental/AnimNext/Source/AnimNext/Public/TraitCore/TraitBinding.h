@@ -21,6 +21,11 @@ namespace UE::AnimNext
 	struct ITraitInterface;
 	struct FNodeDescription;
 
+	namespace Private
+	{
+		struct FScopedInterfaceEntry;
+	}
+
 	/**
 	 * FTraitBinding
 	 * 
@@ -210,6 +215,7 @@ namespace UE::AnimNext
 
 		friend FExecutionContext;
 		friend FTraitStackBinding;
+		friend Private::FScopedInterfaceEntry;
 	};
 
 	/**

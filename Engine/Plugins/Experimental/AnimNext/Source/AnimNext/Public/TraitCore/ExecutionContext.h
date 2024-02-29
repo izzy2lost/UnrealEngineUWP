@@ -8,6 +8,7 @@
 #include "TraitCore/TraitPtr.h"
 #include "TraitCore/TraitStackBinding.h"
 #include "TraitCore/ITraitInterface.h"
+#include "TraitCore/IScopedTraitInterface.h"
 #include "TraitCore/TraitInterfaceUID.h"
 #include "TraitCore/LatentPropertyHandle.h"
 #include "TraitCore/NodeHandle.h"
@@ -21,6 +22,11 @@ class FMemStack;
 
 namespace UE::AnimNext
 {
+	namespace Private
+	{
+		struct FScopedInterfaceEntry;
+	}
+
 	struct FNodeDescription;
 	struct FNodeInstance;
 	struct FNodeTemplateRegistry;
@@ -82,6 +88,55 @@ namespace UE::AnimNext
 
 
 		//////////////////////////////////////////////////////////////////////////
+		// The following functions allow for scope interface management and queries
+		// Scoped interfaces live on a stack within the execution context
+		// A parent node can publish a scoped interface that its children can query for
+
+		// Pushed a scoped interface with the specified interface owned by the specified trait
+		// Scoped interfaces automatically pop when the owned trait finishes its update
+		template<class ScopedTraitInterface>
+		void PushScopedInterface(const FTraitBinding& Binding);
+
+		// Pushed an optional scoped interface with the specified interface owned by the specified trait
+		// The scoped interface is only pushed if the condition is true
+		// Scoped interfaces automatically pop when the owned trait finishes its update
+		template<class ScopedTraitInterface>
+		void PushOptionalScopedInterface(bool bCondition, const FTraitBinding& Binding);
+
+		// Pops a scoped interface owned by the specified trait
+		// An interface can only be popped if it lives at the top of the stack
+		// Returns false if we failed to pop the specified interface
+		// Failure can occur if the scoped interface is missing or not present on top of the stack
+		template<class ScopedTraitInterface>
+		bool PopScopedInterface(const FTraitBinding& Binding);
+
+		// Pops all scoped interfaces owned by the trait stack that contains the specified trait
+		// An interface can only be popped if it lives at the top of the stack
+		// Returns true if any scoped interfaces were popped, false otherwise
+		bool PopStackScopedInterfaces(const FTraitBinding& Binding);
+
+		// Pops all scoped interfaces owned by the specified trait stack
+		// An interface can only be popped if it lives at the top of the stack
+		// Returns true if any scoped interfaces were popped, false otherwise
+		bool PopStackScopedInterfaces(const FTraitStackBinding& StackBinding);
+
+		// Queries the scoped interface stack starting at the top for a trait that implements the specified interface.
+		// If no such trait exists, false is returned.
+		template<class ScopedTraitInterface>
+		bool GetScopedInterface(TTraitBinding<ScopedTraitInterface>& OutBinding) const;
+
+		// Queries the scoped interface stack starting at the top for a trait that implements the specified interface.
+		// When found, the provided callback will be called with the scoped interface binding.
+		// Iteration will continue as long as the callback returns true.
+		template<class ScopedTraitInterface>
+		void ForEachScopedInterface(TFunctionRef<bool(TTraitBinding<ScopedTraitInterface>& Binding)> InFunction) const;
+
+		// Returns whether or not any scoped interfaces have been pushed onto our stack
+		bool HasScopedInterfaces() const { return ScopedInterfaceStackHead != nullptr; }
+
+
+
+		//////////////////////////////////////////////////////////////////////////
 		// The following functions handle node lifetime management
 
 		// Allocates a new node instance from a trait handle using the specified graph instance
@@ -134,6 +189,10 @@ namespace UE::AnimNext
 		FExecutionContext(const FExecutionContext&) = delete;
 		FExecutionContext& operator=(const FExecutionContext&) = delete;
 
+		void PushScopedInterfaceImpl(FTraitInterfaceUID InterfaceUID, const FTraitBinding& Binding);
+		bool PopScopedInterfaceImpl(FTraitInterfaceUID InterfaceUID, const FTraitBinding& Binding);
+		bool GetScopedInterfaceImpl(FTraitInterfaceUID InterfaceUID, FTraitBinding& OutBinding) const;
+		void ForEachScopedInterfaceImpl(FTraitInterfaceUID InterfaceUID, TFunctionRef<bool(FTraitBinding& Binding)> InFunction) const;
 		FGraphInstanceComponent* TryGetComponent(int32 ComponentNameHash, FName ComponentName) const;
 		FGraphInstanceComponent& AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<FGraphInstanceComponent>&& Component) const;
 
@@ -154,11 +213,84 @@ namespace UE::AnimNext
 		// Root graph instance we are bound to
 		FAnimNextGraphInstance* RootGraphInstance = nullptr;
 
+		// The head pointer of the scoped interface stack
+		Private::FScopedInterfaceEntry* ScopedInterfaceStackHead = nullptr;
+
+		// The head pointer of the free scoped interface entry stack
+		// Entries are allocated from the memstack and are re-used in LIFO since they'll
+		// be warmer in the CPU cache
+		Private::FScopedInterfaceEntry* FreeScopedInterfaceEntryStackHead = nullptr;
+
 		friend struct FTraitStackBinding;
 	};
 
 	//////////////////////////////////////////////////////////////////////////
 	// Inline implementations
+
+	template<class ScopedTraitInterface>
+	inline void FExecutionContext::PushScopedInterface(const FTraitBinding& Binding)
+	{
+		static_assert(std::is_base_of<IScopedTraitInterface, ScopedTraitInterface>::value, "ScopedTraitInterface type must derive from ITraitInterface");
+
+		constexpr FTraitInterfaceUID InterfaceUID = ScopedTraitInterface::InterfaceUID;
+		PushScopedInterfaceImpl(InterfaceUID, Binding);
+	}
+
+	template<class ScopedTraitInterface>
+	inline void FExecutionContext::PushOptionalScopedInterface(bool bCondition, const FTraitBinding& Binding)
+	{
+		static_assert(std::is_base_of<IScopedTraitInterface, ScopedTraitInterface>::value, "ScopedTraitInterface type must derive from ITraitInterface");
+
+		if (!bCondition)
+		{
+			return;	// Scoped interface not required
+		}
+
+		PushScopedInterface<ScopedTraitInterface>(Binding);
+	}
+
+	template<class ScopedTraitInterface>
+	inline bool FExecutionContext::PopScopedInterface(const FTraitBinding& Binding)
+	{
+		static_assert(std::is_base_of<IScopedTraitInterface, ScopedTraitInterface>::value, "ScopedTraitInterface type must derive from ITraitInterface");
+
+		constexpr FTraitInterfaceUID InterfaceUID = ScopedTraitInterface::InterfaceUID;
+		return PopScopedInterfaceImpl(InterfaceUID, Binding);
+	}
+
+	inline bool FExecutionContext::PopStackScopedInterfaces(const FTraitBinding& Binding)
+	{
+		if (!Binding.IsValid())
+		{
+			return false;
+		}
+
+		return PopStackScopedInterfaces(*Binding.GetStack());
+	}
+
+	template<class ScopedTraitInterface>
+	inline bool FExecutionContext::GetScopedInterface(TTraitBinding<ScopedTraitInterface>& OutBinding) const
+	{
+		static_assert(std::is_base_of<IScopedTraitInterface, ScopedTraitInterface>::value, "ScopedTraitInterface type must derive from IScopedTraitInterface");
+
+		constexpr FTraitInterfaceUID InterfaceUID = ScopedTraitInterface::InterfaceUID;
+		return GetScopedInterfaceImpl(InterfaceUID, OutBinding);
+	}
+
+	template<class ScopedTraitInterface>
+	inline void FExecutionContext::ForEachScopedInterface(TFunctionRef<bool(TTraitBinding<ScopedTraitInterface>& Binding)> InFunction) const
+	{
+		static_assert(std::is_base_of<IScopedTraitInterface, ScopedTraitInterface>::value, "ScopedTraitInterface type must derive from IScopedTraitInterface");
+
+		constexpr FTraitInterfaceUID InterfaceUID = ScopedTraitInterface::InterfaceUID;
+
+		ForEachScopedInterfaceImpl(InterfaceUID,
+			[&InFunction](FTraitBinding& Binding)
+			{
+				// This cast is safe because we already queried the interface into the binding
+				return InFunction(static_cast<TTraitBinding<ScopedTraitInterface>&>(Binding));
+			});
+	}
 
 	inline FTraitPtr FExecutionContext::AllocateNodeInstance(const FTraitBinding& ParentBinding, FAnimNextTraitHandle ChildTraitHandle) const
 	{

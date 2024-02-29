@@ -328,6 +328,9 @@ namespace UE::AnimNext
 				check(Entry->UpdateTrait.IsValid());
 				Entry->UpdateTrait.PostUpdate(TraversalContext, Entry->TraitState);
 
+				// Now that it finished updating, we can pop any scoped interfaces this node might have pushed
+				TraversalContext.PopStackScopedInterfaces(Entry->TraitStack);
+
 				// We don't need this entry anymore
 				TraversalContext.PushFreeEntry(Entry);
 			}
@@ -339,5 +342,9 @@ namespace UE::AnimNext
 		{
 			It.Value()->PostUpdate(TraversalContext);
 		}
+
+		// At this point, we shouldn't have any remaining scoped interfaces
+		// If this fails, it means we failed to pop them due to a push/pop mismatch
+		ensure(!TraversalContext.HasScopedInterfaces());
 	}
 }

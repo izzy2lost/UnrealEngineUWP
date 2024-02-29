@@ -16,6 +16,7 @@
 #include "TraitCore/TraitWriter.h"
 #include "TraitCore/ExecutionContext.h"
 #include "TraitCore/ITraitInterface.h"
+#include "TraitCore/IScopedTraitInterface.h"
 #include "TraitCore/NodeInstance.h"
 #include "TraitCore/NodeTemplateBuilder.h"
 #include "TraitCore/NodeTemplateRegistry.h"
@@ -35,6 +36,10 @@ namespace UE::AnimNext
 	{
 		static TArray<FTraitUID>* UpdatedTraits = nullptr;
 		static TArray<FTraitUID>* EvaluatedTraits = nullptr;
+
+		static FName TestTag(TEXT("MyTag"));
+		static TArray<bool>* IsTagInScope = nullptr;
+		static bool AutoPopTag = false;
 	}
 
 	struct FTraitWithNoChildren : FBaseTrait, IUpdate, IEvaluate
@@ -221,6 +226,130 @@ namespace UE::AnimNext
 		GeneratorMacro(IUpdateTraversal) \
 
 	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FTraitWithChildren, TRAIT_INTERFACE_ENUMERATOR)
+	#undef TRAIT_INTERFACE_ENUMERATOR
+
+	struct IScopedTagInterface : IScopedTraitInterface
+	{
+		DECLARE_ANIM_TRAIT_INTERFACE(IScopedTagInterface, 0xb8f4b397)
+
+		virtual FName GetTag(const FExecutionContext& Context, const TTraitBinding<IScopedTagInterface>& Binding) const;
+
+		static bool IsTagInScope(const FExecutionContext& Context, FName Tag);
+	};
+
+	template<>
+	struct TTraitBinding<IScopedTagInterface> : FTraitBinding
+	{
+		FName GetTag(const FExecutionContext& Context) const
+		{
+			return GetInterface()->GetTag(Context, *this);
+		}
+
+	protected:
+		const IScopedTagInterface* GetInterface() const { return GetInterfaceTyped<IScopedTagInterface>(); }
+	};
+
+	FName IScopedTagInterface::GetTag(const FExecutionContext& Context, const TTraitBinding<IScopedTagInterface>& Binding) const
+	{
+		TTraitBinding<IScopedTagInterface> SuperBinding;
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
+		{
+			return SuperBinding.GetTag(Context);
+		}
+
+		return NAME_None;
+	}
+
+	bool IScopedTagInterface::IsTagInScope(const FExecutionContext& Context, FName Tag)
+	{
+		bool bResult = false;
+
+		Context.ForEachScopedInterface<IScopedTagInterface>([&Context, Tag, &bResult](TTraitBinding<IScopedTagInterface>& InterfaceBinding)
+			{
+				if (Tag == InterfaceBinding.GetTag(Context))
+				{
+					// We found our tag, stop iterating
+					bResult = true;
+					return false;
+				}
+
+				// Keep searching
+				return true;
+			});
+
+		return bResult;
+	}
+
+	// Adds a scoped tag
+	struct FScopedTagTrait : FAdditiveTrait, IScopedTagInterface, IUpdate
+	{
+		DECLARE_ANIM_TRAIT(FScopedTagTrait, 0x4b296948, FAdditiveTrait)
+
+		// IScopedTagInterface impl
+		virtual FName GetTag(const FExecutionContext& Context, const TTraitBinding<IScopedTagInterface>& Binding) const override
+		{
+			return Private::TestTag;
+		}
+
+		// IUpdate impl
+		virtual void PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const override
+		{
+			Context.PushScopedInterface<IScopedTagInterface>(Binding);
+
+			IUpdate::PreUpdate(Context, Binding, TraitState);
+		}
+
+		virtual void PostUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const override
+		{
+			if (!Private::AutoPopTag)
+			{
+				ensure(Context.PopScopedInterface<IScopedTagInterface>(Binding));
+			}
+
+			IUpdate::PostUpdate(Context, Binding, TraitState);
+		}
+	};
+
+	// Trait implementation boilerplate
+	#define TRAIT_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IScopedTagInterface) \
+		GeneratorMacro(IUpdate) \
+
+	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FScopedTagTrait, TRAIT_INTERFACE_ENUMERATOR)
+	#undef TRAIT_INTERFACE_ENUMERATOR
+
+	// Tests if we have a scoped tag
+	struct FTestScopedTagTrait : FAdditiveTrait, IUpdate
+	{
+		DECLARE_ANIM_TRAIT(FTestScopedTagTrait, 0x922bd23d, FAdditiveTrait)
+
+		// IUpdate impl
+		virtual void PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const override
+		{
+			if (Private::IsTagInScope != nullptr)
+			{
+				Private::IsTagInScope->Add(IScopedTagInterface::IsTagInScope(Context, Private::TestTag));
+			}
+
+			IUpdate::PreUpdate(Context, Binding, TraitState);
+		}
+
+		virtual void PostUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const override
+		{
+			if (Private::IsTagInScope != nullptr)
+			{
+				Private::IsTagInScope->Add(IScopedTagInterface::IsTagInScope(Context, Private::TestTag));
+			}
+
+			IUpdate::PostUpdate(Context, Binding, TraitState);
+		}
+	};
+
+	// Trait implementation boilerplate
+	#define TRAIT_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IUpdate) \
+
+	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FTestScopedTagTrait, TRAIT_INTERFACE_ENUMERATOR)
 	#undef TRAIT_INTERFACE_ENUMERATOR
 }
 
@@ -718,4 +847,159 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 
 	return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_IScopedInterface, "Animation.AnimNext.Runtime.IScopedInterface", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FAnimationAnimNextRuntimeTest_IScopedInterface::RunTest(const FString& InParameters)
+{
+	using namespace UE::AnimNext;
+	{
+		AUTO_REGISTER_ANIM_TRAIT(FTraitWithOneChild)
+		AUTO_REGISTER_ANIM_TRAIT(FScopedTagTrait)
+		AUTO_REGISTER_ANIM_TRAIT(FTestScopedTagTrait)
+
+		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
+		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Failed to create animation graph");
+
+		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
+		FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
+
+		// We create a few node templates
+		// Template A has a single child and tests for our tag
+		TArray<FTraitUID> NodeTemplateTraitList0;
+		NodeTemplateTraitList0.Add(FTraitWithOneChild::TraitUID);
+		NodeTemplateTraitList0.Add(FTestScopedTagTrait::TraitUID);
+
+		// Template B has a single child, it tests and pushes our tag
+		TArray<FTraitUID> NodeTemplateTraitList1;
+		NodeTemplateTraitList1.Add(FTraitWithOneChild::TraitUID);
+		NodeTemplateTraitList1.Add(FTestScopedTagTrait::TraitUID);	// Test after push/pop
+		NodeTemplateTraitList1.Add(FScopedTagTrait::TraitUID);
+		NodeTemplateTraitList1.Add(FTestScopedTagTrait::TraitUID);	// Test before push/pop
+
+		// Populate our node template registry
+		TArray<uint8> NodeTemplateBuffer0, NodeTemplateBuffer1;
+		const FNodeTemplate* NodeTemplate0 = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateTraitList0, NodeTemplateBuffer0);
+		const FNodeTemplate* NodeTemplate1 = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateTraitList1, NodeTemplateBuffer1);
+
+		// Build our graph, it as follow:
+		// NodeA has no child (tag is scoped)
+		// NodeB has one child: NodeA (NodeB adds the scoped tag)
+		// NodeC (root) has one child: NodeB (no tag scoped)
+
+		TArray<FNodeHandle> NodeHandles;
+
+		// Write our graph
+		TArray<uint8> GraphSharedDataArchiveBuffer;
+		TArray<TObjectPtr<UObject>> GraphReferencedObjects;
+		{
+			FTraitWriter TraitWriter;
+
+			NodeHandles.Add(TraitWriter.RegisterNode(*NodeTemplate0));	// NodeC (root node)
+			NodeHandles.Add(TraitWriter.RegisterNode(*NodeTemplate1));	// NodeB
+			NodeHandles.Add(TraitWriter.RegisterNode(*NodeTemplate0));	// NodeA
+
+			// We don't have trait properties
+			TArray<TMap<FName, FString>> TraitPropertiesA;
+			TraitPropertiesA.AddDefaulted(NodeTemplateTraitList0.Num());
+			TraitPropertiesA[0].Add(TEXT("Child"), ToString<FTraitWithOneChild::FSharedData>(TEXT("Child"), FAnimNextTraitHandle()));
+
+			TArray<TMap<FName, FString>> TraitPropertiesB;
+			TraitPropertiesB.AddDefaulted(NodeTemplateTraitList1.Num());
+			TraitPropertiesB[0].Add(TEXT("Child"), ToString<FTraitWithOneChild::FSharedData>(TEXT("Child"), FAnimNextTraitHandle(NodeHandles[2])));
+
+			TArray<TMap<FName, FString>> TraitPropertiesC;
+			TraitPropertiesC.AddDefaulted(NodeTemplateTraitList0.Num());
+			TraitPropertiesC[0].Add(TEXT("Child"), ToString<FTraitWithOneChild::FSharedData>(TEXT("Child"), FAnimNextTraitHandle(NodeHandles[1])));
+
+			TraitWriter.BeginNodeWriting();
+			TraitWriter.WriteNode(NodeHandles[0],
+				[&TraitPropertiesC](uint32 TraitIndex, FName PropertyName)
+				{
+					return TraitPropertiesC[TraitIndex][PropertyName];
+				},
+				[](uint32 TraitIndex, FName PropertyName)
+				{
+					return MAX_uint16;
+				});
+			TraitWriter.WriteNode(NodeHandles[1],
+				[&TraitPropertiesB](uint32 TraitIndex, FName PropertyName)
+				{
+					return TraitPropertiesB[TraitIndex][PropertyName];
+				},
+				[](uint32 TraitIndex, FName PropertyName)
+				{
+					return MAX_uint16;
+				});
+			TraitWriter.WriteNode(NodeHandles[2],
+				[&TraitPropertiesA](uint32 TraitIndex, FName PropertyName)
+				{
+					return TraitPropertiesA[TraitIndex][PropertyName];
+				},
+				[](uint32 TraitIndex, FName PropertyName)
+				{
+					return MAX_uint16;
+				});
+			TraitWriter.EndNodeWriting();
+
+			AddErrorIfFalse(TraitWriter.GetErrorState() == FTraitWriter::EErrorState::None, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Failed to write traits");
+			GraphSharedDataArchiveBuffer = TraitWriter.GetGraphSharedData();
+			GraphReferencedObjects = TraitWriter.GetGraphReferencedObjects();
+		}
+
+		// Read our graph
+		FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
+
+		FAnimNextGraphInstancePtr GraphInstance;
+		AnimNextGraph->AllocateInstance(GraphInstance);
+
+		FExecutionContext Context(GraphInstance);
+
+		{
+			TArray<bool> IsTagInScope;
+			Private::IsTagInScope = &IsTagInScope;
+
+			// Call pre/post update on our graph
+			Private::AutoPopTag = true;
+			UpdateGraph(GraphInstance, 0.0333f);
+
+			AddErrorIfFalse(IsTagInScope.Num() == 8, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected number of entries");
+			AddErrorIfFalse(IsTagInScope[0] == false, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeC::PreUpdate (template 0)
+			AddErrorIfFalse(IsTagInScope[1] == false, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeB::Before::PreUpdate (template 1)
+			AddErrorIfFalse(IsTagInScope[2] == true, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeB::After::PreUpdate (template 1)
+			AddErrorIfFalse(IsTagInScope[3] == true, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeA::PreUpdate (template 0)
+			AddErrorIfFalse(IsTagInScope[4] == true, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeA::PostUpdate (template 0)
+			AddErrorIfFalse(IsTagInScope[5] == true, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeB::Before::PostUpdate (template 1)
+			AddErrorIfFalse(IsTagInScope[6] == true, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeB::After::PostUpdate (template 1)
+			AddErrorIfFalse(IsTagInScope[7] == false, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeC::PostUpdate (template 0)
+
+			IsTagInScope.Reset();
+			Private::AutoPopTag = false;
+
+			// Call pre/post update on our graph
+			UpdateGraph(GraphInstance, 0.0333f);
+
+			AddErrorIfFalse(IsTagInScope.Num() == 8, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected number of entries");
+			AddErrorIfFalse(IsTagInScope[0] == false, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeC::PreUpdate (template 0)
+			AddErrorIfFalse(IsTagInScope[1] == false, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeB::Before::PreUpdate (template 1)
+			AddErrorIfFalse(IsTagInScope[2] == true, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeB::After::PreUpdate (template 1)
+			AddErrorIfFalse(IsTagInScope[3] == true, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeA::PreUpdate (template 0)
+			AddErrorIfFalse(IsTagInScope[4] == true, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeA::PostUpdate (template 0)
+			AddErrorIfFalse(IsTagInScope[5] == true, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeB::Before::PostUpdate (template 1)
+			AddErrorIfFalse(IsTagInScope[6] == false, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeB::After::PostUpdate (template 1)
+			AddErrorIfFalse(IsTagInScope[7] == false, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeC::PostUpdate (template 0)
+
+			Private::UpdatedTraits = nullptr;
+		}
+
+		Registry.Unregister(NodeTemplate0);
+		Registry.Unregister(NodeTemplate1);
+
+		AddErrorIfFalse(Registry.GetNum() == 0, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Registry should contain 0 templates");
+	}
+	Tests::FUtils::CleanupAfterTests();
+
+	return true;
+}
+
 #endif
