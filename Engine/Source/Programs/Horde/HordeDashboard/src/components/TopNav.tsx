@@ -490,6 +490,26 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
       const features = dashboard.user?.dashboardFeatures;
 
+      if (features?.showAgents === true) {
+
+         resourceItems.push({
+            key: "admin_agents",
+            text: "Agents",
+            link: `/agents`
+         });
+
+         if (features?.showAgentRegistration === true) {
+
+            resourceItems.push({
+               key: "admin_agents_registration",
+               text: "Agent Registration",
+               link: `/agents/registration`
+            });
+
+         }
+
+      }
+
       if (features?.showDeviceManager === true) {
          resourceItems.push({
             key: "admin_devices",
@@ -499,29 +519,13 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       }
 
       if (features?.showAgents === true) {
-
-         resourceItems.push({
-            key: "admin_agents",
-            text: "Agents",
-            link: `/agents`
-         });
-
-         if (features?.showAgentRegistration === true) {         
-
-            resourceItems.push({
-               key: "admin_agents_registration",
-               text: "Agent Registration",
-               link: `/agents/registration`
-            });
-   
-         }
-
          resourceItems.push({
             key: "admin_pools",
             text: "Pools",
             link: `/pools`
          });
-      }      
+      }
+
 
       if (features?.showAccounts) {
          resourceItems.push({
@@ -550,11 +554,6 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       }
 
       // Monitoring
-      monitoringItems.push({
-         key: "admin_serverstatus",
-         text: "Server Status",
-         link: `/serverstatus`
-      });
 
       if (features?.showAgents !== false) {
          monitoringItems.push({
@@ -581,6 +580,11 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
          });
       }
 
+      monitoringItems.push({
+         key: "admin_serverstatus",
+         text: "Server Status",
+         link: `/serverstatus`
+      });
 
       if (monitoringItems.length) {
          subItems.push({
