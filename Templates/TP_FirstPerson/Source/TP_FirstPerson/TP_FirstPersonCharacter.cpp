@@ -18,9 +18,6 @@ DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 ATP_FirstPersonCharacter::ATP_FirstPersonCharacter()
 {
-	// Character doesnt have a rifle at start
-	bHasRifle = false;
-	
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(55.f, 96.0f);
 		
@@ -50,20 +47,7 @@ void ATP_FirstPersonCharacter::BeginPlay()
 //////////////////////////////////////////////////////////////////////////// Input
 
 void ATP_FirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-	// Add Input Mapping Context
-	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemplateCharacter, Error, TEXT("'%s' Failed to add an input mapping context because there is no owning Player Controller!"), *GetNameSafe(this));
-	}
-	
+{	
 	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
@@ -108,14 +92,4 @@ void ATP_FirstPersonCharacter::Look(const FInputActionValue& Value)
 		AddControllerYawInput(LookAxisVector.X);
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
-}
-
-void ATP_FirstPersonCharacter::SetHasRifle(bool bNewHasRifle)
-{
-	bHasRifle = bNewHasRifle;
-}
-
-bool ATP_FirstPersonCharacter::GetHasRifle()
-{
-	return bHasRifle;
 }
