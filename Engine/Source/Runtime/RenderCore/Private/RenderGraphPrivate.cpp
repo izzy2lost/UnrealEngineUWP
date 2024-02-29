@@ -210,7 +210,8 @@ FLinearColor GetClobberColor()
 uint32 GetClobberBufferValue()
 {
 	float ClobberValue = GetClobberValue();
-	uint32 ClobberValueUint = reinterpret_cast<const uint32*>(&ClobberValue)[0];
+	uint32 ClobberValueUint;
+	FMemory::Memcpy(&ClobberValueUint, &ClobberValue, sizeof(ClobberValueUint));
 	return ClobberValueUint;
 }
 

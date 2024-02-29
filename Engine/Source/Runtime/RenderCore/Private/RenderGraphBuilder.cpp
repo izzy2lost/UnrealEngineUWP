@@ -4363,6 +4363,14 @@ void FRDGBuilder::ClobberPassOutputs(const FRDGPass* Pass)
 		{
 			AddClearUAVPass(*this, TextureUAV, GetClobberBufferValue());
 		}
+		else if (IsBlockCompressedFormat(TextureUAV->GetParent()->Desc.Format))
+		{
+			// We shouldn't see BCn UAVs if SupportsUAVFormatAliasing is false in the first place, but it can't hurt to check.
+			if (GRHIGlobals.SupportsUAVFormatAliasing)
+			{
+				AddClearUAVPass(*this, TextureUAV, GetClobberBufferValue());
+			}
+		}
 		else
 		{
 			AddClearUAVPass(*this, TextureUAV, ClobberColor);
