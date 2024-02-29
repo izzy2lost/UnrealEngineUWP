@@ -36,7 +36,7 @@ export function getSiteConfig() {
 		// note: this must be exactly `process.env.REACT_APP_DASHBOARD_CONFIG`
 		// as webpack does a simple find and replace to the value in the .env
 		// so process?.env?.REACT_APP_DASHBOARD_CONFIG for example is invalid
-		isProd = process.env.REACT_APP_DASHBOARD_CONFIG === "Production";
+		isProd = process.env.REACT_APP_DASHBOARD_CONFIG !== "Development";
 	 } catch (reason) {
 		console.log("Process env error on REACT_APP_DASHBOARD_CONFIG:", reason);
 	 }

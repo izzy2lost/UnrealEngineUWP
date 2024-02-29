@@ -14,14 +14,6 @@ type ChangeItem = {
 
 const changeItems: ChangeItem[] = [];
 
-let item = {
-   id: "3",
-   summary: "Improvements to the Automation Hub",
-   link: "/automation?automation=EngineTest&weeks=2&stream=fortnite-dev-enginemerge&stream=fortnite-dev-valkyrie&stream=fortnite-main&stream=ue5-main&stream=ue5-release-5.2&platform=Android&platform=HoloLens&platform=Linux&platform=Mac&platform=PS4&platform=PS5&platform=Stadia&platform=Switch&platform=Win64&platform=WinGDK&platform=XB1&platform=XboxOneGDK&platform=XSX&configurations=Development&configurations=Test&targets=Client&targets=CookedEditor&targets=Editor&targets=Server&rhi=d3d11&rhi=d3d12&rhi=default&rhi=vulkan&var=arm64&var=ASan&var=default&test=BootTest&suite=Rendering", 
-   slack: ""
-}
-changeItems.push(item);
-
 const columns = [
    { key: 'column1', name: 'ID', minWidth: 100, maxWidth: 100 },
    { key: 'column2', name: 'Summary', minWidth: 540, maxWidth: 540 },
