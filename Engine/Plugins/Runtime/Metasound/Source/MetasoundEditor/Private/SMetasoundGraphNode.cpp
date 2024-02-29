@@ -2,6 +2,7 @@
 #include "SMetasoundGraphNode.h"
 
 #include "AudioMaterialSlate/SAudioMaterialKnob.h"
+#include "AudioMaterialSlate/SAudioMaterialLabeledSlider.h"
 #include "AudioParameterControllerInterface.h"
 #include "Components/AudioComponent.h"
 #include "GraphEditorSettings.h"
@@ -730,26 +731,36 @@ namespace Metasound
 
 						if (DefaultFloat->WidgetType == EMetasoundMemberDefaultWidget::Slider)
 						{
-							// Create slider 
-							if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Frequency)
+							if (Metasound::Editor::GraphNodePrivate::UseAudioMaterialWidgets)
 							{
-								SAssignNew(InputWidget, SAudioFrequencySlider)
+								SAssignNew(InputWidget, SAudioMaterialLabeledSlider)
+									.Owner(GraphMember->GetOwningGraph())
 									.OnValueChanged_Lambda(OnValueChangedLambda)
 									.OnValueCommitted_Lambda(OnValueCommittedLambda);
-							}
-							else if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Volume)
-							{
-								SAssignNew(InputWidget, SAudioVolumeSlider)
-									.OnValueChanged_Lambda(OnValueChangedLambda)
-									.OnValueCommitted_Lambda(OnValueCommittedLambda);
-								StaticCastSharedPtr<SAudioVolumeSlider>(InputWidget)->SetUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput);
 							}
 							else
 							{
-								SAssignNew(InputWidget, SAudioSlider)
-									.OnValueChanged_Lambda(OnValueChangedLambda)
-									.OnValueCommitted_Lambda(OnValueCommittedLambda);
-								InputWidget->SetShowUnitsText(false);
+								// Create slider 
+								if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Frequency)
+								{
+									SAssignNew(InputWidget, SAudioFrequencySlider)
+										.OnValueChanged_Lambda(OnValueChangedLambda)
+										.OnValueCommitted_Lambda(OnValueCommittedLambda);
+								}
+								else if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Volume)
+								{
+									SAssignNew(InputWidget, SAudioVolumeSlider)
+										.OnValueChanged_Lambda(OnValueChangedLambda)
+										.OnValueCommitted_Lambda(OnValueCommittedLambda);
+									StaticCastSharedPtr<SAudioVolumeSlider>(InputWidget)->SetUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput);
+								}
+								else
+								{
+									SAssignNew(InputWidget, SAudioSlider)
+										.OnValueChanged_Lambda(OnValueChangedLambda)
+										.OnValueCommitted_Lambda(OnValueCommittedLambda);
+									InputWidget->SetShowUnitsText(false);
+								}
 							}
 							// Slider layout 
 							if (DefaultFloat->WidgetOrientation == Orient_Vertical)
@@ -804,10 +815,19 @@ namespace Metasound
 									[
 										Slot2.ToSharedRef()
 									];
-								InputWidget->SetDesiredSizeOverride(FVector2D(SliderDesiredSizeVertical.Y, SliderDesiredSizeVertical.X));
-							}
-							// safe downcast because the ptr was just assigned above 
-							StaticCastSharedPtr<SAudioSliderBase>(InputWidget)->SetOrientation(DefaultFloat->WidgetOrientation);
+									InputWidget->SetDesiredSizeOverride(FVector2D(SliderDesiredSizeVertical.Y, SliderDesiredSizeVertical.X));
+								}
+
+								if (Metasound::Editor::GraphNodePrivate::UseAudioMaterialWidgets)
+								{
+									// safe downcast because the ptr was just assigned above 
+									StaticCastSharedPtr<SAudioMaterialLabeledSlider>(InputWidget)->SetOrientation(DefaultFloat->WidgetOrientation);
+								}
+								else
+								{
+									// safe downcast because the ptr was just assigned above 
+									StaticCastSharedPtr<SAudioSliderBase>(InputWidget)->SetOrientation(DefaultFloat->WidgetOrientation);
+								}
 						}
 						else if (DefaultFloat->WidgetType == EMetasoundMemberDefaultWidget::RadialSlider)
 						{

@@ -23,6 +23,9 @@ public:
 	/** The owner object*/
 	SLATE_ARGUMENT(TWeakObjectPtr<UObject>, Owner)
 
+	/** The slider's orientation. */
+	SLATE_ARGUMENT(EOrientation, Orientation)
+
 	/** The style used to draw the slider. */
 	SLATE_STYLE_ARGUMENT(FAudioMaterialSliderStyle, AudioMaterialSliderStyle)
 
@@ -31,6 +34,9 @@ public:
 
 	/** Called when the value is changed by the slider. */
 	SLATE_EVENT(FOnFloatValueChanged, OnValueChanged)
+	
+	/** Called when the value is committed (mouse capture ends) */
+	SLATE_EVENT(FOnFloatValueChanged, OnValueCommitted)
 
 	SLATE_END_ARGS()
 
@@ -49,15 +55,23 @@ public:
 	/** Apply new material to be used to render the Slate.*/
 	void ApplyNewMaterial();
 
-	// SWidget overrides
+	/** Set the orientation of the slider*/
+	void SetOrientation(EOrientation InOrientation);
+
+	//SWidget
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual void OnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent) override;
+	//~SWidget
 
 public:
 
 	// Holds a delegate that is executed when the slider's value changed.
-	FOnFloatValueChanged OnValueChanged;	
+	FOnFloatValueChanged OnValueChanged;
+	
+	// Holds a delegate that is executed when the slider's value is committed (mouse capture ends).
+	FOnFloatValueChanged OnValueCommitted;
 
 private:
 
@@ -79,11 +93,20 @@ private:
 
 private:
 
+	// Optional override for desired size 
+	TAttribute<TOptional<FVector2D>> DesiredSizeOverride;
+
+	// Holds the slider's orientation
+	EOrientation Orientation;
+
 	// Holds the owner of the Slate
 	TWeakObjectPtr<UObject> Owner;
 
 	// Holds the style for the Slate
 	const FAudioMaterialSliderStyle* AudioMaterialSliderStyle = nullptr;
+
+	// Holds the Modifiable Material that represent the slider
+	mutable TWeakObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
 
 	//Holds the current value
 	TAttribute<float> ValueAttribute = 0.f;

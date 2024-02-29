@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AudioWidgetsSlateTypes.h"
 #include "Math/Color.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -121,6 +122,11 @@ struct AUDIOWIDGETS_API FAudioMaterialSliderStyle : public FAudioMaterialWidgetS
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor HandleOutlineColor;
 	FAudioMaterialSliderStyle& SetSliderHandleOutlineColor(const FLinearColor& InColor) { HandleOutlineColor = InColor; return *this; }
+
+	/** The style to use for the audio text box widget. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FAudioTextBoxStyle TextBoxStyle;
+	FAudioMaterialSliderStyle& SetTextBoxStyle(const FAudioTextBoxStyle& InTextBoxStyle) { TextBoxStyle = InTextBoxStyle; return *this; }
 
 };
 

@@ -161,9 +161,10 @@ FAudioWidgetsStyle::FAudioWidgetsStyle()
 	/**
 	**AudioMaterialSlider Style
 	*/
-	UMaterialInterface* SliderDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialSlider.MI_AudioMaterialSlider"));
+	UMaterialInterface* SliderDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialRoundedSlider.MI_AudioMaterialRoundedSlider"));
 
 	Set("AudioMaterialSlider.Style", FAudioMaterialSliderStyle()
+		.SetTextBoxStyle(FAudioTextBoxStyle::GetDefault())
 		.SetMaterial(SliderDefaultMaterial));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);

@@ -43,13 +43,14 @@ const FAudioMaterialButtonStyle& FAudioMaterialButtonStyle::GetDefault()
 }
 
 FAudioMaterialSliderStyle::FAudioMaterialSliderStyle()
-	: BarMainColor(FLinearColor::White)
-	, BarShadowColor(FLinearColor::White)
-	, BarAccentColor(FLinearColor::White)
-	, HandleMainColor(FLinearColor::White)
-	, HandleOutlineColor(FLinearColor::White)
+	: BarMainColor(FLinearColor(0.008f, 0.008f, 0.008f,1.f))
+	, BarShadowColor(FLinearColor::Black)
+	, BarAccentColor(FLinearColor(0.005f, 0.005f, 0.005f, 1.f))
+	, HandleMainColor(FLinearColor(0.2f, 0.2f, 0.25f, 1.f))
+	, HandleOutlineColor(FLinearColor(0.15f, 0.15f, 0.15f, 1.f))
+	, TextBoxStyle(FAudioTextBoxStyle::GetDefault())
 {
-	DesiredSize = FVector2f(128.f, 512.f);
+	DesiredSize = FVector2f(30.f, 250.f);
 }
 
 const FName FAudioMaterialSliderStyle::TypeName(TEXT("FAudioMaterialSliderStyle"));

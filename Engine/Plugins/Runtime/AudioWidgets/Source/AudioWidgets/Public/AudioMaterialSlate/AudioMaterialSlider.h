@@ -72,6 +72,10 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintSetter = SetValue, BlueprintGetter = GetValue, Category = "Appearance", meta = (UIMin = "0", UIMax = "1"))
 	float Value = 1.f;
 
+	/**Orientation of the slider*/
+	UPROPERTY(EditAnywhere, Category = "Appearance")
+	TEnumAsByte<EOrientation> Orientation = EOrientation::Orient_Horizontal;
+
 private:
 
 	/** Native Slate Widget */

@@ -32,6 +32,7 @@ void UAudioMaterialSlider::SynchronizeProperties()
 	}
 
 	Slider->SetValue(Value);
+	Slider->SetOrientation(Orientation);
 	Slider->ApplyNewMaterial();
 }
 
@@ -65,6 +66,7 @@ TSharedRef<SWidget> UAudioMaterialSlider::RebuildWidget()
 {
 	Slider = SNew(SAudioMaterialSlider)
 		.Owner(this)
+		.Orientation(Orientation)
 		.AudioMaterialSliderStyle(&WidgetStyle)
 		.OnValueChanged(BIND_UOBJECT_DELEGATE(FOnFloatValueChanged, HandleOnValueChanged));
 
