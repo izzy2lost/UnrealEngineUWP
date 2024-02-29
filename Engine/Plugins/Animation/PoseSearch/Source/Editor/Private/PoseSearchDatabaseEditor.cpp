@@ -636,11 +636,14 @@ namespace UE::PoseSearch
 			this,
 			&FDatabaseEditor::OnFinishedChangingSelectionProperties);
 
-		DetailsContainer->AddSlot()
-			.AutoHeight()
-			[
-				SelectionWidget.DetailView.ToSharedRef()
-			];
+		if (DetailsContainer)
+		{
+			DetailsContainer->AddSlot()
+				.AutoHeight()
+				[
+					SelectionWidget.DetailView.ToSharedRef()
+				];
+		}
 
 		return SelectionWidget;
 	}
