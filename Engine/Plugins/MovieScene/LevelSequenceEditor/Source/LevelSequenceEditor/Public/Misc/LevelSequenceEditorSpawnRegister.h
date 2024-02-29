@@ -63,6 +63,9 @@ private:
 	/** Called before an object is saved in the editor */
 	void OnPreObjectSaved(UObject* Object, FObjectPreSaveContext SaveContext);
 
+	/** Called on pre/post GC */
+	void UpdateIsEngineCollectingGarbage(bool bIsCollectingGarbage);
+
 private:
 
 	struct FTrackedObjectState
@@ -104,6 +107,13 @@ private:
 
 	/** Handle to a delegate that is bound to FCoreUObjectDelegates::OnObjectPreSave to harvest changes to spawned objects. */
 	FDelegateHandle OnObjectSavedHandle;
+
+	/** True when GCing */
+	bool bIsEngineCollectingGarbage;
+
+	/** Handle to a delegate that is bound to FCoreUObjectDelegates::OnPre/PostGarbageCollectHandle to disable saving changes while GCing. */
+	FDelegateHandle OnPreGarbageCollectHandle;
+	FDelegateHandle OnPostGarbageCollectHandle;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
