@@ -39,7 +39,6 @@ public:
 	virtual void PostRegisterAllComponents() override;
 	virtual void PostUnregisterAllComponents() override;
 #if WITH_EDITOR
-	virtual FBox GetStreamingBounds() const override;
 	virtual AActor* GetSceneOutlinerParent() const override;
 #endif
 	//~End AActor Interface
@@ -110,6 +109,10 @@ public:
 
 private:
 	UPCGSubsystem* GetSubsystem() const;
+
+#if WITH_EDITOR
+	void UpdateBoundsComponentExtents();
+#endif // WITH_EDITOR
 
 	// Note: this map is not a property and not serialized since we will rebuild it from the LocalToOriginal
 	TMap<TObjectPtr<UPCGComponent>, TObjectPtr<UPCGComponent>> OriginalToLocal;

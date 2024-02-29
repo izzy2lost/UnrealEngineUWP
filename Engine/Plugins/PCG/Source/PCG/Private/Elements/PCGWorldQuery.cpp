@@ -93,11 +93,16 @@ bool FPCGWorldRayHitQueryElement::ExecuteInternal(FPCGContext* Context) const
 	
 	// TODO: Support params pin + Apply param data
 
-	// Compute default parameters based on owner component - raycast down local Z axis
 	if (!QueryParams.bOverrideDefaultParams)
 	{
-		AActor* Owner = Context->SourceComponent->GetOwner();
-		const FTransform& Transform = Owner->GetTransform();
+		// Compute default parameters based on original owner component - raycast down local Z axis
+		// TODO: Might want to revisit this for 3D partitioning. The reasoning here is that ray origin should be the same
+		// if we are partitioned or non-partitioned. But with 3D partitioning we might want something different.
+		// Since it is not yet widely used, we'll stick with same behavior for all cases.
+		UPCGComponent* SourceComponent = Context->SourceComponent.Get();
+		UPCGComponent* OriginalComponent = SourceComponent ? SourceComponent->GetOriginalComponent() : nullptr;
+		AActor* Owner = OriginalComponent ? OriginalComponent->GetOwner() : nullptr;
+		const FTransform& Transform = Owner ? Owner->GetTransform() : FTransform::Identity;
 
 		const FBox LocalBounds = PCGHelpers::GetActorLocalBounds(Owner);
 		const FVector RayOrigin = Transform.TransformPosition(FVector(0, 0, LocalBounds.Max.Z));
