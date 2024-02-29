@@ -16,6 +16,15 @@
 #define LOCTEXT_NAMESPACE "GameFeatures"
 
 //////////////////////////////////////////////////////////////////////
+// FGameFeatureComponentEntry
+FGameFeatureComponentEntry::FGameFeatureComponentEntry()
+	: bClientComponent(true)
+	, bServerComponent(true)
+	, AdditionFlags(static_cast<uint8>(EGameFrameworkAddComponentFlags::None))
+{
+}
+
+//////////////////////////////////////////////////////////////////////
 // UGameFeatureAction_AddComponents
 
 void UGameFeatureAction_AddComponents::OnGameFeatureActivating(FGameFeatureActivatingContext& Context)
@@ -120,7 +129,7 @@ void UGameFeatureAction_AddComponents::AddToWorld(const FWorldContext& WorldCont
 						TSubclassOf<UActorComponent> ComponentClass = Entry.ComponentClass.LoadSynchronous();
 						if (ComponentClass)
 						{
-							Handles.ComponentRequestHandles.Add(GFCM->AddComponentRequest(Entry.ActorClass, ComponentClass));
+							Handles.ComponentRequestHandles.Add(GFCM->AddComponentRequest(Entry.ActorClass, ComponentClass, static_cast<EGameFrameworkAddComponentFlags>(Entry.AdditionFlags)));
 						}
 						else if (!Entry.ComponentClass.IsNull())
 						{
