@@ -55,10 +55,14 @@ FModelElement::~FModelElement()
 const FMeshMapBuildData* FModelElement::GetMeshMapBuildData() const
 {
 	check(Component);
+	ULevel* OwnerLevel = Cast<ULevel>(Component->GetModel()->GetOuter());
 
-	if (UMapBuildDataRegistry* MapBuildData = UMapBuildDataRegistry::Get(Component))
+	if (OwnerLevel && OwnerLevel->OwningWorld)
 	{
-		return MapBuildData->GetMeshBuildData(MapBuildDataId);		
+		if (UMapBuildDataRegistry* MapBuildData = UMapBuildDataRegistry::Get(OwnerLevel, OwnerLevel->OwningWorld))
+		{
+			return MapBuildData->GetMeshBuildData(MapBuildDataId);		
+		}
 	}
 	
 	return NULL;

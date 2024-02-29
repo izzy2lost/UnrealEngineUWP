@@ -1217,16 +1217,21 @@ UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const UActorComponent* Compone
 UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const AActor* Actor)
 {
 	ULevel* OwnerLevel = Actor->GetLevel();
-	UWorld* World = OwnerLevel ? OwnerLevel->GetWorld() : nullptr;
-	UMapBuildDataRegistry* MapBuildData = nullptr;
+	UWorld* World = OwnerLevel ? OwnerLevel->GetWorld() : nullptr;	
 	
 	if (World && World->IsPartitionedWorld())
 	{
 		//@todo_ow: At current level of support there's no reason to return a ptr and force a look-up later on
 		//No lighting scenario support in WP maps
-		MapBuildData = World->PersistentLevel->MapBuildData;
-		return MapBuildData;
+		return World->PersistentLevel->MapBuildData;		
 	}
+
+	return Get(OwnerLevel, World);
+}
+
+UMapBuildDataRegistry* UMapBuildDataRegistry::Get(ULevel* OwnerLevel, UWorld* World)
+{
+	UMapBuildDataRegistry* MapBuildData = nullptr;
 
 	if (OwnerLevel && World)
 	{

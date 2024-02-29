@@ -389,6 +389,9 @@ public:
 
 	/** Returns the associated UUMapBuildDataRegistry for an Actor */
 	ENGINE_API static UMapBuildDataRegistry* Get(const AActor* Actor);
+
+	/** Returns the associated UUMapBuildDataRegistry for a pair of Level/World */
+	ENGINE_API static UMapBuildDataRegistry* Get(ULevel* OwnerLevel, UWorld* World);
 	
 	FVolumetricLightMapGridDesc* GetVolumetricLightMapGridDesc() { return VolumetricLightMapGridDesc; } 
 	ENGINE_API void SetVolumetricLightMapGridDesc(FVolumetricLightMapGridDesc* GridDesc); 
