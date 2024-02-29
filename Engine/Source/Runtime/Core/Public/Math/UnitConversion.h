@@ -14,67 +14,82 @@ class FText;
 template<typename NumericType> struct FNumericUnit;
 
 /** Enum *must* be zero-indexed and sequential. Must be grouped by relevance and ordered by magnitude. */
-/** Enum *must* match the mirrored enum that exists in CoreUObject/Classes/Object.h for the purposes of UObject reflection */
+/** Enum *must* match the mirrored enum that exists in CoreUObject/NoExportTypes.h for the purposes of UObject reflection */
 enum class EUnit : uint8
 {
-	/** Scalar distance/length units */
+	/** Scalar distance/length unit. */
 	Micrometers, Millimeters, Centimeters, Meters, Kilometers,
 	Inches, Feet, Yards, Miles,
 	Lightyears,
 
-	/** Angular units */
+	/** Angular unit. */
 	Degrees, Radians,
 
-	/** Speed units */
+	/** Speed unit. */
 	CentimetersPerSecond, MetersPerSecond, KilometersPerHour, MilesPerHour,
 
-	/** Angular speed units */
+	/** Angular speed unit. */
 	DegreesPerSecond, RadiansPerSecond,
-	
-	/** Acceleration units */
+
+	/** Acceleration unit. */
 	CentimetersPerSecondSquared, MetersPerSecondSquared,
 
-	/** Temperature units */
+	/** Temperature unit. */
 	Celsius, Farenheit, Kelvin,
 
-	/** Mass units */
+	/** Mass unit. */
 	Micrograms, Milligrams, Grams, Kilograms, MetricTons,
 	Ounces, Pounds, Stones,
 
-	/** Density units */
+	/** Density unit. */
 	GramsPerCubicCentimeter, GramsPerCubicMeter, KilogramsPerCubicCentimeter, KilogramsPerCubicMeter,
 
-	/** Force units */
+	/** Force unit. */
 	Newtons, PoundsForce, KilogramsForce, KilogramCentimetersPerSecondSquared,
 
-	/** Torque Units */
+	/** Torque unit. */
 	NewtonMeters, KilogramCentimetersSquaredPerSecondSquared,
 
-	/** Impulse Units */
+	/** Impulse unit. */
 	NewtonSeconds, KilogramCentimeters, KilogramMeters,
 
-	/** Frequency units */
+	/** Frequency unit. */
 	Hertz, Kilohertz, Megahertz, Gigahertz, RevolutionsPerMinute,
 
-	/** Data Size units */
+	/** Data Size unit. */
 	Bytes, Kilobytes, Megabytes, Gigabytes, Terabytes,
 
-	/** Luminous flux units, luminous intensity, illuminance, luminance, exposure value */
-	Lumens, Candela, Lux, CandelaPerMeter2, ExposureValue,
+	/** Luminous flux unit. */
+	Lumens,
+	
+	/** Luminous intensity unit. */
+	Candela,
+	
+	/** Illuminance unit. */
+	Lux,
+	
+	/** Luminance unit. */
+	CandelaPerMeter2,
+	
+	/** Exposure value unit. */
+	ExposureValue,
 
-	/** Time units */
+	/** Time unit. */
 	Nanoseconds, Microseconds, Milliseconds, Seconds, Minutes, Hours, Days, Months, Years,
 
-	/** Pixel density units */
+	/** Pixel density unit. */
 	PixelsPerInch,
 
-	/** Arbitrary multipliers */
-	Percentage,	Multiplier,
+	/** Percentage. */
+	Percentage,
 
-	/** Stress units */
+	/** Arbitrary multiplier. */
+	Multiplier,
+
+	/** Stress unit. */
 	Pascals, KiloPascals, MegaPascals, GigaPascals,
 
-	/** Symbolic entry, not specifiable on meta data */
+	/** Symbolic entry, not specifiable on meta data. */
 	Unspecified
 };
 
