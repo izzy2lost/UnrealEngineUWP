@@ -219,6 +219,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = UI, meta = (DisplayName = "Parameter UI Metadata"))
 	FMutableParamUIMetadata ParamUIMetadata;
 
+	/** Name of the column that contains the MutableUIMetadata of the row options. */
+	UPROPERTY(EditAnywhere, Category = UI)
+	FName ParamUIMetadataColumn;
+
 	/** Map to relate a Structure Column with its Data */
 	UPROPERTY()
 	TMap<FGuid, FTableNodeColumnData> ColumnDataMap;

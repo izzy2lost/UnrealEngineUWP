@@ -13,6 +13,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
 #include "MuCOE/SCustomizableObjectNodeLayoutBlocksEditor.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
+#include "Styling/SlateColor.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Input/SButton.h"
 
@@ -41,6 +42,7 @@ void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDet
 	{
 		IDetailCategoryBuilder& CustomizableObjectCategory = DetailBuilder->EditCategory("TableProperties");
 		IDetailCategoryBuilder& UICategory = DetailBuilder->EditCategory("UI");
+		DetailBuilder->HideProperty("ParamUIMetadataColumn");
 		IDetailCategoryBuilder& AnimationCategory = DetailBuilder->EditCategory("AnimationProperties");
 		IDetailCategoryBuilder& LayoutCategory = DetailBuilder->EditCategory("DefaultMeshLayoutEditor");
 
@@ -48,6 +50,27 @@ void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDet
 		Node->PostReconstructNodeDelegate.AddSP(this, &FCustomizableObjectNodeTableDetails::OnNodePinValueChanged);
 
 		GenerateMeshColumnComboBoxOptions();
+		TSharedPtr<FString> CurrentMutableMetadataColumn = GenerateMutableMetaDataColumnComboBoxOptions();
+
+		UICategory.AddCustomRow(LOCTEXT("MutableUIMetadataColumn_Selector","MutableUIMetadataColumn"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("MutableUIMetadataColumn_SelectorText","Options UI Metadata Column"))
+			.ToolTipText(LOCTEXT("MutableUIMetadataColumn_SelectorTooltip","Select a column that contains a Parameter UI Metadata for each Parameter Option (table row)."))
+			.Font(DetailBuilder->GetDetailFont())
+		]
+		.ValueContent()
+		[
+			SAssignNew(MutableMetaDataComboBox,STextComboBox)
+			.InitiallySelectedItem(CurrentMutableMetadataColumn)
+			.OptionsSource(&MutableMetaDataColumnsOptionNames)
+			.OnComboBoxOpening(this, &FCustomizableObjectNodeTableDetails::OnOpenMutableMetadataComboBox)
+			.OnSelectionChanged(this, &FCustomizableObjectNodeTableDetails::OnMutableMetaDataColumnComboBoxSelectionChanged)
+			.Font(DetailBuilder->GetDetailFont())
+			.ColorAndOpacity(this, &FCustomizableObjectNodeTableDetails::GetMetadataUIComboBoxTextColor, &MutableMetaDataColumnsOptionNames)
+		]
+		.OverrideResetToDefault(FResetToDefaultOverride::Create(FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeTableDetails::OnMutableMetaDataColumnComboBoxSelectionReset)));
 
 		AnimationCategory.AddCustomRow(LOCTEXT("AnimationProperties", "Animation Properties"))
 		[
@@ -589,6 +612,101 @@ FReply FCustomizableObjectNodeTableDetails::OnClearButtonPressed()
 	}
 
 	return FReply::Unhandled();
+}
+
+
+TSharedPtr<FString> FCustomizableObjectNodeTableDetails::GenerateMutableMetaDataColumnComboBoxOptions()
+{
+	const UScriptStruct* TableStruct = Node->GetTableNodeStruct();
+	TSharedPtr<FString> CurrentSelection;
+	MutableMetaDataColumnsOptionNames.Reset();
+
+	if (!TableStruct)
+	{
+		return CurrentSelection;
+	}
+
+	// Iterating struct Options
+	for (TFieldIterator<FProperty> It(TableStruct); It; ++It)
+	{
+		FProperty* ColumnProperty = *It;
+
+		if (!ColumnProperty)
+		{
+			continue;
+		}
+
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(ColumnProperty))
+		{
+			if (StructProperty->Struct == FMutableParamUIMetadata::StaticStruct())
+			{
+				TSharedPtr<FString> Option = MakeShareable(new FString(DataTableUtils::GetPropertyExportName(ColumnProperty)));
+				MutableMetaDataColumnsOptionNames.Add(Option);
+
+				if (*Option == Node->ParamUIMetadataColumn)
+				{
+					CurrentSelection = MutableMetaDataColumnsOptionNames.Last();
+				}
+			}
+		}
+	}
+
+	if (!Node->ParamUIMetadataColumn.IsNone() && !CurrentSelection)
+	{
+		MutableMetaDataColumnsOptionNames.Add(MakeShareable(new FString(Node->ParamUIMetadataColumn.ToString())));
+		CurrentSelection = MutableMetaDataColumnsOptionNames.Last();
+	}
+
+	return CurrentSelection;
+}
+
+
+void FCustomizableObjectNodeTableDetails::OnOpenMutableMetadataComboBox()
+{
+	TSharedPtr<FString> CurrentSelection = GenerateMutableMetaDataColumnComboBoxOptions();
+
+	if (MutableMetaDataComboBox.IsValid())
+	{
+		MutableMetaDataComboBox->ClearSelection();
+		MutableMetaDataComboBox->RefreshOptions();
+		MutableMetaDataComboBox->SetSelectedItem(CurrentSelection);
+	}
+}
+
+
+void FCustomizableObjectNodeTableDetails::OnMutableMetaDataColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo)
+{
+	if (Selection && Node->ParamUIMetadataColumn != FName(*Selection) 
+		&& (SelectInfo == ESelectInfo::OnKeyPress || SelectInfo == ESelectInfo::OnMouseClick))
+	{
+		Node->ParamUIMetadataColumn = FName(*Selection);
+		Node->MarkPackageDirty();
+	}
+}
+
+
+FSlateColor FCustomizableObjectNodeTableDetails::GetMetadataUIComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions) const
+{	
+	if (Node->FindTableProperty(Node->GetTableNodeStruct(), Node->ParamUIMetadataColumn) || Node->ParamUIMetadataColumn.IsNone())
+	{
+		return FSlateColor::UseForeground();
+	}
+
+	// Table Struct null or does not contain the selected property anymore
+	return FSlateColor(FLinearColor(0.9f, 0.05f, 0.05f, 1.0f));
+}
+
+void FCustomizableObjectNodeTableDetails::OnMutableMetaDataColumnComboBoxSelectionReset()
+{
+	Node->ParamUIMetadataColumn = NAME_None;
+
+	if (MutableMetaDataComboBox.IsValid())
+	{
+		GenerateMutableMetaDataColumnComboBoxOptions();
+		MutableMetaDataComboBox->ClearSelection();
+		MutableMetaDataComboBox->RefreshOptions();
+	}
+	
 }
 
 
