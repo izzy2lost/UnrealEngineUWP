@@ -91,9 +91,6 @@ struct POSESEARCH_API FPoseSearchTrajectory_WorldCollisionResults
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Trajectory Settings")
 	float LandSpeed  = 0.0f;
-
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Trajectory Settings")
-	FHitResult LandHitResult;
 };
 
 /**

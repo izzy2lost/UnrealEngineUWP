@@ -444,7 +444,6 @@ void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisions(const UObject
 						bIsFirstFall = false;
 						CollisionResult.TimeToLand = (InitialVelocityZ / -GravityZ) + ((FMath::Sqrt(FMath::Square(InitialVelocityZ) + (2.f * -GravityZ * FallHeight))) / -GravityZ);
 						CollisionResult.LandSpeed = InitialVelocityZ + GravityZ * CollisionResult.TimeToLand;
-						CollisionResult.LandHitResult = HitResult;
 					}
 
 					FreeFallAccumulatedSeconds = 0.f;
