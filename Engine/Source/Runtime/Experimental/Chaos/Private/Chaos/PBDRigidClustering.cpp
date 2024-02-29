@@ -2249,6 +2249,12 @@ namespace Chaos
 				{
 					if (const FClusterUnionPhysicsProxy* ClusterUnionProxy = GetConcreteProxy<FClusterUnionPhysicsProxy>(Cluster))
 					{
+						// check if this cluster union accept damage from collision 
+						if (!ClusterUnionProxy->GetEnableStrainOnCollision_Internal())
+						{
+							return;
+						}
+
 						// At the moment, we don't want to apply strains to children of ClusterUnions, we want instead
 						// to apply the strains to GRANDchildren of ClusterUnions.
 						FPBDRigidParticleHandle* ClosestChild = FindClosestChild(Cluster, ContactWorldLocation);
