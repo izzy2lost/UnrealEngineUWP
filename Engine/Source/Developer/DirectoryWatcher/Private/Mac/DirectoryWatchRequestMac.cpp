@@ -11,8 +11,13 @@ void DirectoryWatchMacCallback( ConstFSEventStreamRef StreamRef, void* WatchRequ
 	check(WatchRequest);
 	check(WatchRequest->EventStream == StreamRef);
 
+	// make sure the array isn't destroyed until we are done with it on the other thread
+	CFArrayRef EventPathArray = (CFArrayRef)EventPaths;
+	CFRetain(EventPathArray);
+
 	GameThreadCall(^{
 		WatchRequest->ProcessChanges( EventCount, EventPaths, EventFlags);
+		CFRelease(EventPathArray);
 	});
 }
 
