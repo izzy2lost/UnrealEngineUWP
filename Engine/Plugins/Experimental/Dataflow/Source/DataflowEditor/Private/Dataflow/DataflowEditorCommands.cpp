@@ -420,8 +420,12 @@ void FDataflowEditorCommands::OnSelectedNodesChanged(TSharedPtr<IStructureDetail
 							PropertiesEditor->SetStructureData(Struct);
 						}
 					}
+					else if (UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(SelectedObject))
+					{
+						TSharedPtr<FStructOnScope> Struct(new FStructOnScope(UEdGraphNode_Comment::StaticClass(), (uint8*)CommentNode));
+						PropertiesEditor->SetStructureData(Struct);
+					}
 				}
-				
 			}
 		}
 	}
