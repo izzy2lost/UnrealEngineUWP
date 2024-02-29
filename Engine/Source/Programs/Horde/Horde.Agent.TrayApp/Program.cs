@@ -148,18 +148,32 @@ namespace Horde.Agent.TrayApp
 		readonly BackgroundTask _waitForExitTask;
 		readonly Control _mainThreadInvokeTarget;
 
+		readonly ToolStripMenuItem _enrollMenuItem;
 		readonly ToolStripMenuItem _statusEnabled;
 		readonly ToolStripMenuItem _statusDisabled;
 		readonly ToolStripMenuItem _statusWhenIdle;
 		
 		readonly Settings _settings;
-
+		
+		AgentSettingsMessage? _agentSettings;
 		IdleForm? _idleForm;
 		bool _disposed;
+
+		void EnrollWithServer()
+		{
+			Uri? serverUrl = _agentSettings?.ServerUrl;
+			if (serverUrl != null)
+			{
+				Process.Start(new ProcessStartInfo(new Uri(serverUrl, "agents/registration").ToString()) { UseShellExecute = true });
+			}
+		}
 
 		public CustomApplicationContext(EventWaitHandle eventHandle)
 		{
 			_settings = LoadSettings();
+
+			_enrollMenuItem = new ToolStripMenuItem("Enroll with Server...");
+			_enrollMenuItem.Click += (s, e) => EnrollWithServer();
 
 			_statusEnabled = new ToolStripMenuItem("Enabled");
 			_statusEnabled.Click += (s, e) => SetUserStatus(UserStatus.Enabled);
@@ -187,6 +201,7 @@ namespace Horde.Agent.TrayApp
 			exitMenuItem.Click += OnExit;
 
 			ContextMenuStrip menu = new ContextMenuStrip();
+			menu.Items.Add(_enrollMenuItem);
 			menu.Items.Add(statusMenuItem);
 			menu.Items.Add(new ToolStripSeparator());
 			menu.Items.Add(logsMenuItem);
@@ -260,6 +275,7 @@ namespace Horde.Agent.TrayApp
 					_idleForm = null;
 				}
 
+				_enrollMenuItem.Dispose();
 				_statusEnabled.Dispose();
 				_statusDisabled.Dispose();
 				_statusWhenIdle.Dispose();
@@ -617,6 +633,21 @@ namespace Horde.Agent.TrayApp
 					message.Set(AgentMessageType.SetEnabledRequest, new AgentEnabledMessage(enabled));
 					await message.SendAsync(pipeClient, cancellationToken);
 
+					if (_agentSettings == null)
+					{
+						message.Set(AgentMessageType.GetSettingsRequest);
+						await message.SendAsync(pipeClient, cancellationToken);
+
+						if (!await message.TryReadAsync(pipeClient, cancellationToken))
+						{
+							break;
+						}
+						if (message.Type == AgentMessageType.GetSettingsResponse)
+						{
+							_agentSettings = message.Parse<AgentSettingsMessage>();
+						}
+					}
+
 					message.Set(AgentMessageType.GetStatusRequest);
 					await message.SendAsync(pipeClient, cancellationToken);
 
@@ -637,6 +668,7 @@ namespace Horde.Agent.TrayApp
 				}
 			}
 		}
+
 
 		void Exit_MainThread()
 		{
