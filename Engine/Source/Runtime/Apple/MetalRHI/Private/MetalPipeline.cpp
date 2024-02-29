@@ -700,10 +700,11 @@ static bool ConfigureRenderPipelineDescriptor(TDescriptorType* RenderPipelineDes
 			break;
 		}
 		case PF_ShadowDepth:
-		{
-			RenderPipelineDesc->setDepthAttachmentPixelFormat((MTL::PixelFormat)GPixelFormats[PF_ShadowDepth].PlatformFormat);
-			break;
-		}
+        case PF_D24:
+        {
+            RenderPipelineDesc->setDepthAttachmentPixelFormat((MTL::PixelFormat)GPixelFormats[Init.DepthStencilTargetFormat].PlatformFormat);
+            break;
+        }
 		default:
 		{
 			break;
