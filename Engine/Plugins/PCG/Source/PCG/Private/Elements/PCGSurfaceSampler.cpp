@@ -72,15 +72,9 @@ namespace PCGSurfaceSampler
 			}
 
 			const int64 CellCount64 = CellCountX * CellCountY;
-			if (CellCount64 <= 0 || 
-				CellCount64 >= MAX_int32 ||
-				(PCGFeatureSwitches::CVarCheckSamplerMemory.GetValueOnAnyThread() && FPlatformMemory::GetStats().AvailablePhysical < sizeof(FPCGPoint) * CellCount64))
+			if (CellCount64 <= 0 || CellCount64 >= MAX_int32)
 			{
-				if (Context)
-				{
-					PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("TooManyPoints", "Skipped - tried to generate too many points {0}"), CellCount64));
-				}
-
+				PCGLog::LogErrorOnGraph(FText::Format((LOCTEXT("InvalidCellCount", "Skipped - tried to generate too many points ({0}).")), CellCount64), Context);
 				return false;
 			}
 
@@ -100,6 +94,12 @@ namespace PCGSurfaceSampler
 				PCGE_LOG_C(Verbose, LogOnly, Context, LOCTEXT("NoPointsFromDensity", "Skipped - density yields no points"));
 			}
 
+			return false;
+		}
+
+		if (PCGFeatureSwitches::CVarCheckSamplerMemory.GetValueOnAnyThread() && (PCGFeatureSwitches::CVarSamplerMemoryThreshold.GetValueOnAnyThread() * FPlatformMemory::GetStats().AvailablePhysical) < sizeof(FPCGPoint) * TargetPointCount)
+		{
+			PCGLog::LogErrorOnGraph(FText::Format((LOCTEXT("TooManyPoints", "Skipped - tried to generate too many points ({0}).\nAdjust 'pcg.SamplerMemoryThreshold' if needed.")), TargetPointCount), Context);
 			return false;
 		}
 

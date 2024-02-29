@@ -11,6 +11,18 @@ namespace PCGFeatureSwitches
 		TEXT("Checks expected memory size consumption prior to performing sampling operations")
 	};
 
+	TAutoConsoleVariable<float> CVarSamplerMemoryThreshold{
+		TEXT("pcg.SamplerMemoryThreshold"),
+		0.8f,
+		TEXT("Normalized threshold of remaining physical memory required to abort sampling operation."),
+		FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+		{
+			if (InVariable->GetFloat() < 0.f || InVariable->GetFloat() > 1.0)
+			{
+				InVariable->SetWithCurrentPriority(FMath::Clamp(InVariable->GetFloat(), 0.f, 1.f));
+			}
+		})
+	};
 }
 
 namespace PCGHiGenGrid
