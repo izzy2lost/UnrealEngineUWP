@@ -654,7 +654,10 @@ TSharedPtr<IPropertyHandle> FComponentTransformDetails::FindOrCreatePropertyHand
 		CachedHandlesObjects.Append(SceneComponents);
 	}
 
-	PropertyHandles.Add(PropertyName, PropertyHandle);
+	if (PropertyHandle && PropertyHandle->IsValidHandle())
+	{
+		PropertyHandles.Add(PropertyName, PropertyHandle);
+	}
 	return PropertyHandle;
 }
 
