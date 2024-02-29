@@ -8,8 +8,8 @@ StructuredBuffer<int> {DataInterfaceName}_VertexToEdgeBuffer;
 StructuredBuffer<int> {DataInterfaceName}_EdgeToTwinEdgeBuffer;
 
 uint {DataInterfaceName}_bUseBufferFromRenderData;
-Buffer<int> {DataInterfaceName}_RenderDataVertexToEdgeBuffer;
-Buffer<int> {DataInterfaceName}_RenderDataEdgeToTwinEdgeBuffer;
+StructuredBuffer<int> {DataInterfaceName}_RenderDataVertexToEdgeBuffer;
+StructuredBuffer<int> {DataInterfaceName}_RenderDataEdgeToTwinEdgeBuffer;
 
 uint ReadNumVertices_{DataInterfaceName}()
 {
