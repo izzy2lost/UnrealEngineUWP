@@ -183,6 +183,7 @@ namespace PCGObjectMetadata
 namespace PCGFeatureSwitches
 {
 	extern PCG_API TAutoConsoleVariable<bool> CVarCheckSamplerMemory;
+	extern PCG_API TAutoConsoleVariable<float> CVarSamplerMemoryThreshold;
 }
 
 /** Describes space referential for operations that create data */

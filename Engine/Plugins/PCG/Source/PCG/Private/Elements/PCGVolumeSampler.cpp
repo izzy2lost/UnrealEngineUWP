@@ -76,21 +76,18 @@ namespace PCGVolumeSampler
 				return true;
 			}
 
-			if (NumIterationsXY64 > 0 && 
-				NumIterationsXY64 < MAX_int32 && 
-				NumIterations64 > 0 && 
+			if (NumIterationsXY64 > 0 &&
+				NumIterationsXY64 < MAX_int32 &&
+				NumIterations64 > 0 &&
 				NumIterations64 < MAX_int32 &&
-				(!PCGFeatureSwitches::CVarCheckSamplerMemory.GetValueOnAnyThread() || FPlatformMemory::GetStats().AvailablePhysical >= sizeof(FPCGPoint) * NumIterations64))
+				(!PCGFeatureSwitches::CVarCheckSamplerMemory.GetValueOnAnyThread() ||
+					(PCGFeatureSwitches::CVarSamplerMemoryThreshold.GetValueOnAnyThread() * FPlatformMemory::GetStats().AvailablePhysical) >= sizeof(FPCGPoint) * NumIterations64))
 			{
 				NumIterations = static_cast<int32>(NumIterations64);
 			}
 			else
 			{
-				if (Context)
-				{
-					PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(FText::FromString(TEXT("Skipped - tried to generate too many points ({0} x {1} x {2})")), NumX, NumY, NumZ));
-				}
-
+				PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("TooManyPoints", "Skipped - tried to generate too many points ({0} x {1} x {2} = {3}).\nAdjust 'pcg.SamplerMemoryThreshold' if needed."), NumX, NumY, NumZ, NumIterations64), Context);
 				return true;
 			}
 		}
