@@ -56,6 +56,7 @@ bool UWorkspaceFactory::ConfigureProperties()
 UObject* UWorkspaceFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
 {
 	UWorkspace* NewWorkspace = NewObject<UWorkspace>(InParent, Class, Name, Flags | RF_Public | RF_Standalone | RF_Transactional | RF_LoadCompleted);
+	ensureMsgf(SchemaClass != nullptr, TEXT("UWorkspaceFactory requires a valid Schema Class"));
 	NewWorkspace->SchemaClass = SchemaClass;
 	NewWorkspace->Guid = FGuid::NewGuid();
 

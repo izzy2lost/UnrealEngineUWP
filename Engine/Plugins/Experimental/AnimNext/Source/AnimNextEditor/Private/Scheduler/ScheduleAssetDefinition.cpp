@@ -4,6 +4,7 @@
 #include "Toolkits/SimpleAssetEditor.h"
 #include "EditorCVars.h"
 #include "IWorkspaceEditorModule.h"
+#include "Workspace/AnimNextWorkspaceFactory.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextAssetDefinitions"
 
@@ -17,7 +18,7 @@ EAssetCommandResult UAssetDefinition_AnimNextSchedule::OpenAssets(const FAssetOp
 		if(CVars::GUseWorkspaceEditor.GetValueOnGameThread())
 		{
 			IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<IWorkspaceEditorModule>("WorkspaceEditor");
-			WorkspaceEditorModule.OpenWorkspaceForObject(Asset, EOpenWorkspaceMethod::Default);
+			WorkspaceEditorModule.OpenWorkspaceForObject(Asset, EOpenWorkspaceMethod::Default, UAnimNextWorkspaceFactory::StaticClass());
 		}
 		else
 		{

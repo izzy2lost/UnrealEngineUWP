@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GraphEditor.h"
 #include "InstancedStruct.h"
+#include "WorkspaceFactory.h"
 #include "Misc/Attribute.h"
 #include "Modules/ModuleInterface.h"
 
@@ -145,7 +146,7 @@ class IWorkspaceEditorModule : public IModuleInterface
 {
 public:
 	// Open an object inside a workspace editor.
-	virtual void OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod) = 0;
+	virtual void OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass = UWorkspaceFactory::StaticClass()) = 0;
 
 	// Register a widget factory method to spawn for a particular class
 	virtual void RegisterObjectDocumentType(const FTopLevelAssetPath& InClassPath, const FObjectDocumentArgs& InArgs) = 0;

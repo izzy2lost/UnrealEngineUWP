@@ -115,7 +115,7 @@ bool FWorkspaceEditorModule::GetExportedAssetsForWorkspace(const FAssetData& InW
 	return FWorkspaceAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FWorkspaceAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
 }
 
-void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod)
+void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass/*= UWorkspaceFactory::StaticClass()*/)
 {
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 
@@ -150,18 +150,21 @@ void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWork
 
 	FWorkspaceEditor* WorkspaceEditor = nullptr;
 
-	auto HandleNewWorkspace = [InObject, &WorkspaceEditor]()
+	auto HandleNewWorkspace = [InObject, &WorkspaceEditor, WorkSpaceFactoryClass]()
 	{
-		UWorkspaceFactory* Factory = NewObject<UWorkspaceFactory>();
+		UWorkspaceFactory* Factory = NewObject<UWorkspaceFactory>(GetTransientPackage(), WorkSpaceFactoryClass.Get());
 		UPackage* Package = CreatePackage(nullptr);
 		FName PackageName = *FPaths::GetBaseFilename(Package->GetName());
-		UWorkspace* NewWorkspace = CastChecked<UWorkspace>(Factory->FactoryCreateNew(UWorkspace::StaticClass(), Package, PackageName, RF_Public | RF_Standalone, NULL, GWarn));
-		NewWorkspace->AddAsset(InObject, false);
-		NewWorkspace->MarkPackageDirty();
-		TSharedRef<FWorkspaceEditor> Editor = MakeShared<FWorkspaceEditor>();
-		Editor->InitEditor(EToolkitMode::Standalone, nullptr, NewWorkspace);
+		if (Factory->ConfigureProperties())
+		{
+			UWorkspace* NewWorkspace = CastChecked<UWorkspace>(Factory->FactoryCreateNew(UWorkspace::StaticClass(), Package, PackageName, RF_Public | RF_Standalone, NULL, GWarn));
+			NewWorkspace->AddAsset(InObject, false);
+			NewWorkspace->MarkPackageDirty();
+			TSharedRef<FWorkspaceEditor> Editor = MakeShared<FWorkspaceEditor>();
+			Editor->InitEditor(EToolkitMode::Standalone, nullptr, NewWorkspace);
 
-		WorkspaceEditor = &Editor.Get();
+			WorkspaceEditor = &Editor.Get();
+		}
 	};
 
 	auto HandleExistingWorkspace = [InObject, &WorkspaceEditor](const FAssetData& InAssetData)

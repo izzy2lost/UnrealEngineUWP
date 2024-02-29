@@ -4,6 +4,7 @@
 #include "AnimNextGraphEditor.h"
 #include "EditorCVars.h"
 #include "IWorkspaceEditorModule.h"
+#include "Workspace/AnimNextWorkspaceFactory.h"
 
 EAssetCommandResult UAssetDefinition_AnimNextGraph::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
@@ -15,7 +16,7 @@ EAssetCommandResult UAssetDefinition_AnimNextGraph::OpenAssets(const FAssetOpenA
 		if(CVars::GUseWorkspaceEditor.GetValueOnGameThread())
 		{
 			IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<IWorkspaceEditorModule>("WorkspaceEditor");
-			WorkspaceEditorModule.OpenWorkspaceForObject(Asset, EOpenWorkspaceMethod::Default);
+			WorkspaceEditorModule.OpenWorkspaceForObject(Asset, EOpenWorkspaceMethod::Default, UAnimNextWorkspaceFactory::StaticClass());
 		}
 		else
 		{
