@@ -81,6 +81,21 @@ public:
 	FRuntimeFloatCurve AccelerationRemappingCurve;
 };
 
+USTRUCT(BlueprintType)
+struct POSESEARCH_API FPoseSearchTrajectory_WorldCollisionResults
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Trajectory Settings")
+	float TimeToLand  = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Trajectory Settings")
+	float LandSpeed  = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Trajectory Settings")
+	FHitResult LandHitResult;
+};
+
 /**
  * Set of functions to help populate a FPoseSearchQueryTrajectory for motion matching.
  */
@@ -110,7 +125,7 @@ public:
 	// if bApplyGravity is true, gravity from the UCharacterMovementComponent will be applied
 	// and, if FloorCollisionsOffset > 0, vertical collision will be performed to every sample of the trajectory to have the samples float over the geometry (by FloorCollisionsOffset)
 	UFUNCTION(BlueprintCallable, Category="Animation|PoseSearch", meta=(WorldContext="WorldContextObject", AutoCreateRefTerm="ActorsToIgnore", AdvancedDisplay="TraceChannel,bTraceComplex,ActorsToIgnore,DrawDebugType,bIgnoreSelf,MaxObstacleHeight,TraceColor,TraceHitColor,DrawTime"))
-	static void HandleTrajectoryWorldCollisions(const UObject* WorldContextObject, const UAnimInstance* AnimInstance, UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, bool bApplyGravity, float FloorCollisionsOffset, FPoseSearchQueryTrajectory& OutTrajectory,
+	static void HandleTrajectoryWorldCollisions(const UObject* WorldContextObject, const UAnimInstance* AnimInstance, UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, bool bApplyGravity, float FloorCollisionsOffset, FPoseSearchQueryTrajectory& OutTrajectory, FPoseSearchTrajectory_WorldCollisionResults& CollisionResult,
 		ETraceTypeQuery TraceChannel, bool bTraceComplex, const TArray<AActor*>& ActorsToIgnore, EDrawDebugTrace::Type DrawDebugType, bool bIgnoreSelf = true, float MaxObstacleHeight = 10000.f, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
 
 	UFUNCTION(BlueprintPure, meta = (BlueprintThreadSafe), Category="Animation|PoseSearch")
