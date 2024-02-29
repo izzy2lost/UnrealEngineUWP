@@ -27,7 +27,7 @@ APCGPartitionActor::APCGPartitionActor(const FObjectInitializer& ObjectInitializ
 
 #if WITH_EDITOR
 	// Setup bounds component
-	BoundsComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoundsComponent"));
+	BoundsComponent = ObjectInitializer.CreateEditorOnlyDefaultSubobject<UBoxComponent>(this, TEXT("BoundsComponent"));
 	BoundsComponent->SetCollisionObjectType(ECC_WorldStatic);
 	BoundsComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
 	BoundsComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -102,6 +102,11 @@ void APCGPartitionActor::Serialize(FArchive& Ar)
 		LocalToOriginal.Reset();
 		for (const auto& It : LocalToOriginalCopy)
 		{
+			if (!ensure(It.Key))
+			{
+				continue;
+			}
+
 			if (!It.Key->HasAnyFlags(RF_Transient))
 			{
 				LocalToOriginal.Add(It);
@@ -157,10 +162,7 @@ void APCGPartitionActor::PostRegisterAllComponents()
 	Super::PostRegisterAllComponents();
 
 #if WITH_EDITOR
-	if (BoundsComponent)
-	{
-		BoundsComponent->SetBoxExtent(GetFixedBounds().GetExtent());
-	}
+	UpdateBoundsComponentExtents();
 #endif // WITH_EDITOR
 
 	// Reset the OriginalToLocal and build it from the local map
@@ -495,11 +497,6 @@ void APCGPartitionActor::RemoveLocalComponent(UPCGComponent* LocalComponent)
 }
 
 #if WITH_EDITOR
-FBox APCGPartitionActor::GetStreamingBounds() const
-{
-	return Super::GetStreamingBounds() + GetFixedBounds();
-}
-
 AActor* APCGPartitionActor::GetSceneOutlinerParent() const
 {
 	if (APCGWorldActor* PCGActor = PCGHelpers::GetPCGWorldActor(GetWorld()))
@@ -529,11 +526,7 @@ void APCGPartitionActor::PostCreation(const FGuid& InGridGUID, uint32 InGridSize
 	}
 
 #if WITH_EDITOR
-	// Since we have infinite bounds in 2D, we just disable the bounds
-	if (BoundsComponent && !bUse2DGrid)
-	{
-		BoundsComponent->SetBoxExtent(GetFixedBounds().GetExtent());
-	}
+	UpdateBoundsComponentExtents();
 #endif // WITH_EDITOR
 
 	RegisterPCG();
@@ -617,6 +610,15 @@ bool APCGPartitionActor::ChangeTransientState(UPCGComponent* OriginalComponent, 
 	}
 
 	return OriginalToLocal.IsEmpty() && LoadedPreviewComponents.IsEmpty();
+}
+
+void APCGPartitionActor::UpdateBoundsComponentExtents()
+{
+	// Disable BoundsComponent if in 2D
+	if (BoundsComponent && !bUse2DGrid)
+	{
+		BoundsComponent->SetBoxExtent(GetFixedBounds().GetExtent());
+	}
 }
 #endif // WITH_EDITOR
 
