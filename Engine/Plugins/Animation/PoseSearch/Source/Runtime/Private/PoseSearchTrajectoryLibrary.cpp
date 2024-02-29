@@ -371,7 +371,7 @@ void UPoseSearchTrajectoryLibrary::PoseSearchGenerateTrajectory(
 	OutTrajectory = InOutTrajectory;
 }
 
-void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisions(const UObject* WorldContextObject, const UAnimInstance* AnimInstance, UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, bool bApplyGravity, float FloorCollisionsOffset, FPoseSearchQueryTrajectory& OutTrajectory,
+void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisions(const UObject* WorldContextObject, const UAnimInstance* AnimInstance, UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, bool bApplyGravity, float FloorCollisionsOffset, FPoseSearchQueryTrajectory& OutTrajectory, FPoseSearchTrajectory_WorldCollisionResults& CollisionResult,
 	ETraceTypeQuery TraceChannel, bool bTraceComplex, const TArray<AActor*>& ActorsToIgnore, EDrawDebugTrace::Type DrawDebugType, bool bIgnoreSelf, float MaxObstacleHeight, FLinearColor TraceColor, FLinearColor TraceHitColor, float DrawTime)
 {
 	OutTrajectory = InTrajectory;
@@ -381,6 +381,7 @@ void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisions(const UObject
 
 	FVector GravityDirection = FVector::ZeroVector;
 	float GravityZ = 0.f;
+	float InitialVelocityZ = 0.0f;
 	if (bApplyGravity && AnimInstance)
 	{
 		if (const ACharacter* Character = Cast<ACharacter>(AnimInstance->GetOwningActor()))
@@ -389,15 +390,18 @@ void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisions(const UObject
 			{
 				GravityZ = MoveComp->GetGravityZ();
 				GravityDirection = MoveComp->GetGravityDirection();
+				InitialVelocityZ = Character->GetVelocity().Z;
 			}
 		}
 	}
+	CollisionResult.TimeToLand = OutTrajectory.Samples.Last().AccumulatedSeconds;
 
 	if (!FMath::IsNearlyZero(GravityZ))
 	{
 		FVector LastImpactPoint;
 		FVector LastImpactNormal;
 		bool bIsLastImpactValid = false;
+		bool bIsFirstFall = true;
 
 		const FVector Gravity = GravityDirection * -GravityZ;
 		float FreeFallAccumulatedSeconds = 0.f;
@@ -430,6 +434,19 @@ void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisions(const UObject
 					bIsLastImpactValid = true;
 
 					Sample.Position = LastImpactPoint + (LastImpactNormal * FloorCollisionsOffset);
+
+					if (bIsFirstFall)
+					{
+						const float InitialHeight = OutTrajectory.GetSampleAtTime(0.0f).Position.Z;
+						const float FinalHeight = Sample.Position.Z;
+						const float FallHeight = FMath::Abs(FinalHeight - InitialHeight);
+
+						bIsFirstFall = false;
+						CollisionResult.TimeToLand = (InitialVelocityZ / -GravityZ) + ((FMath::Sqrt(FMath::Square(InitialVelocityZ) + (2.f * -GravityZ * FallHeight))) / -GravityZ);
+						CollisionResult.LandSpeed = InitialVelocityZ + GravityZ * CollisionResult.TimeToLand;
+						CollisionResult.LandHitResult = HitResult;
+					}
+
 					FreeFallAccumulatedSeconds = 0.f;
 				}
 			}
@@ -450,6 +467,8 @@ void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisions(const UObject
 			}
 		}
 	}
+
+	CollisionResult.LandSpeed = InitialVelocityZ + GravityZ * CollisionResult.TimeToLand;
 }
 
 void UPoseSearchTrajectoryLibrary::GetTrajectorySampleAtTime(UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, float Time, FPoseSearchQueryTrajectorySample& OutTrajectorySample, bool bExtrapolate)
