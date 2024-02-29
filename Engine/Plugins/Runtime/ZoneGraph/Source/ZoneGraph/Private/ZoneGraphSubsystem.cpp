@@ -50,6 +50,8 @@ void UZoneGraphSubsystem::Deinitialize()
 #endif
 
 	bInitialized = false;
+
+	Super::Deinitialize();
 }
 
 void UZoneGraphSubsystem::Tick(float DeltaTime)
