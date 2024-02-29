@@ -332,7 +332,10 @@ FStructView FAvaMaskText3DActorMaterialCollectionHandle::GetMaterialHandleData(
 {
 	if (InParentHandleData)
 	{
-		return InParentHandleData->GroupMaterialData[InSlotIdx];
+		if (ensure(InParentHandleData->GroupMaterialData.Contains(InSlotIdx)))
+		{
+			return InParentHandleData->GroupMaterialData[InSlotIdx];
+		}
 	}
 
 	return nullptr;
@@ -775,7 +778,10 @@ FStructView FAvaMaskAvaTextActorMaterialCollectionHandle::GetMaterialHandleData(
 {
 	if (InParentHandleData)
 	{
-		return InParentHandleData->GroupMaterialData[InSlotIdx];
+		if (ensure(InParentHandleData->GroupMaterialData.Contains(InSlotIdx)))
+		{
+			return InParentHandleData->GroupMaterialData[InSlotIdx];
+		}
 	}
 
 	return nullptr;	

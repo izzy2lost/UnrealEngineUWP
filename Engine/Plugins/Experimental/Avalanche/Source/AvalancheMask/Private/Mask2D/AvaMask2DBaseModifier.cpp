@@ -267,6 +267,7 @@ void UAvaMask2DBaseModifier::OnModifierAdded(EActorModifierCoreEnableReason InRe
 	else
 	{
 		CanvasParamsToLocal();
+		MarkModifierDirty();
 	}
 }
 
