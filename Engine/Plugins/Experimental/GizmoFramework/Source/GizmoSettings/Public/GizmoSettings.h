@@ -8,7 +8,7 @@
 
 #include "GizmoSettings.generated.h"
 
-UCLASS(config = EditorPerProjectUserSettings, defaultconfig, meta = (DisplayName = "New TRS Gizmo"))
+UCLASS(config=EditorPerProjectUserSettings, meta = (DisplayName = "New TRS Gizmo"))
 class GIZMOSETTINGS_API UGizmoSettings : public UDeveloperSettings
 {
 	GENERATED_UCLASS_BODY()
