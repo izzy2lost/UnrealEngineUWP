@@ -91,9 +91,15 @@ void FLiveLinkHubModule::OpenLiveLinkHub() const
 	FString LiveLinkHubPath = FPlatformProcess::GenerateApplicationPath(TEXT("LiveLinkHub"), FApp::GetBuildConfiguration());
 
 	// Validate it exists and fall back to development if it doesn't.
-	if (!IFileManager::Get().FileExists(*LiveLinkHubPath) && FApp::GetBuildConfiguration() != EBuildConfiguration::Development)
+	if (!IFileManager::Get().FileExists(*LiveLinkHubPath))
 	{
 		LiveLinkHubPath = FPlatformProcess::GenerateApplicationPath(TEXT("LiveLinkHub"), EBuildConfiguration::Development);
+
+		// If it still doesn't exist, fall back to the shipping executable.
+		if (!IFileManager::Get().FileExists(*LiveLinkHubPath))
+		{
+			LiveLinkHubPath = FPlatformProcess::GenerateApplicationPath(TEXT("LiveLinkHub"), EBuildConfiguration::Shipping);
+		}
 	}
 
 	const FText LaunchLiveLinkHubErrorTitle = LOCTEXT("LaunchLiveLinkHubErrorTitle", "Failed to Launch LiveLinkhub.");
