@@ -1915,7 +1915,6 @@ FTextureSource::FTextureSource()
 #if WITH_EDITOR
 	  Owner(nullptr),
 	  TornOffTextureClass(ETextureClass::Invalid),
-	  TornOffGammaSpace(EGammaSpace::Invalid),
 #endif
 	  NumLockedMips(0u)
 	, LockState(ELockState::None)
@@ -2290,7 +2289,13 @@ FTextureSource FTextureSource::CopyTornOff() const
 	// Result can't talk to Owner any more, so save info we need :
 	check( Owner != nullptr );
 	check( &(Owner->Source) == this );
-	Result.TornOffGammaSpace = Owner->GetGammaSpace();
+
+	Result.TornOffGammaSpace.SetNumZeroed(NumLayers);
+	for (int32 LayerIndex = 0; LayerIndex < NumLayers; LayerIndex++)
+	{
+		// Make sure we save the gamma space for each layer, as well as with any format adjustments from our GetGammaSpace().
+		Result.TornOffGammaSpace[LayerIndex] = this->GetGammaSpace(LayerIndex);
+	}
 	Result.TornOffTextureClass = Owner->GetTextureClass();
 	return Result;
 }
@@ -2890,8 +2895,15 @@ EGammaSpace FTextureSource::GetGammaSpace(int LayerIndex) const
 	else
 	{
 		// torn off, should have saved TornOffGammaSpace
-		check( TornOffGammaSpace != EGammaSpace::Invalid );
-		return TornOffGammaSpace;
+		check(LayerIndex < TornOffGammaSpace.Num());
+		if (LayerIndex >= TornOffGammaSpace.Num())
+		{
+			UE_LOG(LogTexture, Error, TEXT("Torn off texture source doesn't have gamma copied!"));
+			return EGammaSpace::Linear;
+		}
+
+		check( TornOffGammaSpace[LayerIndex] != EGammaSpace::Invalid );
+		return TornOffGammaSpace[LayerIndex];
 	}
 }
 

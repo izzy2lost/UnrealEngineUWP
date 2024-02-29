@@ -585,8 +585,8 @@ private:
 	/** TextureClass == Owner->GetTextureClass(); a copy is kept here for torn-off **/
 	ETextureClass TornOffTextureClass;
 	/** if Owner != null, check Owner->GetGammaSpace , if it is null, use TornOffGammaSpace
-	* do not check this directly, use GetGammaSpace **/
-	EGammaSpace TornOffGammaSpace;
+	* do not check this directly, use GetGammaSpace. **/
+	TArray<EGammaSpace, TInlineAllocator<1>> TornOffGammaSpace;
 #endif
 	/** The bulk source data. */
 	UE::Serialization::FEditorBulkData BulkData;
