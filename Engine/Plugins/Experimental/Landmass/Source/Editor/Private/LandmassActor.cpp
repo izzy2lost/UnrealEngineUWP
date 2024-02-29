@@ -156,6 +156,11 @@ void ALandmassActor::FindOrSpawnManager()
 		return;
 	}
 
+	if (GetWorld()->WorldType != EWorldType::Editor)
+	{
+		return;
+	}
+
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsOfClass(Cast<UObject>(GetWorld()), ALandmassManagerBase::StaticClass(), FoundActors);
 

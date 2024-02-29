@@ -32,6 +32,12 @@ void ALandmassErosionBrushBase::OnConstruction(const FTransform& Transform)
 void ALandmassErosionBrushBase::SetTargetLandscape(ALandscape* InTargetLandscape)
 {
 #if WITH_EDITOR
+
+	if (GetWorld()->WorldType != EWorldType::Editor)
+	{
+		return;
+	}
+
 	if (OwningLandscape != InTargetLandscape)
 	{
 		if (OwningLandscape)
