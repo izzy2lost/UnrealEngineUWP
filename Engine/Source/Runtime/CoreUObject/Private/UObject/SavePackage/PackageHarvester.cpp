@@ -3,7 +3,9 @@
 
 #include "UObject/SavePackage/PackageHarvester.h"
 
+#include "InstancedReferenceSubobjectHelper.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "UObject/OverridableManager.h"
 #include "UObject/SavePackage/SaveContext.h"
 #include "UObject/SavePackage/SavePackageUtilities.h"
 #include "UObject/UObjectGlobals.h"
@@ -625,6 +627,18 @@ void FPackageHarvester::TryHarvestExportInternal(UObject* InObject)
 	}
 
 	HarvestExport(InObject);
+
+	// Objects that has overridable serialization enabled, needs to separately export their subobject independently of the property serializing it.
+	// This is because it needs to make a difference between the pointer that is overridden vs some properties inside the instanced sub object that are overridden.
+	if (FOverridableManager::Get().IsEnabled(*InObject))
+	{
+		TSet<UObject*> InstancedSubObjects;
+		FFindInstancedReferenceSubobjectHelper::GetInstancedSubObjects(InObject, InstancedSubObjects);
+		for (UObject* InstancedSubObject : InstancedSubObjects)
+		{
+			TryHarvestExportInternal(InstancedSubObject);
+		}
+	}
 }
 
 void FPackageHarvester::TryHarvestImport(TObjectPtr<UObject> InObject)
