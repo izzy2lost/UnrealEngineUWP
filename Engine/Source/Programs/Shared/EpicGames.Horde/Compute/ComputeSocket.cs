@@ -854,7 +854,6 @@ namespace EpicGames.Horde.Compute
 			catch (Exception ex)
 			{
 				_logger.LogInformation(ex, "Error in background send: {Message}", ex.Message);
-				throw;
 			}
 		}
 	}
