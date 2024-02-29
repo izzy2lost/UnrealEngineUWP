@@ -45,21 +45,16 @@ namespace UE::StateTree::PropertyRefHelpers
 					return nullptr;
 				}
 
-				const TArray<FStateTreeExecutionFrame>& ActiveFrames = InstanceDataStorage.GetExecutionState().ActiveFrames;
-				const int32 FrameIndex = ActiveFrames.IndexOfByPredicate([ParentExecutionFrame](const FStateTreeExecutionFrame& Frame)
-				{
-					return Frame.RootState == ParentExecutionFrame->RootState && Frame.StateTree == ParentExecutionFrame->StateTree;
-				});
-
-				if (FrameIndex == INDEX_NONE)
+				const FStateTreeExecutionFrame* ParentFrame = nullptr;		
+				TConstArrayView<FStateTreeExecutionFrame> ActiveFrames = InstanceDataStorage.GetExecutionState().ActiveFrames;
+				const FStateTreeExecutionFrame* Frame = FStateTreeExecutionContext::FindFrame(ParentExecutionFrame->StateTree, ParentExecutionFrame->RootState, ActiveFrames, ParentFrame);
+				
+				if (Frame == nullptr)
 				{
 					return nullptr;
 				}
 
-				const FStateTreeExecutionFrame& Frame = ActiveFrames[FrameIndex];
-				const FStateTreeExecutionFrame* ParentFrame = FrameIndex > 0 ? &ActiveFrames[FrameIndex - 1] : nullptr;
-
-				return GetMutablePtrToProperty<T>(*ReferencedPropertyRef, InstanceDataStorage, Frame, ParentFrame, OutSourceProperty);
+				return GetMutablePtrToProperty<T>(*ReferencedPropertyRef, InstanceDataStorage, *Frame, ParentFrame, OutSourceProperty);
 			}
 			else
 			{
@@ -202,22 +197,17 @@ struct TStateTreePropertyRefExternalHandle
 		}
 
 		FStateTreeInstanceStorage& InstanceStorage = *WeakInstanceStorage.Pin();
+		TConstArrayView<FStateTreeExecutionFrame> ActiveFrames = InstanceStorage.GetExecutionState().ActiveFrames;
 
-		const TArray<FStateTreeExecutionFrame>& ActiveFrames = InstanceStorage.GetExecutionState().ActiveFrames;
-		const int32 FrameIndex = ActiveFrames.IndexOfByPredicate([this](const FStateTreeExecutionFrame& Frame)
-		{
-			return Frame.RootState == RootState && Frame.StateTree == WeakStateTree;
-		});
+		const FStateTreeExecutionFrame* ParentFrame = nullptr;
+		const FStateTreeExecutionFrame* Frame = FStateTreeExecutionContext::FindFrame(WeakStateTree.Get(), RootState, ActiveFrames, ParentFrame);
 
-		if (FrameIndex == INDEX_NONE)
+		if (Frame == nullptr)
 		{
 			return nullptr;
 		}
 
-		const FStateTreeExecutionFrame& Frame = ActiveFrames[FrameIndex];
-		const FStateTreeExecutionFrame* ParentFrame = FrameIndex > 0 ? &ActiveFrames[FrameIndex - 1] : nullptr;
-
-		return UE::StateTree::PropertyRefHelpers::GetMutablePtrToProperty<TRef>(PropertyRef, InstanceStorage, Frame, ParentFrame);
+		return UE::StateTree::PropertyRefHelpers::GetMutablePtrToProperty<TRef>(PropertyRef, InstanceStorage, *Frame, ParentFrame);
 	}
 
 private:

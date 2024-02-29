@@ -75,23 +75,12 @@ void* UStateTreeNodeBlueprintBase::GetMutablePtrToProperty(const FStateTreeBluep
 	check(CachedFrameStateTree && CachedFrameRootState.IsValid());
 
 	TConstArrayView<FStateTreeExecutionFrame> ActiveFrames = InstanceStorage->GetExecutionState().ActiveFrames;
-
-	const int32 CurrentFrameIndex = ActiveFrames.IndexOfByPredicate([this](const FStateTreeExecutionFrame& Frame)
-	{
-		return Frame.StateTree == CachedFrameStateTree && Frame.RootState == CachedFrameRootState;
-	});
-
-	check(CurrentFrameIndex != INDEX_NONE);
-	const FStateTreeExecutionFrame& CurrentFrame = ActiveFrames[CurrentFrameIndex];
-
 	const FStateTreeExecutionFrame* CurrentParentFrame = nullptr;
-	if (CurrentFrameIndex > 0)
-	{
-		CurrentParentFrame = &ActiveFrames[CurrentFrameIndex - 1];
-	}
+	const FStateTreeExecutionFrame* CurrentFrame = FStateTreeExecutionContext::FindFrame(CachedFrameStateTree, CachedFrameRootState, ActiveFrames, CurrentParentFrame);
+	check(CurrentFrame);
 
 	const FProperty* SourceProperty = nullptr;
-	void* PropertyAddress = UE::StateTree::PropertyRefHelpers::GetMutablePtrToProperty<void>(PropertyRef, *InstanceStorage, CurrentFrame, CurrentParentFrame, &SourceProperty);
+	void* PropertyAddress = UE::StateTree::PropertyRefHelpers::GetMutablePtrToProperty<void>(PropertyRef, *InstanceStorage, *CurrentFrame, CurrentParentFrame, &SourceProperty);
 	if (PropertyAddress && UE::StateTree::PropertyRefHelpers::IsBlueprintPropertyRefCompatibleWithProperty(*SourceProperty, &PropertyRef))
 	{
 		OutSourceProperty = const_cast<FProperty*>(SourceProperty);

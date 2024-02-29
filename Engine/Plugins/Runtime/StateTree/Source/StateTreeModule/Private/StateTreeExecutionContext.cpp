@@ -936,6 +936,27 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(FStateTreeInstanceSto
 	return {};
 }
 
+const FStateTreeExecutionFrame* FStateTreeExecutionContext::FindFrame(const UStateTree* StateTree, FStateTreeStateHandle RootState, TConstArrayView<FStateTreeExecutionFrame> Frames, const FStateTreeExecutionFrame*& OutParentFrame)
+{
+	const int32 FrameIndex = Frames.IndexOfByPredicate([&StateTree, RootState](const FStateTreeExecutionFrame& Frame)
+	{
+		return Frame.StateTree == StateTree && Frame.RootState == RootState;
+	});
+
+	if(FrameIndex == INDEX_NONE)
+	{
+		OutParentFrame = nullptr;
+		return nullptr;
+	}
+
+	if (FrameIndex > 0)
+	{
+		OutParentFrame = &Frames[FrameIndex - 1];
+	}
+
+	return &Frames[FrameIndex];
+}
+
 bool FStateTreeExecutionContext::IsHandleSourceValid(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const
 {
 	// Checks that the instance data is valid for specific handle types.
@@ -2409,15 +2430,12 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 	for (const FStateTreeTransitionRequest& Request : InstanceData.GetTransitionRequests())
 	{
 		// Find frame associated with the request.
-		const int32 FrameIndex = Exec.ActiveFrames.IndexOfByPredicate([&Request](const FStateTreeExecutionFrame& Frame)
-		{
-			return Frame.StateTree == Request.SourceStateTree && Frame.RootState == Request.SourceRootState;
-		});
+		const FStateTreeExecutionFrame* ParentFrame = nullptr;
+		const FStateTreeExecutionFrame* CurrentFrame = FindFrame(Request.SourceStateTree, Request.SourceRootState, Exec.ActiveFrames, ParentFrame);
 
-		if (FrameIndex != INDEX_NONE)
+		if (CurrentFrame)
 		{
-			const FStateTreeExecutionFrame& CurrentFrame = Exec.ActiveFrames[FrameIndex];
-			if (RequestTransition(CurrentFrame, Request.TargetState, Request.Priority))
+			if (RequestTransition(*CurrentFrame, Request.TargetState, Request.Priority))
 			{
 				NextTransitionSource = FStateTreeTransitionSource(EStateTreeTransitionSourceType::ExternalRequest, Request.TargetState, Request.Priority);
 			}
