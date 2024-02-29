@@ -1658,7 +1658,11 @@ public:
 	void NotifySubObjectDestroyed(UObject* SubObject);
 
 	/** Called when an actor is renamed. */
+	UE_DEPRECATED(5.4, "Replaced by overload that takes the PreviousOuter")
 	ENGINE_API virtual void NotifyActorRenamed(AActor* Actor, FName PreviousName);
+	
+	/** Called when an actor is renamed. */
+	ENGINE_API virtual void NotifyActorRenamed(AActor* Actor, UObject* PreviousOuter, FName PreviousName);
 
 	ENGINE_API void RemoveNetworkActor(AActor* Actor);
 
@@ -1930,6 +1934,12 @@ public:
 
 	/** Sends a message to a client to destroy an actor to the client.  The actor may already be destroyed locally. */
 	ENGINE_API int64 SendDestructionInfo(UNetConnection* Connection, FActorDestructionInfo* DestructionInfo);
+
+	/**
+	 * Creates and sends a destruction info with the LevelUnloaded reason, only if ThisActor is dormant or recently dormant on Connection.
+	 * Returns true if the destruction info was sent, false if the actor isn't replicated or dormant/recently dormant.
+	 */
+	bool SendDestructionInfoForLevelUnloadIfDormant(AActor* ThisActor, UNetConnection* Connection);
 
 protected:
 

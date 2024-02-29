@@ -1780,6 +1780,26 @@ void UNetConnection::UpdateLevelVisibilityInternal(const FUpdateLevelVisibilityL
 			}
 		}
 
+		// If the server is not sending override levels to clients, clients won't have another way to destroy spawned,
+		// dormant actors in streaming levels that go invisible. Send them a destruction info so that they clean it up.
+		if (!UE::Net::Private::SerializeNewActorOverrideLevel)
+		{
+			const ULevelStreaming* StreamingLevel = FLevelUtils::FindStreamingLevel(GetWorld(), LevelVisibility.PackageName);
+			const ULevel* Level = StreamingLevel ? StreamingLevel->GetLoadedLevel() : nullptr;
+
+			if (Level)
+			{
+				for (AActor* ThisActor : Level->Actors)
+				{
+					// Only do this for spawned actors
+					if (ThisActor && !ThisActor->IsNetStartupActor())
+					{
+						Driver->SendDestructionInfoForLevelUnloadIfDormant(ThisActor, this);
+					}
+				}
+			}
+		}
+
 		UpdateCachedLevelVisibility(LevelVisibility.PackageName);
 	}
 }

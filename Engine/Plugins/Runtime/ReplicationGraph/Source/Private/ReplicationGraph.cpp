@@ -73,6 +73,9 @@ namespace UE::Net::Private
 	constexpr int32 RepGraphDormantActorsListReservedBuffer = 2048;
 	// TInlineAllocator's size is optimized for default DestroyDormantDynamicActorsCellTTL value
 	constexpr int32 RepGraphDormancyNodesInlineBufferSize = 200;
+
+	int32 CVar_RepGraph_HandleDynamicActorRename = 0;
+	static FAutoConsoleVariableRef CVarRepGraphHandleDynamicActorRename(TEXT("Net.RepGraph.HandleDynamicActorRename"), CVar_RepGraph_HandleDynamicActorRename, TEXT("If nonzero, when a dynamic actor's outer/level changes, repgraph will update its cached level information."));
 }
 
 int32 CVar_RepGraph_Pause = 0;
@@ -811,6 +814,17 @@ void UReplicationGraph::RouteRemoveNetworkActorToNodes(const FNewReplicatedActor
 	}
 }
 
+void UReplicationGraph::RouteRenameNetworkActorToNodes(const FRenamedReplicatedActorInfo& ActorInfo)
+{
+	QUICK_SCOPE_CYCLE_COUNTER(UReplicationGraph_RouteRenameNetworkActorToNodes);
+	
+	// The base implementation just routes to every global node. Subclasses will want a more direct routing function where possible.
+	for (UReplicationGraphNode* Node : GlobalGraphNodes)
+	{
+		Node->NotifyActorRenamed(ActorInfo);
+	}
+}
+
 void UReplicationGraph::ForceNetUpdate(AActor* Actor)
 {
 	if (FGlobalActorReplicationInfo* RepInfo = GlobalActorReplicationInfoMap.Find(Actor))
@@ -964,6 +978,32 @@ void UReplicationGraph::NotifyActorDormancyChange(AActor* Actor, ENetDormancy Ol
 		{
 			ConnectionManager->SetActorNotDormantOnConnection(Actor);
 		}
+	}
+}
+
+void UReplicationGraph::NotifyActorRenamed(AActor* Actor, UObject* PreviousOuter, FName PreviousName)
+{
+	QUICK_SCOPE_CYCLE_COUNTER(UReplicationGraph_NotifyActorRenamed);
+	CSV_CUSTOM_STAT(ReplicationGraph, NumActorRenames, 1, ECsvCustomStatOp::Accumulate);
+
+	if (!IsActorValidForReplication(Actor))
+	{
+		UE_LOG(LogReplicationGraph, Warning, TEXT("UReplicationGraph::NotifyActorRenamed %s. Actor invalid for replication."), *GetFullNameSafe(Actor));
+		return;
+	}
+
+	const bool bIsActorDynamic = !Actor->IsFullNameStableForNetworking();
+
+	if (UE::Net::Private::CVar_RepGraph_HandleDynamicActorRename && bIsActorDynamic)
+	{
+		ULevel* PreviousLevel = Cast<ULevel>(PreviousOuter);
+		FName PreviousStreamingLevelName = (PreviousLevel && PreviousLevel->IsPersistentLevel() == false) ? PreviousLevel->GetOutermost()->GetFName() : NAME_None;
+
+		// Fix up dependencies in global list
+		GlobalActorReplicationInfoMap.NotifyActorRenamed(Actor, PreviousStreamingLevelName);
+
+		FRenamedReplicatedActorInfo RenameInfo(Actor, PreviousStreamingLevelName);
+		RouteRenameNetworkActorToNodes(RenameInfo);
 	}
 }
 
@@ -3354,6 +3394,20 @@ bool FStreamingLevelActorListCollection::RemoveActorFast(const FNewReplicatedAct
 	return bRemovedSomething;
 }
 
+bool FStreamingLevelActorListCollection::RemoveActorFromLevelFast(AActor* Actor, FName LevelName)
+{
+	bool bRemovedSomething = false;
+	for (FStreamingLevelActors& StreamingList : StreamingLevelLists)
+	{
+		if (StreamingList.StreamingLevelName == LevelName)
+		{
+			bRemovedSomething = StreamingList.ReplicationActorList.RemoveFast(Actor);
+			break;
+		}
+	}
+	return bRemovedSomething;
+}
+
 void FStreamingLevelActorListCollection::Reset()
 {
 	for (FStreamingLevelActors& StreamingList : StreamingLevelLists)
@@ -3505,6 +3559,17 @@ bool UReplicationGraphNode_ActorList::NotifyRemoveNetworkActor(const FNewReplica
 	else
 	{
 		bRemovedSomething = StreamingLevelCollection.RemoveActor(ActorInfo, bWarnIfNotFound, this);
+	}
+
+	return bRemovedSomething;
+}
+
+bool UReplicationGraphNode_ActorList::NotifyActorRenamed(const FRenamedReplicatedActorInfo& ActorInfo, bool bWarnIfNotFound)
+{
+	const bool bRemovedSomething = NotifyRemoveNetworkActor(ActorInfo.OldActorInfo, bWarnIfNotFound);
+	if (bRemovedSomething)
+	{
+		NotifyAddNetworkActor(ActorInfo.NewActorInfo);
 	}
 
 	return bRemovedSomething;
@@ -3727,6 +3792,17 @@ bool UReplicationGraphNode_ActorListFrequencyBuckets::NotifyRemoveNetworkActor(c
 	return bRemovedSomething;
 }
 	
+bool UReplicationGraphNode_ActorListFrequencyBuckets::NotifyActorRenamed(const FRenamedReplicatedActorInfo& ActorInfo, bool bWarnIfNotFound)
+{
+	const bool bRemovedSomething = NotifyRemoveNetworkActor(ActorInfo.OldActorInfo, bWarnIfNotFound);
+	if (bRemovedSomething)
+	{
+		NotifyAddNetworkActor(ActorInfo.NewActorInfo);
+	}
+
+	return bRemovedSomething;
+}
+
 void UReplicationGraphNode_ActorListFrequencyBuckets::NotifyResetAllNetworkActors()
 {
 	for (FActorRepListRefView& List : NonStreamingCollection)
@@ -4676,6 +4752,19 @@ bool UReplicationGraphNode_ConnectionDormancyNode::NotifyRemoveNetworkActor(cons
 	return RemovedStreamingLevelActorListCollection.RemoveActorFast(ActorInfo, this);
 }
 
+bool UReplicationGraphNode_ConnectionDormancyNode::NotifyActorRenamed(const FRenamedReplicatedActorInfo& ActorInfo, bool bWarnIfNotFound)
+{
+	bool bMovedSomething = Super::NotifyActorRenamed(ActorInfo, bWarnIfNotFound);
+
+	const bool bRemovedSomething = RemovedStreamingLevelActorListCollection.RemoveActorFromLevelFast(ActorInfo.NewActorInfo.Actor, ActorInfo.OldActorInfo.StreamingLevelName);
+	if (bRemovedSomething)
+	{
+		RemovedStreamingLevelActorListCollection.AddActor(ActorInfo.NewActorInfo);
+	}
+
+	return bMovedSomething || bRemovedSomething;
+}
+
 void UReplicationGraphNode_ConnectionDormancyNode::NotifyResetAllNetworkActors()
 {
 	Super::NotifyResetAllNetworkActors();
@@ -4808,6 +4897,30 @@ void UReplicationGraphNode_DormancyNode::RemoveDormantActor(const FNewReplicated
 		ConnectionNode->NotifyRemoveNetworkActor(ActorInfo, false);
 	};
 	CallFunctionOnValidConnectionNodes(RemoveActorFunction);
+}
+
+void UReplicationGraphNode_DormancyNode::RenameDormantActor(const FRenamedReplicatedActorInfo& ActorInfo)
+{
+	// Set up a FNewReplicatedActorInfo with the old level name so that the remove can find the actor
+	Super::RemoveNetworkActorFast(ActorInfo.OldActorInfo);
+
+	auto RemoveActorFunction = [ActorInfo](UReplicationGraphNode_ConnectionDormancyNode* ConnectionNode)
+	{
+		// Don't warn if not found, the node may have removed the actor itself. Not worth the extra bookkeeping to skip the call.
+		ConnectionNode->NotifyRemoveNetworkActor(ActorInfo.OldActorInfo, false);
+	};
+	CallFunctionOnValidConnectionNodes(RemoveActorFunction);
+
+
+	// Add using new outer
+	Super::NotifyAddNetworkActor(ActorInfo.NewActorInfo);
+
+	auto AddActorFunction = [&ActorInfo](UReplicationGraphNode_ConnectionDormancyNode* ConnectionNode)
+	{
+        QUICK_SCOPE_CYCLE_COUNTER(ConnectionDormancyNode_NotifyAddNetworkActor);
+		ConnectionNode->NotifyAddNetworkActor(ActorInfo.NewActorInfo);
+	};
+	CallFunctionOnValidConnectionNodes(AddActorFunction);
 }
 
 void UReplicationGraphNode_DormancyNode::GatherActorListsForConnection(const FConnectionGatherActorListParameters& Params)
@@ -5019,6 +5132,23 @@ void UReplicationGraphNode_GridCell::RemoveDynamicActor(const FNewReplicatedActo
 	GetDynamicNode()->NotifyRemoveNetworkActor(ActorInfo);
 }
 
+void UReplicationGraphNode_GridCell::RenameStaticActor(const FRenamedReplicatedActorInfo& ActorInfo, bool bWasAddedAsDormantActor)
+{
+	if (bWasAddedAsDormantActor)
+	{
+		GetDormancyNode()->RenameDormantActor(ActorInfo);
+	}
+	else
+	{	
+		Super::NotifyActorRenamed(ActorInfo);
+	}
+}
+
+void UReplicationGraphNode_GridCell::RenameDynamicActor(const FRenamedReplicatedActorInfo& ActorInfo)
+{
+	GetDynamicNode()->NotifyActorRenamed(ActorInfo);
+}
+
 void UReplicationGraphNode_GridCell::ConditionalCopyDormantActors(FActorRepListRefView& FromList, UReplicationGraphNode_DormancyNode* ToNode)
 {
 	if (GraphGlobals.IsValid())
@@ -5137,6 +5267,12 @@ bool UReplicationGraphNode_GridSpatialization2D::NotifyRemoveNetworkActor(const 
 	return false;
 }
 
+bool UReplicationGraphNode_GridSpatialization2D::NotifyActorRenamed(const FRenamedReplicatedActorInfo& ActorInfo, bool bWarnIfNotFound)
+{
+	ensureAlwaysMsgf(false, TEXT("UReplicationGraphNode_GridSpatialization2D::NotifyActorRenamed should not be called directly"));
+	return false;
+}
+
 void UReplicationGraphNode_GridSpatialization2D::AddActor_Dormancy(const FNewReplicatedActorInfo& ActorInfo, FGlobalActorReplicationInfo& ActorRepInfo)
 {
 	UE_CLOG(CVar_RepGraph_LogActorRemove>0, LogReplicationGraph, Display, TEXT("UReplicationGraphNode_GridSpatialization2D::AddActor_Dormancy %s on %s"), *ActorInfo.Actor->GetFullName(), *GetPathName());
@@ -5186,6 +5322,22 @@ void UReplicationGraphNode_GridSpatialization2D::RemoveActor_Dormancy(const FNew
 		// will completely remove the Actor from either the Static or Dynamic list appropriately.
 		// Therefore, it should be safe to call RemoveAll and not worry about trying to track individual delegate handles.
 		ActorRepInfo.Events.DormancyChange.RemoveAll(this);
+	}
+}
+
+void UReplicationGraphNode_GridSpatialization2D::RenameActor_Dormancy(const FRenamedReplicatedActorInfo& ActorInfo)
+{
+	if (GraphGlobals.IsValid())
+	{
+		FGlobalActorReplicationInfo& ActorRepInfo = GraphGlobals->GlobalActorReplicationInfoMap->Get(ActorInfo.NewActorInfo.Actor);
+		if (ActorRepInfo.bWantsToBeDormant)
+		{
+			RenameActor_Static(ActorInfo);
+		}
+		else
+		{
+			RenameActor_Dynamic(ActorInfo);
+		}
 	}
 }
 
@@ -5324,6 +5476,61 @@ void UReplicationGraphNode_GridSpatialization2D::RemoveActorInternal_Static(cons
 					ensureMsgf(AllActors.Contains(ActorInfo.Actor) == false, TEXT("Actor still in a node after removal!. %s. Removal Location: %s"), *N->GetPathName(), *ActorRepInfo.WorldLocation.ToString());
 				}
 			}
+		}
+	}
+}
+
+void UReplicationGraphNode_GridSpatialization2D::RenameActor_Static(const FRenamedReplicatedActorInfo& ActorInfo)
+{
+	FCachedStaticActorInfo* StaticFoundInfo = StaticSpatializedActors.Find(ActorInfo.NewActorInfo.Actor);
+	if (StaticFoundInfo)
+	{
+		StaticFoundInfo->ActorInfo.StreamingLevelName = ActorInfo.NewActorInfo.StreamingLevelName;
+	}
+	else
+	{
+		UE_LOG(LogReplicationGraph, Warning, TEXT("UReplicationGraphNode_GridSpatialization2D::RenameActor_Static attempted rename %s from static list but it was not there."), *GetActorRepListTypeDebugString(ActorInfo.NewActorInfo.Actor));
+		FCachedDynamicActorInfo* DynamicFoundInfo = DynamicSpatializedActors.Find(ActorInfo.NewActorInfo.Actor);
+		if (DynamicFoundInfo)
+		{
+			DynamicFoundInfo->ActorInfo.StreamingLevelName = ActorInfo.NewActorInfo.StreamingLevelName;
+			UE_LOG(LogReplicationGraph, Warning, TEXT("   It was in DynamicSpatializedActors!"));
+		}
+	}
+
+	// Remove it from the actual node it should still be in. Note that even if the actor did move in between this and the last replication frame, the FGlobalActorReplicationInfo would not have been updated
+	FGlobalActorReplicationInfo& GlobalInfo = GraphGlobals->GlobalActorReplicationInfoMap->Get(ActorInfo.NewActorInfo.Actor);
+	GetGridNodesForActor(ActorInfo.NewActorInfo.Actor, GlobalInfo, GatheredNodes);
+	for (UReplicationGraphNode_GridCell* Node : GatheredNodes)
+	{
+		Node->RenameStaticActor(ActorInfo, GlobalInfo.bWantsToBeDormant);
+	}
+}
+
+void UReplicationGraphNode_GridSpatialization2D::RenameActor_Dynamic(const FRenamedReplicatedActorInfo& ActorInfo)
+{
+	FCachedDynamicActorInfo* DynamicFoundInfo = DynamicSpatializedActors.Find(ActorInfo.NewActorInfo.Actor);
+	if (DynamicFoundInfo)
+	{
+		if (DynamicFoundInfo->CellInfo.IsValid())
+		{
+			GetGridNodesForActor(ActorInfo.NewActorInfo.Actor, DynamicFoundInfo->CellInfo, GatheredNodes);
+			for (UReplicationGraphNode_GridCell* Node : GatheredNodes)
+			{
+				Node->RenameDynamicActor(ActorInfo);
+			}
+		}
+		DynamicFoundInfo->ActorInfo.StreamingLevelName = ActorInfo.NewActorInfo.StreamingLevelName;
+	}
+	else
+	{
+		UE_LOG(LogReplicationGraph, Warning, TEXT("UReplicationGraphNode_GridSpatialization2D::RenameActor_Dynamic attempted rename %s from streaming dynamic list but it was not there."), *GetActorRepListTypeDebugString(ActorInfo.NewActorInfo.Actor));
+		
+		FCachedStaticActorInfo* StaticFoundInfo = StaticSpatializedActors.Find(ActorInfo.NewActorInfo.Actor);
+		if (StaticFoundInfo)
+		{
+			StaticFoundInfo->ActorInfo.StreamingLevelName = ActorInfo.NewActorInfo.StreamingLevelName;
+			UE_LOG(LogReplicationGraph, Warning, TEXT("   It was in StaticSpatializedActors!"));
 		}
 	}
 }
