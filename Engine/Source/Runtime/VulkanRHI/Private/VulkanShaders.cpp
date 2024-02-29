@@ -1003,7 +1003,7 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 	}
 
 	CompileTypesUsageID();
-	GenerateHash(ImmutableSamplers);
+	GenerateHash(ImmutableSamplers, bIsCompute ? VK_PIPELINE_BIND_POINT_COMPUTE : VK_PIPELINE_BIND_POINT_GRAPHICS);
 
 	// If we are consolidating and no uniforms are present in the shader, then strip the empty set data
 	if (bConsolidateAllIntoOneSet)
