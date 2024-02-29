@@ -71,8 +71,15 @@ namespace Jupiter.Implementation
 
 		public Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId)
 		{
-			string path = GetFilesystemPath(blobId);
-			return GetBackend(ns).GetMetadata(path);
+			try
+			{
+				string path = GetFilesystemPath(blobId);
+				return GetBackend(ns).GetMetadata(path);
+			}
+			catch (FileNotFoundException)
+			{
+				throw new BlobNotFoundException(ns, blobId);
+			}
 		}
 
 		public Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
