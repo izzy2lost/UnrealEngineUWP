@@ -34,6 +34,7 @@ TAutoConsoleVariable<int32> CVarPathTracing(
 #include "SkyAtmosphereRendering.h"
 #include <limits>
 #include "PathTracingSpatialTemporalDenoising.h"
+#include "PostProcess/DiaphragmDOF.h"
 #include "EnvironmentComponentsFlags.h"
 
 TAutoConsoleVariable<int32> CVarPathTracingExperimental(
@@ -646,10 +647,10 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 		PPV.DepthOfFieldFocalDistance > 0 &&
 		PPV.DepthOfFieldFstop > 0)
 	{
-		const float FocalLengthInCM = 0.05f * PPV.DepthOfFieldSensorWidth * View.ViewMatrices.GetProjectionMatrix().M[0][0];
-		PathTracingData.CameraFocusDistance = PPV.DepthOfFieldFocalDistance;
-		PathTracingData.CameraLensRadius.Y = 0.5f * FocalLengthInCM / PPV.DepthOfFieldFstop;
-		PathTracingData.CameraLensRadius.X = PathTracingData.CameraLensRadius.Y / FMath::Clamp(PPV.DepthOfFieldSqueezeFactor, 1.0f, 2.0f);
+		DiaphragmDOF::FPhysicalCocModel CocModel;
+		CocModel.Compile(View);
+		PathTracingData.CameraFocusDistance = CocModel.FocusDistance;
+		PathTracingData.CameraLensRadius    = CocModel.GetLensRadius();
 	}
 
 	// Merge all volume flags into one uint

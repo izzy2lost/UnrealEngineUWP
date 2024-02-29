@@ -22,14 +22,29 @@ namespace DiaphragmDOF
 // Whether DOF is enabled for the requested view.
 bool IsEnabled(const FViewInfo& View);
 
-float ComputeFocalLengthFromFov(const FSceneView& View);
 FVector4f CircleDofHalfCoc(const FViewInfo& View);
 
 /** Physically based circle of confusion computation model. */
 struct FPhysicalCocModel
 {
-	// Unclamped resolution less background coc radius.
+	// Size of the sensor, in unreal unit.
+	float SensorWidth;
+	float SensorHeight;
+
+	// Aspect ratio of the croped frame being rendered.
+	float RenderingAspectRatio;
+
+	// Focal length of the lens in unreal unit.
+	float VerticalFocalLength;
+	// float HorizontalFocalLength = VerticalFocalLength / Squeeze;
+
+	// Apperture diameter in fstop
+	float FStops; // = VerticalFocalLength / ApartureDiameter.
+
+	// Unclamped background vertical coc radius, in horizontal ViewportUV unit.
 	float InfinityBackgroundCocRadius;
+	// HorizontalInfinityBackgroundCocRadius = InfinityBackgroundCocRadius / Squeeze
+	// VerticalInfinityBackgroundCocRadius = InfinityBackgroundCocRadius
 
 	/** Indicates whether a dynamic offset dependent on scene depth should be computed for every pixel */
 	bool bEnableDynamicOffset;
@@ -46,7 +61,7 @@ struct FPhysicalCocModel
 	// Resolution less maximal background coc radius.
 	float MaxBackgroundCocRadius;
 
-	// Focus distance.
+	// Focus distance in unreal unit.
 	float FocusDistance;
 
 	// SqueezeFactor = VerticalFocalDistance / HorizontalFocalDistance
@@ -59,6 +74,9 @@ struct FPhysicalCocModel
 	/** Compile the coc model from a view. */
 	void Compile(const FViewInfo& View);
 	
+	/** Returns the lens radius in unreal unit from which the path traced ray should be traced from. */
+	FVector2f GetLensRadius() const;
+
 	/** Returns the CocRadius in half res pixels for given scene depth (in world unit).
 	 *
 	 * Notes: Matches Engine/Shaders/Private/DiaphragmDOF/Common.ush's SceneDepthToCocRadius().
