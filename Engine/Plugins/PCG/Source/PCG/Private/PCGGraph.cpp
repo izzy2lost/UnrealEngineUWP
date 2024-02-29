@@ -1764,7 +1764,7 @@ void UPCGGraphInstance::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 		// No need to refresh if it is the same graph
 		if (Graph != PreGraphCache)
 		{
-			RefreshParameters(EPCGGraphParameterEvent::GraphChanged);
+			OnGraphParametersChanged(Graph, EPCGGraphParameterEvent::GraphChanged, NAME_None);
 		}
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FPCGOverrideInstancedPropertyBag, PropertiesIDsOverridden))
