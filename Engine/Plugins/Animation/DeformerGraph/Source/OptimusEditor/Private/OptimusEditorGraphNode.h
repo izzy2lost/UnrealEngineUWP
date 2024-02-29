@@ -44,6 +44,7 @@ public:
 	FOptimusNodePinExpansionChanged& OnNodePinExpansionChanged() { return NodePinExpansionChanged; }
 	
 	// UEdGraphNode overrides
+	bool CanDuplicateNode() const override;
 	bool CanUserDeleteNode() const override;
 	FText GetNodeTitle(ENodeTitleType::Type InTitleType) const override;
 	void GetNodeContextMenuActions(UToolMenu* InMenu, UGraphNodeContextMenuContext* InContext) const override;

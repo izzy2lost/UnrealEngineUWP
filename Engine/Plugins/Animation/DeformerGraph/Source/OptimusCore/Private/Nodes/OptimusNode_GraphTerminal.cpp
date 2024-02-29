@@ -76,16 +76,9 @@ void UOptimusNode_GraphTerminal::ConstructNode()
 	case EOptimusTerminalType::Unknown:
 		checkNoEntry();
 	}
-
-	SubscribeToOwningGraph();
 }
 
-void UOptimusNode_GraphTerminal::PostLoad()
-{
-	Super::PostLoad();
 
-	SubscribeToOwningGraph();
-}
 
 void UOptimusNode_GraphTerminal::BeginDestroy()
 {
@@ -149,9 +142,15 @@ UOptimusComponentSourceBinding* UOptimusNode_GraphTerminal::GetDefaultComponentB
 	return ReferenceNode->GetDefaultComponentBinding(PinCounterpart.TraversalContext);
 }
 
+void UOptimusNode_GraphTerminal::InitializeTransientData()
+{
+	OwningGraph = Cast<UOptimusNodeSubGraph>(GetOwningGraph());
+	SubscribeToOwningGraph();
+}
+
 void UOptimusNode_GraphTerminal::SubscribeToOwningGraph()
 {
-	if (ensure(!OwningGraph->GetOnBindingArrayPasted().IsBoundToObject(this)))
+	if (ensure(OwningGraph.IsValid()) && ensure(!OwningGraph->GetOnBindingArrayPasted().IsBoundToObject(this)))
 	{
 		OwningGraph->GetOnBindingArrayPasted().AddUObject(this, &UOptimusNode_GraphTerminal::RecreateBindingPins);
 		OwningGraph->GetOnBindingValueChanged().AddUObject(this, &UOptimusNode_GraphTerminal::SyncPinsToBindings);

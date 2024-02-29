@@ -440,6 +440,24 @@ bool FOptimusEditorClipboard::ProcessPostCreateObject(UObject* InRootOuter, UObj
 		{
 			UOptimusNodeSubGraph* SubGraph = Cast<UOptimusNodeSubGraph>(InNewObject);
 
+			// Objects created by the subgraph needs to init their transient data as well
+			TQueue<UOptimusNodeGraph*> SubGraphQueue;
+			SubGraphQueue.Enqueue(SubGraph);
+			UOptimusNodeGraph* WorkingSubGraph;
+			while(SubGraphQueue.Dequeue(WorkingSubGraph))
+			{
+				for (UOptimusNode* Node : WorkingSubGraph->GetAllNodes())
+				{
+					Node->InitializeTransientData();
+				}
+
+				for (UOptimusNodeGraph* SubGraphToAdd : WorkingSubGraph->GetGraphs())
+				{
+					SubGraphQueue.Enqueue(SubGraphToAdd);
+				}
+			}
+
+			
 			return Graph->AddGraphDirect(SubGraph, INDEX_NONE);
 		}
 	}

@@ -100,7 +100,7 @@ UOptimusActionStack* UOptimusDeformer::GetActionStack()
 UOptimusNodeGraph* UOptimusDeformer::AddSetupGraph()
 {
 	FOptimusNodeGraphAction_AddGraph* AddGraphAction = 
-		new FOptimusNodeGraphAction_AddGraph(this, EOptimusNodeGraphType::Setup, UOptimusNodeGraph::SetupGraphName, 0);
+		new FOptimusNodeGraphAction_AddGraph(GetCollectionPath(), EOptimusNodeGraphType::Setup, UOptimusNodeGraph::SetupGraphName, 0);
 
 	if (GetActionStack()->RunAction(AddGraphAction))
 	{
@@ -121,7 +121,7 @@ UOptimusNodeGraph* UOptimusDeformer::AddTriggerGraph(const FString &InName)
 	}
 
 	FOptimusNodeGraphAction_AddGraph* AddGraphAction =
-	    new FOptimusNodeGraphAction_AddGraph(this, EOptimusNodeGraphType::ExternalTrigger, *InName, INDEX_NONE);
+	    new FOptimusNodeGraphAction_AddGraph(GetCollectionPath(), EOptimusNodeGraphType::ExternalTrigger, *InName, INDEX_NONE);
 
 	if (GetActionStack()->RunAction(AddGraphAction))
 	{
@@ -150,21 +150,24 @@ UOptimusNodeGraph* UOptimusDeformer::GetUpdateGraph() const
 
 bool UOptimusDeformer::RemoveGraph(UOptimusNodeGraph* InGraph)
 {
-	FOptimusCompoundAction *Action = new FOptimusCompoundAction(TEXT("Remove Graph"));
-
 	if (UOptimusNodeSubGraph* SubGraph = Cast<UOptimusNodeSubGraph>(InGraph))
 	{
 		if (UOptimusNode* Node = GetSubGraphReferenceNode(SubGraph))
 		{
+			FOptimusActionScope ActionScope(*GetActionStack(), TEXT("Remove SubGraph"));
 			// Remove node also triggers the removal of the graph
-			Node->GetOwningGraph()->RemoveNodesToAction(Action, {Node} );
-			return GetActionStack()->RunAction(Action);
+			Node->GetOwningGraph()->RemoveNode(Node);
+			return true;
 		}
+		
+		return false;
 	}
+
+	FOptimusActionScope ActionScope(*GetActionStack(), TEXT("Remove Graph"));
+	InGraph->RemoveNodes(InGraph->GetAllNodes());
+	GetActionStack()->RunAction<FOptimusNodeGraphAction_RemoveGraph>(InGraph);
 	
-	Action->AddSubAction<FOptimusNodeGraphAction_RemoveGraph>(InGraph);
-	
-    return GetActionStack()->RunAction(Action);
+	return true;
 }
 
 UOptimusNode* UOptimusDeformer::GetSubGraphReferenceNode(const UOptimusNodeSubGraph* InSubGraph) const
@@ -260,25 +263,25 @@ bool UOptimusDeformer::RemoveVariable(
 		UE_LOG(LogOptimusCore, Error, TEXT("Variable not owned by this deformer."));
 		return false;
 	}
-
-	FOptimusCompoundAction* Action = new FOptimusCompoundAction(TEXT("Remove Variable"));
 	
-	TMap<const UOptimusNodeGraph*, TArray<UOptimusNode*>> NodesByGraph;
+	TMap<UOptimusNodeGraph*, TArray<UOptimusNode*>> NodesByGraph;
 	for (UOptimusNode* Node: GetNodesUsingVariable(InVariableDesc))
 	{
 		UOptimusNode_GetVariable* VariableNode = Cast<UOptimusNode_GetVariable>(Node);
 		NodesByGraph.FindOrAdd(VariableNode->GetOwningGraph()).Add(VariableNode);
 	}
 
-	for (const TTuple<const UOptimusNodeGraph*, TArray<UOptimusNode*>>& GraphNodes: NodesByGraph)
+	FOptimusActionScope ActionScope(*GetActionStack(), TEXT("Remove Variable"));
+	
+	for (const TTuple<UOptimusNodeGraph*, TArray<UOptimusNode*>>& GraphNodes: NodesByGraph)
 	{
-		const UOptimusNodeGraph* Graph = GraphNodes.Key;
-		Graph->RemoveNodesToAction(Action, GraphNodes.Value);
+		UOptimusNodeGraph* Graph = GraphNodes.Key;
+		Graph->RemoveNodes(GraphNodes.Value);
 	}
 
-	Action->AddSubAction<FOptimusVariableAction_RemoveVariable>(InVariableDesc);
+	GetActionStack()->RunAction<FOptimusVariableAction_RemoveVariable>(InVariableDesc);
 
-	return GetActionStack()->RunAction(Action);
+	return true;
 }
 
 
@@ -633,24 +636,24 @@ bool UOptimusDeformer::RemoveResource(UOptimusResourceDescription* InResourceDes
 		return false;
 	}
 
-	FOptimusCompoundAction* Action = new FOptimusCompoundAction(TEXT("Remove Resource"));
-	
-	TMap<const UOptimusNodeGraph*, TArray<UOptimusNode*>> NodesByGraph;
+	TMap<UOptimusNodeGraph*, TArray<UOptimusNode*>> NodesByGraph;
 	for (UOptimusNode* Node: GetNodesUsingResource(InResourceDesc))
 	{
 		UOptimusNode_ResourceAccessorBase* ResourceNode = Cast<UOptimusNode_ResourceAccessorBase>(Node);
 		NodesByGraph.FindOrAdd(ResourceNode->GetOwningGraph()).Add(ResourceNode);
 	}
 
-	for (const TTuple<const UOptimusNodeGraph*, TArray<UOptimusNode*>>& GraphNodes: NodesByGraph)
+	FOptimusActionScope ActionScope(*GetActionStack(), TEXT("Remove Resource"));
+	
+	for (const TTuple<UOptimusNodeGraph*, TArray<UOptimusNode*>>& GraphNodes: NodesByGraph)
 	{
-		const UOptimusNodeGraph* Graph = GraphNodes.Key;
-		Graph->RemoveNodesToAction(Action, GraphNodes.Value);
+		UOptimusNodeGraph* Graph = GraphNodes.Key;
+		Graph->RemoveNodes(GraphNodes.Value);
 	}
 
-	Action->AddSubAction<FOptimusResourceAction_RemoveResource>(InResourceDesc);
+	GetActionStack()->RunAction<FOptimusResourceAction_RemoveResource>(InResourceDesc);
 
-	return GetActionStack()->RunAction(Action);
+	return true;
 }
 
 
@@ -1132,24 +1135,24 @@ bool UOptimusDeformer::RemoveComponentBinding(
 		return false;
 	}
 
-	FOptimusCompoundAction* Action = new FOptimusCompoundAction(TEXT("Remove Binding"));
-	
-	TMap<const UOptimusNodeGraph*, TArray<UOptimusNode*>> NodesByGraph;
+	TMap<UOptimusNodeGraph*, TArray<UOptimusNode*>> NodesByGraph;
 	
 	for (UOptimusNode* Node: GetNodesUsingComponentBinding(InBinding))
 	{
 		NodesByGraph.FindOrAdd(Node->GetOwningGraph()).Add(Node);
 	}
 
-	for (const TTuple<const UOptimusNodeGraph*, TArray<UOptimusNode*>>& GraphNodes: NodesByGraph)
+	FOptimusActionScope ActionScope(*GetActionStack(), TEXT("Remove Binding"));
+
+	for (const TTuple<UOptimusNodeGraph*, TArray<UOptimusNode*>>& GraphNodes: NodesByGraph)
 	{
-		const UOptimusNodeGraph* Graph = GraphNodes.Key;
-		Graph->RemoveNodesToAction(Action, GraphNodes.Value);
+		UOptimusNodeGraph* Graph = GraphNodes.Key;
+		Graph->RemoveNodes(GraphNodes.Value);
 	}
 
-	Action->AddSubAction<FOptimusComponentBindingAction_RemoveBinding>(InBinding);
+	GetActionStack()->RunAction<FOptimusComponentBindingAction_RemoveBinding>(InBinding);
 
-	return GetActionStack()->RunAction(Action);
+	return true;
 }
 
 
@@ -1684,7 +1687,10 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 
 	if (TerminalNodes.IsEmpty())
 	{
-		AddDiagnostic(EOptimusDiagnosticLevel::Error, LOCTEXT("NoOutputDataInterfaceFound", "No connected output data interface nodes found. Compilation aborted."));
+		FText WarnMessage = FText::Format(LOCTEXT("NoOutputDataInterfaceFound", "No connected output data interface nodes found. Compilation for Graph: {0} aborted."), 
+			FText::FromString(InNodeGraph->GetCollectionPath()));
+		
+		AddDiagnostic(EOptimusDiagnosticLevel::Warning, WarnMessage);
 		return {};
 	}
 
@@ -2887,32 +2893,14 @@ UOptimusNodeGraph* UOptimusDeformer::ResolveGraphPath(
 	int32 SubGraphStartIndex = 0;
 	
 	UOptimusNodeGraph* Graph = nullptr;
-	if (Path[0] == UOptimusNodeGraph::LibraryRoot)
+	
+	for (UOptimusNodeGraph* RootGraph : Graphs)
 	{
-		// FIXME: Search the library graphs.
-		for (UOptimusNodeGraph* RootGraph : Graphs)
+		if (Path[0].Equals(RootGraph->GetName(), ESearchCase::IgnoreCase))
 		{
-			if (RootGraph->GetGraphType() == EOptimusNodeGraphType::Function)
-			{
-				if (Path[1].Equals(RootGraph->GetName(), ESearchCase::IgnoreCase))
-				{
-					SubGraphStartIndex = 2;
-					Graph = RootGraph;
-					break;
-				}
-			}
-		}
-	}
-	else
-	{
-		for (UOptimusNodeGraph* RootGraph : Graphs)
-		{
-			if (Path[0].Equals(RootGraph->GetName(), ESearchCase::IgnoreCase))
-			{
-				SubGraphStartIndex = 1;
-				Graph = RootGraph;
-				break;
-			}
+			SubGraphStartIndex = 1;
+			Graph = RootGraph;
+			break;
 		}
 	}
 

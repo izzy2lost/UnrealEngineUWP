@@ -7,6 +7,7 @@
 #include "OptimusNodeSubGraph.generated.h"
 
 class UOptimusNode_GraphTerminal;
+enum class EOptimusTerminalType;
 
 UCLASS()
 class OPTIMUSCORE_API UOptimusNodeSubGraph :
@@ -31,7 +32,8 @@ public:
 	EOptimusDataTypeUsageFlags GetTypeUsageFlags(const FOptimusDataDomain& InDataDomain) const override;
 
 	UOptimusComponentSourceBinding* GetDefaultComponentBinding(const FOptimusPinTraversalContext& InTraversalContext) const;
-	
+
+	UOptimusNode_GraphTerminal* GetTerminalNode(EOptimusTerminalType InTerminalType) const;
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnBindingArrayPasted, FName);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnBindingValueChanged, FName);
@@ -58,11 +60,6 @@ public:
 	UPROPERTY(EditAnywhere, Category=Bindings)
 	FOptimusParameterBindingArray OutputBindings;
 
-	UPROPERTY()
-	TWeakObjectPtr<UOptimusNode_GraphTerminal> EntryNode; 
-
-	UPROPERTY()
-	TWeakObjectPtr<UOptimusNode_GraphTerminal> ReturnNode;
 
 
 private:
