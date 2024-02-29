@@ -1297,21 +1297,15 @@ void FInstancedStaticMeshSceneProxyDesc::InitializeFrom(UInstancedStaticMeshComp
 {
 	FStaticMeshSceneProxyDesc::InitializeFrom(InComponent);
 
-	PerInstanceSMData = InComponent->PerInstanceSMData;
 	InstanceDataSceneProxy = InComponent->GetOrCreateInstanceDataSceneProxy();
-	PerInstanceSMCustomData = InComponent->PerInstanceSMCustomData;
 #if WITH_EDITOR
 	SelectedInstances = InComponent->SelectedInstances;
 #endif
-	InstanceReorderTable = InComponent->InstanceReorderTable; 
-	PerInstancePrevTransform = InComponent->PerInstancePrevTransform;
 
 	InstanceStartCullDistance = InComponent->InstanceStartCullDistance ;
 	InstanceEndCullDistance = InComponent->InstanceEndCullDistance;
 
 	InComponent->GetInstancesMinMaxScale(MinScale, MaxScale);
-	NumCustomDataFloats = InComponent->NumCustomDataFloats;
-	TranslatedInstanceSpaceOrigin = InComponent->GetTranslatedInstanceSpaceOrigin();	
 	InstanceLODDistanceScale = InComponent->InstanceLODDistanceScale;
 
 	bUseGpuLodSelection = InComponent->bUseGpuLodSelection;
