@@ -7,7 +7,7 @@
 #include "Tasks/StateTreeAITask.h"
 #include "Templates/SubclassOf.h"
 
-#include "StateTreeMovetoTask.generated.h"
+#include "StateTreeMoveToTask.generated.h"
 
 class AActor;
 class AAIController;
