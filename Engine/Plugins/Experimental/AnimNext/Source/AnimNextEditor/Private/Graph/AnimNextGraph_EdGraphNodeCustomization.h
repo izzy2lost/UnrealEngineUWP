@@ -16,20 +16,81 @@ namespace UE::AnimNext::Editor
 
 class FAnimNextGraph_EdGraphNodeCustomization : public IDetailCustomization
 {
-private:
+protected:
 
+	// --- IDetailCustomization Begin ---
 	/** Called when details should be customized */
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+	// --- IDetailCustomization End ---
 
-	FText GetName() const;
-	void SetName(const FText& InNewText, ETextCommit::Type InCommitType);
-	bool OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage);
+	struct FCategoryDetailsData
+	{
+		enum class EType : uint8
+		{
+			TraitStack = 0,
+			RigVMNode,
+			// --- ---
+			Invalid,
+			Num = Invalid
+		};
 
-	static void GenerateMemoryStorage(const TArray<URigVMPin*>& ModelPinsToDisplay, FRigVMMemoryStorageStruct& MemoryStorage);
-	static void PopulateCategory(IDetailCategoryBuilder& Category, const TArray<URigVMPin*>& ModelPinsToDisplay, FRigVMMemoryStorageStruct& MemoryStorage, UAnimNextGraph_EdGraphNode* EdGraphNode);
+		FCategoryDetailsData() = default;
+		explicit FCategoryDetailsData(EType InType)
+			: Type(InType)
+		{
+		}
+		FCategoryDetailsData(EType InType, const FName& InName)
+			: Type(InType)
+			, Name(InName)
+		{
+		}
 
+		EType Type = EType::Invalid;
+		FName Name;
+		TArray<TWeakObjectPtr<UAnimNextGraph_EdGraphNode>> EdGraphNodes;
+	};
 
-	FRigVMMemoryStorageStruct MemoryStorage;
+	struct FTraitStackDetailsData : FCategoryDetailsData
+	{
+		FTraitStackDetailsData()
+			: FCategoryDetailsData(FCategoryDetailsData::EType::TraitStack)
+		{
+		}
+		explicit FTraitStackDetailsData(const FName InName)
+			: FCategoryDetailsData(FCategoryDetailsData::EType::TraitStack, InName)
+		{
+		}
+
+		TArray<TSharedPtr<FStructOnScope>> ScopedSharedDataInstances;
+	};
+
+	struct FRigVMNodeDetailsData : FCategoryDetailsData
+	{
+		FRigVMNodeDetailsData()
+			: FCategoryDetailsData(FCategoryDetailsData::EType::RigVMNode)
+		{
+		}
+		explicit FRigVMNodeDetailsData(const FName InName)
+			: FCategoryDetailsData(FCategoryDetailsData::EType::RigVMNode, InName)
+		{
+		}
+
+		TArray<TWeakObjectPtr<URigVMPin>> ModelPinsToDisplay;
+		TArray <TSharedPtr<FRigVMMemoryStorageStruct>> MemoryStorages;
+	};
+
+	void CustomizeObjects(IDetailLayoutBuilder& DetailBuilder, const TArray<TWeakObjectPtr<UObject>>& InObjects);
+
+	static void GenerateTraitData(UAnimNextGraph_EdGraphNode* EdGraphNode, TArray<TSharedPtr<FCategoryDetailsData>>& CategoryDetailsData);
+	static void GenerateRigVMData(UAnimNextGraph_EdGraphNode* EdGraphNode, TArray<TSharedPtr<FCategoryDetailsData>>& CategoryDetailsData);
+
+	static void PopulateCategory(IDetailLayoutBuilder& DetailBuilder, const TSharedPtr<FCategoryDetailsData>& CategoryDetailsData);
+	static void PopulateCategory(IDetailLayoutBuilder& DetailBuilder, const TSharedPtr<FTraitStackDetailsData>& TraitData);
+	static void PopulateCategory(IDetailLayoutBuilder& DetailBuilder, const TSharedPtr<FRigVMNodeDetailsData>& RigVMTypeData);
+
+	static void GenerateMemoryStorage(const TArray<TWeakObjectPtr<URigVMPin>> & ModelPinsToDisplay, FRigVMMemoryStorageStruct& MemoryStorage);
+
+	TArray<TSharedPtr<FCategoryDetailsData>> CategoryDetailsData;
 };
 
 }

@@ -364,6 +364,14 @@ struct RIGVM_API FRigVMMemoryStorageStruct : public FInstancedPropertyBag
 		FRigVMMemoryHandle& InTargetHandle,
 		FRigVMMemoryHandle& InSourceHandle);
 
+	/**
+	* Returns the PropertyBag struct using a standard function signature, so it can be used at IStructureDataProvider
+	*/
+	inline const UStruct * GetStruct() const
+	{
+		return GetPropertyBagStruct();
+	}
+
 protected:
 	ERigVMMemoryType MemoryType = ERigVMMemoryType::Invalid;
 

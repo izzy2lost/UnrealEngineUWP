@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DetailsTabSummoner.h"
 #include "WorkspaceEditor.h"
@@ -21,6 +21,7 @@ FDetailsTabSummoner::FDetailsTabSummoner(TSharedPtr<FWorkspaceEditor> InHostingA
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsViewArgs.bHideSelectionTip = true;
+	DetailsViewArgs.StyleKey = MakeShared<FDetailsViewStyleKey>(FDetailsViewStyleKeys::Card());
 
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);

@@ -20,200 +20,352 @@ void FAnimNextGraph_EdGraphNodeCustomization::CustomizeDetails(IDetailLayoutBuil
 	TArray<TWeakObjectPtr<UObject>> Objects;
 	DetailBuilder.GetObjectsBeingCustomized(Objects);
 
-	if (Objects.IsEmpty() || Objects.Num() > 1)
+	if (Objects.IsEmpty())
 	{
 		return;
 	}
 
-	if (UAnimNextGraph_EdGraphNode* EdGraphNode = Cast<UAnimNextGraph_EdGraphNode>(Objects[0].Get()))
+	CustomizeObjects(DetailBuilder, Objects);
+}
+
+void FAnimNextGraph_EdGraphNodeCustomization::CustomizeObjects(IDetailLayoutBuilder& DetailBuilder, const TArray<TWeakObjectPtr<UObject>>& Objects)
+{
+	const int32 NumNodes = Objects.Num();
+	for (int i = 0; i < NumNodes; i++)
 	{
-		if (URigVMNode* ModelNode = EdGraphNode->GetModelNode())
+		if (UAnimNextGraph_EdGraphNode* EdGraphNode = Cast<UAnimNextGraph_EdGraphNode>(Objects[i].Get()))
 		{
-			// If there are any decorators in the node, treat it as a trait stack
-			const TArray<URigVMPin*> DecoratorPins = ModelNode->GetDecoratorPins();
-			if (DecoratorPins.Num() > 0)
+			if (URigVMNode* ModelNode = EdGraphNode->GetModelNode())
 			{
-				// For each Decorator (represented as a pin in the node)
-				for (const URigVMPin* DecoratorPin : DecoratorPins)
+				// If there are any traits in the node, treat it as a trait stack
+				const TArray<URigVMPin*> TraitPins = ModelNode->GetDecoratorPins();
+				if (TraitPins.Num() > 0)
 				{
-					if (DecoratorPin->IsExecuteContext())
+					GenerateTraitData(EdGraphNode, CategoryDetailsData);
+				}
+				else
+				{
+					GenerateRigVMData(EdGraphNode, CategoryDetailsData);
+				}
+			}
+		}
+	}
+
+	for (TSharedPtr<FCategoryDetailsData>& DetailsData : CategoryDetailsData)
+	{
+		PopulateCategory(DetailBuilder, DetailsData);
+	}
+}
+
+void FAnimNextGraph_EdGraphNodeCustomization::GenerateTraitData(UAnimNextGraph_EdGraphNode* EdGraphNode, TArray<TSharedPtr<FCategoryDetailsData>>& CategoryDetailsData)
+{
+	if (URigVMNode* ModelNode = EdGraphNode->GetModelNode())
+	{
+		// If there are any traits in the node, treat it as a trait stack
+		const TArray<URigVMPin*> TraitPins = ModelNode->GetDecoratorPins();
+		if (TraitPins.Num() > 0)
+		{
+			// For each Trait (represented as a pin in the node)
+			for (const URigVMPin* TraitPin : TraitPins)
+			{
+				if (TraitPin->IsExecuteContext())
+				{
+					continue;
+				}
+
+				// Create a temporary trait instance, in order to get the correct TraitSharedDataStruct
+				if (TSharedPtr<FStructOnScope> ScopedTrait = ModelNode->GetDecoratorInstance(TraitPin->GetFName()))
+				{
+					// Create a scoped struct with the Trait Shared Instance Data and store it for later use
+					// The idea is creating one template per Trait type, but pass all the selected instances
+					// So the multiselection works
+					const FRigVMDecorator* Trait = (FRigVMDecorator*)ScopedTrait->GetStructMemory();
+
+					// Import the default pin values into the Trait Shared Instance Data
+					FTraitStackDetailsData* TraitData = nullptr;
+					if (UScriptStruct* TraitSharedInstanceData = Trait->GetDecoratorSharedDataStruct())
 					{
-						continue;
-					}
-
-					// Create a temporary decorator instance, in order to get the correct DecoratorSharedDataStruct
-					if (TSharedPtr<FStructOnScope> ScopedDecorator = ModelNode->GetDecoratorInstance(DecoratorPin->GetFName()))
-					{
-						// Create a scoped struct with the Decorator Shared Instance Data
-						const FRigVMDecorator* Decorator = (FRigVMDecorator*)ScopedDecorator->GetStructMemory();
-
-						// Import the default pin values into the Decorator Shared Instance Data
-						TSharedPtr<FStructOnScope> ScopedSharedData;
-						if (UScriptStruct* DecoratorSharedInstanceData = Decorator->GetDecoratorSharedDataStruct())
-						{
-							ScopedSharedData = MakeShared<FStructOnScope>(DecoratorSharedInstanceData);
-
-							FRigVMPinDefaultValueImportErrorContext ErrorPipe;
-							LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose);
-							const FString DefaultValue = DecoratorPin->GetDefaultValue();
-							DecoratorSharedInstanceData->ImportText(*DefaultValue, ScopedSharedData->GetStructMemory(), nullptr, PPF_SerializedAsImportText, &ErrorPipe, DecoratorSharedInstanceData->GetName());
-						}
-						else // or use the decorator itself for simple decorators
-						{
-							ScopedSharedData = ScopedDecorator;
-						}
-
-						// Create a category with the DisplayName of the decorator Shared Data
-						IDetailCategoryBuilder& ParameterCategory = DetailBuilder.EditCategory(*ScopedSharedData->GetStruct()->GetDisplayNameText().ToString(), FText::GetEmpty(), ECategoryPriority::Important);
-
-						// Now add all the structure properties and handle modifications
-						TArray<IDetailPropertyRow*> OutPropertiesRow;
-						ParameterCategory.AddAllExternalStructureProperties(ScopedSharedData.ToSharedRef(), EPropertyLocation::Default, &OutPropertiesRow);
-						for (IDetailPropertyRow* DetailPropertyRow : OutPropertiesRow)
-						{
-							if (TSharedPtr<IPropertyHandle> PropertyHandle = DetailPropertyRow->GetPropertyHandle(); PropertyHandle.IsValid())
+						const TSharedPtr<FCategoryDetailsData>* TraitDataPtr = CategoryDetailsData.FindByPredicate([TraitSharedInstanceData](const TSharedPtr<FCategoryDetailsData>& InItem)
 							{
-								const FProperty* Property = PropertyHandle->GetProperty();
+								return InItem->Type == FCategoryDetailsData::EType::TraitStack && InItem->Name == TraitSharedInstanceData->GetFName();
+							});
 
-								const auto ModifyAsset = [EdGraphNode]()
+						if (TraitDataPtr == nullptr)
+						{
+							TraitDataPtr = &CategoryDetailsData.Add_GetRef(MakeShared<FTraitStackDetailsData>(TraitSharedInstanceData->GetFName()));
+						}
+
+						TraitData = static_cast<FTraitStackDetailsData*>(TraitDataPtr->Get());
+
+						// Store EdGraphNode and ScopedTraitData, as we will need that later to transfer data if the user makes modifications to the Traits in the details panel
+						TraitData->EdGraphNodes.Add(EdGraphNode);
+						const int32 ScopedDataIndex = TraitData->ScopedSharedDataInstances.Add(MakeShared<FStructOnScope>(TraitSharedInstanceData));
+
+						// Fill the scoped data with the pin data
+						FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+						LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose);
+						const FString DefaultValue = TraitPin->GetDefaultValue();
+						TraitSharedInstanceData->ImportText(*DefaultValue, TraitData->ScopedSharedDataInstances[ScopedDataIndex]->GetStructMemory(), nullptr, PPF_SerializedAsImportText, &ErrorPipe, TraitSharedInstanceData->GetName());
+					}
+				}
+			}
+		}
+	}
+}
+
+void FAnimNextGraph_EdGraphNodeCustomization::GenerateRigVMData(UAnimNextGraph_EdGraphNode* EdGraphNode, TArray<TSharedPtr<FCategoryDetailsData>>& CategoryDetailsData)
+{
+	if (URigVMNode* ModelNode = EdGraphNode->GetModelNode())
+	{
+		// For nodes that aren't Traits, we display the pins as properties
+		const TArray<URigVMPin*> ModelPins = ModelNode->GetPins();
+		TArray<TWeakObjectPtr<URigVMPin>> PinsToDisplay;
+		PinsToDisplay.Reserve(ModelPins.Num());
+
+		// First, obtain the pins to display
+		for (URigVMPin* Pin : ModelPins)
+		{
+			if (Pin->IsExecuteContext())
+			{
+				continue;
+			}
+
+			const ERigVMPinDirection PinDirection = Pin->GetDirection();
+			if (PinDirection != ERigVMPinDirection::Hidden && (PinDirection == ERigVMPinDirection::IO || PinDirection == ERigVMPinDirection::Input))
+			{
+				PinsToDisplay.Add(Pin);
+			}
+		}
+
+		if (PinsToDisplay.Num() > 0)
+		{
+			const FName NodeName = *EdGraphNode->GetNodeTitle(ENodeTitleType::ListView).ToString(); // TODO : check if this is a good name to use, can't sue GetFName as it comes with instance postfix
+
+			FRigVMNodeDetailsData* RigVMData = nullptr;
+
+			TSharedPtr<FCategoryDetailsData>* RigVMDataPtr = CategoryDetailsData.FindByPredicate([&NodeName](const TSharedPtr<FCategoryDetailsData>& InItem)
+				{
+					return InItem->Type == FCategoryDetailsData::EType::RigVMNode && InItem->Name == NodeName;
+				});
+
+			if (RigVMDataPtr == nullptr)
+			{
+				RigVMDataPtr = &CategoryDetailsData.Add_GetRef(MakeShared<FRigVMNodeDetailsData>(NodeName));
+			}
+
+			RigVMData = static_cast<FRigVMNodeDetailsData*>(RigVMDataPtr->Get());
+			RigVMData->ModelPinsToDisplay = PinsToDisplay;
+
+			// Store EdGraphNode and generated Memory, as we will need that later to transfer data if the user makes modifications in the details panel
+			RigVMData->EdGraphNodes.Add(EdGraphNode);
+			const int32 MemoryStorageIndex = RigVMData->MemoryStorages.Add(MakeShared<FRigVMMemoryStorageStruct>());
+
+			// Then, create a custom property bag to store the data, initializating the properties in the struct with the pin default values
+			GenerateMemoryStorage(PinsToDisplay, *RigVMData->MemoryStorages[MemoryStorageIndex].Get());
+		}
+	}
+}
+
+void FAnimNextGraph_EdGraphNodeCustomization::PopulateCategory(IDetailLayoutBuilder& DetailBuilder, const TSharedPtr<FCategoryDetailsData> &CategoryDetailsData)
+{
+	switch (CategoryDetailsData->Type)
+	{
+		case FRigVMNodeDetailsData::EType::TraitStack:
+		{
+			PopulateCategory(DetailBuilder, StaticCastSharedPtr<FTraitStackDetailsData>(CategoryDetailsData));
+			break;
+		}
+		case FRigVMNodeDetailsData::EType::RigVMNode:
+		{
+			PopulateCategory(DetailBuilder, StaticCastSharedPtr<FRigVMNodeDetailsData>(CategoryDetailsData));
+			break;
+		}
+		default:
+			break;
+	}
+}
+
+void FAnimNextGraph_EdGraphNodeCustomization::PopulateCategory(IDetailLayoutBuilder& DetailBuilder, const TSharedPtr<FTraitStackDetailsData>& TraitData)
+{
+	if (TraitData == nullptr)
+	{
+		return;
+	}
+
+	check(TraitData->ScopedSharedDataInstances.Num() > 0);
+	check(TraitData->ScopedSharedDataInstances.Num() == TraitData->EdGraphNodes.Num());
+
+	// Create a category with the DisplayName of the Trait Shared Data
+	const FString TraitDisplayName = *TraitData->ScopedSharedDataInstances[0]->GetStruct()->GetDisplayNameText().ToString();
+	const FName CategoryName = (TraitData->EdGraphNodes.Num() == 1)
+		? *TraitDisplayName
+		: *FString::Printf(TEXT("%s (% d)"), *TraitDisplayName, TraitData->EdGraphNodes.Num());
+
+	IDetailCategoryBuilder& ParameterCategory = DetailBuilder.EditCategory(CategoryName, FText::GetEmpty(), ECategoryPriority::Important);
+	
+	FAddPropertyParams AddPropertyParams;
+	AddPropertyParams.CreateCategoryNodes(true);
+	AddPropertyParams.HideRootObjectNode(true);
+
+	IDetailPropertyRow* DetailPropertyRow = ParameterCategory.AddExternalStructureProperty(MakeShared<FStructOnScopeStructureDataProvider>(TraitData->ScopedSharedDataInstances), NAME_None, EPropertyLocation::Default, AddPropertyParams);
+	if (TSharedPtr<IPropertyHandle> PropertyHandle = DetailPropertyRow->GetPropertyHandle(); PropertyHandle.IsValid())
+	{
+		const TWeakPtr<FTraitStackDetailsData> TraitDataWeak = TraitData.ToWeakPtr();
+
+		const auto ModifyAsset = [TraitDataWeak]()
+			{
+				if (const TSharedPtr<FTraitStackDetailsData> TraitData = TraitDataWeak.Pin())
+				{
+					for (TWeakObjectPtr<UAnimNextGraph_EdGraphNode>& EdGraphNode : TraitData->EdGraphNodes)
+					{
+						EdGraphNode->Modify();
+					}
+				}
+			};
+
+		const auto UpdatePinDefaultValue = [TraitDataWeak](const FPropertyChangedEvent& InEvent)
+			{
+				if (const TSharedPtr<FTraitStackDetailsData> TraitData = TraitDataWeak.Pin())
+				{
+					// Avoid VM recompilation for each Set Default Value
+					FRigVMControllerCompileBracketScope CompileScope(TraitData->EdGraphNodes[0]->GetController());
+
+					const int32 NumTraitInstances = TraitData->ScopedSharedDataInstances.Num();
+					for (int32 InstanceIndex = 0; InstanceIndex < NumTraitInstances; InstanceIndex++)
+					{
+						TWeakObjectPtr<UAnimNextGraph_EdGraphNode>& EdGraphNode = TraitData->EdGraphNodes[InstanceIndex];
+						if (EdGraphNode.IsValid())
+						{
+							TSharedPtr<FStructOnScope>& ScopedSharedData = TraitData->ScopedSharedDataInstances[InstanceIndex];
+
+							// Extract the value from the property and assign it to the Pin as a default value (via Schema)
+							const uint8* StructMemberMemoryPtr = InEvent.Property->ContainerPtrToValuePtr<uint8>(ScopedSharedData->GetStructMemory());
+							const FString ValueStr = FRigVMStruct::ExportToFullyQualifiedText(InEvent.Property, StructMemberMemoryPtr, true);
+						
+							for (UEdGraphPin* EdGraphPin : EdGraphNode->Pins)
+							{
+								// Find the EdGraphPin that corresponds to the Property
+								const FString ModelPinName = FString::Printf(TEXT(".%s"), *InEvent.Property->GetFName().ToString());
+								if (EdGraphPin->GetFName().ToString().EndsWith(ModelPinName, ESearchCase::CaseSensitive))
 								{
-									EdGraphNode->Modify();
-								};
-
-								const auto UpdatePinDefaultValue = [EdGraphNode, Property, ScopedSharedData]()
-								{
-									// Extract the value from the property and assign it to the Pin as a default value (via Schema)
-									const uint8* StructMemberMemoryPtr = Property->ContainerPtrToValuePtr<uint8>(ScopedSharedData->GetStructMemory());
-									const FString ValueStr = FRigVMStruct::ExportToFullyQualifiedText(Property, StructMemberMemoryPtr, true);
-
-									for (UEdGraphPin* EdGraphPin : EdGraphNode->Pins)
+									if (URigVMPin* ModelPin = EdGraphNode->FindModelPinFromGraphPin(EdGraphPin))
 									{
-										// Find the EdGraphPin that corresponds to the Property
-										if (EdGraphPin->GetFName().ToString().EndsWith(Property->GetFName().ToString(), ESearchCase::CaseSensitive))
-										{
-											if (URigVMPin* ModelPin = EdGraphNode->FindModelPinFromGraphPin(EdGraphPin))
-											{
-												// Set the default value using the Controller
-												EdGraphNode->GetController()->SetPinDefaultValue(ModelPin->GetPinPath(), ValueStr);
-											}
-											break;
-										}
+										// Set the default value using the Controller
+										EdGraphNode->GetController()->SetPinDefaultValue(ModelPin->GetPinPath(), ValueStr);
 									}
-								};
-
-								if (Decorator->GetDecoratorSharedDataStruct() != nullptr) // TODO zzz : Investigate why shared works with value and decorator struct with child value
-								{
-									PropertyHandle->SetOnPropertyValuePreChange(FSimpleDelegate::CreateLambda(ModifyAsset));
-									PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda(UpdatePinDefaultValue));
-								}
-								else
-								{
-									PropertyHandle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda(ModifyAsset));
-									PropertyHandle->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateLambda(UpdatePinDefaultValue));
+									break;
 								}
 							}
 						}
 					}
 				}
-			}
-			else
-			{
-				// For nodes that aren't decorators, we display the pins as properties
-				const TArray<URigVMPin*> ModelPins = ModelNode->GetPins();
-				TArray<URigVMPin*> PinsToDisplay;
-				PinsToDisplay.Reserve(ModelPins.Num());
+			};
 
-				// First, obtain the pins to display
-				for (URigVMPin* Pin : ModelPins)
+		PropertyHandle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda(ModifyAsset));
+		PropertyHandle->SetOnChildPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateLambda(UpdatePinDefaultValue));
+	}
+}
+
+void FAnimNextGraph_EdGraphNodeCustomization::PopulateCategory(IDetailLayoutBuilder& DetailBuilder, const TSharedPtr<FRigVMNodeDetailsData>& RigVMTypeData)
+{
+	if (RigVMTypeData == nullptr)
+	{
+		return;
+	}
+
+	check(RigVMTypeData->MemoryStorages.Num() > 0);
+	check(RigVMTypeData->MemoryStorages.Num() == RigVMTypeData->EdGraphNodes.Num());
+
+	// Create a category with the NodeTitle
+	const FName CategoryName = (RigVMTypeData->EdGraphNodes.Num() == 1)
+		? RigVMTypeData->Name
+		: *FString::Printf(TEXT("%s (% d)"), *RigVMTypeData->Name.ToString(), RigVMTypeData->EdGraphNodes.Num());
+
+	IDetailCategoryBuilder& ParameterCategory = DetailBuilder.EditCategory(CategoryName, FText::GetEmpty(), ECategoryPriority::Default);
+
+	for (TWeakObjectPtr<URigVMPin>& TemplateModelPin : RigVMTypeData->ModelPinsToDisplay)
+	{
+		const FName TemplateModelPinName = TemplateModelPin->GetFName();
+		FAddPropertyParams AddPropertyParams;
+		IDetailPropertyRow* DetailPropertyRow = ParameterCategory.AddExternalStructureProperty(MakeShared<TInstancedPropertyBagStructureDataProvider<FRigVMMemoryStorageStruct>>(RigVMTypeData->MemoryStorages), TemplateModelPinName, EPropertyLocation::Default, AddPropertyParams);
+
+		if (TSharedPtr<IPropertyHandle> Handle = DetailPropertyRow->GetPropertyHandle(); Handle.IsValid())
+		{
+			const TWeakPtr<FRigVMNodeDetailsData> RigVMTypeDataWeak = RigVMTypeData.ToWeakPtr();
+
+			Handle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda([RigVMTypeDataWeak]()
 				{
-					if (Pin->IsExecuteContext())
+					if (const TSharedPtr<FRigVMNodeDetailsData> RigVMTypeData = RigVMTypeDataWeak.Pin())
 					{
-						continue;
+						for (auto& EdGraphNode : RigVMTypeData->EdGraphNodes)
+						{
+							EdGraphNode->Modify(); // needed to enable the transaction when we modify the PropertyBag
+						}
 					}
-					const ERigVMPinDirection PinDirection = Pin->GetDirection();
-					if (PinDirection != ERigVMPinDirection::Hidden && (PinDirection == ERigVMPinDirection::IO || PinDirection == ERigVMPinDirection::Input))
-					{
-						PinsToDisplay.Add(Pin);
-					}
-				}
+				}));
 
-				if (PinsToDisplay.Num() > 0)
+			Handle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([RigVMTypeDataWeak, TemplateModelPinName]()
 				{
-					// Create the category where the properties will be added, using the Title of the EdGraphNode
-					IDetailCategoryBuilder& ParameterCategory = DetailBuilder.EditCategory(*EdGraphNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), FText::GetEmpty(), ECategoryPriority::Default);
+					if (const TSharedPtr<FRigVMNodeDetailsData> RigVMTypeData = RigVMTypeDataWeak.Pin())
+					{
+						// Avoid VM recompilation for each Set Default Value
+						FRigVMControllerCompileBracketScope CompileScope(RigVMTypeData->EdGraphNodes[0]->GetController());
 
-					// Then, create a custom property bag to store the data, initializating the properties in the struct with the pin default values
-					GenerateMemoryStorage(PinsToDisplay, MemoryStorage);
-					
-					// And finally, add the struct properties to the customization
-					PopulateCategory(ParameterCategory, PinsToDisplay, MemoryStorage, EdGraphNode);
-				}
-			}
+						const int32 NumInstances = RigVMTypeData->MemoryStorages.Num();
+						for (int32 InstanceIndex = 0; InstanceIndex < NumInstances; InstanceIndex++)
+						{
+							TWeakObjectPtr<UAnimNextGraph_EdGraphNode> EdGraphNode = RigVMTypeData->EdGraphNodes[InstanceIndex];
+							if (EdGraphNode.IsValid())
+							{
+								const FString ValueStr = RigVMTypeData->MemoryStorages[InstanceIndex].Get()->GetDataAsStringByName(TemplateModelPinName);
+
+								// Set the default value using the Controller
+								for (UEdGraphPin* EdGraphPin : EdGraphNode->Pins)
+								{
+									const FString ModelPinName = FString::Printf(TEXT(".%s"), *TemplateModelPinName.ToString());
+									// Find the EdGraphPin that corresponds to the model pin
+									if (EdGraphPin->GetFName().ToString().EndsWith(ModelPinName, ESearchCase::CaseSensitive))
+									{
+										if (URigVMPin* ModelPin = EdGraphNode->FindModelPinFromGraphPin(EdGraphPin))
+										{
+											EdGraphNode->GetController()->SetPinDefaultValue(ModelPin->GetPinPath(), ValueStr);
+										}
+									}
+								}
+							}
+						}
+					}
+				}));
 		}
 	}
 }
 
-void FAnimNextGraph_EdGraphNodeCustomization::GenerateMemoryStorage(const TArray<URigVMPin*>& ModelPinsToDisplay, FRigVMMemoryStorageStruct& MemoryStorage)
+void FAnimNextGraph_EdGraphNodeCustomization::GenerateMemoryStorage(const TArray<TWeakObjectPtr<URigVMPin>> & ModelPinsToDisplay, FRigVMMemoryStorageStruct& MemoryStorage)
 {
 	TArray<FRigVMPropertyDescription> PropertyDescriptions;
 	PropertyDescriptions.Reserve(ModelPinsToDisplay.Num());
 
-	for (const URigVMPin* ModelPin : ModelPinsToDisplay)
+	for (const TWeakObjectPtr<URigVMPin>& ModelPin : ModelPinsToDisplay)
 	{
-		FRigVMPropertyDescription& PropertyDesc = PropertyDescriptions.AddDefaulted_GetRef();
-
-		PropertyDesc.Name = ModelPin->GetFName();
-		PropertyDesc.Property = nullptr;
-		PropertyDesc.CPPType = ModelPin->GetCPPType();
-		PropertyDesc.CPPTypeObject = ModelPin->GetCPPTypeObject();
-		if (ModelPin->IsArray())
+		if (ModelPin.IsValid())
 		{
-			PropertyDesc.Containers.Add(EPinContainerType::Array);
+			FRigVMPropertyDescription& PropertyDesc = PropertyDescriptions.AddDefaulted_GetRef();
+
+			PropertyDesc.Name = ModelPin->GetFName();
+			PropertyDesc.Property = nullptr;
+			PropertyDesc.CPPType = ModelPin->GetCPPType();
+			PropertyDesc.CPPTypeObject = ModelPin->GetCPPTypeObject();
+			if (ModelPin->IsArray())
+			{
+				PropertyDesc.Containers.Add(EPinContainerType::Array);
+			}
+			PropertyDesc.DefaultValue = ModelPin->GetDefaultValue();
 		}
-		PropertyDesc.DefaultValue = ModelPin->GetDefaultValue();
 	}
 
 	MemoryStorage.AddProperties(PropertyDescriptions);
 }
 
-void FAnimNextGraph_EdGraphNodeCustomization::PopulateCategory(IDetailCategoryBuilder& Category, const TArray<URigVMPin*>& ModelPinsToDisplay, FRigVMMemoryStorageStruct& MemoryStorage, UAnimNextGraph_EdGraphNode* EdGraphNode)
-{
-	for (URigVMPin* ModelPin : ModelPinsToDisplay)
-	{
-		FAddPropertyParams AddPropertyParams;
-		IDetailPropertyRow* DetailPropertyRow = Category.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(MemoryStorage), ModelPin->GetFName(), EPropertyLocation::Default, AddPropertyParams);
-
-		if (TSharedPtr<IPropertyHandle> Handle = DetailPropertyRow->GetPropertyHandle(); Handle.IsValid())
-		{
-			Handle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda([EdGraphNode]()
-			{
-				EdGraphNode->Modify(); // needed to enable the transaction when we modify the PropertyBag
-			}));
-			Handle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([&MemoryStorage, EdGraphNode, ModelPin]()
-			{
-				const FString ValueStr = MemoryStorage.GetDataAsStringByName(ModelPin->GetFName());
-				// Set the default value using the Controller
-				EdGraphNode->GetController()->SetPinDefaultValue(ModelPin->GetPinPath(), ValueStr);
-			}));
-		}
-	}
-}
-
-FText FAnimNextGraph_EdGraphNodeCustomization::GetName() const
-{
-	return FText();
-}
-
-void FAnimNextGraph_EdGraphNodeCustomization::SetName(const FText& InNewText, ETextCommit::Type InCommitType)
-{
-}
-
-bool FAnimNextGraph_EdGraphNodeCustomization::OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage)
-{
-	return true;
-}
-
-
-}
+} // end namespace UE::AnimNext::Editor
 
 #undef LOCTEXT_NAMESPACE

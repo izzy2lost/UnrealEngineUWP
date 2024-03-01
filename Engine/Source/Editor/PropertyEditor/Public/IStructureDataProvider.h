@@ -93,46 +93,119 @@ public:
 
 
 //-----------------------------------------------------------------------------
-//	FStructOnScopeStructureDataProvider - Implementation of standalone struct that holds one value.
+//	FStructOnScopeStructureDataProvider - Implementation of standalone struct that provides 
+//  one base structure and one or more instances (allowing multi selection edit)
 //-----------------------------------------------------------------------------
 class FStructOnScopeStructureDataProvider : public IStructureDataProvider
 {
 public:
 	FStructOnScopeStructureDataProvider() = default;
-	FStructOnScopeStructureDataProvider(const TSharedPtr<FStructOnScope>& InStructData)
-		: StructData(InStructData)
+	explicit FStructOnScopeStructureDataProvider(const TSharedPtr<FStructOnScope>& InStructData)
+		: StructDataInstances( {InStructData} )
+	{
+	}
+	
+	explicit FStructOnScopeStructureDataProvider(const TArray<TSharedPtr<FStructOnScope>>& InStructDataInstances)
+		: StructDataInstances(InStructDataInstances)
 	{
 	}
 	
 	void SetStructData(const TSharedPtr<FStructOnScope>& InStructData)
 	{
-		StructData = InStructData;
+		StructDataInstances.Reset(1);
+		StructDataInstances.Add(InStructData);
 	}
+	void SetStructData(const TArray<TSharedPtr<FStructOnScope>>& InStructData)
+	{
+		StructDataInstances.Reset(InStructData.Num());
+		StructDataInstances = InStructData;
+	}
+
 	
 	virtual bool IsValid() const override
 	{
-		return StructData.IsValid() && StructData->IsValid();
+		const UStruct* BaseStructure = GetBaseStructure();
+		for (const TSharedPtr<FStructOnScope>& StructInstance : StructDataInstances)
+		{
+			if (StructInstance.IsValid() && StructInstance->IsValid())
+			{
+				const UStruct* Struct = StructInstance->GetStruct();
+				if (Struct->IsChildOf(BaseStructure))
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
 	};
-	
+
 	virtual const UStruct* GetBaseStructure() const override
 	{
-		return StructData.IsValid() ? StructData->GetStruct() : nullptr;
+		return FindBaseStructure(StructDataInstances);
 	}
 	
 	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances, const UStruct* ExpectedBaseStructure) const override
 	{
-		if (StructData.IsValid())
+		if (ExpectedBaseStructure != nullptr)
 		{
-			const UStruct* Struct = StructData->GetStruct();
-			if (ExpectedBaseStructure
-				&& Struct
-				&& Struct->IsChildOf(ExpectedBaseStructure))
+			for (const TSharedPtr<FStructOnScope> &StructData : StructDataInstances)
 			{
-				OutInstances.Add(StructData);				
+				if (StructData.IsValid()) 
+				{
+					const UStruct* Struct = StructData->GetStruct();
+					if (Struct && Struct->IsChildOf(ExpectedBaseStructure))
+					{
+						OutInstances.Add(StructData);				
+					}
+				}
 			}
 		}
 	}
 
+	template<typename ContainerType>
+	static const UStruct* FindBaseStructure(const TArray<TSharedPtr<ContainerType>>& StructDataInstances)
+	{
+		const UStruct* BaseStructure = nullptr;
+
+		const int32 NumInstances = StructDataInstances.Num();
+		if (NumInstances > 0)
+		{
+			int32 InstanceIndex = 0;
+
+			// find first valid instance
+			while ( !(StructDataInstances[InstanceIndex].IsValid() && StructDataInstances[InstanceIndex]->IsValid()) )
+			{
+				++InstanceIndex;
+				if (InstanceIndex == NumInstances)
+				{
+					// no valid instances found
+					return nullptr;
+				}
+			}
+
+			BaseStructure = StructDataInstances[InstanceIndex]->GetStruct();
+
+			// Iterate from there, if any instance left
+			for (int32 i = InstanceIndex + 1; i < NumInstances; i++)
+			{
+				const TSharedPtr<ContainerType>& StructData = StructDataInstances[i];
+				if (StructData.IsValid() && StructData->IsValid())
+				{
+					const UStruct* ScriptStruct = StructData->GetStruct();
+					// check if the base structure is an ancestor of the script struct
+					while (BaseStructure && ScriptStruct && !ScriptStruct->IsChildOf(BaseStructure))
+					{
+						// if not, go a level up in the base structure hierarchy
+						BaseStructure = Cast<UStruct>(BaseStructure->GetSuperStruct());
+					}
+				}
+			}
+		}
+
+		return BaseStructure;
+	}
+
 protected:
-	TSharedPtr<FStructOnScope> StructData;
+	TArray<TSharedPtr<FStructOnScope>> StructDataInstances;
 };
