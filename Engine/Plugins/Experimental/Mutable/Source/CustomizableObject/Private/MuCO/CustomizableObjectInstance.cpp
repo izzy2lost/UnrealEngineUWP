@@ -18,6 +18,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Modules/ModuleManager.h"
+#include "Tasks/Task.h"
 
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuCO/CustomizableInstanceLODManagement.h"
@@ -4801,8 +4802,6 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndDataAsync(
 
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
-	FGraphEventRef Result = nullptr;
-
 	TArray<FSoftObjectPath> AssetsToStream;
 	TArray<uint32> RealTimeMorphStreamableBlocksToStream;
 
@@ -5237,7 +5236,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndDataAsync(
 	else
 	{
 		check(ReadRequestTasks.Num() == 0);
-		return UE::Tasks::MakeCompletedTask<void>(TEXT("GatherStreamingRequestsCompletionTaskComplete"));
+		return UE::Tasks::MakeCompletedTask<void>();
 	}
 }
 

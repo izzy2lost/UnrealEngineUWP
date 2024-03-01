@@ -40,15 +40,9 @@ class FMutableTaskGraph
 	};
 	
 public:
-	using TaskType = 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-		UE::Tasks::FTask;
-#else
-		FGraphEventRef;
-#endif
 
 	/** Create and launch a task on the Mutable Thread with Normal priority. */
-	TaskType AddMutableThreadTask(const TCHAR* DebugName, TUniqueFunction<void()>&& TaskBody);
+	UE::Tasks::FTask AddMutableThreadTask(const TCHAR* DebugName, TUniqueFunction<void()>&& TaskBody);
 
 	/** Create and launch a task on the Mutable Thread with Low priority. */
 	uint32 AddMutableThreadTaskLowPriority(const TCHAR* DebugName, TFunction<void()>&& TaskBody);
@@ -78,7 +72,7 @@ private:
 	void TryLaunchMutableTaskLowPriority(bool bFromMutableTask);
 
 	/** Return true if the task is completed (or is no longer valid). */
-	bool IsTaskCompleted(const TaskType& Task) const;
+	bool IsTaskCompleted(const UE::Tasks::FTask& Task) const;
 
 	mutable FCriticalSection MutableTaskLock;
 
@@ -96,9 +90,9 @@ private:
 	uint32 TaskIdGenerator = INVALID_ID;
 
 	/** Last Mutable Task Low Priority launched to the TaskGraph system. */
-	TaskType LastMutableTaskLowPriority = {};
+	UE::Tasks::FTask LastMutableTaskLowPriority = {};
 
 	/** Last Mutable Task launched to the TaskGraph system. Low and normal priority. */
-	TaskType LastMutableTask = {};
+	UE::Tasks::FTask LastMutableTask = {};
 };
 

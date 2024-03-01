@@ -2499,11 +2499,7 @@ namespace
 	public:
 
 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 		TTuple<UE::Tasks::FTask, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override
-#else
-		TTuple<FGraphEventRef, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override
-#endif
 		{
 			MUTABLE_CPUPROFILER_SCOPE(TestImageProvider_GetImage);
 
@@ -2542,15 +2538,7 @@ namespace
 
 			ResultCallback(Image);
 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-			UE::Tasks::FTaskEvent CompletionEvent(TEXT("TestImageProvider_GetImageAsunc_Completed"));
-			CompletionEvent.Trigger();
-#else
-			FGraphEventRef CompletionEvent = FGraphEvent::CreateGraphEvent();
-			CompletionEvent->DispatchSubsequents();
-#endif
-
-			return MakeTuple(CompletionEvent, []() -> void {});
+			return MakeTuple(UE::Tasks::MakeCompletedTask<void>(), []() -> void {});
 		}
 
 		mu::FImageDesc GetImageDesc(FName Id, uint8 MipmapsToSkip) override
@@ -2559,12 +2547,7 @@ namespace
 		}
 
 
-		//-------------------------------------------------------------------------------------------------
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 		TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback)
-#else
-		TTuple<FGraphEventRef, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback)
-#endif
 		{
 			check(ReferencedTextures.IsValidIndex(Id));
 
@@ -2583,23 +2566,10 @@ namespace
 
 			ResultCallback(ResultImage);
 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 			auto TrivialReturn = []() -> TTuple<UE::Tasks::FTask, TFunction<void()>>
 			{
-				UE::Tasks::FTaskEvent CompletionEvent(TEXT("GetImageAsyncCompleted"));
-				CompletionEvent.Trigger();
-
-				return MakeTuple(CompletionEvent, []() -> void {});
+				return MakeTuple(UE::Tasks::MakeCompletedTask<void>(), []() -> void {});
 			};
-#else
-			auto TrivialReturn = []() -> TTuple<FGraphEventRef, TFunction<void()>>
-			{
-				FGraphEventRef CompletionEvent = FGraphEvent::CreateGraphEvent();
-				CompletionEvent->DispatchSubsequents();
-
-				return MakeTuple(CompletionEvent, []() -> void {});
-			};
-#endif
 
 			return Invoke(TrivialReturn);
 		}

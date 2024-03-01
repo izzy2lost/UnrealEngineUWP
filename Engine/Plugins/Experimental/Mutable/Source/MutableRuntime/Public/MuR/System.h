@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Async/TaskGraphInterfaces.h"
 #include "HAL/Platform.h"
 #include "MuR/Image.h"
 #include "MuR/Instance.h"
@@ -11,20 +10,15 @@
 #include "MuR/RefCounted.h"
 #include "MuR/Settings.h"
 #include "MuR/Types.h"
+#include "Tasks/Task.h"
 #include "Templates/Tuple.h"
 
-/** This define will use the newer task graph interface to manage mutable concurrency. It has not been fully tested. */
-#define MUTABLE_USE_NEW_TASKGRAPH
 
 /** If set to 1, this enables some expensive Unreal Insights traces, but can lead to 5x slower mutable operation. 
 * Other cheaper traces are enabled at all times.
 */
 #define UE_MUTABLE_ENABLE_SLOW_TRACES	0
 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-#include "Tasks/Task.h"
-#else
-#endif
 
 #include "System.generated.h"
 
@@ -92,13 +86,8 @@ namespace mu
         virtual ~ImageParameterGenerator() = default;
 
         //! Returns the completion event and a cleanup function that must be called once event is completed.
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 		virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback) = 0;
 		virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback) { check(false); return {}; }
-#else
-		virtual TTuple<FGraphEventRef, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback) = 0;
-		virtual TTuple<FGraphEventRef, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback) { check(false); return {}; };
-#endif
 
         virtual mu::FImageDesc GetImageDesc(FName Id, uint8 MipmapsToSkip) = 0;
     };
