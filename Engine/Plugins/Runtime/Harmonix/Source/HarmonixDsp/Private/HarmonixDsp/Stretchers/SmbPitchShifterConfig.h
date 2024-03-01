@@ -14,6 +14,10 @@ class USmbPitchShifterConfig : public UStretcherAndPitchShifterConfig
 
 public:
 
+	/** If true, allows the stretcher pool to grow beyond DefaultAllocatedStretchers in the editor. */
+	UPROPERTY(config, EditAnywhere, Category = "Pool Config")
+	bool bAllowPoolGrowthInEditor = false;
+
 	UPROPERTY(config, EditAnywhere, Category = "Pool Config")
 	uint32 DefaultAllocatedStretchers = 12;
 
@@ -51,6 +55,15 @@ public:
 		return AndroidAllocatedStretchers;
 #else
 		return DefaultAllocatedStretchers;
+#endif
+	}
+
+	bool ShouldAllowPoolGrowth() const
+	{
+#if WITH_EDITOR
+		return bAllowPoolGrowthInEditor;
+#else
+		return false;
 #endif
 	}
 };
