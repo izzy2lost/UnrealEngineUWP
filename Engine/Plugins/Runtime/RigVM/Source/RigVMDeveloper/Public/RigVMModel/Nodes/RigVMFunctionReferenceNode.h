@@ -53,6 +53,8 @@ public:
 
 	const FRigVMGraphFunctionHeader& GetReferencedFunctionHeader() const { return ReferencedFunctionHeader; }
 
+	void UpdateFunctionHeaderFromHost();
+
 	const FRigVMGraphFunctionData* GetReferencedFunctionData(bool bLoadIfNecessary = true) const;
 
 	

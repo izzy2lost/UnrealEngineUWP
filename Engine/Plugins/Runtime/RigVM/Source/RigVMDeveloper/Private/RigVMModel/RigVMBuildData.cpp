@@ -172,14 +172,15 @@ const FRigVMFunctionReferenceArray* URigVMBuildData::FindFunctionReferences(cons
 }
 
 void URigVMBuildData::ForEachFunctionReference(const FRigVMGraphFunctionIdentifier& InFunction,
-                                               TFunction<void(URigVMFunctionReferenceNode*)> PerReferenceFunction) const
+                                               TFunction<void(URigVMFunctionReferenceNode*)> PerReferenceFunction,
+                                               bool bLoadIfNecessary) const
 {
 	if (const FRigVMFunctionReferenceArray* ReferencesEntry = FindFunctionReferences(InFunction))
 	{
 		for (int32 ReferenceIndex = 0; ReferenceIndex < ReferencesEntry->Num(); ReferenceIndex++)
 		{
 			const TSoftObjectPtr<URigVMFunctionReferenceNode>& Reference = ReferencesEntry->operator [](ReferenceIndex);
-			if (!Reference.IsValid())
+			if (bLoadIfNecessary && !Reference.IsValid())
 			{
 				Reference.LoadSynchronous();
 			}
