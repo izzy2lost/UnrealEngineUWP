@@ -483,6 +483,7 @@ bool FStructProperty::LoadFromTag(const FPropertyTag& Tag)
 		return false;
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	if (!Tag.StructName.IsNone())
 	{
 		TStringBuilder<256> StructName(InPlace, Tag.StructName);
@@ -492,6 +493,7 @@ bool FStructProperty::LoadFromTag(const FPropertyTag& Tag)
 			return true;
 		}
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 	return false;
 }
@@ -503,8 +505,10 @@ void FStructProperty::SaveToTag(FPropertyTag& Tag)
 	const FString* OriginalType = FindOriginalTypeName(this);
 	const UScriptStruct* LocalStruct = Struct;
 	check(LocalStruct);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Tag.StructName = OriginalType ? FName(**OriginalType) : LocalStruct->GetFName();
 	Tag.StructGuid = LocalStruct->GetCustomGuid();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 
 void FStructProperty::AssignToTag(FPropertyTag& Tag)
@@ -514,10 +518,12 @@ void FStructProperty::AssignToTag(FPropertyTag& Tag)
 	const FString* OriginalType = FindOriginalTypeName(this);
 	const UScriptStruct* LocalStruct = Struct;
 	check(LocalStruct);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	if (OriginalType && FName(**OriginalType) == Tag.StructName)
 	{
 		Tag.StructName = LocalStruct->GetFName();
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 
 #if WITH_EDITORONLY_DATA

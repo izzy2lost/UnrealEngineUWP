@@ -1556,7 +1556,7 @@ bool TMovieSceneCurveChannelImpl<ChannelType>::SerializeFromRichCurve(ChannelTyp
 
 	check(InChannel);
 
-	if (Tag.Type == NAME_StructProperty && Tag.StructName == RichCurveName)
+	if (Tag.GetType().IsStruct(RichCurveName))
 	{
 		FRichCurve RichCurve;
 		FRichCurve::StaticStruct()->SerializeItem(Slot, &RichCurve, nullptr);

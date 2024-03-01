@@ -1432,7 +1432,7 @@ void FKey::ConditionalLookupKeyDetails() const
 
 bool FKey::SerializeFromMismatchedTag(struct FPropertyTag const& Tag, FStructuredArchive::FSlot Slot)
 {
-	if (Tag.Type == NAME_ByteProperty && Tag.EnumName == TEXT("EKeys"))
+	if (Tag.GetType().IsEnum(TEXT("EKeys")))
 	{
 		Slot << KeyName;
 		const FString KeyNameString(KeyName.ToString());

@@ -81,7 +81,7 @@ bool FMovieSceneSequenceLoopCount::SerializeFromMismatchedTag( const FPropertyTa
 
 bool FMovieSceneSequencePlaybackSettings::SerializeFromMismatchedTag( const FPropertyTag& Tag, FStructuredArchive::FSlot Slot )
 {
-	if (Tag.Type == NAME_StructProperty && Tag.StructName == "LevelSequencePlaybackSettings")
+	if (Tag.GetType().IsStruct("LevelSequencePlaybackSettings"))
 	{
 		StaticStruct()->SerializeItem(Slot, this, nullptr);
 		return true;

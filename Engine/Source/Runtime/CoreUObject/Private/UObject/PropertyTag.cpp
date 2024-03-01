@@ -63,9 +63,9 @@ FPropertyTag::FPropertyTag(FProperty* Property, int32 InIndex, uint8* Value)
 
 void FPropertyTag::SetProperty(FProperty* Property)
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Prop = Property;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FPropertyTag::SetPropertyGuid(const FGuid& InPropertyGuid)
@@ -79,6 +79,7 @@ void FPropertyTag::SetType(UE::FPropertyTypeName InFullType)
 	TypeName = InFullType;
 	Type = TypeName.GetName();
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (const EName* TagType = Type.ToEName(); TagType && Type.GetNumber() == NAME_NO_NUMBER_INTERNAL)
 	{
 		switch (*TagType)
@@ -108,6 +109,7 @@ void FPropertyTag::SetType(UE::FPropertyTypeName InFullType)
 			break;
 		}
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 static EPropertyTagExtension CalculatePropertyExtensionFlags(FArchive& UnderlyingArchive, FPropertyTag& Tag)
@@ -229,24 +231,32 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		if (TagType == NAME_StructProperty)
 		{
 			TypeBuilder.BeginParameters();
-			Slot << SA_ATTRIBUTE(TEXT("StructName"), Tag.StructName);
-			TypeBuilder.AddName(Tag.StructName);
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			FName StructName = Tag.StructName;
+			FGuid StructGuid = Tag.StructGuid;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			Slot << SA_ATTRIBUTE(TEXT("StructName"), StructName);
+			TypeBuilder.AddName(StructName);
 			if (Version >= VER_UE4_STRUCT_GUID_IN_PROPERTY_TAG)
 			{
 				if (bIsTextFormat)
 				{
-					Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("StructGuid"), Tag.StructGuid, FGuid());
+					Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("StructGuid"), StructGuid, FGuid());
 				}
 				else
 				{
-					Slot << SA_ATTRIBUTE(TEXT("StructGuid"), Tag.StructGuid);
+					Slot << SA_ATTRIBUTE(TEXT("StructGuid"), StructGuid);
 				}
-				if (Tag.StructGuid.IsValid())
+				if (StructGuid.IsValid())
 				{
-					TypeBuilder.AddGuid(Tag.StructGuid);
+					TypeBuilder.AddGuid(StructGuid);
 				}
 			}
 			TypeBuilder.EndParameters();
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			Tag.StructName = StructName;
+			Tag.StructGuid = StructGuid;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		// only need to serialize this for bools
 		else if (TagType == NAME_BoolProperty && !UnderlyingArchive.IsTextFormat())
@@ -264,65 +274,103 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		// only need to serialize this for bytes/enums
 		else if (TagType == NAME_ByteProperty)
 		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			FName EnumName = Tag.EnumName;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			if (UnderlyingArchive.IsTextFormat())
 			{
-				Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("EnumName"), Tag.EnumName, NAME_None);
+				Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("EnumName"), EnumName, NAME_None);
 			}
 			else
 			{
-				Slot << SA_ATTRIBUTE(TEXT("EnumName"), Tag.EnumName);
+				Slot << SA_ATTRIBUTE(TEXT("EnumName"), EnumName);
 			}
-			if (!Tag.EnumName.IsNone())
+			if (!EnumName.IsNone())
 			{
 				TypeBuilder.BeginParameters();
-				AddEnumPath(TypeBuilder, Tag.EnumName);
+				AddEnumPath(TypeBuilder, EnumName);
 				TypeBuilder.EndParameters();
 			}
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			Tag.EnumName = EnumName;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		else if (TagType == NAME_EnumProperty)
 		{
-			Slot << SA_ATTRIBUTE(TEXT("EnumName"), Tag.EnumName);
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			FName EnumName = Tag.EnumName;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			Slot << SA_ATTRIBUTE(TEXT("EnumName"), EnumName);
 			TypeBuilder.BeginParameters();
-			AddEnumPath(TypeBuilder, Tag.EnumName);
+			AddEnumPath(TypeBuilder, EnumName);
 			TypeBuilder.AddName(NAME_ByteProperty);
 			TypeBuilder.EndParameters();
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			Tag.EnumName = EnumName;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		// need to serialize the InnerType for arrays
 		else if (TagType == NAME_ArrayProperty)
 		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			FName InnerType = Tag.InnerType;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			if (Version >= VAR_UE4_ARRAY_PROPERTY_INNER_TAGS)
 			{
-				Slot << SA_ATTRIBUTE(TEXT("InnerType"), Tag.InnerType);
+				Slot << SA_ATTRIBUTE(TEXT("InnerType"), InnerType);
 			}
 			TypeBuilder.BeginParameters();
-			TypeBuilder.AddName(Tag.InnerType);
+			TypeBuilder.AddName(InnerType);
 			TypeBuilder.EndParameters();
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			Tag.InnerType = InnerType;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		// need to serialize the InnerType for optionals.
 		else if (TagType == NAME_OptionalProperty)
 		{
-			Slot << SA_ATTRIBUTE(TEXT("InnerType"), Tag.InnerType);
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			FName InnerType = Tag.InnerType;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			Slot << SA_ATTRIBUTE(TEXT("InnerType"), InnerType);
 			TypeBuilder.BeginParameters();
-			TypeBuilder.AddName(Tag.InnerType);
+			TypeBuilder.AddName(InnerType);
 			TypeBuilder.EndParameters();
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			Tag.InnerType = InnerType;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		else if (Version >= VER_UE4_PROPERTY_TAG_SET_MAP_SUPPORT)
 		{
 			if (TagType == NAME_SetProperty)
 			{
-				Slot << SA_ATTRIBUTE(TEXT("InnerType"), Tag.InnerType);
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				FName InnerType = Tag.InnerType;
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				Slot << SA_ATTRIBUTE(TEXT("InnerType"), InnerType);
 				TypeBuilder.BeginParameters();
-				TypeBuilder.AddName(Tag.InnerType);
+				TypeBuilder.AddName(InnerType);
 				TypeBuilder.EndParameters();
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				Tag.InnerType = InnerType;
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 			else if (TagType == NAME_MapProperty)
 			{
-				Slot << SA_ATTRIBUTE(TEXT("InnerType"), Tag.InnerType);
-				Slot << SA_ATTRIBUTE(TEXT("ValueType"), Tag.ValueType);
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				FName InnerType = Tag.InnerType;
+				FName ValueType = Tag.ValueType;
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				Slot << SA_ATTRIBUTE(TEXT("InnerType"), InnerType);
+				Slot << SA_ATTRIBUTE(TEXT("ValueType"), ValueType);
 				TypeBuilder.BeginParameters();
-				TypeBuilder.AddName(Tag.InnerType);
-				TypeBuilder.AddName(Tag.ValueType);
+				TypeBuilder.AddName(InnerType);
+				TypeBuilder.AddName(ValueType);
 				TypeBuilder.EndParameters();
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				Tag.InnerType = InnerType;
+				Tag.ValueType = ValueType;
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 		}
 

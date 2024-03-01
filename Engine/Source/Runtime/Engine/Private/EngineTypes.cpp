@@ -195,7 +195,7 @@ UActorComponent* FSoftComponentReference::GetComponent(AActor* OwningActor) cons
 bool FSoftComponentReference::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
 {
 	static const FName ComponentReferenceContextName("ComponentReference");
-	if (Tag.Type == NAME_StructProperty && Tag.StructName == ComponentReferenceContextName)
+	if (Tag.GetType().IsStruct(ComponentReferenceContextName))
 	{
 		FComponentReference Reference;
 		FComponentReference::StaticStruct()->SerializeItem(Slot, &Reference, nullptr);

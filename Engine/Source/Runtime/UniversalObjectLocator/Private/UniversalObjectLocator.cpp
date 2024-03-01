@@ -639,7 +639,7 @@ bool FUniversalObjectLocator::SerializeFromMismatchedTag(const FPropertyTag& Tag
 		Fragments.Emplace(TUniversalObjectLocatorFragment<FDirectPathObjectLocator>(OldProperty.ToSoftObjectPath()));
 		return true;
 	}
-	else if (Tag.Type == NAME_StructProperty && Tag.StructName == NAME_SoftObjectPath)
+	else if (Tag.GetType().IsStruct(NAME_SoftObjectPath))
 	{
 		FSoftObjectPath OldPath;
 		Slot << OldPath;

@@ -523,6 +523,7 @@ bool FByteProperty::LoadFromTag(const FPropertyTag& Tag)
 		return false;
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	if (Tag.EnumName.IsNone())
 	{
 		return true;
@@ -530,6 +531,7 @@ bool FByteProperty::LoadFromTag(const FPropertyTag& Tag)
 
 	// Update FEnumProperty when making changes here.
 	TStringBuilder<256> EnumName(InPlace, Tag.EnumName);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	if (UEnum* LocalEnum = FindFirstObject<UEnum>(*EnumName, EFindFirstObjectOptions::NativeFirst))
 	{
 		Enum = LocalEnum;
@@ -545,6 +547,7 @@ void FByteProperty::SaveToTag(FPropertyTag& Tag)
 
 	if (const UEnum* LocalEnum = Enum)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 		// RobM: Ugly hack so that we can avoid content changes in most of the packages
 		// Update FEnumProperty when making changes here.
 		if (LocalEnum->GetPackage()->HasAnyPackageFlags(PKG_CompiledIn))
@@ -555,6 +558,7 @@ void FByteProperty::SaveToTag(FPropertyTag& Tag)
 		{
 			Tag.EnumName = FName(*LocalEnum->GetPathName());
 		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	}
 }
 

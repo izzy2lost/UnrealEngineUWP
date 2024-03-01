@@ -37,7 +37,7 @@ void FRigVMExecuteContext::SetWorld(const UWorld* InWorld)
 bool FRigVMExecuteContext::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
 {
 	static const FName ControlRigExecuteContextName("ControlRigExecuteContext");
-	if (Tag.Type == NAME_StructProperty && Tag.StructName == ControlRigExecuteContextName)
+	if (Tag.GetType().IsStruct(ControlRigExecuteContextName))
 	{
 		static const FString CRExecuteContextPath = TEXT("/Script/ControlRig.ControlRigExecuteContext");
 		UScriptStruct* OldStruct = FindFirstObject<UScriptStruct>(*CRExecuteContextPath, EFindFirstObjectOptions::NativeFirst | EFindFirstObjectOptions::EnsureIfAmbiguous);
