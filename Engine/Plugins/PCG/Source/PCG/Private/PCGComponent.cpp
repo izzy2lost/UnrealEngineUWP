@@ -33,6 +33,7 @@
 #include "Utils/PCGGeneratedResourcesLogging.h"
 #include "Utils/PCGGraphExecutionLogging.h"
 
+#include "CoreGlobals.h"
 #include "LandscapeComponent.h"
 #include "LandscapeProxy.h"
 #include "Algo/AllOf.h"
@@ -66,6 +67,15 @@ namespace PCGComponent
 		TEXT("pcg.GlobalDisableRefresh"),
 		false,
 		TEXT("Disable refresh for all PCG Components."));
+
+	template <typename DelegateType>
+	static void BroadcastDynamicDelegate(const DelegateType& Delegate, UPCGComponent* PCGComponent)
+	{
+#if WITH_EDITOR
+		const TGuardValue ScriptExecutionGuard(GAllowActorScriptExecutionInEditor, true);
+#endif // WITH_EDITOR
+		Delegate.Broadcast(PCGComponent);
+	}
 }
 
 UPCGComponent::UPCGComponent(const FObjectInitializer& InObjectInitializer)
@@ -326,12 +336,14 @@ FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCG
 
 	CurrentGenerationTask = GetSubsystem()->ScheduleComponent(this, Grid, bForce, Dependencies);
 
-#if WITH_EDITOR
 	if (CurrentGenerationTask != InvalidPCGTaskId)
 	{
+#if WITH_EDITOR
 		OnPCGGraphStartGeneratingDelegate.Broadcast(this);
-	}
 #endif // WITH_EDITOR
+
+		PCGComponent::BroadcastDynamicDelegate(OnPCGGraphStartGeneratingExternal, this);
+	}
 
 	return CurrentGenerationTask;
 }
@@ -451,6 +463,8 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 
 		UpdateDynamicTracking();
 #endif // WITH_EDITOR
+
+		PCGComponent::BroadcastDynamicDelegate(OnPCGGraphGeneratedExternal, this);
 	}
 
 	// Trigger notification - will be used by other tracking mechanisms
@@ -544,6 +558,8 @@ void UPCGComponent::PostCleanupGraph()
 		FCoreUObjectDelegates::OnObjectPropertyChanged.Broadcast(this, GeneratedOutputChangedEvent);
 	}
 #endif
+
+	PCGComponent::BroadcastDynamicDelegate(OnPCGGraphCleanedExternal, this);
 }
 
 void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
@@ -574,6 +590,8 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
 
 	GetSubsystem()->OnComponentGenerationCompleteOrCancelled.Broadcast();
 #endif
+
+	PCGComponent::BroadcastDynamicDelegate(OnPCGGraphCancelledExternal, this);
 }
 
 void UPCGComponent::Cleanup()
@@ -3377,6 +3395,12 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 		{
 			PCGComponent->LoadedPreviewResources = DuplicateLoadedPreviewResources;
 		}
+
+		// Move over invocation lists for dynamic delegates
+		PCGComponent->OnPCGGraphStartGeneratingExternal = SourceComponent->OnPCGGraphStartGeneratingExternal;
+		PCGComponent->OnPCGGraphCancelledExternal = SourceComponent->OnPCGGraphCancelledExternal;
+		PCGComponent->OnPCGGraphGeneratedExternal = SourceComponent->OnPCGGraphGeneratedExternal;
+		PCGComponent->OnPCGGraphCleanedExternal = SourceComponent->OnPCGGraphCleanedExternal;
 
 		// Reconnect callbacks
 		if (PCGComponent->GraphInstance)

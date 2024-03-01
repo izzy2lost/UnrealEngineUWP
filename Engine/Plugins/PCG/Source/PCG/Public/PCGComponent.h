@@ -41,6 +41,11 @@ struct FPCGContext;
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphCleaned, UPCGComponent*);
 #endif
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPCGGraphStartGeneratingExternal, UPCGComponent*, PCGComponent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPCGGraphCancelledExternal, UPCGComponent*, PCGComponent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPCGGraphGeneratedExternal, UPCGComponent*, PCGComponent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPCGGraphCleanedExternal, UPCGComponent*, PCGComponent);
+
 UENUM(Blueprintable)
 enum class EPCGComponentInput : uint8
 {
@@ -258,11 +263,24 @@ public:
 	UPROPERTY()
 	bool bForceGenerateOnBPAddedToWorld = false;
 
-	FOnPCGGraphGenerated OnPCGGraphGeneratedDelegate;
 	FOnPCGGraphStartGenerating OnPCGGraphStartGeneratingDelegate;
-	FOnPCGGraphCleaned OnPCGGraphCleanedDelegate;
 	FOnPCGGraphCancelled OnPCGGraphCancelledDelegate;
-#endif
+	FOnPCGGraphGenerated OnPCGGraphGeneratedDelegate;
+	FOnPCGGraphCleaned OnPCGGraphCleanedDelegate;
+#endif // WITH_EDITORONLY_DATA
+
+	/** Event dispatched when a graph begins generation on this component. */
+	UPROPERTY(BlueprintAssignable, meta = (DisplayName = "On Graph Started Generating"))
+	FOnPCGGraphStartGeneratingExternal OnPCGGraphStartGeneratingExternal;
+	/** Event dispatched when a graph cancels generation on this component. */
+	UPROPERTY(BlueprintAssignable, meta = (DisplayName = "On Graph Cancelled"))
+	FOnPCGGraphCancelledExternal OnPCGGraphCancelledExternal;
+	/** Event dispatched when a graph completes its generation on this component. */
+	UPROPERTY(BlueprintAssignable, meta = (DisplayName = "On Graph Generated"))
+	FOnPCGGraphGeneratedExternal OnPCGGraphGeneratedExternal;
+	/** Event dispatched when a graph cleans on this component. */
+	UPROPERTY(BlueprintAssignable, meta = (DisplayName = "On Graph Cleaned"))
+	FOnPCGGraphCleanedExternal OnPCGGraphCleanedExternal;
 
 	/** Flag to indicate whether this component has run in the editor. Note that for partitionable actors, this will always be false. */
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Debug, NonTransactional, meta = (NoResetToDefault))
