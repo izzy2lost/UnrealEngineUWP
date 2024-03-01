@@ -83,6 +83,7 @@
 #include "UObject/CoreRedirects.h"
 #include "Serialization/ZenPackageHeader.h"
 #include "Trace/Trace.h"
+#include "Containers/Ticker.h"
 
 #include <atomic>
 
@@ -5182,6 +5183,31 @@ void FAsyncPackage2::ImportPackagesRecursiveInner(FAsyncLoadingThreadState2& Thr
 			{
 				UE_ASYNC_PACKAGE_CLOG(!ImportedPackageUPackageName.IsNone(), Display, Desc, TEXT("ImportPackages: SkipPackage"),
 					TEXT("Skipping non mounted imported package %s (0x%llX)"), *ImportedPackageNameToLoad.ToString(), ImportedPackageId.ValueForDebugging());
+				if (!ImportedPackageUPackageName.IsNone())
+				{
+					FName PackagePathToLoadName = Desc.PackagePathToLoad.GetPackageFName();
+					ExecuteOnGameThread(TEXT("GetExplanationForUnavailablePackage"), [ImportedPackageNameToLoad, PackagePathToLoadName]()
+					{
+						FString ImportedPackageNameToLoadString = ImportedPackageNameToLoad.ToString();
+						FString PackagePathToLoadString = PackagePathToLoadName.ToString();
+						TStringBuilder<2048> Explanation;
+						FPackageName::GetExplanationForUnavailablePackage(ImportedPackageNameToLoad, Explanation);
+						if (Explanation.Len())
+						{
+							UE_LOG(LogStreaming, Warning, TEXT("While trying to load package %s, a dependent package %s was not available. Additional explanatory information follows:\n%s"), 
+								*PackagePathToLoadString,
+								*ImportedPackageNameToLoadString,
+								Explanation.ToString());
+						}
+						else
+						{
+							UE_LOG(LogStreaming, Warning, TEXT("While trying to load package %s, a dependent package %s was not available. No additional explanation was available."),
+								*PackagePathToLoadString,
+								*ImportedPackageNameToLoadString);
+						}
+						return false;
+					});
+				}
 				ImportedPackageRef.SetIsMissingPackage();
 			}
 			continue;

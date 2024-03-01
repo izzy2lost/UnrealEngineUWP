@@ -693,6 +693,9 @@ private:
 
 	static void RemoveGameFeatureFromAssetManager(const UGameFeatureData* GameFeatureToRemove, const FString& PluginName, const TArray<FName>& AddedPrimaryAssetTypes);
 
+	// Provide additional causal information when a package is unavailable for load
+	void GetExplanationForUnavailablePackage(const FString& SkippedPackage, IPlugin* PluginIfFound, FStringBuilderBase& InOutExplanation);
+
 private:
 	bool ShouldUpdatePluginProtocolOptions(const UGameFeaturePluginStateMachine* StateMachine, const FGameFeatureProtocolOptions& NewOptions);
 	UE::GameFeatures::FResult UpdateGameFeatureProtocolOptions(UGameFeaturePluginStateMachine* StateMachine, const FGameFeatureProtocolOptions& NewOptions, bool* bOutDidUpdate = nullptr);
@@ -753,6 +756,8 @@ private:
 	/** Handle 'ListGameFeaturePlugins' console command */
 	void ListGameFeaturePlugins(const TArray<FString>& Args, UWorld* InWorld, FOutputDevice& Ar);
 
+	void SetExplanationForNotMountingPlugin(const FString& PluginURL, const FString& Explanation);
+
 	enum class EObserverCallback
 	{
 		CheckingStatus,
@@ -802,6 +807,12 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UGameFeaturesProjectPolicies> GameSpecificPolicies;
+
+#if WITH_EDITOR
+	// When we decide not to mount a plugin, we can store an explanation here so that if we later attempt to load an asset from it we can tell the user why it's not available
+	TMap<FString, FString> UnmountedPluginNameToExplanation;
+#endif
+	FDelegateHandle GetExplanationForUnavailablePackageDelegateHandle;
 
 	bool bInitializedPolicyManager = false;
 };

@@ -3539,4 +3539,36 @@ void FPluginManager::RemoveFromModuleNameToPluginMap(const TSharedRef<FPlugin>& 
 }
 #endif //if WITH_EDITOR
 
+void FPluginManager::GetExplanationForUnavailablePackage(const FName& UnavailablePackageName, FStringBuilderBase& InOutExplanation)
+{
+	FString UnavailablePackageNameString = UnavailablePackageName.ToString();
+	FPlugin* Plugin = static_cast<FPlugin*>(FindPluginFromPath(UnavailablePackageNameString).Get());
+
+	if (Plugin != nullptr)
+	{
+		if (!Plugin->IsMounted())
+		{
+			InOutExplanation.Appendf(TEXT("Skipped package %s was expected to be found in plugin %s, however that plugin is not mounted. [ExplicitlyLoaded = %s, Enabled = %s]."),
+				*UnavailablePackageNameString,
+				*Plugin->GetFriendlyName(),
+				Plugin->GetDescriptor().bExplicitlyLoaded ? TEXT("TRUE") : TEXT("FALSE"),
+				Plugin->IsEnabled() ? TEXT("TRUE") : TEXT("FALSE"));
+		}
+	}
+	else
+	{
+		// If we don't have a valid plugin, we have nothing to add
+	}
+
+	// Give higher level systems a chance to provide further information
+	GetExplanationForUnavailablePackageWithPluginInfoDelegate().Broadcast(UnavailablePackageNameString, Plugin, InOutExplanation);
+}
+
+IPluginManager::FGetExplanationForUnavailablePackageWithPluginInfoDelegate& FPluginManager::GetExplanationForUnavailablePackageWithPluginInfoDelegate()
+{
+	static FGetExplanationForUnavailablePackageWithPluginInfoDelegate Delegate;
+	return Delegate;
+}
+
+
 #undef LOCTEXT_NAMESPACE

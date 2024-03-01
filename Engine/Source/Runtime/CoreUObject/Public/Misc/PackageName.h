@@ -296,6 +296,8 @@ public:
 
 	/**
 	 * This will insert a mount point at the head of the search chain (so it can overlap an existing mount point and win).
+	 * If you register a mount point (even if you do so only in certain circumstances) consider also adding a handler for GetExplanationForUnavailablePackage
+	 * to help debug cases where a package can't be found
 	 *
 	 * @param RootPath Logical Root Path.
 	 * @param ContentPath Content Path on disk.
@@ -854,6 +856,23 @@ public:
 	 */
 	static COREUOBJECT_API bool TryGetMountPointForPath(FStringView InFilePathOrPackageName, FStringBuilderBase& OutMountPointPackageName, FStringBuilderBase& OutMountPointFilePath, FStringBuilderBase& OutRelPath,
 		EFlexNameType* OutFlexNameType = nullptr, EErrorCode* OutFailureReason = nullptr);
+
+	/** Delegate type for allowing higher levels systems to provide additional context for why a package is not available */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FGetExplanationForUnavailablePackageDelegate, const FName& /*Unavailable Package*/, FStringBuilderBase& /*InOutExplanation*/);
+
+	/**
+	 * Accessor for installing callbacks for use with GetExplanationForUnavailablePackage
+	 * 
+	 */ 
+	static COREUOBJECT_API FGetExplanationForUnavailablePackageDelegate& GetExplanationForUnavailablePackageDelegate();
+
+	/**
+	 * Attempt to generate an explanation for why a particular package was not available for loading
+	 * 
+	 * @param UnavailablePackageName The package that was requested but could not be loaded
+	 * @param InOutExplanation A string builder that will be populated with any available information about why the package was not available. The string builder will *not* be reset and will be appended to.
+	 */
+	 static COREUOBJECT_API void GetExplanationForUnavailablePackage(const FName& UnavailablePackageName, FStringBuilderBase& InOutExplanation);
 
 private:
 

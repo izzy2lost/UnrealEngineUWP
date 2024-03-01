@@ -1696,6 +1696,66 @@ bool FPackageName::TryGetMountPointForPath(FStringView InFilePathOrPackageName, 
 	return false;
 }
 
+FPackageName::FGetExplanationForUnavailablePackageDelegate& FPackageName::GetExplanationForUnavailablePackageDelegate()
+{
+	static FPackageName::FGetExplanationForUnavailablePackageDelegate Delegate;
+	return Delegate;
+}
+
+void FPackageName::GetExplanationForUnavailablePackage(const FName& UnavailablePackageName, FStringBuilderBase& InOutExplanation)
+{
+	FString PackageRoot = FString::Printf(TEXT("/%s"), *FPackageName::SplitPackageNameRoot(UnavailablePackageName, nullptr));
+	if (FPackageName::MountPointExists(PackageRoot))
+	{
+		// The mount point exists but we failed to load the asset. Maybe the package itself didn't exist?
+		const EPackageLocationFilter BothLocationsMask = (EPackageLocationFilter)((uint8)EPackageLocationFilter::FileSystem | (uint8)EPackageLocationFilter::IoDispatcher);
+		FPackagePath SkippedPackagePath;
+		const FString& UnavailablePackageNameString = UnavailablePackageName.ToString();
+		bool ConvertedToPath = FPackagePath::TryFromMountedName(UnavailablePackageNameString, SkippedPackagePath);
+		if (ensure(ConvertedToPath))
+		{
+			EPackageLocationFilter PackageLocations = DoesPackageExistEx(SkippedPackagePath, BothLocationsMask);
+
+			if (PackageLocations == EPackageLocationFilter::None)
+			{
+				InOutExplanation.Appendf(TEXT("FPackageName: Skipped package %s has a valid, mounted, mount point but does not exist either on disk or in iostore."),
+					*UnavailablePackageNameString);
+				const FString& LocalFullPath = SkippedPackagePath.GetLocalFullPath();
+				if (LocalFullPath.Len())
+				{
+					FString PathToPrint = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*LocalFullPath);
+					if (PathToPrint.Len() == 0)
+					{
+						PathToPrint = LocalFullPath;
+					}
+					InOutExplanation.Appendf(TEXT(" The uncooked file would be expected on disk at '%s'. Perhaps it has been deleted or was not synced?\n"), *PathToPrint);
+				}
+				else
+				{
+					InOutExplanation.Append(TEXT("\n"));
+				}
+			}
+			else
+			{
+				InOutExplanation.Appendf(TEXT("FPackageName: Skipped package %s was found %s but for some reason could not be found or used by the loader. This could occur if the loader is only considering cooked packages but the package exists only on disk.\n"),
+					*UnavailablePackageNameString,
+					(PackageLocations == BothLocationsMask) ? TEXT("on disk and in iodispatcher") :
+					((PackageLocations == EPackageLocationFilter::FileSystem) ? TEXT("on disk") : TEXT("in iodispatcher")));
+			}
+		}
+	}
+	else
+	{
+		InOutExplanation.Appendf(TEXT("FPackageName: Unable to identify a valid mount point associated with skipped package %s. The package root is unknown.\n"), *UnavailablePackageName.ToString());
+	}
+
+	// The plugin manager needs to be called directly rather than via delegate due to dependency issue (CoreUObject depends on Projects and not vice versa)
+	IPluginManager::Get().GetExplanationForUnavailablePackage(UnavailablePackageName, InOutExplanation);
+
+	// Give other systems an opportunity to add to this explanation
+	GetExplanationForUnavailablePackageDelegate().Broadcast(UnavailablePackageName, InOutExplanation);
+}
+
 FString FPackageName::GetModuleScriptPackageName(FStringView InModuleName)
 {
 	return FString::Printf(TEXT("/Script/%.*s"), InModuleName.Len(), InModuleName.GetData());

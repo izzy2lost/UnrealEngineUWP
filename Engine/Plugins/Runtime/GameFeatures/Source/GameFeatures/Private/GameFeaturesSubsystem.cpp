@@ -491,11 +491,15 @@ void UGameFeaturesSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 				}
 			}),
 		ECVF_Cheat);
+
+	GetExplanationForUnavailablePackageDelegateHandle = IPluginManager::Get().GetExplanationForUnavailablePackageWithPluginInfoDelegate().AddUObject(this, &UGameFeaturesSubsystem::GetExplanationForUnavailablePackage);
 }
 
 void UGameFeaturesSubsystem::Deinitialize()
 {
 	UE_LOG(LogGameFeatures, Log, TEXT("Shutting down game features subsystem"));
+	IPluginManager::Get().GetExplanationForUnavailablePackageWithPluginInfoDelegate().Remove(GetExplanationForUnavailablePackageDelegateHandle);
+	GetExplanationForUnavailablePackageDelegateHandle.Reset();
 
 	if ((GameSpecificPolicies != nullptr) && bInitializedPolicyManager)
 	{
@@ -692,6 +696,27 @@ FString UGameFeaturesSubsystem::GetPluginURL_FileProtocol(const FString& PluginD
 			});
 	}
 	return Path;
+}
+
+void UGameFeaturesSubsystem::GetExplanationForUnavailablePackage(const FString& UnavailablePackage, IPlugin* PluginIfFound, FStringBuilderBase& InOutExplanation)
+{
+#if WITH_EDITOR
+	if (PluginIfFound)
+	{
+		if (FString* Explanation = UnmountedPluginNameToExplanation.Find(PluginIfFound->GetName()))
+		{
+			InOutExplanation.Appendf(TEXT("\nUGameFeaturesSubsystem: Explanation for not mounting plugin %s: %s"), *PluginIfFound->GetFriendlyName(), **Explanation);
+		}
+	}
+	else
+	{
+		FString ContentDirName = FPackageName::SplitPackageNameRoot(UnavailablePackage, nullptr).GetData();
+		if (FString* Explanation = UnmountedPluginNameToExplanation.Find(ContentDirName))
+		{
+			InOutExplanation.Appendf(TEXT("\nUGameFeaturesSubsystem: Explanation for not mounting plugin %s: %s"), *ContentDirName, **Explanation);
+		}
+	}
+#endif
 }
 
 FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FInstallBundlePluginProtocolMetaData& ProtocolMetadata, TArrayView<const TPair<FString, FString>> AdditionalOptions = {})
@@ -2596,6 +2621,15 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePluginComplete(const UE::Game
 			*UE::GameFeatures::ToString(Machine->GetCurrentState()), 
 			*UE::GameFeatures::ToString(RequestedDestination.MinState), 
 			*UE::GameFeatures::ToString(RequestedDestination.MaxState));
+#if WITH_EDITOR
+		if (Machine->GetCurrentState() > EGameFeaturePluginState::Mounting)
+		{
+			if (FString* Explanation = UnmountedPluginNameToExplanation.Find(Machine->GetPluginName()))
+			{
+				UnmountedPluginNameToExplanation.Remove(Machine->GetPluginName());
+			}
+		}
+#endif
 	}
 	else
 	{
@@ -2606,6 +2640,7 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePluginComplete(const UE::Game
 			*UE::GameFeatures::ToString(Machine->GetDestination().MinState),
 			*UE::GameFeatures::ToString(Machine->GetDestination().MaxState),
 			*ErrorMessage);
+		SetExplanationForNotMountingPlugin(Machine->GetPluginURL(), ErrorMessage);
 	}
 }
 
@@ -2670,6 +2705,15 @@ void UGameFeaturesSubsystem::ChangeGameFeatureDestination(UGameFeaturePluginStat
 
 void UGameFeaturesSubsystem::ChangeGameFeatureTargetStateComplete(UGameFeaturePluginStateMachine* Machine, const UE::GameFeatures::FResult& Result, FGameFeaturePluginChangeStateComplete CompleteDelegate)
 {
+#if WITH_EDITOR
+	if (!Result.HasError() && Machine->GetCurrentState() > EGameFeaturePluginState::Mounting)
+	{
+		if (FString* Explanation = UnmountedPluginNameToExplanation.Find(Machine->GetPluginName()))
+		{
+			UnmountedPluginNameToExplanation.Remove(Machine->GetPluginName());
+		}
+	}
+#endif
 	CompleteDelegate.ExecuteIfBound(Result);
 }
 
@@ -2708,7 +2752,10 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 			TValueOrError<FString, FString> DependencyURLInfo = GameSpecificPolicies->ResolvePluginDependency(PluginURL, DependencyName);
 			if (DependencyURLInfo.HasError())
 			{
-				UE_LOG(LogGameFeatures, Error, TEXT("Game feature plugin '%s' has unknown dependency '%s' [%s]."), *PluginFilename, *DependencyName, *DependencyURLInfo.GetError());
+				FString ErrorMessage = FString::Printf(TEXT("Game feature plugin '%s' has unknown dependency '%s' [%s]."), *PluginFilename, *DependencyName, *DependencyURLInfo.GetError());
+				UE_LOG(LogGameFeatures, Error, TEXT("%s"), *ErrorMessage);
+
+				SetExplanationForNotMountingPlugin(PluginURL, ErrorMessage);
 
 				//Don't actually return false here as we want to still be able to progress in the case of 
 				//things like an editor plugin being included as a dependency in the client or a dynamic dependency that
@@ -3241,3 +3288,16 @@ void UGameFeaturesSubsystem::GetPluginsToCook(TSet<FString>& OutPlugins)
 	
 	OutPlugins.Append(PluginsList);
 }
+
+void UGameFeaturesSubsystem::SetExplanationForNotMountingPlugin(const FString& PluginURL, const FString& Explanation)
+{
+#if WITH_EDITOR
+	FGameFeaturePluginIdentifier Identifier(PluginURL);
+	FStringView PluginName = Identifier.GetPluginName();
+	if (!PluginName.IsEmpty())
+	{
+		UnmountedPluginNameToExplanation.FindOrAdd(FString(PluginName)) = Explanation;
+	}
+#endif
+}
+

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Delegates/Delegate.h"
 #include "PluginDescriptor.h"
 #include "Containers/VersePathFwd.h"
 #include "Templates/SharedPointer.h"
@@ -298,6 +299,25 @@ public:
 	 * @returns true if all the required plug-ins are available.
 	 */
 	virtual bool AreRequiredPluginsAvailable() = 0;
+
+	/** Delegate type for allowing higher levels systems to provide additional context for why a package was skipped during loading */
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FGetExplanationForUnavailablePackageWithPluginInfoDelegate, const FString& /*Unavailable package*/, class IPlugin* /*Plugin or null if not found*/, FStringBuilderBase& /*InOutStringBuilder*/);
+
+	/**
+	 * Accessor for adding/removing FGetExplanationForUnavailablePackageWithPluginInfoDelegate delegates.
+	 * 
+	 * @returns the FGetExplanationForUnavailablePackageWithPluginInfoDelegate to which callbacks can be bound
+	 */
+	virtual FGetExplanationForUnavailablePackageWithPluginInfoDelegate& GetExplanationForUnavailablePackageWithPluginInfoDelegate() = 0;
+
+	/**
+	 * Attempts to fill out InOutExplanation with information from various sources (registered via GetExplanationForUnavailablePackageWithPluginInfoDelegate)
+	 * about why UnavailablePackageName is not available
+	 * 
+	 * @param UnavailablePackageName the name of the package about which to get information
+	 * @param InOutExplanation a stringbuilder to which to append explanatory information
+	 */
+	virtual	void GetExplanationForUnavailablePackage(const FName& UnavailablePackageName, FStringBuilderBase& InOutExplanation) = 0;
 
 #if !IS_MONOLITHIC
 	/** 
