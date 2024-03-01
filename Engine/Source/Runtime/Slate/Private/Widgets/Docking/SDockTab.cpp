@@ -13,6 +13,7 @@
 #include "Framework/Docking/SDockingArea.h"
 #include "Widgets/Colors/SComplexGradient.h"
 #include "Widgets/Layout/SBox.h"
+#include "Misc/NamePermissionList.h"
 
 namespace SDockTabDefs
 {
@@ -408,7 +409,23 @@ void SDockTab::ActivateInParent(ETabActivationCause InActivationCause)
 
 void SDockTab::SetTabManager( const TSharedPtr<FTabManager>& InTabManager)
 {
+	{
+		TSharedPtr<FTabManager> Previous = MyTabManager.Pin();
+		if (Previous && Previous != InTabManager)
+		{
+			Previous->GetTabPermissionList()->OnFilterChanged().RemoveAll(this);
+		}
+	}
+
 	MyTabManager = InTabManager;
+
+	if (InTabManager)
+	{
+		if (!InTabManager->GetTabPermissionList()->OnFilterChanged().IsBoundToObject(this))
+		{
+			InTabManager->GetTabPermissionList()->OnFilterChanged().AddSP(this, &SDockTab::CheckTabAllowed);
+		}
+	}
 }
 
 void SDockTab::SetOnPersistVisualState( const FOnPersistVisualState& Handler )
@@ -746,6 +763,22 @@ void SDockTab::OnTabDrawerClosed()
 void SDockTab::NotifyTabRelocated()
 {
 	OnTabRelocated.ExecuteIfBound();
+}
+
+void SDockTab::CheckTabAllowed()
+{
+	if (!LayoutIdentifier.TabType.IsNone())
+	{
+		TSharedPtr<FTabManager> Manager = MyTabManager.Pin();
+		if (Manager)
+		{
+			if (!Manager->GetTabPermissionList()->PassesFilter(LayoutIdentifier.TabType))
+			{
+				UE_LOG(LogSlate, Verbose, TEXT("Closing tab because type does not pass filter: %s"), *LayoutIdentifier.TabType.ToString());
+				RequestCloseTab();
+			}
+		}
+	}
 }
 
 const FDockTabStyle& SDockTab::GetCurrentStyle() const
