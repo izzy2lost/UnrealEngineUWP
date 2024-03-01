@@ -10590,7 +10590,7 @@ FName URigVMController::AddExposedPin(const FName& InPinName, ERigVMPinDirection
 	RefreshFunctionPins(EntryNode);
 	RefreshFunctionPins(ReturnNode);
 
-	RefreshFunctionReferences(LibraryNode, bSetupUndoRedo);
+	RefreshFunctionReferences(LibraryNode, bSetupUndoRedo, false);
 
 	if (bSetupUndoRedo)
 	{
@@ -10698,7 +10698,7 @@ bool URigVMController::RemoveExposedPin(const FName& InPinName, bool bSetupUndoR
 
 		RefreshFunctionPins(Graph->GetEntryNode(), bSetupUndoRedo);
 		RefreshFunctionPins(Graph->GetReturnNode(), bSetupUndoRedo);
-		RefreshFunctionReferences(LibraryNode, bSetupUndoRedo);
+		RefreshFunctionReferences(LibraryNode, bSetupUndoRedo, false);
 	}
 
 	if (bSetupUndoRedo)
@@ -11123,7 +11123,7 @@ bool URigVMController::ChangeExposedPinType(const FName& InPinName, const FStrin
 	// Change pin type on function references
 	if (URigVMFunctionLibrary* FunctionLibrary = Cast<URigVMFunctionLibrary>(LibraryNode->GetGraph()))
 	{
-		RefreshFunctionReferences(LibraryNode, bSetupUndoRedo);
+		RefreshFunctionReferences(LibraryNode, bSetupUndoRedo, false);
 	}
 
 	// Change pin types on input variable nodes
@@ -11226,7 +11226,7 @@ bool URigVMController::SetExposedPinIndex(const FName& InPinName, int32 InNewInd
 
 	RefreshFunctionPins(LibraryNode->GetEntryNode());
 	RefreshFunctionPins(LibraryNode->GetReturnNode());
-	RefreshFunctionReferences(LibraryNode, false);
+	RefreshFunctionReferences(LibraryNode, false, false);
 	
 	if (bSetupUndoRedo)
 	{
@@ -15287,6 +15287,7 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 	}
 	else if (FunctionRefNode)
 	{
+		FunctionRefNode->UpdateFunctionHeaderFromHost();
 		const FRigVMGraphFunctionHeader& FunctionHeader = FunctionRefNode->GetReferencedFunctionHeader();
 		if (FunctionHeader.IsValid())
 		{
@@ -18159,23 +18160,28 @@ const FRigVMByteCode* URigVMController::GetCurrentByteCode() const
 	return nullptr;
 }
 
-void URigVMController::RefreshFunctionReferences(URigVMLibraryNode* InFunctionDefinition, bool bSetupUndoRedo)
+void URigVMController::RefreshFunctionReferences(URigVMLibraryNode* InFunctionDefinition, bool bSetupUndoRedo, bool bLoadIfNecessary)
 {
 	check(InFunctionDefinition);
 
 	if (const URigVMFunctionLibrary* FunctionLibrary = Cast<URigVMFunctionLibrary>(InFunctionDefinition->GetGraph()))
 	{
-		FunctionLibrary->ForEachReference(InFunctionDefinition->GetFName(), [this, bSetupUndoRedo](URigVMFunctionReferenceNode* ReferenceNode)
+		TMap<URigVMController*,TSharedPtr<FRigVMControllerCompileBracketScope>> CompilationBrackets;
+		FunctionLibrary->ForEachReference(InFunctionDefinition->GetFName(), [this, bSetupUndoRedo, &CompilationBrackets](URigVMFunctionReferenceNode* ReferenceNode)
 		{
 			if(URigVMController* ReferenceController = GetControllerForGraph(ReferenceNode->GetGraph()))
 			{
+				if (!CompilationBrackets.Contains(ReferenceController))
+				{
+					CompilationBrackets.FindOrAdd(ReferenceController) = MakeShared<FRigVMControllerCompileBracketScope>(ReferenceController);
+				}
 				const TArray<FLinkedPath> LinkedPaths = GetLinkedPaths(ReferenceNode->GetLinks());
 				ReferenceController->FastBreakLinkedPaths(LinkedPaths, bSetupUndoRedo);
 				ReferenceController->RepopulatePinsOnNode(ReferenceNode, false, false, true);
 				TGuardValue<bool> ReportGuard(ReferenceController->bReportWarningsAndErrors, false);
 				ReferenceController->RestoreLinkedPaths(LinkedPaths, FRestoreLinkedPathSettings(), bSetupUndoRedo);
 			}
-		});
+		}, bLoadIfNecessary);
 	}
 }
 

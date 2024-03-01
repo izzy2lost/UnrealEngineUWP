@@ -166,6 +166,14 @@ uint32 URigVMFunctionReferenceNode::GetStructureHash() const
 	return Hash;
 }
 
+void URigVMFunctionReferenceNode::UpdateFunctionHeaderFromHost()
+{
+	if (const FRigVMGraphFunctionData* Data = GetReferencedFunctionData())
+	{
+		ReferencedFunctionHeader = Data->Header;
+	}
+}
+
 const FRigVMGraphFunctionData* URigVMFunctionReferenceNode::GetReferencedFunctionData(bool bLoadIfNecessary) const
 {
 	if (IRigVMGraphFunctionHost* Host = ReferencedFunctionHeader.GetFunctionHost(bLoadIfNecessary))
