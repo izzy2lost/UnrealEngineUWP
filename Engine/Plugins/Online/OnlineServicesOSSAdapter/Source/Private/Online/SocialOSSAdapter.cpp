@@ -95,7 +95,7 @@ TOnlineAsyncOpHandle<FQueryFriends> FSocialOSSAdapter::QueryFriends(FQueryFriend
 		}
 		else
 		{
-			Op.SetError(Errors::InvalidUser());
+			Op.SetError(Errors::InvalidParams());
 		}
 	})
 	.Enqueue(GetSerialQueue());
@@ -151,7 +151,7 @@ TOnlineAsyncOpHandle<FSendFriendInvite> FSocialOSSAdapter::SendFriendInvite(FSen
 
 		if (LocalUserNum == INDEX_NONE || !FriendId)
 		{
-			Op.SetError(Errors::InvalidUser());
+			Op.SetError(Errors::InvalidParams());
 			return;
 		}
 
@@ -192,7 +192,7 @@ TOnlineAsyncOpHandle<FAcceptFriendInvite> FSocialOSSAdapter::AcceptFriendInvite(
 
 		if (LocalUserNum == INDEX_NONE || !FriendId)
 		{
-			Op.SetError(Errors::InvalidUser());
+			Op.SetError(Errors::InvalidParams());
 			return;
 		}
 
@@ -233,7 +233,7 @@ TOnlineAsyncOpHandle<FRejectFriendInvite> FSocialOSSAdapter::RejectFriendInvite(
 
 		if (LocalUserNum == INDEX_NONE || !FriendId)
 		{
-			Op.SetError(Errors::InvalidUser());
+			Op.SetError(Errors::InvalidParams());
 			return;
 		}
 
@@ -371,7 +371,7 @@ TOnlineAsyncOpHandle<FBlockUser> FSocialOSSAdapter::BlockUser(FBlockUser::Params
 		}
 		else
 		{
-			Op.SetError(Errors::InvalidUser());
+			Op.SetError(Errors::InvalidParams());
 		}
 	})
 	.Enqueue(GetSerialQueue());

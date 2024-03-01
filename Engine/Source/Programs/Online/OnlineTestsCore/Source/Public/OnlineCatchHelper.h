@@ -37,7 +37,7 @@ public:
 	static void UnloadServiceModules();
 
 	FTestPipeline& GetLoginPipeline(uint32 NumUsersToLogin = 1) const;
-
+	FTestPipeline& GetLoginPipeline(uint32 UserNumToLogin, FAccountId& OutAccountId) const;
 
 	typedef UE::Online::FAccountId FAccountId;
 public:
@@ -98,7 +98,7 @@ protected:
 	/* Returns the ini login category name for the configured service */
 	FString GetLoginCredentialCategory() const;
 
-	void RunToCompletion(bool bLogout = true) const;
+	void RunToCompletion(bool bLogout = true, const TOptional<int32> UserNumToLogout = TOptional<int32>()) const;
 
 	/* ITestInvoker */
 	virtual void invoke() const override = 0;

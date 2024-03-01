@@ -270,12 +270,26 @@ FTestPipeline& OnlineTestBase::GetLoginPipeline(uint32 NumUsersToLogin) const
 	return *Pipeline;
 }
 
+FTestPipeline& OnlineTestBase::GetLoginPipeline(uint32 UserNumToLogin, FAccountId& OutAccountId) const
+{
+	REQUIRE(NumLocalUsers == -1); // Don't call GetLoginPipeline more than once per test
+	// Make sure input delegates are fired for adding the required user count.
+	//EnsureLocalUserCount(UserNumToLogin);
+	Pipeline->EmplaceStep<FAuthLoginStep>(GetCredentials(UserNumToLogin));
+	// Perform login so we can bulk assign users in the next step.
+	RunToCompletion(false);
+	AssignLoginUsers(UserNumToLogin, OutAccountId);
+	// Return a fresh pipeline so the logins added by GetLoginPipeline don't execute again.
+	Pipeline = MakeShared<FTestPipeline>(Driver.MakePipeline());
+	return *Pipeline;
+}
+
 FTestPipeline& OnlineTestBase::GetPipeline() const
 {
 	return GetLoginPipeline(0);
 }
 
-void OnlineTestBase::RunToCompletion(bool bLogout) const
+void OnlineTestBase::RunToCompletion(bool bLogout, const TOptional<int32> UserNumToLogout) const
 {
 	bool bUseAutoLogin = false;
 	bool bUseImplicitLogin = false;
@@ -293,6 +307,10 @@ void OnlineTestBase::RunToCompletion(bool bLogout) const
 			// todo
 			// NumLocalUsers = 1;
 			// Pipeline.EmplaceStep<FAuthAutoLoginStep>(0);
+		}
+		else if (UserNumToLogout.IsSet())
+		{
+			Pipeline->EmplaceStep<FAuthLogoutStep>(FPlatformMisc::GetPlatformUserForUserIndex(UserNumToLogout.GetValue()));
 		}
 		else 
 		{
