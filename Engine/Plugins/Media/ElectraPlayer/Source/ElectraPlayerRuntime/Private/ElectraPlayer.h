@@ -418,6 +418,7 @@ private:
 
 	bool											bInitialSeekPerformed;
 	bool											bDiscardOutputUntilCleanStart;
+	bool											bIsFirstBuffering;
 
 	FPlaybackRange									CurrentPlaybackRange;
 	TOptional<bool>									bFrameAccurateSeeking;
