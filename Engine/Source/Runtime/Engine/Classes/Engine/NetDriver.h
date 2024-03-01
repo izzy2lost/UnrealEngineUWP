@@ -1214,14 +1214,27 @@ public:
 	TMap<FNetworkGUID, TUniquePtr<FActorDestructionInfo>>	DestroyedStartupOrDormantActors;
 
 private:
+
 	/** Tracks the network guids in DestroyedStartupOrDormantActors above, but keyed on the streaming level name. */
 	TMap<FName, TSet<FNetworkGUID>> DestroyedStartupOrDormantActorsByLevel;
 
+	/** Cached list of analytic attributes that can be appended via FNetAnalyticsAggregator::AppendGameInstanceAttributes */
+	TMap<FString, FString> CachedNetAnalyticsAttributes;
+
 public:
+
 	const TSet<FNetworkGUID>& GetDestroyedStartupOrDormantActors(const FName& LevelName)
 	{
 		return DestroyedStartupOrDormantActorsByLevel.FindOrAdd(LevelName);
 	}
+
+	/** 
+	 * Add or overwrite an analytics attribute that will be appended via FNetAnalyticsAggregator::AppendGameInstanceAttributes
+	 * Useful to add game specific attributes to your analytics.
+	 * @param AttributeKey The key of the attribute. Stored in a case-insensitive map
+	 * @param AttributeValue Value of the attribute to store. Only supports strings.
+	 */
+	void SetNetAnalyticsAttributes(const FString& AttributeKey, const FString& AttributeValue) { CachedNetAnalyticsAttributes.Add(AttributeKey, AttributeValue); }
 
 	/** The server adds an entry into this map for every startup actor that has been renamed, and will
 	 *  always map from current name to original name
@@ -2202,6 +2215,9 @@ private:
 	void SendClientMoveAdjustments();
 	void PostDispatchSendUpdate();
 #endif
+
+	/** Tell the registered NetAnalytics to send their analytics via the provider */
+	void SendNetAnalytics();
 
 	/** Description of the replication model used by this Driver (RepGraph, Iris or Generic) */
 	FString GetReplicationModelName() const;
