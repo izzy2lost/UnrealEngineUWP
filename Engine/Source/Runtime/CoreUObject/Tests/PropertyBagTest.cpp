@@ -286,7 +286,7 @@ namespace PropertyBagTestUtils
 		TArray<uint8> Buffer = EncodeToBuffer(InValue);
 
 		FPropertyTag Tag;
-		Tag.Prop = Prop;
+		Tag.SetProperty(Prop);
 		Tag.Name = FName(TEXT("TagTmp"));
 
 		LoadDataByTag(Dst, Path, Tag, Buffer);
