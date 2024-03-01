@@ -477,11 +477,6 @@ void UWorldPartitionSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWo
 		}
 	}
 
-	if (const UWorld* OwningWorld = GetWorld(); OwningWorld && OwningWorld->HasBegunPlay())
-	{
-		InWorldPartition->OnBeginPlay();
-	}
-
 	check(!RegisteredWorldPartitions.Contains(InWorldPartition));
 	RegisteredWorldPartitions.Add(InWorldPartition);
 	IncrementalUpdateWorldPartitionsPendingAdd.Add(InWorldPartition);
@@ -1025,16 +1020,6 @@ void UWorldPartitionSubsystem::GetStreamingSources(const UWorldPartition* InWorl
 }
 
 DECLARE_CYCLE_STAT(TEXT("World Partition Update Streaming"), STAT_WorldPartitionUpdateStreaming, STATGROUP_Engine);
-
-void UWorldPartitionSubsystem::OnWorldBeginPlay(UWorld& InWorld)
-{
-	Super::OnWorldBeginPlay(InWorld);
-
-	for (UWorldPartition* RegisteredWorldPartition : RegisteredWorldPartitions)
-	{
-		RegisteredWorldPartition->OnBeginPlay();
-	}
-}
 
 void UWorldPartitionSubsystem::UpdateStreamingState()
 {

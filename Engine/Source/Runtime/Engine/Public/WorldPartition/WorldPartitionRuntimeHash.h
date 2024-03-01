@@ -182,14 +182,10 @@ class UWorldPartitionRuntimeHash : public UObject
 	UE_DEPRECATED(5.4, "GetCellForPackage is deprecated.")
 	ENGINE_API UWorldPartitionRuntimeCell* GetCellForPackage(const FWorldPartitionCookPackage& PackageToCook) const { return nullptr; }
 	//~End Deprecation
-#endif
 
-	ENGINE_API virtual void OnBeginPlay() {}
-
-#if WITH_EDITOR
 	// PIE/Game methods
-	ENGINE_API virtual void PrepareEditorGameWorld();
-	ENGINE_API virtual void ShutdownEditorGameWorld();
+	ENGINE_API void OnBeginPlay();
+	ENGINE_API void OnEndPlay();
 
 protected:
 	ENGINE_API virtual void StoreStreamingContentToExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* OutExternalStreamingObject);

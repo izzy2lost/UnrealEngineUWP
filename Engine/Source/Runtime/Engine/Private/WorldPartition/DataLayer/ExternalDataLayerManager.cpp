@@ -611,7 +611,7 @@ void UExternalDataLayerManager::PostEditUndo()
 	PreEditUndoExternalDataLayerAssets.Empty();
 }
 
-void UExternalDataLayerManager::PrepareEditorGameWorld()
+void UExternalDataLayerManager::OnBeginPlay()
 {
 	if (IsRunningGameOrInstancedWorldPartition())
 	{
@@ -622,9 +622,9 @@ void UExternalDataLayerManager::PrepareEditorGameWorld()
 	}
 }
 
-void UExternalDataLayerManager::ShutdownEditorGameWorld()
+void UExternalDataLayerManager::OnEndPlay()
 {
-	// UWorldPartition::Uninitialize() calls ShutdownEditorGameWorld for game worlds, but ExternalDataLayerManager::Deinitialize is also called afterward. 
+	// UWorldPartition::Uninitialize() calls OnEndPlay for game worlds, but ExternalDataLayerManager::Deinitialize is also called afterward. 
 	// For game world, let UExternalDataLayerManager::Deinitialize do the job.
 	if (!GetTypedOuter<UWorld>()->IsGameWorld())
 	{

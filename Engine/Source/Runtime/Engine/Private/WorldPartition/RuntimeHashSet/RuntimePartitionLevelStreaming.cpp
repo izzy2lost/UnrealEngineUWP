@@ -37,26 +37,18 @@ bool URuntimePartitionLevelStreaming::GenerateStreaming(const FGenerateStreaming
 		}
 		ActorSetGridNameList.Add(LevelName);
 
-		FName CellName;
-		if (ActorSetInstance->bIsSpatiallyLoaded)
-		{
-			TStringBuilder<512> StringBuilder;
-			StringBuilder += Name.ToString();
-			StringBuilder += TEXT("_");
-			StringBuilder += LevelName.ToString();
-			CellName = *StringBuilder;
-		}
-		else
-		{
-			CellName = NAME_PersistentLevel;
-		}
+		TStringBuilder<512> StringBuilder;
+		StringBuilder += Name.ToString();
+		StringBuilder += TEXT("_");
+		StringBuilder += LevelName.ToString();
+		FName CellName = *StringBuilder;
 
 		CellsActorSetInstances.FindOrAdd(CellName).Add(ActorSetInstance);
 	}
 
 	for (auto& [CellName, CellActorSetInstances] : CellsActorSetInstances)
 	{
-		OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(CellName.ToString(), CellName != NAME_PersistentLevel, 0, CellActorSetInstances));
+		OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(CellName.ToString(), true, 0, CellActorSetInstances));
 	}
 
 	return true;

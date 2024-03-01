@@ -45,7 +45,7 @@ FAutoConsoleCommand FWorldPartitionDebugHelper::DebugFilterByRuntimeHashGridName
 
 bool FWorldPartitionDebugHelper::IsDebugRuntimeHashGridShown(FName Name)
 {
-	return !DebugRuntimeHashFilter.Num() || DebugRuntimeHashFilter.Contains(Name);
+	return (Name != NAME_PersistentLevel) && (!DebugRuntimeHashFilter.Num() || DebugRuntimeHashFilter.Contains(Name));
 }
 
 TSet<FName> FWorldPartitionDebugHelper::DebugDataLayerFilter;

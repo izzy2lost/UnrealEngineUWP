@@ -24,6 +24,12 @@ bool UWorldPartitionRuntimeHashSet::GenerateRuntimePartitionsStreamingDescs(cons
 	// Actors with RuntimeGrid set to None will be assigned to the default partition
 	NameToRuntimePartitionDescMap.Add(NAME_None, &RuntimePartitions[0]);
 
+	// Non-spatially loaded actors will be assigned to the persistent partition
+	if (PersistentPartitionDesc.Class)
+	{
+		NameToRuntimePartitionDescMap.Add(NAME_PersistentLevel, &PersistentPartitionDesc);
+	}
+
 	for (const FRuntimePartitionDesc& RuntimePartitionDesc : RuntimePartitions)
 	{
 		NameToRuntimePartitionDescMap.Add(RuntimePartitionDesc.Name, &RuntimePartitionDesc);
@@ -34,7 +40,15 @@ bool UWorldPartitionRuntimeHashSet::GenerateRuntimePartitionsStreamingDescs(cons
 	{
 		TArray<FName> MainPartitionTokens;
 		TArray<FName> HLODPartitionTokens;
-		verify(ParseGridName(ActorSetInstance.RuntimeGrid, MainPartitionTokens, HLODPartitionTokens));
+
+		if (!ActorSetInstance.bIsSpatiallyLoaded)
+		{
+			MainPartitionTokens.Add(NAME_PersistentLevel);
+		}
+		else
+		{
+			verify(ParseGridName(ActorSetInstance.RuntimeGrid, MainPartitionTokens, HLODPartitionTokens));
+		}
 
 		check(!MainPartitionTokens.IsEmpty());
 		if (const FRuntimePartitionDesc** RuntimePartitionDesc = NameToRuntimePartitionDescMap.Find(MainPartitionTokens[0]))
@@ -88,6 +102,9 @@ bool UWorldPartitionRuntimeHashSet::GenerateRuntimePartitionsStreamingDescs(cons
 		RuntimePartitionsStreamingDescs.Add(RuntimePartition, GenerateStreamingResult.RuntimeCellDescs);
 	}
 
+	//
+	// Generate runtime partitions streaming data
+	//
 	TSet<FName> CellDescsNames;
 	for (auto& [RuntimePartition, RuntimeCellDescs] : RuntimePartitionsStreamingDescs)
 	{
@@ -133,6 +150,21 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	UWorld* OuterWorld = GetTypedOuter<UWorld>();
 	const bool bIsMainWorldPartition = (World == OuterWorld);
 
+	check(!PersistentPartitionDesc.Class);
+	PersistentPartitionDesc.Class = URuntimePartitionPersistent::StaticClass();
+	PersistentPartitionDesc.Name = NAME_PersistentLevel;
+	PersistentPartitionDesc.MainLayer = NewObject<URuntimePartition>(this, URuntimePartitionPersistent::StaticClass(), NAME_None);
+	PersistentPartitionDesc.MainLayer->Name = NAME_PersistentLevel;
+	PersistentPartitionDesc.MainLayer->LoadingRange = 0;
+
+	ON_SCOPE_EXIT
+	{
+		check(PersistentPartitionDesc.Class);
+		PersistentPartitionDesc.Class = nullptr;
+		PersistentPartitionDesc.Name = NAME_None;
+		PersistentPartitionDesc.MainLayer = nullptr;
+	};
+
 	//
 	// Generate runtime partitions streaming cell desccriptors
 	//
@@ -148,7 +180,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	{
 		const FCellUniqueId CellUniqueId = GetCellUniqueId(CellDescInstance);
 
-		UWorldPartitionRuntimeCell* RuntimeCell = CreateRuntimeCell(CellClass, CellDataClass, CellUniqueId.Name, TEXT(""));
+		UWorldPartitionRuntimeCell* RuntimeCell = Super::CreateRuntimeCell(CellClass, CellDataClass, CellUniqueId.Name, TEXT(""));
 
 		RuntimeCell->SetDataLayers(CellDescInstance.DataLayerInstances);
 		RuntimeCell->SetContentBundleUID(CellDescInstance.ContentBundleID);
@@ -161,7 +193,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 		UWorldPartitionRuntimeCellData* RuntimeCellData = RuntimeCell->RuntimeCellData;
 		RuntimeCellData->DebugName = CellUniqueId.Name;
 		RuntimeCellData->CellBounds = CellDescInstance.CellBounds;
-		RuntimeCellData->HierarchicalLevel = CellDescInstance.bIsSpatiallyLoaded ? CellDescInstance.Level : MAX_int32;
+		RuntimeCellData->HierarchicalLevel = CellDescInstance.Level;
 		RuntimeCellData->Priority = CellDescInstance.Priority;
 		RuntimeCellData->GridName = CellDescInstance.SourcePartition->Name;
 
@@ -197,11 +229,11 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 
 				if (CellDescInstance.bIsSpatiallyLoaded)
 				{
-					StreamingData.SpatiallyLoadedCells.Add(RuntimeCell);
+					StreamingData.StreamingCells.Add(RuntimeCell);
 				}
 				else
 				{
-					StreamingData.NonSpatiallyLoadedCells.Add(RuntimeCell);
+					StreamingData.NonStreamingCells.Add(RuntimeCell);
 				}
 			}
 		}
@@ -217,7 +249,6 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 		RuntimeStreamingData.Emplace(MoveTemp(StreamingData));
 	}
 
-	UpdateRuntimeDataGridMap();
 	return true;
 }
 

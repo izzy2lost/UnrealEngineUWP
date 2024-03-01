@@ -87,8 +87,8 @@ private:
 	URuntimeHashExternalStreamingObjectBase* CreateExternalStreamingObjectUsingStreamingGeneration(const UExternalDataLayerAsset* InExternalDataLayerAsset);
 
 	// Used for PIE/-game
-	void PrepareEditorGameWorld();
-	void ShutdownEditorGameWorld();
+	void OnBeginPlay();
+	void OnEndPlay();
 
 	//~ Begin Cooking
 	UWorldPartitionRuntimeCell* GetCellForCookPackage(const FString& InCookPackageName) const;

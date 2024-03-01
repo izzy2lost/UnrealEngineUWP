@@ -402,21 +402,15 @@ bool UWorldPartition::IsValidPackageName(const FString& InPackageName)
 
 void UWorldPartition::OnPreBeginPIE(bool bStartSimulate)
 {
-	PrepareEditorGameWorld();
+	OnBeginPlay();
 }
 
 void UWorldPartition::OnPrePIEEnded(bool bWasSimulatingInEditor)
 {
-	ShutdownEditorGameWorld();
+	OnEndPlay();
 }
 
-void UWorldPartition::OnCancelPIE()
-{
-	// Call ShutdownEditorGameWorld here since EndPlayMapDelegate is not called when cancelling PIE
-	ShutdownEditorGameWorld();
-}
-
-void UWorldPartition::PrepareEditorGameWorld()
+void UWorldPartition::OnBeginPlay()
 {
 	check(!bIsPIE);
 	bIsPIE = !IsRunningGame();
@@ -443,20 +437,25 @@ void UWorldPartition::PrepareEditorGameWorld()
 		GeneratedLevelStreamingPackageNames.Add(Package);
 	}
 
-	RuntimeHash->PrepareEditorGameWorld();
+	RuntimeHash->OnBeginPlay();
 
-	ExternalDataLayerManager->PrepareEditorGameWorld();
+	ExternalDataLayerManager->OnBeginPlay();
 }
 
-void UWorldPartition::ShutdownEditorGameWorld()
+void UWorldPartition::OnCancelPIE()
+{
+	// Call OnEndPlay here since EndPlayMapDelegate is not called when cancelling PIE
+	OnEndPlay();
+}
+
+void UWorldPartition::OnEndPlay()
 {
 	// No check here since CancelPIE can be called after PrePIEEnded
 	if (bIsPIE)
 	{
 		FlushStreaming();
-		RuntimeHash->ShutdownEditorGameWorld();
-		ExternalDataLayerManager->ShutdownEditorGameWorld();
-		RuntimeHash->ShutdownEditorGameWorld();
+		ExternalDataLayerManager->OnEndPlay();
+		RuntimeHash->OnEndPlay();
 		bIsPIE = false;
 	}
 }
@@ -696,7 +695,7 @@ void UWorldPartition::Initialize(UWorld* InWorld, const FTransform& InTransform)
 	{
 		if (bIsGame || bIsPIEWorldTravel || bIsDedicatedServer)
 		{
-			PrepareEditorGameWorld();
+			OnBeginPlay();
 		}
 
 		// Apply remapping of Persistent Level's SoftObjectPaths
@@ -741,7 +740,7 @@ void UWorldPartition::Uninitialize()
 
 		if (World->IsGameWorld())
 		{
-			ShutdownEditorGameWorld();
+			OnEndPlay();
 		}
 		
 		if (AlwaysLoadedActors)
@@ -915,7 +914,7 @@ void UWorldPartition::RegisterDelegates()
 			FEditorDelegates::PreBeginPIE.AddUObject(this, &UWorldPartition::OnPreBeginPIE);
 			FEditorDelegates::PrePIEEnded.AddUObject(this, &UWorldPartition::OnPrePIEEnded);
 			FEditorDelegates::CancelPIE.AddUObject(this, &UWorldPartition::OnCancelPIE);
-			FGameDelegates::Get().GetEndPlayMapDelegate().AddUObject(this, &UWorldPartition::ShutdownEditorGameWorld);
+			FGameDelegates::Get().GetEndPlayMapDelegate().AddUObject(this, &UWorldPartition::OnEndPlay);
 			FCoreUObjectDelegates::PostReachabilityAnalysis.AddUObject(this, &UWorldPartition::OnGCPostReachabilityAnalysis);
 			GEditor->OnLevelActorDeleted().AddUObject(this, &UWorldPartition::OnLevelActorDeleted);
 			GEditor->OnPostBugItGoCalled().AddUObject(this, &UWorldPartition::OnPostBugItGoCalled);
@@ -1368,11 +1367,6 @@ void UWorldPartition::InitializeActorDescContainerEditorStreaming(UActorDescCont
 	}
 }
 #endif
-
-void UWorldPartition::OnBeginPlay()
-{
-	RuntimeHash->OnBeginPlay();
-}
 
 const FTransform& UWorldPartition::GetInstanceTransform() const
 {

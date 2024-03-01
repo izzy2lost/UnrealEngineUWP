@@ -7,8 +7,6 @@
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
 #include "WorldPartition/DataLayer/DataLayersID.h"
-#include "Algo/RemoveIf.h"
-#include "Algo/Transform.h"
 #include "Misc/ArchiveMD5.h"
 
 void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
@@ -18,7 +16,7 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 		SpatialIndex = MakeUnique<FStaticSpatialIndexType>();
 
 		TArray<TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>> PartitionsElements;
-		Algo::Transform(SpatiallyLoadedCells, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
+		Algo::Transform(StreamingCells, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
 		{
 			return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(Cell->GetContentBounds(), Cell);
 		});
@@ -80,25 +78,18 @@ UWorldPartitionRuntimeHashSet::UWorldPartitionRuntimeHashSet(const FObjectInitia
 #endif
 }
 
-void UWorldPartitionRuntimeHashSet::OnBeginPlay()
+void UWorldPartitionRuntimeHashSet::PostLoad()
 {
-	Super::OnBeginPlay();
+	Super::PostLoad();
 
 	if (GetTypedOuter<UWorld>()->IsGameWorld())
 	{
-		ForEachStreamingData([this](const FRuntimePartitionStreamingData& StreamingData)
+		ForEachStreamingData([](const FRuntimePartitionStreamingData& StreamingData)
 		{
-#if !WITH_EDITOR
-			FRuntimePartitionStreamingData& NonConstStreamingData = (const_cast<FRuntimePartitionStreamingData&>(StreamingData));		
-			NonConstStreamingData.SpatiallyLoadedCells.SetNum(Algo::RemoveIf(NonConstStreamingData.SpatiallyLoadedCells, [this](UWorldPartitionRuntimeCell* Cell) { return !IsCellRelevantFor(Cell->GetClientOnlyVisible()); }));
-			NonConstStreamingData.NonSpatiallyLoadedCells.SetNum(Algo::RemoveIf(NonConstStreamingData.NonSpatiallyLoadedCells, [this](UWorldPartitionRuntimeCell* Cell) { return !IsCellRelevantFor(Cell->GetClientOnlyVisible()); }));
-#endif
 			StreamingData.CreatePartitionsSpatialIndex();
 			return true;
 		});
 	}
-
-	UpdateRuntimeDataGridMap();
 }
 
 #if WITH_EDITOR
@@ -156,8 +147,8 @@ void UWorldPartitionRuntimeHashSet::SetDefaultValues()
 void UWorldPartitionRuntimeHashSet::FlushStreamingContent()
 {
 	Super::FlushStreamingContent();
+	check(!PersistentPartitionDesc.Class);
 	RuntimeStreamingData.Empty();
-	UpdateRuntimeDataGridMap();
 }
 
 bool UWorldPartitionRuntimeHashSet::IsValidGrid(FName GridName, const UClass* ActorClass) const
@@ -301,12 +292,12 @@ void UWorldPartitionRuntimeHashSet::StoreStreamingContentToExternalStreamingObje
 
 	for (FRuntimePartitionStreamingData& StreamingData : StreamingObject->RuntimeStreamingData)
 	{
-		for (UWorldPartitionRuntimeCell* Cell : StreamingData.SpatiallyLoadedCells)
+		for (UWorldPartitionRuntimeCell* Cell : StreamingData.StreamingCells)
 		{
 			Cell->Rename(nullptr, StreamingObject,  REN_DoNotDirty | REN_ForceNoResetLoaders);
 		}
 
-		for (UWorldPartitionRuntimeCell* Cell : StreamingData.NonSpatiallyLoadedCells)
+		for (UWorldPartitionRuntimeCell* Cell : StreamingData.NonStreamingCells)
 		{
 			Cell->Rename(nullptr, StreamingObject,  REN_DoNotDirty | REN_ForceNoResetLoaders);
 		}
@@ -320,7 +311,6 @@ bool UWorldPartitionRuntimeHashSet::InjectExternalStreamingObject(URuntimeHashEx
 	{
 		URuntimeHashSetExternalStreamingObject* HashSetExternalStreamingObject = CastChecked<URuntimeHashSetExternalStreamingObject>(ExternalStreamingObject);
 		HashSetExternalStreamingObject->CreatePartitionsSpatialIndex();
-		UpdateRuntimeDataGridMap();
 		return true;
 	}
 
@@ -333,7 +323,6 @@ bool UWorldPartitionRuntimeHashSet::RemoveExternalStreamingObject(URuntimeHashEx
 	{
 		URuntimeHashSetExternalStreamingObject* HashSetExternalStreamingObject = CastChecked<URuntimeHashSetExternalStreamingObject>(ExternalStreamingObject);
 		HashSetExternalStreamingObject->DestroyPartitionsSpatialIndex();
-		UpdateRuntimeDataGridMap();
 		return true;
 	}
 
@@ -357,7 +346,7 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCells(TFunctionRef<bool(cons
 
 	ForEachStreamingData([&ForEachCells](const FRuntimePartitionStreamingData& StreamingData)
 	{
-		return ForEachCells(StreamingData.SpatiallyLoadedCells) && ForEachCells(StreamingData.NonSpatiallyLoadedCells);
+		return ForEachCells(StreamingData.StreamingCells) && ForEachCells(StreamingData.NonStreamingCells);
 	});
 }
 
@@ -365,44 +354,34 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsQuery(const FWorldParti
 {
 	auto ShouldAddCell = [this](const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingQuerySource& QuerySource)
 	{
-#if WITH_EDITOR
-		if (!IsCellRelevantFor(Cell->GetClientOnlyVisible()))
+		if (IsCellRelevantFor(Cell->GetClientOnlyVisible()))
 		{
-			return false;
-		}
-#else
-		check(IsCellRelevantFor(Cell->GetClientOnlyVisible()));
-#endif
-		if (Cell->HasDataLayers())
-		{
-			if (Cell->GetDataLayers().FindByPredicate([&](const FName& DataLayerName) { return QuerySource.DataLayers.Contains(DataLayerName); }))
+			if (Cell->HasDataLayers())
+			{
+				if (Cell->GetDataLayers().FindByPredicate([&](const FName& DataLayerName) { return QuerySource.DataLayers.Contains(DataLayerName); }))
+				{
+					return true;
+				}
+			}
+			else if (!QuerySource.bDataLayersOnly)
 			{
 				return true;
 			}
-		}
-		else if (!QuerySource.bDataLayersOnly)
-		{
-			return true;
 		}
 
 		return false;
 	};
 
-	auto ForEachSpatiallyLoadedCells = [&ShouldAddCell, QueryCache, &QuerySource, &Func](FStaticSpatialIndexType* InSpatialIndex, int32 InLoadingRange, FName InGridName)
+	auto ForEachStreamingCells = [&ShouldAddCell, &QuerySource, &Func](FStaticSpatialIndexType* InSpatialIndex, int32 InLoadingRange, FName InGridName)
 	{
 		if (InSpatialIndex)
 		{
-			QuerySource.ForEachShape(InLoadingRange, InGridName, false, [InSpatialIndex, QueryCache, &ShouldAddCell, &QuerySource, &Func](const FSphericalSector& Shape)
+			QuerySource.ForEachShape(InLoadingRange, InGridName, false, [InSpatialIndex, &ShouldAddCell, &QuerySource, &Func](const FSphericalSector& Shape)
 			{
 				const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
 
-				InSpatialIndex->ForEachIntersectingElement(ShapeSphere, [QueryCache, &ShouldAddCell, &Shape, &QuerySource, &Func](UWorldPartitionRuntimeCell* RuntimeCell)
+				InSpatialIndex->ForEachIntersectingElement(ShapeSphere, [&ShouldAddCell, &QuerySource, &Func](UWorldPartitionRuntimeCell* RuntimeCell)
 				{
-					if (QueryCache)
-					{
-						QueryCache->AddCellInfo(RuntimeCell, Shape);
-					}
-
 					return !ShouldAddCell(RuntimeCell, QuerySource) || Func(RuntimeCell);
 				});
 			});
@@ -411,9 +390,9 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsQuery(const FWorldParti
 		return true;
 	};
 
-	auto ForEachNonSpatiallyLoadedCells = [&ShouldAddCell, &QuerySource, &Func](TArray<TObjectPtr<UWorldPartitionRuntimeCell>> InNonSpatiallyLoadedCells)
+	auto ForEachNonStreamingCells = [&ShouldAddCell, &QuerySource, &Func](TArray<TObjectPtr<UWorldPartitionRuntimeCell>> InNonStreamingCells)
 	{
-		for (UWorldPartitionRuntimeCell* Cell : InNonSpatiallyLoadedCells)
+		for (UWorldPartitionRuntimeCell* Cell : InNonStreamingCells)
 		{
 			if (ShouldAddCell(Cell, QuerySource))
 			{
@@ -426,94 +405,101 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsQuery(const FWorldParti
 		return true;
 	};
 
-	ForEachStreamingData([&QuerySource, &ForEachSpatiallyLoadedCells, &ForEachNonSpatiallyLoadedCells](const FRuntimePartitionStreamingData& StreamingData)
+	ForEachStreamingData([&QuerySource, &ForEachStreamingCells, &ForEachNonStreamingCells](const FRuntimePartitionStreamingData& StreamingData)
 	{
-		return ForEachSpatiallyLoadedCells(StreamingData.SpatialIndex.Get(), StreamingData.LoadingRange, StreamingData.Name) && ForEachNonSpatiallyLoadedCells(StreamingData.NonSpatiallyLoadedCells);
+		return ForEachStreamingCells(StreamingData.SpatialIndex.Get(), StreamingData.LoadingRange, StreamingData.Name) && ForEachNonStreamingCells(StreamingData.NonStreamingCells);
 	});
 }
 
 void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func) const
 {
-	// Non-spatially loaded cells
-	for (const FRuntimePartitionStreamingData* StreamingData : RuntimeNonSpatiallyLoadedDataGridList)
+	UWorldPartitionRuntimeHash::FStreamingSourceCells ActivateStreamingSourceCells;
+	UWorldPartitionRuntimeHash::FStreamingSourceCells LoadStreamingSourceCells;
+
+	auto ForEachStreamingCells = [this, &Sources, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](FStaticSpatialIndexType* InSpatialIndex, int32 InLoadingRange, FName InGridName)
 	{
-		for (UWorldPartitionRuntimeCell* Cell : StreamingData->NonSpatiallyLoadedCells)
+		if (InSpatialIndex)
 		{
-#if WITH_EDITOR
-			if (!IsCellRelevantFor(Cell->GetClientOnlyVisible()))
+			for (const FWorldPartitionStreamingSource& Source : Sources)
 			{
-				continue;
-			}
-#else
-			check(IsCellRelevantFor(Cell->GetClientOnlyVisible()));
-#endif
-			const EDataLayerRuntimeState CellEffectiveWantedState = Cell->GetCellEffectiveWantedState();
-			if (CellEffectiveWantedState != EDataLayerRuntimeState::Unloaded)
-			{
-				Func(Cell, (CellEffectiveWantedState == EDataLayerRuntimeState::Loaded) ? EStreamingSourceTargetState::Loaded : EStreamingSourceTargetState::Activated);
-			}
-		}
-	}
-
-	// Spatially loaded cells
-	for (const FWorldPartitionStreamingSource& Source : Sources)
-	{
-		// Build the source target grids based on target behavior
-		TArray<FName, TInlineAllocator<8>> TargetGrids;
-		if (Source.TargetBehavior == EStreamingSourceTargetBehavior::Include)
-		{
-			if (Source.TargetGrids.Num())
-			{
-				TargetGrids = Source.TargetGrids.Array();
-			}
-			else
-			{
-				RuntimeSpatiallyLoadedDataGridMap.GenerateKeyArray(TargetGrids);
-			}
-		}
-		else if (Source.TargetBehavior == EStreamingSourceTargetBehavior::Exclude)
-		{
-			for (auto& [GridName, StreamingDataList] : RuntimeSpatiallyLoadedDataGridMap)
-			{
-				if (!Source.TargetGrids.Contains(GridName))
-				{
-					TargetGrids.Add(GridName);
-				}
-			}
-		}
-
-		for (FName GridName : TargetGrids)
-		{
-			const TArray<const FRuntimePartitionStreamingData*>& StreamingDataList = RuntimeSpatiallyLoadedDataGridMap.FindChecked(GridName);
-			check(FStreamingSourceShapeHelper::IsSourceAffectingGrid(Source.TargetGrids, Source.TargetBehavior, GridName));
-
-			for (const FRuntimePartitionStreamingData* StreamingData : StreamingDataList)
-			{
-				Source.ForEachShape(StreamingData->LoadingRange, StreamingData->Name, false, [this, &Source, StreamingData, &Func](const FSphericalSector& Shape)
+				Source.ForEachShape(InLoadingRange, InGridName, false, [this, &Source, InSpatialIndex, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](const FSphericalSector& Shape)
 				{
 					const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
 
-					StreamingData->SpatialIndex->ForEachIntersectingElement(ShapeSphere, [this, &Source, &Shape, &Func](UWorldPartitionRuntimeCell* Cell)
+					InSpatialIndex->ForEachIntersectingElement(ShapeSphere, [this, &Source, &Shape, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](UWorldPartitionRuntimeCell* Cell)
 					{
-#if WITH_EDITOR
-						if (!IsCellRelevantFor(Cell->GetClientOnlyVisible()))
+						if (IsCellRelevantFor(Cell->GetClientOnlyVisible()))
 						{
-							return;
-						}
-#else
-						check(IsCellRelevantFor(Cell->GetClientOnlyVisible()));
-#endif
-						const EDataLayerRuntimeState CellEffectiveWantedState = Cell->GetCellEffectiveWantedState();
-						if (CellEffectiveWantedState != EDataLayerRuntimeState::Unloaded)
-						{
-							Cell->AppendStreamingSourceInfo(Source, Shape);
-							Func(Cell, ((CellEffectiveWantedState == EDataLayerRuntimeState::Loaded) || (Source.TargetState == EStreamingSourceTargetState::Loaded)) ? EStreamingSourceTargetState::Loaded : EStreamingSourceTargetState::Activated);
+							switch (Cell->GetCellEffectiveWantedState())
+							{
+							case EDataLayerRuntimeState::Loaded:
+								LoadStreamingSourceCells.AddCell(Cell, Source, Shape);
+								break;
+							case EDataLayerRuntimeState::Activated:
+								switch (Source.TargetState)
+								{
+								case EStreamingSourceTargetState::Loaded:
+									LoadStreamingSourceCells.AddCell(Cell, Source, Shape);
+									break;
+								case EStreamingSourceTargetState::Activated:
+									ActivateStreamingSourceCells.AddCell(Cell, Source, Shape);
+									break;
+								default:
+									checkNoEntry();
+								}
+								break;
+							case EDataLayerRuntimeState::Unloaded:
+								break;
+							default:
+								checkNoEntry();
+							}
 						}
 					});
 				});
 			}
 		}
-	}
+		return true;
+	};
+
+	auto ForEachNonStreamingCells = [this, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](TArray<TObjectPtr<UWorldPartitionRuntimeCell>> InNonStreamingCells)
+	{
+		for (UWorldPartitionRuntimeCell* Cell : InNonStreamingCells)
+		{
+			if (IsCellRelevantFor(Cell->GetClientOnlyVisible()))
+			{
+				switch (Cell->GetCellEffectiveWantedState())
+				{
+				case EDataLayerRuntimeState::Loaded:
+					LoadStreamingSourceCells.GetCells().Add(Cell);
+					break;
+				case EDataLayerRuntimeState::Activated:
+					ActivateStreamingSourceCells.GetCells().Add(Cell);
+					break;
+				case EDataLayerRuntimeState::Unloaded:
+					break;
+				default:
+					checkNoEntry();
+				}
+			}
+		}
+		return true;
+	};
+
+	ForEachStreamingData([&ForEachStreamingCells, &ForEachNonStreamingCells](const FRuntimePartitionStreamingData& StreamingData)
+	{
+		return ForEachStreamingCells(StreamingData.SpatialIndex.Get(), StreamingData.LoadingRange, StreamingData.Name) && ForEachNonStreamingCells(StreamingData.NonStreamingCells);
+	});
+
+	auto ExecuteFuncOnCells = [Func](const TSet<const UWorldPartitionRuntimeCell*>& Cells, EStreamingSourceTargetState TargetState)
+	{
+		for (const UWorldPartitionRuntimeCell* Cell : Cells)
+		{
+			Func(Cell, TargetState);
+		}
+	};
+
+	ExecuteFuncOnCells(ActivateStreamingSourceCells.GetCells(), EStreamingSourceTargetState::Activated);
+	ExecuteFuncOnCells(LoadStreamingSourceCells.GetCells(), EStreamingSourceTargetState::Loaded);
 }
 
 #if WITH_EDITOR
@@ -556,14 +542,21 @@ void UWorldPartitionRuntimeHashSet::PostEditChangeChainProperty(FPropertyChanged
 		{
 			FRuntimePartitionHLODSetup& RuntimePartitionHLODSetup = RuntimePartitionDesc.HLODSetups[HLODSetupsIndex];
 
-			for (int32 CurHLODSetupsIndex = 0; CurHLODSetupsIndex < RuntimePartitionDesc.HLODSetups.Num(); CurHLODSetupsIndex++)
+			if (RuntimePartitionDesc.Name == NAME_PersistentLevel)
 			{
-				if (CurHLODSetupsIndex != HLODSetupsIndex)
+				RuntimePartitionHLODSetup.Name = *FString::Printf(TEXT("HLOD_%d"), RuntimePartitionHLODSetup.PartitionLayer->HLODIndex);
+			}
+			else
+			{
+				for (int32 CurHLODSetupsIndex = 0; CurHLODSetupsIndex < RuntimePartitionDesc.HLODSetups.Num(); CurHLODSetupsIndex++)
 				{
-					if (RuntimePartitionHLODSetup.Name == RuntimePartitionDesc.HLODSetups[CurHLODSetupsIndex].Name)
+					if (CurHLODSetupsIndex != HLODSetupsIndex)
 					{
-						RuntimePartitionHLODSetup.Name = *FString::Printf(TEXT("HLOD_%d"), RuntimePartitionHLODSetup.PartitionLayer->HLODIndex);
-						break;
+						if (RuntimePartitionHLODSetup.Name == RuntimePartitionDesc.HLODSetups[CurHLODSetupsIndex].Name)
+						{
+							RuntimePartitionHLODSetup.Name = *FString::Printf(TEXT("HLOD_%d"), RuntimePartitionHLODSetup.PartitionLayer->HLODIndex);
+							break;
+						}
 					}
 				}
 			}
@@ -572,14 +565,21 @@ void UWorldPartitionRuntimeHashSet::PostEditChangeChainProperty(FPropertyChanged
 		}
 		else
 		{
-			for (int32 CurRuntimePartitionIndex = 0; CurRuntimePartitionIndex < RuntimePartitions.Num(); CurRuntimePartitionIndex++)
+			if (RuntimePartitionDesc.Name == NAME_PersistentLevel)
 			{
-				if (CurRuntimePartitionIndex != RuntimePartitionIndex)
+				RuntimePartitionDesc.Name = RuntimePartitionDesc.Class->GetFName();
+			}
+			else
+			{
+				for (int32 CurRuntimePartitionIndex = 0; CurRuntimePartitionIndex < RuntimePartitions.Num(); CurRuntimePartitionIndex++)
 				{
-					if (RuntimePartitionDesc.Name == RuntimePartitions[CurRuntimePartitionIndex].Name)
+					if (CurRuntimePartitionIndex != RuntimePartitionIndex)
 					{
-						RuntimePartitionDesc.Name = RuntimePartitionDesc.Class->GetFName();
-						break;
+						if (RuntimePartitionDesc.Name == RuntimePartitions[CurRuntimePartitionIndex].Name)
+						{
+							RuntimePartitionDesc.Name = RuntimePartitionDesc.Class->GetFName();
+							break;
+						}
 					}
 				}
 			}
@@ -764,56 +764,5 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingData(TFunctionRef<bool(const
 				}
 			}
 		}
-	}
-}
-
-void UWorldPartitionRuntimeHashSet::UpdateRuntimeDataGridMap()
-{
-	if (!RuntimeStreamingData.IsEmpty())
-	{
-		RuntimeSpatiallyLoadedDataGridMap.Reset();
-		RuntimeNonSpatiallyLoadedDataGridList.Reset();
-
-		for (const FRuntimePartitionStreamingData& StreamingData : RuntimeStreamingData)
-		{
-			if (StreamingData.SpatiallyLoadedCells.Num())
-			{
-				TArray<const FRuntimePartitionStreamingData*>& StreamingDataList = RuntimeSpatiallyLoadedDataGridMap.Add(StreamingData.Name);
-				check(StreamingDataList.IsEmpty());
-				StreamingDataList.Add(&StreamingData);
-			}
-
-			if (StreamingData.NonSpatiallyLoadedCells.Num())
-			{
-				RuntimeNonSpatiallyLoadedDataGridList.Add(&StreamingData);
-			}
-		}
-
-		for (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>& InjectedExternalStreamingObject : InjectedExternalStreamingObjects)
-		{
-			if (InjectedExternalStreamingObject.IsValid())
-			{
-				URuntimeHashSetExternalStreamingObject* ExternalStreamingObject = CastChecked<URuntimeHashSetExternalStreamingObject>(InjectedExternalStreamingObject.Get());
-			
-				for (const FRuntimePartitionStreamingData& StreamingData : ExternalStreamingObject->RuntimeStreamingData)
-				{
-					if (StreamingData.SpatiallyLoadedCells.Num())
-					{
-						TArray<const FRuntimePartitionStreamingData*>& StreamingDataList = RuntimeSpatiallyLoadedDataGridMap.FindOrAdd(StreamingData.Name);
-						StreamingDataList.Add(&StreamingData);
-					}
-
-					if (!StreamingData.NonSpatiallyLoadedCells.IsEmpty())
-					{
-						RuntimeNonSpatiallyLoadedDataGridList.Add(&StreamingData);
-					}
-				}
-			}
-		}
-	}
-	else
-	{
-		RuntimeSpatiallyLoadedDataGridMap.Empty();
-		RuntimeNonSpatiallyLoadedDataGridList.Empty();
 	}
 }
