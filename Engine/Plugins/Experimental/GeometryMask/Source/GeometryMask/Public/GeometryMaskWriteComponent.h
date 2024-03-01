@@ -72,7 +72,10 @@ protected:
     virtual bool TryResolveCanvas() override;
 	virtual bool Cleanup() override;
     //~ End UGeometryMaskCanvasReferenceComponentBase
-    	
+
+	// Resets cached data, triggers rebuild
+	void ResetCachedData();
+	
 	void UpdateCachedData();
 	void UpdateCachedStaticMeshData(TConstArrayView<UPrimitiveComponent*> InPrimitiveComponents);
 	void UpdateCachedDynamicMeshData(TConstArrayView<UPrimitiveComponent*> InPrimitiveComponents);
