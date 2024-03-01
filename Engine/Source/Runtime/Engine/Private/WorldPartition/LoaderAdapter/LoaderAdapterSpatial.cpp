@@ -31,9 +31,12 @@ void ILoaderAdapterSpatial::HandleIntersectingContainer(UWorldPartition* InWorld
 		.SetIncludeSpatiallyLoadedActors(bIncludeSpatiallyLoadedActors)
 		.SetIncludeNonSpatiallyLoadedActors(bIncludeNonSpatiallyLoadedActors);
 
-	InWorldPartition->EditorHash->ForEachIntersectingActor(InBoundingBox, [this, InWorldPartition, &InOperation](FWorldPartitionActorDescInstance* ActorDescInstance)
+	const FTransform InstanceTransform = InWorldPartition->GetInstanceTransform();
+	const FBox LocalBoundingBox = InBoundingBox.InverseTransformBy(InstanceTransform);
+	InWorldPartition->EditorHash->ForEachIntersectingActor(LocalBoundingBox, [this, InWorldPartition, &InstanceTransform, &InOperation](FWorldPartitionActorDescInstance* ActorDescInstance)
 	{
-		if (Intersect(ActorDescInstance->GetEditorBounds()))
+		const FBox WorldActorEditorBounds = ActorDescInstance->GetLocalEditorBounds().TransformBy(InstanceTransform);
+		if (Intersect(WorldActorEditorBounds))
 		{
 			FWorldPartitionHandle ActorHandle(InWorldPartition, ActorDescInstance->GetGuid());
 			InOperation(ActorHandle);

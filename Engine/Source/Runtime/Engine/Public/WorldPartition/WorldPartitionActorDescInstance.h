@@ -28,6 +28,8 @@ class FWorldPartitionActorDescInstance
 	friend class UWorldPartition;
 	friend class FWorldPartitionLoadingContext;
 	friend class IWorldPartitionActorLoaderInterface;
+	friend class UWorldPartitionEditorSpatialHash;
+	friend class ILoaderAdapterSpatial;
 
 protected:
 	ENGINE_API FWorldPartitionActorDescInstance();
@@ -115,6 +117,8 @@ public:
 	ENGINE_API const FText& GetUnloadedReason() const;
 		
 protected:
+	ENGINE_API virtual FBox GetLocalEditorBounds() const { return ActorDesc->GetEditorBounds(); }
+
 	ENGINE_API bool StartAsyncLoad();
 	ENGINE_API void FlushAsyncLoad() const;
 	ENGINE_API void MarkUnload();
