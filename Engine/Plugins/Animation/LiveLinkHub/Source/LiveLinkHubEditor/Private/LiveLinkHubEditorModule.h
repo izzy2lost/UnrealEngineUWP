@@ -14,22 +14,9 @@ class FLiveLinkHubEditorModule : public IModuleInterface
 
 public:
 	//~ Begin IModuleInterface interface
-	virtual void StartupModule()
-	{
-		if (!IsRunningCommandlet())
-		{
-			FCoreDelegates::OnPostEngineInit.AddRaw(this, &FLiveLinkHubEditorModule::OnPostEngineInit);
-		}
-	}
+	virtual void StartupModule();
 
-	virtual void ShutdownModule()
-	{
-		if (!IsRunningCommandlet())
-		{
-			FCoreDelegates::OnPostEngineInit.RemoveAll(this);
-			UnregisterLiveLinkHubStatusBar();
-		}
-	}
+	virtual void ShutdownModule();
 	//~ End IModuleInterface interface
 
 private:

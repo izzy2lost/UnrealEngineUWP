@@ -4,6 +4,7 @@
 
 #include "Engine/TimerHandle.h"
 #include "Internationalization/Text.h"
+#include "LiveLinkTypes.h"
 #include "Templates/SharedPointer.h"
 #include "Types/SlateEnums.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -39,6 +40,9 @@ private:
 	/** Handler used to update the current connection state. */
 	void OnSourceRemoved(FGuid SourceId);
 
+	/** Handler used to update the subject list displayed by the status bar. */
+	void OnSubjectRemoved(FLiveLinkSubjectKey SubjectKey);
+
 	/** Handler used to update the connection state and source id when a connection with a hub instance is established. */
 	void OnHubConnectionEstablished(FGuid SourceId);
 
@@ -47,6 +51,9 @@ private:
 
 	/** Returns the visibility of the widget (Depends on whether we've established connection). */
 	EVisibility GetVisibility() const;
+
+	/** Method called when the subjects or sources have been modified, used to refresh the subject list UI. */
+	void RefreshSubjects();
 
 private:
 	/** LiveLink client used to retrieve the status of the hub connection. */
@@ -66,4 +73,7 @@ private:
 
 	/** Interval of the timer to check for connection validity. */
 	static constexpr float CheckConnectionIntervalSeconds = 1.0f;
+
+	/** Object responsible for creating and handling the subject list widget. */
+	TSharedPtr<class FLiveLinkSubjectsView> SubjectsView;
 };

@@ -158,7 +158,7 @@ public:
 	}
 };
 
-class FLiveLinkSubjectsView : public TSharedFromThis<FLiveLinkSubjectsView>
+class LIVELINKEDITOR_API FLiveLinkSubjectsView : public TSharedFromThis<FLiveLinkSubjectsView>
 {
 public:
 	DECLARE_DELEGATE_TwoParams(FOnSubjectSelectionChanged, FLiveLinkSubjectUIEntryPtr, ESelectInfo::Type);
@@ -175,6 +175,8 @@ public:
 	TSharedPtr<SWidget> OnOpenVirtualSubjectContextMenu(TSharedPtr<FUICommandList> InCommandList);
 	// Return whether a subject can be removed
 	bool CanRemoveSubject() const;
+	// Refresh the list of subjects using the livelink client.
+	void RefreshSubjects();
 
 private:
 	// Create the subjects tree view

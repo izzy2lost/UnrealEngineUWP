@@ -3,8 +3,10 @@
 #include "LiveLinkClientPanelViews.h"
 
 #include "EditorFontGlyphs.h"
+#include "Features/IModularFeatures.h"
 #include "Framework/Commands/UICommandList.h"
 #include "IDetailsView.h"
+#include "ILiveLinkClient.h"
 #include "Internationalization/Text.h"
 #include "LiveLinkClient.h"
 #include "LiveLinkClientCommands.h"
@@ -297,6 +299,11 @@ private:
 		{
 			return EntryPtr->IsSubjectValid() ? GetDefault<ULiveLinkSettings>()->GetValidColor() : GetDefault<ULiveLinkSettings>()->GetInvalidColor();
 		}
+
+		if (!EntryPtr->IsSubjectEnabled() && EntryPtr->IsSubject())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Entry %s disabled"), *EntryPtr->SubjectKey.SubjectName.ToString());
+		}
 		return FLinearColor(0.f, 0.f, 0.f, 0.f);
 	}
 
@@ -564,6 +571,76 @@ bool FLiveLinkSubjectsView::CanRemoveSubject() const
 	TArray<FLiveLinkSubjectUIEntryPtr> Selected;
 	SubjectsTreeView->GetSelectedItems(Selected);
 	return Selected.Num() > 0 && Selected[0] && Selected[0]->IsVirtualSubject();
+}
+
+void FLiveLinkSubjectsView::RefreshSubjects()
+{
+	TArray<FLiveLinkSubjectKey> SavedSelection;
+	{
+		TArray<FLiveLinkSubjectUIEntryPtr> SelectedItems = SubjectsTreeView->GetSelectedItems();
+		for (const FLiveLinkSubjectUIEntryPtr& SelectedItem : SelectedItems)
+		{
+			SavedSelection.Add(SelectedItem->SubjectKey);
+		}
+	}
+
+	if (IModularFeatures::Get().IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
+	{
+		if (ILiveLinkClient* Client = &IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName))
+		{
+			TArray<FLiveLinkSubjectKey> SubjectKeys = Client->GetSubjects(true, true);
+			SubjectData.Reset();
+
+			TMap<FGuid, FLiveLinkSubjectUIEntryPtr> SourceHeaderItems;
+			TArray<FLiveLinkSubjectUIEntryPtr> AllItems;
+			AllItems.Reserve(SubjectKeys.Num());
+
+			for (const FLiveLinkSubjectKey& SubjectKey : SubjectKeys)
+			{
+				FLiveLinkSubjectUIEntryPtr Source;
+				if (FLiveLinkSubjectUIEntryPtr* SourcePtr = SourceHeaderItems.Find(SubjectKey.Source))
+				{
+					Source = *SourcePtr;
+				}
+				else
+				{
+					FLiveLinkSubjectKey SourceKey = SubjectKey;
+					SourceKey.SubjectName = NAME_None;
+					Source = MakeShared<FLiveLinkSubjectUIEntry>(SourceKey, static_cast<FLiveLinkClient*>(Client));
+					SubjectData.Add(Source);
+					SourceHeaderItems.Add(SubjectKey.Source) = Source;
+
+					SubjectsTreeView->SetItemExpansion(Source, true);
+					AllItems.Add(Source);
+				}
+
+				FLiveLinkSubjectUIEntryPtr SubjectEntry = MakeShared<FLiveLinkSubjectUIEntry>(SubjectKey, static_cast<FLiveLinkClient*>(Client));
+				Source->Children.Add(SubjectEntry);
+				AllItems.Add(SubjectEntry);
+			}
+
+			auto SortPredicate = [](const FLiveLinkSubjectUIEntryPtr& LHS, const FLiveLinkSubjectUIEntryPtr& RHS) {return LHS->GetItemText().CompareTo(RHS->GetItemText()) < 0; };
+			SubjectData.Sort(SortPredicate);
+			for (FLiveLinkSubjectUIEntryPtr& Subject : SubjectData)
+			{
+				Subject->Children.Sort(SortPredicate);
+			}
+
+			for (const FLiveLinkSubjectUIEntryPtr& Item : AllItems)
+			{
+				for (FLiveLinkSubjectKey& Selection : SavedSelection)
+				{
+					if (Item->SubjectKey == Selection)
+					{
+						SubjectsTreeView->SetItemSelection(Item, true);
+						break;
+					}
+				}
+			}
+
+			SubjectsTreeView->RequestTreeRefresh();
+		}
+	}
 }
 
 void FLiveLinkSubjectsView::CreateSubjectsTreeView(const TSharedPtr<FUICommandList>& InCommandList)
