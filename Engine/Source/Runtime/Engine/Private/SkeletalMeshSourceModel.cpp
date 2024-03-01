@@ -329,7 +329,7 @@ void FSkeletalMeshSourceModel::ConvertRawMeshToMeshDescriptionBulkData()
 	}
 	
 	FMeshDescription& MeshDescription = MeshDescriptionBulkData->CreateMeshDescription()->GetMeshDescription(); 
-	ImportData.GetMeshDescription(GetOwner(), RawMeshBulkDataLODIndex, MeshDescription);
+	ImportData.GetMeshDescription(GetOwner(), MeshDescription);
 
 	UpdateCachedMeshStatistics(&MeshDescription);
 
