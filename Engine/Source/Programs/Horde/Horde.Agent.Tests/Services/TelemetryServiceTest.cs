@@ -22,7 +22,7 @@ public sealed class TelemetryServiceTest : IDisposable
 
 	public TelemetryServiceTest()
 	{
-		AgentSettings settings = new() { Server = "Test", ServerProfiles = { new ServerProfile() { Name = "Test", Url = new Uri("http://localhost:1234") } }};
+		AgentSettings settings = new() { Server = "Test", ServerProfiles = { ["Test"] = new ServerProfile() { Name = "Test", Url = new Uri("http://localhost:1234") } }};
 		OptionsWrapper<AgentSettings> settingsOpt = new (settings);
 		
 		using WorkerService workerService = new (null!, null!, null!, new List<LeaseHandler>(), null!, null!, null!);

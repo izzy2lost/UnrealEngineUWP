@@ -31,8 +31,7 @@ namespace Horde.Agent
 		/// <summary>
 		/// Name of this server profile
 		/// </summary>
-		[Required]
-		public string Name { get; set; } = null!;
+		public string? Name { get; set; }
 
 		/// <summary>
 		/// Name of the environment (currently just used for tracing)
@@ -173,7 +172,7 @@ namespace Horde.Agent
 		/// <summary>
 		/// Known servers to connect to
 		/// </summary>
-		public List<ServerProfile> ServerProfiles { get; } = new List<ServerProfile>();
+		public Dictionary<string, ServerProfile> ServerProfiles { get; } = new Dictionary<string, ServerProfile>(StringComparer.OrdinalIgnoreCase);
 
 		/// <summary>
 		/// The default server, unless overridden from the command line
@@ -303,19 +302,40 @@ namespace Horde.Agent
 		/// <returns>The current server settings</returns>
 		public ServerProfile GetServerProfile(string name)
 		{
-			ServerProfile? serverProfile = ServerProfiles.FirstOrDefault(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-			if (serverProfile == null)
+			ServerProfile? serverProfile;
+			if (!ServerProfiles.TryGetValue(name, out serverProfile))
 			{
-				if (ServerProfiles.Count == 0)
+				serverProfile = ServerProfiles.Values.FirstOrDefault(x => name.Equals(x.Name, StringComparison.OrdinalIgnoreCase));
+				if (serverProfile == null)
 				{
-					throw new Exception("No server profiles are defined (missing configuration?)");
-				}
-				else
-				{
-					throw new Exception($"Unknown server profile name '{name}' (valid profiles: {String.Join("/", ServerProfiles.Select(x => x.Name))})");
+					if (ServerProfiles.Count == 0)
+					{
+						throw new Exception("No server profiles are defined (missing configuration?)");
+					}
+					else
+					{
+						throw new Exception($"Unknown server profile name '{name}' (valid profiles: {GetServerProfileNames()})");
+					}
 				}
 			}
 			return serverProfile;
+		}
+
+		string GetServerProfileNames()
+		{
+			HashSet<string> names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach ((string key, ServerProfile profile) in ServerProfiles)
+			{
+				if (!String.IsNullOrEmpty(profile.Name) && Int32.TryParse(key, out _))
+				{
+					names.Add(profile.Name);
+				}
+				else
+				{
+					names.Add(key);
+				}
+			}
+			return String.Join("/", names);
 		}
 
 		/// <summary>
@@ -326,7 +346,14 @@ namespace Horde.Agent
 		{
 			if (Server == null)
 			{
-				throw new Exception("Server is not set");
+				if (ServerProfiles.Count == 1)
+				{
+					return ServerProfiles.Values.First();
+				}
+				else
+				{
+					throw new Exception($"No server profile is specified. Pass the -server=... argument on the command line or set the 'Server' property in the agent config file to one of: {GetServerProfileNames()}");
+				}
 			}
 
 			return GetServerProfile(Server);

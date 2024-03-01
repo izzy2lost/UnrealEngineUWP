@@ -94,7 +94,7 @@ namespace Horde.Agent.Tests
 				profile.Token = "bogus-token";
 				profile.Url = new Uri("http://localhost");
 
-				settings.ServerProfiles.Add(profile);
+				settings.ServerProfiles.Add(profile.Name, profile);
 				settings.Server = "test";
 				settings.WorkingDir = new DirectoryReference(Path.GetTempPath());
 				settings.Executor = TestExecutor.Name; // Not really used since the executor is overridden in the tests
