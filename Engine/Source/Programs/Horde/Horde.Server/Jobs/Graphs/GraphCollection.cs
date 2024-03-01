@@ -361,7 +361,7 @@ namespace Horde.Server.Jobs.Graphs
 		/// <summary>
 		/// Maximum number of graphs to keep in the cache
 		/// </summary>
-		const int MaxGraphs = 5000;
+		const int MaxGraphs = 2000;
 
 		/// <summary>
 		/// Cache for graphs
