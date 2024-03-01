@@ -44,7 +44,7 @@ namespace UnrealConversionUtils
 			FMemory::Memcpy(OutVertexBuffers.PositionVertexBuffer.GetVertexData(), InMutablePositionData, NumVertices * OutVertexBuffers.PositionVertexBuffer.GetStride());
 
 			// tangent and texture coords
-			OutVertexBuffers.StaticMeshVertexBuffer.SetUseFullPrecisionUVs(true);
+			OutVertexBuffers.StaticMeshVertexBuffer.SetUseFullPrecisionUVs(bUseFullPrecisionUVs);
 			OutVertexBuffers.StaticMeshVertexBuffer.SetUseHighPrecisionTangentBasis(false);
 			OutVertexBuffers.StaticMeshVertexBuffer.Init(NumVertices, NumTexCoords, bNeedCPUAccess);
 			FMemory::Memcpy(OutVertexBuffers.StaticMeshVertexBuffer.GetTangentData(), InMutableTangentData, OutVertexBuffers.StaticMeshVertexBuffer.GetTangentSize());
@@ -128,7 +128,7 @@ namespace UnrealConversionUtils
 
 
 	void SetupRenderSections(
-		const USkeletalMesh* OutSkeletalMesh,
+		FSkeletalMeshLODRenderData& LODResource,
 		const mu::MeshPtrConst InMutableMesh,
 		const int32 MeshLODIndex,
 		const TArray<uint16>& InBoneMap,
@@ -162,7 +162,7 @@ namespace UnrealConversionUtils
 			int32 BoneCount;
 			bool bCastShadow;
 			InMutableMesh->GetSurface(SurfaceIndex, &FirstVertex, &VertexCount, &FirstIndex, &IndexCount, &FirstBone, &BoneCount, &bCastShadow);
-			FSkelMeshRenderSection& Section = OutSkeletalMesh->GetResourceForRendering()->LODRenderData[MeshLODIndex].RenderSections[SurfaceIndex];
+			FSkelMeshRenderSection& Section = LODResource.RenderSections[SurfaceIndex];
 
 			Section.DuplicatedVerticesBuffer.Init(1, TMap<int, TArray<int32>>());
 
@@ -194,32 +194,28 @@ namespace UnrealConversionUtils
 
 
 	void CopyMutableVertexBuffers(
-		USkeletalMesh* SkeletalMesh,
+		FSkeletalMeshLODRenderData& LODResource,
 		const mu::MeshPtrConst MutableMesh,
-		const int32 MeshLODIndex)
+		const bool bAllowCPUAccess)
 
 	{
 		MUTABLE_CPUPROFILER_SCOPE(CopyMutableVertexBuffers);
 
-		FSkeletalMeshLODRenderData& LODModel = SkeletalMesh->GetResourceForRendering()->LODRenderData[MeshLODIndex];
 		const mu::FMeshBufferSet& MutableMeshVertexBuffers = MutableMesh->GetVertexBuffers();
 		const int32 NumVertices = MutableMeshVertexBuffers.GetElementCount();
 
-		MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_SurfaceLoop_MemCpy);
+		//const ESkeletalMeshVertexFlags BuildFlags = SkeletalMesh->GetVertexBufferFlags();
+		//const bool bUseFullPrecisionUVs = EnumHasAllFlags(BuildFlags, ESkeletalMeshVertexFlags::UseFullPrecisionUVs);
+		const bool bUseFullPrecisionUVs = true;
 
-		const ESkeletalMeshVertexFlags BuildFlags = SkeletalMesh->GetVertexBufferFlags();
-		const bool bUseFullPrecisionUVs = EnumHasAllFlags(BuildFlags, ESkeletalMeshVertexFlags::UseFullPrecisionUVs);
-		const bool bHasVertexColors = EnumHasAllFlags(BuildFlags, ESkeletalMeshVertexFlags::HasVertexColors);
 		const int NumTexCoords = MutableMeshVertexBuffers.GetBufferChannelCount(MUTABLE_VERTEXBUFFER_TEXCOORDS);
 
-		const bool bNeedsCPUAccess = SkeletalMesh->GetLODInfoArray()[MeshLODIndex].bAllowCPUAccess;
-
 		FStaticMeshVertexBuffers_InitWithMutableData(
-			LODModel.StaticVertexBuffers,
+			LODResource.StaticVertexBuffers,
 			NumVertices,
 			NumTexCoords,
 			bUseFullPrecisionUVs,
-			bNeedsCPUAccess,
+			bAllowCPUAccess,
 			MutableMeshVertexBuffers.GetBufferData(MUTABLE_VERTEXBUFFER_POSITION),
 			MutableMeshVertexBuffers.GetBufferData(MUTABLE_VERTEXBUFFER_TANGENT),
 			MutableMeshVertexBuffers.GetBufferData(MUTABLE_VERTEXBUFFER_TEXCOORDS)
@@ -248,21 +244,21 @@ namespace UnrealConversionUtils
 
 		if (BoneIndexFormat == mu::MBF_UINT16)
 		{
-			LODModel.SkinWeightVertexBuffer.SetUse16BitBoneIndex(true);
+			LODResource.SkinWeightVertexBuffer.SetUse16BitBoneIndex(true);
 		}
 
 		if (BoneWeightFormat == mu::MBF_NUINT16)
 		{
-			LODModel.SkinWeightVertexBuffer.SetUse16BitBoneWeight(true);
+			LODResource.SkinWeightVertexBuffer.SetUse16BitBoneWeight(true);
 		}
 
 		// Init skin weight buffer
 		FSkinWeightVertexBuffer_InitWithMutableData(
-			LODModel.SkinWeightVertexBuffer,
+			LODResource.SkinWeightVertexBuffer,
 			NumVertices,
 			NumBoneInfluences * NumVertices,
 			NumBoneInfluences,
-			bNeedsCPUAccess,
+			bAllowCPUAccess,
 			MutableMeshVertexBuffers.GetBufferData(BoneIndexBuffer),
 			MutableMeshVertexBuffers.GetBufferDataSize(BoneIndexBuffer)
 		);
@@ -285,13 +281,13 @@ namespace UnrealConversionUtils
 					const int32 NumBones = BonesPerVertex * NumVertices;
 
 					check(FGPUBaseSkinVertexFactory::UseUnlimitedBoneInfluences(BonesPerVertex) ||
-						!LODModel.SkinWeightVertexBuffer.GetVariableBonesPerVertex());
+						!LODResource.SkinWeightVertexBuffer.GetVariableBonesPerVertex());
 					FSkinWeightVertexBuffer_InitWithMutableData(
-						LODModel.SkinWeightVertexBuffer,
+						LODResource.SkinWeightVertexBuffer,
 						NumVertices,
 						NumBones,
 						NumBoneInfluences,
-						bNeedsCPUAccess,
+						bAllowCPUAccess,
 						MutableMeshVertexBuffers.GetBufferData(Buffer),
 						MutableMeshVertexBuffers.GetBufferDataSize(Buffer)
 					);
@@ -300,17 +296,18 @@ namespace UnrealConversionUtils
 				// colour buffer?
 				else if (Semantic == mu::MBS_COLOUR)
 				{
-					SkeletalMesh->SetHasVertexColors(true);
 					const void* DataPtr = MutableMeshVertexBuffers.GetBufferData(Buffer);
-					FColorVertexBuffers_InitWithMutableData(LODModel.StaticVertexBuffers, NumVertices, DataPtr);
-					check(LODModel.StaticVertexBuffers.ColorVertexBuffer.GetStride() == MutableMeshVertexBuffers.GetElementSize(Buffer));
+					FColorVertexBuffers_InitWithMutableData(LODResource.StaticVertexBuffers, NumVertices, DataPtr);
+					check(LODResource.StaticVertexBuffers.ColorVertexBuffer.GetStride() == MutableMeshVertexBuffers.GetElementSize(Buffer));
 				}
 			}
 		}
 	}
 
 
-	bool CopyMutableIndexBuffers(mu::MeshPtrConst InMutableMesh, FSkeletalMeshLODRenderData& LODModel)
+	bool CopyMutableIndexBuffers(
+		FSkeletalMeshLODRenderData& LODResource,
+		const mu::Ptr<const mu::Mesh> InMutableMesh)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(CopyMutableIndexBuffers);
 
@@ -326,9 +323,15 @@ namespace UnrealConversionUtils
 		const uint8* DataPtr = InMutableMesh->GetIndexBuffers().GetBufferData(0);
 		const int32 ElementSize = InMutableMesh->GetIndexBuffers().GetElementSize(0);
 
-		LODModel.MultiSizeIndexContainer.CreateIndexBuffer(ElementSize);
-		LODModel.MultiSizeIndexContainer.GetIndexBuffer()->Insert(0, IndexCount);
-		FMemory::Memcpy(LODModel.MultiSizeIndexContainer.GetIndexBuffer()->GetPointerTo(0), DataPtr, IndexCount * ElementSize);
+		if (!LODResource.MultiSizeIndexContainer.IsIndexBufferValid())
+		{
+			LODResource.MultiSizeIndexContainer.CreateIndexBuffer(ElementSize);
+		}
+		
+		check(LODResource.MultiSizeIndexContainer.GetDataTypeSize() == ElementSize)
+		
+		LODResource.MultiSizeIndexContainer.GetIndexBuffer()->Insert(0, IndexCount);
+		FMemory::Memcpy(LODResource.MultiSizeIndexContainer.GetIndexBuffer()->GetPointerTo(0), DataPtr, IndexCount * ElementSize);
 
 		return true;
 	}
@@ -358,7 +361,7 @@ namespace UnrealConversionUtils
 
 	
 	void CopyMutableSkinWeightProfilesBuffers(
-		FSkeletalMeshLODRenderData& LODModel,
+		FSkeletalMeshLODRenderData& LODResource,
 		const FName ProfileName,
 		const mu::FMeshBufferSet& MutableMeshVertexBuffers,
 		const int32 BoneIndexBuffer)
@@ -366,12 +369,12 @@ namespace UnrealConversionUtils
 		MUTABLE_CPUPROFILER_SCOPE(CopyMutableSkinWeightProfilesBuffers);
 
 		// Basic Buffer override settings
-		FRuntimeSkinWeightProfileData& Override = LODModel.SkinWeightProfilesData.AddOverrideData(ProfileName);
+		FRuntimeSkinWeightProfileData& Override = LODResource.SkinWeightProfilesData.AddOverrideData(ProfileName);
 
-		const uint8 NumInfluences = LODModel.GetVertexBufferMaxBoneInfluences();
+		const uint8 NumInfluences = LODResource.GetVertexBufferMaxBoneInfluences();
 		Override.NumWeightsPerVertex = NumInfluences;
 
-		const bool b16BitBoneIndices = LODModel.DoesVertexBufferUse16BitBoneIndex();
+		const bool b16BitBoneIndices = LODResource.DoesVertexBufferUse16BitBoneIndex();
 		Override.b16BitBoneIndices = b16BitBoneIndices;
 		const int32 BoneIndexSize = b16BitBoneIndices ? 2 : 1;
 

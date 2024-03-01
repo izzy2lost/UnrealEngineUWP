@@ -38,7 +38,7 @@ namespace UnrealConversionUtils
 	 * @param InBoneMap - The bones to be set as part of the sections.
 	 */
 	CUSTOMIZABLEOBJECT_API void SetupRenderSections(
-		const USkeletalMesh* OutSkeletalMesh,
+		FSkeletalMeshLODRenderData& LODResource,
 		const mu::Ptr<const mu::Mesh> InMutableMesh,
 		const int32 InMeshLODIndex,
 		const TArray<uint16>& InBoneMap,
@@ -51,9 +51,9 @@ namespace UnrealConversionUtils
 	 * @param MeshLODIndex - The LOD index we are working with.
 	 */
 	CUSTOMIZABLEOBJECT_API void CopyMutableVertexBuffers(
-		USkeletalMesh* OutSkeletalMesh,
+		FSkeletalMeshLODRenderData& LODResource,
 		const mu::Ptr<const mu::Mesh> InMutableMesh,
-		const int32 InMeshLODIndex);
+		const bool bAllowCPUAccess);
 
 	
 	/**
@@ -62,8 +62,9 @@ namespace UnrealConversionUtils
 	 * @param OutLODModel - The LOD model to be updated.
 	 * @return True if the operation could be performed successfully, false if not.
 	 */
-	CUSTOMIZABLEOBJECT_API bool CopyMutableIndexBuffers(mu::Ptr<const mu::Mesh> InMutableMesh,
-	                                                    FSkeletalMeshLODRenderData& OutLODModel);
+	CUSTOMIZABLEOBJECT_API bool CopyMutableIndexBuffers(
+		FSkeletalMeshLODRenderData& LODResource,
+		const mu::Ptr<const mu::Mesh> InMutableMesh);
 	
 
 	/**
@@ -75,7 +76,7 @@ namespace UnrealConversionUtils
 	 * @return True if the operation could be performed successfully,	 false if not.
 	 */
 	CUSTOMIZABLEOBJECT_API void CopyMutableSkinWeightProfilesBuffers(
-		FSkeletalMeshLODRenderData& OutLODModel,
+		FSkeletalMeshLODRenderData& LODResource,
 		const FName InProfileName,
 		const mu::FMeshBufferSet& InMutableMeshVertexBuffers,
 		const int32 InBoneIndexBuffer);

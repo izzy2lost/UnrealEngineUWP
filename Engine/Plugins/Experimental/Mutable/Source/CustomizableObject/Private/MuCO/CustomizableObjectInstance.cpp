@@ -4683,21 +4683,27 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 
 		SetLastMeshId(Component->Id, LODIndex, Component->MeshID);
 
+		FSkeletalMeshLODRenderData& LODResource = SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex];
+
 		UnrealConversionUtils::SetupRenderSections(
-			SkeletalMesh,
+			LODResource,
 			Component->Mesh,
 			LODIndex,
 			OperationData->InstanceUpdateData.BoneMaps,
 			Component->FirstBoneMap);
 
 		UnrealConversionUtils::CopyMutableVertexBuffers(
-			SkeletalMesh,
+			LODResource,
 			Component->Mesh,
-			LODIndex);
+			SkeletalMesh->GetLODInfo(LODIndex)->bAllowCPUAccess);
 
-		FSkeletalMeshLODRenderData& LODModel = SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex];
 
-		if (LODModel.DoesVertexBufferUse16BitBoneIndex() && !UCustomizableObjectSystem::GetInstance()->IsSupport16BitBoneIndexEnabled())
+		if (LODResource.StaticVertexBuffers.ColorVertexBuffer.GetNumVertices())
+		{
+			SkeletalMesh->SetHasVertexColors(true);
+		}
+
+		if (LODResource.DoesVertexBufferUse16BitBoneIndex() && !UCustomizableObjectSystem::GetInstance()->IsSupport16BitBoneIndexEnabled())
 		{
 			OperationData->UpdateResult = EUpdateResult::Error16BitBoneIndex;
 
@@ -4715,8 +4721,8 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 		}
 
 		// Update active and required bones
-		LODModel.ActiveBoneIndices.Append(Component->ActiveBones);
-		LODModel.RequiredBones.Append(Component->ActiveBones);
+		LODResource.ActiveBoneIndices.Append(Component->ActiveBones);
+		LODResource.RequiredBones.Append(Component->ActiveBones);
 
 		if (!ModelResources.SkinWeightProfilesInfo.IsEmpty())
 		{
@@ -4741,7 +4747,7 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 
 				if (!bHasSkinWeightProfiles)
 				{
-					LODModel.SkinWeightProfilesData.Init(&LODModel.SkinWeightVertexBuffer);
+					LODResource.SkinWeightProfilesData.Init(&LODResource.SkinWeightVertexBuffer);
 					bHasSkinWeightProfiles = true;
 				}
 
@@ -4756,7 +4762,7 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 				}
 
 				UnrealConversionUtils::CopyMutableSkinWeightProfilesBuffers(
-					LODModel,
+					LODResource,
 					Profile.Name,
 					MutableMeshVertexBuffers,
 					BoneIndicesBufferIndex);
@@ -4764,7 +4770,7 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 		}
 
 		// Copy indices.
-		if (!UnrealConversionUtils::CopyMutableIndexBuffers(Component->Mesh, LODModel))
+		if (!UnrealConversionUtils::CopyMutableIndexBuffers(LODResource, Component->Mesh))
 		{
 			// End with failure
 			return false;
@@ -4772,13 +4778,13 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 
 		// Update LOD and streaming data
 		const FMutableRefLODRenderData& RefLODRenderData = ModelResources.ReferenceSkeletalMeshesData[Component->Id].LODData[LODIndex].RenderData;
-		LODModel.bIsLODOptional = RefLODRenderData.bIsLODOptional;
-		LODModel.bStreamedDataInlined = RefLODRenderData.bStreamedDataInlined;
+		LODResource.bIsLODOptional = RefLODRenderData.bIsLODOptional;
+		LODResource.bStreamedDataInlined = RefLODRenderData.bStreamedDataInlined;
 
 		// WARNING! BufferSize must be > 0 or all texture mips in this LOD will be requested at once. 
 		// USkeletalMesh::IsMaterialUsed checks this size to see if a material is being used. If it fails the textures used by it won't be included 
 		// in the map of textures to stream.
-		LODModel.BuffersSize = 1;
+		LODResource.BuffersSize = 1;
 
 		LastValidLODIndex = LODIndex;
 	}
