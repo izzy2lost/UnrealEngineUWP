@@ -628,7 +628,7 @@ DetermineDataPath(const TCHAR* ConfigSection, FString& DataPath, bool& bHasInval
 		FFileStatData StatData = FileManager.GetStatData(*InDataPath);
 		if (StatData.bIsValid && StatData.bIsDirectory)
 		{
-			FString TestFilePath = FinalPath / ".zen-startup-test-file";
+			FString TestFilePath = FinalPath / FString::Printf(TEXT(".zen-startup-test-file-%d"), FPlatformProcess::GetCurrentProcessId());
 			FArchive* TestFile = FileManager.CreateFileWriter(*TestFilePath, FILEWRITE_Silent);
 			if (!TestFile)
 			{
