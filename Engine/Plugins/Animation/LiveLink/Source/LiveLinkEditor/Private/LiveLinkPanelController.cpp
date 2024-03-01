@@ -185,66 +185,10 @@ void FLiveLinkPanelController::RebuildSourceList()
 
 void FLiveLinkPanelController::RebuildSubjectList()
 {
-	TArray<FLiveLinkSubjectKey> SavedSelection;
+	if (SubjectsView)
 	{
-		TArray<FLiveLinkSubjectUIEntryPtr> SelectedItems = SubjectsView->SubjectsTreeView->GetSelectedItems();
-		for (const FLiveLinkSubjectUIEntryPtr& SelectedItem : SelectedItems)
-		{
-			SavedSelection.Add(SelectedItem->SubjectKey);
-		}
+		SubjectsView->RefreshSubjects();
 	}
-
-	TArray<FLiveLinkSubjectKey> SubjectKeys = Client->GetSubjects(true, true);
-	SubjectsView->SubjectData.Reset();
-
-	TMap<FGuid, FLiveLinkSubjectUIEntryPtr> SourceHeaderItems;
-	TArray<FLiveLinkSubjectUIEntryPtr> AllItems;
-	AllItems.Reserve(SubjectKeys.Num());
-
-	for (const FLiveLinkSubjectKey& SubjectKey : SubjectKeys)
-	{
-		FLiveLinkSubjectUIEntryPtr Source;
-		if(FLiveLinkSubjectUIEntryPtr* SourcePtr = SourceHeaderItems.Find(SubjectKey.Source))
-		{
-			Source = *SourcePtr;
-		}
-		else
-		{
-			FLiveLinkSubjectKey SourceKey = SubjectKey;
-			SourceKey.SubjectName = NAME_None;
-			Source = MakeShared<FLiveLinkSubjectUIEntry>(SourceKey, Client);
-			SubjectsView->SubjectData.Add(Source);
-			SourceHeaderItems.Add(SubjectKey.Source) = Source;
-
-			SubjectsView->SubjectsTreeView->SetItemExpansion(Source, true);
-			AllItems.Add(Source);
-		}
-
-		FLiveLinkSubjectUIEntryPtr SubjectEntry = MakeShared<FLiveLinkSubjectUIEntry>(SubjectKey, Client);
-		Source->Children.Add(SubjectEntry);
-		AllItems.Add(SubjectEntry);
-	}
-
-	auto SortPredicate = [](const FLiveLinkSubjectUIEntryPtr& LHS, const FLiveLinkSubjectUIEntryPtr& RHS) {return LHS->GetItemText().CompareTo(RHS->GetItemText()) < 0; };
-	SubjectsView->SubjectData.Sort(SortPredicate);
-	for (FLiveLinkSubjectUIEntryPtr& Subject : SubjectsView->SubjectData)
-	{
-		Subject->Children.Sort(SortPredicate);
-	}
-
-	for (const FLiveLinkSubjectUIEntryPtr& Item : AllItems)
-	{
-		for (FLiveLinkSubjectKey& Selection : SavedSelection)
-		{
-			if (Item->SubjectKey == Selection)
-			{
-				SubjectsView->SubjectsTreeView->SetItemSelection(Item, true);
-				break;
-			}
-		}
-	}
-
-	SubjectsView->SubjectsTreeView->RequestTreeRefresh();
 }
 
 bool FLiveLinkPanelController::HasSource() const

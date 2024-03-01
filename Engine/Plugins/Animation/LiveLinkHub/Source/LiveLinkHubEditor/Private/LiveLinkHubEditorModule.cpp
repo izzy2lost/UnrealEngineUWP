@@ -5,6 +5,28 @@
 #include "SLiveLinkHubEditorStatusBar.h"
 #include "ToolMenus.h"
 
+static TAutoConsoleVariable<int32> CVarLiveLinkHubEnableStatusBar(
+	TEXT("LiveLinkHub.EnableStatusBar"), 1,
+	TEXT("Whether to enable showing the livelink hub status bar in the editor. Must be set before launching the editor."),
+	ECVF_RenderThreadSafe);
+
+void FLiveLinkHubEditorModule::StartupModule()
+{
+	if (!IsRunningCommandlet() && CVarLiveLinkHubEnableStatusBar.GetValueOnAnyThread())
+	{
+		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FLiveLinkHubEditorModule::OnPostEngineInit);
+	}
+}
+
+void FLiveLinkHubEditorModule::ShutdownModule()
+{
+	if (!IsRunningCommandlet() && CVarLiveLinkHubEnableStatusBar.GetValueOnAnyThread())
+	{
+		FCoreDelegates::OnPostEngineInit.RemoveAll(this);
+		UnregisterLiveLinkHubStatusBar();
+	}
+}
+
 void FLiveLinkHubEditorModule::OnPostEngineInit()
 {
 	if (GEditor)

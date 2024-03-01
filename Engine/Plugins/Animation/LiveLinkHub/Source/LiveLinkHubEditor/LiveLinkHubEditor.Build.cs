@@ -18,6 +18,7 @@ namespace UnrealBuildTool.Rules
 			{
 				"Engine",
 				"LiveLink",
+				"LiveLinkEditor",
 				"LiveLinkHub",
 				"LiveLinkHubMessaging",
 				"LiveLinkInterface",

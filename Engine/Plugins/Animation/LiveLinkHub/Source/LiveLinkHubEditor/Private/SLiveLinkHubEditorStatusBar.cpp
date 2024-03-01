@@ -8,6 +8,8 @@
 #include "ILiveLinkHubMessagingModule.h"
 #include "ILiveLinkModule.h"
 #include "ILiveLinkSource.h"
+#include "LiveLinkClientPanelViews.h"
+#include "LiveLinkEditorSettings.h"
 #include "LiveLinkMessageBusSource.h"
 #include "LiveLinkPreset.h"
 #include "Styling/SlateIconFinder.h"
@@ -15,6 +17,7 @@
 #include "TimerManager.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHubStatusBar"
@@ -26,12 +29,31 @@ void SLiveLinkHubEditorStatusBar::Construct(const FArguments& InArgs)
 
 	LiveLinkClient = &IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
 	LiveLinkClient->OnLiveLinkSourceRemoved().AddSP(this, &SLiveLinkHubEditorStatusBar::OnSourceRemoved);
+	LiveLinkClient->OnLiveLinkSubjectRemoved().AddSP(this, &SLiveLinkHubEditorStatusBar::OnSubjectRemoved);
+	LiveLinkClient->OnLiveLinkSourcesChanged().AddRaw(this, &SLiveLinkHubEditorStatusBar::RefreshSubjects);
+	LiveLinkClient->OnLiveLinkSubjectsChanged().AddRaw(this, &SLiveLinkHubEditorStatusBar::RefreshSubjects);
 
 	constexpr bool bLoop = true;
 	if (GEditor && GEditor->IsTimerManagerValid())
 	{
 		GEditor->GetTimerManager()->SetTimer(TimerHandle, FTimerDelegate::CreateSP(this, &SLiveLinkHubEditorStatusBar::CheckHubConnection), CheckConnectionIntervalSeconds, bLoop);
 	}
+
+	auto NullLambda = [](TSharedPtr<class FLiveLinkSubjectUIEntry>, ESelectInfo::Type) {};
+	TWeakPtr<SLiveLinkHubEditorStatusBar> WeakStatusBar = StaticCastSharedRef<SLiveLinkHubEditorStatusBar>(AsShared());
+	TAttribute<bool> ReadOnlyLambda = TAttribute<bool>::CreateLambda([WeakStatusBar]()
+	{
+		if (TSharedPtr<SLiveLinkHubEditorStatusBar> StatusBar = WeakStatusBar.Pin())
+		{
+			return StatusBar->ConnectionState == EHubConnectionState::Timeout || GetDefault<ULiveLinkEditorSettings>()->bReadOnly;
+		}
+		return true;
+	});
+
+
+	SubjectsView = MakeShared<FLiveLinkSubjectsView>(FLiveLinkSubjectsView::FOnSubjectSelectionChanged::CreateLambda(MoveTemp(NullLambda)), nullptr, ReadOnlyLambda);
+
+	RefreshSubjects();
 
 	ChildSlot
 	[
@@ -63,11 +85,28 @@ void SLiveLinkHubEditorStatusBar::Construct(const FArguments& InArgs)
                 	.ToolTipText(this, &SLiveLinkHubEditorStatusBar::GetToolTipText)
                 ]
     		]
+			.MenuContent()
+			[
+				SNew(SBox)
+				.MinDesiredHeight(200.0f)
+				.MinDesiredWidth(300.0f)
+				[
+					SubjectsView->SubjectsTreeView.ToSharedRef()
+				]
+			]
 	];
 }
 
 SLiveLinkHubEditorStatusBar::~SLiveLinkHubEditorStatusBar()
 {
+	if (LiveLinkClient)
+	{
+		LiveLinkClient->OnLiveLinkSubjectsChanged().RemoveAll(this);
+		LiveLinkClient->OnLiveLinkSourcesChanged().RemoveAll(this);
+		LiveLinkClient->OnLiveLinkSubjectRemoved().RemoveAll(this);
+		LiveLinkClient->OnLiveLinkSourceRemoved().RemoveAll(this);
+	}
+
 	if (ILiveLinkHubMessagingModule* HubMessagingModule = FModuleManager::Get().GetModulePtr<ILiveLinkHubMessagingModule>("LiveLinkHubMessaging"))
 	{
 		HubMessagingModule->OnConnectionEstablished().RemoveAll(this);
@@ -104,6 +143,21 @@ void SLiveLinkHubEditorStatusBar::OnSourceRemoved(FGuid SourceId)
 	if (HubSourceId == SourceId)
 	{
 		HubSourceId.Invalidate();
+	}
+
+	RefreshSubjects();
+}
+
+void SLiveLinkHubEditorStatusBar::OnSubjectRemoved(FLiveLinkSubjectKey)
+{
+	RefreshSubjects();
+}
+
+void SLiveLinkHubEditorStatusBar::RefreshSubjects()
+{
+	if (SubjectsView)
+	{
+		SubjectsView->RefreshSubjects();
 	}
 }
 
