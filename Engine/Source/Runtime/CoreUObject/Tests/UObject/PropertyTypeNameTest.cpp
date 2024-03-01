@@ -169,6 +169,38 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		CHECK(TypeName.GetParameter(2).IsEmpty());
 	}
 
+	SECTION("IsStruct")
+	{
+		FPropertyTypeNameBuilder Builder;
+		Builder.AddName(NAME_StructProperty);
+		CHECK_FALSE(Builder.Build().IsStruct(NAME_Vector));
+		CHECK_FALSE(FPropertyTypeName().IsStruct(NAME_Vector));
+		CHECK(PropertyTypeNameTest::CreateVectorArray().GetParameter(0).IsStruct(NAME_Vector));
+	}
+
+	SECTION("IsEnum(EnumProperty)")
+	{
+		const FName EnumName = TEXT("Key");
+		FPropertyTypeNameBuilder Builder;
+		Builder.AddName(NAME_EnumProperty);
+		CHECK_FALSE(Builder.Build().IsEnum(EnumName));
+		CHECK_FALSE(FPropertyTypeName().IsEnum(EnumName));
+		CHECK(PropertyTypeNameTest::CreateEnumMap().GetParameter(0).IsEnum(EnumName));
+	}
+
+	SECTION("IsEnum(ByteProperty)")
+	{
+		const FName EnumName = TEXT("Key");
+		FPropertyTypeNameBuilder Builder;
+		Builder.AddName(NAME_ByteProperty);
+		CHECK_FALSE(Builder.Build().IsEnum(EnumName));
+		CHECK_FALSE(FPropertyTypeName().IsEnum(EnumName));
+		Builder.BeginParameters();
+		Builder.AddName(EnumName);
+		Builder.EndParameters();
+		CHECK(Builder.Build().IsEnum(EnumName));
+	}
+
 	SECTION("Equals+Less+GetTypeHash")
 	{
 		const FPropertyTypeName Int = PropertyTypeNameTest::CreateInt();

@@ -98,6 +98,11 @@ public:
 		Index = 0;
 	}
 
+	/** Returns true if this is StructProperty with a first parameter of StructName. */
+	UE_API bool IsStruct(FName StructName) const;
+	/** Returns true if this is EnumProperty or ByteProperty with a first parameter of EnumName. */
+	UE_API bool IsEnum(FName EnumName) const;
+
 private:
 	UE_API friend uint32 GetTypeHash(const FPropertyTypeName& TypeName);
 
