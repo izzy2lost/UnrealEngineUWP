@@ -45,7 +45,7 @@
 #endif
 
 
-#include "Busywaits_Deprecated.h"
+#include "BusyWaits_Deprecated.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectSystem)
 
