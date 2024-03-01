@@ -8,6 +8,7 @@
 #include "AvaOutlinerSubsystem.h"
 #include "AvaOutlinerTabSpawner.h"
 #include "AvaScene.h"
+#include "AvaSceneRigSubsystem.h"
 #include "AvaSequence.h"
 #include "AvaShapeActor.h"
 #include "AvaTextActor.h"
@@ -22,6 +23,8 @@
 #include "Framework/Docking/LayoutExtender.h"
 #include "IAvaOutliner.h"
 #include "IAvaOutlinerModule.h"
+#include "IAvaSceneRigEditorModule.h"
+#include "Item/AvaOutlinerActor.h"
 #include "Item/AvaOutlinerComponent.h"
 #include "ItemProxies/AvaOutlinerItemProxyRegistry.h"
 #include "LevelEditor.h"
@@ -302,7 +305,7 @@ void FAvaOutlinerExtension::ExtendOutlinerItemContextMenu(UToolMenu* InItemConte
 
 	// Note: Since the Outliner Command List is linked to the Ava Command List (see IAvaOutliner::SetBaseCommandList),
 	// we do NOT need to add the entry with a different Command List
-	const FAvaEditorCommands AvaEditorCommands = FAvaEditorCommands::Get();
+	const FAvaEditorCommands& AvaEditorCommands = FAvaEditorCommands::Get();
 
 	ContextActionsSection->AddMenuEntry(
 		AvaEditorCommands.OpenAdvancedRenamerTool_SelectedActors,
@@ -374,6 +377,20 @@ void FAvaOutlinerExtension::ExtendOutlinerItemFilters(TArray<TSharedPtr<IAvaOutl
 
 	OutItemFilters.Add(MakeShared<FAvaOutlinerItemTypeFilter>(TEXT("SkeletalMesh")
 		, TArray<TSubclassOf<UObject>>{ ASkeletalMeshActor::StaticClass() }));
+
+	OutItemFilters.Add(MakeShared<FAvaOutlinerItemTypeFilter>(TEXT("SceneRig")
+		, FAvaOutlinerItemTypeFilterPassDelegate::CreateSP(this, &FAvaOutlinerExtension::OnSceneRigFilterPass)
+		, FAppStyle::GetBrush(TEXT("LandscapeEditor.NoiseTool"))
+		, LOCTEXT("SceneRigFilterTooltip", "Scene Rig Actors")));
+}
+
+bool FAvaOutlinerExtension::OnSceneRigFilterPass(FAvaOutlinerFilterType InItem) const
+{
+	if (const FAvaOutlinerActor* const OutlinerActor = InItem.CastTo<FAvaOutlinerActor>())
+	{
+		return IAvaSceneRigEditorModule::Get().IsActiveSceneRigActor(GetWorld(), OutlinerActor->GetActor());
+	}
+	return false;
 }
 
 TOptional<EItemDropZone> FAvaOutlinerExtension::OnOutlinerItemCanAcceptDrop(const FDragDropEvent& InDragDropEvent

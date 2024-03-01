@@ -64,6 +64,8 @@ public:
 private:
 	void GroupSelection();
 
+	bool OnSceneRigFilterPass(FAvaOutlinerFilterType InItem) const;
+
 	TSharedPtr<IAvaOutliner> AvaOutliner;
 
 	TSharedRef<FUICommandList> OutlinerCommands;

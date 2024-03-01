@@ -3,14 +3,16 @@
 #pragma once
 
 #include "IDetailCustomization.h"
+#include "Templates/SharedPointerFwd.h"
+
+class IDetailLayoutBuilder;
 
 class FAvaSceneSettingsCustomization : public IDetailCustomization
 {
 public:
 	static TSharedRef<IDetailCustomization> MakeInstance();
 
-private:
 	//~ Begin IDetailCustomization
-	virtual void CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder) override;
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 	//~ End IDetailCustomization
 };

@@ -182,6 +182,8 @@ public:
 	
 	const TArray<TSharedPtr<IAvaOutlinerItemFilter>>& GetCustomItemFilters() const { return CustomItemFilters; }
 
+	const TSet<TSharedPtr<IAvaOutlinerItemFilter>>& GetActiveItemFilters() const { return ActiveItemFilters; }
+
 	TSharedRef<FAvaOutlinerTextFilter> GetTextFilter() const { return TextFilter; }
 	
 	/** Gets the Currently Selected Items in the Tree View */

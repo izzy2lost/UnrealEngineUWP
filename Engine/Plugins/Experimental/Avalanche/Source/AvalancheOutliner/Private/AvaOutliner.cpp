@@ -14,6 +14,8 @@
 #include "Data/AvaOutlinerVersion.h"
 #include "Editor/Transactor.h"
 #include "EditorModeManager.h"
+#include "Engine/Level.h"
+#include "Engine/LevelStreaming.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -100,9 +102,14 @@ bool FAvaOutliner::IsActorAllowedInOutliner(const AActor* InActor) const
 		return false;
 	}
 
-	// Only consider Actors that are in the Outliner World
-	const UWorld* const World = InActor->GetWorld();
-	if (!IsValid(World) || World != GetWorld())
+	const UWorld* const ActorWorld = InActor->GetWorld();
+	if (!IsValid(ActorWorld))
+	{
+		return false;
+	}
+
+	const UWorld* const OutlinerWorld = GetWorld();
+	if (!IsValid(OutlinerWorld))
 	{
 		return false;
 	}
@@ -113,11 +120,41 @@ bool FAvaOutliner::IsActorAllowedInOutliner(const AActor* InActor) const
 		return false;
 	}
 
+	// Only consider Actors that are in the Outliner World
+	if (ActorWorld != OutlinerWorld)
+	{
+		return false;
+	}
+
+	// Check if actor is in a streaming level
+	for (ULevelStreaming* const LevelStreaming : OutlinerWorld->GetStreamingLevels())
+	{
+		if (const TSoftObjectPtr<UWorld>& WorldAsset = LevelStreaming->GetWorldAsset())
+		{
+			if (WorldAsset && WorldAsset->PersistentLevel
+				&& WorldAsset->PersistentLevel->Actors.Contains(InActor))
+			{
+				return !IsDefaultWorldActorToHide(WorldAsset.Get(), InActor);
+			}
+		}
+	}
+
 	// Make sure the Actor is none of these Default World Actors
-	return InActor != World->GetDefaultPhysicsVolume()
-		&& InActor != World->GetDefaultBrush()
-		&& InActor != World->GetWorldSettings()
-		&& InActor != World->MyParticleEventManager;
+	return !IsDefaultWorldActorToHide(ActorWorld, InActor);
+}
+
+bool FAvaOutliner::IsDefaultWorldActorToHide(const UWorld* const InWorld, const AActor* const InActor) const
+{
+	if (!IsValid(InWorld) || !IsValid(InActor))
+	{
+		return false;
+	}
+
+	// Make sure the Actor is none of these Default World Actors
+	return InActor == InWorld->GetDefaultPhysicsVolume()
+		|| InActor == InWorld->GetDefaultBrush()
+		|| InActor == InWorld->GetWorldSettings()
+		|| InActor == InWorld->MyParticleEventManager;
 }
 
 bool FAvaOutliner::IsComponentAllowedInOutliner(const USceneComponent* InComponent) const
@@ -344,33 +381,55 @@ void FAvaOutliner::Refresh()
 	SceneOutlinerParentMap.Reset();
 	if (UWorld* const World = GetWorld())
 	{
-		ULevelInstanceSubsystem* const LevelInstanceSubsystem = World->GetSubsystem<ULevelInstanceSubsystem>();
+		auto AddActorToParentMap = [this](UWorld* const InWorld, AActor* const InActor)
+			{
+				if (!IsValid(InWorld) || !IsValid(InActor))
+				{
+					return;
+				}
+
+				ULevelInstanceSubsystem* const LevelInstanceSubsystem = InWorld->GetSubsystem<ULevelInstanceSubsystem>();
+
+				const ULevel* Level = InActor->GetLevel();
+				AActor* Parent = InActor->GetSceneOutlinerParent();
+
+				// Try to find the Level Instance Actor to use as Parent for actors that aren't attached to anything
+				// and belong to sub-levels
+				if (!Parent && Level != InWorld->PersistentLevel)
+				{
+					if (const ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem->GetOwningLevelInstance(Level))
+					{
+						if (const ULevelInstanceComponent* LevelInstanceComponent = LevelInstance->GetLevelInstanceComponent())
+						{
+							Parent = LevelInstanceComponent->GetOwner();
+						}
+					}
+				}
+
+				SceneOutlinerParentMap.FindOrAdd(Parent).AddUnique(InActor);
+				FindOrAdd<FAvaOutlinerActor>(InActor);
+			};
 
 		// 1) Update the Scene Outliner Parent Map for its Parent to know this Actor
 		// 2) Make sure this Actor has an assigned Outliner Item
 		for (AActor* const Actor : TActorRange<AActor>(World))
 		{
-			const ULevel* Level  = Actor->GetLevel();
-			AActor* const Parent = Actor->GetSceneOutlinerParent();
+			AddActorToParentMap(World, Actor);
+		}
 
-			// Try to find the Level Instance Actor to use as Parent for actors that aren't attached to anything
-			// and belong to sub-levels
-			if (!Parent && Level != World->PersistentLevel)
+		// Add all actors from streaming levels
+		for (ULevelStreaming* const LevelStreaming : World->GetStreamingLevels())
+		{
+			if (const TSoftObjectPtr<UWorld>& WorldAsset = LevelStreaming->GetWorldAsset())
 			{
-				if (const ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem->GetOwningLevelInstance(Level))
+				if (WorldAsset && WorldAsset->PersistentLevel)
 				{
-					if (const ULevelInstanceComponent* LevelInstanceComponent = LevelInstance->GetLevelInstanceComponent())
+					for (AActor* const Actor : WorldAsset->PersistentLevel->Actors)
 					{
-						SceneOutlinerParentMap.FindOrAdd(LevelInstanceComponent->GetOwner()).Add(Actor);
+						AddActorToParentMap(WorldAsset.Get(), Actor);
 					}
 				}
 			}
-			else
-			{
-				SceneOutlinerParentMap.FindOrAdd(Parent).Add(Actor);
-			}
-
-			FindOrAdd<FAvaOutlinerActor>(Actor);
 		}
 	}
 

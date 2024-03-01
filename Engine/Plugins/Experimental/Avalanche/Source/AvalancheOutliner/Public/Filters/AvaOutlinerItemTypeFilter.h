@@ -80,6 +80,8 @@ private:
 	EClassFlags RestrictedClassFlags = CLASS_None;
 };
 
+DECLARE_DELEGATE_RetVal_OneParam(bool, FAvaOutlinerItemTypeFilterPassDelegate, FAvaOutlinerFilterType);
+
 class AVALANCHEOUTLINER_API FAvaOutlinerItemTypeFilter : public IAvaOutlinerItemFilter
 {
 public:
@@ -101,6 +103,16 @@ public:
 	{
 	}
 
+	explicit FAvaOutlinerItemTypeFilter(FName InFilterId
+			, const FAvaOutlinerItemTypeFilterPassDelegate& InFilterPassDelegate
+			, const FSlateBrush* InIconBrush = nullptr
+			, const FText& InTooltipText = FText::GetEmpty())
+		: FilterId(InFilterId)
+		, FilterData({}, EAvaOutlinerTypeFilterMode::MatchesType, InIconBrush, InTooltipText, CLASS_None, CLASS_None)
+		, FilterPassDelegate(InFilterPassDelegate)
+	{
+	}
+
 protected:
 	//~ Begin IFilter
 	virtual FChangedEvent& OnChanged() override { return ChangedEvent; }
@@ -118,4 +130,6 @@ protected:
 	FAvaOutlinerItemTypeFilterData FilterData;
 
 	FChangedEvent ChangedEvent;
+
+	FAvaOutlinerItemTypeFilterPassDelegate FilterPassDelegate;
 };

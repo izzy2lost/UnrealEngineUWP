@@ -136,3 +136,8 @@ void FAvaOutlinerScopedSelection::SyncSelections()
 	UE::AvaOutliner::Private::SyncSelection(EditorModeTools.GetSelectedComponents(), SelectedComponents);
 	UE::AvaOutliner::Private::SyncSelection(EditorModeTools.GetSelectedObjects(), SelectedObjects);
 }
+
+const FEditorModeTools& FAvaOutlinerScopedSelection::GetEditorModeTools() const
+{
+	return EditorModeTools;
+}

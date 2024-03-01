@@ -13,7 +13,9 @@
 #include "ItemProxies/AvaOutlinerItemProxyRegistry.h"
 #include "ItemProxies/IAvaOutlinerItemProxyFactory.h"
 #include "TickableEditorObject.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
+class AActor;
 class FAvaEditorSelection;
 class FAvaOutlinerTreeRoot;
 class FAvaOutlinerView;
@@ -24,6 +26,7 @@ class IAvaOutlinerAction;
 class IAvaOutlinerProvider;
 class IAvaOutlinerView;
 class UAvaOutlinerSubsystem;
+class ULevelStreaming;
 enum class EItemDropZone;
 struct FAttachmentTransformRules;
 struct FAvaOutlinerSaveState;
@@ -101,6 +104,7 @@ public:
 	virtual void OnObjectSelectionChanged(const FAvaEditorSelection& InEditorSelection) override;
 	virtual UWorld* GetWorld() const override;
 	virtual const FAvaOutlinerItemProxyRegistry& GetItemProxyRegistry() const override;
+	virtual bool IsDefaultWorldActorToHide(const UWorld* const InWorld, const AActor* const InActor) const override;
 	//~ End IAvaOutliner
 
 	FAvaOutlinerItemProxyRegistry& GetItemProxyRegistry();

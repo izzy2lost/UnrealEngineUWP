@@ -42,6 +42,8 @@ public class AvalancheEditor : ModuleRules
 				"AvalancheOutliner",
 				"AvalanchePropertyAnimator",
 				"AvalancheRemoteControlEditor",
+				"AvalancheSceneRig",
+				"AvalancheSceneRigEditor",
 				"AvalancheSceneTree",
 				"AvalancheSequence",
 				"AvalancheSequencer",
