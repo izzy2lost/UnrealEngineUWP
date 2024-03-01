@@ -426,6 +426,19 @@ inline varying FVector2 VectorLoad(const uniform FVector2 *uniform SrcPtr)
 	return Result;
 }
 
+inline void VectorStore(uniform FVector2f* uniform DstPtr, const varying FVector2f& V)
+{
+	if (((1 << TARGET_WIDTH) - 1 ^ lanemask()) == 0)
+	{
+		soa_to_aos2_ispc(V.V[0], V.V[1], (uniform float* uniform)DstPtr);
+	}
+	else
+	{
+#pragma ignore warning(perf)
+		DstPtr[programIndex] = V;
+	}
+}
+
 inline void VectorStore(uniform FVector2 *uniform DstPtr, const varying FVector2 &V)
 {
 	if(((1<<TARGET_WIDTH)-1 ^ lanemask()) == 0)
@@ -761,6 +774,36 @@ inline varying FIntVector VectorGather(const uniform FIntVector *varying SrcPtr)
 		#pragma ignore warning(perf)
 		Result = *SrcPtr;
 	}
+
+	return Result;
+}
+
+inline FVector2f operator+(const FVector2f& A, const FVector2f& B)
+{
+	FVector2f Result;
+
+	Result.V[0] = A.V[0] + B.V[0];
+	Result.V[1] = A.V[1] + B.V[1];
+
+	return Result;
+}
+
+inline FVector2f operator*(const FVector2f& A, const FVector2f& B)
+{
+	FVector2f Result;
+
+	Result.V[0] = A.V[0] * B.V[0];
+	Result.V[1] = A.V[1] * B.V[1];
+
+	return Result;
+}
+
+inline FVector2f operator*(const FVector2f& A, const float F)
+{
+	FVector2f Result;
+
+	Result.V[0] = A.V[0] * F;
+	Result.V[1] = A.V[1] * F;
 
 	return Result;
 }
