@@ -6037,8 +6037,35 @@ void UClass::ClearSparseClassDataStruct(bool bInRecomplingOnLoad)
 { 
 	if (SparseClassDataStruct != nullptr)
 	{
-		CleanupSparseClassData();
-		SparseClassDataStruct = nullptr;
+		// Find all subclasses and clear their sparse class data struct as well.
+		TArray<UClass*> SubClasses;
+		TArray<UClass*> SubClassesToClear;
+		GetDerivedClasses(this, SubClasses, true /* bRecursive */);
+		for (UClass* SubClass : SubClasses)
+		{
+			UScriptStruct* SubClassSparseClassDataStruct = SubClass->GetSparseClassDataStruct();
+			if (SubClassSparseClassDataStruct && SubClassSparseClassDataStruct->IsChildOf(SparseClassDataStruct))
+			{
+				SubClassesToClear.Add(SubClass);
+			}
+		}
+
+		auto ClearSparseClassDataStructInner = [bInRecomplingOnLoad](UClass* InClassToClear)
+		{
+			UScriptStruct* CurrentSparseClassDataStruct = InClassToClear->GetSparseClassDataStruct();
+			InClassToClear->CleanupSparseClassData();
+			InClassToClear->SparseClassDataStruct = nullptr;
+			CurrentSparseClassDataStruct->SetSuperStruct(nullptr);
+			const ERenameFlags RenameFlags = REN_DontCreateRedirectors | ((bInRecomplingOnLoad) ? REN_ForceNoResetLoaders : 0) | REN_NonTransactional | REN_DoNotDirty;
+			CurrentSparseClassDataStruct->Rename(nullptr, GetTransientPackage(), RenameFlags);
+		};
+
+		for(UClass* SubClassToClear : SubClassesToClear)
+		{
+			ClearSparseClassDataStructInner(SubClassToClear);
+		}
+
+		ClearSparseClassDataStructInner(this);
 	}
 }
 
