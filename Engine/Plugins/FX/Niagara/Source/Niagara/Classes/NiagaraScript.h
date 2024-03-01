@@ -1360,6 +1360,7 @@ private:
 
 	void ProcessSerializedShaderMaps();
 	void SerializeNiagaraShaderMaps(FArchive& Ar, int32 NiagaraVer, bool IsValidShaderScript);
+	void CreateScriptResource(const FNiagaraShaderScript* Source);
 
 	/** Return the expected SimTarget for this script. Only returns a valid target if there is valid data to run with. */
 	TOptional<ENiagaraSimTarget> GetSimTarget() const;
