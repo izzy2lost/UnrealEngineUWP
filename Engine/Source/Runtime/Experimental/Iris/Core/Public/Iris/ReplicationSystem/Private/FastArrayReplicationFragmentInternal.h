@@ -10,6 +10,9 @@
 #include "Iris/ReplicationState/ReplicationStateDescriptor.h"
 #include "Net/Core/Trace/NetDebugName.h"
 #include "Net/Core/NetBitArray.h"
+#include "ProfilingDebugging/CsvProfiler.h"
+
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(NETCORE_API, Networking);
 
 namespace UE::Net
 {
@@ -202,6 +205,8 @@ template <typename FastArrayType, typename ItemArrayType>
 void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* DstArraySerializer, ItemArrayType* DstWrappedArray, FastArrayType* SrcArraySerializer, const ItemArrayType* SrcWrappedArray, const FReplicationStateDescriptor* ArrayElementDescriptor, FReplicationStateApplyContext& Context)
 {
 	typedef typename ItemArrayType::ElementType ItemType;
+
+	CSV_SCOPED_TIMING_STAT(Networking, FastArray_Apply);
 
 	UE_LOG(LogNetFastTArray, Log, TEXT("FFastArrayReplicationFragmentHelper::ApplyReplicatedState for %s"), Context.Descriptor->DebugName->Name);
 
