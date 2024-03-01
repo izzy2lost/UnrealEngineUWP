@@ -285,7 +285,11 @@ void FHttpRequestCommon::OnActivityTimeoutTimerTaskTrigger()
 
 	ActivityTimeoutHttpTaskTimerHandle.Reset();
 
-	checkf(!EHttpRequestStatus::IsFinished(GetStatus()), TEXT("PostProcess must be called when request complete, to stop activity timeout timer."));
+	if (EHttpRequestStatus::IsFinished(GetStatus()))
+	{
+		UE_LOG(LogHttp, Warning, TEXT("Request %p had finished when activity timeout timer trigger at [%s]"), this, *FDateTime::Now().ToString(TEXT("%H:%M:%S:%s")));
+		return;
+	}
 
 	if (FPlatformTime::Seconds() < ActivityTimeoutAt)
 	{
@@ -381,12 +385,17 @@ void FHttpRequestCommon::OnTotalTimeoutTimerTaskTrigger()
 	const FScopeLock CacheLock(&HttpTaskTimerHandleCriticalSection);
 	bTimedOut = true;
 
-	if (!EHttpRequestStatus::IsFinished(GetStatus())) 
+	if (EHttpRequestStatus::IsFinished(GetStatus()))
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRequestCommon_AbortRequest);
-		UE_LOG(LogHttp, Warning, TEXT("HTTP request timed out after %0.2f seconds URL=%s"), GetTimeoutOrDefault(), *GetURL());
-		AbortRequest();
+		return;
 	}
+
+	StopActivityTimeoutTimer();
+
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRequestCommon_AbortRequest);
+	UE_LOG(LogHttp, Warning, TEXT("HTTP request timed out after %0.2f seconds URL=%s"), GetTimeoutOrDefault(), *GetURL());
+
+	AbortRequest();
 }
 
 void FHttpRequestCommon::StopTotalTimeoutTimer()
