@@ -636,7 +636,12 @@ void FPackageHarvester::TryHarvestExportInternal(UObject* InObject)
 		FFindInstancedReferenceSubobjectHelper::GetInstancedSubObjects(InObject, InstancedSubObjects);
 		for (UObject* InstancedSubObject : InstancedSubObjects)
 		{
-			TryHarvestExportInternal(InstancedSubObject);
+			checkf(InstancedSubObject, TEXT("Expecting valid subobject"));
+
+			if (InstancedSubObject->IsInPackage(SaveContext.GetPackage()))
+			{
+				TryHarvestExportInternal(InstancedSubObject);
+			}
 		}
 	}
 }
