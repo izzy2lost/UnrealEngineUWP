@@ -2595,7 +2595,7 @@ void USkeletalMesh::SaveLODImportedData(const int32 LODIndex, const FSkeletalMes
 	
 	FMeshDescription MeshDescription;
 
-	if (InMesh.GetMeshDescription(nullptr, MeshDescription))
+	if (InMesh.GetMeshDescription(nullptr, LODIndex, MeshDescription))
 	{
 		CreateMeshDescription(LODIndex, MoveTemp(MeshDescription));
 		CommitMeshDescription(LODIndex);
@@ -3287,7 +3287,7 @@ void USkeletalMesh::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 						}
 
 						FMeshDescription MeshDescription;
-						if (SkeletalMeshImportData.GetMeshDescription(this, MeshDescription))
+						if (SkeletalMeshImportData.GetMeshDescription(this, LODIndex, MeshDescription))
 						{
 							CreateMeshDescription(LODIndex, MoveTemp(MeshDescription));
 							CommitMeshDescription(LODIndex);
