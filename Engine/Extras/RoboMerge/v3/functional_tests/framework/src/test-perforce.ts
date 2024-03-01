@@ -88,7 +88,7 @@ export class Perforce {
 	async changes(client: string, stream: string, limit: number, pending?: boolean) {
 		const ztagResult = await this.exec(['-ztag', '-c', client, 'changes', '-l', '-m', limit.toString(), '-s', pending ? 'pending' : 'submitted', stream + '/...'])
 
-		const parseResult = ztag.parseZtagOutput(ztagResult, 0, {expected: {change: 'integer', desc: 'string'}, optional: {oldChange: 'integer'}})
+		const parseResult = ztag.parseZtagOutput(ztagResult, 0, {expected: {change: 'integer', desc: 'string'}})
 		const result: Change[] = []
 		for (const entry of parseResult) {
 			result.push({change: entry.change as number, description: entry.desc as string})

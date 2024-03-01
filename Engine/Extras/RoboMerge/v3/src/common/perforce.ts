@@ -226,13 +226,8 @@ export interface Change {
 	change: number;
 	client: string;
 	user: string;
-	// path?: string;
 	desc: string;
-	// status?: string;
 	shelved?: number;
-
-	// also from Perforce, but maybe not useful
-	changeType?: string;
 	time?: number;
 
 	// hacked in
@@ -292,6 +287,7 @@ interface ExecOpts {
 }
 
 interface ExecZtagOpts extends ExecOpts {
+	format?: string; // if specified will be passed as the -F argument and the results returned without ztag parsing
 	multiline?: boolean;
 	resolve?: boolean; // hacky solution to clear certain problematic lines out of resolve ztags
 	reduce?: boolean; // collapse the multiple entries to a single object, useful for problem parses that end up in multiple entries despite being a single result
@@ -520,20 +516,11 @@ export class PerforceContext {
 		return this._execP4Ztag(null, args, { multiline: true, edgeServerAddress });
 	}
 
-	/** get a single change in the format of changes() */
-	async getChange(path_in: string, changenum: number, status?: ChangelistStatus) {
-		const list = await this.changes(`${path_in}@${changenum},${changenum}`, -1, 1, status, false) as Change[]
-		if (list.length <= 0) {
-			throw new Error(`Could not find changelist ${changenum} in ${path_in}`);
-		}
-		if (list.length > 1 || list[0].change !== changenum) {
-			// log for now
-			const e = new Error();
-			this.logger.error(`${e.stack}\np4.getChange unexpected result for ${changenum}` +
-				list.map(change => `\n    ${change.change}: user ${change.user}, workspace ${change.client}`).join('')
-			)
-		}
-		return list[0]
+	/** get a single change and return it in the format of changes() */
+	async getChange(changenum: number) {
+		const result = await this._execP4Ztag(null, ['change', '-o', changenum.toString()], 
+						{format: '{"change":%Change%,"client":"%Client%","user":"%User%","status":"%Status%","desc":"%Description%"}'})
+		return JSON.parse(result.trimEnd().replaceAll("\n","\\n"));
 	}
 
 	/**
@@ -1765,7 +1752,12 @@ export class PerforceContext {
 
 	static async _execP4Ztag(logger: ContextualLogger, roboWorkspace: RoboWorkspace, args: string[], opts?: ExecZtagOpts) {
 		const workspace = coercePerforceWorkspace(roboWorkspace);
-		return parseZTag(await PerforceContext._execP4(logger, workspace, ['-ztag', ...args], opts), opts);
+		if (opts && opts.format) {
+			return PerforceContext._execP4(logger, workspace, ['-ztag', '-F', opts.format, ...args], opts)
+		}
+		else {
+			return parseZTag(await PerforceContext._execP4(logger, workspace, ['-ztag', ...args], opts), opts);
+		}
 	}
 
 	private async _execP4Ztag(roboWorkspace: RoboWorkspace, args: string[], opts?: ExecZtagOpts) {

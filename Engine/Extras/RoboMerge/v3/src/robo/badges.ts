@@ -193,7 +193,7 @@ async function markViaBranches(viaClStrings: string[], badgeFunc: BadgeFunc, bra
 
 		let result
 		try {
-			result = await p4.getChange(`//${branchGraph.config.defaultStreamDepot}/...`, cl)
+			result = await p4.getChange(cl)
 		}
 		catch (err) {
 			// this can fail sometimes with cross depot integrations

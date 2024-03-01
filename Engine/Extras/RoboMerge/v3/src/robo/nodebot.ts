@@ -699,7 +699,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 
 			let p4ChangeResult
 			try {
-				p4ChangeResult = await this.p4.getChange( targetBranch.rootPath, changelist, 'shelved')
+				p4ChangeResult = await this.p4.getChange(changelist)
 			}
 			catch (err) {
 				return { 

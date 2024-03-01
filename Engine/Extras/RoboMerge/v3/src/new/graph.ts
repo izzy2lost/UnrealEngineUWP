@@ -834,7 +834,7 @@ export class Trace {
 
 		let change
 		try {
-			change = await this.p4.getChange(sourceNode.stream + '/...', cl)
+			change = await this.p4.getChange(cl)
 		}
 		catch (err) {
 			return 'CHANGELIST_NOT_FOUND'
