@@ -9,6 +9,7 @@
 namespace Verse
 {
 struct VProcedure;
+struct VUniqueString;
 
 struct VFunction : VHeapValue
 {
