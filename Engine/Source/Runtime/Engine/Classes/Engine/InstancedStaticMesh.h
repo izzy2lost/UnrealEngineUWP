@@ -475,7 +475,7 @@ public:
 
 	ENGINE_API virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) final override;
 
-	ENGINE_API void SetupRayTracingDynamicInstances(int32 NumDynamicInstances, int32 LOD);
+	ENGINE_API void SetupRayTracingDynamicInstances(int32 NumDynamicInstances, int32 LODIndex);
 
 #endif
 
@@ -551,7 +551,7 @@ protected:
 
 	TArray<FRayTracingDynamicData> RayTracingDynamicData;
 
-	int32 CachedRayTracingLOD;
+	int32 CachedRayTracingLODIndex;
 #endif
 
 	/** Common path for the Get*MeshElement functions */
