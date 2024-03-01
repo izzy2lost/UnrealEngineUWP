@@ -9,13 +9,9 @@
 
 #include "StretcherAndPitchShifter.generated.h"
 
-namespace HarmonixDsp
-{
-	class IAudioData;
-}
-
 class IAudioDataRenderer;
 class FGainMatrix;
+class FSoundWaveProxy;
 
 USTRUCT()
 struct HARMONIXDSP_API FTimeStretchConfig
@@ -57,9 +53,9 @@ public:
 	virtual bool HasCurrentSampleFrame() const { return false; }
 	virtual int32  GetCurrentSampleFrame() const { return 0; }
 
-	void SetSampleSourceReset(TSharedPtr<const HarmonixDsp::IAudioData, ESPMode::ThreadSafe> InAudioData, TSharedPtr<IAudioDataRenderer, ESPMode::ThreadSafe> InAudioRenderer) 
+	void SetSampleSourceReset(TSharedPtr<FSoundWaveProxy> InSoundWave, TSharedPtr<IAudioDataRenderer, ESPMode::ThreadSafe> InAudioRenderer) 
 	{ 
-		MyAudioData = InAudioData;
+		MyAudioData = InSoundWave;
 		MyAudioRenderer = InAudioRenderer;
 
 		SetupAndResetImpl(); 
@@ -78,7 +74,7 @@ public:
 
 	virtual void Cleanup() = 0;
 protected:
-	TSharedPtr<const HarmonixDsp::IAudioData, ESPMode::ThreadSafe> MyAudioData;
+	TSharedPtr<FSoundWaveProxy> MyAudioData;
 	TSharedPtr<IAudioDataRenderer, ESPMode::ThreadSafe> MyAudioRenderer;
 
 	virtual void SetupAndResetImpl() { }

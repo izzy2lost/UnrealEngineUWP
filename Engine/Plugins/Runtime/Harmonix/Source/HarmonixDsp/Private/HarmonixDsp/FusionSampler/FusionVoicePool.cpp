@@ -1,12 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "HarmonixDsp/FusionSampler/FusionVoicePool.h"
-#include "HarmonixDsp/FusionSampler/SingletonFusionVoicePool.h"
 #include "HarmonixDsp/FusionSampler/FusionVoice.h"
 #include "HarmonixDsp/FusionSampler/FusionPatch.h"
 #include "HarmonixDsp/FusionSampler/FusionSampler.h"
 #include "HarmonixDsp/FusionSampler/Settings/KeyzoneSettings.h"
-#include "HarmonixDsp/AudioData.h"
 #include "HarmonixDsp/StretcherAndPitchShifterFactory.h"
+#include "Sound/SoundWave.h"
 
 DEFINE_LOG_CATEGORY(LogFusionVoicePool);
 
@@ -311,14 +310,14 @@ FFusionVoice* FFusionVoicePool::GetFreeVoice(
 		if (!Factory)
 		{
 			FName FactoryName = InKeyzone->TimeStretchConfig.PitchShifter.Name;
-			ensureMsgf(false, TEXT("Attempting to play a fusion InKeyzone that is set to \"maintain time\", but no shifter factory was available for assigned Pitch Shifter: %s. Check project configuration! (%s)"), *FactoryName.ToString(), *InKeyzone->AudioSample->GetName().ToString());
+			ensureMsgf(false, TEXT("Attempting to play a fusion InKeyzone that is set to \"maintain time\", but no shifter factory was available for assigned Pitch Shifter: %s. Check project configuration! (%s)"), *FactoryName.ToString(), *InKeyzone->SoundWaveProxy->GetFName().ToString());
 			return nullptr;
 		}
 	}
 
-	if (!InKeyzone->AudioSample || InKeyzone->AudioSample->Failed())
+	if (!InKeyzone->SoundWaveProxy)
 	{
-		UE_LOG(LogFusionVoicePool, Warning, TEXT("Asked to allocate a InSampler voice for a sample resource that failed to load -> %s\n"), *InKeyzone->AudioSample->GetName().ToString());
+		UE_LOG(LogFusionVoicePool, Warning, TEXT("Asked to allocate a InSampler voice for a sample resource that failed to load -> %s\n"), *InKeyzone->SoundWaveProxy->GetFName().ToString());
 		return nullptr;
 	}
 

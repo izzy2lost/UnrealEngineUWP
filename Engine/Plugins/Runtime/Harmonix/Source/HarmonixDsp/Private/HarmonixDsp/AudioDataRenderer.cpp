@@ -1,31 +1,40 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HarmonixDsp/AudioDataRenderer.h"
-#include "HarmonixDsp/AudioData.h"
+#include "Sound/SoundWave.h"
 
 double IAudioDataRenderer::CalculateLerpData(FLerpData* LerpArray, int32 InNumPoints, uint32 InNumOutFrames, double InPos, int32 InMaxFrame, bool InHonorLoopPoints, double InInc) const
 {
 	check(InNumPoints >= (int32)InNumOutFrames);
 	FMemory::Memset(LerpArray, 0, sizeof(FLerpData) * InNumPoints);
 
-	TSharedPtr<HarmonixDsp::IAudioData, ESPMode::ThreadSafe> AudioData = GetAudioData();
-	if (!AudioData)
+	const TSharedPtr<FSoundWaveProxy> SoundWaveProxy = GetAudioData();
+	if (!SoundWaveProxy)
 	{
 		return 0.0;
 	}
 
-	if (InMaxFrame < 0 || InMaxFrame > (int32)AudioData->GetNumFrames())
+	if (InMaxFrame < 0 || InMaxFrame > (int32)SoundWaveProxy->GetNumFrames())
 	{
-		InMaxFrame = (int32)AudioData->GetNumFrames();
+		InMaxFrame = (int32)SoundWaveProxy->GetNumFrames();
 	}
 
 	double NumSourceFrames = (double)InMaxFrame;
 
-	bool HasTailSection = AudioData->GetHasTailSection();
-	bool IsLooping = AudioData->GetHasLoopSection() && (!HasTailSection || (HasTailSection && InHonorLoopPoints));
+	uint32 LoopStartFrameIndex = 0;
+	uint32 LoopEndFrameIndex = 0;
+	bool IsLooping = false;
+	bool HasTailSection = false;
+	if (SoundWaveProxy->GetLoopRegions().Num() > 0)
+	{
+		const FSoundWaveCuePoint& LoopRegion = SoundWaveProxy->GetLoopRegions()[0];
+		LoopStartFrameIndex = LoopRegion.FramePosition;
+		LoopEndFrameIndex = LoopRegion.FramePosition + LoopRegion.FrameLength;
+		HasTailSection = LoopEndFrameIndex != SoundWaveProxy->GetNumFrames() - 1;
+		IsLooping = (!HasTailSection || (HasTailSection && InHonorLoopPoints));
+	}
 
-	uint32 LoopStartFrameIndex = IsLooping ? AudioData->GetLoopStartFrame() : 0;
-	uint32 LoopEndFrameIndex = IsLooping ? AudioData->GetLoopEndFrame() : 0;
+
 	double LoopEnd = (double)LoopEndFrameIndex + 1.0;
 	double LoopLength = LoopEnd - (double)LoopStartFrameIndex;
 

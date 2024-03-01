@@ -5,17 +5,13 @@
 
 #include "HarmonixDsp/Streaming/TrackChannelInfo.h"
 
-namespace HarmonixDsp
-{
-	class IAudioData;
-}
-
 class IStretcherAndPitchShifter;
 struct FTrackChannelInfo;
 template<typename Type> 
 class TAudioBuffer;
 class FGainMatrix;
 class FFusionSampler;
+class FSoundWaveProxy;
 
 class IAudioDataRenderer : public TSharedFromThis<IAudioDataRenderer>
 {
@@ -31,11 +27,11 @@ public:
 
 	virtual ~IAudioDataRenderer() {};
 
-	virtual void SetAudioData(TSharedRef<HarmonixDsp::IAudioData, ESPMode::ThreadSafe> AudioData, const FSettings& InSettings) = 0;
+	virtual void SetAudioData(TSharedRef<FSoundWaveProxy> SoundWaveProxy, const FSettings& InSettings) = 0;
 
 	virtual void Reset() = 0;
-
-	virtual const TSharedPtr<HarmonixDsp::IAudioData, ESPMode::ThreadSafe> GetAudioData() const = 0;
+	
+	virtual const TSharedPtr<FSoundWaveProxy> GetAudioData() const = 0;
 
 	virtual void MigrateToSampler(const FFusionSampler* InSampler) = 0;
 

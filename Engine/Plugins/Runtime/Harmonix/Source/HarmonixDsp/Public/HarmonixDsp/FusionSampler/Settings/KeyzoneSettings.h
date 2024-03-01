@@ -11,12 +11,9 @@
 
 #include "KeyzoneSettings.generated.h"
 
-namespace HarmonixDsp
-{
-	class IAudioData;
-}
 class FSingletonFusionVoicePool;
 class USoundWave;
+class FSoundWaveProxy;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogKeyzoneSettings, Log, All);
 
@@ -53,6 +50,8 @@ struct HARMONIXDSP_API FKeyzoneSettings
 		ApplyArgs(InArgs);
 	}
 
+	~FKeyzoneSettings();
+
 	void ApplyArgs(const FKeyzoneArgs& InArgs)
 	{
 		RootNote = InArgs.RootNote;
@@ -78,8 +77,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Audio Sample")
 	TObjectPtr<USoundWave> SoundWave;
 
-	// Not null when this keyzone is being proxied
-	TSharedPtr<HarmonixDsp::IAudioData, ESPMode::ThreadSafe> AudioSample;
+	TSharedPtr<FSoundWaveProxy> SoundWaveProxy;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Settings", Meta = (UIMin=0, UIMax=127, ClampMin=0, ClampMax=127))
 	int8 RootNote = 60;
@@ -157,9 +155,5 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Settings", Meta=(EditCondition="false"))
 	FString SamplePath;
 #endif
-
-protected:
-
-	TSharedPtr<class FStreamingAudioData, ESPMode::ThreadSafe> CreateStreamingAudioData(const Audio::FProxyDataInitParams& InitParams) const;
 
 };

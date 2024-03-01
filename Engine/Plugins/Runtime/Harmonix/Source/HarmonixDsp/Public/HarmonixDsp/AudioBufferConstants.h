@@ -133,6 +133,24 @@ namespace FAudioBuffer
 		}
 	}
 
+	FORCEINLINE constexpr HARMONIXDSP_API ESpeakerMask::Type GetChannelMaskForNumChannels(uint32 NumChannels)
+	{
+		switch (NumChannels)
+		{
+		case 1: return ESpeakerMask::UnspecifiedMono;
+		case 2: return ESpeakerMask::Stereo;
+		case 3: return ESpeakerMask::FiveDotZero;
+		case 6: return ESpeakerMask::FiveDotOne;
+		case 8: return ESpeakerMask::SevenDotOne;
+		case 4:
+			return ESpeakerMask::AmbisonicAssigned;
+		}
+
+		// Invalid num channels
+		checkNoEntry();
+		return ESpeakerMask::AllSpeakers;
+	}
+
 	const uint32 kLayoutHasSpeakerMasks[] = {
 		// Raw,
 		0,                      

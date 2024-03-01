@@ -367,7 +367,7 @@ int32 FFusionSampler::GatherMatchingKeyzones(uint8 TransposedNote, uint8 InVeloc
 	for (int32 KeyzoneIdx = 0; KeyzoneIdx < InKeyzones.Num(); ++KeyzoneIdx)
 	{
 		const FKeyzoneSettings& Keyzone = InKeyzones[KeyzoneIdx];
-		if (!Keyzone.AudioSample)
+		if (!Keyzone.SoundWaveProxy)
 		{
 			continue;
 		}

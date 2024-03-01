@@ -52,13 +52,13 @@
 *****************************************************************************/
 
 #include "HarmonixDsp/Stretchers/SmbPitchShifter.h"
-#include "HarmonixDsp/AudioData.h"
 #include "HarmonixDsp/AudioDataRenderer.h"
 
 #include "HAL/PlatformMemory.h"
 #include "HAL/PlatformMath.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/AssertionMacros.h"
+#include "Sound/SoundWave.h"
 
 //#include "kiss_fft/kiss_fft.h"
 

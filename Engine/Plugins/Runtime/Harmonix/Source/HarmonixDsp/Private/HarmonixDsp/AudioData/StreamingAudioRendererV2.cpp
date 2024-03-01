@@ -1,12 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "HarmonixDsp/AudioData/StreamingAudioRendererV2.h"
-#include "HarmonixDsp/AudioData/StreamingAudioData.h"
 
 #include "HarmonixDsp/FusionSampler/FusionSampler.h"
 
-#include "HarmonixDsp/AudioData.h"
 #include "HarmonixDsp/AudioUtility.h"
-#include "HarmonixDsp/Conversions.h"
 #include "HarmonixDsp/GainMatrix.h"
 #include "HarmonixDsp/PannerDetails.h"
 
@@ -32,26 +29,12 @@ void FStreamingAudioRendererV2::Reset()
 	Shifter = nullptr;
 }
 
-void FStreamingAudioRendererV2::SetAudioData(TSharedRef<HarmonixDsp::IAudioData, ESPMode::ThreadSafe> AudioData, const FSettings& InSettings)
+void FStreamingAudioRendererV2::SetAudioData(TSharedRef<FSoundWaveProxy> InSoundWave, const FSettings& InSettings)
 {
-	if (AudioData->GetFormat() == EAudioEncodedFormat::Float32)
-	{
-		TSharedRef<FStreamingAudioData, ESPMode::ThreadSafe> StreamingAudioDataRef = StaticCastSharedRef<FStreamingAudioData>(AudioData);
-		SetAudioData(StreamingAudioDataRef, InSettings);
-	}
-	else
-	{
-		// this renderer is only set up for StreamingAudioData
-		checkNoEntry();
-	}
-}
-
-void FStreamingAudioRendererV2::SetAudioData(TSharedRef<FStreamingAudioData, ESPMode::ThreadSafe> InStreamingAudioData, const FSettings& InSettings)
-{
-	StreamingAudioData = InStreamingAudioData.ToSharedPtr();
+	SoundWaveProxy = InSoundWave.ToSharedPtr();
 
 	WaveProxyReader.Reset();
-	WaveProxyReader = StreamingAudioData->CreateWaveProxyReader();
+	WaveProxyReader = CreateProxyReader(InSoundWave);
 
 	check(WaveProxyReader.IsValid());
 
@@ -77,14 +60,13 @@ void FStreamingAudioRendererV2::SetAudioData(TSharedRef<FStreamingAudioData, ESP
 
 	if (Shifter)
 	{
-		TSharedPtr<const HarmonixDsp::IAudioData, ESPMode::ThreadSafe> AudioData = StaticCastSharedPtr<const HarmonixDsp::IAudioData>(StreamingAudioData);
-		Shifter->SetSampleSourceReset(AudioData, AsShared());
+		Shifter->SetSampleSourceReset(SoundWaveProxy, AsShared());
 	}
 }
 
-const TSharedPtr<HarmonixDsp::IAudioData, ESPMode::ThreadSafe> FStreamingAudioRendererV2::GetAudioData() const
+const TSharedPtr<FSoundWaveProxy> FStreamingAudioRendererV2::GetAudioData() const
 {
-	return StreamingAudioData;
+	return SoundWaveProxy;
 }
 
 void FStreamingAudioRendererV2::MigrateToSampler(const FFusionSampler* InSampler)
@@ -99,7 +81,7 @@ void FStreamingAudioRendererV2::SetFrame(uint32 InFrameNum)
 
 double FStreamingAudioRendererV2::Render(TAudioBuffer<float>& OutBuffer, double InPos, int32 InMaxFrame, double InResampleInc, double InPitchShift, double InSpeed, bool MaintainPitchWhenSpeedChanges, bool InShouldHonorLoopPoints, const FGainMatrix& InGain)
 {
-	if (!StreamingAudioData || StreamingAudioData->GetNumFrames() == 0)
+	if (!SoundWaveProxy || SoundWaveProxy->GetNumFrames() == 0)
 	{
 		OutBuffer.ZeroValidFrames();
 		return InPos;
@@ -122,7 +104,7 @@ double FStreamingAudioRendererV2::RenderInternal(TAudioBuffer<float>& OutBuffer,
 {
 	check(OutBuffer.GetNumValidFrames() <= AudioRendering::kMicroSliceSize);
 
-	if (!StreamingAudioData || StreamingAudioData->GetNumFrames() < (uint32)FMath::FloorToInt32(InPos))
+	if (!SoundWaveProxy || SoundWaveProxy->GetNumFrames() < FMath::FloorToInt32(InPos))
 	{
 		OutBuffer.ZeroValidFrames();
 		return InPos;
@@ -137,7 +119,7 @@ double FStreamingAudioRendererV2::RenderInternal(TAudioBuffer<float>& OutBuffer,
 	{
 		RenderMultiChannelRoutedUnshifted(OutBuffer, LerpArray, NumOutFrames, InGain, InInc, InShouldHonorLoopPoints);
 	}
-	else if (StreamingAudioData->GetNumChannels() <= 2)
+	else if (SoundWaveProxy->GetNumChannels() <= 2)
 	{
 		RenderSimpleUnshifted(OutBuffer, LerpArray, NumOutFrames, InGain, InInc, InShouldHonorLoopPoints);
 	}
@@ -151,7 +133,7 @@ double FStreamingAudioRendererV2::RenderInternal(TAudioBuffer<float>& OutBuffer,
 
 double FStreamingAudioRendererV2::RenderUnshifted(TAudioBuffer<float>& OutBuffer, double InPos, int32 InMaxFrame, double InInc, bool InShouldHonorLoopPoints, const FGainMatrix& InGain)
 {
-	if (!StreamingAudioData)
+	if (!SoundWaveProxy)
 	{
 		OutBuffer.ZeroValidFrames();
 		return InPos;
@@ -174,17 +156,19 @@ int32 FStreamingAudioRendererV2::CalculateNumFramesNeeded(const FLerpData* LerpD
 	}
 
 	// Fail-safe for if we got what appears to be a loop, but we don't have a loop in the audio data
-	if (!StreamingAudioData->GetHasLoopSection())
+	if (SoundWaveProxy->GetLoopRegions().IsEmpty())
 	{
-		return StreamingAudioData->GetNumFrames() - LerpData[0].PosA;
+		return SoundWaveProxy->GetNumFrames() - LerpData[0].PosA;
 	}
+
+	const FSoundWaveCuePoint& LoopRegion = SoundWaveProxy->GetLoopRegions()[0];
 
 	// loop in lerp. 
 	// we need all the samples from LerpData[0].PosA to the end of the loop, 
 	// and then all the samples from the start of the loop to LerpData[NumPoints-1]PosB.
 	// REMEMBER: Loop start and end frames are INCLUSIVE!
-	uint32 FirstFrameInLoop = StreamingAudioData->GetLoopStartFrame();
-	uint32 LastFrameInLoop = StreamingAudioData->GetLoopEndFrame();
+	uint32 FirstFrameInLoop = LoopRegion.FramePosition;
+	uint32 LastFrameInLoop = LoopRegion.FramePosition + LoopRegion.FrameLength;
 	int32 NumNeeded = 1 + LastFrameInLoop - LerpData[0].PosA;
 	NumNeeded += 1 + LerpData[NumPoints - 1].PosB - FirstFrameInLoop;
 	return NumNeeded;
@@ -198,7 +182,7 @@ void FStreamingAudioRendererV2::RenderSimpleUnshifted(TAudioBuffer<float>& OutBu
 	OutBuffer.ZeroValidFrames();
 
 	int32 NumOutChannels = OutBuffer.GetNumValidChannels();
-	int32 NumInputChannels = StreamingAudioData->GetNumChannels();
+	int32 NumInputChannels = SoundWaveProxy->GetNumChannels();
 
 	uint32 StartFrameIndex = LerpArray[0].PosA;
 	int32 NumSourceFramesNeeded = CalculateNumFramesNeeded(LerpArray, InNumFrames);
@@ -254,7 +238,7 @@ void FStreamingAudioRendererV2::RenderMultiChannelUnshifted(TAudioBuffer<float>&
 	OutBuffer.ZeroValidFrames();
 
 	int32 NumOutChannels = OutBuffer.GetNumValidChannels();
-	int32 NumInputChannels = StreamingAudioData->GetNumChannels();
+	int32 NumInputChannels = SoundWaveProxy->GetNumChannels();
 
 	// interleaved
 	Audio::FAlignedFloatBuffer ResampleBuffer;
@@ -327,7 +311,7 @@ void FStreamingAudioRendererV2::RenderMultiChannelRoutedUnshifted(TAudioBuffer<f
 	OutBuffer.ZeroValidFrames();
 
 	int32 NumOutChannels = OutBuffer.GetNumValidChannels();
-	int32 NumInputChannels = StreamingAudioData->GetNumChannels();
+	int32 NumInputChannels = SoundWaveProxy->GetNumChannels();
 
 	// interleaved
 	Audio::FAlignedFloatBuffer ResampleBuffer;
@@ -443,7 +427,7 @@ void FStreamingAudioRendererV2::SeekSourceAudioToFrame(uint32 FrameIdx)
 	// check if we can advance to the desired frame by popping off samples
 	if (FrameIdx > SourceFrameIndex)
 	{
-		if (bLastLoopFrameCached && StreamingAudioData->GetHasLoopSection() && FrameIdx == StreamingAudioData->GetLoopEndFrame())
+		if (bLastLoopFrameCached && HasLoopSection() && FrameIdx == GetLoopEndFrame())
 		{
 			return;
 		}
@@ -511,15 +495,43 @@ uint32 FStreamingAudioRendererV2::GetSourceAudioFrameIndex()
 
 }
 
+TUniquePtr<FSoundWaveProxyReader> FStreamingAudioRendererV2::CreateProxyReader(TSharedRef<FSoundWaveProxy> WaveProxy)
+{
+	FSoundWaveProxyReader::FSettings WaveReaderSettings;
+	WaveReaderSettings.MaxDecodeSizeInFrames = MaxDecodeSizeInFrames;
+	WaveReaderSettings.StartTimeInSeconds = 0.0f;
+	WaveReaderSettings.bMaintainAudioSync = true;
+	return FSoundWaveProxyReader::Create(WaveProxy, WaveReaderSettings);	
+}
+
+bool FStreamingAudioRendererV2::HasLoopSection() const
+{
+	check(SoundWaveProxy);
+	return SoundWaveProxy->GetLoopRegions().Num() > 0;
+}
+
+uint32 FStreamingAudioRendererV2::GetLoopStartFrame() const
+{
+	check(HasLoopSection());
+	return SoundWaveProxy->GetLoopRegions()[0].FramePosition;
+}
+
+uint32 FStreamingAudioRendererV2::GetLoopEndFrame() const
+{
+	check(HasLoopSection())
+	const FSoundWaveCuePoint& LoopRegion = SoundWaveProxy->GetLoopRegions()[0];
+	return LoopRegion.FramePosition + LoopRegion.FrameLength;
+}
+
 void FStreamingAudioRendererV2::GenerateSourceAudio(uint32 StartFrameIndex, Audio::FAlignedFloatBuffer& OutAudio, bool bHonorLoopRegion)
 {
 	check(OutAudio.Num() % NumDeinterleaveChannels == 0);
 
-	if (bHonorLoopRegion && StreamingAudioData->GetHasLoopSection())
+	if (bHonorLoopRegion && HasLoopSection())
 	{
 		uint32 NumFramesRequested = OutAudio.Num() / NumDeinterleaveChannels;
-		uint32 FirstFrameInLoop = StreamingAudioData->GetLoopStartFrame();
-		uint32 LastFrameInLoop = StreamingAudioData->GetLoopEndFrame();
+		uint32 FirstFrameInLoop = GetLoopStartFrame();
+		uint32 LastFrameInLoop = GetLoopEndFrame();
 		uint32 LoopLengthFrames = 1 + LastFrameInLoop - FirstFrameInLoop;
 		bool bLoopingThisChunk = (StartFrameIndex + NumFramesRequested) > (LastFrameInLoop + 1);
 
@@ -635,6 +647,6 @@ void FStreamingAudioRendererV2::GenerateSourceAudioInternal(uint32 StartFrameInd
 		FMemory::Memzero(&OutAudioData[BufferIdx], sizeof(float) * NumSamplesRequested);
 
 		UE_LOG(LogHarmonixStreamingAudioRendererV2, Verbose, TEXT("%s: Failed to generated samples: StartFrameIndex: %d, NumSamplesRequested: %d"), 
-			*StreamingAudioData->GetName().ToString(), StartFrameIndex, NumSamplesRequested);
+			*SoundWaveProxy->GetFName().ToString(), StartFrameIndex, NumSamplesRequested);
 	}
 }
