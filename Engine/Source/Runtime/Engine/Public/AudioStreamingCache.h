@@ -420,6 +420,16 @@ private:
 	// Map that USoundWaves, FSoundWaveProxys, FChunkKeys, and FAudioChunkHandles can use to
 	// quickly lookup where their chunks are currently stored in the cache
 	TMap<FChunkKey, uint64> CacheLookupIdMap;
+
+	struct FSoundWaveMemoryTracker
+	{
+		int32 RefCount = 0;
+		int64 MemoryCount = 0;
+	};
+	// A map to look up the number of times a sound wave has been added for memory tracking
+	// as well as the memory added for the "latest" addition
+	TMap<FSoundWaveProxyPtr, FSoundWaveMemoryTracker> SoundWaveTracker;
+	FCriticalSection SoundWaveMemoryTrackerCritSec;
 	 
 	// This struct is used for logging cache misses.
 	struct FCacheMissInfo
