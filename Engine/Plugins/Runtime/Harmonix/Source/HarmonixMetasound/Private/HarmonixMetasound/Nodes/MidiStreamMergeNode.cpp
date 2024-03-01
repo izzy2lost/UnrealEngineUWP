@@ -109,8 +109,8 @@ namespace HarmonixMetasound
 		const FMidiStreamMergeNode& LoggerNode = static_cast<const FMidiStreamMergeNode&>(InParams.Node);
 
 		const FInputVertexInterfaceData& InputData = InParams.InputData;
-		FMidiStreamReadRef InMidiStreamA = InputData.GetOrConstructDataReadReference<FMidiStream>(METASOUND_GET_PARAM_NAME(InputMidiStreamA), InParams.OperatorSettings);
-		FMidiStreamReadRef InMidiStreamB = InputData.GetOrConstructDataReadReference<FMidiStream>(METASOUND_GET_PARAM_NAME(InputMidiStreamB), InParams.OperatorSettings);
+		FMidiStreamReadRef InMidiStreamA = InputData.GetOrConstructDataReadReference<FMidiStream>(METASOUND_GET_PARAM_NAME(InputMidiStreamA));
+		FMidiStreamReadRef InMidiStreamB = InputData.GetOrConstructDataReadReference<FMidiStream>(METASOUND_GET_PARAM_NAME(InputMidiStreamB));
 
 		return MakeUnique<FMidiStreamMergeOperator>(InParams, InMidiStreamA, InMidiStreamB);
 	}
@@ -120,7 +120,7 @@ namespace HarmonixMetasound
 											   const FMidiStreamReadRef& InMidiStreamB)
 		: MidiStreamAInPin(InMidiStreamA)
 		, MidiStreamBInPin(InMidiStreamB)
-		, MidiStreamOutPin(FMidiStreamWriteRef::CreateNew(InParams.OperatorSettings))
+		, MidiStreamOutPin(FMidiStreamWriteRef::CreateNew())
 	{
 		Reset(InParams);
 	}

@@ -9,7 +9,7 @@ namespace HarmonixMetasound::MidiStream::Tests
 {
 	FMidiStream MakeTestMidiStream(const Metasound::FOperatorSettings& OperatorSettings)
 	{
-		FMidiStream Stream{ OperatorSettings };
+		FMidiStream Stream;
 
 		// Make a bunch of note events
 		constexpr int32 NumNotes = 3;
@@ -60,7 +60,7 @@ namespace HarmonixMetasound::MidiStream::Tests
 	{
 		Metasound::FOperatorSettings OperatorSettings{ 48000, 100 };
 		const FMidiStream FromStream = MakeTestMidiStream(OperatorSettings);
-		FMidiStream ToStream{ OperatorSettings };
+		FMidiStream ToStream;
 
 		// Copy with no filter or transform
 		{
@@ -191,10 +191,10 @@ namespace HarmonixMetasound::MidiStream::Tests
 	bool FMidiStreamMergeTest::RunTest(const FString&)
 	{
 		Metasound::FOperatorSettings OperatorSettings{ 48000, 100 };
-		FMidiStream FromA{OperatorSettings};
-		FMidiStream FromB{OperatorSettings};
-		FMidiStream Expected{OperatorSettings};
-		FMidiStream To{OperatorSettings};
+		FMidiStream FromA;
+		FMidiStream FromB;
+		FMidiStream Expected;
+		FMidiStream To;
 
 		// no filter or transform
 		{
@@ -272,9 +272,9 @@ namespace HarmonixMetasound::MidiStream::Tests
 	{
 		// Make sure merging streams results in the correct clock being set on the output stream
 		Metasound::FOperatorSettings OperatorSettings{ 48000, 100 };
-		FMidiStream FromA{OperatorSettings};
-		FMidiStream FromB{OperatorSettings};
-		FMidiStream To{OperatorSettings};
+		FMidiStream FromA;
+		FMidiStream FromB;
+		FMidiStream To;
 
 		TSharedRef<const FMidiClock, ESPMode::NotThreadSafe> ClockA = MakeShared<FMidiClock, ESPMode::NotThreadSafe>(OperatorSettings);
 		FromA.SetClock(*ClockA);

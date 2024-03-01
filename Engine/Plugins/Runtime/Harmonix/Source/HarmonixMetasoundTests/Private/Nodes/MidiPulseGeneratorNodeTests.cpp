@@ -24,7 +24,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode::Tests
 		UTEST_TRUE("Got clock", Clock.IsSet());
 
 		Harmonix::Midi::Ops::FPulseGenerator PulseGenerator;
-		FMidiStream PulseGeneratorMidiOutput{ Generator->OperatorSettings };
+		FMidiStream PulseGeneratorMidiOutput;
 		PulseGenerator.SetClock(Clock->Get());
 
 		// Render for a bit and expect the same output from both the node and the raw processor

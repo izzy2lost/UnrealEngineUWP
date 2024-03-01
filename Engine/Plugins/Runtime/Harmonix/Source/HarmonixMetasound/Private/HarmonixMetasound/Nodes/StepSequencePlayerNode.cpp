@@ -246,7 +246,7 @@ namespace HarmonixMetasound
 		, AutoPagePlaysBlankPagesInPin(InAutoPagePlaysBlankPages)
 		, LoopInPin(InLoop)
 		, EnabledInPin(InEnabled)
-		, MidiOutPin(FMidiStreamWriteRef::CreateNew(InParams.OperatorSettings))
+		, MidiOutPin(FMidiStreamWriteRef::CreateNew())
 	{
 		Reset(InParams);
 		Init();

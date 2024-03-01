@@ -119,7 +119,7 @@ namespace HarmonixMetasound::Nodes::MidiNoteFilter
 			FInputs Inputs
 			{
 				InputData.GetOrCreateDefaultDataReadReference<bool>(Inputs::EnableName, OperatorSettings),
-				InputData.GetOrConstructDataReadReference<FMidiStream>(Inputs::MidiStreamName, OperatorSettings),
+				InputData.GetOrConstructDataReadReference<FMidiStream>(Inputs::MidiStreamName),
 				InputData.GetOrCreateDefaultDataReadReference<int32>(Inputs::MinNoteNumberName, OperatorSettings),
 				InputData.GetOrCreateDefaultDataReadReference<int32>(Inputs::MaxNoteNumberName, OperatorSettings),
 				InputData.GetOrCreateDefaultDataReadReference<int32>(Inputs::MinVelocityName, OperatorSettings),
@@ -129,7 +129,7 @@ namespace HarmonixMetasound::Nodes::MidiNoteFilter
 
 			FOutputs Outputs
 			{
-				FMidiStreamWriteRef::CreateNew(OperatorSettings)
+				FMidiStreamWriteRef::CreateNew()
 			};
 
 			return MakeUnique<FMidiNoteFilterOperator>(InParams, MoveTemp(Inputs), MoveTemp(Outputs));

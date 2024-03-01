@@ -103,13 +103,13 @@ namespace HarmonixMetasound::Nodes::MidiNoteTranspose
 			FInputs Inputs
 			{
 				InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(Inputs::Enable), InParams.OperatorSettings),
-				InputData.GetOrConstructDataReadReference<FMidiStream>(METASOUND_GET_PARAM_NAME(Inputs::MidiStream), InParams.OperatorSettings),
+				InputData.GetOrConstructDataReadReference<FMidiStream>(METASOUND_GET_PARAM_NAME(Inputs::MidiStream)),
 				InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(Inputs::Transposition), InParams.OperatorSettings)
 			};
 
 			FOutputs Outputs
 			{
-				FMidiStreamWriteRef::CreateNew(InParams.OperatorSettings)
+				FMidiStreamWriteRef::CreateNew()
 			};
 
 			return MakeUnique<FMidiNoteTransposeOperator>(InParams, MoveTemp(Inputs), MoveTemp(Outputs));
