@@ -1192,7 +1192,11 @@ export type GetReportResponse = {
 	name: string;
 
 	/** The artifact id */
-	artifactId: string;
+	// artifactId?: string;
+
+	/** The report markdown content */
+	content?: string;
+
 }
 
 

@@ -103,10 +103,6 @@ export class JobDetails {
                 }
             }
 
-            if (!this.isLogView) {
-                requests.push(this.queryReports());
-            }
-
             if (logId && logId !== this.logId) {
                 requests.push(this.getLogEvents(logId));
             }
@@ -551,7 +547,6 @@ export class JobDetails {
         this.labels = [];
         this.fatalError = undefined;
         this.state = JobStepState.Waiting;
-        this.reportData = new Map<string, string>();
         this.cancel();
         this.eventsCallback = undefined;
         this.updateCallback = undefined;
@@ -721,55 +716,12 @@ export class JobDetails {
                 return undefined;
             }
 
-            const report = step.reports?.find(r => r.placement === placement);
-
-            if (!report) {
-                return undefined;
-            }
-
-            return this.reportData.get(report.artifactId);
+            return step.reports?.find(r => r.placement === placement)?.content;
 
         } else {
 
-            if (this.jobdata?.reports?.length) {
-                return this.reportData.get(this.jobdata.reports[0].artifactId);
-            }
+            return this.jobdata?.reports?.find(r => r.placement === placement)?.content;
 
-            return undefined;
-
-        }
-    }
-
-    private async queryReports(): Promise<void> {
-
-        const artifacts: string[] = [];
-
-        this.jobdata?.reports?.forEach(r => {
-            if (!this.stepId) {
-                artifacts.push(r.artifactId)
-            }
-
-        });
-
-        this.jobdata?.batches?.forEach(b => {
-            b.steps.forEach(s => s.reports?.forEach(r => {
-                if (s.id === this.stepId) {
-                    artifacts.push(r.artifactId);
-                }
-            }));
-        });
-
-
-        for (let i = 0; i < artifacts.length; i++) {
-
-            const artifactId = artifacts[i];
-
-            if (!this.reportData.has(artifactId)) {
-
-                const r = await backend.getArtifactDataById(artifactId) as unknown as string;
-
-                this.reportData.set(artifactId, r);
-            }
         }
     }
 
@@ -886,8 +838,7 @@ export class JobDetails {
                 requests.push(backend.getJobTestData(this.id!));
                 if (!this.suppressIssues) {
                     requests.push(this.getIssues());
-                }
-                requests.push(this.queryReports());
+                }                
             }
 
             // sync step/log
@@ -996,9 +947,6 @@ export class JobDetails {
 
     outcome: JobStepOutcome = JobStepOutcome.Failure;
     state: JobStepState = JobStepState.Waiting;
-
-    // artifact id => report contents (markdown)
-    private reportData = new Map<string, string>();
 
     timeoutID?: any;
 
