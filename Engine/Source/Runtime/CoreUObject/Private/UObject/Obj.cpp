@@ -5282,10 +5282,9 @@ void InitUObject()
 	FCoreDelegates::OnShutdownAfterError.AddStatic(StaticShutdownAfterError);
 	FCoreDelegates::OnExit.AddStatic(StaticExit);
 #if !USE_PER_MODULE_UOBJECT_BOOTSTRAP && !IS_MONOLITHIC
-	// Not necessary when USE_PER_MODULE_UOBJECT_BOOTSTRAP==0 since the callback gets installed elsewhere
-	// Also not necessary for monolithic builds as all pending registrants are available at once on app start
-	// so ProcessNewlyLoadedUObjects needs to only ever be invoked once, not for each module
-	FModuleManager::Get().OnProcessLoadedObjectsCallback().AddStatic(ProcessNewlyLoadedUObjects);
+
+	// Always register the UObjects callback for VNI and general consistency with the callbacks ProcessNewlyLoadedUObjects calls.
+	RegisterProcessNewlyLoadedUObjects();
 #endif
 
 	struct Local

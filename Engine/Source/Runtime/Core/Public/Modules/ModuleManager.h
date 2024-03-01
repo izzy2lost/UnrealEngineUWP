@@ -518,6 +518,9 @@ public:
 
 	/**
 	 * Gets a multicast delegate that is executed when any UObjects need processing after a module was loaded.
+	 * Do not use this delegate if you wish to monitor the registration of UObjects for a module. 
+	 * Use either CompiledInUObjectsRegisteredDelegate in CoreUObject to reliably receive notifications after UObjects 
+	 * have been registered.
 	 *
 	 * @return The delegate.
 	 */
