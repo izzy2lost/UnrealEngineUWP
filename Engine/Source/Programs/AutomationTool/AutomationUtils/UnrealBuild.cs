@@ -320,7 +320,7 @@ namespace AutomationTool
 			FileReference BuildVersionFile = BuildVersion.GetDefaultFileName();
 
 			// Get the revision to sync files to before 
-			if(CommandUtils.P4Enabled && ChangelistNumber > 0)
+			if(CommandUtils.P4Enabled && ChangelistNumber > 0 && !CommandUtils.IsBuildMachine)
 			{
 				CommandUtils.P4.Sync(String.Format("-f \"{0}@{1}\"", BuildVersionFile, ChangelistNumber), false, false);
 			}
