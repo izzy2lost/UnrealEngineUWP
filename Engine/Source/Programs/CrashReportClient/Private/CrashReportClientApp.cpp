@@ -874,19 +874,6 @@ bool FindAndCopyValue(const TMap<FString, FString>& Map, const FString& Key, TCH
 	return false;
 }
 
-template <size_t Size>
-bool FindAndCopyValue(const TMap<FString, FString>& Map, const FString& Key, char(&OutValue)[Size])
-{
-	const FString* ValueString = Map.Find(Key);
-	if (ValueString != nullptr)
-	{
-		FCStringAnsi::Strncpy(OutValue, StringCast<ANSICHAR>(**ValueString).Get(), Size);
-		return true;
-	}
-
-	return false;
-}
-
 static bool LoadTempCrashContextFromFile(FSharedCrashContext& CrashContext, uint64 ProcessID)
 {
 	const FString TempContextFilePath = FGenericCrashContext::GetTempSessionContextFilePath(ProcessID);
@@ -941,6 +928,7 @@ static bool LoadTempCrashContextFromFile(FSharedCrashContext& CrashContext, uint
 	FindAndCopyValue(ContextProperties, TEXT("Misc.PrimaryGPUBrand"), SessionContext.PrimaryGPUBrand);
 	FindAndCopyValue(ContextProperties, TEXT("Misc.OSVersionMajor"), SessionContext.OsVersion);
 	FindAndCopyValue(ContextProperties, TEXT("Misc.OSVersionMinor"), SessionContext.OsSubVersion);
+	FindAndCopyValue(ContextProperties, TEXT("Misc.AnticheatProvider"), SessionContext.AnticheatProvider);
 	FindAndParseValue(ContextProperties, TEXT("MemoryStats.AvailablePhysical"), SessionContext.MemoryStats.AvailablePhysical);
 	FindAndParseValue(ContextProperties, TEXT("MemoryStats.AvailableVirtual"), SessionContext.MemoryStats.AvailableVirtual);
 	FindAndParseValue(ContextProperties, TEXT("MemoryStats.UsedPhysical"), SessionContext.MemoryStats.UsedPhysical);
