@@ -153,7 +153,7 @@ void FFusionVoice::Attack()
 {
 	check(MySampler);
 	checkSlow(KeyZone);
-	checkSlow(KeyZone->AudioSample);
+	checkSlow(KeyZone->SoundWaveProxy);
 
 	AdsrVolume.Attack();
 	AdsrAssignable.Attack();
@@ -413,7 +413,7 @@ void FFusionVoice::PrepareWithPitchOffsetAndGain(double InPitchOffsetCents, floa
 
 	checkSlow(MySampler);
 	checkSlow(KeyZone);
-	checkSlow(KeyZone->AudioSample);
+	checkSlow(KeyZone->SoundWaveProxy);
 
 	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
 	{
