@@ -206,7 +206,7 @@ void UNearestNeighborModelInstance::InitInstanceData(int32 NumMorphWeights)
 		{
 			return;
 		}
-		NumMorphWeights = 1 + NearestNeighborModel->GetTotalNumPCACoeffs() + NearestNeighborModel->GetTotalNumNeighbors();
+		NumMorphWeights = 1 + NearestNeighborModel->GetTotalNumBasis() + NearestNeighborModel->GetTotalNumNeighbors();
 	}
 	PreviousWeights.SetNumZeroed(NumMorphWeights);
 	DistanceBuffer.SetNumZeroed(NumMorphWeights);
@@ -266,16 +266,16 @@ namespace UE::NearestNeighborModel::Private
 		return DistanceSquared;
 	}
 
-	void ComputeNeighborDistances(TArrayView<float> OutDistances, const UNearestNeighborModel::FSection& Section, TConstArrayView<float> PCACoeffs)
+	void ComputeNeighborDistances(TArrayView<float> OutDistances, const UNearestNeighborModel::FSection& Section, TConstArrayView<float> Coeffs)
 	{
-		const int32 NumCoeffs = Section.GetNumPCACoeffs();
+		const int32 NumBasis = Section.GetNumBasis();
 		const int32 NumNeighbors = Section.GetRuntimeNumNeighbors();
 		check(OutDistances.Num() == NumNeighbors);
 		TConstArrayView<float> NeighborCoeffs = Section.GetNeighborCoeffs();
 		for (int32 NeighborId = 0; NeighborId < NumNeighbors; ++NeighborId)
 		{
-			TConstArrayView<float> Coeffs(NeighborCoeffs.GetData() + NeighborId * NumCoeffs, NumCoeffs);
-			OutDistances[NeighborId] = ComputeDistanceSquared(Coeffs, PCACoeffs);
+			TConstArrayView<float> SingleCoeffs(NeighborCoeffs.GetData() + NeighborId * NumBasis, NumBasis);
+			OutDistances[NeighborId] = ComputeDistanceSquared(Coeffs, SingleCoeffs);
 		}
 	}
 
@@ -402,20 +402,28 @@ void UNearestNeighborModelInstance::RunNearestNeighborModel(float DeltaTime, flo
 				continue;
 			}
 
-			TConstArrayView<int32> PCACoeffStarts = NearestNeighborModel->GetPCACoeffStarts();
-			if (!PCACoeffStarts.IsValidIndex(SectionIndex))
+			int32 CoeffStart = 0;
+			if (NearestNeighborModel->DoesUsePCA())
 			{
-				continue;
+				TConstArrayView<int32> PCACoeffStarts = NearestNeighborModel->GetPCACoeffStarts();
+				if (!PCACoeffStarts.IsValidIndex(SectionIndex))
+				{
+					continue;
+				}
+				CoeffStart = PCACoeffStarts[SectionIndex];
 			}
-			const int32 PCACoeffStart = PCACoeffStarts[SectionIndex];
-			const int32 NumCoeffs = Section.GetNumPCACoeffs();
-			TConstArrayView<float> PCACoeffs(OutputView.GetData() + PCACoeffStart, NumCoeffs);
+			else
+			{
+				CoeffStart = 0;
+			}
+			const int32 NumCoeffs = Section.GetNumBasis();
+			TConstArrayView<float> Coeffs(OutputView.GetData() + CoeffStart, NumCoeffs);
 
 			const int32 NumNeighbors = Section.GetRuntimeNumNeighbors();
 
 			TArrayView<float> SquaredDistances(DistanceBuffer.GetData() + NeighborOffset, NumNeighbors);
 			using UE::NearestNeighborModel::Private::ComputeNeighborDistances;
-			ComputeNeighborDistances(SquaredDistances, Section, PCACoeffs);
+			ComputeNeighborDistances(SquaredDistances, Section, Coeffs);
 
 			TArrayView<float> SectionMorphWeights(WeightData->Weights.GetData() + NeighborOffset, NumNeighbors);
 			TArrayView<float> SectionPreviousWeights(PreviousWeights.GetData() + NeighborOffset, NumNeighbors);

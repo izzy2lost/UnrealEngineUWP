@@ -355,18 +355,23 @@ int32 UNearestNeighborModelSection::GetAssetNumNeighbors() const
 	return FMath::Min(FHelpers::GetNumFrames(GetNeighborPoses()), FHelpers::GetNumFrames(GetNeighborMeshes()));
 }
 
-void UNearestNeighborModelSection::SetPCAData(const TArray<float>& InVertexMean, const TArray<float>& InPCABasis)
+void UNearestNeighborModelSection::SetBasisData(const TArray<float>& InVertexMean, const TArray<float>& InBasis)
 {
+	const int32 NumBasis = GetNumBasis();
+	check(NumBasis > 0);
+	check(InVertexMean.Num() == NumVertices * 3);
+	check(InBasis.Num() == NumVertices * 3 * NumBasis);
 	VertexMean = InVertexMean;
-	PCABasis = InPCABasis;
+	Basis = InBasis;
 	InvalidateInference();
 }
 
 void UNearestNeighborModelSection::SetNeighborData(const TArray<float>& InAssetNeighborCoeffs, const TArray<float>& InAssetNeighborOffsets)
 {
-	check(NumPCACoeffs > 0);
-	const int32 TryNumNeighbors = InAssetNeighborCoeffs.Num() / NumPCACoeffs;
-	check(TryNumNeighbors * NumPCACoeffs == InAssetNeighborCoeffs.Num());
+	const int32 NumBasis = GetNumBasis();
+	check(NumBasis > 0);
+	const int32 TryNumNeighbors = InAssetNeighborCoeffs.Num() / NumBasis;
+	check(TryNumNeighbors * NumBasis == InAssetNeighborCoeffs.Num());
 	check(TryNumNeighbors * NumVertices * 3 == InAssetNeighborOffsets.Num());
 	AssetNeighborCoeffs = InAssetNeighborCoeffs;
 	AssetNeighborOffsets = InAssetNeighborOffsets;
@@ -383,9 +388,9 @@ const TArray<float>& UNearestNeighborModelSection::GetVertexWeights() const
 	return VertexWeights;
 }
 
-const TArray<float>& UNearestNeighborModelSection::GetPCABasis() const
+const TArray<float>& UNearestNeighborModelSection::GetBasis() const
 {
-	return PCABasis;
+	return Basis;
 }
 
 const TArray<float>& UNearestNeighborModelSection::GetVertexMean() const
@@ -396,6 +401,11 @@ const TArray<float>& UNearestNeighborModelSection::GetVertexMean() const
 const TArray<float>& UNearestNeighborModelSection::GetAssetNeighborCoeffs() const
 {
 	return AssetNeighborCoeffs;
+}
+
+bool UNearestNeighborModelSection::DoesUsePCA() const
+{
+	return Model && Model->DoesUsePCA();
 }
 
 const TArray<float>& UNearestNeighborModelSection::GetAssetNeighborOffsets() const
@@ -426,12 +436,13 @@ FMLDeformerGeomCacheTrainingInputAnim* UNearestNeighborModelSection::GetInputAni
 
 bool UNearestNeighborModelSection::UpdateRuntimeNeighbors()
 {
-	if (NumPCACoeffs <= 0)
+	const int32 NumBasis = GetNumBasis();
+	if (NumBasis <= 0)
 	{
 		return false;
 	}
-	const int32 AssetNumNeighbors = AssetNeighborCoeffs.Num() / NumPCACoeffs;
-	if (AssetNumNeighbors * NumPCACoeffs != AssetNeighborCoeffs.Num())
+	const int32 AssetNumNeighbors = AssetNeighborCoeffs.Num() / NumBasis;
+	if (AssetNumNeighbors * NumBasis != AssetNeighborCoeffs.Num())
 	{
 		return false;
 	}
@@ -442,11 +453,11 @@ bool UNearestNeighborModelSection::UpdateRuntimeNeighbors()
 		return true;
 	}
 	RuntimeNeighborCoeffs.Reset();
-	RuntimeNeighborCoeffs.Reserve(RuntimeNumNeighbors * NumPCACoeffs);	
+	RuntimeNeighborCoeffs.Reserve(RuntimeNumNeighbors * NumBasis);	
 	for (int32 Index = 0; Index < IncludedFrames.Num(); ++Index)
 	{
 		const int32 Frame = IncludedFrames[Index];
-		TConstArrayView<float> AssetCoeffs(AssetNeighborCoeffs.GetData() + Frame * NumPCACoeffs,  NumPCACoeffs);
+		TConstArrayView<float> AssetCoeffs(AssetNeighborCoeffs.GetData() + Frame * NumBasis,  NumBasis);
 		Algo::Copy(AssetCoeffs, RuntimeNeighborCoeffs);
 	}
 	AssetNeighborIndexMap = IncludedFrames;
@@ -475,7 +486,7 @@ bool UNearestNeighborModelSection::GetRuntimeNeighborOffsets(TArray<float>& OutN
 }
 #endif
 
-int32 UNearestNeighborModelSection::GetNumPCACoeffs() const
+int32 UNearestNeighborModelSection::GetNumBasis() const
 {
 	return NumPCACoeffs;
 }
@@ -545,10 +556,10 @@ UE::NearestNeighborModel::EOpFlag UNearestNeighborModelSection::UpdateForInferen
 		return Result;
 	}
 
-	if (!IsPCAValid())
+	if (!IsBasisValid())
 	{
-		UE_LOG(LogNearestNeighborModel, Error, TEXT("PCA data is invalid. Please re-train your model"));
-		ResetPCAData();
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("Basis is invalid. Please re-train your model"));
+		ResetBasisData();
 		return EOpFlag::Error;
 	}
 	if (!UpdateRuntimeNeighbors())
@@ -558,7 +569,7 @@ UE::NearestNeighborModel::EOpFlag UNearestNeighborModelSection::UpdateForInferen
 	}
 	if (!IsNearestNeighborValid())
 	{
-		UE_LOG(LogNearestNeighborModel, Error, TEXT("Nearest neighbor data is invalid. Please re-train your model to update PCA data or re-update your model to update nearest neighbor data."));
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("Nearest neighbor data is invalid. Please re-train your model to update basis data or re-update your model to update nearest neighbor data."));
 		ResetNearestNeighborData();
 		return EOpFlag::Error;
 	}
@@ -653,15 +664,32 @@ void UNearestNeighborModelSection::PostEditChangeProperty(FPropertyChangedEvent&
 		InvalidateTraining();
 		UpdateVertexWeights();
 	}
-	// Sometimes we need to set geometry cache to None before checking in. Do not invalidate training in this case.
-	if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborPoses) ||
-		// Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborMeshes) ||
-		Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, ExcludedFrames))
+	if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborPoses))
+	{
+		if (NeighborPoses)
+		{
+			InvalidateInference();
+		}
+	}
+	if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborMeshes))
+	{
+		if (NeighborMeshes)
+		{
+			InvalidateInference();
+		}
+	}
+	if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, ExcludedFrames))
 	{
 		InvalidateInference();
 	}
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	Model->PostEditChangeProperty(PropertyChangedEvent);
+}
+
+void UNearestNeighborModelSection::SetNumBasis(const int32 InNumBasis)
+{
+	NumPCACoeffs = InNumBasis;
+	InvalidateTraining();
 }
 
 int32 UNearestNeighborModelSection::GetMeshIndex() const
@@ -676,27 +704,26 @@ void UNearestNeighborModelSection::SetMeshIndex(int32 Index)
 	Model->InvalidateTrainingModelOnly();
 }
 
-bool UNearestNeighborModelSection::IsPCAValid() const
+bool UNearestNeighborModelSection::IsBasisValid() const
 {
-	return NumPCACoeffs >= 1 && NumVertices > 0 
-	&& VertexMean.Num() == NumVertices * 3 && PCABasis.Num() == NumVertices * 3 * NumPCACoeffs;
+	return VertexMean.Num() == NumVertices * 3 && Basis.Num() == NumVertices * 3 * GetNumBasis();
 }
 
-bool UNearestNeighborModelSection::IsPCAEmpty() const
+bool UNearestNeighborModelSection::IsBasisEmpty() const
 {
-	return VertexMean.IsEmpty() && PCABasis.IsEmpty();
+	return VertexMean.IsEmpty() && Basis.IsEmpty();
 }
 
-void UNearestNeighborModelSection::ResetPCAData()
+void UNearestNeighborModelSection::ResetBasisData()
 {
 	VertexMean.Reset();
-	PCABasis.Reset();
+	Basis.Reset();
 }
 
 bool UNearestNeighborModelSection::IsNearestNeighborValid() const
 {
 	return IsNearestNeighborEmpty() 
-	|| (RuntimeNeighborCoeffs.Num() == RuntimeNumNeighbors * NumPCACoeffs && NumVertices > 0);
+	|| (RuntimeNeighborCoeffs.Num() == RuntimeNumNeighbors * GetNumBasis() && NumVertices > 0);
 }
 
 bool UNearestNeighborModelSection::IsNearestNeighborEmpty() const
@@ -709,7 +736,7 @@ void UNearestNeighborModelSection::Reset()
 	NumVertices = 0;
 	RuntimeNumNeighbors = 0;
 	VertexMap.Reset();
-	ResetPCAData();
+	ResetBasisData();
 	ResetNearestNeighborData();
 	bIsReadyForTraining = false;
 	bIsReadyForInference = false;
@@ -749,10 +776,14 @@ UE::NearestNeighborModel::EOpFlag UNearestNeighborModelSection::UpdateVertexWeig
 
 	NumVertices = VertexMap.Num();
 	check(VertexWeights.Num() == NumVertices);
-	if (NumVertices <= NumPCACoeffs)
+
+	if (DoesUsePCA())
 	{
-		UE_LOG(LogNearestNeighborModel, Error, TEXT("NumVertices %d needs to be larger than NumPCACoeffs %d."), NumVertices, NumPCACoeffs);
-		Result |= EOpFlag::Error;
+		if (NumVertices <= GetNumBasis())
+		{
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("NumVertices %d needs to be larger than NumBasis %d."), NumVertices, GetNumBasis());
+			Result |= EOpFlag::Error;
+		}
 	}
 	return Result;
 }
@@ -1009,7 +1040,7 @@ void UNearestNeighborModelSection::InitFromClothPartData(FClothPartData& InPart)
 	VertexMapString = IntegersToFormattedString(VertexMap);
 	MeshIndex = INDEX_NONE;
 	NumPCACoeffs = InPart.PCACoeffNum;
-	PCABasis = MoveTemp(InPart.PCABasis);
+	Basis = MoveTemp(InPart.PCABasis);
 	VertexMean = MoveTemp(InPart.VertexMean);
 	NumVertices = VertexMap.Num();
 	RuntimeNumNeighbors = InPart.NumNeighbors;
@@ -1078,14 +1109,6 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 	{
 		InvalidateTraining();
 	}
-	if (PropertyChangedEvent.GetMemberPropertyName() == TEXT("TrainingInputAnims"))
-	{
-		// Sometimes we need to set geometry cache to None before checking in. Do not invalidate training in this case.
-		if (Property->GetFName() != FMLDeformerGeomCacheTrainingInputAnim::GetGeomCachePropertyName())
-		{
-			InvalidateTraining();
-		}
-	}
 
 	if (Property->GetFName() == UNearestNeighborModel::GetBoneIncludeListPropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetCurveIncludeListPropertyName())
@@ -1118,6 +1141,13 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 			UpdateNetworkOutputDim();
 		}
 	}
+	if (Property->GetFName() == UNearestNeighborModel::GetUsePCAPropertyName() ||
+		Property->GetFName() == UNearestNeighborModel::GetNumBasisPerSectionPropertyName())
+	{
+		UpdateSectionNumBasis();
+		UpdateNetworkOutputDim();
+		InvalidateTraining();
+	}
 	if (Property->GetFName() == UNearestNeighborModel::GetUseFileCachePropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetFileCacheDirectoryPropertyName())
 	{
@@ -1125,6 +1155,45 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 	}
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+
+void UNearestNeighborModel::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) 
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	const FProperty* Property = PropertyChangedEvent.Property;
+	if (!Property)
+	{
+		return;
+	}
+	const FProperty* MemberProperty = PropertyChangedEvent.PropertyChain.GetActiveMemberNode()->GetValue();
+	if (!MemberProperty)
+	{
+		return;
+	}
+
+	const FString MemberPropertyName = MemberProperty->GetName();
+	if (MemberPropertyName == TEXT("TrainingInputAnims"))
+	{
+		bool bInvalidate = true;
+		const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(MemberPropertyName);
+		const TArray<FMLDeformerGeomCacheTrainingInputAnim> InputAnims = GetTrainingInputAnims();
+		if (ArrayIndex >= 0 && ArrayIndex < InputAnims.Num())
+		{
+			if (Property->GetFName() == FMLDeformerTrainingInputAnim::GetAnimSequencePropertyName() && !InputAnims[ArrayIndex].GetAnimSequence())
+			{
+				bInvalidate = false;
+			}
+			if (Property->GetFName() == FMLDeformerGeomCacheTrainingInputAnim::GetGeomCachePropertyName() && !InputAnims[ArrayIndex].GetGeometryCache())
+			{
+				bInvalidate = false;
+			}
+		}
+		if (bInvalidate)
+		{
+			InvalidateTraining();
+		}
+	}
+}
+
 #endif
 
 UMLDeformerInputInfo* UNearestNeighborModel::CreateInputInfo()
@@ -1231,14 +1300,26 @@ const TArray<int32>& UNearestNeighborModel::GetPCACoeffStarts() const
 	return PCACoeffStarts;
 }
 
-int32 UNearestNeighborModel::GetTotalNumPCACoeffs() const
+int32 UNearestNeighborModel::GetTotalNumBasis() const
 {
-	int32 Sum = 0;
-	for(const FSection* Section : Sections)
+	if (DoesUsePCA())
 	{
-		Sum += Section->GetNumPCACoeffs();
+		int32 Sum = 0;
+		for(const FSection* Section : Sections)
+		{
+			Sum += Section->GetNumBasis();
+		}
+		return Sum;
 	}
-	return Sum;
+	else
+	{
+		return NumBasisPerSection;
+	}
+}
+
+int32 UNearestNeighborModel::GetNumBasisPerSection() const
+{
+	return NumBasisPerSection;
 }
 
 int32 UNearestNeighborModel::GetTotalNumNeighbors() const
@@ -1322,6 +1403,10 @@ UNearestNeighborModelSection* UNearestNeighborModel::OnSectionAdded(int32 NewInd
 		return nullptr;
 	}
 	Section->SetModel(this);
+	if (!DoesUsePCA())
+	{
+		Section->SetNumBasis(NumBasisPerSection);
+	}
 	Sections[NewIndex] = Section;
 	return Section;
 }
@@ -1411,7 +1496,7 @@ void UNearestNeighborModel::UpdatePCACoeffStarts()
 	for(const FSection* Section : Sections)
 	{
 		PCACoeffStarts.Add(Acc);
-		Acc += Section->GetNumPCACoeffs();
+		Acc += Section->GetNumBasis();
 	}
 }
 
@@ -1422,8 +1507,30 @@ void UNearestNeighborModel::UpdateNetworkInputDim()
 
 void UNearestNeighborModel::UpdateNetworkOutputDim()
 {
-	OutputDim = GetTotalNumPCACoeffs();
+	OutputDim = GetTotalNumBasis();
 }
+
+void UNearestNeighborModel::ClearReferences()
+{
+	for (FSection* Section : Sections)
+	{
+		if (Section)
+		{
+			Section->ClearReferences();
+		}
+	}
+	for (FMLDeformerGeomCacheTrainingInputAnim& InputAnim : GetTrainingInputAnims())
+	{
+		InputAnim.SetAnimSequence(nullptr);
+		InputAnim.SetGeometryCache(nullptr);
+	}
+	UMLDeformerVizSettings* const Viz = GetVizSettings();
+	if (Viz)
+	{
+		Viz->SetTestAnimSequence(nullptr);
+	}
+}
+
 
 bool UNearestNeighborModel::IsBeforeCustomVersionWasAdded() const
 {
@@ -1488,6 +1595,17 @@ void UNearestNeighborModel::SetFileCacheDirectory(const FString& InFileCacheDire
 	FileCacheDirectory = InFileCacheDirectory;
 }
 
+void UNearestNeighborModel::UpdateSectionNumBasis()
+{
+	for (FSection* Section : Sections)
+	{
+		if (Section)
+		{
+			Section->SetNumBasis(NumBasisPerSection);
+		}
+	}
+}
+
 void UNearestNeighborModel::UpdateCachedDeltasTimestamp()
 {
 	CachedDeltasTimestamp = UE::NearestNeighborModel::Private::GetLatestTimeStamp(GetCachedDeltasPaths());
@@ -1534,6 +1652,12 @@ void UNearestNeighborModel::NormalizeVertexWeights()
 	VertexWeightSum.Reset();
 }
 
+void UNearestNeighborModelSection::ClearReferences()
+{
+	NeighborPoses = nullptr;
+	NeighborMeshes = nullptr;
+}
+
 UE::NearestNeighborModel::EOpFlag UNearestNeighborModel::UpdateForTraining()
 {
 	if (IsReadyForTraining())
@@ -1542,7 +1666,10 @@ UE::NearestNeighborModel::EOpFlag UNearestNeighborModel::UpdateForTraining()
 	}
 	using namespace UE::NearestNeighborModel;
 	EOpFlag Result = EOpFlag::Success;
-	UpdatePCACoeffStarts();
+	if (DoesUsePCA())
+	{
+		UpdatePCACoeffStarts();
+	}
 	UpdateNetworkInputDim();
 	if (InputDim == 0)
 	{
@@ -1552,7 +1679,7 @@ UE::NearestNeighborModel::EOpFlag UNearestNeighborModel::UpdateForTraining()
 	UpdateNetworkOutputDim();
 	if (OutputDim == 0)
 	{
-		UE_LOG(LogNearestNeighborModel, Error, TEXT("OutputDim is 0. Please create at least one section and use non-zero PCA coeff counts."));
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("OutputDim is 0. Please create at least one section."));
 		return EOpFlag::Error;
 	}
 	Result |= CheckHiddenLayerDims();

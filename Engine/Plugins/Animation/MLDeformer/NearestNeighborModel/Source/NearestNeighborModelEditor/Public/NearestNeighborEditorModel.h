@@ -55,6 +55,7 @@ namespace UE::NearestNeighborModel
 		// ~END UMLDeformerMorphModelEditorModel overrides.
 
 		void OnUpdateClicked();
+		void ClearReferences();
 
 		FVertexMapSelector* GetVertexMapSelector() const;
 		FVertVizSelector* GetVertVizSelector() const;

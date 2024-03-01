@@ -100,7 +100,9 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FPropertyChangedDelegate, FPropertyChangedEvent&, UNearestNeighborModelSection&);
 	using EOpFlag = UE::NearestNeighborModel::EOpFlag;
 
-	int32 GetNumPCACoeffs() const;
+	UFUNCTION(BlueprintPure, Category = "Section")
+	int32 GetNumBasis() const;
+
 	int32 GetNumVertices() const;
 	int32 GetRuntimeNumNeighbors() const;
 
@@ -112,6 +114,8 @@ public:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	
+	void SetNumBasis(const int32 InNumBasis);
+
 	UFUNCTION(BlueprintPure, Category = "Section")
 	int32 GetAssetNumNeighbors() const;
 	
@@ -128,16 +132,21 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Section")
 	const TArray<int32>& GetVertexMap() const;
+	
+	UFUNCTION(BlueprintPure, Category = "Section")
 	const TArray<float>& GetVertexWeights() const;
 	
 	UFUNCTION(BlueprintPure, Category = "Section")
-	const TArray<float>& GetPCABasis() const;
+	const TArray<float>& GetBasis() const;
 	
 	UFUNCTION(BlueprintPure, Category = "Section")
 	const TArray<float>& GetVertexMean() const;
 	
 	UFUNCTION(BlueprintPure, Category = "Section")
 	const TArray<float>& GetAssetNeighborCoeffs() const;
+
+	UFUNCTION(BlueprintPure, Category = "Section")
+	bool DoesUsePCA() const;
 
 	const TArray<float>& GetAssetNeighborOffsets() const;
 	const TArray<int32>& GetExcludedFrames() const;
@@ -163,10 +172,14 @@ public:
 	const TArray<FName>& GetBoneNames() const;
 	void SetBoneNames(const TArray<FName>& InBoneNames);
 
+
 	// Do not call this function directly. Call UNearestNeighborModel::NormalizeVertexWeights() instead.
 	EOpFlag NormalizeVertexWeights();
 
-	static FName GetNumPCACoeffsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NumPCACoeffs); }
+	void ClearReferences();
+
+
+	static FName GetNumBasisPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NumPCACoeffs); }
 	static FName GetVertexMapStringPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, VertexMapString); }
 	static FName GetNeighborPosesPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborPoses); }
 	static FName GetNeighborMeshesPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborMeshes); }
@@ -227,15 +240,15 @@ protected:
 	UPROPERTY()
 	TArray<float> VertexWeights;
 
-	/** Flattened array of PCA basis. The shape of PCA basis is (PCACoeffNum, NumVertices * 3)  */
+	/** Flattened array of basis. The shape of basis is (CoeffNum, NumVertices * 3)  */
 	UPROPERTY()
-	TArray<float> PCABasis;
+	TArray<float> Basis;
 	
-	/** The vertex mean used in PCA computation. This array has a size of NumVertices * 3 */
+	/** The vertex mean on the shape. This array has a size of NumVertices * 3 */
 	UPROPERTY()
 	TArray<float> VertexMean;
 
-	/** Flattened array of neighbor PCA coefficients before excluding frames. The shape of this array is (NumNeighbors, NumPCACoeffs) */
+	/** Flattened array of neighbor coefficients before excluding frames. The shape of this array is (NumNeighbors, NumCoeffs) */
 	UPROPERTY()
 	TArray<float> AssetNeighborCoeffs;
 	
@@ -249,7 +262,7 @@ protected:
 #endif
 
 	/** Number of PCA coefficients for this section. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "1", DefaultValue = "64"), Category = "Section")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "1", DefaultValue = "64", EditCondition = "DoesUsePCA()"), Category = "Section", DisplayName = "Num Basis") // TODO: rename to NumBasis
 	int32 NumPCACoeffs = 64;
 
 	/** Number of vertices in this section */
@@ -274,19 +287,19 @@ private:
 	bool bIsReadyForInference = false;
 
 #if WITH_EDITOR
-	bool IsPCAValid() const;
-	bool IsPCAEmpty() const;
+	bool IsBasisValid() const;
+	bool IsBasisEmpty() const;
 	bool IsNearestNeighborValid() const;
 	bool IsNearestNeighborEmpty() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Section")
-	void SetPCAData(const TArray<float>& InVertexMean, const TArray<float>& InPCABasis);
+	void SetBasisData(const TArray<float>& InVertexMean, const TArray<float>& InBasis);
 	
 	UFUNCTION(BlueprintCallable, Category = "Section")
 	void SetNeighborData(const TArray<float>& InNeighborCoeffs, const TArray<float>& InNeighborOffsets);
 
 	void Reset();
-	void ResetPCAData();
+	void ResetBasisData();
 	void ResetNearestNeighborData();
 	EOpFlag UpdateVertexWeightsFromText();
 	EOpFlag UpdateVertexWeightsSelectedBones();
@@ -302,15 +315,15 @@ private:
 
 /**
  * The nearest neighbor model.
- * This model contains the PCA basis of the vertex deltas and a small set of meshes for nearest neighbor search. 
- * Given a new pose, the pre-trained neural network first predicts the PCA coefficients of the vertex deltas. 
- * Then this model uses the predicted PCA coeffcients to find a nearest neighbor in the small dataset.
+ * This model contains the linear basis of the vertex deltas and a small set of meshes for nearest neighbor search. 
+ * Given a new pose, the pre-trained neural network first predicts the coefficients of the vertex deltas. 
+ * Then this model uses the predicted coeffcients to find a nearest neighbor in the small dataset.
  * The total vertex delta is computed by
- * 		vertex_delta = mean_delta + pca_basis * pca_coeff + nearest_neighbor_delta
+ * 		vertex_delta = mean_delta + basis * coeff + nearest_neighbor_delta
  * To prevent popping, a time filtering is applied on predicted vertex deltas. The vertex delta at time t is computed by  
  * 		vertex_delta(t) = decay_factor * vertex_delta(t-1) + (1 - decay_factor) * vertex_delta 
  * The mesh can be separated into several sections (e.g. shirt, pants...). The nearest neighbor search is carried out separately for each section. 
- * The pca basis and the nearest neighbor data are compressed into morph targets.
+ * The basis and the nearest neighbor data are compressed into morph targets.
  */
 UCLASS()
 class NEARESTNEIGHBORMODEL_API UNearestNeighborModel
@@ -330,6 +343,7 @@ public:
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
 	// ~END UObject overrides.
 
@@ -358,7 +372,8 @@ public:
 	const TArray<int32>& GetPCACoeffStarts() const;
 
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	int32 GetTotalNumPCACoeffs() const;
+	int32 GetTotalNumBasis() const;
+	int32 GetNumBasisPerSection() const;
 
 	int32 GetTotalNumNeighbors() const;
 	float GetDecayFactor() const;
@@ -376,6 +391,9 @@ public:
 
 	bool DoesUseRBF() const;
 	float GetRBFSigma() const;
+
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	bool DoesUsePCA() const { return bUsePCA; }
 
 #if WITH_EDITOR
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
@@ -404,9 +422,6 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	float GetSmoothLossBeta() const { return SmoothLossBeta; }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	bool DoesUsePCA() const { return bUsePCA; }
 
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	FString GetModelDir() const;
@@ -455,6 +470,8 @@ public:
 	void UpdateNetworkInputDim();
 	void UpdateNetworkOutputDim();
 
+	void ClearReferences();
+
 	bool IsBeforeCustomVersionWasAdded() const;
 	bool IsBeforeTrainedBasisAdded() const;
 	const TArray<float>& GetVertexWeightSum() const;
@@ -471,6 +488,7 @@ public:
 	static FName GetUseFileCachePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, bUseFileCache); }
 	static FName GetFileCacheDirectoryPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, FileCacheDirectory); }
 	static FName GetUsePCAPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, bUsePCA); }
+	static FName GetNumBasisPerSectionPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, NumBasisPerSection); }
 	static FName GetUseDualQuaternionDeltasPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, bUseDualQuaternionDeltas); }
 	static FName GetDecayFactorPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, DecayFactor); }
 	static FName GetUseRBFPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, bUseRBF); }
@@ -493,7 +511,7 @@ protected:
 
 	/** Max number of cycles iterated through the training set. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", AdvancedDisplay, meta = (ClampMin = "1"))
-	int32 NumEpochs = 10000;
+	int32 NumEpochs = 2500;
 
 	/** Number of data samples processed together as a group in a single pass. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", AdvancedDisplay, meta = (ClampMin = "1"))
@@ -553,8 +571,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(BlueprintReadWrite, Category = "Network IO")
 	TArray<float> InputsMax;
 	
+	/** Whether to use pre-computed PCA basis. If false, basis will be learned at training time. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings")
 	bool bUsePCA = false;
+
+	/** The number of basis used in each section. Only editable when UsePCA is false. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings", meta = (EditCondition = "!bUsePCA"))
+	int32 NumBasisPerSection = 128;
 
 	/** Whether to use dual quaternion deltas. If false, LBS deltas will be used. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings")
@@ -590,6 +613,7 @@ private:
 	EOpFlag CheckHiddenLayerDims();
 	void UpdateInputMultipliers();
 
+	void UpdateSectionNumBasis();
 	void UpdateCachedDeltasTimestamp();
 	void UpdateCachedPCATimestamp();
 	void UpdateCachedNetworkTimestamp();

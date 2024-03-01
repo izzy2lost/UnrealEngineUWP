@@ -13,6 +13,7 @@
 #include "MLDeformerAsset.h"
 #include "MLDeformerComponent.h"
 #include "MLDeformerEditorStyle.h"
+#include "MLDeformerEditorToolkit.h"
 #include "NearestNeighborGeomCacheSampler.h"
 #include "NearestNeighborModel.h"
 #include "NearestNeighborModelInputInfo.h"
@@ -131,10 +132,10 @@ namespace UE::NearestNeighborModel
 			return ETrainingResult::FailPythonError;
 		}
 		const int32 NumFrames = GetNumFramesForTraining();
-		const int32 NumPCACoeffs = NearestNeighborModel->GetTotalNumPCACoeffs();
-		if (NumFrames <= NumPCACoeffs)
+		const int32 NumBasis = NearestNeighborModel->GetTotalNumBasis();
+		if (NumFrames <= NumBasis)
 		{
-			UE_LOG(LogNearestNeighborModel, Error, TEXT("Training frames (%d) must be greater than the number of PCA coefficients (%d)"), NumFrames, NumPCACoeffs);
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Training frames (%d) must be greater than the number of basis (%d)"), NumFrames, NumBasis);
 			return ETrainingResult::FailPythonError;
 		}
 		return TrainModel<UNearestNeighborTrainingModel>(this);
@@ -500,6 +501,12 @@ namespace UE::NearestNeighborModel
 		{
 			return UpdateResult;
 		}
+		UpdateIsReadyForTrainingState();
+		if (!IsReadyForTraining())
+		{
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Model is not ready for training. Please check training data or reload MLDeformer editor."));
+			return EOpFlag::Error;
+		}
 		UpdateResult |= UpdateNearestNeighborData();
 		if (OpFlag::HasError(UpdateResult))
 		{
@@ -545,6 +552,23 @@ namespace UE::NearestNeighborModel
 		}
 	}
 
+	void FNearestNeighborEditorModel::ClearReferences()
+	{
+		UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
+		if (NearestNeighborModel)
+		{
+			NearestNeighborModel->ClearReferences();
+		}
+		if (Editor->GetModelDetailsView())
+		{
+			Editor->GetModelDetailsView()->ForceRefresh();
+		}
+		if (Editor->GetVizSettingsDetailsView())
+		{
+			Editor->GetVizSettingsDetailsView()->ForceRefresh();
+		}
+	}
+
 	EOpFlag FNearestNeighborEditorModel::CheckNetwork()
 	{
 		const UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
@@ -560,18 +584,20 @@ namespace UE::NearestNeighborModel
 		}
 	
 		const int32 NumNetworkWeights = NearestNeighborModel->GetNumNetworkOutputs();
-		const int32 NumPCACoeffs = NearestNeighborModel->GetTotalNumPCACoeffs();
-		if (NumNetworkWeights != NumPCACoeffs)
+		const int32 NumBasis = NearestNeighborModel->GetTotalNumBasis();
+		if (NumNetworkWeights != NumBasis)
 		{
-			UE_LOG(LogNearestNeighborModel, Error, TEXT("Network output dimension %d is not equal to number of morph targets %d. Network needs to be re-trained."), NumNetworkWeights, NumPCACoeffs);
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Network output dimension %d does not equal to total number of basis %d. Network needs to be re-trained."), NumNetworkWeights, NumBasis);
 			return EOpFlag::Error;
 		}
+
 		return EOpFlag::Success;
 	}
 
 	EOpFlag FNearestNeighborEditorModel::UpdateNearestNeighborData()
 	{
-		if (!GetCastModel())
+		const UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
+		if (!NearestNeighborModel)
 		{
 			return EOpFlag::Error;
 		}
@@ -580,6 +606,12 @@ namespace UE::NearestNeighborModel
 			UE_LOG(LogNearestNeighborModel, Error, TEXT("Network is not trained. Nearest neighbor data cannot be updated."));
 			return EOpFlag::Error;
 		}
+		if (NearestNeighborModel->GetNumNetworkOutputs() != NearestNeighborModel->GetTotalNumBasis())
+		{
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Network output dimension %d does not equal to total number of basis %d. Please re-train network."), NearestNeighborModel->GetNumNetworkOutputs(), NearestNeighborModel->GetTotalNumBasis());
+			return EOpFlag::Error;
+		}
+		
 		UNearestNeighborTrainingModel *TrainingModel = FHelpers::NewDerivedObject<UNearestNeighborTrainingModel>();
 		if (!TrainingModel)
 		{
@@ -629,9 +661,9 @@ namespace UE::NearestNeighborModel
 	
 		TArray<FVector3f> Deltas;
 	
-		const int32 TotalNumPCACoeffs = NearestNeighborModel->GetTotalNumPCACoeffs();
+		const int32 TotalNumBasis = NearestNeighborModel->GetTotalNumBasis();
 		const int32 TotalNumNeighbors = NearestNeighborModel->GetTotalNumNeighbors();
-		Deltas.SetNumZeroed((1 + TotalNumPCACoeffs + TotalNumNeighbors) * NumBaseMeshVerts);
+		Deltas.SetNumZeroed((1 + TotalNumBasis + TotalNumNeighbors) * NumBaseMeshVerts);
 	
 		using Private::AddFloatArrayToDeltaArray;
 		int32 MorphOffset = 1;
@@ -650,16 +682,23 @@ namespace UE::NearestNeighborModel
 			check(VertexWeights.Num() == Section.GetNumVertices());
 			TArrayView<FVector3f> MeanDeltas(Deltas.GetData(), NumBaseMeshVerts);
 			AddFloatArrayToDeltaArray(Section.GetVertexMean(), VertexMap, VertexWeights, MeanDeltas);
-			const int32 NumPCACoeffs = Section.GetNumPCACoeffs();
+			const int32 NumBasis = Section.GetNumBasis();
 			const int32 SectionNumVerts = Section.GetNumVertices();
 			check(VertexMap.Num() == SectionNumVerts);
-			for (int32 Index = 0; Index < NumPCACoeffs; ++Index)
+			for (int32 Index = 0; Index < NumBasis; ++Index)
 			{
-				TConstArrayView<float> BasisFloats(Section.GetPCABasis().GetData() + Index * SectionNumVerts * 3, SectionNumVerts * 3);
+				TConstArrayView<float> BasisFloats(Section.GetBasis().GetData() + Index * SectionNumVerts * 3, SectionNumVerts * 3);
 				TArrayView<FVector3f> BasisDeltas(Deltas.GetData() + (MorphOffset + Index) * NumBaseMeshVerts, NumBaseMeshVerts);
 				AddFloatArrayToDeltaArray(BasisFloats, VertexMap, VertexWeights, BasisDeltas);
 			}
-			MorphOffset += NumPCACoeffs;
+			if (NearestNeighborModel->DoesUsePCA())
+			{
+				MorphOffset += NumBasis;
+			}
+		}
+		if (!NearestNeighborModel->DoesUsePCA())
+		{
+			MorphOffset += TotalNumBasis;
 		}
 	
 		for (int32 SectionIndex = 0; SectionIndex < NearestNeighborModel->GetNumSections(); ++SectionIndex)
@@ -689,6 +728,7 @@ namespace UE::NearestNeighborModel
 				TArrayView<FVector3f> NeighborDeltas(Deltas.GetData() + (MorphOffset + Index) * NumBaseMeshVerts, NumBaseMeshVerts);
 				AddFloatArrayToDeltaArray(NeighborOffsets, VertexMap, VertexWeights, NeighborDeltas);
 			}
+			MorphOffset += SectionNumNeighbors;
 		}
 	
 		if (Deltas.Num() == 0)
