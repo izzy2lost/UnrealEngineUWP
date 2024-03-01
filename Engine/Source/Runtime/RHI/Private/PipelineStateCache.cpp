@@ -73,13 +73,15 @@ static inline uint32 GetTypeHash(const FGraphicsPipelineStateInitializer& Initia
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.RasterizerState));
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.DepthStencilState));
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.ImmutableSamplerState));
-
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.PrimitiveType));
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.RenderTargetsEnabled));
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.RenderTargetFormats));
-	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.RenderTargetFlags));
+	for (int32 Index = 0; Index < Initializer.RenderTargetFlags.Num(); ++Index)
+	{
+		Hash = HashCombineFast(Hash, GetTypeHash(Initializer.RenderTargetFlags[Index] & FGraphicsPipelineStateInitializer::RelevantRenderTargetFlagMask));
+	}
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.DepthStencilTargetFormat));
-	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.DepthStencilTargetFlag));
+	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.DepthStencilTargetFlag & FGraphicsPipelineStateInitializer::RelevantDepthStencilFlagMask));
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.DepthTargetLoadAction));
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.DepthTargetStoreAction));
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.StencilTargetLoadAction));
@@ -92,6 +94,7 @@ static inline uint32 GetTypeHash(const FGraphicsPipelineStateInitializer& Initia
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.bDepthBounds));
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.MultiViewCount));
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.bHasFragmentDensityAttachment));
+	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.bAllowVariableRateShading));
 	Hash = HashCombineFast(Hash, GetTypeHash(Initializer.ShadingRate));
 	return Hash;
 }
