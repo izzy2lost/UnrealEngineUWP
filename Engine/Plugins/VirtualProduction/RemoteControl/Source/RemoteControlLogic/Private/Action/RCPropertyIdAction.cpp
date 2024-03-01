@@ -228,6 +228,13 @@ void URCPropertyIdAction::UpdatePropertyId()
 							if (!bIsSpecialCase)
 							{
 								CachedPropertySelfContainer[CurrentKey]->DuplicateProperty(NewPropertyIdName, PropToDuplicate);
+#if WITH_EDITORONLY_DATA
+								// In case the property is a Vector/Rotator we don't want the Lock widget
+								if (FProperty* CachedProperty = CachedPropertySelfContainer[CurrentKey]->GetProperty())
+								{
+									CachedProperty->RemoveMetaData(TEXT("AllowPreserveRatio"));
+								}
+#endif
 							}
 
 							// Do this the first time it is created so that it will have a better default value except for Object

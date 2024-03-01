@@ -55,18 +55,6 @@ TSharedRef<SWidget> FRCControllerModel::GetWidget() const
 {
 	const FNodeWidgets NodeWidgets = DetailTreeNodeWeakPtr.Pin()->CreateNodeWidgets();
 
-	// We need to add this metadata to the ColorController to avoid the update when dragging causing a lot of lag
-	const TSharedPtr<IPropertyHandle> PropertyHandle = DetailTreeNodeWeakPtr.Pin()->CreatePropertyHandle();
-	if (PropertyHandle.IsValid())
-	{
-		FStructProperty* StructProperty = CastField<FStructProperty>(PropertyHandle->GetProperty());
-		if (StructProperty && StructProperty->Struct &&
-			StructProperty->Struct.GetFName() == FName("Color") &&
-			!StructProperty->HasMetaData("OnlyUpdateOnInteractionEnd"))
-		{
-			StructProperty->AppendMetaData({{FName("OnlyUpdateOnInteractionEnd"), TEXT("true")}});
-		}
-	}
 	const TSharedRef<SHorizontalBox> FieldWidget = SNew(SHorizontalBox);
 	if (VirtualPropertyWeakPtr.IsValid())
 	{
@@ -85,7 +73,6 @@ TSharedRef<SWidget> FRCControllerModel::GetWidget() const
 		{
 			FieldWidget->AddSlot()
 				.Padding(SlotMargin)
-				.HAlign(HAlign_Left)
 				[
 					NodeWidgets.ValueWidget.ToSharedRef()
 				];

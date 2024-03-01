@@ -71,6 +71,12 @@ void FRCBehaviourConditionalModel::CreateComparandInputField()
 				Comparand->DuplicateProperty(FName("Comparand"), Controller->GetProperty());
 			}
 
+			// In case the Comparand is a Vector/Rotator we don't want the Lock widget
+			if (FProperty* ComparandProperty = Comparand->GetProperty())
+			{
+				ComparandProperty->RemoveMetaData(TEXT("AllowPreserveRatio"));
+			}
+
 			// UI widget (via Property Generator)
 			DetailTreeNodeWeakPtr = UE::RCUIHelpers::GetDetailTreeNodeForVirtualProperty(Comparand, PropertyRowGenerator);
 		}

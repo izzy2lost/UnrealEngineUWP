@@ -476,11 +476,6 @@ void SRCControllerPanelList::Reset()
 			FProperty* Property = Child->CreatePropertyHandle()->GetProperty();
 			check(Property);
 
-			if (Property->IsA<FStrProperty>() || Property->IsA<FTextProperty>())
-			{
-				Property->AppendMetaData({{TEXT("multiline"), TEXT("true")}});
-			}
-
 			if (URCVirtualPropertyBase* Controller = Preset->GetController(Property->GetFName()))
 			{
 				bool bIsVisible = true;
