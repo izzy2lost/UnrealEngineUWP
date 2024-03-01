@@ -15,20 +15,13 @@ struct FInstancedStaticMeshSceneProxyDesc : public FStaticMeshSceneProxyDesc
 
 	TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> InstanceDataSceneProxy;
 #if WITH_EDITOR
-	TBitArray<>	SelectedInstances;
+	bool bHasSelectedInstances = false;
 #endif
 
 	int32 InstanceStartCullDistance = 0;
 	int32 InstanceEndCullDistance = 0;
-	FVector MinScale = FVector(0);
-	FVector MaxScale = FVector(0);
 	float InstanceLODDistanceScale = 1.0f;
 
 	bool bUseGpuLodSelection = false;
 
-	void GetInstancesMinMaxScale(FVector& InMinScale, FVector& InMaxScale) const
-	{
-		InMinScale = MinScale;
-		InMaxScale = MaxScale;
-	}
 };

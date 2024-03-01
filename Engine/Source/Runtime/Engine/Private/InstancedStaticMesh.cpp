@@ -1299,13 +1299,12 @@ void FInstancedStaticMeshSceneProxyDesc::InitializeFrom(UInstancedStaticMeshComp
 
 	InstanceDataSceneProxy = InComponent->GetOrCreateInstanceDataSceneProxy();
 #if WITH_EDITOR
-	SelectedInstances = InComponent->SelectedInstances;
+	bHasSelectedInstances = InComponent->SelectedInstances.Find(true) != INDEX_NONE;
 #endif
 
 	InstanceStartCullDistance = InComponent->InstanceStartCullDistance ;
 	InstanceEndCullDistance = InComponent->InstanceEndCullDistance;
 
-	InComponent->GetInstancesMinMaxScale(MinScale, MaxScale);
 	InstanceLODDistanceScale = InComponent->InstanceLODDistanceScale;
 
 	bUseGpuLodSelection = InComponent->bUseGpuLodSelection;
@@ -1334,10 +1333,7 @@ FInstancedStaticMeshSceneProxy::FInstancedStaticMeshSceneProxy(const FInstancedS
 	,	InstanceDataSceneProxy(InProxyDesc.InstanceDataSceneProxy)
 {
 #if WITH_EDITOR
-	for (int32 InstanceIndex = 0; InstanceIndex < InProxyDesc.SelectedInstances.Num() && !bHasSelectedInstances; ++InstanceIndex)
-	{
-		bHasSelectedInstances |= InProxyDesc.SelectedInstances[InstanceIndex];
-	}
+	bHasSelectedInstances = InProxyDesc.bHasSelectedInstances;
 #endif
 
 	SetupProxy(InProxyDesc);
@@ -1397,11 +1393,8 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(const FInstancedStaticMeshSceneP
 	UserData_AllInstances.bRenderUnselected = true;
 	UserData_AllInstances.RenderData = nullptr;
 
-	FVector MinScale(0);
-	FVector MaxScale(0);
-	InProxyDesc.GetInstancesMinMaxScale(MinScale, MaxScale);
-
-	UserData_AllInstances.AverageInstancesScale = MinScale + (MaxScale - MinScale) / 2.0f;
+	// Only used by HISM, and thus set in the descendant ctor
+	UserData_AllInstances.AverageInstancesScale = FVector::Zero();
 
 	// selected only
 	UserData_SelectedInstances = UserData_AllInstances;
@@ -1431,8 +1424,8 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(const FInstancedStaticMeshSceneP
 				LODs[LODIdx].bCanUsePrecomputedLightingParametersFromGPUScene = false;
 			}
 		}
-		}
-		}
+	}
+}
 
 
 void FInstancedStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)

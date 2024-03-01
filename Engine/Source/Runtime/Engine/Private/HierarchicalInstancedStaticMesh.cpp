@@ -805,6 +805,10 @@ FHierarchicalStaticMeshSceneProxy::FHierarchicalStaticMeshSceneProxy(UHierarchic
 	UserData_AllInstances.LODDistanceScale = LODDistanceScale;
 	UserData_SelectedInstances.LODDistanceScale = LODDistanceScale;
 	UserData_DeselectedInstances.LODDistanceScale = LODDistanceScale;
+
+	UserData_AllInstances.AverageInstancesScale = 
+		UserData_SelectedInstances.AverageInstancesScale = 
+		UserData_DeselectedInstances.AverageInstancesScale = InComponent->GetAverageScale();
 }
 
 void FHierarchicalStaticMeshSceneProxy::SetupOcclusion(UHierarchicalInstancedStaticMeshComponent* InComponent)

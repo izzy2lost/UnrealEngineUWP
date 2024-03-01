@@ -885,10 +885,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedSt
 
 	if (HitProxyMode == EHitProxyMode::PerInstance)
 	{
-		for (int32 InstanceIndex = 0; InstanceIndex < InProxyDesc.SelectedInstances.Num() && !bHasSelectedInstances; ++InstanceIndex)
-		{
-			bHasSelectedInstances |= InProxyDesc.SelectedInstances[InstanceIndex];
-		}
+		bHasSelectedInstances = InProxyDesc.bHasSelectedInstances;
 
 		if (bHasSelectedInstances)
 		{
