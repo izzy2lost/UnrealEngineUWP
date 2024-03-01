@@ -37,6 +37,7 @@ namespace ClothingSimulationClothDefault
 	constexpr float GravityZOverride = Softs::FExternalForces::DefaultGravityZOverride; // -980.665f;
 	constexpr float VelocityScale = 0.75f;
 	constexpr float FictitiousAngularScale = Softs::FExternalForces::DefaultFictitiousAngularScale; // 1.f;
+	constexpr int32 MultiResCoarseLODIndex = INDEX_NONE;
 }
 
 namespace ClothingSimulationClothConsoleVariables
@@ -72,6 +73,7 @@ struct FClothingSimulationCloth::FLODData
 		int32 LODIndex;
 		int32 ParticleRangeId;
 		FTriangleMesh OffsetTriangleMesh; // Only used if using PBD solver
+		int32 MultiResCoarseLODIndex = INDEX_NONE;
 	};
 	TMap<FClothingSimulationSolver*, FSolverData> SolverData;
 
@@ -93,6 +95,7 @@ struct FClothingSimulationCloth::FLODData
 
 	static FTriangleMesh BuildTriangleMesh(const TConstArrayView<uint32>& Indices, const int32 NumParticles);
 
+	void AddParticles(FClothingSimulationSolver* Solver, FClothingSimulationCloth* Cloth, int32 LODIndex);
 	void Add(FClothingSimulationSolver* Solver, FClothingSimulationCloth* Cloth, int32 LODIndex);
 	void Remove(FClothingSimulationSolver* Solver);
 
@@ -106,6 +109,9 @@ struct FClothingSimulationCloth::FLODData
 
 	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(MaxDistance, float);
 	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(MassValue, float);
+	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(MultiResCoarseLODIndex, int32);
+	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(IsCoarseMultiResLOD, bool);
+
 };
 
 FClothingSimulationCloth::FLODData::FLODData(
@@ -152,7 +158,7 @@ FTriangleMesh FClothingSimulationCloth::FLODData::BuildTriangleMesh(const TConst
 	return OutTriangleMesh;
 }
 
-void FClothingSimulationCloth::FLODData::Add(FClothingSimulationSolver* Solver, FClothingSimulationCloth* Cloth, int32 InLODIndex)
+void FClothingSimulationCloth::FLODData::AddParticles(FClothingSimulationSolver* Solver, FClothingSimulationCloth* Cloth, int32 InLODIndex)
 {
 	check(Solver);
 	check(Cloth);
@@ -162,25 +168,12 @@ void FClothingSimulationCloth::FLODData::Add(FClothingSimulationSolver* Solver, 
 	check(!SolverData.Find(Solver));
 	FSolverData& SolverDatum = SolverData.Add(Solver);
 	SolverDatum.LODIndex = InLODIndex;
-	int32& ParticleRangeId = SolverDatum.ParticleRangeId;
 	// Add particles
-	ParticleRangeId = Solver->AddParticles(NumParticles, Cloth->GroupId);
-
+	SolverDatum.ParticleRangeId = Solver->AddParticles(NumParticles, Cloth->GroupId);
 	if (!NumParticles)
 	{
 		return;
 	}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-	// Update source mesh for this LOD, this is required prior to reset the start pose
-	Cloth->Mesh->Update(Solver, INDEX_NONE, InLODIndex, 0, ParticleRangeId);
-	
-	// Retrieve the component's scale
-	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	// Reset the particles start pose before setting up mass and constraints
-	ResetStartPose(Solver);
 
 	if (!Solver->IsForceBasedSolver())
 	{
@@ -190,16 +183,24 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		for (const TVec3<int32>& Element : Elements)
 		{
 			OffsetElements.Add({
-				Element[0] + ParticleRangeId,
-				Element[1] + ParticleRangeId,
-				Element[2] + ParticleRangeId });
+				Element[0] + SolverDatum.ParticleRangeId,
+				Element[1] + SolverDatum.ParticleRangeId,
+				Element[2] + SolverDatum.ParticleRangeId });
 		}
 
-		SolverDatum.OffsetTriangleMesh.Init(MoveTemp(OffsetElements), ParticleRangeId, ParticleRangeId + NumParticles - 1);
+		SolverDatum.OffsetTriangleMesh.Init(MoveTemp(OffsetElements), SolverDatum.ParticleRangeId, SolverDatum.ParticleRangeId + NumParticles - 1);
 		SolverDatum.OffsetTriangleMesh.GetPointToTriangleMap(); // Builds map for later use by GetPointNormals(), and the velocity fields
 	}
 
 	const FTriangleMesh& TriangleMesh = Solver->IsForceBasedSolver() ? NoOffsetTriangleMesh : SolverDatum.OffsetTriangleMesh;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
+	// Update source mesh for this LOD, this is required prior to reset the start pose
+	Cloth->Mesh->Update(Solver, INDEX_NONE, InLODIndex, 0, SolverDatum.ParticleRangeId);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	// Reset the particles start pose before setting up mass and constraints
+	ResetStartPose(Solver);
 
 	// Initialize the normals, in case the sim data is queried before the simulation steps
 	UpdateNormals(Solver);
@@ -218,9 +219,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	static const FRealSingle KinematicDistanceThreshold = 0.1f;  // TODO: This is not the same value as set in the painting UI but we might want to expose this value as parameter
 	auto KinematicPredicate =
 		[&MaxDistances](int32 Index)
-		{
-			return MaxDistances.GetValue(Index) < KinematicDistanceThreshold;
-		};
+	{
+		return MaxDistances.GetValue(Index) < KinematicDistanceThreshold;
+	};
 
 	const int32 MassMode = ConfigProperties.GetValue<int32>(TEXT("MassMode"), ClothingSimulationClothDefault::MassMode);
 
@@ -235,22 +236,89 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		const FVector2f MassValue = GetWeightedFloatMassValue(ConfigProperties, ClothingSimulationClothDefault::MassValue);
 		const TConstArrayView<float> MassValueMultipliers = WeightMaps.FindRef(GetMassValueString(ConfigProperties, MassValueName.ToString()));
-		Solver->SetParticleMassUniform(ParticleRangeId, MassValue, MassValueMultipliers, MinPerParticleMass, TriangleMesh, KinematicPredicate);
+		Solver->SetParticleMassUniform(SolverDatum.ParticleRangeId, MassValue, MassValueMultipliers, MinPerParticleMass, TriangleMesh, KinematicPredicate);
 	}
-		break;
+	break;
 	case EMassMode::TotalMass:
 	{
 		const FRealSingle MassValue = GetMassValue(ConfigProperties, ClothingSimulationClothDefault::MassValue);
-		Solver->SetParticleMassFromTotalMass(ParticleRangeId, MassValue, MinPerParticleMass, TriangleMesh, KinematicPredicate);
+		Solver->SetParticleMassFromTotalMass(SolverDatum.ParticleRangeId, MassValue, MinPerParticleMass, TriangleMesh, KinematicPredicate);
 	}
-		break;
+	break;
 	case EMassMode::Density:
 	{
 		const FVector2f MassValue = GetWeightedFloatMassValue(ConfigProperties, ClothingSimulationClothDefault::MassValue);
 		const TConstArrayView<float> MassValueMultipliers = WeightMaps.FindRef(GetMassValueString(ConfigProperties, MassValueName.ToString()));
-		Solver->SetParticleMassFromDensity(ParticleRangeId, MassValue, MassValueMultipliers, MinPerParticleMass, TriangleMesh, KinematicPredicate);
+		Solver->SetParticleMassFromDensity(SolverDatum.ParticleRangeId, MassValue, MassValueMultipliers, MinPerParticleMass, TriangleMesh, KinematicPredicate);
 	}
-		break;
+	break;
+	}
+}
+
+void FClothingSimulationCloth::FLODData::Add(FClothingSimulationSolver* Solver, FClothingSimulationCloth* Cloth, int32 InLODIndex)
+{
+	check(Solver);
+	check(Cloth);
+	check(Cloth->Mesh);
+
+	FSolverData& SolverDatum = SolverData.FindChecked(Solver);
+	check(SolverDatum.LODIndex == InLODIndex);
+	if (!NumParticles)
+	{
+		return;
+	}
+
+	check(SolverDatum.ParticleRangeId != INDEX_NONE);
+	const int32 ParticleRangeId = SolverDatum.ParticleRangeId;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
+	// Retrieve the component's scale
+	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	const FTriangleMesh& TriangleMesh = Solver->IsForceBasedSolver() ? NoOffsetTriangleMesh : SolverDatum.OffsetTriangleMesh;
+
+	// Retrieve config properties
+	check(Cloth->Config);
+	const Softs::FCollectionPropertyFacade& ConfigProperties = Cloth->Config->GetProperties(InLODIndex);
+
+	// Gather multires constraint data.
+	TSharedPtr<Softs::FMultiResConstraints> FineLODMultiResConstraint;
+	const FTriangleMesh* CoarseLODTriangleMesh = nullptr;
+	int32 CoarseLODParticleRangeId = INDEX_NONE;
+	if (Solver->IsForceBasedSolver())
+	{
+		// Multi-Res is only supported with ForceBasedSolver
+		if (InLODIndex == 0)
+		{
+			// Only allow LOD0 to be a fine LOD for now.
+			const int32 MultiResCoarseLODIndex = GetMultiResCoarseLODIndex(ConfigProperties, ClothingSimulationClothDefault::MultiResCoarseLODIndex);
+			if (MultiResCoarseLODIndex != INDEX_NONE && MultiResCoarseLODIndex != InLODIndex)
+			{
+				if (Cloth->Config->IsValidLOD(MultiResCoarseLODIndex) && Cloth->LODData.IsValidIndex(MultiResCoarseLODIndex))
+				{
+					// Check if coarse lod is setup correctly.
+					const Softs::FCollectionPropertyFacade& CoarseConfigProperties = Cloth->Config->GetProperties(MultiResCoarseLODIndex);
+					if (GetIsCoarseMultiResLOD(CoarseConfigProperties, false))
+					{
+						CoarseLODTriangleMesh = &Cloth->LODData[MultiResCoarseLODIndex]->NoOffsetTriangleMesh;
+						CoarseLODParticleRangeId = Cloth->LODData[MultiResCoarseLODIndex]->SolverData.FindChecked(Solver).ParticleRangeId;
+						SolverDatum.MultiResCoarseLODIndex = MultiResCoarseLODIndex;
+					}
+				}
+			}
+		}
+		else if (GetIsCoarseMultiResLOD(ConfigProperties, false))
+		{
+			// check that fine lod is setup correctly.
+			const Softs::FCollectionPropertyFacade& FineConfigProperties = Cloth->Config->GetProperties(0);
+			const int32 MultiResCoarseLODIndex = GetMultiResCoarseLODIndex(FineConfigProperties, ClothingSimulationClothDefault::MultiResCoarseLODIndex);
+			if (MultiResCoarseLODIndex == InLODIndex)
+			{
+				const int32 FineLODParticleRangeId = Cloth->LODData[0]->SolverData.FindChecked(Solver).ParticleRangeId;
+				FineLODMultiResConstraint = Solver->GetClothConstraints(FineLODParticleRangeId).GetMultiResConstraints();
+			}
+		}
 	}
 
 	// Setup solver constraints
@@ -258,7 +326,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Create constraints
 	const bool bEnabled = false;  // Set constraint disabled by default
-	ClothConstraints.AddRules(ConfigProperties, TriangleMesh, &PatternData, WeightMaps, VertexSets, FaceSets, FaceIntMaps, Tethers, MeshScale, bEnabled);
+	ClothConstraints.AddRules(ConfigProperties, TriangleMesh, &PatternData, WeightMaps, VertexSets, FaceSets, FaceIntMaps, Tethers, MeshScale, bEnabled, CoarseLODTriangleMesh, CoarseLODParticleRangeId, FineLODMultiResConstraint);
 
 	// Update LOD stats
 	const TConstArrayView<Softs::FSolverReal> InvMasses(Solver->GetParticleInvMasses(ParticleRangeId), NumParticles);
@@ -768,7 +836,13 @@ void FClothingSimulationCloth::Add(FClothingSimulationSolver* Solver)
 	int32& LODIndex = LODIndices.Add(Solver);
 	LODIndex = INDEX_NONE;
 
-	// Add LODs
+	// Add all particles first and in reverse order. This is necessary so that any multires coarse lods soft bodies are added first, and all particle offsets are setup
+	// when adding the LOD constraints.
+	for (int32 Index = LODData.Num() - 1; Index >= 0; --Index)
+	{
+		LODData[Index]->AddParticles(Solver, this, Index);
+	}
+	// Now add the LODs themselves. These need to go in normal order since the coarse lod needs the fine lod constraints.
 	for (int32 Index = 0; Index < LODData.Num(); ++Index)
 	{
 		LODData[Index]->Add(Solver, this, Index);
@@ -872,6 +946,7 @@ const FTriangleMesh& FClothingSimulationCloth::GetTriangleMesh(const FClothingSi
 
 	return LODData.IsValidIndex(LODIndex) ? (Solver->IsForceBasedSolver() ? LODData[LODIndex]->NoOffsetTriangleMesh : LODData[LODIndex]->SolverData.FindChecked(Solver).OffsetTriangleMesh) : EmptyTriangleMesh;
 }
+
 
 // Deprecated for 5.3
 const TArray<TConstArrayView<FRealSingle>>& FClothingSimulationCloth::GetWeightMaps(const FClothingSimulationSolver* Solver) const
@@ -990,13 +1065,33 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	check(Config);
 	const Softs::FCollectionPropertyFacade& ConfigProperties = Config->GetProperties(LODIndex);
 
+	const int32 CoarseLODIndex = LODIndex != INDEX_NONE ? LODData[LODIndex]->SolverData.FindChecked(Solver).MultiResCoarseLODIndex : INDEX_NONE;
+	const int32 CoarseParticleRangeId = CoarseLODIndex != INDEX_NONE ? GetParticleRangeId(Solver, CoarseLODIndex) : INDEX_NONE;
+	if (CoarseLODIndex != INDEX_NONE)
+	{
+		LODData[CoarseLODIndex]->Enable(Solver, true);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS 
+		// TODO: interpolate/ reset when LOD switching to enable multires
+		Mesh->Update(Solver, CoarseLODIndex, CoarseLODIndex, CoarseParticleRangeId, CoarseParticleRangeId);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
 	// LOD Switching
 	if (LODIndex != PrevLODIndex)
 	{
 		if (PrevLODIndex != INDEX_NONE)
 		{
-			// Disable previous LOD's particles
-			LODData[PrevLODIndex]->Enable(Solver, false);
+			if (PrevLODIndex != CoarseLODIndex)
+			{
+				// Disable previous LOD's particles
+				LODData[PrevLODIndex]->Enable(Solver, false);
+			}
+			const int32 PrevCoarseLODIndex = LODData[PrevLODIndex]->SolverData.FindChecked(Solver).MultiResCoarseLODIndex;
+			if (PrevCoarseLODIndex != INDEX_NONE && PrevCoarseLODIndex != CoarseLODIndex && PrevCoarseLODIndex != LODIndex)
+			{
+				// Disable previous coarse LOD's particles
+				LODData[PrevCoarseLODIndex]->Enable(Solver, false);
+			}
 		}
 		if (LODIndex != INDEX_NONE)
 		{
@@ -1052,6 +1147,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				Collider->ResetStartPose(Solver, this);
 			}
+
+			if (CoarseLODIndex != INDEX_NONE)
+			{
+				LODData[CoarseLODIndex]->ResetStartPose(Solver);
+			}
 			UE_LOG(LogChaosCloth, VeryVerbose, TEXT("Cloth in group Id %d Needs reset."), GroupId);
 		}
 		else if (bNeedsTeleport)
@@ -1080,6 +1180,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (Solver->IsForceBasedSolver())
 		{
 			Solver->SetProperties(ParticleRangeId, ConfigProperties, LODData[LODIndex]->WeightMaps);
+			if (CoarseLODIndex != INDEX_NONE)
+			{
+				Solver->SetProperties(CoarseParticleRangeId, Config->GetProperties(CoarseLODIndex), LODData[CoarseLODIndex]->WeightMaps);
+			}
 		}
 		else
 		{
@@ -1121,6 +1225,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (!Config->IsLegacySingleLOD())
 		{
 			LODData[LODIndex]->Update(Solver, this);
+			if (CoarseLODIndex != INDEX_NONE)
+			{
+				LODData[CoarseLODIndex]->Update(Solver, this);
+			}
 		}
 	}
 

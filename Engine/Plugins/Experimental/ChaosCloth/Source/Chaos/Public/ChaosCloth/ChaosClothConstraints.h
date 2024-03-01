@@ -71,7 +71,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 			const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
 			Softs::FSolverReal MeshScale,
-			bool bEnabled);
+			bool bEnabled,
+			const FTriangleMesh* MultiResCoarseLODMesh = nullptr,
+			const int32 MultiResCoarseLODParticleRangeId = INDEX_NONE,
+			const TSharedPtr<Softs::FMultiResConstraints>& FineLODMultiResConstraint = TSharedPtr<Softs::FMultiResConstraints>(nullptr));
 
 		UE_DEPRECATED(5.4, "Use AddRules() with WeightMaps, VertexSets, FaceSets, FaceIntMaps, and optional PatternData instead.")
 		void AddRules(
@@ -146,6 +149,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		const TSharedPtr<Softs::FVelocityAndPressureField>& GetVelocityAndPressureField() const { return VelocityAndPressureField; }
 		const TSharedPtr<Softs::FExternalForces>& GetExternalForces() const { return ExternalForces; }
 		const TSharedPtr<Softs::FPBDSoftBodyCollisionConstraint>& GetCollisionConstraint() const { return CollisionConstraint; }
+		const TSharedPtr<Softs::FMultiResConstraints>& GetMultiResConstraints() const { return MultiResConstraints; }
 		// ---- End of debug functions ----
 
 	private:
@@ -198,8 +202,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		void CreateCollisionConstraint(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			Softs::FSolverReal MeshScale );
+		void CreateMultiresConstraint(
+			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
+			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
+			const FTriangleMesh& TriangleMesh,
+			const FTriangleMesh* MultiResCoarseLODMesh,
+			const int32 MultiResCoarseLODParticleRangeId);
 
-		void CreateForceBasedRules();
+		void CreateForceBasedRules(const TSharedPtr<Softs::FMultiResConstraints>& FineLODMultiResConstraint);
 		void CreatePBDRules();
 		void CreateGSRules();
 		void GetGSNumRules();
@@ -230,6 +240,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TSharedPtr<Softs::FPBDSelfCollisionSphereConstraints> SelfCollisionSphereConstraints;
 		TSharedPtr<Softs::FGaussSeidelMasterConstraint<Softs::FSolverReal, Softs::FSolverParticles>> GSMasterConstraint;
 		TSharedPtr<Softs::FGaussSeidelCorotatedCodimensionalConstraints<Softs::FSolverReal, Softs::FSolverParticles>> GSCorotatedCodimensionalConstraint;
+		TSharedPtr<Softs::FMultiResConstraints> MultiResConstraints;
 		//~ Begin Force-based solver only constraints
 		Softs::FSolverVec3 SolverWindVelocity; // Set from solver and added to wind from the config
 		TSharedPtr<Softs::FVelocityAndPressureField> VelocityAndPressureField;
