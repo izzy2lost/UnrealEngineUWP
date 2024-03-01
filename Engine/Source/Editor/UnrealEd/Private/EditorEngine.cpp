@@ -6535,27 +6535,6 @@ bool UEditorEngine::ShouldThrottleCPUUsage() const
 	return bShouldThrottle;
 }
 
-bool UEditorEngine::AreAllWindowsHidden() const
-{
-	if (!FSlateApplication::IsInitialized())
-	{
-		return true;
-	}
-	const TArray< TSharedRef<SWindow> > AllWindows = FSlateApplication::Get().GetInteractiveTopLevelWindows();
-
-	bool bAllHidden = true;
-	for( const TSharedRef<SWindow>& Window : AllWindows )
-	{
-		if( !Window->IsWindowMinimized() && Window->IsVisible() )
-		{
-			bAllHidden = false;
-			break;
-		}
-	}
-
-	return bAllHidden;
-}
-
 AActor* UEditorEngine::AddActor(ULevel* InLevel, UClass* Class, const FTransform& Transform, bool bSilent, EObjectFlags InObjectFlags, bool bSelectActor)
 {
 	check( Class );

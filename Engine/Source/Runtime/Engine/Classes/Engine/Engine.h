@@ -2454,6 +2454,11 @@ public:
 	 */
 	ENGINE_API virtual bool ShouldThrottleCPUUsage() const;
 
+	/**
+	 * @return true if all windows are minimized or hidden (Per OS definition)
+	 */
+	ENGINE_API bool AreAllWindowsHidden() const;
+
 public:
 	/** 
 	 * Return a reference to the GamePlayers array. 

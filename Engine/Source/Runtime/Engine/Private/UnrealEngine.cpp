@@ -78,6 +78,7 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #include "UObject/GarbageCollectionHistory.h"
 #include "UObject/ReachabilityAnalysis.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/SWindow.h"
 #include "Engine/EngineCustomTimeStep.h"
 #include "Engine/LevelStreamingPersistent.h"
 #include "Engine/ObjectReferencer.h"
@@ -12206,6 +12207,27 @@ FColor UEngine::GetFrameTimeDisplayColor(float FrameTimeMS) const
 bool UEngine::ShouldThrottleCPUUsage() const
 {
 	return false;
+}
+
+bool UEngine::AreAllWindowsHidden() const
+{
+	if (!FSlateApplication::IsInitialized())
+	{
+		return true;
+	}
+	const TArray<TSharedRef<SWindow>> AllWindows = FSlateApplication::Get().GetInteractiveTopLevelWindows();
+
+	bool bAllHidden = true;
+	for (const TSharedRef<SWindow>& Window : AllWindows)
+	{
+		if (!Window->IsWindowMinimized() && Window->IsVisible())
+		{
+			bAllHidden = false;
+			break;
+		}
+	}
+
+	return bAllHidden;
 }
 
 #if !UE_BUILD_SHIPPING
