@@ -211,8 +211,6 @@ void FDynamicMaterialEditorModule::StartupModule()
 	FDynamicMaterialEditorCommands::Register();
 	MapCommands();
 
-	FunctionLibrary = MakeShared<FDMMaterialFunctionLibrary>();
-
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
 	PropertyModule.RegisterCustomPropertyTypeLayout(UDynamicMaterialModelEditorOnlyData::StaticClass()->GetFName()
@@ -263,8 +261,6 @@ void FDynamicMaterialEditorModule::ShutdownModule()
 	FDynamicMaterialEditorCommands::Unregister();
 	FDynamicMaterialEditorStyle::Shutdown();
 
-	FunctionLibrary.Reset();
-
 	if (UObjectInitialized() && !IsEngineExitRequested() && FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
 	{
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
@@ -279,11 +275,6 @@ void FDynamicMaterialEditorModule::ShutdownModule()
 	BuildRequestList.Empty();
 
 	UDMMaterialValueTexture::GetDefaultRGBTexture.Unbind();
-}
-
-const TSharedPtr<FDMMaterialFunctionLibrary>& FDynamicMaterialEditorModule::GetFunctionLibrary()
-{
-	return FunctionLibrary;
 }
 
 void FDynamicMaterialEditorModule::SetDynamicMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab)

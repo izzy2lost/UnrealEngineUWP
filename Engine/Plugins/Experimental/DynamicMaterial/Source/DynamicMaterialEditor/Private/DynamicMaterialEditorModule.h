@@ -97,8 +97,6 @@ public:
 	virtual void ShutdownModule() override;
 	//~ End IModuleInterface
 
-	const TSharedPtr<FDMMaterialFunctionLibrary>& GetFunctionLibrary();
-
 	void SetDynamicMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab);
 	void SetDynamicMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty, UWorld* InWorld, bool bInInvokeTab);
 	void SetDynamicMaterialInstance(UDynamicMaterialInstance* InInstance, UWorld* InWorld, bool bInInvokeTab);
@@ -121,7 +119,6 @@ protected:
 	static TMap<UClass*, FDMGetObjectMaterialPropertiesDelegate> CustomMaterialPropertyGenerators;
 	static FDMOnUIValueUpdate OnUIValueUpdate;
 
-	TSharedPtr<FDMMaterialFunctionLibrary> FunctionLibrary;
 	TSet<FDMBuildRequestEntry> BuildRequestList;
 	TSharedRef<FUICommandList> CommandList;
 
