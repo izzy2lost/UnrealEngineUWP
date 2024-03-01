@@ -473,8 +473,6 @@ public:
 		return static_cast<FD3D12CommandContextBase&>(RHICmdList.GetComputeContext().GetLowestLevelContext());
 	}
 
-	virtual void UpdateBuffer(FD3D12ResourceLocation* Dest, uint32 DestOffset, FD3D12ResourceLocation* Source, uint32 SourceOffset, uint32 NumBytes) = 0;
-
 protected:
 	friend class FD3D12CommandContext;
 	virtual FD3D12CommandContext* GetContext(uint32 InGPUIndex) = 0;
@@ -741,8 +739,6 @@ public:
 		// mask. If multiple GPUs are supported we should be using the redirector context.
 		ensure(InGPUMask == GPUMask);
 	}
-
-	virtual void UpdateBuffer(FD3D12ResourceLocation* Dest, uint32 DestOffset, FD3D12ResourceLocation* Source, uint32 SourceOffset, uint32 NumBytes) final override;
 
 	inline const TArray<FRHIUniformBuffer*>& GetStaticUniformBuffers() const
 	{
@@ -1011,11 +1007,6 @@ public:
 	virtual void RHIEndRenderPass() final override
 	{
 		ContextRedirect(RHIEndRenderPass());
-	}
-
-	virtual void UpdateBuffer(FD3D12ResourceLocation* Dest, uint32 DestOffset, FD3D12ResourceLocation* Source, uint32 SourceOffset, uint32 NumBytes) final override
-	{
-		ContextRedirect(UpdateBuffer(Dest, DestOffset, Source, SourceOffset, NumBytes));
 	}
 
 #if D3D12_RHI_RAYTRACING

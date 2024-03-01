@@ -31,86 +31,6 @@ FD3D12Buffer::~FD3D12Buffer()
 	}
 }
 
-struct FRHICommandUpdateBufferString
-{
-	static const TCHAR* TStr() { return TEXT("FRHICommandUpdateBuffer"); }
-};
-struct FRHICommandUpdateBuffer final : public FRHICommand<FRHICommandUpdateBuffer, FRHICommandUpdateBufferString>
-{
-	FD3D12ResourceLocation Source;
-	FD3D12ResourceLocation* Destination;
-	uint32 NumBytes;
-	uint32 DestinationOffset;
-
-	FORCEINLINE_DEBUGGABLE FRHICommandUpdateBuffer(FD3D12ResourceLocation* InDest, FD3D12ResourceLocation& InSource, uint32 InDestinationOffset, uint32 InNumBytes)
-		: Source(nullptr)
-		, Destination(InDest)
-		, NumBytes(InNumBytes)
-		, DestinationOffset(InDestinationOffset)
-	{
-		FD3D12ResourceLocation::TransferOwnership(Source, InSource);
-	}
-
-	void Execute(FRHICommandListBase& CmdList)
-	{
-		FD3D12CommandContextBase::Get(CmdList).UpdateBuffer(Destination, DestinationOffset, &Source, 0, NumBytes);
-	}
-};
-
-// This allows us to rename resources from the RenderThread i.e. all the 'hard' work of allocating a new resource
-// is done in parallel and this small function is called to switch the resource to point to the correct location
-// a the correct time.
-struct FRHICommandRenameUploadBufferString
-{
-	static const TCHAR* TStr() { return TEXT("FRHICommandRenameUploadBuffer"); }
-};
-struct FRHICommandRenameUploadBuffer final : public FRHICommand<FRHICommandRenameUploadBuffer, FRHICommandRenameUploadBufferString>
-{
-	FD3D12Buffer* Resource;
-	FD3D12ResourceLocation NewLocation;
-
-	FORCEINLINE_DEBUGGABLE FRHICommandRenameUploadBuffer(FD3D12Buffer* InResource, FD3D12Device* Device)
-		: Resource(InResource)
-		, NewLocation(Device)
-	{}
-
-	void Execute(FRHICommandListBase& CmdList)
-	{
-		const static FLazyName ExecuteName(TEXT("FRHICommandRenameUploadBuffer::Execute"));
-		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(Resource->GetName(), ExecuteName, Resource->GetOwnerName());
-
-		// Make sure we have an active pipeline when running at the top of the pipe, so the lambda below can obtain a context.
-		TOptional<ERHIPipeline> PreviousPipeline;
-		if (CmdList.IsTopOfPipe() && CmdList.GetPipeline() == ERHIPipeline::None)
-		{
-			PreviousPipeline = CmdList.SwitchPipeline(ERHIPipeline::Graphics);
-		}
-
-		// Clear the resource if still bound to make sure the SRVs are rebound again on next operation. This needs to happen
-		// on the RHI timeline when this command runs at the top of the pipe (which can happen when locking buffers in
-		// RLM_WriteOnly_NoOverwrite mode).
-		CmdList.EnqueueLambda([ResourceLocation = &Resource->ResourceLocation](FRHICommandListBase& RHICmdList)
-		{
-			const uint32 GPUIndex = 0; // @todo mgpu - seems wrong we're only doing this for the 0th GPU
-
-			FD3D12CommandContext& Context = FD3D12CommandContext::Get(RHICmdList, GPUIndex);
-			Context.ConditionalClearShaderResource(ResourceLocation, EShaderParameterTypeMask::SRVMask);
-		});
-
-#if UE_MEMORY_TRACE_ENABLED
-		// This memory trace happens before RenameLDAChain so the old & new GPU addresses are correct
-		MemoryTrace_ReallocFree(Resource->ResourceLocation.GetGPUVirtualAddress(), EMemoryTraceRootHeap::VideoMemory);
-		MemoryTrace_ReallocAlloc(NewLocation.GetGPUVirtualAddress(), Resource->ResourceLocation.GetSize(), Resource->BufferAlignment, EMemoryTraceRootHeap::VideoMemory);
-#endif
-		Resource->RenameLDAChain(CmdList, NewLocation);
-
-		if (PreviousPipeline.IsSet())
-		{
-			CmdList.SwitchPipeline(PreviousPipeline.GetValue());
-		}
-	}
-};
-
 void FD3D12Buffer::UploadResourceData(FRHICommandListBase& RHICmdList, FResourceArrayInterface* InResourceArray, D3D12_RESOURCE_STATES InDestinationState, const TCHAR* AssetName, const FName& ClassName, const FName& PackageName)
 {
 	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(AssetName, ClassName, PackageName);
@@ -551,6 +471,7 @@ void* FD3D12DynamicRHI::LockBuffer(FRHICommandListBase& RHICmdList, FD3D12Buffer
 
 	FD3D12LockedResource& LockedData = Buffer->LockedData;
 	check(LockedData.bLocked == false);
+
 	FD3D12Adapter& Adapter = GetAdapter();
 
 	void* Data = nullptr;
@@ -570,18 +491,47 @@ void* FD3D12DynamicRHI::LockBuffer(FRHICommandListBase& RHICmdList, FD3D12Buffer
 		{
 			FD3D12Device* Device = Buffer->GetParentDevice();
 
-			// If on the RenderThread, queue up a command on the RHIThread to rename this buffer at the correct time
+			FD3D12ResourceLocation NewLocation(Device);
+			Data = Adapter.GetUploadHeapAllocator(Device->GetGPUIndex()).AllocUploadResource(BufferSize, Buffer->BufferAlignment, NewLocation);
+
+			// Make sure we have an active pipeline when running at the top of the pipe, so the lambda below can obtain a context.
+			TOptional<ERHIPipeline> PreviousPipeline;
+			if (RHICmdList.IsTopOfPipe() && RHICmdList.GetPipeline() == ERHIPipeline::None)
+			{
+				PreviousPipeline = RHICmdList.SwitchPipeline(ERHIPipeline::Graphics);
+			}
+
+			RHICmdList.EnqueueLambda([
+				Resource = Buffer,
+				NewLocation = MoveTemp(NewLocation)
+			](FRHICommandListBase& ExecutingCmdList) mutable
+			{
+				const static FLazyName ExecuteName(TEXT("FRHICommandRenameUploadBuffer::Execute"));
+				UE_TRACE_METADATA_SCOPE_ASSET_FNAME(Resource->GetName(), ExecuteName, Resource->GetOwnerName());
+
+				// Clear the resource if still bound to make sure the SRVs are rebound again on next operation. This needs to happen
+				// on the RHI timeline when this command runs at the top of the pipe (which can happen when locking buffers in
+				// RLM_WriteOnly_NoOverwrite mode).
+				
+				FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, Resource->GetParentDevice()->GetGPUIndex());
+				Context.ConditionalClearShaderResource(&Resource->ResourceLocation, EShaderParameterTypeMask::SRVMask);
+
+#if UE_MEMORY_TRACE_ENABLED
+				// This memory trace happens before RenameLDAChain so the old & new GPU addresses are correct
+				MemoryTrace_ReallocFree(Resource->ResourceLocation.GetGPUVirtualAddress(), EMemoryTraceRootHeap::VideoMemory);
+				MemoryTrace_ReallocAlloc(NewLocation.GetGPUVirtualAddress(), Resource->ResourceLocation.GetSize(), Resource->BufferAlignment, EMemoryTraceRootHeap::VideoMemory);
+#endif
+				Resource->RenameLDAChain(ExecutingCmdList, NewLocation);
+			});
+
 			if (RHICmdList.IsTopOfPipe())
 			{
-				FRHICommandRenameUploadBuffer* Command = ALLOC_COMMAND_CL(RHICmdList, FRHICommandRenameUploadBuffer)(Buffer, Device);
-				Data = Adapter.GetUploadHeapAllocator(Device->GetGPUIndex()).AllocUploadResource(BufferSize, Buffer->BufferAlignment, Command->NewLocation);
 				RHICmdList.RHIThreadFence(true);
 			}
-			else
+
+			if (PreviousPipeline.IsSet())
 			{
-				FRHICommandRenameUploadBuffer Command(Buffer, Device);
-				Data = Adapter.GetUploadHeapAllocator(Device->GetGPUIndex()).AllocUploadResource(BufferSize, Buffer->BufferAlignment, Command.NewLocation);
-				Command.Execute(RHICmdList);
+				RHICmdList.SwitchPipeline(PreviousPipeline.GetValue());
 			}
 		}
 	}
@@ -594,8 +544,6 @@ void* FD3D12DynamicRHI::LockBuffer(FRHICommandListBase& RHICmdList, FD3D12Buffer
 		// Locking for read must occur immediately so we can't queue up the operations later.
 		if (LockMode == RLM_ReadOnly)
 		{
-			FRHICommandListImmediate& RHICmdListImmediate = RHICmdList.GetAsImmediate();
-
 			LockedData.bLockedForReadOnly = true;
 			// If the static buffer is being locked for reading, create a staging buffer.
 			FD3D12Resource* StagingBuffer = nullptr;
@@ -604,43 +552,26 @@ void* FD3D12DynamicRHI::LockBuffer(FRHICommandListBase& RHICmdList, FD3D12Buffer
 			VERIFYD3D12RESULT(Adapter.CreateBuffer(D3D12_HEAP_TYPE_READBACK, Node, Node, Offset + Size, &StagingBuffer, nullptr));
 
 			// Copy the contents of the buffer to the staging buffer.
+			RHICmdList.EnqueueLambda([Node, StagingBuffer, pResource, Buffer, Offset, Size](FRHICommandListBase& ExecutingCmdList)
 			{
-				const auto& pfnCopyContents = [&]()
-				{
-					FD3D12CommandContext& DefaultContext = Device->GetDefaultCommandContext();
+				FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, Node.GetFirstIndex());
+				uint64 SubAllocOffset = Buffer->ResourceLocation.GetOffsetFromBaseOfResource();
 
-					FScopedResourceBarrier ScopeResourceBarrierSource(DefaultContext, pResource, &Buffer->ResourceLocation, D3D12_RESOURCE_STATE_COPY_SOURCE, 0);
-					// Don't need to transition upload heaps
+				FScopedResourceBarrier ScopeResourceBarrierSource(Context, pResource, &Buffer->ResourceLocation, D3D12_RESOURCE_STATE_COPY_SOURCE, 0);
+				// Don't need to transition upload heaps
+				Context.FlushResourceBarriers(); // Must flush so the desired state is actually set.
 
-					uint64 SubAllocOffset = Buffer->ResourceLocation.GetOffsetFromBaseOfResource();
+				Context.UpdateResidency(StagingBuffer);
+				Context.UpdateResidency(pResource);
 
-					DefaultContext.FlushResourceBarriers();	// Must flush so the desired state is actually set.
-					DefaultContext.GraphicsCommandList()->CopyBufferRegion(
-						StagingBuffer->GetResource(),
-						0,
-						pResource->GetResource(),
-						SubAllocOffset + Offset, Size);
-
-					DefaultContext.UpdateResidency(StagingBuffer);
-					DefaultContext.UpdateResidency(pResource);
-
-					DefaultContext.FlushCommands(ED3D12FlushFlags::WaitForCompletion);
-				};
-
-				if (RHICmdListImmediate.IsTopOfPipe())
-				{
-					// Sync when in the render thread implementation
-					check(IsInRHIThread() == false);
-
-					RHICmdListImmediate.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-					pfnCopyContents();
-				}
-				else
-				{
-					check(IsInRenderingThread() && !IsRHIThreadRunning());
-					pfnCopyContents();
-				}
-			}
+				Context.GraphicsCommandList()->CopyBufferRegion(
+					StagingBuffer->GetResource(),
+					0,
+					pResource->GetResource(),
+					SubAllocOffset + Offset, Size);
+			});
+			
+			RHICmdList.GetAsImmediate().SubmitAndBlockUntilGPUIdle();
 
 			LockedData.ResourceLocation.AsStandAlone(StagingBuffer, Size);
 			Data = LockedData.ResourceLocation.GetMappedBaseAddress();
@@ -674,45 +605,53 @@ void FD3D12DynamicRHI::UnlockBuffer(FRHICommandListBase& RHICmdList, FD3D12Buffe
 	{
 		// If the Buffer is dynamic, its upload heap memory can always stay mapped. Don't do anything.
 	}
+	else if (LockedData.bLockedForReadOnly)
+	{
+		// Nothing to do, just release the locked data at the end of the function
+	}
 	else
 	{
-		if (LockedData.bLockedForReadOnly)
-		{
-			//Nothing to do, just release the locked data at the end of the function
-		}
-		else
-		{
-			// Update all of the resources in the LDA chain
-			check(Buffer->IsHeadLink());
-			FD3D12Buffer* LastBuffer = Buffer->GetLinkedObject(Buffer->GetLinkedObjectsGPUMask().GetLastIndex());
+		// Update all of the resources in the LDA chain
+		check(Buffer->IsHeadLink());
 
-			for (FD3D12Buffer::FLinkedObjectIterator CurrentBuffer(Buffer); CurrentBuffer; ++CurrentBuffer)
+		RHICmdList.EnqueueLambda([
+			RootBuffer = Buffer,
+			LockedData = MoveTemp(LockedData)
+		](FRHICommandListBase& ExecutingCmdList)
+		{
+			for (FD3D12Buffer& Buffer : *RootBuffer)
 			{
-				SCOPED_GPU_MASK((FRHIComputeCommandList&)RHICmdList, FRHIGPUMask::FromIndex(CurrentBuffer->GetParentGPUIndex()));
+				FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, Buffer.GetParentDevice()->GetGPUIndex());
 
-				// If we are on the render thread, queue up the copy on the RHIThread so it happens at the correct time.
-				if (RHICmdList.IsTopOfPipe())
-				{
-					if (CurrentBuffer.Get() == LastBuffer)
-					{
-						// Command associated with last buffer (will be only buffer if single GPU) receives ownership of locked data
-						ALLOC_COMMAND_CL(RHICmdList, FRHICommandUpdateBuffer)(&CurrentBuffer->ResourceLocation, LockedData.ResourceLocation, LockedData.LockOffset, LockedData.LockSize);
-					}
-					else
-					{
-						// Other commands receive a reference copy of the locked data.  Commands get replayed in order, with the
-						// last command handling clean up the locked data after it has been propagated to all GPUs.
-						FD3D12ResourceLocation NodeResourceLocation(LockedData.ResourceLocation.GetParentDevice());
-						FD3D12ResourceLocation::ReferenceNode(NodeResourceLocation.GetParentDevice(), NodeResourceLocation, LockedData.ResourceLocation);
-						ALLOC_COMMAND_CL(RHICmdList, FRHICommandUpdateBuffer)(&CurrentBuffer->ResourceLocation, NodeResourceLocation, LockedData.LockOffset, LockedData.LockSize);
-					}
-				}
-				else
-				{
-					FD3D12CommandContextBase::Get(RHICmdList).UpdateBuffer(&CurrentBuffer->ResourceLocation, LockedData.LockOffset, &LockedData.ResourceLocation, 0, LockedData.LockSize);
-				}
+				FD3D12Resource* SourceResource = LockedData.ResourceLocation.GetResource();
+				uint32 SourceFullOffset = LockedData.ResourceLocation.GetOffsetFromBaseOfResource();
+
+				FD3D12Resource* DestResource = Buffer.ResourceLocation.GetResource();
+				uint32 DestFullOffset = Buffer.ResourceLocation.GetOffsetFromBaseOfResource() + LockedData.LockOffset;
+
+				// Clear the resource if still bound to make sure the SRVs are rebound again on next operation (and get correct resource transitions enqueued)
+				Context.ConditionalClearShaderResource(&Buffer.ResourceLocation, EShaderParameterTypeMask::SRVMask);
+
+				FScopedResourceBarrier ScopeResourceBarrierDest(Context, DestResource, &Buffer.ResourceLocation, D3D12_RESOURCE_STATE_COPY_DEST, 0);
+				// Don't need to transition upload heaps
+				Context.FlushResourceBarriers();
+
+				Context.UpdateResidency(DestResource);
+				Context.UpdateResidency(SourceResource);
+
+				Context.GraphicsCommandList()->CopyBufferRegion(
+					DestResource->GetResource(),
+					DestFullOffset,
+					SourceResource->GetResource(),
+					SourceFullOffset,
+					LockedData.LockSize
+				);
+				
+				Context.ConditionalSplitCommandList();
+
+				DEBUG_RHI_EXECUTE_COMMAND_LIST(this);
 			}
-		}
+		});
 	}
 
 	LockedData.Reset();
