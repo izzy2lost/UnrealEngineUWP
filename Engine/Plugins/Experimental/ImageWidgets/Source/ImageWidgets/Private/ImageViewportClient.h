@@ -22,7 +22,7 @@ namespace UE::ImageWidgets
 	{
 	public:
 		FImageViewportClient(const TWeakPtr<SEditorViewport>& InViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
-		                     FGetDrawSettings&& InGetDrawSettings);
+		                     FGetDrawSettings&& InGetDrawSettings, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode);
 		virtual ~FImageViewportClient() override;
 
 		virtual void Draw(FViewport* InViewport, FCanvas* Canvas) override;

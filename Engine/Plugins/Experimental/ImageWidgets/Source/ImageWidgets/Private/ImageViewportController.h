@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "SImageViewport.h"
 
 namespace UE::ImageWidgets
 {
@@ -12,7 +13,13 @@ namespace UE::ImageWidgets
 	class FImageViewportController
 	{
 	public:
-		enum class EZoomMode { Custom, Fit, Fill };
+		enum class EZoomMode
+		{
+			Fit = static_cast<int32>(SImageViewport::FControllerSettings::EDefaultZoomMode::Fit),
+			Fill = static_cast<int32>(SImageViewport::FControllerSettings::EDefaultZoomMode::Fill),
+			Custom
+		};
+		static_assert(EZoomMode::Fit != EZoomMode::Fill && EZoomMode::Fit != EZoomMode::Custom && EZoomMode::Fill != EZoomMode::Custom);
 
 		struct FZoomSettings
 		{
@@ -20,7 +27,7 @@ namespace UE::ImageWidgets
 			double Zoom;
 		};
 
-		FImageViewportController();
+		explicit FImageViewportController(EZoomMode DefaultZoomMode);
 
 		void Pan(FVector2d Delta);
 		void Reset(FIntPoint ImageSize, FIntPoint ViewportSize);
@@ -34,5 +41,6 @@ namespace UE::ImageWidgets
 	private:
 		FVector2d PanAmount;
 		FZoomSettings ZoomSettings;
+		EZoomMode DefaultZoomMode;
 	};
 }

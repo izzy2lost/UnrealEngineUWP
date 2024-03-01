@@ -59,7 +59,7 @@ namespace UE::ImageWidgets
 		};
 
 		/**
-		 * Any settings related to drawing viewport contents other than the image itself. 
+		 * Settings related to drawing viewport contents other than the image itself.
 		 */
 		struct FDrawSettings
 		{
@@ -96,6 +96,16 @@ namespace UE::ImageWidgets
 			uint32 BackgroundCheckerSize = 8;
 		};
 
+		/**
+		 * Settings related to viewport controls.
+		 */
+		struct FControllerSettings
+		{
+			enum class EDefaultZoomMode { Fit, Fill };
+
+			EDefaultZoomMode DefaultZoomMode = EDefaultZoomMode::Fit;
+		};
+
 		SLATE_BEGIN_ARGS(SImageViewport)
 			{
 			}
@@ -108,6 +118,9 @@ namespace UE::ImageWidgets
 
 			/** Settings for drawing viewport contents other than the actual image */
 			SLATE_ATTRIBUTE(FDrawSettings, DrawSettings)
+
+			/** Settings for controlling the viewport */
+			SLATE_ARGUMENT(FControllerSettings, ControllerSettings)
 
 		SLATE_END_ARGS()
 

@@ -172,7 +172,8 @@ namespace UE::ImageWidgets
 			StaticCastWeakPtr<SEditorViewport>(AsWeak()),
 			FGetImageSize::CreateLambda(GetImageSize),
 			FDrawImage::CreateLambda(DrawImage),
-			FGetDrawSettings::CreateLambda(GetDrawSettings)));
+			FGetDrawSettings::CreateLambda(GetDrawSettings),
+			InArgs._ControllerSettings.DefaultZoomMode));
 
 		SEditorViewport::Construct(SEditorViewport::FArguments());
 	}

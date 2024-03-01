@@ -143,10 +143,22 @@ namespace UE::ImageWidgets
 
 	FText SImageViewportToolbar::GetZoomMenuLabel() const
 	{
+		const FImageViewportController::FZoomSettings ZoomSettings = ViewportClient->GetZoom();
+
 		const double Zoom = ViewportClient->GetZoom().Zoom;
 		FNumberFormattingOptions FormattingOptions;
 		FormattingOptions.SetMaximumFractionalDigits(Zoom < 1.0 ? (Zoom < 0.1 ? 2 : 1) : 0);
-		return FText::Format(LOCTEXT("Zoom", "Zoom {0}"), FText::AsPercent(Zoom, &FormattingOptions));
+		const FText ZoomPercentage = FText::AsPercent(Zoom, &FormattingOptions);
+
+		if (ZoomSettings.Mode == FImageViewportController::EZoomMode::Custom)
+		{
+			return ZoomPercentage;
+		}
+
+		return FText::Format(
+			LOCTEXT("ZoomFitFill", "{0} {1}"),
+			FText::FromString(ZoomSettings.Mode == FImageViewportController::EZoomMode::Fit ? "Fit" : "Fill"),
+			ZoomPercentage);
 	}
 
 	TSharedRef<SWidget> SImageViewportToolbar::MakeZoomMenu() const

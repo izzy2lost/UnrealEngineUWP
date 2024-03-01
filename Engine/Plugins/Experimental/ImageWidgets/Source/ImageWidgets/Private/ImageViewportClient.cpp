@@ -98,11 +98,12 @@ void DestroyCheckerTexture(TStrongObjectPtr<UTexture2D>& CheckerTexture)
 }
 
 FImageViewportClient::FImageViewportClient(const TWeakPtr<SEditorViewport>& InEditorViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
-                                           FGetDrawSettings&& InGetDrawSettings)
+                                           FGetDrawSettings&& InGetDrawSettings, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode)
 	: FEditorViewportClient(nullptr, nullptr, InEditorViewport)
 	, GetImageSize(MoveTemp(InGetImageSize))
 	, DrawImage(MoveTemp(InDrawImage))
 	, GetDrawSettings(MoveTemp(InGetDrawSettings))
+	, Controller(static_cast<FImageViewportController::EZoomMode>(DefaultZoomMode))
 {
 	check(GetImageSize.IsBound());
 	check(DrawImage.IsBound());
@@ -290,7 +291,7 @@ FImageViewportController::FZoomSettings FImageViewportClient::GetZoom() const
 {
 	return Controller.GetZoom();
 }
-	
+
 void FImageViewportClient::SetZoom(FImageViewportController::EZoomMode Mode, double Zoom)
 {
 	const FIntPoint ImageSize = GetImageSize.Execute();

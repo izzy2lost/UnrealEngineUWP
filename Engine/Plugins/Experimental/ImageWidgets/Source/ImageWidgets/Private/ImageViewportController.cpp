@@ -80,7 +80,8 @@ namespace UE::ImageWidgets
 		}
 	}
 
-	FImageViewportController::FImageViewportController()
+	FImageViewportController::FImageViewportController(EZoomMode DefaultZoomMode)
+		:DefaultZoomMode(DefaultZoomMode)
 	{
 		Reset({0, 0}, {0, 0});
 	}
@@ -92,7 +93,7 @@ namespace UE::ImageWidgets
 
 	void FImageViewportController::Reset(FIntPoint ImageSize, FIntPoint ViewportSize)
 	{
-		SetZoom(EZoomMode::Fit, 1.0, ImageSize, ViewportSize);
+		SetZoom(DefaultZoomMode, 1.0, ImageSize, ViewportSize);
 
 		PanAmount = FVector2d::Zero();
 	}

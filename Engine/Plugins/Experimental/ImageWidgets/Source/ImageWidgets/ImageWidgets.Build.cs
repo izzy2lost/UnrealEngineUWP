@@ -10,8 +10,8 @@ public class ImageWidgets : ModuleRules
 	// Todo Remove build flags as soon as all the respective prototype code is migrated to this module.
 	// These flags are currently used to migrate already existing prototype functionality into this module without having to remove/change the functionality of
 	// the prototype applications.
-	public static bool EnableAbComparison = false;
-	public static bool EnableCatalog = false;
+	private const bool EnableAbComparison = false;
+	private const bool EnableCatalog = false;
 
 	public ImageWidgets(ReadOnlyTargetRules Target) : base(Target)
 	{
