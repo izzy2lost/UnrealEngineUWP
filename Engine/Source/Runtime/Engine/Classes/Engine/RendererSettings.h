@@ -1109,6 +1109,15 @@ class URendererSettings : public UDeveloperSettings
 		uint32 bMaterialEnergyConservation : 1;
 
 	/**
+	"Automatically set Material usage flags in editor default."
+	*/
+	UPROPERTY(config, EditAnywhere, Category = Materials, meta = (
+		ConsoleVariable = "r.Material.DefaultAutoMaterialUsage", DisplayName = "Automatically set Material usage flags in editor default",
+		ToolTip = "Whether new Materials should automatically set usage flags in the Editor.",
+		ConfigRestartRequired = false))
+	uint32 bAutomaticallySetMaterialUsageInEditorDefault : 1;
+
+	/**
 	"Enable Order Independent Transparency (Experimental)."
 	*/
 	UPROPERTY(config, EditAnywhere, Category = Translucency, meta = (

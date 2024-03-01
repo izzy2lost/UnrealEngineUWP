@@ -290,6 +290,12 @@ DEFINE_LOG_CATEGORY(LogEditorFactories);
 
 #define LOCTEXT_NAMESPACE "EditorFactories"
 
+static TAutoConsoleVariable<int32> CVarAutomaticallySetMaterialUsageInEditorDefault(
+	TEXT("r.Material.DefaultAutoMaterialUsage"),
+	1,
+	TEXT("Whether new Materials should automatically set usage flags in the Editor."),
+	ECVF_RenderThreadSafe);
+
 /*------------------------------------------------------------------------------
 	Shared - used by multiple factories
 ------------------------------------------------------------------------------*/
@@ -498,6 +504,8 @@ UMaterialFactoryNew::UMaterialFactoryNew(const FObjectInitializer& ObjectInitial
 UObject* UMaterialFactoryNew::FactoryCreateNew(UClass* Class,UObject* InParent,FName Name,EObjectFlags Flags,UObject* Context,FFeedbackContext* Warn)
 {
 	UMaterial* NewMaterial = NewObject<UMaterial>(InParent, Class, Name, Flags);
+
+	NewMaterial->bAutomaticallySetUsageInEditor = CVarAutomaticallySetMaterialUsageInEditorDefault.GetValueOnAnyThread() != 0;
 
 	if ( InitialTexture != nullptr )
 	{
