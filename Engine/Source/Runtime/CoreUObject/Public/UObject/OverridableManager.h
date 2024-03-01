@@ -184,7 +184,7 @@ public:
 	 * @return true if the property was successfully cleared. */
 	FORCEINLINE bool ClearOverriddenProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain)
 	{
-		return ClearOverriddenProperty(Object, PropertyEvent, PropertyChain.GetHead());
+		return ClearOverriddenProperty(Object, PropertyEvent, PropertyChain.GetActiveMemberNode() ? PropertyChain.GetActiveMemberNode() : PropertyChain.GetHead());
 	}
 
 	/**
@@ -228,7 +228,7 @@ public:
 	 * @return the current type of override operation on the property */
 	FORCEINLINE EOverriddenPropertyOperation GetOverriddenPropertyOperation(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain, bool* bOutInheritedOperation = nullptr)
 	{
-		return GetOverriddenPropertyOperation(Object, PropertyEvent, PropertyChain.GetHead(), bOutInheritedOperation);
+		return GetOverriddenPropertyOperation(Object, PropertyEvent, PropertyChain.GetActiveMemberNode() ? PropertyChain.GetActiveMemberNode() : PropertyChain.GetHead(), bOutInheritedOperation);
 	}
 
 	/**
