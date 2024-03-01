@@ -322,7 +322,7 @@ public:
 	
 	virtual const FSlateBrush* GetIconBrush(const FAssetData& InAssetData, const FName InClassName) const override
 	{
-		return AssetDefinitionPtr->GetThumbnailBrush(InAssetData, InClassName);
+		return AssetDefinitionPtr->GetIconBrush(InAssetData, InClassName);
 	}
 
 	virtual FTopLevelAssetPath GetClassPathName() const override
