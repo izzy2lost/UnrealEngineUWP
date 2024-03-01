@@ -16,6 +16,10 @@ public class LiveLinkHubTarget : TargetRules
 	[CommandLine("-CookedEditorDistribution")]
 	public bool bCookedEditorDistribution = false;
 
+	// Whether to disable building third party plugins.
+	[CommandLine("-EnableThirdPartyPlugins=")]
+	public bool bEnableThirdPartyPlugins = true;
+
 	public LiveLinkHubTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Program;
@@ -25,24 +29,43 @@ public class LiveLinkHubTarget : TargetRules
 		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
 
 		SolutionDirectory = "Programs/LiveLink";
-
-		AdditionalPlugins.Add("LiveLink");
-		AdditionalPlugins.Add("LiveLinkHub");
-		AdditionalPlugins.Add("ContentBrowserAssetDataSource");
-		AdditionalPlugins.Add("StructUtils");
-		AdditionalPlugins.Add("UdpMessaging");
-		AdditionalPlugins.Add("QuicMessaging");
-		AdditionalPlugins.Add("PropertyAccessEditor");
-		AdditionalPlugins.Add("PythonScriptPlugin");
+		
+		// These plugins are required for running LiveLinkHub. 
+		// They may be a direct dependency or a dependency of one of our plugins.
+		AdditionalPlugins.AddRange(new string[]
+		{
+			"LiveLink",
+			"LiveLinkHub",
+			"LiveLinkCamera",
+			"LiveLinkLens", // Needed for Vicon
+			"LensComponent", // Needed by LiveLinkLens
+			"LiveLinkInputDevice",
+			"ContentBrowserAssetDataSource",
+			"ProceduralMeshComponent", // Needed by LensComponent
+			"PropertyAccessEditor",
+			"PythonScriptPlugin",
+			"QuicMessaging",
+			"StructUtils",
+			"UdpMessaging"
+		});
 
 		OptionalPlugins.AddRange(new string[]
 		{
-			"AppleARKitFaceSupport",
-			//"LiveLinkViconDataStream",
-			"MocopiLiveLink",
-			"LiveLinkInputDevice",
-			"OptitrackLiveLink"
+			"AppleARKitFaceSupport"
 		});
+
+		if (bEnableThirdPartyPlugins)
+		{
+			OptionalPlugins.AddRange(new string[]
+			{
+				"LiveLinkMvnPlugin",
+				//"LiveLinkViconDataStream",
+				"MocopiLiveLink",
+				"OptitrackLiveLink",
+				"PoseAILiveLink",
+				"Smartsuit"
+			});
+		}
 
 		bCompileAgainstCoreUObject = true;
 		bCompileAgainstEngine = true;
@@ -70,8 +93,6 @@ public class LiveLinkHubTarget : TargetRules
 		}
 
 		bEnableTrace = true;
-
-		
 
 		OptedInModulePlatforms = new UnrealTargetPlatform[] { UnrealTargetPlatform.Win64, UnrealTargetPlatform.Mac,
 															  UnrealTargetPlatform.Linux, UnrealTargetPlatform.LinuxArm64 };
