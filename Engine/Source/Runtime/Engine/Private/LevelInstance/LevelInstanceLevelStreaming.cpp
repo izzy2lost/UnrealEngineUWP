@@ -523,11 +523,12 @@ void ULevelStreamingLevelInstance::OnLevelLoadedChanged(ULevel* InLevel)
 		}
 #endif
 		check(InLevel == NewLoadedLevel);
-		check(!NewLoadedLevel->bAlreadyMovedActors);
-		
-		AWorldSettings* WorldSettings = NewLoadedLevel->GetWorldSettings();
-		check(WorldSettings);
-		LevelTransform = FTransform(WorldSettings->LevelInstancePivotOffset) * LevelTransform;
+		if (!NewLoadedLevel->bAlreadyMovedActors)
+		{
+			AWorldSettings* WorldSettings = NewLoadedLevel->GetWorldSettings();
+			check(WorldSettings);
+			LevelTransform = FTransform(WorldSettings->LevelInstancePivotOffset) * LevelTransform;
+		}
 
 		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetWorld()->GetSubsystem<ULevelInstanceSubsystem>())
 		{
