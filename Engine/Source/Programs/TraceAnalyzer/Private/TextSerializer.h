@@ -168,14 +168,28 @@ public:
 	void WriteValueReference(const UE::Trace::FEventRef64& Value) { Appendf("R(%u,%llu)", Value.RefTypeId, Value.Id); }
 
 	void WriteValueBool(bool Value)         { Append(Value ? "true" : "false"); }
-	void WriteValueInteger(int64 Value)     { Appendf("%lli", Value); }
-	void WriteValueIntegerHex(int64 Value)  { Appendf("0x%llX", uint64(Value)); }
+
+	void WriteValueInt8(int8 Value)         { Appendf("%i", int32(Value)); }
+	void WriteValueInt16(int16 Value)       { Appendf("%i", int32(Value)); }
+	void WriteValueInt32(int32 Value)       { Appendf("%i", Value); }
+	void WriteValueInt64(int64 Value)       { Appendf("%lli", Value); }
+
+	void WriteValueUInt8(uint8 Value)       { Appendf("%u", uint32(Value)); }
+	void WriteValueUInt16(uint16 Value)     { Appendf("%u", uint32(Value)); }
+	void WriteValueUInt32(uint32 Value)     { Appendf("%u", Value); }
+	void WriteValueUInt64(uint64 Value)     { Appendf("%llu", Value); }
+
 	void WriteValueHex8(uint8 Value)        { Appendf("0x%X", uint32(Value)); }
 	void WriteValueHex16(uint16 Value)      { Appendf("0x%X", uint32(Value)); }
 	void WriteValueHex32(uint32 Value)      { Appendf("0x%X", Value); }
 	void WriteValueHex64(uint64 Value)      { Appendf("0x%llX", Value); }
+
+	void WriteValueInt64Auto(int64 Value);
+	void WriteValueUInt64Auto(uint64 Value);
+
 	void WriteValueFloat(float Value)       { Appendf("%f", Value); }
 	void WriteValueDouble(double Value)     { Appendf("%f", Value); }
+
 	void WriteValueTime(double Time)        { Appendf("%f", Time); }
 	void WriteValueNull()                   { Append("null"); }
 
@@ -193,7 +207,7 @@ public:
 	void WriteString(const ANSICHAR* Name, const ANSICHAR* Value)             { WriteKey(Name); WriteValueString(Value); }
 	void WriteString(const ANSICHAR* Name, const ANSICHAR* Value, uint32 Len) { WriteKey(Name); WriteValueString(Value, Len); }
 	void WriteBool(const ANSICHAR* Name, bool Value)                          { WriteKey(Name); WriteValueBool(Value); }
-	void WriteInteger(const ANSICHAR* Name, int64 Value)                      { WriteKey(Name); WriteValueInteger(Value); }
+	void WriteInteger(const ANSICHAR* Name, int64 Value)                      { WriteKey(Name); WriteValueInt64(Value); }
 	void WriteIntegerHex(const ANSICHAR* Name, int64 Value)                   { WriteKey(Name); WriteValueHex64(uint64(Value)); }
 	void WriteFloat(const ANSICHAR* Name, float Value)                        { WriteKey(Name); WriteValueFloat(Value); }
 	void WriteDouble(const ANSICHAR* Name, double Value)                      { WriteKey(Name); WriteValueDouble(Value); }
@@ -212,7 +226,7 @@ class FStdoutTextSerializer : public FTextSerializer
 public:
 	FStdoutTextSerializer();
 	virtual ~FStdoutTextSerializer() {}
-	
+
 	virtual void AppendChar(const ANSICHAR Value) override;
 	virtual void Append(const ANSICHAR* Text, int32 Len) override;
 	virtual void Append(const ANSICHAR* Text) override;

@@ -22,9 +22,6 @@ namespace TraceAnalyzer
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-constexpr int64 MinInt64Hex = -999'999;
-constexpr int64 MaxInt64Hex = 999'999'999;
-
 // See \Engine\Source\Runtime\TraceLog\Public\Trace\Detail\Protocols\Protocol6.h
 enum class EEventFlags : uint8
 {
@@ -1072,7 +1069,7 @@ bool FConvertToTextAnalyzer::OnNewEvent(uint16 RouteId, const FEventTypeInfo& Ty
 			Serializer.Append("Reference64");
 			break;
 		default:
-			Serializer.WriteValueInteger(static_cast<int64>(FieldInfo.GetType()));
+			Serializer.WriteValueUInt32(static_cast<uint32>(FieldInfo.GetType()));
 			break;
 		}
 
@@ -1279,13 +1276,66 @@ bool FConvertToTextAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEven
 			{
 				case FEventFieldInfo::EType::Integer: // int64
 				{
-					if (!FieldInfo.IsSigned())
+#if 0
+					// Probe element size...
+					uint8 ElementSize = 0;
 					{
-						// Write array as 0x[00 01 ... FF]
+						const TArrayReader<uint8>& Reader8 = EventData.GetArray<uint8>(FieldInfo.GetName());
+						if (Reader8.GetData())
+						{
+							ElementSize = 1;
+						}
+						else
+						{
+							const TArrayReader<uint16>& Reader16 = EventData.GetArray<uint16>(FieldInfo.GetName());
+							if (Reader16.GetData())
+							{
+								ElementSize = 2;
+							}
+							else
+							{
+								const TArrayReader<uint32>& Reader32 = EventData.GetArray<uint32>(FieldInfo.GetName());
+								if (Reader16.GetData())
+								{
+									ElementSize = 4;
+								}
+								else
+								{
+									ElementSize = 8;
+								}
+							}
+						}
+					}
+#endif
+
+					if (FieldInfo.IsSigned())
+					{
+						Serializer.BeginArray();
+						const TArrayReader<int64>& Reader = EventData.GetArray<int64>(FieldInfo.GetName());
+						const uint32 ArrayCount = Reader.Num();
+						const uint32 ActualCount = FMath::Min(ArrayCount, 8u);
+						for (uint32 ArrayIndex = 0; ArrayIndex < ActualCount; ++ArrayIndex)
+						{
+							if (ArrayIndex != 0)
+							{
+								Serializer.NextArrayElement();
+							}
+							const int64 Value = Reader[ArrayIndex];
+							Serializer.WriteValueInt64Auto(Value);
+						}
+						if (ActualCount != ArrayCount)
+						{
+							Serializer.Appendf(" ... | %u elements", ArrayCount);
+						}
+						Serializer.EndArray();
+					}
+					else // unsigned
+					{
 						const TArrayReader<uint8>& Reader8 = EventData.GetArray<uint8>(FieldInfo.GetName());
 						const uint8* Data8 = Reader8.GetData();
 						if (Data8)
 						{
+							// Write array as 0x[00 01 ... FF]
 							Serializer.Append("0x");
 							Serializer.BeginArray();
 							const uint32 ArrayCount = Reader8.Num();
@@ -1308,33 +1358,26 @@ bool FConvertToTextAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEven
 							Serializer.EndArray();
 							break;
 						}
-					}
 
-					Serializer.BeginArray();
-					const TArrayReader<int64>& Reader = EventData.GetArray<int64>(FieldInfo.GetName());
-					const uint32 ArrayCount = Reader.Num();
-					const uint32 ActualCount = FMath::Min(ArrayCount, 4u);
-					for (uint32 ArrayIndex = 0; ArrayIndex < ActualCount; ++ArrayIndex)
-					{
-						if (ArrayIndex != 0)
+						Serializer.BeginArray();
+						const TArrayReader<uint64>& Reader = EventData.GetArray<uint64>(FieldInfo.GetName());
+						const uint32 ArrayCount = Reader.Num();
+						const uint32 ActualCount = FMath::Min(ArrayCount, 8u);
+						for (uint32 ArrayIndex = 0; ArrayIndex < ActualCount; ++ArrayIndex)
 						{
-							Serializer.NextArrayElement();
+							if (ArrayIndex != 0)
+							{
+								Serializer.NextArrayElement();
+							}
+							const uint64 Value = Reader[ArrayIndex];
+							Serializer.WriteValueUInt64Auto(Value);
 						}
-						const int64 Value = Reader[ArrayIndex];
-						if (Value < MinInt64Hex || Value > MaxInt64Hex)
+						if (ActualCount != ArrayCount)
 						{
-							Serializer.WriteValueIntegerHex(Value);
+							Serializer.Appendf(" ... | %u elements", ArrayCount);
 						}
-						else
-						{
-							Serializer.WriteValueInteger(Value);
-						}
+						Serializer.EndArray();
 					}
-					if (ActualCount != ArrayCount)
-					{
-						Serializer.Appendf(" ... | %u elements", ArrayCount);
-					}
-					Serializer.EndArray();
 					break;
 				}
 
@@ -1390,22 +1433,37 @@ bool FConvertToTextAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEven
 			{
 				case FEventFieldInfo::EType::Integer:
 				{
-					const int64 Value = EventData.GetValue<int64>(FieldInfo.GetName());
-					if (strcmp(FieldInfo.GetName(), "Cycle") == 0)
+					if (FieldInfo.IsSigned())
 					{
-						Serializer.WriteValueInteger(uint64(Value));
-						Serializer.AppendChar('(');
-						double Time = Context.EventTime.AsSeconds(uint64(Value));
-						Serializer.WriteValueTime(Time);
-						Serializer.AppendChar(')');
+						const int64 Value = EventData.GetValue<int64>(FieldInfo.GetName());
+						if (strcmp(FieldInfo.GetName(), "Cycle") == 0)
+						{
+							Serializer.WriteValueUInt64(uint64(Value));
+							Serializer.AppendChar('(');
+							double Time = Context.EventTime.AsSeconds(uint64(Value));
+							Serializer.WriteValueTime(Time);
+							Serializer.AppendChar(')');
+						}
+						else
+						{
+							Serializer.WriteValueInt64Auto(Value);
+						}
 					}
-					else if (Value < MinInt64Hex || Value > MaxInt64Hex)
+					else // unsigned
 					{
-						Serializer.WriteValueIntegerHex(Value);
-					}
-					else
-					{
-						Serializer.WriteValueInteger(Value);
+						const uint64 Value = EventData.GetValue<uint64>(FieldInfo.GetName());
+						if (strcmp(FieldInfo.GetName(), "Cycle") == 0)
+						{
+							Serializer.WriteValueUInt64(Value);
+							Serializer.AppendChar('(');
+							double Time = Context.EventTime.AsSeconds(Value);
+							Serializer.WriteValueTime(Time);
+							Serializer.AppendChar(')');
+						}
+						else
+						{
+							Serializer.WriteValueUInt64Auto(Value);
+						}
 					}
 					break;
 				}
