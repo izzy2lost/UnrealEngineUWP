@@ -150,9 +150,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ColorSpace)
 	EOpenColorIOViewTransformDirection DisplayViewDirection = EOpenColorIOViewTransformDirection::Forward;
 
-	/** Delegate triggered upon changes to the settings. */
-	UE_DEPRECATED(5.3, "This delegate is deprecated.")
-	FOnConversionSettingsChange& OnConversionSettingsChanged() { return ConversionSettingsChanged; }
 public:
 
 	void PostSerialize(const FArchive& Ar);
@@ -200,10 +197,6 @@ public:
 	
 	/** Whether or not these settings are of the display-view type. */
 	bool IsDisplayView() const;
-
-private:
-
-	FOnConversionSettingsChange ConversionSettingsChanged;
 };
 
 template<> struct TStructOpsTypeTraits<FOpenColorIOColorConversionSettings> : public TStructOpsTypeTraitsBase2<FOpenColorIOColorConversionSettings>
