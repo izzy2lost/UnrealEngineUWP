@@ -158,8 +158,9 @@ private:
 	ENGINE_API void OnPreBeginPIE(bool bStartSimulate);
 	ENGINE_API void OnPrePIEEnded(bool bWasSimulatingInEditor);
 	ENGINE_API void OnCancelPIE();
-	ENGINE_API void OnBeginPlay();
-	ENGINE_API void OnEndPlay();
+
+	ENGINE_API void PrepareEditorGameWorld();
+	ENGINE_API void ShutdownEditorGameWorld();
 
 	// WorldDeletegates Events
 	ENGINE_API void OnWorldRenamed(UWorld* RenamedWorld);
@@ -173,6 +174,8 @@ private:
 	bool ShouldHashUnhashActorDescInstances() const;
 	ENGINE_API void InitializeActorDescContainerEditorStreaming(UActorDescContainerInstance* InActorDescContainer);
 #endif
+
+	ENGINE_API void OnBeginPlay();
 
 public:
 	ENGINE_API const FTransform& GetInstanceTransform() const;

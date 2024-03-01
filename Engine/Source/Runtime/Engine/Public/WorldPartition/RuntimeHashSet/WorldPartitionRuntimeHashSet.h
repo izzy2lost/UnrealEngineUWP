@@ -80,10 +80,10 @@ struct FRuntimePartitionStreamingData
 	int32 LoadingRange = 0;
 
 	UPROPERTY()
-	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> StreamingCells;
+	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> SpatiallyLoadedCells;
 
 	UPROPERTY()
-	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> NonStreamingCells;
+	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> NonSpatiallyLoadedCells;
 
 	// Transient
 	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex;
@@ -116,12 +116,14 @@ public:
 };
 
 UCLASS(MinimalAPI)
-class UWorldPartitionRuntimeHashSet : public UWorldPartitionRuntimeHash
+class UWorldPartitionRuntimeHashSet final : public UWorldPartitionRuntimeHash
 {
 	GENERATED_UCLASS_BODY()
 
+	friend struct FFortWorldPartitionUtils;
+	friend class ULevelPackageDiskSizeMetric;
+
 	//~ Begin UObject Interface
-	ENGINE_API virtual void PostLoad() override;
 #if WITH_EDITOR
 	ENGINE_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
@@ -160,15 +162,14 @@ public:
 	ENGINE_API virtual void ForEachStreamingCellsQuery(const FWorldPartitionStreamingQuerySource& QuerySource, TFunctionRef<bool(const UWorldPartitionRuntimeCell*)> Func, FWorldPartitionQueryCache* QueryCache) const override;
 	ENGINE_API virtual void ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func) const override;
 
-protected:
+private:
+	ENGINE_API virtual void OnBeginPlay() override;
+
 #if WITH_EDITOR
 	ENGINE_API virtual bool HasStreamingContent() const override;
 	ENGINE_API virtual void StoreStreamingContentToExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* OutExternalStreamingObject) override;
 	ENGINE_API virtual void FlushStreamingContent() override;
-#endif
 
-private:
-#if WITH_EDITOR
 	/** Generate the runtime partitions streaming descs. */
 	bool GenerateRuntimePartitionsStreamingDescs(const IStreamingGenerationContext* StreamingGenerationContext, TMap<URuntimePartition*, TArray<URuntimePartition::FCellDescInstance>>& OutRuntimeCellDescs) const;
 
@@ -183,12 +184,7 @@ private:
 
 	ENGINE_API void ForEachStreamingData(TFunctionRef<bool(const FRuntimePartitionStreamingData&)> Func) const;
 
-public:
-#if WITH_EDITORONLY_DATA
-	/** Persistent partition */
-	UPROPERTY()
-	FRuntimePartitionDesc PersistentPartitionDesc;
-#endif
+	ENGINE_API void UpdateRuntimeDataGridMap();
 
 	/** Array of runtime partition descriptors */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (TitleProperty = "Name"))
@@ -196,4 +192,8 @@ public:
 
 	UPROPERTY()
 	TArray<FRuntimePartitionStreamingData> RuntimeStreamingData;
+
+	// Optimized data
+	TMap<FName, TArray<const FRuntimePartitionStreamingData*>> RuntimeSpatiallyLoadedDataGridMap;
+	TArray<const FRuntimePartitionStreamingData*> RuntimeNonSpatiallyLoadedDataGridList;
 };

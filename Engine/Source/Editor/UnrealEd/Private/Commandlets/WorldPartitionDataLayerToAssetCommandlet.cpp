@@ -524,7 +524,7 @@ bool UDataLayerToAssetCommandlet::RemapActorDataLayersToAssets(TStrongObjectPtr<
 
 	UE_LOG(LogDataLayerToAssetCommandlet, Log, TEXT("Actor Data Layer Remapping To Data Layer Asset Done."));
 
-	return ErrorCount == 0;;
+	return ErrorCount == 0;
 }
 
 uint32 UDataLayerToAssetCommandlet::RemapActorDataLayers(TStrongObjectPtr<UDataLayerToAssetCommandletContext>& CommandletContext, AActor* Actor)
