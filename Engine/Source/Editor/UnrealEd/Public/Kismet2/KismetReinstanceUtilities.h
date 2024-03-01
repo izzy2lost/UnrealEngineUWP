@@ -119,6 +119,15 @@ protected:
 	/** The original CDO object for the class being actively reinstanced */
 	TObjectPtr<UObject>	OriginalCDO;
 
+	/** The original Sparse Class Data object for the class being actively reinstanced */
+	void* OriginalSCD;
+
+	/** The original SDO Struct for the class being actively reinstanced */
+	TObjectPtr<UScriptStruct> OriginalSCDStruct;
+
+	/** A snapshot of the SCD, currently delta serialized from its archetype - taken before ownership of SCDs is taken */
+	TArray<uint8> SCDSnapshot;
+
 	/** Children of this blueprint, which will need to be recompiled and relinked temporarily to maintain the class layout */
 	TArray<UBlueprint*> Children;
 
@@ -184,6 +193,15 @@ public:
 
 	/** Updates references to properties and functions of the class that has in the bytecode of dependent blueprints */
 	UNREALED_API void UpdateBytecodeReferences( TSet<UBlueprint*>& OutDependentBlueprints, TMap<FFieldVariant, FFieldVariant>& OutFieldMapping);
+
+	/** Populates SCDSnapshot, for use via PropagateSparseClassDataToNewClass */
+	UNREALED_API void SaveSparseClassData(const UClass* ForClass);
+
+	/** Instructs the reinstancer to take ownership of the sparse class data - doing so will make it difficult to identify archetype data */ 
+	UNREALED_API void TakeOwnershipOfSparseClassData(UClass* ForClass);
+
+	/** Copies an owned sparse class data instance to a new class and frees any owned SCD */
+	UNREALED_API void PropagateSparseClassDataToNewClass(UClass* NewClass);
 
 	/** Consumes the set and map populated by calls to UpdateBytecodeReferences */
 	static UNREALED_API void FinishUpdateBytecodeReferences( const TSet<UBlueprint*>& DependentBPs, const TMap<FFieldVariant, FFieldVariant>& FieldMappings);
