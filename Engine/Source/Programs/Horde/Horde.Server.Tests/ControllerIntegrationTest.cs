@@ -44,7 +44,8 @@ public class TestWebApplicationFactory<TStartup> : WebApplicationFactory<TStartu
 		_mongoInstance = mongoInstance;
 		_redisInstance = redisInstance;
 		_extraSettings = extraSettings ?? new Dictionary<string, string>();
-
+		
+		Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
 		Serilog.Log.Logger = new LoggerConfiguration()
 			.Enrich.FromLogContext()
 			.WriteTo.Console()
