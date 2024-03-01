@@ -2,6 +2,8 @@
 
 #include "Rendering/SkeletalMeshLODImporterData.h"
 
+#include "UObject/Package.h"
+
 #if WITH_EDITOR
 
 #include "Algo/AnyOf.h"
@@ -1902,7 +1904,7 @@ static void CopySkinWeightsToAttribute(
 	}
 }
 
-bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletalMesh, int32 InLODIndex, FMeshDescription& OutMeshDescription) const
+bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletalMesh, FMeshDescription& OutMeshDescription) const
 {
 	using namespace UE::AnimationCore;
 	
@@ -2200,6 +2202,33 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 		MaterialGroups.Add(PolygonGroupID);
 	}
 
+	// These are not always honest.
+	bool bHaveValidNormals = bHasNormals;
+	bool bHaveValidTangents = bHasNormals;
+	
+	for (int32 TriangleIndex = 0; TriangleIndex < Faces.Num(); TriangleIndex++)
+	{
+		const SkeletalMeshImportData::FTriangle &Triangle = Faces[TriangleIndex];
+
+		for (int32 Corner = 0; Corner < 3; Corner++)
+		{
+			if (!Triangle.TangentZ[Corner].IsNormalized())
+			{
+				bHaveValidNormals = false;
+			}
+			if (!Triangle.TangentX[Corner].IsNormalized() ||
+			    !Triangle.TangentY[Corner].IsNormalized())
+			{
+				bHaveValidTangents = false;
+			}
+
+			if (!bHaveValidNormals && !bHaveValidTangents)
+			{
+				break;
+			}
+		}
+	}
+
 	for (int32 TriangleIndex = 0; TriangleIndex < Faces.Num(); TriangleIndex++)
 	{
 		const SkeletalMeshImportData::FTriangle &Triangle = Faces[TriangleIndex];
@@ -2225,16 +2254,16 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 					VertexInstanceUVs.Set(VertexInstanceID, UVIndex, Wedge.UVs[UVIndex]);
 				}
 
-				if (bHasNormals)
+				if (bHaveValidNormals)
 				{
 					VertexInstanceNormals.Set(VertexInstanceID, Triangle.TangentZ[Corner]);
 				}
-				if (bHasTangents)
+				if (bHaveValidTangents)
 				{
 					VertexInstanceTangents.Set(VertexInstanceID, Triangle.TangentX[Corner]);
 
 					// We can only divine the bi-tangent sign if the normal is also given. 
-					if (bHasNormals)
+					if (bHaveValidNormals)
 					{
 						VertexInstanceBinormalSigns.Set(VertexInstanceID,
 							((Triangle.TangentZ[Corner] ^ Triangle.TangentX[Corner]) | Triangle.TangentY[Corner]) < 0 ? -1.0f : 1.0f);
@@ -2364,41 +2393,7 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 		}
 	}
 
-	// We don't need to do this when retrieving alt skin weights.
-	if (InSkeletalMesh)
-	{
-		FSkeletalMeshOperations::ConvertSmoothGroupToHardEdges(FaceSmoothingMasks, OutMeshDescription);
-		FSkeletalMeshOperations::ValidateAndFixData(OutMeshDescription, *InSkeletalMesh->GetOuter()->GetPathName());
-
-		// This is required by compute normals to function correctly.
-		FSkeletalMeshOperations::ComputeTriangleTangentsAndNormals(OutMeshDescription, UE_SMALL_NUMBER, *InSkeletalMesh->GetOuter()->GetPathName());
-
-		EComputeNTBsFlags ComputeNTBsOptions = EComputeNTBsFlags::None; 
-		const FSkeletalMeshLODInfo* LODInfo = InSkeletalMesh->GetLODInfo(InLODIndex);
-		if (ensure(LODInfo))
-		{
-			if (LODInfo->BuildSettings.bComputeWeightedNormals)
-			{
-				ComputeNTBsOptions |= EComputeNTBsFlags::WeightedNTBs;
-			}
-			if (LODInfo->BuildSettings.bUseMikkTSpace)
-			{
-				ComputeNTBsOptions |= EComputeNTBsFlags::UseMikkTSpace;
-			}
-			if (LODInfo->BuildSettings.bRemoveDegenerates)
-			{
-				ComputeNTBsOptions |= EComputeNTBsFlags::IgnoreDegenerateTriangles;
-			}
-		}
-		else
-		{
-			// Default to all the things.
-			ComputeNTBsOptions = EComputeNTBsFlags::WeightedNTBs | EComputeNTBsFlags::UseMikkTSpace | EComputeNTBsFlags::IgnoreDegenerateTriangles; 
-		}
-
-		// This only recomputes broken normals/tangents (nan/zero)
-		FSkeletalMeshOperations::ComputeTangentsAndNormals(OutMeshDescription, ComputeNTBsOptions);
-	}
+	FSkeletalMeshOperations::ConvertSmoothGroupToHardEdges(FaceSmoothingMasks, OutMeshDescription);
 
 	// Convert the MeshInfo data.
 	if (!MeshInfos.IsEmpty())
@@ -2500,7 +2495,7 @@ void FSkeletalMeshImportData::CopySkinWeightsToMeshDescription(
 
 	// The topologies don't match, proceed as above.
 	FMeshDescription AlternateInfluenceMesh;
-	InSkinWeightMesh.GetMeshDescription(nullptr, 0, AlternateInfluenceMesh);
+	InSkinWeightMesh.GetMeshDescription(nullptr, AlternateInfluenceMesh);
 	
 	FSkeletalMeshOperations::CopySkinWeightAttributeFromMesh(
 	AlternateInfluenceMesh, OutMeshDescription, NAME_None, InSkinWeightName, &AltMeshBoneToBaseBoneMap);   
@@ -2556,11 +2551,7 @@ static void ConvertHardEdgesToSmoothMasks(
 		CurrentSmoothMask <<= 1;
 		if (CurrentSmoothMask == 0)
 		{
-			// If we exhausted all available bits, then thunk to the more complete algorithm. For reasons unknown at this time, it doesn't generate
-			// nice smooth groups for some simpler test objects. For more complex input products it does a decent job though.
-			OutSmoothMasks.SetNumZeroed(InMeshDescription.Triangles().Num());
-			FStaticMeshOperations::ConvertHardEdgesToSmoothGroup(InMeshDescription, OutSmoothMasks);
-			break;
+			CurrentSmoothMask = 1;
 		}
 	}
 }
@@ -2736,23 +2727,20 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 		}
 	}
 
-	bool bHaveValidNormals = false;
-	bool bHaveValidTangents = false;
+	
+	bool bHaveValidNormals = true;
+	bool bHaveValidTangents = true;
 	for (FVertexInstanceID VertexInstanceID: InMeshDescription.VertexInstances().GetElementIDs())
 	{
-		const FVector3f Normal = VertexInstanceNormals.Get(VertexInstanceID);
-		if (!Normal.IsNearlyZero(UE_SMALL_NUMBER) && !Normal.ContainsNaN())
+		if (!VertexInstanceNormals.Get(VertexInstanceID).IsNormalized())
 		{
-			bHaveValidNormals = true;
+			bHaveValidNormals = false;
 		}
-		const FVector3f Tangent = VertexInstanceTangents.Get(VertexInstanceID);
-		if (!Tangent.IsNearlyZero(UE_SMALL_NUMBER) && !Tangent.ContainsNaN())
+		if (!VertexInstanceTangents.Get(VertexInstanceID).IsNormalized())
 		{
-			bHaveValidTangents = true;
+			bHaveValidTangents = false;
 		}
-
-		// If we found any valid normals/tangents, we can stop now.
-		if (bHaveValidNormals && bHaveValidTangents)
+		if (!bHaveValidNormals && !bHaveValidTangents)
 		{
 			break;
 		}
@@ -2809,8 +2797,6 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 			}
 			else
 			{
-				// The normal/tangent computation during conversion to render data will automatically regenerate any degenerate normals.
-				// Same for the tangent/binormal below.
 				Face.TangentZ[Corner] = FVector3f::ZeroVector;
 			}
 
@@ -2822,7 +2808,6 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 			else
 			{
 				Face.TangentX[Corner] = FVector3f::ZeroVector;
-				Face.TangentY[Corner] = FVector3f::ZeroVector;
 			}
 
 			const int32 WedgeIndex = VertexInstanceID.GetValue();

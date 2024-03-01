@@ -434,7 +434,7 @@ public:
 	 * Returns a mesh description from the import data. If logging on failures is required, pass in a pointer 
 	 * to the owning skeletal mesh. Otherwise leave as a \c nullptr. 
 	 */
-	ENGINE_API bool GetMeshDescription(const USkeletalMesh* InSkeletalMesh, int32 InLODIndex, FMeshDescription& OutMeshDescription) const;
+	ENGINE_API bool GetMeshDescription(const USkeletalMesh* InSkeletalMesh, FMeshDescription& OutMeshDescription) const;
 
 	/**
 	 * @note MeshDescription always contains color, normal and tangent data by default. Therefore, while iterating
