@@ -17,10 +17,12 @@
 #include "Misc/EnumClassFlags.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealNames.h"
+#include "UObject/CoreRedirects/PM-k.h"
 
 class IPakFile;
 class UClass;
 struct FTopLevelAssetPath;
+namespace UE::CoreRedirects::Private { struct FCoreRedirectObjectUtf8Name; }
 
 #define WITH_COREREDIRECTS_MULTITHREAD_WARNING !UE_BUILD_SHIPPING && !IS_PROGRAM && !WITH_EDITOR
 
@@ -34,24 +36,28 @@ enum class ECoreRedirectFlags : uint32
 	None = 0,
 
 	// Core type of the Thing being redirected, multiple can be set.  A Query will only find Redirects that have at least one of the same Type bits set.
-	Type_Object =			0x00000001, // UObject
-	Type_Class =			0x00000002, // UClass
-	Type_Struct =			0x00000004, // UStruct
-	Type_Enum =				0x00000008, // UEnum
-	Type_Function =			0x00000010, // UFunction
-	Type_Property =			0x00000020, // FProperty
-	Type_Package =			0x00000040, // UPackage
-	Type_AllMask =			0x0000FFFF, // Bit mask of all possible Types
+	Type_Object =				0x00000001, // UObject
+	Type_Class =				0x00000002, // UClass
+	Type_Struct =				0x00000004, // UStruct
+	Type_Enum =					0x00000008, // UEnum
+	Type_Function =				0x00000010, // UFunction
+	Type_Property =				0x00000020, // FProperty
+	Type_Package =				0x00000040, // UPackage
+	Type_AllMask =				0x0000FFFF, // Bit mask of all possible Types
 
 	// Category flags.  A Query will only match Redirects that have the same value for every category bit.
-	Category_InstanceOnly = 0x00010000, // Only redirect instances of this type, not the type itself
-	Category_Removed =		0x00020000, // This type was explicitly removed, new name isn't valid
-	Category_AllMask =		0x00FF0000, // Bit mask of all possible Categories
+	Category_InstanceOnly =		0x00010000, // Only redirect instances of this type, not the type itself
+	Category_Removed =			0x00020000, // This type was explicitly removed, new name isn't valid
+	Category_AllMask =			0x00FF0000, // Bit mask of all possible Categories
 
 	// Option flags.  Does not behave as a bit-match between Queries and Redirects.  Each one specifies a custom rule for how FCoreRedirects handles the Redirect.
-	Option_MatchSubstring = 0x01000000, // Does a slow substring match
-	Option_MissingLoad =	0x02000000, // An automatically-created redirect that was created in response to a missing Thing during load. Redirect will be removed if and when the Thing is loaded.
-	Option_AllMask =		0xFF000000, // Bit mask of all possible Options
+	Option_MatchPrefix =		0x01000000, // Does a prefix string match
+	Option_MatchSuffix =		0x02000000, // Does a suffix string match
+	Option_MatchSubstring =		Option_MatchPrefix | Option_MatchSuffix, // Does a slow substring match
+	Option_MatchWildcardMask =	Option_MatchSubstring, // Bit mask of all possible wildcards
+
+	Option_MissingLoad =		0x04000000, // An automatically-created redirect that was created in response to a missing Thing during load. Redirect will be removed if and when the Thing is loaded.
+	Option_AllMask =			0xFF000000, // Bit mask of all possible Options
 };
 ENUM_CLASS_FLAGS(ECoreRedirectFlags);
 
@@ -90,7 +96,6 @@ struct FCoreRedirectObjectName
 
 	COREUOBJECT_API FCoreRedirectObjectName(const FTopLevelAssetPath& TopLevelAssetPath);
 
-	/** Construct from a path string, this handles full paths with packages, or partial paths without */
 	COREUOBJECT_API FCoreRedirectObjectName(const FString& InString);
 
 	/** Construct from object in memory */
@@ -123,16 +128,28 @@ struct FCoreRedirectObjectName
 		AllowPartialRHSMatch = (1 << 1),
 		/**
 		 * LHS fields (aka *this) are searchstrings; RHS (aka Other) fields are searched for that substring.
-		 * Default is to require a complete string match LHS == RHS.
+		 * Without this flag a Match returns true if and only if the complete string matches: LHS == RHS.
+		 * With this flag a Match returns true if and only if RHS.Contains(LHS).
 		 * This flag makes the match more expensive and should be avoided when possible.
 		 */
 		CheckSubString = (1 << 2),
+		/**
+		 * LHS fields (aka *this) are searchstrings; RHS (aka Other) fields are searched for that prefix.
+		 * Without this flag a Match returns true if and only if the complete string matches: LHS == RHS.
+		 * With this flag a Match returns true if and only if RHS.StartsWith(LHS).
+		 * This flag makes the match more expensive and should be avoided when possible.
+		 */
+		CheckPrefix = (1 << 3),
+		/**
+		 * LHS fields (aka *this) are searchstrings; RHS (aka Other) fields are searched for that suffix.
+		 * Without this flag a Match returns true if and only if the complete string matches: LHS == RHS.
+		 * With this flag a Match returns true if and only if RHS.EndsWith(LHS).
+		 * This flag makes the match more expensive and should be avoided when possible.
+		 */
+		CheckSuffix = (1 << 4),
 	};
 	/** Returns true if the passed in name matches requirements. */
 	COREUOBJECT_API bool Matches(const FCoreRedirectObjectName& Other, EMatchFlags MatchFlags = EMatchFlags::None) const;
-
-	UE_DEPRECATED(5.1, "Use EMatchFlags::CheckSubString to pass in bCheckSubstring=true.")
-	COREUOBJECT_API bool Matches(const FCoreRedirectObjectName& Other, bool bCheckSubstring) const;
 
 	/** Returns integer of degree of match. 0 if doesn't match at all, higher integer for better matches */
 	COREUOBJECT_API int32 MatchScore(const FCoreRedirectObjectName& Other) const;
@@ -143,14 +160,6 @@ struct FCoreRedirectObjectName
 	/** Returns the name used as the key into the acceleration map */
 	FName GetSearchKey(ECoreRedirectFlags Type) const
 	{
-		if ((Type & ECoreRedirectFlags::Option_MatchSubstring) == ECoreRedirectFlags::Option_MatchSubstring)
-		{
-			static FName SubstringName = FName(TEXT("*SUBSTRING*"));
-
-			// All substring matches pass initial test as they need to be manually checked
-			return SubstringName;
-		}
-
 		if ((Type & ECoreRedirectFlags::Type_Package) == ECoreRedirectFlags::Type_Package)
 		{
 			return PackageName;
@@ -169,7 +178,7 @@ struct FCoreRedirectObjectName
 	COREUOBJECT_API bool HasValidCharacters(ECoreRedirectFlags Type) const;
 
 	/** Expand OldName/NewName as needed */
-	static COREUOBJECT_API bool ExpandNames(const FString& FullString, FName& OutName, FName& OutOuter, FName &OutPackage);
+	static COREUOBJECT_API bool ExpandNames(const FStringView FullString, FName& OutName, FName& OutOuter, FName& OutPackage);
 
 	/** Turn it back into an FString */
 	static COREUOBJECT_API FString CombineNames(FName NewName, FName NewOuter, FName NewPackage);
@@ -239,6 +248,31 @@ struct FCoreRedirect
 	FName GetSearchKey() const
 	{
 		return OldName.GetSearchKey(RedirectFlags);
+	}
+
+private:
+	friend struct FCoreRedirects;
+
+	/* Returns the updated name after redirection. If bIsKnownToMatch is true, OldObjectName must have 
+	been validated previously to be acceptable for redirection */
+	FCoreRedirectObjectName RedirectName(const FCoreRedirectObjectName& OldObjectName, bool bIsKnownToMatch) const;
+
+	/** Returns true if this is a Wildcard match (substring, prefix or suffix) */
+	bool IsWildcardMatch() const
+	{
+		return EnumHasAnyFlags(RedirectFlags, ECoreRedirectFlags::Option_MatchWildcardMask);
+	}
+
+	/** Returns true if this is a prefix match */
+	bool IsPrefixMatch() const
+	{
+		return EnumHasAllFlags(RedirectFlags, ECoreRedirectFlags::Option_MatchPrefix);
+	}
+
+	/** Returns true if this is a prefix match */
+	bool IsSuffixMatch() const
+	{
+		return EnumHasAllFlags(RedirectFlags, ECoreRedirectFlags::Option_MatchSuffix);
 	}
 };
 
@@ -346,11 +380,32 @@ private:
 	static COREUOBJECT_API void EnterMultithreadedPhase();
 #endif
 
+	/** Container for managing Wildcard redirects (substrings, prefixes, suffixes) */
+	struct FWildcardData
+	{
+		void Add(const FCoreRedirect& Redirect);
+
+		void Rebuild();
+		bool Matches(ECoreRedirectFlags InFlags, const FCoreRedirectObjectName& InName, ECoreRedirectMatchFlags InMatchFlags, TArray<const FCoreRedirect*>& OutFoundRedirects) const;
+
+		TArray<FCoreRedirect> Substrings;
+		TArray<FCoreRedirect> Prefixes;
+		TArray<FCoreRedirect> Suffixes;
+	private:
+		/** This function may return false positives, but will not return false negatives */
+		bool MatchSubstringApproximate(const UE::CoreRedirects::Private::FCoreRedirectObjectUtf8Name& RedirectName) const;
+		void AddPredictionWords(const FCoreRedirect& Redirect);
+
+		FPredictMatch8 PredictMatch;
+	};
+
 	/** There is one of these for each registered set of redirect flags */
 	struct FRedirectNameMap
 	{
 		/** Map from name of thing being mapped to full list. List must be filtered further */
-		TMap<FName, TArray<FCoreRedirect> > RedirectMap;
+		TMap<FName, TArray<FCoreRedirect>> RedirectMap;
+		/** Used to manage wildcard data and accelerate wildcard queries */
+		TUniquePtr<FWildcardData> Wildcards;
 	};
 
 	/** Whether this has been initialized at least once */
