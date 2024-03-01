@@ -77,7 +77,7 @@ namespace Horde.Server.Dashboard
 				}
 			}
 
-			return Ok(new GetDashboardChallengeResponse { NeedsFirstTimeSetup = needsFirstTimeSetup, NeedsAuthorization = !User.Identity?.IsAuthenticated ?? true });
+			return Ok(new GetDashboardChallengeResponse { NeedsFirstTimeSetup = needsFirstTimeSetup, NeedsAuthorization = User.Identity == null || !User.Identity.IsAuthenticated });
 		}
 
 		/// <summary>
