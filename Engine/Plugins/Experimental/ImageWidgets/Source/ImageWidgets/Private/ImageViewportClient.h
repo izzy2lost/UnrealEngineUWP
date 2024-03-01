@@ -75,7 +75,7 @@ namespace UE::ImageWidgets
 
 		FImageViewportController Controller;
 
-		TStrongObjectPtr<UTexture2D> CheckerTexture = nullptr;
+		TStrongObjectPtr<UTexture2D> CheckerTexture;
 		FCheckerTextureSettings CachedCheckerTextureSettings;
 	};
 }
