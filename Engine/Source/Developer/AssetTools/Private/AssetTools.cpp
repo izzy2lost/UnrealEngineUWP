@@ -4840,6 +4840,21 @@ void UAssetToolsImpl::PerformMigratePackages(TArray<FName> PackageNamesToMigrate
 				}
 			}
 
+
+			// Ignore dependencies and only migrate the given assets
+			if (Options.bIgnoreDependencies)
+			{
+				if (PackageNamesToMigrate.Contains(PackageName))
+				{
+					bShouldMigratePackage = true;
+				}
+				else
+				{
+					bShouldMigratePackage = false;
+				}
+			}
+
+
 			FilteredPackageNamesToMove.Add(PackageName);
 
 			if (bShouldMigratePackage)

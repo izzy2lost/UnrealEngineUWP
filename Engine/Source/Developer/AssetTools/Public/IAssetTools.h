@@ -215,7 +215,12 @@ struct FMigrationOptions
 	GENERATED_BODY()
 
 	/** Prompt user for confirmation (always false through scripting) */
+	UPROPERTY(BlueprintReadWrite, Category = MigrationOptions)
 	bool bPrompt;
+
+	/** Ignore dependencies of assets, only migrate the given assets. usefull for automation. This will not migrate the actors of a OFPA (one file per actor) level */
+	UPROPERTY(BlueprintReadWrite, Category = MigrationOptions)
+	bool bIgnoreDependencies;
 
 	/** What to do when Assets are conflicting on the destination */
 	UPROPERTY(BlueprintReadWrite, Category = MigrationOptions)
@@ -227,6 +232,7 @@ struct FMigrationOptions
 
 	FMigrationOptions()
 		: bPrompt(false)
+		, bIgnoreDependencies(false)
 		, AssetConflict(EAssetMigrationConflict::Skip)
 	{}
 };
