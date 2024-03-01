@@ -1775,12 +1775,6 @@ public:
 	 */
 	UNREALED_API bool IsAnyViewportRealtime();
 
-
-	/**
-	 * @return true if all windows are hidden (including minimized)                                                         
-	 */
-	UNREALED_API bool AreAllWindowsHidden() const;
-
 	/**
 	 *	Returns pointer to a temporary render target.
 	 *	If it has not already been created, does so here.

@@ -100,6 +100,13 @@ static FAutoConsoleVariableRef CVarDoAsyncEndOfFrameTasks(
 	TEXT("Experimental option to run various things concurrently with the HUD render.")
 	);
 
+static int32 GMinimizedSyncDrawToGPU = 1;
+static FAutoConsoleVariableRef CVarMinimizedSyncDrawToGPU(
+	TEXT("tick.MinimizedSyncDrawToGPU"),
+	GMinimizedSyncDrawToGPU,
+	TEXT("True means we will wait for GPU idle when minimized. Prevents mem leaks due to CPU issuing draws faster than GPU processes when minimized.")
+);
+
 bool ParseResolution(const TCHAR* InResolution, uint32& OutX, uint32& OutY, int32& WindowMode);
 
 /** Benchmark results to the log */
@@ -1894,8 +1901,21 @@ void UGameEngine::Tick( float DeltaSeconds, bool bIdleMode )
 			// Render everything.
 			RedrawViewports();
 
-			// Some tasks can only be done once we finish all scenes/viewports
-			GetRendererModule().PostRenderAllViewports();
+			// CPU/GPU synchronization is achieved by calling EndDrawingViewport. If no viewports are updated (because the game is hidden),
+			// we need to explicitly wait for the GPU to finish here, to prevent the CPU from submitting work faster than the GPU
+			// can process it, which leads to an unbounded accumulation of resources.
+			if (GMinimizedSyncDrawToGPU && AreAllWindowsHidden())
+			{
+				ENQUEUE_RENDER_COMMAND(SubmitAndBlockUntilGPUIdle_MinimizedRealtime)([](FRHICommandListImmediate& RHICmdList)
+				{
+					RHICmdList.BlockUntilGPUIdle();
+				});
+			}
+			else
+			{
+				// Some tasks can only be done once we finish all scenes/viewports
+				GetRendererModule().PostRenderAllViewports();
+			}
 		}
 		else
 		{
