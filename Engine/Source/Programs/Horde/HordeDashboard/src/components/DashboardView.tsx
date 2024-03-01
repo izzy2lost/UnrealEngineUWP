@@ -311,11 +311,11 @@ const ChangePasswordModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <TextField label={"New Password"} autoComplete="off" spellCheck={false} type="password" defaultValue={ secrets.newPassword} canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, newPassword: value ?? "" }) }} />
+            <TextField label={"New Password"} autoComplete="new-password" spellCheck={false} type="password" defaultValue={ secrets.newPassword} canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, newPassword: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <TextField label={"Confirm Password"} autoComplete="off" spellCheck={false} type="password" defaultValue={ secrets.confirmPassword} canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, confirmPassword: value ?? "" }) }} />
+            <TextField label={"Confirm Password"} autoComplete="new-password" spellCheck={false} type="password" defaultValue={ secrets.confirmPassword} canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, confirmPassword: value ?? "" }) }} />
          </Stack>
          
          <Stack horizontal style={{ paddingTop: 64 }}>

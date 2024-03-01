@@ -98,11 +98,7 @@ namespace UnrealGameSync
 
 				using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "ActivateUnrealGameSync"))
 				{
-#if DEBUG
-					bool runUpdateCheck = args.Contains("-UpdateCheck", StringComparer.OrdinalIgnoreCase) || args.Contains("-Settings", StringComparer.OrdinalIgnoreCase);
-#else
-					bool runUpdateCheck = !args.Contains("-NoUpdateCheck", StringComparer.OrdinalIgnoreCase);
-#endif
+					bool runUpdateCheck = ShouldRunAutoUpdate(args);
 
 					// Check for a newer version of the application
 					if (runUpdateCheck && Launcher.SyncAndRunLatest(instanceMutex, args))
@@ -249,10 +245,10 @@ namespace UnrealGameSync
 								using ProgramApplicationContext context = new ProgramApplicationContext(defaultSettings, updateMonitor, DeploymentSettings.Instance.ApiUrl, dataFolder, activateEvent, restoreState, updateSpawn, projectFileName, preview, serviceProvider, uri);
 								Application.Run(context);
 
-								if (updateMonitor.IsUpdateAvailable && updateSpawn != null)
+								if (updateMonitor.IsUpdateAvailable)
 								{
 									instanceMutex.Close();
-									Utility.SpawnProcess(updateSpawn, "-restorestate" + (updateMonitor.OpenSettings ? " -settings" : ""));
+									Utility.SpawnProcess(updateSpawn ?? GetCurrentExecutable(), "-restorestate" + (updateMonitor.OpenSettings ? " -settings" : ""));
 								}
 							}
 							finally
@@ -281,6 +277,29 @@ namespace UnrealGameSync
 		static void AsyncDispose(IAsyncDisposable disposable)
 		{
 			disposable.DisposeAsync().AsTask().ConfigureAwait(false).GetAwaiter().GetResult();
+		}
+
+		public static string GetCurrentExecutable()
+		{
+			string originalExecutable = Assembly.GetEntryAssembly()!.Location;
+			if (Path.GetExtension(originalExecutable).Equals(".dll", StringComparison.OrdinalIgnoreCase))
+			{
+				string newExecutable = Path.ChangeExtension(originalExecutable, ".exe");
+				if (File.Exists(newExecutable))
+				{
+					return newExecutable;
+				}
+			}
+			return originalExecutable;
+		}
+
+		static bool ShouldRunAutoUpdate(string[] args)
+		{
+#if WITH_AUTOUPDATE
+			return !args.Contains("-NoUpdateCheck", StringComparer.OrdinalIgnoreCase);
+#else
+			return args.Contains("-UpdateCheck", StringComparer.OrdinalIgnoreCase) || args.Contains("-Settings", StringComparer.OrdinalIgnoreCase);
+#endif
 		}
 
 		private static UpdateMonitor CreateUpdateMonitor(LauncherSettings launcherSettings, IPerforceSettings defaultSettings, string? updatePath, bool runUpdateCheck, IServiceProvider serviceProvider)

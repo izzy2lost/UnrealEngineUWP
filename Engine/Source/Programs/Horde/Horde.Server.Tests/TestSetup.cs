@@ -67,6 +67,7 @@ using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Storage.ObjectStores;
 using Horde.Server.Tests.Server;
 using Horde.Server.Agents.Enrollment;
+using Horde.Server.Accounts;
 
 namespace Horde.Server.Tests
 {
@@ -207,6 +208,7 @@ namespace Horde.Server.Tests
 
 			services.AddSingleton<IConfigSource, FileConfigSource>();
 
+			services.AddSingleton<IAccountCollection, AccountCollection>();
 			services.AddSingleton<IAgentCollection, AgentCollection>();
 			services.AddSingleton<IArtifactCollection, ArtifactCollection>();
 			services.AddSingleton<IArtifactCollectionV1, ArtifactCollectionV1>();

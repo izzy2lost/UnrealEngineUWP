@@ -299,19 +299,19 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
          </Stack>}
 
          <Stack style={{ padding: 8 }}>
-            <TextField label="Username" autoComplete="off" spellCheck={false} placeholder="Username of the user" required defaultValue={account.login} onChange={(ev, value) => { setAccount({ ...account, login: value ?? "" }) }} />
+            <TextField label="Username" autoComplete="off" spellCheck={false} placeholder="" required defaultValue={account.login} onChange={(ev, value) => { setAccount({ ...account, login: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <TextField label="Full Name" autoComplete="off" spellCheck={false} placeholder="Full name of the user" required defaultValue={account.name} onChange={(ev, value) => { setAccount({ ...account, name: value ?? "" }) }} />
+            <TextField label="Full Name" autoComplete="off" spellCheck={false} placeholder="" required defaultValue={account.name} onChange={(ev, value) => { setAccount({ ...account, name: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <TextField label="Email" autoComplete="off" spellCheck={false} placeholder="Email address of the user" defaultValue={account.email} onChange={(ev, value) => { setAccount({ ...account, email: value ?? "" }) }} />
+            <TextField label="Email" autoComplete="off" spellCheck={false} placeholder="" defaultValue={account.email} onChange={(ev, value) => { setAccount({ ...account, email: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <TextField label="Description" autoComplete="off" spellCheck={false} placeholder="Description of the user" defaultValue={account.description} onChange={(ev, value) => { setAccount({ ...account, description: value ?? "" }) }} />
+            <TextField label="Description" autoComplete="off" spellCheck={false} placeholder="" defaultValue={account.description} onChange={(ev, value) => { setAccount({ ...account, description: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
@@ -336,7 +336,7 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <TextField label={account.id ? "Change Password" : "Password"} autoComplete="off" spellCheck={false} placeholder="User Password" type="password" canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, password: value ?? "" }) }} />
+            <TextField label={account.id ? "Change Password" : "Password"} autoComplete="new-password" spellCheck={false} placeholder="User Password" type="password" canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, password: value ?? "" }) }} />
          </Stack>
 
          <Stack style={{ padding: 8 }}>
