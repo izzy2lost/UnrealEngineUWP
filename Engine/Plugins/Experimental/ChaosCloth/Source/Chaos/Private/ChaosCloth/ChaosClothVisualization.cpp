@@ -24,6 +24,7 @@
 #include "Chaos/PBDSpringConstraints.h"
 #include "Chaos/PBDTriangleMeshCollisions.h"
 #include "Chaos/SoftsExternalForces.h"
+#include "Chaos/SoftsMultiResConstraints.h"
 #include "Chaos/XPBDBendingConstraints.h"
 #include "Chaos/XPBDSpringConstraints.h"
 #include "Chaos/XPBDAnisotropicBendingConstraints.h"
@@ -1008,6 +1009,72 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 				const FLinearColor& Color = (Triangles.Num() > 1) ? ClosedEdgeColor : OpenedEdgeColor;
 
 				DrawLine(PDI, Pos0, Pos1, Color);
+			}
+		}
+	}
+
+	void FClothVisualization::DrawMultiResConstraint(FPrimitiveDrawInterface* PDI) const
+	{
+		if (!Solver)
+		{
+			return;
+		}
+
+		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
+		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
+		{
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
+			{
+				continue;
+			}
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
+			if (const Softs::FMultiResConstraints* const MultiResConstraints = ClothConstraints.GetMultiResConstraints().Get())
+			{
+
+				const int32 CoarseParticleRangeId = MultiResConstraints->GetCoarseSoftBodyId();
+				const FTriangleMesh& CoarseMesh = MultiResConstraints->GetCoarseMesh();
+				TConstArrayView<Softs::FSolverVec3> CoarsePositions = Solver->GetParticleXsView(CoarseParticleRangeId);
+				TConstArrayView<Softs::FSolverReal> CoarseInvMasses = Solver->GetParticleInvMassesView(CoarseParticleRangeId);
+
+				// Draw wired coarse mesh
+				static const FLinearColor DynamicColor = FColor::White;
+				static const FLinearColor KinematicColor = FColor::Purple;
+				for (const TVec3<int32>& Element : CoarseMesh.GetElements())
+				{
+					const FVector Pos0 = LocalSpaceLocation + FVector(CoarsePositions[Element.X]);
+					const FVector Pos1 = LocalSpaceLocation + FVector(CoarsePositions[Element.Y]);
+					const FVector Pos2 = LocalSpaceLocation + FVector(CoarsePositions[Element.Z]);
+					const bool bIsKinematic0 = (CoarseInvMasses[Element.X] == (Softs::FSolverReal)0.);
+					const bool bIsKinematic1 = (CoarseInvMasses[Element.Y] == (Softs::FSolverReal)0.);
+					const bool bIsKinematic2 = (CoarseInvMasses[Element.Z] == (Softs::FSolverReal)0.);
+					if (bIsKinematic0 && bIsKinematic1 && bIsKinematic2)
+					{
+						continue;
+					}
+
+					DrawLine(PDI, Pos0, Pos1, bIsKinematic0 && bIsKinematic1 ? KinematicColor : DynamicColor);
+					DrawLine(PDI, Pos1, Pos2, bIsKinematic1 && bIsKinematic2 ? KinematicColor : DynamicColor);
+					DrawLine(PDI, Pos2, Pos0, bIsKinematic2 && bIsKinematic0 ? KinematicColor : DynamicColor);
+				}
+
+				// Draw springs to targets
+				static const FLinearColor Red(0.3f, 0.f, 0.f);
+				static const FLinearColor Brown(0.1f, 0.05f, 0.f);
+				const TConstArrayView<Softs::FSolverVec3> Positions = Solver->GetParticleXsView(ParticleRangeId);
+				const TConstArrayView<Softs::FSolverReal> InvMasses = Solver->GetParticleInvMassesView(ParticleRangeId);
+				const TArray<Softs::FSolverVec3>& TargetPositions = MultiResConstraints->GetFineTargetPositions();
+				for (int32 Index = 0; Index < TargetPositions.Num(); ++Index)
+				{
+					if (InvMasses[Index] != (FSolverReal)0.f && MultiResConstraints->IsConstraintActive(Index))
+					{
+						const FVector P1 = LocalSpaceLocation + FVector(Positions[Index]);
+						const FVector P2 = LocalSpaceLocation + FVector(TargetPositions[Index]);
+
+						DrawPoint(PDI, P2, Red, nullptr, 2.f);
+						DrawLine(PDI, P1, P2, Brown);
+					}
+				}
 			}
 		}
 	}

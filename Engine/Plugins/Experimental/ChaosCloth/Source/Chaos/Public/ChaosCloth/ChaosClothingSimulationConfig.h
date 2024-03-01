@@ -82,6 +82,10 @@ namespace Chaos
 
 		bool IsLegacySingleLOD() const { return bIsLegacySingleLOD; }
 		int32 GetNumLODs() const { return PropertyCollections.Num(); }
+		bool IsValidLOD(int32 LODIndex) const
+		{
+			return bIsLegacySingleLOD ? true : Properties.IsValidIndex(LODIndex);
+		}
 
 		template<typename FunctionType>
 		void ForAllProperties(FunctionType Func)

@@ -13,6 +13,7 @@
 #include "Chaos/XPBDAxialSpringConstraints.h"
 #include "Chaos/PBDVolumeConstraint.h"
 #include "Chaos/XPBDLongRangeConstraints.h"
+#include "Chaos/SoftsMultiResConstraints.h"
 #include "Chaos/PBDSphericalConstraint.h"
 #include "Chaos/PBDAnimDriveConstraint.h"
 #include "Chaos/PBDShapeConstraints.h"
@@ -29,6 +30,7 @@
 #include "Chaos/Deformable/GaussSeidelMasterConstraint.h"
 #include "Chaos/Deformable/GaussSeidelCorotatedCodimensionalConstraints.h"
 #include "PhysicsProxy/PerSolverFieldSystem.h"
+#include "Utils/ClothingMeshUtils.h"
 #include "HAL/IConsoleManager.h"
 
 namespace Chaos {
@@ -43,8 +45,6 @@ extern TAutoConsoleVariable<float> CVarGravityMultiplier;
 bool bEnableGS = false;
 
 #if !UE_BUILD_SHIPPING
-
-
     static FAutoConsoleVariableRef CVarClothbEnableGS(TEXT("p.Chaos.Cloth.EnableGaussSeidel"), bEnableGS, TEXT("Use Gauss Seidel constraints instead of XPBD [def: false]"));
 
 	bool bDisplayResidual = false;
@@ -800,7 +800,10 @@ void FClothConstraints::AddRules(
 	const TMap<FString, const TSet<int32>*>& FaceSets,
 	const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 	const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
-	Softs::FSolverReal MeshScale, bool bEnabled)
+	Softs::FSolverReal MeshScale, bool bEnabled,
+	const FTriangleMesh* MultiResCoarseLODMesh,
+	const int32 MultiResCoarseLODParticleRangeId,
+	const TSharedPtr<Softs::FMultiResConstraints>& FineLODMultiResConstraint)
 {
 	// Self collisions
 	CreateSelfCollisionConstraints(ConfigProperties, WeightMaps, VertexSets, FaceSets, FaceIntMaps, TriangleMesh);
@@ -842,6 +845,9 @@ void FClothConstraints::AddRules(
 
 		// Body collisions
 		CreateCollisionConstraint(ConfigProperties, MeshScale);
+
+		//Multires Springs
+		CreateMultiresConstraint(ConfigProperties, WeightMaps, TriangleMesh, MultiResCoarseLODMesh, MultiResCoarseLODParticleRangeId);
 	}
 
 	// Commit rules to solver
@@ -849,7 +855,7 @@ void FClothConstraints::AddRules(
 	{
 		if (Evolution)
 		{
-			CreateForceBasedRules();
+			CreateForceBasedRules(FineLODMultiResConstraint);
 		}
 		else
 		{
@@ -1419,8 +1425,96 @@ void FClothConstraints::CreateCollisionConstraint(
 	}
 }
 
-void FClothConstraints::CreateForceBasedRules()
+void FClothConstraints::CreateMultiresConstraint(
+	const Softs::FCollectionPropertyConstFacade& ConfigProperties,
+	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
+	const FTriangleMesh& TriangleMesh,
+	const FTriangleMesh* MultiResCoarseLODMesh,
+	const int32 MultiResCoarseLODParticleRangeId)
 {
+	if (Evolution && MultiResCoarseLODMesh && MultiResCoarseLODParticleRangeId != INDEX_NONE)
+	{
+		if (Softs::FMultiResConstraints::IsEnabled(ConfigProperties))
+		{
+			TArray<TVec4<Softs::FSolverReal>> CoarseToFinePositionBaryCoordsAndDist;
+			TArray<TVec3<int32>> CoarseToFineSourceMeshVertIndices;
+			const Softs::FSolverParticlesRange& FineParticles = Evolution->GetSoftBodyParticles(ParticleRangeId);
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(BuildMultiResTransitionData);
+				// TODO: Cache this data in the asset.
+				const FPointWeightMap* const MaxDistances = nullptr;  // No need to update the vertex contribution on the transition maps
+				constexpr bool bUseSmoothTransitions = false;         // Smooth transitions are only used at rendering for now and not during LOD transitions
+				constexpr bool bUseMultipleInfluences = false;        // Multiple influences must not be used for LOD transitions
+				constexpr float SkinningKernelRadius = 0.f;           // KernelRadius is only required when using multiple influences
+				static_assert(std::is_same<float, Softs::FSolverReal>::value);
+				static_assert(sizeof(Softs::FSolverVec3) == sizeof(FVector3f));
+
+				TConstArrayView<FVector3f> FinePositions((const FVector3f*)FineParticles.XArray().GetData(), FineParticles.Size());
+				TArray<uint32> FineIndices;
+				FineIndices.Reserve(3 * TriangleMesh.GetNumElements());
+				for (const TVec3<int32>& Element : TriangleMesh.GetElements())
+				{
+					FineIndices.Add(Element[0]);
+					FineIndices.Add(Element[1]);
+					FineIndices.Add(Element[2]);
+				}
+
+				const ClothingMeshUtils::ClothMeshDesc FineLodDesc(FinePositions, TConstArrayView<uint32>(FineIndices));
+
+				const Softs::FSolverParticlesRange& CoarseParticles = Evolution->GetSoftBodyParticles(MultiResCoarseLODParticleRangeId);
+				TConstArrayView<FVector3f> CoarsePositions((const FVector3f*)CoarseParticles.XArray().GetData(), CoarseParticles.Size());
+				TConstArrayView<Softs::FSolverReal> CoarseInvM = CoarseParticles.GetInvM();
+				TArray<uint32> CoarseIndices;
+				CoarseIndices.Reserve(3 * MultiResCoarseLODMesh->GetNumElements());
+				for (const TVec3<int32>& Element : MultiResCoarseLODMesh->GetElements())
+				{
+					if (CoarseInvM[Element[0]] != 0.f || CoarseInvM[Element[1]] != 0.f || CoarseInvM[Element[2]] != 0.f)
+					{
+						CoarseIndices.Add(Element[0]);
+						CoarseIndices.Add(Element[1]);
+						CoarseIndices.Add(Element[2]);
+					}
+				}
+
+				if (CoarseIndices.IsEmpty())
+				{
+					return;
+				}
+
+				const ClothingMeshUtils::ClothMeshDesc CoarseLodDesc(CoarsePositions, TConstArrayView<uint32>(CoarseIndices));
+				TArray<FMeshToMeshVertData> TransitionData;
+				ClothingMeshUtils::GenerateMeshToMeshVertData(TransitionData, FineLodDesc, CoarseLodDesc, MaxDistances, bUseSmoothTransitions, bUseMultipleInfluences, SkinningKernelRadius);
+
+				CoarseToFinePositionBaryCoordsAndDist.Reserve(TransitionData.Num());
+				CoarseToFineSourceMeshVertIndices.Reserve(TransitionData.Num());
+				for (const FMeshToMeshVertData& Data : TransitionData)
+				{
+					CoarseToFinePositionBaryCoordsAndDist.Emplace(Data.PositionBaryCoordsAndDist.X, Data.PositionBaryCoordsAndDist.Y, Data.PositionBaryCoordsAndDist.Z, Data.PositionBaryCoordsAndDist.W);
+					CoarseToFineSourceMeshVertIndices.Emplace(Data.SourceMeshVertIndices[0], Data.SourceMeshVertIndices[1], Data.SourceMeshVertIndices[2]);
+				}
+			}
+
+			MultiResConstraints = MakeShared<Softs::FMultiResConstraints>(
+				FineParticles,
+				MultiResCoarseLODParticleRangeId,
+				*MultiResCoarseLODMesh,
+				MoveTemp(CoarseToFinePositionBaryCoordsAndDist),
+				MoveTemp(CoarseToFineSourceMeshVertIndices),
+				WeightMaps,
+				ConfigProperties);
+			++NumConstraintRules;
+			++NumConstraintInits;
+		}
+	}
+}
+
+void FClothConstraints::CreateForceBasedRules(const TSharedPtr<Softs::FMultiResConstraints>& FineLODMultiResConstraint)
+{
+	if (FineLODMultiResConstraint)
+	{
+		++NumPostprocessingConstraintRules;
+	}
+
 	FRuleCreator RuleCreator(this);
 
 	if (ExternalForces)
@@ -1471,6 +1565,23 @@ void FClothConstraints::CreateForceBasedRules()
 		});
 
 		// TODO: Linear System
+	}
+
+	if (MultiResConstraints)
+	{
+		constexpr bool bInitParticles = false;
+		RuleCreator.AddXPBDParallelInitRule<bInitParticles>(MultiResConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(MultiResConstraints.Get());
+	}
+
+	if (FineLODMultiResConstraint)
+	{
+		RuleCreator.AddPostSubstepConstraintRule(
+			[FineLODMultiResConstraint, this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
+		{
+			FineLODMultiResConstraint->UpdateFineTargets(Particles);
+		});
 	}
 
 	if (XStretchBiasConstraints)
@@ -2173,6 +2284,10 @@ void FClothConstraints::Update(
 	if (SelfCollisionSphereConstraints)
 	{
 		SelfCollisionSphereConstraints->SetProperties(ConfigProperties, VertexSets);
+	}
+	if (MultiResConstraints)
+	{
+		MultiResConstraints->SetProperties(ConfigProperties, WeightMaps);
 	}
 
 	bool bUsePointBasedWindModel = false;

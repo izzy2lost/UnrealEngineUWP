@@ -41,6 +41,7 @@
 #include "Chaos/VelocityField.h"
 #include "Chaos/XPBDSpringConstraints.h"
 #include "Chaos/XPBDBendingConstraints.h"
+#include "Chaos/SoftsMultiResConstraints.h"
 #endif
 
 #if INTEL_ISPC && !UE_BUILD_SHIPPING
@@ -130,6 +131,7 @@ namespace ClothingSimulationConsole
 					bChaos_Bending_ISPC_Enabled =
 					bChaos_XPBDSpring_ISPC_Enabled =
 					bChaos_XPBDBending_ISPC_Enabled =
+					bChaos_MultiRes_ISPC_Enabled =
 					bEnableISPC;
 				return;
 			}
