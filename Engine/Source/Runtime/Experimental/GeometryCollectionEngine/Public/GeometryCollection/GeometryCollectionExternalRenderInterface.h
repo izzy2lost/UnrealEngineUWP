@@ -33,6 +33,9 @@ public:
 	virtual void UpdateRootTransform(UGeometryCollection const& InGeometryCollection, FTransform const& InRootTransform) = 0;
 	virtual void UpdateTransforms(UGeometryCollection const& InGeometryCollection, TArrayView<const FTransform3f> InTransforms) = 0;
 
+	// todo: Maybe move this to a separate ISMPool renderer interface? But maybe that is overengineering?
+	virtual void SetCustomInstanceData(int32 CustomFloatIndex, float CustomFloatValue) {}
+
 	UE_DEPRECATED(5.4, "Use flags version of UpdateState instead")
 	virtual void UpdateState(UGeometryCollection const& InGeometryCollection, FTransform const& InComponentTransform, bool bInIsBroken, bool bInIsVisible) 
 	{
