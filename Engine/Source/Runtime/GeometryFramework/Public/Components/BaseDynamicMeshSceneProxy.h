@@ -479,6 +479,9 @@ protected:
 	// Allow view-mode overrides. 
 	bool bEnableViewModeOverrides = true;
 
+	// whether to try to use the static draw instead of dynamic draw path; note we may still use the dynamic path if collision or vertex color rendering is enabled
+	bool bPreferStaticDrawPath = false;
+
 public:
 	GEOMETRYFRAMEWORK_API FBaseDynamicMeshSceneProxy(UBaseDynamicMeshComponent* Component);
 
@@ -968,6 +971,11 @@ protected:
 		FMeshElementCollector& Collector) const;
 public:
 
+	GEOMETRYFRAMEWORK_API virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
+
+	// Whether to allow use of the static draw path. If false, the dynamic draw path will be used instead.
+	GEOMETRYFRAMEWORK_API virtual bool AllowStaticDrawPath(const FSceneView* View) const;
+
 	/**
 	 * Draw a single-frame FMeshBatch for a FMeshRenderBufferSet
 	 */
@@ -979,6 +987,12 @@ public:
 		ESceneDepthPriorityGroup DepthPriority,
 		int ViewIndex,
 		FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer) const;
+
+
+
+	//
+	// Raytracing APIs
+	//
 
 #if RHI_RAYTRACING
 

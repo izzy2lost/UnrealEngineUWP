@@ -43,7 +43,7 @@ ENUM_CLASS_FLAGS(EMeshRenderAttributeFlags);
 /**
  * Tangent calculation modes
  */
-UENUM()
+UENUM(BlueprintType)
 enum class EDynamicMeshComponentTangentsMode : uint8
 {
 	/** Tangents are not used/available, proceed accordingly (eg generate arbitrary orthogonal basis) */
@@ -60,7 +60,7 @@ enum class EDynamicMeshComponentTangentsMode : uint8
 /**
  * Color Override Modes
  */
-UENUM()
+UENUM(BlueprintType)
 enum class EDynamicMeshComponentColorOverrideMode : uint8
 {
 	/** No Color Override enabled */
@@ -75,12 +75,25 @@ enum class EDynamicMeshComponentColorOverrideMode : uint8
 
 
 /**
+ * Draw Path to use
+ */
+UENUM(BlueprintType)
+enum class EDynamicMeshDrawPath : uint8
+{
+	/** Use the dynamic draw path, intended for meshes that update on most frames */
+	DynamicDraw = 0,
+	/** Use the static draw path, for meshes that do not change on most frames */
+	StaticDraw = 1
+};
+
+
+/**
  * Color Transform to apply to Vertex Colors when converting from internal DynamicMesh
  * Color attributes (eg Color Overlay stored in FVector4f) to RHI Render Buffers (FColor).
  * 
  * Note that UStaticMesh assumes the Source Mesh colors are Linear and always converts to SRGB.
  */
-UENUM()
+UENUM(BlueprintType)
 enum class EDynamicMeshVertexColorTransformMode : uint8
 {
 	/** Do not apply any color-space transform to Vertex Colors */
@@ -496,6 +509,30 @@ protected:
 	GEOMETRYFRAMEWORK_API virtual void OnRenderingStateChanged(bool bForceImmedateRebuild);
 
 
+
+
+protected:
+	/**
+	 * Controls whether to use the dynamic or static draw path
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite,
+				BlueprintSetter=SetMeshDrawPath, BlueprintGetter=GetMeshDrawPath,
+				 Category = "Dynamic Mesh Component|Rendering")
+	EDynamicMeshDrawPath DrawPath = EDynamicMeshDrawPath::DynamicDraw;
+	
+public:
+
+	/**
+	 * Set the mesh rendering to use the static or dynamic draw path
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API virtual void SetMeshDrawPath(EDynamicMeshDrawPath NewDrawPath);
+
+	/**
+	 * @return Whether the mesh renders using the static or dynamic draw path
+	 */
+	UFUNCTION(BlueprintPure, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API virtual EDynamicMeshDrawPath GetMeshDrawPath() const;
 
 	//===============================================================================================================
 	// Standard Component interfaces

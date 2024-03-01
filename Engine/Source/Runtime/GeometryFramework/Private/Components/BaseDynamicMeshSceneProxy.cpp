@@ -16,7 +16,8 @@ FBaseDynamicMeshSceneProxy::FBaseDynamicMeshSceneProxy(UBaseDynamicMeshComponent
 	ParentBaseComponent(Component),
 	ColorSpaceTransformMode(Component->GetVertexColorSpaceTransformMode()),
 	bEnableRaytracing(Component->GetEnableRaytracing()),
-	bEnableViewModeOverrides(Component->GetViewModeOverridesEnabled())
+	bEnableViewModeOverrides(Component->GetViewModeOverridesEnabled()),
+	bPreferStaticDrawPath(Component->GetMeshDrawPath() == EDynamicMeshDrawPath::StaticDraw)
 {
 	if (Component->GetColorOverrideMode() == EDynamicMeshComponentColorOverrideMode::Constant)
 	{
@@ -468,6 +469,105 @@ void FBaseDynamicMeshSceneProxy::DrawBatch(FMeshElementCollector& Collector, con
 	Mesh.bCanApplyViewModeOverrides = (bWireframe) ? false : this->bEnableViewModeOverrides;
 	Collector.AddMesh(ViewIndex, Mesh);
 }
+
+
+bool FBaseDynamicMeshSceneProxy::AllowStaticDrawPath(const FSceneView* View) const
+{
+	bool bAllowDebugViews = AllowDebugViewmodes();
+	if (!bAllowDebugViews)
+	{
+		return true;
+	}
+	const FEngineShowFlags& EngineShowFlags = View->Family->EngineShowFlags;
+	bool bWantWireframeOnShaded = ParentBaseComponent->GetEnableWireframeRenderPass();
+	bool bWireframe = EngineShowFlags.Wireframe || bWantWireframeOnShaded;
+	if (bWireframe)
+	{
+		return false;
+	}
+	bool bDrawSimpleCollision = false, bDrawComplexCollision = false;
+	bool bDrawCollisionView = IsCollisionView(EngineShowFlags, bDrawSimpleCollision, bDrawComplexCollision); // check for the full collision views
+	bool bDrawCollisionFlags = EngineShowFlags.Collision && IsCollisionEnabled(); // check for single component collision rendering
+	bool bDrawCollision = bDrawCollisionFlags || bDrawSimpleCollision || bDrawCollisionView;
+	if (bDrawCollision)
+	{
+		return false;
+	}
+	bool bIsSelected = IsSelected();
+	bool bColorOverrides = (bIsSelected && EngineShowFlags.VertexColors) || (ParentBaseComponent->ColorMode != EDynamicMeshComponentColorOverrideMode::None);
+	return !bColorOverrides;
+}
+
+
+void FBaseDynamicMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* PDI)
+{
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_BaseDynamicMeshSceneProxy_DrawStaticElements);
+
+	UMaterialInterface* UseSecondaryMaterial = nullptr;
+	if (ParentBaseComponent->HasSecondaryRenderMaterial())
+	{
+		UseSecondaryMaterial = ParentBaseComponent->GetSecondaryRenderMaterial();
+	}
+	bool bDrawSecondaryBuffers = ParentBaseComponent->GetSecondaryBuffersVisibility();
+
+	ESceneDepthPriorityGroup DepthPriority = SDPG_World;
+
+	TArray<FMeshRenderBufferSet*> Buffers;
+	GetActiveRenderBufferSets(Buffers);
+	PDI->ReserveMemoryForMeshes(Buffers.Num());
+
+	// Draw the mesh.
+	int32 SectionIndexCounter = 0;
+	for (FMeshRenderBufferSet* BufferSet : Buffers)
+	{
+		if (BufferSet->TriangleCount == 0)
+		{
+			continue;
+		}
+
+		UMaterialInterface* UseMaterial = BufferSet->Material;
+		if (ParentBaseComponent->HasOverrideRenderMaterial(0))
+		{
+			UseMaterial = ParentBaseComponent->GetOverrideRenderMaterial(0);
+		}
+		FMaterialRenderProxy* MaterialProxy = UseMaterial->GetRenderProxy();
+
+		// lock buffers so that they aren't modified while we are submitting them
+		FScopeLock BuffersLock(&BufferSet->BuffersLock);
+
+		FMeshBatch MeshBatch;
+
+		FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
+		BatchElement.IndexBuffer = &BufferSet->IndexBuffer;
+		MeshBatch.VertexFactory = &BufferSet->VertexFactory;
+		MeshBatch.MaterialRenderProxy = MaterialProxy;
+
+		BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
+		BatchElement.NumPrimitives = BufferSet->IndexBuffer.Indices.Num() / 3;
+		BatchElement.FirstIndex = 0;
+		BatchElement.MinVertexIndex = 0;
+		BatchElement.MaxVertexIndex = BufferSet->PositionVertexBuffer.GetNumVertices() - 1;
+		MeshBatch.ReverseCulling = IsLocalToWorldDeterminantNegative();
+		MeshBatch.Type = PT_TriangleList;
+		MeshBatch.DepthPriorityGroup = DepthPriority;
+		MeshBatch.bCanApplyViewModeOverrides = this->bEnableViewModeOverrides;
+		MeshBatch.LODIndex = 0;
+		MeshBatch.SegmentIndex = SectionIndexCounter;
+		MeshBatch.MeshIdInPrimitive = SectionIndexCounter;
+		SectionIndexCounter++;
+
+		MeshBatch.LCI = nullptr; // lightmap cache interface (allowed to be null)
+		MeshBatch.CastShadow = true;
+		MeshBatch.bUseForMaterial = true;
+		MeshBatch.bDitheredLODTransition = false;
+		MeshBatch.bUseForDepthPass = true;
+		MeshBatch.bUseAsOccluder = ShouldUseAsOccluder();
+
+		PDI->DrawMesh(MeshBatch, FLT_MAX);
+	}
+
+}
+
 
 void FBaseDynamicMeshSceneProxy::SetCollisionData()
 {

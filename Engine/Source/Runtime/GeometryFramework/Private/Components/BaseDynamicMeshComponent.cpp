@@ -22,7 +22,8 @@ void UBaseDynamicMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Pr
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName PropName = PropertyChangedEvent.GetPropertyName();
-	if ( (PropName == GET_MEMBER_NAME_CHECKED(UBaseDynamicMeshComponent, bEnableRaytracing))  )
+	if ( (PropName == GET_MEMBER_NAME_CHECKED(UBaseDynamicMeshComponent, bEnableRaytracing)) || 
+		 (PropName == GET_MEMBER_NAME_CHECKED(UBaseDynamicMeshComponent, DrawPath)) )
 	{
 		OnRenderingStateChanged(true);
 	}
@@ -119,6 +120,20 @@ bool UBaseDynamicMeshComponent::GetEnableRaytracing() const
 	return bEnableRaytracing;
 }
 
+
+void UBaseDynamicMeshComponent::SetMeshDrawPath(EDynamicMeshDrawPath NewDrawPath)
+{
+	if (DrawPath != NewDrawPath)
+	{
+		DrawPath = NewDrawPath;
+		OnRenderingStateChanged(true);
+	}
+}
+
+EDynamicMeshDrawPath UBaseDynamicMeshComponent::GetMeshDrawPath() const
+{
+	return DrawPath;
+}
 
 
 void UBaseDynamicMeshComponent::SetColorOverrideMode(EDynamicMeshComponentColorOverrideMode NewMode)

@@ -630,7 +630,17 @@ public:
 
 		Result.bDrawRelevance = IsShown(View);
 		Result.bShadowRelevance = IsShadowCast(View);
-		Result.bDynamicRelevance = true;
+
+		bool bUseStaticDrawPath = bPreferStaticDrawPath && AllowStaticDrawPath(View);
+		Result.bDynamicRelevance = !bUseStaticDrawPath;
+		Result.bStaticRelevance = bUseStaticDrawPath;
+#if WITH_EDITOR
+		//only check these in the editor
+		Result.bEditorVisualizeLevelInstanceRelevance = IsEditingLevelInstanceChild();
+		Result.bEditorStaticSelectionRelevance = (IsSelected() || IsHovered());
+#endif
+
+
 		Result.bRenderInMainPass = ShouldRenderInMainPass();
 		Result.bUsesLightingChannels = GetLightingChannelMask() != GetDefaultLightingChannelMask();
 		Result.bTranslucentSelfShadow = bCastVolumetricTranslucentShadow;
