@@ -48,10 +48,16 @@ struct FTypedElementIsSelectedOptions
 public:
 	FTypedElementIsSelectedOptions& SetAllowIndirect(const bool InAllowIndirect) { bAllowIndirect = InAllowIndirect; return *this; }
 	bool AllowIndirect() const { return bAllowIndirect; }
+
+	// Set the selection set name that will be passed into the selection column in TEDS (if it is enabled)
+	FTypedElementIsSelectedOptions& SetNameForTEDSIntegration(const FName& InTEDSIntegrationSelectionSetName) { TEDSIntegrationSelectionSetName = InTEDSIntegrationSelectionSetName; return *this; }
+	FName GetNameForTEDSIntegration() const { return TEDSIntegrationSelectionSetName; }
 	
 private:
 	UPROPERTY(BlueprintReadWrite, Category="TypedElementInterfaces|Selection|IsSelectedOptions", meta=(AllowPrivateAccess=true))
 	bool bAllowIndirect = false;
+	
+	FName TEDSIntegrationSelectionSetName = FName();
 };
 
 USTRUCT(BlueprintType)
@@ -100,7 +106,6 @@ private:
 	UPROPERTY(BlueprintReadWrite, Category="TypedElementInterfaces|Selection|SelectionOptions", meta=(AllowPrivateAccess=true))
 	ETypedElementChildInclusionMethod ChildElementInclusionMethod = ETypedElementChildInclusionMethod::None;
 
-	UPROPERTY(BlueprintReadWrite, Category="TypedElementInterfaces|Selection|SelectionOptions", meta=(AllowPrivateAccess=true))
 	FName TEDSIntegrationSelectionSetName = FName();
 };
 

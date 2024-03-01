@@ -43,6 +43,10 @@ public:
 
 	FTypedElementSelectionNormalizationOptions& SetFollowAttachment(const bool InFollowAttachment) { bFollowAttachment = InFollowAttachment; return *this; }
 	bool FollowAttachment() const { return bFollowAttachment; }
+
+	// Set the selection set name that will be passed into the selection column in TEDS (if it is enabled)
+	FTypedElementSelectionNormalizationOptions& SetNameForTEDSIntegration(const FName& InTEDSIntegrationSelectionSetName) { TEDSIntegrationSelectionSetName = InTEDSIntegrationSelectionSetName; return *this; }
+	FName GetNameForTEDSIntegration() const { return TEDSIntegrationSelectionSetName; }
 	
 private:
 	UPROPERTY(BlueprintReadWrite, Category="TypedElementInterfaces|Selection|NormalizationOptions", meta=(AllowPrivateAccess=true))
@@ -50,6 +54,8 @@ private:
 
 	UPROPERTY(BlueprintReadWrite, Category="TypedElementInterfaces|Selection|NormalizationOptions", meta=(AllowPrivateAccess=true))
 	bool bFollowAttachment = false;
+
+	FName TEDSIntegrationSelectionSetName = FName();
 };
 
 /**
