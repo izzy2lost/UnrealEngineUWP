@@ -114,6 +114,7 @@ namespace ResonanceAudio
 		virtual void OnReleaseSource(const uint32 SourceId) override;
 		virtual FSoundEffectSubmixPtr GetEffectSubmix() override;
 		virtual USoundSubmix* GetSubmix() override;
+		virtual USoundSubmix* LoadSubmix() override;
 		virtual void ProcessSourceAudio(const FAudioPluginSourceInputData& InputData, FAudioPluginSourceOutputData& OutputData) override;
 
 		void SetResonanceAudioApi(vraudio::ResonanceAudioApi* InResonanceAudioApi) { ResonanceAudioApi = InResonanceAudioApi; };
