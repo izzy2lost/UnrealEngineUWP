@@ -57,7 +57,7 @@ uint32 FMutableTaskGraph::AddMutableThreadTaskLowPriority(const TCHAR* DebugName
 }
 
 
-void FMutableTaskGraph::CancelMutableThreadTaskLowPriority(uint32 Id)
+bool FMutableTaskGraph::CancelMutableThreadTaskLowPriority(uint32 Id)
 {
 	FScopeLock Lock(&MutableTaskLock);
 
@@ -66,9 +66,11 @@ void FMutableTaskGraph::CancelMutableThreadTaskLowPriority(uint32 Id)
 		if (QueueMutableTasksLowPriority[Index].Id == Id)
 		{
 			QueueMutableTasksLowPriority.RemoveAt(Index);
-			break;
+			return true;
 		}
 	}
+
+	return false;
 }
 
 
@@ -94,6 +96,26 @@ void FMutableTaskGraph::WaitForMutableTasks()
 		}
 
 		LastMutableTask = {};
+	}
+}
+
+
+void FMutableTaskGraph::WaitForLaunchedLowPriorityTask(uint32 TaskID)
+{
+	UE::Tasks::FTask Task;
+
+	{
+		FScopeLock Lock(&MutableTaskLock);
+
+		if (LastMutableTaskLowPriorityID == TaskID)
+		{
+			Task = LastMutableTaskLowPriority;
+		}
+	}
+
+	if (Task.IsValid())
+	{
+		Task.Wait();
 	}
 }
 
@@ -142,6 +164,7 @@ void FMutableTaskGraph::TryLaunchMutableTaskLowPriority(bool bFromMutableTask)
 			return;
 		}
 
+		LastMutableTaskLowPriorityID = NextTask.Id;
 		LastMutableTaskLowPriority = AddMutableThreadTask(*NextTask.DebugName, [this, Task = MoveTemp(NextTask)]() // Moves the task, not the pointer.
 		{
 			MUTABLE_CPUPROFILER_SCOPE(LowPriorityTaskBody)
@@ -149,6 +172,7 @@ void FMutableTaskGraph::TryLaunchMutableTaskLowPriority(bool bFromMutableTask)
 
 			{
 				FScopeLock Lock(&MutableTaskLock);
+				LastMutableTaskLowPriorityID = INVALID_ID;
 				LastMutableTaskLowPriority = {};
 				
 				TryLaunchMutableTaskLowPriority(true);
@@ -205,6 +229,7 @@ int32 FMutableTaskGraph::Tick()
 		FScopeLock Lock(&MutableTaskLock);
 		if (IsTaskCompleted(LastMutableTaskLowPriority))
 		{
+			LastMutableTaskLowPriorityID = INVALID_ID;
 			LastMutableTaskLowPriority = {};
 		}
 	}
