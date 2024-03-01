@@ -682,7 +682,7 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 
 	SetState(FMath::Clamp(GetState(), 0, CustomizableObject->GetStateCount() - 1));
 	
-	RequestedLODLevels.Init(0, CustomizableObject->GetComponentCount());
+	RequestedLODLevels.Init(MAX_uint16, CustomizableObject->GetComponentCount());
 
 	TArray<FCustomizableObjectBoolParameterValue> OldBoolParameters = BoolParameters;
 	TArray<FCustomizableObjectIntParameterValue> OldIntParameters = IntParameters;

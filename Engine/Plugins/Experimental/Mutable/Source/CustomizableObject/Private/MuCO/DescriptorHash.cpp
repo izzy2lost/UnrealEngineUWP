@@ -92,15 +92,10 @@ bool FDescriptorHash::IsSubset(const FDescriptorHash& Other) const
 	
 	for (int32 ComponentIndex = 0; ComponentIndex < RequestedLODsPerComponent.Num(); ++ComponentIndex)
 	{
-		const int32 RequestedLODs = RequestedLODsPerComponent[ComponentIndex];
-		const int32 OtherRequestedLODs = Other.RequestedLODsPerComponent[ComponentIndex];
-		for (uint16 LODIndex = MinLOD; LODIndex <= MAX_MESH_LOD_COUNT; ++LODIndex)
+		// It is a subset if the Requested LOD is the same or greater.
+		if (RequestedLODsPerComponent[ComponentIndex] < Other.RequestedLODsPerComponent[ComponentIndex])
 		{
-			// To be a subset all bits set in RequestedLODs must be set in OtherRequestedLODs. OtherRequestedLODs can have additional bits set
-			if (RequestedLODs & (1 << LODIndex) && !(OtherRequestedLODs & (1 << LODIndex)))
-			{
-				return false;
-			}
+			return false;
 		}
 	}
 
