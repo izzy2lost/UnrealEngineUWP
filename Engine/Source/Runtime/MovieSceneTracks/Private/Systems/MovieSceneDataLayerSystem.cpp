@@ -19,6 +19,7 @@
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
 #include "WorldPartition/WorldPartitionStreamingSource.h"
+#include "Engine/CoreSettings.h"
 #include "Engine/World.h"
 #include "Misc/EnumClassFlags.h"
 #include "MovieSceneSequence.h"
@@ -42,6 +43,7 @@ enum class EDataLayerUpdateFlags : uint8
 	None						= 0,
 	FlushStreamingVisibility	= 1,
 	FlushStreamingFull			= 2,
+	PerformGarbageCollect		= 4,
 };
 ENUM_CLASS_FLAGS(EDataLayerUpdateFlags)
 
@@ -81,9 +83,10 @@ struct FDataLayerState
 {
 	void Reset();
 	bool IsEmpty() const;
-	void AddRequest(int16 InBias, EDataLayerRuntimeState RequestedState, bool bRequiresStreamingFlush);
+	void AddRequest(int16 InBias, EDataLayerRuntimeState RequestedState, bool bRequiresStreamingFlush, bool bPerformGC);
 	TOptional<EDataLayerRuntimeState> ComputeDesiredState() const;
 	bool ShouldFlushStreaming(EDataLayerRuntimeState ComputedState) const;
+	bool ShouldPerformGarbageCollect(EDataLayerRuntimeState ComputedState) const;
 
 private:
 
@@ -93,6 +96,7 @@ private:
 	int32 ActivatedCount   = 0;
 	bool  bFlushUnloaded   = false;
 	bool  bFlushActivated  = false;
+	bool  bGCUnloaded      = false;
 };
 
 
@@ -104,7 +108,7 @@ struct FDesiredLayerStates
 #if WITH_EDITOR
 	void ApplyInEditor(FPreAnimatedDataLayerStorage* PreAnimatedStorage, UDataLayerEditorSubsystem* EditorSubSystem);
 #endif
-	void ApplyNewState(const UDataLayerInstance* InDataLayer, int16 HierarchicalBias, EDataLayerRuntimeState DesiredState, bool bRequiresStreamingFlush);
+	void ApplyNewState(const UDataLayerInstance* InDataLayer, int16 HierarchicalBias, EDataLayerRuntimeState DesiredState, bool bRequiresStreamingFlush, bool bPerformGC);
 
 	TMap<TObjectKey<UDataLayerInstance>, FDataLayerState> StatesByInstance;
 };
@@ -209,9 +213,10 @@ void FDataLayerState::Reset()
 	ActivatedCount   = 0;
 	bFlushUnloaded   = false;
 	bFlushActivated  = false;
+	bGCUnloaded      = false;
 }
 
-void FDataLayerState::AddRequest(int16 InBias, EDataLayerRuntimeState RequestedState, bool bRequiresStreamingFlush)
+void FDataLayerState::AddRequest(int16 InBias, EDataLayerRuntimeState RequestedState, bool bRequiresStreamingFlush, bool bPerformGC)
 {
 	if (InBias > HierarchicalBias)
 	{
@@ -223,7 +228,7 @@ void FDataLayerState::AddRequest(int16 InBias, EDataLayerRuntimeState RequestedS
 	{
 		switch (RequestedState)
 		{
-		case EDataLayerRuntimeState::Unloaded:  ++UnloadedCount;  bFlushUnloaded |= bRequiresStreamingFlush; break;
+		case EDataLayerRuntimeState::Unloaded:  ++UnloadedCount;  bFlushUnloaded |= bRequiresStreamingFlush; bGCUnloaded |= bPerformGC; break;
 		case EDataLayerRuntimeState::Loaded:    ++LoadedCount;    break;
 		case EDataLayerRuntimeState::Activated: ++ActivatedCount; bFlushActivated |= bRequiresStreamingFlush; break;
 		}
@@ -259,6 +264,16 @@ bool FDataLayerState::ShouldFlushStreaming(EDataLayerRuntimeState ComputedState)
 	{
 	case EDataLayerRuntimeState::Unloaded:  return bFlushUnloaded;
 	case EDataLayerRuntimeState::Activated: return bFlushActivated;
+	}
+
+	return false;
+}
+
+bool FDataLayerState::ShouldPerformGarbageCollect(EDataLayerRuntimeState ComputedState) const
+{
+	switch (ComputedState)
+	{
+	case EDataLayerRuntimeState::Unloaded:  return bGCUnloaded;
 	}
 
 	return false;
@@ -360,6 +375,11 @@ EDataLayerUpdateFlags FDesiredLayerStates::Apply(FPreAnimatedDataLayerStorage* P
 							*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
 					}
 				}
+
+				if (StateValue.ShouldPerformGarbageCollect(DesiredStateValue))
+				{
+					Flags |= EDataLayerUpdateFlags::PerformGarbageCollect;
+				}
 			}
 		}
 	}
@@ -431,7 +451,7 @@ void FDesiredLayerStates::ApplyInEditor(FPreAnimatedDataLayerStorage* PreAnimate
 }
 #endif
 
-void FDesiredLayerStates::ApplyNewState(const UDataLayerInstance* InDataLayer, int16 HierarchicalBias, EDataLayerRuntimeState DesiredState, bool bRequiresStreamingFlush)
+void FDesiredLayerStates::ApplyNewState(const UDataLayerInstance* InDataLayer, int16 HierarchicalBias, EDataLayerRuntimeState DesiredState, bool bRequiresStreamingFlush, bool bPerformGC)
 {
 	using namespace UE::MovieScene;
 
@@ -441,7 +461,7 @@ void FDesiredLayerStates::ApplyNewState(const UDataLayerInstance* InDataLayer, i
 		LayerState = &StatesByInstance.Add(InDataLayer, FDataLayerState());
 	}
 
-	LayerState->AddRequest(HierarchicalBias, DesiredState, bRequiresStreamingFlush);
+	LayerState->AddRequest(HierarchicalBias, DesiredState, bRequiresStreamingFlush, bPerformGC);
 }
 
 } // namespace MovieScene
@@ -544,6 +564,12 @@ void UMovieSceneDataLayerSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites
 				World->FlushLevelStreaming(EFlushLevelStreamingType::Visibility);
 			}
 
+			if (EnumHasAnyFlags(UpdateFlags, EDataLayerUpdateFlags::PerformGarbageCollect))
+			{
+				UE_LOG(LogMovieScene, Warning, TEXT("[UMovieSceneDataLayerSystem] Forcing garbage collection"));
+				GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurgeOverride = 1;
+			}
+
 			UE_SUPPRESS(LogMovieScene, Warning,
 			{
 				if (FlushTypeString)
@@ -620,14 +646,16 @@ void UMovieSceneDataLayerSystem::UpdateDesiredStates()
 			if (DataLayerManager)
 			{
 				EDataLayerRuntimeState DesiredState = bPreroll ? Section->GetPrerollState() : Section->GetDesiredState();
-				const bool bRequiresStreamingFlush = (DesiredState == EDataLayerRuntimeState::Unloaded) ? Section->GetFlushOnUnload() : !bPreroll;
+				const bool bRequiresStreamingFlush = (DesiredState == EDataLayerRuntimeState::Unloaded) ? Section->GetFlushOnUnload() :
+													 (DesiredState == EDataLayerRuntimeState::Activated) ? Section->GetFlushOnActivated() : false;
+				const bool bPerformGC = (DesiredState == EDataLayerRuntimeState::Unloaded) ? Section->GetPerformGCOnUnload() : false;
 
 				for (const UDataLayerAsset* DataLayerAsset : Section->GetDataLayerAssets())
 				{
 					const UDataLayerInstance* DataLayerInstance = DataLayerManager->GetDataLayerInstanceFromAsset(DataLayerAsset);
 					if (DataLayerInstance)
 					{
-						this->DesiredLayerStates->ApplyNewState(DataLayerInstance, OptHBiases ? OptHBiases[Index] : 0, DesiredState, bRequiresStreamingFlush);
+						this->DesiredLayerStates->ApplyNewState(DataLayerInstance, OptHBiases ? OptHBiases[Index] : 0, DesiredState, bRequiresStreamingFlush, bPerformGC);
 					}
 				}
 			}
