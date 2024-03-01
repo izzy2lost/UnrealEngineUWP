@@ -272,7 +272,7 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	ENGINE_API virtual bool ContainsDataLayer(const UDataLayerAsset* DataLayerAsset) const override;
 	ENGINE_API virtual bool ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const override;
 	ENGINE_API virtual bool HasContentBundle() const override;
-	virtual const TArray<FName>& GetDataLayers() const override { return DataLayers.ToArray(); }
+	virtual const TArray<FName>& GetDataLayers() const override { return GetDataLayersInline(); }
 	virtual FName GetExternalDataLayer() const override { return DataLayers.GetExternalDataLayer(); }
 	virtual bool HasAnyDataLayer(const TSet<FName>& InDataLayers) const override
 	{
@@ -286,6 +286,7 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 
 	ENGINE_API UDataLayerManager* GetDataLayerManager() const;
 	ENGINE_API EDataLayerRuntimeState GetCellEffectiveWantedState() const;
+	FORCEINLINE bool HasDataLayers() const { return !DataLayers.IsEmpty(); }
 
 	void SetBlockOnSlowLoading(bool bInBlockOnSlowLoading) { bBlockOnSlowLoading = bInBlockOnSlowLoading; }
 	bool GetBlockOnSlowLoading() const { return bBlockOnSlowLoading; }
@@ -352,6 +353,8 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 #endif
 
 protected:
+	FORCEINLINE const TArray<FName>& GetDataLayersInline() const { return DataLayers.ToArray(); }
+
 	//@todo_ow: Implement ServerOnlyVisible and refactor ClientOnlyVisible.
 	//          Instead of this function, server would not not wait for client level visibility 
 	//          for server-only visible cells.

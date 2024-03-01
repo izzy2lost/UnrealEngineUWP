@@ -6383,7 +6383,7 @@ bool AActor::HasDataLayers() const
 {
 	if (const IWorldPartitionCell* Cell = GetWorldPartitionRuntimeCell())
 	{
-		return Cell->HasDataLayers();
+		return Cell->GetDataLayers().Num() > 0;
 	}
 
 #if WITH_EDITOR

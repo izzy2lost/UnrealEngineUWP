@@ -136,7 +136,7 @@ int32 UWorldPartitionRuntimeCell::SortCompare(const UWorldPartitionRuntimeCell* 
 bool UWorldPartitionRuntimeCell::IsDebugShown() const
 {
 	return FWorldPartitionDebugHelper::IsDebugStreamingStatusShown(GetStreamingStatus()) &&
-	       FWorldPartitionDebugHelper::AreDebugDataLayersShown(GetDataLayers()) &&
+	       FWorldPartitionDebugHelper::AreDebugDataLayersShown(GetDataLayersInline()) &&
 		   (FWorldPartitionDebugHelper::CanDrawContentBundles() || !ContentBundleID.IsValid()) &&
 			RuntimeCellData->IsDebugShown();
 }
@@ -216,7 +216,7 @@ EDataLayerRuntimeState UWorldPartitionRuntimeCell::GetCellEffectiveWantedState()
 TArray<const UDataLayerInstance*> UWorldPartitionRuntimeCell::GetDataLayerInstances() const
 {
 	const UDataLayerManager* DataLayerManager = HasDataLayers() ? GetDataLayerManager() : nullptr;
-	return DataLayerManager ? DataLayerManager->GetDataLayerInstances(GetDataLayers()) : TArray<const UDataLayerInstance*>();
+	return DataLayerManager ? DataLayerManager->GetDataLayerInstances(GetDataLayersInline()) : TArray<const UDataLayerInstance*>();
 }
 
 const UExternalDataLayerInstance* UWorldPartitionRuntimeCell::GetExternalDataLayerInstance() const
@@ -239,7 +239,7 @@ bool UWorldPartitionRuntimeCell::HasContentBundle() const
 
 bool UWorldPartitionRuntimeCell::ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const
 {
-	return GetDataLayers().Contains(DataLayerInstance->GetDataLayerFName());
+	return GetDataLayersInline().Contains(DataLayerInstance->GetDataLayerFName());
 }
 
 FName UWorldPartitionRuntimeCell::GetLevelPackageName() const
