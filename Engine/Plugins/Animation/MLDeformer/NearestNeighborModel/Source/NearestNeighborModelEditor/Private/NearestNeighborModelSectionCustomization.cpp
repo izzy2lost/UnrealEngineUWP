@@ -35,19 +35,6 @@ namespace UE::NearestNeighborModel
 			return static_cast<FNearestNeighborEditorModel*>(EditorModule.GetModelRegistry().GetEditorModel(const_cast<UNearestNeighborModel*>(Model)));
 		}
 
-		TArray<float> GetVertexAttributeValues(const TArray<int32>& VertexMap, const TArray<float>& VertexWeights, int32 NumVertices)
-		{
-			check(VertexMap.Num() == VertexWeights.Num());
-			check(VertexMap.Num() <= NumVertices);
-			TArray<float> VertexAttribute;
-			VertexAttribute.SetNumZeroed(NumVertices);
-			for (int32 VertexIndex = 0; VertexIndex < VertexMap.Num(); ++VertexIndex)
-			{
-				VertexAttribute[VertexMap[VertexIndex]] = VertexWeights[VertexIndex];
-			}
-			return VertexAttribute;
-		}
-
 		void CreateVertexAttributes(USkeletalMesh& SkeletalMesh, const FString& AttributeName, const TArray<int32>& VertexMap, const TArray<float>& VertexWeights)
 		{
 			constexpr int32 LODIndex = 0;
@@ -66,9 +53,10 @@ namespace UE::NearestNeighborModel
 			}
 			TVertexAttributesRef<float> AttributeRef = MeshDescription->VertexAttributes().GetAttributesRef<float>(*AttributeName);
 
-			for (const int32 VertexIndex: VertexMap)
+			check(VertexMap.Num() == VertexWeights.Num());
+			for (int32 Index = 0; Index < VertexMap.Num(); ++Index)
 			{
-				AttributeRef.Set(VertexIndex, VertexWeights[VertexIndex]);
+				AttributeRef.Set(VertexMap[Index], VertexWeights[Index]);
 			}
 			
 			SkeletalMesh.CommitMeshDescription(LODIndex);
@@ -300,7 +288,7 @@ namespace UE::NearestNeighborModel
 	{
 		DetailBuilder.HideCategory("Section Private");
 		IDetailCategoryBuilder& SectionBuilder = DetailBuilder.EditCategory("Section", LOCTEXT("SectionCategory", "Section"));
-		SectionBuilder.AddProperty(UNearestNeighborModelSection::GetNumPCACoeffsPropertyName());
+		SectionBuilder.AddProperty(UNearestNeighborModelSection::GetNumBasisPropertyName());
 
 		// Get the selected objects
 		const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = DetailBuilder.GetSelectedObjects();
@@ -356,32 +344,9 @@ namespace UE::NearestNeighborModel
 				? EVisibility::Visible : EVisibility::Collapsed;
 			})));
 
-		const UNearestNeighborModel* const Model = Section->GetModel();
-		if (!Model)
-		{
-			return;
-		}
-		const FName PosesName = UNearestNeighborModelSection::GetNeighborPosesPropertyName();
-		TSharedPtr<IPropertyHandle> NeighborPosesHandle = DetailBuilder.GetProperty(PosesName);
-		SectionBuilder.AddProperty(PosesName)
-			.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([Model]()
-				{
-					return Model->IsReadyForTraining();
-				})));
-		const FName MeshesName = UNearestNeighborModelSection::GetNeighborMeshesPropertyName();
-		TSharedPtr<IPropertyHandle> NeighborMeshesHandle = DetailBuilder.GetProperty(MeshesName);
-		SectionBuilder.AddProperty(MeshesName)
-			.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([Model]()
-				{
-					return Model->IsReadyForTraining();
-				})));
-		const FName FramesName = UNearestNeighborModelSection::GetExcludedFramesPropertyName();
-		TSharedPtr<IPropertyHandle> ExcludedFramesHandle = DetailBuilder.GetProperty(FramesName);
-		SectionBuilder.AddProperty(FramesName)
-			.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([Model]()
-				{
-					return Model->IsReadyForTraining();
-				})));
+		SectionBuilder.AddProperty(UNearestNeighborModelSection::GetNeighborPosesPropertyName());
+		SectionBuilder.AddProperty(UNearestNeighborModelSection::GetNeighborMeshesPropertyName());
+		SectionBuilder.AddProperty(UNearestNeighborModelSection::GetExcludedFramesPropertyName());
 	}
 }	// namespace UE::NearestNeighborModel
 

@@ -216,6 +216,8 @@ namespace UE::NearestNeighborModel
 		{
 			return;
 		}
+		NearestNeighborCategoryBuilder->AddProperty(UNearestNeighborModel::GetUsePCAPropertyName());
+		NearestNeighborCategoryBuilder->AddProperty(UNearestNeighborModel::GetNumBasisPerSectionPropertyName());
 		NearestNeighborCategoryBuilder->AddProperty(UNearestNeighborModel::GetUseDualQuaternionDeltasPropertyName());
 		NearestNeighborCategoryBuilder->AddProperty(UNearestNeighborModel::GetDecayFactorPropertyName());
 		NearestNeighborCategoryBuilder->AddProperty(UNearestNeighborModel::GetNearestNeighborOffsetWeightPropertyName());
@@ -374,6 +376,27 @@ namespace UE::NearestNeighborModel
 					{
 						return false;
 					}
+				})
+			]
+		];
+
+		StatusCategoryBuilder->AddCustomRow(FText::FromString("StatusUpdate")).WholeRowContent()
+		[
+			SNew(SBox)
+			.Padding(2, 2)
+			.MaxDesiredWidth(200.f)
+			[
+				SNew(SButton)
+				.Text(FText::FromString(TEXT("Clear References")))
+				.ToolTipText(LOCTEXT("ClearReferencesTooltip", "Clears all animation sequences and geometry caches for asset validation."))
+				.HAlign(HAlign_Center)
+				.OnClicked_Lambda([this]
+				{
+					if (GetCastEditorModel())
+					{
+						GetCastEditorModel()->ClearReferences();
+					}
+					return FReply::Handled();
 				})
 			]
 		];

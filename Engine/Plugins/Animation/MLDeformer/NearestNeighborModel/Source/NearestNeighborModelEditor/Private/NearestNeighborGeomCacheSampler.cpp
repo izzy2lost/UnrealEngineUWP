@@ -5,6 +5,7 @@
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Animation/DebugSkelMeshComponent.h"
+#include "Async/ParallelFor.h"
 #include "BoneWeights.h"
 #include "Engine/SkeletalMesh.h"
 #include "GeometryCache.h"
@@ -160,30 +161,40 @@ namespace UE::NearestNeighborModel
 
 			TArrayView<const int32> OffsetAndCount = PartOffsetAndCountRef.Get(MeshMapping.MeshIndex);
 			const int32 VertexOffset = OffsetAndCount[0];
-			const int32 VertexCount = OffsetAndCount[1];
+			const int32 NumVertices = OffsetAndCount[1];
 			
-			// Calculate the vertex deltas.
-			for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+			constexpr int32 BatchSize = 500;
+			const int32 NumBatches = (NumVertices / BatchSize) + 1;
+			ParallelFor(NumBatches, [&](int32 BatchIndex)
 			{
-				const int32 SkinnedVertexIndex = VertexOffset + VertexIndex;
-				const int32 GeomCacheVertexIndex = MeshMapping.SkelMeshToTrackVertexMap[VertexIndex];
-				if (GeomCacheMeshData.Positions.IsValidIndex(GeomCacheVertexIndex))
+				const int32 StartVertex = BatchIndex * BatchSize;
+				if (StartVertex >= NumVertices || VertexDeltas.IsEmpty())
 				{
-					FVector3f Delta = FVector3f::ZeroVector;
-					const int32 ArrayIndex = 3 * SkinnedVertexIndex;
-					const int32 RenderVertexIndex = MeshMapping.ImportedVertexToRenderVertexMap[VertexIndex];
-					if (RenderVertexIndex != INDEX_NONE)
-					{
-						const FVector3f SkinnedVertexPos = SkinnedVertexPositions[SkinnedVertexIndex];
-						const FVector3f GeomCacheVertexPos = (FVector3f)AlignmentTransform.TransformPosition((FVector)GeomCacheMeshData.Positions[GeomCacheVertexIndex]);
-						const FVector3f WorldDelta = GeomCacheVertexPos - SkinnedVertexPos;
-						Delta = CalcDualQuaternionDelta(RenderVertexIndex, WorldDelta, LODRenderData, *SkinWeightBuffer);
-					}
-					VertexDeltas[ArrayIndex] = Delta.X;
-					VertexDeltas[ArrayIndex + 1] = Delta.Y;
-					VertexDeltas[ArrayIndex + 2] = Delta.Z;
+					return;
 				}
-			}
+				const int32 NumVertsInBatch = (StartVertex + BatchSize) < NumVertices ? BatchSize : FMath::Max(NumVertices - StartVertex, 0);
+				for (int32 VertexIndex = StartVertex; VertexIndex < StartVertex + NumVertsInBatch; ++VertexIndex)
+				{
+					const int32 SkinnedVertexIndex = VertexOffset + VertexIndex;
+					const int32 GeomCacheVertexIndex = MeshMapping.SkelMeshToTrackVertexMap[VertexIndex];
+					if (GeomCacheMeshData.Positions.IsValidIndex(GeomCacheVertexIndex))
+					{
+						FVector3f Delta = FVector3f::ZeroVector;
+						const int32 ArrayIndex = 3 * SkinnedVertexIndex;
+						const int32 RenderVertexIndex = MeshMapping.ImportedVertexToRenderVertexMap[VertexIndex];
+						if (RenderVertexIndex != INDEX_NONE)
+						{
+							const FVector3f SkinnedVertexPos = SkinnedVertexPositions[SkinnedVertexIndex];
+							const FVector3f GeomCacheVertexPos = (FVector3f)AlignmentTransform.TransformPosition((FVector)GeomCacheMeshData.Positions[GeomCacheVertexIndex]);
+							const FVector3f WorldDelta = GeomCacheVertexPos - SkinnedVertexPos;
+							Delta = CalcDualQuaternionDelta(RenderVertexIndex, WorldDelta, LODRenderData, *SkinWeightBuffer);
+						}
+						VertexDeltas[ArrayIndex] = Delta.X;
+						VertexDeltas[ArrayIndex + 1] = Delta.Y;
+						VertexDeltas[ArrayIndex + 2] = Delta.Z;
+					}
+				}
+			});
 		}
 	}
 
