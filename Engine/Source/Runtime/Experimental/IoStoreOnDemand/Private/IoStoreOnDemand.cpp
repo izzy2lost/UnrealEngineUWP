@@ -1302,7 +1302,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 	ChunksRelativePath.ToLowerInline();
 
 	bool bWritePerContainerToc = false;
-	GConfig->GetBool(TEXT("Ias"), TEXT("ForceTocFromMountedPaks"), bWritePerContainerToc, GEngineIni);
+	GConfig->GetBool(TEXT("Ias"), TEXT("CreatePerContainerTocs"), bWritePerContainerToc, GEngineIni);
 
 	uint64 TotalUploadedChunks = 0;
 	uint64 TotalUploadedBytes = 0;

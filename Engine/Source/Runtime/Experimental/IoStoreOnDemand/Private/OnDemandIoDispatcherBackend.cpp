@@ -1483,10 +1483,10 @@ FOnDemandIoBackend::FOnDemandIoBackend(TUniquePtr<IIasCache>&& InCache)
 #endif // UE_IAS_DEBUG_CONSOLE_CMDS
 
 	{
-		bool bForceTocFromMountedPaks = false;
-		GConfig->GetBool(TEXT("Ias"), TEXT("ForceTocFromMountedPaks"), bForceTocFromMountedPaks, GEngineIni);
+		bool bUsePerContainerTocs = false;
+		GConfig->GetBool(TEXT("Ias"), TEXT("UsePerContainerTocs"), bUsePerContainerTocs, GEngineIni);
 
-		if (bForceTocFromMountedPaks)
+		if (bUsePerContainerTocs)
 		{
 			ForceTocMode(ETocMode::LoadTocFromMountedPaks);
 		}
