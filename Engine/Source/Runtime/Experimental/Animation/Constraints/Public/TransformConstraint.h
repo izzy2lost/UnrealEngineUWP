@@ -491,12 +491,12 @@ struct FTransformConstraintUtils
 	static CONSTRAINTS_API int32 GetLastActiveConstraintIndex(const TArray< TWeakObjectPtr<UTickableConstraint> >& InConstraints);
 
 	/**
-	 * Fills a constraint array that InHandle is the parent of.
+	 * Fills a constraint array that InConstraint->ChildHandle is the parent of.
 	 * If bIncludeTarget is true, we also get the other constraints that act on the same target.
 	 */
 	static CONSTRAINTS_API void GetChildrenConstraints(
 		UWorld* World,
-		const UTransformableHandle* InHandle,
+		const UTickableTransformConstraint* InConstraint,
 		TArray< TWeakObjectPtr<UTickableConstraint> >& OutConstraints,
 		const bool bIncludeTarget = false);
 	
@@ -521,4 +521,17 @@ private:
 	TWeakObjectPtr<UTickableTransformConstraint> WeakConstraint = nullptr;
 	TWeakObjectPtr<UWorld> WeakWorld = nullptr;
 	bool bPreviousValidity = false;
+};
+
+/**
+ * FHandleDependencyChecker provides a way to check (direct + constraints + tick) dependencies between two UTransformableHandle
+ * HasDependency will return true if InHandle depends on InParentToCheck.
+ */
+
+struct FHandleDependencyChecker
+{
+	FHandleDependencyChecker(UWorld* InWorld = nullptr);
+	bool HasDependency(const UTransformableHandle& InHandle, const UTransformableHandle& InParentToCheck) const;		
+private:
+	TWeakObjectPtr<UWorld> WeakWorld = nullptr;
 };
