@@ -24,6 +24,7 @@ public:
 	ENGINE_API virtual void AddReferencedObjects(FReferenceCollector& Collector);
 
 	virtual bool IsValid() const = 0;
+	virtual bool HasContent() const = 0;
 
 	ENGINE_API UWorld* GetInjectedWorld() const;
 	ENGINE_API const FString& GetDisplayName() const;

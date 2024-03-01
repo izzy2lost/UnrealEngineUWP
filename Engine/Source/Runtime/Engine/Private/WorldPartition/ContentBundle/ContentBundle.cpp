@@ -104,6 +104,11 @@ bool FContentBundle::IsValid() const
 	return GetDescriptor()->IsValid();
 }
 
+bool FContentBundle::HasContent() const
+{
+	return !!ExternalStreamingObject;
+}
+
 #if WITH_EDITOR
 void FContentBundle::InitializeForPIE()
 {

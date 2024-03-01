@@ -161,9 +161,12 @@ void FContentBundleEditor::DoRemoveContent()
 
 bool FContentBundleEditor::IsValid() const
 {
-	bool bIsValid = true;
+	return true;
+}
 
-	return bIsValid;
+bool FContentBundleEditor::HasContent() const
+{
+	return !!ExternalStreamingObject;
 }
 
 bool FContentBundleEditor::AddActor(AActor* InActor)
