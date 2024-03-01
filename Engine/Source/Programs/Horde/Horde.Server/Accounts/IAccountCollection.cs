@@ -52,6 +52,14 @@ namespace Horde.Server.Accounts
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
 		Task DeleteAsync(AccountId id, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Creates the admin account when using Horde authentication
+		/// </summary>
+		/// <param name="password"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		ValueTask CreateAdminAccountAsync(string password, CancellationToken cancellationToken);
 	}
 
 	/// <summary>

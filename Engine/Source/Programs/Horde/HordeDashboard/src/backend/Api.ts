@@ -5193,6 +5193,11 @@ export type UpdateBisectTaskRequest = {
 
 // Accounts
 
+export type GetDashboardChallengeResponse = {
+	needsFirstTimeSetup?: boolean;
+	needsAuthorization: boolean;
+}
+
 export type DashboardLoginRequest = {
 	username: string;
 	password?: string;
