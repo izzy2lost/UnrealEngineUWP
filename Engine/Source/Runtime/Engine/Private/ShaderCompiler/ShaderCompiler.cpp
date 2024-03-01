@@ -8844,7 +8844,7 @@ namespace
 				OutMaterialsToLoad.Add(It->GetPathName());
 			}
 		}
-		else if (FCString::Stricmp(*CmdName, TEXT("listtypes")))
+		else if (FCString::Stricmp(*CmdName, TEXT("listtypes")) == 0)
 		{
 			ListAllShaderTypes();
 		}
