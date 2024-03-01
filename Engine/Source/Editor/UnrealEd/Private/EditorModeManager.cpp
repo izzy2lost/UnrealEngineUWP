@@ -1057,10 +1057,10 @@ FMatrix FEditorModeTools::GetCustomCoordinateSystem(TUniqueFunction<void(const T
 	if (!CustomCoordinateSystemProvided)
 	{
 		TTypedElement<ITypedElementWorldInterface> LastSelected;
-		if (GCurrentLevelEditingViewportClient)
+		if ((this == &GLevelEditorModeTools()) && GCurrentLevelEditingViewportClient)
 		{
 			// Use the cache from the viewport when available
-			 LastSelected = GCurrentLevelEditingViewportClient->GetElementsToManipulate()->GetBottomElement<ITypedElementWorldInterface>();
+			LastSelected = GCurrentLevelEditingViewportClient->GetElementsToManipulate()->GetBottomElement<ITypedElementWorldInterface>();
 		}
 		else
 		{
