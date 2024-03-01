@@ -41,10 +41,17 @@ protected:
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif // WITH_EDITOR
 	
+	const FStateTreeExternalDataDesc& GetContextActorDataDesc() const { return ContextDataDescs[0]; }
+	FStateTreeExternalDataDesc& GetContextActorDataDesc() { return ContextDataDescs[0]; }
+
 	/** Actor class the StateTree is expected to run on. Allows to bind to specific Actor class' properties. */
-	UPROPERTY(EditAnywhere, Category="Defaults")
+	UPROPERTY(EditAnywhere, Category="Defaults", NoClear)
 	TSubclassOf<AActor> ContextActorClass;
 	
+	UE_DEPRECATED(5.4, "ContextActorDataDesc is being replaced with ContextDataDescs. Call GetContextActorDataDesc to access the equivalent.")
 	UPROPERTY()
 	FStateTreeExternalDataDesc ContextActorDataDesc;
+
+	UPROPERTY()
+	TArray<FStateTreeExternalDataDesc> ContextDataDescs;
 };
