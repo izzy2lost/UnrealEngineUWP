@@ -144,7 +144,7 @@ ULevelStreaming* FAvaSceneRigEditorModule::SetActiveSceneRig(UWorld* const InWor
 
 	const FString LevelPackageName = InSceneRigAssetPath.GetLongPackageName();
 
-	ULevelStreaming* OutStreamingLevel = OutStreamingLevel = FLevelUtils::FindStreamingLevel(InWorld, *LevelPackageName);
+	ULevelStreaming* OutStreamingLevel = FLevelUtils::FindStreamingLevel(InWorld, *LevelPackageName);
 	if (IsValid(OutStreamingLevel))
 	{
 		if (!IsValid(OutStreamingLevel->GetLoadedLevel()))
