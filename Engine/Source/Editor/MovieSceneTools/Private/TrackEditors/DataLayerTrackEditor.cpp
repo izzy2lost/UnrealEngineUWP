@@ -115,17 +115,17 @@ struct FDataLayerSection
 	FText GetPrerollText() const
 	{
 		UMovieSceneDataLayerSection* Section = WeakSection.Get();
-		if (Section)
+		if (Section && Section->GetPreRollFrames() > 0)
 		{
 			switch (Section->GetPrerollState())
 			{
 			case EDataLayerRuntimeState::Unloaded:  return LOCTEXT("PrerollText_Unloaded", "(Unloaded over time in pre/post roll)");
 			case EDataLayerRuntimeState::Loaded:    return LOCTEXT("PrerollText_Loaded", "(Loaded over time in preroll)");
-			default: break;
+			case EDataLayerRuntimeState::Activated:	return LOCTEXT("PrerollText_Activated", "(Activated over time in preroll)");
 			}
 		}
 
-		return LOCTEXT("PrerollText_Activated", "(Activated over time in preroll)");
+		return FText();
 	}
 
 	FText GetLayerBarText() const
