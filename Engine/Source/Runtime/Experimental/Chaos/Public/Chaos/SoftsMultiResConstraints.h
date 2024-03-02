@@ -118,6 +118,10 @@ private:
 	TArray<FSolverVec3> FineTargetVelocities;
 	TArray<FSolverReal> CoarseBarycentricMass;
 
+	int32 NonZeroStiffnessMin = INDEX_NONE;
+	int32 NonZeroStiffnessMax = INDEX_NONE;
+	bool bStiffnessEntriesInitialized = false;
+
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(MultiResUseXPBD, bool);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(MultiResStiffness, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(MultiResVelocityTargetStiffness, float);
