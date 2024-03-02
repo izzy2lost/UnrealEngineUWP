@@ -44,6 +44,11 @@ namespace Horde.Server.Utilities
 		public const string Agent = Prefix + "agent";
 
 		/// <summary>
+		/// Claim for an agent's enrollment key
+		/// </summary>
+		public const string AgentEnrollmentKey = Prefix + "agent-enrollment-key";
+
+		/// <summary>
 		/// Claim for a particular account id
 		/// </summary>
 		public const string AccountId = Prefix + "account-id";

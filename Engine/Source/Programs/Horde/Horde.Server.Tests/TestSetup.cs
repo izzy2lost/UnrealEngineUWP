@@ -68,6 +68,7 @@ using EpicGames.Horde.Storage.ObjectStores;
 using Horde.Server.Tests.Server;
 using Horde.Server.Agents.Enrollment;
 using Horde.Server.Accounts;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests
 {
@@ -399,9 +400,16 @@ namespace Horde.Server.Tests
 			{
 				tempProps.Add(KnownPropertyNames.AwsInstanceId + "=" + awsInstanceId);
 			}
-			
-			IAgent agent = await AgentService.CreateAgentAsync("TestAgent" + s_agentIdCounter++, enabled, new List<PoolId> { poolId }, ephemeral);
+
+			IAgent? agent = await AgentService.CreateAgentAsync("TestAgent" + s_agentIdCounter++, ephemeral, "");
+			Assert.IsNotNull(agent);
+
+			agent = await AgentService.Agents.TryUpdateSettingsAsync(agent, enabled: enabled, pools: new List<PoolId> { poolId });
+			Assert.IsNotNull(agent);
+
 			agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, tempProps, resources, null);
+			Assert.IsNotNull(agent);
+
 			if (requestShutdown)
 			{
 				await AgentCollection.TryUpdateSettingsAsync(agent, requestShutdown: true);

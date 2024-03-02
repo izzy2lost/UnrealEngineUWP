@@ -237,7 +237,12 @@ namespace Horde.Server.Tests.Jobs
 
 			// ----
 
-			IAgent? agent = await AgentService.CreateAgentAsync("TestAgent", true, new List<PoolId> { new PoolId("win") });
+			IAgent? agent = await AgentService.CreateAgentAsync("TestAgent", false, "");
+			Assert.IsNotNull(agent);
+
+			agent = await AgentService.Agents.TryUpdateSettingsAsync(agent, enabled: true, pools: new List<PoolId> { new PoolId("win") });
+			Assert.IsNotNull(agent);
+
 			await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), null);
 
 			ITemplate template = await TemplateCollection.GetOrAddAsync(new TemplateConfig { Name = "Test template" });

@@ -265,12 +265,7 @@ namespace Horde.Server.Server
 				throw new StructuredRpcException(StatusCode.PermissionDenied, "User is not authenticated to create new agents");
 			}
 
-			// TODO: Do not allow overwriting existing agents unless explicitly asked to. We may be reusing an IP or hostname, and we can't trust the agent is what it says it is.
-			IAgent? agent = await _agentService.GetAgentAsync(new AgentId(request.Name));
-			if (agent == null)
-			{
-				agent = await _agentService.CreateAgentAsync(new AgentId(request.Name), _globalConfig.Value.ServerSettings.EnableNewAgentsByDefault, null, request.Ephemeral);
-			}
+			IAgent agent = await _agentService.CreateAgentAsync(new AgentId(request.Name), request.Ephemeral, "", context.CancellationToken);
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(new AclClaimConfig(HordeClaimTypes.Agent, agent.Id.ToString()));
@@ -309,7 +304,18 @@ namespace Horde.Server.Server
 					throw new StructuredRpcException(StatusCode.PermissionDenied, "User is not authenticated to create new agents");
 				}
 
-				agent = await _agentService.CreateAgentAsync(agentId, true, null);
+				agent = await _agentService.CreateAgentAsync(agentId, false, "");
+			}
+
+			// Check the enrollment key in the user token matches
+			string enrollmentKey = context.GetHttpContext().User.FindFirstValue(HordeClaimTypes.AgentEnrollmentKey) ?? String.Empty;
+			if (String.Equals(enrollmentKey, agent.EnrollmentKey, StringComparison.OrdinalIgnoreCase))
+			{
+				_logger.LogInformation("Enrollment key matches for {AgentId}", agent.Id);
+			}
+			else
+			{
+				_logger.LogError("Enrollment key does not match for {AgentId} (was {OldKey}, now {NewKey})", agent.Id, agent.EnrollmentKey, enrollmentKey);
 			}
 
 			// Make sure we're allowed to create sessions on this agent

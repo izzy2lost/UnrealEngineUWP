@@ -69,7 +69,7 @@ public class AgentServiceTest : TestSetup
 	public async Task LastStatusChangeDuringSessionCreateAsync()
 	{
 		// No session created yet, status change timestamp is empty
-		IAgent agent = await AgentService.CreateAgentAsync("agent1", true, null);
+		IAgent agent = await AgentService.CreateAgentAsync("agent1", false, "");
 		Assert.AreEqual(AgentStatus.Unspecified, agent.Status);
 		Assert.IsFalse(agent.LastStatusChange.HasValue);
 
@@ -90,7 +90,7 @@ public class AgentServiceTest : TestSetup
 	private static int s_agentId = 1;
 	private async Task<IAgent> CreateAgentSessionAsync()
 	{
-		IAgent agent = await AgentService.CreateAgentAsync("agentServiceTest-" + s_agentId++, true, null);
+		IAgent agent = await AgentService.CreateAgentAsync("agentServiceTest-" + s_agentId++, false, "");
 		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), "v1");
 		return agent;
 	}
@@ -154,8 +154,8 @@ public class AgentServiceTest : TestSetup
 	[TestMethod]
 	public async Task GetAgentRateTestAsync()
 	{
-		IAgent agent1 = await AgentService.CreateAgentAsync("agent1", true, null);
-		IAgent agent2 = await AgentService.CreateAgentAsync("agent2", true, null);
+		IAgent agent1 = await AgentService.CreateAgentAsync("agent1", false, "");
+		IAgent agent2 = await AgentService.CreateAgentAsync("agent2", false, "");
 		await AgentService.CreateSessionAsync(agent1, AgentStatus.Ok, new List<string>() { "aws-instance-type=c5.24xlarge", "osfamily=windows" }, new Dictionary<string, int>(), "test");
 		await AgentService.CreateSessionAsync(agent2, AgentStatus.Ok, new List<string>() { "aws-instance-type=c4.4xLARge", "osfamily=WinDowS" }, new Dictionary<string, int>(), "test");
 
