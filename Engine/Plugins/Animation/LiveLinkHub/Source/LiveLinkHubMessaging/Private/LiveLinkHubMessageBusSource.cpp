@@ -2,6 +2,7 @@
 
 #include "LiveLinkHubMessageBusSource.h"
 
+#include "Containers/Ticker.h"
 #include "Engine/Level.h"
 #include "Engine/SystemTimeTimecodeProvider.h"
 #include "Engine/World.h"
@@ -79,7 +80,9 @@ void FLiveLinkHubMessageBusSource::InitializeMessageEndpoint(FMessageEndpointBui
 
 void FLiveLinkHubMessageBusSource::HandleTimecodeSettings(const FLiveLinkHubTimecodeSettings& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
 {
-	Message.AssignTimecodeSettingsAsProviderToEngine();
+	ExecuteOnGameThread(UE_SOURCE_LOCATION, [Message]() {
+		Message.AssignTimecodeSettingsAsProviderToEngine();
+	});
 }
 
 FLiveLinkClientInfoMessage FLiveLinkHubMessageBusSource::CreateLiveLinkClientInfo() const
