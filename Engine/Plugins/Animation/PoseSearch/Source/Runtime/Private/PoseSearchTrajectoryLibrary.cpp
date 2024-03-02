@@ -453,14 +453,14 @@ void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisions(const UObject
 	}
 	else if (FloorCollisionsOffset > 0.f)
 	{
-	for (int32 SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
-	{
-		FPoseSearchQueryTrajectorySample& Sample = OutTrajectory.Samples[SampleIndex];
-		if (Sample.AccumulatedSeconds > 0.f)
+		for (int32 SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
 		{
+			FPoseSearchQueryTrajectorySample& Sample = OutTrajectory.Samples[SampleIndex];
+			if (Sample.AccumulatedSeconds > 0.f)
+			{
 				FHitResult HitResult;
 				if (UKismetSystemLibrary::LineTraceSingle(WorldContextObject, Sample.Position + FVector::UpVector * 3000.f, Sample.Position, TraceChannel, bTraceComplex, ActorsToIgnore, DrawDebugType, HitResult, bIgnoreSelf, TraceColor, TraceHitColor, DrawTime))
-			{
+				{
 					Sample.Position.Z = HitResult.ImpactPoint.Z + FloorCollisionsOffset;
 				}
 			}
