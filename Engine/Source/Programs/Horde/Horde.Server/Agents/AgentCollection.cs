@@ -68,7 +68,7 @@ namespace Horde.Server.Agents
 			public DateTime? LastStatusChange { get; set; }
 
 			[BsonRequired]
-			public bool Enabled { get; set; }
+			public bool Enabled { get; set; } = true;
 
 			public bool Ephemeral { get; set; }
 
@@ -121,6 +121,7 @@ namespace Horde.Server.Agents
 			public List<AgentLease>? Leases { get; set; }
 			public DateTime UpdateTime { get; set; }
 			public uint UpdateIndex { get; set; }
+			public string EnrollmentKey { get; set; } = String.Empty;
 			public string? Comment { get; set; }
 
 			IReadOnlyList<PoolId> IAgent.DynamicPools => DynamicPools;
@@ -135,12 +136,11 @@ namespace Horde.Server.Agents
 			{
 			}
 
-			public AgentDocument(AgentId id, bool enabled, List<PoolId> pools, bool ephemeral)
+			public AgentDocument(AgentId id, bool ephemeral, string enrollmentKey)
 			{
 				Id = id;
-				Enabled = enabled;
-				Pools = pools;
 				Ephemeral = ephemeral;
+				EnrollmentKey = enrollmentKey;
 			}
 		}
 
@@ -166,11 +166,29 @@ namespace Horde.Server.Agents
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAgent> AddAsync(AgentId id, bool enabled, List<PoolId>? pools, bool ephemeral, CancellationToken cancellationToken)
+		public async Task<IAgent> AddAsync(AgentId id, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken)
 		{
-			AgentDocument agent = new AgentDocument(id, enabled, pools ?? new List<PoolId>(), ephemeral);
+			AgentDocument agent = new AgentDocument(id, ephemeral, enrollmentKey);
 			await _agents.InsertOneAsync(agent, null, cancellationToken);
 			return agent;
+		}
+
+		/// <inheritdoc/>
+		public async Task<IAgent?> TryResetAsync(IAgent agent, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default)
+		{
+			AgentDocument agentDocument = (AgentDocument)agent;
+
+			UpdateDefinition<AgentDocument> update = Builders<AgentDocument>.Update
+				.Set(x => x.Ephemeral, ephemeral)
+				.Set(x => x.EnrollmentKey, enrollmentKey)
+				.Unset(x => x.Deleted);
+
+			IAgent? newAgent = await TryUpdateAsync(agentDocument, update, cancellationToken);
+			if (newAgent != null)
+			{
+				await PublishUpdateEventAsync(agent.Id);
+			}
+			return newAgent;
 		}
 
 		/// <inheritdoc/>
@@ -178,7 +196,7 @@ namespace Horde.Server.Agents
 		{
 			AgentDocument agent = (AgentDocument)agentInterface;
 
-			UpdateDefinition<AgentDocument> update = Builders<AgentDocument>.Update.Set(x => x.Deleted, true);
+			UpdateDefinition<AgentDocument> update = Builders<AgentDocument>.Update.Set(x => x.Deleted, true).Set(x => x.EnrollmentKey, "");
 			return await TryUpdateAsync(agent, update, cancellationToken);
 		}
 
@@ -353,12 +371,10 @@ namespace Horde.Server.Agents
 					updates.Add(updateBuilder.Unset(x => x.RequestForceRestart));
 				}
 			}
-
 			if (shutdownReason != null)
 			{
 				updates.Add(updateBuilder.Set(x => x.LastShutdownReason, shutdownReason));
 			}
-
 			if (comment != null)
 			{
 				updates.Add(updateBuilder.Set(x => x.Comment, comment));

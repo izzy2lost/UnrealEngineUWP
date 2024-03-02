@@ -28,6 +28,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
+using Microsoft.Extensions.FileProviders;
 
 namespace Horde.Server.Tests.Server
 {
@@ -50,6 +51,20 @@ namespace Horde.Server.Tests.Server
 		public void StopApplication()
 		{
 			throw new NotImplementedException();
+		}
+	}
+
+	public class WebHostEnvironmentStub : IHostEnvironment
+	{
+		public string ApplicationName { get; set; } = "HordeTest";
+		public IFileProvider ContentRootFileProvider { get; set; }
+		public string ContentRootPath { get; set; }
+		public string EnvironmentName { get; set; } = "Testing";
+
+		public WebHostEnvironmentStub()
+		{
+			ContentRootPath = Directory.CreateTempSubdirectory("HordeTest").FullName;
+			ContentRootFileProvider	= new PhysicalFileProvider(ContentRootPath);
 		}
 	}
 	

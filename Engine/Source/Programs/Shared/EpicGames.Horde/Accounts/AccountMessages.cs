@@ -21,6 +21,12 @@ namespace EpicGames.Horde.Accounts
 	public record class CreateAccountRequest(string Name, string Login, List<AccountClaimMessage> Claims, string? Description, string? Email, string? SecretToken, string? Password, bool? Enabled);
 
 	/// <summary>
+	/// Creates the admin account
+	/// </summary>
+	/// <param name="Password">Password for the user</param>
+	public record class CreateAdminAccountRequest(string Password);
+
+	/// <summary>
 	/// Response from the request to create a new user account
 	/// </summary>
 	/// <param name="Id">The created account id</param>

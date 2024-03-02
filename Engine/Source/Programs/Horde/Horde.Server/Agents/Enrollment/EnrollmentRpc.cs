@@ -62,15 +62,11 @@ namespace Horde.Server.Agents.Enrollment
 						return;
 					}
 
-					// TODO: Do not allow overwriting existing agents unless explicitly asked to. We may be reusing an IP or hostname, and we can't trust the agent is what it says it is.
-					IAgent? agent = await _agentService.GetAgentAsync(agentId);
-					if (agent == null)
-					{
-						agent = await _agentService.CreateAgentAsync(agentId, true, null);
-					}
+					IAgent agent = await _agentService.CreateAgentAsync(agentId, false, request.Key, cancellationSource.Token);
 
 					List<AclClaimConfig> claims = new List<AclClaimConfig>();
 					claims.Add(new AclClaimConfig(HordeClaimTypes.Agent, agentId.ToString()));
+					claims.Add(new AclClaimConfig(HordeClaimTypes.AgentEnrollmentKey, request.Key));
 
 					EnrollAgentResponse response = new EnrollAgentResponse();
 					response.Id = agentId.ToString();

@@ -189,7 +189,12 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// The artifact id
 		/// </summary>
-		public string ArtifactId { get; set; }
+		public string? ArtifactId { get; set; }
+
+		/// <summary>
+		/// Content for the report
+		/// </summary>
+		public string? Content { get; set; }
 
 		/// <summary>
 		/// Constructor
@@ -199,7 +204,8 @@ namespace Horde.Server.Jobs
 		{
 			Name = report.Name;
 			Placement = report.Placement;
-			ArtifactId = report.ArtifactId.ToString();
+			ArtifactId = report.ArtifactId?.ToString();
+			Content = report.Content;
 		}
 	}
 

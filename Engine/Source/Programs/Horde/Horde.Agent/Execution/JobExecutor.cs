@@ -187,6 +187,7 @@ namespace Horde.Agent.Execution
 			public ReportScope Scope { get; set; }
 			public ReportPlacement Placement { get; set; }
 			public string Name { get; set; } = String.Empty;
+			public string Content { get; set; } = String.Empty;
 			public string FileName { get; set; } = String.Empty;
 		}
 
@@ -1618,17 +1619,17 @@ namespace Horde.Agent.Execution
 							artifactFileToId[artifactFile] = artifactId;
 						}
 					}
+				}
 
-					foreach (FileReference reportFile in artifactFileToId.Keys.Where(x => x.HasExtension(".report.json")))
+				foreach (FileReference reportFile in artifactFiles.Where(x => x.HasExtension(".report.json")))
+				{
+					try
 					{
-						try
-						{
-							await CreateReportAsync(step.StepId, reportFile, artifactFileToId, jobLogger);
-						}
-						catch (Exception ex)
-						{
-							jobLogger.LogWarning("Unable to upload report: {Message}", ex.Message);
-						}
+						await CreateReportAsync(step.StepId, reportFile, jobLogger);
+					}
+					catch (Exception ex)
+					{
+						jobLogger.LogWarning("Unable to upload report: {Message}", ex.Message);
 					}
 				}
 			}
@@ -1791,34 +1792,31 @@ namespace Horde.Agent.Execution
 			}
 		}
 
-		private async Task CreateReportAsync(JobStepId stepId, FileReference reportFile, Dictionary<FileReference, string> artifactFileToId, ILogger logger)
+		private async Task CreateReportAsync(JobStepId stepId, FileReference reportFile, ILogger logger)
 		{
 			byte[] data = await FileReference.ReadAllBytesAsync(reportFile);
 
 			JsonSerializerOptions options = new JsonSerializerOptions();
 			options.PropertyNameCaseInsensitive = true;
 			options.Converters.Add(new JsonStringEnumConverter());
-			ReportData report = JsonSerializer.Deserialize<ReportData>(data, options)!;
 
+			ReportData report = JsonSerializer.Deserialize<ReportData>(data, options)!;
 			if (String.IsNullOrEmpty(report.Name))
 			{
 				logger.LogWarning("Missing 'Name' field in report data");
 				return;
 			}
-			if (String.IsNullOrEmpty(report.FileName))
-			{
-				logger.LogWarning("Missing 'FileName' field in report data");
-				return;
-			}
 
-			FileReference artifactFile = FileReference.Combine(reportFile.Directory, report.FileName);
-			if (!artifactFileToId.TryGetValue(artifactFile, out string? artifactId))
+			if (String.IsNullOrEmpty(report.Content) && !String.IsNullOrEmpty(report.FileName))
 			{
-				logger.LogWarning("Unable to find artifact id for {File}", artifactFile);
-				return;
+				FileReference reportDataFile = FileReference.Combine(reportFile.Directory, report.FileName);
+				if (!FileReference.Exists(reportDataFile))
+				{
+					logger.LogWarning("Cannot find file '{File}' referenced by report data", report.FileName);
+					return;
+				}
+				report.Content = await FileReference.ReadAllTextAsync(reportDataFile);
 			}
-
-			logger.LogInformation("Creating report for {File} using artifact {ArtifactId}", reportFile, artifactId);
 
 			CreateReportRequest request = new CreateReportRequest();
 			request.JobId = JobId.ToString();
@@ -1827,7 +1825,7 @@ namespace Horde.Agent.Execution
 			request.Scope = report.Scope;
 			request.Placement = report.Placement;
 			request.Name = report.Name;
-			request.ArtifactId = artifactId;
+			request.Content = report.Content;
 			await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.CreateReportAsync(request), CancellationToken.None);
 		}
 

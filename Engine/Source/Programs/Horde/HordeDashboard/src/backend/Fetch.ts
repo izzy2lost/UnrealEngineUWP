@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import { ErrorHandler, ErrorInfo } from "../components/ErrorHandler";
+import { GetDashboardChallengeResponse } from "./Api";
 //import { setDatadogUser } from './Datadog';
 
 export enum ChallengeStatus {
@@ -226,7 +227,7 @@ export class Fetch {
         });
     }
 
-    login(redirect: string) {
+    login(redirect?: string) {
 
         if (this.debugToken || this.logout) {
             return;
@@ -441,24 +442,30 @@ export class Fetch {
             const url = this.buildUrl("/api/v1/dashboard/challenge");
 
             const result = await fetch(url, this.buildRequest("GET"));
-
-            if (result.ok) {
+            const response = await result.json() as GetDashboardChallengeResponse;      
+            
+            if (response.needsFirstTimeSetup) {
+                window.location.assign("/setup");
+                // give the window assignment a couple seconds, so we don't continue down challenge route
+                await new Promise(r => setTimeout(r, 2000));
                 return ChallengeStatus.Ok;
             }
 
-            if (result.status === 401 || result.status === 404) {
-
-                if (this.debugToken) {
-                    // raise error to check debug token expired
-                    handleError({
-                        reason: "Unauthorized challenge with debug token, it may have expired",
-                        mode: "GET",
-                        url: url
-                    });
-                }
-
-                return ChallengeStatus.Unauthorized;
+            if (!response.needsAuthorization) {
+                return ChallengeStatus.Ok;
             }
+
+            if (this.debugToken) {
+                // raise error to check debug token expired
+                handleError({
+                    reason: "Unauthorized challenge with debug token, it may have expired",
+                    mode: "GET",
+                    url: url
+                });
+            }
+
+            return ChallengeStatus.Unauthorized;
+
         } catch (reason) {
             console.error(reason);
         }

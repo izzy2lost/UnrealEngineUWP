@@ -35,22 +35,26 @@ namespace Horde.Server.Dashboard
 		/// <summary>
 		/// Server settings
 		/// </summary>
-		private readonly ServerSettings _settings;
+		readonly ServerSettings _settings;
 
-		private readonly IDashboardPreviewCollection _previewCollection;
+		readonly IDashboardPreviewCollection _previewCollection;
 
-		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly IAccountCollection _hordeAccounts;
+
+		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="previewCollection" />
+		/// <param name="hordeAccounts" />
 		/// <param name="serverSettings">Server settings</param>
 		/// <param name="globalConfig" />
-		public DashboardController(IDashboardPreviewCollection previewCollection, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public DashboardController(IDashboardPreviewCollection previewCollection, IAccountCollection hordeAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_authenticationScheme = AccountController.GetAuthScheme(serverSettings.CurrentValue.AuthMethod);
 			_previewCollection = previewCollection;
+			_hordeAccounts = hordeAccounts;
 			_settings = serverSettings.CurrentValue;
 			_globalConfig = globalConfig;
 		}
@@ -59,12 +63,21 @@ namespace Horde.Server.Dashboard
 		/// Challenge endpoint for the dashboard, using cookie authentication scheme	
 		/// </summary>	
 		/// <returns>Ok on authorized, otherwise will 401</returns>	
-		[HttpGet]
-		[Authorize]
+		[HttpGet]		
 		[Route("/api/v1/dashboard/challenge")]
-		public StatusCodeResult GetChallenge()
+		public async Task<IActionResult> GetChallengeAsync()
 		{
-			return Ok();
+			bool needsFirstTimeSetup = false;
+			if (_settings.AuthMethod == AuthMethod.Horde)
+			{
+				IAccount? account = await _hordeAccounts.FindByLoginAsync("Admin");
+				if (account == null) 
+				{ 
+					needsFirstTimeSetup = true;
+				}
+			}
+
+			return Ok(new GetDashboardChallengeResponse { NeedsFirstTimeSetup = needsFirstTimeSetup, NeedsAuthorization = User.Identity == null || !User.Identity.IsAuthenticated });
 		}
 
 		/// <summary>
@@ -88,10 +101,9 @@ namespace Horde.Server.Dashboard
 		[Route("/api/v2/dashboard/login")]
 		public IActionResult LoginV2([FromQuery] string? redirect)
 		{
-
 			if (_settings.AuthMethod == AuthMethod.Horde)
 			{
-				return Redirect("/index?login" + (redirect == null ? String.Empty : $"&redirect={redirect}"));
+				return Redirect("/login" + (redirect == null ? String.Empty : $"?redirect={redirect}"));
 			}
 
 			string? redirectUri = null;

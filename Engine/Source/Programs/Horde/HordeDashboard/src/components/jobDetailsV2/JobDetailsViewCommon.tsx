@@ -179,7 +179,6 @@ export class JobDetailsV2 extends PollBase {
       this.batches = [];
       this.views = [];
       this.timing = undefined;
-      this.reportData = new Map();
       this.overview = undefined;
    }
 
@@ -570,70 +569,12 @@ export class JobDetailsV2 extends PollBase {
             return undefined;
          }
 
-         const report = step.reports?.find(r => r.placement === placement);
-
-         if (!report) {
-            return undefined;
-         }
-
-         return this.reportData.get(report.artifactId);
+         return step.reports?.find(r => r.placement === placement)?.content;
 
       } else {
 
-         if (this.jobData?.reports?.length) {
-            return this.reportData.get(this.jobData.reports[0].artifactId);
-         }
-
-         return undefined;
-
+         return this.jobData?.reports?.find(r => r.placement === placement)?.content;
       }
-   }
-
-   private async queryReports(): Promise<boolean> {
-
-      let queried = false;
-      let artifacts: string[] = [];
-
-      this.jobData?.reports?.forEach(r => {
-         artifacts.push(r.artifactId)
-      });
-
-      this.jobData?.batches?.forEach(b => {
-         b.steps.forEach(s => s.reports?.forEach(r => {
-            artifacts.push(r.artifactId);
-         }));
-      });
-
-      artifacts = artifacts.filter(id => !this.reportData.has(id));
-
-      let requests = artifacts.map(id => {
-         return { id: id, request: backend.getArtifactDataById(id) as unknown as string };
-      });
-
-      while (requests.length) {
-
-         queried = true;
-
-         const batch = requests.slice(0, 5);
-
-         const ids = batch.map(b => b.id);
-         const request = batch.map(b => b.request);
-
-         await Promise.all(request).then((responses) => {
-            responses.forEach((r, idx) => {
-               this.reportData.set(ids[idx], r);
-            });
-
-         }).catch((errors) => {
-            console.log(errors);
-            // eslint-disable-next-line
-         }).finally(() => {
-
-            requests = requests.slice(5);
-         });
-      }
-
-      return queried;
    }
 
    syncTiming() {
@@ -696,11 +637,6 @@ export class JobDetailsV2 extends PollBase {
             this.timing = await backend.getJobTiming(this.jobId);
             this.syncTiming();
          }
-
-         const queried = await this.queryReports();
-         if (!forceUpdate && queried) {
-            forceUpdate = true;
-         }
       }
 
 
@@ -761,9 +697,6 @@ export class JobDetailsV2 extends PollBase {
 
    // stepId => artifacts
    stepArtifacts = new Map<string, GetArtifactResponseV2[]>();
-
-   // artifact id => report contents (markdown)
-   private reportData = new Map<string, string>();
 
    @observable
    private rootUpdated: number = 0;

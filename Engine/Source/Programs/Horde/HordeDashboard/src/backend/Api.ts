@@ -1192,7 +1192,11 @@ export type GetReportResponse = {
 	name: string;
 
 	/** The artifact id */
-	artifactId: string;
+	// artifactId?: string;
+
+	/** The report markdown content */
+	content?: string;
+
 }
 
 
@@ -5192,6 +5196,11 @@ export type UpdateBisectTaskRequest = {
 }
 
 // Accounts
+
+export type GetDashboardChallengeResponse = {
+	needsFirstTimeSetup?: boolean;
+	needsAuthorization: boolean;
+}
 
 export type DashboardLoginRequest = {
 	username: string;

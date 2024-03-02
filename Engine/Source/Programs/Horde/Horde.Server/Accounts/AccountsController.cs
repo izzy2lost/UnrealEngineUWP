@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Accounts;
+using EpicGames.Horde.Server;
 using Horde.Server.Server;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
@@ -23,14 +24,16 @@ namespace Horde.Server.Accounts
 	{
 		readonly IAccountCollection _accountCollection;
 		readonly GlobalConfig _globalConfig;
+		readonly IOptionsMonitor<ServerSettings> _settings;		 
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AccountsController(IAccountCollection accountCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public AccountsController(IAccountCollection accountCollection, IOptionsSnapshot<GlobalConfig> globalConfig, IOptionsMonitor<ServerSettings> settings)
 		{
 			_accountCollection = accountCollection;
 			_globalConfig = globalConfig.Value;
+			_settings = settings;
 		}
 
 		/// <summary>
@@ -237,6 +240,36 @@ namespace Horde.Server.Accounts
 
 			await _accountCollection.DeleteAsync(id, cancellationToken);
 			return Ok();
+		}
+
+		/// <summary>
+		/// Gets information about the current account
+		/// </summary>
+		[HttpPost]
+		[AllowAnonymous]
+		[Route("/api/v1/accounts/admin/create")]
+		public async Task<ActionResult> CreateAdminAccountAsync(CreateAdminAccountRequest request, CancellationToken cancellationToken = default)
+		{
+			if (_settings.CurrentValue.AuthMethod != AuthMethod.Horde)
+			{
+				return NotFound();
+			}
+
+			IAccount? account = await _accountCollection.FindByLoginAsync("Admin", cancellationToken);
+			if (account != null)
+			{
+				return Forbid("Admin account already exists");
+			}
+
+			await _accountCollection.CreateAdminAccountAsync(request.Password, cancellationToken);
+
+			account = await _accountCollection.FindByLoginAsync("Admin", cancellationToken);
+			if (account != null)
+			{
+				return Ok(new CreateAccountResponse(account.Id));
+			}
+
+			return Forbid("Unable to find Admin account after creation");
 		}
 
 		static GetAccountResponse CreateGetAccountResponse(IAccount account)

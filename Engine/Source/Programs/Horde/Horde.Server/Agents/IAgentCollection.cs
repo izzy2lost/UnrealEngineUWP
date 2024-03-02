@@ -21,11 +21,19 @@ namespace Horde.Server.Agents
 		/// Adds a new agent with the given properties
 		/// </summary>
 		/// <param name="id">Id for the new agent</param>
-		/// <param name="enabled">Whether the agent is enabled or not</param>
-		/// <param name="pools">Pools for the agent</param>
 		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
+		/// <param name="enrollmentKey">Key used to identify a unique enrollment for the agent with this id</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<IAgent> AddAsync(AgentId id, bool enabled, List<PoolId>? pools = null, bool ephemeral = false, CancellationToken cancellationToken = default);
+		Task<IAgent> AddAsync(AgentId id, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Resets an agent to use new settings
+		/// </summary>
+		/// <param name="agent">The agent to reset</param>
+		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
+		/// <param name="enrollmentKey">Key used to identify a unique enrollment for the agent with this id</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task<IAgent?> TryResetAsync(IAgent agent, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Deletes an agent

@@ -41,6 +41,7 @@ import { HordeLoginView } from './components/accounts/HordeLoginView';
 import { ServerStatusView } from './components/server/ServerStatus';
 import { ServiceAccountsView } from './components/accounts/ServiceAccountsView';
 import { AgentRequestsView } from './components/agents/AgentRequestsView';
+import { HordeSetupView } from './components/setup/HordeSetupView';
 
 let router: any;
 
@@ -53,10 +54,13 @@ const Main: React.FC = () => {
    const [init, setInit] = useState(false);
    const [pluginsLoaded, setPluginsLoaded] = useState(false);
    
-   const search = new URLSearchParams(window.location.search);
 
-   if (!!search.has("login")) {
+   if (window.location.pathname === "/login") {
       return <HordeLoginView/>
+   }
+
+   if (window.location.pathname === "/setup") {
+      return <HordeSetupView/>
    }
 
    const config = getSiteConfig();

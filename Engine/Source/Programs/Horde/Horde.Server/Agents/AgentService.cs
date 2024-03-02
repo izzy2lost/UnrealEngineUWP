@@ -192,28 +192,39 @@ namespace Horde.Server.Agents
 		/// Register a new agent
 		/// </summary>
 		/// <param name="name">Name of the agent</param>
-		/// <param name="enabled">Whether the agent is currently enabled</param>
-		/// <param name="pools">Pools for this agent</param>
 		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
+		/// <param name="enrollmentKey">Key for enrolling the agent</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique id for the agent</returns>
-		public Task<IAgent> CreateAgentAsync(string name, bool enabled, List<PoolId>? pools, bool ephemeral = false, CancellationToken cancellationToken = default)
+		public Task<IAgent> CreateAgentAsync(string name, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default)
 		{
-			return Agents.AddAsync(new AgentId(name), enabled, pools, ephemeral, cancellationToken);
+			return CreateAgentAsync(new AgentId(name), ephemeral, enrollmentKey, cancellationToken);
 		}
 
 		/// <summary>
 		/// Register a new agent
 		/// </summary>
 		/// <param name="agentId">Agent id</param>
-		/// <param name="enabled">Whether the agent is currently enabled</param>
-		/// <param name="pools">Pools for this agent</param>
 		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
+		/// <param name="enrollmentKey">Key for enrolling the agent</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique id for the agent</returns>
-		public Task<IAgent> CreateAgentAsync(AgentId agentId, bool enabled, List<PoolId>? pools, bool ephemeral = false, CancellationToken cancellationToken = default)
+		public async Task<IAgent> CreateAgentAsync(AgentId agentId, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default)
 		{
-			return Agents.AddAsync(agentId, enabled, pools, ephemeral, cancellationToken);
+			for (; ; )
+			{
+				IAgent? agent = await Agents.GetAsync(agentId, cancellationToken);
+				if (agent == null)
+				{
+					return await Agents.AddAsync(agentId, ephemeral, enrollmentKey, cancellationToken);
+				}
+
+				agent = await Agents.TryResetAsync(agent, ephemeral, enrollmentKey, cancellationToken);
+				if (agent != null)
+				{
+					return agent;
+				}
+			}
 		}
 
 		/// <summary>

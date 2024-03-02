@@ -238,12 +238,12 @@ namespace Horde.Server.Accounts
 			return account;
 		}
 
-		async ValueTask CreateAdminAccountAsync(CancellationToken cancellationToken)
+		/// <inheritdoc/>
+		public async ValueTask CreateAdminAccountAsync(string password, CancellationToken cancellationToken)
 		{
 			if (!_hasCreatedAdminAccount)
-			{
-				const string DefaultAdminPassword = "";
-				(string passwordSalt, string passwordHash) = CreateSaltAndHashPassword(DefaultAdminPassword);
+			{				
+				(string passwordSalt, string passwordHash) = CreateSaltAndHashPassword(password);
 
 				const string AdminLogin = "Admin";
 				UpdateDefinition<AccountDocument> update = Builders<AccountDocument>.Update
@@ -264,8 +264,6 @@ namespace Horde.Server.Accounts
 		/// <inheritdoc/>
 		public async Task<IReadOnlyList<IAccount>> FindAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
-			await CreateAdminAccountAsync(cancellationToken);
-
 			List<IAccount> accounts = new List<IAccount>();
 			await foreach (AccountDocument account in _accounts.Find(FilterDefinition<AccountDocument>.Empty).Range(index, count).ToAsyncEnumerable(cancellationToken))
 			{
@@ -279,8 +277,6 @@ namespace Horde.Server.Accounts
 		/// <inheritdoc/>
 		public async Task<IAccount?> GetAsync(AccountId id, CancellationToken cancellationToken = default)
 		{
-			await CreateAdminAccountAsync(cancellationToken);
-
 			AccountDocument? account = await _accounts.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
 			account?.PostLoad(this);
 			return account;
@@ -289,8 +285,6 @@ namespace Horde.Server.Accounts
 		/// <inheritdoc/>
 		public async Task<IAccount?> FindByLoginAsync(string login, CancellationToken cancellationToken = default)
 		{
-			await CreateAdminAccountAsync(cancellationToken);
-
 			string normalizedLogin = NormalizeLogin(login);
 
 			AccountDocument? account = await _accounts.Find(x => x.NormalizedLogin == normalizedLogin).FirstOrDefaultAsync(cancellationToken);

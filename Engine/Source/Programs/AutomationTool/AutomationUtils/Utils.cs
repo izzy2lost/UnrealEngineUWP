@@ -1348,7 +1348,7 @@ namespace AutomationTool
 		{
 			if(CommandUtils.IsReadOnly(FileName))
 			{
-				if(CommandUtils.P4Enabled)
+				if(CommandUtils.P4Enabled && !CommandUtils.IsBuildMachine)
 				{
 					CommandUtils.P4.Sync(String.Format("\"{0}#0\"", FileName), false, false);
 				}

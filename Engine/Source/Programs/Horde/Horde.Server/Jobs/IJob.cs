@@ -50,7 +50,12 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// The artifact id
 		/// </summary>
-		ObjectId ArtifactId { get; }
+		ObjectId? ArtifactId { get; }
+
+		/// <summary>
+		/// Inline data for the report
+		/// </summary>
+		string? Content { get; }
 	}
 
 	/// <summary>
@@ -65,7 +70,10 @@ namespace Horde.Server.Jobs
 		public ReportPlacement Placement { get; set; }
 
 		/// <inheritdoc/>
-		public ObjectId ArtifactId { get; set; }
+		public ObjectId? ArtifactId { get; set; }
+
+		/// <inheritdoc/>
+		public string? Content { get; set; }
 	}
 
 	/// <summary>

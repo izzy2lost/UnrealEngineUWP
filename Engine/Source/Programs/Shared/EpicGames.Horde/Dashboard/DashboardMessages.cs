@@ -171,7 +171,7 @@ namespace EpicGames.Horde.Dashboard
 	}
 
 	/// <summary>
-	/// 
+	/// Dashboard preview item response
 	/// </summary>
 	public class GetDashboardPreviewResponse
 	{
@@ -214,6 +214,23 @@ namespace EpicGames.Horde.Dashboard
 		/// Optional Link for discussing the preview item
 		/// </summary>
 		public string? TrackingLink { get; set; }
+	}
+
+	/// <summary>
+	/// Dashboard challenge response
+	/// </summary>
+	public class GetDashboardChallengeResponse
+	{
+		/// <summary>
+		/// Whether first time setup needs to run
+		/// </summary>
+		public bool NeedsFirstTimeSetup { get; set; } = false;
+
+		/// <summary>
+		/// Whether the user needs to authorize
+		/// </summary>
+		public bool NeedsAuthorization { get; set; } = true;
+
 	}
 
 	#region Telemetry

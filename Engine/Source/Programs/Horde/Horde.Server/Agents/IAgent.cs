@@ -604,6 +604,11 @@ namespace Horde.Server.Agents
 		public IReadOnlyList<AgentLease> Leases { get; }
 
 		/// <summary>
+		/// Key used to validate that a particular enrollment is still valid for this agent
+		/// </summary>
+		public string EnrollmentKey { get; }
+
+		/// <summary>
 		/// Last time that the agent was modified
 		/// </summary>
 		public DateTime UpdateTime { get; }
