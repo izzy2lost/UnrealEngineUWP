@@ -240,7 +240,7 @@ bool TAvaMaskMaterialCollectionHandle<HandleDataType>::ApplyOriginalState(const 
 						SetMaterial(InComponent, InSlotIdx, InMaterial);
 					});
 			}
-			UE_LOG(LogAvaMask, Warning, TEXT("MaterialData not found for slot %u"), InSlotIdx);
+			UE_LOG(LogAvaMask, Display, TEXT("MaterialData not found for slot %u"), InSlotIdx);
 			return false;
 		});
 
@@ -281,7 +281,7 @@ bool TAvaMaskMaterialCollectionHandle<HandleDataType>::ApplyModifiedState(
 						SetMaterial(InComponent, InSlotIdx, InMaterial);
 					});
 			}
-			UE_LOG(LogAvaMask, Warning, TEXT("MaterialData not found for slot %u"), InSlotIdx);
+			UE_LOG(LogAvaMask, Display, TEXT("MaterialData not found for slot %u"), InSlotIdx);
 			return false;
 		});
 

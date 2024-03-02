@@ -330,7 +330,9 @@ void UAvaMask2DBaseModifier::RestorePreState()
 	Super::RestorePreState();
 
 	TGuardValue<bool> RestoreStateGuard(bIsRestoring, true);
-	for (const TPair<TWeakObjectPtr<AActor>, FAvaMask2DActorData>& ActorDataPair : ActorData)
+	
+	TMap<TWeakObjectPtr<AActor>, FAvaMask2DActorData> ActorDataCopy = ActorData;
+	for (const TPair<TWeakObjectPtr<AActor>, FAvaMask2DActorData>& ActorDataPair : ActorDataCopy)
 	{
 		if (AActor* Actor = ActorDataPair.Key.Get())
 		{
