@@ -96,14 +96,35 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World, const 
 	}
 }
 
-void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimInstanceProxy, const float DebugThickness, float HeightOffset) const
+void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimInstanceProxy, const float DebugThickness, float HeightOffset, int MaxHistorySamples, int MaxPredictionSamples) const
 {
 	const FVector OffsetVector = FVector::UpVector * HeightOffset;
-
-	const int32 LastIndex = Samples.Num() - 1;
-	if (LastIndex >= 0)
+	
+	int AvailableHistorySamplesCount = 0;
+	
+	if (MaxHistorySamples != -1 || MaxPredictionSamples != -1)
 	{
-		for (int32 Index = 0; ; ++Index)
+		for (int32 i = 0; i < Samples.Num(); ++i)
+		{
+			if (Samples[i].AccumulatedSeconds <= 0)
+			{
+				++AvailableHistorySamplesCount;
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+	
+	const int32 LastIndex = Samples.Num() - 1;
+	const int32 ZeroTimeIndex = AvailableHistorySamplesCount - 1;
+	const int32 StartIndex = MaxHistorySamples < 0 ? 0 : FMath::Max(AvailableHistorySamplesCount - MaxHistorySamples, 0); 
+	const int32 EndIndex = MaxPredictionSamples < 0 ? LastIndex : FMath::Min(ZeroTimeIndex + MaxPredictionSamples, LastIndex);
+	
+	if (LastIndex >= 0 && StartIndex <= EndIndex)
+	{
+		for (int32 Index = StartIndex; ; ++Index)
 		{
 			const FVector Pos = Samples[Index].Position + OffsetVector;
 
@@ -120,7 +141,7 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimIns
 			AnimInstanceProxy.AnimDrawDebugLine(Pos, Pos + X * Scale, IsPast ? FColor::Red : FColor::Blue, false, -1.f, DebugThickness, SDPG_Foreground);
 			AnimInstanceProxy.AnimDrawDebugLine(Pos, Pos + Y * Scale, IsPast ? FColor::Orange : FColor::Turquoise, false, -1.f, DebugThickness, SDPG_Foreground);
 
-			if (Index == LastIndex)
+			if (Index == EndIndex)
 			{
 				break;
 			}
@@ -130,6 +151,7 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimIns
 		}
 	}
 }
+
 #endif // ENABLE_ANIM_DEBUG
 
 FArchive& operator<<(FArchive& Ar, FPoseSearchQueryTrajectorySample& TrajectorySample)
