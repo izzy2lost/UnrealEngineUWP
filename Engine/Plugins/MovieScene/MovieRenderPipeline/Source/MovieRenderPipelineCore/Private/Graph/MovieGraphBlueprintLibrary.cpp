@@ -83,8 +83,13 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 		if (InParams.EvaluatedConfig)
 		{
 			const bool bIncludeCDOs = false;
-			UMovieGraphGlobalOutputSettingNode* OutputSettingNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs);
-			FrameRate = GetEffectiveFrameRate(OutputSettingNode, InParams.DefaultFrameRate).AsDecimal();
+			UMovieGraphGlobalOutputSettingNode* OutputSettingNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphSettingNode::GlobalsPinName, bIncludeCDOs);
+
+			if (OutputSettingNode)
+			{
+				FrameRate = GetEffectiveFrameRate(OutputSettingNode, InParams.DefaultFrameRate).AsDecimal();
+				bOverwriteExisting = OutputSettingNode->bOverwriteExistingOutput;
+			}
 		}
 
 		OutMergedFormatArgs.FilenameArguments.Add(TEXT("frame_rate"), FString::SanitizeFloat(FrameRate));
@@ -178,6 +183,12 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 	// Fix-up slashes
 	FPaths::NormalizeFilename(BaseFilename);
 	FPaths::RemoveDuplicateSlashes(BaseFilename);
+
+	// In the event of multiple dots in the filename, we need to replace them with a single dot to ensure a valid file name
+	while (BaseFilename.Contains(".."))
+	{
+		BaseFilename.ReplaceInline(TEXT(".."), TEXT("."));
+	}
 
 	// If we end with a "." character, remove it. The extension will put it back on. We can end up with this sometimes
 	// after resolving file format strings, ie: {sequence_name}.{frame_number} becomes {sequence_name}. for

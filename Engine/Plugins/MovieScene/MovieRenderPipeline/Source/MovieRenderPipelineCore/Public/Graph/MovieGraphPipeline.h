@@ -156,6 +156,11 @@ protected:
 	/** Begins the export process for a primary job (not called for shot jobs). */
 	virtual void BeginExport();
 	
+	/** Attempts to start an Unreal Insights capture to a file on disk adjacent to the movie output. */
+	void StartUnrealInsightsCapture(UMovieGraphEvaluatedConfig* EvaluatedConfig);
+	/** Attempts to stop an already started Unreal Insights capture. */
+	void StopUnrealInsightsCapture();
+	
 	virtual void LoadPreviewWidget();
 	virtual void SetPreviewWidgetVisibleImpl(bool bInIsVisible);
 

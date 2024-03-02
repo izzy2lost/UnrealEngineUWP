@@ -26,52 +26,7 @@
 #endif // WITH_OCIO
 
 namespace UE::MovieGraph::Private
-{
-	/** Convenience function to make filename resolve parameters for output files, or OCIO contexts. */
-	FMovieGraphFilenameResolveParams MakeResolveParams(
-		const FMovieGraphRenderDataIdentifier& InRenderId,
-		const UMovieGraphPipeline* InPipeline,
-		const TObjectPtr<UMovieGraphEvaluatedConfig>& InEvaluatedConfig,
-		const FMovieGraphTraversalContext& InTraversalContext,
-		const TMap<FString, FString>& InAdditionalFormatArgs = {})
-	{
-		const TObjectPtr<UMoviePipelineExecutorShot>& Shot = InPipeline->GetActiveShotList()[InTraversalContext.ShotIndex];
-
-		FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams();
-		Params.RenderDataIdentifier = InRenderId;
-		Params.RootFrameNumber = InTraversalContext.Time.RootFrameNumber.Value;
-		Params.ShotFrameNumber = InTraversalContext.Time.ShotFrameNumber.Value;
-		Params.RootFrameNumberRel = InTraversalContext.Time.OutputFrameNumber;
-		Params.ShotFrameNumberRel = InTraversalContext.Time.ShotOutputFrameNumber;
-		//Params.FileMetadata = ToDo: Track File Metadata
-		const UMovieGraphGlobalOutputSettingNode* OutputSettingNode = InEvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName);
-		if (IsValid(OutputSettingNode))
-		{
-			Params.ZeroPadFrameNumberCount = OutputSettingNode->ZeroPadFrameNumbers;
-			Params.FrameNumberOffset = OutputSettingNode->FrameNumberOffset;
-		}
-		Params.EvaluatedConfig = InEvaluatedConfig;
-		Params.Version = Shot->ShotInfo.VersionNumber;
-
-		// If time dilation is in effect, RootFrameNumber and ShotFrameNumber will contain duplicates and the files will overwrite each other, 
-		// so we force them into relative mode and then warn users we did that (as their numbers will jump from say 1001 -> 0000).
-		bool bForceRelativeFrameNumbers = false;
-		// if (FileNameFormatString.Contains(TEXT("{frame")) && InTraversalContext.Time.IsTimeDilated() && !FileNameFormatString.Contains(TEXT("_rel}")))
-		// {
-		// 	UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Time Dilation was used but output format does not use relative time, forcing relative numbers. Change {frame_number} to {frame_number_rel} (or shot version) to remove this message."));
-		// 	bForceRelativeFrameNumbers = true;
-		// }
-		Params.bForceRelativeFrameNumbers = bForceRelativeFrameNumbers;
-		Params.bEnsureAbsolutePath = true;
-		Params.FileNameFormatOverrides = InAdditionalFormatArgs;
-		Params.InitializationTime = InPipeline->GetInitializationTime();
-		Params.InitializationTimeOffset = InPipeline->GetInitializationTimeOffset();
-		Params.Shot = Shot;
-		Params.Job = InPipeline->GetCurrentJob();
-
-		return Params;
-	}
-	
+{	
 #if WITH_OCIO
 	struct FOpenColorIOPixelPreProcessor
 	{
@@ -104,7 +59,7 @@ namespace UE::MovieGraph::Private
 		TMap<FString, FString> OutContext;
 		OutContext.Reserve(InContext.Num());
 
-		FMovieGraphFilenameResolveParams Params = MakeResolveParams(InRenderId, InPipeline, InEvaluatedConfig, InTraversalContext);
+		FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams::MakeResolveParams(InRenderId, InPipeline, InEvaluatedConfig, InTraversalContext);
 
 		for (const TPair<FString, FString>& Pair : InContext)
 		{
@@ -317,7 +272,7 @@ FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 
 	UE::MovieGraph::FMovieGraphSampleState* Payload = InRenderData.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
 
-	FMovieGraphFilenameResolveParams Params = UE::MovieGraph::Private::MakeResolveParams(
+	FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams::MakeResolveParams(
 		InRenderData.Key,
 		InPipeline,
 		InRawFrameData->EvaluatedConfig.Get(),
@@ -911,7 +866,7 @@ FString UMovieGraphImageSequenceOutputNode_MultiLayerEXR::ResolveOutputFilename(
 	FMovieGraphRenderDataIdentifier TempRenderDataIdentifier;
 	TempRenderDataIdentifier.RootBranchName = InBranchName;
 
-	FMovieGraphFilenameResolveParams Params = UE::MovieGraph::Private::MakeResolveParams(
+	FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams::MakeResolveParams(
 		TempRenderDataIdentifier, InPipeline, InRawFrameData->EvaluatedConfig.Get(), InRawFrameData->TraversalContext, FormatOverrides);
 	
 	const FString FilePathFormatString = OutputSettings->OutputDirectory.Path / FileNameFormatString;

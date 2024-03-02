@@ -9,7 +9,10 @@
 // Forward Declare
 class UMoviePipelineExecutorJob;
 class UMovieGraphEvaluatedConfig;
+class UMovieGraphPipeline;
 class UMoviePipelineExecutorShot;
+
+struct FMovieGraphTraversalContext;
 
 /**
 * This data structure contains a list of key-value pairs (as strings) for both filename resolving, and file metadata.
@@ -42,7 +45,7 @@ struct FMovieGraphResolveArgs
 * be preserved so the resulting string back would say "my_seq_name/{frame_number}".
 */
 USTRUCT(BlueprintType)
-struct FMovieGraphFilenameResolveParams
+struct MOVIERENDERPIPELINECORE_API FMovieGraphFilenameResolveParams
 {
 	GENERATED_BODY()
 
@@ -63,6 +66,14 @@ struct FMovieGraphFilenameResolveParams
 		, DefaultFrameRate(FFrameRate(24, 1))
 	{
 	}
+
+	/** Convenience function to make filename resolve parameters for output files, or OCIO contexts. */
+	static FMovieGraphFilenameResolveParams MakeResolveParams(
+		const FMovieGraphRenderDataIdentifier& InRenderId,
+		const UMovieGraphPipeline* InPipeline,
+		const TObjectPtr<UMovieGraphEvaluatedConfig>& InEvaluatedConfig,
+		const FMovieGraphTraversalContext& InTraversalContext,
+		const TMap<FString, FString>& InAdditionalFormatArgs = {});
 	
 	/**
 	* This is used to fill out tokens related to the render data that the file represents.
