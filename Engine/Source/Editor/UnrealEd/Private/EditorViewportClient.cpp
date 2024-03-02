@@ -1589,6 +1589,10 @@ void FEditorViewportClient::UpdateCameraMovementFromJoystick(const bool bRelativ
 				const bool bPressed = (KeyState==IE_Pressed);
 				const bool bRepeat = (KeyState == IE_Repeat);
 
+				static const float MultiplierIncrement = 0.25f;
+				static const float MaxTranslationMultiplier = 5.0f;
+				static const float MaxRotationMultiplier = 3.0f;
+
 				if ((Key == EKeys::Gamepad_LeftShoulder) && (bPressed || bRepeat))
 				{
 					CameraUserImpulseData->ZoomOutInImpulse +=  InConfig.ZoomMultiplier;
@@ -1596,6 +1600,22 @@ void FEditorViewportClient::UpdateCameraMovementFromJoystick(const bool bRelativ
 				else if ((Key == EKeys::Gamepad_RightShoulder) && (bPressed || bRepeat))
 				{
 					CameraUserImpulseData->ZoomOutInImpulse -= InConfig.ZoomMultiplier;
+				}
+				else if ((Key == EKeys::Gamepad_DPad_Up) && (bPressed && !bRepeat))
+				{
+					InConfig.TranslationMultiplier = FMath::Clamp(InConfig.TranslationMultiplier + MultiplierIncrement, MultiplierIncrement, MaxTranslationMultiplier);
+				}
+				else if ((Key == EKeys::Gamepad_DPad_Down) && (bPressed && !bRepeat))
+				{
+					InConfig.TranslationMultiplier = FMath::Clamp(InConfig.TranslationMultiplier - MultiplierIncrement, MultiplierIncrement, MaxTranslationMultiplier);
+				}
+				else if ((Key == EKeys::Gamepad_DPad_Right) && (bPressed && !bRepeat))
+				{
+					InConfig.RotationMultiplier = FMath::Clamp(InConfig.RotationMultiplier + MultiplierIncrement, MultiplierIncrement, MaxRotationMultiplier);
+				}
+				else if ((Key == EKeys::Gamepad_DPad_Left) && (bPressed && !bRepeat))
+				{
+					InConfig.RotationMultiplier = FMath::Clamp(InConfig.RotationMultiplier - MultiplierIncrement, MultiplierIncrement, MaxRotationMultiplier);
 				}
 				
 				if (bPressed)
