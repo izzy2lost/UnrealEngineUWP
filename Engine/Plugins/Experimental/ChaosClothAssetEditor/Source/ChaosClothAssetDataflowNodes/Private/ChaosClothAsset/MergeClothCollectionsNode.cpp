@@ -233,6 +233,10 @@ namespace UE::Chaos::ClothAsset::Private
 			else
 			{
 				// If not we add a new property with the flags/bounds/string of the input one
+				if (!OutPropertyFacade.IsValid())
+				{
+					OutPropertyFacade.DefineSchema();
+				}
 				OutKeyIndex = OutPropertyFacade.AddProperty(InPropertyKey, InPropertyFlags);
 			}
 			if(bOverrideProperty)

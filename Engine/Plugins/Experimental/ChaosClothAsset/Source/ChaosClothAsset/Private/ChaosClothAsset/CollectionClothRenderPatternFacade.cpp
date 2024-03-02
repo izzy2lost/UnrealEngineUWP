@@ -226,7 +226,7 @@ namespace UE::Chaos::ClothAsset
 		FClothCollection::CopyArrayViewData(GetRenderBoneIndices(), Other.GetRenderBoneIndices());
 		FClothCollection::CopyArrayViewData(GetRenderBoneWeights(), Other.GetRenderBoneWeights());
 
-		if (GetClothCollection()->IsValid(EClothCollectionOptionalSchemas::RenderDeformer))
+		if (GetClothCollection()->IsValid(EClothCollectionOptionalSchemas::RenderDeformer) && Other.ClothCollection->IsValid(EClothCollectionOptionalSchemas::RenderDeformer))
 		{
 			FClothCollection::CopyArrayViewData(GetRenderDeformerPositionBaryCoordsAndDist(), Other.GetRenderDeformerPositionBaryCoordsAndDist());
 			FClothCollection::CopyArrayViewData(GetRenderDeformerNormalBaryCoordsAndDist(), Other.GetRenderDeformerNormalBaryCoordsAndDist());
