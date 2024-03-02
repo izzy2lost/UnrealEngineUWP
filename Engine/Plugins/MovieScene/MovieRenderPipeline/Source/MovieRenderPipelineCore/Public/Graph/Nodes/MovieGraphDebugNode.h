@@ -29,6 +29,9 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_bCaptureUnrealInsightsTrace : 1;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_UnrealInsightsTraceFileNameFormat : 1;
 
 	/** 
 	* If true, automatically trigger RenderDoc to capture rendering information. RenderDoc plugin must be enabled, 
@@ -43,4 +46,11 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bCaptureUnrealInsightsTrace"))
 	bool bCaptureUnrealInsightsTrace;
+
+	/** 
+	* If true, automatically capture an Unreal Insights trace file for the duration of the render.
+	* Resulting capture will be in the global Output Directory for the job.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_UnrealInsightsTraceFileNameFormat"))
+	FString UnrealInsightsTraceFileNameFormat = TEXT("{sequence_name}_UnrealInsights");
 };

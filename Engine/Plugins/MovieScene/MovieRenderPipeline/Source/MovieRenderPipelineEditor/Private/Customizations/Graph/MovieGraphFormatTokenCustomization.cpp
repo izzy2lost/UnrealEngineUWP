@@ -3,6 +3,7 @@
 #include "MovieGraphFormatTokenCustomization.h"
 
 #include "Graph/MovieGraphBlueprintLibrary.h"
+#include "Graph/Nodes/MovieGraphDebugNode.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
 
 #include "DetailLayoutBuilder.h"
@@ -17,6 +18,18 @@ void FMovieGraphFormatTokenCustomization::CustomizeDetails(IDetailLayoutBuilder&
 
 	// This should work just fine for UMovieGraphFileOutputNode and UMovieGraphCommandLineEncoderNode as long as the property names stay in sync
 	OutputFormatPropertyHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMovieGraphFileOutputNode, FileNameFormat));
+
+	// If we can't find it, try the debug node
+	if (!OutputFormatPropertyHandle->IsValidHandle())
+	{
+		OutputFormatPropertyHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMovieGraphDebugSettingNode, UnrealInsightsTraceFileNameFormat));
+	}
+
+	// If we still can't find it, early out
+	if (!OutputFormatPropertyHandle->IsValidHandle())
+	{
+		return;
+	}
 
 	FText StartingDisplayText;
 	OutputFormatPropertyHandle->GetValueAsDisplayText(StartingDisplayText);

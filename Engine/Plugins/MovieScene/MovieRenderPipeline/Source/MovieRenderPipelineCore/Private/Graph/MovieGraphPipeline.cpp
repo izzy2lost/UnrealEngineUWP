@@ -2,28 +2,32 @@
 
 #include "Graph/MovieGraphPipeline.h"
 
+#include "MoviePipelineQueue.h"
+#include "MoviePipelineUtils.h"
+#include "MovieRenderPipelineCoreModule.h"
+#include "MovieScene.h"
+#include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Graph/MovieGraphCVarManager.h"
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphLinearTimeStep.h"
 #include "Graph/MovieGraphOutputMerger.h"
 #include "Graph/MovieGraphRenderLayerSubsystem.h"
 #include "Graph/Nodes/MovieGraphCollectionNode.h"
+#include "Graph/Nodes/MovieGraphDebugNode.h"
+#include "Graph/Nodes/MovieGraphExecuteScriptNode.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
 #include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphModifierNode.h"
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
-#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
-#include "Graph/Nodes/MovieGraphWarmUpSettingNode.h"
-#include "Graph/Nodes/MovieGraphExecuteScriptNode.h"
 #include "Graph/Nodes/MovieGraphSubgraphNode.h"
-#include "Graph/MovieGraphBlueprintLibrary.h"
-#include "MovieRenderPipelineCoreModule.h"
-#include "Misc/CoreDelegates.h"
-#include "MoviePipelineQueue.h"
-#include "MovieScene.h"
-#include "RenderingThread.h"
+#include "Graph/Nodes/MovieGraphWarmUpSettingNode.h"
+
+#include "HAL/PlatformFileManager.h"
 #include "ImageWriteQueue.h"
+#include "RenderingThread.h"
+#include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/Package.h"
 
@@ -91,6 +95,22 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 
 	DuplicateJobAndConfiguration();
 	ExecutePreJobScripts();
+
+	// Lay groundwork for Unreal Insights
+	const FMovieGraphTraversalContext Context = GetCurrentTraversalContext(false);
+	FString OutError;
+
+	if (UMovieGraphEvaluatedConfig* FlattenedConfig = GetCurrentJob()->GetGraphPreset()->CreateFlattenedGraph(Context, OutError))
+	{
+		constexpr bool bIncludeCDOs = false;
+		constexpr bool bExactMatch = true;
+		const UMovieGraphDebugSettingNode* DebugSetting =
+			FlattenedConfig->GetSettingForBranch<UMovieGraphDebugSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
+		if (DebugSetting && DebugSetting->bCaptureUnrealInsightsTrace)
+		{
+			StartUnrealInsightsCapture(FlattenedConfig);
+		}
+	}
 
 	// Create instances of our different classes from the InitConfig
 	GraphRendererInstance = NewObject<UMovieGraphRendererBase>(this, InitConfig.RendererClass);
@@ -773,6 +793,71 @@ void UMovieGraphPipeline::BeginExport()
 	}
 }
 
+void UMovieGraphPipeline::StartUnrealInsightsCapture(UMovieGraphEvaluatedConfig* EvaluatedConfig)
+{
+	check(EvaluatedConfig);
+
+	bool bIncludeCDOs = false;
+	bool bExactMatch = true;
+	UMovieGraphDebugSettingNode* DebugSetting =
+		EvaluatedConfig->GetSettingForBranch<UMovieGraphDebugSettingNode>(UMovieGraphSettingNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
+	if (!ensureAlwaysMsgf(DebugSetting, TEXT("Failed to find UMovieGraphFileOutputNode. Aborting.")))
+	{
+		return;
+	}
+
+	bIncludeCDOs = true;
+	bExactMatch = true;
+	UMovieGraphGlobalOutputSettingNode* OutputSetting =
+		EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphSettingNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
+	FString FileNameFormatString = OutputSetting->OutputDirectory.Path / DebugSetting->UnrealInsightsTraceFileNameFormat;
+
+	const bool bOverwriteExistingOutput = OutputSetting->bOverwriteExistingOutput;
+
+	// Generate a filename for this encoded file
+	TMap<FString, FString> FormatOverrides;
+	FormatOverrides.Add(TEXT("ext"), TEXT("utrace"));
+
+	FMovieGraphRenderDataIdentifier TempRenderDataIdentifier;
+	TempRenderDataIdentifier.RootBranchName = UMovieGraphSettingNode::GlobalsPinName;
+
+	FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams::MakeResolveParams(
+		TempRenderDataIdentifier, this, EvaluatedConfig, GetCurrentTraversalContext(false), FormatOverrides);
+
+	FMovieGraphResolveArgs FinalFormatArgs;
+	constexpr bool bIncludeRenderPass = false;
+	constexpr bool bTestFrameNumber = false;
+	constexpr bool bIncludeCameraName = false;
+	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber, bIncludeCameraName);
+	FString FinalFilePath = UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(FileNameFormatString, Params, FinalFormatArgs);
+
+	if (FPaths::IsRelative(FinalFilePath))
+	{
+		FinalFilePath = FPaths::ConvertRelativePathToFull(FinalFilePath);
+	}
+
+	// If the end user opts to delete existing files and one with the same name exists, delete it
+	if (bOverwriteExistingOutput && !UE::MoviePipeline::CanWriteToFile(*FinalFilePath, false)) // false otherwise it will always return true
+	{
+		FPlatformFileManager::Get().GetPlatformFile().DeleteFile(*FinalFilePath);
+	}
+
+	const bool bTraceStarted = FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, *FinalFilePath);
+	if (bTraceStarted)
+	{
+		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Started capturing UnrealInsights trace file to %s"), *FinalFilePath);
+	}
+	else
+	{
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Failed to start capturing UnrealInsights trace. Is there already a trace session in progress?"));
+	}
+}
+
+void UMovieGraphPipeline::StopUnrealInsightsCapture()
+{
+	FTraceAuxiliary::Stop();
+}
+
 void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
 {
 	ExecutePreShotScripts(InShot);
@@ -1334,6 +1419,16 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 				PreviewWidget = nullptr;
 			}
 
+			// Stop Insights trace
+			constexpr bool bIncludeCDOs = false;
+			constexpr bool bExactMatch = true;
+			const UMovieGraphDebugSettingNode* DebugSetting =
+				PostRenderEvaluatedGraph->GetSettingForBranch<UMovieGraphDebugSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
+			if (DebugSetting && DebugSetting->bCaptureUnrealInsightsTrace)
+			{
+				StopUnrealInsightsCapture();
+			}
+
 			// Job-level evaluated graph should not be referenced after export has finished
 			PostRenderEvaluatedGraph = nullptr;
 
@@ -1363,15 +1458,6 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			//GAreScreenMessagesEnabled = bPrevGScreenMessagesEnabled;
 
 			//UE_LOG(LogMovieRenderPipeline, Log, TEXT("Movie Pipeline completed. Duration: %s"), *(FDateTime::UtcNow() - InitializationTime).ToString());
-
-			//UMovieGraphDebugSettings* DebugSetting = FindOrAddSettingForShot<UMovieGraphDebugSettings>(nullptr);
-			//if (DebugSetting)
-			//{
-			//	if (DebugSetting->bCaptureUnrealInsightsTrace)
-			//	{
-			//		StopUnrealInsightsCapture();
-			//	}
-			//}
 
 			OutputNodesDataSentTo.Reset();
 
@@ -1478,7 +1564,7 @@ void UMovieGraphPipeline::ProcessOutstandingFinishedFrames()
 			// Get a list of all output nodes for this particular render layer. We specifically skip CDOs here because we're just trying
 			// to find out which output nodes the user _wanted_ to place items onto, we later collect only the CDOs so that we have
 			// a central point for actually handling the file writing.
-			const bool bIncludeCDOs = false;
+			constexpr bool bIncludeCDOs = false;
 			const FName BranchName = RenderData.Key.RootBranchName;
 			TArray<UMovieGraphFileOutputNode*> OutputNodeInstances = OutputFrame.EvaluatedConfig->GetSettingsForBranch<UMovieGraphFileOutputNode>(BranchName, bIncludeCDOs);
 			for (const UMovieGraphFileOutputNode* Instance : OutputNodeInstances)
