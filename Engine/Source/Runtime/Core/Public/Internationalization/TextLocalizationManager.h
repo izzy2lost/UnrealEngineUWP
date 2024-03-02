@@ -54,9 +54,6 @@ private:
 #if WITH_EDITORONLY_DATA
 		FTextKey LocResID;
 #endif
-#if ENABLE_LOC_TESTING
-		FTextConstDisplayStringPtr NativeStringBackup;
-#endif
 		uint32 SourceStringHash;
 
 		FDisplayStringEntry(const FTextKey& InLocResID, const uint32 InSourceStringHash, const FTextConstDisplayStringRef& InDisplayString)
@@ -88,8 +85,11 @@ private:
 		return InitializedFlags != ETextLocalizationManagerInitializedFlags::None;
 	}
 
-	mutable FCriticalSection DisplayStringLookupTableCS;
+	mutable FCriticalSection DisplayStringTableCS;
 	FDisplayStringLookupTable DisplayStringLookupTable;
+#if ENABLE_LOC_TESTING
+	TMap<FTextId, FTextConstDisplayStringPtr> DisplayStringBackupTable;
+#endif
 
 	mutable FRWLock TextRevisionRW;
 	TMap<FTextId, uint16> LocalTextRevisions;
