@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.231.0";
+        private static string VersionString = "4.232.0";
 
         public static string Get() { return VersionString; }
     };
@@ -177,7 +177,6 @@ namespace PerfReportTool
 			"  -columnDiffDisplayThreshold <value> : if specified, hides columns with max diff value below this threshold\n"+
 			"\n" +
 			"Optional Column Filters\n" +
-			"  -debugShowFilteredColumns : grays out filtered columns instead of removing. Column tooltip will show filtered reason.\n" +
 			"  -hideMetadataColumns : filters out metadata columns from the table (excluding those used in row sort).\n" +
 			"\n" +
 			"Regression Column Filtering\n" +
@@ -795,13 +794,12 @@ namespace PerfReportTool
 			}
 
 			IEnumerable<ISummaryTableColumnFilter> additionalColumnFilters = MakeAdditionalColumnFilters(tableInfo);
-			bool showFilteredColumns = GetBoolArg("debugShowFilteredColumns");
 
 			// Set format info for the columns as some of the info is needed for the filters.
 			// TODO: would be better if we could determine HighIsBad without the format info and store it directly in the column.
 			table.SetColumnFormatInfo(reportXML.columnFormatInfoList);
 
-			SummaryTable filteredTable = table.SortAndFilter(tableInfo.columnFilterList, tableInfo.rowSortList, bReverseTable, weightByColumnName, showFilteredColumns, additionalColumnFilters);
+			SummaryTable filteredTable = table.SortAndFilter(tableInfo.columnFilterList, tableInfo.rowSortList, bReverseTable, weightByColumnName, additionalColumnFilters);
 			if (bCollated)
 			{
 				filteredTable = filteredTable.CollateSortedTable(tableInfo.rowSortList, addMinMaxColumns);
@@ -835,8 +833,7 @@ namespace PerfReportTool
 					GetIntArg("maxSummaryTableStringLength", Int32.MaxValue), 
 					weightByColumnName, 
 					summaryTitle,
-					bCollated ? bTransposeCollatedSummaryTable : bTransposeFullSummaryTable,
-					showFilteredColumns
+					bCollated ? bTransposeCollatedSummaryTable : bTransposeFullSummaryTable
 				);
 			}
 		}
