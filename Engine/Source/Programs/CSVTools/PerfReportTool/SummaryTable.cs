@@ -1473,6 +1473,7 @@ namespace PerfSummaries
 			foreach (string filterStr in columnFilterList)
 			{
 				string filterStrLower = filterStr.Trim().ToLower();
+
 				// Check for a qualifier which specifies the stat type
 				bool startWild = filterStrLower.StartsWith("*");
 				bool endWild = filterStrLower.EndsWith("*");
@@ -1480,21 +1481,10 @@ namespace PerfSummaries
 				{
 					// Use the qualified list for wildcard matching if this entry was qualified with a type
 					SummaryTableElement.Type statType = GetQualfiedStatType(filterStrLower, out string unqualifiedKey);
-					List<string> keyList = new List<string>();
+
 					List<string> allKeysList = allMetadataKeysLists[(int)statType];
-					unqualifiedKey = unqualifiedKey.Trim('*');
-					if (startWild && endWild)
-					{
-						keyList.AddRange(allKeysList.Where(x => x.Contains(unqualifiedKey)));
-					}
-					else if (startWild)
-					{
-						keyList.AddRange(allKeysList.Where(x => x.EndsWith(unqualifiedKey)));
-					}
-					else if (endWild)
-					{
-						keyList.AddRange(allKeysList.Where(x => x.StartsWith(unqualifiedKey)));
-					}
+					List<string> keyList = CsvStats.WildcardMatchStringList(allKeysList, unqualifiedKey, false, true);
+
 					// Resolve the keyList and output the columns 
 					foreach (string key in keyList)
 					{
