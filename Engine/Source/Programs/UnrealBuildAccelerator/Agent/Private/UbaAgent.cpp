@@ -953,6 +953,7 @@ namespace uba
 			//u32 receiveTimeoutSeconds = 60; // We are sending pings at 5 seconds cadence, so timeout if no data appears on recv socket within 60 seconds
 			u32 receiveTimeoutSeconds = 0;
 
+			NetworkBackendMemory networkBackendMem(logWriter);
 			NetworkBackend* networkBackend;
 			#if UBA_USE_QUIC
 			if (useQuic)
@@ -1029,6 +1030,8 @@ namespace uba
 			struct Proxy
 			{
 				LogWriter& logWriter;
+				NetworkBackend& networkBackend;
+				NetworkBackend& networkBackendMem;
 				NetworkClient* client;
 				Event& wakeupSessionWait;
 				u32& maxConnectionCount;
@@ -1037,7 +1040,7 @@ namespace uba
 				StorageProxy* storage = nullptr;
 				StorageClient* storageClient = nullptr;
 				TString serverPrefix;
-			} proxy { g_consoleLogWriter, client, wakeupSessionWait, maxConnectionCount, targetConnectionCount };
+			} proxy { g_consoleLogWriter, *networkBackend, networkBackendMem, client, wakeupSessionWait, maxConnectionCount, targetConnectionCount };
 			auto psg = MakeGuard([&]() { delete proxy.server; });
 			auto pg = MakeGuard([&]() { delete proxy.storage; });
 
@@ -1059,19 +1062,39 @@ namespace uba
 						delete proxy.server;
 						return false;
 					}
+
+					proxy.client->RegisterOnDisconnected([&]() { proxy.server->StopAll(); });
 					proxy.storage = new StorageProxy(*proxy.server, *proxy.client, storageServerUid, TC("Wooohoo"), proxy.storageClient);
-					proxy.server->StartListen(proxy.client->GetTcpBackend(), proxyPort);
+
+					proxy.server->RegisterOnClientConnected(0, [&](const Guid& clientUid, u32 clientId) { proxy.wakeupSessionWait.Set(); });
+					proxy.server->SetWorkTracker(proxy.client->GetWorkTracker());
+					proxy.server->StartListen(proxy.networkBackendMem, proxyPort);
+					proxy.server->StartListen(proxy.networkBackend, proxyPort);
 					proxy.targetConnectionCount = proxy.maxConnectionCount;
+
 					proxy.wakeupSessionWait.Set();
 					return true;
 				};
 
+			struct NetworkBackends
+			{
+				NetworkBackend& tcp;
+				NetworkBackend& mem;
+			} backends { *networkBackend, networkBackendMem };
+
+			static auto getProxyBackend = [](void* userData, const tchar* host) -> NetworkBackend&
+				{
+					auto& backends = *(NetworkBackends*)userData;
+					return Equals(host, TC("inprocess")) ? backends.mem : backends.tcp;
+				};
 
 			StorageClientCreateInfo storageInfo(*client, g_rootDir.data);
 			storageInfo.casCapacityBytes = storageCapacity;
 			storageInfo.storeCompressed = storeCompressed;
 			storageInfo.sendCompressed = sendCompressed;
 			storageInfo.workManager = client;
+			storageInfo.getProxyBackendCallback = getProxyBackend;
+			storageInfo.getProxyBackendUserData = &backends;
 			storageInfo.startProxyCallback = startProxy;
 			storageInfo.startProxyUserData = &proxy;
 			storageInfo.zone = zone.data;
@@ -1213,6 +1236,10 @@ namespace uba
 
 				if (sessionClient->Wait(5*1000, &wakeupSessionWait))
 					break;
+
+				// If we are the proxy server and have external connections we lower max process count. Note that it will always have one connection which is itself
+				if (proxy.server && proxy.server->GetConnectionCount() > 1)
+					sessionClient->SetMaxProcessCount(maxProcessCount - 2);
 
 				// This is an estimation based on tcp limitations (ack and sliding windows).
 				// For every 15ms latency on "best ping") we increase targetConnectionCount up to maxConnectionCount

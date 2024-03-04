@@ -351,8 +351,12 @@ namespace uba
 							}
 							else
 							{
+								const tchar* proxyHost = proxy.host.c_str();
+								if (connectionInfo.GetId() == proxy.clientId)
+									proxyHost = TC("inprocess");
+
 								writer.WriteBool(false);
-								writer.WriteString(proxy.host);
+								writer.WriteString(proxyHost);
 								writer.WriteU16(proxy.port);
 								if (m_trace)
 									m_trace->ProxyUsed(connectionInfo.GetId(), proxyName.data);

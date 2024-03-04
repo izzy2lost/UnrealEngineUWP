@@ -10,6 +10,7 @@ namespace uba
 	class NetworkClient;
 
 	using StartProxyCallback = bool(void* userData, u16 port, const Guid& storageServerUid);
+	using GetProxyBackendCallback = NetworkBackend&(void* userData, const tchar* proxyHost);
 
 	struct StorageClientCreateInfo : StorageCreateInfo
 	{
@@ -19,6 +20,8 @@ namespace uba
 		u16 proxyPort = DefaultStorageProxyPort;
 		bool sendCompressed = true;
 		
+		GetProxyBackendCallback* getProxyBackendCallback = nullptr;
+		void* getProxyBackendUserData = nullptr;
 		StartProxyCallback* startProxyCallback = nullptr;
 		void* startProxyUserData = nullptr;
 	};
@@ -48,6 +51,7 @@ namespace uba
 		virtual bool StoreCasFile(CasKey& out, StringKey fileNameKey, const tchar* fileName, FileMappingHandle mappingFile, u64 mappingOffset, u64 fileSize, const tchar* hint, bool deferCreation = false, bool keepMappingInMemory = false) override;
 		virtual bool HasCasFile(const CasKey& casKey, CasEntry** out = nullptr) override;
 		virtual void Ping() override;
+		virtual void PrintSummary(Logger& logger) override;
 
 		static bool SendBatchMessages(NetworkClient& client, u16 fetchId, u8* slot, u64 capacity, u64 left, u32 messageMaxSize, u32& readIndex, u32& responseSize);
 		static bool SendAllSegments(NetworkClient& client, u16 fetchId, u8* readBuffer, u64 left, u32 messageMaxSize);
@@ -78,6 +82,8 @@ namespace uba
 		ProxyClient* m_proxyClient = nullptr;
 		u64 m_proxyClientKeepAliveTime = 0;
 
+		GetProxyBackendCallback* m_getProxyBackendCallback = nullptr;
+		void* m_getProxyBackendUserData = nullptr;
 		StartProxyCallback* m_startProxyCallback = nullptr;
 		void* m_startProxyUserData = nullptr;
 	};

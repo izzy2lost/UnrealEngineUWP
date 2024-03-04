@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaFileAccessor.h"
+#include "UbaNetworkBackendMemory.h"
 #include "UbaNetworkBackendTcp.h"
 #include "UbaPlatform.h"
 #include "UbaProtocol.h"
@@ -470,6 +471,7 @@ namespace uba
 		#endif
 
 		NetworkBackendTcp networkBackend(logWriter);
+		NetworkBackendMemory networkBackendMem(logWriter);
 		NetworkServerCreateInfo nsci(logWriter);
 		//nsci.workerCount = 4;
 		bool ctorSuccess = true;
@@ -560,71 +562,103 @@ namespace uba
 
 		auto RunWithClient = [&](const Function<bool()>& func)
 			{
-				NetworkClient client(ctorSuccess, { logWriter });
-
-				Event wakeupSessionWait(false);
-				Atomic<u32> targetConnectionCount = 1;
-				u32 maxConnectionCount = 4;
-				struct Proxy
+				struct Client
 				{
-					LogWriter& logWriter;
-					NetworkClient* client;
-					Event& wakeupSessionWait;
-					u32& maxConnectionCount;
-					Atomic<u32>& targetConnectionCount;
-					NetworkServer* server = nullptr;
-					StorageProxy* storage = nullptr;
-					StorageClient* storageClient = nullptr;
-					TString serverPrefix;
-				} proxy { g_consoleLogWriter, &client, wakeupSessionWait, maxConnectionCount, targetConnectionCount };
-				auto psg = MakeGuard([&]() { delete proxy.server; });
-				auto pg = MakeGuard([&]() { delete proxy.storage; });
-
-				static auto startProxy = [](void* userData, u16 proxyPort, const Guid& storageServerUid)
+					bool Init(LogWriter& logWriter, NetworkBackend& nb, NetworkBackend& nbMem, u16 port, u32 maxProcessorCount, u32 index)
 					{
-						auto& proxy = *(Proxy*)userData;
-
-						NetworkServerCreateInfo nsci(proxy.logWriter);
-						nsci.workerCount = 192;
-						nsci.receiveTimeoutSeconds = 60;
-
-						StringBuffer<256> prefix;
-						prefix.Append(TC("UbaProxyServer (")).Append(GuidToString(proxy.client->GetUid()).str).Append(')');
-						proxy.serverPrefix = prefix.data;
+						networkBackend = &nb;
+						networkBackendMem = &nbMem;
 						bool ctorSuccess = true;
-						proxy.server = new NetworkServer(ctorSuccess, nsci, proxy.serverPrefix.c_str());
+						networkClient = new NetworkClient(ctorSuccess, { logWriter });
 						if (!ctorSuccess)
-						{
-							delete proxy.server;
 							return false;
-						}
-						proxy.storage = new StorageProxy(*proxy.server, *proxy.client, storageServerUid, TC("Wooohoo"), proxy.storageClient);
-						proxy.server->StartListen(proxy.client->GetTcpBackend(), proxyPort);
-						proxy.targetConnectionCount = proxy.maxConnectionCount;
-						proxy.wakeupSessionWait.Set();
+
+
+						static auto startProxy = [](void* userData, u16 proxyPort, const Guid& storageServerUid)
+							{
+								auto& client = *(Client*)userData;
+
+								NetworkServerCreateInfo nsci(client.networkClient->GetLogWriter());
+								nsci.workerCount = 192;
+								nsci.receiveTimeoutSeconds = 60;
+
+								StringBuffer<256> prefix;
+								prefix.Append(TC("UbaProxyServer (")).Append(GuidToString(client.networkClient->GetUid()).str).Append(')');
+								client.serverPrefix = prefix.data;
+								bool ctorSuccess = true;
+								client.proxyNetworkServer = new NetworkServer(ctorSuccess, nsci, client.serverPrefix.c_str());
+								if (!ctorSuccess)
+								{
+									delete client.proxyNetworkServer;
+									return false;
+								}
+								client.proxyStorage = new StorageProxy(*client.proxyNetworkServer, *client.networkClient, storageServerUid, TC("Wooohoo"), client.storageClient);
+								client.proxyNetworkServer->StartListen(*client.networkBackendMem, proxyPort);
+								client.proxyNetworkServer->StartListen(*client.networkBackend, proxyPort);
+								//proxy.targetConnectionCount = proxy.maxConnectionCount;
+								//proxy.wakeupSessionWait.Set();
+								return true;
+							};
+
+						static auto getProxyBackend = [](void* userData, const tchar* host) -> NetworkBackend&
+							{
+								auto& client = *(Client*)userData;
+								return Equals(host, TC("inprocess")) ? *client.networkBackendMem : *client.networkBackend;
+							};
+
+						StringBuffer<> clientRootDir;
+						clientRootDir.Append(g_rootDir).Append("Agent").AppendValue(index);
+						StorageClientCreateInfo storageClientInfo(*networkClient, clientRootDir.data);
+						storageClientInfo.zone = TC("FOO");
+						storageClientInfo.getProxyBackendCallback = getProxyBackend;
+						storageClientInfo.getProxyBackendUserData = this;
+						storageClientInfo.startProxyCallback = startProxy;
+						storageClientInfo.startProxyUserData = this;
+						storageClient = new StorageClient(storageClientInfo);
+
+						SessionClientCreateInfo sessionClientInfo(*storageClient, *networkClient, logWriter);
+						sessionClientInfo.maxProcessCount = maxProcessorCount;
+						sessionClientInfo.rootDir = clientRootDir.data;
+						sessionClientInfo.deleteSessionsOlderThanSeconds = 1;
+
+						sessionClient = new SessionClient(sessionClientInfo);
+						sessionClient->Start();
+						if (!networkClient->Connect(*networkBackend, TC("127.0.0.1"), port))
+							return false;//logger.Error(TC("Failed to connect"));
 						return true;
-					};
+					}
 
-				StringBuffer<> clientRootDir;
-				clientRootDir.Append(g_rootDir).Append("Agent");
-				StorageClientCreateInfo storageClientInfo(client, clientRootDir.data);
-				storageClientInfo.zone = TC("FOO");
-				storageClientInfo.startProxyCallback = startProxy;
-				storageClientInfo.startProxyUserData = &proxy;
-				StorageClient storageClient(storageClientInfo);
+					~Client()
+					{
+						if (proxyNetworkServer)
+							proxyNetworkServer->StopAll();
+						sessionClient->Stop();
+						networkClient->StopAll();
+						delete proxyStorage;
+						delete proxyNetworkServer;
+						delete sessionClient;
+						delete storageClient;
+						delete networkClient;
+					}
 
-				SessionClientCreateInfo sessionClientInfo(storageClient, client, logWriter);
-				sessionClientInfo.maxProcessCount = DefaultProcessorCount;
-				sessionClientInfo.rootDir = clientRootDir.data;
-				sessionClientInfo.deleteSessionsOlderThanSeconds = 1;
-				SessionClient sessionClient(sessionClientInfo);
-				sessionClient.Start();
+					NetworkClient* networkClient = nullptr;
+					StorageClient* storageClient = nullptr;
+					SessionClient* sessionClient = nullptr;
 
-				//for (u32 i=0; i!=4; ++i)
-					if (!client.Connect(networkBackend, TC("127.0.0.1"), port))
-						return logger.Error(TC("Failed to connect"));
+					NetworkBackend* networkBackend = nullptr;
+					NetworkBackend* networkBackendMem = nullptr;
+					NetworkServer* proxyNetworkServer = nullptr;
+					StorageProxy* proxyStorage = nullptr;
+					TString serverPrefix;
+				};
 
-				auto cg = MakeGuard([&]() { sessionClient.Stop(); client.StopAll(); });
+
+				Vector<Client> clients;
+				clients.resize(4);
+				u32 clientIndex = 0;
+				for (auto& c : clients)
+					if (!c.Init(logWriter, networkBackend, networkBackendMem, port, maxProcessCount/4, clientIndex++))
+						return false;
 
 				return func();
 			};

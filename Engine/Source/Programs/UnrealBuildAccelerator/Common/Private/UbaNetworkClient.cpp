@@ -16,7 +16,6 @@ namespace uba
 	,	m_logger(info.logWriter, SetGetPrefix(name))
 	,	m_isConnected(true)
 	,	m_isOrWasConnected(true)
-	,	m_tcpBackend(new NetworkBackendTcp(info.logWriter))
 	{
 		outCtorSuccess = true;
 
@@ -40,8 +39,6 @@ namespace uba
 	NetworkClient::~NetworkClient()
 	{
 		StopAll();
-
-		delete m_tcpBackend;
 
 		if (m_cryptoKey)
 			Crypto::DestroyKey(m_cryptoKey);
