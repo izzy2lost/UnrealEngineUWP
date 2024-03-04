@@ -117,7 +117,7 @@ FD3D12ViewRange::FD3D12ViewRange(D3D12_SHADER_RESOURCE_VIEW_DESC const& ViewDesc
 
 	case D3D12_SRV_DIMENSION_TEXTURECUBE:
 		Mip   = { ViewDesc.TextureCube.MostDetailedMip, ViewDesc.TextureCube.MipLevels };
-		Array = { 0, 1 };
+		Array = { 0, 6 };
 		break;
 
 	case D3D12_SRV_DIMENSION_TEXTURECUBEARRAY:
