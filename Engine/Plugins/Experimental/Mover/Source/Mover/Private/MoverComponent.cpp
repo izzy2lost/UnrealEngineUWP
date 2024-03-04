@@ -267,9 +267,9 @@ void UMoverComponent::InitializeSimulationState(FMoverSyncState* OutSync, FMover
 		MoverState->SetTransforms_WorldSpace(UpdatedComponent->GetComponentLocation(),
 		                                     UpdatedComponent->GetComponentRotation(),
 		                                     FVector::ZeroVector);	// no initial velocity
-
-		MoverState->MovementMode = StartingMovementMode;
 	}
+
+	OutSync->MovementMode = StartingMovementMode;
 
 	*OutAux = FMoverAuxStateContext();
 
@@ -350,7 +350,7 @@ void UMoverComponent::SimulationTick(const FMoverTimeStep& InTimeStep, const FMo
 	if (FMoverDefaultSyncState* OutputSyncState = SimOutput.SyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
 	{
 		const FName MovementModeAfterTick = ModeFSM->GetCurrentModeName();
-		OutputSyncState->MovementMode = MovementModeAfterTick;
+		SimOutput.SyncState.MovementMode = MovementModeAfterTick;
 
 		if (UpdatedComponent->GetComponentLocation().Equals(OutputSyncState->GetLocation_WorldSpace()) == false ||
 			UpdatedComponent->GetComponentQuat().Rotator().Equals(OutputSyncState->GetOrientation_WorldSpace(), ROTATOR_TOLERANCE) == false)
@@ -828,20 +828,17 @@ const FLayeredMoveBase* UMoverComponent::FindActiveLayeredMoveByType(const UScri
 {
 	if (bHasValidCachedState)
 	{
-		if (const FMoverDefaultSyncState* MoverState = CachedLastSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+		for (auto it = CachedLastSyncState.LayeredMoves.GetActiveMovesIterator(); it; ++it)
 		{
-			for (auto it = MoverState->LayeredMoves.GetActiveMovesIterator(); it; ++it)
+			UStruct* CandidateStruct = it->Get()->GetScriptStruct();
+			while (CandidateStruct)
 			{
-				UStruct* CandidateStruct = it->Get()->GetScriptStruct();
-				while (CandidateStruct)
+				if (DataStructType == CandidateStruct)
 				{
-					if (DataStructType == CandidateStruct)
-					{
-						return it->Get();
-					}
-
-					CandidateStruct = CandidateStruct->GetSuperStruct();
+					return it->Get();
 				}
+
+				CandidateStruct = CandidateStruct->GetSuperStruct();
 			}
 		}
 	}
@@ -1035,10 +1032,7 @@ bool UMoverComponent::IsFalling() const
 { 
 	if (bHasValidCachedState)
 	{
-		if (const FMoverDefaultSyncState* SyncState = CachedLastSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
-		{
-			return SyncState->MovementMode == DefaultModeNames::Falling;
-		}
+		return CachedLastSyncState.MovementMode == DefaultModeNames::Falling;
 	}
 
 	return false;
@@ -1048,10 +1042,7 @@ bool UMoverComponent::IsAirborne() const
 {
 	if (bHasValidCachedState)
 	{
-		if (const FMoverDefaultSyncState* SyncState = CachedLastSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
-		{
-			return SyncState->MovementMode == DefaultModeNames::Flying || SyncState->MovementMode == DefaultModeNames::Falling;
-		}
+		return CachedLastSyncState.MovementMode == DefaultModeNames::Flying || CachedLastSyncState.MovementMode == DefaultModeNames::Falling;
 	}
 
 	return false;
@@ -1061,10 +1052,7 @@ bool UMoverComponent::IsOnGround() const
 {
 	if (bHasValidCachedState)
 	{
-		if (const FMoverDefaultSyncState* SyncState = CachedLastSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
-		{
-			return SyncState->MovementMode == DefaultModeNames::Walking;
-		}
+		return CachedLastSyncState.MovementMode == DefaultModeNames::Walking;
 	}
 
 	return false;
@@ -1158,10 +1146,7 @@ FName UMoverComponent::GetMovementModeName() const
 { 
 	if (bHasValidCachedState)
 	{
-		if (const FMoverDefaultSyncState* SyncState = CachedLastSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
-		{
-			return SyncState->MovementMode;
-		}
+		return CachedLastSyncState.MovementMode;
 	}
 
 	return NAME_None;

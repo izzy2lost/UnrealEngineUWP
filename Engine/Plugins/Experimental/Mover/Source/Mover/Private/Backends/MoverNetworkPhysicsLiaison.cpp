@@ -643,8 +643,7 @@ void UMoverNetworkPhysicsLiaisonComponent::ProduceInput_External(float DeltaSeco
 		}
 		else
 		{
-			FMoverDefaultSyncState& Default = Input.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-			Default.MovementMode = MoverComp->StartingMovementMode;
+			Input.SyncState.MovementMode = MoverComp->StartingMovementMode;
 		}
 
 		if (bCachedInputIsValid)
@@ -699,19 +698,13 @@ void UMoverNetworkPhysicsLiaisonComponent::ConsumeOutput_External(const FPhysics
 					// TODO: Generalize handling of events generated on physics thread
 					if (MoverComp->HasValidCachedState())
 					{
-						if (const FMoverDefaultSyncState* CachedSyncState = MoverComp->GetSyncState().SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+						if ((MoverComp->GetSyncState().MovementMode == DefaultModeNames::Falling) && (InterpolatedSyncState.MovementMode == DefaultModeNames::Walking))
 						{
-							if (const FMoverDefaultSyncState* InterpolatedState = InterpolatedSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+							if (UFallingMode* FallingMode = MoverComp->FindMode_Mutable<UFallingMode>())
 							{
-								if ((CachedSyncState->MovementMode == DefaultModeNames::Falling) && (InterpolatedState->MovementMode == DefaultModeNames::Walking))
-								{
-									if (UFallingMode* FallingMode = MoverComp->FindMode_Mutable<UFallingMode>())
-									{
-										FHitResult HitResult;
-										MoverComp->TryGetFloorCheckHitResult(HitResult);
-										FallingMode->OnLanded.Broadcast(InterpolatedState->MovementMode, HitResult);
-									}
-								}
+								FHitResult HitResult;
+								MoverComp->TryGetFloorCheckHitResult(HitResult);
+								FallingMode->OnLanded.Broadcast(InterpolatedSyncState.MovementMode, HitResult);
 							}
 						}
 					}
@@ -825,18 +818,18 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 		return;
 	}
 
-	FMoverDefaultSyncState& SyncState = Input.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
 
-	const IPhysicsCharacterMovementModeInterface* PhysicsMode = Cast<const IPhysicsCharacterMovementModeInterface>(MoverComp->ModeFSM->FindMovementMode(SyncState.MovementMode));
+
+	const IPhysicsCharacterMovementModeInterface* PhysicsMode = Cast<const IPhysicsCharacterMovementModeInterface>(MoverComp->ModeFSM->FindMovementMode(Input.SyncState.MovementMode));
 	if (!PhysicsMode)
 	{
-		UE_LOG(LogMover, Verbose, TEXT("Attempting to run non-physics movement mode %s in physics mover update."), *SyncState.MovementMode.ToString());
+		UE_LOG(LogMover, Verbose, TEXT("Attempting to run non-physics movement mode %s in physics mover update."), *Input.SyncState.MovementMode.ToString());
 		return;
 	}
 
 	// Make the sync state velocity relative to the ground if walking
 	FVector LocalGroundVelocity = FVector::ZeroVector;
-	if (SyncState.MovementMode == DefaultModeNames::Walking)
+	if (Input.SyncState.MovementMode == DefaultModeNames::Walking)
 	{
 		if (const UMoverBlackboard* Blackboard = MoverComp->GetSimBlackboard())
 		{
@@ -848,6 +841,8 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 			}
 		}
 	}
+
+	FMoverDefaultSyncState& SyncState = Input.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
 	SyncState.SetTransforms_WorldSpace(CharacterParticle->GetX(), FRotator(CharacterParticle->GetR()), CharacterParticle->GetV() - LocalGroundVelocity);
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -887,7 +882,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 	FMoverDefaultSyncState& OutputSyncState = Output.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
 
 	const FName MovementModeAfterTick = MoverComp->ModeFSM->GetCurrentModeName();
-	OutputSyncState.MovementMode = MovementModeAfterTick;
+	Output.SyncState.MovementMode = MovementModeAfterTick;
 
 	MoverComp->SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, Output.FloorResult);
 
@@ -905,7 +900,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 	FVector TargetVelocity = OutputSyncState.GetVelocity_WorldSpace() + LocalGroundVelocity;
 
 	// Landed so add the new ground velocity
-	if ((OutputSyncState.MovementMode == DefaultModeNames::Walking) && (SyncState.MovementMode != DefaultModeNames::Walking))
+	if ((Output.SyncState.MovementMode == DefaultModeNames::Walking) && (Input.SyncState.MovementMode != DefaultModeNames::Walking))
 	{
 		if (const UPhysicsDrivenWalkingMode* WalkingMode = Cast<UPhysicsDrivenWalkingMode>(MoverComp->FindMovementMode(UPhysicsDrivenWalkingMode::StaticClass())))
 		{
@@ -1060,59 +1055,56 @@ void UMoverNetworkPhysicsLiaisonComponent::OnContactModification_Internal(const 
 		return;
 	}
 
-	if (const FMoverDefaultSyncState* SyncState = Input.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+	float PawnHalfHeight;
+	float PawnRadius;
+	MoverComp->UpdatedComponent->CalcBoundingCylinder(PawnRadius, PawnHalfHeight);
+
+	const float CharacterHeight = CharacterParticle->GetX().Z;
+	const float EndCapHeight = CharacterHeight - PawnHalfHeight + PawnRadius;
+
+	const float CosThetaMax = 0.707f;
+
+	float MinContactHeightStepUps = CharacterHeight - 1.0e10f;
+	if (Input.SyncState.MovementMode == DefaultModeNames::Walking)
 	{
-		float PawnHalfHeight;
-		float PawnRadius;
-		MoverComp->UpdatedComponent->CalcBoundingCylinder(PawnRadius, PawnHalfHeight);
-
-		const float CharacterHeight = CharacterParticle->GetX().Z;
-		const float EndCapHeight = CharacterHeight - PawnHalfHeight + PawnRadius;
-
-		const float CosThetaMax = 0.707f;
-
-		float MinContactHeightStepUps = CharacterHeight - 1.0e10f;
-		if (SyncState->MovementMode == DefaultModeNames::Walking)
+		if (const UPhysicsDrivenWalkingMode* WalkingMode = Cast<UPhysicsDrivenWalkingMode>(MoverComp->FindMode_Mutable<UPhysicsDrivenWalkingMode>()))
 		{
-			if (const UPhysicsDrivenWalkingMode* WalkingMode = Cast<UPhysicsDrivenWalkingMode>(MoverComp->FindMode_Mutable<UPhysicsDrivenWalkingMode>()))
-			{
-				// Contacts on the character capsule below the MaxStepHeight tend to snag the character when stepping
-				// up or down, so disable them
+			// Contacts on the character capsule below the MaxStepHeight tend to snag the character when stepping
+			// up or down, so disable them
 
-				if (const UCommonLegacyMovementSettings* Settings = MoverComp->FindSharedSettings<UCommonLegacyMovementSettings>())
+			if (const UCommonLegacyMovementSettings* Settings = MoverComp->FindSharedSettings<UCommonLegacyMovementSettings>())
+			{
+				const float StepDistance = FMath::Abs(WalkingMode->TargetHeight - ConstraintHandle->GetData().GroundDistance);
+				if (StepDistance >= GPhysicsDrivenMotionDebugParams.MinStepUpDistance)
 				{
-					const float StepDistance = FMath::Abs(WalkingMode->TargetHeight - ConstraintHandle->GetData().GroundDistance);
-					if (StepDistance >= GPhysicsDrivenMotionDebugParams.MinStepUpDistance)
-					{
-						MinContactHeightStepUps = CharacterHeight - WalkingMode->TargetHeight + Settings->MaxStepHeight;
-					}
+					MinContactHeightStepUps = CharacterHeight - WalkingMode->TargetHeight + Settings->MaxStepHeight;
 				}
 			}
 		}
+	}
 
-		for (Chaos::FContactPairModifier& PairModifier : Modifier.GetContacts(CharacterParticle))
+	for (Chaos::FContactPairModifier& PairModifier : Modifier.GetContacts(CharacterParticle))
+	{
+		const int32 CharacterIdx = CharacterParticle == PairModifier.GetParticlePair()[0] ? 0 : 1;
+		const int32 OtherIdx = CharacterIdx == 0 ? 1 : 0;
+
+		for (int32 Idx = 0; Idx < PairModifier.GetNumContacts(); ++Idx)
 		{
-			const int32 CharacterIdx = CharacterParticle == PairModifier.GetParticlePair()[0] ? 0 : 1;
-			const int32 OtherIdx = CharacterIdx == 0 ? 1 : 0;
+			Chaos::FVec3 Point0, Point1;
+			PairModifier.GetWorldContactLocations(Idx, Point0, Point1);
+			Chaos::FVec3 CharacterPoint = CharacterIdx == 0 ? Point0 : Point1;
 
-			for (int32 Idx = 0; Idx < PairModifier.GetNumContacts(); ++Idx)
+			Chaos::FVec3 ContactNormal = PairModifier.GetWorldNormal(Idx);
+			if ((ContactNormal.Z > CosThetaMax) && CharacterPoint.Z < EndCapHeight)
 			{
-				Chaos::FVec3 Point0, Point1;
-				PairModifier.GetWorldContactLocations(Idx, Point0, Point1);
-				Chaos::FVec3 CharacterPoint = CharacterIdx == 0 ? Point0 : Point1;
-
-				Chaos::FVec3 ContactNormal = PairModifier.GetWorldNormal(Idx);
-				if ((ContactNormal.Z > CosThetaMax) && CharacterPoint.Z < EndCapHeight)
-				{
-					// Disable any nearly vertical contact with the end cap of the capsule
-					// This will be handled by the character ground constraint
-					PairModifier.SetContactPointDisabled(Idx);
-				}
-				else if ((CharacterPoint.Z < MinContactHeightStepUps) && (GroundParticle == PairModifier.GetParticlePair()[OtherIdx]))
-				{
-					// In the case of steps ups disable all contacts below the max step height
-					PairModifier.SetContactPointDisabled(Idx);
-				}
+				// Disable any nearly vertical contact with the end cap of the capsule
+				// This will be handled by the character ground constraint
+				PairModifier.SetContactPointDisabled(Idx);
+			}
+			else if ((CharacterPoint.Z < MinContactHeightStepUps) && (GroundParticle == PairModifier.GetParticlePair()[OtherIdx]))
+			{
+				// In the case of steps ups disable all contacts below the max step height
+				PairModifier.SetContactPointDisabled(Idx);
 			}
 		}
 	}

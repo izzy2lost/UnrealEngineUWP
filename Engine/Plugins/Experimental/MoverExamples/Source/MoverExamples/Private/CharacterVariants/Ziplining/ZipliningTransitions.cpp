@@ -21,9 +21,9 @@ FTransitionEvalResult UZiplineStartTransition::OnEvaluate(const FSimulationTickP
 
 	UMoverComponent* MoverComp = Params.MoverComponent;
 
-	const FMoverDefaultSyncState* SyncState = Params.StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
+	const FMoverSyncState& SyncState = Params.StartState.SyncState;
 
-	if (MoverComp && MoverComp->IsAirborne() && SyncState && SyncState->MovementMode != ZipliningModeName)
+	if (MoverComp && MoverComp->IsAirborne() && SyncState.MovementMode != ZipliningModeName)
 	{
 		if (const FMoverExampleAbilityInputs* AbilityInputs = Params.StartState.InputCmd.InputCollection.FindDataByType<FMoverExampleAbilityInputs>())
 		{

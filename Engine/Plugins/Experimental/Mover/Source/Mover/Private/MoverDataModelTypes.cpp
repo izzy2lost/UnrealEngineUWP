@@ -131,8 +131,6 @@ bool FMoverDefaultSyncState::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& 
 	SerializePackedVector<10, 16>(Velocity, Ar);
 	Orientation.SerializeCompressedShort(Ar);
 
-	Ar << MovementMode;
-
 	// Optional movement base
 	bool bIsUsingMovementBase = (Ar.IsSaving() ? (MovementBase != nullptr) : false);
 	Ar.SerializeBits(&bIsUsingMovementBase, 1);
@@ -150,8 +148,6 @@ bool FMoverDefaultSyncState::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& 
 		MovementBase = nullptr;
 	}
 
-	LayeredMoves.NetSerialize(Ar);
-
 	bOutSuccess = true;
 	return true;
 }
@@ -164,7 +160,6 @@ void FMoverDefaultSyncState::ToString(FAnsiStringBuilderBase& Out) const
 	Out.Appendf("Intent: X=%.2f Y=%.2f Z=%.2f\n", MoveDirectionIntent.X, MoveDirectionIntent.Y, MoveDirectionIntent.Z);
 	Out.Appendf("Vel: X=%.2f Y=%.2f Z=%.2f\n", Velocity.X, Velocity.Y, Velocity.Z);
 	Out.Appendf("Orient: P=%.2f Y=%.2f R=%.2f\n", Orientation.Pitch, Orientation.Yaw, Orientation.Roll);
-	Out.Appendf("MovementMode: %s\n", TCHAR_TO_ANSI(*MovementMode.ToString()));
 
 	if (MovementBase)
 	{
@@ -176,7 +171,6 @@ void FMoverDefaultSyncState::ToString(FAnsiStringBuilderBase& Out) const
 		Out.Appendf("MovementBase: none\n");
 	}
 
-	Out.Appendf("Layered Moves: %s\n", TCHAR_TO_ANSI(*LayeredMoves.ToSimpleString()));
 }
 
 
@@ -218,8 +212,6 @@ void FMoverDefaultSyncState::Interpolate(const FMoverDataStructBase& From, const
 	}
 	else
 	{
-
-		MovementMode = ToState->MovementMode;
 
 		// No matter what base we started from, we always interpolate into the "To" movement base's space
 		MovementBase         = ToState->MovementBase;
@@ -265,7 +257,6 @@ void FMoverDefaultSyncState::Interpolate(const FMoverDataStructBase& From, const
 		Velocity			= FMath::Lerp(FromVelocity_ToSpace,		ToState->Velocity, Pct);
 		Orientation			= FMath::Lerp(FromOrientation_ToSpace,	ToState->Orientation, Pct);
 
-		LayeredMoves = ToState->LayeredMoves;
 	}
 }
 

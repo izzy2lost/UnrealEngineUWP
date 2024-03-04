@@ -130,12 +130,9 @@ void FGameplayDebuggerCategory_Mover::CollectData(APlayerController* OwnerPC, AA
 		{
 			const FMoverSyncState& SyncState = MyMoverComponent->GetSyncState();
 
-			if (const FMoverDefaultSyncState* MoverState = SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+			for (auto it = SyncState.LayeredMoves.GetActiveMovesIterator(); it; ++it)
 			{
-				for (auto it = MoverState->LayeredMoves.GetActiveMovesIterator(); it; ++it)
-				{
-					DataPack.ActiveLayeredMoves.Add(*it->Get()->ToSimpleString());
-				}
+				DataPack.ActiveLayeredMoves.Add(*it->Get()->ToSimpleString());
 			}
 		}
 	}
