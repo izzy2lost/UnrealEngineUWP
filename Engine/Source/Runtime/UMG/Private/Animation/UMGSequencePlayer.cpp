@@ -570,6 +570,10 @@ void UUMGSequencePlayer::RemoveEvaluationData()
 		SequenceInstance->Ledger.UnlinkEverything(Linker);
 		SequenceInstance->InvalidateCachedData();
 	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	RootTemplateInstance.ResetDirectorInstances();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UUMGSequencePlayer::TearDown()
