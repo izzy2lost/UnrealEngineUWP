@@ -456,7 +456,7 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void ASTOpConstantResource::SetValue(const Ptr<const RefCounted>& v, bool useDiskCache)
+	void ASTOpConstantResource::SetValue(const Ptr<const RefCounted>& v, FProxyFileContext* DiskCacheContext)
 	{
 		switch (type)
 		{
@@ -470,9 +470,9 @@ namespace mu
 
 			hash = CityHash64(static_cast<const char*>(stream.GetBuffer()), stream.GetBufferSize());
 
-			if (useDiskCache)
+			if (DiskCacheContext)
 			{
-				proxy = new ResourceProxyTempFile<Image>(r.get());
+				proxy = new ResourceProxyTempFile<Image>(r.get(), *DiskCacheContext);
 			}
 			else
 			{

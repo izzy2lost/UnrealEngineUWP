@@ -156,15 +156,6 @@ namespace mu
 	};
 
 
-    //! ProxyFactory that provides proxies for data stored in temporary files.
-    //! \ingroup tools
-    class MUTABLETOOLS_API ProxyFactoryFiles : public InputArchiveWithProxies::ProxyFactory
-    {
-    public:
-        Ptr<ResourceProxy<mu::Image>> NewImageProxy(InputArchive& arch) override;
-    };
-
-
     //! ProxyFactory that provides proxies for data stored in a mutable_source file.
     //! \ingroup tools
     class MUTABLETOOLS_API ProxyFactoryMutableSourceFile : public InputArchiveWithProxies::ProxyFactory

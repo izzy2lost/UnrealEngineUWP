@@ -761,7 +761,7 @@ namespace mu
 					int32 newSize = pNew->GetDataSize();
                     if (float(oldSize) > float(newSize) * OptimizeOptions.MinRLECompressionGain)
                     {
-                        typed->SetValue(pNew, OptimizeOptions.bUseDiskCache);
+                        typed->SetValue(pNew, OptimizeOptions.DiskCacheContext);
                     }
                 }
                 else if ( accFormat.m_supportedFormats[typed][(int32)EImageFormat::IF_L_UBYTE_RLE] )
@@ -773,7 +773,7 @@ namespace mu
 					int32 newSize = pNew->GetDataSize();
                     if (float(oldSize) > float(newSize) * OptimizeOptions.MinRLECompressionGain)
                     {
-                        typed->SetValue(pNew, OptimizeOptions.bUseDiskCache);
+                        typed->SetValue(pNew, OptimizeOptions.DiskCacheContext);
                     }
                 }
             }
@@ -792,7 +792,7 @@ namespace mu
 				ASTOpConstantResource* typed = static_cast<ASTOpConstantResource*>(n.get());
                 Ptr<Mesh> pMesh = static_cast<const Mesh*>(typed->GetValue().get())->Clone();
                 MeshRemoveUnusedBufferSemantics( pMesh.get(), meshSemanticsVisitor.m_requiredSemantics[typed]);
-                typed->SetValue(pMesh, OptimizeOptions.bUseDiskCache);
+                typed->SetValue(pMesh, OptimizeOptions.DiskCacheContext);
             }
         });
 

@@ -6,9 +6,9 @@
 
 #include "MuT/AST.h"
 #include "MuT/ErrorLogPrivate.h"
-
-#include "MuR/Operations.h"
 #include "MuT/NodeObjectPrivate.h"
+#include "MuT/StreamsPrivate.h"
+#include "MuR/Operations.h"
 
 
 namespace mu
@@ -21,6 +21,7 @@ namespace mu
 
         //! Detailed optimization options
         FModelOptimizationOptions OptimisationOptions;
+		FProxyFileContext DiskCacheContext;
 
 		uint64 EmbeddedDataBytesLimit = 1024;
 		uint64 PackagedDataBytesLimit = 1024*1024*64;

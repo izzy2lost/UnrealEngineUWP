@@ -13,12 +13,9 @@
 namespace mu
 {
 	struct FProgram;
-	template <class SCALAR> class vec4;
+	struct FProxyFileContext;
 
-
-	//---------------------------------------------------------------------------------------------
-	//! A constant mesh, image, volume or layout
-	//---------------------------------------------------------------------------------------------
+	/** A constant mesh, image, volume or layout. */
 	class ASTOpConstantResource final : public ASTOp
 	{
 	private:
@@ -50,8 +47,10 @@ namespace mu
 		//! Get a copy of the stored value
 		Ptr<const RefCounted> GetValue() const;
 
-		//! Set the value to store in this op
-		void SetValue(const Ptr<const RefCounted>& v, bool useDiskCache);
+		/** Set the value to store in this op.
+		* If the DiskCacheContext is not null, the disk cache will be used.
+		*/
+		void SetValue(const Ptr<const RefCounted>& v, FProxyFileContext* DiskCacheContext);
 
 
 		// ASTOp interface

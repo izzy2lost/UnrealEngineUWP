@@ -211,7 +211,7 @@ namespace mu
 		{
 			Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
 			op->type = OP_TYPE::IM_CONSTANT;
-			op->SetValue(pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+			op->SetValue(pImage, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 			Result.op = op;
 		}
 
@@ -1441,7 +1441,7 @@ namespace mu
 				Ptr<Mesh> FormatMeshResult = new Mesh();
 				CreateMeshOptimisedForWrappingProjection(FormatMeshResult.get(), node.m_layout);
 
-                cop->SetValue(FormatMeshResult, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+                cop->SetValue(FormatMeshResult, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 
                 Ptr<ASTOpMeshFormat> FormatOp = new ASTOpMeshFormat();
 				FormatOp->Buffers = OP::MeshFormatArgs::BT_VERTEX
@@ -1473,7 +1473,7 @@ namespace mu
 				Ptr<Mesh> FormatMeshResult = new Mesh();
                 CreateMeshOptimisedForProjection(FormatMeshResult.get(), node.m_layout);
 
-                cop->SetValue(FormatMeshResult, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+                cop->SetValue(FormatMeshResult, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 
                 Ptr<ASTOpMeshFormat> FormatOp = new ASTOpMeshFormat();
 				FormatOp->Buffers = OP::MeshFormatArgs::BT_VERTEX
@@ -1494,7 +1494,7 @@ namespace mu
             Ptr<const Mesh> TempMesh = new Mesh();
             Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
             cop->type = OP_TYPE::ME_CONSTANT;
-            cop->SetValue(TempMesh, m_compilerOptions->OptimisationOptions.bUseDiskCache );
+            cop->SetValue(TempMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 			ProjectOp->SetChild(ProjectOp->op.args.MeshProject.mesh, cop );
             m_pErrorLog->GetPrivate()->Add( "Projector mesh not set.", ELMT_ERROR, node.m_errorContext );
         }
