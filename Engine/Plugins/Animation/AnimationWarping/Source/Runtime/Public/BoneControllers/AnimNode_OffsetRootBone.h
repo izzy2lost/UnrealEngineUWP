@@ -50,6 +50,17 @@ enum class EOffsetRootBoneMode : uint8
 	Release,
 };
 
+UENUM(BlueprintType)
+enum class ECollisionResponseType : uint8
+{
+	// No Collision testing
+	Disabled,
+	// Reduce effective Max Translation offset to prevent penetration with nearby obstacles
+	ShrinkMaxTranslation,
+	// Slide along a plane based on shape cast contact point
+	PlanarCollision,
+};
+
 USTRUCT(BlueprintInternalUseOnly, Experimental)
 struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OffsetRootBone : public FAnimNode_Base
 {
@@ -119,6 +130,15 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OffsetRootBone : public FAnimNode_B
 	// For procedural values, consider adjusting the input by delta time.
 	UPROPERTY(EditAnywhere, Category = Evaluation, meta = (FoldProperty, PinHiddenByDefault))
 	FRotator RotationDelta = FRotator::ZeroRotator;
+
+
+	UPROPERTY(EditAnywhere, Category = CollisionTesting, meta = (FoldProperty, PinHiddenByDefault))
+	ECollisionResponseType CollisionTestingMode = ECollisionResponseType::Disabled;
+	UPROPERTY(EditAnywhere, Category = CollisionTesting, meta = (EditCondition = "CollisionTestingMode != ECollisionTestingMode::Disabled", DisplayAfter="CollisionTestingMode", FoldProperty, PinHiddenByDefault))
+	float CollisionTestShapeRadius = 30;
+	UPROPERTY(EditAnywhere, Category = CollisionTesting, meta = (EditCondition = "CollisionTestingMode != ECollisionTestingMode::Disabled", DisplayAfter="CollisionTestingMode", FoldProperty, PinHiddenByDefault))
+	FVector CollisionTestShapeOffset = {0,0,60};
+			
 #endif
 
 public:
@@ -144,7 +164,9 @@ public:
 	bool GetClampToRotationVelocity() const;
 	float GetTranslationSpeedRatio() const;
 	float GetRotationSpeedRatio() const;
-
+	ECollisionResponseType GetCollisionTestingMode() const;
+	float GetCollisionTestShapeRadius() const;
+	const FVector& GetCollisionTestShapeOffset() const;
 
 	// get the current simulated root transform
 	void GetOffsetRootTransform(FTransform& OutTransform)
@@ -171,6 +193,8 @@ private:
 	// Offset = ComponentTransform - SimulatedTransform
 	FVector SimulatedTranslation = FVector::ZeroVector;
 	FQuat SimulatedRotation = FQuat::Identity;
+
+	FVector LastNonZeroRootMotionDirection = FVector::ZeroVector;
 
 	FGraphTraversalCounter UpdateCounter;
 };
