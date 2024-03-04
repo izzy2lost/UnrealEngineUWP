@@ -36,9 +36,10 @@ public:
 		const FTriangleMesh& InTriangleMesh,
 		const TArray<FSolverVec3>* InReferencePositions,
 		TSet<TVec2<int32>>&& InDisabledCollisionElements,
+		const TConstArrayView<FRealSingle>& InThicknessMultipliers,
 		const TConstArrayView<FRealSingle>& InKinematicColliderFrictionMultipliers,
 		const TConstArrayView<int32>& InSelfCollisionLayers,
-		const FSolverReal InThickness = BackCompatThickness,
+		const FSolverVec2 InThickness = FSolverVec2(BackCompatThickness),
 		const FSolverReal InStiffness = BackCompatStiffness,
 		const FSolverReal InFrictionCoefficient = BackCompatFrictionCoefficient,
 		const bool bInOnlyCollideKinematics = false,
@@ -58,7 +59,7 @@ public:
 		const FSolverReal InStiffness = BackCompatStiffness,
 		const FSolverReal InFrictionCoefficient = BackCompatFrictionCoefficient)
 		: FPBDCollisionSpringConstraintsBase(InOffset, InNumParticles, InTriangleMesh, InReferencePositions, MoveTemp(InDisabledCollisionElements),
-			TConstArrayView<FRealSingle>(), TConstArrayView<int32>(), InThickness, InStiffness, InFrictionCoefficient)
+			TConstArrayView<FRealSingle>(), TConstArrayView<FRealSingle>(), TConstArrayView<int32>(), FSolverVec2(InThickness), InStiffness, InFrictionCoefficient)
 	{}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -89,7 +90,13 @@ public:
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
-	FSolverReal GetThickness() const { return Thickness; }
+	UE_DEPRECATED(5.4, "Thickness is now weighted.")
+	FSolverReal GetThickness() const { return (FSolverReal)ThicknessWeighted; }
+
+	FSolverReal GetMaxThickness() const { return FMath::Max(ThicknessWeighted.GetLow(), ThicknessWeighted.GetHigh()); }
+	FSolverReal GetParticleThickness(int32 ParticleIndex) const { return ThicknessWeighted.GetValue(ParticleIndex - Offset); }
+	const FPBDFlatWeightMap& GetThicknessWeighted() const { return ThicknessWeighted; }
+
 	bool GetGlobalIntersectionAnalysis() const { return bGlobalIntersectionAnalysis; }
 	const TArray<bool>& GetFlipNormals() const 
 	{
@@ -102,7 +109,12 @@ public:
 	const TArray<TMap<int32, FSolverReal>>& GetKinematicColliderTimers() const { return KinematicColliderTimers; }
 	const FTriangleMesh& GetTriangleMesh() const { return TriangleMesh; }
 
-	void SetThickness(FSolverReal InThickness) { Thickness = FMath::Max(InThickness, (FSolverReal)0.);  }
+	UE_DEPRECATED(5.4, "Thickness is now weighted.")
+	void SetThickness(FSolverReal InThickness) 
+	{ 
+		SetThicknessWeighted(FSolverVec2(InThickness));
+	}
+	void SetThicknessWeighted(const FSolverVec2 InThickness) { ThicknessWeighted.SetWeightedValue(FSolverVec2::Max(InThickness, FSolverVec2(0.f))); }
 	void SetFrictionCoefficient(FSolverReal InFrictionCoefficient) { FrictionCoefficient = InFrictionCoefficient; }
 
 	template<typename SolverParticlesOrRange>
@@ -152,24 +164,20 @@ public:
 
 	FSolverReal GetConstraintThickness(const int32 ConstraintIndex) const
 	{
-		switch (ConstraintTypes[ConstraintIndex])
+		if (!ThicknessWeighted.HasWeightMap())
 		{
-		default:
-		case EConstraintType::Default:
-		case EConstraintType::GIAFlipped:
-			return 2.f * Thickness;
-		}		
-	}
-
-	FSolverReal GetConstraintStiffness(const int32 ConstraintIndex) const
-	{
-		switch (ConstraintTypes[ConstraintIndex])
-		{
-		default:
-		case EConstraintType::Default:
-		case EConstraintType::GIAFlipped:
-			return Stiffness;
+			return 2.f * (FSolverReal)ThicknessWeighted;
 		}
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		const TVec4<int32>& Constraint = Constraints[ConstraintIndex];
+		const FSolverVec3& Bary = Barys[ConstraintIndex];
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		const int32 Index1 = Constraint[0] - Offset;
+		const int32 Index2 = Constraint[1] - Offset;
+		const int32 Index3 = Constraint[2] - Offset;
+		const int32 Index4 = Constraint[3] - Offset;
+
+		return ThicknessWeighted.GetValue(Index1) + Bary[0] * ThicknessWeighted.GetValue(Index2) + Bary[1] * ThicknessWeighted.GetValue(Index3) + Bary[2] * ThicknessWeighted.GetValue(Index4);
 	}
 
 	FSolverReal GetConstraintFrictionCoefficient(const int32 ConstraintIndex) const
@@ -183,9 +191,9 @@ public:
 			return (FSolverReal)0.f;
 		}
 	}
-protected:
 
-	FSolverReal Thickness;
+protected:
+	FPBDFlatWeightMap ThicknessWeighted;
 	FSolverReal Stiffness; // (0-1 compliance for PBD)
 	FSolverReal FrictionCoefficient; 
 	bool bOnlyCollideKinematics;
@@ -193,6 +201,9 @@ protected:
 	FSolverReal KinematicColliderStiffness;
 	FPBDFlatWeightMap KinematicColliderFrictionCoefficient;
 	FSolverReal ProximityStiffness; // (actual spring stiffness for force-based solver)
+
+	UE_DEPRECATED(5.4, "Use ThicknessWeighted instead")
+	FSolverReal Thickness;
 
 	UE_DEPRECATED(5.4, "Constraints will be made private")
 	TArray<TVec4<int32>> Constraints;
@@ -206,9 +217,12 @@ protected:
 	int32 GetNumParticles() const { return NumParticles; }
 
 private:
+	template<typename SolverParticlesOrRange>
+	void ApplyDynamicConstraints(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const;
 
 	template<typename SolverParticlesOrRange>
 	void ApplyKinematicConstraints(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const;
+
 
 	const FTriangleMesh& TriangleMesh;
 	const TArray<FSolverVec3>* ReferencePositions;

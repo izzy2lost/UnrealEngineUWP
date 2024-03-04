@@ -103,7 +103,7 @@ static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const S
 	);
 
 	// Set Intersections Num to actual number found.
-	const int32 IntersectionNum = IntersectionIndex.load();
+	const int32 IntersectionNum = FMath::Min(IntersectionIndex.load(), PreallocatedIntersectionsNum);
 	Intersections.SetNum(IntersectionNum, EAllowShrinking::No);
 
 	// Append any ExtraIntersections
@@ -1378,7 +1378,7 @@ void FPBDTriangleMeshCollisions::FTriangleSubMesh::InitAllDynamic()
 }
 
 template<typename SolverParticlesOrRange>
-void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, const FSolverReal MinProximityQueryRadius)
+void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, const FPBDFlatWeightMap& ThicknessMap)
 {
 	const bool bDoSelfIntersections = bGlobalIntersectionAnalysis || bContourMinimization;
 	if (bCollidableSubMeshDirty)
@@ -1396,8 +1396,19 @@ void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, c
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ChaosFPBDTriangleMeshCollisions_BuildSpatialHash);
+
 		constexpr FSolverReal RadiusToLodSizeMultiplier = 2.; // Radius to Diameter
-		DynamicSubMesh.BuildSpatialHash(static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), DynamicSubMeshSpatialHash, RadiusToLodSizeMultiplier * MinProximityQueryRadius);
+		FSolverReal MinProximityQueryRadius;
+		if (!ThicknessMap.HasWeightMap())
+		{	
+			MinProximityQueryRadius = ((FSolverReal)ThicknessMap) * 2.f; // When thickness is constant, we don't put any thickness in the spatial hash and instead query with particles with 2*thickness radius.
+			DynamicSubMesh.BuildSpatialHash(static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), DynamicSubMeshSpatialHash, RadiusToLodSizeMultiplier * MinProximityQueryRadius);
+		}
+		else
+		{
+			MinProximityQueryRadius = FMath::Max(ThicknessMap.GetLow(), ThicknessMap.GetHigh());
+			DynamicSubMesh.BuildSpatialHash(static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), DynamicSubMeshSpatialHash, ThicknessMap, Offset, RadiusToLodSizeMultiplier * MinProximityQueryRadius);
+		}
 		if (CollidableSubMesh.GetKinematicColliderSubMesh().GetNumElements() > 0)
 		{
 			CollidableSubMesh.GetKinematicColliderSubMesh().BuildSpatialHash(static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), KinematicSubMeshSpatialHash, RadiusToLodSizeMultiplier * MinProximityQueryRadius);
@@ -1453,8 +1464,8 @@ void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, c
 		}
 	}
 }
-template CHAOS_API void FPBDTriangleMeshCollisions::Init(const FSolverParticles& Particles, const FSolverReal MinProximityQueryRadius);
-template CHAOS_API void FPBDTriangleMeshCollisions::Init(const FSolverParticlesRange& Particles, const FSolverReal MinProximityQueryRadius);
+template CHAOS_API void FPBDTriangleMeshCollisions::Init(const FSolverParticles& Particles, const FPBDFlatWeightMap& ThicknessMap);
+template CHAOS_API void FPBDTriangleMeshCollisions::Init(const FSolverParticlesRange& Particles, const FPBDFlatWeightMap& ThicknessMap);
 
 template<typename SolverParticlesOrRange>
 void FPBDTriangleMeshCollisions::PostStepInit(const SolverParticlesOrRange& Particles)

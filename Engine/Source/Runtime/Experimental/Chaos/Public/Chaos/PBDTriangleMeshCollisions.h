@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Chaos/Core.h"
+#include "Chaos/PBDFlatWeightMap.h"
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/TriangleMesh.h"
 #include "Chaos/HierarchicalSpatialHash.h"
@@ -357,7 +358,13 @@ public:
 	}
 
 	template<typename SolverParticlesOrRange>
-	CHAOS_API void Init(const SolverParticlesOrRange& Particles, const FSolverReal MinProximityQueryRadius = (FSolverReal)0.);
+	void Init(const SolverParticlesOrRange& Particles, const FSolverReal MinProximityQueryRadius = (FSolverReal)0.)
+	{
+		Init(Particles, FPBDFlatWeightMap(FSolverVec2(MinProximityQueryRadius * (FSolverReal).5f)));
+	}
+
+	template<typename SolverParticlesOrRange>
+	CHAOS_API void Init(const SolverParticlesOrRange& Particles, const FPBDFlatWeightMap& ThicknessMap);
 
 	template<typename SolverParticlesOrRange>
 	CHAOS_API void PostStepInit(const SolverParticlesOrRange& Particles);
