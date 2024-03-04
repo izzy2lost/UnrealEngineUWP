@@ -417,7 +417,7 @@ void RenderScreenSpaceShadowsBend(
 			PassParameters->ContactShadowCastingIntensity = ContactShadowCastingIntensity;
 			PassParameters->ContactShadowNonCastingIntensity = ContactShadowNonCastingIntensity;
 			PassParameters->ContactShadowIntensityFadeStart = GContactShadowsIntensityFadeStart;
-			PassParameters->ContactShadowIntensityFadeOneOverLength = 1.0f / GContactShadowsIntensityFadeStart;
+			PassParameters->ContactShadowIntensityFadeOneOverLength = 1.0f / GContactShadowsIntensityFadeLength;
 			PassParameters->SurfaceThickness = GBendShadowsOverrideSurfaceThickness;
 
 			PassParameters->LightCoordinate = FVector4f(DispatchList.LightCoordinate_Shader[0], DispatchList.LightCoordinate_Shader[1], DispatchList.LightCoordinate_Shader[2], DispatchList.LightCoordinate_Shader[3]);
