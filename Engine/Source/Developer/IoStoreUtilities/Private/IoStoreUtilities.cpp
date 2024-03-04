@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "IoStoreUtilities.h"
+#include "IoStoreWriter.h"
 
 #include "IoStoreLooseFiles.h"
 #include "Algo/TopologicalSort.h"

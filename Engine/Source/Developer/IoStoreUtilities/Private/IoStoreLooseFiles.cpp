@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "IoStoreLooseFiles.h"
+#include "IoStoreWriter.h"
 
 #include "HAL/FileManager.h"
 #include "IO/IoStore.h"
