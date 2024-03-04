@@ -7,6 +7,20 @@
 
 namespace uba
 {
+	u32 WorkManager::TrackWorkStart(const tchar* desc)
+	{
+		if (auto t = m_workTracker.load())
+			return t->TrackWorkStart(desc);
+		return 0;
+	}
+
+	void WorkManager::TrackWorkEnd(u32 id)
+	{
+		if (auto t = m_workTracker.load())
+			return t->TrackWorkEnd(id);
+	}
+
+
 	struct WorkManagerImpl::Worker
 	{
 		Worker(WorkManagerImpl& manager) : m_workAvailable(false)
@@ -46,6 +60,7 @@ namespace uba
 						manager.m_work.pop_front();
 						lock.Leave();
 
+						TrackWorkScope tws(manager, work.desc.c_str());
 						work.func();
 					}
 
@@ -88,7 +103,11 @@ namespace uba
 	{
 		SCOPED_WRITE_LOCK(m_workLock, lock);
 		for (u32 i = 0; i != count; ++i)
+		{
 			m_work.push_back({ work });
+			if (m_workTracker.load())
+				m_work.back().desc = desc;
+		}
 		lock.Leave();
 
 		SCOPED_WRITE_LOCK(m_availableWorkersLock, lock2);
@@ -133,6 +152,7 @@ namespace uba
 			m_work.pop_front();
 			lock.Leave();
 
+			TrackWorkScope tws(*this, work.desc.c_str());
 			work.func();
 		}
 	}

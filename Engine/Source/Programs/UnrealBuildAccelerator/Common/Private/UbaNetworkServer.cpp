@@ -154,7 +154,7 @@ namespace uba
 			}
 
 			if (!m_disconnectCallbackCalled.IsSet(60000)) // This should never time out!
-				m_server.m_logger.Warning(TC("This should never happen!! Unknown conseqences"));
+				m_server.m_logger.Warning(TC("This should never happen!! Unknown consequences"));
 			return true;
 		}
 
@@ -516,7 +516,7 @@ namespace uba
 				SCOPED_WRITE_LOCK(server.m_additionalWorkLock, lock);
 				if (server.m_additionalWork.empty())
 					break;
-				work = server.m_additionalWork.front();
+				work = std::move(server.m_additionalWork.front());
 				server.m_additionalWork.pop_front();
 				lock.Leave();
 
@@ -592,7 +592,7 @@ namespace uba
 
 	bool NetworkServer::StartListen(NetworkBackend& backend, u16 port, const tchar* ip, const u8* cryptoKey128)
 	{
-		UBA_ASSERT(!m_listenBackend);
+		//UBA_ASSERT(!m_listenBackend);
 		m_listenBackend = &backend;
 
 		if (cryptoKey128)
@@ -798,7 +798,7 @@ namespace uba
 		for (u32 i = 0; i != count; ++i)
 		{
 			m_additionalWork.push_back({ work });
-			if (m_trackWork)
+			if (m_workTracker)
 				m_additionalWork.back().desc = desc;
 		}
 		lock.Leave();
@@ -820,21 +820,6 @@ namespace uba
 		return m_maxWorkerCount;
 	}
 
-	u32 NetworkServer::TrackWorkStart(const tchar* desc)
-	{
-		if (!m_trackWork)
-			return 0;
-		u32 workId = m_workCounter++;
-		m_startWork(workId, desc);
-		return workId;
-	}
-
-	void NetworkServer::TrackWorkEnd(u32 id)
-	{
-		if (m_trackWork)
-			m_endWork(id);
-	}
-
 	u64 NetworkServer::GetTotalSentBytes()
 	{
 		return m_sendBytes;
@@ -843,6 +828,16 @@ namespace uba
 	u64 NetworkServer::GetTotalRecvBytes()
 	{
 		return m_recvBytes;
+	}
+
+	u32 NetworkServer::GetConnectionCount()
+	{
+		SCOPED_READ_LOCK(m_connectionsLock, lock);
+		u32 count = 0;
+		for (auto& con : m_connections)
+			if (!con.m_disconnected)
+				++count;
+		return count;
 	}
 
 	void NetworkServer::GetClientStats(ClientStats& out, u32 clientId)
@@ -906,32 +901,17 @@ namespace uba
 			worker->m_context = oldContext;
 			return true;
 		}
-		work = m_additionalWork.front();
+		work = std::move(m_additionalWork.front());
 		m_additionalWork.pop_front();
 		lock.Leave();
 
-		u32 workId = TrackWorkStart(work.desc.c_str());
+		TrackWorkScope tws(*this, work.desc.c_str());
 
 		work.func();
-
-		TrackWorkEnd(workId);
 
 		return true;
 	}
 
-	void NetworkServer::SetWorkListener(const WorkBeginFunction& start, const WorkEndFunction& end)
-	{
-		m_startWork = start;
-		m_endWork = end;
-		m_trackWork = true;
-	}
-
-	void NetworkServer::ResetWorkListener()
-	{
-		m_trackWork = false;
-		m_startWork = {};
-		m_endWork = {};
-	}
 
 	NetworkServer::Worker* NetworkServer::PopWorker()
 	{

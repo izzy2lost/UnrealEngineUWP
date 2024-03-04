@@ -5,6 +5,7 @@
 #include "UbaFileMapping.h"
 #include "UbaLogger.h"
 #include "UbaProcessStats.h"
+#include "UbaWorkManager.h"
 
 namespace uba
 {
@@ -55,7 +56,7 @@ namespace uba
 	static constexpr u32 TraceVersion = 22;
 	static constexpr u32 TraceReadCompatibilityVersion = 6;
 
-	class Trace
+	class Trace : public WorkTracker
 	{
 	public:
 		Trace(LogWriter& logWriter);
@@ -84,6 +85,9 @@ namespace uba
 
 		bool StopWrite(const tchar* writeFileName);
 
+		virtual u32 TrackWorkStart(const tchar* desc) final override;
+		virtual void TrackWorkEnd(u32 id) final override;
+
 	private:
 		struct WriterScope;
 		u32 AddString(const tchar* string);
@@ -100,6 +104,8 @@ namespace uba
 
 		ReaderWriterLock m_stringsLock;
 		UnorderedMap<StringKey, u32> m_strings;
+
+		Atomic<u32> m_workCounter;
 
 		friend class SessionServer;
 	};

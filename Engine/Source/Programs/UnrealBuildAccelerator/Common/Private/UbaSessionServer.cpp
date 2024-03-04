@@ -126,17 +126,7 @@ namespace uba
 		m_storage.SetTrace(&m_trace, m_detailedTrace);
 
 		if (m_detailedTrace)
-		{
-			m_server.SetWorkListener(
-				[this](u32 workIndex, const tchar* desc)
-				{
-					m_trace.BeginWork(workIndex, desc);
-				},
-				[this](u32 workIndex)
-				{
-					m_trace.EndWork(workIndex);
-				});
-		}
+			m_server.SetWorkTracker(&m_trace);
 
 		m_memoryThreadEvent.Create(true);
 		if (info.checkMemory)
@@ -188,7 +178,7 @@ namespace uba
 
 		StopTraceThread();
 
-		m_server.ResetWorkListener();
+		m_server.SetWorkTracker(nullptr);
 		m_server.UnregisterOnClientDisconnected(ServiceId);
 		m_server.UnregisterService(ServiceId);
 
@@ -773,10 +763,13 @@ namespace uba
 				UBA_ASSERT(attributes);
 				CasKey casKey = reader.ReadCasKey();
 				Storage::RetrieveResult res;
-				bool success = m_storage.RetrieveCasFile(res, casKey, TC(""));
+				bool success = m_storage.RetrieveCasFile(res, casKey, destination.data);
 				casKey = res.casKey;
 				if (!success)
-					m_logger.Error(TC("Failed to retrieve cas for %s from client (Needed to write %s)"), CasKeyString(casKey).str, destination);
+				{
+					auto logType = connectionInfo.ShouldDisconnect() ? LogEntryType_Info : LogEntryType_Warning;
+					m_logger.Logf(logType, TC("Failed to retrieve cas for %s from client (Needed to write %s)"), CasKeyString(casKey).str, destination.data);
+				}
 				if (success)
 				{
 					if (destination.StartsWith(TC("<log>")))
@@ -1604,8 +1597,8 @@ namespace uba
 		lock.Leave();
 
 		float cpuLoad = UpdateCpuLoad();
-		u64 serverSend = m_server.GetTotalRecvBytes();
-		u64 serverRecv = m_server.GetTotalSentBytes();
+		u64 serverSend = m_server.GetTotalSentBytes();
+		u64 serverRecv = m_server.GetTotalRecvBytes();
 		u64 memAvail = m_memAvail;
 		u64 memTotal = m_memTotal;
 		m_trace.SessionUpdate(0, 0, serverSend, serverRecv, 0, memAvail, memTotal, cpuLoad);
