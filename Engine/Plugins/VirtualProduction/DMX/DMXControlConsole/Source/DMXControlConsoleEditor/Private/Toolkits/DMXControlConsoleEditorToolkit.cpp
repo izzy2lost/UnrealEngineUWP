@@ -14,6 +14,7 @@
 #include "DMXEditorSettings.h"
 #include "DMXEditorUtils.h"
 #include "Editor.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
@@ -251,47 +252,49 @@ namespace UE::DMX::Private
 
 	void FDMXControlConsoleEditorToolkit::ResetToDefault()
 	{
-		UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
-		if (!ensureMsgf(ControlConsoleData, TEXT("Invalid control console data, cannot reset to default correctly.")))
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = GetControlConsoleLayouts();
+		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ensureMsgf(ActiveLayout, TEXT("Invalid layout, cannot reset to zero correctly.")))
 		{
 			return;
 		}
 
 		const FScopedTransaction ResetToDefaultTransaction(LOCTEXT("ResetToDefaultTransaction", "Reset to default"));
-		const TArray<UDMXControlConsoleFaderGroup*> FaderGroups = ControlConsoleData->GetAllFaderGroups();
-		for (const UDMXControlConsoleFaderGroup* FaderGroup : FaderGroups)
+		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = ActiveLayout->GetAllFaderGroupControllers();
+		for (const UDMXControlConsoleFaderGroupController* FaderGroupController : FaderGroupControllers)
 		{
-			if (!FaderGroup)
+			if (!FaderGroupController)
 			{
 				continue;
 			}
 
-			const TArray<UDMXControlConsoleFaderBase*> Faders = FaderGroup->GetAllFaders();
-			for (UDMXControlConsoleFaderBase* Fader : Faders)
+			const TArray<UDMXControlConsoleElementController*> ElementControllers = FaderGroupController->GetAllElementControllers();
+			for (UDMXControlConsoleElementController* ElementController : ElementControllers)
 			{
-				if (!Fader)
-				{
-					continue;
-				}
-
-				Fader->PreEditChange(nullptr);
-				Fader->ResetToDefault();
-				Fader->PostEditChange();
-
-				UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Fader->GetElementController());
 				if (!ElementController)
 				{
 					continue;
 				}
 
-				const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
-				const float ValueRange = FMath::Pow(2.f, 8.f * NumChannels) - 1;
-				const float NormalizedValue = Fader->GetValue() / ValueRange;
+				const TArray<UDMXControlConsoleFaderBase*> Faders = ElementController->GetFaders();
+				for (UDMXControlConsoleFaderBase* Fader : Faders)
+				{
+					if (!Fader)
+					{
+						continue;
+					}
 
-				ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetValuePropertyName()));
-				ElementController->SetValue(NormalizedValue);
-				ElementController->PostEditChange();
+					Fader->Modify();
+				}
+
+				ElementController->Modify();
+				ElementController->ResetToDefault();
 			}
+		}
+
+		if (TabManager.IsValid())
+		{
+			FSlateApplication::Get().SetUserFocus(0, TabManager->GetOwnerTab());
 		}
 	}
 
@@ -304,7 +307,7 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const FScopedTransaction BlankOutTransaction(LOCTEXT("ResetToZeroTransaction", "Reset to zero"));
+		const FScopedTransaction ResetToZeroTransaction(LOCTEXT("ResetToZeroTransaction", "Reset to zero"));
 		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = ActiveLayout->GetAllFaderGroupControllers();
 		for (const UDMXControlConsoleFaderGroupController* FaderGroupController : FaderGroupControllers)
 		{
@@ -336,6 +339,11 @@ namespace UE::DMX::Private
 				ElementController->SetValue(0.f);
 				ElementController->PostEditChange();
 			}
+		}
+
+		if (TabManager.IsValid())
+		{
+			FSlateApplication::Get().SetUserFocus(0, TabManager->GetOwnerTab());
 		}
 	}
 
