@@ -13,22 +13,22 @@ namespace HarmonixMetasound
 
 	FMidiClockEvent FMidiClockEvent::MakeLoopEvent(int32 InBlockFrameIndex, int32 InStartTick, int32 InEndTick)
 	{
-		return FMidiClockEvent(EType::Loop, InBlockFrameIndex, InStartTick, InEndTick, false, true);
+		return FMidiClockEvent(EType::Loop, InBlockFrameIndex, InStartTick, InEndTick);
 	}
 
 	FMidiClockEvent FMidiClockEvent::MakeSeekToEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ToTick)
 	{
-		return FMidiClockEvent(EType::SeekTo, InBlockFrameIndex, FromTick, ToTick, false, true);
+		return FMidiClockEvent(EType::SeekTo, InBlockFrameIndex, FromTick, ToTick);
 	}
 
 	FMidiClockEvent FMidiClockEvent::MakeSeekThruEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ThruTick)
 	{
-		return FMidiClockEvent(EType::SeekThru, InBlockFrameIndex, FromTick, ThruTick, false, true);
+		return FMidiClockEvent(EType::SeekThru, InBlockFrameIndex, FromTick, ThruTick);
 	}
 
 	FMidiClockEvent FMidiClockEvent::MakeAdvanceThruEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ThruTick, bool IsPreRoll)
 	{
-		return FMidiClockEvent(EType::AdvanceThru, InBlockFrameIndex, FromTick, ThruTick, IsPreRoll, true);
+		return FMidiClockEvent(EType::AdvanceThru, InBlockFrameIndex, FromTick, ThruTick, IsPreRoll);
 	}
 
 	FMidiClockEvent::FMidiClockEvent(EType InType, int32 InBlockFrameIndex, int32 InTick1, int32 InTick2, bool InIsPreRoll, bool InForceNoBroadcast)
