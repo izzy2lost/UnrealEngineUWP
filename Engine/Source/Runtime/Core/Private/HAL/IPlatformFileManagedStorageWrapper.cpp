@@ -197,10 +197,13 @@ void FManagedStorageScopeFileLock::Lock()
 	}
 }
 
+bool FPersistentStorageManager::bCreated = false;
+
 FPersistentStorageManager& FPersistentStorageManager::Get()
 {
-	check(IsReady());
+	check(IsReadyInternal());
 	static FPersistentStorageManager Singleton;
+	bCreated = true;
 	return Singleton;
 }
 
