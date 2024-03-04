@@ -457,7 +457,7 @@ namespace uba
 
 		if (close(asFileDescriptor(h)) == 0)
 			return true;
-		UBA_ASSERTF(false, TC("CloseFile error handling not implemented"));
+		UBA_ASSERTF(false, TC("CloseFile error handling not implemented while failing to close %s (%s)"), fileName, strerror(errno));
 		return false;
 #endif
 	}

@@ -21,6 +21,7 @@ namespace uba
 		u32 maxLocalProcessors = ~0u; // Max local processors to use. ~0u means it will use all processors
 		bool enableProcessReuse = false; // If this is true, the system will allow processes to be reused when they're asking for it.
 		bool forceRemote = false; // Force all processes that can run remotely to run remotely.
+		bool forceNative = false; // Force all processes to run native (not detoured)
 	};
 
 	struct EnqueueProcessInfo
@@ -110,6 +111,7 @@ namespace uba
 		Atomic<bool> m_loop;
 		bool m_enableProcessReuse;
 		bool m_forceRemote;
+		bool m_forceNative;
 
 		float m_activeLocalProcessWeight = 0.0f;
 

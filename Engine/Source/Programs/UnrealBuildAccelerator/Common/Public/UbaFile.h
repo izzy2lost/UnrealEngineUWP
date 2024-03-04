@@ -2,12 +2,13 @@
 
 #pragma once
 
-#include "UbaLogger.h"
 #include "UbaMemory.h"
 #include "UbaPlatform.h"
 
 namespace uba
 {
+	class Logger;
+
 	#if !PLATFORM_WINDOWS
 	inline constexpr u32 ERROR_FILE_NOT_FOUND = ENOENT;
 	inline constexpr u32 ERROR_PATH_NOT_FOUND = ENOENT;

@@ -166,16 +166,17 @@ namespace uba
 				for (u32 i = 0; i < count; i++)
 				{
 					tchar str[1024];
+					auto addr = u64(callers[i]);
 
-					auto findIt = moduleEndAddresses.lower_bound(u64(callers[i]));
-					if (findIt != moduleEndAddresses.end())
+					auto findIt = moduleEndAddresses.lower_bound(addr);
+					if (findIt != moduleEndAddresses.end() && addr >= findIt->second.start)
 					{
 						if (GetModuleFileNameW(findIt->second.handle, str, sizeof_array(str)))
 						{
 							const tchar* moduleName = str;
 							if (const tchar* lastSeparator = TStrrchr(str, PathSeparator))
 								moduleName = lastSeparator + 1;
-							out.Appendf(L"\n   %s: +0x%llx", moduleName, u64(callers[i]) - findIt->second.start);
+							out.Appendf(L"\n   %s: +0x%llx", moduleName, addr - findIt->second.start);
 						}
 					}
 					else
@@ -344,7 +345,17 @@ namespace uba
 	void ElevateCurrentThreadPriority()
 	{
 		#if PLATFORM_WINDOWS
-		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+		#endif
+	}
+
+	void PrefetchVirtualMemory(const void* mem, u64 size)
+	{
+		#if PLATFORM_WINDOWS
+		WIN32_MEMORY_RANGE_ENTRY entry;
+		entry.VirtualAddress = const_cast<void*>(mem);
+		entry.NumberOfBytes = size;
+		PrefetchVirtualMemory(GetCurrentProcess(), 1, &entry, 0);
 		#endif
 	}
 

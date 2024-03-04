@@ -2,6 +2,7 @@
 
 #include "UbaFileAccessor.h"
 #include "UbaFile.h"
+#include "UbaLogger.h"
 #include "UbaStats.h"
 
 #if PLATFORM_LINUX
@@ -103,6 +104,8 @@ namespace uba
 
 	bool FileAccessor::CreateMemoryWrite(bool allowRead, u32 flagsAndAttributes, u64 size, const tchar* tempPath)
 	{
+		allowRead = true; // It is not possible to have write only access to file mappings it seems
+
 		m_size = size;
 
 		UBA_ASSERT(flagsAndAttributes != 0);

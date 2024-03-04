@@ -15,7 +15,7 @@
 namespace uba
 {
 #if PLATFORM_WINDOWS
-	ReaderWriterLock g_createFileHandleLock;
+	ReaderWriterLock& g_createFileHandleLock = *new ReaderWriterLock(); // Allocated and leaked just to prevent shutdown asserts in debug
 
 	//Atomic<u64> g_fileMappingCount;
 
@@ -392,6 +392,8 @@ namespace uba
 				m_logger.Error(TC("%s - Failed to allocate memory for %s (%s)"), f.name, hint, LastErrorToText().data);
 				return res;
 			}
+
+			PrefetchVirtualMemory(data + commitStart, commitSize);
 		}
 
 		f.size = newOffset;

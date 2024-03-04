@@ -2,36 +2,17 @@
 
 #pragma once
 
-#include "UbaBase.h"
-#include <stdarg.h>
-
+#include "UbaLogWriter.h"
+#include "UbaSynchronization.h"
 
 #define UBA_DEBUG_LOGGER 0
 
 namespace uba
 {
-	enum LogEntryType : u8
-	{
-		LogEntryType_Error = 0,
-		LogEntryType_Warning = 1,
-		LogEntryType_Info = 2,
-		LogEntryType_Detail = 3,
-		LogEntryType_Debug = 4,
-	};
-
 	struct LogEntry
 	{
 		LogEntryType type;
 		const tchar* string;
-	};
-
-	class LogWriter
-	{
-	public:
-		virtual ~LogWriter() = default;
-		virtual void BeginScope() = 0;
-		virtual void EndScope() = 0;
-		virtual void Log(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix = nullptr, u32 prefixLen = 0) = 0;
 	};
 
 	class Logger
@@ -65,6 +46,13 @@ namespace uba
 		u32 m_prefixLen;
 	};
 
+	struct MutableLogger : public LoggerWithWriter
+	{
+		MutableLogger(LogWriter& writer, const tchar* prefix) : LoggerWithWriter(writer, prefix) {}
+		virtual void Log(LogEntryType type, const tchar* str, u32 strLen) override { if (!isMuted) LoggerWithWriter::Log(type, str, strLen); }
+		Atomic<bool> isMuted;
+	};
+
 	class FilteredLogWriter : public LogWriter
 	{
 	public:
@@ -76,10 +64,6 @@ namespace uba
 		LogWriter& m_writer;
 		LogEntryType m_level;
 	};
-
-	extern LogWriter& g_consoleLogWriter;
-	extern LogWriter& g_nullLogWriter;
-
 
 	struct BytesToText
 	{
