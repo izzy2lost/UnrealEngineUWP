@@ -102,24 +102,26 @@ void SAssetTreeItem::Construct( const FArguments& InArgs )
 	{
 		FolderType = EFolderType::Code;
 	}
-
-	if (ContentBrowserUtils::ShouldShowCustomVirtualFolderIcon())
+	else
 	{
-		FContentBrowserItemDataAttributeValue VirtualAttributeValue = Item.GetItemAttribute(ContentBrowserItemAttributes::ItemIsCustomVirtualFolder);
-		if (VirtualAttributeValue.IsValid() && VirtualAttributeValue.GetValue<bool>())
-		{
-			FolderType = EFolderType::CustomVirtual;
-		}
-	}
-	
-	if (ContentBrowserUtils::ShouldShowPluginFolderIcon())
-	{
-		if (InArgs._TreeItem->GetItem().IsInPlugin())
+		if (ContentBrowserUtils::ShouldShowPluginFolderIcon() && Item.IsInPlugin())
 		{
 			TSharedPtr<FTreeItem> Parent = InArgs._TreeItem->Parent.Pin();
 			if (!Parent.IsValid() || !Parent->GetItem().IsInPlugin())
 			{
 				FolderType = EFolderType::PluginRoot;
+			}
+			else
+			{
+				FolderType = EFolderType::Normal;
+			}
+		}
+		else if (ContentBrowserUtils::ShouldShowCustomVirtualFolderIcon())
+		{
+			FContentBrowserItemDataAttributeValue VirtualAttributeValue = Item.GetItemAttribute(ContentBrowserItemAttributes::ItemIsCustomVirtualFolder);
+			if (VirtualAttributeValue.IsValid() && VirtualAttributeValue.GetValue<bool>())
+			{
+				FolderType = EFolderType::CustomVirtual;
 			}
 		}
 	}
