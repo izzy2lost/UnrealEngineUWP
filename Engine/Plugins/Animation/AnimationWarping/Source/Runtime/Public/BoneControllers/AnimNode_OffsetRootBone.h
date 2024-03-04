@@ -51,7 +51,7 @@ enum class EOffsetRootBoneMode : uint8
 };
 
 UENUM(BlueprintType)
-enum class ECollisionResponseType : uint8
+enum class EOffsetRootBone_CollisionTestingMode : uint8
 {
 	// No Collision testing
 	Disabled,
@@ -133,7 +133,7 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OffsetRootBone : public FAnimNode_B
 
 
 	UPROPERTY(EditAnywhere, Category = CollisionTesting, meta = (FoldProperty, PinHiddenByDefault))
-	ECollisionResponseType CollisionTestingMode = ECollisionResponseType::Disabled;
+	EOffsetRootBone_CollisionTestingMode CollisionTestingMode = EOffsetRootBone_CollisionTestingMode::Disabled;
 	UPROPERTY(EditAnywhere, Category = CollisionTesting, meta = (EditCondition = "CollisionTestingMode != ECollisionTestingMode::Disabled", DisplayAfter="CollisionTestingMode", FoldProperty, PinHiddenByDefault))
 	float CollisionTestShapeRadius = 30;
 	UPROPERTY(EditAnywhere, Category = CollisionTesting, meta = (EditCondition = "CollisionTestingMode != ECollisionTestingMode::Disabled", DisplayAfter="CollisionTestingMode", FoldProperty, PinHiddenByDefault))
@@ -164,7 +164,7 @@ public:
 	bool GetClampToRotationVelocity() const;
 	float GetTranslationSpeedRatio() const;
 	float GetRotationSpeedRatio() const;
-	ECollisionResponseType GetCollisionTestingMode() const;
+	EOffsetRootBone_CollisionTestingMode GetCollisionTestingMode() const;
 	float GetCollisionTestShapeRadius() const;
 	const FVector& GetCollisionTestShapeOffset() const;
 
