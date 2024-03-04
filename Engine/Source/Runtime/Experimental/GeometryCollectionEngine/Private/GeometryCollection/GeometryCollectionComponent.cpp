@@ -1364,6 +1364,11 @@ void UGeometryCollectionComponent::AddTorqueInRadians(FVector Torque, FName Bone
 	DispatchFieldCommand(Command);
 }
 
+bool UGeometryCollectionComponent::IsFullyDecayed() const
+{
+	return bAlreadyFullyDecayed;
+}
+
 void UGeometryCollectionComponent::DispatchBreakEvent(const FChaosBreakEvent& Event)
 {
 	// native
