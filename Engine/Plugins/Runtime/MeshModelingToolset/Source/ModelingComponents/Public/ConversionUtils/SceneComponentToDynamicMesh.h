@@ -62,6 +62,14 @@ namespace Conversion {
 	};
 
 	/**
+	 * Helper to find the Polygon Group ID to Material Index remapping for source LOD MeshDescription data.
+	 * Returns an empty array for runtime uses, render LODs, and other cases where an identity mapping can be used.
+	 * 
+	 * @return a mapping from polygon groups to material indices for the given LODType and LODIndex, or an empty array if the identity map should be used
+	 */
+	TArray<int32> MODELINGCOMPONENTS_API GetPolygonGroupToMaterialIndexMap(const UStaticMesh* StaticMesh, EMeshLODType LODType, int32 LODIndex);
+
+	/**
 	* Converts geometry from various types of Scene Component to Dynamic Mesh, or reports that it cannot.
 	* 
 	* @param SceneComponent			Component to attempt to convert to a mesh
@@ -85,5 +93,5 @@ namespace Conversion {
 	 */
 	bool MODELINGCOMPONENTS_API CanConvertSceneComponentToDynamicMesh(USceneComponent* SceneComponent);
 
-} // end namespace Geometry
+} // end namespace Conversion
 } // end namespace UE

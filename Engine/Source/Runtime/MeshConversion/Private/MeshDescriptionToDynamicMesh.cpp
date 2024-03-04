@@ -820,7 +820,12 @@ void FMeshDescriptionToDynamicMesh::Convert(const FMeshDescription* MeshIn, FDyn
 				for (int32 TriangleID : MeshOut.TriangleIndicesItr())
 				{
 					const FTriData& TriData = AddedTriangles[TriangleID];
-					MaterialIDAttrib->SetValue(TriangleID, &TriData.PolygonGroupID);
+					int32 MaterialIndex = TriData.PolygonGroupID;
+					if (PolygonGroupToMaterialIndexMap.IsValidIndex(TriData.PolygonGroupID))
+					{
+						MaterialIndex = PolygonGroupToMaterialIndexMap[TriData.PolygonGroupID];
+					}
+					MaterialIDAttrib->SetValue(TriangleID, &MaterialIndex);
 				}
 			});
 			Pending.Add(MoveTemp(MaterialTask));

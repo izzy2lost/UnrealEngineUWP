@@ -61,7 +61,13 @@ public:
 		return bSuccess;
 	}
 
-
+	/**
+	 * @return a mapping from material ID to polygon group ID. If empty, an identity mapping is assumed.
+	 */
+	virtual TArray<int32> GetPolygonGroupToMaterialIndexMap() const
+	{
+		return TArray<int32>();
+	}
 
 protected:
 

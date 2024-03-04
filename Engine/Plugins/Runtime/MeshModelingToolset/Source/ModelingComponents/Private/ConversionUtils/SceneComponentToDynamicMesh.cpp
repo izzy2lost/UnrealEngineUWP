@@ -96,6 +96,76 @@ namespace Private::ConversionHelper
 		bool bRequestInstanceVertexColors = true;
 	};
 
+	// helper for the material ID remapping used for source LODs
+	// note: returns empty array if no remapping needed (or if not WITH_EDITOR)
+	TArray<int32> MapSectionToMaterialID(const UStaticMesh* Mesh, int32 SourceLOD, bool bHighResLOD)
+	{
+#if WITH_EDITOR
+		check(Mesh);
+		TMap<int32, int32> SectionToMaterial;
+		const int32 NumMaterials = Mesh->GetStaticMaterials().Num();
+		int32 MaxMaterialIndex = -1;
+		if (bHighResLOD)
+		{
+			// custom path for HiResSource, where the section info map isn't available so we use mesh description slot names
+			// (note that in practice this info seems to be incorrect for some meshes; prefer the section info map where available)
+			const FMeshDescription* MeshDescription = Mesh->GetHiResMeshDescription();
+			if (!MeshDescription)
+			{
+				// fall back to empty array (treated as identity map)
+				return TArray<int32>();
+			}
+			const FStaticMeshConstAttributes MeshDescriptionAttributes(*MeshDescription);
+			TPolygonGroupAttributesConstRef<FName> MaterialSlotNames = MeshDescriptionAttributes.GetPolygonGroupMaterialSlotNames();
+			int32 SectionIndex = 0;
+			for (FPolygonGroupID PolygonGroupID : MeshDescription->PolygonGroups().GetElementIDs())
+			{
+				int32 MaterialIndex = Mesh->GetStaticMaterials().IndexOfByPredicate(
+					[&MaterialSlotName = MaterialSlotNames[PolygonGroupID]](const FStaticMaterial& StaticMaterial) { return StaticMaterial.MaterialSlotName == MaterialSlotName; }
+				);
+				if (MaterialIndex != INDEX_NONE)
+				{
+					SectionToMaterial.Add(SectionIndex, MaterialIndex);
+					MaxMaterialIndex = FMath::Max(MaterialIndex, MaxMaterialIndex);
+				}
+				++SectionIndex;
+			}
+		}
+		else
+		{
+			int32 UseLOD = SourceLOD;
+			const FMeshSectionInfoMap& SectionMap = Mesh->GetSectionInfoMap();
+			int32 LODSectionNum = SectionMap.GetSectionNumber(UseLOD);
+			TArray<int32> Result;
+			for (int32 SectionIndex = 0; SectionIndex < LODSectionNum; ++SectionIndex)
+			{
+				if (SectionMap.IsValidSection(UseLOD, SectionIndex))
+				{
+					int32 MaterialIndex = SectionMap.Get(UseLOD, SectionIndex).MaterialIndex;
+					SectionToMaterial.Add(SectionIndex, MaterialIndex);
+					MaxMaterialIndex = FMath::Max(MaterialIndex, MaxMaterialIndex);
+				}
+			}
+		}
+
+		MaxMaterialIndex = FMath::Min(MaxMaterialIndex, NumMaterials - 1);
+		TArray<int32> Result;
+		Result.SetNumUninitialized(MaxMaterialIndex + 1);
+		// Fill in identity mapping first to cover any unmapped indices
+		for (int32 Idx = 0; Idx < Result.Num(); ++Idx)
+		{
+			Result[Idx] = Idx;
+		}
+		for (TPair<int32, int32> SectionMaterial : SectionToMaterial)
+		{
+			Result[SectionMaterial.Key] = FMath::Clamp(SectionMaterial.Value, 0, NumMaterials - 1);
+		}
+		return Result;
+#else
+		return TArray<int32>();
+#endif
+	}
+
 	static bool CopyMeshFromStaticMesh_SourceData(
 		UStaticMesh* FromStaticMeshAsset,
 		FStaticMeshConversionOptions AssetOptions,
@@ -131,6 +201,8 @@ namespace Private::ConversionHelper
 
 		const FMeshDescription* SourceMesh = nullptr;
 		const FMeshBuildSettings* BuildSettings = nullptr;
+
+		TArray<int32> PolygonGroupToMaterialMap = GetPolygonGroupToMaterialIndexMap(FromStaticMeshAsset, LODType, LODIndex);
 
 		if ((LODType == EMeshLODType::HiResSourceModel) ||
 			(LODType == EMeshLODType::MaxAvailable && FromStaticMeshAsset->IsHiResMeshDescriptionValid()))
@@ -200,6 +272,7 @@ namespace Private::ConversionHelper
 		}
 
 		FMeshDescriptionToDynamicMesh Converter;
+		Converter.SetPolygonGroupToMaterialIndexMap(PolygonGroupToMaterialMap);
 		Converter.Convert(SourceMesh, OutMesh, AssetOptions.bRequestTangents);
 
 		bSuccess = true;
@@ -353,6 +426,25 @@ namespace Private::ConversionHelper
 	}
 }
 
+TArray<int32> GetPolygonGroupToMaterialIndexMap(const UStaticMesh* StaticMesh, EMeshLODType LODType, int32 LODIndex)
+{
+#if WITH_EDITOR
+	if (LODType == EMeshLODType::RenderData)
+	{
+		// don't need to remap material indices for render LODs
+		return TArray<int32>();
+	}
+	// map the 'max available' lod type
+	if (LODType == EMeshLODType::MaxAvailable)
+	{
+		LODType = StaticMesh->IsHiResMeshDescriptionValid() ? EMeshLODType::HiResSourceModel : EMeshLODType::SourceModel;
+		LODIndex = 0;
+	}
+	return Private::ConversionHelper::MapSectionToMaterialID(StaticMesh, LODIndex, LODType == EMeshLODType::HiResSourceModel);
+#else
+	return TArray<int32>();
+#endif
+}
 
 bool SceneComponentToDynamicMesh(USceneComponent* Component, const FToMeshOptions& Options, bool bTransformToWorld, 
 	Geometry::FDynamicMesh3& OutMesh, FTransform& OutLocalToWorld, FText& OutErrorMessage,

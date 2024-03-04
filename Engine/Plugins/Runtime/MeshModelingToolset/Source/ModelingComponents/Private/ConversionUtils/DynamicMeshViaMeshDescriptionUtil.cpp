@@ -14,6 +14,7 @@ FDynamicMesh3 UE::Geometry::GetDynamicMeshViaMeshDescription(
 	FDynamicMesh3 DynamicMesh;
 	FMeshDescriptionToDynamicMesh Converter;
 	Converter.bVIDsFromNonManifoldMeshDescriptionAttr = true;
+	Converter.SetPolygonGroupToMaterialIndexMap(MeshDescriptionProvider.GetPolygonGroupToMaterialIndexMap());
 	if (bRequestTangents)
 	{
 		FGetMeshParameters GetMeshParams;
@@ -43,6 +44,7 @@ void UE::Geometry::CommitDynamicMeshViaMeshDescription(
 	ConversionOptions.bTransformVtxColorsSRGBToLinear = CommitInfo.bTransformVertexColorsSRGBToLinear;
 
 	FDynamicMeshToMeshDescription Converter(ConversionOptions);
+	Converter.SetMaterialIDMapFromInverseMap(MeshDescriptionCommitter.GetPolygonGroupToMaterialIndexMap());
 	if (!CommitInfo.bTopologyChanged)
 	{
 		Converter.UpdateUsingConversionOptions(&Mesh, CurrentMeshDescription);

@@ -371,6 +371,29 @@ void FDynamicMeshToMeshDescription::Convert(const FDynamicMesh3* MeshIn, FMeshDe
 }
 
 
+void FDynamicMeshToMeshDescription::SetMaterialIDMapFromInverseMap(TArrayView<const int32> PolygroupIDToMaterialIDMap)
+{
+	int32 MaxMatID = -1;
+	for (int32 MatID : PolygroupIDToMaterialIDMap)
+	{
+		MaxMatID = FMath::Max(MaxMatID, MatID);
+	}
+	MaterialIDToPolygroupIDMap.SetNumUninitialized(MaxMatID + 1);
+	for (int32 Idx = 0; Idx < MaterialIDToPolygroupIDMap.Num(); ++Idx)
+	{
+		MaterialIDToPolygroupIDMap[Idx] = Idx;
+	}
+	for (int32 PolyGroupIdx = 0; PolyGroupIdx < PolygroupIDToMaterialIDMap.Num(); ++PolyGroupIdx)
+	{
+		int32 MatID = PolygroupIDToMaterialIDMap[PolyGroupIdx];
+		if (MaterialIDToPolygroupIDMap.IsValidIndex(MatID))
+		{
+			MaterialIDToPolygroupIDMap[MatID] = PolyGroupIdx;
+		}
+	}
+}
+
+
 bool FDynamicMeshToMeshDescription::HaveMatchingElementCounts(const FDynamicMesh3* DynamicMesh, const FMeshDescription* MeshDescription, bool bVerticesOnly, bool bAttributesOnly)
 {
 	bool bVerticesMatch = DynamicMesh->IsCompactV() && DynamicMesh->VertexCount() == MeshDescription->Vertices().Num();
@@ -542,6 +565,10 @@ void FDynamicMeshToMeshDescription::Convert_SharedInstances(const FDynamicMesh3*
 		{
 			int32 MaterialID;
 			MaterialIDAttrib->GetValue(TriID, &MaterialID);
+			if (MaterialIDToPolygroupIDMap.IsValidIndex(MaterialID))
+			{
+				MaterialID = MaterialIDToPolygroupIDMap[MaterialID];
+			}
 			MaxPolygonGroupID = FMath::Max(MaterialID, MaxPolygonGroupID);
 		}
 		if (MaxPolygonGroupID == 0)
@@ -648,6 +675,10 @@ void FDynamicMeshToMeshDescription::Convert_SharedInstances(const FDynamicMesh3*
 		{
 			int32 MaterialID;
 			MaterialIDAttrib->GetValue(TriID, &MaterialID);
+			if (MaterialIDToPolygroupIDMap.IsValidIndex(MaterialID))
+			{
+				MaterialID = MaterialIDToPolygroupIDMap[MaterialID];
+			}
 			UsePolygonGroupID = FPolygonGroupID(MaterialID);
 		}
 
@@ -874,6 +905,10 @@ void FDynamicMeshToMeshDescription::Convert_NoSharedInstances(const FDynamicMesh
 		{
 			int32 MaterialID;
 			MaterialIDAttrib->GetValue(TriID, &MaterialID);
+			if (MaterialIDToPolygroupIDMap.IsValidIndex(MaterialID))
+			{
+				MaterialID = MaterialIDToPolygroupIDMap[MaterialID];
+			}
 			MaxPolygonGroupID = FMath::Max(MaterialID, MaxPolygonGroupID);
 		}
 		if (MaxPolygonGroupID == 0)
@@ -916,6 +951,10 @@ void FDynamicMeshToMeshDescription::Convert_NoSharedInstances(const FDynamicMesh
 		{
 			int32 MaterialID;
 			MaterialIDAttrib->GetValue(TriID, &MaterialID);
+			if (MaterialIDToPolygroupIDMap.IsValidIndex(MaterialID))
+			{
+				MaterialID = MaterialIDToPolygroupIDMap[MaterialID];
+			}
 			UsePolygonGroupID = FPolygonGroupID(MaterialID);
 		}
 

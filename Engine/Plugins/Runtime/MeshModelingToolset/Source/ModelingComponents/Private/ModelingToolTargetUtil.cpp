@@ -236,7 +236,8 @@ FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, bool bWant
 	if (MeshDescriptionProvider)
 	{
 		FMeshDescriptionToDynamicMesh Converter;
-		Converter.bVIDsFromNonManifoldMeshDescriptionAttr= true;
+		Converter.bVIDsFromNonManifoldMeshDescriptionAttr = true;
+		Converter.SetPolygonGroupToMaterialIndexMap(MeshDescriptionProvider->GetPolygonGroupToMaterialIndexMap());
 		if (bWantMeshTangents)
 		{
 			FGetMeshParameters GetMeshParams;
@@ -304,6 +305,7 @@ UE::ToolTarget::EDynamicMeshUpdateResult UE::ToolTarget::CommitMeshDescriptionUp
 	}
 
 	FDynamicMeshToMeshDescription Converter;
+	Converter.SetMaterialIDMapFromInverseMap(MeshDescriptionCommitter->GetPolygonGroupToMaterialIndexMap());
 	FMeshDescription ConvertedMesh;
 	if (bHaveModifiedTopology)
 	{
@@ -395,6 +397,7 @@ UE::ToolTarget::EDynamicMeshUpdateResult UE::ToolTarget::CommitDynamicMeshUpdate
 	{
 		FMeshDescription ConvertedMesh;
 		FDynamicMeshToMeshDescription Converter(ConversionOptions);
+		Converter.SetMaterialIDMapFromInverseMap(MeshDescriptionCommitter->GetPolygonGroupToMaterialIndexMap());
 		if (!bHaveModifiedTopology)
 		{
 			Converter.UpdateUsingConversionOptions(&UpdatedMesh, ConvertedMesh);
@@ -446,15 +449,15 @@ UE::ToolTarget::EDynamicMeshUpdateResult UE::ToolTarget::CommitDynamicMeshUVUpda
 	FMeshDescription NewMeshDescription = UE::ToolTarget::GetMeshDescriptionCopy(Target);
 	bool bVerticesOnly = false;
 	bool bAttributesOnly = true;
+	FDynamicMeshToMeshDescription Converter;
+	Converter.SetMaterialIDMapFromInverseMap(MeshDescriptionCommitter->GetPolygonGroupToMaterialIndexMap());
 	if (FDynamicMeshToMeshDescription::HaveMatchingElementCounts(UpdatedMesh, &NewMeshDescription, bVerticesOnly, bAttributesOnly))
 	{
-		FDynamicMeshToMeshDescription Converter;
 		Converter.UpdateAttributes(UpdatedMesh, NewMeshDescription, false, false, true/*update uvs*/);
 	}
 	else
 	{
 		// must have been duplicate tris in the mesh description; we can't count on 1-to-1 mapping of TriangleIDs.  Just convert 
-		FDynamicMeshToMeshDescription Converter;
 		Converter.Convert(UpdatedMesh, NewMeshDescription);
 	}
 
@@ -497,15 +500,15 @@ UE::ToolTarget::EDynamicMeshUpdateResult UE::ToolTarget::CommitDynamicMeshNormal
 	FMeshDescription NewMeshDescription = UE::ToolTarget::GetMeshDescriptionCopy(Target);
 	bool bVerticesOnly = false;
 	bool bAttributesOnly = true;
+	FDynamicMeshToMeshDescription Converter;
+	Converter.SetMaterialIDMapFromInverseMap(MeshDescriptionCommitter->GetPolygonGroupToMaterialIndexMap());
 	if (FDynamicMeshToMeshDescription::HaveMatchingElementCounts(UpdatedMesh, &NewMeshDescription, bVerticesOnly, bAttributesOnly))
 	{
-		FDynamicMeshToMeshDescription Converter;
 		Converter.UpdateAttributes(UpdatedMesh, NewMeshDescription, true, bUpdateTangents, false);
 	}
 	else
 	{
 		// must have been duplicate tris in the mesh description; we can't count on 1-to-1 mapping of TriangleIDs.  Just convert 
-		FDynamicMeshToMeshDescription Converter;
 		Converter.Convert(UpdatedMesh, NewMeshDescription);
 	}
 

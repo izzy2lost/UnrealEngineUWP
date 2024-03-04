@@ -149,6 +149,16 @@ const FMeshDescription* UStaticMeshComponentToolTarget::GetMeshDescription(const
 	return nullptr;
 }
 
+TArray<int32> UStaticMeshComponentToolTarget::GetPolygonGroupToMaterialIndexMap() const
+{
+	if (IsValid())
+	{
+		UStaticMesh* StaticMesh = Cast<UStaticMeshComponent>(Component)->GetStaticMesh();
+		return UStaticMeshToolTarget::MapSectionToMaterialID(StaticMesh, EditingLOD);
+	}
+	return TArray<int32>();
+}
+
 FMeshDescription UStaticMeshComponentToolTarget::GetEmptyMeshDescription()
 {
 	FMeshDescription EmptyMeshDescription;
