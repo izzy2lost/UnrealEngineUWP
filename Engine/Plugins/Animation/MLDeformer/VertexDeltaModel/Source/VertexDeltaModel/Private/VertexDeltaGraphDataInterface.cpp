@@ -109,7 +109,8 @@ namespace UE::VertexDeltaModel
 		UMLDeformerModelInstance* ModelInstance = DeformerComponent ? DeformerComponent->GetModelInstance() : nullptr;
 		const UVertexDeltaModel* VertexDeltaModel = Cast<UVertexDeltaModel>(Model);
 		
-		if (Model && VertexDeltaModel && ModelInstance)
+		Weight = 0.0f;
+		if (Model && VertexDeltaModel && ModelInstance && ModelInstance->GetSkeletalMeshComponent())
 		{
 			VertexDeltaModelInstance = Cast<UVertexDeltaModelInstance>(ModelInstance);
 			if (VertexDeltaModelInstance)
