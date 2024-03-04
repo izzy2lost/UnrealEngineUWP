@@ -49,7 +49,15 @@ namespace uba
 		}
 
 		m_nameToHashTableMem.Init(NameToHashMemSize);
+	}
 
+	SessionClient::~SessionClient()
+	{
+		Stop();
+	}
+
+	bool SessionClient::Start()
+	{
 		m_client.RegisterOnDisconnected([this]()
 			{
 				m_loop = false;
@@ -59,11 +67,7 @@ namespace uba
 			{
 				Connect();
 			});
-	}
-
-	SessionClient::~SessionClient()
-	{
-		Stop();
+		return true;
 	}
 
 	void SessionClient::Stop()
@@ -1253,7 +1257,7 @@ namespace uba
 		m_storage.Ping();
 	}
 
-	void SessionClient::SendSummary()
+	void SessionClient::SendSummary(const Function<void(Logger&)>& extraInfo)
 	{
 		StackBinaryWriter<SendMaxSize> writer;
 		NetworkMessage msg(m_client, ServiceId, SessionMessageType_Summary, writer);
@@ -1266,6 +1270,8 @@ namespace uba
 				m_storage.PrintSummary(logger);
 				m_client.PrintSummary(logger);
 				SystemStats::GetGlobal().Print(logger, true);
+				if (extraInfo)
+					extraInfo(logger);
 			});
 
 		msg.Send();
@@ -1642,7 +1648,6 @@ namespace uba
 			m_waitToSendEvent.IsSet(100);
 		};
 
-		SendSummary();
 
 		m_client.FlushWork();
 

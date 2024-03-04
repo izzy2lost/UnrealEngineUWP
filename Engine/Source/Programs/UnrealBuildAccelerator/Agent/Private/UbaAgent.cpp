@@ -1,13 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "UbaAWS.h"
+#include "UbaDirectoryIterator.h"
+#include "UbaNetworkBackendMemory.h"
 #include "UbaNetworkBackendQuic.h"
 #include "UbaNetworkBackendTcp.h"
 #include "UbaNetworkServer.h"
 #include "UbaSessionClient.h"
 #include "UbaStorageClient.h"
 #include "UbaStorageProxy.h"
-#include "UbaDirectoryIterator.h"
-#include "UbaAWS.h"
 #include "UbaSentry.h"
 #include "UbaVersion.h"
 
@@ -28,8 +29,10 @@
 
 #if PLATFORM_WINDOWS
 #define UBA_AUTO_UPDATE 1
+#define UBA_USE_EXCEPTION_HANDLER 0
 #else
 #define UBA_AUTO_UPDATE 0
+#define UBA_USE_EXCEPTION_HANDLER 0
 #endif
 //#include <dbghelp.h>
 //#pragma comment (lib, "Dbghelp.lib")
@@ -124,6 +127,14 @@ namespace uba
 	}
 
 	#if PLATFORM_WINDOWS
+	int ReportSEH(LPEXCEPTION_POINTERS exceptionInfo)
+	{
+		StringBuffer<4096> assertInfo;
+		assertInfo.Appendf(TC("SEH EXCEPTION %u (0x%llx)"), exceptionInfo->ExceptionRecord->ExceptionCode, exceptionInfo->ExceptionRecord->ExceptionAddress);
+		WriteAssertInfo(assertInfo, nullptr, nullptr, 0, nullptr, 1);
+		LoggerWithWriter(g_consoleLogWriter).Log(LogEntryType_Error, assertInfo.data, assertInfo.count);
+		return EXCEPTION_CONTINUE_SEARCH;
+	}
 	BOOL ConsoleHandler(DWORD signal)
 	{
 		if (signal == CTRL_C_EVENT)
@@ -140,8 +151,12 @@ namespace uba
 
 	StringBuffer<> g_rootDir(DefaultRootDir);
 
-	//LONG WINAPI UbaUnhandledExceptionFilter(EXCEPTION_POINTERS* ExceptionInfo)
-	//{
+#if UBA_USE_EXCEPTION_HANDLER
+	LONG WINAPI UbaUnhandledExceptionFilter(EXCEPTION_POINTERS* ExceptionInfo)
+	{
+		StringBuffer<4096> assertInfo;
+		WriteAssertInfo(assertInfo, TC(""), nullptr, 0, nullptr, 1);
+		LoggerWithWriter(g_consoleLogWriter).Log(LogEntryType_Error, assertInfo.data, assertInfo.count);
 	//	time_t rawtime;
 	//	time(&rawtime);
 	//	tm ti;
@@ -157,8 +172,9 @@ namespace uba
 	//	mei.ClientPointers = TRUE;
 	//	mei.ExceptionPointers = ExceptionInfo;
 	//	MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hFile, MiniDumpNormal, &mei, NULL, NULL);
-	//	return EXCEPTION_EXECUTE_HANDLER;
-	//}
+		return EXCEPTION_EXECUTE_HANDLER;
+	}
+#endif
 
 #if UBA_AUTO_UPDATE
 	const tchar* g_ubaAgentBinaries[] = { UBA_AGENT_EXECUTABLE, UBA_DETOURS_LIBRARY };
@@ -371,7 +387,9 @@ namespace uba
 
 	int WrappedMain(int argc, tchar*argv[])
 	{
-		//SetUnhandledExceptionFilter(UbaUnhandledExceptionFilter);
+		#if UBA_USE_EXCEPTION_HANDLER
+		SetUnhandledExceptionFilter(UbaUnhandledExceptionFilter);
+		#endif
 
 		u32 maxProcessCount = DefaultProcessorCount;
 		float mulProcessValue = 1.0f;
@@ -1132,9 +1150,11 @@ namespace uba
 						LoggerWithWriter(g_consoleLogWriter, TC("")).Info(TC("Proxy timed out waiting for zero active fetches"));
 				if (proxy.server)
 					proxy.server->StopAll();
-				client->StopAll();
-				sessionClient->Stop();
 				storageClient->StopProxy();
+				client->StopListen();
+				sessionClient->Stop();
+				sessionClient->SendSummary([&](Logger& logger) { if (proxy.server) proxy.server->PrintSummary(logger); });
+				client->StopAll();
 				loopLogging = false;
 				logLinesAvailable.Set();
 				loggingThread.Wait();
@@ -1164,6 +1184,12 @@ namespace uba
 			#endif
 
 			u32 connectionCount = 1;
+
+			//#if PLATFORM_WINDOWS
+			//SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
+			//#endif
+
+			sessionClient->Start();
 
 			while (true)
 			{
@@ -1272,7 +1298,15 @@ namespace uba
 #if PLATFORM_WINDOWS
 int wmain(int argc, wchar_t* argv[])
 {
-	return uba::WrappedMain(argc, argv);
+	using namespace uba;
+	__try
+	{
+		return WrappedMain(argc, argv);
+	}
+	__except(ReportSEH(GetExceptionInformation()))
+	{
+		return -1;
+	}
 }
 #else
 int main(int argc, char* argv[])

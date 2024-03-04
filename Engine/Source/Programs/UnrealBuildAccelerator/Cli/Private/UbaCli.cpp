@@ -1,7 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "UbaNetworkBackendTcp.h"
 #include "UbaFileAccessor.h"
+#include "UbaNetworkBackendTcp.h"
+#include "UbaPlatform.h"
 #include "UbaProtocol.h"
 #include "UbaScheduler.h"
 #include "UbaSessionClient.h"
@@ -9,7 +10,6 @@
 #include "UbaStorageClient.h"
 #include "UbaStorageProxy.h"
 #include "UbaStorageServer.h"
-#include "UbaPlatform.h"
 #include "UbaVersion.h"
 
 #include "UbaAWS.h"
@@ -70,6 +70,7 @@ namespace uba
 		logger.Info(TC("   -nocustomalloc          Disable custom allocator for processes. If you see odd crashes this can be tested"));
 		logger.Info(TC("   -nostdout               Disable stdout from process."));
 		logger.Info(TC("   -storeraw               Disable compression of storage. This will use more storage and might improve performance"));
+		logger.Info(TC("   -maxcpu=<number>        Max number of processes that can be started. Defaults to \"%u\" on this machine"), DefaultProcessorCount);
 		if (IsWindows)
 			logger.Info(TC("   -visualizer             Spawn a visualizer that visualizes progress"));
 		logger.Info(TC(""));
@@ -131,9 +132,10 @@ namespace uba
 		//SetUnhandledExceptionFilter(UbaUnhandledExceptionFilter);
 
 		u32 storageCapacityGb = DefaultCapacityGb;
-		StringBuffer<> workDir;
-		StringBuffer<> listenIp;
+		StringBuffer<256> workDir;
+		StringBuffer<128> listenIp;
 		u16 port = DefaultPort;
+		u32 maxProcessCount = DefaultProcessorCount;
 		bool launchVisualizer = false;
 		bool storeCompressed = true;
 		bool disableCustomAllocator = false;
@@ -252,6 +254,11 @@ namespace uba
 			{
 				disableCustomAllocator = true;
 			}
+			else if (name.Equals(TC("-maxcpu")))
+			{
+				if (!value.Parse(maxProcessCount))
+					return PrintHelp(TC("Invalid value for -maxcpu"));
+			}
 			else if (name.Equals(TC("-nostdout")))
 			{
 				enableStdOut = false;
@@ -309,9 +316,12 @@ namespace uba
 		if (deleteCas)
 		{
 			StorageImpl(StorageCreateInfo(g_rootDir.data, logWriter)).DeleteAllCas();
-			StringBuffer<> clientRootDir;
-			clientRootDir.Append(g_rootDir).Append("Agent");
-			StorageImpl(StorageCreateInfo(clientRootDir.data, logWriter)).DeleteAllCas();
+			for (u32 i=0; i!=4; ++i)
+			{
+				StringBuffer<> clientRootDir;
+				clientRootDir.Append(g_rootDir).Append("Agent").AppendValue(i);
+				StorageImpl(StorageCreateInfo(clientRootDir.data, logWriter)).DeleteAllCas();
+			}
 		}
 
 		if (checkCas)
@@ -489,6 +499,7 @@ namespace uba
 		#if UBA_DEBUG_LOG_ENABLED
 		info.remoteLogEnabled = true;
 		#endif
+		//info.remoteTraceEnabled = true;
 
 		info.deleteSessionsOlderThanSeconds = 1;
 		auto session = new SessionServer(info);
@@ -607,6 +618,7 @@ namespace uba
 				sessionClientInfo.rootDir = clientRootDir.data;
 				sessionClientInfo.deleteSessionsOlderThanSeconds = 1;
 				SessionClient sessionClient(sessionClientInfo);
+				sessionClient.Start();
 
 				//for (u32 i=0; i!=4; ++i)
 					if (!client.Connect(networkBackend, TC("127.0.0.1"), port))
@@ -626,6 +638,8 @@ namespace uba
 		{
 			SchedulerCreateInfo info(*session);
 			info.forceRemote = isRemote;
+			info.forceNative = commandType == CommandType_Native;
+			info.maxLocalProcessors = maxProcessCount;
 			Scheduler scheduler(info);
 
 			if (!scheduler.EnqueueFromFile(yamlFile))
@@ -639,11 +653,14 @@ namespace uba
 			Event finished(true);
 			scheduler.SetProcessFinishedCallback([&](const ProcessHandle& ph)
 				{
-					if (ph.GetExitCode() != 0)
+					const tchar* desc = ph.GetStartInfo().description;
+					if (ph.GetExitCode() != 0 && ph.GetExitCode() != ProcessCancelExitCode)
+					{
+						logger.Error(TC("%s - Error exit code: %u"), desc, ph.GetExitCode());
 						success = false;
+					}
 					u32 c = ++counter;
 					logger.BeginScope();
-					const tchar* desc = ph.GetStartInfo().description;
 					StringBuffer<128> extra;
 					if (ph.IsRemote())
 						extra.Append(TC(" [RemoteExecutor: ")).Append(ph.GetExecutingHost()).Append(']');

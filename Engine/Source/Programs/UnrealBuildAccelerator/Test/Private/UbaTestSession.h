@@ -91,6 +91,8 @@ namespace uba
 		if (!DeleteAllFiles(logger, workingDir.data, false))
 			return false;
 
+		sessionClient.Start();
+
 		u16 port = 1356;
 		if (!server.StartListen(tcpBackend, port))
 			return logger.Error(TC("Failed to listen"));
