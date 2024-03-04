@@ -71,6 +71,10 @@
 		{
 			"Name": "RenderDocPlugin",
 			"Enabled": true
+		},
+		{
+			"Name": "ImageWidgets",
+			"Enabled": true
 		}
 	],
 	"SupportedTargetPlatforms": [

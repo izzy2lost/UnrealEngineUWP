@@ -12,7 +12,12 @@ const FName FTG_EditorTabs::FindTabId					(TEXT("TG_Editor_Find"));
 const FName FTG_EditorTabs::GraphEditorId				(TEXT("TG_Editor_GraphEditor"));
 const FName FTG_EditorTabs::PreviewSceneSettingsTabId	(TEXT("TG_Editor_PreviewSceneSettings"));
 const FName FTG_EditorTabs::ParameterDefaultsTabId		(TEXT("TG_Editor_ParameterDefaults"));
+#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
 const FName FTG_EditorTabs::SelectionPreviewTabId		(TEXT("TG_Editor_SelectionPreview"));
+#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+const FName FTG_EditorTabs::NodePreviewTabId			(TEXT("TG_Editor_NodePreview"));
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 const FName FTG_EditorTabs::OutputTabId					(TEXT("TG_Editor_Output"));
 const FName FTG_EditorTabs::PreviewSettingsTabId		(TEXT("TG_Editor_PreviewSettings"));
 const FName FTG_EditorTabs::ErrorsTabId					(TEXT("TG_Editor_Stats"));

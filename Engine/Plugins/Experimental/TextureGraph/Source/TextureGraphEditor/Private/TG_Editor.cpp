@@ -69,6 +69,9 @@
 #include "Model/Mix/ViewportSettings.h"
 #include "UObject/MetaData.h"
 #include "UObject/ObjectSaveContext.h"
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+#include "STG_NodePreview.h"
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 
 #include "Expressions/Input/TG_Expression_InputParam.h"
 #include "STG_OutputSelectionDlg.h"
@@ -118,10 +121,19 @@ void FTG_Editor::RegisterTabSpawners(const TSharedRef<class FTabManager>& InTabM
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
+#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
 	InTabManager->RegisterTabSpawner(FTG_EditorTabs::SelectionPreviewTabId, FOnSpawnTab::CreateSP(this, &FTG_Editor::SpawnTab_SelectionPreview))
 		.SetDisplayName(LOCTEXT("SelectionPreviewTab", "Node Preview"))
 		.SetGroup(WorkspaceMenuCategoryRef)
+	.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
+#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
+
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+	InTabManager->RegisterTabSpawner(FTG_EditorTabs::NodePreviewTabId, FOnSpawnTab::CreateSP(this, &FTG_Editor::SpawnTab_NodePreview))
+		.SetDisplayName(LOCTEXT("NodePreviewTab", "Node Preview"))
+		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 
 	/*InTabManager->RegisterTabSpawner(FTG_EditorTabs::OutputTabId, FOnSpawnTab::CreateSP(this, &FTG_Editor::SpawnTab_Output))
 		.SetDisplayName(LOCTEXT("OutputTab", "Output"))
@@ -154,7 +166,12 @@ void FTG_Editor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTa
 	//InTabManager->UnregisterTabSpawner(FTG_EditorTabs::FindTabId);
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::PreviewSceneSettingsTabId);
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::ParameterDefaultsTabId);
+#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::SelectionPreviewTabId);
+#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::NodePreviewTabId);
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::OutputTabId);
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::PreviewSettingsTabId);
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::ErrorsTabId);
@@ -207,7 +224,12 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 	EditedTextureGraph->Graph()->OnTGNodeRenamedDelegate.AddSP(this, &FTG_Editor::OnNodeRenamed);
 
 	GraphEditorWidget = CreateGraphEditorWidget();
+#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
 	SelectionPreview = CreateSelectionViewWidget();
+#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+	NodePreview = CreateNodePreviewWidget();
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 	TextureDetails = CreateTextureDetailsWidget();
 	Palette = SNew(STG_Palette, SharedThis(this));
 
@@ -308,9 +330,18 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 					(
 						FTabManager::NewStack()
 						->SetHideTabWell(true)
+#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
 						->AddTab(FTG_EditorTabs::SelectionPreviewTabId, ETabState::OpenedTab)
+#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+						->AddTab(FTG_EditorTabs::NodePreviewTabId, ETabState::OpenedTab)
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 						->AddTab(FTG_EditorTabs::TextureDetailsTabId, ETabState::OpenedTab)
-						->SetForegroundTab(FTG_EditorTabs::SelectionPreviewTabId)
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+						->SetForegroundTab(FTG_EditorTabs::NodePreviewTabId)
+#else
+						->SetForegroundTab(FTG_EditorTabs::SelectionPreviewTabId)						
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 					)
 					->Split
 					(
@@ -637,7 +668,7 @@ void FTG_Editor::OnRenderingDone(UMixInterface* TextureGraph, const FInvalidatio
 {
 	if (TextureGraph != nullptr)
 	{
-		RefreshSelectionPreview(GraphEditorWidget->GetSelectedNodes(), Details);
+		RefreshNodePreview(GraphEditorWidget->GetSelectedNodes(), Details, true);
 	}
 }
 
@@ -837,6 +868,7 @@ bool FTG_Editor::OnVerifyNodeTextCommit(const FText& NewText, UEdGraphNode* Node
 	}
 	return bValid;
 }
+
 TSharedRef<class SGraphEditor> FTG_Editor::CreateGraphEditorWidget()
 {
 	if (!GraphEditorCommands)
@@ -908,6 +940,14 @@ TSharedRef<class STG_SelectionPreview> FTG_Editor::CreateSelectionViewWidget()
 	return SNew(STG_SelectionPreview)
 		.OnBlobSelectionChanged(this, &FTG_Editor::OnSelectedBlobChanged);
 }
+
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+TSharedRef<STG_NodePreviewWidget> FTG_Editor::CreateNodePreviewWidget()
+{
+	return SNew(STG_NodePreviewWidget)
+		.OnNodeBlobChanged(this, &FTG_Editor::OnSelectedBlobChanged);
+}
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 
 TSharedRef<class STG_TextureDetails> FTG_Editor::CreateTextureDetailsWidget()
 {
@@ -1039,6 +1079,7 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_ParameterDefaults(const FSpawnTabArgs&
 		];
 }
 
+#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
 TSharedRef<SDockTab> FTG_Editor::SpawnTab_SelectionPreview(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == FTG_EditorTabs::SelectionPreviewTabId);
@@ -1053,6 +1094,21 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_SelectionPreview(const FSpawnTabArgs& 
 	return Tab.ToSharedRef();
 
 }
+#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
+
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+TSharedRef<SDockTab> FTG_Editor::SpawnTab_NodePreview(const FSpawnTabArgs& Args)
+{
+	check(Args.GetTabId() == FTG_EditorTabs::NodePreviewTabId);
+
+	return SNew(SDockTab)
+		// .Label(LOCTEXT("NodeViewer", "Node Viewer"))
+		.TabColorScale(GetTabColorScale())
+		[
+			NodePreview.ToSharedRef()
+		];
+}
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 
 TSharedRef<SDockTab> FTG_Editor::SpawnTab_Output(const FSpawnTabArgs& Args)
 {
@@ -1201,7 +1257,7 @@ void FTG_Editor::OnSelectedNodesChanged(const TSet<class UObject*>& NewSelection
 	FocusDetailsPanel();
 
 	RefreshPreviewViewport();
-	RefreshSelectionPreview(NewSelection, nullptr);
+	RefreshNodePreview(NewSelection, nullptr, false);
 }
 
 void FTG_Editor::OnNodeDoubleClicked(UEdGraphNode* Node)
@@ -1264,10 +1320,16 @@ bool FTG_Editor::DeleteNodes(TArray<UEdGraphNode*> NodesToDelete, bool ForceDele
 					UTG_Node* TGNode = TGEdGraphNode->GetNode();
 					check(TGNode);
 
+#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
 					if (SelectionPreview->GetSelectedNode() && SelectionPreview->GetSelectedNode()->GetName() == TGEdGraphNode->GetName())
 					{
 						SelectionPreview->OnSelectedNodeDeleted();
 					}
+#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+					NodePreview->NodeDeleted(TGEdGraphNode);
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+
 					TextureGraph->RemoveNode(TGNode);
 				}
 				EdGraphNode->DestroyNode();
@@ -1903,7 +1965,7 @@ void FTG_Editor::RefreshPreviewViewport()
 	//TODO: refresh the viewport here
 }
 
-void FTG_Editor::RefreshSelectionPreview(const TSet<class UObject*>& NewSelection, const FInvalidationDetails* Details)
+void FTG_Editor::RefreshNodePreview(const TSet<class UObject*>& NewSelection, const FInvalidationDetails* Details, bool bUpdateOnly)
 {
 	TArray<UTG_EdGraphNode*> NodesForSelectionPreview;
 	for (TSet<class UObject*>::TConstIterator SetIt(NewSelection); SetIt; ++SetIt)
@@ -1916,7 +1978,20 @@ void FTG_Editor::RefreshSelectionPreview(const TSet<class UObject*>& NewSelectio
 
 	//TODO: Handle multiple selection case
 	UTG_EdGraphNode* SelectedNode = NodesForSelectionPreview.Num() > 0 ? NodesForSelectionPreview[0] : nullptr;
+#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
 	SelectionPreview->OnSelectionChanged(SelectedNode);
+#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
+
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+	if (bUpdateOnly)
+	{
+		NodePreview->Update();
+	}
+	else
+	{
+		NodePreview->SelectionChanged(SelectedNode);
+	}
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 }
 
 void FTG_Editor::SetMesh(class UMeshComponent* InPreviewMesh, class UWorld* InWorld)

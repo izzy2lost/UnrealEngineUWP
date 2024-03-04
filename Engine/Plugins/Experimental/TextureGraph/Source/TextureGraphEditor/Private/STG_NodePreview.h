@@ -1,0 +1,142 @@
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
+
+#include "IImageViewer.h"
+#include "Data/Blob.h"
+#include "Widgets/SCompoundWidget.h"
+
+namespace UE::ImageWidgets
+{
+	class SImageViewport;
+}
+
+class FToolBarBuilder;
+class FUICommandList;
+class SHorizontalBox;
+class UTG_EdGraphNode;
+
+/**
+ * Image viewer implementation that holds the node buffer information and draws the node texture.
+ */
+class FNodeViewer final : public UE::ImageWidgets::IImageViewer
+{
+public:
+	// IImageViewer overrides - begin
+	virtual FImageInfo GetCurrentImageInfo() const override;
+	virtual void DrawCurrentImage(FViewport* Viewport, FCanvas* Canvas, const FDrawProperties& Properties) override;
+	virtual TOptional<TVariant<FColor, FLinearColor>> GetCurrentImagePixelColor(FIntPoint PixelCoords, int32 MipIndex) const override;
+#if IMAGE_WIDGETS_WITH_CATALOG
+	virtual void OnImageSelected(const FGuid& ImageGuid) override {};
+#endif
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+	virtual bool IsValidImage(const FGuid& Guid) const override { return true; }
+#endif
+	// IImageViewer overrides - end
+
+	/** Returns the format label for the status bar */
+	FText GetFormatLabelText() const;
+
+	/** Indicates that a node is single channel, i.e. grayscale. */
+	bool IsSingleChannel() const;
+
+	/** Sets the node buffer to a given node. */
+	void SetTexture(const BlobPtr& InBlob);
+
+	/** Toggles RGBA components for display. */
+	void SetRGBA(bool bR, bool bG, bool bB, bool bA);
+
+private:
+	/** Draws the node texture in the viewport */
+	void DrawTexture(const FTextureResource* TextureResource, FCanvas* Canvas, const FDrawProperties::FPlacement& TilePlacementInfo,
+	                 const FDrawProperties::FMip& Mip) const;
+
+	/** Determines the blend mode based on the node texture and the RGBA toggles. */
+	ESimpleElementBlendMode GetBlendMode() const;
+
+	/** Retrieves the render target texture  from a given node buffer. */
+	UTextureRenderTarget2D* GetTextureFromBuffer(const DeviceBufferPtr& Buffer) const;
+
+	/** Indicates that a node is in sRGB format. */
+	bool IsSRGB() const;
+
+	/** The render target texture for the node. */
+	UTextureRenderTarget2D* NodeTexture = nullptr;
+
+	/** Toggles for enabling RGBA components for drawing. */
+	bool bRGBA[4] = {true, true, true, true};
+
+	/** Duplicate CPU buffer with the node's pixel data for quick lookup of the pixel under the cursor. */
+	TArray<FLinearColor> NodePixels;
+
+	/** Node meta data.  */
+	BufferDescriptor NodeDescriptor;
+};
+
+/**
+ * Widget for the Node Preview tab containing the image viewport.
+ */
+class STG_NodePreviewWidget : public SCompoundWidget
+{
+public:
+	DECLARE_DELEGATE_OneParam(FOnNodeBlobChanged, BlobPtr Blob);
+
+	SLATE_BEGIN_ARGS(STG_NodePreviewWidget)
+		{
+		}
+
+		/** Callback to notify about the node preview texture having changed. */
+		SLATE_EVENT(FOnNodeBlobChanged, OnNodeBlobChanged)
+	SLATE_END_ARGS()
+
+	virtual ~STG_NodePreviewWidget() override;
+
+	void Construct(const FArguments& InArgs);
+
+	/** Notify the preview about the node selection having changed. */
+	void SelectionChanged(UTG_EdGraphNode* Node);
+
+	/** Notify the preview about a node being deleted. */
+	void NodeDeleted(const UTG_EdGraphNode* Node);
+
+	/** Trigger an update of the node preview after the displayed contents changed. */
+	void Update() const;
+
+	// SWidget overrides - begin
+	virtual FReply OnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+	// SWidget overrides - end
+
+private:
+	// Add toolbar and status bar extensions to the viewport.
+	void AddFormatLabel(SHorizontalBox& HorizontalBox);
+	void AddLockButton(FToolBarBuilder& ToolbarBuilder) const;
+	void AddRGBAButtons(FToolBarBuilder& ToolbarBuilder);
+
+	/** Toggles the node preview lock based on the lock button extension in the viewport toolbar. */
+	void ToggleLock();
+
+	/** The viewport widget for displaying the node preview. */
+	TSharedPtr<UE::ImageWidgets::SImageViewport> Viewport;
+
+	/** The image viewer implementation holding and drawing the actual image. */
+	TSharedPtr<FNodeViewer> NodeViewer;
+
+	/** The additional commands used for this widget. */
+	TSharedPtr<FUICommandList> CommandList;
+
+	/** Pointer to the currently selected node, which might be different if the node preview is locked to another node. */
+	UTG_EdGraphNode* SelectedNode = nullptr;
+
+	/** Pointer to the node the node preview is currently locked on. */
+	UTG_EdGraphNode* LockedNode = nullptr;
+
+	/** Callback to notify about the node preview texture having changed to make sure that for example the histogram is synced with the node preview. */
+	FOnNodeBlobChanged OnNodeBlobChanged;
+
+	/** Flags for toggling RGBA channels in the preview, which are hooked up to the RGBA buttons in the viewport toolbar extension. */
+	bool bRGBA[4] = {true, true, true, true};
+};
+
+#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
