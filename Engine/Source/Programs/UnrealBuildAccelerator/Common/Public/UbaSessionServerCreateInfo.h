@@ -22,5 +22,6 @@ namespace uba
 		bool allowWaitOnMem = false;
 		bool allowKillOnMem = false;
 		bool remoteLogEnabled = false; // If Uba is built in debug, then the logs will be sent back to server
+		bool remoteTraceEnabled = false; // If this is true, the agents will run trace and send the .uba file back to server
 	};
 }

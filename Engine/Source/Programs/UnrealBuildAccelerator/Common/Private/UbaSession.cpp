@@ -538,6 +538,11 @@ namespace uba
 
 	bool Session::CreateMemoryMapFromView(MemoryMap& out, StringKey fileNameKey, const tchar* fileName, const CasKey& casKey, u64 alignment)
 	{
+		//StringBuffer<> workName;
+		//u32 len = TStrlen(fileName);
+		//workName.Append(TC("MM:")).Append(len > 30 ? fileName + (len - 30) : fileName);
+		//TrackWorkScope tws(*m_workManager, workName.data);
+
 		SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
 		auto insres = m_fileMappingTableLookup.try_emplace(fileNameKey);
 		FileMappingEntry& entry = insres.first->second;
@@ -1039,23 +1044,7 @@ namespace uba
 			traceName.Append(m_id);
 
 		if (!traceName.IsEmpty())
-		{
-			#if PLATFORM_WINDOWS
-			LoggerWithWriter(m_logger.m_writer).Info(TC("---- Starting trace: %s ----"), traceName.data);
-			m_trace.StartWrite(traceName.data, m_detailedTrace ? 512*1024*1024 : 128*1024*1024);
-			#else
-			LoggerWithWriter(m_logger.m_writer).Info(TC("---- Starting trace ----")); // non-windows named shared memory not implemented (only needed for UbaVisualizer which you can't run on linux either way)
-			m_trace.StartWrite(nullptr, m_detailedTrace ? 512 * 1024 * 1024 : 128 * 1024 * 1024);
-			#endif
-			tchar buf[256];
-			if (!GetComputerNameW(buf, sizeof_array(buf)))
-				TStrcpy_s(buf, 256, TC("LOCAL"));
-			StringBuffer<> systemInfo;
-			GetSystemInfo(systemInfo);
-			m_trace.SessionAdded(0, {}, buf, systemInfo.data);
-			m_traceThreadEvent.Create(true);
-			m_traceThread.Start([this]() { ThreadTraceLoop(); return 0; });
-		}
+			StartTrace(IsWindows ? traceName.data : nullptr); // non-windows named shared memory not implemented (only needed for UbaVisualizer which you can't run on linux either way)
 
 		#if PLATFORM_WINDOWS
 		if (info.launchVisualizer)
@@ -1101,8 +1090,7 @@ namespace uba
 
 	Session::~Session()
 	{
-		StopTraceThread();
-		m_trace.StopWrite(m_traceOutputFile.data);
+		StopTrace(m_traceOutputFile.data);
 
 		CancelAllProcessesAndWait();
 		FlushDeadProcesses();
@@ -1410,6 +1398,31 @@ namespace uba
 	{
 		m_logger.Info(TC("  -- %s --"), logName);
 		stats.Print(m_logger);
+	}
+
+	void Session::StartTrace(const tchar* traceName)
+	{
+		if (traceName)
+			LoggerWithWriter(m_logger.m_writer).Info(TC("---- Starting trace: %s ----"), traceName);
+		else
+			LoggerWithWriter(m_logger.m_writer).Info(TC("---- Starting trace ----"));
+
+		m_trace.StartWrite(traceName, m_detailedTrace ? 512*1024*1024 : 128*1024*1024);
+
+		tchar buf[256];
+		if (!GetComputerNameW(buf, sizeof_array(buf)))
+			TStrcpy_s(buf, 256, TC("LOCAL"));
+		StringBuffer<> systemInfo;
+		GetSystemInfo(systemInfo);
+		m_trace.SessionAdded(0, {}, buf, systemInfo.data);
+		m_traceThreadEvent.Create(true);
+		m_traceThread.Start([this]() { ThreadTraceLoop(); return 0; });
+	}
+
+	bool Session::StopTrace(const tchar* writeFile)
+	{
+		StopTraceThread();
+		return m_trace.StopWrite(writeFile);
 	}
 
 	void Session::StopTraceThread()
@@ -2086,8 +2099,8 @@ namespace uba
 		logger.Info(TC("  DirectoryTable      %7u %9s"), u32(m_directoryTable.m_lookup.size()), BytesToText(GetDirectoryTableSize()).str);
 		logger.Info(TC("  MappingTable        %7u %9s"), u32(m_fileMappingTableLookup.size()), BytesToText(GetFileMappingSize()).str);
 		logger.Info(TC("  MappingBuffer       %7u %9s"), mappingBufferCount, BytesToText(mappingBufferSize).str);
-		logger.Info(TC(""));
 		m_stats.Print(logger);
+		logger.Info(TC(""));
 	}
 
 	void Session::CreateProcessJobObject()

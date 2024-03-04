@@ -79,6 +79,8 @@ namespace uba
 		void ProcessExited(ProcessImpl& process, u64 executionTime);
 		void FlushDeadProcesses();
 		void PrintProcessStats(ProcessStats& stats, const tchar* logName);
+		void StartTrace(const tchar* traceName);
+		bool StopTrace(const tchar* writeFile);
 		void StopTraceThread();
 		u32 GetDirectoryTableSize();
 		u32 GetFileMappingSize();
@@ -139,14 +141,6 @@ namespace uba
 
 		void ThreadTraceLoop();
 		virtual void TraceSessionUpdate();
-
-		struct MutableLogger : public LoggerWithWriter
-		{
-			MutableLogger(LogWriter& writer, const tchar* prefix) : LoggerWithWriter(writer, prefix) {}
-			virtual void Log(LogEntryType type, const tchar* str, u32 strLen) override { if (!isMuted) LoggerWithWriter::Log(type, str, strLen); }
-			Atomic<bool> isMuted;
-		};
-
 
 		Storage& m_storage;
 		MutableLogger m_logger;

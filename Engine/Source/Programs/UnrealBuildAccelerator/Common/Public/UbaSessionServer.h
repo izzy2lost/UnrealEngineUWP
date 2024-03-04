@@ -65,7 +65,7 @@ namespace uba
 	protected:
 		struct ClientSession;
 
-		void OnDisconnected(u32 clientId);
+		void OnDisconnected(const Guid& clientUid, u32 clientId);
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
 
 		bool StoreCasFile(CasKey& out, const StringKey& fileNameKey, const tchar* fileName);
@@ -171,6 +171,7 @@ namespace uba
 		bool m_allowWaitOnMem = false;
 		bool m_allowKillOnMem = false;
 		bool m_remoteLogEnabled = false;
+		bool m_remoteTraceEnabled = false;
 
 		SessionServer(const SessionServer&) = delete;
 		void operator=(const SessionServer&) = delete;
