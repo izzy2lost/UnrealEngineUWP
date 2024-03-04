@@ -124,7 +124,8 @@ void FEnumSelectorDetails::CustomizeHeader(const TSharedRef<IPropertyHandle> InP
 					]
 				]
 			]
-		];
+		]
+		.OverrideResetToDefault(FResetToDefaultOverride::Hide());
 }
 
 FText FEnumSelectorDetails::StripEnumClassName(const FName EnumValueName)
