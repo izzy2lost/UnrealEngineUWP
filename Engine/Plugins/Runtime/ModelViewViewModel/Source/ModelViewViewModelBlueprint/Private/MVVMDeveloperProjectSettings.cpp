@@ -10,6 +10,9 @@
 #include "Types/MVVMExecutionMode.h"
 #include "UObject/UnrealType.h"
 
+#include "K2Node_FormatText.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
+
 #define LOCTEXT_NAMESPACE "MVVMDeveloperProjectSettings"
 
 UMVVMDeveloperProjectSettings::UMVVMDeveloperProjectSettings()
@@ -25,6 +28,9 @@ UMVVMDeveloperProjectSettings::UMVVMDeveloperProjectSettings()
 	AllowedContextCreationType.Add(EMVVMBlueprintViewModelContextCreationType::PropertyPath);
 	AllowedContextCreationType.Add(EMVVMBlueprintViewModelContextCreationType::PropertyPath);
 	AllowedContextCreationType.Add(EMVVMBlueprintViewModelContextCreationType::Resolver);
+
+	AllowedClassForConversionFunctions.Add(UBlueprintFunctionLibrary::StaticClass());
+	AllowedClassForConversionFunctions.Add(UK2Node_FormatText::StaticClass());
 }
 
 FName UMVVMDeveloperProjectSettings::GetCategoryName() const
@@ -188,6 +194,45 @@ bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UBlueprint* Generati
 	return true;
 }
 
+namespace UE::MVVM::Private
+{
+bool IsConversionFunctionAllowed(const TSet<FSoftClassPath>& AllowedClasses, const TSet<FSoftClassPath>& DeniedClasses, const TSet<FName>& DeniedModules, UClass* CurrentClass)
+{
+	bool bIsModuleDenied = DeniedModules.Contains(CurrentClass->GetClassPathName().GetPackageName());
+	if (bIsModuleDenied)
+	{
+		return false;
+	}
+	while (CurrentClass)
+	{
+		TStringBuilder<512> FunctionClassPath;
+		CurrentClass->GetPathName(nullptr, FunctionClassPath);
+		TStringBuilder<512> AllowedClassPath;
+		for (const FSoftClassPath& SoftClass : AllowedClasses)
+		{
+			SoftClass.ToString(AllowedClassPath);
+			if (AllowedClassPath.ToView() == FunctionClassPath.ToView())
+			{
+				return true;
+			}
+			AllowedClassPath.Reset();
+		}
+		for (const FSoftClassPath& SoftClass : DeniedClasses)
+		{
+			SoftClass.ToString(AllowedClassPath);
+			if (AllowedClassPath.ToView() == FunctionClassPath.ToView())
+			{
+				return false;
+			}
+			AllowedClassPath.Reset();
+		}
+
+		CurrentClass = CurrentClass->GetSuperClass();
+	}
+	return false;
+}
+} //namespace
+
 bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UBlueprint* GeneratingFor, const UFunction* Function) const
 {
 	if (ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::BlueprintActionRegistry)
@@ -198,26 +243,15 @@ bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UBlueprint
 	{
 		check(ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::AllowedList);
 
+		// Optimization. Static are for functions inside the AllowedClassForConversionFunctions.
 		if (Function->HasAllFunctionFlags(FUNC_Static))
 		{
-			TStringBuilder<512> FunctionClassPath;
-			Function->GetOwnerClass()->GetPathName(nullptr, FunctionClassPath);
-			TStringBuilder<512> AllowedClassPath;
-			for (const FSoftClassPath& SoftClass : AllowedClassForConversionFunctions)
-			{
-				SoftClass.ToString(AllowedClassPath);
-				if (AllowedClassPath.ToView() == FunctionClassPath.ToView())
-				{
-					return true;
-				}
-				AllowedClassPath.Reset();
-			}
-
-			return false;
+			UClass* CurrentClass = Function->GetOwnerClass();
+			return UE::MVVM::Private::IsConversionFunctionAllowed(AllowedClassForConversionFunctions, DeniedClassForConversionFunctions, DeniedModuleForConversionFunctions, CurrentClass);
 		}
 		else
 		{
-			// The function is on self and may have been filtered.
+			// The function is on self (WidgetBlueprint) and may be filtered.
 			return IsFunctionAllowed(GeneratingFor, Function->GetOwnerClass(), Function);
 		}
 	}
@@ -233,19 +267,7 @@ bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UBlueprint
 	{
 		check(ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::AllowedList);
 
-		TStringBuilder<512> FunctionClassPath;
-		Function.Get()->GetPathName(nullptr, FunctionClassPath);
-		TStringBuilder<512> AllowedClassPath;
-		for (const FSoftClassPath& SoftClass : AllowedClassForConversionFunctions)
-		{
-			SoftClass.ToString(AllowedClassPath);
-			if (AllowedClassPath.ToView() == FunctionClassPath.ToView())
-			{
-				return true;
-			}
-			AllowedClassPath.Reset();
-		}
-		return false;
+		return UE::MVVM::Private::IsConversionFunctionAllowed(AllowedClassForConversionFunctions, DeniedClassForConversionFunctions, DeniedModuleForConversionFunctions, Function.Get());
 	}
 }
 
@@ -253,6 +275,20 @@ TArray<const UClass*> UMVVMDeveloperProjectSettings::GetAllowedConversionFunctio
 {
 	TArray<const UClass*> Result;
 	for (const FSoftClassPath& SoftClass : AllowedClassForConversionFunctions)
+	{
+		if (UClass* Class = SoftClass.ResolveClass())
+		{
+			Result.Add(Class);
+		}
+	}
+
+	return Result;
+}
+
+TArray<const UClass*> UMVVMDeveloperProjectSettings::GetDeniedConversionFunctionClasses() const
+{
+	TArray<const UClass*> Result;
+	for (const FSoftClassPath& SoftClass : DeniedClassForConversionFunctions)
 	{
 		if (UClass* Class = SoftClass.ResolveClass())
 		{

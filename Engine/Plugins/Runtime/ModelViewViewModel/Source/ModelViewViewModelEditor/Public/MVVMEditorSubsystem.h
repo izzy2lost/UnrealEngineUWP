@@ -4,6 +4,7 @@
 
 #include "EditorSubsystem.h"
 #include "MVVMBlueprintPin.h"
+#include "Types/MVVMConversionFunctionValue.h"
 #include "UObject/Package.h"
 
 #include "MVVMEditorSubsystem.generated.h"
@@ -13,6 +14,7 @@ class UMVVMBlueprintView;
 enum class EMVVMBindingMode : uint8;
 enum class EMVVMExecutionMode : uint8;
 namespace UE::MVVM { struct FBindingSource; }
+namespace UE::MVVM::ConversionFunctionLibrary { class FCollection; }
 struct FMVVMAvailableBinding;
 struct FMVVMBlueprintFunctionReference;
 struct FMVVMBlueprintPropertyPath;
@@ -20,7 +22,6 @@ struct FMVVMBlueprintViewBinding;
 template <typename T> class TSubclassOf;
 
 class UEdGraph;
-class UK2Node;
 class UK2Node_CallFunction;
 class UMVVMBlueprintViewEvent;
 class UWidgetBlueprint;
@@ -93,10 +94,14 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	bool IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const UFunction* Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const;
+	bool IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const UFunction* Function, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const;
+	bool IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, UE::MVVM::FConversionFunctionValue Function, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const;
+
 	bool IsValidConversionNode(const UWidgetBlueprint* WidgetBlueprint, const TSubclassOf<UK2Node> Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const;
+	bool IsValidConversionNode(const UWidgetBlueprint* WidgetBlueprint, const TSubclassOf<UK2Node> Function, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
-	bool IsSimpleConversionFunctionA(const UFunction* Function) const;
+	bool IsSimpleConversionFunction(const UFunction* Function) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	UEdGraph* GetConversionFunctionGraph(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination) const;
@@ -109,8 +114,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	UK2Node_CallFunction* GetConversionFunctionNode(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination) const;
 
+	UE_DEPRECATED(5.5, "GetAvailableConversionFunctions return value changes.")
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	TArray<UFunction*> GetAvailableConversionFunctions(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const;
+
+	TArray<UE::MVVM::FConversionFunctionValue> GetConversionFunctions(const UWidgetBlueprint* WidgetBlueprint, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const;
 
 	FMVVMBlueprintPropertyPath GetPathForConversionFunctionArgument(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, const FMVVMBlueprintPinId& PinId, bool bSourceToDestination) const;
 	void SetPathForConversionFunctionArgument(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& Path, bool bSourceToDestination) const;
@@ -137,6 +145,9 @@ public:
 	TArray<UE::MVVM::FBindingSource> GetAllViewModels(const UWidgetBlueprint* WidgetBlueprint) const;
 
 	FGuid GetFirstBindingThatUsesViewModel(const UWidgetBlueprint* WidgetBlueprint, FGuid ViewModelId) const;
+
+private:
+	mutable TUniquePtr<UE::MVVM::ConversionFunctionLibrary::FCollection> ConversionFunctionCollection;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

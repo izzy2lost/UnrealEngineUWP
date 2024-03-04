@@ -21,6 +21,57 @@ namespace UE::MVVM {class SSourceBindingList; }
 
 class UWidgetBlueprint;
 
+template<>
+struct TListTypeTraits<UE::MVVM::FConversionFunctionValue>
+{
+public:
+	using NullableType = UE::MVVM::FConversionFunctionValue;
+	using MapKeyFuncs = TDefaultMapHashableKeyFuncs<UE::MVVM::FConversionFunctionValue, TSharedRef<ITableRow>, false>;
+	using MapKeyFuncsSparse = TDefaultMapHashableKeyFuncs<UE::MVVM::FConversionFunctionValue, FSparseItemInfo, false>;
+	using SetKeyFuncs = DefaultKeyFuncs<UE::MVVM::FConversionFunctionValue>;
+
+	template<typename U>
+	static void AddReferencedObjects(FReferenceCollector&, TArray<UE::MVVM::FConversionFunctionValue>&, TSet<UE::MVVM::FConversionFunctionValue>&, TMap< const U*, UE::MVVM::FConversionFunctionValue>&)
+	{
+	}
+
+	static bool IsPtrValid(UE::MVVM::FConversionFunctionValue InPtr)
+	{
+		return InPtr.IsValid();
+	}
+
+	static void ResetPtr(UE::MVVM::FConversionFunctionValue& InPtr)
+	{
+		InPtr = UE::MVVM::FConversionFunctionValue();
+	}
+
+	static  UE::MVVM::FConversionFunctionValue MakeNullPtr()
+	{
+		return UE::MVVM::FConversionFunctionValue();
+	}
+
+	static  UE::MVVM::FConversionFunctionValue NullableItemTypeConvertToItemType(UE::MVVM::FConversionFunctionValue InPtr)
+	{
+		return InPtr;
+	}
+
+	static FString DebugDump( UE::MVVM::FConversionFunctionValue InPtr)
+	{
+		return InPtr.GetName();
+	}
+
+	class SerializerType {};
+};
+
+template <>
+struct TIsValidListItem<UE::MVVM::FConversionFunctionValue>
+{
+	enum
+	{
+		Value = true
+	};
+};
+
 namespace UE::MVVM
 {
 
@@ -62,14 +113,14 @@ private:
 
 		TArray<FString> CategoryPath;
 		TArray<FString> SearchKeywords;
-		const UFunction* Function = nullptr;
+		UE::MVVM::FConversionFunctionValue Function;
 		TArray<TSharedPtr<FConversionFunctionItem>> Children;
 		int32 NumFunctions = 0;
 	};
 
 private:
 	void SetPropertyPathSelection(const FMVVMBlueprintPropertyPath& SelectedPath);
-	void SetConversionFunctionSelection(const UFunction* SelectedFunction);
+	void SetConversionFunctionSelection(const UE::MVVM::FConversionFunctionValue SelectedFunction);
 
 	TSharedRef<SWidget> CreateBindingContextPanel(const FArguments& InArgs);
 	TSharedRef<SWidget> CreateBindingListPanel(const FArguments& InArgs, const FProperty* AssignableToProperty);
@@ -85,15 +136,15 @@ private:
 	void FilterConversionFunctions();
 	/** Recursively filter the items in SourceArray and place them into DestArray. Returns true if any items were added. */
 	int32 FilterConversionFunctionCategoryChildren(const TArray<FString>& FilterStrings, const TArray<TSharedPtr<FConversionFunctionItem>>& SourceArray, TArray<TSharedPtr<FConversionFunctionItem>>& OutDestArray);
-	void AddConversionFunctionChildrenRecursive(const TSharedPtr<FConversionFunctionItem>& Parent, TArray<const UFunction*>& OutFunctions);
+	void AddConversionFunctionChildrenRecursive(const TSharedPtr<FConversionFunctionItem>& Parent, TArray<UE::MVVM::FConversionFunctionValue>& OutFunctions);
 	TSharedPtr<FConversionFunctionItem> FindOrCreateItemForCategory(TArray<TSharedPtr<FConversionFunctionItem>>& Items, TArrayView<FString> CategoryPath);
 	TSharedPtr<FConversionFunctionItem> FindConversionFunctionCategory(const TArray<TSharedPtr<FConversionFunctionItem>>& Items, TArrayView<FString> CategoryNameParts) const;
 	void HandleGetConversionFunctionCategoryChildren(TSharedPtr<FConversionFunctionItem> Item, TArray<TSharedPtr<FConversionFunctionItem>>& OutItems) const;
 	void HandleConversionFunctionCategorySelected(TSharedPtr<FConversionFunctionItem> Item, ESelectInfo::Type);
 	TSharedRef<ITableRow> HandleGenerateConversionFunctionCategoryRow(TSharedPtr<FConversionFunctionItem> Item, const TSharedRef<STableViewBase>& OwnerTable);
-	TSharedRef<ITableRow> HandleGenerateConversionFunctionRow(const UFunction* Function, const TSharedRef<STableViewBase>& OwnerTable);
+	TSharedRef<ITableRow> HandleGenerateConversionFunctionRow(const UE::MVVM::FConversionFunctionValue Function, const TSharedRef<STableViewBase>& OwnerTable);
 
-	TSharedPtr<FConversionFunctionItem> ExpandFunctionCategoryTreeToItem(const UFunction* Function);
+	TSharedPtr<FConversionFunctionItem> ExpandFunctionCategoryTreeToItem(const UE::MVVM::FConversionFunctionValue Function);
 	void ExpandFunctionCategoryTree(const TArray<TSharedPtr<FConversionFunctionItem>>& Items, bool bRecursive);
 
 	void FilterViewModels(const FText& NewText);
@@ -132,9 +183,9 @@ private:
 	TArray<TSharedPtr<FConversionFunctionItem>> ConversionFunctionRoot;
 
 	//~ functions (selection panel)
-	TSharedPtr<SListView<const UFunction*>> ConversionFunctionList;
-	TArray<const UFunction*> ConversionFunctions;
-	TArray<const UFunction*> FilteredConversionFunctions;
+	TSharedPtr<SListView<UE::MVVM::FConversionFunctionValue>> ConversionFunctionList;
+	TArray<UE::MVVM::FConversionFunctionValue> ConversionFunctions;
+	TArray<UE::MVVM::FConversionFunctionValue> FilteredConversionFunctions;
 
 	bool bIsMenuInitialized = false;
 	bool bIsClearEnabled = false;

@@ -4,6 +4,7 @@
 
 #include "MVVMBlueprintFunctionReference.h"
 #include "MVVMPropertyPath.h"
+#include "Types/MVVMConversionFunctionValue.h"
 #include "Templates/SubclassOf.h"
 
 #include "MVVMLinkedPinValue.generated.h"
@@ -21,6 +22,7 @@ public:
 	FMVVMLinkedPinValue() = default;
 	explicit FMVVMLinkedPinValue(FMVVMBlueprintPropertyPath InPath);
 	explicit FMVVMLinkedPinValue(const UBlueprint* InBlueprint, FMVVMBlueprintFunctionReference InConversion);
+	explicit FMVVMLinkedPinValue(UE::MVVM::FConversionFunctionValue Function);
 	explicit FMVVMLinkedPinValue(const UFunction* Function);
 	explicit FMVVMLinkedPinValue(TSubclassOf<UK2Node> Node);
 

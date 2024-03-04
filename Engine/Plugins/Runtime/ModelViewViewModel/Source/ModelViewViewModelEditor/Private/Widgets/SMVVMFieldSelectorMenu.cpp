@@ -241,7 +241,7 @@ FReply SFieldSelectorMenu::HandleSelectClicked()
 		FMVVMLinkedPinValue Value;
 		if (ConversionFunctionList.IsValid())
 		{
-			TArray<const UFunction*> Selection;
+			TArray<FConversionFunctionValue> Selection;
 			if (ConversionFunctionList.IsValid())
 			{
 				Selection = ConversionFunctionList->GetSelectedItems();
@@ -302,7 +302,7 @@ void SFieldSelectorMenu::SetPropertyPathSelection(const FMVVMBlueprintPropertyPa
 	OnSelectionChanged.ExecuteIfBound(FMVVMLinkedPinValue(SelectedPath));
 }
 
-void SFieldSelectorMenu::SetConversionFunctionSelection(const UFunction* SelectedFunction)
+void SFieldSelectorMenu::SetConversionFunctionSelection(const FConversionFunctionValue SelectedFunction)
 {
 	OnSelectionChanged.ExecuteIfBound(FMVVMLinkedPinValue(SelectedFunction));
 }
@@ -366,7 +366,7 @@ void SFieldSelectorMenu::HandleSearchBoxTextChanged(const FText& NewText)
 
 	if (ConversionFunctionList.IsValid())
 	{
-		TArray<const UFunction*> OldSelectedFunctions;
+		TArray<FConversionFunctionValue> OldSelectedFunctions;
 		ConversionFunctionList->GetSelectedItems(OldSelectedFunctions);
 
 		FilterConversionFunctions();
@@ -583,9 +583,9 @@ int32 SFieldSelectorMenu::SortConversionFunctionItemsRecursive(TArray<TSharedPtr
 			{
 				return false;
 			}
-			if (A->Function != nullptr && B->Function != nullptr)
+			if (A->Function.IsValid() && B->Function.IsValid())
 			{
-				return A->Function->GetDisplayNameText().CompareTo(B->Function->GetDisplayNameText()) <= 0;
+				return A->Function.GetDisplayName().CompareTo(B->Function.GetDisplayName()) <= 0;
 			}
 			return true;
 		});
@@ -605,40 +605,17 @@ int32 SFieldSelectorMenu::SortConversionFunctionItemsRecursive(TArray<TSharedPtr
 
 void SFieldSelectorMenu::GenerateConversionFunctionItems()
 {
+	const FProperty* AssignToProperty = SelectionContext.AssignableTo;
 	UMVVMEditorSubsystem* Subsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
-	TArray<UFunction*> AllConversionFunctions = Subsystem->GetAvailableConversionFunctions(WidgetBlueprint.Get(), FMVVMBlueprintPropertyPath(), FMVVMBlueprintPropertyPath());
+	TArray<FConversionFunctionValue> AllConversionFunctions = Subsystem->GetConversionFunctions(WidgetBlueprint.Get(), nullptr, AssignToProperty);
 
-	// remove all incompatible conversion functions
-	for (int32 Index = AllConversionFunctions.Num() - 1; Index >= 0; --Index)
-	{
-		const UFunction* Function = AllConversionFunctions[Index];
-		const FProperty* ReturnProperty = BindingHelper::GetReturnProperty(Function);
-		const FProperty* AssignToProperty = SelectionContext.AssignableTo;
-
-		if (AssignToProperty != nullptr && !BindingHelper::ArePropertiesCompatible(ReturnProperty, AssignToProperty))
-		{
-			AllConversionFunctions.RemoveAtSwap(Index);
-		}
-	}
-
-	auto AddFunctionToItem = [](const UFunction* Function, const TSharedPtr<FConversionFunctionItem>& Parent)
+	auto AddFunctionToItem = [](FConversionFunctionValue Function, const TSharedPtr<FConversionFunctionItem>& Parent)
 	{
 		TSharedPtr<FConversionFunctionItem>& Item = Parent->Children.Add_GetRef(MakeShared<FConversionFunctionItem>());
 		Item->Function = Function;
+		Item->SearchKeywords = Function.GetSearchKeywords();
 		Item->NumFunctions = 1;
 		Parent->NumFunctions += 1;
-
-		Item->SearchKeywords.Add(Function->GetName());
-		const FString& DisplayName = Function->GetMetaData(FBlueprintMetadata::MD_DisplayName);
-		if (DisplayName.Len() > 0)
-		{
-			Item->SearchKeywords.Add(DisplayName);
-		}
-		FString MetadataKeywords = Function->GetMetaDataText(FBlueprintMetadata::MD_FunctionKeywords, TEXT("UObjectKeywords"), Function->GetFullGroupName(false)).ToString();
-		if (MetadataKeywords.Len() > 0)
-		{
-			Item->SearchKeywords.Add(MoveTemp(MetadataKeywords));
-		}
 	};
 
 	TSharedPtr<FConversionFunctionItem> CurrentSelectedItem;
@@ -649,10 +626,9 @@ void SFieldSelectorMenu::GenerateConversionFunctionItems()
 	TSharedPtr<FConversionFunctionItem>& RootItem = ConversionFunctionRoot.Add_GetRef(MakeShared<FConversionFunctionItem>());
 	RootItem->CategoryPath = { TEXT("Conversion Functions") };
 
-	FName NAME_Category = "Category";
-	for (const UFunction* Function : AllConversionFunctions)
+	for (const FConversionFunctionValue& Function : AllConversionFunctions)
 	{
-		const FText& CategoryName = Function->GetMetaDataText(NAME_Category);
+		const FText& CategoryName = Function.GetCategory();
 		if (CategoryName.IsEmpty())
 		{
 			AddFunctionToItem(Function, RootItem);
@@ -688,11 +664,11 @@ void SFieldSelectorMenu::GenerateConversionFunctionItems()
 	ensure(NumItems == RootItem->NumFunctions);
 }
 
-TSharedPtr<SFieldSelectorMenu::FConversionFunctionItem> SFieldSelectorMenu::ExpandFunctionCategoryTreeToItem(const UFunction* Function)
+TSharedPtr<SFieldSelectorMenu::FConversionFunctionItem> SFieldSelectorMenu::ExpandFunctionCategoryTreeToItem(const FConversionFunctionValue Function)
 {
 	TArray<TSharedPtr<FConversionFunctionItem>> Path;
 
-	FText FullCategoryName = Function->GetMetaDataText("Category");
+	FText FullCategoryName = Function.GetCategory();
 	if (FullCategoryName.IsEmpty())
 	{
 		Path.Add(FilteredConversionFunctionRoot[0]);
@@ -889,10 +865,12 @@ TSharedRef<SWidget> SFieldSelectorMenu::CreateBindingContextPanel(const FArgumen
 			.OnSelectionChanged(this, &SFieldSelectorMenu::HandleConversionFunctionCategorySelected)
 			.OnGetChildren(this, &SFieldSelectorMenu::HandleGetConversionFunctionCategoryChildren);
 
-		if (CurrentFieldSelectedLinkedValue.IsConversionFunction())
+		if (CurrentFieldSelectedLinkedValue.IsConversionFunction() || CurrentFieldSelectedLinkedValue.IsConversionNode())
 		{
-			const UFunction* ConversionFunction = CurrentFieldSelectedLinkedValue.GetConversionFunction();
-			if (ConversionFunction)
+			const FConversionFunctionValue ConversionFunction = CurrentFieldSelectedLinkedValue.IsConversionFunction()
+				? FConversionFunctionValue(CurrentFieldSelectedLinkedValue.GetConversionFunction())
+				: FConversionFunctionValue(CurrentFieldSelectedLinkedValue.GetConversionNode());
+			if (ConversionFunction.IsValid())
 			{
 				TSharedPtr<FConversionFunctionItem> FunctionItem = ExpandFunctionCategoryTreeToItem(ConversionFunction);
 				if (FunctionItem)
@@ -901,10 +879,6 @@ TSharedRef<SWidget> SFieldSelectorMenu::CreateBindingContextPanel(const FArgumen
 					ConversionFunctionCategoryTree->SetItemSelection(FunctionItem, true);
 				}
 			}
-		}
-		else if (CurrentFieldSelectedLinkedValue.IsConversionNode())
-		{
-			check(false); // not supported yet
 		}
 
 		StackedSourcePicker->AddSlot()
@@ -958,7 +932,7 @@ TSharedRef<SWidget> SFieldSelectorMenu::CreateBindingListPanel(const FArguments&
 		BindingListVBox->AddSlot()
 			.AutoHeight()
 			[
-				SAssignNew(ConversionFunctionList, SListView<const UFunction*>)
+				SAssignNew(ConversionFunctionList, SListView<FConversionFunctionValue>)
 				.SelectionMode(ESelectionMode::Single)
 				.ListItemsSource(&FilteredConversionFunctions)
 				.OnMouseButtonDoubleClick(this, &SFieldSelectorMenu::SetConversionFunctionSelection)
@@ -967,8 +941,10 @@ TSharedRef<SWidget> SFieldSelectorMenu::CreateBindingListPanel(const FArguments&
 
 		if (bValidSelectedFunction)
 		{
-			check(InArgs._CurrentSelected.GetValue().IsConversionFunction()); // node not implemented yet
-			ConversionFunctionList->SetItemSelection(InArgs._CurrentSelected.GetValue().GetConversionFunction(), true);
+			FConversionFunctionValue ConversionFunctionValue = InArgs._CurrentSelected.GetValue().IsConversionFunction()
+				? FConversionFunctionValue(InArgs._CurrentSelected.GetValue().GetConversionFunction())
+				: FConversionFunctionValue(InArgs._CurrentSelected.GetValue().GetConversionNode());
+			ConversionFunctionList->SetItemSelection(ConversionFunctionValue, true);
 		}
 	}
 
@@ -1073,9 +1049,9 @@ void SFieldSelectorMenu::HandleGetConversionFunctionCategoryChildren(TSharedPtr<
 		});
 }
 
-TSharedRef<ITableRow> SFieldSelectorMenu::HandleGenerateConversionFunctionRow(const UFunction* Function, const TSharedRef<STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SFieldSelectorMenu::HandleGenerateConversionFunctionRow(const FConversionFunctionValue Function, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	return SNew(STableRow<const UFunction*>, OwnerTable)
+	return SNew(STableRow<FConversionFunctionValue>, OwnerTable)
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
@@ -1093,23 +1069,23 @@ TSharedRef<ITableRow> SFieldSelectorMenu::HandleGenerateConversionFunctionRow(co
 			.VAlign(VAlign_Center)
 			[
 				SNew(STextBlock)
-				.Text(Function->GetDisplayNameText())
-				.ToolTipText(Function->GetToolTipText())
+				.Text(Function.GetDisplayName())
+				.ToolTipText(Function.GetTooltip())
 				.HighlightText_Lambda([this]() { return SearchBox.IsValid() ? SearchBox->GetText() : FText::GetEmpty(); })
 			]
 		];
 }
 
-void SFieldSelectorMenu::AddConversionFunctionChildrenRecursive(const TSharedPtr<FConversionFunctionItem>& Parent, TArray<const UFunction*>& OutFunctions)
+void SFieldSelectorMenu::AddConversionFunctionChildrenRecursive(const TSharedPtr<FConversionFunctionItem>& Parent, TArray<FConversionFunctionValue>& OutFunctions)
 {
 	for (const TSharedPtr<FConversionFunctionItem>& Item : Parent->Children)
 	{
-		if (Item->Function != nullptr)
+		if (Item->Function.IsValid())
 		{
 			int32 Index = 0;
 			for (; Index < OutFunctions.Num(); ++Index)
 			{
-				if (OutFunctions[Index]->GetFName().Compare(Item->Function->GetFName()) > 0)
+				if (OutFunctions[Index].GetFName().Compare(Item->Function.GetFName()) > 0)
 				{
 					break;
 				}
@@ -1139,11 +1115,15 @@ void SFieldSelectorMenu::FilterConversionFunctions()
 	}
 
 	FilteredConversionFunctions.Reset();
-	for (const UFunction* Function : ConversionFunctions)
+	for (const FConversionFunctionValue& Function : ConversionFunctions)
 	{
-		FString FunctionName = Function->GetName();
-		const FString& DisplayName = Function->GetMetaData(FBlueprintMetadata::MD_DisplayName);
-		FString MetadataKeywords = Function->GetMetaDataText(FBlueprintMetadata::MD_FunctionKeywords, TEXT("UObjectKeywords"), Function->GetFullGroupName(false)).ToString();
+		FString FunctionName = Function.GetName();
+		FString DisplayName = Function.GetDisplayName().ToString();
+		FString MetadataKeywords;
+		if (Function.IsFunction())
+		{
+			MetadataKeywords = Function.GetFunction()->GetMetaDataText(FBlueprintMetadata::MD_FunctionKeywords, TEXT("UObjectKeywords"), Function.GetFullGroupName(false)).ToString();
+		}
 
 		bool bMatches = true;
 		for (const FString& Filter : FilterStrings)
@@ -1195,7 +1175,7 @@ void SFieldSelectorMenu::HandleConversionFunctionCategorySelected(TSharedPtr<FCo
 			AddConversionFunctionChildrenRecursive(Item, ConversionFunctions);
 		}
 
-		Algo::SortBy(ConversionFunctions, &UFunction::GetDisplayNameText, FText::FSortPredicate());
+		Algo::SortBy(ConversionFunctions, &FConversionFunctionValue::GetDisplayName, FText::FSortPredicate());
 
 		FilterConversionFunctions();
 	}

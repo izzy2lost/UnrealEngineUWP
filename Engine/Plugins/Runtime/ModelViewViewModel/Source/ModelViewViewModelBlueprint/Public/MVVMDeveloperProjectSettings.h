@@ -52,7 +52,7 @@ UENUM()
 enum class EMVVMDeveloperConversionFunctionFilterType : uint8
 {
 	BlueprintActionRegistry,
-	AllowedList,
+	AllowedList UMETA(DisplayName="Conversion Function Library"),
 };
 
 
@@ -93,6 +93,7 @@ public:
 	}
 
 	TArray<const UClass*> GetAllowedConversionFunctionClasses() const;
+	TArray<const UClass*> GetDeniedConversionFunctionClasses() const;
 
 private:
 	/** Permission list for filtering which properties are visible in UI. */
@@ -155,9 +156,17 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
 	EMVVMDeveloperConversionFunctionFilterType ConversionFunctionFilter = EMVVMDeveloperConversionFunctionFilterType::BlueprintActionRegistry;
 
-	/** Individual class that are allowed to be uses as conversion functions. */
+	/** Classes to include in conversion function list. It includes the child class. */
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel", meta = (EditCondition = "ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::AllowedList"))
 	TSet<FSoftClassPath> AllowedClassForConversionFunctions;
+
+	/** Classes excluded for conversion function list. */
+	UPROPERTY(EditAnywhere, config, Category = "Viewmodel", meta = (EditCondition = "ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::AllowedList"))
+	TSet<FSoftClassPath> DeniedClassForConversionFunctions;
+
+	/** Modules excluded for conversion function list. ie. "/Script/MyModule" */
+	UPROPERTY(EditAnywhere, config, Category = "Viewmodel", meta = (EditCondition = "ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::AllowedList"))
+	TSet<FName> DeniedModuleForConversionFunctions;
 
 	/** Settings for filtering the list of available properties and functions on binding creation. */
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
