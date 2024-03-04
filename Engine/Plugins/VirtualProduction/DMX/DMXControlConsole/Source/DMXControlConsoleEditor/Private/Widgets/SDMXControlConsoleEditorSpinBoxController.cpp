@@ -145,13 +145,15 @@ namespace UE::DMX::Private
 
 	float SDMXControlConsoleEditorSpinBoxController::GetValue() const
 	{
-		if (!ElementControllerModel.IsValid())
+		if (!ElementControllerModel.IsValid() ||
+			(ElementControllerModel->HasUniformDataType() && 
+			!ElementControllerModel->HasUniformValue()))
 		{
 			return 1.f;
 		}
 
 		const UDMXControlConsoleElementController* ElementController = ElementControllerModel->GetElementController();
-		return ElementController && ElementControllerModel->HasUniformValue() ? ElementController->GetValue() : 1.f;
+		return ElementController ? ElementController->GetValue() : 1.f;
 	}
 
 	FText SDMXControlConsoleEditorSpinBoxController::GetValueAsText() const
@@ -161,7 +163,7 @@ namespace UE::DMX::Private
 			return FText::GetEmpty();
 		}
 
-		if (!ElementControllerModel->HasUniformValue())
+		if (ElementControllerModel->HasUniformDataType() && !ElementControllerModel->HasUniformValue())
 		{
 			return FText::Format(LOCTEXT("MultipleValues", "Multiple{0}Values"), FText::FromString(LINE_TERMINATOR));
 		}
