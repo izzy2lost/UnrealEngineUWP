@@ -152,7 +152,7 @@ void SCustomizableInstanceProperties::Construct(const FArguments& InArgs)
 
 		if (ProfileIdx != INDEX_NONE)
 		{
-			FProfileParameterDat& Profile = CustomizableObject->InstancePropertiesProfiles[ProfileIdx];
+			FProfileParameterDat& Profile = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles()[ProfileIdx];
 			for (int i = 1; i < ParameterProfileNames.Num(); ++i)
 			{
 				if (ParameterProfileNames[i]->Equals(Profile.ProfileName))
@@ -2013,7 +2013,7 @@ FReply SCustomizableInstanceProperties::RemoveParameterProfile()
 		return FReply::Handled();
 	}
 
-	TArray<FProfileParameterDat>& Profiles = CustomizableObject->InstancePropertiesProfiles;
+	TArray<FProfileParameterDat>& Profiles = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles();
 	
 	Profiles.RemoveAt(ProfileIdx);
 	CustomInstance->GetPrivate()->SelectedProfileIndex = INDEX_NONE;
@@ -2051,7 +2051,7 @@ void SCustomizableInstanceProperties::OnProfileSelectedChanged(TSharedPtr<FStrin
 	}	
 
 	//Set selected profile
-	TArray<FProfileParameterDat>& Profiles = CustomInstance->GetCustomizableObject()->InstancePropertiesProfiles;
+	TArray<FProfileParameterDat>& Profiles = CustomInstance->GetCustomizableObject()->GetPrivate()->GetInstancePropertiesProfiles();
 	for (int32 Idx = 0; Idx < Profiles.Num(); ++Idx)
 	{
 		if (Profiles[Idx].ProfileName == *Selection)
@@ -2083,7 +2083,7 @@ void SCustomizableInstanceProperties::SetParameterProfileNamesOnEditor()
 {
 	ParameterProfileNames.Empty();
 
-	for (FProfileParameterDat& Profile : CustomInstance->GetCustomizableObject()->InstancePropertiesProfiles)
+	for (FProfileParameterDat& Profile : CustomInstance->GetCustomizableObject()->GetPrivate()->GetInstancePropertiesProfiles())
 	{
 		ParameterProfileNames.Emplace(MakeShared<FString>(Profile.ProfileName));
 	}
@@ -2332,7 +2332,7 @@ FReply SCreateProfileParameters::OnButtonClick(EAppReturnType::Type ButtonID)
 		{
 			CustomInstance->GetPrivate()->SaveParametersToProfile(CustomInstance->GetPrivate()->SelectedProfileIndex);
 		}
-		CustomInstance->GetPrivate()->SelectedProfileIndex = CustomizableObject->InstancePropertiesProfiles.Num() - 1;
+		CustomInstance->GetPrivate()->SelectedProfileIndex = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles().Num() - 1;
 
 		if (CIProperties)
 		{

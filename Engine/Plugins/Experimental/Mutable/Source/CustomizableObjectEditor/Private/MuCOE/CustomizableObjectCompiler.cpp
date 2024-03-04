@@ -1044,12 +1044,12 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		
 		Object->GetPrivate()->bIsCompiledWithoutOptimization = GenerationContext.Options.OptimizationLevel < UE_MUTABLE_MAX_OPTIMIZATION;
 
-		Object->AlwaysLoadedExtensionData = MoveTemp(GenerationContext.AlwaysLoadedExtensionData);
+		Object->GetPrivate()->GetAlwaysLoadedExtensionData() = MoveTemp(GenerationContext.AlwaysLoadedExtensionData);
 
-		Object->StreamedExtensionData.Empty(GenerationContext.StreamedExtensionData.Num());
+		Object->GetPrivate()->GetStreamedExtensionData().Empty(GenerationContext.StreamedExtensionData.Num());
 		for (UCustomizableObjectResourceDataContainer* Container : GenerationContext.StreamedExtensionData)
 		{
-			Object->StreamedExtensionData.Emplace(Container);
+			Object->GetPrivate()->GetStreamedExtensionData().Emplace(Container);
 		}
 
 #if WITH_EDITORONLY_DATA
@@ -1058,14 +1058,14 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 		Object->LODSettings.NumLODsInRoot = GenerationContext.NumLODsInRoot;
 		
-		Object->NumMeshComponentsInRoot = GenerationContext.NumMeshComponentsInRoot;
+		Object->GetPrivate()->GetNumMeshComponentsInRoot() = GenerationContext.NumMeshComponentsInRoot;
 		
 		Object->LODSettings.FirstLODAvailable = GenerationContext.FirstLODAvailable;
 
 		Object->LODSettings.bLODStreamingEnabled = GenerationContext.bEnableLODStreaming;
 		Object->LODSettings.NumLODsToStream = GenerationContext.NumMaxLODsToStream;
 
-		Object->StreamedResourceData = MoveTemp(GenerationContext.StreamedResourceData);
+		Object->GetPrivate()->GetStreamedResourceData() = MoveTemp(GenerationContext.StreamedResourceData);
 
 		// Pass-through textures
 		TArray<TSoftObjectPtr<UTexture>> NewCompileTimeReferencedTextures;
@@ -1227,14 +1227,14 @@ void FCustomizableObjectCompiler::FinishCompilation()
 		uint64 Offset = 0;
 
 		const int32 NumStreamingFiles = Model->GetRomCount();
-		CurrentObject->HashToStreamableBlock.Empty(NumStreamingFiles);
+		CurrentObject->GetPrivate()->GetHashToStreamableBlock().Empty(NumStreamingFiles);
 
 		for (int32 FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
 		{
 			const uint32 ResourceId = Model->GetRomId(FileIndex);
 			const uint32 ResourceSize = Model->GetRomSize(FileIndex);
 
-			CurrentObject->HashToStreamableBlock.Add(ResourceId, FMutableStreamableBlock{0, ResourceSize, Offset });
+			CurrentObject->GetPrivate()->GetHashToStreamableBlock().Add(ResourceId, FMutableStreamableBlock{0, ResourceSize, Offset });
 			Offset += ResourceSize;
 		}
 	}

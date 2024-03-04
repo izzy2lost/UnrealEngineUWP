@@ -174,7 +174,7 @@ TSharedPtr<FStreamableHandle> FUnrealExtensionDataStreamer::StartLoadOnGameThrea
 		return nullptr;
 	}
 
-	if (!Object->StreamedExtensionData.IsValidIndex(LoadHandle->Data->Index))
+	if (!Object->GetPrivate()->GetStreamedExtensionData().IsValidIndex(LoadHandle->Data->Index))
 	{
 		// The compiled data appears to be out of sync with the CO's properties
 
@@ -185,7 +185,7 @@ TSharedPtr<FStreamableHandle> FUnrealExtensionDataStreamer::StartLoadOnGameThrea
 		return nullptr;
 	}
 
-	FCustomizableObjectStreamedResourceData& StreamedData = Object->StreamedExtensionData[LoadHandle->Data->Index];
+	FCustomizableObjectStreamedResourceData& StreamedData = Object->GetPrivate()->GetStreamedExtensionData()[LoadHandle->Data->Index];
 	if (StreamedData.IsLoaded())
 	{
 		// Already loaded
@@ -242,7 +242,7 @@ void FUnrealExtensionDataStreamer::NotifyLoadCompleted(
 	check(IsInGameThread());
 	check(Object);
 
-	if (!Object->StreamedExtensionData.IsValidIndex(LoadHandle->Data->Index))
+	if (!Object->GetPrivate()->GetStreamedExtensionData().IsValidIndex(LoadHandle->Data->Index))
 	{
 		// The compiled data appears to be out of sync with the CO's properties
 
@@ -253,7 +253,7 @@ void FUnrealExtensionDataStreamer::NotifyLoadCompleted(
 		return;
 	}
 
-	FCustomizableObjectStreamedResourceData& StreamedData = Object->StreamedExtensionData[LoadHandle->Data->Index];
+	FCustomizableObjectStreamedResourceData& StreamedData = Object->GetPrivate()->GetStreamedExtensionData()[LoadHandle->Data->Index];
 
 	// The object could have been loaded by another request, in which case we can skip updating
 	// the StreamedData.

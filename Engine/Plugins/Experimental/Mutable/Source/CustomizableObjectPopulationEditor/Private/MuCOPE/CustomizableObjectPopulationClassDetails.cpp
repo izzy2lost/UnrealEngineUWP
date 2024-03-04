@@ -13,6 +13,7 @@
 #include "MuCOP/CustomizableObjectPopulationClass.h"
 #include "MuCOP/CustomizableObjectPopulationConstraint.h"
 #include "PropertyCustomizationHelpers.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Colors/SColorPicker.h"
 #include "Widgets/Input/SButton.h"
@@ -377,11 +378,11 @@ void SPopulationClassTagList::Construct(const FArguments& InArgs)
 	bool bTagFound = false;
 
 	// Filling combobox options
-	for (int32 i = 0; i < PopulationClass->CustomizableObject->PopulationClassTags.Num(); ++i)
+	for (int32 i = 0; i < PopulationClass->CustomizableObject->GetPrivate()->GetPopulationClassTags().Num(); ++i)
 	{
-		AllTags.Add(MakeShareable(new FString(PopulationClass->CustomizableObject->PopulationClassTags[i])));
+		AllTags.Add(MakeShareable(new FString(PopulationClass->CustomizableObject->GetPrivate()->GetPopulationClassTags()[i])));
 
-		if (PopulationClass->CustomizableObject->PopulationClassTags[i].Equals(TagValue))
+		if (PopulationClass->CustomizableObject->GetPrivate()->GetPopulationClassTags()[i].Equals(TagValue))
 		{
 			SelectedTag = AllTags.Last();
 			bTagFound = true;
