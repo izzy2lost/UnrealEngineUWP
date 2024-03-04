@@ -213,8 +213,7 @@ void USubdividePolyTool::Setup()
 
 	bool bWantVertexNormals = false;
 	OriginalMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(bWantVertexNormals, false, false, false);
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(UE::ToolTarget::GetMeshDescription(Target), *OriginalMesh);
+	*OriginalMesh = UE::ToolTarget::GetDynamicMeshCopy(Target);
 
 	Topology = MakeShared<FGroupTopology>(OriginalMesh.Get(), false);
 	auto ShouldAddExtraCornerAtVert = [this](const FGroupTopology& GroupTopology, int32 Vid, const FIndex2i& AttachedGroupEdgeEids)

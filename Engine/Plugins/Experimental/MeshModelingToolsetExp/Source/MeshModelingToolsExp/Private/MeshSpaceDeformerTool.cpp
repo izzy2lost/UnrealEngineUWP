@@ -140,8 +140,7 @@ void UMeshSpaceDeformerTool::Setup()
 	// populate the OriginalDynamicMesh with a conversion of the input mesh.
 	{
 		OriginalDynamicMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-		FMeshDescriptionToDynamicMesh Converter;
-		Converter.Convert(UE::ToolTarget::GetMeshDescription(Target), *OriginalDynamicMesh);
+		*OriginalDynamicMesh = UE::ToolTarget::GetDynamicMeshCopy(Target);
 	}
 
 	IPrimitiveComponentBackedTarget* TargetComponent = Cast<IPrimitiveComponentBackedTarget>(Target);

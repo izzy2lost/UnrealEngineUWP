@@ -147,8 +147,7 @@ void UPolygonOnMeshTool::Setup()
 
 	// Convert input mesh description to dynamic mesh
 	OriginalDynamicMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert( UE::ToolTarget::GetMeshDescription(Target), *OriginalDynamicMesh);
+	*OriginalDynamicMesh = UE::ToolTarget::GetDynamicMeshCopy(Target);
 	// TODO: consider adding an AABB tree construction here?  tradeoff vs doing a raycast against full every time a param change happens ...
 
 	LastDrawnPolygon = FPolygon2d();

@@ -132,8 +132,7 @@ void UUVLayoutTool::UpdateNumPreviews()
 		for (int32 PreviewIdx = CurrentNumPreview; PreviewIdx < TargetNumPreview; PreviewIdx++)
 		{
 			OriginalDynamicMeshes[PreviewIdx] = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-			FMeshDescriptionToDynamicMesh Converter;
-			Converter.Convert(UE::ToolTarget::GetMeshDescription(Targets[PreviewIdx]), *OriginalDynamicMeshes[PreviewIdx]);
+			*OriginalDynamicMeshes[PreviewIdx] = UE::ToolTarget::GetDynamicMeshCopy(Targets[PreviewIdx]);
 
 			Factories[PreviewIdx]= NewObject<UUVLayoutOperatorFactory>();
 			Factories[PreviewIdx]->OriginalMesh = OriginalDynamicMeshes[PreviewIdx];

@@ -110,9 +110,7 @@ void USelfUnionMeshesTool::ConvertInputsAndSetPreviewMaterials(bool bSetPreviewM
 	bool bNeedColorAttr = false;
 	for (int ComponentIdx = 0; ComponentIdx < Targets.Num(); ComponentIdx++)
 	{
-		FDynamicMesh3 ComponentMesh;
-		FMeshDescriptionToDynamicMesh Converter;
-		Converter.Convert(UE::ToolTarget::GetMeshDescription(Targets[ComponentIdx]), ComponentMesh);
+		FDynamicMesh3 ComponentMesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[ComponentIdx]);
 		bNeedColorAttr = bNeedColorAttr || (ComponentMesh.Attributes()->HasPrimaryColors());
 		// ensure materials and attributes are always enabled
 		ComponentMesh.EnableAttributes();

@@ -84,8 +84,7 @@ void UBaseMeshProcessingTool::Setup()
 	ToolPropertyObjects.Add(this);
 
 	// populate the BaseMesh with a conversion of the input mesh.
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(UE::ToolTarget::GetMeshDescription(Target), InitialMesh);
+	InitialMesh = UE::ToolTarget::GetDynamicMeshCopy(Target);
 
 	if (RequiresScaleNormalization())
 	{

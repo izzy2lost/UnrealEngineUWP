@@ -81,12 +81,11 @@ void UPlaneCutTool::Setup()
 			EToolMessageLevel::UserWarning);
 	}
 
-	// Convert input mesh descriptions to dynamic mesh
+	// Convert input targets to dynamic mesh
 	for (int Idx = 0; Idx < Targets.Num(); Idx++)
 	{
 		FDynamicMesh3* OriginalDynamicMesh = new FDynamicMesh3;
-		FMeshDescriptionToDynamicMesh Converter;
-		Converter.Convert(UE::ToolTarget::GetMeshDescription(Targets[Idx]), *OriginalDynamicMesh);
+		*OriginalDynamicMesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[Idx]);
 		OriginalDynamicMesh->EnableAttributes();
 		TDynamicMeshScalarTriangleAttribute<int>* SubObjectIDs = new TDynamicMeshScalarTriangleAttribute<int>(OriginalDynamicMesh);
 		SubObjectIDs->Initialize(0);

@@ -226,8 +226,7 @@ void URemoveOccludedTrianglesTool::SetupPreviews()
 			OpFactory->Tool = this;
 			OpFactory->PreviewIdx = PreviewIdx;
 			OriginalDynamicMeshes[PreviewIdx] = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-			FMeshDescriptionToDynamicMesh Converter;
-			Converter.Convert(UE::ToolTarget::GetMeshDescription(Targets[TargetIdx]), *OriginalDynamicMeshes[PreviewIdx]);
+			*OriginalDynamicMeshes[PreviewIdx] = UE::ToolTarget::GetDynamicMeshCopy(Targets[TargetIdx]);
 
 			UMeshOpPreviewWithBackgroundCompute* Preview = Previews.Add_GetRef(NewObject<UMeshOpPreviewWithBackgroundCompute>(OpFactory, "Preview"));
 			Preview->Setup(GetTargetWorld(), OpFactory);

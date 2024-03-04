@@ -133,8 +133,7 @@ void UHoleFillTool::Setup()
 
 	// create mesh to operate on
 	OriginalMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(UE::ToolTarget::GetMeshDescription(Target), *OriginalMesh);
+	*OriginalMesh = UE::ToolTarget::GetDynamicMeshCopy(Target);
 
 	// initialize properties
 	Properties = NewObject<UHoleFillToolProperties>(this, TEXT("Hole Fill Settings"));

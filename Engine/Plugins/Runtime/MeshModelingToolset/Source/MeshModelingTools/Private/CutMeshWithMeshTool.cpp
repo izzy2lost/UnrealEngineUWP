@@ -117,8 +117,7 @@ void UCutMeshWithMeshTool::ConvertInputsAndSetPreviewMaterials(bool bSetPreviewM
 	for (int ComponentIdx = 0; ComponentIdx < Targets.Num(); ComponentIdx++)
 	{
 		TSharedPtr<FDynamicMesh3, ESPMode::ThreadSafe> Mesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-		FMeshDescriptionToDynamicMesh Converter;
-		Converter.Convert(UE::ToolTarget::GetMeshDescription(Targets[ComponentIdx]), *Mesh);
+		*Mesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[ComponentIdx]);
 
 		// ensure materials and attributes are always enabled
 		Mesh->EnableAttributes();

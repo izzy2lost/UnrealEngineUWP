@@ -137,8 +137,7 @@ void USkinWeightsBindingTool::Setup()
 							  [HandlePropertyChange](int32) { HandlePropertyChange(true); });
 
 	OriginalMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(UE::ToolTarget::GetMeshDescription(Targets[0]), *OriginalMesh);
+	*OriginalMesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[0]);
 
 	// Enable or override vertex colors on the original mesh.
 	OriginalMesh->EnableAttributes();

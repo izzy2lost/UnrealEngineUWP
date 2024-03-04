@@ -172,8 +172,7 @@ void ULatticeDeformerTool::Setup()
 		"Drag the lattice control points to deform the mesh"), EToolMessageLevel::UserNotification);
 
 	OriginalMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(UE::ToolTarget::GetMeshDescription(Target), *OriginalMesh);
+	*OriginalMesh = UE::ToolTarget::GetDynamicMeshCopy(Target);
 
 	// Note: Mesh will be implicitly transformed to world space by transforming the lattice; we account for whether that would invert the mesh here
 	MeshTransforms::ReverseOrientationIfNeeded(*OriginalMesh, (Cast<IPrimitiveComponentBackedTarget>(Target)->GetWorldTransform()));
