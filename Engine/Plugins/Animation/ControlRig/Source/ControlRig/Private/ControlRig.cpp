@@ -3341,6 +3341,7 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 		// did save their hiearchies. If that's the case, let's mark them as garbage and rename them before creating our own hierarchy.
 		if (!HasAnyFlags(RF_ClassDefaultObject))
 		{
+			FGCScopeGuard Guard;
 			UObject* ObjectFound = StaticFindObjectFast(URigHierarchy::StaticClass(), this, TEXT("DynamicHierarchy"), true, RF_DefaultSubObject);
 			if (ObjectFound)
 			{

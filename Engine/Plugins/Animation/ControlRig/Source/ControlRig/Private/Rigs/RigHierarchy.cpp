@@ -442,8 +442,8 @@ void URigHierarchy::Reset_Impl(bool bResetElements)
 	ChildElementCacheTopologyVersion = std::numeric_limits<uint32>::max();
 
 
-	if(!IsGarbageCollecting())
 	{
+		FGCScopeGuard Guard;
 		Notify(ERigHierarchyNotification::HierarchyReset, nullptr);
 	}
 
@@ -2925,8 +2925,8 @@ URigHierarchyController* URigHierarchy::GetController(bool bCreateIfNeeded)
 	}
 	else if(bCreateIfNeeded)
 	{
-		 if(ensure(!IsGarbageCollecting()))
 		 {
+			 FGCScopeGuard Guard;
 			 HierarchyController = NewObject<URigHierarchyController>(this, TEXT("HierarchyController"), RF_Transient);
 			 // In case we create this object from async loading thread
 			 HierarchyController->ClearInternalFlags(EInternalObjectFlags::Async);
@@ -2946,8 +2946,8 @@ UModularRigRuleManager* URigHierarchy::GetRuleManager(bool bCreateIfNeeded)
 	}
 	else if(bCreateIfNeeded)
 	{
-		if(ensure(!IsGarbageCollecting()))
 		{
+			FGCScopeGuard Guard;
 			RuleManager = NewObject<UModularRigRuleManager>(this, TEXT("RuleManager"), RF_Transient);
 			// In case we create this object from async loading thread
 			RuleManager->ClearInternalFlags(EInternalObjectFlags::Async);
