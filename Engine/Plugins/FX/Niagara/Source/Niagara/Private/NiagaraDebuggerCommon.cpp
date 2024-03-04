@@ -28,6 +28,17 @@ FNiagaraDebugHUDSettingsData::FNiagaraDebugHUDSettingsData()
 
 //////////////////////////////////////////////////////////////////////////
 
+void UNiagaraDebugHUDSettings::PostInitProperties()
+{
+	Super::PostInitProperties();
+
+	// Reset the properties we don't want to carry between editor sessions, we have to do this as all the properties are inside a
+	// data structure, and the whole data structure will go into the config rather than individual properties that specify if they should.
+	FNiagaraDebugHUDSettingsData Defaults;
+	Data.PlaybackMode			= Defaults.PlaybackMode;
+	Data.bPlaybackRateEnabled	= Defaults.bPlaybackRateEnabled;
+}
+
 void UNiagaraDebugHUDSettings::NotifyPropertyChanged()
 {
 	OnChangedDelegate.Broadcast();
