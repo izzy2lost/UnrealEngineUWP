@@ -1731,30 +1731,6 @@ bool FMapProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
 	return LocalKeyProp->UseBinaryOrNativeSerialization(Ar) || LocalValueProp->UseBinaryOrNativeSerialization(Ar);
 }
 
-bool FMapProperty::LoadFromTag(const FPropertyTag& Tag)
-{
-	if (!Super::LoadFromTag(Tag))
-	{
-		return false;
-	}
-
-	return false;
-}
-
-void FMapProperty::SaveToTag(FPropertyTag& Tag)
-{
-	Super::SaveToTag(Tag);
-
-	const FProperty* LocalKeyProp = KeyProp;
-	const FProperty* LocalValueProp = ValueProp;
-	check(LocalKeyProp);
-	check(LocalValueProp);
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	Tag.InnerType = LocalKeyProp->GetID();
-	Tag.ValueType = LocalValueProp->GetID();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-}
-
 bool FMapProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
 	if (!Super::LoadTypeName(Type, Tag))

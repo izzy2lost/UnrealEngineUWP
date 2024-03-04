@@ -1286,48 +1286,6 @@ bool FArrayProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
 	return LocalInner->UseBinaryOrNativeSerialization(Ar);
 }
 
-bool FArrayProperty::LoadFromTag(const FPropertyTag& Tag)
-{
-	if (!Super::LoadFromTag(Tag))
-	{
-		return false;
-	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	FField* Field = FField::TryConstruct(Tag.InnerType, {}, Tag.Name, RF_NoFlags);
-	if (FProperty* Property = CastField<FProperty>(Field))
-	{
-		FPropertyTag InnerTag = Tag;
-		InnerTag.Type = Tag.InnerType;
-		InnerTag.InnerType = {};
-		// Skip property types that are missing the name of the inner type.
-		// Structs have their name in a tag in the serialized data, but we cannot
-		// proceed safely unless we know if the struct used native serialization.
-		if (!Property->IsA<FStructProperty>() &&
-			!Property->IsA<FByteProperty>() &&
-			!Property->IsA<FEnumProperty>() &&
-			Property->LoadFromTag(InnerTag))
-		{
-			Inner = Property;
-			return true;
-		}
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	delete Field;
-	return false;
-}
-
-void FArrayProperty::SaveToTag(FPropertyTag& Tag)
-{
-	Super::SaveToTag(Tag);
-
-	const FProperty* LocalInner = Inner;
-	check(LocalInner);
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	Tag.InnerType = LocalInner->GetID();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-}
-
 bool FArrayProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
 	if (!Super::LoadTypeName(Type, Tag))
