@@ -611,6 +611,55 @@ namespace Horde.Server.Configuration
 			}
 		}
 
+		class JsonNodeProperty : Property
+		{
+			public JsonNodeProperty(string name, PropertyInfo propertyInfo)
+				: base(name, propertyInfo)
+			{
+			}
+
+			public override bool HasMacros() => false;
+
+			public override void ParseMacros(JsonNode jsonNode, ConfigContext context, Dictionary<string, string> macros)
+			{
+			}
+
+			public override bool HasIncludes() => false;
+
+			public override Task MergeAsync(object target, JsonNode? node, ConfigContext context, CancellationToken cancellationToken)
+			{
+				JsonNode? current = (JsonNode?)PropertyInfo.GetValue(target)!;
+				PropertyInfo.SetValue(target, MergeNodes(current, node));
+				return Task.CompletedTask;
+			}
+
+			static JsonNode? MergeNodes(JsonNode? first, JsonNode? second)
+			{
+				if (second == null)
+				{
+					return first?.DeepClone();
+				}
+				else if (first is JsonObject firstObj && second is JsonObject secondObj)
+				{
+					JsonObject mergedObj = new JsonObject(firstObj);
+					foreach ((string childName, JsonNode? childNode) in secondObj)
+					{
+						mergedObj[childName] = MergeNodes(firstObj[childName], childNode);
+					}
+					return mergedObj;
+				}
+				else
+				{
+					return second.DeepClone();
+				}
+			}
+
+			public override Task ParseIncludesAsync(JsonNode jsonNode, object targetObject, ClassConfigType targetType, ConfigContext context, CancellationToken cancellationToken)
+			{
+				return Task.CompletedTask;
+			}
+		}
+
 		class ObjectProperty : Property
 		{
 			readonly ClassConfigType _classConfigType;
@@ -787,6 +836,10 @@ namespace Horde.Server.Configuration
 			{
 				Type elementType = propertyType.GetGenericArguments()[1];
 				return new DictionaryProperty(name, propertyInfo, FindOrAddValueType(elementType));
+			}
+			else if (propertyType.IsAssignableTo(typeof(JsonNode)))
+			{
+				return new JsonNodeProperty(name, propertyInfo);
 			}
 			else
 			{
