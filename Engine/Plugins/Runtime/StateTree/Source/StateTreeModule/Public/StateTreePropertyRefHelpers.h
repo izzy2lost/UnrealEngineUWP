@@ -21,6 +21,9 @@ enum class EStateTreePropertyRefType : uint8;
 namespace UE::StateTree::PropertyRefHelpers
 {
 #if WITH_EDITOR
+	STATETREEMODULE_API extern const FName IsRefToArrayName;
+	STATETREEMODULE_API extern const FName CanRefToArrayName;
+	STATETREEMODULE_API extern const FName RefTypeName;
 	/**
 	 * @param RefProperty Property of PropertyRef type.
 	 * @param SourceProperty Property to check it's type compatibility.

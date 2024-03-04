@@ -25,9 +25,9 @@ namespace UE::StateTree::PropertyRefHelpers
 	static const FName NameName = TEXT("Name");
 	static const FName StringName = TEXT("String");
 	static const FName TextName = TEXT("Text");
-
-	static const FName IsRefToArrayName = TEXT("IsRefToArray");
-	static const FName RefTypeName = TEXT("RefType");
+	const FName IsRefToArrayName = TEXT("IsRefToArray");
+	const FName CanRefToArrayName = TEXT("CanRefToArray");
+	const FName RefTypeName = TEXT("RefType");
 	static const FName IsOptionalName = TEXT("Optional");
 
 	bool ArePropertyRefsCompatible(const FProperty& TargetRefProperty, const FProperty& SourceRefProperty, const void* TargetRefAddress, const void* SourceRefAddress)
@@ -47,86 +47,147 @@ namespace UE::StateTree::PropertyRefHelpers
 		check(IsPropertyRef(RefProperty));
 
 		const FProperty* TestProperty = &SourceProperty;
+		const bool bCanTargetRefArray = RefProperty.HasMetaData(CanRefToArrayName);
 		const bool bIsTargetRefArray = RefProperty.HasMetaData(IsRefToArrayName);
 
-		if (bIsTargetRefArray)
+		if (bIsTargetRefArray || bCanTargetRefArray)
 		{
 			if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(TestProperty))
 			{
 				TestProperty = ArrayProperty->Inner;
 			}
-			else
+			else if(!bCanTargetRefArray)
 			{
 				return false;
 			}
 		}
 
-		const FString& TargetTypeNameStr = RefProperty.GetMetaData(RefTypeName);
-		if (TargetTypeNameStr.IsEmpty())
+		FString TargetTypeNameFullStr = RefProperty.GetMetaData(RefTypeName);
+		if (TargetTypeNameFullStr.IsEmpty())
 		{
 			return false;
 		}
 
-		const FName TargetTypeName = FName(*TargetTypeNameStr);
+		TargetTypeNameFullStr.RemoveSpacesInline();
 
-		if(TargetTypeName == BoolName)
+		TArray<FString> TargetTypes;
+		TargetTypeNameFullStr.ParseIntoArray(TargetTypes, TEXT(","), true);
+
+		const FStructProperty* SourceStructProperty = CastField<FStructProperty>(TestProperty);
+		// Check inside loop are only allowed to return true to avoid shortcircuiting the loop.
+		for (const FString& TargetTypeNameStr : TargetTypes)
 		{
-			return CastField<FBoolProperty>(TestProperty) != nullptr;
-		}
-		else if(TargetTypeName == ByteName)
-		{
-			return CastField<FByteProperty>(TestProperty) != nullptr;
-		}
-		else if(TargetTypeName == Int32Name)
-		{
-			return CastField<FIntProperty>(TestProperty) != nullptr;
-		}
-		else if(TargetTypeName == Int64Name)
-		{
-			return CastField<FInt64Property>(TestProperty) != nullptr;
-		}
-		else if(TargetTypeName == FloatName)
-		{
-			return CastField<FFloatProperty>(TestProperty) != nullptr;
-		}
-		else if(TargetTypeName == DoubleName)
-		{
-			return CastField<FDoubleProperty>(TestProperty) != nullptr;
-		}
-		else if(TargetTypeName == NameName)
-		{
-			return CastField<FNameProperty>(TestProperty) != nullptr;
-		}
-		else if(TargetTypeName == StringName)
-		{
-			return CastField<FStrProperty>(TestProperty) != nullptr;
-		}
-		else if(TargetTypeName == TextName)
-		{
-			return CastField<FTextProperty>(TestProperty) != nullptr;
-		}
-		else
-		{
-			UField* TargetRefField = UClass::TryFindTypeSlow<UField>(TargetTypeNameStr);
-			if (!TargetRefField)
+			const FName TargetTypeName = FName(*TargetTypeNameStr);
+			// Compare properties metadata directly if SourceProperty is PropertyRef as well
+			if (SourceStructProperty && SourceStructProperty->Struct == FStateTreePropertyRef::StaticStruct())
+
 			{
-				TargetRefField = LoadObject<UField>(nullptr, *TargetTypeNameStr);
+				const FName SourceTypeName(SourceStructProperty->GetMetaData(RefTypeName));
+				const bool bIsSourceRefArray = SourceStructProperty->GetBoolMetaData(IsRefToArrayName);
+				if (SourceTypeName == TargetTypeName && bIsSourceRefArray == bIsTargetRefArray)
+				{
+					return true;
+				}
+
 			}
 
-			if (const FStructProperty* SourceStructProperty = CastField<FStructProperty>(TestProperty))
+			if (TargetTypeName == BoolName)
 			{
-				return SourceStructProperty->Struct->IsChildOf(Cast<UStruct>(TargetRefField));
+				if (TestProperty->IsA<FBoolProperty>())
+				{
+					return true;
+				}
+			}
+			else if (TargetTypeName == ByteName)
+			{
+				if (TestProperty->IsA<FByteProperty>())
+				{
+					return true;
+				}
+			}
+			else if (TargetTypeName == Int32Name)
+			{
+				if (TestProperty->IsA<FIntProperty>())
+				{
+					return true;
+				}
+			}
+			else if (TargetTypeName == Int64Name)
+			{
+				if (TestProperty->IsA<FInt64Property>())
+				{
+					return true;
+				}
+			}
+			else if (TargetTypeName == FloatName)
+			{
+				if (TestProperty->IsA<FFloatProperty>())
+				{
+					return true;
+				}
+			}
+			else if (TargetTypeName == DoubleName)
+			{
+				if (TestProperty->IsA<FDoubleProperty>())
+				{
+					return true;
+				}
+			}
+			else if (TargetTypeName == NameName)
+			{
+				if (TestProperty->IsA<FNameProperty>())
+				{
+					return true;
+				}
 			}
 
-			if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(TestProperty))
-			{
-				// Only referencing object of the same exact class should be allowed. Otherwise one could e.g assign UObject to AActor property through reference to UObject.
-				return ObjectProperty->PropertyClass == Cast<UStruct>(TargetRefField);
-			}
+			else if (TargetTypeName == StringName)
 
-			if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(TestProperty))
 			{
-				return EnumProperty->GetEnum() == TargetRefField;
+				if (TestProperty->IsA<FStrProperty>())
+				{
+					return true;
+				}
+			}
+			else if (TargetTypeName == TextName)
+			{
+				if (TestProperty->IsA<FTextProperty>())
+				{
+					return true;
+				}
+			}
+			else
+			{
+				UField* TargetRefField = UClass::TryFindTypeSlow<UField>(TargetTypeNameStr);
+				if (!TargetRefField)
+				{
+					TargetRefField = LoadObject<UField>(nullptr, *TargetTypeNameStr);
+				}
+
+				if (SourceStructProperty)
+				{
+					if (SourceStructProperty->Struct->IsChildOf(Cast<UStruct>(TargetRefField)))
+					{
+						return true;
+					}
+				}
+
+				if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(TestProperty))
+				{
+					// Only referencing object of the same exact class should be allowed. Otherwise one could e.g assign UObject to AActor property through reference to UObject.
+					if(ObjectProperty->PropertyClass == Cast<UStruct>(TargetRefField))
+					{
+						return true;
+
+					}
+				}
+				else if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(TestProperty))
+				{
+					if (EnumProperty->GetEnum() == TargetRefField)
+					{
+						return true;
+					}
+				}
 			}
 		}
 
@@ -365,7 +426,11 @@ namespace UE::StateTree::PropertyRefHelpers
 			}
 			else
 			{
-				checkNoEntry();
+				checkCode(
+					TArray<FString> AllowedTypes;
+					TargetTypeNameStr.ParseIntoArray(AllowedTypes, TEXT(","), true);
+					check(AllowedTypes.Num() > 1); // We are trying to bind to multiple type so its normal we can't find what the pin type should be.
+				)
 			}
 		}
 

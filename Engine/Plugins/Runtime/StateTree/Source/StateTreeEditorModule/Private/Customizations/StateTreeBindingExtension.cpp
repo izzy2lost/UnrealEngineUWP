@@ -394,8 +394,8 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		BindingOwner->GetDataViewByID(TargetPath.GetStructID(), TargetDataView);
 
 		FEdGraphPinType PinType;
-
-		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*Property) && TargetDataView.IsValid())
+		const bool bIsPropertyRef = UE::StateTree::PropertyRefHelpers::IsPropertyRef(*Property);
+		if (bIsPropertyRef && TargetDataView.IsValid())
 		{
 			// Use internal type to construct PinType if it's property of PropertyRef type.
 			TArray<FStateTreePropertyPathIndirection> TargetIndirections;
@@ -410,6 +410,8 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 			Schema->ConvertPropertyToPinType(Property, PinType);
 		}
 
+
+		FTextBuilder TooltipBuilder;
 		if (const FStateTreePropertyPath* SourcePath = EditorBindings->GetPropertyBindingSource(TargetPath))
 		{
 			const FStateTreeBindableStructDesc* SourceDesc = UE::StateTree::PropertyBinding::FindStruct(AccessibleStructs, SourcePath->GetStructID());
@@ -464,13 +466,18 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 
 					if (SourcePath->IsPathEmpty())
 					{
-						TooltipText = FText::Format(LOCTEXT("ExistingBindingTooltip", "Property is bound to {0}."), FText::FromString(SourceDesc->ToString()));
+						TooltipBuilder.AppendLineFormat(LOCTEXT("ExistingBindingTooltip", "Property is bound to {0}."), FText::FromString(SourceDesc->ToString()));
 					}
 					else
 					{
-						TooltipText = FText::Format(LOCTEXT("ExistingBindingWithPropertyTooltip", "Property is bound to {0} property {1}."), FText::FromString(SourceDesc->ToString()), FText::FromString(SourcePath->ToString()));
+						TooltipBuilder.AppendLineFormat(LOCTEXT("ExistingBindingWithPropertyTooltip", "Property is bound to {0} property {1}."), FText::FromString(SourceDesc->ToString()), FText::FromString(SourcePath->ToString()));
 					}
-					
+
+					if (bIsPropertyRef) // Update the pin type with source property so that property ref that can binds to multiple types display the binded one.
+					{
+						Schema->ConvertPropertyToPinType(SourceLeafProperty, PinType);
+					}
+
 					Image = FAppStyle::GetBrush(PropertyIcon);
 					Color = Schema->GetPinTypeColor(PinType);
 				}
@@ -491,12 +498,12 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 
 					if (SourcePath->IsPathEmpty())
 					{
-						TooltipText = FText::Format(LOCTEXT("MismatchingBindingTooltip", "Property is bound to {0}, but binding source type '{1}' does not match property type '{2}'."),
+						TooltipBuilder.AppendLineFormat(LOCTEXT("MismatchingBindingTooltip", "Property is bound to {0}, but binding source type '{1}' does not match property type '{2}'."),
 							FText::FromString(SourceDesc->ToString()), SourceType, TargetType);
 					}
 					else
 					{
-						TooltipText = FText::Format(LOCTEXT("MismatchingBindingTooltipWithProperty", "Property is bound to {0} property {1}, but binding source type '{2}' does not match property type '{3}'."),
+						TooltipBuilder.AppendLineFormat(LOCTEXT("MismatchingBindingTooltipWithProperty", "Property is bound to {0} property {1}, but binding source type '{2}' does not match property type '{3}'."),
 							FText::FromString(SourceDesc->ToString()), FText::FromString(SourcePath->ToString()), SourceType, TargetType);
 					}
 
@@ -508,7 +515,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 			{
 				// Missing source
 				Text = FText::Format(LOCTEXT("MissingSource", "???.{0}"), FText::FromString(SourcePath->ToString()));
-				TooltipText = FText::Format(LOCTEXT("MissingBindingTooltip", "Missing binding source for property path '{0}'."), FText::FromString(SourcePath->ToString()));
+				TooltipBuilder.AppendLineFormat(LOCTEXT("MissingBindingTooltip", "Missing binding source for property path '{0}'."), FText::FromString(SourcePath->ToString()));
 				Image = FCoreStyle::Get().GetBrush("Icons.ErrorWithColor");
 				Color = FLinearColor::White;
 			}
@@ -519,12 +526,31 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		{
 			// No bindings
 			Text = FText::GetEmpty();
-			TooltipText = FText::Format(LOCTEXT("BindTooltip", "Bind {0} to value from another property."), UE::StateTree::PropertyBinding::GetPropertyTypeText(Property));
+			TooltipBuilder.AppendLineFormat(LOCTEXT("BindTooltip", "Bind {0} to value from another property."), UE::StateTree::PropertyBinding::GetPropertyTypeText(Property));
+
 			Image = FAppStyle::GetBrush(PropertyIcon);
 			Color = Schema->GetPinTypeColor(PinType);
 
 			CachedSourcePath.Reset();
 		}
+
+		if (bIsPropertyRef)
+		{
+			if (Property->HasMetaData(UE::StateTree::PropertyRefHelpers::IsRefToArrayName))
+			{
+				TooltipBuilder.AppendLineFormat(LOCTEXT("PropertyRefBindingTooltip", "Supported types are Array of {0}"), FText::FromString(Property->GetMetaData(UE::StateTree::PropertyRefHelpers::RefTypeName)));
+			}
+			else
+			{
+				TooltipBuilder.AppendLineFormat(LOCTEXT("PropertyRefBindingTooltip", "Supported types are {0}"), FText::FromString(Property->GetMetaData(UE::StateTree::PropertyRefHelpers::RefTypeName)));
+				if (Property->HasMetaData(UE::StateTree::PropertyRefHelpers::CanRefToArrayName))
+				{
+					TooltipBuilder.AppendLine(LOCTEXT("PropertyRefBindingTooltip", "Supports Arrays"));
+				}
+			}
+		}
+
+		TooltipText = TooltipBuilder.ToText();
 
 		bIsDataCached = true;
 	}
