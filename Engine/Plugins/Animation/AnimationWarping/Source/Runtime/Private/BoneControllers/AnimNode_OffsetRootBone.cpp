@@ -132,7 +132,7 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 	FVector CollisionPoint;
 	FVector CollisionNormal;
 
-	if (GetCollisionTestingMode() != ECollisionResponseType::Disabled && MaxTranslationOffset > 0)
+	if (GetCollisionTestingMode() != EOffsetRootBone_CollisionTestingMode::Disabled && MaxTranslationOffset > 0)
 	{
 		const FCollisionShape CollisionShape = FCollisionShape::MakeSphere(GetCollisionTestShapeRadius());
 		
@@ -162,7 +162,7 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
     
 		if (bHit && HitResult.Distance < MaxTranslationOffset)
 		{
-			if (GetCollisionTestingMode() == ECollisionResponseType::ShrinkMaxTranslation)
+			if (GetCollisionTestingMode() == EOffsetRootBone_CollisionTestingMode::ShrinkMaxTranslation)
 			{
 				MaxTranslationOffset = HitResult.Distance;
 			}
@@ -239,7 +239,7 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 			}
 		}
 
-		if (bCollisionDetected && GetCollisionTestingMode() == ECollisionResponseType::PlanarCollision)
+		if (bCollisionDetected && GetCollisionTestingMode() == EOffsetRootBone_CollisionTestingMode::PlanarCollision)
 		{
 			float B = FVector::DotProduct(TranslationOffsetDelta, CollisionNormal);
 			if (B > UE_KINDA_SMALL_NUMBER)
@@ -487,9 +487,9 @@ float FAnimNode_OffsetRootBone::GetRotationSpeedRatio() const
 	return GET_ANIM_NODE_DATA(float, RotationSpeedRatio);
 }
 
-ECollisionResponseType FAnimNode_OffsetRootBone::GetCollisionTestingMode() const
+EOffsetRootBone_CollisionTestingMode FAnimNode_OffsetRootBone::GetCollisionTestingMode() const
 {
-	return GET_ANIM_NODE_DATA(ECollisionResponseType, CollisionTestingMode);
+	return GET_ANIM_NODE_DATA(EOffsetRootBone_CollisionTestingMode, CollisionTestingMode);
 }
 
 float FAnimNode_OffsetRootBone::GetCollisionTestShapeRadius() const
