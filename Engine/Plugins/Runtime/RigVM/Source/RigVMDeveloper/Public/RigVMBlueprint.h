@@ -8,6 +8,7 @@
 #include "RigVMCore/RigVM.h"
 #include "RigVMHost.h"
 #include "RigVMModel/RigVMClient.h"
+#include "RigVMModel/RigVMExternalDependency.h"
 #include "RigVMCompiler/RigVMCompiler.h"
 #include "RigVMCore/RigVMGraphFunctionDefinition.h"
 #include "EdGraph/RigVMEdGraph.h"
@@ -214,7 +215,7 @@ struct RIGVMDEVELOPER_API FRigVMOldPublicFunctionData
 
 
 UCLASS(BlueprintType, meta=(IgnoreClassThumbnail))
-class RIGVMDEVELOPER_API URigVMBlueprint : public UBlueprint, public IRigVMClientHost
+class RIGVMDEVELOPER_API URigVMBlueprint : public UBlueprint, public IRigVMClientHost, public IRigVMExternalDependencyManager
 {
 	GENERATED_UCLASS_BODY()
 
@@ -400,6 +401,12 @@ public:
 	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
 
 	//  --- IRigVMClientHost interface End ---
+
+	//  --- IRigVMExternalDependencyManager interface Start ---
+
+	virtual TArray<FRigVMExternalDependency> GetExternalDependenciesForCategory(const FName& InCategory) const override;
+	
+	//  --- IRigVMExternalDependencyManager interface End ---
 
 
 	FOnRigVMRequestInspectObject& OnRequestInspectObject() { return OnRequestInspectObjectEvent; }

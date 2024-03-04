@@ -2288,6 +2288,30 @@ TArray<FString> URigVMBlueprint::GeneratePythonCommands(const FString InNewBluep
 	return Commands;
 }
 
+TArray<FRigVMExternalDependency> URigVMBlueprint::GetExternalDependenciesForCategory(const FName& InCategory) const
+{
+	TArray<FRigVMExternalDependency> Dependencies;
+	if(const FRigVMClient* Client = GetRigVMClient())
+	{
+		CollectExternalDependencies(Dependencies, InCategory, Client);
+	}
+	if(const IRigVMGraphFunctionHost* FunctionHost = GetRigVMGraphFunctionHost())
+	{
+		if(const FRigVMGraphFunctionStore* FunctionStore = FunctionHost->GetRigVMGraphFunctionStore())
+		{
+			CollectExternalDependencies(Dependencies, InCategory, FunctionStore);
+		}
+	}
+
+#if WITH_EDITOR
+	const TArray<FRigVMGraphVariableDescription> MemberVariables = GetMemberVariables();
+	for(const FRigVMGraphVariableDescription& MemberVariable : MemberVariables)
+	{
+		CollectExternalDependenciesForCPPTypeObject(Dependencies, InCategory, MemberVariable.CPPTypeObject.Get());
+	}
+#endif
+	return Dependencies;
+}
 
 URigVMGraph* URigVMBlueprint::GetTemplateModel(bool bIsFunctionLibrary)
 {
