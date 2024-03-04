@@ -6,6 +6,7 @@
 #include "HAL/Platform.h"
 #include "HAL/PlatformMisc.h"
 #include "UObject/UnrealType.h"
+#include "UObject/VerseValueProperty.h"
 #include "VerseVM/Inline/VVMArrayBaseInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMEqualInline.h"
@@ -104,15 +105,6 @@ static FOpErr StopInterpreterSentry;
 
 namespace
 {
-bool CanAllocateUObjects()
-{
-	// NOTE: This is an arbitrary limit. If we have less than ~10k `UObject`s available for allocation left
-	// we're probably in a bad spot anyway. This just makes sure that there is some slack available before the
-	// limit gets hit.
-	static constexpr int32 MinAvailableObjectCount = 10 * 1024;
-	return GUObjectArray.GetObjectArrayEstimatedAvailable() >= MinAvailableObjectCount;
-}
-
 struct FExecutionState
 {
 	FOp* PC{nullptr};
@@ -1487,7 +1479,6 @@ class FInterpreter
 	template <typename OpType>
 	FOpResult NewClassImpl(OpType& Op)
 	{
-		VConstructor* Constructor = Op.Constructor.Get();
 		TArray<VClass*> InheritedClasses = {};
 		const uint32 NumInherited = Op.Inherited.Num();
 		InheritedClasses.Reserve(NumInherited);
@@ -1497,7 +1488,8 @@ class FInterpreter
 			REQUIRE_CONCRETE(CurrentArg);
 			InheritedClasses.Add(&CurrentArg.StaticCast<VClass>());
 		}
-		VClass& NewClass = VClass::New(Context, Op.Name.Get(), Op.ClassKind, *Constructor, InheritedClasses, Op.Package.Get());
+		VConstructor* Constructor = Op.Constructor.Get();
+		VClass& NewClass = VClass::New(Context, Op.Package.Get(), Op.Name.Get(), Op.ClassKind, Op.bNative, InheritedClasses, *Constructor);
 		DEF(Op.Dest, NewClass);
 		return {FOpResult::Return};
 	}
@@ -1521,11 +1513,15 @@ class FInterpreter
 		VUniqueStringSet& ArchetypeFields = *Op.Fields.Get();
 
 		// UObject or VObject?
-		const float UObjectProbablity = CVarUObjectProbablity.GetValueOnAnyThread();
-		const bool bUObjectInsteadOfVObject = UObjectProbablity > 0.0f && (UObjectProbablity > RandomUObjectProbablity.FRand());
-		if (bUObjectInsteadOfVObject)
+		bool bUObject = Class.IsNative();
+		if (!bUObject)
 		{
-			V_RUNTIME_ERROR_IF(!CanAllocateUObjects(), Context, FUtf8String::Printf("Ran out of memory for allocating `UObject`s while attempting to construct a Verse object of type %s!", *Class.GetName().AsCString()));
+			const float UObjectProbablity = CVarUObjectProbablity.GetValueOnAnyThread();
+			bUObject = UObjectProbablity > 0.0f && (UObjectProbablity > RandomUObjectProbablity.FRand());
+		}
+		if (bUObject)
+		{
+			V_RUNTIME_ERROR_IF(!verse::CanAllocateUObjects(), Context, FUtf8String::Printf("Ran out of memory for allocating `UObject`s while attempting to construct a Verse object of type %s!", *Class.GetName().AsCString()));
 
 			NewObject = Class.NewUObject(Context, ArchetypeFields, ArchetypeValues, Initializers);
 		}
@@ -1555,7 +1551,7 @@ class FInterpreter
 		{
 			UObject* Object = ObjectOperand.AsUObject();
 			UVerseVMClass* Class = static_cast<UVerseVMClass*>(Object->GetClass());
-			FProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
+			FVRestValueProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
 			FieldValue = FieldProperty->ContainerPtrToValuePtr<VRestValue>(Object)->Get(Context);
 		}
 		if (FieldValue.IsCellOfType<VProcedure>())
@@ -1612,7 +1608,7 @@ class FInterpreter
 		{
 			UObject* Object = ObjectOperand.AsUObject();
 			UVerseVMClass* Class = static_cast<UVerseVMClass*>(Object->GetClass());
-			FProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
+			FVRestValueProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
 			VRestValue& Slot = *FieldProperty->ContainerPtrToValuePtr<VRestValue>(Object);
 			bSucceeded = Def(Slot, ValueOperand);
 		}

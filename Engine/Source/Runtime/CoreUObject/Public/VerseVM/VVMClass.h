@@ -11,6 +11,7 @@
 
 class UObject;
 class UVerseVMClass;
+class FVerseNativeModule;
 
 namespace Verse
 {
@@ -145,13 +146,9 @@ struct VClass : VType
 		Interface
 	};
 
-	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
-	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames);
-
 	VUTF8String& GetName() const { return *ClassName; }
 	EKind GetKind() const { return Kind; }
-	VConstructor& GetConstructor() { return *Constructor; }
-	UVerseVMClass* GetOrCreateUClass(FAllocationContext Context) { return AssociatedUClass ? reinterpret_cast<UVerseVMClass*>(AssociatedUClass.Get().AsUObject()) : CreateUClass(Context); }
+	bool IsNative() const { return bNative; }
 
 	/// Allocate a new VObject. Also returns a sequence of VProcedures to invoke to finish the object's construction.
 	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
@@ -161,30 +158,40 @@ struct VClass : VType
 	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
 	UObject* NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers);
 
+private:
+	// Helper to find initializer procedures after archetype fields have been set on an object
+	void GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProcedure*>& OutInitializers);
+
+	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
+	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames);
+
+	UVerseVMClass* GetOrCreateUClass(FAllocationContext Context);
+
+	/// Creates an associated UClass for this VClass
+	COREUOBJECT_API UVerseVMClass* CreateUClass(FAllocationContext Context);
+
+	COREUOBJECT_API void AssembleUClass(FAllocationContext Context);
+	friend FVerseNativeModule;
+
+public:
 	/**
 	 * Creates a new class.
 	 *
+	 * @param Scope       Containing package or null.
 	 * @param Name        Name or null.
 	 * @param Kind        Class, Struct or Interface.
-	 * @param Constructor The sequence of fields and blocks in the class body.
 	 * @param Inherited   An array of base classes in order of inheritance.
-	 * @param Scope       Containing package or null.
+	 * @param Constructor The sequence of fields and blocks in the class body.
 	 */
-	static VClass& New(FAllocationContext Context, VUTF8String* Name, EKind Kind, VConstructor& Constructor, const TArray<VClass*>& Inherited, VPackage* Scope);
+	static VClass& New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor);
 
-protected:
-	VClass(FAllocationContext Context, VUTF8String* Name, EKind Kind, VConstructor& InConstructor, const TArray<VClass*>& InInherited, VPackage* InScope);
+private:
+	VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* Name, EKind Kind, bool bNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor);
 
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
 	COREUOBJECT_API static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
 
-	// Helper to find initializer procedures after archetype fields have been set on an object
-	void GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProcedure*>& OutInitializers);
-
 	bool SubsumesImpl(FRunningContext, VValue);
-
-	/// Creates an associated UClass for this VClass
-	UVerseVMClass* CreateUClass(FAllocationContext Context);
 
 	TWriteBarrier<VUTF8String> ClassName;
 
@@ -202,8 +209,11 @@ protected:
 	/// An associated UClass allows this VClass to create UObject instances
 	TWriteBarrier<VValue> AssociatedUClass;
 
-	EKind Kind; // Stored here to share alignment space with NumInherited
+	// Stored here to share alignment space with NumInherited
+	EKind Kind;
+	bool bNative;
 
+	// Super classes and interfaces. The single superclass is always first.
 	uint32 NumInherited;
 	TWriteBarrier<VClass> Inherited[];
 };

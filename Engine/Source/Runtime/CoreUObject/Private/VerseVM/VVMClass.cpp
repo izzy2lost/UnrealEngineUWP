@@ -140,55 +140,6 @@ void VClass::Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& 
 	}
 }
 
-VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames)
-{
-	UE::FExternalMutex ExternalMutex(Mutex);
-	UE::TUniqueLock Lock(ExternalMutex);
-
-	// TODO: This in the future shouldn't even require a hash table lookup when we introduce inline caching for this.
-	if (TWriteBarrier<VEmergentType>* ExistingEmergentType = EmergentTypesCache.FindByHash(GetTypeHash(ArchetypeFieldNames), ArchetypeFieldNames))
-	{
-		return *ExistingEmergentType->Get();
-	}
-
-	// Build a combined map of all fields from the archetype, this class, and superclasses.
-	// Earlier fields (from the archetype and subclasses) override later fields via `FindOrAdd`.
-	VShape::FieldsMap Fields;
-	for (const TWriteBarrier<VUniqueString>& Field : ArchetypeFieldNames)
-	{
-		// Always store fields from the archetype in the object.
-		Fields.Add({Context, Field.Get()}, VShape::VEntry::Offset());
-	}
-	for (uint32 Index = 0; Index < Constructor->NumEntries; ++Index)
-	{
-		VConstructor::VEntry& Entry = Constructor->Entries[Index];
-		if (VUniqueString* FieldName = Entry.Name.Get())
-		{
-			if (Entry.bDynamic)
-			{
-				// Store dynamically-initialized and uninitialized fields in the object.
-				Fields.FindOrAdd({Context, FieldName}, VShape::VEntry::Offset());
-			}
-			else
-			{
-				// Store constant-initialized fields in the shape.
-				Fields.FindOrAdd({Context, FieldName}, VShape::VEntry::Constant(Context, Entry.Value.Get()));
-			}
-		}
-	}
-
-	// Compute the shape by interning the set of fields.
-	VShape* NewShape = VShape::New(Context, MoveTemp(Fields));
-	VEmergentType* NewEmergentType = VEmergentType::New(Context, NewShape, this, &VObject::StaticCppClassInfo);
-	V_DIE_IF(NewEmergentType == nullptr);
-
-	// This new type will then be kept alive in the cache to re-vend if ever the exact same set of fields are used for
-	// archetype instantiation of a different object.
-	EmergentTypesCache.Add({Context, ArchetypeFieldNames}, {Context, *NewEmergentType});
-
-	return *NewEmergentType;
-}
-
 VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers)
 {
 	// Combine the class and archetype to determine which fields will live in the object.
@@ -266,6 +217,55 @@ void VClass::GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProce
 	}
 }
 
+VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames)
+{
+	UE::FExternalMutex ExternalMutex(Mutex);
+	UE::TUniqueLock Lock(ExternalMutex);
+
+	// TODO: This in the future shouldn't even require a hash table lookup when we introduce inline caching for this.
+	if (TWriteBarrier<VEmergentType>* ExistingEmergentType = EmergentTypesCache.FindByHash(GetTypeHash(ArchetypeFieldNames), ArchetypeFieldNames))
+	{
+		return *ExistingEmergentType->Get();
+	}
+
+	// Build a combined map of all fields from the archetype, this class, and superclasses.
+	// Earlier fields (from the archetype and subclasses) override later fields via `FindOrAdd`.
+	VShape::FieldsMap Fields;
+	for (const TWriteBarrier<VUniqueString>& Field : ArchetypeFieldNames)
+	{
+		// Always store fields from the archetype in the object.
+		Fields.Add({Context, Field.Get()}, VShape::VEntry::Offset());
+	}
+	for (uint32 Index = 0; Index < Constructor->NumEntries; ++Index)
+	{
+		VConstructor::VEntry& Entry = Constructor->Entries[Index];
+		if (VUniqueString* FieldName = Entry.Name.Get())
+		{
+			if (Entry.bDynamic)
+			{
+				// Store dynamically-initialized and uninitialized fields in the object.
+				Fields.FindOrAdd({Context, FieldName}, VShape::VEntry::Offset());
+			}
+			else
+			{
+				// Store constant-initialized fields in the shape.
+				Fields.FindOrAdd({Context, FieldName}, VShape::VEntry::Constant(Context, Entry.Value.Get()));
+			}
+		}
+	}
+
+	// Compute the shape by interning the set of fields.
+	VShape* NewShape = VShape::New(Context, MoveTemp(Fields));
+	VEmergentType* NewEmergentType = VEmergentType::New(Context, NewShape, this, &VObject::StaticCppClassInfo);
+	V_DIE_IF(NewEmergentType == nullptr);
+
+	// This new type will then be kept alive in the cache to re-vend if ever the exact same set of fields are used for
+	// archetype instantiation of a different object.
+	EmergentTypesCache.Add({Context, ArchetypeFieldNames}, {Context, *NewEmergentType});
+
+	return *NewEmergentType;
+}
+
 UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 {
 	ensure(!AssociatedUClass && Kind != EKind::Interface); // Only an actual class should be associated with a UClass
@@ -281,13 +281,9 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 #endif
 
 	VClass* SuperClass = nullptr;
-	for (uint32 Index = 0; Index < NumInherited; ++Index)
+	if (0 < NumInherited && Inherited[0]->GetKind() == VClass::EKind::Class)
 	{
-		if (Inherited[Index]->GetKind() == VClass::EKind::Class)
-		{
-			SuperClass = Inherited[Index].Get();
-			break;
-		}
+		SuperClass = Inherited[0].Get();
 	}
 	UClass* SuperUClass = SuperClass ? SuperClass->GetOrCreateUClass(Context) : UObject::StaticClass();
 	NewClass->SetSuperStruct(SuperUClass);
@@ -302,7 +298,7 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 		if (VUniqueString* Field = Entry.Name.Get())
 		{
 			// Store all fields in the UObject, none in the shape
-			AllFields.Add({Context, Entry.Name.Get()}, VShape::VEntry::Offset());
+			AllFields.Add({Context, Entry.Name.Get()}, VShape::VEntry::FProperty());
 		}
 	}
 	VShape* ThisShape = VShape::New(Context, MoveTemp(AllFields));
@@ -314,13 +310,10 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 	FField** PrevProperty = &NewClass->ChildProperties;
 	for (auto& Pair : ThisShape->Fields)
 	{
-		check(Pair.Value.Type == EFieldType::Offset);
-
 		const VShape::VEntry* SuperField = SuperShape ? SuperShape->GetField(Context, *Pair.Key.Get()) : nullptr;
 		if (SuperField)
 		{
 			// If the super shape has it, recycle the same property
-			Pair.Value.Type = EFieldType::FProperty;
 			Pair.Value.Property = SuperField->Property;
 		}
 		else
@@ -328,7 +321,6 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 			// Otherwise create a new property for it
 			const FName FieldName = FName(Pair.Key.Get()->AsCString());
 			FVRestValueProperty* FieldProperty = new FVRestValueProperty(NewClass, FieldName, RF_NoFlags);
-			Pair.Value.Type = EFieldType::FProperty;
 			Pair.Value.Property = FieldProperty;
 
 			*PrevProperty = FieldProperty;
@@ -341,7 +333,38 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 	NewClass->Bind();
 	NewClass->StaticLink(/*bRelinkExistingProperties =*/true);
 
+	AssociatedUClass.Set(Context, NewClass);
+
+	// Don't create the CDO for native classes until they've been bound.
+	if (!IsNative())
+	{
+		AssembleUClass(Context);
+	}
+
+	return NewClass;
+}
+
+void VClass::AssembleUClass(FAllocationContext Context)
+{
+	ensure(AssociatedUClass);
+	UVerseVMClass* NewClass = static_cast<UVerseVMClass*>(AssociatedUClass.Get().AsUObject());
+	VShape* ThisShape = NewClass->Shape.Get();
+
+	if (NewClass->ClassDefaultObject != nullptr)
+	{
+		return;
+	}
+
+	if (0 < NumInherited && Inherited[0]->GetKind() == VClass::EKind::Class)
+	{
+		Inherited[0]->AssembleUClass(Context);
+	}
+
 	// 5) Create and initialize CDO
+
+	// Collect all UObjects referenced by FProperties and assemble the GC token stream
+	NewClass->CollectBytecodeAndPropertyReferencedObjectsRecursively();
+	NewClass->AssembleReferenceTokenStream(/*bForce=*/true);
 
 	UObject* CDO = NewClass->GetDefaultObject();
 	V_DIE_UNLESS(CDO);
@@ -365,13 +388,6 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 			}
 		}
 	}
-
-	// Collect all UObjects referenced by FProperties and assemble the GC token stream
-	NewClass->CollectBytecodeAndPropertyReferencedObjectsRecursively();
-	NewClass->AssembleReferenceTokenStream(/*bForce=*/true);
-
-	AssociatedUClass.Set(Context, NewClass);
-	return NewClass;
 }
 
 bool VClass::SubsumesImpl(FRunningContext Context, VValue Value)

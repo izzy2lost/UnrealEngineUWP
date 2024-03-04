@@ -5,7 +5,7 @@
 
 #include "VerseVM/VVMUClass.h"
 
-FORCEINLINE_DEBUGGABLE FProperty* UVerseVMClass::GetPropertyForField(Verse::FAllocationContext Context, Verse::VUniqueString& FieldName) const
+FORCEINLINE_DEBUGGABLE FVRestValueProperty* UVerseVMClass::GetPropertyForField(Verse::FAllocationContext Context, Verse::VUniqueString& FieldName) const
 {
 	using namespace Verse;
 

@@ -30,6 +30,10 @@ inline VShape::VEntry::VEntry()
 	: Index(0)
 	, Type(EFieldType::Offset) {}
 
+inline VShape::VEntry::VEntry(FVRestValueProperty* InProperty)
+	: Property(InProperty)
+	, Type(EFieldType::FProperty) {}
+
 inline VShape::VEntry::VEntry(FAccessContext Context, VValue InConstant)
 	: Value(Context, InConstant)
 	, Type(EFieldType::Constant) {}

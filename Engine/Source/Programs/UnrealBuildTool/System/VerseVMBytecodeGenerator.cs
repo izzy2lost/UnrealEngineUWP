@@ -15,6 +15,7 @@ namespace UnrealBuildTool
 		{
 			LabelOffset,
 			ClassKind,
+			Bool,
 		}
 
 		internal enum Role
@@ -75,6 +76,8 @@ namespace UnrealBuildTool
 						return "FLabelOffset";
 					case CppType.ClassKind:
 						return "VClass::EKind";
+					case CppType.Bool:
+						return "bool";
 				}
 				return "#error";
 			}
@@ -964,11 +967,12 @@ namespace UnrealBuildTool
 
 			Inst("NewClass")
 				.Arg("Dest", Role.UnifyDef)
-				.Arg("Constructor", Role.Immediate, Arity.Fixed, "VConstructor")
-				.Arg("Inherited", Role.Use, Arity.Variadic)
-				.Arg("Name", Role.Immediate, Arity.Fixed, "VUTF8String")
 				.Arg("Package", Role.Immediate, Arity.Fixed, "VPackage")
+				.Arg("Name", Role.Immediate, Arity.Fixed, "VUTF8String")
 				.Const("ClassKind", CppType.ClassKind)
+				.Const("bNative", CppType.Bool)
+				.Arg("Inherited", Role.Use, Arity.Variadic)
+				.Arg("Constructor", Role.Immediate, Arity.Fixed, "VConstructor")
 				.Suspends();
 
 			Inst("NewObject")

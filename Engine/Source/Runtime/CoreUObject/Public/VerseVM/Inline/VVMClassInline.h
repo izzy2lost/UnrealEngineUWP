@@ -34,17 +34,18 @@ inline uint32 FEmergentTypesCacheKeyFuncs::GetKeyHash(const VUniqueStringSet& Ke
 	return GetTypeHash(Key);
 }
 
-inline VClass& VClass::New(FAllocationContext Context, VUTF8String* Name, EKind Kind, VConstructor& Constructor, const TArray<VClass*>& Inherited, VPackage* Scope)
+inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor)
 {
 	const size_t NumBytes = offsetof(VClass, Inherited) + Inherited.Num() * sizeof(Inherited[0]);
-	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Name, Kind, Constructor, Inherited, Scope);
+	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Scope, Name, Kind, bNative, Inherited, Constructor);
 }
 
-inline VClass::VClass(FAllocationContext Context, VUTF8String* InName, EKind InKind, VConstructor& InConstructor, const TArray<VClass*>& InInherited, VPackage* InScope)
+inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* InName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor)
 	: VType(Context, &GlobalTrivialEmergentType.Get(Context))
 	, ClassName(Context, InName)
 	, Scope(Context, InScope)
 	, Kind(InKind)
+	, bNative(bInNative)
 	, NumInherited(InInherited.Num())
 {
 	if (InInherited.IsEmpty())
@@ -60,6 +61,7 @@ inline VClass::VClass(FAllocationContext Context, VUTF8String* InName, EKind InK
 		Extend(Fields, Entries, InConstructor);
 		for (uint32 Index = InInherited.Num(); Index-- > 0;)
 		{
+			V_DIE_IF(Index != 0 && InInherited[Index]->Kind == EKind::Class);
 			Extend(Fields, Entries, *InInherited[Index]->Constructor.Get());
 		}
 		Constructor.Set(Context, VConstructor::New(Context, Entries));

@@ -4,6 +4,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "UObject/Class.h"
+#include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMRestValue.h"
 #include "VerseVM/VVMShape.h"
 
@@ -21,10 +22,17 @@ class UVerseVMClass : public UClass
 public:
 	COREUOBJECT_API UVerseVMClass(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
-	FProperty* GetPropertyForField(Verse::FAllocationContext Context, Verse::VUniqueString& FieldName) const;
+	FVRestValueProperty* GetPropertyForField(Verse::FAllocationContext Context, Verse::VUniqueString& FieldName) const;
 
 	Verse::TWriteBarrier<Verse::VShape> Shape;
 	Verse::TWriteBarrier<Verse::VClass> Class;
 };
 
+namespace Verse
+{
+inline UVerseVMClass* VClass::GetOrCreateUClass(FAllocationContext Context)
+{
+	return AssociatedUClass ? static_cast<UVerseVMClass*>(AssociatedUClass.Get().AsUObject()) : CreateUClass(Context);
+}
+} // namespace Verse
 #endif
