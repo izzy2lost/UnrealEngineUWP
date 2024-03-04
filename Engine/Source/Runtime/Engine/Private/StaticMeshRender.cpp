@@ -475,9 +475,6 @@ bool FStaticMeshSceneProxy::GetInstanceWorldPositionOffsetDisableDistance(float&
 
 FStaticMeshSceneProxy::~FStaticMeshSceneProxy()
 {
-#if RHI_RAYTRACING
-	ReleaseDynamicRayTracingGeometries();
-#endif
 }
 
 void FStaticMeshSceneProxy::AddSpeedTreeWind()
@@ -773,6 +770,10 @@ void FStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHI
 void FStaticMeshSceneProxy::DestroyRenderThreadResources()
 {
 	FPrimitiveSceneProxy::DestroyRenderThreadResources();
+
+#if RHI_RAYTRACING
+	ReleaseDynamicRayTracingGeometries();
+#endif
 
 	// Call here because it uses RenderData from the StaticMesh which is not guaranteed to still be valid after this DestroyRenderThreadResources call
 	RemoveSpeedTreeWind();
