@@ -2,6 +2,7 @@
 
 #include "AvaSVGEditorModule.h"
 #include "AvaInteractiveToolsDelegates.h"
+#include "GameFramework/Actor.h"
 #include "IAvalancheInteractiveToolsModule.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaBevelModifier.h"
@@ -19,6 +20,7 @@ void FAvaSVGEditorModule::StartupModule()
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().AddRaw(this, &FAvaSVGEditorModule::RegisterTools);
 
 	USVGEngineSubsystem::OnSVGActorSplit().BindRaw(this, &FAvaSVGEditorModule::OnSVGActorSplit);
+	USVGEngineSubsystem::OnSVGShapesUpdated().BindRaw(this, &FAvaSVGEditorModule::OnSVGShapesUpdated);
 }
 
 void FAvaSVGEditorModule::ShutdownModule()
@@ -26,6 +28,7 @@ void FAvaSVGEditorModule::ShutdownModule()
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().RemoveAll(this);
 
 	USVGEngineSubsystem::OnSVGActorSplit().Unbind();
+	USVGEngineSubsystem::OnSVGShapesUpdated().Unbind();
 }
 
 void FAvaSVGEditorModule::RegisterTools(IAvalancheInteractiveToolsModule* InModule)
@@ -125,6 +128,25 @@ void FAvaSVGEditorModule::OnSVGActorSplit(ASVGShapesParentActor* InSVGShapesPare
 			}
 		}
 	}
+}
+
+void FAvaSVGEditorModule::OnSVGShapesUpdated(AActor* InActor) const
+{
+	const UActorModifierCoreSubsystem* ModifierCoreSubsystem = UActorModifierCoreSubsystem::Get();
+
+	if (!ModifierCoreSubsystem)
+	{
+		return;
+	}
+
+	UActorModifierCoreStack* ModifierStack = ModifierCoreSubsystem->GetActorModifierStack(InActor);
+
+	if (!ModifierStack)
+	{
+		return;
+	}
+
+ 	ModifierStack->MarkModifierDirty();
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ProceduralMeshes/SVGDynamicMeshComponent.h"
-
 #include "DynamicMesh/MeshTransforms.h"
 #include "GeometryScript/GeometryScriptSelectionTypes.h"
 #include "GeometryScript/MeshSimplifyFunctions.h"
@@ -364,6 +363,8 @@ void USVGDynamicMeshComponent::LoadStoredMesh()
 		RegenerateMesh();
 		StoreCurrentMesh();
 	}
+
+	MarkSVGMeshUpdated();
 }
 
 void USVGDynamicMeshComponent::PostLoad()

@@ -8,6 +8,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/Paths.h"
+#include "SVGActor.h"
 #include "SVGImporterUtils.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -148,6 +149,8 @@ void UJoinedSVGDynamicMeshComponent::LoadStoredMesh()
 	{
 		StoreCurrentMesh();
 	}
+
+	MarkSVGMeshUpdated();
 }
 
 void UJoinedSVGDynamicMeshComponent::PostLoad()
