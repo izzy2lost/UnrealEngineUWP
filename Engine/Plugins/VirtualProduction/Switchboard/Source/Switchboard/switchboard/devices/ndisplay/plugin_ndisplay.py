@@ -324,10 +324,12 @@ class DevicenDisplay(DeviceUnreal):
                 "dx11",
                 "dx11 -sm5",
                 "dx11 -sm6",
-                "dx12", 
-                "dx12 -sm5", 
-                "dx12 -sm6", 
-                "vulkan"
+                "dx12",
+                "dx12 -sm5",
+                "dx12 -sm6",
+                "vulkan",
+                "vulkan -sm5",
+                "vulkan -sm6"
             ],
         ),
         'multiplayer_mode': OptionSetting(
