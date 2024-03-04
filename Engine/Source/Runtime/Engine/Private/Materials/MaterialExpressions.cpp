@@ -16923,13 +16923,6 @@ int32 UMaterialExpressionMaterialFunctionCall::Compile(class FMaterialCompiler* 
 		return Compiler->Errorf(TEXT("Material Functions with control flow are only supported with new HLSL translator"));
 	}
 
-	if (!MaterialFunction->GetBaseFunction()->bAllExpressionsLoadedCorrectly)
-	{
-		return Compiler->Errorf(TEXT("Called function '%s' is in an invalid state because some expressions didn't load correctly. "
-			"Please open the affected function, review and correct the expression graph then save again."),
-			*MaterialFunction->GetBaseFunction()->GetFullName());
-	}
-
 	// Verify that all function inputs and outputs are in a valid state to be linked into this material for compiling
 	for (int32 i = 0; i < FunctionInputs.Num(); i++)
 	{
