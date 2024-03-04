@@ -58,6 +58,11 @@ TSet<TObjectPtr<UDataLayerInstance>>& URuntimeHashExternalStreamingObjectBase::G
 	return DataLayerInstances;
 }
 
+const UObject* URuntimeHashExternalStreamingObjectBase::GetLevelMountPointContextObject() const
+{
+	return GetRootExternalDataLayerAsset();
+}
+
 UWorld* URuntimeHashExternalStreamingObjectBase::GetOwningWorld() const
 {
 	// Once OnStreamingObjectLoaded is called and OwningWorld is set, use this cached value

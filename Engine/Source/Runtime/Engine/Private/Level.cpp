@@ -3548,11 +3548,8 @@ bool ULevel::HasAnyActorsOfType(UClass *SearchType)
 }
 
 #if WITH_EDITOR
-FString ULevel::GetActorPackageName(UPackage* InLevelPackage, EActorPackagingScheme ActorPackagingScheme, const FString& InActorPath, const UObject* InLevelMountPointContext)
+FString ULevel::ResolveRootPath(const FString& LevelPackageName, const UObject* InLevelMountPointContext)
 {
-	check(InLevelPackage);
-	const FString LevelPackageName = InLevelPackage->GetName();
-
 	TOptional<FString> ResolvedLevelMountPoint;
 	if (InLevelMountPointContext)
 	{
@@ -3566,9 +3563,16 @@ FString ULevel::GetActorPackageName(UPackage* InLevelPackage, EActorPackagingSch
 			}
 		}
 	}
-	
+
 	// If ResolvedLevelMountPoint is not set, fallback on LevelPackageName
 	const FString LevelRootPath = ResolvedLevelMountPoint.Get(LevelPackageName);
+	return LevelRootPath;
+}
+
+FString ULevel::GetActorPackageName(UPackage* InLevelPackage, EActorPackagingScheme ActorPackagingScheme, const FString& InActorPath, const UObject* InLevelMountPointContext)
+{
+	check(InLevelPackage);
+	const FString LevelRootPath = ULevel::ResolveRootPath(InLevelPackage->GetName(), InLevelMountPointContext);
 	return ULevel::GetActorPackageName(ULevel::GetExternalActorsPath(LevelRootPath), ActorPackagingScheme, InActorPath);
 }
 

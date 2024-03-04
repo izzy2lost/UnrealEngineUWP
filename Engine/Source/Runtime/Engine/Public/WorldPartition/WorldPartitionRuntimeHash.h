@@ -77,6 +77,7 @@ public:
 	virtual const UExternalDataLayerInstance* GetRootExternalDataLayerInstance() const override { return RootExternalDataLayerInstance; }
 	// ~End IDataLayerInstanceProvider
 	UExternalDataLayerInstance* GetRootExternalDataLayerInstance() { return const_cast<UExternalDataLayerInstance*>(RootExternalDataLayerInstance.Get()); }
+	ENGINE_API const UObject* GetLevelMountPointContextObject() const;
 
 #if WITH_EDITOR
 	UE_DEPRECATED(5.4, "PopulateGeneratorPackageForCook is depreacted and was replaced by OnPopulateGeneratorPackageForCook")

@@ -716,4 +716,7 @@ private:
 	friend class AWorldPartitionReplay;
 	friend class UWorldPartitionSubsystem;
 	friend class UExternalDataLayerManager;
+#if WITH_EDITOR
+	friend class FScopedCookingExternalStreamingObject;
+#endif
 };
