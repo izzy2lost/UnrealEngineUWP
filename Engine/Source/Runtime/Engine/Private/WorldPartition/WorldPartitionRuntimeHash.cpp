@@ -204,14 +204,14 @@ URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::CreateExter
 }
 
 #if WITH_EDITOR
-void UWorldPartitionRuntimeHash::OnBeginPlay()
+void UWorldPartitionRuntimeHash::PrepareEditorGameWorld()
 {
 	// Mark always loaded actors so that the Level will force reference to these actors for PIE.
 	// These actor will then be duplicated for PIE during the PIE world duplication process
 	ForceExternalActorLevelReference(/*bForceExternalActorLevelReferenceForPIE*/true);
 }
 
-void UWorldPartitionRuntimeHash::OnEndPlay()
+void UWorldPartitionRuntimeHash::ShutdownEditorGameWorld()
 {
 	// Unmark always loaded actors
 	ForceExternalActorLevelReference(/*bForceExternalActorLevelReferenceForPIE*/false);

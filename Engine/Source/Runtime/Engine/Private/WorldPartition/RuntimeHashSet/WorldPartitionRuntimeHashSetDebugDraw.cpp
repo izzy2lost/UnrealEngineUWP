@@ -65,7 +65,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 	TMap<FName, TArray<const FRuntimePartitionStreamingData*>> FilteredStreamingObjects;
 	ForEachStreamingData([&FilteredStreamingObjects](const FRuntimePartitionStreamingData& StreamingData)
 	{
-		if (StreamingData.StreamingCells.Num())
+		if (StreamingData.SpatiallyLoadedCells.Num())
 		{
 			if (FWorldPartitionDebugHelper::IsDebugRuntimeHashGridShown(StreamingData.Name))
 			{
@@ -138,7 +138,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 				const FVector2D CellBoundsSize = FVector2D(Cell->GetCellBounds().GetSize());
 				const FVector2D CellBoundsMin = FVector2D(Cell->GetCellBounds().Min);
 
-				float CellOpacity = 0.0f;;
+				float CellOpacity = 0.0f;
 				TArray<FLinearColor> CellColors;
 
 				switch (GShowRuntimeHashSetDebugDisplayMode)
@@ -352,7 +352,7 @@ void UWorldPartitionRuntimeHashSet::Draw3D(const TArray<FWorldPartitionStreaming
 					const FVector2D CellBoundsSize = FVector2D(Cell->GetCellBounds().GetSize());
 					const FVector2D CellBoundsMin = FVector2D(Cell->GetCellBounds().Min);
 
-					float CellOpacity = 0.0f;;
+					float CellOpacity = 0.0f;
 					TArray<FLinearColor> CellColors;
 
 					switch (GShowRuntimeHashSetDebugDisplayMode)

@@ -14,10 +14,7 @@ struct FCellCoord
 		, Level(InLevel)
 	{}
 
-	int64 X;
-	int64 Y;
-	int64 Z;
-	int32 Level;
+	static FCellCoord Invalid;
 
 	inline FString ToString() const
 	{
@@ -66,7 +63,14 @@ struct FCellCoord
 		HashBuilder << CellCoord.X << CellCoord.Y << CellCoord.Z << CellCoord.Level;
 		return HashBuilder.GetHash();
 	}
+
+	int64 X;
+	int64 Y;
+	int64 Z;
+	int32 Level;
 };
+
+FCellCoord FCellCoord::Invalid(0, 0, 0, -1);
 
 static bool GPackageWasDirty = false;
 void URuntimePartitionLHGrid::PreEditChange(FProperty* InPropertyAboutToChange)
@@ -142,15 +146,28 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 	TMap<FCellCoord, TArray<const IStreamingGenerationContext::FActorSetInstance*>> CellsActorSetInstances;
 	for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : *InParams.ActorSetInstances)
 	{
-		const int32 GridLevel = FCellCoord::GetLevelForBox(ActorSetInstance->Bounds, CellSize);
-		const FCellCoord CellCoord = FCellCoord::GetCellCoords(ActorSetInstance->Bounds.GetCenter(), CellSize, GridLevel);
-		CellsActorSetInstances.FindOrAdd(CellCoord).Add(ActorSetInstance);
+		if (ActorSetInstance->bIsSpatiallyLoaded)
+		{
+			const int32 GridLevel = FCellCoord::GetLevelForBox(ActorSetInstance->Bounds, CellSize);
+			const FCellCoord CellCoord = FCellCoord::GetCellCoords(ActorSetInstance->Bounds.GetCenter(), CellSize, GridLevel);
+			CellsActorSetInstances.FindOrAdd(CellCoord).Add(ActorSetInstance);
+		}
+		else
+		{
+			CellsActorSetInstances.FindOrAdd(FCellCoord::Invalid).Add(ActorSetInstance);
+		}
 	}
 
 	for (auto& [CellCoord, CellActorSetInstances] : CellsActorSetInstances)
 	{
-		URuntimePartition::FCellDesc& CellDesc = OutResult.RuntimeCellDescs.Emplace_GetRef(CreateCellDesc(CellCoord.ToString(), true, CellCoord.Level, CellActorSetInstances));
-		CellDesc.CellBounds = FCellCoord::GetCellBounds(CellCoord, CellSize);
+		const bool bIsSpatiallyLoaded = CellCoord != FCellCoord::Invalid;
+
+		URuntimePartition::FCellDesc& CellDesc = OutResult.RuntimeCellDescs.Emplace_GetRef(CreateCellDesc(CellCoord.ToString(), bIsSpatiallyLoaded, CellCoord.Level, CellActorSetInstances));
+
+		if (bIsSpatiallyLoaded)
+		{
+			CellDesc.CellBounds = FCellCoord::GetCellBounds(CellCoord, CellSize);
+		}
 	}
 
 	return true;

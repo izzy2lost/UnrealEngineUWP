@@ -80,7 +80,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 					const int32 HLODIndex = RuntimePartitionDesc.HLODSetups.Num();
 					FRuntimePartitionHLODSetup& HLODSetup = RuntimePartitionDesc.HLODSetups.AddDefaulted_GetRef();
 
-					HLODSetup.Name = HLODGridName.IsNone() ? NAME_PersistentLevel : HLODGridName;
+					HLODSetup.Name = HLODGridName;
 					HLODSetup.bIsSpatiallyLoaded = !HLODGridName.IsNone();
 					HLODSetup.HLODLayers = HLODLayers.Array();
 
@@ -93,7 +93,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 					}
 					else
 					{
-						HLODSetup.PartitionLayer = NewObject<URuntimePartitionPersistent>(HashSet, NAME_None);;
+						HLODSetup.PartitionLayer = NewObject<URuntimePartitionPersistent>(HashSet, NAME_None);
 						HLODSetup.PartitionLayer->LoadingRange = 0;
 					}
 

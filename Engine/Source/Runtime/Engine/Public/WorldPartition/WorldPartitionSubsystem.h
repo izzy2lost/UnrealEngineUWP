@@ -60,6 +60,7 @@ public:
 	//~ End USubsystem Interface.
 
 	//~ Begin UWorldSubsystem Interface.
+	ENGINE_API virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 	ENGINE_API virtual void UpdateStreamingState() override;
 	ENGINE_API virtual void OnWorldComponentsUpdated(UWorld& World) override;
 	//~ End UWorldSubsystem Interface.
