@@ -32,7 +32,8 @@ namespace mu
     class Node;
     class NodeTransformedObject;
 
-	typedef TFunction<UE::Tasks::FTaskEvent(int32, TSharedPtr<Ptr<Image>>)> FReferencedResourceFunc;
+	typedef TFunction<UE::Tasks::FTaskEvent(int32, TSharedPtr<Ptr<Image>>, bool)> FReferencedResourceFunc;
+	typedef TFunction<void(float)> FReferencedResourceGameThreadTickFunc;
 
     //! \brief Options used to compile the models with a compiler.
     class MUTABLETOOLS_API CompilerOptions : public RefCounted
@@ -83,7 +84,7 @@ namespace mu
 		void SetImagePixelFormatOverride(const FImageOperator::FImagePixelFormatFunc&);
 
 		/** */
-		void SetReferencedResourceCallback(const FReferencedResourceFunc&);
+		void SetReferencedResourceCallback(const FReferencedResourceFunc&, const FReferencedResourceGameThreadTickFunc&);
 
         //! Different data packing strategies
         enum class TextureLayoutStrategy : uint8

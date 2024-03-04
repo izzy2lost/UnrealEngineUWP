@@ -813,7 +813,8 @@ namespace mu
 
 							TSharedPtr< Ptr<Image> > ResolveImage = MakeShared<Ptr<Image>>();
 
-							UE::Tasks::FTaskEvent ReferenceCompletionEvent = InOptions->OptimisationOptions.ReferencedResourceProvider(ImageID, ResolveImage);
+							constexpr bool bRunImmediatlyIfPossible = false;
+							UE::Tasks::FTaskEvent ReferenceCompletionEvent = InOptions->OptimisationOptions.ReferencedResourceProvider(ImageID, ResolveImage, bRunImmediatlyIfPossible);
 
 							UE::Tasks::FTask CompleteTask = UE::Tasks::Launch(TEXT("MutableResolveComplete"),
 								[SubgraphRoot, InOptions, ResolveImage, &ASTAccessLock]()
@@ -885,7 +886,20 @@ namespace mu
 			// Wait for pending tasks
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ConstantGenerator_WaitPending);
-				LaunchTask.Wait();
+				if (!IsInGameThread())
+				{
+					LaunchTask.Wait();
+				}
+				else
+				{
+					const FReferencedResourceGameThreadTickFunc& ManualGameTick = InOptions->OptimisationOptions.ReferencedResourceProviderTick;
+
+					constexpr float FakeTimeStep = 0.1f;
+					while (!LaunchTask.Wait(FakeTimeStep))
+					{
+						ManualGameTick(FakeTimeStep);
+					}
+				}
 			}
 		}
 
@@ -919,7 +933,8 @@ namespace mu
 						auto ImmediateCompleteFunc = [SubgraphRoot, InOptions, ImageID]()
 							{
 								TSharedPtr< Ptr<Image> > ResolveImage = MakeShared<Ptr<Image>>();
-								UE::Tasks::FTaskEvent ReferenceCompletionEvent = InOptions->OptimisationOptions.ReferencedResourceProvider(ImageID, ResolveImage);
+								constexpr bool bRunImmediatlyIfPossible = true;
+								UE::Tasks::FTaskEvent ReferenceCompletionEvent = InOptions->OptimisationOptions.ReferencedResourceProvider(ImageID, ResolveImage, bRunImmediatlyIfPossible);
 								ReferenceCompletionEvent.Wait();
 								Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
 								ConstantOp->type = OP_TYPE::IM_CONSTANT;
