@@ -555,21 +555,46 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 #endif
 	}
 
-	static void DrawTaperedCylinder(FPrimitiveDrawInterface* PDI, const ::Chaos::FTaperedCylinder& TaperedCylinder, const FQuat& Rotation, const FVector& Position, const FLinearColor& Color)
+#if WITH_EDITOR
+	static void AppendTaperedCylinderTriangles(FDynamicMeshBuilder& MeshBuilder, const FVector3f& Position1, const FVector3f& Position2, const FRealSingle Radius1, const FRealSingle Radius2, const int32 NumSides, const FLinearColor& Color)
 	{
-		const FReal HalfHeight = TaperedCylinder.GetHeight() * 0.5f;
-		const FReal Radius1 = TaperedCylinder.GetRadius1();
-		const FReal Radius2 = TaperedCylinder.GetRadius2();
-		const FVector Position1 = Position + Rotation.RotateVector(TaperedCylinder.GetX1());
-		const FVector Position2 = Position + Rotation.RotateVector(TaperedCylinder.GetX2());
+		const FQuat4f Q = (Position2 - Position1).ToOrientationQuat();
+		const FVector3f I = Q.GetRightVector();
+		const FVector3f J = Q.GetUpVector();
+		const FVector3f K = Q.GetForwardVector();
+
+		const FRealSingle AngleDelta = (FRealSingle)2. * (FRealSingle)PI / NumSides;
+		int32 LastVertex1 = MeshBuilder.AddVertex(FDynamicMeshVertex(Position1 + I * Radius1, -K, I, FVector2f(0.f, 0.f), Color.ToFColor(true)));
+		int32 LastVertex2 = MeshBuilder.AddVertex(FDynamicMeshVertex(Position2 + I * Radius2, -K, I, FVector2f(1.f, 0.f), Color.ToFColor(true))); 
+		for (int32 SideIndex = 1; SideIndex <= NumSides; ++SideIndex)
+		{
+			const FRealSingle Angle = AngleDelta * FRealSingle(SideIndex);
+			const FVector3f ArcPos = I * FMath::Cos(Angle) + J * FMath::Sin(Angle);
+			
+			const FVector3f Pos1 = Position1 + ArcPos * Radius1;
+			const FVector3f Pos2 = Position2 + ArcPos * Radius2;
+			const FVector3f Normal = (Pos1 - Position1).GetSafeNormal();
+
+			const int32 Vertex1 = MeshBuilder.AddVertex(FDynamicMeshVertex(Pos1, -K, Normal, FVector2f(0.f, 0.f), Color.ToFColor(true)));
+			const int32 Vertex2 = MeshBuilder.AddVertex(FDynamicMeshVertex(Pos2, -K, Normal, FVector2f(1.f, 0.f), Color.ToFColor(true)));
+			MeshBuilder.AddTriangle(LastVertex1, LastVertex2, Vertex1);
+			MeshBuilder.AddTriangle(LastVertex2, Vertex2, Vertex1);
+
+			LastVertex1 = Vertex1;
+			LastVertex2 = Vertex2;
+		}
+	}
+#endif
+
+	static void DrawTaperedCylinder(FPrimitiveDrawInterface* PDI, const FVector& Position1, const FVector& Position2, const FReal Radius1, const FReal Radius2, const int32 NumSides, const FLinearColor& Color)
+	{
 		const FQuat Q = (Position2 - Position1).ToOrientationQuat();
 		const FVector I = Q.GetRightVector();
 		const FVector J = Q.GetUpVector();
 
-		static const int32 NumSides = 12;
-		static const FReal	AngleDelta = (FReal)2. * (FReal)PI / NumSides;
-		FVector	LastVertex1 = Position1 + I * Radius1;
-		FVector	LastVertex2 = Position2 + I * Radius2;
+		const FReal	AngleDelta = (FReal)2. * (FReal)PI / NumSides;
+		FVector LastVertex1 = Position1 + I * Radius1;
+		FVector LastVertex2 = Position2 + I * Radius2;
 
 		for (int32 SideIndex = 1; SideIndex <= NumSides; ++SideIndex)
 		{
@@ -585,6 +610,15 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			LastVertex1 = Vertex1;
 			LastVertex2 = Vertex2;
 		}
+	}
+
+	static void DrawTaperedCylinder(FPrimitiveDrawInterface* PDI, const ::Chaos::FTaperedCylinder& TaperedCylinder, const FQuat& Rotation, const FVector& Position, const FLinearColor& Color)
+	{
+		const FReal Radius1 = TaperedCylinder.GetRadius1();
+		const FReal Radius2 = TaperedCylinder.GetRadius2();
+		const FVector Position1 = Position + Rotation.RotateVector(TaperedCylinder.GetX1());
+		const FVector Position2 = Position + Rotation.RotateVector(TaperedCylinder.GetX2());
+		DrawTaperedCylinder(PDI, Position1, Position2, Radius1, Radius2, 12, Color);
 	}
 
 	static void DrawConvex(FPrimitiveDrawInterface* PDI, const ::Chaos::FConvex& Convex, const FQuat& Rotation, const FVector& Position, const FLinearColor& Color)
@@ -2258,12 +2292,11 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
 				const TArray<TVec4<int32>>& Constraints = SelfCollisionConstraints->GetConstraints();
 				const TArray<Softs::FSolverVec3>& Barys = SelfCollisionConstraints->GetBarys();
-				const FReal Thickness = (FReal)SelfCollisionConstraints->GetThickness();
-				const FReal Height = Thickness + Thickness;
 				const TArray<bool>& FlipNormals = SelfCollisionConstraints->GetFlipNormals();
 
 				for (int32 Index = 0; Index < Constraints.Num(); ++Index)
 				{
+					const FReal Height = (FReal)SelfCollisionConstraints->GetConstraintThickness(Index);
 					const TVec4<int32>& Constraint = Constraints[Index];
 					const FVec3 Bary(Barys[Index]);
 
@@ -2493,6 +2526,122 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 					DrawLine(PDI, EdgeCenter, EdgeCenter + Delta, Green);
 					DrawPoint(PDI, TriCenter, Green, nullptr, 2.f);
 					DrawLine(PDI, TriCenter, TriCenter - Delta, Green);
+				}
+			}
+		}
+	}
+
+	void FClothVisualization::DrawSelfCollisionThickness(FPrimitiveDrawInterface* PDI) const
+	{
+		if (!Solver)
+		{
+			return;
+		}
+
+		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
+
+#if WITH_EDITOR
+		if (ClothMaterialColor)
+		{
+			FDynamicMeshBuilder MeshBuilder(PDI->View->GetFeatureLevel());
+
+			for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
+			{
+				const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+				if (ParticleRangeId == INDEX_NONE)
+				{
+					continue;
+				}
+
+				const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
+
+				if (const Softs::FPBDCollisionSpringConstraints* const SelfCollisionConstraints = ClothConstraints.GetSelfCollisionConstraints().Get())
+				{
+					const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+					const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
+					const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
+					const TConstArrayView<int32>& WeightMap = Cloth->GetFaceIntMapByProperty(Solver, TEXT("SelfCollisionLayers"));
+
+					const TConstArrayView<TVec2<int32>> Edges = Cloth->GetTriangleMesh(Solver).GetSegmentMesh().GetElements();
+					const TArray<TVec2<int32>>& EdgeToFaces = Cloth->GetTriangleMesh(Solver).GetEdgeToFaces();
+					for(int32 EdgeIndex = 0; EdgeIndex < Edges.Num(); ++EdgeIndex)
+					{
+						const TVec2<int32>& Edge = Edges[EdgeIndex];
+					
+						const bool bIsKinematic0 = (InvMasses[Edge[0] - Offset] == (Softs::FSolverReal)0.);
+						const bool bIsKinematic1 = (InvMasses[Edge[1] - Offset] == (Softs::FSolverReal)0.);
+						if (bIsKinematic0 && bIsKinematic1)
+						{
+							continue;
+						}
+
+						const FVector3f Position1(Positions[Edge[0] - Offset]); // TODO: Triangle Mesh shouldn't really be solver dependent (ie not use an offset)
+						const FVector3f Position2(Positions[Edge[1] - Offset]);
+
+						const FRealSingle Radius1 = (FRealSingle)SelfCollisionConstraints->GetParticleThickness(Edge[0]);
+						const FRealSingle Radius2 = (FRealSingle)SelfCollisionConstraints->GetParticleThickness(Edge[1]);
+						const int32 Face1Layer = WeightMap.IsValidIndex(EdgeToFaces[EdgeIndex][0]) ? WeightMap[EdgeToFaces[EdgeIndex][0]] : INDEX_NONE;
+						const int32 Face2Layer = WeightMap.IsValidIndex(EdgeToFaces[EdgeIndex][1]) ? WeightMap[EdgeToFaces[EdgeIndex][1]] : INDEX_NONE;
+						const FLinearColor Color = Chaos::Private::PseudoRandomColor((Face1Layer == Face2Layer || Face2Layer == INDEX_NONE) ? Face1Layer : INDEX_NONE);
+						
+						AppendTaperedCylinderTriangles(MeshBuilder, Position1, Position2, Radius1, Radius2, 6, Color);
+					}
+				}
+			}
+			FMatrix LocalSimSpaceToWorld(FMatrix::Identity);
+			LocalSimSpaceToWorld.SetOrigin(Solver->GetLocalSpaceLocation());
+			MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, ClothMaterialColor->GetRenderProxy(), SDPG_World, false, false);
+		}
+		else
+#endif
+		{
+			for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
+			{
+				const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+				if (ParticleRangeId == INDEX_NONE)
+				{
+					continue;
+				}
+
+				const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
+
+				if (const Softs::FPBDCollisionSpringConstraints* const SelfCollisionConstraints = ClothConstraints.GetSelfCollisionConstraints().Get())
+				{
+					const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+					const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
+					const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
+
+					const TConstArrayView<TVec2<int32>> Edges = Cloth->GetTriangleMesh(Solver).GetSegmentMesh().GetElements();
+					for (const TVec2<int32>& Edge : Edges)
+					{
+						const bool bIsKinematic0 = (InvMasses[Edge[0] - Offset] == (Softs::FSolverReal)0.);
+						const bool bIsKinematic1 = (InvMasses[Edge[1] - Offset] == (Softs::FSolverReal)0.);
+						if (bIsKinematic0 && bIsKinematic1)
+						{
+							continue;
+						}
+
+						const FVector Position1(Positions[Edge[0] - Offset]); // TODO: Triangle Mesh shouldn't really be solver dependent (ie not use an offset)
+						const FVector Position2(Positions[Edge[1] - Offset]);
+
+						const FReal Radius1 = (FReal)SelfCollisionConstraints->GetParticleThickness(Edge[0]);
+						const FReal Radius2 = (FReal)SelfCollisionConstraints->GetParticleThickness(Edge[1]);
+						DrawTaperedCylinder(PDI, Position1 + LocalSpaceLocation, Position2 + LocalSpaceLocation, Radius1, Radius2, 6, FLinearColor::Gray);
+					}
+
+					for (int32 VertexIndex = 0; VertexIndex < Positions.Num(); ++VertexIndex)
+					{
+						const bool bIsKinematic0 = (InvMasses[VertexIndex] == (Softs::FSolverReal)0.);
+						if (bIsKinematic0)
+						{
+							continue;
+						}
+
+						const FVector Position1(Positions[VertexIndex]);
+						const FReal Radius1 = (FReal)SelfCollisionConstraints->GetParticleThickness(VertexIndex + Offset);
+						const FTransform Transform(Position1 + LocalSpaceLocation);
+						DrawWireSphere(PDI, Transform, FLinearColor::Gray, Radius1, 6, SDPG_World, 0.0f, 0.001f, false);
+					}
 				}
 			}
 		}

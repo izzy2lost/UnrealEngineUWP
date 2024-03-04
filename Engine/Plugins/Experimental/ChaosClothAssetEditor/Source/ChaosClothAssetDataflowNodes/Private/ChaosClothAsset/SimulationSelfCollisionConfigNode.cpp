@@ -14,12 +14,13 @@ FChaosClothAssetSimulationSelfCollisionConfigNode::FChaosClothAssetSimulationSel
 	RegisterInputConnection(&SelfCollisionDisabledFaces.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 	RegisterInputConnection(&SelfCollisionEnabledKinematicFaces.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 	RegisterInputConnection(&SelfCollisionKinematicColliderFrictionWeighted.WeightMap);
+	RegisterInputConnection(&SelfCollisionThicknessWeighted.WeightMap);
 }
 
 void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
 	PropertyHelper.SetPropertyBool(FName("UseSelfCollisions"), true);
-	PropertyHelper.SetProperty(this, &SelfCollisionThickness);
+	PropertyHelper.SetPropertyWeighted(TEXT("SelfCollisionThickness"), SelfCollisionThicknessWeighted);
 	PropertyHelper.SetProperty(this, &SelfCollisionStiffness);
 	PropertyHelper.SetProperty(this, &SelfCollisionFriction);
 	PropertyHelper.SetProperty(this, &SelfCollisionDisableNeighborDistance, {}, ECollectionPropertyFlags::None); // Non animatable
@@ -50,6 +51,11 @@ void FChaosClothAssetSimulationSelfCollisionConfigNode::Serialize(FArchive& Ar)
 		{
 			SelfCollisionKinematicColliderFrictionWeighted.Low = SelfCollisionKinematicColliderFrictionWeighted.High = SelfCollisionKinematicColliderFriction_DEPRECATED;
 			SelfCollisionKinematicColliderFriction_DEPRECATED = FrictionDeprecatedValue;
+		}
+		if (SelfCollisionThickness_DEPRECATED != SelfCollisionThicknessDeprecatedValue)
+		{
+			SelfCollisionThicknessWeighted.Low = SelfCollisionThicknessWeighted.High = SelfCollisionThickness_DEPRECATED;
+			SelfCollisionThickness_DEPRECATED = SelfCollisionThicknessDeprecatedValue;
 		}
 #endif
 	}

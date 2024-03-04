@@ -1693,17 +1693,17 @@ void FClothConstraints::CreateForceBasedRules(const TSharedPtr<Softs::FMultiResC
 		RuleCreator.AddPerIterationCollisionPBDConstraintRule_Apply(CollisionConstraint.Get());
 		RuleCreator.AddUpdateLinearSystemCollisionsRule_UpdateLinearSystem(CollisionConstraint.Get());
 	}
+
 	if (SelfCollisionInit && SelfCollisionConstraints)
 	{
 		RuleCreator.AddPostInitialGuessParallelInitRule(
-			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
+		[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			if (bSkipSelfCollisionInit)
 			{
 				return;
 			}
-			// Thickness * 2 to account for collision radius for both particles
-			SelfCollisionInit->Init(Particles, SelfCollisionConstraints->GetThickness() * (Softs::FSolverReal)2.f);
+			SelfCollisionInit->Init(Particles, SelfCollisionConstraints->GetThicknessWeighted());
 			SelfCollisionConstraints->Init(Particles, Dt, SelfCollisionInit->GetCollidableSubMesh(), SelfCollisionInit->GetDynamicSpatialHash(), SelfCollisionInit->GetKinematicColliderSpatialHash(), SelfCollisionInit->GetVertexGIAColors(), SelfCollisionInit->GetTriangleGIAColors());
 		});
 
@@ -1711,6 +1711,7 @@ void FClothConstraints::CreateForceBasedRules(const TSharedPtr<Softs::FMultiResC
 		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(SelfCollisionConstraints.Get());
 		RuleCreator.AddUpdateLinearSystemRule_UpdateLinearSystem(SelfCollisionConstraints.Get());
 	}
+
 	if (SelfCollisionSphereConstraints)
 	{
 		RuleCreator.AddPostInitialGuessParallelInitRule(
@@ -2109,7 +2110,7 @@ void FClothConstraints::CreatePBDRules()
 					return;
 				}
 				// Thickness * 2 to account for collision radius for both particles
-				SelfCollisionInit->Init(Particles, SelfCollisionConstraints->GetThickness() * (Softs::FSolverReal)2.f);
+				SelfCollisionInit->Init(Particles, SelfCollisionConstraints->GetThicknessWeighted());
 				SelfCollisionConstraints->Init(Particles, Dt, SelfCollisionInit->GetCollidableSubMesh(), SelfCollisionInit->GetDynamicSpatialHash(), SelfCollisionInit->GetKinematicColliderSpatialHash(), SelfCollisionInit->GetVertexGIAColors(), SelfCollisionInit->GetTriangleGIAColors());
 			};
 

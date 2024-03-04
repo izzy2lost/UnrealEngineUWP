@@ -36,8 +36,9 @@ public:
 			InRestPositions,
 			GenerateDisabledCollisionElements(InTriangleMesh, PropertyCollection),
 			WeightMaps.FindRef(GetSelfCollisionKinematicColliderFrictionString(PropertyCollection, SelfCollisionKinematicColliderFrictionName.ToString())),
+			WeightMaps.FindRef(GetSelfCollisionThicknessString(PropertyCollection, SelfCollisionThicknessName.ToString())),
 			FaceIntMaps.FindRef(GetSelfCollisionLayersString(PropertyCollection, SelfCollisionLayersName.ToString())),
-			(FSolverReal)FMath::Max(GetSelfCollisionThickness(PropertyCollection, Base::BackCompatThickness), 0.f),
+			FSolverVec2::Max(FSolverVec2(GetWeightedFloatSelfCollisionThickness(PropertyCollection, Base::BackCompatThickness)), FSolverVec2(0.f)),
 			(FSolverReal)FMath::Clamp(GetSelfCollisionStiffness(PropertyCollection, Base::BackCompatStiffness), 0.f, 1.f),
 			FMath::Clamp((FSolverReal)GetSelfCollisionFriction(PropertyCollection, Base::BackCompatFrictionCoefficient), MinFrictionCoefficient, MaxFrictionCoefficient),
 			GetSelfCollideAgainstKinematicCollidersOnly(PropertyCollection, false),
@@ -91,8 +92,9 @@ public:
 			InRestPositions,
 			MoveTemp(InDisabledCollisionElements),
 			TConstArrayView<FRealSingle>(),
+			TConstArrayView<FRealSingle>(),
 			TConstArrayView<int32>(),
-			InThickness,
+			FSolverVec2(InThickness),
 			InStiffness,
 			InFrictionCoefficient)
 		, SelfCollisionThicknessIndex(ForceInit)
@@ -116,7 +118,19 @@ public:
 	{
 		if (IsSelfCollisionThicknessMutable(PropertyCollection))
 		{
-			Thickness = (FSolverReal)FMath::Max(GetSelfCollisionThickness(PropertyCollection), 0.f);
+			const FSolverVec2 WeightedValue = FSolverVec2::Max(FSolverVec2(GetWeightedFloatSelfCollisionThickness(PropertyCollection)), FSolverVec2(0.f));
+			if (IsSelfCollisionThicknessStringDirty(PropertyCollection))
+			{
+				const FString& WeightMapName = GetSelfCollisionThicknessString(PropertyCollection);
+				ThicknessWeighted = FPBDFlatWeightMap(WeightedValue, WeightMaps.FindRef(WeightMapName), GetNumParticles());
+			}
+			else
+			{
+				ThicknessWeighted.SetWeightedValue(WeightedValue);
+			}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			Thickness = GetMaxThickness();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		if (IsSelfCollisionStiffnessMutable(PropertyCollection))
 		{
@@ -172,7 +186,7 @@ public:
 	}
 
 private:
-	using Base::Thickness;
+	using Base::ThicknessWeighted;
 	using Base::Stiffness;
 	using Base::FrictionCoefficient;
 	using Base::ProximityStiffness;

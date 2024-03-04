@@ -314,11 +314,26 @@ public:
 			, Max(Min)
 		{}
 
+		FVectorAABB(const TVec3<T>& Point, const T Radius)
+			: Min(MakeVectorRegister(Point[0], Point[1], Point[2], (T)0.))
+			, Max(Min)
+		{
+			Thicken(Radius);
+		}
+
 		void GrowToInclude(const TVec3<T>& Point)
 		{
 			const TVectorRegisterType<T> Vector = MakeVectorRegister(Point[0], Point[1], Point[2], (T)0);
 			Min = VectorMin(Min, Vector);
 			Max = VectorMax(Max, Vector);
+		}
+
+		void GrowToInclude(const TVec3<T>& Point, const T Radius)
+		{
+			const TVectorRegisterType<T> Vector = MakeVectorRegister(Point[0], Point[1], Point[2], (T)0);
+			const TVectorRegisterType<T> ThicknessVec = MakeVectorRegister(Radius, Radius, Radius, (T)0);
+			Min = VectorMin(Min, VectorSubtract(Vector, ThicknessVec));
+			Max = VectorMax(Max, VectorAdd(Vector, ThicknessVec));
 		}
 
 		void Thicken(const T Thickness)

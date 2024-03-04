@@ -16,7 +16,7 @@ struct FChaosClothAssetSimulationSelfCollisionConfigNode : public FChaosClothAss
 public:
 	/** The self collision offset per side. Total thickness of cloth is 2x this value. */
 	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000", EditCondition = "bUseSelfCollisions"))
-	float SelfCollisionThickness = 0.5f;
+	FChaosClothAssetWeightedValue SelfCollisionThicknessWeighted = {true, 0.5f, 0.5f, TEXT("SelfCollisionThickness")};
 
 	/** The stiffness of the springs used to control self collision (PBD Solver). */
 	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1", EditCondition = "!bSelfCollideAgainstKinematicCollidersOnly"))
@@ -98,6 +98,10 @@ private:
 	static constexpr float FrictionDeprecatedValue = -1.f;
 	UPROPERTY()
 	float SelfCollisionKinematicColliderFriction_DEPRECATED = FrictionDeprecatedValue;
+
+	static constexpr float SelfCollisionThicknessDeprecatedValue = -1.f;
+	UPROPERTY()
+	float SelfCollisionThickness_DEPRECATED = SelfCollisionThicknessDeprecatedValue;
 #endif
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
 };
