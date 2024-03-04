@@ -2,7 +2,7 @@
 #pragma once
 
 #include "Containers/IntrusiveDoubleLinkedList.h"
-#include "HAL/CriticalSection.h"
+#include "Misc/ScopeLock.h"
 
 class FMidiPlayCursor;
 
