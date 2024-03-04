@@ -443,13 +443,18 @@ namespace uba
 
 		u32 workId = server.TrackWorkStart(rec.toString(context.messageType));
 
+		MessageInfo mi;
+		mi.type = context.messageType;
+		mi.connectionId = connection.m_id;
+		mi.messageId = context.id;
+
 		if (!rec.func)
 		{
 			server.m_logger.Error(TC("WORKER FUNCTION NOT FOUND. id: %u, serviceid: %u type: %s, client: %s"), context.id, context.serviceId, rec.toString(context.messageType), GuidToString(connection.m_client->uid).str);
 			connection.SetShouldDisconnect();
 			size = ErrorSize;
 		}
-		else if (!rec.func({&connection}, context.messageType, reader, writer))
+		else if (!rec.func({&connection}, mi, reader, writer))
 		{
 			if (connection.SetShouldDisconnect())
 				server.m_logger.Error(TC("WORKER FUNCTION FAILED. id: %u, serviceid: %u type: %s, client: %s"), context.id, context.serviceId, rec.toString(context.messageType), GuidToString(connection.m_client->uid).str);
@@ -462,7 +467,7 @@ namespace uba
 
 		server.TrackWorkEnd(workId);
 
-		if (context.id)
+		if (mi.messageId)
 		{
 			UBA_ASSERT(size < (1 << 24));
 				
@@ -575,9 +580,9 @@ namespace uba
 		m_receiveTimeoutMs = info.receiveTimeoutSeconds * 1000;
 
 		m_workerFunctions[SystemServiceId].toString = GetMessageTypeToName;
-		m_workerFunctions[SystemServiceId].func = [this](const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
+		m_workerFunctions[SystemServiceId].func = [this](const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer)
 			{
-				return HandleSystemMessage(connectionInfo, messageType, reader, writer);
+				return HandleSystemMessage(connectionInfo, messageInfo.type, reader, writer);
 			};
 
 		if (!CreateGuid(m_uid))
@@ -908,6 +913,53 @@ namespace uba
 
 		work.func();
 
+		return true;
+	}
+
+	bool NetworkServer::SendResponse(const MessageInfo& info, const u8* body, u32 bodySize)
+	{
+		UBA_ASSERT(info.connectionId);
+		UBA_ASSERT(info.messageId);
+
+		SCOPED_READ_LOCK(m_connectionsLock, lock);
+		Connection* found = nullptr;
+		for (auto& it : m_connections)
+		{
+			if (it.m_id != info.connectionId)
+				continue;
+			found = &it;
+			break;
+		}
+		if (!found)
+			return false;
+		Connection& connection = *found;
+		SCOPED_WRITE_LOCK(connection.m_shutdownLock, connectionLock);
+		lock.Leave();
+
+		u8 buffer[SendMaxSize];
+
+		constexpr u32 HeaderSize = 5; // 2 byte id, 3 bytes size
+
+		BinaryWriter writer(buffer, 0, sizeof_array(buffer));
+		u8* idAndSizePtr = writer.AllocWrite(HeaderSize);
+
+		idAndSizePtr[0] = info.messageId >> 8;
+		*(u32*)(idAndSizePtr + 1) = bodySize | u32(info.messageId << 24);
+
+		writer.WriteBytes(body, bodySize);
+
+		if (connection.m_cryptoKey && bodySize)
+		{
+			TimerScope ts(connection.m_encryptTimer);
+			u8* bodyData = writer.GetData() + HeaderSize;
+			if (!Crypto::Encrypt(m_logger, connection.m_cryptoKey, bodyData, bodySize))
+			{
+				connection.SetShouldDisconnect();
+				return false;
+			}
+		}
+
+		connection.Send(writer.GetData(), u32(writer.GetPosition()));
 		return true;
 	}
 

@@ -152,7 +152,7 @@ namespace uba
 
 
 		WorkManager* m_workManager;
-		LoggerWithWriter m_logger;
+		MutableLogger m_logger;
 
 		StringBuffer<> m_rootDir;
 		StringBuffer<> m_tempPath;

@@ -14,6 +14,7 @@ namespace uba
 	struct BinaryReader;
 	struct BinaryWriter;
 	struct ConnectionInfo;
+	struct MessageInfo;
 
 	class StorageProxy
 	{
@@ -25,9 +26,9 @@ namespace uba
 		void PrintSummary();
 
 	protected:
-		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
 		u16 PopId();
 		void PushId(u16 id);
+		bool HandleMessage(const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer);
 		bool SendEnd(const CasKey& key);
 
 		static constexpr u8 ServiceId = StorageServiceId;
@@ -36,13 +37,13 @@ namespace uba
 		NetworkClient& m_client;
 		StorageImpl* m_localStorage;
 
-		LoggerWithWriter m_logger;
+		MutableLogger m_logger;
 
 		Guid m_storageServerUid;
 
 		TString m_name;
 
-		u32 m_inProcessClientId = 0;
+		Atomic<u32> m_inProcessClientId;
 
 		struct SegmentInFlight { u32 refCount; u32 segmentIndex; Event done; SegmentInFlight* prev; SegmentInFlight* next; };
 

@@ -96,9 +96,9 @@ namespace uba
 		m_server.RegisterOnClientDisconnected(ServiceId, [this](const Guid& clientUid, u32 clientId) { OnDisconnected(clientUid, clientId); });
 
 		m_server.RegisterService(ServiceId,
-			[this](const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
+			[this](const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer)
 			{
-				return HandleMessage(connectionInfo, messageType, reader, writer);
+				return HandleMessage(connectionInfo, messageInfo.type, reader, writer);
 			},
 			[](u8 type)
 			{

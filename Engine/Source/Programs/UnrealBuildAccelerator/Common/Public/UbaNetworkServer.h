@@ -34,6 +34,13 @@ namespace uba
 		u32 receiveTimeoutSeconds = 0;
 	};
 
+	struct MessageInfo
+	{
+		u32 connectionId;
+		u16 messageId;
+		u8 type;
+	};
+
 	class NetworkServer : public WorkManager
 	{
 	public:
@@ -50,7 +57,7 @@ namespace uba
 		void PrintSummary(Logger& logger);
 
 		using TypeToNameFunction = const tchar*(u8 type);
-		using WorkerFunction = Function<bool(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)>;
+		using WorkerFunction = Function<bool(const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer)>;
 		void RegisterService(u8 serviceId, const WorkerFunction& function, TypeToNameFunction* typeToNameFunc = nullptr);
 		void UnregisterService(u8 serviceId);
 
@@ -83,6 +90,7 @@ namespace uba
 
 		bool DoAdditionalWork();
 
+		bool SendResponse(const MessageInfo& info, const u8* body, u32 bodySize);
 
 		class Worker;
 	private:
