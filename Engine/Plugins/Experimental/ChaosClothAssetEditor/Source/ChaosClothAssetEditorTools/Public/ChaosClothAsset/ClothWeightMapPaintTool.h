@@ -216,7 +216,8 @@ enum class EClothEditorWeightMapPaintToolActions
 	FloodFillCurrent,
 	ClearAll,
 	Invert,
-	ClearHiddenTriangles
+	Multiply,
+	ClearHiddenTriangles,
 };
 
 
@@ -249,6 +250,12 @@ public:
 	void Invert()
 	{
 		PostAction(EClothEditorWeightMapPaintToolActions::Invert);
+	}
+
+	UFUNCTION(CallInEditor, Category = Operations, meta = (DisplayPriority = 14))
+	void Multiply()
+	{
+		PostAction(EClothEditorWeightMapPaintToolActions::Multiply);
 	}
 
 };
@@ -349,6 +356,7 @@ private:
 	void FloodFillCurrentWeightAction();
 	void ClearAllWeightsAction();
 	void InvertWeightsAction();
+	void MultiplyWeightsAction();
 	void ClearHiddenAction();
 
 public:
