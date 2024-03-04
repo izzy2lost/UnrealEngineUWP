@@ -1477,7 +1477,7 @@ public:
 		{
 			int32 ExistingObjectIndex = GUObjectArray.ObjectToIndex(ExistingObject);
 
-			UE_LOG(LogStreaming, Display,
+			UE_LOG(LogStreaming, Verbose,
 				TEXT("FGlobalImportStore::StoreGlobalObject: The constructed public export object '%s' with index %d and id %s:0x%llX collides with object '%s' (ObjectFlags=%X, InternalObjectFlags=%x) with index %d in GlobalImportStore. ")
 				TEXT("The existing object will be replaced since it or its package was most likely renamed after it was loaded the first time."),
 				Object ? *Object->GetFullName() : TEXT("null"),
@@ -1495,7 +1495,7 @@ public:
 		FPublicExportKey* ExistingKey = ObjectIndexToPublicExport.Find(ObjectIndex);
 		if (ExistingKey && *ExistingKey != Key)
 		{
-			UE_LOG(LogStreaming, Log,
+			UE_LOG(LogStreaming, Verbose,
 				TEXT("FGlobalImportStore::StoreGlobalObject: The constructed public export object '%s' with index %d and id %s:0x%llX already exists in GlobalImportStore but with a different key %s:0x%llX.")
 				TEXT("The existing object will be replaced since it or its package was most likely renamed after it was loaded the first time."),
 				Object ? *Object->GetFullName() : TEXT("null"),
