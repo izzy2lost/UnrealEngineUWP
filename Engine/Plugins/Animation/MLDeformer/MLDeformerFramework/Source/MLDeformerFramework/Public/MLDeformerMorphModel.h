@@ -33,6 +33,8 @@ public:
 	virtual UMLDeformerModelInstance* CreateModelInstance(UMLDeformerComponent* Component) override;
 #if WITH_EDITOR
 	virtual void UpdateMemoryUsage() override;
+	virtual void FinalizeMorphTargets();
+	bool HasRawMorph() const;
 #endif
 	// ~END UMLDeformerModel overrides.
 
@@ -58,6 +60,7 @@ public:
 	EMLDeformerMaskChannel GetMaskChannel() const					{ return MaskChannel; }
 	bool GetInvertMaskChannel() const								{ return bInvertMaskChannel; }
 
+	UFUNCTION(BlueprintPure, Category = "MLDeformerMorphModel")
 	bool CanDynamicallyUpdateMorphTargets() const;
 
 	void SetMorphDeltaZeroThreshold(float Threshold)				{ MorphDeltaZeroThreshold = Threshold; }
@@ -355,7 +358,7 @@ private:
 	 * The advantage of this can be that it is higher performance than recomputing the normals.
 	 * The disadvantage is it can result in lower quality and uses more memory for the stored morph targets.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Morph Targets")
+	UPROPERTY(EditAnywhere, Category = "Morph Targets", meta = (EditCondition = "CanDynamicallyUpdateMorphTargets()"))
 	bool bIncludeNormals = false;
 
 	/**
@@ -363,14 +366,14 @@ private:
 	 * This essentially removes small deltas from morph targets, which will lower the memory usage at runtime, however when set too high it can also introduce visual artifacts.
 	 * A value of 0 will result in the highest quality morph targets, at the cost of higher runtime memory usage.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Morph Targets", DisplayName = "Delta Zero Threshold", meta = (ClampMin = "0.0", ClampMax = "1.0", ForceUnits="cm"))
+	UPROPERTY(EditAnywhere, Category = "Morph Targets", DisplayName = "Delta Zero Threshold", meta = (ClampMin = "0.0", ClampMax = "1.0", ForceUnits="cm", EditCondition = "CanDynamicallyUpdateMorphTargets()"))
 	float MorphDeltaZeroThreshold = 0.0025f;
 
 	/** 
 	 * The morph target compression level. Higher values result in larger compression, but could result in visual artifacts.
 	 * Most of the times this is a value between 20 and 200.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Morph Targets", DisplayName = "Compression Level", meta = (ClampMin = "0.01", ClampMax = "1000"))
+	UPROPERTY(EditAnywhere, Category = "Morph Targets", DisplayName = "Compression Level", meta = (ClampMin = "0.01", ClampMax = "1000", EditCondition = "CanDynamicallyUpdateMorphTargets()"))
 	float MorphCompressionLevel = 20.0f;
 
 	/**
@@ -378,14 +381,14 @@ private:
 	 * You can use this feather out influence of the ML Deformer in specific areas, such as neck line seams, where the head mesh connects with the body.
 	 * The painted vertex color values will be like a weight multiplier on the ML deformer deltas applied to that vertex. You can invert the mask as well.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Morph Targets")
+	UPROPERTY(EditAnywhere, Category = "Morph Targets", meta = (EditCondition = "CanDynamicallyUpdateMorphTargets()"))
 	EMLDeformerMaskChannel MaskChannel = EMLDeformerMaskChannel::Disabled;
 
 	/** 
 	 * Enable this if you want to invert the mask channel values. For example if you painted the neck seam vertices in red, and you wish the vertices that got painted to NOT move, you have to invert the mask.
 	 * On default you paint areas where the deformer should be active. If you enable the invert option, you paint areas where the deformer will not be active.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Morph Targets", meta = (EditCondition = "MaskChannel != EMLDeformerMaskChannel::Disabled"))
+	UPROPERTY(EditAnywhere, Category = "Morph Targets", meta = (EditCondition = "CanDynamicallyUpdateMorphTargets() && MaskChannel != EMLDeformerMaskChannel::Disabled"))
 	bool bInvertMaskChannel = false;
 
 	/** The fence that let's us wait for all render commands to finish, before this instance is destroyed. */

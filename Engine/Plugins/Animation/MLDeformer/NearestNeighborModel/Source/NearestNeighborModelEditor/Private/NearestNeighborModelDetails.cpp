@@ -322,7 +322,7 @@ namespace UE::NearestNeighborModel
 					{
 						return FText::FromString(TEXT("Valid"));
 					}
-					else if (NearestNeighborModel->IsReadyForTraining())
+					else if (NearestNeighborModel->IsReadyForTraining() && NearestNeighborModel->CanDynamicallyUpdateMorphTargets())
 					{
 						return FText::FromString(TEXT("Invalid, please Update"));
 					}
@@ -370,7 +370,7 @@ namespace UE::NearestNeighborModel
 					const UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
 					if (NearestNeighborModel)
 					{
-						return NearestNeighborModel->IsReadyForTraining();
+						return NearestNeighborModel->IsReadyForTraining() && NearestNeighborModel->CanDynamicallyUpdateMorphTargets();
 					}
 					else
 					{
@@ -493,7 +493,7 @@ namespace UE::NearestNeighborModel
 				const TOptional<FDateTime> Timestamp = TimestampFunc();
 				if (Timestamp.IsSet())
 				{
-					return FText::FromString(Private::ToString(Timestamp.GetValue()));
+					return FText::FromString(Private::ToString(Private::ToLocalTime(Timestamp.GetValue())));
 				}
 				else
 				{

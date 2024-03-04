@@ -177,6 +177,7 @@ public:
 	EOpFlag NormalizeVertexWeights();
 
 	void ClearReferences();
+	void FinalizeMorphTargets();
 
 
 	static FName GetNumBasisPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NumPCACoeffs); }
@@ -344,6 +345,7 @@ public:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
+	virtual void FinalizeMorphTargets() override;
 #endif
 	// ~END UObject overrides.
 
@@ -619,6 +621,7 @@ private:
 	void UpdateCachedNetworkTimestamp();
 
 	void NormalizeVertexWeights();
+	void UpdateVersion();
 	// FNearestNeighborModelDetails needs to call private function GetSection(int32).
 	friend class UE::NearestNeighborModel::FNearestNeighborModelDetails;
 #endif

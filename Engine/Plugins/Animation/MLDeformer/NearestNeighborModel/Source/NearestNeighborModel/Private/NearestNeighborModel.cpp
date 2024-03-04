@@ -1012,6 +1012,12 @@ UE::NearestNeighborModel::EOpFlag UNearestNeighborModelSection::NormalizeVertexW
 	return EOpFlag::Success;
 }
 
+void UNearestNeighborModel::UpdateVersion()
+{
+	using UE::NearestNeighborModel::FNearestNeighborModelCustomVersion;
+	Version = FNearestNeighborModelCustomVersion::LatestVersion;
+}
+
 TArray<FName> UNearestNeighborModelSection::GetVertexAttributeNames() const
 {
 	if (!Model)
@@ -1158,7 +1164,7 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 
 void UNearestNeighborModel::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) 
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
+	Super::PostEditChangeChainProperty(PropertyChangedEvent);
 	const FProperty* Property = PropertyChangedEvent.Property;
 	if (!Property)
 	{
@@ -1194,6 +1200,14 @@ void UNearestNeighborModel::PostEditChangeChainProperty(FPropertyChangedChainEve
 	}
 }
 
+void UNearestNeighborModel::FinalizeMorphTargets()
+{
+	for(FSection* Section : Sections)
+	{
+		Section->FinalizeMorphTargets();
+	}
+	Super::FinalizeMorphTargets();
+}
 #endif
 
 UMLDeformerInputInfo* UNearestNeighborModel::CreateInputInfo()
@@ -1531,7 +1545,6 @@ void UNearestNeighborModel::ClearReferences()
 	}
 }
 
-
 bool UNearestNeighborModel::IsBeforeCustomVersionWasAdded() const
 {
 	using UE::NearestNeighborModel::FNearestNeighborModelCustomVersion;
@@ -1656,6 +1669,15 @@ void UNearestNeighborModelSection::ClearReferences()
 {
 	NeighborPoses = nullptr;
 	NeighborMeshes = nullptr;
+}
+
+void UNearestNeighborModelSection::FinalizeMorphTargets()
+{
+	VertexMean.Empty();
+	Basis.Empty();
+	AssetNeighborCoeffs.Empty();
+	AssetNeighborOffsets.Empty();
+	AssetNeighborIndexMap.Empty();
 }
 
 UE::NearestNeighborModel::EOpFlag UNearestNeighborModel::UpdateForTraining()
@@ -1817,6 +1839,7 @@ bool UNearestNeighborModel::LoadOptimizedNetworkFromFile(const FString& Filename
 			using UE::NearestNeighborModel::Private::GetArchitectureString;
 			NetworkLastWriteArchitectureString = GetArchitectureString(InputDim, HiddenLayerDims, OutputDim);
 			InvalidateInference();
+			UpdateVersion();
 			return true;
 		}
 		else
