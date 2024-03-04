@@ -239,6 +239,9 @@ public:
 	/** The source is not needed anymore. */
 	MODELVIEWVIEWMODEL_API void ReleaseInstance(const UObject* ViewModel, const UMVVMView* View) const;
 
+	/** Returns the viewmodel inside the global viewmodel collection. */
+	MODELVIEWVIEWMODEL_API TScriptInterface<INotifyFieldValueChanged> GetGlobalCollectionViewModel(UUserWidget* UserWidget) const;
+
 	/** The expected class of the source. */
 	UClass* GetSourceClass() const
 	{
@@ -288,6 +291,12 @@ public:
 	bool HasEvaluateBindings() const
 	{
 		return (Flags & (uint16)EFlags::HasEvaluatedBindings) != 0;
+	}
+	
+	/** The source has at least one evaluate binding. */
+	bool RequireGlobalViewModelCollectionUpdate() const
+	{
+		return (Flags & (uint16)EFlags::GlobalViewModelCollectionUpdate) != 0;
 	}
 	
 	/**
@@ -399,7 +408,7 @@ private:
 		HasTickBindings = 1 << 8,
 		IsViewModel = 1 << 9,
 		IsViewModelInstanceExposed = 1 << 10,
-		GlobalViewModelCollectionRetry = 1 << 11,
+		GlobalViewModelCollectionUpdate = 1 << 11,
 	};
 
 	UPROPERTY(VisibleAnywhere, Category = "View")
@@ -503,6 +512,12 @@ public:
 	[[nodiscard]] bool DoesInitializeEventsOnConstruct() const
 	{
 		return bInitializeEventsOnConstruct;
+	}
+	
+	/** Should the view listen to modification made in the global viewmodel collection. */
+	[[nodiscard]] bool DoesListenToViewModelCollectionChanged() const
+	{
+		return bListenToViewModelCollectionChanged;
 	}
 
 	/** Get the container of all the bindings. */
@@ -616,6 +631,9 @@ private:
 
 	UPROPERTY()
 	bool bInitializeEventsOnConstruct = true;
+	
+	UPROPERTY()
+	bool bListenToViewModelCollectionChanged = false;
 
 #if WITH_EDITORONLY_DATA
 	FDelegateHandle BluerpintCompiledHandle;

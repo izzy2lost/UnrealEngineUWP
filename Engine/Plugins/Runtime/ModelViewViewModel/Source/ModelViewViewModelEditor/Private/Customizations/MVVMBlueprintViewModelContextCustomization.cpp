@@ -405,6 +405,18 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 					}));
 		}
 
+		TSharedPtr<IPropertyHandle> GlobalViewModelCollectionUpdateHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bGlobalViewModelCollectionUpdate), false);
+		if (ensure(GlobalViewModelCollectionUpdateHandle))
+		{
+			ChildBuilder.AddProperty(GlobalViewModelCollectionUpdateHandle.ToSharedRef())
+				.IsEnabled(bCanEdit)
+				.Visibility(MakeAttributeLambda([ContextPtr]()
+					{
+						bool bResult = ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::GlobalViewModelCollection;
+						return bResult ? EVisibility::Visible : EVisibility::Collapsed;
+					}));
+		}
+
 		TSharedPtr<IPropertyHandle> OptionalHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bOptional), false);
 		if (ensure(OptionalHandle))
 		{

@@ -26,6 +26,35 @@
 
 #define LOCTEXT_NAMESPACE "MVVMViewClass"
 
+namespace UE::MVVM::Private
+{
+UMVVMViewModelBase* GetGlobalCollectionViewModel(UUserWidget* InUserWidget, const FMVVMViewModelContext& GlobalViewModelInstance, UMVVMViewModelCollectionObject*& Collection)
+{
+	Collection = nullptr;
+	UMVVMViewModelBase* FoundViewModelInstance = nullptr;
+	if (GlobalViewModelInstance.IsValid())
+	{
+		if (const UWorld* World = InUserWidget->GetWorld())
+		{
+			if (const UGameInstance* GameInstance = World->GetGameInstance())
+			{
+				Collection = GameInstance->GetSubsystem<UMVVMGameSubsystem>()->GetViewModelCollection();
+				if (Collection)
+				{
+					FoundViewModelInstance = Collection->FindViewModelInstance(GlobalViewModelInstance);
+				}
+			}
+		}
+	}
+
+	if (FoundViewModelInstance != nullptr)
+	{
+		ensureMsgf(FoundViewModelInstance->IsA(GlobalViewModelInstance.ContextClass), TEXT("The Global View Model Instance is not of the expected type."));
+	}
+	return FoundViewModelInstance;
+}
+} // namespace
+
 ///////////////////////////////////////////////////////////////////////
 // 
 ///////////////////////////////////////////////////////////////////////
@@ -103,18 +132,7 @@ UObject* FMVVMViewClass_Source::GetOrCreateInstance(const UMVVMViewClass* InView
 	else if (GlobalViewModelInstance.IsValid())
 	{
 		UMVVMViewModelCollectionObject* Collection = nullptr;
-		UMVVMViewModelBase* FoundViewModelInstance = nullptr;
-		if (const UWorld* World = InUserWidget->GetWorld())
-		{
-			if (const UGameInstance* GameInstance = World->GetGameInstance())
-			{
-				Collection = GameInstance->GetSubsystem<UMVVMGameSubsystem>()->GetViewModelCollection();
-				if (Collection)
-				{
-					FoundViewModelInstance = Collection->FindViewModelInstance(GlobalViewModelInstance);
-				}
-			}
-		}
+		UMVVMViewModelBase* FoundViewModelInstance = UE::MVVM::Private::GetGlobalCollectionViewModel(InUserWidget, GlobalViewModelInstance, Collection);
 
 		if (FoundViewModelInstance != nullptr)
 		{
@@ -152,6 +170,13 @@ void FMVVMViewClass_Source::ReleaseInstance(const UObject* ViewModel, const UMVV
 	{
 		Resolver->DestroyInstance(ViewModel, View);
 	}
+}
+
+TScriptInterface<INotifyFieldValueChanged> FMVVMViewClass_Source::GetGlobalCollectionViewModel(UUserWidget* InUserWidget) const
+{
+	UMVVMViewModelCollectionObject* Collection = nullptr;
+	UMVVMViewModelBase* FoundViewModelInstance = UE::MVVM::Private::GetGlobalCollectionViewModel(InUserWidget, GlobalViewModelInstance, Collection);
+	return FoundViewModelInstance ? TScriptInterface<INotifyFieldValueChanged>(FoundViewModelInstance) : TScriptInterface<INotifyFieldValueChanged>();
 }
 
 #if UE_WITH_MVVM_DEBUGGING

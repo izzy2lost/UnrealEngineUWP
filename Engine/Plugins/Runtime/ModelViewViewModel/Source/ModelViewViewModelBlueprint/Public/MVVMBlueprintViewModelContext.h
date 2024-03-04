@@ -159,6 +159,10 @@ public:
 	/** Expose the viewmodel instance on every instance of the user widget for modification in editor. */
 	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay)
 	bool bExposeInstanceInEditor = false;
+	
+	/** Auto update the instance when the viewmodel is added/removed/modifed from the global viewmodel collection. */
+	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay)
+	bool bGlobalViewModelCollectionUpdate = false;
 
 	/** Can change the name in the editor. */
 	UPROPERTY()

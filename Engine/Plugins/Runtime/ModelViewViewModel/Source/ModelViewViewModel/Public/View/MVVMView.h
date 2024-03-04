@@ -178,6 +178,7 @@ private:
 
 	//~ evaluate source
 	bool EvaluateSource(FMVVMViewClass_SourceKey SourceIndex);
+	void HandleViewModelCollectionChanged();
 
 	//~ events
 	void BindEvent(const FMVVMViewClass_Event& ClassItem, FMVVMViewClass_EventKey KeyForLog);

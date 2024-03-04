@@ -9,10 +9,13 @@
 #include "Blueprint/UserWidget.h"
 #include "Debugging/MVVMDebugging.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
+#include "MVVMGameSubsystem.h"
 #include "MVVMMessageLog.h"
 #include "ModelViewViewModelModule.h"
 #include "Templates/ValueOrError.h"
 #include "Types/MVVMFieldContext.h"
+#include "Types/MVVMViewModelCollection.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMView)
 
@@ -30,6 +33,21 @@ DECLARE_CYCLE_STAT(TEXT("ExecuteBinding Tick"), STAT_UMG_Viewmodel_ExecuteBindin
 ///////////////////////////////////////////////////////////////////////
 // 
 ///////////////////////////////////////////////////////////////////////
+
+namespace UE::MVVM::Private
+{
+UMVVMViewModelCollectionObject* GetGlobalCollection(UUserWidget* UserWidget)
+{
+	if (const UWorld* World = UserWidget->GetWorld())
+	{
+		if (const UGameInstance* GameInstance = World->GetGameInstance())
+		{
+			return GameInstance->GetSubsystem<UMVVMGameSubsystem>()->GetViewModelCollection();
+		}
+	}
+	return nullptr;
+}
+} // namespace
 
 void UMVVMView::ConstructView(const UMVVMViewClass* InClassExtension)
 {
@@ -100,6 +118,14 @@ void UMVVMView::InitializeSources()
 	check(Sources.Num() == NumberOfSources);
 	check(NumberOfSources <= 64); // the max number of source the bitfield can hold.
 
+	if (ClassExtension->DoesListenToViewModelCollectionChanged())
+	{
+		if (UMVVMViewModelCollectionObject* Collection = UE::MVVM::Private::GetGlobalCollection(GetUserWidget()))
+		{
+			Collection->OnCollectionChanged().AddUObject(this, &UMVVMView::HandleViewModelCollectionChanged);
+		}
+	}
+
 	for (int32 Index = 0; Index < NumberOfSources; ++Index)
 	{
 		InitializeSource(FMVVMView_SourceKey(Index));
@@ -133,6 +159,14 @@ void UMVVMView::UninitializeSources()
 	if (bBindingsInitialized)
 	{
 		UninitializeBindings();
+	}
+
+	if (ClassExtension->DoesListenToViewModelCollectionChanged())
+	{
+		if (UMVVMViewModelCollectionObject* Collection = UE::MVVM::Private::GetGlobalCollection(GetUserWidget()))
+		{
+			Collection->OnCollectionChanged().RemoveAll(this);
+		}
 	}
 
 	bSourcesInitialized = false;
@@ -828,6 +862,28 @@ bool UMVVMView::SetSourceInternal(FMVVMViewClass_SourceKey ClassSourceKey, TScri
 	return true;
 }
 
+
+void UMVVMView::HandleViewModelCollectionChanged()
+{
+	if (ensure(ClassExtension))
+	{
+		const int32 NumberOfSources = ClassExtension->GetSources().Num();
+		for (int32 Index = 0; Index < NumberOfSources; ++Index)
+		{
+			FMVVMView_SourceKey SourceKey(Index);
+			FMVVMView_Source& ViewSource = Sources[SourceKey.GetIndex()];
+			const FMVVMViewClass_Source& ClassSource = ClassExtension->GetSource(ViewSource.ClassKey);
+			if (ViewSource.bSourceInitialized && !ViewSource.bSetManually && ClassSource.RequireGlobalViewModelCollectionUpdate())
+			{
+				TScriptInterface<INotifyFieldValueChanged> NewValue = ClassSource.GetGlobalCollectionViewModel(GetUserWidget());
+				if (NewValue.GetObject() != ViewSource.Source)
+				{
+					SetSourceInternal(ViewSource.ClassKey, NewValue, true);
+				}
+			}
+		}
+	}
+}
 
 void UMVVMView::InitializeEvents()
 {
