@@ -13,9 +13,12 @@ namespace UE
 	namespace TextureUtilitiesCommon
 	{
 		// UDIM = 1001 + X + Y*10
-		// valid UDIM is in "1001" to "1100"
-		//	X and Y are in [0,9]
 		//	note the tens digit is not Y ; eg. 1010 is X=9,Y=0
+
+		constexpr int32 UDIM_Max_X = 9;
+		constexpr int32 UDIM_Max_Y = 90;
+		constexpr int32 UDIM_Min_Index = 1001;
+		constexpr int32 UDIM_Max_Index = UDIM_Min_Index + UDIM_Max_X + UDIM_Max_Y * 10;
 
 		// this Regex is unnecessarily complex and broad
 		//	UDIM must start with "10" then two digits, or "1100"
