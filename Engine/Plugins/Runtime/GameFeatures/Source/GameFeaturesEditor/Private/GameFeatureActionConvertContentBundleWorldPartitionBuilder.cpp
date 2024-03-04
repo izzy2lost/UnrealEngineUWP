@@ -277,7 +277,7 @@ bool UGameFeatureActionConvertContentBundleWorldPartitionBuilder::RunInternal(UW
 
 			// Validation
 			check(NewActorPackage == Actor->GetExternalPackage());
-			check(NewActorPackage->GetName() == ExternalDataLayerManager->GetActorPackageName(ExternalDataLayerAsset, DestinationLevel, Actor->GetName()));
+			check(NewActorPackage->GetName() == ExternalDataLayerManager->GetActorPackageName(ExternalDataLayerAsset, DestinationLevel, Actor->GetPathName()));
 			check(NewActorPackage->GetName() != OldActorPackageName);
 
 			// Move dependant objects into the new actor package
