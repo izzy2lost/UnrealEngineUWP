@@ -289,6 +289,10 @@ public:
 		SLATE_ARGUMENT(const UClass*, MetaClass)
 		/** An interface that the selected class must implement (optional) */
 		SLATE_ARGUMENT(const UClass*, RequiredInterface)
+		/** Allowed class that the selected class must be a child-of. (optional) */
+		SLATE_ARGUMENT(TArray<const UClass*>, AllowedClasses)
+		/** Classes that the selected class cannot be a child-of. (optional) */
+		SLATE_ARGUMENT(TArray<const UClass*>, DisallowedClasses)
 		/** Whether or not abstract classes are allowed (optional) */
 		SLATE_ARGUMENT(bool, AllowAbstract)
 		/** Should only base blueprints be displayed? (optional) */

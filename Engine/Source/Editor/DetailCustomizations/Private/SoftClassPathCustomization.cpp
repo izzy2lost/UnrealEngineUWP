@@ -22,7 +22,9 @@ void FSoftClassPathCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> In
 
 	const FString& MetaClassName = PropertyHandle->GetMetaData("MetaClass");
 	const FString& RequiredInterfaceName = PropertyHandle->GetMetaData("RequiredInterface"); // This was the old name, switch to MustImplement to synchronize with class property
-	const FString& MustImplementName = PropertyHandle->GetMetaData("MustImplement"); 
+	const FString& MustImplementName = PropertyHandle->GetMetaData("MustImplement");
+	TArray<const UClass*> AllowedClasses = PropertyCustomizationHelpers::GetClassesFromMetadataString(PropertyHandle->GetMetaData("AllowedClasses"));
+	TArray<const UClass*> DisallowedClasses = PropertyCustomizationHelpers::GetClassesFromMetadataString(PropertyHandle->GetMetaData("DisallowedClasses"));
 	const bool bAllowAbstract = PropertyHandle->HasMetaData("AllowAbstract");
 	const bool bIsBlueprintBaseOnly = PropertyHandle->HasMetaData("IsBlueprintBaseOnly") || PropertyHandle->HasMetaData("BlueprintBaseOnly");
 	const bool bAllowNone = !(PropertyHandle->GetMetaDataProperty()->PropertyFlags & CPF_NoClear);
@@ -50,6 +52,8 @@ void FSoftClassPathCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> In
 		SNew(SClassPropertyEntryBox)
 			.MetaClass(MetaClass)
 			.RequiredInterface(RequiredInterface)
+			.AllowedClasses(MoveTemp(AllowedClasses))
+			.DisallowedClasses(MoveTemp(DisallowedClasses))
 			.AllowAbstract(bAllowAbstract)
 			.IsBlueprintBaseOnly(bIsBlueprintBaseOnly)
 			.AllowNone(bAllowNone)

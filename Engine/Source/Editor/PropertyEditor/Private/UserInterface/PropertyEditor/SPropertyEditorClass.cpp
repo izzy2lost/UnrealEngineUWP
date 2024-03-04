@@ -213,8 +213,8 @@ void SPropertyEditorClass::Construct(const FArguments& InArgs, const TSharedPtr<
 		bShowViewOptions = InArgs._ShowViewOptions;
 		bShowTree = InArgs._ShowTree;
 		bShowDisplayNames = InArgs._ShowDisplayNames;
-		AllowedClassFilters.Empty();
-		DisallowedClassFilters.Empty();
+		AllowedClassFilters = InArgs._AllowedClasses;
+		DisallowedClassFilters = InArgs._DisallowedClasses;
 		SelectedClass = InArgs._SelectedClass;
 		OnSetClass = InArgs._OnSetClass;
 	}
