@@ -75,7 +75,7 @@ FAvaSequenceController::FAvaSequenceController(UAvaSequence& InSequence, IAvaSeq
 
 FAvaSequenceController::~FAvaSequenceController()
 {
-	if (UAvaSequence* const Sequence = SequenceWeak.Get())
+	if (UAvaSequence* const Sequence = SequenceWeak.Get(/*bEvenIfPendingKill*/true))
 	{
 		Sequence->GetOnTreeNodeUpdated().RemoveAll(this);
 	}
