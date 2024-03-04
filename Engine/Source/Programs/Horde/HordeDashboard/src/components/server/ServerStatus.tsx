@@ -57,7 +57,7 @@ const ServerPanel: React.FC = observer(() => {
 
    }, []);
 
-   const { modeColors } = getHordeStyling();
+   const { modeColors, hordeClasses } = getHordeStyling();
 
    // subscribe
    if (handler.updated) { };
@@ -150,25 +150,20 @@ const ServerPanel: React.FC = observer(() => {
       return <Text style={{ color: modeColors.text }}>{item[column?.fieldName]}</Text>
    };
 
-   return (<Stack>
-      <Stack styles={{ root: { paddingTop: 18, paddingLeft: 12, paddingRight: 12, width: "100%" } }} >
-         <Stack tokens={{ childrenGap: 12 }}>
-            <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Status</Text>
-            <div style={{ overflowY: 'auto', overflowX: 'hidden', maxHeight: "calc(100vh - 312px)" }} data-is-scrollable={true}>
-               <Stack>
-                  <DetailsList
-                     items={status}
-                     columns={columns}
-                     selectionMode={SelectionMode.none}
-                     layoutMode={DetailsListLayoutMode.justified}
-                     compact={true}
-                     onRenderItemColumn={renderItem}
-                  />
-               </Stack>
-            </div>
+   return (<Stack className={hordeClasses.raised} >
+         <Stack styles={{ root: { paddingLeft: 12, paddingRight: 12, paddingBottom: 12, width: "100%" } }} >
+            <Stack>
+               <DetailsList
+                  items={status}
+                  columns={columns}
+                  selectionMode={SelectionMode.none}
+                  layoutMode={DetailsListLayoutMode.justified}
+                  compact={true}
+                  onRenderItemColumn={renderItem}
+               />
+            </Stack>
          </Stack>
-      </Stack>
-   </Stack>);
+      </Stack>);
 });
 
 
@@ -176,21 +171,26 @@ export const ServerStatusView: React.FC = () => {
 
    const windowSize = useWindowSize();
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+   const centerAlign = vw / 2 - 720;
 
    const { hordeClasses, modeColors } = getHordeStyling();
 
+   const key = `windowsize_view_${windowSize.width}_${windowSize.height}`;
+
    return <Stack className={hordeClasses.horde}>
       <TopNav />
-      <Breadcrumbs items={[{ text: 'Server' }]} />
-      <Stack horizontal>
-         <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
-         <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%" } }}>
-            <Stack style={{ maxWidth: 1440, paddingTop: 6, marginLeft: 4, height: 'calc(100vh - 8px)' }}>
-               <Stack horizontal className={hordeClasses.raised}>
-                  <Stack style={{ width: "100%", height: 'calc(100vh - 228px)' }} tokens={{ childrenGap: 18 }}>
-                     <ServerPanel />
+      <Breadcrumbs items={[{ text: 'Service Accounts' }]} />
+      <Stack styles={{ root: { width: "100%", backgroundColor: modeColors.background } }}>
+         <Stack style={{ width: "100%", backgroundColor: modeColors.background }}>
+            <Stack style={{ position: "relative", width: "100%", height: 'calc(100vh - 148px)' }}>
+               <div style={{ overflowX: "auto", overflowY: "visible" }}>
+                  <Stack horizontal style={{ paddingTop: 30, paddingBottom: 48 }}>
+                     <Stack key={`${key}`} style={{ paddingLeft: centerAlign }} />
+                     <Stack style={{ width: 1440 }}>
+                        <ServerPanel />
+                     </Stack>
                   </Stack>
-               </Stack>
+               </div>
             </Stack>
          </Stack>
       </Stack>
