@@ -510,7 +510,7 @@ public:
 		{
 			TSubpassDescriptionClass& SubpassDesc = SubpassDescriptions[NumSubpasses++];
 
-			SubpassDesc.SetColorAttachments(ColorAttachmentReferences, NumColorAttachments);
+			SubpassDesc.SetColorAttachments(ColorAttachmentReferences, 1);
 
 			check(RTLayout.GetDepthAttachmentReference());
 
