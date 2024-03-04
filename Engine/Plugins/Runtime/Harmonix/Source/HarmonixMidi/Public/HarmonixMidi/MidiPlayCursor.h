@@ -72,8 +72,12 @@ public:
 	void SetWatchTrack(int32 TrackIndex) { WatchTrack = TrackIndex; }
 	virtual void ManagerIsDetaching() {}
 
-	const FMidiPlayCursorMgr* GetOwner() const { return Owner; }
+#if HARMONIX_MIDIPLAYCURSOR_ENABLE_ENSURE_OWNER
+	FMidiPlayCursorMgr* GetOwner();
+#else
 	FMidiPlayCursorMgr* GetOwner() { return Owner; }
+#endif
+	const FMidiPlayCursorMgr* GetOwner() const { return const_cast<FMidiPlayCursor*>(this)->GetOwner(); }
 
 	static const float kSmallMs;
 

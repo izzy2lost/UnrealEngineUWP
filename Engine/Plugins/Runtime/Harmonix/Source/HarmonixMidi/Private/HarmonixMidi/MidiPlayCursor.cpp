@@ -24,7 +24,7 @@ FMidiPlayCursor::FMidiPlayCursor()
 
 FMidiPlayCursor::~FMidiPlayCursor()
 {
-	if (Owner)
+	if (GetOwner())
 	{
 		Owner->UnregisterPlayCursor(this);
 		Owner = nullptr;
@@ -34,12 +34,12 @@ FMidiPlayCursor::~FMidiPlayCursor()
 
 void FMidiPlayCursor::SetOwner(FMidiPlayCursorMgr* NewOwner, FMidiPlayCursorTracker* NewTracker, float PreRollMs)
 {
-	check(Owner == nullptr || NewOwner == nullptr);
+	check(GetOwner() == nullptr || NewOwner == nullptr);
 
 	Owner = NewOwner;
 	Tracker = NewTracker;
 
-	if (Owner)
+	if (GetOwner())
 	{
 		TrackNextEventIndexs.SetNumUninitialized(Owner->Tracks().Num());
 		Reset(PreRollMs > 0.0f);
@@ -61,7 +61,7 @@ void FMidiPlayCursor::Reset(bool ForceNoBroadcast)
 {
 	CurrentTick = -1;
 	LoopCount = 0;
-	if (Owner)
+	if (GetOwner())
 	{
 		CurrentMs = Owner->GetTempoMap().TickToMs(CurrentTick);
 		TrackNextEventIndexs.SetNumUninitialized(Owner->Tracks().Num());
@@ -94,11 +94,26 @@ void FMidiPlayCursor::SetupTickLookahead(int32 Ticks, ESyncOptions Opts)
 	SyncOpts = Opts;
 
 	// may be called before or after we are attached to a play cursor manager!
-	if (Owner)
+	if (GetOwner())
 	{
 		PrepareLookAheadTicks();
 	}
 }
+
+#if HARMONIX_MIDIPLAYCURSOR_ENABLE_ENSURE_OWNER
+FMidiPlayCursorMgr* FMidiPlayCursor::GetOwner()
+{
+	if (Tracker)
+	{
+		int32 RecursionCount = Tracker->CursorListCS.GetRecursionCountIfOwned();
+		if (!RecursionCount)
+		{
+			UE_LOG(LogMidi, Warning, TEXT("Play cursor owner accessed with cursor list unlocked."));
+		}
+	}
+	return Owner;
+}
+#endif
 
 void FMidiPlayCursor::RecalcNextEventsDueToMidiChanges(FMidiPlayCursorMgr::EMidiChangePositionCorrectMode PositionMode)
 {
@@ -115,7 +130,7 @@ void FMidiPlayCursor::RecalcNextEventsDueToMidiChanges(FMidiPlayCursorMgr::EMidi
 	}
 
 	// changes to tracks might actually be more complicated...
-	const UMidiFile::FMidiTrackList& Tracks = Owner->Tracks();
+	const UMidiFile::FMidiTrackList& Tracks = GetOwner()->Tracks();
 	if (Tracks.Num() != TrackNextEventIndexs.Num())
 	{
 		int32 OldNum = TrackNextEventIndexs.Num();
@@ -149,7 +164,7 @@ void FMidiPlayCursor::RecalcNextEventsDueToMidiChanges(FMidiPlayCursorMgr::EMidi
 
 void FMidiPlayCursor::PrepareLookAheadTicks(bool ForceNoBroadcast)
 {
-	check(Owner);
+	check(GetOwner());
 
 	bool Broadcast = !ForceNoBroadcast &&
 		(SyncOpts != ESyncOptions::NoBroadcastNoPreRoll) &&
@@ -164,7 +179,7 @@ void FMidiPlayCursor::PrepareLookAheadTicks(bool ForceNoBroadcast)
 		Tracker->IsAtStart() &&
 		(SyncOpts == ESyncOptions::PreRollIfAtStartOrBroadcast || SyncOpts == ESyncOptions::PreRollIfAtStartOrNoBroadcast))
 	{
-		Owner->RecalculatePreRollDueToCursorPosition(this);
+		GetOwner()->RecalculatePreRollDueToCursorPosition(this);
 		return;
 	}
 
@@ -185,7 +200,7 @@ void FMidiPlayCursor::SetupMsLookahead(float Ms, ESyncOptions Opts)
 	SyncOpts = Opts;
 
 	// may be called before or after we are attached to a play cursor manager!
-	if (Owner)
+	if (GetOwner())
 	{
 		PrepareLookAheadMs();
 	}
@@ -193,7 +208,7 @@ void FMidiPlayCursor::SetupMsLookahead(float Ms, ESyncOptions Opts)
 
 void FMidiPlayCursor::PrepareLookAheadMs(bool ForceNoBroadcast)
 {
-	check(Owner);
+	check(GetOwner());
 
 	bool Broadcast = !ForceNoBroadcast &&
 		(SyncOpts != ESyncOptions::NoBroadcastNoPreRoll) &&
@@ -208,7 +223,7 @@ void FMidiPlayCursor::PrepareLookAheadMs(bool ForceNoBroadcast)
 		Tracker->IsAtStart() &&
 		(SyncOpts == ESyncOptions::PreRollIfAtStartOrBroadcast || SyncOpts == ESyncOptions::PreRollIfAtStartOrNoBroadcast))
 	{
-		Owner->RecalculatePreRollDueToCursorPosition(this);
+		GetOwner()->RecalculatePreRollDueToCursorPosition(this);
 		return;
 	}
 
@@ -221,11 +236,11 @@ void FMidiPlayCursor::PrepareLookAheadMs(bool ForceNoBroadcast)
 		float NewMs = Tracker->CurrentMs + LookaheadMs;
 		if (NewMs > 0.0f)
 		{
-			CurrentTick = (int32)(Owner->GetTempoMap().MsToTick(NewMs) + 0.5f);
+			CurrentTick = (int32)(GetOwner()->GetTempoMap().MsToTick(NewMs) + 0.5f);
 		}
 		else
 		{
-			CurrentTick = (int32)(Owner->GetTempoMap().MsToTick(NewMs) - 0.5f);
+			CurrentTick = (int32)(GetOwner()->GetTempoMap().MsToTick(NewMs) - 0.5f);
 		}
 		SeekThruTick(CurrentTick);
 		CurrentMs = NewMs;
@@ -234,9 +249,9 @@ void FMidiPlayCursor::PrepareLookAheadMs(bool ForceNoBroadcast)
 
 bool FMidiPlayCursor::Advance(bool IsLowRes)
 {
-	check(Owner);
+	check(GetOwner());
 	bool ProcessLoops = IsLowRes ||
-		!(Owner->IsDirectMappedTimeFollower() && LookaheadTicks == 0);
+		!(GetOwner()->IsDirectMappedTimeFollower() && LookaheadTicks == 0);
 	switch (LookaheadType)
 	{
 	case ELookaheadType::Ticks: AdvanceByTicks(ProcessLoops); break;
@@ -248,7 +263,7 @@ bool FMidiPlayCursor::Advance(bool IsLowRes)
 
 bool FMidiPlayCursor::AdvanceAsPreRoll()
 {
-	check(Owner);
+	check(GetOwner());
 	switch (LookaheadType)
 	{
 	case ELookaheadType::Ticks: AdvanceByTicks(true, true, true); break;
@@ -274,7 +289,7 @@ void FMidiPlayCursor::AdvanceByTicks(bool ProcessLoops, bool Broadcast, bool IsP
 void FMidiPlayCursor::DoAdvanceForLaggingTickCursor(bool Broadcast, bool IsPreRoll)
 {
 	int32 NewTick = Tracker->CurrentTick + LookaheadTicks;
-	if (Owner->DoesLoop(Tracker->IsLowRes))
+	if (GetOwner()->DoesLoop(Tracker->IsLowRes))
 	{
 		int32 LoopStartTick = Owner->GetLoopStartTick(Tracker->IsLowRes);
 		int32 LoopEndTick = Owner->GetLoopEndTick(Tracker->IsLowRes);
@@ -402,7 +417,7 @@ void FMidiPlayCursor::DoAdvanceForLaggingTickCursor(bool Broadcast, bool IsPreRo
 void FMidiPlayCursor::DoAdvanceForLeadingTickCursor(bool Broadcast, bool ProcessLoops, bool IsPreRoll)
 {
 	int32 NewTick = Tracker->CurrentTick + LookaheadTicks;
-	if (Owner->DoesLoop(Tracker->IsLowRes) && ProcessLoops) 
+	if (GetOwner()->DoesLoop(Tracker->IsLowRes) && ProcessLoops) 
 	{
 		int32 LoopStartTick = Owner->GetLoopStartTick(Tracker->IsLowRes);
 		int32 LoopEndTick = Owner->GetLoopEndTick(Tracker->IsLowRes);
@@ -528,7 +543,7 @@ void FMidiPlayCursor::AdvanceByMs(bool ProcessLoops, bool Broadcast, bool IsPreR
 void FMidiPlayCursor::DoAdvanceForLaggingMsCursor(bool Broadcast, bool IsPreRoll)
 {
 	float NewMs = Tracker->CurrentMs + LookaheadMs;
-	int32 NewTick = (int32)(Owner->GetTempoMap().MsToTick(NewMs) + 0.5f);
+	int32 NewTick = (int32)(GetOwner()->GetTempoMap().MsToTick(NewMs) + 0.5f);
 	if (Owner->DoesLoop(Tracker->IsLowRes))
 	{
 		float LoopStartMs = Owner->GetLoopStartMs(Tracker->IsLowRes);
@@ -662,7 +677,7 @@ void FMidiPlayCursor::DoAdvanceForLaggingMsCursor(bool Broadcast, bool IsPreRoll
 void FMidiPlayCursor::DoAdvanceForLeadingMsCursor(bool Broadcast, bool ProcessLoops, bool IsPreRoll)
 {
 	float NewMs = Tracker->CurrentMs + LookaheadMs;
-	int32 NewTick = (int32)(Owner->GetTempoMap().MsToTick(NewMs) + 0.5f);
+	int32 NewTick = (int32)(GetOwner()->GetTempoMap().MsToTick(NewMs) + 0.5f);
 	if (Owner->DoesLoop(Tracker->IsLowRes) && ProcessLoops) 
 	{
 		float LoopStartMs = Owner->GetLoopStartMs(Tracker->IsLowRes);
@@ -781,7 +796,7 @@ void FMidiPlayCursor::DoAdvanceForLeadingMsCursor(bool Broadcast, bool ProcessLo
 
 void FMidiPlayCursor::SeekToTick(int32 Tick)
 {
-	const UMidiFile::FMidiTrackList& Tracks = Owner->Tracks();
+	const UMidiFile::FMidiTrackList& Tracks = GetOwner()->Tracks();
 	int32 StartIndex = (WatchTrack < 0) ? 0 : WatchTrack;
 	int32 EndIndex = (WatchTrack < 0) ? Tracks.Num() : (WatchTrack + 1);
 	if (EndIndex > Tracks.Num())
@@ -808,7 +823,7 @@ void FMidiPlayCursor::SeekToTick(int32 Tick)
 
 void FMidiPlayCursor::SeekThruTick(int32 Tick)
 {
-	const UMidiFile::FMidiTrackList& Tracks = Owner->Tracks();
+	const UMidiFile::FMidiTrackList& Tracks = GetOwner()->Tracks();
 	int32 StartIndex = (WatchTrack < 0) ? 0 : WatchTrack;
 	int32 EndIndex = (WatchTrack < 0) ? Tracks.Num() : (WatchTrack + 1);
 	if (EndIndex > Tracks.Num())
@@ -835,7 +850,7 @@ void FMidiPlayCursor::SeekThruTick(int32 Tick)
 
 bool FMidiPlayCursor::IsDone() const
 {
-	const UMidiFile::FMidiTrackList& Tracks = Owner->Tracks();
+	const UMidiFile::FMidiTrackList& Tracks = GetOwner()->Tracks();
 	int32 StartIndex = (WatchTrack < 0) ? 0 : WatchTrack;
 	int32 EndIndex = (WatchTrack < 0) ? Tracks.Num() : (WatchTrack + 1);
 	if (EndIndex > Tracks.Num())
@@ -1058,7 +1073,7 @@ namespace
 
 void FMidiPlayCursor::AdvanceThruTick(int32 Tick, bool IsPreRoll)
 {
-	const UMidiFile::FMidiTrackList& Tracks = Owner->Tracks();
+	const UMidiFile::FMidiTrackList& Tracks = GetOwner()->Tracks();
 	FMidiEventHashTable& HeldNoteOnEvents = ThisThreadsMidiHashTable.Get();
 
 	if (!IsPreRoll)
@@ -1182,7 +1197,7 @@ void FMidiPlayCursor::BroadcastEvent(int32 TrackIndex, const FMidiEvent& Event, 
 	case FMidiMsg::EType::Text:
 		if ((FilterPassFlags & EFilterPassFlags::Text) != EFilterPassFlags::None)
 		{
-			const FMidiTrack& Track = Owner->Tracks()[TrackIndex];
+			const FMidiTrack& Track = GetOwner()->Tracks()[TrackIndex];
 			OnText(TrackIndex, Event.GetTick(), Msg.GetTextIndex(), Track.GetTextAtIndex(Msg.GetTextIndex()), Msg.GetTextType(), IsPreroll);
 		}
 		break;
@@ -1193,7 +1208,7 @@ void FMidiPlayCursor::BroadcastEvent(int32 TrackIndex, const FMidiEvent& Event, 
 		}
 		break;
 	default:
-		UE_LOG(LogMIDI, Error, TEXT("Unknown midi message type %d on track %d at tick %d, file %s"), int(Msg.MsgType()), TrackIndex, Event.GetTick(), **Owner->GetMidiFileName());
+		UE_LOG(LogMIDI, Error, TEXT("Unknown MIDI message type %d on track %d at tick %d, file %s"), int(Msg.MsgType()), TrackIndex, Event.GetTick(), **GetOwner()->GetMidiFileName());
 		break;
 	}
 }

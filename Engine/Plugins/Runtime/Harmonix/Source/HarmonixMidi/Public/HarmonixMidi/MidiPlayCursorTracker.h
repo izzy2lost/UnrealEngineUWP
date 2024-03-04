@@ -6,9 +6,62 @@
 
 class FMidiPlayCursor;
 
+#ifndef HARMONIX_MIDIPLAYCURSOR_ENABLE_ENSURE_OWNER
+#define HARMONIX_MIDIPLAYCURSOR_ENABLE_ENSURE_OWNER DO_ENSURE
+#endif
+
+#if HARMONIX_MIDIPLAYCURSOR_ENABLE_ENSURE_OWNER
+class FHarmonixMidiPlayCursorDebugCriticalSection
+{
+public:
+	FORCEINLINE void Lock()
+	{
+		CriticalSection.Lock();
+		++RecursionCount;
+	}
+
+	FORCEINLINE bool TryLock()
+	{
+		if (CriticalSection.TryLock())
+		{
+			++RecursionCount;
+			return true;
+		}
+		return false;
+	}
+
+	FORCEINLINE void Unlock()
+	{
+		--RecursionCount;
+		CriticalSection.Unlock();
+	}
+
+	FORCEINLINE int32 GetRecursionCountIfOwned()
+	{
+		if (CriticalSection.TryLock())
+		{
+			int32 Count = RecursionCount;
+			CriticalSection.Unlock();
+			return Count;
+		}
+		return 0;
+	}
+
+private:
+	FCriticalSection CriticalSection;
+	int32 RecursionCount = 0;
+};
+
+using FMidiPlayCursorListCS = FHarmonixMidiPlayCursorDebugCriticalSection;
+#else
+using FMidiPlayCursorListCS = FCriticalSection;
+#endif
+
+using FMidiPlayCursorListLock = UE::TScopeLock<FMidiPlayCursorListCS>;
+
 struct FMidiPlayCursorTracker
 {
-	mutable FCriticalSection CursorListLock;
+	mutable FMidiPlayCursorListCS CursorListCS;
 
 	int32   CurrentTick; // We've broadcast all events up through this tick
 	float   CurrentMs;   // We've broadcast all events up through this Ms

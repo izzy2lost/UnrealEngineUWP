@@ -24,8 +24,8 @@ FMidiPlayCursorMgr::FMidiPlayCursorMgr()
 
 void FMidiPlayCursorMgr::Reset()
 {
-	FScopeLock LowResLock(&GetLowResTracker().CursorListLock);
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock LowResCursorListLock(GetLowResTracker().CursorListCS);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 	UnregisterAllPlayCursors();
 	ResetTrackers();
 	MidiFileData = nullptr;
@@ -120,8 +120,8 @@ FMidiSongPos FMidiPlayCursorMgr::CalculateSongPosWithOffsetMs(float DeltaMs, boo
 
 void FMidiPlayCursorMgr::DetermineLength()
 {
-	FScopeLock LowResLock(&GetLowResTracker().CursorListLock);
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock LowResCursorListLock(GetLowResTracker().CursorListCS);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 	if (!MidiFileData)
 	{
 		LengthMs = 0.0f;
@@ -166,24 +166,24 @@ FMidiPlayCursorMgr::~FMidiPlayCursorMgr()
 
 void FMidiPlayCursorMgr::RegisterHiResPlayCursor(FMidiPlayCursor* PlayCursor, float PreRollMs)
 {
-	if (PlayCursor->Owner)
+	if (PlayCursor->GetOwner())
 	{
 		PlayCursor->Owner->UnregisterPlayCursor(PlayCursor);
 	}
 	PlayCursor->UnregisterASAP = false;
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 	PlayCursor->SetOwner(this, &GetHiResTracker(), PreRollMs);
 	GetHiResTracker().AddCursor(PlayCursor);
 }
 
 void FMidiPlayCursorMgr::RegisterLowResPlayCursor(FMidiPlayCursor* PlayCursor, float PreRollMs)
 {
-	if (PlayCursor->Owner)
+	if (PlayCursor->GetOwner())
 	{
 		PlayCursor->Owner->UnregisterPlayCursor(PlayCursor);
 	}
 	PlayCursor->UnregisterASAP = false;
-	FScopeLock LowResLock(&GetLowResTracker().CursorListLock);
+	FMidiPlayCursorListLock LowResCursorListLock(GetLowResTracker().CursorListCS);
 	PlayCursor->SetOwner(this, &GetLowResTracker(), PreRollMs);
 	GetLowResTracker().AddCursor(PlayCursor);
 }
@@ -219,7 +219,7 @@ void FMidiPlayCursorMgr::UnregisterPlayCursor(FMidiPlayCursor* PlayCursor, bool 
 	// search the hi-res list... then the low res...
 	for (int32 Index = 0; Index != 2; ++Index)
 	{
-		FScopeLock Lock(&Trackers[Index].CursorListLock);
+		FMidiPlayCursorListLock CursorListLock(Trackers[Index].CursorListCS);
 		if (Trackers[Index].TraversingCursors)
 		{
 			if (PlayCursor->Tracker == &Trackers[Index])
@@ -244,8 +244,8 @@ void FMidiPlayCursorMgr::UnregisterPlayCursor(FMidiPlayCursor* PlayCursor, bool 
 
 void FMidiPlayCursorMgr::UnregisterAllPlayCursors()
 {
-	FScopeLock LowResLock(&GetLowResTracker().CursorListLock);
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock LowResCursorListLock(GetLowResTracker().CursorListCS);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 
 	if (GetHiResTracker().TraversingCursors || GetLowResTracker().TraversingCursors)
 	{
@@ -278,8 +278,8 @@ bool FMidiPlayCursorMgr::HasLowResCursors() const
 
 void FMidiPlayCursorMgr::ResetTrackers()
 {
-	FScopeLock LowResLock(&GetLowResTracker().CursorListLock);
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock LowResCursorListLock(GetLowResTracker().CursorListCS);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 	float Ms = GetTempoMap().TickToMs(-1);
 	for (FMidiPlayCursorTracker& Tracker : Trackers)
 	{
@@ -350,8 +350,8 @@ void FMidiPlayCursorMgr::GetCursorExtentsTicks(int32& Earliest, int32& Latest) c
 
 bool FMidiPlayCursorMgr::CursorsAllInPhase() const
 {
-	FScopeLock LowResLock(&GetLowResTracker().CursorListLock);
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock LowResCursorListLock(GetLowResTracker().CursorListCS);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 
 	return CursorsAllInPhaseImpl(false) && CursorsAllInPhaseImpl(true);
 }
@@ -410,14 +410,14 @@ void FMidiPlayCursorMgr::SetLoop(int32 StartTick, int32 EndTick, bool IsDirectMa
 	// might fall in the middle of the current span of leading and lagging play cursors,
 	// which would result in ugly behavior!
 
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 	DirectMappedTimeFollower = IsDirectMappedFollower;
 	SetLoopImpl(StartTick, EndTick, IgnoringLookAhead, false);
 }
 
 void FMidiPlayCursorMgr::ClearLoop(bool IgnoringLookAhead)
 {
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 	ClearLoopImpl(IgnoringLookAhead, false);
 }
 
@@ -473,8 +473,8 @@ void FMidiPlayCursorMgr::ClearLoopImpl(bool IgnoringLookAhead, bool IsLowRes)
 
 void FMidiPlayCursorMgr::SeekTo(int32 Tick, int32 PreRollBars, bool IsRenderThread, bool IsLoop)
 {
-	FScopeLock LowResLock(&GetLowResTracker().CursorListLock);
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock LowResCursorListLock(GetLowResTracker().CursorListCS);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 
 	// Back up one tick, as we are going to be setting the cursors'
 	// 'played through' position.
@@ -527,7 +527,7 @@ void FMidiPlayCursorMgr::SeekTo(int32 Tick, int32 PreRollBars, bool IsRenderThre
 
 void FMidiPlayCursorMgr::MoveToLoopStart()
 {
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 	{
 		if (ensureMsgf(GetHiResTracker().Loop, TEXT("That's odd. Asked to move to the beginning of the loop... but there is no loop!")))
 		{
@@ -544,7 +544,7 @@ void FMidiPlayCursorMgr::MoveToLoopStart()
 			// The low res cursor will need to advance to the end of the loop, and then
 			// advance from loop-start to current position at some point in the future
 			// (during a low-res frame poll)
-			FScopeLock LowResLock(&GetLowResTracker().CursorListLock);
+			FMidiPlayCursorListLock LowResCursorListLock(GetLowResTracker().CursorListCS);
 			MsSinceLowResUpdate += GetHiResTracker().LoopEndMs - GetLowResTracker().CurrentMs;
 		}
 	}
@@ -591,8 +591,8 @@ void FMidiPlayCursorMgr::LockForMidiDataChanges()
 	if (ensureAlways(!InMidiChangeLock))
 	{
 		InMidiChangeLock = true;
-		GetLowResTracker().CursorListLock.Lock();
-		GetHiResTracker().CursorListLock.Lock();
+		GetLowResTracker().CursorListCS.Lock();
+		GetHiResTracker().CursorListCS.Lock();
 	}
 }
 
@@ -673,8 +673,8 @@ void FMidiPlayCursorMgr::MidiDataChangeComplete(EMidiChangePositionCorrectMode P
 			int32 SeekTick = PositionMode == EMidiChangePositionCorrectMode::MaintainTick ? GetHiResTracker().CurrentTick : GetTempoMap().MsToTick(GetHiResTracker().CurrentMs);
 			SeekTo(SeekTick, PreRollBars, true, false);
 		}
-		GetHiResTracker().CursorListLock.Unlock();
-		GetLowResTracker().CursorListLock.Unlock();
+		GetHiResTracker().CursorListCS.Unlock();
+		GetLowResTracker().CursorListCS.Unlock();
 		InMidiChangeLock = false;
 	}
 }
@@ -697,14 +697,14 @@ void FMidiPlayCursorMgr::AdvanceHiResToMs(float Ms, bool Broadcast)
 
 void FMidiPlayCursorMgr::AdvanceHiResByDeltaMs(float Ms, bool Broadcast)
 {
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 	HiResLoopedSinceLastLoResUpdate = AdvanceTrackerByDeltaMs(Ms, GetHiResTracker(), Broadcast) || HiResLoopedSinceLastLoResUpdate;
 	MsSinceLowResUpdate += Ms;
 }
 
 void FMidiPlayCursorMgr::AdvanceHiResByDeltaTick(int32 NumTicks, bool Broadcast)
 {
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 
 	int32 ThruTick = NumTicks + GetHiResTracker().CurrentTick;
 
@@ -715,7 +715,7 @@ void FMidiPlayCursorMgr::AdvanceHiResByDeltaTick(int32 NumTicks, bool Broadcast)
 
 void FMidiPlayCursorMgr::AdvanceHiResThruTick(int32 ThruTick, bool Broadcast, bool DontAdvancePastLoopEnd)
 {
-	FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 
 	// early out?...
 	if (ThruTick == GetHiResTracker().CurrentTick)
@@ -741,7 +741,7 @@ void FMidiPlayCursorMgr::AdvanceHiResThruTick(int32 ThruTick, bool Broadcast, bo
 
 bool FMidiPlayCursorMgr::AdvanceLowResCursors()
 {
-	FScopeLock LowResLock(&GetLowResTracker().CursorListLock);
+	FMidiPlayCursorListLock LowResCursorListLock(GetLowResTracker().CursorListCS);
 
 	GetLowResTracker().HandleQueuedReset();
 
@@ -753,7 +753,7 @@ bool FMidiPlayCursorMgr::AdvanceLowResCursors()
 	bool HiResLoop = false;
 	bool HiResLoopIgnoringLookAhead = false;
 	{
-		FScopeLock HiResLock(&GetHiResTracker().CursorListLock);
+		FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
 
 		MsDiff = MsSinceLowResUpdate;
 		HiResCurrentMs = GetHiResTracker().CurrentMs;
