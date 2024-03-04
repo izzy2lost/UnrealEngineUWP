@@ -481,7 +481,7 @@ void SNiagaraGeneratedCodeView::UpdateUI()
 					GeneratedCode[i].UsageName = FText::Format(LOCTEXT("UsageName", "{0}{1}"), ScriptEnum->GetDisplayNameTextByValue((int64)Scripts[i]->Usage), AssemblyIdText);
 				}
 
-				if (SourceText)
+				if (SourceText && SourceText->Len() > 0)
 				{
 					if (bAddLineNumbers)
 					{
