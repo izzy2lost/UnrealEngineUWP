@@ -19,7 +19,7 @@ SkeletalMeshUpdate.h: Helpers to stream in and out skeletal mesh LODs.
 * The mesh and render data references could be stored in the update object
 * but are currently kept outside to avoid lifetime management within the object.
 */
-struct FSkelMeshUpdateContext
+struct ENGINE_API FSkelMeshUpdateContext
 {
 	typedef int32 EThreadType;
 
@@ -65,7 +65,7 @@ public:
 	}
 };
 
-class FSkeletalMeshStreamIn : public FSkeletalMeshUpdate
+class ENGINE_API FSkeletalMeshStreamIn : public FSkeletalMeshUpdate
 {
 public:
 	FSkeletalMeshStreamIn(const USkeletalMesh* InMesh, EThreadType CreateResourcesThread);
