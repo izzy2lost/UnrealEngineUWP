@@ -32,6 +32,7 @@ namespace UnrealGameSync
 		{
 			UpdateSource = DeploymentSettings.Instance.UpdateSource;
 			HordeServer = DeploymentSettings.Instance.HordeUrl;
+			PerforceServerAndPort = DeploymentSettings.Instance.DefaultPerforceServer;
 			PerforceDepotPath = DeploymentSettings.Instance.DefaultDepotPath;
 		}
 
@@ -120,7 +121,7 @@ namespace UnrealGameSync
 				Utility.DeleteRegistryKey(key, "Server");
 
 				SaveRegistryValue(key, "Source", UpdateSource.ToString(), DeploymentSettings.Instance.UpdateSource.ToString());
-				SaveRegistryValue(key, "ServerAndPort", PerforceServerAndPort, null);
+				SaveRegistryValue(key, "ServerAndPort", PerforceServerAndPort, DeploymentSettings.Instance.DefaultPerforceServer);
 				SaveRegistryValue(key, "UserName", PerforceUserName, null);
 				SaveRegistryValue(key, "DepotPath", PerforceDepotPath, DeploymentSettings.Instance.DefaultDepotPath);
 
