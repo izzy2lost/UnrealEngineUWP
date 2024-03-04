@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using Microsoft.Win32;
 using System;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
+using EpicGames.Horde;
+using Microsoft.Win32;
 
 namespace UnrealGameSync
 {
@@ -54,6 +55,12 @@ namespace UnrealGameSync
 		[SupportedOSPlatform("windows")]
 		void ReadFromRegistry()
 		{
+			Uri? defaultServerUrl = HordeOptions.GetDefaultServerUrl();
+			if (defaultServerUrl != null)
+			{
+				HordeServer = defaultServerUrl.ToString();
+			}
+
 			using (RegistryKey? key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Epic Games\\UnrealGameSync", false))
 			{
 				if (key != null)
@@ -64,11 +71,10 @@ namespace UnrealGameSync
 						UpdateSource = updateSource;
 					}
 
-					HordeServer = key.GetValue("HordeServer", HordeServer) as string;
 					PerforceServerAndPort = key.GetValue("ServerAndPort", PerforceServerAndPort) as string;
 					PerforceUserName = key.GetValue("UserName", PerforceUserName) as string;
 					PerforceDepotPath = key.GetValue("DepotPath", PerforceDepotPath) as string;
-					PreviewBuild = ((key.GetValue("Preview", PreviewBuild? 1 : 0) as int?) ?? 0) != 0;
+					PreviewBuild = ((key.GetValue("Preview", PreviewBuild ? 1 : 0) as int?) ?? 0) != 0;
 
 					// Fix corrupted depot path string
 					if (PerforceDepotPath != null)
@@ -103,13 +109,17 @@ namespace UnrealGameSync
 		[SupportedOSPlatform("windows")]
 		void SaveToRegistry()
 		{
+			if (!String.IsNullOrEmpty(HordeServer))
+			{
+				HordeOptions.SetDefaultServerUrl(new Uri(HordeServer));
+			}
+
 			using (RegistryKey key = Registry.CurrentUser.CreateSubKey("SOFTWARE\\Epic Games\\UnrealGameSync"))
 			{
 				// Delete this legacy setting
 				Utility.DeleteRegistryKey(key, "Server");
 
 				SaveRegistryValue(key, "Source", UpdateSource.ToString(), DeploymentSettings.Instance.UpdateSource.ToString());
-				SaveRegistryValue(key, "HordeServer", HordeServer, DeploymentSettings.Instance.HordeUrl);
 				SaveRegistryValue(key, "ServerAndPort", PerforceServerAndPort, null);
 				SaveRegistryValue(key, "UserName", PerforceUserName, null);
 				SaveRegistryValue(key, "DepotPath", PerforceDepotPath, DeploymentSettings.Instance.DefaultDepotPath);

@@ -507,6 +507,9 @@ namespace EpicGames.Horde
 					}
 				}
 
+				// Try to get the default server address from the registry
+				httpClient.BaseAddress ??= HordeOptions.GetDefaultServerUrl();
+
 				// Make sure we have a base URL set
 				if (httpClient.BaseAddress == null)
 				{
