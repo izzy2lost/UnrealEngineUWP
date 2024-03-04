@@ -131,7 +131,8 @@ namespace uba
 	void WriteAssertInfo(StringBufferBase& out, const tchar* text, const char* file, u32 line, const char* expr, u32 skipCallstack = 0)
 	{
 #if PLATFORM_WINDOWS
-		out.Append(L"ASSERT: ").Append(text).Append(L"\r\n");
+		if (text)
+			out.Append(L"ASSERT: ").Append(text).Append(L"\r\n");
 		if (file)
 			out.Appendf(L"%hs:%u (%hs)", file, line, expr);
 
