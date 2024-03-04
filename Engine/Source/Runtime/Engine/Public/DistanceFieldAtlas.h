@@ -328,8 +328,7 @@ public:
 	TArray<FSignedDistanceFieldBuildSectionData> SectionData;
 #endif
 	FSourceMeshDataForDerivedDataTask SourceMeshData;
-	UStaticMesh* StaticMesh; 
-	FStaticMeshRenderData* StaticMeshPlatformRenderData;
+	UStaticMesh* StaticMesh;
 	UStaticMesh* GenerateSource;
 	float DistanceFieldResolutionScale;
 	bool bGenerateDistanceFieldAsIfTwoSided;

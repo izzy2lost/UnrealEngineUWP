@@ -733,10 +733,6 @@ void FDistanceFieldAsyncQueue::Build(FAsyncDistanceFieldTask* Task, FQueuedThrea
 			Task->DistanceFieldResolutionScale,
 			Task->bGenerateDistanceFieldAsIfTwoSided,
 			*Task->GeneratedVolumeData);
-
-		// Fetch the platform data as part of the build step since we will lazily create the data if it doesn't exist.
-		// Building the platform data is expensive so doing it asyncronously here is ideal instead of on the game thread.
-		Task->StaticMeshPlatformRenderData = &Task->StaticMesh->GetPlatformStaticMeshRenderData(Task->StaticMesh, Task->TargetPlatform);
 	}
 
 	{
@@ -851,7 +847,7 @@ void FDistanceFieldAsyncQueue::ProcessAsyncTasks(bool bLimitExecutionTime)
 			BeginCacheMeshCardRepresentation(
 				Task->TargetPlatform,
 				Task->StaticMesh,
-				*Task->StaticMeshPlatformRenderData,
+				Task->StaticMesh->GetPlatformStaticMeshRenderData(Task->StaticMesh, Task->TargetPlatform),
 				Task->DDCKey,
 				&Task->SourceMeshData);
 		}
