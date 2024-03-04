@@ -25,8 +25,28 @@ struct FCompressedImage2D
 	//	that is no longer done, the real size is stored
 	int32 SizeX;
 	int32 SizeY;
-	int32 SizeZ; // Only for Volume Texture
-	uint8 PixelFormat; // EPixelFormat, opaque to avoid dependencies on Engine headers.
+
+	UE_DEPRECATED(5.5, "Use NumSlicesWithDepth or GetRHIStyleSizeZ instead")
+	int32 SizeZ;
+
+	// See FEncodedTextureDescription::GetNumSlices_WithDepth.
+	// Cubemaps = 6, Arrays = Count, Cubemaparrays = Count*6, Volume = Depth
+	int32 NumSlicesWithDepth;
+
+	
+	// This is the SizeZ that gets passed to the RHI texture mip map stuff. See FStreamableTextureResource::SizeZ.
+	// It's weird because it's actually NOT used for cubemaps or cubemap arrays, however it does get saved in derived data
+	// in Texture2DMipMap, so we need to continue to pass through the previous values for cubemaps which are:
+	//		*non array* cubemap = 1
+	//		*array* cubemaps = array_count * 6
+	//		volume = depth
+	//		arrays = array_count
+	int32 GetRHIStyleSizeZ(bool bTextureArray, bool bVolume) const 
+	{
+		return (bVolume || bTextureArray) ? NumSlicesWithDepth : 1;
+	}
+
+	EPixelFormat PixelFormat;
 };
 
 /**

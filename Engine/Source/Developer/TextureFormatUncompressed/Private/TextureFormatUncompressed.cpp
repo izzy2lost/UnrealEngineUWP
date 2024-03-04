@@ -222,8 +222,7 @@ class FTextureFormatUncompressed : public ITextureFormat
 		OutCompressedImage.PixelFormat = GetEncodedPixelFormat(BuildSettings, bImageHasAlphaChannel);
 		OutCompressedImage.SizeX = InImage.SizeX;
 		OutCompressedImage.SizeY = InImage.SizeY;
-		// note: cubes come in as 6 slices and go out as 1
-		OutCompressedImage.SizeZ = (BuildSettings.bVolume || BuildSettings.bTextureArray) ? InImage.NumSlices : 1;
+		OutCompressedImage.NumSlicesWithDepth = InImage.NumSlices;
 
 		if (BuildSettings.TextureFormatName == GTextureFormatNameG8)
 		{

@@ -1059,7 +1059,7 @@ public:
 		OutCompressedImage.PixelFormat = CompressedPixelFormat;
 		OutCompressedImage.SizeX = InImage.SizeX;
 		OutCompressedImage.SizeY = InImage.SizeY;
-		OutCompressedImage.SizeZ = (BuildSettings.bVolume || BuildSettings.bTextureArray) ? InImage.NumSlices : 1;
+		OutCompressedImage.NumSlicesWithDepth = InImage.NumSlices;
 		return bCompressionSucceeded;
 	}
 };

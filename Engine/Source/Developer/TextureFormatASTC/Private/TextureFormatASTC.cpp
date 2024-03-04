@@ -455,7 +455,7 @@ static bool ASTCEnc_Compress(
 	{
 		OutCompressedImage.SizeX = Image.SizeX;
 		OutCompressedImage.SizeY = Image.SizeY;
-		OutCompressedImage.SizeZ = (BuildSettings.bVolume || BuildSettings.bTextureArray) ? Image.NumSlices : 1;
+		OutCompressedImage.NumSlicesWithDepth = Image.NumSlices;
 		OutCompressedImage.PixelFormat = CompressedPixelFormat;
 		return true;
 	}

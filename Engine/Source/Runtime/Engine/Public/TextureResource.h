@@ -52,7 +52,7 @@ struct FTexture2DMipMap
 	uint16 SizeX = 0;
 	/** Height of the mip-map. */
 	uint16 SizeY = 0;
-	/** Depth of the mip-map. */
+	/** Depth of the mip-map. This also holds array size. It's thunked through to FStreamableTextureResource::SizeZ and is not used for cubemap arrays or cubemaps */
 	uint16 SizeZ = 0;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -60,7 +60,10 @@ struct FTexture2DMipMap
 	FTexture2DMipMap(uint32 InSizeX, uint32 InSizeY, uint32 InSizeZ = 0)
 		: SizeX((uint16)InSizeX), SizeY((uint16)InSizeY), SizeZ((uint16)InSizeZ)
 	{
-		check(InSizeX <= 0xFFFF && InSizeY <= 0xFFFF && InSizeZ <= 0xFFFF);
+		if (InSizeX > 0xFFFF || InSizeY > 0xFFFF || InSizeZ > 0xFFFF)
+		{
+			LowLevelFatalError(TEXT("texture mip size doesn't fit in 16 bits! %ux&ux%u"), InSizeX, InSizeY, InSizeZ);
+		}
 	}
 	FTexture2DMipMap(FTexture2DMipMap&&) = default;
 	FTexture2DMipMap(const FTexture2DMipMap&) = default;

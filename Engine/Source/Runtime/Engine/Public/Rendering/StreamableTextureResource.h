@@ -99,7 +99,7 @@ protected:
 	uint32 SizeX = 0;
 	/** The height when all mips are streamed in. */
 	uint32 SizeY = 0;
-	/** The 3d depth for volume texture or num  slices for 2d array when all mips are streamed in. */
+	/** The 3d depth for volume texture or num  slices for 2d array when all mips are streamed in. This is NOT USED for cubemap arrays or cubemaps!*/
 	uint32 SizeZ = 0;
 
 	/** The FName of the texture asset */

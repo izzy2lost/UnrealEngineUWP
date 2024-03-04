@@ -155,6 +155,15 @@ struct FEncodedTextureDescription
 			bVolumeTexture == OtherTextureDescription.bVolumeTexture;
 	}
 
+	// This returns the SizeZ value that is expected by RHI streamable texture structures. It
+	// is only used by non-cube texture arrays and volumes, however the cubemap array and cubemap
+	// values need to be consistent as they are persisted and would cause a DDC determinism issue.
+	// (note that cubemap arrays are handled in the bTextureArray path).
+	int32 GetRHIStyleSizeZ(int32 InMipIndex) const
+	{
+		return (bVolumeTexture || bTextureArray) ? GetNumSlices_WithDepth(InMipIndex) : 1;
+	}
+
 	// Returns the slice count for usage cases/platform that expect slice count to include
 	// volume texture depth. InMipIndex only affects volume textures.
 	int32 GetNumSlices_WithDepth(int32 InMipIndex) const

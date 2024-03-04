@@ -624,7 +624,7 @@ static void DDC1_StoreClassicTextureInDerivedData(
 	for (int32 MipIndex = 0; MipIndex < MipCount; ++MipIndex)
 	{
 		const FCompressedImage2D& CompressedImage = CompressedMips[MipIndex];
-		FTexture2DMipMap* NewMip = new FTexture2DMipMap(CompressedImage.SizeX, CompressedImage.SizeY, CompressedImage.SizeZ);
+		FTexture2DMipMap* NewMip = new FTexture2DMipMap(CompressedImage.SizeX, CompressedImage.SizeY, CompressedImage.GetRHIStyleSizeZ(bTextureArray, bVolume));
 		DerivedData->Mips.Add(NewMip);
 		NewMip->FileRegionType = FFileRegion::SelectType(EPixelFormat(CompressedImage.PixelFormat));
 		check(NewMip->SizeZ == 1 || bVolume || bTextureArray); // Only volume & arrays can have SizeZ != 1
@@ -643,7 +643,7 @@ static void DDC1_StoreClassicTextureInDerivedData(
 			*TexturePathName,
 			MipIndex, (int)CompressedImage.PixelFormat,
 			GetPixelFormatString((EPixelFormat)CompressedImage.PixelFormat),
-			CompressedImage.SizeX, CompressedImage.SizeY, CompressedImage.SizeZ, 
+			CompressedImage.SizeX, CompressedImage.SizeY, CompressedImage.NumSlicesWithDepth,
 			CompressedDataSize,
 			(CompressedImage.SizeX + 3) & (~3),
 			(CompressedImage.SizeY + 3) & (~3),
@@ -659,20 +659,7 @@ static void DDC1_StoreClassicTextureInDerivedData(
 			DerivedData->SizeX = CompressedImage.SizeX;
 			DerivedData->SizeY = CompressedImage.SizeY;
 			DerivedData->PixelFormat = (EPixelFormat)CompressedImage.PixelFormat;
-
-			// it would be better if CompressedImage just stored NumSlices, rather than recomputing it here
-			if (bVolume || bTextureArray)
-			{
-				DerivedData->SetNumSlices(CompressedImage.SizeZ);
-			}
-			else if (bCubemap)
-			{
-				DerivedData->SetNumSlices(6);
-			}
-			else
-			{
-				DerivedData->SetNumSlices(1);
-			}
+			DerivedData->SetNumSlices(CompressedImage.NumSlicesWithDepth);
 			DerivedData->SetIsCubemap(bCubemap);
 		}
 		else
@@ -1940,11 +1927,7 @@ bool DDC1_BuildTiledClassicTexture(
 		TiledMip.PixelFormat = LinearDerivedData.PixelFormat;
 		TiledMip.SizeX = MipDims.X;
 		TiledMip.SizeY = MipDims.Y;
-		TiledMip.SizeZ = TextureDescription.GetNumSlices_WithDepth(EncodedMipIndex);
-		if (TextureDescription.bCubeMap && !TextureDescription.bTextureArray)
-		{
-			TiledMip.SizeZ = 1; // compressed image 2d wants it this way...
-		}
+		TiledMip.NumSlicesWithDepth = TextureDescription.GetNumSlices_WithDepth(EncodedMipIndex);
 
 		// \todo try and Move this data rather than copying? We use FSharedBuffer as that's the future way,
 		// but we're interacting with older systems that didn't have it, and we can't Move() from an FSharedBuffer.
@@ -1964,7 +1947,7 @@ bool DDC1_BuildTiledClassicTexture(
 		FCompressedImage2D& DestMip = TiledMips[MipIndex];
 		DestMip.SizeX = FMath::Max(1, PrevMip.SizeX >> 1);
 		DestMip.SizeY = FMath::Max(1, PrevMip.SizeY >> 1);
-		DestMip.SizeZ = TextureDescription.bVolumeTexture ? FMath::Max(1, PrevMip.SizeZ >> 1) : PrevMip.SizeZ;
+		DestMip.NumSlicesWithDepth = TextureDescription.bVolumeTexture ? FMath::Max(1, PrevMip.NumSlicesWithDepth >> 1) : PrevMip.NumSlicesWithDepth;
 		DestMip.PixelFormat = PrevMip.PixelFormat;
 	}
 
@@ -2325,16 +2308,7 @@ static bool UnpackPlatformDataFromBuild(FTexturePlatformData& OutPlatformData, U
 		OutPlatformData.Mips.Add(NewMip);
 
 		NewMip->FileRegionType = FileRegion;
-		if (EncodedTextureDescription.bTextureArray)
-		{
-			// FTexture2DMipMap expects SizeZ to be the array count, potentially with cubemap slices.
-			NewMip->SizeZ = EncodedTextureDescription.ArraySlices;
-
-			if (EncodedTextureDescription.bCubeMap)
-			{
-				NewMip->SizeZ *= 6; 
-			}
-		}
+		NewMip->SizeZ = EncodedTextureDescription.GetRHIStyleSizeZ(MipIndex);
 
 		if (MipIndex >= NumEncodedMips)
 		{

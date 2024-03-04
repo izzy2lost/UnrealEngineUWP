@@ -1534,8 +1534,7 @@ public:
 		//OutImage.SizeY = NumBlocksY*4;
 		OutImage.SizeX = Image.SizeX;
 		OutImage.SizeY = Image.SizeY;
-		// note: cubes come in as 6 slices and go out as 1
-		OutImage.SizeZ = (InBuildSettings.bVolume || InBuildSettings.bTextureArray) ? Image.NumSlices : 1;
+		OutImage.NumSlicesWithDepth = Image.NumSlices;
 		{
 		TRACE_CPUPROFILER_EVENT_SCOPE(TFOodle.Alloc);
 		OutImage.RawData.AddUninitialized(OutBytesTotal);
