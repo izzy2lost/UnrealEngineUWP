@@ -48,17 +48,21 @@ namespace uba
 	{
 		StringBuffer<128> ip;
 		u16 port;
-		Thread thread;
+		ListenConnectedFunc connectedFunc;
 		Event listening;
 		Atomic<SOCKET> socket = INVALID_SOCKET;
+		Thread thread;
 	};
 
 	struct NetworkBackendTcp::Connection
 	{
-		Connection(SOCKET s) : socket(s), ready(true) {}
+		Connection(Logger& l, SOCKET s) : logger(l), socket(s), ready(true) { CreateGuid(uid); }
 
+		Logger& logger;
 		Atomic<SOCKET> socket;
+
 		Event ready;
+		Guid uid;
 		u32 headerSize = 0;
 		u32 recvTimeoutMs = 0;
 
@@ -133,7 +137,7 @@ namespace uba
 			shutdown(s, SD_BOTH);
 			lock2.Leave();
 			conn.recvThread.Wait();
-			CloseSocket(m_logger, s);
+			CloseSocket(conn.logger, s);
 		}
 		m_connections.clear();
 
@@ -168,6 +172,9 @@ namespace uba
 		#endif
 
 		sendContext.isFinished = true;
+
+		m_totalSend += dataSize;
+
 		if (auto c = conn.dataSentCallback)
 			c(conn.dataSentContext, dataSize);
 		return res;
@@ -215,12 +222,17 @@ namespace uba
 		if (!EnsureInitialized(logger))
 			return false;
 
+		SCOPED_WRITE_LOCK(m_listenEntriesLock, lock);
+
+		auto prevListenEntryCount = int(m_listenEntries.size());
+
 		auto AddAddr = [&](const tchar* addr)
 			{
 				m_listenEntries.emplace_back();
 				auto& entry = m_listenEntries.back();
 				entry.ip.Append(addr);
 				entry.port = port;
+				entry.connectedFunc = connectedFunc;
 			};
 
 		if (ip && *ip)
@@ -243,10 +255,11 @@ namespace uba
 			return false;
 		}
 
-		m_connectedFunc = connectedFunc;
-
+		auto skipCount = prevListenEntryCount;
 		for (auto& e : m_listenEntries)
 		{
+			if (skipCount-- > 0)
+				continue;
 			e.listening.Create(true);
 			e.thread.Start([this, &logger, &e]
 				{
@@ -256,8 +269,11 @@ namespace uba
 		}
 
 		bool success = true;
+		skipCount = prevListenEntryCount;
 		for (auto& e : m_listenEntries)
 		{
+			if (skipCount-- > 0)
+				continue;
 			if (!e.listening.IsSet(4000))
 				success = false;
 			if (e.socket == INVALID_SOCKET)
@@ -269,6 +285,7 @@ namespace uba
 
 	void NetworkBackendTcp::StopListen()
 	{
+		SCOPED_WRITE_LOCK(m_listenEntriesLock, lock);
 		for (auto& e : m_listenEntries)
 			e.socket = INVALID_SOCKET;
 		for (auto& e : m_listenEntries)
@@ -304,7 +321,7 @@ namespace uba
 		if (listenSocket == INVALID_SOCKET)
 			return logger.Error(TC("socket failed (%s)"), LastErrorToText(WSAGetLastError()).data);
 
-		auto listenSocketCleanup = MakeGuard([&]() { CloseSocket(m_logger, listenSocket); });
+		auto listenSocketCleanup = MakeGuard([&]() { CloseSocket(logger, listenSocket); });
 
 		u32 reuseAddr = 1;
 		if (::setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuseAddr, sizeof reuseAddr) == SOCKET_ERROR)
@@ -379,12 +396,12 @@ namespace uba
 			}
 
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
-			auto it = m_connections.emplace(m_connections.end(), clientSocket);
+			auto it = m_connections.emplace(m_connections.end(), logger, clientSocket);
 			auto& conn = *it;
 			conn.recvThread.Start([this, connPtr = &conn] { ThreadRecv(*connPtr); return 0; });
 			lock.Leave();
 
-			if (!m_connectedFunc(&conn, remoteSockAddr))
+			if (!entry.connectedFunc(&conn, remoteSockAddr))
 			{
 				shutdown(clientSocket, SD_BOTH);
 				conn.ready.Set();
@@ -402,11 +419,10 @@ namespace uba
 	{
 		ElevateCurrentThreadPriority();
 		
+		auto& logger = connection.logger;
+
 		if (connection.ready.IsSet(60000)) // This should never time out!
 		{
-			Guid connectionUid;
-			CreateGuid(connectionUid);
-
 			bool isFirst = true;
 			while (connection.socket != INVALID_SOCKET)
 			{
@@ -415,27 +431,32 @@ namespace uba
 				u32 bodySize = 0;
 
 				u8 headerData[MaxHeaderSize];
-				if (!RecvSocket(m_logger, connection.socket, headerData, connection.headerSize, connection.recvTimeoutMs, connectionUid, connection.recvHint, TC(""), isFirst))
+				if (!RecvSocket(logger, connection.socket, headerData, connection.headerSize, connection.recvTimeoutMs, connection.uid, connection.recvHint, TC(""), isFirst))
 					break;
 				isFirst = false;
+
+				m_totalRecv += connection.headerSize;
 
 				auto hc = connection.headerCallback;
 				if (!hc)
 				{
-					m_logger.Error(TC("Header callback not set"));
+					logger.Error(TC("Tcp connection header callback not set"));
 					break;
 				}
 
-				if (!hc(connection.recvContext, headerData, bodyContext, bodyData, bodySize))
+				if (!hc(connection.recvContext, connection.uid, headerData, bodyContext, bodyData, bodySize))
 					break;
 				if (!bodySize)
 					continue;
 
-				bool success = RecvSocket(m_logger, connection.socket, bodyData, bodySize, connection.recvTimeoutMs, connectionUid, connection.recvHint, TC("Body"), false);
+				bool success = RecvSocket(logger, connection.socket, bodyData, bodySize, connection.recvTimeoutMs, connection.uid, connection.recvHint, TC("Body"), false);
+
+				m_totalRecv += bodySize;
+
 				auto bc = connection.bodyCallback;
 				if (!bc)
 				{
-					m_logger.Error(TC("Body callback not set"));
+					logger.Error(TC("Tcp connection body callback not set"));
 					break;
 				}
 
@@ -447,7 +468,7 @@ namespace uba
 		}
 		else
 		{
-			m_logger.Warning(TC("Timed out waiting for recv thread to be ready"));
+			logger.Warning(TC("Tcp connection timed out waiting for recv thread to be ready"));
 		}
 
 		ScopedCriticalSection lock2(connection.shutdownLock);
@@ -459,13 +480,13 @@ namespace uba
 			auto context = connection.disconnectContext;
 			connection.disconnectCallback = nullptr;
 			connection.disconnectContext = nullptr;
-			cb(context, &connection);
+			cb(context, connection.uid, &connection);
 		}
 
 		if (s == INVALID_SOCKET)
 			return;
 		shutdown(s, SD_BOTH);
-		CloseSocket(m_logger, s);
+		CloseSocket(logger, s);
 	}
 
 	bool NetworkBackendTcp::Connect(Logger& logger, const tchar* ip, const ConnectedFunc& connectedFunc, u16 port, bool* timedOut)
@@ -619,7 +640,7 @@ namespace uba
 		socketClose.Cancel();
 
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
-		auto it = m_connections.emplace(m_connections.end(), socketFd);
+		auto it = m_connections.emplace(m_connections.end(), logger, socketFd);
 		auto& conn = *it;
 		conn.recvThread.Start([this, connPtr = &conn] { ThreadRecv(*connPtr); return 0; });
 		lock.Leave();
@@ -636,11 +657,17 @@ namespace uba
 
 		//char* ip = inet_ntoa(((sockaddr_in*)const_cast<sockaddr*>(&remoteSocketAddr))->sin_addr);
 		if (nameHint)
-			logger.Detail(TC("Connected to %s:%u"), nameHint, ((sockaddr_in&)remoteSocketAddr).sin_port);
+			logger.Detail(TC("Connected to %s:%u (%s)"), nameHint, ((sockaddr_in&)remoteSocketAddr).sin_port, GuidToString(conn.uid).str);
 		else
-			logger.Detail(TC("Connected using sockaddr"));
+			logger.Detail(TC("Connected using sockaddr (%s)"), GuidToString(conn.uid).str);
 
 		return true;
+	}
+
+	void NetworkBackendTcp::GetTotalSendAndRecv(u64& outSend, u64& outRecv)
+	{
+		outSend = m_totalSend;
+		outRecv = m_totalRecv;
 	}
 
 	bool SetBlocking(Logger& logger, SOCKET socket, bool blocking)

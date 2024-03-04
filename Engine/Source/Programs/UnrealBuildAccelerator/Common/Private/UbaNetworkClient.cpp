@@ -96,7 +96,7 @@ namespace uba
 
 		// The only way out of this function is to get a call to one of the below callbacks since exitScopeEvent must be set.
 
-		backend.SetDisconnectCallback(backendConnection, &rc, [](void* context, void* connection)
+		backend.SetDisconnectCallback(backendConnection, &rc, [](void* context, const Guid& connectionUid, void* connection)
 			{
 				auto& rc = *(RecvContext*)context;
 				rc.error = 4;
@@ -104,7 +104,7 @@ namespace uba
 				rc.exitScopeEvent.Set();
 			});
 
-		backend.SetRecvCallbacks(backendConnection, &rc, 1 + sizeof(Guid), [](void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
+		backend.SetRecvCallbacks(backendConnection, &rc, 1 + sizeof(Guid), [](void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
 			{
 				auto& rc = *(RecvContext*)context;
 				rc.error = *headerData;
@@ -126,7 +126,7 @@ namespace uba
 				else
 				{
 					// Zero out callbacks since we will be leaving this scope when exiting current callback and we don't want the disconnect callback
-					rc.backend.SetRecvCallbacks(rc.backendConnection, nullptr, 0, [](void*, u8*, void*&, u8*&, u32&) { return false; }, nullptr, TC("Null"));
+					rc.backend.SetRecvCallbacks(rc.backendConnection, nullptr, 0, [](void*, const Guid&, u8*, void*&, u8*&, u32&) { return false; }, nullptr, TC("Null"));
 					rc.backend.SetDisconnectCallback(rc.backendConnection, nullptr, nullptr);
 				}
 
@@ -225,7 +225,7 @@ namespace uba
 		}
 		lock.Leave();
 
-		backend.SetDisconnectCallback(backendConnection, connection, [](void* context, void* connection)
+		backend.SetDisconnectCallback(backendConnection, connection, [](void* context, const Guid& connectionUid, void* connection)
 			{
 				auto& c = *(Connection*)context;
 				c.owner.OnDisconnected(c, true);
@@ -234,7 +234,7 @@ namespace uba
 		backend.SetRecvCallbacks(backendConnection, connection, ReceiveHeaderSize, ReceiveResponseHeader, ReceiveResponseBody, TC("ReceiveMessageResponse"));
 	}
 
-	bool NetworkClient::ReceiveResponseHeader(void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
+	bool NetworkClient::ReceiveResponseHeader(void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
 	{
 		auto& connection = *(Connection*)context;
 		auto& client = connection.owner;
@@ -261,7 +261,7 @@ namespace uba
 		}
 		else if (!messageSize)
 		{
-			connection.recvCount++;
+			++client.m_recvCount;
 			msg->Done();
 			return true;
 		}
@@ -273,6 +273,10 @@ namespace uba
 		outBodyContext = msg;
 		outBodyData = (u8*)msg->m_response;
 		outBodySize = messageSize;
+
+		++client.m_recvCount;
+		client.m_recvBytes += ReceiveHeaderSize + messageSize;
+
 
 		return true;
 	}
@@ -343,28 +347,14 @@ namespace uba
 
 	void NetworkClient::PrintSummary(Logger& logger)
 	{
-		Timer sendTimer;
-		u64 sendBytes = 0;
-		u64 recvBytes = 0;
-		u32 recvCount = 0;
-
 		SCOPED_READ_LOCK(m_connectionsLock, lock);
 		u32 connectionsCount = u32(m_connections.size());
-		for (auto& c : m_connections)
-		{
-			sendTimer.count += c.sendTimer.count;
-			sendTimer.time += c.sendTimer.time;
-			sendBytes += c.sendBytes;
-			recvBytes += c.recvBytes;
-			recvCount += c.recvCount;
-		}
 		lock.Leave();
 
-
 		logger.Info(TC("  ----- Uba client stats summary ------"));
-		logger.Info(TC("  SendTotal          %8u %9s"), sendTimer.count.load(), TimeToText(sendTimer.time).str);
-		logger.Info(TC("     Bytes                    %9s"), BytesToText(sendBytes).str);
-		logger.Info(TC("  RecvTotal          %8u %9s"), recvCount, BytesToText(recvBytes).str);
+		logger.Info(TC("  SendTotal          %8u %9s"), m_sendTimer.count.load(), TimeToText(m_sendTimer.time).str);
+		logger.Info(TC("     Bytes                    %9s"), BytesToText(m_sendBytes).str);
+		logger.Info(TC("  RecvTotal          %8u %9s"), m_recvCount.load(), BytesToText(m_recvBytes).str);
 		if (m_cryptoKey)
 		{
 			logger.Info(TC("  EncryptTotal       %8u %9s"), m_encryptTimer.count.load(), TimeToText(m_encryptTimer.time).str);
@@ -388,6 +378,7 @@ namespace uba
 
 	void NetworkClient::RegisterOnDisconnected(const OnDisconnectedFunction& function)
 	{
+		SCOPED_WRITE_LOCK(m_onDisconnectedFunctionsLock, lock);
 		m_onDisconnectedFunctions.push_back(function);
 	}
 
@@ -418,6 +409,14 @@ namespace uba
 		return m_sendSize;
 	}
 
+	NetworkBackend* NetworkClient::GetFirstConnectionBackend()
+	{
+		SCOPED_READ_LOCK(m_connectionsLock, connectionLock);
+		if (m_connections.empty())
+			return nullptr;
+		return m_connections.front().backend;
+	}
+
 	void NetworkClient::OnDisconnected(Connection& connection, bool calledFromReceive)
 	{
 		if (connection.connected.exchange(0) == 1)
@@ -429,6 +428,7 @@ namespace uba
 			if (m_connectionCount.fetch_sub(1) == 1)
 			{
 				m_isConnected.Reset();
+				SCOPED_READ_LOCK(m_onDisconnectedFunctionsLock, lock);
 				for (auto& f : m_onDisconnectedFunctions)
 					f();
 			}
@@ -441,8 +441,7 @@ namespace uba
 			if (m && m->m_connection == &connection)
 			{
 				m->m_error = true;
-				//m->m_responseSize = 0; // There is a race here where a message could just have fully arrived when disconnected. Can't set this to zero because we might be passed the m_error check but before setting reader size
-				m->Done();
+				m->Done(false);
 			}
 			++messageId;
 		}
@@ -469,6 +468,7 @@ namespace uba
 		BinaryWriter& writer = message.m_sendWriter;
 
 		u16 messageId = 0;
+		Event gotResponse(true);
 
 		if (response)
 		{
@@ -500,12 +500,20 @@ namespace uba
 
 				UBA_ASSERT(!m_activeMessages[messageId]);
 				m_activeMessages[messageId] = &message;
+
+				message.m_id = messageId;
+				message.m_sendContext.flags = NetworkBackend::SendFlags_ExternalWait;
+				if (!async)
+				{
+					UBA_ASSERT(!message.m_doneFunc);
+					message.m_doneUserData = &gotResponse;
+					message.m_doneFunc = [](bool error, void* userData) { ((Event*)userData)->Set(); };
+				}
 				break;
 			}
 		}
 
 		UBA_ASSERT(messageId < 65535);
-		message.m_id = messageId;
 
 		u32 sendSize = u32(writer.GetPosition());
 		u8* data = writer.GetData();
@@ -526,24 +534,10 @@ namespace uba
 		}
 
 
-		connection.sendBytes += sendSize;
-
-		Event gotResponse;
-
-		if (response)
-		{
-			message.m_sendContext.flags = NetworkBackend::SendFlags_ExternalWait;
-			if (!async)
-			{
-				gotResponse.Create(true);
-				UBA_ASSERT(!message.m_doneFunc);
-				message.m_doneUserData = &gotResponse;
-				message.m_doneFunc = [](bool error, void* userData) { ((Event*)userData)->Set(); };
-			}
-		}
+		m_sendBytes += sendSize;
 
 		{
-			TimerScope ts(connection.sendTimer);
+			TimerScope ts(m_sendTimer);
 			if (!connection.backend->Send(m_logger, connection.backendConnection, data, sendSize, message.m_sendContext))
 			{
 				OnDisconnected(connection, false);
@@ -559,7 +553,7 @@ namespace uba
 			u32 timeoutMs = 10 * 60 * 1000;
 			if (!gotResponse.IsSet(timeoutMs))
 			{
-				m_logger.Error(TC("Timed out after 10 minutes waiting for message."));
+				m_logger.Error(TC("Timed out after 10 minutes waiting for message response from server."));
 				message.m_error = true;
 			}
 			else if (m_cryptoKey && !message.m_error && message.m_responseSize)
@@ -652,13 +646,30 @@ namespace uba
 		return true;
 	}
 
-	void NetworkMessage::Done()
+	void NetworkMessage::Done(bool shouldLock)
 	{
-		if (m_id)
+		bool hasId = false;
+		auto returnId = [&]()
+			{
+				if (m_id)
+				{
+					m_client.m_availableMessageIds.push_back(m_id);
+					m_client.m_activeMessages[m_id] = nullptr;
+					m_id = 0;
+					hasId = true;
+				}
+			};
+
+		if (shouldLock)
 		{
-			m_client.ReturnMessageId(m_id);
-			m_id = 0;
+			SCOPED_WRITE_LOCK(m_client.m_activeMessagesLock, lock);
+			returnId();
 		}
-		m_doneFunc(m_error, m_doneUserData);
+		else
+		{
+			returnId();
+		}
+		if (hasId)
+			m_doneFunc(m_error, m_doneUserData);
 	}
 }

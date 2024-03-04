@@ -134,6 +134,7 @@ namespace uba
 
 		ReaderWriterLock m_connectionsLock;
 		List<Connection> m_connections;
+		u32 m_connectionIdCounter = 1;
 		u32 m_maxActiveConnections = 0;
 
 		struct Client

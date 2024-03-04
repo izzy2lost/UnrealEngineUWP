@@ -89,17 +89,18 @@ namespace uba
 	class NetworkServer::Connection
 	{
 	public:
-		Connection(NetworkServer& server, NetworkBackend& backend, void* backendConnection, const sockaddr& remoteSockAddr, CryptoKey cryptoKey)
+		Connection(NetworkServer& server, NetworkBackend& backend, void* backendConnection, const sockaddr& remoteSockAddr, CryptoKey cryptoKey, u32 id)
 		:	m_server(server)
 		,	m_backend(backend)
 		,	m_remoteSockAddr(remoteSockAddr)
 		,	m_cryptoKey(cryptoKey)
 		,	m_disconnectCallbackCalled(true)
+		,	m_id(id)
 		,	m_backendConnection(backendConnection)
 		{
 			m_activeWorkerCount = 1;
 
-			m_backend.SetDisconnectCallback(m_backendConnection, this, [](void* context, void* connection)
+			m_backend.SetDisconnectCallback(m_backendConnection, this, [](void* context, const Guid& connectionUid, void* connection)
 				{
 					auto& conn = *(Connection*)context;
 					conn.Disconnect();
@@ -167,7 +168,7 @@ namespace uba
 			return m_backend.Send(m_server.m_logger, m_backendConnection, data, 1 + sizeof(Guid), context);
 		}
 
-		static bool ReceiveHandshakeHeader(void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
+		static bool ReceiveHandshakeHeader(void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
 		{
 			u8* handshakeData = new u8[sizeof(EncryptionHandshakeString)];
 			outBodyData = handshakeData;
@@ -192,7 +193,7 @@ namespace uba
 			return true;
 		}
 
-		static bool ReceiveVersion(void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
+		static bool ReceiveVersion(void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
 		{
 			auto& conn = *(Connection*)context;
 			u32 clientVersion = *(u32*)headerData;
@@ -207,7 +208,7 @@ namespace uba
 			return true;
 		}
 
-		static bool ReceiveClientUid(void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
+		static bool ReceiveClientUid(void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
 		{
 			auto& conn = *(Connection*)context;
 			auto& server = conn.m_server;
@@ -243,9 +244,6 @@ namespace uba
 
 			conn.m_client = &client;
 
-			Guid connectionUid;
-			CreateGuid(connectionUid);
-
 			if (client.connectionCount.fetch_add(1) == 0)
 			{
 				if (server.m_onConnectionFunction)
@@ -259,7 +257,7 @@ namespace uba
 			return true;
 		}
 
-		static bool ReceiveMessageHeader(void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
+		static bool ReceiveMessageHeader(void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
 		{
 			auto& conn = *(Connection*)context;
 
@@ -360,6 +358,7 @@ namespace uba
 		Atomic<int> m_activeWorkerCount;
 		Atomic<int> m_disconnectCalled;
 		Atomic<bool> m_disconnected;
+		u32 m_id = 0;
 		bool m_shouldDisconnect = false;
 		void* m_backendConnection = nullptr;
 
@@ -1054,7 +1053,7 @@ namespace uba
 
 		RemoveDisconnectedConnections();
 
-		m_connections.emplace_back(*this, backend, backendConnection, remoteSocketAddr, cryptoKey);
+		m_connections.emplace_back(*this, backend, backendConnection, remoteSocketAddr, cryptoKey, m_connectionIdCounter++);
 		m_maxActiveConnections = Max(m_maxActiveConnections, u32(m_connections.size()));
 		return true;
 	}
