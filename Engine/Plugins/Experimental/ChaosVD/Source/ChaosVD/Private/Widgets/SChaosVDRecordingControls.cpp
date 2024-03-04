@@ -11,8 +11,9 @@
 #include "Input/Reply.h"
 #include "Misc/MessageDialog.h"
 #include "StatusBarSubsystem.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Styling/SlateBrush.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SChaosVDMainTab.h"
@@ -25,90 +26,126 @@ void SChaosVDRecordingControls::Construct(const FArguments& InArgs, const TShare
 {
 	MainTabWeakPtr = InMainTabSharedRef;
 	StatusBarID = InMainTabSharedRef->GetStatusBarName();
+	
+	RecordingAnimation = FCurveSequence();
+	RecordingAnimation.AddCurve(0.f, 1.5f, ECurveEaseFunction::Linear);
 
 	ChildSlot
 	[
-		SNew(SHorizontalBox)
-		+SHorizontalBox::Slot()
-		.HAlign(HAlign_Left)
-		.Padding(FMargin(12, 7, 2, 7))
-		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.HAlign(HAlign_Left)
-			[
-				GenerateToggleRecordingStateButton(EChaosVDRecordingMode::File, LOCTEXT("RecordToFileButtonDesc", "Starts a recording for the current session, saving it directly to file"))
-			]
-			+SHorizontalBox::Slot()
-			.Padding(5.0f,  0.0f, 0.0f, 0.0f)
-			.HAlign(HAlign_Left)
-			[
-				GenerateToggleRecordingStateButton(EChaosVDRecordingMode::Live, LOCTEXT("RecordLiveButtonDesc", "Starts a recording and automatically connects to it playing it back in real time"))
-			]
-			+SHorizontalBox::Slot()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.AutoWidth()
-			.Padding(12.0f, 0.0f, 0.0f, 0.0f)
-			[
-				SNew( STextBlock )
-					.TextStyle(FAppStyle::Get(), "SmallButtonText")
-					.Text_Raw(this, &SChaosVDRecordingControls::GetRecordingTimeText)
-					.ColorAndOpacity(FColor::White)
-			]
-
-			+SHorizontalBox::Slot()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.AutoWidth()
-			.Padding(12.0f, 0.0f, 0.0f, 0.0f)
-			[
-				SNew(SComboButton)
-				.ContentPadding(FMargin(6.0f, 0.0f))
-				.IsEnabled_Raw(this, &SChaosVDRecordingControls::HasDataChannelsSupport)
-				.MenuPlacement(MenuPlacement_AboveAnchor)
-				.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
-				.OnGetMenuContent(this, &SChaosVDRecordingControls::GenerateDataChannelsMenu)
-				.HasDownArrow(true)
-				.ButtonContent()
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("DataChannelsButton", "Data Channels"))
-						.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("DialogButtonText"))
-					]
-				]
-			]
-		]
+		GenerateToolbarWidget()
 	];
 
 	RecordingStartedHandle = FChaosVDRuntimeModule::Get().RegisterRecordingStartedCallback(FChaosVDRecordingStateChangedDelegate::FDelegate::CreateRaw(this, &SChaosVDRecordingControls::HandleRecordingStart));
 	RecordingStoppedHandle = FChaosVDRuntimeModule::Get().RegisterRecordingStopCallback(FChaosVDRecordingStateChangedDelegate::FDelegate::CreateRaw(this, &SChaosVDRecordingControls::HandleRecordingStop));
 }
 
-TSharedRef<SButton> SChaosVDRecordingControls::GenerateToggleRecordingStateButton(EChaosVDRecordingMode RecordingMode, const FText& StartRecordingTooltip)
+TSharedRef<SWidget> SChaosVDRecordingControls::GenerateToggleRecordingStateButton(EChaosVDRecordingMode RecordingMode, const FText& StartRecordingTooltip)
 {
 	return SNew(SButton)
-		.OnClicked(FOnClicked::CreateRaw(this, &SChaosVDRecordingControls::ToggleRecordingState, RecordingMode))
-		.ForegroundColor(FSlateColor::UseForeground())
-		.IsFocusable(false)
-		.IsEnabled_Raw(this, &SChaosVDRecordingControls::IsRecordingToggleButtonEnabled, RecordingMode)
-		.Visibility_Raw(this, &SChaosVDRecordingControls::IsRecordingToggleButtonVisible, RecordingMode)
-		.VAlign(VAlign_Center)
-		.HAlign(HAlign_Center)
-		.ToolTipText_Lambda([this, StartRecordingTooltip]()
-		{
-			return IsRecording() ? LOCTEXT("StopRecordButtonDesc", "Stop the current recording ") : StartRecordingTooltip;
-		})
-		[
-			SNew(SImage)
-			.Image_Raw(this, &SChaosVDRecordingControls::GetRecordOrStopButton, RecordingMode)
-			.ColorAndOpacity_Lambda([this](){ return IsRecording() ? FColor::Red : FColor::White; })
-		];
+			.OnClicked(FOnClicked::CreateRaw(this, &SChaosVDRecordingControls::ToggleRecordingState, RecordingMode))
+			.ForegroundColor(FSlateColor::UseForeground())
+			.IsFocusable(false)
+			.IsEnabled_Raw(this, &SChaosVDRecordingControls::IsRecordingToggleButtonEnabled, RecordingMode)
+			.Visibility_Raw(this, &SChaosVDRecordingControls::IsRecordingToggleButtonVisible, RecordingMode)
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Center)
+			.OnHovered_Lambda([this](){ bRecordingButtonHovered = true;})
+			.OnUnhovered_Lambda([this](){ bRecordingButtonHovered = false;})
+			.ToolTipText_Lambda([this, StartRecordingTooltip]()
+			{
+				return IsRecording() ? LOCTEXT("StopRecordButtonDesc", "Stop the current recording ") : StartRecordingTooltip;
+			})
+			[
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.Padding(FMargin(0, 0, 0, 0))
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(SImage)
+					.Image_Raw(this, &SChaosVDRecordingControls::GetRecordOrStopButton, RecordingMode)
+					.ColorAndOpacity_Lambda([this]()
+					{
+						if (IsRecording())
+						{
+							if (!RecordingAnimation.IsPlaying())
+							{
+								RecordingAnimation.Play(AsShared(), true);
+							}
+
+							const FLinearColor Color = bRecordingButtonHovered ? FLinearColor::Red : FLinearColor::White;
+							return FSlateColor(bRecordingButtonHovered ? Color : Color.CopyWithNewOpacity(0.2f + 0.8f * RecordingAnimation.GetLerp()));
+						}
+
+						RecordingAnimation.Pause();
+						return FSlateColor::UseSubduedForeground();
+					})
+				]
+				+SHorizontalBox::Slot()
+				.Padding(FMargin(4, 0, 0, 0))
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.Visibility_Lambda([this](){return IsRecording() ? EVisibility::Collapsed : EVisibility::Visible;})
+					.TextStyle(FAppStyle::Get(), "SmallButtonText")
+					.Text_Lambda( [RecordingMode]()
+					{
+						return RecordingMode == EChaosVDRecordingMode::File ? LOCTEXT("RecordToFileButtonLabel", "Record To File") : LOCTEXT("RecordToLiveButtonLabel", "Record Live Session");
+					})
+				]
+			];
+}
+
+TSharedRef<SWidget> SChaosVDRecordingControls::GenerateRecordingTimeTextBlock()
+{
+	return SNew(SBox)
+			.VAlign(VAlign_Center)
+			.Visibility_Lambda([this]() { return IsRecording() ? EVisibility::Visible : EVisibility::Collapsed; })
+			.Padding(12.0f, 0.0f, 0.0f, 0.0f)
+			[
+				SNew(STextBlock)
+				.TextStyle(FAppStyle::Get(), "SmallButtonText")
+				.Text_Raw(this, &SChaosVDRecordingControls::GetRecordingTimeText)
+				.ColorAndOpacity(FColor::White)
+			];
+}
+
+TSharedRef<SWidget> SChaosVDRecordingControls::GenerateToolbarWidget()
+{
+	RegisterMenus();
+
+	FToolMenuContext MenuContext;
+
+	UChaosVDRecordingToolbarMenuContext* CommonContextObject = NewObject<UChaosVDRecordingToolbarMenuContext>();
+	CommonContextObject->RecordingControlsWidget = SharedThis(this);
+
+	MenuContext.AddObject(CommonContextObject);
+
+	return UToolMenus::Get()->GenerateWidget(RecordingControlsToolbarName, MenuContext);
+}
+
+TSharedRef<SWidget> SChaosVDRecordingControls::GenerateDataChannelsButton()
+{
+	return SNew(SComboButton)
+			.ContentPadding(FMargin(6.0f, 0.0f))
+			.IsEnabled_Raw(this, &SChaosVDRecordingControls::HasDataChannelsSupport)
+			.MenuPlacement(MenuPlacement_AboveAnchor).ComboButtonStyle(&FAppStyle::Get()
+			.GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
+			.OnGetMenuContent(this, &SChaosVDRecordingControls::GenerateDataChannelsMenu)
+			.HasDownArrow(true)
+			.ButtonContent()
+			[
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("DataChannelsButton", "Data Channels"))
+					.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("DialogButtonText"))
+				]
+			];
 }
 
 TSharedRef<SWidget> SChaosVDRecordingControls::GenerateDataChannelsMenu()
@@ -192,8 +229,8 @@ SChaosVDRecordingControls::~SChaosVDRecordingControls()
 
 const FSlateBrush* SChaosVDRecordingControls::GetRecordOrStopButton(EChaosVDRecordingMode RecordingMode) const
 {
-	const FSlateBrush* RecordIconBrush = RecordingMode == EChaosVDRecordingMode::File ? FChaosVDStyle::Get().GetBrush("RecordToFileIcon") : FChaosVDStyle::Get().GetBrush("RecordToLiveIcon");
-	return IsRecording() ? FChaosVDStyle::Get().GetBrush("StopIcon") : RecordIconBrush;
+	const FSlateBrush* RecordIconBrush = FChaosVDStyle::Get().GetBrush("RecordIcon");
+	return bRecordingButtonHovered && IsRecording() ? FChaosVDStyle::Get().GetBrush("StopIcon") : RecordIconBrush;
 }
 
 void SChaosVDRecordingControls::HandleRecordingStop()
@@ -365,6 +402,66 @@ EVisibility SChaosVDRecordingControls::IsRecordingToggleButtonVisible(EChaosVDRe
 	const bool bShouldButtonBeVisible = bIsRecording ? bIsRecording && IsRecordingToggleButtonEnabled(RecordingMode) : true;
 	return bShouldButtonBeVisible ? EVisibility::Visible : EVisibility::Collapsed;
 }
+
+void SChaosVDRecordingControls::RegisterMenus()
+{
+	const UToolMenus* ToolMenus = UToolMenus::Get();
+	if (ToolMenus->IsMenuRegistered(RecordingControlsToolbarName))
+	{
+		return;
+	}
+
+	UToolMenu* ToolBar = UToolMenus::Get()->RegisterMenu(RecordingControlsToolbarName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
+
+	FToolMenuSection& Section = ToolBar->AddSection("LoadRecording");
+	Section.AddDynamicEntry("OpenFile", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+	{
+		const UChaosVDRecordingToolbarMenuContext* Context = InSection.FindContext<UChaosVDRecordingToolbarMenuContext>();
+		TSharedRef<SChaosVDRecordingControls> RecordingControls = Context->RecordingControlsWidget.Pin().ToSharedRef();
+
+		TSharedRef<SWidget> RecordToFileButton = SNew(SBox).Padding(4.0f,0.0f)[ RecordingControls->GenerateToggleRecordingStateButton(EChaosVDRecordingMode::File, LOCTEXT("RecordToFileButtonDesc", "Starts a recording for the current session, saving it directly to file")) ];
+		TSharedRef<SWidget> RecordToLiveButton = SNew(SBox).Padding(4.0f,0.0f)[ RecordingControls->GenerateToggleRecordingStateButton(EChaosVDRecordingMode::Live, LOCTEXT("RecordLiveButtonDesc", "Starts a recording and automatically connects to it playing it back in real time")) ];
+		TSharedRef<SWidget> RecordingTime = RecordingControls->GenerateRecordingTimeTextBlock();
+		TSharedRef<SWidget> DataChannelsButton = SNew(SBox).Padding(4.0f,0.0f)[ RecordingControls->GenerateDataChannelsButton() ];
+
+		InSection.AddEntry(
+			FToolMenuEntry::InitWidget(
+				"RecordToFileButton",
+				RecordToFileButton,
+				FText::GetEmpty(),
+				true,
+				false
+			));
+
+		InSection.AddEntry(
+			FToolMenuEntry::InitWidget(
+				"RecordToLiveButton",
+				RecordToLiveButton,
+				FText::GetEmpty(),
+				false,
+				false
+			));
+
+		InSection.AddEntry(
+			FToolMenuEntry::InitWidget(
+				"RecordingTime",
+				RecordingTime,
+				FText::GetEmpty(),
+				false,
+				false
+			));
+
+		InSection.AddEntry(
+			FToolMenuEntry::InitWidget(
+				"DataChannelsButton",
+				DataChannelsButton,
+				FText::GetEmpty(),
+				false,
+				false
+			));
+	}));
+}
+
 
 bool SChaosVDRecordingControls::IsRecording() const
 {

@@ -2,6 +2,7 @@
 
 #include "ChaosVDSceneQueryDataInspectorTab.h"
 
+#include "ChaosVDStyle.h"
 #include "EditorModeManager.h"
 #include "Widgets/SChaosVDMainTab.h"
 #include "Widgets/SChaosVDSceneQueryDataInspector.h"
@@ -31,6 +32,8 @@ TSharedRef<SDockTab> FChaosVDSceneQueryDataInspectorTab::HandleTabSpawnRequest(c
 	{
 		DetailsPanelTab->SetContent(GenerateErrorWidget());
 	}
+
+	DetailsPanelTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("SceneQueriesInspectorIcon"));
 
 	HandleTabSpawned(DetailsPanelTab);
 

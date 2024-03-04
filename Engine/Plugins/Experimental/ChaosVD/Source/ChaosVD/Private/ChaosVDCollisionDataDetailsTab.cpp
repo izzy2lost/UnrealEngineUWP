@@ -26,6 +26,8 @@ TSharedRef<SDockTab> FChaosVDCollisionDataDetailsTab::HandleTabSpawnRequest(cons
 		SAssignNew(CollisionDataInspector, SChaosVDCollisionDataInspector, GetChaosVDScene())
 	);
 
+	DetailsPanelTab->SetTabIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "CollisionAnalyzer.TabIcon").GetIcon());
+
 	HandleTabSpawned(DetailsPanelTab);
 
 	return DetailsPanelTab;

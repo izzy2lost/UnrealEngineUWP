@@ -28,6 +28,8 @@
 #include "IDesktopPlatform.h"
 #include "Misc/MessageDialog.h"
 #include "StatusBarSubsystem.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
 #include "Components/ChaosVDParticleDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
@@ -109,156 +111,33 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		[
-			SNew( SBorder )
-			.BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
-			.Padding(FMargin(0.f, 0.f, 0.f, 0.f))
+			// Create the Main Toolbar
+			SNew(SOverlay)
+			+SOverlay::Slot()
 			[
-				// Open Button
-				SNew(SHorizontalBox)
-				+SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Left)
-				.Padding(FMargin(12, 7, 6, 7))
-				.AutoWidth()
+				SNew(SImage)
+				.Image(&FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar").BackgroundBrush)
+			]
+			+ SOverlay::Slot()
+			[
+				SNew(SBorder)
+				.Padding(0)
+				.BorderImage(FAppStyle::Get().GetBrush("NoBorder"))
 				[
-					SNew(SButton)
-					.ToolTip(SNew(SToolTip).Text(LOCTEXT("OpenFileDesc", "Click here to open a Chaos Visual Debugger file.")))
-					.ContentPadding(FMargin(0, 5.f, 0, 4.f))
-					.OnClicked_Lambda([this]()
-					{
-						BrowseAndOpenChaosVDRecording();
-						return FReply::Handled();
-					})
-					.Content()
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.AutoWidth()
 					[
-						SNew(SHorizontalBox)
-						+SHorizontalBox::Slot()
-						.HAlign(HAlign_Center)
-						.VAlign(VAlign_Center)
-						[
-							SNew(SImage)
-							.Image(FAppStyle::Get().GetBrush("Icons.Plus"))
-							.ColorAndOpacity(FStyleColors::AccentGreen)
-						]
-						+SHorizontalBox::Slot()
-						.Padding(FMargin(3, 0, 0, 0))
-						.VAlign(VAlign_Center)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.TextStyle(FAppStyle::Get(), "SmallButtonText")
-							.Text(LOCTEXT("OpenFile", "Open File"))
-						]
+						GenerateMainToolbarWidget()
 					]
-				]
-
-				// Remote Connection Button
-				+SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Left)
-				.Padding(FMargin(6, 7, 18, 7))
-				.AutoWidth()
-				[
-					SNew(SButton)
-					.ContentPadding(FMargin(0, 5.f, 0, 4.f))
-					.OnClicked_Raw(this, &SChaosVDMainTab::HandleSessionConnectionClicked)
-					.Content()
+					+SHorizontalBox::Slot()
+					.AutoWidth()
 					[
-						SNew(SHorizontalBox)
-						+SHorizontalBox::Slot()
-						.HAlign(HAlign_Center)
-						.VAlign(VAlign_Center)
-						[
-							SNew(SImage)
-							.Image(FChaosVDStyle::Get().GetBrush("ConnectionIcon"))
-							.ColorAndOpacity(FStyleColors::AccentGreen)
-						]
-						+SHorizontalBox::Slot()
-						.Padding(FMargin(3, 0, 0, 0))
-						.VAlign(VAlign_Center)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.TextStyle(FAppStyle::Get(), "SmallButtonText")
-							.Text_Raw(this, &SChaosVDMainTab::GetConnectButtonText)
-						]
-					]
-				]
-
-
-				+SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(1.0f)
-				[
-					SNew(SSeparator)
-						.Orientation(Orient_Vertical)
-						.Thickness(2.0f)
-						.ColorAndOpacity(FColor::Black)
-						.SeparatorImage(FAppStyle::Get().GetBrush("Menu.Separator"))
-				]
-				
-				+SHorizontalBox::Slot()
-				[
-					
-					SNew(SChaosVDRecordingControls, StaticCastSharedRef<SChaosVDMainTab>(AsShared()))
-				]
-				
-				+SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(1.0f, 5.0f, 1.0f, 5.0f)
-				[
-					SNew(SSeparator)
-						.Orientation(Orient_Vertical)
-						.Thickness(2.0f)
-						.ColorAndOpacity(FColor::Black)
-						.SeparatorImage(FAppStyle::Get().GetBrush("Menu.Separator"))
-				]
-
-				// Settings button
-				+ SHorizontalBox::Slot()
-				.HAlign(HAlign_Right)
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				.Padding(FMargin(14.f, 0.f, 14.f, 0.f))
-				[
-					SNew(SComboButton)
-					.ContentPadding(0)
-					.HasDownArrow(false)
-					.IsEnabled(false) // Disabled until we create content for it
-					.ForegroundColor(FSlateColor::UseForeground())
-					.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
-					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ViewOptions")))
-					/*.MenuContent()
-					[
-						//TODO: Implement Settings menu
-					]*/
-					.ButtonContent()
-					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.HAlign(HAlign_Center)
-						[
-							SNew(SImage)
-							.Image(FAppStyle::Get().GetBrush("Icons.Toolbar.Settings"))
-							.ColorAndOpacity(FSlateColor::UseForeground())
-						]
-						+ SHorizontalBox::Slot()
-						.Padding(FMargin(5, 0, 0, 0))
-						.VAlign(VAlign_Center)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.TextStyle(FAppStyle::Get(), "NormalText")
-							.Text(LOCTEXT("SettingsLabel", "Settings"))
-							.ColorAndOpacity(FSlateColor::UseForeground())
-						]
+						SNew(SChaosVDRecordingControls, StaticCastSharedRef<SChaosVDMainTab>(AsShared()))
 					]
 				]
 			]
-				
 		]
-		
 		// Main Visual Debugger Interface content
 		+SVerticalBox::Slot()
 		.Padding(FMargin(0.0f,5.0f,0.0f,0.0f))
@@ -433,7 +312,7 @@ void SChaosVDMainTab::GenerateMainWindowMenu()
 	TabManager->SetMenuMultiBox(MenuBarBuilder.GetMultiBox(), MenuBarBuilder.MakeWidget());
 }
 
-void SChaosVDMainTab::BrowseAndOpenChaosVDRecording()
+FReply SChaosVDMainTab::BrowseAndOpenChaosVDRecording()
 {
 	const TSharedRef<SChaosBrowseTraceFileSourceModal> SessionBrowserModal = SNew(SChaosBrowseTraceFileSourceModal);
 
@@ -469,6 +348,56 @@ void SChaosVDMainTab::BrowseAndOpenChaosVDRecording()
 				ensureMsgf(false, TEXT("Invalid responce received"));
 			break;
 	}
+
+	return FReply::Handled();
+}
+
+TSharedRef<SButton> SChaosVDMainTab::CreateSimpleButton(TFunction<FText()>&& GetTextDelegate, TFunction<FText()>&& ToolTipTextDelegate, const FSlateBrush* ButtonIcon, const UChaosVDMainToolbarMenuContext* MenuContext, const FOnClicked& InButtonClickedCallback)
+{
+	const TSharedRef<SChaosVDMainTab> MainTab = MenuContext->MainTab.Pin().ToSharedRef();
+	
+	TSharedRef<SButton> Button = SNew(SButton)
+								.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+								.ToolTipText_Lambda(MoveTemp(ToolTipTextDelegate))
+								.ContentPadding(FMargin(6.0f, 0.0f))
+								.OnClicked(InButtonClickedCallback)
+								[
+									SNew(SHorizontalBox)
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									.HAlign(HAlign_Center)
+									.VAlign(VAlign_Center)
+									[
+										SNew(SImage)
+										.Image(ButtonIcon)
+										.ColorAndOpacity(FSlateColor::UseForeground())
+									]
+									+SHorizontalBox::Slot()
+									.Padding(FMargin(4, 0, 0, 0))
+									.VAlign(VAlign_Center)
+									.AutoWidth()
+									[
+										SNew(STextBlock)
+										.TextStyle(FAppStyle::Get(), "NormalText")
+										.Text_Lambda(MoveTemp(GetTextDelegate))
+									]
+								];
+
+	return Button;
+}
+
+TSharedRef<SWidget> SChaosVDMainTab::GenerateMainToolbarWidget()
+{
+	RegisterMainTabMenu();
+
+	FToolMenuContext MenuContext;
+
+	UChaosVDMainToolbarMenuContext* CommonContextObject = NewObject<UChaosVDMainToolbarMenuContext>();
+	CommonContextObject->MainTab = SharedThis(this);
+
+	MenuContext.AddObject(CommonContextObject);
+
+	return UToolMenus::Get()->GenerateWidget(MainToolBarName, MenuContext);
 }
 
 void SChaosVDMainTab::BrowseChaosVDRecordingFromFolder(FStringView FolderPath)
@@ -523,6 +452,104 @@ bool SChaosVDMainTab::ConnectToLiveSession(int32 SessionID, const FString Sessio
 	return bSuccess;
 }
 
+void SChaosVDMainTab::RegisterMainTabMenu()
+{
+	const UToolMenus* ToolMenus = UToolMenus::Get();
+	if (ToolMenus->IsMenuRegistered(MainToolBarName))
+	{
+		return;
+	}
+
+	UToolMenu* ToolBar = UToolMenus::Get()->RegisterMenu(MainToolBarName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
+
+	FToolMenuSection& Section = ToolBar->AddSection("LoadRecording");
+	Section.AddDynamicEntry("OpenFile", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+	{
+		const UChaosVDMainToolbarMenuContext* Context = InSection.FindContext<UChaosVDMainToolbarMenuContext>();
+		TSharedPtr<SChaosVDMainTab> MainTabPtr = Context->MainTab.Pin();
+		if (!MainTabPtr)
+		{
+			return;
+		}
+
+		TSharedRef<SButton> OpenFileButton = MainTabPtr->CreateSimpleButton(
+			[](){ return LOCTEXT("OpenFile", "Open File"); },
+			[](){ return LOCTEXT("OpenFileDesc", "Click here to open a Chaos Visual Debugger file."); },
+			FChaosVDStyle::Get().GetBrush("OpenFileIcon"),
+			Context, FOnClicked::CreateLambda([WeakTab = MainTabPtr.ToWeakPtr()]()
+			{
+				if (TSharedPtr<SChaosVDMainTab> TabPtr = WeakTab.Pin())
+				{
+					return TabPtr->BrowseAndOpenChaosVDRecording();
+				}
+
+				return FReply::Handled();
+			}));
+
+		InSection.AddEntry(
+			FToolMenuEntry::InitWidget(
+				"OpenFileButton",
+				OpenFileButton,
+				FText::GetEmpty(),
+				true,
+				false
+			));
+	}));
+
+	Section.AddDynamicEntry("ConnectToSession", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+	{
+		const UChaosVDMainToolbarMenuContext* Context = InSection.FindContext<UChaosVDMainToolbarMenuContext>();
+		TSharedPtr<SChaosVDMainTab> MainTabPtr = Context->MainTab.Pin();
+		if (!MainTabPtr)
+		{
+			return;
+		}
+
+		TFunction<FText()> GetTextDelegate = [WeakTab = MainTabPtr.ToWeakPtr()]()
+		{
+			if (TSharedPtr<SChaosVDMainTab> TabPtr = WeakTab.Pin())
+			{
+				return TabPtr->GetConnectButtonText();
+			}
+
+			return FText();
+		};
+
+		TFunction<FText()> GetTooltipTextDelegate = [WeakTab = MainTabPtr.ToWeakPtr()]()
+		{
+			if (TSharedPtr<SChaosVDMainTab> TabPtr = WeakTab.Pin())
+			{
+				return TabPtr->GetConnectButtonTooltipText();
+			}
+
+			return FText();
+		};
+		
+		FOnClicked OnClickedDelegate = FOnClicked::CreateLambda([WeakTab = StaticCastWeakPtr<SChaosVDMainTab>(MainTabPtr->AsWeak())]()
+		{
+			if (TSharedPtr<SChaosVDMainTab> TabPtr = WeakTab.Pin())
+			{
+				return TabPtr->HandleSessionConnectionClicked();
+			}
+
+			return FReply::Handled();
+		});
+
+		TSharedRef<SButton> ConnectToSessionButton = MainTabPtr->CreateSimpleButton(MoveTemp(GetTextDelegate), MoveTemp(GetTooltipTextDelegate), FChaosVDStyle::Get().GetBrush("OpenSessionIcon"), Context, MoveTemp(OnClickedDelegate));
+
+		InSection.AddEntry(
+			FToolMenuEntry::InitWidget(
+				"ConnectToSession",
+				ConnectToSessionButton,
+				FText::GetEmpty(),
+				true,
+				false
+			));
+	}));
+	
+	Section.AddSeparator(NAME_None);
+}
+
 void SChaosVDMainTab::BrowseLiveSessionsFromTraceStore() const
 {
 	const TSharedRef<SChaosVDBrowseSessionsModal> SessionBrowserModal = SNew(SChaosVDBrowseSessionsModal);
@@ -568,6 +595,12 @@ FText SChaosVDMainTab::GetConnectButtonText() const
 {
 	const bool bIsAlreadyInLiveSession = GetChaosVDEngineInstance()->GetPlaybackController()->IsPlayingLiveSession();
 	return bIsAlreadyInLiveSession ? LOCTEXT("DisconnectFromSession", "Disconnect from Session") : LOCTEXT("ConnectToSession", "Connect to Session");
+}
+
+FText SChaosVDMainTab::GetConnectButtonTooltipText() const
+{
+	const bool bIsAlreadyInLiveSession = GetChaosVDEngineInstance()->GetPlaybackController()->IsPlayingLiveSession();
+	return bIsAlreadyInLiveSession ? LOCTEXT("DisconnectFromSessionTooltip", "Disconnects from the current live session but it does not stop it") : LOCTEXT("ConnectToSessionTooltip", "Opens a panel where you can browse active live sessions and connect to one");
 }
 
 #undef LOCTEXT_NAMESPACE
