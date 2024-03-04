@@ -201,7 +201,8 @@ void FOptionalProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Data
 		
 		const void* ValueDefaults = Defaults ? GetValuePointerForReadIfSet(Defaults) : nullptr;
 
-		if (Slot.GetArchiveState().UseUnversionedPropertySerialization())
+		if (Slot.GetArchiveState().UseUnversionedPropertySerialization() ||
+			UnderlyingArchive.UEVer() >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME)
 		{
 			// Simply serialize the inner value if using unversioned property serialization.
 			void* ValueData = bIsLoading
@@ -219,6 +220,11 @@ void FOptionalProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Data
 			// Serialize the value's tag.
 			ValueSlot << ValueTag;
 
+			if (UE::FPropertyTypeName NewTypeName = ApplyRedirectsToPropertyType(ValueTag.GetType(), ValueProperty); !NewTypeName.IsEmpty())
+			{
+				ValueTag.SetType(NewTypeName);
+			}
+
 			// Deserialize/convert the value.
 			void* ValueData = MarkSetAndGetInitializedValuePointerToReplace(Data);
 
@@ -231,8 +237,11 @@ void FOptionalProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Data
 					bSuccessfullyDeserialized = true;
 					break;
 				case EConvertFromTypeResult::UseSerializeItem:
-					GetValueProperty()->SerializeItem(ValueSlot, ValueData, ValueDefaults);
-					bSuccessfullyDeserialized = !UnderlyingArchive.IsCriticalError();
+					if (ValueTag.Type == GetValueProperty()->GetID())
+					{
+						ValueTag.SerializeTaggedProperty(ValueSlot, GetValueProperty(), (uint8*)ValueData, (const uint8*)ValueDefaults);
+						bSuccessfullyDeserialized = !UnderlyingArchive.IsCriticalError();
+					}
 					break;
 				case EConvertFromTypeResult::CannotConvert:
 					break;
@@ -450,6 +459,50 @@ int32 FOptionalProperty::GetMinAlignment() const
 
 EConvertFromTypeResult FOptionalProperty::ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* ContainerData, UStruct* DefaultsStruct, const uint8* DefaultsContainer)
 {
+	if (Slot.GetArchiveState().UEVer() >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME)
+	{
+		if (CanSerializeFromTypeName(Tag.GetType()))
+		{
+			return EConvertFromTypeResult::UseSerializeItem;
+		}
+
+		FPropertyTag ValueTag = Tag;
+		TOptional<FStructuredArchive::FSlot> MaybeValueSlot;
+		if (Tag.Type == NAME_OptionalProperty)
+		{
+			FStructuredArchive::FRecord Record = Slot.EnterRecord();
+			MaybeValueSlot = Record.TryEnterField(TEXT("Value"), /*bEnterForSaving*/ false);
+			if (!MaybeValueSlot)
+			{
+				MarkUnset(ContainerPtrToValuePtr<void>(ContainerData));
+				return EConvertFromTypeResult::Converted;
+			}
+			ValueTag.SetType(Tag.GetType().GetParameter());
+		}
+
+		FStructuredArchive::FSlot ValueSlot = MaybeValueSlot.Get(Slot);
+		uint8* ValueData = (uint8*)MarkSetAndGetInitializedValuePointerToReplace(ContainerPtrToValuePtr<void>(ContainerData));
+		switch (GetValueProperty()->ConvertFromType(ValueTag, ValueSlot, ValueData, nullptr, nullptr))
+		{
+		case EConvertFromTypeResult::Converted:
+			return EConvertFromTypeResult::Converted;
+		case EConvertFromTypeResult::Serialized:
+			return EConvertFromTypeResult::Serialized;
+		case EConvertFromTypeResult::CannotConvert:
+			return EConvertFromTypeResult::CannotConvert;
+		case EConvertFromTypeResult::UseSerializeItem:
+			if (ValueTag.Type == GetValueProperty()->GetID())
+			{
+				GetValueProperty()->SerializeItem(ValueSlot, ValueData);
+				return EConvertFromTypeResult::Serialized;
+			}
+			return EConvertFromTypeResult::CannotConvert;
+		default:
+			checkNoEntry();
+			return EConvertFromTypeResult::CannotConvert;
+		}
+	}
+
 	static const FName NAME_OptionProperty("OptionProperty");
 	if (Tag.Type != NAME_OptionProperty)
 	{

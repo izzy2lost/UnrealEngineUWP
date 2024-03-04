@@ -1438,11 +1438,27 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 	const UE::FPropertyTypeName ValueType = Tag.GetType().GetParameter(1);
 	const FName KeyTypeName = KeyType.GetName();
 	const FName ValueTypeName = ValueType.GetName();
-	const bool bCanSerializeKey = (KeyTypeName == KeyProp->GetID());
-	const bool bCanSerializeValue = (ValueTypeName == ValueProp->GetID());
-	if ((bCanSerializeKey || KeyTypeName.IsNone()) && (bCanSerializeValue || ValueTypeName.IsNone()))
+	bool bCanSerializeKey;
+	bool bCanSerializeValue;
+
+	const FPackageFileVersion Version = UnderlyingArchive.UEVer();
+	if (Version >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME)
 	{
-		return EConvertFromTypeResult::UseSerializeItem;
+		bCanSerializeKey = KeyProp->CanSerializeFromTypeName(KeyType);
+		bCanSerializeValue = ValueProp->CanSerializeFromTypeName(ValueType);
+		if (bCanSerializeKey && bCanSerializeValue)
+		{
+			return EConvertFromTypeResult::UseSerializeItem;
+		}
+	}
+	else
+	{
+		bCanSerializeKey = (KeyTypeName == KeyProp->GetID());
+		bCanSerializeValue = (ValueTypeName == ValueProp->GetID());
+		if ((bCanSerializeKey || KeyTypeName.IsNone()) && (bCanSerializeValue || ValueTypeName.IsNone()))
+		{
+			return EConvertFromTypeResult::UseSerializeItem;
+		}
 	}
 
 	if (Tag.bExperimentalOverridableLogic)
@@ -1456,8 +1472,6 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 		{
 			switch (Inner->ConvertFromType(InnerTag, InnerSlot, InnerData, InnerDefaultsStruct, nullptr))
 			{
-				default:
-					checkNoEntry();
 				case EConvertFromTypeResult::Converted:
 				case EConvertFromTypeResult::Serialized:
 					return true;
@@ -1470,6 +1484,9 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 					}
 					// Fall through to default SerializeItem
 					break;
+				default:
+					checkNoEntry();
+					return false;
 			}
 		}
 

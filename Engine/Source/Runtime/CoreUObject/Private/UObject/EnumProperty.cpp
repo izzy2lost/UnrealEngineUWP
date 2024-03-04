@@ -420,8 +420,8 @@ EConvertFromTypeResult FEnumProperty::ConvertFromType(const FPropertyTag& Tag, F
 		uint8 PreviousValue = 0;
 		if (Tag.GetType().GetParameterCount() == 0)
 		{
-			// A nested property loses its enum name in the property tag. Handle this case for backward compatibility reasons.
-			if (GetOwner<FProperty>())
+			// A nested property would lose its enum name on previous versions. Handle this case for backward compatibility reasons.
+			if (GetOwner<FProperty>() && Slot.GetArchiveState().UEVer() < EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME)
 			{
 				UE::FPropertyTypeNameBuilder TypeBuilder;
 				TypeBuilder.AddName(Tag.Type);

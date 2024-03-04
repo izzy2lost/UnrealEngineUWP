@@ -17,6 +17,19 @@ class FArchive;
 class FProperty;
 
 /**
+ * Used by the tag to describe how the property was serialized.
+ */
+enum class EPropertyTagSerializeType : uint8
+{
+	/** Tag was loaded from an older version or has not yet been saved. */
+	Unknown,
+	/** Serialized with tagged property serialization. */
+	Property,
+	/** Serialized with binary or native serialization. */
+	BinaryOrNative,
+};
+
+/**
  *  A tag describing a class property, to aid in serialization.
  */
 struct FPropertyTag
@@ -48,6 +61,7 @@ public:
 	FGuid	PropertyGuid;
 	uint8	HasPropertyGuid = 0;
 	uint8	BoolVal = 0;// a boolean property's value (never need to serialize data for bool properties except here)
+	EPropertyTagSerializeType SerializeType = EPropertyTagSerializeType::Unknown;
 	EOverriddenPropertyOperation OverrideOperation; // Overridable serialization state reconstruction 
 	bool	bExperimentalOverridableLogic = false; // Remember if property had CPF_ExperimentalOverridableLogic when saved
 
@@ -82,6 +96,10 @@ public:
 	// Property serializer.
 	void SerializeTaggedProperty(FArchive& Ar, FProperty* Property, uint8* Value, const uint8* Defaults) const;
 	UE_INTERNAL COREUOBJECT_API void SerializeTaggedProperty(FStructuredArchive::FSlot Slot, FProperty* Property, uint8* Value, const uint8* Defaults) const;
+
+private:
+	friend void LoadPropertyTagNoFullType(FStructuredArchive::FSlot Slot, FPropertyTag& Tag);
+	friend void SerializePropertyTagAsText(FStructuredArchive::FSlot Slot, FPropertyTag& Tag);
 };
 
 struct UE_INTERNAL FPropertyTagScope
