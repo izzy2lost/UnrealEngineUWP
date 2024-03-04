@@ -16,28 +16,6 @@
 namespace UE { namespace Color {
 
 /**
- * Convert coordinate to CIE Yxy with a luminance value.
- *
- * @return FVector3d
- */
-UE_DEPRECATED(5.3, "ToYxy has been deprecated.")
-inline FVector3d ToYxy(double LuminanceY, const FVector2d& Coordinate)
-{
-	return FVector3d(LuminanceY, Coordinate.X, Coordinate.Y);
-}
-
-/**
- * Convert coordinate to CIE Yxy with a default luminance of 1.0.
- *
- * @return FVector3d
- */
-UE_DEPRECATED(5.3, "ToYxy has been deprecated.")
-inline FVector3d ToYxy(const FVector2d& Coordinate)
-{
-	return FVector3d(1.0, Coordinate.X, Coordinate.Y);
-}
-
-/**
  * Convert chromaticity coordinate and luminance to CIE XYZ tristimulus values.
  *
  * @return FVector3d
@@ -71,18 +49,6 @@ inline FVector3d XYZToxyY(const FVector3d& XYZ)
 		XYZ[1] / Divisor,
 		XYZ[1]
 	);
-}
-
-UE_DEPRECATED(5.3, "ToXYZ has been replaced by xyYToXYZ.")
-inline FVector3d ToXYZ(double LuminanceY, const FVector2d& Coordinate)
-{
-	return xyYToXYZ(FVector3d(Coordinate.X, Coordinate.Y, LuminanceY));
-}
-
-UE_DEPRECATED(5.3, "ToXYZ has been replaced by xyYToXYZ.")
-inline FVector3d ToXYZ(const FVector2d& Coordinate)
-{
-	return xyYToXYZ(FVector3d(Coordinate.X, Coordinate.Y, 1.0));
 }
 
 /**

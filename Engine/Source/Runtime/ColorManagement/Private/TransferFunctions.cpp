@@ -7,7 +7,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogTransferFunctions, Log, All);
 
 namespace UE { namespace Color {
 
-FORCEINLINE TFunction<float(float)> GetTransferFunction(EEncoding SourceEncoding, bool bIsEncode)
+inline TFunction<float(float)> GetTransferFunction(EEncoding SourceEncoding, bool bIsEncode)
 {
 	switch (SourceEncoding)
 	{
