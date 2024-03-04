@@ -588,6 +588,7 @@ public:
 	template <typename T = UGameFeaturesProjectPolicies>
 	T& GetPolicy() const
 	{
+		ensureMsgf(bInitializedPolicyManager, TEXT("Attemting to get policy before GameFeaturesSubsystem is ready!"));
 		return *CastChecked<T>(GameSpecificPolicies, ECastCheckedType::NullChecked);
 	}
 
@@ -697,6 +698,8 @@ private:
 	void GetExplanationForUnavailablePackage(const FString& SkippedPackage, IPlugin* PluginIfFound, FStringBuilderBase& InOutExplanation);
 
 private:
+	bool IsPluginAllowed(const FString& PluginURL) const;
+
 	bool ShouldUpdatePluginProtocolOptions(const UGameFeaturePluginStateMachine* StateMachine, const FGameFeatureProtocolOptions& NewOptions);
 	UE::GameFeatures::FResult UpdateGameFeatureProtocolOptions(UGameFeaturePluginStateMachine* StateMachine, const FGameFeatureProtocolOptions& NewOptions, bool* bOutDidUpdate = nullptr);
 
