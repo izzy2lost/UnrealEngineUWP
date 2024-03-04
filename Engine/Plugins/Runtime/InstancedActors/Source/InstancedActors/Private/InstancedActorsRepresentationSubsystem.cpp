@@ -8,17 +8,24 @@ void UInstancedActorsRepresentationSubsystem::Initialize(FSubsystemCollectionBas
 {
 	Super::Initialize(Collection);
 
+	TSubclassOf<UMassActorSpawnerSubsystem> SpawnerSystemSubclass;
 	// @todo Add support for non-replay NM_Standalone where we should use UServerInstancedActorsSpawnerSubsystem for 
 	// authoritative actor spawning.
 	if (GetWorldRef().GetNetMode() == NM_DedicatedServer)
 	{
-		ActorSpawnerSubsystem = Cast<UMassActorSpawnerSubsystem>(Collection.InitializeDependency(GET_INSTANCEDACTORS_CONFIG_VALUE(GetServerActorSpawnerSubsystemClass())));
+		SpawnerSystemSubclass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetServerActorSpawnerSubsystemClass());
+
 	}
 	else
 	{
-		ActorSpawnerSubsystem = Cast<UMassActorSpawnerSubsystem>(Collection.InitializeDependency(GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass())));
+		SpawnerSystemSubclass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass());
 	}
 
-	ensureMsgf(ActorSpawnerSubsystem, TEXT("Trying to initialize dependency on class %s failed. Verify InstancedActors settings.")
-		, *GetNameSafe(ActorSpawnerSubsystem));
+	if (ensure(SpawnerSystemSubclass))
+	{
+		ActorSpawnerSubsystem = Cast<UMassActorSpawnerSubsystem>(Collection.InitializeDependency(SpawnerSystemSubclass));
+
+		ensureMsgf(ActorSpawnerSubsystem, TEXT("Trying to initialize dependency on class %s failed. Verify InstanedActors settings.")
+			, *GetNameSafe(ActorSpawnerSubsystem));
+	}
 }
