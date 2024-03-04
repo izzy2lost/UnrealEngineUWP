@@ -1346,12 +1346,14 @@ void FOptimusEditor::OnDeformerModified(
 	case EOptimusGlobalNotifyType::ResourceIndexChanged:
 	case EOptimusGlobalNotifyType::VariableRenamed:
 	case EOptimusGlobalNotifyType::VariableIndexChanged:
-	case EOptimusGlobalNotifyType::ConstantValueChanged:
 	case EOptimusGlobalNotifyType::NodeTypeAdded: 
 	case EOptimusGlobalNotifyType::NodeTypeRemoved: 
 		RefreshEvent.Broadcast();
 		break;
 
+	case EOptimusGlobalNotifyType::ConstantValueChanged:
+		break;
+		
 	case EOptimusGlobalNotifyType::DataTypeChanged:
 		OnDataTypeChanged();
 		break;
