@@ -5281,11 +5281,9 @@ void InitUObject()
 
 	FCoreDelegates::OnShutdownAfterError.AddStatic(StaticShutdownAfterError);
 	FCoreDelegates::OnExit.AddStatic(StaticExit);
-#if !USE_PER_MODULE_UOBJECT_BOOTSTRAP && !IS_MONOLITHIC
 
 	// Always register the UObjects callback for VNI and general consistency with the callbacks ProcessNewlyLoadedUObjects calls.
 	RegisterProcessNewlyLoadedUObjects();
-#endif
 
 	struct Local
 	{
