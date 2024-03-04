@@ -47,6 +47,19 @@
 //statics to reuse in the UI
 FRigSpacePickerBakeSettings SControlRigEditModeTools::BakeSpaceSettings;
 
+void SControlRigEditModeTools::Cleanup()
+{
+	// This is required as these hold a shared pointer to THIS OBJECT and make this class not to be destroyed when the parent class releases the shared pointer of this object
+	if (SettingsDetailsView)
+	{
+		SettingsDetailsView->SetKeyframeHandler(nullptr);
+	}
+	if (RigOptionsDetailsView)
+	{
+		RigOptionsDetailsView->SetKeyframeHandler(nullptr);
+	}
+}
+
 void SControlRigEditModeTools::SetControlRigs(const TArrayView<TWeakObjectPtr<UControlRig>>& InControlRigs)
 {
 	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
@@ -66,15 +79,17 @@ void SControlRigEditModeTools::SetControlRigs(const TArrayView<TWeakObjectPtr<UC
 	}
 
 	//mz todo handle multiple rigs
-	UControlRig* Rig = ControlRigs.Num() > 0 ? ControlRigs[0].Get() : nullptr;
 	TArray<TWeakObjectPtr<>> Objects;
-	Objects.Add(Rig);
+	if (ControlRigs.Num() > 0)
+	{
+		UControlRig* Rig = ControlRigs[0].Get();
+		Objects.Add(Rig);
+	}
 	RigOptionsDetailsView->SetObjects(Objects);
 
 #if USE_LOCAL_DETAILS
 	HierarchyTreeView->RefreshTreeView(true);
 #endif
-
 }
 
 const URigHierarchy* SControlRigEditModeTools::GetHierarchy() const
@@ -482,7 +497,10 @@ void SControlRigEditModeTools::SetSettingsDetailsObject(const TWeakObjectPtr<>& 
 	if (SettingsDetailsView)
 	{
 		TArray<TWeakObjectPtr<>> Objects;
-		Objects.Add(InObject);
+		if (InObject.IsValid())
+		{
+			Objects.Add(InObject);
+		}
 		SettingsDetailsView->SetObjects(Objects);
 	}
 }

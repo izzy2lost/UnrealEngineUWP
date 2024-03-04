@@ -49,6 +49,14 @@ const FName FControlRigEditModeToolkit::SpacePickerTabName = FName(TEXT("Control
 TSharedPtr<SControlRigDetails> FControlRigEditModeToolkit::Details = nullptr;
 TSharedPtr<SControlRigOutliner> FControlRigEditModeToolkit::Outliner = nullptr;
 
+FControlRigEditModeToolkit::~FControlRigEditModeToolkit()
+{
+	if (ModeTools)
+	{
+		ModeTools->Cleanup();
+	}
+}
+
 void FControlRigEditModeToolkit::Init(const TSharedPtr<IToolkitHost>& InitToolkitHost)
 {
 	SAssignNew(ModeTools, SControlRigEditModeTools, SharedThis(this), EditMode);

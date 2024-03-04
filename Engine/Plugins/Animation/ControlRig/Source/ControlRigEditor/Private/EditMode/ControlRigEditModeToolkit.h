@@ -26,6 +26,8 @@ public:
 		
 	}
 
+	~FControlRigEditModeToolkit();
+
 	/** IToolkit interface */
 	virtual FName GetToolkitFName() const override { return FName("AnimationMode"); }
 	virtual FText GetBaseToolkitName() const override { return NSLOCTEXT("AnimationModeToolkit", "DisplayName", "Animation"); }
