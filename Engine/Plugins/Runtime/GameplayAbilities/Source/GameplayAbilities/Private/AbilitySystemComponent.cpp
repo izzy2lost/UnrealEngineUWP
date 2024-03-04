@@ -626,6 +626,12 @@ FOnActiveGameplayEffectTimeChange* UAbilitySystemComponent::OnGameplayEffectTime
 	return ActiveEffect ? &ActiveEffect->EventSet.OnTimeChanged : nullptr;
 }
 
+FOnActiveGameplayEffectInhibitionChanged* UAbilitySystemComponent::OnGameplayEffectInhibitionChangedDelegate(FActiveGameplayEffectHandle Handle)
+{
+	FActiveGameplayEffect* ActiveEffect = ActiveGameplayEffects.GetActiveGameplayEffect(Handle);
+	return ActiveEffect ? &ActiveEffect->EventSet.OnInhibitionChanged : nullptr;
+}
+
 FOnGivenActiveGameplayEffectRemoved& UAbilitySystemComponent::OnAnyGameplayEffectRemovedDelegate()
 {
 	return ActiveGameplayEffects.OnActiveGameplayEffectRemovedDelegate;
