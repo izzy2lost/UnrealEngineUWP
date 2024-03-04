@@ -28,7 +28,7 @@ FNetBlob::~FNetBlob()
 	{
 		if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::HasDynamicState))
 		{
-			if (uint8* StateBuffer = QuantizedBlobState.Get())
+			if (uint8* StateBuffer = QuantizedBlobState.GetStateBuffer())
 			{
 				Private::FReplicationStateOperationsInternal::FreeDynamicState(StateBuffer, Descriptor);
 			}
@@ -36,7 +36,7 @@ FNetBlob::~FNetBlob()
 	}
 }
 
-void FNetBlob::SetState(const TRefCountPtr<const FReplicationStateDescriptor>& InBlobDescriptor, TUniquePtr<uint8> InQuantizedBlobState)
+void FNetBlob::SetState(const TRefCountPtr<const FReplicationStateDescriptor>& InBlobDescriptor, FQuantizedBlobState&& InQuantizedBlobState)
 {
 	BlobDescriptor = InBlobDescriptor;
 	QuantizedBlobState = MoveTemp(InQuantizedBlobState);
@@ -95,26 +95,26 @@ void FNetBlob::Deserialize(FNetSerializationContext& Context)
 
 void FNetBlob::CollectObjectReferences(FNetSerializationContext& Context, FNetReferenceCollector& Collector) const
 {
-	if (BlobDescriptor.IsValid() && QuantizedBlobState.IsValid())
+	if (BlobDescriptor.IsValid() && QuantizedBlobState.GetStateBuffer())
 	{
 		const FNetSerializerChangeMaskParam InitStateChangeMaskInfo = { 0 };
-		Private::FReplicationStateOperationsInternal::CollectReferences(Context, Collector, InitStateChangeMaskInfo, QuantizedBlobState.Get(), BlobDescriptor);
+		Private::FReplicationStateOperationsInternal::CollectReferences(Context, Collector, InitStateChangeMaskInfo, QuantizedBlobState.GetStateBuffer(), BlobDescriptor);
 	}
 }
 
 void FNetBlob::SerializeBlob(FNetSerializationContext& Context) const
 {
-	if (BlobDescriptor.IsValid() && QuantizedBlobState.IsValid())
+	if (BlobDescriptor.IsValid() && QuantizedBlobState.GetStateBuffer())
 	{
-		FReplicationStateOperations::Serialize(Context, QuantizedBlobState.Get(), BlobDescriptor);
+		FReplicationStateOperations::Serialize(Context, QuantizedBlobState.GetStateBuffer(), BlobDescriptor);
 	}
 }
 
 void FNetBlob::DeserializeBlob(FNetSerializationContext& Context)
 {
-	if (BlobDescriptor.IsValid() && QuantizedBlobState.IsValid())
+	if (BlobDescriptor.IsValid() && QuantizedBlobState.GetStateBuffer())
 	{
-		FReplicationStateOperations::Deserialize(Context, QuantizedBlobState.Get(), BlobDescriptor);
+		FReplicationStateOperations::Deserialize(Context, QuantizedBlobState.GetStateBuffer(), BlobDescriptor);
 	}
 }
 
@@ -162,6 +162,15 @@ void FNetObjectAttachment::DeserializeSubObjectReference(FNetSerializationContex
 {
 	NetObjectReference = Private::FObjectReferenceCache::MakeNetObjectReference(RefHandle);
 	ReadFullNetObjectReference(Context, TargetObjectReference);
+}
+
+FNetBlob::FQuantizedBlobState::FQuantizedBlobState(uint32 Size, uint32 Alignment)
+: StateBuffer(static_cast<uint8*>(GMalloc->Malloc(Size, Alignment)))
+{
+	if (StateBuffer)
+	{
+		FMemory::Memzero(StateBuffer, Size);
+	}
 }
 
 }

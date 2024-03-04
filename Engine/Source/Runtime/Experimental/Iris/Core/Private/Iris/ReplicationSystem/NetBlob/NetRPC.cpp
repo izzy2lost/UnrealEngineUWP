@@ -369,9 +369,7 @@ bool FNetRPC::ResolveFunctionAndObject(FNetSerializationContext& Context)
 
 	if (FunctionDescriptor->Descriptor->InternalSize)
 	{
-		uint8* StateBuffer = static_cast<uint8*>(GMalloc->Malloc(FunctionDescriptor->Descriptor->InternalSize, FunctionDescriptor->Descriptor->InternalAlignment));
-		FMemory::Memzero(StateBuffer, FunctionDescriptor->Descriptor->InternalSize);
-		QuantizedBlobState.Reset(StateBuffer);
+		QuantizedBlobState = FQuantizedBlobState(FunctionDescriptor->Descriptor->InternalSize, FunctionDescriptor->Descriptor->InternalAlignment);
 	}
 
 	return true;
@@ -392,14 +390,12 @@ FNetRPC* FNetRPC::Create(UReplicationSystem* ReplicationSystem, const FNetBlobCr
 	}
 
 	const FReplicationStateDescriptor* BlobDescriptor = FunctionDescriptor->Descriptor;
-	uint8* QuantizedBlobState = nullptr;
+	FQuantizedBlobState QuantizedBlobState;
 
 	// Don't spend CPU cycles on quantizing zero parameters
 	if (BlobDescriptor != nullptr && BlobDescriptor->InternalSize)
 	{
-		uint8* StateBuffer = static_cast<uint8*>(GMalloc->Malloc(BlobDescriptor->InternalSize, BlobDescriptor->InternalAlignment));
-		FMemory::Memzero(StateBuffer, BlobDescriptor->InternalSize);
-		QuantizedBlobState = StateBuffer;
+		QuantizedBlobState = FQuantizedBlobState(BlobDescriptor->InternalSize, BlobDescriptor->InternalAlignment);
 
 		// Setup Context
 		FNetSerializationContext Context;
@@ -408,7 +404,7 @@ FNetRPC* FNetRPC::Create(UReplicationSystem* ReplicationSystem, const FNetBlobCr
 		Context.SetInternalContext(&InternalContext);
 
 		// Quantize the function parameters
-		FReplicationStateOperations::Quantize(Context, StateBuffer, static_cast<const uint8*>(FunctionParameters), BlobDescriptor);
+		FReplicationStateOperations::Quantize(Context, QuantizedBlobState.GetStateBuffer(), static_cast<const uint8*>(FunctionParameters), BlobDescriptor);
 	}
 
 	FNetRPC* NetRPC = new FNetRPC(CreationInfo);
@@ -424,7 +420,7 @@ FNetRPC* FNetRPC::Create(UReplicationSystem* ReplicationSystem, const FNetBlobCr
 				FNetSerializationContext LocalContext;
 				FNetReferenceCollector Collector(ENetReferenceCollectorTraits::OnlyCollectReferencesThatCanBeExported);
 				const FNetSerializerChangeMaskParam InitStateChangeMaskInfo = { 0 };
-				FReplicationStateOperationsInternal::CollectReferences(LocalContext, Collector, InitStateChangeMaskInfo, QuantizedBlobState, BlobDescriptor);
+				FReplicationStateOperationsInternal::CollectReferences(LocalContext, Collector, InitStateChangeMaskInfo, QuantizedBlobState.GetStateBuffer(), BlobDescriptor);
 
 				if (Collector.GetCollectedReferences().Num())
 				{
@@ -439,7 +435,7 @@ FNetRPC* FNetRPC::Create(UReplicationSystem* ReplicationSystem, const FNetBlobCr
 			}
 		}
 
-		NetRPC->SetState(BlobDescriptor, TUniquePtr<uint8>(QuantizedBlobState));
+		NetRPC->SetState(BlobDescriptor, MoveTemp(QuantizedBlobState));
 	}
 
 	return NetRPC;
@@ -555,7 +551,7 @@ void FNetRPC::CallFunction(FNetRPCCallContext& CallContext)
 			}
 		}
 		
-		FReplicationStateOperations::Dequantize(Context, FunctionParameters, QuantizedBlobState.Get(), BlobDescriptor);
+		FReplicationStateOperations::Dequantize(Context, FunctionParameters, QuantizedBlobState.GetStateBuffer(), BlobDescriptor);
 	}
 
 	// Forward function
