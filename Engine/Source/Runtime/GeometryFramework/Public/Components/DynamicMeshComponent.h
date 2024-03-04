@@ -727,4 +727,8 @@ public:
 	GEOMETRYFRAMEWORK_API void SetSceneProxyVerifyUsedMaterials(bool bState);
 
 
+private:
+	// Internal helper to be called when mesh data is updated
+	void InternalOnMeshUpdated();
+
 };

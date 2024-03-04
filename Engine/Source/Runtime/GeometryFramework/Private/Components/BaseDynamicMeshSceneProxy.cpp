@@ -352,7 +352,7 @@ void FBaseDynamicMeshSceneProxy::GetCollisionDynamicMeshElements(TArray<FMeshRen
 				bool bDrawComplexWireframeCollision = (EngineShowFlags.Collision && IsCollisionEnabled() && CollisionTraceFlag == ECollisionTraceFlag::CTF_UseComplexAsSimple);
 
 				// If drawing complex collision as solid or wireframe
-				if(bDrawComplexWireframeCollision || (bDrawCollisionView && bDrawComplexCollision))
+				if (bHasComplexMeshData && (bDrawComplexWireframeCollision || (bDrawCollisionView && bDrawComplexCollision)))
 				{
 					bool bDrawWireframe = !bDrawCollisionView;
 
@@ -574,10 +574,16 @@ void FBaseDynamicMeshSceneProxy::SetCollisionData()
 #if UE_ENABLE_DEBUG_DRAWING
 	bHasCollisionData = true;
 	bOwnerIsNull = ParentBaseComponent->GetOwner() == nullptr;
+	bHasComplexMeshData = false;
 	if (UBodySetup* BodySetup = ParentBaseComponent->GetBodySetup())
 	{
 		CollisionTraceFlag = BodySetup->GetCollisionTraceFlag();
 		CachedAggGeom = BodySetup->AggGeom;
+		
+		if (IInterface_CollisionDataProvider* CDP = Cast<IInterface_CollisionDataProvider>(ParentBaseComponent))
+		{
+			bHasComplexMeshData = CDP->ContainsPhysicsTriMeshData(BodySetup->bMeshCollideAll);
+		}
 	}
 	else
 	{

@@ -28,6 +28,16 @@
 
 using namespace UE::Geometry;
 
+
+static TAutoConsoleVariable<int32> CVarDynamicMeshComponent_MaxComplexCollisionTriCount(
+	TEXT("geometry.DynamicMesh.MaxComplexCollisionTriCount"),
+	250000,
+	TEXT("If a DynamicMeshCompnent's UDynamicMesh has a larger triangle count than this value, it will not be passed to the Physics system to be used as Complex Collision geometry. A negative value indicates no limit.")
+);
+
+
+
+
 namespace
 {
 	// probably should be something defined for the whole tool framework...
@@ -1185,16 +1195,7 @@ void UDynamicMeshComponent::OnMeshObjectChanged(UDynamicMesh* ChangedMeshObject,
 		OnMeshChanged.Broadcast();
 	}
 
-	// Rebuild body setup. Should this be deferred until proxy creation? Sometimes multiple changes are emitted...
-	// todo: can possibly skip this in some change situations, eg if only changing attributes
-	if (bDeferCollisionUpdates || bTransientDeferCollisionUpdates )
-	{
-		InvalidatePhysicsData();
-	}
-	else
-	{
-		RebuildPhysicsData();
-	}
+	InternalOnMeshUpdated();
 }
 
 
@@ -1219,15 +1220,7 @@ void UDynamicMeshComponent::SetDynamicMesh(UDynamicMesh* NewMesh)
 	NotifyMeshUpdated();
 	OnMeshChanged.Broadcast();
 
-	// Rebuild physics data
-	if (bDeferCollisionUpdates || bTransientDeferCollisionUpdates)
-	{
-		InvalidatePhysicsData();
-	}
-	else
-	{
-		RebuildPhysicsData();
-	}
+	InternalOnMeshUpdated();
 }
 
 
@@ -1243,6 +1236,18 @@ void UDynamicMeshComponent::OnChildDetached(USceneComponent* ChildComponent)
 	OnChildAttachmentModified.Broadcast(ChildComponent, false);
 }
 
+void UDynamicMeshComponent::InternalOnMeshUpdated()
+{
+	// Rebuild physics data
+	if (bDeferCollisionUpdates || bTransientDeferCollisionUpdates)
+	{
+		InvalidatePhysicsData();
+	}
+	else
+	{
+		RebuildPhysicsData();
+	}
+}
 
 bool UDynamicMeshComponent::GetTriMeshSizeEstimates(struct FTriMeshCollisionDataEstimates& OutTriMeshEstimates, bool bInUseAllTriData) const
 {
@@ -1425,7 +1430,28 @@ bool UDynamicMeshComponent::GetPhysicsTriMeshData(struct FTriMeshCollisionData* 
 
 bool UDynamicMeshComponent::ContainsPhysicsTriMeshData(bool InUseAllTriData) const
 {
-	return bEnableComplexCollision && ((MeshObject != nullptr) ? (MeshObject->GetTriangleCount() > 0) : false);
+	if (bEnableComplexCollision && (MeshObject != nullptr))
+	{
+		int32 TriangleCount = MeshObject->GetTriangleCount();
+
+		// if the triangle count is too large, skip building complex collision
+		int32 MaxComplexCollisionTriCount = CVarDynamicMeshComponent_MaxComplexCollisionTriCount.GetValueOnAnyThread();
+		if (MaxComplexCollisionTriCount >= 0 && TriangleCount > MaxComplexCollisionTriCount)
+		{
+			static bool bHavePrintedWarningMessage = false;
+			if (!bHavePrintedWarningMessage)
+			{
+				UE_LOG(LogGeometry, Display, TEXT("Ignoring attempt to build Complex Collision for a DynamicMeshComponent with triangle count larger than %d. Increase the geometry.DynamicMesh.MaxComplexCollisionTriCount value if you are certain you want to build Complex Collision for very large meshes."), MaxComplexCollisionTriCount);
+				bHavePrintedWarningMessage = true;
+			}
+			return false;
+		}
+		if (TriangleCount > 0)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 bool UDynamicMeshComponent::WantsNegXTriMesh()

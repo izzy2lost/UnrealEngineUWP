@@ -1029,6 +1029,8 @@ private:
 	bool bOwnerIsNull = true;
 	/** Whether the collision data has been set up for rendering */
 	bool bHasCollisionData = false;
+	/** Whether a complex collision mesh is available */
+	bool bHasComplexMeshData = false;
 	/** Collision trace flags */
 	ECollisionTraceFlag		CollisionTraceFlag;
 	/** Collision Response of this component */
