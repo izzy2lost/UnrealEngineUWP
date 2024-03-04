@@ -875,7 +875,13 @@ void USkeletalMeshComponent::OnUnregister()
 		}
 	}
 
+	// Invalidate required bones and our cached data
 	RequiredBones.Reset();
+	bRequiredBonesUpToDate = false;
+	if (SharedRequiredBones)
+	{
+		SharedRequiredBones->Reset();
+	}
 
 	Super::OnUnregister();
 }
