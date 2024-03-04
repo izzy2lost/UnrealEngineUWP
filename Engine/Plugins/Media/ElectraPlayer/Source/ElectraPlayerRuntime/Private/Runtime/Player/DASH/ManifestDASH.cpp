@@ -1426,6 +1426,10 @@ IManifest::FResult FDASHPlayPeriod::GetStartingSegment(TSharedPtrTS<IStreamSegme
 				}
 				SegmentRequest->Segment = MoveTemp(SegmentInfo);
 				SegmentRequest->TimestampSequenceIndex = InSequenceState.GetSequenceIndex();
+				if (bFrameAccurateSearch)
+				{
+					SegmentRequest->FrameAccurateStartTime = StartPosition.Time;
+				}
 
 				// The start segment request needs to be able to return a valid first PTS which is what the player sets
 				// the playback position to. If not valid yet update it with the current stream values.

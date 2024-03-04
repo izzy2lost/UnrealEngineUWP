@@ -57,6 +57,7 @@ public:
 	FTimeValue												AdditionalAdjustmentTime = FTimeValue::GetZero();	//!< Sum of any other time corrections
 	bool													bInsertFillerData = false;							//!< true to insert empty access units into the buffer instead of reading actual data.
 	int64													TimestampSequenceIndex = 0;							//!< Sequence index to set in all timestamp values of the decoded access unit.
+	FTimeValue												FrameAccurateStartTime;								//!< If set, the start time as was requested in a Seek() (not in media local time)
 
 	// UTC wallclock times during which this segment can be fetched;
 	FTimeValue												ASAST;
@@ -96,7 +97,7 @@ public:
 	//! Adds a request to read from a stream
 	virtual EAddResult AddRequest(uint32 CurrentPlaybackSequenceID, TSharedPtrTS<IStreamSegment> Request) override;
 
-	//! Cancels any ongoing requests of the given stream type. Silent cancellation will not notify OnFragmentClose() or OnFragmentReachedEOS(). 
+	//! Cancels any ongoing requests of the given stream type. Silent cancellation will not notify OnFragmentClose() or OnFragmentReachedEOS().
 	virtual void CancelRequest(EStreamType StreamType, bool bSilent) override;
 
 	//! Cancels all pending requests.
@@ -309,7 +310,7 @@ private:
 		// Methods from IParserISO14496_12::IBoxCallback
 		IParserISO14496_12::IBoxCallback::EParseContinuation OnFoundBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset) override;
 		IParserISO14496_12::IBoxCallback::EParseContinuation OnEndOfBox(IParserISO14496_12::FBoxType Box, int64 BoxSizeInBytes, int64 FileDataOffset, int64 BoxDataOffset) override;
-	
+
 		// Methods from IParserMKV::IReader
 		int64 MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override;
 		int64 MKVGetCurrentFileOffset() const override;
@@ -317,7 +318,7 @@ private:
 		bool MKVHasReadBeenAborted() const override;
 	};
 
-	FStreamHandler						StreamHandlers[3];		// 0 = video, 1 = audio, 2 = subtitle 
+	FStreamHandler						StreamHandlers[3];		// 0 = video, 1 = audio, 2 = subtitle
 	IPlayerSessionServices*				PlayerSessionService = nullptr;
 	bool								bIsStarted = false;
 	FErrorDetail						ErrorDetail;

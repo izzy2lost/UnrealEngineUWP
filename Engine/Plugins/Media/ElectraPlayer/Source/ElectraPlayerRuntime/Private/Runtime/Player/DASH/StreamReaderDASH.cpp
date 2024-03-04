@@ -196,7 +196,7 @@ UEMediaError FStreamReaderDASH::Create(IPlayerSessionServices* InPlayerSessionSe
 			StreamHandlers[i].bRunOnThreadPool = true;
 		}
 #endif
-		StreamHandlers[i].ThreadSetName(i==0 ? "ElectraPlayer::DASH Video" : 
+		StreamHandlers[i].ThreadSetName(i==0 ? "ElectraPlayer::DASH Video" :
 										i==1 ? "ElectraPlayer::DASH Audio" :
 											   "ElectraPlayer::DASH Subtitle");
 	}
@@ -510,7 +510,7 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::LoadInitSegment(TSharedPtrTS<FMP
 	{
 		return FErrorDetail();
 	}
-	
+
 	// Set up download stats to be sent to the stream selector.
 	const HTTP::FConnectionInfo* ci = OutLoadRequest->GetConnectionInfo();
 	ds.StatsID = FMediaInterlockedIncrement(UniqueDownloadID);
@@ -762,7 +762,7 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::RetrieveSideloadedFile(TSharedPt
 	{
 		return FErrorDetail();
 	}
-	
+
 	// Set up download stats to be sent to the stream selector.
 	const HTTP::FConnectionInfo* ci = LoadReq->GetConnectionInfo();
 	Metrics::FSegmentDownloadStats ds;
@@ -989,7 +989,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 		A segment that is already at EOS is not meant to be loaded as it does not exist and there
 		would not be another segment following it either. They are meant to indicate to the player
 		that a stream has ended and will not be delivering any more data.
-		
+
 		NOTE:
 		  We had to handle this request up to detecting the use of inband event streams in order to
 		  signal that this stream has now ended and will not be receiving any further inband events!
@@ -1344,8 +1344,15 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 
 									if (Request->Segment.bFrameAccuracyRequired)
 									{
-										AccessUnit->EarliestPTS.SetFromND(MediaLocalFirstAUTime - PTO, TrackTimescale);
-										AccessUnit->EarliestPTS += TimeOffset;
+										if (Request->FrameAccurateStartTime.IsValid())
+										{
+											AccessUnit->EarliestPTS = Request->FrameAccurateStartTime;
+										}
+										else
+										{
+											AccessUnit->EarliestPTS.SetFromND(MediaLocalFirstAUTime - PTO, TrackTimescale);
+											AccessUnit->EarliestPTS += TimeOffset;
+										}
 										AccessUnit->EarliestPTS.SetSequenceIndex(Request->TimestampSequenceIndex);
 									}
 									if (MediaLocalLastAUTime != TNumericLimits<int64>::Max())
@@ -1412,7 +1419,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 										// If we need to decrypt we have to wait for the decrypter to become ready.
 										if (bIsSampleEncrypted && Decrypter.IsValid())
 										{
-											while(!bTerminate && !HasReadBeenAborted() && 
+											while(!bTerminate && !HasReadBeenAborted() &&
 												  (Decrypter->GetState() == ElectraCDM::ECDMState::WaitingForKey || Decrypter->GetState() == ElectraCDM::ECDMState::Idle))
 											{
 												FMediaRunnable::SleepMilliseconds(100);
@@ -1854,7 +1861,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 		A segment that is already at EOS is not meant to be loaded as it does not exist and there
 		would not be another segment following it either. They are meant to indicate to the player
 		that a stream has ended and will not be delivering any more data.
-		
+
 		NOTE:
 		  We had to handle this request up to detecting the use of inband event streams in order to
 		  signal that this stream has now ended and will not be receiving any further inband events!
