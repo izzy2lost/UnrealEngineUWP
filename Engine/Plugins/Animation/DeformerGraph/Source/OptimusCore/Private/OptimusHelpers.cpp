@@ -28,7 +28,7 @@ Optimus::FUniqueNameGenerator::FUniqueNameGenerator(UObject* InScopeObject)
 FName Optimus::FUniqueNameGenerator::GetUniqueName(FName InName)
 {
 	FName Result = Optimus::GetUniqueNameForScope(ScopeObject, InName);
-	GenerateUniqueNameFromExistingNames(Result, GeneratedName);
+	Result = GenerateUniqueNameFromExistingNames(Result, GeneratedName);
 
 	// Result be usable at this point since the name number strictly increases.
 	// Only take the slow route if there is still a name collision for mysterious reasons
