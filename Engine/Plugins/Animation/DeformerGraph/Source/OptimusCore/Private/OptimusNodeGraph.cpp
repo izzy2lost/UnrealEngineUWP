@@ -233,6 +233,21 @@ FString UOptimusNodeGraph::ConstructPath(const FString& GraphPath, const FString
 	return Result;
 }
 
+bool UOptimusNodeGraph::IsReadOnly() const
+{
+	if (IsFunctionGraph())
+	{
+		return true;
+	}
+
+	if (UOptimusNodeGraph* GraphOwner = Cast<UOptimusNodeGraph>(GetCollectionOwner()))
+	{
+		return GraphOwner->IsReadOnly();
+	}
+
+	return false;
+}
+
 int32 UOptimusNodeGraph::GetGraphIndex() const
 {
 	return GetCollectionOwner()->GetGraphs().IndexOfByKey(this);

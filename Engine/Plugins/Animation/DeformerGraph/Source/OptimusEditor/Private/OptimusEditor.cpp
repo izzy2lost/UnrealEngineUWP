@@ -1238,12 +1238,7 @@ FGraphAppearanceInfo FOptimusEditor::GetGraphAppearance() const
 
 bool FOptimusEditor::IsGraphReadOnly() const
 {
-	if (EditorGraph->GetModelGraph()->GetGraphType() == EOptimusNodeGraphType::Function)
-	{
-		return true;
-	}
-
-	return false;
+	return EditorGraph->GetModelGraph()->IsReadOnly();
 }
 
 bool FOptimusEditor::IsGraphEditable() const
@@ -1261,10 +1256,10 @@ bool FOptimusEditor::IsPropertyReadOnly(const FPropertyAndParent& InPropertyAndP
 			continue;
 		}
 
-		// Everything a function graph owns should be read only
-		if (SelectedObject->GetTypedOuter<UOptimusFunctionNodeGraph>())
+		// Everything a read-only graph owns should be read only
+		if (UOptimusNodeGraph* OwnerGraph = SelectedObject->GetTypedOuter<UOptimusNodeGraph>())
 		{
-			return true;
+			return OwnerGraph->IsReadOnly();
 		}
 		
 	}

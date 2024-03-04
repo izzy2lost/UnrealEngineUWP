@@ -187,12 +187,7 @@ void UOptimusNode_CustomComputeKernel::SetShaderText(const FString& NewText)
 
 bool UOptimusNode_CustomComputeKernel::IsShaderTextReadOnly() const
 {
-	if (GetOwningGraph()->GetGraphType() == EOptimusNodeGraphType::Function)
-	{
-		return true;
-	}
-
-	return false;
+	return GetOwningGraph()->IsReadOnly();
 }
 
 #endif // WITH_EDITOR
