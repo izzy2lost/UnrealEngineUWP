@@ -291,6 +291,11 @@ public:
 		return bReverseCulling;
 	}
 
+	inline const FMaterialRelevance& GetCombinedMaterialRelevance() const
+	{
+		return CombinedMaterialRelevance;
+	}
+
 	virtual FResourceMeshInfo GetResourceMeshInfo() const = 0;
 
 	inline void SetRayTracingId(uint32 InRayTracingId) { RayTracingId = InRayTracingId; }
