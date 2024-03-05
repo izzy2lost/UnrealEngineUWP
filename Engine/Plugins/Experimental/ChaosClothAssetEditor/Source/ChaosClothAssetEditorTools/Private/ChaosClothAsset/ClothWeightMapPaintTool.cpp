@@ -1923,6 +1923,37 @@ void UClothEditorWeightMapPaintTool::InvertWeightsAction()
 	EndChange();
 }
 
+
+void UClothEditorWeightMapPaintTool::MultiplyWeightsAction()
+{
+	if (!ActiveWeightMap)
+	{
+		return;
+	}
+	BeginChange();
+
+	const float WeightMultiplierValue = FilterProperties->AttributeValue;
+
+	const FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
+	checkf(Mesh, TEXT("Paint Tool's DynamicMeshComponent has no FDynamicMesh"));
+
+	for (const int32 VertexID : Mesh->VertexIndicesItr())
+	{
+		ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexID, true);
+
+		float WeightValue;
+		ActiveWeightMap->GetValue(VertexID, &WeightValue);
+		WeightValue = FMath::Clamp(WeightMultiplierValue * WeightValue, 0.f, 1.f);
+		ActiveWeightMap->SetValue(VertexID, &WeightValue);
+	}
+
+	// update colors
+	UpdateVertexColorOverlay();
+	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
+	GetToolManager()->PostInvalidation();
+	EndChange();
+}
+
 void UClothEditorWeightMapPaintTool::ClearHiddenAction()
 {
 	HiddenTriangles.Reset();
@@ -2249,6 +2280,10 @@ void UClothEditorWeightMapPaintTool::ApplyAction(EClothEditorWeightMapPaintToolA
 
 	case EClothEditorWeightMapPaintToolActions::Invert:
 		InvertWeightsAction();
+		break;
+
+	case EClothEditorWeightMapPaintToolActions::Multiply:
+		MultiplyWeightsAction();
 		break;
 
 	case EClothEditorWeightMapPaintToolActions::ClearHiddenTriangles:
