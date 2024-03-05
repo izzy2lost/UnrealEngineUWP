@@ -44,9 +44,9 @@ struct FRDGBarrierBatchBeginId
 
 	friend uint32 GetTypeHash(FRDGBarrierBatchBeginId Id)
 	{
-		static_assert(sizeof(Id.Passes) == 4);
-		uint32 Hash = *(const uint32*)Id.Passes.GetData();
-		return (Hash << GetRHIPipelineCount()) | uint32(Id.PipelinesAfter);
+		static_assert(sizeof(Id.Passes) <= 8);
+		uint32 Hash = GetTypeHash(*(const uint64*)Id.Passes.GetData());
+		return HashCombineFast(Hash, (uint32)Id.PipelinesAfter);
 	}
 
 	FRDGPassHandlesByPipeline Passes;
@@ -452,7 +452,7 @@ protected:
 		FRDGTextureRef Texture = nullptr;
 		FRDGTextureSubresourceState State;
 		FRDGTextureSubresourceState MergeState;
-		uint16 ReferenceCount = 0;
+		uint32 ReferenceCount = 0;
 	};
 
 	struct FBufferState
@@ -466,7 +466,7 @@ protected:
 		FRDGBufferRef Buffer = nullptr;
 		FRDGSubresourceState State;
 		FRDGSubresourceState* MergeState = nullptr;
-		uint16 ReferenceCount = 0;
+		uint32 ReferenceCount = 0;
 	};
 
 	/** Maps textures / buffers to information on how they are used in the pass. */
@@ -505,7 +505,7 @@ protected:
 
 	EAsyncComputeBudget AsyncComputeBudget = EAsyncComputeBudget::EAll_4;
 
-	uint16 ParallelPassSetIndex = 0;
+	uint32 ParallelPassSetIndex = 0;
 
 #if WITH_MGPU
 	FRHIGPUMask GPUMask;

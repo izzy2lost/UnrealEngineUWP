@@ -287,7 +287,7 @@ public:
 
 	TRDGHandle() = default;
 
-	explicit inline TRDGHandle(int32 InIndex)
+	explicit inline TRDGHandle(uint32 InIndex)
 	{
 		check(InIndex >= 0 && InIndex <= kNullIndex);
 		Index = (IndexType)InIndex;
@@ -677,25 +677,25 @@ class FRDGUserValidation;
 
 class FRDGViewableResource;
 
-using FRDGPassHandle = TRDGHandle<FRDGPass, uint16>;
+using FRDGPassHandle = TRDGHandle<FRDGPass, uint32>;
 using FRDGPassRegistry = TRDGHandleRegistry<FRDGPassHandle>;
 using FRDGPassHandleArray = TArray<FRDGPassHandle, TInlineAllocator<4, FRDGArrayAllocator>>;
 using FRDGPassBitArray = TRDGHandleBitArray<FRDGPassHandle>;
 
-using FRDGUniformBufferHandle = TRDGHandle<FRDGUniformBuffer, uint16>;
+using FRDGUniformBufferHandle = TRDGHandle<FRDGUniformBuffer, uint32>;
 using FRDGUniformBufferRegistry = TRDGHandleRegistry<FRDGUniformBufferHandle>;
 using FRDGUniformBufferBitArray = TRDGHandleBitArray<FRDGUniformBufferHandle>;
 
-using FRDGViewHandle = TRDGHandle<FRDGView, uint16>;
+using FRDGViewHandle = TRDGHandle<FRDGView, uint32>;
 using FRDGViewRegistry = TRDGHandleRegistry<FRDGViewHandle, ERDGHandleRegistryDestructPolicy::Never>;
 using FRDGViewUniqueFilter = TRDGHandleUniqueFilter<FRDGViewHandle>;
 using FRDGViewBitArray = TRDGHandleBitArray<FRDGViewHandle>;
 
-using FRDGTextureHandle = TRDGHandle<FRDGTexture, uint16>;
+using FRDGTextureHandle = TRDGHandle<FRDGTexture, uint32>;
 using FRDGTextureRegistry = TRDGHandleRegistry<FRDGTextureHandle, ERDGHandleRegistryDestructPolicy::Never>;
 using FRDGTextureBitArray = TRDGHandleBitArray<FRDGTextureHandle>;
 
-using FRDGBufferHandle = TRDGHandle<FRDGBuffer, uint16>;
+using FRDGBufferHandle = TRDGHandle<FRDGBuffer, uint32>;
 using FRDGBufferRegistry = TRDGHandleRegistry<FRDGBufferHandle, ERDGHandleRegistryDestructPolicy::Registry>;
 using FRDGBufferBitArray = TRDGHandleBitArray<FRDGBufferHandle>;
 

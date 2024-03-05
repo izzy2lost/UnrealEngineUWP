@@ -401,10 +401,10 @@ protected:
 	FRDGPassHandle MinDiscardPass;
 
 	/** Number of references in passes and deferred queries. */
-	uint16 ReferenceCount;
+	uint32 ReferenceCount;
 
 	/** Scratch index allocated for the resource in the pass being setup. */
-	uint16 PassStateIndex = 0;
+	uint32 PassStateIndex = 0;
 
 	/** Set of aliasing overlaps to apply to the acquire transition if transient. */
 	TArrayView<const FRHITransientAliasingOverlap> AliasingOverlaps;
@@ -415,19 +415,19 @@ protected:
 private:
 	static const uint16 DeallocatedReferenceCount = ~0;
 
-	void SetExternalAccessMode(ERHIAccess InReadOnlyAccess, ERHIPipeline InPipelines)
+	void SetExternalAccessMode(ERHIAccess InAccess, ERHIPipeline InPipelines)
 	{
 		check(!AccessModeState.bLocked);
 
 		AccessModeState.Mode = EAccessMode::External;
-		AccessModeState.Access = InReadOnlyAccess;
+		AccessModeState.Access = InAccess;
 		AccessModeState.Pipelines = InPipelines;
 
-		EpilogueAccess = InReadOnlyAccess;
+		EpilogueAccess = InAccess;
 	}
 
 #if RDG_ENABLE_TRACE
-	uint16 TraceOrder = 0;
+	uint32 TraceOrder = 0;
 	TArray<FRDGPassHandle, FRDGArrayAllocator> TracePasses;
 #endif
 

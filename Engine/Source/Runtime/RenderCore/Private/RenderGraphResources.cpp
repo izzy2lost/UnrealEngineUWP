@@ -51,7 +51,7 @@ FRDGViewableResource::FRDGViewableResource(const TCHAR* InName, const ERDGViewab
 {
 	if (bSkipTracking)
 	{
-		SetExternalAccessMode(ERHIAccess::ReadOnlyExclusiveMask, ERHIPipeline::All);
+		SetExternalAccessMode(ERHIAccess::Mask, ERHIPipeline::All);
 		AccessModeState.bLocked = 1;
 		AccessModeState.ActiveMode = AccessModeState.Mode;
 	}

@@ -2248,7 +2248,7 @@ void FRDGBuilder::SetupPassResources(FRDGPass* Pass)
 		if (Texture->LastPass != PassHandle)
 		{
 			Texture->LastPass = PassHandle;
-			Texture->PassStateIndex = static_cast<uint16>(Pass->TextureStates.Num());
+			Texture->PassStateIndex = Pass->TextureStates.Num();
 
 			PassState = &Pass->TextureStates.Emplace_GetRef(Texture);
 		}
