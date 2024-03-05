@@ -9,6 +9,7 @@
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
 #include "DynamicRenderScaling.h"
+#include "TemporalUpscaler.h"
 
 
 /** Dynamic resolution of the primary ScreenPercentage. */
