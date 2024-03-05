@@ -782,7 +782,7 @@ namespace mu
 			/** Protect access to the original AST being optimized. */
 			FCriticalSection ASTAccessLock;
 
-			// Launch the tasks. Do it from a task in the ASTPipe to make sure to avoid race conditions in the main AST manipulation.
+			// Launch the tasks.
 			UE::Tasks::FTask LaunchTask = UE::Tasks::Launch(TEXT("ConstantGeneratorLaunchTasks"), 
 				[&ConstantSubgraphs, &GetRequisites, &ASTAccessLock, Pass, InOptions]()
 				{
