@@ -187,7 +187,7 @@ void FStaticMeshOperations::ComputePolygonTangentsAndNormals(FMeshDescription& M
 }
 
 
-static TTuple<FVector3f, FVector3f, FVector3f> GetTriangleTangentsAndNormals(float ComparisonThreshold, TArrayView<const FVector3f> VertexPositions, TArrayView<const FVector2D> VertexUVs)
+static TTuple<FVector3f, FVector3f, FVector3f> GetTriangleTangentsAndNormalsWithUV(float ComparisonThreshold, TArrayView<const FVector3f> VertexPositions, TArrayView<const FVector2D> VertexUVs)
 {
 	// GetSafeNormal compare the squareSum to the tolerance.
 	const float SquareComparisonThreshold = FMath::Max(ComparisonThreshold * ComparisonThreshold, MIN_flt);
@@ -249,6 +249,49 @@ static TTuple<FVector3f, FVector3f, FVector3f> GetTriangleTangentsAndNormals(flo
 	}
 }
 
+// Create a normal using the triangle plane, but use the Duff & Frisvad algorithm (see Duff 2017 in JCGT) to construct a consistent tangent from a
+// single vector. 
+static TTuple<FVector3f, FVector3f, FVector3f> GetTriangleTangentsAndNormalsWithNoUVs(float ComparisonThreshold, TArrayView<const FVector3f> VertexPositions)
+{
+	// GetSafeNormal compare the squareSum to the tolerance.
+	const float SquareComparisonThreshold = FMath::Max(ComparisonThreshold * ComparisonThreshold, MIN_flt);
+
+	const FVector3f Position0 = VertexPositions[0];
+	// If the positions deltas are too small, we get a zero vector out.
+	const FVector3f DPosition1 = VertexPositions[1] - Position0;
+	const FVector3f DPosition2 = VertexPositions[2] - Position0;
+
+	// We have a left-handed coordinate system, but a counter-clockwise winding order
+	// Hence normal calculation has to take the triangle vectors cross product in reverse.
+	// If we got a zero vector out above, then this is also zero
+	FVector3f Normal = FVector3f::CrossProduct(DPosition2, DPosition1).GetSafeNormal(SquareComparisonThreshold);
+	if (!Normal.Normalize(ComparisonThreshold))
+	{
+		return MakeTuple(FVector3f::ZeroVector, FVector3f::ZeroVector, FVector3f::ZeroVector);
+	}
+
+	FVector3f Tangent, Binormal;
+	if (Normal.Z < 0.0f)
+	{
+		const float A = 1.0f / (1.0f - Normal.Z);
+		const float B = Normal.X * Normal.Y * A;
+
+		Tangent = FVector3f(1.0f - Normal.X * Normal.X * A, -B, Normal.X);
+		Binormal = FVector3f(B, Normal.Y * Normal.Y * A - 1.0f, -Normal.Y);
+	}
+	else
+	{
+		const float A = 1.0f / (1.0f + Normal.Z);
+		const float B = -Normal.X * Normal.Y * A;
+
+		Tangent = FVector3f(1.0f - Normal.X * Normal.X * A, B, -Normal.X);
+		Binormal = FVector3f(B, 1.0f - Normal.Y * Normal.Y * A, -Normal.Y);
+	}
+
+	// The above algorithm guarantees orthogonality and normalization of the tangent & binormal if the normal vector is already normalized.
+	return MakeTuple(Normal, Tangent, Binormal);
+}
+
 
 void FStaticMeshOperations::ComputeTriangleTangentsAndNormals(FMeshDescription& MeshDescription, float ComparisonThreshold, const TCHAR* DebugName)
 {
@@ -273,13 +316,18 @@ void FStaticMeshOperations::ComputeTriangleTangentsAndNormals(FMeshDescription& 
 		[BatchSize, ComparisonThreshold, NumTriangles, &Attributes, DebugName](int32 BatchIndex)
 		{
 			TArrayView<const FVector3f> VertexPositions = Attributes.GetVertexPositions().GetRawArray();
-			TArrayView<const FVector2f> VertexUVs = Attributes.GetVertexInstanceUVs().GetRawArray();
+			TArrayView<const FVector2f> VertexUVs;
 			TArrayView<const FVertexID> TriangleVertexIDs = Attributes.GetTriangleVertexIndices().GetRawArray();
 			TArrayView<const FVertexInstanceID> TriangleVertexInstanceIDs = Attributes.GetTriangleVertexInstanceIndices().GetRawArray();
 
 			TArrayView<FVector3f> TriangleNormals = Attributes.GetTriangleNormals().GetRawArray();
 			TArrayView<FVector3f> TriangleTangents = Attributes.GetTriangleTangents().GetRawArray();
 			TArrayView<FVector3f> TriangleBinormals = Attributes.GetTriangleBinormals().GetRawArray();
+
+			if (Attributes.GetVertexInstanceUVs().GetNumChannels() > 0)
+			{
+				VertexUVs = Attributes.GetVertexInstanceUVs().GetRawArray(0);
+			}
 
 			int32 StartIndex = BatchIndex * BatchSize;
 			int32 TriIndex = StartIndex * 3;
@@ -303,36 +351,44 @@ void FStaticMeshOperations::ComputeTriangleTangentsAndNormals(FMeshDescription& 
 					TriangleVertexPositions[1].ContainsNaN() ||
 					TriangleVertexPositions[2].ContainsNaN())
 				{
-					UE_LOG(LogStaticMeshOperations, Warning, TEXT("Static Mesh %s has NaNs in it's vertex positions! Triangle index %d -- using identity for tangent basis."), DebugName ? DebugName : TEXT("<null>"), StartIndex);
+					UE_CLOG(DebugName != nullptr, LogStaticMeshOperations, Warning, TEXT("Static Mesh %s has NaNs in it's vertex positions! Triangle index %d -- using identity for tangent basis."), DebugName, StartIndex);
 					TriangleNormals[StartIndex] = FVector3f(1, 0, 0);
 					TriangleTangents[StartIndex] = FVector3f(0, 1, 0);
 					TriangleBinormals[StartIndex] = FVector3f(0, 0, 1);
 					continue;
 				}
 
-				FVector2D TriangleUVs[3] =
+				TTuple<FVector3f, FVector3f, FVector3f> Result;
+				if (!VertexUVs.IsEmpty())
 				{
-					FVector2D(VertexUVs[TriangleVertexInstanceIDs[TriIndex]]),
-					FVector2D(VertexUVs[TriangleVertexInstanceIDs[TriIndex + 1]]),
-					FVector2D(VertexUVs[TriangleVertexInstanceIDs[TriIndex + 2]])
-				};
+					FVector2D TriangleUVs[3] =
+					{
+						FVector2D(VertexUVs[TriangleVertexInstanceIDs[TriIndex]]),
+						FVector2D(VertexUVs[TriangleVertexInstanceIDs[TriIndex + 1]]),
+						FVector2D(VertexUVs[TriangleVertexInstanceIDs[TriIndex + 2]])
+					};
 
-				if (TriangleUVs[0].ContainsNaN() ||
-					TriangleUVs[1].ContainsNaN() ||
-					TriangleUVs[2].ContainsNaN())
-				{
-					UE_LOG(LogStaticMeshOperations, Warning, TEXT("Static Mesh %s has NaNs in it's vertex uvs! Triangle index %d -- using identity for tangent basis."), DebugName ? DebugName : TEXT("<null>"), StartIndex);
-					TriangleNormals[StartIndex] = FVector3f(1, 0, 0);
-					TriangleTangents[StartIndex] = FVector3f(0, 1, 0);
-					TriangleBinormals[StartIndex] = FVector3f(0, 0, 1);
-					continue;
+					if (TriangleUVs[0].ContainsNaN() ||
+						TriangleUVs[1].ContainsNaN() ||
+						TriangleUVs[2].ContainsNaN())
+					{
+						UE_CLOG(DebugName != nullptr, LogStaticMeshOperations, Warning, TEXT("Static Mesh %s has NaNs in it's vertex uvs! Triangle index %d -- using identity for tangent basis."), DebugName, StartIndex);
+						TriangleNormals[StartIndex] = FVector3f(1, 0, 0);
+						TriangleTangents[StartIndex] = FVector3f(0, 1, 0);
+						TriangleBinormals[StartIndex] = FVector3f(0, 0, 1);
+						continue;
+					}
+
+					Result = GetTriangleTangentsAndNormalsWithUV(ComparisonThreshold, TriangleVertexPositions, TriangleUVs);
 				}
-
-				TTuple<FVector3f, FVector3f, FVector3f> Result = GetTriangleTangentsAndNormals(ComparisonThreshold, TriangleVertexPositions, TriangleUVs);
+				else
+				{
+					Result = GetTriangleTangentsAndNormalsWithNoUVs(ComparisonThreshold, TriangleVertexPositions);
+				}
 				TriangleNormals[StartIndex] = Result.Get<0>();
 				TriangleTangents[StartIndex] = Result.Get<1>();
 				TriangleBinormals[StartIndex] = Result.Get<2>();
-			}
+		}
 		}
 	);
 }
@@ -1451,7 +1507,7 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 		{
 			FStaticMeshAttributes Attributes(MeshDescription);
 
-			TArrayView<const FVector2f> VertexUVs = Attributes.GetVertexInstanceUVs().GetRawArray(0);	// Use UV0
+			TArrayView<const FVector2f> VertexUVs;
 			TArrayView<const FVector3f> TriangleNormals = Attributes.GetTriangleNormals().GetRawArray();
 			TArrayView<const FVector3f> TriangleTangents = Attributes.GetTriangleTangents().GetRawArray();
 			TArrayView<const FVector3f> TriangleBinormals = Attributes.GetTriangleBinormals().GetRawArray();
@@ -1461,6 +1517,14 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 			TArrayView<FVector3f> VertexTangents = Attributes.GetVertexInstanceTangents().GetRawArray();
 			TArrayView<float> VertexBinormalSigns = Attributes.GetVertexInstanceBinormalSigns().GetRawArray();
 
+			// If the mesh has no UVs, average all tangents/bi-normals for a given vertex, rather than try to maintain
+			// the UV flow.
+			if (Attributes.GetVertexInstanceUVs().GetNumChannels() > 0)
+			{
+				// Use UV0 as the base. Same as with ComputeTriangleTangentsAndNormals 
+				VertexUVs = Attributes.GetVertexInstanceUVs().GetRawArray(0);
+			}
+			
 			check(TriangleNormals.Num() > 0);
 			check(TriangleTangents.Num() > 0);
 			check(TriangleBinormals.Num() > 0);
@@ -1500,7 +1564,10 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 								if (MeshDescription.GetVertexInstanceVertex(VertexInstanceID) == VertexID)
 								{
 									VertexInfo.VertexInstanceID = VertexInstanceID;
-									VertexInfo.UVs = VertexUVs[VertexInstanceID];	// UV0
+									if (!VertexUVs.IsEmpty())
+									{
+										VertexInfo.UVs = VertexUVs[VertexInstanceID];	// UV0
+									}
 									bPointHasAllTangents &= !VertexNormals[VertexInstanceID].IsNearlyZero() && !VertexTangents[VertexInstanceID].IsNearlyZero();
 									if (bPointHasAllTangents)
 									{
@@ -1579,6 +1646,7 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 					VertexInstanceInGroup.Reset();
 
 					FVector3f GroupNormal(FVector3f::ZeroVector);
+					
 					for (const FTriangleID& TriangleID : Group)
 					{
 						FVertexInfo& CurrentVertexInfo = VertexInfoMap.FindOrAdd(TriangleID);
@@ -1626,11 +1694,11 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 					GroupNormal.Normalize();
 					if (!bComputeTangentWithMikkTSpace)
 					{
-						for (auto Kvp : GroupTangent)
+						for (auto& Kvp : GroupTangent)
 						{
 							Kvp.Value.Normalize();
 						}
-						for (auto Kvp : GroupBiNormal)
+						for (auto& Kvp : GroupBiNormal)
 						{
 							Kvp.Value.Normalize();
 						}
@@ -1638,7 +1706,7 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 					//Apply the average NTB on all Vertex instance
 					for (const FVertexInstanceID& VertexInstanceID : VertexInstanceInGroup)
 					{
-						const FVector2f& VertexUV = VertexUVs[VertexInstanceID];	// UV0
+						const FVector2f& VertexUV = !VertexUVs.IsEmpty() ? VertexUVs[VertexInstanceID] : FVector2f::ZeroVector;
 
 						if (VertexNormals[VertexInstanceID].IsNearlyZero(SMALL_NUMBER))
 						{
@@ -3069,6 +3137,7 @@ bool FStaticMeshOperations::ValidateAndFixData(FMeshDescription& MeshDescription
 	TVertexInstanceAttributesRef<float> VertexInstanceBinormalSigns = Attributes.GetVertexInstanceBinormalSigns();
 	TVertexInstanceAttributesRef<FVector2f> VertexInstanceUVs = Attributes.GetVertexInstanceUVs();
 	TVertexInstanceAttributesRef<FVector4f> VertexInstanceColors = Attributes.GetVertexInstanceColors();
+	const int32 NumUVs = VertexInstanceUVs.GetNumChannels();
 	for (const FVertexInstanceID VertexInstanceID : MeshDescription.VertexInstances().GetElementIDs())
 	{
 		if (VertexInstanceNormals[VertexInstanceID].ContainsNaN())
@@ -3086,10 +3155,14 @@ bool FStaticMeshOperations::ValidateAndFixData(FMeshDescription& MeshDescription
 			bHasInvalidTangentSpaces = true;
 			VertexInstanceBinormalSigns[VertexInstanceID] = 0.0f;
 		}
-		if (VertexInstanceUVs[VertexInstanceID].ContainsNaN())
+
+		for (int32 UVIndex = 0; UVIndex < NumUVs; UVIndex++)
 		{
-			bHasInvalidUVs = true;
-			VertexInstanceUVs[VertexInstanceID] = FVector2f::Zero();
+			if (VertexInstanceUVs.Get(VertexInstanceID, UVIndex).ContainsNaN())
+			{
+				bHasInvalidUVs = true;
+				VertexInstanceUVs.Set(VertexInstanceID, UVIndex, FVector2f::Zero());
+			}
 		}
 		if (VertexInstanceColors[VertexInstanceID].ContainsNaN())
 		{
@@ -3098,21 +3171,24 @@ bool FStaticMeshOperations::ValidateAndFixData(FMeshDescription& MeshDescription
 		}
 	}
 
-	if (bHasInvalidPositions)
+	if (!DebugName.IsEmpty())
 	{
-		UE_LOG(LogStaticMeshOperations, Display, TEXT("Mesh %s has NaNs in it's vertex positions! Offending positions are set to zero."), *DebugName);
-	}
-	if (bHasInvalidTangentSpaces)
-	{
-		UE_LOG(LogStaticMeshOperations, Display, TEXT("Mesh %s has NaNs in it's vertex instance tangent space! Offending tangents are set to zero."), *DebugName);
-	}
-	if (bHasInvalidUVs)
-	{
-		UE_LOG(LogStaticMeshOperations, Display, TEXT("Mesh %s has NaNs in it's vertex instance uvs! Offending uvs are set to zero."), *DebugName);
-	}
-	if (bHasInvalidVertexColors)
-	{
-		UE_LOG(LogStaticMeshOperations, Display, TEXT("Mesh %s has NaNs in it's vertex instance colors! Offending colors are set to white."), *DebugName);
+		if (bHasInvalidPositions)
+		{
+			UE_LOG(LogStaticMeshOperations, Display, TEXT("Mesh %s has NaNs in it's vertex positions! Offending positions are set to zero."), *DebugName);
+		}
+		if (bHasInvalidTangentSpaces)
+		{
+			UE_LOG(LogStaticMeshOperations, Display, TEXT("Mesh %s has NaNs in it's vertex instance tangent space! Offending tangents are set to zero."), *DebugName);
+		}
+		if (bHasInvalidUVs)
+		{
+			UE_LOG(LogStaticMeshOperations, Display, TEXT("Mesh %s has NaNs in it's vertex instance uvs! Offending uvs are set to zero."), *DebugName);
+		}
+		if (bHasInvalidVertexColors)
+		{
+			UE_LOG(LogStaticMeshOperations, Display, TEXT("Mesh %s has NaNs in it's vertex instance colors! Offending colors are set to white."), *DebugName);
+		}
 	}
 
 	return !bHasInvalidPositions && !bHasInvalidTangentSpaces && !bHasInvalidUVs && !bHasInvalidVertexColors;
