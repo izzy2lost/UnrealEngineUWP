@@ -8,7 +8,7 @@
 
 class UAnimGraphNode_BlendStackInput;
 
-UCLASS(Abstract, Experimental)
+UCLASS(Abstract)
 class BLENDSTACKEDITOR_API UAnimGraphNode_BlendStack_Base : public UAnimGraphNode_AssetPlayerBase
 {
 	GENERATED_BODY()
@@ -51,7 +51,7 @@ private:
 	TObjectPtr<UEdGraph> BoundGraph = nullptr;
 };
 
-UCLASS(MinimalAPI, Experimental)
+UCLASS(MinimalAPI)
 class UAnimGraphNode_BlendStack : public UAnimGraphNode_BlendStack_Base
 {
 	GENERATED_BODY()

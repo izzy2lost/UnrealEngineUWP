@@ -8,7 +8,7 @@
 /** Input pose that links the blend stack's sample graph with the sample/pose chosen by the blend stack.
 *	@Todo: It might be better to reuse FAnimNode_LinkedInputPose, since we will most likely need variable input pins in the future too.
 */
-USTRUCT(BlueprintInternalUseOnly, Experimental)
+USTRUCT(BlueprintInternalUseOnly)
 struct BLENDSTACK_API FAnimNode_BlendStackInput : public FAnimNode_Base
 {
 	GENERATED_BODY()
