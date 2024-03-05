@@ -487,6 +487,22 @@ public:
 	* "SetReplaceDiscardedWithReferenceMeshEnabled" (See the c++ section). */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	TArray<TObjectPtr<USkeletalMesh>> ReferenceSkeletalMeshes;
+
+	/**
+	  * The optional VersionBridge asset, which must implement the ICustomizableObjectVersionBridgeInterface, will be used to
+	  * decide which Mutable child CustomizableObjects and table rows must be included in a compilation/cook depending on its 
+	  * version struct/column by comparing it to the game-specific version system.
+	*/
+	UPROPERTY(EditAnywhere, Category = Versioning)
+	TObjectPtr<UObject> VersionBridge;
+
+	/**
+	  * This optional struct is used to define which version this child CustomizableObject belongs to. It will be used during
+	  * cook/compilation to decide whether this CO should be included or not in the final compiled CO. To be used, the root
+	  * CO must have defined the VersionBridge property, which must implement the ICustomizableObjectVersionBridgeInterface
+	*/
+	UPROPERTY(EditAnywhere, Category = Versioning)
+	FInstancedStruct VersionStruct;
 #endif
 	
 	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (DisplayName = "LOD Settings"))
