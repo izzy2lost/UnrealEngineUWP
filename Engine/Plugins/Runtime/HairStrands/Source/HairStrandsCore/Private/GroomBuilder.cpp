@@ -51,7 +51,7 @@ bool DoesHairStrandsSupportCompressedPosition();
 
 FString FGroomBuilder::GetVersion()
 {
-	return TEXT("v15d");
+	return TEXT("v16");
 }
 
 namespace GroomBuilder_Voxelization

@@ -2606,6 +2606,7 @@ bool UGroomAsset::CacheCardsData(uint32 GroupIndex, const FString& StrandsKey)
 
 		// Initialized LODs
 		const uint32 LODCount = GetHairGroupsLOD()[GroupIndex].LODs.Num();
+		GetHairGroupsPlatformData()[GroupIndex].Cards.LODs.Empty(); // Force reset data
 		GetHairGroupsPlatformData()[GroupIndex].Cards.LODs.SetNum(LODCount);
 
 		return bNeedReset;
@@ -2685,6 +2686,7 @@ bool UGroomAsset::CacheMeshesData(uint32 GroupIndex)
 
 		// Initialized LODs
 		const uint32 LODCount = GetHairGroupsLOD()[GroupIndex].LODs.Num();
+		GetHairGroupsPlatformData()[GroupIndex].Meshes.LODs.Empty(); // Force reset data
 		GetHairGroupsPlatformData()[GroupIndex].Meshes.LODs.SetNum(LODCount);
 
 		return bNeedReset;
@@ -2862,17 +2864,12 @@ bool UGroomAsset::BuildHairGroup_Cards(uint32 GroupIndex)
 	FHairGroupPlatformData& GroupData = GetHairGroupsPlatformData()[GroupIndex];
 
 	bool bDataBuilt = false;
+	GroupData.Cards.LODs.Empty(); // Force reset data
 	GroupData.Cards.LODs.SetNum(LODCount);
 	for (uint32 LODIt = 0; LODIt < LODCount; ++LODIt)
 	{
 		if (FHairGroupsCardsSourceDescription* Desc = GetSourceDescription(GetHairGroupsCards(), GroupIndex, LODIt))
 		{
-			if (bIsAlreadyBuilt[LODIt])
-			{
-				bDataBuilt = true;
-				continue;
-			}
-
 			FHairGroupPlatformData::FCards::FLOD& LOD = GroupData.Cards.LODs[LODIt];
 			LOD.BulkData.Reset();
 
@@ -3016,20 +3013,13 @@ bool UGroomAsset::BuildHairGroup_Meshes(uint32 GroupIndex)
 	const uint32 LODCount = GetHairGroupsLOD()[GroupIndex].LODs.Num();
 
 	bool bDataBuilt = false;
+	GroupData.Meshes.LODs.Empty(); // Force reset data
 	GroupData.Meshes.LODs.SetNum(LODCount);
 	for (uint32 LODIt = 0; LODIt < LODCount; ++LODIt)
 	{
 		int32 SourceIt = 0;
 		if (const FHairGroupsMeshesSourceDescription* Desc = GetSourceDescription(GetHairGroupsMeshes(), GroupIndex, LODIt, &SourceIt))
 		{
-			const FHairGroupsMeshesSourceDescription* CachedDesc = SourceIt < CachedHairGroupsMeshes.Num() ? &CachedHairGroupsMeshes[SourceIt] : nullptr;
-			const bool bLODHasChanged = CachedDesc == nullptr || !(*CachedDesc == *Desc);
-			if (!bLODHasChanged && bIsAlreadyBuilt[LODIt])
-			{
-				bDataBuilt |= bIsAlreadyBuilt[LODIt];
-				continue;
-			}
-
 			if (!IsInGameThread())
 			{
 				// Build needs to execute from the game thread
