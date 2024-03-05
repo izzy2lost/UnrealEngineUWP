@@ -115,7 +115,9 @@ public:
 	{
 		return GraphType == EOptimusNodeGraphType::Function; 
 	}
-	
+
+	bool IsReadOnly() const;
+
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
 	int32 GetGraphIndex() const;
 
