@@ -5453,7 +5453,6 @@ void ULandscapeInfo::RegisterActor(ALandscapeProxy* Proxy, bool bMapCheck, bool 
 		ComponentSizeQuads = Proxy->ComponentSizeQuads;
 		ComponentNumSubsections = Proxy->NumSubsections;
 		SubsectionSizeQuads = Proxy->SubsectionSizeQuads;
-		DrawScale = Proxy->GetRootComponent() != nullptr ? Proxy->GetRootComponent()->GetRelativeScale3D() : FVector(100.0f);
 	}
 
 	// check that passed actor matches all shared parameters
@@ -5462,15 +5461,18 @@ void ULandscapeInfo::RegisterActor(ALandscapeProxy* Proxy, bool bMapCheck, bool 
 	check(ComponentNumSubsections == Proxy->NumSubsections);
 	check(SubsectionSizeQuads == Proxy->SubsectionSizeQuads);
 
-	if (Proxy->GetRootComponent() != nullptr && !DrawScale.Equals(Proxy->GetRootComponent()->GetRelativeScale3D()))
-	{
-		UE_LOG(LogLandscape, Warning, TEXT("Landscape proxy (%s) scale (%s) does not match to main actor scale (%s)."),
-			*Proxy->GetPathName(), *Proxy->GetRootComponent()->GetRelativeScale3D().ToCompactString(), *DrawScale.ToCompactString());
-	}
-
 	// register
 	if (ALandscape* Landscape = Cast<ALandscape>(Proxy))
 	{
+#if WITH_EDITORONLY_DATA
+		USceneComponent* Root = Proxy->GetRootComponent();
+		if (Root)
+		{
+			DrawScale = Root->GetRelativeScale3D();
+			bDrawScaleSetByActor = true;
+		}
+#endif // WITH_EDITORONLY_DATA
+
 		if (!LandscapeActor.IsValid())
 		{
 			LandscapeActor = Landscape;
@@ -5508,6 +5510,17 @@ void ULandscapeInfo::RegisterActor(ALandscapeProxy* Proxy, bool bMapCheck, bool 
 	}
 	else
 	{
+#if WITH_EDITORONLY_DATA
+		if (!bDrawScaleSetByActor)
+		{
+			USceneComponent* Root = Proxy->GetRootComponent();
+			if (Root)
+			{
+				DrawScale = Root->GetRelativeScale3D();
+			}
+		}
+#endif // WITH_EDITORONLY_DATA
+
 		auto LamdbdaLowerBound = [](TWeakObjectPtr<ALandscapeProxy> APtr, TWeakObjectPtr<ALandscapeProxy> BPtr)
 		{
 			ALandscapeProxy *A = APtr.Get();

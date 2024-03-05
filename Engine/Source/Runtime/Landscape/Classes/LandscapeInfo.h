@@ -138,10 +138,14 @@ class ULandscapeInfo : public UObject
 	UPROPERTY()
 	int32 ComponentNumSubsections;
 	
-	UPROPERTY()
-	FVector DrawScale;
-	
 #if WITH_EDITORONLY_DATA
+	/** True when the draw scale has been set by the landscape Actor (false if default or set by a streaming proxy) */
+	UPROPERTY()
+	bool bDrawScaleSetByActor = false;
+
+	UPROPERTY()
+	FVector DrawScale = FVector(100.0);
+
 	UPROPERTY()
 	TArray<FLandscapeInfoLayerSettings> Layers;
 
