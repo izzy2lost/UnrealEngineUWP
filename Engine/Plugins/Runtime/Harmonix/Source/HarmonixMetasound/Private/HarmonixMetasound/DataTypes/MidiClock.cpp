@@ -308,6 +308,11 @@ namespace HarmonixMetasound
 		DrivingMidiPlayCursorMgr->AttachToTimeAuthority(MidiClockRef.DrivingMidiPlayCursorMgr);
 	}
 
+	void FMidiClock::DetachFromTimeAuthority()
+	{
+		DrivingMidiPlayCursorMgr->DetachFromTimeAuthority();
+	}
+	
 	float FMidiClock::GetQuarterNoteIncludingCountIn() const
 	{
 		int32 Tick = DrivingMidiPlayCursorMgr->GetCurrentHiResTick();
@@ -358,6 +363,11 @@ namespace HarmonixMetasound
 			break;
 		}
 		DrivingMidiPlayCursorMgr->SeekTo(Tick, PreRollBars,true,false);
+	}
+
+	void FMidiClock::SeekTo(int32 Tick, int32 PreRollBars)
+	{
+		DrivingMidiPlayCursorMgr->SeekTo(Tick, PreRollBars, true, false);
 	}
 
 	void FMidiClock::InformOfCurrentAdvanceRate(float AdvanceRate)
@@ -417,6 +427,31 @@ namespace HarmonixMetasound
 		SampleCount = FMath::Max<FSampleCount>(FSampleCount(GetCurrentHiResMs() / 1000.0f * SampleRate), 0);
 		FramesUntilNextProcess = 0;
 	}
+
+	void FMidiClock::SeekTo(int32 BlockFrameIndex, int32 Tick, int32 InPrerollBars)
+	{
+		CurrentBlockFrameIndex = BlockFrameIndex;
+		DrivingMidiPlayCursorMgr->SeekTo(Tick, InPrerollBars, true, false);
+		SampleCount = FMath::Max<FSampleCount>(FSampleCount(GetCurrentHiResMs() / 1000.0f * SampleRate), 0);
+		FramesUntilNextProcess = 0;
+	}
+
+	int32 FMidiClock::CalculateMappedTick(int32 Tick) const
+	{
+		if (DoesLoop())
+		{
+			const int32 LoopStartTick = GetLoopStartTick();
+			const int32 LoopEndTick = GetLoopEndTick();
+			const int32 LoopLengthTicks = LoopEndTick - LoopStartTick;
+			// only wrap the tick if it we're passed the loop end tick
+			if (LoopLengthTicks > 0 && Tick >= LoopEndTick)
+			{
+				return LoopStartTick + (Tick - LoopStartTick) % LoopLengthTicks;
+			}
+		}
+		return Tick;
+	}
+
 
 	TSharedPtr<FMidiFileData> FMidiClock::MakeClockConductorMidiData(float InTempoBPM, int32 InTimeSigNum, int32 InTimeSigDen)
 	{
