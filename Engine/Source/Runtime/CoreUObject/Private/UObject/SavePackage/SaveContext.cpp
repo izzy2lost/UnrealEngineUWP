@@ -3,6 +3,7 @@
 #include "SaveContext.h"
 
 #include "Algo/Find.h"
+#include "Cooker/CookDependency.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Serialization/PackageWriter.h"
 #include "UObject/UObjectGlobals.h"
@@ -150,6 +151,9 @@ FSavePackageResultStruct FSaveContext::GetFinalResult()
 	}
 	TSet<FName>& SoftPackageReferenceList = GetSoftPackageReferenceList();
 	ResultData.SoftPackageReferences = SoftPackageReferenceList.Array();
+#if WITH_EDITOR
+	ResultData.CookDependencies = MoveTemp(ObjectSaveContext.CookDependencies);
+#endif
 
 	return ResultData;
 }

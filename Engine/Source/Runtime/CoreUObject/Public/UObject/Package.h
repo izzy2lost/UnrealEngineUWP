@@ -52,6 +52,10 @@ struct FMD5Hash;
 struct FPackageSaveInfo;
 struct FSavePackageArgs;
 
+#if WITH_EDITOR
+namespace UE::Cook { class FCookDependency; }
+#endif
+
 /**
 * Represents the result of saving a package
 */
@@ -108,6 +112,10 @@ struct FSavePackageResultStruct
 
 	TArray<FName> ImportPackages;
 	TArray<FName> SoftPackageReferences;
+
+#if WITH_EDITOR
+	TArray<UE::Cook::FCookDependency> CookDependencies;
+#endif
 
 	/** Constructors, it will implicitly construct from the result enum */
 	COREUOBJECT_API FSavePackageResultStruct();

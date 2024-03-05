@@ -10,11 +10,15 @@
 class FPackagePath;
 class ITargetPlatform;
 class UPackage;
+#if WITH_EDITOR
+namespace UE::Cook { class FCookDependency; }
+#endif
 
 /** Data used to provide information about the save parameters during PreSave/PostSave. */
 struct FObjectSaveContextData
 {
-	FObjectSaveContextData() = default;
+	COREUOBJECT_API FObjectSaveContextData();
+	COREUOBJECT_API ~FObjectSaveContextData();
 	/** Standard constructor; calculates derived fields from the given externally-specified fields. */
 	COREUOBJECT_API FObjectSaveContextData(UPackage* Package, const ITargetPlatform* InTargetPlatform, const TCHAR* InTargetFilename, uint32 InSaveFlags);
 	COREUOBJECT_API FObjectSaveContextData(UPackage* Package, const ITargetPlatform* InTargetPlatform, const FPackagePath& TargetPath, uint32 InSaveFlags);
@@ -68,6 +72,11 @@ struct FObjectSaveContextData
 	/** Set to false if the save failed, before calling any PostSaves. */
 	bool bSaveSucceeded = true;
 
+	// Collection variables that are written but not read during the PreSave/PostSave functions
+#if WITH_EDITOR
+	TArray<UE::Cook::FCookDependency> CookDependencies;
+#endif
+
 	// Per-object Output variables; writable from PreSave functions, readable from PostSave functions
 
 	/** List of property overrides per object to apply to during save */
@@ -119,6 +128,14 @@ public:
 	bool IsCookTypeUnknown() const { return GetCookType() == UE::Cook::ECookType::Unknown; }
 	UE::Cook::ECookType GetCookType() const { return Data.CookType; }
 	UE::Cook::ECookingDLC GetCookingDLC() const { return Data.CookingDLC; }
+
+#if WITH_EDITOR
+	/**
+	 * Add the given FCookDependency to the record for the package being cook-saved. Iterative cooks will
+	 * invalidate the package and recook it if the CookDependency changes.
+	 */
+	COREUOBJECT_API void AddCookDependency(UE::Cook::FCookDependency CookDependency);
+#endif
 
 	/**
 	 * Return whether the package is being saved due to a procedural save.

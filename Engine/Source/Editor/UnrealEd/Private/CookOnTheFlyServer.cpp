@@ -6392,7 +6392,7 @@ void FSaveCookedPackageContext::FinishPlatform()
 		if (COTFS.bHybridIterativeEnabled)
 		{
 			UE_SCOPED_HIERARCHICAL_COOKTIMER(TargetDomainDependencies);
-			UE::TargetDomain::CollectAndStoreCookAttachments(Package, TargetPlatform, Info.Attachments);
+			UE::TargetDomain::CollectAndStoreCookAttachments(Package, TargetPlatform, &SavePackageResult, Info.Attachments);
 		}
 		if (bSuccessful)
 		{
@@ -10774,6 +10774,14 @@ namespace UE::Cook
 void FBeginCookConfigSettings::LoadLocal(FBeginCookContext& BeginContext)
 {
 	GConfig->GetBool(TEXT("CookSettings"), TEXT("HybridIterativeEnabled"), bHybridIterativeEnabled, GEditorIni);
+	if (FParse::Param(FCommandLine::Get(), TEXT("CookIncremental")))
+	{
+		bHybridIterativeEnabled = true;
+	}
+	else if (FParse::Param(FCommandLine::Get(), TEXT("NoCookIncremental")))
+	{
+		bHybridIterativeEnabled = false;
+	}
 	// TODO: HybridIterative is not yet implemented for DLC
 	bHybridIterativeEnabled &= !BeginContext.COTFS.IsCookingDLC();
 	// HybridIterative uses TargetDomain storage of dependencies which is only implemented in ZenStore

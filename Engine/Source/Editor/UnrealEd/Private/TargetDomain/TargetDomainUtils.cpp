@@ -9,7 +9,9 @@
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
 #include "Cooker/CookConfigAccessTracker.h"
+#include "Cooker/CookDependency.h"
 #include "Cooker/PackageBuildDependencyTracker.h"
+#include "CookOnTheSide/CookLog.h"
 #include "DerivedDataBuildDefinition.h"
 #include "DerivedDataBuildKey.h"
 #include "DerivedDataSharedString.h"
@@ -17,6 +19,7 @@
 #include "EditorDomain/EditorDomainUtils.h"
 #include "HAL/PlatformFile.h"
 #include "HAL/PlatformFileManager.h"
+#include "Hash/Blake3.h"
 #include "IO/IoDispatcher.h"
 #include "IO/IoHash.h"
 #include "Misc/App.h"
@@ -79,6 +82,17 @@ private:
 	static TArray<const UTF8CHAR*> ReservedOplogKeys;
 };
 TUniquePtr<FEditorDomainOplog> GEditorDomainOplog;
+
+// Constructor/Destructor defined here in cpp rather than header so we can 
+// avoid needing the definition of FCookDependency in the header; it is needed
+// for construct/destruct of TArray<FCookDependency>.
+FCookDependencies::FCookDependencies() = default;
+FCookDependencies::~FCookDependencies() = default;
+FCookDependencies::FCookDependencies(const FCookDependencies&) = default;
+FCookDependencies::FCookDependencies(FCookDependencies&&) = default;
+FCookDependencies& FCookDependencies::operator=(const FCookDependencies&) = default;
+FCookDependencies& FCookDependencies::operator=(FCookDependencies&&) = default;
+
 
 bool FCookDependencies::IsValid() const
 {
@@ -170,6 +184,36 @@ bool FCookDependencies::TryCalculateCurrentKey(FString* OutErrorMessage)
 		}
 	}
 
+	if (!CookDependencies.IsEmpty())
+	{
+		bool bError = false;
+		UE::Cook::FCookDependencyContext Context(&KeyBuilder, [&bError, OutErrorMessage](FString&& ErrorMessage)
+			{
+				if (OutErrorMessage)
+				{
+					if (bError)
+					{
+						*OutErrorMessage += TEXT("\n");
+						*OutErrorMessage += ErrorMessage;
+					}
+					else
+					{
+						*OutErrorMessage = MoveTemp(ErrorMessage);
+					}
+				}
+				bError = true;
+			});
+
+		for (UE::Cook::FCookDependency& CookDependency : CookDependencies)
+		{
+			CookDependency.UpdateHash(Context);
+		}
+		if (bError)
+		{
+			return false;
+		}
+	}
+
 	if (OutErrorMessage) OutErrorMessage->Reset();
 	CurrentKey = KeyBuilder.Finalize();
 	return true;
@@ -194,7 +238,8 @@ void FCookDependencies::Empty()
 	RuntimePackageDependencies.Empty();
 }
 
-FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPlatform* TargetPlatform, FString* OutErrorMessage)
+FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPlatform* TargetPlatform,
+	FSavePackageResultStruct* SaveResult, FString* OutErrorMessage)
 {
 	if (!Package)
 	{
@@ -292,6 +337,12 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 		}
 	}
 #endif
+	if (SaveResult)
+	{
+		Result.CookDependencies = MoveTemp(SaveResult->CookDependencies);
+		Algo::Sort(Result.CookDependencies);
+	}
+
 	if (!Result.TryCalculateCurrentKey(OutErrorMessage))
 	{
 		return FCookDependencies();
@@ -311,46 +362,57 @@ bool LoadFromCompactBinary(FCbObjectView ObjectView, UE::TargetDomain::FCookDepe
 
 	Dependencies.Reset();
 	int32 Version = -1;
-	for (FCbFieldView FieldView : ObjectView)
+
+	for (FCbFieldViewIterator FieldView(ObjectView.CreateViewIterator()); FieldView; )
 	{
-		FUtf8StringView FieldName = FieldView.GetName();
-		if (FieldName == "Version")
+		const FCbFieldViewIterator Last = FieldView;
+		if (FieldView.GetName().Equals(UTF8TEXTVIEW("Version")))
 		{
 			Version = FieldView.AsInt32();
-			if (FieldView.HasError() || Version != CookDependenciesVersion)
+			if ((FieldView++).HasError() || Version != CookDependenciesVersion)
 			{
 				return false;
 			}
 		}
-		else if (FieldName == "StoredKey")
+		if (FieldView.GetName().Equals(UTF8TEXTVIEW("StoredKey")))
 		{
-			if (!LoadFromCompactBinary(FieldView, Dependencies.StoredKey))
+			if (!LoadFromCompactBinary(FieldView++, Dependencies.StoredKey))
 			{
 				return false;
 			}
 		}
-		else if (FieldName == "PackageDependencies")
+		if (FieldView.GetName().Equals(UTF8TEXTVIEW("PackageDependencies")))
 		{
-			if (!LoadFromCompactBinary(FieldView, Dependencies.PackageDependencies))
+			if (!LoadFromCompactBinary(FieldView++, Dependencies.PackageDependencies))
 			{
 				return false;
 			}
 		}
-		else if (FieldName == "ConfigDependencies")
+		if (FieldView.GetName().Equals(UTF8TEXTVIEW("ConfigDependencies")))
 		{
-			if (!LoadFromCompactBinary(FieldView, Dependencies.ConfigDependencies))
+			if (!LoadFromCompactBinary(FieldView++, Dependencies.ConfigDependencies))
 			{
 				return false;
 			}
 		}
-		else if (FieldName == "RuntimePackageDependencies")
+		if (FieldView.GetName().Equals(UTF8TEXTVIEW("RuntimePackageDependencies")))
 		{
-			if (!LoadFromCompactBinary(FieldView, Dependencies.RuntimePackageDependencies))
+			if (!LoadFromCompactBinary(FieldView++, Dependencies.RuntimePackageDependencies))
 			{
 				return false;
 			}
 		}
-		// else ignore
+		if (FieldView.GetName().Equals(UTF8TEXTVIEW("CookDependencies")))
+		{
+			if (!LoadFromCompactBinary(FieldView++, Dependencies.CookDependencies))
+			{
+				return false;
+			}
+		}
+		if (FieldView == Last)
+		{
+			++FieldView;
+		}
 	}
 	if (Version == -1)
 	{
@@ -379,6 +441,11 @@ FCbWriter& operator<<(FCbWriter& Writer, const UE::TargetDomain::FCookDependenci
 	{
 		Writer << "RuntimePackageDependencies" << CookDependencies.RuntimePackageDependencies;
 	}
+	if (!CookDependencies.CookDependencies.IsEmpty())
+	{
+		Writer << "CookDependencies" << CookDependencies.CookDependencies;
+	}
+
 	Writer.EndObject();
 	return Writer;
 }
@@ -479,11 +546,17 @@ void FCookAttachments::Empty()
 }
 
 bool TryCollectAndStoreCookDependencies(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	IPackageWriter::FCommitAttachmentInfo& OutResult)
+	FSavePackageResultStruct* SaveResult, IPackageWriter::FCommitAttachmentInfo& OutResult)
 {
-	FCookDependencies CookDependencies = FCookDependencies::Collect(Package, TargetPlatform);
+	FString ErrorMessage;
+	FCookDependencies CookDependencies = FCookDependencies::Collect(Package, TargetPlatform, SaveResult, &ErrorMessage);
 	if (!CookDependencies.IsValid())
 	{
+		// CookPackageSplitterTODO: This error occurs for generated packages. Need to register them with EditorDomain.
+#if 0
+		UE_LOG(LogCook, Error, TEXT("Could not collect CookDependencies for package '%s': %s"),
+			*Package->GetName(), *ErrorMessage);
+#endif
 		OutResult.Value = FCbObject();
 		return false;
 	}

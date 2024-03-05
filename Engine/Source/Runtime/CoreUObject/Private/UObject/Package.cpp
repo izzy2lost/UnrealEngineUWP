@@ -3,6 +3,7 @@
 #include "UObject/Package.h"
 
 #include "AssetRegistry/AssetData.h"
+#include "Cooker/CookDependency.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMath.h"
 #include "Misc/AssetRegistryInterface.h"

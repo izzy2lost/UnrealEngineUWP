@@ -17,8 +17,10 @@ class FCbWriter;
 class FString;
 class ITargetPlatform;
 class UPackage;
+struct FSavePackageResultStruct;
 template <typename FuncType> class TUniqueFunction;
 
+namespace UE::Cook { class FCookDependency; }
 namespace UE::TargetDomain { class FCookDependencies; }
 namespace UE::TargetDomain { struct FBuildDefinitionList; }
 namespace UE::TargetDomain { struct FCookAttachments; }
@@ -46,12 +48,21 @@ void CookInitialize();
 class FCookDependencies
 {
 public:
+	FCookDependencies();
+	~FCookDependencies();
+	FCookDependencies(const FCookDependencies&);
+	FCookDependencies(FCookDependencies&&);
+	FCookDependencies& operator=(const FCookDependencies&);
+	FCookDependencies& operator=(FCookDependencies&&);
 	// Build Dependencies
 	const TArray<FName>& GetPackageDependencies() const { return PackageDependencies; }
 	const TArray<FString>& GetConfigDependencies() const { return ConfigDependencies; }
 
 	// Runtime Dependencies
 	const TArray<FName>& GetRuntimePackageDependencies() const { return RuntimePackageDependencies; }
+
+	// Cook Dependencies
+	const TArray<UE::Cook::FCookDependency>& GetCookDependencies() const { return CookDependencies; }
 
 	// Data about the Key and Package that are not dependencies
 	/**
@@ -75,7 +86,7 @@ public:
 	 * that have recorded its data during the package's load/other/save operations in the current cook session.
 	 */
 	static FCookDependencies Collect(UPackage* Package, const ITargetPlatform* TargetPlatform,
-		FString* OutErrorMessage = nullptr);
+		FSavePackageResultStruct* SaveResult, FString* OutErrorMessage = nullptr);
 
 	// Fetch function to load the dependencies from a PackageStore is not yet implemented independently for
 	// this structure. Use FCookAttachments instead. 
@@ -84,6 +95,7 @@ private:
 	TArray<FName> PackageDependencies;
 	TArray<FString> ConfigDependencies;
 	TArray<FName> RuntimePackageDependencies;
+	TArray<UE::Cook::FCookDependency> CookDependencies;
 	FName PackageName;
 	FIoHash StoredKey;
 	FIoHash CurrentKey;
@@ -130,16 +142,16 @@ struct FCookAttachments
 };
 
 bool TryCollectAndStoreCookDependencies(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	IPackageWriter::FCommitAttachmentInfo& OutResult);
+	FSavePackageResultStruct* SaveResult, IPackageWriter::FCommitAttachmentInfo& OutResult);
 bool TryCollectAndStoreBuildDefinitionList(UPackage* Package, const ITargetPlatform* TargetPlatform,
 	IPackageWriter::FCommitAttachmentInfo& OutResult);
 
 template <typename ArrayType>
 void CollectAndStoreCookAttachments(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	ArrayType& Output)
+	FSavePackageResultStruct* SaveResult, ArrayType& Output)
 {
 	IPackageWriter::FCommitAttachmentInfo Result;
-	if (TryCollectAndStoreCookDependencies(Package, TargetPlatform, Result))
+	if (TryCollectAndStoreCookDependencies(Package, TargetPlatform, SaveResult, Result))
 	{
 		Output.Add(MoveTemp(Result));
 	}

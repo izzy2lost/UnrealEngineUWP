@@ -7,6 +7,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/CookTagList.h"
 #include "Blueprint/BlueprintSupport.h"
+#include "Cooker/CookDependency.h"
 #include "CoreMinimal.h"
 #include "HAL/FileManager.h"
 #include "Interfaces/ITargetPlatform.h"
@@ -746,6 +747,12 @@ FAddResaveOnDemandPackage OnAddResaveOnDemandPackage;
 
 } // end namespace UE::SavePackageUtilities
 
+// Constructor/Destructor defined here in cpp rather than header so we can 
+// avoid needing the definition of FCookDependency in the header; it is needed
+// for construct/destruct of TArray<FCookDependency>.
+FObjectSaveContextData::FObjectSaveContextData() = default;
+FObjectSaveContextData::~FObjectSaveContextData() = default;
+
 FObjectSaveContextData::FObjectSaveContextData(UPackage* Package, const ITargetPlatform* InTargetPlatform, const TCHAR* InTargetFilename, uint32 InSaveFlags)
 {
 	Set(Package, InTargetPlatform, InTargetFilename, InSaveFlags);
@@ -755,6 +762,13 @@ FObjectSaveContextData::FObjectSaveContextData(UPackage* Package, const ITargetP
 {
 	Set(Package, InTargetPlatform, TargetPath, InSaveFlags);
 }
+
+#if WITH_EDITOR
+void FObjectPreSaveContext::AddCookDependency(UE::Cook::FCookDependency CookDependency)
+{
+	Data.CookDependencies.Add(MoveTemp(CookDependency));
+}
+#endif
 
 void FObjectSaveContextData::Set(UPackage* Package, const ITargetPlatform* InTargetPlatform, const TCHAR* InTargetFilename, uint32 InSaveFlags)
 {

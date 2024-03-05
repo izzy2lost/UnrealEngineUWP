@@ -1917,7 +1917,7 @@ bool TrySavePackage(UPackage* Package)
 	if (bStorageResultValid)
 	{
 		TArray<IPackageWriter::FCommitAttachmentInfo, TInlineAllocator<2>> Attachments;
-		UE::TargetDomain::CollectAndStoreCookAttachments(Package, nullptr, Attachments);
+		UE::TargetDomain::CollectAndStoreCookAttachments(Package, nullptr, nullptr, Attachments);
 		if (!Attachments.IsEmpty())
 		{
 			UE::TargetDomain::CommitEditorDomainCookAttachments(Package->GetFName(), Attachments);
