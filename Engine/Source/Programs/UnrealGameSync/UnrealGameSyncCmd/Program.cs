@@ -23,6 +23,8 @@ using System.Globalization;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.IO.Compression;
+using Microsoft.Extensions.DependencyInjection;
+using EpicGames.Horde;
 
 namespace UnrealGameSyncCmd
 {
@@ -135,12 +137,15 @@ namespace UnrealGameSyncCmd
 			public ILoggerFactory LoggerFactory { get; }
 			public GlobalSettingsFile UserSettings { get; }
 
-			public CommandContext(CommandLineArguments arguments, ILogger logger, ILoggerFactory loggerFactory, GlobalSettingsFile userSettings)
+			public IHordeClient _hordeClient { get; }
+
+			public CommandContext(CommandLineArguments arguments, ILogger logger, ILoggerFactory loggerFactory, GlobalSettingsFile userSettings, IHordeClient hordeClient)
 			{
 				Arguments = arguments;
 				Logger = logger;
 				LoggerFactory = loggerFactory;
 				UserSettings = userSettings;
+				_hordeClient = hordeClient;
 			}
 		}
 
@@ -227,6 +232,18 @@ namespace UnrealGameSyncCmd
 			ILogger logger = loggerFactory.CreateLogger("Main");
 			try
 			{
+				LauncherSettings launcherSettings = new LauncherSettings();
+				launcherSettings.Read();
+
+				ServiceCollection services = new ServiceCollection();
+
+				if (launcherSettings.HordeServer != null)
+				{
+					services.AddHorde(options => options.ServerUrl = new Uri(launcherSettings.HordeServer));
+				}
+				ServiceProvider serviceProvider = services.BuildServiceProvider();
+				IHordeClient hordeClient = serviceProvider.GetRequiredService<IHordeClient>();
+
 				GlobalSettingsFile settings;
 				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 				{
@@ -301,7 +318,7 @@ namespace UnrealGameSyncCmd
 				}
 
 				Command instance = (Command)Activator.CreateInstance(command.Type)!;
-				await instance.ExecuteAsync(new CommandContext(args, logger, loggerFactory, settings));
+				await instance.ExecuteAsync(new CommandContext(args, logger, loggerFactory, settings, hordeClient));
 				return 0;
 			}
 			catch (UserErrorException ex)
@@ -852,15 +869,15 @@ namespace UnrealGameSyncCmd
 
 				if (syncOptions.Binaries)
 				{
-					List<PerforceArchiveInfo> archives = await PerforceArchive.EnumerateAsync(perforceClient, projectConfig, state.Current.ProjectIdentifier, CancellationToken.None);
+					List<BaseArchiveInfo> archives = await BaseArchive.EnumerateAsync(perforceClient, context._hordeClient, projectConfig, state.Current.ProjectIdentifier, CancellationToken.None);
 
-					PerforceArchiveInfo? editorArchiveInfo = archives.FirstOrDefault(x => x.Name == IArchiveInfo.EditorArchiveType);
+					BaseArchiveInfo? editorArchiveInfo = archives.FirstOrDefault(x => x.Name == IArchiveInfo.EditorArchiveType);
 					if (editorArchiveInfo == null)
 					{
 						throw new UserErrorException("No editor archives found for project");
 					}
 
-					KeyValuePair<int, string> revision = editorArchiveInfo.ChangeNumberToFileRevision.LastOrDefault(x => x.Key <= change);
+					KeyValuePair<int, string> revision = editorArchiveInfo.ChangeNumberToArchiveKey.LastOrDefault(x => x.Key <= change);
 					if (revision.Key == 0)
 					{
 						throw new UserErrorException($"No editor archives found for CL {change}");

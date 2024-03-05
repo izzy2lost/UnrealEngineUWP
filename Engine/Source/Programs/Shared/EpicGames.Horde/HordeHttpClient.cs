@@ -138,6 +138,16 @@ namespace EpicGames.Horde
 		}
 
 		/// <summary>
+		/// Gets a zip stream for a particular artifact
+		/// </summary>
+		/// <param name="id">Identifier for the artifact</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async Task<Stream> GetArtifactZipAsync(ArtifactId id, CancellationToken cancellationToken = default)
+		{
+			return await _httpClient.GetStreamAsync($"api/v2/artifacts/{id}/zip", cancellationToken);
+		}
+
+		/// <summary>
 		/// Finds artifacts with a set of ids or keys
 		/// </summary>
 		/// <param name="ids">Artifact ids to return</param>
@@ -160,6 +170,39 @@ namespace EpicGames.Horde
 				{
 					queryParams.Add("key", key);
 				}
+			}
+
+			FindArtifactsResponse response = await GetAsync<FindArtifactsResponse>(_httpClient, $"api/v2/artifacts?{queryParams}", cancellationToken);
+			return response.Artifacts;
+		}
+
+		/// <summary>
+		/// Finds artifacts with a certain type with an optional streamId
+		/// </summary>
+		/// <param name="type">Type to find</param>
+		/// <param name="streamId">Stream to look for the artifact in</param>
+		/// <param name="minChange">The minimum change number for the artifacts</param>
+		/// <param name="maxChange">The minimum change number for the artifacts</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Information about all the artifacts</returns>
+		public async Task<List<GetArtifactResponse>> FindArtifactsByTypeAsync(ArtifactType type, StreamId? streamId = null, int? minChange = null, int? maxChange = null, CancellationToken cancellationToken = default)
+		{
+			QueryStringBuilder queryParams = new QueryStringBuilder();
+			queryParams.Add("type", type.ToString());
+
+			if (streamId != null)
+			{
+				queryParams.Add("streamId", streamId.ToString()!);
+			}
+
+			if (minChange != null)
+			{
+				queryParams.Add("minChange", minChange.ToString()!);
+			}
+
+			if (maxChange != null)
+			{
+				queryParams.Add("maxChange", maxChange.ToString()!);
 			}
 
 			FindArtifactsResponse response = await GetAsync<FindArtifactsResponse>(_httpClient, $"api/v2/artifacts?{queryParams}", cancellationToken);

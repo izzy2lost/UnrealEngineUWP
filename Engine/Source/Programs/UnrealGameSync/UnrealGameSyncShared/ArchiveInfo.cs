@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Streams;
 using EpicGames.Perforce;
 using Microsoft.Extensions.Logging;
 using System;
@@ -27,30 +30,33 @@ namespace UnrealGameSync
 		Task<bool> DownloadArchive(IPerforceConnection perforce, string archiveKey, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken);
 	}
 
-	public class PerforceArchiveInfo : IArchiveInfo
+	public abstract class BaseArchiveInfo : IArchiveInfo
 	{
 		public string Name { get; }
 		public string Type { get; }
-		public string DepotPath { get; }
+		public string BasePath { get; set; }
 		public string? Target { get; }
 
-		public string BasePath => DepotPath;
+		public abstract Task<bool> DownloadArchive(IPerforceConnection perforce, string archiveKey, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken);
+
+		// Abstract BaseArchiveInfo Helper Functions
+		public abstract Task FindArtifacts(IPerforceConnection perforce, CancellationToken cancellationToken);
 
 		// TODO: executable/configuration?
-		public SortedList<int, string> ChangeNumberToFileRevision { get; } = new SortedList<int, string>();
+		public SortedList<int, string> ChangeNumberToArchiveKey { get; } = new SortedList<int, string>();
 
-		public PerforceArchiveInfo(string name, string type, string depotPath, string? target)
+		protected BaseArchiveInfo(string name, string type, string basePath, string? target)
 		{
 			Name = name;
 			Type = type;
-			DepotPath = depotPath;
+			BasePath = basePath;
 			Target = target;
 		}
-
+		
 		public override bool Equals(object? other)
 		{
-			PerforceArchiveInfo? otherArchive = other as PerforceArchiveInfo;
-			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type && DepotPath == otherArchive.DepotPath && Target == otherArchive.Target && Enumerable.SequenceEqual(ChangeNumberToFileRevision, otherArchive.ChangeNumberToFileRevision);
+			BaseArchiveInfo? otherArchive = other as BaseArchiveInfo;
+			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type && BasePath == otherArchive.BasePath && Target == otherArchive.Target && Enumerable.SequenceEqual(ChangeNumberToArchiveKey, otherArchive.ChangeNumberToArchiveKey);
 		}
 
 		public override int GetHashCode()
@@ -60,10 +66,10 @@ namespace UnrealGameSync
 
 		public bool Exists()
 		{
-			return ChangeNumberToFileRevision.Count > 0;
+			return ChangeNumberToArchiveKey.Count > 0;
 		}
 
-		public static bool TryParseConfigEntry(string text, [NotNullWhen(true)] out PerforceArchiveInfo? info)
+		public static bool TryParseConfigEntry(IHordeClient hordeClient, string text, [NotNullWhen(true)] out BaseArchiveInfo? info)
 		{
 			ConfigObject obj = new ConfigObject(text);
 
@@ -74,8 +80,12 @@ namespace UnrealGameSync
 				return false;
 			}
 
+			// Where to find archives, you'll have either Perforce (DepotPath) or Horde (ArchiveType)
 			string? depotPath = obj.GetValue("DepotPath", null);
-			if (depotPath == null)
+			string? archiveType = obj.GetValue("ArchiveType", null);
+
+			// We only want one of the other, not both or none
+			if (((depotPath == null) && (archiveType == null)) || ((depotPath != null) && (archiveType != null)))
 			{
 				info = null;
 				return false;
@@ -85,23 +95,37 @@ namespace UnrealGameSync
 
 			string type = obj.GetValue("Type", null) ?? name;
 
-			info = new PerforceArchiveInfo(name, type, depotPath, target);
+			string? streamName = obj.GetValue("StreamName", null);
+
+			if (depotPath != null)
+			{
+				info = new PerforceArchiveInfo(name, type, depotPath, target);
+			}
+			else if ((archiveType != null) && (streamName != null))
+			{
+				info = new HordeArchiveInfo(hordeClient, name, type, archiveType, target, streamName);
+			}
+			else
+			{
+				info = null;
+				return false;
+			}
 			return true;
 		}
 
 		public bool TryGetArchiveKeyForChangeNumber(int changeNumber, int maxChangeNumber, [NotNullWhen(true)] out string? archiveKey)
 		{
-			int idx = ChangeNumberToFileRevision.Keys.AsReadOnlyList().BinarySearch(changeNumber);
+			int idx = ChangeNumberToArchiveKey.Keys.AsReadOnlyList().BinarySearch(changeNumber);
 			if (idx >= 0)
 			{
-				archiveKey = ChangeNumberToFileRevision.Values[idx];
+				archiveKey = ChangeNumberToArchiveKey.Values[idx];
 				return true;
 			}
 
 			int nextIdx = ~idx;
-			if (nextIdx < ChangeNumberToFileRevision.Count && ChangeNumberToFileRevision.Keys[nextIdx] <= maxChangeNumber)
+			if (nextIdx < ChangeNumberToArchiveKey.Count && ChangeNumberToArchiveKey.Keys[nextIdx] <= maxChangeNumber)
 			{
-				archiveKey = ChangeNumberToFileRevision.Values[nextIdx];
+				archiveKey = ChangeNumberToArchiveKey.Values[nextIdx];
 				return true;
 			}
 
@@ -109,7 +133,37 @@ namespace UnrealGameSync
 			return false;
 		}
 
-		public async Task<bool> DownloadArchive(IPerforceConnection perforce, string archiveKey, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken)
+		public override string ToString()
+		{
+			return Name;
+		}
+	}
+
+	public class PerforceArchiveInfo : BaseArchiveInfo
+	{
+		public string DepotPath
+		{
+			get => BasePath;
+			set => BasePath = value;
+		}
+
+		public PerforceArchiveInfo(string name, string type, string depotPath, string? target)
+			: base(name, type, depotPath, target)
+		{
+		}
+
+		public override bool Equals(object? other)
+		{
+			PerforceArchiveInfo? otherArchive = other as PerforceArchiveInfo;
+			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type && DepotPath == otherArchive.DepotPath && Target == otherArchive.Target && Enumerable.SequenceEqual(ChangeNumberToArchiveKey, otherArchive.ChangeNumberToArchiveKey);
+		}
+
+		public override int GetHashCode()
+		{
+			throw new NotSupportedException();
+		}
+
+		public override async Task<bool> DownloadArchive(IPerforceConnection perforce, string archiveKey, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken)
 		{
 			DirectoryReference configDir = UserSettings.GetConfigDir(localRootPath);
 			UserSettings.CreateConfigDir(configDir);
@@ -118,6 +172,7 @@ namespace UnrealGameSync
 			try
 			{
 				PrintRecord record = await perforce.PrintAsync(tempZipFileName.FullName, archiveKey, cancellationToken);
+
 				if (tempZipFileName.ToFileInfo().Length == 0)
 				{
 					return false;
@@ -133,17 +188,125 @@ namespace UnrealGameSync
 			return true;
 		}
 
-		public override string ToString()
+		public override async Task FindArtifacts(IPerforceConnection perforce, CancellationToken cancellationToken)
 		{
-			return Name;
+			PerforceResponseList<FileLogRecord> response = await perforce.TryFileLogAsync(128, FileLogOptions.FullDescriptions, DepotPath, cancellationToken);
+			if (response.Succeeded)
+			{
+				// Build a new list of zipped binaries
+				foreach (FileLogRecord file in response.Data)
+				{
+					foreach (RevisionRecord revision in file.Revisions)
+					{
+						if (revision.Action != FileAction.Purge)
+						{
+							string[] tokens = revision.Description.Split(' ');
+							if (tokens[0].StartsWith("[CL", StringComparison.Ordinal) && tokens[1].EndsWith("]", StringComparison.Ordinal))
+							{
+								int originalChangeNumber;
+								if (Int32.TryParse(tokens[1].Substring(0, tokens[1].Length - 1), out originalChangeNumber) && !ChangeNumberToArchiveKey.ContainsKey(originalChangeNumber))
+								{
+									ChangeNumberToArchiveKey[originalChangeNumber] = $"{DepotPath}#{revision.RevisionNumber}";
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
-	public static class PerforceArchive
+	public class HordeArchiveInfo : BaseArchiveInfo
 	{
-		public static async Task<List<PerforceArchiveInfo>> EnumerateAsync(IPerforceConnection perforce, ConfigFile latestProjectConfigFile, string projectIdentifier, CancellationToken cancellationToken)
+		public string ArchiveType
 		{
-			List<PerforceArchiveInfo> newArchives = new List<PerforceArchiveInfo>();
+			get => BasePath;
+			set => BasePath = value;
+		}
+
+		public string StreamName { get; set; }
+
+		private readonly IHordeClient _hordeClient;
+
+		public HordeArchiveInfo(IHordeClient hordeClient, string name, string type, string archiveType, string? target, string streamName)
+			: base(name, type, archiveType, target)
+		{
+			StreamName = streamName;
+			_hordeClient = hordeClient;
+		}
+		public override bool Equals(object? other)
+		{
+			HordeArchiveInfo? otherArchive = other as HordeArchiveInfo;
+			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type && ArchiveType == otherArchive.ArchiveType && Target == otherArchive.Target && StreamName == otherArchive.StreamName && Enumerable.SequenceEqual(ChangeNumberToArchiveKey, otherArchive.ChangeNumberToArchiveKey);
+		}
+
+		public override int GetHashCode()
+		{
+			throw new NotSupportedException();
+		}
+
+		public override async Task<bool> DownloadArchive(IPerforceConnection perforce, string archiveKey, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken)
+		{
+			DirectoryReference configDir = UserSettings.GetConfigDir(localRootPath);
+			UserSettings.CreateConfigDir(configDir);
+
+			FileReference tempZipFileName = FileReference.Combine(configDir, "archive.zip");
+			try
+			{
+				HordeHttpClient hordeHttpClient = _hordeClient.CreateHttpClient();
+
+				ArtifactId artifactId = ArtifactId.Parse(archiveKey);
+
+				using (FileStream stream = FileReference.Open(tempZipFileName, FileMode.Create, FileAccess.Write, FileShare.None))
+				{
+					await using Stream sourceStream = await hordeHttpClient.GetArtifactZipAsync(artifactId, cancellationToken);
+					await sourceStream.CopyToAsync(stream, cancellationToken);
+				}
+
+				if (tempZipFileName.ToFileInfo().Length == 0)
+				{
+					return false;
+				}
+				ArchiveUtils.ExtractFiles(tempZipFileName, localRootPath, manifestFileName, progress, logger);
+			}
+			finally
+			{
+				FileReference.SetAttributes(tempZipFileName, FileAttributes.Normal);
+				FileReference.Delete(tempZipFileName);
+			}
+
+			return true;
+		}
+
+		public override async Task FindArtifacts(IPerforceConnection perforce, CancellationToken cancellationToken)
+		{
+			try
+			{
+				HordeHttpClient hordeHttpClient = _hordeClient.CreateHttpClient();
+
+				ArtifactType artifactType = new ArtifactType(ArchiveType);
+				StreamId streamId = new StreamId(StreamName);
+				int? minChange = null;
+				int? maxChange = null;
+				List<GetArtifactResponse> artifactResponse = await hordeHttpClient.FindArtifactsByTypeAsync(artifactType, streamId, minChange, maxChange, cancellationToken);
+
+				foreach (GetArtifactResponse response in artifactResponse)
+				{
+					ChangeNumberToArchiveKey[response.Change] = response.Id.ToString();
+				}
+			}
+			catch (Exception)
+			{
+				return;
+			}
+		}
+	}
+
+	public static class BaseArchive
+	{
+		public static async Task<List<BaseArchiveInfo>> EnumerateAsync(IPerforceConnection perforce, IHordeClient hordeClient, ConfigFile latestProjectConfigFile, string projectIdentifier, CancellationToken cancellationToken)
+		{
+			List<BaseArchiveInfo> newArchives = new List<BaseArchiveInfo>();
 
 			// Find all the zipped binaries under this stream
 			ConfigSection? projectConfigSection = latestProjectConfigFile.FindSection(projectIdentifier);
@@ -153,45 +316,24 @@ namespace UnrealGameSync
 				string? legacyEditorArchivePath = projectConfigSection.GetValue("ZippedBinariesPath", null);
 				if (legacyEditorArchivePath != null)
 				{
+					// Only Perforce uses the legacy method
 					newArchives.Add(new PerforceArchiveInfo("Editor", "Editor", legacyEditorArchivePath, null));
 				}
 
 				// New style
 				foreach (string archiveValue in projectConfigSection.GetValues("Archives", Array.Empty<string>()))
 				{
-					PerforceArchiveInfo? archive;
-					if (PerforceArchiveInfo.TryParseConfigEntry(archiveValue, out archive))
+					BaseArchiveInfo? archive;
+					if (BaseArchiveInfo.TryParseConfigEntry(hordeClient, archiveValue, out archive))
 					{
-						newArchives.Add(archive);
+						newArchives.Add(archive!);
 					}
 				}
 
 				// Make sure the zipped binaries path exists
-				foreach (PerforceArchiveInfo newArchive in newArchives)
+				foreach (BaseArchiveInfo newArchive in newArchives)
 				{
-					PerforceResponseList<FileLogRecord> response = await perforce.TryFileLogAsync(128, FileLogOptions.FullDescriptions, newArchive.DepotPath, cancellationToken);
-					if (response.Succeeded)
-					{
-						// Build a new list of zipped binaries
-						foreach (FileLogRecord file in response.Data)
-						{
-							foreach (RevisionRecord revision in file.Revisions)
-							{
-								if (revision.Action != FileAction.Purge)
-								{
-									string[] tokens = revision.Description.Split(' ');
-									if (tokens[0].StartsWith("[CL", StringComparison.Ordinal) && tokens[1].EndsWith("]", StringComparison.Ordinal))
-									{
-										int originalChangeNumber;
-										if (Int32.TryParse(tokens[1].Substring(0, tokens[1].Length - 1), out originalChangeNumber) && !newArchive.ChangeNumberToFileRevision.ContainsKey(originalChangeNumber))
-										{
-											newArchive.ChangeNumberToFileRevision[originalChangeNumber] = $"{newArchive.DepotPath}#{revision.RevisionNumber}";
-										}
-									}
-								}
-							}
-						}
-					}
+					await newArchive.FindArtifacts(perforce, cancellationToken);
 				}
 			}
 

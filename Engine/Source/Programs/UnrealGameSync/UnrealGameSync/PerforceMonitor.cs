@@ -3,6 +3,7 @@
 using EpicGames.Core;
 using EpicGames.OIDC;
 using EpicGames.Perforce;
+using EpicGames.Horde;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
@@ -45,7 +46,7 @@ namespace UnrealGameSync
 		SortedSet<ChangesRecord> _changes = new SortedSet<ChangesRecord>(new PerforceChangeSorter());
 		readonly SortedDictionary<int, PerforceChangeDetails> _changeDetails = new SortedDictionary<int,PerforceChangeDetails>();
 		readonly SortedSet<int> _promotedChangeNumbers = new SortedSet<int>();
-		List<PerforceArchiveInfo> _archives = new List<PerforceArchiveInfo>();
+		List<BaseArchiveInfo> _archives = new List<BaseArchiveInfo>();
 		readonly AsyncEvent _refreshEvent = new AsyncEvent();
 		readonly ILogger _logger;
 		readonly bool _isEnterpriseProject;
@@ -53,6 +54,7 @@ namespace UnrealGameSync
 		readonly List<KeyValuePair<FileReference, DateTime>> _localConfigFiles;
 		readonly IAsyncDisposer _asyncDisposeTasks;
 		readonly OidcTokenManager _oidcTokenManager;
+		readonly IHordeClient _hordeClient;
 
 		string[] prevCodeRules = Array.Empty<string>();
 
@@ -88,6 +90,7 @@ namespace UnrealGameSync
 			_synchronizationContext = SynchronizationContext.Current!;
 			_cancellationSource = new CancellationTokenSource();
 			_oidcTokenManager = serviceProvider.GetRequiredService<OidcTokenManager>();
+			_hordeClient = serviceProvider.GetRequiredService<IHordeClient>();
 
 			AvailableArchives = (new List<IArchiveInfo>()).AsReadOnly();
 			LatestOidcTokenClient = oidcTokenClient;
@@ -317,9 +320,9 @@ namespace UnrealGameSync
 			if (perforceConfigSection != null && perforceConfigSection.GetValue("FindAllChangesForPCBs", false))
 			{
 				int minZippedChangeNumber = -1;
-				foreach (PerforceArchiveInfo archive in _archives)
+				foreach (BaseArchiveInfo archive in _archives)
 				{
-					foreach (int changeNumber in archive.ChangeNumberToFileRevision.Keys)
+					foreach (int changeNumber in archive.ChangeNumberToArchiveKey.Keys)
 					{
 						if (changeNumber > minZippedChangeNumber && changeNumber <= oldestChangeNumber)
 						{
@@ -376,7 +379,7 @@ namespace UnrealGameSync
 						foreach(ChangesRecord change in _changes)
 						{
 							trimmedChanges.Add(change);
-							if(trimmedChanges.Count >= maxChanges && _archives.Any(x => x.ChangeNumberToFileRevision.Count == 0 || x.ChangeNumberToFileRevision.ContainsKey(change.Number) || x.ChangeNumberToFileRevision.First().Key > change.Number))
+							if(trimmedChanges.Count >= maxChanges && _archives.Any(x => x.ChangeNumberToArchiveKey.Count == 0 || x.ChangeNumberToArchiveKey.ContainsKey(change.Number) || x.ChangeNumberToArchiveKey.First().Key > change.Number))
 							{
 								break;
 							}
@@ -497,7 +500,7 @@ namespace UnrealGameSync
 
 		async Task<bool> UpdateArchivesAsync(IPerforceConnection perforce, CancellationToken cancellationToken)
 		{
-			List<PerforceArchiveInfo> newArchives = await PerforceArchive.EnumerateAsync(perforce, LatestProjectConfigFile, _selectedProjectIdentifier, cancellationToken);
+			List<BaseArchiveInfo> newArchives = await BaseArchive.EnumerateAsync(perforce, _hordeClient, LatestProjectConfigFile, _selectedProjectIdentifier, cancellationToken);
 
 			// Check if the information has changed
 			if (!Enumerable.SequenceEqual(_archives, newArchives))
