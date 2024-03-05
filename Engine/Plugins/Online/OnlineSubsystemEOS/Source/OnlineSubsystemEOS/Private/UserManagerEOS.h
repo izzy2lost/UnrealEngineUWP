@@ -395,6 +395,7 @@ public:
 	int32 GetDefaultLocalUser() const { return DefaultLocalUser; }
 
 private:
+	bool IsLocalUserValid(int32 LocalUserNum) const ;
 	FLocalUserEOS& GetLocalUserChecked(int32 LocalUserNum);
 
 	void CallEOSAuthLogin(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials);

@@ -573,9 +573,14 @@ void FUserManagerEOS::LoginViaExternalAuth(int32 LocalUserNum, const FOnlineAcco
 		}));
 }
 
+bool FUserManagerEOS::IsLocalUserValid(int32 LocalUserNum) const
+{
+	return LocalUsers.IsValidIndex(LocalUserNum);
+}
+
 FLocalUserEOS& FUserManagerEOS::GetLocalUserChecked(int32 LocalUserNum)
 {
-	check(LocalUsers.IsValidIndex(LocalUserNum));
+	check(IsLocalUserValid(LocalUserNum));
 	return LocalUsers[LocalUserNum];
 }
 
@@ -2562,23 +2567,29 @@ bool FUserManagerEOS::DeleteFriend(int32 LocalUserNum, const FUniqueNetId& Frien
 
 bool FUserManagerEOS::GetFriendsList(int32 LocalUserNum, const FString& ListName, TArray<TSharedRef<FOnlineFriend>>& OutFriends)
 {
+	if (!IsLocalUserValid(LocalUserNum))
+	{
+		return false;
+	}
+
+	EFriendsLists::Type FriendsListType;
+	if (!EFriendsLists::FromString(FriendsListType, *ListName))
+	{
+		return false;
+	}
+
 	OutFriends.Reset();
 
 	for (FOnlineFriendEOSRef Friend : GetLocalUserChecked(LocalUserNum).FriendsList->GetList())
 	{
 		const FOnlineUserPresence& Presence = Friend->GetPresence();
 		// See if they only want online only
-		if (ListName == EFriendsLists::ToString(EFriendsLists::OnlinePlayers) && !Presence.bIsOnline)
+		if (FriendsListType == EFriendsLists::OnlinePlayers && !Presence.bIsOnline)
 		{
 			continue;
 		}
 		// Of if they only want friends playing this game
-		else if (ListName == EFriendsLists::ToString(EFriendsLists::InGamePlayers) && !Presence.bIsPlayingThisGame)
-		{
-			continue;
-		}
-		// If the service hasn't returned the info yet, skip them
-		else if (Friend->GetDisplayName().IsEmpty())
+		else if (FriendsListType == EFriendsLists::InGamePlayers && !Presence.bIsPlayingThisGame)
 		{
 			continue;
 		}
