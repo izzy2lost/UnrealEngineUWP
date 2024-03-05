@@ -5299,8 +5299,8 @@ void UParticleSystemComponent::OnAttachmentChanged()
 
 	if (IsTickManaged())
 	{
-		FParticleSystemWorldManager* PSCMan = GetWorldManager();
-		if (ensure(PSCMan))
+		// Note: the PSCMan can become invalid during GC / level change
+		if (FParticleSystemWorldManager* PSCMan = GetWorldManager())
 		{
 			//Reregister component to recalculate dependencies and re add to manager's lists.
 			PSCMan->UnregisterComponent(this);
