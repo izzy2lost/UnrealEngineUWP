@@ -3717,7 +3717,7 @@ void FSceneRenderer::OnRenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef Vi
 			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 			{
 				FViewInfo& View = Views[ViewIndex];
-				bNaniteEnabledButNoAtomics |= ShouldRenderNanite(Scene, View, bCheckForAtomicSupport);
+				bNaniteEnabledButNoAtomics |= ::ShouldRenderNanite(Scene, View, bCheckForAtomicSupport);
 			}
 		}
 

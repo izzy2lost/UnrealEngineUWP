@@ -75,6 +75,7 @@
 #include "RectLightSceneProxy.h"
 #include "RectLightTextureManager.h"
 #include "RenderCore.h"
+#include "RenderUtils.h"
 #include "IESTextureManager.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
@@ -137,6 +138,17 @@ static TAutoConsoleVariable<int32> CVarBasePassWriteDepthEvenWithFullPrepass(
 	0,
 	TEXT("0 to allow a readonly base pass, which skips an MSAA depth resolve, and allows masked materials to get EarlyZ (writing to depth while doing clip() disables EarlyZ) (default)\n")
 	TEXT("1 to force depth writes in the base pass.  Useful for debugging when the prepass and base pass don't match what they render."));
+
+// TODO: Significant render thread optimization to heavy Nanite scenes - Off by default, pending extensive testing
+int32 GVisibilitySkipAlwaysVisible = 0;
+static FAutoConsoleVariableRef CVarVisibilitySkipAlwaysVisible(
+	TEXT("r.Visibility.SkipAlwaysVisible"),
+	GVisibilitySkipAlwaysVisible,
+	TEXT("Whether visibility passes should skip primitives marked always visible")
+	TEXT("0: All primitives are processed by visibility passes")
+	TEXT("1: Only primitives not marked with bAlwaysVisible will be processed by visibility passes"),
+	ECVF_RenderThreadSafe
+);
 
 DECLARE_CYCLE_STAT(TEXT("DeferredShadingSceneRenderer MotionBlurStartFrame"), STAT_FDeferredShadingSceneRenderer_MotionBlurStartFrame, STATGROUP_SceneRendering);
 
@@ -1322,10 +1334,10 @@ void FScene::CheckPrimitiveArrays(int MaxTypeOffsetIndex)
 	check(Primitives.Num() == PrimitivesNeedingUniformBufferUpdate.Num());
 
 #if UE_BUILD_DEBUG
-	MaxTypeOffsetIndex = MaxTypeOffsetIndex == -1 ? TypeOffsetTable.Num() : MaxTypeOffsetIndex;
-	for (int i = 0; i < MaxTypeOffsetIndex; i++)
+	MaxTypeOffsetIndex = MaxTypeOffsetIndex == INDEX_NONE ? TypeOffsetTable.Num() : MaxTypeOffsetIndex;
+	for (int32 i = 0; i < MaxTypeOffsetIndex; i++)
 	{
-		for (int j = i + 1; j < MaxTypeOffsetIndex; j++)
+		for (int32 j = i + 1; j < MaxTypeOffsetIndex; j++)
 		{
 			check(TypeOffsetTable[i].PrimitiveSceneProxyType != TypeOffsetTable[j].PrimitiveSceneProxyType);
 			check(TypeOffsetTable[i].Offset <= TypeOffsetTable[j].Offset);
@@ -1333,7 +1345,7 @@ void FScene::CheckPrimitiveArrays(int MaxTypeOffsetIndex)
 	}
 
 	uint32 NextOffset = 0;
-	for (int i = 0; i < MaxTypeOffsetIndex; i++)
+	for (int32 i = 0; i < MaxTypeOffsetIndex; i++)
 	{
 		const FTypeOffsetTableEntry& Entry = TypeOffsetTable[i];
 		for (uint32 Index = NextOffset; Index < Entry.Offset; Index++)
@@ -4979,17 +4991,26 @@ struct FPrimitiveArraySortKey
 {
 	inline bool operator()(const FPrimitiveSceneInfo& A, const FPrimitiveSceneInfo& B) const
 	{
-		uint32 AHash = A.Proxy->GetTypeHash();
-		uint32 BHash = B.Proxy->GetTypeHash();
+		const uint32 A_TypeHash = A.Proxy->GetTypeHash();
+		const uint32 B_TypeHash = B.Proxy->GetTypeHash();
 
-		if (AHash == BHash) 
+		const uint32 A_AlwaysVisible = A.Proxy->IsAlwaysVisible() ? 1u : 0u;
+		const uint32 B_AlwaysVisible = B.Proxy->IsAlwaysVisible() ? 1u : 0u;
+
+		// First group all proxies by test visibility vs. always visible (at the end)
+		if (A_AlwaysVisible != B_AlwaysVisible)
 		{
-			return A.RegistrationSerialNumber < B.RegistrationSerialNumber;
+			return A_AlwaysVisible > B_AlwaysVisible;
 		}
-		else
+
+		// Then group up all proxies in the two ranges by type for better cache coherency
+		if (A_TypeHash != B_TypeHash)
 		{
-			return AHash < BHash;
+			return A_TypeHash > B_TypeHash;
 		}
+
+		// Finally, sort by primitive component ID to add more determinism/stability to the sort
+		return A.PrimitiveComponentId.PrimIDValue > B.PrimitiveComponentId.PrimIDValue;
 	}
 };
 
@@ -5953,13 +5974,13 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 					PrimitiveVirtualTextureFlags.AddUninitialized();
 					PrimitiveVirtualTextureLod.AddUninitialized();
 					PrimitiveOcclusionBounds.AddUninitialized();
-#if WITH_EDITOR
+				#if WITH_EDITOR
 					PrimitivesSelected.Add(PrimitiveSceneInfo->Proxy->IsSelected());
-#endif
-#if RHI_RAYTRACING
+				#endif
+				#if RHI_RAYTRACING
 					PrimitiveRayTracingFlags.AddZeroed();
 					PrimitiveRayTracingGroupIds.Add(Experimental::FHashElementId());
-#endif
+				#endif
 					PrimitivesNeedingStaticMeshUpdate.Add(false);
 					PrimitivesNeedingUniformBufferUpdate.Add(true);
 
@@ -5993,19 +6014,31 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 				}
 			}
 
-			//new type encountered
-			if (EntryFound == false)
+			// New type encountered
+			if (!EntryFound)
 			{
 				BroadIndex = TypeOffsetTable.Num();
 				if (BroadIndex)
 				{
-					FTypeOffsetTableEntry Entry = TypeOffsetTable[BroadIndex - 1];
-					//adding to the end of the list and offset of the tail (will will be incremented once during the while loop)
-					TypeOffsetTable.Push(FTypeOffsetTableEntry(InsertProxyHash, Entry.Offset));
+					uint32 NextTypeOffset = 0;
+ 					for (int32 TypeOffsetIndex = 0; TypeOffsetIndex < TypeOffsetTable.Num(); ++TypeOffsetIndex)
+					{
+						const FTypeOffsetTableEntry& TypeEntry = TypeOffsetTable[TypeOffsetIndex];
+						if (PrimitiveSceneProxies[NextTypeOffset]->IsAlwaysVisible())
+						{
+							BroadIndex = TypeOffsetIndex;
+							break;
+						}
+
+						NextTypeOffset = TypeEntry.Offset;
+					}
+
+					int32 PrevEntryOffset = BroadIndex > 0 ? TypeOffsetTable[BroadIndex - 1].Offset : 0;
+					TypeOffsetTable.Insert(FTypeOffsetTableEntry(InsertProxyHash, PrevEntryOffset), BroadIndex);
 				}
 				else
 				{
-					//starting with an empty list and offset zero (will will be incremented once during the while loop)
+					// Starting with an empty list and zero offset (offset will be incremented during the while loop)
 					TypeOffsetTable.Push(FTypeOffsetTableEntry(InsertProxyHash, 0));
 				}
 			}
@@ -6022,7 +6055,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 						FTypeOffsetTableEntry& NextEntry = TypeOffsetTable[TypeIndex];
 						int32 DestIndex = NextEntry.Offset++; //prepare swap and increment
 
-						// example swap chain of inserting a type of 6 at the end
+						// Example swap chain of inserting a type of 6 at the end
 						// PrimitiveSceneProxies[0,0,0,6,6,6,6,6,2,2,2,2,1,1,1,7,4,8,6]
 						// PrimitiveSceneProxies[0,0,0,6,6,6,6,6,6,2,2,2,1,1,1,7,4,8,2]
 						// PrimitiveSceneProxies[0,0,0,6,6,6,6,6,6,2,2,2,2,1,1,7,4,8,1]
@@ -6038,12 +6071,12 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 							// Update (the dynamic/compacted) primitive ID for the swapped primitives
 							{
-								FPersistentPrimitiveIndex PersisitentIndex = Primitives[DestIndex]->PersistentIndex;
-								PersistentPrimitiveIdToIndexMap[PersisitentIndex.Index] = SourceIndex;
+								FPersistentPrimitiveIndex PersistentIndex = Primitives[DestIndex]->PersistentIndex;
+								PersistentPrimitiveIdToIndexMap[PersistentIndex.Index] = SourceIndex;
 							}
 							{
-								FPersistentPrimitiveIndex PersisitentIndex = Primitives[SourceIndex]->PersistentIndex;
-								PersistentPrimitiveIdToIndexMap[PersisitentIndex.Index] = DestIndex;
+								FPersistentPrimitiveIndex PersistentIndex = Primitives[SourceIndex]->PersistentIndex;
+								PersistentPrimitiveIdToIndexMap[PersistentIndex.Index] = DestIndex;
 							}
 							TArraySwapElements(Primitives, DestIndex, SourceIndex);
 							TArraySwapElements(PrimitiveTransforms, DestIndex, SourceIndex);
@@ -6084,7 +6117,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 				PrimitiveSceneInfo->LinkAttachmentGroup();
 			}
 
-			for (int AddIndex = StartIndex; AddIndex < AddedLocalPrimitiveSceneInfos.Num(); AddIndex++)
+			for (int32 AddIndex = StartIndex; AddIndex < AddedLocalPrimitiveSceneInfos.Num(); AddIndex++)
 			{
 				FPrimitiveSceneInfo* PrimitiveSceneInfo = AddedLocalPrimitiveSceneInfos[AddIndex];
 				int32 PrimitiveIndex = PrimitiveSceneInfo->PackedIndex;
@@ -6288,7 +6321,66 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 #endif
 	}
 
-	// Allocate all instance slots. Needs to happen after the instance datas are updated since that may change the counts.
+	// Determine the test visible vs. always visible primitive index ranges
+	PrimitivesAlwaysVisibleOffset = ~0u;
+
+	// This optimization requires compute materials due to relevancy calculation
+	if (GVisibilitySkipAlwaysVisible != 0 && UseNaniteComputeMaterials())
+	{
+		uint32 NextTypeOffset = 0;
+		for (int32 TypeOffsetIndex = 0; TypeOffsetIndex < TypeOffsetTable.Num(); ++TypeOffsetIndex)
+		{
+			const FTypeOffsetTableEntry& TypeEntry = TypeOffsetTable[TypeOffsetIndex];
+
+		#if UE_BUILD_DEBUG
+			// Sanity check
+			checkSlow(Primitives[NextTypeOffset]->Proxy == PrimitiveSceneProxies[NextTypeOffset]);
+
+			// Sanity check
+			const SIZE_T TypeHash = PrimitiveSceneProxies[NextTypeOffset]->GetTypeHash();
+			checkfSlow (TypeHash == TypeEntry.PrimitiveSceneProxyType, TEXT("TypeHash: %i not matching TypeOffsetTable, expected: %i"), TypeHash, TypeEntry.PrimitiveSceneProxyType);
+		#endif
+
+			if (PrimitiveSceneProxies[NextTypeOffset]->IsAlwaysVisible())
+			{
+				PrimitivesAlwaysVisibleOffset = NextTypeOffset;
+				break;
+			}
+
+			NextTypeOffset = TypeEntry.Offset;
+		}
+
+	#if 0
+		for (int32 Test = 0; Test < PrimitiveSceneProxies.Num(); ++Test)
+		{
+			const FPrimitiveSceneProxy* TestProxy = PrimitiveSceneProxies[Test];
+			const bool AlwaysVisible = TestProxy->IsAlwaysVisible();
+			const bool IsNanite = TestProxy->IsNaniteMesh();
+
+			if (uint32(Test) < PrimitivesAlwaysVisibleOffset)
+			{
+				check(!AlwaysVisible);
+				check(!IsNanite);
+			}
+			else
+			{
+				check(AlwaysVisible);
+				check(IsNanite);
+			}
+		}
+	#endif
+
+		// Align up to next full dword - this is to avoid having a single dword spanning "tested" and "always visible" primitives,
+		// making the lockless parallel calculations much more efficient. This will push a few (<32) primitives from always visible
+		// into the tested path, but this is not a big deal.
+		PrimitivesAlwaysVisibleOffset = (PrimitivesAlwaysVisibleOffset + uint32(NumBitsPerDWORD) - 1u) & ~(uint32(NumBitsPerDWORD) - 1u);
+		if (int32(PrimitivesAlwaysVisibleOffset) >= Primitives.Num())
+		{
+			PrimitivesAlwaysVisibleOffset = ~0u;
+		}
+	}
+
+	// Allocate all instance slots. Needs to happen after the instance data is updated since that may change the counts.
 	FPrimitiveSceneInfo::AllocateGPUSceneInstances(this, PendingAllocateInstanceIds);
 
 	// handle scene changes

@@ -352,6 +352,22 @@ public:
 	// Task priorities for non-specific tasks related to visibility.
 	UE::Tasks::ETaskPriority TaskPriority = UE::Tasks::ETaskPriority::High;
 
+	uint32 NumVisiblePrimitives = 0;
+	uint32 NumTestedPrimitives  = 0;
+
+	struct FAlwaysVisible
+	{
+		static constexpr uint32 MinWordsPerTask = 32;
+
+		const UE::Tasks::ETaskPriority TaskPriority = UE::Tasks::ETaskPriority::High;
+
+		// Always visible tasks are fixed size and process the same number of primitives.
+		uint32 NumTasks = 0;
+		uint32 NumWordsPerTask = 0;
+		uint32 NumPrimitivesPerTask = 0;
+
+	} AlwaysVisible;
+
 	struct FFrustumCull
 	{
 		static constexpr uint32 MinWordsPerTask = 32;
@@ -437,6 +453,7 @@ private:
 
 	struct FTasks
 	{
+		UE::Tasks::FTaskEvent AlwaysVisible{ UE_SOURCE_LOCATION };
 		UE::Tasks::FTaskEvent FrustumCull{ UE_SOURCE_LOCATION };
 		UE::Tasks::FTaskEvent OcclusionCull{ UE_SOURCE_LOCATION };
 		UE::Tasks::FTaskEvent ComputeRelevance{ UE_SOURCE_LOCATION };
@@ -592,6 +609,7 @@ private:
 
 	FVisibilityTaskConfig TaskConfig;
 
+	const bool bAddNaniteRelevance;
 	const bool bAddLightmapDensityCommands;
 	bool bFinished = false;
 };

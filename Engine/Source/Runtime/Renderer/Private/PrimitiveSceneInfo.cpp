@@ -164,6 +164,7 @@ FPrimitiveFlagsCompact::FPrimitiveFlagsCompact(const FPrimitiveSceneProxy* Proxy
 	, bStaticLighting(Proxy->HasStaticLighting())
 	, bCastStaticShadow(Proxy->CastsStaticShadow())
 	, bIsNaniteMesh(Proxy->IsNaniteMesh())
+	, bIsAlwaysVisible(Proxy->IsAlwaysVisible())
 	, bSupportsGPUScene(Proxy->SupportsGPUScene())
 {}
 
@@ -751,6 +752,40 @@ void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayVie
 			{
 				Context.Apply(*Scene);
 			}
+		}
+
+		// Build primitive/material relevancy
+		{
+			FNaniteShadingPipelines& ShadingPipelines = Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass];
+			ShadingPipelines.CombinedRelevance = FPrimitiveViewRelevance();
+
+			ShadingPipelines.CombinedRelevance.bDrawRelevance = true;
+			ShadingPipelines.CombinedRelevance.bStaticRelevance = true;
+			ShadingPipelines.CombinedRelevance.bRenderInMainPass = true;
+			ShadingPipelines.CombinedRelevance.bShadowRelevance = true;
+
+			// Nanite::GetSupportsCustomDepthRendering() && ShouldRenderCustomDepth();
+			ShadingPipelines.CombinedRelevance.bRenderCustomDepth = false; // TODO: Unsupported in fast path
+
+			// GetLightingChannelMask() != GetDefaultLightingChannelMask();
+			ShadingPipelines.CombinedRelevance.bUsesLightingChannels = false; // TODO: Unsupported in fast path
+
+			FMaterialRelevance CombinedMaterialRelevance;
+			ERHIFeatureLevel::Type FeatureLevel = Scene->GetFeatureLevel();
+
+			const auto& Pipelines = ShadingPipelines.GetShadingPipelineMap();
+			for (const auto& Iter : Pipelines)
+			{
+				const FNaniteShadingEntry& Entry = Iter.Value;
+				const FNaniteShadingPipeline* Pipeline = Entry.ShadingPipeline.Get();
+				
+				// Update section relevance and combined material relevance
+				const UMaterialInterface* Material = Pipeline->MaterialProxy->GetMaterialInterface();
+				CombinedMaterialRelevance |= Material->GetRelevance_Concurrent(FeatureLevel);
+			}
+
+			// Apply combined material relevance to combined primitive view relevance
+			CombinedMaterialRelevance.SetPrimitiveViewRelevance(ShadingPipelines.CombinedRelevance);
 		}
 
 		if (UseNaniteComputeMaterials())

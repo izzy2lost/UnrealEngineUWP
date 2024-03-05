@@ -229,6 +229,8 @@ static FAutoConsoleVariableRef CVarLODFadeTime( TEXT("r.LODFadeTime"), GFadeTime
 static float GDistanceFadeMaxTravel = 1000.0f;
 static FAutoConsoleVariableRef CVarDistanceFadeMaxTravel( TEXT("r.DistanceFadeMaxTravel"), GDistanceFadeMaxTravel, TEXT("Max distance that the player can travel during the fade time."), ECVF_RenderThreadSafe );
 
+extern int32 GVisibilitySkipAlwaysVisible;
+
 static int32 GVisibilityTaskSchedule = 1;
 static FAutoConsoleVariableRef CVarVisibilityTaskSchedule(
 	TEXT("r.Visibility.TaskSchedule"),
@@ -271,14 +273,6 @@ static FAutoConsoleVariableRef CVarFrustumCullUseSphereTestFirst(
 	GFrustumCullUseSphereTestFirst,
 	TEXT("Performance tweak. Uses a sphere cull before and in addition to a box for frustum culling."),
 	ECVF_RenderThreadSafe
-);
-
-static bool GFrustumCullSkipNanite = false;
-static TAutoConsoleVariable CVarFrustumCullSkipNanite(
-	TEXT("r.Visibility.PrimitiveCull.SkipNanite"),
-	GFrustumCullSkipNanite,
-	TEXT("True - All Nanite primitives skip culling phases, False - All Nanite primitives are run through the culling phase."),
-	ECVF_Default
 );
 
 static bool GFrustumCullUseFastIntersect = false;
@@ -507,11 +501,6 @@ inline bool IntersectBox8Plane(const FVector& InOrigin, const FVector& InExtent,
 	return true;
 }
 
-inline bool IsAlwaysVisible(const FScene& Scene, int32 Index)
-{
-	return GFrustumCullSkipNanite ? Scene.PrimitiveFlagsCompact[Index].bIsNaniteMesh : false;
-}
-
 struct FFrustumCullingFlags
 {
 	bool bShouldVisibilityCull;
@@ -639,39 +628,93 @@ static void CullOctree(const FScene& Scene, FViewInfo& View, const FFrustumCulli
 		});
 }
 
-static int32 FrustumCull(const FScene& Scene, FViewInfo& View, FFrustumCullingFlags Flags, float MaxDrawDistanceScale, const FHLODVisibilityState* const HLODState, const FSceneBitArray* VisibleNodes, int32 NumFrustumCullWordsPerTask, int32 TaskIndex)
+static void UpdateAlwaysVisible(const FScene& Scene, FViewInfo& View, FFrustumCullingFlags Flags, const FVisibilityTaskConfig& TaskConfig, int32 TaskIndex)
+{
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_AlwaysVisible_Loop);
+
+	check(Scene.PrimitivesAlwaysVisibleOffset != ~0u);
+	const int32 BitArrayNumInner = TaskConfig.NumVisiblePrimitives;
+	const int32 StartWord = int32(Scene.PrimitivesAlwaysVisibleOffset) / NumBitsPerDWORD;
+	const int32 TaskWordOffset = TaskIndex * TaskConfig.AlwaysVisible.NumWordsPerTask;
+
+	uint32* RESTRICT VisWords = View.PrimitiveVisibilityMap.GetData();
+#if RHI_RAYTRACING
+	uint32* RESTRICT  RTWords = View.PrimitiveRayTracingVisibilityMap.GetData();
+#endif
+
+	for (int32 WordIndex = TaskWordOffset; WordIndex < TaskWordOffset + int32(TaskConfig.AlwaysVisible.NumWordsPerTask) && WordIndex * NumBitsPerDWORD < BitArrayNumInner; ++WordIndex)
+	{
+		uint32 Mask = 0x1;
+
+		uint32 VisBits = 0;
+	#if RHI_RAYTRACING
+		uint32 RayTracingBits = 0;
+	#endif
+
+		for (int32 BitSubIndex = 0; BitSubIndex < NumBitsPerDWORD && WordIndex * NumBitsPerDWORD + BitSubIndex < BitArrayNumInner; ++BitSubIndex, Mask <<= 1)
+		{
+			const int32 Index = (StartWord + WordIndex) * NumBitsPerDWORD + BitSubIndex;
+			VisBits |= Mask;
+
+		#if RHI_RAYTRACING
+			if (!IsPrimitiveHidden(Scene, View, Index, Flags) && !ShouldCullForRayTracing(Scene, View, Index))
+			{
+				RayTracingBits |= Mask;
+			}
+		#endif
+		}
+
+		VisWords[StartWord + WordIndex] = VisBits;
+
+	#if RHI_RAYTRACING
+		if (RayTracingBits)
+		{
+			RTWords[StartWord + WordIndex] = RayTracingBits;
+		}
+	#endif
+	}
+}
+
+static int32 FrustumCull(const FScene& Scene, FViewInfo& View, FFrustumCullingFlags Flags, float MaxDrawDistanceScale, const FHLODVisibilityState* const HLODState, const FSceneBitArray* VisibleNodes, const FVisibilityTaskConfig& TaskConfig, int32 TaskIndex)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FrustumCull_Loop);
 
 	bool bDisableLODFade = GDisableLODFade || View.bDisableDistanceBasedFadeTransitions;
 	const FPlane* PermutedPlanePtr = View.ViewFrustum.PermutedPlanes.GetData();
-	const int32 BitArrayNumInner = View.PrimitiveVisibilityMap.Num();
 	FVector ViewOriginForDistanceCulling = View.ViewMatrices.GetViewOrigin();
 	float FadeRadius = bDisableLODFade ? 0.0f : GDistanceFadeMaxTravel;
 	uint8 CustomVisibilityFlags = EOcclusionFlags::CanBeOccluded | EOcclusionFlags::HasPrecomputedVisibility;
 
+	int32 BitArrayNumInner = TaskConfig.NumTestedPrimitives;
+
 	uint32 NumPrimitivesCulledForTask = 0;
 
 	// Primitives may be explicitly removed from stereo views when using mono
-	const int32 TaskWordOffset = TaskIndex * NumFrustumCullWordsPerTask;
+	const int32 TaskWordOffset = TaskIndex * TaskConfig.FrustumCull.NumWordsPerTask;
 
 	FVector ViewOrigin = View.ViewMatrices.GetViewOrigin();
 
-	for (int32 WordIndex = TaskWordOffset; WordIndex < TaskWordOffset + NumFrustumCullWordsPerTask && WordIndex * NumBitsPerDWORD < BitArrayNumInner; WordIndex++)
+	uint32* RESTRICT VisWords = View.PrimitiveVisibilityMap.GetData();
+	uint32* RESTRICT FadeWords = View.PotentiallyFadingPrimitiveMap.GetData();
+#if RHI_RAYTRACING
+	uint32* RESTRICT  RTWords = View.PrimitiveRayTracingVisibilityMap.GetData();
+#endif
+
+	for (int32 WordIndex = TaskWordOffset; WordIndex < TaskWordOffset + int32(TaskConfig.FrustumCull.NumWordsPerTask) && WordIndex * NumBitsPerDWORD < BitArrayNumInner; WordIndex++)
 	{
-		uint32 Mask = 0x1;
+		uint32 Mask = 0x1; 
 		uint32 VisBits = 0;
 		uint32 FadingBits = 0;
+	#if RHI_RAYTRACING
+		uint32 RayTracingBits = 0;
+	#endif
 
 		// If visibility culling is disabled, make sure to use the existing visibility state
 		if (!Flags.bShouldVisibilityCull)
 		{
-			VisBits = View.PrimitiveVisibilityMap.GetData()[WordIndex];
+			VisBits = VisWords[WordIndex];
 		}
 
-#if RHI_RAYTRACING
-		uint32 RayTracingBits = 0;
-#endif //RHI_RAYTRACING
 		for (int32 BitSubIndex = 0; BitSubIndex < NumBitsPerDWORD && WordIndex * NumBitsPerDWORD + BitSubIndex < BitArrayNumInner; BitSubIndex++, Mask <<= 1)
 		{
 			int32 Index = WordIndex * NumBitsPerDWORD + BitSubIndex;
@@ -680,22 +723,21 @@ static int32 FrustumCull(const FScene& Scene, FViewInfo& View, FFrustumCullingFl
 
 			bIsVisible = bIsVisible && !bPrimitiveIsHidden;
 
-#if RHI_RAYTRACING
+		#if RHI_RAYTRACING
 			bool bIsVisibleInRayTracing = true;
 
 			if (bPrimitiveIsHidden || ShouldCullForRayTracing(Scene, View, Index))
 			{
 				bIsVisibleInRayTracing = false;
 			}
-#endif //RHI_RAYTRACING
+		#endif
 
 			const FPrimitiveBounds& RESTRICT Bounds = Scene.PrimitiveBounds[Index];
 
 			// Zero sized bounds indicates that we are not visible.
 			bIsVisible &= Bounds.BoxSphereBounds.SphereRadius > 0;
 
-			// Handle primitives that are not always visible.
-			if (Flags.bShouldVisibilityCull && bIsVisible && !IsAlwaysVisible(Scene, Index))
+			if (Flags.bShouldVisibilityCull && bIsVisible)
 			{
 				bool bShouldDistanceCull = true;
 				bool bPartiallyOutside = true;
@@ -788,12 +830,12 @@ static int32 FrustumCull(const FScene& Scene, FViewInfo& View, FFrustumCullingFl
 							bIsVisible = false;
 						}
 
-#if RHI_RAYTRACING
+					#if RHI_RAYTRACING
 						if (bFarDistanceCulled)
 						{
 							bIsVisibleInRayTracing = false;
 						}
-#endif //RHI_RAYTRACING
+					#endif
 					}
 				}
 			}
@@ -808,33 +850,30 @@ static int32 FrustumCull(const FScene& Scene, FViewInfo& View, FFrustumCullingFl
 				++NumPrimitivesCulledForTask;
 			}
 
-#if RHI_RAYTRACING
+		#if RHI_RAYTRACING
 			if (bIsVisibleInRayTracing)
 			{
 				RayTracingBits |= Mask;
 			}
-#endif //RHI_RAYTRACING
+		#endif
 		}
 
 		if (Flags.bShouldVisibilityCull && FadingBits)
 		{
-			checkSlow(!View.PotentiallyFadingPrimitiveMap.GetData()[WordIndex]); // this should start at zero
-			View.PotentiallyFadingPrimitiveMap.GetData()[WordIndex] = FadingBits;
+			FadeWords[WordIndex] = FadingBits;
 		}
 
 		if (Flags.bShouldVisibilityCull && VisBits)
 		{
-			checkSlow(!View.PrimitiveVisibilityMap.GetData()[WordIndex]); // this should start at zero
-			View.PrimitiveVisibilityMap.GetData()[WordIndex] = VisBits;
+			VisWords[WordIndex] = VisBits;
 		}
 
-#if RHI_RAYTRACING
+	#if RHI_RAYTRACING
 		if (RayTracingBits)
 		{
-			checkSlow(!View.PrimitiveRayTracingVisibilityMap.GetData()[WordIndex]); // this should start at zero
-			View.PrimitiveRayTracingVisibilityMap.GetData()[WordIndex] = RayTracingBits;
+			RTWords[WordIndex] = RayTracingBits;
 		}
-#endif
+	#endif
 	}
 
 	return NumPrimitivesCulledForTask;
@@ -955,7 +994,7 @@ static void UpdatePrimitiveFading(const FScene& Scene, FViewInfo& View, FSceneVi
 				// If the primitive is fading out make sure it remains visible.
 				View.PrimitiveVisibilityMap.AccessCorrespondingBit(BitIt) = true;
 
-#if RHI_RAYTRACING
+			#if RHI_RAYTRACING
 				// Cannot just assume the ray tracing visibility will be true, so a complete recalculation for its culling needs to happen
 				// This should be a very rare occurrence, so the hit is not worrisome.
 				// TODO:  Could this be moved into the actual culling phase?
@@ -964,7 +1003,7 @@ static void UpdatePrimitiveFading(const FScene& Scene, FViewInfo& View, FSceneVi
 				{
 					View.PrimitiveRayTracingVisibilityMap.AccessCorrespondingBit(BitIt) = true;
 				}
-#endif //RHI_RAYTRACING
+			#endif
 			}
 			View.PrimitiveFadeUniformBuffers[BitIt.GetIndex()] = UniformBuffer;
 			View.PrimitiveFadeUniformBufferMap[BitIt.GetIndex()] = UniformBuffer != nullptr;
@@ -1033,6 +1072,12 @@ void FDrawCommandRelevancePacket::AddCommandsForMesh(
 	bool bCanCache, 
 	EMeshPass::Type PassType)
 {
+	const bool bIsNaniteMesh = Scene.PrimitiveFlagsCompact[PrimitiveIndex].bIsNaniteMesh;
+	if (bIsNaniteMesh && Scene.PrimitivesAlwaysVisibleOffset != ~0u)
+	{
+		return;
+	}
+
 	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(Scene.GetFeatureLevel());
 	const bool bUseCachedMeshCommand = bUseCachedMeshDrawCommands
 		&& !!(FPassProcessorManager::GetPassFlags(ShadingPath, PassType) & EMeshPassFlags::CachedMeshCommands)
@@ -1192,6 +1237,11 @@ void FRelevancePacket::Finalize()
 
 	for (int32 PassIndex = 0; PassIndex < EMeshPass::Num; PassIndex++)
 	{
+		if (PassIndex == EMeshPass::NaniteMeshPass && Scene.PrimitivesAlwaysVisibleOffset != ~0u)
+		{
+			continue;
+		}
+
 		FPassDrawCommandArray& SrcCommands = DrawCommandPacket.VisibleCachedDrawCommands[PassIndex];
 		FMeshCommandOneFrameArray& DstCommands = WriteViewCommands.MeshCommands[PassIndex];
 		if (SrcCommands.Num() > 0)
@@ -2041,6 +2091,30 @@ void FComputeAndMarkRelevance::Finalize()
 		View.DirtyIndirectLightingCacheBufferPrimitivesMutex.Unlock();
 
 		Packets.Empty();
+
+		// Finalize Nanite materials
+		if (TaskData.bAddNaniteRelevance)
+		{
+			// This needs to complete before InitViews runs so that combined primitive/material relevance has been computed for Nanite
+			Scene.WaitForCacheNaniteMaterialBinsTask();
+
+			FViewInfo& WriteView = View;
+			{
+				const FNaniteShadingPipelines& ShadingPipelines = Scene.NaniteShadingPipelines[ENaniteMeshPass::BasePass];
+				const FPrimitiveViewRelevance& CombinedRelevance = ShadingPipelines.CombinedRelevance;
+
+				WriteView.ShadingModelMaskInView |= CombinedRelevance.ShadingModelMask;
+				WriteView.bUsesLightingChannels |= CombinedRelevance.bUsesLightingChannels;
+				WriteView.bSceneHasSkyMaterial |= CombinedRelevance.bUsesSkyMaterial;
+				WriteView.bHasDistortionPrimitives |= CombinedRelevance.bDistortion;
+				WriteView.bHasCustomDepthPrimitives |= CombinedRelevance.bRenderCustomDepth;
+				WriteView.bUsesCustomDepth |= (CombinedRelevance.CustomDepthStencilUsageMask & 1) > 0;
+				WriteView.bUsesCustomStencil |= (CombinedRelevance.CustomDepthStencilUsageMask & (1 << 1)) > 0;
+				WriteView.SubstrateViewData.MaxClosurePerPixel = FMath::Max(WriteView.SubstrateViewData.MaxClosurePerPixel, 8u - FMath::CountLeadingZeros8(CombinedRelevance.SubstrateClosureCountMask));
+				WriteView.SubstrateViewData.MaxBytesPerPixel = FMath::Max(WriteView.SubstrateViewData.MaxBytesPerPixel, CombinedRelevance.SubstrateUintPerPixel * 4u);
+				WriteView.SubstrateViewData.bUsesComplexSpecialRenderPath |= CombinedRelevance.bUsesComplexSpecialRenderPath;
+			}
+		}
 	}
 
 	TRACE_COUNTER_SET(Scene_Visibility_Relevance_NumPrimitivesProcessed, TaskData.TaskConfig.Relevance.NumPrimitivesProcessed);
@@ -3157,18 +3231,56 @@ FVisibilityTaskConfig::FVisibilityTaskConfig(const FScene& Scene, TConstArrayVie
 		}
 	}
 
-	const uint32 NumPrimitives = Scene.Primitives.Num();
+	NumTestedPrimitives = uint32(Scene.Primitives.Num());
+	NumVisiblePrimitives = 0u;
+
+	if (Scene.PrimitivesAlwaysVisibleOffset != ~0u)
+	{
+		NumTestedPrimitives  = Scene.PrimitivesAlwaysVisibleOffset;
+		NumVisiblePrimitives = uint32(Scene.Primitives.Num()) - NumTestedPrimitives;
+
+		// Ensure that the dword alignment code is correct and we never have partial dword offsets
+		check(uint32(NumTestedPrimitives % NumBitsPerDWORD) == 0u);
+	}
+
 	const uint32 NumWorkerThreads = FMath::Min(LowLevelTasks::FScheduler::Get().GetNumWorkers(), 16u);
 
 	// These values tune the task granularity based on number of primitives in the scene and the number of worker tasks available.
+	const uint32 NumAlwaysVisibleTasksPerThread = 2;
 	const uint32 NumFrustumCullTasksPerThread   = 2;
 	const uint32 NumOcclusionCullTasksPerThread = 2;
 	const uint32 NumRelevanceTasksPerThread     = 32;
 
+	const uint32 NumWordsPerTaskIfRenderThread = 128;
+
+	// Always Visible
+	if (NumVisiblePrimitives > 0u)
+	{
+		const uint32 NumPrimitiveWords = FMath::DivideAndRoundUp<uint32>(NumVisiblePrimitives, NumBitsPerDWORD);
+
+		if (Schedule == EVisibilityTaskSchedule::RenderThread)
+		{
+			AlwaysVisible.NumWordsPerTask = NumWordsPerTaskIfRenderThread;
+		}
+		else
+		{
+			AlwaysVisible.NumWordsPerTask = FMath::DivideAndRoundUp(NumPrimitiveWords, NumWorkerThreads * NumAlwaysVisibleTasksPerThread);
+		}
+
+		AlwaysVisible.NumWordsPerTask = FMath::Clamp(AlwaysVisible.NumWordsPerTask, AlwaysVisible.MinWordsPerTask, NumPrimitiveWords);
+		AlwaysVisible.NumPrimitivesPerTask = AlwaysVisible.NumWordsPerTask * NumBitsPerDWORD;
+		AlwaysVisible.NumTasks = FMath::DivideAndRoundUp(NumVisiblePrimitives, AlwaysVisible.NumPrimitivesPerTask);
+	}
+	else
+	{
+		AlwaysVisible.NumWordsPerTask = 0;
+		AlwaysVisible.NumPrimitivesPerTask = 0;
+		AlwaysVisible.NumTasks = 0;
+	}
+
 	// Frustum Cull
 	{
-		const uint32 NumWordsPerTaskIfRenderThread = 128;
-		const uint32 NumPrimitiveWords = FMath::DivideAndRoundUp<uint32>(NumPrimitives, NumBitsPerDWORD);
+		const uint32 NumPrimitiveWords = FMath::DivideAndRoundUp<uint32>(NumTestedPrimitives, NumBitsPerDWORD);
 
 		if (GFrustumCullNumPrimitivesPerTask > 0)
 		{
@@ -3185,7 +3297,7 @@ FVisibilityTaskConfig::FVisibilityTaskConfig(const FScene& Scene, TConstArrayVie
 
 		FrustumCull.NumWordsPerTask = FMath::Clamp(FrustumCull.NumWordsPerTask, FrustumCull.MinWordsPerTask, NumPrimitiveWords);
 		FrustumCull.NumPrimitivesPerTask = FrustumCull.NumWordsPerTask * NumBitsPerDWORD;
-		FrustumCull.NumTasks = FMath::DivideAndRoundUp(NumPrimitives, FrustumCull.NumPrimitivesPerTask);
+		FrustumCull.NumTasks = FMath::DivideAndRoundUp(NumTestedPrimitives, FrustumCull.NumPrimitivesPerTask);
 	}
 
 	// Occlusion Cull
@@ -3223,11 +3335,11 @@ FVisibilityTaskConfig::FVisibilityTaskConfig(const FScene& Scene, TConstArrayVie
 		}
 		else
 		{
-			Relevance.NumPrimitivesPerPacket = FMath::DivideAndRoundUp(NumPrimitives, NumWorkerThreads * NumRelevanceTasksPerThread);
+			Relevance.NumPrimitivesPerPacket = FMath::DivideAndRoundUp(NumTestedPrimitives, NumWorkerThreads * NumRelevanceTasksPerThread);
 		}
 
 		Relevance.NumPrimitivesPerPacket = FMath::Clamp(Relevance.NumPrimitivesPerPacket, Relevance.MinPrimitivesPerTask, Relevance.MaxPrimitivesPerTask);
-		Relevance.NumEstimatedPackets = FMath::DivideAndRoundUp(NumPrimitives, Relevance.NumPrimitivesPerPacket);
+		Relevance.NumEstimatedPackets = FMath::DivideAndRoundUp(NumTestedPrimitives, Relevance.NumPrimitivesPerPacket);
 	}
 }
 
@@ -3379,8 +3491,11 @@ void FVisibilityViewPacket::BeginInitVisibility()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("BeginInitVisibility %d"), ViewIndex));
 
+	// Mark all primitives as visible when not visibility culling
+	bool bShouldVisibilityCull = GFrustumCullEnabled;
+
 	// Allocate the view's visibility maps.
-	View.PrimitiveVisibilityMap.Init(false, Scene.Primitives.Num());
+	View.PrimitiveVisibilityMap.Init(!bShouldVisibilityCull, Scene.Primitives.Num());
 	View.PrimitiveRayTracingVisibilityMap.Init(false, Scene.Primitives.Num());
 	View.DynamicMeshElementRanges.SetNumZeroed(Scene.Primitives.Num());
 	View.PotentiallyFadingPrimitiveMap.Init(false, Scene.Primitives.Num());
@@ -3403,13 +3518,6 @@ void FVisibilityViewPacket::BeginInitVisibility()
 
 	ClearStalePrimitiveFadingStates(View, ViewState);
 
-	bool bShouldVisibilityCull = GFrustumCullEnabled;
-
-	if (!bShouldVisibilityCull)
-	{
-		View.PrimitiveVisibilityMap.SetRange(0, View.PrimitiveVisibilityMap.Num(), true); // Mark all primitives as visible when not visibility culling
-	}
-
 	// Development builds sometimes override frustum culling, e.g. dependent views in the editor.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	if (ViewState)
@@ -3418,9 +3526,9 @@ void FVisibilityViewPacket::BeginInitVisibility()
 		if (ViewState->bIsFrozen)
 		{
 			bShouldVisibilityCull = false;
-			for (int32 Index = 0; Index < View.PrimitiveVisibilityMap.Num(); ++Index)
+			for (int32 Index = 0; Index < int32(TaskConfig.NumTestedPrimitives); ++Index)
 			{
-				if (ViewState->FrozenPrimitives.Contains(Scene.PrimitiveComponentIds[Index]) || IsAlwaysVisible(Scene, Index))
+				if (ViewState->FrozenPrimitives.Contains(Scene.PrimitiveComponentIds[Index]))
 				{
 					View.PrimitiveVisibilityMap[Index] = true;
 				}
@@ -3485,73 +3593,95 @@ void FVisibilityViewPacket::BeginInitVisibility()
 
 	if (TaskConfig.Schedule == EVisibilityTaskSchedule::Parallel)
 	{
-		// Frustum culling tasks have to run serially if custom culling is not thread-safe.
-		const UE::Tasks::EExtendedTaskPriority ExtendedTaskPriority = GetExtendedTaskPriority(bCullingIsThreadsafe);
-
-		// Assign the number of expected commands first so the pipe can determine when the last task has completed.
-		OcclusionCull.CommandPipe.AddNumCommands(TaskConfig.FrustumCull.NumTasks);
-
-		for (uint32 TaskIndex = 0; TaskIndex < TaskConfig.FrustumCull.NumTasks; ++TaskIndex)
+		// Always Visible
+		const bool bHasAlwaysVisible = TaskConfig.NumVisiblePrimitives > 0;
+		if (bHasAlwaysVisible)
 		{
-			Tasks.FrustumCull.AddPrerequisites(
-				UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, Flags, MaxDrawDistanceScale, HLODState, VisibleNodes, TaskIndex]() mutable
+			for (uint32 TaskIndex = 0; TaskIndex < TaskConfig.AlwaysVisible.NumTasks; ++TaskIndex)
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(SceneVisibility_FrustumCull);
-				FOptionalTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
-				int32 NumCulledPrimitives = FrustumCull(Scene, View, Flags, MaxDrawDistanceScale, HLODState, VisibleNodes, TaskConfig.FrustumCull.NumWordsPerTask, TaskIndex);
-
-				FPrimitiveRange PrimitiveRange;
-				PrimitiveRange.StartIndex = TaskConfig.FrustumCull.NumPrimitivesPerTask * (TaskIndex);
-				PrimitiveRange.EndIndex   = TaskConfig.FrustumCull.NumPrimitivesPerTask + PrimitiveRange.StartIndex;
-				PrimitiveRange.EndIndex   = FMath::Min(PrimitiveRange.EndIndex, View.PrimitiveVisibilityMap.Num());
-
-				// Skip rendering of dynamic objects without static lighting for static reflection captures.
-				if (View.bStaticSceneOnly)
+				Tasks.AlwaysVisible.AddPrerequisites(
+					UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, Flags, TaskIndex]() mutable
 				{
-					for (FSceneSetBitIterator BitIt(View.PrimitiveVisibilityMap, PrimitiveRange.StartIndex); BitIt.GetIndex() < PrimitiveRange.EndIndex; ++BitIt)
-					{
-						if (!Scene.PrimitiveSceneProxies[BitIt.GetIndex()]->HasStaticLighting())
-						{
-							View.PrimitiveVisibilityMap.AccessCorrespondingBit(BitIt) = false;
-							NumCulledPrimitives++;
-						}
-					}
-				}
+					TRACE_CPUPROFILER_EVENT_SCOPE(SceneVisibility_AlwaysVisible);
+					SCOPE_CYCLE_COUNTER(STAT_UpdateAlwaysVisible);
 
-				// Skip rendering of small objects when in wireframe mode for performance since wireframe doesn't enable occlusion culling.
-				if (View.Family->EngineShowFlags.Wireframe)
-				{
-					const float ScreenSizeScale = FMath::Max(View.ViewMatrices.GetProjectionMatrix().M[0][0] * View.ViewRect.Width(), View.ViewMatrices.GetProjectionMatrix().M[1][1] * View.ViewRect.Height());
+					FOptionalTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
+					UpdateAlwaysVisible(Scene, View, Flags, TaskConfig, TaskIndex);
 
-					for (FSceneSetBitIterator BitIt(View.PrimitiveVisibilityMap, PrimitiveRange.StartIndex); BitIt.GetIndex() < PrimitiveRange.EndIndex; ++BitIt)
-					{
-						if (ScreenSizeScale * Scene.PrimitiveBounds[BitIt.GetIndex()].BoxSphereBounds.SphereRadius <= GWireframeCullThreshold)
-						{
-							View.PrimitiveVisibilityMap.AccessCorrespondingBit(BitIt) = false;
-							NumCulledPrimitives++;
-						}
-					}
-				}
-
-				const uint32 NumVisiblePrimitives = PrimitiveRange.EndIndex - PrimitiveRange.StartIndex - NumCulledPrimitives;
-
-				// Primary views can have additional visible primitives derived from secondary views. In that case forward
-				// the command down the pipe even though there weren't any visible primitives from frustum culling.
-				if (NumVisiblePrimitives == 0 && View.StereoPass != EStereoscopicPass::eSSP_PRIMARY)
-				{
-					OcclusionCull.CommandPipe.ReleaseNumCommands(1);
-				}
-				else
-				{
-					OcclusionCull.CommandPipe.EnqueueCommand(PrimitiveRange);
-				}
-
-				TaskConfig.FrustumCull.NumCulledPrimitives.fetch_add(NumCulledPrimitives, std::memory_order_relaxed);
-
-			}, PrerequisiteTask, TaskConfig.TaskPriority, ExtendedTaskPriority));
+				}, PrerequisiteTask, TaskConfig.TaskPriority, UE::Tasks::EExtendedTaskPriority::None));
+			}
 		}
 
-		OcclusionCull.CommandPipe.ReleaseNumCommands(1);
+		// Frustum Cull
+		{
+			// Frustum culling tasks have to run serially if custom culling is not thread-safe.
+			const UE::Tasks::EExtendedTaskPriority ExtendedTaskPriority = GetExtendedTaskPriority(bCullingIsThreadsafe);
+
+			// Assign the number of expected commands first so the pipe can determine when the last task has completed.
+			OcclusionCull.CommandPipe.AddNumCommands(TaskConfig.FrustumCull.NumTasks);
+
+			for (uint32 TaskIndex = 0; TaskIndex < TaskConfig.FrustumCull.NumTasks; ++TaskIndex)
+			{
+				Tasks.FrustumCull.AddPrerequisites(
+					UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, Flags, MaxDrawDistanceScale, HLODState, VisibleNodes, TaskIndex]() mutable
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(SceneVisibility_FrustumCull);
+					FOptionalTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
+					int32 NumCulledPrimitives = FrustumCull(Scene, View, Flags, MaxDrawDistanceScale, HLODState, VisibleNodes, TaskConfig, TaskIndex);
+
+					FPrimitiveRange PrimitiveRange;
+					PrimitiveRange.StartIndex = TaskConfig.FrustumCull.NumPrimitivesPerTask * (TaskIndex);
+					PrimitiveRange.EndIndex   = TaskConfig.FrustumCull.NumPrimitivesPerTask + PrimitiveRange.StartIndex;
+					PrimitiveRange.EndIndex   = FMath::Min(PrimitiveRange.EndIndex, int32(TaskConfig.NumTestedPrimitives));
+
+					// Skip rendering of dynamic objects without static lighting for static reflection captures.
+					if (View.bStaticSceneOnly)
+					{
+						for (FSceneSetBitIterator BitIt(View.PrimitiveVisibilityMap, PrimitiveRange.StartIndex); BitIt.GetIndex() < PrimitiveRange.EndIndex; ++BitIt)
+						{
+							if (!Scene.PrimitiveSceneProxies[BitIt.GetIndex()]->HasStaticLighting())
+							{
+								View.PrimitiveVisibilityMap.AccessCorrespondingBit(BitIt) = false;
+								NumCulledPrimitives++;
+							}
+						}
+					}
+
+					// Skip rendering of small objects when in wireframe mode for performance since wireframe doesn't enable occlusion culling.
+					if (View.Family->EngineShowFlags.Wireframe)
+					{
+						const float ScreenSizeScale = FMath::Max(View.ViewMatrices.GetProjectionMatrix().M[0][0] * View.ViewRect.Width(), View.ViewMatrices.GetProjectionMatrix().M[1][1] * View.ViewRect.Height());
+
+						for (FSceneSetBitIterator BitIt(View.PrimitiveVisibilityMap, PrimitiveRange.StartIndex); BitIt.GetIndex() < PrimitiveRange.EndIndex; ++BitIt)
+						{
+							if (ScreenSizeScale * Scene.PrimitiveBounds[BitIt.GetIndex()].BoxSphereBounds.SphereRadius <= GWireframeCullThreshold)
+							{
+								View.PrimitiveVisibilityMap.AccessCorrespondingBit(BitIt) = false;
+								NumCulledPrimitives++;
+							}
+						}
+					}
+
+					const uint32 NumVisiblePrimitives = PrimitiveRange.EndIndex - PrimitiveRange.StartIndex - NumCulledPrimitives;
+
+					// Primary views can have additional visible primitives derived from secondary views. In that case forward
+					// the command down the pipe even though there weren't any visible primitives from frustum culling.
+					if (NumVisiblePrimitives == 0 && View.StereoPass != EStereoscopicPass::eSSP_PRIMARY)
+					{
+						OcclusionCull.CommandPipe.ReleaseNumCommands(1);
+					}
+					else
+					{
+						OcclusionCull.CommandPipe.EnqueueCommand(PrimitiveRange);
+					}
+
+					TaskConfig.FrustumCull.NumCulledPrimitives.fetch_add(NumCulledPrimitives, std::memory_order_relaxed);
+
+				}, bHasAlwaysVisible ? Tasks.AlwaysVisible : PrerequisiteTask, TaskConfig.TaskPriority, ExtendedTaskPriority));
+			}
+
+			OcclusionCull.CommandPipe.ReleaseNumCommands(1);
+		}
 	}
 	else
 	{
@@ -3559,16 +3689,25 @@ void FVisibilityViewPacket::BeginInitVisibility()
 
 		PrerequisiteTask.Wait();
 
+		ParallelFor(TaskConfig.AlwaysVisible.NumTasks, [this, Flags](int32 TaskIndex)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(SceneVisibility_AlwaysVisible);
+			FOptionalTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
+			UpdateAlwaysVisible(Scene, View, Flags, TaskConfig, TaskIndex);
+
+		}, bSingleThreaded);
+
 		ParallelFor(TaskConfig.FrustumCull.NumTasks, [this, Flags, MaxDrawDistanceScale, HLODState, VisibleNodes](int32 TaskIndex)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(SceneVisibility_FrustumCull);
 			FOptionalTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
-			int32 NumCulledPrimitives = FrustumCull(Scene, View, Flags, MaxDrawDistanceScale, HLODState, VisibleNodes, TaskConfig.FrustumCull.NumWordsPerTask, TaskIndex);
+			int32 NumCulledPrimitives = FrustumCull(Scene, View, Flags, MaxDrawDistanceScale, HLODState, VisibleNodes, TaskConfig, TaskIndex);
 			TaskConfig.FrustumCull.NumCulledPrimitives.fetch_add(NumCulledPrimitives, std::memory_order_relaxed);
 
 		}, bSingleThreaded);
 	}
 
+	Tasks.AlwaysVisible.Trigger();
 	Tasks.FrustumCull.Trigger();
 }
 
@@ -3923,6 +4062,7 @@ FVisibilityTaskData::FVisibilityTaskData(FRHICommandListImmediate& InRHICmdList,
 	, ViewFamily(SceneRenderer.ViewFamily)
 	, ShadingPath(GetFeatureLevelShadingPath(Scene.GetFeatureLevel()))
 	, TaskConfig(Scene, Views)
+	, bAddNaniteRelevance(InSceneRenderer.ShouldRenderNanite())
 	, bAddLightmapDensityCommands(ViewFamily.EngineShowFlags.LightMapDensity&& AllowDebugViewmodes())
 {
 	Tasks.bWaitingAllowed = TaskConfig.Schedule == EVisibilityTaskSchedule::Parallel;
@@ -4320,12 +4460,12 @@ void FVisibilityTaskData::ProcessRenderThreadTasks()
 
 	StartGatherDynamicMeshElements();
 
+	FPrimitiveRange PrimitiveRange;
+	PrimitiveRange.StartIndex = 0u;
+	PrimitiveRange.EndIndex = TaskConfig.NumTestedPrimitives;
+
 	if (TaskConfig.Schedule == EVisibilityTaskSchedule::RenderThread)
 	{
-		FPrimitiveRange PrimitiveRange;
-		PrimitiveRange.StartIndex = 0;
-		PrimitiveRange.EndIndex = Scene.Primitives.Num();
-
 		for (FVisibilityViewPacket& ViewPacket : ViewPackets)
 		{
 			ViewPacket.BeginInitVisibility();
@@ -4361,7 +4501,7 @@ void FVisibilityTaskData::ProcessRenderThreadTasks()
 
 		for (FVisibilityViewPacket& ViewPacket : ViewPackets)
 		{
-			for (FSceneSetBitIterator BitIt(ViewPacket.View.PrimitiveVisibilityMap); BitIt; ++BitIt)
+			for (FSceneSetBitIterator BitIt(ViewPacket.View.PrimitiveVisibilityMap, PrimitiveRange.StartIndex); BitIt.GetIndex() < PrimitiveRange.EndIndex; ++BitIt)
 			{
 				ViewPacket.Relevance.Context->AddPrimitive(BitIt.GetIndex());
 			}
@@ -4409,11 +4549,11 @@ void FVisibilityTaskData::ProcessRenderThreadTasks()
 	Tasks.LightVisibility.Wait();
 	Tasks.FinalizeRelevance.Wait();
 
-	INC_DWORD_STAT_BY(STAT_ProcessedPrimitives, Scene.Primitives.Num() * Views.Num());
+	INC_DWORD_STAT_BY(STAT_ProcessedPrimitives, PrimitiveRange.EndIndex * Views.Num());
 	INC_DWORD_STAT_BY(STAT_CulledPrimitives, TaskConfig.FrustumCull.NumCulledPrimitives);
 	INC_DWORD_STAT_BY(STAT_OccludedPrimitives, TaskConfig.OcclusionCull.NumCulledPrimitives);
 
-	TRACE_COUNTER_SET(Scene_Visibility_NumProcessedPrimitives, Scene.Primitives.Num() * Views.Num());
+	TRACE_COUNTER_SET(Scene_Visibility_NumProcessedPrimitives, PrimitiveRange.EndIndex * Views.Num());
 	TRACE_COUNTER_SET(Scene_Visibility_FrustumCull_NumPrimitivesPerTask, TaskConfig.FrustumCull.NumPrimitivesPerTask);
 	TRACE_COUNTER_SET(Scene_Visibility_FrustumCull_NumCulledPrimitives, TaskConfig.FrustumCull.NumCulledPrimitives);
 	TRACE_COUNTER_SET(Scene_Visibility_OcclusionCull_NumCulledPrimitives, TaskConfig.OcclusionCull.NumCulledPrimitives);
