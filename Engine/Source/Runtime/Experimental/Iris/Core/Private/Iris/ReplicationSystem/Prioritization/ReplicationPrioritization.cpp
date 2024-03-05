@@ -679,7 +679,6 @@ void FReplicationPrioritization::PrioritizeForConnection(uint32 ConnId, FPriorit
 	{
 		PrioParameters.Priorities = ConnInfo.Priorities.GetData();
 		PrioParameters.PrioritizationInfos = NetObjectPrioritizationInfos.GetData();
-		PrioParameters.StateBuffers = NetRefHandleManager->GetReplicatedObjectStateBuffers().GetData();
 		PrioParameters.ConnectionId = ConnId;
 		PrioParameters.View = Connections->GetReplicationView(ConnId);
 	}
@@ -802,7 +801,6 @@ void FReplicationPrioritization::BatchNotifyPrioritizersOfDirtyObjects(FUpdateDi
 	BatchHelper.PrepareBatch(ObjectIndices, ObjectCount, ObjectIndexToPrioritizer.GetData());
 
 	FNetObjectPrioritizerUpdateParams UpdateParameters;
-	UpdateParameters.StateBuffers = NetRefHandleManager->GetReplicatedObjectStateBuffers().GetData();
 	UpdateParameters.PrioritizationInfos = NetObjectPrioritizationInfos.GetData();
 
 	for (const FUpdateDirtyObjectsBatchHelper::FPerPrioritizerInfo& PerPrioritizerInfo : BatchHelper.PerPrioritizerInfos)
