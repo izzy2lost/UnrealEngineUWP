@@ -235,19 +235,18 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 		UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("Generation complete, %d packages dirtied."), NumPackagesDirtied);
 	}
 
-	return bGeneratedAnyComponent;
-}
-
-bool UPCGWorldPartitionBuilder::PostRun(UWorld* World, FPackageSourceControlHelper& PackageHelper, const bool bInRunSuccess)
-{
-	// bInRunSuccess is return value of Run() which is true if any component was scheduled.
-	if (!bInRunSuccess)
+	if (!bGeneratedAnyComponent)
 	{
 		UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("Dirty package detection and save skipped due to trivial run"));
-
-		return true;
+		return false;
 	}
 
+	// TODO: Review the save flow when we have iterative loading.
+	return SaveDirtyPackages(World, PackageHelper);
+}
+
+bool UPCGWorldPartitionBuilder::SaveDirtyPackages(UWorld* World, FPackageSourceControlHelper& PackageHelper)
+{
 	// Check whether an error was thrown while generating components and fail the builder if the ignore argument is not provided.
 	if (bErrorOccurredWhileGenerating)
 	{

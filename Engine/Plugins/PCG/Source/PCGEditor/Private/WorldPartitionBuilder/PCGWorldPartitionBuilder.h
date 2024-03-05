@@ -31,8 +31,10 @@ public:
 
 protected:
 	virtual bool RunInternal(UWorld* World, const FCellInfo& InCellInfo, FPackageSourceControlHelper& PackageHelper) override;
-	virtual bool PostRun(UWorld* World, FPackageSourceControlHelper& PackageHelper, const bool bInRunSuccess) override;
-	virtual bool CanProcessNonPartitionedWorlds() const { return true; }
+	virtual bool CanProcessNonPartitionedWorlds() const override { return true; }
+
+	/** Save all the pending dirty and deleted packages. */
+	virtual bool SaveDirtyPackages(UWorld* World, FPackageSourceControlHelper& PackageHelper);
 
 private:
 	/** The packages dirtied while generating all components. */
