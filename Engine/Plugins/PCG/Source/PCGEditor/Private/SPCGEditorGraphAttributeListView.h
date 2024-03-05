@@ -2,12 +2,14 @@
 
 #pragma once
 
+#include "Data/PCGPointData.h"
 #include "Graph/PCGStackContext.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 
 #include "Misc/TextFilterExpressionEvaluator.h"
 #include "Tasks/Task.h"
+#include "UObject/StrongObjectPtr.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
@@ -260,4 +262,7 @@ private:
 	bool bIsLocked : 1 = false;
 
 	TSharedPtr<FPCGListViewUpdater> CurrentUpdateTask = nullptr;
+
+	/** Used to ensure data collapsed for inspection is kept alive. */
+	TStrongObjectPtr<const UPCGPointData> CollapsedPointData = nullptr;
 };
