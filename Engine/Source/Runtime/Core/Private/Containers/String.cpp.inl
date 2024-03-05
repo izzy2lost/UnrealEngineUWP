@@ -1400,57 +1400,54 @@ int32 UE_STRING_CLASS::ParseIntoArray(TArray<UE_STRING_CLASS>& OutArray, const E
 	OutArray.Reset();
 	const ElementType* Start = Data.GetData();
 	const int32 Length = Len();
-	if (Start)
-	{
-		int32 SubstringBeginIndex = 0;
+	int32 SubstringBeginIndex = 0;
 
 		// Iterate through string.
-		for(int32 i = 0; i < Len();)
+	for(int32 i = 0; i < Length;)
+	{
+		int32 SubstringEndIndex = INDEX_NONE;
+		int32 DelimiterLength = 0;
+
+		// Attempt each delimiter.
+		for(int32 DelimIndex = 0; DelimIndex < NumDelims; ++DelimIndex)
 		{
-			int32 SubstringEndIndex = INDEX_NONE;
-			int32 DelimiterLength = 0;
+			DelimiterLength = TCString<ElementType>::Strlen(DelimArray[DelimIndex]);
 
-			// Attempt each delimiter.
-			for(int32 DelimIndex = 0; DelimIndex < NumDelims; ++DelimIndex)
+			// If we found a delimiter...
+			if (TCString<ElementType>::Strncmp(Start + i, DelimArray[DelimIndex], DelimiterLength) == 0)
 			{
-				DelimiterLength = TCString<ElementType>::Strlen(DelimArray[DelimIndex]);
-
-				// If we found a delimiter...
-				if (TCString<ElementType>::Strncmp(Start + i, DelimArray[DelimIndex], DelimiterLength) == 0)
-				{
-					// Mark the end of the substring.
-					SubstringEndIndex = i;
-					break;
-				}
-			}
-
-			if (SubstringEndIndex != INDEX_NONE)
-			{
-				const int32 SubstringLength = SubstringEndIndex - SubstringBeginIndex;
-				// If we're not culling empty strings or if we are but the string isn't empty anyways...
-				if(!InCullEmpty || SubstringLength != 0)
-				{
-					// ... add new string from substring beginning up to the beginning of this delimiter.
-					OutArray.Add(UE_STRING_CLASS::ConstructFromPtrSize(Start + SubstringBeginIndex, SubstringEndIndex - SubstringBeginIndex));
-				}
-				// Next substring begins at the end of the discovered delimiter.
-				SubstringBeginIndex = SubstringEndIndex + DelimiterLength;
-				i = SubstringBeginIndex;
-			}
-			else
-			{
-				++i;
+				// Mark the end of the substring.
+				SubstringEndIndex = i;
+				break;
 			}
 		}
 
-		// Add any remaining characters after the last delimiter.
-		const int32 SubstringLength = Length - SubstringBeginIndex;
-		// If we're not culling empty strings or if we are but the string isn't empty anyways...
-		if(!InCullEmpty || SubstringLength != 0)
+		if (SubstringEndIndex != INDEX_NONE)
 		{
-			// ... add new string from substring beginning up to the beginning of this delimiter.
-			OutArray.Emplace(TStringView<ElementType>(Start + SubstringBeginIndex, SubstringLength));
+			const int32 SubstringLength = SubstringEndIndex - SubstringBeginIndex;
+			// If we're not culling empty strings or if we are but the string isn't empty anyways...
+			if(!InCullEmpty || SubstringLength != 0)
+			{
+				// ... add new string from substring beginning up to the beginning of this delimiter.
+				OutArray.Add(UE_STRING_CLASS::ConstructFromPtrSize(Start + SubstringBeginIndex, SubstringEndIndex - SubstringBeginIndex));
+			}
+			// Next substring begins at the end of the discovered delimiter.
+			SubstringBeginIndex = SubstringEndIndex + DelimiterLength;
+			i = SubstringBeginIndex;
 		}
+		else
+		{
+			++i;
+		}
+	}
+
+	// Add any remaining characters after the last delimiter.
+	const int32 SubstringLength = Length - SubstringBeginIndex;
+	// If we're not culling empty strings or if we are but the string isn't empty anyways...
+	if(!InCullEmpty || SubstringLength != 0)
+	{
+		// ... add new string from substring beginning up to the beginning of this delimiter.
+		OutArray.Emplace(TStringView<ElementType>(Start + SubstringBeginIndex, SubstringLength));
 	}
 
 	return OutArray.Num();

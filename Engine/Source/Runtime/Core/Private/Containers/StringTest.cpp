@@ -240,6 +240,49 @@ bool FLexTryParseStringTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringParseIntoArrayTest, "System.Core.String.ParseIntoArray", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
+
+bool FStringParseIntoArrayTest::RunTest(const FString& Parameters)
+{
+	FString Empty;
+	FString EmptyButAllocated = TEXT("This|is|a|long|string");
+	EmptyButAllocated.GetCharArray().Reset();
+
+	const TCHAR* Delim[] = { TEXT("|") };
+
+	// Test that an array of 1 delimeter and single delimeters work the same way
+	{
+		TArray<FString> Parsed;
+
+		Parsed.Reset(); FString(TEXT("|"))  .ParseIntoArray(Parsed, Delim[0], /*cull = */true);  TestTrue(TEXT("parse a single delimiter character with a single delimiter, culling empties"),            Parsed == TArray<FString>{});
+		Parsed.Reset(); FString(TEXT("|"))  .ParseIntoArray(Parsed, Delim, 1, /*cull = */true);  TestTrue(TEXT("parse a single delimiter character with an array of 1 delimiter, culling empties"),       Parsed == TArray<FString>{});
+		Parsed.Reset(); FString{}           .ParseIntoArray(Parsed, Delim[0], /*cull = */true);  TestTrue(TEXT("parse an unallocated string with a single delimiter, culling empties"),                   Parsed == TArray<FString>{});
+		Parsed.Reset(); FString{}           .ParseIntoArray(Parsed, Delim, 1, /*cull = */true);  TestTrue(TEXT("parse an unallocated string with an array of 1 delimiter, culling empties"),              Parsed == TArray<FString>{});
+		Parsed.Reset(); EmptyButAllocated   .ParseIntoArray(Parsed, Delim[0], /*cull = */true);  TestTrue(TEXT("parse an allocated empty string with a single delimiter, culling empties"),               Parsed == TArray<FString>{});
+		Parsed.Reset(); EmptyButAllocated   .ParseIntoArray(Parsed, Delim, 1, /*cull = */true);  TestTrue(TEXT("parse an allocated empty string with an array of 1 delimiter, culling empties"),          Parsed == TArray<FString>{});
+		Parsed.Reset(); FString(TEXT("a|")) .ParseIntoArray(Parsed, Delim[0], /*cull = */true);  TestTrue(TEXT("parse a string with a trailing delimiter with a single delimiter, culling empties"),      Parsed == TArray<FString>{TEXT("a")});
+		Parsed.Reset(); FString(TEXT("a|")) .ParseIntoArray(Parsed, Delim, 1, /*cull = */true);  TestTrue(TEXT("parse a string with a trailing delimiter with an array of 1 delimiter, culling empties"), Parsed == TArray<FString>{TEXT("a")});
+		Parsed.Reset(); FString(TEXT("|b")) .ParseIntoArray(Parsed, Delim[0], /*cull = */true);  TestTrue(TEXT("parse a string with a leading delimiter with a single delimiter, culling empties"),       Parsed == TArray<FString>{TEXT("b")});
+		Parsed.Reset(); FString(TEXT("|b")) .ParseIntoArray(Parsed, Delim, 1, /*cull = */true);  TestTrue(TEXT("parse a string with a leading delimiter with an array of 1 delimiter, culling empties"),  Parsed == TArray<FString>{TEXT("b")});
+		Parsed.Reset(); FString(TEXT("a|b")).ParseIntoArray(Parsed, Delim[0], /*cull = */true);  TestTrue(TEXT("parse a string with a middle delimiter with a single delimiter, culling empties"),        Parsed == TArray<FString>{TEXT("a"), TEXT("b")});
+		Parsed.Reset(); FString(TEXT("a|b")).ParseIntoArray(Parsed, Delim, 1, /*cull = */true);  TestTrue(TEXT("parse a string with a middle delimiter with an array of 1 delimiter, culling empties"),   Parsed == TArray<FString>{TEXT("a"), TEXT("b")});
+		Parsed.Reset(); FString(TEXT("|"))  .ParseIntoArray(Parsed, Delim[0], /*cull = */false); TestTrue(TEXT("parse a single delimiter character with a single delimiter, keeping empties"),            Parsed == TArray<FString>{TEXT(""), TEXT("")});
+		Parsed.Reset(); FString(TEXT("|"))  .ParseIntoArray(Parsed, Delim, 1, /*cull = */false); TestTrue(TEXT("parse a single delimiter character with an array of 1 delimiter, keeping empties"),       Parsed == TArray<FString>{TEXT(""), TEXT("")});
+		Parsed.Reset(); FString{}           .ParseIntoArray(Parsed, Delim[0], /*cull = */false); TestTrue(TEXT("parse an unallocated string with a single delimiter, keeping empties"),                   Parsed == TArray<FString>{TEXT("")});
+		Parsed.Reset(); FString{}           .ParseIntoArray(Parsed, Delim, 1, /*cull = */false); TestTrue(TEXT("parse an unallocated string with an array of 1 delimiter, keeping empties"),              Parsed == TArray<FString>{TEXT("")});
+		Parsed.Reset(); EmptyButAllocated   .ParseIntoArray(Parsed, Delim[0], /*cull = */false); TestTrue(TEXT("parse an allocated empty string with a single delimiter, keeping empties"),               Parsed == TArray<FString>{TEXT("")});
+		Parsed.Reset(); EmptyButAllocated   .ParseIntoArray(Parsed, Delim, 1, /*cull = */false); TestTrue(TEXT("parse an allocated empty string with an array of 1 delimiter, keeping empties"),          Parsed == TArray<FString>{TEXT("")});
+		Parsed.Reset(); FString(TEXT("a|")) .ParseIntoArray(Parsed, Delim[0], /*cull = */false); TestTrue(TEXT("parse a string with a trailing delimiter with a single delimiter, keeping empties"),      Parsed == TArray<FString>{TEXT("a"), TEXT("")});
+		Parsed.Reset(); FString(TEXT("a|")) .ParseIntoArray(Parsed, Delim, 1, /*cull = */false); TestTrue(TEXT("parse a string with a trailing delimiter with an array of 1 delimiter, keeping empties"), Parsed == TArray<FString>{TEXT("a"), TEXT("")});
+		Parsed.Reset(); FString(TEXT("|b")) .ParseIntoArray(Parsed, Delim[0], /*cull = */false); TestTrue(TEXT("parse a string with a leading delimiter with a single delimiter, keeping empties"),       Parsed == TArray<FString>{TEXT(""), TEXT("b")});
+		Parsed.Reset(); FString(TEXT("|b")) .ParseIntoArray(Parsed, Delim, 1, /*cull = */false); TestTrue(TEXT("parse a string with a leading delimiter with an array of 1 delimiter, keeping empties"),  Parsed == TArray<FString>{TEXT(""), TEXT("b")});
+		Parsed.Reset(); FString(TEXT("a|b")).ParseIntoArray(Parsed, Delim[0], /*cull = */false); TestTrue(TEXT("parse a string with a middle delimiter with a single delimiter, keeping empties"),        Parsed == TArray<FString>{TEXT("a"), TEXT("b")});
+		Parsed.Reset(); FString(TEXT("a|b")).ParseIntoArray(Parsed, Delim, 1, /*cull = */false); TestTrue(TEXT("parse a string with a middle delimiter with an array of 1 delimiter, keeping empties"),   Parsed == TArray<FString>{TEXT("a"), TEXT("b")});
+	}
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStringSubstringTest, "System.Core.String.Substring", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 bool FStringSubstringTest::RunTest(const FString& Parameters)
 {
