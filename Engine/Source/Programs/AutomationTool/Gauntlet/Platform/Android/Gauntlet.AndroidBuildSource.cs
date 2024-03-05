@@ -30,6 +30,8 @@ namespace Gauntlet
 
 		public UnrealTargetPlatform Platform { get { return UnrealTargetPlatform.Android; } }
 
+		public bool SupportsAdditionalFileCopy => true;
+
 		public bool Is32Bit { get; protected set; }
 
 		public bool UsesExternalFilesDir { get; protected set; }

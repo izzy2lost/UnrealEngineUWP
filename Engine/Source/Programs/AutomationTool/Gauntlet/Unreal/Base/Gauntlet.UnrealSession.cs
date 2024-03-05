@@ -1689,7 +1689,12 @@ namespace Gauntlet
 					}
 
 					Device.CleanArtifacts();
-					Device.CopyAdditionalFiles(AppConfig.FilesToCopy);
+
+					if(AppConfig.Build.SupportsAdditionalFileCopy)
+					{
+						Device.CopyAdditionalFiles(AppConfig.FilesToCopy);
+					}
+
 					Role.ConfigureDevice?.Invoke(Device);
 				}
 				catch(Exception Ex)

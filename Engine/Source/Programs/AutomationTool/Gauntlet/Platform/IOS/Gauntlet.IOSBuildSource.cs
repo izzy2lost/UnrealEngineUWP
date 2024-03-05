@@ -30,6 +30,8 @@ namespace Gauntlet
 
 		public UnrealTargetPlatform Platform { get { return UnrealTargetPlatform.IOS; } }
 
+		public bool SupportsAdditionalFileCopy { get; }
+
 		public IOSBuild(UnrealTargetConfiguration InConfig, string InPackageName, string InIPAPath, Dictionary<string, string> InFilesToInstall, BuildFlags InFlags)
 		{
 			Configuration = InConfig;
@@ -37,6 +39,7 @@ namespace Gauntlet
 			SourceIPAPath = InIPAPath;
 			FilesToInstall = InFilesToInstall;
 			Flags = InFlags;
+			SupportsAdditionalFileCopy = true;
 		}
 
 		public bool CanSupportRole(UnrealTargetRole RoleType)
