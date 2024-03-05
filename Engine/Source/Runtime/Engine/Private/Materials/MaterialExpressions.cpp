@@ -15084,7 +15084,7 @@ void UMaterialFunction::PostLoad()
 
 		if (!bAllExpressionsLoadedCorrectly)
 		{
-			UE_LOG(LogMaterial, Warning, TEXT("Some expression in Material Function %s failed to load correctly. This will cause any material using this MF to fail translation. Please check open affected Material Function, make sure its expression graph is valid and resave it."), *GetFullName());
+			UE_LOG(LogMaterial, Log, TEXT("Some expression in Material Function %s failed to load correctly. This will cause any material using this MF to fail translation. Please check open affected Material Function, make sure its expression graph is valid and resave it."), *GetFullName());
 			
 			// Dirty this function by deterministically changing its StateId.
 			static FGuid NotAllExpressionsLoadedCorrectlyToken(TEXT("6B9D300E-ED9D-4E4A-A141-05DE059B5704"));
