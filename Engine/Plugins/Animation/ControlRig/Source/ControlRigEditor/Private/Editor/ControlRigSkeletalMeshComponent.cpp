@@ -99,6 +99,13 @@ void UControlRigSkeletalMeshComponent::RebuildDebugDrawSkeleton()
 			TArray<FRigBoneElement*> BoneElements = Hierarchy->GetBones(true);
 			for(FRigBoneElement* BoneElement : BoneElements)
 			{
+				AddedBoneMap.FindOrAdd(BoneElement->GetFName(), DebugDrawBones.Num());
+				DebugDrawBones.Add(DebugDrawBones.Num());
+				DebugDrawBoneIndexInHierarchy.Add(BoneElement->GetIndex());
+			}
+
+			for(FRigBoneElement* BoneElement : BoneElements)
+			{
 				const int32 Index = BoneElement->GetIndex();
 
 				FName ParentName = NAME_None;
@@ -134,10 +141,6 @@ void UControlRigSkeletalMeshComponent::RebuildDebugDrawSkeleton()
 				NewMeshBoneInfo.ParentIndex = ParentIndex; 
 				// give ref pose here
 				RefSkelModifier.Add(NewMeshBoneInfo, Hierarchy->GetInitialGlobalTransform(Index), true);
-
-				AddedBoneMap.FindOrAdd(BoneElement->GetFName(), DebugDrawBones.Num());
-				DebugDrawBones.Add(DebugDrawBones.Num());
-				DebugDrawBoneIndexInHierarchy.Add(BoneElement->GetIndex());
 			}
 		}
 	}
