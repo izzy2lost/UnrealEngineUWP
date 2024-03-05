@@ -496,6 +496,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		UE4.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_gun", "hand_r");
 		UE4.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_l", "hand_l");
 		UE4.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_r", "hand_r");
+		// exclude feet from auto-pose
+		UE4.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("foot_l");
+		UE4.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("foot_r");
 	}
 
 	// UE5 Mannequin
@@ -556,6 +559,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		UE5.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_gun", "hand_r");
 		UE5.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_l", "hand_l");
 		UE5.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_r", "hand_r");
+		// exclude feet from auto-pose
+		UE5.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("foot_l");
+		UE5.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("foot_r");
 	}
 	
 	// Daz 3d
@@ -626,6 +632,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		Daz3d.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("lMetatarsals"), true);
 		Daz3d.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("rMetatarsals"), true);
 		Daz3d.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("pelvis"), true);
+		// exclude feet from auto-pose
+		Daz3d.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("lFoot");
+		Daz3d.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("rFoot");
 	}
 
 	// Mixamo
@@ -668,6 +677,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		Mixamo.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("RightLeg"), EPreferredAxis::PositiveX);
 		Mixamo.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("LeftForeArm"), EPreferredAxis::PositiveY);
 		Mixamo.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("RightForeArm"), EPreferredAxis::NegativeY);
+		// exclude feet from auto-pose
+		Mixamo.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("LeftFoot");
+		Mixamo.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("RightFoot");
 	}
 	
 	// Reallusions Character Creator 4
@@ -722,6 +734,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		CC4.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("L_Forearm"), EPreferredAxis::PositiveX);
 		CC4.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("R_Forearm"), EPreferredAxis::PositiveX);
 		CC4.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("Pelvis"), true);
+		// exclude feet from auto-pose
+		CC4.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("CC_Base_L_Foot");
+		CC4.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("CC_Base_R_Foot");
 	}
 
 	// Xsens
@@ -765,6 +780,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		Xsens.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("RightLeg"), EPreferredAxis::PositiveX);
 		Xsens.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("LeftForeArm"), EPreferredAxis::PositiveY);
 		Xsens.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("RightForeArm"), EPreferredAxis::NegativeY);
+		// exclude feet from auto-pose
+		Xsens.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("LeftFoot");
+		Xsens.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("RightFoot");
 	}
 	
 	// mGear
@@ -817,6 +835,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		mGear.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("arm_L0_lowerarm_jnt"), EPreferredAxis::PositiveZ);
 		mGear.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("arm_R0_lowerarm_jnt"), EPreferredAxis::PositiveZ);
 		mGear.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("spine_C0_05_jnt"), true);
+		// exclude feet from auto-pose
+		mGear.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("leg_L0_foot_jnt");
+		mGear.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("leg_R0_foot_jnt");
 	}
 	
 	// Motionbuilder / Human IK
@@ -860,6 +881,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		HumanIK.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("LeftForeArm"), EPreferredAxis::PositiveY);
 		HumanIK.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("RightForeArm"), EPreferredAxis::PositiveY);
 		HumanIK.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("Spine3"), true);
+		// exclude feet from auto-pose
+		HumanIK.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("LeftFoot");
+		HumanIK.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("RightFoot");
 	}
 
 	// Vicon
@@ -907,6 +931,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		Vicon.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("LeftForeArm"), EPreferredAxis::NegativeX);
 		Vicon.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("RightForeArm"), EPreferredAxis::NegativeX);
 		Vicon.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("Spine3"), true);
+		// exclude feet from auto-pose
+		Vicon.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("LeftFoot");
+		Vicon.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("RightFoot");
 	}
 
 	// Optitrack / Motive
@@ -940,6 +967,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		Optitrak.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("calf_r"), EPreferredAxis::NegativeY);
 		Optitrak.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("lowerarm_l"), EPreferredAxis::PositiveZ);
 		Optitrak.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("lowerarm_r"), EPreferredAxis::NegativeZ);
+		// exclude feet from auto-pose
+		Optitrak.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("foot_l");
+		Optitrak.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("foot_r");
 	}
 
 	// Sony Mocopi
@@ -973,6 +1003,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		Mocopi.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("r_low_arm"), EPreferredAxis::PositiveZ);
 		Mocopi.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("torso_6"), true);
 		Mocopi.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("torso_7"), true);
+		// exclude feet from auto-pose
+		Mocopi.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("l_foot");
+		Mocopi.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("r_foot");
 	}
 	
 	// Advanced skeleton
@@ -1029,6 +1062,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		AdvancedSkeleton.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("ElbowPart2_R"), true);
 		AdvancedSkeleton.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("HipPart1_R"), true);
 		AdvancedSkeleton.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("HipPart2_R"), true);
+		// exclude feet from auto-pose
+		AdvancedSkeleton.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("Ankle_L");
+		AdvancedSkeleton.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("Ankle_R");
 	}
 	
 	// MoveAI
@@ -1080,6 +1116,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		MoveOne.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("LeftForeArm"), EPreferredAxis::PositiveY);
 		MoveOne.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("RightForeArm"), EPreferredAxis::PositiveY);
 		MoveOne.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("Spine3"), true);
+		// exclude feet from auto-pose
+		MoveOne.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("LeftFoot");
+		MoveOne.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("RightFoot");
 	}
 
 	// Qualisys
@@ -1133,6 +1172,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		Qualisys.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("LeftForeArm"), EPreferredAxis::PositiveY);
 		Qualisys.AutoRetargetDefinition.BoneSettingsForIK.SetPreferredAxis(FName("RightForeArm"), EPreferredAxis::PositiveY);
 		Qualisys.AutoRetargetDefinition.BoneSettingsForIK.SetExcluded(FName("Spine2"), true);
+		// exclude feet from auto-pose
+		Qualisys.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("LeftFoot");
+		Qualisys.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("RightFoot");
 	}
 	
 	// FN skeleton
@@ -1193,6 +1235,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		FNHuman.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_gun", "hand_r");
 		FNHuman.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_l", "hand_l");
 		FNHuman.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_r", "hand_r");
+		// exclude feet from auto-pose
+		FNHuman.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("foot_l");
+		FNHuman.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("foot_r");
 	}
 
 	// FN Quadruped
@@ -1366,6 +1411,9 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		FNBiped.AutoRetargetDefinition.BonesToPin.AddBoneToPin("IK_Hand_R", "R_BipedArm_A_Wrist_Jnt");
 		FNBiped.AutoRetargetDefinition.BonesToPin.AddBoneToPin("IK_Hand_Prediciton_L", "L_BipedArm_A_Wrist_Jnt");
 		FNBiped.AutoRetargetDefinition.BonesToPin.AddBoneToPin("IK_Hand_Prediciton_R", "R_BipedArm_A_Wrist_Jnt");
+		// exclude feet from auto-pose
+		FNBiped.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("L_BipedLeg_A_Ankle_Jnt");
+		FNBiped.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("R_BipedLeg_A_Ankle_Jnt");
 	}
 }
 

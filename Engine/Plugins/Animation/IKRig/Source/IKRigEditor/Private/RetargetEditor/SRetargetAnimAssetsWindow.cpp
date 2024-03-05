@@ -515,8 +515,11 @@ void SRetargetPoseViewport::Construct(const FArguments& InArgs)
 	SetRetargetAsset(BatchContext->IKRetargetAsset);
 }
 
-void SRetargetPoseViewport::SetSkeletalMesh(USkeletalMesh* InSkeletalMesh, ERetargetSourceOrTarget SourceOrTarget) const
+void SRetargetPoseViewport::SetSkeletalMesh(USkeletalMesh* InSkeletalMesh, ERetargetSourceOrTarget SourceOrTarget)
 {
+	AnimThatWasPlaying = SourceAnimInstance->GetAnimationAsset();
+	TimeWhenPaused = SourceAnimInstance->GetCurrentTime();
+	
 	const TObjectPtr<UDebugSkelMeshComponent> Component = SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceComponent : TargetComponent;
 	Component->SetSkeletalMesh(InSkeletalMesh);
 	Component->EnablePreview(true, nullptr);
@@ -529,6 +532,13 @@ void SRetargetPoseViewport::SetSkeletalMesh(USkeletalMesh* InSkeletalMesh, EReta
 	const FBoxSphereBounds Bounds = SourceComponent->Bounds + TargetComponent->Bounds;
 	Client->FocusViewportOnBox(Bounds.GetBox(), true);
 	Client->Invalidate();
+
+	if (AnimThatWasPlaying)
+	{
+		SourceAnimInstance->SetAnimationAsset(AnimThatWasPlaying);
+		SourceAnimInstance->SetPlaying(true);
+		SourceAnimInstance->SetPosition(TimeWhenPaused);
+	}
 }
 
 void SRetargetPoseViewport::SetRetargetAsset(UIKRetargeter* RetargetAsset)
@@ -665,6 +675,18 @@ void FProceduralRetargetAssets::AutoGenerateIKRetargetAsset()
 	const FName TargetRetargetPoseName = RetargetController->GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Target);
 	RetargetController->ResetRetargetPose(TargetRetargetPoseName, TArray<FName>() /* all bones if empty */, ERetargetSourceOrTarget::Target);
 	RetargetController->AutoAlignAllBones(ERetargetSourceOrTarget::Target);
+
+	// templates records a list of bones to exclude from the auto pose, so we reset them now; immediately after auto-aligning the whole skeleton.
+	// by default this is used on biped feet where we want the feet to remain at their flat / default retarget pose
+	const TArray<FName>& BonesToExcludeFromAutoPose = TargetCharacterizationResults.AutoRetargetDefinition.BonesToExcludeFromAutoPose;
+	if (!BonesToExcludeFromAutoPose.IsEmpty())
+	{
+		const FName CurrentPose = RetargetController->GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Target);
+		RetargetController->ResetRetargetPose(
+			CurrentPose,
+			TargetCharacterizationResults.AutoRetargetDefinition.BonesToExcludeFromAutoPose,
+			ERetargetSourceOrTarget::Target);
+	}
 	
 	// disable IK pass because auto-IK is not yet robust enough, still useful for manual editing though
 	FRetargetGlobalSettings GlobalSettings = RetargetController->GetGlobalSettings();
@@ -674,8 +696,28 @@ void FProceduralRetargetAssets::AutoGenerateIKRetargetAsset()
 	// clear the op stack and regenerate it
 	RetargetController->RemoveAllOps();
 	
-	// add a root motion generator
-	RetargetController->AddRetargetOp(URootMotionGeneratorOp::StaticClass());
+	// add a root motion generator (but only if the skeleton has a root bone separate from the pelvis/retarget root)
+	const FName TargetSkeletonRoot = TargetIKRig->GetSkeleton().BoneNames[0];
+	const FName TargetPelvis = TargetCharacterizationResults.AutoRetargetDefinition.RetargetDefinition.RootBone;
+	if (TargetSkeletonRoot != TargetPelvis)
+	{
+		// add a root motion op to the post retarget op stack
+		const int32 RootOpIndex = RetargetController->AddRetargetOp(URootMotionGeneratorOp::StaticClass());
+
+		// if the source does not have a dedicated root bone, configure the root motion to be generated from the pelvis motion on target
+		const FName SourceSkeletonRoot = SourceIKRig->GetSkeleton().BoneNames[0];
+		const FName SourcePelvis = SourceCharacterizationResults.AutoRetargetDefinition.RetargetDefinition.RootBone;
+		if (SourceSkeletonRoot == SourcePelvis)
+		{
+			if (URootMotionGeneratorOp* RootOp = Cast<URootMotionGeneratorOp>(RetargetController->GetRetargetOpAtIndex(RootOpIndex)))
+			{
+				RootOp->RootMotionSource = ERootMotionSource::GenerateFromTargetPelvis;
+				RootOp->RootHeightSource = ERootMotionHeightSource::SnapToGround;
+				RootOp->bRotateWithPelvis = true;
+				RootOp->bMaintainOffsetFromPelvis = true;
+			}
+		}
+	}
 	
 	// setup a "Pin Bone Op" to pin IK bones to the new target locations
 	const int32 PinBonesOpIndex = RetargetController->AddRetargetOp(UPinBoneOp::StaticClass());
