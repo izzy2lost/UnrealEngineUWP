@@ -435,7 +435,7 @@ private:
 
 	void CommitBatchRecord(const FBatchRecord& BatchRecord);
 
-	void ScheduleDependentObjects(uint32 Index, float ParentPriority, TArray<float>& LocalPriorities, FScheduleObjectInfo* ScheduledObjectIndices, uint32& OutScheduledObjectCount);
+	void ScheduleDependentObjects(uint32 Index, float ParentPriority, float* LocalPriorities, FScheduleObjectInfo* ScheduledObjectIndices, uint32& OutScheduledObjectCount);
 
 	uint32 ScheduleObjects(FScheduleObjectInfo* ScheduledObjectIndices);
 	
@@ -527,9 +527,6 @@ private:
 
 	void MarkObjectDirty(FInternalNetRefIndex InternalIndex, const char* Caller);
 
-	/* Grow internal buffers to support a given index. */
-	void OnLargestIndexIncrease(uint32 InternalIndex);
-
 private:
 	// Replication parameters
 	FReplicationParameters Parameters;
@@ -557,8 +554,6 @@ private:
 	
 	// Handles logic for all attachments to objects.
 	FNetObjectAttachmentsWriter Attachments;
-
-	FDelegateHandle OnLargestIndexIncreaseHandle;
 
 	// Cached internal systems
 	FReplicationSystemInternal* ReplicationSystemInternal = nullptr;

@@ -63,8 +63,6 @@ public:
 		//$IRIS TODO: These need documentation
 		UReplicationBridge* ReplicationBridge = nullptr;
 		uint32 MaxReplicatedObjectCount = 65535U;
-		uint32 PreAllocatedReplicatedObjectCount = 65535U;
-		uint32 MaxReplicatedWriterObjectCount = 65535U;
 		uint32 MaxDeltaCompressedObjectCount = 2048U;
 		uint32 MaxNetObjectGroupCount = 2048U;
 		bool bIsServer = false;
