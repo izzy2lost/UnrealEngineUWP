@@ -9,10 +9,10 @@ FMidiVoiceGeneratorBase::FMidiVoiceGeneratorBase()
 {
 	FScopeLock Lock(&GeneratorIdLock);
 	IdBits = NextGeneratorId++;
-	if (NextGeneratorId >= (1L << kIdWidth))
+	if (NextGeneratorId >= (1L << IdWidth))
 	{
 		NextGeneratorId = 1;
 	}
-	IdBits <<= (32 - kIdWidth);
+	IdBits <<= (32 - IdWidth);
 }
 

@@ -364,6 +364,7 @@ namespace HarmonixMetasound
 	void FMidiPlayerOperator::Execute()
 	{
 		MidiOutPin->PrepareBlock();
+		
 		MidiClockOut->PrepareBlock();
 
 		if (CurrentMidiFile != MidiAssetInPin->GetMidiProxy())

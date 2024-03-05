@@ -9,6 +9,42 @@ namespace Harmonix::Midi::Ops
 		HarmonixMetasound::FMidiStream& OutStream,
 		const FIncludeNotePredicate& Predicate)
 	{
+		TrackNotes(InStream, Predicate);
+		
+		// For all of the tracked notes, unstick ones that no longer pass the filter
+		for (auto It = ActiveNotes.CreateIterator(); It; ++It)
+		{
+			if (!Predicate(*It))
+			{
+				// Send a note off
+				check(It->MidiMessage.IsNoteOn()); // shouldn't happen, yell for help
+				const uint8 Channel = It->MidiMessage.GetStdChannel();
+				const uint8 NoteNumber = It->MidiMessage.GetStdData1();
+				HarmonixMetasound::FMidiStreamEvent NoteOffEvent{ It->GetVoiceId().GetGeneratorId(), FMidiMsg::CreateNoteOff(Channel, NoteNumber) };
+				OutStream.InsertMidiEvent(NoteOffEvent);
+
+				// Stop tracking this note on this track
+				It.RemoveCurrent();
+			}
+		}
+	}
+
+	void FStuckNoteGuard::UnstickNotes(const HarmonixMetasound::FMidiStream& StreamToCompare, const FUnstickNoteFn& UnstickNoteFn)
+	{
+		TrackNotes(StreamToCompare, [](const HarmonixMetasound::FMidiStreamEvent&) { return true; });
+		
+		for (auto It = ActiveNotes.CreateIterator(); It; ++It)
+		{
+			if (!StreamToCompare.NoteIsActive(*It))
+			{
+				UnstickNoteFn(*It);
+				It.RemoveCurrent();
+			}
+		}
+	}
+
+	void FStuckNoteGuard::TrackNotes(const HarmonixMetasound::FMidiStream& InStream, const FIncludeNotePredicate& Predicate)
+	{
 		for (const HarmonixMetasound::FMidiStreamEvent& Event : InStream.GetEventsInBlock())
 		{
 			// If this is a note on which passes the filter, track it
@@ -42,24 +78,6 @@ namespace Harmonix::Midi::Ops
 			else if (Event.MidiMessage.IsAllNotesOff() || Event.MidiMessage.IsAllNotesKill())
 			{
 				ActiveNotes.Reset();
-			}
-		}
-		
-		// For all of the tracked notes, unstick ones that no longer pass the filter
-		for (auto It = ActiveNotes.CreateIterator(); It; ++It)
-		{
-			if (!Predicate(*It))
-			{
-				// Send a note off
-				check(It->MidiMessage.IsNoteOn()); // shouldn't happen, yell for help
-				const uint8 Channel = It->MidiMessage.GetStdChannel();
-				const uint8 NoteNumber = It->MidiMessage.GetStdData1();
-				HarmonixMetasound::FMidiStreamEvent NoteOffEvent{ static_cast<uint32>(0), FMidiMsg::CreateNoteOff(Channel, NoteNumber) };
-				NoteOffEvent.SetVoiceId(It->GetVoiceId());
-				OutStream.InsertMidiEvent(NoteOffEvent);
-
-				// Stop tracking this note on this track
-				It.RemoveCurrent();
 			}
 		}
 	}

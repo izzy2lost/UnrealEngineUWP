@@ -187,8 +187,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode
 		void Execute()
 		{
 			ApplyParameters();
-
-			Outputs.MidiStream->PrepareBlock();
+			
 			PulseGenerator.Process(*Outputs.MidiStream);
 		}
 	private:

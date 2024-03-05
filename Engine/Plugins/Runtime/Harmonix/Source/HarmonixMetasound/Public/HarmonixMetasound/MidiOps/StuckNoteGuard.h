@@ -22,7 +22,18 @@ namespace Harmonix::Midi::Ops
 		 */
 		void Process(const HarmonixMetasound::FMidiStream& InStream, HarmonixMetasound::FMidiStream& OutStream, const FIncludeNotePredicate& Predicate);
 
+		using FUnstickNoteFn = TFunction<void(const HarmonixMetasound::FMidiStreamEvent&)>;
+
+		/**
+		 * If any active notes we're tracking are no longer present in the input stream, trigger a function so the caller can turn them off.
+		 * @param StreamToCompare The stream to use to check whether an active note has disappeared
+		 * @param UnstickNoteFn The function to call when an active note has disappeared from the incoming stream
+		 */
+		void UnstickNotes(const HarmonixMetasound::FMidiStream& StreamToCompare, const FUnstickNoteFn& UnstickNoteFn);
+
 	private:
+		void TrackNotes(const HarmonixMetasound::FMidiStream& InStream, const FIncludeNotePredicate& Predicate);
+		
 		TArray<HarmonixMetasound::FMidiStreamEvent> ActiveNotes;
 	};
 }

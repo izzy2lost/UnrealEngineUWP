@@ -23,34 +23,15 @@ namespace HarmonixMetasound
 		int32        CurrentMidiTick        = 0;
 		FMidiMsg     MidiMessage;
 
-		FMidiStreamEvent(const FMidiVoiceGeneratorBase* Owner, const FMidiMsg& Message)
-			: MidiMessage(Message)
-		{
-			VoiceId = FMidiVoiceId(Owner, MidiMessage);
-		}
+		FMidiStreamEvent(const FMidiVoiceGeneratorBase* Owner, const FMidiMsg& Message);
 
-		FMidiStreamEvent(uint32 OwnerId, const FMidiMsg& Message)
-			: MidiMessage(Message)
-		{
-			VoiceId = FMidiVoiceId(OwnerId, MidiMessage);
-		}
-
-		// reassign owner with a new generator
-		void ReassignOwner(const FMidiVoiceGeneratorBase* Owner)
-		{
-			VoiceId.ReassignGenerator(Owner);
-		}
-
-		// reassign owner with a new generator id
-		void ReassignOwner(uint32 OwnerId)
-		{
-			VoiceId.ReassignGenerator(OwnerId);
-		}
+		FMidiStreamEvent(const uint32 OwnerId, const FMidiMsg& Message);
 
 		FMidiVoiceId GetVoiceId() const { return VoiceId; }
-		void SetVoiceId(FMidiVoiceId InVoiceId) { VoiceId = InVoiceId; }
 
 	private:
+		friend class FMidiStream;
+		
 		FMidiVoiceId VoiceId;
 	};
 
@@ -105,35 +86,25 @@ namespace HarmonixMetasound
 			const FEventFilter& Filter = NoOpFilter,
 			const FEventTransformer& Transformer = NoOpTransformer);
 
+		bool NoteIsActive(const FMidiStreamEvent& Event) const;
+
 	private:
 		FMidiFileProxyPtr MidiFileSourceOfEvents;
 		int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt;
 
 		TArray<FMidiStreamEvent> EventsInBlock;
 
-		friend class FMidiVoiceTracker;
-		void UpdateActiveVoice(const FMidiStreamEvent& Event);
-		TSet<FMidiVoiceId> ActiveVoices;
-
 		TWeakPtr<const FMidiClock, ESPMode::NotThreadSafe> Clock;
 
 		// Map to handle re-mapping merged MIDI events, which helps to disambiguate split/transposed notes
 		TMap<uint32, FMidiVoiceGeneratorBase> GeneratorMap;
+
+		void TrackNote(const FMidiStreamEvent& Event);
+		TArray<FMidiStreamEvent> ActiveNotes;
 	};
 
 	// Declare aliases IN the namespace...
 	DECLARE_METASOUND_DATA_REFERENCE_ALIAS_TYPES(FMidiStream, FMidiStreamTypeInfo, FMidiStreamReadRef, FMidiStreamWriteRef)
-
-	class HARMONIXMETASOUND_API FMidiVoiceTracker
-	{
-	public:
-		using FKillVoiceFn = TFunctionRef<void(const FMidiVoiceId&)>;
-
-		void Process(const FMidiStream& MidiStream, const FKillVoiceFn& KillVoiceFn);
-
-	private:
-		TSet<FMidiVoiceId> ActiveVoices;
-	};
 }
 
 // Declare reference types OUT of the namespace...

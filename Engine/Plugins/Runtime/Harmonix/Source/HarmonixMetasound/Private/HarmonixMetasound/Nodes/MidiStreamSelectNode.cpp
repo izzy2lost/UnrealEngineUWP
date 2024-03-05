@@ -37,8 +37,6 @@ namespace HarmonixMetasound
 
 		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override;
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override;
-		virtual FDataReferenceCollection GetInputs() const override;
-		virtual FDataReferenceCollection GetOutputs() const override;
 
 		void Execute();
 		void Reset(const FResetParams& ResetParams);
@@ -175,22 +173,6 @@ namespace HarmonixMetasound
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiStream), MidiStreamOutPin);
 	}
 
-	FDataReferenceCollection FMidiStreamSelectOperator::GetInputs() const
-	{
-		// This should never be called. Bind(...) is called instead. This method
-		// exists as a stop-gap until the API can be deprecated and removed.
-		checkNoEntry();
-		return {};
-	}
-
-	FDataReferenceCollection FMidiStreamSelectOperator::GetOutputs() const
-	{
-		// This should never be called. Bind(...) is called instead. This method
-		// exists as a stop-gap until the API can be deprecated and removed.
-		checkNoEntry();
-		return {};
-	}
-
 	void FMidiStreamSelectOperator::Execute()
 	{
 		MidiStreamOutPin->PrepareBlock();
@@ -245,12 +227,11 @@ namespace HarmonixMetasound
 					uint8 MidiCh;
 					uint8 MidiNote;
 					VoiceId.GetChannelAndNote(MidiCh, MidiNote);
-					FMidiStreamEvent MidiEvent(0u, FMidiMsg::CreateNoteOff(MidiCh, MidiNote)); // Do we need a note? VoiceId should handle the note off
+					FMidiStreamEvent MidiEvent(VoiceId, FMidiMsg::CreateNoteOff(MidiCh, MidiNote)); // Do we need a note? VoiceId should handle the note off
 					MidiEvent.BlockSampleFrameIndex = 0;
 					MidiEvent.AuthoredMidiTick = 0;
 					MidiEvent.CurrentMidiTick = 0;
 					MidiEvent.TrackIndex = 1;
-					MidiEvent.SetVoiceId(VoiceId);
 					MidiStreamOutPin->InsertNoteOffEventOrCancelPendingNoteOn(MidiEvent);
 				}
 				PlayingVoices.Empty();

@@ -148,7 +148,6 @@ namespace HarmonixMetasound
 	{
 		MidiStreamOutPin->PrepareBlock();
 		FMidiStream::Merge(*MidiStreamAInPin, *MidiStreamBInPin, *MidiStreamOutPin);
-		
 	}
 }
 

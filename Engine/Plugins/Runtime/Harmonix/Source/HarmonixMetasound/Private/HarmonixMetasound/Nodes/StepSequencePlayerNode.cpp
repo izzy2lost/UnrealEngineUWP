@@ -62,6 +62,15 @@ namespace HarmonixMetasound
 
 	private:
 		void Init();
+
+		void PrepareMidiOutIfNeeded()
+		{
+			if (bNeedsMidiOutClear)
+			{
+				MidiOutPin->PrepareBlock();
+				bNeedsMidiOutClear = false;
+			}
+		}
 		
 		//** INPUTS
 		FMidiStepSequenceAssetReadRef SequenceAssetInPin;
@@ -327,11 +336,7 @@ namespace HarmonixMetasound
 	{
 		// If no midi cursor callbacks happened we still have to 
 		// remove old midi events from last block...
-		if (bNeedsMidiOutClear)
-		{
-			MidiOutPin->PrepareBlock();
-			bNeedsMidiOutClear = false;
-		}
+		PrepareMidiOutIfNeeded();
 
 		// if we have no sequence table there is nothing to do. 
 		// Make sure the notes are all off and return.
@@ -472,11 +477,7 @@ namespace HarmonixMetasound
 
 	void FStepSequencePlayerOperator::SeekThruTick(int32 Tick)
 	{
-		if (bNeedsMidiOutClear)
-		{
-			MidiOutPin->PrepareBlock();
-			bNeedsMidiOutClear = false;
-		}
+		PrepareMidiOutIfNeeded();
 
 		int32 BlockFrame = MidiClockInPin->GetCurrentBlockFrameIndex();
 		ProcessedThruTick = FMath::Max(-1, Tick);
@@ -570,11 +571,7 @@ namespace HarmonixMetasound
 			return;
 		}
 
-		if (bNeedsMidiOutClear)
-		{
-			MidiOutPin->PrepareBlock();
-			bNeedsMidiOutClear = false;
-		}
+		PrepareMidiOutIfNeeded();
 
 		// Read input pins
 		const int32 CurrentMaxColumns = *MaxColumnsInPin;
@@ -773,12 +770,11 @@ namespace HarmonixMetasound
 						}
 
 						// note off!
-						FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateNoteOff(MidiCh, SequenceTable->Notes[i].NoteNumber + AdditionalOctaveNotes));
+						FMidiStreamEvent MidiEvent(CurrentCellNotes[i].GetGeneratorId(), FMidiMsg::CreateNoteOff(MidiCh, SequenceTable->Notes[i].NoteNumber + AdditionalOctaveNotes));
 						MidiEvent.BlockSampleFrameIndex = BlockFrameIndex;
 						MidiEvent.AuthoredMidiTick = ProcessedThruTick;
 						MidiEvent.CurrentMidiTick = ProcessedThruTick;
 						MidiEvent.TrackIndex = 1;
-						MidiEvent.SetVoiceId(CurrentCellNotes[i]);
 						MidiOutPin->AddNoteOffEventOrCancelPendingNoteOn(MidiEvent);
 						UE_LOG(LogStepSequencePlayer, Verbose, TEXT("0x%x Note-Off %d at %d"), (uint32)(size_t)this, SequenceTable->Notes[i].NoteNumber + AdditionalOctaveNotes, BlockFrameIndex);
 						CurrentCellNotes[i] = FMidiVoiceId::None();
@@ -853,12 +849,11 @@ namespace HarmonixMetasound
 					uint8 MidiCh;
 					uint8 MidiNote;
 					CurrentCellNotes[i].GetChannelAndNote(MidiCh, MidiNote);
-					FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateNoteOff(MidiCh, MidiNote));
+					FMidiStreamEvent MidiEvent(CurrentCellNotes[i].GetGeneratorId(), FMidiMsg::CreateNoteOff(MidiCh, MidiNote));
 					MidiEvent.BlockSampleFrameIndex  = CurrentBlockSpanStart;
 					MidiEvent.AuthoredMidiTick       = 0;
 					MidiEvent.CurrentMidiTick        = 0;
 					MidiEvent.TrackIndex             = 1;
-					MidiEvent.SetVoiceId(CurrentCellNotes[i]);
 					UE_LOG(LogStepSequencePlayer, Verbose, TEXT("0x%x Note-Off %d (during resize)"), (uint32)(size_t)this, MidiNote);
 					MidiOutPin->AddMidiEvent(MidiEvent);
 				}
@@ -883,12 +878,11 @@ namespace HarmonixMetasound
 				uint8 MidiCh;
 				uint8 MidiNote;
 				CurrentCellNotes[i].GetChannelAndNote(MidiCh, MidiNote);
-				FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateNoteOff(MidiCh, MidiNote));
+				FMidiStreamEvent MidiEvent(CurrentCellNotes[i].GetGeneratorId(), FMidiMsg::CreateNoteOff(MidiCh, MidiNote));
 				MidiEvent.BlockSampleFrameIndex  = AtFrameIndex;
 				MidiEvent.AuthoredMidiTick       = AbsMidiTick;
 				MidiEvent.CurrentMidiTick        = AbsMidiTick;
 				MidiEvent.TrackIndex             = 1;
-				MidiEvent.SetVoiceId(CurrentCellNotes[i]);
 				MidiOutPin->AddMidiEvent(MidiEvent);
 				UE_LOG(LogStepSequencePlayer, Verbose, TEXT("0x%x Note-Off %d (during all notes off)"), (uint32)(size_t)this, MidiNote);
 				CurrentCellNotes[i] = FMidiVoiceId::None();
