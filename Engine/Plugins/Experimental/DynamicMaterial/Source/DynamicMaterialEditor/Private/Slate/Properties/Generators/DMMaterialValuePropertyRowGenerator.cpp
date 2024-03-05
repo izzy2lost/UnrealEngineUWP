@@ -5,6 +5,7 @@
 #include "IDetailPropertyRow.h"
 #include "Components/DMMaterialComponent.h"
 #include "Components/DMMaterialValue.h"
+#include "Components/MaterialValues/DMMaterialValueFloat1.h"
 #include "Slate/SDMEditor.h"
 #include "Slate/SDMComponentEdit.h"
 
@@ -48,6 +49,22 @@ void FDMMaterialValuePropertyRowGenerator::AddComponentProperties(const TSharedR
 		FIsResetToDefaultVisible::CreateUObject(Value, &UDMMaterialValue::CanResetToDefault),
 		FResetToDefaultHandler::CreateUObject(Value, &UDMMaterialValue::ResetToDefault)
 	);
+
+	if (UDMMaterialValueFloat* FloatValue = Cast<UDMMaterialValueFloat>(Value))
+	{
+		if (FloatValue->HasValueRange())
+		{
+			static const FName UIMin = FName("UIMin");
+			static const FName UIMax = FName("UIMax");
+			static const FName ClampMin = FName("ClampMin");
+			static const FName ClampMax = FName("ClampMax");
+
+			Handle.PropertyHandle->SetInstanceMetaData(UIMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
+			Handle.PropertyHandle->SetInstanceMetaData(ClampMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
+			Handle.PropertyHandle->SetInstanceMetaData(UIMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
+			Handle.PropertyHandle->SetInstanceMetaData(ClampMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
+		}
+	}
 
 	InOutPropertyRows.Add(Handle);
 
