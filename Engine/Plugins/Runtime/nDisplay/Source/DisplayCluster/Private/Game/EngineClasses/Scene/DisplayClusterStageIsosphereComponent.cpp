@@ -4,6 +4,7 @@
 
 #include "Engine/StaticMesh.h"
 #include "KismetProceduralMeshLibrary.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "UObject/ConstructorHelpers.h"
 
 UDisplayClusterStageIsosphereComponent::UDisplayClusterStageIsosphereComponent(const FObjectInitializer& ObjectInitializer)
@@ -76,6 +77,13 @@ void UDisplayClusterStageIsosphereComponent::ResetIsosphere()
 
 				SetProcMeshSection(0, *Section);
 			}
+		}
+
+		// Match the sided-ness setting of the IsosphereMesh.
+		const UBodySetup* IsosphereMeshBodySetup = IsosphereMesh->GetBodySetup();
+		if (ProcMeshBodySetup && IsosphereMeshBodySetup)
+		{
+			ProcMeshBodySetup->bDoubleSidedGeometry = IsosphereMeshBodySetup->bDoubleSidedGeometry;
 		}
 	}
 }
