@@ -27,7 +27,6 @@
 #include "UObject/NameTypes.h"
 
 STATEGRAPH_API DECLARE_LOG_CATEGORY_EXTERN(LogStateGraph, Log, All);
-#define UE_LOG_STATEGRAPH(Verbosity, Format, ...) UE_LOG(LogStateGraph, Verbosity, TEXT("[%s] ") Format, ANSI_TO_TCHAR(__FUNCTION__), ##__VA_ARGS__)
 
 namespace UE {
 
@@ -103,7 +102,7 @@ public:
 	virtual void Reset();
 
 	/** Get the state graph for this node, which may be invalid if this node has not been added or was removed. */
-	FStateGraphPtr GetStateGraph()
+	FStateGraphPtr GetStateGraph() const
 	{
 		return StateGraphWeakPtr.Pin();
 	}
@@ -359,7 +358,7 @@ public:
 	void Pause();
 
 	/** Log debug info for the state graph and each node. */
-	void LogDebugInfo(bool bWarning = false);
+	void LogDebugInfo(ELogVerbosity::Type Verbosity);
 
 protected:
 
@@ -391,13 +390,14 @@ protected:
 template<typename NodeType, typename... ArgsTypes>
 TSharedPtr<NodeType, ESPMode::ThreadSafe> FStateGraphNode::Next(ArgsTypes&&... Args) const
 {
-	if (!StateGraphWeakPtr.IsValid())
+	FStateGraphPtr StateGraphPtr = GetStateGraph();
+	if (!StateGraphPtr)
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node attempted to be created with invalid state graph"), *ContextName);
+		UE_LOG(LogStateGraph, Warning, TEXT("[%s] Node attempted to be created with invalid state graph"), *ContextName);
 		return TSharedPtr<NodeType, ESPMode::ThreadSafe>();
 	}
 
-	TSharedPtr<NodeType, ESPMode::ThreadSafe> Node(StateGraphWeakPtr.Pin()->CreateNode<NodeType>(Forward<ArgsTypes>(Args)...));
+	TSharedPtr<NodeType, ESPMode::ThreadSafe> Node(StateGraphPtr->CreateNode<NodeType>(Forward<ArgsTypes>(Args)...));
 	Node->Dependencies.Add(Name);
 	return Node;
 }
@@ -405,13 +405,14 @@ TSharedPtr<NodeType, ESPMode::ThreadSafe> FStateGraphNode::Next(ArgsTypes&&... A
 template<typename... ArgsTypes>
 FStateGraphNodeFunctionPtr FStateGraphNode::Next(ArgsTypes&&... Args) const
 {
-	if (!StateGraphWeakPtr.IsValid())
+	FStateGraphPtr StateGraphPtr = GetStateGraph();
+	if (!StateGraphPtr)
 	{
-		UE_LOG_STATEGRAPH(Warning, TEXT("[%s] Node attempted to be created with invalid state graph"), *ContextName);
+		UE_LOG(LogStateGraph, Warning, TEXT("[%s] Node attempted to be created with invalid state graph"), *ContextName);
 		return FStateGraphNodeFunctionPtr();
 	}
 
-	FStateGraphNodeFunctionPtr Node(StateGraphWeakPtr.Pin()->CreateNode(Forward<ArgsTypes>(Args)...));
+	FStateGraphNodeFunctionPtr Node(StateGraphPtr->CreateNode(Forward<ArgsTypes>(Args)...));
 	Node->Dependencies.Add(Name);
 	return Node;
 }
