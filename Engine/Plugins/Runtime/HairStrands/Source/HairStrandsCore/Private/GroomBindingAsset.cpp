@@ -375,6 +375,7 @@ void UGroomBindingAsset::PostLoad()
 		if (LocalGroom)
 		{
 			LocalGroom->GetOnGroomAssetChanged().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
+			LocalGroom->GetOnGroomAssetResourcesChanged().AddUObject(this, &UGroomBindingAsset::InvalidateBinding);
 			bRegisterGroomAssetCallback = true;
 		}
 	#endif
@@ -440,6 +441,7 @@ void UGroomBindingAsset::BeginDestroy()
 
 	if (GetGroom() && bRegisterGroomAssetCallback)
 	{
+		GetGroom()->GetOnGroomAssetResourcesChanged().RemoveAll(this);
 		GetGroom()->GetOnGroomAssetChanged().RemoveAll(this);
 		bRegisterGroomAssetCallback = false;
 	}
@@ -902,16 +904,24 @@ void UGroomBindingAsset::CacheDerivedDatas()
 			bIsValid = bIsValid && bGroupValid;
 			bReloadResource = bReloadResource || bGroupReloadResource;
 		}
-	}
 
-	// 4. Reload resources if needed
-	if (bReloadResource)
+		// 3. Update binding infos here as they need to be valid when RecreateRenderContext is deleted
+		//    When RecreateRenderContext's Dtor is called, it will recreate component, which will run 
+		//    the binding validation to assess if the binding asset is compatible. This validation logic 
+		//    use the binding infos to know if curve count match between GroomAsset and GroomBindingAsset
+		UpdateGroomBindingAssetInfos(this);
+
+		// 4. Reload resources if needed
+		if (bReloadResource)
+		{
+			InitResource();
+		}
+	}
+	else
 	{
-		InitResource();
+		// 3. Patch hair group info if it does not match the DDC-read/deserialized data
+		UpdateGroomBindingAssetInfos(this);
 	}
-
-	// 3. Patch hair group info if it does not match the DDC-read/deserialized data
-	UpdateGroomBindingAssetInfos(this);
 }
 
 static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex, const FString& DerivedDataKey, bool& bOutValid, const ITargetPlatform* TargetPlatform, UGroomBindingAsset::FHairGroupPlatformData& OutPlatformData)
