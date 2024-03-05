@@ -224,7 +224,7 @@ namespace UnrealGameSync
 		{
 			try
 			{
-				bool valid = String.IsNullOrEmpty(projectSettings.LocalPath) || File.Exists(projectSettings.LocalPath);
+				bool valid = projectSettings.Type != UserSelectedProjectType.Local || File.Exists(projectSettings.LocalPath);
 				return valid;
 			}
 			catch
