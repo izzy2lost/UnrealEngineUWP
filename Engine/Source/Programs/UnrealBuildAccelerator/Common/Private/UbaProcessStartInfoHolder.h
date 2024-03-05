@@ -106,6 +106,8 @@ namespace uba
 			startInfo.description = description.c_str();
 			logFile = o.logFile;
 			startInfo.logFile = logFile.c_str();
+
+			weight = o.weight;
 		}
 
 		ProcessStartInfo startInfo;
