@@ -68,7 +68,7 @@ public:
 	//
 	const TArray<FError>& GetArrayErrors() const;
 
-public:
+	void Tick();
 
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
 
