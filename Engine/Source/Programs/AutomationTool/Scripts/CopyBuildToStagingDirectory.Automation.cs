@@ -1239,6 +1239,13 @@ namespace AutomationScripts
 						}
 					}
 
+					// write out a StagedBuild.ini file that's only in Staged builds so runtime knows the build is staged
+					DirectoryReference IntermediateDir = DirectoryReference.Combine(SC.EngineRoot, "Intermediate", "Build", "BuildCookRun");
+					FileReference StagedBuildConfigFile = FileReference.Combine(IntermediateDir, "StagedBuild.ini");
+					DirectoryReference.CreateDirectory(IntermediateDir);
+					File.WriteAllText(StagedBuildConfigFile.FullName, "");
+					SC.StageFile(StagedFileType.UFS, StagedBuildConfigFile, new StagedFileReference($"Engine/Config/{StagedBuildConfigFile.GetFileName()}"));
+
 					// Stage ICU internationalization data from Engine.
 					var ICUDataVersion = SC.StageTargetPlatform.ICUDataVersion;
 					SC.StageFiles(StagedFileType.UFS, DirectoryReference.Combine(SC.LocalRoot, "Engine", "Content", "Internationalization", InternationalizationPreset, ICUDataVersion), StageFilesSearch.AllDirectories, new StagedDirectoryReference(String.Format("Engine/Content/Internationalization/{0}", ICUDataVersion)));

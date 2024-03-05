@@ -37,6 +37,11 @@ class FPaths
 public:
 
 	/**
+	  * @return true if the build has been staged and uses the simplified remapped directory structure made when staging
+	 */
+	static CORE_API bool IsStaged();
+	
+	/**
 	 * Should the "saved" directory structures be rooted in the user dir or relative to the "engine/game" 
 	 */
 	static CORE_API bool ShouldSaveToUserDir();

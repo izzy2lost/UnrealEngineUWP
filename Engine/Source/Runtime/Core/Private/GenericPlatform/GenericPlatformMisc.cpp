@@ -1277,13 +1277,15 @@ const TCHAR* FGenericPlatformMisc::ProjectDir()
 		ProjectDir.Reserve(FPlatformMisc::GetMaxPathLength());
 		if (FPlatformProperties::IsProgram())
 		{
-			// monolithic, game-agnostic executables, the ini is in Engine/Config/Platform
-			ProjectDir = FString::Printf(TEXT("../../../Engine/Programs/%s/"), FApp::GetProjectName());
-
-			// however, if it was staged, that directory won't exist, so look in the normal staged location
-			if (!FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*ProjectDir))
+			if (FPaths::IsStaged())
 			{
+				// if staged, use the remapped location
 				ProjectDir = FString::Printf(TEXT("../../../%s/"), FApp::GetProjectName());
+			}
+			else
+			{
+				// monolithic, game-agnostic executables
+				ProjectDir = FString::Printf(TEXT("../../../Engine/Programs/%s/"), FApp::GetProjectName());
 			}
 		}
 		else
@@ -1312,10 +1314,6 @@ const TCHAR* FGenericPlatformMisc::ProjectDir()
 							// We found a project folder for the game
 							FPaths::SetProjectFilePath(GameProjectFile);
 							ProjectDir = FPaths::GetPath(GameProjectFile);
-							if (ProjectDir.EndsWith(TEXT("/")) == false)
-							{
-								ProjectDir += TEXT("/");
-							}
 						}
 					}
 				}
@@ -1347,11 +1345,6 @@ const TCHAR* FGenericPlatformMisc::ProjectDir()
 					{
 						ProjectDir = LocalProjectDir;
 					}
-
-					if (ProjectDir.EndsWith(TEXT("/")) == false)
-					{
-						ProjectDir += TEXT("/");
-					}
 #endif
 				}
 			}
@@ -1361,8 +1354,11 @@ const TCHAR* FGenericPlatformMisc::ProjectDir()
 				ProjectDir = FPaths::EngineUserDir();
 				FPaths::NormalizeFilename(ProjectDir);
 				ProjectDir = FFileManagerGeneric::DefaultConvertToRelativePath(*ProjectDir);
-				if(!ProjectDir.EndsWith(TEXT("/"))) ProjectDir += TEXT("/");
 			}
+		}
+		if (!ProjectDir.EndsWith(TEXT("/")))
+		{
+			ProjectDir += TEXT("/");
 		}
 	}
 

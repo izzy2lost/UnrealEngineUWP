@@ -144,6 +144,12 @@ namespace UE4Paths_Private
 	}
 }
 
+bool FPaths::IsStaged()
+{
+	static bool bIsStaged = FileExists(Combine(EngineConfigDir(), TEXT("StagedBuild.ini")));
+	return bIsStaged;
+}
+
 bool FPaths::ShouldSaveToUserDir()
 {
 	static bool bShouldSaveToUserDir =
