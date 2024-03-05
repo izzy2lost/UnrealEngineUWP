@@ -123,4 +123,9 @@ private:
 	 * Release context menu related resources such as handles.
 	 */
 	void UnregisterContextMenuExtender();
+
+	/**
+	 * Called when an Actor has been added to a Level
+	 */
+	void OnLevelActorAdded(AActor* InActor);
 };

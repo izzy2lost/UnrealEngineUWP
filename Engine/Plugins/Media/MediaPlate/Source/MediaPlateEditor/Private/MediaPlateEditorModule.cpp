@@ -3,6 +3,7 @@
 #include "MediaPlateEditorModule.h"
 
 #include "Editor.h"
+#include "EngineAnalytics.h"
 #include "IPlacementModeModule.h"
 #include "ISequencerModule.h"
 #include "LevelEditor.h"
@@ -72,6 +73,8 @@ void FMediaPlateEditorModule::ShutdownModule()
 		{
 			EditorAssetSubsystem->GetOnExtractAssetFromFile().RemoveAll(this);
 		}
+
+		GEditor->OnLevelActorAdded().RemoveAll(this);
 	}
 
 	ISequencerModule* SequencerModulePtr = FModuleManager::Get().GetModulePtr<ISequencerModule>("Sequencer");
@@ -254,6 +257,11 @@ void FMediaPlateEditorModule::OnPostEngineInit()
 	{
 		EditorAssetSubsystem->GetOnExtractAssetFromFile().AddRaw(this, &FMediaPlateEditorModule::ExtractAssetDataFromFiles);
 	}
+
+	if (GEditor)
+	{
+		GEditor->OnLevelActorAdded().AddRaw(this, &FMediaPlateEditorModule::OnLevelActorAdded);
+	}
 }
 
 void FMediaPlateEditorModule::ExtractAssetDataFromFiles(const TArray<FString>& Files,
@@ -422,6 +430,19 @@ void FMediaPlateEditorModule::UnregisterContextMenuExtender()
 			{
 				return Delegate.GetHandle() == MenuExtenderDelegateHandle;
 			});
+	}
+}
+
+void FMediaPlateEditorModule::OnLevelActorAdded(AActor* InActor)
+{
+	if (!InActor || InActor->HasAnyFlags(RF_Transient))
+	{
+		return;
+	}
+
+	if (InActor->GetClass() == AMediaPlate::StaticClass())
+	{
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MediaPlate.AddMediaPlateActorToLevel"));
 	}
 }
 
