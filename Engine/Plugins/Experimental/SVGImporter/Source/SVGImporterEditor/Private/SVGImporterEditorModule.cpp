@@ -19,6 +19,8 @@
 #include "PropertyEditorModule.h"
 #include "SVGActor.h"
 #include "SVGActorContextMenu.h"
+#include "SVGActorEditorComponent.h"
+#include "SVGActorEditorComponentVisualizer.h"
 #include "SVGData.h"
 #include "SVGDynamicMeshVisualizer.h"
 #include "SVGImporter.h"
@@ -167,12 +169,11 @@ void FSVGImporterEditorModule::PostEngineInit()
 {
 	if (GUnrealEd)
 	{
-		// Make a new instance of the visualizer
-		const TSharedPtr<FComponentVisualizer> SVGDynMeshVisualizer = MakeShared<FSVGDynamicMeshVisualizer>();
-
-		// Register it to our specific component class
+		const TSharedRef<FComponentVisualizer> SVGDynMeshVisualizer = MakeShared<FSVGDynamicMeshVisualizer>();
 		GUnrealEd->RegisterComponentVisualizer(USVGDynamicMeshComponent::StaticClass()->GetFName(), SVGDynMeshVisualizer);
-		SVGDynMeshVisualizer->OnRegister();
+
+		const TSharedRef<FComponentVisualizer> SVGActorEditorComponentVisualizer = MakeShared<FSVGActorEditorComponentVisualizer>();
+		GUnrealEd->RegisterComponentVisualizer(USVGActorEditorComponent::StaticClass()->GetFName(), SVGActorEditorComponentVisualizer);
 	}
 
 	// Register SVG category for needed types
