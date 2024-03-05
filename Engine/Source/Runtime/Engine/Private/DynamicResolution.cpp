@@ -202,6 +202,9 @@ void FDynamicResolutionHeuristicProxy::ResetInternal()
 	DynamicFrameTimeBudgetMs = 0.0f;
 	DynamicFrameTimeVSyncFactor = 0;
 
+	TemporalUpscalerMinResolutionFraction = ISceneViewFamilyScreenPercentage::kMinResolutionFraction;
+	TemporalUpscalerMaxResolutionFraction = ISceneViewFamilyScreenPercentage::kMaxResolutionFraction;
+
 	// Ignore previous frame timings.
 	IgnoreFrameRemainingCount = 1;
 }
@@ -544,6 +547,12 @@ void FDynamicResolutionHeuristicProxy::RefreshCurrentFrameResolutionFraction_Ren
 			BudgetSettings.MinResolutionFraction,
 			FinalMaxResolutionFraction);
 
+		// Also clamp with the temporal upscaler's minimum and maximum fractions (set to theoretical minimum and maximum if not in use)
+		NewFrameResolutionFraction = FMath::Clamp(
+			NewFrameResolutionFraction,
+			TemporalUpscalerMinResolutionFraction,
+			TemporalUpscalerMaxResolutionFraction);
+
 		NewFrameResolutionFractions[Budget] = NewFrameResolutionFraction;
 	}
 
@@ -572,6 +581,24 @@ void FDynamicResolutionHeuristicProxy::RefreshCurrentFrameResolutionFraction_Ren
 	
 	RefreshCurrentFrameResolutionFractionUpperBound_RenderThread();
 	RefreshHeuristicStats_RenderThread();
+}
+
+void FDynamicResolutionHeuristicProxy::SetTemporalUpscaler(const UE::Renderer::Private::ITemporalUpscaler* InTemporalUpscaler)
+{
+	check(IsInRenderingThread());
+
+	float NewMinResolutionFraction = InTemporalUpscaler ? InTemporalUpscaler->GetMinUpsampleResolutionFraction() : ISceneViewFamilyScreenPercentage::kMinResolutionFraction;
+	float NewMaxResolutionFraction = InTemporalUpscaler ? InTemporalUpscaler->GetMaxUpsampleResolutionFraction() : ISceneViewFamilyScreenPercentage::kMaxResolutionFraction;
+
+	if (NewMinResolutionFraction != TemporalUpscalerMinResolutionFraction ||
+		NewMaxResolutionFraction != TemporalUpscalerMaxResolutionFraction)
+	{
+		TemporalUpscalerMinResolutionFraction = NewMinResolutionFraction;
+		TemporalUpscalerMaxResolutionFraction = NewMaxResolutionFraction;
+
+		// If the temporal upscaler (or its supported range) have changed, refresh the fractions for this frame
+		RefreshCurrentFrameResolutionFraction_RenderThread();
+	}
 }
 
 void FDynamicResolutionHeuristicProxy::RefreshCurrentFrameResolutionFractionUpperBound_RenderThread()
@@ -1190,6 +1217,11 @@ public:
 		{
 			ViewFamily.SetScreenPercentageInterface(new FDefaultDynamicResolutionDriver(Proxy, ViewFamily));
 		}
+	}
+
+	virtual void SetTemporalUpscaler(const UE::Renderer::Private::ITemporalUpscaler* InTemporalUpscaler)
+	{
+		Proxy->Heuristic.SetTemporalUpscaler(InTemporalUpscaler);
 	}
 
 private:

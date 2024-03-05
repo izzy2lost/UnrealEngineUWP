@@ -51,6 +51,9 @@ public:
 	/** Setup a screen percentage driver for a given view family. */
 	virtual void SetupMainViewFamily(class FSceneViewFamily& ViewFamily) = 0;
 
+	/** Apply the minimum/maximum resolution fraction for a third-party temporal upscaler. */
+	virtual void SetTemporalUpscaler(const UE::Renderer::Private::ITemporalUpscaler* InTemporalUpscaler) = 0;
+
 protected:
 
 	/** Returns a non thread safe aproximation of the current resolution fraction applied on render thread, mostly used for stats and analytic. */
