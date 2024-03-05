@@ -56,9 +56,9 @@ TSharedPtr<FArchive> CreateFile()
 	check(Archive);
 
 	const FString HeaderRow = TEXT(
-		"ID_CO,ID_COI,ID_UpdateType,ID_Descriptor,ID_UpdateResult,Time_Queue,Time_Update,Time_TaskGetMesh,Time_TaskLockCache,"
-		"Time_TaskGetImages,Time_TaskConvertResources,Time_TaskCallbacks,Memory_Update,Memory_Update_Real,"
-		"Time_TaskUpdateImage,Memory_TaskUpdateImage,Memory_TaskUpdateImage_Real");
+		"ID_CO;ID_COI;ID_UpdateType;ID_Descriptor;ID_UpdateResult;Time_Queue;Time_Update;Time_TaskGetMesh;Time_TaskLockCache;"
+		"Time_TaskGetImages;Time_TaskConvertResources;Time_TaskCallbacks;Memory_Update;Memory_Update_Real;"
+		"Time_TaskUpdateImage;Memory_TaskUpdateImage;Memory_TaskUpdateImage_Real");
 
 	LogBenchmarkUtil::Write(*Archive, HeaderRow);
 
@@ -326,7 +326,7 @@ void FLogBenchmarkUtil::FinishUpdateMesh(const TSharedRef<FUpdateContextPrivate>
 	const double Memory_UpdateEndPeakMB = (Context->UpdateEndPeakBytes / 1024.0) / 1024.0;
 	const double Memory_UpdateEndRealPeakMB = (Context->UpdateEndRealPeakBytes / 1024.0) / 1024.0;
 	
-	const FString UpdateString = FString::Printf(TEXT("%s,%s,%s,%s,%s,%f,%f,%f,%f,%f,%f,%f,%f,%f"), *ID_CO, *ID_COI, *ID_UpdateType, *ID_Descriptor, *ID_UpdateResult, Time_Queue, Time_Update, Time_TaskGetMesh, Time_TaskLockCache, Time_TaskGetImages, Time_TaskConvertResources, Time_TaskCallbacks, Memory_UpdateEndPeakMB, Memory_UpdateEndRealPeakMB);
+	const FString UpdateString = FString::Printf(TEXT("%s;%s;%s;%s;%s;%f;%f;%f;%f;%f;%f;%f;%f;%f"), *ID_CO, *ID_COI, *ID_UpdateType, *ID_Descriptor, *ID_UpdateResult, Time_Queue, Time_Update, Time_TaskGetMesh, Time_TaskLockCache, Time_TaskGetImages, Time_TaskConvertResources, Time_TaskCallbacks, Memory_UpdateEndPeakMB, Memory_UpdateEndRealPeakMB);
 	LogBenchmarkUtil::Write(*Archive, UpdateString);
 	Archive->Flush();
 }
@@ -349,7 +349,7 @@ void FLogBenchmarkUtil::FinishUpdateImage(const FString& CustomizableObjectPathN
 	const double Memory_TaskUpdateImagePeakMB = (TaskUpdateImageMemoryPeak / 1024.0) / 1024.0;
 	const double Memory_TaskUpdateImageRealPeakMB = (TaskUpdateImageRealMemoryPeak / 1024.0) / 1024.0;
 
-	const FString UpdateString = FString::Printf(TEXT("%s,%s,%s,,,,,,,,,,,,%f,%f,%f"), *ID_CO, *ID_COI, *ID_UpdateType, Time_TaskUpdateImage, Memory_TaskUpdateImagePeakMB,Memory_TaskUpdateImageRealPeakMB);
+	const FString UpdateString = FString::Printf(TEXT("%s;%s;%s;;;;;;;;;;;;%f;%f;%f"), *ID_CO, *ID_COI, *ID_UpdateType, Time_TaskUpdateImage, Memory_TaskUpdateImagePeakMB,Memory_TaskUpdateImageRealPeakMB);
 	LogBenchmarkUtil::Write(*Archive, UpdateString);
 	Archive->Flush();	
 }
