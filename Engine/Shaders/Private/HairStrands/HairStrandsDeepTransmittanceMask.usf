@@ -266,7 +266,7 @@ uint				LightChannelMask;
 float4				TranslatedLightPosition_LightDirection;
 float				LightRadius;
 #if PERMUTATION_ONE_PASS
-Texture2D<uint> 	ShadowMaskBitsTexture;
+Texture2D<uint4> 	ShadowMaskBitsTexture;
 #else
 Texture2D<float4> 	RayMarchMaskTexture;
 float4				ShadowChannelMask;
@@ -385,8 +385,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 		TranslatedWorldPosition += VirtualVoxel.TranslatedWorldOffsetStereoCorrection;
 	}
 
-	// TODO: Need to update the shadow mask encoding/decoding functions here
-	//const uint4 PackedShadowMask = ~ShadowMaskBitsTexture[PixelCoord];
+	const uint4 PackedShadowMask = ShadowMaskBitsTexture[PixelCoord];
 	const float3 Random = GetHairVoxelJitter(PixelCoord.xy, View.StateFrameIndexMod8, VirtualVoxel.JitterMode);
 
 	const uint2 LocalPixelPos = PixelCoord;
@@ -403,27 +402,23 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	{
 		const uint OutputIndex = SampleIndex + MaxVisibilityNodeCount * LightIndex;
 
-		// TODO: Add early out when the shadow mask bits are zero
-		#if 0
+		// The Virtual Shadow Remap stores directional lights first
+		const FLocalLightData LightData 	 = GetLocalLightData(CulledLightGridData.DataStartIndex + LightIndex, EyeIndex);
+		const float3 TranslatedLightPosition = LightData.LightPositionAndInvRadius.xyz; // LightPositionAndInvRadius is already in translated world space
+
+		// Early out when the shadow mask bits are zero
 		if (UnpackShadowMask(PackedShadowMask, LightIndex) == 0)
 		{
 			OutTransmittanceMask[OutputIndex] = PackTransmittanceMask(InitHairTransmittanceMask());
 			continue;
 		}
-		#endif
 
-		// TODO: add support for light channel
-		#if 0
-		if ((LightChannelMask & Sample.LightChannelMask) == 0)
+		// Early out when mismatching light channel
+		if ((Sample.LightChannelMask & UnpackLightingChannelMask(LightData)) == 0)
 		{
 			OutTransmittanceMask[OutputIndex] = InitNullPackedHairTransmittanceMask();
 			continue;
 		}
-		#endif	
-
-		// The Virtual Shadow Remap stores directional lights first
-		const FLocalLightData LightData 	 = GetLocalLightData(CulledLightGridData.DataStartIndex + LightIndex, EyeIndex);
-		const float3 TranslatedLightPosition = LightData.LightPositionAndInvRadius.xyz; // LightPositionAndInvRadius is already in translated world space
 
 		FTransmittanceSettings Settings;
 		Settings.bIsDirectional				= false;
