@@ -2856,6 +2856,8 @@ struct FGameFeaturePluginState_Activating : public FGameFeaturePluginState
 
 		FGameFeatureActivatingContext Context;
 
+		const bool bIsLoadingLocalizationData = IPluginManager::Get().MountExplicitlyLoadedPluginLocalizationData(StateProperties.PluginName);
+
 		if (AllowIniLoading())
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Activating_InitIni);
@@ -2869,8 +2871,7 @@ struct FGameFeaturePluginState_Activating : public FGameFeaturePluginState
 
 		// @TODO: non-blocking wait here?
 		// If this plugin caused localization data to load, wait for that here before marking it as active
-		if (TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
-			Plugin && Plugin->GetDescriptor().bExplicitlyLoaded && Plugin->GetDescriptor().LocalizationTargets.Num() > 0)
+		if (bIsLoadingLocalizationData)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Activating_WaitForLoc);
 			FTextLocalizationManager::Get().WaitForAsyncTasks();

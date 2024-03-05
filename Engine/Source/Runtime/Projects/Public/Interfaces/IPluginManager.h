@@ -463,10 +463,18 @@ public:
 	/**
 	 * Marks an explicitly loaded plugin as enabled, mounts its content and tries to load its modules.
 	 * These plugins are not loaded implicitly, but instead wait for this function to be called.
+	 * 
+	 * @note Call MountExplicitlyLoadedPluginLocalizationData if you also want to load any localization data for this plugin.
 	 */
 	virtual bool MountExplicitlyLoadedPlugin(const FString& PluginName) = 0;
 	virtual bool MountExplicitlyLoadedPlugin_FromFileName(const FString& PluginFileName) = 0;
 	virtual bool MountExplicitlyLoadedPlugin_FromDescriptor(const FPluginReferenceDescriptor& PluginDescriptor) = 0;
+
+	/**
+	 * Start loading localization data for an explicitly loaded plugin that has previously been mounted via one of the MountExplicitlyLoadedPlugin functions.
+	 * @return True if localization data started to load, or false if the plugin was missing or had no localization data to load.
+	 */
+	virtual bool MountExplicitlyLoadedPluginLocalizationData(const FString& PluginName) = 0;
 
 	/**
 	 * Marks an explicitly loaded plugin as disabled, unmounts its content (does not work on plugins with compiled modules).

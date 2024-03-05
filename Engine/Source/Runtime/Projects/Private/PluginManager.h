@@ -43,6 +43,12 @@ public:
 	bool bIsMounted : 1;
 
 	/**
+	 * True if an explicitly loaded plugin has also mounted its localization data.
+	 * @note Unused for non-explicitly loaded plugins.
+	 */
+	bool bIsExplicitlyLoadedLocalizationDataMounted : 1;
+
+	/**
 	 * FPlugin constructor
 	 */
 	FPlugin(const FString &FileName, const FPluginDescriptor& InDescriptor, EPluginType InType);
@@ -193,6 +199,7 @@ public:
 	virtual bool MountExplicitlyLoadedPlugin(const FString& PluginName) override;
 	virtual bool MountExplicitlyLoadedPlugin_FromFileName(const FString& PluginFileName) override;
 	virtual bool MountExplicitlyLoadedPlugin_FromDescriptor(const FPluginReferenceDescriptor& PluginDescriptor) override;
+	virtual bool MountExplicitlyLoadedPluginLocalizationData(const FString& PluginName) override;
 	virtual bool UnmountExplicitlyLoadedPlugin(const FString& PluginName, FText* OutReason) override { return UnmountExplicitlyLoadedPlugin(PluginName, OutReason, true); }
 	virtual bool UnmountExplicitlyLoadedPlugin(const FString& PluginName, FText* OutReason, bool bAllowUnloadCode) override;
 	virtual bool GetPluginDependencies(const FString& PluginName, TArray<FPluginReferenceDescriptor>& PluginDependencies) override;
