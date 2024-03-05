@@ -360,7 +360,7 @@ namespace HarmonixMetasound
 		
 		MidiClockOut->PrepareBlock();
 
-		if (CurrentMidiFile != MidiAssetInPin->GetMidiProxy())
+		if (MidiClockOut->DoesLoop() != *LoopInPin || CurrentMidiFile != MidiAssetInPin->GetMidiProxy())
 		{
 			SetupNewMidiFile(MidiAssetInPin->GetMidiProxy());
 		}
