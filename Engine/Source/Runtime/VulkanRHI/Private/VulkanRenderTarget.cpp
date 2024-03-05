@@ -522,18 +522,6 @@ void FVulkanDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* TextureRHI, FIntR
 	Device->GetImmediateContext().GetCommandBufferManager()->PrepareForNewActiveCommandBuffer();
 }
 
-VkSurfaceTransformFlagBitsKHR FVulkanCommandListContext::GetSwapchainQCOMRenderPassTransform() const
-{
-	TArray<FVulkanViewport*>& viewports = RHI->GetViewports();
-	if (viewports.Num() == 0)
-	{
-		return VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-	}
-
-	// check(viewports.Num() == 1);
-	return viewports[0]->GetSwapchainQCOMRenderPassTransform();
-}
-
 VkFormat FVulkanCommandListContext::GetSwapchainImageFormat() const
 {
 	TArray<FVulkanViewport*>& viewports = RHI->GetViewports();
@@ -736,7 +724,6 @@ struct FRenderPassCompatibleHashableStruct
 	uint8							MultiViewCount;
 	uint8							NumSamples;
 	uint8							SubpassHint;
-	VkSurfaceTransformFlagBitsKHR	QCOMRenderPassTransform;
 	// +1 for Depth, +1 for Stencil, +1 for Fragment Density
 	VkFormat						Formats[MaxSimultaneousRenderTargets + 3];
 	uint16							AttachmentsToResolve;
@@ -801,11 +788,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 			FVulkanTexture* Texture = ResourceCast(RTView.Texture);
 			check(Texture);
 			const FRHITextureDesc& TextureDesc = Texture->GetDesc();
-
-			if (InDevice.GetImmediateContext().IsSwapchainImage(RTView.Texture))
-			{
-				QCOMRenderPassTransform = InDevice.GetImmediateContext().GetSwapchainQCOMRenderPassTransform();
-			}
 
 			if (bSetExtent)
 			{
@@ -981,8 +963,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 	SubpassHint = ESubpassHint::None;
 	CompatibleHashInfo.SubpassHint = 0;
 
-	CompatibleHashInfo.QCOMRenderPassTransform = QCOMRenderPassTransform;
-
 	CompatibleHashInfo.NumSamples = NumSamples;
 	CompatibleHashInfo.MultiViewCount = MultiViewCount;
 
@@ -1019,12 +999,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		FVulkanTexture* Texture = ResourceCast(ColorEntry.RenderTarget);
 		check(Texture);
 		const FRHITextureDesc& TextureDesc = Texture->GetDesc();
-
-		if (InDevice.GetImmediateContext().IsSwapchainImage(ColorEntry.RenderTarget))
-		{
-			QCOMRenderPassTransform = InDevice.GetImmediateContext().GetSwapchainQCOMRenderPassTransform();
-		}
-		check(QCOMRenderPassTransform == VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR || NumAttachmentDescriptions == 0);
 
 		if (bSetExtent)
 		{
@@ -1233,8 +1207,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 	SubpassHint = RPInfo.SubpassHint;
 	CompatibleHashInfo.SubpassHint = (uint8)RPInfo.SubpassHint;
 
-	CompatibleHashInfo.QCOMRenderPassTransform = QCOMRenderPassTransform;
-
 	CompatibleHashInfo.NumSamples = NumSamples;
 	CompatibleHashInfo.MultiViewCount = MultiViewCount;
 
@@ -1394,26 +1366,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(const FGraphicsPipelineStat
 
 	SubpassHint = Initializer.SubpassHint;
 	CompatibleHashInfo.SubpassHint = (uint8)Initializer.SubpassHint;
-
-	FVulkanCommandListContext& ImmediateContext = GVulkanRHI->GetDevice()->GetImmediateContext();
-
-	if (GVulkanRHI->GetDevice()->GetOptionalExtensions().HasQcomRenderPassTransform)
-	{
-		VkFormat SwapchainImageFormat = ImmediateContext.GetSwapchainImageFormat();
-		if (Desc[0].format == SwapchainImageFormat)
-		{
-			// Potential Swapchain RenderPass
-			QCOMRenderPassTransform = ImmediateContext.GetSwapchainQCOMRenderPassTransform();
-		}
-		// TODO: add some checks to detect potential Swapchain pass
-		else if (SwapchainImageFormat == VK_FORMAT_UNDEFINED)
-		{
-			// WA: to have compatible RP created with VK_RENDER_PASS_CREATE_TRANSFORM_BIT_QCOM flag
-			QCOMRenderPassTransform = VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR;
-		}
-	}
-
-	CompatibleHashInfo.QCOMRenderPassTransform = QCOMRenderPassTransform;
 
 	CompatibleHashInfo.NumSamples = NumSamples;
 	CompatibleHashInfo.MultiViewCount = MultiViewCount;

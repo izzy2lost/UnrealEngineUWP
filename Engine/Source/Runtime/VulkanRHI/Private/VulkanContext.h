@@ -253,7 +253,6 @@ protected:
 
 public:
 	bool IsSwapchainImage(FRHITexture* InTexture) const;
-	VkSurfaceTransformFlagBitsKHR GetSwapchainQCOMRenderPassTransform() const;
 	VkFormat GetSwapchainImageFormat() const;
 	FVulkanSwapChain* GetSwapChain() const;
 

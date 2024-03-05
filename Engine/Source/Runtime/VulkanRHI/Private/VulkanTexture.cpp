@@ -725,6 +725,10 @@ void FVulkanTexture::DestroySurface()
 				Image = VK_NULL_HANDLE;
 			}
 		}
+		else
+		{
+			Image = VK_NULL_HANDLE;
+		}
 
 		ImageOwnerType = EImageOwnerType::None;
 	}

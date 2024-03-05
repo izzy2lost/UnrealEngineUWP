@@ -30,3 +30,12 @@ void MainVS(
 	OutViewId = InstanceId;
 #endif
 }
+
+float4 PreTransform;
+void MainForPreTransform(in uint VertexId : SV_VertexID, out FScreenVertexOutput Output)
+{
+	Output.UV = float2(((VertexId + 1) / 3) & 1, VertexId & 1);
+	Output.Position.xy = float2(Output.UV.x, 1.f - Output.UV.y) * 2.f - 1.f;
+	Output.Position.zw = float2(0, 1);
+	Output.Position.xy = float2(Output.Position.x * PreTransform.x + Output.Position.y * PreTransform.z, Output.Position.x * PreTransform.y + Output.Position.y * PreTransform.w);
+}

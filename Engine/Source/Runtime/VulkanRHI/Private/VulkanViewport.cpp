@@ -13,6 +13,9 @@
 #include "HAL/PlatformAtomics.h"
 #include "Engine/RendererSettings.h"
 #include "StereoRenderUtils.h"
+#include "CommonRenderResources.h"
+#include "ScreenRendering.h"
+#include "RHIStaticStates.h"
 
 FVulkanBackBuffer::FVulkanBackBuffer(FVulkanDevice& Device, FVulkanViewport* InViewport, EPixelFormat Format, uint32 SizeX, uint32 SizeY, ETextureCreateFlags UEFlags)
 	: FVulkanTexture(Device, FRHITextureCreateDesc::Create2D(TEXT("FVulkanBackBuffer"), SizeX, SizeY, Format).SetFlags(UEFlags).DetermineInititialState(), VK_NULL_HANDLE, false)
@@ -163,8 +166,8 @@ FVulkanViewport::~FVulkanViewport()
 			RenderingDoneSemaphores[Index]->Release();
 
 			// FIXME: race condition on TransitionAndLayoutManager, could this be called from RT while RHIT is active?
-			Device->NotifyDeletedImage(BackBufferImages[Index], true);
-			BackBufferImages[Index] = VK_NULL_HANDLE;
+			Device->NotifyDeletedImage(BackBufferImages[Index]->Image, true);
+			BackBufferImages[Index] = nullptr;
 		}
 
 		SwapChain->Destroy(nullptr);
@@ -453,8 +456,6 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 		}
 	}
 
-	VkSurfaceTransformFlagBitsKHR QCOMRenderPassTransform = RTLayout.GetQCOMRenderPassTransform();
-
 	if (RTLayout.GetHasDepthStencil())
 	{
 		FVulkanTexture* Texture = ResourceCast(InRTInfo.DepthStencilRenderTarget.Texture);
@@ -499,13 +500,6 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 				, true
 			);
 		}
-		else if (QCOMRenderPassTransform != VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR && Desc.Extent.X == RTExtents.width && Desc.Extent.Y == RTExtents.height)
-		{
-			FVulkanSwapChain* SwapChain = Device.GetImmediateContext().GetSwapChain();
-
-			PartialDepthTextureView = SwapChain->GetOrCreateQCOMDepthView(*Texture);
-			AddExternalView(SwapChain->GetOrCreateQCOMDepthStencilView(*Texture));
-		}
 		else
 		{
 			AddExternalView(Texture->DefaultView);
@@ -548,12 +542,6 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 	CreateInfo.width  = RTExtents.width;
 	CreateInfo.height = RTExtents.height;
 	CreateInfo.layers = NumLayers;
-
-	if (QCOMRenderPassTransform == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
-		QCOMRenderPassTransform == VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
-	{
-		Swap(CreateInfo.width, CreateInfo.height);
-	}
 
 	VERIFYVULKANRESULT_EXPANDED(VulkanRHI::vkCreateFramebuffer(Device.GetInstanceHandle(), &CreateInfo, VULKAN_CPU_ALLOCATOR, &Framebuffer));
 
@@ -690,6 +678,7 @@ void FVulkanViewport::RecreateSwapchainFromRT(EPixelFormat PreferredPixelFormat)
 	check(IsInRenderingThread());
 
 	// TODO: should flush RHIT commands here?
+	FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	
 	FVulkanSwapChainRecreateInfo RecreateInfo = { VK_NULL_HANDLE, VK_NULL_HANDLE};
 	DestroySwapchain(&RecreateInfo);
@@ -733,7 +722,14 @@ void FVulkanViewport::CreateSwapchain(FVulkanSwapChainRecreateInfo* RecreateInfo
 		const FVulkanImageLayout InitialLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 1, 1, VK_IMAGE_ASPECT_COLOR_BIT);
 		for (int32 Index = 0; Index < Images.Num(); ++Index)
 		{
-			BackBufferImages[Index] = Images[Index];
+			uint32 ImageSizeX = SizeX;
+			uint32 ImageSizeY = SizeY;
+			VkSurfaceTransformFlagBitsKHR CachedSurfaceTransform = SwapChain->GetCachedSurfaceTransform();
+			if (CachedSurfaceTransform == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR || CachedSurfaceTransform == VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
+			{
+				Swap(ImageSizeX, ImageSizeY);
+			}
+			BackBufferImages[Index] = (FVulkanTexture*)FVulkanDynamicRHI::Get().RHICreateTexture2DFromResource(PixelFormat, ImageSizeX, ImageSizeY, 1, 1, Images[Index], ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::Presentable).GetReference();
 			const VkDescriptorType DescriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 			TextureViews.Add((new FVulkanView(*Device, DescriptorType))->InitAsTextureView(
 				Images[Index], VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, PixelFormat, UEToVkTextureFormat(PixelFormat, false), 0, 1, 0, 1, false));
@@ -749,7 +745,7 @@ void FVulkanViewport::CreateSwapchain(FVulkanSwapChainRecreateInfo* RecreateInfo
 #if VULKAN_ENABLE_DRAW_MARKERS
 			if (Device->GetSetDebugName())
 			{
-				VulkanRHI::SetDebugName(Device->GetSetDebugName(), Device->GetInstanceHandle(), BackBufferImages[Index], "RenderingBackBuffer");
+				VulkanRHI::SetDebugName(Device->GetSetDebugName(), Device->GetInstanceHandle(), BackBufferImages[Index]->Image, "RenderingBackBuffer");
 			}
 #endif
 		}
@@ -823,8 +819,8 @@ void FVulkanViewport::DestroySwapchain(FVulkanSwapChainRecreateInfo* RecreateInf
 		TextureViews.Empty();
 		for (int32 Index = 0, NumBuffers = BackBufferImages.Num(); Index < NumBuffers; ++Index)
 		{
-			Device->NotifyDeletedImage(BackBufferImages[Index], true);
-			BackBufferImages[Index] = VK_NULL_HANDLE;
+			Device->NotifyDeletedImage(BackBufferImages[Index]->Image, true);
+			BackBufferImages[Index] = nullptr;
 		}
 		
 		Device->GetDeferredDeletionQueue().ReleaseResources(true);
@@ -839,72 +835,121 @@ void FVulkanViewport::DestroySwapchain(FVulkanSwapChainRecreateInfo* RecreateInf
 	AcquiredImageIndex = -1;
 }
 
-inline static void CopyImageToBackBuffer(FVulkanCommandListContext* Context, FVulkanCmdBuffer* CmdBuffer, FVulkanTexture& SrcSurface, VkImage DstSurface, int32 SizeX, int32 SizeY, int32 WindowSizeX, int32 WindowSizeY)
+inline static void CopyImageToBackBuffer(FVulkanCommandListContext* Context, FVulkanCmdBuffer* CmdBuffer, FVulkanTexture& SrcSurface, FVulkanTexture& DstSurface, int32 SizeX, int32 SizeY, int32 WindowSizeX, int32 WindowSizeY, VkSurfaceTransformFlagBitsKHR CachedSurfaceTransform)
 {
 	RHI_BREADCRUMB_EVENT(*Context, CopyImageToBackBuffer);
+	const bool bNeedsVulkanPreTransform = CachedSurfaceTransform != VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 
-	FVulkanLayoutManager& LayoutManager = CmdBuffer->GetLayoutManager();
-	const VkImageLayout PreviousSrcLayout = FVulkanLayoutManager::SetExpectedLayout(CmdBuffer, SrcSurface, ERHIAccess::CopySrc);
+	VkImageLayout SrcSurfaceLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	VkImageLayout DstSurfaceLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+
+	if (bNeedsVulkanPreTransform)
+	{
+		SrcSurfaceLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		DstSurfaceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	}
 
 	{
 		FVulkanPipelineBarrier Barrier;
-		Barrier.AddImageLayoutTransition(DstSurface, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, FVulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1));
+		Barrier.AddImageLayoutTransition(SrcSurface.Image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, SrcSurfaceLayout, FVulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1));
+		Barrier.AddImageLayoutTransition(DstSurface.Image, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, DstSurfaceLayout, FVulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1));
 		Barrier.Execute(CmdBuffer);
 	}
 
 	VulkanRHI::DebugHeavyWeightBarrier(CmdBuffer->GetHandle(), 32);
 
-	if (SizeX != WindowSizeX || SizeY != WindowSizeY)
+	// Copy and rotate the intermediate image to the BackBuffer with a pixel shader
+	if (bNeedsVulkanPreTransform)
 	{
-		VkImageBlit Region;
-		FMemory::Memzero(Region);
-		Region.srcOffsets[0].x = 0;
-		Region.srcOffsets[0].y = 0;
-		Region.srcOffsets[0].z = 0;
-		Region.srcOffsets[1].x = SizeX;
-		Region.srcOffsets[1].y = SizeY;
-		Region.srcOffsets[1].z = 1;
-		Region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		Region.srcSubresource.layerCount = 1;
-		Region.dstOffsets[0].x = 0;
-		Region.dstOffsets[0].y = 0;
-		Region.dstOffsets[0].z = 0;
-		Region.dstOffsets[1].x = WindowSizeX;
-		Region.dstOffsets[1].y = WindowSizeY;
-		Region.dstOffsets[1].z = 1;
-		Region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		Region.dstSubresource.baseArrayLayer = 0;
-		Region.dstSubresource.layerCount = 1;
-		VulkanRHI::vkCmdBlitImage(CmdBuffer->GetHandle(),
-			SrcSurface.Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			DstSurface, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			1, &Region, VK_FILTER_LINEAR);
+		FGraphicsPipelineStateInitializer GraphicsPSOInit;
+		// No alpha blending, no depth tests or writes, no stencil tests or writes, no backface culling.
+		GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+		GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
+		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false>::GetRHI();
+
+		TRHICommandList_RecursiveHazardous<FVulkanCommandListContext> RHICmdList(Context);
+
+		RHICmdList.BeginRenderPass(FRHIRenderPassInfo(&DstSurface, ERenderTargetActions::DontLoad_Store), TEXT("SurfaceTransform"));
+
+		auto ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+		TShaderMapRef<FImagePreTransformVS> VertexShader(ShaderMap);
+		TShaderMapRef<FScreenPS> PixelShader(ShaderMap);
+
+		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+		GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+		GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+		GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
+		GraphicsPSOInit.PrimitiveType = PT_TriangleStrip;
+		SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+
+		FImagePreTransformVS::FParameters VSParameters;
+		FMatrix44f RenderPassTransformMatrix = FRotationMatrix44f(FRotator3f(0.0f, -180.0f * (FMath::Log2(static_cast<float>(CachedSurfaceTransform))) / 2, 0.0f));
+		VSParameters.PreTransform.X = RenderPassTransformMatrix.M[0][0];
+		VSParameters.PreTransform.Y = RenderPassTransformMatrix.M[0][1];
+		VSParameters.PreTransform.Z = RenderPassTransformMatrix.M[1][0];
+		VSParameters.PreTransform.W = RenderPassTransformMatrix.M[1][1];
+
+		SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), VSParameters);
+		SetShaderParametersLegacyPS(RHICmdList, PixelShader, TStaticSamplerState<SF_Point>::GetRHI(), &SrcSurface);
+
+		RHICmdList.DrawPrimitive(0, 2, 1);
+
+		RHICmdList.EndRenderPass();
 	}
 	else
 	{
-		VkImageCopy Region;
-		FMemory::Memzero(Region);
-		Region.extent.width = SizeX;
-		Region.extent.height = SizeY;
-		Region.extent.depth = 1;
-		Region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		//Region.srcSubresource.baseArrayLayer = 0;
-		Region.srcSubresource.layerCount = 1;
-		//Region.srcSubresource.mipLevel = 0;
-		Region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		//Region.dstSubresource.baseArrayLayer = 0;
-		Region.dstSubresource.layerCount = 1;
-		//Region.dstSubresource.mipLevel = 0;
-		VulkanRHI::vkCmdCopyImage(CmdBuffer->GetHandle(),
-			SrcSurface.Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			DstSurface, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			1, &Region);
+		if (SizeX != WindowSizeX || SizeY != WindowSizeY)
+		{
+			VkImageBlit Region;
+			FMemory::Memzero(Region);
+			Region.srcOffsets[0].x = 0;
+			Region.srcOffsets[0].y = 0;
+			Region.srcOffsets[0].z = 0;
+			Region.srcOffsets[1].x = SizeX;
+			Region.srcOffsets[1].y = SizeY;
+			Region.srcOffsets[1].z = 1;
+			Region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			Region.srcSubresource.layerCount = 1;
+			Region.dstOffsets[0].x = 0;
+			Region.dstOffsets[0].y = 0;
+			Region.dstOffsets[0].z = 0;
+			Region.dstOffsets[1].x = WindowSizeX;
+			Region.dstOffsets[1].y = WindowSizeY;
+			Region.dstOffsets[1].z = 1;
+			Region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			Region.dstSubresource.baseArrayLayer = 0;
+			Region.dstSubresource.layerCount = 1;
+			VulkanRHI::vkCmdBlitImage(CmdBuffer->GetHandle(),
+				SrcSurface.Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				DstSurface.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &Region, VK_FILTER_LINEAR);
+		}
+		else
+		{
+			VkImageCopy Region;
+			FMemory::Memzero(Region);
+			Region.extent.width = SizeX;
+			Region.extent.height = SizeY;
+			Region.extent.depth = 1;
+			Region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			//Region.srcSubresource.baseArrayLayer = 0;
+			Region.srcSubresource.layerCount = 1;
+			//Region.srcSubresource.mipLevel = 0;
+			Region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			//Region.dstSubresource.baseArrayLayer = 0;
+			Region.dstSubresource.layerCount = 1;
+			//Region.dstSubresource.mipLevel = 0;
+			VulkanRHI::vkCmdCopyImage(CmdBuffer->GetHandle(),
+				SrcSurface.Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				DstSurface.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &Region);
+		}
 	}
 
 	{
 		FVulkanPipelineBarrier Barrier;
-		Barrier.AddImageLayoutTransition(SrcSurface.Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, PreviousSrcLayout, FVulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1));
-		Barrier.AddImageLayoutTransition(DstSurface, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, FVulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1));
+		Barrier.AddImageLayoutTransition(SrcSurface.Image, SrcSurfaceLayout, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, FVulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1));
+		Barrier.AddImageLayoutTransition(DstSurface.Image, DstSurfaceLayout, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, FVulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1));
 		Barrier.Execute(CmdBuffer);
 	}
 }
@@ -928,7 +973,7 @@ bool FVulkanViewport::Present(FVulkanCommandListContext* Context, FVulkanCmdBuff
 				uint32 WindowSizeX = FMath::Min(SizeX, SwapChain->InternalWidth);
 				uint32 WindowSizeY = FMath::Min(SizeY, SwapChain->InternalHeight);
 
-				CopyImageToBackBuffer(Context, CmdBuffer, *RenderingBackBuffer.GetReference(), BackBufferImages[AcquiredImageIndex], SizeX, SizeY, WindowSizeX, WindowSizeY);
+				CopyImageToBackBuffer(Context, CmdBuffer, *RenderingBackBuffer.GetReference(), *BackBufferImages[AcquiredImageIndex].GetReference(), SizeX, SizeY, WindowSizeX, WindowSizeY, SwapChain->GetCachedSurfaceTransform());
 			}
 			else
 			{
@@ -939,22 +984,22 @@ bool FVulkanViewport::Present(FVulkanCommandListContext* Context, FVulkanCmdBuff
 		{
 			if (AcquiredImageIndex != -1)
 			{
-				check(RHIBackBuffer != nullptr && RHIBackBuffer->Image == BackBufferImages[AcquiredImageIndex]);
+				check(RHIBackBuffer != nullptr && RHIBackBuffer->Image == BackBufferImages[AcquiredImageIndex]->Image);
 
 				FVulkanLayoutManager& LayoutManager = CmdBuffer->GetLayoutManager();
-				const FVulkanImageLayout* TrackedLayout = LayoutManager.GetFullLayout(BackBufferImages[AcquiredImageIndex]);
+				const FVulkanImageLayout* TrackedLayout = LayoutManager.GetFullLayout(BackBufferImages[AcquiredImageIndex]->Image);
 
 				// One of the rare cases we'll let parallel rendering check the tracking (legacy path already checked as a fallback)
 				if (!TrackedLayout && Device->SupportsParallelRendering())
 				{
-					TrackedLayout = Context->GetQueue()->GetLayoutManager().GetFullLayout(BackBufferImages[AcquiredImageIndex]);
+					TrackedLayout = Context->GetQueue()->GetLayoutManager().GetFullLayout(BackBufferImages[AcquiredImageIndex]->Image);
 				}
 
 				VkImageLayout LastLayout = TrackedLayout ? TrackedLayout->MainLayout : VK_IMAGE_LAYOUT_UNDEFINED;
-				VulkanSetImageLayout(CmdBuffer, BackBufferImages[AcquiredImageIndex], LastLayout, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, FVulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT));
+				VulkanSetImageLayout(CmdBuffer, BackBufferImages[AcquiredImageIndex]->Image, LastLayout, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, FVulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT));
 
 				const FVulkanImageLayout UndefinedLayout(VK_IMAGE_LAYOUT_UNDEFINED, 1, 1, VK_IMAGE_ASPECT_COLOR_BIT);
-				LayoutManager.SetFullLayout(BackBufferImages[AcquiredImageIndex], UndefinedLayout);
+				LayoutManager.SetFullLayout(BackBufferImages[AcquiredImageIndex]->Image, UndefinedLayout);
 			}
 			else
 			{
@@ -1079,11 +1124,6 @@ bool FVulkanViewport::Present(FVulkanCommandListContext* Context, FVulkanCmdBuff
 	++GVulkanRHI->TotalPresentCount;
 
 	return bResult;
-}
-
-VkSurfaceTransformFlagBitsKHR FVulkanViewport::GetSwapchainQCOMRenderPassTransform() const
-{
-	return SwapChain->QCOMRenderPassTransform;
 }
 
 VkFormat FVulkanViewport::GetSwapchainImageFormat() const

@@ -151,13 +151,11 @@ public:
 	inline const VkAttachmentDescriptionStencilLayout* GetStencilDesc() const { return bHasDepthStencil ? &StencilDesc : nullptr; }
 
 	inline const ESubpassHint GetSubpassHint() const { return SubpassHint; }
-	inline const VkSurfaceTransformFlagBitsKHR GetQCOMRenderPassTransform() const { return QCOMRenderPassTransform; }
 
 protected:
 	VkImageLayout GetVRSImageLayout() const;
 
 protected:
-	VkSurfaceTransformFlagBitsKHR QCOMRenderPassTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	VkAttachmentReference ColorReferences[MaxSimultaneousRenderTargets];
 	VkAttachmentReference DepthReference;
 	VkAttachmentReferenceStencilLayout StencilReference;

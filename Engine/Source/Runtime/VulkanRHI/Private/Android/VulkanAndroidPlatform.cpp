@@ -465,15 +465,6 @@ void FVulkanAndroidPlatform::GetInstanceLayers(TArray<const ANSICHAR*>& OutLayer
 #endif
 }
 
-
-static int32 GVulkanQcomRenderPassTransform = 0;
-static FAutoConsoleVariableRef CVarVulkanQcomRenderPassTransform(
-	TEXT("r.Vulkan.UseQcomRenderPassTransform"),
-	GVulkanQcomRenderPassTransform,
-	TEXT("UseQcomRenderPassTransform\n"),
-	ECVF_ReadOnly
-);
-
 static int32 GVulkanUseASTCDecodeMode = 1;
 static FAutoConsoleVariableRef CVarVulkanUseASTCDecodeMode(
 	TEXT("r.Vulkan.UseASTCDecodeMode"),
@@ -491,11 +482,6 @@ void FVulkanAndroidPlatform::GetDeviceExtensions(FVulkanDevice* Device, FVulkanD
 		OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, VK_EXT_ASTC_DECODE_MODE_EXTENSION_NAME, VULKAN_SUPPORTS_ASTC_DECODE_MODE, VULKAN_EXTENSION_NOT_PROMOTED, DEVICE_EXT_FLAG_SETTER(HasEXTASTCDecodeMode)));
 	}
 	OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, VK_EXT_TEXTURE_COMPRESSION_ASTC_HDR_EXTENSION_NAME, VULKAN_SUPPORTS_TEXTURE_COMPRESSION_ASTC_HDR, VK_API_VERSION_1_3, DEVICE_EXT_FLAG_SETTER(HasEXTTextureCompressionASTCHDR)));
-
-	if (GVulkanQcomRenderPassTransform)
-	{
-		OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, VK_QCOM_RENDER_PASS_TRANSFORM_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED, VK_API_VERSION_1_3, DEVICE_EXT_FLAG_SETTER(HasQcomRenderPassTransform)));
-	}
 
 #if !UE_BUILD_SHIPPING
 	// Layer name as extension

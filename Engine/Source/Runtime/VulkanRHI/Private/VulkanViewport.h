@@ -94,7 +94,7 @@ public:
 	{
 		if (BackBufferImages.Num() > 0)
 		{
-			return BackBufferImages[Index];
+			return BackBufferImages[Index]->Image;
 		}
 		else
 		{
@@ -107,12 +107,11 @@ public:
 		return SwapChain;
 	}
 
-	VkSurfaceTransformFlagBitsKHR GetSwapchainQCOMRenderPassTransform() const;
 	VkFormat GetSwapchainImageFormat() const;
 
 protected:
 	// NUM_BUFFERS don't have to match exactly as the driver can require a minimum number larger than NUM_BUFFERS. Provide some slack
-	TArray<VkImage, TInlineAllocator<NUM_BUFFERS*2>> BackBufferImages;
+	TArray<TRefCountPtr<FVulkanTexture>, TInlineAllocator<NUM_BUFFERS*2>> BackBufferImages;
 	TArray<VulkanRHI::FSemaphore*, TInlineAllocator<NUM_BUFFERS*2>> RenderingDoneSemaphores;
 	TIndirectArray<FVulkanView, TInlineAllocator<NUM_BUFFERS*2>> TextureViews;
 	TRefCountPtr<FVulkanBackBuffer> RHIBackBuffer;

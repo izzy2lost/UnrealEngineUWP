@@ -70,6 +70,13 @@ static FAutoConsoleVariableRef CVarVulkanForcePacingWithoutVSync(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarVulkanPreTransform(
+	TEXT("r.Vulkan.PreTransform"),
+	1,
+	TEXT("0: Surface transformed in Vulkan Presentation Engine")
+	TEXT("1: Surface transformed in App to save bandwidth (Default)"),
+	ECVF_ReadOnly);
+
 int32 GPrintVulkanVsyncDebug = 0;
 #if !(UE_BUILD_SHIPPING)
 static FAutoConsoleVariableRef CVarVulkanDebugVsync(
@@ -131,6 +138,14 @@ VkResult SimulateErrors(VkResult Result)
 
 extern TAutoConsoleVariable<int32> GAllowPresentOnComputeQueue;
 static TSet<EPixelFormat> GPixelFormatNotSupportedWarning;
+
+bool IsVulkanPreTransformEnabled(const FStaticShaderPlatform Platform)
+{
+	return (IsVulkanMobilePlatform(Platform) || IsVulkanMobileSM5Platform(Platform))
+			// Request an intermediate image as the BackBuffer
+			&& GVulkanDelayAcquireImage == EDelayAcquireImageType::DelayAcquire
+			&& CVarVulkanPreTransform.GetValueOnAnyThread() > 0;
+}
 
 FVulkanSwapChain::FVulkanSwapChain(VkInstance InInstance, FVulkanDevice& InDevice, void* InWindowHandle, EPixelFormat& InOutPixelFormat, uint32 Width, uint32 Height, bool bIsFullScreen,
 	uint32* InOutDesiredNumBackBuffers, TArray<VkImage>& OutImages, int8 InLockToVsync, FVulkanSwapChainRecreateInfo* RecreateInfo)
@@ -439,8 +454,8 @@ FVulkanSwapChain::FVulkanSwapChain(VkInstance InInstance, FVulkanDevice& InDevic
 	VERIFYVULKANRESULT_EXPANDED(VulkanRHI::vkGetPhysicalDeviceSurfaceCapabilitiesKHR(Device.GetPhysicalHandle(),
 		Surface,
 		&SurfProperties));
-	VkSurfaceTransformFlagBitsKHR PreTransform;
-	if (SurfProperties.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+
+	if (!IsVulkanPreTransformEnabled(GMaxRHIShaderPlatform))
 	{
 		PreTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	}
@@ -495,18 +510,6 @@ FVulkanSwapChain::FVulkanSwapChain(VkInstance InInstance, FVulkanDevice& InDevic
 		}
 	}
 
-	if (Device.GetOptionalExtensions().HasQcomRenderPassTransform)
-	{
-		QCOMRenderPassTransform = SurfProperties.currentTransform;
-		SwapChainInfo.preTransform = QCOMRenderPassTransform;
-		ImageFormat = SwapChainInfo.imageFormat;
-		if (SwapChainInfo.preTransform == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
-			SwapChainInfo.preTransform == VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
-		{
-			Swap(SwapChainInfo.imageExtent.width, SwapChainInfo.imageExtent.height);
-		}
-	}
-
 	VkBool32 bSupportsPresent;
 	VERIFYVULKANRESULT(VulkanRHI::vkGetPhysicalDeviceSurfaceSupportKHR(Device.GetPhysicalHandle(), Device.GetPresentQueue()->GetFamilyIndex(), Surface, &bSupportsPresent));
 	ensure(bSupportsPresent);
@@ -535,7 +538,20 @@ FVulkanSwapChain::FVulkanSwapChain(VkInstance InInstance, FVulkanDevice& InDevic
 	}
 #endif
 
+	const bool bSwapChainNeedsTransform = PreTransform == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR || PreTransform == VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR;
+	if (bSwapChainNeedsTransform)
+	{
+		Swap(SwapChainInfo.imageExtent.width, SwapChainInfo.imageExtent.height);
+	}
+
 	VkResult Result = FVulkanPlatform::CreateSwapchainKHR(WindowHandle, Device.GetPhysicalHandle(), Device.GetInstanceHandle(), &SwapChainInfo, VULKAN_CPU_ALLOCATOR, &SwapChain);
+
+	// Swap the aspect ratio back to make it transparent to high level
+	if (bSwapChainNeedsTransform)
+	{
+		Swap(SwapChainInfo.imageExtent.width, SwapChainInfo.imageExtent.height);
+	}
+
 #if VULKAN_SUPPORTS_FULLSCREEN_EXCLUSIVE
 	if (Device.GetOptionalExtensions().HasEXTFullscreenExclusive && Result == VK_ERROR_INITIALIZATION_FAILED)
 	{
@@ -631,19 +647,6 @@ void FVulkanSwapChain::Destroy(FVulkanSwapChainRecreateInfo* RecreateInfo)
 	if(!bRecreate)
 	{
 		VulkanRHI::vkDestroySurfaceKHR(Instance, Surface, VULKAN_CPU_ALLOCATOR);
-	}
-
-	if (QCOMDepthView && QCOMDepthView != QCOMDepthStencilView)
-	{
-		delete QCOMDepthView;
-		QCOMDepthView = nullptr;
-	}
-
-	if (QCOMDepthStencilView)
-	{
-		delete QCOMDepthStencilView;
-		QCOMDepthStencilView = nullptr;
-		QCOMDepthView = nullptr;
 	}
 
 	Surface = VK_NULL_HANDLE;
@@ -875,95 +878,6 @@ FVulkanSwapChain::EStatus FVulkanSwapChain::Present(FVulkanQueue* GfxQueue, FVul
 	++NumPresentCalls;
 
 	return EStatus::Healthy;
-}
-
-void FVulkanSwapChain::CreateQCOMDepthStencil(const FVulkanTexture& InSurface) const
-{
-	check(!QCOMDepthStencilSurface);
-	check(!QCOMDepthStencilView);
-	check(!QCOMDepthView);
-
-	const FRHITextureDesc& Desc = InSurface.GetDesc();
-	const ETextureCreateFlags UEFlags = Desc.Flags;
-	check(UEFlags & TexCreate_DepthStencilTargetable);
-	const VkDescriptorType DescriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-
-	const FRHITextureCreateDesc CreateDesc =
-		FRHITextureCreateDesc::Create2D(TEXT("FVulkanSwapChainQCOM"), Desc.Extent.Y, Desc.Extent.X, Desc.Format) // Desc.Extent.X and Desc.Extent.Y are intentionally swapped.
-		.SetClearValue(FClearValueBinding::None)
-		.SetFlags(UEFlags)
-		.SetNumMips(Desc.NumMips)
-		.SetNumSamples(Desc.NumSamples)
-		.DetermineInititialState();
-
-	QCOMDepthStencilSurface = new FVulkanTexture(Device, CreateDesc, nullptr);
-
-	check(QCOMDepthStencilSurface->GetViewType() == VK_IMAGE_VIEW_TYPE_2D);
-	check(QCOMDepthStencilSurface->Image != VK_NULL_HANDLE);
-
-	QCOMDepthStencilView = new FVulkanView(*QCOMDepthStencilSurface->Device, DescriptorType);
-	QCOMDepthStencilView->InitAsTextureView(
-		  QCOMDepthStencilSurface->Image
-		, QCOMDepthStencilSurface->GetViewType()
-		, QCOMDepthStencilSurface->GetFullAspectMask()
-		, QCOMDepthStencilSurface->GetDesc().Format
-		, QCOMDepthStencilSurface->ViewFormat
-		, 0
-		, FMath::Max(QCOMDepthStencilSurface->GetNumMips(), 1u)
-		, 0
-		, 1u
-		, false
-	);
-
-	if (QCOMDepthStencilSurface->GetFullAspectMask() == QCOMDepthStencilSurface->GetPartialAspectMask())
-	{
-		QCOMDepthView = QCOMDepthStencilView;
-	}
-	else
-	{
-		QCOMDepthView = new FVulkanView(*QCOMDepthStencilSurface->Device, DescriptorType);
-		QCOMDepthView->InitAsTextureView(
-			  QCOMDepthStencilSurface->Image
-			, QCOMDepthStencilSurface->GetViewType()
-			, QCOMDepthStencilSurface->GetPartialAspectMask()
-			, QCOMDepthStencilSurface->GetDesc().Format
-			, QCOMDepthStencilSurface->ViewFormat
-			, 0
-			, FMath::Max(QCOMDepthStencilSurface->GetNumMips(), 1u)
-			, 0
-			, 1u
-			, false
-		);
-	}
-}
-
-const FVulkanView* FVulkanSwapChain::GetOrCreateQCOMDepthStencilView(const FVulkanTexture& InSurface) const
-{
-	if (QCOMDepthStencilView)
-	{
-		return QCOMDepthStencilView;
-	}
-
-	CreateQCOMDepthStencil(InSurface);
-
-	return QCOMDepthStencilView;
-}
-
-const FVulkanView* FVulkanSwapChain::GetOrCreateQCOMDepthView(const FVulkanTexture& InSurface) const
-{
-	if (QCOMDepthView)
-	{
-		return QCOMDepthView;
-	}
-
-	CreateQCOMDepthStencil(InSurface);
-
-	return QCOMDepthView;
-}
-
-const FVulkanTexture* FVulkanSwapChain::GetQCOMDepthStencilSurface() const
-{
-	return QCOMDepthStencilSurface;
 }
 
 void FVulkanDevice::SetupPresentQueue(VkSurfaceKHR Surface)

@@ -720,13 +720,6 @@ public:
 			FragDensityCreateInfo.pNext = CreateInfo.pNext;
 			CreateInfo.pNext = &FragDensityCreateInfo;
 		}
-
-#if VULKAN_SUPPORTS_QCOM_RENDERPASS_TRANSFORM
-		if (RTLayout.GetQCOMRenderPassTransform() != VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
-		{
-			CreateInfo.flags = VK_RENDER_PASS_CREATE_TRANSFORM_BIT_QCOM;
-		}
-#endif
 	}
 
 	VkRenderPass Create(const FVulkanRenderTargetLayout& RTLayout)
