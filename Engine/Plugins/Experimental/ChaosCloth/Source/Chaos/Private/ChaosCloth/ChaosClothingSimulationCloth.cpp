@@ -36,6 +36,7 @@ namespace ClothingSimulationClothDefault
 	constexpr float GravityScale = Softs::FExternalForces::DefaultGravityScale; // 1.f;
 	constexpr float GravityZOverride = Softs::FExternalForces::DefaultGravityZOverride; // -980.665f;
 	constexpr float VelocityScale = 0.75f;
+	constexpr float MaxVelocityScale = 1.f;
 	constexpr float FictitiousAngularScale = Softs::FExternalForces::DefaultFictitiousAngularScale; // 1.f;
 	constexpr int32 MultiResCoarseLODIndex = INDEX_NONE;
 }
@@ -1134,12 +1135,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		// Set the reference input velocity and deal with teleport & reset; external forces depends on these values, so they must be initialized before then
 		FVec3f OutLinearVelocityScale;
 		FRealSingle OutAngularVelocityScale;
-
+		FRealSingle OutMaxVelocityScale;
 		if (bNeedsReset)
 		{
 			// Make sure not to do any pre-sim transform just after a reset
 			OutLinearVelocityScale = FVec3f(1.f);
 			OutAngularVelocityScale = 1.f;
+			OutMaxVelocityScale = 1.f;
 
 			// Reset to start pose
 			LODData[LODIndex]->ResetStartPose(Solver);
@@ -1159,6 +1161,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			// Remove all impulse velocity from the last frame
 			OutLinearVelocityScale = FVec3f(0.f);
 			OutAngularVelocityScale = 0.f;
+			OutMaxVelocityScale = 1.f;
 			UE_LOG(LogChaosCloth, VeryVerbose, TEXT("Cloth in group Id %d Needs teleport."), GroupId);
 		}
 		else
@@ -1166,6 +1169,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			// Use the cloth config parameters
 			OutLinearVelocityScale = ConfigProperties.GetValue<FVector3f>(TEXT("LinearVelocityScale"), FVector3f(ClothingSimulationClothDefault::VelocityScale));
 			OutAngularVelocityScale = ConfigProperties.GetValue<float>(TEXT("AngularVelocityScale"), ClothingSimulationClothDefault::VelocityScale);
+			OutMaxVelocityScale = ConfigProperties.GetValue<float>(TEXT("MaxVelocityScale"), ClothingSimulationClothDefault::MaxVelocityScale);
 		}
 
 		// NOTE: Force-based solver doesn't actually use FictitiousAngularScale here. It gets it from the property collection directly.
@@ -1176,7 +1180,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			ReferenceSpaceTransform,
 			OutLinearVelocityScale,
 			OutAngularVelocityScale,
-			FictitiousAngularScale);
+			FictitiousAngularScale,
+			OutMaxVelocityScale);
 		if (Solver->IsForceBasedSolver())
 		{
 			Solver->SetProperties(ParticleRangeId, ConfigProperties, LODData[LODIndex]->WeightMaps);

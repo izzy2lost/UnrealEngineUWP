@@ -1077,7 +1077,8 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(
 	const FRigidTransform3& OldReferenceSpaceTransform,  // Transforms are in world space so have to be FReal based for LWC
 	const FRigidTransform3& ReferenceSpaceTransform,
 	const TVec3<FRealSingle>& LinearVelocityScale,
-	FRealSingle AngularVelocityScale, FRealSingle FictitiousAngularScale
+	FRealSingle AngularVelocityScale, FRealSingle FictitiousAngularScale,
+	FRealSingle MaxVelocityScale
 )
 {
 	FRigidTransform3 OldRootBoneLocalTransform = OldReferenceSpaceTransform;
@@ -1088,8 +1089,23 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(
 	// Calculate deltas
 	const FRigidTransform3 DeltaTransform = ReferenceSpaceTransform.GetRelativeTransform(OldReferenceSpaceTransform);
 
+	auto CalculateClampedVelocityScale = [MaxVelocityScale, SolverVelocityScale](FRealSingle InVelocityScale)
+	{
+		FReal CombinedVelocityScale = SolverVelocityScale * InVelocityScale;
+		if (CombinedVelocityScale <= FMath::Min((FReal)1., (FReal)MaxVelocityScale))
+		{
+			// When combined velocity scale is <= 1 (or smaller max velocity scale), just use it.
+			return CombinedVelocityScale;
+		}
+		// Otherwise, clamp SolverVelocityScale (what's calculated when doing delta time smoothing) to 1, and apply MaxVelocityScale clamp on the user supplied value.
+		return FMath::Clamp(SolverVelocityScale, (FReal)0., (FReal)1.) * FMath::Clamp(InVelocityScale, (FReal)0., (FReal)MaxVelocityScale);
+	};
+
 	// Apply linear velocity scale
-	const FVec3 LinearRatio = FVec3(1.) - FVec3(LinearVelocityScale * SolverVelocityScale).BoundToBox(FVec3(0.), FVec3(1.));
+	const FVec3 LinearRatio = FVec3(1.) - FVec3(
+		CalculateClampedVelocityScale(LinearVelocityScale[0]),
+		CalculateClampedVelocityScale(LinearVelocityScale[1]),
+		CalculateClampedVelocityScale(LinearVelocityScale[2]));
 	const FVec3 DeltaPosition = LinearRatio * DeltaTransform.GetTranslation();
 
 	// Apply angular velocity scale
@@ -1101,7 +1117,7 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(
 		DeltaAngle -= (FReal)2. * (FReal)PI;
 	}
 
-	const FReal PartialDeltaAngle = DeltaAngle * FMath::Clamp((FReal)1. - (FReal)AngularVelocityScale * SolverVelocityScale, (FReal)0., (FReal)1.);
+	const FReal PartialDeltaAngle = DeltaAngle * ((FReal)1. - CalculateClampedVelocityScale(AngularVelocityScale));
 	DeltaRotation = UE::Math::TQuat<FReal>(Axis, PartialDeltaAngle);
 
 	// Transform points back into the previous frame of reference before applying the adjusted deltas

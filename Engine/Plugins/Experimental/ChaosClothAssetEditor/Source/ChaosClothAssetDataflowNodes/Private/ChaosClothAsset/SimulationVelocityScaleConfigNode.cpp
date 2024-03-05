@@ -13,7 +13,9 @@ FChaosClothAssetSimulationVelocityScaleConfigNode::FChaosClothAssetSimulationVel
 
 void FChaosClothAssetSimulationVelocityScaleConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
+	
 	PropertyHelper.SetProperty(this, &LinearVelocityScale);
 	PropertyHelper.SetProperty(this, &AngularVelocityScale);
+	PropertyHelper.SetProperty(this, &MaxVelocityScale);
 	PropertyHelper.SetProperty(this, &FictitiousAngularScale);
 }
