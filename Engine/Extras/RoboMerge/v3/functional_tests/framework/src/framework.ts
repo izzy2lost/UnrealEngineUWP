@@ -351,6 +351,7 @@ export abstract class FunctionalTest {
 	}
 
 	error(...err: string[]) {
+		console.log(`ERROR: ${err}`)
 		this.log(err, 'error')
 	}
 
