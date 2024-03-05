@@ -169,10 +169,10 @@ FMetalCommandQueue::FMetalCommandQueue(MTL::Device* InDevice, uint32 const MaxNu
 	Features = EMetalFeaturesCountingQueries | EMetalFeaturesBaseVertexInstance | EMetalFeaturesIndirectBuffer |
                 EMetalFeaturesLayeredRendering | EMetalFeaturesCubemapArrays | EMetalFeaturesSetBufferOffset;
 
+    FString DeviceName(Device->name()->cString(NS::UTF8StringEncoding));
+    
 	if (Device->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v2))
 	{
-		FString DeviceName(Device->name()->cString(NS::UTF8StringEncoding));
-
 		Features |= EMetalFeaturesMSAADepthResolve | EMetalFeaturesMSAAStoreAndResolve;
         
 		// Assume that set*Bytes only works on macOS Sierra and above as no-one has tested it anywhere else.
@@ -229,7 +229,9 @@ FMetalCommandQueue::FMetalCommandQueue(MTL::Device* InDevice, uint32 const MaxNu
 	}
     
 	// Temporarily only support heaps for devices with unified memory
-	if (Device->hasUnifiedMemory() && !FParse::Param(FCommandLine::Get(),TEXT("nometalheap")))
+	if (!DeviceName.Contains(TEXT("Intel")) &&
+          Device->hasUnifiedMemory() &&
+          !FParse::Param(FCommandLine::Get(),TEXT("nometalheap")))
 	{
 		Features |= EMetalFeaturesHeaps;
 	}
