@@ -2,6 +2,7 @@
 #pragma once
 
 #include "UObject/WeakObjectPtr.h"
+#include "Containers/ConsumeAllMpmcQueue.h"
 #include "Containers/Set.h"
 #include "IAssetCompilingManager.h"
 
@@ -33,6 +34,11 @@ public:
 	 * Adds textures compiled asynchronously so they are monitored. 
 	 */
 	ENGINE_API void AddTextures(TArrayView<UTexture* const> InTextures);
+
+	/** 
+	 * Forces textures to be recompiled asynchronously later. 
+	 */
+	ENGINE_API void ForceDeferredTextureRebuildAnyThread(TArrayView<const TWeakObjectPtr<UTexture>> InTextures);
 
 	/** 
 	 * Blocks until completion of the requested textures.
@@ -100,9 +106,12 @@ private:
 	void PostCompilation(UTexture* Texture);
 	void PostCompilation(TArrayView<UTexture* const> InCompiledTextures);
 
+	void ProcessDeferredRequests();
+
 	double LastReschedule = 0.0f;
 	bool bHasShutdown = false;
 	bool bIsRoutingPostCompilation = false;
+	UE::TConsumeAllMpmcQueue<TWeakObjectPtr<UTexture>> DeferredRebuildRequestQueue;
 	TArray<TSet<TWeakObjectPtr<UTexture>>> RegisteredTextureBuckets;
 	TUniquePtr<FAsyncCompilationNotification> Notification;
 

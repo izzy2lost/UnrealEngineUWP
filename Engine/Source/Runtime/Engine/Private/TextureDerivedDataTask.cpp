@@ -1402,11 +1402,11 @@ static bool TryCacheStreamingMips(const FString& TexturePathName, int32 FirstMip
 
 	TArray<FCacheGetValueRequest, TInlineAllocator<16>> MipRequests;
 
-	int32 MipIndex = -1;
+	int32 LowestMipIndexToPrefetchOrLoad = FMath::Min(FirstMipToPrefetch, FirstMipToLoad);
 	const FSharedString Name(TexturePathName);
-	for (const FTexture2DMipMap& Mip : DerivedData->Mips)
+	for (int32 MipIndex = 0; MipIndex < LowestMipIndexToPrefetchOrLoad; ++MipIndex)
 	{
-		++MipIndex;
+		const FTexture2DMipMap& Mip = DerivedData->Mips[MipIndex];
 		if (Mip.IsPagedToDerivedData())
 		{
 			const FCacheKey MipKey = ConvertLegacyCacheKey(DerivedData->GetDerivedDataMipKeyString(MipIndex, Mip));
