@@ -57,7 +57,7 @@ namespace Horde.Server.Parameters
 					}
 				}
 			}
-			return PropertyFilter.Apply(parameters, filter);
+			return PropertyFilter.Apply(parameters ?? new JsonObject(), filter);
 		}
 	}
 }
