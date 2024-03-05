@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using EpicGames.Horde.Projects;
 using Horde.Server.Configuration;
@@ -36,15 +37,27 @@ namespace Horde.Server.Parameters
 		/// <summary>
 		/// Query all the parameters
 		/// </summary>
+		/// <param name="path">Base path for the object to return</param>
 		/// <param name="filter">Filter for the properties to return</param>
 		/// <returns>Parameters matching the requested filter</returns>
 		[HttpGet]
-		[Route("/api/v1/parameters")]
+		[Route("/api/v1/parameters/{*path}")]
 		[ProducesResponseType(typeof(object), 200)]
-		public ActionResult<object> GetParameters([FromQuery] PropertyFilter? filter = null)
+		public ActionResult<object> GetParameters(string? path = null, [FromQuery] PropertyFilter? filter = null)
 		{
-			GlobalConfig globalConfig = _globalConfig.Value;
-			return PropertyFilter.Apply(globalConfig.Parameters, filter);
+			JsonObject? parameters = _globalConfig.Value.Parameters;
+			if (parameters != null && !String.IsNullOrEmpty(path))
+			{
+				foreach (string fragment in path.Split('/'))
+				{
+					parameters = parameters[fragment] as JsonObject;
+					if (parameters == null)
+					{
+						break;
+					}
+				}
+			}
+			return PropertyFilter.Apply(parameters, filter);
 		}
 	}
 }

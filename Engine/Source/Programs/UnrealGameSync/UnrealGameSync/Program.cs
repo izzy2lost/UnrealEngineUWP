@@ -216,7 +216,7 @@ namespace UnrealGameSync
 					if (launcherSettings.PerforceServerAndPort == null || launcherSettings.PerforceUserName == null)
 					{
 						logger.LogInformation("Missing server settings; finding defaults.");
-						launcherSettings.PerforceServerAndPort ??= PerforceSettings.Default.ServerAndPort;
+						launcherSettings.PerforceServerAndPort ??= DeploymentSettings.Instance.DefaultPerforceServer ?? PerforceSettings.Default.ServerAndPort;
 						launcherSettings.PerforceUserName ??= PerforceSettings.Default.UserName;
 						launcherSettings.Save();
 					}

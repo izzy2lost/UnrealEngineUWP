@@ -39,7 +39,7 @@ namespace UnrealGameSync
 
 			string defaultHordeServer = DeploymentSettings.Instance.HordeUrl ?? String.Empty;
 
-			HordeRadioBtn.Checked = settings.UpdateSource == LauncherUpdateSource.Horde;
+			HordeRadioBtn.Checked = settings.UpdateSource != LauncherUpdateSource.Perforce;
 			HordeServerTextBox.Text = String.IsNullOrEmpty(settings.HordeServer) ? defaultHordeServer : settings.HordeServer;
 			ServerTextBox.Text = settings.PerforceServerAndPort ?? String.Empty;
 			UserNameTextBox.Text = settings.PerforceUserName ?? String.Empty;

@@ -170,11 +170,10 @@ namespace UnrealGameSync
 					}
 
 					// Query the deployment settings and write them to the output directory if not already set
-					JsonObject parameters = await httpClient.GetParametersAsync(new[] { "ugs.*" }, cancellationToken);
-					JsonObject? ugsParameters = parameters["ugs"] as JsonObject;
-					if (ugsParameters != null)
+					JsonObject? parameters = await httpClient.GetParametersAsync("ugs", cancellationToken);
+					if (parameters != null && parameters.Count > 0)
 					{
-						byte[] deploymentData = JsonSerializer.SerializeToUtf8Bytes(ugsParameters, new JsonSerializerOptions { WriteIndented = true });
+						byte[] deploymentData = JsonSerializer.SerializeToUtf8Bytes(parameters, new JsonSerializerOptions { WriteIndented = true });
 
 						FileReference deploymentJson = new FileReference(Path.Combine(applicationFolder, "Deployment.json"));
 						await FileReference.WriteAllBytesAsync(deploymentJson, deploymentData, cancellationToken);

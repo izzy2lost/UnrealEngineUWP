@@ -217,15 +217,15 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Query parameters for other tools
 		/// </summary>
-		/// <param name="filter">Filters for properties to return (eg. "ugs.server", "ugs.*")</param>
+		/// <param name="path">Path for properties to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the projects</returns>
-		public Task<JsonObject> GetParametersAsync(IEnumerable<string>? filter, CancellationToken cancellationToken = default)
+		public Task<JsonObject> GetParametersAsync(string? path, CancellationToken cancellationToken = default)
 		{
 			string url = "api/v1/parameters";
-			if (filter != null && filter.Any())
+			if (!String.IsNullOrEmpty(path))
 			{
-				url = $"{url}?filter={Uri.EscapeDataString(String.Join(",", filter))}";
+				url = $"{url}/{path}";
 			}
 			return GetAsync<JsonObject>(_httpClient, url, cancellationToken);
 		}

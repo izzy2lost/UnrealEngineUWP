@@ -67,7 +67,7 @@ namespace UnrealGameSync
 				if (key != null)
 				{
 					LauncherUpdateSource updateSource;
-					if (Enum.TryParse(key.GetValue("UpdateSource", UpdateSource) as string, out updateSource))
+					if (Enum.TryParse(key.GetValue("Source", UpdateSource) as string, out updateSource))
 					{
 						UpdateSource = updateSource;
 					}
