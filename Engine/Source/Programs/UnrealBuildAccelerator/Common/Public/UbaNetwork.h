@@ -18,7 +18,7 @@ namespace uba
 	
 	static constexpr u32 SystemNetworkVersion = 1339;
 	static constexpr u32 StorageNetworkVersion = 3;
-	static constexpr u32 SessionNetworkVersion = 28;
+	static constexpr u32 SessionNetworkVersion = 29;
 
 
 	// Messages used over network between client/server (system, storage and session)
@@ -77,6 +77,7 @@ namespace uba
 		UBA_SESSION_MESSAGE(VirtualAllocFailed) \
 		UBA_SESSION_MESSAGE(GetTraceInformation) \
 		UBA_SESSION_MESSAGE(Ping) \
+		UBA_SESSION_MESSAGE(Notification) \
 		UBA_SESSION_MESSAGE(GetNextProcess) \
 		UBA_SESSION_MESSAGE(Custom) \
 		UBA_SESSION_MESSAGE(UpdateEnvironment) \

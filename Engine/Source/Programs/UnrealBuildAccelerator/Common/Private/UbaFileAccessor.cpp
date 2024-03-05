@@ -11,6 +11,8 @@
 #include <copyfile.h>
 #endif
 
+#define UBA_USE_WRITE_THROUGH 0
+
 namespace uba
 {
 	#if PLATFORM_WINDOWS
@@ -59,6 +61,10 @@ namespace uba
 			m_tempFileIndex = g_tempFileCounter++;
 			realFileName = tempFile.Append(tempPath).Append("Temp_").AppendValue(m_tempFileIndex).data;
 		}
+		#endif
+
+		#if UBA_USE_WRITE_THROUGH
+		flagsAndAttributes |= FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH;
 		#endif
 
 		u32 createDisp = CREATE_ALWAYS;
@@ -135,10 +141,11 @@ namespace uba
 		if (!m_isWrite)
 			return false;
 
-#if 0
+		#if UBA_USE_WRITE_THROUGH
+		bool useWriteThrough = true;
 		u8 writeThroughBuffer[4 * 1024];
 		bool setFileSize = false;
-#endif
+		#endif
 
 #if PLATFORM_WINDOWS
 		if ((u64)m_fileHandle & OverlappedIoFlag)
@@ -189,7 +196,7 @@ namespace uba
 				u64 toWrite = Min(writeLeft, BlockSize);
 				u64 toActuallyWrite = toWrite;
 
-#if 0
+				#if UBA_USE_WRITE_THROUGH
 				if (useWriteThrough)
 				{
 					if (toWrite < BlockSize)
@@ -205,7 +212,7 @@ namespace uba
 							toWrite = toActuallyWrite;
 					}
 				}
-#endif
+				#endif
 
 				ol[index] = {};
 				ol[index].hEvent = ev[index].GetHandle();
@@ -226,9 +233,9 @@ namespace uba
 			if (!eg.Execute())
 				return false;
 
-			#if 0
+			#if UBA_USE_WRITE_THROUGH
 			if (setFileSize)
-				SetEndOfFile(logger, fileName, m_fileHandle, bufferLen);
+				SetEndOfFile(m_logger, m_fileName, m_fileHandle, dataLen);
 			#endif
 
 			return true;
@@ -242,8 +249,7 @@ namespace uba
 			u32 toWrite = u32(Min(writeLeft, 256llu * 1024 * 1024));
 			u32 toActuallyWrite = toWrite;
 
-#if 0
-			u8 writeThroughBuffer[4 * 1024];
+			#if UBA_USE_WRITE_THROUGH
 			if (useWriteThrough)
 			{
 				toActuallyWrite = (toWrite / 4096) * 4096;
@@ -254,7 +260,7 @@ namespace uba
 					setFileSize = true;
 				}
 			}
-#endif
+			#endif
 
 #if PLATFORM_WINDOWS
 			DWORD written;
@@ -282,10 +288,10 @@ namespace uba
 			pos += written;
 		}
 
-#if 0
+		#if UBA_USE_WRITE_THROUGH
 		if (setFileSize)
-			SetEndOfFile(logger, fileName, m_fileHandle, bufferLen);
-#endif
+			SetEndOfFile(m_logger, m_fileName, m_fileHandle, dataLen);
+		#endif
 
 		return true;
 	}

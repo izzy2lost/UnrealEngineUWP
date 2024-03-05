@@ -89,6 +89,7 @@ namespace uba
 			Vector<TString> summary;
 			Vector<FileTransfer> fetchedFiles;
 			Vector<FileTransfer> storedFiles;
+			TString notification;
 			u64 fetchedFilesBytes = 0;
 			u64 storedFilesBytes = 0;
 			u32 maxVisibleFiles = 0;
