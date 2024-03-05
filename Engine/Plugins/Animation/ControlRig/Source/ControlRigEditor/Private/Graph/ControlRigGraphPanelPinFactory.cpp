@@ -25,10 +25,25 @@
 
 TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin(UEdGraphPin* InPin) const
 {
+	if(InPin == nullptr)
+	{
+		return nullptr;
+	}
+	
 	TSharedPtr<SGraphPin> InternalResult = CreatePin_Internal(InPin);
 	if(InternalResult.IsValid())
 	{
 		return InternalResult;
+	}
+
+	// if the graph we are looking at is not a control rig graph - let's not do this
+	if (const UEdGraphNode* OwningNode = InPin->GetOwningNode())
+	{
+		// only create pins within control rig graphs
+		if (Cast<UControlRigGraph>(OwningNode->GetGraph()) == nullptr)
+		{
+			return nullptr;
+		}
 	}
 	
 	TSharedPtr<SGraphPin> K2PinWidget = FNodeFactory::CreateK2PinWidget(InPin);
