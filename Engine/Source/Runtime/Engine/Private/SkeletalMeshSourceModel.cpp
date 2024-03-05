@@ -6,6 +6,7 @@
 
 #if WITH_EDITOR
 #include "Engine/SkeletalMesh.h"
+#include "Engine/SkinnedAssetCommon.h"
 #include "SkeletalMeshDescription.h"
 #include "Rendering/SkeletalMeshLODImporterData.h"
 #endif
@@ -329,7 +330,7 @@ void FSkeletalMeshSourceModel::ConvertRawMeshToMeshDescriptionBulkData()
 	}
 	
 	FMeshDescription& MeshDescription = MeshDescriptionBulkData->CreateMeshDescription()->GetMeshDescription(); 
-	ImportData.GetMeshDescription(GetOwner(), MeshDescription);
+	ImportData.GetMeshDescription(SkeletalMesh, &SkeletalMesh->GetLODInfo(RawMeshBulkDataLODIndex)->BuildSettings, MeshDescription);
 
 	UpdateCachedMeshStatistics(&MeshDescription);
 
