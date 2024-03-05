@@ -18,6 +18,26 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogOXRVisionOS, Log, All);
 // Note: if you are turning this log up to verbose you may also want LogMetalVisionOS turned up to verbose.
 
+static const TCHAR* VOSThreadString()
+{
+	if (IsInGameThread()) 
+	{
+		return TEXT("GT~");
+	}
+	else if (IsInRenderingThread())
+	{
+		return TEXT("RT~");
+	}
+	else if (IsInRHIThread())
+	{
+		return TEXT("IT~");
+	}
+	else
+	{
+		return TEXT("?T~");
+	}
+}
+
 class FOXRVisionOSInstance;
 
 class FOXRVisionOS : public IModuleInterface, public IOpenXRExtensionPlugin

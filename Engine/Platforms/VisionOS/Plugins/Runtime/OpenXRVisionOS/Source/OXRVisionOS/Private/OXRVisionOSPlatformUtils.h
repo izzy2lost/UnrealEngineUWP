@@ -183,10 +183,12 @@ namespace OXRVisionOS
         Ret.orientation.y = RawRotation.Y;
         Ret.orientation.z = RawRotation.Z;
         Ret.orientation.w = RawRotation.W;
-        Ret.position.x = RawYUpFMatrix.M[3][0];
-        Ret.position.y = RawYUpFMatrix.M[3][1];
-        Ret.position.z = RawYUpFMatrix.M[3][2];
-        return Ret;
+
+		Ret.position.x = RawYUpMatrix.columns[3][0];
+		Ret.position.y = RawYUpMatrix.columns[3][1];
+		Ret.position.z = RawYUpMatrix.columns[3][2];
+		
+		return Ret;
     }
 	FORCEINLINE XrPosef ToXrPose(const FTransform& InTransform)
 	{
@@ -213,7 +215,7 @@ namespace OXRVisionOS
 
 	FORCEINLINE XrSpaceVelocityFlags ToXrSpaceVelocityFlags(TrackerResultData& InResultData)
 	{
-//TODO finish this
+//TODO finish this, or delete it
 		XrSpaceVelocityFlags OutFlags = 0;
 
 		// 	OutFlags |= XR_SPACE_VELOCITY_LINEAR_VALID_BIT;
