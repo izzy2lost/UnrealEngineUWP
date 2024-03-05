@@ -9,7 +9,6 @@
 #include "PCGParamData.h"
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
-#include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
@@ -315,6 +314,8 @@ SPCGEditorGraphAttributeListView::~SPCGEditorGraphAttributeListView()
 	{
 		PCGEditorPtr.Pin()->OnInspectedStackChangedDelegate.RemoveAll(this);
 	}
+
+	CollapsedPointData.Reset();
 }
 
 void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TSharedPtr<FPCGEditor> InPCGEditor)
@@ -679,6 +680,7 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 	ListViewItems.Empty();
 	ListViewHeader->ClearColumns();
 	InfoTextBlock->SetText(FText::GetEmpty());
+	CollapsedPointData.Reset();
 
 	const FPCGDataCollection* InspectionData = GetInspectionData();
 	if (!InspectionData)
@@ -727,6 +729,8 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 	{
 		if (const UPCGPointData* PCGPointData = PCGSpatialData->ToPointData())
 		{
+			CollapsedPointData.Reset(PCGPointData);
+
 			const UPCGMetadata* PCGMetadata = PCGPointData->ConstMetadata();
 
 			AddPointDataColumns(PCGPointData);
