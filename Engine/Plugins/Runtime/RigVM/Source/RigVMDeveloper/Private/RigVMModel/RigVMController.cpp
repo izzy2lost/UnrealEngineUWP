@@ -18955,8 +18955,8 @@ URigVMNode* URigVMController::ConvertRerouteNodeToDispatch(URigVMRerouteNode* In
 					if(const FString* RedirectedPart = Redirects->Find(Parts[1]))
 					{
 						Parts[1] = *RedirectedPart;
-						return URigVMPin::JoinPinPath(Parts);
 					}
+					return URigVMPin::JoinPinPath(Parts);
 				}
 				return InPinPath;
 			})
