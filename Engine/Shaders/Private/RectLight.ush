@@ -546,6 +546,27 @@ struct FSphericalRect
 	float		SolidAngle;
 };
 
+// The routine below needs more accuracy near 1.0 to accurately capture distant rectlights
+// The typical approach (for example see: asinFast) looses too much accuracy to cancelation near the endpoints
+float SphericalRectAsin(float x)
+{
+	const float HalfPI = PI / 2;
+	// Argument reduction to [0,0.5]
+	// using: asin(x) == pi/2-2*asin(sqrt(0.5-0.5*x))
+	float a = saturate(abs(x));
+	bool inner = a < 0.5f;
+	float a2 = inner ? a * a : 0.5 - 0.5 * a;
+	a = inner ? a : sqrt(a2);
+
+	// Fit using Mathematica -- max error for asin is 10^-4.87
+	float r = 0.100323f;
+	r = mad(r, a2, 0.163288f);
+	r = mad(r, a2, 1.00011f) * a;
+	r = inner ? r : HalfPI - 2 * r;
+
+	return asfloat(asuint(r) ^ (asuint(x) & 0x80000000u)); // propagate sign bit
+}
+
 // RectZ must face origin
 FSphericalRect BuildSphericalRect( FRect Rect )
 {
@@ -553,10 +574,7 @@ FSphericalRect BuildSphericalRect( FRect Rect )
 
 	SphericalRect.Axis = Rect.Axis;
 
-	float3 LocalPosition;
-	LocalPosition.x = dot( Rect.Axis[0], Rect.Origin );
-	LocalPosition.y = dot( Rect.Axis[1], Rect.Origin );
-	LocalPosition.z = dot( Rect.Axis[2], Rect.Origin );
+	float3 LocalPosition = mul(Rect.Axis, Rect.Origin);
 
 	SphericalRect.x0 = LocalPosition.x - Rect.Extent.x;
 	SphericalRect.x1 = LocalPosition.x + Rect.Extent.x;
@@ -566,86 +584,92 @@ FSphericalRect BuildSphericalRect( FRect Rect )
 
 	SphericalRect.Axis[2] *= LocalPosition.z > 0 ? -1 : 1;
 
-	float3 v0 = float3( SphericalRect.x0, SphericalRect.y0, SphericalRect.z0 );
-	float3 v1 = float3( SphericalRect.x1, SphericalRect.y0, SphericalRect.z0 );
-	float3 v2 = float3( SphericalRect.x1, SphericalRect.y1, SphericalRect.z0 );
-	float3 v3 = float3( SphericalRect.x0, SphericalRect.y1, SphericalRect.z0 );
+	// Original paper creates all vertices, then all normals via cross products and finally computes angles via dot products.
+	// However since all the points lay on an axis-aligned plane, the math can be simplified by recognizing that most terms become
+	// zero, leaving only the product of the z components of the normals.
+	float z0sq = LocalPosition.z * LocalPosition.z;
+	float n0z = -SphericalRect.y0 * rsqrt(z0sq + SphericalRect.y0 * SphericalRect.y0);
+	float n1z =  SphericalRect.x1 * rsqrt(z0sq + SphericalRect.x1 * SphericalRect.x1);
+	float n2z =  SphericalRect.y1 * rsqrt(z0sq + SphericalRect.y1 * SphericalRect.y1);
+	float n3z = -SphericalRect.x0 * rsqrt(z0sq + SphericalRect.x0 * SphericalRect.x0);
 
-	float3 n0 = normalize( cross( v0, v1 ) );
-	float3 n1 = normalize( cross( v1, v2 ) );
-	float3 n2 = normalize( cross( v2, v3 ) );
-	float3 n3 = normalize( cross( v3, v0 ) );
+	// Original paper uses acos(-dot(...)). Here we use the identify acos(-x) == pi/2+asin(x) to simplify
+	// the math.
+	float G0G1 = SphericalRectAsin(n0z * n1z) + SphericalRectAsin(n1z * n2z);
+	float G2G3 = SphericalRectAsin(n2z * n3z) + SphericalRectAsin(n3z * n0z);
 
-	float g0 = acos( -dot( n0, n1 ) );
-	float g1 = acos( -dot( n1, n2 ) );
-	float g2 = acos( -dot( n2, n3 ) );
-	float g3 = acos( -dot( n3, n0 ) );
-
-	SphericalRect.b0 = n0.z;
-	SphericalRect.b1 = n2.z;
-
-	SphericalRect.k = 2*PI - g2 - g3;
-	SphericalRect.SolidAngle = g0 + g1 - SphericalRect.k;
+	SphericalRect.b0 = n0z;
+	SphericalRect.b1 = n2z;
+	SphericalRect.k = G2G3;
+	SphericalRect.SolidAngle = G0G1 + SphericalRect.k;
 
 	return SphericalRect;
 }
 
 struct FSphericalRectSample {
 	float3 Direction;
+	float  Distance;
 	float2 UV;
+	float  InvPdf;
 };
 
-FSphericalRectSample UniformSampleSphericalRectWithUV(float2 E, FSphericalRect Rect)
+#define SPHERICAL_RECT_MIN_SOLIDANGLE 1e-3
+
+float GetSphericalRectInversePdf(float3 Direction, float DistanceSquared, FSphericalRect Rect)
 {
-	float au = E.x * Rect.SolidAngle + Rect.k;
-	float fu = (cos(au) * Rect.b0 - Rect.b1) / sin(au);
-	float cu = rsqrt(fu * fu + Rect.b0 * Rect.b0) * (fu > 0 ? 1 : -1);
-	cu = clamp(cu, -1, 1);				// avoid NaNs
+	if (Rect.SolidAngle > SPHERICAL_RECT_MIN_SOLIDANGLE)
+	{
+		// Light is big enough to use solid angle sampling
+		return Rect.SolidAngle;
+	}
+	else
+	{
+		// Light is very small, area sampling is sufficient
+		float Area = (Rect.y1 - Rect.y0) * (Rect.x1 - Rect.x0);
+		float NoL = abs(dot(Direction, Rect.Axis[2]));
+		return Area * NoL / DistanceSquared;
+	}
+}
 
-	float xu = -(cu * Rect.z0) * rsqrt(1 - cu * cu);
-	xu = clamp(xu, Rect.x0, Rect.x1);	// avoid Infs
+FSphericalRectSample UniformSampleSphericalRect(float2 E, FSphericalRect Rect)
+{
+	float xu, yv;
+	if (Rect.SolidAngle > SPHERICAL_RECT_MIN_SOLIDANGLE)
+	{
+		// Some signs are flipped from the original paper on account of the different calculation of SolidAngle and k
+		float au = E.x * Rect.SolidAngle - Rect.k;
+		float fu = (cos(au) * Rect.b0 + Rect.b1) / sin(au);
+		float cu = rsqrt(fu * fu + Rect.b0 * Rect.b0) * (fu > 0 ? 1 : -1);
+		cu = clamp(cu, -1, 1);				// avoid NaNs
 
-	float d = sqrt(xu * xu + Rect.z0 * Rect.z0);
-	float h0 = Rect.y0 * rsqrt(d * d + Rect.y0 * Rect.y0);
-	float h1 = Rect.y1 * rsqrt(d * d + Rect.y1 * Rect.y1);
-	float hv = h0 + E.y * (h1 - h0);
-	float yv = (hv * hv < 1 - 1e-6) ? (hv * d) * rsqrt(1 - hv * hv) : Rect.y1;
+		xu = -(cu * Rect.z0) * rsqrt(1 - cu * cu);
+		xu = clamp(xu, Rect.x0, Rect.x1);	// avoid Infs
 
+		float d2 = xu * xu + Rect.z0 * Rect.z0;
+		float h0 = Rect.y0 * rsqrt(d2 + Rect.y0 * Rect.y0);
+		float h1 = Rect.y1 * rsqrt(d2 + Rect.y1 * Rect.y1);
+		float hv = h0 + E.y * (h1 - h0);
+		float rv = 1.0 - hv * hv;
+		yv = (rv > 0) ? (hv * d2 * rsqrt(rv * d2)) : Rect.y1;
+	}
+	else
+	{
+		// fallback to area sampling when solid angle is tiny to avoid numerical issues
+		xu = lerp(Rect.x0, Rect.x1, E.x);
+		yv = lerp(Rect.y0, Rect.y1, E.y);
+	}
 	FSphericalRectSample Result;
 	Result.Direction = mul(float3(xu, yv, Rect.z0), Rect.Axis);
 	Result.UV = float2(xu - Rect.x0, yv - Rect.y0) / float2(Rect.x1 - Rect.x0, Rect.y1 - Rect.y0);
 
+	float DistanceSquared = xu * xu + yv * yv + Rect.z0 * Rect.z0;
+	float InvDistance = rsqrt(DistanceSquared);
+
+	Result.Distance = DistanceSquared * InvDistance;
+	Result.Direction *= InvDistance;
+
+	Result.InvPdf = GetSphericalRectInversePdf(Result.Direction, DistanceSquared, Rect);
 	return Result;
-}
-
-float3 UniformSampleSphericalRect( float2 E, FSphericalRect Rect )
-{
-	return UniformSampleSphericalRectWithUV(E, Rect).Direction;
-}
-
-float3 RectIrradianceRef( float3 N, FRect Rect, out float BaseIrradiance, out float NoL )
-{
-	FSphericalRect SphericalRect = BuildSphericalRect( Rect );
-
-	const uint NumSamples = 32;
-
-	float3 L = 0;
-	NoL = 0;
-
-	LOOP
-	for( uint i = 0; i < NumSamples; i++ )
-	{
-		float2 E = Hammersley( i, NumSamples, 0 );
-		float3 Ls = normalize( UniformSampleSphericalRect( E, SphericalRect ) );
-
-		L   += Ls;
-		NoL += saturate( dot(N, Ls) );
-	}
-
-	BaseIrradiance = SphericalRect.SolidAngle;
-	NoL /= NumSamples;
-
-	return normalize(L);
 }
 
 FRect GetRect(

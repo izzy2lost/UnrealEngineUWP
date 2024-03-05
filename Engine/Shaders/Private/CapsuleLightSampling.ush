@@ -19,10 +19,15 @@ struct FCapsuleSphericalBounds
 	float ConeSolidAngle;
 };
 
-// return the smallest of the two possible bounding shapes
-float GetCapsuleBoundsSolidAngle(FCapsuleSphericalBounds Bounds)
+float GetCapsuleBoundsInversePdf(float3 Direction, FCapsuleSphericalBounds Bounds)
 {
-	return min(Bounds.SphericalRect.SolidAngle, Bounds.ConeSolidAngle);
+	if (Bounds.ConeSolidAngle < Bounds.SphericalRect.SolidAngle)
+	{
+		return Bounds.ConeSolidAngle;
+	}
+	float LocalDirZ = dot(Direction, Bounds.SphericalRect.Axis[2]);
+	float DistanceSquared = Square(Bounds.SphericalRect.z0 / LocalDirZ);
+	return GetSphericalRectInversePdf(Direction, DistanceSquared, Bounds.SphericalRect);
 }
 
 // return world space direction within the cone and solidangle
@@ -34,7 +39,8 @@ float4 SampleCapsuleBounds(FCapsuleSphericalBounds Bounds, float2 E)
 	}
 	else
 	{
-		return float4(normalize(UniformSampleSphericalRect(E, Bounds.SphericalRect)), Bounds.SphericalRect.SolidAngle);
+		FSphericalRectSample Result = UniformSampleSphericalRect(E, Bounds.SphericalRect);
+		return float4(Result.Direction, Result.InvPdf);
 	}
 }
 
