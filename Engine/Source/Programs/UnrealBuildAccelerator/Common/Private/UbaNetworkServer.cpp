@@ -808,7 +808,7 @@ namespace uba
 		lock.Leave();
 
 		SCOPED_WRITE_LOCK(m_availableWorkersLock, lock2);
-		while (count-- && m_createdWorkerCount < m_maxWorkerCount)
+		while (count--)
 		{
 			Worker* worker = PopWorkerNoLock();
 			if (!worker)
