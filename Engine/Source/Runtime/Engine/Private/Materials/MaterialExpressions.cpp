@@ -14829,6 +14829,7 @@ UMaterialFunction::UMaterialFunction(const FObjectInitializer& ObjectInitializer
 #if WITH_EDITORONLY_DATA
 	PreviewMaterial = nullptr;
 	ThumbnailInfo = nullptr;
+	bAllExpressionsLoadedCorrectly = true;
 #endif
 }
 
@@ -14934,6 +14935,33 @@ void UMaterialFunction::ForceRecompileForRendering(FMaterialUpdateContext& Updat
 
 void UMaterialFunction::Serialize(FArchive& Ar)
 {
+#if WITH_EDITORONLY_DATA
+	UMaterialFunctionEditorOnlyData* EditorOnly = GetEditorOnlyData();
+	if (EditorOnly && Ar.IsSaving() && !Ar.IsCooking() && !Ar.IsObjectReferenceCollector())
+	{
+		// If the collection of expressions got some null expressions remove them now, but warn the user about it.
+		if (EditorOnly->ExpressionCollection.Expressions.Remove(nullptr))
+		{
+			FText Message = FText::Format(NSLOCTEXT("MaterialExpressions", "Error_NullExpressionsInMaterialFunction",
+				"Material Function {0} editor only data contained null expression and some expressions may be missing."
+				"\n\nPlease close and repoen this Material Function and verify it is still valid."), FText::FromString(GetFullName()));
+			FMessageDialog::Open(EAppMsgType::Ok, Message);
+		}
+
+		// Temporary debugging code. This will populate the DebugExpressionInfos with information about each expression
+		// in ExpressionCollection.Expressions, to gather more information when some expression is null upon function
+		// PostLoad() to help solve UE-198712.
+		EditorOnly->ExpressionCollection.DebugExpressionInfos.Empty();
+		EditorOnly->ExpressionCollection.DebugExpressionInfos.Reserve(EditorOnly->ExpressionCollection.Expressions.Num());
+		for (UMaterialExpression* Expression : EditorOnly->ExpressionCollection.Expressions)
+		{
+			check(Expression);
+			FString Info = FString::Printf(TEXT("Name: '%s', Type: '%s'"), *Expression->GetFullName(), *Expression->GetClass()->GetFullName());
+			EditorOnly->ExpressionCollection.DebugExpressionInfos.Push(MoveTemp(Info));
+		}
+	}
+#endif
+
 	Super::Serialize(Ar);
 
 #if WITH_EDITOR
@@ -15023,15 +15051,47 @@ void UMaterialFunction::PostLoad()
 	}
 	UpdateDependentFunctionCandidates();
 
+	bAllExpressionsLoadedCorrectly = true;
+
 	if (GIsEditor && EditorOnly)
 	{
-		// Clean up any removed material expression classes	
-		if (EditorOnly->ExpressionCollection.Expressions.Remove(nullptr) != 0)
+		// We can display null expressions info if the DebugExpressionInfos was populated with data upon Serialize().
+		bool bDisplayNullExpressionInfo = EditorOnly->ExpressionCollection.DebugExpressionInfos.Num() == EditorOnly->ExpressionCollection.Expressions.Num();
+
+		// Go over all expressions in the collection and invalidate the material if a null expression is found. Then
+		// remove the null expression from the array.
+		for (int i = 0; i < EditorOnly->ExpressionCollection.Expressions.Num();)
 		{
-			// Force this function to recompile because its expressions have changed
-			// Which means removing an expression class will cause the need for a resave of all materials affected
-			UE_LOG(LogMaterial, Log, TEXT("Please resave %s.  It is missing a material expression and this will cause any material using this function to recompile shaders each time it loads."), *GetFullName());
-			StateId = FGuid::NewGuid();
+			UMaterialExpression* Expression = EditorOnly->ExpressionCollection.Expressions[i].Get();
+			if (Expression)
+			{
+				++i;
+				continue;
+			}
+
+			// Mark this function as invalid. This will cause the material containing an active call to it to fail translation.
+			bAllExpressionsLoadedCorrectly = false;
+
+			if (bDisplayNullExpressionInfo)
+			{
+				UE_LOG(LogMaterial, Log, TEXT("Expression in function expression collection with index %d was null. Expression Info: %s"), i, *EditorOnly->ExpressionCollection.DebugExpressionInfos[i]);
+					
+				EditorOnly->ExpressionCollection.DebugExpressionInfos.RemoveAt(i);
+			}
+
+			EditorOnly->ExpressionCollection.Expressions.RemoveAt(i);
+		}
+
+		if (!bAllExpressionsLoadedCorrectly)
+		{
+			UE_LOG(LogMaterial, Warning, TEXT("Some expression in Material Function %s failed to load correctly. This will cause any material using this MF to fail translation. Please check open affected Material Function, make sure its expression graph is valid and resave it."), *GetFullName());
+			
+			// Dirty this function by deterministically changing its StateId.
+			static FGuid NotAllExpressionsLoadedCorrectlyToken(TEXT("6B9D300E-ED9D-4E4A-A141-05DE059B5704"));
+			StateId.A ^= NotAllExpressionsLoadedCorrectlyToken.A;
+			StateId.B ^= NotAllExpressionsLoadedCorrectlyToken.B;
+			StateId.C ^= NotAllExpressionsLoadedCorrectlyToken.C;
+			StateId.D ^= NotAllExpressionsLoadedCorrectlyToken.D;
 		}
 	}
 
