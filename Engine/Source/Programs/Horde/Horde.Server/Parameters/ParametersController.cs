@@ -1,0 +1,63 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using EpicGames.Horde.Projects;
+using Horde.Server.Configuration;
+using Horde.Server.Server;
+using Horde.Server.Streams;
+using Horde.Server.Utilities;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.Options;
+
+namespace Horde.Server.Parameters
+{
+	/// <summary>
+	/// Controller for the /api/v1/parameters endpoint. Provides configuration data to other tools.
+	/// </summary>
+	[ApiController]
+	[AllowAnonymous]
+	public class ParametersController : HordeControllerBase
+	{
+		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public ParametersController(IOptionsSnapshot<GlobalConfig> globalConfig)
+		{
+			_globalConfig = globalConfig;
+		}
+
+		/// <summary>
+		/// Query all the parameters
+		/// </summary>
+		/// <param name="path">Base path for the object to return</param>
+		/// <param name="filter">Filter for the properties to return</param>
+		/// <returns>Parameters matching the requested filter</returns>
+		[HttpGet]
+		[Route("/api/v1/parameters/{*path}")]
+		[ProducesResponseType(typeof(object), 200)]
+		public ActionResult<object> GetParameters(string? path = null, [FromQuery] PropertyFilter? filter = null)
+		{
+			JsonObject? parameters = _globalConfig.Value.Parameters;
+			if (parameters != null && !String.IsNullOrEmpty(path))
+			{
+				foreach (string fragment in path.Split('/'))
+				{
+					parameters = parameters[fragment] as JsonObject;
+					if (parameters == null)
+					{
+						break;
+					}
+				}
+			}
+			return PropertyFilter.Apply(parameters, filter);
+		}
+	}
+}

@@ -742,10 +742,10 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       <div style={{ backgroundColor: hordeTheme.horde.topNavBackground }}>
          {showVersion && <VersionModal show={true} onClose={() => { setShowVersion(false) }} />}
          {showPreviewChanges && <PreviewChangesModal onClose={() => { setShowPreviewChanges(false) }} />}
-         <Stack tokens={{ maxWidth: 1464, childrenGap: 0 }} disableShrink={true} styles={{ root: { backgroundColor: hordeTheme.horde.topNavBackground, margin: "auto", width: "100%" } }}>
+         <Stack tokens={{ maxWidth: 1440, childrenGap: 0 }} disableShrink={true} styles={{ root: { backgroundColor: hordeTheme.horde.topNavBackground, margin: "auto", width: "100%" } }}>
             <Stack horizontal verticalAlign='center' styles={{ root: { height: "60px" } }} >
 
-               <Link to="/index"><Stack horizontal styles={{ root: { paddingLeft: 8, cursor: 'pointer' } }}>
+               <Link to="/index"><Stack horizontal styles={{ root: { paddingLeft: 0, cursor: 'pointer' } }}>
                   <Stack styles={{ root: { paddingTop: 2, paddingRight: 6 } }}>
                      <img style={{ width: 32 }} src={logoSrc} alt="" />
                   </Stack>
@@ -791,7 +791,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
                      />}
                   </Stack>
 
-                  <Stack styles={{ root: {} }} onMouseEnter={() => setShowMenu(true)}
+                  <Stack style={{width: "32px"}} onMouseEnter={() => setShowMenu(true)}
                      onMouseLeave={() => { setShowMenu(false) }} >
                      <div ref={divRef}>
                         <Persona styles={{ root: { selectors: { ".ms-Persona-initials": { fontWeight: "unset", fontFamily: "Horde Open Sans SemiBold", cursor: "pointer" } } } }} imageShouldFadeIn={false} imageInitials={initials} imageUrl={dashboard.userImage32} size={PersonaSize.size32}

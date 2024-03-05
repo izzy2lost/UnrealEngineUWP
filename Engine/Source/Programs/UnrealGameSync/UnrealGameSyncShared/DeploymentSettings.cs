@@ -44,6 +44,11 @@ namespace UnrealGameSync
 		public string? ApiUrl { get; set; }
 
 		/// <summary>
+		/// Default Perforce server to connect to
+		/// </summary>
+		public string? DefaultPerforceServer { get; set; }
+
+		/// <summary>
 		/// Servers to connect to for issue details by default
 		/// </summary>
 #pragma warning disable CA2227 // Collection properties should be read only

@@ -150,6 +150,13 @@
 			"keepDays": 1
 		}
 	],
+	// Parameters for other tools bundled with Horde
+	"parameters": {
+		"ugs": 
+		{
+//			"defaultPerforceServer": "perforce:1666"
+		}
+	},
 	"acl": {
 		"entries": [
 			{

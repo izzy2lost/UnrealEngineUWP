@@ -2,6 +2,7 @@
 
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Tools;
 using Microsoft.Extensions.Configuration;
 
@@ -346,14 +347,13 @@ namespace Horde.Agent
 		{
 			if (Server == null)
 			{
-				if (ServerProfiles.Count == 1)
-				{
-					return ServerProfiles.Values.First();
-				}
-				else
-				{
-					throw new Exception($"No server profile is specified. Pass the -server=... argument on the command line or set the 'Server' property in the agent config file to one of: {GetServerProfileNames()}");
-				}
+				Uri? defaultServerUrl = Installed ? HordeOptions.GetDefaultServerUrl() : null;
+
+				ServerProfile defaultServerProfile = new ServerProfile();
+				defaultServerProfile.Name = "Default";
+				defaultServerProfile.Environment = "Development";
+				defaultServerProfile.Url = defaultServerUrl ?? new Uri("http://localhost:5000");
+				return defaultServerProfile;
 			}
 
 			return GetServerProfile(Server);

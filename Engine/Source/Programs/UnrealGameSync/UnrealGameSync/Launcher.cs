@@ -14,12 +14,16 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace UnrealGameSync
 {
+	using JsonObject = System.Text.Json.Nodes.JsonObject;
+
 	static class Launcher
 	{
 		public static bool SyncAndRunLatest(Mutex instanceMutex, string[] args)
@@ -163,6 +167,16 @@ namespace UnrealGameSync
 						{
 							throw new UserErrorException("Couldn't write sync text to {SyncVersionFile}");
 						}
+					}
+
+					// Query the deployment settings and write them to the output directory if not already set
+					JsonObject? parameters = await httpClient.GetParametersAsync("ugs", cancellationToken);
+					if (parameters != null && parameters.Count > 0)
+					{
+						byte[] deploymentData = JsonSerializer.SerializeToUtf8Bytes(parameters, new JsonSerializerOptions { WriteIndented = true });
+
+						FileReference deploymentJson = new FileReference(Path.Combine(applicationFolder, "Deployment.json"));
+						await FileReference.WriteAllBytesAsync(deploymentJson, deploymentData, cancellationToken);
 					}
 				}
 				else if (launcherSettings.UpdateSource == LauncherUpdateSource.Perforce)

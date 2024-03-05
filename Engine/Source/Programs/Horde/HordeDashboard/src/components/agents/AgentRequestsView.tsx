@@ -91,7 +91,7 @@ const AgentsPanel: React.FC = observer(() => {
          handler.start();
       } catch (reason) {
          console.error(reason);
-         
+
          ErrorHandler.set({
             reason: reason,
             title: `Error Registering Agents`,
@@ -119,7 +119,9 @@ const AgentsPanel: React.FC = observer(() => {
       return <Text style={{ color: modeColors.text }}>{item[column?.fieldName]}</Text>
    };
 
-   return (<Stack>
+   const { hordeClasses } = getHordeStyling();
+
+   return <Stack>
       {submitting && <Modal isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 400, hasBeenOpened: false, top: "120px", position: "absolute" } }} >
          <Stack style={{ paddingTop: 32 }}>
             <Stack tokens={{ childrenGap: 24 }} styles={{ root: { padding: 8 } }}>
@@ -142,7 +144,7 @@ const AgentsPanel: React.FC = observer(() => {
                title: `Register Agents`,
                subText: `Confirm registering agents: ${handler.selectedAgents.map(a => a.hostName).join(", ")}`
             }}
-            modalProps={{ isBlocking: true, topOffsetFixed: true, styles: { main: { padding: 8, width: 400, hasBeenOpened: false, top: "120px", position: "absolute" } } }} >            
+            modalProps={{ isBlocking: true, topOffsetFixed: true, styles: { main: { padding: 8, width: 400, hasBeenOpened: false, top: "120px", position: "absolute" } } }} >
             <Stack style={{ height: "18px" }} />
             <DialogFooter>
                <PrimaryButton onClick={() => { setConfirmRegister(false); onRegister() }} text="Register" />
@@ -150,40 +152,39 @@ const AgentsPanel: React.FC = observer(() => {
             </DialogFooter>
          </Dialog>
       }
-      <Stack styles={{ root: { paddingTop: 18, paddingLeft: 12, paddingRight: 12, width: "100%" } }} >
-         <Stack tokens={{ childrenGap: 12 }}>
-            <Stack horizontal horizontalAlign="center">
-               <Stack>
-                  <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{requests.length || handler.initial ? "Agent Requests" : "Agent Requests (None)"}</Text>
-               </Stack>
-               <Stack grow />
-               <Stack>
-                  <PrimaryButton disabled={!handler.selectedAgents.length} styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }} onClick={() => setConfirmRegister(true)}>Register Agents</PrimaryButton>
-               </Stack>
-            </Stack>
-
-            <div style={{ overflowY: 'auto', overflowX: 'hidden', maxHeight: "calc(100vh - 312px)" }} data-is-scrollable={true}>
-               {!!requests.length && <Stack>
-                  <SelectionZone selection={handler.selection}>
-                     <DetailsList
-                        setKey="set"
-                        items={requests}
-                        columns={columns}
-                        layoutMode={DetailsListLayoutMode.justified}
-                        compact={true}
-                        selectionMode={SelectionMode.multiple}
-                        selection={handler.selection}
-                        selectionPreservedOnEmptyClick={true}
-                        onRenderItemColumn={renderItem}
-                        enableUpdateAnimations={false}
-                        onShouldVirtualize={() => false}
-                     />
-                  </SelectionZone>
-               </Stack>}
-            </div>
+      {<Stack style={{ paddingBottom: 12 }}>
+         <Stack verticalAlign="center">
+            {!!requests.length && !handler.initial && <Stack horizontalAlign="end">
+               <PrimaryButton disabled={!handler.selectedAgents.length} styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }} onClick={() => setConfirmRegister(true)}>Register Agents</PrimaryButton>
+            </Stack>}
+            {!requests.length && !handler.initial && <Stack horizontalAlign="center">
+               <Text variant="mediumPlus">No Agent Registrations Found</Text>
+            </Stack>}
          </Stack>
-      </Stack>
-   </Stack>);
+      </Stack>}
+
+      {!!requests.length && <Stack className={hordeClasses.raised} >
+         <Stack styles={{ root: { paddingLeft: 12, paddingRight: 12, paddingBottom: 12, width: "100%" } }} >
+            <Stack>
+               <SelectionZone selection={handler.selection}>
+                  <DetailsList
+                     setKey="set"
+                     items={requests}
+                     columns={columns}
+                     layoutMode={DetailsListLayoutMode.justified}
+                     compact={true}
+                     selectionMode={SelectionMode.multiple}
+                     selection={handler.selection}
+                     selectionPreservedOnEmptyClick={true}
+                     onRenderItemColumn={renderItem}
+                     enableUpdateAnimations={false}
+                     onShouldVirtualize={() => false}
+                  />
+               </SelectionZone>
+            </Stack>
+         </Stack>
+      </Stack>}
+   </Stack >
 });
 
 
@@ -191,21 +192,26 @@ export const AgentRequestsView: React.FC = () => {
 
    const windowSize = useWindowSize();
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+   const centerAlign = vw / 2 - 720;
 
    const { hordeClasses, modeColors } = getHordeStyling();
 
+   const key = `windowsize_view_${windowSize.width}_${windowSize.height}`;
+
    return <Stack className={hordeClasses.horde}>
       <TopNav />
-      <Breadcrumbs items={[{ text: 'Agents', link: "/agents" }, { text: 'Registration' }]} />
-      <Stack horizontal>
-         <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
-         <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%" } }}>
-            <Stack style={{ maxWidth: 1440, paddingTop: 6, marginLeft: 4, height: 'calc(100vh - 8px)' }}>
-               <Stack horizontal className={hordeClasses.raised}>
-                  <Stack style={{ width: "100%", height: 'calc(100vh - 228px)' }} tokens={{ childrenGap: 18 }}>
-                     <AgentsPanel />
+      <Breadcrumbs items={[{ text: 'Agent Registration' }]} />
+      <Stack styles={{ root: { width: "100%", backgroundColor: modeColors.background } }}>
+         <Stack style={{ width: "100%", backgroundColor: modeColors.background }}>
+            <Stack style={{ position: "relative", width: "100%", height: 'calc(100vh - 148px)' }}>
+               <div style={{ overflowX: "auto", overflowY: "visible" }}>
+                  <Stack horizontal style={{ paddingTop: 30, paddingBottom: 48 }}>
+                     <Stack key={`${key}`} style={{ paddingLeft: centerAlign }} />
+                     <Stack style={{ width: 1440 }}>
+                        <AgentsPanel />
+                     </Stack>
                   </Stack>
-               </Stack>
+               </div>
             </Stack>
          </Stack>
       </Stack>

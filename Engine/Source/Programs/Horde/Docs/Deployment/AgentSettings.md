@@ -6,7 +6,7 @@ All Horde-specific settings are stored in a root object called `Horde`. Other .N
 
 Name | Type | Description
 ---- | ---- | -----------
-`serverProfiles` | [`ServerProfile`](#serverprofile)`[]` | Known servers to connect to
+`serverProfiles` | `string` `->` [`ServerProfile`](#serverprofile) | Known servers to connect to
 `server` | `string` | The default server, unless overridden from the command line
 `name` | `string` | Name of agent to report as when connecting to server. By default, the computer's hostname will be used.
 `installed` | `boolean` | Whether the server is running in 'installed' mode. In this mode, on Windows, the default data directory will use the common application data folder (C:\ProgramData\Epic\Horde), and configuration data will be read from here and the registry. This setting is overridden to false for local builds from appsettings.Local.json.

@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -32,6 +33,8 @@ using Polly.Timeout;
 
 namespace EpicGames.Horde
 {
+	using JsonObject = System.Text.Json.Nodes.JsonObject;
+
 	/// <summary>
 	/// Wraps an Http client which communicates with the Horde server
 	/// </summary>
@@ -195,6 +198,36 @@ namespace EpicGames.Horde
 		public Task<List<GetDashboardPreviewResponse>> GetDashbordPreviewsAsync(bool open = true, CancellationToken cancellationToken = default)
 		{
 			return GetAsync<List<GetDashboardPreviewResponse>>(_httpClient, $"api/v1/dashboard/preview?open={open}", cancellationToken);
+		}
+
+		#endregion
+
+		#region Parameters
+
+		/// <summary>
+		/// Query parameters for other tools
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Parameters for other tools</returns>
+		public Task<JsonObject> GetParametersAsync(CancellationToken cancellationToken = default)
+		{
+			return GetParametersAsync(null, cancellationToken);
+		}
+
+		/// <summary>
+		/// Query parameters for other tools
+		/// </summary>
+		/// <param name="path">Path for properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Information about all the projects</returns>
+		public Task<JsonObject> GetParametersAsync(string? path, CancellationToken cancellationToken = default)
+		{
+			string url = "api/v1/parameters";
+			if (!String.IsNullOrEmpty(path))
+			{
+				url = $"{url}/{path}";
+			}
+			return GetAsync<JsonObject>(_httpClient, url, cancellationToken);
 		}
 
 		#endregion
@@ -506,6 +539,9 @@ namespace EpicGames.Horde
 						httpClient.BaseAddress = new Uri(hordeUrlEnvVar);
 					}
 				}
+
+				// Try to get the default server address from the registry
+				httpClient.BaseAddress ??= HordeOptions.GetDefaultServerUrl();
 
 				// Make sure we have a base URL set
 				if (httpClient.BaseAddress == null)

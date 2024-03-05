@@ -42,6 +42,8 @@ using Horde.Server.Utilities;
 
 namespace Horde.Server.Server
 {
+	using JsonObject = System.Text.Json.Nodes.JsonObject;
+		 
 #pragma warning disable CA1027 // Mark enums with FlagsAttribute
 #pragma warning disable CA1069 // Enum member 'Latest' has same value as ...
 	/// <summary>
@@ -244,6 +246,11 @@ namespace Horde.Server.Server
 		/// Metrics to aggregate on the Horde server
 		/// </summary>
 		public List<TelemetryStoreConfig> TelemetryStores { get; set; } = new List<TelemetryStoreConfig>();
+
+		/// <summary>
+		/// General parameters for other tools. Can be queried through the api/v1/parameters endpoint.
+		/// </summary>
+		public JsonObject Parameters { get; set; } = new JsonObject();
 
 		/// <summary>
 		/// Access control list

@@ -240,7 +240,7 @@ namespace Horde.Agent.Services
 			}
 			else
 			{
-				settingsDir = DirectoryReference.Combine(settingsDir, "Horde.Agent");
+				settingsDir = DirectoryReference.Combine(settingsDir, "Epic Games", "Horde", "Agent");
 			}
 
 			FileReference settingsFile = FileReference.Combine(settingsDir, "servers.json");

@@ -22,6 +22,7 @@ class AccountHandler extends PollBase {
    }
 
    clear() {
+      this.loaded = false;
       this.accounts = [];
       this.accountGroups = [];
       super.stop();
@@ -33,7 +34,7 @@ class AccountHandler extends PollBase {
 
          this.accounts = (await backend.getAccounts()).sort((a, b) => a.name.localeCompare(b.name));
          this.accountGroups = await backend.getAccountGroups();
-
+         this.loaded = true;
          this.setUpdated();
 
       } catch (err) {
@@ -41,6 +42,8 @@ class AccountHandler extends PollBase {
       }
 
    }
+
+   loaded = false;
 
    accounts: GetAccountResponse[] = [];
    accountGroups: AccountClaimMessage[] = [];
@@ -55,13 +58,13 @@ const AccountPanel: React.FC = observer(() => {
    // subscribe
    if (handler.updated) { };
 
-   const columns:IColumn[] = [
+   const columns: IColumn[] = [
       { key: 'column_name', name: 'Full Name', minWidth: 240, maxWidth: 240, isResizable: false },
       { key: 'column_status', name: 'Status', minWidth: 80, maxWidth: 80, isResizable: false },
       { key: 'column_login', name: 'Username', minWidth: 160, maxWidth: 160, isResizable: false },
       { key: 'column_email', name: 'Email', minWidth: 240, maxWidth: 240, isResizable: false },
       { key: 'column_description', name: 'Description', minWidth: 440, maxWidth: 440, isResizable: false },
-      { key: 'column_edit', name: 'Edit', minWidth: 48, maxWidth: 48, isResizable: false, onRenderHeader:() => null },
+      { key: 'column_edit', name: 'Edit', minWidth: 48, maxWidth: 48, isResizable: false, onRenderHeader: () => null },
    ];
 
    let accounts = [...handler.accounts];
@@ -101,40 +104,45 @@ const AccountPanel: React.FC = observer(() => {
       if (column.name === "Edit") {
 
          return <Stack horizontalAlign="end" onClick={() => { setState({ showEditor: true, editAccount: item }) }} style={{ "cursor": "pointer" }}>
-               <Icon style={{ paddingTop: 4, paddingRight: 8 }} iconName="Edit" />
+            <Icon style={{ paddingTop: 4, paddingRight: 8 }} iconName="Edit" />
          </Stack>
       }
 
       return null;
    };
 
-   return (<Stack>
+   const { hordeClasses } = getHordeStyling();
+
+   return <Stack>
       {!!state.showEditor && <AccountEditor accountIn={state.editAccount} onClose={() => {
          setState({})
       }} />}
-      <Stack styles={{ root: { paddingTop: 18, paddingLeft: 12, paddingRight: 12, width: "100%" } }} >
-         <Stack tokens={{ childrenGap: 12 }} >
-            <Stack horizontal>
-               <Stack grow />
-               <Stack>
-                  <PrimaryButton styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }} onClick={() => setState({ showEditor: true, editAccount: undefined })}>Create Account</PrimaryButton>
-               </Stack>
+      <Stack style={{ paddingBottom: 12 }}>
+         <Stack verticalAlign="center">
+            <Stack horizontalAlign="end">
+               <PrimaryButton styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }} onClick={() => setState({ showEditor: true, editAccount: undefined })}>Create Account</PrimaryButton>
             </Stack>
-            <div style={{ overflowY: 'auto', overflowX: 'hidden', maxHeight: "calc(100vh - 312px)" }} data-is-scrollable={true}>
-               <Stack>
-                  <DetailsList
-                     items={accounts}
-                     columns={columns}
-                     selectionMode={SelectionMode.none}
-                     layoutMode={DetailsListLayoutMode.justified}
-                     compact={true}
-                     onRenderItemColumn={renderItem}
-                  />
-               </Stack>
-            </div>
+            {!accounts.length && handler.loaded && <Stack horizontalAlign="center">
+               <Text variant="mediumPlus">No User Accounts Found</Text>
+            </Stack>}
          </Stack>
       </Stack>
-   </Stack>);
+
+      {!!accounts.length && <Stack className={hordeClasses.raised} >
+         <Stack styles={{ root: { paddingLeft: 12, paddingRight: 12, paddingBottom: 12, width: "100%" } }} >
+            <Stack>
+               <DetailsList
+                  items={accounts}
+                  columns={columns}
+                  selectionMode={SelectionMode.none}
+                  layoutMode={DetailsListLayoutMode.justified}
+                  compact={true}
+                  onRenderItemColumn={renderItem}
+               />
+            </Stack>
+         </Stack>
+      </Stack>}
+   </Stack>
 });
 
 
@@ -152,20 +160,26 @@ export const AccountsView: React.FC = () => {
 
    const windowSize = useWindowSize();
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+   const centerAlign = vw / 2 - 720;
+
    const { hordeClasses, modeColors } = getHordeStyling();
+
+   const key = `windowsize_view_${windowSize.width}_${windowSize.height}`;
 
    return <Stack className={hordeClasses.horde}>
       <TopNav />
-      <Breadcrumbs items={[{ text: 'Accounts' }]} />
-      <Stack horizontal>
-         <div key={`windowsize_accountview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
-         <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%" } }}>
-            <Stack style={{ maxWidth: 1440, paddingTop: 6, marginLeft: 4, height: 'calc(100vh - 8px)' }}>
-               <Stack horizontal className={hordeClasses.raised}>
-                  <Stack style={{ width: "100%", height: 'calc(100vh - 228px)' }} tokens={{ childrenGap: 18 }}>
-                     <AccountPanel />
+      <Breadcrumbs items={[{ text: 'Service Accounts' }]} />
+      <Stack styles={{ root: { width: "100%", backgroundColor: modeColors.background } }}>
+         <Stack style={{ width: "100%", backgroundColor: modeColors.background }}>
+            <Stack style={{ position: "relative", width: "100%", height: 'calc(100vh - 148px)' }}>
+               <div style={{ overflowX: "auto", overflowY: "visible" }}>
+                  <Stack horizontal style={{ paddingTop: 30, paddingBottom: 48 }}>
+                     <Stack key={`${key}`} style={{ paddingLeft: centerAlign }} />
+                     <Stack style={{ width: 1440 }}>
+                        <AccountPanel />
+                     </Stack>
                   </Stack>
-               </Stack>
+               </div>
             </Stack>
          </Stack>
       </Stack>
