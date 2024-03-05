@@ -2,6 +2,7 @@
 
 #include "InstancedActorsRepresentationSubsystem.h"
 #include "InstancedActorsSettings.h"
+#include "InstancedActorsTypes.h"
 
 
 void UInstancedActorsRepresentationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -21,11 +22,15 @@ void UInstancedActorsRepresentationSubsystem::Initialize(FSubsystemCollectionBas
 		SpawnerSystemSubclass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass());
 	}
 
-	if (ensure(SpawnerSystemSubclass))
+	if (SpawnerSystemSubclass)
 	{
 		ActorSpawnerSubsystem = Cast<UMassActorSpawnerSubsystem>(Collection.InitializeDependency(SpawnerSystemSubclass));
 
 		ensureMsgf(ActorSpawnerSubsystem, TEXT("Trying to initialize dependency on class %s failed. Verify InstanedActors settings.")
 			, *GetNameSafe(ActorSpawnerSubsystem));
+	}
+	else
+	{
+		UE_LOG(LogInstancedActors, Warning, TEXT("%hs failed to load SpawnerSystemSubclass"), __FUNCTION__);
 	}
 }
