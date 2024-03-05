@@ -297,6 +297,52 @@ namespace Chaos
 		);
 	}
 
+	void FClusterUnionPhysicsProxy::SetMass_External(Chaos::FReal InMass)
+	{
+		if (!Solver || !ensure(Particle_External))
+		{
+			return;
+		}
+
+		Chaos::FRealSingle Mass = Chaos::FRealSingle(InMass);
+		Chaos::FRealSingle InvMass = 0;
+		Chaos::FVec3f Inertia = FVec3f(0);
+		Chaos::FVec3f InvInertia = FVec3f(0);
+		if (Mass > 0)
+		{
+			InvMass = 1.0f / Mass;
+
+			Chaos::FRealSingle OldMass = Chaos::FRealSingle(Particle_External->M());
+			if (OldMass > 0)
+			{
+				const Chaos::FRealSingle MassScale = Mass / OldMass;
+				Inertia = Particle_External->I() * MassScale;
+				InvInertia = Particle_External->InvI() / MassScale;
+			}
+		}
+
+		if (Particle_External)
+		{
+			Particle_External->SetM(Mass);
+			Particle_External->SetInvM(InvMass);
+			Particle_External->SetI(Inertia);
+			Particle_External->SetInvI(InvInertia);
+		}
+
+		Solver->EnqueueCommandImmediate(
+			[this, Mass, InvMass, Inertia, InvInertia]()
+			{
+				if (Particle_Internal)
+				{
+					Particle_Internal->SetM(Mass);
+					Particle_Internal->SetInvM(InvMass);
+					Particle_Internal->SetI(Inertia);
+					Particle_Internal->SetInvI(InvInertia);
+				}
+			}
+		);
+	}
+
 	void FClusterUnionPhysicsProxy::RemoveShapes_External(const TArray<FPBDRigidParticle*>& ShapeParticles)
     {
 		RemoveParticlesFromClusterUnionGeometry(Particle_External.Get(), ShapeParticles, GeometryChildParticles_External);

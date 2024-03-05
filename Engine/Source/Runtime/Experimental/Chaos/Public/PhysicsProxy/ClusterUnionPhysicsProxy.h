@@ -85,6 +85,10 @@ namespace Chaos
 		// Explicitly wake the physics object. The wakes the physics object if it is sleeping and resets any sleep state (whether awake or sleeping)
 		CHAOS_API void Wake_External();
 
+		// Set the cluster mass.
+		// NOTE: When a cluster breaks its mass will be recalculated from the remaining children on the PT, effectively undoing this work.
+		CHAOS_API void SetMass_External(Chaos::FReal Mass);
+
 		// Set GT geometry - this is only for smoothing over any changes until the PT syncs back to the GT.
 		CHAOS_API void SetGeometry_External(const Chaos::FImplicitObjectPtr& Geometry, const TArray<FPBDRigidParticle*>& ShapeParticles);
 

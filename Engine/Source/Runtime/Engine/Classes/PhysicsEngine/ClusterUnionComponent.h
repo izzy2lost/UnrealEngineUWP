@@ -313,6 +313,10 @@ public:
 	ENGINE_API virtual void WakeAllRigidBodies() override;
 	ENGINE_API virtual bool IsAnyRigidBodyAwake() override;
 
+	// Set the cluster union total mass. NOTE: if the cluster breaks the mass will be recalculated from the
+	// remaining components. Use OnComponentAddedEvent and OnComponentRemovedEvent to trap this and re-apply custom masses.
+	ENGINE_API virtual void SetMassOverrideInKg(FName BoneName, float MassInKg, bool bOverrideMass) override;
+
 	// Multi-trace/sweep functions that only make sense in the context of a cluster union.
 	ENGINE_API bool LineTraceComponent(TArray<FHitResult>& OutHit, const FVector Start, const FVector End, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams);
 	ENGINE_API bool SweepComponent(TArray<FHitResult>& OutHit, const FVector Start, const FVector End, const FQuat& ShapeWorldRotation, const FPhysicsGeometry& Geometry, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams);
