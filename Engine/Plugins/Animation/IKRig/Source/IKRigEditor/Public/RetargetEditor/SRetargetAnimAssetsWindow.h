@@ -125,7 +125,7 @@ public:
 
 	void Construct(const FArguments& InArgs);
 	
-	void SetSkeletalMesh(USkeletalMesh* InSkeletalMesh, ERetargetSourceOrTarget SourceOrTarget) const;
+	void SetSkeletalMesh(USkeletalMesh* InSkeletalMesh, ERetargetSourceOrTarget SourceOrTarget);
 	void SetRetargetAsset(UIKRetargeter* RetargetAsset);
 	void PlayAnimation(UAnimationAsset* AnimationAsset);
 	bool IsRetargeterValid();
@@ -138,6 +138,9 @@ protected:
 	// END SEditorViewport interface
 
 private:
+
+	UAnimationAsset* AnimThatWasPlaying;
+	float TimeWhenPaused;
 	
 	FPreviewScene PreviewScene;
 	TObjectPtr<UDebugSkelMeshComponent> SourceComponent;

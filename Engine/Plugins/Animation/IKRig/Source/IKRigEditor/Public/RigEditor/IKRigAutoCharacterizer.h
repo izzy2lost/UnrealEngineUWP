@@ -236,6 +236,7 @@ struct FAutoRetargetDefinition
 	FRetargetDefinition RetargetDefinition;
 	FAllBoneSettingsForIK BoneSettingsForIK;
 	FBonesToPin BonesToPin;
+	TArray<FName> BonesToExcludeFromAutoPose;
 };
 
 // the results of auto characterizing an input skeletal mesh
