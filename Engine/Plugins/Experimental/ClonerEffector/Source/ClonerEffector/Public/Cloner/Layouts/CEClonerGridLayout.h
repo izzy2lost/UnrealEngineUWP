@@ -121,6 +121,24 @@ public:
 		return TextureConstraint;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Grid")
+	CLONEREFFECTOR_API void SetTwistFactor(float InFactor);
+
+	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Grid")
+	float GetTwistFactor() const
+	{
+		return TwistFactor;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Grid")
+	CLONEREFFECTOR_API void SetTwistAxis(ENiagaraOrientationAxis InAxis);
+
+	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Grid")
+	ENiagaraOrientationAxis GetTwistAxis() const
+	{
+		return TwistAxis;
+	}
+
 protected:
 	//~ Begin UObject
 #if WITH_EDITOR
@@ -164,6 +182,12 @@ protected:
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetTextureConstraint", Getter="GetTextureConstraint", Category="Layout", meta=(EditCondition="Constraint == ECEClonerGridConstraint::Texture", EditConditionHides))
 	FCEClonerGridConstraintTexture TextureConstraint;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout")
+	float TwistFactor = 0.f;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout")
+	ENiagaraOrientationAxis TwistAxis = ENiagaraOrientationAxis::ZAxis;
 
 private:
 #if WITH_EDITOR

@@ -112,6 +112,28 @@ void UCEClonerGridLayout::SetTextureConstraint(const FCEClonerGridConstraintText
 	UpdateLayoutParameters();
 }
 
+void UCEClonerGridLayout::SetTwistFactor(float InFactor)
+{
+	if (TwistFactor == InFactor)
+	{
+		return;
+	}
+
+	TwistFactor = InFactor;
+	UpdateLayoutParameters();
+}
+
+void UCEClonerGridLayout::SetTwistAxis(ENiagaraOrientationAxis InAxis)
+{
+	if (TwistAxis == InAxis)
+	{
+		return;
+	}
+
+	TwistAxis = InAxis;
+	UpdateLayoutParameters();
+}
+
 #if WITH_EDITOR
 const TCEPropertyChangeDispatcher<UCEClonerGridLayout> UCEClonerGridLayout::PropertyChangeDispatcher =
 {
@@ -126,6 +148,8 @@ const TCEPropertyChangeDispatcher<UCEClonerGridLayout> UCEClonerGridLayout::Prop
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SphereConstraint), &UCEClonerGridLayout::OnLayoutPropertyChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, CylinderConstraint), &UCEClonerGridLayout::OnLayoutPropertyChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, TextureConstraint), &UCEClonerGridLayout::OnLayoutPropertyChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, TwistFactor), &UCEClonerGridLayout::OnLayoutPropertyChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, TwistAxis), &UCEClonerGridLayout::OnLayoutPropertyChanged },
 };
 
 void UCEClonerGridLayout::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
@@ -178,4 +202,9 @@ void UCEClonerGridLayout::OnLayoutParametersChanged(UCEClonerComponent* InCompon
 	static const FNiagaraVariable ConstraintTextureSamplerVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceTexture::StaticClass()), TEXT("ConstraintTextureSampler"));
 	UNiagaraDataInterfaceTexture* TextureSamplerDI = Cast<UNiagaraDataInterfaceTexture>(ExposedParameters.GetDataInterface(ConstraintTextureSamplerVar));
 	TextureSamplerDI->SetTexture(TextureConstraint.Texture.Get());
+
+	InComponent->SetFloatParameter(TEXT("TwistFactor"), TwistFactor);
+
+	static const FNiagaraVariable TwistAxisVar(FNiagaraTypeDefinition(StaticEnum<ENiagaraOrientationAxis>()), TEXT("TwistAxis"));
+	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(TwistAxis), TwistAxisVar);
 }

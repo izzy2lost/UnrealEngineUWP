@@ -330,6 +330,7 @@ struct FCEClonerEffectorChannelData
 	static constexpr const TCHAR* ScaleName = TEXT("Scale");
 	static constexpr const TCHAR* FrequencyName = TEXT("Frequency");
 	static constexpr const TCHAR* PanName = TEXT("Pan");
+	static constexpr const TCHAR* ColorName = TEXT("Color");
 
 	/** Forces */
 	static constexpr const TCHAR* OrientationForceRateName = TEXT("OrientationForceRate");
@@ -363,6 +364,7 @@ struct FCEClonerEffectorChannelData
 	FVector Scale = FVector::OneVector;
 	float Frequency = 1.f;
 	FVector Pan = FVector::ZeroVector;
+	FLinearColor Color = FLinearColor::Transparent;
 
 	/** Forces parameters */
 	float OrientationForceRate = 0.f;

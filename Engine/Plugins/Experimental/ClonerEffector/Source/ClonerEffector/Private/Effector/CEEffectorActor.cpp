@@ -118,6 +118,7 @@ TCEPropertyChangeDispatcher<ACEEffectorActor> ACEEffectorActor::PropertyChangeDi
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Magnitude), &ACEEffectorActor::OnMagnitudeChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, VisualizerThickness), &ACEEffectorActor::OnVisualizerThicknessChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bVisualizerSpriteVisible), &ACEEffectorActor::OnVisualizerSpriteVisibleChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Color), &ACEEffectorActor::OnColorChanged },
 	/** Type */
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Type), &ACEEffectorActor::OnTypeChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Easing), &ACEEffectorActor::OnEasingChanged },
@@ -700,6 +701,17 @@ void ACEEffectorActor::SetVisualizerSpriteVisible(bool bInVisible)
 }
 #endif
 
+void ACEEffectorActor::SetColor(const FLinearColor& InColor)
+{
+	if (Color == InColor)
+	{
+		return;
+	}
+
+	Color = InColor;
+	OnColorChanged();
+}
+
 void ACEEffectorActor::OnEffectorTransformed(USceneComponent* InUpdatedComponent, EUpdateTransformFlags InUpdateTransformFlags, ETeleportType InTeleport)
 {
 	OnTransformChanged();
@@ -791,6 +803,7 @@ void ACEEffectorActor::OnEffectorChanged()
 		OnTransformChanged();
 		OnMagnitudeChanged();
 		OnForceOptionsChanged();
+		OnColorChanged();
 		// Editor
 		OnVisualizerThicknessChanged();
 		OnVisualizerSpriteVisibleChanged();
@@ -1016,6 +1029,11 @@ void ACEEffectorActor::OnVisualizerSpriteVisibleChanged()
 	UE::ClonerEffector::SetBillboardComponentSprite(this, TEXT("/Script/Engine.Texture2D'/ClonerEffector/Textures/T_EffectorIcon.T_EffectorIcon'"));
 	UE::ClonerEffector::SetBillboardComponentVisibility(this, bVisualizerSpriteVisible);
 #endif
+}
+
+void ACEEffectorActor::OnColorChanged()
+{
+	ChannelData.Color = Color;
 }
 
 void ACEEffectorActor::OnForceOptionsChanged()

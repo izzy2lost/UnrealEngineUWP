@@ -85,6 +85,24 @@ public:
 		return WidthSpacing;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Honeycomb")
+	CLONEREFFECTOR_API void SetTwistFactor(float InFactor);
+
+	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Honeycomb")
+	float GetTwistFactor() const
+	{
+		return TwistFactor;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner|Layout|Honeycomb")
+	CLONEREFFECTOR_API void SetTwistAxis(ENiagaraOrientationAxis InAxis);
+
+	UFUNCTION(BlueprintPure, Category="Cloner|Layout|Honeycomb")
+	ENiagaraOrientationAxis GetTwistAxis() const
+	{
+		return TwistAxis;
+	}
+
 protected:
 	//~ Begin UObject
 #if WITH_EDITOR
@@ -92,11 +110,13 @@ protected:
 #endif
 	//~ End UObject
 
+	void OnTwistAxisChanged();
+
 	//~ Begin UCEClonerLayoutBase
 	virtual void OnLayoutParametersChanged(UCEClonerComponent* InComponent) override;
 	//~ End UCEClonerLayoutBase
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetPlane", Getter="GetPlane", Category="Layout")
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetPlane", Getter="GetPlane", Category="Layout", meta=(InvalidEnumValues="Custom"))
 	ECEClonerPlane Plane = ECEClonerPlane::XY;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetWidthCount", Getter="GetWidthCount", Category="Layout")
@@ -116,6 +136,12 @@ protected:
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetHeightSpacing", Getter="GetHeightSpacing", Category="Layout")
 	float HeightSpacing = 105.f;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout")
+	float TwistFactor = 0.f;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout")
+	ENiagaraOrientationAxis TwistAxis = ENiagaraOrientationAxis::XAxis;
 
 private:
 #if WITH_EDITOR

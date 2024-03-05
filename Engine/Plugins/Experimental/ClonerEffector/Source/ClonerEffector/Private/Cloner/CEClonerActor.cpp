@@ -92,6 +92,7 @@ const TCEPropertyChangeDispatcher<ACEClonerActor> ACEClonerActor::PropertyChange
 {
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bEnabled), &ACEClonerActor::OnEnabledChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, Seed), &ACEClonerActor::OnSeedChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, Color), &ACEClonerActor::OnColorChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, EffectorsWeak), &ACEClonerActor::OnEffectorsChanged },
 	/** Layout */
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, LayoutName), &ACEClonerActor::OnLayoutNameChanged },
@@ -349,6 +350,7 @@ void ACEClonerActor::UpdateLayoutOptions()
 {
 	OnMeshRenderModeChanged();
 	OnSeedChanged();
+	OnColorChanged();
 
 	// update layouts options
 	if (UCEClonerLayoutBase* CurrentLayout = ClonerComponent->GetClonerActiveLayout())
@@ -443,6 +445,17 @@ void ACEClonerActor::SetSeed(int32 InSeed)
 
 	Seed = InSeed;
 	OnSeedChanged();
+}
+
+void ACEClonerActor::SetColor(const FLinearColor& InColor)
+{
+	if (InColor == Color)
+	{
+		return;
+	}
+
+	Color = InColor;
+	OnColorChanged();
 }
 
 void ACEClonerActor::SetDeltaStepEnabled(bool bInEnabled)
@@ -694,6 +707,16 @@ void ACEClonerActor::OnSeedChanged()
 	ClonerComponent->SetRandomSeedOffset(Seed);
 
 	RequestClonerUpdate();
+}
+
+void ACEClonerActor::OnColorChanged()
+{
+	if (!ClonerComponent || !bEnabled)
+	{
+		return;
+	}
+
+	ClonerComponent->SetColorParameter(TEXT("EffectorDefaultColor"), Color);
 }
 
 void ACEClonerActor::OnProgressChanged()

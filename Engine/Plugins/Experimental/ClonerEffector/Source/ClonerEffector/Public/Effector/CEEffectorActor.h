@@ -136,15 +136,6 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
-	CLONEREFFECTOR_API void SetVisualizerThickness(float InThickness);
-
-	UFUNCTION(BlueprintPure, Category="Effector")
-	float GetVisualizerThickness() const
-	{
-		return VisualizerThickness;
-	}
-
-	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetMode(ECEClonerEffectorMode InMode);
 
 	UFUNCTION(BlueprintPure, Category="Effector")
@@ -162,184 +153,202 @@ public:
 		return TargetActorWeak.Get();
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetOrientationForceEnabled(bool bInForceEnabled);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	bool GetOrientationForceEnabled() const
 	{
 		return bOrientationForceEnabled;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetOrientationForceRate(float InForceOrientationRate);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	float GetOrientationForceRate() const
 	{
 		return OrientationForceRate;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetOrientationForceMin(const FVector& InForceOrientationMin);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	const FVector& GetOrientationForceMin() const
 	{
 		return OrientationForceMin;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetOrientationForceMax(const FVector& InForceOrientationMax);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	const FVector& GetOrientationForceMax() const
 	{
 		return OrientationForceMax;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetVortexForceEnabled(bool bInForceEnabled);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	bool GetVortexForceEnabled() const
 	{
 		return bVortexForceEnabled;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetVortexForceAmount(float InForceVortexAmount);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	float GetVortexForceAmount() const
 	{
 		return VortexForceAmount;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetVortexForceAxis(const FVector& InForceVortexAxis);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	const FVector& GetVortexForceAxis() const
 	{
 		return VortexForceAxis;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetCurlNoiseForceEnabled(bool bInForceEnabled);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	bool GetCurlNoiseForceEnabled() const
 	{
 		return bCurlNoiseForceEnabled;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetCurlNoiseForceStrength(float InForceCurlNoiseStrength);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	float GetCurlNoiseForceStrength() const
 	{
 		return CurlNoiseForceStrength;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetCurlNoiseForceFrequency(float InForceCurlNoiseFrequency);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	float GetCurlNoiseForceFrequency() const
 	{
 		return CurlNoiseForceFrequency;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetAttractionForceEnabled(bool bInForceEnabled);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	bool GetAttractionForceEnabled() const
 	{
 		return bAttractionForceEnabled;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetAttractionForceStrength(float InForceStrength);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	float GetAttractionForceStrength() const
 	{
 		return AttractionForceStrength;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetAttractionForceFalloff(float InForceFalloff);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	float GetAttractionForceFalloff() const
 	{
 		return AttractionForceFalloff;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetGravityForceEnabled(bool bInForceEnabled);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	bool GetGravityForceEnabled() const
 	{
 		return bGravityForceEnabled;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetGravityForceAcceleration(const FVector& InAcceleration);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	FVector GetGravityForceAcceleration() const
 	{
 		return GravityForceAcceleration;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetLocationStrength(const FVector& InStrength);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	FVector GetLocationStrength() const
 	{
 		return LocationStrength;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetRotationStrength(const FRotator& InStrength);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	FRotator GetRotationStrength() const
 	{
 		return RotationStrength;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetScaleStrength(const FVector& InStrength);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	FVector GetScaleStrength() const
 	{
 		return ScaleStrength;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetPan(const FVector& InPan);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	FVector GetPan() const
 	{
 		return Pan;
 	}
 
-	UFUNCTION(BlueprintCallable, Category="Cloner")
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetFrequency(float InFrequency);
 
-	UFUNCTION(BlueprintPure, Category="Cloner")
+	UFUNCTION(BlueprintPure, Category="Effector")
 	float GetFrequency() const
 	{
 		return Frequency;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetColor(const FLinearColor& InColor);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	const FLinearColor& GetColor() const
+	{
+		return Color;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetVisualizerThickness(float InThickness);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	float GetVisualizerThickness() const
+	{
+		return VisualizerThickness;
 	}
 
 #if WITH_EDITOR
@@ -439,6 +448,9 @@ protected:
 	/** Update sprite visibility of this effector */
 	void OnVisualizerSpriteVisibleChanged();
 
+	/** Update particle color affected by this effector */
+	void OnColorChanged();
+
 	/** Is this effector enabled/disabled on linked cloners */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetEnabled", Getter="GetEnabled", Category="Effector")
 	bool bEnabled = true;
@@ -446,6 +458,10 @@ protected:
 	/** The ratio effect of the effector on clones */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetMagnitude", Getter="GetMagnitude", Category="Effector", meta=(ClampMin="0", ClampMax="1"))
 	float Magnitude = 1.f;
+
+	/** Affected clones color passed over to material */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Effector")
+	FLinearColor Color = FLinearColor::White;
 
 	/** Type of effector to apply on cloners instances */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetType", Getter="GetType", Category="Type")

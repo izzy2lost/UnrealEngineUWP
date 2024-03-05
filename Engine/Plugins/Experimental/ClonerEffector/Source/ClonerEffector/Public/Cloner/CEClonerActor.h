@@ -92,6 +92,15 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetColor(const FLinearColor& InColor);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	const FLinearColor& GetColor() const
+	{
+		return Color;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner")
 	CLONEREFFECTOR_API void SetDeltaStepEnabled(bool bInEnabled);
 
 	UFUNCTION(BlueprintPure, Category="Cloner")
@@ -425,7 +434,7 @@ protected:
 	/** Will force a system update to refresh user parameters */
 	void RequestClonerUpdate(bool bInImmediate = false);
 
-	void UpdateLayoutOptions();;
+	void UpdateLayoutOptions();
 
 	/** Used by effector actors to apply transformations to this cloner instances */
 	const FCEClonerEffectorDataInterfaces* GetEffectorDataInterfaces() const;
@@ -445,6 +454,7 @@ protected:
 	void OnMeshRendererOptionsChanged();
 	void OnDefaultMeshesChanged();
 	void OnSeedChanged();
+	void OnColorChanged();
 	void OnProgressChanged();
 	void OnDeltaStepChanged();
 	void OnRangeOptionsChanged();
@@ -474,6 +484,10 @@ protected:
 	/** Cloner instance seed for random deterministic patterns */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetSeed", Getter="GetSeed", Category="Cloner")
 	int32 Seed = 0;
+
+	/** Cloner color when unaffected by effectors, color will be passed down to the material (ParticleColor) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Cloner")
+	FLinearColor Color = FLinearColor::White;
 
 	/** Indicates how we select the mesh to render on each clones */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetMeshRenderMode", Getter="GetMeshRenderMode", Category="Renderer")

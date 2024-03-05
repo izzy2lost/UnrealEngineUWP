@@ -77,6 +77,7 @@ void FCEClonerEffectorChannelData::Write(UNiagaraDataChannelWriter* InWriter) co
 	InWriter->WriteVector(ScaleName, Identifier, Scale);
 	InWriter->WriteFloat(FrequencyName, Identifier, Frequency);
 	InWriter->WriteVector(PanName, Identifier, Pan);
+	InWriter->WriteLinearColor(ColorName, Identifier, Color);
 
 	/** Forces */
 	InWriter->WriteFloat(OrientationForceRateName, Identifier, OrientationForceRate);
@@ -114,6 +115,7 @@ void FCEClonerEffectorChannelData::Read(const UNiagaraDataChannelReader* InReade
 	Scale = InReader->ReadVector(ScaleName, Identifier, bIsValid);
 	Frequency = InReader->ReadFloat(FrequencyName, Identifier, bIsValid);
 	Pan = InReader->ReadVector(PanName, Identifier, bIsValid);
+	Color = InReader->ReadLinearColor(ColorName, Identifier, bIsValid);
 
 	/** Forces */
 	OrientationForceRate = InReader->ReadFloat(OrientationForceRateName, Identifier, bIsValid);
