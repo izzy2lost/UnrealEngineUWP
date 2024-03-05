@@ -1067,6 +1067,8 @@ struct FPreviousViewInfo
 	// Scene color's PreExposure.
 	float SceneColorPreExposure = 1.0f;
 
+	bool bUsesGlobalDistanceField = false;
+
 	// Depth buffer and Normals of the previous frame generating this history entry for bilateral kernel rejection.
 	TRefCountPtr<IPooledRenderTarget> DepthBuffer;
 	TRefCountPtr<IPooledRenderTarget> GBufferA;
@@ -1445,9 +1447,9 @@ public:
 	/** Whether we should submit new queries this frame. (used to disable occlusion queries completely. */
 	uint32 bDisableQuerySubmissions : 1;
 	/** Whether the view has any materials that use the global distance field. */
+	uint32 bUsesGlobalDistanceField : 1;
 	uint32 bUsesLightingChannels : 1;
 	uint32 bTranslucentSurfaceLighting : 1;
-	/** Whether the view has any materials that read from scene depth. */
 	uint32 bCustomDepthStencilValid : 1;
 	uint32 bUsesCustomDepth : 1;
 	uint32 bUsesCustomStencil : 1;

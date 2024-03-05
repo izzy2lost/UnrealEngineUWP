@@ -122,8 +122,6 @@ FAutoConsoleVariableRef CVarAOObjectDistanceField(
 	ECVF_RenderThreadSafe
 );
 
-// TODO: Find a proper way to check bUsesGlobalDistanceField material relevance and remove this cvar. Currently,
-// PrepareDistanceFieldScene is called before InitViews where we check material relevances. Maybe use last frame result?
 int32 GAOGlobalDistanceFieldDetailedNecessityCheck = 1;
 FAutoConsoleVariableRef CVarAOGlobalDistanceFieldDetailedCheck(
 	TEXT("r.AOGlobalDistanceField.DetailedNecessityCheck"),
@@ -774,6 +772,7 @@ bool FSceneRenderer::ShouldPrepareGlobalDistanceField() const
 	const bool bShouldPrepareForAO = SupportsDistanceFieldAO(Scene->GetFeatureLevel(), Scene->GetShaderPlatform())
 		&& (!GAOGlobalDistanceFieldDetailedNecessityCheck
 			|| ShouldPrepareForDistanceFieldAO()
+			|| Views[0].PrevViewInfo.bUsesGlobalDistanceField // use previous frame relevance because this frame relevance flags haven't been calculate yet
 			|| ((FXSystem != nullptr) && FXSystem->UsesGlobalDistanceField()));
 
 	const bool bShouldPrepareForLumen = IsLumenEnabled(Views[0]) && Lumen::UseGlobalSDFObjectGrid(ViewFamily);

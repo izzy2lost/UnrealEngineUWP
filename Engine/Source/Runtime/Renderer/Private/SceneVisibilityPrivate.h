@@ -777,6 +777,7 @@ private:
 	bool bUsesComplexSpecialRenderPath = false;
 	bool bHasDistortionPrimitives = false;
 	bool bHasCustomDepthPrimitives = false;
+	bool bUsesGlobalDistanceField = false;
 	bool bUsesLightingChannels = false;
 	bool bTranslucentSurfaceLighting = false;
 	bool bUsesCustomDepth = false;
