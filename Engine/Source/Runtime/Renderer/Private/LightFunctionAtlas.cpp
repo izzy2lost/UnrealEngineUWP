@@ -117,15 +117,18 @@ FAutoConsoleVariableRef CVarLumenUsesLightFunctionAtlas(
 
 //////////////////////////////////////////////////////////////////////////
 
+static const uint32 MAX_LIGHT_FUNCTION_ATLAS_SLOT_RESOLUTION = 256;
+static const uint32 MAX_LIGHT_FUNCTION_ATLAS_EDGE_SIZE = 16;
+
 static uint32 GetAtlasSlotResolution()
 {
-	const uint32 AtlasSlotResolution = FMath::Clamp(CVarLightFunctionAtlasSlotResolution.GetValueOnRenderThread(), 32, 256);
+	const uint32 AtlasSlotResolution = FMath::Clamp(CVarLightFunctionAtlasSlotResolution.GetValueOnRenderThread(), 32, MAX_LIGHT_FUNCTION_ATLAS_SLOT_RESOLUTION);
 	return AtlasSlotResolution;
 }
 
 static uint32 GetAtlasEdgeSize()
 {
-	const uint32 AtlasEdgeSize = FMath::Clamp(CVarLightFunctionAtlasSize.GetValueOnRenderThread(), 4, 16);// 16x16 is the maximum slot count of LIGHT_FUNCTION_ATLAS_MAX_LIGHT_FUNCTION_COUNT=256 we currently allow
+	const uint32 AtlasEdgeSize = FMath::Clamp(CVarLightFunctionAtlasSize.GetValueOnRenderThread(), 4, MAX_LIGHT_FUNCTION_ATLAS_EDGE_SIZE);// 16x16 is the maximum slot count of LIGHT_FUNCTION_ATLAS_MAX_LIGHT_FUNCTION_COUNT=256 we currently allow
 	return AtlasEdgeSize;
 }
 
@@ -551,7 +554,6 @@ void FLightFunctionAtlas::RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TA
 		LightFunctionAtlasGlobalParameters->Slot_UVSize = (AtlasSlotResolution - 1.0f) / AtlasResolution; // -1.0 because we remove a bit more than half a texel at the border.
 
 		const FIntPoint LightFunctionResolution = FIntPoint(AtlasSlotResolution, AtlasSlotResolution);
-		const FMatrix TranslatedWorldToWorld = FTranslationMatrix(-View.ViewMatrices.GetPreViewTranslation());
 
 		// Write the light data needed to rotate and fade the light function in the world.
 		const uint32 InitialLightInfoDataLightCount = FMath::DivideAndRoundUp(uint32(EffectiveLocalLightSlotArray.Num()), 32u) * 32u;// Alloted with 32 lights step to better reuse shared buffers pool.
@@ -574,63 +576,40 @@ void FLightFunctionAtlas::RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TA
 
 			float ShadowFadeFraction = 1.0f;
 
-			uint8 LightType = Proxy->GetLightType();
-			if (LightType == LightType_Spot)
-			{
-				// Spotlights needs to utilize their shadow projection when rendering the light function 
-				TArray<FWholeSceneProjectedShadowInitializer, TInlineAllocator<6>> Initializers;
-				Proxy->GetWholeSceneProjectedShadowInitializer(*View.Family, Initializers);
+			FMatrix44f TranslatedWorldToLight;
 
-				FWholeSceneProjectedShadowInitializer ShadowInitializer = Initializers[0];
-				FProjectedShadowInfo ProjectedShadowInfo;
-				ProjectedShadowInfo.SetupWholeSceneProjection(
-					LightSceneInfo,
-					&View,
-					ShadowInitializer,
-					LightFunctionResolution.X,
-					LightFunctionResolution.Y,
-					LightFunctionResolution.X,
-					LightFunctionResolution.Y,
-					0
-				);
-				//ShadowFadeFraction = ProjectedShadowInfo.FadeAlphas.Num() == 0 ? 1.0f : ProjectedShadowInfo.FadeAlphas[0];
-
-				FVector4f ShadowmapMinMaxValue;
-				LightInfoDataBufferPtr[LightIndex].Transform = FMatrix44f(TranslatedWorldToWorld * ProjectedShadowInfo.GetWorldToShadowMatrix(ShadowmapMinMaxValue, &LightFunctionResolution));
-			}
-			else if (LightType == LightType_Point)
-			{
-				LightInfoDataBufferPtr[LightIndex].Transform = FMatrix44f(TranslatedWorldToWorld * Proxy->GetWorldToLight());
-			}
-			else if (LightType == LightType_Rect)
 			{
 				const FVector Scale = Proxy->GetLightFunctionScale();
 				// Switch x and z so that z of the user specified scale affects the distance along the light direction
-				const FVector InverseScale = FVector(1.0 / Scale.Z, 1.0 / Scale.Y, 1.0 / Scale.X);
-				const FMatrix WorldToLight = Proxy->GetWorldToLight() * FScaleMatrix(InverseScale);
-
-				LightInfoDataBufferPtr[LightIndex].Transform = FMatrix44f(TranslatedWorldToWorld * WorldToLight);
+				const FVector InverseScale = FVector(1.f / Scale.Z, 1.f / Scale.Y, 1.f / Scale.X);
+				const FMatrix WorldToLight = Proxy->GetWorldToLight() * FScaleMatrix(FVector(InverseScale));
+				TranslatedWorldToLight = FMatrix44f(FTranslationMatrix(-View.ViewMatrices.GetPreViewTranslation()) * WorldToLight);
 			}
-			else if (LightType == LightType_Directional)
-			{
-				const FVector LightDirection = Proxy->GetDirection().GetSafeNormal();
 
-				const FVector Scale = LightSceneInfo->Proxy->GetLightFunctionScale();
-				// Switch x and z so that z of the user specified scale affects the distance along the light direction
-				const FVector InverseScale = FVector(1.0 / Scale.Z, 1.0 / Scale.Y, 1.0 / Scale.X);
+			LightInfoDataBufferPtr[LightIndex].Transform = TranslatedWorldToLight;
 
-				const FMatrix WorldToLight = LightSceneInfo->Proxy->GetWorldToLight() * FScaleMatrix(FVector(InverseScale));
-				LightInfoDataBufferPtr[LightIndex].Transform = FMatrix44f(TranslatedWorldToWorld * WorldToLight);
-			}
+			uint8 LightType = Proxy->GetLightType();
 			
 			const uint8 LightFunctionAtlasSlotIndex = LightSlot.LightFunctionAtlasSlotIndex;
 			FFloat16 PackedDisabledBrightness(Proxy->GetLightFunctionDisabledBrightness());
 			uint32 PackedLightInfoDataParams = uint32(LightType) | (uint32(PackedDisabledBrightness.Encoded) << 8);
 
-			EffectiveLightFunctionSlot& AtlasSlot = EffectiveLightFunctionSlotArray[LightFunctionAtlasSlotIndex];
+			const EffectiveLightFunctionSlot& AtlasSlot = EffectiveLightFunctionSlotArray[LightFunctionAtlasSlotIndex];
+
+			static_assert(MAX_LIGHT_FUNCTION_ATLAS_SLOT_RESOLUTION * MAX_LIGHT_FUNCTION_ATLAS_EDGE_SIZE <= 32 * 1024, 
+				"Unable to pack slot UVs into uint16 when atlas resolution is larger than 32K");
+
+			const uint32 PackedAtlasSlotMinU = uint32(round(AtlasSlot.MinU * 65536.0f));
+			const uint32 PackedAtlasSlotMinV = uint32(round(AtlasSlot.MinV * 65536.0f));
+			const uint32 PackedAtlasSlotMinUV = (PackedAtlasSlotMinU | (PackedAtlasSlotMinV << 16));
+
+			ensure(FMath::IsNearlyEqual((PackedAtlasSlotMinUV & 0xFFFF) / 65536.0f, AtlasSlot.MinU));
+			ensure(FMath::IsNearlyEqual(((PackedAtlasSlotMinUV >> 16) & 0xFFFF) / 65536.0f, AtlasSlot.MinV));
+
+			const float TanOuterAngle = LightType == LightType_Spot ? FMath::Tan(LightSceneInfo->Proxy->GetOuterConeAngle()) : 1.0f;
 
 			// ShadowFadeFraction is unused.
-			LightInfoDataBufferPtr[LightIndex].Parameters = FVector4f(Proxy->GetLightFunctionFadeDistance(), FMath::AsFloat(PackedLightInfoDataParams), AtlasSlot.MinU, AtlasSlot.MinV);
+			LightInfoDataBufferPtr[LightIndex].Parameters = FVector4f(Proxy->GetLightFunctionFadeDistance(), FMath::AsFloat(PackedLightInfoDataParams), FMath::AsFloat(PackedAtlasSlotMinUV), TanOuterAngle);
 
 			LightIndex++;
 		}
