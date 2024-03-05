@@ -728,6 +728,7 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 		FMassExecutionContext Context(EntityManager);
 		Context.SetEntityCollection(FMassArchetypeEntityCollection(NativeArchetype, { NativeEntity }, FMassArchetypeEntityCollection::NoDuplicates));
 		Context.SetDeferredCommandBuffer(ParentContext.GetSharedDeferredCommandBuffer());
+		Context.SetFlushDeferredCommands(false);
 
 		NativeQuery.ForEachEntityChunk(EntityManager, Context,
 			[&Result, &Callback, &Description, &Environment, &EntityManager, RowHandle](FMassExecutionContext& Context)
