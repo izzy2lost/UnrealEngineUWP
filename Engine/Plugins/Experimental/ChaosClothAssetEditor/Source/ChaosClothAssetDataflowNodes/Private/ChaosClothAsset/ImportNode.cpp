@@ -29,6 +29,11 @@ void FChaosClothAssetImportNode::Evaluate(Dataflow::FContext& Context, const FDa
 
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
+		if (ReimportAsset.bRefreshAsset)
+		{
+			ReimportAsset.bRefreshAsset = false;
+		}
+
 		bool bSetValue = false;
 		if (ClothAsset)
 		{
