@@ -81,6 +81,9 @@ struct FNDIHairStrandsBuffer : public FRenderResource
 	/** Valid geometry type for hair (strands, cards, mesh)*/
 	bool bValidGeometryType = false;
 
+	/** Mesh LOD that is being used for the root resources */
+	int32 CurrentMeshLOD = INDEX_NONE;
+
 	// For debug only
 	//FRHIGPUBufferReadback* ReadbackBuffer = nullptr;
 };
