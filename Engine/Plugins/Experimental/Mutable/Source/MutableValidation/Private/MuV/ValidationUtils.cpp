@@ -109,10 +109,30 @@ bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const 
 		// TODO: Add logs for the other relevant configs of the model being compiled
 	}
 
-
 	return bWasCoCompilationSuccessful;
 }
 
+
+void Wait(const double ToWaitSeconds)
+{
+	check (ToWaitSeconds > 0);
+	
+	const double EndSeconds = FPlatformTime::Seconds() + ToWaitSeconds;
+	UE_LOG(LogMutable,Display,TEXT("Holding test execution for %f seconds."),ToWaitSeconds);
+	while (FPlatformTime::Seconds() < EndSeconds)
+	{
+		// Tick the engine
+		CommandletHelpers::TickEngine();
+
+		// Stop if exit was requested
+		if (IsEngineExitRequested())
+		{
+			break;
+		}
+	}
+
+	UE_LOG(LogMutable,Display,TEXT("Resuming test execution."));
+}
 
 
 bool UCOIUpdater::UpdateInstance(UCustomizableObjectInstance* InInstance)
