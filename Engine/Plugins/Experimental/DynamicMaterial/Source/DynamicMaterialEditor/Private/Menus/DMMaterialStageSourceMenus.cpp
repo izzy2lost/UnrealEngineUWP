@@ -14,6 +14,7 @@
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageExpressions/DMMSESceneTexture.h"
+#include "Components/MaterialStageExpressions/DMMSEText.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
@@ -1165,6 +1166,79 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 	}
 
+	void ChangeSourceToTextFromContext(UDMMenuContext* InMenuContext)
+	{
+		if (!IsValid(InMenuContext))
+		{
+			return;
+		}
+
+		UDMMaterialStageSource* const StageSource = InMenuContext->GetStageSource();
+
+		if (!StageSource)
+		{
+			return;
+		}
+
+		UDMMaterialStage* const Stage = InMenuContext->GetStage();
+
+		if (!Stage)
+		{
+			return;
+		}
+
+		UDMMaterialLayerObject* const Layer = Stage->GetLayer();
+
+		if (!Layer)
+		{
+			return;
+		}
+
+		if (StageSource->IsA<UDMMaterialStageBlend>())
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
+			Stage->Modify();
+
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage,
+				UDMMaterialStageExpressionText::StaticClass(),
+				UDMMaterialStageBlend::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				0,
+				FDMMaterialStageConnectorChannel::THREE_CHANNELS
+			);
+		}
+		else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
+			Stage->Modify();
+
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage,
+				UDMMaterialStageExpressionText::StaticClass(),
+				UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				0,
+				FDMMaterialStageConnectorChannel::FIRST_CHANNEL
+			);
+		}
+		else
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Designer Source"));
+			Stage->Modify();
+
+			UDMMaterialStageInputExpression::ChangeStageSource_Expression(
+				Stage,
+				UDMMaterialStageExpressionText::StaticClass()
+			);
+		}
+
+		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
+		{
+			SlotWidget->InvalidateComponentEditWidget();
+		}
+	}
+
 	void CreateChangeMaterialStageSource(FToolMenuSection& InSection)
 	{
 		UDMMenuContext* MenuContext = InSection.FindContext<UDMMenuContext>();
@@ -1321,6 +1395,18 @@ namespace UE::DynamicMaterialEditor::Private
 			FUIAction(
 				FExecuteAction::CreateStatic(
 					&ChangeSourceToMaterialFunctionFromContext,
+					MenuContext
+				)
+			)
+		);
+
+		InSection.AddMenuEntry("Text",
+			LOCTEXT("ChangeSourceText", "Text"),
+			LOCTEXT("ChangeSourceTextTooltip", "Change the source of this stage to a Text Renderer."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateStatic(
+					&ChangeSourceToTextFromContext,
 					MenuContext
 				)
 			)

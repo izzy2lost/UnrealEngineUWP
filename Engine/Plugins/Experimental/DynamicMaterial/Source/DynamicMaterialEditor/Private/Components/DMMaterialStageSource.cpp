@@ -337,12 +337,6 @@ bool UDMMaterialStageSource::UpdateStagePreviewMaterial(UDMMaterialStage* InStag
 
 void UDMMaterialStageSource::NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, class FEditPropertyChain* InPropertyThatChanged)
 {
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	Update(EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageSource::PostEditUndo()

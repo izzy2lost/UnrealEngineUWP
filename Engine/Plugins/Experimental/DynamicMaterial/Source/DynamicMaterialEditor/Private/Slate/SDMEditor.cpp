@@ -56,6 +56,64 @@
 
 #define LOCTEXT_NAMESPACE "SDMEditor"
 
+namespace UE::DynamicMaterialEditor::Private
+{
+	TSharedPtr<IDetailTreeNode> SearchGeneratorForNode(const TSharedRef<IPropertyRowGenerator>& InGenerator, FName InPropertyName)
+	{
+		for (const TSharedRef<IDetailTreeNode>& CategoryNode : InGenerator->GetRootTreeNodes())
+		{
+			if (CategoryNode->GetNodeName() != TEXT("Material Designer"))
+			{
+				continue;
+			}
+
+			TArray<TSharedRef<IDetailTreeNode>> ChildNodes;
+			CategoryNode->GetChildren(ChildNodes);
+
+			for (const TSharedRef<IDetailTreeNode>& ChildNode : ChildNodes)
+			{
+				if (ChildNode->GetNodeType() != EDetailNodeType::Item)
+				{
+					continue;
+				}
+
+				if (ChildNode->GetNodeName() != InPropertyName)
+				{
+					continue;
+				}
+
+				return ChildNode;
+			}
+		}
+
+		return nullptr;
+	}
+
+	TSharedPtr<IPropertyRowGenerator> SearchForGenerator(const TArray<FDMPropertyHandle>& InPropertyHandles, UObject* InObject)
+	{
+		if (!InObject)
+		{
+			return nullptr;
+		}
+
+		for (const FDMPropertyHandle& PropertyHandle : InPropertyHandles)
+		{
+			if (PropertyHandle.PropertyRowGenerator.IsValid())
+			{
+				for (const TWeakObjectPtr<UObject>& WeakObject : PropertyHandle.PropertyRowGenerator->GetSelectedObjects())
+				{
+					if (WeakObject.Get() == InObject)
+					{
+						return PropertyHandle.PropertyRowGenerator;
+					}
+				}
+			}
+		}
+
+		return nullptr;
+	}
+}
+
 TSharedPtr<FAssetThumbnailPool> SDMEditor::ThumbnailPool = nullptr;
 TMap<const SWidget*, TArray<FDMPropertyHandle>> SDMEditor::PropertyHandleMap;
 
@@ -158,7 +216,7 @@ FDMPropertyHandle SDMEditor::GetPropertyHandle(const SWidget* InOwner, UDMMateri
 
 	for (const FDMPropertyHandle& ExistingHandle : PropertyHandles)
 	{
-		if (ExistingHandle.PropertyHandle->GetProperty()->GetFName() == InPropertyName)
+		if (ExistingHandle.PropertyHandle && ExistingHandle.PropertyHandle->GetProperty()->GetFName() == InPropertyName)
 		{
 			TArray<UObject*> Outers;
 			ExistingHandle.PropertyHandle->GetOuterObjects(Outers);
@@ -168,6 +226,21 @@ FDMPropertyHandle SDMEditor::GetPropertyHandle(const SWidget* InOwner, UDMMateri
 				return ExistingHandle;
 			}
 		}
+	}
+
+	if (TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator = UE::DynamicMaterialEditor::Private::SearchForGenerator(PropertyHandles, InComponent))
+	{
+		FDMPropertyHandle PropertyHandle;
+		PropertyHandle.PropertyRowGenerator = PropertyRowGenerator;
+
+		if (TSharedPtr<IDetailTreeNode> DetailTreeNode = UE::DynamicMaterialEditor::Private::SearchGeneratorForNode(PropertyRowGenerator.ToSharedRef(), InPropertyName))
+		{
+			PropertyHandle.DetailTreeNode = DetailTreeNode;
+			PropertyHandle.PropertyHandle = DetailTreeNode->CreatePropertyHandle();
+			return PropertyHandle;
+		}
+
+		return PropertyHandle;
 	}
 
 	FDMPropertyHandle NewHandle = CreatePropertyHandle(InOwner, InComponent, InPropertyName);
@@ -194,32 +267,12 @@ FDMPropertyHandle SDMEditor::CreatePropertyHandle(const void* InOwner, UDMMateri
 	PropertyHandle.PropertyRowGenerator = PropertyEditor.CreatePropertyRowGenerator(RowGeneratorArgs);
 	PropertyHandle.PropertyRowGenerator->SetObjects({InComponent});
 
-	for (const TSharedRef<IDetailTreeNode>& CategoryNode : PropertyHandle.PropertyRowGenerator->GetRootTreeNodes())
+	if (const TSharedPtr<IDetailTreeNode> FoundTreeNode = UE::DynamicMaterialEditor::Private::SearchGeneratorForNode(
+		PropertyHandle.PropertyRowGenerator.ToSharedRef(), InPropertyName))
 	{
-		if (CategoryNode->GetNodeName() != TEXT("Material Designer"))
-		{
-			continue;
-		}
-
-		TArray<TSharedRef<IDetailTreeNode>> ChildNodes;
-		CategoryNode->GetChildren(ChildNodes);
-
-		for (const TSharedRef<IDetailTreeNode>& ChildNode : ChildNodes)
-		{
-			if (ChildNode->GetNodeType() != EDetailNodeType::Item)
-			{
-				continue;
-			}
-
-			if (ChildNode->GetNodeName() != InPropertyName)
-			{
-				continue;
-			}
-
-			PropertyHandle.DetailTreeNode = ChildNode;
-			PropertyHandle.PropertyHandle = ChildNode->CreatePropertyHandle();
-			return PropertyHandle;
-		}
+		PropertyHandle.DetailTreeNode = FoundTreeNode;
+		PropertyHandle.PropertyHandle = FoundTreeNode->CreatePropertyHandle();
+		return PropertyHandle;
 	}
 
 	return PropertyHandle;

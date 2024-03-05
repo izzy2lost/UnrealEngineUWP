@@ -13,7 +13,8 @@ public class DynamicMaterialEditor : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
-				"DynamicMaterial"
+				"DynamicMaterial",
+				"Engine"
 			}
 		);
 
@@ -29,7 +30,6 @@ public class DynamicMaterialEditor : ModuleRules
 				"DeveloperSettings",
 				"DynamicMaterialShadersEditor",
 				"EditorWidgets",
-				"Engine",
 				"InputCore",
 				"Json",
 				"JsonUtilities",

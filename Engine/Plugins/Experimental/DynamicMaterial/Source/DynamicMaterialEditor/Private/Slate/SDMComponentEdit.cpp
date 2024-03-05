@@ -308,6 +308,11 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 
 	for (const FDMPropertyHandle& EditRow : EditRows)
 	{
+		if (!EditRow.DetailTreeNode)
+		{
+			continue;
+		}
+
 		ECustomDetailsTreeInsertPosition Position = ECustomDetailsTreeInsertPosition::Child;
 
 		if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("HighPriority"))
