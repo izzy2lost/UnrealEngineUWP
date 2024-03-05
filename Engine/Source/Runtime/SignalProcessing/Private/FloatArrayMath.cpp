@@ -2018,6 +2018,80 @@ namespace Audio
 		}
 	}
 
+	void ArrayFade(TArrayView<const float> InBuffer, const float InStartValue, const float InEndValue, TArrayView<float> OutBuffer)
+	{
+		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayFade);
+		
+		const int32 Num = InBuffer.Num();
+		check(Num <= OutBuffer.Num());
+
+		const float* InFloatBuffer = InBuffer.GetData();
+		float* OutFloatBuffer = OutBuffer.GetData();
+
+		// case 1: no fade
+		if (FMath::IsNearlyEqual(InStartValue, InEndValue))
+		{
+			if (InStartValue == 0.0f)
+			{
+				// No need to do anything if start and end values are both 0.0
+				FMemory::Memset(OutFloatBuffer, 0, sizeof(float) * Num);
+			}
+			else
+			{
+				// no fade, just scale the output
+				ArrayMultiplyByConstant(InBuffer, InStartValue, OutBuffer);
+			}
+
+			return;
+		}
+
+		// case 2: fade w/ ISPC
+#if INTEL_ISPC
+		if (bAudio_FloatArrayMath_ISPC_Enabled)
+		{
+			ispc::ArrayFade2(InFloatBuffer, Num, InStartValue, InEndValue, OutFloatBuffer);
+			return;
+		}
+#endif
+
+
+		// case 3: fade w/ our vectorization abstraction
+		const int32 NumToSimd = Num & MathIntrinsics::SimdMask;
+		const int32 NumNotToSimd = Num & MathIntrinsics::NotSimdMask;
+
+		const float DeltaValue = ((InEndValue - InStartValue) / Num);
+
+		if (NumToSimd)
+		{
+			constexpr VectorRegister4Float VectorFour = MakeVectorRegisterFloatConstant(4.f, 4.f, 4.f, 4.f);
+			VectorRegister4Float Accumulator = MakeVectorRegisterFloat(0.f, 1.f, 2.f, 3.f);
+			VectorRegister4Float Delta = VectorLoadFloat1(&DeltaValue);
+			VectorRegister4Float Start = VectorLoadFloat1(&InStartValue);
+
+			for (int32 i = 0; i < NumToSimd; i += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
+			{
+				VectorRegister4Float Gain = VectorMultiplyAdd(Accumulator, Delta, Start);
+				VectorRegister4Float Input = VectorLoad(&InFloatBuffer[i]);
+				VectorRegister4Float Output = VectorMultiply(Input, Gain);
+
+				Accumulator = VectorAdd(Accumulator, VectorFour);
+				VectorStore(Output, &OutFloatBuffer[i]);
+			}
+		}
+
+		if (NumNotToSimd)
+		{
+			float Gain = (NumToSimd * DeltaValue) + InStartValue;
+
+			// Do a fade from start to end
+			for (int32 i = NumToSimd; i < Num; ++i)
+			{
+				OutFloatBuffer[i] = InFloatBuffer[i] * Gain;
+				Gain += DeltaValue;
+			}
+		}
+	}
+
 	void ArrayMixIn(TArrayView<const float> InFloatBuffer, TArrayView<float> BufferToSumTo, const float Gain)
 	{
 		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayMixIn);
