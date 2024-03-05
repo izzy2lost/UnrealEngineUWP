@@ -149,16 +149,23 @@ void FOpenXRHMDModule::ShutdownModule()
 
 uint64 FOpenXRHMDModule::GetGraphicsAdapterLuid()
 {
+    uint64 DefaultValue = 0;
+    
+    // Mac platforms expect the device ID to be returned here
+#if PLATFORM_MAC
+    DefaultValue = (uint64)-1;
+#endif
+    
 	if (FParse::Param(FCommandLine::Get(), TEXT("xrtrackingonly")))
 	{
-		return 0;
+        return DefaultValue;
 	}
 
 	if (!RenderBridge)
 	{
 		if (!InitRenderBridge())
 		{
-			return 0;
+            return DefaultValue;
 		}
 	}
 
@@ -166,7 +173,7 @@ uint64 FOpenXRHMDModule::GetGraphicsAdapterLuid()
 	XrSystemId System = GetSystemId();
 	if (!System)
 	{
-		int64 AdapterLuid = 0;
+		int64 AdapterLuid = (int64)DefaultValue;
 		EngineIni->GetInt64(TEXT("OpenXR.Settings"), TEXT("GraphicsAdapter"), AdapterLuid);
 		return reinterpret_cast<uint64&>(AdapterLuid);
 	}
