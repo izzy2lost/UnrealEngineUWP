@@ -711,6 +711,22 @@
 				"-Target=Full Build",
 				"-Project=$(Project)"
 			],
+			"parameters": [
+                {
+                    "type": "Bool",
+                    "label": "Simulate Warning",
+                    "argumentIfEnabled": "-set:SimulateWarning=true",
+                    "argumentIfDisabled": "-set:SimulateWarning=false",
+                    "default": true
+                },
+                {
+                    "type": "Bool",
+                    "label": "Simulate Error",
+                    "argumentIfEnabled": "-set:SimulateError=true",
+                    "argumentIfDisabled": "-set:SimulateError=false",
+                    "default": true
+                }
+			],
 			"jobOptions": {
 				"executor": "Test"
 			}
