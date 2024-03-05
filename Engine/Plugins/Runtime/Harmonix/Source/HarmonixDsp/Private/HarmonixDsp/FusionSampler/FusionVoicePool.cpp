@@ -3,14 +3,14 @@
 #include "HarmonixDsp/FusionSampler/FusionVoice.h"
 #include "HarmonixDsp/FusionSampler/FusionPatch.h"
 #include "HarmonixDsp/FusionSampler/FusionSampler.h"
+#include "HarmonixDsp/FusionSampler/FusionSamplerConfig.h"
 #include "HarmonixDsp/FusionSampler/Settings/KeyzoneSettings.h"
 #include "HarmonixDsp/StretcherAndPitchShifterFactory.h"
 #include "Sound/SoundWave.h"
 
 DEFINE_LOG_CATEGORY(LogFusionVoicePool);
 
-FFusionVoiceConfig FFusionVoiceConfig::DefaultConfig(32, 24, false);
-FFusionVoicePool::FPoolMap FFusionVoicePool::gDefaultVoicePools;
+FFusionVoicePool::FPoolMap FFusionVoicePool::GVoicePools;
 
 void FFusionVoicePool::SetSampleRate(float InSampleRate)
 {
@@ -41,10 +41,15 @@ void FFusionVoicePool::Unlock()
 
 FSharedFusionVoicePoolPtr FFusionVoicePool::GetDefault(float InSampleRate)
 {
-	static FCriticalSection sDefaultVoicePoolLock;
-	FScopeLock Lock(&sDefaultVoicePoolLock);
+	return GetNamedPool(NAME_None, InSampleRate);
+}
 
-	gDefaultVoicePools = gDefaultVoicePools.FilterByPredicate([](const FPoolMap::ElementType& Pair)
+FSharedFusionVoicePoolPtr FFusionVoicePool::GetNamedPool(FName InPoolName, float InSampleRate)
+{
+	static FCriticalSection sVoicePoolLock;
+	FScopeLock Lock(&sVoicePoolLock);
+
+	GVoicePools = GVoicePools.FilterByPredicate([](const FPoolMap::ElementType& Pair)
 		{
 			if (FSharedFusionVoicePoolPtr SharedPool = (Pair.Value).Pin())
 			{
@@ -53,31 +58,26 @@ FSharedFusionVoicePoolPtr FFusionVoicePool::GetDefault(float InSampleRate)
 			return false;
 		});
 
-	int32 SampleRateInt = FMath::FloorToInt32(InSampleRate);
-	if (TWeakPtr<FFusionVoicePool, ESPMode::ThreadSafe>* WeakPoolPtr = gDefaultVoicePools.Find(SampleRateInt))
+	FPoolMapKey Key = MakeTuple(InPoolName, FMath::FloorToInt32(InSampleRate));
+	if (TWeakPtr<FFusionVoicePool, ESPMode::ThreadSafe>* WeakPoolPtr = GVoicePools.Find(Key))
 	{
 		if (FSharedFusionVoicePoolPtr SharedPool = (*WeakPoolPtr).Pin())
 		{
 			return SharedPool;
 		}
-		else 
-		{
-			gDefaultVoicePools.Remove(SampleRateInt);
-		}
 	}
 
-	FFusionVoiceConfig Config = FFusionVoiceConfig::DefaultConfig;
-	Config.SampleRate = InSampleRate;
-	FSharedFusionVoicePoolPtr NewPool = Create(Config);
-	gDefaultVoicePools.Add(SampleRateInt, NewPool.ToWeakPtr());
+	const UFusionSamplerConfig* FusionConfig = ::GetDefault<UFusionSamplerConfig>();
+
+	FSharedFusionVoicePoolPtr NewPool = Create(FusionConfig->GetVoiceConfigForPoolName(InPoolName), InSampleRate);
+	GVoicePools.Add(Key, NewPool.ToWeakPtr());
 	return NewPool;
 }
 
-FSharedFusionVoicePoolPtr FFusionVoicePool::Create(const FFusionVoiceConfig& InConfig)
+FSharedFusionVoicePoolPtr FFusionVoicePool::Create(const FFusionVoiceConfig& InConfig, float InSampleRate)
 {
-	FSharedFusionVoicePoolPtr NewVoicePool = MakeShared<FFusionVoicePool, ESPMode::ThreadSafe>(InConfig.SampleRate);
+	FSharedFusionVoicePoolPtr NewVoicePool = MakeShared<FFusionVoicePool, ESPMode::ThreadSafe>(InSampleRate);
 
-	NewVoicePool->SetDecompressSamplesOnLoad(InConfig.DecompressSamplesOnLoad);
 	NewVoicePool->SetHardVoiceLimit(InConfig.NumTotalVoices);
 	NewVoicePool->SetSoftVoiceLimit(InConfig.SoftVoiceLimit);
 	NewVoicePool->SetFormantVolumeCorrection(
@@ -245,15 +245,6 @@ void FFusionVoicePool::SetHardVoiceLimit(uint32 NewPolyphony)
 		CreateVoices(NumVoicesSetting);
 	}
 }
-
-
-void FFusionVoicePool::SetDecompressSamplesOnLoad(bool InDecompress)
-{
-	// NOTE: we don't recreate voices here to save time. SetHardVoiceLimit()
-	// must be called after this to take effect.
-	DecompressSamplesOnLoad = InDecompress;
-}
-
 
 void FFusionVoicePool::SetFormantVolumeCorrection(float DBPerHalfStepUp, float DBPerHalfStepDown, float DBMaxUp, float DBMaxDown)
 {
@@ -671,7 +662,7 @@ void FFusionVoicePool::CreateVoices(uint16 InNumToAllocate)
 
 	for (uint16 VoiceIdx = 0; VoiceIdx < InNumToAllocate; ++VoiceIdx)
 	{
-		Voices[VoiceIdx].Init(this, VoiceIdx, DecompressSamplesOnLoad);
+		Voices[VoiceIdx].Init(this, VoiceIdx);
 	}
 
 	PeakVoiceUsage = 0;

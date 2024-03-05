@@ -218,7 +218,7 @@ void FFusionVoice::Kill()
 	}
 }
 
-void FFusionVoice::Init(FFusionVoicePool* InOwner, uint32 InDebugID, bool bDecompressSamplesOnLoad)
+void FFusionVoice::Init(FFusionVoicePool* InOwner, uint32 InDebugID)
 {
 	VoicePool = InOwner;
 	DebugID = InDebugID;

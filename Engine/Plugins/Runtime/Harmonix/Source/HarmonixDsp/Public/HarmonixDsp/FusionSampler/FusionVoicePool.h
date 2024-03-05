@@ -3,8 +3,11 @@
 
 #include "HAL/Platform.h"
 #include "Templates/SharedPointer.h"
+#include "Templates/Tuple.h"
 #include "HarmonixDsp/StretcherAndPitchShifterFactory.h"
 #include "HarmonixMidi/MidiVoiceId.h"
+
+#include "FusionVoicePool.generated.h"
 
 struct FKeyzoneSettings;
 class FFusionSampler;
@@ -15,31 +18,37 @@ using FSharedFusionVoicePoolPtr = TSharedPtr<FFusionVoicePool, ESPMode::ThreadSa
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFusionVoicePool, Log, All);
 
+USTRUCT()
 struct HARMONIXDSP_API FFusionVoiceConfig
 {
-	float SampleRate = 48000.0f;
+	GENERATED_BODY()
 
-	uint32 NumTotalVoices = 0;
+	UPROPERTY(EditAnywhere, Category = "Voice Pool")
+	uint32 NumTotalVoices = 32;
+
+	UPROPERTY(EditAnywhere, Category = "Voice Pool")
 	uint32 SoftVoiceLimit = 24;
-	bool   DecompressSamplesOnLoad = true;
-	bool   DecompressAsync = true;
-	int32  MaxActiveDecoders = -1;
-	int32  AsynchronousDecodePrebufferFrames = 48000;
-	bool   PreserveCompressedData = false;
+
+	UPROPERTY(EditAnywhere, Category = "Pitch Shifter")
 	float  FormantDbCorrectionPerHalfStepUp = 0.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Pitch Shifter")
 	float  FormantDbCorrectionPerHalfStepDown = 0.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Pitch Shifter")
 	float  FormantDbCorrectionMaxUp = 12.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Pitch Shifter")
 	float  FormantDbCorrectionMaxDown = -12.0f;
+
+	FFusionVoiceConfig() {}
 
 	FFusionVoiceConfig(
 		uint32 InNumTotalVoices,
-		uint32 InSoftVoiceLimit,
-		bool InDecompressSamplesOnLoad)
+		uint32 InSoftVoiceLimit)
 		: NumTotalVoices(InNumTotalVoices)
 		, SoftVoiceLimit(InSoftVoiceLimit)
 	{}
-
-	static FFusionVoiceConfig DefaultConfig;
 };
 
 class HARMONIXDSP_API FFusionVoicePool
@@ -47,7 +56,8 @@ class HARMONIXDSP_API FFusionVoicePool
 public:
 
 	static FSharedFusionVoicePoolPtr GetDefault(float InSampleRate);
-	static FSharedFusionVoicePoolPtr Create(const FFusionVoiceConfig& InConfig);
+	static FSharedFusionVoicePoolPtr GetNamedPool(FName InPoolName, float InSampleRate);
+	static FSharedFusionVoicePoolPtr Create(const FFusionVoiceConfig& InConfig, float InSampleRate);
 
 	FFusionVoicePool(float InSampleRate) 
 		: Voices(nullptr)
@@ -55,7 +65,6 @@ public:
 		, NumVoicesSetting(kDefaultPoolSize)
 		, SoftVoiceLimit(kDefaultPoolSize)
 		, PeakVoiceUsage(0)
-		, DecompressSamplesOnLoad(false)
 		, SampleRate(InSampleRate)
 	{};
 
@@ -111,10 +120,6 @@ public:
 	 * @returns the maximum number of voices this pool will allow before automatically releasing voices.
 	 */
 	uint32 GetSoftVoiceLimit() const { return SoftVoiceLimit; }
-
-	// if we're decompressing samples at load time, we don't need to set up per-voice mogg decoders 
-	//  (which are RAM-intensive)
-	void SetDecompressSamplesOnLoad(bool Decompress);
 
 	void SetFormantVolumeCorrection(float dBperHalfStepUp, float dBperHalfStepDown, float dBMaxUp, float  dBMaxDown);
 
@@ -172,10 +177,11 @@ public:
 
 private:
 
-	// keep a weak ptr, and pass around shared ptrs
-	// so it gets automatically destroyed when nothing references it anymore
-	using FPoolMap = TMap<int32, TWeakPtr<FFusionVoicePool, ESPMode::ThreadSafe>>;
-	static FPoolMap gDefaultVoicePools;
+	// Key is a tuple of PoolName and SampleRate
+	// Value is a weak ptr, but shared ptrs are returned so it gets automatically destroyed when nothing references it anymore
+	using FPoolMapKey = TTuple<FName, int32>;
+	using FPoolMap = TMap<FPoolMapKey, TWeakPtr<FFusionVoicePool, ESPMode::ThreadSafe>>;
+	static FPoolMap GVoicePools;
 
 	FFusionVoice* Voices;
 
@@ -185,8 +191,6 @@ private:
 	uint32     SoftVoiceLimit = 0;
 
 	uint32     PeakVoiceUsage = 0;
-
-	bool       DecompressSamplesOnLoad = false;
 
 	void AllocVoicesAndShifters();
 	void CreateVoices(uint16 InMaxPolyphony);

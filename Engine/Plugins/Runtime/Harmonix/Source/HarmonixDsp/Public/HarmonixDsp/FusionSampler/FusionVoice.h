@@ -34,7 +34,7 @@ public:
 	FFusionVoice();
 	virtual ~FFusionVoice() = default;
 
-	void Init(FFusionVoicePool* InOwner, uint32 InDebugID, bool bDecompressSamplesOnLoad);
+	void Init(FFusionVoicePool* InOwner, uint32 InDebugID);
 
 	static const double kMaxPitchOffsetCents;
 
