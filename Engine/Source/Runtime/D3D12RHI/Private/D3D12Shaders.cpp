@@ -111,6 +111,7 @@ bool InitShaderCommon(FShaderCodeReader& ShaderCode, int32 Offset, TShaderType* 
 
 	// Copy the native shader data only, skipping any of our own headers.
 	InShader->Code = ShaderCode.GetOffsetShaderCode(Offset);
+	InShader->SetShaderBundleUsage(EnumHasAnyFlags(InShader->ResourceCounts.UsageFlags, EShaderResourceUsageFlags::ShaderBundle));
 
 	return true;
 }

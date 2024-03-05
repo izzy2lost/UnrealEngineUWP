@@ -1166,6 +1166,11 @@ bool CompileAndProcessD3DShaderDXC(
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::NoDerivativeOps;
 			}
 
+			if (Input.Environment.CompilerFlags.Contains(CFLAG_ShaderBundle))
+			{
+				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::ShaderBundle;
+			}
+
 			Output.bSucceeded = UE::ShaderCompilerCommon::ValidatePackedResourceCounts(Output, PackedResourceCounts);
 		}
 

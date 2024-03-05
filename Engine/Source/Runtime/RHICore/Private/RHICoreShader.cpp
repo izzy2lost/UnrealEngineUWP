@@ -97,6 +97,8 @@ void DispatchShaderBundleEmulation(
 			continue;
 		}
 
+		checkf(Dispatch.Shader->HasShaderBundleUsage(), TEXT("All shaders in a bundle must specify CFLAG_ShaderBundle"));
+
 		SetComputePipelineState(InRHICmdList, Dispatch.Shader);
 
 		if (Dispatch.Parameters.HasParameters())
