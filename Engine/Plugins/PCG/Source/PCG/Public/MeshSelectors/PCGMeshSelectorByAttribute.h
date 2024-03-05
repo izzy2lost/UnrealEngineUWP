@@ -13,7 +13,7 @@ class PCG_API UPCGMeshSelectorByAttribute : public UPCGMeshSelectorBase
 
 public:
 	// ~Begin UObject interface
-	void PostLoad() override;
+	virtual void PostLoad() override;
 	// ~End UObject interface
 
 	virtual bool SelectInstances(

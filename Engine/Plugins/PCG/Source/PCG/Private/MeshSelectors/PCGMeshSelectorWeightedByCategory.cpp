@@ -300,12 +300,21 @@ void UPCGMeshSelectorWeightedByCategory::PostLoad()
 {
 	Super::PostLoad();
 
-#if WITH_EDITOR
 	for (FPCGWeightedByCategoryEntryList& Entry : Entries)
 	{
+#if WITH_EDITOR
 		Entry.ApplyDeprecation();
+#endif // WITH_EDITOR
+
+		// TODO: Remove if/when FBodyInstance is updated or replaced
+		// Necessary to update the collision Response Container from the Response Array
+		for (FPCGMeshSelectorWeightedEntry& WeightedEntry : Entry.WeightedMeshEntries)
+		{
+			WeightedEntry.Descriptor.PostLoadFixup(this);
+		}
 	}
 
+#if WITH_EDITOR
 	RefreshDisplayNames();
 #endif // WITH_EDITOR
 }
