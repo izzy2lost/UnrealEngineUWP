@@ -99,6 +99,10 @@ void UPCGMeshSelectorByAttribute::PostLoad()
 		WorldPositionOffsetDisableDistance_DEPRECATED = 0;
 	}
 #endif
+
+	// TODO: Remove if/when FBodyInstance is updated or replaced
+	// Necessary to update the collision Response Container from the Response Array
+	TemplateDescriptor.PostLoadFixup(this);
 }
 
 bool UPCGMeshSelectorByAttribute::SelectInstances(

@@ -165,6 +165,14 @@ void FSoftISMComponentDescriptor::InitFrom(const UStaticMeshComponent* Template,
 	Super::InitFrom(Template, bInitBodyInstance);
 }
 
+void FISMComponentDescriptorBase::PostLoadFixup(UObject* Loader)
+{
+	check(Loader);
+
+	// Necessary to update the collision Response Container from the array
+	BodyInstance.FixupData(Loader);
+}
+
 bool FISMComponentDescriptorBase::operator!=(const FISMComponentDescriptorBase& Other) const
 {
 	return !(*this == Other);

@@ -29,6 +29,8 @@ struct FISMComponentDescriptorBase
 	ENGINE_API virtual uint32 ComputeHash() const;
 	ENGINE_API virtual void InitComponent(UInstancedStaticMeshComponent* ISMComponent) const;
 
+	ENGINE_API void PostLoadFixup(UObject* Loader);
+
 	ENGINE_API bool operator!=(const FISMComponentDescriptorBase& Other) const;
 	ENGINE_API bool operator==(const FISMComponentDescriptorBase& Other) const;
 
