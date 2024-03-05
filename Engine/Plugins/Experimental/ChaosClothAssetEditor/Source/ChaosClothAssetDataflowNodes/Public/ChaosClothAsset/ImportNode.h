@@ -8,6 +8,16 @@
 
 class UChaosClothAsset;
 
+/** Refresh structure for push button customization. */
+USTRUCT()
+struct FChaosClothAssetImportNodeRefreshAsset
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Import Node Refresh Asset")
+	bool bRefreshAsset = false;
+};
+
 /** Import an existing Cloth Asset into the graph. */
 USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetImportNode : public FDataflowNode
@@ -26,6 +36,12 @@ public:
 	/** The LOD to import into the collection. Only one LOD can be imported at a time. */
 	UPROPERTY(EditAnywhere, Category = "Cloth Asset Import", Meta = (DisplayName = "Import LOD", ClampMin = "0"))
 	int32 ImportLod = 0;
+
+	/**
+	 * Reimport the imported asset. 
+	 */
+	UPROPERTY(EditAnywhere, Category = "Cloth Asset Import")
+	mutable FChaosClothAssetImportNodeRefreshAsset ReimportAsset;
 
 	FChaosClothAssetImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
