@@ -16,6 +16,7 @@ struct FDetailFilter
 		, bShowOnlyAnimated(false)
 		, bShowFavoritesCategory(false)
 		, bShowOnlyAllowed(false)
+		, bShowLooseProperties(false)
 	{}
 
 	bool IsEmptyFilter() const
@@ -27,7 +28,8 @@ struct FDetailFilter
 			&& bShowOnlyAllowed == false
 			&& bShowAllChildrenIfCategoryMatches == false
 			&& bShowOnlyKeyable == false
-			&& bShowOnlyAnimated == false;
+			&& bShowOnlyAnimated == false
+			&& bShowLooseProperties == false;
 	}
 
 	/** Any user search terms that items must match */
@@ -46,6 +48,8 @@ struct FDetailFilter
 	bool bShowFavoritesCategory;
 	/** If we should only show properties that match PropertyAllowList */
 	bool bShowOnlyAllowed;
+	/* If true, will also show loose properties */
+	bool bShowLooseProperties;
 	/** The set of allowed properties to show. */
 	TSet<FPropertyPath> PropertyAllowList;
 	/** The set of selected sections to show. If empty, all sections are shown.*/

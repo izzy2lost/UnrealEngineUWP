@@ -17,6 +17,8 @@
 
 #define LOCTEXT_NAMESPACE "InstanceDataObjectFixupPanel"
 
+static const FName NAME_IsLooseMetadata(TEXT("IsLoose"));
+
 FRedirectedPropertyNode::FRedirectedPropertyNode(const FRedirectedPropertyNode& Other)
 	: PropertyName(Other.PropertyName)
 	, Type(Other.Type)
@@ -217,7 +219,6 @@ int32 FInstanceDataObjectFixupPanel::Find(UObject* Value) const
 static bool RemoveCustomizationsWithLooseProperties(const FFieldVariant& FieldVariant, const TSharedPtr<IDetailsView>& DetailsView)
 {
 #if WITH_EDITORONLY_DATA
-	static const FName NAME_IsLooseMetadata(TEXT("IsLoose"));
 	if (FStructProperty* AsStructProperty = FieldVariant.Get<FStructProperty>())
 	{
 		if (RemoveCustomizationsWithLooseProperties(AsStructProperty->Struct, DetailsView))
@@ -297,30 +298,13 @@ TSharedPtr<IDetailsView>& FInstanceDataObjectFixupPanel::GenerateDetailsView(boo
 	DetailsViewArgs.ExternalScrollbar = SAssignNew(LinkableScrollBar, SLinkableScrollBar);
 	DetailsViewArgs.ScrollbarAlignment = bScrollbarOnLeft ? HAlign_Left : HAlign_Right;
 	DetailsViewArgs.DetailsNameWidgetOverrideCustomization = MakeShared<FInstanceDataObjectNameWidgetOverride>(SharedThis(this));
+	DetailsViewArgs.bShowLooseProperties = !HasViewFlag(EViewFlags::HideLooseProperties);
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	for (const UObject* Instance : Instances)
 	{
 		RemoveCustomizationsWithLooseProperties(Instance->GetClass(), DetailsView);
-	}
-
-	for (const UObject* Object : Instances)
-	{
-		if (HasViewFlag(EViewFlags::HideLooseProperties))
-		{
-			DetailsView->RegisterInstancedCustomPropertyLayout(Object->GetClass(), FOnGetDetailCustomizationInstance::CreateLambda([]()
-			{
-				return MakeShared<FHideLoosePropertiesCustomization>();
-			}));
-		}
-		else if (HasViewFlag(EViewFlags::AllowRemapLooseProperties))
-		{
-			DetailsView->RegisterInstancedCustomPropertyLayout(Object->GetClass(), FOnGetDetailCustomizationInstance::CreateLambda([DiffPanel = SharedThis(this)]()
-			{
-				return MakeShared<FInstanceDataObjectFixupDetailCustomization>(DiffPanel);
-			}));
-		}
 	}
 	
 	DetailsView->SetObjects(Instances, true);
@@ -703,7 +687,7 @@ void FInstanceDataObjectFixupPanel::RedirectPropertyHelper(const FPropertyPath& 
 		{
 			RedirectedPropertyTree->Move(From, To);
 		}
-		if (SourceProperty->HasMetaData(TEXT("isLoose")))
+		if (SourceProperty->HasMetaData(NAME_IsLooseMetadata))
 		{
 			SourceProperty->PropertyFlags |= CPF_Transient;
 			SourceProperty->SetMetaData(TEXT("Hidden"), TEXT("True"));

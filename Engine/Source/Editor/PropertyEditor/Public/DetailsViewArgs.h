@@ -114,6 +114,8 @@ struct FDetailsViewArgs
 	bool bShowCustomFilterOption : 1;
 	/** True if the section selector should be shown. */
 	bool bShowSectionSelector : 1;
+	/** If true, loose properties should be shown. */
+	bool bShowLooseProperties : 1;
 
 public:
 
@@ -147,6 +149,7 @@ public:
 		, bShowAnimatedPropertiesOption(true)
 		, bShowCustomFilterOption(false)
 		, bShowSectionSelector(false)
+		, bShowLooseProperties(false)
 	{
 	}
 

@@ -14,6 +14,8 @@
 #include "SDetailSingleItemRow.h"
 #include "UObject/PropertyOptional.h"
 
+static const FName NAME_IsLooseMetadata = TEXT("IsLoose");
+
 FDetailItemNode::FDetailItemNode(const FDetailLayoutCustomization& InCustomization, TSharedRef<FDetailCategoryImpl> InParentCategory, TAttribute<bool> InIsParentEnabled, TSharedPtr<IDetailGroup> InParentGroup)
 	: Customization( InCustomization )
 	, ParentCategory( InParentCategory )
@@ -661,6 +663,22 @@ static bool PassesAllFilters( FDetailItemNode* ItemNode, const FDetailLayoutCust
 	};
 
 	bool bPassesAllFilters = true;
+	
+	TSharedPtr<FPropertyNode> PropertyNodePin = InCustomization.GetPropertyNode();
+	
+	if( PropertyNodePin.IsValid())
+	{
+		if (!InFilter.bShowLooseProperties)
+		{
+			if (FProperty* Property = PropertyNodePin->GetProperty())
+			{
+				if (Property->GetBoolMetaData(NAME_IsLooseMetadata))
+				{
+					return false;
+				}
+			}
+		}
+	}
 
 	if( InFilter.FilterStrings.Num() > 0 || 
 		InFilter.bShowOnlyModified == true || 
@@ -669,8 +687,6 @@ static bool PassesAllFilters( FDetailItemNode* ItemNode, const FDetailLayoutCust
 		InFilter.bShowOnlyAnimated == true)
 	{
 		const bool bSearchFilterIsEmpty = InFilter.FilterStrings.Num() == 0;
-
-		TSharedPtr<FPropertyNode> PropertyNodePin = InCustomization.GetPropertyNode();
 		
 		const bool bPassesCategoryFilter = !bSearchFilterIsEmpty && InFilter.bShowAllChildrenIfCategoryMatches ? Local::StringPassesFilter(InFilter, InCategoryName) : false;
 		const bool bPassesValueFilter = !bSearchFilterIsEmpty && Local::StringPassesFilter(InFilter, Local::GetPropertyNodeValueFilterString(InCustomization, PropertyNodePin));

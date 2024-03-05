@@ -75,6 +75,8 @@ void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& I
 		CurrentFilter.bShowFavoritesCategory = ViewConfig->bShowFavoritesCategory;
 	}
 
+	CurrentFilter.bShowLooseProperties = InDetailsViewArgs.bShowLooseProperties;
+
 	ColumnSizeData.SetValueColumnWidth(DetailsViewArgs.ColumnWidth);
 	ColumnSizeData.SetRightColumnMinWidth(DetailsViewArgs.RightColumnMinWidth);
 
