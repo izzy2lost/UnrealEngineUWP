@@ -1688,7 +1688,7 @@ void FZenCacheStore::Initialize(const FZenCacheStoreParams& Params)
 	ClientParams.LowSpeedTime = 25;
 	RequestQueue = FHttpRequestQueue(*ConnectionPool, ClientParams);
 
-	bIsLocalConnection = ZenService.GetInstance().IsServiceRunningLocally();
+	bIsLocalConnection = ZenService.GetInstance().IsServiceRunningLocally() || ZenService.GetInstance().GetServiceSettings().IsAutoLaunch();
 	bIsUsable = true;
 
 
@@ -1712,13 +1712,26 @@ void FZenCacheStore::Initialize(const FZenCacheStoreParams& Params)
 
 		if (!bReady)
 		{
-			Flags = ECacheStoreFlags::None;
-			UE_LOG(LogDerivedDataCache, Display,
-				TEXT("%s: Readiness check failed. "
-					"It will be deactivated until responsiveness improves. "
-					"If this is consistent, consider disabling this cache store through "
-					"environment variables or other configuration."),
-				*GetName());
+			Flags = OperationalFlags & ~(ECacheStoreFlags::Store | ECacheStoreFlags::Query);
+			if (bIsLocalConnection)
+			{
+				UE_LOG(LogDerivedDataCache, Display,
+					TEXT("%s: Readiness check failed. "
+						"It will be deactivated until responsiveness improves. "
+						"If this is consistent, consider disabling this cache store through "
+						"the use of the '-ddc=NoZenLocalFallback' or '-ddc=InstalledNoZenLocalFallback' "
+						"commandline arguments."),
+					*GetName());
+			}
+			else
+			{
+				UE_LOG(LogDerivedDataCache, Display,
+					TEXT("%s: Readiness check failed. "
+						"It will be deactivated until responsiveness improves. "
+						"If this is consistent, consider disabling this cache store through "
+						"environment variables or other configuration."),
+					*GetName());
+			}
 			bDeactivatedForPerformance.store(true, std::memory_order_relaxed);
 		}
 
@@ -1910,7 +1923,7 @@ void FZenCacheStore::ConditionalEvaluatePerformance()
 	{
 		if (!bDeactivatedForPerformance.load(std::memory_order_relaxed))
 		{
-			StoreOwner->SetFlags(this, ECacheStoreFlags::None);
+			StoreOwner->SetFlags(this, OperationalFlags & ~(ECacheStoreFlags::Store | ECacheStoreFlags::Query));
 			UE_LOG(LogDerivedDataCache, Display,
 				TEXT("%s: Performance does not meet minimum criteria. "
 					"It will be deactivated until performance measurements improve. "
