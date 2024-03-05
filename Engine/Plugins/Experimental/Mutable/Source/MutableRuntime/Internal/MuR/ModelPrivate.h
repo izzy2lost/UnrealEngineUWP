@@ -337,18 +337,18 @@ namespace mu
 		//! Return true if the given ROM is loaded.
 		FORCEINLINE bool IsRomLoaded(int32 RomIndex) const
 		{
-			const bool bIsRomLoaded = LoadedMemTrackedRoms.IsValidIndex(RomIndex);
-			check(bIsRomLoaded == Invoke([&]()
+			switch (m_roms[RomIndex].ResourceType)
 			{
-				switch (m_roms[RomIndex].ResourceType)
-				{
-				case DT_IMAGE: return ConstantImageLODs[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
-				case DT_MESH: return ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
-				default: return false;
-				}
-			}));
+				case DT_IMAGE: 
+					return ConstantImageLODs[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
+				case DT_MESH: 
+					return ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
+				default:
+					check(false);
+					break;
+			}
 
-			return bIsRomLoaded;
+			return false;
 		}
 
 		/** Unload a rom resource. Return the size of the unloaded rom.*/
