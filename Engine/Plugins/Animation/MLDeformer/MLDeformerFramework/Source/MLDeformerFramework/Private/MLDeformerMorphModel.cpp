@@ -338,6 +338,17 @@ void UMLDeformerMorphModel::UpdateMemoryUsage()
 	GPUMemUsageInBytes += GPUMorphSize;
 	CookedAssetSizeInBytes += GPUMorphSize;
 }
+
+void UMLDeformerMorphModel::FinalizeMorphTargets()
+{
+	MorphTargetDeltas.Empty();
+	UpdateStatistics();
+}
+
+bool UMLDeformerMorphModel::HasRawMorph() const
+{
+	return !MorphTargetDeltas.IsEmpty();
+}
 #endif
 
 #undef LOCTEXT_NAMESPACE
