@@ -3,7 +3,8 @@
 #pragma once
 
 #include "UObject/Object.h"
-#include "Containers/ContainersFwd.h"
+#include "Containers/Array.h"
+#include "Containers/Set.h"
 
 #if WITH_EDITOR
 #include "UObject/ScriptInterface.h"
@@ -88,6 +89,12 @@ public:
 	UDMMaterialValue* AddValue(EDMValueType InType);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void AddRuntimeComponentReference(UDMMaterialComponent* InValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void RemoveRuntimeComponentReference(UDMMaterialComponent* InValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void RemoveValueByName(FName InName);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
@@ -129,8 +136,13 @@ public:
 #endif
 
 protected:
+	/** Global values */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TArray<TObjectPtr<UDMMaterialValue>> Values;
+
+	/** References to runtime components outered to this model which are not otherwise referenced. */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TSet<TObjectPtr<UDMMaterialComponent>> RuntimeComponents;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TObjectPtr<UDMMaterialValueFloat1> GlobalOpacityValue;

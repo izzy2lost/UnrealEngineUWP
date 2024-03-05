@@ -117,6 +117,14 @@ void UDMMaterialValue::PostLoad()
 
 		Parameter->SetParentComponent(this);
 	}
+
+	if (bLocal)
+	{
+		if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+		{
+			MaterialModel->AddRuntimeComponentReference(this);
+		}
+	}
 }
 
 void UDMMaterialValue::PostEditImport()
@@ -203,6 +211,19 @@ bool UDMMaterialValue::SetParameterName(FName InBaseName)
 	return true;
 }
 
+void UDMMaterialValue::OnComponentAdded()
+{
+	Super::OnComponentAdded();
+
+	if (bLocal)
+	{
+		if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+		{
+			MaterialModel->AddRuntimeComponentReference(this);
+		}
+	}
+}
+
 void UDMMaterialValue::OnComponentRemoved()
 {
 	if (Parameter)
@@ -213,6 +234,14 @@ void UDMMaterialValue::OnComponentRemoved()
 		}
 
 		Parameter->SetComponentState(EDMComponentLifetimeState::Removed);
+	}
+
+	if (bLocal)
+	{
+		if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+		{
+			MaterialModel->RemoveRuntimeComponentReference(this);
+		}
 	}
  
 	Super::OnComponentRemoved();
@@ -590,7 +619,7 @@ void UDMMaterialValue::UpdatePreviewMaterial()
  
 	BuildState->GetBuildUtils().UpdatePreviewMaterial(ValueExpression, 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 32);
 }
- 
+
 int32 UDMMaterialValue::GetInnateMaskOutput(int32 OutputChannels) const
 {
 	return INDEX_NONE;

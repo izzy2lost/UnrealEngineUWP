@@ -190,6 +190,7 @@ protected:
 	void UpdatePreviewMaterial();
  
 	//~ Begin UDMMaterialComponent
+	virtual void OnComponentAdded() override;
 	virtual void OnComponentRemoved() override;
 	//~ End UDMMaterialComponent
  

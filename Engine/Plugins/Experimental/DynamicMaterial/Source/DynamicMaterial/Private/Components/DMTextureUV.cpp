@@ -570,6 +570,11 @@ void UDMTextureUV::OnComponentAdded()
 	}
 
 	CreateParameterNames();
+
+	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+	{
+		MaterialModel->AddRuntimeComponentReference(this);
+	}
 	
 	Super::OnComponentAdded();
 }
@@ -577,6 +582,11 @@ void UDMTextureUV::OnComponentAdded()
 void UDMTextureUV::OnComponentRemoved()
 {
 	RemoveParameterNames();
+
+	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+	{
+		MaterialModel->RemoveRuntimeComponentReference(this);
+	}
 
 	Super::OnComponentRemoved();
 }
@@ -642,6 +652,11 @@ void UDMTextureUV::PostLoad()
 	if (!IsComponentValid())
 	{
 		return;
+	}
+
+	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+	{
+		MaterialModel->AddRuntimeComponentReference(this);
 	}
 
 	if (MaterialParameters.IsEmpty())

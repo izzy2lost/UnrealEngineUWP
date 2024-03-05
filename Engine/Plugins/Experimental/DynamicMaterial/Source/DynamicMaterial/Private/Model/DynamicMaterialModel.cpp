@@ -163,6 +163,16 @@ UDMMaterialValue* UDynamicMaterialModel::AddValue(EDMValueType InType)
 	return NewValue;
 }
 
+void UDynamicMaterialModel::AddRuntimeComponentReference(UDMMaterialComponent* InValue)
+{
+	RuntimeComponents.Add(InValue);
+}
+
+void UDynamicMaterialModel::RemoveRuntimeComponentReference(UDMMaterialComponent* InValue)
+{
+	RuntimeComponents.Remove(InValue);
+}
+
 void UDynamicMaterialModel::RemoveValueByName(FName InName)
 {
 	int32 FoundIndex = Values.IndexOfByPredicate([InName](UDMMaterialValue* Value)
