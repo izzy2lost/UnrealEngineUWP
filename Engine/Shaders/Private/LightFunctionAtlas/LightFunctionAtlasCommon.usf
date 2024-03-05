@@ -35,11 +35,14 @@ FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, 
 
 	float4 LightFunctionLightDataParameters = LightFunctionAtlas.LightInfoDataBuffer[BaseBufferIndex + 0];
 	const float  FadeDistance				= LightFunctionLightDataParameters.x;
-	const uint   PackedLightInfoDataParams	= asuint(LightFunctionLightDataParameters.y);
-	const float2 Slot_MinUV					= LightFunctionLightDataParameters.zw;
+	const uint   PackedLightInfoDataParams0 = asuint(LightFunctionLightDataParameters.y);
+	const uint   PackedLightInfoDataParams1 = asuint(LightFunctionLightDataParameters.z);
+	const float	 TanOuterAngle				= LightFunctionLightDataParameters.w;
 
-	const uint   LightType					= PackedLightInfoDataParams & 0xFF;
-	const float  DisabledBrightness			= f16tof32((PackedLightInfoDataParams >> 8) & 0xFFFF);
+	const uint   LightType					= PackedLightInfoDataParams0 & 0xFF;
+	const float  DisabledBrightness			= f16tof32((PackedLightInfoDataParams0 >> 8) & 0xFFFF);
+
+	const float2 Slot_MinUV					= float2(((PackedLightInfoDataParams1) & 0xFFFF) * rcp(65536.0f), ((PackedLightInfoDataParams1 >> 16) & 0xFFFF) * rcp(65536.0f));
 
 	float4x4 ActualLightFunctionMatrix = float4x4(
 		LightFunctionAtlas.LightInfoDataBuffer[BaseBufferIndex + 1],
@@ -48,22 +51,24 @@ FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, 
 		LightFunctionAtlas.LightInfoDataBuffer[BaseBufferIndex + 4]);
 	float4 HomogeneousShadowPosition = mul(float4(TranslatedWorldPosition, 1), ActualLightFunctionMatrix);
 
-	float2 LightFunctionUV;
+	float3 LightVector = HomogeneousShadowPosition.zyx / HomogeneousShadowPosition.w;
+	float2 LightFunctionUV = LightVector.xy;
+
 	switch (LightType)
 	{
 
 	case LIGHT_TYPE_SPOT:
 	{
-		HomogeneousShadowPosition.xyz /= HomogeneousShadowPosition.www;
-		LightFunctionUV = HomogeneousShadowPosition.xy;
-		LightFunctionUV = 1 - LightFunctionUV;
+		LightFunctionUV = LightVector.xy / (LightVector.z * TanOuterAngle) * .5f + .5f;
 		break;
 	}
 
 	case LIGHT_TYPE_POINT:
 	{
-		float3 LightVec = normalize(HomogeneousShadowPosition).zyx;
-		LightFunctionUV = float2((atan2Fast(LightVec.y, LightVec.x) + PI) / (2 * PI), acosFast(LightVec.z) / PI);
+		float3 UnitLightVector = normalize(LightVector);
+		// Setup 2d UVs for a point light that map the texture using spherical coordinates, which is how max handles a 2d texture projector on a point light
+		// Artists should use a cubemap indexed by a light vector to get better quality
+		LightFunctionUV = float2((atan2(UnitLightVector.y, UnitLightVector.x) + PI) / (2 * PI), acos(UnitLightVector.z) / PI);
 		break;
 	}
 
@@ -71,11 +76,13 @@ FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, 
 	//case LIGHT_TYPE_DIRECTIONAL:
 	default:
 	{
-		LightFunctionUV = frac(HomogeneousShadowPosition.zy);
+		// no op
 		break;
 	}
 
 	}
+
+	LightFunctionUV = frac(LightFunctionUV);
 
 	// Slot min uv and size already account for half texel offsets
 	float2 AtlasUV = Slot_MinUV + saturate(LightFunctionUV) * LightFunctionAtlas.Slot_UVSize.xx;
