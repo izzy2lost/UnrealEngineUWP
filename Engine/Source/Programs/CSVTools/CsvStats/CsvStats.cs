@@ -415,6 +415,10 @@ namespace CSVStats
             {
                 maxSample = samples.Count;
             }
+			else
+			{
+				maxSample = Math.Min(maxSample, samples.Count);
+			}
             float maxValue = -float.MaxValue;
             for (int i = minSample; i < maxSample; i++)
             {

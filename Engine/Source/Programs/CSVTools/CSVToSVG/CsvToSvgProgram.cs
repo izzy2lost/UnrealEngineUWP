@@ -71,6 +71,10 @@ namespace CSVTools
 			"       -legend <list> \n" +
 			"       -maxHierarchyDepth <depth>\n" +
 			"       -minX <value> -maxX <value> -minY <value> -maxY <value>\n" +
+			"       -startEvent <name>\n" +
+			"       -startEventOffset <value>\n" +
+			"       -endEvent <name>\n" +
+			"       -endEventOffset <value>\n" +
 			"       -maxAutoMaxY <value> - clamp automatic maxY to this\n" +
 			"       -noMetadata\n" +
 			"       -noSnap\n" +
@@ -326,6 +330,11 @@ namespace CSVTools
 			graphParams.showEventNameText = GetIntArg("hideEventNames", 0) == 0;
 			graphParams.highlightEventRegions = GetListArg("highlightEventRegions", ',');
 
+			// Start/end event
+			graphParams.startEvent = GetArg("startEvent", null);
+			graphParams.startEventOffset = GetIntArg("startEventOffset", 0);
+			graphParams.endEvent = GetArg("endEvent", null);
+			graphParams.endEventOffset = GetIntArg("endEventOffset", 0);
 
 			// Smoothing
 			graphParams.smooth = GetArg("smooth") == "1";
