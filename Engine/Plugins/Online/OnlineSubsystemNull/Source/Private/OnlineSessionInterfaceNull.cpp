@@ -247,7 +247,7 @@ bool FOnlineSessionNull::CreateSession(int32 HostingPlayerNum, FName SessionName
 
 	if (Result != ONLINE_IO_PENDING)
 	{
-		TriggerOnCreateSessionCompleteDelegates(SessionName, (Result == ONLINE_SUCCESS) ? true : false);
+		TriggerOnCreateSessionCompleteDelegates(SessionName, (Result == ONLINE_SUCCESS));
 	}
 	
 	return Result == ONLINE_IO_PENDING || Result == ONLINE_SUCCESS;
