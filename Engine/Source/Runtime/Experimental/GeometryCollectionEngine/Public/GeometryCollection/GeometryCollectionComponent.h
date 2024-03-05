@@ -1249,6 +1249,8 @@ public:
 	FOnGeometryCollectionRootMovedEvent OnRootMovedEvent;
 	FOnGeometryCollectionRootMovedNativeEvent OnRootMovedNativeEvent;
 
+	GEOMETRYCOLLECTIONENGINE_API bool IsFullyDecayed() const;
+
 	GEOMETRYCOLLECTIONENGINE_API void DispatchBreakEvent(const FChaosBreakEvent& Event);
 
 	GEOMETRYCOLLECTIONENGINE_API void DispatchRemovalEvent(const FChaosRemovalEvent& Event);
