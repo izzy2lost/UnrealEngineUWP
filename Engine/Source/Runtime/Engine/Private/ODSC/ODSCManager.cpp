@@ -24,11 +24,24 @@ FODSCManager::FODSCManager()
 		FCoreDelegates::OnEnginePreExit.AddRaw(this, &FODSCManager::OnEnginePreExit);
 		Thread = new FODSCThread(Host);
 		Thread->StartThread();
+		OnScreenMessagesHandle = FCoreDelegates::OnGetOnScreenMessages.AddLambda([this](TMultiMap<FCoreDelegates::EOnScreenMessageSeverity, FText >& OutMessages)
+			{
+				if (Thread && Thread->HasPendingRequests())
+				{
+					OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, FText::FromString(FString::Printf(TEXT("Recompiling shaders"))));
+				}
+			}
+		);
 	}
 }
 
 FODSCManager::~FODSCManager()
 {
+	if (OnScreenMessagesHandle.IsValid())
+	{
+		FCoreDelegates::OnGetOnScreenMessages.Remove(OnScreenMessagesHandle);
+	}
+
 	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
 	StopThread();
 }

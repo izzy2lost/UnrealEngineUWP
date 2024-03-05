@@ -148,6 +148,8 @@ public:
 	*/
 	void Wakeup();
 
+	bool HasPendingRequests() const { return bHasPendingRequests; }
+
 protected:
 
 	//~ Begin FRunnable Interface
@@ -202,4 +204,6 @@ private:
 
 	/** Special connection to the cooking server.  This is only used to send recompileshaders commands on. */
 	TUniquePtr<UE::Cook::ICookOnTheFlyServerConnection> CookOnTheFlyServerConnection;
+
+	bool bHasPendingRequests = false;
 };

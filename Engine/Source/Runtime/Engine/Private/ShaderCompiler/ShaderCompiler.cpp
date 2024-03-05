@@ -9684,6 +9684,72 @@ static inline bool ShouldCacheGlobalShaderTypeName(const FGlobalShaderType* Glob
 };
 
 
+bool IsGlobalShaderMapComplete(const TCHAR* TypeNameSubstring, FGlobalShaderMap* GlobalShaderMap, EShaderPlatform Platform)
+{
+	// look at any shadermap in the GlobalShaderMap for the permutation flags, as they will all be the same
+	if (GlobalShaderMap)
+	{
+		const FGlobalShaderMapSection* FirstShaderMap = GlobalShaderMap->GetFirstSection();
+		if (FirstShaderMap == nullptr)
+		{
+			// if we had no sections at all, we know we aren't complete
+			return false;
+		}
+		EShaderPermutationFlags GlobalShaderPermutation = FirstShaderMap->GetPermutationFlags();
+
+		// Check if the individual shaders are complete
+		for (TLinkedList<FShaderType*>::TIterator ShaderTypeIt(FShaderType::GetTypeList()); ShaderTypeIt; ShaderTypeIt.Next())
+		{
+			FGlobalShaderType* GlobalShaderType = ShaderTypeIt->GetGlobalShaderType();
+			int32 PermutationCount = GlobalShaderType ? GlobalShaderType->GetPermutationCount() : 1;
+			for (int32 PermutationId = 0; PermutationId < PermutationCount; PermutationId++)
+			{
+				if (ShouldCacheGlobalShaderTypeName(GlobalShaderType, PermutationId, TypeNameSubstring, Platform, GlobalShaderPermutation))
+				{
+					if (!GlobalShaderMap->HasShader(GlobalShaderType, PermutationId))
+					{
+						return false;
+					}
+				}
+			}
+		}
+
+		// Then the pipelines as it may be sharing shaders
+		for (TLinkedList<FShaderPipelineType*>::TIterator ShaderPipelineIt(FShaderPipelineType::GetTypeList()); ShaderPipelineIt; ShaderPipelineIt.Next())
+		{
+			const FShaderPipelineType* Pipeline = *ShaderPipelineIt;
+			if (Pipeline->IsGlobalTypePipeline())
+			{
+				auto& Stages = Pipeline->GetStages();
+				int32 NumStagesNeeded = 0;
+				for (const FShaderType* Shader : Stages)
+				{
+					const FGlobalShaderType* GlobalShaderType = Shader->GetGlobalShaderType();
+					if (ShouldCacheGlobalShaderTypeName(GlobalShaderType, kUniqueShaderPermutationId, TypeNameSubstring, Platform, GlobalShaderPermutation))
+					{
+						++NumStagesNeeded;
+					}
+					else
+					{
+						break;
+					}
+				}
+
+				if (NumStagesNeeded == Stages.Num())
+				{
+					if (!GlobalShaderMap->HasShaderPipeline(Pipeline))
+					{
+						return false;
+					}
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
+
 bool IsGlobalShaderMapComplete(const TCHAR* TypeNameSubstring)
 {
 	for (int32 i = 0; i < SP_NumPlatforms; ++i)
@@ -9692,64 +9758,9 @@ bool IsGlobalShaderMapComplete(const TCHAR* TypeNameSubstring)
 
 		FGlobalShaderMap* GlobalShaderMap = GGlobalShaderMap[Platform];
 
-		// look at any shadermap in the GlobalShaderMap for the permutation flags, as they will all be the same
-		if (GlobalShaderMap)
+		if (!IsGlobalShaderMapComplete(TypeNameSubstring, GlobalShaderMap, Platform))
 		{
-			const FGlobalShaderMapSection* FirstShaderMap = GlobalShaderMap->GetFirstSection();
-			if (FirstShaderMap == nullptr)
-			{
-				// if we had no sections at all, we know we aren't complete
-				return false;
-			}
-			EShaderPermutationFlags GlobalShaderPermutation = FirstShaderMap->GetPermutationFlags();
-
-			// Check if the individual shaders are complete
-			for (TLinkedList<FShaderType*>::TIterator ShaderTypeIt(FShaderType::GetTypeList()); ShaderTypeIt; ShaderTypeIt.Next())
-			{
-				FGlobalShaderType* GlobalShaderType = ShaderTypeIt->GetGlobalShaderType();
-				int32 PermutationCount = GlobalShaderType ? GlobalShaderType->GetPermutationCount() : 1;
-				for (int32 PermutationId = 0; PermutationId < PermutationCount; PermutationId++)
-				{
-					if (ShouldCacheGlobalShaderTypeName(GlobalShaderType, PermutationId, TypeNameSubstring, Platform, GlobalShaderPermutation))
-					{
-						if (!GlobalShaderMap->HasShader(GlobalShaderType, PermutationId))
-						{
-							return false;
-						}
-					}
-				}
-			}
-
-			// Then the pipelines as it may be sharing shaders
-			for (TLinkedList<FShaderPipelineType*>::TIterator ShaderPipelineIt(FShaderPipelineType::GetTypeList()); ShaderPipelineIt; ShaderPipelineIt.Next())
-			{
-				const FShaderPipelineType* Pipeline = *ShaderPipelineIt;
-				if (Pipeline->IsGlobalTypePipeline())
-				{
-					auto& Stages = Pipeline->GetStages();
-					int32 NumStagesNeeded = 0;
-					for (const FShaderType* Shader : Stages)
-					{
-						const FGlobalShaderType* GlobalShaderType = Shader->GetGlobalShaderType();
-						if (ShouldCacheGlobalShaderTypeName(GlobalShaderType, kUniqueShaderPermutationId, TypeNameSubstring, Platform, GlobalShaderPermutation))
-						{
-							++NumStagesNeeded;
-						}
-						else
-						{
-							break;
-						}
-					}
-
-					if (NumStagesNeeded == Stages.Num())
-					{
-						if (!GlobalShaderMap->HasShaderPipeline(Pipeline))
-						{
-							return false;
-						}
-					}
-				}
-			}
+			return false;
 		}
 	}
 
@@ -10311,6 +10322,9 @@ void RecompileShadersForRemote(
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RecompileShadersForRemote);
 
+	CVarAreShaderErrorsFatal->Set(0, ECVF_SetByCode);
+	ON_SCOPE_EXIT{ CVarAreShaderErrorsFatal->Unset(ECVF_SetByCode); };
+
 	// figure out what shader platforms to recompile
 	ITargetPlatformManagerModule* TPM = GetTargetPlatformManager();
 	ITargetPlatform* TargetPlatform = TPM->FindTargetPlatform(Args.PlatformName);
@@ -10685,7 +10699,9 @@ void LoadGlobalShadersForRemoteRecompile(FArchive& Ar, EShaderPlatform ShaderPla
 		{
 			NewGlobalShaderMap->LoadFromGlobalArchive(Ar);
 
-			if (GGlobalShaderMap[ShaderPlatform])
+			bool bIsNewGlobalShaderMapComplete = IsGlobalShaderMapComplete(nullptr, NewGlobalShaderMap, ShaderPlatform);
+
+			if (GGlobalShaderMap[ShaderPlatform] && bIsNewGlobalShaderMapComplete)
 			{
 				GGlobalShaderMap[ShaderPlatform]->ReleaseAllSections();
 
@@ -10705,6 +10721,10 @@ void LoadGlobalShadersForRemoteRecompile(FArchive& Ar, EShaderPlatform ShaderPla
 			}
 			else
 			{
+				if (!bIsNewGlobalShaderMapComplete)
+				{
+					UE_LOG(LogShaderCompilers, Error, TEXT("New shader map is incomplete. Look at the ODSC server log to see shader errors"));
+				}
 				delete NewGlobalShaderMap;
 			}
 		}

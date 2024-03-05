@@ -88,6 +88,9 @@ private:
 
 	/** Handles communicating directly with the cook on the fly server. */
 	FODSCThread* Thread = nullptr;
+
+	FDelegateHandle OnScreenMessagesHandle;
+
 };
 
 /** The global shader ODSC manager. */

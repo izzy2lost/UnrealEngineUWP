@@ -253,6 +253,8 @@ void FODSCThread::Process()
 		RequestsToStart.Add(Request);
 	}
 
+	bHasPendingRequests = PayloadsToAggregate.Num() > 0 || RequestsToStart.Num() > 0;
+
 	// process any material or recompile change shader requests or global shader compile requests.
 	for (FODSCMessageHandler* NextRequest : RequestsToStart)
 	{
@@ -277,6 +279,8 @@ void FODSCThread::Process()
 		CompletedThreadedRequests.Enqueue(RequestHandler);
 	}
 
+	// SendMessageToServer is synchronous, so when we're here, we know we've processed all the requests
+	bHasPendingRequests = false;
 	WakeupEvent->Reset();
 }
 
