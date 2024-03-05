@@ -350,9 +350,11 @@ private:
 	/** Tries to load the classes used in poll period overrides. */
 	void FindClassesInPollPeriodOverrides();
 
+protected:
 	/** Retrieves the dynamic filter to set for the given class. Will return an invalid handle if no dynamic filter should be set. */
-	UE::Net::FNetObjectFilterHandle GetDynamicFilter(const UClass* Class);
+	IRISCORE_API UE::Net::FNetObjectFilterHandle GetDynamicFilter(const UClass* Class, bool bRequireForceEnabled);
 
+private:
 	/** Retrieves the prioritizer to set for the given class. If bRequireForceEnabled the config needs to have bForceEnableOnAllInstances set in order for this method to return the configured prioritizer. Returns an invalid handle if no prioritizer should be set. */
 	UE::Net::FNetObjectPrioritizerHandle GetPrioritizer(const UClass* Class, bool bRequireForceEnabled);
 
@@ -385,7 +387,14 @@ private:
 	struct FClassPrioritizerInfo
 	{
 		UE::Net::FNetObjectPrioritizerHandle PrioritizerHandle;
-		uint32 bForceEnable : 1;
+		bool bForceEnable = false;
+	};
+	
+	// Filtering
+	struct FClassFilterInfo
+	{
+		UE::Net::FNetObjectFilterHandle FilterHandle;
+		bool bForceEnable = false;
 	};
 
 	// Polling
@@ -411,7 +420,7 @@ private:
 	// Filter mapping
 	//$IRIS TODO: Look into improving this class map by balancing runtime speed (implicit addition of new classes) with runtime modifications of base classes.
     //		      Right-now any changes to say APawn's filter will not be read if a APlayerPawn entry was created based on the APawn entry.
-	TMap<FName, UE::Net::FNetObjectFilterHandle> ClassesWithDynamicFilter;
+	TMap<FName, FClassFilterInfo> ClassesWithDynamicFilter;
 	TFunction<bool(const UClass*)> ShouldUseDefaultSpatialFilterFunction;
 	TFunction<bool(const UClass*,const UClass*)> ShouldSubclassUseSameFilterFunction;
 
