@@ -123,6 +123,9 @@ public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, meta = (ForceAsFunction), Category = Default)
 	void TogglePreviewMode(bool bEnablePreviewMode);
+
+	UFUNCTION(BlueprintCallable, Category = Default)
+	void SetCaptureBoundaryNormals(bool bInCaptureBoundaryNormals);
 	
 	void MoveBrushUp(ALandmassActor* BrushToMove);
 	void MoveBrushDown(ALandmassActor* BrushToMove);
