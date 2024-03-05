@@ -97,7 +97,7 @@ void UK2Node_DataChannelBase::PreloadRequiredAssets()
 {
 	Super::PreloadRequiredAssets();
 
-	if (HasValidDataChannel())
+	if (DataChannel)
 	{
 		PreloadObject(DataChannel);
 		PreloadObject(DataChannel->Get());
