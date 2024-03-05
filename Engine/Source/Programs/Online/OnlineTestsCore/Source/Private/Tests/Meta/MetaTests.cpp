@@ -7,7 +7,7 @@
 #include "Online/MulticastAdapter.h"
 #include "OnlineCatchHelper.h"
 
-#define META_SUITE_TAGS "[.Meta][.Null]"
+#define META_SUITE_TAGS "[Meta][Null]"
 #define META_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, META_SUITE_TAGS)
 
 using namespace UE::Online;

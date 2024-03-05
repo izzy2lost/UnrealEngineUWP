@@ -4,7 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "OnlineCatchHelper.h"
 
-#define SYNCLOGIN_ERROR_TAG "[.NULL][Meta][SyncLogin]"
+#define SYNCLOGIN_ERROR_TAG "[NULL][Meta][SyncLogin]"
 #define SYNCLOGIN_ERROR_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, SYNCLOGIN_ERROR_TAG __VA_ARGS__)
 
 SYNCLOGIN_ERROR_TEST_CASE("Confirm sync login is logging in before RunToCompletion is called")
