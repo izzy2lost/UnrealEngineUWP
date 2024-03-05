@@ -1668,13 +1668,13 @@ FMaterialLWCData MakeMaterialLWCData(FMaterialVertexParameters Parameters)
 
 	Result.AbsoluteWorldPosition = WSSubtract(Parameters.WorldPosition, Result.PreViewTranslation);
 
-	Result.InstanceToWorld = DFFastToWS(GetInstanceToWorldDF(Parameters));
+	Result.InstanceToWorld = DFToWS(GetInstanceToWorldDF(Parameters));
 	Result.WorldToInstance = DFFastToWS(GetWorldToInstanceDF(Parameters));
-	Result.PreviousInstanceToWorld = DFFastToWS(GetPrevInstanceToWorldDF(Parameters));
+	Result.PreviousInstanceToWorld = DFToWS(GetPrevInstanceToWorldDF(Parameters));
 
-	Result.LocalToWorld = DFFastToWS(GetLocalToWorldDF(Parameters));
+	Result.LocalToWorld = DFToWS(GetLocalToWorldDF(Parameters));
 	Result.WorldToLocal = DFFastToWS(GetWorldToLocalDF(Parameters));
-	Result.PreviousLocalToWorld = DFFastToWS(GetPrevLocalToWorldDF(Parameters));
+	Result.PreviousLocalToWorld = DFToWS(GetPrevLocalToWorldDF(Parameters));
 	Result.PreviousWorldToLocal = DFFastToWS(GetPrevWorldToLocalDF(Parameters));
 
 #if DECAL_PRIMITIVE
@@ -1740,13 +1740,13 @@ FMaterialLWCData MakeMaterialLWCData(FMaterialPixelParameters Parameters)
 	Result.AbsoluteWorldPosition = WSSubtract(Parameters.WorldPosition_CamRelative, Result.PreViewTranslation);
 	Result.WorldPosition_NoOffsets = WSSubtract(Parameters.WorldPosition_NoOffsets_CamRelative, Result.PreViewTranslation);
 
-	Result.InstanceToWorld = DFFastToWS(GetInstanceToWorldDF(Parameters));
+	Result.InstanceToWorld = DFToWS(GetInstanceToWorldDF(Parameters));
 	Result.WorldToInstance = DFFastToWS(GetWorldToInstanceDF(Parameters));
-	Result.PreviousInstanceToWorld = DFFastToWS(GetPrevInstanceToWorldDF(Parameters));
+	Result.PreviousInstanceToWorld = DFToWS(GetPrevInstanceToWorldDF(Parameters));
 
-	Result.LocalToWorld = DFFastToWS(GetLocalToWorldDF(Parameters));
+	Result.LocalToWorld = DFToWS(GetLocalToWorldDF(Parameters));
 	Result.WorldToLocal = DFFastToWS(GetWorldToLocalDF(Parameters));
-	Result.PreviousLocalToWorld = DFFastToWS(GetPrevLocalToWorldDF(Parameters));
+	Result.PreviousLocalToWorld = DFToWS(GetPrevLocalToWorldDF(Parameters));
 	Result.PreviousWorldToLocal = DFFastToWS(GetPrevWorldToLocalDF(Parameters));
 
 #if DECAL_PRIMITIVE
