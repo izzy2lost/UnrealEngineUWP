@@ -321,6 +321,9 @@ int RunTests(int32 ArgC, const ANSICHAR* ArgV[])
 		{
 			GLog->TearDown();
 		}
+
+		FTextLocalizationManager::TearDown();
+		FInternationalization::TearDown();
 	};
 
 	int CatchReturn = TestRunner.RunCatchSession();
