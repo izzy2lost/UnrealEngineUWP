@@ -126,6 +126,17 @@ static EAnimDetailSelectionState CachePropertySelection(TWeakPtr<FCurveEditor>& 
 									{
 										continue;
 									}
+									if (UMovieSceneControlRigParameterTrack* Track = Section->GetTypedOuter< UMovieSceneControlRigParameterTrack>())
+									{
+										if (Track->GetSectionToKey() != Section)
+										{
+											continue;
+										}
+									}
+									else
+									{
+										continue;
+									}
 									UObject* ColorObject = nullptr;
 									FString Name;
 									Pair.Value->GetCurveColorObjectAndName(&ColorObject, Name);
