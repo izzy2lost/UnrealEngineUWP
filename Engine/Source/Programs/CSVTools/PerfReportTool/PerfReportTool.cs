@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.233.0";
+        private static string VersionString = "4.234.0";
 
         public static string Get() { return VersionString; }
     };
@@ -1039,18 +1039,8 @@ namespace PerfReportTool
 						throw new Exception("Graph " + graph.title + " has no <statString> element");
 					}
 
-					bool bFoundStat = false;
-					foreach (string statString in graph.settings.statString.value.Split(','))
-					{
-						List<StatSamples> matchingStats = csvFile.dummyCsvStats.GetStatsMatchingString(statString);
-						if (matchingStats.Count > 0)
-						{
-							bFoundStat = true;
-							break;
-						}
-					}
-
-					if (bFoundStat)
+					bool bShowGraph = graph.ShouldShow(csvFile.finalCsv ?? csvFile.dummyCsvStats);
+					if (bShowGraph)
 					{
 						if (useEmbeddedGraphUrl)
 						{
@@ -1841,6 +1831,11 @@ namespace PerfReportTool
 			AddOptionalArg("legendAverageThreshold", graphSettings.legendAverageThreshold);
 			AddConditionalArg("ignoreStats", graphSettings.ignoreStats.isSet, graphSettings.ignoreStats.value);
 
+			AddConditionalArg("startEvent", graphSettings.startEvent.isSet, graphSettings.startEvent.value);
+			AddConditionalArg("startEventOffset", graphSettings.startEventOffset.isSet, graphSettings.startEventOffset.value);
+			AddConditionalArg("endEvent", graphSettings.endEvent.isSet, graphSettings.endEvent.value);
+			AddConditionalArg("endEventOffset", graphSettings.endEventOffset.isSet, graphSettings.endEventOffset.value);
+
 			string argString = string.Empty;
 			if (argFormat == CsvToSvgArgFormat.Url)
 			{
@@ -1965,6 +1960,25 @@ namespace PerfReportTool
 			{
 				graphParams.statMultiplier = (float)graphSettings.statMultiplier.value;
 			}
+
+			if (graphSettings.startEvent.isSet)
+			{
+				graphParams.startEvent = graphSettings.startEvent.value;
+				if (graphSettings.startEventOffset.isSet)
+				{
+					graphParams.startEventOffset = graphSettings.startEventOffset.value;
+				}					
+			}
+
+			if (graphSettings.endEvent.isSet)
+			{
+				graphParams.endEvent = graphSettings.endEvent.value;
+				if (graphSettings.endEventOffset.isSet)
+				{
+					graphParams.endEventOffset = graphSettings.endEventOffset.value;
+				}
+			}
+
 			graphParams.interactive = true;
 
 			if (!GetBoolArg("noStripEvents"))
