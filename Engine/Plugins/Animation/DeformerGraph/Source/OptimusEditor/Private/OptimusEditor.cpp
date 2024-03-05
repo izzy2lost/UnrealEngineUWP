@@ -1005,6 +1005,13 @@ void FOptimusEditor::HandlePreviewMeshChanged(
 		EditableSkeleton.Reset();
 	}
 	GetPersonaToolkit()->GetPreviewScene()->SetEditableSkeleton(EditableSkeleton);
+	
+	// Vanilla preview scene relies on the skeleton tree widget to do this step, see SSkeletonTree::OnSelectionChanged
+	// But since we don't have that widget, this has to be done manually
+	if (InOldPreviewMesh != InNewPreviewMesh || InNewPreviewMesh == nullptr)
+	{
+		GetPersonaToolkit()->GetPreviewScene()->DeselectAll();
+	}
 }
 
 
