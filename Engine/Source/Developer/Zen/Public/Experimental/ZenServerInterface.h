@@ -55,9 +55,9 @@ struct FServiceSettings
 	inline bool IsAutoLaunch() const { return SettingsVariant.IsType<FServiceAutoLaunchSettings>(); }
 	inline bool IsConnectExisting() const { return SettingsVariant.IsType<FServiceConnectSettings>(); }
 
-	UE_API void ReadFromConfig();
-	UE_API void ReadFromCompactBinary(FCbFieldView Field);
-	UE_API void ReadFromURL(FStringView InstanceURL);
+	UE_API bool ReadFromConfig();
+	UE_API bool ReadFromCompactBinary(FCbFieldView Field);
+	UE_API bool ReadFromURL(FStringView InstanceURL);
 
 	UE_API void WriteToCompactBinary(FCbWriter& Writer) const;
 
