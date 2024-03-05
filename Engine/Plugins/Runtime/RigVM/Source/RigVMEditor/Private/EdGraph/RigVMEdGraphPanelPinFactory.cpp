@@ -27,6 +27,11 @@ FName FRigVMEdGraphPanelPinFactory::GetFactoryName() const
 
 TSharedPtr<SGraphPin> FRigVMEdGraphPanelPinFactory::CreatePin(UEdGraphPin* InPin) const
 {
+	if(InPin == nullptr)
+	{
+		return nullptr;
+	}
+	
 	// we need to check if this is the right factory for the implementation
 	if(const UEdGraphNode* EdGraphNode = InPin->GetOuter())
 	{
@@ -43,6 +48,16 @@ TSharedPtr<SGraphPin> FRigVMEdGraphPanelPinFactory::CreatePin(UEdGraphPin* InPin
 	if(InternalResult.IsValid())
 	{
 		return InternalResult;
+	}
+
+	// if the graph we are looking at is not a rig vm graph - let's not do this
+	if (const UEdGraphNode* OwningNode = InPin->GetOwningNode())
+	{
+		// only create pins within rig vm graphs
+		if (Cast<URigVMEdGraph>(OwningNode->GetGraph()) == nullptr)
+		{
+			return nullptr;
+		}
 	}
 
 	return FNodeFactory::CreateK2PinWidget(InPin);
