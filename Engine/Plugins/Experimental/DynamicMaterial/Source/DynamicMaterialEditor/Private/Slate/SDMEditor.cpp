@@ -648,6 +648,34 @@ TSharedRef<SWidget> SDMEditor::CreateMaterialSettingsRow()
 		.AutoWidth()
 		.HAlign(HAlign_Right)
 		.VAlign(VAlign_Center)
+		.Padding(10.f, 0.0f, 5.0f, 2.0f)
+		[
+			SNew(SHorizontalBox)
+			.ToolTipText(LOCTEXT("MaterialDesignerInstanceUnlitTooltip", "Toggle between Default Lit and Unlit for this Material Designer Instance."))
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(0.0f, 0.0f, 5.0f, 0.0f)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("MaterialDesignerInstanceUnlit", "Unlit"))
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SCheckBox)
+				.IsChecked(this, &SDMEditor::IsMaterialUnlit)
+				.OnCheckStateChanged(this, &SDMEditor::OnMaterialUnlitChanged)
+				.IsEnabled(this, &SDMEditor::CanChangeMaterialShadingModel)
+			]
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Center)
 		.Padding(10.0f, 0.0f, 0.0f, 2.0f)
 		[
 			SNew(SHorizontalBox)
@@ -673,34 +701,6 @@ TSharedRef<SWidget> SDMEditor::CreateMaterialSettingsRow()
 				.IsChecked(this, &SDMEditor::IsMaterialAnimated)
 				.IsEnabled(this, &SDMEditor::CanMaterialBeAnimated)
 				.OnCheckStateChanged(this, &SDMEditor::OnMaterialAnimatedChanged)
-			]
-		]
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.Padding(10.f, 0.0f, 5.0f, 2.0f)
-		[
-			SNew(SHorizontalBox)
-			.ToolTipText(LOCTEXT("MaterialDesignerInstanceUnlitTooltip", "Toggle between Default Lit and Unlit for this Material Designer Instance."))
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.Padding(0.0f, 0.0f, 5.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("MaterialDesignerInstanceUnlit", "Unlit"))
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SCheckBox)
-				.IsChecked(this, &SDMEditor::IsMaterialUnlit)
-				.OnCheckStateChanged(this, &SDMEditor::OnMaterialUnlitChanged)
-				.IsEnabled(this, &SDMEditor::CanChangeMaterialShadingModel)
 			]
 		];
 }
@@ -1489,7 +1489,12 @@ bool SDMEditor::CanChangeBlendType() const
 {
 	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
 	{
-		return ModelEditorOnlyData->GetDomain() != EMaterialDomain::MD_PostProcess;
+		switch (ModelEditorOnlyData->GetDomain())
+		{
+			case EMaterialDomain::MD_Surface:
+			case EMaterialDomain::MD_DeferredDecal:
+				return true;
+		}
 	}
 
 	return false;
@@ -1539,7 +1544,11 @@ bool SDMEditor::CanChangeMaterialShadingModel() const
 {
 	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
 	{
-		return ModelEditorOnlyData->GetDomain() != EMaterialDomain::MD_PostProcess;
+		switch (ModelEditorOnlyData->GetDomain())
+		{
+			case EMaterialDomain::MD_Surface:
+				return true;
+		}
 	}
 
 	return false;

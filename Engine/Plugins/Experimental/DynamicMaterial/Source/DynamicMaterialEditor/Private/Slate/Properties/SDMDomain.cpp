@@ -11,7 +11,8 @@ namespace UE::DynamicMaterialEditor::Private
 	static const TArray<EMaterialDomain> SupportedDomains =
 	{
 		EMaterialDomain::MD_Surface,
-		EMaterialDomain::MD_PostProcess
+		EMaterialDomain::MD_PostProcess,
+		EMaterialDomain::MD_DeferredDecal
 	};
 
 	const TArray<FName>& SupportedDomainNames()
