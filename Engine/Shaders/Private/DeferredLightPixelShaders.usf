@@ -121,6 +121,7 @@ float GetExposure()
 // One pass projection
 Texture2D<uint4> ShadowMaskBits;
 int VirtualShadowMapId;
+int LightSceneId;
 #endif
 
 float4 GetLightAttenuationFromShadow(in FInputParams InputParams, float SceneDepth, float3 TranslatedWorldPosition)
@@ -456,21 +457,73 @@ void DeferredLightPixelMain(
 		else
 			L = LightData.Direction;
 
+		// Fetch precomputed transmittance
+		FHairTransmittanceMask TransmittanceMask = InitHairTransmittanceMask();
+
+		#if USE_VIRTUAL_SHADOW_MAP_MASK
+		{
+			const uint2 LocalPixelPos = PixelCoord.xy - uint2(View.ViewRectMinAndSize.xy);
+			const FCulledLightsGridData LightGridData = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);
+			uint LightCount = min(GetPackedShadowMaskMaxLightCount(), LightGridData.NumLights);
+
+			uint GridLightListIndex = 0;
+			for (; GridLightListIndex < LightCount; ++GridLightListIndex)
+			{
+				const FLocalLightData LightData = VirtualShadowMapGetLocalLightData(LightGridData, GridLightListIndex);
+				if (LightData.LightSceneId == LightSceneId)
+				{
+					break;
+				}
+			}
+			if (GridLightListIndex < GetPackedShadowMaskMaxLightCount())
+			{
+				const uint TotalSampleCount = NodeCount;
+				const uint TransmittanceSampleIndex = SampleIndex + GridLightListIndex * TotalSampleCount;
+				const uint TransmittanceSampleMaxCount = TotalSampleCount * GetPackedShadowMaskMaxLightCount();
+				if (TransmittanceSampleIndex < TransmittanceSampleMaxCount)
+				{
+					TransmittanceMask = UnpackTransmittanceMask(HairTransmittanceBuffer[TransmittanceSampleIndex]);
+				}
+			}
+		}
+		#else
+		if (SampleIndex < HairTransmittanceBufferMaxCount)
+		{
+			TransmittanceMask = UnpackTransmittanceMask(HairTransmittanceBuffer[SampleIndex]);
+		}
+		#endif
+
+
 		const float3 V = normalize(-CameraVector);
 		LightData.HairTransmittance = GetHairTransmittance(
 			V,
 			L,
 			HairScreenSpaceData.GBuffer,
-			SampleIndex,
-			HairTransmittanceBufferMaxCount,
-			HairTransmittanceBuffer,
+			TransmittanceMask,
 			View.HairScatteringLUTTexture,
 			View.HairScatteringLUTSampler,
 			View.HairComponents);
 	}
 
 	const float Dither = InterleavedGradientNoise(PixelCoord, View.StateFrameIndexMod8);
-	float4 LightAttenuation = HairShadowMaskValid ? ScreenShadowMaskSubPixelTexture.Load(uint3(PixelCoord,0)) : 1;
+	float4 LightAttenuation = 1.f;
+	#if USE_VIRTUAL_SHADOW_MAP_MASK
+	if (VirtualShadowMapId != INDEX_NONE)
+	{
+		LightAttenuation = GetVirtualShadowMapMaskForLight(
+			ShadowMaskBits[PixelCoord],
+			PixelCoord,
+			SceneDepth,
+			VirtualShadowMapId,
+			TranslatedWorldPosition);
+	}
+	#else
+	if (HairShadowMaskValid)
+	{
+		LightAttenuation = ScreenShadowMaskSubPixelTexture.Load(uint3(PixelCoord, 0));
+	}
+	#endif
+
 	if (any(ShadowChannelMask < 1.0f))
 	{
 		LightAttenuation = dot(LightAttenuation, ShadowChannelMask).xxxx;

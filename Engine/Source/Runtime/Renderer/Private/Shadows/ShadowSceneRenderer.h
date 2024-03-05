@@ -89,6 +89,7 @@ public:
 	// One pass projection stuff. Set up in RenderVitualShadowMapProjectionMaskBits
 	FRDGTextureRef VirtualShadowMapMaskBits = nullptr;
 	FRDGTextureRef VirtualShadowMapMaskBitsHairStrands = nullptr;
+	FRDGBufferRef HairTransmittanceMaskBits = nullptr;
 
 	bool UsePackedShadowMaskBits() const
 	{

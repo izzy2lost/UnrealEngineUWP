@@ -973,7 +973,10 @@ private:
 		FRDGTextureRef ScreenShadowMaskSubPixelTexture,
 		FRDGTextureRef LightingChannelsTexture,
 		const FHairStrandsTransmittanceMaskData& InTransmittanceMaskData,
-		const bool bForwardRendering);
+		const bool bForwardRendering,
+		TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer = nullptr,
+		FRDGTextureRef ShadowMaskBits = nullptr,
+		int32 VirtualShadowMapId = INDEX_NONE);
 
 	/** Renders an array of simple lights using standard deferred shading. */
 	void RenderSimpleLightsStandardDeferred(

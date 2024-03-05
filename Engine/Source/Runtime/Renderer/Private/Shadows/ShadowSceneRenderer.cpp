@@ -511,6 +511,7 @@ void FShadowSceneRenderer::RenderVirtualShadowMapProjectionMaskBits(
 
 			if (HairStrands::HasViewHairStrandsData(View))
 			{
+				// Shadow bits
 				RenderVirtualShadowMapProjectionOnePass(
 					GraphBuilder,
 					SceneTextures,
@@ -518,6 +519,9 @@ void FShadowSceneRenderer::RenderVirtualShadowMapProjectionMaskBits(
 					VirtualShadowMapArray,
 					EVirtualShadowMapProjectionInputType::HairStrands,
 					VirtualShadowMapMaskBitsHairStrands);
+
+				// Transmittance bits
+				HairTransmittanceMaskBits = RenderHairStrandsOnePassTransmittanceMask(GraphBuilder, View, VirtualShadowMapMaskBitsHairStrands, VirtualShadowMapArray).TransmittanceMask;
 			}
 		}
 	}
@@ -525,6 +529,7 @@ void FShadowSceneRenderer::RenderVirtualShadowMapProjectionMaskBits(
 	{
 		VirtualShadowMapMaskBits = nullptr;//Dummy;
 		VirtualShadowMapMaskBitsHairStrands = nullptr;//Dummy;
+		HairTransmittanceMaskBits = nullptr; //Dummy
 	}
 }
 

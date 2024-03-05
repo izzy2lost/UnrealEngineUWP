@@ -867,6 +867,7 @@ class FDeferredLightPS : public FGlobalShader
 		// For virtual shadow map mask
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
 		SHADER_PARAMETER(int32, VirtualShadowMapId)
+		SHADER_PARAMETER(int32, LightSceneId)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ShadowMaskBits)
 		// Heterogeneous Volume data
 		//SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FOrthoVoxelGridUniformBufferParameters, OrthoGridUniformBuffer)
@@ -1583,13 +1584,13 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						{
 							SharedScreenShadowMaskTexture = GraphBuilder.CreateTexture(SharedScreenShadowMaskTextureDesc, TEXT("ShadowMaskTexture"));
 						}
-						if (!SharedScreenShadowMaskSubPixelTexture && bUseHairLighting)
+						if (!SharedScreenShadowMaskSubPixelTexture && bUseHairLighting && !bElideScreenShadowMask)
 						{
 							SharedScreenShadowMaskSubPixelTexture = GraphBuilder.CreateTexture(SharedScreenShadowMaskTextureDesc, TEXT("ShadowMaskSubPixelTexture"));
 						}
 					}
 					ScreenShadowMaskTexture = bElideScreenShadowMask ? nullptr : SharedScreenShadowMaskTexture;
-					ScreenShadowMaskSubPixelTexture = SharedScreenShadowMaskSubPixelTexture;
+					ScreenShadowMaskSubPixelTexture = bElideScreenShadowMask ? nullptr : SharedScreenShadowMaskSubPixelTexture;
 				}
 
 				FString LightNameWithLevel;
@@ -2098,9 +2099,23 @@ void FDeferredShadingSceneRenderer::RenderLights(
 
 						if (HairStrands::HasViewHairStrandsData(View))
 						{
+							// If the light elided the screen space shadow mask, sample directly from the packed shadow mask
+							int32 VirtualShadowMapId = INDEX_NONE;
+							if (bElideScreenShadowMask)
+							{
+								INC_DWORD_STAT(STAT_VSMLocalProjectionOnePassFast);
+								VirtualShadowMapId = VisibleLightInfo.GetVirtualShadowMapId(&View);
+							}
+
 							FHairStrandsTransmittanceMaskData TransmittanceMaskData;
 							FRDGTextureRef HairShadowMask = nullptr;
-							if (bDrawHairShadow)
+							if (bDrawHairShadow && VirtualShadowMapId != INDEX_NONE)
+							{
+								TransmittanceMaskData.TransmittanceMask = ShadowSceneRenderer->HairTransmittanceMaskBits;
+								HairShadowMask = nullptr;
+								check(ScreenShadowMaskSubPixelTexture == nullptr);
+							}
+							else if (bDrawHairShadow)
 							{
 								TransmittanceMaskData = RenderHairStrandsTransmittanceMask(GraphBuilder, View, &LightSceneInfo, false, ScreenShadowMaskSubPixelTexture);
 								HairShadowMask = ScreenShadowMaskSubPixelTexture;
@@ -2110,13 +2125,12 @@ void FDeferredShadingSceneRenderer::RenderLights(
 								TransmittanceMaskData = DummyTransmittanceMaskData;
 							}
 
-							// TODO: One pass projection
-
 							// Note: ideally the light should still be evaluated for hair when not casting shadow, but for preserving the old behavior, and not adding 
 							// any perf. regression, we disable this light for hair rendering 
 							RenderLightForHair(
 								GraphBuilder, View, SceneTextures, &LightSceneInfo, 
-								HairShadowMask, LightingChannelsTexture, TransmittanceMaskData, false /*bForwardRendering*/);
+								VirtualShadowMapId != INDEX_NONE ? nullptr : HairShadowMask, LightingChannelsTexture, TransmittanceMaskData, false /*bForwardRendering*/,
+								VirtualShadowMapArray.GetUniformBuffer(), ShadowSceneRenderer->VirtualShadowMapMaskBitsHairStrands, VirtualShadowMapId);
 						}
 					}
 				}
@@ -2712,7 +2726,10 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 	FRDGTextureRef HairShadowMaskTexture,
 	FRDGTextureRef LightingChannelsTexture,
 	const FHairStrandsTransmittanceMaskData& InTransmittanceMaskData,
-	const bool bForwardRendering)
+	const bool bForwardRendering,
+	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer,
+	FRDGTextureRef ShadowMaskBits,
+	int32 VirtualShadowMapId)
 {
 	// Ensure the light is valid for this view
 	const bool bHairRenderingEnabled = HairStrands::HasViewHairStrandsData(View);
@@ -2731,6 +2748,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 
 	const bool bIsDirectional = LightSceneInfo->Proxy->GetLightType() == LightType_Directional;
 	const bool bCloudShadow   = bIsDirectional;
+	const bool bUseVirtualShadowMapMask = VirtualShadowMapId != INDEX_NONE && ShadowMaskBits;
 
 	FRenderLightForHairParameters* PassParameters = GraphBuilder.AllocParameters<FRenderLightForHairParameters>();
 	// VS - General parameters
@@ -2747,13 +2765,17 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 		HairStrands::BindHairStrandsViewUniformParameters(View),
 		HairShadowMaskTexture,
 		LightingChannelsTexture,
-		bCloudShadow);
+		bCloudShadow,
+		VirtualShadowMapUniformBuffer, 
+		ShadowMaskBits, 
+		VirtualShadowMapId);
 
 	// PS - Hair parameters
 	const FIntPoint SampleLightingViewportResolution = View.HairStrandsViewData.VisibilityData.SampleLightingViewportResolution;
 	PassParameters->PS.HairTransmittanceBuffer = GraphBuilder.CreateSRV(InTransmittanceMaskData.TransmittanceMask, FHairStrandsTransmittanceMaskData::Format);
 	PassParameters->PS.HairTransmittanceBufferMaxCount = InTransmittanceMaskData.TransmittanceMask ? InTransmittanceMaskData.TransmittanceMask->Desc.NumElements : 0;
 	PassParameters->PS.ShadowChannelMask = FVector4f(1, 1, 1, 1);
+	PassParameters->PS.LightSceneId = LightSceneInfo->Id;
 	if (HairShadowMaskTexture)
 	{
 		PassParameters->PS.ScreenShadowMaskSubPixelTexture = HairShadowMaskTexture;
@@ -2775,6 +2797,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 	PermutationVector.Set< FDeferredLightPS::FTransmissionDim >(false);
 	PermutationVector.Set< FDeferredLightPS::FHairLighting>(1);
 	PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance>(true);
+	PermutationVector.Set< FDeferredLightPS::FVirtualShadowMapMask >(bUseVirtualShadowMapMask);
 	PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
 		LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting) && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
 		LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling);
