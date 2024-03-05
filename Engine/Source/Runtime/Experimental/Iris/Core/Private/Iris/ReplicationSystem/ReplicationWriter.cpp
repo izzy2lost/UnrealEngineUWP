@@ -178,11 +178,11 @@ struct TReplicationRecordHelper
 	typedef FReplicationRecord::FRecordInfoList FRecordInfoList;
 	typedef FReplicationWriter::EReplicatedObjectState EReplicatedObjectState;
 
-	FReplicationInfo* ReplicationInfos;
-	FRecordInfoList* ReplicationInfosRecordInfoLists;
+	TArray<FReplicationInfo>& ReplicationInfos;
+	TArray<FReplicationRecord::FRecordInfoList>& ReplicationInfosRecordInfoLists;
 	FReplicationRecord* ReplicationRecord;
 
-	TReplicationRecordHelper(FReplicationInfo* InReplicationInfos, FRecordInfoList* InReplicationInfosRecordInfoLists, FReplicationRecord* InReplicationRecordRecord)
+	TReplicationRecordHelper(TArray<FReplicationInfo>& InReplicationInfos, TArray<FReplicationRecord::FRecordInfoList>& InReplicationInfosRecordInfoLists, FReplicationRecord* InReplicationRecordRecord)
 	: ReplicationInfos(InReplicationInfos)
 	, ReplicationInfosRecordInfoLists(InReplicationInfosRecordInfoLists)
 	, ReplicationRecord(InReplicationRecordRecord)
@@ -271,6 +271,9 @@ static bool s_ValidateReplicationRecord(const FReplicationRecord* ReplicationRec
 
 FReplicationWriter::~FReplicationWriter()
 {
+	// NOTE: Currently disabled because FReplicationWriter until the performance impact of TNetChunkedArray can be measured on the server.
+	//NetRefHandleManager->GetLargestIndexIncreaseDelegate().Remove(OnLargestIndexIncreaseHandle);
+
 	DiscardAllRecords();
 
 	// Freeing the huge object queue needs to be done before calling StopAllReplication() in order to be able to free any changemask allocations.
@@ -358,6 +361,8 @@ void FReplicationWriter::Init(const FReplicationParameters& InParameters)
 	// Store copy of parameters
 	Parameters = InParameters;
 
+	UE_LOG(LogIris, Log, TEXT("ReplicationWriter: Configured with MaxActiveReplicatedObjectCount=%d, PreallocatedObjectCount=%d and MaxReplicatedWriterObjectCount=%d."), Parameters.MaxActiveReplicatedObjectCount, Parameters.PreAllocatedReplicatedObjectCount, Parameters.MaxReplicatedWriterObjectCount);
+
 	// Cache internal systems
 	ReplicationSystemInternal = Parameters.ReplicationSystem->GetReplicationSystemInternal();
 	NetRefHandleManager = &ReplicationSystemInternal->GetNetRefHandleManager();
@@ -372,9 +377,13 @@ void FReplicationWriter::Init(const FReplicationParameters& InParameters)
 	NetTypeStats = &ReplicationSystemInternal->GetNetTypeStats();
 
 	// Init book keeping
-	ReplicatedObjects.SetNumZeroed(Parameters.MaxActiveReplicatedObjectCount);
-	ReplicatedObjectsRecordInfoLists.SetNumZeroed(Parameters.MaxActiveReplicatedObjectCount);
-	SchedulingPriorities.SetNumZeroed(Parameters.MaxActiveReplicatedObjectCount);
+	const int32 PreAllocatedBufferSize = Parameters.MaxReplicatedWriterObjectCount;
+	ReplicatedObjects.SetNumZeroed(PreAllocatedBufferSize);
+	ReplicatedObjectsRecordInfoLists.SetNumZeroed(PreAllocatedBufferSize);
+	SchedulingPriorities.SetNumZeroed(PreAllocatedBufferSize);
+
+	// NOTE: Currently disabled because FReplicationWriter until the performance impact of TNetChunkedArray can be measured on the server.
+	//OnLargestIndexIncreaseHandle = NetRefHandleManager->GetLargestIndexIncreaseDelegate().AddRaw(this, &FReplicationWriter::OnLargestIndexIncrease);
 
 	ObjectsPendingDestroy.Init(Parameters.MaxActiveReplicatedObjectCount);
 	ObjectsWithDirtyChanges.Init(Parameters.MaxActiveReplicatedObjectCount);
@@ -866,7 +875,8 @@ const FNetBitArray& FReplicationWriter::GetObjectsRequiringPriorityUpdate() cons
 void FReplicationWriter::UpdatePriorities(const float* UpdatedPriorities)
 {
 	IRIS_PROFILER_SCOPE(FReplicationWriter_UpdatePriorities);
-	auto UpdatePriority = [LocalPriorities = SchedulingPriorities.GetData(), UpdatedPriorities](uint32 Index)
+
+	auto UpdatePriority = [&LocalPriorities = SchedulingPriorities, UpdatedPriorities](uint32 Index)
 	{
 		LocalPriorities[Index] += UpdatedPriorities[Index];
 	};
@@ -874,7 +884,7 @@ void FReplicationWriter::UpdatePriorities(const float* UpdatedPriorities)
 	ObjectsWithDirtyChanges.ForAllSetBits(UpdatePriority);
 }
 
-void FReplicationWriter::ScheduleDependentObjects(uint32 Index, float ParentPriority, float* LocalPriorities, FScheduleObjectInfo* ScheduledObjectIndices, uint32& OutScheduledObjectCount)
+void FReplicationWriter::ScheduleDependentObjects(uint32 Index, float ParentPriority, TArray<float>& LocalPriorities, FScheduleObjectInfo* ScheduledObjectIndices, uint32& OutScheduledObjectCount)
 {
 	const float DependentObjectPriorityBump = UE_KINDA_SMALL_NUMBER;
 
@@ -917,7 +927,6 @@ uint32 FReplicationWriter::ScheduleObjects(FScheduleObjectInfo* OutScheduledObje
 	IRIS_PROFILER_SCOPE(FReplicationWriter_ScheduleObjects);
 
 	uint32 ScheduledObjectCount = 0;
-	float* LocalPriorities = SchedulingPriorities.GetData();
 
 	FScheduleObjectInfo* ScheduledObjectIndices = OutScheduledObjectIndices;
 
@@ -927,9 +936,9 @@ uint32 FReplicationWriter::ScheduleObjects(FScheduleObjectInfo* OutScheduledObje
 	const FNetBitArray& UpdatedObjects = ObjectsWithDirtyChanges;
 	const FNetBitArray& SubObjects = NetRefHandleManager->GetSubObjectInternalIndices();
 
-	auto FillIndexListFunc = [&LocalPriorities, &ScheduledObjectIndices, &ScheduledObjectCount, this](uint32 Index)
+	auto FillIndexListFunc = [&ScheduledObjectIndices, &ScheduledObjectCount, this](uint32 Index)
 	{
-		const float UpdatedPriority = LocalPriorities[Index];
+		const float UpdatedPriority = SchedulingPriorities[Index];
 
 		FScheduleObjectInfo& ScheduledObjectInfo = ScheduledObjectIndices[ScheduledObjectCount];
 		ScheduledObjectInfo.Index = Index;
@@ -942,7 +951,7 @@ uint32 FReplicationWriter::ScheduleObjects(FScheduleObjectInfo* OutScheduledObje
 			// If we have dependent objects that needs to replicate before parent we need to schedule them as well.
 			if (NetRefHandleManager->GetObjectsWithDependentObjectsInternalIndices().GetBit(Index))
 			{
-				ScheduleDependentObjects(Index, UpdatedPriority, LocalPriorities, ScheduledObjectIndices, ScheduledObjectCount);
+				ScheduleDependentObjects(Index, UpdatedPriority, SchedulingPriorities, ScheduledObjectIndices, ScheduledObjectCount);
 			}
 		}
 	};
@@ -1536,7 +1545,7 @@ void FReplicationWriter::ProcessDeliveryNotification(EPacketDeliveryStatus Packe
 
 	if (RecordCount > 0)
 	{
-		TReplicationRecordHelper Helper(ReplicatedObjects.GetData(), ReplicatedObjectsRecordInfoLists.GetData(), &ReplicationRecord);
+		TReplicationRecordHelper Helper(ReplicatedObjects, ReplicatedObjectsRecordInfoLists, &ReplicationRecord);
 
 		if (PacketDeliveryStatus == EPacketDeliveryStatus::Delivered)
 		{
@@ -3494,7 +3503,7 @@ bool FReplicationWriter::IsWriteObjectSuccess(EWriteObjectStatus Status) const
 
 void FReplicationWriter::DiscardAllRecords()
 {
-	TReplicationRecordHelper Helper(ReplicatedObjects.GetData(), ReplicatedObjectsRecordInfoLists.GetData(), &ReplicationRecord);
+	TReplicationRecordHelper Helper(ReplicatedObjects, ReplicatedObjectsRecordInfoLists, &ReplicationRecord);
 
 	const uint32 RecordCount = ReplicationRecord.GetRecordCount();
 	for (uint32 RecordIt = 0, RecordEndIt = RecordCount; RecordIt != RecordEndIt; ++RecordIt)
@@ -3524,9 +3533,11 @@ void FReplicationWriter::StopAllReplication()
 	ReplicatedObjects[ObjectIndexForOOBAttachment].State = (uint8)EReplicatedObjectState::Invalid;
 
 	// We cannot tell for sure which objects need processing so we check them all.
-	const FReplicationInfo* FirstInfo = ReplicatedObjects.GetData();
-	for (const FReplicationInfo& Info : ReplicatedObjects)
+	int32 ReplicatedObjectsCount = ReplicatedObjects.Num();
+	for (int32 InternalIndex = 0; InternalIndex < ReplicatedObjectsCount; InternalIndex++)
 	{
+		const FReplicationInfo& Info = GetReplicationInfo(InternalIndex);
+
 		if (Info.GetState() == EReplicatedObjectState::Invalid)
 		{
 			continue;
@@ -3536,7 +3547,6 @@ void FReplicationWriter::StopAllReplication()
 		FChangeMaskStorageOrPointer::Free(Info.ChangeMaskOrPtr, Info.ChangeMaskBitCount, s_DefaultChangeMaskAllocator);
 
 		// Release object reference
-		const FInternalNetRefIndex InternalIndex = static_cast<FInternalNetRefIndex>(&Info - FirstInfo);
 		NetRefHandleManager->ReleaseNetObjectRef(InternalIndex);
 	}
 }
@@ -3553,6 +3563,13 @@ void FReplicationWriter::MarkObjectDirty(FInternalNetRefIndex InternalIndex, con
 	}
 
 	ObjectsWithDirtyChanges.SetBit(InternalIndex);
+}
+
+void FReplicationWriter::OnLargestIndexIncrease(uint32 InternalIndex)
+{
+	ReplicatedObjects.SetNumZeroed(InternalIndex);
+	ReplicatedObjectsRecordInfoLists.SetNumZeroed(InternalIndex);
+	SchedulingPriorities.SetNumZeroed(InternalIndex);
 }
 
 
