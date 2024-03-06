@@ -6,6 +6,7 @@
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "ChaosClothAsset/ClothSimulationProxy.h"
 #include "Chaos/CollectionPropertyFacade.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "HAL/IConsoleManager.h"
 #include "Rendering/SkeletalMeshRenderData.h"
@@ -321,7 +322,14 @@ void UChaosClothComponent::OnAttachmentChanged()
 {
 	if (bUseAttachedParentAsPoseComponent)
 	{
-		SetLeaderPoseComponent(Cast<USkinnedMeshComponent>(GetAttachParent()));  // If the cast fail, remove the current leader
+		USkinnedMeshComponent* const AttachParentComponent = Cast<USkinnedMeshComponent>(GetAttachParent());
+		SetLeaderPoseComponent(AttachParentComponent);  // If the cast fail, remove the current leader
+
+		// When parented to a skeletal mesh, the anim setup needs re-initializing in order to use the follower's bones requirement
+		if (USkeletalMeshComponent* const SkeletalMeshComponent = Cast<USkeletalMeshComponent>(AttachParentComponent))
+		{
+			SkeletalMeshComponent->RecalcRequiredBones(SkeletalMeshComponent->GetPredictedLODLevel());
+		}
 	}
 
 	Super::OnAttachmentChanged();
@@ -387,6 +395,37 @@ void UChaosClothComponent::SetSkinnedAssetAndUpdate(USkinnedAsset* InSkinnedAsse
 
 		// Update the component visibility in case the new render mesh has no valid LOD
 		UpdateVisibility();
+	}
+}
+
+void UChaosClothComponent::GetAdditionalRequiredBonesForLeader(int32 LODIndex, TArray<FBoneIndexType>& InOutRequiredBones) const
+{
+	if (const FSkeletalMeshRenderData* const SkeletalMeshRenderData = GetSkeletalMeshRenderData())
+	{
+		if (SkeletalMeshRenderData->LODRenderData.IsValidIndex(LODIndex))
+		{
+			// Gather the follower's bones
+			TArray<FBoneIndexType> RequiredBones;
+			RequiredBones.Reserve(SkeletalMeshRenderData->LODRenderData[LODIndex].RequiredBones.Num());
+
+			for (const FBoneIndexType RequiredBone : SkeletalMeshRenderData->LODRenderData[LODIndex].RequiredBones)
+			{
+				if (LeaderBoneMap.IsValidIndex(RequiredBone))
+				{
+					const int32 FollowerRequiredLeaderBone = LeaderBoneMap[RequiredBone];
+					if (FollowerRequiredLeaderBone != INDEX_NONE)
+					{
+						RequiredBones.Add((FBoneIndexType)FollowerRequiredLeaderBone);
+					}
+				}
+			}
+
+			// Then sort array of required bones in hierarchy order
+			RequiredBones.Sort();
+
+			// Make sure all of these are in RequiredBones.
+			MergeInBoneIndexArrays(InOutRequiredBones, RequiredBones);
+		}
 	}
 }
 

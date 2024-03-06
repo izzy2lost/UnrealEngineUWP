@@ -1985,6 +1985,14 @@ public:
 	 * This assumes both arrays are sorted and contain unique bone indices.
 	 */
 	static ENGINE_API void MergeInBoneIndexArrays(TArray<FBoneIndexType>& BaseArray, const TArray<FBoneIndexType>& InsertArray);
+
+	/**
+	 * Override this function to add any additional required bones from followers to functions such as USkeletalMeshComponent::ComputeRequiredBones().
+	 * The additional bones will need to be passed using the Leader's bone index mapping, sorted in hierarchical order, and merged into the InOutRequiredBones array.
+	 * @param LODIndex - the LOD to get the required bones for.
+	 * @param InOutRequiredBones - the array in which to merge the additional required bones.
+	 */
+	virtual void GetAdditionalRequiredBonesForLeader(int32 LODIndex, TArray<FBoneIndexType>& InOutRequiredBones) const {}
 };
 
 class FRenderStateRecreator
