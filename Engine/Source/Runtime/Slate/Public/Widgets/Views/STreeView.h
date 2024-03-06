@@ -470,7 +470,8 @@ private:
 
 	virtual bool Private_DoesItemHaveChildren( int32 ItemIndexInList ) const override
 	{
-		bool bHasChildren = false;
+		bool bHasChildren = false;
+
 		if (DenseItemInfos.IsValidIndex(ItemIndexInList))
 		{
 			bHasChildren = DenseItemInfos[ItemIndexInList].bHasChildren;
@@ -843,8 +844,11 @@ public:
 	/** Queue up a regeneration of the linearized items on the next tick. */
 	virtual void RequestListRefresh() override
 	{
-		bTreeItemsAreDirty = true;
-		SListView<ItemType>::RequestListRefresh();
+		if (!bTreeItemsAreDirty)
+		{
+			bTreeItemsAreDirty = true;
+			SListView<ItemType>::RequestListRefresh();
+		}
 	}
 
 	void RequestTreeRefresh()
