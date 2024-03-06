@@ -21,15 +21,15 @@ public:
 
 	UPropertyAnimatorCoreComponent();
 
-	void SetAnimators(const TSet<TObjectPtr<UPropertyAnimatorCoreBase>>& InAnimators);
-	const TSet<TObjectPtr<UPropertyAnimatorCoreBase>>& GetAnimators() const
+	void SetAnimators(const TArray<TObjectPtr<UPropertyAnimatorCoreBase>>& InAnimators);
+	TConstArrayView<TObjectPtr<UPropertyAnimatorCoreBase>> GetAnimators() const
 	{
-		return Animators;
+		return PropertyAnimators;
 	}
 
 	int32 GetAnimatorsCount() const
 	{
-		return Animators.Num();
+		return PropertyAnimators.Num();
 	}
 
 	/** Set the state of all animators in this component */
@@ -57,6 +57,7 @@ protected:
 	//~ End UActorComponent
 
 	//~ Begin UObject
+	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditUndo() override;
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
@@ -92,8 +93,8 @@ protected:
 	bool ShouldAnimatorsTick() const;
 
 	/** Animators linked to this actor, they contain only properties within this actor */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Getter="GetAnimators", Setter="SetAnimators", Category="Animator", meta=(TitleProperty="AnimatorDisplayName"))
-	TSet<TObjectPtr<UPropertyAnimatorCoreBase>> Animators;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Setter="SetAnimators", Category="Animator", meta=(TitleProperty="AnimatorDisplayName"))
+	TArray<TObjectPtr<UPropertyAnimatorCoreBase>> PropertyAnimators;
 
 	/** Global state for all animators controlled by this component */
 	UPROPERTY(EditInstanceOnly, Getter="GetAnimatorsEnabled", Setter="SetAnimatorsEnabled", Category="Animator", meta=(DisplayPriority="0", AllowPrivateAccess="true"))
@@ -106,7 +107,11 @@ protected:
 private:
 	virtual void TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction) override;
 
-	/** Transient copy of animators set when changes are detected to see the diff only */
+	/** Deprecated property set, will be migrated to PropertyAnimators property on load */
+	UPROPERTY()
+	TSet<TObjectPtr<UPropertyAnimatorCoreBase>> Animators;
+
+	/** Transient copy of property animators when changes are detected to see the diff only */
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
-	TSet<TObjectPtr<UPropertyAnimatorCoreBase>> AnimatorsInternal;
+	TArray<TObjectPtr<UPropertyAnimatorCoreBase>> PropertyAnimatorsInternal;
 };
