@@ -349,6 +349,13 @@ void FContentBundleEditor::GenerateStreaming(TArray<FString>* OutPackageToGenera
 	FActorDescContainerInstanceCollection Collection({ TObjectPtr<UActorDescContainerInstance>(ActorDescContainerInstance.Get()) });
 	UWorldPartition::FGenerateStreamingParams Params = UWorldPartition::FGenerateStreamingParams()
 		.SetContainerInstanceCollection(Collection, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAsContentBundle);
+
+	// Only dump streaming generation logs when generating for PIE or cook
+	if (!bIsPIE && !IsRunningCookCommandlet())
+	{
+		Params.SetOutputLogType(TEXT(""));
+	}
+
 	UWorldPartition::FGenerateStreamingContext Context = UWorldPartition::FGenerateStreamingContext()
 		.SetLevelPackagesToGenerate(OutPackageToGenerate);
 

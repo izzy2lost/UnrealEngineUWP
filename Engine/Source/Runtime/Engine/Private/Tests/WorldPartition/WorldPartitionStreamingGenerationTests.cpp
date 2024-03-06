@@ -53,9 +53,7 @@ namespace WorldPartitionTests
 			return false;
 		}
 
-		UWorldPartition::FGenerateStreamingParams Params = UWorldPartition::FGenerateStreamingParams()
-			.SetOutputLogPath(TEXT("StreamingGenerationTest"));
-
+		UWorldPartition::FGenerateStreamingParams Params;
 		UWorldPartition::FGenerateStreamingContext Context;
 		WorldPartition->GenerateStreaming(Params, Context);
 
@@ -66,7 +64,7 @@ namespace WorldPartitionTests
 
 		// Read reference output log
 		FString ReferenceOuputLog;
-		const FString ReferenceOutputLogPath(FPaths::GetPath(World->GetPackage()->GetLoadedPath().GetLocalFullPath()) / FPaths::GetCleanFilename(*Context.OutputLogFilename));
+		const FString ReferenceOutputLogPath(FPaths::GetPath(World->GetPackage()->GetLoadedPath().GetLocalFullPath()) / TEXT("WPUnitTests.log"));
 		if (!TestTrue(TEXT("Error Reading Reference Output Log File"), FFileHelper::LoadFileToString(ReferenceOuputLog, *ReferenceOutputLogPath)))
 		{
 			return false;

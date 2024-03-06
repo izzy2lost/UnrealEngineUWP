@@ -225,7 +225,7 @@ public:
 			return *this;
 		}
 		FGenerateStreamingParams& SetErrorHandler(IStreamingGenerationErrorHandler* InErrorHandler) { ErrorHandler = InErrorHandler; return *this; }
-		FGenerateStreamingParams& SetOutputLogPath(const FString& InOutputLogPath) { OutputLogPath = InOutputLogPath; return *this; }
+		FGenerateStreamingParams& SetOutputLogType(const FString& InOutputLogType) { OutputLogType = InOutputLogType; return *this; }
 
 		UE_DEPRECATED(5.4, "Use constructor receiving a ContainerInstanceCollection instead")
 		FGenerateStreamingParams& SetActorDescContainer(const UActorDescContainer* InActorDescContainer) { return *this; }
@@ -236,7 +236,7 @@ public:
 	private:
 
 		FStreamingGenerationContainerInstanceCollection ContainerInstanceCollection;
-		TOptional<const FString> OutputLogPath;
+		TOptional<const FString> OutputLogType;
 		IStreamingGenerationErrorHandler* ErrorHandler;
 
 		friend class UWorldPartition;
