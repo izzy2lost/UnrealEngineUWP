@@ -15,7 +15,7 @@ inline void FRDGSubresourceState::SetPass(ERHIPipeline Pipeline, FRDGPassHandle 
 inline void FRDGSubresourceState::Validate()
 {
 #if RDG_ENABLE_DEBUG
-	for (ERHIPipeline Pipeline : GetRHIPipelines())
+	for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 	{
 		checkf(FirstPass[Pipeline].IsValid() == LastPass[Pipeline].IsValid(), TEXT("Subresource state has unset first or last pass on '%s."), *GetRHIPipelineName(Pipeline));
 	}

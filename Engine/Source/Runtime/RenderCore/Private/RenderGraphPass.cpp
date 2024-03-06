@@ -195,7 +195,7 @@ void FRDGBarrierBatchEnd::AddDependency(FRDGBarrierBatchBegin* BeginBatch)
 #if RDG_ENABLE_DEBUG
 	check(BeginBatch);
 
-	for (ERHIPipeline Pipeline : GetRHIPipelines())
+	for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 	{
 		const FRDGPass* BeginPass = BeginBatch->DebugPasses[Pipeline];
 		if (BeginPass)

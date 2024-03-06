@@ -698,7 +698,7 @@ void FRHICommandListExecutor::FSubmitState::Dispatch(FRHICommandListBase* CmdLis
 			}
 
 			TRHIPipelineArray<FRHIBreadcrumbNode*> GPUFirst;
-			for (ERHIPipeline Pipeline : GetRHIPipelines())
+			for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 			{
 				FRHIBreadcrumbNode* Node = GRHICommandList.Breadcrumbs.GPU[Pipeline].Current;
 				check(Node != FRHIBreadcrumbNode::Sentinel);
@@ -726,7 +726,7 @@ void FRHICommandListExecutor::FSubmitState::Dispatch(FRHICommandListBase* CmdLis
 				GRHICommandList.Breadcrumbs.GPU[Command->Pipeline].Current = GRHICommandList.Breadcrumbs.CPU.Current;
 			}
 
-			for (ERHIPipeline Pipeline : GetRHIPipelines())
+			for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 			{
 				if (CmdList->GPUBreadcrumbState[Pipeline].Latest != FRHIBreadcrumbNode::Sentinel)
 				{
@@ -799,7 +799,7 @@ void FRHICommandListExecutor::FSubmitState::Dispatch(FRHICommandListBase* CmdLis
 void FRHICommandListExecutor::FTranslateState::Translate(FRHICommandListBase* CmdList)
 {
 	// Apply the current translate job's contexts to the command list
-	for (ERHIPipeline Pipeline : GetRHIPipelines())
+	for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 	{
 		if (!CmdList->Contexts[Pipeline])
 		{
@@ -824,7 +824,7 @@ void FRHICommandListExecutor::FTranslateState::Translate(FRHICommandListBase* Cm
 #endif
 
 	// Extract the contexts from the command list, so we can reuse them for future command lists.
-	for (ERHIPipeline Pipeline : GetRHIPipelines())
+	for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 	{
 		auto& TranslateContext = PipelineStates[Pipeline].Context;
 		check(!TranslateContext || TranslateContext == CmdList->Contexts[Pipeline]);
@@ -857,9 +857,8 @@ FGraphEventRef FRHICommandListExecutor::FTranslateState::Finalize()
 		{
 			SCOPED_NAMED_EVENT(RHI_Finalize, FColor::White);
 
-			for (ERHIPipeline Pipeline : GetRHIPipelines())
+			for (auto& State : PipelineStates)
 			{
-				auto& State = PipelineStates[Pipeline];
 				if (State.Context)
 				{
 					State.FinalizedCmdList = GDynamicRHI->RHIFinalizeContext({ State.Context });
@@ -888,7 +887,7 @@ void FRHICommandListExecutor::FSubmitState::Submit()
 	TArray<IRHIPlatformCommandList*> FinalizedCmdLists;
 	for (TUniquePtr<FTranslateState> const& Job : TranslateJobs)
 	{
-		for (ERHIPipeline Pipeline : GetRHIPipelines())
+		for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 		{
 			auto& TranslateState = Job->PipelineStates[Pipeline];
 			if (TranslateState.FinalizedCmdList)
@@ -1186,7 +1185,7 @@ void FRHICommandListImmediate::InitializeImmediateContexts()
 #if WITH_RHI_BREADCRUMBS
 		CPUBreadcrumbState.Current = GRHICommandList.Breadcrumbs.CPU.Current;
 		CPUBreadcrumbState.bEmitBreadcrumbs = GRHICommandList.bEmitBreadcrumbs;
-		for (ERHIPipeline Pipeline : GetRHIPipelines())
+		for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 		{
 			GPUBreadcrumbState[Pipeline].Current = GRHICommandList.Breadcrumbs.GPU[Pipeline].Current;
 			GPUBreadcrumbState[Pipeline].Latest = GRHICommandList.Breadcrumbs.GPU[Pipeline].Current;
@@ -1468,17 +1467,17 @@ void FRHICommandListImmediate::Transition(TArrayView<const FRHITransitionInfo> I
 
 	const FRHITransition* Transition = RHICreateTransition({ SrcPipelines, DstPipelines, ERHITransitionCreateFlags::None, Infos });
 
-	EnumerateRHIPipelines(SrcPipelines, [&](ERHIPipeline Pipeline)
+	for (ERHIPipeline Pipeline : MakeFlagsRange(SrcPipelines))
 	{
 		FRHICommandListScopedPipeline Scope(*this, Pipeline);
 		BeginTransition(Transition);
-	});
+	}
 
-	EnumerateRHIPipelines(DstPipelines, [&](ERHIPipeline Pipeline)
+	for (ERHIPipeline Pipeline : MakeFlagsRange(DstPipelines))
 	{
 		FRHICommandListScopedPipeline Scope(*this, Pipeline);
 		EndTransition(Transition);
-	});
+	}
 
 	if (EnumHasAnyFlags(SrcPipelines | DstPipelines, ERHIPipeline::Graphics))
 	{

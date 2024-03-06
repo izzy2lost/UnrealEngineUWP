@@ -141,9 +141,9 @@ void FD3D12BindlessResourceManager::UpdateDescriptor(FRHICommandListBase& RHICmd
 {
 	if (DstHandle.IsValid())
 	{
-		for (ERHIPipeline PipelineIndex : GetRHIPipelines())
+		for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 		{
-			FRHICommandListScopedPipeline Scope(RHICmdList, PipelineIndex);
+			FRHICommandListScopedPipeline Scope(RHICmdList, Pipeline);
 			RHICmdList.EnqueueLambda([this, View, DstHandle](FRHICommandListBase& ExecutingCmdList)
 			{
 				FD3D12CommandContext& Context =

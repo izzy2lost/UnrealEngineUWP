@@ -4,6 +4,7 @@
 
 #include "HAL/Platform.h"
 #include "Misc/EnumClassFlags.h"
+#include "Misc/EnumRange.h"
 #include "Containers/ArrayView.h"
 #include "Containers/StaticArray.h"
 
@@ -35,6 +36,7 @@ inline constexpr uint32 GetRHIPipelineCount()
 	return uint32(ERHIPipeline::Num);
 }
 
+UE_DEPRECATED(5.5, "GetRHIPipelines is deprecated. Prefer ranged-for iteration over pipelines using 'for (ERHIPipeline Pipeline : MakeFlagsRange(Pipelines))'.")
 inline TArrayView<const ERHIPipeline> GetRHIPipelines()
 {
 	static const ERHIPipeline Pipelines[] = { ERHIPipeline::Graphics, ERHIPipeline::AsyncCompute };
@@ -42,14 +44,12 @@ inline TArrayView<const ERHIPipeline> GetRHIPipelines()
 }
 
 template <typename FunctionType>
+UE_DEPRECATED(5.5, "EnumerateRHIPipelines is deprecated. Prefer ranged-for iteration over pipelines using 'for (ERHIPipeline Pipeline : MakeFlagsRange(Pipelines))'.")
 inline void EnumerateRHIPipelines(ERHIPipeline PipelineMask, FunctionType Function)
 {
-	for (ERHIPipeline Pipeline : GetRHIPipelines())
+	for (ERHIPipeline Pipeline : MakeFlagsRange(PipelineMask))
 	{
-		if (EnumHasAnyFlags(PipelineMask, Pipeline))
-		{
-			Function(Pipeline);
-		}
+		Function(Pipeline);
 	}
 }
 

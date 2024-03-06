@@ -359,7 +359,7 @@ namespace RHIValidation
 			DebugName = InDebugName;
 			TrackedAccess = ERHIAccess::Discard;
 
-			for (ERHIPipeline Pipeline : GetRHIPipelines())
+			for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 			{
 				auto& State = WholeResourceState.States[Pipeline];
 
@@ -382,7 +382,7 @@ namespace RHIValidation
 			TransientState = FTransientState(InResourceState);
 			TrackedAccess = InResourceState;
 
-			for (ERHIPipeline Pipeline : GetRHIPipelines())
+			for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 			{
 				auto& State = WholeResourceState.States[Pipeline];
 
@@ -614,12 +614,9 @@ namespace RHIValidation
 
 		static inline FOperation BeginTransitionResource(FResourceIdentity Identity, FState PreviousState, FState NextState, EResourceTransitionFlags Flags, void* CreateBacktrace)
 		{
-			for (ERHIPipeline Pipeline : GetRHIPipelines())
+			for (ERHIPipeline Pipeline : MakeFlagsRange(PreviousState.Pipelines))
 			{
-				if (EnumHasAnyFlags(PreviousState.Pipelines, Pipeline))
-				{
-					Identity.Resource->AddOpRef();
-				}
+				Identity.Resource->AddOpRef();
 			}
 
 			FOperation Op;
@@ -634,12 +631,9 @@ namespace RHIValidation
 
 		static inline FOperation EndTransitionResource(FResourceIdentity Identity, FState PreviousState, FState NextState, void* CreateBacktrace)
 		{
-			for (ERHIPipeline Pipeline : GetRHIPipelines())
+			for (ERHIPipeline Pipeline : MakeFlagsRange(NextState.Pipelines))
 			{
-				if (EnumHasAnyFlags(NextState.Pipelines, Pipeline))
-				{
-					Identity.Resource->AddOpRef();
-				}
+				Identity.Resource->AddOpRef();
 			}
 
 			FOperation Op;

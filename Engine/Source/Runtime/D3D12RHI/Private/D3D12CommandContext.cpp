@@ -844,10 +844,10 @@ void FD3D12DynamicRHI::RHICreateTransition(FRHITransition* Transition, const FRH
 		for (uint32 Index : FRHIGPUMask::All())
 		{
 			TRHIPipelineArray<FD3D12SyncPointRef>& DeviceSyncPoints = Data->SyncPoints.Emplace_GetRef();
-			EnumerateRHIPipelines(CreateInfo.SrcPipelines, [&](ERHIPipeline Pipeline)
+			for (ERHIPipeline Pipeline : MakeFlagsRange(CreateInfo.SrcPipelines))
 			{
 				DeviceSyncPoints[Pipeline] = FD3D12SyncPoint::Create(ED3D12SyncPointType::GPUOnly);
-			});
+			}
 		}
 	}
 

@@ -1117,7 +1117,7 @@ void FRDGBuilder::AddPassDependency(FRDGPass* Producer, FRDGPass* Consumer)
 
 bool FRDGBuilder::AddCullingDependency(FRDGProducerStatesByPipeline& LastProducers, const FRDGProducerState& NextState, ERHIPipeline NextPipeline)
 {
-	for (ERHIPipeline LastPipeline : GetRHIPipelines())
+	for (ERHIPipeline LastPipeline : MakeFlagsRange(ERHIPipeline::All))
 	{
 		FRDGProducerState& LastProducer = LastProducers[LastPipeline];
 
@@ -3994,7 +3994,7 @@ void FRDGBuilder::AddTransition(
 
 		BarriersToBegin->AddTransition(Resource, TransitionInfo);
 
-		for (ERHIPipeline Pipeline : GetRHIPipelines())
+		for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 		{
 			/** If doing a 1-to-N transition and this is the same pipe as the begin, we end it immediately afterwards in the epilogue
 			 *  of the begin pass. This is because we can't guarantee that the other pipeline won't join back before the end. This can
@@ -4031,7 +4031,7 @@ void FRDGBuilder::AddTransition(
 
 		FRDGBarrierBatchBeginId Id;
 		Id.PipelinesAfter = PipelinesAfter;
-		for (ERHIPipeline Pipeline : GetRHIPipelines())
+		for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 		{
 			Id.Passes[Pipeline] = GetEpilogueBarrierPassHandle(PassesBefore[Pipeline]);
 		}
@@ -4055,12 +4055,9 @@ void FRDGBuilder::AddTransition(
 
 		BarriersToBegin->AddTransition(Resource, TransitionInfo);
 
-		for (ERHIPipeline Pipeline : GetRHIPipelines())
+		for (ERHIPipeline Pipeline : MakeFlagsRange(PipelinesAfter))
 		{
-			if (EnumHasAnyFlags(PipelinesAfter, Pipeline))
-			{
-				AddToPrologueBarriersToEnd(PassesAfter[Pipeline], *BarriersToBegin);
-			}
+			AddToPrologueBarriersToEnd(PassesAfter[Pipeline], *BarriersToBegin);
 		}
 	}
 }

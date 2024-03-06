@@ -524,16 +524,11 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 
 	if (SrcPipelines != DstPipelines)
 	{
-		for (ERHIPipeline SrcPipe : GetRHIPipelines())
+		for (ERHIPipeline SrcPipe : MakeFlagsRange(SrcPipelines))
 		{
-			if (!EnumHasAnyFlags(SrcPipelines, SrcPipe))
+			for (ERHIPipeline DstPipe : MakeFlagsRange(DstPipelines))
 			{
-				continue;
-			}
-
-			for (ERHIPipeline DstPipe : GetRHIPipelines())
-			{
-				if (!EnumHasAnyFlags(DstPipelines, DstPipe) || SrcPipe == DstPipe)
+				if (SrcPipe == DstPipe)
 				{
 					continue;
 				}
@@ -1659,7 +1654,7 @@ namespace RHIValidation
 		State.bTransitioning = true;
 
 		// Replicate the state to other pipes that are not part of the begin pipe mask.
-		for (ERHIPipeline OtherPipeline : GetRHIPipelines())
+		for (ERHIPipeline OtherPipeline : MakeFlagsRange(ERHIPipeline::All))
 		{
 			if (!EnumHasAnyFlags(CurrentStateFromRHI.Pipelines, OtherPipeline))
 			{
@@ -1694,7 +1689,7 @@ namespace RHIValidation
 		RHI_VALIDATION_CHECK(TargetState == State.Current, *GetReasonString_MismatchedEndTransition(Resource, SubresourceIndex, State.Current, TargetState));
 
 		// Replicate the state to other pipes that are not part of the end pipe mask.
-		for (ERHIPipeline OtherPipeline : GetRHIPipelines())
+		for (ERHIPipeline OtherPipeline : MakeFlagsRange(ERHIPipeline::All))
 		{
 			if (!EnumHasAnyFlags(TargetState.Pipelines, OtherPipeline))
 			{
@@ -2667,7 +2662,7 @@ void FValidationTransientResourceAllocator::DeallocateMemory(FRHITransientBuffer
 void FValidationTransientResourceAllocator::Flush(FRHICommandListImmediate& RHICmdList, FRHITransientAllocationStats* OutHeapStats)
 {
 	// Insert pending ops into context trackers
-	for (ERHIPipeline Pipeline : GetRHIPipelines())
+	for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 	{
 		if (PendingPipelineOps[Pipeline].Num())
 		{

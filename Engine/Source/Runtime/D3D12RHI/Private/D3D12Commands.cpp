@@ -568,13 +568,13 @@ void FD3D12CommandContext::RHIEndTransitions(TArrayView<const FRHITransition*> T
 			{
 				const TRHIPipelineArray<FD3D12SyncPointRef>& DeviceSyncPoints = Data->SyncPoints[GetGPUIndex()];
 
-				EnumerateRHIPipelines(Data->SrcPipelines, [&](ERHIPipeline SrcPipeline)
+				for (ERHIPipeline SrcPipeline : MakeFlagsRange(Data->SrcPipelines))
 				{
 					if (SrcPipeline != DstPipeline && DeviceSyncPoints[SrcPipeline])
 					{
 						WaitSyncPoint(DeviceSyncPoints[SrcPipeline]);
 					}
-				});
+				}
 			}
 		}
 	}
