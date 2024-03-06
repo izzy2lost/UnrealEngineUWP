@@ -29,6 +29,7 @@ protected:
 		FString LocalRole;
 		FString MovementModeName;
 		FString MovementBaseInfo;
+		FVector Velocity;
 		FVector MoveIntent;
 		TArray<FString> ActiveLayeredMoves;
 		TArray<FString> ModeMap;
