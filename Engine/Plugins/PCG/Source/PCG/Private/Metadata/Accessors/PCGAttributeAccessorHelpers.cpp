@@ -544,15 +544,21 @@ TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConst
 {
 	bool bFromGlobalParamsPin = false;
 	TArray<FPCGTaggedData> InputParamData = InInputData.GetParamsByPin(InParam.Label);
+	if (InputParamData.IsEmpty())
+	{
+		// If it is empty, try with the Overrides pin (Global Params)
+		bFromGlobalParamsPin = true;
+		InputParamData = InInputData.GetParamsByPin(PCGPinConstants::DefaultParamsLabel);
+	}
+
+	if (OutResult)
+	{
+		OutResult->bHasMultipleAttributeSetsOnOverridePin = InputParamData.Num() > 1;
+	}
+
 	const UPCGParamData* ParamData = !InputParamData.IsEmpty() ? CastChecked<UPCGParamData>(InputParamData[0].Data) : nullptr;
 
-	// If it is empty, try with the Overrides pin (Global Params)
-	if (!ParamData)
-	{
-		bFromGlobalParamsPin = true;
-		ParamData = InInputData.GetFirstParamsOnParamsPin();
-	}
-	else if (OutResult)
+	if (OutResult && ParamData && !bFromGlobalParamsPin)
 	{
 		OutResult->bPinConnected = true;
 	}
@@ -591,6 +597,11 @@ TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConst
 					break;
 				}
 			}
+		}
+
+		if (Result && OutResult && ParamData && ParamData->Metadata)
+		{
+			OutResult->bHasMultipleDataInAttributeSet = ParamData->Metadata->GetLocalItemCount() > 1;
 		}
 
 		return Result;

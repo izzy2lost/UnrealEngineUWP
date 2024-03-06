@@ -67,7 +67,12 @@ struct FPCGGraphTask
 #if WITH_EDITOR
 	/** Approximate equivalence. Does not deeply check node settings, nor does it do a deep comparison of the element. */
 	bool IsApproximatelyEqual(const FPCGGraphTask& Other) const;
+
+	/** Because we might not already have a context, but still want to attach some logs to the node, use this utility function */
+	void LogVisual(ELogVerbosity::Type InVerbosity, const FText& InMessage) const;
 #endif
+
+	const FPCGStack* GetStack() const;
 
 	TArray<FPCGGraphTaskInput> Inputs;
 	const UPCGNode* Node = nullptr;

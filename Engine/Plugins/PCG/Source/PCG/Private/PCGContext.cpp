@@ -210,6 +210,22 @@ void FPCGContext::OverrideSettings()
 			PCGE_LOG_C(Warning, GraphAndLog, this, FText::Format(LOCTEXT("OverrideWithAlias", "Attribute '{0}' was not found, but one of its deprecated aliases ('{1}') was. Please update the name to the new value."), FText::FromName(AttributeName), FText::FromName(AccessorResult.AliasUsed)));
 		}
 
+		// Throw warnings if we have multiple data on override (multiple attribute sets or multi entry attribute set)
+		if (AccessorResult.bHasMultipleAttributeSetsOnOverridePin || AccessorResult.bHasMultipleDataInAttributeSet)
+		{
+			const FText OverridePinText = AccessorResult.bPinConnected ? FText::Format(LOCTEXT("OverridePinText", "override pin '{0}'"), FText::FromName(Param.Label)) : LOCTEXT("GlobalOverridePinText", "global override pin");
+
+			if (AccessorResult.bHasMultipleAttributeSetsOnOverridePin)
+			{
+				PCGE_LOG_C(Warning, GraphAndLog, this, FText::Format(LOCTEXT("HasMultipleAttributeSetsOnOverridePin", "Multiple attribute sets were found on the {0}. We will use the first one."), OverridePinText));
+			}
+
+			if (AccessorResult.bHasMultipleDataInAttributeSet)
+			{
+				PCGE_LOG_C(Warning, GraphAndLog, this, FText::Format(LOCTEXT("HasMultipleDataInAttributeSet", "Multi entry attribute set was found on the {0}. We will only use the first entry to override."), OverridePinText));
+			}
+		}
+
 		TUniquePtr<IPCGAttributeAccessor> PropertyAccessor = PCGAttributeAccessorHelpers::CreatePropertyChainAccessor(TArray<const FProperty*>(Param.Properties));
 		check(PropertyAccessor.IsValid());
 
