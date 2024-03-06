@@ -1824,7 +1824,13 @@ FRenderTargetBindingSlots FMobileSceneRenderer::InitRenderTargetBindings_Deferre
 	BasePassRenderTargets.SubpassHint = ESubpassHint::None;
 	BasePassRenderTargets.NumOcclusionQueries = 0u;
 	BasePassRenderTargets.ShadingRateTexture = nullptr;
-	BasePassRenderTargets.MultiViewCount = 0;
+	
+	static const auto CVarMobileMultiView = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MobileMultiView"));
+	const bool bIsMultiViewApplication = (CVarMobileMultiView && CVarMobileMultiView->GetValueOnAnyThread() != 0);
+	
+	//if the scenecolor isn't multiview but the app is, need to render as a single-view multiview due to shaders
+	BasePassRenderTargets.MultiViewCount = Views[0].bIsMobileMultiViewEnabled ? 2 : (bIsMultiViewApplication ? 1 : 0);
+
 	return BasePassRenderTargets;
 }
 
