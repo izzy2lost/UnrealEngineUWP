@@ -4,6 +4,7 @@
 
 #include "BaseTools/SingleSelectionMeshEditingTool.h"
 #include "ChaosClothAsset/ClothEditorToolBuilder.h"
+#include "Selection/PolygonSelectionMechanic.h"
 #include "ClothMeshSelectionTool.generated.h"
 
 class UPolygonSelectionMechanic;
@@ -43,6 +44,18 @@ enum class EClothMeshSelectionToolActions
 	ShrinkSelection,
 	FloodSelection
 };
+
+
+UCLASS()
+class UClothMeshSelectionMechanic : public UPolygonSelectionMechanic
+{
+	GENERATED_BODY()
+
+private:
+
+	virtual bool UpdateSelection(const FRay& WorldRay, FVector3d& LocalHitPositionOut, FVector3d& LocalHitNormalOut) override;
+};
+
 
 UCLASS()
 class CHAOSCLOTHASSETEDITORTOOLS_API UClothMeshSelectionToolActions :  public UInteractiveToolPropertySet
