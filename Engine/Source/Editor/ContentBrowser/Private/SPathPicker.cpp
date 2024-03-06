@@ -71,7 +71,14 @@ void SPathPicker::Construct( const FArguments& InArgs )
 
 		if (InArgs._PathPickerConfig.bNotifyDefaultPathSelected)
 		{
-			OnPathSelected.ExecuteIfBound(VirtualPath.ToString());
+			if (bOnPathSelectedPassesVirtualPaths)
+			{
+				OnPathSelected.ExecuteIfBound(VirtualPath.ToString());
+			}
+			else
+			{				
+				OnPathSelected.ExecuteIfBound(DefaultPath);
+			}
 		}
 	}
 }
