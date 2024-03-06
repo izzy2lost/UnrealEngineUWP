@@ -4,7 +4,7 @@ using System;
 using System.IO;
 using AutomationTool;
 using UnrealBuildTool;
-using EpicGames.Core;
+using Gauntlet.Utils;
 using static AutomationTool.ProcessResult;
 
 namespace Gauntlet
@@ -21,25 +21,42 @@ namespace Gauntlet
 			RunOptions = CommandUtils.ERunOptions.NoWaitForExit | CommandUtils.ERunOptions.NoLoggingOfRunCommand;
 		}
 
-		public override IAppInstall InstallApplication(UnrealAppConfig AppConfig)
+		public override void InstallBuild(UnrealAppConfig AppConfig)
 		{
+			if (AppConfig.Build is IWindowsSelfInstallingBuild SelfInstallingBuild)
+			{
+				SelfInstallingBuild.Install(AppConfig);
+				return;
+			}
+
+			base.InstallBuild(AppConfig);
+		}
+
+		public override IAppInstall CreateAppInstall(UnrealAppConfig AppConfig)
+		{
+			IAppInstall Install;
+			IBuild Build = AppConfig.Build;
+
 			switch (AppConfig.Build)
 			{
 				case NativeStagedBuild:
-					return InstallNativeStagedBuild(AppConfig, AppConfig.Build as NativeStagedBuild);
-
+					Install = CreateNativeStagedInstall(AppConfig, Build as NativeStagedBuild);
+					break;
 				case StagedBuild:
-					return InstallStagedBuild(AppConfig, AppConfig.Build as StagedBuild);
-
+					Install = CreateStagedInstall(AppConfig, Build as StagedBuild);
+					break;
 				case EditorBuild:
-					return InstallEditorBuild(AppConfig, AppConfig.Build as EditorBuild);
-
+					Install = CreateEditorInstall(AppConfig, Build as EditorBuild);
+					break;
 				case IWindowsSelfInstallingBuild:
-					return InstallSelfInstallingBuild(AppConfig, AppConfig.Build as IWindowsSelfInstallingBuild);
-
+					Install = CreateSelfInstall(AppConfig, Build as IWindowsSelfInstallingBuild);
+					break;
 				default:
-					throw new AutomationException("{0} is an invalid build type!", AppConfig.Build.ToString());
+					throw new AutomationException("{0} is an invalid build type for {1}!", Build.GetType().Name, Platform);
 			}
+
+			InstallCache = Install;
+			return Install;
 		}
 
 		public override IAppInstance Run(IAppInstall App)
@@ -88,6 +105,91 @@ namespace Gauntlet
 			}
 
 			return new WindowsAppInstance(WinApp, Result, WinApp.LogFile);
+		}
+
+		protected override IAppInstall CreateNativeStagedInstall(UnrealAppConfig AppConfig, NativeStagedBuild Build)
+		{
+			PopulateDirectoryMappings(Path.Combine(Build.BuildPath, AppConfig.ProjectName));
+
+			WindowsAppInstall WinApp = new WindowsAppInstall(AppConfig.Name, AppConfig.ProjectName, this)
+			{
+				ExecutablePath = Path.Combine(Build.BuildPath, Build.ExecutablePath),
+				WorkingDirectory = Build.BuildPath
+			};
+			WinApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, Build.BuildPath);
+
+			return WinApp;
+		}
+
+		protected override IAppInstall CreateStagedInstall(UnrealAppConfig AppConfig, StagedBuild Build)
+		{
+			string BuildDir = Build.BuildPath;
+			if (SystemHelpers.IsNetworkPath(BuildDir))
+			{
+				string SubDir = string.IsNullOrEmpty(AppConfig.Sandbox) ? AppConfig.ProjectName : AppConfig.Sandbox;
+				string InstallDir = Path.Combine(InstallRoot, SubDir, AppConfig.ProcessType.ToString());
+				BuildDir = InstallDir;
+			}
+
+			PopulateDirectoryMappings(Path.Combine(BuildDir, AppConfig.ProjectName));
+
+			WindowsAppInstall WinApp = new WindowsAppInstall(AppConfig.Name, AppConfig.ProjectName, this)
+			{
+				ExecutablePath = Path.IsPathRooted(Build.ExecutablePath)
+					? Build.ExecutablePath
+					: Path.Combine(BuildDir, Build.ExecutablePath)
+			};
+			WinApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, BuildDir);
+
+			return WinApp;
+		}
+
+		protected override IAppInstall CreateEditorInstall(UnrealAppConfig AppConfig, EditorBuild Build)
+		{
+			PopulateDirectoryMappings(AppConfig.ProjectFile.Directory.FullName);
+
+			WindowsAppInstall WinApp = new WindowsAppInstall(AppConfig.Name, AppConfig.ProjectName, this)
+			{
+				ExecutablePath = Build.ExecutablePath,
+				WorkingDirectory = Path.GetDirectoryName(Build.ExecutablePath)
+			};
+			WinApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, WinApp.WorkingDirectory);
+
+			return WinApp;
+		}
+
+		protected IAppInstall CreateSelfInstall(UnrealAppConfig AppConfig, IWindowsSelfInstallingBuild Build)
+		{
+			WindowsAppInstall WinApp = Build.CreateAppInstall(this, AppConfig, out string BasePath);
+			PopulateDirectoryMappings(Path.Combine(BasePath, AppConfig.ProjectName));
+			return WinApp;
+		}
+
+		protected override string GetInstallArtifactPath()
+		{
+			return (InstallCache as DesktopCommonAppInstall<TargetDeviceWindows>).ArtifactPath;
+		}
+
+		#region Legacy Implementations
+		public override IAppInstall InstallApplication(UnrealAppConfig AppConfig)
+		{
+			switch (AppConfig.Build)
+			{
+				case NativeStagedBuild:
+					return InstallNativeStagedBuild(AppConfig, AppConfig.Build as NativeStagedBuild);
+
+				case StagedBuild:
+					return InstallStagedBuild(AppConfig, AppConfig.Build as StagedBuild);
+
+				case EditorBuild:
+					return InstallEditorBuild(AppConfig, AppConfig.Build as EditorBuild);
+
+				case IWindowsSelfInstallingBuild:
+					return InstallSelfInstallingBuild(AppConfig, AppConfig.Build as IWindowsSelfInstallingBuild);
+
+				default:
+					throw new AutomationException("{0} is an invalid build type!", AppConfig.Build.ToString());
+			}
 		}
 
 		protected override IAppInstall InstallNativeStagedBuild(UnrealAppConfig AppConfig, NativeStagedBuild InBuild)
@@ -189,22 +291,22 @@ namespace Gauntlet
 
 		protected IAppInstall InstallSelfInstallingBuild(UnrealAppConfig AppConfig, IWindowsSelfInstallingBuild Build)
 		{
-			WindowsAppInstall WinApp = Build.Install(this, AppConfig, out string BasePath);
-			WinApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, BasePath);
+			Build.Install(AppConfig);
 
-			if (LocalDirectoryMappings.Count == 0)
-			{
-				PopulateDirectoryMappings(Path.Combine(BasePath, AppConfig.ProjectName));
-			}
+			WindowsAppInstall WinApp = Build.CreateAppInstall(this, AppConfig, out string BasePath);
+
+			PopulateDirectoryMappings(Path.Combine(BasePath, AppConfig.ProjectName));
 
 			CopyAdditionalFiles(AppConfig.FilesToCopy);
 			return WinApp;
 		}
+		#endregion
 	}
 
 	public class WindowsAppInstall : DesktopCommonAppInstall<TargetDeviceWindows>, IAppInstall.IDynamicCommandLine
 	{
-		[Obsolete("Will be removed in a future release. Use 'DesktopDevice' instead.")]
+		/// Obsolete! Will be removed in a future release.
+		/// Use 'DesktopDevice' instead
 		public TargetDeviceWindows WinDevice => DesktopDevice;
 
 		public WindowsAppInstall(string InName, string InProjectName, TargetDeviceWindows InDevice)

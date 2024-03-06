@@ -5,12 +5,12 @@ using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Linq;
 using UnrealBuildTool;
 using System.Text.RegularExpressions;
-using static AutomationTool.ProcessResult;
+using Gauntlet.Utils;
+
 
 namespace Gauntlet
 {
@@ -71,7 +71,11 @@ namespace Gauntlet
 		[AutoParam]
 		public string InstallRoot { get; protected set; }
 
-		// TODO - move this be part of ITargetDevice
+		/// <summary>
+		/// Cached reference to the install on this device. Used to maintain a soft handle to desktop artifact directories for cleanup
+		/// </summary>
+		protected IAppInstall InstallCache;
+
 		protected Dictionary<EIntendedBaseCopyDirectory, string> LocalDirectoryMappings { get; set; }
 
 		public TargetDeviceDesktopCommon(string InName, string InCacheDir)
@@ -82,7 +86,7 @@ namespace Gauntlet
 			LocalCachePath = InCacheDir;
 			UserDir = Path.Combine(InCacheDir, "UserDir");
 
-			if(string.IsNullOrEmpty(InstallRoot))
+			if (string.IsNullOrEmpty(InstallRoot))
 			{
 				InstallRoot = InCacheDir;
 			}
@@ -90,49 +94,91 @@ namespace Gauntlet
 			LocalDirectoryMappings = new Dictionary<EIntendedBaseCopyDirectory, string>();
 		}
 
-		public virtual IAppInstall InstallApplication(UnrealAppConfig AppConfig)
-		{
-			switch (AppConfig.Build)
-			{
-				case NativeStagedBuild:
-					return InstallNativeStagedBuild(AppConfig, AppConfig.Build as NativeStagedBuild);
-
-				case StagedBuild:
-					return InstallStagedBuild(AppConfig, AppConfig.Build as StagedBuild);
-
-				case EditorBuild:
-					return InstallEditorBuild(AppConfig, AppConfig.Build as EditorBuild);
-
-				default:
-					throw new AutomationException("{0} is an invalid build type!", AppConfig.Build.ToString());
-			}
-		}
-
 		public void FullClean()
 		{
-
+			CleanArtifacts();
 		}
 
 		public void CleanArtifacts()
 		{
-
+			CleanArtifactDirectory(Path.Combine(UserDir, "Saved"));
+			if (InstallCache != null)
+			{
+				CleanArtifactDirectory(GetInstallArtifactPath());
+			}
 		}
 
-		public void InstallBuild(UnrealAppConfig AppConfiguration)
+		public virtual void InstallBuild(UnrealAppConfig AppConfig)
 		{
+			IBuild Build = AppConfig.Build;
+			switch (Build)
+			{
+				case NativeStagedBuild:
+				case EditorBuild:
+				{
+					Log.Info("Skipping installation of {BuildType}", Build.GetType().Name);
+					break;
+				}
 
+				case StagedBuild:
+				{
+					StagedBuild Staged = Build as StagedBuild;
+
+					if (SystemHelpers.IsNetworkPath(Staged.BuildPath))
+					{
+						string SubDir = string.IsNullOrEmpty(AppConfig.Sandbox) ? AppConfig.ProjectName : AppConfig.Sandbox;
+						string InstallDir = Path.Combine(InstallRoot, SubDir, AppConfig.ProcessType.ToString());
+
+						InstallDir = StagedBuild.InstallBuildParallel(AppConfig, Staged, Staged.BuildPath, InstallDir, ToString());
+						SystemHelpers.MarkDirectoryForCleanup(InstallDir);
+					}
+					else
+					{
+						Log.Info("Build exists on local drive, skipping installation.");
+					}
+					break;
+				}
+
+				default:
+					throw new AutomationException("{0} is not a valid build type for {1}", Build.GetType().Name, Platform);
+			}
 		}
 
-		public IAppInstall CreateAppInstall(UnrealAppConfig AppConfig)
+		public virtual IAppInstall CreateAppInstall(UnrealAppConfig AppConfig)
 		{
-			return null;
+			IAppInstall Install;
+			IBuild Build = AppConfig.Build;
+
+			switch (AppConfig.Build)
+			{
+				case NativeStagedBuild:
+					Install = CreateNativeStagedInstall(AppConfig, Build as NativeStagedBuild);
+					break;
+				case StagedBuild:
+					Install = CreateStagedInstall(AppConfig, Build as StagedBuild);
+					break;
+				case EditorBuild:
+					Install = CreateEditorInstall(AppConfig, Build as EditorBuild);
+					break;
+				default:
+					throw new AutomationException("{0} is an invalid build type for {1}!", Build.GetType().Name, Platform);
+			}
+
+			InstallCache = Install;
+			return Install;
 		}
 
 		public void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy)
 		{
-			if (FilesToCopy == null || FilesToCopy.Any())
+			if (FilesToCopy == null || !FilesToCopy.Any())
 			{
 				return;
+			}
+
+			if (!LocalDirectoryMappings.Any())
+			{
+				throw new AutomationException("Attempted to copy additional files before LocalDirectoryMappings were populated." +
+					"{0} must call PopulateDirectoryMappings before attempting to call CopyAdditionalFiles", this.GetType());
 			}
 
 			foreach (UnrealFileToCopy FileToCopy in FilesToCopy)
@@ -152,8 +198,9 @@ namespace Gauntlet
 						FileInfo ExistingFile = new FileInfo(PathToCopyTo);
 						ExistingFile.IsReadOnly = false;
 					}
+
+					Log.Info("Copying {SourceFile} to {DestinationFile}", FileToCopy.SourceFileLocation, PathToCopyTo);
 					SrcInfo.CopyTo(PathToCopyTo, true);
-					Log.Info("Copying {0} to {1}", FileToCopy.SourceFileLocation, PathToCopyTo);
 				}
 				else
 				{
@@ -161,8 +208,6 @@ namespace Gauntlet
 				}
 			}
 		}
-
-		public abstract IAppInstance Run(IAppInstall Install);
 
 		public virtual void PopulateDirectoryMappings(string BaseDirectory)
 		{
@@ -178,10 +223,49 @@ namespace Gauntlet
             LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Saved, Path.Combine(BaseDirectory, "Saved"));
 		}
 
-		// TODO - b.lienau: implement these at desktop level and remove implementations from each desktop
+		public abstract IAppInstance Run(IAppInstall Install);
+
+		protected abstract IAppInstall CreateNativeStagedInstall(UnrealAppConfig AppConfig, NativeStagedBuild Build);
+
+		protected abstract IAppInstall CreateStagedInstall(UnrealAppConfig AppConfig, StagedBuild Build);
+
+		protected abstract IAppInstall CreateEditorInstall(UnrealAppConfig AppConfig, EditorBuild Build);
+
+		protected abstract string GetInstallArtifactPath();
+
+		private void CleanArtifactDirectory(string ArtifactDirectory)
+		{
+			if (!string.IsNullOrEmpty(ArtifactDirectory) && Directory.Exists(ArtifactDirectory))
+			{
+				Log.Info("Cleaning device artifacts path {ArtifactDirectory}", ArtifactDirectory);
+				DirectoryInfo Info = new(ArtifactDirectory);
+				SystemHelpers.Delete(Info, true, true);
+			}
+		}
+
+		#region Legacy Implementations
+		public virtual IAppInstall InstallApplication(UnrealAppConfig AppConfig)
+		{
+			switch (AppConfig.Build)
+			{
+				case NativeStagedBuild:
+					return InstallNativeStagedBuild(AppConfig, AppConfig.Build as NativeStagedBuild);
+
+				case StagedBuild:
+					return InstallStagedBuild(AppConfig, AppConfig.Build as StagedBuild);
+
+				case EditorBuild:
+					return InstallEditorBuild(AppConfig, AppConfig.Build as EditorBuild);
+
+				default:
+					throw new AutomationException("{0} is an invalid build type!", AppConfig.Build.ToString());
+			}
+		}
+
 		protected abstract IAppInstall InstallNativeStagedBuild(UnrealAppConfig AppConfig, NativeStagedBuild Build);
 		protected abstract IAppInstall InstallStagedBuild(UnrealAppConfig AppConfig, StagedBuild Build);
 		protected abstract IAppInstall InstallEditorBuild(UnrealAppConfig AppConfig, EditorBuild Build);
+		#endregion
 	}
 
 	public abstract class DesktopCommonAppInstall<DesktopTargetDevice> : IAppInstall where DesktopTargetDevice : TargetDeviceDesktopCommon
@@ -244,58 +328,30 @@ namespace Gauntlet
 			return Device.Run(this);
 		}
 
+		/// <summary>
+		/// Obsolete! Will be removed in a future release.
+		/// Use ITargetDevice.CleanArtifacts instead
+		/// </summary>
 		public virtual void CleanDeviceArtifacts()
 		{
-			// log file
-			try
-			{
-				if (LogFile != null && File.Exists(LogFile))
-				{
-					EpicGames.Core.FileUtils.ForceDeleteFile(LogFile);
-				}
-			}
-			catch (Exception Ex)
-			{
-				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Unable to delete existing log file {File}. {Exception}", LogFile, Ex.Message);
-			}
-			// all other artifacts
-			if (!string.IsNullOrEmpty(ArtifactPath) && Directory.Exists(ArtifactPath))
-			{
-				try
-				{
-					Log.Info("Clearing device artifacts path {0} for {1}", ArtifactPath, Device.Name);
-					Directory.Delete(ArtifactPath, true);
-				}
-				catch (Exception Ex)
-				{
-					Log.Info(KnownLogEvents.Gauntlet_DeviceEvent, "First attempt at clearing artifact path {0} failed - trying again", ArtifactPath);
-					if (!ForceCleanDeviceArtifacts())
-					{
-						Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Failed to delete {File}. {Exception}", ArtifactPath, Ex.Message);
-					}
-				}
-			}
+			Device.CleanArtifacts();
 		}
 
+		/// <summary>
+		/// Obsolete! Will be removed in a future release.
+		/// Use ITargetDevice.CleanArtifacts instead
+		/// </summary>
 		public virtual bool ForceCleanDeviceArtifacts()
 		{
-			DirectoryInfo ClientTempDirInfo = new DirectoryInfo(ArtifactPath) { Attributes = FileAttributes.Normal };
-			Log.Info(KnownLogEvents.Gauntlet_DeviceEvent, "Setting files in device artifacts {0} to have normal attributes (no longer read-only).", ArtifactPath);
-			foreach (FileSystemInfo info in ClientTempDirInfo.GetFileSystemInfos("*", SearchOption.AllDirectories))
-			{
-				info.Attributes = FileAttributes.Normal;
-			}
 			try
 			{
-				Log.Info(KnownLogEvents.Gauntlet_DeviceEvent, "Clearing device artifact path {0} (force)", ArtifactPath);
-				Directory.Delete(ArtifactPath, true);
+				Device.CleanArtifacts();
+				return true;
 			}
-			catch (Exception Ex)
+			catch
 			{
-				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Failed to force delete artifact path {File}. {Exception}", ArtifactPath, Ex.Message);
 				return false;
 			}
-			return true;
 		}
 
 		public virtual void SetDefaultCommandLineArguments(UnrealAppConfig AppConfig, CommandUtils.ERunOptions InRunOptions, string BuildDir)

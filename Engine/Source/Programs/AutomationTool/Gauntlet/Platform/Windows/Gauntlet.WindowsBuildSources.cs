@@ -16,6 +16,7 @@ namespace Gauntlet
 
 	public interface IWindowsSelfInstallingBuild
 	{
-		WindowsAppInstall Install(TargetDeviceWindows TargetDevice, UnrealAppConfig AppConfig, out string BasePath);
+		void Install(UnrealAppConfig AppConfiguration);
+		WindowsAppInstall CreateAppInstall(TargetDeviceWindows TargetDevice, UnrealAppConfig AppConfig, out string BasePath);
 	}
 }
