@@ -167,6 +167,18 @@ struct VValue
 		return BitCast<UObject*>(EncodedBits & ~UObjectTag);
 	}
 
+	UObject* ExtractUObject()
+	{
+		if (IsUObject())
+		{
+			return AsUObject();
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+
 	bool IsInt() const;
 	VInt AsInt() const;
 

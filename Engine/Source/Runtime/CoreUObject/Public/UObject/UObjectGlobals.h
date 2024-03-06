@@ -44,6 +44,7 @@
 #include "UObject/Script.h"
 #include "UObject/TopLevelAssetPath.h"
 #include "UObject/UnrealNames.h"
+#include "VerseTypesFwd.h"
 
 class FArchive;
 class FCbWriter;
@@ -2571,6 +2572,18 @@ public:
 		}
 	}
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	/**
+	 * Adds Verse value reference. Defined in VVMWriteBarrier.h.
+	 *
+	 * @param Value Referenced value.
+	 * @param ReferencingObject Referencing object (if available).
+	 * @param ReferencingProperty Referencing property (if available).
+	 */
+	template<class VCellType>
+	void AddReferencedVerseValue(Verse::TWriteBarrier<VCellType>& Value, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr);
+#endif
+
 	/**
 	* Adds references to an array of objects.
 	*
@@ -2938,6 +2951,20 @@ protected:
 	* @param ReferencingProperty Referencing property (if available).
 	*/
 	COREUOBJECT_API virtual void HandleObjectReferences(FObjectPtr* InObjects, const int32 ObjectNum, const UObject* InReferencingObject, const FProperty* InReferencingProperty);
+
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	/**
+	 * Handle Verse cell. Called by AddReferencedVerseValue.
+	 *
+	 * @param Value Referenced value.
+	 * @param ReferencingObject Referencing object (if available).
+	 * @param ReferencingProperty Referencing property (if available).
+	 */
+	virtual void HandleVCellReference(Verse::VCell* InCell, const UObject* InReferencingObject, const FProperty* InReferencingProperty)
+	{
+		// Ignore VCells by default, like `FSimpleReferenceProcessorBase::HandleTokenStreamVerseCellReference`.
+	}
+#endif
 
 private:
 	/** Creates the proxy archive that uses serialization to add objects to this collector */

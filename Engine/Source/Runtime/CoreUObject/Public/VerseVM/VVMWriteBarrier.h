@@ -193,4 +193,30 @@ private:
 	}
 };
 } // namespace Verse
+
+template <class VCellType>
+inline void FReferenceCollector::AddReferencedVerseValue(Verse::TWriteBarrier<VCellType>& InValue, const UObject* ReferencingObject, const FProperty* ReferencingProperty)
+{
+	if constexpr (Verse::TWriteBarrier<VCellType>::bIsAux)
+	{
+		static_assert(!Verse::TWriteBarrier<VCellType>::bIsAux, "AddReferencedVerseValue: Element must be a VValue or a type derived from VCell");
+	}
+	else if constexpr (Verse::TWriteBarrier<VCellType>::bIsVValue)
+	{
+		Verse::VValue Value = InValue.Get();
+		if (Verse::VCell* Cell = Value.ExtractCell())
+		{
+			HandleVCellReference(Cell, ReferencingObject, ReferencingProperty);
+		}
+		else if (UObject* Object = Value.ExtractUObject())
+		{
+			HandleObjectReference(Object, ReferencingObject, ReferencingProperty);
+		}
+	}
+	else
+	{
+		Verse::VCell* Cell = InValue.Get();
+		HandleVCellReference(Cell, ReferencingObject, ReferencingProperty);
+	}
+}
 #endif // WITH_VERSE_VM

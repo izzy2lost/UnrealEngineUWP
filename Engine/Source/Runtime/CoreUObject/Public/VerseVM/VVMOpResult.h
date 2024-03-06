@@ -7,30 +7,30 @@
 #include "CoreTypes.h"
 #include "VVMValue.h"
 
-#define V_RETURN(Value)                 \
-	return                              \
-	{                                   \
-		Verse::FOpResult::Return, Value \
+#define V_RETURN(Value)                   \
+	return                                \
+	{                                     \
+		::Verse::FOpResult::Return, Value \
 	}
-#define V_REQUIRE_CONCRETE(Value)                \
-	if ((Value).IsPlaceholder())                 \
-	{                                            \
-		return {Verse::FOpResult::Block, Value}; \
+#define V_REQUIRE_CONCRETE(Value)                  \
+	if ((Value).IsPlaceholder())                   \
+	{                                              \
+		return {::Verse::FOpResult::Block, Value}; \
 	}
-#define V_FAIL_IF(Condition)             \
-	if (Condition)                       \
-	{                                    \
-		return {Verse::FOpResult::Fail}; \
+#define V_FAIL_IF(Condition)               \
+	if (Condition)                         \
+	{                                      \
+		return {::Verse::FOpResult::Fail}; \
 	}
-#define V_YIELD()               \
-	return                      \
-	{                           \
-		Verse::FOpResult::Yield \
+#define V_YIELD()                 \
+	return                        \
+	{                             \
+		::Verse::FOpResult::Yield \
 	}
-#define V_RUNTIME_ERROR(Context, Message)                                  \
-	return                                                                 \
-	{                                                                      \
-		Verse::FOpResult::Error, Verse::VUTF8String::New(Context, Message) \
+#define V_RUNTIME_ERROR(Context, Message)                                      \
+	return                                                                     \
+	{                                                                          \
+		::Verse::FOpResult::Error, ::Verse::VUTF8String::New(Context, Message) \
 	}
 #define V_RUNTIME_ERROR_IF(Condition, Context, Message) \
 	if (Condition)                                      \

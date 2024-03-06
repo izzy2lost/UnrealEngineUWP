@@ -3126,16 +3126,21 @@ struct TBatchDispatcher
 	}
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	FORCEINLINE_DEBUGGABLE void HandleVerseCellDirectly(UObject* ReferencingObject, Verse::VCell* Cell, FMemberId MemberId, EOrigin Origin)
+	{
+		VerseGCMarkStack.Mark(Cell);
+		Context.Stats.AddVerseCells(1);
+	}
+
 	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue Value, FMemberId MemberId, EOrigin Origin)
 	{
 		if (Verse::VCell* Cell = Value.ExtractCell())
 		{
-			VerseGCMarkStack.Mark(Cell);
-			Context.Stats.AddVerseCells(1);
+			HandleVerseCellDirectly(ReferencingObject, Cell, MemberId, Origin);
 		}
-		else if (Value.IsUObject())
+		else if (UObject* Object = Value.ExtractUObject())
 		{
-			HandleImmutableReference(Value.AsUObject(), MemberId, Origin);
+			HandleImmutableReference(Object, MemberId, Origin);
 		}
 	}
 
@@ -3396,6 +3401,9 @@ public:
 		
 	virtual void HandleObjectReference(UObject*& InObject, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override;
 	virtual void HandleObjectReferences(UObject** InObjects, const int32 ObjectNum, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override;
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	virtual void HandleVCellReference(Verse::VCell* InCell, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override;
+#endif
 
 	virtual void AddStableReference(UObject** Object) override
 	{
@@ -3615,6 +3623,14 @@ public:
 		}
 	}
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	virtual void HandleVCellReference(Verse::VCell* Cell, const UObject* ReferencingObject, const FProperty* ReferencingProperty)
+	{
+		Processor.HandleTokenStreamVerseCellReference(Context, const_cast<UObject*>(ReferencingObject), Cell, EMemberlessId::Collector, CurrentOrigin);
+		Context.Stats.AddVerseCells(1);
+	}
+#endif
+
 	virtual void AddStableReference(UObject** Object) override
 	{
 		HandleObjectReference(*Object, Context.GetReferencingObject(), nullptr);
@@ -3727,6 +3743,14 @@ void TReachabilityCollector<Options>::HandleObjectReferences(UObject** InObjects
 		Dispatcher.HandleReferenceDirectly(ReferencingObject, Object, EMemberlessId::Collector, Killable);
 	}
 }
+
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+template <EGCOptions Options>
+void TReachabilityCollector<Options>::HandleVCellReference(Verse::VCell* Cell, const UObject* ReferencingObject, const FProperty* ReferencingProperty)
+{
+	Dispatcher.HandleVerseCellDirectly(const_cast<UObject*>(ReferencingObject), Cell, EMemberlessId::Collector, this->CurrentOrigin);
+}
+#endif
 
 //////////////////////////////////////////////////////////////////////////
 

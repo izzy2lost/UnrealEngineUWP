@@ -211,6 +211,13 @@ class FInitialReferenceCollector final : public FReferenceCollector
 	{
 		checkf(false, TEXT("FGCObject constructed with AddStableNativeReferencesOnly should only call AddStableReference, not HandleObjectReference"));
 	}
+  
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	virtual void HandleVCellReference(Verse::VCell* InCell, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override
+	{
+		checkf(false, TEXT("FGCObject constructed with AddStableNativeReferencesOnly should only call AddStableReference, not HandleVCellReference"));
+	}
+#endif
 
 	virtual void SetIsProcessingNativeReferences(bool) override
 	{
