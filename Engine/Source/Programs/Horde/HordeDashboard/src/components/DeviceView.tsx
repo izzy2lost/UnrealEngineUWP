@@ -304,7 +304,7 @@ const DevicePanel: React.FC = observer(() => {
    if (message) {
       return <Stack horizontal tokens={{ childrenGap: 6 }} horizontalAlign="center">
          <Text variant="mediumPlus">{message}</Text>
-         {!!linkText && !!link && <a style={{ fontSize: "18px", "cursor": "pointer" }} onClick={() => navigate(link)}>{linkText}</a>}
+         {!!linkText && !!link && <a href={link} style={{ fontSize: "18px", "cursor": "pointer" }} onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); navigate(link) }}>{linkText}</a>}
       </Stack>
    }
 
