@@ -2,6 +2,7 @@
 
 #include "NearestNeighborModelSectionCustomization.h"
 
+#include "DesktopPlatformModule.h"
 #include "DetailWidgetRow.h"
 #include "DetailLayoutBuilder.h"
 #include "Engine/SkeletalMesh.h"
@@ -257,6 +258,37 @@ namespace UE::NearestNeighborModel
 				LayoutBuilder.HideProperty(VertexMapHandle);
 			}
 		}
+
+		TOptional<FString> OpenTxtFileDialog(const FString& DefaultPath)
+		{
+			TOptional<FString> Empty;
+			IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
+			if (DesktopPlatform == nullptr)
+			{
+				return Empty;
+			}
+
+			TArray<FString> FileTypes;
+			FileTypes.Add("Text Files (*.txt)|*.txt");
+
+			TArray<FString> OutFileNames;
+			const bool bFileDialogOpened = DesktopPlatform->OpenFileDialog(
+				FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+				TEXT("Choose a txt"),
+				DefaultPath,
+				TEXT(""),
+				FileTypes[0],
+				EFileDialogFlags::None,
+				OutFileNames
+			);
+
+			if (bFileDialogOpened && OutFileNames.Num() > 0)
+			{
+				return OutFileNames[0];
+			}
+
+			return Empty;
+		}
 	};
 
 	void SNearestNeighborModelSectionWidget::Construct(const FArguments& InArgs)
@@ -343,6 +375,60 @@ namespace UE::NearestNeighborModel
 				ENearestNeighborModelSectionWeightMapCreationMethod::VertexAttributes 
 				? EVisibility::Visible : EVisibility::Collapsed;
 			})));
+
+		
+		IDetailPropertyRow& ExternalTxtFileRow = SectionBuilder.AddProperty(UNearestNeighborModelSection::GetExternalTxtFilePropertyName())
+			.OverrideResetToDefault(FResetToDefaultOverride::Hide())
+			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateLambda([Section]()
+			{
+				return Section->GetWeightMapCreationMethod() == 
+				ENearestNeighborModelSectionWeightMapCreationMethod::ExternalTxt 
+				? EVisibility::Visible : EVisibility::Collapsed;
+			})));
+		
+		ExternalTxtFileRow.CustomWidget()
+		.NameContent()
+		[
+			ExternalTxtFileRow.GetPropertyHandle()->CreatePropertyNameWidget()
+		]
+		.ValueContent()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.FillWidth(0.8f)
+			.VAlign(VAlign_Center)
+			[
+				ExternalTxtFileRow.GetPropertyHandle()->CreatePropertyValueWidget()
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				SNew(SBox)
+				.Padding(2, 2)
+				.MinDesiredWidth(20.f)
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("ChooseExternalTxtButton", "..."))
+					.OnClicked_Lambda([Section]()
+					{
+						using ::UE::NearestNeighborModel::Private::OpenTxtFileDialog;
+						const FString CurrentPath = Section->GetExternalTxtFile();
+						FString DefaultPath = FPaths::ProjectIntermediateDir();
+						if (CurrentPath.Len() > 0)
+						{
+							DefaultPath = FPaths::GetPath(CurrentPath);
+						}
+						TOptional<FString> PathOpt = OpenTxtFileDialog(DefaultPath);
+						if (PathOpt.IsSet())
+						{
+							Section->SetExternalTxtFile(PathOpt.GetValue());
+						}
+						return FReply::Handled();
+					})
+				]
+			]
+		];
 
 		SectionBuilder.AddProperty(UNearestNeighborModelSection::GetNeighborPosesPropertyName());
 		SectionBuilder.AddProperty(UNearestNeighborModelSection::GetNeighborMeshesPropertyName());

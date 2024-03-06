@@ -261,6 +261,38 @@ namespace UE::NearestNeighborModel
 			return (ChangeType & (EPropertyChangeType::ArrayAdd | EPropertyChangeType::ArrayRemove | EPropertyChangeType::ArrayClear | EPropertyChangeType::ArrayMove)) != 0;
 		}
 
+		TOptional<TArray<float>> ReadTxt(const FString& FilePath)
+		{
+			TOptional<TArray<float>> Empty;
+
+			TArray<FString> Lines;
+			if (FFileHelper::LoadFileToStringArray(Lines, *FilePath))
+			{
+				TArray<float> Result;
+				Result.Reserve(Lines.Num());
+				for (const FString& Line : Lines)
+				{
+					float Value;
+					if (Line.TrimStartAndEnd().IsNumeric())
+					{
+						Value = FCString::Atof(*Line);
+						Result.Add(Value);
+					}
+					else
+					{
+						UE_LOG(LogNearestNeighborModel, Error, TEXT("Invalid value in file: %s"), *Line);
+						return Empty;
+					}
+				}
+				return Result;
+			}
+			else
+			{
+				UE_LOG(LogNearestNeighborModel, Error, TEXT("Failed to read file: %s"), *FilePath);
+				return Empty;
+			}
+		}
+
 #if WITH_EDITORONLY_DATA
 		TArray<FInt32Range> GetMeshVertRanges(const USkeletalMesh& SkelMesh)
 		{
@@ -641,6 +673,18 @@ void UNearestNeighborModelSection::SetBoneNames(const TArray<FName>& InBoneNames
 	UpdateVertexWeights();
 }
 
+FString UNearestNeighborModelSection::GetExternalTxtFile() const
+{
+	return ExternalTxtFile;
+}
+
+void UNearestNeighborModelSection::SetExternalTxtFile(const FString& InFile)
+{
+	ExternalTxtFile = InFile;
+	InvalidateTraining();
+	UpdateVertexWeights();
+}
+
 void UNearestNeighborModelSection::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	const FProperty* Property = PropertyChangedEvent.Property;
@@ -765,6 +809,14 @@ UE::NearestNeighborModel::EOpFlag UNearestNeighborModelSection::UpdateVertexWeig
 	else if (WeightMapCreationMethod == ENearestNeighborModelSectionWeightMapCreationMethod::VertexAttributes)
 	{
 		Result = UpdateVertexWeightsVertexAttributes();
+	}
+	else if (WeightMapCreationMethod == ENearestNeighborModelSectionWeightMapCreationMethod::ExternalTxt)
+	{
+		Result = UpdateVertexWeightsExternalTxt();
+	}
+	else
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("Invalid WeightMapCreationMethod."));
 	}
 	using namespace UE::NearestNeighborModel;
 	if (OpFlag::HasError(Result))
@@ -984,6 +1036,58 @@ UE::NearestNeighborModel::EOpFlag UNearestNeighborModelSection::UpdateVertexWeig
 		}
 	}
 
+	return EOpFlag::Success;
+}
+
+UE::NearestNeighborModel::EOpFlag UNearestNeighborModelSection::UpdateVertexWeightsExternalTxt()
+{
+	using namespace UE::NearestNeighborModel;
+	if (!GetModel())
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("NearestNeighborModel is invalid."));
+		return EOpFlag::Error;
+	}
+	const USkeletalMesh* const SkeletalMesh = GetModel()->GetSkeletalMesh();
+	if (!SkeletalMesh)
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("SkeletalMesh is None"));
+		return EOpFlag::Error;
+	}
+	if (!GetModel())
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("NearestNeighborModel is invalid."));
+		return EOpFlag::Error;
+	}
+
+	const int32 NumBaseMeshVerts = Model->GetNumBaseMeshVerts();
+	if (NumBaseMeshVerts <= 0)
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("SkeletalMesh has no vertices."));
+		return EOpFlag::Error;
+	}
+
+	using Private::ReadTxt;
+	TOptional<TArray<float>> WeightsOpt = ReadTxt(ExternalTxtFile);
+	if (!WeightsOpt.IsSet())
+	{
+		return EOpFlag::Error;
+	}
+	const TArray<float>& Weights = WeightsOpt.GetValue();
+	if (Weights.Num() != NumBaseMeshVerts)
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("Number of weights %d does not match number of vertices %d."), Weights.Num(), NumBaseMeshVerts);
+		return EOpFlag::Error;
+	}
+	VertexMap.Reset();
+	VertexWeights.Reset();
+	for (int32 Index = 0; Index < Weights.Num(); ++Index)
+	{
+		if (Weights[Index] > 0)
+		{
+			VertexMap.Add(Index);
+			VertexWeights.Add(Weights[Index]);
+		}
+	}
 	return EOpFlag::Success;
 }
 

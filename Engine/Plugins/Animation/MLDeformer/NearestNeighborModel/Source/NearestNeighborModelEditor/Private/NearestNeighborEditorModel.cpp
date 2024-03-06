@@ -501,10 +501,9 @@ namespace UE::NearestNeighborModel
 		{
 			return UpdateResult;
 		}
-		UpdateIsReadyForTrainingState();
 		if (!IsReadyForTraining())
 		{
-			UE_LOG(LogNearestNeighborModel, Error, TEXT("Model is not ready for training. Please check training data is not empty or reload MLDeformer editor."));
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Model is not ready for training. Please check if training data is not empty or reload MLDeformer editor."));
 			return EOpFlag::Error;
 		}
 		UpdateResult |= UpdateNearestNeighborData();
@@ -567,6 +566,7 @@ namespace UE::NearestNeighborModel
 		{
 			Editor->GetVizSettingsDetailsView()->ForceRefresh();
 		}
+		UpdateIsReadyForTrainingState();
 	}
 
 	EOpFlag FNearestNeighborEditorModel::CheckNetwork()

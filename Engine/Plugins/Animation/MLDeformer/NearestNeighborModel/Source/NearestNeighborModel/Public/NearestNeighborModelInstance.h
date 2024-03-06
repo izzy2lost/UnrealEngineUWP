@@ -16,7 +16,7 @@ namespace UE::NearestNeighborModel
     class FNearestNeighborEditorModelActor;
 };
 
-UCLASS()
+UCLASS(Blueprintable)
 class NEARESTNEIGHBORMODEL_API UNearestNeighborModelInstance
     : public UMLDeformerMorphModelInstance
 {
@@ -31,6 +31,9 @@ public:
     virtual void Tick(float DeltaTime, float ModelWeight) override;
     virtual int64 SetBoneTransforms(float* OutputBuffer, int64 OutputBufferSize, int64 StartIndex) override;
     // ~END UMLDeformerModelInstance overrides
+
+    UFUNCTION(BlueprintCallable, Category = "NearestNeighborModel")
+    void Reset();
 
     friend class UNearestNeighborModelInputInfo;
     friend class UNearestNeighborModelInstance;
@@ -65,6 +68,7 @@ private:
 
     TArray<float> PreviousWeights;
     TArray<float> DistanceBuffer;
+    bool bNeedsReset = true;
 
     UPROPERTY()
     TObjectPtr<UNearestNeighborOptimizedNetworkInstance> OptimizedNetworkInstance;

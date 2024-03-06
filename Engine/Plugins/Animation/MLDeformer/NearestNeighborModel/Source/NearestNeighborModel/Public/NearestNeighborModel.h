@@ -80,6 +80,8 @@ enum class ENearestNeighborModelSectionWeightMapCreationMethod : uint8
 	SelectedBones,
 	/** Use weights from a vertex attribute. */
 	VertexAttributes,
+	/** Using an external .txt file */
+	ExternalTxt
 };
 #endif
 
@@ -171,6 +173,8 @@ public:
 	FString GetBoneNamesString() const;
 	const TArray<FName>& GetBoneNames() const;
 	void SetBoneNames(const TArray<FName>& InBoneNames);
+	FString GetExternalTxtFile() const;
+	void SetExternalTxtFile(const FString& InFile);
 
 
 	// Do not call this function directly. Call UNearestNeighborModel::NormalizeVertexWeights() instead.
@@ -187,6 +191,7 @@ public:
 	static FName GetExcludedFramesPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, ExcludedFrames); }
 	static FName GetWeightMapCreationMethodPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, WeightMapCreationMethod); }
 	static FName GetAttributeNamePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, AttributeName); }
+	static FName GetExternalTxtFilePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, ExternalTxtFile); }
 #endif
 #if WITH_EDITORONLY_DATA
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -220,6 +225,10 @@ protected:
 	/** A string containing vertex indices for this section, e.g. "2, 3, 5-8, 9, 11-20" */
 	UPROPERTY(EditAnywhere, Category = "Section", meta = (DisplayName = "Vertex Indices"))
 	FString VertexMapString;
+
+	/** The path to the txt file containing vertex weights. The number of lines equals to the number of vertices in skeletal mesh with each line being a float for vertex weight. */
+	UPROPERTY(VisibleAnywhere, Category = "Section")
+	FString ExternalTxtFile;
 
 	/** Frames to be excluded from the nearest neighbor ROM */
 	UPROPERTY(EditAnywhere, Category = "Section")
@@ -305,6 +314,7 @@ private:
 	EOpFlag UpdateVertexWeightsFromText();
 	EOpFlag UpdateVertexWeightsSelectedBones();
 	EOpFlag UpdateVertexWeightsVertexAttributes();
+	EOpFlag UpdateVertexWeightsExternalTxt();
 
 	UFUNCTION()
 	TArray<FName> GetVertexAttributeNames() const;
