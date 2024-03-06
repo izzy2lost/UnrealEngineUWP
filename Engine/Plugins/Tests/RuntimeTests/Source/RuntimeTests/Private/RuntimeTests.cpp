@@ -4,7 +4,7 @@
 #include "Modules/ModuleManager.h"
 #include "ShaderComparisonTests.h"
 
-#define LOCTEXT_NAMESPACE "FRuntimeTestsModule"
+#if WITH_AUTOMATION_TESTS
 
 void FRuntimeTestsModule::StartupModule()
 {
@@ -20,6 +20,6 @@ void FRuntimeTestsModule::ShutdownModule()
 	delete FCompareBasepassShadersAutomationTestInstance;
 }
 
-#undef LOCTEXT_NAMESPACE
+#endif // WITH_AUTIOMATION_TESTS
 	
 IMPLEMENT_MODULE(FRuntimeTestsModule, RuntimeTests)
