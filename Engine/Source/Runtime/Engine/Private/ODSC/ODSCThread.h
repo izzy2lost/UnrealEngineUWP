@@ -170,6 +170,8 @@ private:
 	 */
 	void Process();
 
+	bool ConnectToODSCHost();
+
 	/**
 	 * Threaded requests that are waiting to be processed on the ODSC thread.
 	 * Added to on (any) non-ODSC thread, processed then cleared on ODSC thread.
@@ -205,5 +207,8 @@ private:
 	/** Special connection to the cooking server.  This is only used to send recompileshaders commands on. */
 	TUniquePtr<UE::Cook::ICookOnTheFlyServerConnection> CookOnTheFlyServerConnection;
 
+	FString ODSCHostIP;
+
 	bool bHasPendingRequests = false;
+	bool bHasDefaultConnection = false;
 };

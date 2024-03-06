@@ -101,23 +101,16 @@ bool FODSCMessageHandler::ReloadGlobalShaders() const
 }
 
 FODSCThread::FODSCThread(const FString& HostIP)
-	: Thread(nullptr),
-	  WakeupEvent(FPlatformProcess::GetSynchEventFromPool(true))
+	: Thread(nullptr)
+	, WakeupEvent(FPlatformProcess::GetSynchEventFromPool(true))
+	, ODSCHostIP(HostIP)
 {
 	UE_LOG(LogODSC, Log, TEXT("ODSC Thread active."));
 
-	// Attempt to get a default connection to the COTF server (which cooks assets).
-	UE::Cook::ICookOnTheFlyModule& CookOnTheFlyModule = FModuleManager::LoadModuleChecked<UE::Cook::ICookOnTheFlyModule>(TEXT("CookOnTheFly"));
-	if (!CookOnTheFlyModule.GetDefaultServerConnection())
+	bHasDefaultConnection = (FModuleManager::LoadModuleChecked<UE::Cook::ICookOnTheFlyModule>(TEXT("CookOnTheFly")).GetDefaultServerConnection() != nullptr);
+	if (!bHasDefaultConnection)
 	{
-		// If we don't have a default connection make a specific connection to the HostIP provided.
-		UE::Cook::FCookOnTheFlyHostOptions CookOnTheFlyHostOptions;
-		CookOnTheFlyHostOptions.Hosts.Add(HostIP);
-		CookOnTheFlyServerConnection = CookOnTheFlyModule.ConnectToServer(CookOnTheFlyHostOptions);
-		if (!CookOnTheFlyServerConnection)
-		{
-			UE_LOG(LogODSC, Warning, TEXT("Failed to connect to cook on the fly server."));
-		}
+		ConnectToODSCHost();
 	}
 }
 
@@ -127,6 +120,20 @@ FODSCThread::~FODSCThread()
 
 	FPlatformProcess::ReturnSynchEventToPool(WakeupEvent);
 	WakeupEvent = nullptr;
+}
+
+bool FODSCThread::ConnectToODSCHost()
+{
+	// If we don't have a default connection make a specific connection to the HostIP provided.
+	UE::Cook::FCookOnTheFlyHostOptions CookOnTheFlyHostOptions;
+	CookOnTheFlyHostOptions.Hosts.Add(ODSCHostIP);
+	CookOnTheFlyServerConnection = FModuleManager::LoadModuleChecked<UE::Cook::ICookOnTheFlyModule>(TEXT("CookOnTheFly")).ConnectToServer(CookOnTheFlyHostOptions);
+	if (!CookOnTheFlyServerConnection)
+	{
+		UE_LOG(LogODSC, Warning, TEXT("Failed to connect to cook on the fly server."));
+		return false;
+	}
+	return CookOnTheFlyServerConnection != nullptr && CookOnTheFlyServerConnection->IsConnected();
 }
 
 void FODSCThread::StartThread()
@@ -289,8 +296,19 @@ void FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* 
 	// If we have a default connection that already exists, send directly to that.
 	if ((CookOnTheFlyServerConnection == nullptr) || (!CookOnTheFlyServerConnection->IsConnected()))
 	{
-		IFileManager::Get().SendMessageToServer(TEXT("RecompileShaders"), Handler);
-		return;
+		if (bHasDefaultConnection)
+		{
+			IFileManager::Get().SendMessageToServer(TEXT("RecompileShaders"), Handler);
+			return;
+		}
+		else
+		{
+			UE_LOG(LogODSC, Display, TEXT("Detected that CookOnTheFlyServerConnection has been lost, trying again"));
+			if (!ConnectToODSCHost())
+			{
+				return;
+			}
+		}
 	}
 
 	// We don't have a default COTF connection so use our specific connection to send our command.
