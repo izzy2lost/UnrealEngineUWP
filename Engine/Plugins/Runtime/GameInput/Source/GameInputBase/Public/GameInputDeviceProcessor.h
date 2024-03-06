@@ -116,7 +116,7 @@ protected:
 	const FString& GetHardwareDeviceIdentifierName(const IGameInputDeviceProcessor::FGameInputEventParams& Params) const;
 
 	/** A general use function to call the message handler and tell it about a controller analog key being used */
-	void OnControllerAnalog(const FGameInputEventParams& Params, const FName& GamePadKey, float NewAxisValueNormalized, float OldAxisValueNormalized, float DeadZone);
+	void OnControllerAnalog(const FGameInputEventParams& Params, const FName& GamePadKey, float NewAxisValueNormalized, float OldAxisValueNormalized, float DeadZone, const bool bSetDeviceScope = true);
 
 	/**
 	 * Helper function for processing the button states of Game input.

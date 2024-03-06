@@ -106,7 +106,7 @@ const FString& IGameInputDeviceProcessor::GetHardwareDeviceIdentifierName(const 
 	return ID_XboxOne;
 }
 
-void IGameInputDeviceProcessor::OnControllerAnalog(const FGameInputEventParams& Params, const FName& GamePadKey, float NewAxisValueNormalized, float OldAxisValueNormalized, float DeadZone)
+void IGameInputDeviceProcessor::OnControllerAnalog(const FGameInputEventParams& Params, const FName& GamePadKey, float NewAxisValueNormalized, float OldAxisValueNormalized, float DeadZone, const bool bSetDeviceScope /*= true*/)
 {
 	if (OldAxisValueNormalized != NewAxisValueNormalized || FMath::Abs(NewAxisValueNormalized) > DeadZone)
 	{		
@@ -121,8 +121,15 @@ void IGameInputDeviceProcessor::OnControllerAnalog(const FGameInputEventParams& 
 		// to create a new slate user based on the index if it doesn't already exist
 		if (Params.PlatformUserId.IsValid() && Params.InputDeviceId.IsValid())
 		{
-			FInputDeviceScope InputScope(nullptr, UE::GameInput::InputClassName, IPlatformInputDeviceMapper::Get().GetUserIndexForPlatformUser(Params.PlatformUserId), GetHardwareDeviceIdentifierName(Params));
-			Params.MessageHandler->OnControllerAnalog(GamePadKey, Params.PlatformUserId, Params.InputDeviceId, NewAxisValueNormalized);
+			if (bSetDeviceScope)
+			{
+				FInputDeviceScope InputScope(nullptr, UE::GameInput::InputClassName, IPlatformInputDeviceMapper::Get().GetUserIndexForPlatformUser(Params.PlatformUserId), GetHardwareDeviceIdentifierName(Params));
+				Params.MessageHandler->OnControllerAnalog(GamePadKey, Params.PlatformUserId, Params.InputDeviceId, NewAxisValueNormalized);
+			}
+			else
+			{
+				Params.MessageHandler->OnControllerAnalog(GamePadKey, Params.PlatformUserId, Params.InputDeviceId, NewAxisValueNormalized);
+			}
 		}		
 	}
 }
@@ -1694,7 +1701,13 @@ bool FGameInputRawDeviceProcessor::ProcessRawInputValueAsAanalog(const FGameInpu
 		return false;
 	}
 
-	OnControllerAnalog(Params, AxisData->KeyName, CurrentValueFloat, PreviousValueFloat, UE::GameInput::GamepadLeftStickDeadzone);
+	OnControllerAnalog(
+		Params, 
+		AxisData->KeyName, 
+		CurrentValueFloat, 
+		PreviousValueFloat, 
+		UE::GameInput::GamepadLeftStickDeadzone, 
+		/* bShouldSetDeviceScope = */!AxisData->bIgnoreAnalogInputDeviceScopeForThisRawReport);
 
 	// We had a reading as long as it is non-zero
 	return CurrentValueFloat != 0.0f;

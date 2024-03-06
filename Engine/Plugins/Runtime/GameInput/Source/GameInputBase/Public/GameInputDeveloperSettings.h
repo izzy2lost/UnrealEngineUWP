@@ -132,6 +132,18 @@ struct GAMEINPUTBASE_API FGameInputRawDeviceReportData
 	FName KeyName = NAME_None;
 
 	/**
+	* If true, then this raw report data will NOT set the FInputDeviceScope.
+	* 
+	* This may be desirable if you have a very sensitive axis value or something which may be constantly reporting
+	* that you don't necessarily want to be used to determine things like Common UI icons or other systems who read
+	* device scope.
+	* 
+	* Default: False.
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = "Game Input Device", meta=(EditCondition="TranslationBehavior == ERawDeviceReportTranslationBehavior::TreatAsAnalog || TranslationBehavior == ERawDeviceReportTranslationBehavior::TreatAsTrigger", EditConditionHides))
+	bool bIgnoreAnalogInputDeviceScopeForThisRawReport = false;
+
+	/**
 	 * Options for how we should interpret the raw uint8 value from RawInput when telling the engine about it
 	 */
 	UPROPERTY(EditAnywhere, Config, Category = "Game Input Device")
