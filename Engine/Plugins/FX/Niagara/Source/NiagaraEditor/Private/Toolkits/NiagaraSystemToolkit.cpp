@@ -219,6 +219,9 @@ void FNiagaraSystemToolkit::InitializeWithEmitter(const EToolkitMode::Type Mode,
 	UNiagaraSystemFactoryNew::InitializeSystem(System, true);
 	System->EnsureFullyLoaded();
 
+	// order of registering commands matters. SetupCommands before InitAssetEditor will make the toolkit prioritize niagara commands
+	SetupCommands();
+
 	InEmitter.UpdateEmitterAfterLoad();
 	Emitter = &InEmitter;
 
