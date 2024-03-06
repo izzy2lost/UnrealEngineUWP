@@ -1509,10 +1509,12 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 
 	FPropertyTag KeyPropertyTag;
 	KeyPropertyTag.SetType(KeyType);
+	KeyPropertyTag.Name = Tag.Name;
 	KeyPropertyTag.ArrayIndex = 0;
 
 	FPropertyTag ValuePropertyTag;
 	ValuePropertyTag.SetType(ValueType);
+	ValuePropertyTag.Name = Tag.Name;
 	ValuePropertyTag.ArrayIndex = 0;
 
 	bool bConversionSucceeded = true;

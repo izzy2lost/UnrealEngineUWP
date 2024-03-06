@@ -468,6 +468,7 @@ EConvertFromTypeResult FEnumProperty::ConvertFromType(const FPropertyTag& Tag, F
 
 				FPropertyTag InnerPropertyTag;
 				InnerPropertyTag.SetType(TypeBuilder.Build());
+				InnerPropertyTag.Name = Tag.Name;
 				InnerPropertyTag.ArrayIndex = 0;
 
 				PreviousValue = (uint8)FNumericProperty::ReadEnumAsInt64(Slot, DefaultsStruct, InnerPropertyTag);

@@ -930,6 +930,7 @@ EConvertFromTypeResult FSetProperty::ConvertFromType(const FPropertyTag& Tag, FS
 
 	FPropertyTag InnerPropertyTag;
 	InnerPropertyTag.SetType(Tag.GetType().GetParameter());
+	InnerPropertyTag.Name = Tag.Name;
 	InnerPropertyTag.ArrayIndex = 0;
 
 	bool bConversionSucceeded = true;
