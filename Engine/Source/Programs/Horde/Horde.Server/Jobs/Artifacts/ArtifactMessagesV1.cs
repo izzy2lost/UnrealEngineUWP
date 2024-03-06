@@ -8,7 +8,7 @@ namespace Horde.Server.Jobs.Artifacts
 	/// <summary>
 	/// Response from creating an artifact
 	/// </summary>
-	public class CreateJobArtifactResponse
+	public class CreateJobArtifactResponseV1
 	{
 		/// <summary>
 		/// Unique id for this artifact
@@ -19,7 +19,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// Constructor
 		/// </summary>
 		/// <param name="id">The artifact file id</param>
-		public CreateJobArtifactResponse(string id)
+		public CreateJobArtifactResponseV1(string id)
 		{
 			Id = id;
 		}
@@ -28,7 +28,7 @@ namespace Horde.Server.Jobs.Artifacts
 	/// <summary>
 	/// Request to get a zip of artifacts
 	/// </summary>
-	public class GetJobArtifactZipRequest
+	public class GetJobArtifactZipRequestV1
 	{
 		/// <summary>
 		/// Job id to get all artifacts for
@@ -51,7 +51,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <param name="jobId">Job id to get all artifacts for</param>
 		/// <param name="stepId">step to filter by</param>
 		/// <param name="artifactIds">The artifact ids.  Returns all artifacts for a job </param>
-		public GetJobArtifactZipRequest(JobId? jobId, JobStepId? stepId, List<string>? artifactIds)
+		public GetJobArtifactZipRequestV1(JobId? jobId, JobStepId? stepId, List<string>? artifactIds)
 		{
 			JobId = jobId;
 			StepId = stepId;
@@ -62,7 +62,7 @@ namespace Horde.Server.Jobs.Artifacts
 	/// <summary>
 	/// Response describing an artifact
 	/// </summary>
-	public class GetJobArtifactResponse
+	public class GetJobArtifactResponseV1
 	{
 		/// <summary>
 		/// Unique id of the artifact
@@ -104,7 +104,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// </summary>
 		/// <param name="artifact">The artifact to construct from</param>
 		/// <param name="code">The direct download code</param>
-		public GetJobArtifactResponse(IArtifactV1 artifact, string? code)
+		public GetJobArtifactResponseV1(IArtifactV1 artifact, string? code)
 		{
 			Id = artifact.Id.ToString();
 			Name = artifact.Name;

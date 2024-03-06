@@ -6,6 +6,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
+using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
@@ -74,7 +76,7 @@ namespace Horde.Server.Jobs
 			get => (ChangeQueries != null && ChangeQueries.Count > 0) ? ChangeQueries[0] : null;
 			set => ChangeQueries = (value == null) ? null : new List<ChangeQueryConfig> { value };
 		}
-			
+
 		/// <summary>
 		/// List of change queries to evaluate
 		/// </summary>
@@ -84,7 +86,7 @@ namespace Horde.Server.Jobs
 		/// The preflight changelist number
 		/// </summary>
 		public int? PreflightChange { get; set; }
-		
+
 		/// <summary>
 		/// Job options
 		/// </summary>
@@ -342,12 +344,17 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// The default label, containing the state of all steps that are otherwise not matched.
 		/// </summary>
-		public GetDefaultLabelStateResponse? DefaultLabel { get; set; } 
+		public GetDefaultLabelStateResponse? DefaultLabel { get; set; }
 
 		/// <summary>
 		/// List of reports
 		/// </summary>
 		public List<GetReportResponse>? Reports { get; set; }
+
+		/// <summary>
+		/// Artifacts produced by this job
+		/// </summary>
+		public List<GetJobArtifactResponse>? Artifacts { get; set; }
 
 		/// <summary>
 		/// Parameters for the job
@@ -407,6 +414,23 @@ namespace Horde.Server.Jobs
 			UpdateIssues = job.UpdateIssues;
 		}
 	}
+
+	/// <summary>
+	/// Response describing an artifact produced during a job
+	/// </summary>
+	/// <param name="Id">Identifier for this artifact</param>
+	/// <param name="Name">Name of the artifact</param>
+	/// <param name="Type">Artifact type</param>
+	/// <param name="Description">Description to display for the artifact on the dashboard</param>
+	/// <param name="StepId">Step producing the artifact</param>
+	public record class GetJobArtifactResponse
+	(
+		ArtifactId Id,
+		ArtifactName Name,
+		ArtifactType Type,
+		string? Description,
+		JobStepId StepId
+	);
 
 	/// <summary>
 	/// The timing info for a job

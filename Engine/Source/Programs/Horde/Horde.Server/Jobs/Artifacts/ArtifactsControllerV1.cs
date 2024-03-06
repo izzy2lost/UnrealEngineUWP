@@ -62,7 +62,7 @@ namespace Horde.Server.Jobs.Artifacts
 		[HttpPost]
 		[Authorize]
 		[Route("/api/v1/artifacts")]
-		public async Task<ActionResult<CreateJobArtifactResponse>> CreateArtifactAsync([FromQuery] JobId jobId, [FromQuery] JobStepId? stepId, IFormFile file, CancellationToken cancellationToken)
+		public async Task<ActionResult<CreateJobArtifactResponseV1>> CreateArtifactAsync([FromQuery] JobId jobId, [FromQuery] JobStepId? stepId, IFormFile file, CancellationToken cancellationToken)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId, cancellationToken);
 			if(job == null)
@@ -98,7 +98,7 @@ namespace Horde.Server.Jobs.Artifacts
 			}
 
 			IArtifactV1 newArtifact = await _artifactCollection.CreateArtifactAsync(job.Id, step?.Id, file.FileName, file.ContentType ?? "horde-mime/unknown", file.OpenReadStream(), cancellationToken);
-			return new CreateJobArtifactResponse(newArtifact.Id.ToString());
+			return new CreateJobArtifactResponseV1(newArtifact.Id.ToString());
 		}
 
 		/// <summary>
@@ -111,7 +111,7 @@ namespace Horde.Server.Jobs.Artifacts
 		[HttpPut]
 		[Authorize]
 		[Route("/api/v1/artifacts/{artifactId}")]
-		public async Task<ActionResult<CreateJobArtifactResponse>> UpdateArtifactAsync(string artifactId, IFormFile file, CancellationToken cancellationToken)
+		public async Task<ActionResult<CreateJobArtifactResponseV1>> UpdateArtifactAsync(string artifactId, IFormFile file, CancellationToken cancellationToken)
 		{
 			IArtifactV1? artifact = await _artifactCollection.GetArtifactAsync(ObjectId.Parse(artifactId), cancellationToken);
 			if (artifact == null)
@@ -139,7 +139,7 @@ namespace Horde.Server.Jobs.Artifacts
 		[HttpGet]
 		[Authorize]
 		[Route("/api/v1/artifacts")]
-		[ProducesResponseType(typeof(List<GetJobArtifactResponse>), 200)]
+		[ProducesResponseType(typeof(List<GetJobArtifactResponseV1>), 200)]
 		public async Task<ActionResult<List<object>>> GetArtifactsAsync([FromQuery] JobId jobId, [FromQuery] JobStepId? stepId = null, [FromQuery] bool code = false, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			if (!await _jobService.AuthorizeAsync(jobId, ArtifactAclAction.DownloadArtifact, User, _globalConfig.Value, cancellationToken))
@@ -150,7 +150,7 @@ namespace Horde.Server.Jobs.Artifacts
 			string? downloadCode = code ? (string?)await GetDirectDownloadCodeForJobAsync(jobId, cancellationToken) : null;
 
 			IReadOnlyList<IArtifactV1> artifacts = await _artifactCollection.GetArtifactsAsync(jobId, stepId, null, cancellationToken);
-			return artifacts.ConvertAll(x => new GetJobArtifactResponse(x, downloadCode).ApplyFilter(filter));
+			return artifacts.ConvertAll(x => new GetJobArtifactResponseV1(x, downloadCode).ApplyFilter(filter));
 		}
 
 		/// <summary>
@@ -186,7 +186,7 @@ namespace Horde.Server.Jobs.Artifacts
 		[HttpGet]
 		[Authorize]
 		[Route("/api/v1/artifacts/{artifactId}")]
-		[ProducesResponseType(typeof(GetJobArtifactResponse), 200)]
+		[ProducesResponseType(typeof(GetJobArtifactResponseV1), 200)]
 		public async Task<ActionResult<object>> GetArtifactAsync(string artifactId, bool code = false, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			IArtifactV1? artifact = await _artifactCollection.GetArtifactAsync(ObjectId.Parse(artifactId), cancellationToken);
@@ -200,7 +200,7 @@ namespace Horde.Server.Jobs.Artifacts
 			}
 
 			string? downloadCode = code? (string?)await GetDirectDownloadCodeForJobAsync(artifact.JobId, cancellationToken) : null;
-			return new GetJobArtifactResponse(artifact, downloadCode).ApplyFilter(filter);
+			return new GetJobArtifactResponseV1(artifact, downloadCode).ApplyFilter(filter);
 		}
 
 		/// <summary>
@@ -311,7 +311,7 @@ namespace Horde.Server.Jobs.Artifacts
 		[HttpPost]
 		[Authorize]
 		[Route("/api/v1/artifacts/zip")]
-		public async Task<ActionResult> ZipArtifactsAsync(GetJobArtifactZipRequest artifactZipRequest, CancellationToken cancellationToken)
+		public async Task<ActionResult> ZipArtifactsAsync(GetJobArtifactZipRequestV1 artifactZipRequest, CancellationToken cancellationToken)
 		{
 			if (artifactZipRequest.JobId == null)
 			{
