@@ -10,6 +10,7 @@
 #include "Templates/UnrealTypeTraits.h"
 #include "Templates/Invoke.h"
 #include "Templates/UnrealTemplate.h"
+#include "Templates/Requires.h"
 #include "Math/UnrealMathUtility.h"
 #include <new> // IWYU pragma: export
 #include <type_traits>

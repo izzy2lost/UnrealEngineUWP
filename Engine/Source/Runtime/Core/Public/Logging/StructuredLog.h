@@ -12,6 +12,7 @@
 #include "Serialization/CompactBinaryWriter.h"
 #include "Templates/IsArrayOrRefOfType.h"
 #include "Templates/Models.h"
+#include "Templates/Requires.h"
 #include "Templates/UnrealTypeTraits.h"
 
 #include <atomic>

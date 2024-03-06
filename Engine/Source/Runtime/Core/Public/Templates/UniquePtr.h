@@ -6,6 +6,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "Templates/IsArray.h"
 #include "Templates/RemoveExtent.h"
+#include "Templates/Requires.h"
 #include "Serialization/MemoryLayout.h"
 
 // Single-ownership smart pointer in the vein of std::unique_ptr.

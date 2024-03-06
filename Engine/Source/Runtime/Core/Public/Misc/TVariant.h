@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Templates/Requires.h"
 #include "TVariantMeta.h"
 #include <type_traits>
 

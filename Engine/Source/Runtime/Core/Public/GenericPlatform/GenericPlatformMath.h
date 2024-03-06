@@ -14,6 +14,7 @@
 #include "Templates/Decay.h"
 #include "Templates/IsFloatingPoint.h"
 #include "Templates/UnrealTypeTraits.h"
+#include "Templates/Requires.h"
 #include "Templates/ResolveTypeAmbiguity.h"
 #include "Templates/TypeCompatibleBytes.h"
 #include <limits>

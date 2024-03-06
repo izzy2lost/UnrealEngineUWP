@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Templates/LosesQualifiersFromTo.h"
+#include "Templates/Requires.h"
 #include "Containers/Map.h"
 #include "UObject/WeakObjectPtrTemplatesFwd.h"
 

@@ -7,6 +7,7 @@
 #include "HAL/PlatformMath.h"
 #include "Math/MathFwd.h"
 #include "Templates/Identity.h"
+#include "Templates/Requires.h"
 
 // Assert on non finite numbers. Used to track NaNs.
 #ifndef ENABLE_NAN_DIAGNOSTIC

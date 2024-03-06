@@ -8,6 +8,7 @@
 #include "Templates/CopyQualifiersAndRefsFromTo.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Templates/RemoveReference.h"
+#include "Templates/Requires.h"
 #include "Templates/TypeCompatibleBytes.h"
 #include "Templates/Identity.h"
 #include "Traits/IsContiguousContainer.h"

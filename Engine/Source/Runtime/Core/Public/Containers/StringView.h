@@ -11,6 +11,7 @@
 #include "Misc/CString.h"
 #include "Misc/ReverseIterate.h"
 #include "String/Find.h"
+#include "Templates/Requires.h"
 #include "Templates/UnrealTemplate.h"
 #include "Traits/ElementType.h"
 #include "Traits/IsCharEncodingCompatibleWith.h"

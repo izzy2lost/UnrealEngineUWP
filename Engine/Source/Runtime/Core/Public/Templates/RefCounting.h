@@ -11,6 +11,7 @@
 #include "Serialization/Archive.h"
 #include "Serialization/MemoryLayout.h"
 #include "Templates/TypeHash.h"
+#include "Templates/Requires.h"
 
 /** A virtual interface for ref counted objects to implement. */
 class IRefCountedObject

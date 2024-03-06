@@ -8,6 +8,7 @@
 #include "Templates/Invoke.h"
 #include "Serialization/StructuredArchive.h"
 #include "Serialization/MemoryLayout.h"
+#include "Templates/Requires.h"
 #include "Templates/TypeHash.h"
 #include <tuple>
 
