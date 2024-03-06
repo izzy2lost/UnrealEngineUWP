@@ -16076,6 +16076,53 @@ void UMaterialFunctionInstance::PostLoad()
 	{
 		Parent->ConditionalPostLoad();
 	}
+
+#if WITH_EDITORONLY_DATA
+	for (const FScalarParameterValue& Param : ScalarParameterValues)
+	{
+		if (UCurveLinearColor* Curve = Param.AtlasData.Curve.Get())
+		{
+			Curve->ConditionalPostLoad();
+		}
+
+		if (UCurveLinearColorAtlas* Atlas = Param.AtlasData.Atlas.Get())
+		{
+			Atlas->ConditionalPostLoad();
+		}
+	}
+#endif // WITH_EDITORONLY_DATA
+
+	for (const FTextureParameterValue& Param : TextureParameterValues)
+	{
+		if (UTexture* Texture = Param.ParameterValue)
+		{
+			Texture->ConditionalPostLoad();
+		}
+	}
+
+	for (const FFontParameterValue& Param : FontParameterValues)
+	{
+		if (UFont* Font = Param.FontValue)
+		{
+			Font->ConditionalPostLoad();
+		}
+	}
+
+	for (const FRuntimeVirtualTextureParameterValue& Param : RuntimeVirtualTextureParameterValues)
+	{
+		if (URuntimeVirtualTexture* Texture = Param.ParameterValue)
+		{
+			Texture->ConditionalPostLoad();
+		}
+	}
+
+	for (const FSparseVolumeTextureParameterValue& Param : SparseVolumeTextureParameterValues)
+	{
+		if (USparseVolumeTexture* Texture = Param.ParameterValue)
+		{
+			Texture->ConditionalPostLoad();
+		}
+	}
 }
 
 #if WITH_EDITOR

@@ -3106,7 +3106,6 @@ void UMaterialInstance::PostLoad()
 		}
 	}
 
-#if WITH_EDITORONLY_DATA
 	// And any material layers parameter's functions
 	if (StaticParametersRuntime.bHasMaterialLayers)
 	{
@@ -3117,6 +3116,7 @@ void UMaterialInstance::PostLoad()
 				Dependency->ConditionalPostLoad();
 			}
 		}
+
 		for (UMaterialFunctionInterface* Dependency : StaticParametersRuntime.MaterialLayers.Blends)
 		{
 			if (Dependency)
@@ -3125,7 +3125,6 @@ void UMaterialInstance::PostLoad()
 			}
 		}
 	}
-#endif // WITH_EDITORONLY_DATA
 
 	if (!GIsEditor)
 	{
