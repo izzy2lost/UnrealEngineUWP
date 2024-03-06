@@ -18,6 +18,24 @@ namespace UE::MLDeformer
 	class FMLDeformerEditorModel;
 }
 
+class UNearestNeighborKMeansData;
+
+USTRUCT(BlueprintType)
+struct NEARESTNEIGHBORMODELEDITOR_API FNearestNeighborKMeansInputData
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UAnimSequence> Poses;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", DisplayName = "(Optional) Cache" )
+	TObjectPtr<UGeometryCache> Cache;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TArray<int> MustIncludeFrames;
+};
+
+
 UCLASS(Blueprintable)
 class NEARESTNEIGHBORMODELEDITOR_API UNearestNeighborKMeansData : public UObject
 {
@@ -34,17 +52,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (ClampMin = 1))
 	int32 NumClusters = 10;
 
-	/** List of input poses (cannot be empty). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	TArray<TObjectPtr<UAnimSequence>> InputPoses;
-
 	/** Whether to extract geometry cache at the same time. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	bool bExtractGeometryCache = false;
 
-	/** List of input geometry caches (need to be the same size as InputPoses). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (EditCondition = "bExtractGeometryCache"))
-	TArray<TObjectPtr<UGeometryCache>> InputCaches;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TArray<FNearestNeighborKMeansInputData> Inputs;
 
 	/** Extracted poses. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Output")

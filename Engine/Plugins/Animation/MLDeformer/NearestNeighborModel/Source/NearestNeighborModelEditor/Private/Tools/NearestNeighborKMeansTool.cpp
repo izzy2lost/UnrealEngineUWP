@@ -169,10 +169,20 @@ namespace UE::NearestNeighborModel
 					{
 						if (UNearestNeighborKMeansData* KMeansData = Cast<UNearestNeighborKMeansData>(&Data))
 						{
-							UNearestNeighborTrainingModel* TrainingModel = FHelpers::NewDerivedObject<UNearestNeighborTrainingModel>();
-							TrainingModel->Init(EditorModel.Get());
-							const int32 ResultInt = TrainingModel->KmeansClusterPoses(KMeansData);
-							const EOpFlag Result = ToOpFlag(ResultInt);
+							EOpFlag Result = EOpFlag::Success;
+							if (!EditorModel->IsReadyForTraining())
+							{
+								Result = EOpFlag::Error;
+								UE_LOG(LogNearestNeighborModel, Error, TEXT("Model is not ready for training. Please check if training data is not empty or reload MLDeformer editor."));
+							}
+							else
+							{
+								UNearestNeighborTrainingModel* TrainingModel = FHelpers::NewDerivedObject<UNearestNeighborTrainingModel>();
+								TrainingModel->Init(EditorModel.Get());
+								const int32 ResultInt = TrainingModel->KmeansClusterPoses(KMeansData);
+								Result = ToOpFlag(ResultInt);
+							}
+
 							const FText WindowTitle = LOCTEXT("KmeansWindowTitle", "Extraction Results");
 							if (OpFlag::HasError(Result))
 							{

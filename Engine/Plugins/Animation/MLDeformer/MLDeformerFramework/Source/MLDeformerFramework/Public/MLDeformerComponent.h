@@ -121,6 +121,7 @@ public:
 	 * The instance is responsible for running inference and feeding the neural network with inputs.
 	 * @return A pointer to the model instance object.
 	 */
+	UFUNCTION(BlueprintCallable, Category = "MLDeformer")
 	UMLDeformerModelInstance* GetModelInstance() const			{ return ModelInstance; }
 
 	/**

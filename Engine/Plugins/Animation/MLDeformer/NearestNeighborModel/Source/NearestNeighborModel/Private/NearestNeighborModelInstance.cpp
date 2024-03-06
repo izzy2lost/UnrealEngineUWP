@@ -147,6 +147,11 @@ int64 UNearestNeighborModelInstance::SetBoneTransforms(float* OutputBuffer, int6
 	return EndIndex;
 }
 
+void UNearestNeighborModelInstance::Reset()
+{
+	bNeedsReset = true;
+}
+
 FString UNearestNeighborModelInstance::CheckCompatibility(USkeletalMeshComponent* InSkelMeshComponent, bool LogIssues)
 {
 	ErrorText = FString();
@@ -208,7 +213,6 @@ void UNearestNeighborModelInstance::InitInstanceData(int32 NumMorphWeights)
 		}
 		NumMorphWeights = 1 + NearestNeighborModel->GetTotalNumBasis() + NearestNeighborModel->GetTotalNumNeighbors();
 	}
-	PreviousWeights.SetNumZeroed(NumMorphWeights);
 	DistanceBuffer.SetNumZeroed(NumMorphWeights);
 }
 
@@ -279,14 +283,22 @@ namespace UE::NearestNeighborModel::Private
 		}
 	}
 
-	void UpdateWeightWithDecay(float& OutDecayedWeight, float& InOutPrevWeight, float NewWeight, float DecayCoeff)
+	void UpdateWeightWithDecay(float& OutDecayedWeight, float& InOutPrevWeight, float NewWeight, float DecayCoeff, bool bReset)
 	{
-		const float NewW = (1.0f - DecayCoeff) * NewWeight + DecayCoeff * InOutPrevWeight;
-		OutDecayedWeight = NewW;
-		InOutPrevWeight = NewW;
+		if (bReset)
+		{
+			OutDecayedWeight = NewWeight;
+			InOutPrevWeight = NewWeight;
+		}
+		else
+		{
+			const float NewW = (1.0f - DecayCoeff) * NewWeight + DecayCoeff * InOutPrevWeight;
+			OutDecayedWeight = NewW;
+			InOutPrevWeight = NewW;
+		}
 	}
 
-	void UpdateNearestNeighborWeights(TArrayView<float> OutMorphWeights, TArrayView<float> InOutPrevWeights, TConstArrayView<float> SquaredDistances, float OffsetWeight, float DecayCoeff)
+	void UpdateNearestNeighborWeights(TArrayView<float> OutMorphWeights, TArrayView<float> InOutPrevWeights, TConstArrayView<float> SquaredDistances, float OffsetWeight, float DecayCoeff, bool bReset)
 	{
 		const int32 NumNeighbors = OutMorphWeights.Num();
 		check(InOutPrevWeights.Num() == NumNeighbors);
@@ -302,12 +314,12 @@ namespace UE::NearestNeighborModel::Private
 		for (int32 Index = 0; Index < NumNeighbors; ++Index)
 		{
 			const float W = Index == MinIndex ? OffsetWeight : 0.0f;
-			UpdateWeightWithDecay(OutMorphWeights[Index], InOutPrevWeights[Index], W, DecayCoeff);
+			UpdateWeightWithDecay(OutMorphWeights[Index], InOutPrevWeights[Index], W, DecayCoeff, bReset);
 		}
 	}
 
 	// SquaredDistances buffer will be overwritten after this function.
-	void UpdateRBFWeights(TArrayView<float> OutMorphWeights, TArrayView<float> InOutPrevWeights, TArrayView<float> SquaredDistances, float Sigma, float OffsetWeight, float DecayCoeff)
+	void UpdateRBFWeights(TArrayView<float> OutMorphWeights, TArrayView<float> InOutPrevWeights, TArrayView<float> SquaredDistances, float Sigma, float OffsetWeight, float DecayCoeff, bool bReset)
 	{
 		const int32 NumNeighbors = OutMorphWeights.Num();
 		check(InOutPrevWeights.Num() == NumNeighbors);
@@ -338,7 +350,7 @@ namespace UE::NearestNeighborModel::Private
 		for (int32 Index = 0; Index < NumNeighbors; ++Index)
 		{
 			const float W = Weights[Index] / SumWeights * OffsetWeight;
-			UpdateWeightWithDecay(OutMorphWeights[Index], InOutPrevWeights[Index], W, DecayCoeff);
+			UpdateWeightWithDecay(OutMorphWeights[Index], InOutPrevWeights[Index], W, DecayCoeff, bReset);
 		}
 	}
 }
@@ -381,6 +393,11 @@ void UNearestNeighborModelInstance::RunNearestNeighborModel(float DeltaTime, flo
 	if (NumMorphTargets == NumNetworkWeights + 1 + TotalNumNeighbors)
 	{
 		InitInstanceData(NumMorphTargets);
+		bNeedsReset = PreviousWeights.Num() != NumMorphTargets;
+		if (bNeedsReset)
+		{
+			PreviousWeights.SetNumZeroed(NumMorphTargets);
+		}
 
 		const float OffsetWeight = NearestNeighborModel->GetNearestNeighborOffsetWeight();
 		WeightData->Weights[0] = ModelWeight;
@@ -390,7 +407,7 @@ void UNearestNeighborModelInstance::RunNearestNeighborModel(float DeltaTime, flo
 		{
 			const float W = OutputView[MorphIndex] * ModelWeight;
 			using UE::NearestNeighborModel::Private::UpdateWeightWithDecay;
-			UpdateWeightWithDecay(WeightData->Weights[MorphIndex + 1], PreviousWeights[MorphIndex + 1], W, 0.0f);
+			WeightData->Weights[MorphIndex + 1] = W;
 		}
 
 		int32 NeighborOffset = NumNetworkWeights + 1;
@@ -420,10 +437,18 @@ void UNearestNeighborModelInstance::RunNearestNeighborModel(float DeltaTime, flo
 			TConstArrayView<float> Coeffs(OutputView.GetData() + CoeffStart, NumCoeffs);
 
 			const int32 NumNeighbors = Section.GetRuntimeNumNeighbors();
+			if (NumNeighbors <= 0)
+			{
+				continue;
+			}
 
 			TArrayView<float> SquaredDistances(DistanceBuffer.GetData() + NeighborOffset, NumNeighbors);
 			using UE::NearestNeighborModel::Private::ComputeNeighborDistances;
 			ComputeNeighborDistances(SquaredDistances, Section, Coeffs);
+#if WITH_EDITOR
+			const int32 NeighborId = NumNeighbors > 0 ? (Algo::MinElement(SquaredDistances) - SquaredDistances.GetData()) : INDEX_NONE;
+			NearestNeighborIds[SectionIndex] = NeighborId;
+#endif // WITH_EDITOR
 
 			TArrayView<float> SectionMorphWeights(WeightData->Weights.GetData() + NeighborOffset, NumNeighbors);
 			TArrayView<float> SectionPreviousWeights(PreviousWeights.GetData() + NeighborOffset, NumNeighbors);
@@ -431,20 +456,20 @@ void UNearestNeighborModelInstance::RunNearestNeighborModel(float DeltaTime, flo
 			{
 				const float Sigma = NearestNeighborModel->GetRBFSigma();
 				using UE::NearestNeighborModel::Private::UpdateRBFWeights;
-				UpdateRBFWeights(SectionMorphWeights, SectionPreviousWeights, SquaredDistances, Sigma, OffsetWeight * ModelWeight, DecayCoeff);
+				UpdateRBFWeights(SectionMorphWeights, SectionPreviousWeights, SquaredDistances, Sigma, OffsetWeight * ModelWeight, DecayCoeff, bNeedsReset);
 			}
 			else
 			{
 				using UE::NearestNeighborModel::Private::UpdateNearestNeighborWeights;
-				UpdateNearestNeighborWeights(SectionMorphWeights, SectionPreviousWeights, SquaredDistances, OffsetWeight * ModelWeight, DecayCoeff);
+				UpdateNearestNeighborWeights(SectionMorphWeights, SectionPreviousWeights, SquaredDistances, OffsetWeight * ModelWeight, DecayCoeff, bNeedsReset);
 			}
 
-#if WITH_EDITOR
-			const int32 NeighborId = NumNeighbors > 0 ? (Algo::MinElement(SquaredDistances) - SquaredDistances.GetData()) : INDEX_NONE;
-			NearestNeighborIds[SectionIndex] = NeighborId;
-#endif // WITH_EDITOR
-
 			NeighborOffset += NumNeighbors;
+		}
+
+		if (bNeedsReset)
+		{
+			bNeedsReset = false;
 		}
 	}
 }
