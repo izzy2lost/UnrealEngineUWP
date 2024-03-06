@@ -174,7 +174,7 @@ export class TestDataWrapper implements TestData {
         this.artifactMap.set(artifactName, found);
 
 
-        if (found) {
+        if (found?.id) {
             try {
                 return await backend.getArtifactDataById(found.id);
             } catch (ex) {
