@@ -205,9 +205,14 @@ public:
 		PingBucketSize = 50;
 
 		QuerySettings.Set(SETTING_ONLINESUBSYSTEM_VERSION, true, EOnlineComparisonOp::Equals);
-		if (InSearchRequest->bUseLobbies)
+		
+		if (InSearchRequest->bUsePresence)
 		{
 			QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
+		}
+
+		if (InSearchRequest->bUseLobbies)
+		{
 			QuerySettings.Set(SEARCH_LOBBIES, true, EOnlineComparisonOp::Equals);
 		}
 	}
@@ -226,10 +231,7 @@ public:
 
 		FindLobbyParams.Filters.Emplace(FFindLobbySearchFilter{ SETTING_ONLINESUBSYSTEM_VERSION, ESchemaAttributeComparisonOp::Equals, true });
 
-		if (InSearchRequest->bUseLobbies)
-		{
-			FindLobbyParams.Filters.Emplace(FFindLobbySearchFilter{ SEARCH_PRESENCE, ESchemaAttributeComparisonOp::Equals, true });
-		}
+		FindLobbyParams.Filters.Emplace(FFindLobbySearchFilter{ SEARCH_PRESENCE, ESchemaAttributeComparisonOp::Equals, InSearchRequest->bUsePresence });
 	}
 public:
 	FFindLobbies::Params FindLobbyParams;
@@ -431,6 +433,9 @@ UCommonSession_HostSessionRequest* UCommonSessionSubsystem::CreateOnlineHostSess
 	NewRequest->OnlineMode = ECommonSessionOnlineMode::Online;
 	NewRequest->bUseLobbies = bUseLobbiesDefault;
 
+	// We enable presence by default in the primary session used for matchmaking. For online systems that care about presence, only the primary session should have presence enabled
+	NewRequest->bUsePresence = true;
+
 	return NewRequest;
 }
 
@@ -442,6 +447,9 @@ UCommonSession_SearchSessionRequest* UCommonSessionSubsystem::CreateOnlineSearch
 	NewRequest->OnlineMode = ECommonSessionOnlineMode::Online;
 
 	NewRequest->bUseLobbies = bUseLobbiesDefault;
+
+	// We enable presence by default on primary session searches. For online systems that care about presence, only primary session searches should have presence enabled
+	NewRequest->bUsePresence = true;
 
 	return NewRequest;
 }
@@ -510,7 +518,6 @@ void UCommonSessionSubsystem::CreateOnlineSessionInternalOSSv1(ULocalPlayer* Loc
 {
 	const FName SessionName(NAME_GameSession);
 	const int32 MaxPlayers = Request->GetMaxPlayers();
-	const bool bIsPresence = Request->bUseLobbies; // Using lobbies implies presence
 
 	IOnlineSubsystem* const OnlineSub = Online::GetSubsystem(GetWorld());
 	check(OnlineSub);
@@ -531,7 +538,7 @@ void UCommonSessionSubsystem::CreateOnlineSessionInternalOSSv1(ULocalPlayer* Loc
 	//@TODO: You can get here on some platforms while trying to do a LAN session, does that require a valid user id?
 	if (ensure(UserId.IsValid()))
 	{
-		HostSettings = MakeShareable(new FCommonSession_OnlineSessionSettings(Request->OnlineMode == ECommonSessionOnlineMode::LAN, bIsPresence, MaxPlayers));
+		HostSettings = MakeShareable(new FCommonSession_OnlineSessionSettings(Request->OnlineMode == ECommonSessionOnlineMode::LAN, Request->bUsePresence, MaxPlayers));
 		HostSettings->bUseLobbiesIfAvailable = Request->bUseLobbies;
 		HostSettings->Set(SETTING_GAMEMODE, Request->ModeNameForAdvertisement, EOnlineDataAdvertisementType::ViaOnlineService);
 		HostSettings->Set(SETTING_MAPNAME, Request->GetMapName(), EOnlineDataAdvertisementType::ViaOnlineService);
@@ -561,7 +568,6 @@ void UCommonSessionSubsystem::CreateOnlineSessionInternalOSSv2(ULocalPlayer* Loc
 
 	const FName SessionName(NAME_GameSession);
 	const int32 MaxPlayers = Request->GetMaxPlayers();
-	const bool bIsPresence = Request->bUseLobbies; // Using lobbies implies presence
 
 	IOnlineServicesPtr OnlineServices = GetServices(GetWorld());
 	check(OnlineServices);
@@ -580,7 +586,7 @@ void UCommonSessionSubsystem::CreateOnlineSessionInternalOSSv2(ULocalPlayer* Loc
 
 	CreateParams.LocalName = SessionName;
 	CreateParams.SchemaId = FSchemaId(TEXT("GameLobby")); // TODO: make a parameter
-	CreateParams.bPresenceEnabled = true;
+	CreateParams.bPresenceEnabled = Request->bUsePresence;
 	CreateParams.MaxMembers = MaxPlayers;
 	CreateParams.JoinPolicy = ELobbyJoinPolicy::PublicAdvertised; // TODO: Check parameters
 
@@ -590,11 +596,8 @@ void UCommonSessionSubsystem::CreateOnlineSessionInternalOSSv2(ULocalPlayer* Loc
 	CreateParams.Attributes.Emplace(SETTING_MATCHING_TIMEOUT, 120.0f);
 	CreateParams.Attributes.Emplace(SETTING_SESSION_TEMPLATE_NAME, FString(TEXT("GameSession")));
 	CreateParams.Attributes.Emplace(SETTING_ONLINESUBSYSTEM_VERSION, true);
-	if (bIsPresence)
-	{
-		// Add presence setting so it can be searched for
-		CreateParams.Attributes.Emplace(SEARCH_PRESENCE, true);
-	}
+	// We add a custom parameter to be able to filter searches to only presence-enabled sessions
+	CreateParams.Attributes.Emplace(SEARCH_PRESENCE, Request->bUsePresence);
 
 	CreateParams.UserAttributes.Emplace(SETTING_GAMEMODE, FString(TEXT("GameSession")));
 
@@ -841,8 +844,12 @@ void UCommonSessionSubsystem::QuickPlaySession(APlayerController* JoiningOrHosti
 	UCommonSession_SearchSessionRequest* QuickPlayRequest = CreateOnlineSearchSessionRequest();
 	QuickPlayRequest->OnSearchFinished.AddUObject(this, &UCommonSessionSubsystem::HandleQuickPlaySearchFinished, JoiningOrHostingPlayerPtr, HostRequestPtr);
 
+	// We enable presence by default on the primary session used for matchmaking. For online systems that care about presence, only the primary session should have presence enabled
+
 	HostRequestPtr->bUseLobbies = bUseLobbiesDefault;
+	HostRequestPtr->bUsePresence = true;
 	QuickPlayRequest->bUseLobbies = bUseLobbiesDefault;
+	QuickPlayRequest->bUsePresence = true;
 
 	NotifySessionInformationUpdated(ECommonSessionInformationState::Matchmaking);
 	FindSessionsInternal(JoiningOrHostingPlayer, CreateQuickPlaySearchSettings(HostRequest, QuickPlayRequest));

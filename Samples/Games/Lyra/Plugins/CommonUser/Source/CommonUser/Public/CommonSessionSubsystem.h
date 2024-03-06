@@ -63,6 +63,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = Session)
 	bool bUseLobbies;
 
+	/** True if this request should create a session that will appear in the user's presence information */
+	UPROPERTY(BlueprintReadWrite, Category = Session)
+	bool bUsePresence;
+
 	/** String used during matchmaking to specify what type of game mode this is */
 	UPROPERTY(BlueprintReadWrite, Category=Session)
 	FString ModeNameForAdvertisement;
@@ -164,6 +168,10 @@ public:
 	/** True if this request should look for player-hosted lobbies if they are available, false will only search for registered server sessions */
 	UPROPERTY(BlueprintReadWrite, Category = Session)
 	bool bUseLobbies;
+
+	/** True if this request should look for presence-enabled lobbies or sessions */
+	UPROPERTY(BlueprintReadWrite, Category = Session)
+	bool bUsePresence;
 
 	/** List of all found sessions, will be valid when OnSearchFinished is called */
 	UPROPERTY(BlueprintReadOnly, Category=Session)
