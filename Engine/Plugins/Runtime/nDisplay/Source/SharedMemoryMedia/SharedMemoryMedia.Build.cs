@@ -8,6 +8,10 @@ namespace UnrealBuildTool.Rules
 	{
 		public SharedMemoryMedia(ReadOnlyTargetRules Target) : base(Target)
 		{
+			PublicDependencyModuleNames.AddRange(
+				new string[] {
+					"MediaIOCore",
+				});
 
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
@@ -16,7 +20,6 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"Media",
 					"MediaAssets",
-					"MediaIOCore",
 					"RenderCore",
 					"Renderer",
 					"RHI",

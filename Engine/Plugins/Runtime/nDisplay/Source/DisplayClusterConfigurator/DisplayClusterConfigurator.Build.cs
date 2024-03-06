@@ -12,6 +12,7 @@ public class DisplayClusterConfigurator : ModuleRules
 			{
 				"DisplayCluster",
 				"DisplayClusterConfiguration",
+				"DisplayClusterModularFeaturesEditor",
 				"DisplayClusterProjection",
 				"DisplayClusterWarp",
 

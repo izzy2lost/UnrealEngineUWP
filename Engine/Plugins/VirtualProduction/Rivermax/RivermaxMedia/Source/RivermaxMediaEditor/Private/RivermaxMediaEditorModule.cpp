@@ -6,6 +6,8 @@
 #include "RivermaxMediaOutput.h"
 #include "RivermaxMediaSource.h"
 #include "Customization/RivermaxMediaDetailsCustomization.h"
+#include "Features/IModularFeatures.h"
+#include "ModularFeatures/RivermaxMediaInitializerFeature.h"
 
 class FRivermaxMediaEditorModule : public IModuleInterface
 {
@@ -15,11 +17,13 @@ public:
 	virtual void StartupModule() override
 	{
 		RegisterCustomizations();
+		RegisterModularFeatures();
 	}
 	
 	virtual void ShutdownModule() override
 	{
 		UnregisterCustomizations();
+		UnregisterModularFeatures();
 	}
 	//~End IModuleInterface
 
@@ -52,8 +56,30 @@ private:
 		}
 	}
 
+	/** Registers modular features for external modules */
+	void RegisterModularFeatures()
+	{
+		// Instantiate modular features
+		MediaInitializer = MakeUnique<FRivermaxMediaInitializerFeature>();
+
+		// Register modular features
+		IModularFeatures& ModularFeatures = IModularFeatures::Get();
+		ModularFeatures.RegisterModularFeature(FRivermaxMediaInitializerFeature::ModularFeatureName, MediaInitializer.Get());
+	}
+
+	/** Unregisters modular features */
+	void UnregisterModularFeatures()
+	{
+		// Unregister modular features
+		IModularFeatures& ModularFeatures = IModularFeatures::Get();
+		ModularFeatures.UnregisterModularFeature(FRivermaxMediaInitializerFeature::ModularFeatureName, MediaInitializer.Get());
+	}
+
 private:
 	TArray<FName> CustomizedClasses;
+
+	/** MediaInitializer modular feature instance */
+	TUniquePtr<FRivermaxMediaInitializerFeature> MediaInitializer;
 };
 
 
