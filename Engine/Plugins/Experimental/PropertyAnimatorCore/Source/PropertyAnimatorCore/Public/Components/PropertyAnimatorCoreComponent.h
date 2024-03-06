@@ -94,7 +94,7 @@ protected:
 	bool ShouldAnimatorsTick() const;
 
 	/** Animators linked to this actor, they contain only properties within this actor */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Setter="SetAnimators", Category="Animator", meta=(TitleProperty="AnimatorDisplayName"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, NoClear, Export, Instanced, Setter="SetAnimators", Category="Animator", meta=(TitleProperty="AnimatorDisplayName"))
 	TArray<TObjectPtr<UPropertyAnimatorCoreBase>> PropertyAnimators;
 
 	/** Global state for all animators controlled by this component */

@@ -295,11 +295,12 @@ private:
 	FName AnimatorDisplayName;
 
 	/** Context for properties linked to this Animator */
-	UPROPERTY(EditInstanceOnly, Category="Animator", EditFixedSize, meta=(EditFixedOrder))
+	// UPROPERTY(EditInstanceOnly, Category="Animator", EditFixedSize, meta=(EditFixedOrder))
+	UPROPERTY(EditInstanceOnly, NoClear, Export, Instanced, EditFixedSize, Category="Animator", meta=(EditFixedOrder))
 	TArray<TObjectPtr<UPropertyAnimatorCoreContext>> LinkedProperties;
 
 	/** Groups for properties linked to this Animator */
-	UPROPERTY(EditInstanceOnly, Instanced, Category="Animator")
+	UPROPERTY(EditInstanceOnly, NoClear, Export, Instanced, Category="Animator")
 	TArray<TObjectPtr<UPropertyAnimatorCoreGroupBase>> PropertyGroups;
 
 	/** The time source to use */
