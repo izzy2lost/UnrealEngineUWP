@@ -34,24 +34,31 @@ public:
 	// ~End UObject interface
 
 	// ~Begin UPCGSettings interface
+	virtual TArray<FPCGPinProperties> DefaultInputPinProperties() const override;
+	virtual TArray<FPCGPinProperties> DefaultOutputPinProperties() const override;
+
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return bIsInput ? FName(TEXT("InputNode")) : FName(TEXT("OutputNode")); }
 	virtual FText GetDefaultNodeTitle() const override { return bIsInput ? NSLOCTEXT("PCGGraphInputOutputSettings", "InputNodeTitle", "Input Node") : NSLOCTEXT("PCGGraphInputOutputSettings", "OutputNodeTitle", "Output Node"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::InputOutput; }
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
-	// The output node does not emit a task (input node does however). This prevents it displaying as culled when debugging.
-	virtual bool EmitsTaskForExecution() const override { return bIsInput; }
-#endif
+#endif // WITH_EDITOR
 
-	TArray<FPCGPinProperties> InputPinProperties() const override;
-	TArray<FPCGPinProperties> OutputPinProperties() const override;
+protected:
+	virtual FPCGElementPtr CreateElement() const override { return MakeShared<FPCGInputOutputElement>(); }
+	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
+	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 
-	virtual TArray<FPCGPinProperties> DefaultInputPinProperties() const override;
-	virtual TArray<FPCGPinProperties> DefaultOutputPinProperties() const override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual EPCGChangeType GetChangeTypeForProperty(FPropertyChangedEvent& PropertyChangedEvent) const override;
+#endif // WITH_EDITOR
+	// ~End UPCGSettings interface
 
+public:
+	bool IsInput() const { return bIsInput; }
 	void SetInput(bool bInIsInput);
-
+	
 	// Add a new custom pin
 	// Note that you should use the return value of this function, since it can be different from
 	// the one passed as argument. It will change if its label collides with existing pins.
@@ -59,9 +66,6 @@ public:
 
 protected:
 	TArray<FPCGPinProperties> DefaultPinProperties(bool bInvisiblePin) const;
-	virtual FPCGElementPtr CreateElement() const override { return MakeShared<FPCGInputOutputElement>(); }
-	// ~End UPCGSettings interface
-
 	void FixPinProperties();
 
 protected:

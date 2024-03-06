@@ -319,9 +319,6 @@ public:
 
 	/** Perform post-operations when an editor node is copied */
 	virtual void PostPaste();
-
-	/** Whether the node will emit one or more tasks for execution. */
-	virtual bool EmitsTaskForExecution() const { return true; }
 #endif // WITH_EDITOR
 
 	/** Derived classes can implement this to expose additional information or context, such as an asset in use by the node. */
@@ -414,6 +411,9 @@ protected:
 
 	UE_DEPRECATED(5.4, "IsStructuralProperty is deprecated, return EPCGChangeType::Structural from GetChangeTypeForProperty instead.")
 	virtual bool IsStructuralProperty(const FName& InPropertyName) const { return false; }
+
+	/** Gets the change impact for a given property. Can be used to signal structural or cosmetic node changes for example - calls the named version by default. */
+	virtual EPCGChangeType GetChangeTypeForProperty(FPropertyChangedEvent& PropertyChangedEvent) const;
 
 	/** Gets the change impact for a given property. Can be used to signal structural or cosmetic node changes for example. */
 	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const;

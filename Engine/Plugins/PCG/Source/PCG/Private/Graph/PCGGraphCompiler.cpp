@@ -4,6 +4,7 @@
 
 #include "PCGEdge.h"
 #include "PCGGraph.h"
+#include "PCGInputOutputSettings.h"
 #include "PCGModule.h"
 #include "PCGPin.h"
 #include "PCGSubgraph.h"
@@ -166,6 +167,8 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 
 			// Add execution-only dependency on pre-task, without this post task can be scheduled concurrently with pre-task, and concurrently
 			// with something that might become inactive and would then fail to dynamically cull this already-scheduled task.
+			// Additional implementation note: this first depedencency is critical in our ability to do static culling (see CalculateStaticallyActiveRecursive)
+			// and should not be changed here without changing the other.
 			PostTask.Inputs.Emplace(PreId, /*InInboundPin=*/nullptr, /*InOutboundPin=*/nullptr, /*bInProvideData=*/false);
 
 			// Add subgraph output node task as input to the post-task
@@ -493,23 +496,39 @@ bool FPCGGraphCompiler::CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, 
 		return *bEntry;
 	}
 
+	const UPCGNode* Node = InCompiledTasks[InTaskId].Node;
+
 	// Nodes within subgraphs - if the subgraph node is inactive then all tasks within the subgraph are inactive.
 	if (InCompiledTasks[InTaskId].ParentId != InvalidPCGTaskId)
 	{
 		const bool bParentActive = CalculateStaticallyActiveRecursive(InCompiledTasks[InTaskId].ParentId, InCompiledTasks, InOutTaskIdToActiveFlag);
-		if (!bParentActive)
+		// With respect to the input node in a static subgraph, it has to use the same value as its parent since there is no direct edge between the subgraph node and this input node.
+		if (!bParentActive || (Node && Node->GetSettings() && Node->GetSettings()->IsA<UPCGGraphInputOutputSettings>()))
 		{
 			InOutTaskIdToActiveFlag.Add(InTaskId, bParentActive);
-
 			return bParentActive;
 		}
 	}
 
-	const UPCGNode* Node = InCompiledTasks[InTaskId].Node;
 	if (!Node)
 	{
 		InOutTaskIdToActiveFlag.Add(InTaskId, true);
 		return true;
+	}
+
+	// For static subgraphs, the second time this node is seen, it has a trivial task and no proper edge, which will trip the static validation below
+	// This should basically forward the same information as the original node - which is conveniently the first input on that task.
+	if (UPCGSubgraphSettings* SubgraphSettings = Cast<UPCGSubgraphSettings>(Node->GetSettings()))
+	{
+		FPCGTaskId TentativeSubgraphInputId = InCompiledTasks[InTaskId].Inputs.IsEmpty() ? InvalidPCGTaskId : InCompiledTasks[InTaskId].Inputs[0].TaskId;
+
+		if (!SubgraphSettings->IsDynamicGraph() && TentativeSubgraphInputId != InvalidPCGTaskId && InCompiledTasks[TentativeSubgraphInputId].Node == Node)
+		{
+			const bool bSubgraphInputActive = CalculateStaticallyActiveRecursive(TentativeSubgraphInputId, InCompiledTasks, InOutTaskIdToActiveFlag);
+
+			InOutTaskIdToActiveFlag.Add(InTaskId, bSubgraphInputActive);
+			return bSubgraphInputActive;
+		}
 	}
 
 	TArray<FName, TInlineAllocator<8>> PinsRequiringActiveConnection;
@@ -554,10 +573,13 @@ bool FPCGGraphCompiler::CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, 
 		bool bInputActive = true;
 
 		// If we are connected to an upstream node, evaluate if the output pin is active.
-		const UPCGNode* UpstreamNode = InCompiledTasks[Input.TaskId].Node;
-		if (const UPCGSettings* UpstreamSettings = UpstreamNode ? UpstreamNode->GetSettings() : nullptr)
+		if (Input.InPin)
 		{
-			bInputActive &= UpstreamSettings->IsPinStaticallyActive(Input.InPin->Properties.Label);
+			const UPCGNode* UpstreamNode = InCompiledTasks[Input.TaskId].Node;
+			if (const UPCGSettings* UpstreamSettings = UpstreamNode ? UpstreamNode->GetSettings() : nullptr)
+			{
+				bInputActive &= UpstreamSettings->IsPinStaticallyActive(Input.InPin->Properties.Label);
+			}
 		}
 
 		if (bInputActive)
@@ -842,12 +864,15 @@ void FPCGGraphCompiler::CalculateDynamicActivePinDependencies(FPCGTaskId InTaskI
 	}
 	else
 	{
+		// In the case of output nodes, advanced pins shouldn't be ignored as it can and will prevent culling in some instances
+		const bool bTreatAdvancedPinsAsNormal = (Node && Cast<UPCGGraphInputOutputSettings>(Node->GetSettings()) && !Cast<UPCGGraphInputOutputSettings>(Node->GetSettings())->IsInput());
+
 		// If we don't have any dependent pins logged by now then there are no required pins (note that a node that does not have task
 		// inputs for required pins will be statically culled in an earlier compilation step). In which case we'll be active if *any* input
 		// is active. We build a disjunction that expresses this.
 		for (const FPCGGraphTaskInput& Input : InOutCompiledTasks[InTaskId].Inputs)
 		{
-			if (Input.OutPin && Input.OutPin->Properties.IsAdvancedPin())
+			if (Input.OutPin && Input.OutPin->Properties.IsAdvancedPin() && !bTreatAdvancedPinsAsNormal)
 			{
 				// Advanced input pins never participate in keeping node active.
 				continue;

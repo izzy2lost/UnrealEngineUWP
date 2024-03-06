@@ -217,6 +217,24 @@ void UPCGGraphInputOutputSettings::PostEditChangeProperty(struct FPropertyChange
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+
+EPCGChangeType UPCGGraphInputOutputSettings::GetChangeTypeForProperty(FPropertyChangedEvent& PropertyChangedEvent) const
+{
+	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(PropertyChangedEvent);
+
+	if (bIsInput && PropertyChangedEvent.Property)
+	{
+		// If pins were removed or the required-ness of a pin has changed, this needs to be a structural change.
+		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGGraphInputOutputSettings, Pins) ||
+			(PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGGraphInputOutputSettings, Pins) && 
+			PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(FPCGPinProperties, PinStatus)))
+		{
+			ChangeType |= EPCGChangeType::Structural;
+		}
+	}
+
+	return ChangeType;
+}
 #endif // WITH_EDITOR
 
 TArray<FPCGPinProperties> UPCGGraphInputOutputSettings::InputPinProperties() const
