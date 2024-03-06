@@ -86,7 +86,7 @@
 	#ifndef CVD_SCOPE_TRACE_SOLVER_STEP
 		#define CVD_SCOPE_TRACE_SOLVER_STEP(DataChannel, StepName) \
 			CVD_SCOPED_DATA_CHANNEL_OVERRIDE(DataChannel) \
-			FChaosVDScopeSolverStep ScopeSolverStep(StepName);
+			FChaosVDScopeSolverStep ScopeSolverStep(StepName)
 	#endif
 
 	#ifndef CVD_TRACE_BINARY_DATA

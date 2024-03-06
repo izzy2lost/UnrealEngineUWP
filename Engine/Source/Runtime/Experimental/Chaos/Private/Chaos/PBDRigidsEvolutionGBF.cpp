@@ -445,7 +445,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 #endif
 
 	{
-		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_EvolutionStart, TEXT("Evolution Start"))
+		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_EvolutionStart, TEXT("Evolution Start"));
 		CVD_TRACE_PARTICLES_SOA(Particles);
 	}
 
@@ -468,17 +468,20 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 	}
 
 	{
-		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_Integrate, TEXT("Integrate"))
 		SCOPE_CYCLE_COUNTER(STAT_Evolution_Integrate);
 		CSV_SCOPED_TIMING_STAT(PhysicsVerbose, StepSolver_Integrate);
 		Integrate(Dt);
 	}
 
 	{
-		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_ApplyKinematicTargets, TEXT("ApplyKinematicTargets"))
 		SCOPE_CYCLE_COUNTER(STAT_Evolution_KinematicTargets);
 		CSV_SCOPED_TIMING_STAT(PhysicsVerbose, StepSolver_KinematicTargets);
 		ApplyKinematicTargets(Dt, SubStepInfo.PseudoFraction);
+	}
+
+	{
+		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_PostIntegrate, TEXT("Post Integrate"));
+		CVD_TRACE_PARTICLES_SOA(Particles);
 	}
 
 	if (PostIntegrateCallback != nullptr)
@@ -508,7 +511,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		CollisionDetector.GetBroadPhase().SetSpatialAcceleration(InternalAcceleration);
 
 		{
-			CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_CollisionDetectionBroadPhase, TEXT("Collision Detection Broad Phase"))
+			CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_CollisionDetectionBroadPhase, TEXT("Collision Detection Broad Phase"));
 			CollisionDetector.RunBroadPhase(Dt, GetCurrentStepResimCache());
 		}
 
@@ -519,7 +522,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		}
 
 		{
-			CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_CollisionDetectionNarrowPhase, TEXT("Collision Detection Narrow Phase"))
+			CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_CollisionDetectionNarrowPhase, TEXT("Collision Detection Narrow Phase"));
 			CollisionDetector.RunNarrowPhase(Dt, GetCurrentStepResimCache());
 		}
 	}
@@ -596,6 +599,11 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		ReloadParticlesCache();
 	}
 
+	{
+		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_PreConstraintSolve, TEXT("Pre Solve"));
+		CVD_TRACE_PARTICLES_SOA(Particles);
+	}
+
 	// Assign all islands to a set of groups. Each group is solved in parallel with the others.
 	int32 NumGroups = 0;
 	{
@@ -631,6 +639,11 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 			CSV_SCOPED_TIMING_STAT(PhysicsVerbose, StepSolver_CCDCorrection);
 			CCDManager.ApplyCorrections(Dt);
 		}
+	}
+
+	{
+		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_PostConstraintSolve, TEXT("Post Solve"));
+		CVD_TRACE_PARTICLES_SOA(Particles);
 	}
 
 	if (PostSolveCallback != nullptr)
@@ -742,13 +755,8 @@ void FPBDRigidsEvolutionGBF::Integrate(FReal Dt)
 	const bool bAllowMACD = CVars::bChaosUseMACD;
 	const bool bForceMACD = CVars::bChaosForceMACD;
 
-	FChaosVDContextWrapper CVDContext;
-	CVD_GET_WRAPPED_CURRENT_CONTEXT(CVDContext);
-
 	ParticlesView.ParallelFor([&](auto& GeomParticle, int32 Index)
 		{
-			CVD_SCOPE_CONTEXT(CVDContext.Context);
-
 			//question: can we enforce this at the API layer? Right now islands contain non dynamic which makes this hard
 			auto PBDParticle = GeomParticle.CastToRigidParticle();
 			if (PBDParticle && PBDParticle->ObjectState() == EObjectStateType::Dynamic)
@@ -875,8 +883,6 @@ void FPBDRigidsEvolutionGBF::Integrate(FReal Dt)
 						Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(BoundsThickness), VelocityBoundsDelta);
 					}
 				}
-
-				CVD_TRACE_PARTICLE(PBDParticle->Handle())
 			}
 		});
 
@@ -884,6 +890,129 @@ void FPBDRigidsEvolutionGBF::Integrate(FReal Dt)
 	{
 		Base::DirtyParticle(Particle);
 	}
+}
+
+void FPBDRigidsEvolutionGBF::ApplyKinematicTargets(const FReal Dt, const FReal StepFraction)
+{
+	check(StepFraction > (FReal)0);
+	check(StepFraction <= (FReal)1);
+
+	const bool IsLastStep = (FMath::IsNearlyEqual(StepFraction, (FReal)1, (FReal)UE_KINDA_SMALL_NUMBER));
+
+	// NOTE: ApplyKinematicTargetForParticle is run in a parallel-for. We only write to particle state
+	const auto& ApplyParticleKinematicTarget =
+	[Dt, StepFraction, IsLastStep](FTransientPBDRigidParticleHandle& Particle, const int32 ParticleIndex) -> void
+	{
+		TKinematicTarget<FReal, 3>& KinematicTarget = Particle.KinematicTarget();
+		const FVec3 CurrentX = Particle.GetX();
+		const FRotation3 CurrentR = Particle.GetR();
+		constexpr FReal MinDt = 1e-6f;
+
+		bool bMoved = false;
+		switch (KinematicTarget.GetMode())
+		{
+		case EKinematicTargetMode::None:
+			// Nothing to do
+			break;
+
+		case EKinematicTargetMode::Reset:
+		{
+			// Reset velocity and then switch to do-nothing mode
+			Particle.SetVf(FVec3f(0.0f, 0.0f, 0.0f));
+			Particle.SetWf(FVec3f(0.0f, 0.0f, 0.0f));
+			Particle.ClearIsMovingKinematic();
+			KinematicTarget.SetMode(EKinematicTargetMode::None);
+			break;
+		}
+
+		case EKinematicTargetMode::Position:
+		{
+			// Move to kinematic target and update velocities to match
+			// Target positions only need to be processed once, and we reset the velocity next frame (if no new target is set)
+			FVec3 NewX;
+			FRotation3 NewR;
+			if (IsLastStep)
+			{
+				NewX = KinematicTarget.GetTarget().GetLocation();
+				NewR = KinematicTarget.GetTarget().GetRotation();
+				KinematicTarget.SetMode(EKinematicTargetMode::Reset);
+			}
+			else
+			{
+				// as a reminder, stepfraction is the remaing fraction of the step from the remaining steps
+				// for total of 4 steps and current step of 2, this will be 1/3 ( 1 step passed, 3 steps remains )
+				NewX = FVec3::Lerp(CurrentX, KinematicTarget.GetTarget().GetLocation(), StepFraction);
+				NewR = FRotation3::Slerp(CurrentR, KinematicTarget.GetTarget().GetRotation(), decltype(FQuat::X)(StepFraction));
+			}
+
+			const bool bPositionChanged = !FVec3::IsNearlyEqual(NewX, CurrentX, UE_SMALL_NUMBER);
+			const bool bRotationChanged = !FRotation3::IsNearlyEqual(NewR, CurrentR, UE_SMALL_NUMBER);
+			bMoved = bPositionChanged || bRotationChanged;
+			FVec3 NewV = FVec3(0);
+			FVec3 NewW = FVec3(0);
+			if (Dt > MinDt)
+			{
+				if (bPositionChanged)
+				{
+					NewV = FVec3::CalculateVelocity(CurrentX, NewX, Dt);
+				}
+				if (bRotationChanged)
+				{
+					NewW = FRotation3::CalculateAngularVelocity(CurrentR, NewR, Dt);
+				}
+			}
+			Particle.SetX(NewX);
+			Particle.SetR(NewR);
+			Particle.SetV(NewV);
+			Particle.SetW(NewW);
+			Particle.SetIsMovingKinematic();
+
+			break;
+		}
+
+		case EKinematicTargetMode::Velocity:
+		{
+			// Move based on velocity
+			bMoved = true;
+			Particle.SetX(Particle.GetX() + Particle.GetV() * Dt);
+			Particle.SetRf(FRotation3f::IntegrateRotationWithAngularVelocity(Particle.GetRf(), Particle.GetWf(), FRealSingle(Dt)));
+			Particle.SetIsMovingKinematic();
+
+			break;
+		}
+		}
+
+		// Set positions and previous velocities if we can
+		// Note: At present kinematics are in fact rigid bodies
+		Particle.SetP(Particle.GetX());
+		Particle.SetQf(Particle.GetRf());
+		Particle.SetPreVf(Particle.GetVf());
+		Particle.SetPreWf(Particle.GetWf());
+
+		if (bMoved)
+		{
+			if (!Particle.CCDEnabled())
+			{
+				Particle.UpdateWorldSpaceState(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(0));
+			}
+			else
+			{
+				Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(0), -Particle.GetV() * Dt);
+			}
+		}
+	};
+
+	// Apply kinematic targets in parallel
+	Particles.GetActiveMovingKinematicParticlesView().ParallelFor(ApplyParticleKinematicTarget);
+
+	// done with update, let's clear the tracking structures
+	if (IsLastStep)
+	{
+		Particles.UpdateAllMovingKinematic();
+	}
+
+	// If we changed any particle state, the views need to be refreshed
+	Particles.UpdateDirtyViews();
 }
 
 void FPBDRigidsEvolutionGBF::SetIsDeterministic(const bool bInIsDeterministic)
