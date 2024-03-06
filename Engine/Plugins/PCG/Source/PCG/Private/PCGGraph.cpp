@@ -1617,17 +1617,16 @@ uint32 UPCGGraph::CalculateNodeGridSizeRecursive_Unsafe(const UPCGNode* InNode, 
 		return *CachedGridSize;
 	}
 
-	uint32 GridSize = PCGHiGenGrid::UninitializedGridSize();
+	uint32 GridSize = InDefaultGridSize;
 
 	const UPCGHiGenGridSizeSettings* GridSizeSettings = Cast<UPCGHiGenGridSizeSettings>(InNode->GetSettings());
 	if (GridSizeSettings && GridSizeSettings->bEnabled)
 	{
-		GridSize = GridSizeSettings->GetGridSize();
+		GridSize = FMath::Min(GridSize, GridSizeSettings->GetGridSize());
 	}
 	else
 	{
 		// Grid size for a node is the minimum of the grid sizes of connected upstream nodes.
-		uint32 MinGenerationSize = std::numeric_limits<uint32>::max();
 		for (const UPCGPin* Pin : InNode->GetInputPins())
 		{
 			if (Pin)
@@ -1640,14 +1639,12 @@ uint32 UPCGGraph::CalculateNodeGridSizeRecursive_Unsafe(const UPCGNode* InNode, 
 						const uint32 InputGridSize = CalculateNodeGridSizeRecursive_Unsafe(OtherPin->Node, InDefaultGridSize);
 						if (PCGHiGenGrid::IsValidGridSize(InputGridSize))
 						{
-							MinGenerationSize = FMath::Min(MinGenerationSize, InputGridSize);
+							GridSize = FMath::Min(GridSize, InputGridSize);
 						}
 					}
 				}
 			}
 		}
-
-		GridSize = (MinGenerationSize == std::numeric_limits<uint32>::max()) ? InDefaultGridSize : MinGenerationSize;
 	}
 
 	if (GridSize != PCGHiGenGrid::UninitializedGridSize())

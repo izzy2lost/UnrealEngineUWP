@@ -445,7 +445,7 @@ EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(
 	// Grid Size nodes in the top graph set the execution grid level.
 	if (GridSizeSettings && GridSizeSettings->bEnabled && bTopLevelGraph)
 	{
-		Grid = GridSizeSettings->GetGrid();
+		Grid = FMath::Min(GenerationDefaultGrid, GridSizeSettings->GetGrid());
 	}
 	else
 	{

@@ -119,6 +119,15 @@ bool FPCGHiGenGridSizeElement::ExecuteInternal(FPCGContext* Context) const
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGHiGenGridSizeElement::Execute);
 	check(Context);
 
+	const UPCGHiGenGridSizeSettings* Settings = Context->GetInputSettings<UPCGHiGenGridSizeSettings>();
+	check(Settings);
+
+	const UPCGGraph* Graph = Context->Node ? Context->Node->GetGraph() : nullptr;
+	if (Graph && Graph->IsHierarchicalGenerationEnabled() && (Graph->GetDefaultGrid() < Settings->GetGrid()))
+	{
+		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("GridSizeLargerThanGraphGridSize", "Grid size is larger than graph default grid size and will be automatically clamped."));
+	}
+
 	// Trivial pass through. Will only execute on the prescribed grid.
 	Context->OutputData = Context->InputData;
 	for (FPCGTaggedData& Data : Context->OutputData.TaggedData)
