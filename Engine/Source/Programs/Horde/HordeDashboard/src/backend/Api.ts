@@ -5047,6 +5047,8 @@ export type GetToolSummaryResponse = {
 
 	/** Version of tool */
 	version?: string;
+
+	showInDashboard: boolean;
 }
 
 /** Job Bisect */
