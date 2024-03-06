@@ -302,6 +302,7 @@ struct FRHITransientAliasingInfo
 		return Info;
 	}
 
+	UE_DEPRECATED(5.5, "Discard aliasing ops are no longer necessary.")
 	static FRHITransientAliasingInfo Discard(class FRHITexture* Texture)
 	{
 		FRHITransientAliasingInfo Info;
@@ -311,6 +312,7 @@ struct FRHITransientAliasingInfo
 		return Info;
 	}
 
+	UE_DEPRECATED(5.5, "Discard aliasing ops are no longer necessary.")
 	static FRHITransientAliasingInfo Discard(class FRHIBuffer* Buffer)
 	{
 		FRHITransientAliasingInfo Info;
@@ -325,6 +327,7 @@ struct FRHITransientAliasingInfo
 		return Action == EAction::Acquire;
 	}
 
+	UE_DEPRECATED(5.5, "Discard aliasing ops are no longer necessary.")
 	bool IsDiscard() const
 	{
 		return Action == EAction::Discard;

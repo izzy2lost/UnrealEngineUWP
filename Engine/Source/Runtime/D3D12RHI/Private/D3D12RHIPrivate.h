@@ -216,7 +216,7 @@ private:
 	FProcessResult ProcessSubmissionQueue();
 	FProcessResult ProcessInterruptQueue();
 
-	static FD3D12CommandList* GenerateBarrierCommandListAndUpdateState(FD3D12CommandList* SourceCommandList);
+	static void GenerateBarrierCommandListAndUpdateState(FD3D12CommandList* SourceCommandList, TArray<FD3D12CommandList*, TInlineAllocator<2>>& OutBarrierCommandLists);
 
 	FCriticalSection ObjectsToDeleteCS;
 	TArray<FD3D12DeferredDeleteObject> ObjectsToDelete;

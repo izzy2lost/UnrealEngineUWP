@@ -1624,7 +1624,7 @@ void LogResourceBarriers(TConstArrayView<D3D12_RESOURCE_BARRIER> Barriers, ID3D1
 }
 
 
-D3D12_RESOURCE_STATES GetD3D12ResourceState(ERHIAccess InRHIAccess, bool InIsAsyncCompute)
+D3D12_RESOURCE_STATES GetD3D12ResourceState(ERHIAccess InRHIAccess, ED3D12QueueType QueueType)
 {
 	// Add switch for common states (should cover all writeable states)
 	switch (InRHIAccess)
@@ -1658,7 +1658,7 @@ D3D12_RESOURCE_STATES GetD3D12ResourceState(ERHIAccess InRHIAccess, bool InIsAsy
 			D3D12_RESOURCE_STATES State = D3D12_RESOURCE_STATE_COMMON;
 
 			// Translate the requested after state to a D3D state
-			if (EnumHasAnyFlags(InRHIAccess, ERHIAccess::SRVGraphics) && !InIsAsyncCompute)
+			if (EnumHasAnyFlags(InRHIAccess, ERHIAccess::SRVGraphics) && QueueType == ED3D12QueueType::Direct)
 			{
 				State |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
 			}

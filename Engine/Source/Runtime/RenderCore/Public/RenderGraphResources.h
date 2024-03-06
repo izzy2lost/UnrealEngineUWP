@@ -47,6 +47,7 @@ struct FRDGProducerState
 {
 	FRDGPass* Pass = nullptr;
 	FRDGPass* PassIfSkipUAVBarrier = nullptr;
+	FRDGPass* PassIfReadAccess = nullptr;
 	ERHIAccess Access = ERHIAccess::Unknown;
 	FRDGViewHandle NoUAVBarrierHandle;
 };
@@ -142,13 +143,6 @@ public:
 		return ResourceRHI;
 	}
 
-	void SetOwnerName(const FName& InOwnerName)
-	{
-#if RHI_ENABLE_RESOURCE_INFO
-		OwnerName = InOwnerName;
-#endif
-	}
-
 	//////////////////////////////////////////////////////////////////////////
 
 protected:
@@ -176,10 +170,6 @@ private:
 #if RDG_ENABLE_DEBUG
 	struct FRDGResourceDebugData* DebugData = nullptr;
 	RENDERCORE_API FRDGResourceDebugData& GetDebugData() const;
-#endif
-
-#if RHI_ENABLE_RESOURCE_INFO
-	FName OwnerName;	// For RHI resource tracking
 #endif
 
 	friend FRDGBuilder;
@@ -317,6 +307,13 @@ public:
 		return bProduced;
 	}
 
+	void SetOwnerName(const FName& InOwnerName)
+	{
+#if RHI_ENABLE_RESOURCE_INFO
+		OwnerName = InOwnerName;
+#endif
+	}
+
 protected:
 	RENDERCORE_API FRDGViewableResource(const TCHAR* InName, ERDGViewableResourceType InType, bool bSkipTracking, bool bImmediateFirstBarrier);
 
@@ -395,10 +392,10 @@ protected:
 	/** Whether this resource is allowed to be both transient and extracted. */
 	ETransientExtractionHint TransientExtractionHint;
 
+	FRDGPassHandle AcquirePass;
+	FRDGPassHandle DiscardPass;
 	FRDGPassHandle FirstPass;
-	FRDGPassHandle LastPass;
-	FRDGPassHandle MinAcquirePass;
-	FRDGPassHandle MinDiscardPass;
+	FRDGPassHandlesByPipeline LastPasses;
 
 	/** Number of references in passes and deferred queries. */
 	uint32 ReferenceCount;
@@ -415,6 +412,16 @@ protected:
 private:
 	static const uint16 DeallocatedReferenceCount = ~0;
 
+	void SetRHI(FRHIResource* Resource)
+	{
+		check(!ResourceRHI);
+		ResourceRHI = Resource;
+
+	#if RHI_ENABLE_RESOURCE_INFO
+		ResourceRHI->SetOwnerName(OwnerName);
+	#endif
+	}
+
 	void SetExternalAccessMode(ERHIAccess InAccess, ERHIPipeline InPipelines)
 	{
 		check(!AccessModeState.bLocked);
@@ -426,6 +433,10 @@ private:
 		EpilogueAccess = InAccess;
 	}
 
+#if RHI_ENABLE_RESOURCE_INFO
+	FName OwnerName;	// For RHI resource tracking
+#endif
+
 #if RDG_ENABLE_TRACE
 	uint32 TraceOrder = 0;
 	TArray<FRDGPassHandle, FRDGArrayAllocator> TracePasses;
@@ -435,6 +446,8 @@ private:
 	struct FRDGViewableResourceDebugData* ViewableDebugData = nullptr;
 	RENDERCORE_API FRDGViewableResourceDebugData& GetViewableDebugData() const;
 #endif
+
+	friend bool IsExtendedLifetimeResource(FRDGViewableResource*);
 
 	friend FRDGBuilder;
 	friend FRDGUserValidation;
@@ -492,7 +505,9 @@ class FRDGPooledTexture final
 public:
 	FRDGPooledTexture(FRHITexture* InTexture)
 		: Texture(InTexture)
-	{}
+	{
+		Fences.Emplace();
+	}
 
 	/** Finds a UAV matching the descriptor in the cache or creates a new one and updates the cache. */
 	FORCEINLINE FRHIUnorderedAccessView* GetOrCreateUAV(FRHICommandListBase& RHICmdList, const FRHITextureUAVCreateInfo& UAVDesc) { return ViewCache.GetOrCreateUAV(RHICmdList, Texture, UAVDesc); }
@@ -511,8 +526,10 @@ public:
 private:
 	TRefCountPtr<FRHITexture> Texture;
 	FRHITextureViewCache ViewCache;
+	TOptional<FRHITransientAllocationFences> Fences;
 
 	friend FRDGBuilder;
+	friend FRenderTargetPool;
 };
 
 /** Render graph tracked Texture. */
@@ -1153,6 +1170,8 @@ public:
 		{
 			CachedSRV = GetOrCreateSRV(RHICmdList, FRHIBufferSRVCreateInfo());
 		}
+
+		Fences.Emplace();
 	}
 
 	RENDERCORE_API FRDGPooledBuffer(TRefCountPtr<FRHIBuffer> InBuffer, const FRDGBufferDesc& InDesc, uint32 InNumAllocatedElements, const TCHAR* InName);
@@ -1224,6 +1243,8 @@ private:
 		return AlignedDesc;
 	}
 
+	void SetDebugLabelName(FRHICommandListBase& RHICmdList, const TCHAR* InName);
+
 	// Used internally by FRDGBuilder::QueueCommitReservedBuffer(),
 	// which is expected to be the only way to resize physical memory for FRDGPooledBuffer
 	void SetCommittedSize(uint64 InCommittedSizeInBytes)
@@ -1252,6 +1273,8 @@ private:
 
 	const uint32 NumAllocatedElements;
 	uint32 LastUsedFrame = 0;
+
+	TOptional<FRHITransientAllocationFences> Fences;
 
 	friend FRDGBuilder;
 	friend FRDGBufferPool;

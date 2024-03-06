@@ -9,6 +9,7 @@
 #include "CoreMinimal.h"
 #include "Containers/Queue.h"
 #include "D3D12RHICommon.h"
+#include "D3D12Queue.h"
 #include "DXGIUtilities.h"
 #include "RenderUtils.h"
 #include "ShaderCore.h"
@@ -236,7 +237,7 @@ static bool IsDirectQueueExclusiveD3D12State(D3D12_RESOURCE_STATES InState)
 	return EnumHasAnyFlags(InState, D3D12_RESOURCE_STATE_RENDER_TARGET | D3D12_RESOURCE_STATE_DEPTH_WRITE | D3D12_RESOURCE_STATE_DEPTH_READ | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 }
 
-D3D12_RESOURCE_STATES GetD3D12ResourceState(ERHIAccess InRHIAccess, bool InIsAsyncCompute);
+D3D12_RESOURCE_STATES GetD3D12ResourceState(ERHIAccess InRHIAccess, ED3D12QueueType QueueType);
 
 //==================================================================================================================================
 // CResourceState

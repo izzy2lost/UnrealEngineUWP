@@ -1508,21 +1508,6 @@ void FRDGBarrierValidation::ValidateBarrierBatchEnd(const FRDGPass* Pass, const 
 			}
 		}
 
-		for (const auto& KeyValue : ResourceMap.Aliases)
-		{
-			const FRHITransientAliasingInfo& Info = KeyValue.Value;
-			if (Info.IsDiscard())
-			{
-				FRDGViewableResource* Resource = KeyValue.Key;
-
-				if (IsDebugAllowedForResource(Resource->Name))
-				{
-					LogHeader();
-					UE_LOG(LogRDG, Display, TEXT("\tRDG(%p) RHI(%p) %s - Discard"), Resource, Resource->GetRHIUnchecked(), Resource->Name);
-				}
-			}
-		}
-
 		bFoundFirst = false;
 	}
 }

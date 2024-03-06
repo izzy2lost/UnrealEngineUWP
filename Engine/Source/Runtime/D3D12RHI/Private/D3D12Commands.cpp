@@ -8,13 +8,6 @@ D3D12Commands.cpp: D3D RHI commands implementation.
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "ProfilingDebugging/RealtimeGPUProfiler.h"
 
-static int32 GD3D12TransientAllocatorFullAliasingBarrier = 0;
-static FAutoConsoleVariableRef CVarD3D12TransientAllocatorFullAliasingBarrier(
-	TEXT("d3d12.TransientAllocator.FullAliasingBarrier"),
-	GD3D12TransientAllocatorFullAliasingBarrier,
-	TEXT("Inserts a full aliasing barrier on an transient acquire operation. Useful to debug if an aliasing barrier is missing."),
-	ECVF_RenderThreadSafe);
-
 static int32 GD3D12AllowDiscardResources = 1;
 static FAutoConsoleVariableRef CVarD3D12AllowDiscardResources(
 	TEXT("d3d12.AllowDiscardResources"),
@@ -266,7 +259,7 @@ void ProcessResource(FD3D12CommandContext& Context, const FRHITransitionInfo& In
 static bool ProcessTransitionDuringBegin(const FD3D12TransitionData* Data)
 {
 	// Pipe changes which are not ending with graphics or targeting all pipelines are handle during begin
-	return ((Data->SrcPipelines != Data->DstPipelines && Data->DstPipelines != ERHIPipeline::Graphics) || EnumHasAllFlags(Data->DstPipelines, ERHIPipeline::All));
+	return !EnumHasAllFlags(Data->SrcPipelines, ERHIPipeline::All) && ((Data->SrcPipelines != Data->DstPipelines && Data->DstPipelines != ERHIPipeline::Graphics) || EnumHasAllFlags(Data->DstPipelines, ERHIPipeline::All));
 }
 
 struct FD3D12DiscardResource
@@ -327,12 +320,10 @@ void FD3D12CommandContext::HandleResourceDiscardTransitions(
 				return;
 			}
 
-			// Get the initial state to force a 'nop' transition so the internal command list resource tracking has the correct state
-			// already to make sure it's not added to the pending transition list to be kicked before this command list (resource is not valid then yet)
-			D3D12_RESOURCE_STATES InitialState = GetInitialResourceState(Resource->GetDesc());
+			D3D12_RESOURCE_STATES InitialState = GetInitialResourceState(Resource->GetDesc(), QueueType);
 			if (Info.IsWholeResource() || Resource->GetSubresourceCount() == 1)
 			{
-				TransitionResource(Resource, InitialState, InitialState, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+				TransitionResource(Resource, D3D12_RESOURCE_STATE_TBD, InitialState, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
 
 				const FD3D12RenderTargetView* RTV = nullptr;
 #if PLATFORM_REQUIRES_TYPELESS_RESOURCE_DISCARD_WORKAROUND
@@ -347,7 +338,7 @@ void FD3D12CommandContext::HandleResourceDiscardTransitions(
 			{
 				EnumerateSubresources(Resource, Info, Texture, [&](uint32 Subresource, const FD3D12RenderTargetView* RTV)
 				{
-					TransitionResource(Resource, InitialState, InitialState, Subresource);
+					TransitionResource(Resource, D3D12_RESOURCE_STATE_TBD, InitialState, Subresource);
 					ResourcesToDiscard.Emplace(Resource, Info.Flags, Subresource, Texture, RTV);
 				});
 			}
@@ -457,58 +448,7 @@ void FD3D12CommandContext::HandleTransientAliasing(const FD3D12TransitionData* T
 		if (Info.Action == FRHITransientAliasingInfo::EAction::Acquire)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(D3D12RHI::AcquireTransient);
-
-			if (GD3D12TransientAllocatorFullAliasingBarrier != 0)
-			{
-				AddAliasingBarrier(nullptr, Resource->GetResource());
-			}
-			else
-			{
-				for (const FRHITransientAliasingOverlap& Overlap : Info.Overlaps)
-				{
-					FD3D12Resource* ResourceBefore{};
-
-					switch (Overlap.Type)
-					{
-					case FRHITransientAliasingOverlap::EType::Texture:
-						{
-							const FD3D12Texture* Texture = RetrieveTexture(Overlap.Texture);
-							if (Texture)
-							{
-								ResourceBefore = Texture->GetResource();
-							}
-						}
-						break;
-					case FRHITransientAliasingOverlap::EType::Buffer:
-						{
-							const FD3D12Buffer* Buffer = RetrieveObject<FD3D12Buffer>(Overlap.Buffer);
-							if (Buffer)
-							{
-								ResourceBefore = Buffer->GetResource();
-							}
-						}
-						break;
-					}
-
-					// Resource may be null if this is a multi-GPU resource not present on the current GPU
-					check(ResourceBefore || GNumExplicitGPUsForRendering > 1);
-					if (ResourceBefore)
-					{
-						AddAliasingBarrier(ResourceBefore->GetResource(), Resource->GetResource());
-					}
-				}
-			}
-		}
-		else
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(D3D12RHI::DiscardTransient);
-
-			// Restore the resource back to the initial state when done
-			D3D12_RESOURCE_STATES FinalState = GetInitialResourceState(Resource->GetDesc());
-			TransitionResource(Resource, D3D12_RESOURCE_STATE_TBD, FinalState, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-			
-			// Remove from caches
-			ClearShaderResources(BaseShaderResource, EShaderParameterTypeMask::SRVMask | EShaderParameterTypeMask::UAVMask);
+			AddAliasingBarrier(nullptr, Resource->GetResource());
 		}
 	}
 }
@@ -532,9 +472,11 @@ void FD3D12CommandContext::HandleResourceTransitions(const FD3D12TransitionData*
 		// and the transition SRV->UAV needs a UAV barrier then to work correctly otherwise there is no synchronization at all
 		bUAVBarrier |= bUAVAccessAfter;
 
+		const bool bHandleDiscardTransition = (Info.AccessAfter == ERHIAccess::Discard && QueueType == ED3D12QueueType::Direct);
+
 		// Process transitions which are forced during begin because those contain transition from Graphics to Compute and should
 		// help remove forced patch up command lists for async compute to run on the graphics queue
-		if (Info.Resource && ProcessTransitionDuringBegin(TransitionData))
+		if (Info.Resource && (ProcessTransitionDuringBegin(TransitionData) || bHandleDiscardTransition))
 		{
 			ProcessResource(*this, Info, [&](const FRHITransitionInfo& Info, FD3D12Resource* Resource, FD3D12Texture* UnusedTexture = nullptr)
 			{
@@ -543,12 +485,10 @@ void FD3D12CommandContext::HandleResourceTransitions(const FD3D12TransitionData*
 					return;
 				}
 
-				const bool bIsAsyncCompute = EnumHasAnyFlags(TransitionData->DstPipelines, ERHIPipeline::AsyncCompute);
-
 				// Use D3D12_RESOURCE_STATE_TBD as before state for now and don't use provided before state because there is not validation nor handling if the provided state
 				// doesn't match up with the tracked state - this needs to be improved and checked
 				D3D12_RESOURCE_STATES StateBefore = D3D12_RESOURCE_STATE_TBD;
-				D3D12_RESOURCE_STATES StateAfter = Info.AccessAfter == ERHIAccess::Discard ? GetInitialResourceState(Resource->GetDesc()) : GetD3D12ResourceState(Info.AccessAfter, bIsAsyncCompute);
+				D3D12_RESOURCE_STATES StateAfter = Info.AccessAfter == ERHIAccess::Discard ? GetInitialResourceState(Resource->GetDesc(), QueueType) : GetD3D12ResourceState(Info.AccessAfter, QueueType);
 
 				// enqueue the correct transitions
 				if (Info.IsWholeResource() || Resource->GetSubresourceCount() == 1)

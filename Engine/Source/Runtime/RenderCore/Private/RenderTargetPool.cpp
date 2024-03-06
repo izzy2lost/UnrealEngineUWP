@@ -65,107 +65,129 @@ static uint32 ComputeSizeInKB(FPooledRenderTarget& Element)
 	return (Element.ComputeMemorySize() + 1023) / 1024;
 }
 
-TRefCountPtr<IPooledRenderTarget> FRenderTargetPool::FindFreeElement(FRHICommandListBase& RHICmdList, FRHITextureCreateInfo Desc, const TCHAR* Name)
+FPooledRenderTarget* FRenderTargetPool::CreateRenderTarget(FRHICommandListBase& RHICmdList, const FRHITextureCreateInfo& Desc, uint32 DescHash, const TCHAR* Name)
 {
-	FPooledRenderTarget* Found = 0;
-	uint32 FoundIndex = -1;
+#if CPUPROFILERTRACE_ENABLED
+	UE_TRACE_LOG_SCOPED_T(Cpu, FRenderTargetPool_CreateTexture, CpuChannel)
+		<< FRenderTargetPool_CreateTexture.Name(Name);
+#endif
 
-	// FastVRAM is no longer supported by the render target pool.
-	EnumRemoveFlags(Desc.Flags, ETextureCreateFlags::FastVRAM | ETextureCreateFlags::FastVRAMPartialAlloc);
+	const ERHIAccess AccessInitial = ERHIAccess::SRVMask;
+	FRHITextureCreateDesc CreateDesc(Desc, AccessInitial, Name);
+	const static FLazyName ClassName(TEXT("FPooledRenderTarget"));
+	CreateDesc.SetClassName(ClassName);
 
-	// We always want SRV access
-	Desc.Flags |= TexCreate_ShaderResource;
+	FPooledRenderTarget* Result = new FPooledRenderTarget(
+		RHICmdList.CreateTexture(CreateDesc),
+		Translate(CreateDesc),
+		this);
 
-	// Render target pool always forces textures into non streaming memory.
-	// UE-TODO: UE-188415 fix flags that we force in Render Target Pool
-	//Desc.Flags |= ETextureCreateFlags::ForceIntoNonStreamingMemoryTracking;
+	PooledRenderTargets.Add(Result);
+	PooledRenderTargetHashes.Add(DescHash);
 
-	const uint32 DescHash = GetTypeHash(Desc);
+	if (EnumHasAnyFlags(Desc.Flags, TexCreate_UAV))
+	{
+		// The render target desc is invalid if a UAV is requested with an RHI that doesn't support the high-end feature level.
+		check(GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5 || GMaxRHIFeatureLevel == ERHIFeatureLevel::ES3_1);
 
-	UE::TScopeLock Lock(Mutex);
+		if (GRHISupportsUAVFormatAliasing)
+		{
+			EPixelFormat AliasFormat = Desc.UAVFormat != PF_Unknown
+				? Desc.UAVFormat
+				: Desc.Format;
 
+			Result->RenderTargetItem.UAV = RHICmdList.CreateUnorderedAccessView(Result->GetRHI(), 0, (uint8)AliasFormat, 0, 0);
+		}
+		else
+		{
+			checkf(Desc.UAVFormat == PF_Unknown || Desc.UAVFormat == Desc.Format, TEXT("UAV aliasing is not supported by the current RHI."));
+			Result->RenderTargetItem.UAV = RHICmdList.CreateUnorderedAccessView(Result->GetRHI(), 0);
+		}
+	}
+
+	AllocationLevelInKB += ComputeSizeInKB(*Result);
+	TRACE_COUNTER_ADD(RenderTargetPoolCount, 1);
+	TRACE_COUNTER_SET(RenderTargetPoolSize, (int64)AllocationLevelInKB * 1024);
+	return Result;
+}
+
+template <typename T>
+FPooledRenderTarget* FRenderTargetPool::TryFindRenderTarget(const FRHITextureCreateInfo& Desc, uint32 DescHash, T&& Predicate) const
+{
 	for (uint32 Index = 0, Num = (uint32)PooledRenderTargets.Num(); Index < Num; ++Index)
 	{
 		if (PooledRenderTargetHashes[Index] == DescHash)
 		{
 			FPooledRenderTarget* Element = PooledRenderTargets[Index];
 
-		#if DO_CHECK
-			{
-				checkf(Element, TEXT("Hash was not cleared from the list."));
+			checkf(Element, TEXT("Hash was not cleared from the list."));
+			checkf(Translate(Element->GetDesc()) == Desc, TEXT("Invalid hash or collision when attempting to allocate %s"), Element->GetDesc().DebugName);
 
-				const FRHITextureCreateInfo ElementDesc = Translate(Element->GetDesc());
-				checkf(ElementDesc == Desc, TEXT("Invalid hash or collision when attempting to allocate %s"), Element->GetDesc().DebugName);
-			}
-		#endif
-
-			if (Element->IsFree())
+			if (Element->IsFree() && Predicate(Element))
 			{
-				Found = Element;
-				FoundIndex = Index;
-				break;
+				return Element;
 			}
 		}
 	}
+	return nullptr;
+}
+
+FPooledRenderTarget* FRenderTargetPool::ScheduleAllocation(FRHICommandListBase& RHICmdList, FRHITextureCreateInfo Desc, const TCHAR* Name, const FRHITransientAllocationFences& Fences)
+{
+	// FastVRAM is no longer supported by the render target pool.
+	EnumRemoveFlags(Desc.Flags, ETextureCreateFlags::FastVRAM | ETextureCreateFlags::FastVRAMPartialAlloc);
+
+	// We always want SRV access
+	Desc.Flags |= TexCreate_ShaderResource;
+
+	const uint32 DescHash = GetTypeHash(Desc);
+	
+	FPooledRenderTarget* Found = TryFindRenderTarget(Desc, DescHash, [&](FPooledRenderTarget* Element)
+	{
+		return Element->PooledTexture.Fences && !FRHITransientAllocationFences::Contains(*Element->PooledTexture.Fences, Fences);
+	});
 
 	if (!Found)
 	{
-#if CPUPROFILERTRACE_ENABLED
-		UE_TRACE_LOG_SCOPED_T(Cpu, FRenderTargetPool_CreateTexture, CpuChannel)
-			<< FRenderTargetPool_CreateTexture.Name(Name);
-#endif
-
-		const ERHIAccess AccessInitial = ERHIAccess::SRVMask;
-		FRHITextureCreateDesc CreateDesc(Desc, AccessInitial, Name);
-		const static FLazyName ClassName(TEXT("FPooledRenderTarget"));
-		CreateDesc.SetClassName(ClassName);
-
-		Found = new FPooledRenderTarget(
-			RHICmdList.CreateTexture(CreateDesc),
-			Translate(CreateDesc),
-			this);
-
-		PooledRenderTargets.Add(Found);
-		PooledRenderTargetHashes.Add(DescHash);
-
-		if (EnumHasAnyFlags(Desc.Flags, TexCreate_UAV))
-		{
-			// The render target desc is invalid if a UAV is requested with an RHI that doesn't support the high-end feature level.
-			check(GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5 || GMaxRHIFeatureLevel == ERHIFeatureLevel::ES3_1);
-
-			if (GRHISupportsUAVFormatAliasing)
-			{
-				EPixelFormat AliasFormat = Desc.UAVFormat != PF_Unknown
-					? Desc.UAVFormat
-					: Desc.Format;
-
-				Found->RenderTargetItem.UAV = RHICmdList.CreateUnorderedAccessView(Found->GetRHI(), 0, (uint8)AliasFormat, 0, 0);
-			}
-			else
-			{
-				checkf(Desc.UAVFormat == PF_Unknown || Desc.UAVFormat == Desc.Format, TEXT("UAV aliasing is not supported by the current RHI."));
-				Found->RenderTargetItem.UAV = RHICmdList.CreateUnorderedAccessView(Found->GetRHI(), 0);
-			}
-		}
-
-		AllocationLevelInKB += ComputeSizeInKB(*Found);
-		TRACE_COUNTER_ADD(RenderTargetPoolCount, 1);
-		TRACE_COUNTER_SET(RenderTargetPoolSize, (int64)AllocationLevelInKB * 1024);
-
-		FoundIndex = PooledRenderTargets.Num() - 1;
+		Found = CreateRenderTarget(RHICmdList, Desc, DescHash, Name);
 	}
 
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	Found->Desc.DebugName = Name;
-#else
-	// For performance, avoid updating name if it happens to be the same (true 90% of the time in testing)
-	if (FCString::Strcmp(Found->Desc.DebugName, Name))
+	Found->PooledTexture.Fences.Reset();
+	Found->UnusedForNFrames = 0;
+	return Found;
+}
+
+void FRenderTargetPool::ScheduleDeallocation(FPooledRenderTarget* RenderTarget, const FRHITransientAllocationFences& Fences)
+{
+	RenderTarget->PooledTexture.Fences = Fences;
+}
+
+void FRenderTargetPool::FinishSchedule(FRHICommandListBase& RHICmdList, FPooledRenderTarget* RenderTarget, const TCHAR* Name)
+{
+	RenderTarget->PooledTexture.Fences.Emplace();
+	RenderTarget->SetDebugLabelName(RHICmdList, Name);
+}
+
+TRefCountPtr<IPooledRenderTarget> FRenderTargetPool::FindFreeElement(FRHICommandListBase& RHICmdList, FRHITextureCreateInfo Desc, const TCHAR* Name)
+{
+	// FastVRAM is no longer supported by the render target pool.
+	EnumRemoveFlags(Desc.Flags, ETextureCreateFlags::FastVRAM | ETextureCreateFlags::FastVRAMPartialAlloc);
+
+	// We always want SRV access
+	Desc.Flags |= TexCreate_ShaderResource;
+
+	const uint32 DescHash = GetTypeHash(Desc);
+
+	UE::TScopeLock Lock(Mutex);
+
+	FPooledRenderTarget* Found = TryFindRenderTarget(Desc, DescHash);
+
+	if (!Found)
 	{
-		Found->Desc.DebugName = Name;
-		RHICmdList.BindDebugLabelName(Found->GetRHI(), Name);
+		Found = CreateRenderTarget(RHICmdList, Desc, DescHash, Name);
 	}
-#endif
 
+	Found->SetDebugLabelName(RHICmdList, Name);
 	Found->UnusedForNFrames = 0;
 
 	return TRefCountPtr<IPooledRenderTarget>(MoveTemp(Found));
@@ -579,6 +601,20 @@ bool FPooledRenderTarget::OnFrameStart()
 	}
 
 	return false;
+}
+
+void FPooledRenderTarget::SetDebugLabelName(FRHICommandListBase& RHICmdList, const TCHAR* Name)
+{
+#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	Desc.DebugName = Name;
+#else
+	// For performance, avoid updating name if it happens to be the same (true 90% of the time in testing)
+	if (FCString::Strcmp(Desc.DebugName, Name))
+	{
+		Desc.DebugName = Name;
+		RHICmdList.BindDebugLabelName(GetRHI(), Name);
+	}
+#endif
 }
 
 uint32 FPooledRenderTarget::ComputeMemorySize() const

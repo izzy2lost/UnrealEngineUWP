@@ -31,6 +31,27 @@ public:
 private:
 	RENDERCORE_API void ReleaseRHI() override;
 
+	FRDGPooledBuffer* CreateBuffer(FRHICommandListBase& RHICmdList, const FRDGBufferDesc& Desc, uint32 DescHash, const TCHAR* InDebugName);
+
+	FRDGPooledBuffer* ScheduleAllocation(
+		FRHICommandListBase& RHICmdList,
+		const FRDGBufferDesc& Desc,
+		const TCHAR* Name,
+		ERDGPooledBufferAlignment Alignment,
+		const FRHITransientAllocationFences& Fences);
+
+	void ScheduleDeallocation(FRDGPooledBuffer* PooledBuffer, const FRHITransientAllocationFences& Fences);
+
+	void FinishSchedule(FRHICommandListBase& RHICmdList, FRDGPooledBuffer* PooledBuffer);
+
+	template <typename T>
+	FRDGPooledBuffer* TryFindPooledBuffer(const FRDGBufferDesc& Desc, uint32 DescHash, T&& Predicate);
+
+	FRDGPooledBuffer* TryFindPooledBuffer(const FRDGBufferDesc& Desc, uint32 DescHash)
+	{
+		return TryFindPooledBuffer(Desc, DescHash, [](FRDGPooledBuffer*) { return true; });
+	}
+
 	mutable UE::FRecursiveMutex Mutex;
 
 	/** Elements can be 0, we compact the buffer later. */
@@ -96,7 +117,7 @@ public:
 
 	TRefCountPtr<FRDGTransientRenderTarget> AllocateRenderTarget(FRHITransientTexture* Texture);
 
-	void Release(TRefCountPtr<FRDGTransientRenderTarget>&& RenderTarget, FRDGPassHandle PassHandle);
+	void Release(TRefCountPtr<FRDGTransientRenderTarget>&& RenderTarget, const FRHITransientAllocationFences& Fences);
 
 	void ReleasePendingDeallocations();
 

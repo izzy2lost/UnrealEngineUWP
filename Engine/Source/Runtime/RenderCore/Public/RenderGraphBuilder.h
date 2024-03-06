@@ -582,38 +582,58 @@ private:
 			Deallocate
 		};
 
-		static FCollectResourceOp Allocate(FRDGPassHandle PassHandle, FRDGBufferHandle BufferHandle)
+		static FCollectResourceOp Allocate(FRDGBufferHandle BufferHandle)
 		{
-			return FCollectResourceOp(PassHandle, BufferHandle.GetIndex(), ERDGViewableResourceType::Buffer, EOp::Allocate);
+			return FCollectResourceOp(BufferHandle.GetIndex(), ERDGViewableResourceType::Buffer, EOp::Allocate);
 		}
 
-		static FCollectResourceOp Allocate(FRDGPassHandle PassHandle, FRDGTextureHandle TextureHandle)
+		static FCollectResourceOp Allocate(FRDGTextureHandle TextureHandle)
 		{
-			return FCollectResourceOp(PassHandle, TextureHandle.GetIndex(), ERDGViewableResourceType::Texture, EOp::Allocate);
+			return FCollectResourceOp(TextureHandle.GetIndex(), ERDGViewableResourceType::Texture, EOp::Allocate);
 		}
 
-		static FCollectResourceOp Deallocate(FRDGPassHandle PassHandle, FRDGBufferHandle BufferHandle)
+		static FCollectResourceOp Deallocate(FRDGBufferHandle BufferHandle)
 		{
-			return FCollectResourceOp(PassHandle, BufferHandle.GetIndex(), ERDGViewableResourceType::Buffer, EOp::Deallocate);
+			return FCollectResourceOp(BufferHandle.GetIndex(), ERDGViewableResourceType::Buffer, EOp::Deallocate);
 		}
 
-		static FCollectResourceOp Deallocate(FRDGPassHandle PassHandle, FRDGTextureHandle TextureHandle)
+		static FCollectResourceOp Deallocate(FRDGTextureHandle TextureHandle)
 		{
-			return FCollectResourceOp(PassHandle, TextureHandle.GetIndex(), ERDGViewableResourceType::Texture, EOp::Deallocate);
+			return FCollectResourceOp(TextureHandle.GetIndex(), ERDGViewableResourceType::Texture, EOp::Deallocate);
 		}
 
 		FCollectResourceOp() = default;
-		FCollectResourceOp(FRDGPassHandle InPassHandle, uint16 InResourceIndex, ERDGViewableResourceType InResourceType, EOp InOp)
-			: PassHandle(InPassHandle)
-			, ResourceIndex(InResourceIndex)
-			, ResourceType(InResourceType)
-			, Op(InOp)
+		FCollectResourceOp(uint32 InResourceIndex, ERDGViewableResourceType InResourceType, EOp InOp)
+			: ResourceIndex(InResourceIndex)
+			, ResourceType(static_cast<uint32>(InResourceType))
+			, Op(static_cast<uint32>(InOp))
 		{}
 
-		FRDGPassHandle PassHandle;
-		uint16 ResourceIndex;
-		ERDGViewableResourceType ResourceType;
-		EOp Op;
+		EOp GetOp() const
+		{
+			return static_cast<EOp>(Op);
+		}
+
+		ERDGViewableResourceType GetResourceType() const
+		{
+			return static_cast<ERDGViewableResourceType>(ResourceType);
+		}
+
+		FRDGTextureHandle GetTextureHandle() const
+		{
+			check(GetResourceType() == ERDGViewableResourceType::Texture);
+			return FRDGTextureHandle(ResourceIndex);
+		}
+
+		FRDGBufferHandle GetBufferHandle() const
+		{
+			check(GetResourceType() == ERDGViewableResourceType::Buffer);
+			return FRDGBufferHandle(ResourceIndex);
+		}
+
+		uint32 ResourceIndex : 30;
+		uint32 ResourceType : 1;
+		uint32 Op : 1;
 	};
 
 	using FCollectResourceOpArray = TArray<FCollectResourceOp, FRDGArrayAllocator>;
@@ -636,13 +656,13 @@ private:
 
 	/** Collects new resource allocations for the pass into the provided context. */
 	void CollectAllocations(FCollectResourceContext& Context, FRDGPass* Pass);
-	void CollectAllocateTexture(FCollectResourceContext& Context, FRDGPassHandle PassHandle, FRDGTexture* Texture);
-	void CollectAllocateBuffer(FCollectResourceContext& Context, FRDGPassHandle PassHandle, FRDGBuffer* Buffer);
+	void CollectAllocateTexture(FCollectResourceContext& Context, ERHIPipeline PassPipeline, FRDGPassHandle PassHandle, FRDGTexture* Texture);
+	void CollectAllocateBuffer(FCollectResourceContext& Context, ERHIPipeline PassPipeline, FRDGPassHandle PassHandle, FRDGBuffer* Buffer);
 
 	/** Collects new resource deallocations for the pass into the provided context. */
 	void CollectDeallocations(FCollectResourceContext& Context, FRDGPass* Pass);
-	void CollectDeallocateTexture(FCollectResourceContext& Context, FRDGPassHandle PassHandle, FRDGTexture* Texture, uint32 ReferenceCount);
-	void CollectDeallocateBuffer(FCollectResourceContext& Context, FRDGPassHandle PassHandle, FRDGBuffer* Buffer, uint32 ReferenceCount);
+	void CollectDeallocateTexture(FCollectResourceContext& Context, ERHIPipeline PassPipeline, FRDGPassHandle PassHandle, FRDGTexture* Texture, uint32 ReferenceCount);
+	void CollectDeallocateBuffer(FCollectResourceContext& Context, ERHIPipeline PassPipeline, FRDGPassHandle PassHandle, FRDGBuffer* Buffer, uint32 ReferenceCount);
 
 	/** Allocates resources using the provided lifetime op arrays. */
 	void AllocateTransientResources(TConstArrayView<FCollectResourceOp> Ops);
@@ -658,9 +678,10 @@ private:
 	TRefCountPtr<FRDGPooledBuffer> AllocatePooledBufferRHI(FRHICommandListBase& RHICmdList, FRDGBufferRef Buffer);
 
 	/** Assigns an underlying RHI resource to an RDG resource. */
-	void SetPooledRenderTargetRHI(FRDGTexture* Texture, IPooledRenderTarget* RenderTarget);
+	void SetExternalPooledRenderTargetRHI(FRDGTexture* Texture, IPooledRenderTarget* RenderTarget);
 	void SetPooledTextureRHI(FRDGTexture* Texture, FRDGPooledTexture* PooledTexture);
 	void SetTransientTextureRHI(FRDGTexture* Texture, FRHITransientTexture* TransientTexture);
+	void SetExternalPooledBufferRHI(FRDGBuffer* Buffer, FRDGPooledBuffer* PooledBuffer);
 	void SetPooledBufferRHI(FRDGBuffer* Buffer, FRDGPooledBuffer* PooledBuffer);
 	void SetTransientBufferRHI(FRDGBuffer* Buffer, FRHITransientBuffer* TransientBuffer);
 
@@ -805,6 +826,17 @@ private:
 		FRDGBarrierBatchBegin& BarriersToBegin = Pass->GetEpilogueBarriersToBeginFor(Allocators.Transition, TransitionCreateQueue, Pass->GetPipeline());
 		Function(BarriersToBegin);
 		Pass->GetEpilogueBarriersToEnd(Allocators.Transition).AddDependency(&BarriersToBegin);
+	}
+
+	// Returns fences representing an allocation event, which can only happen on one pipeline at a time.
+	FRHITransientAllocationFences GetAllocateFences(FRDGViewableResource* Resource) const;
+
+	// Returns fences representing a deallocation event, which can happen on multiple pipes.
+	FRHITransientAllocationFences GetDeallocateFences(FRDGViewableResource* Resource) const;
+
+	inline ERHIPipeline GetPassPipeline(FRDGPassHandle PassHandle) const
+	{
+		return Passes[PassHandle]->Pipeline;
 	}
 
 	FRDGSubresourceState* AllocSubresource(const FRDGSubresourceState& Other);

@@ -586,7 +586,6 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 		if (Info.IsAcquire())
 		{
 			checkf(Resource->TransientState.bTransient, TEXT("Acquiring resource %s which is not transient. Only transient resources can be acquired."), Resource->GetDebugName());
-			checkf(SrcPipelines == ERHIPipeline::Graphics, TEXT("Acquiring a transient resource (%s) must begin on the graphics pipe."), Resource->GetDebugName());
 
 			AliasingOps.Emplace(FOperation::AcquireTransientResource(Resource, nullptr));
 
@@ -607,14 +606,6 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 
 				AliasingOverlapOps.Emplace(FOperation::AliasingOverlap(ResourceBefore, Resource, nullptr));
 			}
-		}
-		else
-		{
-			checkf(Info.Overlaps.IsEmpty(), TEXT("Aliasing overlaps provided on a Discard for resource %s. Overlaps must be provided on an acquire."), Resource->GetDebugName());
-			checkf(Resource->TransientState.bTransient, TEXT("Discarding resource %s which is not transient. Only transient resources can be discarded."), Resource->GetDebugName());
-			checkf(DstPipelines == ERHIPipeline::Graphics, TEXT("Discarding a transient resource (%s) must end on the graphics pipe."), Resource->GetDebugName());
-
-			AliasingOps.Emplace(FOperation::DiscardTransientResource(Resource, nullptr));
 		}
 	}
 
@@ -687,9 +678,6 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 			{
 			case EOpType::AcquireTransient:
 				Op.Data_AcquireTransient.CreateBacktrace = Backtrace;
-				break;
-			case EOpType::DiscardTransient:
-				Op.Data_DiscardTransient.CreateBacktrace = Backtrace;
 				break;
 			}
 		}
@@ -1289,19 +1277,6 @@ namespace RHIValidation
 			*GetReasonString_DuplicateBackTrace(PreviousAcquireTrace, CurrentAcquireTrace));
 	}
 
-	static inline FString GetReasonString_DuplicateDiscardTransient(FResource* Resource, void* PreviousDiscardTrace, void* CurrentDiscardTrace)
-	{
-		FString DebugName = GetResourceDebugName(Resource, {});
-		return FString::Printf(
-			BARRIER_TRACKER_LOG_PREFIX_RESNAME
-			TEXT("Mismatched discard of transient resource %s. A transient resource may only be discarded once in its lifetime.\n")
-			TEXT("%s")
-			BARRIER_TRACKER_LOG_SUFFIX,
-			*DebugName,
-			*DebugName,
-			*GetReasonString_DuplicateBackTrace(PreviousDiscardTrace, CurrentDiscardTrace));
-	}
-
 	static inline FString GetReasonString_DiscardWithoutAcquireTransient(FResource* Resource, void* DiscardTrace)
 	{
 		FString DebugName = GetResourceDebugName(Resource, {});
@@ -1312,7 +1287,20 @@ namespace RHIValidation
 			BARRIER_TRACKER_LOG_SUFFIX,
 			*DebugName,
 			*DebugName,
-			*GetReasonString_Backtrace(TEXT("acquire"), TEXT("RHICreateTransition"), DiscardTrace));
+			*GetReasonString_Backtrace(TEXT("discard"), TEXT("RHICreateTransition"), DiscardTrace));
+	}
+	
+	static inline FString GetReasonString_AlreadyDiscarded(FResource* Resource, void* DiscardTrace)
+	{
+		FString DebugName = GetResourceDebugName(Resource, {});
+		return FString::Printf(
+			BARRIER_TRACKER_LOG_PREFIX_RESNAME
+			TEXT("Attempted to transition transient resource %s to ERHIAccess::Discard, but it has already been discarded.\n")
+			TEXT("%s")
+			BARRIER_TRACKER_LOG_SUFFIX,
+			*DebugName,
+			*DebugName,
+			*GetReasonString_Backtrace(TEXT("discard"), TEXT("RHICreateTransition"), DiscardTrace));
 	}
 
 	static inline FString GetReasonString_DuplicateBeginTransition(
@@ -1530,28 +1518,33 @@ namespace RHIValidation
 			AcquireBacktrace = CreateTrace;
 		}
 
+		NumAcquiredSubresources = Resource->GetNumSubresources() * GetRHIPipelineCount();
+
 		if (Resource->LoggingMode != ELoggingMode::None)
 		{
 			Log(Resource, {}, CreateTrace, TEXT("Acquire"), TEXT("Acquire"), TEXT("Transient Acquire"));
 		}
 	}
 
-	void FTransientState::Discard(FResource* Resource, void* CreateTrace)
+	void FTransientState::Discard(FResource* Resource, void* CreateTrace, ERHIPipeline DiscardPipelines)
 	{
 		RHI_VALIDATION_CHECK(bTransient, *GetReasonString_DiscardNonTransient(Resource));
-
 		RHI_VALIDATION_CHECK(Status != EStatus::None, *GetReasonString_DiscardWithoutAcquireTransient(Resource, CreateTrace));
-		RHI_VALIDATION_CHECK(Status != EStatus::Discarded, *GetReasonString_DuplicateDiscardTransient(Resource, DiscardBacktrace, CreateTrace));
-		Status = EStatus::Discarded;
+		RHI_VALIDATION_CHECK(Status != EStatus::Discarded, *GetReasonString_AlreadyDiscarded(Resource, CreateTrace));
 
-		if (!DiscardBacktrace)
-		{
-			DiscardBacktrace = CreateTrace;
-		}
+		// When discarding from all pipes, each pipe will call Discard separately. Otherwise it's just one call.
+		const uint32 NumDerefs = DiscardPipelines == ERHIPipeline::All ? 1 : 2;
 
-		if (Resource->LoggingMode != ELoggingMode::None)
+		NumAcquiredSubresources -= NumDerefs;
+
+		if (NumAcquiredSubresources == 0)
 		{
-			Log(Resource, {}, CreateTrace, TEXT("Discard"), TEXT("Discard"), TEXT("Transient Discard"));
+			Status = EStatus::Discarded;
+
+			if (Resource->LoggingMode != ELoggingMode::None)
+			{
+				Log(Resource, {}, CreateTrace, TEXT("Discard"), TEXT("Discard"), TEXT("Transient Discard"));
+			}
 		}
 	}
 
@@ -1622,7 +1615,12 @@ namespace RHIValidation
 
 		if (Resource->TransientState.bTransient)
 		{
-			RHI_VALIDATION_CHECK(Resource->TransientState.IsAcquired() || (Resource->TransientState.IsDiscarded() && TargetState.Access == ERHIAccess::Discard), *GetReasonString_TransitionWithoutAcquire(Resource));
+			RHI_VALIDATION_CHECK(Resource->TransientState.IsAcquired(), *GetReasonString_TransitionWithoutAcquire(Resource));
+
+			if (TargetState.Access == ERHIAccess::Discard)
+			{
+				Resource->TransientState.Discard(Resource, CreateTrace, CurrentStateFromRHI.Pipelines);
+			}
 		}
 
 		// Check we're not already transitioning
@@ -1691,11 +1689,6 @@ namespace RHIValidation
 		RHI_VALIDATION_CHECK(State.bTransitioning, TEXT("Unsolicited resource end transition call."));
 		State.bTransitioning = false;
 		State.BeginTransitionBacktrace = nullptr;
-
-		if (Resource->TransientState.bTransient)
-		{
-			RHI_VALIDATION_CHECK(Resource->TransientState.IsAcquired() || (Resource->TransientState.IsDiscarded() && TargetState.Access == ERHIAccess::Discard), *GetReasonString_TransitionWithoutAcquire(Resource));
-		}
 
 		// Check that the end matches the begin.
 		RHI_VALIDATION_CHECK(TargetState == State.Current, *GetReasonString_MismatchedEndTransition(Resource, SubresourceIndex, State.Current, TargetState));
@@ -2002,11 +1995,6 @@ namespace RHIValidation
 
 		case EOpType::AcquireTransient:
 			Data_AcquireTransient.Resource->TransientState.Acquire(Data_AcquireTransient.Resource, Data_AcquireTransient.CreateBacktrace);
-			Data_AcquireTransient.Resource->ReleaseOpRef();
-			break;
-
-		case EOpType::DiscardTransient:
-			Data_DiscardTransient.Resource->TransientState.Discard(Data_DiscardTransient.Resource, Data_DiscardTransient.CreateBacktrace);
 			Data_AcquireTransient.Resource->ReleaseOpRef();
 			break;
 
@@ -2587,11 +2575,16 @@ FValidationTransientResourceAllocator::~FValidationTransientResourceAllocator()
 	checkf(!RHIAllocator, TEXT("Release was not called on FRHITransientResourceAllocator."));
 }
 
-FRHITransientTexture* FValidationTransientResourceAllocator::CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex)
+void FValidationTransientResourceAllocator::SetCreateMode(ERHITransientResourceCreateMode InCreateMode)
+{
+	// Validation intentionally doesn't pass through the create mode. It's always inline.
+}
+
+FRHITransientTexture* FValidationTransientResourceAllocator::CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences)
 {
 	check(FRHITextureCreateInfo::CheckValidity(InCreateInfo, InDebugName));
 
-	FRHITransientTexture* TransientTexture = RHIAllocator->CreateTexture(InCreateInfo, InDebugName, InPassIndex);
+	FRHITransientTexture* TransientTexture = RHIAllocator->CreateTexture(InCreateInfo, InDebugName, Fences);
 
 	if (!TransientTexture)
 	{
@@ -2623,9 +2616,9 @@ FRHITransientTexture* FValidationTransientResourceAllocator::CreateTexture(const
 	return TransientTexture;
 }
 
-FRHITransientBuffer* FValidationTransientResourceAllocator::CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex)
+FRHITransientBuffer* FValidationTransientResourceAllocator::CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences)
 {
-	FRHITransientBuffer* TransientBuffer = RHIAllocator->CreateBuffer(InCreateInfo, InDebugName, InPassIndex);
+	FRHITransientBuffer* TransientBuffer = RHIAllocator->CreateBuffer(InCreateInfo, InDebugName, Fences);
 
 	if (!TransientBuffer)
 	{
@@ -2651,21 +2644,21 @@ FRHITransientBuffer* FValidationTransientResourceAllocator::CreateBuffer(const F
 	return TransientBuffer;
 }
 
-void FValidationTransientResourceAllocator::DeallocateMemory(FRHITransientTexture* InTransientTexture, uint32 InPassIndex)
+void FValidationTransientResourceAllocator::DeallocateMemory(FRHITransientTexture* InTransientTexture, const FRHITransientAllocationFences& Fences)
 {
 	check(InTransientTexture);
 
-	RHIAllocator->DeallocateMemory(InTransientTexture, InPassIndex);
+	RHIAllocator->DeallocateMemory(InTransientTexture, Fences);
 
 	checkf(AllocatedResourceMap.Contains(InTransientTexture->GetRHI()), TEXT("DeallocateMemory called on texture %s, but it is not marked as allocated."), InTransientTexture->GetName());
 	AllocatedResourceMap.Remove(InTransientTexture->GetRHI());
 }
 
-void FValidationTransientResourceAllocator::DeallocateMemory(FRHITransientBuffer* InTransientBuffer, uint32 InPassIndex)
+void FValidationTransientResourceAllocator::DeallocateMemory(FRHITransientBuffer* InTransientBuffer, const FRHITransientAllocationFences& Fences)
 {
 	check(InTransientBuffer);
 
-	RHIAllocator->DeallocateMemory(InTransientBuffer, InPassIndex);
+	RHIAllocator->DeallocateMemory(InTransientBuffer, Fences);
 
 	checkf(AllocatedResourceMap.Contains(InTransientBuffer->GetRHI()), TEXT("DeallocateMemory called on buffer %s, but it is not marked as allocated."), InTransientBuffer->GetName());
 	AllocatedResourceMap.Remove(InTransientBuffer->GetRHI());
@@ -2692,27 +2685,6 @@ void FValidationTransientResourceAllocator::Flush(FRHICommandListImmediate& RHIC
 
 void FValidationTransientResourceAllocator::Release(FRHICommandListImmediate& RHICmdList)
 {
-	// Check all allocated resource data and make sure all memory is freed again
-	{
-		if (AllocatedResourceMap.Num() > 0)
-		{
-			FString ErrorMessage = FString::Printf(
-				TRANSIENT_RESOURCE_LOG_PREFIX_REASON("Open transient allocations")
-				TEXT("%d Transient Resource allocations still have memory allocated. Call 'DeallocateMemory' on all transient allocated resources prior to releasing the allocator.\n\n")
-				TEXT("Resources with Allocated Memory:\n"),
-				AllocatedResourceMap.Num());
-
-			for (const auto& KeyValue : AllocatedResourceMap)
-			{
-				const FAllocatedResourceData& ResourceData = KeyValue.Value;
-
-				ErrorMessage += FString::Printf(TEXT("         %s (%s)\n"), *ResourceData.DebugName, ResourceData.ResourceType == FAllocatedResourceData::EType::Texture ? TEXT("Texture") : TEXT("Buffer"));
-			}
-			ErrorMessage += FString::Printf(TRANSIENT_RESOURCE_LOG_SUFFIX);
-			FValidationRHI::ReportValidationFailure(*ErrorMessage);
-		}
-	}
-
 	RHIAllocator->Release(RHICmdList);
 	RHIAllocator = nullptr;
 	delete this;

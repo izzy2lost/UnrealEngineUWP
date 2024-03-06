@@ -5,7 +5,7 @@
 #include "D3D12Resources.h"
 #include "RHICoreTransientResourceAllocator.h"
 
-extern D3D12_RESOURCE_STATES GetInitialResourceState(const D3D12_RESOURCE_DESC& InDesc);
+extern D3D12_RESOURCE_STATES GetInitialResourceState(const D3D12_RESOURCE_DESC& InDesc, ED3D12QueueType QueueType);
 
 class FD3D12TransientHeap final
 	: public FRHITransientHeap
@@ -55,8 +55,9 @@ public:
 		default: checkNoEntry(); return false;
 		}
 	}
-	FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) override;
-	FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) override;
+
+	FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& CreateInfo, const TCHAR* Name, const FRHITransientAllocationFences& Fences) override;
+	FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& CreateInfo, const TCHAR* Name, const FRHITransientAllocationFences& Fences) override;
 
 private:
 

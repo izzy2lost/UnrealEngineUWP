@@ -16,11 +16,12 @@ public:
 	virtual ~FValidationTransientResourceAllocator();
 
 	// Implementation of FRHITransientResourceAllocator interface
+	virtual void SetCreateMode(ERHITransientResourceCreateMode InCreateMode) override final;
 	virtual bool SupportsResourceType(ERHITransientResourceType InType) const override final { return RHIAllocator->SupportsResourceType(InType); }
-	virtual FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) override final;
-	virtual FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) override final;
-	virtual void DeallocateMemory(FRHITransientTexture* InTexture, uint32 InPassIndex) override final;
-	virtual void DeallocateMemory(FRHITransientBuffer* InBuffer, uint32 InPassIndex) override final;
+	virtual FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences) override final;
+	virtual FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences) override final;
+	virtual void DeallocateMemory(FRHITransientTexture* InTexture, const FRHITransientAllocationFences& Fences) override final;
+	virtual void DeallocateMemory(FRHITransientBuffer* InBuffer, const FRHITransientAllocationFences& Fences) override final;
 	virtual void Flush(FRHICommandListImmediate&, FRHITransientAllocationStats*) override final;
 	virtual void Release(FRHICommandListImmediate&) override final;
 

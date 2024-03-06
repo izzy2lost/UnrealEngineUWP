@@ -325,6 +325,14 @@ FAutoConsoleVariableRef CVarRDGTransientExtractedResource(
 	TEXT(" 2: force enables all external transient resources (not recommended);"),
 	ECVF_RenderThreadSafe);
 
+int32 GRDGAsyncComputeTransientAliasing = 1;
+FAutoConsoleVariableRef CVarRDGAsyncComputeTransientAliasing(
+	TEXT("r.RDG.AsyncComputeTransientAliasing"), GRDGAsyncComputeTransientAliasing,
+	TEXT("RDG will alias async compute resources on the same heap as graphics resources using fences. This must also be supported by the RHI.")
+	TEXT(" 0: disables transient async compute aliasing;")
+	TEXT(" 1: enables transient async compute aliasing (default);"),
+	ECVF_RenderThreadSafe);
+
 #if RDG_EVENTS
 TAutoConsoleVariable<int32> CVarRDGEvents(
 	TEXT("r.RDG.Events"),
@@ -707,3 +715,12 @@ FRDGScopeState::FState::FState(bool bInImmediate, bool bInParallelExecute)
 	}())
 #endif // RDG_EVENTS
 {}
+
+bool IsExtendedLifetimeResource(FRDGViewableResource* Resource)
+{
+#if RDG_ENABLE_DEBUG
+	return IsDebugAllowedForResource(Resource->Name) && Resource->ReferenceCount != 0 && Resource->ReferenceCount != FRDGViewableResource::DeallocatedReferenceCount;
+#else
+	return false;
+#endif
+}

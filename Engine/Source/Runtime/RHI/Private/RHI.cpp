@@ -2106,20 +2106,18 @@ void FRHIBufferViewCache::SetDebugName(FRHICommandListBase& RHICmdList, const TC
 
 #endif
 
-void FRHITransientTexture::Acquire(FRHICommandListBase& RHICmdList, const TCHAR* InName, uint32 InPassIndex, uint64 InAcquireCycle)
+void FRHITransientTexture::BindDebugLabelName(FRHICommandListBase& RHICmdList)
 {
-	FRHITransientResource::Acquire(RHICmdList, InName, InPassIndex, InAcquireCycle);
-	ViewCache.SetDebugName(RHICmdList, InName);
+	ViewCache.SetDebugName(RHICmdList, GetName());
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	RHICmdList.BindDebugLabelName(GetRHI(), InName);
+	RHICmdList.BindDebugLabelName(GetRHI(), GetName());
 #endif
 }
 
-void FRHITransientBuffer::Acquire(FRHICommandListBase& RHICmdList, const TCHAR* InName, uint32 InPassIndex, uint64 InAcquireCycle)
+void FRHITransientBuffer::BindDebugLabelName(FRHICommandListBase& RHICmdList)
 {
-	FRHITransientResource::Acquire(RHICmdList, InName, InPassIndex, InAcquireCycle);
-	ViewCache.SetDebugName(RHICmdList, InName);
+	ViewCache.SetDebugName(RHICmdList, GetName());
 
 	// TODO: Add method to rename a buffer.
 }

@@ -411,8 +411,7 @@ public:
 			// state then when a transition is required (will transition via scoped push/pop to requested state)
 			if (!bSRVOnly && InResourceState != ERHIAccess::Unknown && InResourceState != ERHIAccess::Discard)
 			{
-				bool bAsyncCompute = false;
-				return GetD3D12ResourceState(InResourceState, bAsyncCompute);
+				return GetD3D12ResourceState(InResourceState, ED3D12QueueType::Direct);
 			}
 			else
 			{

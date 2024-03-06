@@ -297,7 +297,6 @@ public:
 	FORCEINLINE IndexType GetIndexUnchecked() const { return Index; }
 	FORCEINLINE bool IsNull()  const { return Index == kNullIndex; }
 	FORCEINLINE bool IsValid() const { return Index != kNullIndex; }
-	FORCEINLINE operator bool() const { return IsValid(); }
 	FORCEINLINE bool operator==(TRDGHandle Other) const { return Index == Other.Index; }
 	FORCEINLINE bool operator!=(TRDGHandle Other) const { return Index != Other.Index; }
 	FORCEINLINE bool operator<=(TRDGHandle Other) const { check(IsValid() && Other.IsValid()); return Index <= Other.Index; }

@@ -84,6 +84,9 @@ public:
 
 	mutable TArray<uint32, TInlineAllocator<1>> VisibleItems;
 
+	FRDGPassHandle TransientAcquirePass;
+	FRDGPassHandle TransientDiscardPass;
+
 	bool bExternal{};
 	bool bExtracted{};
 	bool bCulled{};

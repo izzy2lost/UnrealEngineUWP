@@ -825,7 +825,6 @@ void FRenderGraphTrack::Draw(const ITimingTrackDrawContext& Context) const
 		{
 			const FVisiblePass& AsyncComputeVisiblePass = VisibleGraph.Passes[VisibleIndex];
 			const FPassPacket& AsyncComputePass = AsyncComputeVisiblePass.GetPacket();
-			const FBoundingBox AsyncComputeVisiblePassBox = AsyncComputeVisiblePass.GetBoundingBox(Layout);
 
 			float TintAlpha = 0.25f;
 
@@ -1508,12 +1507,12 @@ void FRenderGraphTrack::BuildFilteredDrawState(FRenderGraphTrackDrawStateBuilder
 			VisibleItems.Add(&GraphicsVisiblePass);
 		};
 
-		if (Pass.bAsyncComputeBegin)
+		if (Pass.GraphicsForkPass.IsValid())
 		{
 			AddFencePassEvent(Pass.GraphicsForkPass);
 		}
 
-		if (Pass.bAsyncComputeEnd)
+		if (Pass.GraphicsJoinPass.IsValid())
 		{
 			AddFencePassEvent(Pass.GraphicsJoinPass);
 		}
@@ -2201,6 +2200,16 @@ void FRenderGraphTrack::InitTooltip(FTooltipDrawState& Tooltip, const ITimingEve
 			{
 				Tooltip.AddTextLine(TEXT("Transient"), FLinearColor::Red);
 				Tooltip.AddNameValueTextLine(TEXT("Transient Cache Hit:"), Resource.bTransientCacheHit ? TEXT("Yes") : TEXT("No"));
+
+				if (Resource.TransientAcquirePass.IsValid())
+				{
+					Tooltip.AddNameValueTextLine(TEXT("Transient Acquire Pass:"), FString::Printf(TEXT("%u"), Resource.TransientAcquirePass.GetIndex()));
+				}
+				
+				if (Resource.TransientDiscardPass.IsValid())
+				{
+					Tooltip.AddNameValueTextLine(TEXT("Transient Discard Pass:"), FString::Printf(TEXT("%u"), Resource.TransientDiscardPass.GetIndex()));
+				}
 			}
 
 			if (!Resource.TransientAllocations.IsEmpty())
@@ -2272,6 +2281,16 @@ void FRenderGraphTrack::InitTooltip(FTooltipDrawState& Tooltip, const ITimingEve
 			if (Pass.bSkipRenderPassBegin || Pass.bSkipRenderPassEnd)
 			{
 				Tooltip.AddTextLine(TEXT("Merged RenderPass"), FLinearColor::Red);
+			}
+
+			if (Pass.GraphicsForkPass.IsValid())
+			{
+				Tooltip.AddNameValueTextLine(TEXT("GraphicsForkPass:"), FString::Printf(TEXT("%d"), Pass.GraphicsForkPass.GetIndex()));
+			}
+			
+			if (Pass.GraphicsJoinPass.IsValid())
+			{
+				Tooltip.AddNameValueTextLine(TEXT("GraphicsJoinPass:"), FString::Printf(TEXT("%d"), Pass.GraphicsJoinPass.GetIndex()));
 			}
 		}
 		else if (InTooltipEvent.Is<FVisibleTextureEvent>())

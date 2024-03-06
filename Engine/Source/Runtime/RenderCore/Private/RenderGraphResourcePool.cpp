@@ -6,6 +6,7 @@
 #include "RHITransientResourceAllocator.h"
 #include "Trace/Trace.inl"
 #include "ProfilingDebugging/CountersTrace.h"
+#include "RenderCore.h"
 
 TRACE_DECLARE_INT_COUNTER(BufferPoolCount, TEXT("BufferPool/BufferCount"));
 TRACE_DECLARE_INT_COUNTER(BufferPoolCreateCount, TEXT("BufferPool/BufferCreateCount"));
@@ -27,6 +28,31 @@ static FAutoConsoleCommandWithOutputDevice GDumpBufferPoolMemoryCmd(
 	TEXT("Dump allocation information for the buffer pool."),
 	FConsoleCommandWithOutputDeviceDelegate::CreateStatic(DumpBufferPoolMemory)
 );
+
+static FRDGBufferDesc GetAlignedBufferDesc(const FRDGBufferDesc& Desc, const TCHAR* InDebugName, ERDGPooledBufferAlignment Alignment)
+{
+	const uint64 BufferPageSize = 64 * 1024;
+
+	FRDGBufferDesc AlignedDesc = Desc;
+
+	switch (Alignment)
+	{
+	case ERDGPooledBufferAlignment::PowerOfTwo:
+		AlignedDesc.NumElements = FMath::RoundUpToPowerOfTwo(AlignedDesc.BytesPerElement * AlignedDesc.NumElements) / AlignedDesc.BytesPerElement;
+		// Fall through to align up to page size for small buffers; helps with reuse.
+
+	case ERDGPooledBufferAlignment::Page:
+		AlignedDesc.NumElements = Align(AlignedDesc.BytesPerElement * AlignedDesc.NumElements, BufferPageSize) / AlignedDesc.BytesPerElement;
+	}
+
+	if (!ensureMsgf(AlignedDesc.NumElements >= Desc.NumElements, TEXT("Alignment caused buffer size overflow for buffer '%s' (AlignedDesc.NumElements: %d < Desc.NumElements: %d)"), InDebugName, AlignedDesc.NumElements, Desc.NumElements))
+	{
+		// Use the unaligned desc since we apparently overflowed when rounding up.
+		AlignedDesc = Desc;
+	}
+
+	return AlignedDesc;
+}
 
 void FRDGBufferPool::DumpMemoryUsage(FOutputDevice& OutputDevice)
 {
@@ -57,118 +83,117 @@ void FRDGBufferPool::DumpMemoryUsage(FOutputDevice& OutputDevice)
 	}
 }
 
+template <typename T>
+FRDGPooledBuffer* FRDGBufferPool::TryFindPooledBuffer(const FRDGBufferDesc& Desc, uint32 DescHash, T&& Predicate)
+{
+	for (int32 Index = 0; Index < AllocatedBufferHashes.Num(); ++Index)
+	{
+		if (AllocatedBufferHashes[Index] != DescHash)
+		{
+			continue;
+		}
+
+		FRDGPooledBuffer* Found = AllocatedBuffers[Index];
+
+		// Still being used outside the pool.
+		if (Found->GetRefCount() > 1 || !Predicate(Found))
+		{
+			continue;
+		}
+
+		check(Found->GetAlignedDesc() == Desc);
+		return Found;
+	}
+	return nullptr;
+}
+
+FRDGPooledBuffer* FRDGBufferPool::ScheduleAllocation(
+	FRHICommandListBase& RHICmdList,
+	const FRDGBufferDesc& Desc,
+	const TCHAR* Name,
+	ERDGPooledBufferAlignment Alignment,
+	const FRHITransientAllocationFences& Fences)
+{
+	const FRDGBufferDesc AlignedDesc = GetAlignedBufferDesc(Desc, Name, Alignment);
+	const uint32 DescHash = GetTypeHash(AlignedDesc);
+
+	FRDGPooledBuffer* PooledBuffer = TryFindPooledBuffer(AlignedDesc, DescHash, [&](FRDGPooledBuffer* PooledBuffer)
+	{
+		return PooledBuffer->Fences && !FRHITransientAllocationFences::Contains(*PooledBuffer->Fences, Fences);
+	});
+
+	if (!PooledBuffer)
+	{
+		PooledBuffer = CreateBuffer(RHICmdList, AlignedDesc, DescHash, Name);
+	}
+
+	// We need the external-facing desc to match what the user requested.
+	const_cast<FRDGBufferDesc&>(PooledBuffer->Desc).NumElements = Desc.NumElements;
+	PooledBuffer->Fences.Reset();
+	PooledBuffer->LastUsedFrame = FrameCounter;
+	return PooledBuffer;
+}
+
+void FRDGBufferPool::ScheduleDeallocation(FRDGPooledBuffer* PooledBuffer, const FRHITransientAllocationFences& Fences)
+{
+	PooledBuffer->Fences = Fences;
+}
+
+void FRDGBufferPool::FinishSchedule(FRHICommandListBase& RHICmdList, FRDGPooledBuffer* PooledBuffer)
+{
+	PooledBuffer->Fences.Emplace();
+	PooledBuffer->SetDebugLabelName(RHICmdList, PooledBuffer->Name);
+}
+
 TRefCountPtr<FRDGPooledBuffer> FRDGBufferPool::FindFreeBuffer(FRHICommandListBase& RHICmdList, const FRDGBufferDesc& Desc, const TCHAR* InDebugName, ERDGPooledBufferAlignment Alignment)
 {
-	const uint64 BufferPageSize = 64 * 1024;
-
-	FRDGBufferDesc AlignedDesc = Desc;
-
-	switch (Alignment)
-	{
-	case ERDGPooledBufferAlignment::PowerOfTwo:
-		AlignedDesc.NumElements = FMath::RoundUpToPowerOfTwo(AlignedDesc.BytesPerElement * AlignedDesc.NumElements) / AlignedDesc.BytesPerElement;
-		// Fall through to align up to page size for small buffers; helps with reuse.
-
-	case ERDGPooledBufferAlignment::Page:
-		AlignedDesc.NumElements = Align(AlignedDesc.BytesPerElement * AlignedDesc.NumElements, BufferPageSize) / AlignedDesc.BytesPerElement;
-	}
-
-	if (!ensureMsgf(AlignedDesc.NumElements >= Desc.NumElements, TEXT("Alignment caused buffer size overflow for buffer '%s' (AlignedDesc.NumElements: %d < Desc.NumElements: %d)"), InDebugName, AlignedDesc.NumElements, Desc.NumElements))
-	{
-		// Use the unaligned desc since we apparently overflowed when rounding up.
-		AlignedDesc = Desc;
-	}
-
-	const uint32 BufferHash = GetTypeHash(AlignedDesc);
+	const FRDGBufferDesc AlignedDesc = GetAlignedBufferDesc(Desc, InDebugName, Alignment);
+	const uint32 DescHash = GetTypeHash(AlignedDesc);
 
 	UE::TScopeLock Lock(Mutex);
 
-	// First find if available.
-	for (int32 Index = 0; Index < AllocatedBufferHashes.Num(); ++Index)
+	FRDGPooledBuffer* PooledBuffer = TryFindPooledBuffer(AlignedDesc, DescHash);
+
+	if (!PooledBuffer)
 	{
-		if (AllocatedBufferHashes[Index] != BufferHash)
-		{
-			continue;
-		}
-
-		const auto& PooledBuffer = AllocatedBuffers[Index];
-
-		// Still being used outside the pool.
-		if (PooledBuffer->GetRefCount() > 1)
-		{
-			continue;
-		}
-
-		check(PooledBuffer->GetAlignedDesc() == AlignedDesc);
-
-		PooledBuffer->LastUsedFrame = FrameCounter;
-
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		PooledBuffer->Name = InDebugName;
-#else
-		// For performance, avoid updating name if it happens to be the same (true 80% of the time in testing)
-		bool bNameUpdated = false;
-		if (!PooledBuffer->Name || FCString::Strcmp(PooledBuffer->Name, InDebugName))
-		{
-			// Name changed, need to update it
-			PooledBuffer->Name = InDebugName;
-
-			RHICmdList.BindDebugLabelName(PooledBuffer->GetRHI(), InDebugName);
-
-			bNameUpdated = true;
-		}
-
-		// Propagate the debug name to ViewCache if the name was updated, or if any items were added to ViewCache since the debug name was set
-		int32 ViewCacheNum = PooledBuffer->ViewCache.NumItems();
-		if (bNameUpdated || PooledBuffer->NameUpdatedViewCacheNum != ViewCacheNum)
-		{
-			PooledBuffer->NameUpdatedViewCacheNum = ViewCacheNum;
-			PooledBuffer->ViewCache.SetDebugName(RHICmdList, InDebugName);
-		}
-#endif
-
-		// We need the external-facing desc to match what the user requested.
-		const_cast<FRDGBufferDesc&>(PooledBuffer->Desc).NumElements = Desc.NumElements;
-
-		return PooledBuffer;
+		PooledBuffer = CreateBuffer(RHICmdList, AlignedDesc, DescHash, InDebugName);
 	}
 
-	// Allocate new one
-	{
-		const uint32 NumBytes = AlignedDesc.GetSize();
+	// We need the external-facing desc to match what the user requested.
+	const_cast<FRDGBufferDesc&>(PooledBuffer->Desc).NumElements = Desc.NumElements;
+	PooledBuffer->LastUsedFrame = FrameCounter;
+	PooledBuffer->SetDebugLabelName(RHICmdList, InDebugName);
+	return PooledBuffer;
+}
+
+FRDGPooledBuffer* FRDGBufferPool::CreateBuffer(FRHICommandListBase& RHICmdList, const FRDGBufferDesc& Desc, uint32 DescHash, const TCHAR* InDebugName)
+{
+	const uint32 NumBytes = Desc.GetSize();
 
 #if CPUPROFILERTRACE_ENABLED
-		UE_TRACE_LOG_SCOPED_T(Cpu, FRDGBufferPool_CreateBuffer, CpuChannel)
-			<< FRDGBufferPool_CreateBuffer.Name(InDebugName)
-			<< FRDGBufferPool_CreateBuffer.SizeInBytes(NumBytes);
+	UE_TRACE_LOG_SCOPED_T(Cpu, FRDGBufferPool_CreateBuffer, CpuChannel)
+		<< FRDGBufferPool_CreateBuffer.Name(InDebugName)
+		<< FRDGBufferPool_CreateBuffer.SizeInBytes(NumBytes);
 #endif
 
-		TRACE_COUNTER_ADD(BufferPoolCount, 1);
-		TRACE_COUNTER_ADD(BufferPoolCreateCount, 1);
-		TRACE_COUNTER_ADD(BufferPoolSize, NumBytes);
+	TRACE_COUNTER_ADD(BufferPoolCount, 1);
+	TRACE_COUNTER_ADD(BufferPoolCreateCount, 1);
+	TRACE_COUNTER_ADD(BufferPoolSize, NumBytes);
 
-		const ERHIAccess InitialAccess = RHIGetDefaultResourceState(Desc.Usage, false);
-		FRHIResourceCreateInfo CreateInfo(InDebugName);
-		TRefCountPtr<FRHIBuffer> BufferRHI = RHICmdList.CreateBuffer(NumBytes, Desc.Usage, Desc.BytesPerElement, InitialAccess, CreateInfo);
+	const ERHIAccess InitialAccess = RHIGetDefaultResourceState(Desc.Usage, false);
+	FRHIResourceCreateInfo CreateInfo(InDebugName);
+	TRefCountPtr<FRHIBuffer> BufferRHI = RHICmdList.CreateBuffer(NumBytes, Desc.Usage, Desc.BytesPerElement, InitialAccess, CreateInfo);
 
-	#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		RHICmdList.BindDebugLabelName(BufferRHI, InDebugName);
-	#endif
+	FRDGPooledBuffer* PooledBuffer = new FRDGPooledBuffer(RHICmdList, MoveTemp(BufferRHI), Desc, Desc.NumElements, InDebugName);
+	AllocatedBuffers.Add(PooledBuffer);
+	AllocatedBufferHashes.Add(DescHash);
 
-		TRefCountPtr<FRDGPooledBuffer> PooledBuffer = new FRDGPooledBuffer(RHICmdList, MoveTemp(BufferRHI), Desc, AlignedDesc.NumElements, InDebugName);
-		AllocatedBuffers.Add(PooledBuffer);
-		AllocatedBufferHashes.Add(BufferHash);
-		check(PooledBuffer->GetRefCount() == 2);
-
-		PooledBuffer->LastUsedFrame = FrameCounter;
-
-		if (EnumHasAllFlags(Desc.Usage, EBufferUsageFlags::ReservedResource))
-		{
-			PooledBuffer->CommittedSizeInBytes = 0;
-		}
-
-		return PooledBuffer;
+	if (EnumHasAllFlags(Desc.Usage, EBufferUsageFlags::ReservedResource))
+	{
+		PooledBuffer->CommittedSizeInBytes = 0;
 	}
+
+	return PooledBuffer;
 }
 
 void FRDGBufferPool::ReleaseRHI()
@@ -299,7 +324,7 @@ TRefCountPtr<FRDGTransientRenderTarget> FRDGTransientResourceAllocator::Allocate
 	return RenderTarget;
 }
 
-void FRDGTransientResourceAllocator::Release(TRefCountPtr<FRDGTransientRenderTarget>&& RenderTarget, FRDGPassHandle PassHandle)
+void FRDGTransientResourceAllocator::Release(TRefCountPtr<FRDGTransientRenderTarget>&& RenderTarget, const FRHITransientAllocationFences& Fences)
 {
 	check(RenderTarget);
 
@@ -307,7 +332,7 @@ void FRDGTransientResourceAllocator::Release(TRefCountPtr<FRDGTransientRenderTar
 	// members before dereferencing to zero so that it gets marked as deallocated rather than pending.
 	if (RenderTarget->GetRefCount() == 1)
 	{
-		Allocator->DeallocateMemory(RenderTarget->Texture, PassHandle.GetIndex());
+		Allocator->DeallocateMemory(RenderTarget->Texture, Fences);
 		RenderTarget->Reset();
 		RenderTarget = nullptr;
 	}
@@ -346,9 +371,9 @@ void FRDGTransientResourceAllocator::ReleasePendingDeallocations()
 
 		for (FRDGTransientRenderTarget* RenderTarget : PendingDeallocationList)
 		{
-			Allocator->DeallocateMemory(RenderTarget->Texture, 0);
-
-			Aliases.Emplace(FRHITransientAliasingInfo::Discard(RenderTarget->Texture->GetRHI()));
+			FRHITransientAllocationFences Fences;
+			Fences.SetGraphics(0);
+			Allocator->DeallocateMemory(RenderTarget->Texture, Fences);
 			Transitions.Emplace(RenderTarget->Texture->GetRHI(), ERHIAccess::Unknown, ERHIAccess::Discard);
 
 			RenderTarget->Reset();

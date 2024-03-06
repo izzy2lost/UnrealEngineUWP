@@ -61,6 +61,16 @@ class TRHIPipelineArray : public TStaticArray<ElementType, GetRHIPipelineCount()
 public:
 	using Base::Base;
 
+	FORCEINLINE ElementType& operator[](int32 Index)
+	{
+		return Base::operator[](Index);
+	}
+
+	FORCEINLINE const ElementType& operator[](int32 Index) const
+	{
+		return Base::operator[](Index);
+	}
+
 	FORCEINLINE ElementType& operator[](ERHIPipeline Pipeline)
 	{
 		return Base::operator[](GetRHIPipelineIndex(Pipeline));

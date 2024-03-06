@@ -411,7 +411,10 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 					for (int32 Index = 0; Index < Payload->CommandListsToExecute.Num(); Index++)
 					{
 						FD3D12CommandList* CurrentCommandList = Payload->CommandListsToExecute[Index];
-						if (FD3D12CommandList* BarrierCommandList = GenerateBarrierCommandListAndUpdateState(CurrentCommandList))
+						TArray<FD3D12CommandList*, TInlineAllocator<2>> BarrierCommandLists;
+						GenerateBarrierCommandListAndUpdateState(CurrentCommandList, BarrierCommandLists);
+
+						for (FD3D12CommandList* BarrierCommandList : BarrierCommandLists)
 						{
 							FD3D12Queue& BarrierQueue = BarrierCommandList->Device->GetQueue(BarrierCommandList->QueueType);
 
@@ -575,11 +578,12 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 	return Result;
 }
 
-FD3D12CommandList* FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD3D12CommandList* SourceCommandList)
+void FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD3D12CommandList* SourceCommandList, TArray<FD3D12CommandList*, TInlineAllocator<2>>& OutBarrierCommandLists)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(GenerateBarrierCommandListAndUpdateState);
 
 	FD3D12ResourceBarrierBatcher Batcher;
+	FD3D12ResourceBarrierBatcher BatcherForGraphicsToAsync;
 
 #if ENABLE_RESIDENCY_MANAGEMENT
 	TArray<FD3D12ResidencyHandle*> ResidencyHandles;
@@ -600,9 +604,11 @@ FD3D12CommandList* FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD
 		// We shouldn't have any TBD / CORRUPT states here
 		check(Before != D3D12_RESOURCE_STATE_TBD && Before != D3D12_RESOURCE_STATE_CORRUPT);
 		check(After  != D3D12_RESOURCE_STATE_TBD && After  != D3D12_RESOURCE_STATE_CORRUPT);
-		
+
 		if (Before != After)
 		{
+			FD3D12ResourceBarrierBatcher* CurrentBatcher = &Batcher;
+
 			if (SourceCommandList->QueueType != ED3D12QueueType::Direct)
 			{
 				check(!IsDirectQueueExclusiveD3D12State(After));
@@ -614,7 +620,7 @@ FD3D12CommandList* FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD
 					CResourceState& ResourceState_OnCommandList = SourceCommandList->GetResourceState_OnCommandList(PRB.Resource);
 					if (ResourceState_OnCommandList.HasInternalTransition() || !EnumHasAllFlags(Before, After))
 					{
-						bHasGraphicStates = true;
+						CurrentBatcher = &BatcherForGraphicsToAsync;
 					}
 					else
 					{
@@ -630,7 +636,7 @@ FD3D12CommandList* FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD
 
 			if (PRB.Resource->IsBackBuffer() && EnumHasAnyFlags(After, BackBufferBarrierWriteTransitionTargets))
 			{
-				Batcher.AddTransition(PRB.Resource, Before, After, PRB.SubResource);
+				CurrentBatcher->AddTransition(PRB.Resource, Before, After, PRB.SubResource);
 			}
 			// Special case for UAV access resources transitioning from UAV (then they need to transition from the cache hidden state instead)
 			else if (PRB.Resource->GetUAVAccessResource() && EnumHasAnyFlags(Before | After, D3D12_RESOURCE_STATE_UNORDERED_ACCESS))
@@ -639,18 +645,18 @@ FD3D12CommandList* FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD
 				check(!EnumHasAnyFlags(After, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
 					
 				// Add the aliasing barrier
-				Batcher.AddAliasingBarrier(PRB.Resource->GetUAVAccessResource(), PRB.Resource->GetResource());
+				CurrentBatcher->AddAliasingBarrier(PRB.Resource->GetUAVAccessResource(), PRB.Resource->GetResource());
 
 				D3D12_RESOURCE_STATES UAVState = ResourceState.GetUAVHiddenResourceState();
 				check(UAVState != D3D12_RESOURCE_STATE_TBD && !EnumHasAnyFlags(UAVState, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
 				if (UAVState != After)
 				{
-					Batcher.AddTransition(PRB.Resource, UAVState, After, PRB.SubResource);
+					CurrentBatcher->AddTransition(PRB.Resource, UAVState, After, PRB.SubResource);
 				}
 			}
 			else
 			{
-				Batcher.AddTransition(PRB.Resource, Before, After, PRB.SubResource);
+				CurrentBatcher->AddTransition(PRB.Resource, Before, After, PRB.SubResource);
 			}
 		}
 
@@ -694,33 +700,40 @@ FD3D12CommandList* FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD
 		}
 	}
 
-	if (Batcher.Num() == 0)
-		return nullptr;
+	const auto CreateBarrierCommandList = [&] (FD3D12Queue& Queue, FD3D12ResourceBarrierBatcher& Batcher)
+	{
+		// This command list requires a separate barrier command list to fix up tracked resource states.
+		TRACE_CPUPROFILER_EVENT_SCOPE(GetResourceBarrierCommandList);
 
-	// This command list requires a separate barrier command list to fix up tracked resource states.
-	TRACE_CPUPROFILER_EVENT_SCOPE(GetResourceBarrierCommandList);
+		// Get an allocator if we don't have one
+		if (!Queue.BarrierAllocator)
+		{
+			Queue.BarrierAllocator = Queue.Device->ObtainCommandAllocator(Queue.QueueType);
+		}
 
-	FD3D12Queue& Queue = SourceCommandList->Device->GetQueue(
-		bHasGraphicStates
-			? ED3D12QueueType::Direct
-			: SourceCommandList->QueueType
-	);
+		// Get a new command list
+		FD3D12CommandList* BarrierCommandList = Queue.Device->ObtainCommandList(Queue.BarrierAllocator, &Queue.BarrierTimestamps, nullptr);
 
-	// Get an allocator if we don't have one
-	if (!Queue.BarrierAllocator)
-		Queue.BarrierAllocator = Queue.Device->ObtainCommandAllocator(Queue.QueueType);
+	#if ENABLE_RESIDENCY_MANAGEMENT
+		BarrierCommandList->UpdateResidency(ResidencyHandles);
+	#endif
 
-	// Get a new command list
-	FD3D12CommandList* BarrierCommandList = Queue.Device->ObtainCommandList(Queue.BarrierAllocator, &Queue.BarrierTimestamps, nullptr);
+		Batcher.FlushIntoCommandList(*BarrierCommandList, Queue.BarrierTimestamps);
+		BarrierCommandList->Close();
+		return BarrierCommandList;
+	};
 
-#if ENABLE_RESIDENCY_MANAGEMENT
-	BarrierCommandList->UpdateResidency(ResidencyHandles);
-#endif
-
-	Batcher.FlushIntoCommandList(*BarrierCommandList, Queue.BarrierTimestamps);
-	BarrierCommandList->Close();
-
-	return BarrierCommandList;
+	if (Batcher.Num() > 0)
+	{
+		FD3D12Queue& Queue = SourceCommandList->Device->GetQueue(SourceCommandList->QueueType);
+		OutBarrierCommandLists.Emplace(CreateBarrierCommandList(Queue, Batcher));
+	}
+	
+	if (BatcherForGraphicsToAsync.Num() > 0)
+	{
+		FD3D12Queue& Queue = SourceCommandList->Device->GetQueue(ED3D12QueueType::Direct);
+		OutBarrierCommandLists.Emplace(CreateBarrierCommandList(Queue, BatcherForGraphicsToAsync));
+	}
 }
 
 uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal)

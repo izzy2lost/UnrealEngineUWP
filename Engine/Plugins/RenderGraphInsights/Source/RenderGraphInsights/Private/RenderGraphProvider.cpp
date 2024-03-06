@@ -124,6 +124,9 @@ FResourcePacket::FResourcePacket(const UE::Trace::IAnalyzer::FOnEventContext& Co
 		TransientAllocations[LocalIndex].MemoryRangeIndex = TransientAllocationMemoryRanges[LocalIndex];
 	}
 
+	TransientAcquirePass = Context.EventData.GetValue<FRDGPassHandle>("TransientAcquirePass");
+	TransientDiscardPass = Context.EventData.GetValue<FRDGPassHandle>("TransientDiscardPass");
+
 	if (Passes.Num())
 	{
 		FirstPass = Passes[0];

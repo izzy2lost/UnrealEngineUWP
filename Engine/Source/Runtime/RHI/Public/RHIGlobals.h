@@ -254,6 +254,9 @@ struct FRHIGlobals
 	/** True if the RHI and current hardware supports efficient AsyncCompute (by default we assume false and later we can enable this for more hardware) */
 	bool SupportsEfficientAsyncCompute = false;
 
+	/** True if the RHI supports aliasing transient resources on the async compute pipe. */
+	bool SupportsAsyncComputeTransientAliasing = false;
+
 	/** True if the RHI supports getting the result of occlusion queries when on a thread other than the render thread */
 	bool SupportsParallelOcclusionQueries = false;
 

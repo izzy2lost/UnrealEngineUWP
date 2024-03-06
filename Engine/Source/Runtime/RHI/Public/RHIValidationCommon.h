@@ -255,7 +255,7 @@ namespace RHIValidation
 		{}
 
 		void* AcquireBacktrace = nullptr;
-		void* DiscardBacktrace = nullptr;
+		int32 NumAcquiredSubresources = 0;
 
 		bool bTransient = false;
 		EStatus Status = EStatus::None;
@@ -264,7 +264,7 @@ namespace RHIValidation
 		FORCEINLINE bool IsDiscarded() const { return Status == EStatus::Discarded; }
 
 		void Acquire(FResource* Resource, void* CreateTrace);
-		void Discard(FResource* Resource, void* CreateTrace);
+		void Discard(FResource* Resource, void* CreateTrace, ERHIPipeline DiscardPipelines);
 
 		static void AliasingOverlap(FResource* ResourceBefore, FResource* ResourceAfter, void* CreateTrace);
 	};
@@ -325,6 +325,11 @@ namespace RHIValidation
 			return TrackedAccess;
 		}
 
+		inline uint32 GetNumSubresources() const
+		{
+			return NumMips * NumArraySlices * NumPlanes;
+		}
+
 		inline FSubresourceRange GetWholeResourceRange()
 		{
 			checkSlow(NumMips > 0 && NumArraySlices > 0 && NumPlanes > 0);
@@ -352,6 +357,17 @@ namespace RHIValidation
 			check(TransientState.bTransient && TransientState.Status != FTransientState::EStatus::Acquired);
 			TransientState.Status = FTransientState::EStatus::None;
 			DebugName = InDebugName;
+			TrackedAccess = ERHIAccess::Discard;
+
+			for (ERHIPipeline Pipeline : GetRHIPipelines())
+			{
+				auto& State = WholeResourceState.States[Pipeline];
+
+				State.Current.Access = ERHIAccess::Discard;
+				State.Current.Pipelines = Pipeline;
+				State.Previous = State.Current;
+			}
+			SubresourceStates.Reset();
 		}
 
 	protected:
@@ -541,12 +557,6 @@ namespace RHIValidation
 			struct
 			{
 				FResource* Resource;
-				void* CreateBacktrace;
-			} Data_DiscardTransient;
-
-			struct
-			{
-				FResource* Resource;
 				TCHAR* DebugName;
 			} Data_InitTransient;
 
@@ -673,17 +683,6 @@ namespace RHIValidation
 			Op.Type = EOpType::AcquireTransient;
 			Op.Data_AcquireTransient.Resource = Resource;
 			Op.Data_AcquireTransient.CreateBacktrace = CreateBacktrace;
-			return MoveTemp(Op);
-		}
-
-		static inline FOperation DiscardTransientResource(FResource* Resource, void* CreateBacktrace)
-		{
-			Resource->AddOpRef();
-
-			FOperation Op;
-			Op.Type = EOpType::DiscardTransient;
-			Op.Data_DiscardTransient.Resource = Resource;
-			Op.Data_DiscardTransient.CreateBacktrace = CreateBacktrace;
 			return MoveTemp(Op);
 		}
 

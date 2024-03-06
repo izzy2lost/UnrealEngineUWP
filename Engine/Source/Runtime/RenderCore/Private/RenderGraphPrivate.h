@@ -114,6 +114,7 @@ extern int32 GRDGAsyncCompute;
 extern int32 GRDGCullPasses;
 extern int32 GRDGMergeRenderPasses;
 extern int32 GRDGTransientAllocator;
+extern int32 GRDGAsyncComputeTransientAliasing;
 extern int32 GRDGTransientExtractedResources;
 extern int32 GRDGTransientIndirectArgBuffers;
 
@@ -254,9 +255,15 @@ FORCEINLINE bool IsAsyncComputeSupported()
 
 extern bool IsParallelExecuteEnabled();
 extern bool IsParallelSetupEnabled();
+extern bool IsExtendedLifetimeResource(FRDGViewableResource* Resource);
+
+inline bool IsAsyncComputeTransientAliasingEnabled()
+{
+	return GRDGAsyncComputeTransientAliasing && GRHIGlobals.SupportsAsyncComputeTransientAliasing;
+}
 
 template <typename ResourceRegistryType, typename FunctionType>
-inline void EnumerateExtendedLifetimeResources(ResourceRegistryType& Registry, FunctionType Function)
+void EnumerateExtendedLifetimeResources(ResourceRegistryType& Registry, FunctionType Function)
 {
 #if RDG_ENABLE_DEBUG
 	if (GRDGDebugExtendResourceLifetimes)
@@ -265,7 +272,7 @@ inline void EnumerateExtendedLifetimeResources(ResourceRegistryType& Registry, F
 		{
 			auto* Resource = Registry[Handle];
 
-			if (IsDebugAllowedForResource(Resource->Name) && !Resource->IsCulled())
+			if (IsExtendedLifetimeResource(Resource))
 			{
 				Function(Resource);
 			}
