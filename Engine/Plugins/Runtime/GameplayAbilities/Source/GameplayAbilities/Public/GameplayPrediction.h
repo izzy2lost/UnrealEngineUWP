@@ -377,6 +377,11 @@ struct GAMEPLAYABILITIES_API FPredictionKey
 		return Current == Other.Current && bIsServerInitiated == Other.bIsServerInitiated;
 	}
 
+	bool operator!=(const FPredictionKey& Other) const
+	{
+		return !(*this == Other);
+	}
+
 	FString ToString() const
 	{
 		return FString::Printf(TEXT("[%d/%d]"), Current, Base);
