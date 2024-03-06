@@ -1070,12 +1070,17 @@ void FOpenGLDynamicRHI::RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, con
 	{
 		glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 	}
-#endif
 
-#if PLATFORM_ANDROID
 	if (FAndroidOpenGL::RequiresAdrenoTilingModeHint())
 	{
 		FAndroidOpenGL::EnableAdrenoTilingModeHint(FCString::Strcmp(InName, TEXT("SceneColorRendering")) == 0);
+	}
+
+	// Reenable non-coherent framebuffer fetch if needed
+	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
+	if (!ContextState.bNonCoherentFramebufferFetchEnabled)
+	{
+		ContextState.bNonCoherentFramebufferFetchEnabled = FAndroidOpenGL::ResetNonCoherentFramebufferFetch();
 	}
 #endif
 }
@@ -1140,7 +1145,10 @@ void FOpenGLDynamicRHI::RHINextSubpass()
 	if (RenderPassInfo.SubpassHint == ESubpassHint::DepthReadSubpass ||
 		RenderPassInfo.SubpassHint == ESubpassHint::DeferredShadingSubpass)
 	{
-		FOpenGL::FrameBufferFetchBarrier();
+		if (GetContextStateForCurrentContext().bNonCoherentFramebufferFetchEnabled)
+		{
+			FOpenGL::FrameBufferFetchBarrier();
+		}
 	}
 }
 

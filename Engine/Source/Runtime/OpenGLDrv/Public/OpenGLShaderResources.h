@@ -207,6 +207,8 @@ public:
 
 	FOpenGLCompiledShaderKey ShaderCodeKey;
 
+	bool bUsesProgrammableBlending = false;
+
 #if DEBUG_GL_SHADERS
 	TArray<ANSICHAR> GlslCode;
 	const ANSICHAR*  GlslCodeString; // make it easier in VS to see shader code in debug mode; points to begin of GlslCode

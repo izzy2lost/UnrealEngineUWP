@@ -836,6 +836,7 @@ void FAndroidOpenGL::SetupDefaultGLContextState(const FString& ExtensionsString)
 		ExtensionsString.Contains(TEXT("GL_QCOM_shader_framebuffer_fetch_noncoherent")) && 
 		ExtensionsString.Contains(TEXT("GL_EXT_shader_framebuffer_fetch")))
 	{
+		bDefaultStateNonCoherentFramebufferFetchEnabled = true;
 		glEnable(GL_FRAMEBUFFER_FETCH_NONCOHERENT_QCOM);
 	}
 }
@@ -857,6 +858,26 @@ void FAndroidOpenGL::EnableAdrenoTilingModeHint(bool bEnable)
 		glDisable(GL_BINNING_CONTROL_HINT_QCOM);
 	}
 }
+
+bool FAndroidOpenGL::ResetNonCoherentFramebufferFetch()
+{
+	if (bDefaultStateNonCoherentFramebufferFetchEnabled)
+	{
+		glEnable(GL_FRAMEBUFFER_FETCH_NONCOHERENT_QCOM);
+		return true;
+	}
+	return false;
+}
+
+void FAndroidOpenGL::DisableNonCoherentFramebufferFetch()
+{
+	if (bDefaultStateNonCoherentFramebufferFetchEnabled)
+	{
+		glDisable(GL_FRAMEBUFFER_FETCH_NONCOHERENT_QCOM);
+	}
+}
+
+bool FAndroidOpenGL::bDefaultStateNonCoherentFramebufferFetchEnabled = false;
 
 void FAndroidOpenGL::ProcessExtensions(const FString& ExtensionsString)
 {

@@ -340,6 +340,7 @@ struct FOpenGLContextState final : public FOpenGLCommonState
 	float							ClearDepth;
 	int32							FirstNonzeroRenderTarget;
 	bool							bAlphaToCoverageEnabled;
+	bool							bNonCoherentFramebufferFetchEnabled;
 	
 	FOpenGLVertexDeclaration*		VertexDecl;
 	FOpenGLCachedAttr				VertexAttrs[NUM_OPENGL_VERTEX_STREAMS];
@@ -384,6 +385,7 @@ struct FOpenGLContextState final : public FOpenGLCommonState
 	,	ClearDepth(-1.0f)
 	,	FirstNonzeroRenderTarget(0)
 	,	bAlphaToCoverageEnabled(false)
+	,	bNonCoherentFramebufferFetchEnabled(false)
 	,	VertexDecl(0)
 	,   VertexAttrs()
 	,	VertexStreams()

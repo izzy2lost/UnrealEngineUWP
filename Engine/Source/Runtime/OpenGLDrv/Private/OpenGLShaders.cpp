@@ -1002,6 +1002,15 @@ FOpenGLShader::FOpenGLShader(TArrayView<const uint8> Code, const FSHAHash& Hash,
 	uint32 CodeCRC = FCrc::MemCrc32(GlslCodeOriginal.GetData(), GlslCodeOriginal.Num());
 	ShaderCodeKey = FOpenGLCompiledShaderKey(TypeEnum, GlslCodeOriginal.Num(), CodeCRC);
 
+	if (TypeEnum == GL_FRAGMENT_SHADER && FOpenGL::SupportsShaderFramebufferFetch())
+	{
+		// _Globals_gl_LastFragColor should only exist when 'FramebufferFetchGLES2()' is being used, not for MRT/deferred
+		if (FCStringAnsi::Strstr(GlslCodeOriginal.GetData(), "_Globals_gl_LastFragColor") != nullptr)
+		{
+			bUsesProgrammableBlending = true;
+		}
+	}
+
 	FAnsiCharArray GlslCodeFinal;
 	{
 		FScopeLock Lock(&GCompiledShaderCacheCS);
@@ -1269,10 +1278,13 @@ public:
 		FShaderStage Vertex;
 		FShaderStage Pixel;
 		TOptional<FShaderStage> Geometry;
+		bool bUsesProgrammableBlending;
 
 		FGraphicsProgram(FOpenGLLinkedProgramBase& ProgramBase, FOpenGLVertexShader* VertexShader, FOpenGLPixelShader* PixelShader, FOpenGLGeometryShader* GeometryShader)
 			: Vertex(ProgramBase, *VertexShader, CrossCompiler::SHADER_STAGE_VERTEX, 0)
 			, Pixel(ProgramBase, *PixelShader, CrossCompiler::SHADER_STAGE_PIXEL, Vertex.Bindings.NumUniformBuffers)
+			, Geometry()
+			, bUsesProgrammableBlending(PixelShader->bUsesProgrammableBlending)
 		{
 			if (GeometryShader)
 			{
@@ -2848,13 +2860,25 @@ void FOpenGLDynamicRHI::BindPendingShaderState( FOpenGLContextState& ContextStat
 
 	bool ForceUniformBindingUpdate = false;
 
-	GLuint PendingProgram = PendingState.BoundShaderState->LinkedProgram->Program;
+	FOpenGLLinkedProgram* const PendingLinkedProgram = PendingState.BoundShaderState->LinkedProgram;
+	const GLuint PendingProgram = PendingLinkedProgram->Program;
 	if (ContextState.Program != PendingProgram)
 	{
 		FOpenGL::BindProgramPipeline(PendingProgram);
 		ContextState.Program = PendingProgram;
 		MarkShaderParameterCachesDirty(PendingState.ShaderParameters, false);
 		PendingState.LinkedProgramAndDirtyFlag = nullptr;
+
+#if PLATFORM_ANDROID
+		// Disable non-coherent framebuffer fetch if it's being used for programmable blending to make sure that we actually fetch the last pixel value in draw order
+		if (ContextState.bNonCoherentFramebufferFetchEnabled)
+		{
+			if (PendingLinkedProgram->GetGraphicsProgram().bUsesProgrammableBlending)
+			{
+				FAndroidOpenGL::DisableNonCoherentFramebufferFetch();
+			}
+		}
+#endif
 	}
 
 	if (PendingState.bAnyDirtyRealUniformBuffers[SF_Vertex] || 

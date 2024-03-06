@@ -115,6 +115,10 @@ struct FAndroidOpenGL : public FOpenGLES
 	static void EnableAdrenoTilingModeHint(bool bEnable);
 	static bool bRequiresAdrenoTilingHint;
 
+	static bool ResetNonCoherentFramebufferFetch();
+	static void DisableNonCoherentFramebufferFetch();
+	static bool bDefaultStateNonCoherentFramebufferFetchEnabled;
+
 	/** supported OpenGL ES version queried from the system */
 	static int32 GLMajorVerion;
 	static int32 GLMinorVersion;
