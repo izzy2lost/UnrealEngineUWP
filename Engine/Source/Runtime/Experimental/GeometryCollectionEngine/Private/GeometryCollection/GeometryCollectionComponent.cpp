@@ -7383,3 +7383,14 @@ bool UGeometryCollectionComponent::IsHLODRelevant() const
 }
 
 #endif // #if WITH_EDITOR
+
+void UGeometryCollectionComponent::RebaseDynamicCollectionTransformsOnNewWorldTransform()
+{
+	if (!PhysicsProxy)
+	{
+		return;
+	}
+
+	PhysicsProxy->RebaseAllGameThreadCollectionTransformsOnNewWorldTransform_External();
+	ComponentSpaceTransforms.MarkDirty();
+}

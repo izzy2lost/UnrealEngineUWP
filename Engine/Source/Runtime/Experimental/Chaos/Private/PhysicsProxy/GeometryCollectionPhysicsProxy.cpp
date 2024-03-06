@@ -4416,32 +4416,9 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 						}
 						if (bWasModified)
 						{
-							const FParticle& GTParticle = *GTParticles[ParticleIndex];
-							const FTransform& ParticleMassToLocal = MassToLocal[TransformIndex];
-							const int32 ParentTransformIndex = GameThreadCollection.GetParent(TransformIndex);
-
-							const FTransform& WorldTransform = ParticleMassToLocal.Inverse() * FTransform { GTParticle.R(), GTParticle.X() };
-
-							// by default parent is the component's world transform 
-							FTransform ParentWorldTransform = WorldTransform_External;
-							if (ParentTransformIndex != INDEX_NONE && FromTransformToParticleIndex[ParentTransformIndex] != INDEX_NONE)
-							{
-								if (const FParticle* GTParentParticle = GTParticles[FromTransformToParticleIndex[ParentTransformIndex]].Get())
-								{
-									const FTransform& ParentMassToLocal = MassToLocal[TransformIndex];
-									ParentWorldTransform = ParentMassToLocal.Inverse() * FTransform { GTParentParticle->R(), GTParentParticle->X() };
-								}
-							}
-
-							FTransform NewTransform = WorldTransform.GetRelativeTransform(ParentWorldTransform);
-							if (ParentTransformIndex == INDEX_NONE && bIsComponentTransformScaled)
-							{
-								NewTransform = ParticleMassToLocal.Inverse() * ComponentScaleTransform * ParticleMassToLocal * NewTransform;
-							}
-							if (!NewTransform.Equals(FTransform(GameThreadCollection.GetTransform(TransformIndex)), GeometryCollectionTransformTolerance))
+							if (RebaseParticleGameThreadCollectionTransformOnNewWorldTransform_External(ParticleIndex, MassToLocal, bIsComponentTransformScaled, ComponentScaleTransform))
 							{
 								bHasDifferentTransforms = true;
-								GameThreadCollection.SetTransform(TransformIndex, FTransform3f(NewTransform));
 							}
 						}
 					}
@@ -5916,6 +5893,65 @@ const FGeometryCollectionPhysicsProxy::FParticleHandle* FGeometryCollectionPhysi
 		}
 	}
 	return nullptr;
+}
+
+
+void FGeometryCollectionPhysicsProxy::RebaseAllGameThreadCollectionTransformsOnNewWorldTransform_External()
+{
+	check(IsInGameThread());
+	const TManagedArray<bool>* AnimationsActive = GameThreadCollection.GetAnimateTransformAttribute();
+	const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
+	const bool bIsComponentTransformScaled = !WorldTransform_External.GetScale3D().Equals(FVector::OneVector);
+	const FTransform ComponentScaleTransform(FQuat::Identity, FVector::ZeroVector, WorldTransform_External.GetScale3D());
+
+	for (int32 ParticleIndex = 0; ParticleIndex < NumEffectiveParticles; ++ParticleIndex)
+	{
+		const int32 TransformIndex = FromParticleToTransformIndex[ParticleIndex];
+		const bool bAnimatingWhileDisabled = AnimationsActive ? (*AnimationsActive)[TransformIndex] : false;
+		const bool bActive = GameThreadCollection.Active[TransformIndex];
+		if (bActive || bAnimatingWhileDisabled)
+		{
+			if (GTParticles[ParticleIndex] != nullptr)
+			{
+				RebaseParticleGameThreadCollectionTransformOnNewWorldTransform_External(ParticleIndex, MassToLocal, bIsComponentTransformScaled, ComponentScaleTransform);
+			}
+		}
+	}
+}
+
+bool FGeometryCollectionPhysicsProxy::RebaseParticleGameThreadCollectionTransformOnNewWorldTransform_External(int32 ParticleIndex, const TManagedArray<FTransform>& MassToLocal, bool bIsComponentTransformScaled, const FTransform& ComponentScaleTransform)
+{
+	check(IsInGameThread());
+	bool bHasDifferentTransforms = false;
+	const int32 TransformIndex = FromParticleToTransformIndex[ParticleIndex];
+	const FParticle& GTParticle = *GTParticles[ParticleIndex];
+	const FTransform& ParticleMassToLocal = MassToLocal[TransformIndex];
+	const int32 ParentTransformIndex = GameThreadCollection.GetParent(TransformIndex);
+
+	const FTransform& WorldTransform = ParticleMassToLocal.Inverse() * FTransform { GTParticle.R(), GTParticle.X() };
+
+	// by default parent is the component's world transform 
+	FTransform ParentWorldTransform = WorldTransform_External;
+	if (ParentTransformIndex != INDEX_NONE && FromTransformToParticleIndex[ParentTransformIndex] != INDEX_NONE)
+	{
+		if (const FParticle* GTParentParticle = GTParticles[FromTransformToParticleIndex[ParentTransformIndex]].Get())
+		{
+			const FTransform& ParentMassToLocal = MassToLocal[TransformIndex];
+			ParentWorldTransform = ParentMassToLocal.Inverse() * FTransform { GTParentParticle->R(), GTParentParticle->X() };
+		}
+	}
+
+	FTransform NewTransform = WorldTransform.GetRelativeTransform(ParentWorldTransform);
+	if (ParentTransformIndex == INDEX_NONE && bIsComponentTransformScaled)
+	{
+		NewTransform = ParticleMassToLocal.Inverse() * ComponentScaleTransform * ParticleMassToLocal * NewTransform;
+	}
+	if (!NewTransform.Equals(FTransform(GameThreadCollection.GetTransform(TransformIndex)), GeometryCollectionTransformTolerance))
+	{
+		bHasDifferentTransforms = true;
+		GameThreadCollection.SetTransform(TransformIndex, FTransform3f(NewTransform));
+	}
+	return bHasDifferentTransforms;
 }
 
 void FDamageCollector::Reset(int32 NumTransforms)
