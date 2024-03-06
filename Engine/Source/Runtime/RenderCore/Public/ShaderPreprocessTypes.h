@@ -255,7 +255,7 @@ private:
 
 	// Strips comments/whitespace/line directives from the preprocessed source, replacing the contents of PreprocessedSource
 	// and saving the original source in the OriginalPreprocessedSource member
-	void StripCode();
+	void StripCode(bool bCopyOriginalPreprocessdSource);
 
 	void RemapErrors(FShaderCompilerOutput& Output) const;
 

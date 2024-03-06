@@ -1287,7 +1287,7 @@ public:
 		{
 			// if the preprocessed job cache is enabled we need to strip the preprocessed code, this removes comments, line directives
 			// and blank lines to improve deduplication (and populates data required to remap diagnostic messages to correct line numbers)
-			Job.PreprocessOutput.StripCode();
+			Job.PreprocessOutput.StripCode(Job.Input.NeedsOriginalShaderSource());
 		}
 
 		Job.PreprocessOutput.ElapsedTime = FPlatformTime::Seconds() - StartPreprocessTime;

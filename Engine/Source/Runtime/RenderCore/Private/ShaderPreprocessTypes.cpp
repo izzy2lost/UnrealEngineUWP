@@ -150,7 +150,7 @@ inline void SkipNewLine(const FShaderSource::CharType*& Current, const FShaderSo
 	Current += ((First + Second) == '\r' + '\n') ? 2 : 1;
 }
 
-void FShaderPreprocessOutput::StripCode()
+void FShaderPreprocessOutput::StripCode(bool bCopyOriginalPreprocessdSource)
 {
 	// Reserve worst case slack (i.e. assuming there is nothing to strip) to avoid reallocation
 	FShaderSource PreprocessedSourceStripped(LineDirectiveSentinel.GetCharArray().GetData(), PreprocessedSource.Len());
@@ -280,7 +280,10 @@ void FShaderPreprocessOutput::StripCode()
 	// ShrinkToLen null terminates for us by virtue of adding zero'd SIMD padding
 	PreprocessedSourceStripped.ShrinkToLen((int32)(OutStripped - OutStrippedData));
 
-	OriginalPreprocessedSource = MoveTemp(PreprocessedSource);
+	if (bCopyOriginalPreprocessdSource)
+	{
+		OriginalPreprocessedSource = MoveTemp(PreprocessedSource);
+	}
 	PreprocessedSource = MoveTemp(PreprocessedSourceStripped);
 }
 

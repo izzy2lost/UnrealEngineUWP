@@ -329,6 +329,11 @@ struct FShaderCompilerInput
 		return DumpDebugInfoPath != TEXT("") && IFileManager::Get().DirectoryExists(*DumpDebugInfoPath);
 	}
 
+	bool NeedsOriginalShaderSource() const
+	{
+		return DumpDebugInfoEnabled() || ExtraSettings.bExtractShaderSource;
+	}
+
 	// generate human readable name for debugging
 	FString GenerateShaderName() const
 	{
