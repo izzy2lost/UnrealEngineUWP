@@ -103,17 +103,37 @@ float2 ShadowNearAndFarDepth;
 EARLYDEPTHSTENCIL
 #endif
 void Main(
-	in float4 SVPos : SV_POSITION,
 	out float4 OutColor : SV_Target0
+#if INSTANCED_STEREO
+	, in nointerpolation uint EyeIndex : TEXCOORD0
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint ViewId : SV_ViewID
+#endif
+	, in float4 SVPos : SV_POSITION
 	)
 {
 	#if USE_FADE_PLANE
 	const bool bUseFadePlane = true;
 	#endif
+	
+	float ArrayIndex = 0;
+#if INSTANCED_STEREO
+	ResolvedView = ResolveView(EyeIndex);
+	ArrayIndex = EyeIndex;
+#elif MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(ViewId);
+	ArrayIndex = ViewId;;
+#else
+	ResolvedView = ResolveView();
+#endif
 
 	const FPQMPContext PQMPContext = PQMPInit(SVPos.xy);
-	float2 ScreenUV = float2(SVPos.xy * View.BufferSizeAndInvSize.zw);
+	float2 ScreenUV = float2(SVPos.xy * ResolvedView.BufferSizeAndInvSize.zw);
+#if (INSTANCED_STEREO || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
+	float SceneW = CalcSceneDepth(ScreenUV, ArrayIndex);
+#else
 	float SceneW = CalcSceneDepth(ScreenUV);
+#endif
 
 	bool bIsSubsurfaceCompatible = true;
 	const uint3 PixelCoord = uint3(floor(SVPos.xy), 0);
@@ -122,10 +142,17 @@ void Main(
 	SceneW = ConvertFromDeviceZ(HairStrands.HairOnlyDepthTexture.Load(PixelCoord).x);
 	bIsSubsurfaceCompatible = false;
 #endif
-
-	float4 ScreenPosition = float4(GetScreenPositionForProjectionType(((ScreenUV.xy - View.ScreenPositionScaleBias.wz ) / View.ScreenPositionScaleBias.xy),SceneW), SceneW, 1);
-	float4 ShadowPosition = mul(ScreenPosition, ScreenToShadowMatrix);
-	float3 TranslateWorldPosition = mul(ScreenPosition, View.ScreenToTranslatedWorld).xyz;
+	float4 ScreenPosition = float4(GetScreenPositionForProjectionType(((ScreenUV.xy - ResolvedView.ScreenPositionScaleBias.wz) / ResolvedView.ScreenPositionScaleBias.xy), SceneW), SceneW, 1);
+	
+	float4 ShadowPosition = float4(0, 0, 0, 0);
+	
+#if MOBILE_MULTI_VIEW || INSTANCED_STEREO
+	ShadowPosition = mul(ScreenPosition, ResolvedView.MobileMultiviewShadowTransform);
+	ShadowPosition = mul(ShadowPosition, ScreenToShadowMatrix);
+#else
+	ShadowPosition = mul(ScreenPosition, ScreenToShadowMatrix);
+#endif
+	float3 TranslateWorldPosition = mul(ScreenPosition, ResolvedView.ScreenToTranslatedWorld).xyz;
 
 	float ShadowZ = 1 - ShadowPosition.z;
 	ShadowPosition.xyz /= ShadowPosition.w;
@@ -256,7 +283,7 @@ void Main(
 		bool bHasSubsurfaceTransmission	= false;
 		bool bIsEyeOrHair 				= false;
 	#if SUBSTRATE_ENABLED
-		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelCoord.xy, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelCoord.xy, uint2(ResolvedView.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 		FSubstratePixelHeader SubstrateHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 		if (SubstrateHeader.IsSubstrateMaterial())
 		{

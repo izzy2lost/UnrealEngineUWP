@@ -449,6 +449,9 @@ void FMobileSceneRenderer::InitViews(
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		Views[ViewIndex].GPUSceneViewId = InstanceCullingManager.RegisterView(Views[ViewIndex]);
+		// Set the stereo instance factor as GetStereoPassInstanceFactor can't be called from inside an RDG pass.
+		uint32 InstanceFactor = Views[ViewIndex].GetStereoPassInstanceFactor();
+		Views[ViewIndex].InstanceFactor = InstanceFactor > 0 ? InstanceFactor : 1;
 	}
 
 	FILCUpdatePrimTaskData* ILCTaskData = nullptr;
