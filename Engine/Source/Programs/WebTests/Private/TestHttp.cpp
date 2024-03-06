@@ -224,17 +224,26 @@ public:
 		ensure(--OngoingRequests >= 0);
 	}
 
+	void TickHttpManager()
+	{
+		double Now = FPlatformTime::Seconds();
+		static double LastTick = Now;
+		double Duration = Now - LastTick;
+		LastTick = Now;
+		HttpModule->GetHttpManager().Tick(Duration);
+		FPlatformProcess::Sleep(TickFrequency);
+	}
+
 	void WaitUntilAllHttpRequestsComplete()
 	{
 		while (HasOngoingRequest())
 		{
-			HttpModule->GetHttpManager().Tick(TickFrequency);
-			FPlatformProcess::Sleep(TickFrequency);
+			TickHttpManager();
 		}
 
 		// In case in http thread the http request complete and set OngoingRequests to 0, http manager never 
 		// had chance to Tick and remove the request
-		HttpModule->GetHttpManager().Tick(TickFrequency);
+		TickHttpManager();
 	}
 
 	bool HasOngoingRequest() const
@@ -1059,8 +1068,7 @@ public:
 	{
 		while (!bQuitRequested)
 		{
-			HttpModule->GetHttpManager().Tick(TickFrequency);
-			FPlatformProcess::Sleep(TickFrequency);
+			TickHttpManager();
 		}
 	}
 
@@ -1625,6 +1633,15 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during loc
 
 	DisableWarningsInThisTest();
 
+	EHttpRequestDelegateThreadPolicy ThreadPolicyExpected = EHttpRequestDelegateThreadPolicy::CompleteOnGameThread;
+	SECTION("From game thread")
+	{
+	}
+	SECTION("From http thread")
+	{
+		ThreadPolicyExpected = EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread;
+	}
+
 	TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest(
 		1/*InRetryLimitCountOverride*/,
 		FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting()/*InRetryTimeoutRelativeSecondsOverride unused*/,
@@ -1633,6 +1650,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during loc
 
 	HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
 	HttpRequest->SetTimeout(1.0f);
+	HttpRequest->SetDelegateThreadPolicy(ThreadPolicyExpected);
 
 	uint32 RetryAfter = 4;
 
@@ -1640,7 +1658,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during loc
 	HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { RetryAfter }));
 
 	const double StartTime = FPlatformTime::Seconds();
-	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ThreadPolicyExpected](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		// When timeout during lock out period, it fails with result of last request before lock out
 		CHECK(bSucceeded);
 		REQUIRE(HttpResponse != nullptr);
@@ -1649,6 +1667,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during loc
 		CHECK(HttpResponse->GetContentLength() > 0);
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
 		CHECK(FMath::IsNearlyEqual(DurationInSeconds, 1.0, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
+		CHECK((ThreadPolicyExpected == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread && IsInGameThread() || ThreadPolicyExpected == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread && !IsInGameThread()));
 	});
 
 	HttpRequest->ProcessRequest();

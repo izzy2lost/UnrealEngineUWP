@@ -246,7 +246,7 @@ public:
 	 *
 	 * @param Task The task to be ran next tick
 	 */
-	HTTP_API void AddGameThreadTask(TFunction<void()>&& Task);
+	HTTP_API void AddGameThreadTask(TFunction<void()>&& Task, float Delay = 0.0f);
 
 	/**
 	 * Add task to be ran on the http thread
@@ -294,9 +294,9 @@ protected:
 	/** This method will be called to generate a CorrelationId on all requests being sent if one is not already set */
 	TFunction<FString()> CorrelationIdMethod;
 
-	/** Queue of tasks to run on the game thread */
-	TQueue<TFunction<void()>, EQueueMode::Mpsc> GameThreadQueue;
-	FCriticalSection GameThreadQueueLock;
+	/** Ticker to run game thread tasks*/
+	FTSTicker GameThreadTicker;
+	FCriticalSection GameThreadTickerLock;
 
 	// This variable is set to true in Flush(EHttpFlushReason), and prevents new Http requests from being launched
 	bool bFlushing;

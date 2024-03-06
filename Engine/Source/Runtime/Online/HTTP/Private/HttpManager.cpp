@@ -272,11 +272,14 @@ void FHttpManager::UpdateConfigs()
 	}
 }
 
-void FHttpManager::AddGameThreadTask(TFunction<void()>&& Task)
+void FHttpManager::AddGameThreadTask(TFunction<void()>&& Task, float Delay)
 {
 	if (Task)
 	{
-		GameThreadQueue.Enqueue(MoveTemp(Task));
+		GameThreadTicker.AddTicker(FTickerDelegate::CreateLambda([Task](float DeltaTime) {
+			Task();
+			return false;
+		}), Delay);
 	}
 }
 
@@ -425,14 +428,8 @@ bool FHttpManager::Tick(float DeltaSeconds)
 
 	// Run GameThread tasks
 	{
-		FScopeLock ScopeLock(&GameThreadQueueLock);
-
-		TFunction<void()> Task = nullptr;
-		while (GameThreadQueue.Dequeue(Task))
-		{
-			check(Task);
-			Task();
-		}
+		FScopeLock ScopeLock(&GameThreadTickerLock);
+		GameThreadTicker.Tick(DeltaSeconds);
 	}
 
 	if (Thread)

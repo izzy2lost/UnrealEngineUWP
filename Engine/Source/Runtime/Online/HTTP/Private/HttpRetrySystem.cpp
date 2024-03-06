@@ -482,7 +482,7 @@ void FHttpRetrySystem::FManager::RetryHttpRequestWithDelay(FManager::FHttpRetryR
 		float WillTimeoutInDelay = TimeoutOrDefault - TimeElapsedForTheRequest;
 		if (WillTimeoutInDelay < InDelay)
 		{
-			HttpRequestTimeoutAfterDelay(RequestEntry, bWasSucceeded, TimeoutOrDefault);
+			HttpRequestTimeoutAfterDelay(RequestEntry, bWasSucceeded, WillTimeoutInDelay);
 			return;
 		}
 	}
@@ -513,7 +513,7 @@ void FHttpRetrySystem::FManager::RetryHttpRequestWithDelay(FManager::FHttpRetryR
 void FHttpRetrySystem::FManager::HttpRequestTimeoutAfterDelay(FManager::FHttpRetryRequestEntry& RequestEntry, bool bWasSucceeded, float Delay)
 {
 	TWeakPtr<FRequest> RequestWeakPtr(RequestEntry.Request);
-	FHttpModule::Get().GetHttpManager().AddHttpThreadTask([RequestWeakPtr, bWasSucceeded]() {
+	TFunction<void()> Callback([RequestWeakPtr, bWasSucceeded]() {
 		if (TSharedPtr<FRequest> RequestPtr = RequestWeakPtr.Pin())
 		{
 			if (TSharedPtr<FManager> RetryManagerPtr = RequestPtr->RetryManager.Pin())
@@ -534,7 +534,16 @@ void FHttpRetrySystem::FManager::HttpRequestTimeoutAfterDelay(FManager::FHttpRet
 			// Same as existing behavior, when timeout during lock out period, it fails with result of last request before lockout
 			RequestPtr->OnProcessRequestComplete().ExecuteIfBound(RequestPtr, RequestPtr->GetResponse(), bWasSucceeded);
 		}
-	}, Delay);
+	});
+
+	if (RequestEntry.Request->GetDelegateThreadPolicy() == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread)
+	{
+		FHttpModule::Get().GetHttpManager().AddGameThreadTask(MoveTemp(Callback), Delay);
+	}
+	else
+	{
+		FHttpModule::Get().GetHttpManager().AddHttpThreadTask(MoveTemp(Callback), Delay);
+	}
 }
 
 float FHttpRetrySystem::FManager::GetLockoutPeriodSeconds(const FHttpRetryRequestEntry& HttpRetryRequestEntry)
