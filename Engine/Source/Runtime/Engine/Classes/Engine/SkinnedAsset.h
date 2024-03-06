@@ -213,6 +213,7 @@ public:
 	PURE_VIRTUAL(USkinnedAsset::GetDisableBelowMinLodStripping, static const FPerPlatformBool Dummy; return Dummy;);
 
 	virtual void SetSkinWeightProfilesData(int32 LODIndex, struct FSkinWeightProfilesData& SkinWeightProfilesData) {}
+	virtual FSkinWeightProfilesData* GetSkinWeightProfilesData(int32 LODIndex) { return nullptr; }
 
 	/** Computes flags for building vertex buffers. */
 	ENGINE_API virtual ESkeletalMeshVertexFlags GetVertexBufferFlags() const;

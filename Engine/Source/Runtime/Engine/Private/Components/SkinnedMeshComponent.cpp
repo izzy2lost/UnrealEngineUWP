@@ -4871,6 +4871,26 @@ void USkinnedMeshComponent::UnloadSkinWeightProfile(FName InProfileName)
 	}
 }
 
+bool USkinnedMeshComponent::IsUsingSkinWeightProfile() const
+{
+	if (bSkinWeightProfileSet)
+	{		
+		return true;
+	}
+	else
+	{
+		if (USkinnedAsset* Asset = GetSkinnedAsset())
+		{
+			if (const FSkinWeightProfilesData* ProfileData = Asset->GetSkinWeightProfilesData(GetPredictedLODLevel()))
+			{
+				return ProfileData->IsDefaultOverridden() || ProfileData->IsStaticOverridden();
+			}
+		}		
+	}
+
+	return false;
+}
+
 void USkinnedMeshComponent::UpdateSkinWeightOverrideBuffer()
 {
 	// Force a mesh update to ensure bone buffers are up to date

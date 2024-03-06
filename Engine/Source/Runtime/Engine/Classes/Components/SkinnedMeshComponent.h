@@ -1336,7 +1336,7 @@ public:
 
 	/** Check whether or not a Skin Weight Profile is currently set */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	bool IsUsingSkinWeightProfile() const { return bSkinWeightProfileSet == 1;  }
+	ENGINE_API bool IsUsingSkinWeightProfile() const;
 
 	UE_DEPRECATED(4.26, "GetVertexOffsetUsage() has been deprecated. Support will be dropped in the future.")
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")

@@ -5827,6 +5827,18 @@ void USkeletalMesh::SetSkinWeightProfilesData(int32 LODIndex, FSkinWeightProfile
 	}
 }
 
+FSkinWeightProfilesData* USkeletalMesh::GetSkinWeightProfilesData(int32 LODIndex)
+{
+	FSkeletalMeshRenderData* RenderData = GetSkeletalMeshRenderData();
+	if (RenderData && RenderData->LODRenderData.IsValidIndex(LODIndex))
+	{
+		FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[LODIndex];
+		return &LODRenderData.SkinWeightProfilesData;
+	}
+	
+	return nullptr;
+}
+
 void USkeletalMesh::OnLodStrippingQualityLevelChanged(IConsoleVariable* Variable) {
 #if WITH_EDITOR || PLATFORM_DESKTOP
 	if (GEngine && GEngine->UseSkeletalMeshMinLODPerQualityLevels)
