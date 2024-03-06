@@ -166,6 +166,7 @@ namespace UE::DMX::Private
 				.HasDownArrow(true)
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
+				.IsEnabled(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddEmptyButtonEnabled)
 				.OnGetMenuContent(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::CreateAddEmptyMenu)
 				.ButtonContent()
 				[
@@ -293,7 +294,13 @@ namespace UE::DMX::Private
 	bool SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddPatchesButtonEnabled() const
 	{
 		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
-		return ControlConsoleData && ControlConsoleData->GetDMXLibrary();
+		return ControlConsoleData && ControlConsoleData->GetDMXLibrary() && ControlConsoleData->FilterString.IsEmpty();
+	}
+
+	bool SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddEmptyButtonEnabled() const
+	{
+		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+		return ControlConsoleData && ControlConsoleData->FilterString.IsEmpty();
 	}
 
 	EVisibility SDMXControlConsoleEditorFixturePatchVerticalBox::GetFixturePatchListToolbarVisibility() const
