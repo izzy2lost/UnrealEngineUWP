@@ -548,13 +548,18 @@ void UPCGSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChanged
 		EPCGChangeType ChangeType = EPCGChangeType::Structural | EPCGChangeType::GenerationGrid;
 		if (PropertyName != NAME_None)
 		{
-			ChangeType = GetChangeTypeForProperty(PropertyChangedEvent.GetPropertyName());
+			ChangeType = GetChangeTypeForProperty(PropertyChangedEvent);
 		}
 
 		OnSettingsChangedDelegate.Broadcast(this, ChangeType);
 	}
 
 	CacheCrc();
+}
+
+EPCGChangeType UPCGSettings::GetChangeTypeForProperty(FPropertyChangedEvent& PropertyChangedEvent) const
+{
+	return GetChangeTypeForProperty(PropertyChangedEvent.GetPropertyName());
 }
 
 EPCGChangeType UPCGSettings::GetChangeTypeForProperty(const FName& InPropertyName) const

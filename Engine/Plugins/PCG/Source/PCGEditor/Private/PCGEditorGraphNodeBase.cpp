@@ -62,8 +62,8 @@ namespace PCGEditorGraphNodeBase
 		{
 			if (!Settings || !Settings->IsA<UPCGRerouteSettings>())
 			{
-				// Task will be displayed as active if it was executed or if it does not produce tasks for execution.
-				return InComponentBeingDebugged->WasNodeExecuted(PCGNode, *InStackBeingInspected) || (Settings && !Settings->EmitsTaskForExecution());
+				// Task will be displayed as active if it was executed.
+				return InComponentBeingDebugged->WasNodeExecuted(PCGNode, *InStackBeingInspected);
 			}
 			else
 			{

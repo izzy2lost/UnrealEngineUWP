@@ -2065,13 +2065,10 @@ void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode
 				FPCGDataCollection PinDataCollection;
 				InData.GetInputsAndCrcsByPin(Pin->Properties.Label, PinDataCollection.TaggedData, PinDataCollection.DataCrcs);
 
+				// Implementation note: since static subgraphs actually are visited twice and the second time the input doesn't match the input pins, we don't clear the data.
 				if (!PinDataCollection.TaggedData.IsEmpty())
 				{
 					InOutInspectionCache.Add(Stack, PinDataCollection);
-				}
-				else
-				{
-					InOutInspectionCache.Remove(Stack);
 				}
 			}
 		};
