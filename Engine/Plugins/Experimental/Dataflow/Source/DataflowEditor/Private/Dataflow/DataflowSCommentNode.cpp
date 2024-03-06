@@ -86,12 +86,6 @@ UEdGraphNode* FAssetSchemaAction_Dataflow_DuplicateCommentNode_DataflowEdNode::P
 {
 	FString NewNodeName = CommentNodeToDuplicate->NodeComment;
 
-	// Append "_copy" to selected node's name if it doesn't have it
-	if (!NewNodeName.Contains(CopyPostfix))
-	{
-		NewNodeName.Append(CopyPostfix);
-	}
-
 	UEdGraphNode_Comment* CommentTemplate = NewObject<UEdGraphNode_Comment>(ParentGraph, FName(*NewNodeName));
 
 	CommentTemplate->bCommentBubbleVisible_InDetailsPanel = false;
@@ -143,12 +137,7 @@ TSharedPtr<FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode> FAssetSc
 //
 UEdGraphNode* FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
 {
-	// Append "_copy" to selected node's name if it doesn't have it
 	FString NewNodeName = NodeName.ToString();
-	if (!NewNodeName.Contains(CopyPostfix))
-	{
-		NewNodeName.Append(CopyPostfix);
-	}
 
 	UEdGraphNode_Comment* CommentTemplate = NewObject<UEdGraphNode_Comment>(ParentGraph, FName(*NewNodeName));
 
