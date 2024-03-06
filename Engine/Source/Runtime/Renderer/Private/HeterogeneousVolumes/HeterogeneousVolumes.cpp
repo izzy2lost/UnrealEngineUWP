@@ -22,13 +22,22 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadows(
 	TEXT("r.HeterogeneousVolumes.Shadows"),
 	0,
 	TEXT("Enables heterogeneous volume-casting shadows (default = 0)"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+	ECVF_RenderThreadSafe | ECVF_ReadOnly
+);
 
 static TAutoConsoleVariable<int32> CVarTranslucencyHeterogeneousVolumes(
 	TEXT("r.Translucency.HeterogeneousVolumes"),
 	0,
 	TEXT("Enables composting with heterogeneous volumes when rendering translucency (Default = 0)\n"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly
+);
+
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowMode(
+	TEXT("r.HeterogeneousVolumes.Shadows.Mode"),
+	0,
+	TEXT("0: Live-Shading (Default)")
+	TEXT("1: Preshaded Voxel Grid"),
+	ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesDebug(
@@ -359,6 +368,11 @@ namespace HeterogeneousVolumes
 		return CVarHeterogeneousVolumesDebug.GetValueOnRenderThread();
 	}
 
+	EShadowMode GetShadowMode()
+	{
+		return static_cast<EShadowMode>(CVarHeterogeneousVolumesShadowMode.GetValueOnRenderThread());
+	}
+
 	bool UseSparseVoxelPipeline()
 	{
 		return CVarHeterogeneousVolumesSparseVoxel.GetValueOnRenderThread() != 0;
@@ -478,7 +492,7 @@ bool ShouldBuildVoxelGrids(const FScene* Scene)
 		return true;
 	}
 
-	if (HeterogeneousVolumes::GetDebugMode() != 0)
+	if (HeterogeneousVolumes::GetShadowMode() == HeterogeneousVolumes::EShadowMode::VoxelGrid)
 	{
 		return true;
 	}
@@ -494,7 +508,7 @@ bool ShouldCacheVoxelGrids(const FScene* Scene, FSceneViewState* ViewState)
 		return false;
 	}
 
-	if (HeterogeneousVolumes::GetDebugMode() != 0)
+	if (HeterogeneousVolumes::GetShadowMode() == HeterogeneousVolumes::EShadowMode::VoxelGrid)
 	{
 		return true;
 	}
@@ -518,18 +532,21 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HeterogeneousVolumeShadowsStat);
 	SCOPED_NAMED_EVENT(HeterogeneousVolumes, FColor::Emerald);
 
-	FVoxelGridBuildOptions BuildOptions;
-	BuildOptions.VoxelGridBuildMode = EVoxelGridBuildMode::Shadows;
-	BuildOptions.MinimumVoxelSizeOutsideFrustum = HeterogeneousVolumes::GetOutOfFrustumShadingRateForShadows();
-	BuildOptions.MinimumVoxelSizeInFrustum = HeterogeneousVolumes::GetShadingRateForShadows();
-	BuildOptions.bBuildOrthoGrid = true;
-	BuildOptions.bBuildFrustumGrid = false;
-	BuildOptions.bJitter = false;
-
 	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoGridUniformBuffer = nullptr;
 	TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters> FrustumGridUniformBuffer = nullptr;
-	BuildOrthoVoxelGrid(GraphBuilder, Scene, Views, VisibleLightInfos, BuildOptions, OrthoGridUniformBuffer);
-	BuildFrustumVoxelGrid(GraphBuilder, Scene, Views[0], BuildOptions, FrustumGridUniformBuffer);
+	if (HeterogeneousVolumes::GetShadowMode() == HeterogeneousVolumes::EShadowMode::VoxelGrid)
+	{
+		FVoxelGridBuildOptions BuildOptions;
+		BuildOptions.VoxelGridBuildMode = EVoxelGridBuildMode::Shadows;
+		BuildOptions.MinimumVoxelSizeOutsideFrustum = HeterogeneousVolumes::GetOutOfFrustumShadingRateForShadows();
+		BuildOptions.MinimumVoxelSizeInFrustum = HeterogeneousVolumes::GetShadingRateForShadows();
+		BuildOptions.bBuildOrthoGrid = true;
+		BuildOptions.bBuildFrustumGrid = false;
+		BuildOptions.bJitter = HeterogeneousVolumes::EnableJitterForShadows();
+
+		BuildOrthoVoxelGrid(GraphBuilder, Scene, Views, VisibleLightInfos, BuildOptions, OrthoGridUniformBuffer);
+		BuildFrustumVoxelGrid(GraphBuilder, Scene, Views[0], BuildOptions, FrustumGridUniformBuffer);
+	}
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
@@ -537,35 +554,64 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 
 		if (ShouldCompositeHeterogeneousVolumesWithTranslucency())
 		{
-			RenderAdaptiveVolumetricCameraMapWithVoxelGrid(
-				GraphBuilder,
-				// Scene data
-				SceneTextures,
-				Scene,
-				ViewFamily,
-				View,
-				// Volume data
-				OrthoGridUniformBuffer,
-				FrustumGridUniformBuffer
-			);
+			if (HeterogeneousVolumes::GetShadowMode() == HeterogeneousVolumes::EShadowMode::LiveShading)
+			{
+				RenderAdaptiveVolumetricCameraMapWithLiveShading(
+					GraphBuilder,
+					SceneTextures,
+					Scene,
+					ViewFamily,
+					View
+				);
+			}
+			else
+			{
+				RenderAdaptiveVolumetricCameraMapWithVoxelGrid(
+					GraphBuilder,
+					// Scene data
+					SceneTextures,
+					Scene,
+					ViewFamily,
+					View,
+					// Volume data
+					OrthoGridUniformBuffer,
+					FrustumGridUniformBuffer
+				);
+			}
 		}
 
 		if (ShouldHeterogeneousVolumesCastShadows())
 		{
-			RenderAdaptiveVolumetricShadowMapWithVoxelGrid(
-				GraphBuilder,
-				// Scene data
-				SceneTextures,
-				Scene,
-				ViewFamily,
-				View,
-				// Shadow Data
-				VisibleLightInfos,
-				VirtualShadowMapArray,
-				// Volume data
-				OrthoGridUniformBuffer,
-				FrustumGridUniformBuffer
-			);
+			if (HeterogeneousVolumes::GetShadowMode() == HeterogeneousVolumes::EShadowMode::LiveShading)
+			{
+				RenderAdaptiveVolumetricShadowMapWithLiveShading(
+					GraphBuilder,
+					// Scene data
+					SceneTextures,
+					Scene,
+					ViewFamily,
+					View,
+					// Light data
+					VisibleLightInfos
+				);
+			}
+			else
+			{
+				RenderAdaptiveVolumetricShadowMapWithVoxelGrid(
+					GraphBuilder,
+					// Scene data
+					SceneTextures,
+					Scene,
+					ViewFamily,
+					View,
+					// Shadow Data
+					VisibleLightInfos,
+					VirtualShadowMapArray,
+					// Volume data
+					OrthoGridUniformBuffer,
+					FrustumGridUniformBuffer
+				);
+			}
 		}
 	}
 
