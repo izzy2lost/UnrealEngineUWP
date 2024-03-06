@@ -16,7 +16,7 @@ class UMassStationaryDistanceVisualizationTrait;
 
 /** 
  * Configurable project settings for the Instanced Actors system.
- * @see FInstancedActorsClassSettings for per-class specific runtime settings.
+ * @see FInstancedActorsClassSettingsBase and FInstancedActorsClassSettings for per-class specific runtime settings.
  * @see AInstancedActorsManager
  */
 UCLASS(Config=InstancedActors, defaultconfig, DisplayName = "Instanced Actors")
@@ -40,7 +40,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = ActorClassSettings)
 	FDataRegistryType NamedSettingsRegistryType = "InstancedActorsNamedSettings";
 
-	/** Data Registry to gather per-class FInstancedActorsClassSettings from during UInstancedActorsSubsystem init */
+	/** Data Registry to gather per-class FInstancedActorsClassSettingsBase-based settings from during UInstancedActorsSubsystem init */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = ActorClassSettings)
 	FDataRegistryType ActorClassSettingsRegistryType = "InstancedActorsClassSettings";
 
