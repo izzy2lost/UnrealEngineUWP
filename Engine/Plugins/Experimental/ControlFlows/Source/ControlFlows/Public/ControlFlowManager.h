@@ -5,6 +5,7 @@
 // IWYU pragma: begin_keep
 #include "ControlFlow.h"
 #include "UObject/StrongObjectPtr.h"
+#include "Containers/Ticker.h"
 #include "ControlFlowContainer.h"
 // IWYU pragma: end_keep
 
@@ -146,4 +147,16 @@ private:
 private:
 	static bool IterateThroughNewlyCreatedFlows(float DeltaTime);
 	static bool IterateForInvalidFlows(float DeltaTime);
+
+private:
+	static FControlFlowStatics& Get();
+
+private:
+	TArray<TSharedRef<FControlFlowContainerBase>> NewlyCreatedFlows;
+	TArray<TSharedRef<FControlFlowContainerBase>> PersistentFlows;
+	TArray<TSharedRef<FControlFlowContainerBase>> ExecutingFlows;
+	TArray<TSharedRef<FControlFlowContainerBase>> FinishedFlows;
+
+	FTSTicker::FDelegateHandle NextFrameCheckForExecution;
+	FTSTicker::FDelegateHandle NextFrameCheckForFlowCleanup;
 };

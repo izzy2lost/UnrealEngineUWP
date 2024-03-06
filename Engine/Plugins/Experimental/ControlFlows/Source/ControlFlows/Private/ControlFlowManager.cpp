@@ -4,31 +4,24 @@
 #include "Containers/Ticker.h"
 #include "ControlFlows.h"
 
-static FTSTicker::FDelegateHandle NextFrameCheckForExecution;
-static FTSTicker::FDelegateHandle NextFrameCheckForFlowCleanup;
-
 TArray<TSharedRef<FControlFlowContainerBase>>& FControlFlowStatics::GetNewlyCreatedFlows()
 {
-	static TArray<TSharedRef<FControlFlowContainerBase>> NewlyCreatedFlows;
-	return NewlyCreatedFlows;
+	return Get().NewlyCreatedFlows;
 }
 
 TArray<TSharedRef<FControlFlowContainerBase>>& FControlFlowStatics::GetPersistentFlows()
 {
-	static TArray<TSharedRef<FControlFlowContainerBase>> PersistentFlows;
-	return PersistentFlows;
+	return Get().PersistentFlows;
 }
 
 TArray<TSharedRef<FControlFlowContainerBase>>& FControlFlowStatics::GetExecutingFlows()
 {
-	static TArray<TSharedRef<FControlFlowContainerBase>> ExecutingFlows;
-	return ExecutingFlows;
+	return Get().ExecutingFlows;
 }
 
 TArray<TSharedRef<FControlFlowContainerBase>>& FControlFlowStatics::GetFinishedFlows()
 {
-	static TArray<TSharedRef<FControlFlowContainerBase>> FinishedFlows;
-	return FinishedFlows;
+	return  Get().FinishedFlows;
 }
 
 void FControlFlowStatics::HandleControlFlowStartedNotification(TSharedRef<const FControlFlow> InFlow)
@@ -53,18 +46,23 @@ void FControlFlowStatics::HandleControlFlowStartedNotification(TSharedRef<const 
 
 void FControlFlowStatics::CheckNewlyCreatedFlows()
 {
-	FTSTicker::GetCoreTicker().RemoveTicker(NextFrameCheckForExecution);
-	NextFrameCheckForExecution = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateStatic(&FControlFlowStatics::IterateThroughNewlyCreatedFlows));
+	if (!Get().NextFrameCheckForExecution.IsValid())
+	{
+		Get().NextFrameCheckForExecution = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateStatic(&FControlFlowStatics::IterateThroughNewlyCreatedFlows));
+	}
 }
 
 void FControlFlowStatics::CheckForInvalidFlows()
 {
-	FTSTicker::GetCoreTicker().RemoveTicker(NextFrameCheckForFlowCleanup);
-	NextFrameCheckForFlowCleanup = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateStatic(&FControlFlowStatics::IterateForInvalidFlows));
+	if (!Get().NextFrameCheckForFlowCleanup.IsValid())
+	{
+		Get().NextFrameCheckForFlowCleanup = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateStatic(&FControlFlowStatics::IterateForInvalidFlows));
+	}
 }
 
 bool FControlFlowStatics::IterateThroughNewlyCreatedFlows(float DeltaTime)
 {
+	Get().NextFrameCheckForExecution.Reset();
 	TArray<TSharedRef<FControlFlowContainerBase>>& NewFlows = GetNewlyCreatedFlows();
 	for (size_t Idx = 0; Idx < NewFlows.Num(); ++Idx)
 	{
@@ -98,6 +96,7 @@ bool FControlFlowStatics::IterateThroughNewlyCreatedFlows(float DeltaTime)
 
 bool FControlFlowStatics::IterateForInvalidFlows(float DeltaTime)
 {
+	Get().NextFrameCheckForFlowCleanup.Reset();
 	//Iterating through Persistent Flows
 	{
 		TArray<TSharedRef<FControlFlowContainerBase>>& Persistent = GetPersistentFlows();
@@ -166,4 +165,10 @@ bool FControlFlowStatics::IterateForInvalidFlows(float DeltaTime)
 	}
 
 	return false;
+}
+
+FControlFlowStatics& FControlFlowStatics::Get()
+{
+	static TUniquePtr<FControlFlowStatics> Singleton = MakeUnique<FControlFlowStatics>();
+	return *Singleton;
 }

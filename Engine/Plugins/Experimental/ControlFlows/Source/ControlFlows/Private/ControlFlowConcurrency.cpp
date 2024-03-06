@@ -4,6 +4,7 @@
 #include "ControlFlow.h"
 #include "ControlFlows.h"
 #include "ControlFlowTask.h"
+#include "Async/ParallelFor.h"
 
 FConcurrencySubFlowContainer::FConcurrencySubFlowContainer(const FString& InDebugName)
 	: SubFlow(MakeShared<FControlFlow>(InDebugName))
@@ -100,6 +101,12 @@ FControlFlow& FConcurrentControlFlows::AddOrGetFlow(int32 InIdentifier, const FS
 	}
 }
 
+FConcurrentControlFlows& FConcurrentControlFlows::SetExecution(const EConcurrentExecution InBehavior)
+{
+	ExecutionBehavior = InBehavior;
+	return *this;
+}
+
 FControlFlow& FConcurrentControlFlows::AddOrGetProng(int32 InIdentifier, const FString& DebugSubFlowName /*= TEXT("")*/)
 {
 	return AddOrGetFlow(InIdentifier, DebugSubFlowName);
@@ -131,29 +138,32 @@ bool FConcurrentControlFlows::HasAnySubFlowBeenExecuted() const
 	return false;
 }
 
+bool FConcurrentControlFlows::HasAllSubFlowsBeenExecuted() const
+{
+	for (const TPair<int32, TSharedRef<FConcurrencySubFlowContainer>>& PairIt : ConcurrentFlows)
+	{
+		if (!PairIt.Value->HasBeenExecuted())
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void FConcurrentControlFlows::HandleConcurrentFlowCompleted(int32 FlowIndex)
 {
 	check(ConcurrentFlows.Contains(FlowIndex));
 
 	UE_LOG(LogControlFlows, Verbose, TEXT("ConcurrentControlFlow Finished: %s"), *ConcurrentFlows[FlowIndex]->GetDebugName());
 
-	if (!bCancelAllHasBegun)
+	if (ExecutionBehavior == EConcurrentExecution::Parallel)
 	{
-		if (GetConcurrencyBehavior().GetContinueCondition() == FConcurrentControlFlowBehavior::EContinueConditions::ContinueOnAll_CompletedOrCancelled)
-		{
-			if (AreAllSubFlowsCompletedOrCancelled())
-			{
-				OnConcurrencyCompleted.ExecuteIfBound();
-			}
-			else
-			{
-				UE_LOG(LogControlFlows, Verbose, TEXT("Other flows are still running"));
-			}
-		}
-		else
-		{
-			checkf(false, TEXT("Unhandled Continue Condition"));
-		}
+		HandleParallelFlowExecutionFinished();
+	}
+	else if (!bCancelAllHasBegun)
+	{
+		CheckToBroadcastComplete();
 	}
 }
 
@@ -163,9 +173,40 @@ void FConcurrentControlFlows::HandleConcurrentFlowCancelled(int32 FlowIndex)
 
 	UE_LOG(LogControlFlows, Verbose, TEXT("ConcurrentControlFlow Cancelled %s"), *ConcurrentFlows[FlowIndex]->GetDebugName());
 
-	if (!bCancelAllHasBegun)
+	if (ExecutionBehavior == EConcurrentExecution::Parallel)
+	{
+		HandleParallelFlowExecutionFinished();
+	}
+	else if (!bCancelAllHasBegun)
 	{
 		HandleConcurrentFlowCompleted(FlowIndex);
+	}
+}
+
+void FConcurrentControlFlows::HandleParallelFlowExecutionFinished()
+{
+	if (HasAllSubFlowsBeenExecuted())
+	{
+		CheckToBroadcastComplete();
+	}
+}
+
+void FConcurrentControlFlows::CheckToBroadcastComplete()
+{
+	if (GetConcurrencyBehavior().GetContinueCondition() == FConcurrentControlFlowBehavior::EContinueConditions::Default)
+	{
+		if (AreAllSubFlowsCompletedOrCancelled())
+		{
+			OnConcurrencyCompleted.ExecuteIfBound();
+		}
+		else
+		{
+			UE_LOG(LogControlFlows, Verbose, TEXT("Other flows are still running"));
+		}
+	}
+	else
+	{
+		checkf(false, TEXT("Unhandled Continue Condition"));
 	}
 }
 
@@ -173,31 +214,48 @@ void FConcurrentControlFlows::Execute()
 {
 	ensureAlwaysMsgf(!this->HasAnySubFlowBeenExecuted(), TEXT("Did you call ExecuteFlow() on a SubFlow? Do not do this! You only need to call ExecuteFlow once per FControlFlowStatics::Create!"));
 
-	bool bFlowExecuted = false;
-
-	for (TPair<int32, TSharedRef<FConcurrencySubFlowContainer>>& PairIt : ConcurrentFlows)
-	{
-		UE_LOG(LogControlFlows, Verbose, TEXT("ConcurrentControlFlow::Execute - Executing Subflow %s"), *PairIt.Value->GetDebugName());
-
-		bFlowExecuted = true;
-
-		PairIt.Value->GetControlFlow()->LastZeroSecondDelay = OwningTask.Pin()->GetOwningFlowForTaskNode().Pin()->LastZeroSecondDelay;
-		PairIt.Value->Execute();
-
-		if (bCancelAllHasBegun)
-		{
-			break;
-		}
-	}
-	
-	if (ConcurrentFlows.Num() > 0)
-	{
-		ensureAlwaysMsgf(bFlowExecuted, TEXT("There were defined Subflows, but none were executed"));
-	}
-
-	if (!bFlowExecuted)
+	if (ConcurrentFlows.Num() == 0)
 	{
 		OnAllCompleted();
+		return;
+	}
+
+	TArray<TSharedRef<FConcurrencySubFlowContainer>> FlowsToExecute;
+	for (const TPair<int32, TSharedRef<FConcurrencySubFlowContainer>>& PairIt : ConcurrentFlows)
+	{
+		FlowsToExecute.Add(PairIt.Value);
+		PairIt.Value->GetControlFlow()->LastZeroSecondDelay = OwningTask.Pin()->GetOwningFlowForTaskNode().Pin()->LastZeroSecondDelay;
+	}
+
+	if (ExecutionBehavior == EConcurrentExecution::Parallel)
+	{
+		ParallelFor(FlowsToExecute.Num(), [&FlowsToExecute](int32 Index)
+			{
+				UE_LOG(LogControlFlows, Verbose, TEXT("ConcurrentControlFlow::Execute - Executing Subflow %s"), *FlowsToExecute[Index]->GetDebugName());
+				FlowsToExecute[Index]->Execute();
+			});
+	}
+	else
+	{
+		if (ExecutionBehavior == EConcurrentExecution::Random)
+		{
+			for (int32 Idx = 0; Idx < FlowsToExecute.Num(); ++Idx)
+			{
+				Swap(FlowsToExecute[Idx], FlowsToExecute[FMath::RandRange(0, FlowsToExecute.Num() - 1)]);
+			}
+		}
+
+		for (const TSharedRef<FConcurrencySubFlowContainer>& Flow : FlowsToExecute)
+		{
+			UE_LOG(LogControlFlows, Verbose, TEXT("ConcurrentControlFlow::Execute - Executing Subflow %s"), *Flow->GetDebugName());
+
+			Flow->Execute();
+
+			if (bCancelAllHasBegun)
+			{
+				break;
+			}
+		}
 	}
 }
 
