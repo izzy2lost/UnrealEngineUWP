@@ -24,11 +24,10 @@ namespace Horde.Server.Artifacts
 		/// <param name="streamId">Stream that the artifact was built from</param>
 		/// <param name="change">Change number that the artifact was built from</param>
 		/// <param name="keys">Keys for the artifact</param>
-		/// <param name="expireAtUtc">Time at which to expire the artifact</param>
 		/// <param name="scopeName">Inherited scope used for permissions</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new log file document</returns>
-		Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken = default);
+		Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, AclScopeName scopeName, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Deletes artifacts
@@ -41,10 +40,11 @@ namespace Horde.Server.Artifacts
 		/// <summary>
 		/// Finds artifacts which are ready for expiry
 		/// </summary>
-		/// <param name="utcNow">The current time, as UTC</param>
+		/// <param name="type">Type of artifacts to find</param>
+		/// <param name="expireAtUtc">Number of artifacts to keep</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sequence of artifacts</returns>
-		IAsyncEnumerable<IEnumerable<IArtifact>> FindExpiredAsync(DateTime utcNow, CancellationToken cancellationToken = default);
+		IAsyncEnumerable<IEnumerable<IArtifact>> FindExpiredAsync(ArtifactType type, DateTime? expireAtUtc, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds artifacts with the given keys.
@@ -66,15 +66,6 @@ namespace Horde.Server.Artifacts
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The artifact document</returns>
 		Task<IArtifact?> GetAsync(ArtifactId artifactId, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Updates an artifact
-		/// </summary>
-		/// <param name="artifact">Artifact to update</param>
-		/// <param name="expiresAtUtc">Expiry time for the artifact. Set to a default value to clear the expiry time.</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Updated artifact</returns>
-		Task<IArtifact?> TryUpdateAsync(IArtifact artifact, DateTime? expiresAtUtc, CancellationToken cancellationToken = default);
 	}
 
 	/// <summary>

@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Streams;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;
@@ -25,15 +26,7 @@ namespace Horde.Server.Artifacts
 	/// </summary>
 	class ArtifactExpirationService : IHostedService
 	{
-		[SingletonDocument("artifact-expiry-times")]
-		class ExpiryTimes : SingletonBase
-		{
-			[BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
-			public Dictionary<ArtifactType, int> TypeToDays { get; set; } = new Dictionary<ArtifactType, int>();
-		}
-
 		readonly IArtifactCollection _artifactCollection;
-		readonly ISingletonDocument<ExpiryTimes> _expiryTimes;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly StorageService _storageService;
 		readonly IClock _clock;
@@ -44,7 +37,6 @@ namespace Horde.Server.Artifacts
 		{
 			_artifactCollection = artifactCollection;
 			_storageService = storageService;
-			_expiryTimes = new SingletonDocument<ExpiryTimes>(mongoService);
 			_globalConfig = globalConfig;
 			_clock = clock;
 			_ticker = clock.AddSharedTicker<ArtifactExpirationService>(TimeSpan.FromHours(1.0), TickAsync, logger);
@@ -70,80 +62,67 @@ namespace Horde.Server.Artifacts
 
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
-			// Get the new expiry time map
-			Dictionary<ArtifactType, int> nextTypeToTime = new Dictionary<ArtifactType, int>();
-			foreach (ArtifactTypeConfig artifactTypeConfig in globalConfig.ArtifactTypes)
-			{
-				nextTypeToTime[artifactTypeConfig.Type] = artifactTypeConfig.KeepDays ?? 0;
-			}
-
-			// Get the last expiry time map
-			ExpiryTimes prevExpiryTimes = await _expiryTimes.GetAsync(cancellationToken);
-
-			// Update any artifacts with a new expiry time
-			foreach ((ArtifactType type, int time) in nextTypeToTime)
-			{
-				int prevTime;
-				if (!prevExpiryTimes.TypeToDays.TryGetValue(type, out prevTime) || time != prevTime)
-				{
-					await UpdateExpiryTimesAsync(type, time, cancellationToken);
-					prevExpiryTimes = await _expiryTimes.UpdateAsync(x => x.TypeToDays[type] = time, cancellationToken);
-				}
-			}
-
-			// Expire any artifacts which have past their expiry time
 			DateTime utcNow = _clock.UtcNow;
-			await foreach (IEnumerable<IArtifact> artifacts in _artifactCollection.FindExpiredAsync(utcNow, cancellationToken))
+			foreach (ArtifactTypeConfig artifactType in globalConfig.ArtifactTypes)
 			{
-				foreach (IGrouping<NamespaceId, IArtifact> group in artifacts.GroupBy(x => x.NamespaceId))
+				DateTime? expireAtUtc = null;
+				if (artifactType.KeepDays.HasValue)
 				{
-					using IStorageClient storageClient = _storageService.CreateClient(group.Key);
-					foreach (IArtifact artifact in group)
-					{
-						_logger.LogDebug("Expiring artifact {ArtifactId}, ref {RefName}", artifact.Id, artifact.RefName);
-						await storageClient.DeleteRefAsync(artifact.RefName, cancellationToken);
-					}
+					expireAtUtc = utcNow - TimeSpan.FromDays(artifactType.KeepDays.Value);
+					_logger.LogInformation("Removing {ArtifactType} artifacts except newer than {Time}", artifactType.Type, expireAtUtc);
 				}
-				await _artifactCollection.DeleteAsync(artifacts.Select(x => x.Id), cancellationToken);
+				if (artifactType.KeepCount.HasValue)
+				{
+					_logger.LogInformation("Removing {ArtifactType} artifacts except newest {Count}", artifactType.Type, artifactType.KeepCount.Value);
+				}
+
+				Dictionary<StreamId, int> streamIdToCount = new Dictionary<StreamId, int>();
+				await foreach (IEnumerable<IArtifact> artifacts in _artifactCollection.FindExpiredAsync(artifactType.Type, expireAtUtc, cancellationToken))
+				{
+					// Filter the artifacts to keep a maximum count in each stream
+					IEnumerable<IArtifact> filteredArtifacts = artifacts;
+					if (artifactType.KeepCount != null)
+					{
+						filteredArtifacts = FilterArtifacts(filteredArtifacts, streamIdToCount, artifactType.KeepCount.Value);
+					}
+
+					// Delete the ref allowing the storage service to expire this data
+					foreach (IGrouping<NamespaceId, IArtifact> group in filteredArtifacts.GroupBy(x => x.NamespaceId))
+					{
+						using IStorageClient storageClient = _storageService.CreateClient(group.Key);
+						foreach (IArtifact artifact in group)
+						{
+							_logger.LogDebug("Expiring {StreamId} artifact {ArtifactId}, ref {RefName} (created {CreateTime})", artifact.StreamId, artifact.Id, artifact.RefName, artifact.CreatedAtUtc);
+							await storageClient.DeleteRefAsync(artifact.RefName, cancellationToken);
+						}
+					}
+
+					// Delete the actual artifact objects
+					await _artifactCollection.DeleteAsync(filteredArtifacts.Select(x => x.Id), cancellationToken);
+				}
 			}
 
 			_logger.LogInformation("Finished expiring artifacts in {TimeSecs}s.", (long)timer.Elapsed.TotalSeconds);
 		}
 
-		async Task UpdateExpiryTimesAsync(ArtifactType type, int time, CancellationToken cancellationToken)
+		static IEnumerable<IArtifact> FilterArtifacts(IEnumerable<IArtifact> artifacts, Dictionary<StreamId, int> streamIdToCount, int keepCount)
 		{
-			_logger.LogInformation("Updating expiry times for {Type} artifacts -> {Time}", type, time);
-			await foreach (IArtifact artifact in _artifactCollection.FindAsync(type: type, cancellationToken: cancellationToken))
+			List<IArtifact> filteredArtifacts = new List<IArtifact>();
+			foreach (IArtifact artifact in artifacts)
 			{
-				IArtifact? original = artifact;
-				while (original != null)
+				int count;
+				if (!streamIdToCount.TryGetValue(artifact.StreamId, out count))
 				{
-					DateTime? newExpiryTime;
-					if (time == 0)
-					{
-						newExpiryTime = null;
-					}
-					else
-					{
-						newExpiryTime = original.CreatedAtUtc + TimeSpan.FromDays(time);
-					}
+					count = 0;
+				}
 
-					if (original.ExpireAtUtc == newExpiryTime)
-					{
-						break;
-					}
-
-					IArtifact? updated = await _artifactCollection.TryUpdateAsync(original, newExpiryTime, cancellationToken);
-					if (updated != null)
-					{
-						_logger.LogInformation("Updated expiry time for {ArtifactId} from {OldTime} -> {NewTime}", original.Id, original.ExpireAtUtc, updated.ExpireAtUtc);
-						break;
-					}
-
-					original = await _artifactCollection.GetAsync(artifact.Id, cancellationToken);
+				streamIdToCount[artifact.StreamId] = ++count;
+				if (count > keepCount)
+				{
+					filteredArtifacts.Add(artifact);
 				}
 			}
-			_logger.LogInformation("Finished updating expiry times for {Type}", type);
+			return filteredArtifacts;
 		}
 	}
 }

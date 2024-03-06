@@ -14,6 +14,7 @@ using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;
 using HordeCommon;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
@@ -61,9 +62,6 @@ namespace Horde.Server.Artifacts
 			[BsonElement("cre")]
 			public DateTime CreatedAtUtc { get; set; }
 
-			[BsonElement("exp")]
-			public DateTime? ExpireAtUtc { get; set; }
-
 			[BsonElement("upd")]
 			public int UpdateIndex { get; set; }
 
@@ -74,7 +72,7 @@ namespace Horde.Server.Artifacts
 			{
 			}
 
-			public Artifact(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, NamespaceId namespaceId, RefName refName, DateTime createdAtUtc, DateTime? expireAtUtc, AclScopeName scopeName)
+			public Artifact(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, NamespaceId namespaceId, RefName refName, DateTime createdAtUtc, AclScopeName scopeName)
 			{
 				Id = id;
 				Name = name;
@@ -86,7 +84,6 @@ namespace Horde.Server.Artifacts
 				NamespaceId = namespaceId;
 				RefName = refName;
 				CreatedAtUtc = createdAtUtc;
-				ExpireAtUtc = expireAtUtc;
 				AclScope = scopeName;
 			}
 		}
@@ -101,7 +98,7 @@ namespace Horde.Server.Artifacts
 		{
 			List<MongoIndex<Artifact>> indexes = new List<MongoIndex<Artifact>>();
 			indexes.Add(keys => keys.Ascending(x => x.Keys));
-			indexes.Add(keys => keys.Ascending(x => x.ExpireAtUtc), sparse: true);
+			indexes.Add(keys => keys.Ascending(x => x.Type).Descending(x => x.Id));
 			indexes.Add(keys => keys.Ascending(x => x.StreamId).Descending(x => x.Change).Ascending(x => x.Name).Descending(x => x.Id));
 			_artifacts = mongoService.GetCollection<Artifact>("ArtifactsV2", indexes);
 
@@ -114,14 +111,14 @@ namespace Horde.Server.Artifacts
 		public static string GetArtifactPath(StreamId streamId, ArtifactName name, ArtifactType type) => $"{streamId}/{name}/{type}";
 
 		/// <inheritdoc/>
-		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken)
+		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, AclScopeName scopeName, CancellationToken cancellationToken)
 		{
 			ArtifactId id = new ArtifactId(BinaryIdUtils.CreateNew());
 
 			NamespaceId namespaceId = Namespace.Artifacts;
 			RefName refName = new RefName($"{GetArtifactPath(streamId, name, type)}/{change}/{id}");
 
-			Artifact artifact = new Artifact(id, name, type, description, streamId, change, keys, namespaceId, refName, _clock.UtcNow, expireAtUtc, scopeName);
+			Artifact artifact = new Artifact(id, name, type, description, streamId, change, keys, namespaceId, refName, _clock.UtcNow, scopeName);
 			await _artifacts.InsertOneAsync(artifact, null, cancellationToken);
 			return artifact;
 		}
@@ -174,15 +171,17 @@ namespace Horde.Server.Artifacts
 			}
 		}
 
-		/// <summary>
-		/// Finds artifacts which are ready for expiry
-		/// </summary>
-		/// <param name="utcNow">Current time for expiring artifacts</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Sequence of artifacts</returns>
-		public async IAsyncEnumerable<IEnumerable<IArtifact>> FindExpiredAsync(DateTime utcNow, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+		/// <inheritdoc/>
+		public async IAsyncEnumerable<IEnumerable<IArtifact>> FindExpiredAsync(ArtifactType type, DateTime? expireAtUtc, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
-			using (IAsyncCursor<Artifact> cursor = await _artifacts.Find(x => x.ExpireAtUtc!.Value < utcNow).ToCursorAsync(cancellationToken))
+			FilterDefinition<Artifact> filter = Builders<Artifact>.Filter.Eq(x => x.Type, type);
+			if (expireAtUtc != null)
+			{
+				filter &= Builders<Artifact>.Filter.Lt(x => x.Id, new ArtifactId(BinaryIdUtils.FromObjectId(ObjectId.GenerateNewId(expireAtUtc.Value))));
+			}
+
+			IFindFluent<Artifact, Artifact> query = _artifacts.Find(filter).SortByDescending(x => x.Id);
+			using (IAsyncCursor<Artifact> cursor = await query.ToCursorAsync(cancellationToken))
 			{
 				while (await cursor.MoveNextAsync(cancellationToken))
 				{
@@ -195,26 +194,6 @@ namespace Horde.Server.Artifacts
 		public async Task<IArtifact?> GetAsync(ArtifactId artifactId, CancellationToken cancellationToken)
 		{
 			return await _artifacts.Find(x => x.Id == artifactId).FirstOrDefaultAsync(cancellationToken);
-		}
-
-		/// <inheritdoc/>
-		public async Task<IArtifact?> TryUpdateAsync(IArtifact artifact, DateTime? expireAtUtc, CancellationToken cancellationToken)
-		{
-			List<UpdateDefinition<Artifact>> updates = new List<UpdateDefinition<Artifact>>();
-			if (expireAtUtc != null)
-			{
-				updates.Add(Builders<Artifact>.Update.SetOrUnsetNull(x => x.ExpireAtUtc, expireAtUtc));
-			}
-			if (updates.Count == 0)
-			{
-				return artifact;
-			}
-
-			Artifact artifactDoc = (Artifact)artifact;
-			FilterDefinition<Artifact> filter = Builders<Artifact>.Filter.Expr(x => x.Id == artifact.Id && x.UpdateIndex == artifactDoc.UpdateIndex);
-			UpdateDefinition<Artifact> update = Builders<Artifact>.Update.Combine(updates);
-
-			return await _artifacts.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<Artifact> { ReturnDocument = ReturnDocument.After }, cancellationToken);
 		}
 	}
 }
