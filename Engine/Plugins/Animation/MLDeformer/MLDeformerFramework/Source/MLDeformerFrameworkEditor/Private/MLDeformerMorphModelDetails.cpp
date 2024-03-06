@@ -74,12 +74,15 @@ namespace UE::MLDeformer
 			[
 				SNew(SBox)
 				.Padding(2, 2)
-				.MaxDesiredWidth(200.f)
 				[
 					SNew(SButton)
 					.Text(LOCTEXT("FinalizeMorphTargetsButtonText", "Finalize Morph Targets"))
-					.ToolTipText(LOCTEXT("FinalizeMorphTargetsButtonTooltip", "Delete raw data and fianlize the morph targets. This will reduce disk size but will make morph data ineditable. Re-training is required to edit the morph targets again."))
+					.ToolTipText(LOCTEXT("FinalizeMorphTargetsButtonTooltip", 
+						"Delete the raw vertex deltas, basically turning the editor asset into a cooked asset.\n"
+						"This will reduce the disk size of the uncooked asset, but will make morph target mask and compression settings uneditable until the model is retrained again.\n"
+						"Finalizing isn't required, but can be used to reduce the size of the files you submit to source control."))
 					.HAlign(HAlign_Center)
+					.IsEnabled_Lambda([this]() { return MorphModel && !MorphModel->GetMorphTargetDeltas().IsEmpty(); })
 					.OnClicked_Lambda([this]() -> FReply
 					{
 						if (MorphModel)

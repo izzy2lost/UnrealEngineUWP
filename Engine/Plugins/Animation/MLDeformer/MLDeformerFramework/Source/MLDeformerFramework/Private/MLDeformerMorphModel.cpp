@@ -337,12 +337,15 @@ void UMLDeformerMorphModel::UpdateMemoryUsage()
 	const uint64 GPUMorphSize = GetCompressedMorphDataSizeInBytes();
 	GPUMemUsageInBytes += GPUMorphSize;
 	CookedAssetSizeInBytes += GPUMorphSize;
+
+	EditorAssetSizeInBytes += CompressedMorphDataSizeInBytes;
 }
 
 void UMLDeformerMorphModel::FinalizeMorphTargets()
 {
 	MorphTargetDeltas.Empty();
 	UpdateStatistics();
+	UpdateMemoryUsage();
 }
 
 bool UMLDeformerMorphModel::HasRawMorph() const
