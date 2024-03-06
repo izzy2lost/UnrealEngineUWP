@@ -627,7 +627,7 @@ struct FAsyncPackageDesc2
 			LOAD_None,
 			INDEX_NONE,
 #endif
-			ImportingPackageDesc.InstancingContext,
+			FLinkerInstancingContext(),
 			ImportedPackageId,
 			PackageIdToLoad,
 			UPackageName,
@@ -5264,6 +5264,7 @@ void FAsyncPackage2::ImportPackagesRecursiveInner(FAsyncLoadingThreadState2& Thr
 				else
 #endif
 				{
+					// TODO: Here we should probably also propagate the instancing context if the imported package is also instanced (similar to the call to InitializeLinkerLoadState done above)
 					AsyncLoadingThread.InitializeAsyncPackageFromPackageStore(ThreadState, &IoBatch, ImportedPackage, ImportedPackageEntry);
 				}
 				ImportedPackage->StartLoading(ThreadState, IoBatch);
