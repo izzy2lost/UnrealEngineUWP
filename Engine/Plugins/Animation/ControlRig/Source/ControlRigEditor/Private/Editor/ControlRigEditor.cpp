@@ -1640,6 +1640,8 @@ void FControlRigEditor::PostTransaction(bool bSuccess, const FTransaction* Trans
 		// Do not compile here. ControlRigBlueprint::PostTransacted decides when it is necessary to compile depending
 		// on the properties that are affected.
 		//Compile();
+
+		UpdateRigVMHost();
 		
 		USkeletalMesh* PreviewMesh = GetPersonaToolkit()->GetPreviewScene()->GetPreviewMesh();
 		if (PreviewMesh != RigBlueprint->GetPreviewMesh())
