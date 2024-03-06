@@ -107,18 +107,11 @@ void UEditorValidatorBase::AssetFails(const UObject* InAsset, const FText& InMes
 
 void UEditorValidatorBase::AssetFails(const UObject* InAsset, const FText& InMessage)
 {
-	FText FailureMessage;
-	if (bOnlyPrintCustomMessage)
-	{
-		FailureMessage = InMessage;
-	}
-	else
-	{
-		FFormatNamedArguments Arguments;
-		Arguments.Add(TEXT("CustomMessage"), InMessage);
-		Arguments.Add(TEXT("ValidatorName"), FText::FromString(GetClass()->GetName()));
-		FailureMessage = FText::Format(LOCTEXT("AssetCheck_Message_Error", "{CustomMessage}. ({ValidatorName})"), Arguments);
-	}
+	FFormatNamedArguments Arguments;
+	Arguments.Add(TEXT("CustomMessage"), InMessage);
+	Arguments.Add(TEXT("ValidatorName"), FText::FromString(GetClass()->GetName()));
+
+	FText FailureMessage = FText::Format(LOCTEXT("AssetCheck_Message_Error", "{CustomMessage}. ({ValidatorName})"), Arguments);
 
 
 	AllErrors.Add(FailureMessage);
@@ -127,19 +120,11 @@ void UEditorValidatorBase::AssetFails(const UObject* InAsset, const FText& InMes
 
 void UEditorValidatorBase::AssetWarning(const UObject* InAsset, const FText& InMessage)
 {
-	FText WarningMessage;
-	if (bOnlyPrintCustomMessage)
-	{
-		WarningMessage = InMessage;
-	}
-	else
-	{
-		FFormatNamedArguments Arguments;
-		Arguments.Add(TEXT("CustomMessage"), InMessage);
-		Arguments.Add(TEXT("ValidatorName"), FText::FromString(GetClass()->GetName()));
-		WarningMessage = FText::Format(LOCTEXT("AssetCheck_Message_Warning", "{CustomMessage}. ({ValidatorName})"), Arguments);
-	}
+	FFormatNamedArguments Arguments;
+	Arguments.Add(TEXT("CustomMessage"), InMessage);
+	Arguments.Add(TEXT("ValidatorName"), FText::FromString(GetClass()->GetName()));
 
+	FText WarningMessage = FText::Format(LOCTEXT("AssetCheck_Message_Warning", "{CustomMessage}. ({ValidatorName})"), Arguments);
 	AllWarnings.Add(WarningMessage);
 }
 
