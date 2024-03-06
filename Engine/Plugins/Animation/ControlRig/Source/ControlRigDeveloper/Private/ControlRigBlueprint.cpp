@@ -1359,11 +1359,10 @@ void UControlRigBlueprint::PostTransacted(const FTransactionObjectEvent& Transac
 	if (TransactionEvent.GetEventType() == ETransactionObjectEventType::UndoRedo)
 	{
 		TArray<FName> PropertiesChanged = TransactionEvent.GetChangedProperties();
-		if (PropertiesChanged.Contains(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, Hierarchy)))
+		int32 TransactionIndex = GEditor->Trans->FindTransactionIndex(TransactionEvent.GetTransactionId());
+		const FTransaction* Transaction = GEditor->Trans->GetTransaction(TransactionIndex);
+		if (Transaction && Transaction->ContainsObject(Hierarchy))
 		{
-			int32 TransactionIndex = GEditor->Trans->FindTransactionIndex(TransactionEvent.GetTransactionId());
-			const FTransaction* Transaction = GEditor->Trans->GetTransaction(TransactionIndex);
-
 			if (Transaction->GetTitle().BuildSourceString() == TEXT("Transform Gizmo"))
 			{
 				PropagatePoseFromBPToInstances();
