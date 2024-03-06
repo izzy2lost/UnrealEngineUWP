@@ -1875,6 +1875,15 @@ void USkeletalMeshComponent::ComputeRequiredBones(TArray<FBoneIndexType>& OutReq
 
 	// TODO - Make sure that bones with per-poly collision are also always updated.
 
+	// Get any additional required bones from followers
+	for (const TWeakObjectPtr<USkinnedMeshComponent>& FollowerPoseComponent : FollowerPoseComponents)
+	{
+		if (const USkinnedMeshComponent* const FollowerPoseComponentPtr = FollowerPoseComponent.Get())
+		{
+			FollowerPoseComponentPtr->GetAdditionalRequiredBonesForLeader(LODIndex, OutRequiredBones);
+		}
+	}
+
 	// Purge invisible bones and their children
 	// this has to be done before mirror table check/physics body checks
 	// mirror table/phys body ones has to be calculated
