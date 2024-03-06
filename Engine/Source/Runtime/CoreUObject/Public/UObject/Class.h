@@ -2059,6 +2059,9 @@ public:
 	/** Gets enum value by name, returns INDEX_NONE and optionally errors when name is not found. This is faster than ByNameString if the FName is exact, but will fall back if needed */
 	COREUOBJECT_API int64 GetValueByName(FName InName, EGetByNameFlags Flags = EGetByNameFlags::None) const;
 
+	/** Gets enum value by name, returns INDEX_NONE and optionally errors when name is not found. This is faster than ByNameString if the FName is exact, but will fall back if needed */
+	COREUOBJECT_API int64 GetValueOrBitfieldFromString(FStringView InString, EGetByNameFlags LookupFlags = EGetByNameFlags::None) const;
+
 	/** Returns the short name at the enum index, returns empty string if invalid */
 	COREUOBJECT_API FString GetNameStringByIndex(int32 InIndex) const;
 
@@ -2070,6 +2073,12 @@ public:
 
 	/** If the enumeration is declared as UENUM(Flags), returns a string of the form A | B | C representing set bits A, B, and C. If it is not a bitfield, the result is the same as calling GetNameStringByValue*/
 	COREUOBJECT_API FString GetValueOrBitfieldAsString(int64 InValue) const;
+
+	/** If the enumeration is declared as UENUM(Flags), returns a string of the form A | B | C representing set bits A, B, and C. If it is not a bitfield, the result is the same as calling GetAuthoredNameStringByValue*/
+	COREUOBJECT_API FString GetValueOrBitfieldAsAuthoredNameString(int64 InValue) const;
+
+	/** If the enumeration is declared as UENUM(Flags), returns a string of the form A | B | C representing set bits A, B, and C. If it is not a bitfield, the result is the same as calling GetDisplayNameTextByValue*/
+	COREUOBJECT_API FText GetValueOrBitfieldAsDisplayNameText(int64 InValue) const;
 
 	/** Looks for a name with a given value and returns true and writes the name to Out if one was found */
 	COREUOBJECT_API bool FindNameStringByValue(FString& Out, int64 InValue) const;

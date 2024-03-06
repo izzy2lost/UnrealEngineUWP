@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Misc/ConfigCacheIni.h"
+#include "String/ParseTokens.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
@@ -207,6 +208,39 @@ int64 UEnum::GetValueByName(FName InName, EGetByNameFlags Flags) const
 	return INDEX_NONE;
 }
 
+int64 UEnum::GetValueOrBitfieldFromString(FStringView InString, EGetByNameFlags LookupFlags) const
+{
+	bool  bSuccess = true;
+	int64 Result   = 0;
+
+	UE::String::ParseTokens(
+		InString,
+		TEXTVIEW("|"),
+		[this, &bSuccess, &Result, LookupFlags](FStringView Flag)
+		{
+			if (!bSuccess)
+			{
+				return;
+			}
+
+			FName FlagName(Flag);
+
+			int32 FlagIndex = GetIndexByName(FlagName, LookupFlags);
+			if (FlagIndex != INDEX_NONE)
+			{
+				Result |= GetValueByName(FlagName);
+			}
+			else
+			{
+				bSuccess = false;
+			}
+		},
+		UE::String::EParseTokensOptions::SkipEmpty | UE::String::EParseTokensOptions::Trim
+	);
+
+	return bSuccess ? Result : INDEX_NONE;
+}
+
 int64 UEnum::GetMaxEnumValue() const
 {
 	int32 NamesNum = Names.Num();
@@ -215,17 +249,31 @@ int64 UEnum::GetMaxEnumValue() const
 		return 0;
 	}
 
-	int64 MaxValue = Names[0].Value;
-	for (int32 i = 1; i < NamesNum; ++i)
+	if (EnumHasAnyFlags(EnumFlags, EEnumFlags::Flags))
 	{
-		int64 CurrentValue = Names[i].Value;
-		if (CurrentValue > MaxValue)
+		// The max value of a set of flags is the combination of all the flags
+		int64 MaxFlag = 0;
+		for (const TPair<FName, int64>& NameAndValue : Names)
 		{
-			MaxValue = CurrentValue;
+			MaxFlag |= NameAndValue.Value;
 		}
-	}
 
-	return MaxValue;
+		return MaxFlag;
+	}
+	else
+	{
+		int64 MaxValue = Names[0].Value;
+		for (int32 i = 1; i < NamesNum; ++i)
+		{
+			int64 CurrentValue = Names[i].Value;
+			if (CurrentValue > MaxValue)
+			{
+				MaxValue = CurrentValue;
+			}
+		}
+
+		return MaxValue;
+	}
 }
 
 bool UEnum::IsValidEnumValue(int64 InValue) const
@@ -499,34 +547,67 @@ FString UEnum::GetNameStringByValue(int64 Value) const
 	return GetNameStringByIndex(Index);
 }
 
-FString UEnum::GetValueOrBitfieldAsString(int64 InValue) const
+namespace
 {
-	if (!HasAnyEnumFlags(EEnumFlags::Flags) || InValue == 0)
+	template <typename NameGetterType>
+	FString CreateStringFromValueOrBitfield(const UEnum* Enum, int64 InValue, NameGetterType&& NameGetter)
 	{
-		return GetNameStringByValue(InValue);
-	}
-	else
-	{
+		if (!Enum->HasAnyEnumFlags(EEnumFlags::Flags) || InValue == 0)
+		{
+			return NameGetter(InValue);
+		}
+
 		FString BitfieldString;
-		bool WroteFirstFlag = false;
+		bool bWroteFirstFlag = false;
 		while (InValue != 0)
 		{
 			int64 NextValue = 1ll << FMath::CountTrailingZeros64(InValue);
 			InValue = InValue & ~NextValue;
-			if (WroteFirstFlag)
-			{
-				// We don't just want to use the NameValuePair.Key because we want to strip enum class prefixes
-				BitfieldString.Appendf(TEXT(" | %s"), *GetNameStringByValue(NextValue));
-			}
-			else
-			{
-				// We don't just want to use the NameValuePair.Key because we want to strip enum class prefixes
-				BitfieldString.Appendf(TEXT("%s"), *GetNameStringByValue(NextValue));
-				WroteFirstFlag = true;
-			}
+
+			// We don't just want to use the NameValuePair.Key because we want to strip enum class prefixes
+			BitfieldString.Appendf(TEXT("%s%s"), bWroteFirstFlag ? TEXT(" | ") : TEXT(""), *NameGetter(NextValue));
+			bWroteFirstFlag = true;
 		}
 		return BitfieldString;
 	}
+}
+
+FString UEnum::GetValueOrBitfieldAsString(int64 InValue) const
+{
+	return CreateStringFromValueOrBitfield(
+		this,
+		InValue,
+		[this](int64 Value)
+		{
+			return GetNameStringByValue(Value);
+		}
+	);
+}
+
+FString UEnum::GetValueOrBitfieldAsAuthoredNameString(int64 InValue) const
+{
+	return CreateStringFromValueOrBitfield(
+		this,
+		InValue,
+		[this](int64 Value)
+		{
+			return GetAuthoredNameStringByValue(Value);
+		}
+	);
+}
+
+FText UEnum::GetValueOrBitfieldAsDisplayNameText(int64 InValue) const
+{
+	return FText::FromString(
+		CreateStringFromValueOrBitfield(
+			this,
+			InValue,
+			[this](int64 Value) -> const FString&
+			{
+				return GetDisplayNameTextByValue(Value).ToString();
+			}
+		)
+	);
 }
 
 bool UEnum::FindNameStringByValue(FString& Out, int64 InValue) const
