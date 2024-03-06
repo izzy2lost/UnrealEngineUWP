@@ -679,80 +679,85 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 					// Info Button, Transport Controls and Current Frame
 					+ SGridPanel::Slot( Column0, Row4, SGridPanel::Layer(10) )
 					[
-						SNew(SHorizontalBox)
+						SNew(SBorder)
+						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+						.Clipping(EWidgetClipping::ClipToBounds)
+						[
+							SNew(SHorizontalBox)
 						
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						.HAlign(HAlign_Left)
-						[
-							SNew(SButton)
-							.VAlign(EVerticalAlignment::VAlign_Center)
-							.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-							.ToolTipText_Lambda([this] { return LOCTEXT("ShowStatus", "Show Status"); })
-							.ContentPadding(FMargin(1, 0))
-							.Visibility(this, &SSequencer::GetInfoButtonVisibility)
-							.OnHovered_Lambda([this] { SequencerTreeFilterStatusBar->ShowStatusBar(); })
-							.OnUnhovered_Lambda([this] { SequencerTreeFilterStatusBar->FadeOutStatusBar(); })
-							.OnClicked_Lambda([this] { SequencerTreeFilterStatusBar->HideStatusBar(); return FReply::Handled(); })
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Left)
 							[
-								SNew(SImage)
-								.ColorAndOpacity(FSlateColor::UseForeground())
-								.Image(FAppStyle::Get().GetBrush("Icons.Info.Small"))
-							]
-						]
-
-						+ SHorizontalBox::Slot()
-						[
-							SNew(SBorder)
-							.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-							.HAlign(HAlign_Center)
-							[
-								SequencerPtr.Pin()->MakeTransportControls(true)
-							]
-						]
-
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						.HAlign(HAlign_Right)
-						[
-							SNew(SButton)
-							.VAlign(EVerticalAlignment::VAlign_Center)
-							.ButtonStyle(FAppStyle::Get(), "NoBorder")
-							.ContentPadding(FMargin(1, 0))
-							[
-								SNew(SHorizontalBox)
-
-								+ SHorizontalBox::Slot()
-								.AutoWidth()
-								.VAlign(VAlign_Center)
-								.HAlign(HAlign_Right)
-								.Padding(FMargin(CommonPadding, 0.f, 0.f, 0.f))
+								SNew(SButton)
+								.VAlign(EVerticalAlignment::VAlign_Center)
+								.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+								.ToolTipText_Lambda([this] { return LOCTEXT("ShowStatus", "Show Status"); })
+								.ContentPadding(FMargin(1, 0))
+								.Visibility(this, &SSequencer::GetInfoButtonVisibility)
+								.OnHovered_Lambda([this] { SequencerTreeFilterStatusBar->ShowStatusBar(); })
+								.OnUnhovered_Lambda([this] { SequencerTreeFilterStatusBar->FadeOutStatusBar(); })
+								.OnClicked_Lambda([this] { SequencerTreeFilterStatusBar->HideStatusBar(); return FReply::Handled(); })
 								[
-									SNew(SBorder)
-									.BorderImage(nullptr)
-									[
-										PlayTimeDisplay.ToSharedRef()
-									]
+									SNew(SImage)
+									.ColorAndOpacity(FSlateColor::UseForeground())
+									.Image(FAppStyle::Get().GetBrush("Icons.Info.Small"))
 								]
+							]
 
-								+ SHorizontalBox::Slot()
-								.AutoWidth()
-								.VAlign(VAlign_Center)
-								.HAlign(HAlign_Right)
-								.Padding(FMargin(CommonPadding, 0.f, 0.f, 0.f))
+							+ SHorizontalBox::Slot()
+							[
+								SNew(SBorder)
+								.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+								.HAlign(HAlign_Center)
 								[
-									SNew(SBorder)
-									.BorderImage(nullptr)
+									SequencerPtr.Pin()->MakeTransportControls(true)
+								]
+							]
+
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Right)
+							[
+								SNew(SButton)
+								.VAlign(EVerticalAlignment::VAlign_Center)
+								.ButtonStyle(FAppStyle::Get(), "NoBorder")
+								.ContentPadding(FMargin(1, 0))
+								[
+									SNew(SHorizontalBox)
+
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									.VAlign(VAlign_Center)
+									.HAlign(HAlign_Right)
+									.Padding(FMargin(CommonPadding, 0.f, 0.f, 0.f))
 									[
-										// Current loop index, if any
-										SAssignNew(LoopIndexDisplay, STextBlock)
-										.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8))
-										.Text_Lambda([this]() -> FText {
-											uint32 LoopIndex = SequencerPtr.Pin()->GetLocalLoopIndex();
-											return (LoopIndex != FMovieSceneTimeWarping::InvalidWarpCount) ? FText::AsNumber(LoopIndex + 1) : FText();
-										})
+										SNew(SBorder)
+										.BorderImage(nullptr)
+										[
+											PlayTimeDisplay.ToSharedRef()
+										]
+									]
+
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									.VAlign(VAlign_Center)
+									.HAlign(HAlign_Right)
+									.Padding(FMargin(CommonPadding, 0.f, 0.f, 0.f))
+									[
+										SNew(SBorder)
+										.BorderImage(nullptr)
+										[
+											// Current loop index, if any
+											SAssignNew(LoopIndexDisplay, STextBlock)
+											.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8))
+											.Text_Lambda([this]() -> FText {
+												uint32 LoopIndex = SequencerPtr.Pin()->GetLocalLoopIndex();
+												return (LoopIndex != FMovieSceneTimeWarping::InvalidWarpCount) ? FText::AsNumber(LoopIndex + 1) : FText();
+											})
+										]
 									]
 								]
 							]

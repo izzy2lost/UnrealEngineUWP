@@ -254,60 +254,66 @@ void FCurveEditorExtension::CreateCurveEditor(const FTimeSliderArgs& TimeSliderA
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			[
-				SNew(SHorizontalBox)
-
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Left)
+				SNew(SBorder)
+				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+				.Clipping(EWidgetClipping::ClipToBounds)
 				[
-					SNew(SButton)
-					.VAlign(EVerticalAlignment::VAlign_Center)
-					.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-					.ToolTipText_Lambda([this] { return LOCTEXT("ShowStatus", "Show Status"); })
-					.ContentPadding(FMargin(1, 0))
-					.OnHovered_Lambda([this] { CurveEditorTreeFilterStatusBar->ShowStatusBar(); })
-					.OnUnhovered_Lambda([this] { CurveEditorTreeFilterStatusBar->FadeOutStatusBar(); })
-					.OnClicked_Lambda([this] { CurveEditorTreeFilterStatusBar->HideStatusBar(); return FReply::Handled(); })
-					[
-						SNew(SImage)
-						.ColorAndOpacity(FSlateColor::UseForeground())
-						.Image(FAppStyle::Get().GetBrush("Icons.Info.Small"))
-					]
-				]
 
-				+ SHorizontalBox::Slot()
-				[
-					SNew(SBorder)
-					.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-					.HAlign(HAlign_Center)
-					[
-						Sequencer->MakeTransportControls(true)
-					]
-				]
+					SNew(SHorizontalBox)
 
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Right)
-				[
-					SNew(SButton)
-					.VAlign(EVerticalAlignment::VAlign_Center)
-					.ButtonStyle(FAppStyle::Get(), "NoBorder")
-					.ContentPadding(FMargin(1, 0))
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Left)
 					[
-						SNew(SHorizontalBox)
-
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						.HAlign(HAlign_Right)
-						.Padding(FMargin(3.f, 0.f, 0.f, 0.f))
+						SNew(SButton)
+						.VAlign(EVerticalAlignment::VAlign_Center)
+						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+						.ToolTipText_Lambda([this] { return LOCTEXT("ShowStatus", "Show Status"); })
+						.ContentPadding(FMargin(1, 0))
+						.OnHovered_Lambda([this] { CurveEditorTreeFilterStatusBar->ShowStatusBar(); })
+						.OnUnhovered_Lambda([this] { CurveEditorTreeFilterStatusBar->FadeOutStatusBar(); })
+						.OnClicked_Lambda([this] { CurveEditorTreeFilterStatusBar->HideStatusBar(); return FReply::Handled(); })
 						[
-							SNew(SBorder)
-							.BorderImage(nullptr)
+							SNew(SImage)
+							.ColorAndOpacity(FSlateColor::UseForeground())
+							.Image(FAppStyle::Get().GetBrush("Icons.Info.Small"))
+						]
+					]
+
+					+ SHorizontalBox::Slot()
+					[
+						SNew(SBorder)
+						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+						.HAlign(HAlign_Center)
+						[
+							Sequencer->MakeTransportControls(true)
+						]
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Right)
+					[
+						SNew(SButton)
+						.VAlign(EVerticalAlignment::VAlign_Center)
+						.ButtonStyle(FAppStyle::Get(), "NoBorder")
+						.ContentPadding(FMargin(1, 0))
+						[
+							SNew(SHorizontalBox)
+
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Right)
+							.Padding(FMargin(3.f, 0.f, 0.f, 0.f))
 							[
-								PlayTimeDisplay.ToSharedRef()
+								SNew(SBorder)
+								.BorderImage(nullptr)
+								[
+									PlayTimeDisplay.ToSharedRef()
+								]
 							]
 						]
 					]
