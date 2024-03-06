@@ -143,6 +143,12 @@ void UMetaSoundCacheSubsystem::RemoveCachedOperatorsForMetaSound(UMetaSoundSourc
 {
 	using namespace Metasound;
 
+	if (!InMetaSound)
+	{
+		UE_LOG(LogMetaSound, Warning, TEXT("Remove Cached Operators called without being provided a MetaSound, ignoring request"));
+		return;
+	}
+
 	IMetasoundGeneratorModule* Module = FModuleManager::GetModulePtr<IMetasoundGeneratorModule>("MetasoundGenerator");
 	if (!ensure(Module))
 	{
