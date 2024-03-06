@@ -140,6 +140,10 @@ protected:
 	UPROPERTY(Config)
 	bool bIsConfigDisabled;
 
+	/* Whether we should also print out the source validator when printing validation errors.*/
+	UPROPERTY(EditAnywhere, Category = "Asset Validation", meta = (BlueprintProtected = "true"))
+	bool bOnlyPrintCustomMessage = false;
+
 private:
 	EDataValidationResult ValidationResult;
 	TArray<FText> AllWarnings;
