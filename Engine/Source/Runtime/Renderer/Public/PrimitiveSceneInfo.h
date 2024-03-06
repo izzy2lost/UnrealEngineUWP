@@ -570,8 +570,8 @@ public:
 
 	inline FMeshDrawCommandPrimitiveIdInfo GetMDCIdInfo() const { return FMeshDrawCommandPrimitiveIdInfo(PackedIndex, PersistentIndex, InstanceSceneDataOffset);}
 
-	const UPrimitiveComponent* GetComponentForDebugOnly() const;
-	const IPrimitiveComponent* GetComponentInterfaceForDebugOnly() const;
+	UPrimitiveComponent* GetComponentForDebugOnly() const;
+	IPrimitiveComponent* GetComponentInterfaceForDebugOnly() const;
 
 	UE_DEPRECATED(5.3, "NeedsUpdateStaticMeshes has been deprecated.")
 	bool NeedsUpdateStaticMeshes() { return false; }
@@ -634,7 +634,7 @@ private:
 	 * Use PrimitiveComponentId instead when a component identifier is needed.
 	 * 	
 	 */	
-	const IPrimitiveComponent*  PrimitiveComponentInterfaceForDebuggingOnly;  
+	IPrimitiveComponent* PrimitiveComponentInterfaceForDebuggingOnly;
 
 	/** 
 	 * Ptr to the FPrimitiveSceneInfoData for this prim, this is used for shared data between the primitive and the component that created the primitive. 

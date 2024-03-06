@@ -2421,12 +2421,12 @@ FString FPrimitiveSceneInfo::GetOwnerActorNameOrLabelForDebuggingOnly() const
 	return FString(TEXT("Unknown Object"));
 }
 
-const UPrimitiveComponent* FPrimitiveSceneInfo::GetComponentForDebugOnly() const 
+UPrimitiveComponent* FPrimitiveSceneInfo::GetComponentForDebugOnly() const 
 { 
 	return Cast<UPrimitiveComponent>(PrimitiveComponentInterfaceForDebuggingOnly->GetUObject()); 
 }
 
-const IPrimitiveComponent* FPrimitiveSceneInfo::GetComponentInterfaceForDebugOnly() const 
+IPrimitiveComponent* FPrimitiveSceneInfo::GetComponentInterfaceForDebugOnly() const 
 {
 	return PrimitiveComponentInterfaceForDebuggingOnly; 
 }

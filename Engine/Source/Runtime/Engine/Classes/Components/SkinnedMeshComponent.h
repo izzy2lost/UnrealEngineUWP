@@ -1156,6 +1156,7 @@ public:
 	ENGINE_API virtual void GetStreamingRenderAssetInfo(FStreamingTextureLevelContext& LevelContext, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingRenderAssets) const override;
 	ENGINE_API virtual int32 GetNumMaterials() const override;
 	virtual float GetStreamingScale() const override { return GetComponentTransform().GetMaximumAxisScale(); }
+	ENGINE_API virtual void GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const override;
 	//~ End UPrimitiveComponent Interface
 
 	//~ Begin UMeshComponent Interface

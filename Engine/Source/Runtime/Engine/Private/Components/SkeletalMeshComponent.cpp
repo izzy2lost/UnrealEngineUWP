@@ -4798,14 +4798,6 @@ TArrayView<const FTransform> USkeletalMeshComponent::GetBoneSpaceTransformsView(
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-void USkeletalMeshComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const
-{
-	for (const FSkeletalMeshLODRenderData& RenderData : GetSkeletalMeshRenderData()->LODRenderData)
-	{
-		PrimitiveStats.NbTriangles += RenderData.MultiSizeIndexContainer.GetIndexBuffer()->Num() / 3;
-	}
-}
-
 #if WITH_EDITOR
 void USkeletalMeshComponent::UpdatePoseWatches()
 {

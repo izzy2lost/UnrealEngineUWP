@@ -1465,6 +1465,33 @@ int32 USkinnedMeshComponent::GetNumMaterials() const
 	return 0;
 }
 
+void USkinnedMeshComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const
+{
+	const TIndirectArray<FSkeletalMeshLODRenderData>& LODRenderData = GetSkeletalMeshRenderData()->LODRenderData;
+	const TArray<FSkeletalMaterial>& Materials = GetSkinnedAsset()->GetMaterials();
+	PrimitiveStats.LODStats.Reserve(LODRenderData.Num());
+	int32 LOD = 0;
+	for (const FSkeletalMeshLODRenderData& RenderData : LODRenderData)
+	{
+		FPrimitiveLODStats& LODStats = PrimitiveStats.LODStats.EmplaceAt_GetRef(LOD, LOD);
+		LODStats.Sections = RenderData.RenderSections.Num();
+		LODStats.bIsOptionalLOD = RenderData.bIsLODOptional;
+		LODStats.bIsAvailable = RenderData.bStreamedDataInlined || RenderData.StreamingBulkData.DoesExist();
+		FResourceSizeEx ResourceSize;
+		RenderData.GetResourceSizeEx(ResourceSize);
+		LODStats.TotalResourceSize = ResourceSize.GetTotalMemoryBytes();
+		for (const auto& Section : RenderData.RenderSections)
+		{
+			if (Materials[Section.MaterialIndex].MaterialInterface)
+			{
+				LODStats.MaterialIndices.Add(Section.MaterialIndex);
+			}
+			LODStats.Triangles += Section.NumTriangles;
+		}
+		LOD++;
+	}
+}
+
 UMaterialInterface* USkinnedMeshComponent::GetMaterial(int32 MaterialIndex) const
 {
 	if(OverrideMaterials.IsValidIndex(MaterialIndex) && OverrideMaterials[MaterialIndex])

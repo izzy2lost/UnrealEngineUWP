@@ -12,18 +12,39 @@ class FPrimitiveSceneProxy;
 class UMaterialInterface;
 class HHitProxy;
 
+struct FPrimitiveLODStats
+{
+	int32 LODIndex = 0;
+	uint32 Sections = 1;
+	uint32 Triangles = 0;
+	bool bIsOptionalLOD = false;
+	bool bIsAvailable = true;
+	SIZE_T TotalResourceSize = 0;
+	TArray<uint16> MaterialIndices;
+	
+	FPrimitiveLODStats(int32 InLOD) :
+		LODIndex(InLOD)
+	{
+	}
+
+	FPrimitiveLODStats(const FPrimitiveLODStats& Other) = default;
+	FPrimitiveLODStats(FPrimitiveLODStats&& Other) = default;
+
+	FPrimitiveLODStats& operator=(const FPrimitiveLODStats& RHS) = default;
+	FPrimitiveLODStats& operator=(FPrimitiveLODStats&& RHS) = default;
+
+	FORCEINLINE int32 GetDrawCount() const
+	{
+		return Sections * MaterialIndices.Num();
+	}
+};
+
 /** 
 * Structure used to report some primitive stats in debugging tools
 */
 struct FPrimitiveStats
-{	
-	FPrimitiveStats(int32 InForLOD) :
-		ForLOD(InForLOD)
-	{
-	}
-
-	const int32 ForLOD = 0;
-	int32 NbTriangles = 0;
+{
+	TArray<FPrimitiveLODStats> LODStats;
 };
 
 

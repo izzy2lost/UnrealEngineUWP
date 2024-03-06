@@ -3753,9 +3753,27 @@ FArchive& operator<<(FArchive& Ar,FStaticMeshComponentLODInfo& I)
 
 void UStaticMeshComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const
 {
-	if (StaticMesh)
+	if (StaticMesh && StaticMesh->GetRenderData())
 	{
-		PrimitiveStats.NbTriangles = StaticMesh->GetNumTriangles(PrimitiveStats.ForLOD);
+		const FStaticMeshLODResourcesArray& LODResources = StaticMesh->GetRenderData()->LODResources;
+		PrimitiveStats.LODStats.Reserve(LODResources.Num());
+		int32 LOD = 0;
+		for (const FStaticMeshLODResources& LODResource : LODResources)
+		{
+			FPrimitiveLODStats& LODStats = PrimitiveStats.LODStats.EmplaceAt_GetRef(LOD, LOD);
+			LODStats.Sections = LODResource.Sections.Num();
+			LODStats.bIsOptionalLOD = LODResource.bIsOptionalLOD;
+			LODStats.bIsAvailable = LODResource.bBuffersInlined || LODResource.StreamingBulkData.DoesExist();
+			FResourceSizeEx ResourceSize;
+			LODResource.GetResourceSizeEx(ResourceSize);
+			LODStats.TotalResourceSize = ResourceSize.GetTotalMemoryBytes();
+			for (const auto& Section : LODResource.Sections)
+			{
+				LODStats.MaterialIndices.Add(Section.MaterialIndex);
+				LODStats.Triangles += Section.NumTriangles;
+			}
+			LOD++;
+		}
 	}
 }
 

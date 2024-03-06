@@ -2448,7 +2448,7 @@ int32 FStaticMeshSceneProxy::GetLOD(const FSceneView* View) const
 	if (ensureMsgf(RenderData, TEXT("StaticMesh [%s] missing RenderData."),
 		(STATICMESH_ENABLE_DEBUG_RENDERING && StaticMesh) ? *StaticMesh->GetName() : TEXT("None")))
 	{
-		int32 CVarForcedLODLevel = GetCVarForceLOD();
+		int32 CVarForcedLODLevel = GetCVarForceLOD_AnyThread();
 
 		//If a LOD is being forced, use that one
 		if (CVarForcedLODLevel >= 0)

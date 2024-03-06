@@ -1898,7 +1898,6 @@ protected:
 	 * TransformToRoot offset. Otherwise, it returns the component transform.
 	 */
 	ENGINE_API virtual FTransform GetComponentTransformFromBodyInstance(FBodyInstance* UseBI) override;
-	ENGINE_API virtual void GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const override;
 	//~ End UPrimitiveComponent Interface.
 
 public:
