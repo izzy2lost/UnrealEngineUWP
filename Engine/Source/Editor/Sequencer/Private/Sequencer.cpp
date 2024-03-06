@@ -669,6 +669,24 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	OnActivateSequenceEvent.Broadcast(ActiveTemplateIDs[0]);
 }
 
+void FSequencer::SetSequencerSettings(USequencerSettings* InSettings)
+{
+	if (Settings)
+	{
+		Settings->GetOnEvaluateSubSequencesInIsolationChanged().RemoveAll(this);
+		Settings->GetOnShowSelectedNodesOnlyChanged().RemoveAll(this);
+		Settings->GetOnTimeDisplayFormatChanged().RemoveAll(this);
+	}
+
+	Settings = InSettings;
+
+	Settings->GetOnEvaluateSubSequencesInIsolationChanged().AddSP(this, &FSequencer::RestorePreAnimatedState);
+	Settings->GetOnShowSelectedNodesOnlyChanged().AddSP(this, &FSequencer::OnSelectedNodesOnlyChanged);
+	Settings->GetOnTimeDisplayFormatChanged().AddSP(this, &FSequencer::OnTimeDisplayFormatChanged);
+
+	OnTimeDisplayFormatChanged();
+}
+
 void FSequencer::OnPlaybackContextChanged()
 {
 	RootTemplateInstance.PlaybackContextChanged(*this);

@@ -815,7 +815,7 @@ public:
 
 	/** Access the user-supplied settings object */
 	virtual USequencerSettings* GetSequencerSettings() const override { return Settings; }
-	virtual void SetSequencerSettings(USequencerSettings* InSettings) override { Settings = InSettings; }
+	virtual void SetSequencerSettings(USequencerSettings* InSettings) override;
 	virtual TSharedPtr<class ITimeSlider> GetTopTimeSliderWidget() const override;
 	virtual void ResetTimeController() override;
 	virtual void SetTrackFilterEnabled(const FText& InTrackFilterName, bool bEnabled) override;
