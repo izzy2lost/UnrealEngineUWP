@@ -280,7 +280,10 @@ void FUIActionBinding::CleanRegistrations()
 		}
 	}
 
-	UE_LOG(LogUIActionRouter, Log, TEXT("Cleaned out [%d] inactive UI action bindings"), NumRemoved);
+	if (NumRemoved > 0)
+	{
+		UE_LOG(LogUIActionRouter, Log, TEXT("Cleaned out [%d] inactive UI action bindings"), NumRemoved);
+	}
 }
 
 FCommonInputActionDataBase* FUIActionBinding::GetLegacyInputActionData() const
