@@ -477,9 +477,9 @@ EConvertFromTypeResult FOptionalProperty::ConvertFromType(const FPropertyTag& Ta
 				MarkUnset(ContainerPtrToValuePtr<void>(ContainerData));
 				return EConvertFromTypeResult::Converted;
 			}
-			ValueTag.SetType(Tag.GetType().GetParameter());
+			ValueTag.SetType(Tag.GetType().GetParameter(0));
 
-			// Mimic FPropertyTag::SerializeTaggedProperty's special code path for bools that serializes the value as part of the tag, even though in this case we didn't serialize a separate tag for the inner value.
+			// Mimic FPropertyTag::SerializeTaggedProperty storing bool values in the tag because implementations of ConvertFromType expect it there.
 			if (ValueTag.Type == NAME_BoolProperty)
 			{
 				*MaybeValueSlot << ValueTag.BoolVal;
@@ -633,7 +633,7 @@ bool FOptionalProperty::LoadTypeName(UE::FPropertyTypeName Type, const FProperty
 		return false;
 	}
 
-	const UE::FPropertyTypeName ValueType = Type.GetParameter();
+	const UE::FPropertyTypeName ValueType = Type.GetParameter(0);
 	FField* Field = FField::TryConstruct(ValueType.GetName(), this, GetFName(), RF_NoFlags);
 	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(ValueType, Tag))
 	{
@@ -664,5 +664,5 @@ bool FOptionalProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) con
 
 	const FProperty* LocalValueProperty = ValueProperty;
 	check(LocalValueProperty);
-	return LocalValueProperty->CanSerializeFromTypeName(Type.GetParameter());
+	return LocalValueProperty->CanSerializeFromTypeName(Type.GetParameter(0));
 }

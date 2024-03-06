@@ -74,7 +74,7 @@ public:
 	 * - GetParameter(0) -> StructProperty(KeyStruct)
 	 * - GetParameter(1) -> EnumProperty(ByteEnum,ByteProperty)
 	 */
-	UE_API FPropertyTypeName GetParameter(int32 ParamIndex = 0) const;
+	UE_API FPropertyTypeName GetParameter(int32 ParamIndex) const;
 
 	/**
 	 * Returns the indexed parameter type name under the root of this property type name.
@@ -85,7 +85,7 @@ public:
 	 * - GetParameterName(0) -> StructProperty
 	 * - GetParameterName(1) -> EnumProperty
 	 */
-	inline FName GetParameterName(int32 ParamIndex = 0) const
+	inline FName GetParameterName(int32 ParamIndex) const
 	{
 		return GetParameter(ParamIndex).GetName();
 	}

@@ -522,7 +522,7 @@ bool FByteProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag*
 		return false;
 	}
 
-	const FName EnumName = Type.GetParameterName();
+	const FName EnumName = Type.GetParameterName(0);
 	if (EnumName.IsNone())
 	{
 		return true;
@@ -556,7 +556,7 @@ bool FByteProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 		return false;
 	}
 
-	const FName EnumName = Type.GetParameterName();
+	const FName EnumName = Type.GetParameterName(0);
 	if (const UEnum* LocalEnum = Enum)
 	{
 		return EnumName == LocalEnum->GetFName();

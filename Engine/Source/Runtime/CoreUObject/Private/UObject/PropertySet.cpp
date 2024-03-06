@@ -910,7 +910,7 @@ EConvertFromTypeResult FSetProperty::ConvertFromType(const FPropertyTag& Tag, FS
 	}
 	else
 	{
-		const FName InnerTypeName = Tag.GetType().GetParameterName();
+		const FName InnerTypeName = Tag.GetType().GetParameterName(0);
 		if (InnerTypeName.IsNone() || InnerTypeName == ElementProp->GetID())
 		{
 			return EConvertFromTypeResult::UseSerializeItem;
@@ -929,7 +929,7 @@ EConvertFromTypeResult FSetProperty::ConvertFromType(const FPropertyTag& Tag, FS
 	};
 
 	FPropertyTag InnerPropertyTag;
-	InnerPropertyTag.SetType(Tag.GetType().GetParameter());
+	InnerPropertyTag.SetType(Tag.GetType().GetParameter(0));
 	InnerPropertyTag.Name = Tag.Name;
 	InnerPropertyTag.ArrayIndex = 0;
 
@@ -1110,7 +1110,7 @@ bool FSetProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* 
 		return false;
 	}
 
-	const UE::FPropertyTypeName ElementType = Type.GetParameter();
+	const UE::FPropertyTypeName ElementType = Type.GetParameter(0);
 	FField* Field = FField::TryConstruct(ElementType.GetName(), this, GetFName(), RF_NoFlags);
 	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(ElementType, Tag))
 	{
@@ -1141,5 +1141,5 @@ bool FSetProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 
 	const FProperty* LocalElementProp = ElementProp;
 	check(LocalElementProp);
-	return LocalElementProp->CanSerializeFromTypeName(Type.GetParameter());
+	return LocalElementProp->CanSerializeFromTypeName(Type.GetParameter(0));
 }

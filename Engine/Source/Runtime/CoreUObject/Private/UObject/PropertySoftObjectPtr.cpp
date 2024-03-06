@@ -241,7 +241,7 @@ EConvertFromTypeResult FSoftObjectProperty::ConvertFromType(const FPropertyTag& 
 	}
 	else if (Tag.Type == NAME_StructProperty)
 	{
-		const FName StructName = Tag.GetType().GetParameterName();
+		const FName StructName = Tag.GetType().GetParameterName(0);
 		if (StructName == NAME_SoftObjectPath || StructName == NAME_SoftClassPath || StructName == NAME_StringAssetReference || StructName == NAME_StringClassReference)
 		{
 			// This property used to be a FSoftObjectPath but is now a TSoftObjectPtr<Foo>
