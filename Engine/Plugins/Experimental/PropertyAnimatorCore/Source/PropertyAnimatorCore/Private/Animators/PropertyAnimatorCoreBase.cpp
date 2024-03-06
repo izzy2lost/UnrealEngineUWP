@@ -134,7 +134,7 @@ void UPropertyAnimatorCoreBase::PostEditImport()
 {
 	Super::PostEditImport();
 
-	ResolveProperties();
+	ResolvePropertiesOwner();
 }
 
 void UPropertyAnimatorCoreBase::PreDuplicate(FObjectDuplicationParameters& InParams)
@@ -149,7 +149,7 @@ void UPropertyAnimatorCoreBase::PostDuplicate(EDuplicateMode::Type InMode)
 {
 	Super::PostDuplicate(InMode);
 
-	ResolveProperties();
+	ResolvePropertiesOwner();
 }
 
 #if WITH_EDITOR
@@ -386,15 +386,15 @@ void UPropertyAnimatorCoreBase::OnTimeSourceNameChanged()
 	OnTimeSourceChanged();
 }
 
-void UPropertyAnimatorCoreBase::ResolveProperties()
+void UPropertyAnimatorCoreBase::ResolvePropertiesOwner(AActor* InNewOwner)
 {
 	// Resolve linked properties against current actor
 	TSet<FPropertyAnimatorCoreData> UnresolvedProperties;
 
 	ForEachLinkedProperty<UPropertyAnimatorCoreContext>(
-		[this, &UnresolvedProperties](UPropertyAnimatorCoreContext* InContext, const FPropertyAnimatorCoreData& InProperty)->bool
+		[this, &UnresolvedProperties, &InNewOwner](UPropertyAnimatorCoreContext* InContext, const FPropertyAnimatorCoreData& InProperty)->bool
 		{
-			if (!InContext->ResolveProperty())
+			if (!InContext->ResolvePropertyOwner(InNewOwner))
 			{
 				UnresolvedProperties.Add(InProperty);
 			}

@@ -279,7 +279,7 @@ private:
 	void OnTimeSourceNameChanged();
 
 	/** Called after an action that causes the owner to change */
-	void ResolveProperties();
+	void ResolvePropertiesOwner(AActor* InNewOwner = nullptr);
 
 	UPropertyAnimatorCoreTimeSourceBase* FindOrAddTimeSource(FName InTimeSourceName);
 

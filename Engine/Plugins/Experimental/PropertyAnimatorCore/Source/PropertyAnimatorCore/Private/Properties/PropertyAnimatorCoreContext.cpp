@@ -2,6 +2,7 @@
 
 #include "Properties/PropertyAnimatorCoreContext.h"
 
+#include "Containers/Ticker.h"
 #include "InstancedStruct.h"
 #include "Properties/PropertyAnimatorCoreGroupBase.h"
 #include "Properties/PropertyAnimatorCoreResolver.h"
@@ -133,6 +134,14 @@ void UPropertyAnimatorCoreContext::PostLoad()
 
 	CheckEditMode();
 	CheckEditConverterRule();
+
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float InDelta)
+	{
+		// Restore before regenerating new property path
+		Restore();
+		AnimatedProperty.GeneratePropertyPath();
+		return false;
+	}));
 }
 
 #if WITH_EDITOR
@@ -200,37 +209,69 @@ void UPropertyAnimatorCoreContext::OnGroupNameChanged()
 	}
 }
 
-bool UPropertyAnimatorCoreContext::ResolveProperty()
+bool UPropertyAnimatorCoreContext::ResolvePropertyOwner(AActor* InNewOwner)
 {
-	UObject* NewOwner = GetTypedOuter<AActor>();
+	UObject* NewOwner = InNewOwner ? InNewOwner : GetTypedOuter<AActor>();
+	const UObject* CurrentOwner = AnimatedProperty.GetOwningActor();
 
-	if (AnimatedProperty.GetOwningActor() == NewOwner)
+	if (CurrentOwner == NewOwner)
 	{
 		return true;
 	}
 
 	bool bFound = IsValid(NewOwner);
+	const TArray<UObject*> OtherOuters = AnimatedProperty.GetOuters(AnimatedProperty.GetOwningActor());
 
-	for (const UObject* OtherOuter : AnimatedProperty.GetOuters(AnimatedProperty.GetOwningActor()))
+	if (!OtherOuters.IsEmpty())
 	{
-		bFound = false;
-		TArray<UObject*> ThisOwnedObjects;
-		GetObjectsWithOuter(NewOwner, ThisOwnedObjects, false);
-
-		for (UObject* ThisOuter : ThisOwnedObjects)
+		// Resolve using outers
+		for (const UObject* OtherOuter : OtherOuters)
 		{
-			if (ThisOuter->GetClass() == OtherOuter->GetClass()
-				&& ThisOuter->GetFName() == OtherOuter->GetFName())
+			bFound = false;
+			TArray<UObject*> ThisOwnedObjects;
+			GetObjectsWithOuter(NewOwner, ThisOwnedObjects, false);
+
+			for (UObject* ThisOuter : ThisOwnedObjects)
 			{
-				bFound = true;
-				NewOwner = ThisOuter;
-				break;
+				if (ThisOuter->GetClass() == OtherOuter->GetClass()
+					&& ThisOuter->GetFName() == OtherOuter->GetFName())
+				{
+					bFound = true;
+					NewOwner = ThisOuter;
+					break;
+				}
+			}
+		}
+	}
+	else
+	{
+		// Resolve using path segments
+		const TArray<FString> OwnerSegments = AnimatedProperty.GetOuterNames();
+
+		for (const FString& PathSegment : OwnerSegments)
+		{
+			bFound = false;
+			TArray<UObject*> ThisOwnedObjects;
+			GetObjectsWithOuter(NewOwner, ThisOwnedObjects, false);
+
+			for (UObject* ThisOuter : ThisOwnedObjects)
+			{
+				if (ThisOuter
+					&& ThisOuter->GetName().StartsWith(PathSegment))
+				{
+					bFound = true;
+					NewOwner = ThisOuter;
+					break;
+				}
 			}
 		}
 	}
 
+	const UObject* PreviousPropertyOwner = AnimatedProperty.GetOwner();
+
 	if (bFound
-		&& NewOwner->GetClass() == AnimatedProperty.GetOwner()->GetClass()
+		&& IsValid(NewOwner)
+		&& (!PreviousPropertyOwner || NewOwner->GetClass() == PreviousPropertyOwner->GetClass())
 		&& FindFProperty<FProperty>(NewOwner->GetClass(), AnimatedProperty.GetMemberPropertyName()))
 	{
 		SetAnimatedPropertyOwner(NewOwner);

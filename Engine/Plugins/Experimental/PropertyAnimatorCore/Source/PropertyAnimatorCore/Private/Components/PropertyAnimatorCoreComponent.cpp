@@ -171,6 +171,26 @@ FName UPropertyAnimatorCoreComponent::GetAnimatorName(const UPropertyAnimatorCor
 	return FName(NewAnimatorName);
 }
 
+void UPropertyAnimatorCoreComponent::OnComponentCreated()
+{
+	Super::OnComponentCreated();
+
+	if (AActor* OwningActor = GetOwner())
+	{
+		// For spawnable templates, restore and resolve properties owner
+		constexpr bool bForceRestore = true;
+
+		for (const TObjectPtr<UPropertyAnimatorCoreBase>& Animator : PropertyAnimators)
+		{
+			if (Animator)
+			{
+				Animator->RestoreProperties(bForceRestore);
+				Animator->ResolvePropertiesOwner(OwningActor);
+			}
+		}
+	}
+}
+
 void UPropertyAnimatorCoreComponent::TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction)
 {
 	Super::TickComponent(InDeltaTime, InTickType, InThisTickFunction);

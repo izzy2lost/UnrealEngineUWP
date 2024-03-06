@@ -53,6 +53,7 @@ protected:
 	static FName GetAnimatorName(const UPropertyAnimatorCoreBase* InAnimator);
 
 	//~ Begin UActorComponent
+	virtual void OnComponentCreated() override;
 	virtual void DestroyComponent(bool bPromoteChildren) override;
 	//~ End UActorComponent
 

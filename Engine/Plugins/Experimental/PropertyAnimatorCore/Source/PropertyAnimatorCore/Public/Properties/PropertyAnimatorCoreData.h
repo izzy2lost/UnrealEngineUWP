@@ -80,6 +80,8 @@ struct FPropertyAnimatorCoreData
 	/** Returns chain of owner until it reaches StopOuter */
 	TArray<UObject*> GetOuters(const UObject* InStopOuter) const;
 
+	TArray<FString> GetOuterNames() const;
+
 	/** The member property of the owner, top property inside the owner itself */
 	FProperty* GetMemberProperty() const
 	{
@@ -172,6 +174,9 @@ struct FPropertyAnimatorCoreData
 	/** Gets the property handler to perform operation on property without knowing the type */
 	UPropertyAnimatorCoreHandlerBase* GetPropertyHandler() const;
 
+	/** Internal use only, create the hash and display name */
+	void GeneratePropertyPath();
+
 private:
 	static void CopyPropertyValue(const FProperty* InProperty, const void* InSrc, void* OutDest);
 
@@ -192,9 +197,6 @@ private:
 
 	/** Uses chained properties to resolve from container to */
 	void* ContainerToValuePtr(const void* InContainer, int32 InStartPropertyIndex) const;
-
-	/** Internal use only, create the hash and display name */
-	void GeneratePropertyPath();
 
 	/** Tries to find setter function for this property */
 	bool FindSetterFunctions();

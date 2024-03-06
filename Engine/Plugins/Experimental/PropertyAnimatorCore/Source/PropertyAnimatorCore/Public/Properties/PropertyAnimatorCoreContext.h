@@ -80,7 +80,7 @@ public:
 	}
 
 	/** Called when the owner has changed and we want to update the animated property */
-	bool ResolveProperty();
+	bool ResolvePropertyOwner(AActor* InNewOwner);
 
 protected:
 	//~ Begin UObject

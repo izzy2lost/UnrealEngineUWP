@@ -145,6 +145,31 @@ TArray<UObject*> FPropertyAnimatorCoreData::GetOuters(const UObject* InStopOuter
 	return Owners;
 }
 
+TArray<FString> FPropertyAnimatorCoreData::GetOuterNames() const
+{
+	TArray<FString> OuterNames;
+	PathHash.ParseIntoArray(OuterNames, TEXT("."), true);
+	const FString MemberPropertyName = GetMemberPropertyName().ToString();
+
+	// Remove all properties chain segments
+	for (int32 Index = OuterNames.Num() - 1; Index >= 0; Index--)
+	{
+		if (OuterNames[Index].Equals(MemberPropertyName))
+		{
+			OuterNames.RemoveAt(Index, OuterNames.Num() - Index);
+			break;
+		}
+	}
+
+	// Remove resolver name at the beginning
+	if (!OuterNames.IsEmpty() && IsResolvable())
+	{
+		OuterNames.RemoveAt(0);
+	}
+
+	return OuterNames;
+}
+
 FName FPropertyAnimatorCoreData::GetMemberPropertyName() const
 {
 	const FProperty* MemberProperty = GetMemberProperty();
@@ -481,10 +506,11 @@ void FPropertyAnimatorCoreData::CopyPropertyValue(const FProperty* InProperty, c
 void FPropertyAnimatorCoreData::GeneratePropertyPath()
 {
 	const UObject* Owner = GetOwner();
-	const FString ResolverName = IsResolvable() ? GetPropertyResolver()->GetResolverName().ToString() : TEXT("");
+	const UObject* StopOuter = GetOwningActor();
+	const FString ResolverName = IsResolvable() ? GetPropertyResolver()->GetResolverName().ToString() + TEXT(".") : TEXT("");
 
 	PathHash = ResolverName;
-	PathHash += IsValid(Owner) ? Owner->GetPathName() : TEXT("");
+	PathHash += IsValid(Owner) ? Owner->GetPathName(StopOuter) : TEXT("");
 
 	FString DisplayName = ResolverName;
 	for (const TFieldPath<FProperty>& ChainProperty : ChainProperties)
