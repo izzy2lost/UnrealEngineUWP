@@ -46,6 +46,8 @@ namespace PCGAttributeAccessorHelpers
 		FName AliasUsed = NAME_None;
 		bool bUsedAliases = false;
 		bool bPinConnected = false;
+		bool bHasMultipleAttributeSetsOnOverridePin = false;
+		bool bHasMultipleDataInAttributeSet = false;
 	};
 
 	UE_DEPRECATED(5.3, "Use the CreateConstAccessorForOverrideParamWithResult version")
