@@ -282,7 +282,7 @@ float3 InternalGetHairVoxelJitter(uint2 PixelCoord, uint SampleIndex, uint MaxSa
 {
 	// Blue noise is cheaper to compute and h
 	#if USE_BLUE_NOISE
-	float3 RandomSample = GetHairBlueNoiseJitter(PixelCoord, SampleIndex, MaxSampleCount, TimeIndex).xyz;
+	float3 RandomSample = GetHairBlueNoiseJitter(PixelCoord, SampleIndex, MaxSampleCount, JitterMode > 1 ? 0 : TimeIndex).xyz;
 	#else
 	float3 RandomSample = GetHairVoxelJitter(PixelCoord, View.StateFrameIndexMod8, JitterMode);
 	#endif
