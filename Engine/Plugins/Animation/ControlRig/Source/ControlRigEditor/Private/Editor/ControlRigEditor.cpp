@@ -1073,8 +1073,7 @@ void FControlRigEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 
 	if (DebuggedControlRig)
 	{
-		bool bIsExternalControlRig = DebuggedControlRig != GetControlRig();
-		bool bShouldExecute = (!bIsExternalControlRig) && bExecutionControlRig;
+		const bool bShouldExecute = ShouldExecuteControlRig(DebuggedControlRig);
 		GetControlRigBlueprint()->Hierarchy->HierarchyForSelectionPtr = DebuggedControlRig->DynamicHierarchy;
 
 		UControlRigSkeletalMeshComponent* EditorSkelComp = Cast<UControlRigSkeletalMeshComponent>(GetPersonaToolkit()->GetPreviewScene()->GetPreviewMeshComponent());
@@ -1104,12 +1103,15 @@ void FControlRigEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 			}
 			
 			// get the bone intial transforms from the preview skeletal mesh
-			DebuggedControlRig->SetBoneInitialTransformsFromSkeletalMeshComponent(EditorSkelComp);
-			if(UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj()))
+			if(bShouldExecute)
 			{
-				// copy the initial transforms back to the blueprint
-				// no need to call modify here since this code only modifies the bp if the preview mesh changed
-				RigBlueprint->Hierarchy->CopyPose(DebuggedControlRig->GetHierarchy(), false, true, false);
+				DebuggedControlRig->SetBoneInitialTransformsFromSkeletalMeshComponent(EditorSkelComp);
+				if(UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj()))
+				{
+					// copy the initial transforms back to the blueprint
+					// no need to call modify here since this code only modifies the bp if the preview mesh changed
+					RigBlueprint->Hierarchy->CopyPose(DebuggedControlRig->GetHierarchy(), false, true, false);
+				}
 			}
 		}
 
@@ -1132,6 +1134,14 @@ void FControlRigEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 		if(EditorSkelComp)
 		{
 			EditorSkelComp->SetComponentToWorld(FTransform::Identity);
+		}
+
+		if(!bShouldExecute)
+		{
+			if (FControlRigEditMode* EditMode = GetEditMode())
+			{
+				EditMode->RequestToRecreateControlShapeActors();
+			}
 		}
 	}
 	else
@@ -2584,6 +2594,23 @@ void FControlRigEditor::OnToolbarDrawSocketsChanged(ECheckBoxState InNewValue)
 bool FControlRigEditor::IsConstructionModeEnabled() const
 {
 	return GetEventQueue() == ConstructionEventQueue;
+}
+
+bool FControlRigEditor::IsDebuggingExternalControlRig(const UControlRig* InControlRig) const
+{
+	if(InControlRig == nullptr)
+	{
+		if(const UControlRigBlueprint* ControlRigBlueprint = GetControlRigBlueprint())
+		{
+			InControlRig = Cast<UControlRig>(ControlRigBlueprint->GetObjectBeingDebugged());
+		}
+	}
+	return InControlRig != GetControlRig();
+}
+
+bool FControlRigEditor::ShouldExecuteControlRig(const UControlRig* InControlRig) const
+{
+	return (!IsDebuggingExternalControlRig(InControlRig)) && bExecutionControlRig;
 }
 
 void FControlRigEditor::HandlePreviewSceneCreated(const TSharedRef<IPersonaPreviewScene>& InPersonaPreviewScene)
@@ -5260,15 +5287,19 @@ void FControlRigEditor::OnPreForwardsSolve_AnyThread(UControlRig* InRig, const F
 void FControlRigEditor::OnPreConstructionForUI_AnyThread(UControlRig* InRig, const FName& InEventName)
 {
 	bIsConstructionEventRunning = true;
-	const TArrayView<const FRigElementKey> Elements;
-	PreConstructionPose = InRig->GetHierarchy()->GetPose(false, ERigElementType::ToResetAfterConstructionEvent, Elements);
 
-	if(const UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
+	if(ShouldExecuteControlRig(InRig))
 	{
-		if(RigBlueprint->IsControlRigModule())
+		const TArrayView<const FRigElementKey> Elements;
+		PreConstructionPose = InRig->GetHierarchy()->GetPose(false, ERigElementType::ToResetAfterConstructionEvent, Elements);
+
+		if(const UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
 		{
-			SocketStates = InRig->GetHierarchy()->GetSocketStates();
-			ConnectorStates = RigBlueprint->Hierarchy->GetConnectorStates();
+			if(RigBlueprint->IsControlRigModule())
+			{
+				SocketStates = InRig->GetHierarchy()->GetSocketStates();
+				ConnectorStates = RigBlueprint->Hierarchy->GetConnectorStates();
+			}
 		}
 	}
 }
@@ -5320,7 +5351,7 @@ void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FN
 					}
 				}
 
-				if(RigBlueprint->IsControlRigModule())
+				if(ShouldExecuteControlRig(InRig))
 				{
 					RigBlueprint->Hierarchy->RestoreSocketsFromStates(SocketStates);
 					InRig->GetHierarchy()->RestoreSocketsFromStates(SocketStates);
@@ -5333,15 +5364,16 @@ void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FN
 void FControlRigEditor::OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
 {
 	bIsConstructionEventRunning = false;
+	const bool bShouldExecute = ShouldExecuteControlRig(InRig);
 
 	if(UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
 	{
-		if(RigBlueprint->IsControlRigModule())
+		if(bShouldExecute && RigBlueprint->IsControlRigModule())
 		{
 			RigBlueprint->Hierarchy->RestoreConnectorsFromStates(ConnectorStates);
 		}
 
-		if(RigBlueprint->IsModularRig())
+		if(bShouldExecute && RigBlueprint->IsModularRig())
 		{
 			// auto resolve the root module's primary connector
 			if(RigBlueprint->ModularRigModel.Connections.IsEmpty() && RigBlueprint->ModularRigModel.Modules.Num() == 1 && RigBlueprint->Hierarchy->Num(ERigElementType::Bone) > 0)
@@ -5406,7 +5438,7 @@ void FControlRigEditor::OnPostConstruction_AnyThread(UControlRig* InRig, const F
 			}, TStatId(), NULL, ENamedThreads::GameThread);
 		}
 	}
-	else
+	else if(bShouldExecute)
 	{
 		InRig->GetHierarchy()->SetPose(PreConstructionPose, ERigTransformType::CurrentGlobal);
 	}
