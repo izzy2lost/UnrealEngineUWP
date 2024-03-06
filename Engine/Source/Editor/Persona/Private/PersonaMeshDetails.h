@@ -285,6 +285,7 @@ private:
 		const FText& RowTitleText,
 		const FText& RowNameContentText,
 		const FText& RowNameContentTooltipText,
+		FName RowTag,
 		const int32 MinSliderValue,
 		const int32 MaxSliderValue,
 		const FGetIntegerDelegate& GetterDelegate,
