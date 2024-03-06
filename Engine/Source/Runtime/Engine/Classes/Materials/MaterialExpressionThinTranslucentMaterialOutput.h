@@ -17,6 +17,10 @@ class UMaterialExpressionThinTranslucentMaterialOutput : public UMaterialExpress
 	UPROPERTY()
 	FExpressionInput TransmittanceColor;
 
+	/** Input for the surface coverage of both the thin surface part and the material on top (controled using Opacity input of the graph root node). Valid range is [0,1]. */
+	UPROPERTY()
+	FExpressionInput SurfaceCoverage;
+
 public:
 #if WITH_EDITOR
 	//~ Begin UMaterialExpression Interface

@@ -923,6 +923,10 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 	{
 		const float3 TransmittanceColor = GetThinTranslucentMaterialOutput0(MaterialParameters);
 		Payload.SetTransmittanceColor(TransmittanceColor);
+
+		const float SurfaceCoverage = GetThinTranslucentMaterialOutput1(MaterialParameters);
+		Payload.BSDFOpacity *= SurfaceCoverage;
+
 		Payload.Ior = Ior;
 		if (Ior > 0.0)
 		{
@@ -940,6 +944,9 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 			const float  Specular = Payload.Specular;
 			const float  F0 = F0RGBToF0(ComputeF0(Specular, BaseColor, Metallic));
 			Payload.TransparencyColor = (1 - Payload.BSDFOpacity) * ComputeThinSlabWeights(TransmittanceColor, VoN, 0.0, F0).Transmitted;
+
+			// Fade out the TransparencyColor as a function of the SurfaceCoverage.
+			Payload.TransparencyColor = lerp(1.0.xxx, Payload.TransparencyColor, SurfaceCoverage.xxx);
 		}
 	}
 	else
@@ -1345,6 +1352,10 @@ RAY_TRACING_ENTRY_ANY_HIT(PathTracingMaterialAHS,
 				}
 #endif
 			}
+
+			// Fade out the Transparency as a function of the SurfaceCoverage.
+			const float SurfaceCoverage = GetThinTranslucentMaterialOutput1(MaterialParameters);
+			Transparency = lerp(1.0.xxx, Transparency, SurfaceCoverage.xxx);
 		}
 		else
 #endif // MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT

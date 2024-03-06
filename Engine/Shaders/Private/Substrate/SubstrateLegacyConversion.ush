@@ -141,7 +141,8 @@ FSubstrateData SubstrateConvertLegacyMaterialDynamic(
 	float ClearCoat, float ClearCoatRoughness,
 	float3 Emissive,
 	float Opacity,
-	float3 TransmittanceColor,
+	float3 ThinTranslucentTransmittanceColor,
+	float ThinTranslucentSurfaceCoverage,
 	float3 WaterScatteringCoefficients, float3 WaterAbsorptionCoefficients, float WaterPhaseG, float3 ColorScaleBehindWater,
 	uint ShadingModel,
 	float3 RawNormal,
@@ -399,7 +400,7 @@ FSubstrateData SubstrateConvertLegacyMaterialDynamic(
 		// we need to do some approximation. In order to reduce avoid hue shift due to difference between 'solid' base-color/diffuse-albedo and 'transparent' transmission 
 		// color, we lerp BaseColor with transmittance color in LAB space so that the interpolated color minized its 'distance' 
 		const float3 BaseColor_LAB			= LinearRGB_2_LAB(BaseColor);
-		const float3 TransmittanceColor_LAB = LinearRGB_2_LAB(TransmittanceColor);
+		const float3 TransmittanceColor_LAB = LinearRGB_2_LAB(ThinTranslucentTransmittanceColor);
 		const float3 Color_LAB			    = lerp(TransmittanceColor_LAB, BaseColor_LAB, Opacity);
 		const float3 Color					= LAB_2_LinearRGB(Color_LAB);
 
@@ -420,17 +421,18 @@ FSubstrateData SubstrateConvertLegacyMaterialDynamic(
 		LegacySlab.SSSMFP			= lerp(BotMFP,    TopMFP,    Opacity);
 		LegacySlab.F0				= lerp(BotF0,     TopF0,     Opacity);
 		LegacySlab.F90				= Ones;
-		LegacySlab.UseMetalness	= false;
+		LegacySlab.UseMetalness		= false;
 		LegacySlab.Roughness 		= Roughness;
 		LegacySlab.Anisotropy 		= 0.f;
 		LegacySlab.SSSProfileID 	= 0.f;
-		LegacySlab.SSSMFPScale 	= 1.f;
+		LegacySlab.SSSMFPScale 		= 1.f;
 		LegacySlab.Emissive 		= Emissive;
 		LegacySlab.Thickness 		= Thickness;
 		LegacySlab.SharedLocalBasisIndex = SharedLocalBasisIndex;
 
-		// Thin translucency model always have a coverage of 1. It also canont be used in a multiple shading model context.
-		FinalWeight = 1.0f;
+		// Opacity on the root node is the coverage of the disney model on top of the translucent part.
+		// Thin translucency model have a special surface coverage input.
+		FinalWeight = ThinTranslucentSurfaceCoverage;
 	}
 
 	// Fixed layer structure for helping compiler to unroll and optimize shader
@@ -454,7 +456,8 @@ FSubstrateData SubstrateConvertLegacyMaterialStatic(
 	float ClearCoat, float ClearCoatRoughness,
 	float3 Emissive,
 	float Opacity,
-	float3 TransmittanceColor,
+	float3 ThinTranslucentTransmittanceColor,
+	float ThinTranslucentSurfaceCoverage,
 	float3 WaterScatteringCoefficients, float3 WaterAbsorptionCoefficients, float WaterPhaseG, float3 ColorScaleBehindWater,
 	uint ShadingModel,
 	float3 RawNormal,
@@ -569,7 +572,8 @@ FSubstrateData SubstrateConvertLegacyMaterialStatic(
 			ClearCoat, ClearCoatRoughness,
 			Emissive,
 			Opacity,
-			TransmittanceColor,
+			ThinTranslucentTransmittanceColor,
+			ThinTranslucentSurfaceCoverage,
 			WaterScatteringCoefficients, WaterAbsorptionCoefficients, WaterPhaseG, ColorScaleBehindWater,
 			ShadingModel,
 			RawNormal,

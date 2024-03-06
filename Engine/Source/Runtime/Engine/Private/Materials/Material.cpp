@@ -3673,7 +3673,16 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 
 		if (ThinTranslucentOutput)
 		{
-			ConnectionTo(*ThinTranslucentOutput->GetInput(0), ConvertNode, 12);	 // TransmittanceColor
+			FExpressionInput* TransmittanceColorInput = ThinTranslucentOutput->GetInput(0);
+			FExpressionInput* ThinTranslucentSurfaceCoverageInput = ThinTranslucentOutput->GetInput(1);
+			if (TransmittanceColorInput && TransmittanceColorInput->IsConnected())
+			{
+				ConvertNode->TransmittanceColor.Connect(TransmittanceColorInput->OutputIndex, TransmittanceColorInput->Expression);
+			}
+			if (ThinTranslucentSurfaceCoverageInput && ThinTranslucentSurfaceCoverageInput->IsConnected())
+			{
+				ConvertNode->ThinTranslucentSurfaceCoverage.Connect(ThinTranslucentSurfaceCoverageInput->OutputIndex, ThinTranslucentSurfaceCoverageInput->Expression);
+			}
 		}
 		if (SingleLayerWaterOutput)
 		{

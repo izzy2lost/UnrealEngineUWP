@@ -28,7 +28,8 @@ void AccumulateThinTranslucentModel(inout float3 DualBlendSurfaceLuminancePostCo
 	// how much to add for foreground color
 	float3 SurfaceColor = float3(0.0f,0.0f,0.0f);
 
-	float3 TransmittanceColor = GetThinTranslucentMaterialOutput0(MaterialParams);
+	const float3 TransmittanceColor = GetThinTranslucentMaterialOutput0(MaterialParams);
+	const float  SurfaceCoverage    = GetThinTranslucentMaterialOutput1(MaterialParams);
 	
 	// color is for normalized thickness
 #if THIN_TRANSLUCENT_USE_DOTNV_THICKNESS
@@ -39,7 +40,7 @@ void AccumulateThinTranslucentModel(inout float3 DualBlendSurfaceLuminancePostCo
 	float PathLength = 1.0f;
 #endif	
 	float3 NegativeAbsorptionCoefficient = log(TransmittanceColor);
-	float3 ColorTopMaterialCoverage = exp(NegativeAbsorptionCoefficient * PathLength);
+	float3 BottomMaterialTransmittance = exp(NegativeAbsorptionCoefficient * PathLength);
 
 	// Light goes from background -> solid surface -> camera, and we need fresnel at both interactions.
 	const float3 FresnelRatio = F_Schlick(GBuffer.SpecularColor, NoV);
@@ -48,7 +49,7 @@ void AccumulateThinTranslucentModel(inout float3 DualBlendSurfaceLuminancePostCo
 	Transmittance = Transmittance * (1-FresnelRatio);
 
 	// Light gets lost from absorption through the surface
-	Transmittance = Transmittance * ColorTopMaterialCoverage;
+	Transmittance = Transmittance * BottomMaterialTransmittance;
 
 	// Exiting the surface, the Fresnel ratio is the same! This is technically only true for F_Fresnel, but since we are using
 	// F_Schlick as a stand-in, applying the same logic is a valid approximation
@@ -68,7 +69,7 @@ void AccumulateThinTranslucentModel(inout float3 DualBlendSurfaceLuminancePostCo
 	SurfaceColor += SpecularColor;
 
 	// Luminance and transmitance assumin a full coverage of 1.
-	DualBlendSurfaceCoverage = 1.0f;
+	DualBlendSurfaceCoverage = SurfaceCoverage;
 	DualBlendSurfaceLuminancePostCoverage = SurfaceColor * DualBlendSurfaceCoverage;
 	DualBlendSurfaceTransmittancePreCoverage = Transmittance;
 }

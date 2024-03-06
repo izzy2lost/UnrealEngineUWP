@@ -166,13 +166,20 @@ class UMaterialExpressionSubstrateShadingModels : public UMaterialExpressionSubs
 	 */
 	UPROPERTY()
 	FShadingModelMaterialInput ShadingModel;
+
+	/**
+	 * The coverage of the surface using a thin translucent shading model. This will reduce the visibility of the thin translucent surface & plastic/metal BRDF overall. (type = float1, unit = unitless, dafaults to 1, range is [0,1])
+	 */
+	UPROPERTY()
+	FExpressionInput ThinTranslucentSurfaceCoverage;
+
+	// Always show at the bottom of the pin list
+	UPROPERTY(EditAnywhere, Category = ShadingModel, meta = (ShowAsInputPin = "Primary", DisplayName = "Single Shading Model"))
+	TEnumAsByte<enum EMaterialShadingModel> ShadingModelOverride = MSM_DefaultLit;
 	
 	/** SubsurfaceProfile, for Screen Space Subsurface Scattering. The profile needs to be set up on both the Substrate diffuse node, and the material node at the moment. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Material, meta = (DisplayName = "Subsurface Profile"))
 	TObjectPtr<class USubsurfaceProfile> SubsurfaceProfile;
-
-	UPROPERTY(EditAnywhere, Category = ShadingModel, meta = (ShowAsInputPin = "Primary", DisplayName = "Single Shading Model"))
-	TEnumAsByte<enum EMaterialShadingModel> ShadingModelOverride = MSM_DefaultLit;
 
 	//~ Begin UMaterialExpression Interface
 #if WITH_EDITOR

@@ -23719,6 +23719,10 @@ int32 UMaterialExpressionThinTranslucentMaterialOutput::Compile(class FMaterialC
 	{
 		CodeInput = TransmittanceColor.IsConnected() ? TransmittanceColor.Compile(Compiler) : Compiler->Constant3(0.5f, 0.5f, 0.5f);
 	}
+	if (OutputIndex == 1)
+	{
+		CodeInput = SurfaceCoverage.IsConnected() ? SurfaceCoverage.Compile(Compiler) : Compiler->Constant(1.0f);
+	}
 
 	return Compiler->CustomOutput(this, OutputIndex, CodeInput);
 }
@@ -23735,6 +23739,9 @@ uint32 UMaterialExpressionThinTranslucentMaterialOutput::GetInputType(int32 Inpu
 	case 0:
 		return MCT_Float3;
 		break;
+	case 1:
+		return MCT_Float1;
+		break;
 	}
 
 	check(false);
@@ -23745,7 +23752,7 @@ uint32 UMaterialExpressionThinTranslucentMaterialOutput::GetInputType(int32 Inpu
 
 int32 UMaterialExpressionThinTranslucentMaterialOutput::GetNumOutputs() const
 {
-	return 1;
+	return 2;
 }
 
 FString UMaterialExpressionThinTranslucentMaterialOutput::GetFunctionName() const
@@ -24135,7 +24142,7 @@ int32 UMaterialExpressionSubstrateShadingModels::Compile(class FMaterialCompiler
 		AnisotropyCodeChunk,
 		// SSS
 		CompileWithDefaultFloat3(Compiler, SubSurfaceColor, 1.0f, 1.0f, 1.0f),
-		SSSProfileCodeChunk != INDEX_NONE ? SSSProfileCodeChunk : Compiler->Constant(0.0f),	
+		SSSProfileCodeChunk != INDEX_NONE ? SSSProfileCodeChunk : Compiler->Constant(0.0f),
 		// Clear Coat / Custom
 		CompileWithDefaultFloat1(Compiler, ClearCoat, 1.0f),
 		CompileWithDefaultFloat1(Compiler, ClearCoatRoughness, 0.1f),
@@ -24143,6 +24150,7 @@ int32 UMaterialExpressionSubstrateShadingModels::Compile(class FMaterialCompiler
 		CompileWithDefaultFloat3(Compiler, EmissiveColor, 0.0f, 0.0f, 0.0f),
 		OpacityCodeChunk,
 		CompileWithDefaultFloat3(Compiler, TransmittanceColor, 0.5f, 0.5f, 0.5f),
+		CompileWithDefaultFloat1(Compiler, ThinTranslucentSurfaceCoverage, 1.0f),
 		// Water
 		CompileWithDefaultFloat3(Compiler, WaterScatteringCoefficients, 0.0f, 0.0f, 0.0f),
 		CompileWithDefaultFloat3(Compiler, WaterAbsorptionCoefficients, 0.0f, 0.0f, 0.0f),
@@ -24203,8 +24211,9 @@ uint32 UMaterialExpressionSubstrateShadingModels::GetInputType(int32 InputIndex)
 	else if (InputIndex == 16) return MCT_Float3; // ColorScaleBehindWater
 	else if (InputIndex == 17) return MCT_Float3; // ClearCoatNormal
 	else if (InputIndex == 18) return MCT_Float3; // CustomTangent
-	else if (InputIndex == 19) return MCT_ShadingModel; // ShadingModel
-	else if (InputIndex == 20) return MCT_ShadingModel; // ShadingModelOverride (as it uses 'ShowAsInputPin' metadata)
+	else if (InputIndex == 19) return MCT_Float1; // ThinTranslucentSurfaceCoverage
+	else if (InputIndex == 20) return MCT_ShadingModel; // ShadingModel
+	else if (InputIndex == 21) return MCT_ShadingModel; // EMaterialShadingModel with ShowAsInputPin seems to always show at the bottom
 
 	check(false);
 	return MCT_Float1;
@@ -24267,14 +24276,16 @@ FName UMaterialExpressionSubstrateShadingModels::GetInputName(int32 InputIndex) 
 		return TEXT("Custom1");
 	}
 	else if (InputIndex == 11)	return TEXT("Opacity");
-	else if (InputIndex == 12)	return TEXT("TransmittanceColor");
+	else if (InputIndex == 12)	return TEXT("Thin Translucent Transmittance Color");
 	else if (InputIndex == 13)	return TEXT("Water Scattering Coefficients");
 	else if (InputIndex == 14)	return TEXT("Water Absorption Coefficients");
 	else if (InputIndex == 15)	return TEXT("Water Phase G");
 	else if (InputIndex == 16)	return TEXT("Color Scale BehindWater");
 	else if (InputIndex == 17)	return TEXT("Clear Coat Normal");
 	else if (InputIndex == 18)	return TEXT("Custom Tangent");
-	else if (InputIndex == 19)	return TEXT("Shading Model From Expression");
+	else if (InputIndex == 19)	return TEXT("Thin Translucent Surface Coverage");
+	else if (InputIndex == 20)	return TEXT("Single Shading Model");
+	else if (InputIndex == 21)	return TEXT("Shading Model From Expression");
 	return TEXT("Unknown");
 }
 
@@ -27217,9 +27228,10 @@ UMaterialExpressionSubstrateConvertMaterialAttributes::UMaterialExpressionSubstr
 #if WITH_EDITOR
 int32 UMaterialExpressionSubstrateConvertMaterialAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
-	static const FGuid ClearCoatBottomNormalGuid 	= FMaterialAttributeDefinitionMap::GetCustomAttributeID(TEXT("ClearCoatBottomNormal"));;
-	static const FGuid CustomEyeTangentGuid 		= FMaterialAttributeDefinitionMap::GetCustomAttributeID(TEXT("CustomEyeTangent"));
-	static const FGuid TransmittanceColorGuid 		= FMaterialAttributeDefinitionMap::GetCustomAttributeID(TEXT("TransmittanceColor"));
+	static const FGuid ClearCoatBottomNormalGuid 			= FMaterialAttributeDefinitionMap::GetCustomAttributeID(TEXT("ClearCoatBottomNormal"));
+	static const FGuid CustomEyeTangentGuid 				= FMaterialAttributeDefinitionMap::GetCustomAttributeID(TEXT("CustomEyeTangent"));
+	static const FGuid TransmittanceColorGuid 				= FMaterialAttributeDefinitionMap::GetCustomAttributeID(TEXT("TransmittanceColor"));
+	static const FGuid ThinTranslucentSurfaceCoverageGuid	= FMaterialAttributeDefinitionMap::GetCustomAttributeID(TEXT("ThinTranslucentSurfaceCoverage"));
 
 	if (OutputIndex != 0)
 	{
@@ -27321,6 +27333,17 @@ int32 UMaterialExpressionSubstrateConvertMaterialAttributes::Compile(class FMate
 	{
 		TransmittanceColorChunk = Compiler->Constant3(0.5f, 0.5f, 0.5f);
 	}
+	// Thin Translucent Surface Coverage
+	const bool bHasThinTranslucentSurfaceCoverage = IsCustomMaterialAttributeInputConnected(Cached, ThinTranslucentSurfaceCoverageGuid);
+	int32 ThinTranslucentSurfaceCoverageChunk = INDEX_NONE;
+	if (bHasThinTranslucentSurfaceCoverage)
+	{
+		ThinTranslucentSurfaceCoverageChunk = MaterialAttributes.CompileWithDefault(Compiler, ThinTranslucentSurfaceCoverageGuid);
+	}
+	else
+	{
+		ThinTranslucentSurfaceCoverageChunk = Compiler->Constant(1.0f);
+	}
 
 	int32 ShadingModelCodeChunk = MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_ShadingModel));
 	const bool bHasShadingModelExpression = IsMaterialAttributeInputConnected(Cached, MP_ShadingModel);
@@ -27349,6 +27372,7 @@ int32 UMaterialExpressionSubstrateConvertMaterialAttributes::Compile(class FMate
 		MaterialAttributes.CompileWithDefault(Compiler, FMaterialAttributeDefinitionMap::GetID(MP_EmissiveColor)),
 		OpacityCodeChunk,
 		TransmittanceColorChunk,
+		ThinTranslucentSurfaceCoverageChunk,
 		// Water
 		CompileWithDefaultFloat3(Compiler, WaterScatteringCoefficients, 0.0f, 0.0f, 0.0f),
 		CompileWithDefaultFloat3(Compiler, WaterAbsorptionCoefficients, 0.0f, 0.0f, 0.0f),
