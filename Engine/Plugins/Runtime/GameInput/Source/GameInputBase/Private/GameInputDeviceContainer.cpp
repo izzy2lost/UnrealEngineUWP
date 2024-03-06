@@ -34,7 +34,17 @@ FGameInputDeviceContainer::FGameInputDeviceContainer(
 	, AssignedDeviceId(InDeviceId)
 	, IgnoreReadingTimestamp(0)
 {
-	SetGameInputDevice(InDevice);
+	if (!InDevice)
+	{
+		ensureAlwaysMsgf(false, TEXT("A Game Input container was created without a valid IGameInputDevice! This container will fail to process any input and we should not have gotten here."));
+		return;
+	}
+
+	// Initalize the App Local ID, which should never change on this container
+	if (const GameInputDeviceInfo* Info = InDevice->GetDeviceInfo())
+	{
+		LocalDeviceId = Info->deviceId;
+	}
 }
 
 void FGameInputDeviceContainer::SetMessageHandler(const TSharedRef<FGenericApplicationMessageHandler>& InMessageHandler)
@@ -164,6 +174,18 @@ const GameInputKind FGameInputDeviceContainer::ProcessInput(IGameInput* GameInpu
 {
 	GameInputKind OutProcessedInputKinds = GameInputKindUnknown;
 
+	// If we don't have a valid IGameInputDevice, then this device has been disconnected and there
+	// is no need to attempt to get any Game Input readings from it. 
+	//	
+	// Calling GetCurrentReading with a null IGameInputDevice will actually return _all_ game input readings, which 
+	// we don't want to process. We only care about readings associated with this container's device.
+	// 
+	// @see https://learn.microsoft.com/en-us/gaming/gdk/_content/gc/reference/input/gameinput/interfaces/igameinput/methods/igameinput_getcurrentreading
+	if (!Device)
+	{
+		return OutProcessedInputKinds;
+	}
+
 	const bool bDoNotProcessDuplicateCapabilitiesForSingleUser = GetDefault<UGameInputDeveloperSettings>()->bDoNotProcessDuplicateCapabilitiesForSingleUser;
 
 	// keep reading the input snapshots for this device
@@ -276,7 +298,7 @@ const GameInputKind FGameInputDeviceContainer::ProcessInput(IGameInput* GameInpu
 		}
 
 		// if this was the last reading of the frame, then Reading is going to be null
-		// we dont need to track anything here because it happened on the previous iteration
+		// we don't need to track anything here because it happened on the previous iteration
 		if (bIsLastReadingOfFrame)
 		{
 			break;
@@ -319,23 +341,27 @@ IGameInputDevice* FGameInputDeviceContainer::GetGameInputDevice() const
 
 void FGameInputDeviceContainer::SetGameInputDevice(IGameInputDevice* InDevice)
 {
+	// If the devices are the same, we can early exit. Nothing needs to happen
+	if (InDevice == Device)
+	{
+		return;
+	}
+
 	Device = InDevice;
+
 	if (Device)
 	{
+		// Ensure that the local app device ID is the same as it was before
+		// Every input device that is connected to game input has a unique App Local ID, so if we are 
+		// using the same container then it should be the same.
+		// 
+		// In this case, we would get here if the IGameInputDevice pointer was set to null upon disconnection, 
+		// and then the device was re-connected.
 		if (const GameInputDeviceInfo* Info = InDevice->GetDeviceInfo())
 		{
-			LocalDeviceId = Info->deviceId;
+			const bool bAppIdsAreTheSame = (FMemory::Memcmp(&Info->deviceId, &LocalDeviceId, sizeof(LocalDeviceId)) == 0);
+			ensure(bAppIdsAreTheSame);
 		}
-		else
-		{
-			// We shouldn't be able to get here, but handle it just in case.
-			ensure(false);
-			LocalDeviceId = {};
-		}
-	}
-	else
-	{
-		LocalDeviceId = {};
 	}
 }
 
@@ -362,6 +388,16 @@ void FGameInputDeviceContainer::SetInputDeviceId(const FInputDeviceId InDeviceId
 FInputDeviceId FGameInputDeviceContainer::GetDeviceId() const
 {
 	return AssignedDeviceId;
+}
+
+uint64 FGameInputDeviceContainer::GetLastReadingTimestamp() const 
+{ 
+	return LastReadingTimestamp; 
+}
+
+const int32 FGameInputDeviceContainer::GetNumberOfProcessors() const
+{
+	return Processors.Num();
 }
 
 #endif	// GAME_INPUT_SUPPORT
