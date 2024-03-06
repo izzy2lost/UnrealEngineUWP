@@ -138,7 +138,7 @@ protected:
 	virtual void UpdateOutput(UControlRig* InControlRig, FPoseContext& InOutput) override;
 
 	void SetControlRigClass(TSubclassOf<UControlRig> InControlRigClass);
-	bool UpdateControlRigIfNeeded(const UAnimInstance* InAnimInstance);
+	bool UpdateControlRigIfNeeded(const UAnimInstance* InAnimInstance, const FBoneContainer& InRequiredBones);
 
 	// Helper function to update the initial ref pose within the Control Rig if needed
 	void UpdateControlRigRefPoseIfNeeded(const FAnimInstanceProxy* InProxy, bool bIncludePoseInHash = false);
