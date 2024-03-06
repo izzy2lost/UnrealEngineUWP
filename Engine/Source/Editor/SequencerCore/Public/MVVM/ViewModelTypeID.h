@@ -5,20 +5,20 @@
 #include "CoreTypes.h"
 #include "MVVM/CastableTypeTable.h"
 
-#define UE_SEQUENCER_DECLARE_VIEW_MODEL_TYPE_ID(Type)                                               \
-	static ::UE::Sequencer::TAutoRegisterViewModelTypeID<Type> ID;                                  \
+#define UE_SEQUENCER_DECLARE_VIEW_MODEL_TYPE_ID(Type)																	\
+	static ::UE::Sequencer::TAutoRegisterViewModelTypeID<Type> ID;														\
 	static void RegisterTypeID();
 
-#define UE_SEQUENCER_DECLARE_VIEW_MODEL_TYPE_ID_API(MODULE_API, Type)                               \
-	MODULE_API static ::UE::Sequencer::TAutoRegisterViewModelTypeID<Type> ID;                       \
+#define UE_SEQUENCER_DECLARE_VIEW_MODEL_TYPE_ID_API(MODULE_API, Type)													\
+	MODULE_API static ::UE::Sequencer::TAutoRegisterViewModelTypeID<Type> ID;											\
 	MODULE_API static void RegisterTypeID();
 
-#define UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(Type)                                                \
-	::UE::Sequencer::TAutoRegisterViewModelTypeID<Type> Type::ID;                                   \
-	void Type::RegisterTypeID()                                                                     \
-	{                                                                                               \
-		Type::ID.ID        = FViewModelTypeID::RegisterNewID();                                     \
-		Type::ID.TypeTable = FCastableTypeTable::MakeTypeTable<Type>((Type*)0, Type::ID.ID, #Type); \
+#define UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(Type)																	\
+	::UE::Sequencer::TAutoRegisterViewModelTypeID<Type> Type::ID;														\
+	void Type::RegisterTypeID()																							\
+	{																													\
+		Type::ID.ID        = ::UE::Sequencer::FViewModelTypeID::RegisterNewID();										\
+		Type::ID.TypeTable = ::UE::Sequencer::FCastableTypeTable::MakeTypeTable<Type>((Type*)0, Type::ID.ID, #Type);	\
 	}
 
 namespace UE

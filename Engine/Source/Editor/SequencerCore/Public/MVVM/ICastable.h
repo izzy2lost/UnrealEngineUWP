@@ -130,12 +130,12 @@ struct TImplements
 {
 };
 
-#define UE_SEQUENCER_DECLARE_CASTABLE(ThisType, ...)                                             \
-	UE_SEQUENCER_DECLARE_VIEW_MODEL_TYPE_ID(ThisType);                                           \
-	using Implements = TImplements<__VA_ARGS__>;                                                 \
-	UE_NO_UNIQUE_ADDRESS FAutoRegisterTypeTable AutoRegisterTypeTable = FAutoRegisterTypeTable(static_cast<ThisType*>(this)); \
+#define UE_SEQUENCER_DECLARE_CASTABLE(ThisType, ...)																																\
+	UE_SEQUENCER_DECLARE_VIEW_MODEL_TYPE_ID(ThisType);																																\
+	using Implements = ::UE::Sequencer::TImplements<__VA_ARGS__>;																														\
+	UE_NO_UNIQUE_ADDRESS ::UE::Sequencer::ICastable::FAutoRegisterTypeTable AutoRegisterTypeTable = ::UE::Sequencer::ICastable::FAutoRegisterTypeTable(static_cast<ThisType*>(this));	\
 
-#define UE_SEQUENCER_DEFINE_CASTABLE(ThisType)                                                   \
+#define UE_SEQUENCER_DEFINE_CASTABLE(ThisType)																																		\
 	UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(ThisType);
 
 
