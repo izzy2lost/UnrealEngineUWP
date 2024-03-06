@@ -14,6 +14,7 @@ Texture2D<UNORM float> NumFramesAccumulatedHistoryTexture;
 
 float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
+float4 HistoryGatherUVMinMax;
 float PrevSceneColorPreExposureCorrection;
 float TemporalMaxFramesAccumulated;
 float TemporalNeighborhoodClampScale;
@@ -25,7 +26,6 @@ RWTexture2D<float4> RWDiffuseLightingAndSecondMoment;
 RWTexture2D<float4> RWSpecularLightingAndSecondMoment;
 RWTexture2D<UNORM float> RWNumFramesAccumulated;
 RWTexture2D<float> RWSceneDepth;
-RWTexture2D<float4> RWSceneColor;
 
 struct FNeighborhood
 {
@@ -142,9 +142,11 @@ void DenoiserTemporalCS(
 				float3 HistoryScreenPosition = GetHistoryScreenPosition(ScreenPosition, ScreenUV, DeviceZ);
 				float2 HistoryScreenUV = HistoryScreenPosition.xy * HistoryScreenPositionScaleBias.xy + HistoryScreenPositionScaleBias.wz;
 
-				bool bHistoryWasOnScreen = all(HistoryScreenUV >= HistoryUVMinMax.xy) && all (HistoryScreenUV <= HistoryUVMinMax.zw);
+				bool bHistoryWasOnScreen = all(HistoryScreenUV >= HistoryUVMinMax.xy) && all(HistoryScreenUV <= HistoryUVMinMax.zw);
 				if (bHistoryWasOnScreen)
 				{
+					HistoryScreenUV = clamp(HistoryScreenUV, HistoryGatherUVMinMax.xy + View.GeneralPurposeTweak * View.BufferSizeAndInvSize.zw, HistoryGatherUVMinMax.zw - View.GeneralPurposeTweak * View.BufferSizeAndInvSize.zw);
+
 					uint2 HistoryScreenCoord = floor(HistoryScreenUV * View.BufferSizeAndInvSize.xy - 0.5f);
 					float2 HistoryBilinearWeights = frac(HistoryScreenUV * View.BufferSizeAndInvSize.xy - 0.5f);
 					float2 HistoryGatherUV = (HistoryScreenCoord + 1.0f) * View.BufferSizeAndInvSize.zw;
