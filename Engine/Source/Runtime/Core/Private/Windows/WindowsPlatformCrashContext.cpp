@@ -92,6 +92,7 @@ enum EConstants
 const uint32 EnsureExceptionCode = ECrashExitCodes::UnhandledEnsure; // Use a rather unique exception code in case SEH doesn't handle it as expected.
 const uint32 AssertExceptionCode = 0x4000;
 const uint32 GPUCrashExceptionCode = 0x8000;
+const uint32 OutOfMemoryExceptionCode = 0xc000;
 constexpr double DefaultCrashHandlingTimeoutSecs = 60.0;
 
 namespace {
@@ -1446,11 +1447,17 @@ private:
 			ErrorMessage = Info.ErrorMessage;
 			ErrorProgramCounter = Info.ProgramCounter;
 		}
-		// Generic exception description is stored in GErrorExceptionDescription
 		else if (ExceptionInfo->ExceptionRecord->ExceptionCode == EnsureExceptionCode)
 		{
 			const FAssertInfo& Info = *(const FAssertInfo*)ExceptionInfo->ExceptionRecord->ExceptionInformation[0];
 			Type = ECrashContextType::Ensure;
+			ErrorMessage = Info.ErrorMessage;
+			ErrorProgramCounter = Info.ProgramCounter;
+		}
+		else if (ExceptionInfo->ExceptionRecord->ExceptionCode == OutOfMemoryExceptionCode)
+		{
+			const FAssertInfo& Info = *(const FAssertInfo*)ExceptionInfo->ExceptionRecord->ExceptionInformation[0];
+			Type = ECrashContextType::OutOfMemory;
 			ErrorMessage = Info.ErrorMessage;
 			ErrorProgramCounter = Info.ProgramCounter;
 		}
@@ -1819,7 +1826,14 @@ void ReportAssert(const TCHAR* ErrorMessage, void* ProgramCounter)
 	FAssertInfo Info(ErrorMessage, ProgramCounter);
 
 	ULONG_PTR Arguments[] = { (ULONG_PTR)&Info };
-	::RaiseException(AssertExceptionCode, 0, UE_ARRAY_COUNT(Arguments), Arguments);
+	if (FGenericPlatformMemory::bIsOOM)
+	{
+		::RaiseException(OutOfMemoryExceptionCode, 0, UE_ARRAY_COUNT(Arguments), Arguments);
+	}
+	else
+	{
+		::RaiseException(AssertExceptionCode, 0, UE_ARRAY_COUNT(Arguments), Arguments);
+	}
 }
 
 FORCENOINLINE void ReportGPUCrash(const TCHAR* ErrorMessage, void* ProgramCounter)

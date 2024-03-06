@@ -310,7 +310,7 @@ struct FMallocBinned2::Private
 		/** 
 		 * Creates an array of FPoolInfo structures for tracking allocations.
 		 */
-		auto CreatePoolArray = [](uint64 NumPools)
+		auto CreatePoolArray = [&Allocator](uint64 NumPools)
 		{
 			uint64 PoolArraySize = NumPools * sizeof(FPoolInfo);
 
@@ -325,6 +325,7 @@ struct FMallocBinned2::Private
 
 			if (!Result)
 			{
+				FScopeUnlock TempUnlock(&Allocator.Mutex);
 				OutOfMemory(PoolArraySize);
 			}
 
@@ -646,6 +647,7 @@ FMallocBinned2::FPoolInfo& FMallocBinned2::FPoolList::PushNewPoolToFront(FMalloc
 	void* FreePtr = Allocator.CachedOSPageAllocator.Allocate(LocalPageSize, FMemory::AllocationHints::SmallPool);
 	if (!FreePtr)
 	{
+		FScopeUnlock TempUnlock(&Allocator.Mutex);
 		Private::OutOfMemory(LocalPageSize);
 	}
 #if !UE_USE_VERYLARGEPAGEALLOCATOR || !BINNED2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
@@ -932,6 +934,7 @@ void* FMallocBinned2::MallocExternalLarge(SIZE_T Size, uint32 Alignment)
 		Result = CachedOSPageAllocator.Allocate(AlignedSize, 0, &Mutex);
 		if (!Result)
 		{
+			FScopeUnlock TempUnlock(&Mutex);
 			Private::OutOfMemory(AlignedSize);
 		}
 
