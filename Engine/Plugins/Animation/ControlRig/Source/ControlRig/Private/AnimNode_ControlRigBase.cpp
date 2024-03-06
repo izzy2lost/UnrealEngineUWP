@@ -136,7 +136,7 @@ void FAnimNode_ControlRigBase::UpdateInput(UControlRig* ControlRig, const FPoseC
 
 #if WITH_EDITOR
 	// if we are recording any change - let's clear the undo stack
-	if(Hierarchy->IsTracingChanges())
+	if(bExecute && Hierarchy->IsTracingChanges())
 	{
 		Hierarchy->ResetTransformStack();
 	}
@@ -249,7 +249,7 @@ void FAnimNode_ControlRigBase::UpdateInput(UControlRig* ControlRig, const FPoseC
 	}
 
 #if WITH_EDITOR
-	if(Hierarchy->IsTracingChanges())
+	if(bExecute && Hierarchy->IsTracingChanges())
 	{
 		Hierarchy->StorePoseForTrace(TEXT("FAnimNode_ControlRigBase::UpdateInput"));
 	}
@@ -375,7 +375,7 @@ void FAnimNode_ControlRigBase::UpdateOutput(UControlRig* ControlRig, FPoseContex
 	}
 
 #if WITH_EDITOR
-	if(Hierarchy->IsTracingChanges())
+	if(bExecute && Hierarchy->IsTracingChanges())
 	{
 		Hierarchy->StorePoseForTrace(TEXT("FAnimNode_ControlRigBase::UpdateOutput"));
 		Hierarchy->DumpTransformStackToFile();
@@ -449,7 +449,6 @@ void FAnimNode_ControlRigBase::ExecuteControlRig(FPoseContext& InOutput)
 		
 		// first update input to the system
 		UpdateInput(ControlRig, InOutput);
-
 		
 		if (bExecute)
 		{
@@ -562,28 +561,35 @@ void FAnimNode_ControlRigBase::CacheBones_AnyThread(const FAnimationCacheBonesCo
 	if (UControlRig* ControlRig = GetControlRig())
 	{
 		// fill up node names
-		FBoneContainer& RequiredBones = Context.AnimInstanceProxy->GetRequiredBones();
+		const FBoneContainer& RequiredBones = Context.AnimInstanceProxy->GetRequiredBones();
 
 		const uint16 BonesSerialNumber = RequiredBones.GetSerialNumber();
-		const bool bIsLODChange = !bControlRigRequiresInitialization && (BonesSerialNumber != LastBonesSerialNumberForCacheBones);
 
 		// the construction event may create a set of bones that we can map to. let's run construction now.
-		if(ControlRig->IsConstructionModeEnabled() ||
-			(ControlRig->IsConstructionRequired() && (bControlRigRequiresInitialization || bIsLODChange)))
+		if (bExecute)
 		{
-			UpdateGetAssetUserDataDelegate(ControlRig);
-			ControlRig->Execute(FRigUnit_PrepareForExecution::EventName);
-			bControlRigRequiresInitialization = false;
+			const bool bIsLODChange = !bControlRigRequiresInitialization && (BonesSerialNumber != LastBonesSerialNumberForCacheBones);
+		
+			if(ControlRig->IsConstructionModeEnabled() ||
+				(ControlRig->IsConstructionRequired() && (bControlRigRequiresInitialization || bIsLODChange)))
+			{
+				UpdateGetAssetUserDataDelegate(ControlRig);
+				ControlRig->Execute(FRigUnit_PrepareForExecution::EventName);
+				bControlRigRequiresInitialization = false;
+			}
 		}
 
 		UpdateInputOutputMappingIfRequired(ControlRig, RequiredBones);
 
 		if(bControlRigRequiresInitialization)
 		{
-			// re-init only if this is the first run
-			// and restore control values
-			ControlRig->RequestInit();
-			bControlRigRequiresInitialization = false;
+			if(bExecute)
+			{
+				// re-init only if this is the first run
+				// and restore control values
+				ControlRig->RequestInit();
+				bControlRigRequiresInitialization = false;
+			}
 		}
 		
 		LastBonesSerialNumberForCacheBones = BonesSerialNumber;

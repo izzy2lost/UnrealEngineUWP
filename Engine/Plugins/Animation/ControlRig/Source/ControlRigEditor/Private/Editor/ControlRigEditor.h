@@ -331,6 +331,8 @@ protected:
 	void OnAnimInitialized();
 
 	bool IsConstructionModeEnabled() const;
+	bool IsDebuggingExternalControlRig(const UControlRig* InControlRig = nullptr) const;
+	bool ShouldExecuteControlRig(const UControlRig* InControlRig = nullptr) const;
 
 	int32 RigHierarchyTabCount;
 	int32 ModularRigHierarchyTabCount;
