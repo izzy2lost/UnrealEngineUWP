@@ -3205,6 +3205,8 @@ void PipelineStateCache::Shutdown()
 {
 	GComputePipelineCache.WaitTasksComplete();
 	GGraphicsPipelineCache.WaitTasksComplete();
+	GPrecacheGraphicsPipelineCache.WaitTasksComplete();
+	GPrecacheComputePipelineCache.WaitTasksComplete();
 #if RHI_RAYTRACING
 	GRayTracingPipelineCache.Shutdown();
 #endif
