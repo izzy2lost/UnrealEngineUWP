@@ -25,6 +25,8 @@ Buffer<float4>	{ParameterName}_ElementExtentBuffer;
 Buffer<uint>	{ParameterName}_PhysicsTypeBuffer;
 Buffer<uint>	{ParameterName}_DFIndexBuffer;
 float3			{ParameterName}_SystemLWCTile;
+float3			{ParameterName}_CombinedBBoxWorldMin;
+float3			{ParameterName}_CombinedBBoxWorldMax;
 
 /* -----------------------------------------------------------------
  * Element accessors
@@ -83,6 +85,19 @@ float3x4 GetPreviousInverse_{ParameterName}(in int ElementIndex)
 float3 GetMeshScale_{ParameterName}(in int ElementIndex)
 {
 	return {ParameterName}_MeshScaleBuffer[ElementIndex].xyz;
+}
+
+void IsWorldPositionInsideCombinedBounds_{ParameterName}(in float3 WorldPosition, out bool IsInside)
+{
+	const FDFVector3 LWCWorldPosition = DFFromTileOffset_Hack(MakeLWCVector3({ParameterName}_SystemLWCTile, WorldPosition));
+
+	IsInside =  
+		WorldPosition.x >= {ParameterName}_CombinedBBoxWorldMin.x && 
+		WorldPosition.y >= {ParameterName}_CombinedBBoxWorldMin.y && 
+		WorldPosition.z >= {ParameterName}_CombinedBBoxWorldMin.z && 
+		WorldPosition.x <= {ParameterName}_CombinedBBoxWorldMax.x && 
+		WorldPosition.y <= {ParameterName}_CombinedBBoxWorldMax.y && 
+		WorldPosition.z <= {ParameterName}_CombinedBBoxWorldMax.z;
 }
 
 /* -----------------------------------------------------------------
