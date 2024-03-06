@@ -1001,12 +1001,14 @@ TArray<FRigElementKey> URigHierarchyController::ImportBones(USkeleton* InSkeleto
                                                             bool bSelectBones, bool bSetupUndo,
                                                             bool bPrintPythonCommand)
 {
-	if (InSkeleton == nullptr)
+	FReferenceSkeleton EmptySkeleton;
+	FReferenceSkeleton& RefSkeleton = EmptySkeleton; 
+	if (InSkeleton != nullptr)
 	{
-		return TArray<FRigElementKey>();
+		RefSkeleton = InSkeleton->GetReferenceSkeleton();
 	}
 
-	const TArray<FRigElementKey> BoneKeys = ImportBones(InSkeleton->GetReferenceSkeleton(), InNameSpace, bReplaceExistingBones, bRemoveObsoleteBones,
+	const TArray<FRigElementKey> BoneKeys = ImportBones(RefSkeleton, InNameSpace, bReplaceExistingBones, bRemoveObsoleteBones,
 	                   bSelectBones, bSetupUndo);
 
 #if WITH_EDITOR
@@ -1017,7 +1019,7 @@ TArray<FRigElementKey> URigHierarchyController::ImportBones(USkeleton* InSkeleto
 		{
 			RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
 				FString::Printf(TEXT("hierarchy_controller.import_bones_from_asset('%s', '%s', %s, %s, %s)"),
-				*InSkeleton->GetPathName(),
+				(InSkeleton != nullptr) ? *InSkeleton->GetPathName() : TEXT(""),
 				*InNameSpace.ToString(),
 				(bReplaceExistingBones) ? TEXT("True") : TEXT("False"),
 				(bRemoveObsoleteBones) ? TEXT("True") : TEXT("False"),

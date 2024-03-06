@@ -147,59 +147,61 @@ void FControlRigSchematicModel::Tick(float InDeltaTime)
 	if(ControlRigBlueprint.IsValid())
 	{
 		//UE_LOG(LogControlRig, Display, TEXT("Selected nodes %d"), GetSelectedNodes().Num());
-		
-		const URigHierarchy* Hierarchy = ControlRigBlueprint->GetDebuggedControlRig()->GetHierarchy();
-		check(Hierarchy);
-		const FModularRigConnections& Connections = ControlRigBlueprint->ModularRigModel.Connections;
-
-		TArray<FRigElementKey> KeysToRemove;
-		for(const TPair<FRigElementKey,FGuid>& Pair : RigElementKeyToGuid)
+		if (UControlRig* DebuggedRig = ControlRigBlueprint->GetDebuggedControlRig())
 		{
-			if((Pair.Key.Type == ERigElementType::Socket) ||
-				(Pair.Key.Type == ERigElementType::Connector))
-			{
-				continue;
-			}
-			if(TemporaryNodeGuids.Contains(Pair.Value))
-			{
-				continue;
-			}
+			const URigHierarchy* Hierarchy = DebuggedRig->GetHierarchy();
+			check(Hierarchy);
+			const FModularRigConnections& Connections = ControlRigBlueprint->ModularRigModel.Connections;
 
-			const TArray<FRigElementKey>& Connectors = Connections.FindConnectorsFromTarget(Pair.Key);
-			if(Connectors.Num() > 1)
+			TArray<FRigElementKey> KeysToRemove;
+			for(const TPair<FRigElementKey,FGuid>& Pair : RigElementKeyToGuid)
 			{
-				continue;
-			}
-			if(Connectors.Num() == 1)
-			{
-				if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(Connectors[0]))
+				if((Pair.Key.Type == ERigElementType::Socket) ||
+					(Pair.Key.Type == ERigElementType::Connector))
 				{
-					if(!Connector->IsPrimary())
+					continue;
+				}
+				if(TemporaryNodeGuids.Contains(Pair.Value))
+				{
+					continue;
+				}
+
+				const TArray<FRigElementKey>& Connectors = Connections.FindConnectorsFromTarget(Pair.Key);
+				if(Connectors.Num() > 1)
+				{
+					continue;
+				}
+				if(Connectors.Num() == 1)
+				{
+					if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(Connectors[0]))
 					{
-						continue;
+						if(!Connector->IsPrimary())
+						{
+							continue;
+						}
 					}
 				}
-			}
 			
-			KeysToRemove.Add(Pair.Key);
-		}
-		for(const FRigElementKey& KeyToRemove : KeysToRemove)
-		{
-			RemoveElementKeyNode(KeyToRemove);
-		}
-
-		TArray<FRigElementKey> ConnectorKeys;
-		for(const TPair<FRigElementKey,FGuid>& Pair : RigElementKeyToGuid)
-		{
-			if(Pair.Key.Type == ERigElementType::Connector)
-			{
-				ConnectorKeys.Add(Pair.Key);
+				KeysToRemove.Add(Pair.Key);
 			}
-		}
+			for(const FRigElementKey& KeyToRemove : KeysToRemove)
+			{
+				RemoveElementKeyNode(KeyToRemove);
+			}
 
-		for(const FRigElementKey& ConnectorKey : ConnectorKeys)
-		{
-			UpdateConnector(ConnectorKey);
+			TArray<FRigElementKey> ConnectorKeys;
+			for(const TPair<FRigElementKey,FGuid>& Pair : RigElementKeyToGuid)
+			{
+				if(Pair.Key.Type == ERigElementType::Connector)
+				{
+					ConnectorKeys.Add(Pair.Key);
+				}
+			}
+
+			for(const FRigElementKey& ConnectorKey : ConnectorKeys)
+			{
+				UpdateConnector(ConnectorKey);
+			}
 		}
 	}
 }

@@ -2815,8 +2815,9 @@ void FControlRigEditor::HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMes
 					TGuardValue<bool> SuspendBlueprintNotifs(ControlRigBP->bSuspendAllNotifications, true);
 					if(URigHierarchyController* Controller = ControlRigBP->GetHierarchyController())
 					{
-						Controller->ImportBones(InNewSkeletalMesh->GetSkeleton(), NAME_None, true, true, false, true, true);
-						Controller->ImportCurves(InNewSkeletalMesh->GetSkeleton(), NAME_None, false, true, true);
+						USkeleton* Skeleton = InNewSkeletalMesh ? InNewSkeletalMesh->GetSkeleton() : nullptr;
+						Controller->ImportBones(Skeleton, NAME_None, true, true, false, true, true);
+						Controller->ImportCurves(Skeleton, NAME_None, false, true, true);
 					}
 				}
 				ControlRigBP->PropagateHierarchyFromBPToInstances();
