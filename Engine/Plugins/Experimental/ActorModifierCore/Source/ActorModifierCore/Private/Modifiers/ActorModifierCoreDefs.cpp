@@ -250,7 +250,7 @@ UActorModifierCoreBase* FActorModifierCoreMetadata::CreateModifierInstance(UActo
 {
 	if (InStack && InStack->GetModifiedActor())
 	{
-		UActorModifierCoreBase* NewModifierInstance = NewObject<UActorModifierCoreBase>(InStack->GetModifiedActor(), Class, NAME_None, RF_Transactional);
+		UActorModifierCoreBase* NewModifierInstance = NewObject<UActorModifierCoreBase>(InStack, Class, NAME_None, RF_Transactional);
 		NewModifierInstance->PostModifierCreation(InStack);
 		return NewModifierInstance;
 	}

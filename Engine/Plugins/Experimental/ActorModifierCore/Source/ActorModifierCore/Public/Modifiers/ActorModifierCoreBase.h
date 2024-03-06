@@ -65,10 +65,7 @@ public:
 	ACTORMODIFIERCORE_API AActor* GetModifiedActor() const;
 
 	/** Returns the stack this modifier is in */
-	UActorModifierCoreStack* GetModifierStack() const
-	{
-		return ModifierStack.Get();
-	}
+	ACTORMODIFIERCORE_API UActorModifierCoreStack* GetModifierStack() const;
 
 	/** Returns the top root stack this modifier is in */
 	ACTORMODIFIERCORE_API UActorModifierCoreStack* GetRootModifierStack() const;
@@ -352,6 +349,8 @@ protected:
 	/** Logs modifier message if in profiling mode or forced */
 	void LogModifier(const FString& InLog, bool bInForce = false) const;
 
+	void DeferInitializeModifier();
+
 private:
 	/** Called when modifier becomes dirty */
 	ACTORMODIFIERCORE_API virtual void OnModifierDirty(UActorModifierCoreBase* DirtyModifier, bool bExecute);
@@ -421,11 +420,7 @@ private:
 	/** Promise that executes when the modifier execution is done */
 	TSharedPtr<TPromise<bool>, ESPMode::ThreadSafe> ExecutePromise = nullptr;
 
-	UPROPERTY(DuplicateTransient, NonTransactional)
 	TWeakObjectPtr<AActor> ModifiedActor = nullptr;
-
-	UPROPERTY(NonTransactional)
-	TWeakObjectPtr<UActorModifierCoreStack> ModifierStack = nullptr;
 
 	/** Is the modifier enabled or disabled */
 	UPROPERTY(EditInstanceOnly, Setter="SetModifierEnabled", Getter="IsModifierEnabled", Category="Modifier", meta=(DisplayName="Enable Modifier"))

@@ -5,6 +5,9 @@
 
 UActorModifierCoreComponent::UActorModifierCoreComponent()
 {
+	ModifierStack = CreateDefaultSubobject<UActorModifierCoreStack>(TEXT("ModifierStack"));
+	ModifierStack->PostModifierCreation(/** Parentstack */nullptr);
+
 	if (!IsTemplate())
 	{
 		PrimaryComponentTick.bCanEverTick = true;
@@ -52,7 +55,11 @@ UActorModifierCoreComponent* UActorModifierCoreComponent::CreateAndExposeCompone
 void UActorModifierCoreComponent::OnComponentCreated()
 {
 	Super::OnComponentCreated();
-	InitializeStack();
+
+	if (ModifierStack && !ModifierStack->IsModifierInitialized())
+	{
+		ModifierStack->InitializeModifier(EActorModifierCoreEnableReason::User);
+	}
 }
 
 void UActorModifierCoreComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
@@ -81,22 +88,6 @@ void UActorModifierCoreComponent::PostEditUndo()
 	}
 }
 #endif
-
-void UActorModifierCoreComponent::InitializeStack()
-{
-	if (!ModifierStack)
-	{
-		if (AActor* OwningActor = Cast<AActor>(GetOuter()))
-		{
-			ModifierStack = UActorModifierCoreStack::Create(OwningActor, nullptr);
-
-			if (ModifierStack)
-			{
-				ModifierStack->SetModifierEnabled(true);
-			}
-		}
-	}
-}
 
 void UActorModifierCoreComponent::TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction)
 {

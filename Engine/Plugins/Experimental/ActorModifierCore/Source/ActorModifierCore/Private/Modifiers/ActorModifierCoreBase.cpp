@@ -2,9 +2,11 @@
 
 #include "Modifiers/ActorModifierCoreBase.h"
 
+#include "Modifiers/ActorModifierCoreComponent.h"
 #include "Modifiers/ActorModifierCoreSharedObject.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
+#include "UObject/Package.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogActorModifierCoreBase, Log, All);
 
@@ -155,7 +157,7 @@ void UActorModifierCoreBase::Unapply()
 
 void UActorModifierCoreBase::OnModifierDirty(UActorModifierCoreBase* DirtyModifier, bool bExecute)
 {
-	if (ModifierStack.IsValid())
+	if (UActorModifierCoreStack* ModifierStack = GetModifierStack())
 	{
 		ModifierStack->OnModifierDirty(DirtyModifier, bExecute);
 	}
@@ -185,9 +187,14 @@ AActor* UActorModifierCoreBase::GetModifiedActor() const
 {
 	if (!ModifiedActor.IsValid())
 	{
-		const_cast<UActorModifierCoreBase*>(this)->ModifiedActor = Cast<AActor>(GetOuter());
+		const_cast<UActorModifierCoreBase*>(this)->ModifiedActor = GetTypedOuter<AActor>();
 	}
 	return ModifiedActor.Get();
+}
+
+UActorModifierCoreStack* UActorModifierCoreBase::GetModifierStack() const
+{
+	return GetTypedOuter<UActorModifierCoreStack>();
 }
 
 UActorModifierCoreStack* UActorModifierCoreBase::GetRootModifierStack() const
@@ -420,6 +427,20 @@ bool UActorModifierCoreBase::ProcessFunction(TFunctionRef<bool(const UActorModif
 	return InFunction(this);
 }
 
+void UActorModifierCoreBase::DeferInitializeModifier()
+{
+	// Begin batch operation to avoid updating every time a modifier is loaded
+	UActorModifierCoreStack* Stack = GetRootModifierStack();
+	if (!Stack->IsModifierExecutionLocked() && !Stack->IsModifierStackInitialized())
+	{
+		Stack->LockModifierExecution();
+	}
+
+	// Bind to world delegate, tick will be called when all actors have been loaded, unbind when actors have been loaded
+	FWorldDelegates::OnWorldPostActorTick.RemoveAll(this);
+	FWorldDelegates::OnWorldPostActorTick.AddUObject(this, &UActorModifierCoreBase::PostModifierWorldLoad);
+}
+
 UActorModifierCoreBase::UActorModifierCoreBase()
 {
 	// Copy metadata from CDO
@@ -434,16 +455,45 @@ void UActorModifierCoreBase::PostLoad()
 {
 	Super::PostLoad();
 
-	// Begin batch operation to avoid updating every time a modifier is loaded
-	UActorModifierCoreStack* Stack = GetRootModifierStack();
-	if (!Stack->IsModifierExecutionLocked() && !Stack->IsModifierStackInitialized())
+	const AActor* OwningActor = GetModifiedActor();
+	const UObject* Outer = GetOuter();
+	const UActorModifierCoreComponent* OwningComponent = OwningActor->FindComponentByClass<UActorModifierCoreComponent>();
+
+	if (OwningActor
+		&& OwningComponent
+		&& Outer
+		&& Outer->IsA<AActor>())
 	{
-		Stack->LockModifierExecution();
+		constexpr int32 RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional;
+
+		// Migrate modifiers to component stack instead and discard this stack
+		if (const UActorModifierCoreStack* ThisStack = Cast<UActorModifierCoreStack>(this))
+		{
+			UActorModifierCoreStack* ComponentStack = OwningComponent->ModifierStack;
+
+			if (ComponentStack && ComponentStack != this)
+			{
+				const FString ThisStackName = GetName();
+				const EObjectFlags ThisStackFlags = GetFlags();
+
+				LogModifier(FString::Printf(TEXT("Modifier stack migrated to component stack %s %s"), *OwningComponent->GetName(), *ComponentStack->GetName()), true);
+				Rename(TEXT("Trash_ModifierStack"), GetTransientPackage(), RenameFlags);
+
+				ComponentStack->Rename(*ThisStackName, nullptr, RenameFlags);
+				ComponentStack->Modifiers = ThisStack->Modifiers;
+				ComponentStack->bModifierProfiling = ThisStack->bModifierProfiling;
+				ComponentStack->SetFlags(ThisStackFlags);
+			}
+		}
+		// Change outer of modifier to component stack instead of actor
+		else
+		{
+			const bool bSuccess = Rename(nullptr, OwningComponent->GetModifierStack(), RenameFlags);
+			LogModifier(FString::Printf(TEXT("Modifier outer renamed to stack %s : %s"), *OwningComponent->GetModifierStack()->GetName(), bSuccess ? TEXT("OK") : TEXT("Fail")), true);
+		}
 	}
 
-	// Bind to world delegate, tick will be called when all actors have been loaded, unbind when actors have been loaded
-	FWorldDelegates::OnWorldPostActorTick.RemoveAll(this);
-	FWorldDelegates::OnWorldPostActorTick.AddUObject(this, &UActorModifierCoreBase::PostModifierWorldLoad);
+	DeferInitializeModifier();
 }
 
 void UActorModifierCoreBase::PostEditImport()
@@ -486,9 +536,11 @@ void UActorModifierCoreBase::PostEditUndo()
 {
 	Super::PostEditUndo();
 
+	UActorModifierCoreStack* ModifierStack = GetModifierStack();
+
 	// is it an undo remove or undo add operation ?
-	const bool bModifierInStack = ModifierStack.IsValid() && ModifierStack->Modifiers.Contains(this);
-	const bool bStackRegistered = IsModifierStack() && !ModifierStack.IsValid() && ModifiedActor.IsValid();
+	const bool bModifierInStack = ModifierStack && ModifierStack->Modifiers.Contains(this);
+	const bool bStackRegistered = IsModifierStack() && !ModifierStack && ModifiedActor.IsValid();
 	const bool bModifierValid = bModifierInStack || bStackRegistered;
 
 	if (!bModifierValid)
@@ -550,7 +602,7 @@ void UActorModifierCoreBase::LogModifier(const FString& InLog, bool bInForce) co
 {
 	if (IsModifierProfiling() || bInForce)
 	{
-		const FString ActorLabel = ModifiedActor.IsValid() ? *GetModifiedActor()->GetActorNameOrLabel() : TEXT("Invalid actor");
+		const FString ActorLabel = GetModifiedActor() ? *GetModifiedActor()->GetActorNameOrLabel() : TEXT("Invalid actor");
 		const FString ModifierLabel = GetModifierName().ToString();
 
 		UE_LOG(LogActorModifierCoreBase, Log, TEXT("[%s][%s] %s"), *ActorLabel, *ModifierLabel, *InLog);
@@ -573,14 +625,13 @@ void UActorModifierCoreBase::TickModifier(float InDeltaTime)
 void UActorModifierCoreBase::PostModifierCreation(UActorModifierCoreStack* InStack)
 {
 	// initialize once, called by the subsystem itself
-	if (!ModifierStack.IsValid())
+	if (GetModifierStack() == InStack)
 	{
 		if (const UActorModifierCoreBase* CDO = GetClass()->GetDefaultObject<UActorModifierCoreBase>())
 		{
 			Metadata = CDO->Metadata;
 		}
 
-		ModifierStack = InStack;
 		ModifiedActor = GetModifiedActor();
 		bModifierInitialized = false;
 	}
@@ -628,7 +679,7 @@ void UActorModifierCoreBase::PostModifierWorldLoad(UWorld* InWorld, ELevelTick I
 		InitializeModifier(EActorModifierCoreEnableReason::Load);
 
 		// End batch operation and execute all modifiers at once if all stack is initialized
-		if (IsModifierStack() && !ModifierStack.IsValid())
+		if (GetRootModifierStack() == this)
 		{
 			if (IsModifierExecutionLocked())
 			{
@@ -686,7 +737,7 @@ void UActorModifierCoreBase::InitializeModifier(EActorModifierCoreEnableReason I
 #endif
 
 		// set new actor
-		ModifiedActor = Cast<AActor>(GetOuter());
+		ModifiedActor = GetModifiedActor();
 
 		// Initialize profiler
 		if (!Profiler.IsValid())
@@ -736,7 +787,7 @@ void UActorModifierCoreBase::UninitializeModifier(EActorModifierCoreDisableReaso
 		OnModifierRemoved(InReason);
 
 		// set new actor
-		ModifiedActor = Cast<AActor>(GetOuter());
+		ModifiedActor = GetModifiedActor();
 
 		// recover old enabled state
 		bModifierEnabled = bWasModifierEnabled;

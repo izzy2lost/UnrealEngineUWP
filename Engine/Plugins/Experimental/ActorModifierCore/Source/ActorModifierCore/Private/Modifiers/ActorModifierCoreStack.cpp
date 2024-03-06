@@ -4,6 +4,7 @@
 
 #include "Algo/RemoveIf.h"
 #include "Components/SceneComponent.h"
+#include "Modifiers/ActorModifierCoreComponent.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "ActorModifierCoreStack"
@@ -14,11 +15,20 @@ UActorModifierCoreStack::FOnModifierUpdated UActorModifierCoreStack::OnModifierA
 UActorModifierCoreStack::FOnModifierUpdated UActorModifierCoreStack::OnModifierRemovedDelegate;
 UActorModifierCoreStack::FOnModifierUpdated UActorModifierCoreStack::OnModifierMovedDelegate;
 
-UActorModifierCoreStack* UActorModifierCoreStack::Create(AActor* InActor, UActorModifierCoreStack* InParentStack)
+UActorModifierCoreStack* UActorModifierCoreStack::Create(UActorModifierCoreComponent* InComponent, UActorModifierCoreStack* InParentStack)
 {
-	if (IsValid(InActor) && (!InParentStack || InParentStack->GetModifiedActor() == InActor))
+	if (IsValid(InComponent) && (!InParentStack || InParentStack->GetModifiedActor() == InComponent->GetOwner()))
 	{
-		UActorModifierCoreStack* NewStack = NewObject<UActorModifierCoreStack>(InActor, NAME_None, RF_Transactional);
+		UObject* NewOuter = nullptr;
+		if (InParentStack)
+		{
+			NewOuter = InParentStack;
+		}
+		else
+		{
+			NewOuter = InComponent;
+		}
+		UActorModifierCoreStack* NewStack = NewObject<UActorModifierCoreStack>(NewOuter, NAME_None, RF_Transactional);
 		NewStack->PostModifierCreation(InParentStack);
 		NewStack->InitializeModifier(EActorModifierCoreEnableReason::User);
 		return NewStack;
@@ -344,6 +354,11 @@ TArray<UActorModifierCoreBase*> UActorModifierCoreStack::FindModifiers(const UCl
 	return FoundModifiers;
 }
 
+bool UActorModifierCoreStack::IsRootStack() const
+{
+	return !GetModifierStack();
+}
+
 bool UActorModifierCoreStack::ContainsModifierBefore(const FName& InSearchName, const UActorModifierCoreBase* InBeforeModifier) const
 {
 	if (!IsValid(InBeforeModifier))
@@ -594,9 +609,8 @@ UActorModifierCoreBase* UActorModifierCoreStack::CloneModifier(FActorModifierCor
 		UActorModifierCoreBase* NewModifier = nullptr;
 		if (RequireModifier == InCloneOp.CloneModifier->GetModifierName())
 		{
-			FObjectDuplicationParameters Parameters = InitStaticDuplicateObjectParams(InCloneOp.CloneModifier, GetModifiedActor());
+			FObjectDuplicationParameters Parameters = InitStaticDuplicateObjectParams(InCloneOp.CloneModifier, this);
 			NewModifier = Cast<UActorModifierCoreBase>(StaticDuplicateObjectEx(Parameters));
-			NewModifier->ModifierStack = this;
 			NewModifier->ModifiedActor = GetModifiedActor();
 		}
 		else

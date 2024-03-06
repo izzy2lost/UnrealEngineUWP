@@ -7,6 +7,7 @@
 #include "ActorModifierCoreDefs.h"
 #include "ActorModifierCoreStack.generated.h"
 
+class UActorModifierCoreComponent;
 class USceneComponent;
 
 /** A modifier stack contains modifiers and is also a modifier by itself */
@@ -34,7 +35,7 @@ public:
 	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierMovedDelegate;
 
 	/** Create a new stack by passing the actor and the parent stack if there is one */
-	static UActorModifierCoreStack* Create(AActor* InActor, UActorModifierCoreStack* InParentStack = nullptr);
+	static UActorModifierCoreStack* Create(UActorModifierCoreComponent* InComponent, UActorModifierCoreStack* InParentStack = nullptr);
 
 	/** Gets all modifiers in this stack, does not recurse */
 	TConstArrayView<UActorModifierCoreBase*> GetModifiers() const
@@ -76,10 +77,7 @@ public:
 	ACTORMODIFIERCORE_API TArray<UActorModifierCoreBase*> FindModifiers(const UClass* InSearchClass, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
 
 	/** This is the root actor stack if we do not have any parent stack */
-	bool IsRootStack() const
-	{
-		return !ModifierStack.IsValid();
-	}
+	ACTORMODIFIERCORE_API bool IsRootStack() const;
 
 	/** Execute those function when the stack is restored, before executing it again */
 	ACTORMODIFIERCORE_API void ProcessFunctionOnRestore(const TFunction<void()>& InFunction);
