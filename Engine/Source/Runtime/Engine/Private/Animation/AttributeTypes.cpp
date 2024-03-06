@@ -38,7 +38,7 @@ namespace UE
 			}
 		};
 
-		static FDelayedAutoRegisterHelper DelayedBuiltInTypesInitializationHelper(EDelayedRegisterRunPhase::ObjectSystemReady, []()
+		static FDelayedAutoRegisterHelper DelayedBuiltInTypesInitializationHelper(EDelayedRegisterRunPhase::PreObjectSystemReady, []()
 		{
 			FAttributeTypeRegistrar::RegisterBuiltInTypes();
 		});
