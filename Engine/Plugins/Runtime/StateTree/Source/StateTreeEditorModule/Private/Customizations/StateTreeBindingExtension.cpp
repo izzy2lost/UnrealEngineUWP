@@ -226,10 +226,14 @@ FText GetSectionNameFromDataSource(const EStateTreeBindableStructSource Source)
 		return LOCTEXT("Evaluators", "Evaluators");
 	case EStateTreeBindableStructSource::GlobalTask:
 		return LOCTEXT("StateGlobalTasks", "Global Tasks");
-	case EStateTreeBindableStructSource::State:
-		return LOCTEXT("StateParameters", "State");
+	case EStateTreeBindableStructSource::StateParameter:
+		return LOCTEXT("StateParameters", "State Parameters");
 	case EStateTreeBindableStructSource::Task:
 		return LOCTEXT("Tasks", "Tasks");
+	case EStateTreeBindableStructSource::TransitionEvent:
+		return LOCTEXT("TransitionEvents", "Transition Events");
+	case EStateTreeBindableStructSource::StateEvent:
+		return LOCTEXT("StateSelectionEvents", "State Selection Events");
 	default:
 		return FText::GetEmpty();
 	}
@@ -565,7 +569,10 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		{
 			const bool bIsStateTreeNode = AccessibleStructs.ContainsByPredicate([InStruct](const FStateTreeBindableStructDesc& AccessibleStruct)
 			{
-				return (AccessibleStruct.DataSource != EStateTreeBindableStructSource::Context && AccessibleStruct.DataSource != EStateTreeBindableStructSource::Parameter)
+				return AccessibleStruct.DataSource != EStateTreeBindableStructSource::Context
+					&& AccessibleStruct.DataSource != EStateTreeBindableStructSource::Parameter
+					&& AccessibleStruct.DataSource != EStateTreeBindableStructSource::TransitionEvent
+					&& AccessibleStruct.DataSource != EStateTreeBindableStructSource::StateEvent
 					&& AccessibleStruct.Struct == InStruct;
 			});
 
@@ -634,8 +641,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 			}
 		}
 
-		return SourceProperty->HasAnyPropertyFlags(CPF_Edit) 
-			&& (!SourceProperty->HasAnyPropertyFlags(CPF_NativeAccessSpecifierPrivate | CPF_NativeAccessSpecifierProtected) || SourceProperty->GetBoolMetaData(FBlueprintMetadata::MD_AllowPrivateAccess));
+		return SourceProperty && IsPropertyBindable(*SourceProperty);
 	}
 
 	static bool ArePropertyAndContextStructCompatible(const UStruct* SourceStruct, const FProperty* TargetProperty)
@@ -820,6 +826,12 @@ private:
 	
 	bool bIsDataCached = false;
 };
+
+bool IsPropertyBindable(const FProperty& Property)
+{
+	return Property.HasAnyPropertyFlags(CPF_Edit) 
+			&& (!Property.HasAnyPropertyFlags(CPF_NativeAccessSpecifierPrivate | CPF_NativeAccessSpecifierProtected) || Property.GetBoolMetaData(FBlueprintMetadata::MD_AllowPrivateAccess));
+}
 
 } // UE::StateTree::PropertyBinding
 

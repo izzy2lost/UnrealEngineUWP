@@ -277,7 +277,7 @@ void UStateTreeEditorData::GetAccessibleStructs(const TConstArrayView<const USta
 
 	if (BaseProgress == EStateTreeVisitor::Continue)
 	{
-		TArray<FStateTreeBindableStructDesc> TaskDescs;
+		TArray<FStateTreeBindableStructDesc, TInlineAllocator<32>> BindableDescs;
 
 		for (const UStateTreeState* State : Path)
 		{
@@ -286,21 +286,61 @@ void UStateTreeEditorData::GetAccessibleStructs(const TConstArrayView<const USta
 				continue;
 			}
 			
-			const EStateTreeVisitor StateProgress = VisitStateNodes(*State, [&OutStructDescs, &TaskDescs, TargetStructID]
+			const EStateTreeVisitor StateProgress = VisitStateNodes(*State, [&OutStructDescs, &BindableDescs, &Path, TargetStructID]
 				(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)
 				{
 					// Stop iterating as soon as we find the target node.
 					if (Desc.ID == TargetStructID)
 					{
-						OutStructDescs.Append(TaskDescs);
+						OutStructDescs.Append(BindableDescs);
 						return EStateTreeVisitor::Break;
 					}
 
 					// Not at target yet, collect all bindable source accessible so far.
 					if (Desc.DataSource == EStateTreeBindableStructSource::Task
-						|| Desc.DataSource == EStateTreeBindableStructSource::State)
+						|| Desc.DataSource == EStateTreeBindableStructSource::StateParameter)
 					{
-						TaskDescs.Add(Desc);
+						BindableDescs.Add(Desc);
+					}
+
+					switch (Desc.DataSource)
+					{
+						case EStateTreeBindableStructSource::StateParameter:
+						case EStateTreeBindableStructSource::Task:
+						case EStateTreeBindableStructSource::StateEvent:
+							BindableDescs.Add(Desc);
+							break;
+
+						case EStateTreeBindableStructSource::TransitionEvent:
+						{
+							// Checking if BindableStruct's owning Transition contains the Target.
+							if (State == Path.Last())
+							{
+								for (const FStateTreeTransition& Transition : State->Transitions)
+								{
+									bool bFoundOwningTransition = false;
+									for (const FStateTreeEditorNode& ConditionNode : Transition.Conditions)
+									{
+										if (ConditionNode.ID == TargetStructID)
+										{
+											if(Transition.GetEventID() == Desc.ID)
+											{
+												BindableDescs.Add(Desc);
+											}
+
+											bFoundOwningTransition = true;
+											break;
+										}
+									}
+
+									if (bFoundOwningTransition)
+									{
+										break;
+									}
+								}
+							}
+							break;
+						}
 					}
 							
 					return EStateTreeVisitor::Continue;
@@ -817,9 +857,26 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 			Desc.Struct = State.Parameters.Parameters.GetPropertyBagStruct();
 			Desc.Name = State.Name;
 			Desc.ID = State.Parameters.ID;
-			Desc.DataSource = EStateTreeBindableStructSource::State;
+			Desc.DataSource = EStateTreeBindableStructSource::StateParameter;
 
 			if (InFunc(&State, Desc, FStateTreeDataView(const_cast<FInstancedPropertyBag&>(State.Parameters.Parameters).GetMutableValue())) == EStateTreeVisitor::Break)
+			{
+				bContinue = false;
+			}
+		}
+	}
+
+	if (bContinue)
+	{
+		if (State.bHasRequiredEventToEnter )
+		{
+			FStateTreeBindableStructDesc Desc;
+			Desc.Struct = FStateTreeEvent::StaticStruct();
+			Desc.Name = State.Name;
+			Desc.ID = State.GetEventID();
+			Desc.DataSource = EStateTreeBindableStructSource::StateEvent;
+
+			if (InFunc(&State, Desc, FStateTreeDataView(FStructView::Make(const_cast<UStateTreeState&>(State).RequiredEventToEnter.GetTemporaryEvent()))) == EStateTreeVisitor::Break)
 			{
 				bContinue = false;
 			}
@@ -890,6 +947,21 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 		// Transitions
 		for (const FStateTreeTransition& Transition : State.Transitions)
 		{
+			if (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent)
+			{
+				FStateTreeBindableStructDesc Desc;
+				Desc.Struct = FStateTreeEvent::StaticStruct();
+				Desc.Name = FName(TEXT("Transition"));
+				Desc.ID = Transition.GetEventID();
+				Desc.DataSource = EStateTreeBindableStructSource::TransitionEvent;
+
+				if (InFunc(&State, Desc, FStateTreeDataView(FStructView::Make(const_cast<FStateTreeTransition&>(Transition).RequiredEvent.GetTemporaryEvent()))) == EStateTreeVisitor::Break)
+				{
+					bContinue = false;
+					break;
+				}
+			}
+
 			for (const FStateTreeEditorNode& Node : Transition.Conditions)
 			{
 				if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())

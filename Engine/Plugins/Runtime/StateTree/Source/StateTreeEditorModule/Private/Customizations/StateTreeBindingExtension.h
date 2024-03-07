@@ -11,6 +11,7 @@ class IDetailLayoutBuilder;
 class IPropertyAccessEditor;
 struct FStateTreeEditorPropertyPath;
 struct FStateTreePropertyPath;
+class FProperty;
 
 namespace UE::StateTree::PropertyBinding
 {
@@ -34,6 +35,11 @@ namespace UE::StateTree::PropertyBinding
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnStateTreePropertyBindingChanged, const FStateTreePropertyPath& /*SourcePath*/, const FStateTreePropertyPath& /*TargetPath*/);
 	extern STATETREEEDITORMODULE_API FOnStateTreePropertyBindingChanged OnStateTreePropertyBindingChanged;
+
+	/**
+	 * Returns true if provided Property is bindable.
+	 */
+	bool IsPropertyBindable(const FProperty& Property);
 } // UE::StateTree::PropertyBinding
 
 class FStateTreeBindingExtension : public IDetailPropertyExtensionHandler

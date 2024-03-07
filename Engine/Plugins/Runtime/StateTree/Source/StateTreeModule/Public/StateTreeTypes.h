@@ -14,6 +14,7 @@ STATETREEMODULE_API DECLARE_LOG_CATEGORY_EXTERN(LogStateTree, Warning, All);
 #endif // WITH_STATETREE_DEBUG
 
 class UStateTree;
+struct FStateTreeEvent;
 
 namespace UE::StateTree
 {
@@ -251,6 +252,12 @@ enum class EStateTreeDataSourceType : uint8
 
 	/** Parameters for regular and linked states */
 	StateParameterData,
+
+	/** Event used in transition. */
+	TransitionEvent,
+
+	/** Event used in state selection. */
+	StateEvent,
 };
 
 /** Handle to a StateTree data */
@@ -286,7 +293,7 @@ struct STATETREEMODULE_API FStateTreeDataHandle
 		// Require valid state for active instance data
 		check(Source != EStateTreeDataSourceType::ActiveInstanceData || (Source == EStateTreeDataSourceType::ActiveInstanceData && StateHandle.IsValid()));
 		check(Source != EStateTreeDataSourceType::ActiveInstanceDataObject || (Source == EStateTreeDataSourceType::ActiveInstanceDataObject && StateHandle.IsValid()));
-		check(Source == EStateTreeDataSourceType::GlobalParameterData || InIndex != InvalidIndex);
+		check(Source == EStateTreeDataSourceType::GlobalParameterData || IsValidIndex(InIndex));
 	}
 
 	explicit FStateTreeDataHandle(const EStateTreeDataSourceType InSource, const int32 InIndex, const FStateTreeStateHandle InStateHandle = FStateTreeStateHandle::Invalid)
@@ -481,6 +488,51 @@ enum class EStateTreeSelectionFallback : uint8
 };
 
 /**
+ *  Runtime representation of an event description.
+ */
+USTRUCT()
+struct STATETREEMODULE_API FCompactEventDesc
+{
+	GENERATED_BODY()
+
+	/** Event Payload Struct. */
+	UPROPERTY()
+	TObjectPtr<const UScriptStruct> PayloadStruct = nullptr;
+
+	/** Event Tag. */
+	UPROPERTY()
+	FGameplayTag Tag;
+
+	/** Returns true if describes an event correctly. */
+	bool IsValid() const
+	{
+		return Tag.IsValid() || PayloadStruct;
+	}
+
+	/** Returns true if described events is a subset of events described by another EventDesc. */
+	bool IsSubsetOfAnotherDesc(const FCompactEventDesc& Desc) const
+	{
+		if (Tag.IsValid() && Desc.Tag.IsValid())
+		{
+			if (!Desc.Tag.MatchesTag(Tag) || !Tag.MatchesTag(Desc.Tag))
+			{
+				return false;
+			}
+		}
+
+		if (PayloadStruct && Desc.PayloadStruct)
+		{
+			return PayloadStruct->IsChildOf(Desc.PayloadStruct);
+		}
+
+		return true;
+	}
+
+	/** Returns true provided event matches description. */
+	bool DoesEventMatchDesc(const FStateTreeEvent& Event) const;
+};
+
+/**
  *  Runtime representation of a StateTree transition.
  */
 USTRUCT()
@@ -498,10 +550,10 @@ struct STATETREEMODULE_API FCompactStateTransition
 	{
 		return !Delay.IsEmpty();
 	}
-	
-	/** Transition event tag, used when trigger type is event. */
+
+	/** Event Description */
 	UPROPERTY()
-	FGameplayTag EventTag;
+	FCompactEventDesc RequiredEvent;
 
 	/** Index to first condition to test */
 	UPROPERTY()
@@ -556,6 +608,10 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	/** @return True if the state has any child states */
 	bool HasChildren() const { return ChildrenEnd > ChildrenBegin; }
 
+	/** Description of an event required to enter the state. */
+	UPROPERTY()
+	FCompactEventDesc RequiredEventToEnter;
+
 	/** Name of the State */
 	UPROPERTY()
 	FName Name;
@@ -601,6 +657,9 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	UPROPERTY()
 	FStateTreeIndex16 ParameterBindingsBatch = FStateTreeIndex16::Invalid;
 
+	UPROPERTY()
+	FStateTreeIndex16 EventDataIndex = FStateTreeIndex16::Invalid;
+
 	/** Number of enter conditions */
 	UPROPERTY()
 	uint8 EnterConditionsNum = 0;
@@ -616,6 +675,10 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	/** Number of instance data */
 	UPROPERTY()
 	uint8 InstanceDataNum = 0;
+
+	/** Distance to root state. */
+	UPROPERTY()
+	uint8 Depth = 0;
 
 	/** Type of the state */
 	UPROPERTY()

@@ -2,6 +2,7 @@
 
 #pragma once
 #include "StateTreeTypes.h"
+#include "StateTreeEvents.h"
 
 #include "StateTreeExecutionTypes.generated.h"
 
@@ -378,7 +379,7 @@ struct STATETREEMODULE_API FStateTreeActiveStates
 	bool IsEmpty() const { return NumStates == 0; } 
 
 	/** Returns a specified state in the array. */
-	FORCEINLINE FStateTreeStateHandle operator[](const int32 Index) const
+	FORCEINLINE const FStateTreeStateHandle& operator[](const int32 Index) const
 	{
 		check(Index >= 0 && Index < (int32)NumStates);
 		return States[Index];
@@ -525,6 +526,12 @@ struct STATETREEMODULE_API FStateTreeTransitionDelayedState
 
 	UPROPERTY()
 	float TimeLeft = 0.0f;
+
+	UPROPERTY()
+	FStateTreeSharedEvent CapturedEvent;
+
+	UPROPERTY()
+	uint32 CapturedEventHash = 0u;
 };
 
 /** Describes an active branch of a State Tree. */
@@ -604,13 +611,23 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		StateChangeCount = 0;
 	}
 
-	/** @returns Delayed transition state for a specific transition, or nullptr if it does not exists. */
-	FStateTreeTransitionDelayedState* FindDelayedTransition(const UStateTree* OwnerStateTree, const FStateTreeIndex16 TransitionIndex)
+	UE_DEPRECATED(5.5, "Use FindAndRemoveExpiredDelayedTransitions() instead or search through DelayedTransitions directly.")
+	FStateTreeTransitionDelayedState* FindDelayedTransition(const UStateTree* OwnerStateTree, const FStateTreeIndex16 TransitionIndex) { return nullptr; }
+
+	/** Finds all delayed transition states for a specific transition and removes them. Returns their copies. */
+	TArray<FStateTreeTransitionDelayedState, TInlineAllocator<8>> FindAndRemoveExpiredDelayedTransitions(const UStateTree* OwnerStateTree, const FStateTreeIndex16 TransitionIndex)
 	{
-		return DelayedTransitions.FindByPredicate([OwnerStateTree, TransitionIndex](const FStateTreeTransitionDelayedState& TransitionState)
+		TArray<FStateTreeTransitionDelayedState, TInlineAllocator<8>> Result;
+		for (TArray<FStateTreeTransitionDelayedState>::TIterator It = DelayedTransitions.CreateIterator(); It; ++It)
 		{
-			return TransitionState.StateTree == OwnerStateTree && TransitionState.TransitionIndex == TransitionIndex;
-		});
+			if (It->TimeLeft <= 0.0f && It->StateTree == OwnerStateTree && It->TransitionIndex == TransitionIndex)
+			{
+				Result.Emplace(MoveTemp(*It));
+				It.RemoveCurrentSwap();
+			}
+		}
+
+		return Result;
 	}
 
 	/** Currently active frames (and states) */
@@ -676,6 +693,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif	
 };
 
+ /** Contains StateTree events used during State Selection for a single execution frame. */
+struct FStateTreeFrameStateSelectionEvents
+{
+	TStaticArray<FStateTreeSharedEvent, FStateTreeActiveStates::MaxStates> Events;
+};
+
 /**
  * Describes a state tree transition. Source is the state where the transition started, Target describes the state where the transition pointed at,
  * and Next describes the selected state. The reason Transition and Next are different is that Transition state can be a selector state,
@@ -708,6 +731,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** States selected as result of the transition. */
 	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
 	TArray<FStateTreeExecutionFrame> NextActiveFrames;
+
+	/** Events used in state selection. */
+	TArray<FStateTreeFrameStateSelectionEvents> NextActiveFrameEvents;
 
 	/** Current Run status. */
 	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
