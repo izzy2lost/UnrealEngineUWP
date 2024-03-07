@@ -924,14 +924,24 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 		const float3 TransmittanceColor = GetThinTranslucentMaterialOutput0(MaterialParameters);
 		Payload.SetTransmittanceColor(TransmittanceColor);
 
-		const float SurfaceCoverage = GetThinTranslucentMaterialOutput1(MaterialParameters);
-		Payload.BSDFOpacity *= SurfaceCoverage;
-
-		Payload.Ior = Ior;
+		// The material is a blend of glass and default_lit response, model it stochastically
+		if (Payload.BSDFOpacity < PackedPayload.GetStochasticSlabRand())
+		{
+			// Pick glass lobe - shade as glass (leave SHADINGMODELID_THIN_TRANSLUCENT on)
+			Payload.Ior = Ior;
+		}
+		else
+		{
+			// Pick solid lobe -- toggle back to default_lit response
+			// Ior stays 0.0 since this mode does not include any refraction
+			Payload.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
+		}
+		
+		float SurfaceCoverage = GetThinTranslucentMaterialOutput1(MaterialParameters);
 		if (Ior > 0.0)
 		{
-			// In this mode we get rough refraction, so don't apply any transparency
-			Payload.TransparencyColor = 0.0;
+			// In this mode we get rough refraction, so any transparency is only due to coverage (affecting both solid and glass lobes)
+			Payload.TransparencyColor = 1 - SurfaceCoverage;
 		}
 		else
 		{
@@ -943,11 +953,15 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 			const float  Metallic = Payload.Metallic;
 			const float  Specular = Payload.Specular;
 			const float  F0 = F0RGBToF0(ComputeF0(Specular, BaseColor, Metallic));
+			// This is the portion of transparency due to glass. We always compute it because we don't need to model the amount
+			// of transparency stochastically.
+			/// BSDFOpacity here still represents the blend between solid and glass behaviors.
 			Payload.TransparencyColor = (1 - Payload.BSDFOpacity) * ComputeThinSlabWeights(TransmittanceColor, VoN, 0.0, F0).Transmitted;
-
-			// Fade out the TransparencyColor as a function of the SurfaceCoverage.
-			Payload.TransparencyColor = lerp(1.0.xxx, Payload.TransparencyColor, SurfaceCoverage.xxx);
+			// Now account for overall coverage (allows the combination of solid/glass to become transparent)
+			Payload.TransparencyColor = lerp(1.0.xxx, Payload.TransparencyColor, SurfaceCoverage);
 		}
+		// Now we can replace the BSDFOpacity with coverage
+		Payload.BSDFOpacity = SurfaceCoverage;
 	}
 	else
 #endif
@@ -1042,11 +1056,23 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 		// Make the glass totally clear if no custom medium is set
 		Payload.SetExtinction(0.0);
 #endif
-		Payload.Ior = Ior;
 		if (Ior > 0.0)
 		{
-			// we are using actual refraction, so disable transparency
-			Payload.TransparencyColor = 0.0;
+			// Our material is a blend between glass and default_lit -- use stochastic blending between the two
+			if (PackedPayload.GetStochasticSlabRand() < Payload.BSDFOpacity)
+			{
+				// solid case - keep default_lit shading model
+			}
+			else
+			{
+				// glass
+				// we are using actual refraction, so disable transparency
+				Payload.Ior = Ior;
+				Payload.TransparencyColor = 0.0;
+				Payload.ShadingModelID = SHADINGMODELID_SOLID_GLASS;
+
+			}
+			Payload.BSDFOpacity = 1.0; // cancels out with the probability of selecting the lobe
 		}
 	}
 	else
@@ -1355,7 +1381,7 @@ RAY_TRACING_ENTRY_ANY_HIT(PathTracingMaterialAHS,
 
 			// Fade out the Transparency as a function of the SurfaceCoverage.
 			const float SurfaceCoverage = GetThinTranslucentMaterialOutput1(MaterialParameters);
-			Transparency = lerp(1.0.xxx, Transparency, SurfaceCoverage.xxx);
+			Transparency = lerp(1.0.xxx, Transparency, SurfaceCoverage);
 		}
 		else
 #endif // MATERIAL_SHADINGMODEL_THIN_TRANSLUCENT

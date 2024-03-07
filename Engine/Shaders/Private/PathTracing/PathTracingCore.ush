@@ -455,7 +455,7 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 
 
 	const uint MissShaderIndex = 0;
-	float2 RISRandSample = RandomSequence_GenerateSample2D(PathState.RandSequence);
+	float3 RISRandSample = RandomSequence_GenerateSample3D(PathState.RandSequence);
 	FRISContext HitSample = InitRISContext(RISRandSample.x);
 	FRISContext VolSample = InitRISContext(RISRandSample.y);
 
@@ -473,9 +473,7 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 		PackedPayload.SetDBufferA(float4(0, 0, 0, 1));
 		PackedPayload.SetDBufferB(float4(0, 0, 0, 1));
 		PackedPayload.SetDBufferC(float4(0, 0, 0, 1));
-#if PATHTRACING_SUBSTRATE_PAYLOAD
-		PackedPayload.SetStochasticSlabRand(RandomSequence_GenerateSample1D(PathState.RandSequence));
-#endif
+		PackedPayload.SetStochasticSlabRand(RISRandSample.z);
 		// Trace the ray
 		TraceRay(
 			TLAS,
@@ -669,6 +667,7 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 					PackedPayload.SetDBufferA(DecalPayload.GetBaseColor());
 					PackedPayload.SetDBufferB(DecalPayload.GetWorldNormal());
 					PackedPayload.SetDBufferC(DecalPayload.GetMetallicSpecularRoughness());
+					PackedPayload.SetStochasticSlabRand(RISRandSample.z); // Must use same random value to get a consistent result to the first call
 					TraceRay(
 						TLAS,
 						RayFlags,

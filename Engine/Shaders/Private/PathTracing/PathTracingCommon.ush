@@ -33,7 +33,11 @@
 #define PATH_TRACING_PAYLOAD_NORMAL_BITS  32
 
 // shading model extensions beyond the default count
-#define SHADINGMODELID_MEDIUM  (SHADINGMODELID_NUM + 1)
+#define SHADINGMODELID_MEDIUM  			(SHADINGMODELID_NUM + 1)
+#define SHADINGMODELID_SOLID_GLASS 		(SHADINGMODELID_NUM + 2)
+
+HLSL_STATIC_ASSERT(SHADINGMODELID_MEDIUM      <= SHADINGMODELID_MASK, "");
+HLSL_STATIC_ASSERT(SHADINGMODELID_SOLID_GLASS <= SHADINGMODELID_MASK, "");
 
 #define PATH_TRACING_ABSORPTION_SCALE  0.01        // inverse distance at which we hit the transmission color (Beer's law)
 
@@ -357,7 +361,6 @@ struct FPackedPathTracingPayload : FMinimalPayload
 		PackedData[13] |= f32tof16(DBufferC.w) << 16;
 	}
 	
-#if PATHTRACING_SUBSTRATE_PAYLOAD
 	void SetStochasticSlabRand(float SlabRand)
 	{
 		PackedData[14] = asuint(SlabRand);
@@ -367,7 +370,6 @@ struct FPackedPathTracingPayload : FMinimalPayload
 	{
 		return asfloat(PackedData[14]);
 	}
-#endif
 
 #endif // IS_PAYLOAD_ENABLED(RT_PAYLOAD_TYPE_GPULIGHTMASS)
 };
@@ -603,7 +605,7 @@ struct FPathTracingPayload : FMinimalPayload
 #if PATHTRACING_SUBSTRATE_PAYLOAD
 		return ShadingModelID == SHADINGMODELID_SUBSTRATE && HasRefraction();
 #else
-		return ShadingModelID == SHADINGMODELID_DEFAULT_LIT && HasRefraction() && BSDFOpacity < 1;
+		return ShadingModelID == SHADINGMODELID_SOLID_GLASS;
 #endif
 	}
 
@@ -612,7 +614,7 @@ struct FPathTracingPayload : FMinimalPayload
 #if PATHTRACING_SUBSTRATE_PAYLOAD
 		return ShadingModelID == SHADINGMODELID_THIN_TRANSLUCENT && HasRefraction();
 #else
-		return ShadingModelID == SHADINGMODELID_THIN_TRANSLUCENT && HasRefraction() && BSDFOpacity < 1;
+		return ShadingModelID == SHADINGMODELID_THIN_TRANSLUCENT && HasRefraction();
 #endif
 	}
 
