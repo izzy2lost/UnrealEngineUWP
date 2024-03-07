@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.2",
+	"VersionName": "0.3",
 	"FriendlyName": "ML Deformer Nearest Neighbor Model",
 	"Description": "Nearest Neighbor Model for the ML Deformer Framework",
 	"Category": "Animation",
@@ -11,8 +11,8 @@
 	"MarketplaceURL": "",
 	"SupportURL": "https://forums.unrealengine.com/",
 	"CanContainContent": true,
-	"IsBetaVersion": false,
-	"IsExperimentalVersion": true,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
 	"Installed": false,
 	"Modules": [
 		{
