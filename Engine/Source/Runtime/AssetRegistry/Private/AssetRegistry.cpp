@@ -1749,7 +1749,12 @@ void UAssetRegistryImpl::SearchAllAssets(bool bSynchronousSearch)
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UAssetRegistryImpl::SearchAllAssets");
 	using namespace UE::AssetRegistry::Impl;
 
-	double StartTime = FPlatformTime::Seconds();
+	if (bSynchronousSearch)
+	{
+		// Ensure any ongoing async scan finishes fully first
+		WaitForCompletion();
+	}
+
 	FEventContext EventContext;
 	{
 		LLM_SCOPE(ELLMTag::AssetRegistry);
