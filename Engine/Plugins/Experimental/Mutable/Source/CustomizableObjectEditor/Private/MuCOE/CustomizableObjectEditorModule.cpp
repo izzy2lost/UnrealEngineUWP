@@ -57,11 +57,12 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeTableDetails.h"
 #include "MuCOE/Widgets/CustomizableObjectLODReductionSettings.h"
 #include "PropertyEditorModule.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeGroupProjectorParameter.h"
 #include "UObject/UObjectIterator.h"
 #include "Subsystems/PlacementSubsystem.h"
-
+#include "Components/SkeletalMeshComponent.h"
 
 class AActor;
 class FString;
@@ -78,51 +79,95 @@ const FName CustomizableObjectDebuggerAppIdentifier = FName(TEXT("CustomizableOb
 
 #define LOCTEXT_NAMESPACE "MutableSettings"
 
-/**
- * StaticMesh editor module
- */
-class FCustomizableObjectEditorModule : public ICustomizableObjectEditorModule
+
+constexpr float ShowOnScreenCompileWarningsTickerTime = 1.0f;
+
+
+void ShowOnScreenCompileWarnings()
 {
-public:
-	// IModuleInterface interface
-	void StartupModule() override;
-	void ShutdownModule() override;
+	TSet<const UCustomizableObject*> Objects;
+	
+	for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
+	{
+		if (!IsValid(*CustomizableObjectInstanceUsage) || CustomizableObjectInstanceUsage->IsTemplate())
+		{
+			continue;
+		}
+		
+		const UCustomizableObjectInstance* Instance = CustomizableObjectInstanceUsage->GetCustomizableObjectInstance();
+		if (!Instance)
+		{
+			continue;
+		}
 
-	// ICustomizableObjectEditorModule interface
-	TSharedRef<ICustomizableObjectEditor> CreateCustomizableObjectEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObject* CustomizableObject ) override;
-	TSharedRef<ICustomizableObjectInstanceEditor> CreateCustomizableObjectInstanceEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObjectInstance* CustomizableObjectInstance ) override;
-	virtual EAssetTypeCategories::Type GetAssetCategory() const override;
-	virtual FCustomizableObjectEditorLogger& GetLogger() override;
+		const UCustomizableObject* Object = Cast<UCustomizableObject>(Instance->GetCustomizableObject());
+		if (!Object)
+		{
+			continue;
+		}
+		
+		const USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(CustomizableObjectInstanceUsage->GetAttachParent());
+		if (!Parent)
+		{
+			continue;
+		}
 
-	virtual TSharedPtr<FExtensibilityManager> GetCustomizableObjectEditorToolBarExtensibilityManager() override { return CustomizableObjectEditor_ToolBarExtensibilityManager; }
-	virtual TSharedPtr<FExtensibilityManager> GetCustomizableObjectEditorMenuExtensibilityManager() override { return CustomizableObjectEditor_MenuExtensibilityManager; };
+		const UWorld* World = Parent->GetWorld();
+		if (!World)
+		{
+			continue;
+		}
 
-public:
-	bool HandleSettingsSaved();
-	void RegisterSettings();
+		if (World->WorldType != EWorldType::PIE)
+		{
+			continue;
+		}
 
-private:	
-	TSharedPtr<FExtensibilityManager> CustomizableObjectEditor_ToolBarExtensibilityManager;
-	TSharedPtr<FExtensibilityManager> CustomizableObjectEditor_MenuExtensibilityManager;
+		Objects.Add(Object);
+	}
 
-	/** List of registered custom details to remove later. */
-	TArray<FName> RegisteredCustomDetails;
+	for (const UCustomizableObject* Object : Objects)
+	{
+		if (Object->GetPrivate()->Status.Get() != FCustomizableObjectStatus::EState::ModelLoaded)
+		{
+			continue;
+		}
+	
+		// Show a warning if the compilation was not done with optimizations.
+		const uint64 KeyCompiledWithOptimization = reinterpret_cast<uint64>(Object);
+		if (Object->GetPrivate()->bIsCompiledWithoutOptimization)
+		{
+			FString Msg = FString::Printf(TEXT("Customizable Object [%s] was compiled without optimization."), *Object->GetName());
+			GEngine->AddOnScreenDebugMessage(KeyCompiledWithOptimization, ShowOnScreenCompileWarningsTickerTime * 2.0f, FColor::Yellow, Msg);
+		}
+		else
+		{
+			GEngine->RemoveOnScreenDebugMessage(KeyCompiledWithOptimization);
+		}
+		
+		const uint64 KeyCompiledOutOfDate = reinterpret_cast<uint64>(Object) + KEY_OFFSET_COMPILATION_OUT_OF_DATE; // Offset added to avoid collision with bIsCompiledWithOptimization warning
+		TArray<FName> OutOfDatePackages;
+		if (Object->GetPrivate()->IsCompilationOutOfDate(&OutOfDatePackages))
+		{
+			FString Msg = FString::Printf(TEXT("Customizable Object [%s] compilation out of date. See the Output Log for more information."), *Object->GetName());
+			GEngine->AddOnScreenDebugMessage(KeyCompiledOutOfDate, ShowOnScreenCompileWarningsTickerTime * 2.0f, FColor::Yellow, Msg);
+			
+			if (!GEngine->OnScreenDebugMessageExists(KeyCompiledOutOfDate))
+			{
+				UE_LOG(LogMutable, Verbose, TEXT("Warning: Customizable Object [%s] compilation out of date. Modified packages since last compilation:"), *Object->GetName());
+				for (const FName& OutOfDatePackage : OutOfDatePackages)
+				{
+					UE_LOG(LogMutable, Verbose, TEXT("%s"), *OutOfDatePackage.ToString());
+				}
+			}
+		}
+		else
+		{
+			GEngine->RemoveOnScreenDebugMessage(KeyCompiledOutOfDate);
+		}
+	}
+}
 
-	/** Custom asset category. */
-	EAssetTypeCategories::Type CustomizableObjectAssetCategory;
-
-	/** Register Custom details. Also adds them to RegisteredCustomDetails list. */
-	void RegisterCustomDetails(FPropertyEditorModule& PropertyModule, const UClass* Class, FOnGetDetailCustomizationInstance DetailLayoutDelegate);
-
-	FCustomizableObjectEditorLogger Logger;
-
-	// Command to look for Customizable Object Instance in the player pawn of the current world and open its Customizable Object Instance Editor
-	IConsoleCommand* LaunchCOIECommand;
-	static void OpenCOIE(const TArray<FString>& Arguments);
-
-	/** Register the COI factory */
-	void RegisterFactory();
-};
 
 IMPLEMENT_MODULE( FCustomizableObjectEditorModule, CustomizableObjectEditor );
 
@@ -205,6 +250,11 @@ void FCustomizableObjectEditorModule::StartupModule()
 		TEXT("Looks for a Customizable Object Instance within the player pawn and opens its Customizable Object Instance Editor. Specify slot ID to control which component is edited."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&FCustomizableObjectEditorModule::OpenCOIE));
 
+	WarningsTickerHandle = FTSTicker::GetCoreTicker().AddTicker(TEXT("ShowOnScreenCompileWarnings"), ShowOnScreenCompileWarningsTickerTime, [](float)
+	{
+		ShowOnScreenCompileWarnings();
+		return true;
+	});
 }
 
 
@@ -227,23 +277,9 @@ void FCustomizableObjectEditorModule::ShutdownModule()
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 
 	FCustomizableObjectEditorStyle::Shutdown();
+
+	FTSTicker::GetCoreTicker().RemoveTicker(WarningsTickerHandle);
 }
-
-
-TSharedRef<ICustomizableObjectEditor> FCustomizableObjectEditorModule::CreateCustomizableObjectEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObject* CustomizableObject )
-{
-	return FCustomizableObjectEditor::Create(Mode, InitToolkitHost,CustomizableObject);
-}
-
-
-TSharedRef<ICustomizableObjectInstanceEditor> FCustomizableObjectEditorModule::CreateCustomizableObjectInstanceEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObjectInstance* CustomizableObjectInstance )
-{
-	TSharedRef<FCustomizableObjectInstanceEditor> NewCustomizableObjectInstanceEditor(new FCustomizableObjectInstanceEditor());
-	NewCustomizableObjectInstanceEditor->InitCustomizableObjectInstanceEditor(Mode, InitToolkitHost,CustomizableObjectInstance);
-	return NewCustomizableObjectInstanceEditor;
-}
-
-
 
 
 FCustomizableObjectEditorLogger& FCustomizableObjectEditorModule::GetLogger()
@@ -377,9 +413,176 @@ void FCustomizableObjectEditorModule::RegisterFactory()
 }
 
 
-EAssetTypeCategories::Type FCustomizableObjectEditorModule::GetAssetCategory() const
+/** Recursively get all Customizable Objects that reference the given Customizable Object. */
+void GetReferencingCustomizableObjects(FName CustomizableObjectName, TArray<FName>& VisitedObjectNames, TArray<FName>& ObjectNames)
 {
-	return CustomizableObjectAssetCategory;
+	if (VisitedObjectNames.Contains(CustomizableObjectName))
+	{
+		return;
+	}
+
+	VisitedObjectNames.Add(CustomizableObjectName);
+
+	TArray<FName> ReferencedObjectNames;
+	
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	AssetRegistryModule.Get().GetReferencers(CustomizableObjectName, ReferencedObjectNames, UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Hard);
+
+	TArray<FAssetData> AssetDataArray;
+
+	FARFilter Filter;
+	Filter.PackageNames = MoveTemp(ReferencedObjectNames);
+	
+	AssetRegistryModule.Get().GetAssets(Filter, AssetDataArray);
+
+	for (FAssetData AssetData : AssetDataArray)
+	{
+		if (AssetData.GetClass() == UCustomizableObject::StaticClass())
+		{
+			FName ReferencedObjectName = AssetData.GetPackage()->GetFName();
+	
+			ObjectNames.Add(ReferencedObjectName);
+
+			GetReferencingCustomizableObjects(ReferencedObjectName, VisitedObjectNames, ObjectNames);
+		}			
+	}
+}
+
+
+void GetReferencingPackages(const UCustomizableObject& Object, TArray<FName>& ObjectNames)
+{
+	// Gather all child CustomizableObjects
+	TArray<FName> VisitedObjectNames;
+	GetReferencingCustomizableObjects(Object.GetPackage()->GetFName(), VisitedObjectNames, ObjectNames);
+
+	// Gather all tables which will composite the final tables
+	TArray<FName> CustomizableObjectNames = ObjectNames;
+	for (const FName& CustomizableObjectName : CustomizableObjectNames)
+	{
+		const TSoftObjectPtr SoftObjectPtr(CustomizableObjectName.ToString());
+
+		const UCustomizableObject* ChildCustomizableObject = Cast<UCustomizableObject>(SoftObjectPtr.LoadSynchronous());
+		if (!ChildCustomizableObject)
+		{
+			continue;
+		}
+
+		TArray<UCustomizableObjectNodeTable*> TableNodes;
+		ChildCustomizableObject->Source->GetNodesOfClass(TableNodes);
+
+		FARFilter Filter;
+		Filter.ClassPaths.Add(FTopLevelAssetPath(UDataTable::StaticClass()));
+
+		for (const UCustomizableObjectNodeTable* TableNode : TableNodes)
+		{
+			TArray<FAssetData> DataTableAssets = TableNode->GetParentTables();
+
+			for (const FAssetData& DataTableAsset : DataTableAssets)
+			{
+				if (DataTableAsset.IsValid())
+				{
+					ObjectNames.AddUnique(DataTableAsset.PackageName);
+				}
+			}
+		}		
+	}
+}
+
+
+bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizableObject& Object, TArray<FName>* OutOfDatePackages) const
+{
+	if (!Object.GetPrivate()->DirtyParticipatingObjects.IsEmpty())
+	{
+		if (OutOfDatePackages)
+		{
+			OutOfDatePackages->Append(Object.GetPrivate()->DirtyParticipatingObjects);
+		}
+		else
+		{
+			return false;
+		}
+	}
+	
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	for (const TTuple<FName, FGuid>& ParticipatingObject : Object.GetPrivate()->ParticipatingObjects)
+	{
+		TSoftObjectPtr SoftObjectPtr(ParticipatingObject.Key.ToString());
+		if (SoftObjectPtr) // If loaded
+		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			const FGuid PackageGuid = SoftObjectPtr->GetPackage()->GetGuid();
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			
+			if (PackageGuid != ParticipatingObject.Value)
+			{
+				if (OutOfDatePackages)
+				{
+					OutOfDatePackages->AddUnique(ParticipatingObject.Key);
+				}
+				else
+				{
+					return false;
+				}
+			}
+		}
+		else // Not loaded
+		{
+			FAssetPackageData AssetPackageData;
+			const UE::AssetRegistry::EExists Result = AssetRegistryModule.Get().TryGetAssetPackageData(ParticipatingObject.Key, AssetPackageData);
+				
+			if (Result != UE::AssetRegistry::EExists::Exists)
+			{
+				if (OutOfDatePackages)
+				{
+					OutOfDatePackages->AddUnique(ParticipatingObject.Key);
+				}
+				else
+				{
+					return false;
+				}
+			}
+
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			const FGuid PackageGuid = AssetPackageData.PackageGuid;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			
+			if (PackageGuid != ParticipatingObject.Value)
+			{
+				if (OutOfDatePackages)
+				{
+					OutOfDatePackages->AddUnique(ParticipatingObject.Key);
+				}
+				else
+				{
+					return false;
+				}
+			}
+		}
+	}
+
+	TArray<FName> ReferencingObjectNames;
+	GetReferencingPackages(Object, ReferencingObjectNames);
+	
+	for (const FName& ObjectName : ReferencingObjectNames)
+	{
+		TSoftObjectPtr ReferencingObject(ObjectName.ToString()); 
+
+		if ((ReferencingObject && ReferencingObject->GetPackage()->IsDirty()) ||
+			!Object.GetPrivate()->ParticipatingObjects.Contains(ObjectName)) // Must be in the participating objects, if not it means it did not exist when compiling the object.
+		{
+			if (OutOfDatePackages)
+			{
+				OutOfDatePackages->AddUnique(ObjectName);
+			}
+			else
+			{
+				return false;
+			}
+		}
+	}
+
+	return !OutOfDatePackages->IsEmpty();	
 }
 
 

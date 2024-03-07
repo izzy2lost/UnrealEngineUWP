@@ -844,6 +844,20 @@ mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCust
 }
 
 
+void AddCompositeTablesToParticipatingObjetcts(const UDataTable* Table, FMutableGraphGenerationContext& GenerationContext)
+{
+	if (const UCompositeDataTable* CompositeTable = Cast<UCompositeDataTable>(Table))
+	{
+		GenerationContext.AddParticipatingObject(*CompositeTable);
+
+		/*for (const TArray<TObjectPtr<UDataTable>>& ParentTable : CompositeTable.ParentTables) // TODO 
+		{
+			AddCompositeTablesToParticipatingObjetcts(ParentTable, GenerationContext);
+		}*/
+	}
+}
+
+
 UDataTable* GetDataTable(const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext)
 {
 	UDataTable* OutDataTable = nullptr;
@@ -856,6 +870,8 @@ UDataTable* GetDataTable(const UCustomizableObjectNodeTable* TableNode, FMutable
 	{
 		OutDataTable = TableNode->Table;
 	}
+
+	AddCompositeTablesToParticipatingObjetcts(OutDataTable, GenerationContext);
 
 	return OutDataTable;
 }
@@ -893,26 +909,7 @@ UDataTable* GenerateDataTableFromStruct(const UCustomizableObjectNodeTable* Tabl
 		return nullptr;
 	}
 
-	TArray<FName> ReferencedTables;
-	AssetRegistry.Get()->GetReferencers(TableNode->Structure.GetPackage().GetFName(), ReferencedTables, UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::NoRequirements);
-	
-	FARFilter Filter;
-	Filter.ClassPaths.Add(FTopLevelAssetPath(UDataTable::StaticClass()));
-
-	for (const FName& ReferencedTable : ReferencedTables)
-	{
-		Filter.PackageNames.Add(ReferencedTable);
-	}
-
-	for (int32 PathIndex = 0; PathIndex < TableNode->FilterPaths.Num(); ++PathIndex)
-	{
-		Filter.PackagePaths.Add(TableNode->FilterPaths[PathIndex]);
-	}
-
-	Filter.bRecursivePaths = true;
-
-	TArray<FAssetData> DataTableAssets;
-	AssetRegistry.Get()->GetAssets(Filter, DataTableAssets);
+	TArray<FAssetData> DataTableAssets = TableNode->GetParentTables();
 
 	UCompositeDataTable* CompositeDataTable = NewObject<UCompositeDataTable>();
 	CompositeDataTable->RowStruct = TableNode->Structure;

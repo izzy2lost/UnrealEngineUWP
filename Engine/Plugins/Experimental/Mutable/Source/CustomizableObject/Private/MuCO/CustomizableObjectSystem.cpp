@@ -2723,10 +2723,6 @@ int32 UCustomizableObjectSystem::TickInternal()
 	TickRecompileCustomizableObjects();
 	GetPrivate()->TickMutableThreadDependencies();
 #endif
-
-#if WITH_EDITORONLY_DATA
-	UCustomizableObjectSystemPrivate::ShowOnScreenCompileWarnings();
-#endif
 	
 	const int32 RemainingTasks = Private->MutableTaskGraph.Tick();
 
@@ -3229,87 +3225,6 @@ int32 UCustomizableObjectSystem::GetWorkingMemory() const
 {
 	return WorkingMemory;
 }
-
-
-#if WITH_EDITORONLY_DATA
-void UCustomizableObjectSystemPrivate::ShowOnScreenCompileWarnings()
-{
-	TSet<const UCustomizableObject*> Objects;
-	
-	for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
-	{
-		if (!IsValid(*CustomizableObjectInstanceUsage) || CustomizableObjectInstanceUsage->IsTemplate())
-		{
-			continue;
-		}
-		
-		const UCustomizableObjectInstance* Instance = CustomizableObjectInstanceUsage->GetCustomizableObjectInstance();
-		if (!Instance)
-		{
-			continue;
-		}
-
-		const UCustomizableObject* Object = Cast<UCustomizableObject>(Instance->GetCustomizableObject());
-		if (!Object)
-		{
-			continue;
-		}
-		
-		const USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(CustomizableObjectInstanceUsage->GetAttachParent());
-		if (!Parent)
-		{
-			continue;
-		}
-
-		const UWorld* World = Parent->GetWorld();
-		if (!World)
-		{
-			continue;
-		}
-
-		if (World->WorldType != EWorldType::PIE)
-		{
-			continue;
-		}
-
-		Objects.Add(Object);
-	}
-
-	for (const UCustomizableObject* Object : Objects)
-	{
-		// Show a warning if the compilation was not done with optimizations.
-		const uint64 KeyCompiledWithOptimization = reinterpret_cast<uint64>(Object);
-		if (Object->GetPrivate()->bIsCompiledWithoutOptimization && // Quicker to check
-			!GEngine->OnScreenDebugMessageExists(KeyCompiledWithOptimization))
-		{
-			FString Msg = FString::Printf(TEXT("Warning: Customizable Object [%s] was compiled without optimization."), *Object->GetName());
-			GEngine->AddOnScreenDebugMessage(KeyCompiledWithOptimization, 10.0f, FColor::Red, Msg);
-		}
-
-		const uint64 KeyCompiledOutOfData = reinterpret_cast<uint64>(Object) + KEY_OFFSET_COMPILATION_OUT_OF_DATE; // Offset added to avoid collision with bIsCompiledWithoutOptimization warning
-		if (!GEngine->OnScreenDebugMessageExists(KeyCompiledWithOptimization) && // Quicker to check
-			Object->GetPrivate()->IsCompilationOutOfDate())
-		{
-			FString Msg = FString::Printf(TEXT("Warning: Customizable Object [%s] compilation out of date. Save all referenced assets and recompile."), *Object->GetName());
-			GEngine->AddOnScreenDebugMessage(KeyCompiledOutOfData, 10.0f, FColor::Red, Msg);
-		}
-	}
-}
-
-
-void UCustomizableObjectSystemPrivate::HideOnScreenCompileWarnings(const UCustomizableObjectPrivate& ObjectPrivate)
-{
-	if (ObjectPrivate.bIsCompiledWithoutOptimization)
-	{
-		GEngine->RemoveOnScreenDebugMessage(reinterpret_cast<uint64>(&ObjectPrivate));
-	}
-
-	if (!ObjectPrivate.IsCompilationOutOfDate())
-	{
-		GEngine->RemoveOnScreenDebugMessage(reinterpret_cast<uint64>(&ObjectPrivate) + KEY_OFFSET_COMPILATION_OUT_OF_DATE);
-	}
-}
-#endif
 
 
 void UCustomizableObjectSystemPrivate::TickMutableThreadDependencies()

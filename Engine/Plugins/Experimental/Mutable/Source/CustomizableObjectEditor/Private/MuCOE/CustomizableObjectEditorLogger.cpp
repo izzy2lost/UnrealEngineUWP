@@ -6,7 +6,7 @@
 #include "Logging/MessageLog.h"
 #include "MessageLogModule.h"
 #include "Misc/UObjectToken.h"
-#include "MuCOE/CustomizableObjectEditorModule.h"
+#include "MuCO/ICustomizableObjectEditorModule.h"
 #include "MuCOE/CustomizableObjectGraph.h"
 #include "MuCOE/ICustomizableObjectEditor.h"
 #include "MuCOE/Nodes/CustomizableObjectNode.h"
@@ -218,13 +218,13 @@ void FLogParameters::Log()
 
 FLogParameters FCustomizableObjectEditorLogger::CreateLog(const FText& Text)
 {
-	FCustomizableObjectEditorLogger& Logger = ICustomizableObjectEditorModule::Get().GetLogger();
+	FCustomizableObjectEditorLogger& Logger = ICustomizableObjectEditorModule::GetChecked().GetLogger();
 	return FLogParameters(Logger, Text);
 }
 
 FLogParameters FCustomizableObjectEditorLogger::CreateLog(FText&& Text)
 {
-	FCustomizableObjectEditorLogger& Logger = ICustomizableObjectEditorModule::Get().GetLogger();
+	FCustomizableObjectEditorLogger& Logger = ICustomizableObjectEditorModule::GetChecked().GetLogger();
 	return FLogParameters(Logger, MoveTemp(Text));
 }
 
@@ -311,7 +311,7 @@ void FCustomizableObjectEditorLogger::Log(FLogParameters& LogParameters)
 
 void FCustomizableObjectEditorLogger::DismissNotification(ELoggerCategory Category)
 {
-	FCustomizableObjectEditorLogger& Logger = ICustomizableObjectEditorModule::Get().GetLogger();
+	FCustomizableObjectEditorLogger& Logger = ICustomizableObjectEditorModule::GetChecked().GetLogger();
 	if (const FCategoryData* Result = Logger.CategoriesData.Find(Category))
 	{
 		if (const TSharedPtr<SNotificationItem> LastNotification = Result->Notification.Pin())

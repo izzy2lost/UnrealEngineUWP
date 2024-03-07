@@ -395,7 +395,9 @@ public:
 	/** Returns the column id */
 	FGuid GetColumnIdByName(const FName& ColumnName) const;
 
-
+	/** Return the list of UDataTable that will be used to compose the final UDataTable. */
+	TArray<FAssetData> GetParentTables() const;
+	
 private:
 
 	/** Number of properties to know when the node needs an update */
