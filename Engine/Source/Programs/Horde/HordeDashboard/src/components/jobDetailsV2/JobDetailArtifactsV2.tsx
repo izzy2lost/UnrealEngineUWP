@@ -1,15 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Stack, Text, IColumn, mergeStyleSets, Icon, DetailsList, Selection, SelectionMode, DetailsListLayoutMode, ScrollablePane, ScrollbarVisibility, StickyPositionType, IDetailsListProps, IDetailsHeaderStyles, Sticky, DetailsHeader, PrimaryButton, SpinnerSize, Spinner, Link, TextField, FontIcon } from '@fluentui/react';
-import React, { useEffect, useState } from 'react';
-import { ArtifactData, GetArtifactResponse, GetArtifactZipRequest } from '../../backend/Api';
+import { DetailsHeader, DetailsList, DetailsListLayoutMode, IColumn, IDetailsHeaderStyles, IDetailsListProps, Icon, Link, PrimaryButton, ScrollablePane, ScrollbarVisibility, Selection, SelectionMode, Spinner, SpinnerSize, Stack, Sticky, StickyPositionType, Text, TextField, mergeStyleSets } from '@fluentui/react';
+import { action, makeObservable, observable } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { observable, action, makeObservable } from 'mobx';
+import React, { useEffect, useState } from 'react';
 import backend from '../../backend';
-import { JobDataView, JobDetailsV2 } from './JobDetailsViewCommon';
+import { ArtifactData, GetArtifactResponse, GetArtifactZipRequest } from '../../backend/Api';
 import { ISideRailLink } from '../../base/components/SideRail';
 import { getHordeStyling } from '../../styles/Styles';
-import dashboard from '../../backend/Dashboard';
+import { JobDataView, JobDetailsV2 } from './JobDetailsViewCommon';
 
 const sideRail: ISideRailLink = { text: "Artifacts", url: "rail_artifacts" };
 
@@ -182,7 +181,7 @@ class ArtifactsDataView extends JobDataView {
       }).catch((reason) => {
          console.log(`Error getting artifacts jobId: ${details.jobId} stepId: ${this.stepId} error: ${reason}`);
       }).finally(() => {
-         this.initialize((this.artifacts?.length || details.jobData?.useArtifactsV2) ? [sideRail] : undefined)
+         this.initialize((this.artifacts?.length && !details.jobData?.useArtifactsV2) ? [sideRail] : undefined)
       });
 
    }
@@ -232,29 +231,7 @@ export const JobDetailArtifactsV2: React.FC<{ jobDetails: JobDetailsV2; stepId: 
    }
 
    if (jobDetails.jobData?.useArtifactsV2) {
-
-      const imgSrc = dashboard.darktheme ? "/images/notifications/artifacts_moved_dark.png" : "/images/notifications/artifacts_moved_light.png";
-
-      return <Stack id={sideRail.url} styles={{ root: { paddingTop: 18, paddingRight: 12 } }}>
-         <Stack className={hordeClasses.raised}>
-            <Stack tokens={{ childrenGap: 12 }}>
-               <Stack horizontalAlign="space-between" styles={{ root: { minHeight: 32 } }}>
-                  <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Artifacts</Text>
-                  <Stack tokens={{ childrenGap: 24 }}>
-                     <Stack horizontal verticalAlign='center' style={{ paddingTop: 24, paddingLeft: 12, paddingBottom: 12 }}>
-                        <FontIcon style={{ paddingRight: 12 }} iconName="Error" />
-                        <Stack>
-                           <Text variant='medium'>This job uses the new Horde artifact storage backend.  These artifacts are now accessible in the upper right, underneath the breadcrumb area.</Text>
-                        </Stack>
-                     </Stack>
-                     <Stack style={{paddingLeft: 38}}>
-                        <img style={{width: "fit-content"}} src={imgSrc} alt="" />
-                     </Stack>
-                  </Stack>
-               </Stack>
-            </Stack>
-         </Stack>
-      </Stack>
+      return null;
    }
 
    if (!dataView.artifacts?.length) {

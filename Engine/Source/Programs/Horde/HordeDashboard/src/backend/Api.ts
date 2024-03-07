@@ -439,7 +439,7 @@ export type GetDashboardConfigResponse = {
 	authMethod?: AuthMethod;
 
 	/** The name of the external issue service */
-externalIssueServiceName?: string;
+	externalIssueServiceName?: string;
 
 	/** The url of the external issue service */
 	externalIssueServiceUrl?: string;
@@ -539,7 +539,7 @@ export type UpdateAgentRequest = {
 export type GetPendingAgentsResponse = {
 	agents: GetPendingAgentResponse[];
 }
-	
+
 
 /// Information about an agent pending admission to the farm
 export type GetPendingAgentResponse = {
@@ -556,7 +556,7 @@ export type ApproveAgentsRequest = {
 /// Approve an agent for admission to the farm
 export type ApproveAgentRequest = {
 	key: string;
-	agentId?: string;	
+	agentId?: string;
 }
 
 
@@ -1199,6 +1199,18 @@ export type GetReportResponse = {
 
 }
 
+export type GetJobArtifactResponse = {
+	/// Identifier for this artifact
+	artifactId: string;
+	/// Name of the artifact
+	name: string;
+	/// Artifact type
+	type: string;
+	/// Description to display for the artifact on the dashboard
+	description?: string;
+	/// Step producing the artifact
+	stepId: string;
+}
 
 /**Information about a job */
 export type GetJobResponse = {
@@ -1283,6 +1295,8 @@ export type GetJobResponse = {
 
 	/** Whether to use the V2 artifacts endpoint */
 	useArtifactsV2?: boolean;
+
+	artifacts?: GetJobArtifactResponse[];
 
 	/**  Custom permissions for this object */
 	acl?: GetAclResponse;
