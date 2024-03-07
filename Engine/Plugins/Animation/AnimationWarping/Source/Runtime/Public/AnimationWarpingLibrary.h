@@ -20,4 +20,7 @@ public:
     UFUNCTION(BlueprintPure, Category = "Animation|BlendStack", meta = (BlueprintThreadSafe))
     static FTransform GetOffsetRootTransform(const FAnimNodeReference& Node);
 	
+	/** Helper function to extract the value of a curve in an animation at a given time */
+	UFUNCTION(BlueprintPure, Category = "Animation", meta = (BlueprintThreadSafe))
+	static bool GetCurveValueFromAnimation(const UAnimSequenceBase* Animation, FName CurveName, float Time, float& OutValue);
 };
