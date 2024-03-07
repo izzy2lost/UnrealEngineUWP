@@ -46,6 +46,11 @@ public class NNEOnnxruntimeEditor : ModuleRules
 
 		string SharedLibRelativePath = Path.Combine(OrtPlatformRelativePath, SharedLibFileName);
 
+		if (Target.Type == TargetType.Game)
+		{
+			PublicDefinitions.Add("ORT_NO_EXCEPTIONS");
+		}
+
 		PublicIncludePaths.Add(IncDirPath);
 		PublicDefinitions.Add("ORT_API_MANUAL_INIT");
 		PublicDefinitions.Add("ONNXRUNTIME_SHAREDLIB_PATH=" + SharedLibRelativePath.Replace('\\', '/'));
