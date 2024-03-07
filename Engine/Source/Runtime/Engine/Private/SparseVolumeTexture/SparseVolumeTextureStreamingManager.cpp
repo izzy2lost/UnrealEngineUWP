@@ -94,6 +94,16 @@ static FAutoConsoleVariableRef CVarSVTStreamingRequestSize(
 	ECVF_RenderThreadSafe
 );
 
+// When in editor, data is streamed from DDC. The request finishes in a callback on some other thread. This callback currently reads FPendingRequest::SVTHandle and FPendingRequest::RequestVersion
+// and writes to FPendingRequest::SharedBuffer and FPendingRequest::State. Other than this, FPendingRequest is never accessed from multiple threads at the same time. However, in order to avoid race conditions, 
+// all accesses to FPendingRequest should be guarded by using the following macro. Contention only happens if the streaming manager is currently accessing a request during an update and a DDC request 
+// finishes at the exact same time this access happens. While this is possible, it is very unlikely, so the performance impact of always using the lock should be minimal.
+#if WITH_EDITORONLY_DATA
+#define LOCK_PENDING_REQUEST(PendingRequest) FScopeLock Lock(&PendingRequest.DDCAsyncGuard)
+#else
+#define LOCK_PENDING_REQUEST(PendingRequest)
+#endif
+
 namespace UE
 {
 namespace SVT
@@ -402,6 +412,7 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 		// Cancel all IO requests
 		for (FPendingRequest& PendingRequest : PendingRequests)
 		{
+			LOCK_PENDING_REQUEST(PendingRequest);
 			PendingRequest.Reset();
 		}
 
@@ -455,6 +466,7 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 		{
 			const int32 PendingRequestIndex = (StartPendingRequestIndex + i) % MaxPendingRequests;
 			FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+			LOCK_PENDING_REQUEST(PendingRequest);
 
 			// Skip if request was cancelled
 			if (!PendingRequest.IsValid())
@@ -762,6 +774,7 @@ void FStreamingManager::RemoveInternal(UStreamableSparseVolumeTexture* SparseVol
 		// Cancel any pending requests
 		for (FPendingRequest& PendingRequest : PendingRequests)
 		{
+			LOCK_PENDING_REQUEST(PendingRequest);
 			if (PendingRequest.SVTHandle == SVTInfo->SVTHandle)
 			{
 				PendingRequest.Reset();
@@ -1027,6 +1040,7 @@ void FStreamingManager::IssueRequests()
 				if (uint32* PendingRequestIndexPtr = FrameInfoTmp.TileIndexToPendingRequestIndex.Find((uint32)PreviousAllocation.TileIndexInFrame))
 				{
 					FPendingRequest& PendingRequest = PendingRequests[*PendingRequestIndexPtr];
+					LOCK_PENDING_REQUEST(PendingRequest);
 					check(PendingRequest.IsValid());
 					if (FrameInfoTmp.StreamingTiles.CountSetBits(PendingRequest.TileOffset, PendingRequest.TileOffset + PendingRequest.TileCount) == 0)
 					{
@@ -1053,6 +1067,7 @@ void FStreamingManager::IssueRequests()
 		{
 			const int32 PendingRequestIndex = NextPendingRequestIndex;
 			FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+			LOCK_PENDING_REQUEST(PendingRequest);
 			PendingRequest.Reset();
 			PendingRequest.SVTHandle = TileRange.SVTHandle;
 			PendingRequest.FrameIndex = TileRange.FrameIndex;
@@ -1155,6 +1170,7 @@ int32 FStreamingManager::DetermineReadyRequests()
 	{
 		const int32 PendingRequestIndex = (StartPendingRequestIndex + i) % MaxPendingRequests;
 		FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+		LOCK_PENDING_REQUEST(PendingRequest);
 
 		// Check if request was cancelled
 		if (!PendingRequest.IsValid())
@@ -1270,6 +1286,7 @@ void FStreamingManager::InstallReadyRequests()
 	{
 		const int32 PendingRequestIndex = (StartPendingRequestIndex + i) % MaxPendingRequests;
 		FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+		LOCK_PENDING_REQUEST(PendingRequest);
 
 		// Skip if request was cancelled
 		if (!PendingRequest.IsValid())
@@ -1396,6 +1413,7 @@ void FStreamingManager::InstallReadyRequests()
 	for (int32 PendingRequestIndex : RequestsToCleanUp)
 	{
 		FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+		LOCK_PENDING_REQUEST(PendingRequest);
 #if WITH_EDITORONLY_DATA
 		PendingRequest.SharedBuffer.Reset();
 #endif
@@ -1410,7 +1428,9 @@ void FStreamingManager::InstallReadyRequests()
 	for (int32 i = 0; i < AsyncState.NumReadyRequests; ++i)
 	{
 		const int32 PendingRequestIndex = (StartPendingRequestIndex + i) % MaxPendingRequests;
-		PendingRequests[PendingRequestIndex].Reset();
+		FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+		LOCK_PENDING_REQUEST(PendingRequest);
+		PendingRequest.Reset();
 	}
 #endif
 
@@ -1628,13 +1648,15 @@ void FStreamingManager::RequestDDCData(TConstArrayView<UE::DerivedData::FCacheGe
 				const uint32 PendingRequestIndex = (uint32)(Response.UserData >> uint64(32));
 				const uint32 RequestVersion = (uint32)Response.UserData;
 
-				// In case the request returned after the mip level was already streamed out again we need to abort so that we do not overwrite data in the FPendingRequest slot.
-				if (RequestVersion < PendingRequests[PendingRequestIndex].RequestVersion)
+				FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+				LOCK_PENDING_REQUEST(PendingRequest);
+
+				// In case the request returned after the data was already streamed out again we need to abort so that we do not overwrite data in the FPendingRequest slot.
+				if (RequestVersion != PendingRequest.RequestVersion)
 				{
 					return;
 				}
 
-				FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
 				check(PendingRequest.IsValid());
 
 				if (Response.Status == EStatus::Ok)
@@ -1783,3 +1805,5 @@ void FTileAllocator::Free(uint32 TileCoord)
 
 }
 }
+
+#undef LOCK_PENDING_REQUEST
