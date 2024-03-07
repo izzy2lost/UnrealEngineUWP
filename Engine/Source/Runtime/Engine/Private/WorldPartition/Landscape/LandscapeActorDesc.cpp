@@ -53,6 +53,7 @@ FBox FLandscapeActorDesc::GetEditorBounds() const
 	return FWorldPartitionActorDesc::GetEditorBounds();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FLandscapeActorDesc::OnUnloadingInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
 	if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActorDescInstance->GetActor()))
@@ -62,6 +63,7 @@ void FLandscapeActorDesc::OnUnloadingInstance(const FWorldPartitionActorDescInst
 
 	FPartitionActorDesc::OnUnloadingInstance(InActorDescInstance);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FLandscapeActorDesc::Equals(const FWorldPartitionActorDesc* Other) const
 {

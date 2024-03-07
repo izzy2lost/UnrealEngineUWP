@@ -20,7 +20,9 @@ public:
 protected:
 	virtual uint32 GetSizeOf() const override { return sizeof(FLandscapeActorDesc); }
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	ENGINE_API void OnUnloadingInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const override;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 private:
 	FGuid LandscapeActorGuid;

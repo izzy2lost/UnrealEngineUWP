@@ -77,7 +77,7 @@ FSoftObjectPath FWorldPartitionActorDescInstance::GetActorSoftPath() const
 
 FName FWorldPartitionActorDescInstance::GetActorName() const
 {
-	return *FPaths::GetExtension(GetActorSoftPath().ToString());
+	return ActorDesc->GetActorName();
 }
 
 bool FWorldPartitionActorDescInstance::IsValid() const
@@ -167,7 +167,9 @@ void FWorldPartitionActorDescInstance::MarkUnload()
 	FlushAsyncLoad();
 
 	// Notify Desc as it can have some custom code to run on the actor depending on type
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	ActorDesc->OnUnloadingInstance(this);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (AActor* Actor = GetActor())
 	{

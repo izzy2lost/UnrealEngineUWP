@@ -158,6 +158,7 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 
 	ActorPackage = InActor->GetPackage()->GetFName();
 	ActorPath = bIsDefaultActorDesc ? *InActor->GetClass()->GetPathName() : *InActor->GetPathName();
+	ActorName = InActor->GetFName();
 
 	ContentBundleGuid = InActor->GetContentBundleGuid();
 
@@ -208,6 +209,7 @@ void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& Desc
 	ActorPath = DescData.ActorPath;
 	ActorNativeClass = DescData.NativeClass;
 	NativeClass = *DescData.NativeClass->GetPathName();
+	ActorName = *FPaths::GetExtension(ActorPath.ToString());
 
 	auto DeprecateClass = [this](FArchive& Archive)
 	{
@@ -761,7 +763,7 @@ FBox FWorldPartitionActorDesc::GetRuntimeBounds() const
 
 FName FWorldPartitionActorDesc::GetActorName() const
 {
-	return *FPaths::GetExtension(ActorPath.ToString());
+	return ActorName;
 }
 
 FName FWorldPartitionActorDesc::GetActorLabelOrName() const

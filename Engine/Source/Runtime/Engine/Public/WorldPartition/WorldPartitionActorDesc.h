@@ -378,6 +378,7 @@ public:
 	ENGINE_API bool IsMainWorldOnly() const;
 	ENGINE_API bool IsListedInSceneOutliner() const;
 protected:
+	UE_DEPRECATED(5.4, "OnUnloadingInstance is deprecated.")
 	virtual void OnUnloadingInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const {}
 
 	virtual bool GetChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance, FContainerInstance& OutContainerInstance) const { return false; }
@@ -435,6 +436,7 @@ protected:
 	
 	// Transient
 	UClass*							ActorNativeClass;
+	FName							ActorName;
 	UActorDescContainer*			Container;
 	bool							bIsDefaultActorDesc;
 

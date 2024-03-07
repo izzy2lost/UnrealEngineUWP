@@ -269,6 +269,7 @@ void FWorldDataLayersActorDesc::Serialize(FArchive& Ar)
 	}
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FWorldDataLayersActorDesc::OnUnloadingInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
 	if (AWorldDataLayers* WorldDataLayers = Cast<AWorldDataLayers>(InActorDescInstance->GetActor()))
@@ -293,6 +294,7 @@ void FWorldDataLayersActorDesc::OnUnloadingInstance(const FWorldPartitionActorDe
 	}
 	FWorldPartitionActorDesc::OnUnloadingInstance(InActorDescInstance);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FWorldDataLayersActorDesc::IsRuntimeRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const 
 {
