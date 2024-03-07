@@ -189,14 +189,7 @@ private:
 	TArray<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>> DebugTracks;
 	TSharedPtr<RewindDebugger::FRewindDebuggerTrack> SelectedTrack;
 
-	struct FMeshComponentResetData
-	{
-		TWeakObjectPtr<USkeletalMeshComponent> Component;
-		FTransform RelativeTransform;
-	};
-
 	TArray<uint64> TargetObjectIds;
-	TMap<uint64, FMeshComponentResetData> MeshComponentsToReset;
 
 	mutable class IUnrealInsightsModule *UnrealInsightsModule;
 	FTSTicker::FDelegateHandle TickerHandle;

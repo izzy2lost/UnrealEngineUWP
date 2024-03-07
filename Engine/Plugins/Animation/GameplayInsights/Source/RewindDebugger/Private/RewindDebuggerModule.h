@@ -6,6 +6,7 @@
 #include "Modules/ModuleInterface.h"
 #include "Framework/Docking/TabManager.h"
 #include "RewindDebuggerCamera.h"
+#include "RewindDebuggerAnimation.h"
 
 class SRewindDebugger;
 class SRewindDebuggerDetails;
@@ -28,4 +29,5 @@ private:
 	TSharedPtr<SRewindDebuggerDetails> RewindDebuggerDetailsWidget;
 
 	FRewindDebuggerCamera RewindDebuggerCameraExtension;
+	FRewindDebuggerAnimation RewindDebuggerAnimationExtension;
 };

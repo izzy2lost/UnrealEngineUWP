@@ -238,7 +238,9 @@ void FRewindDebuggerModule::StartupModule()
 	);
 	
 	RewindDebuggerCameraExtension.Initialize();
+	RewindDebuggerAnimationExtension.Initialize();
 	IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerCameraExtension);
+	IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerAnimationExtension);
 	IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerDoubleClickHandler::ModularFeatureName, &AnimInstanceDoubleClickHandler);
 	IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerDoubleClickHandler::ModularFeatureName, &BlueprintDoubleClickHandler);
 
@@ -250,13 +252,17 @@ void FRewindDebuggerModule::StartupModule()
 
 void FRewindDebuggerModule::ShutdownModule()
 {
+	RewindDebuggerAnimationExtension.Shutdown();
+	
 	IModularFeatures::Get().UnregisterModularFeature(IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerCameraExtension);
+	IModularFeatures::Get().UnregisterModularFeature(IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerAnimationExtension);
 	IModularFeatures::Get().UnregisterModularFeature(IRewindDebuggerDoubleClickHandler::ModularFeatureName, &AnimInstanceDoubleClickHandler);
 	IModularFeatures::Get().UnregisterModularFeature(IRewindDebuggerDoubleClickHandler::ModularFeatureName, &BlueprintDoubleClickHandler);
 
 	FRewindDebuggerCommands::Unregister();
 	FRewindDebuggerStyle::Shutdown();
 	FRewindDebugger::Shutdown();
+
 }
 
 IMPLEMENT_MODULE(FRewindDebuggerModule, RewindDebugger);
