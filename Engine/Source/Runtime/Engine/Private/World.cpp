@@ -3494,16 +3494,6 @@ void UWorld::AddToWorld( ULevel* Level, const FTransform& LevelTransform, bool b
 	}
 }
 
-void UWorld::BeginTearingDown()
-{
-	bIsTearingDown = true;
-	UE_LOG(LogWorld, Log, TEXT("BeginTearingDown for %s"), *GetOutermost()->GetName());
-
-	//Simultaneous similar edits that caused merge conflict. Taking both for now to unblock.
-	//Can likely be unified.
-	FWorldDelegates::OnWorldBeginTearDown.Broadcast(this);
-}
-
 // Cumulated time doing IncrementalUnregisterComponents in UWorld::RemoveFromWorld since last call to UWorld::UpdateLevelStreaming.
 static double GRemoveFromWorldUnregisterComponentTimeCumul = 0.0;
 
@@ -5300,6 +5290,21 @@ void UWorld::InitializeActorsForPlay(const FURL& InURL, bool bResetTime, FRegist
 	}
 }
 
+void UWorld::BeginTearingDown()
+{
+	if (bIsTearingDown)
+	{
+		UE_LOG(LogWorld, Warning, TEXT("BeginTearingDown called twice for %s!"), *GetOutermost()->GetName());
+	}
+	else
+	{
+		UE_LOG(LogWorld, Log, TEXT("BeginTearingDown for %s"), *GetOutermost()->GetName());
+	}
+
+	bIsTearingDown = true;
+	FWorldDelegates::OnWorldBeginTearDown.Broadcast(this);
+}
+
 void UWorld::BeginPlay()
 {
 	if (SupportsMakingVisibleTransactionRequests() && (IsNetMode(NM_DedicatedServer) || IsNetMode(NM_ListenServer)))
@@ -5334,6 +5339,30 @@ void UWorld::BeginPlay()
 	}
 }
 
+bool UWorld::EndPlay(EEndPlayReason::Type EndPlayReason)
+{
+	// If it hasn't already happened, mark the world as starting to tear down even if it did not fully start play
+	if (!bIsTearingDown)
+	{
+		BeginTearingDown();
+	}
+
+	if (!HasBegunPlay())
+	{
+		// Ignore requests on worlds that did not fully start play, such as test worlds with no game mode
+		return false;
+	}
+
+	for (FActorIterator ActorIt(this); ActorIt; ++ActorIt)
+	{
+		ActorIt->RouteEndPlay(EndPlayReason);
+	}
+
+	SetBegunPlay(false);
+
+	return true;
+}
+
 bool UWorld::IsNavigationRebuilt() const
 {
 	return GetNavigationSystem() == NULL || GetNavigationSystem()->IsNavigationBuilt(GetWorldSettings());
@@ -5350,6 +5379,11 @@ void UWorld::CleanupWorld(bool bSessionEnded, bool bCleanupResources, UWorld* Ne
 		bool bIsStreamingSubWorld = PersistentLevel && PersistentLevel->OwningWorld != this;
 		UE_CLOG(!bIsStreamingSubWorld, LogWorld, Warning, TEXT("UWorld::CleanupWorld called twice or called without InitWorld called first (%s)"), *GetName());
 	}
+	if (HasBegunPlay())
+	{
+		UE_LOG(LogWorld, Warning, TEXT("UWorld::CleanupWorld called on a world that has begun play, missing call to EndPlay (%s)"), *GetName());
+	}
+
 	const bool bWorldChanged = NewWorld != this;
 	CleanupWorldInternal(bSessionEnded, bCleanupResources, bWorldChanged);
 	bIsWorldInitialized = false;
@@ -5385,6 +5419,7 @@ void UWorld::CleanupWorldInternal(bool bSessionEnded, bool bCleanupResources, bo
 	if(FPhysScene* CurrPhysicsScene = GetPhysicsScene())
 	{
 		CurrPhysicsScene->WaitPhysScenes();
+		// @TODO: This function is misnamed for when it is called, cleanup is called after end play
 		CurrPhysicsScene->OnWorldEndPlay();
 	}
 

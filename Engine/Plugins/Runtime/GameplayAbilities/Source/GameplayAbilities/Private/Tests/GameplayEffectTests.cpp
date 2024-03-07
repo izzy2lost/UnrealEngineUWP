@@ -774,6 +774,7 @@ protected:
 		}
 		GFrameCounter = InitialFrameCounter;
 
+		World->EndPlay(EEndPlayReason::Quit);
 		GEngine->DestroyWorldContext(World);
 		World->DestroyWorld(false);
 

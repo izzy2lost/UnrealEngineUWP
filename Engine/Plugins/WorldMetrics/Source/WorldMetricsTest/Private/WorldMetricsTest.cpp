@@ -611,6 +611,7 @@ static void ScopedWorldTest(EWorldType::Type WorldType, TFunctionRef<void(UWorld
 
 	WorldTest(World);
 
+	World->EndPlay(EEndPlayReason::Quit);
 	GEngine->DestroyWorldContext(World);
 	World->DestroyWorld(bInformEngineOfWorld);
 }

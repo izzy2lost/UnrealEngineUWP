@@ -1161,10 +1161,10 @@ public:
 	UE_DEPRECATED(5.4, "Public access to bBegunPlay is deprecated. Please update your code to use the public accessors GetBegunPlay() & SetBegunPlay().")
 	uint8 bBegunPlay:1;
 
-	/** Set whether BeginPlay has been called on actors */
+	/** Sets whether BeginPlay has been called for actors in the world. Use BeginPlay and EndPlay below to start the process of changing this. */
 	void SetBegunPlay(bool bHasBegunPlay);
 
-	/** Get whether BeginPlay has been called on actors */
+	/** Returns true if BeginPlay has been called on actors in the world (and EndPlay has not) */
 	bool GetBegunPlay() const;
 
 	DECLARE_EVENT_OneParam(UWorld, FOnBeginPlay, bool);
@@ -3249,9 +3249,6 @@ public:
 	/** Handle Exec/Console Commands related to the World */
 	bool Exec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar=*GLog );
 
-	/** Mark the world as being torn down */
-	void BeginTearingDown();
-
 private:
 	/** Internal version of CleanupWorld. */
 	void CleanupWorldInternal(bool bSessionEnded, bool bCleanupResources, bool bWorldChanged);
@@ -3547,10 +3544,26 @@ public:
 	 */
 	void InitializeActorsForPlay(const FURL& InURL, bool bResetTime = true, FRegisterComponentContext* Context = nullptr);
 
+	/** 
+	 * Mark a world that was initialized for play as starting to tear down in preparation for cleanup.
+	 * This will block the creation of new gameplay objects.
+	 */
+	void BeginTearingDown();
+
 	/**
-	 * Start gameplay. This will cause the game mode to transition to the correct state and call BeginPlay on all actors
+	 * Start gameplay. This will cause the game mode to transition to the correct state and call BeginPlay on all actors.
+	 * If this is called on a world with no game mode, it will execute world callbacks but will not set BegunPlay to true.
+	 * On networked clients, actor BeginPlay and SetBegunPlay are called from the game state replication.
 	 */
 	void BeginPlay();
+
+	/**
+	 * Tries to stop gameplay by sending EndPlay to all actors in the world.
+	 * This will call BeginTearingDown if it has not been called yet.
+	 * @param EndPlayReason The reason that play is ending
+	 * @return true if this actually stopped play (BegunPlay will return false)
+	 */
+	bool EndPlay(EEndPlayReason::Type EndPlayReason);
 
 	/** 
 	 * Looks for a PlayerController that was being swapped by the given NetConnection and, if found, destroys it
@@ -4191,6 +4204,7 @@ public:
 	// Global Callback after actors have been initialized (on any world)
 	static UWorld::FOnWorldInitializedActors OnWorldInitializedActors;
 
+	// Global Callback when an initialized world begins to tear down before cleanup
 	static FWorldEvent OnWorldBeginTearDown;
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSeamlessTravelStart, UWorld*, const FString&);

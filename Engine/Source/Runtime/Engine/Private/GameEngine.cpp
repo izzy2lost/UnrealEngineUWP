@@ -1254,11 +1254,8 @@ void UGameEngine::PreExit()
 
 			// Make sure there are no pending visibility requests.
 			World->FlushLevelStreaming(EFlushLevelStreamingType::Visibility);
-						
-			for (FActorIterator ActorIt(World); ActorIt; ++ActorIt)
-			{
-				ActorIt->RouteEndPlay(EEndPlayReason::Quit);
-			}
+			
+			World->EndPlay(EEndPlayReason::Quit);
 
 			if (World->GetGameInstance() != nullptr)
 			{

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Misc/AutomationTest.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
 
 class AActor;
 class SWindow;
@@ -21,6 +22,54 @@ ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogEngineAutomationTests, Log, All);
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEditorAutomationMapLoad, const FString&, bool, FString*);
 
 #endif
+
+/** 
+ * Utility class for creating and destroying a temporary test world, can be used for automation or performance testing.
+ * This can be used with any test framework but has utility functions for FAutomationTestBase.
+ */
+struct FTestWorldWrapper
+{
+	/** This will properly shut down and destroy the test world as needed */
+	ENGINE_API virtual ~FTestWorldWrapper();
+
+	/** Gets the wrapped world, can be null */
+	inline UWorld* GetTestWorld() const {return TestWorld;}
+
+	/** Creates a world of the appropriate world type, returns false on failure */
+	ENGINE_API virtual bool CreateTestWorld(EWorldType::Type WorldType);
+
+	/** Destroys the test world and handles any required cleanup */
+	ENGINE_API virtual bool DestroyTestWorld(bool bForceGarbageCollect);
+
+	/** Starts play in the test world to simulate gameplay */
+	ENGINE_API virtual bool BeginPlayInTestWorld();
+
+	/** Ticks the test world for one frame, defaults to 100 fps */
+	ENGINE_API virtual bool TickTestWorld(float DeltaTime = 0.01f);
+
+	/** Stops play properly */
+	ENGINE_API virtual bool EndPlayInTestWorld();
+
+	/** Registers an error message and marks test as failed, called by the functions above */
+	ENGINE_API virtual void ReportFailure(const TCHAR* ErrorMessage);
+
+	/** Clears any failures and initial state */
+	ENGINE_API virtual void ClearFailureState();
+
+	/** Returns true if there are any errors that should stop further execution */
+	ENGINE_API virtual bool HasFailed() const;
+
+	/** Gets the actual error messages for reporting to the automation framework */
+	ENGINE_API virtual void AppendErrorMessages(TArray<FString>& OutErrorMessages) const;
+
+	/** Reports error messages to a passed in automation test */
+	ENGINE_API virtual void ForwardErrorMessages(FAutomationTestBase* AutomationTest) const;
+
+protected:
+	UWorld* TestWorld = nullptr;
+	uint64 CachedFrameCounter = 0;
+	TArray<FString> FailureErrors;
+};
 
 /** Common automation functions */
 namespace AutomationCommon

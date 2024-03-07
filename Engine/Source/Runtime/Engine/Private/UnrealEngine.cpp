@@ -15237,10 +15237,7 @@ bool UEngine::LoadMap( FWorldContext& WorldContext, FURL URL, class UPendingNetG
 			}
 		}
 
-		for (FActorIterator ActorIt(WorldContext.World()); ActorIt; ++ActorIt)
-		{
-			ActorIt->RouteEndPlay(EEndPlayReason::LevelTransition);
-		}
+		WorldContext.World()->EndPlay(EEndPlayReason::LevelTransition);
 
 		// Do this after destroying pawns/playercontrollers, in case that spawns new things (e.g. dropped weapons)
 		WorldContext.World()->CleanupWorld();

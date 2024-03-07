@@ -1941,21 +1941,21 @@ void AttachmentTest_AttachWhenAttached(UWorld* World, FAutomationTestBase* Test)
 
 bool FAutomationAttachment::RunTest(const FString& Parameters)
 {
-	UWorld *World = UWorld::CreateWorld(EWorldType::Game, false);
-	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
-	WorldContext.SetCurrentWorld(World);
+	// This will get cleaned up when it leaves scope
+	FTestWorldWrapper WorldWrapper;
+	WorldWrapper.CreateTestWorld(EWorldType::Game);
+	UWorld* World = WorldWrapper.GetTestWorld();
 
-	FURL URL;
-	World->InitializeActorsForPlay(URL);
-	World->BeginPlay();
+	if (World)
+	{
+		WorldWrapper.BeginPlayInTestWorld();
+		AttachmentTest_AttachWhenNotAttached(World, this);
+		AttachmentTest_AttachWhenAttached(World, this);
+		WorldWrapper.ForwardErrorMessages(this);
 
-	AttachmentTest_AttachWhenNotAttached(World, this);
-	AttachmentTest_AttachWhenAttached(World, this);
-
-	GEngine->DestroyWorldContext(World);
-	World->DestroyWorld(false);
-
-	return true;
+		return !HasAnyErrors();
+	}
+	return false;
 }
 
 #endif //WITH_DEV_AUTOMATION_TESTS

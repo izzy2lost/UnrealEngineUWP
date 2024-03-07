@@ -4,6 +4,7 @@
 #include "Misc/AutomationTest.h"
 #include "TimerManager.h"
 #include "Engine/Engine.h"
+#include "Tests/AutomationCommon.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTimerManagerTest, "System.Engine.TimerManager", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -265,24 +266,25 @@ bool TimerManagerTest_LoopingTimers_DifferentHandles(UWorld* World, FAutomationT
 
 bool FTimerManagerTest::RunTest(const FString& Parameters)
 {
-	UWorld *World = UWorld::CreateWorld(EWorldType::Game, false);
-	FWorldContext &WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
-	WorldContext.SetCurrentWorld(World);
-	
-	FURL URL;
-	World->InitializeActorsForPlay(URL);
-	World->BeginPlay();
+	// This will get cleaned up when it leaves scope
+	FTestWorldWrapper WorldWrapper;
+	WorldWrapper.CreateTestWorld(EWorldType::Game);
+	UWorld* World = WorldWrapper.GetTestWorld();
 
-	TimerManagerTest_InvalidTimers(World, this);
-	TimerManagerTest_MissingTimers(World, this);
-	TimerManagerTest_ValidTimer_HandleWithDelegate(World, this);
-	TimerManagerTest_ValidTimer_HandleLoopingSetDuringExecute(World, this);
-	TimerManagerTest_LoopingTimers_DifferentHandles(World, this);
+	if (World)
+	{
+		WorldWrapper.BeginPlayInTestWorld();
+		TimerManagerTest_InvalidTimers(World, this);
+		TimerManagerTest_MissingTimers(World, this);
+		TimerManagerTest_ValidTimer_HandleWithDelegate(World, this);
+		TimerManagerTest_ValidTimer_HandleLoopingSetDuringExecute(World, this);
+		TimerManagerTest_LoopingTimers_DifferentHandles(World, this);
+		WorldWrapper.ForwardErrorMessages(this);
 
-	GEngine->DestroyWorldContext(World);
-	World->DestroyWorld(false);
+		return !HasAnyErrors();
+	}
 
-	return true;
+	return false;
 }
 
 
