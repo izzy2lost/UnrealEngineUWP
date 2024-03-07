@@ -425,6 +425,8 @@ public:
 	 */
 	SLATE_API void AddWrapperSubMenu( const FText& InMenuLabel, const FText& InToolTip, const TSharedPtr<SWidget>& InSubMenu, const FSlateIcon& InIcon );
 
+	SLATE_API void SetSearchable(bool bIsSearchable) { bSearchable = bIsSearchable; };
+
 private:
 	/** Current extension hook name for sections to determine where sections begin and end */
 	FName CurrentSectionExtensionHook;

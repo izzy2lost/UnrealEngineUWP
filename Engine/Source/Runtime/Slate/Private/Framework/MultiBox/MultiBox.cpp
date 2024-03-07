@@ -874,18 +874,14 @@ bool SMultiBoxWidget::GetSearchable() const
 /** Creates the SearchTextWidget if the MultiBox has requested one */
 void SMultiBoxWidget::CreateSearchTextWidget()
 {
-	if (!MultiBox->bHasSearchWidget)
+	if (!MultiBox->bHasSearchWidget || !bSearchable)
 	{
 		return;
 	}
 
-	const FText SearchHint = ShouldShowMenuSearchField()
-							   ? LOCTEXT("SearchHintStartTyping", "Start typing to search")
-							   : LOCTEXT("SearchHint", "Search");
-
 	SearchTextWidget =
 		SNew(SSearchBox)
-			.HintText(SearchHint)
+			.HintText(LOCTEXT("SearchHintStartTyping", "Start typing to search"))
 			.SelectAllTextWhenFocused(false)
 			.OnTextChanged(this, &SMultiBoxWidget::OnFilterTextChanged);
 
@@ -913,7 +909,6 @@ void SMultiBoxWidget::OnFilterTextChanged(const FText& InFilterText)
 	{
 		if (SearchTextWidget.IsValid() && SearchBlockWidget.IsValid())
 		{
-			// We only have to do this if we're not always showing the search widget.
 			if (!ShouldShowMenuSearchField())
 			{
 				// Make the search box visible and focused
@@ -1650,7 +1645,6 @@ void SMultiBoxWidget::BeginSearch(const TCHAR InChar)
 
 		if (SearchTextWidget.IsValid() && SearchBlockWidget.IsValid())
 		{
-			// We only have to do this if we're not always showing the search widget.
 			if (!ShouldShowMenuSearchField())
 			{
 				// Make the search box visible and focused

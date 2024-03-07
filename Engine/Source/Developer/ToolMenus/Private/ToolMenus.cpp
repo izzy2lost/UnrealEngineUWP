@@ -1347,6 +1347,8 @@ TSharedRef<SWidget> UToolMenus::GenerateToolbarComboButtonMenu(TWeakObjectPtr<UT
 
 void UToolMenus::PopulateMenuBuilder(FMenuBuilder& MenuBuilder, UToolMenu* MenuData)
 {
+	MenuBuilder.SetSearchable(MenuData->bSearchable);
+
 	const bool bIsEditing = MenuData->IsEditing();
 	if (GetEditMenusMode() && !bIsEditing && EditMenuDelegate.IsBound())
 	{
