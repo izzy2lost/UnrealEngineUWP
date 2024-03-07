@@ -863,6 +863,7 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 	FSceneTextures& SceneTextures,
 	FInstanceCullingManager& InstanceCullingManager,
 	const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+	FDynamicShadowsTaskData* DynamicShadowsTaskData,
 	FRDGTextureRef LightingChannelsTexture,
 	bool bHasLumenLights,
 	FAsyncLumenIndirectLightingOutputs& Outputs)
@@ -884,6 +885,21 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 	// Decals may modify GBuffers so they need to be done first. Can decals read velocities and/or custom depth? If so, they need to be rendered earlier too.
 	CompositionLighting.ProcessAfterBasePass(GraphBuilder, InstanceCullingManager, FCompositionLighting::EProcessAfterBasePassMode::OnlyBeforeLightingDecals);
 	Outputs.bHasDrawnBeforeLightingDecals = true;
+
+	if (DynamicShadowsTaskData)
+	{
+		for (const FViewInfo& View : Views)
+		{
+			const FPerViewPipelineState& ViewPipelineState = GetViewPipelineState(View);
+
+			// Write shadow GPU instance data prior to launching async compute tasks to avoid the early join back to graphics.
+			if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen)
+			{
+				FinishDynamicShadowMeshPassSetup(GraphBuilder, DynamicShadowsTaskData);
+				break;
+			}
+		}
+	}
 
 	LLM_SCOPE_BYTAG(Lumen);
 	RDG_EVENT_SCOPE(GraphBuilder, "DiffuseIndirectAndAO");

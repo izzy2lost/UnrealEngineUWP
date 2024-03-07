@@ -2565,6 +2565,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				SceneTextures,
 				InstanceCullingManager,
 				LumenFrameTemporaries,
+				InitViewTaskDatas.DynamicShadows,
 				LightingChannelsTexture,
 				/*bHasLumenLights*/ false,
 				AsyncLumenIndirectLightingOutputs);

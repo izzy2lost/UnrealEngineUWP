@@ -666,6 +666,7 @@ private:
 		FSceneTextures& SceneTextures,
 		FInstanceCullingManager& InstanceCullingManager,
 		const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+		FDynamicShadowsTaskData* DynamicShadowsTaskData,
 		FRDGTextureRef LightingChannelsTexture,
 		bool bHasLumenLights,
 		FAsyncLumenIndirectLightingOutputs& Outputs);
