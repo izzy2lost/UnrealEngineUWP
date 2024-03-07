@@ -260,7 +260,6 @@ public:
 				return SNew(SBox)
 					.HAlign(HAlign_Center)
 					.VAlign(VAlign_Center)
-					.Visibility(this, &SLiveLinkClientPanelSubjectRow::GetVisibilityFromReadOnly)
 					[
 						SNew(STextBlock)
 						.Font(FAppStyle::Get().GetFontStyle("FontAwesome.8"))
