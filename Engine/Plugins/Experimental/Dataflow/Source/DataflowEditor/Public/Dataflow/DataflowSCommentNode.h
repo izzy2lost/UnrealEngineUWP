@@ -97,4 +97,5 @@ public:
 	FName NodeName;
 	FVector2D Size;
 	FLinearColor Color;
+	int32 FontSize;
 };

@@ -113,6 +113,7 @@ UEdGraphNode* FAssetSchemaAction_Dataflow_DuplicateCommentNode_DataflowEdNode::P
 	CommentTemplate->NodeHeight = CommentNodeToDuplicate->NodeHeight;
 	CommentTemplate->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
 	CommentTemplate->CommentColor = CommentNodeToDuplicate->CommentColor;
+	CommentTemplate->FontSize = CommentNodeToDuplicate->FontSize;
 
 	CommentTemplate->NodeComment = NewNodeName;
 
@@ -164,6 +165,7 @@ UEdGraphNode* FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode::Perfo
 	CommentTemplate->NodeHeight = Size.Y;
 	CommentTemplate->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
 	CommentTemplate->CommentColor = Color;
+	CommentTemplate->FontSize = FontSize;
 
 	CommentTemplate->NodeComment = NewNodeName;
 
