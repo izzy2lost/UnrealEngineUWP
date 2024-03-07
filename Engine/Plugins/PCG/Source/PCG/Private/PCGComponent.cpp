@@ -891,52 +891,48 @@ void UPCGComponent::CleanupLocalImmediate(bool bRemoveComponents, bool bCleanupL
 		ensure(PCGHelpers::GetGenerationGridSizes(GetGraph(), Subsystem->GetPCGWorldActor(), GridSizes, bHasUnbounded));
 	}
 
-	// Cleanup original component if non-partitioned, or if it has nodes that will execute at the Unbounded level.
-	if (!IsPartitioned() || bHasUnbounded)
+	// Cancels generation of this component if there is an ongoing generation in progress.
+	CancelGeneration();
+
+	TSet<TSoftObjectPtr<AActor>> ActorsToDelete;
+
+	if (!bRemoveComponents && UPCGManagedResource::DebugForcePurgeAllResourcesOnGenerate())
 	{
-		// Cancels generation of this component if there is an ongoing generation in progress.
-		CancelGeneration();
+		bRemoveComponents = true;
+	}
 
-		TSet<TSoftObjectPtr<AActor>> ActorsToDelete;
-
-		if (!bRemoveComponents && UPCGManagedResource::DebugForcePurgeAllResourcesOnGenerate())
+	{
+		FScopeLock ResourcesLock(&GeneratedResourcesLock);
+		check(!GeneratedResourcesInaccessible);
+		for (int32 ResourceIndex = GeneratedResources.Num() - 1; ResourceIndex >= 0; --ResourceIndex)
 		{
-			bRemoveComponents = true;
-		}
+			// Note: resources can be null here in some loading + bp object cases
+			UPCGManagedResource* Resource = GeneratedResources[ResourceIndex];
 
-		{
-			FScopeLock ResourcesLock(&GeneratedResourcesLock);
-			check(!GeneratedResourcesInaccessible);
-			for (int32 ResourceIndex = GeneratedResources.Num() - 1; ResourceIndex >= 0; --ResourceIndex)
+			PCGGeneratedResourcesLogging::LogCleanupLocalImmediateResource(this, Resource);
+
+			if (!Resource || Resource->Release(bRemoveComponents, ActorsToDelete))
 			{
-				// Note: resources can be null here in some loading + bp object cases
-				UPCGManagedResource* Resource = GeneratedResources[ResourceIndex];
-
-				PCGGeneratedResourcesLogging::LogCleanupLocalImmediateResource(this, Resource);
-
-				if (!Resource || Resource->Release(bRemoveComponents, ActorsToDelete))
+				if (Resource)
 				{
-					if (Resource)
-					{
 #if WITH_EDITOR
-						if (Resource->IsMarkedTransientOnLoad())
-						{
-							LoadedPreviewResources.Add(Resource);
-						}
-						else
-						{
-							Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-						}
-#endif
+					if (Resource->IsMarkedTransientOnLoad())
+					{
+						LoadedPreviewResources.Add(Resource);
 					}
-
-					GeneratedResources.RemoveAtSwap(ResourceIndex);
+					else
+					{
+						Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+					}
+#endif
 				}
+
+				GeneratedResources.RemoveAtSwap(ResourceIndex);
 			}
 		}
-
-		UPCGActorHelpers::DeleteActors(GetWorld(), ActorsToDelete.Array());
 	}
+
+	UPCGActorHelpers::DeleteActors(GetWorld(), ActorsToDelete.Array());
 
 	// If bRemoveComponents is true, it means we are in a "real" cleanup, not a pre-cleanup before a generate.
 	// So call PostCleanup in this case.

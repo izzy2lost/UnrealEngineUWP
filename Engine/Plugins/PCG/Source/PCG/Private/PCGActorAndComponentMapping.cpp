@@ -719,19 +719,11 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 
 	if (const APCGWorldActor* WorldActor = PCGSubsystem->GetPCGWorldActor())
 	{
-		// Get the generation grids as a bitflag to compare against.
-		uint32 ValidGrids = static_cast<uint32>(EPCGHiGenGrid::Uninitialized);
-
 		bool bHasUnbounded = false;
 		PCGHiGenGrid::FSizeArray GridSizes;
 		ensure(PCGHelpers::GetGenerationGridSizes(InComponent->GetGraph(), WorldActor, GridSizes, bHasUnbounded));
 
-		for (uint32 GridSize : GridSizes)
-		{
-			ValidGrids |= GridSize;
-		}
-
-		auto UpdateMapping = [this, InComponent, &Bounds, WorldActor, ValidGrids](bool bIsRuntimeGenerated)
+		auto UpdateMapping = [this, InComponent, &Bounds, WorldActor, &GridSizes](bool bIsRuntimeGenerated)
 		{
 			TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>>& Map = bIsRuntimeGenerated ? ComponentToRuntimeGenPartitionActorsMap : ComponentToPartitionActorsMap;
 			TSet<TObjectPtr<APCGPartitionActor>> RemovedActors;
@@ -748,7 +740,7 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 				}
 
 				TSet<TObjectPtr<APCGPartitionActor>> NewMapping;
-				ForAllIntersectingPartitionActors(Bounds, [&NewMapping, InComponent, WorldActor, ValidGrids, bIsRuntimeGenerated](APCGPartitionActor* Actor)
+				ForAllIntersectingPartitionActors(Bounds, [&NewMapping, InComponent, WorldActor, &GridSizes, bIsRuntimeGenerated](APCGPartitionActor* Actor)
 				{
 					if (!Actor)
 					{
@@ -761,7 +753,7 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 					// Only add a graph instance to partition actors that are:
 					// * In the same execution domain as the original component.
 					// * On a valid grid for the original component.
-					if (bSameDomain && (ValidGrids & Actor->GetPCGGridSize()))
+					if (bSameDomain && GridSizes.Contains(Actor->GetPCGGridSize()))
 					{
 						Actor->AddGraphInstance(InComponent);
 						NewMapping.Add(Actor);
