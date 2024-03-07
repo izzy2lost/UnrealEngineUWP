@@ -274,6 +274,15 @@ namespace AutomationTool
 			return new string[] { };
 		}
 
+		/// <summary>
+		/// Return a list of versions that will be used to create "fake" FileSource objects which are used
+		/// for flash/system updates where no file downloads are needed
+		/// </summary>
+		public virtual string[] GetCodeSpecifiedDeviceSoftwareUpdateVersions()
+		{
+			return new string[] { };
+		}
+
 		public virtual bool GetSDKInstallCommand(out string Command, out string Params, ref bool bRequiresPrivilegeElevation, ref bool bCreateWindow, ITurnkeyContext TurnkeyContext)
 		{
 			Command = null;
