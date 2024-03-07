@@ -81,45 +81,50 @@ void FPCGEditableUserParameterDetails::CustomizeDetails(IDetailLayoutBuilder& De
 					IDetailPropertyRow* DetailPropertyRow = CategoryBuilder.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(*UserParameters), CachedPropertyDesc.Name);
 					TSharedPtr<IPropertyHandle> RowPropertyHandle = DetailPropertyRow->GetPropertyHandle();
 
+					FSimpleDelegate OnPreChange = FSimpleDelegate::CreateLambda([this]()
+					{
+						check(GEditor);
+						if (GEditor->CanTransact())
+						{
+							GEditor->BeginTransaction(LOCTEXT("EditGraphParameter", "Edit Graph Parameter"));
+						}
+
+						if (CachedGraphInterface.IsValid())
+						{
+							CachedGraphInterface->Modify();
+						}
+					});
+
+					FSimpleDelegate OnPostChange = FSimpleDelegate::CreateLambda([this]()
+					{
+						check(GEditor);
+						if (CachedGraphInterface.IsValid())
+						{
+							const FInstancedPropertyBag* CurrentUserParameters = CachedGraphInterface->GetMutableUserParametersStruct_Unsafe();
+							if (CurrentUserParameters && CurrentUserParameters->FindPropertyDescByName(CachedPropertyDesc.Name))
+							{
+								CachedGraphInterface->OnGraphParametersChanged(EPCGGraphParameterEvent::ValueModifiedLocally, CachedPropertyDesc.Name);
+							}
+							else if (GEditor->IsTransactionActive())
+							{
+								GEditor->CancelTransaction(0);
+								return;
+							}
+						}
+
+						if (GEditor->IsTransactionActive())
+						{
+							GEditor->EndTransaction();
+						}
+					});
+
 					if (RowPropertyHandle.IsValid())
 					{
-						RowPropertyHandle->SetOnPropertyValuePreChange(FSimpleDelegate::CreateLambda([this]()
-						{
-							check(GEditor);
-							if (GEditor->CanTransact())
-							{
-								GEditor->BeginTransaction(LOCTEXT("EditGraphParameter", "Edit Graph Parameter"));
-							}
-
-							// TODO: Structs and Arrays don't transact
-							if (CachedGraphInterface.IsValid())
-							{
-								CachedGraphInterface->Modify();
-							}
-						}));
-
-						RowPropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([this]()
-						{
-							check(GEditor);
-							if (CachedGraphInterface.IsValid())
-							{
-								const FInstancedPropertyBag* CurrentUserParameters = CachedGraphInterface->GetMutableUserParametersStruct_Unsafe();
-								if (CurrentUserParameters && CurrentUserParameters->FindPropertyDescByName(CachedPropertyDesc.Name))
-								{
-									CachedGraphInterface->OnGraphParametersChanged(EPCGGraphParameterEvent::ValueModifiedLocally, CachedPropertyDesc.Name);
-								}
-								else if (GEditor->IsTransactionActive())
-								{
-									GEditor->CancelTransaction(0);
-									return;
-								}
-							}
-
-							if (GEditor->IsTransactionActive())
-							{
-								GEditor->EndTransaction();
-							}
-						}));
+						RowPropertyHandle->SetOnPropertyValuePreChange(OnPreChange);
+						RowPropertyHandle->SetOnPropertyValueChanged(OnPostChange);
+						// We also need to react to child property changes, if the parameter is a struct or an array.
+						RowPropertyHandle->SetOnChildPropertyValuePreChange(OnPreChange);
+						RowPropertyHandle->SetOnChildPropertyValueChanged(OnPostChange);
 					}
 				}
 			}
