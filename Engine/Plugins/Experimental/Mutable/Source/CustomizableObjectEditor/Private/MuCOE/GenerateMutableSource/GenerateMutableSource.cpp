@@ -611,20 +611,27 @@ UTexture2D* FindReferenceImage(const UEdGraphPin* Pin, FMutableGraphGenerationCo
 
 	else if (const UCustomizableObjectNodeTextureProject* TypedNodeProj = Cast<UCustomizableObjectNodeTextureProject>(Node))
 	{
-		int TexIndex = -1;// TypedNodeProj->OutputPins.Find((UEdGraphPin*)Pin);
-		for (int32 i = 0; i < TypedNodeProj->GetNumOutputs(); ++i)
+		if (TypedNodeProj->ReferenceTexture)
 		{
-			if (TypedNodeProj->OutputPins(i) == Pin)
-			{
-				TexIndex = i;
-			}
+			Result = TypedNodeProj->ReferenceTexture;
 		}
-
-		check(TexIndex >= 0 && TexIndex < TypedNodeProj->GetNumTextures());
-
-		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeProj->TexturePins(TexIndex)))
+		else
 		{
-			Result = FindReferenceImage(ConnectedPin, GenerationContext);
+			int TexIndex = -1;// TypedNodeProj->OutputPins.Find((UEdGraphPin*)Pin);
+			for (int32 i = 0; i < TypedNodeProj->GetNumOutputs(); ++i)
+			{
+				if (TypedNodeProj->OutputPins(i) == Pin)
+				{
+					TexIndex = i;
+				}
+			}
+
+			check(TexIndex >= 0 && TexIndex < TypedNodeProj->GetNumTextures());
+
+			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeProj->TexturePins(TexIndex)))
+			{
+				Result = FindReferenceImage(ConnectedPin, GenerationContext);
+			}
 		}
 	}
 
