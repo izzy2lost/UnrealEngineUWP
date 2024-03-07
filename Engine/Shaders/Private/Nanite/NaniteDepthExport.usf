@@ -20,6 +20,7 @@ uint4 DepthExportConfig;
 uint4 ViewRect;
 uint bWriteCustomStencil;
 uint MeshPassIndex;
+uint RegularMaterialRasterBinCount;
 
 // Requirements:
 // COMPILER_SUPPORTS_TO_SCALAR_MEMORY
@@ -27,25 +28,26 @@ uint MeshPassIndex;
 // COMPILER_SUPPORTS_WAVE_MINMAX
 // PLATFORM_SUPPORTS_HTILE_LOOKUP
 
-Texture2D<UlongType>		VisBuffer64;
+Texture2D<UlongType>					VisBuffer64;
 
-RWStructuredBuffer<uint>	SceneHTile;
-RWTexture2D<float>			SceneDepth;
-RWTexture2D<uint>			SceneStencil;
+RWStructuredBuffer<uint>				SceneHTile;
+RWTexture2D<float>						SceneDepth;
+RWTexture2D<uint>						SceneStencil;
 
-RWTexture2D<float4>			Velocity;
+RWTexture2D<float4>						Velocity;
 
 #if SHADING_MASK_EXPORT
-RWTexture2D<uint>			ShadingMask;
+RWTexture2D<uint>						ShadingMask;
+#endif
+StructuredBuffer<FNaniteRasterBinMeta>	RasterBinMeta;
+
+#if MATERIAL_DEPTH_EXPORT
+RWStructuredBuffer<uint>				MaterialHTile;
+RWTexture2D<float>						MaterialDepth;
 #endif
 
 #if MATERIAL_DEPTH_EXPORT
-RWStructuredBuffer<uint>	MaterialHTile;
-RWTexture2D<float>			MaterialDepth;
-#endif
-
-#if MATERIAL_DEPTH_EXPORT
-ByteAddressBuffer			MaterialDepthTable;
+ByteAddressBuffer						MaterialDepthTable;
 #endif
 
 uint EncodeTileMinMaxDepth(float MinDepth, float MaxDepth, uint PlatformConfig)
@@ -180,8 +182,18 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 				}
 
 			#if VELOCITY_EXPORT
-				// Don't output velocity here for WPO clusters, as their velocity must be calculated in the base pass.
-				const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
+				// Don't output velocity here for WPO clusters, as their velocity must be calculated in the base pass
+				bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
+				const bool bSecondaryRasterBin = !bWPOEnabled;
+		
+				if (bWPOEnabled)
+				{
+					// The cluster may have WPO enabled, but we want to know if WPO is enabled by the material to decide to output velocity
+					const uint RasterBinIndex = GetMaterialRasterBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin);
+					const FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(RasterBinMeta[RasterBinIndex].MaterialFlags);
+					bWPOEnabled &= MaterialFlags.bWorldPositionOffset;
+				}
+
 				const bool bOutputVelocity = !bWPOEnabled && (GetPrimitiveData(InstanceData.PrimitiveId).Flags & PRIMITIVE_SCENE_DATA_FLAG_OUTPUT_VELOCITY) != 0;
 				if (bOutputVelocity)
 				{
@@ -191,7 +203,6 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 					const FDFVector3 WorldPos  = SvPositionToWorld(float4(PixelPos.xy, asfloat(DepthInt), 1.0f));
 					const float3 LocalPos = DFMultiplyDemote(WorldPos, InstanceData.WorldToLocal);
 
-					// TODO: PROG_RASTER - this is incorrect for WPO. Will likely need to be output by the base pass
 					const float3 WorldPosPrev = mul(float4(LocalPos, 1), InstanceDynamicData.PrevLocalToTranslatedWorld).xyz;
 					const float4 ScreenPosPrev = mul(float4(WorldPosPrev.xyz, 1), NaniteView.PrevTranslatedWorldToClip);
 
