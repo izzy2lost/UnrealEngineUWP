@@ -516,7 +516,7 @@ void FSlateDrawElement::MakeGradient( FSlateWindowElementList& ElementList, uint
 
 	FSlateGradientElement& Element = ElementList.AddUninitialized<EElementType::ET_Gradient>();
 
-	Element.SetGradient(InGradientStops, InGradientType, CornerRadius);
+	Element.SetGradient(MoveTemp(InGradientStops), InGradientType, CornerRadius);
 
 	Element.Init(ElementList, EElementType::ET_Gradient, InLayer, PaintGeometry, InDrawEffects);
 }
