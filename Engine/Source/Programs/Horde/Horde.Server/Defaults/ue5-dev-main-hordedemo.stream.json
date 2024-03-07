@@ -224,7 +224,7 @@
 				"-Target=Submit To Horde For UGS",
 				"-set:UProjectPath=$(ProjectPath)",
 				"-set:EditorTarget=$(EditorTarget)",
-				"-set:PreferredAgent=IncrementalCompileWin64;CompileWin64;Win64"
+				"-set:PreferredAgent=IncrementalWin64;CompileWin64;Win64"
 			]
 		},
 		{
