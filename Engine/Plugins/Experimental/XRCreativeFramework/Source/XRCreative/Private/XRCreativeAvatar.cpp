@@ -100,18 +100,6 @@ AXRCreativeAvatar::AXRCreativeAvatar(const FObjectInitializer& ObjectInitializer
 	ToolsComponent->SetPointerComponent(RightControllerPointer);
 
 	BaseEyeHeight = 0.0f;
-
-#if WITH_EDITOR
-	UXRCreativeEditorSettings* Settings = UXRCreativeEditorSettings::GetXRCreativeEditorSettings();
-	UE_LOG(LogXRCreative, Log, TEXT("Handedness: %s"), *UEnum::GetValueAsString(Settings->Handedness) );
-
-	if (Settings->Handedness == EXRCreativeHandedness::Left)
-	{
-		MenuWidget->SetupAttachment(RightControllerAim);
-		WidgetInteraction->SetupAttachment(LeftControllerAim);
-		ToolsComponent->SetPointerComponent(LeftControllerPointer);
-	}
-#endif
 }
 
 
@@ -142,8 +130,14 @@ void AXRCreativeAvatar::OnConstruction(const FTransform& InTransform)
 		// We're in editor, and the base class won't initialize our components, so do it manually.
 		ToolsComponent->InitializeComponent();
 	}
+	UXRCreativeEditorSettings* Settings = UXRCreativeEditorSettings::GetXRCreativeEditorSettings();
+	UE_LOG(LogXRCreative, Log, TEXT("Handedness: %s"), *UEnum::GetValueAsString(Settings->Handedness) );
+	
+	if (Settings->Handedness == EXRCreativeHandedness::Left)
+	{
+		ToolsComponent->SetPointerComponent(LeftControllerPointer);
+	}
 #endif
-
 	if (!IsTemplate())
 	{
 #if WITH_EDITOR
@@ -151,7 +145,6 @@ void AXRCreativeAvatar::OnConstruction(const FTransform& InTransform)
 #endif
 	}
 }
-
 
 void AXRCreativeAvatar::BeginDestroy()
 {
