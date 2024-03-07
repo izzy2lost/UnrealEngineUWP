@@ -37,6 +37,7 @@ export class DeviceHandler extends PollBase {
 
    clear() {
       super.stop();
+      this.loaded = false;
       this.devices = [];
       this.reservations = [];
       this.pools.clear();
@@ -84,7 +85,8 @@ export class DeviceHandler extends PollBase {
             });
 
          }
-
+         
+         this.loaded = true;         
          this.setUpdated();
 
       } catch (err) {
@@ -145,6 +147,7 @@ export class DeviceHandler extends PollBase {
       return this.devices.filter(d => !platformId || d.platformId === platformId);
    }
 
+   loaded = false;
 
    private devices: GetDeviceResponse[] = [];
 
@@ -415,7 +418,7 @@ export const DeviceEditor: React.FC<{ handler: DeviceHandler, deviceIn?: GetDevi
 
       <Stack style={{ padding: 8 }}>
          <Stack style={{ paddingBottom: 16 }}>
-            <Text variant="large" style={{ fontFamily: "Horde Open Sans SemiBold" }}>{state.title}</Text>
+            <Text variant="mediumPlus" style={{ fontFamily: "Horde Open Sans SemiBold" }}>{state.title}</Text>
          </Stack>
          <Stack tokens={{ childrenGap: 8 }} style={{ padding: 8 }}>
             <TextField label="Name" disabled={existing} defaultValue={device.name} onChange={(ev, value) => {

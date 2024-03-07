@@ -25,7 +25,7 @@ namespace Horde.Server.Tests.Artifacts
 			StreamId streamId = new StreamId("foo");
 
 			IArtifactCollection artifactCollection = ServiceProvider.GetRequiredService<IArtifactCollection>();
-			IArtifact artifact = await artifactCollection.AddAsync(new ArtifactName("default"), ArtifactType.StepOutput, null, streamId, 1, new string[] { "test1", "test2" }, null, AclScopeName.Root);
+			IArtifact artifact = await artifactCollection.AddAsync(new ArtifactName("default"), ArtifactType.StepOutput, null, streamId, 1, new string[] { "test1", "test2" }, AclScopeName.Root);
 
 			{
 				List<IArtifact> artifacts = await artifactCollection.FindAsync(streamId, keys: new[] { "test1" }).ToListAsync();
@@ -52,13 +52,14 @@ namespace Horde.Server.Tests.Artifacts
 			ArtifactExpirationService expirationService = ServiceProvider.GetRequiredService<ArtifactExpirationService>();
 
 			ArtifactType type = new ArtifactType("my-artifact");
+			UpdateConfig(config => config.ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepDays = 1 }));
 
 			await expirationService.StartAsync(CancellationToken.None);
 
 			StreamId streamId = new StreamId("foo");
 
 			IArtifactCollection artifactCollection = ServiceProvider.GetRequiredService<IArtifactCollection>();
-			IArtifact artifact = await artifactCollection.AddAsync(new ArtifactName("default"), type, null, streamId, 1, new string[] { "test1", "test2" }, clock.UtcNow + TimeSpan.FromHours(1.0), AclScopeName.Root);
+			IArtifact artifact = await artifactCollection.AddAsync(new ArtifactName("default"), type, null, streamId, 1, new string[] { "test1", "test2" }, AclScopeName.Root);
 
 			{
 				List<IArtifact> artifacts = await artifactCollection.FindAsync(streamId, keys: new[] { "test1" }).ToListAsync();
@@ -66,7 +67,7 @@ namespace Horde.Server.Tests.Artifacts
 				Assert.AreEqual(artifact.Id, artifacts[0].Id);
 			}
 
-			await clock.AdvanceAsync(TimeSpan.FromHours(2.0));
+			await clock.AdvanceAsync(TimeSpan.FromDays(2.0));
 
 			{
 				List<IArtifact> artifacts = await artifactCollection.FindAsync(streamId, keys: new[] { "test1" }).ToListAsync();
@@ -80,6 +81,7 @@ namespace Horde.Server.Tests.Artifacts
 			DateTime startTime = Clock.UtcNow;
 
 			ArtifactType type = new ArtifactType("my-artifact");
+			UpdateConfig(config => config.ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepDays = 1 }));
 
 			ArtifactExpirationService expirationService = ServiceProvider.GetRequiredService<ArtifactExpirationService>();
 
@@ -88,7 +90,7 @@ namespace Horde.Server.Tests.Artifacts
 			StreamId streamId = new StreamId("foo");
 
 			IArtifactCollection artifactCollection = ServiceProvider.GetRequiredService<IArtifactCollection>();
-			IArtifact artifact = await artifactCollection.AddAsync(new ArtifactName("default"), type, null, streamId, 1, new string[] { "test1", "test2" }, startTime + TimeSpan.FromHours(1.0), AclScopeName.Root);
+			IArtifact artifact = await artifactCollection.AddAsync(new ArtifactName("default"), type, null, streamId, 1, new string[] { "test1", "test2" }, AclScopeName.Root);
 
 			{
 				List<IArtifact> artifacts = await artifactCollection.FindAsync(streamId, keys: new[] { "test1" }).ToListAsync();
@@ -97,19 +99,77 @@ namespace Horde.Server.Tests.Artifacts
 			}
 
 			UpdateConfig(config => config.ArtifactTypes = new List<ArtifactTypeConfig> { new ArtifactTypeConfig { Type = type, KeepDays = 4 } });
-			await Clock.AdvanceAsync(TimeSpan.FromHours(2.0));
+			await Clock.AdvanceAsync(TimeSpan.FromDays(2.0));
 
 			{
 				List<IArtifact> artifacts = await artifactCollection.FindAsync(streamId, keys: new[] { "test1" }).ToListAsync();
 				Assert.AreEqual(1, artifacts.Count);
-				Assert.IsTrue(artifacts[0].ExpireAtUtc > Clock.UtcNow + TimeSpan.FromDays(3));
 			}
 
 			UpdateConfig(config => config.ArtifactTypes = new List<ArtifactTypeConfig> { new ArtifactTypeConfig { Type = type, KeepDays = 1 } });
-			await Clock.AdvanceAsync(TimeSpan.FromHours(24.0));
+			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
 			{
 				List<IArtifact> artifacts = await artifactCollection.FindAsync(streamId, keys: new[] { "test1" }).ToListAsync();
+				Assert.AreEqual(0, artifacts.Count);
+			}
+		}
+
+		[TestMethod]
+		public async Task ExpireCountAsync()
+		{
+			DateTime startTime = Clock.UtcNow;
+
+			ArtifactType type = new ArtifactType("my-artifact");
+			UpdateConfig(config => config.ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepCount = 4 }));
+
+			ArtifactExpirationService expirationService = ServiceProvider.GetRequiredService<ArtifactExpirationService>();
+
+			await expirationService.StartAsync(CancellationToken.None);
+
+			StreamId fooStreamId = new StreamId("foo");
+			StreamId barStreamId = new StreamId("bar");
+
+			IArtifactCollection artifactCollection = ServiceProvider.GetRequiredService<IArtifactCollection>();
+			for (int idx = 0; idx < 10; idx++)
+			{
+				await artifactCollection.AddAsync(new ArtifactName($"default-{idx}"), type, null, fooStreamId, 1, new string[] { "test1", "test2" }, AclScopeName.Root);
+			}
+			for (int idx = 0; idx < 10; idx++)
+			{
+				await artifactCollection.AddAsync(new ArtifactName($"default-{idx}"), type, null, barStreamId, 1, new string[] { "test1", "test2" }, AclScopeName.Root);
+			}
+
+			await Clock.AdvanceAsync(TimeSpan.FromDays(2.0));
+
+			{
+				List<IArtifact> artifacts = await artifactCollection.FindAsync(fooStreamId, keys: new[] { "test1" }).ToListAsync();
+				Assert.AreEqual(4, artifacts.Count);
+
+				for (int idx = 0; idx < 4; idx++)
+				{
+					Assert.AreEqual(new ArtifactName($"default-{9 - idx}"), artifacts[idx].Name);
+				}
+			}
+			{
+				List<IArtifact> artifacts = await artifactCollection.FindAsync(barStreamId, keys: new[] { "test1" }).ToListAsync();
+				Assert.AreEqual(4, artifacts.Count);
+
+				for (int idx = 0; idx < 4; idx++)
+				{
+					Assert.AreEqual(new ArtifactName($"default-{9 - idx}"), artifacts[idx].Name);
+				}
+			}
+
+			UpdateConfig(config => config.ArtifactTypes = new List<ArtifactTypeConfig> { new ArtifactTypeConfig { Type = type, KeepDays = 1 } });
+			await Clock.AdvanceAsync(TimeSpan.FromDays(2.0));
+
+			{
+				List<IArtifact> artifacts = await artifactCollection.FindAsync(fooStreamId, keys: new[] { "test1" }).ToListAsync();
+				Assert.AreEqual(0, artifacts.Count);
+			}
+			{
+				List<IArtifact> artifacts = await artifactCollection.FindAsync(barStreamId, keys: new[] { "test1" }).ToListAsync();
 				Assert.AreEqual(0, artifacts.Count);
 			}
 		}

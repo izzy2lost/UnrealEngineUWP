@@ -347,6 +347,7 @@ Name | Type | Description
 `parentId` | `string` | Tool id to nest this tool under
 `public` | `boolean` | Whether this tool should be exposed for download on a public endpoint without authentication
 `showInUgs` | `boolean` | Whether to show this tool for download in the UGS tools menu
+`showInDashboard` | `boolean` | Whether to show this tool for download in the dashboard
 `namespaceId` | `string` | Default namespace for new deployments of this tool
 `acl` | [`AclConfig`](#aclconfig) | Permissions for the tool
 

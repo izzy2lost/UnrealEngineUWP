@@ -461,7 +461,7 @@ namespace Horde.Server.Configuration
 			{
 				string? path = (string?)jsonNode;
 
-				Uri uri = ConfigType.CombinePaths(context.CurrentFile, path!);
+				Uri uri = ConfigType.CombinePaths(context.CurrentFile, context.ExpandMacros(path!));
 				IConfigFile file = await ReadFileAsync(uri, context, cancellationToken);
 
 				context.IncludeStack.Push(file);

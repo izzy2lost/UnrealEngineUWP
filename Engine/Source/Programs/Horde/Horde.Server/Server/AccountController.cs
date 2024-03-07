@@ -85,7 +85,7 @@ namespace Horde.Server.Server
 			return method switch
 			{
 				AuthMethod.Anonymous => AnonymousAuthHandler.AuthenticationScheme,
-				AuthMethod.Okta => OktaDefaults.AuthenticationScheme,
+				AuthMethod.Okta => OktaAuthHandler.AuthenticationScheme,
 				AuthMethod.OpenIdConnect => OpenIdConnectDefaults.AuthenticationScheme,
 				AuthMethod.Horde => CookieAuthenticationDefaults.AuthenticationScheme,
 				_ => throw new ArgumentOutOfRangeException(nameof(method), method, null)

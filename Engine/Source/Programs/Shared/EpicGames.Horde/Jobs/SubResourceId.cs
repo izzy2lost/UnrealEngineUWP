@@ -60,6 +60,27 @@ namespace EpicGames.Horde.Jobs
 		}
 
 		/// <summary>
+		/// Attempt to parse a subresource id from a string
+		/// </summary>
+		/// <param name="text">Text to parse</param>
+		/// <param name="subResourceId">Receives the parsed subresource id on success</param>
+		/// <returns>True if the id was parsed correctly</returns>
+		public static bool TryParse(string text, out SubResourceId subResourceId)
+		{
+			ushort result;
+			if (UInt16.TryParse(text, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result))
+			{
+				subResourceId = new SubResourceId(result);
+				return true;
+			}
+			else
+			{
+				subResourceId = default;
+				return false;
+			}
+		}
+
+		/// <summary>
 		/// Converts this identifier to a string
 		/// </summary>
 		/// <returns>String representation of this id</returns>

@@ -29,6 +29,21 @@ namespace EpicGames.Horde.Jobs
 		/// <inheritdoc cref="SubResourceId.Parse(System.String)"/>
 		public static JobStepId Parse(string text) => new JobStepId(SubResourceId.Parse(text));
 
+		/// <inheritdoc cref="SubResourceId.TryParse(string, out SubResourceId)"/>
+		public static bool TryParse(string text, out JobStepId stepId)
+		{
+			if (SubResourceId.TryParse(text, out SubResourceId subResourceId))
+			{
+				stepId = new JobStepId(subResourceId);
+				return true;
+			}
+			else
+			{
+				stepId = default;
+				return false;
+			}
+		}
+
 		/// <inheritdoc/>
 		public override string ToString() => Id.ToString();
 	}

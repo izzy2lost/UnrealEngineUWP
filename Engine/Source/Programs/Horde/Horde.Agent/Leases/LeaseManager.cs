@@ -227,6 +227,7 @@ namespace Horde.Agent.Leases
 		async Task<SessionResult> HandleSessionAsync(bool shutdownAfterFinishedLease, CancellationToken stoppingToken)
 		{
 			IRpcConnection rpcCon = _session.RpcConnection;
+			HordeRpc.HordeRpcClient rpcClient = new (_session.GrpcChannel);
 
 			// Terminate any remaining child processes from other instances
 			await _session.TerminateProcessesAsync(TerminateCondition.BeforeSession, _logger, stoppingToken);
@@ -242,7 +243,7 @@ namespace Horde.Agent.Leases
 			Stopwatch updateCapabilitiesTimer = Stopwatch.StartNew();
 			for (; ; )
 			{
-				Task waitTask = _updateLeasesEvent.Task;
+				Task waitTask = Task.WhenAny(_updateLeasesEvent.Task, _statusService.StatusChangedEvent.Task);
 
 				// Flag for whether the service is stopping
 				if (stoppingToken.IsCancellationRequested && _sessionResult == null)
@@ -302,19 +303,7 @@ namespace Horde.Agent.Leases
 				using (stopping ? (CancellationTokenRegistration?)null : stoppingToken.Register(() => _updateLeasesEvent.Set()))
 				{
 					// Update the state with the server
-					UpdateSessionResponse? updateSessionResponse = null;
-					using (IRpcClientRef<HordeRpc.HordeRpcClient>? rpcClientRef = rpcCon.TryGetClientRef<HordeRpc.HordeRpcClient>())
-					{
-						if (rpcClientRef == null)
-						{
-							// An RpcConnection has not yet been established, wait a period of time and try again
-							await Task.WhenAny(Task.Delay(_rpcConnectionRetryDelay, stoppingToken), waitTask);
-						}
-						else
-						{
-							updateSessionResponse = await UpdateSessionAsync(rpcClientRef, updateSessionRequest, waitTask);
-						}
-					}
+					UpdateSessionResponse? updateSessionResponse = await UpdateSessionAsync(rpcClient, updateSessionRequest, waitTask);
 
 					lock (_lockObject)
 					{
@@ -382,6 +371,12 @@ namespace Horde.Agent.Leases
 					else if (busy)
 					{
 						_statusService.Set(true, 0, "Paused");
+						
+						if (_activeLeases.Count > 0)
+						{
+							_logger.LogInformation("Agent marked itself as busy. Draining any active leases to prevent them from using up local resources...");
+							await DrainLeasesAsync();
+						}
 					}
 					else if (_activeLeases.Count == 0)
 					{
@@ -413,16 +408,16 @@ namespace Horde.Agent.Leases
 		/// <summary>
 		/// Wrapper for <see cref="UpdateSessionInternalAsync"/> which filters/logs exceptions
 		/// </summary>
-		/// <param name="rpcClientRef">The RPC client connection</param>
+		/// <param name="rpcClient">The RPC client connection</param>
 		/// <param name="updateSessionRequest">The session update request</param>
 		/// <param name="waitTask">Task which can be used to jump out of the update early</param>
 		/// <returns>Response from the call</returns>
-		async Task<UpdateSessionResponse?> UpdateSessionAsync(IRpcClientRef<HordeRpc.HordeRpcClient> rpcClientRef, UpdateSessionRequest updateSessionRequest, Task waitTask)
+		async Task<UpdateSessionResponse?> UpdateSessionAsync(HordeRpc.HordeRpcClient rpcClient, UpdateSessionRequest updateSessionRequest, Task waitTask)
 		{
 			UpdateSessionResponse? updateSessionResponse = null;
 			try
 			{
-				updateSessionResponse = await UpdateSessionInternalAsync(rpcClientRef, updateSessionRequest, waitTask);
+				updateSessionResponse = await UpdateSessionInternalAsync(rpcClient, updateSessionRequest, waitTask);
 				_updateSessionFailures = 0;
 			}
 			catch (RpcException ex)
@@ -433,11 +428,11 @@ namespace Horde.Agent.Leases
 				}
 				else if (ex.StatusCode == StatusCode.Unavailable)
 				{
-					_logger.LogInformation(ex, "Service unavailable while calling UpdateSessionAsync(), will retry");
+					_logger.LogInformation(ex, "Service unavailable while calling UpdateSessionAsync(). Will retry...");
 				}
 				else
 				{
-					_logger.LogError(ex, "Error while executing RPC. Will retry.");
+					_logger.LogError(ex, "Error while executing RPC. Will retry...");
 				}
 			}
 			return updateSessionResponse;
@@ -451,45 +446,39 @@ namespace Horde.Agent.Leases
 		/// until we want to terminate the call (see https://github.com/grpc/grpc/issues/8277). In order to do that, we need to make a 
 		/// bidirectional streaming call, even though we only expect one response/response.
 		/// </summary>
-		/// <param name="rpcClientRef">The RPC client</param>
+		/// <param name="rpcClient">The RPC client</param>
 		/// <param name="request">The session update request</param>
 		/// <param name="waitTask">Task to use to terminate the wait</param>
 		/// <returns>The response object</returns>
-		async Task<UpdateSessionResponse?> UpdateSessionInternalAsync(IRpcClientRef<HordeRpc.HordeRpcClient> rpcClientRef, UpdateSessionRequest request, Task waitTask)
+		async Task<UpdateSessionResponse?> UpdateSessionInternalAsync(HordeRpc.HordeRpcClient rpcClient, UpdateSessionRequest request, Task waitTask)
 		{
 			DateTime deadline = DateTime.UtcNow + TimeSpan.FromMinutes(2.0);
-			using (AsyncDuplexStreamingCall<UpdateSessionRequest, UpdateSessionResponse> call = rpcClientRef.Client.UpdateSession(deadline: deadline))
+			using AsyncDuplexStreamingCall<UpdateSessionRequest, UpdateSessionResponse> call = rpcClient.UpdateSession(deadline: deadline);
+			_logger.LogDebug("Updating session {SessionId} (Status={Status})", request.SessionId, request.Status);
+
+			// Write the request to the server
+			await call.RequestStream.WriteAsync(request);
+
+			// Wait until the server responds or we need to trigger a new update
+			Task<bool> moveNextAsync = call.ResponseStream.MoveNext();
+
+			Task task = await Task.WhenAny(moveNextAsync, waitTask);
+			if (task == waitTask)
 			{
-				_logger.LogDebug("Updating session {SessionId} (Status={Status})", request.SessionId, request.Status);
-
-				// Write the request to the server
-				await call.RequestStream.WriteAsync(request);
-
-				// Wait until the server responds or we need to trigger a new update
-				Task<bool> moveNextAsync = call.ResponseStream.MoveNext();
-
-				Task task = await Task.WhenAny(moveNextAsync, waitTask, rpcClientRef.DisposingTask);
-				if (task == waitTask)
-				{
-					_logger.LogDebug("Cancelling long poll from client side (new update)");
-				}
-				else if (task == rpcClientRef.DisposingTask)
-				{
-					_logger.LogDebug("Cancelling long poll from client side (server migration)");
-				}
-
-				// Close the request stream to indicate that we're finished
-				await call.RequestStream.CompleteAsync();
-
-				// Wait for a response or a new update to come in, then close the request stream
-				UpdateSessionResponse? response = null;
-				while (await moveNextAsync)
-				{
-					response = call.ResponseStream.Current;
-					moveNextAsync = call.ResponseStream.MoveNext();
-				}
-				return response;
+				_logger.LogDebug("Cancelling long poll from client side (new update)");
 			}
+
+			// Close the request stream to indicate that we're finished
+			await call.RequestStream.CompleteAsync();
+
+			// Wait for a response or a new update to come in, then close the request stream
+			UpdateSessionResponse? response = null;
+			while (await moveNextAsync)
+			{
+				response = call.ResponseStream.Current;
+				moveNextAsync = call.ResponseStream.MoveNext();
+			}
+			return response;
 		}
 
 		/// <summary>
@@ -513,6 +502,10 @@ namespace Horde.Agent.Leases
 			try
 			{
 				result = await HandleLeasePayloadAsync(session, leaseInfo);
+			}
+			catch (OperationCanceledException) when (leaseInfo.CancellationTokenSource.IsCancellationRequested)
+			{
+				_logger.LogInformation("Lease {LeaseId} cancelled", leaseInfo.Lease.Id);
 			}
 			catch (Exception ex)
 			{

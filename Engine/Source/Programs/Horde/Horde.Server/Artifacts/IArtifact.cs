@@ -65,11 +65,6 @@ namespace Horde.Server.Artifacts
 		public DateTime CreatedAtUtc { get; }
 
 		/// <summary>
-		/// Time at which the artifact is scheduled to be deleted
-		/// </summary>
-		public DateTime? ExpireAtUtc { get; }
-
-		/// <summary>
 		/// Permissions scope for this object
 		/// </summary>
 		public AclScopeName AclScope { get; }

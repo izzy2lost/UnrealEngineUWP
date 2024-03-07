@@ -1,5 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Collections;
+using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Bson;
 
@@ -23,6 +27,11 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// The signing key for this server cluster
 		/// </summary>
-		public SymmetricSecurityKey JwtSigningKey { get; }
+		public SecurityKey JwtSigningKey { get; }
+
+		/// <summary>
+		/// RSA security key for this cluster
+		/// </summary>
+		public RsaSecurityKey RsaSigningKey { get; }
 	}
 }

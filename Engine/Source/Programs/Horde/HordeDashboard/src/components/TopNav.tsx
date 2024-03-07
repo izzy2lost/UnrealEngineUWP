@@ -502,7 +502,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
             resourceItems.push({
                key: "admin_agents_registration",
-               text: "Agent Registration",
+               text: "Agent Enrollment",
                link: `/agents/registration`
             });
 

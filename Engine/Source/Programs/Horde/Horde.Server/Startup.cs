@@ -572,6 +572,8 @@ namespace Horde.Server
 				services.AddSingleton<IAvatarService, NullAvatarService>();
 			}
 
+			services.AddScoped<OAuthControllerFilter>();
+
 			services.AddSingleton<DeviceService>();
 			services.AddSingleton<NoticeService>();
 			services.AddSingleton<StorageService>();
@@ -645,7 +647,7 @@ namespace Horde.Server
 							options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 
 							// If authentication is required, and no cookie is present, use OIDC to sign in
-							options.DefaultChallengeScheme = OktaDefaults.AuthenticationScheme;
+							options.DefaultChallengeScheme = OktaAuthHandler.AuthenticationScheme;
 							break;
 
 						case AuthMethod.OpenIdConnect:
@@ -711,7 +713,7 @@ namespace Horde.Server
 					break;
 
 				case AuthMethod.Okta:
-					authBuilder.AddOkta(settings, OktaDefaults.AuthenticationScheme, OpenIdConnectDefaults.DisplayName, options =>
+					authBuilder.AddOkta(settings, OktaAuthHandler.AuthenticationScheme, OpenIdConnectDefaults.DisplayName, options =>
 						{
 							options.Authority = settings.OidcAuthority;
 							options.ClientId = settings.OidcClientId;
@@ -729,7 +731,7 @@ namespace Horde.Server
 								};
 							}
 						});
-					schemes.Add(OktaDefaults.AuthenticationScheme);
+					schemes.Add(OktaAuthHandler.AuthenticationScheme);
 					break;
 
 				case AuthMethod.OpenIdConnect:
@@ -759,7 +761,20 @@ namespace Horde.Server
 					break;
 
 				case AuthMethod.Horde:
-					// No extra handling needed, cookie-based auth is used
+					authBuilder.AddHordeOpenId(settings, OpenIdConnectDefaults.AuthenticationScheme, OpenIdConnectDefaults.DisplayName, options =>
+					{
+						options.Authority = "/api/v1/oauth2";
+						options.ClientId = "default";
+						if (settings.HttpsPort == 0)
+						{
+							options.RequireHttpsMetadata = false;
+						}
+						foreach (string scope in settings.OidcRequestedScopes)
+						{
+							options.Scope.Add(scope);
+						}
+					});
+					schemes.Add(OpenIdConnectDefaults.AuthenticationScheme);
 					break;
 
 				default:
@@ -780,15 +795,8 @@ namespace Horde.Server
 			services.AddHttpClient(EpicTelemetrySink.HttpClientName, client => { });
 			services.AddHttpClient(ClickHouseTelemetrySink.HttpClientName, client => { });
 
-			authBuilder.AddScheme<JwtBearerOptions, HordeServerJwtBearerHandler>(HordeServerJwtBearerHandler.AuthenticationScheme, options => { });
-			schemes.Add(HordeServerJwtBearerHandler.AuthenticationScheme);
-
-			if (settings.OidcAuthority != null && settings.OidcAudience != null)
-			{
-				HordeJwtBearerHandler hordeJwtBearer = new(settings);
-				hordeJwtBearer.AddHordeJwtBearerConfiguration(authBuilder);
-				schemes.Add(HordeJwtBearerHandler.AuthenticationScheme);
-			}
+			authBuilder.AddScheme<JwtBearerOptions, JwtAuthHandler>(JwtAuthHandler.AuthenticationScheme, options => { });
+			schemes.Add(JwtAuthHandler.AuthenticationScheme);
 
 			services.AddAuthorization(options =>
 				{

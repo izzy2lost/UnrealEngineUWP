@@ -46,7 +46,7 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 		_server.AddStream(_streamId, "//Foo/Main");
 		_server.AddAgentType(_streamId, AgentType);
 		_server.AddJob(_jobId, _streamId, 1, 0);
-		_session = FakeServerSessionFactory.CreateSession(_server.GetConnection());
+		_session = FakeServerSessionFactory.CreateSession(_server.GetConnection(), _server.GetGrpcChannel());
 		
 		_autoSdkWorkspace.SetFile(1, "HostWin64/Android/base.h", "base");
 		_workspace.SetFile(1, "main.cpp", "main");

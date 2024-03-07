@@ -29,6 +29,7 @@ class ToolHandler extends PollBase {
       try {
 
          this.tools = await backend.getTools();
+         this.tools = this.tools.filter(t => t.showInDashboard);
          this.loaded = true;
          this.setUpdated();
 

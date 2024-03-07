@@ -19,7 +19,6 @@ namespace Horde.Server.Accounts
 	/// </summary>
 	[ApiController]
 	[Authorize]
-	[Route("[controller]")]
 	public class AccountsController : HordeControllerBase
 	{
 		readonly IAccountCollection _accountCollection;
@@ -37,7 +36,7 @@ namespace Horde.Server.Accounts
 		}
 
 		/// <summary>
-		/// Gets a list of accounts
+		/// Create a new account
 		/// </summary>
 		[HttpPost]
 		[Route("/api/v1/accounts")]

@@ -773,7 +773,11 @@ const StreamCanvas: React.FC = () => {
 
       context.clearRect(0, 0, canvas.width, canvas.height);
 
-      const timeSpan = (maxTime - minTime) / state.zoom;
+      let timeSpan = (maxTime - minTime) / state.zoom;
+
+      if (timeSpan < 1.0) {
+         timeSpan = 1.0;
+      }
 
       minTime = maxTime - timeSpan;
 

@@ -48,6 +48,11 @@ namespace Horde.Agent.Services
 		IRpcConnection RpcConnection { get; }
 
 		/// <summary>
+		/// A gRPC channel authenticated for this session
+		/// </summary>
+		GrpcChannel GrpcChannel { get; }
+
+		/// <summary>
 		/// Working directory for sandboxes etc..
 		/// </summary>
 		DirectoryReference WorkingDir { get; }
@@ -79,30 +84,23 @@ namespace Horde.Agent.Services
 	/// </summary>
 	sealed class Session : ISession
 	{
-		/// <summary>
-		/// URL of the server
-		/// </summary>
+		/// <inheritdoc/>
 		public Uri ServerUrl { get; }
 
-		/// <summary>
-		/// The agent identifier
-		/// </summary>
+		/// <inheritdoc/>
 		public AgentId AgentId { get; }
 
-		/// <summary>
-		/// Identifier for the current session
-		/// </summary>
+		/// <inheritdoc/>
 		public SessionId SessionId { get; }
 
-		/// <summary>
-		/// Token to use for connection to the server
-		/// </summary>
+		/// <inheritdoc/>
 		public string Token { get; }
 
-		/// <summary>
-		/// Connection to the server
-		/// </summary>
+		/// <inheritdoc/>
 		public IRpcConnection RpcConnection { get; }
+		
+		/// <inheritdoc/>
+		public GrpcChannel GrpcChannel { get; }
 
 		/// <summary>
 		/// Working directory for sandboxes etc..
@@ -114,13 +112,14 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public Session(Uri serverUrl, AgentId agentId, SessionId sessionId, string token, IRpcConnection rpcConnection, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate)
+		public Session(Uri serverUrl, AgentId agentId, SessionId sessionId, string token, IRpcConnection rpcConnection, GrpcChannel grpcChannel, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate)
 		{
 			ServerUrl = serverUrl;
 			AgentId = agentId;
 			SessionId = sessionId;
 			Token = token;
 			RpcConnection = rpcConnection;
+			GrpcChannel = grpcChannel;
 			WorkingDir = workingDir;
 
 			_processNamesToTerminate = processNamesToTerminate;
@@ -214,7 +213,8 @@ namespace Horde.Agent.Services
 			// Open a connection to the server
 #pragma warning disable CA2000 // False positive; ownership is transferred to new Session object.
 			IRpcConnection rpcConnection = new RpcConnection(createGrpcChannelAsync, logger);
-			return new Session(serverProfile.Url, new AgentId(createSessionResponse.AgentId), SessionId.Parse(createSessionResponse.SessionId), createSessionResponse.Token, rpcConnection, workingDir, currentSettings.GetProcessesToTerminateMap());
+			GrpcChannel sessionGrpcChannel = await grpcService.CreateGrpcChannelAsync(createSessionResponse.Token, cancellationToken);
+			return new Session(serverProfile.Url, new AgentId(createSessionResponse.AgentId), SessionId.Parse(createSessionResponse.SessionId), createSessionResponse.Token, rpcConnection, sessionGrpcChannel, workingDir, currentSettings.GetProcessesToTerminateMap());
 #pragma warning restore CA2000
 		}
 

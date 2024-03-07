@@ -117,6 +117,24 @@ namespace EpicGames.Horde
 		}
 
 		/// <summary>
+		/// Attempt to parse a binary id from a string
+		/// </summary>
+		public static bool TryParse(ReadOnlySpan<char> text, out BinaryId result)
+		{
+			Span<byte> bytes = stackalloc byte[NumBytes];
+			if (StringUtils.TryParseHexString(text, bytes))
+			{
+				result = new BinaryId(bytes);
+				return true;
+			}
+			else
+			{
+				result = default;
+				return false;
+			}
+		}
+
+		/// <summary>
 		/// Checks whether this BinaryId is set
 		/// </summary>
 		public bool IsEmpty => (_a | _b | _c) == 0;

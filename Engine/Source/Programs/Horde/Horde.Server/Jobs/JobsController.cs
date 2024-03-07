@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
@@ -13,6 +14,7 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
+using Horde.Server.Artifacts;
 using Horde.Server.Jobs.Artifacts;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Templates;
@@ -44,7 +46,8 @@ namespace Horde.Server.Jobs
 		private readonly IPerforceService _perforce;
 		private readonly JobService _jobService;
 		private readonly ITemplateCollection _templateCollection;
-		private readonly IArtifactCollectionV1 _artifactCollection;
+		private readonly IArtifactCollection _artifactCollection;
+		private readonly IArtifactCollectionV1 _artifactCollectionV1;
 		private readonly IUserCollection _userCollection;
 		private readonly INotificationService _notificationService;
 		private readonly AgentService _agentService;
@@ -53,7 +56,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobsController(IGraphCollection graphs, ICommitService commitService, IPerforceService perforce, JobService jobService, ITemplateCollection templateCollection, IArtifactCollectionV1 artifactCollection, IUserCollection userCollection, INotificationService notificationService, AgentService agentService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public JobsController(IGraphCollection graphs, ICommitService commitService, IPerforceService perforce, JobService jobService, ITemplateCollection templateCollection, IArtifactCollection artifactCollection, IArtifactCollectionV1 artifactCollectionV1, IUserCollection userCollection, INotificationService notificationService, AgentService agentService, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_graphs = graphs;
 			_commitService = commitService;
@@ -61,6 +64,7 @@ namespace Horde.Server.Jobs
 			_jobService = jobService;
 			_templateCollection = templateCollection;
 			_artifactCollection = artifactCollection;
+			_artifactCollectionV1 = artifactCollectionV1;
 			_userCollection = userCollection;
 			_notificationService = notificationService;
 			_agentService = agentService;
@@ -438,11 +442,11 @@ namespace Horde.Server.Jobs
 		{
 			if (filter == null)
 			{
-				return await CreateJobResponseAsync(job, graph, true, true, includeCosts, cancellationToken);
+				return await CreateJobResponseAsync(job, graph, true, true, true, includeCosts, cancellationToken);
 			}
 			else
 			{
-				return filter.ApplyTo(await CreateJobResponseAsync(job, graph, filter.Includes(nameof(GetJobResponse.Batches)), filter.Includes(nameof(GetJobResponse.Labels)) || filter.Includes(nameof(GetJobResponse.DefaultLabel)), includeCosts, cancellationToken));
+				return filter.ApplyTo(await CreateJobResponseAsync(job, graph, filter.Includes(nameof(GetJobResponse.Batches)), filter.Includes(nameof(GetJobResponse.Labels)) || filter.Includes(nameof(GetJobResponse.DefaultLabel)), includeCosts, filter.Includes(nameof(GetJobResponse.Artifacts)), cancellationToken));
 			}
 		}
 
@@ -454,9 +458,10 @@ namespace Horde.Server.Jobs
 		/// <param name="includeBatches">Whether to include the job batches in the response</param>
 		/// <param name="includeLabels">Whether to include the job aggregates in the response</param>
 		/// <param name="includeCosts">Whether to include costs of running particular agents</param>
+		/// <param name="includeArtifacts">Whether to include artifacts in the response</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The response object</returns>
-		async ValueTask<GetJobResponse> CreateJobResponseAsync(IJob job, IGraph graph, bool includeBatches, bool includeLabels, bool includeCosts, CancellationToken cancellationToken)
+		async ValueTask<GetJobResponse> CreateJobResponseAsync(IJob job, IGraph graph, bool includeBatches, bool includeLabels, bool includeCosts, bool includeArtifacts, CancellationToken cancellationToken)
 		{
 			GetThinUserInfoResponse? startedByUserInfo = null;
 			if (job.StartedByUserId != null)
@@ -487,7 +492,32 @@ namespace Horde.Server.Jobs
 					response.DefaultLabel = job.GetLabelStateResponses(graph, response.Labels);
 				}
 			}
+			if (includeArtifacts)
+			{
+				string artifactKey = $"job:{job.Id}";
+				string artifactStepKeyPrefix = $"job:{job.Id}/step:";
+				await foreach (IArtifact artifact in _artifactCollection.FindAsync(keys: new[] { artifactKey }, cancellationToken: cancellationToken))
+				{
+					if (IncludeArtifactInResponse(artifact))
+					{
+						string? stepKey = artifact.Keys.FirstOrDefault(x => x.StartsWith(artifactStepKeyPrefix, StringComparison.Ordinal));
+						if (stepKey != null && JobStepId.TryParse(stepKey.Substring(artifactStepKeyPrefix.Length), out JobStepId jobStepId))
+						{
+							response.Artifacts ??= new List<GetJobArtifactResponse>();
+							response.Artifacts.Add(new GetJobArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, jobStepId));
+						}
+					}
+				}
+			}
 			return response;
+		}
+
+		static bool IncludeArtifactInResponse(IArtifact artifact)
+		{
+			return artifact.Type != ArtifactType.StepOutput
+				&& artifact.Type != ArtifactType.StepSaved
+				&& artifact.Type != ArtifactType.StepTrace
+				&& artifact.Type != ArtifactType.StepTestData;
 		}
 
 		/// <summary>
@@ -625,7 +655,7 @@ namespace Horde.Server.Jobs
 			GetJobResponse? jobResponse = null;
 			if (includeJobResponse)
 			{
-				jobResponse = await CreateJobResponseAsync(job, graph, true, true, true, cancellationToken);
+				jobResponse = await CreateJobResponseAsync(job, graph, true, true, true, true, cancellationToken);
 			}
 
 			return new GetJobTimingResponse(jobResponse, steps, labels);
@@ -671,7 +701,7 @@ namespace Horde.Server.Jobs
 					IGraph graph = await _jobService.GetGraphAsync(job);
 					return await CreateJobTimingResponseAsync(job, graph, jobTiming, true);
 				}, cancellationToken);
-			
+
 			return PropertyFilter.Apply(new FindJobTimingsResponse(jobTimings), filter);
 		}
 
@@ -703,7 +733,7 @@ namespace Horde.Server.Jobs
 			}
 
 			ITemplate? template = await _templateCollection.GetAsync(job.TemplateHash);
-			if(template == null)
+			if (template == null)
 			{
 				return NotFound(job.StreamId, job.TemplateId);
 			}
@@ -757,14 +787,14 @@ namespace Horde.Server.Jobs
 			[FromQuery] DateTimeOffset? modifiedAfter = null,
 			[FromQuery] string? target = null,
 			[FromQuery] JobStepState[]? state = null,
-			[FromQuery] JobStepOutcome[]? outcome = null, 
+			[FromQuery] JobStepOutcome[]? outcome = null,
 			[FromQuery] PropertyFilter? filter = null,
 			[FromQuery] int index = 0,
 			[FromQuery] int count = 100)
 		{
 			JobId[]? jobIdValues = (ids == null) ? (JobId[]?)null : Array.ConvertAll(ids, x => JobId.Parse(x));
-			StreamId? streamIdValue = (streamId == null)? (StreamId?)null : new StreamId(streamId);
-			
+			StreamId? streamIdValue = (streamId == null) ? (StreamId?)null : new StreamId(streamId);
+
 			TemplateId[]? templateRefIds = (templates != null && templates.Length > 0) ? templates.Select(x => new TemplateId(x)).ToArray() : null;
 
 			if (includePreflight == false)
@@ -834,8 +864,8 @@ namespace Horde.Server.Jobs
 
 		private async Task<List<object>> CreateAuthorizedJobResponsesAsync(IReadOnlyList<IJob> jobs, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			List<object> responses = new ();
-			foreach(IGrouping<StreamId, IJob> grouping in jobs.GroupBy(x => x.StreamId))
+			List<object> responses = new();
+			foreach (IGrouping<StreamId, IJob> grouping in jobs.GroupBy(x => x.StreamId))
 			{
 				StreamConfig? streamConfig;
 				if (_globalConfig.Value.TryGetStream(grouping.Key, out streamConfig) && streamConfig.Authorize(JobAclAction.ViewJob, User))
@@ -1030,7 +1060,7 @@ namespace Horde.Server.Jobs
 			{
 				return NotFound(jobId, groupIdx);
 			}
-			if(nodeIdx < 0 || nodeIdx >= graph.Groups[groupIdx].Nodes.Count)
+			if (nodeIdx < 0 || nodeIdx >= graph.Groups[groupIdx].Nodes.Count)
 			{
 				return NotFound(jobId, groupIdx, nodeIdx);
 			}
@@ -1107,7 +1137,7 @@ namespace Horde.Server.Jobs
 				return Forbid("Missing session claim for job {JobId} batch {BatchId}", jobId, batchId);
 			}
 
-			IJob? newJob = await _jobService.UpdateBatchAsync(job, batchId, streamConfig, (request.LogId == null)? null : LogId.Parse(request.LogId), request.State);
+			IJob? newJob = await _jobService.UpdateBatchAsync(job, batchId, streamConfig, (request.LogId == null) ? null : LogId.Parse(request.LogId), request.State);
 			if (newJob == null)
 			{
 				return NotFound(jobId);
@@ -1266,7 +1296,7 @@ namespace Horde.Server.Jobs
 					retryNodeRef = new NodeRef(batch.GroupIdx, step.NodeIdx);
 				}
 
-				IJob? newJob = await _jobService.UpdateStepAsync(job, batchId, stepId, streamConfig, request.State, request.Outcome, null, request.AbortRequested, abortByUser, (request.LogId == null)? null : LogId.Parse(request.LogId), null, retryByUser, request.Priority, null, request.Properties);
+				IJob? newJob = await _jobService.UpdateStepAsync(job, batchId, stepId, streamConfig, request.State, request.Outcome, null, request.AbortRequested, abortByUser, (request.LogId == null) ? null : LogId.Parse(request.LogId), null, retryByUser, request.Priority, null, request.Properties);
 				if (newJob == null)
 				{
 					return NotFound(jobId);
@@ -1480,14 +1510,14 @@ namespace Horde.Server.Jobs
 				return NotFound(jobId, batchId, stepId);
 			}
 
-			IReadOnlyList<IArtifactV1> artifacts = await _artifactCollection.GetArtifactsAsync(jobId, stepId, name, cancellationToken);
+			IReadOnlyList<IArtifactV1> artifacts = await _artifactCollectionV1.GetArtifactsAsync(jobId, stepId, name, cancellationToken);
 			if (artifacts.Count == 0)
 			{
 				return NotFound();
 			}
 
 			IArtifactV1 artifact = artifacts[0];
-			return new FileStreamResult(await _artifactCollection.OpenArtifactReadStreamAsync(artifact, cancellationToken), artifact.MimeType);
+			return new FileStreamResult(await _artifactCollectionV1.OpenArtifactReadStreamAsync(artifact, cancellationToken), artifact.MimeType);
 		}
 
 		/// <summary>
@@ -1527,12 +1557,12 @@ namespace Horde.Server.Jobs
 				return NotFound(jobId, batchId, stepId);
 			}
 
-			IReadOnlyList<IArtifactV1> artifacts = await _artifactCollection.GetArtifactsAsync(jobId, stepId, null, cancellationToken);
+			IReadOnlyList<IArtifactV1> artifacts = await _artifactCollectionV1.GetArtifactsAsync(jobId, stepId, null, cancellationToken);
 			foreach (IArtifactV1 artifact in artifacts)
 			{
 				if (artifact.Name.Equals("trace.json", StringComparison.OrdinalIgnoreCase))
 				{
-					return new FileStreamResult(await _artifactCollection.OpenArtifactReadStreamAsync(artifact, cancellationToken), "text/json");
+					return new FileStreamResult(await _artifactCollectionV1.OpenArtifactReadStreamAsync(artifact, cancellationToken), "text/json");
 				}
 			}
 			return NotFound();

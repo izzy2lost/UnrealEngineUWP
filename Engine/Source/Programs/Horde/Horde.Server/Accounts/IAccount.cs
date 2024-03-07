@@ -65,6 +65,11 @@ namespace Horde.Server.Accounts
 		IReadOnlyList<IUserClaim> Claims { get; }
 
 		/// <summary>
+		/// Key for the current session. Refresh tokens are considered invalid when the session key no longer matches.
+		/// </summary>
+		string SessionKey { get; }
+
+		/// <summary>
 		/// Validate that a password is correct for this account
 		/// </summary>
 		bool ValidatePassword(string password);
@@ -95,6 +100,7 @@ namespace Horde.Server.Accounts
 	/// <param name="Email">If set, email to update</param>
 	/// <param name="Password">If set, password hash to update</param>
 	/// <param name="Enabled">If set, enabled flag to update</param>
+	/// <param name="SessionKey">If set, identifier for the current session</param>
 	public record class UpdateAccountOptions(
 		string? Name = null,
 		string? Login = null,
@@ -102,7 +108,8 @@ namespace Horde.Server.Accounts
 		string? Description = null,
 		string? Email = null,
 		string? Password = null,
-		bool? Enabled = null);
+		bool? Enabled = null,
+		string? SessionKey = null);
 
 	/// <summary>
 	/// Extension methods for accounts

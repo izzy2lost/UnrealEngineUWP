@@ -284,8 +284,8 @@ namespace EpicGames.Horde.Compute
 			}
 			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
-				// Skip sending back over compute socket as invocation is already being cancelled
 				_logger.LogInformation("Compute process execution cancelled");
+				await channel.SendExceptionAsync(new ComputeExecutionCancelledException(), cancellationToken);
 			}
 			catch (Exception ex)
 			{
@@ -564,7 +564,8 @@ namespace EpicGames.Horde.Compute
 				ProcessOutputWriter outputWriter = new ProcessOutputWriter($"{Path.GetFileNameWithoutExtension(resolvedExecutable)}> ", _logger);
 				for (; ; )
 				{
-					int length = await process.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+					// Use WaitAsync() as ReadAsync() does not respect the cancellation token when reading
+					int length = await process.ReadAsync(buffer, 0, buffer.Length, cancellationToken).AsTask().WaitAsync(cancellationToken);
 					if (length == 0)
 					{
 						await process.WaitForExitAsync(cancellationToken);

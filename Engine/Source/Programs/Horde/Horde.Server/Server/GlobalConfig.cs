@@ -114,6 +114,11 @@ namespace Horde.Server.Server
 		}
 
 		/// <summary>
+		/// Number of artifacts to retain
+		/// </summary>
+		public int? KeepCount { get; set; }
+
+		/// <summary>
 		/// Number of days to retain artifacts of this type
 		/// </summary>
 		public int? KeepDays { get; set; }

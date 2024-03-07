@@ -1,4 +1,4 @@
-import { DefaultButton, DetailsHeader, DetailsList, FontIcon, IColumn, IDetailsHeaderStyles, IDetailsListProps, ITag, Pivot, PivotItem, ScrollablePane, ScrollbarVisibility, SelectionMode, Spinner, SpinnerSize, Stack, Sticky, StickyPositionType, TagPicker, Text, mergeStyleSets, mergeStyles } from "@fluentui/react";
+import { DefaultButton, DetailsHeader, DetailsList, FontIcon, IColumn, IDetailsHeaderStyles, IDetailsListProps, ITag, Pivot, PivotItem, SelectionMode, Spinner, SpinnerSize, Stack, Sticky, StickyPositionType, TagPicker, Text, mergeStyleSets, mergeStyles } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -120,7 +120,7 @@ export const StatusBar = (stack: StatusBarStack[], width: number, height: number
             className={item.stripes ? stripeStyles.stripes : undefined}
             style={{
                width: `${Math.ceil(item.value)}%`, height: '100%',
-               backgroundColor: item.color,               
+               backgroundColor: item.color,
                display: 'block',
                cursor: 'inherit',
                backgroundSize: `${height * 2}px ${height * 2}px`
@@ -135,6 +135,8 @@ const PoolList: React.FC = observer(() => {
    const [sortState, setSortState] = useState<{ sortBy?: string, sortDescend?: boolean }>({ sortBy: "Agents", sortDescend: true });
 
    const navigate = useNavigate();
+
+   const { hordeClasses } = getHordeStyling();
 
    handler.subscribe();
 
@@ -309,7 +311,7 @@ const PoolList: React.FC = observer(() => {
             return null;
          }
 
-         return <Stack horizontalAlign="start" verticalAlign="center" verticalFill style={{paddingRight: 12}}>
+         return <Stack horizontalAlign="start" verticalAlign="center" verticalFill style={{ paddingRight: 12 }}>
             <Sparklines width={160} height={24} data={pool.utilization}>
                <SparklinesLine color={dashboard.darktheme ? "lightblue" : "blue"} />
             </Sparklines>
@@ -380,17 +382,17 @@ const PoolList: React.FC = observer(() => {
    };
    */
 
-   return <Stack style={{ height: "calc(100vh - 280px)", position: "relative" }}>
-      <ScrollablePane scrollbarVisibility={ScrollbarVisibility.auto}>         
-            <DetailsList               
-               compact
-               selectionMode={SelectionMode.none}
-               items={items}
-               columns={columns}
-               isHeaderVisible={true}
-               onRenderDetailsHeader={onRenderDetailsHeader}
-            />         
-      </ScrollablePane>
+   return <Stack className={hordeClasses.raised} >
+      <Stack styles={{ root: { paddingLeft: 12, paddingRight: 12, paddingBottom: 12, width: "100%" } }} >
+         <DetailsList
+            compact
+            selectionMode={SelectionMode.none}
+            items={items}
+            columns={columns}
+            isHeaderVisible={true}
+            onRenderDetailsHeader={onRenderDetailsHeader}
+         />
+      </Stack>
    </Stack>
 })
 
@@ -530,6 +532,8 @@ export const PoolsView: React.FC = observer(() => {
 
    const { hordeClasses, modeColors } = getHordeStyling();
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+   const centerAlign = vw / 2 - 720;
+   const key = `windowsize_view_${windowSize.width}_${windowSize.height}`;
 
    let crumbs: BreadcrumbItem[] = [{
       text: "Pools",
@@ -549,18 +553,22 @@ export const PoolsView: React.FC = observer(() => {
       <TopNav />
       <Breadcrumbs items={crumbs} />
       {!!handler.selectedAgentId && <HistoryModal agentId={handler.selectedAgentId} onDismiss={() => handler.setSelectedAgentId(undefined)} />}
-      <Stack horizontal>
-         <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
-         <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%" } }}>
-            <Stack style={{ maxWidth: 1440, paddingTop: 6, marginLeft: 4, height: 'calc(100vh - 8px)' }}>
-               <Stack horizontal className={hordeClasses.raised}>
-                  <Stack style={{ width: "100%", height: 'calc(100vh - 228px)' }} tokens={{ childrenGap: 18 }}>
-                     <Stack>
-                        {<Stack horizontal>
-                           {!poolId && <PoolPivot />}
-                           <Stack grow />
-                           <PoolPicker />
-                        </Stack>}
+      <Stack styles={{ root: { width: "100%", backgroundColor: modeColors.background } }}>
+         <Stack style={{ width: "100%", backgroundColor: modeColors.background }}>
+            <Stack style={{ position: "relative", width: "100%", height: 'calc(100vh - 148px)' }}>
+               {<Stack style={{ paddingBottom: "30px" }}>
+                  <Stack style={{ width: 1440, marginLeft: centerAlign }}>
+                     <Stack horizontal style={{ width: "100%" }}>
+                        {!poolId && <PoolPivot />}
+                        <Stack grow />
+                        <PoolPicker />
+                     </Stack>
+                  </Stack>
+               </Stack>}
+               <div style={{ overflowX: "auto", overflowY: "visible" }}>
+                  <Stack horizontal style={{ paddingBottom: 48 }}>
+                     <Stack key={`${key}`} style={{ paddingLeft: centerAlign }} />
+                     <Stack style={{ width: 1440 }}>
                         {!poolId && !handler.loaded && <Stack>
                            <Spinner size={SpinnerSize.large} />
                         </Stack>}
@@ -572,7 +580,7 @@ export const PoolsView: React.FC = observer(() => {
                         </Stack>}
                      </Stack>
                   </Stack>
-               </Stack>
+               </div>
             </Stack>
          </Stack>
       </Stack>

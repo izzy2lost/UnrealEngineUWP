@@ -17,7 +17,8 @@ namespace EpicGames.Horde.Tools
 	/// <param name="Deployments">Current deployments of this tool, sorted by time.</param>
 	/// <param name="Public">Whether this tool should be exposed for download on a public endpoint without authentication</param>
 	/// <param name="ShowInUgs">Whether to show this tool for download inside UGS</param>
-	public record class GetToolResponse(ToolId Id, string Name, string Description, ToolId? ParentId, List<GetToolDeploymentResponse> Deployments, bool Public, bool ShowInUgs);
+	/// <param name="ShowInDashboard">Whether to show this tool for download on the dashboard</param>
+	public record class GetToolResponse(ToolId Id, string Name, string Description, ToolId? ParentId, List<GetToolDeploymentResponse> Deployments, bool Public, bool ShowInUgs, bool ShowInDashboard);
 
 	/// <summary>
 	/// Summary for a particular tool.
@@ -29,7 +30,8 @@ namespace EpicGames.Horde.Tools
 	/// <param name="Version">Version number of the current deployment of this tool</param>
 	/// <param name="DeploymentId">Identifier for the current deployment</param>
 	/// <param name="ShowInUgs">Whether to show this tool for download inside UGS</param>
-	public record class GetToolSummaryResponse(ToolId Id, string Name, string Description, ToolId? ParentId, string? Version, ToolDeploymentId? DeploymentId, bool ShowInUgs);
+	/// <param name="ShowInDashboard">Whether to show this tool for download on the dashboard</param>
+	public record class GetToolSummaryResponse(ToolId Id, string Name, string Description, ToolId? ParentId, string? Version, ToolDeploymentId? DeploymentId, bool ShowInUgs, bool ShowInDashboard);
 
 	/// <summary>
 	/// Response when querying all tools

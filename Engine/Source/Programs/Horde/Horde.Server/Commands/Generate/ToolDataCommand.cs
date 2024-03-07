@@ -44,6 +44,10 @@ namespace Horde.Server.Commands.Generate
 		[Description("Shows the tool for download in UGS")]
 		public bool ShowInUgs { get; set; }
 
+		[CommandLine("-ShowInDashboard=")]
+		[Description("Shows the tool for download on the dashboard")]
+		public bool ShowInDashboard { get; set; } = true;
+
 		[CommandLine(Required = true)]
 		[Description("Source directory for tool data")]
 		public DirectoryReference InputDir { get; set; } = null!;

@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.ComponentModel;
 using EpicGames.Core;
 
@@ -17,6 +18,22 @@ namespace EpicGames.Horde.Accounts
 	{
 		/// <inheritdoc cref="BinaryId.Parse(System.String)"/>
 		public static AccountId Parse(string text) => new AccountId(BinaryId.Parse(text));
+
+		/// <inheritdoc cref="BinaryId.TryParse(ReadOnlySpan{char}, out BinaryId)"/>
+		public static bool TryParse(ReadOnlySpan<char> text, out AccountId result)
+		{
+			BinaryId binaryId;
+			if (BinaryId.TryParse(text, out binaryId))
+			{
+				result = new AccountId(binaryId);
+				return true;
+			}
+			else
+			{
+				result = default;
+				return false;
+			}
+		}
 
 		/// <inheritdoc/>
 		public override string ToString() => Id.ToString();
