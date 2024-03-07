@@ -780,15 +780,8 @@ namespace Horde.Server
 			services.AddHttpClient(EpicTelemetrySink.HttpClientName, client => { });
 			services.AddHttpClient(ClickHouseTelemetrySink.HttpClientName, client => { });
 
-			authBuilder.AddScheme<JwtBearerOptions, HordeServerJwtBearerHandler>(HordeServerJwtBearerHandler.AuthenticationScheme, options => { });
-			schemes.Add(HordeServerJwtBearerHandler.AuthenticationScheme);
-
-			if (settings.OidcAuthority != null && settings.OidcAudience != null)
-			{
-				HordeJwtBearerHandler hordeJwtBearer = new(settings);
-				hordeJwtBearer.AddHordeJwtBearerConfiguration(authBuilder);
-				schemes.Add(HordeJwtBearerHandler.AuthenticationScheme);
-			}
+			authBuilder.AddScheme<JwtBearerOptions, JwtAuthHandler>(JwtAuthHandler.AuthenticationScheme, options => { });
+			schemes.Add(JwtAuthHandler.AuthenticationScheme);
 
 			services.AddAuthorization(options =>
 				{
