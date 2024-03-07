@@ -35,6 +35,7 @@ TSharedRef<SWidget> CreateAssetWidget(bool bReadOnly, UObject* TransactionObject
 		.IsEnabled(!bReadOnly)
 		.AllowedClass(ResultBaseClass ? ResultBaseClass : UObject::StaticClass())
 		.ObjectPath_Lambda([DIAsset](){ return DIAsset->Asset ? DIAsset->Asset.GetPath() : "";})
+		.bOnlyRecognizeOnDragEnter(true)
 		.OnObjectChanged_Lambda([TransactionObject, DIAsset](const FAssetData& AssetData)
 		{
 			const FScopedTransaction Transaction(LOCTEXT("Edit Asset", "Edit Asset"));
@@ -71,6 +72,7 @@ TSharedRef<SWidget> CreateEvaluateChooserWidget(bool bReadOnly, UObject* Transac
 	return SNew(SObjectPropertyEntryBox)
 		.IsEnabled(!bReadOnly)
 		.AllowedClass(UChooserTable::StaticClass())
+		.bOnlyRecognizeOnDragEnter(true)
 		.ObjectPath_Lambda([EvaluateChooser](){ return EvaluateChooser->Chooser ? EvaluateChooser->Chooser.GetPath() : "";})
 		.OnShouldFilterAsset_Lambda([ResultBaseClass](const FAssetData& InAssetData)
 		{

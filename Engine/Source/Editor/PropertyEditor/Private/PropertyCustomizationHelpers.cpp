@@ -582,6 +582,7 @@ void SObjectPropertyEntryBox::Construct( const FArguments& InArgs )
 				.ThumbnailSize(ThumbnailSize)
 				.DisplayCompactSize(InArgs._DisplayCompactSize)
 				.OnShouldFilterActor(InArgs._OnShouldFilterActor)
+				.bOnlyRecognizeOnDragEnter(InArgs._bOnlyRecognizeOnDragEnter)
 				.CustomContentSlot()
 				[
 					InArgs._CustomContentSlot.Widget

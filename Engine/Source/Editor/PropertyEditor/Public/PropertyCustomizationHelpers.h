@@ -227,6 +227,8 @@ public:
 		SLATE_ATTRIBUTE(FIntPoint, ThumbnailSizeOverride)
 		/** Called to check if an actor is valid to use */
 		SLATE_EVENT(FOnShouldFilterActor, OnShouldFilterActor)
+		/** When this is true, the drop target will only get recognized when entering while drag & dropping. */
+		SLATE_ATTRIBUTE(bool, bOnlyRecognizeOnDragEnter)
 	SLATE_END_ARGS()
 
 	PROPERTYEDITOR_API void Construct( const FArguments& InArgs );

@@ -438,6 +438,7 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 	ChildSlot
 	[
 		SNew( SAssetDropTarget )
+		.bOnlyRecognizeOnDragEnter(InArgs._bOnlyRecognizeOnDragEnter)
 		.OnAreAssetsAcceptableForDropWithReason( this, &SPropertyEditorAsset::OnAssetDraggedOver )
 		.OnAssetsDropped( this, &SPropertyEditorAsset::OnAssetDropped )
 		[

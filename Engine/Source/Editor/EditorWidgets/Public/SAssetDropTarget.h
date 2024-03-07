@@ -57,6 +57,8 @@ public:
 		SLATE_EVENT( FAreAssetsAcceptableForDropWithReason, OnAreAssetsAcceptableForDropWithReason )
 		/** Sets if this drop target can support multiple assets dropped, or only supports a single asset dropped at a time. False by default for legacy behavior. */
 		SLATE_ARGUMENT( bool, bSupportsMultiDrop )
+		/** When this is true, the drop target will only get recognized when entering while drag & dropping. */
+		SLATE_ATTRIBUTE(bool, bOnlyRecognizeOnDragEnter)
 
 		FOnAssetsDropped ConvertObjectDropDelegate(const FOnAssetDropped& LegacyDelegate)
 		{

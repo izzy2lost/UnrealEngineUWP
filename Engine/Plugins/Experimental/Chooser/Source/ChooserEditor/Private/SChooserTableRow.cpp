@@ -257,6 +257,7 @@ namespace UE::ChooserEditor
 	{
 		if (bDropSupported)
 		{
+			DragActiveCounter = 2;
 			bDragActive = true;
 			float Center = MyGeometry.AbsolutePosition.Y + MyGeometry.Size.Y/2;
 			bDropAbove = DragDropEvent.GetScreenSpacePosition().Y < Center;
@@ -368,6 +369,18 @@ namespace UE::ChooserEditor
 		return FReply::Handled();		
 	}
 
+	
+	void SChooserTableRow::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+	{
+		DragActiveCounter --;
+		if (DragActiveCounter < 0)
+		{
+			DragActiveCounter = 0;
+			bDragActive = false;
+		}
+		
+		SMultiColumnTableRow<TSharedPtr<FChooserTableRow, ESPMode::ThreadSafe>>::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

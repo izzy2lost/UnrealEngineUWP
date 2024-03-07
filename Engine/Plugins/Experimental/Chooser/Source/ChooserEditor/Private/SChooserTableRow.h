@@ -37,12 +37,14 @@ SLATE_BEGIN_ARGS(SChooserTableRow) {}
 	virtual void OnDragLeave(const FDragDropEvent& DragDropEvent) override;
 	virtual FReply OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 private:
 	TSharedPtr<FChooserTableRow> RowIndex;
 	UChooserTable* Chooser;
 	FChooserTableEditor* Editor;
 	TSharedPtr<SBorder> CacheBorder;
+	int DragActiveCounter = 0;
 	bool bDragActive = false;
 	bool bDropSupported = false;
 	bool bDropAbove = false;

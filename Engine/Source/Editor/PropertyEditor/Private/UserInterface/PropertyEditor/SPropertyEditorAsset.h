@@ -83,6 +83,8 @@ public:
 		SLATE_ARGUMENT(TArray<FAssetData>, OwnerAssetDataArray)
 		SLATE_EVENT(FOnShouldFilterActor, OnShouldFilterActor)
 		SLATE_ARGUMENT(TOptional<FDetailWidgetRow*>, InWidgetRow)
+		/** When this is true, the drop target will only get recognized when entering while drag & dropping. */
+		SLATE_ATTRIBUTE(bool, bOnlyRecognizeOnDragEnter)
 
 	SLATE_END_ARGS()
 
