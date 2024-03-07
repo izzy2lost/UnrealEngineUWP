@@ -126,6 +126,9 @@ void UtilsCookInitialize();
  */
 FStringView RemoveConfigComment(FStringView Line);
 
+/** Parse Editor.ini:[TargetDomain]:IterativeClassDenyList */
+TSet<FTopLevelAssetPath> ConstructTargetIterativeClassBlockList();
+
 #if ENABLE_COOK_STATS
 namespace CookStats
 {
@@ -133,4 +136,4 @@ namespace CookStats
 }
 #endif
 
-}
+} // namespace UE::EditorDomain

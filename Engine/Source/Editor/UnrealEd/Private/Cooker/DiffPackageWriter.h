@@ -130,11 +130,15 @@ protected:
 	virtual void OnDiffWriterMessage(ELogVerbosity::Type Verbosity, FStringView Message);
 	FString ResolveText(FStringView Message);
 	UE::DiffWriter::FAccumulator& ConstructAccumulator(FName PackageName, UObject* Asset, uint16 MultiOutputIndex);
+	bool IsPackageDiffAllowed() const;
 
 	TRefCountPtr<UE::DiffWriter::FAccumulator> Accumulators[2];
 	FBeginPackageInfo BeginInfo;
+	TSet<FTopLevelAssetPath> CompareDenyListClasses;
 	TUniquePtr<ICookedPackageWriter> Inner;
 	TUniquePtr<UE::DiffWriter::FAccumulatorGlobals> AccumulatorGlobals;
+	/** Only non-null between BeginPackage and CommitPackage. */
+	UPackage* Package = nullptr;
 	const TCHAR* Indent = nullptr;
 	const TCHAR* NewLine = nullptr;
 	FString DumpObjListParams;
