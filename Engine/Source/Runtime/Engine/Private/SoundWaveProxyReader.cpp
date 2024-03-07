@@ -545,6 +545,11 @@ FSoundWaveProxyReader::EDecodeResult FSoundWaveProxyReader::Decode()
 			bFinished = CompressedAudioInfo->ReadCompressedData(Buff, false, BuffSizeInBytes);
 		}
 
+		if (CompressedAudioInfo->HasError())
+		{
+			return EDecodeResult::Fail;
+		}
+
 		if (NumBytesStreamed == 0)
 		{
 			break;
