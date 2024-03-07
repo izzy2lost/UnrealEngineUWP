@@ -351,6 +351,7 @@ FMaterialDerivativeAutogen::FOperationType1 FMaterialDerivativeAutogen::GetFunc1
 	case EFunc1::Log2:
 	case EFunc1::Log10:
 	case EFunc1::Exp:
+	case EFunc1::Exp2:
 	case EFunc1::Asin:
 	case EFunc1::AsinFast:
 	case EFunc1::Acos:
