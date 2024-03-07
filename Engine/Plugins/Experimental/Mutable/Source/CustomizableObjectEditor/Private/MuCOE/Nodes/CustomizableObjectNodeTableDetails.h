@@ -7,14 +7,16 @@
 #include "UObject/WeakObjectPtr.h"
 
 namespace ESelectInfo { enum Type : int; }
-
 class FString;
 class IDetailLayoutBuilder;
-class STextComboBox;
 class FReply;
 class SButton;
 class SCustomizableObjectNodeLayoutBlocksEditor;
+class STextBlock;
+class STextComboBox;
+class UCustomizableObjectLayout;
 class UCustomizableObjectNodeTable;
+struct EVisibility;
 struct FSlateColor;
 
 /** Copy Material node details panel. Hides all properties from the inheret Material node. */
@@ -85,6 +87,23 @@ private:
 	// OnComboBoxSelectionChanged Callback for Layout ComboBox
 	void OnMutableMetaDataColumnComboBoxSelectionReset();
 
+	// Layout options visibility
+	EVisibility LayoutOptionsVisibility() const;
+
+	/** Returns the visibility of the Fixed layout widgets */
+	EVisibility FixedStrategyOptionsVisibility() const;
+
+	/** Fills the combo box arrays sources */
+	void FillLayoutComboBoxOptions();
+
+	/** Layout Options Callbacks */
+	void OnGridSizeChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
+	void OnMaxGridSizeChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
+	void OnReductionMethodChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
+	void OnLayoutPackingStrategyChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
+
+private:
+
 	// Pointer to the node represented in this details
 	TWeakObjectPtr<UCustomizableObjectNodeTable> Node;
 
@@ -130,6 +149,26 @@ private:
 	// Layout block editor widget
 	TSharedPtr<SCustomizableObjectNodeLayoutBlocksEditor> LayoutBlocksEditor;
 
+	TWeakObjectPtr<UCustomizableObjectLayout> SelectedLayout;
+
 	// Pointer to the Detail Builder to force the refresh on recontruct the node
 	TWeakPtr<IDetailLayoutBuilder> DetailBuilderPtr = nullptr;
+
+	/** List of available layout grid sizes. */
+	TArray< TSharedPtr< FString > > LayoutGridSizes;
+
+	/** List of available layout packing strategies. */
+	TArray< TSharedPtr< FString > > LayoutPackingStrategies;
+
+	/** List of available block reduction methods. */
+	TArray< TSharedPtr< FString > > BlockReductionMethods;
+
+	// ComboBox widget to select a Grid Size from the Selected Layout
+	TSharedPtr<STextComboBox> GridSizeComboBox;
+	// ComboBox widget to select a Strategy from the Selected Layout
+	TSharedPtr<STextComboBox> StrategyComboBox;
+	// ComboBox widget to select a Max Grid Size from the Selected Layout
+	TSharedPtr<STextComboBox> MaxGridSizeComboBox;
+	// ComboBox widget to select a Reduction Method from the Selected Layout
+	TSharedPtr<STextComboBox> ReductionMethodComboBox;
 };
