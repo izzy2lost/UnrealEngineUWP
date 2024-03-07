@@ -49,7 +49,7 @@
 using namespace UE::NNERuntimeRDG::Private::Hlsl;
 
 FGuid UNNERuntimeRDGHlslImpl::GUID = FGuid((int32)'R', (int32)'D', (int32)'G', (int32)'H');
-int32 UNNERuntimeRDGHlslImpl::Version = 0x00000005;
+int32 UNNERuntimeRDGHlslImpl::Version = 0x00000006;
 
 bool UNNERuntimeRDGHlslImpl::Init()
 {

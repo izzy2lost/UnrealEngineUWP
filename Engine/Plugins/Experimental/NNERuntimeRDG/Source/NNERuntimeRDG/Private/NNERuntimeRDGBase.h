@@ -362,6 +362,7 @@ public:
 		}
 
 		FMemoryReader Reader(InputModel.Data);
+		Reader.SetIsPersistent(true);
 
 		Format.Serialize(Reader);
 
