@@ -1439,9 +1439,16 @@ public:
 	}
 
 #if WITH_EDITOR
+	UE_DEPRECATED(5.5, "GetReferencedUniformBufferNames is deprecated, use GetReferencedUniformBuffers instead")
 	inline const TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& GetReferencedUniformBufferNames() const
 	{
-		return ReferencedUniformBufferNames;
+		static TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>> EmptySet;
+		return EmptySet;
+	}
+
+	const TSet<const FShaderParametersMetadata*>& GetReferencedUniformBuffers() const
+	{
+		return ReferencedUniformBuffers;
 	}
 
 	/** Adds include statements for uniform buffers that this shader type references. */
@@ -1487,11 +1494,11 @@ private:
 #if WITH_EDITOR
 protected:
 	/**
-	* Cache of referenced uniform buffer includes.
+	* Cache of referenced uniform buffer structs.
 	* These are derived from source files so they need to be flushed when editing and recompiling shaders on the fly.
 	* FShaderType::Initialize will add the referenced uniform buffers, but this set may be updated by FlushShaderFileCache.
 	*/
-	TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>> ReferencedUniformBufferNames;
+	TSet<const FShaderParametersMetadata*> ReferencedUniformBuffers;
 #endif // WITH_EDITOR
 };
 

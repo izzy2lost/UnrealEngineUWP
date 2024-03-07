@@ -1200,11 +1200,11 @@ RENDERCORE_API void UpdateReferencedUniformBufferNames(
 	TArrayView<const FShaderPipelineType*> OutdatedShaderPipelineTypes);
 
 /** Parses the given source file and its includes for references of uniform buffers. */
-extern void GenerateReferencedUniformBufferNames(
+extern void GenerateReferencedUniformBuffers(
 	const TCHAR* SourceFilename,
 	const TCHAR* ShaderTypeName,
 	const TMap<FString, TArray<const TCHAR*> >& ShaderFileToUniformBufferVariables,
-	TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& UniformBufferNames);
+	TSet<const FShaderParametersMetadata*>& UniformBuffers);
 
 struct FUniformBufferNameSortOrder
 {

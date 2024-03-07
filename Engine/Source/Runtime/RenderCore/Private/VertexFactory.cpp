@@ -55,8 +55,8 @@ FVertexFactoryType* FVertexFactoryType::GetVFByName(const FHashedName& VFName)
 #if WITH_EDITOR
 void FVertexFactoryType::UpdateReferencedUniformBufferNames(const TMap<FString, TArray<const TCHAR*>>& ShaderFileToUniformBufferVariables)
 {
-	ReferencedUniformBufferNames.Empty();
-	GenerateReferencedUniformBufferNames(ShaderFilename, Name, ShaderFileToUniformBufferVariables, ReferencedUniformBufferNames);
+	ReferencedUniformBuffers.Empty();
+	GenerateReferencedUniformBuffers(ShaderFilename, Name, ShaderFileToUniformBufferVariables, ReferencedUniformBuffers);
 }
 #endif
 

@@ -2999,11 +2999,11 @@ void UpdateReferencedUniformBufferNames(
 	}
 }
 
-void GenerateReferencedUniformBufferNames(
+void GenerateReferencedUniformBuffers(
 	const TCHAR* SourceFilename,
 	const TCHAR* ShaderTypeName,
 	const TMap<FString, TArray<const TCHAR*> >& ShaderFileToUniformBufferVariables,
-	TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& UniformBufferNames)
+	TSet<const FShaderParametersMetadata*>& UniformBuffers)
 {
 	TArray<FString> FilesToSearch;
 	GetShaderIncludes(SourceFilename, SourceFilename, FilesToSearch, GMaxRHIShaderPlatform);
@@ -3014,7 +3014,11 @@ void GenerateReferencedUniformBufferNames(
 		const TArray<const TCHAR*>& FoundUniformBufferVariables = ShaderFileToUniformBufferVariables.FindChecked(FileToSearch);
 		for (const TCHAR* UniformBufferName : FoundUniformBufferVariables)
 		{
-			UniformBufferNames.Emplace(UniformBufferName);
+			const FShaderParametersMetadata* UniformBufferStruct = FindUniformBufferStructByName(UniformBufferName);
+			if (UniformBufferStruct)
+			{
+				UniformBuffers.Emplace(UniformBufferStruct);
+			}
 		}
 	}
 }
@@ -3102,7 +3106,10 @@ void AppendKeyStringShaderDependencies(
 	FString& OutKeyString,
 	bool bIncludeSourceHashes)
 {
-	TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>> ReferencedUniformBufferNames;
+	FMemMark MemMark(FMemStack::Get());
+	using FMemStackSetAllocator = TSetAllocator<TSparseArrayAllocator<TMemStackAllocator<>, TMemStackAllocator<>>, TMemStackAllocator<>>;
+	TSet<const FShaderParametersMetadata*, DefaultKeyFuncs<const FShaderParametersMetadata*>, FMemStackSetAllocator> ReferencedUniformBuffers;
+	ReferencedUniformBuffers.Reserve(128);
 
 	for (const FShaderTypeDependency& ShaderTypeDependency : ShaderTypeDependencies)
 	{
@@ -3132,9 +3139,9 @@ void AppendKeyStringShaderDependencies(
 		const FSHAHash LayoutHash = GetShaderTypeLayoutHash(ShaderType->GetLayout(), LayoutParams);
 		LayoutHash.AppendString(OutKeyString);
 
-		for (const TCHAR* UniformBufferName : ShaderType->GetReferencedUniformBufferNames())
+		for (const FShaderParametersMetadata* UniformBuffer : ShaderType->GetReferencedUniformBuffers())
 		{
-			ReferencedUniformBufferNames.Add(UniformBufferName);
+			ReferencedUniformBuffers.Add(UniformBuffer);
 		}
 	}
 
@@ -3159,9 +3166,9 @@ void AppendKeyStringShaderDependencies(
 				ParameterStructMetadata->AppendKeyString(OutKeyString);
 			}
 
-			for (const TCHAR* UniformBufferName : ShaderType->GetReferencedUniformBufferNames())
+			for (const FShaderParametersMetadata* UniformBuffer : ShaderType->GetReferencedUniformBuffers())
 			{
-				ReferencedUniformBufferNames.Add(UniformBufferName);
+				ReferencedUniformBuffers.Add(UniformBuffer);
 			}
 		}
 	}
@@ -3189,22 +3196,26 @@ void AppendKeyStringShaderDependencies(
 			}
 		}
 
-		for (const TCHAR* UniformBufferName : VertexFactoryType->GetReferencedUniformBufferNames())
+		for (const FShaderParametersMetadata* UniformBuffer : VertexFactoryType->GetReferencedUniformBuffers())
 		{
-			ReferencedUniformBufferNames.Add(UniformBufferName);
+			ReferencedUniformBuffers.Add(UniformBuffer);
 		}
 	}
 
+	struct FUbSortByLayoutSignature
 	{
-		TArray<const TCHAR*> SortedUniformBufferNames = ReferencedUniformBufferNames.Array();
-		Algo::Sort(SortedUniformBufferNames, FUniformBufferNameSortOrder());
-
-		// Save uniform buffer member info so we can detect when layout has changed
-		for (const TCHAR* UniformBufferName : SortedUniformBufferNames)
+		bool operator()(const FShaderParametersMetadata& A, const FShaderParametersMetadata& B) const
 		{
-			FShaderParametersMetadata* UniformBufferMetadata = FindUniformBufferStructByName(UniformBufferName);
-			UniformBufferMetadata->AppendKeyString(OutKeyString);
+			return A.GetLayoutSignature() < B.GetLayoutSignature();
 		}
+	};
+	// sort the referenced uniform buffers by the stable layout signature; for ddc keys we care about stability not alphabetical ordering by name
+	ReferencedUniformBuffers.StableSort(FUbSortByLayoutSignature());
+
+	// Save uniform buffer member info so we can detect when layout has changed
+	for (const FShaderParametersMetadata* UniformBufferMetadata : ReferencedUniformBuffers)
+	{
+		UniformBufferMetadata->AppendKeyString(OutKeyString);
 	}
 }
 

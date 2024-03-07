@@ -412,39 +412,18 @@ FString UE::ShaderParameters::CreateUniformBufferShaderDeclaration(const TCHAR* 
 	return CreateHLSLUniformBufferDeclaration(UniformBufferName, UniformBufferStruct);
 }
 
-static FShaderParametersMetadata* FindShaderParametersMetadataWithVariableName(uint32 InVariableNameHash, FStringView InVariableNameView)
-{
-#if WITH_EDITOR
-	TMap<FString, FShaderParametersMetadata*>& StringStructMap = FShaderParametersMetadata::GetStringStructMap();
-
-	FShaderParametersMetadata** FoundMetadata = StringStructMap.FindByHash(InVariableNameHash, InVariableNameView);
-	return FoundMetadata ? *FoundMetadata : nullptr;
-#else // WITH_EDITOR
-	for (FShaderParametersMetadata* Metadata : *FShaderParametersMetadata::GetStructList())
-	{
-		if (InVariableName == Metadata->GetShaderVariableName())
-		{
-			return Metadata;
-		}
-	}
-	return nullptr;
-#endif
-}
-
-void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, const TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& InUniformBufferNames)
+void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, const TSet<const FShaderParametersMetadata*>& InUniformBuffers)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UE::ShaderParameters::AddUniformBufferIncludesToEnvironment);
 
 	FString UniformBufferIncludes;
 
-	for (const TCHAR* UniformBufferName : InUniformBufferNames)
+	for (const FShaderParametersMetadata* Metadata : InUniformBuffers)
 	{
-		FStringView UniformBufferNameView(UniformBufferName);
+		FStringView UniformBufferNameView(Metadata->GetShaderVariableName());
 		uint32 UniformBufferNameHash = GetTypeHash(UniformBufferNameView);
 		if (!OutEnvironment.UniformBufferMap.FindByHash(UniformBufferNameHash, UniformBufferNameView))
 		{
-			if (const FShaderParametersMetadata* Metadata = FindShaderParametersMetadataWithVariableName(UniformBufferNameHash, UniformBufferNameView))
-			{
 				const FThreadSafeSharedAnsiStringPtr UniformBufferDeclaration = Metadata->GetUniformBufferDeclarationAnsiPtr();
 
 				check(UniformBufferDeclaration.Get() != NULL);
@@ -455,7 +434,6 @@ void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompiler
 				OutEnvironment.IncludeVirtualPathToSharedContentsMap.AddByHash(Metadata->GetUniformBufferPathHash(), Metadata->GetUniformBufferPath(), UniformBufferDeclaration);
 
 				Metadata->AddResourceTableEntries(OutEnvironment.ResourceTableMap, OutEnvironment.UniformBufferMap);
-			}
 		}
 	}
 
@@ -467,7 +445,7 @@ void FShaderType::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironme
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderType::AddReferencedUniformBufferIncludes);
 
-	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBufferNames);
+	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBuffers);
 }
 
 #endif // WITH_EDITOR
@@ -533,12 +511,9 @@ void FShaderType::GetShaderStableKeyParts(FStableShaderKeyAndValue& SaveKeyVal)
 	SaveKeyVal.ShaderType = FName(GetName() ? GetName() : TEXT("null"));
 }
 
-void FVertexFactoryType::FlushShaderFileCache(const TMap<FString, TArray<const TCHAR*> >& ShaderFileToUniformBufferVariables)
-{
-}
 void FVertexFactoryType::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, EShaderPlatform Platform) const
 {
-	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBufferNames);
+	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBuffers);
 }
 
 #endif // WITH_EDITOR

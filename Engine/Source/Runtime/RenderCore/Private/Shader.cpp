@@ -480,8 +480,8 @@ bool FShaderType::ValidateCompiledResult(EShaderPlatform Platform, const FShader
 
 void FShaderType::UpdateReferencedUniformBufferNames(const TMap<FString, TArray<const TCHAR*>>& ShaderFileToUniformBufferVariables)
 {
-	ReferencedUniformBufferNames.Empty();
-	GenerateReferencedUniformBufferNames(SourceFilename, Name, ShaderFileToUniformBufferVariables, ReferencedUniformBufferNames);
+	ReferencedUniformBuffers.Empty();
+	GenerateReferencedUniformBuffers(SourceFilename, Name, ShaderFileToUniformBufferVariables, ReferencedUniformBuffers);
 }
 #endif // WITH_EDITOR
 
