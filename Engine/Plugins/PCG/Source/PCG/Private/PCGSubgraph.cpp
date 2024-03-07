@@ -378,6 +378,13 @@ FPCGElementPtr UPCGSubgraphSettings::CreateElement() const
 	return MakeShared<FPCGSubgraphElement>();
 }
 
+UPCGGraphInterface* UPCGSubgraphSettings::GetSubgraphInterface() const
+{
+	// The only place when SubgraphOverride is not null, is when we execute a dynamic subgraph.
+	// Everywhere else (for UI, parameter overrides, normal subgraph flow, etc...) we will use the SubgraphInstance.
+	return SubgraphOverride ? SubgraphOverride.Get() : SubgraphInstance.Get(); 
+}
+
 bool UPCGSubgraphSettings::IsDynamicGraph() const
 {
 	UPCGNode* Node = Cast<UPCGNode>(GetOuter());
@@ -591,18 +598,13 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 
 	const bool bIsDynamic = Settings->IsDynamicGraph();
 
-	if (bIsDynamic && !Context->bScheduledSubgraph)
+	if (bIsDynamic && !Context->bScheduledSubgraph && Settings->SubgraphOverride)
 	{
-		if (Settings->SubgraphInstance && Settings->OriginalSettings)
-		{
-			// If OriginalSettings is null, then we ARE the original settings, and writing over the existing graph is incorrect (and potentially a race condition)
-			Settings->SubgraphInstance->SetGraph(Settings->SubgraphOverride);
 #if WITH_EDITOR
-			FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(Settings->SubgraphOverride), /*bIsCulled=*/false);
+		FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(Settings->SubgraphOverride), /*bIsCulled=*/false);
 #endif // WITH_EDITOR
 
-			Context->UpdateOverridesWithOverriddenGraph();
-		}
+		Context->UpdateOverridesWithOverriddenGraph();
 	}
 
 	UPCGGraph* Subgraph = Settings->GetSubgraph();

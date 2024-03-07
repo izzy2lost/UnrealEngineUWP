@@ -176,11 +176,8 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 	// If we haven't scheduled the subgraph yet (1st call) - this is part of the FPCGSubgraphContext, see FPCGSubgraphElement for more info
 	if (!Context->bScheduledSubgraph)
 	{
-		if (Settings->SubgraphInstance && Settings->SubgraphOverride)
+		if (Settings->SubgraphOverride)
 		{
-			// If OriginalSettings is null, then we ARE the original settings, and writing over the existing graph is incorrect (and potentially a race condition)
-			check(Settings->OriginalSettings);
-			Settings->SubgraphInstance->SetGraph(Settings->SubgraphOverride);
 #if WITH_EDITOR
 			FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(Settings->SubgraphOverride), /*bIsCulled=*/false);
 #endif // WITH_EDITOR
