@@ -254,6 +254,10 @@ void FLevelInstanceActorDesc::CheckForErrors(const IWorldPartitionActorDescInsta
 			ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetNotUsingExternalActors);
 		}
 	}
+	else if (!ValidateCircularReference(InActorDescView->GetContainerInstance(), ChildContainerPackage))
+	{
+		ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::CirculalReference);
+	}
 }
 
 void FLevelInstanceActorDesc::TransferFrom(const FWorldPartitionActorDesc* From)
@@ -284,6 +288,22 @@ UWorldPartition* FLevelInstanceActorDesc::GetLoadedChildWorldPartition(const FWo
 	return nullptr;
 }
 
+bool FLevelInstanceActorDesc::ValidateCircularReference(const UActorDescContainerInstance* InParentContainer, FName InChildContainerPackage)
+{
+	const UActorDescContainerInstance* CurrentParentContainerInstance = InParentContainer;
+	while (CurrentParentContainerInstance)
+	{
+		if (CurrentParentContainerInstance->GetContainerPackage() == InChildContainerPackage)
+		{
+			// found a circular reference
+			return false; 
+		}
+		CurrentParentContainerInstance = Cast<UActorDescContainerInstance>(CurrentParentContainerInstance->GetOuter());
+	}
+
+	return true;
+}
+
 UActorDescContainerInstance* FLevelInstanceActorDesc::CreateChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
 	// Update Actor Desc Container in case of rename
@@ -293,9 +313,14 @@ UActorDescContainerInstance* FLevelInstanceActorDesc::CreateChildContainerInstan
 		NonConstThis->UnregisterChildContainer();
 		NonConstThis->RegisterChildContainer();
 	}
+
+	UActorDescContainerInstance* ContainerInstance = InActorDescInstance->GetContainerInstance();
+	if (!ValidateCircularReference(ContainerInstance, InActorDescInstance->GetChildContainerPackage()))
+	{
+		return nullptr;
+	}
 	
 	// Create ChildContainerInstance
-	UActorDescContainerInstance* ContainerInstance = InActorDescInstance->GetContainerInstance();
 	ULevelInstanceContainerInstance* ChildContainerInstance = NewObject<ULevelInstanceContainerInstance>(ContainerInstance, NAME_None, RF_Transient);
 
 	// Set Override Container which might be a regular UActorDescContainer if no overrides exist on this Container Instance

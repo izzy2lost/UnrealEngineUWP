@@ -51,6 +51,7 @@ protected:
 	ENGINE_API virtual UWorldPartition* GetLoadedChildWorldPartition(const FWorldPartitionActorDescInstance* InActorDescInstance) const override;
 	ENGINE_API FTransform GetChildContainerTransform() const;
 	FLevelInstancePropertyOverrideDesc* GetOverrideDesc() const { return PropertyOverrideDesc.Get(); }
+	ENGINE_API static bool ValidateCircularReference(const UActorDescContainerInstance* InParentContainer, FName InChildContainerPackage);
 
 	FSoftObjectPath WorldAsset;
 	ELevelInstanceRuntimeBehavior DesiredRuntimeBehavior;
