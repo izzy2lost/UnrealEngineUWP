@@ -153,11 +153,7 @@ namespace uba
 		UBA_ASSERT(str);
 
 		#if PLATFORM_WINDOWS
-		u64 actualBytes = GetWrittenBytes(str, strLen);
-
-		Write7BitEncoded(actualBytes);
-
-		UBA_ASSERT_WRITE(actualBytes);
+		Write7BitEncoded(strLen);
 
 		for (const tchar* i = str, *e = str + strLen; i != e; ++i)
 		{
@@ -314,33 +310,29 @@ namespace uba
 		#if PLATFORM_WINDOWS
 		tchar* it = str;
 		u64 left = charLen;
-		while (left)
+		while (left--)
 		{
 			u8 a = *m_pos++;
 			if (a <= 127)
 			{
-				--left;
 				*it++ = a;
 				continue;
 			}
 			u8 b = *m_pos++;
 			if (a >= 192 && a <= 223)
 			{
-				left -= 2;
 				*it++ = (a-192)*64 + (b-128);
 				continue;
 			}
 			u8 c = *m_pos++;
 			if (a >= 224 && a <= 239)
 			{
-				left -= 3;
 				*it++ = (a-224)*4096 + (b-128)*64 + (c-128);
 				continue;
 			}
 			if (a >= 240 && a <= 253)
 			{
 				UBA_ASSERT(false); // Wide chars cannot exceed 16 bits
-				left -= 4;
 				*it++ = tchar(~0);
 				continue;
 			}
