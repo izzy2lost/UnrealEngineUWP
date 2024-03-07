@@ -37,6 +37,14 @@ bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const 
 
 
 /**
+ * Logs some configuration data related to how mutable will compile and then generate instances. We do this so we can later
+ * Isolate tests using different configurations.
+ * @note Add new logs each time you add a way to change the configuration of the test from the .xml testing file
+ */
+void LogMutableSettings();
+
+
+/**
  * Helping class that handles the async update of the provided instance. It will also wait for the mips of it so they get streamed.
  */
 UCLASS()

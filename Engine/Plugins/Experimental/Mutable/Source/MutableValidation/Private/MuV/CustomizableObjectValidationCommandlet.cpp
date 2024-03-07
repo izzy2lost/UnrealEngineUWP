@@ -66,6 +66,8 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 
 	// Make sure there is nothing else that the engine needs to do before starting our test
 	Wait(60);
+
+	LogMutableSettings();
 	
 	// Compile the Customizable Object ------------------------------------------------------------------------------ //
 	bool bWasCoCompilationSuccessful = false;
@@ -80,12 +82,8 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		CompilationOptions.TargetPlatform = TargetCompilationPlatform;
 
 		// Disk cache usage for compilation operation : Override if the user provided an argument with a different value than the default one of the CO
-		bool bUseDiskCacheForCompilation = false;
-		if (FParse::Bool(*Params,TEXT("UseDiskCompilation="),bUseDiskCacheForCompilation))
-		{
-			// Set the disk cache configuration
-			CompilationOptions.bUseDiskCompilation = bUseDiskCacheForCompilation;
-		}
+		CompilationOptions.bUseDiskCompilation = false;
+		FParse::Bool(*Params,TEXT("UseDiskCompilation="),CompilationOptions.bUseDiskCompilation);
 
 		bWasCoCompilationSuccessful = CompileCustomizableObject(ToTestCustomizableObject, true, &CompilationOptions);
 	}
@@ -229,7 +227,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
     }
     else
     {
-        UE_LOG(LogMutable,Error,TEXT("The generation of Customizable object instances  was not succesfull."));
+        UE_LOG(LogMutable,Error,TEXT("The generation of Customizable object instances was not succesfull."));
     }
 	
 	
