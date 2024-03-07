@@ -5,35 +5,16 @@
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendRegistryContainerImpl.h"
 #include "MetasoundFrontendRegistryTransaction.h"
+#include "MetasoundFrontendTransform.h"
 #include "MetasoundLog.h"
 #include "MetasoundTrace.h"
 
 
 namespace Metasound::Frontend
 {
-	bool FNodeTemplateBase::IsValidNodeInterface(const FMetasoundFrontendNodeInterface& InNodeInterface) const
+	TUniquePtr<INodeTransform> INodeTemplate::GenerateNodeTransform(FMetasoundFrontendDocument& InDocument) const
 	{
-		return true;
-	}
-
-	bool FNodeTemplateBase::IsInputAccessTypeDynamic() const
-	{
-		return false;
-	}
-
-	bool FNodeTemplateBase::IsOutputAccessTypeDynamic() const
-	{
-		return false;
-	}
-
-	EMetasoundFrontendVertexAccessType FNodeTemplateBase::GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
-	{
-		return EMetasoundFrontendVertexAccessType::Unset;
-	}
-
-	EMetasoundFrontendVertexAccessType FNodeTemplateBase::GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
-	{
-		return EMetasoundFrontendVertexAccessType::Unset;
+		return nullptr;
 	}
 
 	class FNodeTemplateRegistry : public INodeTemplateRegistry
@@ -43,12 +24,14 @@ namespace Metasound::Frontend
 		virtual ~FNodeTemplateRegistry() = default;
 
 		virtual const INodeTemplate* FindTemplate(const FNodeRegistryKey& InKey) const override;
+		virtual const INodeTemplate* FindTemplate(const FMetasoundFrontendClassName& InClassName) const override;
 
 		void Register(TUniquePtr<INodeTemplate>&& InEntry);
 		void Unregister(const FNodeRegistryKey& InKey);
 
 	private:
-		TMap<FNodeRegistryKey, TUniquePtr<INodeTemplate>> Templates;
+		TMap<FNodeRegistryKey, TUniquePtr<const INodeTemplate>> Templates;
+		TMultiMap<FMetasoundFrontendClassName, const INodeTemplate*> TemplateByClassName;
 	};
 
 	void FNodeTemplateRegistry::Register(TUniquePtr<INodeTemplate>&& InTemplate)
@@ -58,21 +41,41 @@ namespace Metasound::Frontend
 			const FNodeRegistryKey Key = FNodeRegistryKey(InTemplate->GetFrontendClass().Metadata);
 			if (ensure(Key.IsValid()))
 			{
-				Templates.Add(Key, MoveTemp(InTemplate));
+				TUniquePtr<const INodeTemplate>& Entry = Templates.Add(Key, MoveTemp(InTemplate));
+				TemplateByClassName.Add(Entry->GetFrontendClass().Metadata.GetClassName(), Entry.Get());
 			}
 		}
 	}
 
 	void FNodeTemplateRegistry::Unregister(const FNodeRegistryKey& InKey)
 	{
-		ensure(Templates.Remove(InKey) > 0);
+		TUniquePtr<const INodeTemplate> Removed;
+		if (ensure(Templates.RemoveAndCopyValue(InKey, Removed)))
+		{
+			ensure(TemplateByClassName.Remove(Removed->GetFrontendClass().Metadata.GetClassName()));
+		}
 	}
 
 	const INodeTemplate* FNodeTemplateRegistry::FindTemplate(const FNodeRegistryKey& InKey) const
 	{
-		if (const TUniquePtr<INodeTemplate>* TemplatePtr = Templates.Find(InKey))
+		if (const TUniquePtr<const INodeTemplate>* TemplatePtr = Templates.Find(InKey))
 		{
 			return TemplatePtr->Get();
+		}
+
+		return nullptr;
+	}
+
+	const INodeTemplate* FNodeTemplateRegistry::FindTemplate(const FMetasoundFrontendClassName& InClassName) const
+	{
+		if (TemplateByClassName.Contains(InClassName))
+		{
+			TArray<const INodeTemplate*> FoundTemplates;
+			constexpr bool bMaintainOrder = false;
+			TemplateByClassName.MultiFind(InClassName, FoundTemplates, bMaintainOrder);
+			Algo::Sort(FoundTemplates, [](const INodeTemplate* A, const INodeTemplate* B) { return A->GetVersionNumber() < B->GetVersionNumber(); });
+
+			return FoundTemplates.Last();
 		}
 
 		return nullptr;
@@ -83,6 +86,28 @@ namespace Metasound::Frontend
 		static FNodeTemplateRegistry Registry;
 		return Registry;
 	}
+
+#if WITH_EDITOR
+	FText FNodeTemplateBase::GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InNodeID) const
+	{
+		return { };
+	}
+
+	FText FNodeTemplateBase::GetInputPinDisplayName(const Frontend::IInputController& InInput) const
+	{
+		return InInput.GetDisplayName();
+	}
+
+	FText FNodeTemplateBase::GetOutputPinDisplayName(const Frontend::IOutputController& InOutput) const
+	{
+		return InOutput.GetDisplayName();
+	}
+
+	bool FNodeTemplateBase::HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FString* OutMessage) const
+	{
+		return true;
+	}
+#endif // WITH_EDITOR
 
 	void RegisterNodeTemplate(TUniquePtr<INodeTemplate>&& InTemplate)
 	{

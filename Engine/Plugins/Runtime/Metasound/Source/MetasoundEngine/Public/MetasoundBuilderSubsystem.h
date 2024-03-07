@@ -399,12 +399,12 @@ public:
 	void SetNodeLocation(const FMetaSoundNodeHandle & InNodeHandle, const FVector2D& InLocation, const FGuid& InLocationGuid, EMetaSoundBuilderResult& OutResult);
 #endif // WITH_EDITOR
 
+	const FMetaSoundFrontendDocumentBuilder& GetConstBuilder() const;
+
 protected:
 	// Creates a FrontendBuilder wrapping the transient MetaSound object of the class supported by the given subsystem builder (See GetBuilderUClass).
 	// Should only be used when builders is not being attached to an existing, serialized MetaSound asset.
 	virtual void CreateTransientBuilder() PURE_VIRTUAL(UMetaSoundBuilderBase::CreateTransientBuilder, );
-
-	const FMetaSoundFrontendDocumentBuilder& GetConstBuilder() const;
 
 	void InvalidateCache();
 

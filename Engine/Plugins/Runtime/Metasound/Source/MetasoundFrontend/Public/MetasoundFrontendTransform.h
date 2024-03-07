@@ -64,16 +64,10 @@ namespace Metasound::Frontend
 	public:
 		virtual ~INodeTransform() = default;
 
-		UE_DEPRECATED(5.3, "Deprecated: unused function which encouraged breaking const behavior of transform state.")
-		virtual FMetasoundFrontendDocument& GetOwningDocument() const { static FMetasoundFrontendDocument BaseDoc; return BaseDoc; };
-
-		UE_DEPRECATED(5.3, "Deprecated: unused function which encouraged breaking const behavior of transform state.")
-		virtual FMetasoundFrontendGraph& GetOwningGraph() const { static FMetasoundFrontendGraph BaseGraph; return BaseGraph; }
-
 		/** Return true if the node was modified, false otherwise. */
 		virtual bool Transform(const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const;
 
-		UE_DEPRECATED(5.4, "Use transform which provides builder and const node representation to apply node transform to mutate underlying builder document")
+		UE_DEPRECATED(5.4, "Use transform overload with node ID and builder parameters to apply node transform to builder's underlying document")
 		virtual bool Transform(FMetasoundFrontendNode& InOutNode) const;
 	};
 

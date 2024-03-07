@@ -83,6 +83,10 @@ public:
 		return false;
 	}
 
+	const FMetaSoundFrontendDocumentBuilder& GetFrontendBuilderChecked() const;
+	const FMetasoundFrontendNode* GetFrontendNode() const;
+	const FMetasoundFrontendNode& GetFrontendNodeChecked() const;
+
 	UObject& GetMetasoundChecked();
 	const UObject& GetMetasoundChecked() const;
 

@@ -7,6 +7,7 @@
 #include "MetasoundFrontendDocumentAccessPtr.h"
 #include "MetasoundFrontendGraphLinter.h"
 #include "MetasoundFrontendInvalidController.h"
+#include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "Misc/Guid.h"
 
 #define LOCTEXT_NAMESPACE "MetasoundFrontendInputController"
@@ -78,6 +79,10 @@ namespace Metasound
 								AccessType = ClassInput->AccessType;
 								return;
 							}
+
+							// Likely template node with no set class input interface, so valid to return unset
+							AccessType = EMetasoundFrontendVertexAccessType::Unset;
+							return;
 						}
 
 						const EMetasoundFrontendVertexAccessType RerouteAccessType = ReroutedInput->GetVertexAccessType();
@@ -211,6 +216,17 @@ namespace Metasound
 
 		bool FBaseInputController::IsConnectionUserModifiable() const
 		{
+			FConstNodeHandle Owner = GetOwningNode();
+			if (Owner->GetClassMetadata().GetType() == EMetasoundFrontendClassType::Template)
+			{
+				const FNodeRegistryKey Key(GetOwningNode()->GetClassMetadata());
+				const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key);
+				if (ensure(Template))
+				{
+					return Template->IsInputConnectionUserModifiable();
+				}
+			}
+
 			return true;
 		}
 
@@ -465,7 +481,6 @@ namespace Metasound
 
 			return Access;
 		}
-
 
 		//
 		// FOutputNodeInputController

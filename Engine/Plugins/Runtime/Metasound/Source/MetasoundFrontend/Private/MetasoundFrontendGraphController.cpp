@@ -1045,29 +1045,6 @@ namespace Metasound
 			return INodeController::GetInvalidHandle();
 		}
 
-		FNodeHandle FGraphController::AddInputVertex(const FVertexName& InName, const FName InTypeName, const FMetasoundFrontendLiteral* InDefaultValue)
-		{
-			const FGuid VertexID = FGuid::NewGuid();
-
-			FMetasoundFrontendClassInput Description;
-
-			Description.Name = InName;
-			Description.TypeName = InTypeName;
-			Description.VertexID = VertexID;
-
-			if (InDefaultValue)
-			{
-				Description.DefaultLiteral = *InDefaultValue;
-			}
-			else
-			{
-				Metasound::FLiteral Literal = IDataTypeRegistry::Get().CreateDefaultLiteral(InTypeName);
-				Description.DefaultLiteral.SetFromLiteral(Literal);
-			}
-
-			return AddInputVertex(Description);
-		}
-
 		bool FGraphController::RemoveInputVertex(const FVertexName& InName)
 		{
 			auto IsInputNodeWithSameName = [&](const FMetasoundFrontendClass& InClass, const FMetasoundFrontendNode& InNode)
@@ -1424,35 +1401,29 @@ namespace Metasound
 			return AddNode(FNodeRegistryKey(InClassMetadata), InNodeGuid);
 		}
 
-		FNodeHandle FGraphController::AddTemplateNode(const FNodeRegistryKey& InKey, FMetasoundFrontendNodeInterface&& InNodeInterface, FGuid InNodeGuid)
+		FNodeHandle FGraphController::AddTemplateNode(const INodeTemplate& InTemplate, FNodeTemplateGenerateInterfaceParams Params, FGuid InNodeGuid)
 		{
-			if (const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(InKey))
-			{
-				const bool bIsValidInterface = Template->IsValidNodeInterface(InNodeInterface);
-				if (ensureAlwaysMsgf(bIsValidInterface, TEXT("Cannot implement interface when attempting to add node using template with key '%s'"), *InKey.ToString()))
-				{
-					// Construct a FNodeClassInfo from this lookup key.
-					FConstClassAccessPtr Class = OwningDocument->FindOrAddClass(InKey);
-					const bool bIsValidClass = (nullptr != Class.Get());
+			// Construct a FNodeClassInfo from this lookup key.
+			const FNodeRegistryKey Key(InTemplate.GetFrontendClass().Metadata);
+			FConstClassAccessPtr Class = OwningDocument->FindOrAddClass(Key);
+			const bool bIsValidClass = (nullptr != Class.Get());
 
-					if (bIsValidClass)
+			if (bIsValidClass)
+			{
+				if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
+				{
+					if (const FMetasoundFrontendClass* NodeClass = Class.Get())
 					{
-						if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
-						{
-							if (const FMetasoundFrontendClass* NodeClass = Class.Get())
-							{
-								FMetasoundFrontendNode& Node = GraphClass->Graph.Nodes.Emplace_GetRef(*NodeClass);
-								Node.UpdateID(InNodeGuid);
-								Node.Interface = InNodeInterface;
-								FNodeAccessPtr NodePtr = GraphClassPtr.GetNodeWithNodeID(Node.GetID());
-								return GetNodeHandle(FGraphController::FNodeAndClass{ NodePtr, Class });
-							}
-						}
+						FMetasoundFrontendNode& Node = GraphClass->Graph.Nodes.Emplace_GetRef(*NodeClass);
+						Node.UpdateID(InNodeGuid);
+						Node.Interface = InTemplate.GenerateNodeInterface(MoveTemp(Params));
+						FNodeAccessPtr NodePtr = GraphClassPtr.GetNodeWithNodeID(Node.GetID());
+						return GetNodeHandle(FGraphController::FNodeAndClass{ NodePtr, Class });
 					}
 				}
 			}
 
-			UE_LOG(LogMetaSound, Warning, TEXT("Failed to find or add node template class info with registry key [Key:%s]"), *InKey.ToString());
+			UE_LOG(LogMetaSound, Warning, TEXT("Failed to find or add node template class info with registry key [Key:%s]"), *Key.ToString());
 			return INodeController::GetInvalidHandle();
 		}
 

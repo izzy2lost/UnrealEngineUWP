@@ -753,7 +753,26 @@ namespace Metasound
 
 		Frontend::FConstInputHandle FGraphBuilder::GetConstInputHandleFromPin(const UEdGraphPin* InPin)
 		{
-			return GetInputHandleFromPin(InPin);
+			using namespace Frontend;
+			using namespace VariableNames;
+
+			if (InPin && ensure(InPin->Direction == EGPD_Input))
+			{
+				if (const UMetasoundEditorGraphVariableNode* EdVariableNode = Cast<UMetasoundEditorGraphVariableNode>(InPin->GetOwningNode()))
+				{
+					// UEdGraphPins on variable nodes use the variable's name for display
+					// purposes instead of the underlying vertex's name. The frontend vertices
+					// of a variable node have consistent names no matter what the 
+					// variable is named.
+					return EdVariableNode->GetConstNodeHandle()->GetConstInputWithVertexName(METASOUND_GET_PARAM_NAME(InputData));
+				}
+				else if (const UMetasoundEditorGraphNode* EdNode = CastChecked<UMetasoundEditorGraphNode>(InPin->GetOwningNode()))
+				{
+					return EdNode->GetConstNodeHandle()->GetConstInputWithVertexName(InPin->GetFName());
+				}
+			}
+
+			return IInputController::GetInvalidHandle();
 		}
 
 		FName FGraphBuilder::GetPinDataType(const UEdGraphPin* InPin)
@@ -775,6 +794,133 @@ namespace Metasound
 			}
 
 			return { };
+		}
+
+		FMetasoundFrontendVertexHandle FGraphBuilder::GetPinVertexHandle(const FMetaSoundFrontendDocumentBuilder& InBuilder, const UEdGraphPin* InPin)
+		{
+			using namespace VariableNames;
+
+			if (!InPin)
+			{
+				return { };
+			}
+
+			const UMetasoundEditorGraphNode* OwningNode = CastChecked<UMetasoundEditorGraphNode>(InPin->GetOwningNode());
+
+			const FGuid NodeID = OwningNode->GetNodeID();
+			const FMetasoundFrontendNode* Node = InBuilder.FindNode(NodeID);
+			if (!Node)
+			{
+				return { };
+			}
+
+			const FMetasoundFrontendClass* Class = InBuilder.FindDependency(Node->ClassID);
+			if (!Class)
+			{
+				return { };
+			}
+
+			const FMetasoundFrontendVertex* Vertex = nullptr;
+			switch (Class->Metadata.GetType())
+			{
+				case EMetasoundFrontendClassType::Variable:
+				case EMetasoundFrontendClassType::VariableAccessor:
+				case EMetasoundFrontendClassType::VariableDeferredAccessor:
+				case EMetasoundFrontendClassType::VariableMutator:
+				{
+					// All variables nodes use the same pin name for user-modifiable node
+					// inputs and outputs and the editor does not display the pin's name. The
+					// editor instead displays the variable's name in place of the pin name to
+					// maintain a consistent look and behavior to input and output nodes.
+					Vertex = InPin->Direction == EGPD_Input
+						? InBuilder.FindNodeInput(NodeID, METASOUND_GET_PARAM_NAME(InputData))
+						: InBuilder.FindNodeOutput(NodeID, METASOUND_GET_PARAM_NAME(OutputData));
+					break;
+				}
+
+				case EMetasoundFrontendClassType::Input:
+				{
+					Vertex = &Node->Interface.Inputs.Last();
+					break;
+				}
+
+				case EMetasoundFrontendClassType::Output:
+				{
+					Vertex = &Node->Interface.Outputs.Last();
+					break;
+				}
+
+				default:
+				{
+					Vertex = InPin->Direction == EGPD_Input
+						? InBuilder.FindNodeInput(NodeID, InPin->GetFName())
+						: InBuilder.FindNodeOutput(NodeID, InPin->GetFName());
+				}
+			}
+
+			FMetasoundFrontendVertexHandle VertexHandle { NodeID };
+			if (Vertex)
+			{
+				VertexHandle.VertexID = Vertex->VertexID;
+			}
+			return VertexHandle;
+		}
+
+		const FMetasoundFrontendVertex* FGraphBuilder::GetPinVertex(const FMetaSoundFrontendDocumentBuilder& InBuilder, const UEdGraphPin* InPin)
+		{
+			using namespace VariableNames;
+
+			if (!InPin)
+			{
+				return nullptr;
+			}
+
+			const UMetasoundEditorGraphNode* OwningNode = CastChecked<UMetasoundEditorGraphNode>(InPin->GetOwningNode());
+
+			const FGuid NodeID = OwningNode->GetNodeID();
+			const FMetasoundFrontendNode* Node = InBuilder.FindNode(NodeID);
+			if (!Node)
+			{
+				return nullptr;
+			}
+
+			const FMetasoundFrontendClass* Class = InBuilder.FindDependency(Node->ClassID);
+			if (!Class)
+			{
+				return nullptr;
+			}
+
+			switch (Class->Metadata.GetType())
+			{
+				case EMetasoundFrontendClassType::Variable:
+				case EMetasoundFrontendClassType::VariableAccessor:
+				case EMetasoundFrontendClassType::VariableDeferredAccessor:
+				case EMetasoundFrontendClassType::VariableMutator:
+				{
+					// All variables nodes use the same pin name for user-modifiable node
+					// inputs and outputs and the editor does not display the pin's name. The
+					// editor instead displays the variable's name in place of the pin name to
+					// maintain a consistent look and behavior to input and output nodes.
+					return InPin->Direction == EGPD_Input
+						? InBuilder.FindNodeInput(NodeID, METASOUND_GET_PARAM_NAME(InputData))
+						: InBuilder.FindNodeOutput(NodeID, METASOUND_GET_PARAM_NAME(OutputData));
+				}
+				case EMetasoundFrontendClassType::Input:
+				{
+					return &Node->Interface.Inputs.Last();
+				}
+				case EMetasoundFrontendClassType::Output:
+				{
+					return &Node->Interface.Outputs.Last();
+				}
+
+				default:
+				{
+					return InPin->Direction == EGPD_Input
+						? InBuilder.FindNodeInput(NodeID, InPin->GetFName())
+						: InBuilder.FindNodeOutput(NodeID, InPin->GetFName());
+				}
+			}
 		}
 
 		Frontend::FOutputHandle FGraphBuilder::GetOutputHandleFromPin(const UEdGraphPin* InPin)
@@ -1252,12 +1398,6 @@ namespace Metasound
 			return NodeHandle;
 		}
 
-		Frontend::FNodeHandle FGraphBuilder::AddInputNodeHandle(UObject& InMetaSound, const FName InTypeName, const FMetasoundFrontendLiteral* InDefaultValue, const FName* InNameBase)
-		{
-			UE_LOG(LogMetaSound, Error, TEXT("FGraphBuilder::AddInputNodeHandle with these parameters is no longer supported and should not be called. Use the one with FCreateNodeVertexParams instead."));
-			return Frontend::INodeController::GetInvalidHandle();
-		}
-
 		Frontend::FNodeHandle FGraphBuilder::AddInputNodeHandle(UObject& InMetaSound, const FCreateNodeVertexParams& InParams, const FMetasoundFrontendLiteral* InDefaultValue, const FName* InNameBase)
 		{
 			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
@@ -1283,12 +1423,6 @@ namespace Metasound
 			}
 
 			return MetaSoundAsset->GetRootGraphHandle()->AddInputVertex(ClassInput);
-		}
-		
-		Frontend::FNodeHandle FGraphBuilder::AddOutputNodeHandle(UObject& InMetaSound, const FName InTypeName, const FName* InNameBase)
-		{
-			UE_LOG(LogMetaSound, Error, TEXT("FGraphBuilder::AddOutputNodeHandle with these parameters is no longer supported and should not be called. Use the one with FCreateNodeVertexParams instead."));
-			return Frontend::INodeController::GetInvalidHandle();
 		}
 
 		Frontend::FNodeHandle FGraphBuilder::AddOutputNodeHandle(UObject& InMetaSound, const FCreateNodeVertexParams& InParams, const FName* InNameBase)

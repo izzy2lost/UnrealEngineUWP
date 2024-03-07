@@ -7,6 +7,7 @@
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentAccessPtr.h"
+#include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundGraph.h"
 #include "MetasoundVertex.h"
@@ -49,6 +50,8 @@ namespace Metasound
 		class INodeController;
 		class IOutputController;
 		class IVariableController;
+
+		struct FNodeTemplateGenerateInterfaceParams;
 
 		// Metasound Frontend Handles are all TSharedRefs of various Metasound Frontend Controllers.
 		using FInputHandle = TSharedRef<IInputController>;
@@ -828,9 +831,6 @@ namespace Metasound
 			 */
 			virtual FNodeHandle AddInputVertex(const FMetasoundFrontendClassInput& InDescription) = 0;
 
-			UE_DEPRECATED(5.1, "Use AddInputVertex method which specifies EMetasoundFrontendVertexAccessType")
-			virtual FNodeHandle AddInputVertex(const FVertexName& InName, const FName InTypeName, const FMetasoundFrontendLiteral* InDefaultValue) = 0;
-
 			/** Remove the input with the given name. Returns true if successfully removed, false otherwise. */
 			virtual bool RemoveInputVertex(const FVertexName& InputName) = 0;
 
@@ -960,14 +960,16 @@ namespace Metasound
 
 			/** Add a new template node to this graph, providing the defined interface as expected by the caller.
 			 *
-			 * @param InKey - Class key (must correspond with a class in the registry that was registered as a template).
-			 * @param InNodeInterface - Interface for node class.  Validated by template class registered in the node class registry. If invalid, node is not created/added.
+			 * @param InNodeTemplate - Node template to use to generate node
 			 * @param InNodeGuid - (Optional) Explicit guid for the new node. Must be unique within the graph.
 			 * Only useful to specify explicitly when caller is managing or tracking the graph's guids (ex. replacing removed node).
 			 *
 			 * @return Node handle for class. On error, an invalid handle is returned.
 			 */
-			virtual FNodeHandle AddTemplateNode(const FNodeRegistryKey& InKey, FMetasoundFrontendNodeInterface&& InNodeInterface, FGuid InNodeGuid = FGuid::NewGuid()) = 0;
+			virtual FNodeHandle AddTemplateNode(const INodeTemplate& InNodeTemplate, FNodeTemplateGenerateInterfaceParams Params, FGuid InNodeGuid = FGuid::NewGuid()) = 0;
+
+			UE_DEPRECATED(5.5, "Use overload that provides INodeTemplate instead")
+			virtual FNodeHandle AddTemplateNode(const FNodeRegistryKey& InKey, FMetasoundFrontendNodeInterface&& InNodeInterface, FGuid InNodeGuid = FGuid::NewGuid()) { return INodeController::GetInvalidHandle(); }
 
 			/** Remove the node corresponding to this node handle.
 			 *
@@ -1133,7 +1135,10 @@ namespace Metasound
 		};
 
 		METASOUNDFRONTEND_API FConstOutputHandle FindReroutedOutput(FConstOutputHandle InOutputHandle);
+
+		UE_DEPRECATED(5.5, "Reroute input recursion is now privately implemented in the reroute template node class.")
 		METASOUNDFRONTEND_API void FindReroutedInputs(FConstInputHandle InHandleToCheck, TArray<FConstInputHandle>& InOutInputHandles);
+
 		METASOUNDFRONTEND_API void IterateReroutedInputs(FConstInputHandle InHandleToCheck, TFunctionRef<void(FConstInputHandle)> Func);
 	} // namespace Frontend
 } // namespace Metasound

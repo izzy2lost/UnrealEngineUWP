@@ -11,6 +11,7 @@
 #include "Logging/TokenizedMessage.h"
 #include "Metasound.h"
 #include "MetasoundAssetManager.h"
+#include "MetasoundBuilderSubsystem.h"
 #include "MetasoundEditorCommands.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
@@ -131,6 +132,40 @@ int32 UMetasoundEditorGraphNode::EstimateNodeWidth() const
 		static const int32 EstimatedCharWidth = 6;
 		return NodeTitle.Len() * EstimatedCharWidth;
 	}
+}
+
+const FMetaSoundFrontendDocumentBuilder& UMetasoundEditorGraphNode::GetFrontendBuilderChecked() const
+{
+	UObject* Outermost = GetOutermostObject();
+	check(Outermost);
+
+	const UMetaSoundBuilderBase& BuilderBase = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*Outermost);
+	return BuilderBase.GetConstBuilder();
+}
+
+const FMetasoundFrontendNode* UMetasoundEditorGraphNode::GetFrontendNode() const
+{
+	if (UObject* Outermost = GetOutermostObject())
+	{
+		const FGuid NodeID = GetNodeID();
+		const UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*Outermost);
+		return Builder.GetConstBuilder().FindNode(NodeID);
+	}
+
+	return nullptr;
+}
+
+const FMetasoundFrontendNode& UMetasoundEditorGraphNode::GetFrontendNodeChecked() const
+{
+	UObject* Outermost = GetOutermostObject();
+	check(Outermost);
+
+	const FGuid NodeID = GetNodeID();
+	const UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*Outermost);
+
+	const FMetasoundFrontendNode* FrontendNode = Builder.GetConstBuilder().FindNode(NodeID);
+	check(FrontendNode);
+	return *FrontendNode;
 }
 
 UObject& UMetasoundEditorGraphNode::GetMetasoundChecked()
@@ -904,7 +939,7 @@ void UMetasoundEditorGraphExternalNode::Validate(Metasound::Editor::FGraphNodeVa
 			{
 #if WITH_EDITOR
 				FString Message;
-				if (!Template->HasRequiredConnections(NodeHandle, &Message))
+				if (!Template->HasRequiredConnections(GetFrontendBuilderChecked(), GetNodeID(), &Message))
 				{
 					OutResult.SetMessage(EMessageSeverity::Warning, Message);
 				}

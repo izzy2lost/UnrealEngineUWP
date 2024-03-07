@@ -49,6 +49,7 @@
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentBuilder.h"
+#include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundFrontendTransform.h"
@@ -2586,22 +2587,31 @@ namespace Metasound
 					{
 						FMetasoundFrontendClass FrontendClass;
 						const FMetasoundFrontendClassName ClassName = ExternalNode->GetClassName();
-						if (ClassName == FRerouteNodeTemplate::ClassName)
+						if (const INodeTemplate* NodeTemplate = INodeTemplateRegistry::Get().FindTemplate(ClassName))
 						{
 							bool bIsValid = false;
 							if (!ExternalNode->Pins.IsEmpty())
 							{
-								const FName DataType = FGraphBuilder::GetPinDataType(ExternalNode->Pins.Last());
-								if (!DataType.IsNone())
+								FNodeTemplateGenerateInterfaceParams Params;
+								for (const UEdGraphPin* Pin : ExternalNode->Pins)
 								{
-									const FNodeRegistryKey& RerouteTemplateKey = FRerouteNodeTemplate::GetRegistryKey();
-									FMetasoundFrontendNodeInterface NodeInterface = FRerouteNodeTemplate::CreateNodeInterfaceFromDataType(DataType);
+									check(Pin);
 
-									FNodeHandle NodeHandle = MetasoundAsset->GetRootGraphHandle()->AddTemplateNode(RerouteTemplateKey, MoveTemp(NodeInterface));
-									FGraphBuilder::InitGraphNodeIDFromNodeHandle(NodeHandle, ExternalNode);
-
-									bIsValid = NodeHandle->IsValid();
+									FName PinDataType = FGraphBuilder::GetPinDataType(Pin);
+									if (Pin->Direction == EGPD_Input)
+									{
+										Params.InputsToConnect.Add(PinDataType);
+									}
+									else // EGPD_Output
+									{
+										Params.OutputsToConnect.Add(PinDataType);
+									}
 								}
+
+								FNodeHandle NodeHandle = MetasoundAsset->GetRootGraphHandle()->AddTemplateNode(*NodeTemplate, MoveTemp(Params));
+								FGraphBuilder::InitGraphNodeIDFromNodeHandle(NodeHandle, ExternalNode);
+
+								bIsValid = NodeHandle->IsValid();
 							}
 
 							if (!bIsValid)

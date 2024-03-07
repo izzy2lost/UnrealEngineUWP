@@ -5,9 +5,11 @@
 #include "Algo/AnyOf.h"
 #include "MetasoundAssetManager.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
+#include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
+#include "MetasoundFrontendTransform.h"
 
 
 namespace Metasound::Frontend
@@ -85,6 +87,75 @@ namespace Metasound::Frontend
 
 			return false;
 		}
+
+		const FMetasoundFrontendVertex* FindReroutedOutputVertex(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FMetasoundFrontendNode& InOutputOwningNode, const FMetasoundFrontendVertex& InOutputVertex)
+		{
+			const FMetasoundFrontendVertex* ReroutedVertex = &InOutputVertex;
+			if (const FMetasoundFrontendClass* Class = InBuilder.FindDependency(InOutputOwningNode.ClassID))
+			{
+				if (Class->Metadata.GetClassName() == FRerouteNodeTemplate::ClassName)
+				{
+					const FGuid& OutputOwningNodeID = InOutputOwningNode.GetID();
+					TArray<const FMetasoundFrontendVertex*> Inputs = InBuilder.FindNodeInputs(OutputOwningNodeID);
+					if (!Inputs.IsEmpty())
+					{
+						if (const FMetasoundFrontendVertex* RerouteInput = Inputs.Last())
+						{
+							const FMetasoundFrontendNode* ConnectedNode = nullptr;
+							if (const FMetasoundFrontendVertex* OutputVertex = InBuilder.FindNodeOutputConnectedToNodeInput(OutputOwningNodeID, RerouteInput->VertexID, &ConnectedNode))
+							{
+								check(ConnectedNode);
+								return FindReroutedOutputVertex(InBuilder, *ConnectedNode, *OutputVertex);
+							}
+						}
+					}
+				}
+			}
+
+			return ReroutedVertex;
+		}
+
+		void FindReroutedInputVertices(
+			const FMetaSoundFrontendDocumentBuilder& InBuilder,
+			const FMetasoundFrontendNode& InInputOwningNode,
+			const FMetasoundFrontendVertex& InInputVertex,
+			TArray<const FMetasoundFrontendNode*>& InOutReroutedInputOwningNodes,
+			TArray<const FMetasoundFrontendVertex*>& InOutReroutedInputVertices)
+		{
+			using namespace Frontend;
+
+			if (const FMetasoundFrontendClass* Class = InBuilder.FindDependency(InInputOwningNode.ClassID))
+			{
+				if (Class->Metadata.GetClassName() == FRerouteNodeTemplate::ClassName)
+				{
+					const FGuid& InputOwningNodeID = InInputOwningNode.GetID();
+					TArray<const FMetasoundFrontendVertex*> Outputs = InBuilder.FindNodeOutputs(InputOwningNodeID);
+					for (const FMetasoundFrontendVertex* Output : Outputs)
+					{
+						check(Output);
+
+						TArray<const FMetasoundFrontendNode*> ConnectedInputNodes;
+						TArray<const FMetasoundFrontendVertex*> ConnectedInputVertices = InBuilder.FindNodeInputsConnectedToNodeOutput(InputOwningNodeID, Output->VertexID, &ConnectedInputNodes);
+						check(ConnectedInputNodes.Num() == ConnectedInputVertices.Num());
+
+						for (int32 Index = 0; Index < ConnectedInputNodes.Num(); ++Index)
+						{
+							const FMetasoundFrontendNode* ConnectedInputOwningNode = ConnectedInputNodes[Index];
+							check(ConnectedInputOwningNode);
+							const FMetasoundFrontendVertex* ConnectedInputVertex = ConnectedInputVertices[Index];
+							check(ConnectedInputVertex);
+
+							FindReroutedInputVertices(InBuilder, *ConnectedInputOwningNode, *ConnectedInputVertex, InOutReroutedInputOwningNodes, InOutReroutedInputVertices);
+						}
+					}
+
+					return;
+				}
+			}
+
+			InOutReroutedInputOwningNodes.Add(&InInputOwningNode);
+			InOutReroutedInputVertices.Add(&InInputVertex);
+		}
 	} // namespace ReroutePrivate
 
 	const FMetasoundFrontendClassName FRerouteNodeTemplate::ClassName { "UE", "Reroute", "" };
@@ -93,12 +164,44 @@ namespace Metasound::Frontend
 
 	const FMetasoundFrontendClassName& FRerouteNodeTemplate::GetClassName() const
 	{
-		return ClassName;
+		return FRerouteNodeTemplate::ClassName;
 	}
 
-	TUniquePtr<INodeTransform> FRerouteNodeTemplate::GenerateNodeTransform(FMetasoundFrontendDocument& InPreprocessedDocument) const
+#if WITH_EDITOR
+	FText FRerouteNodeTemplate::GetNodeDisplayName(const IMetaSoundDocumentInterface& DocumentInterface, const FGuid& InNodeID) const
 	{
-		return GenerateNodeTransform();
+		return { };
+	}
+#endif // WITH_EDITOR
+
+	FMetasoundFrontendNodeInterface FRerouteNodeTemplate::GenerateNodeInterface(FNodeTemplateGenerateInterfaceParams InParams) const
+	{
+		FName DataType;
+
+		if (!InParams.InputsToConnect.IsEmpty())
+		{
+			DataType = InParams.InputsToConnect.Last();
+		}
+
+		if (!InParams.OutputsToConnect.IsEmpty())
+		{
+			const FName OutputDataType = InParams.OutputsToConnect.Last();
+			if (DataType.IsNone())
+			{
+				DataType = OutputDataType;
+			}
+			else
+			{
+				checkf(DataType == OutputDataType, TEXT("Cannot generate MetasoundFrontendNodeInterface via reroute template with params of unmatched or unset input/output DataType"));
+			}
+		}
+
+		static const FName VertexName = "Value";
+		FMetasoundFrontendNodeInterface NewInterface;
+		NewInterface.Inputs.Add(FMetasoundFrontendVertex { VertexName, DataType, FGuid::NewGuid() });
+		NewInterface.Outputs.Add(FMetasoundFrontendVertex { VertexName, DataType, FGuid::NewGuid() });
+
+		return NewInterface;
 	}
 
 	TUniquePtr<INodeTransform> FRerouteNodeTemplate::GenerateNodeTransform() const
@@ -136,17 +239,6 @@ namespace Metasound::Frontend
 
 		static const FMetasoundFrontendClass FrontendClass = CreateFrontendClass();
 		return FrontendClass;
-	}
-
-	FMetasoundFrontendNodeInterface FRerouteNodeTemplate::CreateNodeInterfaceFromDataType(FName InDataType)
-	{
-		auto CreateNewVertex = [&] { return FMetasoundFrontendVertex { "Value", InDataType, FGuid::NewGuid() }; };
-
-		FMetasoundFrontendNodeInterface NewInterface;
-		NewInterface.Inputs.Add(CreateNewVertex());
-		NewInterface.Outputs.Add(CreateNewVertex());
-
-		return NewInterface;
 	}
 
 	EMetasoundFrontendVertexAccessType FRerouteNodeTemplate::GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
@@ -216,17 +308,29 @@ namespace Metasound::Frontend
 	}
 
 #if WITH_EDITOR
-	bool FRerouteNodeTemplate::HasRequiredConnections(FConstNodeHandle InNodeHandle, FString* OutMessage) const
+	bool FRerouteNodeTemplate::HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FString* OutMessage) const
 	{
-		TArray<FConstOutputHandle> Outputs = InNodeHandle->GetConstOutputs();
-		TArray<FConstInputHandle> Inputs = InNodeHandle->GetConstInputs();
-
-		const bool bConnectedToNonRerouteOutputs = Algo::AnyOf(Outputs, [](const FConstOutputHandle& OutputHandle) { return Frontend::FindReroutedOutput(OutputHandle)->IsValid(); });
-		const bool bConnectedToNonRerouteInputs = Algo::AnyOf(Inputs, [](const FConstInputHandle& InputHandle)
+		const FMetasoundFrontendNode* Node = InBuilder.FindNode(InNodeID);
+		if (!Node)
 		{
-			TArray<FConstInputHandle> Inputs;
-			Frontend::FindReroutedInputs(InputHandle, Inputs);
-			return !Inputs.IsEmpty();
+			return false;
+		}
+
+		TArray<const FMetasoundFrontendVertex*> Outputs = InBuilder.FindNodeOutputs(InNodeID);
+		const bool bConnectedToNonRerouteOutputs = Algo::AnyOf(Outputs, [&InBuilder, &Node](const FMetasoundFrontendVertex* OutputVertex)
+		{
+			using namespace ReroutePrivate;
+			return FindReroutedOutputVertex(InBuilder, *Node, *OutputVertex) != nullptr;
+		});
+
+		TArray<const FMetasoundFrontendVertex*> Inputs = InBuilder.FindNodeInputs(InNodeID);
+		const bool bConnectedToNonRerouteInputs = Algo::AnyOf(Inputs, [&InBuilder, &Node](const FMetasoundFrontendVertex* InputVertex)
+		{
+			using namespace ReroutePrivate;
+			TArray<const FMetasoundFrontendVertex*> InputVertices;
+			TArray<const FMetasoundFrontendNode*> InputVerticesOwningNodes;
+			FindReroutedInputVertices(InBuilder, *Node, *InputVertex, InputVerticesOwningNodes, InputVertices);
+			return !InputVertices.IsEmpty();
 		});
 
 		const bool bHasRequiredConnections = bConnectedToNonRerouteOutputs || bConnectedToNonRerouteOutputs == bConnectedToNonRerouteInputs;
@@ -240,6 +344,16 @@ namespace Metasound::Frontend
 #endif // WITH_EDITOR
 
 	bool FRerouteNodeTemplate::IsInputAccessTypeDynamic() const
+	{
+		return true;
+	}
+
+	bool FRerouteNodeTemplate::IsInputConnectionUserModifiable() const
+	{
+		return true;
+	}
+
+	bool FRerouteNodeTemplate::IsOutputConnectionUserModifiable() const
 	{
 		return true;
 	}

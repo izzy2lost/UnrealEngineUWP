@@ -17,6 +17,7 @@
 #include "Metasound.h"
 #include "MetasoundAssetBase.h"
 #include "MetasoundAssetManager.h"
+#include "MetasoundBuilderSubsystem.h"
 #include "MetasoundDataReference.h"
 #include "MetasoundEditor.h"
 #include "MetasoundEditorCommands.h"
@@ -30,6 +31,7 @@
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendGraphLinter.h"
 #include "MetasoundFrontendNodesCategories.h"
+#include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundLiteral.h"
@@ -37,6 +39,7 @@
 #include "MetasoundStandardNodesCategories.h"
 #include "MetasoundUObjectRegistry.h"
 #include "MetasoundVariableNodes.h"
+#include "MetasoundVertex.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
 #include "ScopedTransaction.h"
 #include "Styling/SlateStyleRegistry.h"
@@ -891,27 +894,41 @@ FMetasoundGraphSchemaAction_NewReroute::FMetasoundGraphSchemaAction_NewReroute(c
 
 UEdGraphNode* FMetasoundGraphSchemaAction_NewReroute::PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode /* = true*/)
 {
+	using namespace Metasound;
 	using namespace Metasound::Editor;
 	using namespace Metasound::Frontend;
 
-	const FName DataType = FGraphBuilder::GetPinDataType(FromPin);
-	if (DataType.IsNone())
-	{
-		return nullptr;
-	}
-
-	const FScopedTransaction Transaction(FText::Format(LOCTEXT("AddNewRerouteNode", "Add {0} Reroute Node"), FText::FromName(DataType)));
+	check(ParentGraph);
 	UMetasoundEditorGraph* MetaSoundGraph = CastChecked<UMetasoundEditorGraph>(ParentGraph);
 	UObject& ParentMetasound = MetaSoundGraph->GetMetasoundChecked();
+	UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(ParentMetasound);
+
+	const FScopedTransaction Transaction(LOCTEXT("AddNewRerouteNode", "Add Reroute Node"));
 	ParentMetasound.Modify();
 	ParentGraph->Modify();
 
 	FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&ParentMetasound);
 	check(MetaSoundAsset);
 
-	const FNodeRegistryKey& RerouteTemplateKey = FRerouteNodeTemplate::GetRegistryKey();
-	FMetasoundFrontendNodeInterface NodeInterface = FRerouteNodeTemplate::CreateNodeInterfaceFromDataType(DataType);
-	FNodeHandle NodeHandle = MetaSoundAsset->GetRootGraphHandle()->AddTemplateNode(RerouteTemplateKey, MoveTemp(NodeInterface));
+	const INodeTemplate* RerouteTemplate = INodeTemplateRegistry::Get().FindTemplate(FRerouteNodeTemplate::ClassName);
+	check(RerouteTemplate);
+
+	const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder.GetConstBuilder();
+
+	// Provided 'FromPin' is what to connect to, so if its an input, its the output of the generated node needs to
+	// match the from pin and vice versa.
+	const FName FromVertexDataType = FGraphBuilder::GetPinDataType(FromPin);
+	FNodeTemplateGenerateInterfaceParams Params;
+	if (FromPin->Direction == EGPD_Input)
+	{
+		Params.OutputsToConnect.Add(FromVertexDataType);
+	}
+	else
+	{
+		Params.InputsToConnect.Add(FromVertexDataType);
+	}
+
+	FNodeHandle NodeHandle = MetaSoundAsset->GetRootGraphHandle()->AddTemplateNode(*RerouteTemplate, MoveTemp(Params));
 
 	if (UMetasoundEditorGraphExternalNode* NewGraphNode = FGraphBuilder::AddExternalNode(ParentMetasound, NodeHandle, Location, bSelectNewNode))
 	{
@@ -1313,6 +1330,7 @@ const FPinConnectionResponse UMetasoundEditorGraphSchema::CanCreateConnection(co
 
 void UMetasoundEditorGraphSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin* PinB, const FVector2D& GraphPosition) const
 {
+	using namespace Metasound;
 	using namespace Metasound::Editor;
 
 	if (!PinA || !PinB)
@@ -1327,11 +1345,19 @@ void UMetasoundEditorGraphSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA,
 	UMetasoundEditorGraph* ParentGraph = Cast<UMetasoundEditorGraph>(PinA->GetOwningNode()->GetGraph());
 	if (ParentGraph->IsEditable())
 	{
-		const FName DataType = FGraphBuilder::GetPinDataType(PinA);
-		const FScopedTransaction Transaction(FText::Format(LOCTEXT("AddConnectNewRerouteNode", "Add & Connect {0} Reroute Node"), FText::FromName(DataType)));
-
 		UMetasoundEditorGraph* MetaSoundGraph = CastChecked<UMetasoundEditorGraph>(ParentGraph);
 		UObject& ParentMetasound = MetaSoundGraph->GetMetasoundChecked();
+		UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(ParentMetasound);
+		const FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder.GetConstBuilder();
+		
+		FName VertexDataType;
+		const FMetasoundFrontendVertex* Vertex = FGraphBuilder::GetPinVertex(DocBuilder, PinA);
+		if (ensure(Vertex))
+		{
+			VertexDataType = Vertex->TypeName;
+		}
+		const FScopedTransaction Transaction(FText::Format(LOCTEXT("AddConnectNewRerouteNode", "Add & Connect {0} Reroute Node"), FText::FromName(VertexDataType)));
+
 		ParentMetasound.Modify();
 		ParentGraph->Modify();
 
@@ -1341,8 +1367,7 @@ void UMetasoundEditorGraphSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA,
 		constexpr bool bShouldTransact = false;
 		TSharedPtr<FMetasoundGraphSchemaAction_NewReroute> RerouteAction = MakeShared<FMetasoundGraphSchemaAction_NewReroute>(IconColor, bShouldTransact);
 
-		UEdGraphNode& Node = *PinA->GetOwningNode();
-		UEdGraphNode* NewNode = RerouteAction->PerformAction(Node.GetGraph(), OutputPin, GraphPosition, true);
+		UEdGraphNode* NewNode = RerouteAction->PerformAction(ParentGraph, OutputPin, GraphPosition, true);
 
 		if (ensure(NewNode))
 		{
