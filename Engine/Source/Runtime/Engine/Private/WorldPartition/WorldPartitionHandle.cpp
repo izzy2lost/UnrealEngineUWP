@@ -285,7 +285,11 @@ void FWorldPartitionReferenceImpl::IncRefCount(FWorldPartitionActorDescInstance*
 
 void FWorldPartitionReferenceImpl::DecRefCount(FWorldPartitionActorDescInstance* InActorDescInstance)
 {
-	if (InActorDescInstance->DecHardRefCount() == 0)
+	const bool bIsContainerInitialized = InActorDescInstance->GetContainerInstance()->IsInitialized();
+	const bool bIsActorDescInstanceUnregistering = InActorDescInstance->bIsRegisteringOrUnregistering;
+	const bool bReleasingLastReference = !InActorDescInstance->DecHardRefCount();
+
+	if ((bReleasingLastReference || !bIsContainerInitialized) && !bIsActorDescInstanceUnregistering)
 	{
 		FWorldPartitionLoadingContext::UnloadAndUnregisterActor(InActorDescInstance);
 	}
