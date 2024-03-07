@@ -61,7 +61,7 @@ const buildColumns = (jobTab: JobsTabData, streamId: string): IColumn[] => {
 
       let total = 0;
       jobTab.columns.forEach(c => total += c.relativeWidth ?? 1);
-      const w = (980) / total;
+      const w = (940) / total;
 
       jobTab.columns.forEach(c => { minWidths[c.heading] = w * (c.relativeWidth ?? 1); cnames.push(c.heading); });
    } else {
