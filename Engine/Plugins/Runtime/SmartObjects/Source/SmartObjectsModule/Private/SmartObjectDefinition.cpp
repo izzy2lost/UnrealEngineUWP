@@ -9,6 +9,7 @@
 #include "WorldConditions/SmartObjectWorldConditionObjectTagQuery.h"
 #include "SmartObjectUserComponent.h"
 #include "Engine/SCS_Node.h"
+#include "Misc/Crc.h"
 #include "Misc/DataValidation.h"
 #include "SmartObjectPropertyHelpers.h"
 #include "Interfaces/ITargetPlatform.h"
@@ -732,13 +733,11 @@ void USmartObjectDefinition::EnsureValidGuids()
 {
 	if (!RootID.IsValid())
 	{
-		static FName RootName(TEXT("RootID"));
-		RootID = FGuid::NewDeterministicGuid(GetPathName(), GetTypeHash(RootName));
+		RootID = FGuid::NewDeterministicGuid(GetPathName(), FCrc::StrCrc32<TCHAR>(TEXT("RootID")));
 	}
 	if (!ParametersID.IsValid())
 	{
-		static FName DataProxyName(TEXT("ParametersID"));
-		ParametersID = FGuid::NewDeterministicGuid(GetPathName(), GetTypeHash(DataProxyName));
+		ParametersID = FGuid::NewDeterministicGuid(GetPathName(), FCrc::StrCrc32<TCHAR>(TEXT("ParametersID")));
 	}
 }
 
