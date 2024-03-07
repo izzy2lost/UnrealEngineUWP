@@ -88,7 +88,7 @@ struct FLiveLinkHubUEClientInfo
 	UPROPERTY(transient)
 	ELiveLinkClientStatus Status = ELiveLinkClientStatus::Disconnected;
 	
-	UPROPERTY(VisibleAnywhere, Category = "Client Details", DisplayName = "IP Address")
+	UPROPERTY()
 	FString IPAddress;
 	
 	/** Name of the host of the UE client */
