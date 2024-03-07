@@ -1982,7 +1982,7 @@ private:
 public:
 	static void InitTls()
 	{
-		if (!FPlatformTLS::IsValidTlsSlot(TlsSlot))
+		if (TlsSlot == 0)
 		{
 			TlsSlot = FPlatformTLS::AllocTlsSlot();
 			FPlatformMisc::MemoryBarrier();
@@ -2226,7 +2226,7 @@ public:
 	TArray<const char*> WaitStatNameStack;
 };
 
-uint32 FCsvProfilerThreadData::TlsSlot = FPlatformTLS::InvalidTlsSlot;
+uint32 FCsvProfilerThreadData::TlsSlot = 0;
 FCriticalSection FCsvProfilerThreadData::TlsCS;
 TArray<FCsvProfilerThreadData::FWeakPtr> FCsvProfilerThreadData::TlsInstances;
 
