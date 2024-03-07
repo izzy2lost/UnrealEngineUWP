@@ -13,12 +13,12 @@
 					]
 				},
 				{
-					"name": "LoadingName",
-					"group": "LoadingName",
+					"name": "ProjectName",
+					"group": "ProjectName",
 					"defaults": [
-						"TotalEditorStartup",
-						"LoadMap",
-						"TimeToPIE"
+						"AncientWorld",
+						"CitySample",
+						"Lyra"
 					]
 				},
 				{
@@ -28,6 +28,15 @@
 						"AncientWorld",
 						"Big_City_LVL",
 						"L_DefaultEditorOverview"
+					]
+				},
+				{
+					"name": "LoadingName",
+					"group": "LoadingName",
+					"defaults": [
+						"TotalEditorStartup",
+						"LoadMap",
+						"TimeToPIE"
 					]
 				},
 				{
