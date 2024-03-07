@@ -5,7 +5,7 @@
 
 
 static TAutoConsoleVariable<bool> CVarMoviePipelineFlushRenderingPerLayerHack(
-	TEXT("MoviePipeline.FlushLayersHack"),
+	TEXT("MoviePipeline.FlushLayersDebug"),
 	false,
 	TEXT("This is a debug cvar intended to help diagnose issues in the MoviePipeline multi-layer rendering mode\n")
 	TEXT("that flushes any outstanding rendering commands for each layer. This can have a large performance impact,\n")
