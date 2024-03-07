@@ -10,6 +10,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/Paths.h"
+#include "SVGActor.h"
 #include "UObject/ConstructorHelpers.h"
 
 #if WITH_EDITOR
@@ -109,7 +110,10 @@ void USVGDynamicMeshComponent::ApplyScale()
 		MeshTransforms::Translate(EditMesh, -Center);
 	});
 
-	SetRelativeLocation(FVector(0.0f, InternalCenter.Y, InternalCenter.Z) * Scale);
+	if (Cast<ASVGActor>(GetOwner()))
+	{
+		SetRelativeLocation(FVector(0.0f, InternalCenter.Y, InternalCenter.Z) * Scale);
+	}
 }
 
 void USVGDynamicMeshComponent::ScaleShape(float InScale)
