@@ -2,6 +2,7 @@
 
 #include "LiveLinkHubWindowController.h"
 
+#include "CoreGlobals.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -98,7 +99,13 @@ TSharedPtr<FModalWindowManager> FLiveLinkHubWindowController::InitializeSlateApp
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubWindowController::InitializeAsStandaloneApplication);
 	FSlateApplication::InitializeAsStandaloneApplication(GetStandardStandaloneRenderer());
+
+	// @hack This call will silently fail since we're running a commandlet, so pretend like we aren't one for it.
+	// In the future the slate code should be changed to allow visual commandlets to enable high dpi mode.
+	const bool bIsRunningCommandlet = PRIVATE_GIsRunningCommandlet;
+	PRIVATE_GIsRunningCommandlet = false;
 	FSlateApplication::InitHighDPI(true);
+	PRIVATE_GIsRunningCommandlet = bIsRunningCommandlet;
 
 	const FText ApplicationTitle = LOCTEXT("AppTitle", "LiveLink Hub");
 	FGlobalTabmanager::Get()->SetApplicationTitle(ApplicationTitle);
