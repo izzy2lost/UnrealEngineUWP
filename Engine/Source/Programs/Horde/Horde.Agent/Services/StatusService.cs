@@ -20,7 +20,8 @@ namespace Horde.Agent.Services
 		const int NumPipes = 10;
 
 		private AgentStatusMessage _current;
-
+		private bool _isBusy;
+		
 		readonly IOptionsMonitor<AgentSettings> _settings;
 		readonly BackgroundTask _task;
 		readonly ILogger _logger;
@@ -33,7 +34,22 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Whether the agent is busy performing other work.
 		/// </summary>
-		public bool IsBusy { get; set; } = false;
+		public bool IsBusy
+		{
+			get => _isBusy;
+			set {
+				if (_isBusy != value)
+				{
+					_isBusy = value;
+					StatusChangedEvent.Set();
+				}
+			}
+		}
+
+		/// <summary>
+		/// Status was updated
+		/// </summary>
+		public readonly AsyncEvent StatusChangedEvent = new ();
 
 		/// <summary>
 		/// Constructor

@@ -199,6 +199,19 @@ namespace EpicGames.Horde.Compute
 	}
 
 	/// <summary>
+	/// Exception thrown when a compute execution is cancelled
+	/// </summary>
+	public sealed class ComputeExecutionCancelledException : ComputeException
+	{
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public ComputeExecutionCancelledException() : base("Compute execution cancelled")
+		{
+		}
+	}
+
+	/// <summary>
 	/// Writer for compute messages
 	/// </summary>
 	public interface IAgentMessageBuilder : IMemoryWriter, IDisposable

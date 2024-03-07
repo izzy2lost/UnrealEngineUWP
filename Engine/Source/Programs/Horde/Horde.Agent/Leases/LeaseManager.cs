@@ -243,7 +243,7 @@ namespace Horde.Agent.Leases
 			Stopwatch updateCapabilitiesTimer = Stopwatch.StartNew();
 			for (; ; )
 			{
-				Task waitTask = _updateLeasesEvent.Task;
+				Task waitTask = Task.WhenAny(_updateLeasesEvent.Task, _statusService.StatusChangedEvent.Task);
 
 				// Flag for whether the service is stopping
 				if (stoppingToken.IsCancellationRequested && _sessionResult == null)
@@ -371,6 +371,12 @@ namespace Horde.Agent.Leases
 					else if (busy)
 					{
 						_statusService.Set(true, 0, "Paused");
+						
+						if (_activeLeases.Count > 0)
+						{
+							_logger.LogInformation("Agent marked itself as busy. Draining any active leases to prevent them from using up local resources...");
+							await DrainLeasesAsync();
+						}
 					}
 					else if (_activeLeases.Count == 0)
 					{
@@ -496,6 +502,10 @@ namespace Horde.Agent.Leases
 			try
 			{
 				result = await HandleLeasePayloadAsync(session, leaseInfo);
+			}
+			catch (OperationCanceledException) when (leaseInfo.CancellationTokenSource.IsCancellationRequested)
+			{
+				_logger.LogInformation("Lease {LeaseId} cancelled", leaseInfo.Lease.Id);
 			}
 			catch (Exception ex)
 			{
