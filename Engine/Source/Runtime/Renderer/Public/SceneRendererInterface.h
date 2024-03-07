@@ -33,7 +33,7 @@ public:
 	 * Add a range of instances for invalidation. 
 	 * Should be called from the render thread.
 	 */
-	virtual void AddInstanceRange(uint32 InstanceSceneDataOffset, uint32 NumInstanceSceneDataEntries) = 0;
+	virtual void AddInstanceRange(FPersistentPrimitiveIndex PersistentPrimitiveIndex, uint32 InstanceSceneDataOffset, uint32 NumInstanceSceneDataEntries) = 0;
 };
 
 }

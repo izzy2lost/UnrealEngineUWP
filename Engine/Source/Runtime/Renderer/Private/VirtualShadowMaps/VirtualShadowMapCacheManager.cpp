@@ -293,13 +293,16 @@ bool FVirtualShadowMapPerLightCacheEntry::UpdateLocal(const FProjectedShadowInit
 
 void FVirtualShadowMapArrayCacheManager::FShadowInvalidatingInstancesImplementation::AddPrimitive(const FPrimitiveSceneInfo* PrimitiveSceneInfo)
 {
-	AddInstanceRange(PrimitiveSceneInfo->GetInstanceSceneDataOffset(), PrimitiveSceneInfo->GetNumInstanceSceneDataEntries());
+	AddInstanceRange(PrimitiveSceneInfo->GetPersistentIndex(), PrimitiveSceneInfo->GetInstanceSceneDataOffset(), PrimitiveSceneInfo->GetNumInstanceSceneDataEntries());
 }
 
-void FVirtualShadowMapArrayCacheManager::FShadowInvalidatingInstancesImplementation::AddInstanceRange(uint32 InstanceSceneDataOffset, uint32 NumInstanceSceneDataEntries)
+void FVirtualShadowMapArrayCacheManager::FShadowInvalidatingInstancesImplementation::AddInstanceRange(FPersistentPrimitiveIndex PersistentPrimitiveIndex, uint32 InstanceSceneDataOffset, uint32 NumInstanceSceneDataEntries)
 {
-	PrimitiveInstancesToInvalidate.Add(FVirtualShadowMapInstanceRange{int32(InstanceSceneDataOffset), int32(NumInstanceSceneDataEntries), false});
-}		
+	PrimitiveInstancesToInvalidate.Add(FVirtualShadowMapInstanceRange{
+		PersistentPrimitiveIndex,
+		int32(InstanceSceneDataOffset),
+		int32(NumInstanceSceneDataEntries)});
+}
 
 void FVirtualShadowMapPerLightCacheEntry::Invalidate()
 {
@@ -332,16 +335,26 @@ void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddPri
 		for (const auto& SmCacheEntry : CacheEntry.Value->ShadowMapEntries)
 		{
 			const uint32 Payload = EncodeInstanceInvalidationPayload(SmCacheEntry.CurrentVirtualShadowMapId);
-			const uint32 PayloadForceStatic = EncodeInstanceInvalidationPayload(SmCacheEntry.CurrentVirtualShadowMapId, VSM_INVALIDATION_PAYLOAD_FLAG_FORCE_STATIC);
 
+			// Global invalidations
 			for (const FVirtualShadowMapInstanceRange& Range : Manager.ShadowInvalidatingInstancesImplementation.PrimitiveInstancesToInvalidate)
 			{
-				Instances.Add(Range.InstanceSceneDataOffset, Range.NumInstanceSceneDataEntries, Range.bForceInvalidateStatic ? PayloadForceStatic : Payload);
+				Instances.Add(Range.InstanceSceneDataOffset, Range.NumInstanceSceneDataEntries, Payload);
+				if (Range.PersistentPrimitiveIndex.IsValid())
+				{
+					InvalidatedPrimitives[Range.PersistentPrimitiveIndex.Index] = true;
+				}
 			}
 
+			// Per-light invalidations
 			for (const FVirtualShadowMapInstanceRange& Range : CacheEntry.Value->PrimitiveInstancesToInvalidate)
 			{
-				Instances.Add(Range.InstanceSceneDataOffset, Range.NumInstanceSceneDataEntries, Range.bForceInvalidateStatic ? PayloadForceStatic : Payload);
+				Instances.Add(Range.InstanceSceneDataOffset, Range.NumInstanceSceneDataEntries, Payload);
+				check(Range.PersistentPrimitiveIndex.IsValid());		// Should always be valid currently in this path
+				if (Range.PersistentPrimitiveIndex.IsValid())
+				{
+					InvalidatedPrimitives[Range.PersistentPrimitiveIndex.Index] = true;
+				}
 			}
 		}
 
@@ -839,10 +852,10 @@ void FVirtualShadowMapPerLightCacheEntry::OnPrimitiveRendered(const FPrimitiveSc
 		// Skip if the invalidation mode is NOT auto (because Always will do it elsewhere & the others should prevent this).
 		if (PrimitiveSceneInfo->Proxy->HasDeformableMesh() && PrimitiveSceneInfo->Proxy->GetShadowCacheInvalidationBehavior() == EShadowCacheInvalidationBehavior::Auto)
 		{
-			PrimitiveInstancesToInvalidate.Add(FVirtualShadowMapInstanceRange{ 
+			PrimitiveInstancesToInvalidate.Add(FVirtualShadowMapInstanceRange{
+				PrimitiveSceneInfo->GetPersistentIndex(),
 				PrimitiveSceneInfo->GetInstanceSceneDataOffset(),
-				PrimitiveSceneInfo->GetNumInstanceSceneDataEntries(),
-				false
+				PrimitiveSceneInfo->GetNumInstanceSceneDataEntries()
 			});
 		}
 	}
@@ -1296,17 +1309,17 @@ void FVirtualShadowMapArrayCacheManager::UpdateCachePrimitiveAsDynamic(FInvalida
 			FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene->GetPrimitiveSceneInfo(WrappedIndex);
 			if (PrimitiveSceneInfo)
 			{
-				FVirtualShadowMapInstanceRange InstanceRange{
-					PrimitiveSceneInfo->GetInstanceSceneDataOffset(),
-					PrimitiveSceneInfo->GetNumInstanceSceneDataEntries(),
-					true		// Always invalidate static since we are swapping between the two
-				};
-
-				// Add it to the invalidation list for every light
-				// NOTE: These will get added to the invalidation list by AddDynamicAndGPUPrimitives
+				// Add an invalidation for every light
 				for (auto& CacheEntry : CacheEntries)
 				{
-					CacheEntry.Value->PrimitiveInstancesToInvalidate.Add(InstanceRange);
+					for (const auto& SmCacheEntry : CacheEntry.Value->ShadowMapEntries)
+					{
+						const uint32 PayloadForceStatic = EncodeInstanceInvalidationPayload(SmCacheEntry.CurrentVirtualShadowMapId, VSM_INVALIDATION_PAYLOAD_FLAG_FORCE_STATIC);
+						InvalidatingPrimitiveCollector.Instances.Add(
+							PrimitiveSceneInfo->GetInstanceSceneDataOffset(),
+							PrimitiveSceneInfo->GetNumInstanceSceneDataEntries(),
+							PayloadForceStatic);
+					}
 				}
 			}
 			else
@@ -1334,9 +1347,12 @@ void FVirtualShadowMapArrayCacheManager::ProcessInvalidations(FRDGBuilder& Graph
 		// we update them as the shader needs to know the previous cache states for invalidation.
 		FInvalidationPassCommon InvalidationPassCommon = GetUniformParametersForInvalidation(GraphBuilder, SceneUniformBuffer);
 
+		// Add invalidations for skeletal meshes, CPU culling changes, dynamic primitives, etc.
+		InvalidatingPrimitiveCollector.AddPrimitivesToInvalidate();
+
 		// Check whether we want to swap any cache states and add any invalidations to that end as well
 		UpdateCachePrimitiveAsDynamic(InvalidatingPrimitiveCollector);
-		InvalidatingPrimitiveCollector.AddPrimitivesToInvalidate();
+
 		InvalidatingPrimitiveCollector.Instances.FinalizeBatches();
 
 		if (!InvalidatingPrimitiveCollector.Instances.IsEmpty())

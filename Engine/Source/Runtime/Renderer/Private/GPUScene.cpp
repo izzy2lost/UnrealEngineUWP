@@ -1610,7 +1610,8 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 			for (const FGPUScenePrimitiveCollector::FPrimitiveData& PrimitiveData : Collector.UploadData->PrimitiveData)
 			{
 				check(PrimitiveData.LocalInstanceSceneDataOffset != INDEX_NONE);
-				ShadowInvalidatingInstances->AddInstanceRange(PrimitiveData.LocalInstanceSceneDataOffset + uint32(InstanceIdStart), PrimitiveData.NumInstances);
+				ShadowInvalidatingInstances->AddInstanceRange(FPersistentPrimitiveIndex(),
+					PrimitiveData.LocalInstanceSceneDataOffset + uint32(InstanceIdStart), PrimitiveData.NumInstances);
 			}
 		}
 
