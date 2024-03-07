@@ -19,9 +19,9 @@ namespace Nanite { struct FPackedViewParams; }
 
 struct FVirtualShadowMapInstanceRange
 {
+	FPersistentPrimitiveIndex PersistentPrimitiveIndex;
 	int32 InstanceSceneDataOffset;
 	int32 NumInstanceSceneDataEntries;
-	bool bForceInvalidateStatic;
 };
 
 #define VSM_LOG_INVALIDATIONS 0
@@ -355,7 +355,7 @@ private:
 	public:
 		FShadowInvalidatingInstancesImplementation(FVirtualShadowMapArrayCacheManager &InCacheManager) : CacheManager(InCacheManager) {}
 		virtual void AddPrimitive(const FPrimitiveSceneInfo *PrimitiveSceneInfo);
-		virtual void AddInstanceRange(uint32 InstanceSceneDataOffset, uint32 NumInstanceSceneDataEntries);
+		virtual void AddInstanceRange(FPersistentPrimitiveIndex PersistentPrimitiveIndex, uint32 InstanceSceneDataOffset, uint32 NumInstanceSceneDataEntries);
 
 		FVirtualShadowMapArrayCacheManager &CacheManager;
 		TArray<FVirtualShadowMapInstanceRange> PrimitiveInstancesToInvalidate;
