@@ -151,6 +151,10 @@ FAVResult TVideoEncoderVT<TResource>::ApplyConfig()
                     
                 if(Result != 0)
                 {
+                    if(Result == kVTInvalidSessionErr)
+                    {
+                        FAVResult::Log(EAVResult::Warning, TEXT("Invalid VTCompressionSession. You could be exceeding the maximum resolution supported by VideoToolbox!"), TEXT("VT"));
+                    }
                     return FAVResult(EAVResult::ErrorCreating, TEXT("Failed to create VTCompressionSession"), TEXT("VT"), Result);
                 }
 
