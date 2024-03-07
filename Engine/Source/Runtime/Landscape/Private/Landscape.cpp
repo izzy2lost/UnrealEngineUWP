@@ -3574,7 +3574,7 @@ void ALandscape::SetDisableRuntimeGrassMapGeneration(bool bInDisableRuntimeGrass
 
 void ALandscapeProxy::OnFeatureLevelChanged(ERHIFeatureLevel::Type NewFeatureLevel)
 {
-	FlushGrassComponents();
+	FlushGrassComponents(nullptr, /*bFlushGrassMaps=*/ false); // rebuild grass instances, but keep the grass maps
 
 	UpdateAllComponentMaterialInstances();
 
