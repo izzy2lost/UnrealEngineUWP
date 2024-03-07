@@ -1670,6 +1670,8 @@ int32 GetPlatformLODBias(int32 TextureSize, int32 NumMips, int32 MaxPlatformSize
 
 uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& GenerationContext, const UTexture2D* Texture, const UTexture2D* ReferenceTexture, int32 BaseTextureSize)
 {
+	ensure(Texture);
+
 	constexpr int32 MaxAllowedLODBias = 6;
 
 	// Force a large LODBias for debug

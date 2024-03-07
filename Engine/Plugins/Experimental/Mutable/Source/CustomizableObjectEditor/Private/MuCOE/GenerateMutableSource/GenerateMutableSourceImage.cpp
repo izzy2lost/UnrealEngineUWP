@@ -255,10 +255,18 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		Result = ImageNode;
 
 		UTexture2D* Texture = TypedNodeMesh->FindTextureForPin(Pin);
-		ImageNode->SetValue( GenerateImageConstant(Texture, GenerationContext, false).get() );
 
-		const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, Texture, nullptr, ReferenceTextureSize);
-		Result = ResizeTextureByNumMips(ImageNode, MipsToSkip);
+		if (Texture)
+		{
+			ImageNode->SetValue(GenerateImageConstant(Texture, GenerationContext, false).get());
+
+			const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, Texture, nullptr, ReferenceTextureSize);
+			Result = ResizeTextureByNumMips(ImageNode, MipsToSkip);
+		}
+		else
+		{
+			Result = mu::NodeImagePtr();
+		}
 	}
 
 	else if (const UCustomizableObjectNodeTextureInterpolate* TypedNodeInterp = Cast<UCustomizableObjectNodeTextureInterpolate>(Node))

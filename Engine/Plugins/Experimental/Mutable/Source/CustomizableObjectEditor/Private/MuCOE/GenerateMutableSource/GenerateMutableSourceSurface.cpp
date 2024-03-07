@@ -607,12 +607,19 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 								{
 									UTexture2D* Texture2D = TypedNodeMat->GetImageValue(ImageIndex);
 
-									const mu::NodeImageConstantPtr ConstImageNode = new mu::NodeImageConstant();
-									mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(Texture2D, GenerationContext, false);
-									ConstImageNode->SetValue(ImageConstant.get());
+									if (Texture2D)
+									{
+										const mu::NodeImageConstantPtr ConstImageNode = new mu::NodeImageConstant();
+										mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(Texture2D, GenerationContext, false);
+										ConstImageNode->SetValue(ImageConstant.get());
 
-									const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, Texture2D, nullptr, Props.TextureSize);
-									return ResizeTextureByNumMips(ConstImageNode, MipsToSkip);
+										const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, Texture2D, nullptr, Props.TextureSize);
+										return ResizeTextureByNumMips(ConstImageNode, MipsToSkip);
+									}
+									else
+									{
+										return mu::NodeImagePtr();
+									}
 								}
 							}
 							else
