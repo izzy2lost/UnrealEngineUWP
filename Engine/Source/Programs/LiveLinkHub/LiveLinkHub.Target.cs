@@ -59,7 +59,7 @@ public class LiveLinkHubTarget : TargetRules
 			OptionalPlugins.AddRange(new string[]
 			{
 				"LiveLinkMvnPlugin",
-				"LiveLinkViconDataStream",
+				//"LiveLinkViconDataStream",
 				"MocopiLiveLink",
 				"OptitrackLiveLink",
 				"PoseAILiveLink",
