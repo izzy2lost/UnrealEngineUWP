@@ -5,6 +5,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -30,13 +31,17 @@ namespace Horde.Server.Server
 			public ObjectId InstanceId { get; set; }
 			public string ConfigRevision { get; set; } = String.Empty;
 			public byte[]? JwtSigningKey { get; set; }
+			public RSAParameters? RsaParameters { get; set; }
 			public int? SchemaVersion { get; set; }
-
+		
 			[BsonIgnore]
 			string IGlobals.JwtIssuer => _owner._jwtIssuer;
 
 			[BsonIgnore]
-			SymmetricSecurityKey IGlobals.JwtSigningKey => new SymmetricSecurityKey(_owner._fixedJwtSecret ?? JwtSigningKey);
+			SecurityKey IGlobals.JwtSigningKey => new SymmetricSecurityKey(JwtSigningKey!);
+
+			[BsonIgnore]
+			RsaSecurityKey IGlobals.RsaSigningKey => new RsaSecurityKey(RsaParameters!.Value) { KeyId = InstanceId.ToString() };
 
 			public Globals()
 			{
@@ -52,11 +57,17 @@ namespace Horde.Server.Server
 			{
 				JwtSigningKey = RandomNumberGenerator.GetBytes(128);
 			}
+
+			public void RotateRsaParameters()
+			{
+				using RSACryptoServiceProvider rsaProvider = new RSACryptoServiceProvider(512);
+				rsaProvider.PersistKeyInCsp = false;
+				RsaParameters = rsaProvider.ExportParameters(true);
+			}
 		}
 
 		readonly MongoService _mongoService;
 		readonly string _jwtIssuer;
-		readonly byte[]? _fixedJwtSecret;
 
 		/// <summary>
 		/// Constructor
@@ -75,11 +86,6 @@ namespace Horde.Server.Server
 			{
 				_jwtIssuer = settings.Value.JwtIssuer;
 			}
-
-			if (!String.IsNullOrEmpty(settings.Value.JwtSecret))
-			{
-				_fixedJwtSecret = Convert.FromBase64String(settings.Value.JwtSecret);
-			}
 		}
 
 		/// <summary>
@@ -88,15 +94,30 @@ namespace Horde.Server.Server
 		/// <returns>Globals instance</returns>
 		public async ValueTask<IGlobals> GetAsync(CancellationToken cancellationToken)
 		{
-			Globals globals = await _mongoService.GetSingletonAsync<Globals>(() => CreateGlobals(), cancellationToken);
-			globals._owner = this;
-			return globals;
+			for (; ; )
+			{
+				Globals globals = await _mongoService.GetSingletonAsync<Globals>(() => CreateGlobals(), cancellationToken);
+				globals._owner = this;
+
+				if (globals.RsaParameters != null)
+				{
+					return globals;
+				}
+
+				globals.RotateRsaParameters();
+
+				if (await _mongoService.TryUpdateSingletonAsync<Globals>(globals, cancellationToken))
+				{
+					return globals;
+				}
+			}
 		}
 
 		static Globals CreateGlobals()
 		{
 			Globals globals = new Globals();
 			globals.RotateSigningKey();
+			globals.RotateRsaParameters();
 			return globals;
 		}
 

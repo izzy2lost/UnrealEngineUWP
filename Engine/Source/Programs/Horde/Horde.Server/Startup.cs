@@ -572,6 +572,8 @@ namespace Horde.Server
 				services.AddSingleton<IAvatarService, NullAvatarService>();
 			}
 
+			services.AddScoped<OAuthControllerFilter>();
+
 			services.AddSingleton<DeviceService>();
 			services.AddSingleton<NoticeService>();
 			services.AddSingleton<StorageService>();
@@ -759,7 +761,20 @@ namespace Horde.Server
 					break;
 
 				case AuthMethod.Horde:
-					// No extra handling needed, cookie-based auth is used
+					authBuilder.AddHordeOpenId(settings, OpenIdConnectDefaults.AuthenticationScheme, OpenIdConnectDefaults.DisplayName, options =>
+					{
+						options.Authority = "/api/v1/oauth2";
+						options.ClientId = "default";
+						if (settings.HttpsPort == 0)
+						{
+							options.RequireHttpsMetadata = false;
+						}
+						foreach (string scope in settings.OidcRequestedScopes)
+						{
+							options.Scope.Add(scope);
+						}
+					});
+					schemes.Add(OpenIdConnectDefaults.AuthenticationScheme);
 					break;
 
 				default:

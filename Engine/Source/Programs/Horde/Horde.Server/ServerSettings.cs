@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Net;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Server;
@@ -479,11 +480,6 @@ namespace Horde.Server
 		public AuthMethod AuthMethod { get; set; } = AuthMethod.Anonymous;
 
 		/// <summary>
-		/// Audience for OIDC validation
-		/// </summary>
-		public string? OidcAudience { get; set; }
-
-		/// <summary>
 		/// Issuer for tokens from the auth provider
 		/// </summary>
 		public string? OidcAuthority { get; set; }
@@ -506,7 +502,10 @@ namespace Horde.Server
 		/// <summary>
 		/// Optional redirect url provided to OIDC login for external tools (typically to a local server)
 		/// </summary>
-		public string[]? OidcLocalRedirectUrls { get; set; }
+		public string[]? OidcLocalRedirectUrls { get; set; } =
+		{
+			"http://localhost:8749/ugs.client"
+		};
 
 		/// <summary>
 		/// OpenID Connect scopes to request when signing in
@@ -534,14 +533,46 @@ namespace Horde.Server
 		public string[] OidcClaimHordePerforceUserMapping { get; set; } = { "preferred_username", "email" };
 
 		/// <summary>
-		/// Name of the issuer in bearer tokens from the server
+		/// Name of this machine 
 		/// </summary>
-		public string? JwtIssuer { get; set; } = null!;
+		public Uri ServerUrl
+		{
+			get => _serverUrl ?? GetDefaultServerUrl();
+			set => _serverUrl = value;
+		}
 
 		/// <summary>
-		/// Secret key used to sign JWTs. This setting is typically only used for development. In prod, a unique secret key will be generated and stored in the DB for each unique server instance.
+		/// Name of the issuer in bearer tokens from the server
 		/// </summary>
-		public string? JwtSecret { get; set; } = null!;
+		public string? JwtIssuer
+		{
+			get => _jwtIssuer ?? ServerUrl.ToString();
+			set => _jwtIssuer = value;
+		}
+
+		Uri? _serverUrl;
+		string? _jwtIssuer;
+
+		Uri GetDefaultServerUrl()
+		{
+			string hostName = Dns.GetHostName();
+			if (HttpsPort == 443)
+			{
+				return new Uri($"https://{hostName}");
+			}
+			else if (HttpsPort != 0)
+			{
+				return new Uri($"https://{hostName}:{HttpsPort}");
+			}
+			else if (HttpPort == 80)
+			{
+				return new Uri($"http://{hostName}");
+			}
+			else
+			{
+				return new Uri($"http://{hostName}:{HttpPort}");
+			}
+		}
 
 		/// <summary>
 		/// Length of time before JWT tokens expire, in hours

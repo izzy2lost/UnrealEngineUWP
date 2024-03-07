@@ -57,7 +57,7 @@ namespace Horde.Server.Authentication
 			Options.TokenValidationParameters.ValidateIssuer = true;
 
 			Options.TokenValidationParameters.ValidateIssuerSigningKey = true;
-			Options.TokenValidationParameters.IssuerSigningKey = globals.JwtSigningKey;
+			Options.TokenValidationParameters.IssuerSigningKeys = new[] { globals.JwtSigningKey, globals.RsaSigningKey };
 
 			// Silent fail if this JWT is not issued by the server
 			string? token;

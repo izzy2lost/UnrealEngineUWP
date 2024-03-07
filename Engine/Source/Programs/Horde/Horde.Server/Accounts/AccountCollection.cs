@@ -149,6 +149,9 @@ namespace Horde.Server.Accounts
 			/// <inheritdoc/>
 			public string Description { get; set; } = "";
 
+			/// <inheritdoc/>
+			public string SessionKey { get; set; } = "";
+
 			[BsonIgnoreIfDefault, BsonDefaultValue(0)]
 			public int UpdateIndex { get; set; }
 
@@ -325,6 +328,10 @@ namespace Horde.Server.Accounts
 			if (options.Description != null)
 			{
 				update = update.Set(x => x.Description, options.Description);
+			}
+			if (options.SessionKey != null)
+			{
+				update = update.Set(x => x.SessionKey, options.SessionKey);
 			}
 
 			FilterDefinition<AccountDocument> filter;

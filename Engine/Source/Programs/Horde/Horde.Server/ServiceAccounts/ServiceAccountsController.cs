@@ -35,7 +35,7 @@ namespace Horde.Server.ServiceAccounts
 		}
 
 		/// <summary>
-		/// Gets a list of service accounts
+		/// Create a new service account
 		/// </summary>
 		[HttpPost]
 		[Route("/api/v1/serviceaccounts")]
