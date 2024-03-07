@@ -135,6 +135,33 @@ float Chaos::FStrainedProxyModifier::GetMaxBreakStrainRatio(const float FatigueT
 	return MaxBreakStrainRatio;
 }
 
+float Chaos::FStrainedProxyModifier::GetStrainUsedForBreakRatio(const float FatigueThresholdPercent, const float FatigueThresholdMinimum, bool bRelative, const uint8 StrainTypes)
+{
+	float MaxBreakStrainRatio = 0.f;
+	float StrainForBreakRatio = 0.f;
+	ForEachRootChildParticle(ProxyAndRoot, RestChildren,
+		[this, &MaxBreakStrainRatio, &StrainForBreakRatio, FatigueThresholdPercent, FatigueThresholdMinimum, bRelative, StrainTypes](Chaos::FPBDRigidClusteredParticleHandle* ChildHandle)
+		{
+			// compute the strain ratio
+			const float InternalStrain = ChildHandle->GetInternalStrains();
+			const float MaxAppliedStrain = GetMaxAppliedStrain(ChildHandle, StrainTypes);
+			const float FatigueThreshold = FMath::Max(FatigueThresholdMinimum, (FatigueThresholdPercent * InternalStrain));
+			if (MaxAppliedStrain >= FatigueThreshold)
+			{
+				const float StrainRange = bRelative ? FMath::Max(0.f, InternalStrain - FatigueThreshold) : InternalStrain;
+				const float Strain = bRelative ? FMath::Max(0.f, MaxAppliedStrain - FatigueThreshold) : MaxAppliedStrain;
+				const float StrainRatio = (StrainRange > SMALL_NUMBER) ? (Strain / StrainRange) : 1.0f;
+				if (StrainRatio > MaxBreakStrainRatio)
+				{
+					MaxBreakStrainRatio = StrainRatio;
+					StrainForBreakRatio = MaxAppliedStrain;
+				}
+			}
+		});
+
+	return StrainForBreakRatio;
+}
+
 void Chaos::FStrainedProxyModifier::AdjustStrainForBreak(const float FatigueThresholdPercent, const float FatigueThresholdMinimum, const uint8 StrainTypes)
 {
 	ForEachRootChildParticle(ProxyAndRoot, RestChildren,

@@ -88,6 +88,9 @@ namespace Chaos
 		// @param StrainTypes type strain to account for ( collision and/or external )
 		CHAOS_API float GetMaxBreakStrainRatio(const float FatigueThresholdPercent, const float FatigueThresholdMinimum, bool bRelative, const uint8 StrainTypes) const;
 
+		// A helper debug method to pair w/ GetMaxBreakStrainRatio, where it will return the Max Applied Strain used for the Max Break Strain. 
+		CHAOS_API float GetStrainUsedForBreakRatio(const float FatigueThresholdPercent, const float FatigueThresholdMinimum, bool bRelative, const uint8 StrainTypes);
+
 		// Clear strains for all strained cluster children
 		CHAOS_API void ClearStrains();
 
