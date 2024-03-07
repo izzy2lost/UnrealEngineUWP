@@ -17,6 +17,7 @@ namespace UnrealBuildTool.Rules
 			new string[]
 			{
 				"ApplicationCore",
+				"AssetRegistry",
 				"AssetTools",
 				"ContentBrowser",
 				"ContentBrowserAssetDataSource",

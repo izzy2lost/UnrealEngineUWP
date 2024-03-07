@@ -2,6 +2,8 @@
 
 #include "LiveLinkHub.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
 #include "Clients/LiveLinkHubClientsController.h"
 #include "Clients/LiveLinkHubProvider.h"
 #include "Config/LiveLinkHubFileUtilities.h"
@@ -16,6 +18,7 @@
 #include "LiveLinkProviderImpl.h"
 #include "LiveLinkSubject.h"
 #include "LiveLinkSubjectSettings.h"
+#include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Recording/LiveLinkHubPlaybackController.h"
 #include "Recording/LiveLinkHubRecordingController.h"
@@ -39,6 +42,10 @@ void FLiveLinkHub::Initialize()
 
 	SessionManager = MakeShared<FLiveLinkHubSessionManager>();
 	LiveLinkProvider = MakeShared<FLiveLinkHubProvider>(SessionManager.ToSharedRef());
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName).Get();
+	const FString FilePath = FPaths::Combine(FPlatformProcess::UserSettingsDir(), *FApp::GetEpicProductIdentifier(), TEXT("LiveLinkHub"), TEXT("Content"));
+	AssetRegistry.ScanPathsSynchronous({ FilePath }, /*bForceRescan=*/ true);
 
 	CommandExecutor = MakeUnique<FConsoleCommandExecutor>();
 	IModularFeatures::Get().RegisterModularFeature(IConsoleCommandExecutor::ModularFeatureName(), CommandExecutor.Get());
