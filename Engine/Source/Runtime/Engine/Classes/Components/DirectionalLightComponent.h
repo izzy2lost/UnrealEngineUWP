@@ -313,6 +313,9 @@ class UDirectionalLightComponent : public ULightComponent
 	ENGINE_API void SetAtmosphereSunLightIndex(int32 NewValue);
 
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Lighting")
+	ENGINE_API void SetAtmosphereSunDiskColorScale(FLinearColor NewValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Lighting")
 	ENGINE_API void SetForwardShadingPriority(int32 NewValue);
 
 	//~ Begin ULightComponent Interface

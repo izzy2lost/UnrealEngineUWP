@@ -1369,6 +1369,16 @@ void UDirectionalLightComponent::SetAtmosphereSunLightIndex(int32 NewValue)
 	}
 }
 
+void UDirectionalLightComponent::SetAtmosphereSunDiskColorScale(FLinearColor NewValue)
+{
+	if (AreDynamicDataChangesAllowed()
+		&& AtmosphereSunDiskColorScale != NewValue)
+	{
+		AtmosphereSunDiskColorScale = NewValue;
+		MarkRenderStateDirty();
+	}
+}
+
 void UDirectionalLightComponent::SetForwardShadingPriority(int32 NewValue)
 {
 	if (AreDynamicDataChangesAllowed()
