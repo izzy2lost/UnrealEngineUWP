@@ -185,18 +185,19 @@ void TranslucencyVolumeSpatialFilterCS(
 		float3 FilteredRadiance = 0;
 		float TotalWeight = 0;
 
-		int3 Offsets[6];
+		int3 Offsets[7];
 		Offsets[0] = int3(-1, 0, 0);
 		Offsets[1] = int3(1, 0, 0);
 		Offsets[2] = int3(0, -1, 0);
 		Offsets[3] = int3(0, 1, 0);
 		Offsets[4] = int3(0, 0, -1);
 		Offsets[5] = int3(0, 0, 1);
+		Offsets[6] = int3(0, 0, 0);
 
 		LOOP
-		for (uint OffsetIndex = 0; OffsetIndex < 6; OffsetIndex++)
+		for (uint OffsetIndex = 0; OffsetIndex < 7; OffsetIndex++)
 		{
-			uint3 NeighborGridCoordinate = GridCoordinate + Offsets[OffsetIndex];
+			int3 NeighborGridCoordinate = GridCoordinate + Offsets[OffsetIndex];
 
 			if (all(and(NeighborGridCoordinate >= 0, NeighborGridCoordinate < TranslucencyGIGridSize)))
 			{
