@@ -19,16 +19,13 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace Horde.Server.Authentication
 {
-	class OktaDefaults
+	class OktaAuthHandler : OpenIdConnectHandler
 	{
 		public const string AuthenticationScheme = "Okta" + OpenIdConnectDefaults.AuthenticationScheme;
-	}
 
-	class OktaHandler : OpenIdConnectHandler
-	{
 		readonly IUserCollection _userCollection;
 
-		public OktaHandler(IOptionsMonitor<OpenIdConnectOptions> options, ILoggerFactory logger, HtmlEncoder htmlEncoder, UrlEncoder encoder, IUserCollection userCollection)
+		public OktaAuthHandler(IOptionsMonitor<OpenIdConnectOptions> options, ILoggerFactory logger, HtmlEncoder htmlEncoder, UrlEncoder encoder, IUserCollection userCollection)
 			: base(options, logger, htmlEncoder, encoder)
 		{
 			_userCollection = userCollection;
@@ -125,7 +122,7 @@ namespace Horde.Server.Authentication
 
 			public override void Run(JsonElement userData, ClaimsIdentity identity, string issuer)
 			{
-				OktaHandler.AddUserInfoClaims(userData, _settings, identity);
+				OktaAuthHandler.AddUserInfoClaims(userData, _settings, identity);
 			}
 		}
 
@@ -146,7 +143,7 @@ namespace Horde.Server.Authentication
 		public static void AddOkta(this AuthenticationBuilder builder, ServerSettings settings, string authenticationScheme, string displayName, Action<OpenIdConnectOptions> handler)
 		{
 			builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<OpenIdConnectOptions>, OpenIdConnectPostConfigureOptions>());
-			builder.AddRemoteScheme<OpenIdConnectOptions, OktaHandler>(authenticationScheme, displayName, options => ApplyDefaultOktaOptions(options, settings, handler));
+			builder.AddRemoteScheme<OpenIdConnectOptions, OktaAuthHandler>(authenticationScheme, displayName, options => ApplyDefaultOktaOptions(options, settings, handler));
 		}
 	}
 }

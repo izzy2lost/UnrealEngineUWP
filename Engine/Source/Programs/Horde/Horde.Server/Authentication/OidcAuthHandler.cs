@@ -19,11 +19,11 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace Horde.Server.Authentication
 {
-	class HordeOpenIdConnectHandler : OpenIdConnectHandler
+	class OidcAuthHandler : OpenIdConnectHandler
 	{
 		readonly IUserCollection _userCollection;
 
-		public HordeOpenIdConnectHandler(IOptionsMonitor<OpenIdConnectOptions> options, ILoggerFactory logger, HtmlEncoder htmlEncoder, UrlEncoder encoder, IUserCollection userCollection)
+		public OidcAuthHandler(IOptionsMonitor<OpenIdConnectOptions> options, ILoggerFactory logger, HtmlEncoder htmlEncoder, UrlEncoder encoder, IUserCollection userCollection)
 			: base(options, logger, htmlEncoder, encoder)
 		{
 			_userCollection = userCollection;
@@ -119,7 +119,7 @@ namespace Horde.Server.Authentication
 		{
 			private readonly ServerSettings _settings;
 			public MapRolesClaimAction(ServerSettings settings) : base(ClaimTypes.Role, ClaimTypes.Role) { _settings = settings; }
-			public override void Run(JsonElement userData, ClaimsIdentity identity, string issuer) { HordeOpenIdConnectHandler.AddUserInfoClaims(_settings, userData, identity); }
+			public override void Run(JsonElement userData, ClaimsIdentity identity, string issuer) { OidcAuthHandler.AddUserInfoClaims(_settings, userData, identity); }
 		}
 
 		static void ApplyDefaultOptions(ServerSettings settings, OpenIdConnectOptions options, Action<OpenIdConnectOptions> handler)
@@ -136,7 +136,7 @@ namespace Horde.Server.Authentication
 		public static void AddHordeOpenId(this AuthenticationBuilder builder, ServerSettings settings, string authenticationScheme, string displayName, Action<OpenIdConnectOptions> handler)
 		{
 			builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<OpenIdConnectOptions>, OpenIdConnectPostConfigureOptions>());
-			builder.AddRemoteScheme<OpenIdConnectOptions, HordeOpenIdConnectHandler>(authenticationScheme, displayName, options => ApplyDefaultOptions(settings, options, handler));
+			builder.AddRemoteScheme<OpenIdConnectOptions, OidcAuthHandler>(authenticationScheme, displayName, options => ApplyDefaultOptions(settings, options, handler));
 		}
 	}
 }

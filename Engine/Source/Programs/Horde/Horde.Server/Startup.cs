@@ -645,7 +645,7 @@ namespace Horde.Server
 							options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 
 							// If authentication is required, and no cookie is present, use OIDC to sign in
-							options.DefaultChallengeScheme = OktaDefaults.AuthenticationScheme;
+							options.DefaultChallengeScheme = OktaAuthHandler.AuthenticationScheme;
 							break;
 
 						case AuthMethod.OpenIdConnect:
@@ -711,7 +711,7 @@ namespace Horde.Server
 					break;
 
 				case AuthMethod.Okta:
-					authBuilder.AddOkta(settings, OktaDefaults.AuthenticationScheme, OpenIdConnectDefaults.DisplayName, options =>
+					authBuilder.AddOkta(settings, OktaAuthHandler.AuthenticationScheme, OpenIdConnectDefaults.DisplayName, options =>
 						{
 							options.Authority = settings.OidcAuthority;
 							options.ClientId = settings.OidcClientId;
@@ -729,7 +729,7 @@ namespace Horde.Server
 								};
 							}
 						});
-					schemes.Add(OktaDefaults.AuthenticationScheme);
+					schemes.Add(OktaAuthHandler.AuthenticationScheme);
 					break;
 
 				case AuthMethod.OpenIdConnect:

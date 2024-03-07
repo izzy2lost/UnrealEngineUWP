@@ -174,7 +174,7 @@ public class HordeJwtBearerHandler
 
 		identity.AddClaim(new Claim(HordeClaimTypes.Version, HordeClaimTypes.CurrentVersion));
 		identity.AddClaim(new Claim(HordeClaimTypes.UserId, user.Id.ToString()));
-		HordeOpenIdConnectHandler.AddUserInfoClaims(_settings, cachedUserInfo, identity);
+		OidcAuthHandler.AddUserInfoClaims(_settings, cachedUserInfo, identity);
 	}
 
 	private static void ReportError(ILogger<HordeJwtBearerHandler> logger, ResultContext<JwtBearerOptions> context, string message)
