@@ -119,7 +119,7 @@ protected:
 
 	//~Begin UPCGBaseSubgraphSettings interface
 public:
-	virtual UPCGGraphInterface* GetSubgraphInterface() const override { return SubgraphInstance.Get(); }
+	virtual UPCGGraphInterface* GetSubgraphInterface() const override;
 	virtual bool IsDynamicGraph() const override;
 protected:
 	virtual void SetSubgraphInternal(UPCGGraphInterface* InGraph) override;

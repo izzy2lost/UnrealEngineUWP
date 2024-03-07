@@ -48,7 +48,7 @@ namespace PCGUserParameterGetSettings
 		}
 
 		// Then if we don't have any input, we will use the graph instance from the component.
-		if (!GraphInterface || GraphInterface->IsA<UPCGGraph>())
+		if (!GraphInterface)
 		{
 			const UPCGComponent* SourceComponent = InContext.SourceComponent.Get();
 			GraphInterface = SourceComponent ? SourceComponent->GetGraphInstance() : nullptr;
