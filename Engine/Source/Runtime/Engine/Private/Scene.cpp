@@ -582,6 +582,7 @@ FPostProcessSettings::FPostProcessSettings()
 	DepthOfFieldSqueezeFactor = 1.0f;
 	DepthOfFieldDepthBlurAmount = 1.0f;
 	DepthOfFieldDepthBlurRadius = 0.0f;
+	DepthOfFieldUseHairDepth = 0;
 	DepthOfFieldFocalRegion = 0.0f;
 	DepthOfFieldNearTransitionRegion = 300.0f;
 	DepthOfFieldFarTransitionRegion = 500.0f;

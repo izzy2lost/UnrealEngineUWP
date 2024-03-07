@@ -348,6 +348,19 @@ static FAutoConsoleVariableRef CVarVirtualTextureFeedbackFactor(
 	TEXT("The value set here is rounded up to the nearest power of two before use."),
 	ECVF_RenderThreadSafe);
 
+
+static int32 GHairStrandsComposeDOFDepth = 1;
+static FAutoConsoleVariableRef CVarHairStrandsComposeDOFDepth(
+	TEXT("r.HairStrands.DOFDepth"), 
+	GHairStrandsComposeDOFDepth, 
+	TEXT("Compose hair with DOF by lerping hair depth based on its opacity."),
+	ECVF_RenderThreadSafe);
+
+bool GetHairStrandsDepthOfFieldUseHairDepth()
+{
+	return GHairStrandsComposeDOFDepth > 0 ? 1 : 0;
+}
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
 static TAutoConsoleVariable<float> CVarOverrideTimeMaterialExpressions(
@@ -1648,6 +1661,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_PP(DepthOfFieldSensorWidth);
 		LERP_PP(DepthOfFieldSqueezeFactor);
 		LERP_PP(DepthOfFieldDepthBlurRadius);
+		SET_PP(DepthOfFieldUseHairDepth)
 		LERP_PP(DepthOfFieldDepthBlurAmount);
 		LERP_PP(DepthOfFieldFocalRegion);
 		LERP_PP(DepthOfFieldNearTransitionRegion);
@@ -1941,6 +1955,8 @@ void FSceneView::StartFinalPostprocessSettings(FVector InViewLocation)
 			static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Lumen.TranslucencyReflections.FrontLayer.EnableForProject"));
 			FinalPostProcessSettings.LumenFrontLayerTranslucencyReflections = CVar->GetValueOnGameThread() != 0;
 		}
+
+		FinalPostProcessSettings.DepthOfFieldUseHairDepth = GetHairStrandsDepthOfFieldUseHairDepth();
 	}
 
 	{

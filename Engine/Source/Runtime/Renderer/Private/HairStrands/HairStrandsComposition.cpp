@@ -24,9 +24,6 @@ static FAutoConsoleVariableRef CVarHairFastResolveVelocityThreshold(TEXT("r.Hair
 static int32 GHairWriteGBufferData = 1;
 static FAutoConsoleVariableRef CVarHairWriteGBufferData(TEXT("r.HairStrands.WriteGBufferData"), GHairWriteGBufferData, TEXT("Write hair hair material data into GBuffer before post processing run. 0: no write, 1: dummy write into GBuffer A/B (Normal/ShadingModel), 2: write into GBuffer A/B (Normal/ShadingModel). 2: Write entire GBuffer data. (default 1)."));
 
-static int32 GHairStrandsComposeDOFDepth = 1;
-static FAutoConsoleVariableRef CVarHairStrandsComposeDOFDepth(TEXT("r.HairStrands.DOFDepth"), GHairStrandsComposeDOFDepth, TEXT("Compose hair with DOF by lerping hair depth based on its opacity."));
-
 static int32 GHairStrandsHoldoutMode = 1;
 static FAutoConsoleVariableRef CVarHairStrandsHoldoutMode(TEXT("r.HairStrands.HoldoutMode"), GHairStrandsHoldoutMode, TEXT("Change how sample are merged when rendering with holdout."));
 
@@ -589,8 +586,7 @@ static void InternalRenderHairComposition(
 		}
 
 		FRDGTextureRef DOFDepth = nullptr;
-		const bool bHairDOF = GHairStrandsComposeDOFDepth > 0 ? 1 : 0;
-		if (bHairDOF)
+		if (View.FinalPostProcessSettings.DepthOfFieldUseHairDepth)
 		{
 			DOFDepth = AddHairDOFDepthPass(
 				GraphBuilder,
