@@ -3080,11 +3080,9 @@ void ULevel::OnLevelLoaded()
 
 			if (bIsMainWorldLevel || bInitializeForEditor)
 			{
-				if (!WorldPartition->IsInitialized())
-				{
-					FTransform Transform = LevelStreaming ? LevelStreaming->LevelTransform : FTransform::Identity;
-					WorldPartition->Initialize(OwningWorld, Transform);
-				}
+				check(!WorldPartition->IsInitialized());
+				FTransform Transform = LevelStreaming ? LevelStreaming->LevelTransform : FTransform::Identity;
+				WorldPartition->Initialize(OwningWorld, Transform);
 			}
 		}
 	}

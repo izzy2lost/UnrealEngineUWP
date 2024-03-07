@@ -406,13 +406,6 @@ void UWorldPartitionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 #endif
 
-	if (UWorldPartition* WorldPartition = GetWorld()->GetWorldPartition())
-	{
-		if (WorldPartition->IsInitialized())
-		{
-			OnWorldPartitionInitialized(WorldPartition);
-		}
-	}
 	GetWorld()->OnWorldPartitionInitialized().AddUObject(this, &UWorldPartitionSubsystem::OnWorldPartitionInitialized);
 	GetWorld()->OnWorldPartitionUninitialized().AddUObject(this, &UWorldPartitionSubsystem::OnWorldPartitionUninitialized);
 	if (GetWorld()->IsGameWorld())
