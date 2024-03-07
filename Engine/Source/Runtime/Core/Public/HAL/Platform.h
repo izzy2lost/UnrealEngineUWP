@@ -285,6 +285,13 @@
 #ifndef PLATFORM_USE_PTHREADS
 	#define PLATFORM_USE_PTHREADS				1
 #endif
+#ifndef PLATFORM_HAS_MULTITHREADED_PREMAIN
+	/**
+	 * If true, the platform uses multiple threads in c++ static initialization before main is called, and systems
+	 * accessible from multiple threads during premain static initialization must handle multithreaded synchronization.
+	 */
+	#define PLATFORM_HAS_MULTITHREADED_PREMAIN 0
+#endif
 #ifndef PLATFORM_MAX_FILEPATH_LENGTH_DEPRECATED
 	#define PLATFORM_MAX_FILEPATH_LENGTH_DEPRECATED		128			// Deprecated - prefer FPlatformMisc::GetMaxPathLength() instead.
 #endif
