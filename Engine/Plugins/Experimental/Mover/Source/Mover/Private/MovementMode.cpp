@@ -97,7 +97,7 @@ EDataValidationResult UBaseMovementMode::IsDataValid(FDataValidationContext& Con
 	{
 		if (!IsValid(Transition))
 		{
-			Context.AddError(FText::Format(LOCTEXT("InvalidTransitionError", "Invalid or missing transition object on mode of type {0}. Clean up the Transitions array."),
+			Context.AddError(FText::Format(LOCTEXT("InvalidTransitionOnModeError", "Invalid or missing transition object on mode of type {0}. Clean up the Transitions array."),
 				FText::FromString(GetClass()->GetName())));
 
 			Result = EDataValidationResult::Invalid;
