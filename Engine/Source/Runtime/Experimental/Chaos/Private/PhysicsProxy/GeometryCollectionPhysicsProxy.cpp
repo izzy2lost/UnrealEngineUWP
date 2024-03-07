@@ -3026,11 +3026,11 @@ int32 FGeometryCollectionPhysicsProxy::CalculateEffectiveParticles(const FGeomet
 	{
 		if (Owner != nullptr)
 		{
-			UE_LOG(LogChaos, Error, TEXT("Geometry collection %s tried to create %d particles with no geometry"), *Owner->GetFullName(), NumMissingGeometry);
+			UE_LOG(LogChaos, Verbose, TEXT("Geometry collection %s tried to create %d particles with no geometry"), *Owner->GetFullName(), NumMissingGeometry);
 		}
 		else
 		{
-			UE_LOG(LogChaos, Error, TEXT("Geometry collection tried to create %d particles with no geometry"), NumMissingGeometry);
+			UE_LOG(LogChaos, Verbose, TEXT("Geometry collection tried to create %d particles with no geometry"), NumMissingGeometry);
 		}
 	}
 
