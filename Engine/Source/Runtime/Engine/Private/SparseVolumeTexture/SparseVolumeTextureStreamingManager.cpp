@@ -86,11 +86,11 @@ static FAutoConsoleVariableRef CVarSVTStreamingMaxPendingRequests(
 	ECVF_RenderThreadSafe | ECVF_ReadOnly
 );
 
-static int32 GSVTStreamingRequestSize = 1024;
+static int32 GSVTStreamingRequestSize = -1;
 static FAutoConsoleVariableRef CVarSVTStreamingRequestSize(
 	TEXT("r.SparseVolumeTexture.Streaming.RequestSize"),
 	GSVTStreamingRequestSize,
-	TEXT("IO request size in KiB. The SVT streaming manager will attempt to create IO requests of roughly this size. Default: 1024 KiB"),
+	TEXT("IO request size in KiB. The SVT streaming manager will attempt to create IO requests of roughly this size. Default: -1 (unlimited)"),
 	ECVF_RenderThreadSafe
 );
 
@@ -852,7 +852,7 @@ void FStreamingManager::FilterRequests()
 		// StreamingTiles must be a super set of ResidentTiles
 		check(TBitArray<>::BitwiseAND(FrameInfo.StreamingTiles, FrameInfo.ResidentTiles, EBitwiseOperatorFlags::MaxSize) == FrameInfo.ResidentTiles);
 
-		const uint32 TargetRequestSize = (uint32)FMath::Clamp(GSVTStreamingRequestSize, 1, int32(UINT32_MAX / 1024)) * 1024u;
+		const uint32 TargetRequestSize = GSVTStreamingRequestSize <= 0 ? UINT32_MAX : (uint32)FMath::Clamp(GSVTStreamingRequestSize, 1, int32(UINT32_MAX / 1024)) * 1024u;
 
 		// Creates a FTileRange for each contiguous range of set bits in RequestedTilesInCurrentPriority
 		auto MakeTileRanges = [&](uint8 Priority)
