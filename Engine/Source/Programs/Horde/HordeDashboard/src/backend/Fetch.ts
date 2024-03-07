@@ -438,6 +438,10 @@ export class Fetch {
 
     async challenge(): Promise<ChallengeStatus> {
 
+        if (this.debugToken) {
+            return ChallengeStatus.Ok;
+        }
+
         try {
             const url = this.buildUrl("/api/v1/dashboard/challenge");
 
@@ -453,15 +457,6 @@ export class Fetch {
 
             if (!response.needsAuthorization) {
                 return ChallengeStatus.Ok;
-            }
-
-            if (this.debugToken) {
-                // raise error to check debug token expired
-                handleError({
-                    reason: "Unauthorized challenge with debug token, it may have expired",
-                    mode: "GET",
-                    url: url
-                });
             }
 
             return ChallengeStatus.Unauthorized;
