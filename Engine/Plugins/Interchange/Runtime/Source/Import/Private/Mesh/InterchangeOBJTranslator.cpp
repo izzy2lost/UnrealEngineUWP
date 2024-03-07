@@ -1107,8 +1107,28 @@ namespace ObjTranslatorUtils
 
 		if (TextureSampleShaderNode)
 		{
-			TextureSampleShaderNode->SetDisplayLabel(InputName);
-			UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderGraphNode, InputName, TextureSampleShaderNode->GetUniqueID());
+			using namespace UE::Interchange::Materials::Standard::Nodes;
+
+			const FString MultiplierNodeName = InputName + TEXT("Multiply");
+			UInterchangeShaderNode* MultiplierNode = UInterchangeShaderNode::Create(&BaseNodeContainer, MultiplierNodeName, ShaderGraphNode->GetUniqueID());
+			MultiplierNode->SetCustomShaderType(Multiply::Name.ToString());
+
+			UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(MultiplierNode, Multiply::Inputs::A.ToString(), TextureSampleShaderNode->GetUniqueID());
+
+			const FString WeightNodeName = InputName + TEXT("MapWeight");
+			UInterchangeShaderNode* WeightNode = UInterchangeShaderNode::Create(&BaseNodeContainer, WeightNodeName, MultiplierNode->GetUniqueID());
+			WeightNode->SetCustomShaderType(ScalarParameter::Name.ToString());
+
+			const float WeightValue = 1.0f;
+			WeightNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(ScalarParameter::Attributes::DefaultValue.ToString()), WeightValue);
+
+			UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(MultiplierNode, Multiply::Inputs::B.ToString(), WeightNode->GetUniqueID());
+
+			UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(MultiplierNode, Multiply::Inputs::A.ToString(), TextureSampleShaderNode->GetUniqueID());
+
+			const FString InputNameLabel = InputName + TEXT("Map");
+			TextureSampleShaderNode->SetDisplayLabel(InputNameLabel);
+			UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderGraphNode, InputName, MultiplierNode->GetUniqueID());
 		}
 		else if (IsColorInitialized(Color))
 		{
@@ -1128,19 +1148,24 @@ namespace ObjTranslatorUtils
 			return nullptr;
 		}
 
-		if (IsScalarInitialized(Weight))
-		{
-			using namespace UE::Interchange::Materials::Standard::Nodes;
+		using namespace UE::Interchange::Materials::Standard::Nodes;
 
-			const FString MultiplierNodeName = MapName + TEXT("Multiply");
-			UInterchangeShaderNode* MultiplierNode = UInterchangeShaderNode::Create(&BaseNodeContainer, MultiplierNodeName, ShaderGraphNode->GetUniqueID());
-			MultiplierNode->SetCustomShaderType(Multiply::Name.ToString());
+		const FString MultiplierNodeName = MapName + TEXT("Multiply");
+		UInterchangeShaderNode* MultiplierNode = UInterchangeShaderNode::Create(&BaseNodeContainer, MultiplierNodeName, ShaderGraphNode->GetUniqueID());
+		MultiplierNode->SetCustomShaderType(Multiply::Name.ToString());
 
-			UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(MultiplierNode, Multiply::Inputs::A.ToString(), TextureSampleShaderNode->GetUniqueID());
-			MultiplierNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey( Multiply::Inputs::B.ToString() ), Weight);
-			return MultiplierNode;
-		}
-		return TextureSampleShaderNode;
+		UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(MultiplierNode, Multiply::Inputs::A.ToString(), TextureSampleShaderNode->GetUniqueID());
+
+		const FString WeightNodeName = MapName + TEXT("MapWeight");
+		UInterchangeShaderNode* WeightNode = UInterchangeShaderNode::Create(&BaseNodeContainer, WeightNodeName, MultiplierNode->GetUniqueID());
+		WeightNode->SetCustomShaderType(ScalarParameter::Name.ToString());
+
+		const float WeightValue = IsScalarInitialized(Weight) ? Weight : 1.0f;
+		WeightNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(ScalarParameter::Attributes::DefaultValue.ToString()), WeightValue);
+
+		UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(MultiplierNode, Multiply::Inputs::B.ToString(), WeightNode->GetUniqueID());
+
+		return MultiplierNode;
 	}
 
 	static bool AddTexturedWeightedInput(UInterchangeBaseNodeContainer& BaseNodeContainer, UInterchangeShaderGraphNode* ShaderGraphNode, const FString& InputName, const float& Weight, UInterchangeShaderNode* TextureSampleShader) 
