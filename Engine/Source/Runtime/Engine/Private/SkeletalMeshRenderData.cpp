@@ -213,8 +213,7 @@ FString FSkeletalMeshRenderData::GetDerivedDataKey(const ITargetPlatform* Target
 void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkinnedAsset* Owner, FSkinnedAssetCompilationContext* ContextPtr)
 {
 	check(Owner);
-	// Disable ContextPtr check because only USkeletalMesh supports it.
-	//check(ContextPtr);
+	check(ContextPtr);
 
 	check(LODRenderData.Num() == 0); // Should only be called on new, empty RenderData
 	check(TargetPlatform);
@@ -257,24 +256,21 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 
 			FLargeMemoryReader Ar(DerivedData.GetData(), DerivedData.Num(), ELargeMemoryReaderFlags::Persistent);
 
-			//Helper structure to change the morph targets
-			TUniquePtr<FFinishBuildMorphTargetData> FinishBuildMorphTargetData;
-
 			FSkeletalMeshModel* SkelMeshModel = Owner->GetImportedModel();
 			check(SkelMeshModel);
 
 			//Get the morph target data, we put it in the compilation context to apply them in the game thread before the InitResources
 			if (Owner->GetMorphTargets().Num() > 0)
 			{
-				FinishBuildMorphTargetData = Owner->GetMorphTargets()[0]->CreateFinishBuildMorphTargetData();
+				ContextPtr->FinishBuildMorphTargetData = Owner->GetMorphTargets()[0]->CreateFinishBuildMorphTargetData();
 			}
 			else
 			{
 				// Create and initialize the FinishBuildInternalData, use the class default object to call the virtual function
-				FinishBuildMorphTargetData = UMorphTarget::StaticClass()->GetDefaultObject<UMorphTarget>()->CreateFinishBuildMorphTargetData();
+				ContextPtr->FinishBuildMorphTargetData = UMorphTarget::StaticClass()->GetDefaultObject<UMorphTarget>()->CreateFinishBuildMorphTargetData();
 			}
-			check(FinishBuildMorphTargetData);
-			FinishBuildMorphTargetData->LoadFromMemoryArchive(Ar);
+			check(ContextPtr->FinishBuildMorphTargetData);
+			ContextPtr->FinishBuildMorphTargetData->LoadFromMemoryArchive(Ar);
 
 			//Serialize the LODModel sections since they are dependent on the reduction
 			for (int32 LODIndex = 0; LODIndex < SkelMeshModel->LODModels.Num(); LODIndex++)
@@ -296,16 +292,6 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 				const bool bForceKeepCPUResources = FSkeletalMeshLODRenderData::ShouldForceKeepCPUResources();
 				const bool bNeedsCPUAccess = FSkeletalMeshLODRenderData::ShouldKeepCPUResources(Owner, LODIndex, bForceKeepCPUResources);
 				LODData.SerializeStreamedData(Ar, Owner, LODIndex, DummyStripFlags, bNeedsCPUAccess, bForceKeepCPUResources);
-			}
-
-			//Apply the morphtargets change if any
-			if (FinishBuildMorphTargetData.IsValid())
-			{
-				// Morph target is only supported on USkeletalMesh
-				if (USkeletalMesh* SkMesh = Cast<USkeletalMesh>(Owner))
-				{
-					FinishBuildMorphTargetData->ApplyEditorData(SkMesh, ContextPtr ? ContextPtr->bIsSerializeSaving : false);
-				}
 			}
 
 			int32 T1 = FPlatformTime::Cycles();

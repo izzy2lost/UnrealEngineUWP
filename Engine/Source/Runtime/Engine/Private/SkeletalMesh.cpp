@@ -1526,6 +1526,11 @@ void CachePlatform(USkeletalMesh* Mesh, const ITargetPlatform* TargetPlatform, F
 	FSkinnedAssetBuildContext Context;
 	Context.bIsSerializeSaving = bIsSerializeSaving;
 	PlatformRenderData->Cache(TargetPlatform, Mesh, &Context);
+	if (Context.FinishBuildMorphTargetData.IsValid())
+	{
+		// Morph target is only supported on USkeletalMesh
+		Context.FinishBuildMorphTargetData->ApplyEditorData(Mesh, Context.bIsSerializeSaving);
+	}
 }
 
 static FSkeletalMeshRenderData& GetPlatformSkeletalMeshRenderData(USkeletalMesh* Mesh, const ITargetPlatform* TargetPlatform, const bool bIsSerializeSaving)
@@ -1968,10 +1973,7 @@ void USkeletalMesh::Build()
 	FSkinnedAssetBuildContext Context;
 	BeginBuildInternal(Context);
 	
-	//5.4 hack fix: if this skeletal mesh has some morph targets we disable asynchronous build.
-	//TODO: To remove this constraint we must get rid of the UMorphTarget sub object and directly create the render data from the FSkeletalMeshImportData.
-	const bool bBuildAsynchronous = FSkinnedAssetCompilingManager::Get().IsAsyncCompilationAllowed(this) && GetMorphTargets().IsEmpty();
-	if (bBuildAsynchronous)
+	if (FSkinnedAssetCompilingManager::Get().IsAsyncCompilationAllowed(this))
 	{
 		PrepareForAsyncCompilation();
 
@@ -2037,6 +2039,13 @@ void USkeletalMesh::ApplyFinishBuildInternalData(FSkinnedAssetCompilationContext
 	//We cannot execute this code outside of the game thread
 	checkf(IsInGameThread(), TEXT("Cannot execute function USkeletalMesh::ApplyFinishBuildInternalData asynchronously. Asset: %s"), *this->GetFullName());
 	check(ContextPtr);
+
+	//Apply the morphtargets change if any
+	if (ContextPtr->FinishBuildMorphTargetData.IsValid())
+	{
+		// Morph target is only supported on USkeletalMesh
+		ContextPtr->FinishBuildMorphTargetData->ApplyEditorData(this, ContextPtr->bIsSerializeSaving);
+	}
 }
 
 void USkeletalMesh::FinishBuildInternal(FSkinnedAssetBuildContext& Context)
@@ -3823,6 +3832,10 @@ void USkeletalMesh::GetAssetRegistryTags(FAssetRegistryTagsContext Context) cons
 
 		for(UMorphTarget* MorphTarget : GetMorphTargets())
 		{
+			if (!MorphTarget)
+			{
+				continue;
+			}
 			MorphTarget->GetFName().AppendString(MorphNamesBuilder);
 			MorphNamesBuilder.Append(MorphNamesTagDelimiter);
 		}

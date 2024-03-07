@@ -6,6 +6,9 @@
  * Contains the helper functions to compile skinned asset asynchronously.
  */
 
+#if WITH_EDITOR
+#include "Animation/MorphTarget.h"
+#endif //WITH_EDITOR
 #include "Async/AsyncWork.h"
 #include "SkeletalMeshTypes.h"
 
@@ -24,6 +27,9 @@ public:
 	
 	//True if this compilation context is start from a serialize save
 	bool bIsSerializeSaving = false;
+#if WITH_EDITOR
+	TUniquePtr<FFinishBuildMorphTargetData> FinishBuildMorphTargetData;
+#endif //WITH_EDITOR
 };
 
 class FSkinnedAssetPostLoadContext : public FSkinnedAssetCompilationContext
