@@ -996,22 +996,28 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 						Context->AssetCache.Get()
 					));
 
-					Context->AssetCache->CacheAsset(PrefixedTextureHash, Texture);
+					if (Texture)
+					{
+						Context->AssetCache->CacheAsset(PrefixedTextureHash, Texture);
+					}
 				}
 
-				// We link the textures to the prim, so that if the prim is reloaded the AUsdStageActor knows to potentially
-				// drop the textures. However we put the full attribute path on AssetUserData, so that when we're filling in
-				// our UUsdDrawModeComponent later, we know which texture came from which attribute
-
-				UUsdAssetUserData* TextureUserData = Texture->GetAssetUserData<UUsdAssetUserData>();
-				if (!TextureUserData)
+				if (Texture)
 				{
-					TextureUserData = NewObject<UUsdAssetUserData>(Texture, TEXT("USDAssetUserData"));
-					Texture->AddAssetUserData(TextureUserData);
-				}
-				TextureUserData->PrimPaths.AddUnique(UsdToUnreal::ConvertPath(Attr.GetPath()));
+					// We link the textures to the prim, so that if the prim is reloaded the AUsdStageActor knows to potentially
+					// drop the textures. However we put the full attribute path on AssetUserData, so that when we're filling in
+					// our UUsdDrawModeComponent later, we know which texture came from which attribute
 
-				Context->InfoCache->LinkAssetToPrim(PrimPath, Texture);
+					UUsdAssetUserData* TextureUserData = Texture->GetAssetUserData<UUsdAssetUserData>();
+					if (!TextureUserData)
+					{
+						TextureUserData = NewObject<UUsdAssetUserData>(Texture, TEXT("USDAssetUserData"));
+						Texture->AddAssetUserData(TextureUserData);
+					}
+					TextureUserData->PrimPaths.AddUnique(UsdToUnreal::ConvertPath(Attr.GetPath()));
+
+					Context->InfoCache->LinkAssetToPrim(PrimPath, Texture);
+				}
 			}
 		}
 	};
