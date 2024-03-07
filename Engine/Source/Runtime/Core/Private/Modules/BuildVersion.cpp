@@ -85,6 +85,11 @@ bool FBuildVersion::TryRead(const FString& FileName, FBuildVersion& OutVersion)
 		return false;
 	}
 
+	return TryReadFromString(Text, OutVersion);
+}
+
+bool FBuildVersion::TryReadFromString(const FString& Text, FBuildVersion& OutVersion)
+{
 	const TCHAR* Ptr = *Text;
 	if (!FSimpleParse::MatchZeroOrMoreWhitespace(Ptr) || !FSimpleParse::MatchChar(Ptr, TEXT('{')) || !FSimpleParse::MatchZeroOrMoreWhitespace(Ptr) || FSimpleParse::MatchChar(Ptr, TEXT('}')))
 	{
@@ -183,8 +188,16 @@ bool FBuildVersion::TryRead(const FString& FileName, FBuildVersion& OutVersion)
 				return false;
 			}
 		}
+		else if (Field == TEXT("BuildURL"))
+		{
+			if (!FSimpleParse::ParseString(Ptr, OutVersion.BuildUrl))
+			{
+				return false;
+			}
+		}
 		else
 		{
+			UE_LOG(LogCore, Warning, TEXT("Unknown field '%s' found when serializing FBuildVersion"), *Field);
 			return false;
 		}
 
