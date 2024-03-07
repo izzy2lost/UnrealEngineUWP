@@ -50,11 +50,11 @@ public:
 
 	/** Controls whether the asset will be visible from the palette & contextual menus. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable)
-	bool bExposeToLibrary = true;
+	bool bExposeToLibrary = false;
 
 	/** Controls in what category the asset will appear in the palette & contextual menus. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable)
-	FText Category;
+	FText Category = NSLOCTEXT("PCGDataAsset", "DefaultCategory", "PCGDataAssets");
 
 	/** Additional description (tooltip) shown on the asset/loader node. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable)
