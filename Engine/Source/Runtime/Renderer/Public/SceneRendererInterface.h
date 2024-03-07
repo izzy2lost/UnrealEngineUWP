@@ -7,6 +7,7 @@
 
 class FSceneUniformBuffer;
 class FPrimitiveSceneInfo;
+struct FPersistentPrimitiveIndex;
 
 DECLARE_UNIFORM_BUFFER_STRUCT(FSceneUniformParameters, RENDERER_API)
 
