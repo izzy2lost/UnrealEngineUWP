@@ -4309,7 +4309,7 @@ private:
 						DestSizeY = FMath::Max(DestSizeY>>1,1);
 					}
 
-					DestImage.Init(DestSizeX,DestSizeY,ERawImageFormat::RGBA32F, EGammaSpace::Linear);
+					DestImage.Init(DestSizeX,DestSizeY,BaseImage.NumSlices,ERawImageFormat::RGBA32F, EGammaSpace::Linear);
 
 					// rather than doing a bunch of mip-step resizes,
 					//	just resize once directly to dest size using ResizeImage

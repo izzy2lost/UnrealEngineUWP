@@ -312,6 +312,12 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 		// behavior of MaxTextureResolution changed to ResizeImage 2/8/2024
 		TempName = TEXTURE_DDC_STB_IMAGE_RESIZE_VERSION;
 		Ar << TempName;
+
+		if ( Settings.bCubemap || Settings.bTextureArray )
+		{
+			TempName = FName(TEXT("Sliced Resize Bug Fix 03/07/2024"));
+			Ar << TempName;
+		}
 	}
 
 	if ( Settings.bVolume )
