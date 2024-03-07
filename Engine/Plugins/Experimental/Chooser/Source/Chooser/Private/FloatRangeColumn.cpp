@@ -22,6 +22,33 @@ FFloatRangeColumn::FFloatRangeColumn()
 	InputValue.InitializeAs(FFloatContextProperty::StaticStruct());
 }
 
+#if WITH_EDITOR
+bool FFloatRangeColumn::EditorTestFilter(int32 RowIndex) const
+{
+	if (RowValues.IsValidIndex(RowIndex))
+	{
+		if (bWrapInput)
+		{
+			double TestResult = FMath::Wrap(TestValue, MinValue, MaxValue);
+			const FChooserFloatRangeRowData& RowValue = RowValues[RowIndex];
+			if (RowValue.Max < RowValue.Min) // eg for an angle range from  135 to -135  (135 to 180 or -180 to -135)
+			{
+				return TestResult >= RowValue.Min || TestResult <= RowValue.Max;
+			}
+			else
+			{
+				return TestResult >= RowValue.Min && TestResult <= RowValue.Max;
+			}
+		}
+		else
+		{
+			return TestValue >= RowValues[RowIndex].Min && TestValue <= RowValues[RowIndex].Max;
+		}
+	}
+	return false;
+}
+#endif
+
 void FFloatRangeColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const
 {
 	if (InputValue.IsValid())
@@ -38,17 +65,43 @@ void FFloatRangeColumn::Filter(FChooserEvaluationContext& Context, const FChoose
 		}
 #endif
 
-		for(uint32 Index : IndexListIn)
+		if (bWrapInput)
 		{
-			if (RowValues.Num() > (int)Index)
+			Result = FMath::Wrap(Result, MinValue, MaxValue);
+			for(uint32 Index : IndexListIn)
 			{
-				const FChooserFloatRangeRowData& RowValue = RowValues[Index];
-				if (Result >= RowValue.Min && Result <= RowValue.Max)
+				if (RowValues.Num() > static_cast<int>(Index))
 				{
-					IndexListOut.Push(Index);
+					const FChooserFloatRangeRowData& RowValue = RowValues[Index];
+					if (RowValue.Max < RowValue.Min) // eg for an angle range from  135 to -135  (135 to 180 or -180 to -135)
+					{
+						if (Result >= RowValue.Min || Result <= RowValue.Max)
+						{
+							IndexListOut.Push(Index);
+						}
+					}
+					else if (Result >= RowValue.Min && Result <= RowValue.Max)
+					{
+						IndexListOut.Push(Index);
+					}
 				}
 			}
 		}
+		else
+		{
+			for(uint32 Index : IndexListIn)
+			{
+				if (RowValues.Num() > static_cast<int>(Index))
+				{
+					const FChooserFloatRangeRowData& RowValue = RowValues[Index];
+					if (Result >= RowValue.Min && Result <= RowValue.Max)
+					{
+						IndexListOut.Push(Index);
+					}
+				}
+			}
+		}
+		
 	}
 	else
 	{

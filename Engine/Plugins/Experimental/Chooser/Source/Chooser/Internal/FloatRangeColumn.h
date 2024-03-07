@@ -59,7 +59,17 @@ struct CHOOSER_API FFloatRangeColumn : public FChooserColumnBase
 		
 	UPROPERTY(EditAnywhere, NoClear, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserParameterFloatBase"), Category = "Data")
 	FInstancedStruct InputValue;
-	
+
+	// Wrap input, and comparisons for numbers such as angles which 
+	UPROPERTY(EditAnywhere, Category = "Data");
+	bool bWrapInput = false;
+	// Minimum value (for WrapInput)
+	UPROPERTY(EditAnywhere, Category = "Data", meta=(DisplayAfter="bWrapInput", EditCondition="bWrapInput"));
+	double MinValue = -180;
+	// Maximum value (for WrapInput)
+	UPROPERTY(EditAnywhere, Category = "Data", meta=(DisplayAfter="bWrapInput", EditCondition="bWrapInput"));
+	double MaxValue = 180;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category="Data")
 	FChooserFloatRangeRowData DefaultRowValue;
@@ -74,10 +84,7 @@ struct CHOOSER_API FFloatRangeColumn : public FChooserColumnBase
 
 #if WITH_EDITOR
 	mutable double TestValue = 0.0;
-	virtual bool EditorTestFilter(int32 RowIndex) const override
-	{
-		return RowValues.IsValidIndex(RowIndex) && TestValue >= RowValues[RowIndex].Min && TestValue <= RowValues[RowIndex].Max;
-	}
+	virtual bool EditorTestFilter(int32 RowIndex) const override;
 	
 	virtual void SetTestValue(TArrayView<const uint8> Value) override
 	{
