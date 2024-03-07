@@ -20,34 +20,29 @@
 // distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
+//
 
-#ifndef PXR_USD_IMAGING_USD_IMAGING_FLATTENED_MODEL_DATA_SOURCE_PROVIDER_H
-#define PXR_USD_IMAGING_USD_IMAGING_FLATTENED_MODEL_DATA_SOURCE_PROVIDER_H
+#ifndef PXR_USD_TS_API_H
+#define PXR_USD_TS_API_H
 
-#include "pxr/usdImaging/usdImaging/api.h"
+#include "pxr/base/arch/export.h"
 
-#include "pxr/imaging/hd/flattenedDataSourceProvider.h"
+#if defined(PXR_STATIC)
+#   define TS_API
+#   define TS_API_TEMPLATE_CLASS(...)
+#   define TS_API_TEMPLATE_STRUCT(...)
+#   define TS_LOCAL
+#else
+#   if defined(TS_EXPORTS)
+#       define TS_API ARCH_EXPORT
+#       define TS_API_TEMPLATE_CLASS(...) ARCH_EXPORT_TEMPLATE(class, __VA_ARGS__)
+#       define TS_API_TEMPLATE_STRUCT(...) ARCH_EXPORT_TEMPLATE(struct, __VA_ARGS__)
+#   else
+#       define TS_API ARCH_IMPORT
+#       define TS_API_TEMPLATE_CLASS(...) ARCH_IMPORT_TEMPLATE(class, __VA_ARGS__)
+#       define TS_API_TEMPLATE_STRUCT(...) ARCH_IMPORT_TEMPLATE(struct, __VA_ARGS__)
+#   endif
+#   define TS_LOCAL ARCH_HIDDEN
+#endif
 
-PXR_NAMESPACE_OPEN_SCOPE
-
-class UsdImagingFlattenedModelDataSourceProvider
-                        : public HdFlattenedDataSourceProvider
-{
-    USDIMAGING_API
-    HdContainerDataSourceHandle GetFlattenedDataSource(
-        const Context&) const override;
-
-    USDIMAGING_API
-    void ComputeDirtyLocatorsForDescendants(
-        HdDataSourceLocatorSet * locators) const override;
-
-public:
-
-    USDIMAGING_API
-    virtual ~UsdImagingFlattenedModelDataSourceProvider();
-};
-
-PXR_NAMESPACE_CLOSE_SCOPE
-
-#endif // PXR_USD_IMAGING_USD_IMAGING_FLATTENED_MODEL_DATA_SOURCE_PROVIDER_H
-
+#endif

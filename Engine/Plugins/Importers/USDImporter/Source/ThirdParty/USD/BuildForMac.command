@@ -2,21 +2,26 @@
 
 set -e
 
-OPENUSD_VERSION=23.11
+OPENUSD_VERSION=24.03
 
 # This path may be adjusted to point to wherever the OpenUSD source is located.
 # It is typically obtained by either downloading a zip/tarball of the source
 # code, or more commonly by cloning the GitHub repository, e.g. for the
 # current engine OpenUSD version:
-#     git clone --branch v23.11 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
+#     git clone --branch v24.03 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
 # We apply a patch for the usdMtlx plugin to ensure that we do not
 # bake a hard-coded path to the MaterialX standard data libraries into the
 # built plugin:
-#     git apply OpenUSD_v2311_usdMtlx_undef_stdlib_dir.patch
+#     git apply OpenUSD_v2403_usdMtlx_undef_stdlib_dir.patch
 # We apply a patch to explicitly declare, define, and export a destructor for
 # SdfAssetPaths so that allocations of its member strings can be tracked and
 # deallocated using the correct deallocator:
-#     git apply OpenUSD_v2311_explicit_SdfAssetPath_dtor.patch
+#     git apply OpenUSD_v2403_explicit_SdfAssetPath_dtor.patch
+# We apply a patch to switch between two alternative set of macros in the Tf
+# library based on whether we're compiling with MSVC *and* whether its
+# "traditional" preprocessor is being used, not just whether we're using
+# MSVC or not:
+#     git apply OpenUSD_v2403_msvc_preprocessor_version_handling.patch
 # Note also that this path may be emitted as part of OpenUSD error messages, so
 # it is suggested that it not reveal any sensitive information.
 OPENUSD_SOURCE_LOCATION="/tmp/OpenUSD_src"

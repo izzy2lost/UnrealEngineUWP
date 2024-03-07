@@ -21,26 +21,13 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
-#ifndef PXR_IMAGING_HD_FLATTENED_MATERIAL_BINDINGS_DATA_SOURCE_PROVIDER_H
-#define PXR_IMAGING_HD_FLATTENED_MATERIAL_BINDINGS_DATA_SOURCE_PROVIDER_H
+#ifndef PXR_IMAGING_HDSI_VERSION_H
+#define PXR_IMAGING_HDSI_VERSION_H
 
-#include "pxr/imaging/hd/api.h"
+// 10 -> 11: Adding HdsiPrimManagingSceneIndexObserver and
+//           HdsiPrimTypeNoticeBatchingSceneIndex
+// 11 -> 12: Adding HdsiPrimManagingSceneIndexObserver::GetTypedPrim.
 
-#include "pxr/imaging/hd/flattenedDataSourceProvider.h"
+#define HDSI_API_VERSION 12
 
-PXR_NAMESPACE_OPEN_SCOPE
-
-class HdFlattenedMaterialBindingsDataSourceProvider : public HdFlattenedDataSourceProvider
-{
-    HD_API
-    HdContainerDataSourceHandle GetFlattenedDataSource(
-        const Context&) const override;
-
-    HD_API
-    void ComputeDirtyLocatorsForDescendants(
-        HdDataSourceLocatorSet * locators) const override;
-};
-
-PXR_NAMESPACE_CLOSE_SCOPE
-
-#endif // PXR_IMAGING_HD_FLATTENED_MATERIAL_BINDINGS_DATA_SOURCE_PROVIDER_H
+#endif // PXR_IMAGING_HDSI_VERSION_H
