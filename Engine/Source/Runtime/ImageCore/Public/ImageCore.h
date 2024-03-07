@@ -78,6 +78,7 @@ namespace ERawImageFormat
 	IMAGECORE_API bool GetFormatFromString(FUtf8StringView InString, Type& OutFormat);
 	
 	IMAGECORE_API bool IsHDR(Type Format);
+	IMAGECORE_API bool HasAlphaChannel(Type Format);
 	
 	// Get one pixel of Format type from PixelData and return in Linear color
 	IMAGECORE_API const FLinearColor GetOnePixelLinear(const void * PixelData,Type Format,EGammaSpace Gamma);
@@ -886,7 +887,8 @@ IMAGECORE_API void TransformToWorkingColorSpace(const FImageView& InLinearImage,
 
 		WithoutFlagsMask = 63,
 		Flag_WrapX = 64,  // default edge mode is clamp; set these to wrap instead
-		Flag_WrapY = 128
+		Flag_WrapY = 128,
+		Flag_AlphaWeighted = 256 // weight RGB by A in the filter; that is, convert non-premultiplied RGBA input to premultiplied for filtering, then convert back
 	};
 	ENUM_CLASS_FLAGS(EResizeImageFilter);
 
