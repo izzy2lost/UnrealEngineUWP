@@ -11,9 +11,6 @@ public class NNEOnnxruntimeEditor : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		if (Target.Type != TargetType.Editor && Target.Type != TargetType.Program)
-			return;
-
 		string PlatformDir = Target.Platform.ToString();
 		string IncDirPath = Path.Combine(ModuleDirectory, "include");
 		string LibDirPath = Path.Combine(ModuleDirectory, "lib", PlatformDir);

@@ -8,12 +8,14 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
+class UNNERuntimeORTDmlEditor;
 class UNNERuntimeORTDml;
 class UNNERuntimeORTCpu;
 
 class FNNERuntimeORTModule : public IModuleInterface
 {
 private:
+	TWeakObjectPtr<UNNERuntimeORTDmlEditor> NNERuntimeORTDmlEditor{ nullptr };
 	TWeakObjectPtr<UNNERuntimeORTDml> NNERuntimeORTDml{ nullptr };
 	TWeakObjectPtr<UNNERuntimeORTCpu> NNERuntimeORTCpu{ nullptr };
 

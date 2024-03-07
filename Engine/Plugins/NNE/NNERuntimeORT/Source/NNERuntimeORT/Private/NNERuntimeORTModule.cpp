@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeORTModule.h"
-#include "NNE.h"
-#include "NNERuntimeORT.h"
-#include "NNEUtilitiesORTIncludeHelper.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
+#include "NNE.h"
+#include "NNERuntimeORT.h"
+#include "NNERuntimeORTThirdPartyIncludeHelper.h"
 #include "UObject/WeakInterfacePtr.h"
 
 namespace UE::NNERuntimeORT::Private::DllHelper
@@ -63,6 +63,18 @@ void FNNERuntimeORTModule::StartupModule()
 #if PLATFORM_WINDOWS
 	if (bDirectMLDllLoaded)
 	{
+#if WITH_EDITOR
+		// NNE runtime ORT Dml startup
+		NNERuntimeORTDmlEditor = NewObject<UNNERuntimeORTDmlEditor>();
+		if (NNERuntimeORTDmlEditor.IsValid())
+		{
+			TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDmlEditor.Get());
+
+			NNERuntimeORTDmlEditor->Init();
+			NNERuntimeORTDmlEditor->AddToRoot();
+			UE::NNE::RegisterRuntime(RuntimeDmlInterface);
+		}
+#else
 		// NNE runtime ORT Dml startup
 		NNERuntimeORTDml = NewObject<UNNERuntimeORTDml>();
 		if (NNERuntimeORTDml.IsValid())
@@ -73,9 +85,11 @@ void FNNERuntimeORTModule::StartupModule()
 			NNERuntimeORTDml->AddToRoot();
 			UE::NNE::RegisterRuntime(RuntimeDmlInterface);
 		}
+#endif // WITH_EDITOR
 	}
 #endif // PLATFORM_WINDOWS
 
+#if WITH_EDITOR
 	// NNE runtime ORT Cpu startup
 	NNERuntimeORTCpu = NewObject<UNNERuntimeORTCpu>();
 	if (NNERuntimeORTCpu.IsValid())
@@ -86,10 +100,12 @@ void FNNERuntimeORTModule::StartupModule()
 		NNERuntimeORTCpu->AddToRoot();
 		UE::NNE::RegisterRuntime(RuntimeCPUInterface);
 	}
+#endif // WITH_EDITOR
 }
 
 void FNNERuntimeORTModule::ShutdownModule()
 {
+#if WITH_EDITOR
 	// NNE runtime ORT Cpu shutdown
 	if (NNERuntimeORTCpu.IsValid())
 	{
@@ -101,6 +117,16 @@ void FNNERuntimeORTModule::ShutdownModule()
 	}
 
 	// NNE runtime ORT Dml shutdown
+	if (NNERuntimeORTDmlEditor.IsValid())
+	{
+		TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDmlEditor.Get());
+
+		UE::NNE::UnregisterRuntime(RuntimeDmlInterface);
+		NNERuntimeORTDmlEditor->RemoveFromRoot();
+		NNERuntimeORTDmlEditor.Reset();
+	}
+#else
+	// NNE runtime ORT Dml shutdown
 	if (NNERuntimeORTDml.IsValid())
 	{
 		TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDml.Get());
@@ -109,6 +135,7 @@ void FNNERuntimeORTModule::ShutdownModule()
 		NNERuntimeORTDml->RemoveFromRoot();
 		NNERuntimeORTDml.Reset();
 	}
+#endif // WITH_EDITOR
 
 	// Free the dll handles
 	for(void* DllHandle : DllHandles)

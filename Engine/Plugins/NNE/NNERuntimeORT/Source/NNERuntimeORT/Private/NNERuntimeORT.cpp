@@ -11,57 +11,225 @@
 #include "NNEModelOptimizerInterface.h"
 #include "NNERuntimeORTModel.h"
 #include "NNERuntimeORTUtils.h"
+
+#ifdef NNE_UTILITIES_AVAILABLE
 #include "NNEUtilitiesModelOptimizer.h"
+#endif // NNE_UTILITIES_AVAILABLE
 
 #if PLATFORM_WINDOWS
 #include "ID3D12DynamicRHI.h"
-#endif //PLATFORM_WINDOWS
+#endif // PLATFORM_WINDOWS
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NNERuntimeORT)
-
-FGuid UNNERuntimeORTDml::GUID = FGuid((int32)'O', (int32)'G', (int32)'P', (int32)'U');
-int32 UNNERuntimeORTDml::Version = 0x00000001;
 
 FGuid UNNERuntimeORTCpu::GUID = FGuid((int32)'O', (int32)'C', (int32)'P', (int32)'U');
 int32 UNNERuntimeORTCpu::Version = 0x00000002;
 
-UNNERuntimeORTDml::ECanCreateModelDataStatus UNNERuntimeORTDml::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+FGuid UNNERuntimeORTDmlEditor::GUID = FGuid((int32)'O', (int32)'D', (int32)'M', (int32)'L');
+int32 UNNERuntimeORTDmlEditor::Version = 0x00000002;
+
+FGuid UNNERuntimeORTDml::GUID = UNNERuntimeORTDmlEditor::GUID;
+int32 UNNERuntimeORTDml::Version = UNNERuntimeORTDmlEditor::Version;
+
+namespace UE::NNERuntimeORT::Private
 {
-	return (!FileData.IsEmpty() && FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0) ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::FailFileIdNotSupported;
-}
+
+class NNERuntimeORTDmlImpl : public INNERuntime, public INNERuntimeGPU, public INNERuntimeRDG
+{
+	using ECanCreateModelCommonStatus = UE::NNE::EResultStatus;
+
+private:
+	TSharedPtr<Ort::Env> ORTEnvironment;
+	FGuid GUID;
+	int32 Version;
+	
+public:
+	NNERuntimeORTDmlImpl(FGuid GUID, int32 Version) : GUID(GUID), Version(Version)
+	{
+
+	}
+
+	virtual ~NNERuntimeORTDmlImpl() = default;
+
+	void Init()
+	{
+		check(!ORTEnvironment.IsValid());
+		ORTEnvironment = MakeShared<Ort::Env>();
+	}
+
+	virtual FString GetRuntimeName() const override
+	{
+		return TEXT("NNERuntimeORTDml");
+	}
+
+	virtual ECanCreateModelDataStatus CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const override
+	{
+#ifdef NNE_UTILITIES_AVAILABLE
+		return (!FileData.IsEmpty() && FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0) ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::FailFileIdNotSupported;
+#else
+		UE_LOG(LogNNE, Display, TEXT("NNEUtilities is not available on this platform"));
+		return ECanCreateModelDataStatus::Fail;
+#endif // NNE_UTILITIES_AVAILABLE
+	}
+
+	virtual TSharedPtr<UE::NNE::FSharedModelData> CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) override
+	{
+		if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("NNERuntimeORTDmlImpl cannot create the model data with id %s (Filetype: %s)"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
+			return {};
+		}
+
+#ifdef NNE_UTILITIES_AVAILABLE
+		TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtilities::Internal::CreateONNXToONNXModelOptimizer();
+
+		FNNEModelRaw InputModel;
+		InputModel.Data = FileData;
+		InputModel.Format = ENNEInferenceFormat::ONNX;
+		FNNEModelRaw OutputModel;
+		UE::NNE::Internal::FOptimizerOptionsMap Options;
+		if (!Optimizer->Optimize(InputModel, OutputModel, Options))
+		{
+			return {};
+		}
+
+		TArray<uint8> Result;
+		FMemoryWriter Writer(Result);
+		Writer << UNNERuntimeORTDml::GUID;
+		Writer << UNNERuntimeORTDml::Version;
+		Writer.Serialize(OutputModel.Data.GetData(), OutputModel.Data.Num());
+
+		return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
+#else
+		return {};
+#endif // NNE_UTILITIES_AVAILABLE
+	}
+
+	virtual FString GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const override
+	{
+		return FileId.ToString(EGuidFormats::Digits) + "-" + UNNERuntimeORTDml::GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeORTDml::Version);
+	}
+
+	virtual ECanCreateModelGPUStatus CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const override
+	{
+		return CanCreateModelCommon(ModelData) == ECanCreateModelCommonStatus::Ok ? ECanCreateModelGPUStatus::Ok : ECanCreateModelGPUStatus::Fail;
+	}
+
+	virtual TSharedPtr<UE::NNE::IModelGPU> CreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) override
+	{
+#if PLATFORM_WINDOWS
+		check(ModelData);
+		check(ORTEnvironment.IsValid());
+
+		if (CanCreateModelGPU(ModelData) != ECanCreateModelGPUStatus::Ok)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeORTDml cannot create a model GPU from the model data with id %s"), *ModelData->GetFileId().ToString(EGuidFormats::Digits));
+			return {};
+		}
+
+		const TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
+		check(SharedData.IsValid());
+
+		if (FEngineAnalytics::IsAvailable())
+		{
+			TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
+				TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
+				TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
+				TEXT("ModelDataSize"), SharedData->GetView().Num()
+			);
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
+		}
+
+		return MakeShared<UE::NNERuntimeORT::Private::FModelORTDmlGPU>(ORTEnvironment, SharedData);
+#else // PLATFORM_WINDOWS
+		return TSharedPtr<UE::NNE::IModelGPU>();
+#endif // PLATFORM_WINDOWS
+	}
+
+	virtual ECanCreateModelRDGStatus CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const override{
+		return CanCreateModelCommon(ModelData) == ECanCreateModelCommonStatus::Ok ? ECanCreateModelRDGStatus::Ok : ECanCreateModelRDGStatus::Fail;
+	}
+
+	virtual TSharedPtr<UE::NNE::IModelRDG> CreateModelRDG(TObjectPtr<UNNEModelData> ModelData) override{
+#if PLATFORM_WINDOWS
+		check(ModelData);
+		check(ORTEnvironment.IsValid());
+
+		if (CanCreateModelRDG(ModelData) != ECanCreateModelRDGStatus::Ok)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeORTDml cannot create a model RDG from the model data with id %s"), *ModelData->GetFileId().ToString(EGuidFormats::Digits));
+			return {};
+		}
+
+		const TSharedRef<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName()).ToSharedRef();
+
+		if (FEngineAnalytics::IsAvailable())
+		{
+			TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
+				TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
+				TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
+				TEXT("ModelDataSize"), SharedData->GetView().Num()
+			);
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
+		}
+
+		return MakeShared<UE::NNERuntimeORT::Private::FModelORTDmlRDG>(ORTEnvironment.ToSharedRef(), SharedData);
+#else // PLATFORM_MICROSOFT
+		return {};
+#endif // PLATFORM_MICROSOFT
+	}
+
+private:
+	ECanCreateModelCommonStatus CanCreateModelCommon(const TObjectPtr<UNNEModelData> ModelData) const
+	{
+#if PLATFORM_WINDOWS
+		check(ModelData != nullptr);
+
+		// In order to use DirectML we need D3D12
+		if (!IsRHID3D12())
+		{
+			return ECanCreateModelCommonStatus::Fail;
+		}
+
+		constexpr int32 GuidSize = sizeof(UNNERuntimeORTDml::GUID);
+		constexpr int32 VersionSize = sizeof(UNNERuntimeORTDml::Version);
+		const TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
+
+		if (!SharedData.IsValid())
+		{
+			return ECanCreateModelCommonStatus::Fail;
+		}
+
+		TConstArrayView<uint8> Data = SharedData->GetView();
+
+		if (Data.Num() <= GuidSize + VersionSize)
+		{
+			return ECanCreateModelCommonStatus::Fail;
+		}
+
+		static const FGuid DeprecatedGUID = FGuid((int32)'O', (int32)'G', (int32)'P', (int32)'U');
+
+		bool bResult = FGenericPlatformMemory::Memcmp(&(Data[0]), &(UNNERuntimeORTDml::GUID), GuidSize) == 0;
+		bResult |= FGenericPlatformMemory::Memcmp(&(Data[0]), &(DeprecatedGUID), GuidSize) == 0;
+		bResult &= FGenericPlatformMemory::Memcmp(&(Data[GuidSize]), &(UNNERuntimeORTDml::Version), VersionSize) == 0;
+
+		return bResult ? ECanCreateModelCommonStatus::Ok : ECanCreateModelCommonStatus::Fail;
+#else // PLATFORM_MICROSOFT
+		return ECanCreateModelCommonStatus::Fail;
+#endif // PLATFORM_MICROSOFT
+	}
+};
+
+} // namespace UE::NNERuntimeORT::Private
 
 UNNERuntimeORTCpu::ECanCreateModelDataStatus UNNERuntimeORTCpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
+#ifdef NNE_UTILITIES_AVAILABLE
 	return (!FileData.IsEmpty() && FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0) ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::FailFileIdNotSupported;
-}
-
-TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
-{
-	if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
-	{
-		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeORTDml cannot create the model data with id %s (Filetype: %s)"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
-		return {};
-	}
-
-	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtilities::Internal::CreateONNXToONNXModelOptimizer();
-
-	FNNEModelRaw InputModel;
-	InputModel.Data = FileData;
-	InputModel.Format = ENNEInferenceFormat::ONNX;
-	FNNEModelRaw OutputModel;
-	UE::NNE::Internal::FOptimizerOptionsMap Options;
-	if (!Optimizer->Optimize(InputModel, OutputModel, Options))
-	{
-		return {};
-	}
-
-	TArray<uint8> Result;
-	FMemoryWriter Writer(Result);
-	Writer << UNNERuntimeORTDml::GUID;
-	Writer << UNNERuntimeORTDml::Version;
-	Writer.Serialize(OutputModel.Data.GetData(), OutputModel.Data.Num());
-
-	return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
+#else
+	UE_LOG(LogNNE, Display, TEXT("NNEUtilities is not available on this platform"));
+	return ECanCreateModelDataStatus::Fail;
+#endif // NNE_UTILITIES_AVAILABLE
 }
 
 TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
@@ -72,6 +240,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const F
 		return {};
 	}
 
+#ifdef NNE_UTILITIES_AVAILABLE
 	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtilities::Internal::CreateONNXToORTModelOptimizer();
 
 	FNNEModelRaw InputModel;
@@ -91,11 +260,9 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const F
 	Writer.Serialize(OutputModel.Data.GetData(), OutputModel.Data.Num());
 
 	return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
-}
-
-FString UNNERuntimeORTDml::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
-{
-	return FileId.ToString(EGuidFormats::Digits) + "-" + UNNERuntimeORTDml::GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeORTDml::Version);
+#else
+	return {};
+#endif // NNE_UTILITIES_AVAILABLE
 }
 
 FString UNNERuntimeORTCpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
@@ -103,21 +270,12 @@ FString UNNERuntimeORTCpu::GetModelDataIdentifier(const FString& FileType, TCons
 	return FileId.ToString(EGuidFormats::Digits) + "-" + UNNERuntimeORTCpu::GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeORTCpu::Version);
 }
 
-void UNNERuntimeORTDml::Init()
-{
-	check(!ORTEnvironment.IsValid());
-	ORTEnvironment = MakeShared<Ort::Env>();
-}
-
 void UNNERuntimeORTCpu::Init()
 {
+#if WITH_EDITOR
 	check(!ORTEnvironment.IsValid());
 	ORTEnvironment = MakeShared<Ort::Env>();
-}
-
-FString UNNERuntimeORTDml::GetRuntimeName() const
-{
-	return TEXT("NNERuntimeORTDml");
+#endif // WITH_EDITOR
 }
 
 FString UNNERuntimeORTCpu::GetRuntimeName() const
@@ -127,6 +285,7 @@ FString UNNERuntimeORTCpu::GetRuntimeName() const
 
 UNNERuntimeORTCpu::ECanCreateModelCPUStatus UNNERuntimeORTCpu::CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
+#if WITH_EDITOR
 	check(ModelData != nullptr);
 
 	constexpr int32 GuidSize = sizeof(UNNERuntimeORTCpu::GUID);
@@ -149,10 +308,14 @@ UNNERuntimeORTCpu::ECanCreateModelCPUStatus UNNERuntimeORTCpu::CanCreateModelCPU
 	bResult &= FGenericPlatformMemory::Memcmp(&(Data[GuidSize]), &(UNNERuntimeORTCpu::Version), VersionSize) == 0;
 
 	return bResult ? ECanCreateModelCPUStatus::Ok : ECanCreateModelCPUStatus::Fail;
+#else
+	return ECanCreateModelCPUStatus::Fail;
+#endif // WITH_EDITOR
 }
 
 TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpu::CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData)
 {
+#if WITH_EDITOR
 	check(ModelData != nullptr);
 	check(ORTEnvironment.IsValid());
 
@@ -179,84 +342,103 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpu::CreateModelCPU(const TObjectPt
 	}
 
 	return TSharedPtr<UE::NNE::IModelCPU>(IModel);
+#else
+	return {};
+#endif // WITH_EDITOR
 }
 
-#if PLATFORM_WINDOWS
-UNNERuntimeORTDml::ECanCreateModelGPUStatus UNNERuntimeORTDml::CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const
+/*
+ * UNNERuntimeORTDmlEditor
+ */
+UNNERuntimeORTDmlEditor::UNNERuntimeORTDmlEditor()
 {
-	check(ModelData != nullptr);
-
-	// In order to use DirectML we need D3D12
-	if (!IsRHID3D12())
-	{
-		return ECanCreateModelGPUStatus::Fail;
-	}
-
-	constexpr int32 GuidSize = sizeof(UNNERuntimeORTDml::GUID);
-	constexpr int32 VersionSize = sizeof(UNNERuntimeORTDml::Version);
-	const TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
-
-	if (!SharedData.IsValid())
-	{
-		return ECanCreateModelGPUStatus::Fail;
-	}
-
-	TConstArrayView<uint8> Data = SharedData->GetView();
-
-	if (Data.Num() <= GuidSize + VersionSize)
-	{
-		return ECanCreateModelGPUStatus::Fail;
-	}
-
-	static const FGuid DeprecatedGUID = FGuid((int32)'O', (int32)'D', (int32)'M', (int32)'L');
-
-	bool bResult = FGenericPlatformMemory::Memcmp(&(Data[0]), &(UNNERuntimeORTDml::GUID), GuidSize) == 0;
-	bResult |= FGenericPlatformMemory::Memcmp(&(Data[0]), &(DeprecatedGUID), GuidSize) == 0;
-	bResult &= FGenericPlatformMemory::Memcmp(&(Data[GuidSize]), &(UNNERuntimeORTDml::Version), VersionSize) == 0;
-
-	return bResult ? ECanCreateModelGPUStatus::Ok : ECanCreateModelGPUStatus::Fail;
+	Impl = MakeUnique<UE::NNERuntimeORT::Private::NNERuntimeORTDmlImpl>(GUID, Version);
 }
 
-TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(const TObjectPtr<UNNEModelData> ModelData)
+void UNNERuntimeORTDmlEditor::Init()
 {
-	check(ModelData != nullptr);
-	check(ORTEnvironment.IsValid());
-
-	if (CanCreateModelGPU(ModelData) != ECanCreateModelGPUStatus::Ok)
-	{
-		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeORTDml cannot create a model from the model data with id %s"), *ModelData->GetFileId().ToString(EGuidFormats::Digits));
-		return TSharedPtr<UE::NNE::IModelGPU>();
-	}
-
-	const TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
-	check(SharedData.IsValid());
-
-	UE::NNE::IModelGPU* IModel = static_cast<UE::NNE::IModelGPU*>(new UE::NNERuntimeORT::Private::FModelORTDml(ORTEnvironment, SharedData));
-	check(IModel != nullptr);
-
-	if (FEngineAnalytics::IsAvailable())
-	{
-		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
-			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
-			TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
-			TEXT("ModelDataSize"), SharedData->GetView().Num()
-		);
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
-	}
-
-	return TSharedPtr<UE::NNE::IModelGPU>(IModel);
+	Impl->Init();
 }
 
-#else // PLATFORM_WINDOWS
-
-UNNERuntimeORTDml::ECanCreateModelGPUStatus UNNERuntimeORTDml::CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const
+FString UNNERuntimeORTDmlEditor::GetRuntimeName() const
 {
-	return ECanCreateModelGPUStatus::Fail;
+	return Impl->GetRuntimeName();
 }
 
-TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(const TObjectPtr<UNNEModelData> ModelData)
+UNNERuntimeORTDmlEditor::ECanCreateModelDataStatus UNNERuntimeORTDmlEditor::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
-	return TSharedPtr<UE::NNE::IModelGPU>();
+	return Impl->CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform);
 }
 
-#endif // PLATFORM_WINDOWS
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDmlEditor::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
+{
+	return Impl->CreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform);
+}
+
+FString UNNERuntimeORTDmlEditor::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+{
+	return Impl->GetModelDataIdentifier(FileType, FileData, AdditionalFileData, FileId, TargetPlatform);
+}
+
+UNNERuntimeORTDmlEditor::ECanCreateModelGPUStatus UNNERuntimeORTDmlEditor::CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const
+{
+	return Impl->CanCreateModelGPU(ModelData);
+}
+
+TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDmlEditor::CreateModelGPU(const TObjectPtr<UNNEModelData> ModelData)
+{
+	return Impl->CreateModelGPU(ModelData);
+}
+
+UNNERuntimeORTDmlEditor::ECanCreateModelRDGStatus UNNERuntimeORTDmlEditor::CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const
+{
+	return Impl->CanCreateModelRDG(ModelData);
+}
+
+TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeORTDmlEditor::CreateModelRDG(TObjectPtr<UNNEModelData> ModelData)
+{
+	return Impl->CreateModelRDG(ModelData);
+}
+
+/*
+ * UNNERuntimeORTDml
+ */
+UNNERuntimeORTDml::UNNERuntimeORTDml()
+{
+	Impl = MakeUnique<UE::NNERuntimeORT::Private::NNERuntimeORTDmlImpl>(GUID, Version);
+}
+
+void UNNERuntimeORTDml::Init()
+{
+	Impl->Init();
+}
+
+FString UNNERuntimeORTDml::GetRuntimeName() const
+{
+	return Impl->GetRuntimeName();
+}
+
+UNNERuntimeORTDml::ECanCreateModelDataStatus UNNERuntimeORTDml::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+{
+	return Impl->CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform);
+}
+
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
+{
+	return Impl->CreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform);
+}
+
+FString UNNERuntimeORTDml::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+{
+	return Impl->GetModelDataIdentifier(FileType, FileData, AdditionalFileData, FileId, TargetPlatform);
+}
+
+UNNERuntimeORTDml::ECanCreateModelRDGStatus UNNERuntimeORTDml::CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const
+{
+	return Impl->CanCreateModelRDG(ModelData);
+}
+
+TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeORTDml::CreateModelRDG(TObjectPtr<UNNEModelData> ModelData)
+{
+	return Impl->CreateModelRDG(ModelData);
+}

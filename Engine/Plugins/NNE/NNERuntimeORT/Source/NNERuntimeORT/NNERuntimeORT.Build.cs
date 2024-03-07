@@ -1,13 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
-using System.IO;
 
 public class NNERuntimeORT : ModuleRules
 {
 	public NNERuntimeORT( ReadOnlyTargetRules Target ) : base( Target )
 	{
-		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PrivateDependencyModuleNames.AddRange
 			(
@@ -17,10 +16,16 @@ public class NNERuntimeORT : ModuleRules
 				"Engine",
 				"NNE",
 				"NNEOnnxruntimeEditor",
-				"NNEUtilities",
-				"Projects"
+				"Projects",
+				"RenderCore"
 			}
 		);
+
+		if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
+		{
+			PrivateDefinitions.Add("NNE_UTILITIES_AVAILABLE");
+			PrivateDependencyModuleNames.Add("NNEUtilities");
+		}
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
