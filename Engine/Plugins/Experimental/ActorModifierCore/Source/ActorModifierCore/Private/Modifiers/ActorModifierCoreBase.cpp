@@ -477,7 +477,7 @@ void UActorModifierCoreBase::PostLoad()
 				const EObjectFlags ThisStackFlags = GetFlags();
 
 				LogModifier(FString::Printf(TEXT("Modifier stack migrated to component stack %s %s"), *OwningComponent->GetName(), *ComponentStack->GetName()), true);
-				Rename(TEXT("Trash_ModifierStack"), GetTransientPackage(), RenameFlags);
+				Rename(nullptr, GetTransientPackage(), RenameFlags);
 
 				ComponentStack->Rename(*ThisStackName, nullptr, RenameFlags);
 				ComponentStack->Modifiers = ThisStack->Modifiers;

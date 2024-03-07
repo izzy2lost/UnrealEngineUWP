@@ -88,13 +88,13 @@ void UActorModifierCoreStack::SetModifierProfiling(bool bInProfiling)
 
 void UActorModifierCoreStack::PostLoad()
 {
-	Super::PostLoad();
-
 	// remove invalid
 	Modifiers.SetNum(Algo::RemoveIf(Modifiers, [](const UActorModifierCoreBase* InModifier)
 	{
-		return !IsValid(InModifier);
+		return !InModifier;
 	}));
+
+	Super::PostLoad();
 }
 
 void UActorModifierCoreStack::OnModifierAdded(EActorModifierCoreEnableReason InReason)
