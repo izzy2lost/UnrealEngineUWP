@@ -1584,6 +1584,16 @@ namespace Chaos
 		bool bShouldSwapParticles = false;
 		const EContactShapesType ShapePairType = Collisions::CalculateShapePairType(ParticleA, ImplicitA, ParticleB, ImplicitB, bShouldSwapParticles);
 
+		// Strip the Instanced wrapper if there is one
+		if (const FImplicitObjectInstanced* InstancedA = ImplicitA->AsA<FImplicitObjectInstanced>())
+		{
+			ImplicitA = InstancedA->GetInnerObject().Get();
+		}
+		if (const FImplicitObjectInstanced* InstancedB = ImplicitB->AsA<FImplicitObjectInstanced>())
+		{
+			ImplicitB = InstancedB->GetInnerObject().Get();
+		}
+
 		// Create the constraint for this shape pair
 		// NOTE: this just creates the object. The collision detection is done in ProcessNewConstraints
 		if (!bShouldSwapParticles)
