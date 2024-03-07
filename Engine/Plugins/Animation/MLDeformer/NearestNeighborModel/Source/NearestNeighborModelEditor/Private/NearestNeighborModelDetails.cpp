@@ -44,19 +44,6 @@ namespace UE::NearestNeighborModel
 		NearestNeighborCategoryBuilder = &DetailLayoutBuilder->EditCategory("Nearest Neighbor Setting", FText::GetEmpty(), ECategoryPriority::Important);
 		SectionsCategoryBuilder = &DetailLayoutBuilder->EditCategory("Sections", FText::GetEmpty(), ECategoryPriority::Important);
 		StatusCategoryBuilder = &DetailLayoutBuilder->EditCategory("Status", FText::GetEmpty(), ECategoryPriority::Important);
-
-		// Add warning in CreateCategories so that the warning appears at the top of the details panel.
-		FDetailWidgetRow& NearestNeighborWarningRow = BaseMeshCategoryBuilder->AddCustomRow(FText::FromString("NearestNeighborWarning"))
-			.WholeRowContent()
-			[
-				SNew(SBox)
-				.Padding(FMargin(0.0f, 4.0f))
-				[
-					SNew(SWarningOrErrorBox)
-					.MessageStyle(EMessageStyle::Warning)
-					.Message(LOCTEXT("NearestNeighborWarning", "Nearest neighbor model is still experimental and the details here are subject to change."))
-				]
-			];
 	}
 
 	UNearestNeighborModel* FNearestNeighborModelDetails::GetCastModel() const
