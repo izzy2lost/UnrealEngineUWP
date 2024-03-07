@@ -291,6 +291,7 @@ public:
 	/** Get a list of stacks that were executed during the last execution. */
 	TArray<FPCGStack> GetExecutedStacks(const UPCGComponent* InComponent, const UPCGGraph* InSubgraph);
 	void ClearExecutedStacks(FPCGStack BeginningWithStack);
+	void ClearExecutedStacks(const UPCGGraph* InContainingGraph);
 
 	FPCGOnComponentGenerationCompleteOrCancelled OnComponentGenerationCompleteOrCancelled;
 

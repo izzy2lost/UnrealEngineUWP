@@ -1327,6 +1327,13 @@ void UPCGSubsystem::DeleteSerializedPartitionActors(bool bOnlyDeleteUnused, bool
 
 void UPCGSubsystem::NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType ChangeType)
 {
+	if (!!(ChangeType & (EPCGChangeType::Structural | EPCGChangeType::GenerationGrid)))
+	{
+		// If change was deep enough, clear out all executed stacks, and let them refresh upon next generate. Fixes
+		// cases where stale stacks never got flushed.
+		ClearExecutedStacks(InGraph);
+	}
+
 	if (GraphExecutor)
 	{
 		GraphExecutor->NotifyGraphChanged(InGraph, ChangeType);
@@ -1391,22 +1398,32 @@ FPCGGraphCompiler* UPCGSubsystem::GetGraphCompiler()
 
 bool UPCGSubsystem::GetStackContext(const UPCGComponent* InComponent, FPCGStackContext& OutStackContext)
 {
-	if (InComponent && InComponent->GetGraph())
+	UPCGGraph* Graph = InComponent ? InComponent->GetGraph() : nullptr;
+	if (!InComponent || !Graph)
 	{
-		uint32 GenerationGridSize = PCGHiGenGrid::UninitializedGridSize();
-		if (InComponent->GetGraph()->IsHierarchicalGenerationEnabled())
-		{
-			if (InComponent->IsLocalComponent() || InComponent->IsPartitioned())
-			{
-				GenerationGridSize = InComponent->GetGenerationGridSize();
-			}
-		}
-
-		GetGraphCompiler()->GetCompiledTasks(InComponent->GetGraph(), GenerationGridSize, OutStackContext);
-		return true;
+		return false;
 	}
 
-	return false;
+	// A non-partitioned component generally executes (original component or local component).
+	bool bDoesComponentExecute = !InComponent->IsPartitioned();
+
+	// A partitioned higen original component will execute if the graph has UB grid level.
+	if (!bDoesComponentExecute && Graph->IsHierarchicalGenerationEnabled())
+	{
+		PCGHiGenGrid::FSizeArray GridSizes;
+		Graph->GetGridSizes(GridSizes, /*bOutHasUnbounded=*/bDoesComponentExecute);
+	}
+
+	if (bDoesComponentExecute)
+	{
+		GetGraphCompiler()->GetCompiledTasks(Graph, InComponent->GetGenerationGridSize(), OutStackContext);
+		return true;
+	}
+	else
+	{
+		OutStackContext = FPCGStackContext();
+		return false;
+	}
 }
 
 uint32 UPCGSubsystem::GetGraphCacheEntryCount(IPCGElement* InElement) const
@@ -1459,6 +1476,21 @@ void UPCGSubsystem::ClearExecutedStacks(FPCGStack BeginningWithStack)
 		// Clear any dynamic stack that starts with the given base stack, we don't know what stacks will
 		// execute so clean out everything.
 		if (ExecutedStacks[StackIndex].BeginsWith(BeginningWithStack))
+		{
+			ExecutedStacks.RemoveAtSwap(StackIndex);
+		}
+	}
+}
+
+void UPCGSubsystem::ClearExecutedStacks(const UPCGGraph* InContainingGraph)
+{
+	FWriteScopeLock Lock(ExecutedStacksLock);
+
+	for (int StackIndex = ExecutedStacks.Num() - 1; StackIndex >= 0; --StackIndex)
+	{
+		// Clear any dynamic stack that starts with the given base stack, we don't know what stacks will
+		// execute so clean out everything.
+		if (ExecutedStacks[StackIndex].HasObject(InContainingGraph))
 		{
 			ExecutedStacks.RemoveAtSwap(StackIndex);
 		}
