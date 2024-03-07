@@ -834,7 +834,7 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 					TArray<Ort::Value> OrtInputTensors;
 					TArray<Ort::Value> OrtOutputTensors;
 
-					Ort::IoBinding IoBinding = Ort::IoBinding::IoBinding(*Session);
+					Ort::IoBinding IoBinding = Ort::IoBinding(*Session);
 
 					for (int32 i = 0; i < InputBuffersCopyCopy.Num(); i++)
 					{
