@@ -131,7 +131,7 @@ namespace UnrealBuildTool
 			Options = ToolchainOptions;
 			ProjectFile = InProjectFile;
 
-			string? NDKPath = Environment.GetEnvironmentVariable("NDKROOT");
+			string? NDKPath = AndroidPlatformSDK.GetNDKRoot();
 
 			// don't register if we don't have an NDKROOT specified
 			if (String.IsNullOrEmpty(NDKPath))
