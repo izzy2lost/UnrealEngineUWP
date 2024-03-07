@@ -190,6 +190,8 @@ public:
 						{
 							RowsToUpdate.Add(TPair<TypedElementRowHandle, bool>(Row, true));
 						})
+				.Where()
+					.All(ColumnType.Get())
 				.Compile()
 				);
 			
@@ -207,9 +209,10 @@ public:
 					RemoveObserver,
 					[this](IQueryContext& Context, TypedElementRowHandle Row)
 						{
-
 							RowsToUpdate.Add(TPair<TypedElementRowHandle, bool>(Row, false));
 						})
+				.Where()
+					.All(ColumnType.Get())
 				.Compile()
 			);
 			
