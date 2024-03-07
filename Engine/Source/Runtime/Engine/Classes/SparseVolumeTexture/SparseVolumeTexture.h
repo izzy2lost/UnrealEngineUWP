@@ -364,11 +364,15 @@ public:
 	virtual ~USparseVolumeTextureFrame() = default;
 
 	// Retrieves a frame from the given SparseVolumeTexture and also issues a streaming request for it. 
+	// StreamingInstanceKey can be any arbitrary value that is suitable to keep track of the source of requests for a given SVT. This key is used internally to associate
+	// incoming requests with prior requests issued for the same SVT. A good value to pass here might be the pointer of the component the SVT is used within.
+	// FrameRate is an optional argument which helps to more accurately predict the required bandwidth when using non-blocking requests.
 	// FrameIndex is of float type so that the streaming system can use the fractional part to more easily keep track of playback speed and direction (forward/reverse playback).
 	// MipLevel is the lowest mip level that the caller intends to use but does not guarantee that the mip is actually resident.
 	// If bBlocking is true, DDC streaming requests will block on completion, guaranteeing that the requested frame will have been streamed in after the next streaming system update.
 	// If streaming cooked data from disk, the highest priority will be used, but no guarantee is given.
-	static ENGINE_API USparseVolumeTextureFrame* GetFrameAndIssueStreamingRequest(USparseVolumeTexture* SparseVolumeTexture, float FrameIndex, int32 MipLevel, bool bBlocking);
+	// if bHasValidFrameRate is true, the FrameRate argument will be use to predict the required streaming IO bandwidth.
+	static ENGINE_API USparseVolumeTextureFrame* GetFrameAndIssueStreamingRequest(USparseVolumeTexture* SparseVolumeTexture, uint32 StreamingInstanceKey, float FrameRate, float FrameIndex, int32 MipLevel, bool bBlocking, bool bHasValidFrameRate);
 
 	ENGINE_API bool Initialize(USparseVolumeTexture* InOwner, int32 InFrameIndex, const FTransform& InFrameTransform, UE::SVT::FTextureData& UncookedFrame);
 	int32 GetFrameIndex() const { return FrameIndex; }
@@ -475,6 +479,24 @@ public:
 	// If enabled, the SparseVolumeTexture is only going to use the local DDC. For certain assets it might be reasonable to also use the remote DDC, but for larger assets this will mean long up- and download times.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Texture", AdvancedDisplay)
 	bool bLocalDDCOnly = true;
+
+	// The SVT streaming pool is sized such that it can hold the largest frame multiplied by this value. There should be some slack to allow for prefetching frames.
+	UPROPERTY(EditAnywhere, Category = "Texture", AdvancedDisplay)
+	float StreamingPoolSizeFactor = 3.0f;
+
+	// When using non-blocking streaming requests, upcoming frames are loaded into memory in advance. This property controls how many frames to prefetch.
+	UPROPERTY(EditAnywhere, Category = "Texture", AdvancedDisplay)
+	int32 NumberOfPrefetchFrames = 3;
+
+	// When using non-blocking streaming requests, upcoming frames are loaded into memory in advance. This property controls the size reduction in percent of each additional prefetched frames.
+	// A value of 20.0 would prefetch frame N+1 at 80%, N+2 at 60%, N+3 at 40% etc.
+	UPROPERTY(EditAnywhere, Category = "Texture", AdvancedDisplay)
+	float PrefetchPercentageStepSize = 20.0f;
+
+	// When using non-blocking streaming requests, upcoming frames are loaded into memory in advance. This property applies a bias in percent to how much data is prefetched for every frame.
+	// A value of 20.0 adds 20% to all prefetch percentages. So if PrefetchPercentageStepSize is set to 20.0, frame N+1 is prefetched at 80% + 20% = 100%, frame N+2 at 60% + 20% = 80%, N+3 at 40% + 20% = 60% etc.
+	UPROPERTY(EditAnywhere, Category = "Texture", AdvancedDisplay)
+	float PrefetchPercentageBias = 20.0f;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(VisibleAnywhere, Instanced, Category = ImportSettings)

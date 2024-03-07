@@ -939,11 +939,14 @@ USparseVolumeTextureFrame::USparseVolumeTextureFrame(const FObjectInitializer& O
 {
 }
 
-USparseVolumeTextureFrame* USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(USparseVolumeTexture* SparseVolumeTexture, float FrameIndex, int32 MipLevel, bool bBlocking)
+USparseVolumeTextureFrame* USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(USparseVolumeTexture* SparseVolumeTexture, uint32 StreamingInstanceKey, float FrameRate, float FrameIndex, int32 MipLevel, bool bBlocking, bool bHasValidFrameRate)
 {
 	if (UStreamableSparseVolumeTexture* StreamableSVT = Cast<UStreamableSparseVolumeTexture>(SparseVolumeTexture))
 	{
-		UE::SVT::GetStreamingManager().Request_GameThread(StreamableSVT, FrameIndex, MipLevel, bBlocking);
+		UE::SVT::EStreamingRequestFlags RequestFlags = UE::SVT::EStreamingRequestFlags::None;
+		RequestFlags |= bBlocking ? UE::SVT::EStreamingRequestFlags::Blocking : UE::SVT::EStreamingRequestFlags::None;
+		RequestFlags |= bHasValidFrameRate ? UE::SVT::EStreamingRequestFlags::HasFrameRate : UE::SVT::EStreamingRequestFlags::None;
+		UE::SVT::GetStreamingManager().Request_GameThread(StreamableSVT, StreamingInstanceKey, FrameRate, FrameIndex, MipLevel, RequestFlags);
 		return StreamableSVT->GetFrame(static_cast<int32>(FrameIndex));
 	}
 	return nullptr;
@@ -1409,7 +1412,21 @@ void UStreamableSparseVolumeTexture::PostEditChangeProperty(FPropertyChangedEven
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	// Don't bother trying to recache the frame data if the Frames array is invalid. This very likely means that this object is about to be deleted.
-	if (!bInvalidFramesArray)
+	bool bRecacheFrames = !bInvalidFramesArray;
+
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UStreamableSparseVolumeTexture, StreamingPoolSizeFactor)
+		|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UStreamableSparseVolumeTexture, NumberOfPrefetchFrames)
+		|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UStreamableSparseVolumeTexture, PrefetchPercentageStepSize)
+		|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UStreamableSparseVolumeTexture, PrefetchPercentageBias))
+	{
+		// Re-register the SVT with the streamer so it picks up on the changed streaming parameters.
+		UE::SVT::GetStreamingManager().Remove_GameThread(this);
+		UE::SVT::GetStreamingManager().Add_GameThread(this);
+		
+		bRecacheFrames = false;
+	}
+	
+	if (bRecacheFrames)
 	{
 		RecacheFrames();
 	}
@@ -1659,7 +1676,7 @@ USparseVolumeTextureFrame* UAnimatedSparseVolumeTextureController::GetFrameByInd
 		return nullptr;
 	}
 
-	return USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, FrameIndex, MipLevel, bBlockingStreamingRequests);
+	return USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, GetTypeHash(this), 0.0f /*FrameRate*/, FrameIndex, MipLevel, bBlockingStreamingRequests, false /*bHasValidFrameRate*/);
 }
 
 USparseVolumeTextureFrame* UAnimatedSparseVolumeTextureController::GetCurrentFrame()
@@ -1672,7 +1689,7 @@ USparseVolumeTextureFrame* UAnimatedSparseVolumeTextureController::GetCurrentFra
 	// Compute (fractional) index of frame to sample
 	const float FrameIndexF = GetFractionalFrameIndex();
 
-	return USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, FrameIndexF, MipLevel, bBlockingStreamingRequests);
+	return USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, GetTypeHash(this), FrameRate, FrameIndexF, MipLevel, bBlockingStreamingRequests, true /*bHasValidFrameRate*/);
 }
 
 void UAnimatedSparseVolumeTextureController::GetCurrentFramesForInterpolation(USparseVolumeTextureFrame*& Frame0, USparseVolumeTextureFrame*& Frame1, float& LerpAlpha)
@@ -1687,8 +1704,9 @@ void UAnimatedSparseVolumeTextureController::GetCurrentFramesForInterpolation(US
 	const int32 FrameIndex = (int32)FrameIndexF;
 	LerpAlpha = FMath::Frac(FrameIndexF);
 
-	Frame0 = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, FrameIndexF, MipLevel, bBlockingStreamingRequests);
-	Frame1 = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, (FrameIndex + 1) % SparseVolumeTexture->GetNumFrames(), MipLevel, bBlockingStreamingRequests);
+	const uint32 StreamingInstanceKey = GetTypeHash(this);
+	Frame0 = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, StreamingInstanceKey, FrameRate, FrameIndexF, MipLevel, bBlockingStreamingRequests, true /*bHasValidFrameRate*/);
+	Frame1 = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, StreamingInstanceKey, FrameRate, (FrameIndex + 1) % SparseVolumeTexture->GetNumFrames(), MipLevel, bBlockingStreamingRequests, true /*bHasValidFrameRate*/);
 }
 
 float UAnimatedSparseVolumeTextureController::GetDuration()

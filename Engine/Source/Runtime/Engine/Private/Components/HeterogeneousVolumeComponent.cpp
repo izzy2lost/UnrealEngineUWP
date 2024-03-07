@@ -580,8 +580,9 @@ void UHeterogeneousVolumeComponent::TickComponent(float DeltaTime, ELevelTick Ti
 				Frame = FMath::Clamp(Frame, StartFrame, EndFrame);
 			}
 
-			bool bIsBlocking = bIssueBlockingRequests != 0;
-			USparseVolumeTextureFrame* SparseVolumeTextureFrame = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, Frame, MipLevel, bIsBlocking);
+			const bool bIsBlocking = bIssueBlockingRequests != 0;
+			const bool bHasValidFrameRate = bPlaying != 0;
+			USparseVolumeTextureFrame* SparseVolumeTextureFrame = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, GetTypeHash(this), FrameRate, Frame, MipLevel, bIsBlocking, bHasValidFrameRate);
 			if (SparseVolumeTextureFrame)
 			{
 				FIntVector PerFrameVolumeResolution = SparseVolumeTextureFrame->GetVolumeResolution();

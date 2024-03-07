@@ -11,6 +11,7 @@
 #include "Async/ParallelFor.h"
 #include "SparseVolumeTextureTileDataTexture.h"
 #include "SparseVolumeTextureUpload.h"
+#include "SparseVolumeTextureStreamingInstance.h"
 #include "GlobalRenderResources.h"
 
 #if WITH_EDITORONLY_DATA
@@ -21,22 +22,6 @@
 DEFINE_LOG_CATEGORY(LogSparseVolumeTextureStreamingManager);
 
 DECLARE_GPU_STAT(SVTStreaming);
-
-static int32 GSVTStreamingNumPrefetchFrames = 3;
-static FAutoConsoleVariableRef CVarSVTStreamingNumPrefetchFrames(
-	TEXT("r.SparseVolumeTexture.Streaming.NumPrefetchFrames"),
-	GSVTStreamingNumPrefetchFrames,
-	TEXT("Number of frames to prefetch when a frame is requested."),
-	ECVF_RenderThreadSafe
-);
-
-static int32 GSVTStreamingPrefetchMipLevelBias = -1;
-static FAutoConsoleVariableRef CVarSVTStreamingPrefetchMipLevelBias(
-	TEXT("r.SparseVolumeTexture.Streaming.PrefetchMipLevelBias"),
-	GSVTStreamingPrefetchMipLevelBias,
-	TEXT("Bias to apply to the mip level of prefetched frames. Prefetching is done at increasingly higher mip levels (lower resolution), so setting a negative value here will increase the requested mip level resolution."),
-	ECVF_RenderThreadSafe
-);
 
 static int32 GSVTStreamingForceBlockingRequests = 0;
 static FAutoConsoleVariableRef CVarSVTStreamingForceBlockingRequests(
@@ -78,7 +63,7 @@ static FAutoConsoleVariableRef CVarSVTStreamingLogVerbosity(
 	ECVF_RenderThreadSafe
 );
 
-static int32 GSVTStreamingMaxPendingRequests = 1024;
+static int32 GSVTStreamingMaxPendingRequests = 256;
 static FAutoConsoleVariableRef CVarSVTStreamingMaxPendingRequests(
 	TEXT("r.SparseVolumeTexture.Streaming.MaxPendingRequests"),
 	GSVTStreamingMaxPendingRequests,
@@ -86,11 +71,27 @@ static FAutoConsoleVariableRef CVarSVTStreamingMaxPendingRequests(
 	ECVF_RenderThreadSafe | ECVF_ReadOnly
 );
 
-static int32 GSVTStreamingRequestSize = 1024;
+static int32 GSVTStreamingRequestSize = -1;
 static FAutoConsoleVariableRef CVarSVTStreamingRequestSize(
 	TEXT("r.SparseVolumeTexture.Streaming.RequestSize"),
 	GSVTStreamingRequestSize,
-	TEXT("IO request size in KiB. The SVT streaming manager will attempt to create IO requests of roughly this size. Default: 1024 KiB"),
+	TEXT("IO request size in KiB. The SVT streaming manager will attempt to create IO requests of roughly this size. Default: -1 (unlimited)"),
+	ECVF_RenderThreadSafe
+);
+
+static int32 GSVTStreamingBandwidthLimit = 512;
+static FAutoConsoleVariableRef CVarSVTStreamingBandwidthLimit(
+	TEXT("r.SparseVolumeTexture.Streaming.BandwidthLimit"),
+	GSVTStreamingBandwidthLimit,
+	TEXT("Bandwidth limit for SVT streaming in MiB/s. When requests exceed this limit, the system will stream at lower mip levels instead."),
+	ECVF_RenderThreadSafe
+);
+
+static int32 GSVTStreamingInstanceCleanupThreshold = 5;
+static FAutoConsoleVariableRef CVarSVTStreamingInstanceCleanupThreshold(
+	TEXT("r.SparseVolumeTexture.Streaming.InstanceCleanupThreshold"),
+	GSVTStreamingInstanceCleanupThreshold,
+	TEXT("Number of SVT streaming system updates to wait until unused streaming instances are cleaned up. A streaming instance is an internal book keeping object to track playback of a SVT asset in a given context. Default: 5"),
 	ECVF_RenderThreadSafe
 );
 
@@ -164,7 +165,7 @@ void FStreamingManager::InitRHI(FRHICommandListBase& RHICmdList)
 	PageTableUpdater = MakeUnique<FPageTableUpdater>();
 
 #if WITH_EDITORONLY_DATA
-	RequestOwner = MakeUnique<FRequestOwner>(EPriority::Normal);
+	RequestOwner = MakeUnique<FRequestOwner>(EPriority::Highest);
 	RequestOwnerBlocking = MakeUnique<FRequestOwner>(EPriority::Blocking);
 #endif
 }
@@ -192,6 +193,11 @@ void FStreamingManager::Add_GameThread(UStreamableSparseVolumeTexture* SparseVol
 	NewSVTInfo.FormatB = SparseVolumeTexture->GetFormat(1);
 	NewSVTInfo.FallbackValueA = SparseVolumeTexture->GetFallbackValue(0);
 	NewSVTInfo.FallbackValueB = SparseVolumeTexture->GetFallbackValue(1);
+	NewSVTInfo.NumMipLevelsGlobal = SparseVolumeTexture->GetNumMipLevels();
+	NewSVTInfo.StreamingPoolSizeFactor = SparseVolumeTexture->StreamingPoolSizeFactor;
+	NewSVTInfo.NumPrefetchFrames = SparseVolumeTexture->NumberOfPrefetchFrames;
+	NewSVTInfo.PrefetchPercentageStepSize = SparseVolumeTexture->PrefetchPercentageStepSize;
+	NewSVTInfo.PrefetchPercentageBias = SparseVolumeTexture->PrefetchPercentageBias;
 	NewSVTInfo.FrameInfo.SetNum(NumFrames);
 
 	for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
@@ -228,16 +234,16 @@ void FStreamingManager::Remove_GameThread(UStreamableSparseVolumeTexture* Sparse
 		});
 }
 
-void FStreamingManager::Request_GameThread(UStreamableSparseVolumeTexture* SparseVolumeTexture, float FrameIndex, int32 MipLevel, bool bBlocking)
+void FStreamingManager::Request_GameThread(UStreamableSparseVolumeTexture* SparseVolumeTexture, uint32 StreamingInstanceKey, float FrameRate, float FrameIndex, int32 MipLevel, EStreamingRequestFlags Flags)
 {
 	if (!DoesPlatformSupportSparseVolumeTexture(GMaxRHIShaderPlatform) || !SparseVolumeTexture)
 	{
 		return;
 	}
 	ENQUEUE_RENDER_COMMAND(SVTRequest)(
-		[this, SparseVolumeTexture, FrameIndex, MipLevel, bBlocking](FRHICommandListImmediate& RHICmdList)
+		[this, SparseVolumeTexture, StreamingInstanceKey, FrameRate, FrameIndex, MipLevel, Flags](FRHICommandListImmediate& RHICmdList)
 		{
-			Request(SparseVolumeTexture, FrameIndex, MipLevel, bBlocking);
+			Request(SparseVolumeTexture, StreamingInstanceKey, FrameRate, FrameIndex, MipLevel, Flags);
 		});
 }
 
@@ -251,14 +257,14 @@ void FStreamingManager::Update_GameThread()
 		[](FRHICommandListImmediate& RHICmdList)
 		{
 			FRDGBuilder GraphBuilder(RHICmdList);
-			const bool bForceNonAsync = true; // No need to spin up a thread if we immediately wait on it anyways.
-			GStreamingManager.BeginAsyncUpdate(GraphBuilder, bForceNonAsync);
+			const bool bUseAsyncThread = false; // No need to spin up a thread if we immediately wait on it anyways.
+			GStreamingManager.BeginAsyncUpdate(GraphBuilder, bUseAsyncThread);
 			GStreamingManager.EndAsyncUpdate(GraphBuilder);
 			GraphBuilder.Execute();
 		});
 }
 
-void FStreamingManager::Request(UStreamableSparseVolumeTexture* SparseVolumeTexture, float FrameIndex, int32 MipLevel, bool bBlocking)
+void FStreamingManager::Request(UStreamableSparseVolumeTexture* SparseVolumeTexture, uint32 StreamingInstanceKey, float FrameRate, float FrameIndex, int32 MipLevel, EStreamingRequestFlags Flags)
 {
 	check(IsInRenderingThread());
 	if (!DoesPlatformSupportSparseVolumeTexture(GMaxRHIShaderPlatform) || !SparseVolumeTexture)
@@ -270,61 +276,23 @@ void FStreamingManager::Request(UStreamableSparseVolumeTexture* SparseVolumeText
 	if (SVTInfo)
 	{
 		const int32 NumFrames = SVTInfo->PerFrameInfo.Num();
-		const int32 FrameIndexI32 = static_cast<int32>(FrameIndex);
+		const int32 FrameIndexI32 = FMath::FloorToInt32(FrameIndex);
 		if (FrameIndexI32 < 0 || FrameIndexI32 >= NumFrames)
 		{
 			return;
 		}
 
-		// Try to find a FStreamingWindow around the requested frame index. This will inform us about which direction we need to prefetch into.
-		FStreamingWindow* StreamingWindow = nullptr;
-		for (FStreamingWindow& Window : SVTInfo->StreamingWindows)
-		{
-			if (FMath::Abs(FrameIndex - Window.CenterFrame) <= FStreamingWindow::WindowSize)
-			{
-				StreamingWindow = &Window;
-				break;
-			}
-		}
-		// Found an existing window!
-		if (StreamingWindow)
-		{
-			const bool bForward = StreamingWindow->LastCenterFrame <= FrameIndex;
-			if (StreamingWindow->LastRequested < NextUpdateIndex)
-			{
-				StreamingWindow->LastCenterFrame = StreamingWindow->CenterFrame;
-				StreamingWindow->CenterFrame = FrameIndex;
-				StreamingWindow->NumRequestsThisUpdate = 1;
-				StreamingWindow->LastRequested = NextUpdateIndex;
-				StreamingWindow->bPlayForward = bForward;
-				StreamingWindow->bPlayBackward = !bForward;
-			}
-			else
-			{
-				// Update the average center frame
-				StreamingWindow->CenterFrame = (StreamingWindow->CenterFrame * StreamingWindow->NumRequestsThisUpdate + FrameIndex) / (StreamingWindow->NumRequestsThisUpdate + 1.0f);
-				++StreamingWindow->NumRequestsThisUpdate;
-				StreamingWindow->bPlayForward |= bForward;
-				StreamingWindow->bPlayBackward |= !bForward;
-			}
-		}
-		// No existing window. Create a new one.
-		else
-		{
-			StreamingWindow = &SVTInfo->StreamingWindows.AddDefaulted_GetRef();
-			StreamingWindow->CenterFrame = FrameIndex;
-			StreamingWindow->LastCenterFrame = FrameIndex;
-			StreamingWindow->NumRequestsThisUpdate = 1;
-			StreamingWindow->LastRequested = NextUpdateIndex;
-			StreamingWindow->bPlayForward = true; // No prior data, so just take a guess that playback is forwards
-			StreamingWindow->bPlayBackward = false;
-		}
+		const bool bBlocking = !!(Flags & EStreamingRequestFlags::Blocking);
+		const double CurrentTime = (FTimespan(FDateTime::Now().GetTicks()) - FTimespan(InitTime.GetTicks())).GetTotalSeconds();
 
-		check(StreamingWindow);
+		// Try to find a FStreamingInstance around the requested frame index and add the current request to it. This will inform us about which direction we need to prefetch into.
+		const FStreamingInstanceRequest StreamingInstanceRequest(UpdateIndex, CurrentTime, FrameRate, FrameIndex, MipLevel, Flags);
+		FStreamingInstance* StreamingInstance = SVTInfo->GetAndUpdateStreamingInstance(StreamingInstanceKey, StreamingInstanceRequest);
+		check(StreamingInstance);
 
 		// Make sure the number of prefetched frames doesn't exceed the total number of frames.
 		// Not only does this make no sense, it also breaks the wrap around logic in the loop below if there is reverse playback.
-		const int32 NumPrefetchFrames = FMath::Clamp(GSVTStreamingNumPrefetchFrames, 0, NumFrames);
+		const int32 NumPrefetchFrames = FMath::Clamp(SVTInfo->NumPrefetchFrames, 0, NumFrames);
 
 		// No prefetching for blocking requests. Making the prefetches blocking would increase latency even more and making them non-blocking could lead
 		// to situations where lower mips are already streamed in in subsequent frames but can't be used because dependent higher mips haven't finished streaming
@@ -332,34 +300,38 @@ void FStreamingManager::Request(UStreamableSparseVolumeTexture* SparseVolumeText
 		// SVT_TODO: This can still break if blocking and non-blocking requests of the same frames/mips are made to the same SVT. We would need to cancel already scheduled non-blocking requests and reissue them as blocking.
 		// Or alternatively we could just block on all requests if we detect this case. If we had a single DDC request owner per request, we could just selectively wait on already scheduled non-blocking requests.
 		const int32 OffsetMagnitude = !bBlocking ? NumPrefetchFrames : 0;
-		const int32 LowerFrameOffset = StreamingWindow->bPlayBackward ? -OffsetMagnitude : 0;
-		const int32 UpperFrameOffset = StreamingWindow->bPlayForward ? OffsetMagnitude : 0;
+		const int32 LowerFrameOffset = StreamingInstance->IsPlayingBackwards() ? -OffsetMagnitude : 0;
+		const int32 UpperFrameOffset = StreamingInstance->IsPlayingForwards() ? OffsetMagnitude : 0;
+		const float PrefetchPercentageStepSize = FMath::Clamp(SVTInfo->PrefetchPercentageStepSize / 100.0f, 0.0f, 1.0f);
+		const float PrefetchPercentageBias = FMath::Clamp(SVTInfo->PrefetchPercentageBias / 100.0f, -1.0f, 1.0f);
 
 		for (int32 i = LowerFrameOffset; i <= UpperFrameOffset; ++i)
 		{
 			// Wrap around on both positive and negative numbers, assuming (i + NumFrames) >= 0. See the comment on NumPrefetchFrames.
-			const int32 RequestFrameIndex = (static_cast<int32>(FrameIndex) + i + NumFrames) % NumFrames;
-			const int32 RequestMipLevelOffset = FMath::Abs(i) + GSVTStreamingPrefetchMipLevelBias;
-			const uint32 MipLevelIndex = FMath::Clamp(MipLevel + RequestMipLevelOffset, 0, SVTInfo->PerFrameInfo[RequestFrameIndex].NumMipLevels);
+			const int32 RequestFrameIndex = (FrameIndexI32 + i + NumFrames) % NumFrames;
+			const float MipPercentage = FMath::Clamp((1.0f - FMath::Abs(i) * PrefetchPercentageStepSize) + (i != 0 ? PrefetchPercentageBias : 0.0f), 0.0f, 1.0f);
+			const float RequestMipLevel = StreamingInstance->GetPrefetchMipLevel(MipLevel, MipPercentage);
+			const int32 RequestMipLevelI = FMath::FloorToInt32(RequestMipLevel);
+			const float LowestMipLevelFraction = 1.0f - FMath::Frac(RequestMipLevel);
 			const uint8 Priority = bBlocking ? UINT8_MAX : FMath::Max(0, OffsetMagnitude - FMath::Abs(i));
 			FStreamingRequest Request;
 			Request.Key.SVTHandle = SVTInfo->SVTHandle;
 			Request.Key.FrameIndex = RequestFrameIndex;
-			Request.Payload.MipLevelMask = ~0u << MipLevelIndex;
-			Request.Payload.LowestMipFraction = 1.0f;
-			for (int32 j = MipLevelIndex; j < Request.Payload.Priorities.Num(); ++j)
+			Request.Payload.StreamingInstance = StreamingInstance;
+			Request.Payload.MipLevelMask = ~0u << RequestMipLevelI;
+			Request.Payload.LowestMipFraction = LowestMipLevelFraction;
+			for (int32 j = RequestMipLevelI; j < Request.Payload.Priorities.Num(); ++j)
 			{
 				Request.Payload.Priorities[j] = Priority;
 			}
 			AddRequest(Request);
 		}
 
-		// Clean up unused streaming windows
-		SVTInfo->StreamingWindows.RemoveAll([&](const FStreamingWindow& Window) { return (NextUpdateIndex - Window.LastRequested) > 5; });
+		ActiveStreamingInstances.Add(StreamingInstance);
 	}
 }
 
-void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocking)
+void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bUseAsyncThread)
 {
 	check(IsInRenderingThread());
 	check(!AsyncState.bUpdateActive);
@@ -375,11 +347,20 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 
 	if (GSVTStreamingLogVerbosity > 2)
 	{
-		UE_LOG(LogSparseVolumeTextureStreamingManager, Display, TEXT("SVT Streaming Update %i"), NextUpdateIndex);
+		UE_LOG(LogSparseVolumeTextureStreamingManager, Display, TEXT("SVT Streaming Update %i"), UpdateIndex);
 	}
 
 	AsyncState = {};
 	AsyncState.bUpdateActive = true;
+
+	// Clean up unused streaming instances
+	for (TUniquePtr<FStreamingInfo>& SVTInfo : StreamingInfo)
+	{
+		if (SVTInfo)
+		{
+			SVTInfo->StreamingInstances.RemoveAll([&](const TUniquePtr<FStreamingInstance>& Instance) { return (UpdateIndex - Instance->GetUpdateIndex()) > (uint32)FMath::Max(1, GSVTStreamingInstanceCleanupThreshold); });
+		}
+	}
 
 	// For debugging, we can stream out ALL tiles
 	if (GSVTStreamingEmptyPhysicalTileTextures != 0)
@@ -415,6 +396,7 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 			LOCK_PENDING_REQUEST(PendingRequest);
 			PendingRequest.Reset();
 		}
+		NumPendingRequests = 0;
 
 		GSVTStreamingEmptyPhysicalTileTextures = 0;
 	}
@@ -454,6 +436,7 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 		GSVTStreamingPrintMemoryStats = 0;
 	}
 
+	ComputeBandwidthLimit();
 	FilterRequests();
 	IssueRequests();
 	AsyncState.NumReadyRequests = DetermineReadyRequests();
@@ -510,7 +493,7 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 	Parameters.StreamingManager = this;
 	
 	check(AsyncTaskEvents.IsEmpty());
-	if (GSVTStreamingAsyncThread && !bBlocking)
+	if (GSVTStreamingAsyncThread && bUseAsyncThread)
 	{
 		AsyncState.bUpdateIsAsync = true;
 		AsyncTaskEvents.Add(TGraphTask<FStreamingUpdateTask>::CreateTask().ConstructAndDispatchWhenReady(Parameters));
@@ -554,9 +537,78 @@ void FStreamingManager::EndAsyncUpdate(FRDGBuilder& GraphBuilder)
 
 	check(AsyncState.NumReadyRequests <= NumPendingRequests);
 	NumPendingRequests -= AsyncState.NumReadyRequests;
-	++NextUpdateIndex;
+	++UpdateIndex;
 	AsyncState.bUpdateActive = false;
 	AsyncState.bUpdateIsAsync = false;
+}
+
+const FStreamingDebugInfo* FStreamingManager::GetStreamingDebugInfo(FRDGBuilder& GraphBuilder) const
+{
+	const int64 BandwidthLimit = FMath::Max(GSVTStreamingBandwidthLimit, 1) * 1024LL * 1024LL;
+	const bool bLimitApplies = (GSVTStreamingBandwidthLimit > 0 && (TotalRequestedBandwidth > BandwidthLimit));
+	const double DownscaleFactor = bLimitApplies ? ((double)BandwidthLimit / (double)TotalRequestedBandwidth) : 1.0;
+	const int32 NumSVTs = StreamingInfo.Num();
+
+	FStreamingDebugInfo::FSVT* DebugInfoSVTs = GraphBuilder.AllocPODArray<FStreamingDebugInfo::FSVT>(NumSVTs);
+	int32 SVTArrayWriteSlot = 0;
+	for (const TUniquePtr<FStreamingInfo>& SVTInfo : StreamingInfo)
+	{
+		if (!SVTInfo)
+		{
+			continue;
+		}
+		const int32 NumFrames = SVTInfo->PerFrameInfo.Num();
+		const int32 NumInstances = SVTInfo->StreamingInstances.Num();
+		const int32 NameStrLength = SVTInfo->SVTName.GetStringLength() + 1;
+
+		TCHAR* AssetName = GraphBuilder.AllocPODArray<TCHAR>(NameStrLength);
+		SVTInfo->SVTName.ToString(AssetName, NameStrLength);
+		
+		float* ResidencyPercentages = GraphBuilder.AllocPODArray<float>(NumFrames);
+		float* StreamingPercentages = GraphBuilder.AllocPODArray<float>(NumFrames);
+		for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
+		{
+			const FFrameInfo& FrameInfo = SVTInfo->PerFrameInfo[FrameIndex];
+			ResidencyPercentages[FrameIndex] = FrameInfo.ResidentTiles.CountSetBits() / (float)FMath::Max(FrameInfo.ResidentTiles.Num(), 1);
+			StreamingPercentages[FrameIndex] = FrameInfo.StreamingTiles.CountSetBits() / (float)FMath::Max(FrameInfo.StreamingTiles.Num(), 1);
+		}
+		
+		FStreamingDebugInfo::FSVT::FInstance* Instances = GraphBuilder.AllocPODArray<FStreamingDebugInfo::FSVT::FInstance>(NumInstances);
+		for (int32 InstanceIndex = 0; InstanceIndex < NumInstances; ++InstanceIndex)
+		{
+			FStreamingInstance* StreamingInstance = SVTInfo->StreamingInstances[InstanceIndex].Get();
+			if (StreamingInstance)
+			{
+				FStreamingDebugInfo::FSVT::FInstance Instance;
+				Instance.Key = StreamingInstance->GetKey();
+				Instance.Frame = StreamingInstance->GetAverageFrame();
+				Instance.FrameRate = StreamingInstance->GetEstimatedFrameRate();
+				Instance.RequestedBandwidth = float(StreamingInstance->GetRequestedBandwidth(true) / 1024.0 / 1024.0);
+				Instance.AllocatedBandwidth = Instance.RequestedBandwidth * DownscaleFactor;
+				Instance.RequestedMip = StreamingInstance->GetLowestRequestedMipLevel();
+				Instance.InBudgetMip = StreamingInstance->GetLowestMipLevelInBandwidthBudget();
+
+				Instances[InstanceIndex] = Instance;
+			}
+		}
+
+		FStreamingDebugInfo::FSVT& SVT = DebugInfoSVTs[SVTArrayWriteSlot++];
+		SVT.AssetName = AssetName;
+		SVT.FrameResidencyPercentages = ResidencyPercentages;
+		SVT.FrameStreamingPercentages = StreamingPercentages;
+		SVT.Instances = Instances;
+		SVT.NumFrames = NumFrames;
+		SVT.NumInstances = NumInstances;
+	}
+
+	FStreamingDebugInfo* DebugInfo = GraphBuilder.AllocPOD<FStreamingDebugInfo>();
+	DebugInfo->SVTs = DebugInfoSVTs;
+	DebugInfo->NumSVTs = SVTArrayWriteSlot;
+	DebugInfo->RequestedBandwidth = float(TotalRequestedBandwidth / 1024.0 / 1024.0);
+	DebugInfo->BandwidthLimit = float(BandwidthLimit / 1024.0 / 1024.0);
+	DebugInfo->BandwidthScale = float(DownscaleFactor);
+	
+	return DebugInfo;
 }
 
 void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeTextureInfo&& NewSVTInfo)
@@ -587,7 +639,11 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 	SVTInfo.FormatB = NewSVTInfo.FormatB;
 	SVTInfo.FallbackValueA = NewSVTInfo.FallbackValueA;
 	SVTInfo.FallbackValueB = NewSVTInfo.FallbackValueB;
+	SVTInfo.NumPrefetchFrames = NewSVTInfo.NumPrefetchFrames;
+	SVTInfo.PrefetchPercentageStepSize = NewSVTInfo.PrefetchPercentageStepSize;
+	SVTInfo.PrefetchPercentageBias = NewSVTInfo.PrefetchPercentageBias;
 	SVTInfo.PerFrameInfo = MoveTemp(NewSVTInfo.FrameInfo);
+	SVTInfo.MipLevelStreamingSize.SetNumZeroed(NewSVTInfo.NumMipLevelsGlobal);
 
 	const int32 FormatSizes[] = { GPixelFormats[SVTInfo.FormatA].BlockBytes, GPixelFormats[SVTInfo.FormatB].BlockBytes };
 
@@ -623,12 +679,29 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 			NumRootVoxelsA += RootTileInfo.NumVoxels[0];
 			NumRootVoxelsB += RootTileInfo.NumVoxels[1];
 		}
+
+		// Determine the high water mark of per frame streaming size when streaming at any given mip level
+		uint32 MaxReferencedTileIndex = 0;
+		for (int32 MipLevel = FrameInfo.NumMipLevels - 2; MipLevel >= 0; --MipLevel)
+		{
+			if (Topology.MipInfo.IsValidIndex(MipLevel))
+			{
+				const FPageTopology::FMip& MipInfo = Topology.MipInfo[MipLevel];
+				for (uint32 PageIndex = MipInfo.PageOffset; PageIndex < (MipInfo.PageOffset + MipInfo.PageCount); ++PageIndex)
+				{
+					const uint32 TileIndex = Topology.TileIndices[PageIndex];
+					MaxReferencedTileIndex = FMath::Max(MaxReferencedTileIndex, TileIndex);
+				}
+				const uint32 MipStreamingSize = Resources->StreamingMetaData.TileDataOffsets[MaxReferencedTileIndex + 1] - Resources->StreamingMetaData.GetRootTileSize();
+				SVTInfo.MipLevelStreamingSize[MipLevel] = FMath::Max(SVTInfo.MipLevelStreamingSize[MipLevel], MipStreamingSize);
+			}
+		}
 	}
 
 	// Create RHI resources and upload root tile data
 	{
-		const int32 TileFactor = NumFrames <= 1 ? 1 : 3;
-		const int32 NumPhysicalTilesCapacity = FMath::Max(1, NumRootPhysicalTiles + (TileFactor * MaxNumPhysicalTiles)); // Ensure a minimum size of 1
+		const float TileFactor = NumFrames <= 1 ? 1.0f : FMath::Clamp(NewSVTInfo.StreamingPoolSizeFactor, 1.0f, static_cast<float>(NumFrames));
+		const int32 NumPhysicalTilesCapacity = FMath::Max(1, NumRootPhysicalTiles + FMath::CeilToInt32(TileFactor * MaxNumPhysicalTiles)); // Ensure a minimum size of 1
 		const FIntVector3 TileDataVolumeResolutionInTiles = FTileDataTexture::GetVolumeResolutionInTiles(NumPhysicalTilesCapacity);
 
 		SVTInfo.TileDataTexture = MakeUnique<FTileDataTexture>(TileDataVolumeResolutionInTiles, SVTInfo.FormatA, SVTInfo.FormatB, SVTInfo.FallbackValueA, SVTInfo.FallbackValueB);
@@ -698,7 +771,7 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 			{
 				check(!Resources->RootData.IsEmpty());
 				FTileAllocator::FAllocation PreviousAllocation;
-				const uint32 TileCoord = SVTInfo.TileAllocator.Allocate(NextUpdateIndex, 0 /*FreeThreshold*/, FrameIdx, 0 /*TileIndexInFrame*/, -1 /*TilePriority*/, true, PreviousAllocation);
+				const uint32 TileCoord = SVTInfo.TileAllocator.Allocate(UpdateIndex, 0 /*FreeThreshold*/, FrameIdx, 0 /*TileIndexInFrame*/, -1 /*TilePriority*/, true, PreviousAllocation);
 				check(TileCoord != INDEX_NONE);
 				check(TileCoord != 0);
 				check(!PreviousAllocation.bIsAllocated); // We should never have to evict another tile to upload a root tile
@@ -821,6 +894,49 @@ void FStreamingManager::AddRequest(const FStreamingRequest& Request)
 	}
 }
 
+void FStreamingManager::ComputeBandwidthLimit()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(SVT::StreamingComputeBandwidthLimit);
+
+	// Get the total requested bandwidth and initialize all streaming instances to not apply any limit.
+	TotalRequestedBandwidth = 0;
+	for (FStreamingInstance* StreamingInstance : ActiveStreamingInstances)
+	{
+		check(StreamingInstance->GetUpdateIndex() == UpdateIndex);
+		TotalRequestedBandwidth += StreamingInstance->GetRequestedBandwidth(true /*bZeroIfBlocking*/);
+		StreamingInstance->ComputeLowestMipLevelInBandwidthBudget(-1); // -1 sets the LowestMipLevelInBandwidthBuget to 0.0f
+	}
+
+	// Apply the limit if the cvar is set and the requested bandwidth exceeds the limit.
+	const int64 AvailableBandwidth = FMath::Max(GSVTStreamingBandwidthLimit, 1) * 1024LL * 1024LL;
+	if (GSVTStreamingBandwidthLimit > 0 && (TotalRequestedBandwidth > AvailableBandwidth))
+	{
+		// This is the factor by which we need to scale down the bandwidth of all currently active streaming instances.
+		const double DownscaleFactor = ((double)AvailableBandwidth / (double)TotalRequestedBandwidth);
+		if (GSVTStreamingLogVerbosity > 2)
+		{
+			UE_LOG(LogSparseVolumeTextureStreamingManager, Display, TEXT("Total Requested Bandwidth: %f MiB/s, Total Available Bandwidth: %f MiB/s, Percentage: %f %%"), 
+				float(TotalRequestedBandwidth / 1024.0 / 1024.0), float(AvailableBandwidth / 1024.0 / 1024.0), float(DownscaleFactor * 100.0));
+		}
+
+		for (FStreamingInstance* StreamingInstance : ActiveStreamingInstances)
+		{
+			const int64 RequestedBandWidth = StreamingInstance->GetRequestedBandwidth(true /*bZeroIfBlocking*/);
+			const int64 AllocatedBandwidth = FMath::CeilToInt64(RequestedBandWidth * DownscaleFactor);
+			StreamingInstance->ComputeLowestMipLevelInBandwidthBudget(AllocatedBandwidth);
+
+			if (GSVTStreamingLogVerbosity > 2)
+			{
+				UE_LOG(LogSparseVolumeTextureStreamingManager, Display, TEXT("Key: %u, Requested: %f MiB, Allocated: %f MiB, FPS: %f, InBudgetMipLevel: %f"),
+					StreamingInstance->GetKey(), float(RequestedBandWidth / 1024.0 / 1024.0), float(AllocatedBandwidth / 1024.0 / 1024.0), StreamingInstance->GetEstimatedFrameRate(), StreamingInstance->GetLowestMipLevelInBandwidthBudget());
+			}
+		}
+	}
+
+	// We don't need this set after this point, so clear it for the next frames requests.
+	ActiveStreamingInstances.Reset();
+}
+
 void FStreamingManager::FilterRequests()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SVT::StreamingFilterRequests);
@@ -842,7 +958,12 @@ void FStreamingManager::FilterRequests()
 		const FPageTopology& Topology = FrameInfo.Resources->Topology;
 		const FTileStreamingMetaData& StreamingMetaData = FrameInfo.Resources->StreamingMetaData;
 		const int32 FirstStreamingMipLevel = FrameInfo.NumMipLevels - 2;
-		const int32 LowestRequestedMip = FMath::CountTrailingZeros((uint32)RequestValue.MipLevelMask);
+		const int32 LowestRequestedMipI = static_cast<int32>(FMath::CountTrailingZeros((uint32)RequestValue.MipLevelMask));
+		const float LowestRequestedMipF = LowestRequestedMipI + (1.0f - FMath::Clamp(RequestValue.LowestMipFraction, 0.0f, 1.0f));
+		const float LowestAllowedMipF = FMath::Clamp(RequestValue.StreamingInstance ? RequestValue.StreamingInstance->GetLowestMipLevelInBandwidthBudget() : 0.0f, LowestRequestedMipF, FrameInfo.NumMipLevels - 1.0f); // Clamp to ensure Allows >= Requested
+		const int32 LowestAllowedMipI = FMath::FloorToInt32(LowestAllowedMipF);
+		const float LowestMipToStreamF = FMath::Max(LowestAllowedMipF, LowestRequestedMipF);
+		const int32 LowestMipToStreamI = FMath::FloorToInt32(LowestMipToStreamF);
 
 		// Keep track of all tiles requested in this frame and also of the tiles requested only within the current priority
 		const uint32 NumTiles = FrameInfo.TileAllocations.Num();
@@ -852,9 +973,9 @@ void FStreamingManager::FilterRequests()
 		// StreamingTiles must be a super set of ResidentTiles
 		check(TBitArray<>::BitwiseAND(FrameInfo.StreamingTiles, FrameInfo.ResidentTiles, EBitwiseOperatorFlags::MaxSize) == FrameInfo.ResidentTiles);
 
-		const uint32 TargetRequestSize = (uint32)FMath::Clamp(GSVTStreamingRequestSize, 1, int32(UINT32_MAX / 1024)) * 1024u;
+		const uint32 TargetRequestSize = GSVTStreamingRequestSize <= 0 ? UINT32_MAX : (uint32)FMath::Clamp(GSVTStreamingRequestSize, 1, int32(UINT32_MAX / 1024)) * 1024u;
 
-		// Creates a FTileRange for each contiguous range of set bits in RequestedTilesInCurrentPriority
+		// Creates a FTileRange for each contiguous range of set bits in RequestedTilesInCurrentPriority and appends it to TileRangesToStream
 		auto MakeTileRanges = [&](uint8 Priority)
 		{
 			bool bResetCounters = true;
@@ -898,7 +1019,7 @@ void FStreamingManager::FilterRequests()
 		};
 
 		uint32 PrevPriority = 0xFFFFFFFFu;
-		for (int32 MipLevelIndex = FirstStreamingMipLevel; MipLevelIndex >= LowestRequestedMip; --MipLevelIndex)
+		for (int32 MipLevelIndex = FirstStreamingMipLevel; MipLevelIndex >= LowestRequestedMipI; --MipLevelIndex)
 		{
 			// Skip if mip level was not requested
 			if (((uint32)RequestValue.MipLevelMask & (1u << MipLevelIndex)) == 0)
@@ -906,8 +1027,16 @@ void FStreamingManager::FilterRequests()
 				continue;
 			}
 
-			// When the priority changes, we need to create tile ranges based on the currently set bets in RequestedTilesInCurrentPriority.
 			const uint8 Priority = RequestValue.Priorities[MipLevelIndex];
+			const bool bIsBlocking = Priority == uint8(-1);
+
+			// Skip if mip level is outside the allowed range for the bandwidth budget and is not a blocking request
+			if (MipLevelIndex < LowestAllowedMipI && !bIsBlocking)
+			{
+				continue;
+			}
+
+			// When the priority changes, we need to create tile ranges based on the currently set bets in RequestedTilesInCurrentPriority.
 			if (Priority != PrevPriority)
 			{
 				MakeTileRanges(Priority);
@@ -915,13 +1044,26 @@ void FStreamingManager::FilterRequests()
 			}
 			PrevPriority = Priority;
 
+			auto GetFractionalPageCount = [](uint32 PageCount, float FractionalMipLevel)
+			{
+				const float Fraction = 1.0f - FMath::Frac(FractionalMipLevel);
+				const uint32 ResultPageCount = FMath::CeilToInt32((float)PageCount * Fraction);
+				check(ResultPageCount <= PageCount);
+				return ResultPageCount;
+			};
+
 			// Get the range of pages to try and stream in
 			const FPageTopology::FMip& MipInfo = Topology.MipInfo[MipLevelIndex];
 			uint32 PageCount = MipInfo.PageCount;
-			if (MipLevelIndex == LowestRequestedMip)
+			if (MipLevelIndex == LowestRequestedMipI)
 			{
-				PageCount = FMath::CeilToInt32((float)PageCount * FMath::Clamp(RequestValue.LowestMipFraction, 0.0f, 1.0f));
-				check(PageCount <= MipInfo.PageCount);
+				PageCount = GetFractionalPageCount(MipInfo.PageCount, LowestRequestedMipF);
+			}
+			if (MipLevelIndex == LowestAllowedMipI && !bIsBlocking) // Apply the fractional allowed mip limit only on non-blocking requests
+			{
+				// If the lowest requested mip is the same integer mip as the lowest allowed mip, take the maximum fractional mip -> minimum bandwidth
+				const float FractionalMip = MipLevelIndex == LowestRequestedMipI ? FMath::Max(LowestRequestedMipF, LowestAllowedMipF) : LowestAllowedMipF;
+				PageCount = GetFractionalPageCount(MipInfo.PageCount, FractionalMip);
 			}
 			const uint32 PageBegin = MipInfo.PageOffset;
 			const uint32 PageEnd = MipInfo.PageOffset + PageCount;
@@ -941,16 +1083,13 @@ void FStreamingManager::FilterRequests()
 				{
 					check(FrameInfo.TileAllocations[TileIndex] != 0);
 					const uint32 TilePriority = FrameInfo.ResidentTiles.Num() - TileIndex; // Higher value means higher priority, but we want higher tiles to be streamed out first
-					SVTInfo->TileAllocator.UpdateUsage(NextUpdateIndex, FrameInfo.TileAllocations[TileIndex], TilePriority);
+					SVTInfo->TileAllocator.UpdateUsage(UpdateIndex, FrameInfo.TileAllocations[TileIndex], TilePriority);
 				}
 			}
-
-			// After processing the lowest/last mip level, we need to create one final batch of tile ranges
-			if (MipLevelIndex == LowestRequestedMip)
-			{
-				MakeTileRanges(Priority);
-			}
 		}
+
+		// After processing the lowest/last mip level, we need to create one final batch of tile ranges
+		MakeTileRanges(PrevPriority);
 	}
 
 	RequestsHashTable.Reset();
@@ -958,8 +1097,6 @@ void FStreamingManager::FilterRequests()
 	// Sort by priority
 	auto PriorityPredicate = [](const auto& A, const auto& B) { return A.Priority != B.Priority ? (A.Priority > B.Priority) : A.TileOffset < B.TileOffset; };
 	TileRangesToStream.Sort(PriorityPredicate);
-
-	// SVT_TODO: Here we need to shave off tiles depending on available bandwidth
 
 	const int32 MaxSelectedRequests = MaxPendingRequests - NumPendingRequests;
 	const int32 NumSelectedRequests = FMath::Min(MaxSelectedRequests, TileRangesToStream.Num());
@@ -1007,7 +1144,7 @@ void FStreamingManager::IssueRequests()
 			// Allocate tile
 			const uint32 TilePriority = FrameInfo.ResidentTiles.Num() - TileIndex; // Higher value means higher priority, but we want higher tiles to be streamed out first
 			FTileAllocator::FAllocation PreviousAllocation;
-			const uint32 TileCoord = SVTInfo->TileAllocator.Allocate(NextUpdateIndex, 0 /*FreeThreshold*/, TileRange.FrameIndex, TileIndex, TilePriority, false /*bLocked*/, PreviousAllocation);
+			const uint32 TileCoord = SVTInfo->TileAllocator.Allocate(UpdateIndex, 0 /*FreeThreshold*/, TileRange.FrameIndex, TileIndex, TilePriority, false /*bLocked*/, PreviousAllocation);
 			
 			// Allocation failed, cut the TileRange short and upload what we have.
 			if (TileCoord == INDEX_NONE)
@@ -1046,6 +1183,12 @@ void FStreamingManager::IssueRequests()
 					{
 						// None of the tiles in the tile range of the IO request is still requested, so we can cancel the request
 						PendingRequest.Reset();
+
+						if (GSVTStreamingLogVerbosity > 2)
+						{
+							UE_LOG(LogSparseVolumeTextureStreamingManager, Warning, TEXT("SVT '%s' frame %i: Cancelled IO request for frame %i, tile offset %i, tile count %i."),
+								*SVTInfo->SVTName.ToString(), TileRange.FrameIndex, PreviousAllocation.FrameIndex, TileRange.TileCount, TileRange.FrameIndex, NumSuccessfulAllocations);
+						}
 					}
 
 					// Remove the tile -> IO request mapping
@@ -1073,7 +1216,7 @@ void FStreamingManager::IssueRequests()
 			PendingRequest.FrameIndex = TileRange.FrameIndex;
 			PendingRequest.TileOffset = TileRange.TileOffset;
 			PendingRequest.TileCount = TileRange.TileCount;
-			PendingRequest.IssuedInFrame = NextUpdateIndex;
+			PendingRequest.IssuedInFrame = UpdateIndex;
 			PendingRequest.bBlocking = GSVTStreamingForceBlockingRequests || (TileRange.Priority == uint8(-1));
 
 			uint32 ReadOffset = 0;
@@ -1179,6 +1322,7 @@ int32 FStreamingManager::DetermineReadyRequests()
 			// Just mark as ready so it will be skipped later
 			PendingRequest.State = FPendingRequest::EState::DDC_Ready;
 #endif
+			++NumReadyRequests; // Don't forget to increment in this case too or we might miss some ready requests later!
 			continue; 
 		}
 		FStreamingInfo* SVTInfo = FindStreamingInfo(PendingRequest.SVTHandle);
@@ -1264,7 +1408,7 @@ int32 FStreamingManager::DetermineReadyRequests()
 void FStreamingManager::InstallReadyRequests()
 {
 	check(AsyncState.bUpdateActive);
-	check(AsyncState.NumReadyRequests <= PendingRequests.Num())
+	check(AsyncState.NumReadyRequests <= PendingRequests.Num());
 	if (AsyncState.NumReadyRequests <= 0)
 	{
 		return;
@@ -1678,6 +1822,27 @@ void FStreamingManager::RequestDDCData(TConstArrayView<UE::DerivedData::FCacheGe
 }
 
 #endif // WITH_EDITORONLY_DATA
+
+FStreamingInstance* FStreamingManager::FStreamingInfo::GetAndUpdateStreamingInstance(uint64 StreamingInstanceKey, const FStreamingInstanceRequest& Request)
+{
+	// Try to find a FStreamingInstance around the requested frame index and matching the same key
+	FStreamingInstance* StreamingInstance = nullptr;
+	for (TUniquePtr<FStreamingInstance>& Instance : StreamingInstances)
+	{
+		if (Instance->IsFrameInWindow(Request.FrameIndex) && (StreamingInstanceKey == Instance->GetKey()))
+		{
+			StreamingInstance = Instance.Get();
+			StreamingInstance->AddRequest(Request);
+			break;
+		}
+	}
+	// No existing instance found -> create a new one
+	if (!StreamingInstance)
+	{
+		StreamingInstance = StreamingInstances[StreamingInstances.Emplace(MakeUnique<FStreamingInstance>(StreamingInstanceKey, PerFrameInfo.Num(), TArrayView<uint32>(MipLevelStreamingSize), Request))].Get();
+	}
+	return StreamingInstance;
+}
 
 void FTileAllocator::Init(const FIntVector3& InResolutionInTiles)
 {

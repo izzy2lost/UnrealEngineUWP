@@ -71,6 +71,7 @@
 #include "IESTextureManager.h"
 #include "UnrealEngine.h"
 #include "IlluminanceMeter.h"
+#include "SparseVolumeTexture/SparseVolumeTextureStreamingVisualize.h"
 
 bool IsMobileEyeAdaptationEnabled(const FViewInfo& View);
 
@@ -1772,6 +1773,13 @@ void AddPostProcessingPasses(
 		{
 			RectLightAtlas::AddDebugPass(GraphBuilder, View, SceneColor.Texture);
 			IESAtlas::AddDebugPass(GraphBuilder, View, SceneColor.Texture);
+		}
+
+		// Piggy back off of OnScreenDebug to avoid having to create a new show flag just for this simple debug visualization. Otherwise it might render into certain thumbnails.
+		// In the future it might be worth it to introduce a show flag?
+		if (EngineShowFlags.OnScreenDebug)
+		{
+			UE::SVT::AddStreamingDebugPass(GraphBuilder, View, SceneColor);
 		}
 
 		if (ShaderPrint::IsEnabled(View.ShaderPrintData))
