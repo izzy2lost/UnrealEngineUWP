@@ -131,6 +131,14 @@
 							"max": 900
 						},
 						{
+							"name": "Performance Warnings",
+							"metrics": [
+								{
+									"id": "editor-performance-warning"
+								}
+							]
+						},
+						{
 							"name": "User Loading Time (KPIs)",
 							"metrics": [
 								{
@@ -154,7 +162,7 @@
 						{
 							"name": "User Loading Count (Live)",
 							"display": "Value",
-							"max" : 100,
+							"max": 100,
 							"metrics": [
 								{
 									"id": "core-loading-user-loadingcount"

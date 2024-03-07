@@ -1,6 +1,14 @@
 {
 	"metrics": [
 		{
+			"id": "editor-performance-warning",
+			"filter": "$[?(@.Payload.EventName == 'Editor.PerformanceWarning')]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName,$.Payload.KPI_Category,$.Payload.KPI_Name",
+			"property": "$.Payload.KPI_CurrentValue",
+			"function": "Average",
+			"interval": "00:15:00"
+		},
+		{
 			"id": "core-loading-user-loadingtime",
 			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
 			"property": "$.Payload.LoadingSeconds",
