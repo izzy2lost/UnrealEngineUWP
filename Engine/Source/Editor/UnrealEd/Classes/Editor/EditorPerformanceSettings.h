@@ -32,6 +32,30 @@ UCLASS(minimalapi, config=EditorSettings, meta=(DisplayName = "Performance", Too
 class UEditorPerformanceSettings : public UDeveloperSettings
 {
 	GENERATED_UCLASS_BODY()
+
+	/** Whether to enable Editor Perf Tool Completely */
+	UPROPERTY(EditAnywhere, config, Category = EditorPerformanceTool, meta = (DisplayName = "Enable Tool", ConfigRestartRequired = true))
+	bool bEnableEditorPeformanceTool = false;
+
+	/** Whether to enable Editor Perf Warnings */
+	UPROPERTY(EditAnywhere, config, Category = EditorPerformanceTool, meta = (DisplayName = "Enable Notifcations", ConfigRestartRequired = false, EditCondition = "bEnableEditorPeformanceTool"))
+	bool bEnableNotifications = true;
+
+	/** Specific measurements to notify */
+	UPROPERTY(EditAnywhere, config, Category = EditorPerformanceTool, meta = (DisplayName = "Notification List", ConfigRestartRequired = false, EditCondition = "bEnableEditorPeformanceTool"))
+	TArray<FName> NotificationList;
+
+	/** Whether to enable Telemetry */
+	UPROPERTY(EditAnywhere, config, Category = EditorPerformanceTool, meta = (DisplayName = "Enable Telemetry", ConfigRestartRequired = false, EditCondition = "bEnableEditorPeformanceTool"))
+	bool bEnableTelemetry = true;
+
+	/** Whether to create Insights Snapshots */
+	UPROPERTY(EditAnywhere, config, Category = EditorPerformanceTool, meta = (DisplayName = "Enable Snapshots", ConfigRestartRequired = false, EditCondition = "bEnableEditorPeformanceTool"))
+	bool bEnableSnapshots = true;
+
+	/** Whether to Show Warnings Only */
+	UPROPERTY(EditAnywhere, config, Category = EditorPerformanceTool, meta = (DisplayName = "Show Warnings Only", ConfigRestartRequired = false, EditCondition = "bEnableEditorPeformanceTool"))
+	bool bShowWarningsOnly = false;
 	
 	/** When enabled, the application frame rate, memory and Unreal object count will be displayed in the main editor UI */
 	UPROPERTY(EditAnywhere, config, Category=EditorPerformance)
@@ -60,7 +84,7 @@ class UEditorPerformanceSettings : public UDeveloperSettings
 	/** Should VSync be enabled in editor? */
 	UPROPERTY(EditAnywhere, config, Category=EditorPerformance, meta=(DisplayName="Enable VSync", ConsoleVariable="r.VSyncEditor"))
 	uint32 bEnableVSync : 1;
-
+	
 	/** 
 	 * By default the editor will adjust scene scaling (quality) for high DPI in order to ensure consistent performance with very large render targets.
 	 * Enabling this will disable automatic adjusting and render at the full resolution of the viewport

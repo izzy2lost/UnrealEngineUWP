@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StallLogSubsystem/StallLogSubsystem.h"
+#include "StallLogSubsystem.h"
 
 #include "Async/TaskGraphInterfaces.h"
 #include "Containers/Array.h"
@@ -80,7 +80,7 @@ public:
 	}
 
 	// Constructor for OnStallComplete firing first
-	FStallLogItem(FStringView Location, FString InThreadName, double DurationSeconds)
+	FStallLogItem(FStringView Location, FString InThreadName, float DurationSeconds)
 		: Location(Location)
 		, ThreadName(InThreadName)
 		, DurationSeconds(DurationSeconds)
@@ -90,7 +90,7 @@ public:
 	}
 
 	// Constructor for OnStallComplete firing second
-	FStallLogItem(FStallLogItem&& Old, FStringView Location, FString InThreadName, double DurationSeconds)
+	FStallLogItem(FStallLogItem&& Old, FStringView Location, FString InThreadName, float DurationSeconds)
 		: Location(Location)
 		, ThreadName(InThreadName)
 		, DurationSeconds(DurationSeconds)
@@ -126,7 +126,7 @@ class FStallLogHistory
 {
 public:
 	void OnStallDetected(uint64 UniqueID, FDateTime InDetectTime, TConstArrayView<uint64> Backtrace);
-	void OnStallCompleted(uint32 ThreadID, FStringView StatName, uint64 UniqueID, FDateTime InCompletedTime, double InDurationSeconds, bool bWasDetectedWithCallstack);
+	void OnStallCompleted(uint32 ThreadID, FStringView StatName, uint64 UniqueID, FDateTime InCompletedTime, float InDurationSeconds, bool bWasDetectedWithCallstack);
 
 	void ClearStallLog();
 	
@@ -240,7 +240,7 @@ namespace
 					SNew(SButton)
 					.ToolTipText(LOCTEXT("StallDetector", "Copy Stall Information"))
 					.ButtonStyle(FAppStyle::Get(), "NoBorder")
-					.ContentPadding(0)
+					//.ContentPadding(0.0)
 					.Visibility(EVisibility::Visible)
 					.OnClicked_Lambda([this]()
 					{
@@ -540,7 +540,7 @@ void FStallLogHistory::OnStallDetected(
 	}
 }
 
-void FStallLogHistory::OnStallCompleted(uint32 ThreadID, FStringView StatName, uint64 UniqueID, FDateTime InCompletedTime, double InDurationSeconds, bool bWasDetectedWithBacktrace)
+void FStallLogHistory::OnStallCompleted(uint32 ThreadID, FStringView StatName, uint64 UniqueID, FDateTime InCompletedTime, float InDurationSeconds, bool bWasDetectedWithBacktrace)
 {
 	checkf(IsInGameThread(), TEXT("Can only be run on GameThread"));
 
@@ -751,7 +751,7 @@ void UStallLogSubsystem::RegisterStallDetectedDelegates()
 								Params.StatName,
 								Params.UniqueID,
 								Now,
-								Params.BudgetSeconds + Params.OverbudgetSeconds,
+								float( Params.BudgetSeconds + Params.OverbudgetSeconds ),
 								Params.bWasTriggered);
 						},
 						GET_STATID(STAT_FDelegateGraphTask_StallLogger),
@@ -777,7 +777,7 @@ namespace UE::Debug
 {
 	static void StallCommand(const TArray<FString>& Arguments)
 	{
-		double SecondsToStall = 2.0;
+		float SecondsToStall = 2.0;
 		if (Arguments.Num() >= 1)
 		{
 			LexFromString(SecondsToStall, *Arguments[0]);
@@ -789,7 +789,7 @@ namespace UE::Debug
 				SCOPED_NAMED_EVENT_TEXT(TEXT("Fake Stall"), FColor::Red);
 				SCOPE_STALL_COUNTER(FakeStall, 1.0f);
 			
-				const double StartTime = FPlatformTime::Seconds();
+				const float StartTime = (float)FPlatformTime::Seconds();
 				FPlatformProcess::SleepNoStats(SecondsToStall);
 			
 				while (FPlatformTime::Seconds() - StartTime < SecondsToStall)
@@ -801,7 +801,7 @@ namespace UE::Debug
 
 	static void StallAndReportCommand(const TArray<FString>& Arguments)
 	{
-		double SecondsToStall = 2.0;
+		float SecondsToStall = 2.0;
 		if (Arguments.Num() >= 1)
 		{
 			LexFromString(SecondsToStall, *Arguments[0]);

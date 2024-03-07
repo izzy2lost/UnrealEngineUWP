@@ -21,7 +21,7 @@ class SWidget;
  * Subsystem that provides feedback on stall detection
  */
 UCLASS()
-class EDITORPERFORMANCEMODULE_API UStallLogSubsystem  : public UEditorSubsystem
+class STALLLOGSUBSYSTEM_API UStallLogSubsystem  : public UEditorSubsystem
 {
 	GENERATED_BODY()
 
