@@ -163,6 +163,8 @@ private:
 		uint32 TileOffset = INDEX_NONE;
 		uint32 TileCount = 0;
 #if WITH_EDITORONLY_DATA
+		// When in editor, DDC requests finish on another thread, so we need to guard against race conditions.
+		FCriticalSection DDCAsyncGuard;
 		FSharedBuffer SharedBuffer;
 		enum class EState
 		{
@@ -275,7 +277,7 @@ private:
 	TMap<UStreamableSparseVolumeTexture*, uint16> SparseVolumeTextureToHandle; // Do not dereference the key! We just read the pointer itself.
 	TSparseArray<TUniquePtr<FStreamingInfo>> StreamingInfo; 
 	TMap<FFrameKey, FRequestPayload> RequestsHashTable;
-	TArray<FPendingRequest> PendingRequests;
+	TArray<FPendingRequest> PendingRequests; // Do not access any members of an element before first calling LOCK_PENDING_REQUEST() on the element!
 #if WITH_EDITORONLY_DATA
 	TUniquePtr<UE::DerivedData::FRequestOwner> RequestOwner;
 	TUniquePtr<UE::DerivedData::FRequestOwner> RequestOwnerBlocking;
