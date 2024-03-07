@@ -1402,15 +1402,9 @@ void FUnrealEdMisc::OnMessageTokenActivated(const TSharedRef<IMessageToken>& Tok
 		else
 		{
 			AActor* Actor = Cast<AActor>(Object);
-			UPrimitiveComponent* Component = Cast<UPrimitiveComponent>(Object);
-
-			if (Component)
+			if( !Actor )
 			{
-				check( !Actor);
-				if( Component->GetOwner())
-				{
-					Actor = Component->GetOwner();
-				}		
+				Actor = Object->GetTypedOuter<AActor>();
 			}
 
 			if (Actor && Actor->GetLevel() != nullptr)
