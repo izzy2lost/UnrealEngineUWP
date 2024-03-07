@@ -2052,6 +2052,7 @@ public:
 USTRUCT(immutable, noexport, BlueprintType, IsAlwaysAccessible, HasDefaults, meta=(HasNativeMake="/Script/Engine.KismetMathLibrary.MakeDateTime", HasNativeBreak="/Script/Engine.KismetMathLibrary.BreakDateTime"))
 struct FDateTime
 {
+	UPROPERTY()
 	int64 Ticks;
 };
 
@@ -2147,6 +2148,7 @@ struct FTimecode
 USTRUCT(immutable, noexport, BlueprintType, IsAlwaysAccessible, HasDefaults, meta=(HasNativeMake="/Script/Engine.KismetMathLibrary.MakeTimespan", HasNativeBreak="/Script/Engine.KismetMathLibrary.BreakTimespan"))
 struct FTimespan
 {
+	UPROPERTY()
 	int64 Ticks;
 };
 

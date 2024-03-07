@@ -102,7 +102,7 @@ void FJsonStructSerializerBackend::WriteProperty(const FStructSerializerState& S
 		}
 		else
 		{
-			WritePropertyValue(State, (double)ByteProperty->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+			WritePropertyValue(State, ByteProperty->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 		}
 	}
 
@@ -119,33 +119,33 @@ void FJsonStructSerializerBackend::WriteProperty(const FStructSerializerState& S
 	// signed integers
 	else if (State.FieldType == FIntProperty::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FIntProperty>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FIntProperty>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 	else if (State.FieldType == FInt8Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FInt8Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FInt8Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 	else if (State.FieldType == FInt16Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FInt16Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FInt16Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 	else if (State.FieldType == FInt64Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FInt64Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FInt64Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 
 	// unsigned integers
 	else if (State.FieldType == FUInt16Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FUInt16Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FUInt16Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 	else if (State.FieldType == FUInt32Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FUInt32Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FUInt32Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 	else if (State.FieldType == FUInt64Property::StaticClass())
 	{
-		WritePropertyValue(State, (double)CastFieldChecked<FUInt64Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
+		WritePropertyValue(State, CastFieldChecked<FUInt64Property>(State.ValueProperty)->GetPropertyValue_InContainer(State.ValueData, ArrayIndex));
 	}
 
 	// names, strings & text

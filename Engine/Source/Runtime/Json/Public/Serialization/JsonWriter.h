@@ -437,7 +437,12 @@ protected:
 		return EJsonToken::Number;
 	}
 
-	EJsonToken WriteValueOnly(uint64 Value)
+	FORCEINLINE EJsonToken WriteValueOnly(uint32 Value)
+	{
+		return WriteValueOnly((uint64)Value);
+	}
+
+	FORCEINLINE EJsonToken WriteValueOnly(uint64 Value)
 	{
 		PrintPolicy::WriteString(Stream, WriteToString<32>(Value));
 		return EJsonToken::Number;

@@ -201,12 +201,11 @@ struct FStructSerializerBuiltinTestStruct
 	UPROPERTY()
 	FText Text;
 
-	// FDatetime and FTimespan should be tested here but aren't properly setup in `NoExportTypes.h` and so do not properly work currently.
-	//UPROPERTY()
-	//FDateTime Datetime;
+	UPROPERTY()
+	FDateTime Datetime;
 
-	//UPROPERTY()
-	//FTimespan Timespan;
+	UPROPERTY()
+	FTimespan Timespan;
 
 	UPROPERTY()
 	FVector Vector;
@@ -229,6 +228,8 @@ struct FStructSerializerBuiltinTestStruct
 		, Name(TEXT("Test FName"))
 		, String("Test String")
 		, Text(FText::FromString("Test Text"))
+		, Datetime(2048, 2, 4, 8, 16, 32, 64)
+		, Timespan(1, 2, 3, 4, 5)
 		, Vector(1.0f, 2.0f, 3.0f)
 		, Vector4(4.0f, 5.0f, 6.0f, 7.0f)
 		, Rotator(4096, 8192, 16384)
@@ -241,7 +242,7 @@ struct FStructSerializerBuiltinTestStruct
 
 	bool operator==(const FStructSerializerBuiltinTestStruct& Rhs) const
 	{
-		return Guid == Rhs.Guid && Name == Rhs.Name && String == Rhs.String && Text.EqualTo(Rhs.Text) && Vector == Rhs.Vector && Vector4 == Rhs.Vector4 && Rotator == Rhs.Rotator && Quat == Rhs.Quat && Color == Rhs.Color;
+		return Guid == Rhs.Guid && Name == Rhs.Name && String == Rhs.String && Text.EqualTo(Rhs.Text) && Datetime == Rhs.Datetime && Timespan == Rhs.Timespan && Vector == Rhs.Vector && Vector4 == Rhs.Vector4 && Rotator == Rhs.Rotator && Quat == Rhs.Quat && Color == Rhs.Color;
 	}
 };
 

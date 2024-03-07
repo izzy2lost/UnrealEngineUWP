@@ -104,6 +104,8 @@ namespace StructSerializerTest
 		Test.TestEqual<FName>(TEXT("Builtins.Name must be the same before and after de-/serialization"), Struct1.Name, Struct2.Name);
 		Test.TestEqual<FString>(TEXT("Builtins.String must be the same before and after de-/serialization"), Struct1.String, Struct2.String);
 		Test.TestEqual<FString>(TEXT("Builtins.Text must be the same before and after de-/serialization"), Struct1.Text.ToString(), Struct2.Text.ToString());
+		Test.TestEqual<FDateTime>(TEXT("Builtins.Datetime must be the same before and after de-/serialization"), Struct1.Datetime, Struct2.Datetime);
+		Test.TestEqual<FTimespan>(TEXT("Builtins.Timespan must be the same before and after de-/serialization"), Struct1.Timespan, Struct2.Timespan);
 		Test.TestEqual<FVector>(TEXT("Builtins.Vector must be the same before and after de-/serialization"), Struct1.Vector, Struct2.Vector);
 		Test.TestEqual<FVector4>(TEXT("Builtins.Vector4 must be the same before and after de-/serialization"), Struct1.Vector4, Struct2.Vector4);
 		Test.TestEqual<FRotator>(TEXT("Builtins.Rotator must be the same before and after de-/serialization"), Struct1.Rotator, Struct2.Rotator);
@@ -779,7 +781,7 @@ namespace StructSerializerTest
 /* Tests
  *****************************************************************************/
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStructSerializerTest, "System.Core.Serialization.StructSerializer", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStructSerializerTest, "System.Core.Serialization.StructSerializer", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 
 bool FStructSerializerTest::RunTest( const FString& Parameters )
@@ -852,7 +854,7 @@ bool FStructSerializerTest::RunTest( const FString& Parameters )
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStructElementSerializerTest, "System.Core.Serialization.StructElementSerializer", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStructElementSerializerTest, "System.Core.Serialization.StructElementSerializer", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FStructElementSerializerTest::RunTest(const FString& Parameters)
 {
@@ -865,7 +867,7 @@ bool FStructElementSerializerTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStructSerializerCborByteArrayTest, "System.Core.Serialization.StructSerializerCborByteArray", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStructSerializerCborByteArrayTest, "System.Core.Serialization.StructSerializerCborByteArray", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FStructSerializerCborByteArrayTest::RunTest( const FString& Parameters )
 {
