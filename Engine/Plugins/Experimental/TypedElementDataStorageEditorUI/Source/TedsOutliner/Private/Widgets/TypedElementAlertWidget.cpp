@@ -6,7 +6,9 @@
 #include "Elements/Columns/TypedElementAlertColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -14,50 +16,127 @@
 
 namespace AlertWidgetInternal
 {
-	void UpdateWidget(const TSharedPtr<SWidget>& Widget, const FText& Alert, bool bIsWarning, uint16 ErrorCount, uint16 WarningCount)
+	void UpdateWidget(const TSharedPtr<SWidget>& Widget, const FText& Alert, bool bIsWarning, uint16 ErrorCount, uint16 WarningCount,
+		TypedElementDataStorage::RowHandle RowWithAlertAction)
 	{
 		if (Widget)
 		{
 			uint32 ChildCount = ErrorCount + WarningCount;
 			if (FChildren* Children = Widget->GetChildren())
 			{
-				SImage& Icon = static_cast<SImage&>(*Children->GetSlotAt(0).GetWidget());
-				if (!Alert.IsEmpty() && ChildCount > 0)
+				SImage& Background = 
+					static_cast<SImage&>(*Children->GetSlotAt(FTypedElementAlertWidgetConstructor::IconBackgroundSlot).GetWidget());
+				SImage& Badge = 
+					static_cast<SImage&>(*Children->GetSlotAt(FTypedElementAlertWidgetConstructor::IconBadgeSlot).GetWidget());
+				STextBlock& CounterText =
+					static_cast<STextBlock&>(*Children->GetSlotAt(FTypedElementAlertWidgetConstructor::CounterTextSlot).GetWidget());
+				SButton& ActionButton =
+					static_cast<SButton&>(*Children->GetSlotAt(FTypedElementAlertWidgetConstructor::ActionButtonSlot).GetWidget());
+				
+				// Setup the background image
+				if (ChildCount > 0)
 				{
-					Icon.SetToolTipText(FText::Format(LOCTEXT("ChildAlertCountWithMessage", "Errors: {0}\nWarnings: {1}\n\n{2}"),
-						FText::AsNumber(ErrorCount + (bIsWarning ? 0 : 1)),
-						FText::AsNumber(WarningCount + (bIsWarning ? 1 : 0)), Alert));
-					Icon.SetImage(bIsWarning
-						? FAppStyle::GetBrush("Icons.WarningWithColor")
-						: FAppStyle::GetBrush("Icons.ErrorWithColor"));
-					ChildCount++; // The row has an alert and a child alert so the count should be the total of both.
-				}
-				else if (!Alert.IsEmpty())
-				{
-					Icon.SetToolTipText(Alert);
-					Icon.SetImage(bIsWarning
-						? FAppStyle::GetBrush("Icons.WarningWithColor")
-						: FAppStyle::GetBrush("Icons.ErrorWithColor"));
-				}
-				else if (ChildCount > 0)
-				{
-					Icon.SetToolTipText(FText::Format(LOCTEXT("ChildAlertCount", "Errors: {0}\nWarnings: {1}"),
-						FText::AsNumber(ErrorCount), FText::AsNumber(WarningCount)));
-					Icon.SetImage(FAppStyle::GetBrush("Icons.Warning"));
-				}
-
-				STextBlock& CounterText = static_cast<STextBlock&>(*Children->GetSlotAt(1).GetWidget());
-				if (ChildCount == 0)
-				{
-					CounterText.SetText(FText::GetEmpty());
-				}
-				else if (ChildCount <= 9)
-				{
-					CounterText.SetText(FText::AsNumber(ChildCount));
+					if (!Alert.IsEmpty())
+					{
+						Background.SetImage(bIsWarning
+							? FAppStyle::GetBrush("Icons.WarningWithColor.Background")
+							: FAppStyle::GetBrush("Icons.ErrorWithColor.Background"));
+					}
+					else
+					{
+						Background.SetImage(FAppStyle::GetBrush("Icons.Alert.Background"));
+					}
 				}
 				else
 				{
-					CounterText.SetText(FText::FromString(TEXT("*")));
+					if (!Alert.IsEmpty())
+					{
+						Background.SetImage(bIsWarning
+							? FAppStyle::GetBrush("Icons.WarningWithColor.Solid")
+							: FAppStyle::GetBrush("Icons.ErrorWithColor.Solid"));
+					}
+					else
+					{
+						Background.SetImage(FAppStyle::GetBrush("Icons.Alert.Solid"));
+					}
+				}
+
+				// Set counter if needed, otherwise turn it off.
+				if (ChildCount == 0)
+				{
+					// If there are no children, don't show the badge and don't show a counter.
+					Badge.SetVisibility(EVisibility::Hidden);
+					CounterText.SetVisibility(EVisibility::Hidden);
+				}
+				else
+				{
+					// If there are children, also take into account if there's an alert as well.
+					uint32 TotalChildCount = ChildCount + (Alert.IsEmpty() ? 0 : 1);
+					if (TotalChildCount <= 9)
+					{
+						Badge.SetVisibility(EVisibility::HitTestInvisible);
+						CounterText.SetVisibility(EVisibility::HitTestInvisible);
+						CounterText.SetText(FText::AsNumber(TotalChildCount));
+						CounterText.SetFont(FCoreStyle::GetDefaultFontStyle("Regular", FTypedElementAlertWidgetConstructor::BadgeFontSize));
+						CounterText.SetMargin(FMargin(
+							FTypedElementAlertWidgetConstructor::BadgeHorizontalOffset, 
+							FTypedElementAlertWidgetConstructor::BadgeVerticalOffset));
+					}
+					else
+					{
+						Badge.SetVisibility(EVisibility::HitTestInvisible);
+						CounterText.SetVisibility(EVisibility::HitTestInvisible);
+						CounterText.SetText(FText::FromString(TEXT("*")));
+						CounterText.SetFont(FCoreStyle::GetDefaultFontStyle("Regular", 14));
+						CounterText.SetMargin(FMargin(
+							FTypedElementAlertWidgetConstructor::BadgeHorizontalOffset - 2.0f,
+							FTypedElementAlertWidgetConstructor::BadgeVerticalOffset - 6.5f));
+					}
+				}
+
+				// Setup the tool tip text
+				if (!Alert.IsEmpty() && ChildCount > 0)
+				{
+					FText ToolTipText = FText::Format(LOCTEXT("ChildAlertCountWithMessage", "Errors: {0}\nWarnings: {1}\n\n{2}"),
+						FText::AsNumber(ErrorCount + (bIsWarning ? 0 : 1)),
+						FText::AsNumber(WarningCount + (bIsWarning ? 1 : 0)), Alert);
+					Background.SetToolTipText(ToolTipText);
+					ActionButton.SetToolTipText(MoveTemp(ToolTipText));
+				}
+				else if (!Alert.IsEmpty())
+				{
+					Background.SetToolTipText(Alert);
+					ActionButton.SetToolTipText(Alert);
+				}
+				else if (ChildCount > 0)
+				{
+					FText ToolTipText = FText::Format(LOCTEXT("ChildAlertCount", "Errors: {0}\nWarnings: {1}"),
+						FText::AsNumber(ErrorCount), FText::AsNumber(WarningCount));
+					Background.SetToolTipText(ToolTipText);
+					ActionButton.SetToolTipText(MoveTemp(ToolTipText));
+				}
+
+				// If there's an action to call, enable the invisible button, otherwise turn it off.
+				if (RowWithAlertAction != TypedElementDataStorage::InvalidRowHandle)
+				{
+					Background.SetVisibility(EVisibility::HitTestInvisible);
+					ActionButton.SetVisibility(EVisibility::Visible);
+					ActionButton.SetOnClicked(FOnClicked::CreateLambda([RowWithAlertAction]()
+						{
+							UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+							const ITypedElementDataStorageInterface* DataStorage = Registry->GetDataStorage();
+							if (const FTypedElementAlertActionColumn* Action =
+								DataStorage->GetColumn<FTypedElementAlertActionColumn>(RowWithAlertAction))
+							{
+								Action->Action(RowWithAlertAction);
+							}
+							return FReply::Handled();
+						}));
+				}
+				else
+				{
+					Background.SetVisibility(EVisibility::Visible);
+					ActionButton.SetVisibility(EVisibility::Hidden);
 				}
 			}
 		}
@@ -125,24 +204,29 @@ void UTypedElementAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStor
 				const FTypedElementRowReferenceColumn& ReferenceColumn)
 			{
 				Context.RunSubquery(0, ReferenceColumn.Row, CreateSubqueryCallbackBinding(
-					[&Widget](const FTypedElementAlertColumn& Alert)
+					[&Widget](ISubqueryContext& Context, RowHandle Row, const FTypedElementAlertColumn& Alert)
 					{
 						checkf(
 							Alert.AlertType == FTypedElementAlertColumnType::Warning ||
 							Alert.AlertType == FTypedElementAlertColumnType::Error,
 							TEXT("Alert column has unsupported type %i"), static_cast<int>(Alert.AlertType));
 						AlertWidgetInternal::UpdateWidget(Widget.Widget.Pin(), Alert.Message, 
-							Alert.AlertType == FTypedElementAlertColumnType::Warning, 0, 0);
+							Alert.AlertType == FTypedElementAlertColumnType::Warning, 0, 0,
+							Context.HasColumn<FTypedElementAlertActionColumn>() ? Row : InvalidRowHandle);
 					}));
 				Context.RunSubquery(1, ReferenceColumn.Row, CreateSubqueryCallbackBinding(
-					[&Widget](const FTypedElementChildAlertColumn& ChildAlert)
+					[&Widget](ISubqueryContext& Context, RowHandle Row, const FTypedElementChildAlertColumn& ChildAlert)
 					{
 						AlertWidgetInternal::UpdateWidget(Widget.Widget.Pin(), FText::GetEmpty(), false,
 							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Error)],
-							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)]);
+							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)],
+							Context.HasColumn<FTypedElementAlertActionColumn>() ? Row : InvalidRowHandle);
 					}));
 				Context.RunSubquery(2, ReferenceColumn.Row, CreateSubqueryCallbackBinding(
-					[&Widget](const FTypedElementAlertColumn& Alert, const FTypedElementChildAlertColumn& ChildAlert)
+					[&Widget](
+						ISubqueryContext& Context, RowHandle Row, 
+						const FTypedElementAlertColumn& Alert, 
+						const FTypedElementChildAlertColumn& ChildAlert)
 					{
 						checkf(
 							Alert.AlertType == FTypedElementAlertColumnType::Warning ||
@@ -151,7 +235,8 @@ void UTypedElementAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStor
 						AlertWidgetInternal::UpdateWidget(Widget.Widget.Pin(), Alert.Message,
 							Alert.AlertType == FTypedElementAlertColumnType::Warning,
 							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Error)],
-							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)]);
+							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)],
+							Context.HasColumn<FTypedElementAlertActionColumn>() ? Row : InvalidRowHandle);
 					}));
 			}
 		)
@@ -187,7 +272,7 @@ void UTypedElementAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDa
 				{
 					if (TSharedPtr<SWidget> WidgetPtr = Widget.Widget.Pin())
 					{
-						static_cast<SImage*>(WidgetPtr.Get())->SetImage(FAppStyle::GetBrush("Icons.WarningWithColor"));
+						static_cast<SImage*>(WidgetPtr.Get())->SetImage(FAppStyle::GetBrush("Icons.WarningWithColor.Solid"));
 						Context.AddColumns<FTypedElementAlertHeaderActiveWidgetTag>(Row);
 					}
 				}
@@ -239,22 +324,40 @@ TSharedPtr<SWidget> FTypedElementAlertWidgetConstructor::CreateWidget(
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SOverlay)
-		+ SOverlay::Slot()
-			.VAlign(VAlign_Bottom)
-			.HAlign(HAlign_Left)
+		+SOverlay::Slot()
+			.VAlign(VAlign_Fill)
+			.HAlign(HAlign_Fill)
+		[
+			SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "FlatButton")
+				.Text(FText::FromString(TEXT("X"))) // There needs to be at least some content otherwise nothing will show.
+				.ForegroundColor(FLinearColor::Transparent) // Then the color needs to be cleared so the X doesn't show.
+				.ContentPadding(FMargin(0.0f))
+		]
+		+SOverlay::Slot()
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Center)
 		[
 			SNew(SImage)
-				.DesiredSizeOverride(FVector2D(15.f, 15.f))
-				.ColorAndOpacity(FSlateColor::UseForeground())
-				.Image(FAppStyle::GetBrush("Icons.Warning"))
+				.Image(FAppStyle::GetBrush("Icons.Alert.Solid"))
+				.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
+		]
+		+SOverlay::Slot()
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Center)
+		[
+			SNew(SImage)
+				.Image(FAppStyle::GetBrush("Icons.Alert.Badge"))
+				.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
 		]
 		+ SOverlay::Slot()
-			.VAlign(VAlign_Top)
-			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Bottom)
+			.HAlign(HAlign_Center)
 		[
 			SNew(STextBlock)
-				.Font(FAppStyle::GetFontStyle("TinyText"))
-				.ColorAndOpacity(FSlateColor::UseForeground())
+				.Font(FCoreStyle::GetDefaultFontStyle("Regular", BadgeFontSize))
+				.ColorAndOpacity(FLinearColor::Black)
+				.Margin(FMargin(BadgeHorizontalOffset, BadgeVerticalOffset))
 		];
 }
 
@@ -280,7 +383,8 @@ bool FTypedElementAlertWidgetConstructor::FinalizeWidget(ITypedElementDataStorag
 		Widget, 
 		Alert ? Alert->Message : FText::GetEmpty(), 
 		Alert ? (Alert->AlertType == FTypedElementAlertColumnType::Warning) : false, 
-		ErrorCount, WarningCount);
+		ErrorCount, WarningCount,
+		DataStorage->HasColumns<FTypedElementAlertActionColumn>(TargetRow) ? TargetRow : InvalidRowHandle);
 	
 	return true;
 }

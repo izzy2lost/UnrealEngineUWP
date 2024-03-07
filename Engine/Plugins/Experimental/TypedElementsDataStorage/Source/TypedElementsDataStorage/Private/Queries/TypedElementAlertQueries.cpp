@@ -42,7 +42,8 @@ FAutoConsoleCommand AddRandomAlertToRowConsoleCommand(
 					}));
 				for (RowHandle Row : Rows)
 				{
-					bool bIsWarning = FMath::RandRange(0, 1) == 1;
+					int32 Random = FMath::RandRange(0, 2);
+					bool bIsWarning = (Random & 0x1) == 1;
 					DataStorage->AddOrGetColumn(Row, FTypedElementAlertColumn
 						{
 							.Message = FText::FromString(bIsWarning ? TEXT("Test warning") : TEXT("Test error")),
@@ -51,6 +52,19 @@ FAutoConsoleCommand AddRandomAlertToRowConsoleCommand(
 								: FTypedElementAlertColumnType::Error
 						});
 					DataStorage->AddColumns<FTypedElementSyncBackToWorldTag>(Row);
+					
+					if (((Random >> 1) & 0x1) == 1)
+					{
+						DataStorage->AddOrGetColumn(Row, FTypedElementAlertActionColumn
+							{
+								.Action = [](RowHandle)
+								{
+									FPlatformMisc::MessageBoxExt(
+										EAppMsgType::Ok, TEXT("Example of an alert action."),
+										TEXT("TEDS.Debug.AddRandomAlertToSelectedRows"));
+								}
+							});
+					}
 				}
 			}
 		}
@@ -333,6 +347,7 @@ void UTypedElementAlertQueriesFactory::RegisterOnAlertRemoveQueries(ITypedElemen
 					Alert.RemoveCycleId = Context.GetUpdateCycleId();
 					Context.AddColumns<FTypedElementSyncBackToWorldTag>(Row);
 				}
+				Context.RemoveColumns<FTypedElementAlertActionColumn>(Row);
 			})
 		.DependsOn()
 			.SubQuery(ChildAlertColumnReadWriteQuery)
@@ -477,12 +492,17 @@ void UTypedElementAlertQueriesFactory::NeedsDecrementing(FTypedElementAlertColum
 
 	if constexpr (bHasAlert)
 	{
-		bAlertNeedsDecrementing = Alert->CachedParent != 0 && Alert->CachedParent != InvalidRowHandle;
+		bAlertNeedsDecrementing = 
+			Alert->CachedParent != 0 && 
+			Alert->CachedParent != InvalidRowHandle && 
+			Alert->CachedParent != Parent.Parent;
 	}
 
 	if constexpr (bHasChildAlert)
 	{
-		bChildAlertsNeedDecrementing = !ChildAlert->bHasDecremented && ChildAlert->CachedParent != Parent.Parent;
+		bChildAlertsNeedDecrementing =
+			!ChildAlert->bHasDecremented &&
+			ChildAlert->CachedParent != Parent.Parent;
 	}
 }
 
@@ -597,6 +617,7 @@ void UTypedElementAlertQueriesFactory::AddChildAlertsToHierarchy(
 				ChildAlert.Counts[Index] = 0;
 			}
 			ChildAlert.RemoveCycleId = Context.GetUpdateCycleId();
+			ChildAlert.bHasDecremented = true;
 			Context.AddColumn(Parent, MoveTemp(ChildAlert));
 		}
 

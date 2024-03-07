@@ -31,6 +31,15 @@ struct FTypedElementAlertWidgetConstructor : public FTypedElementWidgetConstruct
 	GENERATED_BODY()
 
 public:
+	static constexpr int32 IconBackgroundSlot = 1;
+	static constexpr int32 IconBadgeSlot = 2;
+	static constexpr int32 CounterTextSlot = 3;
+	static constexpr int32 ActionButtonSlot = 0;
+
+	static constexpr float BadgeFontSize = 7.0f;
+	static constexpr float BadgeHorizontalOffset = 13.0f;
+	static constexpr float BadgeVerticalOffset = 1.0f;
+
 	TEDSOUTLINER_API FTypedElementAlertWidgetConstructor();
 	TEDSOUTLINER_API ~FTypedElementAlertWidgetConstructor() override = default;
 

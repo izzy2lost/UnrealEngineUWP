@@ -61,3 +61,14 @@ struct FTypedElementChildAlertColumn final : public FTypedElementDataStorageColu
 	// decrements if updating the child alerts takes more than a single frame. It's not used outside updating.
 	bool bHasDecremented;
 };
+
+/**
+ * Column that can be added to an alert column to have it trigger an action when the alert is clicked.
+ */
+USTRUCT(meta = (DisplayName = "Alert action"))
+struct FTypedElementAlertActionColumn final : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+
+	TFunction<void(TypedElementDataStorage::RowHandle)> Action;
+};

@@ -301,16 +301,25 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		Style->Set("Icons.Cloud", new IMAGE_BRUSH("Icons/icon_Downloads_16x", Icon16x16));
 		Style->Set("Icons.Local", new IMAGE_BRUSH_SVG("Starship/Common/server", Icon16x16));
 
+		Style->Set("Icons.Alert", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16, FStyleColors::Foreground));
+		Style->Set("Icons.Alert.Solid", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-solid", Icon16x16, FStyleColors::Foreground));
+		Style->Set("Icons.Alert.Badge", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-badge", Icon16x16, FStyleColors::Foreground));
+		Style->Set("Icons.Alert.Background", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-background", Icon16x16, FStyleColors::Hover2));
+
 		Style->Set("Icons.Error", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16));
 		Style->Set("Icons.Error.Large", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-large", Icon32x32));
 		Style->Set("Icons.ErrorWithColor", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16, FStyleColors::Error));
+		Style->Set("Icons.ErrorWithColor.Solid", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-solid", Icon16x16, FStyleColors::Error));
 		Style->Set("Icons.ErrorWithColor.Large", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-large", Icon32x32, FStyleColors::Error));
+		Style->Set("Icons.ErrorWithColor.Background", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-background", Icon16x16, FStyleColors::Error));
 
 		Style->Set("Icons.Warning", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16));
 		Style->Set("Icons.Warning.Large", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-large", Icon32x32));
 		Style->Set("Icons.WarningWithColor", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16, FStyleColors::Warning));
+		Style->Set("Icons.WarningWithColor.Solid", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-solid", Icon16x16, FStyleColors::Warning));
 		Style->Set("Icons.WarningWithColor.Large", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-large", Icon32x32, FStyleColors::Warning));
 		Style->Set("Icons.WarningWithColor.Thumbnail", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-64", Icon64x64));
+		Style->Set("Icons.WarningWithColor.Background", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-background", Icon16x16, FStyleColors::Warning));
 
 		Style->Set("Icons.Info", new IMAGE_BRUSH_SVG("Starship/Common/Info", Icon16x16));
 		Style->Set("Icons.Info.Small", new IMAGE_BRUSH_SVG("Starship/Common/Info", Icon14x14));
