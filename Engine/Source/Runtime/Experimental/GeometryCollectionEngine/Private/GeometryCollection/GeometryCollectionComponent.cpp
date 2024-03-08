@@ -1449,7 +1449,7 @@ bool UGeometryCollectionComponent::DoCustomNavigableGeometryExport(FNavigableGeo
 
 	if (RestCollection->bStripOnCook)
 	{
-		UE_LOG(LogGeometryCollectionComponent, Warning,
+		UE_LOG(LogGeometryCollectionComponent, Log,
 			TEXT("Collection data is set to be stripped on cook so there is nothing left to export. Make sure to use bUseRootProxyForNavigation with bStripOnCook for %s."), *GetFullNameSafe(GetOwner()));
 	}
 	
