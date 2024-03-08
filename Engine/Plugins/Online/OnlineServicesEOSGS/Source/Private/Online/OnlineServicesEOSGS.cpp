@@ -177,9 +177,6 @@ TOnlineResult<FGetResolvedConnectString> FOnlineServicesEOSGS::GetResolvedConnec
 		{
 			return TOnlineResult<FGetResolvedConnectString>(Result.GetErrorValue());
 		}
-
-		// No matching session
-		return TOnlineResult<FGetResolvedConnectString>(Errors::NotFound());
 	}
 
 	// No valid lobby or session id set

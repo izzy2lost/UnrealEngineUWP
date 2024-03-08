@@ -335,7 +335,6 @@ bool FTTMLSubtitleList::UpdateActiveRange(const Electra::FTimeRange& InRange)
 			return false;
 		}
 	}
-	return false;
 }
 
 void FTTMLSubtitleList::GetActiveSubtitles(TArray<FActiveSubtitle>& OutSubtitles) const

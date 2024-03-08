@@ -2866,7 +2866,6 @@ bool FDashMPD_SegmentTimelineType::ProcessElement(FManifestParserDASH* Builder, 
 	{
 		return Super::ProcessElement(Builder, ElementName, ElementData, XmlFileLineNumber);
 	}
-	return true;
 }
 
 bool FDashMPD_SegmentTimelineType::ProcessAttribute(FManifestParserDASH* Builder, const TCHAR* AttributeName, const TCHAR* AttributeValue)

@@ -1342,7 +1342,7 @@ void FWindowsPlatformMisc::RequestExitWithStatus(bool Force, uint8 ReturnCode, c
 	PGO_WriteFile();
 	TerminateProcess(GetCurrentProcess(), 0);
 	return;
-#endif
+#else
 
 	RequestEngineExit(TEXT("Win RequestExit"));
 
@@ -1373,6 +1373,7 @@ void FWindowsPlatformMisc::RequestExitWithStatus(bool Force, uint8 ReturnCode, c
 		// Tell the platform specific code we want to exit cleanly from the main loop.
 		PostQuitMessage(ReturnCode);
 	}
+#endif
 }
 
 const TCHAR* FWindowsPlatformMisc::GetSystemErrorMessage(TCHAR* OutBuffer, int32 BufferCount, int32 Error)
