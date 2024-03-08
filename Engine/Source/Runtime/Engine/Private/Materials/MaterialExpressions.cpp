@@ -14937,7 +14937,7 @@ void UMaterialFunction::Serialize(FArchive& Ar)
 {
 #if WITH_EDITORONLY_DATA
 	UMaterialFunctionEditorOnlyData* EditorOnly = GetEditorOnlyData();
-	if (EditorOnly && Ar.IsSaving() && !Ar.IsCooking() && !Ar.IsObjectReferenceCollector())
+	if (EditorOnly && Ar.IsSaving() && !Ar.IsCooking())
 	{
 		// If the collection of expressions got some null expressions remove them now, but warn the user about it.
 		if (EditorOnly->ExpressionCollection.Expressions.Remove(nullptr))
@@ -14946,18 +14946,6 @@ void UMaterialFunction::Serialize(FArchive& Ar)
 				"Material Function {0} editor only data contained null expression and some expressions may be missing."
 				"\n\nPlease close and repoen this Material Function and verify it is still valid."), FText::FromString(GetFullName()));
 			FMessageDialog::Open(EAppMsgType::Ok, Message);
-		}
-
-		// Temporary debugging code. This will populate the DebugExpressionInfos with information about each expression
-		// in ExpressionCollection.Expressions, to gather more information when some expression is null upon function
-		// PostLoad() to help solve UE-198712.
-		EditorOnly->ExpressionCollection.DebugExpressionInfos.Empty();
-		EditorOnly->ExpressionCollection.DebugExpressionInfos.Reserve(EditorOnly->ExpressionCollection.Expressions.Num());
-		for (UMaterialExpression* Expression : EditorOnly->ExpressionCollection.Expressions)
-		{
-			check(Expression);
-			FString Info = FString::Printf(TEXT("Name: '%s', Type: '%s'"), *Expression->GetFullName(), *Expression->GetClass()->GetFullName());
-			EditorOnly->ExpressionCollection.DebugExpressionInfos.Push(MoveTemp(Info));
 		}
 	}
 #endif
@@ -15055,9 +15043,6 @@ void UMaterialFunction::PostLoad()
 
 	if (GIsEditor && EditorOnly)
 	{
-		// We can display null expressions info if the DebugExpressionInfos was populated with data upon Serialize().
-		bool bDisplayNullExpressionInfo = EditorOnly->ExpressionCollection.DebugExpressionInfos.Num() == EditorOnly->ExpressionCollection.Expressions.Num();
-
 		// Go over all expressions in the collection and invalidate the material if a null expression is found. Then
 		// remove the null expression from the array.
 		for (int i = 0; i < EditorOnly->ExpressionCollection.Expressions.Num();)
@@ -15071,13 +15056,6 @@ void UMaterialFunction::PostLoad()
 
 			// Mark this function as invalid. This will cause the material containing an active call to it to fail translation.
 			bAllExpressionsLoadedCorrectly = false;
-
-			if (bDisplayNullExpressionInfo)
-			{
-				UE_LOG(LogMaterial, Log, TEXT("Expression in function expression collection with index %d was null. Expression Info: %s"), i, *EditorOnly->ExpressionCollection.DebugExpressionInfos[i]);
-					
-				EditorOnly->ExpressionCollection.DebugExpressionInfos.RemoveAt(i);
-			}
 
 			EditorOnly->ExpressionCollection.Expressions.RemoveAt(i);
 		}
