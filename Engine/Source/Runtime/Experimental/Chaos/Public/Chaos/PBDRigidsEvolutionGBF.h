@@ -171,6 +171,13 @@ namespace Chaos
 		*/
 		CHAOS_API void SetParticleKinematicTarget(FGeometryParticleHandle* ParticleHandle, const FKinematicTarget& NewKinematicTarget);
 
+		/*
+		 * Apply a momentumless correction to the particle transform, usually as a result of a server correction.
+		 * This will shift the particle by the supplied delta and handle updating of friction anchors or anything else that might prevent or undo the shift.
+		 * NOTE: must be called prior to Integrate() to be effective.
+		 */
+		CHAOS_API void SetParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta);
+
 		/**
 		 * Called when a particle is moved. We need to reset some friction properties, sleeping properties, etc
 		 */
