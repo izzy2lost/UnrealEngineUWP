@@ -540,6 +540,7 @@ void UNiagaraSystem::UpdateSystemAfterLoad()
 	const bool bTargetRequiresAvData = WillNeedAudioVisualData();
 	if (bIsDedicatedServer || !bTargetRequiresAvData)
 	{
+		bAllowValidation = false;
 		ResetToEmptySystem();
 		return;
 	}
