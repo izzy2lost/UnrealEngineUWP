@@ -19,6 +19,8 @@
 	],
 	"TargetPlatforms": [
 		"Windows",
-		"Linux"
+		"WindowsEditor",
+		"Linux",
+		"LinuxEditor"
 	]
 }
