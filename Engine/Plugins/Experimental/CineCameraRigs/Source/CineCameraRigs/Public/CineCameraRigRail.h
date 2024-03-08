@@ -129,6 +129,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DriveMode")
 	bool bLoop = true;
 
+	/* If enabled, it compensates world time dilation in Speed/Duration mode so that the spline moves as intended speed regardless of recording time scale */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DriveMode")
+	bool bCompensateTimeScale = false;
+
 	/* Set spline mesh material*/
 	UFUNCTION(BlueprintSetter)
 	void SetSplineMeshMaterial(UMaterialInterface* InMaterial);
@@ -175,7 +179,7 @@ protected:
 	float LastPositionValue() const;
 	float SpeedProgress = 0.0f;
 	void UpdateSpeedProgress();
-
+	float AdjustDeltaTime(float InDeltaTime) const;
 
 #if WITH_EDITOR
 	UMovieSceneFloatTrack* FindPositionTrack(const UMovieSceneSequence* InSequence);
