@@ -32,6 +32,7 @@ namespace UE::DMX::Private
 		if (UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData())
 		{
 			ControlConsoleData->GetOnDMXLibraryChanged().AddSP(this, &SDMXControlConsoleEditorFiltersView::RequestRefresh);
+			ControlConsoleData->GetOnDMXLibraryReloaded().AddSP(this, &SDMXControlConsoleEditorFiltersView::RequestRefresh);
 		}
 
 		if (UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel->GetControlConsoleEditorData())

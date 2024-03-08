@@ -258,8 +258,18 @@ void UDMXControlConsoleData::Clear(bool bOnlyPatchedFaderGroups)
 	SoftDMXLibraryPtr.Reset();
 
 #if WITH_EDITOR
-	OnDMXLibraryChanged.Broadcast();
+	OnDMXLibraryChangedDelegate.Broadcast();
 #endif // WITH_EDITOR
+}
+
+void UDMXControlConsoleData::PostInitProperties()
+{
+	Super::PostInitProperties();
+
+	if (!UDMXLibrary::GetOnEntitiesAdded().IsBoundToObject(this))
+	{
+		UDMXLibrary::GetOnEntitiesAdded().AddUObject(this, &UDMXControlConsoleData::OnFixturePatchAddedToLibrary);
+	}
 }
 
 void UDMXControlConsoleData::PostLoad()
@@ -267,8 +277,6 @@ void UDMXControlConsoleData::PostLoad()
 	Super::PostLoad();
 
 	CachedWeakDMXLibrary = Cast<UDMXLibrary>(SoftDMXLibraryPtr.ToSoftObjectPath().TryLoad());
-
-	UDMXLibrary::GetOnEntitiesAdded().AddUObject(this, &UDMXControlConsoleData::OnFixturePatchAddedToLibrary);
 }
 
 #if WITH_EDITOR
@@ -281,13 +289,29 @@ void UDMXControlConsoleData::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	{
 		CachedWeakDMXLibrary = Cast<UDMXLibrary>(SoftDMXLibraryPtr.ToSoftObjectPath().TryLoad());
 
-		OnDMXLibraryChanged.Broadcast();
+		OnDMXLibraryChangedDelegate.Broadcast();
 	}
 }
 #endif // WITH_EDITOR
 
 void UDMXControlConsoleData::Tick(float InDeltaTime)
 {
+	// Ensure the cached dmx library and all fader groups are synched e.g. on library reload
+	if (CachedWeakDMXLibrary.Get() != SoftDMXLibraryPtr)
+	{
+		CachedWeakDMXLibrary = SoftDMXLibraryPtr.LoadSynchronous();
+		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = GetAllFaderGroups();
+		for (UDMXControlConsoleFaderGroup* FaderGroup : AllFaderGroups)
+		{
+			if (FaderGroup)
+			{
+				FaderGroup->ReloadFixturePatch();
+			}
+		}
+
+		OnDMXLibraryReloadedDelegate.Broadcast();
+	}
+		
 	if (!bSendDMX)
 	{
 		return;

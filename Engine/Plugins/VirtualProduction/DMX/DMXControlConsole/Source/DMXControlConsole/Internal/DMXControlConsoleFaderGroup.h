@@ -80,10 +80,13 @@ public:
 	/** Automatically generates a Fader Group based on Fixture Patch Ref property */
 	void GenerateFromFixturePatch(UDMXEntityFixturePatch* InFixturePatch);
 
-	/** Gets current binded Fixture Patch reference, if valid */
+	/** Gets the Fixture Patch used by this Fader Group, if valid */
 	UDMXEntityFixturePatch* GetFixturePatch() const { return CachedWeakFixturePatch.Get(); }
 
-	/** Gets wheter this Fader Group is binded to a Fixture Patch */
+	/** Reloads the Fixture Patch used by this Fader Group, if valid */
+	void ReloadFixturePatch();
+
+	/** Gets wheter this Fader Group is bound to a Fixture Patch */
 	bool HasFixturePatch() const;
 
 	/** Gets wheter this Fader Group has Matrix Faders */
