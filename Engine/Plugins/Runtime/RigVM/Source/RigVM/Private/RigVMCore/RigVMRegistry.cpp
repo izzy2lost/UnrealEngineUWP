@@ -319,6 +319,21 @@ void FRigVMRegistry::InitializeIfNeeded()
 void FRigVMRegistry::RefreshEngineTypes()
 {
 	FScopeLock RefreshTypesScopeLock(&RefreshTypesMutex);
+	RefreshEngineTypes_NoLock();
+}
+
+void FRigVMRegistry::RefreshEngineTypesIfRequired()
+{
+	FScopeLock RefreshTypesScopeLock(&RefreshTypesMutex);
+	if(bEverRefreshedEngineTypes)
+	{
+		return;
+	}
+	RefreshEngineTypes_NoLock();
+}
+
+void FRigVMRegistry::RefreshEngineTypes_NoLock()
+{
 	TGuardValue<bool> EnableGuardRefresh(bIsRefreshingEngineTypes, true);
 
 	const int32 NumTypesBefore = Types.Num(); 
@@ -390,6 +405,8 @@ void FRigVMRegistry::RefreshEngineTypes()
 			}
 		}
 	}
+	
+	bEverRefreshedEngineTypes = true;
 }
 
 void FRigVMRegistry::OnAssetRenamed(const FAssetData& InAssetData, const FString& InOldObjectPath)

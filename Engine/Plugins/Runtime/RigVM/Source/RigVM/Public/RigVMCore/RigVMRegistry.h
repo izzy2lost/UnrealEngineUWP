@@ -82,6 +82,10 @@ public:
 	// based on the names.
 	void RefreshEngineTypes();
 
+	// Refreshes the list and finds the function pointers
+	// based on the names.
+	void RefreshEngineTypesIfRequired();
+
 	// Update the registry when types are renamed
 	void OnAssetRenamed(const FAssetData& InAssetData, const FString& InOldObjectPath);
 	
@@ -298,6 +302,7 @@ private:
 	// disable default constructor
 	FRigVMRegistry()
 		: bIsRefreshingEngineTypes(false)
+		, bEverRefreshedEngineTypes(false)
 	{
 	}
 	
@@ -326,6 +331,8 @@ private:
 	};
 
 	TRigVMTypeIndex FindOrAddType_Internal(const FRigVMTemplateArgumentType& InType, bool bForce);
+
+	void RefreshEngineTypes_NoLock();
 
 	static EObjectFlags DisallowedFlags()
 	{
@@ -403,6 +410,9 @@ private:
 
 	// If this is true the registry is currently refreshing all types
 	bool bIsRefreshingEngineTypes;
+
+	// This is true if the engine has ever refreshed the engine types
+	bool bEverRefreshedEngineTypes;
 
 	static FCriticalSection RefreshTypesMutex;
 	static FCriticalSection FunctionRegistryMutex;
