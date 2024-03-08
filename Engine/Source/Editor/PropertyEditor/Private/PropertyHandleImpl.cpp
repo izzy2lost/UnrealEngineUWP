@@ -222,9 +222,10 @@ void FPropertyValueImpl::GenerateArrayIndexMapToObjectNode( TMap<FString,int32>&
 			if (Property)
 			{
 				//since we're starting from the lowest level, we have to take the first entry.  In the case of an array, the entries and the array itself have the same name, except the parent has an array index of -1
-				if (!OutArrayIndexMap.Contains(Property->GetName()))
+				FString FullPathName = FPropertyChangedEvent::GetArrayIndexPathName(Property);
+				if (!OutArrayIndexMap.Contains(FullPathName))
 				{
-					OutArrayIndexMap.Add(Property->GetName(), IterationNode->GetArrayIndex());
+					OutArrayIndexMap.Add(FullPathName, IterationNode->GetArrayIndex());
 				}
 			}
 		}
@@ -1198,7 +1199,7 @@ void FPropertyValueImpl::AddChild()
 							});
 						}
 
-						ArrayIndicesPerObject[i].Add(NodeProperty->GetName(), Index);
+						ArrayIndicesPerObject[i].Add(FPropertyChangedEvent::GetArrayIndexPathName(NodeProperty), Index);
 					}
 				}
 
@@ -1247,6 +1248,7 @@ void FPropertyValueImpl::ClearChildren()
 			TArray<const UObject*> TopLevelObjects;
 			TopLevelObjects.Reserve(ReadAddresses.Num());
 
+			TArray< TMap<FString, int32> > ArrayIndicesPerObject;
 			TArray< TArray< UObject* > > AffectedInstancesPerObject;
 			AffectedInstancesPerObject.SetNum(ReadAddresses.Num());
 
@@ -1303,6 +1305,10 @@ void FPropertyValueImpl::ClearChildren()
 
 							TopLevelObjects.Add(Obj);
 						}
+
+						// Add on array index so we can tell which entry just changed
+						ArrayIndicesPerObject.Add(TMap<FString, int32>());
+						FPropertyValueImpl::GenerateArrayIndexMapToObjectNode(ArrayIndicesPerObject[i], PropertyNodePin.Get());
 
 						if (ArrayProperty)
 						{
@@ -1372,6 +1378,7 @@ void FPropertyValueImpl::ClearChildren()
 				}
 
 				FPropertyChangedEvent ChangeEvent(NodeProperty, EPropertyChangeType::ArrayClear, MakeArrayView(TopLevelObjects));
+				ChangeEvent.SetArrayIndexPerObject(ArrayIndicesPerObject);
 				ChangeEvent.SetInstancesChanged(MoveTemp(AllAffectedInstances));
 
 				// Send the PostEditChange notification; it will be propagated to all selected objects
@@ -1645,7 +1652,7 @@ void FPropertyValueImpl::DeleteChild( TSharedPtr<FPropertyNode> ChildNodeToDelet
 						MapHelper.Rehash();
 					}
 
-					ArrayIndicesPerObject[i].Add(NodeProperty->GetName(), Index);
+					ArrayIndicesPerObject[i].Add(FPropertyChangedEvent::GetArrayIndexPathName(NodeProperty), Index);
 				}
 			}
 
@@ -1917,7 +1924,7 @@ void FPropertyValueImpl::MoveElementTo(int32 OriginalIndex, int32 NewIndex)
 						FScriptArrayHelper	ArrayHelper(Array, Addr);
 						Index = ArrayHelper.AddValue();
 
-						ArrayIndicesPerObject[i].Add(NodeProperty->GetName(), Index);
+						ArrayIndicesPerObject[i].Add(FPropertyChangedEvent::GetArrayIndexPathName(NodeProperty), Index);
 					}
 				}
 
@@ -5184,6 +5191,7 @@ FPropertyAccess::Result FPropertyHandleOptional::SetOptionalValue(FProperty* New
 		return FPropertyAccess::Fail;
 	}
 	
+	TArray< TMap<FString, int32> > ArrayIndicesPerObject;
 	TArray<TArray<UObject*>> AffectedInstancesPerObject;
 	AffectedInstancesPerObject.SetNum(ReadAddresses.Num());
 
@@ -5255,9 +5263,14 @@ FPropertyAccess::Result FPropertyHandleOptional::SetOptionalValue(FProperty* New
 				Implementation->ShowInvalidOperationError(LOCTEXT("SetOptionalElement", "Could not create a default value for optional object as could not determine outer object."));
 			}
 		}
+
+		// Add on array index so we can tell which entry just changed
+		ArrayIndicesPerObject.Add(TMap<FString, int32>());
+		FPropertyValueImpl::GenerateArrayIndexMapToObjectNode(ArrayIndicesPerObject[i], PropertyNode.Get());
 	}
 
 	FPropertyChangedEvent ChangeEvent(OptionalProperty, EPropertyChangeType::ValueSet, MakeArrayView(TopLevelObjects));
+	ChangeEvent.SetArrayIndexPerObject(ArrayIndicesPerObject);
 	ChangeEvent.SetInstancesChanged(MoveTemp(AllAffectedInstances));
 
 	// send the PostEditChange notification; it will be propagated to all selected objects
@@ -5299,6 +5312,7 @@ FPropertyAccess::Result FPropertyHandleOptional::ClearOptionalValue()
 		return FPropertyAccess::Fail;
 	}
 
+	TArray< TMap<FString, int32> > ArrayIndicesPerObject;
 	TArray<TArray<UObject*>> AffectedInstancesPerObject;
 	AffectedInstancesPerObject.SetNum(ReadAddresses.Num());
 
@@ -5343,12 +5357,17 @@ FPropertyAccess::Result FPropertyHandleOptional::ClearOptionalValue()
 
 		void* Addr = ReadAddresses.GetAddress(i);
 		OptionalProperty->MarkUnset(Addr);
+
+		// Add on array index so we can tell which entry just changed
+		ArrayIndicesPerObject.Add(TMap<FString, int32>());
+		FPropertyValueImpl::GenerateArrayIndexMapToObjectNode(ArrayIndicesPerObject[i], PropertyNode.Get());
 	}
 
 	// Could be removed as unecessary (rebuild will do this for us... but removing now makes any future debugging clearer)
 	PropertyNode->GetOptionalValueNode().Reset();
 
 	FPropertyChangedEvent ChangeEvent(OptionalProperty, EPropertyChangeType::ValueSet, MakeArrayView(TopLevelObjects));
+	ChangeEvent.SetArrayIndexPerObject(ArrayIndicesPerObject);
 	ChangeEvent.SetInstancesChanged(MoveTemp(AllAffectedInstances));
 
 	// send the PostEditChange notification; it will be propagated to all selected objects
