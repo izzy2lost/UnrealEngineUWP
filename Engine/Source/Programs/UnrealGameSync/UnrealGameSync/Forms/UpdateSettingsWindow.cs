@@ -95,7 +95,7 @@ namespace UnrealGameSync
 
 		private void ConnectBtn_Click(object sender, EventArgs e)
 		{
-			_settings.UpdateSource = HordeRadioBtn.Checked ? LauncherUpdateSource.Horde : PerforceRadioBtn.Checked? LauncherUpdateSource.Perforce : LauncherUpdateSource.None;
+			_settings.UpdateSource = HordeRadioBtn.Checked ? LauncherUpdateSource.Horde : PerforceRadioBtn.Checked ? LauncherUpdateSource.Perforce : LauncherUpdateSource.None;
 			_settings.HordeServer = HordeServerTextBox.Text.Trim();
 			if (String.Equals(_settings.HordeServer, DeploymentSettings.Instance.HordeUrl, StringComparison.OrdinalIgnoreCase))
 			{
@@ -111,12 +111,12 @@ namespace UnrealGameSync
 			CaptureLogger logger = new CaptureLogger();
 
 			// Create the task for connecting to this server
-			ModalTask? task;
+			ModalTask? task = null;
 			if (_settings.UpdateSource == LauncherUpdateSource.Horde)
 			{
 				task = ModalTask.Execute(this, "Updating", "Checking for updates, please wait...", c => _syncAndRun(null, _settings, logger, c));
 			}
-			else
+			else if (_settings.UpdateSource == LauncherUpdateSource.Perforce)
 			{
 				PerforceSettings perforceSettings = new PerforceSettings(PerforceSettings.Default);
 				if (!String.IsNullOrEmpty(_settings.PerforceServerAndPort))
@@ -132,14 +132,16 @@ namespace UnrealGameSync
 				task = PerforceModalTask.Execute(this, "Updating", "Checking for updates, please wait...", perforceSettings, (p, c) => _syncAndRun(p, _settings, logger, c), logger);
 			}
 
+			if (task == null || task.Succeeded)
+			{
+				_settings.Save();
+				DialogResult = DialogResult.OK;
+				Close();
+				return;
+			}
+
 			if (task != null)
 			{
-				if (task.Succeeded)
-				{
-					_settings.Save();
-					DialogResult = DialogResult.OK;
-					Close();
-				}
 				PromptLabel.Text = task.Error;
 			}
 
