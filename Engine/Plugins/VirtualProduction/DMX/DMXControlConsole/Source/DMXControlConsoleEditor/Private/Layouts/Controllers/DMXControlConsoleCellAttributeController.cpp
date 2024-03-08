@@ -23,6 +23,8 @@ int32 UDMXControlConsoleCellAttributeController::GetIndex() const
 
 void UDMXControlConsoleCellAttributeController::Destroy()
 {
+	ClearElements();
+
 	UDMXControlConsoleMatrixCellController& OwnerMatrixCellController = GetOwnerMatrixCellControllerChecked();
 
 	OwnerMatrixCellController.PreEditChange(UDMXControlConsoleMatrixCellController::StaticClass()->FindPropertyByName(UDMXControlConsoleMatrixCellController::GetCellAttributeControllersPropertyName()));

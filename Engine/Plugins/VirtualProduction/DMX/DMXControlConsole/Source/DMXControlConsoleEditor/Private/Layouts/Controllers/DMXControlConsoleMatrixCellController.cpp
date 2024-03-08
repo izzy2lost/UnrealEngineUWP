@@ -53,6 +53,12 @@ void UDMXControlConsoleMatrixCellController::UnPossess(const TScriptInterface<ID
 	Elements.Remove(InElement);
 }
 
+void UDMXControlConsoleMatrixCellController::Destroy()
+{
+	ClearCellAttributeControllers();
+	UDMXControlConsoleElementController::Destroy();
+}
+
 void UDMXControlConsoleMatrixCellController::Group()
 {
 	ClearCellAttributeControllers();
@@ -170,6 +176,19 @@ void UDMXControlConsoleMatrixCellController::DeleteCellAttributeController(UDMXC
 	CellAttributeControllers.Remove(CellAttributeController);
 }
 
+void UDMXControlConsoleMatrixCellController::ClearCellAttributeControllers()
+{
+	for (UDMXControlConsoleCellAttributeController* CellAttributeController : CellAttributeControllers)
+	{
+		if (CellAttributeController)
+		{
+			CellAttributeController->Modify();
+			CellAttributeController->ClearElements();
+		}
+	}
+	CellAttributeControllers.Reset();
+}
+
 void UDMXControlConsoleMatrixCellController::SortCellAttributeControllersByStartingAddress() const
 {
 	// Sort elements
@@ -246,20 +265,6 @@ TArray<UDMXControlConsoleCellAttributeController*> UDMXControlConsoleMatrixCellC
 	}
 
 	return AllCellAttributeControllers;
-}
-
-void UDMXControlConsoleMatrixCellController::ClearCellAttributeControllers()
-{
-	for (UDMXControlConsoleCellAttributeController* CellAttributeController : CellAttributeControllers)
-	{
-		if (!CellAttributeController)
-		{
-			continue;
-		}
-
-		CellAttributeController->ClearElements();
-	}
-	CellAttributeControllers.Reset();
 }
 
 void UDMXControlConsoleMatrixCellController::GenerateCellAttributeControllers(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& InElement)

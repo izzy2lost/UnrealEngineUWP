@@ -78,14 +78,11 @@ void UDMXControlConsoleElementController::ClearElements()
 {
 	for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
 	{
-		if (!Element)
+		if (Element)
 		{
-			continue;
+			Element->SetElementController(nullptr);
 		}
-
-		Element->SetElementController(nullptr);
 	}
-
 	Elements.Reset();
 }
 
@@ -309,6 +306,12 @@ bool UDMXControlConsoleElementController::IsMatchingFilter() const
 	return bIsAnyElementMatchingFilter;
 }
 
+bool UDMXControlConsoleElementController::IsInActiveLayout() const
+{
+	UDMXControlConsoleFaderGroupController& OwnerFaderGroupController = GetOwnerFaderGroupControllerChecked();
+	return OwnerFaderGroupController.IsInActiveLayout();
+}
+
 ECheckBoxState UDMXControlConsoleElementController::GetEnabledState() const
 {
 	const bool bAreAllElementsEnabled = Algo::AllOf(Elements,
@@ -383,7 +386,8 @@ bool UDMXControlConsoleElementController::IsTickable() const
 {
 	return
 		!bIsLocked &&
-		FloatOscillator != nullptr;
+		FloatOscillator &&
+		IsInActiveLayout();
 }
 
 TStatId UDMXControlConsoleElementController::GetStatId() const

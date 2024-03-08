@@ -13,7 +13,9 @@
 #include "DMXControlConsoleFixturePatchFunctionFader.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
 #include "DMXControlConsoleMatrixCellController.h"
+#include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
+#include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Styling/SlateTypes.h"
 
@@ -460,6 +462,14 @@ bool UDMXControlConsoleFaderGroupController::IsMatchingFilter() const
 	return bIsAnyFaderGroupMatchingFilter;
 }
 
+bool UDMXControlConsoleFaderGroupController::IsInActiveLayout() const
+{
+	UDMXControlConsoleEditorGlobalLayoutRow& OwnerLayoutRow = GetOwnerLayoutRowChecked();
+	UDMXControlConsoleEditorGlobalLayoutBase& OwnerLayout = OwnerLayoutRow.GetOwnerLayoutChecked();
+	UDMXControlConsoleEditorLayouts& OwnerEditorLayouts = OwnerLayout.GetOwnerEditorLayoutsChecked();
+	return OwnerEditorLayouts.GetActiveLayout() == &OwnerLayout;
+}
+
 ECheckBoxState UDMXControlConsoleFaderGroupController::GetEnabledState() const
 {
 	const bool bAreAllFaderGorupsEnabled = Algo::AllOf(FaderGroups,
@@ -484,6 +494,7 @@ ECheckBoxState UDMXControlConsoleFaderGroupController::GetEnabledState() const
 
 void UDMXControlConsoleFaderGroupController::Destroy()
 {
+	ClearElementControllers();
 	ClearFaderGroups();
 
 	UDMXControlConsoleEditorGlobalLayoutRow& OwnerLayoutRow = GetOwnerLayoutRowChecked();
@@ -525,6 +536,12 @@ void UDMXControlConsoleFaderGroupController::ClearElementControllers()
 		if (!ElementController)
 		{
 			continue;
+		}
+
+		ElementController->Modify();
+		if (UDMXControlConsoleMatrixCellController* MatrixCellController = Cast<UDMXControlConsoleMatrixCellController>(ElementController))
+		{
+			MatrixCellController->ClearCellAttributeControllers();
 		}
 
 		ElementController->ClearElements();
