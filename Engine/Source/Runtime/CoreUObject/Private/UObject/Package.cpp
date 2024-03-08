@@ -33,7 +33,7 @@ UPackage::FOnPackageSavedWithContext UPackage::PackageSavedWithContextEvent;
  *  Use Package->IsDirty() to get the updated dirty state of the package */
 UPackage::FOnPackageDirtyStateChanged UPackage::PackageDirtyStateChangedEvent;
 /** 
- * Delegate to notify subscribers when a package is marked as dirty via UObjectBaseUtilty::MarkPackageDirty 
+ * Delegate to notify subscribers when a package is marked as dirty via UObjectBaseUtility::MarkPackageDirty 
  * Note: Unlike FOnPackageDirtyStateChanged, this is always called, even when the package is already dirty
  * Use bWasDirty to check the previous dirty state of the package
  * Use Package->IsDirty() to get the updated dirty state of the package
