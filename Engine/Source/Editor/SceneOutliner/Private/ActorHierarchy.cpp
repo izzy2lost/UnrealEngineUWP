@@ -27,7 +27,6 @@
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/IWorldPartitionEditorModule.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
-#include "EditorLoadedActorCache.h"
 #include "ActorFolder.h"
 #include "ActorMode.h"
 
@@ -503,11 +502,9 @@ void FActorHierarchy::CreateUnloadedItems(UWorld* World, TArray<FSceneOutlinerTr
 	{
 		if (UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(World))
 		{
-			FEditorLoadedActorCache LoadedActorCache;
-			
 			const ULevelInstanceSubsystem* LevelInstanceSubsystem = World->GetSubsystem<ULevelInstanceSubsystem>();
 
-			WorldPartitionSubsystem->ForEachWorldPartition([this, LevelInstanceSubsystem, &LoadedActorCache, &OutItems, &AddChildContainer](UWorldPartition* WorldPartition)
+			WorldPartitionSubsystem->ForEachWorldPartition([this, LevelInstanceSubsystem, &OutItems, &AddChildContainer](UWorldPartition* WorldPartition)
 			{
 				UWorld* OuterWorld = WorldPartition->GetTypedOuter<UWorld>();
 				ULevel* OuterLevel = OuterWorld ? OuterWorld->PersistentLevel : nullptr;
@@ -522,8 +519,8 @@ void FActorHierarchy::CreateUnloadedItems(UWorld* World, TArray<FSceneOutlinerTr
 					}
 				}
 
-				const TSet<FGuid>& LoadedActors = LoadedActorCache.GetLoadedActorsForLevel(OuterLevel);
-				
+				const TSet<FGuid> LoadedActors = FWorldPartitionHelpers::GetLoadedActorGuidsForLevel(OuterLevel);
+
 				FWorldPartitionHelpers::ForEachActorDescInstance(WorldPartition, [this, &LoadedActors, &OutItems, &AddChildContainer, LevelInstanceSubsystem](const FWorldPartitionActorDescInstance* ActorDescInstance)
 				{
 					if (ActorDescInstance != nullptr && !LoadedActors.Contains(ActorDescInstance->GetGuid()) && FActorDescTreeItem::ShouldDisplayInOutliner(ActorDescInstance))

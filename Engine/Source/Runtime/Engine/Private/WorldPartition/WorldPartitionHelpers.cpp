@@ -324,6 +324,12 @@ bool FWorldPartitionHelpers::FixupRedirectedAssetPath(FName& InOutAssetPath)
 	return true;
 }
 
+TSet<FGuid> FWorldPartitionHelpers::GetLoadedActorGuidsForLevel(const ULevel* InLevel)
+{
+	TSet<FGuid> Result;
+	Algo::TransformIf(InLevel->Actors, Result, [](const AActor* Actor) { return IsValid(Actor); }, [](const AActor* Actor) { return Actor->GetActorGuid(); });
+	return MoveTemp(Result);
+}
 #endif // #if WITH_EDITOR
 
 bool FWorldPartitionHelpers::ConvertEditorPathToRuntimePath(const FSoftObjectPath& InPath, FSoftObjectPath& OutPath)

@@ -62,7 +62,6 @@
 #include "ActorFactories/ActorFactory.h"
 
 #include "SourceControlHelpers.h"
-#include "WorldPartition/WorldPartition.h"
 
 #include "Misc/ScopedSlowTask.h"
 
@@ -1187,7 +1186,6 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 		LandscapeProxy->OnMaterialChangedDelegate().AddRaw(LandscapeEdMode, &FEdModeLandscape::OnLandscapeMaterialChangedDelegate);
 	}
 
-	UWorldPartition* WorldPartition = World->GetWorldPartition();
 	ULandscapeSubsystem* LandscapeSubsystem = World->GetSubsystem<ULandscapeSubsystem>();
 	ALandscapeProxy* LandscapeProxy = LandscapeEdMode->CurrentToolTarget.LandscapeInfo->GetLandscapeProxy();
 	
@@ -1214,7 +1212,7 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 
 		TArray<ALocationVolume*> RegionVolumes;
 		FBox LandscapeBounds;
-		auto AddComponentsToRegion = [&Progress, NumRegions, bIsNewLandscape, LandscapeEdMode, WorldPartition, World, LandscapeProxy, &UISettings, QuadsPerSection, LandscapeInfo, LandscapeSubsystem, &RegionVolumes, &LandscapeBounds,&MaterialLayerDataPerLayers](const FIntPoint& RegionCoordinate, const TArray<FIntPoint>& NewComponents)
+		auto AddComponentsToRegion = [&Progress, NumRegions, bIsNewLandscape, LandscapeEdMode, World, LandscapeProxy, &UISettings, QuadsPerSection, LandscapeInfo, LandscapeSubsystem, &RegionVolumes, &LandscapeBounds,&MaterialLayerDataPerLayers](const FIntPoint& RegionCoordinate, const TArray<FIntPoint>& NewComponents)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(AddComponentsToRegion);
 						
@@ -1250,7 +1248,7 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 
 			// ensures all the final height textures have been updated.
 			LandscapeInfo->ForceLayersFullUpdate();
-			LandscapeEditorUtils::SaveLandscapeProxies(MakeArrayView(CreatedStreamingProxies), WorldPartition);
+			LandscapeEditorUtils::SaveLandscapeProxies(MakeArrayView(CreatedStreamingProxies));
 			LandscapeBounds += LandscapeInfo->GetCompleteBounds();
 
 			Progress.EnterProgressFrame(1.0f , FText::Format(LOCTEXT("LandscapeCreateRegion", "Creating Landscape Editor Regions ({0}, {1})"), RegionCoordinate.X, RegionCoordinate.Y));
@@ -1275,7 +1273,7 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 		TArray<ALandscapeProxy*> AllProxies;
 		
 		// save the initial region & unload it
-		LandscapeInfo->ForEachLandscapeProxy([&WorldPartition, &AllProxies](ALandscapeProxy* Proxy) {
+		LandscapeInfo->ForEachLandscapeProxy([&AllProxies](ALandscapeProxy* Proxy) {
 			if (Proxy->IsA<ALandscapeStreamingProxy>())
 			{		
 				AllProxies.Add(Proxy);
@@ -1284,7 +1282,7 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 			return true;
 		});
 
-		LandscapeEditorUtils::SaveLandscapeProxies(MakeArrayView(AllProxies), WorldPartition);
+		LandscapeEditorUtils::SaveLandscapeProxies(MakeArrayView(AllProxies));
 	}
 
 	return FReply::Handled();

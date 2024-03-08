@@ -177,6 +177,8 @@ public:
 	
 	UE_DEPRECATED(5.4, "Use UAssetRegistryHelpers::FixupRedirectedAssetPath instead.")
 	static ENGINE_API bool FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath);
+
+	static ENGINE_API TSet<FGuid> GetLoadedActorGuidsForLevel(const ULevel* InLevel);
 #endif // WITH_EDITOR
 
 	// Editor/Runtime conversions
