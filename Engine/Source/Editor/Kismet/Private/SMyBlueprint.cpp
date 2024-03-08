@@ -880,7 +880,7 @@ TSharedRef<SWidget> SMyBlueprint::OnGetSectionWidget(TSharedRef<SWidget> RowWidg
 				[
 					SAssignNew(FunctionSectionButton, SComboButton)
 					.IsEnabled(this, &SMyBlueprint::IsEditingMode)
-					.Visibility(this, &SMyBlueprint::OnGetSectionTextVisibility, WeakRowWidget, InSectionID)
+					.Visibility(EVisibility::SelfHitTestInvisible)
 					.ForegroundColor(FAppStyle::GetSlateColor("DefaultForeground"))
 					.OnGetMenuContent(this, &SMyBlueprint::OnGetFunctionListMenu)
 					.ContentPadding(0.0f)
@@ -1019,25 +1019,6 @@ bool SMyBlueprint::HandleActionMatchesName(FEdGraphSchemaAction* InAction, const
 		return BlueprintEditorPtr.Pin()->OnActionMatchesName(InAction, InName);
 	}
 	return false;
-}
-
-EVisibility SMyBlueprint::OnGetSectionTextVisibility(TWeakPtr<SWidget> RowWidget, int32 InSectionID) const
-{
-	bool ShowText = RowWidget.Pin()->IsHovered();
-	if ( InSectionID == NodeSectionID::FUNCTION && FunctionSectionButton.IsValid() && FunctionSectionButton->IsOpen() )
-	{
-		ShowText = true;
-	}
-
-	// If the row is currently hovered, or a menu is being displayed for a button, keep the button expanded.
-	if ( ShowText )
-	{
-		return EVisibility::SelfHitTestInvisible;
-	}
-	else
-	{
-		return EVisibility::Hidden;
-	}
 }
 
 TSharedRef<SWidget> SMyBlueprint::OnGetFunctionListMenu()
