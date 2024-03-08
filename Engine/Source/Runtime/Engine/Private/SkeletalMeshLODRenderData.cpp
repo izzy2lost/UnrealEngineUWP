@@ -303,11 +303,8 @@ void FSkeletalMeshLODRenderData::InitResources(bool bNeedsVertexColors, int32 LO
 
 	VertexAttributeBuffers.InitResources();
 	
-	if (HalfEdgeBuffer.IsCPUDataValid())
-	{
-		HalfEdgeBuffer.SetOwnerName(OwnerName);
-		BeginInitResource(&HalfEdgeBuffer, &UE::RenderCommandPipe::SkeletalMesh);	
-	}
+	HalfEdgeBuffer.SetOwnerName(OwnerName);
+	BeginInitResource(&HalfEdgeBuffer, &UE::RenderCommandPipe::SkeletalMesh);	
 
 #if RHI_RAYTRACING
 	if (IsRayTracingAllowed())

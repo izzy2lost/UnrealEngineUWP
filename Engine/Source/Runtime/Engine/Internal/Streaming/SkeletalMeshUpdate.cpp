@@ -60,6 +60,7 @@ void FSkeletalMeshStreamIn::FIntermediateBuffers::CreateFromCPUData(FRHICommandL
 	SkinWeightVertexBuffer = LODResource.SkinWeightVertexBuffer.CreateRHIBuffer(RHICmdList);
 	ClothVertexBuffer = LODResource.ClothVertexBuffer.CreateRHIBuffer(RHICmdList);
 	IndexBuffer = LODResource.MultiSizeIndexContainer.CreateRHIBuffer(RHICmdList);
+	HalfEdgeBuffer = LODResource.HalfEdgeBuffer.CreateRHIBuffer(RHICmdList);
 }
 
 void FSkeletalMeshStreamIn::FIntermediateBuffers::TransferBuffers(FSkeletalMeshLODRenderData& LODResource, FRHIResourceReplaceBatcher& Batcher)
@@ -72,6 +73,7 @@ void FSkeletalMeshStreamIn::FIntermediateBuffers::TransferBuffers(FSkeletalMeshL
 	LODResource.ClothVertexBuffer.InitRHIForStreaming(ClothVertexBuffer, Batcher);
 	LODResource.MultiSizeIndexContainer.InitRHIForStreaming(IndexBuffer, Batcher);
 	LODResource.SkinWeightProfilesData.InitRHIForStreaming(AltSkinWeightVertexBuffers, Batcher);
+	LODResource.HalfEdgeBuffer.InitRHIForStreaming(HalfEdgeBuffer, Batcher);
 }
 
 #if RHI_RAYTRACING
@@ -364,6 +366,7 @@ void FSkeletalMeshStreamOut::ReleaseBuffers(const FContext& Context)
 				LODResource.ClothVertexBuffer.ReleaseRHIForStreaming(Batcher);
 				LODResource.MultiSizeIndexContainer.ReleaseRHIForStreaming(Batcher);
 				LODResource.SkinWeightProfilesData.ReleaseRHIForStreaming(Batcher);
+				LODResource.HalfEdgeBuffer.ReleaseRHIForStreaming(Batcher);
 
 				if (!FPlatformProperties::HasEditorOnlyData())
 				{

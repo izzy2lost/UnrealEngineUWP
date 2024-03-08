@@ -10,6 +10,7 @@ SkeletalMeshUpdate.h: Helpers to stream in and out skeletal mesh LODs.
 #include "Engine/SkeletalMesh.h"
 #include "IO/IoDispatcher.h"
 #include "RenderAssetUpdate.h"
+#include "Rendering/SkeletalMeshHalfEdgeBuffer.h"
 #include "Rendering/SkinWeightVertexBuffer.h"
 #include "Serialization/BulkData.h"
 #include "RayTracingGeometry.h"
@@ -84,6 +85,7 @@ protected:
 		FBufferRHIRef ClothVertexBuffer;
 		FBufferRHIRef IndexBuffer;
 		TArray<TPair<FName, FSkinWeightRHIInfo>> AltSkinWeightVertexBuffers;
+		FSkeletalMeshHalfEdgeBuffer::FRHIInfo HalfEdgeBuffer;
 
 		void CreateFromCPUData(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODResource);
 

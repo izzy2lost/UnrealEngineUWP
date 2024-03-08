@@ -1,6 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Rendering/SkeletalMeshHalfEdgeBuffer.h"
+
+#include "RHIResourceUpdates.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
 
 struct FEdgeKey
@@ -219,24 +221,24 @@ void FSkeletalMeshHalfEdgeBuffer::Init(const FSkeletalMeshLODRenderData& InLodRe
 	SkeletalMeshHalfEdgeUtility::BuildHalfEdgeBuffers(InLodRenderData, VertexToEdgeData, EdgeToTwinEdgeData);	
 }
 
-void FSkeletalMeshHalfEdgeBuffer::InitRHI(FRHICommandListBase& RHICmdList)
+FSkeletalMeshHalfEdgeBuffer::FRHIInfo FSkeletalMeshHalfEdgeBuffer::CreateRHIBuffer(FRHICommandListBase& RHICmdList)
 {
+	FRHIInfo Buffers;
+	
 	const static FLazyName ClassName(TEXT("FSkeletalMeshHalfEdgeBuffer"));
 
-	// InitRHI only called if CPU data is valid
-	check(VertexToEdgeData.Num() > 0 && EdgeToTwinEdgeData.Num() > 0)
+	uint32 MinBufferSize = GetMinBufferSize();
 	{
 		const uint32 BufferSize = VertexToEdgeData.GetResourceDataSize();
 		FRHIResourceCreateInfo CreateInfo(TEXT("VertexToEdgeData"));
 		CreateInfo.ClassName = ClassName;
 		CreateInfo.OwnerName = GetOwnerName();
-		VertexToEdgeBufferRHI = RHICmdList.CreateStructuredBuffer(sizeof(int32), BufferSize, BUF_Static | BUF_ShaderResource, ERHIAccess::SRVMask, CreateInfo);
-		VertexToEdgeBufferRHI->SetOwnerName(GetOwnerName());
-
-		void* BufferPtr = RHICmdList.LockBuffer(VertexToEdgeBufferRHI, 0, BufferSize, RLM_WriteOnly);
-		FMemory::ParallelMemcpy(BufferPtr, VertexToEdgeData.GetData(), BufferSize, EMemcpyCachePolicy::StoreUncached);
-		RHICmdList.UnlockBuffer(VertexToEdgeBufferRHI);
-		VertexToEdgeBufferSRV = RHICmdList.CreateShaderResourceView(VertexToEdgeBufferRHI);
+		if (BufferSize > 0)
+		{
+			CreateInfo.ResourceArray = &VertexToEdgeData;
+		}
+		Buffers.VertexToEdgeBufferRHI = RHICmdList.CreateStructuredBuffer(MinBufferSize, FMath::Max(BufferSize, MinBufferSize) , BUF_Static | BUF_ShaderResource, ERHIAccess::SRVMask, CreateInfo);
+		Buffers.VertexToEdgeBufferRHI->SetOwnerName(GetOwnerName());
 	}
 
 	{
@@ -244,12 +246,59 @@ void FSkeletalMeshHalfEdgeBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 		FRHIResourceCreateInfo CreateInfo(TEXT("EdgeToTwinEdgeData"));
 		CreateInfo.ClassName = ClassName;
 		CreateInfo.OwnerName = GetOwnerName();
-		EdgeToTwinEdgeBufferRHI = RHICmdList.CreateStructuredBuffer(sizeof(int32), BufferSize, BUF_Static | BUF_ShaderResource, ERHIAccess::SRVMask, CreateInfo);
-		EdgeToTwinEdgeBufferRHI->SetOwnerName(GetOwnerName());
+		if (BufferSize > 0)
+		{
+			CreateInfo.ResourceArray = &EdgeToTwinEdgeData;
+		}
+		Buffers.EdgeToTwinEdgeBufferRHI = RHICmdList.CreateStructuredBuffer(sizeof(int32), FMath::Max(BufferSize, MinBufferSize), BUF_Static | BUF_ShaderResource, ERHIAccess::SRVMask, CreateInfo);
+		Buffers.EdgeToTwinEdgeBufferRHI->SetOwnerName(GetOwnerName());
+	}
 
-		void* BufferPtr = RHICmdList.LockBuffer(EdgeToTwinEdgeBufferRHI, 0, BufferSize, RLM_WriteOnly);
-		FMemory::ParallelMemcpy(BufferPtr, EdgeToTwinEdgeData.GetData(), BufferSize, EMemcpyCachePolicy::StoreUncached);
-		RHICmdList.UnlockBuffer(EdgeToTwinEdgeBufferRHI);
+
+	return Buffers;
+}
+
+void FSkeletalMeshHalfEdgeBuffer::InitRHIForStreaming(FRHIInfo RHIInfo, FRHIResourceUpdateBatcher& Batcher)
+{
+	if (VertexToEdgeBufferRHI && RHIInfo.VertexToEdgeBufferRHI)
+	{
+		Batcher.QueueUpdateRequest(VertexToEdgeBufferRHI, RHIInfo.VertexToEdgeBufferRHI);
+	}
+	if (EdgeToTwinEdgeBufferRHI && RHIInfo.EdgeToTwinEdgeBufferRHI)
+	{
+		Batcher.QueueUpdateRequest(EdgeToTwinEdgeBufferRHI, RHIInfo.EdgeToTwinEdgeBufferRHI);
+	}
+}
+
+void FSkeletalMeshHalfEdgeBuffer::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+{
+	if (VertexToEdgeBufferRHI)
+	{
+		Batcher.QueueUpdateRequest(VertexToEdgeBufferRHI, nullptr);
+	}
+	if (EdgeToTwinEdgeBufferRHI )
+	{
+		Batcher.QueueUpdateRequest(EdgeToTwinEdgeBufferRHI, nullptr);
+	}	
+}
+
+void FSkeletalMeshHalfEdgeBuffer::InitRHI(FRHICommandListBase& RHICmdList)
+{
+	FRHIInfo Buffers = CreateRHIBuffer(RHICmdList);
+	
+	VertexToEdgeBufferRHI = Buffers.VertexToEdgeBufferRHI;
+	EdgeToTwinEdgeBufferRHI = Buffers.EdgeToTwinEdgeBufferRHI;
+	// We should always have a RHI and thus a SRV, even when CPU data is empty,
+	// which can happen in two cases:
+	// 1. It was not cooked with the skeletal mesh, in this case the buffer is never used.
+	// 2. It has not been streamed in for this LOD yet. But once streamed, 
+	//    the RHI will takeover ownership of the streamed buffer and becomes usable
+	if (ensure(VertexToEdgeBufferRHI))
+	{
+		VertexToEdgeBufferSRV = RHICmdList.CreateShaderResourceView(VertexToEdgeBufferRHI);
+	}
+	if (ensure(EdgeToTwinEdgeBufferRHI))
+	{
 		EdgeToTwinEdgeBufferSRV = RHICmdList.CreateShaderResourceView(EdgeToTwinEdgeBufferRHI);
 	}
 }
@@ -267,6 +316,14 @@ bool FSkeletalMeshHalfEdgeBuffer::IsCPUDataValid() const
 	return VertexToEdgeData.Num() > 0 && EdgeToTwinEdgeData.Num() > 0;
 }
 
+bool FSkeletalMeshHalfEdgeBuffer::IsReadyForRendering() const
+{
+	// The size of a buffer with valid data is definitely larger than the min buffer size
+	// Buffer not being ready does not always mean that the data was not cooked,
+	// it could also mean that the data hasn't been streamed in yet
+	return IsInitialized() && VertexToEdgeBufferRHI->GetSize() > GetMinBufferSize();
+}
+
 void FSkeletalMeshHalfEdgeBuffer::CleanUp()
 {
 	VertexToEdgeData.Reset();
@@ -282,6 +339,11 @@ void FSkeletalMeshHalfEdgeBuffer::Serialize(FArchive& Ar)
 {
 	Ar << VertexToEdgeData;
 	Ar << EdgeToTwinEdgeData;
+}
+
+uint32 FSkeletalMeshHalfEdgeBuffer::GetMinBufferSize() const
+{
+	return sizeof(int32);
 }
 
 FArchive& operator<<(FArchive& Ar, FSkeletalMeshHalfEdgeBuffer& HalfEdgeBuffer)
