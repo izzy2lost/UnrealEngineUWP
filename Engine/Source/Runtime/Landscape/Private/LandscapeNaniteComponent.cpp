@@ -190,6 +190,10 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			AsyncBuildData->SourceModel = &AsyncBuildData->NaniteStaticMesh->AddSourceModel();
 			AsyncBuildData->NaniteMeshDescription = AsyncBuildData->NaniteStaticMesh->CreateMeshDescription(0);
 
+			// ExportRawMesh places Lightmap UVs in coord 2
+			const int32 LightmapUVCoordIndex = 2;
+			AsyncBuildData->NaniteStaticMesh->SetLightMapCoordinateIndex(LightmapUVCoordIndex);
+
 			// create a hash key for the DDC cache of the landscape static mesh export
 			FString ExportDDCKey;
 			{
@@ -200,8 +204,13 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 				check(PLATFORM_LITTLE_ENDIAN); // not sure if NewProxyContentId byte order is platform agnostic or not
 				Hasher.Update(reinterpret_cast<const uint8*>(&ProxyContentId), sizeof(FGuid));
 				Hasher.Update(reinterpret_cast<const uint8*>(MeshExportVersion), strlen(MeshExportVersion));
-				int32 LightmapUVVersionForHash = INTEL_ORDER32(AsyncBuildData->NaniteStaticMesh->GetLightmapUVVersion());
-				Hasher.Update(reinterpret_cast<const uint8*>(&LightmapUVVersionForHash), sizeof(int32));
+
+				// since we can break proxies into multiple nanite meshes, the hash needs to include which piece(s) we are building here
+				for (ULandscapeComponent* Component : AsyncBuildData->InputComponents)
+				{
+					FIntPoint ComponentBase = Component->GetSectionBase();
+					Hasher.Update(reinterpret_cast<const uint8*>(&ComponentBase), sizeof(FIntPoint));
+				}
 
 				ExportDDCKey = Hasher.Finalize().ToString();
 			}
@@ -211,7 +220,8 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			AsyncBuildData->SourceModel->BuildSettings.bRecomputeTangents = false;
 			AsyncBuildData->SourceModel->BuildSettings.bRemoveDegenerates = false;
 			AsyncBuildData->SourceModel->BuildSettings.bUseHighPrecisionTangentBasis = false;
-			AsyncBuildData->SourceModel->BuildSettings.bUseFullPrecisionUVs = false;
+			AsyncBuildData->SourceModel->BuildSettings.bUseFullPrecisionUVs = false;			
+			AsyncBuildData->SourceModel->BuildSettings.bGenerateLightmapUVs = false; // we generate our own Lightmap UVs; don't stomp on them!
 
 			FMeshNaniteSettings& NaniteSettings = AsyncBuildData->NaniteStaticMesh->NaniteSettings;
 			NaniteSettings.bEnabled = true;
@@ -237,13 +247,18 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			ExportParams.UVConfiguration.ExportUVMappingTypes.SetNumZeroed(4);
 			ExportParams.UVConfiguration.ExportUVMappingTypes[0] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XY; // In LandscapeVertexFactory, Texcoords0 = ETerrainCoordMappingType::TCMT_XY (or ELandscapeCustomizedCoordType::LCCT_CustomUV0)
 			ExportParams.UVConfiguration.ExportUVMappingTypes[1] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XZ; // In LandscapeVertexFactory, Texcoords1 = ETerrainCoordMappingType::TCMT_XZ (or ELandscapeCustomizedCoordType::LCCT_CustomUV1)
-			ExportParams.UVConfiguration.ExportUVMappingTypes[2] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_YZ; // In LandscapeVertexFactory, Texcoords2 = ETerrainCoordMappingType::TCMT_YZ (or ELandscapeCustomizedCoordType::LCCT_CustomUV2)
-			ExportParams.UVConfiguration.ExportUVMappingTypes[3] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::WeightmapUV; // In LandscapeVertexFactory, Texcoords3 = ELandscapeCustomizedCoordType::LCCT_WeightMapUV
+			ExportParams.UVConfiguration.ExportUVMappingTypes[2] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::LightmapUV;			  // In LandscapeVertexFactory, Texcoords2 = ETerrainCoordMappingType::TCMT_YZ (or ELandscapeCustomizedCoordType::LCCT_CustomUV2)
+			ExportParams.UVConfiguration.ExportUVMappingTypes[3] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::WeightmapUV;			  // In LandscapeVertexFactory, Texcoords3 = ELandscapeCustomizedCoordType::LCCT_WeightMapUV
+
+			// in case we do generate lightmap UVs, use the "XY" mapping as the source chart UV, and store them to UV channel 2
+			AsyncBuildData->SourceModel->BuildSettings.SrcLightmapIndex = 0;
+			AsyncBuildData->SourceModel->BuildSettings.DstLightmapIndex = LightmapUVCoordIndex;
+
 			// COMMENT [jonathan.bard] ATM Nanite meshes only support up to 4 UV sets so we cannot support those 2 : 
 			//ExportParams.UVConfiguration.ExportUVMappingTypes[4] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::LightmapUV; // In LandscapeVertexFactory, Texcoords4 = lightmap UV
 			//ExportParams.UVConfiguration.ExportUVMappingTypes[5] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::HeightmapUV; // // In LandscapeVertexFactory, Texcoords5 = heightmap UV
 
-			static bool bDisableDDCMeshBuildCache = true;
+			constexpr bool bDisableDDCMeshBuildCache = false;
 			bool bSuccess = false;
 			TArray<uint8> MeshDescriptionData;
 			if (!bDisableDDCMeshBuildCache && GetDerivedDataCacheRef().GetSynchronous(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName()))
@@ -265,7 +280,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 				MeshDescriptionHelper.SetupRenderMeshDescription(AsyncBuildData->NaniteStaticMesh, *AsyncBuildData->NaniteMeshDescription, true /* Is Nanite */, false /* bNeedTangents */);
 
 				// cache mesh description, only if we succeeded (failure may be non-deterministic)
-				if (bSuccess)
+				if (!bDisableDDCMeshBuildCache && bSuccess)
 				{
 					// don't bother to save large mesh descriptions into the DDC cache
 					// a 1k x 1k landscape ends up being around ~500 megs of serialized mesh description data

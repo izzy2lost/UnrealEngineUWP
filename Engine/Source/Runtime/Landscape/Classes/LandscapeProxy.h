@@ -1304,12 +1304,12 @@ public:
 			// TODO [jonathan.bard] : RelativeToComponentsBoundsUV, /** Only valid when ComponentsToExport is set : normalized UVs spanning the ComponentToExport's bounds, i.e. (0,0) at the bottom left corner of those components' lower left component -> (1,1) at the top right corner of those components' upper right component */
 			RelativeToProxyBoundsUV, /** Normalized UVs spanning the landscape proxy's bounds, i.e. (0,0) at the bottom left corner of the proxy's lower left landscape component -> (1,1) at the top right corner of the proxy's upper right component */
 			// TODO[jonathan.bard] : RelativeToLandscapeBoundsUV, /** Normalized UVs spanning the entire landscape bounds, i.e. (0,0) at the bottom left corner of the landscape's lower left landscape component -> (1,1) at the top right corner of the landscape's upper right component */
-			HeightmapUV, /** Export the heightmaps' UV mapping */
-			WeightmapUV, /** Export the weightmaps' UV mapping */
-			// TODO[jonathan.bard] : LightmapUV, 
+			HeightmapUV,			/** Export the heightmaps' UV mapping */
+			WeightmapUV,			/** Export the weightmaps' UV mapping */
 			TerrainCoordMapping_XY, /** Similar to ETerrainCoordMappingType::TCMT_XY */
 			TerrainCoordMapping_XZ, /** Similar to ETerrainCoordMappingType::TCMT_XZ */
 			TerrainCoordMapping_YZ, /** Similar to ETerrainCoordMappingType::TCMT_YZ */
+			LightmapUV,				/** 0-1, with a bit of padding, across the mesh */
 
 			Num
 		};

@@ -6,7 +6,6 @@
 #include "MaterialHLSLGenerator.h"
 #include "MaterialHLSLTree.h"
 
-
 #define LOCTEXT_NAMESPACE "Landscape"
 
 
@@ -59,24 +58,29 @@ int32 UMaterialExpressionLandscapeLayerCoords::Compile(class FMaterialCompiler* 
 	case TCMT_Auto:
 	case TCMT_XY: BaseUV = Compiler->TextureCoordinate(0, false, false); break;
 	case TCMT_XZ: BaseUV = Compiler->TextureCoordinate(1, false, false); break;
-	case TCMT_YZ: BaseUV = Compiler->TextureCoordinate(2, false, false); break;
-	default: UE_LOG(LogLandscape, Fatal, TEXT("Invalid mapping type %u"), (uint8)MappingType); return INDEX_NONE;
+	case TCMT_YZ:
+		{
+			int Y = Compiler->ComponentMask(Compiler->TextureCoordinate(0, false, false), 0, 1, 0, 0);
+			int Z = Compiler->ComponentMask(Compiler->TextureCoordinate(1, false, false), 0, 1, 0, 0);
+
+			BaseUV = Compiler->AppendVector(Y, Z);
+		}
+		break;
+	default:
+		UE_LOG(LogLandscape, Fatal, TEXT("Invalid mapping type %u"), (uint8)MappingType);
+		return INDEX_NONE;
 	};
 
 	float Scale = (MappingScale == 0.0f) ? 1.0f : 1.0f / MappingScale;
-	int32 RealScale = Compiler->Constant(Scale);
-
-	const float Cos = FMath::Cos(MappingRotation * PI / 180.0f);
-	const float Sin = FMath::Sin(MappingRotation * PI / 180.0f);
+	const float RotX = FMath::Cos(MappingRotation * PI / 180.0f) * Scale;
+	const float RotY = FMath::Sin(MappingRotation * PI / 180.0f) * Scale;
 
 	int32 TransformedUV = Compiler->Add(
-		Compiler->Mul(RealScale,
 		Compiler->AppendVector(
-		Compiler->Dot(BaseUV, Compiler->Constant2(+Cos, +Sin)),
-		Compiler->Dot(BaseUV, Compiler->Constant2(-Sin, +Cos)))
-		),
+			Compiler->Dot(BaseUV, Compiler->Constant2(+RotX, +RotY)),
+			Compiler->Dot(BaseUV, Compiler->Constant2(-RotY, +RotX))),
 		Compiler->Constant2(MappingPanU, MappingPanV)
-		);
+	);
 	
 	return TransformedUV;
 }
