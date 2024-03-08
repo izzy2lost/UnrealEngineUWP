@@ -79,6 +79,8 @@ enum class EEndReplicationFlags : uint32
 };
 ENUM_CLASS_FLAGS(EEndReplicationFlags);
 
+IRISCORE_API FString LexToString(EEndReplicationFlags EndReplicationFlags);
+
 enum class EReplicationBridgeCreateNetRefHandleResultFlags : unsigned
 {
 	None = 0U,
@@ -109,6 +111,8 @@ enum class EReplicationBridgeDestroyInstanceFlags : unsigned
 	AllowDestroyInstanceFromRemote = 1U << 0U,
 };
 ENUM_CLASS_FLAGS(EReplicationBridgeDestroyInstanceFlags);
+
+IRISCORE_API const TCHAR* LexToString(EReplicationBridgeDestroyInstanceFlags DestroyFlags);
 
 UCLASS(Transient, MinimalAPI)
 class UReplicationBridge : public UObject
@@ -159,6 +163,9 @@ public:
 
 	/** Get the group associated with the level in order to control connection filtering for it. */
 	IRISCORE_API UE::Net::FNetObjectGroupHandle GetLevelGroup(const UObject* Level) const;
+
+	/** Print common information about this handle and the object it is mapped to */
+	[[nodiscard]] IRISCORE_API FString PrintObjectFromNetRefHandle(FNetRefHandle RefHandle) const;
 
 protected:
 	/** Initializes the bridge. Is called during ReplicationSystem initialization. */
