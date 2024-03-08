@@ -57,7 +57,7 @@ public:
 	bool bForceObjectAndStructExtraction = false;
 
 	/** By default, attribute name will be None, but it can be overridden by this name. Use @SourceName to use the property name (only works when not extracting). */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bExtractObjectAndStruct", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bForceObjectAndStructExtraction", EditConditionHides))
 	FName OutputAttributeName = NAME_None;
 
 	/** By default, object loading is asynchronous, can force it synchronous if needed. */
