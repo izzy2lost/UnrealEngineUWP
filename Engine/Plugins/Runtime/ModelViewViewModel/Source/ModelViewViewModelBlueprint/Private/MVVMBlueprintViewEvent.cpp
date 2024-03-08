@@ -8,6 +8,7 @@
 #include "Bindings/MVVMFieldPathHelper.h"
 #include "Engine/Blueprint.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "MVVMConversionFunctionGraphSchema.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "WidgetBlueprint.h"
@@ -20,6 +21,7 @@
 #include "K2Node_FunctionResult.h"
 #include "K2Node_VariableSet.h"
 #include "KismetCompiler.h"
+#include "Node/MVVMK2Node_AreSourcesValidForEvent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMBlueprintViewEvent)
 
@@ -64,7 +66,7 @@ void UMVVMBlueprintViewEvent::SetDestinationPath(FMVVMBlueprintPropertyPath InDe
 	SavePinValues();
 }
 
-void UMVVMBlueprintViewEvent::SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2Node* Node)
+void UMVVMBlueprintViewEvent::SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2Node* Node, UMVVMK2Node_AreSourcesValidForEvent* SourceNode)
 {
 	if (CachedWrapperNode && OnUserDefinedPinRenamedHandle.IsValid())
 	{
@@ -77,6 +79,7 @@ void UMVVMBlueprintViewEvent::SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2
 
 	CachedWrapperGraph = Graph;
 	CachedWrapperNode = Node;
+	CachedSourceValidNode = SourceNode;
 	OnGraphChangedHandle.Reset();
 	OnUserDefinedPinRenamedHandle.Reset();
 
@@ -88,6 +91,7 @@ void UMVVMBlueprintViewEvent::SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2
 	{
 		OnUserDefinedPinRenamedHandle = CachedWrapperNode->OnUserDefinedPinRenamed().AddUObject(this, &UMVVMBlueprintViewEvent::HandleUserDefinedPinRenamed);
 	}
+	UpdateEventKeyInternal();
 }
 	
 UEdGraph* UMVVMBlueprintViewEvent::GetOrCreateWrapperGraph()
@@ -106,7 +110,7 @@ void UMVVMBlueprintViewEvent::RemoveWrapperGraph()
 	if (CachedWrapperGraph)
 	{
 		FBlueprintEditorUtils::RemoveGraph(GetWidgetBlueprintInternal(), CachedWrapperGraph);
-		SetCachedWrapperGraphInternal(nullptr, nullptr);
+		SetCachedWrapperGraphInternal(nullptr, nullptr, nullptr);
 	}
 
 	Messages.Empty();
@@ -153,6 +157,23 @@ bool UMVVMBlueprintViewEvent::HasOrphanedPin() const
 		}
 	}
 	return false;
+}
+
+void UMVVMBlueprintViewEvent::UpdateEventKey(FMVVMViewClass_EventKey InEventKey)
+{
+	if (EventKey != InEventKey)
+	{
+		EventKey = InEventKey;
+		UpdateEventKeyInternal();
+	}
+}
+
+void UMVVMBlueprintViewEvent::UpdateEventKeyInternal()
+{
+	if (CachedSourceValidNode)
+	{
+		CachedSourceValidNode->EventKey = EventKey;
+	}
 }
 
 FMVVMBlueprintPropertyPath UMVVMBlueprintViewEvent::GetPinPath(const FMVVMBlueprintPinId& PinId) const
@@ -249,12 +270,13 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal()
 	TValueOrError<UE::MVVM::ConversionFunctionHelper::FCreateGraphResult, FText> CreateSetterGraphResult = UE::MVVM::ConversionFunctionHelper::CreateSetterGraph(WidgetBlueprint, GraphName, DelegateSignature, DestinationPath, bIsConst, bTransient, true);
 	if (CreateSetterGraphResult.HasError())
 	{
-		SetCachedWrapperGraphInternal(nullptr, nullptr);
+		SetCachedWrapperGraphInternal(nullptr, nullptr, nullptr);
 		return nullptr;
 	}
 	else
 	{
-		SetCachedWrapperGraphInternal(CreateSetterGraphResult.GetValue().NewGraph, CreateSetterGraphResult.GetValue().WrappedNode);
+		UMVVMK2Node_AreSourcesValidForEvent* BranchNode = Cast<UMVVMK2Node_AreSourcesValidForEvent>(UE::MVVM::ConversionFunctionHelper::InsertEarlyExitBranchNode(CreateSetterGraphResult.GetValue().NewGraph, UMVVMK2Node_AreSourcesValidForEvent::StaticClass()));
+		SetCachedWrapperGraphInternal(CreateSetterGraphResult.GetValue().NewGraph, CreateSetterGraphResult.GetValue().WrappedNode, BranchNode);
 		LoadPinValuesInternal();
 	}
 

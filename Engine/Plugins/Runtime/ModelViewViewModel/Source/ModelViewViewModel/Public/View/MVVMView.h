@@ -159,8 +159,17 @@ public:
 	 * The viewmodel needs to be settable and it should have a valid name.
 	 * If the view is initialized, all bindings that uses that viewmodel will be re-executed with the new viewmodel instance.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
+	UFUNCTION(BlueprintCallable, Category = "View")
 	bool SetViewModelByClass(TScriptInterface<INotifyFieldValueChanged> NewValue);
+
+private:
+	/**
+	 * Set the viewmodel of the specified name.
+	 * The viewmodel needs to be settable and the type should match (child of the defined viewmodel).
+	 * If the view is initialized, all bindings that uses that viewmodel will be re-executed with the new viewmodel instance.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "View", meta=(BlueprintInternalUseOnly="true"))
+	bool AreSourcesValidForEvent(int32 EventKey) const;
 
 private:
 	//~ Source
@@ -201,7 +210,7 @@ private:
 	/** The event that are registered by the view to the sources. */
 	TArray<FBoundEvent> BoundEvents;
 
-	/** The view has at least one binding that need to be ticked every frame. */
+	/** Bitfield that represents the valid sources. */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "View")
 	uint64 ValidSources = 0;
 

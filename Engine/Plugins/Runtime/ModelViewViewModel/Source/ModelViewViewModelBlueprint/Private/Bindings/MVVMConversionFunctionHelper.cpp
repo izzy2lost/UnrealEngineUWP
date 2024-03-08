@@ -763,7 +763,7 @@ TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint
 		return MakeError(CanCreateSetterGraphResult.StealError());
 	}
 
-	const bool bIsEditable = true;
+	const bool bIsEditable = false;
 	const bool bAddToBlueprint = !bTransient;
 	Private::FCreateGraphResult CreateGraphInternalResult = Private::CreateGraph(Blueprint, GraphName, Signature, bIsConst, bIsEditable, bAddToBlueprint);
 
@@ -1055,6 +1055,41 @@ FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFu
 	}
 
 	return { NewGraph.FunctionGraph , CallFunctionNode };
+}
+
+UK2Node* InsertEarlyExitBranchNode(UEdGraph* Graph, TSubclassOf<UK2Node> BranchNodeType)
+{
+	if (Graph == nullptr || BranchNodeType.Get() == nullptr)
+	{
+		return nullptr;
+	}
+
+	UK2Node_FunctionEntry* FunctionEntry = Private::FindFunctionEntry(Graph);
+	if (FunctionEntry == nullptr)
+	{
+		return nullptr;
+	}
+
+	UK2Node* BranchNode = nullptr;
+	{
+		FGraphNodeCreator<UK2Node> BranchNodeCreator(*Graph);
+		BranchNode = BranchNodeCreator.CreateNode(true, BranchNodeType.Get());
+		BranchNode->NodePosX = FunctionEntry->NodePosX;
+		BranchNode->NodePosY = FunctionEntry->NodePosY+100;
+		BranchNodeCreator.Finalize();
+	}
+
+	const UEdGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
+	{
+		UEdGraphPin* EntryThenPin = FunctionEntry->FindPinChecked(UEdGraphSchema_K2::PN_Then);
+		UEdGraphPin* BranchThenPin = BranchNode->FindPinChecked(UEdGraphSchema_K2::PN_Then, EEdGraphPinDirection::EGPD_Output);
+		GraphSchema->MovePinLinks(*EntryThenPin, *BranchThenPin, true, false);
+
+		UEdGraphPin* BranchInputPin = BranchNode->FindPinChecked(UEdGraphSchema_K2::PN_Execute, EEdGraphPinDirection::EGPD_Input);
+		GraphSchema->TryCreateConnection(EntryThenPin, BranchInputPin);
+	}
+
+	return BranchNode;
 }
 
 UK2Node* GetWrapperNode(const UEdGraph* Graph)

@@ -321,14 +321,7 @@ private:
 	 */
 	struct FCompilerEvent
 	{
-		enum class EType : int32
-		{
-			Unknown = 0, // was not evaluated yet
-			Invalid = -1, // evaluated and not valid
-			Valid = 1,
-		};
 		TWeakObjectPtr<UMVVMBlueprintViewEvent> Event = nullptr;
-		EType Type = EType::Unknown;
 
 		TArray<TSharedPtr<FGeneratedReadFieldPathContext>> ReadPaths;
 		TSharedPtr<FGeneratedWriteFieldPathContext> WritePath;

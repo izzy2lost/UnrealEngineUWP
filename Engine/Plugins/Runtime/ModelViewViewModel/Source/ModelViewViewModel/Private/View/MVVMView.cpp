@@ -1056,4 +1056,36 @@ void UMVVMView::ReinitializeEvents(FMVVMViewClass_SourceKey SourceKey, UObject* 
 	}
 }
 
+
+bool UMVVMView::AreSourcesValidForEvent(int32 EventKeyIndex) const
+{
+	FMVVMViewClass_EventKey EventKey = FMVVMViewClass_EventKey(EventKeyIndex);
+	if (ClassExtension)
+	{
+		const FMVVMViewClass_Event& ClassEvent = ClassExtension->GetEvent(EventKey);
+		uint64 EventSources = ClassEvent.GetSources();
+		if ((EventSources & ValidSources) == EventSources)
+		{
+			return true;
+		}
+		
+		const uint64 MissingSources = EventSources & (~ValidSources);
+		if ((MissingSources & ClassExtension->GetOptionalSources()) != MissingSources)
+		{
+#if UE_WITH_MVVM_DEBUGGING
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Error(FText::Format(LOCTEXT("ExecuteEventFailInvalidSource", "The event '{0}' was not executed. There are invalid sources.")
+				, FText::FromString(ClassEvent.ToString(ClassExtension, FMVVMViewClass_Event::FToStringArgs::Short()))
+			));
+#else
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Error(FText::Format(LOCTEXT("ExecuteEventFailInvalidSource", "The event '{0}' was not executed. There are invalid sources.")
+				, FText::AsNumber(EventKey.GetIndex())
+			));
+#endif
+		}
+	}
+	return false;
+}
+
 #undef LOCTEXT_NAMESPACE

@@ -1152,10 +1152,11 @@ void FMVVMViewBlueprintCompiler::CategorizeBindings(const FWidgetBlueprintCompil
 
 void FMVVMViewBlueprintCompiler::CategorizeEvents(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& Context)
 {
-	for (TSharedRef<FCompilerEvent>& Event : ValidEvents)
-	{
-		Event->Type = FCompilerEvent::EType::Invalid;
+	TArray<TSharedRef<FCompilerEvent>> TemporaryEvent = MoveTemp(ValidEvents);
+	ValidEvents.Reset(TemporaryEvent.Num());
 
+	for (TSharedRef<FCompilerEvent>& Event : TemporaryEvent)
+	{
 		UMVVMBlueprintViewEvent* EventPtr = Event->Event.Get();
 		UEdGraph* WrapperGraph = EventPtr->GetOrCreateWrapperGraph();
 		if (WrapperGraph == nullptr)
@@ -1174,7 +1175,8 @@ void FMVVMViewBlueprintCompiler::CategorizeEvents(const FWidgetBlueprintCompiler
 			continue;
 		}
 
-		Event->Type = FCompilerEvent::EType::Valid;
+		int32 Index = ValidEvents.Add(Event);
+		EventPtr->UpdateEventKey(FMVVMViewClass_EventKey(Index));
 	}
 }
 
@@ -1254,42 +1256,39 @@ void FMVVMViewBlueprintCompiler::CreateWriteFieldContexts(const FWidgetBlueprint
 		UMVVMBlueprintViewEvent* EventPtr = ValidEvent->Event.Get();
 		check(EventPtr);
 
-		if (ValidEvent->Type == FCompilerEvent::EType::Valid)
+		TValueOrError<FCreateFieldsResult, FText> FieldContextResult = CreateFieldContext(NewSkeletonClass, EventPtr->GetDestinationPath(), false);
+		if (FieldContextResult.HasError())
 		{
-			TValueOrError<FCreateFieldsResult, FText> FieldContextResult = CreateFieldContext(NewSkeletonClass, EventPtr->GetDestinationPath(), false);
-			if (FieldContextResult.HasError())
-			{
-				AddMessageForEvent(EventPtr
-					, FText::Format(Private::PropertyPathIsInvalidFormat, PropertyPathToText(NewSkeletonClass, BlueprintView.Get(), EventPtr->GetDestinationPath()))
-					, EMessageType::Error
-					, FMVVMBlueprintPinId()
-				);
-				bIsCreateFunctionsStepValid = false;
-				continue;
-			}
-
-			// Test if it already exist
-			TSharedPtr<FGeneratedWriteFieldPathContext> WriteFieldPath;
-			{
-				const TArray<UE::MVVM::FMVVMConstFieldVariant>& SkeletalGeneratedFieldsResult = FieldContextResult.GetValue().SkeletalGeneratedFields;
-				TSharedRef<FGeneratedWriteFieldPathContext>* Found = GeneratedWriteFieldPaths.FindByPredicate([&SkeletalGeneratedFieldsResult](const TSharedRef<FGeneratedWriteFieldPathContext>& Other) { return Other->SkeletalGeneratedFields == SkeletalGeneratedFieldsResult; });
-				if (Found)
-				{
-					WriteFieldPath = (*Found);
-				}
-				else
-				{
-					WriteFieldPath = MakeWriteFieldPath(
-						EventPtr->GetDestinationPath().GetSource(WidgetBlueprintCompilerContext.WidgetBlueprint())
-						, MoveTemp(FieldContextResult.GetValue().GeneratedFields)
-						,MoveTemp(FieldContextResult.GetValue().SkeletalGeneratedFields));
-					GeneratedWriteFieldPaths.Add(WriteFieldPath.ToSharedRef());
-				}
-			}
-
-			WriteFieldPath->UsedByEvents.AddUnique(ValidEvent);
-			ValidEvent->WritePath = WriteFieldPath;
+			AddMessageForEvent(EventPtr
+				, FText::Format(Private::PropertyPathIsInvalidFormat, PropertyPathToText(NewSkeletonClass, BlueprintView.Get(), EventPtr->GetDestinationPath()))
+				, EMessageType::Error
+				, FMVVMBlueprintPinId()
+			);
+			bIsCreateFunctionsStepValid = false;
+			continue;
 		}
+
+		// Test if it already exist
+		TSharedPtr<FGeneratedWriteFieldPathContext> WriteFieldPath;
+		{
+			const TArray<UE::MVVM::FMVVMConstFieldVariant>& SkeletalGeneratedFieldsResult = FieldContextResult.GetValue().SkeletalGeneratedFields;
+			TSharedRef<FGeneratedWriteFieldPathContext>* Found = GeneratedWriteFieldPaths.FindByPredicate([&SkeletalGeneratedFieldsResult](const TSharedRef<FGeneratedWriteFieldPathContext>& Other) { return Other->SkeletalGeneratedFields == SkeletalGeneratedFieldsResult; });
+			if (Found)
+			{
+				WriteFieldPath = (*Found);
+			}
+			else
+			{
+				WriteFieldPath = MakeWriteFieldPath(
+					EventPtr->GetDestinationPath().GetSource(WidgetBlueprintCompilerContext.WidgetBlueprint())
+					, MoveTemp(FieldContextResult.GetValue().GeneratedFields)
+					,MoveTemp(FieldContextResult.GetValue().SkeletalGeneratedFields));
+				GeneratedWriteFieldPaths.Add(WriteFieldPath.ToSharedRef());
+			}
+		}
+
+		WriteFieldPath->UsedByEvents.AddUnique(ValidEvent);
+		ValidEvent->WritePath = WriteFieldPath;
 	}
 }
 
@@ -1390,16 +1389,13 @@ void FMVVMViewBlueprintCompiler::CreateIntermediateGraphFunctions(const FWidgetB
 	for (TSharedRef<FCompilerEvent>& Event : ValidEvents)
 	{
 		UMVVMBlueprintViewEvent* EventPtr = Event->Event.Get();
-		if (Event->Type == FCompilerEvent::EType::Valid)
-		{
-			UEdGraph* WrapperGraph = EventPtr->GetOrCreateWrapperGraph();
-			ensure(WrapperGraph);
+		UEdGraph* WrapperGraph = EventPtr->GetOrCreateWrapperGraph();
+		ensure(WrapperGraph);
 
-			bool bAlreadyContained = WidgetBlueprintCompilerContext.Blueprint->FunctionGraphs.Contains(WrapperGraph);
-			if (ensure(!bAlreadyContained))
-			{
-				Context.AddGeneratedFunctionGraph(WrapperGraph);
-			}
+		bool bAlreadyContained = WidgetBlueprintCompilerContext.Blueprint->FunctionGraphs.Contains(WrapperGraph);
+		if (ensure(!bAlreadyContained))
+		{
+			Context.AddGeneratedFunctionGraph(WrapperGraph);
 		}
 	}
 }
@@ -1811,36 +1807,33 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 	{
 		UMVVMBlueprintViewEvent* EventPtr = ValidEvent->Event.Get();
 		check(EventPtr);
-		if (ValidEvent->Type == FCompilerEvent::EType::Valid)
+		for (const FMVVMBlueprintPin& Pin : EventPtr->GetPins())
 		{
-			for (const FMVVMBlueprintPin& Pin : EventPtr->GetPins())
+			if (Pin.UsedPathAsValue())
 			{
-				if (Pin.UsedPathAsValue())
+				TValueOrError<FCreateFieldsResult, FText> CreateSourceResult = CreateFieldContext(Class, Pin.GetPath(), true);
+				if (CreateSourceResult.HasError())
 				{
-					TValueOrError<FCreateFieldsResult, FText> CreateSourceResult = CreateFieldContext(Class, Pin.GetPath(), true);
-					if (CreateSourceResult.HasError())
-					{
-						AddMessageForEvent(ValidEvent
-							, FText::Format(Private::PropertyPathIsInvalidFormat, PropertyPathToText(Class, BlueprintView.Get(), Pin.GetPath()))
-							, EMessageType::Error
-							, Pin.GetId()
-						);
-						bIsPreCompileStepValid = false;
-					}
-
-					TSharedPtr<FGeneratedReadFieldPathContext> Found = AlreadyExist(CreateSourceResult.GetValue().SkeletalGeneratedFields);
-					if (!Found)
-					{
-						Found = MakeShared<FGeneratedReadFieldPathContext>();
-						Found->Source = MoveTemp(CreateSourceResult.GetValue().OptionalSource);
-						Found->GeneratedFields = MoveTemp(CreateSourceResult.GetValue().GeneratedFields);
-						Found->SkeletalGeneratedFields = MoveTemp(CreateSourceResult.GetValue().SkeletalGeneratedFields);
-						GeneratedReadFieldPaths.Add(Found.ToSharedRef());
-					}
-
-					Found->UsedByEvents.AddUnique(ValidEvent);
-					ValidEvent->ReadPaths.Add(Found.ToSharedRef());
+					AddMessageForEvent(ValidEvent
+						, FText::Format(Private::PropertyPathIsInvalidFormat, PropertyPathToText(Class, BlueprintView.Get(), Pin.GetPath()))
+						, EMessageType::Error
+						, Pin.GetId()
+					);
+					bIsPreCompileStepValid = false;
 				}
+
+				TSharedPtr<FGeneratedReadFieldPathContext> Found = AlreadyExist(CreateSourceResult.GetValue().SkeletalGeneratedFields);
+				if (!Found)
+				{
+					Found = MakeShared<FGeneratedReadFieldPathContext>();
+					Found->Source = MoveTemp(CreateSourceResult.GetValue().OptionalSource);
+					Found->GeneratedFields = MoveTemp(CreateSourceResult.GetValue().GeneratedFields);
+					Found->SkeletalGeneratedFields = MoveTemp(CreateSourceResult.GetValue().SkeletalGeneratedFields);
+					GeneratedReadFieldPaths.Add(Found.ToSharedRef());
+				}
+
+				Found->UsedByEvents.AddUnique(ValidEvent);
+				ValidEvent->ReadPaths.Add(Found.ToSharedRef());
 			}
 		}
 	}
@@ -3048,6 +3041,7 @@ void FMVVMViewBlueprintCompiler::PreCompileEvents(UWidgetBlueprintGeneratedClass
 
 void FMVVMViewBlueprintCompiler::CompileEvents(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension)
 {
+	// NB. The order is important. The index is used in the generated function to identify the event.
 	for (const TSharedRef<FCompilerEvent>& ValidEvent : ValidEvents)
 	{
 		const FMVVMVCompiledFieldPath* CompiledFieldPath = CompileResult.FieldPaths.Find(ValidEvent->DelegateFieldPathHandle);
@@ -3074,10 +3068,52 @@ void FMVVMViewBlueprintCompiler::CompileEvents(const FCompiledBindingLibraryComp
 				});
 		}
 
+		uint64 SourceBitField = 0;
+		{
+			if (ValidEvent->WritePath && ValidEvent->WritePath->OptionalSource)
+			{
+				int32 ViewExtensionSourceCreatorsIndex = ViewExtension->Sources.IndexOfByPredicate([LookFor = ValidEvent->WritePath->OptionalSource->Name](const FMVVMViewClass_Source& Other)
+					{
+						return Other.GetName() == LookFor;
+					});
+				if (ViewExtension->Sources.IsValidIndex(ViewExtensionSourceCreatorsIndex))
+				{
+
+					FMVVMViewClass_SourceKey FieldClassSourceKey = FMVVMViewClass_SourceKey(ViewExtensionSourceCreatorsIndex);
+					SourceBitField |= FieldClassSourceKey.GetBit();
+				}
+			}
+			for (TSharedPtr<FGeneratedReadFieldPathContext> ReadPath : ValidEvent->ReadPaths)
+			{
+				if (ReadPath->Source == nullptr)
+				{
+					AddMessageForEvent(ValidEvent->Event.Get(), LOCTEXT("InvalidEventSourceInternal", "Internal error. The event has an invalid source."), EMessageType::Error, FMVVMBlueprintPinId());
+					bIsCompileStepValid = false;
+					continue;
+				}
+
+				int32 ViewExtensionSourceCreatorsIndex = ViewExtension->Sources.IndexOfByPredicate([LookFor = ReadPath->Source->Name](const FMVVMViewClass_Source& Other)
+					{
+						return Other.GetName() == LookFor;
+					});
+				if (!ViewExtension->Sources.IsValidIndex(ViewExtensionSourceCreatorsIndex))
+				{
+					AddMessageForEvent(ValidEvent->Event.Get(), LOCTEXT("CompiledEventSourceCreatorNotGenerated", "Internal error. The source creator was not generated."), EMessageType::Error, FMVVMBlueprintPinId());
+					bIsCompileStepValid = false;
+					continue;
+				}
+
+				// Add the needed source.
+				FMVVMViewClass_SourceKey FieldClassSourceKey = FMVVMViewClass_SourceKey(ViewExtensionSourceCreatorsIndex);
+				SourceBitField |= FieldClassSourceKey.GetBit();
+			}
+		}
+
 		FMVVMViewClass_Event& NewBinding = ViewExtension->Events.AddDefaulted_GetRef();
 		NewBinding.FieldPath = *CompiledFieldPath;
 		NewBinding.UserWidgetFunctionName = ValidEvent->GeneratedGraphName;
 		NewBinding.SourceToReevaluate = FoundSourceIndex != INDEX_NONE ? FMVVMViewClass_SourceKey(FoundSourceIndex) : FMVVMViewClass_SourceKey();
+		NewBinding.SourceBitField = SourceBitField;
 	}
 }
 

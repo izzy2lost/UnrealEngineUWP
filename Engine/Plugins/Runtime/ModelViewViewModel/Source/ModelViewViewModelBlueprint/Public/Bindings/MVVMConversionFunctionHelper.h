@@ -66,6 +66,9 @@ namespace UE::MVVM::ConversionFunctionHelper
 	/** */
 	MODELVIEWVIEWMODELBLUEPRINT_API FCreateGraphResult CreateGraph(UBlueprint* WidgetBlueprint, FName GraphName, const UFunction* Signature, const TSubclassOf<UK2Node> Node, bool bIsConst, bool bTransient, TFunctionRef<void(UK2Node*)> InitNodeCallback);
 
+	/** Insert a branch node to the existing graph to test before executing the rest of the . */
+	MODELVIEWVIEWMODELBLUEPRINT_API UK2Node* InsertEarlyExitBranchNode(UEdGraph* Graph, TSubclassOf<UK2Node> BranchNode);
+
 	/** Find the main conversion function node from the given graph. */
 	MODELVIEWVIEWMODELBLUEPRINT_API UK2Node* GetWrapperNode(const UEdGraph* Graph);
 

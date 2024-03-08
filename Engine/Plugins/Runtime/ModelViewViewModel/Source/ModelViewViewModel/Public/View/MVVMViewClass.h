@@ -451,6 +451,16 @@ public:
 		return SourceToReevaluate;
 	}
 
+	/**
+	 * A view event may require more than one view sources to run the event.
+	 * A event will not execute if any view source is invalid.
+	 * It will not warn if the view source is make as optional.
+	 */
+	uint64 GetSources() const
+	{
+		return SourceBitField;
+	}
+
 #if UE_WITH_MVVM_DEBUGGING
 	struct FToStringArgs
 	{
@@ -472,6 +482,9 @@ private:
 
 	UPROPERTY()
 	FMVVMViewClass_SourceKey SourceToReevaluate;
+	
+	UPROPERTY()
+	uint64 SourceBitField;
 };
 
 
