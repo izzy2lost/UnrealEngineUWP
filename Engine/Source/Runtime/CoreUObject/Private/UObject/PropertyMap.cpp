@@ -1457,12 +1457,18 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 			const int64 StartOfProperty = InnerSlot.GetUnderlyingArchive().Tell();
 			switch (Inner->ConvertFromType(InnerTag, InnerSlot, InnerData, InnerDefaultsStruct, nullptr))
 			{
+				default:
+					checkNoEntry();
 				case EConvertFromTypeResult::Converted:
 				case EConvertFromTypeResult::Serialized:
 					return true;
 				case EConvertFromTypeResult::CannotConvert:
 					return false;
 				case EConvertFromTypeResult::UseSerializeItem:
+					if (InnerTag.Type != Inner->GetID())
+					{
+						return false;
+					}
 					// Fall through to default SerializeItem
 					break;
 			}
