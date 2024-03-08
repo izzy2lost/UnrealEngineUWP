@@ -1315,6 +1315,13 @@ void FPhysScene_Chaos::AddToComponentMaps(UPrimitiveComponent* Component, IPhysi
 	}
 }
 
+// FReplicationCacheData constructor needs to be in .cpp due to UPrimitiveComponent being forward declared in the header which TWeakObjectPtr doesn't handle
+FPhysScene_Chaos::FReplicationCacheData::FReplicationCacheData(UPrimitiveComponent* InRootComponent, Chaos::FReal InAccessTime)
+	: RootComponent(InRootComponent)
+	, AccessTime(InAccessTime)
+	, bValidStateCached(false)
+{}
+
 const FRigidBodyState* FPhysScene_Chaos::GetStateFromReplicationCache(UPrimitiveComponent* RootComponent, int& ServerFrame)
 {
 	if (!GetSolver()->GetRewindCallback())
@@ -1379,7 +1386,7 @@ void FPhysScene_Chaos::PopulateReplicationCache(const int32 PhysicsStep)
 	{
 		StateWasCached = false;
 		FReplicationCacheData& ReplicationData = It.Value();
-		TObjectPtr<UPrimitiveComponent> RootComponent = ReplicationData.GetRootComponent();
+		UPrimitiveComponent* RootComponent = ReplicationData.GetRootComponent();
 		if (RootComponent)
 		{
 			if (FBodyInstanceAsyncPhysicsTickHandle BIHandle = RootComponent->GetBodyInstanceAsyncPhysicsTickHandle())
