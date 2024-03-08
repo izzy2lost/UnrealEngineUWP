@@ -433,8 +433,6 @@ namespace UE
 					EFbxType PropertyType =  Property.GetPropertyDataType().GetType();
 					if (Property.GetFlag(FbxPropertyFlags::eUserDefined) && FFbxAnimation::IsFbxPropertyTypeSupported(PropertyType))
 					{
-						FString PropertyName = Parser.GetFbxHelper()->GetFbxPropertyName(Property);
-
 						FbxAnimCurveNode* CurveNode = Property.GetCurveNode();
 						TOptional<FString> PayloadKey;
 						if (CurveNode && CurveNode->IsAnimated())
@@ -451,118 +449,8 @@ namespace UE
 								}
 							}
 						}
-						switch (Property.GetPropertyDataType().GetType())
-						{
-							case EFbxType::eFbxBool:
-								{
-									bool PropertyValue = Property.Get<bool>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxChar:
-								{
-									int8 PropertyValue = Property.Get<int8>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxUChar:
-								{
-									uint8 PropertyValue = Property.Get<uint8>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxShort:
-								{
-									int16 PropertyValue = Property.Get<int16>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxUShort:
-								{
-									uint16 PropertyValue = Property.Get<uint16>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxInt:
-								{
-									int32 PropertyValue = Property.Get<int32>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxUInt:
-								{
-									uint32 PropertyValue = Property.Get<uint32>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxLongLong:
-								{
-									int64 PropertyValue = Property.Get<int64>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxULongLong:
-								{
-									uint64 PropertyValue = Property.Get<uint64>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxHalfFloat:
-								{
-									FbxHalfFloat HalfFloat = Property.Get<FbxHalfFloat>();
-									FFloat16 PropertyValue = FFloat16(HalfFloat.value());
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxFloat:
-								{
-									float PropertyValue = Property.Get<float>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxDouble:
-								{
-									double PropertyValue = Property.Get<double>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxDouble2:
-								{
-									FbxDouble2 Vec = Property.Get<FbxDouble2>();
-									FVector2D PropertyValue = FVector2D(Vec[0], Vec[1]);
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxDouble3:
-								{
-									FbxDouble3 Vec = Property.Get<FbxDouble3>();
-									FVector3d PropertyValue = FVector3d(Vec[0], Vec[1], Vec[2]);
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxDouble4:
-								{
-									FbxDouble4 Vec = Property.Get<FbxDouble4>();
-									FVector4d PropertyValue = FVector4d(Vec[0], Vec[1], Vec[2], Vec[3]);
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxEnum:
-								{
-									//Convert enum to uint8
-									FbxEnum EnumValue = Property.Get<FbxEnum>();
-									uint8 PropertyValue = static_cast<uint8>(EnumValue);
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxString:
-								{
-									FbxString StringValue = Property.Get<FbxString>();
-									FString PropertyValue = FFbxConvert::MakeString(StringValue.Buffer());
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-						}
+
+						ProcessCustomAttribute(Parser, UnrealNode, Property, PayloadKey);
 					}
 					//Inspect next node property
 					Property = Node->GetNextProperty(Property);
@@ -694,12 +582,11 @@ namespace UE
 						const FString TransformAnimTrackNodeUid = TEXT("\\AnimationTrack\\") + TransformAnimTrackNodeName;
 
 						TransformAnimTrackNode->InitializeNode(TransformAnimTrackNodeUid, TransformAnimTrackNodeName, EInterchangeNodeContainerType::TranslatedAsset);
-
 						TransformAnimTrackNode->SetCustomActorDependencyUid(*UnrealNode->GetUniqueID());
-
 						TransformAnimTrackNode->SetCustomAnimationPayloadKey(PayloadKey.GetValue(), EInterchangeAnimationPayLoadType::CURVE);
-
 						TransformAnimTrackNode->SetCustomUsedChannels(UsedChannels);
+
+						ProcessCustomAttributes(Parser, Node, TransformAnimTrackNode);
 
 						NodeContainer.AddNode(TransformAnimTrackNode);
 					}
@@ -781,12 +668,18 @@ namespace UE
 
 							SkeletalAnimationTrackNode->SetCustomAnimationStartTime(TimeSpan.GetStart().GetSecondDouble());
 							SkeletalAnimationTrackNode->SetCustomAnimationStopTime(TimeSpan.GetStop().GetSecondDouble());
+
+							return true;
 						}
+
+						return false;
 					};
 
 					bool bIsNodeContainJointAttribute = false;
 
 					int32 AttributeCount = Node->GetNodeAttributeCount();
+
+					bool bNewSkeltalAnimationStarted = false;
 
 					for (int32 AttributeIndex = 0; AttributeIndex < AttributeCount && !HasSkeletonAttribute; ++AttributeIndex)
 					{
@@ -801,7 +694,7 @@ namespace UE
 							}
 						case FbxNodeAttribute::eSkeleton:
 							bIsNodeContainJointAttribute = true;
-							ApplySkeletonAttribute();
+							bNewSkeltalAnimationStarted = ApplySkeletonAttribute() || bNewSkeltalAnimationStarted;
 							break;
 						default:
 							break;
@@ -810,16 +703,20 @@ namespace UE
 
 					if (!bIsNodeContainJointAttribute)
 					{
-						//Make sure to threat the node like a joint if it's in the ForcejointNodes array
+						//Make sure to treat the node like a joint if it's in the ForcejointNodes array
 						if (ForceJointNodes.Contains(Node))
 						{
-							ApplySkeletonAttribute();
+							bNewSkeltalAnimationStarted = ApplySkeletonAttribute() || bNewSkeltalAnimationStarted;
 						}
 						else if (!bIsRootNode && DoesTheParentOrChildrenHierarchyContainJoints(Node))
 						{
-							ApplySkeletonAttribute();
+							bNewSkeltalAnimationStarted = ApplySkeletonAttribute() || bNewSkeltalAnimationStarted;
 						}
+					}
 
+					if (bNewSkeltalAnimationStarted)
+					{
+						ProcessCustomAttributes(Parser, Node, SkeletalAnimationTrackNode);
 					}
 
 					if (!HasSkeletonAttribute)
@@ -1096,6 +993,8 @@ namespace UE
 
 						SkeletalAnimationTrackNode->SetCustomAnimationStartTime(TimeSpan.GetStart().GetSecondDouble());
 						SkeletalAnimationTrackNode->SetCustomAnimationStopTime(TimeSpan.GetStop().GetSecondDouble());
+
+						ProcessCustomAttributes(Parser, CurrentAnimationStack, SkeletalAnimationTrackNode);
 
 						NodeContainer.AddNode(SkeletalAnimationTrackNode);
 						

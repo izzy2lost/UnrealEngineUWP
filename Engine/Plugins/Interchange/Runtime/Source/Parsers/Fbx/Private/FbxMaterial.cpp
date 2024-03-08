@@ -290,6 +290,8 @@ namespace UE
 					return nullptr;
 				}
 
+				ProcessCustomAttributes(Parser, SurfaceMaterial, ShaderGraphNode);
+
 				TFunction<bool(FBXSDK_NAMESPACE::FbxProperty&)> ShouldConvertProperty = [&](FBXSDK_NAMESPACE::FbxProperty& MaterialProperty) -> bool
 				{
 					bool bShouldConvertProperty = false;

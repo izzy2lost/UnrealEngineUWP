@@ -6,6 +6,8 @@
 #include "Containers/UnrealString.h"
 #include "FbxInclude.h"
 
+class UInterchangeBaseNode;
+
 namespace UE::Interchange
 {
 #if WITH_ENGINE
@@ -62,5 +64,10 @@ namespace UE::Interchange
 		private:
 			mutable TMap<FString, const FbxObject*> MaterialNameClashMap;
 		};
+
+		void ProcessCustomAttribute(FFbxParser& Parser, UInterchangeBaseNode* UnrealNode, FbxProperty Property, const TOptional<FString>& PayloadKey = TOptional<FString>());
+		
+		//Without AnimationProcessing
+		void ProcessCustomAttributes(FFbxParser& Parser, FbxObject* Object, UInterchangeBaseNode* UnrealNode);
 	}//ns Private
 }//ns UE::Interchange

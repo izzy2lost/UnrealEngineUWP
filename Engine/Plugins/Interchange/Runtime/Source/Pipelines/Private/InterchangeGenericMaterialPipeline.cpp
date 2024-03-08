@@ -3012,6 +3012,8 @@ UInterchangeMaterialFactoryNode* UInterchangeGenericMaterialPipeline::CreateMate
 {
 	UInterchangeMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeMaterialFactoryNode>( CreateBaseMaterialFactoryNode(ShaderGraphNode, UInterchangeMaterialFactoryNode::StaticClass()) );
 
+	UInterchangeUserDefinedAttributesAPI::DuplicateAllUserDefinedAttribute(ShaderGraphNode, MaterialFactoryNode, false);
+
 	if(HandleSubstrate(ShaderGraphNode, MaterialFactoryNode))
 	{
 		return MaterialFactoryNode;
@@ -3063,6 +3065,8 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 {
 	UInterchangeMaterialInstanceFactoryNode* MaterialInstanceFactoryNode =
 		Cast<UInterchangeMaterialInstanceFactoryNode>( CreateBaseMaterialFactoryNode(ShaderGraphNode, UInterchangeMaterialInstanceFactoryNode::StaticClass()) );
+
+	UInterchangeUserDefinedAttributesAPI::DuplicateAllUserDefinedAttribute(ShaderGraphNode, MaterialInstanceFactoryNode, false);
 
 	TFunction<void(const FString&)> ChooseParent = [this, MaterialInstanceFactoryNode, ShaderGraphNode](const FString& Model) -> void
 	{

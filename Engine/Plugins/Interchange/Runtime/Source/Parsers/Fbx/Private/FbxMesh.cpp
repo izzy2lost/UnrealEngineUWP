@@ -1766,6 +1766,9 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 		}
 
 		MeshNode = CreateMeshNode(NodeContainer, MeshName, MeshUniqueID);
+
+		ProcessCustomAttributes(Parser, Mesh, MeshNode);
+
 		if (Geometry->GetDeformerCount(FbxDeformer::eSkin) > 0)
 		{
 			if (ExtractSkinnedMeshNodeJoints(SDKScene, NodeContainer, Mesh, MeshNode))
