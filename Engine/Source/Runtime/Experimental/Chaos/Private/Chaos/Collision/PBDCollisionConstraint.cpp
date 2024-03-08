@@ -339,12 +339,12 @@ namespace Chaos
 		const FRealSingle InitialOverlapDepenetrationVelocity1 = FConstGenericParticleHandle(GetParticle1())->InitialOverlapDepenetrationVelocity();
 		InitialOverlapDepenetrationVelocity = FMath::Max(InitialOverlapDepenetrationVelocity0, InitialOverlapDepenetrationVelocity1);
 
-		// Is this a one-way interaction?
+		// Is this a one-way interaction? A dynamic one-way interaction particle that hits a kinematic non one-way interaction particle should still be considered one-way.
 		const bool bDynamic0 = FConstGenericParticleHandle(GetParticle0())->IsDynamic();
 		const bool bDynamic1 = FConstGenericParticleHandle(GetParticle1())->IsDynamic();
 		const bool bOneWay0 = FConstGenericParticleHandle(GetParticle0())->OneWayInteraction();
 		const bool bOneWay1 = FConstGenericParticleHandle(GetParticle1())->OneWayInteraction();
-		Flags.bIsOneWayInteraction = bDynamic0 && bDynamic1 && (bOneWay0 || bOneWay1);
+		Flags.bIsOneWayInteraction = (bDynamic0 || bDynamic1) && (bOneWay0 || bOneWay1);
 
 		// Only levelsets use incremental collision manifolds
 		if (bInUseManifold && ((ImplicitType0 == ImplicitObjectType::LevelSet) || (ImplicitType1 == ImplicitObjectType::LevelSet)))

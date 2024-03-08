@@ -405,6 +405,8 @@ namespace Chaos
 		// Whether this constraint was disabled by the user (e.g., via a collision callback)
 		bool GetDisabled() const { return Flags.bDisabled; }
 
+		bool GetIsOneWayInteraction() const { return Flags.bIsOneWayInteraction; }
+
 		void SetIsProbe(bool bInProbe) { Flags.bIsProbe = bInProbe; }
 		bool GetIsProbe() const { return Flags.bIsProbe; }
 
