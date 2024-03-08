@@ -24,21 +24,10 @@ namespace UE::AbilitySystem::Debug
 	const FString LongestDebugObjectName{ TEXT("ABCDEFGHIJKLMNOPQRSTUVWXYZ_ ABCDEFGH") };
 
 	// Let's define some names for consistent look across all of the categories
-	const TCHAR* BothColor = TEXT("{yellow}");
-	const TCHAR* ServerColor = TEXT("{cyan}");
+	const TCHAR* BothColor = TEXT("{cyan}");
+	const TCHAR* ServerColor = TEXT("{yellow}");
 	const TCHAR* LocalColor = TEXT("{green}");
 	const TCHAR* NonReplicatedColor = TEXT("{violetred}");
-
-	/** Given a string, print it out using the color legend based on the NetworkStatus */
-	inline FString ColorNetworkString(FGameplayDebuggerCategory_Abilities::ENetworkStatus NetworkStatus, const FStringView DisplayString)
-	{
-		const TCHAR* Colors[+FGameplayDebuggerCategory_Abilities::ENetworkStatus::MAX] =
-		{
-			ServerColor, LocalColor, BothColor, NonReplicatedColor
-		};
-
-		return FString::Printf(TEXT("%s%.*s"), Colors[+NetworkStatus], DisplayString.Len(), DisplayString.GetData());
-	}
 }
 
 FGameplayDebuggerCategory_Abilities::FGameplayDebuggerCategory_Abilities()
@@ -113,19 +102,12 @@ void FGameplayDebuggerCategory_Abilities::FRepData::Serialize(FArchive& Ar)
 
 	for (int32 Idx = 0; Idx < NumGE; Idx++)
 	{
-		if (Ar.IsLoading())
-		{
-			GameplayEffects[Idx].PredictionKey = FPredictionKey();
-		}
-		
-		GameplayEffects[Idx].PredictionKey.NetSerialize(Ar, ClientPackageMap.Get(), bSuccess);
 		Ar << GameplayEffects[Idx].Effect;
 		Ar << GameplayEffects[Idx].Context;
 		Ar << GameplayEffects[Idx].Duration;
 		Ar << GameplayEffects[Idx].Period;
 		Ar << GameplayEffects[Idx].Stacks;
 		Ar << GameplayEffects[Idx].Level;
-		Ar << GameplayEffects[Idx].bInhibited;
 	}
 
 	int32 NumAttrib = Attributes.Num();
@@ -161,6 +143,27 @@ void FGameplayDebuggerCategory_Abilities::CollectData(APlayerController* OwnerPC
 			DataPack.TagCounts.Add(AbilityComp->GetTagCount(Tag));
 		}
 
+		// Gameplay Effects
+		TArray<FGameplayEffectSpec> ActiveEffectSpecs;
+		AbilityComp->GetAllActiveGameplayEffectSpecs(ActiveEffectSpecs);
+		for (int32 Idx = 0; Idx < ActiveEffectSpecs.Num(); Idx++)
+		{
+			const FGameplayEffectSpec& EffectSpec = ActiveEffectSpecs[Idx];
+			FRepData::FGameplayEffectDebug ItemData;
+
+			ItemData.Effect = EffectSpec.ToSimpleString();
+			ItemData.Effect.RemoveFromStart(DEFAULT_OBJECT_PREFIX);
+			ItemData.Effect.RemoveFromEnd(TEXT("_C"));
+
+			ItemData.Context = EffectSpec.GetContext().ToString();
+			ItemData.Duration = EffectSpec.GetDuration();
+			ItemData.Period = EffectSpec.GetPeriod();
+			ItemData.Stacks = EffectSpec.GetStackCount();
+			ItemData.Level = EffectSpec.GetLevel();
+
+			DataPack.GameplayEffects.Add(ItemData);
+		}
+
 		// Abilities
 		const TArray<FGameplayAbilitySpec>& AbilitySpecs = AbilityComp->GetActivatableAbilities();
 		for (int32 Idx = 0; Idx < AbilitySpecs.Num(); Idx++)
@@ -181,39 +184,9 @@ void FGameplayDebuggerCategory_Abilities::CollectData(APlayerController* OwnerPC
 			DataPack.Abilities.Add(ItemData);
 		}
 
-		// Gameplay Effects
-		DataPack.GameplayEffects = CollectEffectsData(OwnerPC, AbilityComp);
-
 		// Attributes
 		DataPack.Attributes = CollectAttributeData(OwnerPC, AbilityComp);
 	}
-}
-
-TArray<FGameplayDebuggerCategory_Abilities::FRepData::FGameplayEffectDebug> FGameplayDebuggerCategory_Abilities::CollectEffectsData(const APlayerController* OwnerPC, const UAbilitySystemComponent* AbilityComp) const
-{
-	TArray<FRepData::FGameplayEffectDebug> DebugEffects;
-
-	for (const FActiveGameplayEffect& ActiveGE : &AbilityComp->GetActiveGameplayEffects())
-	{
-		FRepData::FGameplayEffectDebug& ItemData = DebugEffects.AddDefaulted_GetRef();
-		ItemData.bInhibited = ActiveGE.bIsInhibited;
-		ItemData.PredictionKey = ActiveGE.PredictionKey;
-		ItemData.Duration = ActiveGE.GetDuration();
-		ItemData.Period = ActiveGE.GetPeriod();
-
-		const FGameplayEffectSpec& EffectSpec = ActiveGE.Spec;
-		ItemData.Effect = EffectSpec.ToSimpleString();
-		ItemData.Effect.RemoveFromStart(DEFAULT_OBJECT_PREFIX);
-		ItemData.Effect.RemoveFromEnd(TEXT("_C"));
-
-		ItemData.Context = EffectSpec.GetContext().ToString();
-		ItemData.Stacks = EffectSpec.GetStackCount();
-		ItemData.Level = EffectSpec.GetLevel();
-
-		ItemData.NetworkStatus = OwnerPC->HasAuthority() ? ENetworkStatus::ServerOnly : ENetworkStatus::LocalOnly;
-	}
-
-	return DebugEffects;
 }
 
 TArray<FGameplayDebuggerCategory_Abilities::FRepData::FGameplayAttributeDebug> FGameplayDebuggerCategory_Abilities::CollectAttributeData(const APlayerController* OwnerPC, const UAbilitySystemComponent* AbilityComp) const
@@ -249,12 +222,21 @@ TArray<FGameplayDebuggerCategory_Abilities::FRepData::FGameplayAttributeDebug> F
 	}
 
 	// Grab the AttributeSet rather than the Attributes themselves so we can check the network functionality
+	static TMap<UClass*, TArray<FGameplayAttribute>> AttributeSetClassToGameplayAttributes;
 	for (const UAttributeSet* AttributeSet : AbilityComp->GetSpawnedAttributes())
 	{
 		const TSubclassOf<UAttributeSet> AttributeSetClass = AttributeSet ? AttributeSet->GetClass() : nullptr;
-		if (!AttributeSetClass)
+		if (!AttributeSet || !AttributeSetClass)
 		{
 			continue;
+		}
+
+		// Keep the FGameplayAttributes in a static map as we'll be looking these up (at least) twice per frame
+		TArray<FGameplayAttribute>* LocalAttributes = AttributeSetClassToGameplayAttributes.Find(AttributeSetClass.Get());
+		if (!LocalAttributes)
+		{
+			LocalAttributes = &AttributeSetClassToGameplayAttributes.Add(AttributeSetClass.Get());
+			UAttributeSet::GetAttributesFromSetClass(AttributeSetClass, *LocalAttributes);
 		}
 
 		// These are all of the replication conditions per variable
@@ -262,20 +244,28 @@ TArray<FGameplayDebuggerCategory_Abilities::FRepData::FGameplayAttributeDebug> F
 		AttributeSet->GetLifetimeReplicatedProps(LifetimeProps);
 
 		// Network status can change per AttributeSet, so figure it out
-		ENetworkStatus LocalNetworkStatus = (LocalRole == ENetRole::ROLE_Authority) ? ENetworkStatus::ServerOnly : ENetworkStatus::LocalOnly;
+		FRepData::ENetworkStatus NetworkStatus = (LocalRole == ENetRole::ROLE_Authority) ? FRepData::ENetworkStatus::ServerOnly : FRepData::ENetworkStatus::LocalOnly;
 		const bool bAttributeSetReplicates = bASCReplicates && AttributeSet->IsSupportedForNetworking();
 
 		// Now just gather the debug data
-		TArray<FGameplayAttribute> LocalAttributes;
-		UAttributeSet::GetAttributesFromSetClass(AttributeSetClass, LocalAttributes);
-		for (const FGameplayAttribute& Attrib : LocalAttributes)
+		for (const FGameplayAttribute& Attrib : *LocalAttributes)
 		{
-			ENetworkStatus NetworkStatus = LocalNetworkStatus;
+			if (!Attrib.IsValid())
+			{
+				continue;
+			}
+
+			FRepData::FGameplayAttributeDebug& DebugAttribute = DebugAttributes.AddDefaulted_GetRef();
+
+			DebugAttribute.AttributeName = Attrib.AttributeName;
+			DebugAttribute.BaseValue = AbilityComp->GetNumericAttributeBase(Attrib);
+			DebugAttribute.CurrentValue = AbilityComp->GetNumericAttribute(Attrib);
+			DebugAttribute.NetworkStatus = NetworkStatus;
 
 			// Override the status to network if all replication tests pass
 			if (bAttributeSetReplicates)
 			{
-				if (const FProperty* Property = Attrib.GetUProperty())
+				if (FProperty* Property = Attrib.GetUProperty())
 				{
 					if (Property->HasAnyPropertyFlags(EPropertyFlags::CPF_Net))
 					{
@@ -283,20 +273,11 @@ TArray<FGameplayDebuggerCategory_Abilities::FRepData::FGameplayAttributeDebug> F
 						if (RepProperty && RepProperty->Condition != ELifetimeCondition::COND_Never)
 						{
 							// InvalidRepIndex maps to INDEX_NONE even though unsigned (wrap-around)
-							NetworkStatus = ENetworkStatus::Networked;
+							DebugAttribute.NetworkStatus = FRepData::ENetworkStatus::Networked;
 						}
 					}
 				}
 			}
-
-			// Add the data to our returned array
-			FRepData::FGameplayAttributeDebug& DebugAttribute = DebugAttributes.Add_GetRef(
-				{
-					.AttributeName = Attrib.AttributeName,
-					.BaseValue = AbilityComp->GetNumericAttributeBase(Attrib),
-					.CurrentValue = Attrib.GetNumericValue(AttributeSet),
-					.NetworkStatus = NetworkStatus
-				});
 		}
 	}
 
@@ -341,10 +322,10 @@ void FGameplayDebuggerCategory_Abilities::DrawData(APlayerController* OwnerPC, F
 {
 	// Draw the sub-category bindings inline with the category header
 	{
-		CanvasContext.CursorX += 200.0f;
+		CanvasContext.CursorX += 250.0f;
 		CanvasContext.CursorY -= CanvasContext.GetLineHeight();
 		const TCHAR* Active = TEXT("{green}");
-		const TCHAR* Inactive = TEXT("{grey}");
+		const TCHAR* Inactive = TEXT("{yellow}");
 		CanvasContext.Printf(TEXT("Tags [%s%s{white}]\tAbilities [%s%s{white}]\tEffects [%s%s{white}]\tAttributes [%s%s{white}]"),
 			bShowGameplayTags ? Active : Inactive, *GetInputHandlerDescription(0),
 			bShowGameplayAbilities ? Active : Inactive, *GetInputHandlerDescription(1),
@@ -352,12 +333,7 @@ void FGameplayDebuggerCategory_Abilities::DrawData(APlayerController* OwnerPC, F
 			bShowGameplayAttributes ? Active : Inactive, *GetInputHandlerDescription(3));
 	}
 
-	if (LastDrawDataEndSize <= 0.0f)
-	{
-		// Default to the full frame size
-		LastDrawDataEndSize = CanvasContext.Canvas->SizeY - CanvasContext.CursorY - CanvasContext.CursorX;
-	}
-
+	static float LastDrawDataEndSize = CanvasContext.Canvas->SizeY - CanvasContext.CursorY - CanvasContext.CursorX;
 	float ThisDrawDataStartPos = CanvasContext.CursorY;
 
 	const FLinearColor BackgroundColor(0.1f, 0.1f, 0.1f, 0.8f);
@@ -397,9 +373,8 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayTags(FGameplayDebuggerCanv
 {
 	using namespace UE::AbilitySystem::Debug;
 	const float CanvasWidth = CanvasContext.Canvas->SizeX;
-	constexpr float Padding = 10.0f;
 
-	const AActor* LocalDebugActor = FindLocalDebugActor();
+	AActor* LocalDebugActor = FindLocalDebugActor();
 	if (const UAbilitySystemComponent* AbilityComp = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(LocalDebugActor))
 	{
 		FGameplayTagContainer ServerOnlyTags = DataPack.OwnedTags;
@@ -464,6 +439,8 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayTags(FGameplayDebuggerCanv
 		// and ones where they disagree.
 		if (!AbilityComp->IsOwnerActorAuthoritative())
 		{
+			CanvasContext.Printf(TEXT("Owned Tags\tLegend:  %sBoth  %sServer  %sLocal"), BothColor, ServerColor, LocalColor);
+
 			FGameplayTagContainer LocalOnlyTags;
 			AbilityComp->GetOwnedGameplayTags(LocalOnlyTags);
 
@@ -475,30 +452,17 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayTags(FGameplayDebuggerCanv
 			const FString MatchingTagsStr = BuildTagsString(MatchingTags, BothColor);
 			const FString ServerOnlyTagsStr = BuildTagsString(ServerOnlyTags, ServerColor);
 			const FString LocalOnlyTagsStr = BuildTagsString(LocalOnlyTags, LocalColor);
-
-			CanvasContext.Printf(TEXT("Owned Tags [%d]:"), MatchingTags.Num() + ServerOnlyTags.Num() + LocalOnlyTags.Num());
-			CanvasContext.CursorX += 200.0f;
-			CanvasContext.CursorY -= CanvasContext.GetLineHeight();
-			CanvasContext.Printf(TEXT("Legend:  %sBoth [%d]    %sServer [%d]    %sLocal [%d]"),
-				BothColor, MatchingTags.Num(),
-				ServerColor, ServerOnlyTags.Num(),
-				LocalColor, LocalOnlyTags.Num());
-
+			
 			FString WrappedDebugText;
 			WrapStringAccordingToViewport(FString::Printf(TEXT("%s%s%s"), *MatchingTagsStr, *ServerOnlyTagsStr, *LocalOnlyTagsStr), WrappedDebugText, CanvasContext, CanvasWidth);
-
-			CanvasContext.CursorX += Padding;
 			CanvasContext.Print(WrappedDebugText);
 		}
 		else
 		{
 			// As the authority, the source of the truth should be the ServerTags we already gathered
 			FString ServerOnlyTagsStr;
-			WrapStringAccordingToViewport(BuildTagsString(ServerOnlyTags, BothColor), ServerOnlyTagsStr, CanvasContext, CanvasWidth);
-			CanvasContext.Printf(TEXT("Owned Tags [%d]"), ServerOnlyTags.Num());
-
-			CanvasContext.CursorX += Padding;
-			CanvasContext.Print(ServerOnlyTagsStr);
+			WrapStringAccordingToViewport(BuildTagsString(ServerOnlyTags, ServerColor), ServerOnlyTagsStr, CanvasContext, CanvasWidth);
+			CanvasContext.Printf(TEXT("Owned Tags: \n%s"), *ServerOnlyTagsStr);
 		}
 	}
 
@@ -509,7 +473,6 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayTags(FGameplayDebuggerCanv
 void FGameplayDebuggerCategory_Abilities::DrawGameplayEffects(FGameplayDebuggerCanvasContext& CanvasContext, const APlayerController* OwnerPC) const
 {
 	using namespace UE::AbilitySystem::Debug;
-	using FGameplayEffectDebug = FRepData::FGameplayEffectDebug;
 
 	// Find some stable naming sizes
 	constexpr float Padding = 10.0f;
@@ -518,70 +481,22 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayEffects(FGameplayDebuggerC
 	{
 		float TempSizeY = 0.0f;
 		CanvasContext.MeasureString(*LongestDebugObjectName, ObjNameSize, TempSizeY);
-		CanvasContext.MeasureString(FString::Printf(TEXT("source: %.30s"), *LongestDebugObjectName), SrcNameSize, TempSizeY);
+		CanvasContext.MeasureString(FString::Printf(TEXT("source: %.35s"), *LongestDebugObjectName), SrcNameSize, TempSizeY);
 		ObjNameSize += Padding;
 		SrcNameSize += Padding;
 	}
 
-	// Merge together the server and local data
-	const UAbilitySystemComponent* LocalASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(FindLocalDebugActor());
-	const bool bConsiderLocalStatus = !OwnerPC->IsNetMode(ENetMode::NM_Standalone) && LocalASC && (LocalASC->ReplicationMode != EGameplayEffectReplicationMode::Full);
-	const TArray<FGameplayEffectDebug>& ServerEffects = DataPack.GameplayEffects;
-	TArray<FGameplayEffectDebug> LocalEffects = bConsiderLocalStatus ? CollectEffectsData(OwnerPC, LocalASC) : ServerEffects;
-
-	auto GetKeyHash = [](const FGameplayEffectDebug& GameplayEffectDebug) -> uint32
-		{
-			return HashCombineFast(
-				GetTypeHash(GameplayEffectDebug.PredictionKey),
-				GetTypeHash(GameplayEffectDebug.Effect));
-		};
-
-	int NumEffectCounts[+ENetworkStatus::MAX] = { 0 };
-
-	TMap<uint32, FGameplayEffectDebug> Effects;
-	for (const FGameplayEffectDebug& ServerEffect : ServerEffects)
-	{
-		Effects.Add(GetKeyHash(ServerEffect)) = ServerEffect;
-	}
-
-	for (const FGameplayEffectDebug& LocalEffect : LocalEffects)
-	{
-		FGameplayEffectDebug& Effect = Effects.FindOrAdd(GetKeyHash(LocalEffect));
-		if (!Effect.Effect.IsEmpty())
-		{
-			Effect.NetworkStatus = ENetworkStatus::Networked;
-		}
-		else
-		{
-			Effect = LocalEffect;
-			Effect.NetworkStatus = ENetworkStatus::LocalOnly;
-		}
-
-		++NumEffectCounts[+Effect.NetworkStatus];
-	}
-
-	// Easier to do this calculation than to keep track during those loops
-	NumEffectCounts[+ENetworkStatus::ServerOnly] = Effects.Num() - NumEffectCounts[+ENetworkStatus::Networked] - NumEffectCounts[+ENetworkStatus::LocalOnly];
-
-	CanvasContext.Printf(TEXT("Gameplay Effects [%d]:"), Effects.Num());
-	CanvasContext.CursorX += 200.0f;
-	CanvasContext.CursorY -= CanvasContext.GetLineHeight();
-	CanvasContext.Printf(TEXT("Legend:  %sBoth [%d]    %sServer [%d]    %sLocal [%d]    {red}!! Inhibited"),
-		BothColor, NumEffectCounts[+ENetworkStatus::Networked],
-		ServerColor, NumEffectCounts[+ENetworkStatus::ServerOnly],
-		LocalColor, NumEffectCounts[+ENetworkStatus::LocalOnly]);
-
+	CanvasContext.Printf(TEXT("Gameplay Effects: {yellow}%d"), DataPack.GameplayEffects.Num());
 	CanvasContext.CursorX += Padding;
-	for (const auto& Pair : Effects)
+	for (int32 Idx = 0; Idx < DataPack.GameplayEffects.Num(); Idx++)
 	{
-		const FGameplayEffectDebug& ItemData = Pair.Value;
+		const FRepData::FGameplayEffectDebug& ItemData = DataPack.GameplayEffects[Idx];
 
 		float CursorX = CanvasContext.CursorX;
 		float CursorY = CanvasContext.CursorY;
 
-		const FString EffectName = ColorNetworkString(ItemData.NetworkStatus, *ItemData.Effect.Left(LongestDebugObjectName.Len()));
-		CanvasContext.PrintfAt(CursorX, CursorY, TEXT("%s%s"), ItemData.bInhibited ? TEXT("{red}!!") : TEXT(""), *EffectName);
-		CanvasContext.PrintfAt(CursorX + ObjNameSize, CursorY, FColor::Silver, TEXT("source: {white}%.30s"), *ItemData.Context);
+		CanvasContext.PrintAt(CursorX, CursorY, FColor::Yellow, *ItemData.Effect.Left(35));
+		CanvasContext.PrintfAt(CursorX + ObjNameSize, CursorY, FColor::Silver, TEXT("source: {white}%.35s"), *ItemData.Context);
 
 		TStringBuilder<1024> Desc;
 		Desc.Appendf(TEXT(" {grey}duration: {white}"), *ItemData.Context);
@@ -648,11 +563,7 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayAbilities(FGameplayDebugge
 	const float ColumnWidth = ObjNameSize * 2 + SourceNameSize + LevelNameSize;
 	const int NumColumns = FMath::Max(1, FMath::FloorToInt(CanvasWidth / ColumnWidth));
 
-	CanvasContext.Print(TEXT("Gameplay Abilities:"));
-	CanvasContext.CursorX += 200.0f;
-	CanvasContext.CursorY -= CanvasContext.GetLineHeight();
-	CanvasContext.Printf(TEXT("Legend:  {yellow}Granted [%d]    {cyan}Active [%d]"), DataPack.Abilities.Num(), NumActive);
-
+	CanvasContext.Printf(TEXT("Gameplay Abilities: \t{yellow}Granted[%d] \t{cyan}Active[%d]"), DataPack.Abilities.Num(), NumActive);
 	CanvasContext.CursorX += Padding;
 	for (const FRepData::FGameplayAbilityDebug& ItemData : DataPack.Abilities)
 	{
@@ -692,22 +603,28 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayAttributes(FGameplayDebugg
 
 	struct FDebugAttributeData
 	{
-		FStringView AttributeName;
+		FString AttributeName;
 
 		float ServerBaseValue = 0.0f;
 		float ServerCurrentValue = 0.0f;
 		float LocalBaseValue = 0.0f;
 		float LocalCurrentValue = 0.0f;
 
-		ENetworkStatus NetworkStatus = ENetworkStatus::LocalOnly;
+		FRepData::ENetworkStatus NetworkStatus = FRepData::ENetworkStatus::LocalOnly;
 	};
 
 	const bool bConsiderNetworkStatus = !OwnerPC->IsNetMode(ENetMode::NM_Standalone);
-	const UAbilitySystemComponent* LocalASC = bConsiderNetworkStatus ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(FindLocalDebugActor()) : nullptr;
-	const TArray<FRepData::FGameplayAttributeDebug> LocalAttributes = LocalASC ? CollectAttributeData(OwnerPC, LocalASC) : TArray<FRepData::FGameplayAttributeDebug>{};
 	TArray<FRepData::FGameplayAttributeDebug> ServerAttributes = DataPack.Attributes;
+	TArray<FRepData::FGameplayAttributeDebug> LocalAttributes;
+	if (bConsiderNetworkStatus)
+	{
+		if (UAbilitySystemComponent* LocalASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(FindLocalDebugActor()))
+		{
+			LocalAttributes = CollectAttributeData(OwnerPC, LocalASC);
+		}
+	}
 
-	int NumAttributeCounts[+ENetworkStatus::MAX] = { 0 };
+	bool bAllAttributesNetworked = true;
 
 	// Reverse the order of iteration so RemoveAt has a better chance at removing near the end
 	TArray<FDebugAttributeData> AttributeDebugData;
@@ -715,13 +632,11 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayAttributes(FGameplayDebugg
 	{
 		const FRepData::FGameplayAttributeDebug& LocalAttribute = LocalAttributes[Index];
 
-		FDebugAttributeData& DebugDatum = AttributeDebugData.Add_GetRef(
-			FDebugAttributeData{
-				.AttributeName = LocalAttribute.AttributeName,
-				.LocalBaseValue = LocalAttribute.BaseValue,
-				.LocalCurrentValue = LocalAttribute.CurrentValue,
-				.NetworkStatus = ENetworkStatus::LocalOnly
-			});
+		FDebugAttributeData& DebugDatum = AttributeDebugData.AddDefaulted_GetRef();
+		DebugDatum.AttributeName = LocalAttribute.AttributeName;
+		DebugDatum.LocalBaseValue = LocalAttribute.BaseValue;
+		DebugDatum.LocalCurrentValue = LocalAttribute.CurrentValue;
+		DebugDatum.NetworkStatus = FRepData::ENetworkStatus::LocalOnly;
 
 		int32 ServerIndex = ServerAttributes.FindLastByPredicate([FindName = LocalAttribute.AttributeName](const FRepData::FGameplayAttributeDebug& Item) { return FindName == Item.AttributeName; });
 		if (ServerIndex != INDEX_NONE)
@@ -730,23 +645,26 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayAttributes(FGameplayDebugg
 
 			DebugDatum.ServerBaseValue = ServerAttribute.BaseValue;
 			DebugDatum.ServerCurrentValue = ServerAttribute.CurrentValue;
-			DebugDatum.NetworkStatus = (ServerAttribute.NetworkStatus == ENetworkStatus::Networked) ? ENetworkStatus::Networked : ENetworkStatus::Detached;
+			DebugDatum.NetworkStatus = ServerAttribute.NetworkStatus == (FRepData::ENetworkStatus::Networked) ? FRepData::ENetworkStatus::Networked : FRepData::ENetworkStatus::Detached;
 
 			// Remove them from server-only array
-			ServerAttributes.RemoveAtSwap(ServerIndex, EAllowShrinking::No);
+			ServerAttributes.RemoveAt(ServerIndex);
 		}
-		++NumAttributeCounts[+DebugDatum.NetworkStatus];
+
+		if (DebugDatum.NetworkStatus != FRepData::ENetworkStatus::Networked)
+			bAllAttributesNetworked = false;
 	}
 
 	// If any entries are still in this array, they are server only and mark them as such
 	for (const FRepData::FGameplayAttributeDebug& ServerAttribute : ServerAttributes)
 	{
+		bAllAttributesNetworked = false;
+
 		FDebugAttributeData& DebugDatum = AttributeDebugData.AddDefaulted_GetRef();
 		DebugDatum.AttributeName = ServerAttribute.AttributeName;
 		DebugDatum.ServerBaseValue = ServerAttribute.BaseValue;
 		DebugDatum.ServerCurrentValue = ServerAttribute.CurrentValue;
-		DebugDatum.NetworkStatus = ENetworkStatus::ServerOnly;
-		++NumAttributeCounts[+DebugDatum.NetworkStatus];
+		DebugDatum.NetworkStatus = FRepData::ENetworkStatus::ServerOnly;
 	}
 
 	// Finally sort to keep everything in alphabetical order
@@ -768,41 +686,47 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayAttributes(FGameplayDebugg
 	const int NumColumns = FMath::Max(1, FMath::FloorToInt(CanvasWidth / ColumnWidth));
 
 	// Figure out the colors we're going to be using and print the legend
-	FString LegendText;
-	const bool bAllAttributesNetworked = (0 == (NumAttributeCounts[+ENetworkStatus::ServerOnly] + NumAttributeCounts[+ENetworkStatus::LocalOnly] + NumAttributeCounts[+ENetworkStatus::Detached]));
+	const TCHAR* ExpectedColor = BothColor;
+	const TCHAR* Modified = TEXT("*");
+	FString HeaderText = FString::Printf(TEXT("Attributes [%d]"), AttributeDebugData.Num());
 	if (!bConsiderNetworkStatus || bAllAttributesNetworked)
 	{
-		// Normal case: no legend required
+		// Normal case: no legend required, single color which is the local case
+		ExpectedColor = ServerColor;
 	}
 	else if (!bAllAttributesNetworked)
 	{
 		// Not all attributes are networked; we should display all cases for easier debugging
-		LegendText = FString::Printf(TEXT("Legend:  %sBoth [%d]    %sServer [%d]    %sLocal [%d]    %sNonReplicated [%d]"),
-			BothColor, NumAttributeCounts[+ENetworkStatus::Networked],
-			ServerColor, NumAttributeCounts[+ENetworkStatus::ServerOnly],
-			LocalColor, NumAttributeCounts[+ENetworkStatus::LocalOnly],
-			NonReplicatedColor, NumAttributeCounts[+ENetworkStatus::Detached]);
+		HeaderText.Appendf(TEXT("\tLegend:  %sBoth  %sServer  %sLocal  %sNonReplicated"), BothColor, ServerColor, LocalColor, NonReplicatedColor);
+		ExpectedColor = BothColor;
 	}
 	else
 	{
 		// All attributes are networked; the values may differ but assume the server is correct
-		LegendText = FString::Printf(TEXT("Legend:  %sServer    %sLocal"), ServerColor, LocalColor);
+		HeaderText.Appendf(TEXT("\tLegend:  %sServer  %sLocal"), ServerColor, LocalColor);
+		ExpectedColor = ServerColor;
 	}
-	CanvasContext.Printf(TEXT("Attributes [%d]:"), AttributeDebugData.Num());
-	CanvasContext.CursorX += 200.0f;
-	CanvasContext.CursorY -= CanvasContext.GetLineHeight();
-	CanvasContext.Print(LegendText);
 
+	const TCHAR* StatusTexts[+FRepData::ENetworkStatus::MAX];
+	StatusTexts[+FRepData::ENetworkStatus::Networked] = ExpectedColor; // This one is going to change based on 'expected' value (e.g. if all local, keep the UI consistently colored)
+	StatusTexts[+FRepData::ENetworkStatus::ServerOnly] = ServerColor;
+	StatusTexts[+FRepData::ENetworkStatus::LocalOnly] = LocalColor;
+	StatusTexts[+FRepData::ENetworkStatus::Detached] = NonReplicatedColor;
+
+	CanvasContext.Print(HeaderText);
 	CanvasContext.CursorX += Padding;
+
 	for (const FDebugAttributeData& AttributeData : AttributeDebugData)
 	{
+		const bool bModified = (AttributeData.ServerBaseValue != AttributeData.ServerCurrentValue) || (AttributeData.LocalBaseValue != AttributeData.LocalCurrentValue);
+		const TCHAR* StatusText = StatusTexts[+AttributeData.NetworkStatus];
+
 		const bool bServerValueMatch = (AttributeData.ServerBaseValue == AttributeData.ServerCurrentValue);
 		const bool bLocalValueMatch = (AttributeData.LocalBaseValue == AttributeData.LocalCurrentValue);
-		const bool bModified = !bServerValueMatch || !bLocalValueMatch;
 		const bool bNetworkValueMatch = (AttributeData.LocalBaseValue == AttributeData.ServerBaseValue) && (AttributeData.LocalCurrentValue == AttributeData.ServerCurrentValue);
 
 		// Let's build up the attribute value string which is just trying to represent the four states: srv cur [srv base] local cur [local base] in as little text as possible
-		TStringBuilder<64> AttributeValueStr;
+		TStringBuilder<1024> AttributeValueStr;
 		if (bNetworkValueMatch && bServerValueMatch && bLocalValueMatch)
 		{
 			// Everything matches, let's choose white and any one of the values (since they match)
@@ -810,8 +734,8 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayAttributes(FGameplayDebugg
 		}
 		else
 		{
-			const bool bDisplayServerValue = (AttributeData.NetworkStatus != ENetworkStatus::LocalOnly);
-			const bool bDisplayClientValue = (AttributeData.NetworkStatus != ENetworkStatus::ServerOnly) && !bNetworkValueMatch;
+			const bool bDisplayServerValue = (AttributeData.NetworkStatus != FRepData::ENetworkStatus::LocalOnly);
+			const bool bDisplayClientValue = (AttributeData.NetworkStatus != FRepData::ENetworkStatus::ServerOnly) && !bNetworkValueMatch;
 
 			// Append status that is happening on the Server
 			if (bDisplayServerValue)
@@ -846,9 +770,7 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayAttributes(FGameplayDebugg
 		const float CursorX = CanvasContext.CursorX;
 		const float CursorY = CanvasContext.CursorY;
 
-		const ENetworkStatus NetworkStatus = bConsiderNetworkStatus ? AttributeData.NetworkStatus : ENetworkStatus::Networked;
-		const FString ColoredAttributeName = ColorNetworkString(NetworkStatus, AttributeData.AttributeName.Left(LongestDebugObjectName.Len()));
-		const FString AttributeDebugText = FString::Printf(TEXT("%s%s: %.*s"), bModified ? TEXT("*") : TEXT(""), *ColoredAttributeName, AttributeValueStr.Len(), AttributeValueStr.GetData());
+		const FString AttributeDebugText = FString::Printf(TEXT("%s%s%.35s: %s"), bModified ? Modified : TEXT(""), StatusText, *AttributeData.AttributeName, AttributeValueStr.ToString());
 		CanvasContext.PrintAt(CursorX, CursorY, AttributeDebugText);
 
 		// PrintAt would have reset these values, restore them.
