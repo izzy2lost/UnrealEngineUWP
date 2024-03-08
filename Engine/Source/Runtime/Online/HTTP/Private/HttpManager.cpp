@@ -2,6 +2,7 @@
 
 #include "HttpManager.h"
 #include "HttpModule.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/ScopeLock.h"
@@ -16,6 +17,13 @@
 
 #include "Stats/Stats.h"
 #include "Containers/BackgroundableTicker.h"
+
+TAutoConsoleVariable<int32> CVarHttpEventLoopEnableChance(
+	TEXT("http.EventLoopEnableChance"),
+	UE_HTTP_EVENT_LOOP_ENABLE_CHANCE_BY_DEFAULT,
+	TEXT("Enable chance of event loop, from 0 to 100"),
+	ECVF_SaveForNextBoot
+);
 
 // FHttpManager
 
@@ -69,6 +77,12 @@ void FHttpManager::Initialize()
 {
 	if (!Thread)
 	{
+		bUseEventLoop = (FMath::RandRange(0, 99) < CVarHttpEventLoopEnableChance.GetValueOnGameThread());
+
+		// Also support to change it through runtime args.
+		// Can't set cvar CVarHttpEventLoopEnableChance through runtime args or .ini files because http module initialized too early
+		FParse::Bool(FCommandLine::Get(), TEXT("useeventloop="), bUseEventLoop);
+
 		Thread = CreateHttpThread();
 		Thread->StartThread();
 	}

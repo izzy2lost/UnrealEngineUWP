@@ -37,8 +37,6 @@
 #define DISABLE_UNVERIFIED_CERTIFICATE_LOADING 0
 #endif
 
-extern TAutoConsoleVariable<int32> CVarHttpEventLoopEnableChance;
-
 CURLM* FCurlHttpManager::GMultiHandle = nullptr;
 #if !WITH_CURL_XCURL
 CURLSH* FCurlHttpManager::GShareHandle = nullptr;
@@ -447,12 +445,6 @@ void FCurlHttpManager::UpdateConfigs()
 
 FHttpThreadBase* FCurlHttpManager::CreateHttpThread()
 {
-	bool bUseEventLoop = (FMath::RandRange(0, 99) < CVarHttpEventLoopEnableChance.GetValueOnGameThread());
-
-	// Also support to change it through runtime args.
-	// Can't set cvar CVarHttpEventLoopEnableChance through runtime args or .ini files because http module initialized too early
-	FParse::Bool(FCommandLine::Get(), TEXT("useeventloop="), bUseEventLoop);
-
 	if (bUseEventLoop)
 	{
 #if WITH_CURL_MULTIPOLL

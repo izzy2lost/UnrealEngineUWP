@@ -338,6 +338,8 @@ protected:
 
 	FHttpStats HttpStats;
 
+	bool bUseEventLoop = true;
+
 PACKAGE_SCOPE:
 
 	/** Used to lock access to add/remove/find requests */

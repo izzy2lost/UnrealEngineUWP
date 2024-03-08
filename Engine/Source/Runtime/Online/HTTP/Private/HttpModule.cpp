@@ -22,13 +22,6 @@ TAutoConsoleVariable<bool> CVarHttpInsecureProtocolEnabled(
 );
 #endif
 
-TAutoConsoleVariable<int32> CVarHttpEventLoopEnableChance(
-	TEXT("http.EventLoopEnableChance"),
-	UE_HTTP_EVENT_LOOP_ENABLE_CHANCE_BY_DEFAULT,
-	TEXT("Enable chance of event loop, from 0 to 100"),
-	ECVF_SaveForNextBoot
-);
-
 DEFINE_LOG_CATEGORY(LogHttp);
 
 // FHttpModule
