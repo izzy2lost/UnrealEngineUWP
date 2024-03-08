@@ -51,11 +51,17 @@ namespace UnrealGameSync
 			tableLayoutPanel3 = new System.Windows.Forms.TableLayoutPanel();
 			HordeServerTextBox = new System.Windows.Forms.TextBox();
 			label5 = new System.Windows.Forms.Label();
+			DisableRadioBtn = new System.Windows.Forms.RadioButton();
+			DisableGroupBox = new System.Windows.Forms.GroupBox();
+			tableLayoutPanel4 = new System.Windows.Forms.TableLayoutPanel();
+			DisableUpdateLabel = new System.Windows.Forms.Label();
 			tableLayoutPanel1.SuspendLayout();
 			tableLayoutPanel2.SuspendLayout();
 			PerforceGroupBox.SuspendLayout();
 			HordeGroupBox.SuspendLayout();
 			tableLayoutPanel3.SuspendLayout();
+			DisableGroupBox.SuspendLayout();
+			tableLayoutPanel4.SuspendLayout();
 			SuspendLayout();
 			// 
 			// ServerTextBox
@@ -190,12 +196,12 @@ namespace UnrealGameSync
 			// 
 			RetryBtn.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
 			RetryBtn.AutoSize = true;
-			RetryBtn.Location = new System.Drawing.Point(689, 295);
+			RetryBtn.Location = new System.Drawing.Point(689, 368);
 			RetryBtn.Name = "RetryBtn";
 			RetryBtn.Padding = new System.Windows.Forms.Padding(20, 0, 20, 0);
 			RetryBtn.Size = new System.Drawing.Size(119, 30);
-			RetryBtn.TabIndex = 4;
-			RetryBtn.Text = "Connect";
+			RetryBtn.TabIndex = 0;
+			RetryBtn.Text = "Continue";
 			RetryBtn.UseVisualStyleBackColor = true;
 			RetryBtn.Click += ConnectBtn_Click;
 			// 
@@ -204,7 +210,7 @@ namespace UnrealGameSync
 			CancelBtn.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
 			CancelBtn.AutoSize = true;
 			CancelBtn.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-			CancelBtn.Location = new System.Drawing.Point(564, 295);
+			CancelBtn.Location = new System.Drawing.Point(564, 368);
 			CancelBtn.Name = "CancelBtn";
 			CancelBtn.Padding = new System.Windows.Forms.Padding(20, 0, 20, 0);
 			CancelBtn.Size = new System.Drawing.Size(119, 30);
@@ -216,7 +222,7 @@ namespace UnrealGameSync
 			// ViewLogBtn
 			// 
 			ViewLogBtn.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
-			ViewLogBtn.Location = new System.Drawing.Point(12, 295);
+			ViewLogBtn.Location = new System.Drawing.Point(12, 368);
 			ViewLogBtn.Name = "ViewLogBtn";
 			ViewLogBtn.Size = new System.Drawing.Size(113, 30);
 			ViewLogBtn.TabIndex = 2;
@@ -292,13 +298,69 @@ namespace UnrealGameSync
 			label5.TabIndex = 7;
 			label5.Text = "Server:";
 			// 
-			// SettingsWindow
+			// DisableRadioBtn
+			// 
+			DisableRadioBtn.AutoSize = true;
+			DisableRadioBtn.Location = new System.Drawing.Point(28, 285);
+			DisableRadioBtn.Margin = new System.Windows.Forms.Padding(6);
+			DisableRadioBtn.Name = "DisableRadioBtn";
+			DisableRadioBtn.Size = new System.Drawing.Size(63, 19);
+			DisableRadioBtn.TabIndex = 11;
+			DisableRadioBtn.TabStop = true;
+			DisableRadioBtn.Text = "Disable";
+			DisableRadioBtn.UseVisualStyleBackColor = true;
+			DisableRadioBtn.CheckedChanged += DisableRadioBtn_CheckedChanged;
+			// 
+			// DisableGroupBox
+			// 
+			DisableGroupBox.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			DisableGroupBox.Controls.Add(tableLayoutPanel4);
+			DisableGroupBox.Location = new System.Drawing.Point(12, 286);
+			DisableGroupBox.Margin = new System.Windows.Forms.Padding(6);
+			DisableGroupBox.Name = "DisableGroupBox";
+			DisableGroupBox.Padding = new System.Windows.Forms.Padding(6);
+			DisableGroupBox.Size = new System.Drawing.Size(796, 64);
+			DisableGroupBox.TabIndex = 12;
+			DisableGroupBox.TabStop = false;
+			// 
+			// tableLayoutPanel4
+			// 
+			tableLayoutPanel4.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			tableLayoutPanel4.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+			tableLayoutPanel4.ColumnCount = 1;
+			tableLayoutPanel4.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 200F));
+			tableLayoutPanel4.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
+			tableLayoutPanel4.Controls.Add(DisableUpdateLabel, 0, 0);
+			tableLayoutPanel4.Location = new System.Drawing.Point(13, 21);
+			tableLayoutPanel4.Margin = new System.Windows.Forms.Padding(6);
+			tableLayoutPanel4.Name = "tableLayoutPanel4";
+			tableLayoutPanel4.RowCount = 1;
+			tableLayoutPanel4.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
+			tableLayoutPanel4.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 80F));
+			tableLayoutPanel4.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 80F));
+			tableLayoutPanel4.Size = new System.Drawing.Size(770, 28);
+			tableLayoutPanel4.TabIndex = 7;
+			// 
+			// DisableUpdateLabel
+			// 
+			DisableUpdateLabel.Anchor = System.Windows.Forms.AnchorStyles.Left;
+			DisableUpdateLabel.AutoSize = true;
+			DisableUpdateLabel.Location = new System.Drawing.Point(6, 6);
+			DisableUpdateLabel.Margin = new System.Windows.Forms.Padding(6, 0, 6, 0);
+			DisableUpdateLabel.Name = "DisableUpdateLabel";
+			DisableUpdateLabel.Size = new System.Drawing.Size(365, 15);
+			DisableUpdateLabel.TabIndex = 7;
+			DisableUpdateLabel.Text = "Disable auto-update functionality and run the locally installed build.";
+			// 
+			// UpdateSettingsWindow
 			// 
 			AcceptButton = RetryBtn;
 			AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
 			AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
 			CancelButton = CancelBtn;
-			ClientSize = new System.Drawing.Size(820, 337);
+			ClientSize = new System.Drawing.Size(820, 410);
+			Controls.Add(DisableRadioBtn);
+			Controls.Add(DisableGroupBox);
 			Controls.Add(PerforceRadioBtn);
 			Controls.Add(HordeRadioBtn);
 			Controls.Add(HordeGroupBox);
@@ -310,7 +372,7 @@ namespace UnrealGameSync
 			Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
 			MaximizeBox = false;
 			MinimizeBox = false;
-			Name = "SettingsWindow";
+			Name = "UpdateSettingsWindow";
 			StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
 			Text = "Update Settings";
 			tableLayoutPanel1.ResumeLayout(false);
@@ -321,6 +383,9 @@ namespace UnrealGameSync
 			HordeGroupBox.ResumeLayout(false);
 			tableLayoutPanel3.ResumeLayout(false);
 			tableLayoutPanel3.PerformLayout();
+			DisableGroupBox.ResumeLayout(false);
+			tableLayoutPanel4.ResumeLayout(false);
+			tableLayoutPanel4.PerformLayout();
 			ResumeLayout(false);
 			PerformLayout();
 		}
@@ -347,5 +412,9 @@ namespace UnrealGameSync
 		private System.Windows.Forms.TableLayoutPanel tableLayoutPanel3;
 		private System.Windows.Forms.TextBox HordeServerTextBox;
 		private System.Windows.Forms.Label label5;
+		private System.Windows.Forms.RadioButton DisableRadioBtn;
+		private System.Windows.Forms.GroupBox DisableGroupBox;
+		private System.Windows.Forms.TableLayoutPanel tableLayoutPanel4;
+		private System.Windows.Forms.Label DisableUpdateLabel;
 	}
 }

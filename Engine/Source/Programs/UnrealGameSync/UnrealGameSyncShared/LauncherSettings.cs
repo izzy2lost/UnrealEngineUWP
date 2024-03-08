@@ -14,6 +14,7 @@ namespace UnrealGameSync
 		Unknown = 0,
 		Perforce = 1,
 		Horde = 2,
+		None = 3,
 	}
 
 	public class LauncherSettings

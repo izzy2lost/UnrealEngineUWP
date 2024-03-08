@@ -94,6 +94,9 @@ namespace UnrealGameSync
 				Application.SetCompatibleTextRenderingDefault(false);
 				Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
 
+				// Don't auto install (or - more importantly- auto *un-install*) the winforms sync context. We want to be able to access it from the
+				// constructor of our ApplicationContext, which will be after the temporary install/uninstall prompted by spawning the settings dialog.
+				WindowsFormsSynchronizationContext.AutoInstall = false;
 				SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
 
 				using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "ActivateUnrealGameSync"))
@@ -101,7 +104,7 @@ namespace UnrealGameSync
 					bool runUpdateCheck = ShouldRunAutoUpdate(args);
 
 					// Check for a newer version of the application
-					if (runUpdateCheck && Launcher.SyncAndRunLatest(instanceMutex, args))
+					if (runUpdateCheck && Launcher.SyncAndRunLatest(instanceMutex, args) != LauncherResult.Continue)
 					{
 						return;
 					}
