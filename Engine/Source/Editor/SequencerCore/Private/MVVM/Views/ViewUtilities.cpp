@@ -6,6 +6,7 @@
 #include "MVVM/ViewModelPtr.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/ViewModels/EditorViewModel.h"
+#include "MVVM/ViewModels/EditorSharedViewModelData.h"
 #include "MVVM/Extensions/IHoveredExtension.h"
 #include "MVVM/Views/OutlinerColumns/SOutlinerColumnButton.h"
 
@@ -21,9 +22,12 @@ TSharedRef<SWidget> MakeAddButton(FText HoverText, const FOnClicked& HandleClick
 		IsHovered = MakeAttributeSP(Hoverable.ToSharedRef(), &IHoveredExtension::IsHovered);
 	}
 
+	TSharedPtr<FSharedViewModelData>        SharedData       = ViewModel->GetSharedData();
+	TSharedPtr<FEditorSharedViewModelData>  SharedEditorData = SharedData       ? SharedData->CastThisShared<FEditorSharedViewModelData>() : nullptr;
+	TSharedPtr<FEditorViewModel>            Editor           = SharedEditorData ? SharedEditorData->GetEditor() : nullptr;
 
 	TAttribute<bool> IsEnabled;
-	if (TSharedPtr<FEditorViewModel> Editor = ViewModel->FindAncestorOfType<FEditorViewModel>())
+	if (Editor)
 	{
 		IsEnabled = MakeAttributeSP(Editor.ToSharedRef(), &FEditorViewModel::IsEditable);
 	}
@@ -44,8 +48,12 @@ TSharedRef<SWidget> MakeAddButton(FText HoverText, const FOnGetContent& HandleGe
 		IsHovered = MakeAttributeSP(Hoverable.ToSharedRef(), &IHoveredExtension::IsHovered);
 	}
 
+	TSharedPtr<FSharedViewModelData>        SharedData       = ViewModel->GetSharedData();
+	TSharedPtr<FEditorSharedViewModelData>  SharedEditorData = SharedData       ? SharedData->CastThisShared<FEditorSharedViewModelData>() : nullptr;
+	TSharedPtr<FEditorViewModel>            Editor           = SharedEditorData ? SharedEditorData->GetEditor() : nullptr;
+
 	TAttribute<bool> IsEnabled;
-	if (TSharedPtr<FEditorViewModel> Editor = ViewModel->FindAncestorOfType<FEditorViewModel>())
+	if (Editor)
 	{
 		IsEnabled = MakeAttributeSP(Editor.ToSharedRef(), &FEditorViewModel::IsEditable);
 	}
