@@ -92,15 +92,6 @@ public:
 	// FRunnable interface
 	uint32 Run() override;
 
-	// Bytes where the model is stored
-	TArray64<uint8>& GetModelBytes();
-
-	// Bytes where the streamed data files are stored
-	TArray64<uint8>& GetBulkBytes();
-
-	// Bytes where the streamed morph data files are stored
-	TArray64<uint8>& GetMorphBytes();
-
 	//
 	bool IsCompleted() const;
 
@@ -121,6 +112,13 @@ private:
 
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
 
+	bool bIsCooking = false;
+
+	// Whether the thread has finished running
+	std::atomic<bool> bThreadCompleted = false;
+
+public:
+
 	// Bytes where the model is stored
 	TArray64<uint8> Bytes;
 
@@ -130,8 +128,4 @@ private:
 	// Bytes store streameable files coming form the CO itself.
 	TArray64<uint8> MorphDataBytes;
 
-	bool bIsCooking = false;
-
-	// Whether the thread has finished running
-	std::atomic<bool> bThreadCompleted = false;
 };

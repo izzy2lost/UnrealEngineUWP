@@ -246,24 +246,20 @@ mu::Ptr<ASTOp> ASTOp::DeepClone( const Ptr<ASTOp>& root )
 
 
 //-------------------------------------------------------------------------------------------------
-void ASTOp::FullLink( Ptr<ASTOp>& root, FProgram& program, FLinkerOptions* Options )
+OP::ADDRESS ASTOp::FullLink( Ptr<ASTOp>& Root, FProgram& Program, FLinkerOptions* Options )
 {
     MUTABLE_CPUPROFILER_SCOPE(AST_FullLink);
 
-    Traverse_BottomUp_Unique( root,
-                              [&](Ptr<ASTOp> n){ n->Link(program, Options); },
+    Traverse_BottomUp_Unique( Root,
+                              [&](Ptr<ASTOp> n){ n->Link(Program, Options); },
                               [&](Ptr<const ASTOp> n){ return n->linkedAddress==0; });
-}
 
+	OP::ADDRESS Result = Root->linkedAddress;
 
-//-------------------------------------------------------------------------------------------------
-void ASTOp::ClearLinkData( Ptr<ASTOp>& root )
-{
-    MUTABLE_CPUPROFILER_SCOPE(AST_ClearLinkData);
-    ASTOpList roots;
-    roots.Add(root);
-    Traverse_TopDown_Unique_Imprecise( roots,
-                             [&](const Ptr<ASTOp>& n){ n->linkedAddress = 0; return true; });
+	// This signals the caller that the Root pointer shouldn't be used anymore.
+	Root = nullptr;
+
+	return Result;
 }
 
 

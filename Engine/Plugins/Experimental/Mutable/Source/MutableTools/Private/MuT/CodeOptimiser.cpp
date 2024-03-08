@@ -24,6 +24,7 @@
 #include "MuR/MutableRuntimeModule.h"
 
 #include "Tasks/Task.h"
+#include "Misc/ScopeRWLock.h"
 
 #include <unordered_set>
 
@@ -329,17 +330,6 @@ namespace mu
 		{
 			auto& container = visited[(int)n->GetOpType()];
 
-			// debug
-	//        for( const auto& o : container )
-	//        {
-	//            if (*n==*o)
-	//            {
-	//                auto thisHash = n->Hash();
-	//                auto otherHash = o->Hash();
-	//                check(thisHash==otherHash);
-	//            }
-	//        }
-
 			// Insert will tell us if it was already there
 			auto it = container.insert(n);
 			if( !it.second )
@@ -498,8 +488,7 @@ namespace mu
 			LinkerOptions.bSeparateImageMips = false;
 
 			TSharedPtr<const Model> model = MakeShared<Model>();
-			ASTOp::FullLink(SourceCloned, model->GetPrivate()->m_program, &LinkerOptions);
-			OP::ADDRESS at = SourceCloned->linkedAddress;
+			OP::ADDRESS at = ASTOp::FullLink(SourceCloned, model->GetPrivate()->m_program, &LinkerOptions);
 
 			FProgram::FState state;
 			state.m_root = at;
@@ -520,7 +509,7 @@ namespace mu
 				if (pMesh)
 				{
 					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
-					constantOp->type = OP_TYPE::ME_CONSTANT;
+					constantOp->Type = OP_TYPE::ME_CONSTANT;
 					constantOp->SetValue( pMesh, DiskCacheContext );
 					Result = constantOp;
 				  }
@@ -536,7 +525,7 @@ namespace mu
 				if (pImage)
 				{
 					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
-					constantOp->type = OP_TYPE::IM_CONSTANT;
+					constantOp->Type = OP_TYPE::IM_CONSTANT;
 					constantOp->SetValue( pImage, DiskCacheContext );
 					Result = constantOp;
 				}
@@ -552,7 +541,7 @@ namespace mu
 				if (pLayout)
 				{
 					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
-					constantOp->type = OP_TYPE::LA_CONSTANT;
+					constantOp->Type = OP_TYPE::LA_CONSTANT;
 					constantOp->SetValue( pLayout, DiskCacheContext);
 					Result = constantOp;
 				}
@@ -604,8 +593,6 @@ namespace mu
 			}
 
 			pSystem->GetPrivate()->EndBuild();
-
-			SourceCloned = nullptr;
 		}
 
 	};
@@ -780,7 +767,7 @@ namespace mu
 		if (bUseConcurrency)
 		{
 			/** Protect access to the original AST being optimized. */
-			FCriticalSection ASTAccessLock;
+			FRWLock ASTAccessLock;
 
 			// Launch the tasks.
 			UE::Tasks::FTask LaunchTask = UE::Tasks::Launch(TEXT("ConstantGeneratorLaunchTasks"), 
@@ -788,7 +775,7 @@ namespace mu
 				{
 					MUTABLE_CPUPROFILER_SCOPE(ConstantGenerator_LaunchTasks);
 
-					FScopeLock Lock(&ASTAccessLock);
+					FReadScopeLock Lock(ASTAccessLock);
 
 					FImageOperator ImOp = FImageOperator::GetDefault(InOptions->ImageFormatFunc);
 
@@ -819,10 +806,10 @@ namespace mu
 							UE::Tasks::FTask CompleteTask = UE::Tasks::Launch(TEXT("MutableResolveComplete"),
 								[SubgraphRoot, InOptions, ResolveImage, &ASTAccessLock]()
 								{
-									FScopeLock Lock(&ASTAccessLock);
+									FWriteScopeLock Lock(ASTAccessLock);
 
 									Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
-									ConstantOp->type = OP_TYPE::IM_CONSTANT;
+									ConstantOp->Type = OP_TYPE::IM_CONSTANT;
 									ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.DiskCacheContext);
 									ASTOp::Replace(SubgraphRoot, ConstantOp);
 								},
@@ -844,7 +831,7 @@ namespace mu
 							// Launch the preparation on the AST-modification pipe
 							UE::Tasks::FTask PrepareTask = UE::Tasks::Launch(TEXT("MutableConstantPrepare"), [TaskPtr, &ASTAccessLock]()
 								{
-									FScopeLock Lock(&ASTAccessLock);
+									FReadScopeLock Lock(ASTAccessLock);
 
 									// We need the clone because linking modifies ASTOp state and also to be safe for concurrency.
 									TaskPtr->SourceCloned = ASTOp::DeepClone(TaskPtr->Source);
@@ -863,7 +850,7 @@ namespace mu
 							// Launch the completion on the AST-modification pipe
 							UE::Tasks::FTask CompleteTask = UE::Tasks::Launch(TEXT("MutableConstantComplete"), [TaskPtr = MoveTemp(Task), &ASTAccessLock]()
 								{
-									FScopeLock Lock(&ASTAccessLock);
+									FWriteScopeLock Lock(ASTAccessLock);
 
 									ASTOp::Replace(TaskPtr->Source, TaskPtr->Result);
 									TaskPtr->Source = nullptr;
@@ -937,7 +924,7 @@ namespace mu
 								UE::Tasks::FTaskEvent ReferenceCompletionEvent = InOptions->OptimisationOptions.ReferencedResourceProvider(ImageID, ResolveImage, bRunImmediatlyIfPossible);
 								ReferenceCompletionEvent.Wait();
 								Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
-								ConstantOp->type = OP_TYPE::IM_CONSTANT;
+								ConstantOp->Type = OP_TYPE::IM_CONSTANT;
 								ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.DiskCacheContext);
 								ASTOp::Replace(SubgraphRoot, ConstantOp);
 							};
@@ -1159,7 +1146,7 @@ namespace mu
 		}
 
 		// List of meshes that require a skeleton
-		vector<mu::Ptr<ASTOpConstantResource>> m_meshesRequiringSkeleton;
+		TArray<mu::Ptr<ASTOpConstantResource>> MeshesRequiringSkeleton;
 
 	private:
 
@@ -1179,12 +1166,7 @@ namespace mu
 
 				if (currentProtected)
 				{
-					if ( std::find(m_meshesRequiringSkeleton.begin(), m_meshesRequiringSkeleton.end(), typedOp)
-						 ==
-						 m_meshesRequiringSkeleton.end() )
-					{
-						m_meshesRequiringSkeleton.push_back(typedOp);
-					}
+					MeshesRequiringSkeleton.AddUnique(typedOp);
 				}
 
 				return false;
@@ -1263,7 +1245,7 @@ namespace mu
 						  const mu::Ptr<Skeleton>& pFinalSkeleton )
 		{
 			m_pAddMeshOp = pAddMeshOp;
-			m_contributingMeshes = std::move(contributingMeshes);
+			m_contributingMeshes = MoveTemp(contributingMeshes);
 			m_pFinalSkeleton = pFinalSkeleton;
 		}
 	};
@@ -1352,7 +1334,7 @@ namespace mu
 						{
 							NewMesh->CheckIntegrity();
 							mu::Ptr<ASTOpConstantResource> newOp = new ASTOpConstantResource();
-							newOp->type = OP_TYPE::ME_CONSTANT;
+							newOp->Type = OP_TYPE::ME_CONSTANT;
 							newOp->SetValue(NewMesh, options.DiskCacheContext);
 
 							ASTOp::Replace(at, newOp);

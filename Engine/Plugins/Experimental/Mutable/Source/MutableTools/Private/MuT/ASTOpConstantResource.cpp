@@ -29,13 +29,13 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	bool ASTOpConstantResource::IsEqual(const ASTOp& otherUntyped) const
+	bool ASTOpConstantResource::IsEqual(const ASTOp& OtherUntyped) const
 	{
-		if (otherUntyped.GetOpType()==GetOpType())
+		if (OtherUntyped.GetOpType()==GetOpType())
 		{
-			const ASTOpConstantResource* other = static_cast<const ASTOpConstantResource*>(&otherUntyped);
-			return type == other->type && hash == other->hash &&
-				loadedValue == other->loadedValue && proxy == other->proxy;
+			const ASTOpConstantResource* Other = static_cast<const ASTOpConstantResource*>(&OtherUntyped);
+			return Type == Other->Type && ValueHash == Other->ValueHash &&
+				LoadedValue == Other->LoadedValue && Proxy == Other->Proxy;
 		}
 		return false;
 	}
@@ -45,10 +45,10 @@ namespace mu
 	mu::Ptr<ASTOp> ASTOpConstantResource::Clone(MapChildFuncRef) const
 	{
 		Ptr<ASTOpConstantResource> n = new ASTOpConstantResource();
-		n->type = type;
-		n->proxy = proxy;
-		n->loadedValue = loadedValue;
-		n->hash = hash;
+		n->Type = Type;
+		n->Proxy = Proxy;
+		n->LoadedValue = LoadedValue;
+		n->ValueHash = ValueHash;
 		return n;
 	}
 
@@ -56,8 +56,8 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	uint64 ASTOpConstantResource::Hash() const
 	{
-		uint64 res = std::hash<uint64>()(uint64(type));
-		hash_combine(res, hash);
+		uint64 res = std::hash<uint64>()(uint64(Type));
+		hash_combine(res, ValueHash);
 		return res;
 	}
 
@@ -181,7 +181,7 @@ namespace mu
 
 		if (!linkedAddress && !bLinkedAndNull)
 		{
-			if (type == OP_TYPE::ME_CONSTANT)
+			if (Type == OP_TYPE::ME_CONSTANT)
 			{
 				OP::MeshConstantArgs args;
 				FMemory::Memset(&args, 0, sizeof(args));
@@ -218,7 +218,7 @@ namespace mu
 
 				linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
 				program.m_opAddress.Add((uint32_t)program.m_byteCode.Num());
-				AppendCode(program.m_byteCode, type);
+				AppendCode(program.m_byteCode, Type);
 				AppendCode(program.m_byteCode, args);
 			}
 			else
@@ -228,7 +228,7 @@ namespace mu
 
 				bool bValidData = true;
 
-				switch (type)
+				switch (Type)
 				{
 				case OP_TYPE::IM_CONSTANT:
 				{
@@ -244,6 +244,7 @@ namespace mu
 					{
 						args.value = AddConstantImage( program, pTyped, *Options);
 					}
+
 					break;
 				}
 				case OP_TYPE::LA_CONSTANT:
@@ -260,8 +261,8 @@ namespace mu
 				if (bValidData)
 				{
 					linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
-					program.m_opAddress.Add((uint32_t)program.m_byteCode.Num());
-					AppendCode(program.m_byteCode, type);
+					program.m_opAddress.Add((uint32)program.m_byteCode.Num());
+					AppendCode(program.m_byteCode, Type);
 					AppendCode(program.m_byteCode, args);
 				}
 				else
@@ -271,6 +272,10 @@ namespace mu
 					bLinkedAndNull = true;
 				}
 			}
+
+			// Clear stored value to reduce memory usage.
+			LoadedValue = nullptr;
+			Proxy = nullptr;
 		}
 	}
 
@@ -280,7 +285,7 @@ namespace mu
 	{
 		FImageDesc res;
 
-		if (type == OP_TYPE::IM_CONSTANT)
+		if (Type == OP_TYPE::IM_CONSTANT)
 		{
 			// TODO: cache to avoid disk loading
 			Ptr<const Image> pConst = static_cast<const Image*>(GetValue().get());
@@ -300,7 +305,7 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	void ASTOpConstantResource::GetBlockLayoutSize(int blockIndex, int* pBlockX, int* pBlockY, FBlockLayoutSizeCache*)
 	{
-		switch (type)
+		switch (Type)
 		{
 		case OP_TYPE::LA_CONSTANT:
 		{
@@ -333,7 +338,7 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	void ASTOpConstantResource::GetLayoutBlockSize(int* pBlockX, int* pBlockY)
 	{
-		switch (type)
+		switch (Type)
 		{
 
 		case OP_TYPE::IM_CONSTANT:
@@ -353,7 +358,7 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpConstantResource::GetNonBlackRect(FImageRect& maskUsage) const
 	{
-		if (type == OP_TYPE::IM_CONSTANT)
+		if (Type == OP_TYPE::IM_CONSTANT)
 		{
 			// TODO: cache
 			Ptr<const Image> pMask = static_cast<const Image*>(GetValue().get());
@@ -369,7 +374,7 @@ namespace mu
 	bool ASTOpConstantResource::IsImagePlainConstant(FVector4f& colour) const
 	{
 		bool res = false;
-		switch (type)
+		switch (Type)
 		{
 
 		case OP_TYPE::IM_CONSTANT:
@@ -422,25 +427,25 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	uint64 ASTOpConstantResource::GetValueHash() const
 	{
-		return hash;
+		return ValueHash;
 	}
 
 
 	//-------------------------------------------------------------------------------------------------
 	mu::Ptr<const RefCounted> ASTOpConstantResource::GetValue() const
 	{
-		if (loadedValue)
+		if (LoadedValue)
 		{
-			return loadedValue;
+			return LoadedValue;
 		}
 		else
 		{
-			switch (type)
+			switch (Type)
 			{
 
 			case OP_TYPE::IM_CONSTANT:
 			{
-				Ptr<ResourceProxy<Image>> typedProxy = static_cast<ResourceProxy<Image>*>(proxy.get());
+				Ptr<ResourceProxy<Image>> typedProxy = static_cast<ResourceProxy<Image>*>(Proxy.get());
 				Ptr<const Image> r = typedProxy->Get();
 				return r;
 			}
@@ -458,7 +463,7 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	void ASTOpConstantResource::SetValue(const Ptr<const RefCounted>& v, FProxyFileContext* DiskCacheContext)
 	{
-		switch (type)
+		switch (Type)
 		{
 		case OP_TYPE::IM_CONSTANT:
 		{
@@ -468,15 +473,15 @@ namespace mu
 			OutputArchive arch(&stream);
 			Image::Serialise(r.get(), arch);
 
-			hash = CityHash64(static_cast<const char*>(stream.GetBuffer()), stream.GetBufferSize());
+			ValueHash = CityHash64(static_cast<const char*>(stream.GetBuffer()), stream.GetBufferSize());
 
 			if (DiskCacheContext)
 			{
-				proxy = new ResourceProxyTempFile<Image>(r.get(), *DiskCacheContext);
+				Proxy = new ResourceProxyTempFile<Image>(r.get(), *DiskCacheContext);
 			}
 			else
 			{
-				loadedValue = r;
+				LoadedValue = r;
 			}
 			break;
 		}
@@ -489,9 +494,9 @@ namespace mu
 			Ptr<const Mesh> r = static_cast<const Mesh*>(v.get());
 			Mesh::Serialise(r.get(), arch);
 
-			hash = CityHash64(static_cast<const char*>(stream.GetBuffer()), stream.GetBufferSize());
+			ValueHash = CityHash64(static_cast<const char*>(stream.GetBuffer()), stream.GetBufferSize());
 
-			loadedValue = v;
+			LoadedValue = v;
 			break;
 		}
 
@@ -503,14 +508,14 @@ namespace mu
 			Ptr<const Layout> r = static_cast<const Layout*>(v.get());
 			Layout::Serialise(r.get(), arch);
 
-			hash = CityHash64(static_cast<const char*>(stream.GetBuffer()), stream.GetBufferSize());
+			ValueHash = CityHash64(static_cast<const char*>(stream.GetBuffer()), stream.GetBufferSize());
 
-			loadedValue = v;
+			LoadedValue = v;
 			break;
 		}
 
 		default:
-			loadedValue = v;
+			LoadedValue = v;
 			break;
 		}
 	}
@@ -519,7 +524,7 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	mu::Ptr<ImageSizeExpression> ASTOpConstantResource::GetImageSizeExpression() const
 	{
-		if (type==OP_TYPE::IM_CONSTANT)
+		if (Type==OP_TYPE::IM_CONSTANT)
 		{
 			Ptr<ImageSizeExpression> pRes = new ImageSizeExpression;
 			pRes->type = ImageSizeExpression::ISET_CONSTANT;

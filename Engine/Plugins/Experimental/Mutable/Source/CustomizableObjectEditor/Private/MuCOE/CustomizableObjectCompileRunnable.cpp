@@ -398,22 +398,6 @@ uint32 FCustomizableObjectSaveDDRunnable::Run()
 }
 
 
-TArray64<uint8>& FCustomizableObjectSaveDDRunnable::GetModelBytes()
-{
-	return Bytes;
-}
-
-
-TArray64<uint8>& FCustomizableObjectSaveDDRunnable::GetBulkBytes()
-{
-	return BulkDataBytes;
-}
-
-TArray64<uint8>& FCustomizableObjectSaveDDRunnable::GetMorphBytes()
-{
-	return MorphDataBytes;
-}
-
 bool FCustomizableObjectSaveDDRunnable::IsCompleted() const
 {
 	return bThreadCompleted;

@@ -979,7 +979,7 @@ namespace mu
 						// Constant layout to start with
 						{
 							Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-							op->type = OP_TYPE::LA_CONSTANT;
+							op->Type = OP_TYPE::LA_CONSTANT;
 
 							op->SetValue(pLayout, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 							layoutOp = op;
@@ -1005,7 +1005,7 @@ namespace mu
 								Ptr<ASTOp> layoutFragmentAd;
 								{
 									Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-									op->type = OP_TYPE::LA_CONSTANT;
+									op->Type = OP_TYPE::LA_CONSTANT;
 
 									Ptr<const Layout> pCloned = data.GeneratedLayouts[LayoutIndex];
 									op->SetValue(pCloned, m_compilerOptions->OptimisationOptions.DiskCacheContext);

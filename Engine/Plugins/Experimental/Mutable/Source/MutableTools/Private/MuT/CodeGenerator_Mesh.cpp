@@ -1255,7 +1255,7 @@ namespace mu
         NodeMeshConstant::Private& node = *constant->GetPrivate();
 
         Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-        op->type = OP_TYPE::ME_CONSTANT;
+        op->Type = OP_TYPE::ME_CONSTANT;
 		OutResult.baseMeshOp = op;
 		OutResult.meshOp = op;
 		OutResult.GeneratedLayouts.Empty();
@@ -1506,7 +1506,7 @@ namespace mu
             }
 
             Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
-            cop->type = OP_TYPE::ME_CONSTANT;
+            cop->Type = OP_TYPE::ME_CONSTANT;
             cop->SetValue( pFormatMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext );
             op->Format = cop;
 
