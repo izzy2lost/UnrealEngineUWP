@@ -1,3 +1,6 @@
+1.84.3.8
+* Fixed issues with context menu items.
+
 1.84.3.7
 * Prefix encrypted Perforce server port address with "ssl:"
 
