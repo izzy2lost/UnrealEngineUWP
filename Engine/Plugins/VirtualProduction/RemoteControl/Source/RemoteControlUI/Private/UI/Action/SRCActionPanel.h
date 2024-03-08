@@ -8,8 +8,11 @@ class FRCActionModel;
 class FRCBehaviourModel;
 class SBox;
 class SCheckBox;
+class SComboButton;
 class SRCBehaviourDetails;
 class SRCLogicPanelListBase;
+class SRCMajorPanel;
+class SRCMinorPanel;
 class SRemoteControlPanel;
 class URCAction;
 class URCBehaviour;
@@ -125,6 +128,12 @@ private:
 	 */
 	TSharedRef<SWidget> GetActionMenuContentWidget();
 
+	/** Check the validity of the panel widgets and if not valid will create them */
+	void CreateActionPanelWidgets();
+
+	/** Return whether or not all panel widgets are valid */
+	bool AreActionPanelWidgetsValid() const;
+
 	/** Handles click event for Add Action button*/
 	void OnAddActionClicked(TSharedPtr<FRemoteControlField> InRemoteControlField);
 
@@ -151,7 +160,7 @@ private:
 
 private:
 	/** Helper widget for behavior details. */
-	static TSharedRef<SBox> CreateNoneSelectedWidget();
+	static TSharedRef<SBox> GetNoneSelectedWidget();
 
 	void DuplicateAction(URCAction* InAction);
 
@@ -174,6 +183,24 @@ private:
 
 	/** Cached menu widget for Add New Action */
 	TSharedPtr<SWidget> AddNewActionMenuWidget;
+
+	/** Action Minor Panel */
+	TSharedPtr<SRCMinorPanel> ActionDockPanel;
+
+	/** ComboButton to add new action */
+	TSharedPtr<SComboButton> AddNewActionButton;
+
+	/** Add all actions button */
+	TSharedPtr<SWidget> AddAllActionsButton;
+
+	/** Add all selected actions button */
+	TSharedPtr<SWidget> AddAllSelectedActionsButton;
+
+	/** Action Major Panel */
+	TSharedPtr<SRCMajorPanel> ActionsPanel;
+
+	/** Behavior Details Minor Panel */
+	TSharedPtr<SRCMinorPanel> BehaviorDetailsPanel;
 
 	/** Whether the Add Actions menu list is outdated and needs to be refreshed */
 	bool bAddActionMenuNeedsRefresh = false;

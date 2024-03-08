@@ -229,6 +229,15 @@ TArray<TSharedPtr<FRCLogicModeBase>> SRCControllerPanel::GetSelectedLogicItems()
 	return {};
 }
 
+int32 SRCControllerPanel::NumControllerItems() const
+{
+	if (ControllerPanelList.IsValid())
+	{
+		return ControllerPanelList->NumControllerItems();
+	}
+	return INDEX_NONE;
+}
+
 void SRCControllerPanel::DuplicateController(URCController* InController)
 {
 	if (!ensure(InController))

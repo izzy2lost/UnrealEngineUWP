@@ -5,6 +5,7 @@
 #include "Widgets/SCompoundWidget.h"
 
 struct FRCPanelStyle;
+class SBox;
 class SRCActionPanel;
 class STextBlock;
 class FRCBehaviourModel;
@@ -22,14 +23,23 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
-	void Construct(const FArguments& InArgs, TSharedRef<SRCActionPanel> InActionPanel, TSharedRef<FRCBehaviourModel> InBehaviourItem);
+	void Construct(const FArguments& InArgs, TSharedRef<SRCActionPanel> InActionPanel, TSharedPtr<FRCBehaviourModel> InBehaviourItem);
 
 	/** Set the Enabled state of our parent Behaviour */
-	void SetIsBehaviourEnabled(const bool bIsEnabled);
+	void SetIsBehaviourEnabled(const bool bIsEnabled) const;
+
+	/** Set a new behavior for this Details widget */
+	void SetNewBehavior(const TSharedPtr<FRCBehaviourModel>& InBehaviourItem);
+
+	/** Get the current Behavior used for this details */
+	TSharedPtr<FRCBehaviourModel> GetCurrentBehavior() const;
 
 private:
 	/** Refreshes the UI widgets enabled state depending on whether the parent behaviour is currently enabled */
-	void RefreshIsBehaviourEnabled(const bool bIsEnabled);
+	void RefreshIsBehaviourEnabled(const bool bIsEnabled) const;
+
+	/** Refresh the behaviour widgets */
+	void Refresh();
 
 	/** The parent Action panel UI widget holding this Header*/
 	TWeakPtr<SRCActionPanel> ActionPanelWeakPtr;
@@ -39,6 +49,9 @@ private:
 
 	/** Panel Style reference. */
 	const FRCPanelStyle* RCPanelStyle;
+
+	/** Behaviour Box containing the details widget */
+	TSharedPtr<SBox> BehaviourDetailsBox;
 
 	/** Behaviour specific details panel*/
 	TSharedPtr<SWidget> BehaviourDetailsWidget;

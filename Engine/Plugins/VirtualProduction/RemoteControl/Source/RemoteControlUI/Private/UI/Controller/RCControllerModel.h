@@ -31,7 +31,7 @@ class FRCControllerModel : public FRCLogicModeBase, public FSelfRegisteringEdito
 {
 public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnValueTypeChanged, URCVirtualPropertyBase* /* InController */, EPropertyBagPropertyType /* InValueType */);
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnValueChanged, URCVirtualPropertyBase* /* InController */);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnValueChanged, TSharedPtr<FRCControllerModel> /* InControllerModel */);
 	
 	FRCControllerModel(URCVirtualPropertyBase* InVirtualProperty, const TSharedRef<IDetailTreeNode>& InTreeNode, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel);
 	

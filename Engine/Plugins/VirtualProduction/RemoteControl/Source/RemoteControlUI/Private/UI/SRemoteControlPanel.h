@@ -64,7 +64,8 @@ class SRemoteControlPanel : public SCompoundWidget, public FGCObject
 public:
 	// Remote Control Logic Delegates
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnControllerAdded, const FName& /* InPropertyName */);
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnControllerSelectionChanged, TSharedPtr<FRCControllerModel> /* InControllerItem */);
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnControllerSelectionChanged, TSharedPtr<FRCControllerModel> /* InControllerItem */, ESelectInfo::Type /* Select Type Info */);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnControllerValueChanged, TSharedPtr<FRCControllerModel> /* InControllerItem */);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnBehaviourAdded, const URCBehaviour* /* InBehaviour */);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnBehaviourSelectionChanged, TSharedPtr<FRCBehaviourModel> /* InBehaviourItem */);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnActionAdded, URCAction* /* InAction */);
@@ -151,6 +152,9 @@ public:
 	{
 		return ActionPanel;
 	}
+
+	/** Retrieves the number of controllers. */
+	int32 NumControllerItems() const;
 
 	/** For Copy UI command - Sets the logic clipboard item and source */
 	void SetLogicClipboardItems(const TArray<UObject*>& InItems, const TSharedPtr<SRCLogicPanelBase>& SourcePanel);
@@ -456,6 +460,7 @@ public:
 	FOnBehaviourAdded OnBehaviourAdded;
 	FOnActionAdded OnActionAdded;
 	FOnControllerSelectionChanged OnControllerSelectionChanged;
+	FOnControllerValueChanged OnControllerValueChangedDelegate;
 	FOnBehaviourSelectionChanged OnBehaviourSelectionChanged;
 	FOnEmptyControllers OnEmptyControllers;
 	FOnEmptyBehaviours OnEmptyBehaviours;

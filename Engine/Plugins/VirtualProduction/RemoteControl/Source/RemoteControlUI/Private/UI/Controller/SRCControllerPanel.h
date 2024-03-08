@@ -76,6 +76,9 @@ public:
 	/** Returns the UI items currently selected by the user (if any). To be implemented per child panel*/
 	virtual TArray<TSharedPtr<FRCLogicModeBase>> GetSelectedLogicItems() const override;
 
+	/** Retrieve the current number of Controllers */
+	int32 NumControllerItems() const;
+
 	void EnterRenameMode();
 
 protected:

@@ -287,12 +287,9 @@ void FRCControllerModel::OnTextControlValueTypeChanged(TSharedPtr<FString, ESPMo
 
 void FRCControllerModel::OnPropertyValueChanged(const FPropertyChangedEvent& InPropertyChangedEvent)
 {	
-	if (URCVirtualPropertyBase* ControllerProperty = GetVirtualProperty())
+	if (OnValueChanged.IsBound())
 	{
-		if (OnValueChanged.IsBound())
-		{
-			OnValueChanged.Broadcast(ControllerProperty);
-		}
+		OnValueChanged.Broadcast(StaticCastSharedRef<FRCControllerModel>(AsShared()));
 	}
 }
 

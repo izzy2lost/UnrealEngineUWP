@@ -244,6 +244,8 @@ void SRCMinorPanel::Construct(const SRCMinorPanel::FArguments& InArgs)
 	// Enable Header upon explicit request.
 	if (bIsHeaderEnabled.Get() && ContentPanel.IsValid())
 	{
+		ContentIndex = 1;
+
 		// Header Panel
 		ContentPanel->AddSlot(0)
 			.SizeRule(SSplitter::SizeToContent)
@@ -334,10 +336,17 @@ END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SRCMinorPanel::SetContent(TSharedRef<SWidget> InContent)
 {
-	ChildSlot
-		[
-			InContent
-		];
+	if (ContentPanel.IsValid())
+	{
+		if (const FChildren* Children = ContentPanel->GetChildren())
+		{
+			if (ContentIndex >= 0 && Children->NumSlot() > ContentIndex)
+			{
+				SSplitter::FSlot& Content = ContentPanel->SlotAt(ContentIndex);
+				Content[InContent];
+			}
+		}
+	}
 }
 
 const TSharedRef<SWidget>& SRCMinorPanel::GetContent() const
@@ -425,5 +434,26 @@ void SRCMinorPanel::AddHeaderToolbarItem(EToolbar InToolbar, TSharedRef<SWidget>
 			break;
 		default:
 			break;
+	}
+}
+
+void SRCMinorPanel::ClearHeaderToolbarItems() const
+{
+	// Clear left header
+	if (LeftHeaderToolbar.IsValid())
+	{
+		LeftHeaderToolbar->ClearChildren();
+	}
+	
+	// Clear center header
+	if (CenterHeaderToolbar.IsValid())
+	{
+		CenterHeaderToolbar->ClearChildren();
+	}
+	
+	// Clear right header
+	if (RightHeaderToolbar.IsValid())
+	{
+		RightHeaderToolbar->ClearChildren();
 	}
 }

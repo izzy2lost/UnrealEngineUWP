@@ -2551,6 +2551,15 @@ bool SRemoteControlPanel::CanRenameEntity() const
 	return false;
 }
 
+int32 SRemoteControlPanel::NumControllerItems() const
+{
+	if (ControllerPanel.IsValid())
+	{
+		return ControllerPanel->NumControllerItems();
+	}
+	return INDEX_NONE;
+}
+
 void SRemoteControlPanel::ChangePropertyId_Execute() const
 {
 	if (!LastSelectedEntity.IsValid())

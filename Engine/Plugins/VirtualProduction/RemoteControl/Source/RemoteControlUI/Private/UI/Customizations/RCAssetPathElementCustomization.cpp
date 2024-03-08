@@ -7,12 +7,14 @@
 #include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IDetailChildrenBuilder.h"
+#include "IPropertyUtilities.h"
 #include "PropertyCustomizationHelpers.h"
 #include "UI/RemoteControlPanelStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -26,6 +28,7 @@ TSharedRef<IPropertyTypeCustomization> FRCAssetPathElementCustomization::MakeIns
 void FRCAssetPathElementCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InPropertyHandle, FDetailWidgetRow& InHeaderRow, IPropertyTypeCustomizationUtils& InCustomizationUtils)
 {
 	ArrayEntryHandle = InPropertyHandle;
+	PropertyUtilities = InCustomizationUtils.GetPropertyUtilities();
 	IsInputHandle = ArrayEntryHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FRCAssetPathElement, bIsInput));
 	PathHandle = ArrayEntryHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FRCAssetPathElement, Path));
 
@@ -37,6 +40,9 @@ void FRCAssetPathElementCustomization::CustomizeHeader(TSharedRef<IPropertyHandl
 	const TSharedRef<SToolTip> GetAssetPathToolTipWidget = SNew(SToolTip)
 		.Text(LOCTEXT("RCGetAssetPathButton_Tooltip", "Get the path of the currently first selected asset in the content browser and set it to the current path"));
 
+	const TSharedRef<SToolTip> CreateControllerToolTipWidget = SNew(SToolTip)
+		.Text(LOCTEXT("RCCreateController_Tooltip", "Create a controller for the given RC Input path entry"));
+
 	InHeaderRow.NameContent()
 		[
 			InPropertyHandle->CreatePropertyNameWidget()
@@ -45,6 +51,7 @@ void FRCAssetPathElementCustomization::CustomizeHeader(TSharedRef<IPropertyHandl
 	InHeaderRow.ValueContent()
 	[
 		SNew(SHorizontalBox)
+        // RC Input CheckBox
 		+SHorizontalBox::Slot()
 		.AutoWidth()
 		.Padding(5.f, 0.f)
@@ -62,8 +69,10 @@ void FRCAssetPathElementCustomization::CustomizeHeader(TSharedRef<IPropertyHandl
 			]
 		]
 
+		// Path String
 		+SHorizontalBox::Slot()
 		.FillWidth(1.f)
+		.Padding(5.f, 0.f)
 		.VAlign(VAlign_Center)
 		[
 			PathHandle->CreatePropertyValueWidget(false)
@@ -73,17 +82,40 @@ void FRCAssetPathElementCustomization::CustomizeHeader(TSharedRef<IPropertyHandl
 		.AutoWidth()
 		.VAlign(VAlign_Center)
 		[
-			SNew(SButton)
-			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-			.OnClicked(this, &FRCAssetPathElementCustomization::OnGetAssetFromSelectionClicked)
-			.ToolTip(GetAssetPathToolTipWidget)
-			.IsFocusable(false)
-			.ContentPadding(0)
-			.Content()
+			SNew(SWidgetSwitcher)
+			.WidgetIndex(this, &FRCAssetPathElementCustomization::OnGetWidgetSwitcherIndex)
+			// [0] Get Current Selected Asset Path Button
+			+ SWidgetSwitcher::Slot()
 			[
-				SNew(SImage)
-				.Image(FAppStyle::GetBrush("Icons.Use"))
-				.ColorAndOpacity(FSlateColor::UseForeground())
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.OnClicked(this, &FRCAssetPathElementCustomization::OnGetAssetFromSelectionClicked)
+				.ToolTip(GetAssetPathToolTipWidget)
+				.IsFocusable(false)
+				.ContentPadding(0)
+				.Content()
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("Icons.Use"))
+					.ColorAndOpacity(FSlateColor::UseForeground())
+				]
+			]
+
+			// [1] Create Controller button
+			+ SWidgetSwitcher::Slot()
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.OnClicked(this, &FRCAssetPathElementCustomization::OnCreateControllerButtonClicked)
+				.ToolTip(CreateControllerToolTipWidget)
+				.IsFocusable(false)
+				.ContentPadding(0)
+				.Content()
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("Icons.PlusCircle"))
+					.ColorAndOpacity(FSlateColor::UseForeground())
+				]
 			]
 		]
 	];
@@ -157,6 +189,28 @@ FReply FRCAssetPathElementCustomization::OnGetAssetFromSelectionClicked() const
 		PathHandle->SetValue(PathString);
 	}
 	return FReply::Handled();
+}
+
+FReply FRCAssetPathElementCustomization::OnCreateControllerButtonClicked() const
+{
+	if (PropertyUtilities.IsValid() && ArrayEntryHandle.IsValid())
+	{
+		FPropertyChangedEvent Event(ArrayEntryHandle->GetProperty(), EPropertyChangeType::ValueSet);
+		Event.MemberProperty = ArrayEntryHandle->GetProperty();
+
+		TMap<FString, int32> ArrayIndexPerObject;
+		ArrayIndexPerObject.Add(Event.GetMemberPropertyName().ToString(), ArrayEntryHandle->GetArrayIndex());
+
+		Event.SetArrayIndexPerObject(MakeArrayView(&ArrayIndexPerObject, 1));
+		Event.ObjectIteratorIndex = 0;
+		PropertyUtilities->NotifyFinishedChangingProperties(Event);
+	}
+	return FReply::Handled();
+}
+
+int32 FRCAssetPathElementCustomization::OnGetWidgetSwitcherIndex() const
+{
+	return IsChecked() == ECheckBoxState::Checked ? 1 : 0;
 }
 
 #undef LOCTEXT_NAMESPACE

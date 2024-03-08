@@ -10,8 +10,10 @@
 #include "RCVirtualProperty.h"
 #include "RCVirtualPropertyContainer.h"
 #include "RemoteControlPreset.h"
-#include "SRCBehaviourSetAssetByPath.h"
 #include "Selection.h"
+#include "SRCBehaviourSetAssetByPath.h"
+#include "UI/Controller/SRCControllerPanel.h"
+#include "UI/SRemoteControlPanel.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
@@ -21,9 +23,9 @@
 
 #define LOCTEXT_NAMESPACE "FRCSetAssetByPathBehaviourModel"
 
-FRCSetAssetByPathBehaviourModel::FRCSetAssetByPathBehaviourModel(URCSetAssetByPathBehaviour* SetAssetByPathBehaviour)
-	: FRCBehaviourModel(SetAssetByPathBehaviour)
-	, SetAssetByPathBehaviourWeakPtr(SetAssetByPathBehaviour)
+FRCSetAssetByPathBehaviourModel::FRCSetAssetByPathBehaviourModel(URCSetAssetByPathBehaviour* InSetAssetByPathBehaviour, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel)
+	: FRCBehaviourModel(InSetAssetByPathBehaviour, InRemoteControlPanel)
+	, SetAssetByPathBehaviourWeakPtr(InSetAssetByPathBehaviour)
 {
 	FPropertyRowGeneratorArgs ArgsRowGenerator;
 	ArgsRowGenerator.bShouldShowHiddenProperties = true;
@@ -32,9 +34,9 @@ FRCSetAssetByPathBehaviourModel::FRCSetAssetByPathBehaviourModel(URCSetAssetByPa
 	const FPropertyRowGeneratorArgs ArgsRowGeneratorArray;
 	PropertyRowGeneratorArray = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreatePropertyRowGenerator(ArgsRowGeneratorArray);
 
-	if (SetAssetByPathBehaviour)
+	if (InSetAssetByPathBehaviour)
 	{
-		PropertyRowGenerator->SetStructure(SetAssetByPathBehaviour->PropertyInContainer->CreateStructOnScope());
+		PropertyRowGenerator->SetStructure(InSetAssetByPathBehaviour->PropertyInContainer->CreateStructOnScope());
 		DetailTreeNodeWeakPtr.Empty();
 		for (const TSharedRef<IDetailTreeNode>& CategoryNode : PropertyRowGenerator->GetRootTreeNodes())
 		{
@@ -47,18 +49,10 @@ FRCSetAssetByPathBehaviourModel::FRCSetAssetByPathBehaviourModel(URCSetAssetByPa
 		}
 
 		// Secondary TArray Struct
-		PropertyRowGeneratorArray->SetStructure(MakeShareable(new FStructOnScope(FRCSetAssetPath::StaticStruct(), (uint8*) &SetAssetByPathBehaviour->PathStruct)));
-		PropertyRowGeneratorArray->OnFinishedChangingProperties().AddLambda([this](const FPropertyChangedEvent& InEvent)
+		PropertyRowGeneratorArray->SetStructure(MakeShareable(new FStructOnScope(FRCSetAssetPath::StaticStruct(), (uint8*) &InSetAssetByPathBehaviour->PathStruct)));
+		PropertyRowGeneratorArray->OnFinishedChangingProperties().AddLambda([this] (const FPropertyChangedEvent& InEvent)
 		{
-			if (InEvent.ChangeType == EPropertyChangeType::ValueSet)
-			{
-				// Just refresh the preview without reconstructing the widget if we just set values
-				RefreshPreview();
-			}
-			else
-			{
-				RefreshPathAndPreview();
-			}
+			OnAssetPathFinishedChangingProperties(InEvent);
 		});
 		PropertyRowGeneratorArray->OnRowsRefreshed().AddLambda([this]()
 		{
@@ -351,6 +345,12 @@ TSharedRef<SWidget> FRCSetAssetByPathBehaviourModel::GetSelectorWidget(TWeakPtr<
 		];
 }
 
+void FRCSetAssetByPathBehaviourModel::NotifyControllerValueChanged(TSharedPtr<FRCControllerModel> InControllerModel)
+{
+	// Update the preview when a controller change to always get the correct path
+	RefreshPreview();
+}
+
 FText FRCSetAssetByPathBehaviourModel::GetSelectedEntityText() const
 {
 	FText ReturnText = FText::FromString(*FString("Nothing selected yet"));
@@ -363,6 +363,58 @@ FText FRCSetAssetByPathBehaviourModel::GetSelectedEntityText() const
 		}
 	}
 	return ReturnText;
+}
+
+void FRCSetAssetByPathBehaviourModel::OnAssetPathFinishedChangingProperties(const FPropertyChangedEvent& InEvent)
+{
+	if (InEvent.ChangeType == EPropertyChangeType::ValueSet)
+	{
+		// if the actual PropertyName is the AssetPath than it means that we want to add a controller since we force this in the Customization
+		if (InEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FRCSetAssetPath, AssetPath))
+		{
+			const int32 Index = InEvent.GetArrayIndex(InEvent.GetMemberPropertyName().ToString());
+			URCSetAssetByPathBehaviour* SetAssetByPathBehaviour = SetAssetByPathBehaviourWeakPtr.Get();
+			if (!SetAssetByPathBehaviour || Index == INDEX_NONE)
+			{
+				return;
+			}
+			TArray<FRCAssetPathElement>& AssetPath = SetAssetByPathBehaviour->PathStruct.AssetPath;
+			if (!AssetPath.IsValidIndex(Index))
+			{
+				return;
+			}
+			FRCAssetPathElement& CurrentElement = AssetPath[Index];
+			if (const TSharedPtr<SRemoteControlPanel>& RCPanel = GetRemoteControlPanel())
+			{
+				if (URemoteControlPreset* Preset = RCPanel->GetPreset())
+				{
+					URCVirtualPropertyInContainer* NewController = Preset->AddController(URCController::StaticClass(), EPropertyBagPropertyType::String);
+					if (NewController)
+					{
+						NewController->DisplayIndex = RCPanel->NumControllerItems();
+						FName NewControllerName = TEXT("DefaultInput");
+						if (!CurrentElement.Path.IsEmpty())
+						{
+							NewControllerName = FName(CurrentElement.Path);
+						}
+						const FName NewUniqueName = Preset->SetControllerDisplayName(NewController->Id, NewControllerName);
+						if (CurrentElement.Path != NewUniqueName.ToString())
+						{
+							// Assign to the path the actual new name of the controller
+							CurrentElement.Path = NewUniqueName.ToString();
+						}
+						RCPanel->OnControllerAdded.Broadcast(NewController->PropertyName);
+					}
+				}
+			}
+		}
+		// Just refresh the preview without reconstructing the widget if we just set values
+		RefreshPreview();
+	}
+	else
+	{
+		RefreshPathAndPreview();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

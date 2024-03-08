@@ -440,7 +440,10 @@ void SRCControllerPanelList::Reset()
 			ControllerModel->OnValueTypeChanged.RemoveAll(this);
 		}
 	}
-	
+
+	// Cache Controller Selection
+	const TArray<TSharedPtr<FRCControllerModel>> SelectedControllers = ListView->GetSelectedItems();
+
 	ControllerItems.Empty();
 
 	check(ControllerPanelWeakPtr.IsValid());
@@ -501,14 +504,13 @@ void SRCControllerPanelList::Reset()
 					if (ensureAlways(ControllerItems.IsValidIndex(Controller->DisplayIndex)))
 					{
 						const TSharedRef<FRCControllerModel> ControllerModel = MakeShared<FRCControllerModel>(Controller, Child, RemoteControlPanel);
-						ControllerItems[Controller->DisplayIndex] = ControllerModel;
-
+						ControllerModel->OnValueChanged.AddSP(this, &SRCControllerPanelList::OnControllerValueChanged, bIsMultiController);
 						if (bIsMultiController)
 						{
 							ControllerModel->SetMultiController(bIsMultiController);
 							ControllerModel->OnValueTypeChanged.AddSP(this, &SRCControllerPanelList::OnControllerValueTypeChanged);
-							ControllerModel->OnValueChanged.AddSP(this, &SRCControllerPanelList::OnControllerValueChanged);
 						}
+						ControllerItems[Controller->DisplayIndex] = ControllerModel;
 					}
 				}
 			}
@@ -560,6 +562,27 @@ void SRCControllerPanelList::Reset()
 	}
 	
 	ListView->RebuildList();
+
+	// Restore Controller Selection
+	for (const TSharedPtr<FRCControllerModel>& ControllerModel : SelectedControllers)
+	{
+		if (ControllerModel.IsValid())
+		{
+			const FName SelectedControllerName = ControllerModel->GetPropertyName();
+
+			const TSharedPtr<FRCControllerModel>* SelectedController = ControllerItems.FindByPredicate([&SelectedControllerName]
+				(const TSharedPtr<FRCControllerModel>& InControllerModel)
+				{
+					// Internal PropertyName is unique, so we use that
+					return InControllerModel.IsValid() && SelectedControllerName == InControllerModel->GetPropertyName();
+				});
+
+			if (SelectedController)
+			{
+				ListView->SetItemSelection(*SelectedController, true);
+			}
+		}
+	}
 }
 
 TSharedRef<ITableRow> SRCControllerPanelList::OnGenerateWidgetForList(TSharedPtr<FRCControllerModel> InItem, const TSharedRef<STableViewBase>& OwnerTable)
@@ -571,7 +594,7 @@ TSharedRef<ITableRow> SRCControllerPanelList::OnGenerateWidgetForList(TSharedPtr
 		.Padding(FMargin(4.5f));
 }
 
-void SRCControllerPanelList::OnTreeSelectionChanged(TSharedPtr<FRCControllerModel> InItem, ESelectInfo::Type)
+void SRCControllerPanelList::OnTreeSelectionChanged(TSharedPtr<FRCControllerModel> InItem, ESelectInfo::Type InSelectInfo)
 {
 	if (TSharedPtr<SRCControllerPanel> ControllerPanel = ControllerPanelWeakPtr.Pin())
 	{
@@ -580,7 +603,7 @@ void SRCControllerPanelList::OnTreeSelectionChanged(TSharedPtr<FRCControllerMode
 			if (InItem != SelectedControllerItemWeakPtr.Pin())
 			{
 				SelectedControllerItemWeakPtr = InItem;
-				RemoteControlPanel->OnControllerSelectionChanged.Broadcast(InItem);
+				RemoteControlPanel->OnControllerSelectionChanged.Broadcast(InItem, InSelectInfo);
 				RemoteControlPanel->OnBehaviourSelectionChanged.Broadcast(InItem.IsValid() ? InItem->GetSelectedBehaviourModel() : nullptr);
 			}
 		}
@@ -635,16 +658,25 @@ void SRCControllerPanelList::OnControllerValueTypeChanged(URCVirtualPropertyBase
 	}
 }
 
-void SRCControllerPanelList::OnControllerValueChanged(URCVirtualPropertyBase* InController)
-{	
-	const FName& FieldId = InController->FieldId;
-
-	FRCMultiController MultiController = MultiControllers.GetMultiController(FieldId);
-
-	if (MultiController.IsValid())
+void SRCControllerPanelList::OnControllerValueChanged(TSharedPtr<FRCControllerModel> InControllerModel, bool bInIsMultiController)
+{
+	if (bInIsMultiController)
 	{
-		MultiController.UpdateHandledControllersValue();
-	}	
+		if (const URCVirtualPropertyBase* Controller = InControllerModel->GetVirtualProperty())
+		{
+			FRCMultiController MultiController = MultiControllers.GetMultiController(Controller->FieldId);
+
+			if (MultiController.IsValid())
+			{
+				MultiController.UpdateHandledControllersValue();
+			}
+		}
+	}
+
+	if (const TSharedPtr<SRemoteControlPanel>& RemoteControlPanel = GetRemoteControlPanel())
+	{
+		RemoteControlPanel->OnControllerValueChangedDelegate.Broadcast(InControllerModel);
+	}
 }
 
 
@@ -654,7 +686,7 @@ void SRCControllerPanelList::OnEmptyControllers()
 	{
 		if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = ControllerPanel->GetRemoteControlPanel())
 		{
-			RemoteControlPanel->OnControllerSelectionChanged.Broadcast(nullptr);
+			RemoteControlPanel->OnControllerSelectionChanged.Broadcast(nullptr, ESelectInfo::Direct);
 			RemoteControlPanel->OnBehaviourSelectionChanged.Broadcast(nullptr);
 		}
 
@@ -671,7 +703,7 @@ void SRCControllerPanelList::BroadcastOnItemRemoved()
 {
 	if (const TSharedPtr<SRemoteControlPanel> RemoteControlPanel = ControllerPanelWeakPtr.Pin()->GetRemoteControlPanel())
 	{
-		RemoteControlPanel->OnControllerSelectionChanged.Broadcast(nullptr);
+		RemoteControlPanel->OnControllerSelectionChanged.Broadcast(nullptr, ESelectInfo::Direct);
 		RemoteControlPanel->OnBehaviourSelectionChanged.Broadcast(nullptr);
 	}
 }

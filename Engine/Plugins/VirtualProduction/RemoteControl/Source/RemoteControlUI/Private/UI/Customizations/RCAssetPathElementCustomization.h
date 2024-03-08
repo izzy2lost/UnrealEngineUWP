@@ -27,9 +27,14 @@ private:
 	void OnCheckStateChanged(ECheckBoxState InNewState) const;
 	/** Callback called when you click on the arrow button next to the entries to retrieve the path of the selected Asset */
 	FReply OnGetAssetFromSelectionClicked() const;
+	/** Callback called when you click on the plus button next to the entries to create a controller associated with the current RC Input entry */
+	FReply OnCreateControllerButtonClicked() const;
+	/** Retrieve the current widget switcher index */
+	int32 OnGetWidgetSwitcherIndex() const;
 
 private:
 	TSharedPtr<SWidget> PathWidget;
+	TSharedPtr<IPropertyUtilities> PropertyUtilities;
 	TSharedPtr<IPropertyHandle> ArrayEntryHandle;
 	TSharedPtr<IPropertyHandle> IsInputHandle;
 	TSharedPtr<IPropertyHandle> PathHandle;
