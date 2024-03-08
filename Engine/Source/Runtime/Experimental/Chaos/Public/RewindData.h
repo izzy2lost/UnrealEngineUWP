@@ -1836,6 +1836,9 @@ public:
 	/** Register a sim callback onto the rewind callback */
 	virtual void RegisterRewindableSimCallback_Internal(ISimCallbackObject* Callback) {}
 
+	/** Unregister a sim callback from the rewind callback */
+	virtual void UnregisterRewindableSimCallback_Internal(ISimCallbackObject* Callback) {}
+
 	/** Called When resim is finished with debug information about the resim */
 	virtual void SetResimDebugInfo_Internal(const FResimDebugInfo& ResimDebugInfo){}
 
