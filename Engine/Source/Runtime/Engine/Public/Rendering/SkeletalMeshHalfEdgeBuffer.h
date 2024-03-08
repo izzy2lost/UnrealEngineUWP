@@ -7,7 +7,7 @@
 
 class FSkeletalMeshLODRenderData;
 class FRHIShaderResourceView;
-struct FRHIResourceUpdateBatcher;
+class FRHIResourceReplaceBatcher;
 
 namespace SkeletalMeshHalfEdgeUtility
 {
@@ -30,8 +30,8 @@ public:
 
 	FRHIInfo CreateRHIBuffer(FRHICommandListBase& RHICmdList);
 
-	void InitRHIForStreaming(FRHIInfo RHIInfo, FRHIResourceUpdateBatcher& Batcher);
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	void InitRHIForStreaming(FRHIInfo RHIInfo, FRHIResourceReplaceBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 	
 	void ENGINE_API InitRHI(FRHICommandListBase& RHICmdList) override;
 
