@@ -122,6 +122,9 @@ public:
 
 	/** Return true if, when setting the base stage, the same value should be applied to the mask stage. */
 	virtual bool IsWholeLayerValue() const { return false; }
+
+	/** Returns true if the property row generator should expose the value property. */
+	virtual bool AllowEditValue() const { return true; }
 #endif
  
 	virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const;

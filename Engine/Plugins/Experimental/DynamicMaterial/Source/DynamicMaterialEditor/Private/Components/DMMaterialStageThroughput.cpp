@@ -461,6 +461,7 @@ void UDMMaterialStageThroughput::AddDefaultInput(int32 InInputIndex) const
 		case EDMValueType::VT_Float3_RPY:
 		case EDMValueType::VT_Float3_XYZ:
 		case EDMValueType::VT_Texture:
+		case EDMValueType::VT_Text:
 			UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
 				Stage, 
 				InInputIndex,

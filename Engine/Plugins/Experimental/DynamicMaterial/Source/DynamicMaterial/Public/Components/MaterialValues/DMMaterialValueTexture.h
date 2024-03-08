@@ -76,9 +76,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter = SetDefaultValue, Category = "Material Designer",
 		meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UTexture> DefaultValue;
-#endif
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TObjectPtr<UTexture> OldValue;
 #endif

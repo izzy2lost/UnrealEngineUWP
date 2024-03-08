@@ -555,7 +555,11 @@ void UDMMaterialStage::GenerateExpressions(const TSharedRef<FDMMaterialBuildStat
 		return;
 	}
 
-	check(Source);
+	if (!IsValid(Source))
+	{
+		UE_LOG(LogDynamicMaterialEditor, Warning, TEXT("Stage with no expressions attempted to generate material expressions."));
+		return;
+	}
 
 	if (InBuildState->HasStage(this))
 	{

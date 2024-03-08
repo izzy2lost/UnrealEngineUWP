@@ -43,30 +43,32 @@ void FDMMaterialValuePropertyRowGenerator::AddComponentProperties(const TSharedR
 
 	InOutProcessedObjects.Add(InComponent);
 
-	FDMPropertyHandle Handle = SDMEditor::GetPropertyHandle(&*InComponentEditWidget, Value, UDMMaterialValue::ValueName);
-
-	Handle.ResetToDefaultOverride = FResetToDefaultOverride::Create(
-		FIsResetToDefaultVisible::CreateUObject(Value, &UDMMaterialValue::CanResetToDefault),
-		FResetToDefaultHandler::CreateUObject(Value, &UDMMaterialValue::ResetToDefault)
-	);
-
-	if (UDMMaterialValueFloat* FloatValue = Cast<UDMMaterialValueFloat>(Value))
+	if (Value->AllowEditValue())
 	{
-		if (FloatValue->HasValueRange())
+		FDMPropertyHandle Handle = SDMEditor::GetPropertyHandle(&*InComponentEditWidget, Value, UDMMaterialValue::ValueName);
+
+		Handle.ResetToDefaultOverride = FResetToDefaultOverride::Create(
+			FIsResetToDefaultVisible::CreateUObject(Value, &UDMMaterialValue::CanResetToDefault),
+			FResetToDefaultHandler::CreateUObject(Value, &UDMMaterialValue::ResetToDefault)
+		);
+		if (UDMMaterialValueFloat* FloatValue = Cast<UDMMaterialValueFloat>(Value))
 		{
-			static const FName UIMin = FName("UIMin");
-			static const FName UIMax = FName("UIMax");
-			static const FName ClampMin = FName("ClampMin");
-			static const FName ClampMax = FName("ClampMax");
+			if (FloatValue->HasValueRange())
+			{
+				static const FName UIMin = FName("UIMin");
+				static const FName UIMax = FName("UIMax");
+				static const FName ClampMin = FName("ClampMin");
+				static const FName ClampMax = FName("ClampMax");
 
-			Handle.PropertyHandle->SetInstanceMetaData(UIMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
-			Handle.PropertyHandle->SetInstanceMetaData(ClampMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
-			Handle.PropertyHandle->SetInstanceMetaData(UIMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
-			Handle.PropertyHandle->SetInstanceMetaData(ClampMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
+				Handle.PropertyHandle->SetInstanceMetaData(UIMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
+				Handle.PropertyHandle->SetInstanceMetaData(ClampMin, FString::SanitizeFloat(FloatValue->GetValueRange().Min));
+				Handle.PropertyHandle->SetInstanceMetaData(UIMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
+				Handle.PropertyHandle->SetInstanceMetaData(ClampMax, FString::SanitizeFloat(FloatValue->GetValueRange().Max));
+			}
 		}
-	}
 
-	InOutPropertyRows.Add(Handle);
+		InOutPropertyRows.Add(Handle);
+	}
 
 	const TArray<FName>& Properties = Value->GetEditableProperties();
 

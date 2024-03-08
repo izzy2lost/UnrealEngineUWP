@@ -14,7 +14,7 @@
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageExpressions/DMMSESceneTexture.h"
-#include "Components/MaterialStageExpressions/DMMSEText.h"
+#include "Components/MaterialStageExpressions/DMMSETextRenderer.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
@@ -1201,7 +1201,7 @@ namespace UE::DynamicMaterialEditor::Private
 
 			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
 				Stage,
-				UDMMaterialStageExpressionText::StaticClass(),
+				UDMMaterialStageExpressionTextRenderer::StaticClass(),
 				UDMMaterialStageBlend::InputB,
 				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
 				0,
@@ -1215,21 +1215,21 @@ namespace UE::DynamicMaterialEditor::Private
 
 			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
 				Stage,
-				UDMMaterialStageExpressionText::StaticClass(),
+				UDMMaterialStageExpressionTextRenderer::StaticClass(),
 				UDMMaterialStageThroughputLayerBlend::InputMaskSource,
 				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
 				0,
-				FDMMaterialStageConnectorChannel::FIRST_CHANNEL
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 			);
 		}
 		else
 		{
-			FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Designer Source"));
+			FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 			Stage->Modify();
 
 			UDMMaterialStageInputExpression::ChangeStageSource_Expression(
 				Stage,
-				UDMMaterialStageExpressionText::StaticClass()
+				UDMMaterialStageExpressionTextRenderer::StaticClass()
 			);
 		}
 
@@ -1353,6 +1353,18 @@ namespace UE::DynamicMaterialEditor::Private
 			)
 		);
 
+		InSection.AddMenuEntry("Text",
+			LOCTEXT("ChangeSourceText", "Text"),
+			LOCTEXT("ChangeSourceTextTooltip", "Change the source of this stage to a Text Renderer."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateStatic(
+					&ChangeSourceToTextFromContext,
+					MenuContext
+				)
+			)
+		);
+
 		if constexpr (UE::DynamicMaterialEditor::bGlobalValuesEnabled)
 		{
 			const TArray<UDMMaterialValue*>& Values = MaterialModel->GetValues();
@@ -1395,18 +1407,6 @@ namespace UE::DynamicMaterialEditor::Private
 			FUIAction(
 				FExecuteAction::CreateStatic(
 					&ChangeSourceToMaterialFunctionFromContext,
-					MenuContext
-				)
-			)
-		);
-
-		InSection.AddMenuEntry("Text",
-			LOCTEXT("ChangeSourceText", "Text"),
-			LOCTEXT("ChangeSourceTextTooltip", "Change the source of this stage to a Text Renderer."),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateStatic(
-					&ChangeSourceToTextFromContext,
 					MenuContext
 				)
 			)

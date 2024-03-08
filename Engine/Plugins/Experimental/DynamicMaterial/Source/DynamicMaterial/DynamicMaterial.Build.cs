@@ -12,7 +12,8 @@ public class DynamicMaterial : ModuleRules
 			new string[]
 			{
 				"Core",
-				"CoreUObject"
+				"CoreUObject",
+				"Slate"
 			}
 		);
 

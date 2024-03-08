@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "Components/MaterialStageExpressions/DMMSETextureSampleBase.h"
+#include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "Delegates/IDelegateInstance.h"
 #include "Framework/Text/TextLayout.h"
 #include "Internationalization/Text.h"
 #include "Math/Color.h"
 #include "Math/Vector2D.h"
-#include "DMMSEText.generated.h"
+#include "DMMaterialValueText.generated.h"
 
 class FCanvasTextItem;
 class UCanvas;
@@ -29,24 +29,27 @@ struct FDMTextLine
 };
 
 UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageExpressionText : public UDMMaterialStageExpressionTextureSampleBase
+class DYNAMICMATERIAL_API UDMMaterialValueText : public UDMMaterialValueTexture
 {
 	GENERATED_BODY()
 
 	friend class SDMComponentEdit;
-	friend struct FDMMaterialStageExpressionText;
+	friend struct FDMMaterialValueText;
 
 public:
-	UDMMaterialStageExpressionText();
+	UDMMaterialValueText();
 
-	//~ Begin UDMMaterialStageThroughput
-	virtual bool IsInputVisible(int32 InInputIndex) const override;
-	virtual void AddDefaultInput(int32 InInputIndex) const override;
-	//~ End UDMMaterialStageThroughput
+#if WITH_EDITOR
+	//~ Begin UDMMaterialValue
+	virtual bool AllowEditValue() const override { return false; }
+	//~ End UDMMaterialValue
+#endif
 
 	//~ Begin UObject
 	virtual void PostLoad() override;
+#if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+#endif
 	//~ End UObject
 
 	UFont* GetFont() const;
@@ -213,9 +216,6 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Setter = SetGlowOuterRadius, Category = "Material Designer",
 		meta = (AllowPrivateAccess = "true", EditCondition = "bGlow", EditConditionHides = true, ClampMin = 0, UIMin = 0, ClampMax = 1, UIMax = 1))
 	FVector2D GlowOuterRadius = FVector2D(0.5, 0.5);
-
-	UPROPERTY(Instanced)
-	TObjectPtr<UDMMaterialValueTexture> TextureValue = nullptr;
 
 	UPROPERTY(Instanced)
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget = nullptr;

@@ -48,7 +48,9 @@ enum class EDMValueType : uint8
 	VT_Float4_RGBA,
 	VT_Float_Any,
 	VT_Texture,
-	VT_ColorAtlas
+	VT_ColorAtlas,
+	VT_Text,
+	VT_MAX
 };
 
 UENUM(BlueprintType)

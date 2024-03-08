@@ -16,7 +16,8 @@ namespace UE::MaterialDesigner::Private
 			EDMValueType::VT_Float3_XYZ,
 			EDMValueType::VT_Float4_RGBA,
 			EDMValueType::VT_Texture,
-			EDMValueType::VT_ColorAtlas
+			EDMValueType::VT_ColorAtlas,
+			EDMValueType::VT_Text
 	};
 
 	const TMap<EDMValueType, FDMValueDefinition> TypeDefinitions = {
@@ -94,7 +95,16 @@ namespace UE::MaterialDesigner::Private
 			{EDMValueType::VT_ColorAtlas,
 			4,
 			LOCTEXT("ColorAtlas", "Color Atlas"),
-			{LOCTEXT("Alpha", "Alpha")}}
+			{LOCTEXT("Red", "Red"),
+				LOCTEXT("Green", "Green"),
+				LOCTEXT("Blue", "Blue"),
+				LOCTEXT("Alpha", "Alpha")}}
+		},
+		{EDMValueType::VT_Text,
+			{EDMValueType::VT_Text,
+			0,
+			LOCTEXT("Text", "Text"),
+			{}}
 		}
 	};
 }

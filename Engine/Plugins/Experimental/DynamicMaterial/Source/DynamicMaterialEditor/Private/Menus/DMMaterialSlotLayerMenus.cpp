@@ -7,6 +7,7 @@
 #include "Components/DMMaterialStageExpression.h"
 #include "Components/DMMaterialStageGradient.h"
 #include "Components/DMMaterialValue.h"
+#include "Components/MaterialStageExpressions/DMMSETextRenderer.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
 #include "DMDefs.h"
@@ -534,6 +535,19 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		FUIAction(FExecuteAction::CreateSP(
 			SlotWidget.Get(),
 			&SDMSlot::AddNewLayer_SceneTexture
+		))
+	);
+
+	NewSection.AddMenuEntry(
+		NAME_None,
+		LOCTEXT("AddText", "Text"),
+		LOCTEXT("AddTextTooltip", "Add a Material Stage based on a Text Renderer."),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateSP(
+			SlotWidget.Get(),
+			&SDMSlot::AddNewLayer_Expression,
+			TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextRenderer::StaticClass()),
+			EDMMaterialLayerStage::Base
 		))
 	);
 
