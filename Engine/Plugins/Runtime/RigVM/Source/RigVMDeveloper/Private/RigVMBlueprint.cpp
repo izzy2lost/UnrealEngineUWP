@@ -921,6 +921,8 @@ void URigVMBlueprint::PostLoad()
 {
 	Super::PostLoad();
 
+	FRigVMRegistry::Get().RefreshEngineTypesIfRequired();
+
 	bVMRecompilationRequired = true;
 	{
 		TGuardValue<bool> IsCompilingGuard(bIsCompiling, true);
