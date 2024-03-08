@@ -398,8 +398,6 @@ public:
 	void UpdateMemoryInfo();
 	FORCEINLINE const FD3D12MemoryInfo& GetMemoryInfo() const { return MemoryInfo; }
 
-	FORCEINLINE uint32 GetFrameCount() const { return FrameCounter; }
-
 	bool IsTrackingAllAllocations() const { return bTrackAllAllocation; }
 	void TrackAllocationData(FD3D12ResourceLocation* InAllocation, uint64 InAllocationSize, bool bCollectCallstack);
 	void ReleaseTrackedAllocationData(FD3D12ResourceLocation* InAllocation, bool bDefragFree);
@@ -567,8 +565,6 @@ protected:
 	TUniquePtr<FD3D12ManualFence> FrameFence;
 
 	FD3D12CommandContextRedirector DefaultContextRedirector;
-
-	uint32 FrameCounter = 0;
 
 	bool bTrackAllAllocation = false;
 
