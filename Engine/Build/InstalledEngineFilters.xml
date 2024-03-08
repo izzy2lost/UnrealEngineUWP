@@ -64,12 +64,12 @@
 		Templates/TP_VehicleAdvBP/TP_VehicleAdvBP.uproject
 		Templates/TP_VirtualRealityBP/TP_VirtualRealityBP.uproject
 		Templates/TP_SIM_BlankBP/TP_SIM_BlankBP.uproject
+		Templates/TP_DMXBP/TP_DMXBP.uproject
 		Samples/StarterContent/StarterContent.uproject
 	</Property>
 	<!-- Win64 specific DDC -->
 	<Property Name="ProjectsToBuildDDCWin64" Value="$(ProjectsToBuildDDC)">
 		Templates/TP_InCamVFXBP/TP_InCamVFXBP.uproject
-		Templates/TP_DMXBP/TP_DMXBP.uproject
 	</Property>
 	
 	<!-- Define Editor Filters -->
@@ -134,6 +134,8 @@
 
 		Templates/TP_SIM_Blank/...
 		Templates/TP_SIM_BlankBP/...
+
+		Templates/TP_DMXBP/...
 
 		<!-- Shared template resources -->
 		Templates/TemplateResources/...
@@ -297,9 +299,6 @@
 		Templates/TP_nDisplayBP/...
 		Templates/TP_InCamVFXBP/...
 
-		<!-- Enterprise Templates Win64 Only -->
-		Templates/TP_DMXBP/...
-
 		<!-- DotNet -->
 		Engine/Binaries/ThirdParty/DotNet/6.0.302/windows/...
 		Engine/Binaries/ThirdParty/VisualStudio/...
@@ -412,6 +411,9 @@
 		<!-- Debug tools -->
 		Engine/Binaries/Linux/dump_syms
 		Engine/Binaries/Linux/BreakpadSymbolEncoder
+
+		<!-- Virtual Production Templates -->
+		Templates/TP_nDisplayBP/...
 
 		<!-- DotNet -->
 		Engine/Binaries/ThirdParty/DotNet/6.0.302/linux/...

@@ -71,12 +71,12 @@ namespace AutomationTool
 			Projects.Add("Templates/TP_TopDownBP/TP_TopDownBP.uproject");
 			Projects.Add("Templates/TP_VehicleAdvBP/TP_VehicleAdvBP.uproject");
 			Projects.Add("Templates/TP_VirtualRealityBP/TP_VirtualRealityBP.uproject");
-//			Projects.Add("Samples/StarterContent/StarterContent.uproject");
+			Projects.Add("Templates/TP_DMXBP/TP_DMXBP.uproject");
+			//			Projects.Add("Samples/StarterContent/StarterContent.uproject");
 
 			if (Platform == UnrealTargetPlatform.Win64)
 			{
 				Projects.Add("Templates/TP_InCamVFXBP/TP_InCamVFXBP.uproject");
-				Projects.Add("Templates/TP_DMXBP/TP_DMXBP.uproject");
 			}
 			return Projects;
 		}
