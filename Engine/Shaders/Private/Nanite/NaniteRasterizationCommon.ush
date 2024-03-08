@@ -524,18 +524,13 @@ uint2 VsmPageTableLoad(uint2 Coords)
 	return uint2(pPagePacked & 0xffff, pPagePacked >> 16);
 }
 
-void FetchAndCachePageTableEntry(FNaniteView NaniteView, uint2 vPageStart, uint2 vPageEnd, uint PageFlagMask, uint CacheIndex)
+void FetchAndCachePageTableEntry(FNaniteView NaniteView, uint2 vPageStart, uint2 vPageEnd, uint CacheIndex)
 {
 	uint2 CacheCoords = uint2(CacheIndex & 0x7, CacheIndex >> 3);
 	if (all(vPageStart + CacheCoords <= vPageEnd))
 	{
-		uint PageEntryOffset = CalcPageOffset(NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel, vPageStart + CacheCoords);
-		uint PageFlag = VirtualShadowMap.PageFlags[PageEntryOffset];
-		uint2 pPageAddress = 0xffff;
-		if ((PageFlag & PageFlagMask) != 0)
-		{
-			pPageAddress = ShadowGetPhysicalPage(PageEntryOffset).PhysicalAddress;	
-		}
+		FShadowPhysicalPage PhysicalPage = ShadowGetPhysicalPage( CalcPageOffset( NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel, vPageStart + CacheCoords ) );
+		uint2 pPageAddress = PhysicalPage.bThisLODValid ? PhysicalPage.PhysicalAddress : 0xffff;
 		VsmPageTableStore(pPageAddress, CacheCoords);
 	}
 }
