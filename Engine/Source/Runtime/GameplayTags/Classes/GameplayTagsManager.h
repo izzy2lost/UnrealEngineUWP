@@ -554,6 +554,12 @@ public:
 	/** If we are allowed to unload tags */
 	GAMEPLAYTAGS_API bool ShouldUnloadTags() const;
 
+	/** Pushes an override that supersedes bShouldAllowUnloadingTags to allow/disallow unloading of GameplayTags in controlled scenarios */
+	GAMEPLAYTAGS_API void SetShouldUnloadTagsOverride(bool bShouldUnloadTags);
+
+	/** Clears runtime overrides, reverting to bShouldAllowUnloadingTags when determining GameplayTags unload behavior */
+	GAMEPLAYTAGS_API void ClearShouldUnloadTagsOverride();
+
 	/** Returns the hash of NetworkGameplayTagNodeIndex */
 	uint32 GetNetworkGameplayTagNodeIndexHash() const { VerifyNetworkIndex(); return NetworkGameplayTagNodeIndexHash; }
 
@@ -884,6 +890,9 @@ private:
 
 	/** Cached runtime value for whether we should allow unloading of tags */
 	bool bShouldAllowUnloadingTags;
+
+	/** Augments usage of bShouldAllowUnloadingTags to allow runtime overrides to allow/disallow unloading of GameplayTags in controlled scenarios */
+	TOptional<bool> ShouldAllowUnloadingTagsOverride;
 
 	/** True if native tags have all been added and flushed */
 	bool bDoneAddingNativeTags;

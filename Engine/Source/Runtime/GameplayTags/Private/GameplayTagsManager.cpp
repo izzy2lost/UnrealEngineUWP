@@ -740,7 +740,22 @@ bool UGameplayTagsManager::ShouldUnloadTags() const
 	}
 #endif
 
+	if (ShouldAllowUnloadingTagsOverride.IsSet())
+	{
+		return ShouldAllowUnloadingTagsOverride.GetValue();
+	}
+
 	return bShouldAllowUnloadingTags;
+}
+
+void UGameplayTagsManager::SetShouldUnloadTagsOverride(bool bShouldUnloadTags)
+{
+	ShouldAllowUnloadingTagsOverride = bShouldUnloadTags;
+}
+
+void UGameplayTagsManager::ClearShouldUnloadTagsOverride()
+{
+	ShouldAllowUnloadingTagsOverride.Reset();
 }
 
 void UGameplayTagsManager::GetRestrictedTagConfigFiles(TArray<FString>& RestrictedConfigFiles) const
