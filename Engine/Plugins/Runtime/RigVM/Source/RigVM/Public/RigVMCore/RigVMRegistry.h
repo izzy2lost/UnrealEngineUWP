@@ -7,12 +7,9 @@
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
-#include "CoreTypes.h"
-#include "HAL/PlatformCrt.h"
 #include "RigVMCore/RigVMTraits.h"
 #include "RigVMDispatchFactory.h"
 #include "RigVMFunction.h"
-#include "RigVMMemory.h"
 #include "RigVMTemplate.h"
 #include "RigVMTypeIndex.h"
 #include "Templates/EnableIf.h"
@@ -25,6 +22,7 @@
 #include "UObject/GCObject.h"
 
 class FProperty;
+class IPlugin;
 class UObject;
 struct FRigVMDispatchFactory;
 
@@ -92,6 +90,9 @@ public:
 	// Update the registry when old types are removed
     void OnAssetRemoved(const FAssetData& InAssetData);
 
+	// Removes all types associated with a plugin that's being unloaded. 
+	void OnPluginUnloaded(IPlugin& InPlugin);
+	
 	// Update the registry when new types are added to the attribute system so that they can be selected
 	// on Attribute Nodes
 	void OnAnimationAttributeTypesChanged(const UScriptStruct* InStruct, bool bIsAdded);
@@ -108,7 +109,7 @@ public:
 
 	// Removes a type from the registry, and updates all dependent templates
 	// which also creates invalid permutations in templates that we should ignore
-	bool RemoveType(const FAssetData& InAssetData);
+	bool RemoveType(const FSoftObjectPath& InObjectPath, const UClass* InObjectClass);
 
 	// Returns the type index given a type
 	TRigVMTypeIndex GetTypeIndex(const FRigVMTemplateArgumentType& InType) const;
