@@ -1262,8 +1262,8 @@ void FReplicationWriter::HandleDroppedRecord<FReplicationWriter::EReplicatedObje
 {
 	const uint32 InternalIndex = RecordInfo.Index;
 
-	// For now we do not support flush (https://jira.it.epicgames.com/browse/UENET-1079), so if we drop data in flight while we are pending destroy/tear-off we will ignore the lost data.
-	if (CurrentState < EReplicatedObjectState::PendingDestroy)
+	// An object in PendingDestroy/WaitOnDestroyConfirmation can end up being replicated again via CancelPendingDestroy.
+	if (CurrentState < EReplicatedObjectState::Destroyed)
 	{
 		// Mask in any lost changes
 		bool bNeedToResendAttachments = RecordInfo.HasAttachments;
@@ -1298,36 +1298,39 @@ void FReplicationWriter::HandleDroppedRecord<FReplicationWriter::EReplicatedObje
 				ChangeMask.Combine(LostChangeMask, FNetBitArrayView::OrOp);
 			}
 
-			// Mark object as having dirty changes
-			MarkObjectDirty(InternalIndex, "DroppedCreated");
-
-			// Mark changemask as dirty
-			Info.HasDirtyChangeMask |= bNeedToResendState;
-
-			// Mark attachments as dirty
-			Info.HasAttachments |= bNeedToResendAttachments;
-
-			// Give slight priority bump
-			SchedulingPriorities[InternalIndex] += FReplicationWriter::LostStatePriorityBump;
-
-			if (Info.IsSubObject)
+			if (CurrentState < EReplicatedObjectState::PendingDestroy)
 			{
-				// Mark owner dirty as well as subobjects only are scheduled together with owner
-				const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectData(InternalIndex);
-				uint32 SubObjectOwnerInternalIndex = ObjectData.SubObjectRootIndex;
+				// Mark object as having dirty changes
+				MarkObjectDirty(InternalIndex, "DroppedCreated");
 
-				FReplicationInfo& SubObjectOwnerReplicationInfo = GetReplicationInfo(SubObjectOwnerInternalIndex);
+				// Mark changemask as dirty
+				Info.HasDirtyChangeMask |= bNeedToResendState;
 
-				if (ensure(SubObjectOwnerReplicationInfo.GetState() < EReplicatedObjectState::PendingDestroy))
+				// Mark attachments as dirty
+				Info.HasAttachments |= bNeedToResendAttachments;
+
+				// Give slight priority bump
+				SchedulingPriorities[InternalIndex] += FReplicationWriter::LostStatePriorityBump;
+
+				if (Info.IsSubObject)
 				{
-					// Mark owner as dirty
-					MarkObjectDirty(SubObjectOwnerInternalIndex, "DroppedCreated2");
+					// Mark owner dirty as well as subobjects only are scheduled together with owner
+					const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectData(InternalIndex);
+					uint32 SubObjectOwnerInternalIndex = ObjectData.SubObjectRootIndex;
 
-					// Indicate that we have dirty subobjects
-					SubObjectOwnerReplicationInfo.HasDirtySubObjects = 1U;
+					FReplicationInfo& SubObjectOwnerReplicationInfo = GetReplicationInfo(SubObjectOwnerInternalIndex);
 
-					// Give slight priority bump to owner
-					SchedulingPriorities[SubObjectOwnerInternalIndex] += FReplicationWriter::LostStatePriorityBump;
+					if (ensure(SubObjectOwnerReplicationInfo.GetState() < EReplicatedObjectState::PendingDestroy))
+					{
+						// Mark owner as dirty
+						MarkObjectDirty(SubObjectOwnerInternalIndex, "DroppedCreated2");
+
+						// Indicate that we have dirty subobjects
+						SubObjectOwnerReplicationInfo.HasDirtySubObjects = 1U;
+
+						// Give slight priority bump to owner
+						SchedulingPriorities[SubObjectOwnerInternalIndex] += FReplicationWriter::LostStatePriorityBump;
+					}
 				}
 			}
 		}
