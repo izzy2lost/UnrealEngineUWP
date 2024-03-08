@@ -21,7 +21,7 @@ public:
 	virtual void StartupModule() override
 	{
 #if NV_GEFORCENOW
-		const GfnRuntimeError GfnResult = GeForceNOWWrapper::Initialize();
+		const GfnRuntimeError GfnResult = GeForceNOWWrapper::Get().Initialize();
 		const bool bGfnRuntimeSDKInitialized = GfnResult == gfnSuccess || GfnResult == gfnInitSuccessClientOnly;
 		if (bGfnRuntimeSDKInitialized)
 		{
@@ -51,12 +51,7 @@ public:
 #endif // NV_GEFORCENOW
 	}
 
-	virtual void ShutdownModule() override
-	{
-#if NV_GEFORCENOW
-		GeForceNOWWrapper::Shutdown();
-#endif // NV_GEFORCENOW
-	}
+	virtual void ShutdownModule() override{}
 };
 
 IMPLEMENT_MODULE(FGeForceNOWWrapperModule, GeForceNOWWrapper);
