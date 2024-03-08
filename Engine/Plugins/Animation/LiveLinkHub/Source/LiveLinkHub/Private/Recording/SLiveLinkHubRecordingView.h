@@ -6,6 +6,9 @@
 
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateCombinations.h"
+#include "LiveLinkHubModule.h"
+#include "LiveLinkHubPlaybackController.h"
+#include "Modules/ModuleManager.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -45,6 +48,7 @@ public:
 		[
 			SNew(SButton)
 				.OnClicked(this, &SLiveLinkHubRecordingView::OnClickRecordButton)
+				.IsEnabled(this, &SLiveLinkHubRecordingView::CanRecord)
 				[
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot()
@@ -96,6 +100,12 @@ public:
 	bool IsRecording() const
 	{
 		return IsRecordingDelegate.Execute();
+	}
+
+	bool CanRecord() const
+	{
+		const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+		return !LiveLinkHubModule.GetPlaybackController()->IsInPlayback();
 	}
 
 private:
