@@ -5,13 +5,13 @@ using System.IO;
 
 public class libstrophe : ModuleRules
 {
-	protected virtual string StropheVersion { get { return "libstrophe-0.9.3"; } } 
+	protected virtual string StropheVersion { get { return (Target.Platform == UnrealTargetPlatform.Mac) ? "libstrophe-0.9.1" : "libstrophe-0.9.3"; } } 
 
 	protected virtual string LibRootDirectory { get { return ModuleDirectory; } }
 
 	protected virtual string StrophePackagePath { get { return Path.Combine(LibRootDirectory, StropheVersion); } }
 
-	protected virtual string StropheLibRootPath { get { return Path.Combine(StrophePackagePath, "Lib"); } }
+	protected virtual string StropheLibRootPath { get { return (Target.Platform == UnrealTargetPlatform.Mac) ? StrophePackagePath : Path.Combine(StrophePackagePath, "Lib"); } }
 
 	protected virtual string StropheIncludePath { get { return Path.Combine(StrophePackagePath, "Include"); } }
 
