@@ -331,6 +331,21 @@ namespace Horde.Server.Server
 		}
 
 		/// <summary>
+		/// Converts all legacy pools into config entries
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/server/debug/aclscopes")]
+		public ActionResult<object> GetAclScopes()
+		{
+			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
+			{
+				return Forbid(ServerAclAction.Debug);
+			}
+
+			return new { scopes = _globalConfig.Value.AclScopes.Keys.ToList() };
+		}
+
+		/// <summary>
 		/// Returns the fully parsed config object.
 		/// </summary>
 		[HttpGet]
