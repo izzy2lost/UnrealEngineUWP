@@ -189,8 +189,8 @@ void FOverridableManager::ClearOverrides(UObject& Object)
 	if(FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		ThisObjectOverriddenProperties->Reset();
-		PropagateClearOverridesToInstancedSubObjects(Object);
 	}
+	PropagateClearOverridesToInstancedSubObjects(Object);
 }
 
 void FOverridableManager::ClearInstancedSubObjectOverrides(UObject& Object, UObject& InstancedSubObject)
