@@ -103,9 +103,8 @@ and port, eg:
 ### Ports
 
 By default, Horde is configured to serve data over unencrypted HTTP using port 5000. Agents communicate with the Horde
-server using gRPC over unencrypted HTTP/2 on port 5002 by default. 
-
-These settings are echoed to the console during server startup.
+server using gRPC over unencrypted HTTP/2 on port 5002 by default. These settings are echoed to the console
+during server startup.
 
 A separate port is used for gRPC since Kestrel (the .NET web server) does not support unencrypted HTTP/2 traffic over
 the same port as HTTP/1 traffic. Using this separate port for non-TLS HTTP/2 traffic can be useful when putting
@@ -115,8 +114,13 @@ Settings for port usage are defined in [Server.json](ServerSettings.md):
 
 * To disable serving data over HTTP, set the `HttpPort` property to zero.
 * To configure the secondary HTTP/2 port used, set the `Http2Port` property (or set it to zero to disable it).
-* To serve data over HTTPS, set the `HttpsPort` property. This setting can be used independently of the `HttpPort`
-  and `Http2Port` setting.
+
+### HTTPS
+
+To serve data over HTTPS, set the `HttpsPort` property in the [Server.json](ServerSettings.md) file. The server
+machine must have a correctly configured certificate to serve data correctly.
+
+Both HTTP/1.1 and HTTP/2.0 traffic can be served over the `HttpsPort`.
 
 ### Monitoring
 
@@ -139,8 +143,6 @@ Horde supports [OpenID Connect (OIDC)](https://openid.net/developers/how-connect
 an external identity provider. _OIDC_ is a widely used auth standard, and Okta, Aws, Azure, Google, Facebook, and
 many others implement identity providers compatible with it.
 
-See [permissions](../Config/Permissions.md) in config for other authentication options.
-
 The following settings in [Server.json](ServerSettings.md) are required to configure an OIDC provider:
 
 * `AuthMethod`: Set this to `OpenIdConnect`.
@@ -160,6 +162,8 @@ In addition, the following settings can be specified:
   email address.
 * `OidcClaimHordePerforceUserMapping`: Specifies a list of claims to check, in order of preference, when trying to
   determine a user's Perforce username.
+
+See [Config > Permissions](../Config/Permissions.md) for other authentication options.
 
 ### Reference
 

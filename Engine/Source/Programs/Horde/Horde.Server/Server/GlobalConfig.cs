@@ -263,6 +263,12 @@ namespace Horde.Server.Server
 		public AclConfig Acl { get; set; } = new AclConfig();
 
 		/// <summary>
+		/// Accessor for the ACL scope lookup
+		/// </summary>
+		[JsonIgnore]
+		public IReadOnlyDictionary<AclScopeName, AclConfig> AclScopes => _aclLookup;
+
+		/// <summary>
 		/// Enumerates all the streams
 		/// </summary>
 		[JsonIgnore]
@@ -601,6 +607,16 @@ namespace Horde.Server.Server
 		/// <param name="config">Receives the secret configuration on success</param>
 		/// <returns>True on success</returns>
 		public bool TryGetSecret(SecretId secretId, [NotNullWhen(true)] out SecretConfig? config) => _secretLookup.TryGetValue(secretId, out config);
+
+		/// <summary>
+		/// Authorizes a user to perform a given action
+		/// </summary>
+		/// <param name="scopeName">Name of the scope to auth against</param>
+		/// <param name="scopeConfig">Configuration for the scope</param>
+		public bool TryGetAclScope(AclScopeName scopeName, [NotNullWhen(true)] out AclConfig? scopeConfig)
+		{
+			return _aclLookup.TryGetValue(scopeName, out scopeConfig);
+		}
 
 		/// <summary>
 		/// Authorizes a user to perform a given action

@@ -347,5 +347,29 @@ namespace Horde.Server.Server
 
 			return new GetAccountEntitlementsResponse(predicate(HordeClaims.AdminClaim), scopes);
 		}
+
+		/// <summary>
+		/// Tests whether a user has a particular entitlement
+		/// </summary>
+		[HttpGet]
+		[Route("/account/access")]
+		public ActionResult<object> GetAccess([FromQuery] AclScopeName scope, [FromQuery] AclAction action, [FromQuery] PropertyFilter? filter = null)
+		{
+			AclConfig? scopeConfig;
+			if (!_globalConfig.Value.TryGetAclScope(scope, out scopeConfig))
+			{
+				return NotFound();
+			}
+
+			bool access = scopeConfig.Authorize(action, User);
+
+			List<object> scopes = new List<object>();
+			for (AclConfig? testScopeConfig = scopeConfig; testScopeConfig != null; testScopeConfig = testScopeConfig.Parent)
+			{
+				scopes.Add(new { Name = testScopeConfig.ScopeName, Access = testScopeConfig.Authorize(action, User) });
+			}
+
+			return PropertyFilter.Apply(new { access, scopes }, filter);
+		}
 	}
 }

@@ -95,6 +95,26 @@
 			"keepDays": 1
 		}
 	],
+	"devices": {
+		"platforms": [
+			{
+				"id": "android",
+				"name": "Android"
+			}
+		],
+		"pools": [
+			{
+				"id": "ue5",
+				"name": "UE5",
+				"poolType": "Automation"
+			},
+			{
+				"id": "remote-ue5",
+				"name": "Remote UE5",
+				"poolType": "Shared"
+			}
+		]
+	},
 	"acl": {
 		"entries": [
 			{
