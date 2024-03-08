@@ -62,8 +62,9 @@ namespace uba
 			BinaryReader reader(m_memory, tableOffset);
 			u32 prevTableOffset = u32(reader.Read7BitEncoded());
 
+			u32 buffer[48*1024];
 			u32 count = 0;
-			u32 readerOffsets[64*1024];
+			u32* readerOffsets = buffer;
 			readerOffsets[count++] = u32(reader.GetPosition());
 			bool firstIsRoot = true;
 			while (true)
@@ -76,7 +77,11 @@ namespace uba
 				reader.SetPosition(prevTableOffset);
 				prevTableOffset = u32(reader.Read7BitEncoded());
 				readerOffsets[count++] = u32(reader.GetPosition());
-				UBA_ASSERT(count < sizeof_array(readerOffsets));
+				if (count == sizeof_array(buffer))
+				{
+					readerOffsets = new u32[1024*1024]; // This sucks, but somethings the directory is huuuge. Ideally these files should be spread out over multiple directories
+					memcpy(readerOffsets, buffer, sizeof(buffer));
+				}
 			}
 
 			for (u32 i=count; i>0; --i)
@@ -93,6 +98,9 @@ namespace uba
 
 				PopulateDirectoryWithFiles(reader, hasher, files);
 			}
+
+			if (readerOffsets != buffer)
+				delete[] readerOffsets;
 		}
 
 		void PopulateDirectoryWithFiles(BinaryReader& reader, const StringKeyHasher& hasher, EntryLookup& files)

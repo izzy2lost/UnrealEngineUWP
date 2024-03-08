@@ -50,6 +50,8 @@ namespace uba
 		}
 
 		m_nameToHashTableMem.Init(NameToHashMemSize);
+
+		Create(info);
 	}
 
 	SessionClient::~SessionClient()
@@ -416,7 +418,8 @@ namespace uba
 			if (m_useStorage || memoryMapAlignment == 0)
 			{
 				bool storeUncompressed = memoryMapAlignment == 0;
-				if (!RetrieveCasFile(newCasKey, fileSize, casKey, fileName.data, storeUncompressed, !IsRarelyRead(msg.process, fileName)))
+				bool allowProxy = GetApplicationRules()[msg.process.m_rulesIndex].rules->AllowStorageProxy(fileName);
+				if (!RetrieveCasFile(newCasKey, fileSize, casKey, fileName.data, storeUncompressed, allowProxy))
 					return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
 
 				#if !UBA_USE_SPARSEFILE
@@ -801,7 +804,7 @@ namespace uba
 		return true;
 	}
 
-	bool SessionClient::WriteFileToDisk(ProcessImpl& process, WrittenFile& file)
+	bool SessionClient::WriteFilesToDisk(ProcessImpl& process, WrittenFile** files, u32 fileCount)
 	{
 		// Do nothing, we will send the data to the host when process is finished
 		return true;
@@ -1262,6 +1265,9 @@ namespace uba
 			m_bestPing = m_lastPing;
 
 		m_storage.Ping();
+
+		if (reader.ReadBool()) // abort
+			abort();
 	}
 
 	void SessionClient::SendSummary(const Function<void(Logger&)>& extraInfo)

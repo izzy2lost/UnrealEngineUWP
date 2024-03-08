@@ -18,7 +18,7 @@ namespace uba
 	
 	static constexpr u32 SystemNetworkVersion = 1339;
 	static constexpr u32 StorageNetworkVersion = 3;
-	static constexpr u32 SessionNetworkVersion = 29;
+	static constexpr u32 SessionNetworkVersion = 30;
 
 
 	// Messages used over network between client/server (system, storage and session)
@@ -82,6 +82,7 @@ namespace uba
 		UBA_SESSION_MESSAGE(Custom) \
 		UBA_SESSION_MESSAGE(UpdateEnvironment) \
 		UBA_SESSION_MESSAGE(Summary) \
+		UBA_SESSION_MESSAGE(Command) \
 
 	enum SessionMessageType : u8 
 	{

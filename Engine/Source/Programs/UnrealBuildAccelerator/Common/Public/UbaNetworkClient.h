@@ -33,13 +33,10 @@ namespace uba
 		NetworkClient(bool& outCtorSuccess, const NetworkClientCreateInfo& info = {}, const tchar* name = TC("UbaClient"));
 		~NetworkClient();
 
-		void StopAll();
-
 		bool Connect(NetworkBackend& backend, const tchar* ip, u16 port = DefaultPort, bool* timedOut = nullptr);
 		void Disconnect();
 
 		bool StartListen(NetworkBackend& backend, u16 port = DefaultPort);
-		void StopListen();
 		bool SetConnectionCount(u32 count);
 		bool SendKeepAlive();
 
@@ -81,10 +78,11 @@ namespace uba
 		};
 
 		bool AddConnection(NetworkBackend& backend, void* backendConnection, bool* timedOut);
-		void ConnectedCallback(NetworkBackend& backend, void* backendConnection);
+		bool ConnectedCallback(NetworkBackend& backend, void* backendConnection);
+		static void DisconnectCallback(void* context, const Guid& connectionUid, void* connection);
 		static bool ReceiveResponseHeader(void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize);
 		static bool ReceiveResponseBody(void* context, bool recvError, u8* headerData, void* bodyContext, u8* bodyData, u32 bodySize);
-		void OnDisconnected(Connection& connection, bool calledFromReceive);
+		void OnDisconnected(Connection& connection);
 		bool Send(NetworkMessage& message, void* response, u32 responseCapacity, bool async);
 		void ReturnMessageId(u16 id);
 		const tchar* SetGetPrefix(const tchar* originalPrefix);
@@ -98,6 +96,7 @@ namespace uba
 		Atomic<u64> m_sendBytes;
 		Atomic<u64> m_recvBytes;
 		Atomic<u32> m_recvCount;
+		Atomic<bool> m_isDisconnecting;
 		Timer m_sendTimer;
 
 		ReaderWriterLock m_serverUidLock;
@@ -111,8 +110,6 @@ namespace uba
 		ReaderWriterLock m_onDisconnectedFunctionsLock;
 		Vector<OnDisconnectedFunction> m_onDisconnectedFunctions;
 		OnVersionMismatchFunction m_versionMismatchFunction;
-
-		NetworkBackend* m_listenBackend = nullptr;
 
 		ReaderWriterLock m_connectionsLock;
 		List<Connection> m_connections;

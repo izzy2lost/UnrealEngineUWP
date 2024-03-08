@@ -1,7 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "UbaClient.h"
+#include "UbaCoordinatorWrapper.h"
 #include "UbaFileAccessor.h"
-#include "UbaNetworkBackendMemory.h"
 #include "UbaNetworkBackendTcp.h"
 #include "UbaPlatform.h"
 #include "UbaProtocol.h"
@@ -72,8 +73,14 @@ namespace uba
 		logger.Info(TC("   -nostdout               Disable stdout from process."));
 		logger.Info(TC("   -storeraw               Disable compression of storage. This will use more storage and might improve performance"));
 		logger.Info(TC("   -maxcpu=<number>        Max number of processes that can be started. Defaults to \"%u\" on this machine"), DefaultProcessorCount);
-		if (IsWindows)
-			logger.Info(TC("   -visualizer             Spawn a visualizer that visualizes progress"));
+		logger.Info(TC("   -visualizer             Spawn a visualizer that visualizes progress"));
+		logger.Info(TC("   -coordinator=<name>     Load a UbaCoordinator<name>.dll to instantiate a coordinator to get helpers"));
+		logger.Info(TC(""));
+		logger.Info(TC("  CoordinatorOptions (if coordinator set):"));
+		logger.Info(TC("   -uri=<address>          Uri to coordinator"));
+		logger.Info(TC("   -pool=<name>            Name of helper pool inside coordinator"));
+		logger.Info(TC("   -oidc=<name>            Name of oidc"));
+		logger.Info(TC("   -maxcores=<number>      Max number of cores that will be asked for from coordinator"));
 		logger.Info(TC(""));
 		return -1;
 	}
@@ -87,6 +94,7 @@ namespace uba
 			g_storageServer->SaveCasTable(true);
 			LoggerWithWriter(g_consoleLogWriter).Info(TC("CAS table saved..."));
 		}
+		abort();
 	}
 
 	#if PLATFORM_WINDOWS
@@ -100,7 +108,6 @@ namespace uba
 	void ConsoleHandler(int sig)
 	{
 		CtrlBreakPressed();
-		exit(-1);
 	}
 	#endif
 	
@@ -135,6 +142,11 @@ namespace uba
 		u32 storageCapacityGb = DefaultCapacityGb;
 		StringBuffer<256> workDir;
 		StringBuffer<128> listenIp;
+		TString coordinatorName;
+		TString coordinatorUri = TC("https://horde.devtools.epicgames.com:443"); // TC("https://horde.devtools-dev.epicgames.com:443");
+		TString coordinatorPool = TC("UbaLinux-us-west-2"); // TC("BoxLinux");
+		TString coordinatorOidc = TC("EpicGames-Okta");
+		u32 coordinatorMaxCoreCount = 400;
 		u16 port = DefaultPort;
 		u32 maxProcessCount = DefaultProcessorCount;
 		bool launchVisualizer = false;
@@ -214,6 +226,37 @@ namespace uba
 			else if (IsWindows && name.Equals(TC("-visualizer")))
 			{
 				launchVisualizer = true;
+			}
+			else if (name.Equals(TC("-coordinator")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-coordinator needs a value"));
+				coordinatorName = value.data;
+			}
+			else if (name.Equals(TC("-uri")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-uri needs a value"));
+				coordinatorUri = value.data;
+			}
+			else if (name.Equals(TC("-pool")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-pool needs a value"));
+				coordinatorPool = value.data;
+			}
+			else if (name.Equals(TC("-oidc")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-oidc needs a value"));
+				coordinatorOidc = value.data;
+			}
+			else if (name.Equals(TC("-maxcores")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-maxcores needs a value"));
+				if (!value.Parse(coordinatorMaxCoreCount))
+					return PrintHelp(TC("Invalid value for -maxcores"));
 			}
 			else if (name.Equals(TC("-workdir")))
 			{
@@ -351,7 +394,8 @@ namespace uba
 			rootDir2.Append("_CHECKCAS2");
 			StorageClientCreateInfo scci(client, rootDir2.data);
 			StorageClient storageClient(scci);
-			auto g = MakeGuard([&]() { server.StopAll(); });
+			storageClient.Start();
+			auto g = MakeGuard([&]() { server.DisconnectClients(); });
 			if (!server.StartListen(networkBackend, 1347, TC("127.0.0.1")))
 				return false;
 			if (!client.Connect(networkBackend, TC("127.0.0.1"), 1347))
@@ -471,7 +515,6 @@ namespace uba
 		#endif
 
 		NetworkBackendTcp networkBackend(logWriter);
-		NetworkBackendMemory networkBackendMem(logWriter);
 		NetworkServerCreateInfo nsci(logWriter);
 		//nsci.workerCount = 4;
 		bool ctorSuccess = true;
@@ -514,7 +557,9 @@ namespace uba
 			if (!server->StartListen(networkBackend, port, listenIp.data))
 				return -1;
 		}
-		auto stopServer = MakeGuard([&]() { server->StopAll(); });
+		auto stopServer = MakeGuard([&]() { server->DisconnectClients(); });
+
+		auto stopListen = MakeGuard([&]() { networkBackend.StopListen(); });
 
 		auto RunLocal = [&](const TString& app, const TString& arg, bool enableDetour, bool trackInputs = false)
 		{
@@ -562,104 +607,16 @@ namespace uba
 
 		auto RunWithClient = [&](const Function<bool()>& func)
 			{
-				struct Client
-				{
-					bool Init(LogWriter& logWriter, NetworkBackend& nb, NetworkBackend& nbMem, u16 port, u32 maxProcessorCount, u32 index)
-					{
-						networkBackend = &nb;
-						networkBackendMem = &nbMem;
-						bool ctorSuccess = true;
-						networkClient = new NetworkClient(ctorSuccess, { logWriter });
-						if (!ctorSuccess)
-							return false;
-
-
-						static auto startProxy = [](void* userData, u16 proxyPort, const Guid& storageServerUid)
-							{
-								auto& client = *(Client*)userData;
-
-								NetworkServerCreateInfo nsci(client.networkClient->GetLogWriter());
-								nsci.workerCount = 192;
-								nsci.receiveTimeoutSeconds = 60;
-
-								StringBuffer<256> prefix;
-								prefix.Append(TC("UbaProxyServer (")).Append(GuidToString(client.networkClient->GetUid()).str).Append(')');
-								client.serverPrefix = prefix.data;
-								bool ctorSuccess = true;
-								client.proxyNetworkServer = new NetworkServer(ctorSuccess, nsci, client.serverPrefix.c_str());
-								if (!ctorSuccess)
-								{
-									delete client.proxyNetworkServer;
-									return false;
-								}
-								client.proxyStorage = new StorageProxy(*client.proxyNetworkServer, *client.networkClient, storageServerUid, TC("Wooohoo"), client.storageClient);
-								client.proxyNetworkServer->StartListen(*client.networkBackendMem, proxyPort);
-								client.proxyNetworkServer->StartListen(*client.networkBackend, proxyPort);
-								//proxy.targetConnectionCount = proxy.maxConnectionCount;
-								//proxy.wakeupSessionWait.Set();
-								return true;
-							};
-
-						static auto getProxyBackend = [](void* userData, const tchar* host) -> NetworkBackend&
-							{
-								auto& client = *(Client*)userData;
-								return Equals(host, TC("inprocess")) ? *client.networkBackendMem : *client.networkBackend;
-							};
-
-						StringBuffer<> clientRootDir;
-						clientRootDir.Append(g_rootDir).Append("Agent").AppendValue(index);
-						StorageClientCreateInfo storageClientInfo(*networkClient, clientRootDir.data);
-						storageClientInfo.zone = TC("FOO");
-						storageClientInfo.getProxyBackendCallback = getProxyBackend;
-						storageClientInfo.getProxyBackendUserData = this;
-						storageClientInfo.startProxyCallback = startProxy;
-						storageClientInfo.startProxyUserData = this;
-						storageClient = new StorageClient(storageClientInfo);
-
-						SessionClientCreateInfo sessionClientInfo(*storageClient, *networkClient, logWriter);
-						sessionClientInfo.maxProcessCount = maxProcessorCount;
-						sessionClientInfo.rootDir = clientRootDir.data;
-						sessionClientInfo.deleteSessionsOlderThanSeconds = 1;
-
-						sessionClient = new SessionClient(sessionClientInfo);
-						sessionClient->Start();
-						if (!networkClient->Connect(*networkBackend, TC("127.0.0.1"), port))
-							return false;//logger.Error(TC("Failed to connect"));
-						return true;
-					}
-
-					~Client()
-					{
-						if (proxyNetworkServer)
-							proxyNetworkServer->StopAll();
-						sessionClient->Stop();
-						networkClient->StopAll();
-						delete proxyStorage;
-						delete proxyNetworkServer;
-						delete sessionClient;
-						delete storageClient;
-						delete networkClient;
-					}
-
-					NetworkClient* networkClient = nullptr;
-					StorageClient* storageClient = nullptr;
-					SessionClient* sessionClient = nullptr;
-
-					NetworkBackend* networkBackend = nullptr;
-					NetworkBackend* networkBackendMem = nullptr;
-					NetworkServer* proxyNetworkServer = nullptr;
-					StorageProxy* proxyStorage = nullptr;
-					TString serverPrefix;
-				};
-
-
 				Vector<Client> clients;
+				auto slg = MakeGuard([&]() { networkBackend.StopListen(); });
 				clients.resize(4);
 				u32 clientIndex = 0;
 				for (auto& c : clients)
-					if (!c.Init(logWriter, networkBackend, networkBackendMem, port, maxProcessCount/4, clientIndex++))
+				{
+					ClientInitInfo cii { logWriter, networkBackend, g_rootDir.data, TC("127.0.0.1"), port, TC("DummyZone"), maxProcessCount/4, clientIndex++};
+					if (!c.Init(cii))
 						return false;
-
+				}
 				return func();
 			};
 
@@ -667,6 +624,8 @@ namespace uba
 		{
 			return RunWithClient([&]() { return RunRemote(app, arg); });
 		};
+
+		CoordinatorWrapper coordinator;
 
 		auto RunScheduler = [&](const tchar* yamlFile)
 		{
@@ -684,7 +643,8 @@ namespace uba
 
 			bool success = true;
 			Atomic<u32> counter;
-			Event finished(true);
+			static Event finished(true);
+
 			scheduler.SetProcessFinishedCallback([&](const ProcessHandle& ph)
 				{
 					const tchar* desc = ph.GetStartInfo().description;
@@ -729,6 +689,31 @@ namespace uba
 			else
 				return RunQueue();
 		};
+
+
+		if (!coordinatorName.empty())
+		{
+			StringBuffer<512> coordinatorWorkDir(g_rootDir);
+			coordinatorWorkDir.EnsureEndsWithSlash().Append(coordinatorName);
+			StringBuffer<512> binariesDir;
+			if (!GetDirectoryOfCurrentModule(logger, binariesDir))
+				return false;
+
+			CoordinatorCreateInfo cinfo;
+			cinfo.workDir = coordinatorWorkDir.data;
+			cinfo.binariesDir = binariesDir.data;
+
+			// TODO: This is very horde specific.. maybe all these parameters should be a string or something
+			cinfo.uri = coordinatorUri.c_str();
+			cinfo.pool = coordinatorPool.c_str();
+			cinfo.oidc = coordinatorOidc.c_str();
+			cinfo.maxCoreCount = 400;
+			cinfo.logging = true;
+			if (!coordinator.Create(logger, coordinatorName.c_str(), cinfo, networkBackend, *server))
+				return false;
+		}
+		auto cg = MakeGuard([&]() { coordinator.Destroy(); });
+
 
 		for (u32 i=0; i!=loopCount; ++i)
 		{

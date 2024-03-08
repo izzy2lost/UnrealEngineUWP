@@ -22,7 +22,7 @@ namespace uba
 
 	ANALYSIS_NORETURN void UbaAssert(const tchar* text, const char* file, u32 line, const char* expr, u32 terminateCode)
 	{
-		static ReaderWriterLock assertLock;
+		static ReaderWriterLock& assertLock = *new ReaderWriterLock(); // Leak to prevent asan annoyances during shutdown when asserts happen
 		SCOPED_WRITE_LOCK(assertLock, lock);
 
 		StringBuffer<4096> b;
@@ -180,8 +180,8 @@ namespace uba
 		HANDLE m_stdout = 0;
 		u32 m_defaultAttributes = 0;
 #endif
-	} g_consoleLogWriterImpl;
-	LogWriter& g_consoleLogWriter = g_consoleLogWriterImpl;
+	};
+	LogWriter& g_consoleLogWriter = *new ConsoleLogWriter(); // Leak to prevent asan annoyances during shutdown when asserts happen
 	thread_local u32 t_consoleLogScopeCount = 0;
 
 	class NullLogWriter : public LogWriter

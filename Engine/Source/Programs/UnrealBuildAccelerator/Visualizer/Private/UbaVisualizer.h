@@ -112,6 +112,7 @@ namespace uba
 		bool m_useDarkMode = true;
 		bool m_isThemeSet = false;
 		bool m_showText = true;
+		bool m_showCreateWriteColors = true;
 
 		Logger& m_logger;
 		NetworkClient* m_client = nullptr;

@@ -77,10 +77,7 @@ namespace uba
 		void* disconnectContext = nullptr;
 		DisconnectCallback* disconnectCallback = nullptr;
 
-		#if UBA_LOCK_AROUND_SEND
 		ReaderWriterLock sendLock;
-		#endif
-
 		CriticalSection shutdownLock;
 
 		Thread recvThread;
@@ -103,6 +100,14 @@ namespace uba
 			if (int res = WSAStartup(MAKEWORD(2, 2), &wsaData))
 				return logger.Error(TC("WSAStartup failed (%d)"), res);
 		m_wsaInitDone = true;
+		#else
+		static bool initOnce = []()
+			{
+				struct sigaction sa = { { SIG_IGN } };
+				sigaction(SIGPIPE, &sa, NULL); // Needed for broken pipe that can happen if helpers crash
+				return true;
+			}();
+
 		#endif
 		return true;
 	}
@@ -163,8 +168,11 @@ namespace uba
 
 		#if UBA_LOCK_AROUND_SEND
 		SCOPED_WRITE_LOCK(conn.sendLock, lock);
+		#else
+		SCOPED_READ_LOCK(conn.sendLock, lock);
 		#endif
-
+		if (conn.socket == INVALID_SOCKET)
+			return false;
 		bool res = SendSocket(logger, conn.socket, data, dataSize);
 
 		#if UBA_LOCK_AROUND_SEND
@@ -473,8 +481,11 @@ namespace uba
 
 		ScopedCriticalSection lock2(connection.shutdownLock);
 		SOCKET s = connection.socket;
-		connection.socket = INVALID_SOCKET;
 
+		{
+			SCOPED_WRITE_LOCK(connection.sendLock, lock);
+			connection.socket = INVALID_SOCKET;
+		}
 		if (auto cb = connection.disconnectCallback)
 		{
 			auto context = connection.disconnectContext;

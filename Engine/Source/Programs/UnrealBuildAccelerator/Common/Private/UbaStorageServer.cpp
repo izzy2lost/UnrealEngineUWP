@@ -173,7 +173,6 @@ namespace uba
 				if (m_traceFetch)
 					m_trace->FileEndFetch(clientId, AsCompressed(fetch.casKey, m_storeCompressed));
 
-				CloseFile(nullptr, fetch.readFileHandle);
 				it = m_activeFetches.erase(it);
 			}
 		}
@@ -246,6 +245,15 @@ namespace uba
 		m_trace = trace;
 		m_traceFetch = detailed;
 		m_traceStore = detailed;
+	}
+
+	bool StorageServer::HasProxy(u32 clientId)
+	{
+		SCOPED_READ_LOCK(m_proxiesLock, l);
+		for (auto& kv : m_proxies)
+			if (kv.second.clientId == clientId)
+				return true;
+		return false;
 	}
 
 	bool StorageServer::WaitForWritten(CasEntry& casEntry, ScopedWriteLock& entryLock, const tchar* hint)
@@ -558,12 +566,12 @@ namespace uba
 				SCOPED_WRITE_LOCK(m_activeFetchesLock, lock);
 				auto insres = m_activeFetches.try_emplace(*fetchId);
 				UBA_ASSERT(insres.second);
+				ActiveFetch& fetch = insres.first->second;
+				fetch.clientId = connectionInfo.GetId();
 				lock.Leave();
 
 				mappedView.size = fileSize;
 
-				ActiveFetch& fetch = insres.first->second;
-				fetch.clientId = connectionInfo.GetId();
 				fetch.readFileHandle = readFileHandle;
 				fetch.mappedView = mappedView;
 				fetch.ownsMapping = ownsMapping;
@@ -586,6 +594,7 @@ namespace uba
 				if (findIt == m_activeFetches.end())
 					return m_logger.Error(TC("Can't find active fetch %u, disconnected client? (index %u)"), fetchId, fetchIndex);
 				ActiveFetch& fetch = findIt->second;
+				UBA_ASSERT(fetch.clientId == connectionInfo.GetId());
 				lock.Leave();
 
 				UBA_ASSERT(fetchIndex);
@@ -729,7 +738,6 @@ namespace uba
 
 				*(u64*)mappedView.memory = fileSize;
 
-				firstStore->clientId = connectionInfo.GetId();
 				firstStore->casEntry  = &casEntry;
 				firstStore->fileSize = fileSize;
 				firstStore->actualSize = actualSize;
@@ -757,6 +765,7 @@ namespace uba
 					if (storeIt == m_activeStores.end())
 						return m_logger.Error(TC("Can't find active store %u, disconnected client?"), storeId);
 					activeStoreTemp = &storeIt->second;
+					UBA_ASSERT(activeStoreTemp->clientId == connectionInfo.GetId());
 				}
 				ActiveStore& activeStore = *activeStoreTemp;
 
@@ -829,10 +838,10 @@ namespace uba
 					SCOPED_WRITE_LOCK(m_activeStoresLock, activeLock);
 					auto insres = m_activeStores.try_emplace(storeId);
 					UBA_ASSERT(insres.second);
+					ActiveStore& s = insres.first->second;
+					s.clientId = connectionInfo.GetId();
 					activeLock.Leave();
 
-					ActiveStore& s = insres.first->second;
-					s.clientId = firstStore->clientId;
 					s.fileSize = firstStore->fileSize;
 					s.mappedView = firstStore->mappedView;
 					s.casEntry = firstStore->casEntry;

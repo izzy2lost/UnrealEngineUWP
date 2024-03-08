@@ -308,6 +308,11 @@ namespace uba
 						break;
 					oldSession.isReset = true;
 					oldSession.disconnectTime = ~u64(0);
+					oldSession.proxyName.clear();
+					oldSession.proxyCreated = false;
+					oldSession.notification.clear();
+					//oldSession.fetchedFiles.clear();
+					//oldSession.storedFiles.clear();
 					virtualSessionIndex = i;
 					break;
 				}

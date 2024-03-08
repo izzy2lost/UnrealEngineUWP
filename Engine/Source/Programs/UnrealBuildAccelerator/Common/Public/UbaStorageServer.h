@@ -28,6 +28,7 @@ namespace uba
 		virtual bool WriteCompressed(WriteResult& out, const tchar* from, const tchar* toFile) override;
 		virtual bool IsDisallowedPath(const tchar* fileName) override;
 		virtual void SetTrace(Trace* trace, bool detailed) override;
+		virtual bool HasProxy(u32 clientId) override;
 		void OnDisconnected(u32 clientId);
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
 		bool WaitForWritten(CasEntry& casEntry, ScopedWriteLock& entryLock, const tchar* hint);

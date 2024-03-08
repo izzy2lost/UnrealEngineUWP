@@ -48,9 +48,8 @@ namespace uba
 		virtual ~NetworkServer();
 
 		bool StartListen(NetworkBackend& backend, u16 port = DefaultPort, const tchar* ip = nullptr, const u8* cryptoKey128 = nullptr); // Start listen for new connections/clients
-		void StopListen();			// Stop listen for new connections
 		void DisallowNewClients();	// Disallow new clients to connect but old clients can still create more connections
-		void StopAll();				// Stops all listen and disconnect all active connections
+		void DisconnectClients();				// Stops all listen and disconnect all active connections
 
 		bool AddClient(NetworkBackend& backend, const tchar* ip, u16 port = DefaultPort, const u8* cryptoKey128 = nullptr); // Adds a client that server will create one or more connections to (note this will return before we know if it was a success or not)
 
@@ -102,6 +101,7 @@ namespace uba
 		Worker* PopWorkerNoLock();
 		void PushWorker(Worker* worker);
 		void PushWorkerNoLock(Worker* worker);
+		void FlushWorkers();
 
 		bool HandleSystemMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
 		bool AddConnection(NetworkBackend& backend, void* backendConnection, const sockaddr& remoteSocketAddr, CryptoKey cryptoKey);
@@ -110,7 +110,6 @@ namespace uba
 
 		LoggerWithWriter m_logger;
 
-		NetworkBackend* m_listenBackend = nullptr;
 		CryptoKey m_listenCrypto = InvalidCryptoKey;
 		Guid m_uid;
 		bool m_allowNewClients = true;
@@ -120,6 +119,7 @@ namespace uba
 		OnConnectionFunction m_onConnectionFunction;
 		
 		struct OnDisconnectEntry { u8 id; OnDisconnectFunction function; };
+		ReaderWriterLock m_onDisconnectFunctionsLock;
 		List<OnDisconnectEntry> m_onDisconnectFunctions;
 
 		u32 m_maxWorkerCount = 0;

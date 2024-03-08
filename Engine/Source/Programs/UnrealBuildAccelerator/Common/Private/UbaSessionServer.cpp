@@ -71,7 +71,7 @@ namespace uba
 		SessionServer* m_server;
 		ReaderWriterLock m_exitedLock;
 		u32 m_processId;
-		u32 m_exitCode = ~u32(0);
+		u32 m_exitCode = ~0u;
 		u64 m_processorTime = 0;
 		u64 m_wallTime = 0;
 		Event m_done;
@@ -170,6 +170,8 @@ namespace uba
 		#else
 		m_detoursLibrary = detoursFile.data;
 		#endif
+
+		Create(info);
 	}
 
 	SessionServer::~SessionServer()
@@ -297,11 +299,13 @@ namespace uba
 			if (!m_remoteExecutionEnabled)
 			{
 				m_logger.Info(TC("Process queued for remote but remote execution was disabled, returning process to queue"));
+				ProcessHandle h(remoteProcess);
 				m_remoteProcessReturnedEvent(*remoteProcess);
 			}
 			else if (!m_connectionCount)
 			{
 				m_logger.Info(TC("Process queued for remote but there are no active connections, returning process to queue"));
+				ProcessHandle h(remoteProcess);
 				m_remoteProcessReturnedEvent(*remoteProcess);
 			}
 		}
@@ -553,7 +557,8 @@ namespace uba
 							m_storage.StoreCasFile(m_agentBinaryKey, dir.data, CasKeyZero, true);
 						}
 						dir.Resize(dirCount).Append(PathSeparator).Append(UBA_DETOURS_LIBRARY);
-						m_storage.StoreCasFile(m_detoursBinaryKey, dir.data, CasKeyZero, true);
+						if (!m_storage.StoreCasFile(m_detoursBinaryKey, dir.data, CasKeyZero, true))
+							return m_logger.Error(TC("Failed to create cas for %s"), dir.data);
 						UBA_ASSERT(m_detoursBinaryKey != CasKeyZero);
 					}
 				}
@@ -778,8 +783,10 @@ namespace uba
 					{
 						StringBuffer<> logPath;
 						logPath.Append(m_sessionLogDir).Append(destination.data + 5);
-						m_storage.CopyOrLink(casKey, logPath.data, attributes);
-						m_storage.DropCasFile(casKey, false, logPath.data);
+						if (!m_storage.CopyOrLink(casKey, logPath.data, attributes))
+							m_logger.Error(TC("Failed to copy cas from %s to %s"), CasKeyString(casKey).str, logPath.data);
+						else if (!m_storage.DropCasFile(casKey, false, logPath.data))
+							m_logger.Error(TC("Failed to drop cas %s"), CasKeyString(casKey).str);
 						writer.WriteBool(true);
 						return true;
 					}
@@ -895,7 +902,7 @@ namespace uba
 				u32 requestedSize = reader.ReadU32();
 
 				SCOPED_READ_LOCK(m_nameToHashLookupLock, lock);
-				if (requestedSize == ~u32(0))
+				if (requestedSize == ~0u)
 				{
 					requestedSize = u32(m_nameToHashTableMem.writtenSize);
 					writer.WriteU32(requestedSize);
@@ -1142,14 +1149,17 @@ namespace uba
 				u64 memTotal = reader.ReadU64();
 				u32 cpuLoadValue = reader.ReadU32();
 
+				u64 pingTime = GetTime();
 				u32 sessionIndex = sessionId - 1;
 				ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
 				UBA_ASSERT(sessionIndex < m_clientSessions.size());
 				auto& session = *m_clientSessions[sessionIndex];
+				session.pingTime = pingTime;
 				session.lastPing = lastPing;
 				session.memAvail = memAvail;
 				session.memTotal = memTotal;
 				session.cpuLoad = *(float*)&cpuLoadValue;
+				writer.WriteBool(session.abort);
 
 				return true;
 			}
@@ -1176,7 +1186,12 @@ namespace uba
 				SCOPED_WRITE_LOCK(remoteProcess.m_exitedLock, exitedLock);
 				NextProcessInfo nextProcess;
 				bool newProcess;
-				if (!GetNextProcess(remoteProcess, newProcess, nextProcess, prevExitCode, reader))
+				remoteProcess.m_exitCode = prevExitCode;
+				remoteProcess.m_done.Set();
+				bool success = GetNextProcess(remoteProcess, newProcess, nextProcess, prevExitCode, reader);
+				remoteProcess.m_exitCode = ~0u;
+				remoteProcess.m_done.Reset();
+				if (!success)
 					return false;
 
 				writer.WriteBool(newProcess);
@@ -1216,6 +1231,69 @@ namespace uba
 			{
 				u32 sessionId = reader.ReadU32();
 				m_trace.SessionSummary(sessionId, reader.GetPositionData(), reader.GetLeft());
+				return true;
+			}
+			case SessionMessageType_Command:
+			{
+				StringBuffer<128> command;
+				reader.ReadString(command);
+
+				auto WriteString = [&](const tchar* str, LogEntryType type = LogEntryType_Info) { writer.WriteByte(type); writer.WriteString(str); };
+
+				if (command.Equals(TC("status")))
+				{
+					u32 totalUsed = 0;
+					u32 totalSlots = 0;
+					ScopedCriticalSection queueLock(m_remoteProcessAndSessionLock);
+					u64 time = GetTime();
+					for (auto& s : m_clientSessions)
+					{
+						if (!s->enabled)
+							continue;
+						WriteString(StringBuffer<>().Appendf(TC("Session %u (%s)"), s->id, s->name.c_str()).data);
+						WriteString(StringBuffer<>().Appendf(TC("   Process slots used %u/%u"), s->usedSlotCount, s->processSlotCount).data);
+						if (s->pingTime)
+							WriteString(StringBuffer<>().Appendf(TC("   Last ping %s ago"), TimeToText(time - s->pingTime).str).data);
+						totalUsed += s->usedSlotCount;
+						totalSlots += s->processSlotCount;
+					}
+					WriteString(StringBuffer<>().Appendf(TC("Total remote slots used %u/%u"), totalUsed, totalSlots).data);
+				}
+				else if (command.StartsWith(TC("abort")))
+				{
+					bool abortWithProxy = command.Equals(TC("abortproxy"));
+					bool abortUseProxy = command.Equals(TC("abortnonproxy"));
+					if (!abortWithProxy && !abortUseProxy)
+					{
+						abortWithProxy = true;
+						abortUseProxy = true;
+					}
+					ScopedCriticalSection queueLock(m_remoteProcessAndSessionLock);
+					u32 abortCount = 0;
+					for (auto& s : m_clientSessions)
+					{
+						if (!s->enabled || s->abort)
+							continue;
+						bool hasProxy = m_storage.HasProxy(s->id);
+						if (abortWithProxy && hasProxy)
+							s->abort = true;
+						else if (abortUseProxy && !hasProxy)
+							s->abort = true;
+						if (s->abort)
+							++abortCount;
+					}
+					WriteString(StringBuffer<>().Appendf(TC("Aborting: %u remote sessions"), abortCount).data);
+				}
+				else if (command.Equals(TC("disableremote")))
+				{
+					DisableRemoteExecution();
+					WriteString(StringBuffer<>().Appendf(TC("Remote execution is disabled")).data);
+				}
+				else
+				{
+					WriteString(StringBuffer<>().Appendf(TC("Unknown command: %s"), command.data).data, LogEntryType_Error);
+				}
+				writer.WriteByte(255);
 				return true;
 			}
 		}

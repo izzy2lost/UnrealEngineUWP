@@ -33,6 +33,8 @@ namespace uba
 		StorageClient(const StorageClientCreateInfo& info);
 		~StorageClient();
 
+		bool Start();
+
 		bool IsUsingProxy();
 		void StopProxy();
 
@@ -53,7 +55,7 @@ namespace uba
 		virtual void Ping() override;
 		virtual void PrintSummary(Logger& logger) override;
 
-		static bool SendBatchMessages(NetworkClient& client, u16 fetchId, u8* slot, u64 capacity, u64 left, u32 messageMaxSize, u32& readIndex, u32& responseSize);
+		static bool SendBatchMessages(Logger& logger, NetworkClient& client, u16 fetchId, u8* slot, u64 capacity, u64 left, u32 messageMaxSize, u32& readIndex, u32& responseSize);
 		static bool SendAllSegments(NetworkClient& client, u16 fetchId, u8* readBuffer, u64 left, u32 messageMaxSize);
 
 	private:
@@ -86,6 +88,7 @@ namespace uba
 		void* m_getProxyBackendUserData = nullptr;
 		StartProxyCallback* m_startProxyCallback = nullptr;
 		void* m_startProxyUserData = nullptr;
+		u16 m_proxyPort = 0;
 	};
 
 }

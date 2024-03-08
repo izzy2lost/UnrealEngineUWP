@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <wchar.h> 
 #include <stdarg.h>
+#include <time.h>
 
 int LogError(const wchar_t* format, ...)
 {
@@ -26,6 +27,9 @@ int wmain(int argc, wchar_t* argv[])
 	if (!runningRemoteFunc)
 		return LogError(L"Couldn't find UbaRunningRemote function in UbaDetours.dll");
 	bool runningRemote = (*runningRemoteFunc)();
+
+	using UbaRequestNextProcessFunc = bool(unsigned int prevExitCode, wchar_t* outArguments, unsigned int outArgumentsCapacity);
+	static UbaRequestNextProcessFunc* requestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(detoursHandle, "UbaRequestNextProcess");
 
 	if (argc == 1)
 	{
@@ -133,12 +137,49 @@ int wmain(int argc, wchar_t* argv[])
 	}
 	else if (wcscmp(argv[1], L"-reuse") == 0)
 	{
-		using UbaRequestNextProcessFunc = bool(unsigned int prevExitCode, wchar_t* outArguments, unsigned int outArgumentsCapacity);
-		static UbaRequestNextProcessFunc* requestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(detoursHandle, "UbaRequestNextProcess");
-
 		wchar_t arguments[1024];
 		if (requestNextProcess(0, arguments, sizeof(arguments)))
 			return LogError(L"Didn't expect another process");
+	}
+	else if (wcsncmp(argv[1], L"-file=", 6) == 0)
+	{
+		wchar_t arguments[1024];
+		const wchar_t* file = argv[1] + 6;
+		while (true)
+		{
+			HANDLE rh = CreateFileW(file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+			if (rh == INVALID_HANDLE_VALUE)
+				return LogError(L"Failed to open file %s", file);
+			char data[17] = {};
+			DWORD bytesRead;
+			if (!ReadFile(rh, data, 16, &bytesRead, NULL) || bytesRead != 16)
+				return LogError(L"Failed to read 16 bytes from file %s", file);
+			CloseHandle(rh);
+
+			srand(GetProcessId(GetCurrentProcess()));
+			Sleep(rand() % 2000);
+			wchar_t outFile[1024];
+			wcscpy_s(outFile, 1024, file);
+			outFile[wcslen(file)-3] = 0;
+			wcscat_s(outFile, 1024, L".out");
+
+			HANDLE wh = CreateFileW(outFile, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, 0, NULL);
+			if (wh == INVALID_HANDLE_VALUE)
+				return LogError(L"Failed to create file File");
+			data[16] = 1;
+			DWORD bytesWritten;
+			if (!WriteFile(wh, data, 17, &bytesWritten, NULL) || bytesWritten != 17)
+				return LogError(L"Failed to read 16 bytes from file %s", file);
+
+			CloseHandle(wh);
+
+			// Request new process
+			if (!requestNextProcess(0, arguments, 1024))
+				break; // No process available, exit loop
+			file = arguments + 6;
+		}
+
+		return 0;
 	}
 	else
 	{

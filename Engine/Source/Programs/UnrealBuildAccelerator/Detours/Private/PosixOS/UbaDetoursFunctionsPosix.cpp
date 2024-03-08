@@ -314,7 +314,7 @@ int Shared_open(const char* funcName, const char* file, int flags, int mode, con
 			{
 				// This could be a written file not reported to server yet
 				{
-					ScopedReadLock lock(g_mappedFileTable.m_lookupLock);
+					SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, lock);
 					auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
 					if (findIt != g_mappedFileTable.m_lookup.end())
 						allowEarlyOut = findIt->second.deleted;
@@ -342,7 +342,7 @@ int Shared_open(const char* funcName, const char* file, int flags, int mode, con
 	}
 
 
-	ScopedWriteLock _(g_mappedFileTable.m_lookupLock);
+	SCOPED_WRITE_LOCK(g_mappedFileTable.m_lookupLock, _);
 	auto insres = g_mappedFileTable.m_lookup.try_emplace(fileNameKey);
 	FileInfo& info = insres.first->second;
 	FileInfo* fileInfo = &info;
@@ -400,7 +400,7 @@ int Shared_open(const char* funcName, const char* file, int flags, int mode, con
 		if (realFileName[1] == 'd') // This is a directory and we will need to fake it locally.. 
 		{
 			int fd = TRUE_WRAPPER(open)("/dev/null", O_RDONLY);
-			ScopedWriteLock lock(g_fileHandlesLock);
+			SCOPED_WRITE_LOCK(g_fileHandlesLock, lock);
 			auto insres2 = g_fileHandles.insert({ fd, DetouredHandle() });
 			UBA_ASSERTF(insres2.second, "File handle for directory already added");
 			DetouredHandle& h = insres2.first->second;
@@ -443,7 +443,7 @@ int Shared_open(const char* funcName, const char* file, int flags, int mode, con
 	if (fd == -1)
 		return fd;
 
-	ScopedWriteLock lock(g_fileHandlesLock);
+	SCOPED_WRITE_LOCK(g_fileHandlesLock, lock);
 	auto insres2 = g_fileHandles.insert({ fd, DetouredHandle() });
 	UBA_ASSERTF(insres2.second, "File handle already added");
 	DetouredHandle& h = insres2.first->second;
@@ -502,7 +502,7 @@ void Shared_close(int fd, const TrueClose& trueClose)
 		return;
 	}
 
-	ScopedWriteLock lock(g_fileHandlesLock);
+	SCOPED_WRITE_LOCK(g_fileHandlesLock, lock);
 	auto findIt = g_fileHandles.find(fd);
 	if (findIt == g_fileHandles.end())
 	{
@@ -541,7 +541,7 @@ int Shared_fstat(const char* funcName, int fd, struct stat* attr, const True_fst
 	//if (!g_isDetouring || t_disallowDetour)
 	//	return trueFstat(fd, attr);
 
-	ScopedReadLock lock(g_fileHandlesLock);
+	SCOPED_READ_LOCK(g_fileHandlesLock, lock);
 	auto findIt = g_fileHandles.find(fd);
 	if (findIt == g_fileHandles.end())
 	{
@@ -646,7 +646,7 @@ int Shared_stat(const char* funcName, const char* file, struct stat* attr, const
 	{
 		struct stat attr2;
 		int res2 = trueStat(file, &attr2);
-		UBA_ASSERTF(res == res2, "stat: return value differs for %s (%i vs %i) [fixed: %s]", file, res, res2, fixedFile.data);
+		UBA_ASSERTF(res == res2, "stat: return value differs for %s (cached %i vs actual %i) [fixed: %s]", file, res, res2, fixedFile.data);
 		if (res != -1)
 		{
 			bool isDir = S_ISDIR(attr->st_mode);
@@ -796,7 +796,7 @@ UBA_EXPORT ssize_t UBA_WRAPPER(readlink)(const char* pathname, char* buf, size_t
 		u32 fd;
 		if (!fdStr.Parse(fd))
 			UBA_ASSERTF(false, "Failed to parse /proc/self/fd");
-		ScopedReadLock lock(g_fileHandlesLock);
+		SCOPED_READ_LOCK(g_fileHandlesLock, lock);
 		auto findIt = g_fileHandles.find(fd);
 		if (findIt != g_fileHandles.end())
 		{
@@ -896,7 +896,7 @@ UBA_EXPORT int UBA_WRAPPER(dup2)(int oldfd, int newfd)
 
 	if (res != -1)
 	{
-		ScopedWriteLock lock(g_fileHandlesLock);
+		SCOPED_WRITE_LOCK(g_fileHandlesLock, lock);
 		auto findIt = g_fileHandles.find(oldfd);
 		if (findIt != g_fileHandles.end())
 		{
@@ -1213,7 +1213,7 @@ UBA_EXPORT int UBA_WRAPPER(rename)(const char* oldpath, const char* newpath)
 
 	// TODO: This might be really slow but it seems you can rename files on linux while they are open and they won't be properly renamed until closed
 	{
-		ScopedReadLock lock(g_fileHandlesLock);
+		SCOPED_READ_LOCK(g_fileHandlesLock, lock);
 		for (auto& kv : g_fileHandles)
 		{
 			FileObject& fo = *kv.second.fileObject;
@@ -1252,7 +1252,7 @@ UBA_EXPORT int UBA_WRAPPER(rename)(const char* oldpath, const char* newpath)
 	bool result;
 	{
 		TimerScope ts(g_stats.moveFile);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_MoveFileW);
 		writer.WriteStringKey(oldKey);
@@ -1292,7 +1292,7 @@ UBA_EXPORT int UBA_WRAPPER(chmod)(const char* pathname, mode_t mode)
 	u32 errorCode;
 	{
 		TimerScope ts(g_stats.chmod);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_Chmod);
 		writer.WriteStringKey(key);
@@ -1383,7 +1383,7 @@ UBA_EXPORT int UBA_WRAPPER(remove)(const char* pathname)
 	{
 		u32 closeId = 0;
 		TimerScope ts(g_stats.deleteFile);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_DeleteFileW);
 		writer.WriteString(fixedName);
@@ -1435,7 +1435,7 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 
 	{
 		TimerScope ts(g_stats.createProcess);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 
 		const char* pwd = "";
 		//while (char* env = envp[i++])
@@ -1511,7 +1511,7 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 
 	{
 		TimerScope ts(g_stats.createProcess);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_StartProcess);
 		writer.WriteU32(processId);
@@ -1614,7 +1614,7 @@ int Internal_execve(const char* pathname, char* const _Nullable argv[], char* co
 
 	{
 		TimerScope ts(g_stats.createProcess);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_ExitChildProcess);
 		writer.WriteU32(pid);
@@ -1872,7 +1872,7 @@ namespace uba
 
 		{
 			TimerScope ts(g_stats.init);
-			ScopedWriteLock pcs(g_communicationLock);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 			BinaryWriter writer;
 			writer.WriteByte(MessageType_Init);
 			writer.Flush();
@@ -1937,7 +1937,7 @@ namespace uba
 		g_isDetouring = false;
 
 		{
-			ScopedWriteLock lock(g_fileHandlesLock);
+			SCOPED_WRITE_LOCK(g_fileHandlesLock, lock);
 			for (auto& kv : g_fileHandles)
 			{
 				TRUE_WRAPPER(close)(kv.first);
@@ -2003,5 +2003,54 @@ namespace uba
 
 		CloseCom();
 		TRUE_WRAPPER(_exit)(int(terminateCode));
+	}
+}
+
+extern "C"
+{
+	UBA_EXPORT bool UbaRequestNextProcess(u32 prevExitCode, char* outArguments, u32 outArgumentsCapacity)
+	{
+		#if UBA_DEBUG_LOG_ENABLED
+		//FlushDebugLog();
+		#endif
+
+		*outArguments = 0;
+		bool newProcess;
+		{
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+			BinaryWriter writer;
+			writer.WriteByte(MessageType_GetNextProcess);
+			writer.WriteU32(prevExitCode);
+			g_stats.Write(writer);
+
+
+			writer.Flush();
+			BinaryReader reader;
+			newProcess = reader.ReadBool();
+			if (newProcess)
+			{
+				reader.ReadString(outArguments, outArgumentsCapacity);
+				reader.SkipString(); // workingDir
+				reader.SkipString(); // description
+				reader.ReadString(g_logName.Clear());
+			}
+		}
+
+		if (newProcess)
+		{
+			g_stats = {};
+
+			//#if UBA_DEBUG_LOG_ENABLED
+			//SuppressCreateFileDetourScope scope;
+			//HANDLE debugFile = (HANDLE)g_debugFile;
+			//g_debugFile = InvalidFileHandle;
+			//CloseHandle(debugFile);
+			//debugFile = CreateFileW(g_logName.data, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			//g_debugFile = (FileHandle)(u64)debugFile;
+			//#endif
+		}
+
+		Rpc_UpdateTables();
+		return newProcess;
 	}
 }

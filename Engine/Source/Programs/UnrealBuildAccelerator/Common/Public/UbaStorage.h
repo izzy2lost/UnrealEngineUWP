@@ -32,6 +32,7 @@ namespace uba
 		virtual bool SaveCasTable(bool deleteIsRunningfile, bool deleteDropped = true) = 0;
 		virtual u64 GetStorageCapacity() = 0;
 		virtual bool GetZone(StringBufferBase& out) = 0;
+		virtual bool HasProxy(u32 clientId) { return false; }
 
 		virtual bool DecompressFileToMemory(const tchar* fileName, FileHandle fileHandle, u8* dest, u64 decompressedSize) = 0;
 		virtual bool DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize, const tchar* readHint) = 0;

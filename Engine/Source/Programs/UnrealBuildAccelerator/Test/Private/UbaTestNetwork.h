@@ -75,9 +75,11 @@ namespace uba
 				return true;
 			});
 
+		auto ds = MakeGuard([&]() { server.DisconnectClients(); });
 		if (!server.StartListen(networkBackend, 1234))
 			return logger.Error(TC("Failed to listen"));
 		Sleep(100);
+		auto dg = MakeGuard([&]() { client.Disconnect(); });
 		if (!client.Connect(networkBackend, TC("127.0.0.1"), 1234))
 			return logger.Error(TC("Failed to connect"));
 
@@ -114,6 +116,8 @@ namespace uba
 		if (!client.StartListen(networkBackend, 1239))
 			return logger.Error(TC("Client failed to listen"));
 		Sleep(100);
+		auto ds = MakeGuard([&]() { server.DisconnectClients(); });
+		auto dg = MakeGuard([&]() { client.Disconnect(); });
 		if (!server.AddClient(networkBackend, TC("127.0.0.1"), 1239))
 			return logger.Error(TC("Server failed to connect"));
 		if (!server.AddClient(networkBackend, TC("127.0.0.1"), 1239))
@@ -156,9 +160,11 @@ namespace uba
 				return true;
 			});
 
+		auto ds = MakeGuard([&]() { server.DisconnectClients(); });
 		if (!server.StartListen(networkBackend, 1234))
 			return logger.Error(TC("Failed to listen"));
 		Sleep(100);
+		auto dg = MakeGuard([&]() { client.Disconnect(); });
 		if (!client.Connect(networkBackend, TC("127.0.0.1"), 1234))
 			return logger.Error(TC("Failed to connect"));
 

@@ -130,9 +130,11 @@ namespace uba
 			u64 lastPing = 0;
 			u64 memAvail = 0;
 			u64 memTotal = 0;
+			u64 pingTime = 0;
 			float cpuLoad = 0;
 			bool enabled = true;
 			bool dedicated = false;
+			bool abort = false;
 		};
 		Vector<ClientSession*> m_clientSessions;
 
