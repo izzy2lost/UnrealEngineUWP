@@ -124,6 +124,23 @@ namespace UE::Interchange::GLTFMaterials
 		DECLARE_INTERCHANGE_GLTF_MI_MAP(IridescenceThickness)
 		const FString IridescenceThicknessMinimum = TEXT("IridescenceThicknessMinimum");
 		const FString IridescenceThicknessMaximum = TEXT("IridescenceThicknessMaximum");
+
+		namespace Configuration
+		{
+			//For StaticSwitch optimizations:
+			// Note: only usable in Editor, the Default values are true so that Runtime will still use the complete graph (without optimization).
+			const FString bHasBaseColorTexture = TEXT("bHasBaseColorTexture");
+			const FString bHasMetallicRoughnessTexture = TEXT("bHasMetallicRoughnessTexture");
+			const FString bHasDiffuseSpecGlossTexture = TEXT("bHasDiffuseSpecGlossTexture");
+			const FString bHasEmissiveTexture = TEXT("bHasEmissiveTexture");
+			const FString bHasNormalTexture = TEXT("bHasNormalTexture");
+			const FString bHasOcclusionTexture = TEXT("bHasOcclusionTexture");
+			const FString bHasSpecularTexture = TEXT("bHasSpecularTexture");
+			const FString bHasClearCoatTexture = TEXT("bHasClearCoatTexture");
+			const FString bHasSheenTexture = TEXT("bHasSheenTexture");
+			const FString bHasTransmissionTexture = TEXT("bHasTransmissionTexture");
+			const FString bHasIridescenceTexture = TEXT("bHasIridescenceTexture");
+		}
 	}
 
 	enum EShadingModel : uint8

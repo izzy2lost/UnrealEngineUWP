@@ -234,9 +234,18 @@ void UGLTFPipelineSettings::BuildMaterialInstance(const UInterchangeShaderGraphN
 
 		FString InputValueKey = UInterchangeShaderPortsAPI::MakeInputValueKey(GltfAttributeKey.Key);
 
-		//we are only using 3 attribute types:
+		//we are only using 4 attribute types for now:
 		switch (AttributeType)
 		{
+		case UE::Interchange::EAttributeTypes::Bool:
+		{
+			bool Value;
+			if (ShaderGraphNode->GetBooleanAttribute(GltfAttributeKey.Value.Key, Value))
+			{
+				MaterialInstanceFactoryNode->AddBooleanAttribute(InputValueKey, Value);
+			}
+		}
+		break;
 		case UE::Interchange::EAttributeTypes::Float:
 		{
 			float Value;
