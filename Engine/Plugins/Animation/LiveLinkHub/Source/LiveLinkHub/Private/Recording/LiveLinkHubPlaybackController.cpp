@@ -13,6 +13,7 @@
 #include "Features/IModularFeatures.h"
 #include "HAL/RunnableThread.h"
 #include "HAL/Event.h"
+#include "LiveLinkClient.h"
 #include "UI/Widgets/SLiveLinkHubPlaybackWidget.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
@@ -61,6 +62,8 @@ private:
 FLiveLinkHubPlaybackController::FLiveLinkHubPlaybackController()
 {
 	Client = &IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+
+	OnSourceRemovedHandle = Client->OnLiveLinkSourceRemoved().AddRaw(this, &FLiveLinkHubPlaybackController::OnSourceRemoved);
 	
 	RecordingPlayer = MakeUnique<FLiveLinkUAssetRecordingPlayer>();
 	Playhead = MakeShared<FLiveLinkHubAtomicQualifiedFrameTime, ESPMode::ThreadSafe>();
@@ -76,6 +79,11 @@ FLiveLinkHubPlaybackController::~FLiveLinkHubPlaybackController()
 	{
 		Thread->WaitForCompletion();
 		Thread.Reset();
+	}
+
+	if (OnSourceRemovedHandle.IsValid() && Client)
+	{
+		Client->OnLiveLinkSourceRemoved().Remove(OnSourceRemovedHandle);
 	}
 }
 
@@ -134,7 +142,7 @@ void FLiveLinkHubPlaybackController::StartPlayback()
 
 void FLiveLinkHubPlaybackController::ResumePlayback()
 {
-	bIsInPlayback = true;
+	bIsPlaying = true;
 	bIsPaused = false;
 	FQualifiedFrameTime CurrentTime = GetCurrentTime();
 
@@ -184,6 +192,14 @@ void FLiveLinkHubPlaybackController::PreparePlayback(ULiveLinkRecording* InLiveL
 		// Save the current state of the sources/subjects in a rollback preset.
 		RollbackPreset->BuildFromClient();
 
+		// This clears out any live streams which might be occurring. They will be restored when exiting playback later.
+		{
+			FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+
+			LiveLinkClient.RemoveAllSources();
+			LiveLinkClient.Tick();
+		}
+		
 		RecordingToPlay->RecordingPreset->ApplyToClientLatent([this](bool)
 		{
 			bIsReady = true;
@@ -203,7 +219,7 @@ void FLiveLinkHubPlaybackController::BeginPlayback(bool bInReverse)
 	bIsReverse = bInReverse;
 	
 	// Either we are paused and should unpause, or we are toggling forward/reverse play modes.
-	if (bIsPaused || !bIsInPlayback || bReverseChange)
+	if (bIsPaused || !bIsPlaying || bReverseChange)
 	{
 		if (ShouldRestart())
 		{
@@ -223,7 +239,7 @@ void FLiveLinkHubPlaybackController::BeginPlayback(bool bInReverse)
 		
 		ResumePlayback();
 	}
-	else if (bIsInPlayback)
+	else if (bIsPlaying)
 	{
 		PausePlayback();
 	}
@@ -238,7 +254,7 @@ void FLiveLinkHubPlaybackController::RestartPlayback()
 	StopPlayback();
 	StartTimestamp = GetCurrentTime().AsSeconds();
 	RecordingPlayer->RestartPlayback(GetCurrentFrame().Value);
-	bIsInPlayback = true;
+	bIsPlaying = true;
 	bIsReverse = bOldReverse;
 }
 
@@ -249,7 +265,7 @@ void FLiveLinkHubPlaybackController::PausePlayback()
 
 void FLiveLinkHubPlaybackController::StopPlayback()
 {
-	bIsInPlayback = false;
+	bIsPlaying = false;
 
 	// Wait for the playback thread to exit...
 	const uint32 CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
@@ -374,7 +390,7 @@ uint32 FLiveLinkHubPlaybackController::Run()
 		bIsPlaybackWaiting = true;
 		PlaybackEvent->Wait();
 		bIsPlaybackWaiting = false;
-		while (bIsInPlayback)
+		while (bIsPlaying)
 		{
 			if (bIsPaused)
 			{
@@ -418,7 +434,7 @@ uint32 FLiveLinkHubPlaybackController::Run()
 		}
 
 		// If the loop ended because the recording is over.
-		bIsInPlayback = false;
+		bIsPlaying = false;
 		
 		// Trigger the playback finished delegate on the game thread.
 		FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(FSimpleDelegateGraphTask::FDelegate::CreateRaw(this, &FLiveLinkHubPlaybackController::OnPlaybackFinished_Internal), TStatId(), nullptr, ENamedThreads::GameThread);
@@ -430,6 +446,23 @@ uint32 FLiveLinkHubPlaybackController::Run()
 void FLiveLinkHubPlaybackController::OnPlaybackFinished_Internal()
 {
 	PlaybackFinishedDelegate.Broadcast();
+}
+
+void FLiveLinkHubPlaybackController::OnSourceRemoved(FGuid Guid)
+{
+	if (RecordingToPlay.IsValid())
+	{
+		// Look for a source that is for this recording and eject. This can occur if the user presses the trash icon
+		// on the playback source while it is in playback.
+		for (const FLiveLinkSourcePreset& Presets : RecordingToPlay->RecordingPreset->GetSourcePresets())
+		{
+			if (Presets.Guid == Guid)
+			{
+				Eject();
+				break;
+			}
+		}
+	}
 }
 
 void FLiveLinkHubPlaybackController::PushSubjectData(const FLiveLinkRecordedFrame& NextFrame, bool bForceSync)

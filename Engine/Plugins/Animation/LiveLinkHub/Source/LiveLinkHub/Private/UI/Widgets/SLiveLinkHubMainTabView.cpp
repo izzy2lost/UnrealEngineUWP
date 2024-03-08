@@ -184,6 +184,11 @@ TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSourcesTab(const FSpawnTabArg
 				.ShowPresetPicker(false)
 				.ShowSettings(false)
 				.CustomHeader(CustomToolbarHeader)
+				.IsEnabled_Lambda([this]()
+				{
+					const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+					return !LiveLinkHubModule.GetPlaybackController()->IsInPlayback();
+				})
 			]
 			+SVerticalBox::Slot()
 			.FillHeight(1.f)

@@ -89,16 +89,22 @@ public:
 		return bIsReady;
 	}
 	
-	/** Returns whether we've started or are actively playing a recording. */ 
+	/** If a recording is loaded into the controller. */
 	bool IsInPlayback() const
 	{
-		return bIsInPlayback.load();
+		return GetRecording().IsValid();
+	}
+
+	/** Returns whether we've started or are actively playing a recording. */ 
+	bool IsPlaying() const
+	{
+		return bIsPlaying.load();
 	}
 
 	/** If playback is paused. */
 	bool IsPaused() const
 	{
-		return bIsPaused.load() || !IsInPlayback();
+		return bIsPaused.load() || !IsPlaying();
 	}
 
 	/** If playback is playing in reverse. */
@@ -144,6 +150,9 @@ private:
 	/** Handler called when playback is finished on the playback thread. Is responsible for resetting the livelink state to what it was before we started playback. */
 	void OnPlaybackFinished_Internal();
 
+	/** When a source has been removed from Live Link Hub. */
+	void OnSourceRemoved(FGuid Guid);
+	
 	/**
 	 * Send data to the client.
 	 * @param NextFrame The frame to push.
@@ -175,8 +184,8 @@ private:
 	FEventRef PlaybackEvent = FEventRef();
 	/** If the playback thread is waiting. */
 	std::atomic<bool> bIsPlaybackWaiting = false;
-	/** Whether we're doing playback. */
-	std::atomic<bool> bIsInPlayback = false;
+	/** Whether a recording is playing. */
+	std::atomic<bool> bIsPlaying = false;
 	/** Whether we're currently paused. */
 	std::atomic<bool> bIsPaused = false;
 	/** If the recording is playing in reverse. */
@@ -212,4 +221,7 @@ private:
 
 	/** Current framerate of the recording, sampled from the latest frame. */
 	FFrameRate CurrentFrameRate;
+
+	/** Delegate handle for when a source is removed. */
+	FDelegateHandle OnSourceRemovedHandle;
 };
