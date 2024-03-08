@@ -359,6 +359,7 @@ namespace UnrealGameSync
 			AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
 			CancelButton = CancelBtn;
 			ClientSize = new System.Drawing.Size(820, 410);
+			MinimumSize = new System.Drawing.Size(836, 449);
 			Controls.Add(DisableRadioBtn);
 			Controls.Add(DisableGroupBox);
 			Controls.Add(PerforceRadioBtn);
