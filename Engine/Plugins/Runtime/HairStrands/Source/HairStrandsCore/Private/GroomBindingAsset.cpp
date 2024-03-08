@@ -956,12 +956,13 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 		{
 			UE_CLOG(IsHairStrandsDDCLogEnable(), LogHairStrands, Log, TEXT("[GroomBinding/DDC] Found (GroomBinding:%s)."), *In->GetName());
 
-			FillDrivedDataKey(OutPlatformData);
-
 			// Header
 			FMemoryReaderView Ar(Data, /*bIsPersistent*/ true);
 			InternalSerializePlatformData(Ar, In, OutPlatformData, 0 /*Flags*/, true /*bHeader*/, false /*bData*/);
 			bHasDataInCache = true;
+
+			// Fill DDC key for each strands LOD root bulk data. Done after InternalSerializePlatformData(), as RenRootBulkDatas is not filled in yet, and OutPlatformData.RenRootBulkDatas.Num() == 0.
+			FillDrivedDataKey(OutPlatformData);
 
 			// Verify that all strands data are correctly cached into the DDC
 			{
