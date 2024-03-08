@@ -181,12 +181,13 @@ public:
 
 public:
 
-	// Debug functions exposed via console commands
+	// Debug functions exposed that are triggered via console commands
 	void PrintDynamicFilterClassConfig() const;
-	void PrintReplicatedObjects() const;
-	void PrintAlwaysRelevantObjects() const;
-	void PrintRelevantObjects() const;
+	void PrintReplicatedObjects(uint32 ArgTraits) const;
+	void PrintAlwaysRelevantObjects(uint32 ArgTraits) const;
+	void PrintRelevantObjects(uint32 ArgTraits) const;
 	void PrintRelevantObjectsForConnections(const TArray<FString>& Args) const;
+	void PrintNetCullDistances(const TArray<FString>& Args) const;
 
 protected:
 	IRISCORE_API virtual ~UObjectReplicationBridge();
@@ -306,7 +307,7 @@ protected:
 	IRISCORE_API bool IsClassCritical(const UClass* Class);
 
 	/** Returns the most relevant description of the client tied to this connection id. */
-	[[nodiscard]] IRISCORE_API virtual FString PrintConnectionInfo(uint32 ConnectionId);
+	[[nodiscard]] IRISCORE_API virtual FString PrintConnectionInfo(uint32 ConnectionId) const;
 
 	/** Current max tick rate set by the engine */
 	float GetMaxTickRate() const { return MaxTickRate; }

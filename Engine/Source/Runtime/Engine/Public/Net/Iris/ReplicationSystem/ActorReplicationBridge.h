@@ -106,7 +106,7 @@ protected:
 
 	virtual float GetPollFrequencyOfRootObject(const UObject* ReplicatedObject) const override;
 
-	[[nodiscard]] virtual FString PrintConnectionInfo(uint32 ConnectionId) override;
+	[[nodiscard]] virtual FString PrintConnectionInfo(uint32 ConnectionId) const override;
 
 private:
 	void GetActorCreationHeader(const AActor* Actor, UE::Net::Private::FActorCreationHeader& Header) const;

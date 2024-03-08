@@ -100,6 +100,9 @@ public:
 	/** Fill the passed in list with root objects considered always relevant */
 	void BuildAlwaysRelevantList(FNetBitArrayView OutAlwaysRelevantList, const FNetBitArrayView ScopeList) const;
 
+	/** Fill the passed in list with objects affected by a given filter*/
+	void BuildObjectsInFilterList(FNetBitArrayView OutObjectsInFilter, FName FilterName) const;
+
 	// Connection handling
 	void AddConnection(uint32 ConnectionId);
 	void RemoveConnection(uint32 ConnectionId);
@@ -132,6 +135,9 @@ public:
 	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, const FNetBitArrayView& ConnectionsBitArray, ENetFilterStatus);
 	void SetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ConnectionId, ENetFilterStatus ReplicationStatus);
 	bool GetSubObjectFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ConnectionId, ENetFilterStatus& OutReplicationStatus) const;
+
+	/** Print the filter information we have regarding the passed ObjectIndex and his relation to the passed Connection */
+	FString PrintFilterObjectInfo(FInternalNetRefIndex ObjectIndex, uint32 ConnectionId) const;
 
 private:
 	struct FPerConnectionInfo

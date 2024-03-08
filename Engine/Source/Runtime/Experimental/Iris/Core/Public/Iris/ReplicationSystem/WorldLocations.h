@@ -64,6 +64,9 @@ public:
 	void ResetObjectsWithDirtyInfo();
 	FNetBitArrayView GetObjectsWithDirtyInfo() const;
 
+	/** Returns the list of objects that registered world location information */
+	const FNetBitArrayView GetObjectsWithWorldInfo() const { return MakeNetBitArrayView(ValidInfoIndexes); }
+
 private:
 	enum : uint32
 	{

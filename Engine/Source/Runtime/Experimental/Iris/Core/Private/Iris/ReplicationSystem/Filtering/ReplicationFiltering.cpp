@@ -35,7 +35,8 @@ FName GetStaticFilterName(FNetObjectFilterHandle Filter)
 	{
 		case InvalidNetObjectFilterHandle:
 		{
-			return NAME_None;
+			static const FName NoFilterName = TEXT("NoFilter");
+			return NoFilterName;
 		} break;
 
 		case ToOwnerFilterHandle:
@@ -439,6 +440,8 @@ bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObje
 		return false;
 	}
 
+	UE_LOG(LogIrisFiltering, Verbose, TEXT("Setting filter %s to %s"), *GetFilterName(Filter).ToString(), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex));
+
 	const bool bWantsToUseDynamicFilter = FNetObjectFilterHandleUtil::IsDynamicFilter(Filter);
 	const uint8 OldDynamicFilterIndex = ObjectIndexToDynamicFilterIndex[ObjectIndex];
 	const uint32 NewDynamicFilterIndex = bWantsToUseDynamicFilter ? FNetObjectFilterHandleUtil::GetDynamicFilterIndex(Filter) : InvalidDynamicFilterIndex;
@@ -461,7 +464,7 @@ bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObje
 	// Let subobjects be filtered like their owners.
 	if (bWantsToUseDynamicFilter && (ObjectData.SubObjectRootIndex != FNetRefHandleManager::InvalidInternalIndex))
 	{
-		UE_LOG(LogIrisFiltering, Warning, TEXT("Ignoring request to use dynamic filter on object %s due to it being a subobject. Any filtering already successfully applied remains as is."), ToCStr(ObjectData.RefHandle.ToString()));
+		UE_LOG(LogIrisFiltering, Warning, TEXT("Cannot set dynamic filters on subobjects. Filter change for %s is ignored"), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex));
 		return false;
 	}
 
@@ -513,7 +516,7 @@ bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObje
 		}
 		else
 		{
-			UE_LOG(LogIrisFiltering, Verbose, TEXT("Filter '%s' does not support object %u."), ToCStr(DynamicFilterInfos[NewDynamicFilterIndex].Filter->GetFName().GetPlainNameString()), ObjectIndex);
+			UE_LOG(LogIrisFiltering, Verbose, TEXT("Filter '%s' does not support object %s."), ToCStr(DynamicFilterInfos[NewDynamicFilterIndex].Filter->GetFName().GetPlainNameString()), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex));
 			return false;
 		}
 	}
@@ -1538,6 +1541,7 @@ void FReplicationFiltering::BatchNotifyFiltersOfDirtyObjects(FUpdateDirtyObjects
 	FNetObjectFilterUpdateParams UpdateParameters;
 	UpdateParameters.FilteringInfos = NetObjectFilteringInfos.GetData();
 
+	// $IRIS TODO: We should probably have a trait asking if the Filter needs to receive UpdateObjects.
 	for (const FUpdateDirtyObjectsBatchHelper::FPerFilterInfo& PerFilterInfo : BatchHelper.PerFilterInfos)
 	{
 		if (PerFilterInfo.ObjectCount == 0)
@@ -2307,7 +2311,7 @@ void FReplicationFiltering::NotifyObjectAddedToGroup(FNetObjectGroupHandle Group
 	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 	if (SubObjectFilterGroups.GetBit(GroupIndex))
 	{
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to SubObjectFilter with GroupIndex: %u"), *(NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectIndex).RefHandle.ToString()), GroupIndex);
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to SubObjectFilter with GroupIndex: %u"), *(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), GroupIndex);
 	}
 	else if (ExclusionFilterGroups.GetBit(GroupIndex))
 	{
@@ -2320,7 +2324,7 @@ void FReplicationFiltering::NotifyObjectAddedToGroup(FNetObjectGroupHandle Group
 			bHasDirtyExclusionFilterGroup = 1;
 		}
 
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to ExclusionGroup filter with GroupIndex: %u"), *(NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectIndex).RefHandle.ToString()), GroupIndex);
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to ExclusionGroup filter with GroupIndex: %u"), *(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), GroupIndex);
 	}
 	else if (InclusionFilterGroups.GetBit(GroupIndex))
 	{
@@ -2333,7 +2337,7 @@ void FReplicationFiltering::NotifyObjectAddedToGroup(FNetObjectGroupHandle Group
 			bHasDirtyInclusionFilterGroup = 1;
 		}
 
-		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to InclusionGroup filter with GroupIndex: %u"), *(NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectIndex).RefHandle.ToString()), GroupIndex);
+		UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectAddedToGroup Added %s to InclusionGroup filter with GroupIndex: %u"), *(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), GroupIndex);
 	}
 }
 
@@ -2341,7 +2345,7 @@ void FReplicationFiltering::NotifyObjectRemovedFromGroup(FNetObjectGroupHandle G
 {
 	const FNetObjectGroupHandle::FGroupIndexType GroupIndex = GroupHandle.GetGroupIndex();
 
-	UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectRemovedFromGroup Removing %s from GroupIndex: %u"), ToCStr(NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectIndex).RefHandle.ToString()), GroupIndex);
+	UE_LOG(LogIrisFiltering, Verbose, TEXT("ReplicationFiltering::NotifyObjectRemovedFromGroup Removing %s from GroupIndex: %u"), ToCStr(NetRefHandleManager->PrintObjectFromIndex(ObjectIndex)), GroupIndex);
 
 	if (SubObjectFilterGroups.GetBit(GroupIndex))
 	{
@@ -2482,6 +2486,9 @@ void FReplicationFiltering::InitFilters()
 
 void FReplicationFiltering::RemoveFromDynamicFilter(uint32 ObjectIndex, uint32 FilterIndex)
 {
+	UE_LOG(LogIrisFiltering, Verbose, TEXT("RemoveFromDynamicFilter removing %s from Dynamic Filter %s"), 
+		*NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), *GetFilterName(FNetObjectFilterHandleUtil::MakeDynamicFilterHandle(ObjectIndexToDynamicFilterIndex[ObjectIndex])).ToString());
+
 	ObjectIndexToDynamicFilterIndex[ObjectIndex] = InvalidDynamicFilterIndex;
 	FNetObjectFilteringInfo& NetObjectFilteringInfo = NetObjectFilteringInfos[ObjectIndex];
 	FFilterInfo& FilterInfo = DynamicFilterInfos[FilterIndex];
@@ -2533,6 +2540,45 @@ void FReplicationFiltering::InvalidateBaselinesForObject(uint32 ObjectIndex, uin
 TArrayView<FNetObjectFilteringInfo> FReplicationFiltering::GetNetObjectFilteringInfos()
 {
 	return MakeArrayView(NetObjectFilteringInfos);
+}
+
+FString FReplicationFiltering::PrintFilterObjectInfo(FInternalNetRefIndex ObjectIndex, uint32 ConnectionId) const
+{
+	// $IRIS TODO: Print info if the object is part of a non-dynamic filter.
+
+	const uint8 DynamicFilterIndex = ObjectIndexToDynamicFilterIndex[ObjectIndex];
+	if (DynamicFilterIndex == InvalidDynamicFilterIndex)
+	{
+		return TEXT("[NoDynamicFilter]");
+	}
+
+	const FFilterInfo& FilterInfo = DynamicFilterInfos[DynamicFilterIndex];
+
+	if (!FilterInfo.FilteredObjects.IsBitSet(ObjectIndex))
+	{
+		ensureMsgf(false, TEXT("Problem with Filter configs for %s.  DynamicIndex %u Filter %s but not in FilteredObjects list"), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), DynamicFilterIndex, *FilterInfo.Name.ToString());
+		return TEXT("[WrongSettings]");
+	}
+
+	UNetObjectFilter::FDebugInfoParams DebugParams;
+	DebugParams.FilterName = FilterInfo.Name;
+	DebugParams.FilteringInfos = NetObjectFilteringInfos.GetData();
+	DebugParams.ConnectionId = ConnectionId;
+	DebugParams.View = Connections->GetReplicationView(ConnectionId);
+
+	return FilterInfo.Filter->PrintDebugInfoForObject(DebugParams, ObjectIndex);
+}
+
+void FReplicationFiltering::BuildObjectsInFilterList(FNetBitArrayView OutObjectsInFilter, FName FilterName) const
+{
+	for (const FFilterInfo& FilterInfo : DynamicFilterInfos)
+	{
+		if (FilterInfo.Name == FilterName)
+		{
+			OutObjectsInFilter.Copy(FilterInfo.FilteredObjects);
+			return;
+		}
+	}
 }
 
 //*************************************************************************************************
