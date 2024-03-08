@@ -473,6 +473,10 @@ bool FRigVMFunctionArgumentLayout::CanArgumentBeMoved(bool bMoveUp) const
 				for(int32 Index = 0; Index < Node->GetPins().Num(); Index++)
 				{
 					URigVMPin* OtherPin = Node->GetPins()[Index];
+					if(OtherPin->IsExecuteContext())
+					{
+						continue;
+					}
 					if(IsInput(OtherPin) == bLookForInput)
 					{
 						return OtherPin != Pin;
