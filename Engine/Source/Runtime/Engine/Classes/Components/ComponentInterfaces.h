@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Containers/Array.h"
 #include "PrimitiveComponentId.h"
 #include "Templates/RefCounting.h"
 
