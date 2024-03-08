@@ -470,7 +470,13 @@ void UEnvQueryManager::Tick(float DeltaTime)
 			}
 			else
 			{
+#if STATS
+				FScopeCycleCounterUObject OwnerScopeCounter(QueryInstance->Owner.Get());
+				FScopeCycleCounter QueryScopeCounter(QueryInstance->StatId);
+#endif // STATS
+
 				QueryInstancePtr->ExecuteOneStep(TimeLeft);
+
 #if USE_EQS_DEBUGGER
 				bWorkHasBeenDone = true;
 #endif // USE_EQS_DEBUGGER
@@ -802,6 +808,7 @@ TSharedPtr<FEnvQueryInstance> UEnvQueryManager::CreateQueryInstance(const UEnvQu
 			NewCacheEntry.Instance.UniqueName = LocalTemplate->GetFName();
 			NewCacheEntry.Instance.QueryName = LocalTemplate->GetQueryName().ToString();
 			NewCacheEntry.Instance.Mode = RunMode;
+			STAT(NewCacheEntry.Instance.StatId = FDynamicStats::CreateStatId<FStatGroup_STATGROUP_AI_EQS>(NewCacheEntry.Instance.UniqueName));
 
 			const int32 Idx = InstanceCache.Add(NewCacheEntry);
 			InstanceTemplate = &InstanceCache[Idx].Instance;

@@ -1272,6 +1272,10 @@ public:
 	static AIMODULE_API bool bDebuggingInfoEnabled;
 #endif // USE_EQS_DEBUGGER
 
+#if STATS
+	TStatId StatId;
+#endif
+
 	AIMODULE_API FBox GetBoundingBox() const;
 };
 
