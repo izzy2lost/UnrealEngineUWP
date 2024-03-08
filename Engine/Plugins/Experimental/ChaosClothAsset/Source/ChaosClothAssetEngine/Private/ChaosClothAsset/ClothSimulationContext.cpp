@@ -6,6 +6,7 @@
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 #include "SceneInterface.h"
 
 namespace UE::Chaos::ClothAsset
@@ -94,19 +95,29 @@ namespace UE::Chaos::ClothAsset
 
 		// Update bone matrices
 		RefToLocalMatrices.Reset(NumBones);
+
+		bool bSetRefToLocalMatricesToIdentity = true;
 		if (!bIsInitialization)
 		{
-			const TArray<uint16>* RequiredExtraBones = nullptr;
-			if (TSharedPtr<const FChaosClothSimulationModel > ClothModel = ClothAsset ? ClothAsset->GetClothSimulationModel() : TSharedPtr<const FChaosClothSimulationModel >(nullptr))
+			if (const FSkeletalMeshRenderData* const RenderData = ClothAsset ? ClothAsset->GetResourceForRendering() : nullptr)
 			{
-				if (ClothModel->IsValidLodIndex(LodIndex))
+				if (RenderData->LODRenderData.IsValidIndex(LodIndex))
 				{
-					RequiredExtraBones = &ClothModel->ClothSimulationLodModels[LodIndex].RequiredExtraBoneIndices;
+					const TArray<uint16>* RequiredExtraBones = nullptr;
+					if (TSharedPtr<const FChaosClothSimulationModel > ClothModel = ClothAsset ? ClothAsset->GetClothSimulationModel() : TSharedPtr<const FChaosClothSimulationModel >(nullptr))
+					{
+						if (ClothModel->IsValidLodIndex(LodIndex))
+						{
+							RequiredExtraBones = &ClothModel->ClothSimulationLodModels[LodIndex].RequiredExtraBoneIndices;
+						}
+					}
+					ClothComponent.GetCurrentRefToLocalMatrices(RefToLocalMatrices, LodIndex, RequiredExtraBones);
+					bSetRefToLocalMatricesToIdentity = false;
 				}
 			}
-			ClothComponent.GetCurrentRefToLocalMatrices(RefToLocalMatrices, LodIndex, RequiredExtraBones);
 		}
-		else
+
+		if (bSetRefToLocalMatricesToIdentity)
 		{
 			RefToLocalMatrices.AddUninitialized(NumBones);
 

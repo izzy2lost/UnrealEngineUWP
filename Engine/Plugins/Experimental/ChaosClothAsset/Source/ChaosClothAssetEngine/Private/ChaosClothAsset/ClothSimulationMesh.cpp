@@ -24,7 +24,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	int32 FClothSimulationMesh::GetLODIndex() const
 	{
-		return ClothSimulationContext.LodIndex;
+		return FMath::Min(ClothSimulationContext.LodIndex, GetNumLODs() - 1);
 	}
 
 	int32 FClothSimulationMesh::GetOwnerLODIndex(int32 LODIndex) const
