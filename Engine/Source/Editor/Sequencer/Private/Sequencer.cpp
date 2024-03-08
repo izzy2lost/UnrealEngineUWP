@@ -1718,6 +1718,12 @@ void FSequencer::GetConstructionScriptActors(UMovieScene* MovieScene, FMovieScen
 
 void FSequencer::DeleteSections(const TSet<UMovieSceneSection*>& Sections)
 {
+	if (IsReadOnly())
+	{
+		FSequencerUtilities::ShowReadOnlyError();
+		return;
+	}
+
 	UMovieScene* MovieScene = GetFocusedMovieSceneSequence()->GetMovieScene();
 	bool bAnythingRemoved = false;
 
@@ -2235,6 +2241,12 @@ void FSequencer::TransformSelectedKeysAndSections(FFrameTime InDeltaTime, float 
 
 void FSequencer::TranslateSelectedKeysAndSections(bool bTranslateLeft)
 {
+	if (IsReadOnly())
+	{
+		FSequencerUtilities::ShowReadOnlyError();
+		return;
+	}
+
 	int32 Shift = bTranslateLeft ? -1 : 1;
 	FFrameTime Delta = FQualifiedFrameTime(Shift, GetFocusedDisplayRate()).ConvertTo(GetFocusedTickResolution());
 	TransformSelectedKeysAndSections(Delta, 1.f);
