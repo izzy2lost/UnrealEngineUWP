@@ -857,7 +857,6 @@ IManifest::FResult FPlayPeriodHLS::FindSegment(TSharedPtrTS<FStreamSegmentReques
 		OutRequest = Req;
 		return IManifest::FResult(IManifest::FResult::EType::PastEOS);
 	}
-	return IManifest::FResult(IManifest::FResult::EType::NotFound);
 }
 
 
@@ -1192,8 +1191,6 @@ IManifest::FResult FPlayPeriodHLS::GetNextOrRetrySegment(TSharedPtrTS<IStreamSeg
 		}
 		return Result;
 	}
-
-	return IManifest::FResult(IManifest::FResult::EType::PastEOS);
 }
 
 /**

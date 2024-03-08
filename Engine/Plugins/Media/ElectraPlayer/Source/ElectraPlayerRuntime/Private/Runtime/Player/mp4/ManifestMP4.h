@@ -181,8 +181,6 @@ public:
 					return AdaptationSetIndex < AudioAdaptationSets.Num() ? AudioAdaptationSets[AdaptationSetIndex] : TSharedPtrTS<IPlaybackAssetAdaptationSet>();
 				case EStreamType::Subtitle:
 					return AdaptationSetIndex < SubtitleAdaptationSets.Num() ? SubtitleAdaptationSets[AdaptationSetIndex] : TSharedPtrTS<IPlaybackAssetAdaptationSet>();
-				default:
-					return 0;
 			}
 			return TSharedPtrTS<IPlaybackAssetAdaptationSet>();
 		}
