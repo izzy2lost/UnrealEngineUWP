@@ -152,11 +152,14 @@ protected:
 
 	int32 GetNetworkPhysicsTickOffset() const;
 
-	// Time step on the physics thread
-	FMoverTimeStep GetCurrentMoverTimeStep_Internal() const;
+	// Time step on the physics thread when using async physics
+	FMoverTimeStep GetCurrentAsyncMoverTimeStep_Internal() const;
 
-	// Time step on the game thread. Uses physics results time
-	FMoverTimeStep GetCurrentMoverTimeStep_External() const;
+	// Time step on the game thread when using async physics. Uses physics results time
+	FMoverTimeStep GetCurrentAsyncMoverTimeStep_External() const;
+
+	// Time step on the game thread when using non-async physics
+	FMoverTimeStep GetCurrentMoverTimeStep(float DeltaSeconds) const;
 
 	// These are written to by the network input and state data
 	FMoverInputCmdContext NetInputCmd;
@@ -177,4 +180,6 @@ protected:
 	bool bCachedLastPhysicsSyncStateIsValid = false;
 
 	bool bCachedInputIsValid = false;
+
+	bool bUsingAsyncPhysics = false;
 };
