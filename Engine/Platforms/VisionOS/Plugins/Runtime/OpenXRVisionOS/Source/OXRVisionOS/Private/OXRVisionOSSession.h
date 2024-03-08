@@ -136,6 +136,10 @@ public:
 		uint32_t viewCapacityInput,
 		uint32_t* viewCountOutput,
 		XrView* views);
+	
+	XrResult XrCreateHandTrackerEXT(
+		const XrHandTrackerCreateInfoEXT*           createInfo,
+		XrHandTrackerEXT*                           handTracker);
 
 	XrTime GetCurrentTime() const;
 
@@ -242,4 +246,41 @@ private:
 	ar_session_t ARKitSession = nullptr;
 	ar_world_tracking_provider_t ARKitWorldTrackingProvider = nullptr;
 	ar_device_anchor_t ARKitHMDAnchor = nullptr;
+	
+	// Hand Tracking
+public:
+	struct FOXRVisionOSHandTracker
+	{
+		FOXRVisionOSHandTracker()
+		{
+			HandTransform = matrix_identity_float4x4;
+			for (int i = 0; i < XR_HAND_JOINT_COUNT_EXT; ++i)
+			{
+				JointLocations[i].pose.orientation.w = 1;
+				JointLocalTransforms[i] = matrix_identity_float4x4;
+			}
+		}
+		XrResult XrDestroyHandTrackerEXT();
+
+		XrResult XrLocateHandJointsEXT(
+			const XrHandJointsLocateInfoEXT*            locateInfo,
+			XrHandJointLocationsEXT*                    locations);
+		
+		bool bCreated = false;
+		bool bIsActive = false;
+		ar_hand_anchor_t Anchor;
+		simd_float4x4 HandTransform;
+		simd_float4x4 JointLocalTransforms[XR_HAND_JOINT_COUNT_EXT];
+		XrHandJointLocationEXT JointLocations[XR_HAND_JOINT_COUNT_EXT] = {};
+	};
+private:
+	void BeginHandTracking();
+	ar_hand_tracking_provider_t ARKitHandTrackingProvider = nullptr;
+	TArray<TPair<ar_hand_skeleton_joint_name_t,XrHandJointEXT>> JointMap;
+	FOXRVisionOSHandTracker HandTrackers[2];
+	static_assert(XR_HAND_LEFT_EXT == 1 && XR_HAND_RIGHT_EXT == 2);  // We will assume this to use value-1 as array index.
+	FOXRVisionOSHandTracker& GetHandTracker(XrHandEXT Hand) { return HandTrackers[Hand - 1]; }
+	const FOXRVisionOSHandTracker& GetHandTracker(XrHandEXT Hand) const { return HandTrackers[Hand - 1]; }
+	bool ValidateXrHandTrackerEXT(XrHandTrackerEXT handTracker) { return (((FOXRVisionOSHandTracker*)handTracker) - ((FOXRVisionOSHandTracker*)&HandTrackers)) <= 1; }
+	void SyncHandTracking();
 };

@@ -237,8 +237,17 @@ XrResult FOXRVisionOSInstance::XrGetSystemProperties(
 	{
 		return XrResult::XR_ERROR_VALIDATION_FAILURE;
 	}
-
+	
+	// Cache the next ptr, so we don't overwrite it with all the other system properties.
+	void* NextTmp = Properties->next;
 	*Properties = SystemProperties;
+	Properties->next = NextTmp;
+	
+	XrSystemHandTrackingPropertiesEXT* HandTrackingProperties = OpenXR::FindChainedStructByType<XrSystemHandTrackingPropertiesEXT>(Properties, XR_TYPE_SYSTEM_HAND_TRACKING_PROPERTIES_EXT);
+	if (HandTrackingProperties) {
+		HandTrackingProperties->supportsHandTracking = XR_TRUE;
+	}
+
 	return XrResult::XR_SUCCESS;
 }
 
