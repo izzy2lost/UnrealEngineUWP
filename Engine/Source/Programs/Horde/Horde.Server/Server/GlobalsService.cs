@@ -5,7 +5,6 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -33,7 +32,7 @@ namespace Horde.Server.Server
 			public byte[]? JwtSigningKey { get; set; }
 			public RSAParameters? RsaParameters { get; set; }
 			public int? SchemaVersion { get; set; }
-		
+
 			[BsonIgnore]
 			string IGlobals.JwtIssuer => _owner._jwtIssuer;
 
@@ -60,7 +59,7 @@ namespace Horde.Server.Server
 
 			public void RotateRsaParameters()
 			{
-				using RSACryptoServiceProvider rsaProvider = new RSACryptoServiceProvider(512);
+				using RSACryptoServiceProvider rsaProvider = new RSACryptoServiceProvider(2048);
 				rsaProvider.PersistKeyInCsp = false;
 				RsaParameters = rsaProvider.ExportParameters(true);
 			}

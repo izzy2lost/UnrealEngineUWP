@@ -12,13 +12,14 @@ Horde provides the following functionality, each of which may be enabled or disa
   with large Perforce repositories.
 * **[Remote Execution](Docs/Config/RemoteExecution.md)**: Functionality to offload compute work to other machines,
   including C++ compilation and content builds.
-* **[Analytics](Docs/Config/Analytics.md)**: Receives telemetry from the Unreal Editor, and shows charts for
+* **[Studio Analytics](Docs/Config/Analytics.md)**: Receives telemetry from the Unreal Editor, and shows charts for
   key workflow metrics.
 * **[UnrealGameSync Metadata Server](Docs/Config/UgsMetadataServer.md)**: Various features for teams using
-  UnrealGameSync, including build status reporting, comment aggregation, and crowdsourced voting functionality.
-* **[Device Manager](Docs/Config/Devices.md)**: A system for allocating and managing a farm of development kits and mobile devices.
-* **[Automation Hub](Docs/Config/AutomationHub.md)**: A frontend for querying automation results across streams and projects, integrated with
-  AutomationTool and Gauntlet.
+  UnrealGameSync, including build status reporting, comment aggregation, and crowdsourced build health functionality.
+* **[Device Manager](Docs/Config/Devices.md)**: A system for allocating and managing a farm of development kits and
+  mobile devices.
+* **[Automation Hub](Docs/Config/AutomationHub.md)**: A frontend for querying automation results across streams and
+  projects, integrated with AutomationTool and Gauntlet.
 
 Read more about our [goals and philosophy](Docs/Goals.md), or check out the [FAQ](Docs/Faq.md).
 
@@ -32,7 +33,7 @@ See also: [Feature Status Page](Docs/Features.md)
 
 ## Getting Started
 
-* **[Installing Horde](Docs/Tutorials/InstallServer.md)**
+* **[Installing Horde](Docs/Tutorials/InstallHorde.md)**
 * **[Set up remote C++ compilation](Docs/Tutorials/RemoteCompilation.md)**
 * **[Set up build automation](Docs/Tutorials/BuildAutomation.md)**
 
