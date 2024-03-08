@@ -10,18 +10,25 @@ Windows builds of MongoDB and Redis are included in the installer, and launched 
 close them when it terminates). This installation is fine for small scale installations and testing Horde, though
 hosting databases separately would be preferred in production scenarios.
 
-### Docker Images (Linux)
+### Docker (Linux)
 
 Images for hosting Horde through Docker are available through the EpicGames organization on
 [GitHub](https://www.unrealengine.com/en-US/ue-on-github). Note that you must be signed into GitHub with an account
 associated with an EpicGames account to follow these links.
 
-* [Full Image](https://github.com/orgs/EpicGames/packages/container/package/horde)
-* [Server Only](https://github.com/orgs/EpicGames/packages/container/package/horde-server)
-* [Dashboard Only](https://github.com/orgs/EpicGames/packages/container/package/horde-dashboard)
+* [Horde Server](https://github.com/orgs/EpicGames/packages/container/package/horde-server)
 
-In this form, an external *MongoDB* and *Redis* instance must be configured through a configuration file or environment
-variable (see below).
+To download an image, first create a GitHub personal access token (PAT) from the developer section
+of your account settings page, and pass it as the password to:
+
+    docker login ghcr.io
+
+To download the image:
+
+    docker pull ghcr.io/epicgames/horde-server:latest 
+
+Note that in this form, an external *MongoDB* and *Redis* instance must be configured through a configuration file or
+environment variable (see below).
 
 Running multiple Horde servers behind a load balancer does not require any explicit configuration, as long as each
 server points to the same MongoDB and Redis instance.
@@ -67,17 +74,17 @@ As an ASP.NET application, Horde's application configuration supports the follow
 * A deployment-specific configuration file can be created called `appsettings.{Environment}.json` (eg.
   `appsettings.Local.json`), which will be merged with other settings.
 
-Note that the _server_ configuration files (`Server.json`, `appsettings.json` et al) is different to the *global* 
+Note that the *server* configuration files (`Server.json`, `appsettings.json` et al) is different to the *global*
 configuration file (`globals.json`). The server configuration file is deployed alongside the server and contains
 deployment/infrastructure settings, wheras the global configuration file can be stored in revision control and
-updated dynamically during the server's lifetime. See [Config > Orientation](../Config/Orientation.md) for 
+updated dynamically during the server's lifetime. See [Config > Orientation](../Config/Orientation.md) for
 more information.
 
 ### MongoDB
 
 The MongoDB connection string can be specified via the `DatabaseConnectionString` property in the
 [Server.json](ServerSettings.md) file, or via the `Horde__DatabaseConnectionString` environment variable. The
-connection string should be in standard 
+connection string should be in standard
 [MongoDB syntax](https://www.mongodb.com/docs/manual/reference/connection-string/), eg:
 
     mongodb://username:password@host:27017?replicaSet=rs0&readPreference=primary
@@ -135,12 +142,12 @@ telemetry capture are [listed here](ServerSettings.md#opentelemetrysettings).
 ### RunModes
 
 In order to separate lighter request traffic from heavier background operations, the Horde server can be configured to
-run in different _RunModes_. These are configured via the [RunMode](ServerSettings.md) setting.
+run in different *RunModes*. These are configured via the [RunMode](ServerSettings.md) setting.
 
 ### Authentication
 
 Horde supports [OpenID Connect (OIDC)](https://openid.net/developers/how-connect-works/) for authentication using
-an external identity provider. _OIDC_ is a widely used auth standard, and Okta, Aws, Azure, Google, Facebook, and
+an external identity provider. *OIDC* is a widely used auth standard, and Okta, Aws, Azure, Google, Facebook, and
 many others implement identity providers compatible with it.
 
 The following settings in [Server.json](ServerSettings.md) are required to configure an OIDC provider:
