@@ -32,6 +32,7 @@
 #include "UObject/ICookInfo.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/UnrealType.h"
+#include "UObject/Package.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LightComponent)
 
@@ -566,7 +567,12 @@ void ULightComponent::PostLoad()
 		ClearLightFunctionMaterial();
 	}
 
-	PreviewShadowMapChannel = INDEX_NONE;
+	// we want to make sure PreviewShadowMapChannel gets into PIE unchanged
+	if (!WITH_EDITOR || !GetOutermost()->HasAnyPackageFlags(PKG_PlayInEditor))
+	{
+		PreviewShadowMapChannel = INDEX_NONE;
+	}
+
 	Intensity = FMath::Max(0.0f, Intensity);
 
 	if (GetLinkerUEVersion() < VER_UE4_LIGHTCOMPONENT_USE_IES_TEXTURE_MULTIPLIER_ON_NON_IES_BRIGHTNESS)

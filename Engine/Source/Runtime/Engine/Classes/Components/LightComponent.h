@@ -67,7 +67,8 @@ class ULightComponent : public ULightComponentBase
 	int32 ShadowMapChannel_DEPRECATED;
 
 	/** Transient shadowmap channel used to preview the results of stationary light shadowmap packing. */
-	int32 PreviewShadowMapChannel=0;
+	UPROPERTY(NonPIEDuplicateTransient)
+	int32 PreviewShadowMapChannel;
 	
 	/** Min roughness effective for this light. Used for softening specular highlights. */
 	UPROPERTY()
