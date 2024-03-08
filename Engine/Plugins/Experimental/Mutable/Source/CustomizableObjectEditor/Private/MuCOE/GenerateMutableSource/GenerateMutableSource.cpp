@@ -1668,10 +1668,8 @@ int32 GetPlatformLODBias(int32 TextureSize, int32 NumMips, int32 MaxPlatformSize
 }
 
 
-uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& GenerationContext, const UTexture2D* Texture, const UTexture2D* ReferenceTexture, int32 BaseTextureSize)
+uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& GenerationContext, const UTexture2D& Texture, const UTexture2D* ReferenceTexture, int32 BaseTextureSize)
 {
-	ensure(Texture);
-
 	constexpr int32 MaxAllowedLODBias = 6;
 
 	// Force a large LODBias for debug
@@ -1681,7 +1679,7 @@ uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& Generation
 	}
 
 	// Max size and number of mips from Texture. 
-	const int32 SourceSize = (int32)FMath::Max3(Texture->Source.GetSizeX(),Texture->Source.GetSizeY(),(int64)1);
+	const int32 SourceSize = (int32)FMath::Max3(Texture.Source.GetSizeX(),Texture.Source.GetSizeY(),(int64)1);
 	const int32 NumMipsSource = FMath::CeilLogTwo(SourceSize) + 1;
 
 	// When the BaseTextureSize is known, skip mips until the texture is equal or smaller.
@@ -1699,7 +1697,7 @@ uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& Generation
 	const UTextureLODSettings& LODSettings = GenerationContext.Options.TargetPlatform->GetTextureLODSettings();
 
 	// Get the MaxTextureSize for the TargetPlatform.
-	const int32 MaxTextureSize = GetMaxTextureSize(ReferenceTexture ? *ReferenceTexture : *Texture, LODSettings);
+	const int32 MaxTextureSize = GetMaxTextureSize(ReferenceTexture ? *ReferenceTexture : Texture, LODSettings);
 
 	if (ReferenceTexture)
 	{
@@ -1727,7 +1725,7 @@ uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& Generation
 	const int64 TextureSize = SourceSize >> PlatformLODBias;
 
 	// Additional LODBias of the Texture
-	const int32 TextureLODBias = LODSettings.CalculateLODBias(TextureSize, TextureSize, 0, Texture->LODGroup, Texture->LODBias, 0, Texture->MipGenSettings, Texture->IsCurrentlyVirtualTextured());
+	const int32 TextureLODBias = LODSettings.CalculateLODBias(TextureSize, TextureSize, 0, Texture.LODGroup, Texture.LODBias, 0, Texture.MipGenSettings, Texture.IsCurrentlyVirtualTextured());
 
 	return FMath::Max(PlatformLODBias + TextureLODBias, 0);
 }

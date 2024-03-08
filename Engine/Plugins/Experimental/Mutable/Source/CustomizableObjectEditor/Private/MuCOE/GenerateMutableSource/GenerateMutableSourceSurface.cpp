@@ -613,7 +613,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 										mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(Texture2D, GenerationContext, false);
 										ConstImageNode->SetValue(ImageConstant.get());
 
-										const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, Texture2D, nullptr, Props.TextureSize);
+										const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, *Texture2D, nullptr, Props.TextureSize);
 										return ResizeTextureByNumMips(ConstImageNode, MipsToSkip);
 									}
 									else
@@ -637,7 +637,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 						{
 							// Apply base LODBias. It will be propagated to most images.
 							const uint32 FirstLODAvailable = GenerationContext.Options.bUseLODAsBias ? GenerationContext.FirstLODAvailable : 0;
-							const uint32 BaseLODBias = ComputeLODBiasForTexture(GenerationContext, ReferenceTexture) + FirstLODAvailable;
+							const uint32 BaseLODBias = ComputeLODBiasForTexture(GenerationContext, *ReferenceTexture) + FirstLODAvailable;
 							mu::NodeImagePtr LastImage = ResizeTextureByNumMips(ImageNode, BaseLODBias);
 
 							mu::NodeImageMipmapPtr MipmapImage = new mu::NodeImageMipmap();
@@ -681,7 +681,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 									CompositeNormalImage->SetValue(ImageConstant.get());
 
 									mu::NodeImageMipmapPtr NormalCompositeMipmapImage = new mu::NodeImageMipmap();
-									const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, ReferenceCompositeNormalTexture, ReferenceTexture);
+									const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, *ReferenceCompositeNormalTexture, ReferenceTexture);
 									NormalCompositeMipmapImage->SetSource(ResizeTextureByNumMips(CompositeNormalImage, MipsToSkip));
 									NormalCompositeMipmapImage->SetMipmapGenerationSettings(mu::EMipmapFilterType::MFT_SimpleAverage, mu::EAddressMode::None, 1.0f, true);
 

@@ -171,7 +171,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				GenerationContext.GeneratedImages.Add(ImageKey, ImageNode);
 			}
 
-			const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, BaseTexture, nullptr, ReferenceTextureSize);
+			const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, *BaseTexture, nullptr, ReferenceTextureSize);
 			Result = ResizeTextureByNumMips(ImageNode, MipsToSkip);
 		}
 		else
@@ -224,7 +224,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		{
 			GenerationContext.AddParticipatingObject(*ReferenceTexture);
 
-			const uint32 LODBias = ComputeLODBiasForTexture(GenerationContext, TypedNodeParam->ReferenceValue, ReferenceTexture, ReferenceTextureSize);
+			const uint32 LODBias = ComputeLODBiasForTexture(GenerationContext, *TypedNodeParam->ReferenceValue, ReferenceTexture, ReferenceTextureSize);
 			TextureSize.X = FMath::Max(ReferenceTexture->Source.GetSizeX() >> LODBias, 1);
 			TextureSize.Y = FMath::Max(ReferenceTexture->Source.GetSizeY() >> LODBias, 1);
 		}
@@ -260,7 +260,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		{
 			ImageNode->SetValue(GenerateImageConstant(Texture, GenerationContext, false).get());
 
-			const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, Texture, nullptr, ReferenceTextureSize);
+			const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, *Texture, nullptr, ReferenceTextureSize);
 			Result = ResizeTextureByNumMips(ImageNode, MipsToSkip);
 		}
 		else
@@ -1096,7 +1096,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							{
 								mu::FImageDesc ImageDesc = GenerateImageDescriptor(DefaultTexture2D);
 
-								uint32 LODBias = ReferenceTextureSize > 0 ? ComputeLODBiasForTexture(GenerationContext, DefaultTexture2D, nullptr, ReferenceTextureSize) : 0;
+								uint32 LODBias = ReferenceTextureSize > 0 ? ComputeLODBiasForTexture(GenerationContext, *DefaultTexture2D, nullptr, ReferenceTextureSize) : 0;
 								ImageDesc.m_size[0] = ImageDesc.m_size[0] >> LODBias;
 								ImageDesc.m_size[1] = ImageDesc.m_size[1] >> LODBias;
 								

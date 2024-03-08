@@ -480,7 +480,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 					mu::NodeImageConstantPtr ImageNode = new mu::NodeImageConstant();
 					ImageNode->SetValue(ImageConstant.get());
 
-					const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, Texture, ProjParamNode->ReferenceTexture) + AdditionalLODBias;
+					const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, *Texture, ProjParamNode->ReferenceTexture) + AdditionalLODBias;
 					SwitchNode->SetOption(SelectorIndex, ResizeTextureByNumMips(ImageNode, MipsToSkip));
 				}
 				else

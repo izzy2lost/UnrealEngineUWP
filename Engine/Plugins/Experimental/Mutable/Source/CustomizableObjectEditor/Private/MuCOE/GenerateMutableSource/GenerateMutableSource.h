@@ -864,7 +864,7 @@ uint32 GetBaseTextureSize(const FMutableGraphGenerationContext& GenerationContex
 
 // Computes the LOD bias for a texture given the current mesh LOD and automatic LOD settings, the reference texture settings
 // and whether it's being built for a server or not
-uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& GenerationContext, const UTexture2D* Texture,const UTexture2D* ReferenceTexture = nullptr, int32 MaxTextureSizeInGame = 0);
+uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& GenerationContext, const UTexture2D& Texture, const UTexture2D* ReferenceTexture = nullptr, int32 MaxTextureSizeInGame = 0);
 
 // Max texture size to set on the ImageProperties
 int32 GetMaxTextureSize(const UTexture2D& ReferenceTexture, const UTextureLODSettings& LODSettings);
