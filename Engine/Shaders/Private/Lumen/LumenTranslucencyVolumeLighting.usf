@@ -16,6 +16,8 @@
 #define THREADGROUP_SIZE 1
 #endif
 
+#define FROXEL_POS_OFFSET 1
+
 void LumenFrontLayerTranslucencyClearGBufferPS(
 	  in  float4 SvPosition		: SV_Position
 	, out float4 OutColor		: SV_Target0
@@ -37,7 +39,7 @@ void MarkRadianceProbesUsedByTranslucencyVolumeCS(
 
 	if (all(GridCoordinate < TranslucencyGIGridSize))
 	{
-		float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, FrameJitterOffset.xyz);
+		float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, FROXEL_POS_OFFSET ? FrameJitterOffset.xyz : 0.0f);
 		uint ClipmapIndex = GetRadianceProbeClipmapForMark(WorldPosition);
 
 		if (IsValidRadianceCacheClipmapForMark(ClipmapIndex) && IsFroxelVisible(GridCoordinate))
@@ -93,7 +95,7 @@ void TranslucencyVolumeTraceVoxelsCS(
 
 		if (IsFroxelVisible(GridCoordinate))
 		{
-			float3 LocalFrameJitterOffset = FrameJitterOffset.xyz;
+			float3 LocalFrameJitterOffset = FROXEL_POS_OFFSET ? FrameJitterOffset.xyz : 0.0f;
 			ApplyDepthconstraintsToOffset(GridCoordinate, LocalFrameJitterOffset);
 
 			float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, LocalFrameJitterOffset);
@@ -271,7 +273,7 @@ void TranslucencyVolumeIntegrateCS(
 
 	if (all(GridCoordinate < TranslucencyGIGridSize))
 	{
-		float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, FrameJitterOffset.xyz);
+		float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, FROXEL_POS_OFFSET ? FrameJitterOffset.xyz : 0.0f);
 
 		FTwoBandSHVectorRGB Lighting = (FTwoBandSHVectorRGB)0;
 		bool bNewLightingValid = false;
