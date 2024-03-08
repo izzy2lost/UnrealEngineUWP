@@ -240,7 +240,7 @@ void FOptimusHalfEdgeDataProviderProxy::AllocateResources(FRDGBuilder& GraphBuil
 	FSkeletalMeshRenderData const& SkeletalMeshRenderData = SkeletalMeshObject->GetSkeletalMeshRenderData();
 	FSkeletalMeshLODRenderData const* LodRenderData = &SkeletalMeshRenderData.LODRenderData[LodIndex];
 
-	if (LodRenderData->HalfEdgeBuffer.IsInitialized())
+	if (LodRenderData->HalfEdgeBuffer.IsReadyForRendering())
 	{
 		bUseBufferFromRenderData = true;
 

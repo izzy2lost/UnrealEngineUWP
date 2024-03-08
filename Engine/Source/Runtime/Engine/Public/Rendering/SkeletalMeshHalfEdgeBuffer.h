@@ -7,6 +7,7 @@
 
 class FSkeletalMeshLODRenderData;
 class FRHIShaderResourceView;
+struct FRHIResourceUpdateBatcher;
 
 namespace SkeletalMeshHalfEdgeUtility
 {
@@ -20,12 +21,25 @@ class FSkeletalMeshHalfEdgeBuffer : public FRenderResource
 {
 public:
 	void Init(const FSkeletalMeshLODRenderData& InLodRenderData);
-		
+
+	struct FRHIInfo
+	{
+		FBufferRHIRef VertexToEdgeBufferRHI;
+		FBufferRHIRef EdgeToTwinEdgeBufferRHI;
+	};
+
+	FRHIInfo CreateRHIBuffer(FRHICommandListBase& RHICmdList);
+
+	void InitRHIForStreaming(FRHIInfo RHIInfo, FRHIResourceUpdateBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	
 	void ENGINE_API InitRHI(FRHICommandListBase& RHICmdList) override;
 
 	void ENGINE_API ReleaseRHI() override;
 
 	bool IsCPUDataValid() const;
+
+	bool ENGINE_API IsReadyForRendering() const;
 	
 	void CleanUp();
 
@@ -47,6 +61,8 @@ public:
 	}
 
 private:
+	uint32 GetMinBufferSize() const;
+	
 	TResourceArray<int32> VertexToEdgeData;
 	TResourceArray<int32> EdgeToTwinEdgeData;
 	
