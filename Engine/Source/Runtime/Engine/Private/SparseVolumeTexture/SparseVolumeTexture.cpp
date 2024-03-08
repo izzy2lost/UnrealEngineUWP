@@ -1223,9 +1223,11 @@ bool UStreamableSparseVolumeTexture::AppendFrame(UE::SVT::FTextureData& Uncooked
 		VolumeResolution = VolumeBoundsMax;
 	}
 	
-
-	USparseVolumeTextureFrame* Frame = NewObject<USparseVolumeTextureFrame>(this);
-	if (Frame->Initialize(this, Frames.Num(), FrameTransform, UncookedFrame))
+	const int32 FrameIndex = Frames.Num();
+	const FName FrameBaseName = FName(FString::Printf(TEXT("%s_Frame%i"), *GetFName().ToString(), FrameIndex));
+	const FName FrameName = MakeUniqueObjectName(this, USparseVolumeTextureFrame::StaticClass(), FrameBaseName);
+	USparseVolumeTextureFrame* Frame = NewObject<USparseVolumeTextureFrame>(this, USparseVolumeTextureFrame::StaticClass(), FrameName, RF_Public);
+	if (Frame->Initialize(this, FrameIndex, FrameTransform, UncookedFrame))
 	{
 		Frames.Add(Frame);
 		return true;
