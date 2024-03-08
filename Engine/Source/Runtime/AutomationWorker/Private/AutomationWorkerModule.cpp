@@ -413,6 +413,12 @@ void FAutomationWorkerModule::HandleScreenShotCompared(const FAutomationWorkerIm
 {
 	UE_LOG(LogAutomationWorker, Log, TEXT("Received ScreenShotCompared from %s"), *Context->GetSender().ToString());
 
+	if (Message.UniqueId != ActiveScreenshotComparisonId)
+	{
+		UE_LOG(LogAutomationWorker, Log, TEXT("Ignoring unexpected screenshot comparison result for %s"), *Message.ScreenshotPath);
+		return;
+	}
+
 	// Image comparison finished.
 	FAutomationScreenshotCompareResults CompareResults;
 	CompareResults.UniqueId = Message.UniqueId;
@@ -488,6 +494,8 @@ void FAutomationWorkerModule::HandleScreenShotAndTraceCapturedWithName(const TAr
 		Message->Metadata = Metadata;
 
 		UE_LOG(LogAutomationWorker, Log, TEXT("Sending screenshot %s to %s"), *Message->ScreenShotName, *TestRequesterAddress.ToString());
+
+		ActiveScreenshotComparisonId = Metadata.Id;
 
 		SendMessage(Message, Message->StaticStruct(), TestRequesterAddress);
 	}
@@ -674,6 +682,7 @@ void FAutomationWorkerModule::HandleRunTestsMessage( const FAutomationWorkerRunT
 	FullTestPath = Message.FullTestPath;
 	bSendAnalytics = Message.bSendAnalytics;
 	TestRequesterAddress = Context->GetSender();
+	ActiveScreenshotComparisonId = FGuid();
 
 	// Always allow the first network command to execute
 	bExecuteNextNetworkCommand = true;

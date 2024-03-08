@@ -922,7 +922,7 @@ namespace Gauntlet
 							if (!string.IsNullOrEmpty(Artifact) && Artifact.Substring(0, 4) != "0000")
 							{
 								IntArtifactEntry = InTestResult.Artifacts.Find(A => A.Id == Artifact);
-								if (IntArtifactEntry.Type == "Comparison")
+								if (IntArtifactEntry != null && IntArtifactEntry.Type == "Comparison")
 								{
 									// UE for now only produces one type of artifact that can be attached to an event and that's image comparison
 									Tag = "image comparison";

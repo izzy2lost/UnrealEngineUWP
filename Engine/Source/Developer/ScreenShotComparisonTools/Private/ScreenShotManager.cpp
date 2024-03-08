@@ -390,6 +390,7 @@ FImageComparisonResult FScreenShotManager::CompareScreenshot(const FString& InUn
 	ComparisonResult.IdealApprovedFolderPath = IdealApprovedFolderPath;
 	// We use the subfolder path to the screenshot as name (before any environment specialization - platform, RHI - are appended).
 	ComparisonResult.ScreenshotPath = ResultsSubFolder;
+	ComparisonResult.ComparisonId = IncomingMetaData.Id;
 
 	// Do not save passing variant test screenshots
 	// Disabled for now until more variants are added, since variants now run without baseline tests in lightweight mode and we need to save at least one screenshot

@@ -194,4 +194,7 @@ private:
 
 	/** Tracking of active section */
 	FString ActiveSection;
+
+	/** Tracking of the active screenshot comparison ID **/
+	FGuid ActiveScreenshotComparisonId;
 };
