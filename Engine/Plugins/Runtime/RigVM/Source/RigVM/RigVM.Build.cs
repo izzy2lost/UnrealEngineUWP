@@ -11,12 +11,13 @@ public class RigVM : ModuleRules
 
         PublicDependencyModuleNames.AddRange(
             new string[] {
-                "Core",
-                "CoreUObject",
-                "Engine",
-                "AnimationCore",
-                "AnimGraphRuntime",
-                "DeveloperSettings",
+				"AnimGraphRuntime",
+				"AnimationCore",
+				"Core",
+				"CoreUObject",
+				"DeveloperSettings",
+				"Engine",
+				"Projects",
 				"StructUtils",
 			}
 		);
