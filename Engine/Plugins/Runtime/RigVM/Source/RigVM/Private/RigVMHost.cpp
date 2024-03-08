@@ -147,7 +147,9 @@ void URigVMHost::Serialize(FArchive& Ar)
 void URigVMHost::PostLoad()
 {
 	Super::PostLoad();
-
+	
+	FRigVMRegistry::Get().RefreshEngineTypesIfRequired();
+	
 	FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
 
 	ExtendedExecuteContext.InvalidateCachedMemory();
