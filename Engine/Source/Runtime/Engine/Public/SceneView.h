@@ -244,6 +244,9 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 	/** Whether this view is being used to render a planar reflection. */
 	bool bIsPlanarReflection;
 
+	/** If > 0, overrides the view's resolution fraction. */
+	float OverridePrimaryResolutionFraction;
+
 #if WITH_EDITOR
 	/** default to 0'th view index, which is a bitfield of 1 */
 	uint64 EditorViewBitflag;
@@ -279,6 +282,7 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 		, bSceneCaptureUsesRayTracing(false)
 		, bIsReflectionCapture(false)
 		, bIsPlanarReflection(false)
+		, OverridePrimaryResolutionFraction(-1.0)
 #if WITH_EDITOR
 		, EditorViewBitflag(1)
 		, bDisableGameScreenPercentage(false)
