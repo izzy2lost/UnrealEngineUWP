@@ -429,6 +429,11 @@ bool UActorModifierCoreBase::ProcessFunction(TFunctionRef<bool(const UActorModif
 
 void UActorModifierCoreBase::DeferInitializeModifier()
 {
+	if (IsModifierInitialized())
+	{
+		return;
+	}
+
 	// Begin batch operation to avoid updating every time a modifier is loaded
 	UActorModifierCoreStack* Stack = GetRootModifierStack();
 	if (!Stack->IsModifierExecutionLocked() && !Stack->IsModifierStackInitialized())
@@ -476,13 +481,15 @@ void UActorModifierCoreBase::PostLoad()
 				const FString ThisStackName = GetName();
 				const EObjectFlags ThisStackFlags = GetFlags();
 
-				LogModifier(FString::Printf(TEXT("Modifier stack migrated to component stack %s %s"), *OwningComponent->GetName(), *ComponentStack->GetName()), true);
+				LogModifier(FString::Printf(TEXT("Modifier stack migrated to component stack %s %s with %i modifiers"), *OwningComponent->GetName(), *ComponentStack->GetName(), ThisStack->Modifiers.Num()), true);
 				Rename(nullptr, GetTransientPackage(), RenameFlags);
 
 				ComponentStack->Rename(*ThisStackName, nullptr, RenameFlags);
 				ComponentStack->Modifiers = ThisStack->Modifiers;
 				ComponentStack->bModifierProfiling = ThisStack->bModifierProfiling;
 				ComponentStack->SetFlags(ThisStackFlags);
+
+				return;
 			}
 		}
 		// Change outer of modifier to component stack instead of actor

@@ -33,6 +33,7 @@ protected:
 	//~ End UActorComponent
 
 	//~ Begin UObject
+	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditUndo() override;
 #endif

@@ -73,6 +73,17 @@ void UActorModifierCoreComponent::OnComponentDestroyed(bool bDestroyingHierarchy
 	}
 }
 
+void UActorModifierCoreComponent::PostLoad()
+{
+	Super::PostLoad();
+
+	// Due to the fact that we replaced stack by sub-object stack, init is needed here as old stack is deleted
+	if (ModifierStack && !ModifierStack->IsModifierInitialized())
+	{
+		ModifierStack->DeferInitializeModifier();
+	}
+}
+
 #if WITH_EDITOR
 void UActorModifierCoreComponent::PostEditUndo()
 {
