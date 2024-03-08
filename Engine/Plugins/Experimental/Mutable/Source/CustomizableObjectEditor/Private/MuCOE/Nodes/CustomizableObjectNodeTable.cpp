@@ -287,6 +287,7 @@ void UCustomizableObjectNodeTable::PostEditChangeProperty(FPropertyChangedEvent&
 		if (PropertyThatChanged->GetName() == TEXT("Table") || PropertyThatChanged->GetName() == TEXT("Structure"))
 		{
 			ParamUIMetadataColumn = NAME_None;
+			VersionColumn = NAME_None;
 			ReconstructNode();
 		}
 		else if (PropertyThatChanged->GetName() == TEXT("DefaultImageMode"))
@@ -1137,58 +1138,6 @@ TSoftClassPtr<UAnimInstance> UCustomizableObjectNodeTable::GetAnimInstanceAt(con
 	}
 
 	return TSoftClassPtr<UAnimInstance>();
-}
-
-
-TArray<FName> UCustomizableObjectNodeTable::GetRowNames(const UDataTable* DataTable) const
-{
-	TArray<FName> RowNames;
-
-	if (DataTable)
-	{
-		const UScriptStruct* TableStruct = DataTable->GetRowStruct();
-
-		if (!TableStruct)
-		{
-			return RowNames;
-		}
-
-		TArray<FName> TableRowNames = DataTable->GetRowNames();
-		FBoolProperty* BoolProperty = nullptr;
-
-		for (TFieldIterator<FProperty> PropertyIt(TableStruct); PropertyIt && bDisableCheckedRows; ++PropertyIt)
-		{
-			BoolProperty = CastField<FBoolProperty>(*PropertyIt);
-
-			if (BoolProperty)
-			{
-				for (const FName& RowName : TableRowNames)
-				{
-					if (uint8* RowData = DataTable->FindRowUnchecked(RowName))
-					{
-						if (uint8* CellData = BoolProperty->ContainerPtrToValuePtr<uint8>(RowData, 0))
-						{
-							if (!BoolProperty->GetPropertyValue(CellData))
-							{
-								RowNames.Add(RowName);
-							}
-						}
-					}
-				}
-
-				// There should be only one Bool column
-				break;
-			}
-		}
-
-		// There is no Bool column or we don't want to disable rows
-		if (!BoolProperty)
-		{
-			return TableRowNames;
-		}
-	}
-
-	return RowNames;
 }
 
 

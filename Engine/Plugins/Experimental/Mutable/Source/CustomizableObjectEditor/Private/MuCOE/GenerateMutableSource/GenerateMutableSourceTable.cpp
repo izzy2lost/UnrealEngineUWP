@@ -22,6 +22,7 @@
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Rendering/SkeletalMeshModel.h"
+#include "MuCOE/CustomizableObjectVersionBridge.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -637,6 +638,20 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 }
 
 
+uint8* GetCellData(const FName& RowName, const UDataTable& DataTable, const FProperty& ColumnProperty)
+{
+	// Get Row Data
+	uint8* RowData = DataTable.FindRowUnchecked(RowName);
+
+	if (RowData)
+	{
+		return ColumnProperty.ContainerPtrToValuePtr<uint8>(RowData, 0);
+	}
+
+	return nullptr;
+}
+
+
 FName GetAnotherOption(FName SelectedOptionName, const TArray<FName>& RowNames)
 {
 	for (const FName& CandidateOption : RowNames)
@@ -648,6 +663,51 @@ FName GetAnotherOption(FName SelectedOptionName, const TArray<FName>& RowNames)
 	}
 
 	return FName("None");
+}
+
+
+TArray<FName> GetEnabledRows(const UDataTable& DataTable, const UCustomizableObjectNodeTable& TableNode)
+{
+	TArray<FName> RowNames;
+	const UScriptStruct* TableStruct = DataTable.GetRowStruct();
+
+	if (!TableStruct)
+	{
+		return RowNames;
+	}
+
+	TArray<FName> TableRowNames = DataTable.GetRowNames();
+	FBoolProperty* BoolProperty = nullptr;
+
+	for (TFieldIterator<FProperty> PropertyIt(TableStruct); PropertyIt && TableNode.bDisableCheckedRows; ++PropertyIt)
+	{
+		BoolProperty = CastField<FBoolProperty>(*PropertyIt);
+
+		if (BoolProperty)
+		{
+			for (const FName& RowName : TableRowNames)
+			{
+				if (uint8* CellData = GetCellData(RowName, DataTable, *BoolProperty))
+				{
+					if (!BoolProperty->GetPropertyValue(CellData))
+					{
+						RowNames.Add(RowName);
+					}
+				}
+			}
+
+			// There should be only one Bool column
+			break;
+		}
+	}
+
+	// There is no Bool column or we don't want to disable rows
+	if (!BoolProperty)
+	{
+		return TableRowNames;
+	}
+
+	return RowNames;
 }
 
 
@@ -678,6 +738,57 @@ void RestrictRowNamesToSelectedOption(TArray<FName>& InOutRowNames, const UCusto
 }
 
 
+void RestrictRowContentByVersion( TArray<FName>& InOutRowNames, const UDataTable& DataTable, const UCustomizableObjectNodeTable& TableNode, FMutableGraphGenerationContext& GenerationContext)
+{
+	FProperty* ColumnProperty = DataTable.FindTableProperty(TableNode.VersionColumn);
+
+	if (!ColumnProperty)
+	{
+		return;
+	}
+
+	ICustomizableObjectVersionBridgeInterface* CustomizableObjectVersionBridgeInterface = Cast<ICustomizableObjectVersionBridgeInterface>(GenerationContext.Object->VersionBridge);
+	if (!CustomizableObjectVersionBridgeInterface)
+	{
+		const FString Message = "Found a data table with at least a row with a Custom Version asset but the Root Object does not have a Version Bridge asset assigned.";
+		GenerationContext.Compiler->CompilerLog(FText::FromString(Message), &TableNode, EMessageSeverity::Error);
+		return;
+	}
+
+	TArray<FName> OutRowNames;
+	OutRowNames.Reserve(InOutRowNames.Num());
+
+	for (int32 RowIndex = 0; RowIndex < InOutRowNames.Num(); ++RowIndex)
+	{
+		if (uint8* CellData = GetCellData(InOutRowNames[RowIndex], DataTable, *ColumnProperty))
+		{
+			if (!CustomizableObjectVersionBridgeInterface->IsVersionPropertyIncludedInCurrentRelease(*ColumnProperty, CellData))
+			{
+				continue;
+			}
+
+			OutRowNames.Add(InOutRowNames[RowIndex]);
+		}
+	}
+
+	InOutRowNames = OutRowNames;
+}
+
+
+TArray<FName> GetRowsToCompile(const UDataTable& DataTable, const UCustomizableObjectNodeTable& TableNode, FMutableGraphGenerationContext& GenerationContext)
+{
+	TArray<FName> RowNames = GetEnabledRows(DataTable, TableNode);
+
+	if (!RowNames.IsEmpty())
+	{
+		RestrictRowNamesToSelectedOption(RowNames, TableNode, GenerationContext);
+		RestrictRowContentByVersion(RowNames, DataTable, TableNode, GenerationContext);
+	}
+
+	return RowNames;
+}
+
+
 bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UEdGraphPin* Pin, mu::TablePtr MutableTable, const FString& DataTableColumnName, const FProperty* ColumnProperty,
 	const int32 LODIndexConnected, const int32 SectionIndexConnected, const int32 LODIndex, const int32 SectionIndex, const bool bOnlyConnectedLOD, FMutableGraphGenerationContext& GenerationContext)
 {
@@ -698,28 +809,18 @@ bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UE
 	GenerationContext.AddParticipatingObject(*DataTable);
 
 	// Getting names of the rows to access the information
-	TArray<FName> RowNames = TableNode->GetRowNames(DataTable);
-	RestrictRowNamesToSelectedOption(RowNames, *TableNode, GenerationContext);
+	TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext);
 
 	for (int32 RowIndex = 0; RowIndex < RowNames.Num(); ++RowIndex)
 	{
-		// Getting Row Data
-		uint8* RowData = DataTable->FindRowUnchecked(RowNames[RowIndex]);
-
-		if (RowData)
+		if (uint8* CellData = GetCellData(RowNames[RowIndex], *DataTable, *ColumnProperty))
 		{
-			// Getting Cell Data
-			uint8* CellData = ColumnProperty->ContainerPtrToValuePtr<uint8>(RowData, 0);
+			bool bCellGenerated = FillTableColumn(TableNode, MutableTable, DataTableColumnName, RowNames[RowIndex].ToString(), RowIndex, CellData, ColumnProperty,
+				LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, bOnlyConnectedLOD, GenerationContext);
 
-			if (CellData)
+			if (!bCellGenerated)
 			{
-				bool bCellGenerated = FillTableColumn(TableNode, MutableTable, DataTableColumnName, RowNames[RowIndex].ToString(), RowIndex, CellData, ColumnProperty,
-					LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, bOnlyConnectedLOD, GenerationContext);
-
-				if (!bCellGenerated)
-				{
-					return false;
-				}
+				return false;
 			}
 		}
 	}
@@ -737,8 +838,7 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 	if (!GenerationContext.ParameterUIDataMap.Contains(TableNode->ParameterName))
 	{
 		// Getting Table and row names to access the information
-		TArray<FName> RowNames = TableNode->GetRowNames(DataTable);
-		RestrictRowNamesToSelectedOption(RowNames, *TableNode, GenerationContext);
+		TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext);
 
 		FParameterUIData ParameterUIData(TableNode->ParameterName, TableNode->ParamUIMetadata, EMutableParameterType::Int);
 		ParameterUIData.IntegerParameterGroupType = TableNode->bAddNoneOption ? ECustomizableObjectGroupType::COGT_ONE_OR_NONE : ECustomizableObjectGroupType::COGT_ONE;
@@ -772,23 +872,16 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 			
 			for (int32 NameIndex = 0; NameIndex < RowNames.Num(); ++NameIndex)
 			{
-				// Getting Row Data
-				if (const uint8* RowData = DataTable->FindRowUnchecked(RowNames[NameIndex]))
+				if (uint8* CellData = GetCellData(RowNames[NameIndex], *DataTable, *ColumnProperty))
 				{
-					// Getting Cell Data
-					if (const uint8* CellData = ColumnProperty->ContainerPtrToValuePtr<uint8>(RowData, 0))
-					{
-						// Getting cell value
-						FMutableParamUIMetadata Value = *(FMutableParamUIMetadata*)CellData;
-						ParameterUIDataRef.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(RowNames[NameIndex].ToString(), Value));
-					}
+					FMutableParamUIMetadata Value = *(FMutableParamUIMetadata*)CellData;
+					ParameterUIDataRef.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(RowNames[NameIndex].ToString(), Value));
 				}
 			}
 		}
 		else
 		{
 			GenerationContext.Compiler->CompilerLog(FText::FromString(WrongTypeMessage), TableNode);
-
 			return;
 		}
 	}
@@ -815,8 +908,7 @@ mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCust
 	if (const UScriptStruct* TableStruct = DataTable->GetRowStruct())
 	{
 		// Getting Table and row names to access the information
-		TArray<FName> RowNames = TableNode->GetRowNames(DataTable);
-		RestrictRowNamesToSelectedOption(RowNames, *TableNode, GenerationContext);
+		TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext);
 
 		// Adding and filling Name Column
 		MutableTable->AddColumn("Name", mu::ETableColumnType::String);
@@ -993,7 +1085,6 @@ UDataTable* GenerateDataTableFromStruct(const UCustomizableObjectNodeTable* Tabl
 	
 	return Cast<UDataTable>(CompositeDataTable);
 }
-
 
 
 void LogRowGenerationMessage(const UCustomizableObjectNodeTable* TableNode, const UDataTable* DataTable, FMutableGraphGenerationContext& GenerationContext, const FString& Message, const FString& RowName)

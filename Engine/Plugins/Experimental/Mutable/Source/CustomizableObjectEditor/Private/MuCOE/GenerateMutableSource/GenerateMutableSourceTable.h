@@ -65,6 +65,10 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 /** Gets the data table needed during the compilation process */
 UDataTable* GetDataTable(const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext);
 
+/** Gets all the rows of a data table that are going to be compiled. Some rows can be disabled with a bool column or an asset version system 
+	@return Array with all the names of the rows that are going to be compiled */
+TArray<FName> GetRowsToCompile(const UDataTable& DataTable, const UCustomizableObjectNodeTable& TableNode, FMutableGraphGenerationContext& GenerationContext);
+
 /** Generates a Data Table from the Data Tables referenced in a Script Struct */
 UDataTable* GenerateDataTableFromStruct(const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext);
 

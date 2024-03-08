@@ -7,6 +7,7 @@
 #include "UObject/WeakObjectPtr.h"
 
 namespace ESelectInfo { enum Type : int; }
+
 class FString;
 class IDetailLayoutBuilder;
 class FReply;
@@ -75,6 +76,10 @@ private:
 	// Returns the current selected option or a null pointer
 	TSharedPtr<FString> GenerateMutableMetaDataColumnComboBoxOptions();
 
+	// Generates MutableMetadata columns combobox options
+	// Returns the current selected option or a null pointer
+	TSharedPtr<FString> GenerateVersionColumnComboBoxOptions();
+
 	// Callback to regenerate the combobox options
 	void OnOpenMutableMetadataComboBox();
 
@@ -86,6 +91,18 @@ private:
 
 	// OnComboBoxSelectionChanged Callback for Layout ComboBox
 	void OnMutableMetaDataColumnComboBoxSelectionReset();
+
+	// Callback to regenerate the combobox options
+	void OnOpenVersionColumnComboBox();
+	
+	// OnComboBoxSelectionChanged Callback for Layout ComboBox
+	void OnVersionColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
+	
+	// Sets the combo box selection color
+	FSlateColor GetVersionColumnComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions) const;
+	
+	// OnComboBoxSelectionChanged Callback for Layout ComboBox
+	void OnVersionColumnComboBoxSelectionReset();
 
 	// Layout options visibility
 	EVisibility LayoutOptionsVisibility() const;
@@ -142,6 +159,12 @@ private:
 
 	// ComboBox widget to select a MutableMetaDatacolumn from the NodeTable
 	TSharedPtr<STextComboBox> MutableMetaDataComboBox;
+
+	// Array with the name of the Version columns
+	TArray<TSharedPtr<FString>> VersionColumnsOptionNames;
+	
+	// ComboBox widget to select a VersionColumn from the NodeTable
+	TSharedPtr<STextComboBox> VersionColumnsComboBox;
 	
 	// Button to clear selections of the animation comboboxes
 	TSharedPtr<SButton> ClearButton;
