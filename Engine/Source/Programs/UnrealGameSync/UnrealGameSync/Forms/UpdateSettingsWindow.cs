@@ -39,7 +39,19 @@ namespace UnrealGameSync
 
 			string defaultHordeServer = DeploymentSettings.Instance.HordeUrl ?? String.Empty;
 
-			HordeRadioBtn.Checked = settings.UpdateSource != LauncherUpdateSource.Perforce;
+			if (settings.UpdateSource == LauncherUpdateSource.Perforce)
+			{
+				PerforceRadioBtn.Checked = true;
+			}
+			else if (settings.UpdateSource == LauncherUpdateSource.None)
+			{
+				DisableRadioBtn.Checked = true;
+			}
+			else
+			{
+				HordeRadioBtn.Checked = true;
+			}
+
 			HordeServerTextBox.Text = String.IsNullOrEmpty(settings.HordeServer) ? defaultHordeServer : settings.HordeServer;
 			ServerTextBox.Text = settings.PerforceServerAndPort ?? String.Empty;
 			UserNameTextBox.Text = settings.PerforceUserName ?? String.Empty;
@@ -49,6 +61,22 @@ namespace UnrealGameSync
 			_syncAndRun = syncAndRun;
 
 			ViewLogBtn.Visible = logText != null;
+		}
+
+		public LauncherResult ShowModal()
+		{
+			if (ShowDialog() == DialogResult.Cancel)
+			{
+				return LauncherResult.Exit;
+			}
+			else if (_settings.UpdateSource == LauncherUpdateSource.None)
+			{
+				return LauncherResult.Continue;
+			}
+			else
+			{
+				return LauncherResult.Exit;
+			}
 		}
 
 		protected override void OnLoad(EventArgs e)
@@ -67,7 +95,7 @@ namespace UnrealGameSync
 
 		private void ConnectBtn_Click(object sender, EventArgs e)
 		{
-			_settings.UpdateSource = HordeRadioBtn.Checked ? LauncherUpdateSource.Horde : LauncherUpdateSource.Perforce;
+			_settings.UpdateSource = HordeRadioBtn.Checked ? LauncherUpdateSource.Horde : PerforceRadioBtn.Checked? LauncherUpdateSource.Perforce : LauncherUpdateSource.None;
 			_settings.HordeServer = HordeServerTextBox.Text.Trim();
 			if (String.Equals(_settings.HordeServer, DeploymentSettings.Instance.HordeUrl, StringComparison.OrdinalIgnoreCase))
 			{
@@ -129,12 +157,21 @@ namespace UnrealGameSync
 		{
 			HordeGroupBox.Enabled = HordeRadioBtn.Checked;
 			PerforceGroupBox.Enabled = PerforceRadioBtn.Checked;
+			DisableGroupBox.Enabled = DisableRadioBtn.Checked;
 		}
 
 		private void PerforceRadioBtn_CheckedChanged(object sender, EventArgs e)
 		{
 			HordeGroupBox.Enabled = HordeRadioBtn.Checked;
 			PerforceGroupBox.Enabled = PerforceRadioBtn.Checked;
+			DisableGroupBox.Enabled = DisableRadioBtn.Checked;
+		}
+
+		private void DisableRadioBtn_CheckedChanged(object sender, EventArgs e)
+		{
+			HordeGroupBox.Enabled = HordeRadioBtn.Checked;
+			PerforceGroupBox.Enabled = PerforceRadioBtn.Checked;
+			DisableGroupBox.Enabled = DisableRadioBtn.Checked;
 		}
 	}
 }

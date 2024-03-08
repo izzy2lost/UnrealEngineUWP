@@ -24,14 +24,21 @@ namespace UnrealGameSync
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
 
+	enum LauncherResult
+	{
+		Continue, // Continue to run this instance
+		Exit, // Other instance has been spawned
+	}
+
 	static class Launcher
 	{
-		public static bool SyncAndRunLatest(Mutex instanceMutex, string[] args)
+		// Returns true if the application should keep running, false if it should quit.
+		public static LauncherResult SyncAndRunLatest(Mutex instanceMutex, string[] args)
 		{
 			// Don't do this if we're already running as a spawned instance
 			if (args.Any(x => x.StartsWith("-updatespawn=", StringComparison.OrdinalIgnoreCase)))
 			{
-				return false;
+				return LauncherResult.Continue;
 			}
 
 			// Figure out if we should sync the unstable build by default
@@ -53,7 +60,11 @@ namespace UnrealGameSync
 			{
 				// Show the settings window immediately
 				using UpdateSettingsWindow updateWindow = new UpdateSettingsWindow(null, null, launcherSettings, SyncAndRunWrapper);
-				return updateWindow.ShowDialog() != DialogResult.Cancel;
+				return updateWindow.ShowModal();
+			}
+			else if (launcherSettings.UpdateSource == LauncherUpdateSource.None)
+			{
+				return LauncherResult.Continue;
 			}
 			else
 			{
@@ -77,11 +88,11 @@ namespace UnrealGameSync
 				}
 				else if (task.Succeeded)
 				{
-					return true;
+					return LauncherResult.Exit;
 				}
 
 				using UpdateSettingsWindow updateWindow = new UpdateSettingsWindow("Unable to update UnrealGameSync from Perforce. Verify that your connection settings are correct.", logger.Render(Environment.NewLine), launcherSettings, SyncAndRunWrapper);
-				return updateWindow.DialogResult != DialogResult.Cancel;
+				return updateWindow.ShowModal();
 			}
 		}
 
@@ -101,6 +112,11 @@ namespace UnrealGameSync
 		{
 			try
 			{
+				if (launcherSettings.UpdateSource == LauncherUpdateSource.None)
+				{
+					return;
+				}
+
 				// Create the target folder
 				string applicationFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnrealGameSync", "Latest");
 				if (!SafeCreateDirectory(applicationFolder))

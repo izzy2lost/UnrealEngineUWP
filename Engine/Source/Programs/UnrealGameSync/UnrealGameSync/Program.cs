@@ -85,6 +85,8 @@ namespace UnrealGameSync
 			}
 		}
 
+		static WindowsFormsSynchronizationContext? _winformsSyncContext;
+
 		static void RealMain(string[] args)
 		{
 			bool firstInstance;
@@ -94,16 +96,27 @@ namespace UnrealGameSync
 				Application.SetCompatibleTextRenderingDefault(false);
 				Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
 
-				SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
+				_winformsSyncContext = new WindowsFormsSynchronizationContext();
+				SynchronizationContext.SetSynchronizationContext(_winformsSyncContext);
 
 				using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "ActivateUnrealGameSync"))
 				{
 					bool runUpdateCheck = ShouldRunAutoUpdate(args);
 
+					if (SynchronizationContext.Current is not WindowsFormsSynchronizationContext)
+					{
+						throw new NotImplementedException();
+					}
+
 					// Check for a newer version of the application
-					if (runUpdateCheck && Launcher.SyncAndRunLatest(instanceMutex, args))
+					if (runUpdateCheck && Launcher.SyncAndRunLatest(instanceMutex, args) != LauncherResult.Continue)
 					{
 						return;
+					}
+
+					if (SynchronizationContext.Current is not WindowsFormsSynchronizationContext)
+					{
+						throw new NotImplementedException();
 					}
 
 					// Handle any url passed in, possibly exiting
