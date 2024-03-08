@@ -119,21 +119,22 @@ FRigidBody* FRigidBody::GetParentBody() const
 	return nullptr;
 }
 
-float FRigidBody::GetInverseMass()
+bool FRigidBody::IsAllowedToRotate() const
 {
-	if (Pin && Pin->bEnabled)
+	const bool bIsLockedByPin= Pin && Pin->bEnabled && Pin->bLockRotation;
+	if (bIsLockedByPin || bIsLockedBySubSolve)
 	{
-		return 1.0f - Pin->Alpha;
+		return false; // body not allowed to rotate
 	}
 
-	return InvMass;
+	return true;
 }
 
 void FRigidBody::ApplyPushToRotateBody(const FVector& Push, const FVector& Offset)
 {
-	if (Pin && Pin->bEnabled && Pin->bPinRotation)
+	if (!IsAllowedToRotate())
 	{
-		return; // rotation of this body is pinned
+		return; // rotation of this body is disabled
 	}
 	
 	// equation 8 in "Detailed Rigid Body Simulation with XPBD"
@@ -149,9 +150,9 @@ void FRigidBody::ApplyPushToPosition(const FVector& Push)
 
 void FRigidBody::ApplyRotationDelta(const FQuat& DeltaQ)
 {
-	if (Pin && Pin->bEnabled && Pin->bPinRotation)
+	if (!IsAllowedToRotate())
 	{
-		return; // rotation of this body is pinned
+		return; // rotation of this body is disabled
 	}
 
 	// limit rotation each iteration

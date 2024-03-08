@@ -118,6 +118,7 @@ void UIKRigFBIKSolver::Solve(FIKRigSkeleton& IKRigSkeleton, const FIKRigGoalCont
 	// update settings
 	FPBIKSolverSettings Settings;
 	Settings.Iterations = Iterations;
+	Settings.SubIterations = SubIterations;
 	Settings.MassMultiplier = MassMultiplier;
 	Settings.bAllowStretch = bAllowStretch;
 	Settings.RootBehavior = RootBehavior;
@@ -153,6 +154,7 @@ void UIKRigFBIKSolver::UpdateSolverSettings(UIKRigSolver* InSettings)
 	if(UIKRigFBIKSolver* Settings = Cast<UIKRigFBIKSolver>(InSettings))
 	{
 		Iterations = Settings->Iterations;
+		SubIterations = Settings->SubIterations;
 		MassMultiplier = Settings->MassMultiplier;
 		bAllowStretch = Settings->bAllowStretch;
 		RootBehavior = Settings->RootBehavior;

@@ -82,7 +82,7 @@ struct FEffector
 	FBone* Bone;
 	TWeakPtr<FPinConstraint> Pin;
 	FRigidBody* ChainRootBody = nullptr;
-	int32 ChainRootDepthInitializedWith = -1;
+	int32 ChainDepthInitializedWith = -1;
 	float DistToChainRootInInputPose;
 	
 	TArray<float> DistancesFromEffector;
@@ -95,7 +95,7 @@ struct FEffector
 		const FQuat& InRotationGoal,
 		const FEffectorSettings& InSettings);
 
-	void UpdateChainRoot();
+	void UpdateChainStates();
 	void UpdateFromInputs(const FBone& SolverRoot);
 	float CalculateDistanceToChainRoot() const;
 	void ApplyPreferredAngles() const;
@@ -157,6 +157,10 @@ struct PBIK_API FPBIKSolverSettings
 	/** High iteration counts can help solve complex joint configurations with competing constraints, but will increase runtime cost. Default is 20. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SolverSettings, meta = (ClampMin = "0", ClampMax = "1000", UIMin = "0.0", UIMax = "200.0"))
 	int32 Iterations = 20;
+
+	/** Iterations used for sub-chains defined by the Chain Depth of the effectors. These are solved BEFORE the main iteration pass. Default is 0. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SolverSettings, meta = (ClampMin = "0", ClampMax = "1000", UIMin = "0.0", UIMax = "200.0"))
+	int32 SubIterations = 0;
 
 	/** A global mass multiplier; higher values will make the joints more stiff, but require more iterations. Typical range is 0.0 to 10.0. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SolverSettings, meta = (ClampMin = "0", UIMin = "0.0", UIMax = "10.0"))
@@ -264,6 +268,8 @@ private:
 
 	bool InitConstraints();
 
+	void UpdateEffectorDepths();
+
 	void AddBodyForBone(PBIK::FBone* Bone);
 
 	void UpdateBodies(const FPBIKSolverSettings& Settings);
@@ -295,6 +301,7 @@ private:
 	TArray<PBIK::FRigidBody> Bodies;
 	TArray<TSharedPtr<PBIK::FConstraint>> Constraints;
 	TArray<PBIK::FEffector> Effectors;
+	bool bHasSubChains = false;
 	bool bReadyToSimulate = false;
 	
 	PBIK::FDebugDraw DebugDraw;

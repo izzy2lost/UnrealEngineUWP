@@ -31,7 +31,7 @@ namespace PBIK
 		Settings = InSettings;
 	}
 
-	void FEffector::UpdateChainRoot()
+	void FEffector::UpdateChainStates()
 	{
 		// NOTE: this function must be called AFTER InitBodies() due to it's reliance on the FBody.bIsSubRoot flag
 		
@@ -46,30 +46,22 @@ namespace PBIK
 				break; // this only happens when effector is on solver root
 			}
 
-			if (MaxDepth > 0)
+			// if user specified a custom chain depth, then use it.
+			// otherwise halt when we hit a sub root (a branch) or root of the solver
+			const bool bIsAtAnyRoot = Parent->bIsSubRoot || Parent->bIsSolverRoot;
+			const bool bIsAtChainRoot = MaxDepth > 0 ? Depth > MaxDepth || bIsAtAnyRoot : bIsAtAnyRoot;
+			if (bIsAtChainRoot)
 			{
-				// user specified a custom chain depth, so use it
-				if (Depth >= MaxDepth)
-				{
-					ChainRootBody = Parent->Body;
-					break;
-				}
+				ChainRootBody = Parent->Body;
+				break;
 			}
-			else
-			{
-				// user did not specify a max depth, so use the nearest sub-root as the chain root
-				if (Parent->bIsSubRoot || Parent->bIsSolverRoot)
-				{
-					ChainRootBody = Parent->Body;
-					break;
-				}
-			}
-
+			
+			Parent->Body->bIsPartOfSubChain = true;
 			++Depth;
 			Parent = Parent->Parent;
 		}
 
-		ChainRootDepthInitializedWith = Settings.ChainDepth;
+		ChainDepthInitializedWith = Settings.ChainDepth;
 	}
 
 	void FEffector::UpdateFromInputs(const FBone& SolverRoot)
@@ -78,12 +70,7 @@ namespace PBIK
 		Position = FMath::Lerp(PositionOrig, PositionGoal, Settings.PositionAlpha);
 		Rotation = FMath::Lerp(RotationOrig, RotationGoal, Settings.RotationAlpha);
 		Pin.Pin()->SetGoal(Position, Rotation, Settings.StrengthAlpha);
-
-		// in case user modified the chain depth at runtime, we may need to find the new chain root 
-		if (Settings.ChainDepth != ChainRootDepthInitializedWith)
-		{
-			UpdateChainRoot();
-		}
+		
 		// update length of chain this effector controls in the input pose
 		DistToChainRootInInputPose = CalculateDistanceToChainRoot();
 
@@ -242,6 +229,9 @@ void FPBIKSolver::Solve(const FPBIKSolverSettings& Settings)
 		// pin to animated input root pose
 		RootPin.Pin()->SetGoal(SolverRoot->Position, SolverRoot->Rotation, 1.0f);
 	}
+
+	// lazily updates effector chain depths (IFF settings change at runtime)
+	UpdateEffectorDepths();
 
 	// blend effectors by Alpha, update pin goals and update effector dist to root
 	for (FEffector& Effector : Effectors)
@@ -480,7 +470,7 @@ void FPBIKSolver::SolveConstraints(const FPBIKSolverSettings& Settings)
 {
 	using PBIK::FRigidBody;
 
-	for (int32  I = 0; I < Settings.Iterations; ++I)
+	auto RunConstraintPass = [this, &Settings](int32 CurrentIteration, int32 MaxIterations)
 	{
 		// solve all constraints
 		for (const TSharedPtr<PBIK::FConstraint>& Constraint : Constraints)
@@ -491,12 +481,41 @@ void FPBIKSolver::SolveConstraints(const FPBIKSolverSettings& Settings)
 		// do post-pass to remove stretch
 		if (!Settings.bAllowStretch)
 		{
-			const float StretchAmount = FMath::Min(1.0f, static_cast<float>(I+1) / (Settings.Iterations / 2.0f));
+			const float StretchAmount = FMath::Min(1.0f, static_cast<float>(CurrentIteration+1) / (MaxIterations / 2.0f));
 			for (int32 C = Constraints.Num() - 1; C >= 0; --C)
 			{
 				Constraints[C]->RemoveStretch(StretchAmount);
 			}
 		}
+		
+	};
+
+	// run pre-pass where we lock everything not in a sub-chain
+	if (bHasSubChains && Settings.SubIterations > 0)
+	{
+		// first lock all the bodies not in a sub chain
+		for (FRigidBody& Body : Bodies)
+		{
+			Body.bIsLockedBySubSolve = !Body.bIsPartOfSubChain;
+		}
+		
+		// solve all constraints (locked constraints are skipped in this pass)
+		for (int32  I = 0; I < Settings.SubIterations; ++I)
+		{
+			RunConstraintPass(I, Settings.SubIterations);
+		}
+		
+		// unlock all bodies so we can proceed with normal constraint solve
+		for (FRigidBody& Body : Bodies)
+		{
+			Body.bIsLockedBySubSolve = false;
+		}
+	}
+
+	// run main constraint pass
+	for (int32  I = 0; I < Settings.Iterations; ++I)
+	{
+		RunConstraintPass(I, Settings.Iterations);
 	}
 }
 
@@ -595,16 +614,17 @@ bool FPBIKSolver::InitBones()
 	// walk upwards from each effector to the root to initialize "Bone.IsSolved"
 	for (const FEffector& Effector : Effectors)
 	{
-		FBone* NextBone = Effector.Bone;
-		while (NextBone)
+		FBone* CurrentBone = Effector.Bone;
+		CurrentBone->bIsSolved = true;
+		while (CurrentBone)
 		{
-			NextBone->bIsSolved = true;
-			NextBone = NextBone->Parent;
-			if (NextBone && NextBone->bIsSolverRoot)
+			if (CurrentBone->bIsSolverRoot)
 			{
-				NextBone->bIsSolved = true;
+				CurrentBone->bIsSolved = true;
 				break;
 			}
+			CurrentBone->bIsSolved = true;
+			CurrentBone = CurrentBone->Parent;
 		}
 	}
 
@@ -683,13 +703,6 @@ bool FPBIKSolver::InitBodies()
 		Body.Bone->Body = &Body;
 	}
 
-	// initialize Effector's nearest ParentSubRoot (FBody) pointer
-	// must be done AFTER setting: Bone.IsSubRoot/IsSolverRoot/Parent
-	for (FEffector& Effector : Effectors)
-	{
-		Effector.UpdateChainRoot();
-	}
-
 	return true;
 }
 
@@ -759,8 +772,49 @@ bool FPBIKSolver::InitConstraints()
 		RootPin = RootConstraint;
 		SolverRoot->Body->Pin = RootConstraint.Get();
 	}
+
+	// now we can set the initial effector depths
+	UpdateEffectorDepths();
 	
 	return true;
+}
+
+void FPBIKSolver::UpdateEffectorDepths()
+{
+	using PBIK::FEffector;
+	using PBIK::FBone;
+	using PBIK::FRigidBody;
+	
+	// initialize Effector's nearest ParentSubRoot (FBody) pointer
+	// must be done AFTER setting: Bone.IsSubRoot/IsSolverRoot/Parent
+	bool bIsEffectorDepthDirty = false;
+	bHasSubChains = false;
+	for (const FEffector& Effector : Effectors)
+	{
+		if (Effector.ChainDepthInitializedWith != Effector.Settings.ChainDepth)
+		{
+			bIsEffectorDepthDirty = true;
+		}
+		if (Effector.Settings.ChainDepth > 0)
+		{
+			bHasSubChains = true;
+		}
+	}
+
+	if (bIsEffectorDepthDirty)
+	{
+		// reset body states related to sub chains
+		for (FRigidBody& Body : Bodies)
+		{
+			Body.bIsPartOfSubChain = false;
+			Body.bIsLockedBySubSolve = false;
+		}
+		// walk up each effector and set chain states
+		for (FEffector& EffectorToUpdate : Effectors)
+		{
+			EffectorToUpdate.UpdateChainStates();
+		}
+	}
 }
 
 PBIK::FDebugDraw* FPBIKSolver::GetDebugDraw()

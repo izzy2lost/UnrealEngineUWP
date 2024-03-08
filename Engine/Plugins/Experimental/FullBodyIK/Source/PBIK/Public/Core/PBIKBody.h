@@ -92,6 +92,9 @@ struct FRigidBody
 	float Mass = 0.f;
 
 	float MaxAngle = 0.0f;
+
+	bool bIsLockedBySubSolve = false;
+	bool bIsPartOfSubChain = false;
 	
 private:
 
@@ -111,7 +114,7 @@ public:
 
 	FRigidBody* GetParentBody() const;
 
-	float GetInverseMass();
+	bool IsAllowedToRotate() const;
 
 	void ApplyPushToRotateBody(const FVector& Push, const FVector& Offset);
 	

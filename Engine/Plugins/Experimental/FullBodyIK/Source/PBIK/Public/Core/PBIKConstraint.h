@@ -100,7 +100,7 @@ private:
 	FVector PinPointLocalToA;
 	float Alpha = 1.0;
 	FQuat ARotLocalToPin;
-	bool bPinRotation = false;
+	bool bLockRotation = false;
 
 public:
 	
@@ -108,7 +108,7 @@ public:
 		FRigidBody* InBody,
 		const FVector& InPinPositionOrig,
 		const FQuat& InPinRotationOrig,
-		const bool bInPinRotation);
+		const bool bInLockRotation);
 
 	virtual ~FPinConstraint() {};
 
