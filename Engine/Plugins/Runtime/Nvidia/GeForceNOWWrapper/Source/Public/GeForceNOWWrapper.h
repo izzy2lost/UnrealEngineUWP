@@ -22,8 +22,14 @@ class GeForceNOWActionZoneProcessor;
 class GEFORCENOWWRAPPER_API GeForceNOWWrapper
 {
 public:
-	virtual ~GeForceNOWWrapper();
+	/** Load and Initialize the GeforceNOW SDK dll. */
+	static GfnRuntimeError Initialize();
+	
+	/** Unload the GeforceNOW SDK dlls. */
+	static GfnRuntimeError Shutdown();
+	
 	static GeForceNOWWrapper& Get();
+	
 
 	static const FString GetGfnOsTypeString(GfnOsType OsType);
 
@@ -31,16 +37,10 @@ public:
 	bool IsRunningInGFN();
 
 	/** Returns true for mock, but this can be used to differentiate between real and mock. */
-	bool IsRunningMockGFN() const;
-
-	/** Load and Initialize the GeforceNOW SDK dll. */
-	GfnRuntimeError Initialize();
+	static bool IsRunningMockGFN();
 
 	/** Initializes the Action Zone Processor.Returns true if the initialization was a success. */
 	bool InitializeActionZoneProcessor();
-
-	/** Unload the GeforceNOW SDK dlls. */
-	GfnRuntimeError Shutdown();
 
 	/** Determines if application is running in GeforceNOW environment  and without requiring process elevation. */
 	bool IsRunningInCloud();
@@ -104,24 +104,27 @@ public:
 	GfnRuntimeError IsTitleAvailable(const FString& InTitleID, bool& OutbIsAvailable) const;
 	
 	/** Returns true is the GeforceNOW SDK dll was loaded and initialized. */
-	bool IsInitialized() const { return bIsInitialized; }
+	bool IsSdkInitialized() const { return bIsSdkInitialized; }
 
 private:
 
 	/** Singleton access only. */
-	GeForceNOWWrapper();
+	GeForceNOWWrapper(){}
+	~GeForceNOWWrapper() {};
 
 	/** Free memory allocated by gfnGetTitlesAvailable and the likes. */
 	GfnRuntimeError Free(const char** data) const;
 
 	/** Is the DLL loaded and GfnInitializeSdk was called and succeeded. */
-	bool bIsInitialized = false;
+	static bool bIsSdkInitialized;
 
 	/** Is the DLL running in the GeForce Now environment. */
 	TOptional<bool> bIsRunningInCloud;
 
 	/** Keeps track of actions zones for GeForce NOW. Action Zones are used for things like keyboard invocation within the GeForce NOW app.*/
 	TSharedPtr<GeForceNOWActionZoneProcessor> ActionZoneProcessor;
+
+	static GeForceNOWWrapper* Singleton;
 };
 
 #endif // NV_GEFORCENOW
