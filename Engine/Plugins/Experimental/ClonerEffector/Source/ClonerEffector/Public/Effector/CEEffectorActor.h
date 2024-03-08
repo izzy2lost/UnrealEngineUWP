@@ -461,7 +461,7 @@ protected:
 
 	/** Affected clones color passed over to material */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Effector")
-	FLinearColor Color = FLinearColor::White;
+	FLinearColor Color = FLinearColor::Red;
 
 	/** Type of effector to apply on cloners instances */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetType", Getter="GetType", Category="Type")

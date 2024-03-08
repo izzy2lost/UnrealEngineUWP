@@ -9,6 +9,7 @@
 
 class UCEClonerLayoutBase;
 class UMaterialInterface;
+struct FNiagaraMeshMaterialOverride;
 
 UCLASS(MinimalAPI, Within=CEClonerActor, HideCategories=(Niagara))
 class UCEClonerComponent : public UNiagaraComponent
@@ -23,6 +24,17 @@ public:
 	/** Called when cloner layout system is loaded */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerSystemLoaded, UCEClonerComponent* /** ClonerComponent */, UCEClonerLayoutBase* /** InLayout */)
 	static FOnClonerSystemLoaded OnClonerSystemLoaded;
+
+	/** Only materials transient or part of the content folder can be dirtied, engine or plugins cannot */
+	static bool IsMaterialDirtyable(const UMaterialInterface* InMaterial);
+
+	/** Check if material has niagara usage flag set */
+	static bool IsMaterialUsageFlagSet(const UMaterialInterface* InMaterial);
+
+#if WITH_EDITOR
+	/** Show material warning notification when missing niagara usage flag */
+	static void ShowMaterialWarning(int32 InMaterialCount);
+#endif
 
 	UCEClonerComponent();
 
@@ -45,6 +57,10 @@ public:
 
 	/** Forces a refresh of the active system parameters in niagara store */
 	void RefreshUserParameters() const;
+
+	void SetUseOverrideMeshesMaterial(bool bInOverride);
+
+	void SetOverrideMeshesMaterial(UMaterialInterface* InMaterial);
 
 protected:
 	//~ Begin UObject
@@ -102,8 +118,11 @@ protected:
 	/** Checks that all root static meshes are valid */
 	bool IsAllMergedMeshesValid() const;
 
-	/** Only materials transient or part of the content folder can be dirtied, engine or plugins cannot */
-	bool IsMaterialDirtyable(const UMaterialInterface* InMaterial) const;
+	/** Called when material override properties are changed */
+	void OnOverrideMeshesMaterialChanged();
+
+	/** Get the niagara materials override if enabled */
+	TArray<FNiagaraMeshMaterialOverride> GetOverrideMeshesMaterials() const;
 
 	/** Attachment tree view */
 	UPROPERTY(Transient, NonTransactional)
@@ -115,6 +134,12 @@ protected:
 
 	/** Attachment items that are dirty and need an update */
 	TSet<FCEClonerAttachmentItem*> DirtyItemAttachments;
+
+	/** Override meshes material */
+	TWeakObjectPtr<UMaterialInterface> ClonerMeshesOverrideMaterial;
+
+	/** Use override meshes material */
+	bool bUseClonerMeshesOverrideMaterial = false;
 
 	/** Asset meshes needs update */
 	bool bClonerMeshesDirty = true;

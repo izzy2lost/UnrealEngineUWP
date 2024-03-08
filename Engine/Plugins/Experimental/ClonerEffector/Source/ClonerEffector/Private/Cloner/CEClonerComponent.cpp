@@ -1169,13 +1169,9 @@ void UCEClonerComponent::UpdateRootActorBakedStaticMesh(AActor* InRootActor)
 						UMaterialInterface* MaterialInterface = BakedMaterial.Get();
 						int32 MatIdx = CombineMaterials.Add(MaterialInterface);
 #if WITH_EDITOR
-						if (MaterialInterface)
+						if (MaterialInterface && !IsMaterialUsageFlagSet(MaterialInterface))
 						{
-							const UMaterial* Material = MaterialInterface->GetMaterial();
-							if (Material && !Material->GetUsageByFlag(EMaterialUsage::MATUSAGE_NiagaraMeshParticles))
-							{
-								MaterialsMissingNiagaraUsageFlag.Add(MatIdx);
-							}
+							MaterialsMissingNiagaraUsageFlag.Add(MatIdx);
 						}
 #endif
 					}
@@ -1209,14 +1205,7 @@ void UCEClonerComponent::UpdateRootActorBakedStaticMesh(AActor* InRootActor)
 			}
 		}
 
-		if (ReadOnlyMaterialCount > 0)
-		{
-			FNotificationInfo NotificationInfo(FText::Format(LOCTEXT("MaterialsMissingUsageFlag", "Detected {0} read-only material(s) with missing niagara usage flag required to work properly with cloner (See logs)"), ReadOnlyMaterialCount));
-			NotificationInfo.ExpireDuration = 5.f;
-			NotificationInfo.bFireAndForget = true;
-			NotificationInfo.Image = FAppStyle::GetBrush("Icons.WarningWithColor");
-			FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-		}
+		ShowMaterialWarning(ReadOnlyMaterialCount);
 	}
 #endif
 
@@ -1297,7 +1286,7 @@ bool UCEClonerComponent::IsAllMergedMeshesValid() const
 	return true;
 }
 
-bool UCEClonerComponent::IsMaterialDirtyable(const UMaterialInterface* InMaterial) const
+bool UCEClonerComponent::IsMaterialDirtyable(const UMaterialInterface* InMaterial)
 {
 	const UMaterial* BaseMaterial = InMaterial->GetMaterial();
 	const FString ContentFolder = FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir());
@@ -1313,15 +1302,127 @@ bool UCEClonerComponent::IsMaterialDirtyable(const UMaterialInterface* InMateria
 	return bTransientPackage || bContentFolder;
 }
 
-void UCEClonerComponent::UpdateClonerMeshes()
+bool UCEClonerComponent::IsMaterialUsageFlagSet(const UMaterialInterface* InMaterial)
 {
-	const AActor* ClonerActor = GetOwner();
-	if (!ClonerActor)
+	if (InMaterial)
+	{
+		if (const UMaterial* Material = InMaterial->GetMaterial())
+		{
+			return Material->GetUsageByFlag(EMaterialUsage::MATUSAGE_NiagaraMeshParticles);
+		}
+	}
+
+	return false;
+}
+
+#if WITH_EDITOR
+void UCEClonerComponent::ShowMaterialWarning(int32 InMaterialCount)
+{
+	if (InMaterialCount > 0)
+	{
+		FNotificationInfo NotificationInfo(FText::Format(LOCTEXT("MaterialsMissingUsageFlag", "Detected {0} read-only material(s) with missing niagara usage flag required to work properly with cloner (See logs)"), InMaterialCount));
+		NotificationInfo.ExpireDuration = 5.f;
+		NotificationInfo.bFireAndForget = true;
+		NotificationInfo.Image = FAppStyle::GetBrush("Icons.WarningWithColor");
+
+		FSlateNotificationManager::Get().AddNotification(NotificationInfo);
+	}
+}
+#endif // WITH_EDITOR
+
+TArray<FNiagaraMeshMaterialOverride> UCEClonerComponent::GetOverrideMeshesMaterials() const
+{
+	TArray<FNiagaraMeshMaterialOverride> MaterialOverrides;
+
+	if (bUseClonerMeshesOverrideMaterial)
+	{
+		int32 MaterialCount = 0;
+
+		for (const TWeakObjectPtr<AActor>& RootActor : ClonerTree.RootActors)
+		{
+			if (!RootActor.IsValid())
+			{
+				continue;
+			}
+
+			const FCEClonerAttachmentItem* AttachmentItem = ClonerTree.ItemAttachmentMap.Find(RootActor);
+
+			if (!AttachmentItem)
+			{
+				continue;
+			}
+
+			MaterialCount += AttachmentItem->BakedMaterials.Num();
+		}
+
+		// Set same material for all available slots
+		MaterialOverrides.Reserve(MaterialCount);
+		UMaterialInterface* OverrideMaterial = ClonerMeshesOverrideMaterial.Get();
+
+		for (int32 Index = 0; Index < MaterialCount; Index++)
+		{
+			FNiagaraMeshMaterialOverride MaterialOverride;
+			MaterialOverride.ExplicitMat = OverrideMaterial;
+			MaterialOverrides.Add(MaterialOverride);
+		}
+	}
+
+	return MaterialOverrides;
+}
+
+void UCEClonerComponent::SetUseOverrideMeshesMaterial(bool bInOverride)
+{
+	if (bUseClonerMeshesOverrideMaterial == bInOverride)
 	{
 		return;
 	}
 
-	if (!bClonerMeshesDirty)
+	bUseClonerMeshesOverrideMaterial = bInOverride;
+
+	if (ClonerMeshesOverrideMaterial.IsValid())
+	{
+		OnOverrideMeshesMaterialChanged();
+	}
+}
+
+void UCEClonerComponent::SetOverrideMeshesMaterial(UMaterialInterface* InMaterial)
+{
+	if (InMaterial && !IsMaterialUsageFlagSet(InMaterial))
+	{
+		UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : The override material (%s) you wish to use does not have the required usage flag (bUsedWithNiagaraMeshParticles) to work with the cloner, enable the flag on the material and save the asset"), *GetOwner()->GetActorNameOrLabel(), *InMaterial->GetMaterial()->GetPathName());
+
+#if WITH_EDITOR
+		ShowMaterialWarning(1);
+#endif
+
+		InMaterial = nullptr;
+	}
+
+	if (ClonerMeshesOverrideMaterial == InMaterial)
+	{
+		return;
+	}
+
+	ClonerMeshesOverrideMaterial = InMaterial;
+
+	if (bUseClonerMeshesOverrideMaterial)
+	{
+		OnOverrideMeshesMaterialChanged();
+	}
+}
+
+void UCEClonerComponent::OnOverrideMeshesMaterialChanged()
+{
+	if (!bClonerMeshesUpdating && !bClonerMeshesDirty)
+	{
+		UpdateClonerMeshes();
+	}
+}
+
+void UCEClonerComponent::UpdateClonerMeshes()
+{
+	const AActor* ClonerActor = GetOwner();
+	if (!ClonerActor)
 	{
 		return;
 	}
@@ -1339,29 +1440,36 @@ void UCEClonerComponent::UpdateClonerMeshes()
 		return;
 	}
 
-	// Set new number of meshes in renderer
-	static const FName MeshNumName(TEXT("MeshNum"));
-	SetIntParameter(MeshNumName, ClonerTree.MergedBakedMeshes.Num());
+	// Set material override
+	MeshRenderer->OverrideMaterials = GetOverrideMeshesMaterials();
+	MeshRenderer->bOverrideMaterials = bUseClonerMeshesOverrideMaterial;
 
-	// Resize mesh array properly
-	if (MeshRenderer->Meshes.Num() > ClonerTree.MergedBakedMeshes.Num())
+	if (bClonerMeshesDirty)
 	{
-		MeshRenderer->Meshes.SetNum(ClonerTree.MergedBakedMeshes.Num());
-	}
+		// Set new number of meshes in renderer
+		static const FName MeshNumName(TEXT("MeshNum"));
+		SetIntParameter(MeshNumName, ClonerTree.MergedBakedMeshes.Num());
 
-	// Set baked meshes in mesh renderer array
-	for (int32 Idx = 0; Idx < ClonerTree.MergedBakedMeshes.Num(); Idx++)
-	{
-		UStaticMesh* StaticMesh = ClonerTree.MergedBakedMeshes[Idx];
-		FNiagaraMeshRendererMeshProperties& MeshProperties = !MeshRenderer->Meshes.IsValidIndex(Idx) ? MeshRenderer->Meshes.AddDefaulted_GetRef() : MeshRenderer->Meshes[Idx];
-		MeshProperties.Mesh = StaticMesh && StaticMesh->GetNumTriangles(0) > 0 ? StaticMesh : nullptr;
-
-		if (ClonerTree.RootActors.IsValidIndex(Idx))
+		// Resize mesh array properly
+		if (MeshRenderer->Meshes.Num() > ClonerTree.MergedBakedMeshes.Num())
 		{
-			if (const FCEClonerAttachmentItem* Item = ClonerTree.ItemAttachmentMap.Find(ClonerTree.RootActors[Idx]))
+			MeshRenderer->Meshes.SetNum(ClonerTree.MergedBakedMeshes.Num());
+		}
+
+		// Set baked meshes in mesh renderer array
+		for (int32 Idx = 0; Idx < ClonerTree.MergedBakedMeshes.Num(); Idx++)
+		{
+			UStaticMesh* StaticMesh = ClonerTree.MergedBakedMeshes[Idx];
+			FNiagaraMeshRendererMeshProperties& MeshProperties = !MeshRenderer->Meshes.IsValidIndex(Idx) ? MeshRenderer->Meshes.AddDefaulted_GetRef() : MeshRenderer->Meshes[Idx];
+			MeshProperties.Mesh = StaticMesh && StaticMesh->GetNumTriangles(0) > 0 ? StaticMesh : nullptr;
+
+			if (ClonerTree.RootActors.IsValidIndex(Idx))
 			{
-				MeshProperties.Rotation = Item->ActorTransform.Rotator();
-				MeshProperties.Scale = Item->ActorTransform.GetScale3D();
+				if (const FCEClonerAttachmentItem* Item = ClonerTree.ItemAttachmentMap.Find(ClonerTree.RootActors[Idx]))
+				{
+					MeshProperties.Rotation = Item->ActorTransform.Rotator();
+					MeshProperties.Scale = Item->ActorTransform.GetScale3D();
+				}
 			}
 		}
 	}

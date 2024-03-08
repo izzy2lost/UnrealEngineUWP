@@ -46,6 +46,10 @@ ACEClonerActor::ACEClonerActor()
 	LifetimeScaleCurve.AddKey(0, 1.f);
 	LifetimeScaleCurve.AddKey(1, 0.f);
 
+	// Default override material
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> DefaultMaterialFinder(DefaultMaterialPath);
+	OverrideMaterial = DefaultMaterialFinder.Object;
+
 	if (!IsTemplate())
 	{
 #if WITH_EDITOR
@@ -93,6 +97,7 @@ const TCEPropertyChangeDispatcher<ACEClonerActor> ACEClonerActor::PropertyChange
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bEnabled), &ACEClonerActor::OnEnabledChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, Seed), &ACEClonerActor::OnSeedChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, Color), &ACEClonerActor::OnColorChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bVisualizeEffectors), &ACEClonerActor::OnOverrideMaterialChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, EffectorsWeak), &ACEClonerActor::OnEffectorsChanged },
 	/** Layout */
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, LayoutName), &ACEClonerActor::OnLayoutNameChanged },
@@ -115,6 +120,8 @@ const TCEPropertyChangeDispatcher<ACEClonerActor> ACEClonerActor::PropertyChange
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, MeshFacingMode), &ACEClonerActor::OnMeshRendererOptionsChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bMeshCastShadows), &ACEClonerActor::OnMeshRendererOptionsChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, DefaultMeshes), &ACEClonerActor::OnDefaultMeshesChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bUseOverrideMaterial), &ACEClonerActor::OnOverrideMaterialChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, OverrideMaterial), &ACEClonerActor::OnOverrideMaterialChanged },
 	/** Progress */
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bInvertProgress), &ACEClonerActor::OnProgressChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, Progress), &ACEClonerActor::OnProgressChanged },
@@ -360,6 +367,8 @@ void ACEClonerActor::UpdateLayoutOptions()
 
 	OnMeshRendererOptionsChanged();
 	OnDefaultMeshesChanged();
+	OnOverrideMaterialChanged();
+
 	OnDeltaStepChanged();
 	OnRangeOptionsChanged();
 	OnSpawnOptionsChanged();
@@ -436,6 +445,28 @@ TArray<UStaticMesh*> ACEClonerActor::BP_GetDefaultMeshes() const
 	return Meshes;
 }
 
+void ACEClonerActor::SetUseOverrideMaterial(bool bInOverride)
+{
+	if (bUseOverrideMaterial == bInOverride)
+	{
+		return;
+	}
+
+	bUseOverrideMaterial = bInOverride;
+	OnOverrideMaterialChanged();
+}
+
+void ACEClonerActor::SetOverrideMaterial(UMaterialInterface* InMaterial)
+{
+	if (OverrideMaterial == InMaterial)
+	{
+		return;
+	}
+
+	OverrideMaterial = InMaterial;
+	OnOverrideMaterialChanged();
+}
+
 void ACEClonerActor::SetSeed(int32 InSeed)
 {
 	if (InSeed == Seed)
@@ -456,6 +487,17 @@ void ACEClonerActor::SetColor(const FLinearColor& InColor)
 
 	Color = InColor;
 	OnColorChanged();
+}
+
+void ACEClonerActor::SetVisualizeEffectors(bool bInVisualize)
+{
+	if (bVisualizeEffectors == bInVisualize)
+	{
+		return;
+	}
+
+	bVisualizeEffectors = bInVisualize;
+	OnOverrideMaterialChanged();
 }
 
 void ACEClonerActor::SetDeltaStepEnabled(bool bInEnabled)
@@ -1235,6 +1277,19 @@ void ACEClonerActor::OnDefaultMeshesChanged()
 	TreeUpdateDeltaTime = TreeUpdateInterval;
 }
 
+void ACEClonerActor::OnOverrideMaterialChanged()
+{
+	if (ClonerComponent)
+	{
+		UMaterialInterface* OverrideMeshesMaterial = bVisualizeEffectors
+			? LoadObject<UMaterialInterface>(nullptr, DefaultMaterialPath)
+			: OverrideMaterial.Get();
+
+		ClonerComponent->SetOverrideMeshesMaterial(OverrideMeshesMaterial);
+		ClonerComponent->SetUseOverrideMeshesMaterial(bUseOverrideMaterial || bVisualizeEffectors);
+	}
+}
+
 #if WITH_EDITOR
 void ACEClonerActor::OnReduceMotionGhostingChanged()
 {
@@ -1332,7 +1387,6 @@ void ACEClonerActor::SpawnDefaultActorAttached()
 	UStaticMesh* DefaultStaticMesh = LoadObject<UStaticMesh>(nullptr, DefaultStaticMeshPath);
 
 	// Find or load default material
-	constexpr const TCHAR* DefaultMaterialPath = TEXT("/Script/Engine.Material'/ClonerEffector/Materials/DefaultClonerMaterial.DefaultClonerMaterial'");
 	UMaterialInterface* DefaultMaterial = LoadObject<UMaterialInterface>(nullptr, DefaultMaterialPath);
 
 	if (!DefaultStaticMesh || !DefaultMaterial)

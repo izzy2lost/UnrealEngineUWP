@@ -30,6 +30,7 @@ class ACEClonerActor : public AActor
 
 public:
 	static inline const FString DefaultLabel = TEXT("Cloner");
+	static inline constexpr const TCHAR* DefaultMaterialPath = TEXT("/Script/Engine.Material'/ClonerEffector/Materials/DefaultClonerMaterial.DefaultClonerMaterial'");
 
 	ACEClonerActor();
 
@@ -83,6 +84,24 @@ public:
 	CLONEREFFECTOR_API TArray<UStaticMesh*> BP_GetDefaultMeshes() const;
 
 	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetUseOverrideMaterial(bool bInOverride);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	bool GetUseOverrideMaterial() const
+	{
+		return bUseOverrideMaterial;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetOverrideMaterial(UMaterialInterface* InMaterial);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	UMaterialInterface* GetOverrideMaterial() const
+	{
+		return OverrideMaterial;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner")
 	CLONEREFFECTOR_API void SetSeed(int32 InSeed);
 
 	UFUNCTION(BlueprintPure, Category="Cloner")
@@ -98,6 +117,15 @@ public:
 	const FLinearColor& GetColor() const
 	{
 		return Color;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetVisualizeEffectors(bool bInVisualize);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	bool GetVisualizeEffectors() const
+	{
+		return bVisualizeEffectors;
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Cloner")
@@ -453,6 +481,7 @@ protected:
 	void OnMeshRenderModeChanged();
 	void OnMeshRendererOptionsChanged();
 	void OnDefaultMeshesChanged();
+	void OnOverrideMaterialChanged();
 	void OnSeedChanged();
 	void OnColorChanged();
 	void OnProgressChanged();
@@ -489,6 +518,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Cloner")
 	FLinearColor Color = FLinearColor::White;
 
+	/** Switches materials to show effectors applied on this cloner based on their color property */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetVisualizeEffectors", Getter="GetVisualizeEffectors", Category="Cloner")
+	bool bVisualizeEffectors;
+
 	/** Indicates how we select the mesh to render on each clones */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetMeshRenderMode", Getter="GetMeshRenderMode", Category="Renderer")
 	ECEClonerMeshRenderMode MeshRenderMode = ECEClonerMeshRenderMode::Iterate;
@@ -504,6 +537,14 @@ protected:
 	/** When nothing is attached to the cloner, these meshes are used as default */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetDefaultMeshes", Getter="GetDefaultMeshes", BlueprintSetter="BP_SetDefaultMeshes", BlueprintGetter="BP_GetDefaultMeshes", Category="Renderer")
 	TArray<TObjectPtr<UStaticMesh>> DefaultMeshes;
+
+	/** Whether to override meshes materials with another material */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetUseOverrideMaterial", Getter="GetUseOverrideMaterial", Category="Renderer")
+	bool bUseOverrideMaterial = false;
+
+	/** The override materials that will be set instead of meshes materials, bVisualizeEffectors must be disabled */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Renderer", meta=(EditCondition="bUseOverrideMaterial", EditConditionHides))
+	TObjectPtr<UMaterialInterface> OverrideMaterial;
 
 	/** How many times do we spawn clones */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetSpawnLoopMode", Getter="GetSpawnLoopMode", DisplayName="LoopMode", Category="Spawn")
@@ -609,11 +650,11 @@ protected:
 
 #if WITH_EDITORONLY_DATA
 	/** Toggle the sprite to visualize and click on this cloner */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category="Cloner", meta=(AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category="Cloner", meta=(AllowPrivateAccess="true"))
 	bool bVisualizerSpriteVisible = true;
 
 	/** Reduces the r.TSR.ShadingRejection.Flickering.Period from 3 (default) to 1 if enabled to avoid ghosting artifacts when moving */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category="Cloner", meta=(AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category="Cloner", meta=(AllowPrivateAccess="true"))
 	bool bReduceMotionGhosting = false;
 #endif
 
