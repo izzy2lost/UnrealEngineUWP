@@ -25,6 +25,12 @@ FJointConstraint::FJointConstraint(FRigidBody* InA, FRigidBody* InB)
 	
 void FJointConstraint::Solve(const FPBIKSolverSettings& Settings)
 {
+	// early out if both bodies are locked (joint cannot do anything)
+	if (A->bIsLockedBySubSolve && B->bIsLockedBySubSolve)
+	{
+		return;
+	}
+	
 	// get pos correction to use for rotation
 	FVector OffsetA;
 	FVector OffsetB;
@@ -38,9 +44,9 @@ void FJointConstraint::Solve(const FPBIKSolverSettings& Settings)
 	// enforce joint limits
 	UpdateJointLimits();
 
-	// calc inv mass of body A
-	const float WA = A->GetInverseMass();
-	const float WB = B->GetInverseMass();
+	// calc inv mass of body A and B
+	const float WA = A->InvMass;
+	const float WB = B->InvMass;
 	const float W = WA + WB;
 	if (FMath::IsNearlyZero(W))
 	{
@@ -272,7 +278,7 @@ FPinConstraint::FPinConstraint(
 	FRigidBody* InBody,
 	const FVector& InPinPositionOrig,
 	const FQuat& InPinRotationOrig,
-	const bool bInPinRotation)
+	const bool bInLockRotation)
 {
 	GoalPosition = InPinPositionOrig;
 	GoalRotation = InPinRotationOrig;
@@ -281,7 +287,7 @@ FPinConstraint::FPinConstraint(
 	PinPointLocalToA = A->Rotation.Inverse() * (GoalPosition - A->Position);
 
 	ARotLocalToPin = A->Rotation * GoalRotation.Inverse();
-	bPinRotation = bInPinRotation;
+	bLockRotation = bInLockRotation;
 }
 
 void FPinConstraint::Solve(const FPBIKSolverSettings& Settings)
@@ -291,7 +297,7 @@ void FPinConstraint::Solve(const FPBIKSolverSettings& Settings)
 		return;
 	}
 
-	if (bPinRotation)
+	if (bLockRotation)
 	{
 		// keep body at fixed rotation relative to the pin goal rotation
 		A->Rotation = ARotLocalToPin * GoalRotation;

@@ -88,7 +88,7 @@ struct FPBIKEffector
 	float StrengthAlpha = 1.0f;
 
 	/** Range 0-inf (default is 0). Explicitly set the number of bones up the hierarchy to consider part of this effector's 'chain'.
-	* The "chain" of bones is used to apply Preferred Angles, Pull Chain Alpha and Chain "Sub Solves".
+	* The "chain" of bones is used to apply Preferred Angles, Pull Chain Alpha and "Sub Solve" iterations.
 	* If left at 0, the solver will attempt to determine the root of the chain by searching up the hierarchy until it finds a branch or another effector, whichever it finds first.
 	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Full Body IK Effector", meta = (ClampMin = "0", UIMin = "0"))
