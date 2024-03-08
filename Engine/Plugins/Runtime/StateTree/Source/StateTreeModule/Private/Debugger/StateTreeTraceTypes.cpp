@@ -143,14 +143,9 @@ FString FStateTreeTraceTransitionEvent::GetValueString(const UStateTree& StateTr
 		{
 			ensureAlways(Transition->Priority == TransitionSource.Priority);
 			ensureAlways(Transition->State == TransitionSource.TargetState);
-			if (Transition->RequiredEvent.Tag.IsValid())
+			if (Transition->EventTag.IsValid())
 			{
-				StrBuilder.Appendf(TEXT("\n\t%s"), *Transition->RequiredEvent.Tag.ToString()); 
-			}
-
-			if (Transition->RequiredEvent.PayloadStruct)
-			{
-				StrBuilder.Appendf(TEXT("\n\t%s"), *Transition->RequiredEvent.PayloadStruct->GetName()); 
+				StrBuilder.Appendf(TEXT("\n\t%s"), *Transition->EventTag.ToString()); 
 			}
 		}
 		else

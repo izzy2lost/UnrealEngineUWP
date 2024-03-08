@@ -6,7 +6,6 @@
 #include "StateTreeExecutionTypes.h"
 #include "StateTreeNodeBase.h"
 #include "Experimental/ConcurrentLinearAllocator.h"
-#include "Templates/IsInvocable.h"
 
 struct FGameplayTag;
 struct FInstancedPropertyBag;
@@ -192,11 +191,11 @@ public:
 	/** Sends event for the StateTree. */
 	void SendEvent(const FGameplayTag Tag, const FConstStructView Payload = FConstStructView(), const FName Origin = FName()) const;
 
-	/** Iterates over all events. Can only be used during StateTree tick. Expects a lambda which takes const FStateTreeSharedEvent& Event, and returns EStateTreeLoopEvents. */
+	/** Iterates over all events. Can only be used during StateTree tick. Expects a lambda which takes const FStateTreeEvent& Event, and returns EStateTreeLoopEvents. */
 	template<typename TFunc>
-	typename TEnableIf<TIsInvocable<TFunc, FStateTreeSharedEvent>::Value, void>::Type ForEachEvent(TFunc&& Function) const
+	void ForEachEvent(TFunc&& Function) const
 	{
-		for (const FStateTreeSharedEvent& Event : EventsToProcess)
+		for (const FStateTreeEvent& Event : EventsToProcess)
 		{
 			if (Function(Event) == EStateTreeLoopEvents::Break)
 			{
@@ -205,27 +204,8 @@ public:
 		}
 	}
 
-	/** Iterates over all events. Can only be used during StateTree tick. Expects a lambda which takes const FStateTreeEvent& Event, and returns EStateTreeLoopEvents. Less preferable than FStateTreeSharedEvent version. */
-	template<typename TFunc>
-	typename TEnableIf<TIsInvocable<TFunc, FStateTreeEvent>::Value, void>::Type ForEachEvent(TFunc&& Function) const
-	{
-		for (const FStateTreeSharedEvent& Event : EventsToProcess)
-		{
-			if (Function(*Event) == EStateTreeLoopEvents::Break)
-			{
-				break;
-			}
-		}
-	}
-
 	/** @return events to process this tick. */
-	TArrayView<FStateTreeSharedEvent> GetMutableEventsToProcessView() { return EventsToProcess; }
-
-	/** @return events to process this tick. */
-	TConstArrayView<FStateTreeSharedEvent> GetEventsToProcessView() const { return EventsToProcess; }
-
-	UE_DEPRECATED(5.5, "Use GetEventsToProcessView() instead.")
-	TConstArrayView<FStateTreeEvent> GetEventsToProcess() const { return {}; }
+	TConstArrayView<FStateTreeEvent> GetEventsToProcess() const { return EventsToProcess; }
 
 	/** @return true if there is a pending event with specified tag. */
 	bool HasEventToProcess(const FGameplayTag Tag) const
@@ -235,10 +215,9 @@ public:
 			return false;
 		}
 		
-		return EventsToProcess.ContainsByPredicate([Tag](const FStateTreeSharedEvent& Event)
+		return EventsToProcess.ContainsByPredicate([Tag](const FStateTreeEvent& Event)
 		{
-			check(Event.IsValid());
-			return Event->Tag.MatchesTag(Tag);
+			return Event.Tag.MatchesTag(Tag);
 		});
 	}
 
@@ -393,74 +372,15 @@ public:
 	void RequestTransition(const FStateTreeTransitionRequest& Request);
 
 	/** @return data view of the specified handle relative to given frame. */
-	static FStateTreeDataView GetDataViewFromInstanceStorage(FStateTreeInstanceStorage& InstanceDataStorage, FStateTreeInstanceStorage* CurrentlyProcessedSharedInstanceStorage, const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle);
+	static FStateTreeDataView GetDataView(FStateTreeInstanceStorage& InstanceDataStorage, FStateTreeInstanceStorage* CurrentlyProcessedSharedInstanceStorage, const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, TConstArrayView<FStateTreeDataView> ContextAndExternalDataViews, const FStateTreeDataHandle Handle);
 
 	/** Looks for a frame in provided list of frames. */
 	static const FStateTreeExecutionFrame* FindFrame(const UStateTree* StateTree, FStateTreeStateHandle RootState, TConstArrayView<FStateTreeExecutionFrame> Frames, const FStateTreeExecutionFrame*& OutParentFrame);
 
-	UE_DEPRECATED(5.5, "Use GetDataViewFromInstanceStorage instead.")
-	static FStateTreeDataView GetDataView(FStateTreeInstanceStorage& InstanceDataStorage, FStateTreeInstanceStorage* CurrentlyProcessedSharedInstanceStorage, const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, TConstArrayView<FStateTreeDataView> ContextAndExternalDataViews, const FStateTreeDataHandle Handle)
-	{
-		return GetDataViewFromInstanceStorage(InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, ParentFrame, CurrentFrame, Handle);
-	}
-
 protected:
-	/**
-	 * Describes a result of States Selection.
-	 */
-	struct FStateSelectionResult
-	{
-		/** Max number of execution frames handled during state selection. */
-		static constexpr int32 MaxExecutionFrames = 8;
 
-		FStateSelectionResult() = default;
-		explicit FStateSelectionResult(TConstArrayView<FStateTreeExecutionFrame> InFrames)
-		{
-			SelectedFrames = InFrames;
-			FramesStateSelectionEvents.SetNum(SelectedFrames.Num());
-		}
-
-		bool IsFull() const
-		{
-			return SelectedFrames.Num() == MaxExecutionFrames;
-		}
-
-		void PushFrame(FStateTreeExecutionFrame Frame)
-		{
-			SelectedFrames.Add(Frame);
-			FramesStateSelectionEvents.AddDefaulted();
-		}
-
-		void PopFrame()
-		{
-			SelectedFrames.Pop();
-			FramesStateSelectionEvents.Pop();
-		}
-
-		bool ContainsFrames() const
-		{
-			return !SelectedFrames.IsEmpty();
-		}
-
-		int32 FramesNum() const
-		{
-			return SelectedFrames.Num();
-		}
-
-		TArrayView<FStateTreeExecutionFrame> GetSelectedFrames()
-		{
-			return SelectedFrames;
-		}
-
-		TArrayView<FStateTreeFrameStateSelectionEvents> GetFramesStateSelectionEvents()
-		{
-			return FramesStateSelectionEvents;
-		}
-
-	protected:
-		TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>> SelectedFrames;
-		TArray<FStateTreeFrameStateSelectionEvents, TFixedAllocator<MaxExecutionFrames>> FramesStateSelectionEvents;
-	};
+	/** Max number of execution frames handled during state selection. */
+	static constexpr int32 MaxExecutionFrames = 8;
 	
 #if WITH_STATETREE_DEBUGGER
 	FStateTreeInstanceDebugId GetInstanceDebugId() const;
@@ -535,7 +455,6 @@ protected:
 		const FStateTreeExecutionFrame& CurrentFrame,
 		const FStateTreeStateHandle NextState,
 		const EStateTreeTransitionPriority Priority,
-		const FStateTreeSharedEvent* TransitionEvent = nullptr,
 		const EStateTreeSelectionFallback Fallback = EStateTreeSelectionFallback::None);
 
 	/**
@@ -559,16 +478,14 @@ protected:
 	 * If NextState is a leaf state, the active states leading from root to the leaf are returned.
 	 * @param CurrentFrame The frame where the NextState is valid. 
 	 * @param NextState The state which we try to select next.
-	 * @param OutSelectionResult The result of selection.
-	 * @param TransitionEvent Event used by transition to trigger the state selection.
+	 * @param OutNextActiveFrames Active frames and states that got selected.
 	 * @param Fallback selection behavior to execute if it fails to select the desired state
 	 * @return True if succeeded to select new active states.
 	 */
 	bool SelectState(
 		const FStateTreeExecutionFrame& CurrentFrame,
 		const FStateTreeStateHandle NextState,
-		FStateSelectionResult& OutSelectionResult,
-		const FStateTreeSharedEvent* TransitionEvent = nullptr,
+		TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>>& OutNextActiveFrames,
 		const EStateTreeSelectionFallback Fallback = EStateTreeSelectionFallback::None);
 
 	/**
@@ -579,8 +496,7 @@ protected:
 		FStateTreeExecutionFrame& CurrentFrame,
 		const FStateTreeExecutionFrame* CurrentFrameInActiveFrames,
 		const FStateTreeStateHandle NextStateHandle,
-		FStateSelectionResult& OutSelectionResult,
-		const FStateTreeSharedEvent* TransitionEvent = nullptr);
+		TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>>& OutNextActiveFrames);
 
 	/** @return StateTree execution state from the instance storage. */
 	FStateTreeExecutionState& GetExecState()
@@ -607,13 +523,16 @@ protected:
 	FString DebugGetEventsAsString() const;
 
 	/** @return data view of the specified handle relative to given frame. */
-	FStateTreeDataView GetDataView(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle);
+	FStateTreeDataView GetDataView(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const
+	{
+		return GetDataView(*InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, ParentFrame, CurrentFrame, ContextAndExternalDataViews, Handle);
+	}
 
 	/** @return true if handle source is valid cified handle relative to given frame. */
 	bool IsHandleSourceValid(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const;
 
 	/** @return data view of the specified handle relative to the given frame, or tries to find a matching temporary instance. */
-	FStateTreeDataView GetDataViewOrTemporary(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle);
+	FStateTreeDataView GetDataViewOrTemporary(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const;
 
 	/**
 	 * Adds a temporary instance that can be located using frame and data handle later.
@@ -622,10 +541,10 @@ protected:
 	FStateTreeDataView AddTemporaryInstance(const FStateTreeExecutionFrame& Frame, const FStateTreeIndex16 OwnerNodeIndex, const FStateTreeDataHandle DataHandle, FConstStructView NewInstanceData);
 
 	/** Copies a batch of properties to the data in TargetView. Should be used only on active instances, assumes valid handles and does not consider temporary instances. */
-	bool CopyBatchOnActiveInstances(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch);
+	bool CopyBatchOnActiveInstances(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const;
 
 	/** Copies a batch of properties to the data in TargetView. This version validates the data handles and looks up temporary instances. */
-	bool CopyBatchWithValidation(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch);
+	bool CopyBatchWithValidation(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const;
 
 	/**
 	 * Collects external data for all StateTrees in active frames.
@@ -644,11 +563,6 @@ protected:
 	 * @returns true if successfully set the parameters
 	 */
 	bool SetGlobalParameters(const FInstancedPropertyBag& Parameters);
-
-	/**
-	 * Captures StateTree events used during the state selection.
-	 */
-	void CaptureNewStateEvents(TConstArrayView<FStateTreeExecutionFrame> PrevFrames, TConstArrayView<FStateTreeExecutionFrame> NewFrames, TArrayView<FStateTreeFrameStateSelectionEvents> FramesStateSelectionEvents);
 	
 	/** Owner of the instance data. */
 	UObject& Owner;
@@ -666,7 +580,7 @@ protected:
 	TArray<FStateTreeDataView, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> ContextAndExternalDataViews;
 
 	/** Events to process in current tick. */
-	TArray<FStateTreeSharedEvent, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> EventsToProcess;
+	TArray<FStateTreeEvent, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> EventsToProcess;
 
 	FOnCollectStateTreeExternalData CollectExternalDataDelegate;
 
@@ -706,6 +620,7 @@ protected:
 		const FStateTreeExecutionFrame* SavedFrame = nullptr;
 		const FStateTreeExecutionFrame* SavedParentFrame = nullptr;
 	};
+
 	
 	/** Current state we're processing, or invalid if not applicable. */
 	FStateTreeStateHandle CurrentlyProcessedState;
@@ -729,51 +644,7 @@ protected:
 		FStateTreeExecutionContext& Context;
 		FStateTreeStateHandle SavedState = FStateTreeStateHandle::Invalid; 
 	};
-
-	/** Current event we're processing in transition, or invalid if not applicable. */
-	const FStateTreeEvent* CurrentlyProcessedTransitionEvent = nullptr;
-
-	/** Helper struct to track currently processed transition event. */
-	struct FCurrentlyProcessedTransitionEventScope
-	{
-		FCurrentlyProcessedTransitionEventScope(FStateTreeExecutionContext& InContext, const FStateTreeEvent* Event)
-			: Context(InContext)
-		{
-			check(Context.CurrentlyProcessedTransitionEvent == nullptr);
-			Context.CurrentlyProcessedTransitionEvent = Event;
-		}
-
-		~FCurrentlyProcessedTransitionEventScope()
-		{
-			Context.CurrentlyProcessedTransitionEvent = nullptr;
-		}
-
-	private:
-		FStateTreeExecutionContext& Context;
-	};
-
-	/** Current frames events we're processing during the state selection, or invalid if not applicable. */
-	FStateTreeFrameStateSelectionEvents* CurrentlyProcessedStateSelectionEvents = nullptr;
-
-	/** Helper struct to track currently processed state selection events. */
-	struct FCurrentFrameStateSelectionEventsScope
-	{
-		FCurrentFrameStateSelectionEventsScope(FStateTreeExecutionContext& InContext, FStateTreeFrameStateSelectionEvents& InCurrentlyProcessedStateSelectionEvents)
-			: Context(InContext)
-		{
-			SavedStateSelectionEvents = Context.CurrentlyProcessedStateSelectionEvents; 
-			Context.CurrentlyProcessedStateSelectionEvents = &InCurrentlyProcessedStateSelectionEvents;
-		}
-
-		~FCurrentFrameStateSelectionEventsScope()
-		{
-			Context.CurrentlyProcessedStateSelectionEvents = SavedStateSelectionEvents;
-		}
-
-	private:
-		FStateTreeExecutionContext& Context;
-		FStateTreeFrameStateSelectionEvents* SavedStateSelectionEvents = nullptr;
-	};
+	
 
 	/** True if transitions are allowed to be requested directly instead of buffering. */
 	bool bAllowDirectTransitions = false;

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StateTreeTypes.h"
-#include "StateTreeEvents.h"
 #include "StateTree.h" // FStateTreeCustomVersion
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeTypes)
@@ -78,10 +77,4 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 #endif // WITH_EDITORONLY_DAT
-}
-
-bool FCompactEventDesc::DoesEventMatchDesc(const FStateTreeEvent& Event) const
-{
-	const UScriptStruct* EventPayloadStruct = Event.Payload.GetScriptStruct();
-	return (!Tag.IsValid() || !Event.Tag.IsValid() || Event.Tag.MatchesTag(Tag)) && (EventPayloadStruct == nullptr || PayloadStruct == nullptr || EventPayloadStruct->IsChildOf(PayloadStruct));
 }

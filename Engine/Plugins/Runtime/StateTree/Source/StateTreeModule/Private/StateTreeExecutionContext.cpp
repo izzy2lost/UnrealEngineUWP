@@ -246,16 +246,16 @@ EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBa
 
 		static const FStateTreeStateHandle RootState = FStateTreeStateHandle(0);
 
-		FStateSelectionResult StateSelectionResult;
-		if (SelectState(InitFrame, RootState, StateSelectionResult))
+		TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>> NextActiveFrames;
+		if (SelectState(InitFrame, RootState, NextActiveFrames))
 		{
-			check(StateSelectionResult.ContainsFrames());
-			if (StateSelectionResult.GetSelectedFrames().Last().ActiveStates.Last().IsCompletionState())
+			check(!NextActiveFrames.IsEmpty());
+			if (NextActiveFrames.Last().ActiveStates.Last().IsCompletionState())
 			{
 				// Transition to a terminal state (succeeded/failed).
 				STATETREE_LOG(Warning, TEXT("%hs: Tree %s at StateTree start on '%s' using StateTree '%s'."),
-					__FUNCTION__, StateSelectionResult.GetSelectedFrames().Last().ActiveStates.Last() == FStateTreeStateHandle::Succeeded ? TEXT("succeeded") : TEXT("failed"), *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
-				Exec.TreeRunStatus = StateSelectionResult.GetSelectedFrames().Last().ActiveStates.Last().ToCompletionStatus();
+					__FUNCTION__, NextActiveFrames.Last().ActiveStates.Last() == FStateTreeStateHandle::Succeeded ? TEXT("succeeded") : TEXT("failed"), *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
+				Exec.TreeRunStatus = NextActiveFrames.Last().ActiveStates.Last().ToCompletionStatus();
 			}
 			else
 			{
@@ -263,8 +263,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBa
 				FStateTreeTransitionResult Transition;
 				Transition.TargetState = RootState;
 				Transition.CurrentRunStatus = Exec.LastTickStatus;
-				Transition.NextActiveFrames = StateSelectionResult.GetSelectedFrames(); // Enter state will update Exec.ActiveFrames.
-				Transition.NextActiveFrameEvents = StateSelectionResult.GetFramesStateSelectionEvents();
+				Transition.NextActiveFrames = NextActiveFrames; // Enter state will update Exec.ActiveFrames.
 				const EStateTreeRunStatus LastTickStatus = EnterState(Transition);
 			
 				Exec.LastTickStatus = LastTickStatus;
@@ -361,7 +360,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::Stop(EStateTreeRunStatus Complet
 	
 	// Capture events added between ticks.
 	FStateTreeEventQueue& EventQueue = InstanceData.GetMutableEventQueue();
-	EventsToProcess = EventQueue.GetEventsView();
+	EventsToProcess = EventQueue.GetEvents();
 	EventQueue.Reset();
 
 	// Exit states if still in some valid state.
@@ -435,7 +434,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
 	Exec.CurrentPhase = EStateTreeUpdatePhase::TickStateTree;
 	
 	// Capture events added between ticks.
-	EventsToProcess = EventQueue.GetEventsView();
+	EventsToProcess = EventQueue.GetEvents();
 	EventQueue.Reset();
 	
 	// Update the delayed transitions.
@@ -468,7 +467,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
 			// Append events accumulated during the tick, so that transitions can immediately act on them.
 			// We'll consume the events only if they lead to state change below (EnterState is treated the same as Tick),
 			// or let them be processed next frame if no transition.
-			EventsToProcess.Append(EventQueue.GetEventsView());
+			EventsToProcess.Append(EventQueue.GetEvents());
 
 			// Trigger conditional transitions or state succeed/failed transitions. First tick transition is handled here too.
 			if (TriggerTransitions())
@@ -498,7 +497,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
 				}
 
 				// Append and consume the events accumulated during the state exit.
-				EventsToProcess.Append(EventQueue.GetEventsView());
+				EventsToProcess.Append(EventQueue.GetEvents());
 				EventQueue.Reset();
 
 				// Enter state tasks can fail/succeed, treat it same as tick.
@@ -823,11 +822,6 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 				TempInstanceStructs[BaseIndex + State.ParameterDataHandle.GetIndex()] = FindInstanceTempData(NextFrame, State.ParameterDataHandle);
 			}
 
-			if (State.EventDataIndex.IsValid())
-			{
-				InstanceStructs[BaseIndex + State.EventDataIndex.Get()] = FConstStructView(FStateTreeSharedEvent::StaticStruct());
-			}
-
 			for (int32 TaskIndex = State.TasksBegin; TaskIndex < (State.TasksBegin + State.TasksNum); TaskIndex++)
 			{
 				const FStateTreeTaskBase& Task = NextFrame.StateTree->Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
@@ -880,54 +874,7 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 	InstanceData.ResetTemporaryInstances();
 }
 
-FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle)
-{
-	switch (Handle.GetSource())
-	{
-	case EStateTreeDataSourceType::ContextData:
-		check(!ContextAndExternalDataViews.IsEmpty())
-		return ContextAndExternalDataViews[Handle.GetIndex()];
-
-	case EStateTreeDataSourceType::ExternalData:
-		check(!ContextAndExternalDataViews.IsEmpty())
-		return ContextAndExternalDataViews[CurrentFrame.ExternalDataBaseIndex.Get() + Handle.GetIndex()];
-
-	case EStateTreeDataSourceType::TransitionEvent:
-		{
-			if (CurrentlyProcessedTransitionEvent)
-			{
-				// const_cast because events are read only, but we cannot express that in FStateTreeDataView.
-				return FStateTreeDataView(FStructView::Make(*const_cast<FStateTreeEvent*>(CurrentlyProcessedTransitionEvent)));
-			}
-
-			return nullptr;
-		}
-
-	case EStateTreeDataSourceType::StateEvent:
-		{
-			if (CurrentlyProcessedStateSelectionEvents)
-			{
-				if (const FCompactStateTreeState* State = CurrentFrame.StateTree->GetStateFromHandle(Handle.GetState()))
-				{
-					if (const FStateTreeEvent* Event = CurrentlyProcessedStateSelectionEvents->Events[State->Depth].Get())
-					{
-						// const_cast because events are read only, but we cannot express that in FStateTreeDataView.
-						return FStateTreeDataView(FStructView::Make(*const_cast<FStateTreeEvent*>(Event)));
-					}
-				}
-
-				return {};
-			}
-
-			return GetDataViewFromInstanceStorage(*InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, ParentFrame, CurrentFrame, Handle);
-		}
-
-	default:
-		return GetDataViewFromInstanceStorage(*InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, ParentFrame, CurrentFrame, Handle);
-	}
-}
-
-FStateTreeDataView FStateTreeExecutionContext::GetDataViewFromInstanceStorage(FStateTreeInstanceStorage& InstanceDataStorage, FStateTreeInstanceStorage* CurrentlyProcessedSharedInstanceStorage, const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle)
+FStateTreeDataView FStateTreeExecutionContext::GetDataView(FStateTreeInstanceStorage& InstanceDataStorage, FStateTreeInstanceStorage* CurrentlyProcessedSharedInstanceStorage, const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, TConstArrayView<FStateTreeDataView> ContextAndExternalDataViews, const FStateTreeDataHandle Handle)
 {
 	switch (Handle.GetSource())
 	{
@@ -951,12 +898,20 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataViewFromInstanceStorage(FS
 		check(CurrentlyProcessedSharedInstanceStorage);
 		return CurrentlyProcessedSharedInstanceStorage->GetMutableObject(Handle.GetIndex());
 
+	case EStateTreeDataSourceType::ContextData:
+		check(!ContextAndExternalDataViews.IsEmpty())
+		return ContextAndExternalDataViews[Handle.GetIndex()];
+
+	case EStateTreeDataSourceType::ExternalData:
+		check(!ContextAndExternalDataViews.IsEmpty())
+		return ContextAndExternalDataViews[CurrentFrame.ExternalDataBaseIndex.Get() + Handle.GetIndex()];
+
 	case EStateTreeDataSourceType::GlobalParameterData:
 		{
 			// Defined in parent frame or is root state tree parameters
 			if (ParentFrame)
 			{
-				return GetDataViewFromInstanceStorage(InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, nullptr, *ParentFrame, CurrentFrame.GlobalParameterDataHandle);
+				return GetDataView(InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, nullptr, *ParentFrame, ContextAndExternalDataViews, CurrentFrame.GlobalParameterDataHandle);
 			}
 
 			return InstanceDataStorage.GetMutableGlobalParameters();
@@ -966,7 +921,7 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataViewFromInstanceStorage(FS
 		{
 			// Defined in parent frame.
 			check(ParentFrame);
-			return GetDataViewFromInstanceStorage(InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, nullptr, *ParentFrame, CurrentFrame.StateParameterDataHandle);
+			return GetDataView(InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, nullptr, *ParentFrame, ContextAndExternalDataViews, CurrentFrame.StateParameterDataHandle);
 		}
 
 	case EStateTreeDataSourceType::StateParameterData:
@@ -974,19 +929,6 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataViewFromInstanceStorage(FS
 			FCompactStateTreeParameters& Params = InstanceDataStorage.GetMutableStruct(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex()).Get<FCompactStateTreeParameters>();
 			return Params.Parameters.GetMutableValue();
 		}
-
-	case EStateTreeDataSourceType::StateEvent:
-		{
-			FStateTreeSharedEvent& SharedEvent = InstanceDataStorage.GetMutableStruct(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex()).Get<FStateTreeSharedEvent>();
-			check(SharedEvent.IsValid());
-			return FStateTreeDataView(FStructView::Make(SharedEvent));
-		}
-
-	case EStateTreeDataSourceType::ContextData:
-	case EStateTreeDataSourceType::ExternalData:
-	case EStateTreeDataSourceType::TransitionEvent:
-		return {};
-	
 	default:
 		checkf(false, TEXT("Unhandle case %s"), *UEnum::GetValueAsString(Handle.GetSource()));
 	}
@@ -1001,7 +943,7 @@ const FStateTreeExecutionFrame* FStateTreeExecutionContext::FindFrame(const USta
 		return Frame.StateTree == StateTree && Frame.RootState == RootState;
 	});
 
-	if (FrameIndex == INDEX_NONE)
+	if(FrameIndex == INDEX_NONE)
 	{
 		OutParentFrame = nullptr;
 		return nullptr;
@@ -1068,15 +1010,6 @@ bool FStateTreeExecutionContext::IsHandleSourceValid(const FStateTreeExecutionFr
 			&& CurrentFrame.ActiveStates.Contains(Handle.GetState())
 			&& InstanceDataStorage->IsValidIndex(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex());
 
-	case EStateTreeDataSourceType::TransitionEvent:
-		return CurrentlyProcessedTransitionEvent != nullptr;
-
-	case EStateTreeDataSourceType::StateEvent:
-		return CurrentlyProcessedStateSelectionEvents != nullptr
-			|| (CurrentFrame.ActiveInstanceIndexBase.IsValid()
-			&& CurrentFrame.ActiveStates.Contains(Handle.GetState())
-			&& InstanceDataStorage->IsValidIndex(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex()));
-
 	default:
 		checkf(false, TEXT("Unhandle case %s"), *UEnum::GetValueAsString(Handle.GetSource()));
 	}
@@ -1084,7 +1017,7 @@ bool FStateTreeExecutionContext::IsHandleSourceValid(const FStateTreeExecutionFr
 	return false;
 }
 
-FStateTreeDataView FStateTreeExecutionContext::GetDataViewOrTemporary(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle)
+FStateTreeDataView FStateTreeExecutionContext::GetDataViewOrTemporary(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const
 {
 	if (IsHandleSourceValid(ParentFrame, CurrentFrame, Handle))
 	{
@@ -1150,7 +1083,7 @@ FStateTreeDataView FStateTreeExecutionContext::AddTemporaryInstance(const FState
 	return NewInstance;
 }
 
-bool FStateTreeExecutionContext::CopyBatchOnActiveInstances(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch)
+bool FStateTreeExecutionContext::CopyBatchOnActiveInstances(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const
 {
 	const FStateTreePropertyCopyBatch& Batch = CurrentFrame.StateTree->PropertyBindings.GetBatch(BindingsBatch);
 	check(TargetView.GetStruct() == Batch.TargetStruct.Struct);
@@ -1164,7 +1097,7 @@ bool FStateTreeExecutionContext::CopyBatchOnActiveInstances(const FStateTreeExec
 	return bSucceed;
 }
 
-bool FStateTreeExecutionContext::CopyBatchWithValidation(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch)
+bool FStateTreeExecutionContext::CopyBatchWithValidation(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const
 {
 	const FStateTreePropertyCopyBatch& Batch = CurrentFrame.StateTree->PropertyBindings.GetBatch(BindingsBatch);
 	check(TargetView.GetStruct() == Batch.TargetStruct.Struct);
@@ -1309,69 +1242,6 @@ bool FStateTreeExecutionContext::SetGlobalParameters(const FInstancedPropertyBag
 	return false;
 }
 
-void FStateTreeExecutionContext::CaptureNewStateEvents(TConstArrayView<FStateTreeExecutionFrame> PrevFrames, TConstArrayView<FStateTreeExecutionFrame> NewFrames, TArrayView<FStateTreeFrameStateSelectionEvents> FramesStateSelectionEvents)
-{
-	// Mark the events from delayed transitions as in use, so that each State will receive unique copy of the event struct. 
-	TArray<FStateTreeSharedEvent, TInlineAllocator<16>> EventsInUse;
-	for (const FStateTreeTransitionDelayedState& DelayedTransition : GetExecState().DelayedTransitions)
-	{
-		if (DelayedTransition.CapturedEvent.IsValid())
-		{
-			EventsInUse.Add(DelayedTransition.CapturedEvent);
-		}
-	}
-
-	for (int32 FrameIndex = 0; FrameIndex < NewFrames.Num(); ++FrameIndex)
-	{
-		const FStateTreeExecutionFrame& NewFrame = NewFrames[FrameIndex];
-
-		// Find states that are unique to the new frame.
-		TConstArrayView<FStateTreeStateHandle> UniqueStates = NewFrame.ActiveStates.States;
-		if (PrevFrames.IsValidIndex(FrameIndex))
-		{
-			const FStateTreeExecutionFrame& PrevFrame = PrevFrames[FrameIndex];
-
-			if (PrevFrame.RootState == NewFrame.RootState
-				&& PrevFrame.StateTree == NewFrame.StateTree)
-			{
-				for (int32 StateIndex = 0; StateIndex < NewFrame.ActiveStates.Num(); ++StateIndex)
-				{
-					if (!PrevFrame.ActiveStates.IsValidIndex(StateIndex) || PrevFrame.ActiveStates[StateIndex] == NewFrame.ActiveStates[StateIndex])
-					{
-						UniqueStates = TConstArrayView<FStateTreeStateHandle>(&NewFrame.ActiveStates[StateIndex], NewFrame.ActiveStates.Num() - StateIndex);
-						break;
-					}
-				}
-			}
-		}
-
-		// Capture events for the new states.
-		for (const FStateTreeStateHandle StateHandle : UniqueStates)
-		{
-			if (const FCompactStateTreeState* State = NewFrame.StateTree->GetStateFromHandle(StateHandle))
-			{
-				if (State->EventDataIndex.IsValid())
-				{
-					FStateTreeSharedEvent& StateTreeEvent = InstanceDataStorage->GetMutableStruct(NewFrame.ActiveInstanceIndexBase.Get() + State->EventDataIndex.Get()).Get<FStateTreeSharedEvent>();
-					
-					const FStateTreeSharedEvent& EventToCapture = FramesStateSelectionEvents[FrameIndex].Events[State->Depth];
-					if (EventsInUse.Contains(EventToCapture))
-					{
-						// Event is already spoken for, make a copy.
-						StateTreeEvent = FStateTreeSharedEvent(*EventToCapture);
-					}
-					else
-					{
-						// Event not in use, steal it.
-						StateTreeEvent = FramesStateSelectionEvents[FrameIndex].Events[State->Depth];
-						EventsInUse.Add(EventToCapture);
-					}
-				}
-			}
-		}
-	}
-}
-
 EStateTreeRunStatus FStateTreeExecutionContext::EnterState(FStateTreeTransitionResult& Transition)
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_EnterState);
@@ -1385,8 +1255,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::EnterState(FStateTreeTransitionR
 
 	// Allocate new tasks.
 	UpdateInstanceData(Exec.ActiveFrames, Transition.NextActiveFrames);
-
-	CaptureNewStateEvents(Exec.ActiveFrames, Transition.NextActiveFrames, Transition.NextActiveFrameEvents);
 
 	Exec.StateChangeCount++;
 	Exec.CompletedFrameIndex = FStateTreeIndex16::Invalid;
@@ -2466,25 +2334,18 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 FString FStateTreeExecutionContext::DebugGetEventsAsString() const
 {
 	FString Result;
-	for (const FStateTreeSharedEvent& Event : EventsToProcess)
+	for (const FStateTreeEvent& Event : EventsToProcess)
 	{
 		if (!Result.IsEmpty())
 		{
 			Result += TEXT(", ");
 		}
-
-		check(Event.IsValid());
-		Result += Event->Tag.ToString();
+		Result += Event.Tag.ToString();
 	}
 	return Result;
 }
 
-bool FStateTreeExecutionContext::RequestTransition(
-	const FStateTreeExecutionFrame& CurrentFrame,
-	const FStateTreeStateHandle NextState,
-	const EStateTreeTransitionPriority Priority,
-	const FStateTreeSharedEvent* TransitionEvent,
-	const EStateTreeSelectionFallback Fallback)
+bool FStateTreeExecutionContext::RequestTransition(const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeStateHandle NextState, const EStateTreeTransitionPriority Priority, const EStateTreeSelectionFallback Fallback)
 {
 	// Skip lower priority transitions.
 	if (NextTransition.Priority >= Priority)
@@ -2506,12 +2367,11 @@ bool FStateTreeExecutionContext::RequestTransition(
 		return true;
 	}
 
-	FStateSelectionResult StateSelectionResult;
-	if (SelectState(CurrentFrame, NextState, StateSelectionResult, TransitionEvent, Fallback))
+	TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>> NewNextActiveFrames;
+	if (SelectState(CurrentFrame, NextState, NewNextActiveFrames, Fallback))
 	{
 		SetupNextTransition(CurrentFrame, NextState, Priority);
-		NextTransition.NextActiveFrames = StateSelectionResult.GetSelectedFrames();
-		NextTransition.NextActiveFrameEvents = StateSelectionResult.GetFramesStateSelectionEvents();
+		NextTransition.NextActiveFrames = NewNextActiveFrames;
 
 		STATETREE_LOG(Verbose, TEXT("Transition on state '%s' -[%s]-> state '%s'"),
 			*GetSafeStateName(CurrentFrame, CurrentFrame.ActiveStates.Last()),
@@ -2662,111 +2522,75 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 					}
 
 					// If a delayed transition has passed the delay, and remove it from the queue, and try trigger it.
+					FStateTreeTransitionDelayedState* DelayedState = nullptr;
 					if (Transition.HasDelay())
 					{
-						bool bTriggeredDelayedTransition = false;
-						const TArray<FStateTreeTransitionDelayedState, TInlineAllocator<8>> ExpiredDelayedStates = Exec.FindAndRemoveExpiredDelayedTransitions(CurrentFrame.StateTree, FStateTreeIndex16(TransitionIndex));
-						for (const FStateTreeTransitionDelayedState& DelayedState : ExpiredDelayedStates)
+						DelayedState = Exec.FindDelayedTransition(CurrentFrame.StateTree, FStateTreeIndex16(TransitionIndex));
+						if (DelayedState != nullptr && DelayedState->TimeLeft <= 0.0f)
 						{
 							STATETREE_LOG(Verbose, TEXT("Passed delayed transition from '%s' (%s) -> '%s'"),
 								*GetSafeStateName(CurrentFrame, CurrentFrame.ActiveStates.Last()), *State.Name.ToString(), *GetSafeStateName(CurrentFrame, Transition.State));
 
+							Exec.DelayedTransitions.RemoveAllSwap([StateTree = CurrentFrame.StateTree, TransitionIndex](const FStateTreeTransitionDelayedState& DelayedState)
+								{
+									return DelayedState.StateTree == StateTree && DelayedState.TransitionIndex.Get() == TransitionIndex;
+								});
+
 							// Trigger Delayed Transition when the delay has passed.
-							if (RequestTransition(CurrentFrame, Transition.State, Transition.Priority, &DelayedState.CapturedEvent, Transition.Fallback))
+							if (RequestTransition(CurrentFrame, Transition.State, Transition.Priority, Transition.Fallback))
 							{
 								NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
-								bTriggeredDelayedTransition = true;
-								break;
 							}
-						}
-
-						if (bTriggeredDelayedTransition)
-						{
 							continue;
 						}
 					}
 
-					TArray<FStateTreeSharedEvent*, TInlineAllocator<8>> TransitionEvents;
+					const bool bShouldTrigger = Transition.Trigger == EStateTreeTransitionTrigger::OnTick
+												|| (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent
+													&& HasEventToProcess(Transition.EventTag));
 
-					if (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent)
+					bool bPassed = false; 
+					if (bShouldTrigger)
 					{
-						check(Transition.RequiredEvent.IsValid());
-
-						TConstArrayView<FStateTreeSharedEvent> EventsQueue = GetEventsToProcessView();
-						for (FStateTreeSharedEvent Event : EventsQueue)
-						{
-							check(Event.IsValid());
-							if (Transition.RequiredEvent.DoesEventMatchDesc(*Event))
-							{
-								TransitionEvents.Emplace(&Event);
-							}
-						}
+						STATETREE_TRACE_TRANSITION_EVENT(FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority), EStateTreeTraceEventType::OnEvaluating);
+						STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TransitionConditions);
+						bPassed = TestAllConditions(CurrentParentFrame, CurrentFrame, Transition.ConditionsBegin, Transition.ConditionsNum);
 					}
-					else if (Transition.Trigger == EStateTreeTransitionTrigger::OnTick)
-					{
-						TransitionEvents.Emplace();
-					}
-					
-					for (FStateTreeSharedEvent* TransitionEvent : TransitionEvents)
-					{
-						bool bPassed = false; 
-						{
-							FCurrentlyProcessedTransitionEventScope TransitionEventScope(*this, TransitionEvent ? TransitionEvent->Get() : nullptr);
-							STATETREE_TRACE_TRANSITION_EVENT(FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority), EStateTreeTraceEventType::OnEvaluating);
-							STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TransitionConditions);
-							bPassed = TestAllConditions(CurrentParentFrame, CurrentFrame, Transition.ConditionsBegin, Transition.ConditionsNum);
-						}
 
-						if (bPassed)
+					if (bPassed)
+					{
+						// If the transitions is delayed, set up the delay. 
+						if (Transition.HasDelay())
 						{
-							// If the transitions is delayed, set up the delay. 
-							if (Transition.HasDelay())
+							if (DelayedState == nullptr)
 							{
-								uint32 TransitionEventHash = 0u;
-								if (TransitionEvent && TransitionEvent->IsValid())
-								{		
-									TransitionEventHash = GetTypeHash(*TransitionEvent->Get());
-								}
-
-								const bool bIsDelayedTransitionExisting = Exec.DelayedTransitions.ContainsByPredicate([StateTree = CurrentFrame.StateTree, TransitionIndex, TransitionEventHash](const FStateTreeTransitionDelayedState& DelayedState)
+								// Initialize new delayed transition.
+								const float DelayDuration = Transition.Delay.GetRandomDuration();
+								if (DelayDuration > 0.0f)
 								{
-									return DelayedState.StateTree == StateTree && DelayedState.TransitionIndex.Get() == TransitionIndex && DelayedState.CapturedEventHash == TransitionEventHash;
-								});
-
-								if (!bIsDelayedTransitionExisting)
-								{
-									// Initialize new delayed transition.
-									const float DelayDuration = Transition.Delay.GetRandomDuration();
-									if (DelayDuration > 0.0f)
-									{
-										FStateTreeTransitionDelayedState& DelayedState = Exec.DelayedTransitions.AddDefaulted_GetRef();
-										DelayedState.StateTree = CurrentFrame.StateTree;
-										DelayedState.TransitionIndex = FStateTreeIndex16(TransitionIndex);
-										DelayedState.TimeLeft = DelayDuration;
-										DelayedState.CapturedEvent = *TransitionEvent;
-										DelayedState.CapturedEventHash = TransitionEventHash;
-
-										BeginDelayedTransition(DelayedState);
-										STATETREE_LOG(Verbose, TEXT("Delayed transition triggered from '%s' (%s) -> '%s' %.1fs"),
-											*GetSafeStateName(CurrentFrame, CurrentFrame.ActiveStates.Last()), *State.Name.ToString(), *GetSafeStateName(CurrentFrame, Transition.State), DelayedState.TimeLeft);
+									DelayedState = &Exec.DelayedTransitions.AddDefaulted_GetRef();
+									DelayedState->StateTree = CurrentFrame.StateTree;
+									DelayedState->TransitionIndex = FStateTreeIndex16(TransitionIndex);
+									DelayedState->TimeLeft = DelayDuration;
+									BeginDelayedTransition(*DelayedState);
+									STATETREE_LOG(Verbose, TEXT("Delayed transition triggered from '%s' (%s) -> '%s' %.1fs"),
+										*GetSafeStateName(CurrentFrame, CurrentFrame.ActiveStates.Last()), *State.Name.ToString(), *GetSafeStateName(CurrentFrame, Transition.State), DelayedState->TimeLeft);
 									
-										// Delay state added, skip requesting the transition.
-										continue;
-									}
-									// Fallthrough to request transition if duration was zero. 
-								}
-								else
-								{
-									// We get here if the transitions re-triggers during the delay, on which case we'll just ignore it.
+									// Delay state added, skip requesting the transition.
 									continue;
 								}
+								// Fallthrough to request transition if duration was zero. 
 							}
-
-							if (RequestTransition(CurrentFrame, Transition.State, Transition.Priority, TransitionEvent, Transition.Fallback))
+							else
 							{
-								NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
-								break;
+								// We get here if the transitions re-triggers during the delay, on which case we'll just ignore it.
+								continue;
 							}
+						}
+
+						if (RequestTransition(CurrentFrame, Transition.State, Transition.Priority, Transition.Fallback))
+						{
+							NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
 						}
 					}
 				}
@@ -2871,7 +2695,7 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 						{
 							// No delay allowed on completion conditions.
 							// No priority on completion transitions, use the priority to signal that state is selected.
-							if (RequestTransition(CurrentFrame, Transition.State, EStateTreeTransitionPriority::Normal, /*TransitionEvent*/nullptr, Transition.Fallback))
+							if (RequestTransition(CurrentFrame, Transition.State, EStateTreeTransitionPriority::Normal, Transition.Fallback))
 							{
 								NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
 								break;
@@ -2954,12 +2778,9 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 
 bool FStateTreeExecutionContext::SelectState(const FStateTreeExecutionFrame& CurrentFrame,
 											const FStateTreeStateHandle NextState,
-											FStateSelectionResult& OutSelectionResult,
-											const FStateTreeSharedEvent* TransitionEvent,
+											TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>>& OutNextActiveFrames,
 											const EStateTreeSelectionFallback Fallback)
 {
-	check(TransitionEvent == nullptr || TransitionEvent->IsValid());
-
 	const FStateTreeExecutionState& Exec = GetExecState();
 
 	if (Exec.ActiveFrames.IsEmpty())
@@ -3018,14 +2839,14 @@ bool FStateTreeExecutionContext::SelectState(const FStateTreeExecutionFrame& Cur
 	if (CurrentFrameIndex != INDEX_NONE)
 	{
 		const int32 NumCommonFrames = CurrentFrameIndex + 1;
-		OutSelectionResult = FStateSelectionResult(MakeArrayView(Exec.ActiveFrames.GetData(), NumCommonFrames));
+		OutNextActiveFrames = MakeArrayView(Exec.ActiveFrames.GetData(), NumCommonFrames);
 		CurrentFrameInActiveFrames  = &Exec.ActiveFrames[CurrentFrameIndex];
 	}
 	else if (CurrentStateTreeIndex != INDEX_NONE)
 	{
 		// If we could not find a common frame, we assume that we jumped to different subtree in same asset.
 		const int32 NumCommonFrames = CurrentStateTreeIndex + 1;
-		OutSelectionResult = FStateSelectionResult(MakeArrayView(Exec.ActiveFrames.GetData(), NumCommonFrames));
+		OutNextActiveFrames = MakeArrayView(Exec.ActiveFrames.GetData(), NumCommonFrames);
 		CurrentFrameInActiveFrames  = &Exec.ActiveFrames[CurrentStateTreeIndex];
 	}
 	else
@@ -3037,8 +2858,8 @@ bool FStateTreeExecutionContext::SelectState(const FStateTreeExecutionFrame& Cur
 	
 	// Append in between state in reverse order, they were collected from leaf towards the root.
 	// Note: NextState will be added by SelectStateInternal() if conditions pass.
-	const int32 LastFrameIndex = OutSelectionResult.FramesNum() - 1;
-	FStateTreeExecutionFrame& LastFrame = OutSelectionResult.GetSelectedFrames()[LastFrameIndex];
+	const int32 LastFrameIndex = OutNextActiveFrames.Num() - 1;
+	FStateTreeExecutionFrame& LastFrame = OutNextActiveFrames[LastFrameIndex];
 
 	LastFrame.ActiveStates.Reset();
 	for (int32 Index = NumParentStates - 1; Index > 0; Index--)
@@ -3046,16 +2867,16 @@ bool FStateTreeExecutionContext::SelectState(const FStateTreeExecutionFrame& Cur
 		LastFrame.ActiveStates.Push(ParentStates[Index]);
 	}
 
-	FStateSelectionResult InitialSelection;
-
+	TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>> InitialNextActiveFrames;
+	
 	if (Fallback == EStateTreeSelectionFallback::NextSelectableSibling)
 	{
-		InitialSelection = OutSelectionResult;
+		InitialNextActiveFrames = OutNextActiveFrames;
 	}
 	
 	// We take copy of the last frame and assign it later, as SelectStateInternal() might change the array and invalidate the pointer.
-	const FStateTreeExecutionFrame* CurrentParentFrame = LastFrameIndex > 0 ? &OutSelectionResult.GetSelectedFrames()[LastFrameIndex - 1] : nullptr; 
-	if (SelectStateInternal(CurrentParentFrame, OutSelectionResult.GetSelectedFrames()[LastFrameIndex], CurrentFrameInActiveFrames , NextState, OutSelectionResult, TransitionEvent))
+	const FStateTreeExecutionFrame* CurrentParentFrame = LastFrameIndex > 0 ? &OutNextActiveFrames[LastFrameIndex - 1] : nullptr; 
+	if (SelectStateInternal(CurrentParentFrame, OutNextActiveFrames[LastFrameIndex], CurrentFrameInActiveFrames , NextState, OutNextActiveFrames))
 	{
 		return true;
 	}
@@ -3076,11 +2897,11 @@ bool FStateTreeExecutionContext::SelectState(const FStateTreeExecutionFrame& Cur
 				FStateTreeStateHandle ChildStateHandle = FStateTreeStateHandle(ChildState);
 
 				// Start selection from blank slate.
-				OutSelectionResult = InitialSelection;
+				OutNextActiveFrames = InitialNextActiveFrames;
 	
 				// We take copy of the last frame and assign it later, as SelectStateInternal() might change the array and invalidate the pointer.
-				CurrentParentFrame = LastFrameIndex > 0 ? &OutSelectionResult.GetSelectedFrames()[LastFrameIndex - 1] : nullptr; 
-				if (SelectStateInternal(CurrentParentFrame, OutSelectionResult.GetSelectedFrames()[LastFrameIndex], CurrentFrameInActiveFrames, ChildStateHandle, OutSelectionResult))
+				CurrentParentFrame = LastFrameIndex > 0 ? &OutNextActiveFrames[LastFrameIndex - 1] : nullptr; 
+				if (SelectStateInternal(CurrentParentFrame, OutNextActiveFrames[LastFrameIndex], CurrentFrameInActiveFrames , ChildStateHandle, OutNextActiveFrames))
 				{
 					return true;
 				}
@@ -3096,8 +2917,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 	FStateTreeExecutionFrame& CurrentFrame,
 	const FStateTreeExecutionFrame* CurrentFrameInActiveFrames,
 	const FStateTreeStateHandle NextStateHandle,
-	FStateSelectionResult& OutSelectionResult,
-	const FStateTreeSharedEvent* TransitionEvent)
+	TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>>& OutNextActiveFrames)
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_SelectState);
 
@@ -3112,7 +2932,6 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 	}
 
 	FCurrentlyProcessedFrameScope FrameScope(*this, CurrentParentFrame, CurrentFrame);
-	FCurrentFrameStateSelectionEventsScope CapturedEventsScope(*this, OutSelectionResult.GetFramesStateSelectionEvents().Last());
 
 	const UStateTree* CurrentStateTree = CurrentFrame.StateTree;
 	const FCompactStateTreeState& NextState = CurrentStateTree->States[NextStateHandle.Index];
@@ -3133,53 +2952,13 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		return false;
 	}
 
-	TArray<const FStateTreeSharedEvent*, TInlineAllocator<FStateTreeEventQueue::MaxActiveEvents>> StateSelectionEvents;
-	if (NextState.EventDataIndex.IsValid())
+	// Check that the state can be entered
+	STATETREE_TRACE_PHASE_BEGIN(EStateTreeUpdatePhase::EnterConditions);
+	const bool bEnterConditionsPassed = TestAllConditions(CurrentParentFrame, CurrentFrame, NextState.EnterConditionsBegin, NextState.EnterConditionsNum);
+	STATETREE_TRACE_PHASE_END(EStateTreeUpdatePhase::EnterConditions);
+
+	if (bEnterConditionsPassed)
 	{
-		check(NextState.RequiredEventToEnter.IsValid());
-
-		TArrayView<FStateTreeSharedEvent> EventsQueue = GetMutableEventsToProcessView();
-		if (TransitionEvent && TransitionEvent->IsValid())
-		{
-			if (NextState.RequiredEventToEnter.DoesEventMatchDesc(*TransitionEvent->Get()))
-			{
-				StateSelectionEvents.Emplace(TransitionEvent);
-			}
-		}
-		else
-		{
-			for (FStateTreeSharedEvent& Event : EventsQueue)
-			{
-				check(Event.IsValid());
-				if (NextState.RequiredEventToEnter.DoesEventMatchDesc(*Event))
-				{
-					StateSelectionEvents.Emplace(&Event);
-				}
-			}
-		}
-	}
-	else
-	{
-		StateSelectionEvents.Emplace();
-	}
-
-	for (const FStateTreeSharedEvent* StateSelectionEvent : StateSelectionEvents)
-	{
-		if (StateSelectionEvent)
-		{
-			CurrentlyProcessedStateSelectionEvents->Events[NextState.Depth] = *StateSelectionEvent;
-		}
-		
-		// Check that the state can be entered
-		STATETREE_TRACE_PHASE_BEGIN(EStateTreeUpdatePhase::EnterConditions);
-		const bool bEnterConditionsPassed = TestAllConditions(CurrentParentFrame, CurrentFrame, NextState.EnterConditionsBegin, NextState.EnterConditionsNum);
-		STATETREE_TRACE_PHASE_END(EStateTreeUpdatePhase::EnterConditions);
-
-		if (!bEnterConditionsPassed)
-		{
-			continue;
-		}
-
 		if (!CurrentFrame.ActiveStates.Push(NextStateHandle))
 		{
 			STATETREE_LOG(Error, TEXT("%hs: Reached max execution depth when trying to select state %s from '%s'.  '%s' using StateTree '%s'."),
@@ -3233,7 +3012,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		{
 			if (NextState.LinkedState.IsValid())
 			{
-				if (OutSelectionResult.IsFull())
+				if (OutNextActiveFrames.Num() == MaxExecutionFrames)
 				{
 					STATETREE_LOG(Error, TEXT("%hs: Reached max execution depth when trying to select state %s from '%s'.  '%s' using StateTree '%s'."),
 						__FUNCTION__, *GetSafeStateName(CurrentFrame, NextStateHandle), *GetStateStatusString(Exec), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
@@ -3246,7 +3025,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				NewFrame.ExternalDataBaseIndex = CurrentFrame.ExternalDataBaseIndex;
 
 				// Check and prevent recursion.
-				const bool bNewFrameAlreadySelected = OutSelectionResult.GetSelectedFrames().ContainsByPredicate([&NewFrame](const FStateTreeExecutionFrame& Frame) {
+				const bool bNewFrameAlreadySelected = OutNextActiveFrames.ContainsByPredicate([&NewFrame](const FStateTreeExecutionFrame& Frame) {
 					return Frame.IsSameFrame(NewFrame);
 				});
 				
@@ -3278,15 +3057,15 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 					NewFrame.StateParameterDataHandle = NextState.ParameterDataHandle; // Temporary allocated earlier if did not exists.
 				}
 
-				OutSelectionResult.PushFrame(NewFrame);
+				OutNextActiveFrames.Push(NewFrame);
 
 				// If State is linked, proceed to the linked state.
-				if (SelectStateInternal(&CurrentFrame, OutSelectionResult.GetSelectedFrames().Last(), ExistingFrame, NewFrame.RootState, OutSelectionResult))
+				if (SelectStateInternal(&CurrentFrame, OutNextActiveFrames.Last(), ExistingFrame, NewFrame.RootState, OutNextActiveFrames))
 				{
 					return true;
 				}
 				
-				OutSelectionResult.PopFrame();
+				OutNextActiveFrames.Pop();
 			}
 			else
 			{
@@ -3298,7 +3077,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		{
 			if (NextState.LinkedAsset)
 			{
-				if (OutSelectionResult.IsFull())
+				if (OutNextActiveFrames.Num() == MaxExecutionFrames)
 				{
 					STATETREE_LOG(Error, TEXT("%hs: Reached max execution depth when trying to select state %s from '%s'.  '%s' using StateTree '%s'."),
 						__FUNCTION__, *GetSafeStateName(CurrentFrame, NextStateHandle), *GetStateStatusString(Exec), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
@@ -3319,7 +3098,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				NewFrame.bIsGlobalFrame = true;
 
 				// Check and prevent recursion.
-				const bool bNewFrameAlreadySelected = OutSelectionResult.GetSelectedFrames().ContainsByPredicate([&NewFrame](const FStateTreeExecutionFrame& Frame) {
+				const bool bNewFrameAlreadySelected = OutNextActiveFrames.ContainsByPredicate([&NewFrame](const FStateTreeExecutionFrame& Frame) {
 					return Frame.IsSameFrame(NewFrame);
 				});
 				
@@ -3371,15 +3150,15 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 					}
 				}
 				
-				OutSelectionResult.PushFrame(NewFrame);
+				OutNextActiveFrames.Push(NewFrame);
 
 				// If State is linked, proceed to the linked state.
-				if (SelectStateInternal(&CurrentFrame, OutSelectionResult.GetSelectedFrames().Last(), ExistingFrame, NewFrame.RootState, OutSelectionResult))
+				if (SelectStateInternal(&CurrentFrame, OutNextActiveFrames.Last(), ExistingFrame, NewFrame.RootState, OutNextActiveFrames))
 				{
 					return true;
 				}
 				
-				OutSelectionResult.PopFrame();
+				OutNextActiveFrames.Pop();
 			}
 			else
 			{
@@ -3432,62 +3211,33 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				if (CurrentFrame.ActiveStates.Contains(Transition.State))
 				{
 					STATETREE_LOG(Error, TEXT("%hs: Loop detected when trying to select state %s from '%s'. Prior states: %s.  '%s' using StateTree '%s'."),
-						__FUNCTION__, *GetSafeStateName(CurrentFrame, NextStateHandle), *GetStateStatusString(Exec), *DebugGetStatePath(OutSelectionResult.GetSelectedFrames(), &CurrentFrame), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
+						__FUNCTION__, *GetSafeStateName(CurrentFrame, NextStateHandle), *GetStateStatusString(Exec), *DebugGetStatePath(OutNextActiveFrames, &CurrentFrame), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
 					continue;
 				}
 
-				TArray<const FStateTreeSharedEvent*, TInlineAllocator<FStateTreeEventQueue::MaxActiveEvents>> SelectedStateTransitionEvents;
-				if (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent)
-				{
-					check(Transition.RequiredEvent.IsValid());
+				const bool bShouldTrigger = Transition.Trigger == EStateTreeTransitionTrigger::OnTick
+											|| (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent
+												&& HasEventToProcess(Transition.EventTag));
 
-					if (StateSelectionEvent)
-					{
-						SelectedStateTransitionEvents.Emplace(StateSelectionEvent);
-					}
-					else
-					{
-						TArrayView<FStateTreeSharedEvent> EventsQueue = GetMutableEventsToProcessView();
-						for (FStateTreeSharedEvent& Event : EventsQueue)
-						{
-							check(Event.IsValid());
-							if (Transition.RequiredEvent.DoesEventMatchDesc(*Event))
-							{
-								SelectedStateTransitionEvents.Emplace(&Event);
-							}
-						}
-					}
-				}
-				else if (Transition.Trigger == EStateTreeTransitionTrigger::OnTick)
+				bool bTransitionConditionsPassed = false;
+				if (bShouldTrigger)
 				{
-					SelectedStateTransitionEvents.Emplace();
+					STATETREE_TRACE_TRANSITION_EVENT(FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority), EStateTreeTraceEventType::OnEvaluating);
+					STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TransitionConditions);
+					bTransitionConditionsPassed = bShouldTrigger && TestAllConditions(CurrentParentFrame, CurrentFrame, Transition.ConditionsBegin, Transition.ConditionsNum);
 				}
 
-				for (const FStateTreeSharedEvent* SelectedStateTransitionEvent : SelectedStateTransitionEvents)
+				if (bTransitionConditionsPassed)
 				{
-					bool bTransitionConditionsPassed = false;
+					// Using SelectState() instead of SelectStateInternal to treat the transitions the same way as regular transitions,
+					// e.g. it may jump to a completely different branch.
+					TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>> NewActiveFrames;
+					if (SelectState(CurrentFrame, Transition.State, NewActiveFrames, Transition.Fallback))
 					{
-						FCurrentlyProcessedTransitionEventScope TransitionEventScope(*this, SelectedStateTransitionEvent ? SelectedStateTransitionEvent->Get() : nullptr);
-
-						STATETREE_TRACE_TRANSITION_EVENT(FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority), EStateTreeTraceEventType::OnEvaluating);
-						STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TransitionConditions);
-
-						bTransitionConditionsPassed = TestAllConditions(CurrentParentFrame, CurrentFrame, Transition.ConditionsBegin, Transition.ConditionsNum);
-					}
-
-					if (bTransitionConditionsPassed)
-					{
-						// Using SelectState() instead of SelectStateInternal to treat the transitions the same way as regular transitions,
-						// e.g. it may jump to a completely different branch.
-						FStateSelectionResult StateSelectionResult;
-						if (SelectState(CurrentFrame, Transition.State, StateSelectionResult, SelectedStateTransitionEvent, Transition.Fallback))
-						{
-							// Selection succeeded.
-							// Cannot break yet because higher priority transitions may override the selection. 
-							OutSelectionResult = StateSelectionResult;
-							CurrentPriority = Transition.Priority;
-							break;
-						}
+						// Selection succeeded.
+						// Cannot break yet because higher priority transitions may override the selection. 
+						OutNextActiveFrames = NewActiveFrames;
+						CurrentPriority = Transition.Priority;
 					}
 				}
 			}
@@ -3506,7 +3256,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				// If the state has children, proceed to select children.
 				for (uint16 ChildState = NextState.ChildrenBegin; ChildState < NextState.ChildrenEnd; ChildState = CurrentStateTree->States[ChildState].GetNextSibling())
 				{
-					if (SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames, FStateTreeStateHandle(ChildState), OutSelectionResult))
+					if (SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames, FStateTreeStateHandle(ChildState), OutNextActiveFrames))
 					{
 						// Selection succeeded
 						return true;
@@ -3747,15 +3497,14 @@ void FStateTreeExecutionContext::DebugPrintInternalLayout()
 	RootStateTree.PropertyBindings.DebugPrintInternalLayout(DebugString);
 
 	// Transitions
-	DebugString += FString::Printf(TEXT("\nTransitions(%d)\n  [ %-3s | %15s | %-20s | %-40s | %-40s | %-8s ]\n"), RootStateTree.Transitions.Num()
-		, TEXT("Idx"), TEXT("State"), TEXT("Transition Trigger"), TEXT("Transition Event Tag"), TEXT("Transition Event Payload"), TEXT("Num Cond"));
+	DebugString += FString::Printf(TEXT("\nTransitions(%d)\n  [ %-3s | %15s | %-20s | %-40s | %-8s ]\n"), RootStateTree.Transitions.Num()
+		, TEXT("Idx"), TEXT("State"), TEXT("Transition Trigger"), TEXT("Transition Event Tag"), TEXT("Num Cond"));
 	for (const FCompactStateTransition& Transition : RootStateTree.Transitions)
 	{
-		DebugString += FString::Printf(TEXT("  | %3d | %15s | %-20s | %-40s | %-40s | %8d |\n"),
+		DebugString += FString::Printf(TEXT("  | %3d | %15s | %-20s | %-40s | %8d |\n"),
 									Transition.ConditionsBegin, *Transition.State.Describe(),
 									*UEnum::GetDisplayValueAsText(Transition.Trigger).ToString(),
-									*Transition.RequiredEvent.Tag.ToString(),
-									Transition.RequiredEvent.PayloadStruct ? *Transition.RequiredEvent.PayloadStruct->GetName() : TEXT("None"),
+									*Transition.EventTag.ToString(),
 									Transition.ConditionsNum);
 	}
 

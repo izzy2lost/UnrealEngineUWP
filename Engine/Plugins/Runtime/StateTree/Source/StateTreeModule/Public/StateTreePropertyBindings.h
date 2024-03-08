@@ -24,15 +24,11 @@ enum class EStateTreeBindableStructSource : uint8
 	/** Source is StateTree global task */
 	GlobalTask,
 	/** Source is State parameter */
-	StateParameter,
+	State,
 	/** Source is State task */
 	Task,
 	/** Source is State condition */
 	Condition,
-	/** Source is StateTree event used by transition */
-	TransitionEvent,
-	/** Source is StateTree event used by state selection */
-	StateEvent,
 };
 
 

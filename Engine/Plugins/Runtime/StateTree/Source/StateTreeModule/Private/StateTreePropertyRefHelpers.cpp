@@ -226,9 +226,7 @@ namespace UE::StateTree::PropertyRefHelpers
 		switch (SourceStruct.DataSource)
 		{
 		case EStateTreeBindableStructSource::Parameter:
-		case EStateTreeBindableStructSource::StateParameter:
-		case EStateTreeBindableStructSource::TransitionEvent:
-		case EStateTreeBindableStructSource::StateEvent:
+		case EStateTreeBindableStructSource::State:
 			return true;
 
 		case EStateTreeBindableStructSource::Context:
@@ -239,7 +237,6 @@ namespace UE::StateTree::PropertyRefHelpers
 		case EStateTreeBindableStructSource::Evaluator:
 		case EStateTreeBindableStructSource::Task:
 			return bIsOutput || IsPropertyRef(SourceProperty);
-
 		default:
 			checkNoEntry();
 		}

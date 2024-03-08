@@ -49,8 +49,6 @@ struct STATETREEMODULE_API FStateTreeCustomVersion
 		OverridableStateParameters,
 		// Added storing global parameters in instance storage
 		StoringGlobalParametersInInstanceStorage,
-		// Added binding to events
-		AddedBindingToEvents,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

@@ -43,22 +43,9 @@ FStateTreeTransition::FStateTreeTransition(const EStateTreeTransitionTrigger InT
 
 FStateTreeTransition::FStateTreeTransition(const EStateTreeTransitionTrigger InTrigger, const FGameplayTag InEventTag, const EStateTreeTransitionType InType, const UStateTreeState* InState)
 	: Trigger(InTrigger)
-	, RequiredEvent{InEventTag}
+	, EventTag(InEventTag)
 {
 	State = InState ? InState->GetLinkToState() : FStateTreeStateLink(InType);
-}
-
-void FStateTreeTransition::PostSerialize(const FArchive& Ar)
-{
-#if WITH_EDITORONLY_DATA
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (EventTag_DEPRECATED.IsValid())
-	{
-		RequiredEvent.Tag = EventTag_DEPRECATED;
-		EventTag_DEPRECATED = FGameplayTag();
-	}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITORONLY_DATA
 }
 
 //////////////////////////////////////////////////////////////////////////
