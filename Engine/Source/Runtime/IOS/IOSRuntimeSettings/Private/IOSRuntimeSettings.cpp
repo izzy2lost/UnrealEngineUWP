@@ -179,4 +179,7 @@ void UIOSRuntimeSettings::PostInitProperties()
 		UpdateSinglePropertyInConfigFile(GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UIOSRuntimeSettings, bSupportsMetal)), GetDefaultConfigFilename());
 	}
 }
+
+#undef LOCTEXT_NAMESPACE
+
 #endif
