@@ -3832,9 +3832,8 @@ void FPropertyNode::PropagateContainerPropertyChange( UObject* ModifiedObject, c
 	FArrayProperty* ArrayProperty = CastField<FArrayProperty>(ConvertedProperty);
 	FSetProperty* SetProperty = CastField<FSetProperty>(ConvertedProperty);
 	FMapProperty* MapProperty = CastField<FMapProperty>(ConvertedProperty);
-	FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(ConvertedProperty);
 
-	check(ArrayProperty || SetProperty || MapProperty || OptionalProperty);
+	check(ArrayProperty || SetProperty || MapProperty);
 
 	FPropertyNode* SubobjectPropertyNode = NULL;
 
@@ -3899,6 +3898,7 @@ void FPropertyNode::PropagateContainerPropertyChange( UObject* ModifiedObject, c
 				break;
 			}
 		}	// End Array
+
 		else if (SetProperty)
 		{
 			FScriptSetHelper SetHelper(SetProperty, Addr);
@@ -3952,38 +3952,6 @@ void FPropertyNode::PropagateContainerPropertyChange( UObject* ModifiedObject, c
 				break;
 			}
 		}	// End Map
-		else if (OptionalProperty)
-		{
-			switch (ChangeType)
-			{
-			case EPropertyArrayChangeType::Add:
-			{
-				OptionalProperty->MarkSetAndGetInitializedValuePointerToReplace(Addr);
-				FObjectProperty* ObjectProperty = CastField<FObjectProperty>(OptionalProperty->GetValueProperty());
-				if (ObjectProperty)
-				{
-					UObject* OriginalObject = ObjectProperty->GetObjectPropertyValue(OriginalContainerAddr);
-
-					// Make a deep copy
-					UObject* DuplicatedObject = DuplicateObject(OriginalObject, OriginalObject ? OriginalObject->GetOuter() : nullptr);
-					ObjectProperty->SetObjectPropertyValue(Addr, DuplicatedObject);
-				}
-				break;
-			}
-			case EPropertyArrayChangeType::Clear:
-				OptionalProperty->MarkUnset(Addr);
-				break;
-			case EPropertyArrayChangeType::Insert:
-				check(false);	// Insert is not supported for options
-				break;
-			case EPropertyArrayChangeType::Delete:
-				check(false);	// Delete is not supported for options (use clear)
-				break;
-			case EPropertyArrayChangeType::Duplicate:
-				check(false);	// Duplicate is not supported for options
-				break;
-			}
-		}	// End Optional
 	}
 }
 

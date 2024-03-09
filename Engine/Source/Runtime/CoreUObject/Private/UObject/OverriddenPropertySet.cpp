@@ -175,7 +175,7 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 		// Special handling for array of instanced subobjects 
 		else if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(CurrentProperty))
 		{
-			ArrayIndex = PropertyEvent.GetArrayIndex(FPropertyChangedEvent::GetArrayIndexPathName(CurrentProperty));
+			ArrayIndex = PropertyEvent.GetArrayIndex(CurrentProperty->GetName());
 
 			// Only special case is instanced subobjects, otherwise we fallback to full array override
 			checkf(ArrayProperty->Inner, TEXT("Expecting an inner type for Arrays"));
@@ -213,7 +213,7 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 		// Special handling for maps and values of instance subobjects
 		else if (const FMapProperty* MapProperty = CastField<FMapProperty>(CurrentProperty))
 		{
-			ArrayIndex = PropertyEvent.GetArrayIndex(FPropertyChangedEvent::GetArrayIndexPathName(CurrentProperty));
+			ArrayIndex = PropertyEvent.GetArrayIndex(CurrentProperty->GetName());
 
 			checkf(MapProperty->ValueProp, TEXT("Expecting a value type for Maps"));
 			FScriptMapHelper MapHelper(MapProperty, SubValuePtr);
@@ -324,7 +324,7 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 		// Special handling for array of instanced subobjects 
 		else if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(CurrentProperty))
 		{
-			ArrayIndex = PropertyEvent.GetArrayIndex(FPropertyChangedEvent::GetArrayIndexPathName(CurrentProperty));
+			ArrayIndex = PropertyEvent.GetArrayIndex(CurrentProperty->GetName());
 
 			// Only special case is instanced subobjects, otherwise we fallback to full array override
 			if (FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner))
@@ -373,7 +373,7 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 		// Special handling for maps and values of instance subobjects 
 		else if (const FMapProperty* MapProperty = CastField<FMapProperty>(CurrentProperty))
 		{
-			ArrayIndex = PropertyEvent.GetArrayIndex(FPropertyChangedEvent::GetArrayIndexPathName(CurrentProperty));
+			ArrayIndex = PropertyEvent.GetArrayIndex(CurrentProperty->GetName());
 
 			FScriptMapHelper MapHelper(MapProperty, SubValuePtr);
 
@@ -528,7 +528,7 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 			if (InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance))
 			{
 				FScriptArrayHelper ArrayHelper(ArrayProperty, SubValuePtr);
-				int32 ArrayIndex = PropertyEvent.GetArrayIndex(FPropertyChangedEvent::GetArrayIndexPathName(Property));
+				int32 ArrayIndex = PropertyEvent.GetArrayIndex(Property->GetName());
 				if (!PropertyNode->GetNextNode())
 				{
 					checkf(ArrayProperty->Inner, TEXT("Expecting an inner type for Arrays"));
@@ -718,7 +718,7 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 		FObjectProperty* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectProperty>(MapProperty->ValueProp) : nullptr;
 
 		FScriptMapHelper MapHelper(MapProperty, SubValuePtr);
-		int32 LogicalMapIndex = PropertyEvent.GetArrayIndex(FPropertyChangedEvent::GetArrayIndexPathName(Property));
+		int32 LogicalMapIndex = PropertyEvent.GetArrayIndex(Property->GetName());
 		int32 InternalMapIndex = LogicalMapIndex != INDEX_NONE ? MapHelper.FindInternalIndex(LogicalMapIndex) : INDEX_NONE;
 		if (!PropertyNode->GetNextNode())
 		{

@@ -6320,8 +6320,8 @@ struct FPropertyChangedEvent
 	}
 
 	/**
-	 * Gets the Array Index of the "current object" based on a particular FullPathName
-	 * InName - FullPathName of the property to find the array index for
+	 * Gets the Array Index of the "current object" based on a particular name
+	 * InName - Name of the property to find the array index for
 	 */
 	int32 GetArrayIndex(const FString& InName) const
 	{
@@ -6336,25 +6336,6 @@ struct FPropertyChangedEvent
 			}
 		}
 		return Retval;
-	}
-
-	/**
-	 * Helper function which returns the FullPathName of a FProperty
-	 * but with containers modified to have the same path as their elements.
-	 * @param Property to derive the FullPathName from
-	 */
-	static FString GetArrayIndexPathName(const FProperty* Property)
-	{
-		FString Path = Property->GetPathName();
-
-		const FArrayProperty* Array = CastField<FArrayProperty>(Property);
-		const FSetProperty* Set = CastField<FSetProperty>(Property);
-		const FMapProperty* Map = CastField<FMapProperty>(Property);
-		if (Array || Map || Set)
-		{
-			Path += "." + Property->GetName();
-		}
-		return Path;
 	}
 
 	/**
