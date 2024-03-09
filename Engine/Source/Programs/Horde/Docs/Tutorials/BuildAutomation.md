@@ -14,7 +14,7 @@ regularly. The terms are used interchangably in this documentation.
 
 ## Prerequisites
 
-* Horde Server and Horde Agents (see [Getting Started: Remote Compilation](RemoteCompilation.md#horde-server))
+* Horde Server and one or more Horde Agents (see [Getting Started: Install Horde](InstallHorde.md))
 * A configured Perforce server with a stream containing Unreal Engine 5.4 or later.
   * Legacy Perforce branches are not currently supported.
   * Horde may support other revision control systems in the future.
@@ -114,3 +114,4 @@ to group related job types. There are several predefined jobs on different tabs:
   environment variables that allow UnrealBuildTool to connect to the server without any additional configuration.
 * **Test Executor** - Runs a mock job with simulated errors or warnings, useful for testing connectivity to agents
   without having to sync a Perforce workspace.
+  

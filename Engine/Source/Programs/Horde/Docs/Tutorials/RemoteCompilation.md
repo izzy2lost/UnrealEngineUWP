@@ -74,7 +74,7 @@ spreading the workload over multiple machines.
    a graphical overview how the build progresses over multiple machines.
 
    For debugging and tuning purposes, it can be useful to force remote execution all compile workfloads. To do
-   so, enable the following option in your `BuildConfiguration.xml` file or pass `-UBAForceRemote` on the 
+   so, enable the following option in your `BuildConfiguration.xml` file or pass `-UBAForceRemote` on the
    UnrealBuildTool command line:
 
    ```xml

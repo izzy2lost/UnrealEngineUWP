@@ -6,12 +6,10 @@
 
 This guide describes a simple local Horde server installation on Windows.
 
-Horde can also be installed via [Docker on Linux](../Deployment/Server.md#docker-images-linux), both as a single
-instance and horizontally-scaled service via a
-container orchestration system such as Kubernetes. 
+Horde can also be installed via [Docker on Linux](../Deployment/Server.md#docker-linux), both as a single
+instance and horizontally-scaled service via a container orchestration system such as Kubernetes.
 
-For more detailed discussion of these advanced deployment scenarios,
-see [Horde > Deployment](../Deployment.md).
+For more detailed discussion of these advanced deployment scenarios, see [Horde > Deployment](../Deployment.md).
 
 ## Prerequisites
 
@@ -23,7 +21,7 @@ see [Horde > Deployment](../Deployment.md).
 ### Horde Server
 
 1. Install the Horde Server by running `Engine\Extras\Horde\UnrealHordeServer.msi`.
-   * The Horde Server can also be deployed on [Linux using Docker](../Deployment/Server.md#docker-images-linux).
+   * The Horde Server can also be deployed on [Linux using Docker](../Deployment/Server.md#docker-linux).
    * By default, Horde is configured to use [ports 13340 (HTTP) and 13342 (HTTP/2)](../Deployment/Server.md#ports).
      We recommend setting up [HTTPS](../Deployment/Server.md#https) for production deployments.
    * See also: [Deployment > Server](../Deployment/Server.md)
@@ -41,5 +39,5 @@ see [Horde > Deployment](../Deployment.md).
    * We recommend choosing a drive with at least 100gb of free space for C++ compilation.
 4. Leave the `Enroll with Server` option checked at the end of the installation, or locate the Unreal icon
    in the system notification area, right click on it, and select `Enroll with Server`.
-5. Choose your agent from the list, and select **Enroll**. This process will validate that you trust the agent, 
+5. Choose your agent from the list, and select **Enroll**. This process will validate that you trust the agent,
    and will allow it to take on work.
