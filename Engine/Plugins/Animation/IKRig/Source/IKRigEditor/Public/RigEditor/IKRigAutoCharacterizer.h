@@ -21,8 +21,12 @@ enum class EPreferredAxis
 // the central ground truth for standardized characterization labels used in Unreal
 struct FCharacterizationStandard
 {
-	// standard biped chain names
-	// these are Unreal's standardized retargeting chain labels
+	//
+	// Standard Biped Chain Labels:
+	//
+	//	- these are Unreal's standardized retargeting chain labels
+	//	- see the note below for rules on how to extend this convention to non-bipedal creatures
+	//
 	
 	// core
 	static const FName Root;
@@ -83,8 +87,69 @@ struct FCharacterizationStandard
 	static constexpr float ClavicleRotationStiffness = 0.95f;
 	static constexpr float FootRotationStiffness = 0.85f;
 
-	// TODO add support for arbitrary bone chains (ie, 6-legged characters w/ LeftLegA, LeftLegB etc...)
-	// FName GenerateStandardizedIKGoalName(TArray<FName> BoneNames, LimbType, Side, LimbNum etc...)
+	//
+	// Non-Standard Chain Labeling Convention
+	//
+	// Creatures with extra limbs should follow this labeling convention.
+	// The goal of this convention is to maximize animation compatibility and sharing
+	// This convention ensures that even spiders, quadrupeds and bipeds can share animation!
+	//
+	// 1. Always include Legs and Arms:
+	//  - the rearmost set of limbs should be labeled LeftLeg / RightLeg
+	//	- the foremost set of limbs should be labeled LeftArm / RightArm
+	//	- these limbs correspond with the "main" limbs in a quadruped (legs in the back, arms in the front)
+	//	- this ensures that ALL creatures can take bipedal animation (by far the most common)
+	//
+	// 2. Additional Limbs:
+	//	- creatures with more than 4 limbs require additional labels beyond what the biped convention provides
+	//	- starting from the rear of the creature add LeftLeg and RightLeg (these limbs will take bipedal leg animation)
+	//	- working forwards, add a lettered suffix to each new set of limbs, ie LeftLegA, LeftLegB, LeftLegC, etc...
+	//	- always name the foremost limb an arm, ie "LeftArm"
+	//
+	// 3. Fingers and Toes:
+	//	- body parts belonging to an intermediate limb with an alphabetic suffix should include the same suffix.
+	//	- ie, if "LeftLegE" has an index finger, it should be "LeftIndexE"
+	//
+	// 4. Core Body Parts:
+	//	- Spine / Neck and Head should be labeled identically to a biped.
+	//	- Additional Spine/Neck/Head chains should be indexed alphabetically, ie "HeadA", "HeadB", "HeadC" etc...
+	//
+	// 5. Extra Stuff:
+	//	- no convention can cover all possible permutations of skeletal morphology
+	//	- by adhering to this convention, all mammals, birds and insects can share animation
+	//	- fantastical creatures with recursive limb topology (ie, arms hanging off legs) will not fit easily into this convention
+	//	  but neither is it likely that there is any meaningful library of animation such a creature would benefit from
+	//	- in such cases, conventions should be adhered to, to the extent possible, and extra parts can use custom labels
+	//
+	// Examples:
+	//
+	// Typical Quadruped Example:
+	//	Quadrupeds are treated identically to bipeds!
+	//	- Limbs: Legs in back to front order: LeftLeg, LeftArm (and equivalent on right side)
+	//	- Core: Spine / Neck / Head / Tail
+	//	- Fingers/toes as normal.
+	//
+	// Typical Spider Example:
+	//	Spiders include all biped limbs, with additional legs.
+	//	- Legs in back to front order: LeftLeg, LeftLegA, LeftLegB, LeftArm
+	//	- Core: Spine / Neck / Head / Tail (for the abdomen)
+	//
+	
+	// enough extra legs to cover arachnids
+	// if you need more, just use a hard coded FName according to the convention above
+	static const FName LeftLegA;
+	static const FName LeftLegB;
+	static const FName LeftLegC;
+	static const FName RightLegA;
+	static const FName RightLegB;
+	static const FName RightLegC;
+	//
+	static const FName LeftFootAIKGoal;
+	static const FName LeftFootBIKGoal;
+	static const FName LeftFootCIKGoal;
+	static const FName RightFootAIKGoal;
+	static const FName RightFootBIKGoal;
+	static const FName RightFootCIKGoal;
 };
 
 // clean names are used for comparison

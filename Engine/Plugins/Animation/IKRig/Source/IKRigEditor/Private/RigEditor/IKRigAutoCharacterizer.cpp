@@ -62,6 +62,21 @@ const FName FCharacterizationStandard::LeftFootIKGoal = FName("LeftFootIK");
 const FName FCharacterizationStandard::RightHandIKGoal = FName("RightHandIK");
 const FName FCharacterizationStandard::RightFootIKGoal = FName("RightFootIK");
 
+// extra limbs for creatures
+const FName FCharacterizationStandard::LeftLegA = FName("LeftLegA");
+const FName FCharacterizationStandard::LeftLegB = FName("LeftLegB");
+const FName FCharacterizationStandard::LeftLegC = FName("LeftLegC");
+const FName FCharacterizationStandard::RightLegA = FName("RightLegA");
+const FName FCharacterizationStandard::RightLegB = FName("RightLegB");
+const FName FCharacterizationStandard::RightLegC = FName("RightLegC");
+//
+const FName FCharacterizationStandard::LeftFootAIKGoal = FName("LeftFootAIKGoal");
+const FName FCharacterizationStandard::LeftFootBIKGoal = FName("LeftFootBIKGoal");
+const FName FCharacterizationStandard::LeftFootCIKGoal = FName("LeftFootCIKGoal");
+const FName FCharacterizationStandard::RightFootAIKGoal = FName("RightFootAIKGoal");
+const FName FCharacterizationStandard::RightFootBIKGoal = FName("RightFootBIKGoal");
+const FName FCharacterizationStandard::RightFootCIKGoal = FName("RightFootCIKGoal");
+
 FAbstractHierarchy::FAbstractHierarchy(USkeletalMesh* InMesh)
 {
 	if (!InMesh)
@@ -838,6 +853,14 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		// exclude feet from auto-pose
 		mGear.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("leg_L0_foot_jnt");
 		mGear.AutoRetargetDefinition.BonesToExcludeFromAutoPose.Add("leg_R0_foot_jnt");
+		// ik bones
+		mGear.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_foot_root_C0_0_jnt", "root_C0_0_jnt");
+		mGear.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_foot_L0_0_jnt", "leg_L0_foot_jnt");
+		mGear.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_foot_R0_0_jnt", "leg_R0_foot_jnt");
+		mGear.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_root_C0_0_jnt", "arm_R0_hand_jnt");
+		mGear.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_gun_C0_0_jnt", "arm_R0_hand_jnt");
+		mGear.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_R0_0_jnt", "arm_R0_hand_jnt");
+		mGear.AutoRetargetDefinition.BonesToPin.AddBoneToPin("ik_hand_L0_0_jnt", "arm_L0_hand_jnt");
 	}
 	
 	// Motionbuilder / Human IK
@@ -850,7 +873,7 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		// core
 		HumanIKRetarget.RootBone = FName("Hips");
 		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Spine"), FName("Spine3"));
-		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck"), FName("Neck1"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck"), FName("Neck"));
 		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
 		// left
 		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("LeftUpLeg"), FName("LeftToeBase"),FCharacterizationStandard::LeftFootIKGoal);
@@ -1348,6 +1371,30 @@ FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 		FNAmphibian.AutoRetargetDefinition.BonesToPin.AddBoneToPin("IK_Foot_Rear_Root", "root");
 		FNAmphibian.AutoRetargetDefinition.BonesToPin.AddBoneToPin("IK_Foot_Rear_L", "BipedLeg_A_Ankle_L");
 		FNAmphibian.AutoRetargetDefinition.BonesToPin.AddBoneToPin("IK_Foot_Rear_R", "BipedLeg_A_Ankle_R");
+	}
+
+	// FN Buttercake
+	{
+		static FName FNButtercakeName = "FN Buttercake";
+		static TArray<FName> FNButtercakeBones = {"C_Root_Main_Root_Jnt", "C_QuadSpine_A_Pelvis_Jnt", "C_QuadSpine_A_Spine1_Jnt", "C_QuadSpine_A_Spine2_Jnt", "C_QuadSpine_A_Spine3_Jnt", "C_QuadSpine_A_Chest_Jnt", "L_PawedArm_A_Shoulder_Jnt", "L_PawedArm_A_Elbow_Jnt", "L_PawedArm_A_Wrist_Jnt", "L_PawedArm_A_Ball_Jnt", "L_PawedArm_A_Toe_Jnt", "L_PawedArm_A_ToeTip_Jnt", "C_BipedHeadNeck_A_NeckBase_Jnt", "C_BipedHeadNeck_A_NeckMid_Jnt", "C_BipedHeadNeck_A_Head_Jnt", "R_PawedArm_A_Shoulder_Jnt", "R_PawedArm_A_Elbow_Jnt", "R_PawedArm_A_Wrist_Jnt", "R_PawedArm_A_Ball_Jnt", "R_PawedArm_A_Toe_Jnt", "L_PawedArm_B_Shoulder_Jnt", "L_PawedArm_B_Elbow_Jnt", "L_PawedArm_B_Wrist_Jnt", "L_PawedArm_B_Ball_Jnt", "L_PawedArm_B_Toe_Jnt", "R_PawedArm_B_Shoulder_Jnt", "R_PawedArm_B_Elbow_Jnt", "R_PawedArm_B_Wrist_Jnt", "R_PawedArm_B_Ball_Jnt", "R_PawedArm_B_Toe_Jnt", "C_Tail_A_TailBase_Jnt", "C_Tail_A_Tail1_Jnt", "C_Tail_A_Tail2_Jnt", "C_Tail_A_Tail3_Jnt", "C_Tail_A_Tail4_Jnt", "C_Tail_A_Tail5_Jnt", "C_Tail_A_Tail6_Jnt", "L_PawedLeg_C_Thigh_Jnt", "L_PawedLeg_C_Knee_Jnt", "L_PawedLeg_C_Ankle_Jnt", "L_PawedLeg_C_Ball_Jnt", "L_PawedLeg_C_Toe_Jnt", "R_PawedLeg_C_Thigh_Jnt", "R_PawedLeg_C_Knee_Jnt", "R_PawedLeg_C_Ankle_Jnt", "R_PawedLeg_C_Ball_Jnt", "R_PawedLeg_C_Toe_Jnt"};
+		static TArray<int32> FNButtercakeParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 5, 12, 13, 5, 15, 16, 17, 18, 3, 20, 21, 22, 23, 3, 25, 26, 27, 28, 1, 30, 31, 32, 33, 34, 35, 1, 37, 38, 39, 40, 1, 42, 43, 44, 45};
+		FTemplateHierarchy& FNButtercake = AddTemplateHierarchy(FNButtercakeName, FNButtercakeBones, FNButtercakeParentIndices);
+		FRetargetDefinition& FNButtercakeRetarget = FNButtercake.AutoRetargetDefinition.RetargetDefinition;
+		// core
+		FNButtercakeRetarget.RootBone = FName("C_QuadSpine_A_Pelvis_Jnt");
+		FNButtercakeRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("C_QuadSpine_A_Spine1_Jnt"), FName("C_QuadSpine_A_Chest_Jnt"));
+		FNButtercakeRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("C_BipedHeadNeck_A_NeckBase_Jnt"), FName("C_BipedHeadNeck_A_NeckMid_Jnt"));
+		FNButtercakeRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("C_BipedHeadNeck_A_Head_Jnt"), FName("C_BipedHeadNeck_A_Head_Jnt"));
+		// left
+		FNButtercakeRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("L_PawedLeg_C_Thigh_Jnt"), FName("L_PawedLeg_C_Ball_Jnt"), FCharacterizationStandard::LeftFootIKGoal);
+		FNButtercakeRetarget.AddBoneChain(FCharacterizationStandard::LeftLegA, FName("L_PawedArm_B_Shoulder_Jnt"), FName("L_PawedArm_B_Ball_Jnt"), FCharacterizationStandard::LeftFootAIKGoal);
+		FNButtercakeRetarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("L_PawedArm_A_Shoulder_Jnt"), FName("L_PawedArm_A_Wrist_Jnt"), FCharacterizationStandard::LeftHandIKGoal);
+		// right
+		FNButtercakeRetarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("R_PawedLeg_C_Thigh_Jnt"), FName("R_PawedLeg_C_Ball_Jnt"), FCharacterizationStandard::RightFootIKGoal);
+		FNButtercakeRetarget.AddBoneChain(FCharacterizationStandard::RightLegA, FName("R_PawedArm_B_Shoulder_Jnt"), FName("R_PawedArm_B_Ball_Jnt"), FCharacterizationStandard::RightFootAIKGoal);
+		FNButtercakeRetarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("R_PawedArm_A_Shoulder_Jnt"), FName("R_PawedArm_A_Wrist_Jnt"), FCharacterizationStandard::RightHandIKGoal);
+		// tail
+		FNButtercakeRetarget.AddBoneChain(FCharacterizationStandard::Tail, FName("C_Tail_A_TailBase_Jnt"), FName("C_Tail_A_Tail6_Jnt"));
 	}
 	
 	// FN biped
