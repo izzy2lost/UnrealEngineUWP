@@ -60,10 +60,7 @@ public:
 
 	~FHttpTestLogLevelInitializer()
 	{
-		if (OldVerbosity != LogHttp.GetVerbosity())
-		{
-			LogHttp.SetVerbosity(OldVerbosity);
-		}
+		ResumeLogVerbosity();
 	}
 
 	void DisableWarningsInThisTest()
@@ -71,6 +68,14 @@ public:
 		if (!bVeryVerbose)
 		{
 			LogHttp.SetVerbosity(ELogVerbosity::Error);
+		}
+	}
+
+	void ResumeLogVerbosity()
+	{
+		if (OldVerbosity != LogHttp.GetVerbosity())
+		{
+			LogHttp.SetVerbosity(OldVerbosity);
 		}
 	}
 
@@ -115,6 +120,11 @@ public:
 	void DisableWarningsInThisTest()
 	{
 		HttpTestLogLevelInitializer.DisableWarningsInThisTest();
+	}
+
+	void ResumeLogVerbosity()
+	{
+		HttpTestLogLevelInitializer.ResumeLogVerbosity();
 	}
 
 	const FString UrlWithInvalidPortToTestConnectTimeout() const { return TEXT("http://10.255.255.1:8765"); } // non-routable IP address with a random port
@@ -757,6 +767,29 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request won't trigger acti
 	FPlatformProcess::Sleep(TimeToWaitBeforeCancel);
 	HttpRequest->CancelRequest();
 	FPlatformProcess::Sleep(3.0f); // Just make sure there is no warning or assert triggered by the activity timeout callback
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request won't trigger activity timeout after total timeout", HTTP_TAG)
+{
+	DisableWarningsInThisTest();
+
+	HttpModule->HttpActivityTimeout = 2.0f;
+	HttpModule->HttpTotalTimeout = 3.5f;
+
+	TSharedPtr<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlStreamDownload(5/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 1/*ChunkLatency*/));
+	HttpRequest->SetVerb(TEXT("GET"));
+	HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+
+	const double StartTime = FPlatformTime::Seconds();
+	HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(!bSucceeded);
+		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::TimedOut);
+		ResumeLogVerbosity();
+	});
+	HttpRequest->ProcessRequest();
+	FPlatformProcess::Sleep(6.0f); // Just make sure there is no warning or assert triggered by the activity timeout callback
 }
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request receive won't timeout for streaming request", HTTP_TAG)
