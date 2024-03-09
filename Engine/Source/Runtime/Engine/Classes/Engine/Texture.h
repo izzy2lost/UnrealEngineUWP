@@ -1147,6 +1147,11 @@ struct FTextureSourceColorSettings
 	/** Chromatic adaption method applied if the source white point differs from the working color space white point. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ColorManagement)
 	ETextureChromaticAdaptationMethod ChromaticAdaptationMethod;
+
+#if WITH_EDITORONLY_DATA
+	/** Update the chromaticity coordinates member variables based on the color space choice (unless custom). */
+	ENGINE_API void UpdateColorSpaceChromaticities();
+#endif
 };
 
 UCLASS(abstract, MinimalAPI, BlueprintType)

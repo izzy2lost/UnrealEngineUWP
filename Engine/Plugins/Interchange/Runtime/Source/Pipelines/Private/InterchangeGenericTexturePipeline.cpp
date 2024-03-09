@@ -335,9 +335,20 @@ UInterchangeTextureFactoryNode* UInterchangeGenericTexturePipeline::CreateTextur
 		}
 	}
 
+	EInterchangeTextureColorSpace ColorSpace;
+	const bool bHasColorSpace = TextureNode->GetCustomColorSpace(ColorSpace);
+	if(bHasColorSpace)
+	{
+		TextureFactoryNode->SetCustomColorSpace(ETextureColorSpace(ColorSpace));
+	}
+
 	if (bool bSRGB; TextureNode->GetCustomSRGB(bSRGB))
 	{
 		TextureFactoryNode->SetCustomSRGB(bSRGB);
+		if(bSRGB && !bHasColorSpace)
+		{
+			TextureFactoryNode->SetCustomColorSpace(ETextureColorSpace::TCS_sRGB);
+		}
 	}
 	if (bool bFlipGreenChannel; TextureNode->GetCustombFlipGreenChannel(bFlipGreenChannel))
 	{

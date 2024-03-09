@@ -837,12 +837,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #if WITH_EDITORONLY_DATA
 		else if (PropertyName == SourceColorSpaceName)
 		{
-			// Update the chromaticity coordinates member variables based on the color space choice (unless custom).
-			if (SourceColorSettings.ColorSpace != ETextureColorSpace::TCS_Custom)
-			{
-				UE::Color::FColorSpace ColorSpace(static_cast<UE::Color::EColorSpace>(SourceColorSettings.ColorSpace));
-				ColorSpace.GetChromaticities(SourceColorSettings.RedChromaticityCoordinate, SourceColorSettings.GreenChromaticityCoordinate, SourceColorSettings.BlueChromaticityCoordinate, SourceColorSettings.WhiteChromaticityCoordinate);
-			}
+			SourceColorSettings.UpdateColorSpaceChromaticities();
 		}
 		else if (PropertyName == CompressionQualityName)
 		{
@@ -1177,6 +1172,15 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FObjectCacheEventSink::NotifyCompositeTextureChanged_Concurrent(this);
 	}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+void FTextureSourceColorSettings::UpdateColorSpaceChromaticities()
+{
+	if(ColorSpace != ETextureColorSpace::TCS_Custom)
+	{
+		UE::Color::FColorSpace ColorSpacChromaticities(static_cast<UE::Color::EColorSpace>(ColorSpace));
+		ColorSpacChromaticities.GetChromaticities(RedChromaticityCoordinate, GreenChromaticityCoordinate, BlueChromaticityCoordinate, WhiteChromaticityCoordinate);
+	}
 }
 
 #endif // #if WITH_EDITORONLY_DATA
