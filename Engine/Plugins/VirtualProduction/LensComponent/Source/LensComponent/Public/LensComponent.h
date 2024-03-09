@@ -207,6 +207,7 @@ public:
 
 public:
 	/** Returns the LensDistortionHandler in use for the current LensModel */
+	UFUNCTION(BlueprintCallable, Category = "Lens Component")
 	ULensDistortionModelHandlerBase* GetLensDistortionHandler() const;
 
 	/** Reset the tracked component back to its original tracked pose and reapply nodal offset to it by re-evaluating the LensFile */
