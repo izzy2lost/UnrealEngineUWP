@@ -560,6 +560,12 @@ public:
 	/** Clears runtime overrides, reverting to bShouldAllowUnloadingTags when determining GameplayTags unload behavior */
 	GAMEPLAYTAGS_API void ClearShouldUnloadTagsOverride();
 
+	/** Pushes an override that suppresses calls to HandleGameplayTagTreeChanged that would result in a complete rebuild of the GameplayTag tree */
+	GAMEPLAYTAGS_API void SetShouldDeferGameplayTagTreeRebuilds(bool bShouldDeferRebuilds);
+
+	/** Stops suppressing GameplayTag tree rebuilds and (optionally) rebuilds the tree */
+	GAMEPLAYTAGS_API void ClearShouldDeferGameplayTagTreeRebuilds(bool bRebuildTree);
+
 	/** Returns the hash of NetworkGameplayTagNodeIndex */
 	uint32 GetNetworkGameplayTagNodeIndexHash() const { VerifyNetworkIndex(); return NetworkGameplayTagNodeIndexHash; }
 
@@ -893,6 +899,9 @@ private:
 
 	/** Augments usage of bShouldAllowUnloadingTags to allow runtime overrides to allow/disallow unloading of GameplayTags in controlled scenarios */
 	TOptional<bool> ShouldAllowUnloadingTagsOverride;
+
+	/** Used to suppress calls to HandleGameplayTagTreeChanged that would result in a complete rebuild of the GameplayTag tree*/
+	TOptional<bool> ShouldDeferGameplayTagTreeRebuilds;
 
 	/** True if native tags have all been added and flushed */
 	bool bDoneAddingNativeTags;
