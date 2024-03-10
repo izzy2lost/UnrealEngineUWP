@@ -758,6 +758,21 @@ void UGameplayTagsManager::ClearShouldUnloadTagsOverride()
 	ShouldAllowUnloadingTagsOverride.Reset();
 }
 
+void UGameplayTagsManager::SetShouldDeferGameplayTagTreeRebuilds(bool bShouldDeferRebuilds)
+{
+	ShouldDeferGameplayTagTreeRebuilds = bShouldDeferRebuilds;
+}
+
+void UGameplayTagsManager::ClearShouldDeferGameplayTagTreeRebuilds(bool bRebuildTree)
+{
+	ShouldDeferGameplayTagTreeRebuilds.Reset();
+
+	if (bRebuildTree)
+	{
+		HandleGameplayTagTreeChanged(true);
+	}
+}
+
 void UGameplayTagsManager::GetRestrictedTagConfigFiles(TArray<FString>& RestrictedConfigFiles) const
 {
 	UGameplayTagsSettings* MutableDefault = GetMutableDefault<UGameplayTagsSettings>();
@@ -1185,7 +1200,7 @@ void UGameplayTagsManager::HandleGameplayTagTreeChanged(bool bRecreateTree)
 	// Don't do anything during a reconstruct or before initial native tags are done loading
 	if (!bIsConstructingGameplayTagTree && bDoneAddingNativeTags)
 	{
-		if (bRecreateTree)
+		if (bRecreateTree && (!ShouldDeferGameplayTagTreeRebuilds.IsSet() || !ShouldDeferGameplayTagTreeRebuilds.GetValue()))
 		{
 #if WITH_EDITOR
 			if (GIsEditor)
