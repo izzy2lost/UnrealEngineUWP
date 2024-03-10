@@ -4,7 +4,7 @@ using System;
 using System.Buffers;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace EpicGames.Horde.Tests
@@ -118,7 +118,7 @@ namespace EpicGames.Horde.Tests
 			IRefCountedHandle<TestData> result = await cache.FindOrAddAsync("test", (key, ctx) => Task.FromResult(new TestData(cache.Allocator.Alloc(20, null))));
 			Assert.AreEqual(20, cache.CurrentSize);
 
-			cache.Trim(); 
+			cache.Trim();
 			Assert.AreEqual(20, cache.CurrentSize);
 			result.Dispose();
 			Assert.AreEqual(20, cache.CurrentSize);

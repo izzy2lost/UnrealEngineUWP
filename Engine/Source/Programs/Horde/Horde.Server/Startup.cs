@@ -121,6 +121,7 @@ using StackExchange.Redis;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Status = Grpc.Core.Status;
 using StatusCode = Grpc.Core.StatusCode;
+using EpicGames.Horde.Storage.Bundles;
 
 namespace Horde.Server
 {

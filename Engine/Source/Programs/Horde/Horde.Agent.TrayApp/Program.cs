@@ -28,7 +28,7 @@ namespace Horde.Agent.TrayApp
 			if (args.Any(x => x.Equals("-close", StringComparison.OrdinalIgnoreCase)))
 			{
 				closeEvent.Set();
-				return mutex.Wait(5000)? 0 : 1;
+				return mutex.Wait(5000) ? 0 : 1;
 			}
 
 			if (!mutex.Wait(0))
@@ -152,9 +152,9 @@ namespace Horde.Agent.TrayApp
 		readonly ToolStripMenuItem _statusEnabled;
 		readonly ToolStripMenuItem _statusDisabled;
 		readonly ToolStripMenuItem _statusWhenIdle;
-		
+
 		readonly Settings _settings;
-		
+
 		AgentSettingsMessage? _agentSettings;
 		IdleForm? _idleForm;
 		bool _disposed;
@@ -304,7 +304,7 @@ namespace Horde.Agent.TrayApp
 				DirectoryReference logsDir = DirectoryReference.Combine(programDataDir, "Epic", "Horde", "Agent");
 				if (DirectoryReference.Exists(logsDir))
 				{
-					Process.Start(new ProcessStartInfo { FileName = logsDir.FullName, UseShellExecute = true });	
+					Process.Start(new ProcessStartInfo { FileName = logsDir.FullName, UseShellExecute = true });
 				}
 				else
 				{
@@ -341,7 +341,7 @@ namespace Horde.Agent.TrayApp
 				_idleForm = new IdleForm();
 				_idleForm.FormClosed += (s, e) =>
 				{
-					_idleForm.Dispose(); 
+					_idleForm.Dispose();
 					_idleForm = null;
 				};
 				_idleForm.Show();
@@ -655,7 +655,7 @@ namespace Horde.Agent.TrayApp
 					{
 						break;
 					}
-					
+
 					switch (message.Type)
 					{
 						case AgentMessageType.GetStatusResponse:
@@ -668,7 +668,6 @@ namespace Horde.Agent.TrayApp
 				}
 			}
 		}
-
 
 		void Exit_MainThread()
 		{
