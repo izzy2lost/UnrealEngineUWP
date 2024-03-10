@@ -121,6 +121,7 @@ TCEPropertyChangeDispatcher<ACEEffectorActor> ACEEffectorActor::PropertyChangeDi
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Color), &ACEEffectorActor::OnColorChanged },
 	/** Type */
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Type), &ACEEffectorActor::OnTypeChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bInvertType), &ACEEffectorActor::OnMagnitudeChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Easing), &ACEEffectorActor::OnEasingChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OuterRadius), &ACEEffectorActor::OnSphereChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, InnerRadius), &ACEEffectorActor::OnSphereChanged },
@@ -362,6 +363,17 @@ void ACEEffectorActor::SetPlaneSpacing(float InSpacing)
 
 	PlaneSpacing = InSpacing;
 	OnPlaneChanged();
+}
+
+void ACEEffectorActor::SetInvertType(bool bInInvert)
+{
+	if (bInvertType == bInInvert)
+	{
+		return;
+	}
+
+	bInvertType = bInInvert;
+	OnMagnitudeChanged();
 }
 
 void ACEEffectorActor::SetOffset(const FVector& InOffset)
@@ -892,7 +904,7 @@ void ACEEffectorActor::OnPlaneChanged()
 void ACEEffectorActor::OnMagnitudeChanged()
 {
 	const float EffectorMagnitude = bEnabled ? GetMagnitude() : 0.f;
-	ChannelData.Magnitude = EffectorMagnitude;
+	ChannelData.Magnitude = bInvertType ? -EffectorMagnitude : EffectorMagnitude;
 }
 
 void ACEEffectorActor::OnTransformOptionsChanged()

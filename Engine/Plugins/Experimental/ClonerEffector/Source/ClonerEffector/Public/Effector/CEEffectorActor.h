@@ -37,6 +37,15 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetInvertType(bool bInInvert);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	bool GetInvertType() const
+	{
+		return bInvertType;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetEasing(ECEClonerEasing InEasing);
 
 	UFUNCTION(BlueprintPure, Category="Effector")
@@ -466,6 +475,10 @@ protected:
 	/** Type of effector to apply on cloners instances */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetType", Getter="GetType", Category="Type")
 	ECEClonerEffectorType Type = ECEClonerEffectorType::Sphere;
+
+	/** Invert the type effect, instead of affecting the inside of a zone, will affect the outside */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetInvertType", Getter="GetInvertType", Category="Type")
+	bool bInvertType = false;
 
 	/** Weight easing function applied to lerp transforms */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetEasing", Getter="GetEasing", Category="Type", meta=(EditCondition="Type != ECEClonerEffectorType::Unbound", EditConditionHides))
