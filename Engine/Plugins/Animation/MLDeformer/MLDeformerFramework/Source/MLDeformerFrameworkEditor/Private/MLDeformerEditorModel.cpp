@@ -1091,8 +1091,7 @@ namespace UE::MLDeformer
 			}
 		}
 		else
-		if (Property->GetFName() == UMLDeformerModel::GetAlignmentTransformPropertyName() ||
-		    Property->GetFName() == UMLDeformerModel::GetDeltaCutoffLengthPropertyName())
+		if (Property->GetFName() == UMLDeformerModel::GetAlignmentTransformPropertyName())
 		{
 			if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
 			{
@@ -1780,7 +1779,7 @@ namespace UE::MLDeformer
 								VertexDeltas[ArrayIndex + 2]);
 							const FVector VertexPos = (FVector)LinearSkinnedPositions[Index];
 							PDI->DrawLine(VertexPos, VertexPos + Delta, DeltasColor, DepthGroup);
-						}				
+						}
 					}
 				}
 			}

@@ -1210,7 +1210,6 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		Property->GetFName() == UMLDeformerModel::GetBoneIncludeListPropertyName() ||
 		Property->GetFName() == UMLDeformerModel::GetCurveIncludeListPropertyName() ||
 		Property->GetFName() == UMLDeformerModel::GetMaxTrainingFramesPropertyName() ||
-		Property->GetFName() == UMLDeformerModel::GetDeltaCutoffLengthPropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetHiddenLayerDimsPropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetNumEpochsPropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetBatchSizePropertyName() ||
