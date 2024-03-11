@@ -2,6 +2,7 @@
 
 #include "AnimationModifiersModule.h"
 
+#include "Algo/Copy.h"
 #include "Animation/AnimSequence.h"
 #include "AnimationModifier.h"
 #include "AnimationModifierDetailCustomization.h"
@@ -166,20 +167,16 @@ void FAnimationModifiersModule::RegisterMenus()
 				return;
 			}
 
-			TArray<FString> AnimSequencePaths;
-			Algo::TransformIf(Context->SelectedAssets, AnimSequencePaths, [](const FAssetData& AssetData)
+			TArray<FAssetData> AnimSequenceAssets;
+			Algo::CopyIf(Context->SelectedAssets, AnimSequenceAssets, [](const FAssetData& AssetData)
 			{
 				return AssetData.AssetClassPath == UAnimSequence::StaticClass()->GetClassPathName();
-			},
-			[](const FAssetData& AssetData)
-			{
-				return AssetData.GetObjectPathString();
 			});
 			
-			auto GetAnimSequences = [AnimSequencePaths](TArray<UAnimSequence*>& OutSequences)
+			auto GetAnimSequences = [AnimSequenceAssets](TArray<UAnimSequence*>& OutSequences)
 			{
 				TArray<UObject*> Objects;
-				AssetViewUtils::LoadAssetsIfNeeded(AnimSequencePaths, Objects);
+				AssetViewUtils::LoadAssetsIfNeeded(AnimSequenceAssets, Objects, AssetViewUtils::FLoadAssetsSettings{});
 			
 				Algo::TransformIf(Objects, OutSequences, 
 				[](const UObject* Object)

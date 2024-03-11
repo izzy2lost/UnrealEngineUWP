@@ -623,15 +623,21 @@ void FAssetFixUpRedirectors::ExecuteFixUp(TArray<TWeakObjectPtr<UObjectRedirecto
 	// Load all referencing packages.
 	TSet<UPackage*> ReferencingPackagesToSave;
 	TSet<UPackage*> LoadedPackages;
+	bool bCancel = false;
 	{
 		FScopedSlowTask SlowTask(static_cast<float>(RedirectorRefsList.Num()), LOCTEXT( "LoadingReferencingPackages", "Loading Referencing Packages..." ) );
-		SlowTask.MakeDialog();
+		SlowTask.MakeDialog(true);
 		ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 
 		// Load all packages that reference each redirector, if possible
 		for (FRedirectorRefs& RedirectorRefs : RedirectorRefsList)
 		{
 			SlowTask.EnterProgressFrame(1);
+			if (SlowTask.ShouldCancel())
+			{
+				bCancel = true;
+				break;
+			}
 			if (bMayDeleteRedirectors && ISourceControlModule::Get().IsEnabled())
 			{
 				FSourceControlStatePtr SourceControlState = SourceControlProvider.GetState(RedirectorRefs.Redirector->GetOutermost(), EStateCacheUsage::Use);
@@ -640,6 +646,7 @@ void FAssetFixUpRedirectors::ExecuteFixUp(TArray<TWeakObjectPtr<UObjectRedirecto
 				if (!bValidSCCState)
 				{
 					RedirectorRefs.bSCCError = true;
+					// Continue to load the referencers because we may still be able to fix them up 
 				}
 			}
 
@@ -692,6 +699,11 @@ void FAssetFixUpRedirectors::ExecuteFixUp(TArray<TWeakObjectPtr<UObjectRedirecto
 			}
 		}
 	};
+	
+	if (bCancel)
+	{
+		return;
+	}
 
 	// Add all referencing packages objects that aren't RF_Standalone to the root set to avoid them being GC'd during the following processing
 	TArray<TStrongObjectPtr<UObject>> RootedObjects;
