@@ -620,7 +620,7 @@ FRHIRayTracingShader* GetRayTracingDefaultHiddenShader(const FGlobalShaderMap* S
 
 
 
-FRayTracingPipelineState* FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
+void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 	FRDGBuilder& GraphBuilder,
 	FViewInfo& View,
 	const TArrayView<FRHIRayTracingShader*>& RayGenShaderTable
@@ -938,14 +938,10 @@ FRayTracingPipelineState* FDeferredShadingSceneRenderer::CreateRayTracingMateria
 		View.RayTracingCallableBindingsTask = FFunctionGraphTask::CreateAndDispatchWhenReady([]() {}, TStatId(), &TaskList, ENamedThreads::AnyHiPriThreadHiPriTask);
 	}
 
-	return PipelineState;
+	ReferenceView.RayTracingMaterialPipeline = PipelineState;
 }
 
-void FDeferredShadingSceneRenderer::BindRayTracingMaterialPipeline(
-	FRHICommandListImmediate& RHICmdList,
-	FViewInfo& View,
-	FRayTracingPipelineState* PipelineState
-)
+void FDeferredShadingSceneRenderer::BindRayTracingMaterialPipeline(FRHICommandListImmediate& RHICmdList, FViewInfo& View)
 {
 	// Gather bindings from all chunks and submit them all as a single batch to allow RHI to bind all shader parameters in parallel.
 
@@ -954,7 +950,7 @@ void FDeferredShadingSceneRenderer::BindRayTracingMaterialPipeline(
 			&Allocator = Allocator,
 			&RHICmdList,
 			RayTracingScene = View.GetRayTracingSceneChecked(),
-			Pipeline = PipelineState
+			Pipeline = View.RayTracingMaterialPipeline
 		](TConstArrayView<FRayTracingLocalShaderBindingWriter*> Bindings, ERayTracingBindingType BindingType)
 	{
 		uint32 NumTotalBindings = 0;
