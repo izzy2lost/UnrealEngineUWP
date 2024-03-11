@@ -442,11 +442,15 @@ void GetSkyLighting(FMaterialPixelParameters MaterialParameters, VTPageTableResu
 }
 
 #if SUPPORTS_INDEPENDENT_SAMPLERS
-	#define ILCSharedSampler1 View.SharedBilinearClampedSampler
-	#define ILCSharedSampler2 View.SharedBilinearClampedSampler
+	#define ILCSharedSampler1					View.SharedBilinearClampedSampler
+	#define ILCSharedSampler2					View.SharedBilinearClampedSampler
+	#define SkyAtmTransmittanceSharedSampler	View.SharedBilinearClampedSampler
+	#define SkyAtmAerialPerspecSharedSampler	View.SharedBilinearClampedSampler
 #else
-	#define ILCSharedSampler1 IndirectLightingCache.IndirectLightingCacheTextureSampler1
-	#define ILCSharedSampler2 IndirectLightingCache.IndirectLightingCacheTextureSampler2
+	#define ILCSharedSampler1					IndirectLightingCache.IndirectLightingCacheTextureSampler1
+	#define ILCSharedSampler2					IndirectLightingCache.IndirectLightingCacheTextureSampler2
+	#define SkyAtmTransmittanceSharedSampler	View.TransmittanceLutTextureSampler
+	#define SkyAtmAerialPerspecSharedSampler	View.CameraAerialPerspectiveVolumeSampler
 #endif
 
 /** Calculates indirect lighting contribution on this object from precomputed data. */
@@ -1258,7 +1262,7 @@ void FPixelShaderInOut_MainPS(
 						const float3 PlanetCenterToTranslatedWorldPos = (GetTranslatedWorldPosition(MaterialParameters) - ResolvedView.SkyPlanetTranslatedWorldCenterAndViewHeight.xyz) * CM_TO_SKY_UNIT;
 						DirectionalLightAtmosphereTransmittance = GetAtmosphereTransmittance(
 							PlanetCenterToTranslatedWorldPos, ResolvedView.AtmosphereLightDirection[LightIndex].xyz, ResolvedView.SkyAtmosphereBottomRadiusKm, ResolvedView.SkyAtmosphereTopRadiusKm,
-							View.TransmittanceLutTexture, View.TransmittanceLutTextureSampler);
+							View.TransmittanceLutTexture, SkyAtmTransmittanceSharedSampler);
 					}
 					#endif // NEEDS_BASEPASS_PIXEL_FOGGING && PROJECT_SUPPORT_SKY_ATMOSPHERE
 
@@ -1362,7 +1366,7 @@ void FPixelShaderInOut_MainPS(
 		Fogging = GetAerialPerspectiveLuminanceTransmittanceWithFogOver(
 			ResolvedView.RealTimeReflectionCapture, ResolvedView.SkyAtmosphereCameraAerialPerspectiveVolumeSizeAndInvSize,
 			NDCPosition, MaterialParameters.WorldPosition_CamRelative * CM_TO_SKY_UNIT,
-			View.CameraAerialPerspectiveVolume, View.CameraAerialPerspectiveVolumeSampler,
+			View.CameraAerialPerspectiveVolume, SkyAtmAerialPerspecSharedSampler,
 			ResolvedView.SkyAtmosphereCameraAerialPerspectiveVolumeDepthResolutionInv,
 			ResolvedView.SkyAtmosphereCameraAerialPerspectiveVolumeDepthResolution,
 			ResolvedView.SkyAtmosphereAerialPerspectiveStartDepthKm,
