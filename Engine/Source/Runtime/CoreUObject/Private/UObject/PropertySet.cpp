@@ -290,13 +290,7 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			for (; Num; --Num)
 			{
 				int32 Index = SetHelper.AddDefaultValue_Invalid_NeedsRehash();
-				if (Context && Context->bTrackSerializedPropertyPath)
-				{
-					Context->SerializedPropertyPath.SetIndex(Index);
-					
-					// broadcast that a property will be serialized
-					Context->OnTaggedPropertySerialize.Broadcast(*Context);
-				}
+				UE::FSerializedPropertyPathIndexScope SerializedPropertyPathIndex(Context, Index, UE::ESerializedPropertyPathNotify::Yes);
 				ElementProp->SerializeItem(ElementsArray.EnterElement(), SetHelper.GetElementPtrWithoutCheck(Index));
 			}
 		}
@@ -374,11 +368,6 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 					ElementProp->CopyCompleteValue_InContainer(NewElementPtr, TempElementStorage);
 				}
 			}
-		}
-
-		if (Context && Context->bTrackSerializedPropertyPath)
-		{
-			Context->SerializedPropertyPath.SetIndex(INDEX_NONE);
 		}
 
 		SetHelper.Rehash();

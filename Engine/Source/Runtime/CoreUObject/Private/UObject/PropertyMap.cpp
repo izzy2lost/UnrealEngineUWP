@@ -288,6 +288,8 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 	checkSlow(KeyProp);
 	checkSlow(ValueProp);
 
+	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
+
 	FScriptMapHelper MapHelper(this, Value);
 
 	// *** Experimental *** Special serialization path for map with overridable serialization logic
@@ -335,7 +337,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 						FStructuredArchive::FRecord EntryRecord = ReplacedArray.EnterElement().EnterRecord();
 						int32 Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
 						uint8* PairPtr = MapHelper.GetPairPtr(Index);
-
+						UE::FSerializedPropertyPathIndexScope SerializedPropertyPathIndex(Context, Index, UE::ESerializedPropertyPathNotify::Yes);
 						{
 							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 							KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), PairPtr);
@@ -662,8 +664,6 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 	if (UnderlyingArchive.IsLoading())
 	{
-		FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
-
 		// Delete any explicitly-removed elements
 		int32 NumKeysToRemove = 0;
 		FStructuredArchive::FArray KeysToRemoveArray = Record.EnterArray(TEXT("KeysToRemove"), NumKeysToRemove);
@@ -714,15 +714,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			{
 				FStructuredArchive::FRecord EntryRecord = EntriesArray.EnterElement().EnterRecord();
 				int32 Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
-				if (Context && Context->bTrackSerializedPropertyPath)
-				{
-					Context->SerializedPropertyPath.SetIndex(Index);
-					
-					// broadcast that a property will be serialized
-					Context->OnTaggedPropertySerialize.Broadcast(*Context);
-				}
-
-				// TODO: Need a way to indicate that we are serializing a key and value into the property bag. Push Key/Value names?
+				UE::FSerializedPropertyPathIndexScope SerializedPropertyPathIndex(Context, Index, UE::ESerializedPropertyPathNotify::Yes);
 				{
 					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 					KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), MapHelper.GetKeyPtr(Index));

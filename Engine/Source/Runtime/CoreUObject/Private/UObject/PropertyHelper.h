@@ -3,12 +3,14 @@
 
 #include "CoreTypes.h"
 #include "Logging/LogMacros.h"
+#include "UObject/PropertyPathName.h"
+#include "UObject/PropertyTypeName.h"
 #include "UObject/ScriptDelegateFwd.h"
+#include "UObject/UObjectThreadContext.h"
 #include "UObject/WeakObjectPtrFwd.h"
 
 class UFunction;
 class UObject;
-namespace UE { class FPropertyTypeName; }
 
 DECLARE_LOG_CATEGORY_EXTERN(LogProperty, Log, All);
 
@@ -88,5 +90,86 @@ namespace UE
  * @return The new type name, if redirects were applied, otherwise an empty type name.
  */
 FPropertyTypeName ApplyRedirectsToPropertyType(FPropertyTypeName OldTypeName, const FProperty* Property = nullptr);
+
+/** Whether to notify that a property has been serialized when terminating the property path scopes below. */
+enum class ESerializedPropertyPathNotify
+{
+	No,
+	Yes,
+};
+
+/**
+ * Pushes a segment to SerializedPropertyPath for the lifetime of this object if path tracking is active.
+ */
+class FSerializedPropertyPathScope
+{
+public:
+	[[nodiscard]] FSerializedPropertyPathScope(FUObjectSerializeContext* InContext, const FPropertyPathNameSegment& InSegment, ESerializedPropertyPathNotify InNotify)
+	{
+		if (InContext && InContext->bTrackSerializedPropertyPath)
+		{
+			Context = InContext;
+			Context->SerializedPropertyPath.Push(InSegment);
+			Notify = InNotify;
+		}
+	}
+
+	~FSerializedPropertyPathScope()
+	{
+		if (Context)
+		{
+			if (Notify == ESerializedPropertyPathNotify::Yes)
+			{
+				Context->OnTaggedPropertySerialize.Broadcast(*Context);
+			}
+			Context->SerializedPropertyPath.Pop();
+		}
+	}
+
+	FSerializedPropertyPathScope(const FSerializedPropertyPathScope&) = delete;
+	FSerializedPropertyPathScope& operator=(const FSerializedPropertyPathScope&) = delete;
+
+private:
+	FUObjectSerializeContext* Context = nullptr;
+	ESerializedPropertyPathNotify Notify = ESerializedPropertyPathNotify::No;
+};
+
+/**
+ * Sets the index of the last segment of SerializedPropertyPath for the lifetime of this object if path tracking is active.
+ *
+ * Resets the index to INDEX_NONE when destructed.
+ */
+class FSerializedPropertyPathIndexScope
+{
+public:
+	[[nodiscard]] FSerializedPropertyPathIndexScope(FUObjectSerializeContext* InContext, int32 InIndex, ESerializedPropertyPathNotify InNotify)
+	{
+		if (InContext && InContext->bTrackSerializedPropertyPath)
+		{
+			Context = InContext;
+			Context->SerializedPropertyPath.SetIndex(InIndex);
+			Notify = InNotify;
+		}
+	}
+
+	~FSerializedPropertyPathIndexScope()
+	{
+		if (Context)
+		{
+			if (Notify == ESerializedPropertyPathNotify::Yes)
+			{
+				Context->OnTaggedPropertySerialize.Broadcast(*Context);
+			}
+			Context->SerializedPropertyPath.SetIndex(INDEX_NONE);
+		}
+	}
+
+	FSerializedPropertyPathIndexScope(const FSerializedPropertyPathIndexScope&) = delete;
+	FSerializedPropertyPathIndexScope& operator=(const FSerializedPropertyPathIndexScope&) = delete;
+
+private:
+	FUObjectSerializeContext* Context = nullptr;
+	ESerializedPropertyPathNotify Notify = ESerializedPropertyPathNotify::No;
+};
 
 } // UE
