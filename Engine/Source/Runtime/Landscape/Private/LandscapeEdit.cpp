@@ -5011,6 +5011,12 @@ void ALandscapeProxy::PostEditMove(bool bFinished)
 	}
 }
 
+void ALandscapeProxy::OnLoadedActorRemovedFromLevel()
+{
+	Super::OnLoadedActorRemovedFromLevel();
+	ActorDescReferences.Empty();
+}
+
 void ALandscapeProxy::PostEditImport()
 {
 	Super::PostEditImport();

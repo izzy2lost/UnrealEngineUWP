@@ -632,10 +632,32 @@ void AWorldDataLayers::DumpDataLayers(FOutputDevice& OutputDevice) const
 }
 
 #if WITH_EDITOR
-
 TUniquePtr<class FWorldPartitionActorDesc> AWorldDataLayers::CreateClassActorDesc() const
 {
 	return TUniquePtr<FWorldPartitionActorDesc>(new FWorldDataLayersActorDesc());
+}
+
+void AWorldDataLayers::OnLoadedActorRemovedFromLevel()
+{
+	Super::OnLoadedActorRemovedFromLevel();
+
+	if (IsUsingExternalPackageDataLayerInstances())
+	{
+		ForEachDataLayerInstance([this](UDataLayerInstance* DataLayerInstance)
+		{
+			check(DataLayerInstance->IsPackageExternal())
+			ForEachObjectWithPackage(DataLayerInstance->GetPackage(), [](UObject* Object)
+			{
+				if (Object->HasAnyFlags(RF_Public | RF_Standalone))
+				{
+					CastChecked<UMetaData>(Object)->ClearFlags(RF_Public | RF_Standalone);
+				}
+				return true;
+			}, false);
+
+			return true;
+		});
+	}
 }
 
 AWorldDataLayers* AWorldDataLayers::Create(UWorld* World, FName InWorldDataLayerName)

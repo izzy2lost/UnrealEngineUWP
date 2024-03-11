@@ -77,9 +77,6 @@ protected:
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 	virtual bool IsResaveNeeded() const override { return !IsValid(); }
 	virtual bool IsRuntimeRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const override;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	virtual void OnUnloadingInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const override;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	//~ End FWorldPartitionActorDesc Interface.
 
 private:

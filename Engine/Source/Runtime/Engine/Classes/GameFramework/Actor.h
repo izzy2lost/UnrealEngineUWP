@@ -1071,6 +1071,12 @@ public:
 	 * Creates an uninitialized actor descriptor from a specific class.
 	 */
 	static ENGINE_API TUniquePtr<class FWorldPartitionActorDesc> StaticCreateClassActorDesc(const TSubclassOf<AActor>& ActorClass);
+
+	/** Called when this actor gets added to the level in the editor by world partition loading. */
+	ENGINE_API virtual void OnLoadedActorAddedToLevel() {}
+
+	/** Called when this actor gets removed from the level in the editor by world partition unloading. */
+	ENGINE_API virtual void OnLoadedActorRemovedFromLevel() {}
 #endif // WITH_EDITOR
 
 private:

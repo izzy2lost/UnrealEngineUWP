@@ -924,6 +924,8 @@ void ULevel::AddLoadedActors(const TArray<AActor*>& ActorList, const FTransform*
 				Actor->FixupActorFolder();
 			}
 
+			Actor->OnLoadedActorAddedToLevel();
+
 			OnLoadedActorAddedToLevelEvent.Broadcast(*Actor);
 		}
 
@@ -1024,6 +1026,7 @@ void ULevel::RemoveLoadedActors(const TArray<AActor*>& ActorList, const FTransfo
 		{
 			Actor->UnregisterAllComponents();
 			Actor->RegisterAllActorTickFunctions(false, true);
+			Actor->OnLoadedActorRemovedFromLevel();
 
 			OnLoadedActorRemovedFromLevelEvent.Broadcast(*Actor);
 

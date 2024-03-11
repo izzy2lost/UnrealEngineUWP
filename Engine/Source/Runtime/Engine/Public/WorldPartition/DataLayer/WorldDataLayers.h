@@ -56,11 +56,14 @@ class AWorldDataLayers : public AInfo, public IDataLayerInstanceProvider
 	GENERATED_UCLASS_BODY()
 
 public:
+	//~ Begin UObject Interface
 	ENGINE_API virtual void PostLoad() override;
+	virtual void Serialize(FArchive& Ar) override;
+	//~ End UObject Interface
+
+	//~ Begin AActor Interface
 	ENGINE_API virtual void RewindForReplay() override;
 	ENGINE_API virtual void BeginPlay() override;
-	virtual void Serialize(FArchive& Ar) override;
-
 #if WITH_EDITOR
 	ENGINE_API virtual void PreEditUndo() override;
 	ENGINE_API virtual void PostEditUndo() override;
@@ -72,6 +75,8 @@ public:
 	virtual bool ActorTypeSupportsDataLayer() const override { return false; }
 	virtual bool ActorTypeSupportsExternalDataLayer() const override { return false; }
 	ENGINE_API virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
+	virtual void OnLoadedActorRemovedFromLevel() override;
+	//~ End AActor Interface
 
 	static ENGINE_API AWorldDataLayers* Create(UWorld* World, FName InWorldDataLayerName = NAME_None);
 	static ENGINE_API AWorldDataLayers* Create(const FActorSpawnParameters& SpawnParameters);
