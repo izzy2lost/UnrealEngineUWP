@@ -22,7 +22,7 @@ FActorDesc::FActorDesc()
 {}
 
 #if WITH_EDITOR
-FActorDesc::FActorDesc(const FWorldPartitionActorDesc& InActorDesc)
+FActorDesc::FActorDesc(const FWorldPartitionActorDescInstance& InActorDesc)
 {
 	Guid = InActorDesc.GetGuid();
 
@@ -114,7 +114,7 @@ bool UWorldPartitionBlueprintLibrary::GetActorDescs(const UActorDescContainerIns
 		}
 		else
 		{
-			OutActorDescs.Emplace(*Iterator->GetActorDesc());
+			OutActorDescs.Emplace(**Iterator);
 		}
 	}
 
@@ -139,7 +139,7 @@ bool UWorldPartitionBlueprintLibrary::HandleIntersectingActorDesc(const FWorldPa
 	}
 	else
 	{
-		OutActorDescs.Emplace(*ActorDescInstance->GetActorDesc());
+		OutActorDescs.Emplace(*ActorDescInstance);
 	}
 
 	return bResult;

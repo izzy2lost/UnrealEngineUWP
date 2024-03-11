@@ -25,7 +25,7 @@ struct FActorDesc
 	FActorDesc();
 
 #if WITH_EDITOR
-	FActorDesc(const FWorldPartitionActorDesc& InActorDesc);
+	FActorDesc(const FWorldPartitionActorDescInstance& InActorDesc);
 #endif
 
 	/** The actor GUID of this descriptor. */
