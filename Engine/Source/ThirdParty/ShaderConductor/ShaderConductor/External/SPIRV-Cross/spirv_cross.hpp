@@ -94,6 +94,7 @@ struct ShaderResources
 	SmallVector<Resource> sampled_images;
 	SmallVector<Resource> atomic_counters;
 	SmallVector<Resource> acceleration_structures;
+	SmallVector<Resource> gl_plain_uniforms;
 
 	// There can only be one push constant block,
 	// but keep the vector in case this restriction is lifted in the future.
@@ -429,7 +430,7 @@ public:
 	// Arrays of separate samplers are not supported, but arrays of separate images are supported.
 	// Array of images + sampler -> Array of combined image samplers.
 	// UE Change Begin: For OpenGL based platforms we merge all samplers to a single sampler per texture.
-	void build_combined_image_samplers(bool single_sampler_per_texture);
+	void build_combined_image_samplers(bool single_sampler_per_texture = false);
 	// UE Change End: For OpenGL based platforms we merge all samplers to a single sampler per texture.
 
 	// Gets a remapping for the combined image samplers.
@@ -541,10 +542,10 @@ public:
 		return position_invariant;
 	}
 
-	// UE Change Begin: Allow precise semantic outputs  
+	// UE Change Begin: Allow precise semantic outputs
 	// Gets the list of all SPIR-V builtin variable that have been marked as precise
-	const SmallVector<spv::BuiltIn>& get_precise_outputs() const;
-	// UE Change End: Allow precise semantic outputs  
+	const SmallVector<spv::BuiltIn> &get_precise_outputs() const;
+	// UE Change End: Allow precise semantic outputs
 
 protected:
 	const uint32_t *stream(const Instruction &instr) const
@@ -689,6 +690,10 @@ protected:
 	bool is_vector(const SPIRType &type) const;
 	bool is_matrix(const SPIRType &type) const;
 	bool is_array(const SPIRType &type) const;
+	bool is_pointer(const SPIRType &type) const;
+	bool is_physical_pointer(const SPIRType &type) const;
+	bool is_physical_pointer_to_buffer_block(const SPIRType &type) const;
+	static bool is_runtime_size_array(const SPIRType &type);
 	uint32_t expression_type_id(uint32_t id) const;
 	const SPIRType &expression_type(uint32_t id) const;
 	bool expression_is_lvalue(uint32_t id) const;
@@ -759,6 +764,7 @@ protected:
 	bool is_force_recompile = false;
 	bool is_force_recompile_forward_progress = false;
 
+	bool block_is_noop(const SPIRBlock &block) const;
 	bool block_is_loop_candidate(const SPIRBlock &block, SPIRBlock::Method method) const;
 
 	bool types_are_logically_equivalent(const SPIRType &a, const SPIRType &b) const;
@@ -934,7 +940,10 @@ protected:
 	uint32_t clip_distance_count = 0;
 	uint32_t cull_distance_count = 0;
 	bool position_invariant = false;
+
+	// UE Change Begin: Allow precise semantic outputs
 	SmallVector<spv::BuiltIn> precise_outputs;
+	// UE Change End: Allow precise semantic outputs
 
 	void analyze_parameter_preservation(
 	    SPIRFunction &entry, const CFG &cfg,
@@ -1156,9 +1165,11 @@ protected:
 	bool has_extended_member_decoration(uint32_t type, uint32_t index, ExtendedDecorations decoration) const;
 	void unset_extended_member_decoration(uint32_t type, uint32_t index, ExtendedDecorations decoration);
 
+	bool check_internal_recursion(const SPIRType &type, std::unordered_set<uint32_t> &checked_ids);
+	bool type_contains_recursion(const SPIRType &type);
 	bool type_is_array_of_pointers(const SPIRType &type) const;
-	bool type_is_top_level_physical_pointer(const SPIRType &type) const;
 	bool type_is_block_like(const SPIRType &type) const;
+	bool type_is_top_level_block(const SPIRType &type) const;
 	bool type_is_opaque_value(const SPIRType &type) const;
 
 	bool reflection_ssbo_instance_name_is_significant() const;

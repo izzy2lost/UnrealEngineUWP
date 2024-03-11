@@ -110,7 +110,7 @@ public:
 	{
 		uint32_t shader_model = 30; // TODO: map ps_4_0_level_9_0,... somehow
 
-		// Allows the PointSize builtin, and ignores it, as PointSize is not supported in HLSL.
+		// Allows the PointSize builtin in SM 4.0+, and ignores it, as PointSize is not supported in SM 4+.
 		bool point_size_compat = false;
 
 		// Allows the PointCoord builtin, returns float2(0.5, 0.5), as PointCoord is not supported in HLSL.
@@ -126,7 +126,7 @@ public:
 		// By default, a readonly storage buffer will be declared as ByteAddressBuffer (SRV) instead.
 		// Alternatively, use set_hlsl_force_storage_buffer_as_uav to specify individually.
 		bool force_storage_buffer_as_uav = false;
-
+	
 		// Forces any storage image type marked as NonWritable to be considered an SRV instead.
 		// For this to work with function call parameters, NonWritable must be considered to be part of the type system
 		// so that NonWritable image arguments are also translated to Texture rather than RWTexture.
@@ -147,9 +147,11 @@ public:
 		bool use_entry_point_name = false;
 
 		// Preserve (RW)StructuredBuffer types if the input source was HLSL.
+		// This relies on UserTypeGOOGLE to encode the buffer type either as "structuredbuffer" or "rwstructuredbuffer"
+		// whereas the type can be extended with an optional subtype, e.g. "structuredbuffer:int".
 		bool preserve_structured_buffers = false;
 
-		// UE Change Begin: Reconstruct original name of global cbuffer declarations.
+		// UE Change Begin: Reconstruct original name of global cbuffer declarations
 		bool reconstruct_cbuffer_names = false;
 		// UE Change End: Reconstruct original name of global cbuffer declarations.
 
@@ -295,6 +297,7 @@ private:
 	void emit_struct_member(const SPIRType &type, uint32_t member_type_id, uint32_t index, const std::string &qualifier,
 	                        uint32_t base_offset = 0) override;
 	void emit_rayquery_function(const char *commited, const char *candidate, const uint32_t *ops);
+	void emit_mesh_tasks(SPIRBlock &block) override;
 
 	const char *to_storage_qualifiers_glsl(const SPIRVariable &var) override;
 	void replace_illegal_names() override;
@@ -410,9 +413,6 @@ private:
 		bool explicit_binding = false;
 		bool used = false;
 	} base_vertex_info;
-
-	// Returns true for BuiltInSampleMask because gl_SampleMask[] is an array in SPIR-V, but SV_Coverage is a scalar in HLSL.
-	bool builtin_translates_to_nonarray(spv::BuiltIn builtin) const override;
 
 	// Returns true if the specified ID has a UserTypeGOOGLE decoration for StructuredBuffer or RWStructuredBuffer resources.
 	bool is_user_type_structured(uint32_t id) const override;
