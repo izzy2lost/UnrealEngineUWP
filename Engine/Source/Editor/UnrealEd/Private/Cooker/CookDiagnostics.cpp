@@ -164,7 +164,7 @@ void FDiagnostics::AnalyzeHiddenDependencies(UCookOnTheFlyServer& COTFS, FPackag
 			continue;
 		}
 
-		if (PackageData.GetGeneratorPackage())
+		if (PackageData.GetGenerationHelper())
 		{
 			// TODO: Collect SaveReferences for all generated packages and collect Unsolicited from all externalactor packages
 			// and run the missing solicited test when the GeneratorPackage finishes saving all generated

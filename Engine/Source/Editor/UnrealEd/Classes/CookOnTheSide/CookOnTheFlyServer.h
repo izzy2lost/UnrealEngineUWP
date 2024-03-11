@@ -186,7 +186,7 @@ namespace UE::Cook
 	struct FCookGenerationInfo;
 	struct FCookSavePackageContext;
 	struct FDiscoveredPlatformSet;
-	struct FGeneratorPackage;
+	struct FGenerationHelper;
 	struct FInitializeConfigSettings;
 	struct FPackageData;
 	struct FPackageDatas;
@@ -1162,7 +1162,7 @@ private:
 		bool bPrecaching);
 	UE::Cook::EPollStatus PrepareSaveInternal(UE::Cook::FPackageData& PackageData, UE::Cook::FCookerTimer& Timer,
 		bool bPrecaching);
-	/** Call BeginCacheForCookedPlatformData on all objects in a PackageData or a GeneratorPackage's current round. */
+	/** Call BeginCacheForCookedPlatformData on all objects currently found in the PackageData. */
 	UE::Cook::EPollStatus CallBeginCacheOnObjects(UE::Cook::FPackageData& PackageData, UPackage* Package,
 		TArray<UE::Cook::FCachedObjectInOuter>& Objects, int32& NextIndex, UE::Cook::FCookerTimer& Timer);
 
@@ -1344,31 +1344,39 @@ private:
 
 	UE::Cook::EPollStatus ConditionalCreateGeneratorPackage(UE::Cook::FPackageData& PackageData, bool bPrecaching);
 
-	/** Generate the list of cook-time-created packages created by the Generator. */
-	UE::Cook::EPollStatus QueueGeneratedPackages(UE::Cook::FGeneratorPackage& Generator,
+	/** Generate the list of cook-time-created packages created by the generator package. */
+	UE::Cook::EPollStatus QueueGeneratedPackages(UE::Cook::FGenerationHelper& GenerationHelper,
 		UE::Cook::FPackageData& PackageData);
-	/** Run additional steps in PrepareSave that are required when the package has a Generator. */
-	UE::Cook::EPollStatus PrepareSaveGeneratedPackage(UE::Cook::FGeneratorPackage& Generator,
+	/** Run additional steps in PrepareSave that are required when the package has a GenerationHelper. */
+	UE::Cook::EPollStatus PrepareSaveGeneratedPackage(UE::Cook::FGenerationHelper& GenerationHelper,
 		UE::Cook::FPackageData& PackageData, UE::Cook::FCookerTimer& Timer, bool bPrecaching);
-	/** Call BeginCacheForCookedPlatformData on the objects the Generator plans to move into its main UPackage. */
-	UE::Cook::EPollStatus BeginCacheObjectsToMove(UE::Cook::FGeneratorPackage& Generator,
+	/**
+	 * Call BeginCacheForCookedPlatformData on objects the CookPackageSplitter plans to move
+	 * into its main UPackage.
+	 */
+	UE::Cook::EPollStatus BeginCacheObjectsToMove(UE::Cook::FGenerationHelper& GenerationHelper,
 		UE::Cook::FCookGenerationInfo& Info, UE::Cook::FCookerTimer& Timer,
 		TArray<ICookPackageSplitter::FGeneratedPackageForPreSave>& GeneratedPackagesForPresave);
-	/** Call the Generator's PreSaveGeneratorPackage to create/move objects into its main UPackage. */
+	/** Call the CookPackageSplitter's PreSaveGeneratorPackage to create/move objects into its main UPackage. */
 	UE::Cook::EPollStatus PreSaveGeneratorPackage(UE::Cook::FPackageData& PackageData,
-		UE::Cook::FGeneratorPackage& Generator, UE::Cook::FCookGenerationInfo& Info,
+		UE::Cook::FGenerationHelper& GenerationHelper, UE::Cook::FCookGenerationInfo& Info,
 		TArray<ICookPackageSplitter::FGeneratedPackageForPreSave>& GeneratedPackagesForPresave);
-	/** Construct the list of generated packages that is required for some of the CookPackageSplitter interface calls. */
-	void ConstructGeneratedPackagesForPresave(UE::Cook::FPackageData& PackageData, UE::Cook::FGeneratorPackage& Generator,
+	/** Construct the list of generated packages that is required for some CookPackageSplitter interface calls. */
+	void ConstructGeneratedPackagesForPresave(UE::Cook::FPackageData& PackageData,
+		UE::Cook::FGenerationHelper& GenerationHelper,
 		TArray<ICookPackageSplitter::FGeneratedPackageForPreSave>& GeneratedPackagesForPresave);
-	/** Call BeginCacheForCookedPlatformData on any undeclared objects in the Generator's main UPackage after the move. */
-	UE::Cook::EPollStatus BeginCachePostMove(UE::Cook::FGeneratorPackage& Generator,
+	/**
+	 * Call BeginCacheForCookedPlatformData on any undeclared objects in the CookPackageSplitter's main UPackage
+	 * after the move.
+	 */
+	UE::Cook::EPollStatus BeginCachePostMove(UE::Cook::FGenerationHelper& GenerationHelper,
 		UE::Cook::FCookGenerationInfo& Info, UE::Cook::FCookerTimer& Timer);
 
 	/** Try creating (or finding from earlier creation) the generated package for later population */
-	UPackage* TryCreateGeneratedPackage(UE::Cook::FGeneratorPackage& Generator, UE::Cook::FCookGenerationInfo& GeneratedInfo);
-	/** Try calling the splitter's populate to create the package */
-	UE::Cook::EPollStatus TryPopulateGeneratedPackage(UE::Cook::FGeneratorPackage& Generator,
+	UPackage* TryCreateGeneratedPackage(UE::Cook::FGenerationHelper& GenerationHelper,
+		UE::Cook::FCookGenerationInfo& GeneratedInfo);
+	/** Try calling the CookPackageSplitter's populate to create the package */
+	UE::Cook::EPollStatus TryPopulateGeneratedPackage(UE::Cook::FGenerationHelper& GenerationHelper,
 		UE::Cook::FCookGenerationInfo& GeneratedInfo);
 
 	ICookedPackageWriter& FindOrCreatePackageWriter(const ITargetPlatform* TargetPlatform);
@@ -1592,7 +1600,7 @@ private:
 	friend UE::Cook::FCookWorkerClient;
 	friend UE::Cook::FCookWorkerServer;
 	friend UE::Cook::FDiagnostics;
-	friend UE::Cook::FGeneratorPackage;
+	friend UE::Cook::FGenerationHelper;
 	friend UE::Cook::FInitializeConfigSettings;
 	friend UE::Cook::FPackageData;
 	friend UE::Cook::FPackageDatas;
