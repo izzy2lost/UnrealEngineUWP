@@ -51,7 +51,7 @@ public:
 #endif
 
 	void SetNNEModelData(TObjectPtr<UNNEModelData> ModelData);
-	const FString GetNNERuntimeName() const					{ return TEXT("NNERuntimeRDGDml"); }
+	const FString GetNNERuntimeName() const					{ return TEXT("NNERuntimeORTDml"); }
 
 public:
 	/** The NNE neural network model. */
