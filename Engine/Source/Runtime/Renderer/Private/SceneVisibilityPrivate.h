@@ -705,7 +705,8 @@ public:
 		const FViewInfo& InView,
 		int32 InViewIndex,
 		const FFilterStaticMeshesForViewData& InViewData,
-		uint8* InMarkMasks);
+		uint8* InMarkMasks,
+		const UE::Tasks::FTask& PrerequisitesTask);
 
 	void LaunchComputeRelevanceTask();
 
@@ -728,6 +729,7 @@ private:
 	const FFilterStaticMeshesForViewData& ViewData;
 	FDynamicPrimitiveViewMasks* DynamicPrimitiveViewMasks;
 	uint8* RESTRICT MarkMasks;
+	UE::Tasks::FTask PrerequisitesTask;
 
 	FRelevancePrimSet<int32> Input;
 	FRelevancePrimSet<int32> NotDrawRelevant;
@@ -792,7 +794,7 @@ private:
 class FComputeAndMarkRelevance
 {
 public:
-	FComputeAndMarkRelevance(FVisibilityTaskData& InTaskData, FScene& InScene, FViewInfo& InView, uint8 InViewIndex);
+	FComputeAndMarkRelevance(FVisibilityTaskData& InTaskData, FScene& InScene, FViewInfo& InView, uint8 InViewIndex, const UE::Tasks::FTask& PreprequisitesTask);
 
 	~FComputeAndMarkRelevance()
 	{
@@ -813,7 +815,7 @@ private:
 	FRelevancePacket* CreateRelevancePacket()
 	{
 		check(!bLaunchOnAddPrimitive || !bFinished);
-		return Packets.Emplace_GetRef(new FRelevancePacket(TaskData, View, ViewIndex, ViewData, MarkMasks));
+		return Packets.Emplace_GetRef(new FRelevancePacket(TaskData, View, ViewIndex, ViewData, MarkMasks, PrerequisitesTask));
 	}
 
 	FVisibilityTaskData& TaskData;
@@ -827,6 +829,7 @@ private:
 	const uint32 NumPrimitivesPerPacket;
 	uint8* MarkMasks;
 	TArray<FRelevancePacket*, SceneRenderingAllocator> Packets;
+	UE::Tasks::FTask PrerequisitesTask;
 	const bool bLaunchOnAddPrimitive;
 	bool bFinished = false;
 	bool bFinalized = false;

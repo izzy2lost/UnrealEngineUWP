@@ -1127,7 +1127,8 @@ FRelevancePacket::FRelevancePacket(
 	const FViewInfo& InView,
 	int32 InViewIndex,
 	const FFilterStaticMeshesForViewData& InViewData,
-	uint8* InMarkMasks)
+	uint8* InMarkMasks,
+	const UE::Tasks::FTask& InPrerequisitesTask)
 	: CurrentWorldTime(InView.Family->Time.GetWorldTimeSeconds())
 	, DeltaWorldTime(InView.Family->Time.GetDeltaWorldTimeSeconds())
 	, TaskData(InTaskData)
@@ -1139,6 +1140,7 @@ FRelevancePacket::FRelevancePacket(
 	, ViewData(InViewData)
 	, DynamicPrimitiveViewMasks(TaskData.DynamicMeshElements.PrimitiveViewMasks)
 	, MarkMasks(InMarkMasks)
+	, PrerequisitesTask(InPrerequisitesTask)
 	, Input(TaskConfig.Relevance.NumPrimitivesPerPacket)
 	, NotDrawRelevant(TaskConfig.Relevance.NumPrimitivesPerPacket)
 	, TranslucentSelfShadowPrimitives(TaskConfig.Relevance.NumPrimitivesPerPacket)
@@ -1180,7 +1182,7 @@ void FRelevancePacket::LaunchComputeRelevanceTask()
 				}
 			}
 
-		}, Scene.GetCacheMeshDrawCommandsTask(), TaskConfig.Relevance.ComputeRelevanceTaskPriority);
+		}, PrerequisitesTask, TaskConfig.Relevance.ComputeRelevanceTaskPriority);
 	}
 }
 
@@ -1949,7 +1951,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 
 ///////////////////////////////////////////////////////////////////////////////
 
-FComputeAndMarkRelevance::FComputeAndMarkRelevance(FVisibilityTaskData& InTaskData, FScene& InScene, FViewInfo& InView, uint8 InViewIndex)
+FComputeAndMarkRelevance::FComputeAndMarkRelevance(FVisibilityTaskData& InTaskData, FScene& InScene, FViewInfo& InView, uint8 InViewIndex, const UE::Tasks::FTask& InPrerequisitesTask)
 	: TaskData(InTaskData)
 	, Scene(InScene)
 	, View(InView)
@@ -1958,6 +1960,7 @@ FComputeAndMarkRelevance::FComputeAndMarkRelevance(FVisibilityTaskData& InTaskDa
 	, ViewData(View)
 	, NumMeshes(Scene.StaticMeshes.GetMaxIndex())
 	, NumPrimitivesPerPacket(InTaskData.TaskConfig.Relevance.NumPrimitivesPerPacket)
+	, PrerequisitesTask(InPrerequisitesTask)
 	, bLaunchOnAddPrimitive(TaskData.TaskConfig.Schedule == EVisibilityTaskSchedule::Parallel)
 	, bFinished(!bLaunchOnAddPrimitive)
 {
@@ -2046,6 +2049,7 @@ void FComputeAndMarkRelevance::Finalize()
 {
 	check(bFinished && !bFinalized);
 	bFinalized = true;
+	PrerequisitesTask.Wait();
 
 	if (!bLaunchOnAddPrimitive)
 	{
@@ -3500,24 +3504,35 @@ void FVisibilityViewPacket::BeginInitVisibility()
 	// Allocate the view's visibility maps.
 	View.PrimitiveVisibilityMap.Init(!bShouldVisibilityCull, Scene.Primitives.Num());
 	View.PrimitiveRayTracingVisibilityMap.Init(false, Scene.Primitives.Num());
-	View.DynamicMeshElementRanges.SetNumZeroed(Scene.Primitives.Num());
 	View.PotentiallyFadingPrimitiveMap.Init(false, Scene.Primitives.Num());
 	View.PrimitiveFadeUniformBuffers.AddZeroed(Scene.Primitives.Num());
 	View.PrimitiveFadeUniformBufferMap.Init(false, Scene.Primitives.Num());
-	View.StaticMeshVisibilityMap.Init(false, Scene.StaticMeshes.GetMaxIndex());
-	View.StaticMeshFadeOutDitheredLODMap.Init(false, Scene.StaticMeshes.GetMaxIndex());
-	View.StaticMeshFadeInDitheredLODMap.Init(false, Scene.StaticMeshes.GetMaxIndex());
-	View.PrimitivesLODMask.Init(FLODMask(), Scene.Primitives.Num());
 
-	View.PrimitiveViewRelevanceMap.Reset(Scene.Primitives.Num());
-	View.PrimitiveViewRelevanceMap.AddZeroed(Scene.Primitives.Num());
+	UE::Tasks::FTaskEvent RelevancePrereqs{ UE_SOURCE_LOCATION };
+	RelevancePrereqs.AddPrerequisites(Scene.GetCacheMeshDrawCommandsTask());
+
+	// Offload initialization of maps that are not touched by frustum culling / occlusion until the relevance phase. These can be quite expensive to zero out.
+	RelevancePrereqs.AddPrerequisites(UE::Tasks::Launch(UE_SOURCE_LOCATION, [this]
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(SceneVisibility_InitMaps);
+		View.DynamicMeshElementRanges.SetNumZeroed(Scene.Primitives.Num());
+		View.PrimitivesLODMask.Init(FLODMask(), Scene.Primitives.Num());
+		View.StaticMeshVisibilityMap.Init(false, Scene.StaticMeshes.GetMaxIndex());
+		View.StaticMeshFadeOutDitheredLODMap.Init(false, Scene.StaticMeshes.GetMaxIndex());
+		View.StaticMeshFadeInDitheredLODMap.Init(false, Scene.StaticMeshes.GetMaxIndex());
+		View.PrimitiveViewRelevanceMap.Reset(Scene.Primitives.Num());
+		View.PrimitiveViewRelevanceMap.AddZeroed(Scene.Primitives.Num());
+
+	}, TaskConfig.TaskPriority));
+
+	RelevancePrereqs.Trigger();
 
 	if (View.ShowOnlyPrimitives.IsSet())
 	{
 		View.bHasNoVisiblePrimitive = View.ShowOnlyPrimitives->Num() == 0;
 	}
 
-	Relevance.Context = TaskData.Allocator.Create<FComputeAndMarkRelevance>(TaskData, Scene, View, ViewIndex);
+	Relevance.Context = TaskData.Allocator.Create<FComputeAndMarkRelevance>(TaskData, Scene, View, ViewIndex, RelevancePrereqs);
 
 	ClearStalePrimitiveFadingStates(View, ViewState);
 
@@ -3546,6 +3561,8 @@ void FVisibilityViewPacket::BeginInitVisibility()
 	// Most views use standard frustum culling.
 	if (bShouldVisibilityCull)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(HLODInit);
+
 		// Update HLOD transition/visibility states to allow use during distance culling
 		FLODSceneTree& HLODTree = Scene.SceneLODHierarchy;
 
@@ -5517,6 +5534,8 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 			// Initialize the view's RHI resources.
 			UpdateHairResources(GraphBuilder, View);
 			View.InitRHIResources();
+
+			View.PrevHZB = TryRegisterExternalTexture(GraphBuilder, View.PrevViewInfo.HZB);
 		}
 
 		for (FCustomRenderPassInfo& PassInfo : CustomRenderPassInfos)
