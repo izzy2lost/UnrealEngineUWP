@@ -90,7 +90,8 @@ public:
 			}
 
 			// we only need local vertex factory for the preview static mesh
-			if (VertexFactoryType != FindVertexFactoryType(FName(TEXT("FLocalVertexFactory"), FNAME_Find)))
+			if (VertexFactoryType != FindVertexFactoryType(FName(TEXT("FLocalVertexFactory"), FNAME_Find)) &&
+				VertexFactoryType != FindVertexFactoryType(FName(TEXT("FNaniteVertexFactory"), FNAME_Find)))
 			{
 				//cache for gpu skinned vertex factory if the material allows it
 				//this way we can have a preview skeletal mesh
@@ -152,6 +153,10 @@ public:
 				bShaderTypeMatches = true;
 			}
 			else if (FCString::Stristr(ShaderType->GetName(), TEXT("BasePassPSFNoLightMapPolicy")))
+			{
+				bShaderTypeMatches = true;
+			}
+			else if (FCString::Stristr(ShaderType->GetName(), TEXT("TBasePassCSFNoLightMapPolicy")))
 			{
 				bShaderTypeMatches = true;
 			}
