@@ -413,6 +413,7 @@ namespace UE::MVVM::BindingHelper
 			return TryGetPropertyTypeForDestinationBinding(InField.GetFunction());
 		}
 	}
+
 	TValueOrError<const FProperty*, FText> TryGetReturnTypeForConversionFunction(const UFunction* InFunction)
 	{
 		FText CommonResult = Private::TryGetPropertyTypeCommon(InFunction);
@@ -572,14 +573,24 @@ namespace UE::MVVM::BindingHelper
 		check(InFunction);
 		FProperty* Result = InFunction->GetReturnProperty();
 
-		if (Result == nullptr && InFunction->HasAllFunctionFlags(FUNC_HasOutParms))
+		if (InFunction->HasAllFunctionFlags(FUNC_HasOutParms))
 		{
 			for (TFieldIterator<FProperty> It(InFunction); It && (It->PropertyFlags & CPF_Parm); ++It)
 			{
-				if (It->HasAllPropertyFlags(CPF_OutParm) && !It->HasAnyPropertyFlags(CPF_Deprecated | CPF_EditorOnly | CPF_ConstParm | CPF_ReferenceParm))
+				if (It->HasAllPropertyFlags(CPF_OutParm) && !It->HasAnyPropertyFlags(CPF_ConstParm | CPF_ReferenceParm))
 				{
-					Result = *It;
-					break;
+					if (Result == nullptr)
+					{
+						if (!It->HasAnyPropertyFlags(CPF_Deprecated | CPF_EditorOnly))
+						{
+							Result = *It;
+						}
+					}
+					else if (Result != *It)
+					{
+						Result = nullptr;
+						break;
+					}
 				}
 			}
 		}
@@ -633,13 +644,36 @@ namespace UE::MVVM::BindingHelper
 		return Arguments;
 	}
 
+	namespace Private
+	{
+		const FProperty* GetRuntimeReturnProperty(const UFunction* InFunction)
+		{
+			check(InFunction);
+			FProperty* Result = InFunction->GetReturnProperty();
+
+			if (Result == nullptr && InFunction->HasAllFunctionFlags(FUNC_HasOutParms))
+			{
+				for (TFieldIterator<FProperty> It(InFunction); It && (It->PropertyFlags & CPF_Parm); ++It)
+				{
+					if (It->HasAllPropertyFlags(CPF_OutParm) && !It->HasAnyPropertyFlags(CPF_Deprecated | CPF_EditorOnly | CPF_ConstParm | CPF_ReferenceParm))
+					{
+						Result = *It;
+						break;
+					}
+				}
+			}
+
+			return Result;
+		}
+	}
+
 	void ExecuteBinding_NoCheck(const FFieldContext& Source, const FFieldContext& Destination)
 	{
 		check(!Source.GetObjectVariant().IsNull() && !Destination.GetObjectVariant().IsNull());
 		check(!Source.GetFieldVariant().IsEmpty() && !Destination.GetFieldVariant().IsEmpty());
 
 		const bool bIsSourceBindingIsProperty = Source.GetFieldVariant().IsProperty();
-		const FProperty* GetterType = bIsSourceBindingIsProperty ? Source.GetFieldVariant().GetProperty() : GetReturnProperty(Source.GetFieldVariant().GetFunction());
+		const FProperty* GetterType = bIsSourceBindingIsProperty ? Source.GetFieldVariant().GetProperty() : Private::GetRuntimeReturnProperty(Source.GetFieldVariant().GetFunction());
 		check(GetterType);
 
 		const bool bIsDestinationBindingIsProperty = Destination.GetFieldVariant().IsProperty();
@@ -696,7 +730,7 @@ namespace UE::MVVM::BindingHelper
 		ConversionFunction.GetObject()->ProcessEvent(ConversionFunction.GetFunction(), ConversionFunctionDataPtr);
 
 		{
-			const FProperty* ReturnConversionProperty = GetReturnProperty(ConversionFunction.GetFunction());
+			const FProperty* ReturnConversionProperty = Private::GetRuntimeReturnProperty(ConversionFunction.GetFunction());
 			check(ReturnConversionProperty);
 
 			const bool bIsDestinationBindingIsProperty = Destination.GetFieldVariant().IsProperty();
@@ -770,7 +804,7 @@ namespace UE::MVVM::BindingHelper
 			check(ArgumentConversionProperty);
 
 			const bool bIsSourceBindingIsProperty = Source.GetFieldVariant().IsProperty();
-			const FProperty* GetterType = bIsSourceBindingIsProperty ? Source.GetFieldVariant().GetProperty() : GetReturnProperty(Source.GetFieldVariant().GetFunction());
+			const FProperty* GetterType = bIsSourceBindingIsProperty ? Source.GetFieldVariant().GetProperty() : Private::GetRuntimeReturnProperty(Source.GetFieldVariant().GetFunction());
 			check(GetterType);
 			check(ArePropertiesCompatible(GetterType, ArgumentConversionProperty));
 
@@ -819,7 +853,7 @@ namespace UE::MVVM::BindingHelper
 		ConversionFunction.GetObject()->ProcessEvent(ConversionFunction.GetFunction(), ConversionFunctionDataPtr);
 
 		{
-			const FProperty* ReturnConversionProperty = GetReturnProperty(ConversionFunction.GetFunction());
+			const FProperty* ReturnConversionProperty = Private::GetRuntimeReturnProperty(ConversionFunction.GetFunction());
 			check(ReturnConversionProperty);
 
 			const bool bIsDestinationBindingIsProperty = Destination.GetFieldVariant().IsProperty();

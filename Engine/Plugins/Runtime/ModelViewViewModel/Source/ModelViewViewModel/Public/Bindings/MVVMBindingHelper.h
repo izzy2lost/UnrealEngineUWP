@@ -113,6 +113,7 @@ namespace UE::MVVM::BindingHelper
 	 * int Foo(double) -> returns int
 	 * void Foo(int&, double) -> returns int
 	 * void Foo(const int&, double) -> returns null
+	 * int Foo(int&, double) -> returns null
 	 */
 	[[nodiscard]] MODELVIEWVIEWMODEL_API const FProperty* GetReturnProperty(const UFunction* InFunction);
 

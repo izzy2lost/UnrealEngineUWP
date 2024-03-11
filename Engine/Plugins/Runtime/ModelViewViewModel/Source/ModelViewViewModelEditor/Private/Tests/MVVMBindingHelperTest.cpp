@@ -208,8 +208,8 @@ bool FMVVMBindingHelperTest::RunTest(const FString& Parameters)
 	TestConversionFunction("FunctionConversionF", nullptr, FIntProperty::StaticClass());
 	TestConversionFunction("FunctionConversionG", FArrayProperty::StaticClass(), FSetProperty::StaticClass());
 	TestConversionFunction("FunctionConversionH", FArrayProperty::StaticClass(), FSetProperty::StaticClass());
-	TestConversionFunction("FunctionConversionI", FArrayProperty::StaticClass(), FSetProperty::StaticClass());
-	TestConversionFunction("FunctionConversionJ", FArrayProperty::StaticClass(), FMapProperty::StaticClass());
+	TestConversionFunction("FunctionConversionI", nullptr, FSetProperty::StaticClass());
+	TestConversionFunction("FunctionConversionJ", nullptr, FMapProperty::StaticClass());
 
 	return true;
 }
