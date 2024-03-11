@@ -12,6 +12,11 @@
 #include "Tools/AvaInteractiveToolsToolBase.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
+void UAvaInteractiveToolsToolViewportPointListPlanner::OverrideCurrentViewportPosition(const FVector2f InPosition)
+{
+	CurrentViewportPosition = InPosition;
+}
+
 void UAvaInteractiveToolsToolViewportPointListPlanner::AddViewportPosition(const FVector2f& InViewportPosition)
 {
 	ViewportPositions.Add(InViewportPosition);

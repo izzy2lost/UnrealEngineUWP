@@ -24,6 +24,8 @@ protected:
 	// The minimum dimension
 	static constexpr float MinDim = 5;
 
+	FVector2f LineEndLocation;
+
 	//~ Begin UAvaShapesEditorShapeToolBase
 	virtual void InitShape(UAvaShapeDynamicMeshBase* InShape) const override;
 	virtual void SetShapeSize(AAvaShapeActor* InShapeActor, const FVector2D& InShapeSize) const override;

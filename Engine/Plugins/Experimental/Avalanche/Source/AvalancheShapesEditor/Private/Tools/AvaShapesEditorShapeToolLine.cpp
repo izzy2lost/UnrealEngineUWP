@@ -5,7 +5,53 @@
 #include "AvaShapesEditorCommands.h"
 #include "Builders/AvaInteractiveToolsToolBuilder.h"
 #include "DynamicMeshes/AvaShapeLineDynMesh.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Planners/AvaInteractiveToolsToolViewportPointListPlanner.h"
+
+namespace UE::AvaShapesEditor::Private
+{
+	constexpr float LineSnapAngle = 15.f;
+
+	// In angle in degrees
+	FVector2f SnapToNearestAngle(const FVector2f& InStartPosition, const FVector2f& InEndPosition, float InSnapAngle)
+	{
+		if (InSnapAngle < 1 || InSnapAngle > 90)
+		{
+			return InEndPosition;
+		}
+
+		static const FVector2f UpVector = FVector2f(1, 0);
+
+		const FVector2f Vector = InEndPosition - InStartPosition;
+		const FVector2f UnitVector = Vector.GetSafeNormal();
+		const float DotProduct = UpVector.Dot(UnitVector);
+		float Angle = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
+		const float Mod = FMath::Fmod(Angle, InSnapAngle);
+
+		if (FMath::IsNearlyZero(Mod))
+		{
+			return InEndPosition;
+		}
+
+		Angle -= Mod;
+
+		if (FMath::Abs(Mod) >= (InSnapAngle *  0.5f))
+		{
+			Angle += InSnapAngle;
+		}
+
+		const float AngleRadians = FMath::DegreesToRadians(Angle);
+
+		// Create snapped vector in correct quadrant
+		// May fail if snap angle is not a factor of 180. So let's not do that?
+		FVector2f SnappedVector = {
+			FMath::Cos(AngleRadians),
+			FMath::Sin(AngleRadians) * (Vector.Y >= 0 ? 1.f : -1.f)
+		};
+
+		return InStartPosition + (SnappedVector * Vector.Length());
+	}
+}
 
 UAvaShapesEditorShapeToolLine::UAvaShapesEditorShapeToolLine()
 {
@@ -55,7 +101,17 @@ void UAvaShapesEditorShapeToolLine::OnViewportPlannerUpdate()
 
 				if (PreviewActor)
 				{
-					SetLineEnds(Cast<AAvaShapeActor>(PreviewActor), Positions[0], PointListPlanner->GetCurrentViewportPosition());
+					LineEndLocation = PointListPlanner->GetCurrentViewportPosition();
+
+					if (FSlateApplication::Get().GetModifierKeys().IsShiftDown())
+					{
+						using namespace UE::AvaShapesEditor::Private;
+
+						LineEndLocation = SnapToNearestAngle(Positions[0], LineEndLocation, LineSnapAngle);
+						PointListPlanner->OverrideCurrentViewportPosition(LineEndLocation);
+					}
+
+					SetLineEnds(Cast<AAvaShapeActor>(PreviewActor), Positions[0], LineEndLocation);
 				}
 				break;
 			

@@ -20,10 +20,17 @@ class AVALANCHEINTERACTIVETOOLS_API UAvaInteractiveToolsToolViewportPointListPla
 
 public:
 	const FVector2f& GetCurrentViewportPosition() const { return CurrentViewportPosition; }
+
+	void OverrideCurrentViewportPosition(const FVector2f InPosition);
+
 	const TArray<FVector2f>& GetViewportPositions() const { return ViewportPositions; }
+
 	TArray<FVector2f>& GetViewportPositions() { return ViewportPositions; }
+
 	void AddViewportPosition(const FVector2f& InViewportPosition);
+
 	EAvaInteractiveToolsToolViewportPointListPlannerLineStatus GetLineStatus() const { return LineStatus; }
+
 	void SetLineStatus(EAvaInteractiveToolsToolViewportPointListPlannerLineStatus InLineStatus);
 
 	//~ Begin UAvaInteractiveToolsToolViewportPlanner
