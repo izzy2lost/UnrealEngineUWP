@@ -5534,8 +5534,6 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 			// Initialize the view's RHI resources.
 			UpdateHairResources(GraphBuilder, View);
 			View.InitRHIResources();
-
-			View.PrevHZB = TryRegisterExternalTexture(GraphBuilder, View.PrevViewInfo.HZB);
 		}
 
 		for (FCustomRenderPassInfo& PassInfo : CustomRenderPassInfos)
