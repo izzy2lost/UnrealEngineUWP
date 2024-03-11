@@ -388,6 +388,10 @@ namespace LevelEditorActionHelpers
 	 */
 	void GetSelectSettingsClassSubMenu(UToolMenu* InMenu, UClass* InRootClass, FOnClassPicked InOnClassPicked)
 	{
+		// The contents of this menu are added as a custom widget with its own search field so we
+		// disable searching in this parent menu to avoid displaying two search fields to the user.
+		InMenu->bSearchable = false;
+
 		FClassViewerInitializationOptions Options;
 		Options.Mode = EClassViewerMode::ClassPicker;
 		Options.DisplayMode = EClassViewerDisplayMode::ListView;
@@ -421,6 +425,10 @@ namespace LevelEditorActionHelpers
 	 */
 	void GetCreateSettingsClassSubMenu(UToolMenu* InMenu, UClass* InRootClass, FOnClassPicked InOnClassPicked)
 	{
+		// The contents of this menu are added as a custom widget with its own search field so we
+		// disable searching in this parent menu to avoid displaying two search fields to the user.
+		InMenu->bSearchable = false;
+
 		FClassViewerInitializationOptions Options;
 		Options.Mode = EClassViewerMode::ClassPicker;
 		Options.DisplayMode = EClassViewerDisplayMode::ListView;
@@ -605,8 +613,8 @@ namespace LevelEditorActionHelpers
 #define LOCTEXT_NAMESPACE "LevelToolBarViewMenu"
 		Section.AddDynamicEntry(InName, FNewToolMenuSectionDelegate::CreateLambda([=](FToolMenuSection& InSection)
 		{
-			ULevelEditorMenuContext* Context = InSection.FindContext<ULevelEditorMenuContext>();
-			if (Context && Context->LevelEditor.IsValid())
+			if (ULevelEditorMenuContext* const Context = InSection.FindContext<ULevelEditorMenuContext>();
+			Context && Context->LevelEditor.IsValid())
 			{
 				LevelEditorActionHelpers::FBlueprintMenuSettings GameModeMenuSettings;
 				GameModeMenuSettings.EditCommand =
@@ -1929,6 +1937,10 @@ void FLevelEditorToolBar::RegisterOpenBlueprintMenu()
 		/** Generates 'open blueprint' sub-menu */
 		static void MakeOpenBPClassMenu(UToolMenu* InMenu)
 		{
+			// The contents of this menu are added as a custom widget with its own search field so we
+			// disable searching in this parent menu to avoid displaying two search fields to the user.
+			InMenu->bSearchable = false;
+
 			FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 
 			// Configure filter for asset picker

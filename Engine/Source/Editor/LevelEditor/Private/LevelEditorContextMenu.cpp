@@ -1180,6 +1180,10 @@ private:
 
 void FLevelEditorContextMenuImpl::FillActorMenu(UToolMenu* Menu)
 {
+	// The contents of this menu are added as a custom widget with its own search field so we
+	// disable searching in this parent menu to avoid displaying two search fields to the user.
+	Menu->bSearchable = false;
+
 	struct Local
 	{
 		static FReply OnInteractiveActorPickerClicked()

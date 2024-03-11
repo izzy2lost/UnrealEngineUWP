@@ -172,6 +172,10 @@ void FOpenColorIOEditorModule::UnregisterViewMenuExtension()
 
 void FOpenColorIOEditorModule::AddOpenColorIODisplaySubMenu(UToolMenu* Menu)
 {
+	// Disable searching in this parent menu because the contents of this menu is added as a
+	// menu-in-a-menu which leads to double search fields if the parent is searchable too.
+	Menu->bSearchable = false;
+
 	//Viewport menu was clicked, get which one was hit
 	FViewport* CurrentViewport = GEditor->GetActiveViewport();
 
