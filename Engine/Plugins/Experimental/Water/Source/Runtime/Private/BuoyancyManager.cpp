@@ -14,6 +14,10 @@ ABuoyancyManager::ABuoyancyManager(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	Timestamp = 0;
+
+#if WITH_EDITORONLY_DATA
+	bIsSpatiallyLoaded = false;
+#endif
 }
 
 ABuoyancyManager* ABuoyancyManager::Get(const UObject* WorldContextObject)
