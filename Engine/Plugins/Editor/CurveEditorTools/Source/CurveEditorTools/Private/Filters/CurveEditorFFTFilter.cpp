@@ -56,7 +56,7 @@ void UCurveEditorFFTFilter::ApplyFilter_Impl(TSharedRef<FCurveEditor> InCurveEdi
 
 		// Get all keys that exist between the time range
 		OriginalKeyHandles.Reset();
-		CurveModel->GetKeys(*InCurveEditor, MinKey, MaxKey, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), OriginalKeyHandles);
+		CurveModel->GetKeys(MinKey, MaxKey, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), OriginalKeyHandles);
 		
 		// Need at least three keys to filter
 		if (OriginalKeyHandles.Num() < 3)

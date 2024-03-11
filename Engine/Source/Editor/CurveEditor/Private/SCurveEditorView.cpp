@@ -229,7 +229,7 @@ void SCurveEditorView::GetCurveDrawParam(TSharedPtr<FCurveEditor>& CurveEditor,c
 	}
 
 	TArray<FKeyHandle> VisibleKeys;
-	CurveModel->GetKeys(*CurveEditor, InputMin, InputMax, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), VisibleKeys);
+	CurveModel->GetKeys(InputMin, InputMax, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), VisibleKeys);
 
 	// Always reset the points to cover case going from 1 to 0 keys
 	Params.Points.Reset(VisibleKeys.Num());

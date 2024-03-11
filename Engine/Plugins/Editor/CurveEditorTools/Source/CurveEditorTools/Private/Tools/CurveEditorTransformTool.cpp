@@ -1096,7 +1096,7 @@ void FCurveEditorTransformTool::OnDragEnd()
 			for (const FKeyPosition& KeyTime : KeyTimes)
 			{
 				TArray<FKeyHandle> KeysInRange;
-				Curve->GetKeys(*CurveEditor, KeyTime.InputValue, KeyTime.InputValue, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeysInRange);
+				Curve->GetKeys(KeyTime.InputValue, KeyTime.InputValue, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeysInRange);
 
 				// If there's more than 1 key at this time, remove all but the keys that moved the largest amount
 				if (KeysInRange.Num() > 1)

@@ -882,7 +882,7 @@ void FCurveEditor::StepToNextKey()
 		{
 			TArray<FKeyHandle> KeyHandles;
 			double MaxTime = NextTime.IsSet() ? NextTime.GetValue() : TNumericLimits<double>::Max();
-			CurveModel->GetKeys(*this, CurrentTime, MaxTime, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			CurveModel->GetKeys(CurrentTime, MaxTime, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 
 			TArray<FKeyPosition> KeyPositions;
 			KeyPositions.SetNum(KeyHandles.Num());
@@ -941,7 +941,7 @@ void FCurveEditor::StepToPreviousKey()
 		{
 			TArray<FKeyHandle> KeyHandles;
 			double MinTime = PreviousTime.IsSet() ? PreviousTime.GetValue() : TNumericLimits<double>::Lowest();
-			CurveModel->GetKeys(*this, MinTime, CurrentTime, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			CurveModel->GetKeys(MinTime, CurrentTime, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 
 			TArray<FKeyPosition> KeyPositions;
 			KeyPositions.SetNum(KeyHandles.Num());
@@ -1100,7 +1100,7 @@ void FCurveEditor::SelectAllKeys()
 		if (FCurveModel* Curve = FindCurve(ID))
 		{
 			TArray<FKeyHandle> KeyHandles;
-			Curve->GetKeys(*this, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			Curve->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 			Selection.Add(ID, ECurvePointType::Key, KeyHandles);
 		}
 	}
@@ -1125,7 +1125,7 @@ void FCurveEditor::SelectForward()
 		if (FCurveModel* Curve = FindCurve(ID))
 		{
 			TArray<FKeyHandle> KeyHandles;
-			Curve->GetKeys(*this, CurrentTime, TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			Curve->GetKeys(CurrentTime, TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 			Selection.Add(ID, ECurvePointType::Key, KeyHandles);
 		}
 	}
@@ -1150,7 +1150,7 @@ void FCurveEditor::SelectBackward()
 		if (FCurveModel* Curve = FindCurve(ID))
 		{
 			TArray<FKeyHandle> KeyHandles;
-			Curve->GetKeys(*this, TNumericLimits<double>::Min(), CurrentTime, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			Curve->GetKeys(TNumericLimits<double>::Min(), CurrentTime, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 			Selection.Add(ID, ECurvePointType::Key, KeyHandles);
 		}
 	}
@@ -1502,7 +1502,7 @@ bool FCurveEditor::CopyBufferCurveToCurveID(const UCurveEditorCopyableCurveKeys*
 		// Just double checking we actually set a Min/Max time so we don't wipe out every key to infinity.
 		if (InSourceCurve->KeyPositions.Num() > 0)
 		{
-			TargetCurve->GetKeys(*this, MinKeyTime, MaxKeyTime, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeysToRemove);
+			TargetCurve->GetKeys(MinKeyTime, MaxKeyTime, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeysToRemove);
 		}
 
 		TargetCurve->RemoveKeys(KeysToRemove);
@@ -2045,7 +2045,7 @@ void FCurveEditor::ApplyBufferedCurveToTarget(const IBufferedCurveModel* Buffere
 
 	// Copy the data from the Buffered curve into the target curve. This just does wholesale replacement.
 	TArray<FKeyHandle> TargetKeyHandles;
-	TargetCurve->GetKeys(*this, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TargetKeyHandles);
+	TargetCurve->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TargetKeyHandles);
 
 	// Clear our current keys from the target curve
 	TargetCurve->RemoveKeys(TargetKeyHandles);
@@ -2310,7 +2310,7 @@ void FCurveEditor::PostUndo(bool bSuccess)
 		}
 		// Get all of the key handles from this curve.
 		TArray<FKeyHandle> KeyHandles;
-		CurveModel->GetKeys(*this, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+		CurveModel->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 
 		// The set handles will be mutated as we remove things so we need a copy that we can iterate through.
 		TArrayView<const FKeyHandle> SelectedHandles = Set.Value.AsArray();

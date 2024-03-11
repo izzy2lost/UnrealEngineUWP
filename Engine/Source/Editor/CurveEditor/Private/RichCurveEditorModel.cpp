@@ -252,7 +252,7 @@ void FRichCurveEditorModel::DrawCurve(const FCurveEditor& CurveEditor, const FCu
 	}
 }
 
-void FRichCurveEditorModel::GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
+void FRichCurveEditorModel::GetKeys(double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
 {
 	if (UObject* Owner = WeakOwner.Get())
 	{

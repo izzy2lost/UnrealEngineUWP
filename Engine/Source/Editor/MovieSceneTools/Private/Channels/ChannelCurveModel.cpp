@@ -153,7 +153,7 @@ void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::DrawCurve(const FCu
 }
 
 template <class ChannelType, class ChannelValue, class KeyType>
-void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
+void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetKeys(double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
 {
 	ChannelType* Channel = ChannelHandle.Get();
 	UMovieSceneSection* Section = WeakSection.Get();

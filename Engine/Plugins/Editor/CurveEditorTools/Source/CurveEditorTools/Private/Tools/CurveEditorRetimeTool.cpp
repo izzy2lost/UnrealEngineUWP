@@ -471,7 +471,7 @@ void FCurveEditorRetimeTool::OnDragStart()
 			FPreDragChannelData& ChannelData = ResizeData.CurveChannels[ResizeData.CurveChannels.Emplace(CurveID)];
 
 			// Get all Key Handles
-			CurveModel->GetKeys(*CurveEditor, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), ChannelData.Handles);
+			CurveModel->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), ChannelData.Handles);
 
 			// Get all Key Positions for those Handles.
 			ChannelData.FrameNumbers.SetNumUninitialized(ChannelData.Handles.Num());

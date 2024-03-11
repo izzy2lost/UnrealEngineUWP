@@ -49,7 +49,7 @@ public:
 	// Based on RefineCurvePoints from RichCurveEditorModel.cpp
 	void RefineCurvePoints(const FRichCurve& InRichCurve, double TimeThreshold, float ValueThreshold, TArray<TTuple<double, double>>& InOutPoints) const;
 
-	virtual void GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue,
+	virtual void GetKeys(double MinTime, double MaxTime, double MinValue,
 	                     double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const override {}
 	
 	virtual void AddKeys(TArrayView<const FKeyPosition> InPositions, TArrayView<const FKeyAttributes> InAttributes,

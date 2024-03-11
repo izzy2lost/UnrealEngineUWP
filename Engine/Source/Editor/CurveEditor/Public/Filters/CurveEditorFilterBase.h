@@ -110,8 +110,8 @@ public:
 			FKeyHandleSet& HandleSet = KeysToOperateOn.Add(CurveModelID);
 			
 			TArray<FKeyHandle> Handles;
-			CurveModel->GetKeys(*InCurveEditor, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), Handles);
-			
+			CurveModel->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), Handles);
+
 			for (const FKeyHandle& Handle : Handles)
 			{
 				HandleSet.Add(Handle, ECurvePointType::Key);

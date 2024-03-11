@@ -72,17 +72,23 @@ public:
 	 */
 	virtual void DrawCurve(const FCurveEditor& CurveEditor, const FCurveEditorScreenSpace& ScreenSpace, TArray<TTuple<double, double>>& InterpolatingPoints) const = 0;
 
+	UE_DEPRECATED(5.5, "Implement the version that doesn't take the Curve Editor parameter.")
+	virtual void GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
+	{
+		GetKeys(MinTime, MaxTime, MinValue, MaxValue, OutKeyHandles);
+	}
+
+
 	/**
 	 * Retrieve all keys that lie in the specified time and value range
 	 *
-	 * @param CurveEditor             Reference to the curve editor that is retrieving keys.
 	 * @param MinTime                 Minimum key time to return in seconds
 	 * @param MaxTime                 Maximum key time to return in seconds
 	 * @param MinValue                Minimum key value to return
 	 * @param MaxValue                Maximum key value to return
 	 * @param OutKeyHandles           Array to populate with key handles that reside within the specified ranges
 	 */
-	virtual void GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const = 0;
+	virtual void GetKeys(double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const = 0;
 
 	/**
 	 * Add keys to this curve

@@ -681,7 +681,7 @@ bool SInteractiveCurveEditorView::GetCurveWithinWidgetRange(const FSlateRect& Wi
 		if (const FCurveModel* Curve = CurveEditor->FindCurve(CurveID))
 		{
 			TArray<FKeyHandle> KeyHandles;
-			Curve->GetKeys(*CurveEditor, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			Curve->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 
 			for (const FKeyHandle& KeyHandle : KeyHandles)
 			{
@@ -1283,7 +1283,7 @@ FReply SInteractiveCurveEditorView::OnMouseButtonUp(const FGeometry& MyGeometry,
 
 			TArray<FKeyHandle> KeyHandles;
 			KeyHandles.Reserve(CurveModel->GetNumKeys());
-			CurveModel->GetKeys(*CurveEditor, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			CurveModel->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 
 			// Add or remove all keys from the curve.
 			if (bIsShiftDown)
@@ -1605,7 +1605,7 @@ void SInteractiveCurveEditorView::AddKeyAtTime(const TSet<FCurveModelID>& ToCurv
 			// add that key to the selection set instead. This solves issues with snapping causing keys to be created adjacent
 			// to the mouse cursor (sometimes by a large amount).
 			TArray<FKeyHandle> ExistingKeys;
-			CurveModel->GetKeys(*CurveEditor, EvalTime - KINDA_SMALL_NUMBER, EvalTime + KINDA_SMALL_NUMBER, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), ExistingKeys);
+			CurveModel->GetKeys(EvalTime - KINDA_SMALL_NUMBER, EvalTime + KINDA_SMALL_NUMBER, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), ExistingKeys);
 			
 			TOptional<FKeyHandle> NewKey;
 

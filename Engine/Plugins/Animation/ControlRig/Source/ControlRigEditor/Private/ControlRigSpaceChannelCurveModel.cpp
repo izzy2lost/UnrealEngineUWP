@@ -161,7 +161,7 @@ void FControlRigSpaceChannelCurveModel::DrawCurve(const FCurveEditor& CurveEdito
 	// Space Channels don't draw any lines so there's no need to fill out the Interpolating Points array.
 }
 
-void FControlRigSpaceChannelCurveModel::GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
+void FControlRigSpaceChannelCurveModel::GetKeys(double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
 {
 	FMovieSceneControlRigSpaceChannel* Channel = ChannelHandle.Get();
 	UMovieSceneSection*      Section = WeakSection.Get();
