@@ -1809,12 +1809,15 @@ bool AActor::IsPropertyChangedAffectingDataLayers(FPropertyChangedEvent& Propert
 	if (PropertyChangedEvent.Property != nullptr)
 	{
 		static const FName NAME_DataLayerAssets = GET_MEMBER_NAME_CHECKED(AActor, DataLayerAssets);
+		static const FName NAME_ExternalDataLayerAsset = GET_MEMBER_NAME_CHECKED(AActor, ExternalDataLayerAsset);
 
 		const FName PropertyName = PropertyChangedEvent.GetPropertyName();
-		if (PropertyName == NAME_DataLayerAssets &&
-			((PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet) ||
-				(PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayClear) ||
-				(PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)))
+		if (PropertyName == NAME_ExternalDataLayerAsset ||
+			(PropertyName == NAME_DataLayerAssets &&
+			 ((PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet) ||
+			 (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayClear) ||
+			 (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)))
+			)
 		{
 			return true;
 		}
