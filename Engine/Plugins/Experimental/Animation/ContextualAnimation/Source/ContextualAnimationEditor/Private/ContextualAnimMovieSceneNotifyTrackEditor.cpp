@@ -89,7 +89,7 @@ void FContextualAnimMovieSceneNotifyTrackEditor::CustomizeToolBar(FToolBarBuilde
 		}));
 
 		Action.IsActionVisibleDelegate = FIsActionButtonVisible::CreateLambda([this]() {
-			return GetMovieSceneSequence().GetViewModel().GetTimelineMode() == FContextualAnimViewModel::ETimelineMode::Notifies;
+			return (GetSequencer() != nullptr) ? (GetMovieSceneSequence().GetViewModel().GetTimelineMode() == FContextualAnimViewModel::ETimelineMode::Notifies) : false;
 		});
 
 		ToolBarBuilder.AddToolBarButton(
