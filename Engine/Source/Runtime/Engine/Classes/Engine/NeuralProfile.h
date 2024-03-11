@@ -51,7 +51,7 @@ enum class ETileOverlapResolveType : uint8
 UENUM(BlueprintType)
 enum class ENeuralProfileRuntimeType : uint8
 {
-	NNERuntimeRDGDml UMETA(DisplayName = "NNERuntimeRDGDml"),
+	NNERuntimeORTDml UMETA(DisplayName = "NNERuntimeORTDml"),
 
 	/** Does not have full operator support*/
 	NNERuntimeRDGHlsl UMETA(DisplayName = "NNERuntimeRDGHlsl"),
@@ -79,7 +79,7 @@ struct FNeuralProfileStruct
 	UPROPERTY(Category = "Common", EditAnywhere, BlueprintReadOnly, meta = (DisplayName = "Output Format", editcondition = "false", EditConditionHides))
 	ENeuralProfileFormat OutputFormat;
 
-	//runtime type (support "NNERuntimeRDGDml" only at this moment)
+	//runtime type (support "NNERuntimeORTDml" only at this moment)
 	UPROPERTY(Category = "Model", EditAnywhere, BlueprintReadOnly)
 	ENeuralProfileRuntimeType RuntimeType;
 
@@ -114,7 +114,7 @@ struct FNeuralProfileStruct
 	{
 		InputFormat = ENeuralProfileFormat::Type32;
 		OutputFormat = ENeuralProfileFormat::Type32;
-		RuntimeType = ENeuralProfileRuntimeType::NNERuntimeRDGDml;
+		RuntimeType = ENeuralProfileRuntimeType::NNERuntimeORTDml;
 		NNEModelData = nullptr;
 		InputDimension = FIntVector4(0);
 		OutputDimension = FIntVector4(0);

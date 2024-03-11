@@ -23,7 +23,7 @@ TUniquePtr<NeuralProfile::INeuralProfileManager> GNeuralProfileManager;
 static const TCHAR* GetNeuralProfileRuntimeName(ENeuralProfileRuntimeType NeuralProfileRuntimeType)
 {
 	static const TCHAR* const kRuntimeNames[] = {
-		TEXT("NNERuntimeRDGDml"),
+		TEXT("NNERuntimeORTDml"),
 		TEXT("NNERuntimeRDGHlsl")
 	};
 
