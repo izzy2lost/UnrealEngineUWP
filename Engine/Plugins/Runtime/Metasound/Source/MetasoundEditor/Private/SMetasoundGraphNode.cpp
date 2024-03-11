@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "SMetasoundGraphNode.h"
 
-#include "AudioMaterialSlate/SAudioMaterialKnob.h"
+#include "AudioMaterialSlate/SAudioMaterialLabeledKnob.h"
 #include "AudioMaterialSlate/SAudioMaterialLabeledSlider.h"
 #include "AudioParameterControllerInterface.h"
 #include "Components/AudioComponent.h"
@@ -737,6 +737,7 @@ namespace Metasound
 									.Owner(GraphMember->GetOwningGraph())
 									.OnValueChanged_Lambda(OnValueChangedLambda)
 									.OnValueCommitted_Lambda(OnValueCommittedLambda);
+								InputWidget->SetShowUnitsText(false);
 							}
 							else
 							{
@@ -855,11 +856,12 @@ namespace Metasound
 
 							if (Metasound::Editor::GraphNodePrivate::UseAudioMaterialWidgets)
 							{
-								SAssignNew(InputWidget, SAudioMaterialKnob)
+								SAssignNew(InputWidget, SAudioMaterialLabeledKnob)
 									.Owner(GraphMember->GetOwningGraph())
-									.OnFloatValueChanged_Lambda(OnValueChangedLambda)
+									.OnValueChanged_Lambda(OnValueChangedLambda)
 									.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
 									.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
+								InputWidget->SetShowUnitsText(false);								
 							}
 							else
 							{
@@ -905,10 +907,7 @@ namespace Metasound
 								[
 									InputWidget.ToSharedRef()
 								];
-							if (!Metasound::Editor::GraphNodePrivate::UseAudioMaterialWidgets)
-							{
 								InputWidget->SetDesiredSizeOverride(RadialSliderDesiredSize);
-							}
 						}
 
 						InputWidget->SetOutputRange(DefaultFloat->GetRange());

@@ -55,11 +55,6 @@ const float SAudioMaterialKnob::GetSliderValue(const float OutputValue)
 	return FMath::GetMappedRangeValueClamped(OutputRange, NormalizedLinearSliderRange, OutputValue);
 }
 
-void SAudioMaterialKnob::SetSliderValue(float InSliderValue)
-{
-	ValueAttribute.Set(InSliderValue);
-}
-
 void SAudioMaterialKnob::SetOutputRange(const FVector2D Range)
 {
 	OutputRange = Range;
@@ -69,7 +64,7 @@ void SAudioMaterialKnob::SetOutputRange(const FVector2D Range)
 	const float OutputValue = GetOutputValue(ValueAttribute.Get());
 	const float ClampedOutputValue = FMath::Clamp(OutputValue, OutputRange.X, OutputRange.Y);
 	const float ClampedSliderValue = GetSliderValue(ClampedOutputValue);
-	SetSliderValue(ClampedSliderValue);
+	ValueAttribute.Set(ClampedSliderValue);
 }
 
 void SAudioMaterialKnob::SetDesiredSizeOverride(const FVector2D Size)
@@ -199,7 +194,17 @@ FReply SAudioMaterialKnob::OnMouseButtonUp(const FGeometry& MyGeometry, const FP
 
 void SAudioMaterialKnob::CommitValue(float NewValue)
 {
-	ValueAttribute.Set(NewValue);
-	Invalidate(EInvalidateWidgetReason::Paint);
-	OnValueChanged.ExecuteIfBound(NewValue);
+	const float OldValue = ValueAttribute.Get();
+	float Val = FMath::Clamp(NewValue, 0.f, 1.f);
+
+	if (NewValue != OldValue)
+	{
+		if (!ValueAttribute.IsBound())
+		{
+			ValueAttribute.Set(Val);
+		}
+
+		Invalidate(EInvalidateWidgetReason::Paint);
+		OnValueChanged.ExecuteIfBound(Val);
+	}
 }

@@ -184,6 +184,10 @@ struct AUDIOWIDGETS_API FAudioMaterialKnobStyle : public FAudioMaterialWidgetSty
 	FLinearColor KnobBarFillTintColor;
 	FAudioMaterialKnobStyle& SetKnobBarFillTintColor(const FLinearColor& InColor) { KnobBarFillTintColor = InColor; return *this; }
 
+	/** The style to use for the audio text box widget. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FAudioTextBoxStyle TextBoxStyle;
+	void SetTextBoxStyle(const FAudioTextBoxStyle& InTextBoxStyle) { TextBoxStyle = InTextBoxStyle; }
 };
 
 /**

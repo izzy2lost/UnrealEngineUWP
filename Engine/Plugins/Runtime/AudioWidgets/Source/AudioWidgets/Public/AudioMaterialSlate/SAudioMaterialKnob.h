@@ -4,7 +4,6 @@
 
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "Framework/SlateDelegates.h"
-#include "SAudioInputWidget.h"
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
 #include "Widgets/SLeafWidget.h"
@@ -15,7 +14,7 @@ class UObject;
  * A simple slate that renders a knob in single material and modifies the material on value change.
  *
  */
-class AUDIOWIDGETS_API SAudioMaterialKnob : public SAudioInputWidget
+class AUDIOWIDGETS_API SAudioMaterialKnob : public SLeafWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SAudioMaterialKnob)
@@ -50,24 +49,14 @@ public:
 	/** Apply new material to be used to render the Slate.*/
 	UMaterialInstanceDynamic* ApplyNewMaterial();
 
-	//SAudioInputWidget
-	virtual const float GetOutputValue(const float InSliderValue) override;
-	virtual const float GetSliderValue(const float OutputValue) override;
+	const float GetOutputValue(const float InSliderValue);
+	const float GetSliderValue(const float OutputValue);
 
-	/**
-	 * Set the knob's linear (0-1 normalized) value.
-	 */
-	virtual void SetSliderValue(float InSliderValue) override;
-	virtual void SetOutputRange(const FVector2D Range) override;
+	/** Set the output range of the Knob*/
+	void SetOutputRange(const FVector2D Range);
 
-	virtual void SetDesiredSizeOverride(const FVector2D Size) override;
-
-	//These are pure virtual functions in the parent class and are implemented properly in this class later.
-	virtual void SetLabelBackgroundColor(FSlateColor InColor) override {};
-	virtual void SetUnitsText(const FText Units) override {};
-	virtual void SetUnitsTextReadOnly(const bool bIsReadOnly) override {};
-	virtual void SetShowUnitsText(const bool bShowUnitsText) override {};
-	//~SAudioInputWidget
+	/**Set desired size of the Slate*/
+	void SetDesiredSizeOverride(const FVector2D Size);
 
 public:
 
@@ -98,6 +87,7 @@ protected:
 
 private:
 
+	// Holds the optional style for the Slate
 	TAttribute<TOptional<FVector2D>> DesiredSizeOverride;
 
 	/**Commits new value*/
