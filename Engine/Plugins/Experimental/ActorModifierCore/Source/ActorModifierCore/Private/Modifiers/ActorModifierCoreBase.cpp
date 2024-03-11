@@ -462,7 +462,7 @@ void UActorModifierCoreBase::PostLoad()
 
 	const AActor* OwningActor = GetModifiedActor();
 	const UObject* Outer = GetOuter();
-	const UActorModifierCoreComponent* OwningComponent = OwningActor->FindComponentByClass<UActorModifierCoreComponent>();
+	const UActorModifierCoreComponent* OwningComponent = OwningActor ? OwningActor->FindComponentByClass<UActorModifierCoreComponent>() : nullptr;
 
 	if (OwningActor
 		&& OwningComponent
