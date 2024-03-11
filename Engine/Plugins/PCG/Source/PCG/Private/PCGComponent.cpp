@@ -2181,10 +2181,7 @@ void UPCGComponent::Refresh(EPCGChangeType ChangeType, bool bCancelExistingRefre
 		// then the bGenerated flag will be false, which will prevent a subsequent update here
 		if (CurrentRefreshTask == InvalidPCGTaskId && CurrentCleanupTask == InvalidPCGTaskId)
 		{
-			// Always force a regeneration if generation grids might be affected - refresh is insufficient.
-			const bool bGridChanged = !!(ChangeType & EPCGChangeType::GenerationGrid);
-			const bool bForceRegen = bGenerationWasInProgress || bGridChanged;
-			CurrentRefreshTask = Subsystem->ScheduleRefresh(this, bForceRegen, /*bForceCleanup=*/bGridChanged);
+			CurrentRefreshTask = Subsystem->ScheduleRefresh(this, bGenerationWasInProgress);
 		}
 	}
 }
@@ -2279,7 +2276,7 @@ bool UPCGComponent::IsObjectTracked(const UObject* InObject, bool& bOutIsCulled)
 	return CheckMap(StaticallyTrackedKeysToSettings) || CheckMap(DynamicallyTrackedKeysToSettings);
 }
 
-void UPCGComponent::OnRefresh(bool bForceRefresh, bool bForceCleanup)
+void UPCGComponent::OnRefresh(bool bForceRefresh)
 {
 	check(!IsManagedByRuntimeGenSystem());
 
@@ -2293,7 +2290,7 @@ void UPCGComponent::OnRefresh(bool bForceRefresh, bool bForceCleanup)
 	const bool bWasGeneratedOrGenerating = bWasGenerated || bForceRefresh;
 
 	// If we are partitioned but we have resources, we need to force a cleanup
-	if (bForceCleanup || (IsPartitioned() && !GeneratedResources.IsEmpty()))
+	if (IsPartitioned() && !GeneratedResources.IsEmpty())
 	{
 		CleanupLocalImmediate(/*bRemoveComponents=*/true);
 	}

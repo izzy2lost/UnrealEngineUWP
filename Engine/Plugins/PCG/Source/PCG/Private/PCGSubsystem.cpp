@@ -811,7 +811,7 @@ void UPCGSubsystem::CancelGeneration(UPCGComponent* Component)
 	TArray<UPCGComponent*> CancelledComponents = GraphExecutor->Cancel(Component);
 	for (UPCGComponent* CancelledComponent : CancelledComponents)
 	{
-		if (ensure(CancelledComponent))
+		if (CancelledComponent)
 		{
 			CancelledComponent->OnProcessGraphAborted(/*bQuiet=*/true);
 		}
@@ -1154,16 +1154,16 @@ bool UPCGSubsystem::GetOutputData(FPCGTaskId TaskId, FPCGDataCollection& OutData
 
 #if WITH_EDITOR
 
-FPCGTaskId UPCGSubsystem::ScheduleRefresh(UPCGComponent* Component, bool bForceRegen, bool bForceCleanup)
+FPCGTaskId UPCGSubsystem::ScheduleRefresh(UPCGComponent* Component, bool bForceRegen)
 {
 	check(Component && !Component->IsManagedByRuntimeGenSystem());
 
 	TWeakObjectPtr<UPCGComponent> ComponentPtr(Component);
 
-	auto RefreshTask = [ComponentPtr, bForceRegen, bForceCleanup]() {
+	auto RefreshTask = [ComponentPtr, bForceRegen]() {
 		if (UPCGComponent* Component = ComponentPtr.Get())
 		{
-			Component->OnRefresh(bForceRegen, bForceCleanup);
+			Component->OnRefresh(bForceRegen);
 		}
 		return true;
 	};

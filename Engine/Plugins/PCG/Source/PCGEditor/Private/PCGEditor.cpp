@@ -882,6 +882,8 @@ void FPCGEditor::OnForceGraphRegeneration_Clicked()
 {
 	if (PCGGraphBeingEdited)
 	{
+		EPCGChangeType ChangeType = EPCGChangeType::Structural;
+
 		FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
 		if (ModifierKeys.IsControlDown())
 		{
@@ -889,9 +891,11 @@ void FPCGEditor::OnForceGraphRegeneration_Clicked()
 			{
 				Subsystem->FlushCache();
 			}
+
+			ChangeType |= EPCGChangeType::GenerationGrid;
 		}
 
-		PCGGraphBeingEdited->ForceNotificationForEditor();
+		PCGGraphBeingEdited->ForceNotificationForEditor(ChangeType);
 	}
 }
 
