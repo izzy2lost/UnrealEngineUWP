@@ -1732,11 +1732,15 @@ void UAvaShapeDynamicMeshBase::PostEditImport()
 	// reset cache component
 	CachedComponent.Reset();
 
+	const bool bUseSingleMaterial = bUsePrimaryMaterialEverywhere;
+
 	// Update material options
 	for (const int32 MeshIdx : GetMeshesIndexes())
 	{
 		OnMaterialTypeChanged(MeshIdx);
 	}
+
+	SetUsePrimaryMaterialEverywhere(bUseSingleMaterial);
 }
 
 void UAvaShapeDynamicMeshBase::PostDuplicate(EDuplicateMode::Type DuplicateMode)
