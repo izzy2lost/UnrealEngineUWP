@@ -4,9 +4,56 @@
 
 #include "StateTreeEditorNode.h"
 #include "StateTreeEditorTypes.h"
+#include "StateTreeEvents.h"
 #include "StateTreeState.generated.h"
 
 class UStateTreeState;
+
+/**
+ * Editor representation of an event description.
+ */
+USTRUCT()
+struct FStateTreeEventDesc
+{
+	GENERATED_BODY()
+
+	FStateTreeEventDesc() = default;
+
+	FStateTreeEventDesc(FGameplayTag InTag)
+		: Tag(InTag)
+	{}
+
+	/** Event Tag. */
+	UPROPERTY(EditDefaultsOnly, Category = "Event")
+	FGameplayTag Tag;
+
+	/** Event Payload Struct. */
+	UPROPERTY(EditDefaultsOnly, Category = "Event")
+	TObjectPtr<const UScriptStruct> PayloadStruct;
+
+	bool IsValid() const
+	{
+		return Tag.IsValid() || PayloadStruct;
+	}
+
+	FStateTreeEvent& GetTemporaryEvent()
+	{
+		TemporaryEvent.Tag = Tag;
+		TemporaryEvent.Payload = FInstancedStruct(PayloadStruct);
+
+		return TemporaryEvent;
+	}
+
+	bool operator==(const FStateTreeEventDesc& Other) const
+	{
+		return Tag == Other.Tag && PayloadStruct == Other.PayloadStruct;
+	}
+
+private:
+	/** Temporary event used as a source value in bindings. */
+	UPROPERTY(Transient)
+	FStateTreeEvent TemporaryEvent;
+};
 
 /**
  * Editor representation of a transition in StateTree
@@ -16,9 +63,16 @@ struct STATETREEEDITORMODULE_API FStateTreeTransition
 {
 	GENERATED_BODY()
 
+	// Macro needed to avoid deprecation errors with members being copied or created.
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FStateTreeTransition() = default;
 	FStateTreeTransition(const EStateTreeTransitionTrigger InTrigger, const EStateTreeTransitionType InType, const UStateTreeState* InState = nullptr);
 	FStateTreeTransition(const EStateTreeTransitionTrigger InTrigger, const FGameplayTag InEventTag, const EStateTreeTransitionType InType, const UStateTreeState* InState = nullptr);
+	FStateTreeTransition(const FStateTreeTransition&) = default;
+	FStateTreeTransition(FStateTreeTransition&&) = default;
+	FStateTreeTransition& operator=(const FStateTreeTransition&) = default;
+	FStateTreeTransition& operator=(FStateTreeTransition&&) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	template<typename T, typename... TArgs>
 	TStateTreeEditorNode<T>& AddCondition(TArgs&&... InArgs)
@@ -34,13 +88,19 @@ struct STATETREEEDITORMODULE_API FStateTreeTransition
 		return static_cast<TStateTreeEditorNode<T>&>(CondNode);
 	}
 
+	FGuid GetEventID() const
+	{
+		return FGuid::Combine(ID, FGuid::NewDeterministicGuid(TEXT("Event")));
+	}
+
+	void PostSerialize(const FArchive& Ar);
+
 	/** When to try trigger the transition. */
 	UPROPERTY(EditDefaultsOnly, Category = "Transition")
 	EStateTreeTransitionTrigger Trigger = EStateTreeTransitionTrigger::OnStateCompleted;
 
-	/** Tag of the State Tree event that triggers the transition. */
-	UPROPERTY(EditDefaultsOnly, Category = "Transition")
-	FGameplayTag EventTag;
+	UPROPERTY(EditDefaultsOnly, Category = "Transition", DisplayName = "Required Event")
+	FStateTreeEventDesc RequiredEvent; 
 
 	/** Transition target state. */
 	UPROPERTY(EditDefaultsOnly, Category = "Transition", meta=(DisplayName="Transition To"))
@@ -76,6 +136,21 @@ struct STATETREEEDITORMODULE_API FStateTreeTransition
 	/** True if the Transition is Enabled (i.e. not explicitly disabled in the asset). */
 	UPROPERTY(EditDefaultsOnly, Category = "Debug")
 	bool bTransitionEnabled = true;
+
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "Use RequiredEvent.Tag instead.")
+	UPROPERTY()
+	FGameplayTag EventTag_DEPRECATED;
+#endif // WITH_EDITORONLY_DATA
+};
+
+template<>
+struct TStructOpsTypeTraits<FStateTreeTransition> : public TStructOpsTypeTraitsBase2<FStateTreeTransition>
+{
+	enum 
+	{
+		WithPostSerialize = true,
+	};
 };
 
 
@@ -213,6 +288,10 @@ public:
 		return Transition;
 	}
 
+	FGuid GetEventID() const
+	{
+		return FGuid::Combine(ID, FGuid::NewDeterministicGuid(TEXT("Event")));
+	}
 
 	// ~StateTree Builder API
 
@@ -243,6 +322,12 @@ public:
 	/** Parameters of this state. If the state is linked to another state or asset, the parameters are for the linked state. */
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	FStateTreeStateParameters Parameters;
+
+	UPROPERTY(EditDefaultsOnly, Category = "State", meta=(InlineEditConditionToggle))
+	bool bHasRequiredEventToEnter = false;
+
+	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (EditCondition = "bHasRequiredEventToEnter"))
+	FStateTreeEventDesc RequiredEventToEnter;
 
 	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (IgnoreForMemberInitializationTest))
 	FGuid ID;

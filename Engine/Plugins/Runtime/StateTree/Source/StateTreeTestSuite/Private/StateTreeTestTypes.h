@@ -370,6 +370,15 @@ struct FStateTreeTestRunContext
 
 
 USTRUCT()
+struct FStateTreeTest_PropertyStructA
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "")
+	int32 A = 0;
+};
+
+USTRUCT()
 struct FStateTreeTest_PropertyStructB
 {
 	GENERATED_BODY()

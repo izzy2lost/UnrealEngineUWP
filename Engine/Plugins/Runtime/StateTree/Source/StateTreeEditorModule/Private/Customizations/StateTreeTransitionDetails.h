@@ -39,7 +39,7 @@ private:
 
 	TSharedPtr<IPropertyHandle> TriggerProperty;
 	TSharedPtr<IPropertyHandle> PriorityProperty;
-	TSharedPtr<IPropertyHandle> EventTagProperty;
+	TSharedPtr<IPropertyHandle> RequiredEventProperty;
 	TSharedPtr<IPropertyHandle> StateProperty;
 	TSharedPtr<IPropertyHandle> DelayTransitionProperty;
 	TSharedPtr<IPropertyHandle> DelayDurationProperty;

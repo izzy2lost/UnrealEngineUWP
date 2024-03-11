@@ -45,7 +45,7 @@ void FStateTreeTransitionDetails::CustomizeHeader(TSharedRef<IPropertyHandle> St
 
 	TriggerProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, Trigger));
 	PriorityProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, Priority));
-	EventTagProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, EventTag));
+	RequiredEventProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, RequiredEvent));
 	StateProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, State));
 	DelayTransitionProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, bDelayTransition));
 	DelayDurationProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, DelayDuration));
@@ -87,7 +87,7 @@ void FStateTreeTransitionDetails::CustomizeHeader(TSharedRef<IPropertyHandle> St
 void FStateTreeTransitionDetails::CustomizeChildren(TSharedRef<class IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
 	check(TriggerProperty);
-	check(EventTagProperty);
+	check(RequiredEventProperty);
 	check(DelayTransitionProperty);
 	check(DelayDurationProperty);
 	check(DelayRandomVarianceProperty);
@@ -114,7 +114,7 @@ void FStateTreeTransitionDetails::CustomizeChildren(TSharedRef<class IPropertyHa
 	StructBuilder.AddProperty(TriggerProperty.ToSharedRef());
 
 	// Show event only when the trigger is set to Event. 
-	StructBuilder.AddProperty(EventTagProperty.ToSharedRef())
+	StructBuilder.AddProperty(RequiredEventProperty.ToSharedRef())
 		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateLambda([WeakSelf]()
 		{
 			if (const TSharedPtr<FStateTreeTransitionDetails> Self = WeakSelf.Pin())
@@ -199,13 +199,34 @@ FText FStateTreeTransitionDetails::GetDescription() const
 	}
 
 	EStateTreeTransitionTrigger Trigger = GetTrigger();
+
 	FText TriggerText = UEnum::GetDisplayValueAsText(Trigger);
 
 	if (Trigger == EStateTreeTransitionTrigger::OnEvent)
 	{
-		FGameplayTag EventTag;
-		UE::StateTree::PropertyHelpers::GetStructValue<FGameplayTag>(EventTagProperty, EventTag);
-		TriggerText = FText::Format(LOCTEXT("TransitionOnEvent", "On Event {0}"), FText::FromName(EventTag.GetTagName()));
+		FStateTreeEventDesc RequiredEvent;
+		UE::StateTree::PropertyHelpers::GetStructValue<FStateTreeEventDesc>(RequiredEventProperty, RequiredEvent);
+
+		TArray<FText> PayloadItems;
+		
+		if (RequiredEvent.IsValid())
+		{
+			if (RequiredEvent.Tag.IsValid())
+			{
+				PayloadItems.Add(FText::Format(LOCTEXT("TransitionEventTag", "Tag: '{0}'"), FText::FromName(RequiredEvent.Tag.GetTagName())));
+			}
+			
+			if (RequiredEvent.PayloadStruct)
+			{
+				PayloadItems.Add(FText::Format(LOCTEXT("TransitionEventPayload", "Payload: '{0}'"), RequiredEvent.PayloadStruct->GetDisplayNameText()));
+			}
+		}
+		else
+		{
+			PayloadItems.Add(LOCTEXT("TransitionInvalidEvent", "Invalid"));
+		}
+		
+		TriggerText = FText::Format(LOCTEXT("TransitionOnEvent", "On Event ({0})"), FText::Join(INVTEXT(", "), PayloadItems));
 	}
 	
 	FText TargetText;

@@ -6,13 +6,27 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeEvents)
 
+//----------------------------------------------------------------//
+// FStateTreeSharedEvent
+//----------------------------------------------------------------//
+
+void FStateTreeSharedEvent::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddPropertyReferencesWithStructARO(FStateTreeEvent::StaticStruct(), Event.Get());
+}
+
+
+//----------------------------------------------------------------//
+// FStateTreeEventQueue
+//----------------------------------------------------------------//
+
 void FStateTreeEventQueue::SendEvent(const UObject* Owner, const FGameplayTag& Tag, const FConstStructView Payload, const FName Origin)
 {
-	if (Events.Num() >= MaxActiveEvents)
+	if (SharedEvents.Num() >= MaxActiveEvents)
 	{
 		UE_VLOG_UELOG(Owner, LogStateTree, Error, TEXT("%s: Too many events send on '%s'. Dropping event %s"), ANSI_TO_TCHAR(__FUNCTION__), *GetNameSafe(Owner), *Tag.ToString());
 		return;
 	}
 
-	Events.Emplace(Tag, Payload, Origin);
+	SharedEvents.Emplace(Tag, Payload, Origin);
 }

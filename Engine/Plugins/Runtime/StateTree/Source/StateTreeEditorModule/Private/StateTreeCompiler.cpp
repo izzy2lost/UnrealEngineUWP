@@ -565,6 +565,8 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 			const FCompactStateTreeState& ParentCompactState = StateTree->States[CompactState.Parent.Index];
 			const int32 InstanceDataBegin = FirstInstanceDataIndex[CompactState.Parent.Index] + (int32)ParentCompactState.InstanceDataNum;
 			FirstInstanceDataIndex[i] = InstanceDataBegin;
+
+			CompactState.Depth = ParentCompactState.Depth + 1;
 		}
 
 		int32 InstanceDataIndex = FirstInstanceDataIndex[i];
@@ -602,7 +604,7 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 			State->Name,
 			State->Parameters.Parameters.GetPropertyBagStruct(),
 			CompactState.ParameterDataHandle,
-			EStateTreeBindableStructSource::State,
+			EStateTreeBindableStructSource::StateParameter,
 			State->Parameters.ID
 		};
 
@@ -613,6 +615,36 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 
 		// Add as binding source.
 		BindingsCompiler.AddSourceStruct(LinkedParamsDesc);
+
+		if (State->bHasRequiredEventToEnter)
+		{
+			CompactState.EventDataIndex = FStateTreeIndex16(InstanceDataIndex++);
+			CompactState.RequiredEventToEnter.Tag = State->RequiredEventToEnter.Tag;
+			CompactState.RequiredEventToEnter.PayloadStruct = State->RequiredEventToEnter.PayloadStruct;
+
+			FStateTreeBindableStructDesc Desc;
+			Desc.Struct = FStateTreeEvent::StaticStruct();
+			Desc.Name = CompactState.Name;
+			Desc.ID = State->GetEventID();
+			Desc.DataSource = EStateTreeBindableStructSource::StateEvent;
+			Desc.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::StateEvent, CompactState.EventDataIndex.Get(), CompactStateHandle);
+
+			BindingsCompiler.AddSourceStruct(Desc);
+
+			if (!CompactState.RequiredEventToEnter.IsValid())
+			{
+				Log.Reportf(EMessageSeverity::Error, Desc,
+					TEXT("Event is marked as required, but isn't set up."));
+				return false;
+			}
+		}
+
+		if (CompactState.Depth >= FStateTreeActiveStates::MaxStates)
+		{
+			Log.Reportf(EMessageSeverity::Error, LinkedParamsDesc,
+				TEXT("Exceeds the maximum depth of execution (%u)"), FStateTreeActiveStates::MaxStates);
+			return false;
+		}
 
 		int32 BatchIndex = INDEX_NONE;
 
@@ -818,12 +850,13 @@ bool FStateTreeCompiler::CreateStateTransitions()
 		
 		for (FStateTreeTransition& Transition : SourceState->Transitions)
 		{
-			IDToTransition.Add(Transition.ID, StateTree->Transitions.Num());
+			const int32 TransitionIndex = StateTree->Transitions.Num();
+			IDToTransition.Add(Transition.ID, TransitionIndex);
 
 			FCompactStateTransition& CompactTransition = StateTree->Transitions.AddDefaulted_GetRef();
 			CompactTransition.Trigger = Transition.Trigger;
 			CompactTransition.Priority = Transition.Priority;
-			CompactTransition.EventTag = Transition.EventTag;
+
 			CompactTransition.bTransitionEnabled = Transition.bTransitionEnabled;
 
 			if (Transition.State.LinkType == EStateTreeTransitionType::NextSelectableState)
@@ -866,7 +899,42 @@ bool FStateTreeCompiler::CreateStateTransitions()
 			{
 				return false;
 			}
-			
+
+			if (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent)
+			{
+				CompactTransition.RequiredEvent.Tag = Transition.RequiredEvent.Tag;
+				CompactTransition.RequiredEvent.PayloadStruct = Transition.RequiredEvent.PayloadStruct;
+
+				FStateTreeBindableStructDesc Desc;
+				Desc.Struct = FStateTreeEvent::StaticStruct();
+				Desc.Name = FName(TEXT("Transition"));
+				Desc.ID = Transition.GetEventID();
+				Desc.DataSource = EStateTreeBindableStructSource::TransitionEvent;
+				Desc.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::TransitionEvent, TransitionIndex);
+
+				if (!Transition.RequiredEvent.IsValid())
+				{
+					Log.Reportf(EMessageSeverity::Error, Desc,
+						TEXT("On Event Transition requires at least tag or payload to be set up."),
+						*Transition.State.Name.ToString());
+					return false;
+				}
+
+				if (!CompactTransition.State.IsCompletionState())
+				{
+					FCompactStateTreeState& TransitionTargetState = StateTree->States[CompactTransition.State.Index];
+					if (TransitionTargetState.RequiredEventToEnter.IsValid() && !TransitionTargetState.RequiredEventToEnter.IsSubsetOfAnotherDesc(CompactTransition.RequiredEvent))
+					{
+						Log.Reportf(EMessageSeverity::Error, Desc,
+							TEXT("On Event transition to %s will never succeed as transition and state required events are incompatible."),
+							*TransitionTargetState.Name.ToString());
+						return false;
+					}
+				}
+
+				BindingsCompiler.AddSourceStruct(Desc);
+			}
+
 			const int32 ConditionsBegin = Nodes.Num();
 			if (const auto Validation = UE::StateTree::Compiler::IsValidCount16(ConditionsBegin); Validation.DidFail())
 			{

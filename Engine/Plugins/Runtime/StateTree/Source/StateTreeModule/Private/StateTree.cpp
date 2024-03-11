@@ -619,7 +619,6 @@ bool UStateTree::PatchBindings()
 		}
 	}
 
-
 	TMap<FStateTreeDataHandle, FStateTreeDataView> DataViews;
 	TMap<FStateTreeIndex16, FStateTreeDataView> BindingBatchDataView;
 
@@ -705,12 +704,19 @@ bool UStateTree::PatchBindings()
 		for (int32 Index = Batch.BindingsBegin; Index != Batch.BindingsEnd; Index++)
 		{
 			FStateTreePropertyPathBinding& Binding = PropertyPathBindings[Index];
-			FStateTreeDataView SourceView = GetDataSourceView(Binding.GetSourceDataHandle());
-			
-			if (!Binding.GetMutableSourcePath().UpdateSegmentsFromValue(SourceView, &ErrorMsg))
+
+			const EStateTreeDataSourceType Source = Binding.GetSourceDataHandle().GetSource();
+			const bool bIsSourceEvent = Source == EStateTreeDataSourceType::TransitionEvent || Source == EStateTreeDataSourceType::StateEvent;
+
+			if(!bIsSourceEvent)
 			{
-				UE_LOG(LogStateTree, Error, TEXT("%hs: Failed to update source instance structs for property binding '%s'. Reason: %s"), __FUNCTION__, *Binding.GetTargetPath().ToString(), *ErrorMsg);
-				return false;
+				FStateTreeDataView SourceView = GetDataSourceView(Binding.GetSourceDataHandle());
+
+				if (!Binding.GetMutableSourcePath().UpdateSegmentsFromValue(SourceView, &ErrorMsg))
+				{
+					UE_LOG(LogStateTree, Error, TEXT("%hs: Failed to update source instance structs for property binding '%s'. Reason: %s"), __FUNCTION__, *Binding.GetTargetPath().ToString(), *ErrorMsg);
+					return false;
+				}
 			}
 
 			if (!Binding.GetMutableTargetPath().UpdateSegmentsFromValue(TargetView, &ErrorMsg))
