@@ -26,6 +26,7 @@
 #include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "Widgets/SRigVMGraphPinVariableBinding.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
+#include "Widgets/SRigVMGraphPinEnumPicker.h"
 
 #define LOCTEXT_NAMESPACE "RigVMGraphDetailCustomization"
 
@@ -1832,6 +1833,148 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 		}
 	}
 	*/
+}
+
+FRigVMGraphEnumDetailCustomization::FRigVMGraphEnumDetailCustomization()
+: BlueprintBeingCustomized(nullptr)
+, GraphBeingCustomized(nullptr)
+{
+}
+
+void FRigVMGraphEnumDetailCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+{
+	TArray<UObject*> Objects;
+	InPropertyHandle->GetOuterObjects(Objects);
+
+	StructsBeingCustomized.Reset();
+	InPropertyHandle->GetOuterStructs(StructsBeingCustomized);
+
+	for (UObject* Object : Objects)
+	{
+		ObjectsBeingCustomized.Add(Object);
+
+		if(BlueprintBeingCustomized == nullptr)
+		{
+			BlueprintBeingCustomized = Object->GetTypedOuter<URigVMBlueprint>();
+		}
+
+		if(GraphBeingCustomized == nullptr)
+		{
+			GraphBeingCustomized = Object->GetTypedOuter<URigVMGraph>();
+		}
+	}
+
+	FProperty* Property = InPropertyHandle->GetProperty();
+	const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property);
+
+	HeaderRow
+		.NameContent()
+		[
+			InPropertyHandle->CreatePropertyNameWidget()
+		]
+		.ValueContent()
+			.MinDesiredWidth(375.f)
+			.MaxDesiredWidth(375.f)
+			.HAlign(HAlign_Left)
+			[
+				SNew(SBox)
+					.MinDesiredWidth(150)
+					.MaxDesiredWidth(400)
+					[
+						SNew(SRigVMEnumPicker)
+						.IsEnabled(true)
+						.OnEnumChanged(this, &FRigVMGraphEnumDetailCustomization::HandleControlEnumChanged, InPropertyHandle)
+						.GetCurrentEnum_Lambda([this, InPropertyHandle]()
+						{
+							UEnum* Enum = nullptr;
+							FEditPropertyChain PropertyChain;
+							TArray<int32> PropertyArrayIndices;
+							bool bEnabled;
+							if (!GetPropertyChain(InPropertyHandle, PropertyChain, PropertyArrayIndices, bEnabled))
+							{
+								return Enum;
+							}
+
+							const TArray<uint8*> MemoryBlocks = GetMemoryBeingCustomized();
+							for(uint8* MemoryBlock: MemoryBlocks)
+							{
+								if(MemoryBlock)
+								{
+									if (UEnum** CurrentEnum = ContainerMemoryBlockToEnumPtr(MemoryBlock, PropertyChain, PropertyArrayIndices))
+									{
+										Enum = *CurrentEnum;
+									}
+								}
+							}
+							return Enum;
+						})
+					]
+				];
+}
+
+void FRigVMGraphEnumDetailCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+{
+	// nothing to do here
+}
+
+void FRigVMGraphEnumDetailCustomization::HandleControlEnumChanged(TSharedPtr<FString> InEnumPath, ESelectInfo::Type InSelectType, TSharedRef<IPropertyHandle> InPropertyHandle)
+{
+	if (ObjectsBeingCustomized.IsEmpty())
+	{
+		return;
+	}
+		
+	FEditPropertyChain PropertyChain;
+	TArray<int32> PropertyArrayIndices;
+	bool bEnabled;
+	if (!GetPropertyChain(InPropertyHandle, PropertyChain, PropertyArrayIndices, bEnabled))
+	{
+		return;
+	}
+	
+	TArray<UObject*> ObjectsView;
+	for(int32 Index = 0; Index < ObjectsBeingCustomized.Num(); Index++)
+	{
+		const TWeakObjectPtr<UObject>& Object = ObjectsBeingCustomized[Index];
+		if (Object.Get())
+		{
+			ObjectsView.Add(Object.Get());
+		}
+	}
+	FPropertyChangedEvent PropertyChangedEvent(InPropertyHandle->GetProperty(), EPropertyChangeType::ValueSet, ObjectsView);
+	FPropertyChangedChainEvent PropertyChangedChainEvent(PropertyChain, PropertyChangedEvent);
+
+	URigVMController* Controller = nullptr;
+	if(BlueprintBeingCustomized && GraphBeingCustomized)
+	{
+		Controller = BlueprintBeingCustomized->GetController(GraphBeingCustomized);
+		Controller->OpenUndoBracket(FString::Printf(TEXT("Set %s"), *InPropertyHandle->GetProperty()->GetName()));
+	}
+
+	for(int32 Index = 0; Index < ObjectsBeingCustomized.Num(); Index++)
+	{
+		const TWeakObjectPtr<UObject>& Object = ObjectsBeingCustomized[Index];
+		if(Object.Get() && InPropertyHandle->IsValidHandle())
+		{
+			UEnum** CurrentEnum = ContainerMemoryBlockToEnumPtr((uint8*)Object.Get(), PropertyChain, PropertyArrayIndices);
+			if (CurrentEnum)
+			{
+				const UEnum* PreviousEnum = *CurrentEnum;
+				*CurrentEnum = FindObject<UEnum>(nullptr, **InEnumPath.Get(), false);
+
+				if (PreviousEnum != *CurrentEnum)
+				{
+					Object->PostEditChangeChainProperty(PropertyChangedChainEvent);
+					InPropertyHandle->NotifyPostChange(PropertyChangedEvent.ChangeType);
+				}
+			}
+		}
+	}
+
+	if(Controller)
+	{
+		Controller->CloseUndoBracket();
+	}
 }
 
 template<typename VectorType, int32 NumberOfComponents>

@@ -17,7 +17,7 @@ class URigHierarchy;
  * This is rig element types that we support
  * This can be used as a mask so supported as a bitfield
  */
-UENUM(BlueprintType)
+UENUM(BlueprintType, meta = (RigVMTypeAllowed))
 enum class ERigElementType : uint8
 {
 	None = 0,
@@ -47,7 +47,7 @@ enum class ERigBoneType : uint8
 /* 
  * The type of meta data stored on an element
  */
-UENUM(BlueprintType)
+UENUM(BlueprintType, meta = (RigVMTypeAllowed))
 enum class ERigMetadataType : uint8
 {
 	Bool,
@@ -103,7 +103,7 @@ enum class ERigHierarchyNotification : uint8
 	Max UMETA(Hidden),
 };
 
-UENUM()
+UENUM(meta = (RigVMTypeAllowed))
 enum class ERigEvent : uint8
 {
 	/** Invalid event */
@@ -131,7 +131,7 @@ enum class EControlRigSetKey : uint8
 	Never				//Never set a key here.
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, meta = (RigVMTypeAllowed))
 enum class ERigControlType : uint8
 {
 	Bool,
@@ -171,7 +171,7 @@ enum class ERigControlValueType : uint8
     Maximum
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, meta = (RigVMTypeAllowed))
 enum class ERigControlVisibility : uint8
 {
 	// Visibility controlled by the graph
@@ -180,7 +180,7 @@ enum class ERigControlVisibility : uint8
 	BasedOnSelection 
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, meta = (RigVMTypeAllowed))
 enum class ERigControlAxis : uint8
 {
 	X,

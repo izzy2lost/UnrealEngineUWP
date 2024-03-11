@@ -28,7 +28,7 @@ enum class EControlRigInteractionType : uint8
 	All = Translate | Rotate | Scale
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, meta = (RigVMTypeAllowed))
 enum class ERigMetaDataNameSpace : uint8
 {
 	// Use no namespace - store the metadata directly on the item

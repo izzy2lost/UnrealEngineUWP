@@ -19,6 +19,7 @@
 #include "Curves/CurveFloat.h"
 #include "RigVMModel/Nodes/RigVMUnitNode.h"
 #include "RigVMCore/RigVMExecuteContext.h"
+#include "Widgets/SRigVMGraphPinEnumPicker.h"
 
 FName FRigVMEdGraphPanelPinFactory::GetFactoryName() const
 {
@@ -112,6 +113,12 @@ TSharedPtr<SGraphPin> FRigVMEdGraphPanelPinFactory::CreatePin_Internal(UEdGraphP
 				{
 					return SNew(SRigVMGraphPinUserDataPath, InPin)
 						.ModelPins({ModelPin});
+				}
+
+				if (ModelPin->GetCPPTypeObject() == UEnum::StaticClass())
+				{
+					return SNew(SRigVMGraphPinEnumPicker, InPin)
+						.ModelPin(ModelPin);
 				}
 			}
 

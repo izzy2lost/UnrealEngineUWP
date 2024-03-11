@@ -25,6 +25,7 @@
 #include "Editor/SRigHierarchyTreeView.h"
 #include "StructViewerFilter.h"
 #include "StructViewerModule.h"
+#include "Widgets/SRigVMGraphPinEnumPicker.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigElementDetails"
 
@@ -3186,60 +3187,43 @@ void FRigControlElementDetails::CustomizeControl(IDetailLayoutBuilder& DetailBui
 	}
 
 	if(IsAnyControlOfValueType(ERigControlType::Integer))
-	{
-		const TSharedPtr<IPropertyHandle> ControlEnumHandle = SettingsHandle->GetChildHandle(TEXT("ControlEnum"));
-		ControlCategory.AddProperty(ControlEnumHandle.ToSharedRef()).DisplayName(FText::FromString(TEXT("Control Enum")))
-		.IsEnabled(bIsEnabled);
-
-		ControlEnumHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda(
-			[this, PropertyUtilities]()
+	{		
+		FDetailWidgetRow* EnumWidgetRow = &ControlCategory.AddCustomRow(FText::FromString(TEXT("ControlEnum")))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("Control Enum")))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.IsEnabled(bIsEnabled)
+		]
+		.ValueContent()
+		[
+			SNew(SRigVMEnumPicker)
+			.OnEnumChanged(this, &FRigControlElementDetails::HandleControlEnumChanged, PropertyUtilities)
+			.IsEnabled(bIsEnabled)
+			.GetCurrentEnum_Lambda([this]()
 			{
-				PropertyUtilities->ForceRefresh();
-
-				for(int32 ControlIndex = 0; ControlIndex < PerElementInfos.Num(); ControlIndex++)
+				UEnum* CommonControlEnum = nullptr;
+				for (int32 ControlIndex=0; ControlIndex < PerElementInfos.Num(); ++ControlIndex)
 				{
 					FPerElementInfo& Info = PerElementInfos[ControlIndex];
 					const FRigControlElement ControlInView = Info.WrapperObject->GetContent<FRigControlElement>();
 					FRigControlElement* ControlBeingCustomized = Info.GetDefaultElement<FRigControlElement>();
-					
-					const UEnum* ControlEnum = ControlBeingCustomized->Settings.ControlEnum;
-					if (ControlEnum != nullptr)
+						
+					UEnum* ControlEnum = ControlBeingCustomized->Settings.ControlEnum;
+					if (ControlIndex == 0)
 					{
-						int32 Maximum = (int32)ControlEnum->GetMaxEnumValue() - 1;
-						ControlBeingCustomized->Settings.MinimumValue.Set<int32>(0);
-						ControlBeingCustomized->Settings.MaximumValue.Set<int32>(Maximum);
-						ControlBeingCustomized->Settings.LimitEnabled.Reset();
-						ControlBeingCustomized->Settings.LimitEnabled.Add(true);
-						Info.GetDefaultHierarchy()->SetControlSettings(ControlBeingCustomized, ControlBeingCustomized->Settings, true, true, true);
-
-						FRigControlValue InitialValue = Info.GetDefaultHierarchy()->GetControlValue(ControlBeingCustomized, ERigControlValueType::Initial);
-						FRigControlValue CurrentValue = Info.GetDefaultHierarchy()->GetControlValue(ControlBeingCustomized, ERigControlValueType::Current);
-
-						ControlBeingCustomized->Settings.ApplyLimits(InitialValue);
-						ControlBeingCustomized->Settings.ApplyLimits(CurrentValue);
-						Info.GetDefaultHierarchy()->SetControlValue(ControlBeingCustomized, InitialValue, ERigControlValueType::Initial, false, false, true);
-						Info.GetDefaultHierarchy()->SetControlValue(ControlBeingCustomized, CurrentValue, ERigControlValueType::Current, false, false, true);
-
-						if (UControlRig* DebuggedRig = Cast<UControlRig>(Info.GetBlueprint()->GetObjectBeingDebugged()))
-						{
-							URigHierarchy* DebuggedHierarchy = DebuggedRig->GetHierarchy();
-							if(FRigControlElement* DebuggedControlElement = DebuggedHierarchy->Find<FRigControlElement>(ControlBeingCustomized->GetKey()))
-							{
-								DebuggedControlElement->Settings.MinimumValue.Set<int32>(0);
-                                DebuggedControlElement->Settings.MaximumValue.Set<int32>(Maximum);
-								DebuggedHierarchy->SetControlSettings(DebuggedControlElement, DebuggedControlElement->Settings, true, true, true);
-
-                                DebuggedHierarchy->SetControlValue(DebuggedControlElement, InitialValue, ERigControlValueType::Initial);
-                                DebuggedHierarchy->SetControlValue(DebuggedControlElement, CurrentValue, ERigControlValueType::Current);
-							}
-						}
+						CommonControlEnum = ControlEnum;
 					}
-
-					Info.WrapperObject->SetContent<FRigControlElement>(*ControlBeingCustomized);
+					else if(ControlEnum != CommonControlEnum)
+					{
+						CommonControlEnum = nullptr;
+						break;
+					}
 				}
-			}
-		));
-		
+				return CommonControlEnum;
+			})
+		];
 	}
 
 	const TSharedPtr<IPropertyHandle> CustomizationHandle = SettingsHandle->GetChildHandle(TEXT("Customization"));
@@ -3301,6 +3285,54 @@ void FRigControlElementDetails::CustomizeControl(IDetailLayoutBuilder& DetailBui
 	{
 		ControlCategory.AddProperty(SettingsHandle->GetChildHandle(TEXT("DrivenControls")).ToSharedRef())
 		.IsEnabled(bIsEnabled);
+	}
+}
+
+void FRigControlElementDetails::HandleControlEnumChanged(TSharedPtr<FString> InItem, ESelectInfo::Type InSelectionInfo, const TSharedRef<IPropertyUtilities> PropertyUtilities)
+{
+	PropertyUtilities->ForceRefresh();
+	UEnum* ControlEnum = FindObject<UEnum>(nullptr, **InItem.Get(), false);
+
+	for(int32 ControlIndex = 0; ControlIndex < PerElementInfos.Num(); ControlIndex++)
+	{
+		FPerElementInfo& Info = PerElementInfos[ControlIndex];
+		const FRigControlElement ControlInView = Info.WrapperObject->GetContent<FRigControlElement>();
+		FRigControlElement* ControlBeingCustomized = Info.GetDefaultElement<FRigControlElement>();
+		
+		ControlBeingCustomized->Settings.ControlEnum = ControlEnum;
+		if (ControlEnum != nullptr)
+		{
+			int32 Maximum = (int32)ControlEnum->GetMaxEnumValue() - 1;
+			ControlBeingCustomized->Settings.MinimumValue.Set<int32>(0);
+			ControlBeingCustomized->Settings.MaximumValue.Set<int32>(Maximum);
+			ControlBeingCustomized->Settings.LimitEnabled.Reset();
+			ControlBeingCustomized->Settings.LimitEnabled.Add(true);
+			Info.GetDefaultHierarchy()->SetControlSettings(ControlBeingCustomized, ControlBeingCustomized->Settings, true, true, true);
+
+			FRigControlValue InitialValue = Info.GetDefaultHierarchy()->GetControlValue(ControlBeingCustomized, ERigControlValueType::Initial);
+			FRigControlValue CurrentValue = Info.GetDefaultHierarchy()->GetControlValue(ControlBeingCustomized, ERigControlValueType::Current);
+
+			ControlBeingCustomized->Settings.ApplyLimits(InitialValue);
+			ControlBeingCustomized->Settings.ApplyLimits(CurrentValue);
+			Info.GetDefaultHierarchy()->SetControlValue(ControlBeingCustomized, InitialValue, ERigControlValueType::Initial, false, false, true);
+			Info.GetDefaultHierarchy()->SetControlValue(ControlBeingCustomized, CurrentValue, ERigControlValueType::Current, false, false, true);
+
+			if (UControlRig* DebuggedRig = Cast<UControlRig>(Info.GetBlueprint()->GetObjectBeingDebugged()))
+			{
+				URigHierarchy* DebuggedHierarchy = DebuggedRig->GetHierarchy();
+				if(FRigControlElement* DebuggedControlElement = DebuggedHierarchy->Find<FRigControlElement>(ControlBeingCustomized->GetKey()))
+				{
+					DebuggedControlElement->Settings.MinimumValue.Set<int32>(0);
+					DebuggedControlElement->Settings.MaximumValue.Set<int32>(Maximum);
+					DebuggedHierarchy->SetControlSettings(DebuggedControlElement, DebuggedControlElement->Settings, true, true, true);
+
+					DebuggedHierarchy->SetControlValue(DebuggedControlElement, InitialValue, ERigControlValueType::Initial);
+					DebuggedHierarchy->SetControlValue(DebuggedControlElement, CurrentValue, ERigControlValueType::Current);
+				}
+			}
+		}
+
+		Info.WrapperObject->SetContent<FRigControlElement>(*ControlBeingCustomized);
 	}
 }
 
