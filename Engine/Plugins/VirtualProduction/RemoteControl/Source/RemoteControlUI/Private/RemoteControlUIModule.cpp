@@ -451,7 +451,29 @@ void FRemoteControlUIModule::FillRemoteControlRowContextSection(UToolMenu* InToo
 		return;
 	}
 
-	FRCExposesPropertyArgs ExposesPropertyArgs(Context->PropertyHandles[0]);
+	if (!Context->PropertyHandles[0].IsValid())
+	{
+		return;
+	}
+
+	TSharedPtr<IPropertyHandle> PropertyHandleToUse = Context->PropertyHandles[0];
+
+	// If there are multiple handles and the parent property is a struct use that
+	if (Context->PropertyHandles.Num() > 1)
+	{
+		if (const TSharedPtr<IPropertyHandle>& ParentHandle = PropertyHandleToUse->GetParentHandle())
+		{
+			if (const FProperty* ParentProperty = ParentHandle->GetProperty())
+			{
+				if (ParentProperty->IsA<FStructProperty>())
+				{
+					PropertyHandleToUse = ParentHandle;
+				}
+			}
+		}
+	}
+
+	FRCExposesPropertyArgs ExposesPropertyArgs(PropertyHandleToUse);
 
 	if (!ExposesPropertyArgs.IsValid())
 	{
