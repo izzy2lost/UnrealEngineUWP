@@ -326,12 +326,17 @@ private:
 	void ReplicateExtraNodes() const;
 
 	/** Called when a component finishes executing. Useful for updating debugging tools/UIs. */
-	void OnComponentGenerationCompleteOrCancelled();
+	void OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem);
 
 	/** Trigger any generation required to ensure debug display is up to date. */
 	void UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponent, UPCGComponent* InNewComponent, bool bNewComponentStartedInspecting);
 
+	void RegisterDelegatesForWorld(UWorld* World);
+	void UnregisterDelegatesForWorld(UWorld* World);
+
 	void OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType);
+	void OnPostPIEStarted(bool bIsSimulating);
+	void OnEndPIE(bool bIsSimulating);
 	void OnLevelActorDeleted(AActor* InActor);
 
 	TSharedRef<SDockTab> SpawnTab_GraphEditor(const FSpawnTabArgs& Args);

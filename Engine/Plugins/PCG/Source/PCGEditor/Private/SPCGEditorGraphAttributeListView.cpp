@@ -566,18 +566,9 @@ void SPCGEditorGraphAttributeListView::OnInspectedStackChanged(const FPCGStack& 
 	{
 		PCGComponent->OnPCGGraphGeneratedDelegate.AddSP(this, &SPCGEditorGraphAttributeListView::OnGenerateUpdated);
 		PCGComponent->OnPCGGraphCleanedDelegate.AddSP(this, &SPCGEditorGraphAttributeListView::OnGenerateUpdated);
+	}
 
-		// Refresh if PCGComponent is being inspected already since we wont get a refresh after generation
-		if (PCGComponent->IsInspecting())
-		{
-			RequestRefresh();
-		}
-	}
-	else
-	{
-		// Refresh if PCGComponent is cleared since we wont get a refresh after generate/cleaned
-		RequestRefresh();
-	}
+	RequestRefresh();
 }
 
 UPCGEditorGraphNodeBase* SPCGEditorGraphAttributeListView::GetNodeBeingInspected() const

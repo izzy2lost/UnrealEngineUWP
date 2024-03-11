@@ -33,7 +33,7 @@ typedef TSharedPtr<IPCGElement, ESPMode::ThreadSafe> FPCGElementPtr;
 class UWorld;
 
 #if WITH_EDITOR
-DECLARE_MULTICAST_DELEGATE(FPCGOnComponentGenerationCompleteOrCancelled);
+DECLARE_MULTICAST_DELEGATE_OneParam(FPCGOnComponentGenerationCompleteOrCancelled, UPCGSubsystem*);
 #endif // WITH_EDITOR
 
 /**

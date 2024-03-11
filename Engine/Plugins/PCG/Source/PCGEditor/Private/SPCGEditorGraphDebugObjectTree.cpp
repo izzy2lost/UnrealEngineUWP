@@ -5,6 +5,7 @@
 #include "PCGComponent.h"
 #include "PCGGraph.h"
 #include "PCGSubsystem.h"
+#include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGHelpers.h"
 
 #include "PCGEditor.h"
@@ -259,7 +260,7 @@ void SPCGEditorGraphDebugObjectTree::Construct(const FArguments& InArgs, TShared
 		.OnExpansionChanged(this, &SPCGEditorGraphDebugObjectTree::OnExpansionChanged)
 		.OnSetExpansionRecursive(this, &SPCGEditorGraphDebugObjectTree::OnSetExpansionRecursive)
 		.ItemHeight(18)
-		.SelectionMode(ESelectionMode::Single)
+		.SelectionMode(ESelectionMode::SingleToggle)
 		.AllowOverscroll(EAllowOverscroll::No)
 		.ExternalScrollbar(VerticalScrollBar)
 		.ConsumeMouseWheel(EConsumeMouseWheel::Always)
@@ -785,7 +786,27 @@ void SPCGEditorGraphDebugObjectTree::RefreshTree()
 	}
 
 	SortTreeItems();
+	RestoreTreeState();
+}
 
+void SPCGEditorGraphDebugObjectTree::SortTreeItems(bool bIsAscending, bool bIsRecursive)
+{
+	RootItems.Sort([bIsAscending](const FPCGEditorGraphDebugObjectItemPtr& InLHS, const FPCGEditorGraphDebugObjectItemPtr& InRHS)
+	{
+		return (InLHS->GetLabel() < InRHS->GetLabel()) == bIsAscending;
+	});
+
+	if (bIsRecursive)
+	{
+		for (const FPCGEditorGraphDebugObjectItemPtr& Item : RootItems)
+		{
+			Item->SortChildren(bIsAscending, bIsRecursive);
+		}
+	}
+}
+
+void SPCGEditorGraphDebugObjectTree::RestoreTreeState()
+{
 	// Try to restore user item expansion.
 	TSet<FPCGStack> ExpandedStacksBefore = ExpandedStacks;
 	for (const FPCGStack& ExpandedStack : ExpandedStacksBefore)
@@ -801,7 +822,9 @@ void SPCGEditorGraphDebugObjectTree::RefreshTree()
 		}
 	}
 
-	// Try to restore user item selection.
+	bool bFoundMatchingStack = false;
+
+	// Try to restore user item selection by exact matching.
 	for (FPCGEditorGraphDebugObjectItemPtr& Item : AllGraphItems)
 	{
 		const FPCGStack* ItemStack = Item->GetPCGStack();
@@ -809,23 +832,86 @@ void SPCGEditorGraphDebugObjectTree::RefreshTree()
 		if (ItemStack && SelectedStack == *ItemStack)
 		{
 			DebugObjectTreeView->SetItemSelection(Item, true);
+			bFoundMatchingStack = true;
 			break;
 		}
 	}
-}
 
-void SPCGEditorGraphDebugObjectTree::SortTreeItems(bool bIsAscending, bool bIsRecursive)
-{
-	RootItems.Sort([bIsAscending](const FPCGEditorGraphDebugObjectItemPtr& InLHS, const FPCGEditorGraphDebugObjectItemPtr& InRHS)
+	// Try to restore user item selection by fuzzy matching (e.g. share the same owner) if no exactly matching stack was found.
+	if (!bFoundMatchingStack)
 	{
-		return (InLHS->GetLabel() < InRHS->GetLabel()) == bIsAscending;
-	});
-
-	if (bIsRecursive)
-	{
-		for (const FPCGEditorGraphDebugObjectItemPtr& Item : RootItems)
+		for (FPCGEditorGraphDebugObjectItemPtr& Item : AllGraphItems)
 		{
-			Item->SortChildren(bIsAscending, bIsRecursive);
+			const FPCGStack* ItemStack = Item->GetPCGStack();
+
+			bool bFuzzyMatch = false;
+
+			if (ItemStack && SelectedGraph.Get() == ItemStack->GetRootGraph())
+			{
+				const UPCGComponent* RootComponent = ItemStack->GetRootComponent();
+				const AActor* RootOwner = RootComponent ? RootComponent->GetOwner() : nullptr;
+				const APCGPartitionActor* RootPartitionActor = Cast<APCGPartitionActor>(RootOwner);
+
+				if (RootComponent && RootPartitionActor)
+				{
+					// For local components, we can fuzzy match as long as the GridSize, GridCoord, OriginalComponent, and ExecutionDomain are the same.
+					// This is equivalent to saying they are on the same partition actor and come from the same original component.
+					bFuzzyMatch = SelectedGridSize == RootComponent->GetGenerationGridSize()
+						&& SelectedGridCoord == RootPartitionActor->GetGridCoord()
+						&& SelectedOriginalComponent.Get() == RootPartitionActor->GetOriginalComponent(RootComponent)
+						&& (SelectedOriginalComponent.IsValid() && SelectedOriginalComponent->IsManagedByRuntimeGenSystem() == RootComponent->IsManagedByRuntimeGenSystem());
+				}
+				else
+				{
+					// For original components, we can fuzzy match as long as the owning actor is the same.
+					// Note: This fails for multiple original components with the same graph on the same actor, since there is no way to know which one to pick.
+					if (SelectedOwner.Get() == RootOwner && Item->GetParent() && Item->GetParent()->GetChildren().Num() == 1)
+					{
+						int32 ItemRootGraphIndex = INDEX_NONE;
+						int32 SelectedRootGraphIndex = INDEX_NONE;
+
+						ItemStack->GetRootGraph(&ItemRootGraphIndex);
+						SelectedStack.GetRootGraph(&SelectedRootGraphIndex);
+
+						const TArray<FPCGStackFrame>& ItemStackFrames = ItemStack->GetStackFrames();
+						const TArray<FPCGStackFrame>& SelectedStackFrames = SelectedStack.GetStackFrames();
+
+						// If the stacks match from the RootGraph onwards, then our fuzzy match should succeed.
+						if (ItemRootGraphIndex != INDEX_NONE && ItemRootGraphIndex == SelectedRootGraphIndex && ItemStackFrames.Num() == SelectedStackFrames.Num())
+						{
+							bool bAllStackFramesMatch = true;
+
+							for (int I = ItemRootGraphIndex; I < ItemStackFrames.Num(); ++I)
+							{
+								if (!ItemStackFrames[I].IsValid() || ItemStackFrames[I] != SelectedStackFrames[I])
+								{
+									bAllStackFramesMatch = false;
+									break;
+								}
+							}
+
+							if (bAllStackFramesMatch)
+							{
+								bFuzzyMatch = true;
+							}
+						}
+					}
+				}
+			}
+
+			if (bFuzzyMatch)
+			{
+				// Force the selected object to re-expand.
+				FPCGEditorGraphDebugObjectItemPtr Parent = Item->GetParent();
+				while (Parent)
+				{
+					DebugObjectTreeView->SetItemExpansion(Parent, true);
+					Parent = Parent->GetParent();
+				}
+
+				DebugObjectTreeView->SetItemSelection(Item, true);
+				break;
+			}
 		}
 	}
 }
@@ -900,13 +986,34 @@ void SPCGEditorGraphDebugObjectTree::OnSelectionChanged(FPCGEditorGraphDebugObje
 		PreviouslySelectedStack = SelectedStack;
 	}
 
+	// Reset selected item information.
+	SelectedStack = FPCGStack();
+	SelectedGraph = nullptr;
+	SelectedOwner = nullptr;
+	SelectedGridSize = PCGHiGenGrid::UnboundedGridSize();
+	SelectedGridCoord = FIntVector::ZeroValue;
+	SelectedOriginalComponent = nullptr;
+
 	if (const FPCGStack* Stack = InItem ? InItem->GetPCGStack() : nullptr)
 	{
 		SelectedStack = *Stack;
-	}
-	else
-	{
-		SelectedStack = FPCGStack();
+		SelectedGraph = SelectedStack.GetRootGraph();
+
+		if (const UPCGComponent* RootComponent = SelectedStack.GetRootComponent())
+		{
+			SelectedOwner = RootComponent->GetOwner();
+
+			if (const APCGPartitionActor* PartitionActor = Cast<APCGPartitionActor>(SelectedOwner.Get()))
+			{
+				SelectedGridSize = RootComponent->GetGenerationGridSize();
+				SelectedGridCoord = PartitionActor->GetGridCoord();
+				SelectedOriginalComponent = PartitionActor->GetOriginalComponent(RootComponent);
+			}
+			else
+			{
+				SelectedOriginalComponent = RootComponent;
+			}
+		}
 	}
 
 	if (bDisableDebugObjectChangeNotification)
@@ -999,7 +1106,7 @@ void SPCGEditorGraphDebugObjectTree::ExpandAndSelectDebugObject(FPCGEditorGraphD
 	// Set the discovered item as the debug object if it is the only child.
 	if (NumChildren == 1)
 	{
-		OnSelectionChanged(Item, ESelectInfo::Direct);
+		DebugObjectTreeView->SetSelection(Item);
 	}
 }
 
