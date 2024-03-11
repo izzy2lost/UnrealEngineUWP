@@ -1125,12 +1125,12 @@ protected:
 	UMG_API virtual TSharedRef<SWidget> RebuildDesignWidget(TSharedRef<SWidget> Content);
 
 	UMG_API TSharedRef<SWidget> CreateDesignerOutline(TSharedRef<SWidget> Content) const;
-#endif
-
-	UMG_API void UpdateRenderTransform();
 
 	/** Gets the base name used to generate the display label/name of this widget. */
 	UMG_API FText GetDisplayNameBase() const;
+#endif
+
+	UMG_API void UpdateRenderTransform();
 
 	/** Copy all accessible properties to the AccessibleWidgetData object */
 	UMG_API void SynchronizeAccessibleData();
