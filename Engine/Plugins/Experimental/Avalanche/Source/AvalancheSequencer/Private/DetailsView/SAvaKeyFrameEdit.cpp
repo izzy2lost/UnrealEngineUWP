@@ -79,6 +79,8 @@ void SAvaKeyFrameEdit::Construct(const FArguments& InArgs, const TSharedRef<FAva
 
 	const TSharedPtr<FAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin();
 
+	InSequencer->UpdateEaseCurveTool();
+
 	ChildSlot
 		[
 			SNew(SScrollBox)
