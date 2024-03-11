@@ -25,6 +25,12 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 	}
 
+	record struct PacketReaderCacheKey(BundleHandle Bundle, int Offset)
+	{
+		public override string ToString()
+			=> $"packet-reader:{Bundle}@{Offset}";
+	}
+
 	/// <summary>
 	/// Utility class for constructing BlobData objects from a packet, caching any computed handles to other blobs.
 	/// </summary>

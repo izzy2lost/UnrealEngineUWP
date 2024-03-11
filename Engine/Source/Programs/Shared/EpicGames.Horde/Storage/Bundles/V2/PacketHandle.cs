@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using BitFaster.Caching;
 using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage.Bundles.V2
@@ -161,8 +162,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		{
 			try
 			{
-				using IRefCountedHandle<PacketReader> packetReaderHandle = await GetPacketReaderAsync(cancellationToken);
-				return packetReaderHandle.Target.ReadExport(exportIdx);
+				using Lifetime<PacketReader> packetReaderHandle = await GetPacketReaderAsync(cancellationToken);
+				return packetReaderHandle.Value.ReadExport(exportIdx);
 			}
 			catch (OperationCanceledException)
 			{
@@ -203,32 +204,23 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		#region Packet reader access
 
-		record struct PacketReaderCacheKey(BundleHandle Bundle, int Offset)
-		{
-			public override string ToString()
-				=> $"packet-reader:{Bundle}@{Offset}";
-		}
-
-		record struct BundlePageCacheKey(BundleHandle Bundle, int Index)
-		{
-			public override string ToString()
-				=> $"bundle-page:{Bundle}:{Index}";
-		}
-
-		async ValueTask<IRefCountedHandle<PacketReader>> GetPacketReaderAsync(CancellationToken cancellationToken = default)
+		async ValueTask<Lifetime<PacketReader>> GetPacketReaderAsync(CancellationToken cancellationToken = default)
 		{
 			PacketReaderCacheKey cacheKey = new PacketReaderCacheKey(_outer, _packetOffset);
-			return await _cache.FindOrAddAsync(cacheKey, CreatePacketReaderAsync, cancellationToken);
+			return await _cache.PacketReaderCache.ScopedGetOrAddAsync(cacheKey, CreatePacketReaderAsync, cancellationToken);
 		}
 
-		async Task<PacketReader> CreatePacketReaderAsync(PacketReaderCacheKey cacheKey, CancellationToken cancellationToken)
+		async Task<Scoped<PacketReader>> CreatePacketReaderAsync(PacketReaderCacheKey cacheKey, CancellationToken cancellationToken)
 		{
 			using IReadOnlyMemoryOwner<byte> encodedData = await ReadEncodedPacketAsync(cancellationToken);
 			IRefCountedHandle<Packet> packet = Packet.Decode(encodedData.Memory, _cache.Allocator, cacheKey);
-			return new PacketReader(_storageClient, _cache, _outer, this, packet.Target, packet);
+#pragma warning disable CA2000
+			PacketReader reader = new PacketReader(_storageClient, _cache, _outer, this, packet.Target, packet);
+			return new Scoped<PacketReader>(reader);
+#pragma warning restore CA2000
 		}
 
-		const int BundlePageSize = 1024 * 1024;
+		public const int BundlePageSize = 1024 * 1024;
 
 		async ValueTask<IReadOnlyMemoryOwner<byte>> ReadEncodedPacketAsync(CancellationToken cancellationToken)
 		{
@@ -238,8 +230,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			// If the whole packet is contained within on page, just return that.
 			if (maxPageIdx == minPageIdx + 1)
 			{
-				IRefCountedHandle<IReadOnlyMemoryOwner<byte>> pageData = await ReadBundlePageAsync(minPageIdx, cancellationToken);
-				return ReadOnlyMemoryOwner.Create(pageData.Target.Memory.Slice(_packetOffset & (BundlePageSize - 1), _packetLength), pageData);
+				Lifetime<IReadOnlyMemoryOwner<byte>> pageData = await ReadBundlePageAsync(minPageIdx, cancellationToken);
+				return ReadOnlyMemoryOwner.Create(pageData.Value.Memory.Slice(_packetOffset & (BundlePageSize - 1), _packetLength), pageData);
 			}
 
 			// Otherwise read sections from each page that contributes to the output and copy into a shared buffer
@@ -256,28 +248,29 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 		}
 
-		async ValueTask<IRefCountedHandle<IReadOnlyMemoryOwner<byte>>> ReadBundlePageAsync(int pageIdx, CancellationToken cancellationToken)
+		async ValueTask<Lifetime<IReadOnlyMemoryOwner<byte>>> ReadBundlePageAsync(int pageIdx, CancellationToken cancellationToken)
 		{
 			BundlePageCacheKey bundlePageCacheKey = new BundlePageCacheKey(_outer, pageIdx);
-			return await _cache.FindOrAddAsync(bundlePageCacheKey, ReadBundlePageInternalAsync, cancellationToken);
+			return await _cache.BundlePageCache.ScopedGetOrAddAsync(bundlePageCacheKey, ReadBundlePageInternalAsync, cancellationToken);
 		}
 
 		async Task ReadBundlePageAsync(int pageIdx, Memory<byte> targetMemory, CancellationToken cancellationToken)
 		{
-			using IRefCountedHandle<IReadOnlyMemoryOwner<byte>> pageData = await ReadBundlePageAsync(pageIdx, cancellationToken);
+			using Lifetime<IReadOnlyMemoryOwner<byte>> pageData = await ReadBundlePageAsync(pageIdx, cancellationToken);
 
 			int pageBase = pageIdx * BundlePageSize;
 
 			int minOffset = Math.Max(_packetOffset, pageBase);
 			int maxOffset = Math.Min(_packetOffset + _packetLength, pageBase + BundlePageSize);
 
-			ReadOnlyMemory<byte> sourceMemory = pageData.Target.Memory.Slice(minOffset - pageBase, maxOffset - minOffset);
+			ReadOnlyMemory<byte> sourceMemory = pageData.Value.Memory.Slice(minOffset - pageBase, maxOffset - minOffset);
 			sourceMemory.CopyTo(targetMemory.Slice(minOffset - _packetOffset));
 		}
 
-		async Task<IReadOnlyMemoryOwner<byte>> ReadBundlePageInternalAsync(BundlePageCacheKey key, CancellationToken cancellationToken)
+		async Task<Scoped<IReadOnlyMemoryOwner<byte>>> ReadBundlePageInternalAsync(BundlePageCacheKey key, CancellationToken cancellationToken)
 		{
-			return await _outer.ReadAsync(key.Index * BundlePageSize, BundlePageSize, cancellationToken);
+			IReadOnlyMemoryOwner<byte> owner = await _outer.ReadAsync(key.Index * BundlePageSize, BundlePageSize, cancellationToken);
+			return new Scoped<IReadOnlyMemoryOwner<byte>>(owner);
 		}
 		#endregion
 	}
