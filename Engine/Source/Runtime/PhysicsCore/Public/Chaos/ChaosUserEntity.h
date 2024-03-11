@@ -8,6 +8,7 @@ class FChaosUserDefinedEntity
 public:
 	FChaosUserDefinedEntity() = delete;
 	FChaosUserDefinedEntity(FName InEntityTypeName) : EntityTypeName(InEntityTypeName) {};
+	virtual ~FChaosUserDefinedEntity() {};
 
 	FName GetEntityTypeName() {
 		return EntityTypeName;
