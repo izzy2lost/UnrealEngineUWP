@@ -146,7 +146,9 @@ namespace UE4Paths_Private
 
 bool FPaths::IsStaged()
 {
-	static bool bIsStaged = FileExists(Combine(EngineConfigDir(), TEXT("StagedBuild.ini")));
+	// if the platform requires cooked data, then we can assume staged, but if we don't require cooked data, then
+	// check if it went through the staging process
+	static bool bIsStaged = FPlatformProperties::RequiresCookedData() || FileExists(Combine(EngineConfigDir(), TEXT("StagedBuild.ini")));
 	return bIsStaged;
 }
 
