@@ -333,6 +333,9 @@ void FCollection::AddClassFunctions(const UClass* Class)
 			return false;
 		};
 
+	const UMVVMDeveloperProjectSettings* MVVMDeveloperProjectSettings = GetDefault<UMVVMDeveloperProjectSettings>();
+	check(MVVMDeveloperProjectSettings);
+
 	const bool bIsUserWidget = Class->IsChildOf<UUserWidget>();
 	FFunctionContainer* FunctionContainer = nullptr;
 	for (TFieldIterator<UFunction> FunctionIt(Class, EFieldIteratorFlags::ExcludeSuper); FunctionIt; ++FunctionIt)
@@ -374,7 +377,10 @@ void FCollection::AddClassFunctions(const UClass* Class)
 		}
 
 		// Apply general filtering for functions
-		if (!FBlueprintActionDatabase::IsFunctionAllowed(Function, FBlueprintActionDatabase::EPermissionsContext::Node))
+		const bool bIsValidConversionFunction = bFromBlueprintFunctionLibrary && MVVMDeveloperProjectSettings->IsConversionFunctionAllowed(BpOwner, Function);
+		const bool bIsValidBlueprintFunction = FBlueprintActionDatabase::IsFunctionAllowed(Function, FBlueprintActionDatabase::EPermissionsContext::Node);
+
+		if (!bIsValidConversionFunction && !bIsValidBlueprintFunction)
 		{
 			continue;
 		}
