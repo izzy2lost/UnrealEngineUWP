@@ -626,8 +626,8 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 	const TArrayView<FRHIRayTracingShader*>& RayGenShaderTable
 )
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::BindRayTracingMaterialPipeline);
-	SCOPE_CYCLE_COUNTER(STAT_BindRayTracingPipeline);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline);
+	SCOPE_CYCLE_COUNTER(STAT_CreateRayTracingPipeline);
 
 	FRHICommandList& RHICmdList = GraphBuilder.RHICmdList;
 

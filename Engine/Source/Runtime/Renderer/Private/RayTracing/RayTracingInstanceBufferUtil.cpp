@@ -162,7 +162,11 @@ void FillRayTracingInstanceUploadBuffer(
 	int32 NumInactiveNativeInstances = 0;
 
 	const int32 NumSceneInstances = Instances.Num();
-	ParallelFor(NumSceneInstances, 
+	const int32 MinBatchSize = 128;
+	ParallelFor(
+		TEXT("FillRayTracingInstanceUploadBuffer_Parallel"),
+		NumSceneInstances,
+		MinBatchSize,
 		[
 			OutInstanceUploadData,
 			OutTransformData,

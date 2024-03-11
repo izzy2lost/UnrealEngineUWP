@@ -139,7 +139,8 @@ DEFINE_STAT(STAT_CSMSubjects);
 DEFINE_STAT(STAT_CSMStaticMeshReceivers);
 DEFINE_STAT(STAT_CSMStaticPrimitiveReceivers);
 
-DEFINE_STAT(STAT_BindRayTracingPipeline);
+DEFINE_STAT(STAT_CreateRayTracingPipeline);
+DEFINE_STAT(STAT_CreateLumenRayTracingPipeline);
 
 // The ShadowRendering stats group shows what kind of shadows are taking a lot of rendering thread time to render
 // Shadow setup is tracked in the InitViews group

@@ -134,6 +134,8 @@ uint32 CalculateLumenHardwareRayTracingUserData(const FRayTracingMeshCommand& Me
 // TODO: This should be moved into FRayTracingScene and used as a base for other effects. There is not need for it to be Lumen specific.
 void FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingHitGroupData(FRHICommandListBase& RHICmdList, FRayTracingScene& RayTracingScene, const FViewInfo& ReferenceView, FRDGBufferRef DstBuffer)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingHitGroupData);
+
 	Lumen::FHitGroupRootConstants* DstBasePtr = (Lumen::FHitGroupRootConstants*)RHICmdList.LockBuffer(DstBuffer->GetRHI(), 0, DstBuffer->GetSize(), RLM_WriteOnly);
 
 	const FRayTracingSceneInitializer2& SceneInitializer = RayTracingScene.GetRHIRayTracingSceneChecked()->GetInitializer();
@@ -156,6 +158,8 @@ void FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingHitGroupData(FRH
 
 FRayTracingLocalShaderBindings* FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingMaterialBindings(FRHICommandList& RHICmdList, const FViewInfo& View, FRHIUniformBuffer* SceneUniformBuffer)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingMaterialBindings);
+
 	const FViewInfo& ReferenceView = Views[0];
 	const int32 NumTotalBindings = LumenHardwareRayTracing::NumHitGroups * ReferenceView.VisibleRayTracingMeshCommands.Num();
 
@@ -273,7 +277,8 @@ FRayTracingLocalShaderBindings* FDeferredShadingSceneRenderer::BuildLumenHardwar
 
 void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipeline(FRHICommandList& RHICmdList, FViewInfo& View, const TArrayView<FRHIRayTracingShader*>& RayGenShaderTable)
 {
-	SCOPE_CYCLE_COUNTER(STAT_BindRayTracingPipeline);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipeline);
+	SCOPE_CYCLE_COUNTER(STAT_CreateLumenRayTracingPipeline);
 	
 	FRayTracingPipelineStateInitializer Initializer;
 
