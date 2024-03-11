@@ -25,6 +25,7 @@ struct FNaniteRawAttributeData
 	float2 TexCoords[NANITE_MAX_UVS];
 };
 
+HLSL_STATIC_ASSERT(sizeof(FNaniteRawAttributeData) == 44 + 8 * NANITE_MAX_UVS, "Unexpected size of FNaniteRawAttributeData. Update StoreVertexToLDS to reflect changes.");
 FNaniteRawAttributeData WaveReadLaneAt(FNaniteRawAttributeData In, uint SrcIndex)
 {
 	FNaniteRawAttributeData Out;

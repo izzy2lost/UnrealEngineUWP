@@ -320,6 +320,7 @@ FNaniteVertTransforms CalculateNaniteVertexTransforms(FInstanceSceneData Instanc
 	return Transforms;
 }
 
+HLSL_STATIC_ASSERT(sizeof(FNaniteVertTransforms) == 336, "Unexpected size of FNaniteVertTransforms. Update WaveReadLaneAt to reflect changes.");
 FNaniteVertTransforms WaveReadLaneAt(FNaniteVertTransforms In, uint SrcIndex)
 {
 	FNaniteVertTransforms Result;
@@ -513,7 +514,7 @@ FNaniteTransformedVert FetchTransformedNaniteVertex(FPrimitiveSceneData Primitiv
 	return TransformNaniteVertex(PrimitiveData, InstanceData, Transforms, Vert, bEvaluateWPO);
 }
 
-
+HLSL_STATIC_ASSERT(sizeof(FNaniteTransformedVert) == (112 + sizeof(FNaniteRawAttributeData) + 8 * NUM_TEX_COORD_INTERPOLATORS), "Unexpected size of FNaniteTransformedVert. WaveReadLaneAt implementation needs to be updated.");
 FNaniteTransformedVert WaveReadLaneAt(FNaniteTransformedVert Vert, uint SrcIndex)
 {
 	FNaniteTransformedVert Result;

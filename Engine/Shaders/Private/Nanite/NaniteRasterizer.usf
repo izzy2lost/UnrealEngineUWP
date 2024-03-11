@@ -50,6 +50,10 @@ ALLOW_NO_PS_EXPORT
 	#define THREADGROUP_SIZE 64
 #endif
 
+#if COMPUTESHADER && NANITE_PIXEL_PROGRAMMABLE && !NANITE_TESSELLATION
+MAX_OCCUPANCY
+#endif
+
 HOIST_DESCRIPTORS
 
 uint ActiveRasterBin;
@@ -248,6 +252,108 @@ struct FCachedVertex
 	float4 PointSubpixelClip;
 };
 
+// 64 rolling window vertex cache for pixel programmable shaders.
+// The expectation is that most materials will only require PointSubpixelClip and maybe 1/2 UV sets and the rest will be DCE'd
+groupshared float3 VertexCache_PointLocal[64];
+groupshared float3 VertexCache_PointPostDeform[64];
+groupshared float3 VertexCache_PrevPointPostDeform[64];
+groupshared float3 VertexCache_PointWorld[64];
+groupshared float3 VertexCache_PointWorld_NoOffset[64];
+groupshared float4 VertexCache_PointClip[64];
+groupshared half3  VertexCache_NormalPostDeform[64];
+groupshared float4 VertexCache_NormalClip[64];
+groupshared float4 VertexCache_TangentX_AndSign[64];
+groupshared float3 VertexCache_TangentZ[64];
+groupshared float4 VertexCache_Color[64];
+groupshared float2 VertexCache_TexCoords0[64];
+groupshared float2 VertexCache_TexCoords1[64];
+groupshared float2 VertexCache_TexCoords2[64];
+groupshared float2 VertexCache_TexCoords3[64];
+groupshared float2 VertexCache_CustomizedUVs0[64];
+groupshared float2 VertexCache_CustomizedUVs1[64];
+groupshared float2 VertexCache_CustomizedUVs2[64];
+groupshared float2 VertexCache_CustomizedUVs3[64];
+groupshared float4 VertexCache_PointSubpixelClip[64];
+
+HLSL_STATIC_ASSERT( sizeof( FCachedVertex ) == 204 + 8 * NUM_TEX_COORD_INTERPOLATORS, "Unexpected size of FCachedVertex. Update StoreVertexToLDS to reflect changes." );
+void StoreVertexToLDS( uint VertexIndex, FCachedVertex Vertex )
+{
+	const uint CacheIndex = VertexIndex & 63u;
+
+	VertexCache_PointLocal[CacheIndex]			= Vertex.TransformedVert.PointLocal;
+	VertexCache_PointPostDeform[CacheIndex]		= Vertex.TransformedVert.PointPostDeform;
+	VertexCache_PrevPointPostDeform[CacheIndex]	= Vertex.TransformedVert.PrevPointPostDeform;
+	VertexCache_PointWorld[CacheIndex]			= Vertex.TransformedVert.PointWorld;
+	VertexCache_PointWorld_NoOffset[CacheIndex]	= Vertex.TransformedVert.PointWorld_NoOffset;
+	VertexCache_PointClip[CacheIndex]			= Vertex.TransformedVert.PointClip;
+	VertexCache_NormalPostDeform[CacheIndex]	= Vertex.TransformedVert.NormalPostDeform;
+	VertexCache_NormalClip[CacheIndex]			= Vertex.TransformedVert.NormalClip;
+	VertexCache_TangentX_AndSign[CacheIndex]	= Vertex.TransformedVert.RawAttributeData.TangentX_AndSign;
+	VertexCache_TangentZ[CacheIndex]			= Vertex.TransformedVert.RawAttributeData.TangentZ;
+	VertexCache_Color[CacheIndex]				= Vertex.TransformedVert.RawAttributeData.Color;
+	VertexCache_TexCoords0[CacheIndex]			= Vertex.TransformedVert.RawAttributeData.TexCoords[0];
+	VertexCache_TexCoords1[CacheIndex]			= Vertex.TransformedVert.RawAttributeData.TexCoords[1];
+	VertexCache_TexCoords2[CacheIndex]			= Vertex.TransformedVert.RawAttributeData.TexCoords[2];
+	VertexCache_TexCoords3[CacheIndex]			= Vertex.TransformedVert.RawAttributeData.TexCoords[3];
+
+#if NUM_TEX_COORD_INTERPOLATORS > 0
+	VertexCache_CustomizedUVs0[CacheIndex]		= Vertex.TransformedVert.CustomizedUVs[0];
+#endif
+#if NUM_TEX_COORD_INTERPOLATORS > 1
+	VertexCache_CustomizedUVs1[CacheIndex]		= Vertex.TransformedVert.CustomizedUVs[1];
+#endif
+#if NUM_TEX_COORD_INTERPOLATORS > 2
+	VertexCache_CustomizedUVs2[CacheIndex]		= Vertex.TransformedVert.CustomizedUVs[2];
+#endif
+#if NUM_TEX_COORD_INTERPOLATORS > 3
+	VertexCache_CustomizedUVs3[CacheIndex]		= Vertex.TransformedVert.CustomizedUVs[3];
+#endif
+
+	VertexCache_PointSubpixelClip[CacheIndex]	= Vertex.PointSubpixelClip;
+}
+
+HLSL_STATIC_ASSERT( sizeof( FCachedVertex ) == 204 + 8 * NUM_TEX_COORD_INTERPOLATORS, "Unexpected size of FCachedVertex. Update LoadVertexFromLDS to reflect changes." );
+FCachedVertex LoadVertexFromLDS( uint VertexIndex )
+{	
+	const uint CacheIndex = VertexIndex & 63u;
+
+	FCachedVertex Result;
+	Result.TransformedVert.VertIndex						= VertexIndex;
+	Result.TransformedVert.PointLocal						= VertexCache_PointLocal[CacheIndex];
+	Result.TransformedVert.PointPostDeform					= VertexCache_PointPostDeform[CacheIndex];
+	Result.TransformedVert.PrevPointPostDeform				= VertexCache_PrevPointPostDeform[CacheIndex];
+	Result.TransformedVert.PointWorld						= VertexCache_PointWorld[CacheIndex];
+	Result.TransformedVert.PointWorld_NoOffset				= VertexCache_PointWorld_NoOffset[CacheIndex];
+	Result.TransformedVert.PointClip						= VertexCache_PointClip[CacheIndex];
+	Result.TransformedVert.NormalPostDeform					= VertexCache_NormalPostDeform[CacheIndex];
+	Result.TransformedVert.NormalClip						= VertexCache_NormalClip[CacheIndex];
+	Result.TransformedVert.RawAttributeData.TangentX_AndSign= VertexCache_TangentX_AndSign[CacheIndex];
+	Result.TransformedVert.RawAttributeData.TangentZ		= VertexCache_TangentZ[CacheIndex];
+	Result.TransformedVert.RawAttributeData.Color			= VertexCache_Color[CacheIndex];
+	Result.TransformedVert.RawAttributeData.TexCoords[0]	= VertexCache_TexCoords0[CacheIndex];
+	Result.TransformedVert.RawAttributeData.TexCoords[1]	= VertexCache_TexCoords1[CacheIndex];
+	Result.TransformedVert.RawAttributeData.TexCoords[2]	= VertexCache_TexCoords2[CacheIndex];
+	Result.TransformedVert.RawAttributeData.TexCoords[3]	= VertexCache_TexCoords3[CacheIndex];
+
+#if NUM_TEX_COORD_INTERPOLATORS > 0
+	Result.TransformedVert.CustomizedUVs[0]					= VertexCache_CustomizedUVs0[CacheIndex];
+#endif
+#if NUM_TEX_COORD_INTERPOLATORS > 1
+	Result.TransformedVert.CustomizedUVs[1]					= VertexCache_CustomizedUVs1[CacheIndex];
+#endif
+#if NUM_TEX_COORD_INTERPOLATORS > 2
+	Result.TransformedVert.CustomizedUVs[2]					= VertexCache_CustomizedUVs2[CacheIndex];
+#endif
+#if NUM_TEX_COORD_INTERPOLATORS > 3
+	Result.TransformedVert.CustomizedUVs[3]					= VertexCache_CustomizedUVs3[CacheIndex];
+#endif
+
+	Result.PointSubpixelClip								= VertexCache_PointSubpixelClip[CacheIndex];
+
+	return Result;
+}
+
+HLSL_STATIC_ASSERT( sizeof( FCachedVertex ) == sizeof( FNaniteTransformedVert ) + 16, "Unexpected size of FCachedVertex. Update WaveReadLaneAt to reflect changes.");
 FCachedVertex WaveReadLaneAt( FCachedVertex Vert, uint SrcIndex )
 {
 	FCachedVertex Result;
@@ -255,6 +361,8 @@ FCachedVertex WaveReadLaneAt( FCachedVertex Vert, uint SrcIndex )
 	Result.PointSubpixelClip	= WaveReadLaneAt( Vert.PointSubpixelClip,	SrcIndex );
 	return Result;
 }
+
+groupshared uint GroupRefillCheckTriIndex;
 
 void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex ) 
 {
@@ -421,15 +529,29 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 
 #elif NANITE_PIXEL_PROGRAMMABLE
 
-	TSlidingWindowVertexCache< FCachedVertex > VertexCache;
-	VertexCache.Init();
-
-	uint NumTrisProcessed = 0;
-	do
+	const bool bSingleWave = ( WaveGetLaneCount() >= 32 );
+	
+	BRANCH
+	if (!bSingleWave)
 	{
-		uint TriIndex = NumTrisProcessed + GroupThreadIndex;
-		bool bTriValid = TriIndex < TriRange.Num;
-		TriIndex += TriRange.Start;
+		if( GroupThreadIndex == 0)
+			GroupRefillCheckTriIndex = 0xFFFFFFFFu;
+		GroupMemoryBarrierWithGroupSync();
+	}
+
+	FCachedVertex TriangleVerts[3];
+	FCachedVertex CachedVertex[2];
+
+
+	// TODO: DXC doesn't manage to strip all the unused groupshared arrays, which is very bad for performance.
+	//       When manually stripped, the groupshared version is faster, so we should revisit once this has been fixed.
+	const bool bGroupsharedCache = !COMPILER_DXC; // || !bSingleWave;	// TODO: !SingleWave check also keeps LDS allocations alive with DXC
+
+	uint NumCachedVerts = 0;
+	for( uint FirstTriIndex = 0; FirstTriIndex < TriRange.Num; FirstTriIndex += 32 )
+	{
+		const uint TriIndex = TriRange.Start + FirstTriIndex + GroupThreadIndex;
+		const bool bTriValid = TriIndex < TriRange.Num;
 
 		uint3 VertIndexes = 0;
 		if( bTriValid )
@@ -439,25 +561,103 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 				VertIndexes.yz = VertIndexes.zy;
 		}
 
-		uint LaneVertIndex = VertexCache.PullExisting( VertIndexes );
-
-		if( LaneVertIndex < VertexCache.NumCached )
+		UNROLL
+		for( uint k = 0; k < 3; k++ )
 		{
-			VertexCache.CachedVert.TransformedVert = FetchTransformedNaniteVertex( PrimitiveData, InstanceData, MaterialShader.VertTransforms, Cluster, LaneVertIndex, bEvaluateWPO );
-			VertexCache.CachedVert.PointSubpixelClip = CalculateSubpixelCoordinates( Raster, VertexCache.CachedVert.TransformedVert.PointClip );
+			BRANCH
+			if( bGroupsharedCache )
+			{
+				TriangleVerts[k] = LoadVertexFromLDS( VertIndexes[k] );
+			}
+			else
+			{
+				const FCachedVertex A = WaveReadLaneAt( CachedVertex[0], VertIndexes[k] & 31 );
+				const FCachedVertex B = WaveReadLaneAt( CachedVertex[1], VertIndexes[k] & 31 );
+				if( ( VertIndexes[k] - NumCachedVerts ) & 32 )
+					TriangleVerts[k] = A;
+				else
+					TriangleVerts[k] = B;
+			}
 		}
 
-		uint NumTrisInBatch = VertexCache.PullRemaining( VertIndexes );
+		const uint MaxVertIndex = max( VertIndexes.y, VertIndexes.z );
 
-		NumTrisProcessed += NumTrisInBatch;
-		bTriValid &= GroupThreadIndex < NumTrisInBatch;
+        while(true)
+		{
+			const bool bWaveNeedsVertexRefill = WaveActiveAnyTrue( MaxVertIndex >= NumCachedVerts  );
+
+			BRANCH
+			if (bSingleWave)
+			{
+				if( !bWaveNeedsVertexRefill )
+					break;
+			}
+			else
+			{
+				// Multi-wave path: Gets compiled out for wave size >= 32.
+				// Ensure multi-wave groups are non-divergent, so it is safe to use group syncs.
+				
+				if( bWaveNeedsVertexRefill && WaveIsFirstLane() )
+					GroupRefillCheckTriIndex = FirstTriIndex;
+
+				GroupMemoryBarrierWithGroupSync();
+
+				if( GroupRefillCheckTriIndex != FirstTriIndex )
+				{
+					GroupMemoryBarrierWithGroupSync();
+					break;
+				}
+			}
+
+			// Transform and store next batch of vertices
+			{
+				const uint LaneVertIndex = NumCachedVerts + GroupThreadIndex;
+
+				FCachedVertex Vert;
+				
+				BRANCH
+				if( LaneVertIndex < Cluster.NumVerts )		// Ideally, we would be testing against the number of verts for the range, not the whole cluster.
+				{
+					Vert.TransformedVert = FetchTransformedNaniteVertex( PrimitiveData, InstanceData, MaterialShader.VertTransforms, Cluster, LaneVertIndex, bEvaluateWPO );
+					Vert.PointSubpixelClip = CalculateSubpixelCoordinates( Raster, Vert.TransformedVert.PointClip );
+				}
+
+				BRANCH
+				if( bGroupsharedCache )
+				{
+					GroupMemoryBarrierWithGroupSync();
+					StoreVertexToLDS( LaneVertIndex, Vert );
+					GroupMemoryBarrierWithGroupSync();
+				}
+				else
+				{
+					CachedVertex[1] = CachedVertex[0];
+					CachedVertex[0] = Vert;
+				}
+			}
+            
+            UNROLL
+            for( uint k = 0; k < 3; k++ )
+            {
+				FCachedVertex Vert;
+				if( bGroupsharedCache )
+					Vert = LoadVertexFromLDS( VertIndexes[k] );
+				else
+					Vert = WaveReadLaneAt( CachedVertex[0], VertIndexes[k] & 31 );	// After refill any new vertex will be in CachedVertex[0]
+				
+				if( VertIndexes[k] >= NumCachedVerts )
+					TriangleVerts[k] = Vert;
+            }
+
+			NumCachedVerts += 32;
+        }
 
 		float4 Verts[3];
 		UNROLL
 		for( uint k = 0; k < 3; k++ )
 		{
-			MaterialShader.TransformedTri.Verts[k]	= VertexCache.TriangleVerts[k].TransformedVert;
-			Verts[k]								= VertexCache.TriangleVerts[k].PointSubpixelClip;
+			MaterialShader.TransformedTri.Verts[k]	= TriangleVerts[k].TransformedVert;
+			Verts[k]								= TriangleVerts[k].PointSubpixelClip;
 		}
 
 		FRasterTri Tri = SetupTriangle< NANITE_SUBPIXEL_SAMPLES, !NANITE_TWO_SIDED >( Raster.ScissorRect, Verts );
@@ -493,7 +693,6 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 			}
 		}
 	}
-	while( NumTrisProcessed < TriRange.Num );
 
 #else
 	UNROLL
@@ -1524,6 +1723,9 @@ void HWRasterizePS(VSOut In
 #if NANITE_MESH_SHADER	
 	, PrimitiveAttributesPacked PrimitivePacked
 #endif
+#if MATERIAL_TWOSIDED
+	, bool bFrontFace : SV_IsFrontFace
+#endif
 )
 {
 #if NANITE_HW_RASTER_INTERPOLATE_DEPTH
@@ -1683,7 +1885,10 @@ void HWRasterizePS(VSOut In
 		Barycentrics.Value = float3(In.BarycentricsUV, 1.0f - In.BarycentricsUV.x - In.BarycentricsUV.y);
 	#endif
 		
-		FMaterialPixelParameters MaterialParameters = FetchNaniteMaterialPixelParameters(NaniteView, PackedPixel, VIRTUAL_TEXTURE_TARGET, Barycentrics, false, VertIndexes, bCalcVertIndexes, Interpolants, SvPosition);
+		FMaterialPixelParameters MaterialParameters = FetchNaniteMaterialPixelParameters(NaniteView, PackedPixel, VIRTUAL_TEXTURE_TARGET, Barycentrics, false, VertIndexes, bCalcVertIndexes, Interpolants, SvPosition );
+	#if MATERIAL_TWOSIDED
+		MaterialParameters.TwoSidedSign = bFrontFace ? -1.0f : 1.0f;
+	#endif
 
 	#if NUM_TEX_COORD_INTERPOLATORS > 0
 		MaterialParameters.TexCoords[0]		= In.TexCoords.xy;

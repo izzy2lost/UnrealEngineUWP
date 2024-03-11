@@ -7,6 +7,7 @@
 #include "../SceneData.ush"
 #include "../WaveOpUtil.ush"
 #include "/Engine/Shared/NaniteDefinitions.h"
+#include "/Engine/Shared/HLSLStaticAssert.h"
 #include "NanitePackedNaniteView.ush"
 
 #ifndef DEBUG_FLAGS
@@ -225,6 +226,7 @@ float4x4 WaveReadLaneAtMatrix(float4x4 In, uint SrcIndex)
 	return Result;
 }
 
+HLSL_STATIC_ASSERT(sizeof(FInstanceDynamicData) == 132, "Unexpected size of FInstanceDynamicData. Update WaveReadLaneAt to reflect changes.");
 FInstanceDynamicData WaveReadLaneAt(FInstanceDynamicData In, uint SrcIndex)
 {
 	FInstanceDynamicData Result;
