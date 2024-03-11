@@ -187,12 +187,14 @@ const DocPanel: React.FC<{ docName: string }> = observer(({ docName }) => {
    let crumbs = cache.crumbs;
    let anchors = cache.anchors;
 
-   linkState.setState(crumbs, anchors.map(a => {
+   const jumpLinks = anchors.map(a => {
       return { text: a.text, url: a.anchor }
-   }));
+   })
 
+   jumpLinks.unshift({ text: "Back to top", url: `page-top` })
+   linkState.setState(crumbs, jumpLinks);
 
-   return <Stack styles={{ root: { width: "100%" } }} >
+   return <Stack styles={{ root: { width: "100%" } }}>
       <div style={{ margin: "16px 32px" }}>
          <Markdown>{text}</Markdown>
       </div>
@@ -263,7 +265,7 @@ export const DocView = () => {
                <Stack horizontal style={{ paddingLeft: "32px", paddingBottom: "16px", paddingRight: 0 }} >
                   <Stack style={{ width: 230 }} />
                   <Stack style={{ width: 900, marginLeft: 4 }}>
-                  <Stack style={{height: "24px", backgroundColor: modeColors.background}} />
+                  <Stack style={{height: "24px", backgroundColor: modeColors.background}} id="page-top"/>
                      <Stack className={docClasses.raised} styles={{ root: { backgroundColor: modeColors.content } }}>
                         <DocPanel docName={docName} />
                      </Stack>
