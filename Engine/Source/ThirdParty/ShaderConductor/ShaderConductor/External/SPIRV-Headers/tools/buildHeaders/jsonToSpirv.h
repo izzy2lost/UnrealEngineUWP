@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2020 The Khronos Group Inc.
+// Copyright (c) 2014-2024 The Khronos Group Inc.
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and/or associated documentation files (the "Materials"),
@@ -96,6 +96,14 @@ enum OperandClass {
     OperandQuantizationModes,
     OperandOverflowModes,
     OperandPackedVectorFormat,
+    OperandCooperativeMatrixOperands,
+    OperandCooperativeMatrixLayout,
+    OperandCooperativeMatrixUse,
+    OperandInitializationModeQualifier,
+    OperandHostAccessQualifier,
+    OperandLoadCacheControl,
+    OperandStoreCacheControl,
+    OperandNamedMaximumNumberOfRegisters,
 
     OperandOpcode,
 
@@ -184,6 +192,7 @@ public:
 
     iterator begin() { return values.begin(); }
     iterator end() { return values.end(); }
+    EValue& back() { return values.back(); }
 
 private:
     ContainerType values;
@@ -216,6 +225,10 @@ public:
     Extensions extensions;
     OperandParameters operands;
     const char* desc;
+
+    // Returns true if this enum is valid, in isolation.
+    // Otherwise emits a diagnostic to std::cerr and returns false.
+    bool IsValid(OperandClass oc, const std::string& context) const;
 };
 
 using EnumValues = EnumValuesContainer<EnumValue>;

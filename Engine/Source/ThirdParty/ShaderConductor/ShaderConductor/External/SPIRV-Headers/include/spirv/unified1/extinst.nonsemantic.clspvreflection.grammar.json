@@ -1,5 +1,5 @@
 {
-  "revision" : 5,
+  "revision" : 6,
   "instructions" : [
     {
       "opname" : "Kernel",
@@ -7,9 +7,9 @@
       "operands" : [
         { "kind" : "IdRef", "name" : "Kernel" },
         { "kind" : "IdRef", "name" : "Name" },
-        { "kind" : "IdRef", "name" : "NumArguments"},
-        { "kind" : "IdRef", "name" : "Flags" },
-        { "kind" : "IdRef", "name" : "Attributes" }
+        { "kind" : "IdRef", "name" : "NumArguments", "quantifier" : "?" },
+        { "kind" : "IdRef", "name" : "Flags", "quantifier" : "?"  },
+        { "kind" : "IdRef", "name" : "Attributes", "quantifier" : "?"  }
       ]
     },
     {
@@ -394,6 +394,16 @@
       { "kind" : "IdRef", "name" : "Offset" },
       { "kind" : "IdRef", "name" : "Size"},
       { "kind" : "IdRef", "name" : "BufferSize"}
+      ]
+    },
+    {
+    "opname" : "NormalizedSamplerMaskPushConstant",
+    "opcode" : 41,
+    "operands" : [
+      { "kind" : "IdRef", "name" : "Kernel" },
+      { "kind" : "IdRef", "name" : "Ordinal" },
+      { "kind" : "IdRef", "name" : "Offset" },
+      { "kind" : "IdRef", "name" : "Size" }
       ]
     }
   ],
