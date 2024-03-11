@@ -410,7 +410,7 @@ protected:
 	ERHIAccess EpilogueAccess = DefaultEpilogueAccess;
 
 private:
-	static const uint16 DeallocatedReferenceCount = ~0;
+	static const uint32 DeallocatedReferenceCount = ~0;
 
 	void SetRHI(FRHIResource* Resource)
 	{
