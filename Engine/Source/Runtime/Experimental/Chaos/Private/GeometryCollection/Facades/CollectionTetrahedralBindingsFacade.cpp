@@ -115,27 +115,6 @@ namespace GeometryCollection::Facades
 	const FName FTetrahedralBindings::OffsetsAttributeName = "Offsets";
 	const FName FTetrahedralBindings::MaskAttributeName = "Mask";
 
-	// Static helpers
-	FString
-	FTetrahedralBindings::GetMeshId(const USkeletalMesh* SkeletalMesh, const bool bUseImportModel)
-	{
-		FPrimaryAssetId Id = SkeletalMesh->GetPrimaryAssetId();
-		FString MeshId = Id.IsValid() ? Id.ToString() : SkeletalMesh->GetName();
-		if (bUseImportModel)
-		{
-			MeshId.Append(TEXT("_ImportModel"));
-		}
-		return MeshId;
-	}
-
-	FString
-	FTetrahedralBindings::GetMeshId(const UStaticMesh* StaticMesh)
-	{
-		FPrimaryAssetId Id = StaticMesh->GetPrimaryAssetId();
-		FString MeshId = Id.IsValid() ? Id.ToString() : StaticMesh->GetName();
-		return MeshId;
-	}
-
 	FTetrahedralBindings::FTetrahedralBindings(FManagedArrayCollection& InCollection)
 		: MeshIdAttribute(InCollection, MeshIdAttributeName, MeshBindingsGroupName)
 	{}

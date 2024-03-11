@@ -6,12 +6,21 @@
 #include "Dataflow/DataflowEngine.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
+#include "Engine/StaticMesh.h"
+#include "Engine/SkeletalMesh.h"
+
 #include "ChaosFleshBindingsNodes.generated.h"
 
 class UStaticMesh;
 class USkeletalMesh;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMeshBindings, Verbose, All);
+
+namespace UE::TetrahedralBindingsEngineUtil
+{
+	CHAOSFLESHNODES_API FString GetMeshId(const USkeletalMesh* SkeletalMesh, const bool bUseImportModel = false);
+	CHAOSFLESHNODES_API FString GetMeshId(const UStaticMesh* StaticMesh);
+}
 
 /** Generate barycentric bindings (used by the FleshDeformer deformer graph) of a render surface to a tetrahedral mesh. */
 USTRUCT(meta = (DataflowFlesh))

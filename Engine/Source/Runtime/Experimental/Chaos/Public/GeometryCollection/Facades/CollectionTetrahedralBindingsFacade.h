@@ -6,9 +6,6 @@
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "GeometryCollection/ManagedArrayAccessor.h"
 
-#include "Engine/StaticMesh.h"
-#include "Engine/SkeletalMesh.h"
-
 namespace GeometryCollection::Facades
 {
 	/**
@@ -78,13 +75,6 @@ namespace GeometryCollection::Facades
 		static CHAOS_API const FName OffsetsAttributeName;
 		//! Per vertex amount for deformer masking.
 		static CHAOS_API const FName MaskAttributeName;
-
-		//
-		// Static helpers
-		//
-
-		static CHAOS_API FString GetMeshId(const USkeletalMesh* SkeletalMesh, const bool bUseImportModel = false);
-		static CHAOS_API FString GetMeshId(const UStaticMesh* StaticMesh);
 
 		/**
 		* FSelectionFacade Constuctor

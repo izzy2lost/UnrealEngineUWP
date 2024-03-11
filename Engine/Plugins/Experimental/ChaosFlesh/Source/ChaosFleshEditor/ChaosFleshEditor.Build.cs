@@ -32,6 +32,7 @@ namespace UnrealBuildTool.Rules
 					"ChaosCachingUSD",
 					"ChaosFlesh",
 					"ChaosFleshEngine",
+					"ChaosFleshNodes",
 					"Core",
 					"CoreUObject",
 					"DataflowCore",

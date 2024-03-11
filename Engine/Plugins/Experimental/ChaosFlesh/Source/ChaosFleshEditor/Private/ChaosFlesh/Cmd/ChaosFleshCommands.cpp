@@ -14,6 +14,8 @@
 #include "Chaos/Tetrahedron.h"
 #include "ChaosCache/FleshComponentCacheAdapter.h"
 
+#include "Dataflow/ChaosFleshBindingsNodes.h"
+
 #if USE_USD_SDK && DO_USD_CACHING
 #include "HAL/PlatformFile.h"
 #include "HAL/PlatformFileManager.h"
@@ -592,7 +594,7 @@ void FChaosFleshCommands::CreateGeometryCache(const TArray<FString>& Args, UWorl
 				// Extract bindings from tet mesh to skel mesh import geometry in the rest collection.
 				//
 
-				FString MeshId = GeometryCollection::Facades::FTetrahedralBindings::GetMeshId(SkeletalMesh, false);
+				FString MeshId = UE::TetrahedralBindingsEngineUtil::GetMeshId(SkeletalMesh, false);
 				FName MeshIdName(MeshId);
 				const int32 TetIndex = TetBindings.GetTetMeshIndex(MeshIdName, LODIndex);
 				if (TetIndex == INDEX_NONE)

@@ -32,6 +32,28 @@ namespace Dataflow
 	}
 }
 
+namespace UE::TetrahedralBindingsEngineUtil
+{
+	FString GetMeshId(const USkeletalMesh* SkeletalMesh, const bool bUseImportModel)
+	{
+		FPrimaryAssetId Id = SkeletalMesh->GetPrimaryAssetId();
+		FString MeshId = Id.IsValid() ? Id.ToString() : SkeletalMesh->GetName();
+		if (bUseImportModel)
+		{
+			MeshId.Append(TEXT("_ImportModel"));
+		}
+		return MeshId;
+	}
+
+	FString GetMeshId(const UStaticMesh* StaticMesh)
+	{
+		FPrimaryAssetId Id = StaticMesh->GetPrimaryAssetId();
+		FString MeshId = Id.IsValid() ? Id.ToString() : StaticMesh->GetName();
+		return MeshId;
+	}
+}
+
+
 void
 BuildVertexToVertexAdjacencyBuffer(
 	const UE::Geometry::FDynamicMesh3 DynamicMesh,
@@ -132,6 +154,8 @@ BuildVertexToVertexAdjacencyBuffer(
 	}
 }
 
+
+
 void
 FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
@@ -180,7 +204,7 @@ FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowO
 			if (SkeletalMesh)
 			{
 				FPrimaryAssetId Id = SkeletalMesh->GetPrimaryAssetId();
-				MeshId = GeometryCollection::Facades::FTetrahedralBindings::GetMeshId(SkeletalMesh, bUseSkeletalMeshImportModel);
+				MeshId = UE::TetrahedralBindingsEngineUtil::GetMeshId(SkeletalMesh, bUseSkeletalMeshImportModel);
 
 				if (!bUseSkeletalMeshImportModel)
 				{
@@ -258,7 +282,7 @@ FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowO
 			}
 			else // StaticMesh
 			{
-				MeshId = GeometryCollection::Facades::FTetrahedralBindings::GetMeshId(StaticMesh);
+				MeshId = UE::TetrahedralBindingsEngineUtil::GetMeshId(StaticMesh);
 
 				const FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
 				const int32 NumLOD = RenderData->LODResources.Num();
