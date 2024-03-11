@@ -35,12 +35,37 @@ def get_output_of(cmd):
     output = subprocess.check_output(cmd, cwd=enlistment_root)
     return output.decode('ASCII').strip()
 
+def is_dirty():
+    diff = get_output_of(["git", "diff", "HEAD", "--shortstat"])
+    return len(diff.strip()) != 0
+
 # UE Change Begin: Ignore git version to avoid incompatibility between python2 and python3
+#def get_last_commit_sha():
+#    try:
+#        sha = get_output_of(["git", "rev-parse", "--short", "HEAD"])
+#        if is_dirty():
+#            sha += "-dirty"
+#        return sha
+#    except subprocess.CalledProcessError:
+#        return "00000000"
+
 def get_last_commit_sha():
     return "00000000"
 
+#def get_current_branch():
+#    try:
+#        return get_output_of(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+#    except subprocess.CalledProcessError:
+#        return "private"
+
 def get_current_branch():
     return "private"
+
+#def get_commit_count(sha):
+#    try:
+#        return get_output_of(["git", "rev-list", "--count", sha])
+#    except subprocess.CalledProcessError:
+#        return 0
 
 def get_commit_count(sha):
     return 0

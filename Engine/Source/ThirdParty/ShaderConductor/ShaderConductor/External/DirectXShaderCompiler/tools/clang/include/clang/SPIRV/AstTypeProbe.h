@@ -145,18 +145,15 @@ uint32_t getElementSpirvBitwidth(const ASTContext &astContext, QualType type,
 /// Returns true if the two types can be treated as the same scalar
 /// type, which means they have the same canonical type, regardless of
 /// constnesss and literalness.
-bool canTreatAsSameScalarType(QualType type1, QualType type2,
-                              bool dontConsolidateLiteralTypes = false);
+bool canTreatAsSameScalarType(QualType type1, QualType type2);
 
 /// \brief Returns true if the two types are the same scalar or vector type,
 /// regardless of constness and literalness.
-bool isSameScalarOrVecType(QualType type1, QualType type2,
-                           bool dontConsolidateLiteralTypes = false);
+bool isSameScalarOrVecType(QualType type1, QualType type2);
 
 /// \brief Returns true if the two types are the same type, regardless of
 /// constness and literalness.
-bool isSameType(const ASTContext &, QualType type1, QualType type2,
-                bool dontConsolidateLiteralTypes = false);
+bool isSameType(const ASTContext &, QualType type1, QualType type2);
 
 /// Returns true if all members in structType are of the same element
 /// type and can be fit into a 4-component vector. Writes element type and
@@ -294,6 +291,9 @@ bool isOpaqueStructType(QualType type);
 /// decoration. Integer and float types with lower than 32 bits can be
 /// operated on with a relaxed precision.
 bool isRelaxedPrecisionType(QualType, const SpirvCodeGenOptions &);
+
+/// Returns true if the given type is a rasterizer ordered view.
+bool isRasterizerOrderedView(QualType type);
 
 /// Returns true if the given type is a bool or vector of bool type.
 bool isBoolOrVecOfBoolType(QualType type);

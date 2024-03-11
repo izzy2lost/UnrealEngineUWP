@@ -1,4 +1,4 @@
-function(llvm_create_cross_target_internal target_name toolchain buildtype)
+function(llvm_create_cross_target_internal target_name toochain buildtype)
 
   if(NOT DEFINED LLVM_${target_name}_BUILD)
     set(LLVM_${target_name}_BUILD "${CMAKE_BINARY_DIR}/${target_name}")
@@ -6,7 +6,7 @@ function(llvm_create_cross_target_internal target_name toolchain buildtype)
     message(STATUS "Setting native build dir to " ${LLVM_${target_name}_BUILD})
   endif(NOT DEFINED LLVM_${target_name}_BUILD)
 
-  if (NOT DEFINED CROSS_TOOLCHAIN_FLAGS_${target_name} AND EXISTS ${LLVM_MAIN_SRC_DIR}/cmake/platforms/${toolchain}.cmake)
+  if (EXISTS ${LLVM_MAIN_SRC_DIR}/cmake/platforms/${toolchain}.cmake)
     set(CROSS_TOOLCHAIN_FLAGS_${target_name} 
         -DCMAKE_TOOLCHAIN_FILE=\"${LLVM_MAIN_SRC_DIR}/cmake/platforms/${toolchain}.cmake\"
         CACHE STRING "Toolchain file for ${target_name}")
