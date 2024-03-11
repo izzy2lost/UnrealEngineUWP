@@ -105,7 +105,7 @@ struct AVALANCHEMEDIA_API FAvaPlayableRemoteControlValues
 	bool HasSameControllerValues(const FAvaPlayableRemoteControlValues& InOther) const;
 
 	/**
-	 *	Removes the extra values compared to the given reference values.
+	 * Removes the extra values compared to the given reference values.
 	 * @return flags indicating what changed.
 	 */
 	EAvaPlayableRemoteControlChanges PruneRemoteControlValues(const FAvaPlayableRemoteControlValues& InReferenceValues);
@@ -119,7 +119,33 @@ struct AVALANCHEMEDIA_API FAvaPlayableRemoteControlValues
 	 * @return flags indicating what changed.
 	 */
 	EAvaPlayableRemoteControlChanges UpdateRemoteControlValues(const FAvaPlayableRemoteControlValues& InReferenceValues, bool bInUpdateDefaults);
+
+	/**
+	 * Reset the values to the reference.
+	 * @param InReferenceValues Values to be reset to.
+	 * @param bInIsDefaults If true, consider all values as "default". Otherwise, preserves the "default" status from reference.
+	 * @return
+	 */
+	EAvaPlayableRemoteControlChanges ResetRemoteControlValues(const FAvaPlayableRemoteControlValues& InReferenceValues, bool bInIsDefaults);
 	
+	/**
+	 * Reset the controller value to the reference.
+	 * @param InReferenceValue Value to be reset to.
+	 * @param bInIsDefaults If true, consider all values as "default". Otherwise, preserves the "default" status from reference.
+	 * @return
+	 */
+	EAvaPlayableRemoteControlChanges ResetRemoteControlControllerValue(const FGuid& InId
+		, const FAvaPlayableRemoteControlValue& InReferenceValue, bool bInIsDefaults);
+
+	/**
+	 * Reset the entity value to the reference.
+	 * @param InReferenceValue Value to be reset to.
+	 * @param bInIsDefaults If true, consider all values as "default". Otherwise, preserves the "default" status from reference.
+	 * @return
+	 */
+	EAvaPlayableRemoteControlChanges ResetRemoteControlEntityValue(const FGuid& InId
+		, const FAvaPlayableRemoteControlValue& InReferenceValue, bool bInIsDefaults);
+
 	/**
 	 * Refreshes the EntitiesControlledByController set.
 	 */

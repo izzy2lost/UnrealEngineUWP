@@ -70,6 +70,63 @@ namespace UE::AvaPlayableRemoteControlValues::Private
 		return true;
 	}
 
+	bool HasSameValueAndDefault(const FAvaPlayableRemoteControlValue& InValue, const FAvaPlayableRemoteControlValue& InOtherValue)
+	{
+		return InOtherValue.IsSameValueAs(InValue.Value) && InOtherValue.bIsDefault == InValue.bIsDefault;
+	}
+
+	/** Compares values and default status. */
+	bool HasSameValuesAndDefaults(const TMap<FGuid, FAvaPlayableRemoteControlValue>& InValues, const TMap<FGuid, FAvaPlayableRemoteControlValue>& InOtherValues)
+	{
+		// If values count differ, consider as different
+		if (InValues.Num() != InOtherValues.Num())
+		{
+			return false;
+		}
+		// Both Value maps have the same count, so one cannot be a subset of another, therefore, a single find pass should determine equality 
+		for (const TPair<FGuid, FAvaPlayableRemoteControlValue>& Pair : InValues)
+		{
+			const FAvaPlayableRemoteControlValue* FoundValue = InOtherValues.Find(Pair.Key);
+			if (!FoundValue || !HasSameValueAndDefault(Pair.Value, *FoundValue))
+			{
+				// Other's Value wasn't found, or was different from the value of this.
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool ResetValues(const TMap<FGuid, FAvaPlayableRemoteControlValue>& InValues, TMap<FGuid, FAvaPlayableRemoteControlValue>& OutValues, bool bInIsDefaults)
+	{
+		TMap<FGuid, FAvaPlayableRemoteControlValue> ResetValues = InValues;
+		if (bInIsDefaults)
+		{
+			for (TPair<FGuid, FAvaPlayableRemoteControlValue>& Value : ResetValues)
+			{
+				Value.Value.bIsDefault = true;
+			}
+		}
+		
+		const bool bModified = !HasSameValuesAndDefaults(OutValues, ResetValues);
+		OutValues = ResetValues;
+	
+		return bModified;
+	}
+
+	bool ResetValue(const FAvaPlayableRemoteControlValue& InValue, FAvaPlayableRemoteControlValue& OutValue, bool bInIsDefaults)
+	{
+		FAvaPlayableRemoteControlValue ResetValue = InValue;
+		if (bInIsDefaults)
+		{
+			ResetValue.bIsDefault = true;
+		}
+
+		const bool bModified = !HasSameValueAndDefault(OutValue, ResetValue);
+		OutValue = ResetValue;
+
+		return bModified;
+	}
+
 	EAvaPlayableRemoteControlChanges ToRemoteControlChanges(bool bInModified, EAvaPlayableRemoteControlChanges InModifiedChanges)
 	{
 		return bInModified ? InModifiedChanges : EAvaPlayableRemoteControlChanges::None;
@@ -194,6 +251,35 @@ EAvaPlayableRemoteControlChanges FAvaPlayableRemoteControlValues::UpdateRemoteCo
 	using namespace UE::AvaPlayableRemoteControlValues::Private;
 	return ToRemoteControlChanges(UpdateValues(InRemoteControlValues.EntityValues, EntityValues, bInUpdateDefaults), EAvaPlayableRemoteControlChanges::EntityValues) 
 		| ToRemoteControlChanges(UpdateValues(InRemoteControlValues.ControllerValues, ControllerValues, bInUpdateDefaults), EAvaPlayableRemoteControlChanges::ControllerValues); 
+}
+
+EAvaPlayableRemoteControlChanges FAvaPlayableRemoteControlValues::ResetRemoteControlValues(const FAvaPlayableRemoteControlValues& InReferenceValues, bool bInIsDefaults)
+{
+	using namespace UE::AvaPlayableRemoteControlValues::Private;
+	return ToRemoteControlChanges(ResetValues(InReferenceValues.EntityValues, EntityValues, bInIsDefaults), EAvaPlayableRemoteControlChanges::EntityValues)
+		| ToRemoteControlChanges(ResetValues(InReferenceValues.ControllerValues, ControllerValues, bInIsDefaults), EAvaPlayableRemoteControlChanges::ControllerValues);
+}
+
+EAvaPlayableRemoteControlChanges FAvaPlayableRemoteControlValues::ResetRemoteControlEntityValue(const FGuid& InId
+	, const FAvaPlayableRemoteControlValue& InReferenceValue, bool bInIsDefaults)
+{
+	if (EntityValues.Contains(InId))
+	{
+		using namespace UE::AvaPlayableRemoteControlValues::Private;
+		return ToRemoteControlChanges(ResetValue(InReferenceValue, EntityValues[InId], bInIsDefaults), EAvaPlayableRemoteControlChanges::EntityValues);
+	}
+	return EAvaPlayableRemoteControlChanges::None;
+}
+
+EAvaPlayableRemoteControlChanges FAvaPlayableRemoteControlValues::ResetRemoteControlControllerValue(const FGuid& InId
+	, const FAvaPlayableRemoteControlValue& InReferenceValue, bool bInIsDefaults)
+{
+	if (ControllerValues.Contains(InId))
+	{
+		using namespace UE::AvaPlayableRemoteControlValues::Private;
+		return ToRemoteControlChanges(ResetValue(InReferenceValue, ControllerValues[InId], bInIsDefaults), EAvaPlayableRemoteControlChanges::ControllerValues);
+	}
+	return EAvaPlayableRemoteControlChanges::None;
 }
 
 bool FAvaPlayableRemoteControlValues::SetEntityValue(const FGuid& InId, const URemoteControlPreset* InRemoteControlPreset, bool bInIsDefault)

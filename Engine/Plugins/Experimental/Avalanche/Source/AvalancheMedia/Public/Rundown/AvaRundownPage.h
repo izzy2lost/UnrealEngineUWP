@@ -8,6 +8,7 @@
 #include "AvaRundownPage.generated.h"
 
 class UAvaRundown;
+class URemoteControlPreset;
 
 UENUM()
 enum class EAvaRundownPageStatus : uint8
@@ -79,7 +80,7 @@ public:
 	bool IsValidPage() const;
 
 	void Rename(const FString& InNewName);
-	void RenameFriendlyName (const FString& InNewName);
+	void RenameFriendlyName(const FString& InNewName);
 	
 	int32 GetPageId() const { return PageId; }
 	void SetPageId(int32 InPageId) { PageId = InPageId; } // Do not use lightly.
@@ -173,7 +174,7 @@ public:
 
 	EAvaPlayableRemoteControlChanges PruneRemoteControlValues(const FAvaPlayableRemoteControlValues& InRemoteControlValues);
 	EAvaPlayableRemoteControlChanges UpdateRemoteControlValues(const FAvaPlayableRemoteControlValues& InRemoteControlValues, bool bInUpdateDefaults);
-	
+
 	bool HasRemoteControlEntityValue(const FGuid& InId) const { return RemoteControlValues.HasEntityValue(InId); }
 	const FAvaPlayableRemoteControlValue* GetRemoteControlEntityValue(const FGuid& InId) const { return RemoteControlValues.GetEntityValue(InId); }
 	void SetRemoteControlEntityValue(const FGuid& InId, const FAvaPlayableRemoteControlValue& InValue);
@@ -181,8 +182,18 @@ public:
 	bool HasRemoteControlControllerValue(const FGuid& InId) const { return RemoteControlValues.HasControllerValue(InId); }
 	const FAvaPlayableRemoteControlValue* GetRemoteControlControllerValue(const FGuid& InId) const { return RemoteControlValues.GetControllerValue(InId); }
 	void SetRemoteControlControllerValue(const FGuid& InId, const FAvaPlayableRemoteControlValue& InValue);
-	
+
 	const FAvaPlayableRemoteControlValues& GetRemoteControlValues() const { return RemoteControlValues; }
+	bool GetDefaultRemoteControlValues(const UAvaRundown* InRundown, bool bInUseTemplateValues, FAvaPlayableRemoteControlValues& OutValues) const;
+	bool GetDefaultEntityValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, FAvaPlayableRemoteControlValue& OutValue) const;
+	bool GetDefaultControllerValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, FAvaPlayableRemoteControlValue& OutValue) const;
+
+	bool IsDefaultEntityValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues) const;
+	bool IsDefaultControllerValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues) const;
+
+	EAvaPlayableRemoteControlChanges ResetRemoteControlValues(const UAvaRundown* InRundown, bool bInUseTemplateValues, bool bInIsDefault);
+	EAvaPlayableRemoteControlChanges ResetRemoteControlEntityValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, bool bInIsDefault);
+	EAvaPlayableRemoteControlChanges ResetRemoteControlControllerValue(const UAvaRundown* InRundown, const FGuid& InId, bool bInUseTemplateValues, bool bInIsDefault);
 
 	friend FORCEINLINE uint32 GetTypeHash(const FAvaRundownPage& InPage)
 	{

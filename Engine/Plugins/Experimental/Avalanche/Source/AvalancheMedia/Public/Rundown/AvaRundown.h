@@ -382,6 +382,10 @@ public:
 	bool SetRemoteControlEntityValue(int32 InPageId, const FGuid& InId, const FAvaPlayableRemoteControlValue& InValue);
 	bool SetRemoteControlControllerValue(int32 InPageId, const FGuid& InId,const FAvaPlayableRemoteControlValue& InValue);
 	EAvaPlayableRemoteControlChanges UpdateRemoteControlValues(int32 InPageId, const FAvaPlayableRemoteControlValues& InRemoteControlValues, bool bInUpdateDefaults);
+	
+	EAvaPlayableRemoteControlChanges ResetRemoteControlValues(int32 InPageId, bool bInUseTemplateValues, bool bInIsDefault);
+	EAvaPlayableRemoteControlChanges ResetRemoteControlControllerValue(int32 InPageId, const FGuid& InControllerId, bool bInUseTemplateValues, bool bInIsDefault);
+	EAvaPlayableRemoteControlChanges ResetRemoteControlEntityValue(int32 InPageId, const FGuid& InEntityId, bool bInUseTemplateValues, bool bInIsDefault);
 
 	void InvalidateManagedInstanceCacheForPages(const TArray<int32>& InPageIds) const;
 

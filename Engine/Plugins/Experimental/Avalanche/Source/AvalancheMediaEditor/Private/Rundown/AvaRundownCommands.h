@@ -51,6 +51,10 @@ public:
 	TSharedPtr<FUICommandInfo> PreviewContinue;
 	TSharedPtr<FUICommandInfo> PreviewPlayNext;
 	TSharedPtr<FUICommandInfo> TakeToProgram;
+
+	/** Remote Control Commands */
+	TSharedPtr<FUICommandInfo> ResetValuesToDefaults;
+	TSharedPtr<FUICommandInfo> ResetValuesToTemplate;
 };
 
 #undef LOCTEXT_NAMESPACE

@@ -2,6 +2,7 @@
 
 #include "SAvaRundownPageDetails.h"
 #include "Async/Async.h"
+#include "Framework/Application/SlateApplication.h"
 #include "IAvaMediaModule.h"
 #include "Input/Reply.h"
 #include "Internationalization/Text.h"
@@ -30,6 +31,12 @@ void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPt
 
 	InRundownEditor->GetOnPageEvent().AddSP(this, &SAvaRundownPageDetails::OnPageEvent);
 	IAvaMediaModule::Get().GetManagedInstanceCache().OnEntryInvalidated.AddSP(this, &SAvaRundownPageDetails::OnManagedInstanceCacheEntryInvalidated);
+
+	UAvaRundown* const Rundown = InRundownEditor->GetRundown();
+	if (IsValid(Rundown))
+	{
+		Rundown->GetOnPagesChanged().AddSP(this, &SAvaRundownPageDetails::OnRundownPagesChanged);
+	}
 
 	TSharedRef<SHorizontalBox> AnimationHeader = SNew(SHorizontalBox);
 	{
@@ -144,7 +151,7 @@ void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPt
 				[
 					SNew(SButton)
 					.ContentPadding(0)
-					.ButtonStyle(FAppStyle::Get(), "NoBorder")
+					.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
 					.OnClicked(this, &SAvaRundownPageDetails::ToggleExposedPropertiesVisibility)
 					.ToolTipText(LOCTEXT("VisibilityButtonToolTip", "Toggle Exposed Properties Visibility"))
 					.Content()
@@ -184,6 +191,15 @@ SAvaRundownPageDetails::~SAvaRundownPageDetails()
 	if (IAvaMediaModule::IsModuleLoaded())
 	{
 		IAvaMediaModule::Get().GetManagedInstanceCache().OnEntryInvalidated.RemoveAll(this);
+	}
+
+	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
+	{
+		UAvaRundown* const Rundown = RundownEditor->GetRundown();
+		if (IsValid(Rundown))
+		{
+			Rundown->GetOnPagesChanged().RemoveAll(this);
+		}
 	}
 }
 
@@ -427,6 +443,16 @@ FReply SAvaRundownPageDetails::DuplicateSelectedPage()
 	PageList->SelectPages(SelectedPages);
 
 	return FReply::Handled();
+}
+
+void SAvaRundownPageDetails::OnRundownPagesChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, const EAvaRundownPageChanges InChanges)
+{
+	// Refreshing the page while the mouse is captured will result in losing the capture
+	// and ending any drag event that is actively changing the value.
+	if (!FSlateApplication::Get().GetMouseCaptureWindow())
+	{
+		RefreshSelectedPage();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

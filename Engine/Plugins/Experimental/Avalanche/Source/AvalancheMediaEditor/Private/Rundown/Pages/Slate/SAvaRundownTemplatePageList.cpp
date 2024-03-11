@@ -3,10 +3,12 @@
 #include "SAvaRundownTemplatePageList.h"
 
 #include "IAvaMediaEditorModule.h"
+#include "IAvaMediaModule.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownCommands.h"
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/AvaRundownEditorUtils.h"
+#include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPage.h"
 #include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 #include "Rundown/Pages/Columns/AvaRundownPageAssetSelectorColumn.h"
@@ -16,6 +18,7 @@
 #include "Rundown/Pages/Columns/AvaRundownPageThumbnailColumn.h"
 #include "Rundown/Pages/Columns/AvaRundownPageTransitionLayerColumn.h"
 #include "Rundown/Pages/PageViews/AvaRundownTemplatePageViewImpl.h"
+#include "ScopedTransaction.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Views/SListView.h"
 
@@ -146,6 +149,10 @@ void SAvaRundownTemplatePageList::BindCommands()
 		CommandList->MapAction(RundownCommands.EditPageSource,
 			FExecuteAction::CreateSP(this, &SAvaRundownPageList::EditSelectedPageSource),
 			FCanExecuteAction::CreateSP(this, &SAvaRundownPageList::CanEditSelectedPageSource));
+
+		CommandList->MapAction(RundownCommands.ResetValuesToDefaults,
+			FExecuteAction::CreateSP(this, &SAvaRundownTemplatePageList::ResetPagesToDefaults),
+			FCanExecuteAction::CreateSP(this, &SAvaRundownTemplatePageList::CanResetPagesToDefaults));
 
 		CommandList->MapAction(RundownCommands.PreviewFrame,
 			FExecuteAction::CreateSP(this, &SAvaRundownPageList::PreviewPlaySelectedPage, true),
@@ -498,6 +505,65 @@ void SAvaRundownTemplatePageList::OnTemplatePageListChanged(const FAvaRundownPag
 		RundownEditor->RefreshTemplateVisibility();
 	}
 	Refresh();
+}
+
+void SAvaRundownTemplatePageList::ResetPagesToDefaults()
+{
+	UAvaRundown* Rundown = GetValidRundown();
+	
+	if (SelectedPageIds.IsEmpty() || !Rundown)
+	{
+		return;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("ResetPagesTransaction", "Reset Pages"));
+	Rundown->Modify();
+	
+	for (const int32 SelectedPageId : SelectedPageIds)
+	{
+		const FAvaRundownPage& Page = Rundown->GetPage(SelectedPageId);
+
+		if (!Page.IsValidPage() || !Page.IsEnabled() || !Page.IsTemplate())
+		{
+			continue;
+		}
+		
+		Rundown->ResetRemoteControlValues(SelectedPageId, /*bInUseTemplateValues=*/false, /*bInIsDefault=*/false);
+	}
+}
+
+bool SAvaRundownTemplatePageList::CanResetPagesToDefaults() const
+{
+	const UAvaRundown* const Rundown = GetValidRundown();
+
+	if (SelectedPageIds.IsEmpty() || !Rundown)
+	{
+		return false;
+	}
+
+	bool bContainsDifferentValues = false;
+
+	for (const int32 SelectedPageId : SelectedPageIds)
+	{
+		const FAvaRundownPage& Page = Rundown->GetPage(SelectedPageId);
+
+		if (!Page.IsValidPage() || !Page.IsEnabled() || !Page.IsTemplate())
+		{
+			return false;
+		}
+
+		FAvaPlayableRemoteControlValues DefaultValues;
+		if (Page.GetDefaultRemoteControlValues(Rundown, /*bInUseTemplateValues=*/false, DefaultValues))
+		{
+			const FAvaPlayableRemoteControlValues& PageValues = Page.GetRemoteControlValues();
+			if (!(PageValues.HasSameEntityValues(DefaultValues) && PageValues.HasSameControllerValues(DefaultValues)))
+			{
+				bContainsDifferentValues = true;
+			}
+		}
+	}
+
+	return bContainsDifferentValues;
 }
 
 #undef LOCTEXT_NAMESPACE

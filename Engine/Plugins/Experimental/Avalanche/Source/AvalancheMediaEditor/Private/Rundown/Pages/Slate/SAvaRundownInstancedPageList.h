@@ -97,4 +97,7 @@ protected:
 	void PlayNextPageNoReturn() const { PlayNextPage(); }
 
 	virtual TArray<int32> AddPastedPages(const TArray<FAvaRundownPage>& InPages) override;
+
+	void ResetPagesToDefaults(bool bInResetToTemplate);
+	bool CanResetPagesToDefaults(bool bInResetToTemplate) const;
 };

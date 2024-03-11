@@ -239,6 +239,14 @@ void SAvaRundownInstancedPageList::BindCommands()
 			FExecuteAction::CreateSP(this, &SAvaRundownPageList::ExportSelectedPagesToExternalFile, TEXT("xml")),
 			FCanExecuteAction::CreateSP(this, &SAvaRundownPageList::CanExportSelectedPagesToExternalFile, TEXT("xml")));
 
+		CommandList->MapAction(RundownCommands.ResetValuesToDefaults,
+			FExecuteAction::CreateSP(this, &SAvaRundownInstancedPageList::ResetPagesToDefaults, false),
+			FCanExecuteAction::CreateSP(this, &SAvaRundownInstancedPageList::CanResetPagesToDefaults, false));
+
+		CommandList->MapAction(RundownCommands.ResetValuesToTemplate,
+			FExecuteAction::CreateSP(this, &SAvaRundownInstancedPageList::ResetPagesToDefaults, true),
+			FCanExecuteAction::CreateSP(this, &SAvaRundownInstancedPageList::CanResetPagesToDefaults, true));
+
 		CommandList->MapAction(RundownCommands.Play,
 			FExecuteAction::CreateSP(this, &SAvaRundownInstancedPageList::PlaySelectedPage),
 			FCanExecuteAction::CreateSP(this, &SAvaRundownInstancedPageList::CanPlaySelectedPage));
@@ -1369,6 +1377,50 @@ TArray<int32> SAvaRundownInstancedPageList::GetPagesToUpdate() const
 int32 SAvaRundownInstancedPageList::GetPageIdToTakeNext() const
 {
 	return FAvaRundownPlaybackUtils::GetPageIdToPlayNext(GetRundown(), GetPageListReference(), /*bInPreview*/ false, NAME_None);
+}
+
+void SAvaRundownInstancedPageList::ResetPagesToDefaults(bool bInResetToTemplate)
+{
+	if (UAvaRundown* Rundown = GetRundown())
+	{
+		FScopedTransaction Transaction(LOCTEXT("ResetPagesTransaction", "Reset Pages"));
+		Rundown->Modify();
+
+		for (int32 PageId : SelectedPageIds)
+		{
+			Rundown->ResetRemoteControlValues(PageId, bInResetToTemplate, /*bInIsDefault=*/false);
+		}
+	}
+}
+
+bool SAvaRundownInstancedPageList::CanResetPagesToDefaults(bool bInResetToTemplate) const
+{
+	bool bContainsDifferentValues = false;
+
+	if (UAvaRundown* Rundown = GetRundown())
+	{
+		for (const int32 PageId : SelectedPageIds)
+		{
+			const FAvaRundownPage& Page = Rundown->GetPage(PageId);
+
+			if (!Page.IsValidPage() || !Page.IsEnabled() || Page.IsTemplate())
+			{
+				return false;
+			}
+
+			FAvaPlayableRemoteControlValues DefaultValues;
+			if (Page.GetDefaultRemoteControlValues(Rundown, bInResetToTemplate, DefaultValues))
+			{
+				const FAvaPlayableRemoteControlValues& PageValues = Page.GetRemoteControlValues();
+				if (!(PageValues.HasSameEntityValues(DefaultValues) && PageValues.HasSameControllerValues(DefaultValues)))
+				{
+					bContainsDifferentValues = true;
+				}
+			}
+		}
+	}
+
+	return bContainsDifferentValues;
 }
 
 #undef LOCTEXT_NAMESPACE

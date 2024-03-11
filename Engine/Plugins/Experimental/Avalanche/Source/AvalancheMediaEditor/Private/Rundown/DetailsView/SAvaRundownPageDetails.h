@@ -13,9 +13,11 @@ class FReply;
 class FText;
 class SAvaRundownPageRemoteControlProps;
 class SAvaRundownRCControllerPanel;
+class UAvaRundown;
 struct FAvaRundownPage;
 struct FSoftObjectPath;
 struct FSlateBrush;
+enum class EAvaRundownPageChanges : uint8;
 
 class SAvaRundownPageDetails : public SCompoundWidget
 {
@@ -55,6 +57,8 @@ protected:
 	void OnPageNameChanged(const FText& InNewText);
 
 	FReply DuplicateSelectedPage();
+
+	void OnRundownPagesChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, const EAvaRundownPageChanges InChanges);
 
 private:
 	TWeakPtr<FAvaRundownEditor> RundownEditorWeak;

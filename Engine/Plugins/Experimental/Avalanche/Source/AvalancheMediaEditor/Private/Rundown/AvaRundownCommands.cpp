@@ -143,6 +143,18 @@ void FAvaRundownCommands::RegisterCommands()
 		, "Takes the Next Page in the Page List"
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::Subtract));
+
+	UI_COMMAND(ResetValuesToDefaults
+		, "Reset To Defaults"
+		, "Reset selected values to default values"
+		, EUserInterfaceActionType::Button
+		, FInputChord());
+
+	UI_COMMAND(ResetValuesToTemplate
+		, "Reset To Template"
+		, "Reset selected values to template values"
+		, EUserInterfaceActionType::Button
+		, FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE

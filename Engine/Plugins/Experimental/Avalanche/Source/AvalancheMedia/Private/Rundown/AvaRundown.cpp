@@ -653,6 +653,52 @@ EAvaPlayableRemoteControlChanges UAvaRundown::UpdateRemoteControlValues(int32 In
 	return EAvaPlayableRemoteControlChanges::None;
 }
 
+EAvaPlayableRemoteControlChanges UAvaRundown::ResetRemoteControlValues(int32 InPageId, bool bInUseTemplateValues, bool bInIsDefault)
+{
+	FAvaRundownPage& Page = GetPage(InPageId);
+	if (Page.IsValidPage())
+	{
+		EAvaPlayableRemoteControlChanges Changes = Page.ResetRemoteControlValues(this, bInUseTemplateValues, bInIsDefault);
+		if (Changes != EAvaPlayableRemoteControlChanges::None)
+		{
+			NotifyPageRemoteControlValueChanged(InPageId, Changes);
+		}
+		return Changes;
+	}
+	return EAvaPlayableRemoteControlChanges::None;
+}
+
+
+EAvaPlayableRemoteControlChanges UAvaRundown::ResetRemoteControlControllerValue(int32 InPageId, const FGuid& InControllerId, bool bInUseTemplateValues, bool bInIsDefault)
+{
+	FAvaRundownPage& Page = GetPage(InPageId);
+	if (Page.IsValidPage())
+	{
+		EAvaPlayableRemoteControlChanges Changes = Page.ResetRemoteControlControllerValue(this, InControllerId, bInUseTemplateValues, bInIsDefault);
+		if (Changes != EAvaPlayableRemoteControlChanges::None)
+		{
+			NotifyPageRemoteControlValueChanged(InPageId, Changes);
+		}
+		return Changes;
+	}
+	return EAvaPlayableRemoteControlChanges::None;
+}
+
+EAvaPlayableRemoteControlChanges UAvaRundown::ResetRemoteControlEntityValue(int32 InPageId, const FGuid& InEntityId, bool bInUseTemplateValues, bool bInIsDefault)
+{
+	FAvaRundownPage& Page = GetPage(InPageId);
+	if (Page.IsValidPage())
+	{
+		EAvaPlayableRemoteControlChanges Changes = Page.ResetRemoteControlEntityValue(this, InEntityId, bInUseTemplateValues, bInIsDefault);
+		if (Changes != EAvaPlayableRemoteControlChanges::None)
+		{
+			NotifyPageRemoteControlValueChanged(InPageId, Changes);
+		}
+		return Changes;
+	}
+	return EAvaPlayableRemoteControlChanges::None;
+}
+
 void UAvaRundown::InvalidateManagedInstanceCacheForPages(const TArray<int32>& InPageIds) const
 {
 	if (!IAvaMediaModule::IsModuleLoaded())
@@ -2079,6 +2125,5 @@ void UAvaRundown::RemoveStoppedPagePlayers()
 	
 	PagePlayers.RemoveAll([](const UAvaRundownPagePlayer* InPagePlayer) { return !InPagePlayer || InPagePlayer->IsPlaying() == false;});
 }
-
 
 #undef LOCTEXT_NAMESPACE
