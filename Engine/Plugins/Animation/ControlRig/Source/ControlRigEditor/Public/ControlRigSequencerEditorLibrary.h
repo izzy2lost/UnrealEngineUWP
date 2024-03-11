@@ -17,6 +17,7 @@
 #include "Tools/ControlRigSnapSettings.h"
 #include "MovieSceneTimeUnit.h"
 #include "RigSpacePickerBakeSettings.h"
+#include "Filters/CurveEditorSmartReduceFilter.h"
 #include "ControlRigSequencerEditorLibrary.generated.h"
 
 class ULevelSequence;
@@ -145,6 +146,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static bool BakeToControlRig(UWorld* World, ULevelSequence* LevelSequence, UClass* ControlRigClass, UAnimSeqExportOption* ExportOptions, bool bReduceKeys, float Tolerance,
 			const FMovieSceneBindingProxy& Binding, bool bResetControls = true);
+
+	/**
+	* Peform new Smart Reduce filter over the specified control rig section in the current open level sequence. Note existing
+	* functions like LoadAnimSequenceIntoControlRigSection and BakeToControlRig, will still use the old key reduction algorithm,
+	* so if you want to bake and then key reduce with the new function, set the bKeyReduce param as false with those functions,
+	* but then call this function after.
+	* @param ReduceParams Key reduction parameters
+	* @param MovieSceneSection The Control rig section we want to reduce
+	* @return returns True if successful, False otherwise
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
+	static bool SmartReduce(FSmartReduceParams& ReduceParams, UMovieSceneSection* MovieSceneSection);
+
 
 	/**
 	* Bake the constraint to keys based on the passed in frames. This will use the open sequencer to bake. See ConstraintsScriptingLibrary to get the list of available constraints

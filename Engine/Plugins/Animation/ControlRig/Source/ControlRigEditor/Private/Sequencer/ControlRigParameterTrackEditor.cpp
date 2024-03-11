@@ -100,7 +100,8 @@
 #include "Widgets/Layout/SSpacer.h"
 #include "ControlRigSequencerEditorLibrary.h"
 #include "LevelSequence.h"
-
+#include "ISequencerModule.h"
+#include "CurveModel.h"
 
 #define LOCTEXT_NAMESPACE "FControlRigParameterTrackEditor"
 
@@ -955,6 +956,51 @@ FReply SBakeToAnimAndControlRigOptionsWindow::OnResetToDefaultClick() const
 	return FReply::Handled();
 }
 
+void FControlRigParameterTrackEditor::SmartReduce(TSharedPtr<ISequencer>& InSequencer, const FSmartReduceParams& InParams, UMovieSceneControlRigParameterSection * ParamSection)
+{
+	if (ParamSection)
+	{
+		ISequencerModule& SequencerModule = FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer");
+		const bool bNeedToTestExisting = false;
+		TOptional<FKeyHandleSet> KeyHandleSet;
+
+		FMovieSceneChannelProxy& ChannelProxy = ParamSection->GetChannelProxy();
+		for (const FMovieSceneChannelEntry& Entry : ParamSection->GetChannelProxy().GetAllEntries())
+		{
+			const FName ChannelTypeName = Entry.GetChannelTypeName();
+			TArrayView<FMovieSceneChannel* const> Channels = Entry.GetChannels();
+			for (int32 Index = 0; Index < Channels.Num(); ++Index)
+			{
+				FMovieSceneChannelHandle ChannelHandle = ChannelProxy.MakeHandle(ChannelTypeName, Index);
+				ISequencerChannelInterface* EditorInterface = SequencerModule.FindChannelEditorInterface(ChannelHandle.GetChannelTypeName());
+				if (TUniquePtr<FCurveModel> CurveModel = EditorInterface->CreateCurveEditorModel_Raw(ChannelHandle, ParamSection, InSequencer.ToSharedRef()))
+				{
+					FKeyHandleSet OutHandleSet;
+					UCurveEditorSmartReduceFilter::SmartReduce(CurveModel.Get(), InParams, KeyHandleSet, bNeedToTestExisting, OutHandleSet);
+				}
+			}
+		}
+	}
+}
+
+bool FControlRigParameterTrackEditor::LoadAnimationIntoSection(TSharedPtr<ISequencer>& SequencerPtr, UAnimSequence* AnimSequence, USkeletalMeshComponent* SkelMeshComp,
+	FFrameNumber StartFrame, bool bReduceKeys, const FSmartReduceParams& ReduceParams, bool bResetControls, UMovieSceneControlRigParameterSection* ParamSection)
+{
+	EMovieSceneKeyInterpolation DefaultInterpolation = SequencerPtr->GetKeyInterpolation();
+	UMovieSceneSequence* OwnerSequence = SequencerPtr->GetFocusedMovieSceneSequence();
+	UMovieScene* OwnerMovieScene = OwnerSequence->GetMovieScene();
+	if (ParamSection->LoadAnimSequenceIntoThisSection(AnimSequence, OwnerMovieScene, SkelMeshComp,
+		false, 0.0, bResetControls, StartFrame, DefaultInterpolation))
+	{
+		if (bReduceKeys)
+		{
+			SmartReduce(SequencerPtr, ReduceParams, ParamSection);
+		}
+		return true;
+	}
+	return false;
+}
+
 void FControlRigParameterTrackEditor::BakeToControlRig(UClass* InClass, FGuid ObjectBinding, UObject* BoundActor, USkeletalMeshComponent* SkelMeshComp, USkeleton* Skeleton)
 {
 	FSlateApplication::Get().DismissAllMenus();
@@ -1087,10 +1133,9 @@ void FControlRigParameterTrackEditor::BakeToControlRig(UClass* InClass, FGuid Ob
 					GetSequencer()->SelectSection(NewSection);
 					GetSequencer()->ThrobSectionSelection();
 					GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
-					EMovieSceneKeyInterpolation DefaultInterpolation = SequencerParent->GetKeyInterpolation();
-					ParamSection->LoadAnimSequenceIntoThisSection(TempAnimSequence, OwnerMovieScene, SkelMeshComp,
-						BakeSettings->bReduceKeys, BakeSettings->Tolerance, BakeSettings->bResetControls, FFrameNumber(0), DefaultInterpolation);
-
+					TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+					LoadAnimationIntoSection(SequencerPtr, TempAnimSequence, SkelMeshComp, FFrameNumber(0),
+						BakeSettings->bReduceKeys, BakeSettings->SmartReduce, BakeSettings->bResetControls, ParamSection);
 					//Turn Off Any Skeletal Animation Tracks
 					TArray<UMovieSceneSkeletalAnimationTrack*> SkelAnimationTracks;
 					if (const FMovieSceneBinding* Binding = OwnerMovieScene->FindBinding(ObjectBinding))
@@ -1197,7 +1242,8 @@ void FControlRigParameterTrackEditor::BakeInvertedPose(UControlRig* InControlRig
 	UMovieSceneSequence* MovieSceneSequence = GetSequencer()->GetFocusedMovieSceneSequence();
 	UMovieScene* MovieScene = MovieSceneSequence->GetMovieScene();
 	UAnimSeqExportOption* ExportOptions = NewObject<UAnimSeqExportOption>(GetTransientPackage(), NAME_None);
-	UBakeToControlRigSettings* BakeSettings = GetMutableDefault<UBakeToControlRigSettings>();
+	//@sara to do, not sure if you want to key reduce after, but BakeSettings isn't used
+	//UBakeToControlRigSettings* BakeSettings = GetMutableDefault<UBakeToControlRigSettings>();
 	const TSharedPtr<ISequencer> ParentSequencer = GetSequencer();
 	FMovieSceneSequenceIDRef Template = ParentSequencer->GetFocusedTemplateID();
 	FMovieSceneSequenceTransform RootToLocalTransform = ParentSequencer->GetFocusedMovieSceneSequenceTransform();
@@ -5283,10 +5329,10 @@ void FControlRigParameterSection::OnAnimationAssetSelectedForFK(const FAssetData
 
 			FScopedTransaction Transaction(LOCTEXT("BakeAnimation_Transaction", "Bake Animation To FK Control Rig"));
 			Section->Modify();
-			UMovieScene* MovieScene = SequencerPtr->GetFocusedMovieSceneSequence()->GetMovieScene();
 			FFrameNumber StartFrame = SequencerPtr->GetLocalTime().Time.GetFrame();
-			EMovieSceneKeyInterpolation DefaultInterpolation = SequencerPtr->GetKeyInterpolation();
-			if (!Section->LoadAnimSequenceIntoThisSection(AnimSequence, MovieScene, SkelMeshComp, false, 0.1f, true, StartFrame, DefaultInterpolation))
+			FSmartReduceParams SmartReduce;
+			if(!FControlRigParameterTrackEditor::LoadAnimationIntoSection(SequencerPtr, AnimSequence, SkelMeshComp,StartFrame,
+				false, SmartReduce, true, Section))
 			{
 				Transaction.Cancel();
 			}

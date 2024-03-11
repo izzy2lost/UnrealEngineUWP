@@ -1103,6 +1103,26 @@ void UControlRigSequencerEditorLibrary::SetControlRigWorldTransforms(ULevelSeque
 	LocalSetControlRigWorldTransforms(LevelSequence, ControlRig, ControlName, EControlRigSetKey::Always, Frames, WorldTransforms,TimeUnit);
 }
 
+bool UControlRigSequencerEditorLibrary::SmartReduce(FSmartReduceParams& ReduceParams, UMovieSceneSection* MovieSceneSection)
+{
+	//get level sequence if one exists...
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid() == false)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Smart Reduce: No open level sequence"));
+		return false;
+	}
+	if (UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(MovieSceneSection))
+	{
+		TSharedPtr<ISequencer>  SequencerPtr = WeakSequencer.Pin();
+		FControlRigParameterTrackEditor::SmartReduce(SequencerPtr, ReduceParams, Section);
+		return true;
+	}
+	UE_LOG(LogControlRig, Error, TEXT("Smart Reduce: Section is not Control Rig Section"));
+	return false;
+}
+
+
 bool UControlRigSequencerEditorLibrary::BakeToControlRig(UWorld* World, ULevelSequence* LevelSequence, UClass* InClass, UAnimSeqExportOption* ExportOptions, bool bReduceKeys, float Tolerance,
 	const FMovieSceneBindingProxy& Binding, bool bResetControls)
 {
@@ -1135,9 +1155,6 @@ bool UControlRigSequencerEditorLibrary::BakeToControlRig(UWorld* World, ULevelSe
 		UE_LOG(LogControlRig, Error, TEXT("Baking: Problem Setting up Player"));
 		return false;
 	}
-	
-	
-
 	bool bResult = false;
 	const FScopedTransaction Transaction(LOCTEXT("BakeToControlRig_Transaction", "Bake To Control Rig"));
 	{

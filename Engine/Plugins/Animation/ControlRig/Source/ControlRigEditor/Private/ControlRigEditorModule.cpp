@@ -1144,7 +1144,7 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 
 		if (WeakSequencer.IsValid())
 		{
-
+			TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
 			ASkeletalMeshActor* MeshActor = World->SpawnActor<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), FTransform::Identity);
 			MeshActor->SetActorLabel(AnimSequence->GetName());
 
@@ -1159,18 +1159,18 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 			MeshActor->RegisterAllComponents();
 			TArray<TWeakObjectPtr<AActor> > ActorsToAdd;
 			ActorsToAdd.Add(MeshActor);
-			TArray<FGuid> ActorTracks = WeakSequencer.Pin()->AddActors(ActorsToAdd, false);
+			TArray<FGuid> ActorTracks = SequencerPtr->AddActors(ActorsToAdd, false);
 			FGuid ActorTrackGuid = ActorTracks[0];
 
 			// By default, convert this to a spawnable and delete the existing actor. If for some reason, 
 			// the spawnable couldn't be generated, use the existing actor as a possessable (this could 
 			// eventually be an option)
-			TArray<FGuid> SpawnableGuids = WeakSequencer.Pin()->ConvertToSpawnable(ActorTrackGuid);
+			TArray<FGuid> SpawnableGuids = SequencerPtr->ConvertToSpawnable(ActorTrackGuid);
 			if (SpawnableGuids.Num())
 			{	
 				ActorTrackGuid = SpawnableGuids[0];
 
-				UObject* SpawnedMesh = WeakSequencer.Pin()->FindSpawnedObjectOrTemplate(ActorTrackGuid);
+				UObject* SpawnedMesh = SequencerPtr->FindSpawnedObjectOrTemplate(ActorTrackGuid);
 
 				if (SpawnedMesh)
 				{
@@ -1186,7 +1186,7 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 
 			//Delete binding from default animating rig
 			//if we have skel mesh component binding we can just delete that
-			FGuid CompGuid = WeakSequencer.Pin()->FindObjectId(*(MeshActor->GetSkeletalMeshComponent()), WeakSequencer.Pin()->GetFocusedTemplateID());
+			FGuid CompGuid = SequencerPtr->FindObjectId(*(MeshActor->GetSkeletalMeshComponent()), SequencerPtr->GetFocusedTemplateID());
 			if (CompGuid.IsValid())
 			{
 				if (!MovieScene->RemovePossessable(CompGuid))
@@ -1218,7 +1218,7 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 				ControlRig->Initialize();
 				ControlRig->Evaluate_AnyThread();
 
-				WeakSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+				SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 
 				Track->Modify();
 				UMovieSceneSection* NewSection = Track->CreateControlRigSection(0, ControlRig, true);
@@ -1226,22 +1226,23 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 				Track->SetTrackName(FName(*ObjectName));
 				Track->SetDisplayName(FText::FromString(ObjectName));
 				UMovieSceneControlRigParameterSection* ParamSection = Cast<UMovieSceneControlRigParameterSection>(NewSection);
-			
-				FBakeToControlDelegate BakeCallback = FBakeToControlDelegate::CreateLambda([this, WeakSequencer, LevelSequence, 
+				FBakeToControlDelegate BakeCallback = FBakeToControlDelegate::CreateLambda([this, &SequencerPtr, LevelSequence,
 					AnimSequence, MovieScene, ControlRig, ParamSection,ActorTrackGuid, SkelMeshComp]
-				(bool bKeyReduce, float KeyReduceTolerance, bool bResetControls)
+				(bool bKeyReduce, float KeyReduceTolerance, FFrameRate BakeFrameRate, bool bResetControls)
 				{
 					if (ParamSection)
 					{
-						EMovieSceneKeyInterpolation DefaultInterpolation = WeakSequencer.Pin()->GetKeyInterpolation();
-						ParamSection->LoadAnimSequenceIntoThisSection(AnimSequence, MovieScene, SkelMeshComp, bKeyReduce,
-							KeyReduceTolerance, bResetControls, FFrameNumber(0), DefaultInterpolation);
+						FSmartReduceParams SmartReduce;
+						SmartReduce.TolerancePercentage = KeyReduceTolerance;
+						SmartReduce.SampleRate = BakeFrameRate;
+						FControlRigParameterTrackEditor::LoadAnimationIntoSection(SequencerPtr, AnimSequence, SkelMeshComp, FFrameNumber(0),
+							bKeyReduce, SmartReduce,bResetControls, ParamSection);
 					}
-					WeakSequencer.Pin()->EmptySelection();
-					WeakSequencer.Pin()->SelectSection(ParamSection);
-					WeakSequencer.Pin()->ThrobSectionSelection();
-					WeakSequencer.Pin()->ObjectImplicitlyAdded(ControlRig);
-					WeakSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
+					SequencerPtr->EmptySelection();
+					SequencerPtr->SelectSection(ParamSection);
+					SequencerPtr->ThrobSectionSelection();
+					SequencerPtr->ObjectImplicitlyAdded(ControlRig);
+					SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 					FControlRigEditMode* ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
 					if (!ControlRigEditMode)
 					{
@@ -1250,7 +1251,7 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 					}
 					if (ControlRigEditMode)
 					{
-						ControlRigEditMode->AddControlRigObject(ControlRig, WeakSequencer.Pin());
+						ControlRigEditMode->AddControlRigObject(ControlRig, SequencerPtr);
 					}
 
 					//create soft links to each other

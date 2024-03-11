@@ -18,6 +18,7 @@
 #include "MovieSceneToolsModule.h"
 #include "Engine/EngineTypes.h"
 #include "EditorUndoClient.h"
+#include "Filters/CurveEditorSmartReduceFilter.h"
 #include "ScopedTransaction.h"
 
 class UTickableTransformConstraint;
@@ -242,6 +243,12 @@ public:
 	//**Function to collapse all layers from this section onto the first absoluate layer.*/
 	static bool CollapseAllLayers(TSharedPtr<ISequencer>& SequencerPtr, UMovieSceneTrack* OwnerTrack, const FBakingAnimationKeySettings& InSettings);
 
+	//** Function to load animation into a section, returns true if successful
+	static bool LoadAnimationIntoSection(TSharedPtr<ISequencer>& SequencerPtr,  UAnimSequence* AnimSequence, USkeletalMeshComponent* SkelMeshComp,
+		FFrameNumber StartFrame, bool bReduceKeys, const FSmartReduceParams& ReduceParams, bool bResetControls, UMovieSceneControlRigParameterSection* ParamSection);
+
+	//** Function to smart reduce all keys on all constraints based on the parameters
+	static void SmartReduce(TSharedPtr<ISequencer>& SequencerPtr, const FSmartReduceParams& InParams, UMovieSceneControlRigParameterSection* InSection);
 private:
 	FDelegateHandle SelectionChangedHandle;
 	FDelegateHandle SequencerChangedHandle;
