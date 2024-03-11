@@ -11,6 +11,7 @@
 #include "InstallBundleUtils.h"
 #include "BundlePrereqCombinedStatusHelper.h"
 #include "Interfaces/IPluginManager.h"
+#include "Logging/StructuredLog.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/AsciiSet.h"
 #include "Misc/ConfigCacheIni.h"
@@ -80,6 +81,10 @@ namespace UE::GameFeatures
 	static TAutoConsoleVariable<bool> CVarForceSyncAssetRegistryAppend(TEXT("GameFeaturePlugin.ForceSyncAssetRegistryAppend"),
 		false,
 		TEXT("Enable to force calls to IAssetRegistry::AppendState to happen on the game thread"));
+
+	static TAutoConsoleVariable<bool> CVarWaitForDependencyDeactivation(TEXT("GameFeaturePlugin.WaitForDependencyDeactivation"),
+		false,
+		TEXT("Enable to make block deactivation until all dependencies are deactivated. Warning - this can lead to failure to unload"));
 
 	#define GAME_FEATURE_PLUGIN_STATE_TO_STRING(inEnum, inText) case EGameFeaturePluginState::inEnum: return TEXT(#inEnum);
 	FString ToString(EGameFeaturePluginState InType)
@@ -618,8 +623,22 @@ struct FTransitionDependenciesGameFeaturePluginState : public FGameFeaturePlugin
 
 	void TransitionDependency(UGameFeaturePluginStateMachine* Dependency)
 	{
-		const bool bSetDestination = Dependency->SetDestination(TransitionPolicy::GetDependencyStateRange(),
-			FGameFeatureStateTransitionComplete::CreateRaw(this, &FTransitionDependenciesGameFeaturePluginState::OnDependencyTransitionComplete));
+		bool bSetDestination = false;
+		
+		if (TransitionPolicy::ShouldWaitForDependencies())
+		{
+			bSetDestination = Dependency->SetDestination(TransitionPolicy::GetDependencyStateRange(),
+				FGameFeatureStateTransitionComplete::CreateRaw(this, &FTransitionDependenciesGameFeaturePluginState::OnDependencyTransitionComplete));
+		}
+		else
+		{
+			bSetDestination = Dependency->SetDestination(TransitionPolicy::GetDependencyStateRange(), 
+				FGameFeatureStateTransitionComplete::CreateStatic(&FTransitionDependenciesGameFeaturePluginState::OnDependencyTransitionCompleteNoWait));
+			if (bSetDestination)
+			{
+				OnDependencyTransitionComplete(Dependency, MakeValue());
+			}
+		}
 
 		if (!bSetDestination)
 		{
@@ -664,8 +683,21 @@ struct FTransitionDependenciesGameFeaturePluginState : public FGameFeaturePlugin
 		}
 
 		// Now that the transition has been canceled, retry reaching the desired destination
-		const bool bSetDestination = Dependency->SetDestination(TransitionPolicy::GetDependencyStateRange(),
-			FGameFeatureStateTransitionComplete::CreateRaw(this, &FTransitionDependenciesGameFeaturePluginState::OnDependencyTransitionComplete));
+		bool bSetDestination = false;
+		if (TransitionPolicy::ShouldWaitForDependencies())
+		{
+			bSetDestination = Dependency->SetDestination(TransitionPolicy::GetDependencyStateRange(),
+				FGameFeatureStateTransitionComplete::CreateRaw(this, &FTransitionDependenciesGameFeaturePluginState::OnDependencyTransitionComplete));
+		}
+		else
+		{
+			bSetDestination = Dependency->SetDestination(TransitionPolicy::GetDependencyStateRange(), 
+				FGameFeatureStateTransitionComplete::CreateStatic(&FTransitionDependenciesGameFeaturePluginState::OnDependencyTransitionCompleteNoWait));
+			if (bSetDestination)
+			{
+				OnDependencyTransitionComplete(Dependency, MakeValue());
+			}
+		}
 
 		if (!ensure(bSetDestination))
 		{
@@ -694,6 +726,26 @@ struct FTransitionDependenciesGameFeaturePluginState : public FGameFeaturePlugin
 			}
 
 			UpdateStateMachineImmediate();
+		}
+	}
+
+	static void OnDependencyTransitionCompleteNoWait(UGameFeaturePluginStateMachine* Dependency, const UE::GameFeatures::FResult& Result)
+	{
+		if (Result.HasError())
+		{
+			if (Result.GetError() == UE::GameFeatures::CanceledResult.GetError())
+			{
+				UE_LOGFMT(LogGameFeatures, Warning, "Dependency {Dep} failed to transition because it was cancelled by another request {Error}",
+					("Dep", Dependency->GetPluginIdentifier().GetIdentifyingString()),
+					("Error", Result.GetError()));
+			}
+			else
+			{
+
+				UE_LOGFMT(LogGameFeatures, Error, "Dependency {Dep} failed to transition with error {Error}",
+					("Dep", Dependency->GetPluginIdentifier().GetIdentifyingString()),
+					("Error", Result.GetError()));
+			}
 		}
 	}
 
@@ -2245,7 +2297,7 @@ struct FWaitingForDependenciesTransitionPolicy
 		UGameFeaturesSubsystem& GameFeaturesSubsystem = UGameFeaturesSubsystem::Get();
 
 		return GameFeaturesSubsystem.FindOrCreatePluginDependencyStateMachines(
-			*InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties, OutDependencyMachines);
+			InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties, OutDependencyMachines);
 	}
 
 	static FGameFeaturePluginStateRange GetDependencyStateRange()
@@ -2261,6 +2313,11 @@ struct FWaitingForDependenciesTransitionPolicy
 	static EGameFeaturePluginState GetErrorState()
 	{
 		return EGameFeaturePluginState::ErrorWaitingForDependencies;
+	}
+
+	static bool ShouldWaitForDependencies()
+	{
+		return true;
 	}
 };
 
@@ -2761,7 +2818,7 @@ struct FDeactivatingDependenciesTransitionPolicy
 		UGameFeaturesSubsystem& GameFeaturesSubsystem = UGameFeaturesSubsystem::Get();
 
 		return GameFeaturesSubsystem.FindPluginDependencyStateMachinesToDeactivate(
-			*InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties.PluginInstalledFilename, OutDependencyMachines);
+			InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties.PluginInstalledFilename, OutDependencyMachines);
 	}
 
 	static FGameFeaturePluginStateRange GetDependencyStateRange()
@@ -2777,6 +2834,11 @@ struct FDeactivatingDependenciesTransitionPolicy
 	static EGameFeaturePluginState GetErrorState()
 	{
 		return EGameFeaturePluginState::ErrorDeactivatingDependencies;
+	}
+
+	static bool ShouldWaitForDependencies()
+	{
+		return UE::GameFeatures::CVarWaitForDependencyDeactivation.GetValueOnGameThread();
 	}
 };
 
@@ -2901,7 +2963,7 @@ struct FActivatingDependenciesTransitionPolicy
 		UGameFeaturesSubsystem& GameFeaturesSubsystem = UGameFeaturesSubsystem::Get();
 
 		return GameFeaturesSubsystem.FindPluginDependencyStateMachinesToActivate(
-			*InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties.PluginInstalledFilename, OutDependencyMachines);
+			InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties.PluginInstalledFilename, OutDependencyMachines);
 	}
 
 	static FGameFeaturePluginStateRange GetDependencyStateRange()
@@ -2917,6 +2979,11 @@ struct FActivatingDependenciesTransitionPolicy
 	static EGameFeaturePluginState GetErrorState()
 	{
 		return EGameFeaturePluginState::ErrorActivatingDependencies;
+	}
+
+	static bool ShouldWaitForDependencies()
+	{
+		return true;
 	}
 };
 
