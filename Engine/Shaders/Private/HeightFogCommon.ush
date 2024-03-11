@@ -40,6 +40,13 @@
 	#endif
 #endif
 
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+	#define SharedIntegratedLightScatteringSampler	View.SharedBilinearClampedSampler
+	#define SharedFogInColorScatteringSampler		View.SharedTrilinearClampedSampler
+#else
+	#define SharedIntegratedLightScatteringSampler	FogStruct.IntegratedLightScatteringSampler
+	#define SharedFogInColorScatteringSampler		FogStruct.FogInscatteringColorSampler
+#endif
 
 static const float FLT_EPSILON = 0.001f;
 static const float FLT_EPSILON2 = 0.01f;
@@ -61,8 +68,8 @@ float3 ComputeInscatteringColor(float3 CameraToReceiver, float CameraToReceiverL
 		float3 CubemapLookupVector = CameraToReceiver;
 		// Rotate around Z axis
 		CubemapLookupVector.xy = float2(dot(CubemapLookupVector.xy, float2(FogStruct.SinCosInscatteringColorCubemapRotation.y, -FogStruct.SinCosInscatteringColorCubemapRotation.x)), dot(CubemapLookupVector.xy, FogStruct.SinCosInscatteringColorCubemapRotation.xy));
-		float3 DirectionalColor = TextureCubeSampleLevel(FogStruct.FogInscatteringColorCubemap, FogStruct.FogInscatteringColorSampler, CubemapLookupVector, 0).xyz;
-		float3 NonDirectionalColor = TextureCubeSampleLevel(FogStruct.FogInscatteringColorCubemap, FogStruct.FogInscatteringColorSampler, CubemapLookupVector, FogStruct.FogInscatteringTextureParameters.z).xyz;
+		float3 DirectionalColor = TextureCubeSampleLevel(FogStruct.FogInscatteringColorCubemap, SharedFogInColorScatteringSampler, CubemapLookupVector, 0).xyz;
+		float3 NonDirectionalColor = TextureCubeSampleLevel(FogStruct.FogInscatteringColorCubemap, SharedFogInColorScatteringSampler, CubemapLookupVector, FogStruct.FogInscatteringTextureParameters.z).xyz;
 		Inscattering *= lerp(NonDirectionalColor, DirectionalColor, FadeAlpha);
 	}
 #endif
@@ -239,12 +246,6 @@ half4 CalculateHeightFog(float3 WorldPositionRelativeToCamera)
 	half4 FogInscatteringAndOpacity = GetExponentialHeightFog(WorldPositionRelativeToCamera, ExcludeDistance);
 	return FogInscatteringAndOpacity;
 }
-
-#if SUPPORTS_INDEPENDENT_SAMPLERS
-	#define SharedIntegratedLightScatteringSampler View.SharedBilinearClampedSampler
-#else
-	#define SharedIntegratedLightScatteringSampler FogStruct.IntegratedLightScatteringSampler
-#endif
 
 float4 CombineVolumetricFog(float4 GlobalFog, float3 VolumeUV, uint EyeIndex, float SceneDepth)
 {

@@ -404,6 +404,12 @@ FRectLTC GetRectLTC_GGX( float Roughness, float3 SpecularColor, half NoV)
 	return Out;
 }
 
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+	#define SharedSheenLTCSampler	View.SharedBilinearClampedSampler
+#else
+	#define SharedSheenLTCSampler	View.SheenLTCSampler
+#endif
+
 // Return LTC coefficients for Sheen BSDF
 FRectLTC GetRectLTC_Sheen( float Roughness, half NoV)
 {	
@@ -411,7 +417,7 @@ FRectLTC GetRectLTC_Sheen( float Roughness, half NoV)
 	const float SatNoV = saturate(abs(NoV) + 1e-5);
 	float2 UV = float2(Alpha, SatNoV);
 	UV = UV * (31.0 / 32.0) + (0.5 / 32.0);
-	const float3 SheenLTC = View.SheenLTCTexture.SampleLevel(View.SheenLTCSampler, UV, 0).xyz;
+	const float3 SheenLTC = View.SheenLTCTexture.SampleLevel(SharedSheenLTCSampler, UV, 0).xyz;
 
 	const float aInv = SheenLTC.x;
 	const float bInv = SheenLTC.y;

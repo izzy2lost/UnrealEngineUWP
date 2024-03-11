@@ -224,6 +224,14 @@ float IsotropicMediumSlabDirectionalAlbedoFadeLUT(float MFP)
 	return Fade;
 }
 
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+	#define SharedSimpleVolumeTextureSampler	View.SharedBilinearClampedSampler
+	#define SharedSimpleVolumeEnvTextureSampler	View.SharedBilinearClampedSampler
+#else
+	#define SharedSimpleVolumeTextureSampler	View.SimpleVolumeTextureSampler
+	#define SharedSimpleVolumeEnvTextureSampler	View.SimpleVolumeEnvTextureSampler
+#endif
+
 float IsotropicMediumSlabPunctualDirectionalAlbedoLUT(float MFP, float BaseColor, float NoV, float NoL)
 {
 	// LUT content
@@ -263,8 +271,8 @@ float IsotropicMediumSlabPunctualDirectionalAlbedoLUT(float MFP, float BaseColor
 	float3 UVW0 = float3(UVs.x, UVs.y, EdgeOffset + FourthCoord0 * LUT4DUvStepW + LightAngleNorm * LUT4DUvDimZ);
 	float3 UVW1 = float3(UVs.x, UVs.y, EdgeOffset + FourthCoord1 * LUT4DUvStepW + LightAngleNorm * LUT4DUvDimZ);
 
-	float Value0 = View.SimpleVolumeTexture.SampleLevel(View.SimpleVolumeTextureSampler, UVW0, 0);
-	float Value1 = View.SimpleVolumeTexture.SampleLevel(View.SimpleVolumeTextureSampler, UVW1, 0);
+	float Value0 = View.SimpleVolumeTexture.SampleLevel(SharedSimpleVolumeTextureSampler, UVW0, 0);
+	float Value1 = View.SimpleVolumeTexture.SampleLevel(SharedSimpleVolumeTextureSampler, UVW1, 0);
 
 	float DirectionalAlbedo = lerp(Value0, Value1, FourthCoordLerp);
 
@@ -329,7 +337,7 @@ float IsotropicMediumSlabEnvDirectionalAlbedoLUT(float MFP, float BaseColor, flo
 	float3 UVs = float3(MFP / 10.0f, BaseColor, ViewAngleNorm);	// Input parameters in [0,1]
 	UVs = LUTMin + LUTLen * UVs;								// Correct in order to ignore texel border
 
-	float EnvDirectionalAlbedo = View.SimpleVolumeEnvTexture.SampleLevel(View.SimpleVolumeEnvTextureSampler, UVs, 0);
+	float EnvDirectionalAlbedo = View.SimpleVolumeEnvTexture.SampleLevel(SharedSimpleVolumeEnvTextureSampler, UVs, 0);
 
 	const float Fade = IsotropicMediumSlabDirectionalAlbedoFadeLUT(MFP);
 	return EnvDirectionalAlbedo * Fade;

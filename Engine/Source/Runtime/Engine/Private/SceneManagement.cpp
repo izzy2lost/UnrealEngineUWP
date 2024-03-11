@@ -1208,9 +1208,9 @@ FViewUniformShaderParameters::FViewUniformShaderParameters()
 
 	// SimpleVolume
 	SimpleVolumeTexture = GBlackVolumeTexture->TextureRHI;
-	SimpleVolumeTextureSampler = TStaticSamplerState<SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	SimpleVolumeTextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	SimpleVolumeEnvTexture = GBlackVolumeTexture->TextureRHI;
-	SimpleVolumeEnvTextureSampler = TStaticSamplerState<SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	SimpleVolumeEnvTextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 	// Rect light atlas
 	RectLightAtlasMaxMipLevel = 1;
