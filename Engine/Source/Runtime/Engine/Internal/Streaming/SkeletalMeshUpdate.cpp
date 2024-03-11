@@ -247,7 +247,6 @@ void FSkeletalMeshStreamIn::DoCancel(const FContext& Context)
 	}
 
 	check(!StreamingRHICmdList);
-	MarkAsSuccessfullyFinished();
 }
 
 FSkeletalMeshStreamOut::FSkeletalMeshStreamOut(const USkeletalMesh* InMesh)

@@ -327,7 +327,6 @@ void FStaticMeshStreamIn::DoCancel(const FContext& Context)
 	}
 
 	check(!StreamingRHICmdList);
-	MarkAsSuccessfullyFinished();
 }
 
 FStaticMeshStreamOut::FStaticMeshStreamOut(const UStaticMesh* InMesh, bool InDiscardCPUData)
