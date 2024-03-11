@@ -139,16 +139,6 @@ uint32_t Pass::GenerateCopy(Instruction* object_to_copy, uint32_t new_type_id,
     return ir_builder.AddCompositeConstruct(new_type_id, element_ids)
         ->result_id();
   } else {
-    // For copy between signed and unsigned integers, use OpBitcast
-    analysis::Integer* original_int_type = original_type->AsInteger();
-    analysis::Integer* new_int_type = new_type->AsInteger();
-    if (original_int_type != nullptr && new_int_type != nullptr &&
-        original_int_type->width() == new_int_type->width()) {
-      return ir_builder
-          .AddUnaryOp(new_type_id, spv::Op::OpBitcast,
-                      object_to_copy->result_id())
-          ->result_id();
-    }
     // If we do not have an aggregate type, then we have a problem.  Either we
     // found multiple instances of the same type, or we are copying to an
     // incompatible type.  Either way the code is illegal.

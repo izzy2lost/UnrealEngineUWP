@@ -294,12 +294,8 @@ class Instruction : public utils::IntrusiveNodeBase<Instruction> {
   // It is the responsibility of the caller to make sure
   // that the instruction remains valid.
   inline void AddOperand(Operand&& operand);
-  // UE Change Begin: Allow secondary AddOperand function to take copy of
-  // operand.
   // Adds a copy of |operand| to the list of operands of this instruction.
   inline void AddOperand(const Operand& operand);
-  // UE Change End: Allow secondary AddOperand function to take copy of
-  // operand.
   // Gets the |index|-th logical operand as a single SPIR-V word. This method is
   // not expected to be used with logical operands consisting of multiple SPIR-V
   // words.
@@ -686,13 +682,9 @@ inline void Instruction::AddOperand(Operand&& operand) {
   operands_.push_back(std::move(operand));
 }
 
-// UE Change Begin: Allow secondary AddOperand function to take copy of
-// operand.
 inline void Instruction::AddOperand(const Operand& operand) {
   operands_.push_back(operand);
 }
-// UE Change End: Allow secondary AddOperand function to take copy of
-// operand.
 
 inline void Instruction::SetInOperand(uint32_t index,
                                       Operand::OperandData&& data) {
@@ -924,7 +916,7 @@ bool Instruction::IsAtomicWithLoad() const {
 bool Instruction::IsAtomicOp() const { return spvOpcodeIsAtomicOp(opcode()); }
 
 bool Instruction::IsConstant() const {
-  return IsCompileTimeConstantInst(opcode());
+  return IsConstantInst(opcode()) && !IsSpecConstantInst(opcode());
 }
 }  // namespace opt
 }  // namespace spvtools
