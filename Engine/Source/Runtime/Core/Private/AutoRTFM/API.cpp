@@ -8,7 +8,7 @@
 namespace
 {
 	// Move this to a local only and use functions to access this
-	int GAutoRTFMRuntimeEnabled = AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Disabled;
+	int GAutoRTFMRuntimeEnabled = AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Enabled;
 
 	void UpdateAutoRTFMRuntimeCrashData()
 	{
