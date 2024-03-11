@@ -59,6 +59,7 @@ public:
 	static FString		GetValueAsString( float Value, FKPIValue::EDisplayType Type );
 	static FString		GetComparisonAsString(FKPIValue::ECompare Compare);
 	static FString		GetComparisonAsPrettyString(FKPIValue::ECompare Compare);
+	static FString		GetDisplayTypeAsString(FKPIValue::EDisplayType Type);
 
 	FGuid			Id;
 	FName			Category;
@@ -83,6 +84,15 @@ public:
 
 typedef TMap<FString, FKPIProfile> FKPIProfiles;
 
+class FKPIHint
+{
+public:
+	FString				Message;
+	FString				URL;
+};
+
+typedef TMap<FName, FKPIHint> FKPIHints;
+
 class FKPIRegistry
 {
 public:
@@ -93,9 +103,12 @@ public:
 	bool							SetKPIThreshold(const FName Name, float ThresholdValue);
 	bool							InvalidateKPIValue(const FName Name);
 	bool 							GetKPIValue(const FName Name, FKPIValue& Result) const;
+	bool 							GetKPIHint(const FName Name, FKPIHint& Result) const;
 	const FKPIValues&				GetKPIValues() const;
 	const FKPIProfiles&				GetKPIProfiles() const;
+	
 
+	void							LoadKPIHints(const FString& HintSectionName, const FString& FileName);
 	void							LoadKPIProfiles(const FString& ProfileSectionName, const FString& FileName);
 	bool							ApplyKPIProfile(const FKPIProfile& Profile);
 
@@ -103,5 +116,6 @@ private:
 
 	FKPIValues						Values;
 	FKPIProfiles					Profiles;
+	FKPIHints						Hints;
 };
 

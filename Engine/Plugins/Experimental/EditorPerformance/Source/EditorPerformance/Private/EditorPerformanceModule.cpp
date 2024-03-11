@@ -21,8 +21,6 @@
 #include "StudioTelemetry.h"
 #include "HAL/PlatformFileManager.h"
 
-UE_DISABLE_OPTIMIZATION_SHIP
-
 #define LOCTEXT_NAMESPACE "EditorPerformance"
  
 IMPLEMENT_MODULE(FEditorPerformanceModule, EditorPerformance );
@@ -185,6 +183,9 @@ void FEditorPerformanceModule::InitializeKPIs()
 
 	// Load the KPI profiles
 	KPIRegistry.LoadKPIProfiles(TEXT("EditorPerformance.Profile"), GEditorIni);
+
+	// Load the KPI hints
+	KPIRegistry.LoadKPIHints(TEXT("EditorPerformance.Hints"), GEditorIni);
 
 	// Apply any non map specific profiles
 	for (FKPIProfiles::TConstIterator It(KPIRegistry.GetKPIProfiles()); It; ++It)
@@ -384,15 +385,17 @@ bool FEditorPerformanceModule::RecordTelemetryEvent(const FKPIValue& KPIValue)
 	// Record a new telemetry event for this KPI
 	if (FStudioTelemetry::IsAvailable())
 	{
-		const int SchemaVersion = 1;
+		const int SchemaVersion = 2;
 		TArray<FAnalyticsEventAttribute> Attributes;
 
 		Attributes.Emplace(TEXT("SchemaVersion"), SchemaVersion);
 		Attributes.Emplace(TEXT("MapName"), EditorMapName);
+		Attributes.Emplace(TEXT("DDC_IsHotLocalCache"), IsHotLocalCacheCase());
 		Attributes.Emplace(TEXT("KPI_Name"), *KPIValue.Name.ToString());
 		Attributes.Emplace(TEXT("KPI_Category"), *KPIValue.Category.ToString());
 		Attributes.Emplace(TEXT("KPI_CurrentValue"), KPIValue.CurrentValue);
 		Attributes.Emplace(TEXT("KPI_ThresholdValue"), KPIValue.ThresholdValue);
+		Attributes.Emplace(TEXT("KPI_DisplayType"), *FKPIValue::GetDisplayTypeAsString(KPIValue.DisplayType));
 		Attributes.Emplace(TEXT("KPI_Profile"), KPIProfileName);
 		
 		FStudioTelemetry::Get().RecordEvent(TEXT("Editor.PerformanceWarning"), Attributes);
@@ -407,9 +410,9 @@ void FEditorPerformanceModule::TerminateKPIs()
 {
 }
 
-const FKPIValues& FEditorPerformanceModule::GetKPIValues() const
+const FKPIRegistry& FEditorPerformanceModule::GetKPIRegistry() const
 {
-	return KPIRegistry.GetKPIValues();
+	return KPIRegistry;
 }
 
 const FString& FEditorPerformanceModule::GetKPIProfileName() const
@@ -418,5 +421,3 @@ const FString& FEditorPerformanceModule::GetKPIProfileName() const
 }
 
 #undef LOCTEXT_NAMESPACE
-
-UE_ENABLE_OPTIMIZATION_SHIP

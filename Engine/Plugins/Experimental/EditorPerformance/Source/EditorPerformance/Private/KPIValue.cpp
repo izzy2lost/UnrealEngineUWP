@@ -3,8 +3,6 @@
 #include "KPIValue.h"
 #include "Misc/ConfigCacheIni.h"
 
-UE_DISABLE_OPTIMIZATION_SHIP
-
 FKPIValue::EState FKPIValue::GetState() const
 {
 	return State;
@@ -105,6 +103,68 @@ FString FKPIValue::GetComparisonAsPrettyString(FKPIValue::ECompare Compare)
 	}
 	}
 }
+
+FString FKPIValue::GetDisplayTypeAsString(FKPIValue::EDisplayType DisplayType)
+{
+	switch (DisplayType)
+	{
+		default:
+		case EDisplayType::Decimal:
+		{
+			return TEXT("Decimal");
+			break;
+		}
+
+		case EDisplayType::Minutes:
+		{
+			return TEXT("Minutes");
+			break;
+		}
+
+		case EDisplayType::Seconds:
+		{
+			return TEXT("Seconds");
+			break;
+		}
+
+		case EDisplayType::Milliseconds:
+		{
+			return TEXT("Milliseconds");
+			break;
+		}
+
+		case EDisplayType::Bytes:
+		{
+			return TEXT("Bytes");
+			break;
+		}
+
+		case EDisplayType::MegaBytes:
+		{
+			return TEXT("MegaBytes");
+			break;
+		}
+
+		case EDisplayType::GigaBytes:
+		{
+			return TEXT("GigaBytes");
+			break;
+		}
+
+		case EDisplayType::MegaBitsPerSecond:
+		{
+			return TEXT("MegaBitsPerSecond");
+			break;
+		}
+
+		case EDisplayType::Percent:
+		{
+			return TEXT("Percent");
+			break;
+		}
+	}
+}
+
 
 FString	FKPIValue::GetValueAsString( float Value, FKPIValue::EDisplayType DisplayType)
 {
@@ -244,6 +304,19 @@ bool FKPIRegistry::GetKPIValue(const FName Name, FKPIValue& Result) const
 	return false;
 }
 
+bool FKPIRegistry::GetKPIHint(const FName Name, FKPIHint& Result) const
+{
+	const FKPIHint* Hint = Hints.Find(Name);
+
+	if (Hint != nullptr)
+	{
+		Result = *Hint;
+		return true;
+	}
+
+	return false;
+}
+
 const TMap<FName, FKPIValue>& FKPIRegistry::GetKPIValues() const
 {
 	return Values;
@@ -252,6 +325,34 @@ const TMap<FName, FKPIValue>& FKPIRegistry::GetKPIValues() const
 const FKPIProfiles& FKPIRegistry::GetKPIProfiles() const
 {
 	return Profiles;
+}
+
+void FKPIRegistry::LoadKPIHints(const FString& HintSectionName, const FString& FileName)
+{
+	TArray<FString> SectionNames;
+
+	if (GConfig->GetSectionNames(FileName, SectionNames))
+	{
+		for (const FString& SectionName : SectionNames)
+		{
+			if (SectionName.Find(HintSectionName) != INDEX_NONE)
+			{
+				FKPIHint Hint;
+				Hint.URL = TEXT("https://docs.unrealengine.com/5.0/en-US/");
+
+				for (FKPIValues::TConstIterator It(GetKPIValues()); It; ++It)
+				{
+					const FKPIValue& KPIValue = It->Value;
+					FString KPIName = FString::Printf(TEXT("%s_%s"), *KPIValue.Category.ToString(), *KPIValue.Name.ToString()).Replace(TEXT(" "), TEXT("_"));
+
+					if (GConfig->GetString(*SectionName, *KPIName, Hint.Message, FileName))
+					{
+						Hints.Emplace(It->Key, Hint);
+					}
+				}
+			}
+		}
+	}
 }
 
 void FKPIRegistry::LoadKPIProfiles(const FString& ProfileSectionName, const FString& FileName)
@@ -307,7 +408,3 @@ bool FKPIRegistry::ApplyKPIProfile(const FKPIProfile& KPIProfile)
 
 	return Result;
 }
-
-#undef LOCTEXT_NAMESPACE
-
-UE_ENABLE_OPTIMIZATION_SHIP

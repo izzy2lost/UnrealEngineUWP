@@ -20,14 +20,15 @@ class SEditorPerformanceReportDialog : public SCompoundWidget
 private:
 	
 	EActiveTimerReturnType UpdateGridPanels(double InCurrentTime, float InDeltaTime);
+	void OpenURL(const FString& URL) const;
 
 	TSharedRef<SWidget> GetKPIGridPanel();
 	TSharedRef<SWidget> GetSettingsGridPanel();
-	TSharedRef<SWidget> GetInformationGridPanel();
+	TSharedRef<SWidget> GetHintGridPanel();
 
 	SVerticalBox::FSlot* SettingsGridSlot = nullptr;
 	SVerticalBox::FSlot* KPIGridSlot = nullptr;
-	SVerticalBox::FSlot* InformationGridSlot = nullptr;
+	SVerticalBox::FSlot* HintGridSlot = nullptr;
 
 	const TArray<FName> NotifcationOptions = { FName("Notify"), FName("Ignore") };
 	const TArray<FName> WarningFilterOptions = { FName("Show All"), FName("Show Warnings") };

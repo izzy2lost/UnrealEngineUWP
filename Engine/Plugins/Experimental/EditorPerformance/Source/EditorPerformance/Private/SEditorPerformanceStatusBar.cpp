@@ -46,8 +46,6 @@
 #include "Settings/EditorProjectSettings.h"
 #include "Editor/EditorPerformanceSettings.h"
 
-UE_DISABLE_OPTIMIZATION_SHIP
-
 class SWidget;
 struct FSlateBrush;
 
@@ -127,39 +125,39 @@ void SEditorPerformanceStatusBarWidget::Construct(const FArguments& InArgs)
 		[
 			SNew(SComboButton)
 			.ContentPadding(FMargin(6.0f, 0.0f))
-		.MenuPlacement(MenuPlacement_AboveAnchor)
-		.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
-		.ButtonContent()
-		[
+			.MenuPlacement(MenuPlacement_AboveAnchor)
+			.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
+			.ButtonContent()
+			[
 
-			SNew(SHorizontalBox)
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(0, 0, 3, 0)
+				[
+					SNew(SOverlay)
+					+ SOverlay::Slot()
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Top)
+				[
+					SNew(SImage)
+					.ColorAndOpacity_Lambda([this] { return GetStatusIconColor(); })
+					.Image_Lambda([this] { return GetStatusIcon(); })
+					.ToolTipText_Lambda([this] { return GetStatusToolTipText(); })
+				]
+			]
+
 			+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.VAlign(VAlign_Center)
-		.Padding(0, 0, 3, 0)
-		[
-			SNew(SOverlay)
-			+ SOverlay::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Top)
-		[
-			SNew(SImage)
-			.ColorAndOpacity_Lambda([this] { return GetStatusIconColor(); })
-		.Image_Lambda([this] { return GetStatusIcon(); })
-		.ToolTipText_Lambda([this] { return GetStatusToolTipText(); })
-		]
-		]
-
-	+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.VAlign(VAlign_Center)
-		.Padding(0, 0, 10, 0)
-		[
-			SNew(STextBlock)
-			.Text_Lambda([this] { return GetTitleText(); })
-		.ToolTipText_Lambda([this] { return GetStatusToolTipText(); })
-		]
-		]
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(0, 0, 10, 0)
+				[
+					SNew(STextBlock)
+					.Text_Lambda([this] { return GetTitleText(); })
+				.ToolTipText_Lambda([this] { return GetStatusToolTipText(); })
+				]
+	]
 	.OnGetMenuContent(FOnGetContent::CreateRaw(this, &SEditorPerformanceStatusBarWidget::CreateStatusBarMenu))
 		];
 
@@ -183,7 +181,7 @@ EActiveTimerReturnType SEditorPerformanceStatusBarWidget::UpdateState(double InC
 	WarningCount = 0;
 
 	// Check for KPIs that have exceeded their value
-	for (FKPIValues::TConstIterator It(EditorPerfModule.GetKPIValues()); It; ++It)
+	for (FKPIValues::TConstIterator It(EditorPerfModule.GetKPIRegistry().GetKPIValues()); It; ++It)
 	{
 		const FKPIValue& KPIValue = It->Value;
 
@@ -356,5 +354,3 @@ FText SEditorPerformanceStatusBarWidget::GetTitleToolTipText() const
 }
 
 #undef LOCTEXT_NAMESPACE
-
-UE_ENABLE_OPTIMIZATION_SHIP

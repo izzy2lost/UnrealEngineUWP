@@ -12,13 +12,12 @@
 #include "Widgets/SToolTip.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SGridPanel.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "EditorPerformanceModule.h"
 #include "Editor/EditorPerformanceSettings.h"
-
-UE_DISABLE_OPTIMIZATION_SHIP
 
 #define LOCTEXT_NAMESPACE "EditorPerformance"
 
@@ -73,9 +72,9 @@ void SEditorPerformanceReportDialog::Construct(const FArguments& InArgs)
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(0, 5, 0, 0)
-		.Expose(InformationGridSlot)
+		.Expose(HintGridSlot)
 		[
-			GetInformationGridPanel()
+			GetHintGridPanel()
 		]
 	];
 
@@ -94,9 +93,9 @@ EActiveTimerReturnType SEditorPerformanceReportDialog::UpdateGridPanels(double I
 		GetKPIGridPanel()
 	];
 
-	(*InformationGridSlot)
+	(*HintGridSlot)
 	[
-		GetInformationGridPanel()
+		GetHintGridPanel()
 	];
 
 	SlatePrepass(GetPrepassLayoutScaleMultiplier());
@@ -228,7 +227,12 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetSettingsGridPanel()
 	return Panel;
 }
 
-TSharedRef<SWidget> SEditorPerformanceReportDialog::GetInformationGridPanel()
+void SEditorPerformanceReportDialog::OpenURL(const FString& URL) const
+{
+	FPlatformProcess::LaunchURL(*URL, nullptr, nullptr);
+}
+
+TSharedRef<SWidget> SEditorPerformanceReportDialog::GetHintGridPanel()
 {
 	TSharedRef<SGridPanel> Panel =
 		SNew(SGridPanel);
@@ -243,33 +247,70 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetInformationGridPanel()
 	const FMargin DefaultMargin(0.0f, RowMargin, ColumnMargin, RowMargin);
 	const FMargin DefaultMarginFirstColumn(ColumnMargin, RowMargin);
 
+	FEditorPerformanceModule& EditorPerfModule = FModuleManager::LoadModuleChecked<FEditorPerformanceModule>("EditorPerformance");
+
 	int32 Row = 0;
 
-	Panel->AddSlot(0, Row)
-		.HAlign(HAlign_Left)
-		[
-			SNew(STextBlock)
-			.Margin(TitleMarginFirstColumn)
-			.ColorAndOpacity(TitleColor)
-			.Font(TitleFont)
-			.Justification(ETextJustify::Left)
-			.Text(LOCTEXT("InformationTitle", "Information"))
-		];
+	FKPIHint KPIHint;
 
-	Row++;
+	for (FKPIValues::TConstIterator It(EditorPerfModule.GetKPIRegistry().GetKPIValues()); It; ++It)
+	{
+		const FKPIValue& KPIValue = It->Value;
 
-	Panel->AddSlot(0, Row)
-		.HAlign(HAlign_Left)
-		[
-			SNew(STextBlock)
-			.Margin(DefaultMarginFirstColumn)
-			.ColorAndOpacity(EStyleColor::Foreground)
-			.Font(TitleFont)
-			.Justification(ETextJustify::Left)
-			.Text(LOCTEXT("DynamicText", "TODO : Some information about about what to do with this wanring"))
-		];
+		if (KPIValue.State==FKPIValue::Bad && EditorPerfModule.GetKPIRegistry().GetKPIHint(KPIValue.Name, KPIHint))
+		{
+			Panel->AddSlot(0, Row)
+				.HAlign(HAlign_Left)
+				[
+					SNew(STextBlock)
+					.Margin(TitleMarginFirstColumn)
+					.ColorAndOpacity(TitleColor)
+					.Font(TitleFont)
+					.Justification(ETextJustify::Left)
+					.Text(LOCTEXT("HintTitle", "Hint"))
+				];
 
-	Row++;
+			Row++;
+
+			Panel->AddSlot(0, Row)
+				.HAlign(HAlign_Left)
+				[
+					SNew(STextBlock)
+					.Margin(TitleMarginFirstColumn)
+					.ColorAndOpacity(TitleColor)
+					.Font(TitleFont)
+					.Text(FText::FromString(*FString::Printf(TEXT("%s %s"), *KPIValue.Category.ToString(), *KPIValue.Name.ToString())))
+				];
+
+			Row++;
+
+			Panel->AddSlot(0, Row)
+				.HAlign(HAlign_Left)
+				[
+					SNew(STextBlock)
+					.AutoWrapText(true)
+					.Margin(DefaultMarginFirstColumn)
+					.ColorAndOpacity(EStyleColor::Foreground)
+					.Justification(ETextJustify::Left)
+					.Text(FText::FromString(*KPIHint.Message))
+				];
+
+			Row++;
+
+			Panel->AddSlot(0, Row)
+				.HAlign(HAlign_Left)
+				[
+					SNew(STextBlock)
+					.AutoWrapText(true)
+					.Margin(DefaultMarginFirstColumn)
+					.ColorAndOpacity(EStyleColor::AccentBlue)
+					.Justification(ETextJustify::Left)
+					.Text(FText::FromString(*KPIHint.URL))
+				];
+
+			break;
+		}
+	}
 
 	return Panel;
 }
@@ -379,7 +420,7 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 
 	TMap<FName, TArray<FKPIValue>> SortedKPIValues;
 
-	for (FKPIValues::TConstIterator It(EditorPerfModule.GetKPIValues()); It; ++It)
+	for (FKPIValues::TConstIterator It(EditorPerfModule.GetKPIRegistry().GetKPIValues()); It; ++It)
 	{
 		const FKPIValue& KPIValue = It->Value;
 
@@ -541,5 +582,3 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 }
 
 #undef LOCTEXT_NAMESPACE
-
-UE_ENABLE_OPTIMIZATION_SHIP

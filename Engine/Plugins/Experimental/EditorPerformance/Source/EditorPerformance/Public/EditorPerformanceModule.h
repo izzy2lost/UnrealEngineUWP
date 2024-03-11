@@ -36,7 +36,7 @@ public:
 
 	void UpdateKPIs();
 
-	const FKPIValues& GetKPIValues() const;
+	const FKPIRegistry& GetKPIRegistry() const;
 	const FString& GetKPIProfileName() const;
 
 	bool RecordInsightsSnaphshot(const FKPIValue& Value);
