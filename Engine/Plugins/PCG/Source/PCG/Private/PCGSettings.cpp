@@ -545,7 +545,7 @@ void UPCGSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChanged
 	if (PropertyName != GET_MEMBER_NAME_CHECKED(UPCGSettings, DeterminismSettings))
 	{
 		// If we have a property name then get the change type for that property, otherwise assume deepest change type.
-		EPCGChangeType ChangeType = EPCGChangeType::Structural | EPCGChangeType::GenerationGrid;
+		EPCGChangeType ChangeType = EPCGChangeType::Cosmetic | EPCGChangeType::Settings | EPCGChangeType::Structural | EPCGChangeType::GenerationGrid;
 		if (PropertyName != NAME_None)
 		{
 			ChangeType = GetChangeTypeForProperty(PropertyChangedEvent);
