@@ -23,6 +23,11 @@ namespace EpicGames.Horde.Storage.Bundles
 		public int PacketReaderCount { get; set; } = 200;
 
 		/// <summary>
+		/// Size of a bundle page
+		/// </summary>
+		public int BundlePageSize { get; set; } = 1024 * 1024;
+
+		/// <summary>
 		/// Number of bundle pages to keep in the cache.
 		/// </summary>
 		public int BundlePageCount { get; set; } = 500;
@@ -69,6 +74,11 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// Accessor for the default allocator
 		/// </summary>
 		public IMemoryAllocator<byte> Allocator { get; }
+
+		/// <summary>
+		/// Size of a bundle page to keep in the cache
+		/// </summary>
+		public int BundlePageSize => _options.BundlePageSize;
 
 		/// <summary>
 		/// Size of the configured header cache
