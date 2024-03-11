@@ -560,7 +560,7 @@ bool UPCGPointData::ProjectPoint(const FTransform& InTransform, const FBox& InBo
 
 	// Computed weighted average of spatial properties
 	FVector WeightedPosition = FVector::ZeroVector;
-	FQuat WeightedQuat = FQuat::Identity;
+	FQuat WeightedQuat = FQuat(0.0, 0.0, 0.0, 0.0);
 	FVector WeightedScale = FVector::ZeroVector;
 	FVector::FReal WeightedDensity = 0;
 	FVector WeightedBoundsMin = FVector::ZeroVector;

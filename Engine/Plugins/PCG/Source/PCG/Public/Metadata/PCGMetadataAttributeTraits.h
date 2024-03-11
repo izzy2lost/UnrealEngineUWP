@@ -451,6 +451,11 @@ namespace PCG
 			{
 				return T{};
 			}
+
+			static T ZeroValueForWeightedSum()
+			{
+				return ZeroValue();
+			}
 		};
 
 		template <typename T>
@@ -582,7 +587,7 @@ namespace PCG
 
 		// Vector types
 		template<typename T>
-		struct VectorTraits : DefaultOperationTraits<T>, DefaultWeightedSumTraits<T>, DefaultStringTraits<T>
+		struct VectorTraits : DefaultOperationTraits<T>, DefaultStringTraits<T>
 		{
 			enum { CompressData = false };
 			enum { CanMinMax = true };
@@ -598,6 +603,16 @@ namespace PCG
 			static T ZeroValue()
 			{
 				return T::Zero();
+			}
+
+			static T ZeroValueForWeightedSum()
+			{
+				return ZeroValue();
+			}
+
+			static T WeightedSum(const T& A, const T& B, float Weight)
+			{
+				return A + B * Weight;
 			}
 
 			static DistanceType Distance(const T& A, const T& B) 
@@ -785,6 +800,11 @@ namespace PCG
 				return FQuat::Identity;
 			}
 
+			static FQuat ZeroValueForWeightedSum()
+			{
+				return FQuat(0.0, 0.0, 0.0, 0.0);
+			}
+
 			static FQuat::FReal Distance(const FQuat& A, const FQuat& B)
 			{
 				return A.AngularDistance(B);
@@ -840,6 +860,11 @@ namespace PCG
 			static FRotator ZeroValue()
 			{
 				return FRotator::ZeroRotator;
+			}
+
+			static FRotator ZeroValueForWeightedSum()
+			{
+				return ZeroValue();
 			}
 
 			static FRotator::FReal Distance(const FRotator& A, const FRotator& B)
@@ -901,6 +926,11 @@ namespace PCG
 			static FTransform ZeroValue()
 			{
 				return FTransform::Identity;
+			}
+
+			static FTransform ZeroValueForWeightedSum()
+			{
+				return FTransform(FQuat(0.0, 0.0, 0.0, 0.0), FVector::ZeroVector, FVector::ZeroVector);
 			}
 		};
 
