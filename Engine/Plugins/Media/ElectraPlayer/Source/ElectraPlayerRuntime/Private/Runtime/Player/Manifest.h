@@ -272,15 +272,29 @@ namespace Electra
 		 */
 		virtual FTimeRange GetSeekableTimeRange() const = 0;
 
+		enum class EPlaybackRangeType
+		{
+			/**
+			 * Initial playback range as may be defined using `#t=s,e` URL fragment parameter.
+			 * This is used only on first playstart and is canceled when a Seek() is performed.
+			 */
+			TemporaryPlaystartRange,
+			/**
+			 * Fixed playback range that may be defined using `#r=s,e` URL fragment parameter.
+			 * This is a non-standard parameter. The specified range will be locked in place
+			 * and any Seek() can only be performed inside this range.
+			 */
+			LockedPlaybackRange
+		};
 		/**
 		 * Returns the playback range on the timeline, which is a subset of the total
 		 * time range. This may be set through manifest internal means or by URL fragment
 		 * parameters where permissable (eg. example.mp4#t=22,50).
 		 * If start or end are not specified they will be set to invalid.
-		 * 
+		 *
 		 * @return Optionally set time range to which playback is restricted.
 		 */
-		virtual FTimeRange GetPlaybackRange() const = 0;
+		virtual FTimeRange GetPlaybackRange(EPlaybackRangeType InRangeType) const = 0;
 
 		/**
 		 * Returns the timestamps of the segments from the video or audio track (if no video is present).
@@ -556,7 +570,7 @@ namespace Electra
 		{
 			return ValidFrom;
 		}
-		
+
 		TSharedPtrTS<UtilsMP4::FMetadataParser> GetMetadata() const
 		{
 			return Metadata;

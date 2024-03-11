@@ -23,7 +23,7 @@ public:
 	FTimeValue GetAnchorTime() const override;
 	FTimeRange GetTotalTimeRange() const override;
 	FTimeRange GetSeekableTimeRange() const override;
-	FTimeRange GetPlaybackRange() const override;
+	FTimeRange GetPlaybackRange(EPlaybackRangeType InRangeType) const override;
 	void GetSeekablePositions(TArray<FTimespan>& OutPositions) const override;
 	FTimeValue GetDuration() const override;
 	FTimeValue GetDefaultStartTime() const override;

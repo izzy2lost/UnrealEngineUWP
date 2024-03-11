@@ -367,10 +367,10 @@ FTimeRange FManifestDASH::GetSeekableTimeRange() const
 	return Manifest.IsValid() ? Manifest->GetSeekableTimeRange() : FTimeRange();
 }
 
-FTimeRange FManifestDASH::GetPlaybackRange() const
+FTimeRange FManifestDASH::GetPlaybackRange(EPlaybackRangeType InRangeType) const
 {
 	TSharedPtrTS<FManifestDASHInternal> Manifest(CurrentManifest);
-	return Manifest.IsValid() ? Manifest->GetPlayTimesFromURI() : FTimeRange();
+	return Manifest.IsValid() ? Manifest->GetPlayTimesFromURI(InRangeType) : FTimeRange();
 }
 
 void FManifestDASH::GetSeekablePositions(TArray<FTimespan>& OutPositions) const

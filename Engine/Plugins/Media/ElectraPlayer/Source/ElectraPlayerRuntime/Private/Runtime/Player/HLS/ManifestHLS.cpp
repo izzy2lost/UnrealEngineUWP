@@ -168,7 +168,7 @@ FTimeRange FManifestHLS::GetSeekableTimeRange() const
 	}
 	return FTimeRange();
 }
-FTimeRange FManifestHLS::GetPlaybackRange() const
+FTimeRange FManifestHLS::GetPlaybackRange(EPlaybackRangeType /*InRangeType*/) const
 {
 	return FTimeRange();
 }

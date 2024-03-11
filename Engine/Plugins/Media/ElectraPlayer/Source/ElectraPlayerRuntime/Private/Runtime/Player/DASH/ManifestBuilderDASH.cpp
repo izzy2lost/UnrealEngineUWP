@@ -2686,27 +2686,37 @@ void FManifestDASHInternal::EndPresentationAt(const FTimeValue& EndsAt, const FS
 
 void FManifestDASHInternal::PrepareDefaultStartTime()
 {
-	FTimeRange PlaybackRange = GetPlayTimesFromURI();
+	FTimeRange PlaybackRange = GetPlayTimesFromURI(IManifest::EPlaybackRangeType::TemporaryPlaystartRange);
 	DefaultStartTime = PlaybackRange.Start;
 	DefaultEndTime = PlaybackRange.End;
 }
 
 
-FTimeRange FManifestDASHInternal::GetPlayTimesFromURI() const
+FTimeRange FManifestDASHInternal::GetPlayTimesFromURI(IManifest::EPlaybackRangeType InRangeType) const
 {
 	FTimeRange FromTo;
 
-	// We are interested in the 't' and 'period' fragment values here.
+	// We are interested in the 't', 'r' and 'period' fragment values here.
 	FString Time, PeriodID;
 	for(int32 i=0,iMax=URLFragmentComponents.Num(); i<iMax; ++i)
 	{
-		if (URLFragmentComponents[i].Name.Equals(TEXT("t")))
+		if (InRangeType == IManifest::EPlaybackRangeType::TemporaryPlaystartRange)
 		{
-			Time = URLFragmentComponents[i].Value;
+			if (URLFragmentComponents[i].Name.Equals(TEXT("t")))
+			{
+				Time = URLFragmentComponents[i].Value;
+			}
+			else if (URLFragmentComponents[i].Name.Equals(TEXT("period")))
+			{
+				PeriodID = URLFragmentComponents[i].Value;
+			}
 		}
-		else if (URLFragmentComponents[i].Name.Equals(TEXT("period")))
+		else if (InRangeType == IManifest::EPlaybackRangeType::LockedPlaybackRange)
 		{
-			PeriodID = URLFragmentComponents[i].Value;
+			if (URLFragmentComponents[i].Name.Equals(TEXT("r")))
+			{
+				Time = URLFragmentComponents[i].Value;
+			}
 		}
 	}
 	if (Time.IsEmpty() && PeriodID.IsEmpty())

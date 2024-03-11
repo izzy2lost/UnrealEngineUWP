@@ -897,7 +897,7 @@ public:
 	void ClearDefaultStartTime();
 	FTimeValue GetDefaultEndTime() const;
 	void ClearDefaultEndTime();
-	FTimeRange GetPlayTimesFromURI() const;
+	FTimeRange GetPlayTimesFromURI(IManifest::EPlaybackRangeType InRangeType) const;
 	FTimeValue GetDesiredLiveLatency() const;
 
 	FTimeValue GetMPDValidityEndTime() const;

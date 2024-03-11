@@ -6,6 +6,7 @@
 #include "PlayerTime.h"
 #include "StreamTypes.h"
 #include "Containers/Queue.h"
+#include "HAL/PlatformMisc.h"
 
 
 
@@ -943,6 +944,7 @@ public:
 	void ClearEOD()
 	{
 		bIsEOD = false;
+		FPlatformMisc::MemoryBarrier();
 		bReachedEOD = false;
 	}
 
@@ -950,7 +952,7 @@ public:
 	{
 		return bIsEOD;
 	}
-	
+
 	bool ReachedEOD() const
 	{
 		return bReachedEOD;
@@ -961,8 +963,8 @@ private:
 
 	FMediaSemaphore AvailSema;
 	TQueue<T> Elements;
-	bool bIsEOD = false;
-	bool bReachedEOD = false;
+	volatile bool bIsEOD = false;
+	volatile bool bReachedEOD = false;
 };
 
 
