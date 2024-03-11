@@ -28,4 +28,18 @@ public:
 	* @param World
 	*/
 	static void FindQualifyingTetrahedra(const TArray<FString>& Args, UWorld* World);
+
+	/**
+	* Create GeometryCache asset from a cached flesh simulation.
+	* 
+	* Command invoked from "FChaosDeformableCommands.CreateGeometryCache", uses the selected 
+	* Actor's FleshComponent and SkeletalMeshComponent, optionally along with a Chaos Cache Manager.
+	* Deforms the SkeletalMesh's import geometry by the cached simulation results, and stores that
+	* surface in a new GeometryCache asset.  The rest collection asset on the flesh component(s)
+	* needs to contain deformer bindings for the import geometry.
+	* @param Args - Supported arguments:
+	*   'UsdFile </path/to/file.usd>' overrides which usd file to use, rather than inferring it from a chaos cache manager.
+	*/
+	static void CreateGeometryCache(const TArray<FString>& Args, UWorld* World);
+
 };

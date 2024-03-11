@@ -32,6 +32,8 @@ uint ReadNumVertices_{DataInterfaceName}(uint Index)
 	return {DataInterfaceName}_NumVertices;
 }
 
+#define ENABLE_DEFORMER_FLESH 1 // for syntax highlighting
+
 //
 // Tet mesh points, rest and dynamic 
 //
@@ -228,7 +230,7 @@ half ReadMask_{DataInterfaceName}(uint VertexIndex)
 float3x3 GetTangentBasis( float3 TangentZ )
 {
     const float Sign = TangentZ.z >= 0 ? 1 : -1;
-    const float a = -rcp( Sign + TangentZ.z );
+	const float a = -rcp( Sign + TangentZ.z );
     const float b = TangentZ.x * TangentZ.y * a;
 
     float3 TangentX = { 1 + Sign * a * Pow2( TangentZ.x ), Sign * b, -Sign * TangentZ.x };

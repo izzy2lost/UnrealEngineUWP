@@ -472,7 +472,8 @@ namespace Chaos
 		}
 	}
 
-	FString GetCacheDirectory(const FObservedComponent& InObserved)
+#if USE_USD_SDK && DO_USD_CACHING
+	FString FFleshCacheAdapter::GetUSDCacheDirectory(const FObservedComponent& InObserved)
 	{
 		// USDCacheDirectory is relative to the content dir, but with "/Game" rather than just "/" or some relative path.
 		FString CacheDir = InObserved.USDCacheDirectory.Path;
@@ -488,7 +489,7 @@ namespace Chaos
 		return CacheDir;
 	}
 
-	FString GetCacheFileName(const UFleshComponent* FleshComp)
+	FString FFleshCacheAdapter::GetUSDCacheFileName(const UDeformablePhysicsComponent* FleshComp)
 	{
 		const UObject* CurrObject = FleshComp;
 		const AActor* Actor = nullptr;
@@ -514,6 +515,49 @@ namespace Chaos
 		return CompName;
 	}
 
+	FString FFleshCacheAdapter::GetUSDCacheFilePathRO(
+		const FObservedComponent& InObserved, 
+		const UDeformablePhysicsComponent* FleshComp)
+	{
+		FString CacheDir = GetUSDCacheDirectory(InObserved);
+		FString CompName = GetUSDCacheFileName(FleshComp);
+		FString PrimPath = UsdUtils::GetPrimPathForObject(FleshComp);
+
+		// Look for an existing file of a supported format.
+		TArray<FString> SupportedFormats = UnrealUSDWrapper::GetNativeFileFormats();
+		for (const FString& Ext : SupportedFormats)
+		{
+			FString FileName = FString::Printf(TEXT("%s.%s"), *CompName, *Ext);
+			FString FilePath = FPaths::Combine(CacheDir, FileName);
+			if (FPaths::FileExists(FilePath))
+			{
+				return FilePath;
+			}
+		}
+
+		// Fall back on the format we're currently set to write.
+		FString Ext = CVarParams.bWriteBinary ? FString(TEXT("usd")) : FString(TEXT("usda"));
+		FString FileName = FString::Printf(TEXT("%s.%s"), *CompName, *Ext);
+		FString FilePath = FPaths::Combine(CacheDir, FileName);
+
+		return FilePath;
+	}
+
+	FString FFleshCacheAdapter::GetUSDCacheFilePathRW(
+		const FObservedComponent& InObserved,
+		const UDeformablePhysicsComponent* FleshComp)
+	{
+		FString CacheDir = GetUSDCacheDirectory(InObserved);
+		FString CompName = GetUSDCacheFileName(FleshComp);
+		FString PrimPath = UsdUtils::GetPrimPathForObject(FleshComp);
+		FString Ext = CVarParams.bWriteBinary ? FString(TEXT("usd")) : FString(TEXT("usda"));
+		FString FileName = FString::Printf(TEXT("%s.%s"), *CompName, *Ext);
+		FString FilePath = FPaths::Combine(CacheDir, FileName);
+
+		return FilePath;
+	}
+#endif // USE_USD_SDK && DO_USD_CACHING
+
 	bool FFleshCacheAdapter::InitializeForRecord(UPrimitiveComponent* InComponent, FObservedComponent& InObserved)
 	{
 		if( FDeformableSolver* Solver = GetDeformableSolver(InComponent))
@@ -529,8 +573,8 @@ namespace Chaos
 				// USD caching
 				//
 
-				FString CompName = GetCacheFileName(FleshComp);
-				FString CacheDir = GetCacheDirectory(InObserved);
+				FString CompName = GetUSDCacheFileName(FleshComp);
+				FString CacheDir = GetUSDCacheDirectory(InObserved);
 				FPlatformFileManager& FileManager = FPlatformFileManager::Get();
 				IPlatformFile& PlatformFile = FileManager.GetPlatformFile();
 				if (!PlatformFile.DirectoryExists(*CacheDir))
@@ -617,7 +661,7 @@ namespace Chaos
 		{
 			FDeformableSolver::FGameThreadAccess GameThreadAccess(Solver, Softs::FGameThreadAccessor());
 			GameThreadAccess.SetEnableSolver(false);
-			if (UFleshComponent* FleshComp = CastChecked<UFleshComponent>(InComponent))
+			if (UDeformableTetrahedralComponent* FleshComp = CastChecked<UDeformableTetrahedralComponent>(InComponent))
 			{
 				FleshComp->ResetDynamicCollection();
 
@@ -626,15 +670,11 @@ namespace Chaos
 				// USD caching
 				//
 
-				FString CacheDir = GetCacheDirectory(InObserved);
-				FString CompName = GetCacheFileName(FleshComp);
 				PrimPath = UsdUtils::GetPrimPathForObject(FleshComp);
 				if (bUseMonolith)
 				{
 					bReadOnly = true;
-					FString Ext = CVarParams.bWriteBinary ? FString(TEXT("usd")) : FString(TEXT("usda"));
-					FString FileName = FString::Printf(TEXT("%s.%s"), *CompName, *Ext);
-					FilePath = FPaths::Combine(CacheDir, FileName);
+					FilePath = GetUSDCacheFilePathRO(InObserved, FleshComp);
 
 					FPlatformFileManager& FileManager = FPlatformFileManager::Get();
 					IPlatformFile& PlatformFile = FileManager.GetPlatformFile();

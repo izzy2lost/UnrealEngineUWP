@@ -60,6 +60,7 @@ struct FObservedComponent
 		bIsSimulating = OtherComponent.bIsSimulating;
 		bHasNotifyBreaks = OtherComponent.bHasNotifyBreaks;
 		bPlaybackEnabled = OtherComponent.bPlaybackEnabled;
+		USDCacheDirectory = OtherComponent.USDCacheDirectory;
 		bTriggered = OtherComponent.bTriggered;
 		AbsoluteTime = OtherComponent.AbsoluteTime;
 		TimeSinceTrigger = OtherComponent.TimeSinceTrigger;
@@ -75,6 +76,7 @@ struct FObservedComponent
 		bIsSimulating = OtherComponent.bIsSimulating;
 		bHasNotifyBreaks = OtherComponent.bHasNotifyBreaks;
 		bPlaybackEnabled = OtherComponent.bPlaybackEnabled;
+		USDCacheDirectory = OtherComponent.USDCacheDirectory;
 		bTriggered = OtherComponent.bTriggered;
 		AbsoluteTime = OtherComponent.AbsoluteTime;
 		TimeSinceTrigger = OtherComponent.TimeSinceTrigger;

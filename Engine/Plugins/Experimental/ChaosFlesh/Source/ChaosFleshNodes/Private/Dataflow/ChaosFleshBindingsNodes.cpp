@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/ChaosFleshBindingsNodes.h"
+#include "Dataflow/DataflowInputOutput.h"
+#include "Dataflow/DataflowNodeFactory.h"
 
 #include "Chaos/AABBTree.h"
 #include "Chaos/BoundingVolumeHierarchy.h"
@@ -9,10 +11,13 @@
 #include "ChaosFlesh/TetrahedralCollection.h"
 #include "Containers/Map.h"
 #include "Engine/StaticMesh.h"
-#include "Dataflow/DataflowInputOutput.h"
 #include "Engine/SkeletalMesh.h"
-#include "Dataflow/DataflowNodeFactory.h"
 #include "GeometryCollection/Facades/CollectionTetrahedralBindingsFacade.h"
+#include "IndexTypes.h"
+#include "MeshDescription.h"
+#include "MeshDescriptionToDynamicMesh.h"
+#include "Rendering/SkeletalMeshLODModel.h"
+#include "Rendering/SkeletalMeshModel.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "UObject/PrimaryAssetId.h"
 
@@ -24,6 +29,27 @@ namespace Dataflow
 	void ChaosFleshBindingsNodes()
 	{
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGenerateSurfaceBindings);
+	}
+}
+
+void
+BuildVertexToVertexAdjacencyBuffer(
+	const UE::Geometry::FDynamicMesh3 DynamicMesh,
+	TArray<TArray<uint32>>& NeighborNodes)
+{
+	NeighborNodes.SetNum(DynamicMesh.VertexCount());
+	for (int i = 0; i < DynamicMesh.TriangleCount(); i++)
+	{
+		const UE::Geometry::FIndex3i& Tri = DynamicMesh.GetTriangle(i);
+		TArray<uint32>& N0 = NeighborNodes[Tri[0]];
+		N0.AddUnique(Tri[1]);
+		N0.AddUnique(Tri[2]);
+		TArray<uint32>& N1 = NeighborNodes[Tri[1]];
+		N1.AddUnique(Tri[0]);
+		N1.AddUnique(Tri[2]);
+		TArray<uint32>& N2 = NeighborNodes[Tri[2]];
+		N2.AddUnique(Tri[0]);
+		N2.AddUnique(Tri[1]);
 	}
 }
 
@@ -154,50 +180,85 @@ FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowO
 			if (SkeletalMesh)
 			{
 				FPrimaryAssetId Id = SkeletalMesh->GetPrimaryAssetId();
-				if (Id.IsValid())
-				{
-					MeshId = Id.ToString();
-				}
-				else
-				{
-					MeshId = SkeletalMesh->GetName();
-				}
+				MeshId = GeometryCollection::Facades::FTetrahedralBindings::GetMeshId(SkeletalMesh, bUseSkeletalMeshImportModel);
 
-				FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
-
-				MeshVertices.SetNum(RenderData->LODRenderData.Num());
-				MeshNeighborNodes.SetNum(RenderData->LODRenderData.Num());
-				for (int32 i = 0; i < RenderData->LODRenderData.Num(); i++)
+				if (!bUseSkeletalMeshImportModel)
 				{
-					FSkeletalMeshLODRenderData* LODRenderData = &RenderData->LODRenderData[i];
-					const FPositionVertexBuffer& PositionVertexBuffer =
-						LODRenderData->StaticVertexBuffers.PositionVertexBuffer;
+					FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
 
-					TArray<FVector3f>& Vertices = MeshVertices[i];
-					Vertices.SetNumUninitialized(PositionVertexBuffer.GetNumVertices());
-					for (uint32 j = 0; j < PositionVertexBuffer.GetNumVertices(); j++)
+					MeshVertices.SetNum(RenderData->LODRenderData.Num());
+					MeshNeighborNodes.SetNum(RenderData->LODRenderData.Num());
+					for (int32 i = 0; i < RenderData->LODRenderData.Num(); i++)
 					{
-						const FVector3f& Pos = PositionVertexBuffer.VertexPosition(j);
-						Vertices[j] = Pos;
+						FSkeletalMeshLODRenderData* LODRenderData = &RenderData->LODRenderData[i];
+						const FPositionVertexBuffer& PositionVertexBuffer =
+							LODRenderData->StaticVertexBuffers.PositionVertexBuffer;
+
+						TArray<FVector3f>& Vertices = MeshVertices[i];
+						Vertices.SetNumUninitialized(PositionVertexBuffer.GetNumVertices());
+						for (uint32 j = 0; j < PositionVertexBuffer.GetNumVertices(); j++)
+						{
+							const FVector3f& Pos = PositionVertexBuffer.VertexPosition(j);
+							Vertices[j] = Pos;
+						}
+
+						TArray<TArray<uint32>>& NeighborNodes = MeshNeighborNodes[i];
+						BuildVertexToVertexAdjacencyBuffer(*LODRenderData, NeighborNodes);
+					}
+				}
+#if WITH_EDITOR
+				else // Import Model
+				{
+					const int32 LODIndex = 0;
+					MeshVertices.SetNum(1);
+					MeshNeighborNodes.SetNum(1);
+
+					// Check first if we have bulk data available and non-empty.
+					FMeshDescription SourceMesh;
+#if WITH_EDITORONLY_DATA
+					if (SkeletalMesh->HasMeshDescription(LODIndex))
+					{
+						// @todo(brice) : Confirm correct in release 5.4
+						//FSkeletalMeshImportData SkeletalMeshImportData;
+						//SkeletalMesh->LoadLODImportedData(LODIndex, SkeletalMeshImportData);
+						//FSkeletalMeshBuildSettings Settings;
+						//SkeletalMeshImportData.GetMeshDescription(SkeletalMesh, &Settings, SourceMesh);
+						SkeletalMesh->CloneMeshDescription(LODIndex, SourceMesh);
+					}
+					else
+#endif
+					{
+						// Fall back on the LOD model directly if no bulk data exists. When we commit
+						// the mesh description, we override using the bulk data. This can happen for older
+						// skeletal meshes, from UE 4.24 and earlier.
+						const FSkeletalMeshModel* SkeletalMeshModel = SkeletalMesh->GetImportedModel();
+						if (SkeletalMeshModel && SkeletalMeshModel->LODModels.IsValidIndex(LODIndex))
+						{
+							SkeletalMeshModel->LODModels[LODIndex].GetMeshDescription(SkeletalMesh, LODIndex, SourceMesh);
+						}
 					}
 
-					TArray<TArray<uint32>>& NeighborNodes = MeshNeighborNodes[i];
-					BuildVertexToVertexAdjacencyBuffer(*LODRenderData, NeighborNodes);
+					UE::Geometry::FDynamicMesh3 DynamicMesh;
+					FMeshDescriptionToDynamicMesh Converter;
+					Converter.Convert(&SourceMesh, DynamicMesh);
+
+					//const FVertexArray& SourceVertices = SourceMesh.Vertices();
+					TArray<FVector3f>& Vertices = MeshVertices[LODIndex];
+					Vertices.SetNumUninitialized(DynamicMesh.VertexCount());
+					for (int32 j = 0; j < DynamicMesh.VertexCount(); j++)
+					{
+						const FVector3d& Pos = DynamicMesh.GetVertex(j);
+						Vertices[j].Set(Pos[0], Pos[1], Pos[2]);
+					}
+
+					TArray<TArray<uint32>>& NeighborNodes = MeshNeighborNodes[LODIndex];
+					BuildVertexToVertexAdjacencyBuffer(DynamicMesh, NeighborNodes);
 				}
+#endif
 			}
 			else // StaticMesh
 			{
-				//StaticMesh->GetMeshId(MeshId); // not available at runtime!
-				//MeshId = RenderData->DerivedDataKey; // same problem
-				FPrimaryAssetId Id = StaticMesh->GetPrimaryAssetId();
-				if (Id.IsValid())
-				{
-					MeshId = Id.ToString();
-				}
-				else
-				{
-					MeshId = StaticMesh->GetName();
-				}
+				MeshId = GeometryCollection::Facades::FTetrahedralBindings::GetMeshId(StaticMesh);
 
 				const FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
 				const int32 NumLOD = RenderData->LODResources.Num();
@@ -532,14 +593,16 @@ FGenerateSurfaceBindings::Evaluate(Dataflow::FContext& Context, const FDataflowO
 
 					//ELogVerbosity::Type Verbosity = Orphans.Num() > 0 ? ELogVerbosity::Error : ELogVerbosity::Display;
 					UE_LOG(LogMeshBindings, Display,
-						TEXT("'%s' - Generated mesh bindings between tet mesh index %d and render mesh of '%s' LOD %d - stats:\n"
+						TEXT("'%s' - Generated mesh bindings between tet mesh index %d and %s mesh of '%s' LOD %d - stats:\n"
 							"    Render vertices num: %d\n"
 							"    Vertices in tetrahedra: %d\n"
 							"    Vertices bound to tet surface: %d\n"
 							"    Orphaned vertices reparented: %d\n"
 							"    Vertices orphaned: %d"),
 						*GetName().ToString(),
-						TetMeshIdx, *MeshId, LOD,
+						TetMeshIdx, 
+						bUseSkeletalMeshImportModel ? TEXT("import") : TEXT("render"),
+						*MeshId, LOD,
 						MeshVertices[LOD].Num(), TetHits, TriHits, Adoptions, NumOrphans);
 
 				} // end for all LOD

@@ -10,6 +10,8 @@
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/ManagedArray.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
+#include "HAL/PlatformFile.h"
+#include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
 
 #include "UnrealUSDWrapper.h"
@@ -91,8 +93,13 @@ UE::ChaosCachingUSD::OpenStage(const FString& StageName, UE::FUsdStage& UsdStage
 {
 	if (!FPaths::FileExists(StageName))
 	{
-		UE_LOG(LogUsd, Error, TEXT("File not found: '%s'"), *StageName);
-		return false;
+		FPlatformFileManager& FileManager = FPlatformFileManager::Get();
+		IPlatformFile& PlatformFile = FileManager.GetPlatformFile();
+		if (!PlatformFile.FileExists(*StageName))
+		{
+			UE_LOG(LogUsd, Error, TEXT("File not found: '%s'"), *StageName);
+			return false;
+		}
 	}
 
 	// USD caches all stages you open/create, unless you tell it not to.
@@ -746,6 +753,33 @@ UE::ChaosCachingUSD::ReadPoints(
 		Time == -TNumericLimits<double>::Max() ? pxr::UsdTimeCode::Default() : pxr::UsdTimeCode(Time));
 
 	return true;
+}
+
+bool 
+UE::ChaosCachingUSD::ReadPoints(
+	const UE::FUsdStage& Stage,
+	const FString& PrimPath,
+	const FString& AttrPath,
+	const double Time,
+	TArray<Chaos::TVector<Chaos::FRealSingle, 3>>& Points)
+{
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
+	pxr::VtArray<pxr::GfVec3f> VtPoints;
+	if (ReadPoints(Stage, PrimPath, AttrPath, Time, VtPoints))
+	{
+		{
+			FScopedUnrealAllocs UEAllocs; // Use UE memory allocator
+			Points.SetNum(VtPoints.size());
+		}
+		int32 i = 0;
+		for (pxr::VtArray<pxr::GfVec3f>::const_iterator it = VtPoints.cbegin(), itEnd = VtPoints.cend(); it != itEnd; ++it)
+		{
+			const pxr::GfVec3f& Pt = *it;
+			Points[i++].Set(Pt[0], Pt[1], Pt[2]);
+		}
+		return true;
+	}
+	return false;
 }
 
 bool

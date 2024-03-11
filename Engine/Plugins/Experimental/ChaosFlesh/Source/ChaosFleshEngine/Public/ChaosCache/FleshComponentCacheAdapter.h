@@ -25,6 +25,7 @@ namespace Chaos::Softs
 	class FPBDEvolution;
 	class FSolverParticles;
 }
+class UDeformablePhysicsComponent;
 
 namespace Chaos
 {
@@ -45,6 +46,13 @@ namespace Chaos
 		typedef Chaos::Softs::FDeformableSolver FDeformableSolver;
 		typedef Chaos::Softs::FPBDEvolution FEvolution;
 		typedef Chaos::Softs::FSolverParticles FParticles;
+
+#if USE_USD_SDK && DO_USD_CACHING
+		static CHAOSFLESHENGINE_API FString GetUSDCacheDirectory(const FObservedComponent& InObserved);
+		static CHAOSFLESHENGINE_API FString GetUSDCacheFileName(const UDeformablePhysicsComponent* FleshComp);
+		static CHAOSFLESHENGINE_API FString GetUSDCacheFilePathRO(const FObservedComponent& InObserved, const UDeformablePhysicsComponent* FleshComp);
+		static CHAOSFLESHENGINE_API FString GetUSDCacheFilePathRW(const FObservedComponent& InObserved, const UDeformablePhysicsComponent* FleshComp);
+#endif // USE_USD_SDK && DO_USD_CACHING
 
 		virtual ~FFleshCacheAdapter();
 
