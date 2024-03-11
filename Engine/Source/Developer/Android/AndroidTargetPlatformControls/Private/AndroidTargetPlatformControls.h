@@ -30,12 +30,10 @@ class IAndroidDeviceDetection;
 class ITargetPlatform;
 class UTextureLODSettings;
 enum class ETargetPlatformFeatures;
-template<typename TPlatformProperties> class TTargetPlatformBase;
 
 template< typename InElementType, typename KeyFuncs, typename Allocator > class TSet;
 template<typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs > class TMap;
 template<typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs > class TMultiMap;
-template<typename TPlatformProperties> class TTargetPlatformBase;
 
 /**
  * FAndroidTargetPlatformControls, abstraction for cooking Android platforms

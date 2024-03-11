@@ -51,7 +51,6 @@ class UTexture;
 class UTextureLODSettings;
 struct FAndroidDeviceInfo;
 enum class ETargetPlatformFeatures;
-template<typename TPlatformProperties> class TTargetPlatformBase;
 
 static FString GetLicensePath()
 {

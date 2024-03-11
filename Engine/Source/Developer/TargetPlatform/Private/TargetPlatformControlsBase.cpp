@@ -260,7 +260,7 @@ FTargetPlatformControlsBase::FTargetPlatformControlsBase(const PlatformInfo::FTa
 	: ITargetPlatformControls(TargetPlatformSettings)
 	, PlatformInfo(InPlatformInfo)
 {
-	checkf(PlatformInfo, TEXT("Null PlatformInfo was passed to FTargetPlatformBase. Check the static IsUsable function before creating this object. See FWindowsTargetPlatformModule::GetTargetPlatform()"));
+	checkf(PlatformInfo, TEXT("Null PlatformInfo was passed to FTargetPlatformControlsBase. Check the static IsUsable function before creating this object. See FWindowsTargetPlatformModule::GetTargetPlatform()"));
 
 	PlatformOrdinal = AssignPlatformOrdinal(*this);
 

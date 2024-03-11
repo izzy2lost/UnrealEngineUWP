@@ -36,7 +36,7 @@ namespace Audio
 /**
  * Base class for target platforms.
  */
-class FTargetPlatformBase
+class UE_DEPRECATED(5.5, "FTargetPlatformBase is deprecated, please use FTargetPlatformControlsBase(SDK required to build) or FTargetPlatformSettingsBase(no SDK required).") FTargetPlatformBase
 	: public ITargetPlatform
 {
 public:
@@ -317,7 +317,7 @@ private:
  * @param TPlatformProperties Type of platform properties.
  */
 template<typename TPlatformProperties>
-class TTargetPlatformBase
+class UE_DEPRECATED(5.5, "TTargetPlatformBase is deprecated, please use TTargetPlatformControlsBase(SDK required to build) or TTargetPlatformSettingsBase(no SDK required).") TTargetPlatformBase
 	: public FTargetPlatformBase
 {
 public:
@@ -549,7 +549,7 @@ public:
 
 
 template<typename TPlatformProperties>
-class TNonDesktopTargetPlatformBase 
+class UE_DEPRECATED(5.5, "TNonDesktopTargetPlatformBase is deprecated, please use TNonDesktopTargetPlatformControlsBase.") TNonDesktopTargetPlatformBase
 	: public TTargetPlatformBase<TPlatformProperties>
 {
 public:

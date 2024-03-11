@@ -16,6 +16,8 @@
 
 #define LOCTEXT_NAMESPACE "TargetPlatform"
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 bool FTargetPlatformBase::UsesForwardShading() const
 {
 	static IConsoleVariable* CVarForwardShading = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ForwardShading"));
@@ -408,5 +410,7 @@ void FTargetPlatformBase::GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, 
 }
 
 #endif // WITH_ENGINE
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #undef LOCTEXT_NAMESPACE
