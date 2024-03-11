@@ -26,7 +26,7 @@ FAdaptiveStreamingPlayer *FAdaptiveStreamingPlayer::PointerToLatestPlayer;
 
 TSharedPtr<IAdaptiveStreamingPlayer, ESPMode::ThreadSafe> IAdaptiveStreamingPlayer::Create(const IAdaptiveStreamingPlayer::FCreateParam& InCreateParameters)
 {
-	return MakeShared<FAdaptiveStreamingPlayer, ESPMode::ThreadSafe>(InCreateParameters);
+	return MakeShareable(new FAdaptiveStreamingPlayer(InCreateParameters), FAdaptiveStreamingPlayer::TDeleter());
 }
 
 void IAdaptiveStreamingPlayer::DebugHandle(void* pPlayer, void (*debugDrawPrintf)(void* pPlayer, const char *pFmt, ...))
@@ -74,6 +74,7 @@ FAdaptiveStreamingPlayer::FAdaptiveStreamingPlayer(const IAdaptiveStreamingPlaye
 		AudioRender.Renderer = CreateWrappedRenderer(InCreateParameters.AudioRenderer, EStreamType::Audio);
 	}
 	ExternalPlayerGUID		= InCreateParameters.ExternalPlayerGUID;
+	UseSharedWorkerThreads  = InCreateParameters.WorkerThreads;
 	ManifestType			= EMediaFormatType::Unknown;
 	CurrentState   		    = EPlayerState::eState_Idle;
 	PipelineState  		    = EPipelineState::ePipeline_Stopped;
@@ -134,7 +135,6 @@ FAdaptiveStreamingPlayer::FAdaptiveStreamingPlayer(const IAdaptiveStreamingPlaye
 
 	TMediaInterlockedExchangePointer(PointerToLatestPlayer, this);
 
-	bUseSharedWorkerThread = true;
 	StartWorkerThread();
 }
 
@@ -509,11 +509,11 @@ void FAdaptiveStreamingPlayer::StartWorkerThread()
 	// Get us an event dispatcher and add ourselves to the shared worker thread.
 	if (!EventDispatcher.IsValid())
 	{
-		EventDispatcher = FAdaptiveStreamingPlayerEventHandler::Create();
+		EventDispatcher = FAdaptiveStreamingPlayerEventHandler::Create(UseSharedWorkerThreads != IAdaptiveStreamingPlayer::FCreateParam::EWorkerThreads::DedicatedWorkerAndEventDispatch);
 	}
 	if (!SharedWorkerThread.IsValid())
 	{
-		SharedWorkerThread = FAdaptiveStreamingPlayerWorkerThread::Create(bUseSharedWorkerThread);
+		SharedWorkerThread = FAdaptiveStreamingPlayerWorkerThread::Create(UseSharedWorkerThreads == IAdaptiveStreamingPlayer::FCreateParam::EWorkerThreads::Shared);
 		WorkerThread.SetSharedWorkerThread(SharedWorkerThread);
 		SharedWorkerThread->AddPlayerInstance(this);
 	}
@@ -1726,7 +1726,7 @@ void FAdaptiveStreamingPlayer::HandleSeeking()
 		return;
 	}
 
-	// When playing the last successfully seeked position is irrelevant and cannot be used as a reference any more.
+	// When playing, the last successfully seeked position is irrelevant and cannot be used as a reference any more.
 	if (PlaybackState.GetIsPlaying())
 	{
 		SeekVars.InvalidateLastFinished();
@@ -1738,7 +1738,8 @@ void FAdaptiveStreamingPlayer::HandleSeeking()
 	{
 		// If there is an active request and the new request is for scrubbing we let the active request finish first.
 		bool bIsForScrubbing = SeekVars.PendingRequest.GetValue().bOptimizeForScrubbing.Get(PlayerOptions.GetValue(OptionKeyFrameOptimizeSeekForScrubbing).SafeGetBool(false));
-		if (SeekVars.ActiveRequest.IsSet() && bIsForScrubbing)
+		bool bNewScrubSeekCancelsCurrent = PlayerOptions.GetValue(OptionKeyNewScrubbingSeekCancelsCurrent).SafeGetBool(false);
+		if (SeekVars.ActiveRequest.IsSet() && bIsForScrubbing && !bNewScrubSeekCancelsCurrent)
 		{
 			return;
 		}
@@ -5057,18 +5058,27 @@ void FAdaptiveStreamingPlayerWorkerThread::WorkerThreadFN()
 TWeakPtrTS<FAdaptiveStreamingPlayerEventHandler>	FAdaptiveStreamingPlayerEventHandler::SingletonSelf;
 FCriticalSection									FAdaptiveStreamingPlayerEventHandler::SingletonLock;
 
-TSharedPtrTS<FAdaptiveStreamingPlayerEventHandler> FAdaptiveStreamingPlayerEventHandler::Create()
+TSharedPtrTS<FAdaptiveStreamingPlayerEventHandler> FAdaptiveStreamingPlayerEventHandler::Create(bool bUseSharedWorkerThread)
 {
-	FScopeLock lock(&SingletonLock);
-	TSharedPtrTS<FAdaptiveStreamingPlayerEventHandler> Self = SingletonSelf.Pin();
-	if (!Self.IsValid())
+	if (bUseSharedWorkerThread)
+	{
+		FScopeLock lock(&SingletonLock);
+		TSharedPtrTS<FAdaptiveStreamingPlayerEventHandler> Self = SingletonSelf.Pin();
+		if (!Self.IsValid())
+		{
+			FAdaptiveStreamingPlayerEventHandler* Handler = new FAdaptiveStreamingPlayerEventHandler;
+			Handler->StartWorkerThread();
+			Self = MakeShareable(Handler);
+			SingletonSelf = Self;
+		}
+		return Self;
+	}
+	else
 	{
 		FAdaptiveStreamingPlayerEventHandler* Handler = new FAdaptiveStreamingPlayerEventHandler;
 		Handler->StartWorkerThread();
-		Self = MakeShareable(Handler);
-		SingletonSelf = Self;
+		return MakeShareable(Handler);
 	}
-	return Self;
 }
 
 void FAdaptiveStreamingPlayerEventHandler::DispatchEvent(TSharedPtrTS<FMetricEvent> InEvent)

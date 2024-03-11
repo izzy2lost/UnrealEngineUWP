@@ -87,13 +87,17 @@ struct FMediaSectionPreRollExecutionToken
 		// open the media source if necessary
 		if (MediaPlayer->GetUrl().IsEmpty())
 		{
+			FMediaPlayerOptions Options;
+			Options.SetAllAsOptional();
+
 			if (PlayerProxyInterface != nullptr)
 			{
 				MediaSource->SetCacheSettings(PlayerProxyInterface->GetCacheSettings());
 			}
-			
 			SectionData.SeekOnOpen(StartTime);
-			MediaPlayer->OpenSource(MediaSource);
+
+			Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::Environment(), MediaPlayerOptionValues::Environment_Sequencer());
+			MediaPlayer->OpenSourceWithOptions(MediaSource, Options);
 			return;
 		}
 
@@ -176,15 +180,19 @@ struct FMediaSectionExecutionToken
 		// open the media source if necessary
 		if (MediaPlayer->GetUrl().IsEmpty() || bCacheSettingsChanged)
 		{
+			FMediaPlayerOptions Options;
+			Options.SetAllAsOptional();
+
 			if (PlayerProxyInterface != nullptr)
 			{
 				MediaSource->SetCacheSettings(PlayerProxyInterface->GetCacheSettings());
 			}
 			SectionData.SeekOnOpen(CurrentTime);
+
+			Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::Environment(), MediaPlayerOptionValues::Environment_Sequencer());
 			// Setup an initial blocking range - MediaFramework will block (even through the opening process) in its next tick...
 			MediaPlayer->SetBlockOnTimeRange(TRange<FTimespan>(CurrentTime, CurrentTime + FrameDuration));
-			MediaPlayer->OpenSource(MediaSource);
-
+			MediaPlayer->OpenSourceWithOptions(MediaSource, Options);
 			return;
 		}
 

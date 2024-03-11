@@ -1400,7 +1400,7 @@ const TRange<FMediaTimeStamp>& FMediaPlayerFacade::FBlockOnRange::GetRange() con
 					// Yes. Adjust the base secondary index value to guarantee a simple continuation of the secondary index values
 					int32 LastLoopIdxS = (int32)FMath::FloorToInt(LastTimeRange.GetLowerBoundValue().GetTotalSeconds() / Duration.GetTotalSeconds());
 					// -LoopIdxS -> Compensate for new start index
-					// +LastLoopIdxS + 1 -> Move index one beyond last 
+					// +LastLoopIdxS + 1 -> Move index one beyond last
 					OnBlockSecondaryIndexOffset = -LoopIdxS + LastLoopIdxS - 1;
 				}
 			}
@@ -1994,13 +1994,16 @@ void FMediaPlayerFacade::SelectDefaultTracks()
 		// If overrides are set, use them.
 		if (ActivePlayerOptions.IsSet())
 		{
-			FMediaPlayerTrackOptions TrackOptions;
-			TrackOptions = ActivePlayerOptions.GetValue().Tracks;
-			TrackSelection.UserSelection[(int32)EMediaTrackType::Audio] = TrackOptions.Audio;
-			TrackSelection.UserSelection[(int32)EMediaTrackType::Caption] = TrackOptions.Caption;
-			TrackSelection.UserSelection[(int32)EMediaTrackType::Metadata] = TrackOptions.Metadata;
-			TrackSelection.UserSelection[(int32)EMediaTrackType::Subtitle] = TrackOptions.Subtitle;
-			TrackSelection.UserSelection[(int32)EMediaTrackType::Video] = TrackOptions.Video;
+			if (ActivePlayerOptions.GetValue().TrackSelection == EMediaPlayerOptionTrackSelectMode::UseTrackOptionIndices)
+			{
+				FMediaPlayerTrackOptions TrackOptions;
+				TrackOptions = ActivePlayerOptions.GetValue().Tracks;
+				TrackSelection.UserSelection[(int32)EMediaTrackType::Audio] = TrackOptions.Audio;
+				TrackSelection.UserSelection[(int32)EMediaTrackType::Caption] = TrackOptions.Caption;
+				TrackSelection.UserSelection[(int32)EMediaTrackType::Metadata] = TrackOptions.Metadata;
+				TrackSelection.UserSelection[(int32)EMediaTrackType::Subtitle] = TrackOptions.Subtitle;
+				TrackSelection.UserSelection[(int32)EMediaTrackType::Video] = TrackOptions.Video;
+			}
 		}
 	}
 	else
@@ -2008,7 +2011,10 @@ void FMediaPlayerFacade::SelectDefaultTracks()
 		FMediaPlayerTrackOptions TrackOptions;
 		if (ActivePlayerOptions.IsSet())
 		{
-			TrackOptions = ActivePlayerOptions.GetValue().Tracks;
+			if (ActivePlayerOptions.GetValue().TrackSelection == EMediaPlayerOptionTrackSelectMode::UseTrackOptionIndices)
+			{
+				TrackOptions = ActivePlayerOptions.GetValue().Tracks;
+			}
 		}
 
 		TrackSelection.UserSelection[(int32)EMediaTrackType::Audio] = TrackOptions.Audio;
@@ -3020,12 +3026,12 @@ bool FMediaPlayerFacade::IsVideoSampleStillGood(const TRange<FMediaTimeStamp>& L
 																	: TRange<FMediaTimeStamp>(LastSampleTimeRange0.GetLowerBoundValue() - LastSampleTimeRange0.Size<FMediaTimeStamp>().Time, LastSampleTimeRange0.GetLowerBoundValue());
 
 			// Note: Loops (or the end of the time line in non-looping setups)
-			// 
+			//
 			// - We could check for them and generate proper changes to the sequence index
 			// - Doing this would leave us with quite complex setups to compute the coverage
 			// - We opt for a cleaner, simpler approach: as we are NOT interested into proper PTS values, we can safely work with an "infinite" time line when computing any overlaps, coverage and such
 			//   (note: we DO need to restrict the range to the actual media duration if not looping - the code above does this)
-			// 
+			//
 			// --> we simply keep what we compute above!
 			//
 

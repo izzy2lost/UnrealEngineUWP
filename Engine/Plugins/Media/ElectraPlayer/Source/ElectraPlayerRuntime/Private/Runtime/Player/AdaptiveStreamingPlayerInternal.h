@@ -946,7 +946,7 @@ private:
 class FAdaptiveStreamingPlayerEventHandler
 {
 public:
-	static TSharedPtrTS<FAdaptiveStreamingPlayerEventHandler> Create();
+	static TSharedPtrTS<FAdaptiveStreamingPlayerEventHandler> Create(bool bUseSharedWorkerThread);
 
 	void DispatchEvent(TSharedPtrTS<FMetricEvent> InEvent);
 
@@ -973,6 +973,19 @@ class FAdaptiveStreamingPlayer : public IAdaptiveStreamingPlayer
 							   , public IAdaptiveStreamSelector::IPlayerLiveControl
 {
 public:
+	class TDeleter
+	{
+	public:
+		void operator()(FAdaptiveStreamingPlayer* InInstanceToDelete)
+		{
+			TFunction<void()> DeleteTask = [InInstanceToDelete]()
+			{
+				delete InInstanceToDelete;
+			};
+			FMediaRunnable::EnqueueAsyncTask(MoveTemp(DeleteTask));
+		}
+	};
+
 	FAdaptiveStreamingPlayer(const IAdaptiveStreamingPlayer::FCreateParam& InCreateParameters);
 	virtual ~FAdaptiveStreamingPlayer();
 
@@ -2169,7 +2182,7 @@ private:
 	TSharedPtrTS<FAdaptiveStreamingPlayerEventHandler>					EventDispatcher;
 	TSharedPtrTS<FAdaptiveStreamingPlayerWorkerThread>					SharedWorkerThread;
 	FWorkerThreadMessages												WorkerThread;
-	bool																bUseSharedWorkerThread;
+	IAdaptiveStreamingPlayer::FCreateParam::EWorkerThreads				UseSharedWorkerThreads;
 
 	FParamDictTS														PlayerOptions;
 	FPlaybackState														PlaybackState;
