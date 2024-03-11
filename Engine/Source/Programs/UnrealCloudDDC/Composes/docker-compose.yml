@@ -34,21 +34,11 @@ services:
     - "8080:8080" 
     networks:
     - network_jupiter
+    configs:
+    - source: cloud_ddc_config
+      target: /config/appsettings.Local.yaml
     environment:
-    - Jupiter__CurrentSite=docker-compose
-    - Jupiter__UseDomainSockets=true
-    - Jupiter__DomainSocketsRoot=/nginx
-    - Jupiter__ChmodDomainSockets=true
-    # - Serilog__MinimumLevel__Default=Debug # Enable this to get debug logging, can be quite a lot
     - CORECLR_ENABLE_PROFILING=0
-    - Auth__Enabled=false
-    - Replication__CurrentSite=docker-compose
-    - Scylla__ContactPoints__0=scylla
-    - Scylla__LocalDatacenterName=datacenter1
-    - Scylla__LocalKeyspaceSuffix=dc1
-    - Filesystem__RootDir=/data/blob-store
-    - Nginx__UseNginxRedirect=true
-    - UnrealCloudDDC__storageImplementations__0=Filesystem
     links:
     - scylla
     labels:
@@ -63,3 +53,6 @@ volumes:
 networks:
   network_jupiter:
     driver: bridge
+configs:
+  cloud_ddc_config:
+    file: appsettings.Local.yaml
