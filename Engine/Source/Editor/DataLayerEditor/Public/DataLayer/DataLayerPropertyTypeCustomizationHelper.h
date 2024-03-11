@@ -12,5 +12,5 @@ class UDataLayerInstance;
 
 struct DATALAYEREDITOR_API FDataLayerPropertyTypeCustomizationHelper
 {
-	static TSharedRef<SWidget> CreateDataLayerMenu(TFunction<void(const UDataLayerInstance* DataLayer)> OnDataLayerSelectedFunction);
+	static TSharedRef<SWidget> CreateDataLayerMenu(TFunction<void(const UDataLayerInstance* DataLayer)> OnDataLayerSelectedFunction, TFunction<bool(const UDataLayerInstance*)> OnShouldFilterDataLayerInstanceFunction = [](const UDataLayerInstance*){ return false; });
 };

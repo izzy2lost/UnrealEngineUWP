@@ -1590,10 +1590,11 @@ void FDataLayerMode::RegisterContextMenu()
 									{
 										if (!DataLayerInstance->CanBeChildOf(InCandidateDataLayerInstance))
 										{
-											return false;
+											// True means should filter
+											return true;
 										}
 									}
-									return true;
+									return false;
 								}),
 								/*bShowRoot*/true);
 						}));
@@ -1657,10 +1658,11 @@ void FDataLayerMode::RegisterContextMenu()
 									{
 										if (!InCandidateDataLayerInstance->CanAddActor(const_cast<AActor*>(SelectedActor.Get())))
 										{
-											return false;
+											// True means should filter
+											return true;
 										}
 									}
-									return true;
+									return false;
 								})
 							);
 						}));
@@ -2371,7 +2373,7 @@ TSharedRef<SWidget> FDataLayerPickingMode::CreateDataLayerPickerWidget(FOnDataLa
 	InitOptions.bFocusSearchBoxWhenOpened = true;
 	if (OnShouldFilterDataLayerInstance.IsBound())
 	{
-		InitOptions.Filters->AddFilterPredicate<FDataLayerTreeItem>(FDataLayerTreeItem::FFilterPredicate::CreateLambda([OnShouldFilterDataLayerInstance](const UDataLayerInstance* DataLayerInstance) { return OnShouldFilterDataLayerInstance.Execute(DataLayerInstance); }), FSceneOutlinerFilter::EDefaultBehaviour::Pass);
+		InitOptions.Filters->AddFilterPredicate<FDataLayerTreeItem>(FDataLayerTreeItem::FFilterPredicate::CreateLambda([OnShouldFilterDataLayerInstance](const UDataLayerInstance* DataLayerInstance) { return !OnShouldFilterDataLayerInstance.Execute(DataLayerInstance); }), FSceneOutlinerFilter::EDefaultBehaviour::Pass);
 	}
 	InitOptions.ColumnMap.Add(FSceneOutlinerBuiltInColumnTypes::Label(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 2));
 	InitOptions.ModeFactory = FCreateSceneOutlinerMode::CreateLambda([OnDataLayerInstancePicked](SSceneOutliner* Outliner)

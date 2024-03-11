@@ -9,12 +9,17 @@ class SWidget;
 
 #define LOCTEXT_NAMESPACE "DataLayer"
 
-TSharedRef<SWidget> FDataLayerPropertyTypeCustomizationHelper::CreateDataLayerMenu(TFunction<void(const UDataLayerInstance* DataLayer)> OnDataLayerSelectedFunction)
+TSharedRef<SWidget> FDataLayerPropertyTypeCustomizationHelper::CreateDataLayerMenu(TFunction<void(const UDataLayerInstance* DataLayerInstance)> OnDataLayerSelectedFunction, TFunction<bool(const UDataLayerInstance*)> OnShouldFilterDataLayerInstanceFunction)
 {
-	return FDataLayerPickingMode::CreateDataLayerPickerWidget(FOnDataLayerInstancePicked::CreateLambda([OnDataLayerSelectedFunction](UDataLayerInstance* TargetDataLayer)
-	{
-		OnDataLayerSelectedFunction(TargetDataLayer);
-	}));
+	return FDataLayerPickingMode::CreateDataLayerPickerWidget(
+		FOnDataLayerInstancePicked::CreateLambda([OnDataLayerSelectedFunction](UDataLayerInstance* TargetDataLayerInstance)
+		{
+			OnDataLayerSelectedFunction(TargetDataLayerInstance);
+		}),
+		FOnShouldFilterDataLayerInstance::CreateLambda([OnShouldFilterDataLayerInstanceFunction](const UDataLayerInstance* DataLayerInstance)
+		{
+			return OnShouldFilterDataLayerInstanceFunction(DataLayerInstance);
+		}));
 }
 
 #undef LOCTEXT_NAMESPACE
