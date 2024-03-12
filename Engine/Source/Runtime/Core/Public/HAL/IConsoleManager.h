@@ -583,6 +583,16 @@ public:
 	
 #endif
 
+	/**
+	 * Print the history to a log
+	*/
+	virtual void LogHistory(FOutputDevice& Ar) = 0;
+	
+	/**
+	 * Track memory used by history data
+	 */
+	virtual SIZE_T GetHistorySize() = 0;
+
 	// convenience methods
 
 	/** Set the internal value from the specified bool. */

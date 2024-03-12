@@ -919,7 +919,7 @@ void FDisplayClusterConfiguratorBlueprintEditor::CreateWidgets()
 
 	// Set the visibility
 	{
-		bool bReadOnly = false;// FConsoleManager::Get().FindConsoleVariable(TEXT("nDisplay.configurator.ReadOnly"))->GetBool();
+		bool bReadOnly = false;// IConsoleManager::Get().FindConsoleVariable(TEXT("nDisplay.configurator.ReadOnly"))->GetBool();
 
 		ViewOutputMapping->SetEnabled(!bReadOnly);
 		ViewCluster->SetEnabled(!bReadOnly);
