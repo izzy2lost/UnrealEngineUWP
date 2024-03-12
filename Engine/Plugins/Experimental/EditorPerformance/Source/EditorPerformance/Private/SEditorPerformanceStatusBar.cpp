@@ -155,7 +155,7 @@ void SEditorPerformanceStatusBarWidget::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.Text_Lambda([this] { return GetTitleText(); })
-				.ToolTipText_Lambda([this] { return GetStatusToolTipText(); })
+					.ToolTipText_Lambda([this] { return GetStatusToolTipText(); })
 				]
 	]
 	.OnGetMenuContent(FOnGetContent::CreateRaw(this, &SEditorPerformanceStatusBarWidget::CreateStatusBarMenu))

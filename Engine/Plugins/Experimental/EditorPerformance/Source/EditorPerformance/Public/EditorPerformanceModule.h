@@ -54,7 +54,6 @@ private:
 
 	void InitializeKPIs();
 	void TerminateKPIs();
-	void LoadKPIProfiles();
 
 	FKPIRegistry					KPIRegistry;
 	TMap<FString,FKPIProfile>		KPIProfiles;

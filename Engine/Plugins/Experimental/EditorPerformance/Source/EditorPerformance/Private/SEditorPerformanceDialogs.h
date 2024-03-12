@@ -4,6 +4,7 @@
 
 #include "Templates/SharedPointer.h"
 #include "Types/SlateEnums.h"
+#include "Input/Reply.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SCompoundWidget.h"
@@ -20,8 +21,7 @@ class SEditorPerformanceReportDialog : public SCompoundWidget
 private:
 	
 	EActiveTimerReturnType UpdateGridPanels(double InCurrentTime, float InDeltaTime);
-	void OpenURL(const FString& URL) const;
-
+	
 	TSharedRef<SWidget> GetKPIGridPanel();
 	TSharedRef<SWidget> GetSettingsGridPanel();
 	TSharedRef<SWidget> GetHintGridPanel();
@@ -29,8 +29,9 @@ private:
 	SVerticalBox::FSlot* SettingsGridSlot = nullptr;
 	SVerticalBox::FSlot* KPIGridSlot = nullptr;
 	SVerticalBox::FSlot* HintGridSlot = nullptr;
+	uint32 CurrentHintIndex=0;
 
 	const TArray<FName> NotifcationOptions = { FName("Notify"), FName("Ignore") };
-	const TArray<FName> WarningFilterOptions = { FName("Show All"), FName("Show Warnings") };
+	const TArray<FName> WarningFilterOptions = { FName("Show All"), FName("Warnings Only") };
 };
 

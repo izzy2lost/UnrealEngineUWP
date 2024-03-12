@@ -87,8 +87,10 @@ typedef TMap<FString, FKPIProfile> FKPIProfiles;
 class FKPIHint
 {
 public:
-	FString				Message;
-	FString				URL;
+	FName			Category;
+	FName			Name;
+	FText			Message;
+	FText			URL;
 };
 
 typedef TMap<FName, FKPIHint> FKPIHints;
@@ -97,8 +99,10 @@ class FKPIRegistry
 {
 public:
 
-	bool							DeclareKPIValue(FName NewCategory, const FName Name, float InitialValue, float ThresholdValue, FKPIValue::ECompare Compare, FKPIValue::EDisplayType Type);
+	bool							DeclareKPIValue(const FName Category, const FName Name, float InitialValue, float ThresholdValue, FKPIValue::ECompare Compare, FKPIValue::EDisplayType Type);
 	bool							DeclareKPIValue(const FKPIValue& Value);
+	bool							DeclareKPIHint(const FName Category, const FName Name, const FText& HintMessage, const FText& HintURL);
+
 	bool							SetKPIValue(const FName Name, float CurrentValue);
 	bool							SetKPIThreshold(const FName Name, float ThresholdValue);
 	bool							InvalidateKPIValue(const FName Name);

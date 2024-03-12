@@ -249,6 +249,35 @@ bool FKPIRegistry::DeclareKPIValue( const FKPIValue& Value )
 	return false;
 }
 
+bool FKPIRegistry::DeclareKPIHint(const FName Category, const FName Name, const FText& HintMessage, const FText& HintURL)
+{
+	if (Values.Find(Name) != nullptr)
+	{
+		FKPIHint NewKPIHint;
+
+		NewKPIHint.Name = Name;
+		NewKPIHint.Category = Category;
+		NewKPIHint.Message = HintMessage;
+		NewKPIHint.URL = HintURL;
+
+		FKPIHint* KPIHint = Hints.Find(Name);
+
+		if (KPIHint != nullptr)
+		{
+			*KPIHint = NewKPIHint;
+			return true;
+		}
+		else
+		{
+			Hints.Emplace(Name, NewKPIHint);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
 bool FKPIRegistry::InvalidateKPIValue(const FName Name)
 {
 	FKPIValue* ExistingValue = Values.Find(Name);
@@ -329,7 +358,7 @@ const FKPIProfiles& FKPIRegistry::GetKPIProfiles() const
 
 void FKPIRegistry::LoadKPIHints(const FString& HintSectionName, const FString& FileName)
 {
-	TArray<FString> SectionNames;
+	/*TArray<FString> SectionNames;
 
 	if (GConfig->GetSectionNames(FileName, SectionNames))
 	{
@@ -338,7 +367,7 @@ void FKPIRegistry::LoadKPIHints(const FString& HintSectionName, const FString& F
 			if (SectionName.Find(HintSectionName) != INDEX_NONE)
 			{
 				FKPIHint Hint;
-				Hint.URL = TEXT("https://docs.unrealengine.com/5.0/en-US/");
+				Hint.URL = FText(TEXT("https://docs.unrealengine.com/5.0/en-US/"));
 
 				for (FKPIValues::TConstIterator It(GetKPIValues()); It; ++It)
 				{
@@ -352,7 +381,7 @@ void FKPIRegistry::LoadKPIHints(const FString& HintSectionName, const FString& F
 				}
 			}
 		}
-	}
+	}*/
 }
 
 void FKPIRegistry::LoadKPIProfiles(const FString& ProfileSectionName, const FString& FileName)

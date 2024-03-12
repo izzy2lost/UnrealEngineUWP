@@ -16,7 +16,10 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SHyperlink.h"
 #include "EditorPerformanceModule.h"
+#include "Modules/ModuleManager.h"
+#include "ISettingsModule.h"
 #include "Editor/EditorPerformanceSettings.h"
 
 #define LOCTEXT_NAMESPACE "EditorPerformance"
@@ -34,47 +37,52 @@ void SEditorPerformanceReportDialog::Construct(const FArguments& InArgs)
 
 	this->ChildSlot
 	[
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.Padding(0, 20, 0, 0)
-		.AutoHeight()
+		SNew(SScrollBox)
+		.Orientation(Orient_Vertical)
+		+ SScrollBox::Slot()
 		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.FillWidth(1.0f)
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.Padding(0, 20, 0, 0)
+			.AutoHeight()
 			[
-				SNew(STextBlock)
-				.Margin(TitleMargin)
-				.ColorAndOpacity(TitleColor)
-				.Font(TitleFont)
-				.Justification(ETextJustify::Left)
-				.Text_Lambda([this,&EditorPerfModule]
-					{ 
-						return FText::FromString(*FString::Printf(TEXT("Profile : %s"), *EditorPerfModule.GetKPIProfileName())); 
-					}
-				)
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				[
+					SNew(STextBlock)
+					.Margin(TitleMargin)
+					.ColorAndOpacity(TitleColor)
+					.Font(TitleFont)
+					.Justification(ETextJustify::Left)
+					.Text_Lambda([this,&EditorPerfModule]
+						{ 
+							return FText::FromString(*FString::Printf(TEXT("Profile : %s"), *EditorPerfModule.GetKPIProfileName())); 
+						}
+					)
+				]
 			]
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0, 5, 0, 0)
-		.Expose(SettingsGridSlot)
-		[
-			GetSettingsGridPanel()
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0, 5, 0, 0)
-		.Expose(KPIGridSlot)
-		[
-			GetKPIGridPanel()
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0, 5, 0, 0)
-		.Expose(HintGridSlot)
-		[
-			GetHintGridPanel()
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0, 5, 0, 0)
+			.Expose(KPIGridSlot)
+			[
+				GetKPIGridPanel()
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0, 5, 0, 0)
+			.Expose(HintGridSlot)
+			[
+				GetHintGridPanel()
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0, 5, 0, 0)
+			.Expose(SettingsGridSlot)
+			[
+				GetSettingsGridPanel()
+			]
 		]
 	];
 
@@ -120,17 +128,17 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetSettingsGridPanel()
 
 	int32 Row = 0;
 
-	/*Panel->AddSlot(0, Row)
+	Panel->AddSlot(0, Row)
 		.HAlign(HAlign_Left)
 		[
 			SNew(STextBlock)
 			.Margin(TitleMarginFirstColumn)
 			.ColorAndOpacity(TitleColor)
 			.Font(TitleFont)
-			.Text(LOCTEXT("Settings", "Settings"))
+			.Text(LOCTEXT("SettingsText", "Settings"))
 		];
 
-	Row++;*/
+	Row++;
 
 	Panel->AddSlot(0, Row)
 		.HAlign(HAlign_Left)
@@ -157,7 +165,8 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetSettingsGridPanel()
 			.Padding(FMargin(4.0f, 0.0f))
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("EnableNotifications", "Enable Notifications"))
+				.Text(LOCTEXT("EnableNotificationsText", "Notifications"))
+				.ToolTipText(LOCTEXT("EnableNotificationsToolTip", "Enable All Notifications"))
 				.ColorAndOpacity(EStyleColor::Foreground)
 			]
 		];
@@ -187,7 +196,8 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetSettingsGridPanel()
 				.Padding(FMargin(4.0f, 0.0f))
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("EnableSnapshots", "Enable Snapshots"))
+					.Text(LOCTEXT("EnableSnapshotsText", "Snapshots"))
+					.ToolTipText(LOCTEXT("EnableSnapshotsToolTip", "Enable Automatic Capture of Unreal Insights Snaphsots"))
 					.ColorAndOpacity(EStyleColor::Foreground)
 				]
 			];
@@ -214,26 +224,85 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetSettingsGridPanel()
 
 				UpdateGridPanels(0.0f, 0.0f);
 			})
-					.Padding(FMargin(4.0f, 0.0f))
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("EnableTelemetry", "Enable Telemetry"))
-					.ColorAndOpacity(EStyleColor::Foreground)
-				]
+			.Padding(FMargin(4.0f, 0.0f))
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("EnableTelemetryText", "Telemetry"))
+				.ToolTipText(LOCTEXT("EnableTelemetryToolTip", "Record Warning Telemetry Events To Analytics System"))
+				.ColorAndOpacity(EStyleColor::Foreground)
+			]
 		];
 
-	Row++;
+	Panel->AddSlot(3, Row)
+		.HAlign(HAlign_Left)
+		[
+			SNew(SCheckBox)
+			.IsChecked_Lambda([]
+				{
+					const UEditorPerformanceSettings* EditorPerformanceSettings = GetDefault<UEditorPerformanceSettings>();
+					return EditorPerformanceSettings && EditorPerformanceSettings->bThrottleCPUWhenNotForeground ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+				})
+			.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
+			{
+				UEditorPerformanceSettings* EditorPerformanceSettings = GetMutableDefault<UEditorPerformanceSettings>();
+
+				if (EditorPerformanceSettings)
+				{
+					EditorPerformanceSettings->bThrottleCPUWhenNotForeground = NewState == ECheckBoxState::Checked;
+					EditorPerformanceSettings->PostEditChange();
+					EditorPerformanceSettings->SaveConfig();
+				}
+
+				UpdateGridPanels(0.0f, 0.0f);
+			})
+			.Padding(FMargin(4.0f, 0.0f))
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("EnableBackgroundThrottlingText", "Throttling"))
+				.ToolTipText(LOCTEXT("EnableBackgroundThrottlingToolTip", "Enable CPU throttling when the Editor is in the background."))
+				.ColorAndOpacity(EStyleColor::Foreground)
+			]
+		];
+
+	Panel->AddSlot(4, Row)
+		.HAlign(HAlign_Left)
+		.Padding(FMargin(10.0f, 10.0f))
+		[
+			SNew(SButton)
+			.Text(LOCTEXT("OpenSettingsText", "All Settings"))
+			.ToolTipText(LOCTEXT("OpenSettingsToolTip", "Open the Editor Performance Settings Tab."))
+			.OnClicked_Lambda([this]()
+			{
+				FModuleManager::LoadModuleChecked<ISettingsModule>("Settings").ShowViewer("Editor", "General", "EditorPerformanceSettings");
+				return FReply::Handled();
+			})
+		];
 
 	return Panel;
 }
 
-void SEditorPerformanceReportDialog::OpenURL(const FString& URL) const
-{
-	FPlatformProcess::LaunchURL(*URL, nullptr, nullptr);
-}
-
 TSharedRef<SWidget> SEditorPerformanceReportDialog::GetHintGridPanel()
 {
+	FEditorPerformanceModule& EditorPerfModule = FModuleManager::LoadModuleChecked<FEditorPerformanceModule>("EditorPerformance");
+
+	int32 NumHints = 0;
+
+	TArray<FKPIHint> KPIHints;
+
+	const FKPIValues& KPIValues = EditorPerfModule.GetKPIRegistry().GetKPIValues();
+
+	for (FKPIValues::TConstIterator It(KPIValues); It; ++It)
+	{
+		const FKPIValue& KPIValue = It->Value;
+
+		FKPIHint KPIHint;
+
+		if (KPIValue.State == FKPIValue::Bad && EditorPerfModule.GetKPIRegistry().GetKPIHint(KPIValue.Name, KPIHint))
+		{
+			KPIHints.Emplace(KPIHint);
+		}
+	}
+
 	TSharedRef<SGridPanel> Panel =
 		SNew(SGridPanel);
 
@@ -247,68 +316,84 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetHintGridPanel()
 	const FMargin DefaultMargin(0.0f, RowMargin, ColumnMargin, RowMargin);
 	const FMargin DefaultMarginFirstColumn(ColumnMargin, RowMargin);
 
-	FEditorPerformanceModule& EditorPerfModule = FModuleManager::LoadModuleChecked<FEditorPerformanceModule>("EditorPerformance");
-
 	int32 Row = 0;
 
-	FKPIHint KPIHint;
-
-	for (FKPIValues::TConstIterator It(EditorPerfModule.GetKPIRegistry().GetKPIValues()); It; ++It)
+	if (KPIHints.Num()>0)
 	{
-		const FKPIValue& KPIValue = It->Value;
+		CurrentHintIndex = CurrentHintIndex % KPIHints.Num();
 
-		if (KPIValue.State==FKPIValue::Bad && EditorPerfModule.GetKPIRegistry().GetKPIHint(KPIValue.Name, KPIHint))
+		const FKPIHint& KPIHint = KPIHints[CurrentHintIndex];
+
+		Panel->AddSlot(0, Row)
+			.HAlign(HAlign_Left)
+			[
+				SNew(STextBlock)
+				.Margin(TitleMarginFirstColumn)
+				.ColorAndOpacity(TitleColor)
+				.Font(TitleFont)
+				.Justification(ETextJustify::Left)
+				.Text(LOCTEXT("HintsTitle", "Hints"))
+			];
+
+		Row++;
+
+		Panel->AddSlot(0, Row)
+			.HAlign(HAlign_Left)
+			[
+				SNew(STextBlock)
+				.Margin(TitleMarginFirstColumn)
+				.ColorAndOpacity(EStyleColor::Foreground)
+				.Font(TitleFont)
+				.Text(FText::FromString(*FString::Printf(TEXT("%s %s"), *KPIHint.Category.ToString(), *KPIHint.Name.ToString())))
+			];
+
+		Row++;
+
+		Panel->AddSlot(0, Row)
+			.HAlign(HAlign_Left)
+			[
+				SNew(STextBlock)
+				.AutoWrapText(true)
+				.Margin(DefaultMarginFirstColumn)
+				.ColorAndOpacity(EStyleColor::Foreground)
+				.Justification(ETextJustify::Left)
+				.Text(KPIHint.Message)
+			];
+
+		Row++;
+
+		if (!KPIHint.URL.IsEmpty())
 		{
 			Panel->AddSlot(0, Row)
 				.HAlign(HAlign_Left)
+				.Padding(FMargin(10.0f, 10.0f))
 				[
-					SNew(STextBlock)
-					.Margin(TitleMarginFirstColumn)
-					.ColorAndOpacity(TitleColor)
-					.Font(TitleFont)
-					.Justification(ETextJustify::Left)
-					.Text(LOCTEXT("HintTitle", "Hint"))
+					SNew(SHyperlink)
+					.Text(LOCTEXT("HintLinkName", "Further Help & Documentation"))
+					.ToolTipText_Lambda([=]() { return FText::FromString(*KPIHint.URL.ToString()); })
+					.OnNavigate_Lambda([=]() { FPlatformProcess::LaunchURL(*KPIHint.URL.ToString(), nullptr, nullptr); })
 				];
 
 			Row++;
+		}
 
+		if (KPIHints.Num() > 1)
+		{
 			Panel->AddSlot(0, Row)
 				.HAlign(HAlign_Left)
+				.Padding(FMargin(10.0f, 10.0f))
 				[
-					SNew(STextBlock)
-					.Margin(TitleMarginFirstColumn)
-					.ColorAndOpacity(TitleColor)
-					.Font(TitleFont)
-					.Text(FText::FromString(*FString::Printf(TEXT("%s %s"), *KPIValue.Category.ToString(), *KPIValue.Name.ToString())))
+					SNew(SButton)
+					.Text(LOCTEXT("NextHintName", "Next Hint"))
+					.OnClicked_Lambda([this]()
+					{
+						CurrentHintIndex++;
+						UpdateGridPanels(0.0f, 0.0f);
+						return FReply::Handled();
+					})
 				];
 
 			Row++;
-
-			Panel->AddSlot(0, Row)
-				.HAlign(HAlign_Left)
-				[
-					SNew(STextBlock)
-					.AutoWrapText(true)
-					.Margin(DefaultMarginFirstColumn)
-					.ColorAndOpacity(EStyleColor::Foreground)
-					.Justification(ETextJustify::Left)
-					.Text(FText::FromString(*KPIHint.Message))
-				];
-
-			Row++;
-
-			Panel->AddSlot(0, Row)
-				.HAlign(HAlign_Left)
-				[
-					SNew(STextBlock)
-					.AutoWrapText(true)
-					.Margin(DefaultMarginFirstColumn)
-					.ColorAndOpacity(EStyleColor::AccentBlue)
-					.Justification(ETextJustify::Left)
-					.Text(FText::FromString(*KPIHint.URL))
-				];
-
-			break;
 		}
 	}
 
@@ -368,6 +453,8 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 				if (EditorPerformanceSettings)
 				{
 					EditorPerformanceSettings->bShowWarningsOnly = (Name == WarningFilterOptions[1]);
+					EditorPerformanceSettings->PostEditChange();
+					EditorPerformanceSettings->SaveConfig();
 				}
 
 				UpdateGridPanels(0.0f, 0.0f);
@@ -386,7 +473,7 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 		[
 			SNew(STextBlock)
 			.Margin(DefaultMargin)
-			.ColorAndOpacity(TitleColor)
+			.ColorAndOpacity(EStyleColor::Foreground)
 			.Font(TitleFont)
 			.Text(LOCTEXT("CurrentValueColumn", "Current"))
 		];
@@ -396,7 +483,7 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 		[
 			SNew(STextBlock)
 			.Margin(DefaultMargin)
-			.ColorAndOpacity(TitleColor)
+			.ColorAndOpacity(EStyleColor::Foreground)
 			.Font(TitleFont)
 			.Text(LOCTEXT("ExpectedValueColumn", "Expected"))
 		];
@@ -408,7 +495,7 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 			[
 				SNew(STextBlock)
 				.Margin(DefaultMargin)
-				.ColorAndOpacity(TitleColor)
+				.ColorAndOpacity(EStyleColor::Foreground)
 				.Font(TitleFont)
 				.Text(LOCTEXT("NotifyColumn", "Notify"))
 			];
@@ -452,7 +539,7 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 			[
 				SNew(STextBlock)
 				.Margin(TitleMarginFirstColumn)
-				.ColorAndOpacity(TitleColor)
+				.ColorAndOpacity(EStyleColor::Foreground)
 				.Font(TitleFont)
 				.Text(FText::FromString(*Category.ToString()))
 			];

@@ -127,7 +127,7 @@ void FEditorPerformanceModule::ShowPerformanceReportTab()
 
 const FName EditorCategoryName = TEXT("Editor");
 const FName PIECategoryName = TEXT("PIE");
-const FName DDCCategoryName = TEXT("Cache");
+const FName CacheCategoryName = TEXT("Cache");
 const FName HardwareCategoryName = TEXT("Hardware");
 
 const FName EditorBootKPIName = TEXT("Boot");
@@ -172,20 +172,29 @@ void FEditorPerformanceModule::InitializeKPIs()
 	KPIRegistry.DeclareKPIValue(PIECategoryName, PIETransitionKPIName, 0.0, PIETransitionKPILimit, FKPIValue::LessThan, FKPIValue::Minutes);
 	KPIRegistry.DeclareKPIValue(PIECategoryName, PIEShutdownKPIName, 0.0, PIEShutdownKPILimit, FKPIValue::LessThan, FKPIValue::Minutes);
 	KPIRegistry.DeclareKPIValue(PIECategoryName, TotalTimeToPIEKPIName, 0.0, TotalTimeToPIEKPILimit, FKPIValue::LessThan, FKPIValue::Minutes);
-	KPIRegistry.DeclareKPIValue(DDCCategoryName, CloudDDCLatencyKPIName, 0.0, CloudDDCLatencyKPILimit, FKPIValue::LessThan, FKPIValue::Milliseconds);
-	KPIRegistry.DeclareKPIValue(DDCCategoryName, CloudDDCReadSpeedKPIName, 100.0, CloudDDCReadSpeedKPILimit, FKPIValue::GreaterThan, FKPIValue::MegaBitsPerSecond);
-	KPIRegistry.DeclareKPIValue(DDCCategoryName, TotalDDCEfficiencyKPIName, 100.0, TotalDDCEffciencyKPILimit, FKPIValue::GreaterThan, FKPIValue::Percent);
-	KPIRegistry.DeclareKPIValue(DDCCategoryName, LocalDDCEfficiencyKPIName, 100.0, LocalDDCEffciencyKPILimit, FKPIValue::GreaterThan, FKPIValue::Percent);
+	KPIRegistry.DeclareKPIValue(CacheCategoryName, CloudDDCLatencyKPIName, 0.0, CloudDDCLatencyKPILimit, FKPIValue::LessThan, FKPIValue::Milliseconds);
+	KPIRegistry.DeclareKPIValue(CacheCategoryName, CloudDDCReadSpeedKPIName, 100.0, CloudDDCReadSpeedKPILimit, FKPIValue::GreaterThan, FKPIValue::MegaBitsPerSecond);
+	KPIRegistry.DeclareKPIValue(CacheCategoryName, TotalDDCEfficiencyKPIName, 100.0, TotalDDCEffciencyKPILimit, FKPIValue::GreaterThan, FKPIValue::Percent);
+	KPIRegistry.DeclareKPIValue(CacheCategoryName, LocalDDCEfficiencyKPIName, 100.0, LocalDDCEffciencyKPILimit, FKPIValue::GreaterThan, FKPIValue::Percent);
 	//KPIRegistry.DeclareKPIValue(HitchrateKPIName, 0.0, HitchrateKPILimit, FKPIValue::LessThan, FKPIValue::Percent);
 	KPIRegistry.DeclareKPIValue(HardwareCategoryName, CoreCountKPIName, 128.0, CoreCountKPILimit, FKPIValue::GreaterThanOrEqual, FKPIValue::Decimal);
 	KPIRegistry.DeclareKPIValue(HardwareCategoryName, TotalMemoryKPIName, 128.0, TotalMemoryKPILimit, FKPIValue::GreaterThanOrEqual, FKPIValue::GigaBytes);
 	KPIRegistry.DeclareKPIValue(HardwareCategoryName, AvailableMemoryKPIName, 128.0, AvailableMemoryKPILimit, FKPIValue::GreaterThanOrEqual, FKPIValue::GigaBytes);
 
+	// Declare the KPI Hints
+	KPIRegistry.DeclareKPIHint(EditorCategoryName, EditorBootKPIName, LOCTEXT("EditorBootHintMessage", "The Editor boot time is slow.\nCheck you have enbabled a Game Feature Plugin profile for your project and that the expected local cache efficiency is met.\nIf you are booting the Editor in the background then disable the Use Less CPU in Background option in the settings."), LOCTEXT("EditorBootHintURL","https://docs.unrealengine.com/5.0/en-US/"));
+	KPIRegistry.DeclareKPIHint(EditorCategoryName, EditorStartupKPIName, LOCTEXT("EditorStartupHintMessage", "The Editor start - up time is slow.\nCheck you have enbabled a Game Feature Plugin profile for your project and that the expected local cache efficiency is met.\nIf you are booting the Editor in the background then disable the Use Less CPU in Background option in the settings."), LOCTEXT("EditorBootHintURL","https://docs.unrealengine.com/5.0/en-US/"));
+	
+	KPIRegistry.DeclareKPIHint(PIECategoryName, PIETransitionKPIName, LOCTEXT("PIETransitionHintMessage", "The Editor transtion to PIE is slow.\nCheck that the expected local cache efficiency is met.\nIf you are transitioning to PIE with the Editor in the background then disable the Use Less CPU in Background option in the settings."), LOCTEXT("PIETransitionHintURL", "https://docs.unrealengine.com/5.0/en-US/"));
+	
+	KPIRegistry.DeclareKPIHint(CacheCategoryName, LocalDDCEfficiencyKPIName, LOCTEXT("LocalCacheEfficencyHintMessage", "The Editor will not perform well if the local cache efficiency has not yet met the expected value.\nIf this is the first time you have booted the Editor after a sync then this is to be expected."), LOCTEXT("EditorCacheHintURL","https://docs.unrealengine.com/5.3/en-US/derived-data-cache/"));
+	
+	KPIRegistry.DeclareKPIHint(HardwareCategoryName, CoreCountKPIName, LOCTEXT("LowCoreCountHintMessage", "Your hardware has a low CPU core count.\nUsing a lower than recommended hardware specifcation for development is not recommended for good developer efficiency."), LOCTEXT("LowCoreCountHintURL", "https://docs.unrealengine.com/5.0/en-US/"));
+	KPIRegistry.DeclareKPIHint(HardwareCategoryName, TotalMemoryKPIName, LOCTEXT("LowTotalMemoryHintMessage", "Your hardware has a low Total Memory.\nUsing a lower than recommended hardware specifcation for development is not recommended for good developer efficiency."), LOCTEXT("LowTotalMemoryHintURL", "https://docs.unrealengine.com/5.0/en-US/"));
+	KPIRegistry.DeclareKPIHint(HardwareCategoryName, AvailableMemoryKPIName, LOCTEXT("LowAvaliableMemoryHintMessage", "You hardware is running low on memory.\nTry closing applciations that are no longer needed to recover available memory."), LOCTEXT("LowAvailableMemoryHintURL", "https://docs.unrealengine.com/5.0/en-US/"));
+
 	// Load the KPI profiles
 	KPIRegistry.LoadKPIProfiles(TEXT("EditorPerformance.Profile"), GEditorIni);
-
-	// Load the KPI hints
-	KPIRegistry.LoadKPIHints(TEXT("EditorPerformance.Hints"), GEditorIni);
 
 	// Apply any non map specific profiles
 	for (FKPIProfiles::TConstIterator It(KPIRegistry.GetKPIProfiles()); It; ++It)
@@ -291,31 +300,23 @@ void FEditorPerformanceModule::UpdateKPIs()
 	FDerivedDataCacheSummaryStats SummaryStats;
 	GatherDerivedDataCacheSummaryStats(SummaryStats);
 
-	int64 CloudGetHits = 0;
+	int64 TotalCloudGetHits = 0;
+	float CloudLatency = 0.0;
+	float CloudReadSpeed = 0.0;
 
 	for (const FDerivedDataCacheSummaryStat& Stat : SummaryStats.Stats)
 	{
 		if (Stat.Key == TEXT("CloudGetHits"))
 		{
-			CloudGetHits = FCString::Atoi(*Stat.Value);
+			TotalCloudGetHits = FCString::Atoi(*Stat.Value);
 		}
 		else if (Stat.Key == TEXT("CloudLatency"))
 		{
-			const float Value = FCString::Atof(*Stat.Value);
-
-			if (Value > 0.0f)
-			{
-				KPIRegistry.SetKPIValue(CloudDDCLatencyKPIName, Value);
-			}
+			CloudLatency = FCString::Atof(*Stat.Value);
 		}
 		else if (Stat.Key == TEXT("CloudReadSpeed"))
 		{
-			const float Value = FCString::Atof(*Stat.Value) * 8.0f;
-
-			if (Value > 0.0f)
-			{
-				KPIRegistry.SetKPIValue(CloudDDCReadSpeedKPIName, Value);
-			}
+			CloudReadSpeed = FCString::Atof(*Stat.Value) * 8.0f;
 		}
 		else if (Stat.Key == TEXT("TotalGetHitPct"))
 		{
@@ -337,12 +338,26 @@ void FEditorPerformanceModule::UpdateKPIs()
 		}
 	}
 
-	if (CloudGetHits == 0)
+	// Evaluate Cloud Cache performance
+	const int64 MinimalCloudGetHits = 10;
+	static int64 ElapsedCloudCacheHits = 0;
+	static int64 PreviousTotalCloudGetHits = 0;
+	static float AverageCloudLatency = 0;
+	static float AverageCloudReadSpeed = 0;
+
+	ElapsedCloudCacheHits = TotalCloudGetHits- PreviousTotalCloudGetHits;
+	PreviousTotalCloudGetHits = TotalCloudGetHits;
+	
+	if (TotalCloudGetHits < MinimalCloudGetHits)
 	{
 		KPIRegistry.InvalidateKPIValue(CloudDDCLatencyKPIName);
 		KPIRegistry.InvalidateKPIValue(CloudDDCReadSpeedKPIName);
 	}
-	
+	else
+	{
+		KPIRegistry.SetKPIValue(CloudDDCLatencyKPIName, CloudLatency);
+		KPIRegistry.SetKPIValue(CloudDDCReadSpeedKPIName, CloudReadSpeed);
+	}
 }
 
 bool FEditorPerformanceModule::IsHotLocalCacheCase() const
