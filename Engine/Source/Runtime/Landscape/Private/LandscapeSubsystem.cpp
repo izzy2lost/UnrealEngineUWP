@@ -39,6 +39,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LandscapeSubsystem)
 
 #if WITH_EDITOR
+#include "ActionableMessageSubsystem.h"
 #include "FileHelpers.h"
 #include "Editor.h"
 #endif
@@ -66,6 +67,66 @@ extern int32 GGrassMapUseRuntimeGeneration;
 DECLARE_CYCLE_STAT(TEXT("LandscapeSubsystem Tick"), STAT_LandscapeSubsystemTick, STATGROUP_Landscape);
 
 #define LOCTEXT_NAMESPACE "LandscapeSubsystem"
+
+namespace UE::Landscape
+{
+#if WITH_EDITOR
+	void MarkModifiedLandscapesAsDirty()
+	{
+		if (UWorld* World = GEditor->GetEditorWorldContext().World())
+		{
+			if (ULandscapeSubsystem* LandscapeSubsystem = World->GetSubsystem<ULandscapeSubsystem>())
+			{
+				LandscapeSubsystem->MarkModifiedLandscapesAsDirty();
+			}
+		}
+	}
+	
+	void BuildGrassMaps()
+	{
+		if (UWorld* World = GEditor->GetEditorWorldContext().World())
+		{
+			if (ULandscapeSubsystem* LandscapeSubsystem = World->GetSubsystem<ULandscapeSubsystem>())
+			{
+				LandscapeSubsystem->BuildGrassMaps();
+			}
+		}
+	}
+
+	void BuildPhysicalMaterial()
+	{
+		if (UWorld* World = GEditor->GetEditorWorldContext().World())
+		{
+			if (ULandscapeSubsystem* LandscapeSubsystem = World->GetSubsystem<ULandscapeSubsystem>())
+			{
+				LandscapeSubsystem->BuildPhysicalMaterial();
+			}
+		}
+	}
+
+	void BuildNanite()
+	{
+		if (UWorld* World = GEditor->GetEditorWorldContext().World())
+		{
+			if (ULandscapeSubsystem* LandscapeSubsystem = World->GetSubsystem<ULandscapeSubsystem>())
+			{
+				LandscapeSubsystem->BuildNanite();
+			}
+		}
+	}
+
+	void BuildAll()
+	{
+		if (UWorld* World = GEditor->GetEditorWorldContext().World())
+		{
+			if (ULandscapeSubsystem* LandscapeSubsystem = World->GetSubsystem<ULandscapeSubsystem>())
+			{
+				LandscapeSubsystem->BuildAll();
+			}
+		}
+	}
+#endif //WITH_EDITOR
+}
 
 ULandscapeSubsystem::ULandscapeSubsystem()
 {
@@ -502,6 +563,23 @@ void ULandscapeSubsystem::Tick(float DeltaTime)
 	NaniteMeshBuildEvents.RemoveAllSwap([](const FGraphEventRef& Ref) -> bool { return Ref->IsComplete(); });
 
 	LastTickFrameNumber = FrameNumber;
+	
+	if (UActionableMessageSubsystem* ActionableMessageSubsystem = World->GetSubsystem<UActionableMessageSubsystem>())
+	{
+		FActionableMessage ActionableMessage;
+		const FName LandscapeMessageProvider = TEXT("Landscape");
+
+		if (GetActionableMessage(ActionableMessage))
+		{
+			ActionableMessageSubsystem->SetActionableMessage(LandscapeMessageProvider, ActionableMessage);
+		}
+		else
+		{
+			ActionableMessageSubsystem->ClearActionableMessage(LandscapeMessageProvider);
+		}
+	}
+
+
 #endif // WITH_EDITOR
 }
 
@@ -783,52 +861,78 @@ ALandscapeProxy* ULandscapeSubsystem::FindOrAddLandscapeProxy(ULandscapeInfo* La
 
 void ULandscapeSubsystem::DisplayMessages(FCanvas* Canvas, float& XPos, float& YPos)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeSubsystem::DisplayMessages);
+	
+}
 
-	const int32 FontSizeY = 20;
-	FCanvasTextItem SmallTextItem(FVector2D(0, 0), FText::GetEmpty(), GEngine->GetSmallFont(), FLinearColor::White);
-	SmallTextItem.EnableShadow(FLinearColor::Black);
+bool ULandscapeSubsystem::GetActionableMessage(FActionableMessage& OutActionableMessage)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeSubsystem::GetActionableMessage);
 
-	auto DisplayMessageForOutdatedDataFlag = [&SmallTextItem, Canvas, XPos, &YPos, FontSizeY, this] (UE::Landscape::EOutdatedDataFlags InOutdatedDataFlag, const FTextFormat& InTextFormat)
+	const FText DefaultMessage = LOCTEXT("LandscapeModifiedText", "Landscape is not up to date");
+	const FText DefaultTooltip = LOCTEXT("LandscapeModifiedToolTip", "External asset modification lead to the landscape not being up to date. Please rebuild the landscape.");
+	const FText DefaultActionMessage = LOCTEXT("LandscapeRebuildText", "Rebuild");
+
+	const TArray<ALandscapeProxy*> OutdatedGrassMapProxies = GetOutdatedProxies(UE::Landscape::EOutdatedDataFlags::GrassMaps, /*bInMustMatchAllFlags = */false);
+	const TArray<ALandscapeProxy*> OutdatedPhysicalMaterialProxies = GetOutdatedProxies(UE::Landscape::EOutdatedDataFlags::PhysicalMaterials, /*bInMustMatchAllFlags = */false);
+	const TArray<ALandscapeProxy*> OutdatedNaniteProxies = GetOutdatedProxies(UE::Landscape::EOutdatedDataFlags::NaniteMeshes, /*bInMustMatchAllFlags = */false);
+	
+	const int32 OutdatedGrassmapProxiesCount = OutdatedGrassMapProxies.Num();
+	const int32 OutdatedPhysicalMaterialProxiesCount = OutdatedPhysicalMaterialProxies.Num();
+	const int32 OutdatedNaniteProxiesCount = OutdatedNaniteProxies.Num();
+
+	const int32 OutdatedFlags = ((OutdatedGrassmapProxiesCount > 0) ? 1 : 0) + ((OutdatedPhysicalMaterialProxiesCount > 0) ? 1 : 0) + ((OutdatedNaniteProxiesCount > 0) ? 1 : 0);
+
+	if (HasModifiedLandscapes())
 	{
-		TArray<ALandscapeProxy*> OutdatedProxies = GetOutdatedProxies(InOutdatedDataFlag, /*bInMustMatchAllFlags = */false);
-		if (int32 OutdatedProxiesCount = OutdatedProxies.Num())
-		{
-			SmallTextItem.SetColor(FLinearColor::Red);
-			SmallTextItem.Text = FText::Format(InTextFormat, OutdatedProxiesCount);
-			Canvas->DrawItem(SmallTextItem, FVector2D(XPos, YPos));
-			YPos += FontSizeY;
-		}
-	};
+		OutActionableMessage.Message = LOCTEXT("LandscapeModifiedText.Dirty", "Landscape contains unsaved changes");
+		OutActionableMessage.Tooltip = DefaultTooltip;
+		OutActionableMessage.ActionMessage = LOCTEXT("LandscapeModifiedText.MarkDirty", "Mark Dirty");
+		OutActionableMessage.ActionCallback = UE::Landscape::MarkModifiedLandscapesAsDirty;
 
-	// Outdated grass maps message :
-	DisplayMessageForOutdatedDataFlag(UE::Landscape::EOutdatedDataFlags::GrassMaps, LOCTEXT("GRASS_MAPS_NEED_TO_BE_REBUILT_FMT", "LANDSCAPE: {0} {0}|plural(one=ACTOR,other=ACTORS) WITH GRASS MAPS {0}|plural(one=NEEDS,other=NEED) TO BE REBUILT"));
-
-	// Outdated physical materials message :
-	DisplayMessageForOutdatedDataFlag(UE::Landscape::EOutdatedDataFlags::PhysicalMaterials, LOCTEXT("LANDSCAPE_PHYSICALMATERIAL_NEED_TO_BE_REBUILT_FMT", "LANDSCAPE: {0} {0}|plural(one=ACTOR,other=ACTORS) WITH PHYSICAL MATERIALS {0}|plural(one=NEEDS,other=NEED) TO BE REBUILT"));
-
-	// Outdated Nanite meshes message :
-	DisplayMessageForOutdatedDataFlag(UE::Landscape::EOutdatedDataFlags::NaniteMeshes, LOCTEXT("LANDSCAPE_NANITE_MESHES_NEED_TO_BE_REBUILT_FMT", "LANDSCAPE: {0} {0}|plural(one=ACTOR,other=ACTORS) WITH NANITE MESHES {0}|plural(one=NEEDS,other=NEED) TO BE REBUILT"));
-
-	// TODO [jonathan.bard] : this should be handled in the same way as the other cases (UE::Landscape::EOutdatedDataFlags::DirtyActors), but we need to slightly refactor the system so that it's 
-	//  based on ALandscapeProxy, rather than ULandscapeInfo/UPackage... : 
-	if (ULandscapeInfoMap* LandscapeInfoMap = ULandscapeInfoMap::FindLandscapeInfoMap(GetWorld()))
-	{
-		int32 ModifiedNotDirtyCount = 0;
-		ForEachLandscapeInfo([&ModifiedNotDirtyCount](ULandscapeInfo* LandscapeInfo)
-		{
-			ModifiedNotDirtyCount += LandscapeInfo->GetModifiedPackageCount();
-			return true;
-		});
-				
-		if (ModifiedNotDirtyCount > 0)
-		{
-			SmallTextItem.SetColor(FLinearColor::Red);
-			SmallTextItem.Text = FText::Format(LOCTEXT("LANDSCAPE_NEED_TO_BE_SAVED", "LANDSCAPE: NEED TO SAVE TO SHOW CHANGES IN A COOKED GAME ({0} {0}|plural(one=object,other=objects))"), ModifiedNotDirtyCount);
-			Canvas->DrawItem(SmallTextItem, FVector2D(XPos, YPos));
-			YPos += FontSizeY;
-		}
+		return true;
 	}
+	
+	if (OutdatedFlags > 1)
+	{
+		OutActionableMessage.Message = DefaultMessage;
+		OutActionableMessage.Tooltip = DefaultTooltip;
+		OutActionableMessage.ActionMessage = DefaultActionMessage;
+		OutActionableMessage.ActionCallback = UE::Landscape::BuildAll;
+
+		return true;
+	}
+	
+	if (OutdatedGrassmapProxiesCount > 0)
+	{
+		OutActionableMessage.Message = FText::Format(LOCTEXT("GRASS_MAPS_NEED_TO_BE_REBUILT_FMT", "{0} Landscape {0}|plural(one=actor,other=actors) with grass maps {0}|plural(one=needs,other=need) to be rebuilt"), OutdatedGrassmapProxiesCount);
+		OutActionableMessage.Tooltip = DefaultTooltip;
+		OutActionableMessage.ActionMessage = DefaultActionMessage;
+		OutActionableMessage.ActionCallback = UE::Landscape::BuildGrassMaps;
+
+		return true;
+	}
+	
+	if (OutdatedPhysicalMaterialProxiesCount > 0)
+	{
+		OutActionableMessage.Message = FText::Format(LOCTEXT("LANDSCAPE_PHYSICALMATERIAL_NEED_TO_BE_REBUILT_FMT", "{0} Landscape {0}|plural(one=actor,other=actors) with physical materials {0}|plural(one=needs,other=need) to be rebuilt"), OutdatedPhysicalMaterialProxiesCount);
+		OutActionableMessage.Tooltip = DefaultTooltip;
+		OutActionableMessage.ActionMessage = DefaultActionMessage;
+		OutActionableMessage.ActionCallback = UE::Landscape::BuildPhysicalMaterial;
+
+		return true;
+	}
+
+	if (OutdatedNaniteProxiesCount > 0)
+	{
+		OutActionableMessage.Message = FText::Format(LOCTEXT("LANDSCAPE_NANITE_MESHES_NEED_TO_BE_REBUILT_FMT", "{0} Landscape {0}|plural(one=actor,other=actors) with Nanite meshes {0}|plural(one=needs,other=need) to be rebuilt"), OutdatedNaniteProxiesCount);
+		OutActionableMessage.Tooltip = DefaultTooltip;
+		OutActionableMessage.ActionMessage = DefaultActionMessage;
+		OutActionableMessage.ActionCallback = UE::Landscape::BuildNanite;
+
+		return true;
+	}
+
+	return false;
 }
 
 FDateTime ULandscapeSubsystem::GetAppCurrentDateTime()
