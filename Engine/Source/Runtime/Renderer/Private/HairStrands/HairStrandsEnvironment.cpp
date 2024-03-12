@@ -63,6 +63,9 @@ static FAutoConsoleVariableRef CVarHairStrandsSkyLighting_IntegrationType(TEXT("
 static int32 GHairStrandsSkyLighting_DebugSample = 0;
 static FAutoConsoleVariableRef CVarHairStrandsSkyLighting_DebugSample(TEXT("r.HairStrands.SkyLighting.DebugSample"), GHairStrandsSkyLighting_DebugSample, TEXT("Enable debug view for visualizing sample used for the sky integration"), ECVF_Scalability | ECVF_RenderThreadSafe);
 
+static int32 GHairStrandsSkyLighting_ScreenTraceOcclusion = 0;
+static FAutoConsoleVariableRef CVarHairStrandsSkyLighting_ScreenTraceOcclusion(TEXT("r.HairStrands.SkyLighting.ScreenTraceOcclusion"), GHairStrandsSkyLighting_ScreenTraceOcclusion, TEXT("Enable screen trace occlusion for during hair env. lighting integration"), ECVF_Scalability | ECVF_RenderThreadSafe);
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_GPU_STAT_NAMED(HairSkyLighting, TEXT("Hair Sky lighting"));
@@ -251,6 +254,14 @@ class FHairEnvironmentLightingPS : public FGlobalShader
 		SHADER_PARAMETER(float,  HairDistanceThreshold)
 		SHADER_PARAMETER(uint32, bHairUseViewHairCount)
 
+		SHADER_PARAMETER(uint32, bScreenTrace)
+		SHADER_PARAMETER(float, SlopeCompareToleranceScale)
+		SHADER_PARAMETER(float, MaxScreenTraceFraction)
+		SHADER_PARAMETER(float, ScreenTraceNoFallbackThicknessScale)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FurthestHZBTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, FurthestHZBTextureSampler)
+		SHADER_PARAMETER(FVector4f, HZBUvFactorAndInvFactor)
+
 		SHADER_PARAMETER_TEXTURE(Texture2D, PreIntegratedGF)
 		SHADER_PARAMETER_SAMPLER(SamplerState, PreIntegratedGFSampler)
 
@@ -387,6 +398,33 @@ static void AddHairStrandsEnvironmentLightingPassPS(
 	ParametersPS->ReflectionCaptureData = View.ReflectionCaptureUniformBuffer;
 	ParametersPS->ReflectionsParameters = CreateReflectionUniformBuffer(GraphBuilder, View);
 	
+	const bool bScreenTrace = View.HZB && GHairStrandsSkyLighting_ScreenTraceOcclusion && IntegrationType != EHairLightingIntegrationType::SceneColor;
+	ParametersPS->FurthestHZBTexture = GSystemTextures.GetDepthDummy(GraphBuilder);
+	ParametersPS->FurthestHZBTextureSampler = TStaticSamplerState<SF_Point>::GetRHI();
+	ParametersPS->bScreenTrace = bScreenTrace ? 1u : 0u;
+	if (bScreenTrace)
+	{
+		// Default values, need more more testing/tweaking
+		const float MaxScreenTraceFraction = 128 * 2.0f / (float)View.ViewRect.Width();
+		const float ScreenTraceNoFallbackThicknessScale = View.ViewMatrices.GetPerProjectionDepthThicknessScale();
+
+		const FVector2D ViewportUVToHZBBufferUV(
+			float(View.ViewRect.Width()) / float(2 * View.HZBMipmap0Size.X),
+			float(View.ViewRect.Height()) / float(2 * View.HZBMipmap0Size.Y)
+		);
+
+		ParametersPS->HZBUvFactorAndInvFactor = FVector4f(
+			ViewportUVToHZBBufferUV.X,
+			ViewportUVToHZBBufferUV.Y,
+			1.0f / ViewportUVToHZBBufferUV.X,
+			1.0f / ViewportUVToHZBBufferUV.Y);
+		ParametersPS->FurthestHZBTexture = View.HZB;
+		ParametersPS->FurthestHZBTextureSampler = TStaticSamplerState<SF_Point>::GetRHI();		
+		ParametersPS->MaxScreenTraceFraction = MaxScreenTraceFraction;
+		ParametersPS->ScreenTraceNoFallbackThicknessScale = ScreenTraceNoFallbackThicknessScale;	
+		ParametersPS->SlopeCompareToleranceScale = 0.5f;
+	}
+
 	if (LightingType == EHairLightingSourceType::Lumen)
 	{
 		const FRadianceCacheState& RadianceCacheState = View.ViewState->Lumen.RadianceCacheState;

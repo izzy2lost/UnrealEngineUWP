@@ -271,6 +271,63 @@ FHairTraversalResult InternalComputeHairCountVoxel(
 		TraversalSettings);
 }
 
+#if PERMUTATION_INTEGRATION_TYPE == INTEGRATION_UNIFORM || PERMUTATION_INTEGRATION_TYPE == INTEGRATION_ADHOC || PERMUTATION_INTEGRATION_TYPE == INTEGRATION_SH
+
+#include "../SSRT/SSRTRayCast.ush"
+uint bScreenTrace;
+float SlopeCompareToleranceScale;
+float MaxScreenTraceFraction;
+Texture2D FurthestHZBTexture;
+#define FurthestHZBTextureSampler GlobalPointClampedSampler
+float4 HZBUvFactorAndInvFactor;
+
+float GetRayVisibility(float3 TranslatedWorldPosition,	float SceneDepth, float3 RayDirection, uint2 PixelCoord, uint PixelRayIndex, uint NumPixelSamples)
+{
+	float TraceDistance = MaxScreenTraceFraction * 2.0 * GetScreenRayLengthMultiplierForProjectionType(SceneDepth).x;
+	float DepthThresholdScale = View.ProjectionDepthThicknessScale;
+
+	FSSRTCastingSettings CastSettings = CreateDefaultCastSettings();
+	CastSettings.bStopWhenUncertain = true;
+
+	bool bHit = false;
+	float Level;
+	float3 HitUVz;
+	bool bRayWasClipped;
+	uint NumSteps = 4;
+	float StartMipLevel = 0;
+	float RayRoughness = .2f;
+	uint2 NoiseCoord = PixelCoord * uint2(NumPixelSamples, 1) + uint2(PixelRayIndex, 0);
+	float StepOffset = InterleavedGradientNoise(NoiseCoord + 0.5f, 0.0f);
+
+	FSSRTRay Ray = InitScreenSpaceRayFromWorldSpace(
+		TranslatedWorldPosition, RayDirection,
+		/* WorldTMax = */ TraceDistance,
+		/* SceneDepth = */ SceneDepth,
+		/* SlopeCompareToleranceScale */ SlopeCompareToleranceScale * DepthThresholdScale * (float)NumSteps,
+		/* bExtendRayToScreenBorder = */ false,
+		/* out */ bRayWasClipped);
+
+	bool bUncertain;
+	float3 DebugOutput;
+
+	CastScreenSpaceRay(
+		FurthestHZBTexture, FurthestHZBTextureSampler,
+		StartMipLevel,
+		CastSettings,
+		Ray, RayRoughness, NumSteps, StepOffset - .9f,
+		HZBUvFactorAndInvFactor, false,
+		/* out */ DebugOutput,
+		/* out */ HitUVz,
+		/* out */ Level,
+		/* out */ bHit,
+		/* out */ bUncertain);
+
+	bHit = bHit && !bUncertain;
+	return bHit ? 0.0f : 1.0f;
+}
+#endif
+
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -648,7 +705,7 @@ float3 ReflectionEnvironmentUniformSampling(
 		#endif
 
 		const float SinLightAngle = dot(SampleL, T);
-		const FHairTraversalResult Result = InternalComputeHairCountVoxel(
+		FHairTraversalResult Result = InternalComputeHairCountVoxel(
 			NodeDesc,
 			SampleTranslatedWorldPosition, 
 			SampleTranslatedLightPosition, 
@@ -667,6 +724,11 @@ float3 ReflectionEnvironmentUniformSampling(
 			View.HairScatteringLUTTexture, 
 			HairScatteringLUTSampler,
 			View.HairComponents);	
+
+		if (Result.Visibility > 0 && bScreenTrace)
+		{
+			Result.Visibility *= GetRayVisibility(TranslatedWorldPosition, PixelSceneDepth, SampleL, PixelPosition, SampleIt, SampleCount);
+		}
 
 		const float Area = 0;	
 		const float Backlit = 1;
@@ -738,6 +800,12 @@ float3 ReflectionEnvironmentSH(
 		const uint2  PixelPosition = SvPosition - ResolvedView.ViewRectMin.xy;
 		Lighting = View.PreExposure * GatherRadiance(L, GBuffer.Roughness, PixelPosition, GBuffer.Depth, TranslatedWorldPosition) * IndirectDiffuseColor;
 	}
+
+	if (bScreenTrace)
+	{
+		Lighting *= GetRayVisibility(TranslatedWorldPosition, GBuffer.Depth, L, SvPosition, 0, 1);
+	}
+
 #else // PERMUTATION_LUMEN
 	const float AmbientOcclusion = 1.0f;
 	const float3 BentNormal = GBuffer.WorldNormal;
