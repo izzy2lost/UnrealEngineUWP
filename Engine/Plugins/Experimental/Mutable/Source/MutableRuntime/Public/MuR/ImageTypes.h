@@ -67,7 +67,9 @@ namespace mu
 
         IF_COUNT
 	};
-	
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(EImageFormat);
+
+
 	struct MUTABLERUNTIME_API FImageDesc
 	{
 		FImageDesc()
@@ -113,8 +115,9 @@ namespace mu
 		BT_LIGHTEN,				// Increase the channel value by a given proportion of what is missing from white 
 		BT_NORMAL_COMBINE,
 		_BT_COUNT
-	};
-	
+	};	
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(EBlendType);
+
 	enum class EAddressMode
 	{
 		None,
@@ -129,8 +132,9 @@ namespace mu
 		MFT_SimpleAverage,
 		MFT_Sharpen,
 		_MFT_COUNT
-	};
-	
+	};	
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(EMipmapFilterType);
+
 	enum class ECompositeImageMode
 	{
 		CIM_Disabled,
@@ -139,8 +143,9 @@ namespace mu
 		CIM_NormalRoughnessToBlue,
 		CIM_NormalRoughnessToAlpha,
 		_CIM_COUNT
-	};
-	
+	};	
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(ECompositeImageMode);
+
 	enum class ESamplingMethod : uint8
 	{
 		Point = 0,
@@ -148,6 +153,7 @@ namespace mu
 		MaxValue
 	};
 	static_assert(uint32(ESamplingMethod::MaxValue) <= (1 << 3), "ESampligMethod enum cannot hold more than 8 values");
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(ESamplingMethod);
 
 	enum class EInitializationType
 	{
@@ -162,6 +168,7 @@ namespace mu
 		MaxValue
 	};
 	static_assert(uint32(EMinFilterMethod::MaxValue) <= (1 << 3), "EMinFilterMethod enum cannot hold more than 8 values");
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(EMinFilterMethod);
 
 	/** */
 	struct FImageFormatData

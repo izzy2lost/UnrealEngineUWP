@@ -141,48 +141,43 @@ namespace mu
 	};
 
 
-	//---------------------------------------------------------------------------------------------
-#define MUTABLE_IMPLEMENT_POD_SERIALISABLE(T)							\
-		template<>														\
-		void DLLEXPORT operator<< <T>( OutputArchive& arch, const T& t )			\
-		{																\
-			arch.GetPrivate()->m_pStream->Write( &t, sizeof(T) );		\
-		}																\
-																		\
-		template<>														\
-		void DLLEXPORT operator>> <T>( InputArchive& arch, T& t )					\
-		{																\
-			arch.GetPrivate()->m_pStream->Read( &t, sizeof(T) );		\
-		}																\
+#define MUTABLE_IMPLEMENT_POD_SERIALISABLE(Type)				     \
+    void DLLEXPORT operator<<(OutputArchive& Arch, const Type& T)    \
+    {																 \
+        Arch.GetPrivate()->m_pStream->Write(&T, sizeof(Type));		 \
+    }																 \
+                                                                     \
+    void DLLEXPORT operator>>(InputArchive& Arch, Type& T)		     \
+    {																 \
+        Arch.GetPrivate()->m_pStream->Read(&T, sizeof(Type));		 \
+    }																 \
 		
 
-#define MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(T)									     \
-	template<typename Alloc>                                                             \
-	void operator <<(OutputArchive& arch, const TArray<T, Alloc>& v)					 \
-	{                                                                                    \
-		uint32 Num = uint32(v.Num());													 \
-		arch << Num;																	 \
-		if (Num)																		 \
-		{                                                                                \
-			arch.GetPrivate()->m_pStream->Write(&v[0], Num * sizeof(T));				 \
-		}                                                                                \
-	}                                                                                    \
-	                                                                                     \
-	template<typename Alloc>                                                             \
-	void operator >>(InputArchive& arch, TArray<T, Alloc>& v)                            \
-	{                                                                                    \
-		uint32 Num;																		 \
-		arch >> Num;																	 \
-		v.SetNum(Num);																	 \
-		if (Num)																		 \
-		{                                                                                \
-			arch.GetPrivate()->m_pStream->Read(&v[0], Num * sizeof(T));					 \
-		}                                                                                \
-	}                                                                                    \
+#define MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(Type)                        \
+    template<class Alloc>                                                      \
+	void operator<<(OutputArchive& Arch, const TArray<Type, Alloc>& V)         \
+	{                                                                          \
+		uint32 Num = uint32(V.Num());                                          \
+		Arch << Num;                                                           \
+		if (Num)                                                               \
+		{                                                                      \
+			Arch.GetPrivate()->m_pStream->Write(&V[0], Num * sizeof(Type));    \
+		}                                                                      \
+	}                                                                          \
+                                                                               \
+    template<class Alloc>                                                      \
+	void operator>>(InputArchive& Arch, TArray<Type, Alloc>& V)                \
+	{                                                                          \
+		uint32 Num;                                                            \
+		Arch >> Num;                                                           \
+		V.SetNum(Num);                                                         \
+		if (Num)                                                               \
+		{                                                                      \
+			Arch.GetPrivate()->m_pStream->Read(&V[0], Num * sizeof(Type));     \
+		}                                                                      \
+	}                                                                          \
 
-	//---------------------------------------------------------------------------------------------
-	// TVariant custom serialize. Based on the default serialization.
-	//---------------------------------------------------------------------------------------------
+	/** TVariant custom serialize. Based on the default serialization. */
 	template <typename... Ts>
 	void operator<<(OutputArchive& Ar, const TVariant<Ts...>& Variant)
 	{
@@ -234,54 +229,49 @@ namespace mu
 		TVariantLoadFromInputArchiveLookup<Ts...>::Load(static_cast<SIZE_T>(Index), Ar, Variant);
 	}
 
+#define MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(Type)						\
+        void DLLEXPORT operator<<(OutputArchive& Arch, const Type& T)   \
+		{																\
+            uint32 V = (uint32)T;                                       \
+            Arch.GetPrivate()->m_pStream->Write(&V, sizeof(uint32));    \
+		}																\
+																		\
+        void DLLEXPORT operator>>(InputArchive& Arch, Type& T)   		\
+		{																\
+            uint32 V;													\
+            Arch.GetPrivate()->m_pStream->Read(&V, sizeof(uint32));     \
+			T = (Type)V;												\
+		}																\
 
-	//---------------------------------------------------------------------------------------------
-#define MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(T)								\
-		template<>															\
-        void DLLEXPORT operator<< <T>( OutputArchive& arch, const T& t )	\
-		{																	\
-            uint32 v = (uint32)t;                                         	\
-            arch.GetPrivate()->m_pStream->Write( &v, sizeof(uint32) );  	\
-		}																	\
-																			\
-		template<>															\
-        void DLLEXPORT operator>> <T>( InputArchive& arch, T& t )   		\
-		{																	\
-            uint32 v;														\
-            arch.GetPrivate()->m_pStream->Read( &v, sizeof(uint32) );		\
-			t = (T)v;														\
-		}																	\
-
-    //---------------------------------------------------------------------------------------------
-    template< typename T0, typename T1 >
-    inline void operator<< ( OutputArchive& arch, const std::pair<T0,T1>& v )
+    template<typename T0, typename T1>
+    inline void operator<<(OutputArchive& Arch, const std::pair<T0, T1>& V)
     {
-        arch << v.first;
-        arch << v.second;
+        Arch << V.first;
+        Arch << V.second;
     }
 
-    template< typename T0, typename T1 >
-    inline void operator>> ( InputArchive& arch, std::pair<T0,T1>& v )
+    template<typename T0, typename T1>
+    inline void operator>>(InputArchive& Arch, std::pair<T0, T1>& V)
     {
-        arch >> v.first;
-        arch >> v.second;
+        Arch >> V.first;
+        Arch >> V.second;
     }
-
 	
-	//---------------------------------------------------------------------------------------------
-	template<typename T, uint32 Size> void operator<<(OutputArchive& arch, const TStaticArray<T, Size>& v)
+	template<typename T, uint32 Size, uint32 Align> 
+    void operator<<(OutputArchive& Arch, const TStaticArray<T, Size, Align>& V)
 	{
-		for (uint32 i = 0; i < Size; ++i)
+		for (int32 I = 0; I < Size; ++I)
 		{
-			arch << v[i];
+			Arch << V[I];
 		}
 	}
 
-	template<typename T, uint32 Size> void operator>>(InputArchive& arch, TStaticArray<T, Size>& v)
+	template<typename T, uint32 Size, uint32 Align> 
+    void operator>>(InputArchive& Arch, TStaticArray<T, Size, Align>& V)
 	{
-		for (uint32 i = 0; i < Size; ++i)
+		for (uint32 I = 0; I < Size; ++I)
 		{
-			arch >> v[i];
+			Arch >> V[I];
 		}
 	}
 	

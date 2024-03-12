@@ -2512,10 +2512,10 @@ namespace
 				mu::EInitializationType::NotInitialized);
 
 			// Generate an alpha-tested circle with an horizontal gradient color.
-			uint8* Data = Image->GetData();
+			uint8* Data = Image->GetLODData(0);
 			int32 CircleRadius = (Size * 2) / 5;
 			int32 CircleRadius2 = CircleRadius * CircleRadius;
-			int32 Color[3] = { 255,128,0 };
+			int32 Color[3] = {255, 128, 0};
 
 			int32 LogSize = FMath::CeilLogTwo(Size);
 

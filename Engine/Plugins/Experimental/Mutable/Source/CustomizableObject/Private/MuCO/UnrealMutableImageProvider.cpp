@@ -8,6 +8,7 @@
 #include "MuCO/UnrealToMutableTextureConversionUtils.h"
 #include "TextureResource.h"
 #include "MuR/Parameters.h"
+#include "MuR/ImageTypes.h"
 
 
 //-------------------------------------------------------------------------------------------------
@@ -49,7 +50,7 @@ namespace
 		if (pSource)
 		{
 			OutResult->Init(SizeX, SizeY, LODs, MutableFormat, mu::EInitializationType::NotInitialized);
-			FMemory::Memcpy(OutResult->GetData(), pSource, OutResult->GetDataSize());
+			FMemory::Memcpy(OutResult->GetLODData(0), pSource, OutResult->GetLODDataSize(0));
 			Texture->GetPlatformData()->Mips[MipmapsToSkip].BulkData.Unlock();
 		}
 		else
@@ -241,11 +242,12 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImag
 				return Invoke(TrivialReturn);
 			}
 
-			int SizeX = TextureToLoad->GetSizeX() >> MipIndex;
-			int SizeY = TextureToLoad->GetSizeY() >> MipIndex;
+			int32 SizeX = TextureToLoad->GetSizeX() >> MipIndex;
+			int32 SizeY = TextureToLoad->GetSizeY() >> MipIndex;
 
+			check(LODs == 1);
 			mu::Ptr<mu::Image> Image = new mu::Image(SizeX, SizeY, LODs, MutImageFormat, mu::EInitializationType::NotInitialized);
-			MutImageDataSize = Image->GetDataSize();
+			TArrayView<uint8> MutImageDataView = Image->DataStorage.GetLOD(0);
 
 			// In a packaged game the bulk data has to be loaded
 			// Get the actual file to read the mip 0 data, do not keep any reference to TextureToLoad because once outside of the lock
@@ -254,7 +256,7 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImag
 			BulkDataSize = BulkData.GetBulkDataSize();
 			check(BulkDataSize > 0);
 
-			if (BulkDataSize != MutImageDataSize)
+			if (BulkDataSize != MutImageDataView.Num())
 			{
 				UE_LOG(LogMutable, Warning, TEXT("Failed to get external image [%s]. Bulk data size is different than the expected size. BulkData size [%d]. Mutable image data size [%d]."),
 					*Id.ToString(),	BulkDataSize, MutImageDataSize);
@@ -270,7 +272,7 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImag
 
 				TFunction<void(bool, IBulkDataIORequest*)> IOCallback =
 					[
-						MutImageDataSize,
+						MutImageDataView,
 						MutImageFormat,
 						Format,
 						Image,
@@ -295,10 +297,10 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImag
 
 					uint8* Results = IORequest->GetReadResults(); // required?
 
-					if (Results && Image->GetDataSize() == (int32)IORequest->GetSize())
+					if (Results && MutImageDataView.Num() == (int32)IORequest->GetSize())
 					{
 						check(BulkDataSize == (int32)IORequest->GetSize());
-						check(Results == Image->GetData());
+						check(Results == MutImageDataView.GetData());
 
 						ResultCallback(Image);
 						return;
@@ -311,11 +313,11 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImag
 							GetPixelFormatString(Format),
 							(int32)MutImageFormat);
 					}
-					else if (MutImageDataSize != (int32)IORequest->GetSize())
+					else if (MutImageDataView.Num() != (int32)IORequest->GetSize())
 					{
 						UE_LOG(LogMutable, Warning, TEXT("Failed to get external image. Requested size is different than the expected size. RequestSize: [%lld]. ExpectedSize: [%d]. Format: [%s]. MutableFormat: [%d]."),
 							IORequest->GetSize(),
-							Image->GetDataSize(),
+							MutImageDataView.Num(),
 							GetPixelFormatString(Format),
 							(int32)MutImageFormat);
 					}
@@ -332,7 +334,7 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImag
 				// This can *not* be done in the IOCallback because it would cause a deadlock so it is deferred to the returned
 				// cleanup function. Another solution could be to spwan a new task that depends on the 
 				// IORequestComplitionEvent which deletes it.
-				IORequest = BulkData.CreateStreamingRequest(EAsyncIOPriorityAndFlags::AIOP_High, &IOCallback, Image->GetData());
+				IORequest = BulkData.CreateStreamingRequest(EAsyncIOPriorityAndFlags::AIOP_High, &IOCallback, MutImageDataView.GetData());
 
 				if (IORequest)
 				{
@@ -368,7 +370,7 @@ TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImag
 				
 				if (Data)
 				{
-					FMemory::Memcpy(Image->GetData(), Data, BulkDataSize);
+					FMemory::Memcpy(MutImageDataView.GetData(), Data, BulkDataSize);
 
 					BulkData.Unlock();
 					ResultCallback(Image);
@@ -559,7 +561,7 @@ void FUnrealMutableImageProvider::CacheImage(FName Id, bool bUser)
 					{
 						FIntVector desc = Provider->GetTextureParameterValueSize(Id);
 						pResult = new mu::Image(desc[0], desc[1], 1, mu::EImageFormat::IF_RGBA_UBYTE, mu::EInitializationType::Black);
-						Provider->GetTextureParameterValueData(Id, pResult->GetData());
+						Provider->GetTextureParameterValueData(Id, pResult->GetLODData(0));
 						break;
 					}
 
@@ -711,28 +713,30 @@ void FUnrealMutableImageProvider::UnCacheImages(const mu::Parameters& Parameters
 mu::ImagePtr FUnrealMutableImageProvider::CreateDummy()
 {
 	// Create a dummy image
-	const int size = DUMMY_IMAGE_DESC.m_size[0];
-	const int checkerSize = 4;
-	constexpr int checkerTileCount = 2;
+	const int32 Size = DUMMY_IMAGE_DESC.m_size[0];
+	const int32 CheckerSize = 4;
+	constexpr int32 CheckerTileCount = 2;
 	
 #if !UE_BUILD_SHIPPING
-	uint8_t colours[checkerTileCount][4] = { { 255, 255, 0, 255 },{ 0, 0, 255, 255 } };
+	uint8 Colors[CheckerTileCount][4] = {{255, 255, 0, 255}, {0, 0, 255, 255}};
 #else
-	uint8_t colours[checkerTileCount][4] = { { 255, 255, 0, 0 },  { 0, 0, 255, 0 } };
+	uint8 Colors[CheckerTileCount][4] = {{255, 255, 0, 0}, {0, 0, 255, 0}};
 #endif
 
-	mu::ImagePtr pResult = new mu::Image(size, size, DUMMY_IMAGE_DESC.m_lods, DUMMY_IMAGE_DESC.m_format, mu::EInitializationType::NotInitialized);
+	mu::ImagePtr pResult = new mu::Image(Size, Size, DUMMY_IMAGE_DESC.m_lods, DUMMY_IMAGE_DESC.m_format, mu::EInitializationType::NotInitialized);
 
-	uint8_t* pData = pResult->GetData();
-	for (int x = 0; x < size; ++x)
+	check(pResult->GetLODCount() == 1);
+	check(pResult->GetFormat() == mu::EImageFormat::IF_RGBA_UBYTE || pResult->GetFormat() == mu::EImageFormat::IF_BGRA_UBYTE);
+	uint8* pData = pResult->GetLODData(0);
+	for (int32 X = 0; X < Size; ++X)
 	{
-		for (int y = 0; y < size; ++y)
+		for (int32 Y = 0; Y < Size; ++Y)
 		{
-			int checkerIndex = ((x / checkerSize) + (y / checkerSize)) % checkerTileCount;
-			pData[0] = colours[checkerIndex][0];
-			pData[1] = colours[checkerIndex][1];
-			pData[2] = colours[checkerIndex][2];
-			pData[3] = colours[checkerIndex][3];
+			int32 CheckerIndex = ((X / CheckerSize) + (Y / CheckerSize)) % CheckerTileCount;
+			pData[0] = Colors[CheckerIndex][0];
+			pData[1] = Colors[CheckerIndex][1];
+			pData[2] = Colors[CheckerIndex][2];
+			pData[3] = Colors[CheckerIndex][3];
 			pData += 4;
 		}
 	}

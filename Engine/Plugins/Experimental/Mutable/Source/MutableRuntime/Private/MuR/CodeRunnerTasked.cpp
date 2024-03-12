@@ -569,7 +569,6 @@ namespace mu
 		OutDesc = m_heapImageDesc[0];
 	}
 
-
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
@@ -685,14 +684,16 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ImageLayer_EmergencyFix);
 
-				int32 levelCount = Base->GetLODCount();
-				Ptr<Image> Dest = Runner->CreateImage(Mask->GetSizeX(), Mask->GetSizeY(), levelCount, Mask->GetFormat(), EInitializationType::NotInitialized);
+				int32 StartLevel = Mask->GetLODCount() - 1;
+				int32 LevelCount = Base->GetLODCount();
 
-				FMipmapGenerationSettings settings{};
-				ImOp.ImageMipmap(ImageCompressionQuality, Dest.get(), Mask.get(), levelCount, settings);
+				Ptr<Image> MaskFix = Runner->CloneOrTakeOver(Mask);
+				MaskFix->DataStorage.SetNumLODs(LevelCount);
 
-				Runner->Release(Mask);
-				Mask = Dest;
+				FMipmapGenerationSettings Settings{};
+				ImOp.ImageMipmap(ImageCompressionQuality, MaskFix.get(), MaskFix.get(), StartLevel, LevelCount, Settings);
+
+				Mask = MaskFix;
 			}
 		}
 
@@ -755,15 +756,15 @@ namespace mu
 			switch (EBlendType(Args.blendType))
 			{
 			case EBlendType::BT_NORMAL_COMBINE: ImageNormalCombine(Result.get(), Result.get(), Mask.get(), Blended.get(), bOnlyOneMip); break;
-			case EBlendType::BT_SOFTLIGHT: BufferLayer<SoftLightChannelMasked, SoftLightChannel, true>(Result->GetData(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_HARDLIGHT: BufferLayer<HardLightChannelMasked, HardLightChannel, true>(Result->GetData(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_BURN: BufferLayer<BurnChannelMasked, BurnChannel, true>(Result->GetData(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_DODGE: BufferLayer<DodgeChannelMasked, DodgeChannel, true>(Result->GetData(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_SCREEN: BufferLayer<ScreenChannelMasked, ScreenChannel, true>(Result->GetData(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_OVERLAY: BufferLayer<OverlayChannelMasked, OverlayChannel, true>(Result->GetData(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_LIGHTEN: BufferLayer<LightenChannelMasked, LightenChannel, true>(Result->GetData(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_MULTIPLY: BufferLayer<MultiplyChannelMasked, MultiplyChannel, true>(Result->GetData(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_BLEND: BufferLayer<BlendChannelMasked, BlendChannel, true>(Result->GetData(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_SOFTLIGHT: BufferLayer<SoftLightChannelMasked, SoftLightChannel, true>(Result.get(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_HARDLIGHT: BufferLayer<HardLightChannelMasked, HardLightChannel, true>(Result.get(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_BURN: BufferLayer<BurnChannelMasked, BurnChannel, true>(Result.get(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_DODGE: BufferLayer<DodgeChannelMasked, DodgeChannel, true>(Result.get(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_SCREEN: BufferLayer<ScreenChannelMasked, ScreenChannel, true>(Result.get(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_OVERLAY: BufferLayer<OverlayChannelMasked, OverlayChannel, true>(Result.get(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_LIGHTEN: BufferLayer<LightenChannelMasked, LightenChannel, true>(Result.get(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_MULTIPLY: BufferLayer<MultiplyChannelMasked, MultiplyChannel, true>(Result.get(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_BLEND: BufferLayer<BlendChannelMasked, BlendChannel, true>(Result.get(), Result.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
 			case EBlendType::BT_NONE: break;
 			default: check(false);
 			}
@@ -778,15 +779,15 @@ namespace mu
 			switch (EBlendType(Args.blendType))
 			{
 			case EBlendType::BT_NORMAL_COMBINE: check(false); break;
-			case EBlendType::BT_SOFTLIGHT: BufferLayerEmbeddedMask<SoftLightChannelMasked, SoftLightChannel, false>(Result->GetData(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_HARDLIGHT: BufferLayerEmbeddedMask<HardLightChannelMasked, HardLightChannel, false>(Result->GetData(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_BURN: BufferLayerEmbeddedMask<BurnChannelMasked, BurnChannel, false>(Result->GetData(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_DODGE: BufferLayerEmbeddedMask<DodgeChannelMasked, DodgeChannel, false>(Result->GetData(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_SCREEN: BufferLayerEmbeddedMask<ScreenChannelMasked, ScreenChannel, false>(Result->GetData(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_OVERLAY: BufferLayerEmbeddedMask<OverlayChannelMasked, OverlayChannel, false>(Result->GetData(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_LIGHTEN: BufferLayerEmbeddedMask<LightenChannelMasked, LightenChannel, false>(Result->GetData(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_MULTIPLY: BufferLayerEmbeddedMask<MultiplyChannelMasked, MultiplyChannel, false>(Result->GetData(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
-			case EBlendType::BT_BLEND: BufferLayerEmbeddedMask<BlendChannelMasked, BlendChannel, false>(Result->GetData(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_SOFTLIGHT: BufferLayerEmbeddedMask<SoftLightChannelMasked, SoftLightChannel, false>(Result.get(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_HARDLIGHT: BufferLayerEmbeddedMask<HardLightChannelMasked, HardLightChannel, false>(Result.get(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_BURN: BufferLayerEmbeddedMask<BurnChannelMasked, BurnChannel, false>(Result.get(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_DODGE: BufferLayerEmbeddedMask<DodgeChannelMasked, DodgeChannel, false>(Result.get(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_SCREEN: BufferLayerEmbeddedMask<ScreenChannelMasked, ScreenChannel, false>(Result.get(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_OVERLAY: BufferLayerEmbeddedMask<OverlayChannelMasked, OverlayChannel, false>(Result.get(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_LIGHTEN: BufferLayerEmbeddedMask<LightenChannelMasked, LightenChannel, false>(Result.get(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_MULTIPLY: BufferLayerEmbeddedMask<MultiplyChannelMasked, MultiplyChannel, false>(Result.get(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
+			case EBlendType::BT_BLEND: BufferLayerEmbeddedMask<BlendChannelMasked, BlendChannel, false>(Result.get(), Result.get(), Blended.get(), bApplyColorBlendToAlpha, bOnlyOneMip); break;
 			case EBlendType::BT_NONE: break;
 			default: check(false);
 			}
@@ -950,14 +951,16 @@ namespace mu
 			if (Mask->GetLODCount() < Base->GetLODCount())
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ImageResize_EmergencyFixMips);
-				int32 levelCount = Base->GetLODCount();
-				Ptr<Image> pDest = Runner->CreateImage(Mask->GetSizeX(), Mask->GetSizeY(), levelCount, Mask->GetFormat(), EInitializationType::NotInitialized);
+				int32 StartLevel = Mask->GetLODCount() - 1;
+				int32 LevelCount = Base->GetLODCount();
 
-				FMipmapGenerationSettings settings{};
-				ImOp.ImageMipmap(ImageCompressionQuality, pDest.get(), Mask.get(), levelCount, settings);
+				Ptr<Image> MaskFix = Runner->CloneOrTakeOver(Mask);
+				MaskFix->DataStorage.SetNumLODs(LevelCount);
 
-				Runner->Release(Mask);
-				Mask = pDest;
+				FMipmapGenerationSettings Settings{};
+				ImOp.ImageMipmap(ImageCompressionQuality, MaskFix.get(), MaskFix.get(), StartLevel, LevelCount, Settings);
+
+				Mask = MaskFix;
 			}
 		}
 
@@ -987,15 +990,15 @@ namespace mu
 				switch (EBlendType(Args.blendType))
 				{
 				case EBlendType::BT_NORMAL_COMBINE: ImageNormalCombine(Result.get(), Result.get(), Mask.get(), Color); break;
-				case EBlendType::BT_SOFTLIGHT: BufferLayerColour<SoftLightChannelMasked, SoftLightChannel>(Result->GetData(), Result.get(), Mask.get(), Color); break;
-				case EBlendType::BT_HARDLIGHT: BufferLayerColour<HardLightChannelMasked, HardLightChannel>(Result->GetData(), Result.get(), Mask.get(), Color); break;
-				case EBlendType::BT_BURN: BufferLayerColour<BurnChannelMasked, BurnChannel>(Result->GetData(), Result.get(), Mask.get(), Color); break;
-				case EBlendType::BT_DODGE: BufferLayerColour<DodgeChannelMasked, DodgeChannel>(Result->GetData(), Result.get(), Mask.get(), Color); break;
-				case EBlendType::BT_SCREEN: BufferLayerColour<ScreenChannelMasked, ScreenChannel>(Result->GetData(), Result.get(), Mask.get(), Color); break;
-				case EBlendType::BT_OVERLAY: BufferLayerColour<OverlayChannelMasked, OverlayChannel>(Result->GetData(), Result.get(), Mask.get(), Color); break;
-				case EBlendType::BT_LIGHTEN: BufferLayerColour<LightenChannelMasked, LightenChannel>(Result->GetData(), Result.get(), Mask.get(), Color); break;
-				case EBlendType::BT_MULTIPLY: BufferLayerColour<MultiplyChannelMasked, MultiplyChannel>(Result->GetData(), Result.get(), Mask.get(), Color); break;
-				case EBlendType::BT_BLEND: BufferLayerColour<BlendChannelMasked, BlendChannel>(Result->GetData(), Result.get(), Mask.get(), Color); break;
+				case EBlendType::BT_SOFTLIGHT: BufferLayerColour<SoftLightChannelMasked, SoftLightChannel>(Result.get(), Result.get(), Mask.get(), Color); break;
+				case EBlendType::BT_HARDLIGHT: BufferLayerColour<HardLightChannelMasked, HardLightChannel>(Result.get(), Result.get(), Mask.get(), Color); break;
+				case EBlendType::BT_BURN: BufferLayerColour<BurnChannelMasked, BurnChannel>(Result.get(), Result.get(), Mask.get(), Color); break;
+				case EBlendType::BT_DODGE: BufferLayerColour<DodgeChannelMasked, DodgeChannel>(Result.get(), Result.get(), Mask.get(), Color); break;
+				case EBlendType::BT_SCREEN: BufferLayerColour<ScreenChannelMasked, ScreenChannel>(Result.get(), Result.get(), Mask.get(), Color); break;
+				case EBlendType::BT_OVERLAY: BufferLayerColour<OverlayChannelMasked, OverlayChannel>(Result.get(), Result.get(), Mask.get(), Color); break;
+				case EBlendType::BT_LIGHTEN: BufferLayerColour<LightenChannelMasked, LightenChannel>(Result.get(), Result.get(), Mask.get(), Color); break;
+				case EBlendType::BT_MULTIPLY: BufferLayerColour<MultiplyChannelMasked, MultiplyChannel>(Result.get(), Result.get(), Mask.get(), Color); break;
+				case EBlendType::BT_BLEND: BufferLayerColour<BlendChannelMasked, BlendChannel>(Result.get(), Result.get(), Mask.get(), Color); break;
 				default: check(false);
 				}
 
@@ -1184,21 +1187,7 @@ namespace mu
 		bool bSuccess = false;
 		FImageOperator ImOp = FImageOperator::GetDefault(ImagePixelFormatFunc);
 		ImOp.ImagePixelFormat(bSuccess, ImageCompressionQuality, Result.get(), Base.get(), -1);
-
-		int32 OriginalDataSize = FMath::Max(Result->m_data.Num(), Base->m_data.Num());
-		int32 ExcessDataSize = OriginalDataSize * 4 + 4;
-		while (!bSuccess)
-		{
-			MUTABLE_CPUPROFILER_SCOPE(Recompression_OutOfSpace);
-
-			// Bad case, where the RLE compressed data requires more memory than the uncompressed data.
-			// We need to support it anyway for small mips or scaled images.
-			Result->m_data.SetNum(ExcessDataSize);
-			bSuccess = false;
-			ImOp.ImagePixelFormat(bSuccess,ImageCompressionQuality, Result.get(), Base.get(), -1);
-			ExcessDataSize *= 4;
-		}
-
+		check(bSuccess);
 	}
 
 
@@ -1214,10 +1203,6 @@ namespace mu
 		}
 	}
 
-
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
 	class FImageMipmapTask : public CodeRunner::FIssuedTask
 	{
 	public:
@@ -1231,7 +1216,8 @@ namespace mu
 		void Complete(CodeRunner*) override;
 
 	private:
-		int ImageCompressionQuality = 0;
+		int32 ImageCompressionQuality = 0;
+		int32 StartLevel = -1;
 		OP::ImageMipmapArgs Args;
 		Ptr<const Image> Base;
 		Ptr<Image> Result;
@@ -1279,8 +1265,7 @@ namespace mu
 		}
 
 		// At least keep the levels we already have.
-		int StartLevel = Base->GetLODCount();
-		LevelCount = FMath::Max(StartLevel, LevelCount);
+		LevelCount = FMath::Max(Base->GetLODCount(), LevelCount);
 		
 		if (LevelCount == Base->GetLODCount())
 		{
@@ -1288,12 +1273,15 @@ namespace mu
 			return false;
 		}
 
-		// Create destination data
-		Result = Runner->CreateImage(Base->GetSizeX(), Base->GetSizeY(), LevelCount, Base->GetFormat(), EInitializationType::NotInitialized);
-		Result->m_flags = Base->m_flags;
+		StartLevel = Base->GetLODCount() - 1;
+		
+		Result = Runner->CloneOrTakeOver(Base);
+		Base = nullptr;
+
+		Result->DataStorage.SetNumLODs(LevelCount);
 
 		FImageOperator ImOp = MakeImageOperator(Runner);
-		ImOp.ImageMipmap_PrepareScratch( Result.get(), Base.get(), LevelCount, Scratch);
+		ImOp.ImageMipmap_PrepareScratch(Result.get(), StartLevel, LevelCount, Scratch);
 
 		ImagePixelFormatFunc = Runner->m_pSystem->ImagePixelFormatOverride;
 
@@ -1301,26 +1289,29 @@ namespace mu
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	void FImageMipmapTask::DoWork()
 	{
 		// This runs in a worker thread
 		MUTABLE_CPUPROFILER_SCOPE(FImageMipmapTask);
 
-		FMipmapGenerationSettings settings{};
+		check(StartLevel >= 0);
+
+		FMipmapGenerationSettings Settings{};
 		FImageOperator ImOp = FImageOperator::GetDefault(ImagePixelFormatFunc);
-		ImOp.ImageMipmap(Scratch, ImageCompressionQuality, Result.get(), Base.get(), Result->GetLODCount(), settings);
+		ImOp.ImageMipmap(Scratch, ImageCompressionQuality, Result.get(), Result.get(), StartLevel, Result->GetLODCount(), Settings);
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	void FImageMipmapTask::Complete(CodeRunner* Runner)
 	{
 		FImageOperator ImOp = MakeImageOperator(Runner);
 		ImOp.ImageMipmap_ReleaseScratch(Scratch);
 
 		// This runs in the Runner thread
-		Runner->Release(Base);
+		if (Base)
+		{
+			Runner->Release(Base);
+		}
 
 		// If no shortcut was taken
 		if (Result)
@@ -1519,8 +1510,8 @@ namespace mu
 		// This runs on a random worker thread
 		MUTABLE_CPUPROFILER_SCOPE(FImageSaturateTask);
 
-		constexpr bool bUseVectorIntrinsics = false;
-		ImageSaturateInPlace<bUseVectorIntrinsics>(Result.get(), Factor);
+		constexpr bool bUseVectorIntrinsics = true;
+		ImageSaturate<bUseVectorIntrinsics>(Result.get(), Factor);
 	}
 
 	//---------------------------------------------------------------------------------------------
@@ -1794,7 +1785,7 @@ namespace mu
 		// This runs on a random worker thread
 		MUTABLE_CPUPROFILER_SCOPE(FImageInvertTask);
 
-		ImageInvertInPlace(Result.get());
+		ImageInvert(Result.get());
 	}
 
 
@@ -2417,7 +2408,6 @@ namespace mu
 
 		Runner->StoreImage(Op, Result);
 	}	
-
 	
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------

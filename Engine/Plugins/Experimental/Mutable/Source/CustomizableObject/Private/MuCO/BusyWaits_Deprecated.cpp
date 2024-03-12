@@ -110,11 +110,19 @@ namespace impl_deprecated
 
 					// Force the right number of mips. The missing data will be black.
 					const mu::Ptr<mu::Image> NewImage = new mu::Image(Image.Image->GetSizeX(), Image.Image->GetSizeY(), FullMipCount, Image.Image->GetFormat(), mu::EInitializationType::Black);
-					check(NewImage);
-					if (NewImage->GetDataSize() >= Image.Image->GetDataSize())
+					check(NewImage);	
+					// Formats with BytesPerBlock == 0 will not allocate memory. This type of images are not expected here.
+					check(!NewImage->DataStorage.IsEmpty());
+
+					for (int32 L = 0; L < RealMipCount; ++L)
 					{
-						FMemory::Memcpy(NewImage->GetData(), Image.Image->GetData(), Image.Image->GetDataSize());
+						TArrayView<uint8> DestView = NewImage->DataStorage.GetLOD(L);
+						TArrayView<const uint8> SrcView = Image.Image->DataStorage.GetLOD(L);
+
+						check(DestView.Num() == SrcView.Num());
+						FMemory::Memcpy(DestView.GetData(), SrcView.GetData(), DestView.Num());
 					}
+
 					Image.Image = NewImage;
 				}
 

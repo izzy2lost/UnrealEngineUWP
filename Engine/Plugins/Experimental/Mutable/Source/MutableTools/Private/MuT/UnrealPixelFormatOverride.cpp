@@ -170,8 +170,10 @@ void MutableToImageCore(const mu::Image* InMutable, FImage& CoreImage, int32 LOD
 
 void ImageCoreToMutable(const FCompressedImage2D& Compressed, mu::Image* Mutable, int32 LOD)
 {
-	check(Compressed.RawData.Num()==Mutable->CalculateDataSize(LOD));
-	FMemory::Memcpy(Mutable->GetMipData(LOD), Compressed.RawData.GetData(), Compressed.RawData.Num());
+	TArrayView<uint8> MutableView = Mutable->DataStorage.GetLOD(LOD);
+
+	check(Compressed.RawData.Num() == MutableView.Num());
+	FMemory::Memcpy(MutableView.GetData(), Compressed.RawData.GetData(), Compressed.RawData.Num());
 }
 
 

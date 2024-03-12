@@ -43,8 +43,8 @@ namespace mu
 		] (uint32 y)
 		{
 			uint32 px_16 = 0;
-			const uint8* BaseBuf = Base->GetData() + y * BaseSizeX * NC;
-			uint8* DestBuf = Dest->GetData() + y * DestSizeX * NC;
+			const uint8* BaseBuf = Base->GetLODData(0) + y * BaseSizeX * NC;
+			uint8* DestBuf = Dest->GetLODData(0) + y * DestSizeX * NC;
 
 			uint32 LastPX = BaseSizeX - 1;
 			for (int32 x = 0; x < DestSizeX; ++x)
@@ -126,8 +126,8 @@ namespace mu
 			Dest, Base, dx_16, BaseSizeX, DestSizeX
 		] (uint32 y)
 		{
-			const uint8* BaseBuf = Base->GetData() + y * BaseSizeX * NC;
-			uint8* DestBuf = Dest->GetData() + y * DestSizeX * NC;
+			const uint8* BaseBuf = Base->GetLODData(0) + y * BaseSizeX * NC;
+			uint8* DestBuf = Dest->GetLODData(0) + y * DestSizeX * NC;
 
 			uint32 px_16 = 0;
 			for (int32 x = 0; x < DestSizeX; ++x)
@@ -199,16 +199,16 @@ namespace mu
 		int32 DestSizeX = Dest->GetSizeX();
 		int32 SizeY = Base->GetSizeY();
 
-		const uint8* BaseBuf = Base->GetData();
-		uint8* DestBuf = Dest->GetData();
+		const uint8* BaseBuf = Base->GetLODData(0);
+		uint8* DestBuf = Dest->GetLODData(0);
 
 		// Linear filtering
 		const auto& ProcessLine = [
 			Dest, Base, BaseSizeX, DestSizeX
 		] (uint32 y)
 		{
-			const uint8* BaseBuf = Base->GetData() + y * BaseSizeX * NC;
-			uint8* DestBuf = Dest->GetData() + y * DestSizeX * NC;
+			const uint8* BaseBuf = Base->GetLODData(0) + y * BaseSizeX * NC;
+			uint8* DestBuf = Dest->GetLODData(0) + y * DestSizeX * NC;
 
 			uint32 r[NC];
 			for (int32 x = 0; x < DestSizeX; ++x)
@@ -235,10 +235,10 @@ namespace mu
 		ParallelFor(SizeY, ProcessLine);
 	}
 
-	inline uint32 AverageChannel(uint32 a, uint32 b)
+	inline uint32 AverageChannel(uint32 A, uint32 B)
 	{
-		uint32 r = (a + b) >> 1;
-		return r;
+		uint32 Result = (A + B) >> 1;
+		return Result;
 	}
 
 	template<>
@@ -248,8 +248,8 @@ namespace mu
 		int32 DestSizeX = Dest->GetSizeX();
 		int32 SizeY = Base->GetSizeY();
 
-		const uint8* BaseBuf = Base->GetData();
-		uint8* DestBuf = Dest->GetData();
+		const uint8* BaseBuf = Base->GetLODData(0);
+		uint8* DestBuf = Dest->GetLODData(0);
 
 		int32 TotalBasePixels = BaseSizeX * SizeY;
 		constexpr int32 BasePixelsPerBatch = 4096 * 2;
@@ -411,8 +411,8 @@ namespace mu
 				Dest, Base, rowSize
 			] (uint32 y)
 			{
-				uint8* DestBuf = Dest->GetData() + 2 * y * rowSize;
-				const uint8* BaseBuf = Base->GetData() + y * rowSize;
+				uint8* DestBuf = Dest->GetLODData(0) + 2 * y * rowSize;
+				const uint8* BaseBuf = Base->GetLODData(0) + y * rowSize;
 
 				FMemory::Memcpy(DestBuf, BaseBuf, rowSize);
 				DestBuf += rowSize;
@@ -436,8 +436,8 @@ namespace mu
 			] (uint32 x)
 			{
 				uint32 py_16 = 0;
-				uint8* DestBuf = Dest->GetData() + x * NC;
-				const uint8* BaseBuf = Base->GetData();
+				uint8* DestBuf = Dest->GetLODData(0) + x * NC;
+				const uint8* BaseBuf = Base->GetLODData(0);
 
 				for (int32 y = 0; y < DestSizeY; ++y)
 				{
@@ -515,7 +515,7 @@ namespace mu
 
 		uint32 dy_16 = (uint32(BaseSizeY) << 16) / DestSizeY;
 
-		const uint8* BaseBuf = Base->GetData();
+		const uint8* BaseBuf = Base->GetLODData(0);
 
 		// Linear filtering
 		//for (int32 x = 0; x < SizeX; ++x)
@@ -523,7 +523,7 @@ namespace mu
 			Dest, BaseBuf, SizeX, DestSizeY, dy_16
 		] (uint32 x)
 		{
-			uint8* DestBuf = Dest->GetData() + x * NC;
+			uint8* DestBuf = Dest->GetLODData(0) + x * NC;
 			uint32 py_16 = 0;
 			for (int32 y = 0; y < DestSizeY; ++y)
 			{
@@ -600,8 +600,8 @@ namespace mu
 			Dest, Base, SizeX, DestSizeY
 		] (uint32 y)
 		{
-			uint8* DestBuf = Dest->GetData() + y * NC * SizeX;
-			const uint8* BaseBuf = Base->GetData() + y * FACTOR * SizeX * NC;
+			uint8* DestBuf = Dest->GetLODData(0) + y * NC * SizeX;
+			const uint8* BaseBuf = Base->GetLODData(0) + y * FACTOR * SizeX * NC;
 
 			for (int32 x = 0; x < SizeX; ++x)
 			{
@@ -917,8 +917,8 @@ namespace
 		const EImageFormat SrcFormat = InBase->GetFormat();
 		const EImageFormat DestFormat = Dest->GetFormat();
 	
-		uint8* DestData = Dest->GetData();
-		const uint8* SrcData = InBase->GetData();
+		uint8* DestData = Dest->GetLODData(0);
+		const uint8* SrcData = InBase->GetLODData(0);
 		
 		const FImageFormatData& DestFormatData = GetImageFormatData(Dest->GetFormat());
 		const FImageFormatData& SrcFormatData = GetImageFormatData(InBase->GetFormat());

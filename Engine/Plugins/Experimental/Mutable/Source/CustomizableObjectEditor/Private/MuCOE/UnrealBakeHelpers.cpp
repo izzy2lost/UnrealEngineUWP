@@ -193,14 +193,14 @@ UTexture2D* FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(UTexture2D* SrcTex
 
 	// Create a mutable image from the platform data.
 	mu::EImageFormat MutableFormat = UnrealToMutablePixelFormat(SrcTex->GetPlatformData()->PixelFormat, SrcTex->HasAlphaChannel());
-	mu::Ptr<mu::Image> PlatformImage = new mu::Image(sx,sy,1,MutableFormat, mu::EInitializationType::NotInitialized);
+	mu::Ptr<mu::Image> PlatformImage = new mu::Image(sx, sy, 1, MutableFormat, mu::EInitializationType::NotInitialized);
 
 	constexpr int32 MipIndex = 0;
-	const uint8_t* SourceData = reinterpret_cast<const uint8_t*>(SrcTex->GetPlatformData()->Mips[MipIndex].BulkData.LockReadOnly());
+	const uint8* SourceData = reinterpret_cast<const uint8*>(SrcTex->GetPlatformData()->Mips[MipIndex].BulkData.LockReadOnly());
 	check(SourceData); // A mutable-generated texture should always contain platform data
 	int32 PlatformDataSize = SrcTex->GetPlatformData()->Mips[MipIndex].BulkData.GetBulkDataSize();
 	check(PlatformImage->GetDataSize()== PlatformDataSize);
-	FMemory::Memcpy( PlatformImage->GetData(), SourceData, PlatformDataSize);
+	FMemory::Memcpy(PlatformImage->GetLODData(0), SourceData, PlatformDataSize);
 	SourceData = nullptr;
 	SrcTex->GetPlatformData()->Mips[MipIndex].BulkData.Unlock();
 
@@ -226,20 +226,22 @@ UTexture2D* FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(UTexture2D* SrcTex
 	// Copy the decompressed data to the texture source data
 	int32 SourceDataSize = DupTex->Source.CalcMipSize(MipIndex);
 
+	TArrayView<uint8> UncompressedView = UncompressedImage->DataStorage.GetLOD(0);
+	
 	// If this doesn't match, more cases have to be added to the switch above.
-	check(UncompressedImage->GetDataSize() == SourceDataSize);
+	check(UncompressedView.Num() == SourceDataSize);
 
-	uint8_t* Dest = DupTex->Source.LockMip(MipIndex);
+	uint8* Dest = DupTex->Source.LockMip(MipIndex);
 	check(Dest);
-	FMemory::Memcpy(Dest, UncompressedImage->GetData(), SourceDataSize);
+	FMemory::Memcpy(Dest, UncompressedView.GetData(), SourceDataSize);
 
 	// Probably can be integrated in the pixel format
 	const bool bNeedsRBSwizzle = PixelFormat == TSF_BGRA8;
 	if (bNeedsRBSwizzle)
 	{
-		for (int x = 0; x < sx * sy; ++x)
+		for (int32 x = 0; x < sx * sy; ++x)
 		{
-			uint8_t temp = Dest[0];
+			uint8 temp = Dest[0];
 			Dest[0] = Dest[2];
 			Dest[2] = temp;
 			Dest += 4;

@@ -12,10 +12,6 @@
 
 namespace mu
 {
-	MUTABLE_DEFINE_ENUM_SERIALISABLE( EMipmapFilterType );
-	MUTABLE_DEFINE_ENUM_SERIALISABLE( EImageFormat );
-	MUTABLE_DEFINE_ENUM_SERIALISABLE( EAddressMode );
-
 
     //---------------------------------------------------------------------------------------------
     //!

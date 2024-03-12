@@ -5,7 +5,6 @@
 #include "HAL/UnrealMemory.h"
 #include "Misc/AssertionMacros.h"
 
-
 namespace mu
 {
 
@@ -99,7 +98,7 @@ namespace mu
 			if (Difference)
 			{
 				// Different pos.
-				size_t Delta = 0;
+				SIZE_T Delta = 0;
 				for ( ; Delta<width*rows; ++Delta )
 				{
 					if (Temp[Delta] != InitialBaseData[Delta])
@@ -109,7 +108,9 @@ namespace mu
 				}
 
 				UncompressRLE_L(width, rows, destData, Temp.GetData());
-				CompressRLE_L( width, rows, InitialBaseData, destData, destDataSize);
+				int32 OutSize = 0;
+                CompressRLE_L(OutSize, width, rows, InitialBaseData, destData, destDataSize);
+                check(OutSize > 0)
 				check(false);
 			}
 		}
@@ -120,7 +121,6 @@ namespace mu
     }
 
 
-    //---------------------------------------------------------------------------------------------
     uint32 UncompressRLE_L( int32 width, int32 rows, const uint8* pStartBaseData, uint8* pStartDestData )
     {
 		const uint8* pBaseData = pStartBaseData;
@@ -170,8 +170,7 @@ namespace mu
         return TotalSize;
     }
 
-    //---------------------------------------------------------------------------------------------
-    void CompressRLE_L1( uint32& OutCompressedSize, int32 width, int32 rows,
+    void CompressRLE_L1(uint32& OutCompressedSize, int32 width, int32 rows,
                              const uint8* pBaseData,
                              uint8* destData,
                              uint32 destDataSize )
@@ -235,8 +234,7 @@ namespace mu
     }
 
 
-    //---------------------------------------------------------------------------------------------
-    uint32 UncompressRLE_L1( int32 width, int32 rows, const uint8* pStartBaseData, uint8* pDestData )
+    uint32 UncompressRLE_L1(int32 width, int32 rows, const uint8* pStartBaseData, uint8* pDestData)
     {
         const uint8* pBaseData = pStartBaseData;
         pBaseData += sizeof(uint32); // Total mip size
@@ -277,10 +275,9 @@ namespace mu
     }
 
 
-    //---------------------------------------------------------------------------------------------
-    void CompressRLE_RGBA( int32 width, int32 rows,
+    void CompressRLE_RGBA(uint32& OutCompressedSize, int32 width, int32 rows,
                            const uint8* pBaseDataByte,
-                           Image::ImageDataContainerType& destData )
+                           uint8* DestData, uint32 DestDataSize)
     {
         // TODO: Support for compression from compressed data size, like L_RLE formats.
         TArray<int8_t> rle;
@@ -348,17 +345,22 @@ namespace mu
 					offset += BytesToCopy;
 				}
             }
+
+            if (offset > DestDataSize)
+            {
+                break;
+            }
         }
 
-        destData.SetNum( offset );
-        if ( offset )
+        OutCompressedSize = DestDataSize >= offset ? offset : 0; 
+        
+        if (OutCompressedSize > 0)
         {
-            FMemory::Memmove( &destData[0], &rle[0], offset );
+            FMemory::Memmove(DestData, rle.GetData(), offset);
         }
     }
 
 
-    //---------------------------------------------------------------------------------------------
     void UncompressRLE_RGBA( int32 width, int32 rows, const uint8* pBaseData, uint8* pDestDataB )
     {
         uint32* pDestData = reinterpret_cast<uint32*>( pDestDataB );
@@ -411,7 +413,6 @@ namespace mu
     }
 
 
-    //---------------------------------------------------------------------------------------------
     struct UINT24
     {
         uint8 d[3];
@@ -429,16 +430,19 @@ namespace mu
     static_assert( sizeof(UINT24)==3, "Uint24SizeCheck" );
 
 
-    //---------------------------------------------------------------------------------------------
-    void CompressRLE_RGB( int32 width, int32 rows,
-                          const uint8* pBaseDataByte,
-                          Image::ImageDataContainerType& destData )
+    void CompressRLE_RGB(uint32& OutCompressedSize, int32 width, int32 rows,
+                         const uint8* pBaseDataByte,
+                         uint8* DestData, uint32 DestDataSize)
     {
+        // TODO: Optimize so no extra memory is allocated at this stage.
+
         TArray<int8_t> rle;
-        rle.Reserve(  (width*rows) );
+        rle.Reserve(width*rows);
 
         const UINT24* pBaseData = (const UINT24*)pBaseDataByte;
+
         rle.SetNum( rows*4, EAllowShrinking::No );
+
         uint32 offset = sizeof(uint32)*rows;
         for ( int32 r=0; r<rows; ++r )
         {
@@ -499,18 +503,23 @@ namespace mu
 					offset += BytesToCopy;
 				}
             }
+
+            if (offset > DestDataSize)
+            {
+                break;
+            }
         }
 
-        destData.SetNum( offset );
-        if ( offset )
+        OutCompressedSize = DestDataSize >= offset ? offset : 0; 
+        
+        if (OutCompressedSize > 0)
         {
-            FMemory::Memmove( &destData[0], &rle[0], offset );
+            FMemory::Memmove(DestData, rle.GetData(), offset);
         }
+
     }
 
-
-    //---------------------------------------------------------------------------------------------
-    void UncompressRLE_RGB( int32 width, int32 rows, const uint8* pBaseData, uint8* pDestDataB )
+    void UncompressRLE_RGB(int32 width, int32 rows, const uint8* pBaseData, uint8* pDestDataB)
     {
 		check(pBaseData && pDestDataB);
 

@@ -266,14 +266,11 @@ namespace mu
 			static FORCEINLINE uint32 GetKeyHash(KeyInitType Key)
 			{
 				const mu::Image* Data = Key.get();
-				uint32 Hash = HashCombineFast(
-					::GetTypeHash(Data->m_format),
-					HashCombineFast(::GetTypeHash(Data->m_size[0]),
-								::GetTypeHash(Data->m_size[1]))
-				);
+				uint32 Hash = HashCombineFast(::GetTypeHash(Data->GetFormat()), GetTypeHash(Data->GetSize()));
 
-				uint64 DataHash = CityHash64(reinterpret_cast<const char*>(Data->m_data.GetData()), Data->m_data.Num());
-				Hash = HashCombineFast( Hash, ::GetTypeHash(DataHash) );
+				TArrayView<const uint8> DataView = Data->DataStorage.GetLOD(0);
+				uint64 DataHash = CityHash64(reinterpret_cast<const char*>(DataView.GetData()), DataView.Num());
+				Hash = HashCombineFast(Hash, ::GetTypeHash(DataHash));
 
 				return Hash;
 			}

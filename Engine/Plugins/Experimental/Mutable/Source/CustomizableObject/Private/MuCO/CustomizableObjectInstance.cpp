@@ -2957,7 +2957,6 @@ FTexturePlatformData* MutableCreateImagePlatformData(mu::Ptr<const mu::Image> Mu
 	PlatformData->PixelFormat = PlatformFormat;
 
 	// Allocate mipmaps.
-	const uint8_t* MutableData = MutableImage->GetMipData( FirstLOD );
 
 	if (!FMath::IsPowerOfTwo(SizeX) || !FMath::IsPowerOfTwo(SizeY))
 	{
@@ -2991,10 +2990,12 @@ FTexturePlatformData* MutableCreateImagePlatformData(mu::Ptr<const mu::Image> Mu
 			Mip->BulkData.Lock(LOCK_READ_WRITE);
 			Mip->BulkData.ClearBulkDataFlags(BULKDATA_SingleUse);
 
-			uint32 SourceDataSize = MutableImage->GetLODDataSize(MipLevelMutable);
+			const uint8* MutableData = MutableImage->GetLODData(MipLevelMutable);
+			const uint32 SourceDataSize = MutableImage->GetLODDataSize(MipLevelMutable);
+
 			uint32 DestDataSize = (MutableFormat == mu::EImageFormat::IF_RGB_UBYTE)
-				? (SourceDataSize/3*4)
-				: SourceDataSize;
+					? (SourceDataSize/3) * 4
+					: SourceDataSize;
 			void* pData = Mip->BulkData.Realloc(DestDataSize);
 
 			// Special inefficient cases
@@ -3034,8 +3035,6 @@ FTexturePlatformData* MutableCreateImagePlatformData(mu::Ptr<const mu::Image> Mu
 				check(SourceDataSize == DestDataSize);
 				FMemory::Memcpy(pData, MutableData, SourceDataSize);
 			}
-
-			MutableData += SourceDataSize;
 
 			Mip->BulkData.Unlock();
 		}
@@ -3113,12 +3112,12 @@ void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, co
 		// Expand the image.
 		mu::ImagePtr Converted = new mu::Image(MutableImage->GetSizeX(), MutableImage->GetSizeY(), MutableImage->GetLODCount(), mu::EImageFormat::IF_RGBA_UBYTE, mu::EInitializationType::NotInitialized);
 
-		for (int LODIndex = 0; LODIndex < Converted->GetLODCount(); ++LODIndex)
+		for (int32 LODIndex = 0; LODIndex < Converted->GetLODCount(); ++LODIndex)
 		{
-			int32 pixelCount = MutableImage->GetLODDataSize(LODIndex)/3;
-			const uint8_t* pSource = MutableImage->GetMipData(LODIndex);
-			uint8_t* pTarget = Converted->GetMipData(LODIndex);
-			for (int32 p = 0; p < pixelCount; ++p)
+			int32 PixelCount = MutableImage->GetLODDataSize(LODIndex)/3;
+			const uint8* pSource = MutableImage->GetMipData(LODIndex);
+			uint8* pTarget = Converted->GetMipData(LODIndex);
+			for (int32 p = 0; p < PixelCount; ++p)
 			{
 				pTarget[4 * p + 0] = pSource[3 * p + 0];
 				pTarget[4 * p + 1] = pSource[3 * p + 1];
@@ -3138,11 +3137,11 @@ void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, co
 		// Swizzle the image.
 		// \TODO: Raise a warning?
 		mu::ImagePtr Converted = new mu::Image(MutableImage->GetSizeX(), MutableImage->GetSizeY(), 1, mu::EImageFormat::IF_RGBA_UBYTE, mu::EInitializationType::NotInitialized);
-		int32 pixelCount = MutableImage->GetSizeX() * MutableImage->GetSizeY();
+		int32 PixelCount = MutableImage->GetSizeX() * MutableImage->GetSizeY();
 
-		const uint8_t* pSource = MutableImage->GetData();
-		uint8_t* pTarget = Converted->GetData();
-		for (int32 p = 0; p<pixelCount; ++p)
+		const uint8* pSource = MutableImage->GetLODData(0);
+		uint8* pTarget = Converted->GetLODData(0);
+		for (int32 p = 0; p < PixelCount; ++p)
 		{
 			pTarget[4 * p + 0] = pSource[4 * p + 2];
 			pTarget[4 * p + 1] = pSource[4 * p + 1];

@@ -20,26 +20,20 @@ namespace mu
     class Image;
 	class Model;
 
-#define MUTABLE_DEFINE_POD_SERIALISABLE(T)							\
-	template<>														\
-	void DLLEXPORT operator<< <T>(OutputArchive& arch, const T& t);	\
-																	\
-	template<>														\
-	void DLLEXPORT operator>> <T>(InputArchive& arch, T& t);		\
+#define MUTABLE_DEFINE_POD_SERIALISABLE(Type)					   \
+	void DLLEXPORT operator<<(OutputArchive& Arch, const Type& T); \
+	void DLLEXPORT operator>>(InputArchive& Arch, Type& T);		   \
 
-#define MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(T)									     \
-	template<typename Alloc>                                                             \
-	void operator <<(OutputArchive& arch, const TArray<T, Alloc>& v);					 \
-	                                                                                     \
-	template<typename Alloc>                                                             \
-	void operator >>(InputArchive& arch, TArray<T, Alloc>& v);                           \
+#define MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(Type)					\
+	template<typename Alloc>                                            \
+	void operator<<(OutputArchive& Arch, const TArray<Type, Alloc>& V);	\
+	                                                                    \
+	template<typename Alloc>                                            \
+	void operator>>(InputArchive& Arch, TArray<Type, Alloc>& V);        \
 
-#define MUTABLE_DEFINE_ENUM_SERIALISABLE(T)							\
-	template<>														\
-    void DLLEXPORT operator<< <T>(OutputArchive& arch, const T& t);	\
-																	\
-	template<>														\
-    void DLLEXPORT operator>> <T>(InputArchive& arch, T& t);		\
+#define MUTABLE_DEFINE_ENUM_SERIALISABLE(Type)					   \
+    void DLLEXPORT operator<<(OutputArchive& Arch, const Type& T); \
+    void DLLEXPORT operator>>(InputArchive& Arch, Type& T);		   \
 	
 	
     /** This repesents a handle to Mutable resource. */
@@ -327,16 +321,16 @@ namespace mu
     };
 
 
-	template< typename T >
-	void operator<< ( OutputArchive& arch, const T& t )
+	template<typename Type>
+	void operator<<(OutputArchive& Arch, const Type& Value)
 	{
-        t.Serialise( arch );
+        Value.Serialise(Arch);
 	}
 
-	template< typename T >
-	void operator>> ( InputArchive& arch, T& t )
+	template<typename Type>
+	void operator>>(InputArchive& Arch, Type& Value)
 	{
-        t.Unserialise( arch );
+        Value.Unserialise(Arch);
 	}
 
 	MUTABLE_DEFINE_POD_SERIALISABLE(float);
@@ -419,8 +413,8 @@ namespace mu
 	MUTABLERUNTIME_API void operator>> ( InputArchive& arch, std::string& v );
 
 	// Bool size is not a standard
-	MUTABLERUNTIME_API void operator<< ( OutputArchive& arch, const bool& t );
+	MUTABLERUNTIME_API void operator<<(OutputArchive& Arch, const bool& T);
 
-	MUTABLERUNTIME_API void operator>> ( InputArchive& arch, bool& t );
+	MUTABLERUNTIME_API void operator>>(InputArchive& Arch, bool& T);
 }
 

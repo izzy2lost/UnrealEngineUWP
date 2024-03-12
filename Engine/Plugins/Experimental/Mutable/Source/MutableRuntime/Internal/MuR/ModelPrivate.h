@@ -569,7 +569,6 @@ namespace mu
             return index;
         }
 
-
         //! Get a constant image, assuming it is fully loaded. The image constant will be composed with lodaded mips if necessary.
 		template <typename CreateImageFunc>
         void GetConstant( int32 ConstantIndex, ImagePtrConst& res, int32 MipsToSkip, const CreateImageFunc& CreateImage) const
@@ -596,34 +595,31 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ComposeConstantImage);
 
-				Ptr<Image> Result = CreateImage( CurrentMip->GetSizeX(), CurrentMip->GetSizeY(), FinalLODs, CurrentMip->GetFormat(), EInitializationType::NotInitialized );
+				Ptr<Image> Result = CreateImage(CurrentMip->GetSizeX(), CurrentMip->GetSizeY(), FinalLODs, CurrentMip->GetFormat(), EInitializationType::NotInitialized);
 				Result->m_flags = CurrentMip->m_flags;
 
 				// Some non-block pixel formats require separate memory size calculation
-				if (!Result->GetDataSize())
+				if (Result->DataStorage.IsEmpty())
 				{
-					int32 TotalSize = 0;
 					for (int32 LOD = 0; LOD < FinalLODs; ++LOD)
 					{
 						int32 LODIndex = m_constantImageLODIndices[ResultLODIndexIndex + LOD];
-						int32 MipSizeBytes = ConstantImageLODs[LODIndex].Value->GetDataSize();
-						TotalSize += MipSizeBytes;
+						int32 MipSizeBytes = ConstantImageLODs[LODIndex].Value->GetLODDataSize(0);
+						Result->DataStorage.ResizeLOD(LOD, MipSizeBytes);
 					}
-					Result->m_data.SetNum(TotalSize);
 				}
 
-				int32 WrittenDataBytes = 0;
-				uint8* Data = Result->GetData();
-				for (int32 LOD=0; LOD<FinalLODs; ++LOD)
+				for (int32 LOD = 0; LOD < FinalLODs; ++LOD)
 				{
 					check(CurrentMip->GetLODCount() == 1);
 					check(CurrentMip->GetFormat() == Result->GetFormat());
-					int32 MipSizeBytes = CurrentMip->GetDataSize();
-					check( Result->GetDataSize()>=WrittenDataBytes+MipSizeBytes);
 
-					FMemory::Memcpy( Data, CurrentMip->GetData(), MipSizeBytes);
-					Data += MipSizeBytes;
-					WrittenDataBytes += MipSizeBytes;
+					TArrayView<uint8> ResultLODView = Result->DataStorage.GetLOD(LOD);
+					TArrayView<const uint8> CurrentMipView = CurrentMip->DataStorage.GetLOD(0);
+					
+					check(CurrentMipView.Num() == ResultLODView.Num());
+
+					FMemory::Memcpy(ResultLODView.GetData(), CurrentMipView.GetData(), ResultLODView.Num());
 
 					if (LOD + 1 < FinalLODs)
 					{
@@ -636,7 +632,6 @@ namespace mu
 				res = Result;
 			}
 		}
-
 
         void GetConstant(int32 ConstantIndex, MeshPtrConst& res) const
         {

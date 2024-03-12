@@ -16,15 +16,15 @@ namespace mu
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(float);    
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(double);   
                                                   
-    MUTABLE_IMPLEMENT_POD_SERIALISABLE( int8 );   
-    MUTABLE_IMPLEMENT_POD_SERIALISABLE( int16 );  
-    MUTABLE_IMPLEMENT_POD_SERIALISABLE( int32 );  
-    MUTABLE_IMPLEMENT_POD_SERIALISABLE( int64 );  
-                                                  
-    MUTABLE_IMPLEMENT_POD_SERIALISABLE( uint8 );  
-    MUTABLE_IMPLEMENT_POD_SERIALISABLE( uint16 ); 
-    MUTABLE_IMPLEMENT_POD_SERIALISABLE( uint32 ); 
-    MUTABLE_IMPLEMENT_POD_SERIALISABLE( uint64 )
+    MUTABLE_IMPLEMENT_POD_SERIALISABLE(int8);   
+    MUTABLE_IMPLEMENT_POD_SERIALISABLE(int16);  
+    MUTABLE_IMPLEMENT_POD_SERIALISABLE(int32);  
+    MUTABLE_IMPLEMENT_POD_SERIALISABLE(int64);  
+                                                 
+    MUTABLE_IMPLEMENT_POD_SERIALISABLE(uint8);  
+    MUTABLE_IMPLEMENT_POD_SERIALISABLE(uint16); 
+    MUTABLE_IMPLEMENT_POD_SERIALISABLE(uint32); 
+    MUTABLE_IMPLEMENT_POD_SERIALISABLE(uint64)
 
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FGuid);
 
@@ -39,6 +39,7 @@ namespace mu
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FUintVector2);                                 
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(UE::Math::TIntVector2<uint16>);                
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(UE::Math::TIntVector2<int16>); 
+	MUTABLE_IMPLEMENT_POD_SERIALISABLE(UE::Math::TVector4<float>); 
 
 	
     void operator<<(OutputArchive& arch, const FString& t)
@@ -50,7 +51,7 @@ namespace mu
 
     void operator>>(InputArchive& arch, FString& t)
     {
-	    TArray<TCHAR> Data;
+		TArray<TCHAR> Data;
     	arch >> Data;
 
     	t = FString(Data.GetData()); // Construct from raw pointer to avoid double zero terminating character
@@ -83,18 +84,18 @@ namespace mu
     }
 
 	
-	void operator<< ( OutputArchive& arch, const bool& t )
+	void operator<<(OutputArchive& Arch, const bool& T)
     {
-    	uint8 s = t ? 1 : 0;
-    	arch.GetPrivate()->m_pStream->Write( &s, sizeof(uint8) );
+    	uint8 S = T ? 1 : 0;
+    	Arch.GetPrivate()->m_pStream->Write(&S, sizeof(uint8));
     }
 
 
-	void operator>> ( InputArchive& arch, bool& t )
+	void operator>>(InputArchive& Arch, bool& T)
     {
-    	uint8 s;
-    	arch.GetPrivate()->m_pStream->Read( &s, sizeof(uint8) );
-    	t = s!=0;
+    	uint8 S;
+    	Arch.GetPrivate()->m_pStream->Read(&S, sizeof(uint8));
+    	T = S != 0;
     }
 
 	

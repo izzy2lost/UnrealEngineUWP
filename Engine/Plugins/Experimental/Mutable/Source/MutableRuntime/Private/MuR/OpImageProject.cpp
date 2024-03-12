@@ -194,7 +194,7 @@ namespace Private
 
             Context.Source0SizeX = static_cast<uint16>(Source->GetSizeX());
             Context.Source0SizeY = static_cast<uint16>(Source->GetSizeY());
-			Context.Source0Data = (Context.Source0SizeX > 0 && Context.Source0SizeY > 0) ? Source->GetData() : nullptr;
+			Context.Source0Data = (Context.Source0SizeX > 0 && Context.Source0SizeY > 0) ? Source->GetLODData(0) : nullptr;
 
 			if constexpr (EnumHasAnyFlags(Features, EPixelProcessorFeatures::SamplingLinear))
 			{
@@ -696,7 +696,7 @@ namespace Private
 				!Scratch->CulledVertex[Index2])
 			{
 				constexpr int32 NumInterpolators = 4;
-				Triangle<NumInterpolators>(pImage->GetData(), pImage->GetDataSize(),
+				Triangle<NumInterpolators>(pImage->GetLODData(0), pImage->GetDataSize(),
 					SizeX, SizeY,
 					PixelSize,
 					Scratch->Vertices[Index0],
@@ -824,7 +824,7 @@ namespace Private
 				!Scratch->CulledVertex[Index2])
 			{
 				constexpr int32 NumInterpolators = 4;
-				Triangle<NumInterpolators>(pImage->GetData(), pImage->GetDataSize(),
+				Triangle<NumInterpolators>(pImage->GetLODData(0), pImage->GetDataSize(),
 					SizeX, SizeY,
 					PixelSize,
 					Scratch->Vertices[Index0], Scratch->Vertices[Index1], Scratch->Vertices[Index2],
@@ -841,7 +841,7 @@ namespace Private
 
 		const Private::FProjectedPixelProcessorContext Context = 
 			Private::TProjectedPixelProcessor<Features>::MakeContext(
-				Args.SourcePtr, Args.ImagePtr->GetData(), Args.MaskPtr ? Args.MaskPtr->GetData() : nullptr,
+				Args.SourcePtr, Args.ImagePtr->GetLODData(0), Args.MaskPtr ? Args.MaskPtr->GetLODData(0) : nullptr,
 				Args.bIsRGBFadingEnabled, Args.bIsAlphaFadingEnabled, Args.FadeStart, Args.FadeEnd, 
 				Args.ProjectionAngle, Args.MipInterpolationFactor);
 
@@ -860,7 +860,7 @@ namespace Private
 
 		const Private::FProjectedPixelProcessorContext Context = 
 			Private::TProjectedPixelProcessor<Features>::MakeContext(
-				Args.SourcePtr, Args.ImagePtr->GetData(), Args.MaskPtr ? Args.MaskPtr->GetData() : nullptr,
+				Args.SourcePtr, Args.ImagePtr->GetLODData(0), Args.MaskPtr ? Args.MaskPtr->GetLODData(0) : nullptr,
 				Args.bIsRGBFadingEnabled, Args.bIsAlphaFadingEnabled, Args.FadeStart, Args.FadeEnd, 
 				Args.ProjectionAngle, Args.MipInterpolationFactor);
 
@@ -879,7 +879,7 @@ namespace Private
 
 		const Private::FProjectedPixelProcessorContext Context = 
 			Private::TProjectedPixelProcessor<Features>::MakeContext(
-				Args.SourcePtr, Args.ImagePtr->GetData(), Args.MaskPtr ? Args.MaskPtr->GetData() : nullptr,
+				Args.SourcePtr, Args.ImagePtr->GetLODData(0), Args.MaskPtr ? Args.MaskPtr->GetLODData(0) : nullptr,
 				Args.bIsRGBFadingEnabled, Args.bIsAlphaFadingEnabled, Args.FadeStart, Args.FadeEnd, 
 				Args.ProjectionAngle, Args.MipInterpolationFactor);
 
