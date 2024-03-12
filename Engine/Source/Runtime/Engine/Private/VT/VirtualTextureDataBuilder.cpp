@@ -323,26 +323,46 @@ bool FVirtualTextureBuilderDerivedInfo::InitializeFromBuildSettings(const FTextu
 	SizeInBlocksX = InSourceData.SizeInBlocksX;
 	SizeInBlocksY = InSourceData.SizeInBlocksY;
 
+	const int64 FullSizeX = (int64)BlockSizeX * SizeInBlocksX;
+	const int64 FullSizeY = (int64)BlockSizeY * SizeInBlocksY;
+
+	// make sure virtual texture dimensions are valid for runtime usage
+	// this should match calculation in FVirtualTextureAllocator::Alloc in VirtualTextureAllocator.cpp file
+	const int64 WidthInTiles = FullSizeX / TileSize;
+	const int64 HeightInTiles = FullSizeY / TileSize;
+	const uint64 MaxSizeInTiles = FMath::Max(WidthInTiles, HeightInTiles);
+	const int64 vLogMaxSize = FMath::CeilLogTwo64(MaxSizeInTiles);
+	if (vLogMaxSize > VIRTUALTEXTURE_LOG2_MAX_PAGETABLE_SIZE)
+	{
+		// max VT size on pixels that runtime supports is TileSize<<MAX_PAGETABLE_SIZE pixels for max dimension
+		// for 128 tile size that is 128<<12 = 524288 pixels
+		UE_LOG(LogVirtualTexturing, Warning,
+			TEXT("InitializeFromBuildSettings failed: VT dimensions (%lld x %lld) are too large - too many tiles (%lld x %lld) [%s]"),
+			FullSizeX, FullSizeY,
+			WidthInTiles, HeightInTiles,
+			*InSourceData.TextureFullName);
+		return false;
+	}
+
 	// total dimensions (of virtual canvas of UDIM blocks) must fit in INT32 on each axis
 	//	  there is a limit of 16 bits of the tile index for the U32 morton code, maybe that's stricter?
 	//	  that's something like 128*65536 maximum virtual dimension?
 	//	  in practice that's hard to hit because the total pixel count will limit you first
-	const int64 VTCanvasMaxDimension = 128*65536; // must fit in INT32_MAX
-	if ( (int64)BlockSizeX * SizeInBlocksX > VTCanvasMaxDimension ||
-		 (int64)BlockSizeY * SizeInBlocksY > VTCanvasMaxDimension )
+	const int64 VTCanvasMaxDimension = TileSize * 65536; // must fit in INT32_MAX
+	if (FullSizeX > VTCanvasMaxDimension || FullSizeY > VTCanvasMaxDimension )
 	{
 		UE_LOG(LogVirtualTexturing,Warning,TEXT("InitializeFromBuildSettings failed : dimensions exceed VTCanvasMaxDimension "
 			"(%d x %d = %lld) (%d x %d = %lld) [%s]"),
-			BlockSizeX,SizeInBlocksX,(int64)BlockSizeX * SizeInBlocksX,
-			BlockSizeY,SizeInBlocksY,(int64)BlockSizeY * SizeInBlocksY,
+			BlockSizeX,SizeInBlocksX,FullSizeX,
+			BlockSizeY,SizeInBlocksY,FullSizeY,
 			*InSourceData.TextureFullName);
 
 		return false;
 	}
 
-	SizeX = BlockSizeX * SizeInBlocksX;
-	SizeY = BlockSizeY * SizeInBlocksY;
-	
+	SizeX = (int32)FullSizeX;
+	SizeY = (int32)FullSizeY;
+
 	// there is no strict limit on total pixel count
 	//	but output must fit in 4 GB
 	//	so as a sanity check, test if pixel count is over 4G
@@ -827,9 +847,6 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 	const int32 NumLayers = SourceData.Layers.Num();
 	const int32 NumBlocks = SourceData.Blocks.Num();
 
-	// If we have more than 1 block, need to create miptail that contains mips made from multiple blocks
-	const bool bNeedsMiptailBlock = (NumBlocks > 1);
-
 	// Miptail
 	TArray<FImage> MiptailInputImages;
 	FPixelDataRectangle MiptailPixelData{ LayerData.SourceFormat, 0, 0, 0 };
@@ -841,6 +858,11 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 	const uint32 MipInputSizeX = FMath::RoundUpToPowerOfTwo(DerivedInfo.SizeInBlocksX * MipWidthInBlock);
 	const uint32 MipInputSizeY = FMath::RoundUpToPowerOfTwo(DerivedInfo.SizeInBlocksY * MipHeightInBlock);
 	const uint32 MipInputSize = FMath::Max(MipInputSizeX, MipInputSizeY);
+
+	// If we have more than 1 block and we can produce more mips than each block has
+	// then need to create miptail that contains mips made from multiple blocks2
+	// be aware of mip limit (OutData.NumMips) - no need for miptail block if all mips are already used
+	const bool bNeedsMiptailBlock = (NumBlocks > 1) && (OutData.NumMips > (MaxMipInBlock + 1));
 
 	if (bNeedsMiptailBlock)
 	{

@@ -1615,101 +1615,137 @@ void FVirtualTexture2DResource::InitializeEditorResources(IVirtualTexture* InVir
 			MipHeight = FMath::DivideAndRoundUp(MipHeight, 2u);
 		}
 
-		const EPixelFormat PixelFormat = VTData->LayerTypes[0];
-		const bool bCopyUnwantedBordersForAlignment = VTData->TileBorderSize <= 2 && IsBlockCompressedFormat(PixelFormat);
-		const uint32 MipScaleFactor = (1u << MipLevel);
-		const uint32 MipWidthInTiles = FMath::DivideAndRoundUp(GetNumTilesX(), MipScaleFactor);
-		const uint32 MipHeightInTiles = FMath::DivideAndRoundUp(GetNumTilesY(), MipScaleFactor);
-		const uint32 TileSizeInPixels = bCopyUnwantedBordersForAlignment ? GetTileSize() + 2 * GetBorderSize() : GetTileSize();
-		const uint32 LayerMask = 1u; // FVirtualTexture2DResource should only have a single layer
-
-		TArray<FPageToProduce> PagesToProduce;
-		PagesToProduce.Reserve(MipWidthInTiles * MipHeightInTiles);
-		for (uint32 TileY = 0u; TileY < MipHeightInTiles; ++TileY)
-		{
-			for (uint32 TileX = 0u; TileX < MipWidthInTiles; ++TileX)
-			{
-				const uint32 vAddress = FMath::MortonCode2(TileX) | (FMath::MortonCode2(TileY) << 1);
-				const FVTRequestPageResult RequestResult = InVirtualTexture->RequestPageData(FRHICommandListExecutor::GetImmediateCommandList(), ProducerHandle, LayerMask, MipLevel, vAddress, EVTRequestPagePriority::High);
-				
-				// High priority request should never be Saturated
-				// It's possible for status to be Invalid, if requesting data from a mip level that doesn't exist for the given producer (when using sparse UDIMs)
-				// Technically could try to handle this, by check LocalMipBias, grabbing lower resolution tile, and resizing...but that would make this code much more complex for very little gain
-				ensure(RequestResult.Status != EVTRequestPageStatus::Saturated);
-
-				if (VTRequestPageStatus_HasData(RequestResult.Status))
-				{
-					PagesToProduce.Add({ RequestResult.Handle, TileX, TileY });
-				}
-			}
-		}
-
-		FString Name = TextureName.ToString();
-		FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(*Name, MipWidthInTiles * TileSizeInPixels, MipHeightInTiles * TileSizeInPixels, PixelFormat);
-		Desc.AddFlags(TexCreateFlags);
-
-		FTextureRHIRef Texture2DRHI = RHICreateTexture(Desc);
-
 		FRHICommandListImmediate& RHICommandList = FRHICommandListExecutor::GetImmediateCommandList();
 
-		// We want to strip borders when compositing tiles since we're just laying out tiles in a regular texture.
-		// But if we have block compressed formats with border less than 4 then doing this will lead to an unaligned copy. We keep the small unwanted borders in that case.
-		const EVTProducePageFlags ProducePageFlags = bCopyUnwantedBordersForAlignment ? EVTProducePageFlags::None : EVTProducePageFlags::SkipPageBorders;
+		EPixelFormat PixelFormat = VTData->LayerTypes[0];
 
-		TArray<IVirtualTextureFinalizer*> Finalizers;
-		for (const FPageToProduce& Page : PagesToProduce)
+		FString Name = TextureName.ToString();
+
+		FTextureRHIRef Texture2DRHI;
+
+		if (IsBlockCompressedFormat(PixelFormat) && ((MipWidth % 4 != 0) || (MipHeight % 4 != 0)))
 		{
-			const uint32 vAddress = FMath::MortonCode2(Page.TileX) | (FMath::MortonCode2(Page.TileY) << 1);
+			// This means that VT texture is very skewed on one dimension, thus making other dimension
+			// very small - sometimes less than VT block size (128) so potentially it can be non-multiple of
+			// compressed texture block size. In such case create 1x1 texture thumbnail from fallback color
 
-			FVTProduceTargetLayer TargetLayer;
-			TargetLayer.TextureRHI = Texture2DRHI;
-			TargetLayer.pPageLocation = FIntVector(Page.TileX, Page.TileY, 0);
+			uint32 TexWidth = 1;
+			uint32 TexHeight = 1;
+			PixelFormat = EPixelFormat::PF_B8G8R8A8;
 
-			IVirtualTextureFinalizer* Finalizer = InVirtualTexture->ProducePageData(RHICommandList,
-				GMaxRHIFeatureLevel,
-				ProducePageFlags,
-				ProducerHandle, LayerMask, MipLevel, vAddress,
-				Page.Handle,
-				&TargetLayer);
-			if (Finalizer)
+			// create thumbnail from fallback color
+
+			FRHITextureCreateDesc StagingDesc = FRHITextureCreateDesc::Create2D(*Name, TexWidth, TexHeight, PixelFormat);
+			StagingDesc.SetFlags(TexCreateFlags);
+			if (!IsRunningRHIInSeparateThread())
 			{
-				Finalizers.AddUnique(Finalizer);
+				StagingDesc.AddFlags(ETextureCreateFlags::CPUWritable);
 			}
-		}
 
+			FTextureRHIRef StagingTexture2DRHI = RHICreateTexture(StagingDesc);
+
+			uint32 Stride;
+			void* TexMemory = RHICommandList.LockTexture2D(StagingTexture2DRHI, 0, RLM_WriteOnly, Stride, false, false);
+			*static_cast<FColor*>(TexMemory) = VTData->LayerFallbackColors[0].ToFColor(true);
+			RHICommandList.UnlockTexture2D(StagingTexture2DRHI, 0u, false, false);
+
+			Texture2DRHI = MoveTemp(StagingTexture2DRHI);
+		}
+		else
 		{
-			FRDGBuilder GraphBuilder(RHICommandList);
-			for (IVirtualTextureFinalizer* Finalizer : Finalizers)
+			const bool bCopyUnwantedBordersForAlignment = VTData->TileBorderSize <= 2 && IsBlockCompressedFormat(PixelFormat);
+			const uint32 MipScaleFactor = (1u << MipLevel);
+			const uint32 MipWidthInTiles = FMath::DivideAndRoundUp(GetNumTilesX(), MipScaleFactor);
+			const uint32 MipHeightInTiles = FMath::DivideAndRoundUp(GetNumTilesY(), MipScaleFactor);
+			const uint32 TileSizeInPixels = bCopyUnwantedBordersForAlignment ? GetTileSize() + 2 * GetBorderSize() : GetTileSize();
+
+			const uint32 LayerMask = 1u; // FVirtualTexture2DResource should only have a single layer
+
+			TArray<FPageToProduce> PagesToProduce;
+			PagesToProduce.Reserve(MipWidthInTiles * MipHeightInTiles);
+			for (uint32 TileY = 0u; TileY < MipHeightInTiles; ++TileY)
 			{
-				Finalizer->Finalize(GraphBuilder);
+				for (uint32 TileX = 0u; TileX < MipWidthInTiles; ++TileX)
+				{
+					const uint32 vAddress = FMath::MortonCode2(TileX) | (FMath::MortonCode2(TileY) << 1);
+					const FVTRequestPageResult RequestResult = InVirtualTexture->RequestPageData(FRHICommandListExecutor::GetImmediateCommandList(), ProducerHandle, LayerMask, MipLevel, vAddress, EVTRequestPagePriority::High);
+
+					// High priority request should never be Saturated
+					// It's possible for status to be Invalid, if requesting data from a mip level that doesn't exist for the given producer (when using sparse UDIMs)
+					// Technically could try to handle this, by check LocalMipBias, grabbing lower resolution tile, and resizing...but that would make this code much more complex for very little gain
+					ensure(RequestResult.Status != EVTRequestPageStatus::Saturated);
+
+					if (VTRequestPageStatus_HasData(RequestResult.Status))
+					{
+						PagesToProduce.Add({ RequestResult.Handle, TileX, TileY });
+					}
+				}
 			}
-			GraphBuilder.Execute();
-		}
 
-		if (MipWidthInTiles * TileSizeInPixels != MipWidth || MipHeightInTiles * TileSizeInPixels != MipHeight)
-		{
-			// Logical dimensions of mip image may be smaller than tile size (in this case tile will contain mirrored/wrapped padding)
-			// In this case, copy the proper sub-image from the tiled texture we produced into a new texture of the correct size
-			check(MipWidth <= MipWidthInTiles * TileSizeInPixels);
-			check(MipHeight <= MipHeightInTiles * TileSizeInPixels);
+			FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(*Name, MipWidthInTiles * TileSizeInPixels, MipHeightInTiles * TileSizeInPixels, PixelFormat);
+			Desc.AddFlags(TexCreateFlags);
 
-			const FRHITextureCreateDesc ResizedDesc =
-				FRHITextureCreateDesc::Create2D(*Name, MipWidth, MipHeight, PixelFormat)
-				.SetFlags(Desc.Flags)
-				.SetInitialState(ERHIAccess::CopyDest);
+			Texture2DRHI = RHICreateTexture(Desc);
 
-			FTextureRHIRef ResizedTexture2DRHI = RHICreateTexture(ResizedDesc);
+			// We want to strip borders when compositing tiles since we're just laying out tiles in a regular texture.
+			// But if we have block compressed formats with border less than 4 then doing this will lead to an unaligned copy. We keep the small unwanted borders in that case.
+			const EVTProducePageFlags ProducePageFlags = bCopyUnwantedBordersForAlignment ? EVTProducePageFlags::None : EVTProducePageFlags::SkipPageBorders;
 
-			FRHICopyTextureInfo CopyInfo;
-			CopyInfo.Size = FIntVector(MipWidth, MipHeight, 1);
+			TArray<IVirtualTextureFinalizer*> Finalizers;
+			for (const FPageToProduce& Page : PagesToProduce)
+			{
+				const uint32 vAddress = FMath::MortonCode2(Page.TileX) | (FMath::MortonCode2(Page.TileY) << 1);
 
-			// Put the source texture in CopySrc mode. The destination texture is already in CopyDest mode because we created it that way.
-			RHICommandList.Transition(FRHITransitionInfo(Texture2DRHI, ERHIAccess::SRVMask, ERHIAccess::CopySrc));
-			RHICommandList.CopyTexture(Texture2DRHI, ResizedTexture2DRHI, CopyInfo);
-			// Make the destination texture SRVMask again. We don't care about the source texture after this, so we won't bother transitioning it.
-			RHICommandList.Transition(FRHITransitionInfo(ResizedTexture2DRHI, ERHIAccess::CopyDest, ERHIAccess::SRVMask));
+				FVTProduceTargetLayer TargetLayer;
+				TargetLayer.TextureRHI = Texture2DRHI;
+				TargetLayer.pPageLocation = FIntVector(Page.TileX, Page.TileY, 0);
 
-			Texture2DRHI = MoveTemp(ResizedTexture2DRHI);
+				IVirtualTextureFinalizer* Finalizer = InVirtualTexture->ProducePageData(RHICommandList,
+					GMaxRHIFeatureLevel,
+					ProducePageFlags,
+					ProducerHandle, LayerMask, MipLevel, vAddress,
+					Page.Handle,
+					&TargetLayer);
+				if (Finalizer)
+				{
+					Finalizers.AddUnique(Finalizer);
+				}
+			}
+
+			{
+				FRDGBuilder GraphBuilder(RHICommandList);
+				for (IVirtualTextureFinalizer* Finalizer : Finalizers)
+				{
+					Finalizer->Finalize(GraphBuilder);
+				}
+				GraphBuilder.Execute();
+			}
+
+			if (MipWidthInTiles * TileSizeInPixels != MipWidth || MipHeightInTiles * TileSizeInPixels != MipHeight)
+			{
+				// Logical dimensions of mip image may be smaller than tile size (in this case tile will contain mirrored/wrapped padding)
+				// In this case, copy the proper sub-image from the tiled texture we produced into a new texture of the correct size
+				check(MipWidth <= MipWidthInTiles * TileSizeInPixels);
+				check(MipHeight <= MipHeightInTiles * TileSizeInPixels);
+
+				const FRHITextureCreateDesc ResizedDesc =
+					FRHITextureCreateDesc::Create2D(*Name, MipWidth, MipHeight, PixelFormat)
+					.SetFlags(Desc.Flags)
+					.SetInitialState(ERHIAccess::CopyDest);
+
+				FTextureRHIRef ResizedTexture2DRHI = RHICreateTexture(ResizedDesc);
+
+				FRHICopyTextureInfo CopyInfo;
+				CopyInfo.Size = FIntVector(MipWidth, MipHeight, 1);
+
+				// Put the source texture in CopySrc mode. The destination texture is already in CopyDest mode because we created it that way.
+				RHICommandList.Transition(FRHITransitionInfo(Texture2DRHI, ERHIAccess::SRVMask, ERHIAccess::CopySrc));
+				RHICommandList.CopyTexture(Texture2DRHI, ResizedTexture2DRHI, CopyInfo);
+				// Make the destination texture SRVMask again. We don't care about the source texture after this, so we won't bother transitioning it.
+				RHICommandList.Transition(FRHITransitionInfo(ResizedTexture2DRHI, ERHIAccess::CopyDest, ERHIAccess::SRVMask));
+
+				Texture2DRHI = MoveTemp(ResizedTexture2DRHI);
+			}
 		}
 
 		TextureRHI = Texture2DRHI;
