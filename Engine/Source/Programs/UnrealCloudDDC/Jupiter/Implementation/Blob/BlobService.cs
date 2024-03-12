@@ -580,6 +580,8 @@ public class BlobService : IBlobService
 			throw new BlobReplicationException(ns, blob, "Blob not found in any region");
 		}
 
+		regions.RemoveAll(s => string.Equals(s, _currentSite, StringComparison.OrdinalIgnoreCase));
+
 		_logger.LogInformation("On-demand replicating blob {Blob} in Namespace {Namespace}", blob, ns);
 		List<(int, string)> possiblePeers = new List<(int, string)>(_peerStatusService.GetPeersByLatency(regions));
 
