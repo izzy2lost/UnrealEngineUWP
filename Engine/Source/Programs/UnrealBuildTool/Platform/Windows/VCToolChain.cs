@@ -2037,8 +2037,6 @@ namespace UnrealBuildTool
 				string[] PGOFiles = {
 					"pgort140.dll",
 					"pgosweep.exe",
-					"mspdbcore.dll",
-					"pgomgr.exe"
 				};
 				foreach (string PGOFile in PGOFiles)
 				{
