@@ -10,6 +10,7 @@
 #include "Particles/ParticlePerfStats.h"
 #include "NiagaraParameterCollection.h"
 #include "UObject/GCObject.h"
+#include "NiagaraCommon.h"
 #include "NiagaraDataSet.h"
 #include "NiagaraScriptExecutionContext.h"
 #include "NiagaraSystemSimulation.h"
@@ -411,6 +412,9 @@ private:
 
 #if WITH_NIAGARA_DEBUGGER
 	TUniquePtr<class FNiagaraDebugHud> NiagaraDebugHud;
+#endif
+#if WITH_NIAGARA_LEAK_DETECTOR
+	TUniquePtr<class FNiagaraComponentLeakDetector> ComponentLeakDetector;
 #endif
 
 	TMap<TObjectPtr<UNiagaraSystem>, TObjectPtr<UNiagaraCullProxyComponent>> CullProxyMap;

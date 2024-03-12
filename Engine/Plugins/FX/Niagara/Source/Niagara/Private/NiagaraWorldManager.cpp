@@ -20,6 +20,7 @@
 #include "NiagaraDebugHud.h"
 #include "NiagaraGpuComputeDispatchInterface.h"
 #include "NiagaraSimpleObjectPool.h"
+#include "NiagaraComponentLeakDetector.h"
 #include "Particles/FXBudget.h"
 #include "NiagaraCullProxyComponent.h"
 #include "GameDelegates.h"
@@ -402,6 +403,12 @@ void FNiagaraWorldManager::Init(UWorld* InWorld)
 
 #if WITH_NIAGARA_DEBUGGER
 	NiagaraDebugHud.Reset(new FNiagaraDebugHud(World));
+#endif
+#if WITH_NIAGARA_LEAK_DETECTOR
+	if ( World->IsGameWorld() )
+	{
+		ComponentLeakDetector.Reset(new FNiagaraComponentLeakDetector());
+	}
 #endif
 
 	// Make sure we update our component settings, this includes ban lists, etc
@@ -794,6 +801,13 @@ void FNiagaraWorldManager::PostGarbageCollect()
 {
 	//Clear out and scalability managers who's EffectTypes have been GCd.
 	while (ScalabilityManagers.Remove(nullptr)) {}
+
+#if WITH_NIAGARA_LEAK_DETECTOR
+	if (ComponentLeakDetector.IsValid() && HasActiveWorld())
+	{
+		ComponentLeakDetector->ReportLeaks(World);
+	}
+#endif
 }
 
 void FNiagaraWorldManager::PreGarbageCollectBeginDestroy()
@@ -1013,6 +1027,13 @@ void FNiagaraWorldManager::TickStart(float DeltaSeconds)
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraWorldManTick);
 
 	DataChannelManager->BeginFrame(DeltaSeconds);
+
+#if WITH_NIAGARA_LEAK_DETECTOR
+	if (ComponentLeakDetector.IsValid() && HasActiveWorld())
+	{
+		ComponentLeakDetector->Tick(World);
+	}
+#endif
 }
 
 void FNiagaraWorldManager::PreActorTick(ELevelTick InLevelTick, float InDeltaSeconds)
