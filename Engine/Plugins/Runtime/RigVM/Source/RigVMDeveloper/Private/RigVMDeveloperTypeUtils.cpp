@@ -3,6 +3,7 @@
 #include "RigVMDeveloperTypeUtils.h"
 
 #include "Internationalization/StringTableCore.h"
+#include "RigVMFunctions/RigVMDispatch_CastEnum.h"
 #include "RigVMFunctions/RigVMDispatch_CastObject.h"
 #include "RigVMModel/RigVMController.h"
 #include "RigVMModel/RigVMVariableDescription.h"
@@ -638,7 +639,8 @@ const FRigVMFunction* RigVMTypeUtils::GetCastForTypeIndices(const TRigVMTypeInde
 	const FRigVMTemplate* CastTemplates[] =
 	{
 		Registry.FindTemplate(CastTemplateNotation),
-		Registry.FindTemplate(FRigVMDispatch_CastObject().GetTemplateNotation())
+		Registry.FindTemplate(FRigVMDispatch_CastObject().GetTemplateNotation()),
+		Registry.FindTemplate(FRigVMDispatch_CastEnum().GetTemplateNotation())
 	};
 
 	for(const FRigVMTemplate* CastTemplate : CastTemplates)

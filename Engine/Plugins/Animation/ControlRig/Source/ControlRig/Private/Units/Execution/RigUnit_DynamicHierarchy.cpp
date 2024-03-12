@@ -1074,9 +1074,17 @@ FRigUnit_HierarchyAddAnimationChannelInteger_Execute()
 		ControlSettings.SetupLimitArrayForType(true, true, true);
 		ControlSettings.LimitEnabled[0] = LimitsEnabled.Enabled;
 		ControlSettings.MinimumValue = FRigControlValue::Make<int32>(MinimumValue);
-		ControlSettings.MaximumValue = FRigControlValue::Make<int32>(MaximumValue);
 		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
 		ControlSettings.ControlEnum = ControlEnum;
+
+		if (ControlEnum)
+		{
+			ControlSettings.MaximumValue = FRigControlValue::Make<int32>(ControlEnum->GetMaxEnumValue());
+		}
+		else
+		{
+			ControlSettings.MaximumValue = FRigControlValue::Make<int32>(MaximumValue);
+		}
 		const FRigControlValue Value = FRigControlValue::Make<int32>(InitialValue);
 		
 		FRigHierarchyControllerInstructionBracket InstructionBracket(Controller, ExecuteContext.GetInstructionIndex());
