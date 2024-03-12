@@ -795,6 +795,7 @@ namespace Metasound
 		 *
 		 * @param OutBuffer - Buffer to place generated audio.
 		 * @param OutSourceState - Source state for tracking state of OutBuffer.
+		 * Returns true if succesfully generated audio. 
 		 */
 		void GenerateSourceAudio(Audio::FMultichannelCircularBuffer& OutBuffer, WavePlayerNodePrivate::FSourceBufferState& OutSourceState)
 		{
@@ -806,7 +807,16 @@ namespace Metasound
 				const int32 NumSamplesToGenerate = DeinterleaveBufferBlockSizeInFrames * WaveProxyReader->GetNumChannels();
  				check(NumSamplesToGenerate == InterleavedBuffer.Num())
 
-				WaveProxyReader->PopAudio(InterleavedBuffer);
+				// if the wave proxy reader has failed, write out silence. 
+				if (WaveProxyReader->HasFailed())
+				{
+					FMemory::Memset(InterleavedBuffer.GetData(), 0, sizeof(float) * InterleavedBuffer.Num());
+				}
+				else
+				{
+					WaveProxyReader->PopAudio(InterleavedBuffer);
+				}
+
 				ConvertDeinterleave->ProcessAudio(InterleavedBuffer, DeinterleavedBuffer);
 
 				for (int32 ChannelIndex = 0; ChannelIndex < NumDeinterleaveChannels; ChannelIndex++)
