@@ -387,7 +387,7 @@ FGlobalShaderMapId::FGlobalShaderMapId(EShaderPlatform Platform, const ITargetPl
 	IniPlatformName = FName(TargetPlatform->IniPlatformName());
 
 	LayoutParams.InitializeForPlatform(TargetPlatform);
-	const EShaderPermutationFlags PermutationFlags = GetShaderPermutationFlags(LayoutParams);
+	const EShaderPermutationFlags PermutationFlags = GetShaderPermutationFlags();
 	TArray<FShaderType*> ShaderTypes;
 	TArray<const FShaderPipelineType*> ShaderPipelineTypes;
 
@@ -627,12 +627,8 @@ bool FGlobalShaderMap::IsEmpty() const
 
 bool FGlobalShaderMap::IsComplete(const ITargetPlatform* TargetPlatform) const
 {
-	// TODO: store these in the shadermap before it's start to be compiled?
-	FPlatformTypeLayoutParameters LayoutParams;
-	LayoutParams.InitializeForPlatform(TargetPlatform);
-	const EShaderPermutationFlags PermutationFlags = GetShaderPermutationFlags(LayoutParams);
-
 	FGlobalShaderMapId ShaderMapId(Platform, TargetPlatform);
+	const EShaderPermutationFlags PermutationFlags = ShaderMapId.GetShaderPermutationFlags();
 
 	// traverse all global shader types
 	for (TLinkedList<FShaderType*>::TIterator ShaderTypeIt(FShaderType::GetTypeList()); ShaderTypeIt; ShaderTypeIt.Next())

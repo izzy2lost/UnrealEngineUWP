@@ -9,6 +9,7 @@
 #include "Materials/MaterialInterface.h"
 #include "ProfilingDebugging/DiagnosticTable.h"
 #include "MeshMaterialShaderType.h"
+#include "MeshMaterialShader.h"
 #include "MaterialDomain.h"
 #include "MaterialShaderMapLayout.h"
 #include "SceneInterface.h"
@@ -186,8 +187,9 @@ FString GetBlendModeString(EBlendMode BlendMode)
 
 #if WITH_EDITOR
 /** Creates a string key for the derived data cache given a shader map id. */
-FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, EShaderPlatform Platform, bool bIncludeKeyStringShaderDependencies)
+FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, const FMaterialShaderParameters& ShaderParameters, EShaderPlatform Platform, bool bIncludeKeyStringShaderDependencies)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(GetMaterialShaderMapKeyString);
 	FName Format = LegacyShaderPlatformToShaderFormat(Platform);
 	FString ShaderMapKeyString;
 	ShaderMapKeyString.Reserve(16384);
@@ -203,6 +205,47 @@ FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, E
 
 	ShaderMapAppendKeyString(Platform, ShaderMapKeyString);
 	ShaderMapId.AppendKeyString(ShaderMapKeyString, true, bIncludeKeyStringShaderDependencies);
+
+	FMemoryHasherBlake3 EnvHasher;
+
+	// Hash any modifications applied to the compilation environment for each shadertype that will be compiled.
+	// When the shadermap ID is constructed, individual shadertype dependencies are added for any pipelines, hence
+	// we don't need to have equivalent hashing code for the pipeline dependencies.
+	for (const FShaderTypeDependency& TypeDep : ShaderMapId.ShaderTypeDependencies)
+	{
+		const FShaderType* ShaderType = FindShaderTypeByName(TypeDep.ShaderTypeName);
+		if (const FMaterialShaderType* MatShaderType = ShaderType->GetMaterialShaderType())
+		{
+			if (MatShaderType->ShouldCompilePermutation(Platform, ShaderParameters, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags()))
+			{
+				FShaderCompilerEnvironment EnvModifications(EnvHasher);
+				MatShaderType->SetupCompileEnvironment(Platform, ShaderParameters, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags(), EnvModifications);
+				EnvModifications.SerializeEverythingButFiles(EnvHasher);
+			}
+		}
+		else if (const FMeshMaterialShaderType* MeshMatShaderType = ShaderType->GetMeshMaterialShaderType())
+		{
+			for (const FVertexFactoryTypeDependency& VFDep : ShaderMapId.VertexFactoryTypeDependencies)
+			{
+				const FVertexFactoryType* VFType = FindVertexFactoryType(VFDep.VertexFactoryTypeName);
+				const bool bVFShouldCache = FMeshMaterialShaderType::ShouldCompileVertexFactoryPermutation(Platform, ShaderParameters, VFType, ShaderType, ShaderMapId.GetPermutationFlags());
+				const bool bShaderShouldCache = MeshMatShaderType->ShouldCompilePermutation(Platform, ShaderParameters, VFType, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags());
+				if (bVFShouldCache && bShaderShouldCache)
+				{
+					FShaderCompilerEnvironment EnvModifications(EnvHasher);
+					VFType->ModifyCompilationEnvironment(FVertexFactoryShaderPermutationParameters(Platform, ShaderParameters, VFType, ShaderType, ShaderMapId.GetPermutationFlags()), EnvModifications);
+					MeshMatShaderType->SetupCompileEnvironment(Platform, ShaderParameters, VFType, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags(), EnvModifications);
+					EnvModifications.SerializeEverythingButFiles(EnvHasher);
+				}
+			}
+		}
+	}
+	// * 2 for hex representation of hash; + 6 for tag/underscores
+	TStringBuilder<sizeof(TCHAR) * (sizeof(FBlake3Hash::ByteArray) * 2 + 6)> EnvHashString;
+	EnvHashString << "_EMH_" << EnvHasher.Finalize() << '_';
+	check(EnvHashString.GetAllocatedSize() == 0);
+	ShaderMapKeyString.Append(EnvHashString.ToView());
+
 	FMaterialAttributeDefinitionMap::AppendDDCKeyString(ShaderMapKeyString);
 	FShaderCompileUtilities::AppendGBufferDDCKeyString(Platform, ShaderMapKeyString);
 
@@ -1410,12 +1453,12 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 
 	struct FMaterialShaderMapAsyncLoadContext : public FMaterialShaderMap::FAsyncLoadContext
 	{
-		FString	        DataKey;
-		FSharedBuffer   CachedData;
-		FIoHash         CachedDataHash;
-		EShaderPlatform Platform;
-		FString         AssetName;
-		FRequestOwner   RequestOwner{UE::DerivedData::EPriority::Normal};
+		FString	         DataKey;
+		FSharedBuffer    CachedData;
+		FIoHash          CachedDataHash;
+		EShaderPlatform  Platform;
+		const FMaterial* Material = nullptr;
+		FRequestOwner    RequestOwner{UE::DerivedData::EPriority::Normal};
 		TRefCountPtr<FMaterialShaderMap> ShaderMap;
 
 		bool IsReady() const override
@@ -1447,7 +1490,9 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 				// Deserialize from the cached data
 				ShaderMap->Serialize(Ar);
 
-				const FString InDataKey = GetMaterialShaderMapKeyString(ShaderMap->GetShaderMapId(), Platform, true);
+				check(Material != nullptr);
+
+				const FString InDataKey = GetMaterialShaderMapKeyString(ShaderMap->GetShaderMapId(), FMaterialShaderParameters(Material), Platform, true);
 
 				if (InDataKey != DataKey)
 				{
@@ -1463,7 +1508,7 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 				GShaderCompilerStats->AddDDCHit(1);
 
 				FCacheKey DdcKey = GetMaterialShaderMapKey(DataKey);
-				UE_LOG(LogMaterial, Verbose, TEXT("Loaded shaders for %s from DDC (key hash: %s)"), *AssetName, *LexToString(DdcKey.Hash));
+				UE_LOG(LogMaterial, Verbose, TEXT("Loaded shaders for %s from DDC (key hash: %s)"), *Material->GetAssetName(), *LexToString(DdcKey.Hash));
 			}
 			else
 			{
@@ -1496,8 +1541,7 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 			SCOPE_SECONDS_COUNTER(MaterialDDCTime);
 			COOK_STAT(auto Timer = MaterialShaderCookStats::UsageStats.TimeSyncWork());
 			COOK_STAT(Timer.TrackCyclesOnly());
-
-			Result->DataKey = GetMaterialShaderMapKeyString(ShaderMapId, InPlatform);
+			Result->DataKey = GetMaterialShaderMapKeyString(ShaderMapId, FMaterialShaderParameters(Material), InPlatform);
 			FCacheKey CacheKey = GetMaterialShaderMapKey(Result->DataKey);
 			OutDDCKeyDesc = LexToString(CacheKey.Hash);
 
@@ -1553,7 +1597,7 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 				FCacheGetValueRequest Request;
 				Request.Name = GetMaterialShaderMapName(Material->GetFullPath(), ShaderMapId, InPlatform);
 				Request.Key = GetMaterialShaderMapKey(Result->DataKey);
-				Result->AssetName = Material->GetAssetName();
+				Result->Material = Material;
 				Result->Platform = InPlatform;
 
 				GetCache().GetValue({Request}, Result->RequestOwner, [Result, bCheckCache](FCacheGetValueResponse&& Response)
@@ -1575,7 +1619,7 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 	return Result;
 }
 
-void FMaterialShaderMap::SaveToDerivedDataCache()
+void FMaterialShaderMap::SaveToDerivedDataCache(const FMaterialShaderParameters& ShaderParameters)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FMaterialShaderMap::SaveToDerivedDataCache);
 	COOK_STAT(auto Timer = MaterialShaderCookStats::UsageStats.TimeSyncWork());
@@ -1586,7 +1630,7 @@ void FMaterialShaderMap::SaveToDerivedDataCache()
 	TRACE_COUNTER_ADD(Shaders_FMaterialShaderMapDDCBytesSent, SaveData.Num());
 	COOK_STAT(Timer.AddMiss(SaveData.Num()));
 
-	const FString DataKey = GetMaterialShaderMapKeyString(ShaderMapId, GetShaderPlatform());
+	const FString DataKey = GetMaterialShaderMapKeyString(ShaderMapId, ShaderParameters, GetShaderPlatform());
 
 	using namespace UE::DerivedData;
 	FCachePutValueRequest Request;
@@ -2214,7 +2258,7 @@ void FMaterialShaderMap::Compile(
 #if WITH_EDITOR
 				if (bIsPersistent)
 				{
-					SaveToDerivedDataCache();
+					SaveToDerivedDataCache(FMaterialShaderParameters(Material));
 				}
 #endif
 			}

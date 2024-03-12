@@ -52,6 +52,8 @@ public:
 
 	RENDERCORE_API bool WithEditorOnly() const;
 
+	inline EShaderPermutationFlags GetShaderPermutationFlags() const { return ::GetShaderPermutationFlags(LayoutParams); }
+
 private:
 	FPlatformTypeLayoutParameters LayoutParams;
 	EShaderPlatform ShaderPlatform;

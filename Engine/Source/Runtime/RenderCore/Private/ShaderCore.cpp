@@ -856,6 +856,10 @@ FShaderCompilerEnvironment::FShaderCompilerEnvironment()
 	IncludeVirtualPathToContentsMap.Empty(15);
 }
 
+FShaderCompilerEnvironment::FShaderCompilerEnvironment(FMemoryHasherBlake3& Hasher) : Hasher(&Hasher)
+{
+}
+
 /** Initialization constructor. */
 PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 FShaderCompilerEnvironment::FShaderCompilerEnvironment(const FShaderCompilerDefinitions& InDefinitions)
@@ -888,6 +892,7 @@ void FShaderCompilerEnvironment::Merge(const FShaderCompilerEnvironment& Other)
 	ResourceTableMap.Append(Other.ResourceTableMap);
 	UniformBufferMap.Append(Other.UniformBufferMap);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS	// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+	checkf(Definitions.IsValid(), TEXT("Merge is not supported on FShaderCompilerEnvironment in hashing mode"));
 	Definitions->Merge(*Other.Definitions);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	CompileArgs.Append(Other.CompileArgs);
@@ -897,6 +902,7 @@ void FShaderCompilerEnvironment::Merge(const FShaderCompilerEnvironment& Other)
 
 FString FShaderCompilerEnvironment::GetDefinitionsAsCommentedCode() const
 {
+	checkf(Definitions.IsValid(), TEXT("GetDefinitionsAsCommentedCode is not supported on FShaderCompilerEnvironment in hashing mode"));
 	TArray<FString> DefinesLines;
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS // FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	DefinesLines.Reserve(Definitions->Num());
@@ -919,40 +925,246 @@ FString FShaderCompilerEnvironment::GetDefinitionsAsCommentedCode() const
 PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 
 // Pass through functions to definitions
-void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, const TCHAR* Value)	{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, const FString& Value)	{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, uint32 Value)			{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, int32 Value)			{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, bool Value)			{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, float Value)			{ Definitions->SetDefine(Name, Value); }
+void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, const TCHAR* Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		Hasher->Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
+		Hasher->Serialize(const_cast<TCHAR*>(Value), FCString::Strlen(Value));
+	}
+}
 
-void FShaderCompilerEnvironment::SetDefine(FName Name, const TCHAR* Value)		{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(FName Name, const FString& Value)	{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(FName Name, uint32 Value)			{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(FName Name, int32 Value)				{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(FName Name, bool Value)				{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(FName Name, float Value)				{ Definitions->SetDefine(Name, Value); }
+void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, const FString& Value)
+{ 
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		Hasher->Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
+		*Hasher << const_cast<FString&>(Value);
+	}
+}
 
-void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, const TCHAR* Value)	{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, const FString& Value)	{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, uint32 Value)			{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, int32 Value)			{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, bool Value)			{ Definitions->SetDefine(Name, Value); }
-void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, float Value)			{ Definitions->SetDefine(Name, Value); }
+void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, uint32 Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		Hasher->Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
+		*Hasher << Value;
+	}
+}
+void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, int32 Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		Hasher->Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
+		*Hasher << Value;
+	}
+}
+void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, bool Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		Hasher->Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
+		*Hasher << Value;
+	}
+}
+void FShaderCompilerEnvironment::SetDefine(const TCHAR* Name, float Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		Hasher->Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
+		*Hasher << Value;
+	}
+}
+
+void FShaderCompilerEnvironment::SetDefine(FName Name, const TCHAR* Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+
+void FShaderCompilerEnvironment::SetDefine(FName Name, const FString& Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+
+void FShaderCompilerEnvironment::SetDefine(FName Name, uint32 Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+
+void FShaderCompilerEnvironment::SetDefine(FName Name, int32 Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+
+void FShaderCompilerEnvironment::SetDefine(FName Name, bool Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+
+void FShaderCompilerEnvironment::SetDefine(FName Name, float Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+
+void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, const TCHAR* Value) 
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, const FString& Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, uint32 Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, int32 Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, bool Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
+void FShaderCompilerEnvironment::SetDefine(FShaderCompilerDefineNameCache& Name, float Value)
+{
+	if (Definitions.IsValid())
+	{
+		Definitions->SetDefine(Name, Value);
+	}
+	else
+	{
+		SetDefine(*Name.ToString(), Value);
+	}
+}
 
 int32 FShaderCompilerEnvironment::GetIntegerValue(FName Name) const
 {
+	checkf(Definitions.IsValid(), TEXT("GetIntegerValue is not supported on FShaderCompilerEnvironment in hashing mode"));
 	return Definitions->GetIntegerValue(Name);
 }
 
 int32 FShaderCompilerEnvironment::GetIntegerValue(FShaderCompilerDefineNameCache& NameCache, int32 ResultIfNotFound) const
 {
+	checkf(Definitions.IsValid(), TEXT("GetIntegerValue is not supported on FShaderCompilerEnvironment in hashing mode"));
 	return Definitions->GetIntegerValue(NameCache, ResultIfNotFound);
 }
 
 bool FShaderCompilerEnvironment::ContainsDefinition(FName Name) const
 {
-	return Definitions->Contains(Name);
+	if (Definitions.IsValid())
+	{
+		return Definitions->Contains(Name);
+	}
+
+	// If we're in hashing mode only, always report "false" for contains definition.
+	// This is only used by SetDefineIfUnset and as such will just have a minor impact of potential over-invalidation
+	// from certain shader types which call the aforementioned function (i.e. they will re-set potentially already set
+	// defines to a new value, generating a slightly different hash for the shader type). There are very few calls to this
+	// at the time of writing and with per-shader DDC this will only serve to force reconstruction of the shadermap so it's 
+	// not significant enough to worry about.
+	return false;
 }
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -960,7 +1172,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 /** This "core" serialization is also used for the hashing the compiler job (where files are handled differently). Should stay in sync with the ShaderCompileWorker. */
 void FShaderCompilerEnvironment::SerializeEverythingButFiles(FArchive& Ar)
 {
-	Ar << *Definitions;
+	// If we don't have a definitions object created then we're in hashing mode and the defines were already hashed on set.
+	if (Definitions.IsValid())
+	{
+		Ar << *Definitions;
+	}
 	Ar << CompileArgs;
 	Ar << CompilerFlags;
 	Ar << RenderTargetOutputFormatsMap;

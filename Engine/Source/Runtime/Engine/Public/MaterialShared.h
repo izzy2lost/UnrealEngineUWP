@@ -892,6 +892,88 @@ namespace EMaterialShaderMapUsage
 	};
 }
 
+struct FMaterialShaderParameters
+{
+	EMaterialDomain MaterialDomain;
+	FMaterialShadingModelField ShadingModels;
+	EBlendMode BlendMode;
+	ERHIFeatureLevel::Type FeatureLevel;
+	EMaterialQualityLevel::Type QualityLevel;
+	int32 BlendableLocation;
+	int32 NumCustomizedUVs;
+	uint32 StencilCompare;
+	union
+	{
+		uint64 PackedFlags;
+		struct
+		{
+			uint64 bIsDefaultMaterial : 1;
+			uint64 bIsSpecialEngineMaterial : 1;
+			uint64 bIsMasked : 1;
+			uint64 bIsDitherMasked : 1;
+			uint64 bIsTwoSided : 1;
+			uint64 bIsThinSurface : 1;
+			uint64 bIsDistorted : 1;
+			uint64 bShouldCastDynamicShadows : 1;
+			uint64 bWritesEveryPixel : 1;
+			uint64 bWritesEveryPixelShadowPass : 1;
+			uint64 bHasDiffuseAlbedoConnected : 1;
+			uint64 bHasF0Connected : 1;
+			uint64 bHasBaseColorConnected : 1;
+			uint64 bHasNormalConnected : 1;
+			uint64 bHasRoughnessConnected : 1;
+			uint64 bHasSpecularConnected : 1;
+			uint64 bHasMetallicConnected : 1;
+			uint64 bHasEmissiveColorConnected : 1;
+			uint64 bHasAmbientOcclusionConnected : 1;
+			uint64 bHasAnisotropyConnected : 1;
+			uint64 bIsTessellationEnabled : 1;
+			uint64 bHasDisplacementConnected : 1;
+			uint64 bHasVertexPositionOffsetConnected : 1;
+			uint64 bHasPixelDepthOffsetConnected : 1;
+			uint64 bMaterialMayModifyMeshPosition : 1;
+			uint64 bIsUsedWithStaticLighting : 1;
+			uint64 bIsUsedWithParticleSprites : 1;
+			uint64 bIsUsedWithMeshParticles : 1;
+			uint64 bIsUsedWithNiagaraSprites : 1;
+			uint64 bIsUsedWithNiagaraMeshParticles : 1;
+			uint64 bIsUsedWithNiagaraRibbons : 1;
+			uint64 bIsUsedWithLandscape : 1;
+			uint64 bIsUsedWithBeamTrails : 1;
+			uint64 bIsUsedWithSplineMeshes : 1;
+			uint64 bIsUsedWithSkeletalMesh : 1;
+			uint64 bIsUsedWithMorphTargets : 1;
+			uint64 bIsUsedWithAPEXCloth : 1;
+			uint64 bIsUsedWithGeometryCache : 1;
+			uint64 bIsUsedWithGeometryCollections : 1;
+			uint64 bIsUsedWithHairStrands : 1;
+			uint64 bIsUsedWithWater : 1;
+			uint64 bIsTranslucencyWritingVelocity : 1;
+			uint64 bIsTranslucencyWritingCustomDepth : 1;
+			uint64 bIsDitheredLODTransition : 1;
+			uint64 bIsUsedWithInstancedStaticMeshes : 1;
+			uint64 bHasPerInstanceCustomData : 1;
+			uint64 bHasPerInstanceRandom : 1;
+			uint64 bHasVertexInterpolator : 1;
+			uint64 bHasRuntimeVirtualTextureOutput : 1;
+			uint64 bIsUsedWithLidarPointCloud : 1;
+			uint64 bIsUsedWithVirtualHeightfieldMesh : 1;
+			uint64 bIsUsedWithNeuralNetworks : 1;
+			uint64 bIsUsedWithNanite : 1;
+			uint64 bIsStencilTestEnabled : 1;
+			uint64 bIsTranslucencySurface : 1;
+			uint64 bShouldDisableDepthTest : 1;
+			uint64 bHasRenderTracePhysicalMaterialOutput : 1;
+			uint64 bIsUsedWithVolumetricCloud : 1;
+			uint64 bIsUsedWithHeterogeneousVolumes : 1;
+			uint64 bIsMobileSeparateTranslucencyEnabled : 1;
+			uint64 bAlwaysEvaluateWorldPositionOffset : 1;
+		};
+	};
+
+	FMaterialShaderParameters(const FMaterial* InMaterial);
+};
+
 /** Contains all the information needed to uniquely identify a FMaterialShaderMap. */
 class FMaterialShaderMapId
 {
@@ -1345,7 +1427,7 @@ public:
 
 #if WITH_EDITOR
 	/** Saves this shader map to the derived data cache. */
-	void SaveToDerivedDataCache();
+	void SaveToDerivedDataCache(const FMaterialShaderParameters& ShaderParameters);
 #endif
 
 	/** Serializes a shader map to an archive (used with recompiling shaders for a remote console) */
@@ -3021,87 +3103,6 @@ private:
 ENGINE_API uint8 GetRayTracingMaskFromMaterial(const EBlendMode BlendMode);
 
 //
-struct FMaterialShaderParameters
-{
-	EMaterialDomain MaterialDomain;
-	FMaterialShadingModelField ShadingModels;
-	EBlendMode BlendMode;
-	ERHIFeatureLevel::Type FeatureLevel;
-	EMaterialQualityLevel::Type QualityLevel;
-	int32 BlendableLocation;
-	int32 NumCustomizedUVs;
-	uint32 StencilCompare;
-	union
-	{
-		uint64 PackedFlags;
-		struct
-		{
-			uint64 bIsDefaultMaterial : 1;
-			uint64 bIsSpecialEngineMaterial : 1;
-			uint64 bIsMasked : 1;
-			uint64 bIsDitherMasked : 1;
-			uint64 bIsTwoSided : 1;
-			uint64 bIsThinSurface : 1;
-			uint64 bIsDistorted : 1;
-			uint64 bShouldCastDynamicShadows : 1;
-			uint64 bWritesEveryPixel : 1;
-			uint64 bWritesEveryPixelShadowPass : 1;
-			uint64 bHasDiffuseAlbedoConnected : 1;
-			uint64 bHasF0Connected : 1;
-			uint64 bHasBaseColorConnected : 1;
-			uint64 bHasNormalConnected : 1;
-			uint64 bHasRoughnessConnected : 1;
-			uint64 bHasSpecularConnected : 1;
-			uint64 bHasMetallicConnected : 1;
-			uint64 bHasEmissiveColorConnected : 1;
-			uint64 bHasAmbientOcclusionConnected : 1;
-			uint64 bHasAnisotropyConnected : 1;
-			uint64 bIsTessellationEnabled : 1;
-			uint64 bHasDisplacementConnected : 1;
-			uint64 bHasVertexPositionOffsetConnected : 1;
-			uint64 bHasPixelDepthOffsetConnected : 1;
-			uint64 bMaterialMayModifyMeshPosition : 1;
-			uint64 bIsUsedWithStaticLighting : 1;
-			uint64 bIsUsedWithParticleSprites : 1;
-			uint64 bIsUsedWithMeshParticles : 1;
-			uint64 bIsUsedWithNiagaraSprites : 1;
-			uint64 bIsUsedWithNiagaraMeshParticles : 1;
-			uint64 bIsUsedWithNiagaraRibbons : 1;
-			uint64 bIsUsedWithLandscape : 1;
-			uint64 bIsUsedWithBeamTrails : 1;
-			uint64 bIsUsedWithSplineMeshes : 1;
-			uint64 bIsUsedWithSkeletalMesh : 1;
-			uint64 bIsUsedWithMorphTargets : 1;
-			uint64 bIsUsedWithAPEXCloth : 1;
-			uint64 bIsUsedWithGeometryCache : 1;
-			uint64 bIsUsedWithGeometryCollections : 1;
-			uint64 bIsUsedWithHairStrands : 1;
-			uint64 bIsUsedWithWater : 1;
-			uint64 bIsTranslucencyWritingVelocity : 1;
-			uint64 bIsTranslucencyWritingCustomDepth : 1;
-			uint64 bIsDitheredLODTransition : 1;
-			uint64 bIsUsedWithInstancedStaticMeshes : 1;
-			uint64 bHasPerInstanceCustomData : 1;
-			uint64 bHasPerInstanceRandom : 1;
-			uint64 bHasVertexInterpolator : 1;
-			uint64 bHasRuntimeVirtualTextureOutput : 1;
-			uint64 bIsUsedWithLidarPointCloud : 1;
-			uint64 bIsUsedWithVirtualHeightfieldMesh : 1;
-			uint64 bIsUsedWithNeuralNetworks : 1;
-			uint64 bIsUsedWithNanite : 1;
-			uint64 bIsStencilTestEnabled : 1;
-			uint64 bIsTranslucencySurface : 1;
-			uint64 bShouldDisableDepthTest : 1;
-			uint64 bHasRenderTracePhysicalMaterialOutput : 1;
-			uint64 bIsUsedWithVolumetricCloud : 1;
-			uint64 bIsUsedWithHeterogeneousVolumes : 1;
-			uint64 bIsMobileSeparateTranslucencyEnabled : 1;
-			uint64 bAlwaysEvaluateWorldPositionOffset : 1;
-		};
-	};
-
-	FMaterialShaderParameters(const FMaterial* InMaterial);
-};
 
 inline bool ShouldIncludeMaterialInDefaultOpaquePass(const FMaterial& Material)
 {

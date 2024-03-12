@@ -531,6 +531,11 @@ public:
 		: Name(InName), MapIndex(INDEX_NONE)
 	{}
 
+	FString ToString() const 
+	{
+		return Name.ToString();
+	}
+
 	operator FName() const
 	{
 		return Name;

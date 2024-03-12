@@ -52,7 +52,17 @@ extern ENGINE_API FString GetShadingModelFieldString(FMaterialShadingModelField 
 extern ENGINE_API FString GetBlendModeString(EBlendMode BlendMode);
 
 /** Creates a string key for the derived data cache given a shader map id. */
-extern ENGINE_API FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, EShaderPlatform Platform, bool bIncludeKeyStringShaderDependencies = true);
+UE_DEPRECATED(5.5, "GetMaterialShaderMapKeyString now requires passing an FMaterialShaderParameters instance as input.")
+inline FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, EShaderPlatform Platform, bool bIncludeKeyStringShaderDependencies = true)
+{
+	return TEXT("INVALID_KEY");
+}
+
+extern ENGINE_API FString GetMaterialShaderMapKeyString(
+	const FMaterialShaderMapId& ShaderMapId,
+	const FMaterialShaderParameters& ShaderParameters,
+	EShaderPlatform Platform,
+	bool bIncludeKeyStringShaderDependencies = true);
 
 /** Called for every material shader to update the appropriate stats. */
 extern void UpdateMaterialShaderCompilingStats(const FMaterial* Material);

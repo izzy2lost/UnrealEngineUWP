@@ -452,6 +452,9 @@ struct FShaderCompilerEnvironment
 	/** Default constructor. */
 	RENDERCORE_API FShaderCompilerEnvironment();
 
+	/** Constructor used when enviroment is constructed temporarily purely for the purpose of hashing for inclusion in DDC keys. */
+	RENDERCORE_API FShaderCompilerEnvironment(FMemoryHasherBlake3& Hasher);
+
 	/** Initialization constructor. */
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UE_DEPRECATED(5.4, "FShaderCompilerDefinitions is being made private in the future, do not use this constructor.")
@@ -508,12 +511,15 @@ struct FShaderCompilerEnvironment
 	RENDERCORE_API int32 GetIntegerValue(FName Name) const;
 	RENDERCORE_API int32 GetIntegerValue(FShaderCompilerDefineNameCache& NameCache, int32 ResultIfNotFound = 0) const;
 
+	UE_DEPRECATED(5.5, "ContainsDefinition will be made private in the future and should not be called by downstream code.")
 	RENDERCORE_API bool ContainsDefinition(FName Name) const;
 
 	template <typename ValueType> void SetDefineIfUnset(const TCHAR* Name, ValueType Value)
 	{
 		FName NameKey(Name);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (!ContainsDefinition(NameKey))
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			SetDefine(NameKey, Value);
 		}
@@ -611,6 +617,8 @@ private:
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	TPimplPtr<FShaderCompilerDefinitions, EPimplPtrMode::DeepCopy> Definitions;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	FMemoryHasherBlake3* Hasher = nullptr;
 
 	TMap<FString, TVariant<bool, float, int32, uint32, FString>> CompileArgs;
 

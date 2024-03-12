@@ -6763,6 +6763,11 @@ void FShaderCompilingManager::ProcessCompiledShaderMaps(
 #endif
 			int32 NumIncompleteMaterials = 0;
 			int32 MaterialIndex = 0;
+			
+			// all materials using the same shader map must necessarily have the same set of FMaterialShaderParameters, so just initialize from the first
+			check(MaterialDependencies.Num() > 0);
+			FMaterialShaderParameters ShaderParameters(MaterialDependencies[0]);
+
 			while (MaterialIndex < MaterialDependencies.Num())
 			{
 				FMaterial* Material = MaterialDependencies[MaterialIndex];
@@ -6892,7 +6897,7 @@ void FShaderCompilingManager::ProcessCompiledShaderMaps(
 					ShaderMapToUseForRendering->bCompilationFinalized = true;
 					if (ShaderMapToUseForRendering->bIsPersistent)
 					{
-						ShaderMapToUseForRendering->SaveToDerivedDataCache();
+						ShaderMapToUseForRendering->SaveToDerivedDataCache(ShaderParameters);
 					}
 				}
 
@@ -9585,6 +9590,31 @@ static FString GetGlobalShaderMapKeyString(const FGlobalShaderMapId& ShaderMapId
 	FString ShaderMapKeyString = Format.ToString() + TEXT("_") + FString(FString::FromInt(GetTargetPlatformManagerRef().ShaderFormatVersion(Format))) + TEXT("_");
 	ShaderMapAppendKeyString(Platform, ShaderMapKeyString);
 	ShaderMapId.AppendKeyString(ShaderMapKeyString, Dependencies);
+
+	const EShaderPermutationFlags PermutationFlags = ShaderMapId.GetShaderPermutationFlags();
+
+	// Construct a hash of all the environment modifications applied for each shader type & permutation
+	FMemoryHasherBlake3 Hasher;
+	for (const FShaderTypeDependency& ShaderTypeDep : Dependencies)
+	{
+		const FGlobalShaderType* GlobalShaderType = FindShaderTypeByName(ShaderTypeDep.ShaderTypeName)->AsGlobalShaderType();
+		for (int32 PermutationId = 0; PermutationId < GlobalShaderType->GetPermutationCount(); PermutationId++)
+		{
+			if (GlobalShaderType->ShouldCompilePermutation(Platform, PermutationId, PermutationFlags))
+			{
+				FShaderCompilerEnvironment Env(Hasher);
+				GlobalShaderType->SetupCompileEnvironment(Platform, PermutationId, PermutationFlags, Env);
+				Env.SerializeEverythingButFiles(Hasher);
+			}
+		}
+	}
+
+	// * 2 for hex representation of hash; + 6 for tag/underscores
+	TStringBuilder<sizeof(TCHAR) * (sizeof(FBlake3Hash::ByteArray) * 2 + 6)> EnvHashString;
+	EnvHashString << "_EMH_" << Hasher.Finalize() << "_";
+	check(EnvHashString.GetAllocatedSize() == 0);
+	ShaderMapKeyString.Append(EnvHashString.ToView());
+
 	return FString::Printf(TEXT("%s_%s_%s"), TEXT("GSM"), *GetGlobalShaderMapDDCKey(), *ShaderMapKeyString);
 }
 
