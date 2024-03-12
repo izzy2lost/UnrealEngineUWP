@@ -104,11 +104,13 @@ namespace UE
 	// typedef to help make it clearer when a pathName has indices and when the indices are wildcarded away
 	using FWildcardPropertyPathName = FPropertyPathName;
 
-	static const FName NAME_StructOriginalTypeMetadata(TEXT("OriginalType"));
-	static const FName NAME_PresentAsTypeMetadata(TEXT("PresentAsType"));
-	static const FName NAME_IsLooseMetadata(TEXT("IsLoose"));
-	static const FName NAME_VerseClass("VerseClass");
-	
+	static const FName NAME_StructOriginalTypeMetadata(ANSITEXTVIEW("OriginalType"));
+	static const FName NAME_PresentAsTypeMetadata(ANSITEXTVIEW("PresentAsType"));
+	static const FName NAME_IsLooseMetadata(ANSITEXTVIEW("IsLoose"));
+	static const FName NAME_VerseClass(ANSITEXTVIEW("VerseClass"));
+	static const FName NAME_IDOMapKey(ANSITEXTVIEW("Key"));
+	static const FName NAME_IDOMapValue(ANSITEXTVIEW("Value"));
+
 	struct ResolvePropertyPathNameHelperParams
 	{
 		void* Data = nullptr;
@@ -145,126 +147,144 @@ namespace UE
 		return bIsEnabled;
 	}
 
-	static bool ResolvePropertyPathNameHelper(const UStruct* Struct, ResolvePropertyPathNameHelperParams& Params);
-	static bool ResolvePropertyPathNameHelper(ResolvePropertyPathNameHelperParams& Params)
+	static FProperty* FindPropertyByType(UStruct* Struct, FName PropertyName, FPropertyTypeName PropertyType)
 	{
-		if (Params.CurPathIndex == Params.Path.GetSegmentCount() || Params.CurPathIndex == Params.EndPathIndex)
-		{
-			return true;
-		}
-		FPropertyPathNameSegment Segment = Params.Path.GetSegment(Params.CurPathIndex);
-		if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Params.ResultProperty))
-		{
-			return ResolvePropertyPathNameHelper(AsStructProperty->Struct, Params);
-		}
-		if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Params.ResultProperty))
-		{
-			FScriptArrayHelper Array(AsArrayProperty, Params.Data);
-			if (!Array.IsValidIndex(Segment.Index))
-			{
-				if (Params.bAddIfNeeded)
-				{
-					Array.Resize(Segment.Index + 1);
-				}
-				else
-				{
-					return false;
-				}
-			}
-			++Params.CurPathIndex;
-			Params.ResultProperty = AsArrayProperty->Inner;
-			Params.Data = Array.GetElementPtr(Segment.Index);
-			return ResolvePropertyPathNameHelper(Params);
-		}
-		if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Params.ResultProperty))
-		{
-			FScriptSetHelper Set(AsSetProperty, Params.Data);
-			if (!Set.IsValidIndex(Segment.Index))
-			{
-				if (Params.bAddIfNeeded)
-				{
-					Segment.Index = Set.AddDefaultValue_Invalid_NeedsRehash();
-				}
-				else
-				{
-					return false;
-				}
-			}
-			++Params.CurPathIndex;
-			Params.ResultProperty = AsSetProperty->ElementProp;
-			Params.Data = Set.GetElementPtr(Segment.Index);
-			return ResolvePropertyPathNameHelper(Params);
-		}
-		if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Params.ResultProperty))
-		{
-			FScriptMapHelper Map(AsMapProperty, Params.Data);
-			if (!Map.IsValidIndex(Segment.Index))
-			{
-				if (Params.bAddIfNeeded)
-				{
-					Segment.Index = Map.AddDefaultValue_Invalid_NeedsRehash();
-				}
-				else
-				{
-					return false;
-				}
-			}
-			++Params.CurPathIndex;
-			Params.ResultProperty = AsMapProperty->KeyProp;
-			Params.Data = Map.GetKeyPtr(Segment.Index);
-			if (ResolvePropertyPathNameHelper(Params))
-			{
-				return true;
-			}
-			Params.ResultProperty = AsMapProperty->ValueProp;
-			Params.Data = Map.GetValuePtr(Segment.Index);
-			return ResolvePropertyPathNameHelper(Params);
-		}
-		check(Params.CurPathIndex == Params.Path.GetSegmentCount() - 1)
-		return true;
-	}
-	
-	static bool ResolvePropertyPathNameHelper(const UStruct* Struct, ResolvePropertyPathNameHelperParams& Params)
-    {
-		const FPropertyPathNameSegment Segment = Params.Path.GetSegment(Params.CurPathIndex);
 		for (FProperty* Property : TFieldRange<FProperty>(Struct))
 		{
-			// find a property that matches the segment
-			if (Segment.Name != Property->GetFName() || !Property->CanSerializeFromTypeName(Segment.Type))
+			if (Property->GetFName() == PropertyName && Property->CanSerializeFromTypeName(PropertyType))
 			{
-				continue;
+				return Property;
 			}
-			const bool bStaticArrayIndex = !Property->IsA<FArrayProperty>() && !Property->IsA<FSetProperty>() && !Property->IsA<FMapProperty>();
-			
-			if (bStaticArrayIndex && Segment.Index != INDEX_NONE)
+		}
+		return nullptr;
+	}
+
+	static bool ResolvePropertyPathName(
+		UObject* Object, const FPropertyPathName& Path,
+		void*& OutData, FProperty*& OutProperty,
+		void*& OutOwnerData, FStructProperty*& OutOwnerProperty)
+	{
+		OutData = Object;
+		OutProperty = nullptr;
+		OutOwnerData = nullptr;
+		OutOwnerProperty = nullptr;
+
+		if (!Object)
+		{
+			return false;
+		}
+
+		const int32 SegmentCount = Path.GetSegmentCount();
+		for (int32 SegmentIndex = 0; SegmentIndex < SegmentCount;)
+		{
+			// Assign the owner of the property in this segment.
+			OutOwnerProperty = CastField<FStructProperty>(OutProperty);
+			OutOwnerData = OutOwnerProperty ? OutData : nullptr;
+
+			// Find the struct to search within.
+			UStruct* Struct = nullptr;
+			if (SegmentIndex == 0)
 			{
-				if (Segment.Index < Property->ArrayDim)
-				{
-					++Params.CurPathIndex;
-					Params.ResultProperty = Property;
-					Params.Data = Property->ContainerPtrToValuePtr<void>(Params.Data, Segment.Index);
-					return ResolvePropertyPathNameHelper(Params);
-				}
-				else
-				{
-					// out of static array bounds
-					return false;
-				}
+				Struct = Object->GetClass();
+			}
+			else if (OutOwnerProperty)
+			{
+				Struct = OutOwnerProperty->Struct;
 			}
 			else
 			{
+				return false;
+			}
+
+			// Find the named property within the struct/class.
+			const FPropertyPathNameSegment Segment = Path.GetSegment(SegmentIndex++);
+			FProperty* Property = FindPropertyByType(Struct, Segment.Name, Segment.Type);
+			if (!Property)
+			{
+				return false;
+			}
+
+			// Find the address of the property value.
+			const bool bIsIndexedProperty = Property->IsA<FArrayProperty>() || Property->IsA<FSetProperty>() || Property->IsA<FMapProperty>();
+			const int32 ArrayIndex = !bIsIndexedProperty && Segment.Index >= 0 ? Segment.Index : 0;
+			if (ArrayIndex >= Property->ArrayDim)
+			{
+				return false;
+			}
+			OutProperty = Property;
+			OutData = Property->ContainerPtrToValuePtr<void>(OutData, ArrayIndex);
+
+			if (bIsIndexedProperty)
+			{
 				if (Segment.Index == INDEX_NONE)
 				{
-					++Params.CurPathIndex;
+					// A segment may only resolve directly to an indexed property if it is the last segment.
+					if (SegmentIndex < SegmentCount)
+					{
+						return false;
+					}
 				}
-				Params.ResultProperty = Property;
-				Params.Data = Property->ContainerPtrToValuePtr<void>(Params.Data);
-				return ResolvePropertyPathNameHelper(Params);
+				else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+				{
+					FScriptArrayHelper Array(ArrayProperty, OutData);
+					if (!Array.IsValidIndex(Segment.Index))
+					{
+						return false;
+					}
+					OutProperty = ArrayProperty->Inner;
+					OutData = Array.GetElementPtr(Segment.Index);
+				}
+				else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
+				{
+					FScriptSetHelper Set(SetProperty, OutData);
+					if (!Set.IsValidIndex(Segment.Index))
+					{
+						return false;
+					}
+					OutProperty = SetProperty->ElementProp;
+					OutData = Set.GetElementPtr(Segment.Index);
+				}
+				else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
+				{
+					FScriptMapHelper Map(MapProperty, OutData);
+					if (!Map.IsValidIndex(Segment.Index))
+					{
+						return false;
+					}
+					// Resolve to the pair if Key or Value are not in the path.
+					if (SegmentIndex == SegmentCount)
+					{
+						// Clear the property because there is no property for the pair, only the key and value.
+						OutProperty = nullptr;
+						OutData = Map.GetPairPtr(Segment.Index);
+						// Clear the owner because this logically resolves to the element, which is owned by the map.
+						OutOwnerProperty = nullptr;
+						OutOwnerData = nullptr;
+					}
+					else
+					{
+						const FPropertyPathNameSegment MapSegment = Path.GetSegment(SegmentIndex++);
+						if (MapSegment.Name == NAME_IDOMapKey)
+						{
+							OutProperty = MapProperty->KeyProp;
+							OutData = Map.GetKeyPtr(Segment.Index);
+						}
+						else if (MapSegment.Name == NAME_IDOMapValue)
+						{
+							OutProperty = MapProperty->ValueProp;
+							OutData = Map.GetValuePtr(Segment.Index);
+						}
+						else
+						{
+							return false;
+						}
+					}
+				}
 			}
 		}
-		
-		return false; // segment not found in struct
-    }
+
+		return true;
+	}
 
 	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct,
 		UObject* Outer, const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path);
@@ -341,12 +361,11 @@ namespace UE
 		}
 		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
-			// todo: This will likely need revisiting once devin has maps working
-			Path.Push(CreateSegmentFromProperty(AsMapProperty->KeyProp));
+			Path.Push({NAME_IDOMapKey});
 			ConvertToInstanceDataObjectProperty(AsMapProperty->KeyProp, PropertyType.GetParameter(0), Outer, LooseProperties, Path);
 			Path.Pop();
 			
-			Path.Push(CreateSegmentFromProperty(AsMapProperty->ValueProp));
+			Path.Push({NAME_IDOMapValue});
 			ConvertToInstanceDataObjectProperty(AsMapProperty->ValueProp, PropertyType.GetParameter(1), Outer, LooseProperties, Path);
 			Path.Pop();
 		}
@@ -437,18 +456,18 @@ namespace UE
 #endif
 		Property->SetPropertyFlags(CPF_Edit | CPF_EditConst);
 		if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
-        {
+		{
 			MarkPropertyAsLoose(AsArrayProperty->Inner);
-        }
-        else if (const FSetProperty* AsSetProperty =CastField<FSetProperty>(Property))
-        {
+		}
+		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
+{
 			MarkPropertyAsLoose(AsSetProperty->ElementProp);
-        }
-        else if (const FMapProperty* AsMapProperty =CastField<FMapProperty>(Property))
-        {
+		}
+		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
+		{
 			MarkPropertyAsLoose(AsMapProperty->KeyProp);
 			MarkPropertyAsLoose(AsMapProperty->ValueProp);
-        }
+		}
 	}
 
 	// constructs an InstanceDataObject struct by merging the properties in 
@@ -483,7 +502,7 @@ namespace UE
 				if (MatchesBagProperty(TemplateProperty))
 				{
 					// this property was determined to be loose despite it being in the template.
-					// this likely occured due to an entire struct instance being loose and that instance becoming a template
+					// this likely occurred due to an entire struct instance being loose and that instance becoming a template
 					continue;
 				}
 				Path.Push(CreateSegmentFromProperty(TemplateProperty));
@@ -614,77 +633,46 @@ namespace UE
 	
 	void MarkPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path)
 	{
-		const FPropertyPathNameSegment Segment = Path.GetSegment(Path.GetSegmentCount() - 1);
-
-		// partially resolve path to find the parent struct and data pointer
-		const UStruct* ParentStruct = Object->GetClass();
-		const void* ParentData = Object;
-		
-		ResolvePropertyPathNameHelperParams Params {
-            .Data = Object,
-            .Path = Path,
-            .CurPathIndex = 0,
-			.EndPathIndex = Path.GetSegmentCount() - 1,
-            .bAddIfNeeded = false
-        };
-		if (Params.CurPathIndex != Params.EndPathIndex)
+		void* ResolvedData = nullptr;
+		void* ResolvedOwnerData = nullptr;
+		FProperty* ResolvedProperty = nullptr;
+		FStructProperty* ResolvedOwnerProperty = nullptr;
+		if (ensureMsgf(ResolvePropertyPathName(Object, Path, ResolvedData, ResolvedProperty, ResolvedOwnerData, ResolvedOwnerProperty),
+			TEXT("Failed to resolve property path name %s"), *WriteToString<256>(Path)))
 		{
-			if (!(ensure(ResolvePropertyPathNameHelper(Object->GetClass(), Params))))
-            {
-                return;
-            }
-            if (const FStructProperty* ParentAsStructProperty = CastField<FStructProperty>(Params.ResultProperty))
-            {
-                ParentData = Params.Data;
-                ParentStruct = ParentAsStructProperty->Struct;
-            }
-            else
-            {
-            	// only mark properties set if they're in structs/classes
-	            return;
-            }
+			// only mark properties set if they're in structs/classes
+			if (ResolvedOwnerProperty)
+			{
+				MarkPropertySetBySerialization(ResolvedOwnerProperty->Struct, ResolvedOwnerData, ResolvedData);
+			}
 		}
-		// resolve the last segment of the path
-		Params.EndPathIndex += 1;
-		if (ensure(ResolvePropertyPathNameHelper(ParentStruct, Params)))
-        {
-			MarkPropertySetBySerialization(ParentStruct, ParentData, Params.Data);
-        }
+	}
+
+	static bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const void* PropertyDataPtr)
+	{
+		if (const FSetProperty* ValuesSetByPropertyBagProperty = CastField<FSetProperty>(Struct->FindPropertyByName(NAME_ValuesSetBySerialization)))
+		{
+			const FScriptSetHelper ValuesSetByPropertyBag(ValuesSetByPropertyBagProperty, ValuesSetByPropertyBagProperty->ContainerPtrToValuePtr<void>(StructData));
+			const int64 ValueOffset = static_cast<const uint8*>(PropertyDataPtr) - static_cast<const uint8*>(StructData);
+			return ValuesSetByPropertyBag.FindElementIndex(&ValueOffset) != INDEX_NONE;
+		}
+		return false;
 	}
 
 	bool WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path)
 	{
-		const FPropertyPathNameSegment Segment = Path.GetSegment(Path.GetSegmentCount() - 1);
-
-		// partially resolve path to find the parent struct and data pointer
-		const UStruct* ParentStruct = Object->GetClass();
-		const void* ParentData = Object;
-		
-		ResolvePropertyPathNameHelperParams Params {
-			.Data = Object,
-			.Path = Path,
-			.CurPathIndex = 0,
-			.EndPathIndex = Path.GetSegmentCount() - 1,
-			.bAddIfNeeded = false
-		};
-		if (Params.CurPathIndex != Params.EndPathIndex)
+		void* ResolvedData = nullptr;
+		void* ResolvedOwnerData = nullptr;
+		FProperty* ResolvedProperty = nullptr;
+		FStructProperty* ResolvedOwnerProperty = nullptr;
+		if (ensureMsgf(ResolvePropertyPathName(Object, Path, ResolvedData, ResolvedProperty, ResolvedOwnerData, ResolvedOwnerProperty),
+			TEXT("Failed to resolve property path name %s"), *WriteToString<256>(Path)))
 		{
-			if (!(ensure(ResolvePropertyPathNameHelper(Object->GetClass(), Params))))
+			// only properties in structs/classes have been marked
+			if (ResolvedOwnerProperty)
 			{
-				return false;
+				return WasPropertySetBySerialization(ResolvedOwnerProperty->Struct, ResolvedOwnerData, ResolvedData);
 			}
-			if (const FStructProperty* ParentAsStructProperty = CastField<FStructProperty>(Params.ResultProperty))
-			{
-				ParentData = Params.Data;
-				ParentStruct = ParentAsStructProperty->Struct;
-			}
-		}
-
-		// resolve the last segment of the path
-		Params.EndPathIndex += 1;
-		if (ensure(ResolvePropertyPathNameHelper(ParentStruct, Params)))
-		{
-			return WasPropertySetBySerialization(ParentStruct, ParentData, Params.ResultProperty, Segment.Index);
 		}
 		return false;
 	}
