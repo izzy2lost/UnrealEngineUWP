@@ -274,6 +274,8 @@ float4				ShadowChannelMask;
 Buffer<uint>		IndirectArgsBuffer;
 RWBuffer<uint>		OutTransmittanceMask;
 
+#include "../VirtualShadowMaps/VirtualShadowMapLightGrid.ush"
+
 #define USE_BLUE_NOISE 1
 #include "../BlueNoise.ush"
 DEFINE_HAIR_BLUE_NOISE_JITTER_FUNCTION
@@ -390,11 +392,9 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 
 	const uint2 LocalPixelPos = PixelCoord;
 
-	// TODO: Possibly make use of the new VSM culled light grid
-	const uint EyeIndex = 0; // TODO: Instanced stereo
-	const uint GridLinearIndex = ComputeLightGridCellIndex(LocalPixelPos, SceneDepth, EyeIndex);
-	const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridLinearIndex, EyeIndex);
-
+	// Use VSM light grid index remapping to ensure we compute transmittance value only for shadowed light
+	// The logic to compute light index needs to be identical as in DeferredLightPixelShader.usf / ClusteredDeferredShadingPixelShader.usf
+	const FCulledLightsGridData CulledLightGridData = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);
 	const uint LightCount = min(GetPackedShadowMaskMaxLightCount(), CulledLightGridData.NumLights);
 
 	LOOP
@@ -403,7 +403,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 		const uint OutputIndex = SampleIndex + MaxVisibilityNodeCount * LightIndex;
 
 		// The Virtual Shadow Remap stores directional lights first
-		const FLocalLightData LightData 	 = GetLocalLightData(CulledLightGridData.DataStartIndex + LightIndex, EyeIndex);
+		const FLocalLightData LightData 	 = VirtualShadowMapGetLocalLightData(CulledLightGridData, LightIndex);
 		const float3 TranslatedLightPosition = LightData.LightPositionAndInvRadius.xyz; // LightPositionAndInvRadius is already in translated world space
 
 		// Early out when the shadow mask bits are zero

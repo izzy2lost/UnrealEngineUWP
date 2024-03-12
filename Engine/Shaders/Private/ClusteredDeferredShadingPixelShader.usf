@@ -232,7 +232,8 @@ float4 GetLightGridLocalLighting(
 	uint FirstNonSimpleLightIndex, 
 	uint SampleIndex=0, 
 	uint TotalSampleCount=0, 
-	uint2 PixelCoord=0)
+	uint2 PixelCoord=0,
+	uint HairLightChannelMask=0)
 {
 	float4 DirectLighting = 0;
 
@@ -243,10 +244,14 @@ float4 GetLightGridLocalLighting(
 	int2 PixelPos = int2( ScreenUV.xy * View.BufferSizeAndInvSize.xy );
 	uint4 ShadowMask = ShadowMaskBits[ PixelPos ];
 	uint LightChannelMask = LIGHTING_CHANNEL_MASK;
+	#if USE_HAIR_LIGHTING
+	LightChannelMask = HairLightChannelMask;
+	#else
 	if (bHasLightChannels)
 	{
 		LightChannelMask = LightingChannelsTexture.Load(uint3(PixelPos, 0)).x;
 	}
+	#endif
 	
 	LOOP
 	for (uint GridLightListIndex = FirstNonSimpleLightIndex; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
@@ -281,6 +286,7 @@ float4 GetLightGridLocalLighting(
 		// Find packed VSM projection result if present
 		// NOTE: We have to do the search as in the deferred pass again currently as the shadow masks
 		// are packed according to a prune light list that contains only shadow-casting lights.
+		uint VSMGridLightListIndex = GridLightListIndex;
 		if (LocalLight.VirtualShadowMapId != INDEX_NONE)
 		{
 			LightAttenuation = GetVirtualShadowMapMaskForLight(
@@ -288,7 +294,8 @@ float4 GetLightGridLocalLighting(
 				uint2(PixelPos),
 				SceneDepth,
 				LocalLight.VirtualShadowMapId,
-				TranslatedWorldPosition).xxxx;
+				TranslatedWorldPosition,
+				VSMGridLightListIndex).xxxx;
 		}
 
 		#if USE_HAIR_LIGHTING
@@ -298,10 +305,12 @@ float4 GetLightGridLocalLighting(
 			const float3 V = normalize(-CameraVector);
 
 			// Fetch precomputed transmittance
+			// * Transmittance data are only computed for shadowed lights with VSM
+			// * Transmittance mask index is computed using VSM light index remapping. This needs to match HairStrandsDeepTransmittanceMask.usf
 			FHairTransmittanceMask TransmittanceMask = InitHairTransmittanceMask();
-			if (GridLightListIndex < GetPackedShadowMaskMaxLightCount())
+			if (LocalLight.VirtualShadowMapId != INDEX_NONE && VSMGridLightListIndex < GetPackedShadowMaskMaxLightCount())
 			{
-				const uint TransmittanceSampleIndex = SampleIndex + GridLightListIndex * TotalSampleCount;
+				const uint TransmittanceSampleIndex = SampleIndex + VSMGridLightListIndex * TotalSampleCount;
 				const uint TransmittanceSampleMaxCount = TotalSampleCount * GetPackedShadowMaskMaxLightCount();
 				if (TransmittanceSampleIndex < TransmittanceSampleMaxCount)
 				{
@@ -581,7 +590,7 @@ void ClusteredShadingPixelShader(
 
 	float4 CompositedLighting = 0;
 	uint FirstNonSimpleLightIndex = 0;
-	CompositedLighting += GetLightGridLocalLighting(ScreenSpaceData, CulledLightGridData, TranslatedWorldPosition, CameraVector, ScreenUV, SceneDepth, 0, Dither, FirstNonSimpleLightIndex, SampleIndex, TotalSampleCount, PixelCoord);
+	CompositedLighting += GetLightGridLocalLighting(ScreenSpaceData, CulledLightGridData, TranslatedWorldPosition, CameraVector, ScreenUV, SceneDepth, 0, Dither, FirstNonSimpleLightIndex, SampleIndex, TotalSampleCount, PixelCoord, Sample.LightChannelMask);
 #if !VISUALIZE_LIGHT_CULLING
 	CompositedLighting *= View.PreExposure;
 #endif
