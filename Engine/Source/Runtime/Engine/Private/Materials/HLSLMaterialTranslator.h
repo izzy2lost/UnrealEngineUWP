@@ -1408,6 +1408,9 @@ protected:
 	/** The output material shader defines */
 	TUniquePtr<FEnvironmentDefines> EnvironmentDefines;
 
+	/** Whether the async DDC query was completed (instead of terminating because canceled) */
+	TAtomic<bool> DDCQueryCompleted;
+
 	/** Signals when the async DDC query task has completed AND there was a hit */
 	TAtomic<bool> DDCQueryHit;
 
