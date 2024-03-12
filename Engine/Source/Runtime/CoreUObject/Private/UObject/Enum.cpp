@@ -641,7 +641,7 @@ FText UEnum::GetValueOrBitfieldAsDisplayNameText(int64 InValue) const
 		CreateStringFromValueOrBitfield(
 			this,
 			InValue,
-			[this](int64 Value) -> const FString&
+			[this](int64 Value)
 			{
 				return GetDisplayNameTextByValue(Value).ToString();
 			}
