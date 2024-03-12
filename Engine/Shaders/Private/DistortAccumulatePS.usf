@@ -22,6 +22,15 @@
 #include "/Engine/Generated/VertexFactory.ush"
 #include "DistortionCommon.ush"
 
+#ifndef ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+#define ADAPTIVE_VOLUMETRIC_SHADOW_MAP 0
+#endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+
+#if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+#define AVSM DistortionPass.AVSM
+#include "HeterogeneousVolumes/HeterogeneousVolumesAdaptiveVolumetricShadowMapSampling.ush"
+#endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+
 // SUBSTRATE_TODO enable distortion on mobile.
 #if SUBSTRATE_ENABLED && (!MATERIAL_IS_SUBSTRATE || SHADING_PATH_MOBILE)
 #undef SUBSTRATE_ENABLED
@@ -218,6 +227,16 @@ void Main(
 
 	// output positives in R|G channels and negatives in B|A channels
 	OutColor = float4(PosOffset.x,PosOffset.y,NegOffset.x,NegOffset.y);
+
+#if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+	if (DistortionPass.UseAVSM)
+	{
+		float3 TranslatedWorldPosition = SvPositionToResolvedTranslatedWorld(SvPosition);
+		float Transmittance = saturate(AVSM_SampleTransmittance(TranslatedWorldPosition, 0));
+		float ApplyDistortion = (Transmittance >= DistortionPass.TransmittanceThreshold) ? 1.0 : 0.0;
+		OutColor *= ApplyDistortion;
+	}
+#endif
 }
 
 
