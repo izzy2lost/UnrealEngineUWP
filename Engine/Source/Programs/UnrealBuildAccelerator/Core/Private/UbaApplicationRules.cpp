@@ -341,13 +341,15 @@ namespace uba
 	{
 		virtual bool IsOutputFile(const tchar* file, u64 fileLen) override
 		{
-			return EndsWith(file, fileLen, TC(".pvslog"))
+			return EndsWith(file, fileLen, TC(".PVS-Studio.log"))
+				|| EndsWith(file, fileLen, TC(".pvslog"))
 				|| EndsWith(file, fileLen, TC(".stacktrace.txt"));
 		}
 		
 		virtual bool IsRarelyRead(const StringBufferBase& file) override
 		{
 			return file.EndsWith(TC(".i"))
+				|| file.EndsWith(TC(".PVS-Studio.log"))
 				|| file.EndsWith(TC(".pvslog"))
 				|| file.EndsWith(TC(".stacktrace.txt"));
 		}
