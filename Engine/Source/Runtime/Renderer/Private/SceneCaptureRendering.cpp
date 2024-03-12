@@ -172,6 +172,12 @@ public:
 		{
 			OutEnvironment.SetRenderTargetOutputFormat(0, PF_A32B32G32R32F);
 		}
+
+		if (IsMobilePlatform(Parameters.Platform))
+		{
+			OutEnvironment.FullPrecisionInPS = 1;
+		}
+
 	}
 };
 
