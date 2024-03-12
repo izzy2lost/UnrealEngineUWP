@@ -15,7 +15,7 @@ namespace uba
 	bool TestSockets(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
 		static constexpr u16 port = 1346;
-		u8 result = 0;
+		Atomic<u8> result;
 		NetworkBackendTcp tcp(logger.m_writer);
 		Thread t([&]()
 			{
@@ -27,7 +27,7 @@ namespace uba
 						tcp.SetRecvCallbacks(connection, &result, 1,
 							[](void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
 							{
-								*(u8*)context = *headerData;
+								*(Atomic<u8>*)context = *headerData;
 								//wprintf(TC("Listen got data from peer: %u\n"), *headerData);
 								return true;
 							},

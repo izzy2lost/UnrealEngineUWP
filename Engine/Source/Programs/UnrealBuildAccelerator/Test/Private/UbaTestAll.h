@@ -46,13 +46,15 @@ namespace uba
 
 
 	#define UBA_TEST(x) \
-		logger.Info(TC("Running %s..."), TC(#x)); \
-		if (!x(testLogger, testRootDir)) \
-			return logger.Error(TC("  %s failed"), TC(#x)); \
-		logger.Info(TC("  %s success!"),  TC(#x));
+		if (!filter || Contains(TC(#x), filter)) \
+		{ \
+			logger.Info(TC("Running %s..."), TC(#x)); \
+			if (!x(testLogger, testRootDir)) \
+				return logger.Error(TC("  %s failed"), TC(#x)); \
+			logger.Info(TC("  %s success!"),  TC(#x)); \
+		}
 
-
-	bool RunAllTests()
+	bool RunTests(int argc, tchar* argv[])
 	{
 		LoggerWithWriter logger(g_consoleLogWriter, TC(""));
 
@@ -73,6 +75,10 @@ namespace uba
 		testRootDir.EnsureEndsWithSlash();
 
 		logger.Info(TC("Running tests (Test rootdir: %s)"), testRootDir.data);
+
+		const tchar* filter = nullptr;
+		if (argc > 1)
+			filter = argv[1];
 
 		//UBA_TEST(TestStress) // This can not be submitted.. it depends on CoordinatorHorde and credentials
 		UBA_TESTS

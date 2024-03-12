@@ -7,7 +7,7 @@ void segfault_sigaction(int signal, siginfo_t* si, void* arg)
 	uba::UbaAssert("Segmentation fault", "", 0, "", -1);
 }
 
-int main()
+int main(int argc, char* argv[])
 {
 	#if !__has_feature(thread_sanitizer)
 	struct sigaction sa;
@@ -19,7 +19,7 @@ int main()
 	#endif
 
 	using namespace uba;
-	if (!RunAllTests())
+	if (!RunTests(argc, argv))
 		return -1;
 	return 0;
 }

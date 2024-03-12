@@ -6,7 +6,7 @@ int main(int argc, char* argv[])
 {
 	using namespace uba;
 
-	if (!RunAllTests())
+	if (!RunTests(argc, argv))
 		return -1;
 	return 0;
 }
