@@ -187,6 +187,7 @@ namespace Horde.Server.Dashboard
 				GetTelemetryViewResponse rview = new GetTelemetryViewResponse();
 				rview.Id = telemetry.Id.ToString();
 				rview.Name = telemetry.Name;
+				rview.TelemetryStoreId = telemetry.TelemetryStoreId.ToString();
 
 				foreach (TelemetryVariableConfig variable in telemetry.Variables)
 				{
