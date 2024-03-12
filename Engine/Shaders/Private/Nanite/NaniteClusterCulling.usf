@@ -418,7 +418,11 @@ struct FNaniteTraversalClusterCullCallback
 				Node.NodeIndex = CandidateNode.NodeIndex;
 				Node.EnabledBitmask = GroupOccludedBitmask[LocalNodeIndex];
 
+#if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
+				StoreCandidateNodeDataCoherent(MainAndPostNodesAndClusterBatches, OccludedNodesOffset, PackCandidateNode(Node), true);
+#else
 				StoreCandidateNodeData(MainAndPostNodesAndClusterBatches, OccludedNodesOffset, PackCandidateNode(Node), true);
+#endif
 			}
 		}
 #endif
@@ -433,7 +437,11 @@ struct FNaniteTraversalClusterCullCallback
 		Node.NodeIndex = HierarchyNodeSlice.ChildStartReference;
 		Node.EnabledBitmask = NANITE_BVH_NODE_ENABLE_MASK;
 
+#if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
+		StoreCandidateNodeCoherent(MainAndPostNodesAndClusterBatches, StoreIndex, Node, bIsPostPass);
+#else
 		StoreCandidateNode(MainAndPostNodesAndClusterBatches, StoreIndex, Node, bIsPostPass);
+#endif
 	}
 
 	void StoreCluster(uint StoreIndex, FHierarchyNodeSlice HierarchyNodeSlice, uint ClusterIndex)
@@ -464,7 +472,11 @@ struct FNaniteTraversalClusterCullCallback
 
 	bool LoadCandidateNodeDataToGroup(uint NodeIndex, uint GroupIndex, bool bCheckIfReady = true)
 	{
+#if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
+		uint4 NodeData = LoadCandidateNodeDataCoherent(MainAndPostNodesAndClusterBatches, NodeIndex, bIsPostPass);
+#else
 		uint4 NodeData = LoadCandidateNodeData(MainAndPostNodesAndClusterBatches, NodeIndex, bIsPostPass);
+#endif
 
 		bool bNodeReady = IsNodeDataReady(NodeData);
 		if (!bCheckIfReady || bNodeReady)
@@ -477,22 +489,38 @@ struct FNaniteTraversalClusterCullCallback
 
 	void ClearCandidateNodeData(uint NodeIndex)
 	{
+#if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
+		::ClearCandidateNodeCoherent(MainAndPostNodesAndClusterBatches, NodeIndex, bIsPostPass);
+#else
 		::ClearCandidateNode(MainAndPostNodesAndClusterBatches, NodeIndex, bIsPostPass);
+#endif
 	}
 
 	void AddToClusterBatch(uint BatchIndex, uint Num)
 	{
+#if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
+		::AddToClusterBatchCoherent(MainAndPostNodesAndClusterBatches, BatchIndex, Num, bIsPostPass);
+#else
 		::AddToClusterBatch(MainAndPostNodesAndClusterBatches, BatchIndex, Num, bIsPostPass);
+#endif
 	}
 
 	void ClearClusterBatch(uint BatchIndex)
 	{
+#if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
+		::ClearClusterBatchCoherent(MainAndPostNodesAndClusterBatches, BatchIndex, bIsPostPass);
+#else
 		::ClearClusterBatch(MainAndPostNodesAndClusterBatches, BatchIndex, bIsPostPass);
+#endif
 	}
 
 	uint LoadClusterBatch(uint BatchIndex)
 	{
+#if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
+		return ::LoadClusterBatchCoherent(MainAndPostNodesAndClusterBatches, BatchIndex, bIsPostPass);
+#else
 		return ::LoadClusterBatch(MainAndPostNodesAndClusterBatches, BatchIndex, bIsPostPass);
+#endif
 	}
 
 	void ProcessCluster(uint4 PackedCluster)
@@ -739,12 +767,16 @@ struct FNaniteTraversalClusterCullCallback
 					WaveInterlockedAddScalar_(QueueState[0].PassState[1].ClusterWriteOffset, 1, OccludedClusterOffset);
 					VisibleCluster.Flags |= (bUseHWRaster ? NANITE_CULLING_FLAG_USE_HW : 0u);
 
+#if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
+					StoreCandidateClusterCoherent(MainAndPostCandididateClusters, (MaxCandidateClusters - 1) - OccludedClusterOffset, VisibleCluster);
+#else
 					StoreCandidateCluster(MainAndPostCandididateClusters, (MaxCandidateClusters - 1) - OccludedClusterOffset, VisibleCluster);
+#endif
 
 #if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
 					DeviceMemoryBarrier();
 					const uint BatchIndex = OccludedClusterOffset / NANITE_PERSISTENT_CLUSTER_CULLING_GROUP_SIZE;
-					::AddToClusterBatch(MainAndPostNodesAndClusterBatches, BatchIndex, 1, true);
+					::AddToClusterBatchCoherent(MainAndPostNodesAndClusterBatches, BatchIndex, 1, true);
 #endif
 				}
 			}
