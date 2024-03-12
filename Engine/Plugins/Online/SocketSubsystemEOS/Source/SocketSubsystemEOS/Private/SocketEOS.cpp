@@ -3,6 +3,7 @@
 #include "SocketEOS.h"
 #include "SocketSubsystemEOS.h"
 #include "EOSShared.h"
+#include "Misc/ConfigCacheIni.h"
 
 #if WITH_EOS_SDK
 	#include "eos_p2p.h"
@@ -20,6 +21,18 @@ FSocketEOS::FSocketEOS(FSocketSubsystemEOS& InSocketSubsystem, const FString& In
 #endif
 {
 	CallbackAliveTracker = MakeShared<FCallbackBase>();
+
+#if WITH_EOS_SDK
+	FString PacketReliabilityTypeStr;
+	if (GConfig->GetString(TEXT("SocketSubsystemEOS"), TEXT("DefaultPacketReliabilityType"), PacketReliabilityTypeStr, GEngineIni))
+	{
+		EOS_EPacketReliability PacketReliabilityType;
+		if (LexFromString(PacketReliabilityType, *PacketReliabilityTypeStr))
+		{
+			PacketReliability = PacketReliabilityType;
+		}
+	}
+#endif
 }
 
 FSocketEOS::~FSocketEOS()
@@ -351,7 +364,7 @@ bool FSocketEOS::SendTo(const uint8* Data, int32 Count, int32& OutBytesSent, con
 	Options.RemoteUserId = DestinationAddress.GetRemoteUserId();
 	Options.SocketId = &SocketId;
 	Options.bAllowDelayedDelivery = EOS_TRUE;
-	Options.Reliability = EOS_EPacketReliability::EOS_PR_UnreliableUnordered;
+	Options.Reliability = PacketReliability;
 	Options.Channel = DestinationAddress.GetChannel();
 	Options.DataLengthBytes = Count;
 	Options.Data = Data;

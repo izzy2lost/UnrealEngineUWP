@@ -27,6 +27,7 @@ public class SocketSubsystemEOS : ModuleRules
 			{
 				"CoreOnline",
 				"CoreUObject",
+				"EOSShared",
 				"EOSSDK"
 			}
 		);

@@ -93,5 +93,8 @@ private:
 
 	FClosedNotifyCallback* ClosedNotifyCallback;
 	EOS_NotificationId ClosedNotifyId;
+
+	/** Default packet reliability type used in EOS_P2P_SendPacketOptions */
+	EOS_EPacketReliability PacketReliability = EOS_EPacketReliability::EOS_PR_UnreliableUnordered;
 #endif
 };

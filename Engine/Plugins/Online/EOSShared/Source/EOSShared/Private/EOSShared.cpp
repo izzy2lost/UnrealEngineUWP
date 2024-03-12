@@ -12,6 +12,7 @@
 #include "eos_presence_types.h"
 #include "eos_rtc_types.h"
 #include "eos_userinfo_types.h"
+#include "eos_p2p_types.h"
 
 DEFINE_LOG_CATEGORY(LogEOSSDK);
 
@@ -461,6 +462,29 @@ bool LexFromString(EOS_EIntegratedPlatformManagementFlags& OutEnum, const TCHAR*
 	else if (FCString::Stricmp(InString, TEXT("PreferIntegratedIdentity")) == 0)
 	{
 		OutEnum = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_PreferIntegratedIdentity;
+	}
+	else
+	{
+		checkNoEntry();
+		return false;
+	}
+
+	return true;
+}
+
+bool LexFromString(EOS_EPacketReliability& OutEnum, const TCHAR* InString)
+{
+	if (FCString::Stricmp(InString, TEXT("UnreliableUnordered")) == 0)
+	{
+		OutEnum = EOS_EPacketReliability::EOS_PR_UnreliableUnordered;
+	}
+	else if (FCString::Stricmp(InString, TEXT("ReliableUnordered")) == 0)
+	{
+		OutEnum = EOS_EPacketReliability::EOS_PR_ReliableUnordered;
+	}
+	else if (FCString::Stricmp(InString, TEXT("ReliableOrdered")) == 0)
+	{
+		OutEnum = EOS_EPacketReliability::EOS_PR_ReliableOrdered;
 	}
 	else
 	{
