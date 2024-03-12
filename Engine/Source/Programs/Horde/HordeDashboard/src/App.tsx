@@ -7,6 +7,7 @@ import hordePlugins from './Plugins';
 import backend from './backend';
 import { getSiteConfig } from './backend/Config';
 import dashboard from './backend/Dashboard';
+import { ThemeTester } from './base/components/ThemeTester/ThemeTester';
 import { AdminToken } from './components/AdminToken';
 import { AgentView } from './components/AgentView';
 import { AuditLogView } from './components/AuditLog';
@@ -19,29 +20,28 @@ import { JobRedirector } from './components/JobRedirector';
 import { LogView } from './components/LogView';
 import { NoticeView } from './components/NoticeView';
 import { PerforceServerView } from './components/PerforceView';
+import { PoolsView } from './components/PoolsView';
 import { PreflightRedirector } from './components/Preflight';
 import { ProjectHome } from './components/ProjectHome';
 import { StreamView } from './components/StreamView';
 import { TestReportView } from './components/TestReportView';
 import { ToolView } from './components/ToolView';
+import { UnderConstruction } from './components/UnderConstruction';
 import { UserHomeView } from './components/UserHome';
 import { UtilizationReportView } from './components/UtilizationReportView';
+import { AccountsView } from './components/accounts/AccountsView';
+import { HordeLoginView } from './components/accounts/HordeLoginView';
+import { ServiceAccountsView } from './components/accounts/ServiceAccountsView';
+import { AgentRequestsView } from './components/agents/AgentRequestsView';
 import { DocView } from './components/docs/DocView';
 import { JobDetailViewV2 } from './components/jobDetailsV2/JobDetailViewV2';
 import { PreflightConfigRedirector } from './components/preflights/PreflightConfigCheckRedirector';
+import { ServerStatusView } from './components/server/ServerStatus';
+import { HordeSetupView } from './components/setup/HordeSetupView';
 import { StepIssueReportTest } from './components/test/IssueStepReport';
 import { preloadFonts } from './styles/Styles';
 import { darkTheme } from './styles/darkTheme';
 import { lightTheme } from './styles/lightTheme';
-import { ThemeTester } from './base/components/ThemeTester/ThemeTester';
-import { TelemetryView } from './components/telemetry/TelemetryView';
-import { PoolsView } from './components/PoolsView';
-import { AccountsView } from './components/accounts/AccountsView';
-import { HordeLoginView } from './components/accounts/HordeLoginView';
-import { ServerStatusView } from './components/server/ServerStatus';
-import { ServiceAccountsView } from './components/accounts/ServiceAccountsView';
-import { AgentRequestsView } from './components/agents/AgentRequestsView';
-import { HordeSetupView } from './components/setup/HordeSetupView';
 
 let router: any;
 
@@ -146,7 +146,7 @@ const Main: React.FC = () => {
                { path: "lease/:leaseId", element: <DebugView /> },
                { path: "docs", element: <DocView /> },
                { path: "docs/*", element: <DocView /> },
-               { path: "analytics", element: <TelemetryView /> },
+               { path: "analytics", element: <UnderConstruction /> },
                { path: "accounts", element: <AccountsView /> },
                { path: "accounts/service", element: <ServiceAccountsView /> },
                { path: "test/stepissuereport", element: <StepIssueReportTest /> },
