@@ -4549,6 +4549,11 @@ void UPrimitiveComponent::SetLODParentPrimitive(UPrimitiveComponent * InLODParen
 	}
 }
 
+bool UPrimitiveComponent::AllowHLODLevelsExclusion() const
+{
+	return bEnableAutoLODGeneration && !UWorld::IsPartitionedWorld(GetWorld());
+}
+
 UPrimitiveComponent* UPrimitiveComponent::GetLODParentPrimitive() const
 {
 	return LODParentPrimitive;
