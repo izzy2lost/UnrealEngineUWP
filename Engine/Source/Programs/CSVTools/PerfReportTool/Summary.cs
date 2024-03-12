@@ -78,8 +78,7 @@ namespace PerfSummaries
             stats = new List<string>();
             captures = new List<CaptureRange>();
             StatThresholds = new Dictionary<string, ColourThresholdList>();
-
-        }
+		}
 		public virtual HtmlSection WriteSummaryData(bool bWriteHtml, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
 		{
 			return null;
@@ -99,6 +98,7 @@ namespace PerfSummaries
 			{
 				return;
 			}
+			bHideInDetailedReport = element.GetSafeAttribute<bool>(vars, "hideInDetailedReport", false);
 			useUnstrippedCsvStats = element.GetSafeAttribute<bool>(vars, "useUnstrippedCsvStats", false);
 			bStartCollapsed = element.GetSafeAttribute<bool>(vars, "collapsed", false);
 			XElement statsElement = element.Element("stats");
@@ -242,6 +242,7 @@ namespace PerfSummaries
         public Dictionary<string, ColourThresholdList> StatThresholds;
 		public bool useUnstrippedCsvStats;
 		public bool bStartCollapsed;
+		public bool bHideInDetailedReport = false;
     };
 
 

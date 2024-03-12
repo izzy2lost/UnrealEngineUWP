@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.234.0";
+        private static string VersionString = "4.235.0";
 
         public static string Get() { return VersionString; }
     };
@@ -1495,7 +1495,8 @@ namespace PerfReportTool
 			// If the reporttype has summary info, then write out the summary]
 			foreach (Summary summary in summaries)
 			{
-				HtmlSection htmlSection = summary.WriteSummaryData(htmlFile != null, summary.useUnstrippedCsvStats ? csvStatsUnstripped : csvStats, csvStatsUnstripped, bWriteSummaryCsv, summaryRowData, htmlFilename);
+				bool bWriteHtml = htmlFile != null && !summary.bHideInDetailedReport;
+				HtmlSection htmlSection = summary.WriteSummaryData(bWriteHtml, summary.useUnstrippedCsvStats ? csvStatsUnstripped : csvStats, csvStatsUnstripped, bWriteSummaryCsv, summaryRowData, htmlFilename);
 				if (htmlSection != null)
 				{
 					htmlSection.WriteToFile(htmlFile);
@@ -1676,7 +1677,8 @@ namespace PerfReportTool
 			// If the reporttype has summary info, then write out the summary]
 			foreach (Summary summary in reportTypeInfo.summaries)
 			{
-				HtmlSection htmlSection = summary.WriteSummaryData(htmlFile != null, csvStats, csvStatsUnstripped, bWriteSummaryCsv, null, htmlFilename);
+				bool bWriteHtml = htmlFile != null && !summary.bHideInDetailedReport;
+				HtmlSection htmlSection = summary.WriteSummaryData(bWriteHtml, csvStats, csvStatsUnstripped, bWriteSummaryCsv, null, htmlFilename);
 				if (htmlSection != null)
 				{
 					htmlSection.WriteToFile(htmlFile);
