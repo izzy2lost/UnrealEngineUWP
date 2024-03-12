@@ -463,6 +463,7 @@ public:
 protected:
 
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
+	ENGINE_API virtual void PostLoad() override;
 
 #if WITH_EDITOR
 	ENGINE_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -483,6 +484,22 @@ protected:
 
 	// State handling for bouncing output.
 	TUniquePtr<Audio::FAudioRecordingData> RecordingData;
+
+#if WITH_EDITORONLY_DATA
+
+	// Forever deprecated properties.
+	// These must be kept to always be able to migrate older assets.
+	UPROPERTY()
+	float OutputVolume_DEPRECATED;
+	UPROPERTY()
+	float WetLevel_DEPRECATED;
+	UPROPERTY()
+	float DryLevel_DEPRECATED;
+
+	void InitDeprecatedDefaults();
+	void HandleVersionMigration(const int32 Version);
+
+#endif //WITH_EDITORONLY_DATA
 };
 	
 
