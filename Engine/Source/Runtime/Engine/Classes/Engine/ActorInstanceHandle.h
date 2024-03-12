@@ -97,6 +97,8 @@ struct FActorInstanceHandle
 	ENGINE_API bool operator==(const AActor* OtherActor) const;
 	ENGINE_API bool operator!=(const AActor* OtherActor) const;
 
+	explicit operator bool() const { return IsValid(); }
+
 	friend ENGINE_API uint32 GetTypeHash(const FActorInstanceHandle& Handle);
 
 	friend ENGINE_API FArchive& operator<<(FArchive& Ar, FActorInstanceHandle& Handle);
