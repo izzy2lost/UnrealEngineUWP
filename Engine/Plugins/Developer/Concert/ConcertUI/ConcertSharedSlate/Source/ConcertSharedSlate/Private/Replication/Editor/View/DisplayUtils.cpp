@@ -109,13 +109,21 @@ namespace UE::ConcertSharedSlate::DisplayUtils
 		return FSlateIconFinder::FindIconForClass(Object.GetClass());
 	}
 	
-	FText GetPropertyDisplayText(const FConcertPropertyChain& Property)
+	FText GetPropertyDisplayText(const FConcertPropertyChain& Property, UStruct* Class /*=nullptr*/)
 	{
-		return FText::FromString(GetPropertyDisplayString(Property));
+		// Class will (likely) be valid on editor builds but null on server
+		const FProperty* ResolvedProperty = Class ? Property.ResolveProperty(*Class) : nullptr;
+		return ResolvedProperty
+			? ResolvedProperty->GetDisplayNameText()
+			: FText::FromString(GetPropertyDisplayString(Property, Class));
     }
 	
-	FString GetPropertyDisplayString(const FConcertPropertyChain& Property)
+	FString GetPropertyDisplayString(const FConcertPropertyChain& Property, UStruct* Class /*=nullptr*/)
 	{
-		return Property.ToString(FConcertPropertyChain::EToStringMethod::LeafProperty);
+		// Class will (likely) be valid on editor builds but null on server
+		const FProperty* ResolvedProperty = Class ? Property.ResolveProperty(*Class) : nullptr;
+		return ResolvedProperty
+			? ResolvedProperty->GetDisplayNameText().ToString()
+			: Property.ToString(FConcertPropertyChain::EToStringMethod::LeafProperty);
 	}
 }

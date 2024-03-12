@@ -14,9 +14,10 @@
 #include "Replication/Editor/View/Column/IObjectTreeColumn.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Widgets/Input/SCheckBox.h"
 #include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "ReplicationObjectColumns"
@@ -126,9 +127,13 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
-				return SNew(STextBlock)
-					.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
-					.Text(DisplayUtils::GetObjectTypeText(*Model, InArgs.RowItem.RowData.GetObjectPath()));
+				return SNew(SBox)
+					.Padding(8, 0, 0, 0) // So the type name text is aligned with the header column text
+					[
+						SNew(STextBlock)
+						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
+						.Text(DisplayUtils::GetObjectTypeText(*Model, InArgs.RowItem.RowData.GetObjectPath()))
+					];
 			}
 			
 			virtual void PopulateSearchString(const FObjectTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
@@ -185,21 +190,36 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 			{
 				const FReplicatedPropertyData& PropertyData = InArgs.RowItem.RowData;
 				return SNew(STextBlock)
-						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
-						.Text(DisplayUtils::GetPropertyDisplayText(PropertyData.GetProperty()));
+					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
+					.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
+					.Text(DisplayUtils::GetPropertyDisplayText(PropertyData.GetProperty(), ResolveOrLoadClass(PropertyData)));
 			}
 			
 			virtual void PopulateSearchString(const FPropertyTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
 			{
-				InOutSearchStrings.Add(DisplayUtils::GetPropertyDisplayText(InItem.RowData.GetProperty()).ToString());
+				const FReplicatedPropertyData& PropertyData = InItem.RowData;
+				FString DisplayString = DisplayUtils::GetPropertyDisplayString(InItem.RowData.GetProperty(), ResolveOrLoadClass(PropertyData));
+				InOutSearchStrings.Emplace(MoveTemp(DisplayString));
 			}
 			
 			virtual bool CanBeSorted() const override { return true; } 
 			virtual bool IsLessThan(const FPropertyTreeRowContext& Left, const FPropertyTreeRowContext& Right) const override
 			{
-				return DisplayUtils::GetPropertyDisplayString(Left.RowData.GetProperty())
-					< DisplayUtils::GetPropertyDisplayString(Right.RowData.GetProperty());
+				return DisplayUtils::GetPropertyDisplayString(Left.RowData.GetProperty(), ResolveOrLoadClass(Left.RowData))
+					< DisplayUtils::GetPropertyDisplayString(Right.RowData.GetProperty(), ResolveOrLoadClass(Right.RowData));
+			}
+
+		private:
+
+			static UClass* ResolveOrLoadClass(const FReplicatedPropertyData& PropertyData)
+			{
+#if WITH_EDITOR
+				// On editor there may be Blueprints that need loading...
+				return PropertyData.GetOwningClass().TryLoadClass<UObject>();
+#else
+				// ... but on the server everything should be native C++ and hence already loaded
+				return PropertyData.GetOwningClass().ResolveClass();
+#endif
 			}
 		};
 		
@@ -229,10 +249,14 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
 				const FReplicatedPropertyData& PropertyData = InArgs.RowItem.RowData;
-				return SNew(STextBlock)
+				return SNew(SBox)
+					.Padding(8, 0, 0, 0) // So the type name text is aligned with the header column text
+					[
+						SNew(STextBlock)
 						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
-						.Text(GetDisplayText(InArgs.RowItem.RowData));
+						.Text(GetDisplayText(InArgs.RowItem.RowData))
+					];
 			}
 			
 			virtual void PopulateSearchString(const FPropertyTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
@@ -253,7 +277,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 				UClass* Class = Args.GetOwningClass().TryLoadClass<UObject>();
 				const FProperty* Property = Class ? ConcertSyncCore::PropertyChain::ResolveProperty(*Class, Args.GetProperty()) : nullptr;
 				return Property ? FText::FromString(Property->GetCPPType()) : LOCTEXT("Unknown", "Unknown");	
-			};
+			}
 		};
 		
 		return {
