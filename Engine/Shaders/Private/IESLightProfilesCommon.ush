@@ -12,6 +12,12 @@
   #endif
 #endif
 
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+#define IESAtlasSampler	View.SharedBilinearClampedSampler
+#else
+#define IESAtlasSampler	View.IESAtlasSampler
+#endif
+
 // Special case for IES texture preview, which require a standalone texture
 #if defined(USE_IES_STANDALONE_TEXTURE) && USE_IES_STANDALONE_TEXTURE == 1
 Texture2D		IESTexture;
@@ -46,7 +52,7 @@ float ComputeLightProfileMultiplier(float3 WorldPosition, float3 LightPosition, 
 	#if USE_IES_STANDALONE_TEXTURE
 		Out = Texture2DSampleLevel(IESTexture, IESTextureSampler, float2(NormAngle, NormTangentAngle), 0).r;
 	#else
-		Out = View.IESAtlasTexture.SampleLevel(View.IESAtlasSampler, float3(NormAngle, NormTangentAngle, InIESAtlasIndex), 0);
+		Out = View.IESAtlasTexture.SampleLevel(IESAtlasSampler, float3(NormAngle, NormTangentAngle, InIESAtlasIndex), 0);
 	#endif
 	}
 #endif

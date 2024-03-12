@@ -11,6 +11,14 @@
 #define USE_SOURCE_TEXTURE 1
 #endif
 
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+#define GGXLTCMatSampler	View.SharedBilinearClampedSampler
+#define GGXLTCAmpSampler	View.SharedBilinearClampedSampler
+#else
+#define GGXLTCMatSampler	View.GGXLTCMatSampler
+#define GGXLTCAmpSampler	View.GGXLTCAmpSampler
+#endif
+
 struct FRect
 {
 	float3		Origin;
@@ -379,8 +387,8 @@ FRectLTC GetRectLTC_GGX( float Roughness, float3 SpecularColor, half NoV)
 	float2 UV = float2( Roughness, sqrt( 1 - NoV ) );
 	UV = UV * (63.0 / 64.0) + (0.5 / 64.0);
    
-	float4 LTCMat = View.GGXLTCMatTexture.SampleLevel( View.GGXLTCMatSampler, UV, 0 );
-	float4 LTCAmp = View.GGXLTCAmpTexture.SampleLevel( View.GGXLTCAmpSampler, UV, 0 );
+	float4 LTCMat = View.GGXLTCMatTexture.SampleLevel( GGXLTCMatSampler, UV, 0 );
+	float4 LTCAmp = View.GGXLTCAmpTexture.SampleLevel( GGXLTCAmpSampler, UV, 0 );
 
 	float3x3 LTC = {
 		float3( LTCMat.x, 0, LTCMat.z ),

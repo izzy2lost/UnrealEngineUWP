@@ -316,7 +316,7 @@ float4 GetLightGridLocalLighting(
 				ScreenSpaceData.GBuffer,
 				TransmittanceMask,
 				View.HairScatteringLUTTexture,
-				View.HairScatteringLUTSampler,
+				HairScatteringLUTSampler,
 				View.HairComponents);
 
 			// This shouldn't be needed any more as the virtual shadow map should offer enough spatial precision

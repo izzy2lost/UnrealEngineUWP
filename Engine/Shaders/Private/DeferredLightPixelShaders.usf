@@ -501,7 +501,7 @@ void DeferredLightPixelMain(
 			HairScreenSpaceData.GBuffer,
 			TransmittanceMask,
 			View.HairScatteringLUTTexture,
-			View.HairScatteringLUTSampler,
+			HairScatteringLUTSampler,
 			View.HairComponents);
 	}
 

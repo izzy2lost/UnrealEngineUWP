@@ -9,6 +9,12 @@
 	#error HAIR_COMPONENT_GS is not defined, please include ShadingCommon.ush
 #endif
 
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+#define HairScatteringLUTSampler View.SharedBilinearClampedSampler
+#else
+#define HairScatteringLUTSampler View.HairScatteringLUTSampler
+#endif
+
 float Hair_g2(float Variance,float Theta)
 {
 	//const float A = 1.f / sqrt(2 * PI * Variance);
@@ -164,7 +170,7 @@ FHairTransmittanceData EvaluateDualScattering(inout float3 BaseColor, float3 Wor
 
 	// Compute the transmittance based on precompute Hair transmittance LUT
 	const float SinLightAngle = dot(L, WorldNormal);
-	const FHairAverageScattering AverageScattering = SampleHairLUT(View.HairScatteringLUTTexture, View.HairScatteringLUTSampler, BaseColor, Roughness, SinLightAngle);
+	const FHairAverageScattering AverageScattering = SampleHairLUT(View.HairScatteringLUTTexture, HairScatteringLUTSampler, BaseColor, Roughness, SinLightAngle);
 
 	return ComputeDualScatteringTerms(
 		InitHairTransmittanceMask(),
