@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Helpers/PCGGraphParametersHelpers.h"
-#include "Blueprint/BlueprintExceptionInfo.h"
-#include "PCGGraph.h"
-#include "PropertyBag.h"
 
+#include "PCGModule.h"
+#include "PCGGraph.h"
+
+#include "PropertyBag.h"
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "Templates/ValueOrError.h"
 #include "UObject/Script.h"
 #include "UObject/Stack.h"
@@ -18,8 +20,15 @@ namespace PCGGraphParametersHelpersPrivate
 
 	void ThrowBlueprintException(const FText& ErrorMessage)
 	{
-		const FBlueprintExceptionInfo ExceptionInfo(EBlueprintExceptionType::FatalError, ErrorMessage);
-		FBlueprintCoreDelegates::ThrowScriptException(FFrame::GetThreadLocalTopStackFrame()->Object, *FFrame::GetThreadLocalTopStackFrame(), ExceptionInfo);
+		if (FFrame::GetThreadLocalTopStackFrame() && FFrame::GetThreadLocalTopStackFrame()->Object)
+		{
+			const FBlueprintExceptionInfo ExceptionInfo(EBlueprintExceptionType::FatalError, ErrorMessage);
+			FBlueprintCoreDelegates::ThrowScriptException(FFrame::GetThreadLocalTopStackFrame()->Object, *FFrame::GetThreadLocalTopStackFrame(), ExceptionInfo);
+		}
+		else
+		{
+			UE_LOG(LogPCG, Error, TEXT("%s"), *ErrorMessage.ToString());
+		}
 	}
 
 	void OnException(const EPropertyBagResult Result, const FName PropertyName)
