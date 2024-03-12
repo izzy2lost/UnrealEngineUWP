@@ -104,7 +104,8 @@ private:
 
 	// Return the cloth asset held by the Cloth Editor
 	UChaosClothAsset* GetAsset() const;
-
+	UDataflow* GetDataflow();
+	
 	TSharedRef<SDockTab> SpawnTab_ClothPreview(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Outliner(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_PreviewSceneDetails(const FSpawnTabArgs& Args);
@@ -135,7 +136,7 @@ private:
 	bool OnNodeVerifyTitleCommit(const FText& NewText, UEdGraphNode* GraphNode, FText& OutErrorMessage) const;
 	void OnNodeTitleCommitted(const FText& InNewText, ETextCommit::Type InCommitType, UEdGraphNode* GraphNode) const;
 	void OnNodeSelectionChanged(const TSet<UObject*>& NewSelection);
-	void OnNodeDeleted(const TSet<UObject*>& DeletedNodes) const;
+	void OnNodeDeleted(const TSet<UObject*>& DeletedNodes);
 	void OnNodeSingleClicked(UObject* ClickedNode) const;
 
 	/** Scene in which the 3D sim space preview meshes live. Ownership shared with AdvancedPreviewSettingsWidget*/
@@ -158,7 +159,6 @@ private:
 	TSharedPtr<SClothCollectionOutliner> Outliner;
 
 	// Dataflow
-	UDataflow* Dataflow = nullptr;
 	TSharedPtr<Dataflow::FEngineContext> DataflowContext;
 	Dataflow::FTimestamp LastDataflowNodeTimestamp = Dataflow::FTimestamp::Invalid;
 	FDelegateHandle OnNodeInvalidatedDelegateHandle;
