@@ -6,7 +6,12 @@
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastProfile"
 
-FAvaBroadcastProfile FAvaBroadcastProfile::NullProfile(nullptr, NAME_None);
+FAvaBroadcastProfile& FAvaBroadcastProfile::GetNullProfile()
+{
+	static FAvaBroadcastProfile NullProfile(nullptr, NAME_None);
+
+	return NullProfile;
+}
 
 FAvaBroadcastProfile::FAvaBroadcastProfile(UAvaBroadcast* InBroadcast, FName InProfileName)
 	: ParentBroadcastWeak(InBroadcast)
@@ -95,7 +100,7 @@ bool FAvaBroadcastProfile::IsBroadcastingAllChannels() const
 
 bool FAvaBroadcastProfile::IsValidProfile() const
 {
-	return this != &FAvaBroadcastProfile::NullProfile && !ProfileName.IsNone();
+	return this != &FAvaBroadcastProfile::GetNullProfile() && !ProfileName.IsNone();
 }
 
 namespace UE::AvaBroadcastProfile::Private
@@ -266,7 +271,7 @@ const FAvaBroadcastOutputChannel& FAvaBroadcastProfile::GetLocalChannel(FName In
 		return Channels[ChannelIndex];
 	}
 	
-	return FAvaBroadcastOutputChannel::NullChannel;
+	return FAvaBroadcastOutputChannel::GetNullChannel();
 }
 
 FAvaBroadcastOutputChannel& FAvaBroadcastProfile::GetLocalChannelMutable(FName InChannelName)
@@ -278,7 +283,7 @@ FAvaBroadcastOutputChannel& FAvaBroadcastProfile::GetLocalChannelMutable(FName I
 		return Channels[ChannelIndex];
 	}
 	
-	return FAvaBroadcastOutputChannel::NullChannel;
+	return FAvaBroadcastOutputChannel::GetNullChannel();
 }
 
 const FAvaBroadcastOutputChannel& FAvaBroadcastProfile::GetChannel(FName InChannelName) const

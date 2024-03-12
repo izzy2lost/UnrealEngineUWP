@@ -301,7 +301,7 @@ FAvaBroadcastProfile& UAvaBroadcast::GetProfile(FName InProfileName)
 	{
 		return Profiles[InProfileName];
 	}
-	return FAvaBroadcastProfile::NullProfile;
+	return FAvaBroadcastProfile::GetNullProfile();
 }
 
 const FAvaBroadcastProfile& UAvaBroadcast::GetProfile(FName InProfileName) const
@@ -310,7 +310,7 @@ const FAvaBroadcastProfile& UAvaBroadcast::GetProfile(FName InProfileName) const
 	{
 		return Profiles[InProfileName];
 	}
-	return FAvaBroadcastProfile::NullProfile;
+	return FAvaBroadcastProfile::GetNullProfile();
 }
 
 #if WITH_EDITOR

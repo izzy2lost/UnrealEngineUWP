@@ -62,6 +62,11 @@ void FAvaBroadcastCapture::OnStateChangedNative()
 	}
 }
 
+FAvaBroadcastOutputChannel::FAvaBroadcastOutputChannel(ENoInit NoInit)
+	: QualitySettings(NoInit)
+{
+}
+
 namespace UE::AvaMedia::Private
 {
 	bool IsCapturing(const UMediaCapture* InMediaCapture)
@@ -171,7 +176,13 @@ namespace UE::AvaMedia::Private
 	}
 }
 
-FAvaBroadcastOutputChannel FAvaBroadcastOutputChannel::NullChannel;
+FAvaBroadcastOutputChannel& FAvaBroadcastOutputChannel::GetNullChannel()
+{
+	static FAvaBroadcastOutputChannel NullChannel(NoInit);
+
+	return NullChannel;
+}
+
 FAvaBroadcastOutputChannel::FOnAvaChannelChanged FAvaBroadcastOutputChannel::OnChannelChanged;
 FAvaBroadcastOutputChannel::FMediaOutputStateChanged FAvaBroadcastOutputChannel::OnMediaOutputStateChanged;
 
@@ -620,7 +631,7 @@ void FAvaBroadcastOutputChannel::DrawPlaceholderWidget() const
 
 bool FAvaBroadcastOutputChannel::IsValidChannel() const
 {
-	return this != &FAvaBroadcastOutputChannel::NullChannel && GetChannelName() != NAME_None;
+	return this != &FAvaBroadcastOutputChannel::GetNullChannel() && GetChannelName() != NAME_None;
 }
 
 bool FAvaBroadcastOutputChannel::StartChannelBroadcast()

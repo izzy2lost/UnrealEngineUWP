@@ -63,6 +63,7 @@ public:
 	static void SortFeaturesByDisplayText(TArray<FAvaViewportQualitySettingsFeature>& InFeatures);
 
 	FAvaViewportQualitySettings();
+	FAvaViewportQualitySettings(ENoInit NoInit);
 	FAvaViewportQualitySettings(const bool bInUseAllFeatures);
 	FAvaViewportQualitySettings(const FEngineShowFlags& InShowFlags);
 	FAvaViewportQualitySettings(const TArray<FAvaViewportQualitySettingsFeature>& InFeatures);

@@ -15,13 +15,12 @@ struct AVALANCHEMEDIA_API FAvaBroadcastProfile
 	friend UAvaBroadcast;
 	
 public:	
+	static FAvaBroadcastProfile& GetNullProfile();
 	FAvaBroadcastProfile() : FAvaBroadcastProfile(nullptr, NAME_None) {}
 	FAvaBroadcastProfile(UAvaBroadcast* InBroadcast, FName InProfileName);
 
 	void BeginDestroy();
-	
-	static FAvaBroadcastProfile NullProfile;
-	
+
 	FName GetName() const { return ProfileName; }
 	UAvaBroadcast& GetBroadcast() const;
 	

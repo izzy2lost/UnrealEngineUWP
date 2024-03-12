@@ -69,6 +69,7 @@ struct AVALANCHEMEDIA_API FAvaBroadcastOutputChannel
 
 public:
 	FAvaBroadcastOutputChannel() = default;
+	FAvaBroadcastOutputChannel(ENoInit NoInit);
 	explicit FAvaBroadcastOutputChannel(FAvaBroadcastProfile* InProfile) : Profile(InProfile) {}
 	~FAvaBroadcastOutputChannel();
 
@@ -76,7 +77,7 @@ public:
 	void ReleasePlaceholderRenderTargets();
 	void ReleaseOutputs();
 	
-	static FAvaBroadcastOutputChannel NullChannel;
+	static FAvaBroadcastOutputChannel& GetNullChannel();
 	
 	static void DuplicateChannel(const FAvaBroadcastOutputChannel& InSourceChannel, FAvaBroadcastOutputChannel& OutTargetChannel);
 
