@@ -43,9 +43,9 @@ void VerifyExportedLines(const FString& ExportReportPath, const FString& CmdLogP
 	Test->AddError(FString::Printf(TEXT("VerifyExportedLines timed out while trying to find line '%s' from '%s'"), *ExpectedResult, *ExportReportPath));
 }
 
-#if !WITH_EDITOR
+#if WITH_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FСommandsExportWindowsTest, "System.Insights.Trace.Analysis.ExecCmd.CommandsExport(Windows)", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FСommandsExportWindowsTest, "System.Insights.Trace.Analysis.ExecCmd.CommandsExport(Windows)", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 {
 	TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
@@ -217,4 +217,4 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-#endif //!WITH_EDITOR
+#endif //WITH_AUTOMATION_TESTS

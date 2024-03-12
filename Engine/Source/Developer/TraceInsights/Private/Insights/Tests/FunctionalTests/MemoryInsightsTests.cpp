@@ -25,9 +25,9 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(MemoryInsightsTests, Log, All);
 
-#if !WITH_EDITOR
+#if WITH_AUTOMATION_TESTS
 
-BEGIN_DEFINE_SPEC(FAutomationDriverUnrealInsightsHubMemoryInsightsTest, "System.Insights.Hub.MemoryInsights", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+BEGIN_DEFINE_SPEC(FAutomationDriverUnrealInsightsHubMemoryInsightsTest, "System.Insights.Hub.MemoryInsights", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 FAutomationDriverPtr Driver;
 TSharedPtr<SWindow> AutomationWindow;
 END_DEFINE_SPEC(FAutomationDriverUnrealInsightsHubMemoryInsightsTest)
@@ -111,13 +111,13 @@ void FAutomationDriverUnrealInsightsHubMemoryInsightsTest::Define()
 					const FString StoreTracePath = StoreDir / FString::Printf(TEXT("%s.utrace"), *TraceName);
 					const FString StoreCachePath = StoreDir / FString::Printf(TEXT("%s.ucache"), *TraceName);
 					const FString LogDirPath = ProjectDir / TEXT("TestResults");
-					const FString LogPath = ProjectDir / TEXT("TestResults/Log.txt");
+					const FString TestLogPath = ProjectDir / TEXT("TestResults/Log.txt");
 					const FString SuccessTestResult = TEXT("Test Completed. Result={Success}");
 
 					// Test live trace
-					FString TraceParameters = FString::Printf(TEXT("-InsightsTest -ABSLOG=\"%s\" -AutoQuit -ExecOnAnalysisCompleteCmd=\"Automation RunTests System.Insights.Trace.Analysis.MemoryInsights.UploadMemoryInsightsLLMXMLReportsTrace\" -OpenTraceFile=\"%s\""), *LogPath, *StoreTracePath);
+					FString TraceParameters = FString::Printf(TEXT("-InsightsTest -ABSLOG=\"%s\" -AutoQuit -ExecOnAnalysisCompleteCmd=\"Automation RunTests System.Insights.Trace.Analysis.MemoryInsights.UploadMemoryInsightsLLMXMLReportsTrace\" -OpenTraceFile=\"%s\""), *TestLogPath, *StoreTracePath);
 					InsightsManager->OpenUnrealInsights(*TraceParameters);
-					bool bLineFound = Utils.FileContainsString(LogPath, SuccessTestResult, 60.0f);
+					bool bLineFound = Utils.FileContainsString(TestLogPath, SuccessTestResult, 60.0f);
 					TestTrue("Test for live trace should pass", bLineFound);
 
 					IFileManager::Get().DeleteDirectory(*LogDirPath, false, true);
@@ -125,7 +125,7 @@ void FAutomationDriverUnrealInsightsHubMemoryInsightsTest::Define()
 
 					// Test stopped trace 
 					InsightsManager->OpenUnrealInsights(*TraceParameters);
-					bLineFound = Utils.FileContainsString(LogPath, SuccessTestResult, 60.0f);
+					bLineFound = Utils.FileContainsString(TestLogPath, SuccessTestResult, 60.0f);
 					TestTrue("Test for stopped trace should pass", bLineFound);
 
 					IFileManager::Get().DeleteDirectory(*LogDirPath, false, true);
@@ -140,7 +140,7 @@ void FAutomationDriverUnrealInsightsHubMemoryInsightsTest::Define()
 		});
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMemoryInsightsUploadLLMXMLReportsTraceTest, "System.Insights.Trace.Analysis.MemoryInsights.UploadMemoryInsightsLLMXMLReportsTrace", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMemoryInsightsUploadLLMXMLReportsTraceTest, "System.Insights.Trace.Analysis.MemoryInsights.UploadMemoryInsightsLLMXMLReportsTrace", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FMemoryInsightsUploadLLMXMLReportsTraceTest::RunTest(const FString& Parameters)
 {
 	const FString ReportGraphsXMLPath = FPaths::RootDir() / TEXT("EngineTest/SourceAssets/Utrace/ReportGraphs.xml");
@@ -149,7 +149,7 @@ bool FMemoryInsightsUploadLLMXMLReportsTraceTest::RunTest(const FString& Paramet
 	FMemorySharedState* SharedState = FMemoryProfilerManager::Get()->GetSharedState();
 	if (!SharedState)
 	{
-		AddError("ProfilerWindow should be valid. Please, run this test throught Insights Session automation tab");
+		AddError("ProfilerWindow should be valid. Please, run this test through Insights Session automation tab");
 		return false;
 	}
 
@@ -310,7 +310,7 @@ bool MemoryInsightsAllocationsQueryTableTest(const FString& Parameters, const TM
 	return true;
 }
 
-IMPLEMENT_COMPLEX_AUTOMATION_TEST(FMemoryInsightsAllocationsQueryTableEditorPackageTest, "System.Insights.Trace.Analysis.MemoryInsights.AllocationsQueryTable.Editor/Package", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_COMPLEX_AUTOMATION_TEST(FMemoryInsightsAllocationsQueryTableEditorPackageTest, "System.Insights.Trace.Analysis.MemoryInsights.AllocationsQueryTable.Editor/Package", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FMemoryInsightsAllocationsQueryTableEditorPackageTest::RunTest(const FString& Parameters)
 {
 	bool bSuccess = MemoryInsightsAllocationsQueryTableTest(Parameters, AllocsTimeMarkerEditorPackageGetterMap, this);
@@ -340,7 +340,7 @@ void FMemoryInsightsAllocationsQueryTableEditorPackageTest::GetTests(TArray<FStr
 	}
 }
 
-IMPLEMENT_COMPLEX_AUTOMATION_TEST(FMemoryInsightsAllocationsQueryTableStandaloneTest, "System.Insights.Trace.Analysis.MemoryInsights.AllocationsQueryTable.Standalone", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_COMPLEX_AUTOMATION_TEST(FMemoryInsightsAllocationsQueryTableStandaloneTest, "System.Insights.Trace.Analysis.MemoryInsights.AllocationsQueryTable.Standalone", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FMemoryInsightsAllocationsQueryTableStandaloneTest::RunTest(const FString& Parameters)
 {
 	bool bSuccess = MemoryInsightsAllocationsQueryTableTest(Parameters, AllocsTimeMarkerStandaloneGameGetterMap, this);
@@ -371,4 +371,4 @@ void FMemoryInsightsAllocationsQueryTableStandaloneTest::GetTests(TArray<FString
 	}
 }
 
-#endif //!WITH_EDITOR
+#endif //WITH_AUTOMATION_TESTS

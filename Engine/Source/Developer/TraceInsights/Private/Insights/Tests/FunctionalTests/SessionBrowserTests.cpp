@@ -15,9 +15,9 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(UnrealInsightsHubTests, Log, All);
 
-#if !WITH_EDITOR
+#if WITH_AUTOMATION_TESTS
 
-BEGIN_DEFINE_SPEC(FAutomationDriverUnrealInsightsSessionBrowserTest, "System.Insights.Hub.SessionBrowser", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+BEGIN_DEFINE_SPEC(FAutomationDriverUnrealInsightsSessionBrowserTest, "System.Insights.Hub.SessionBrowser", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 FAutomationDriverPtr Driver;
 TSharedPtr<SWindow> AutomationWindow;
 END_DEFINE_SPEC(FAutomationDriverUnrealInsightsSessionBrowserTest)
@@ -145,4 +145,4 @@ void FAutomationDriverUnrealInsightsSessionBrowserTest::Define()
 		});
 }
 
-#endif //!WITH_EDITOR
+#endif //WITH_AUTOMATION_TESTS

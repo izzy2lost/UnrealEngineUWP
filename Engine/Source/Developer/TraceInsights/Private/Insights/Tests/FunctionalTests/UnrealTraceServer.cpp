@@ -8,9 +8,9 @@
 #include "Logging/LogMacros.h"
 #include "Misc/AutomationTest.h"
 
-#if !WITH_EDITOR
+#if WITH_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUnrealTraceServerStartingTest, "System.Insights.Hub.UnrealTraceServer.Starting", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUnrealTraceServerStartingTest, "System.Insights.Hub.UnrealTraceServer.Starting", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FUnrealTraceServerStartingTest::RunTest(const FString& Parameters)
 {
 	TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
@@ -113,4 +113,4 @@ bool FUnrealTraceServerStartingTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-#endif //!WITH_EDITOR
+#endif //WITH_AUTOMATION_TESTS
