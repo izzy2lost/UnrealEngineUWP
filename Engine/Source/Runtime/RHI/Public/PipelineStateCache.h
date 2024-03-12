@@ -13,6 +13,7 @@
 class FComputePipelineState;
 class FGraphicsPipelineState;
 class FRayTracingPipelineState;
+class FWorkGraphPipelineState;
 
 // Utility flags for modifying render target behavior on a PSO
 enum class EApplyRendertargetOption : int
@@ -106,9 +107,13 @@ namespace PipelineStateCache
 
 	extern RHI_API FComputePipelineState*	GetAndOrCreateComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, bool bFromFileCache, EPSOPrecacheResult PSOPrecacheResult);
 
+	extern RHI_API FWorkGraphPipelineState* GetAndOrCreateWorkGraphPipelineState(FRHIComputeCommandList& RHICmdList, const FWorkGraphPipelineStateInitializer& Initializer);
+
 	extern RHI_API FGraphicsPipelineState*	GetAndOrCreateGraphicsPipelineState(FRHICommandList& RHICmdList, const FGraphicsPipelineStateInitializer& OriginalInitializer, EApplyRendertargetOption ApplyFlags, EPSOPrecacheResult PSOPrecacheResult);
 
 	extern RHI_API FComputePipelineState*	FindComputePipelineState(FRHIComputeShader* ComputeShader, bool bVerifyUse = true);
+
+	extern RHI_API FWorkGraphPipelineState*	FindWorkGraphPipelineState(const FWorkGraphPipelineStateInitializer& Initializer, bool bVerifyUse = true);
 
 	extern RHI_API FGraphicsPipelineState*	FindGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer, bool bVerifyUse = true);
 

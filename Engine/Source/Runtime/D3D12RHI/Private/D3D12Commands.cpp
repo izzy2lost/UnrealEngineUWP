@@ -38,6 +38,7 @@ inline FD3D12ShaderData* GetShaderData(FRHIShader* InShaderRHI)
 	case SF_Pixel:         return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIPixelShader*>(InShaderRHI));
 	case SF_Geometry:      return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIGeometryShader*>(InShaderRHI));
 	case SF_Compute:       return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIComputeShader*>(InShaderRHI));
+	case SF_WorkGraph:     return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIWorkGraphShader*>(InShaderRHI));
 	}
 	return nullptr;
 }
@@ -1400,7 +1401,7 @@ void FD3D12CommandContext::CommitComputeShaderConstants()
 }
 
 template <class ShaderType>
-void FD3D12CommandContext::SetResourcesFromTables(const ShaderType* Shader)
+void FD3D12CommandContext::SetResourcesFromTables(const ShaderType* RESTRICT Shader)
 {
 	checkSlow(Shader);
 
@@ -1479,8 +1480,16 @@ void FD3D12CommandContext::RHIDispatchShaderBundle(
 	SCOPE_CYCLE_COUNTER(STAT_D3D12DispatchShaderBundle);
 
 	check(ShaderBundle != nullptr && Dispatches.Num() > 0);
-	TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
-	UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBufferSRV->GetBuffer(), Dispatches);
+
+	if (bEmulated)
+	{
+		TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
+		UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBufferSRV->GetBuffer(), Dispatches);
+	}
+	else
+	{
+		DispatchWorkGraphShaderBundle(ShaderBundle, RecordArgBufferSRV, Dispatches);
+	}
 }
 
 void FD3D12CommandContext::SetupDraw(FRHIBuffer* IndexBufferRHI, uint32 NumPrimitives /* = 0 */, uint32 NumVertices /* = 0 */)

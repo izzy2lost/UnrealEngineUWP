@@ -1077,6 +1077,19 @@ void FD3D12Adapter::InitializeDevices()
 				{
 					UE_LOG(LogD3D12RHI, Log, TEXT("Shader Model 6.6 atomic64 is not supported"));
 				}
+
+#if D3D12_MAX_FEATURE_OPTIONS >= 21
+				D3D12_FEATURE_DATA_D3D12_OPTIONS21 D3D12Caps21 = {};
+				RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS21, &D3D12Caps21, sizeof(D3D12Caps21));
+
+#if D3D12_RHI_WORKGRAPHS
+				if (D3D12Caps21.WorkGraphsTier != D3D12_WORK_GRAPHS_TIER_NOT_SUPPORTED)
+				{
+					UE_LOG(LogD3D12RHI, Log, TEXT("Work Graphs are supported"));
+					GRHISupportsShaderWorkGraphsTier1 = true;
+				}
+#endif // D3D12_RHI_WORKGRAPHS
+#endif // D3D12_MAX_FEATURE_OPTIONS
 			}
 #endif // PLATFORM_WINDOWS
 		}

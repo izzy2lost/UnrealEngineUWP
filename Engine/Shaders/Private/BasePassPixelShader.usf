@@ -79,6 +79,10 @@
 #define COMPUTE_SHADED 0
 #endif
 
+#ifndef WORKGRAPH_NODE
+#define WORKGRAPH_NODE 0
+#endif
+
 // For the base pass SUBSTRATE_INLINE_SHADING is defined in BasePassRendering.h
 #include "SHCommon.ush"
 #include "/Engine/Generated/Material.ush"

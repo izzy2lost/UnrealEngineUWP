@@ -808,6 +808,7 @@ struct FNaniteShadingPipeline
 	const FMaterialRenderProxy* MaterialProxy = nullptr;
 	const FMaterial* Material = nullptr;
 	FRHIComputeShader* ComputeShader = nullptr;
+	FRHIWorkGraphShader* WorkGraphShader = nullptr;
 
 	uint32 BoundTargetMask = 0u;
 	uint32 ShaderBindingsHash = 0u;

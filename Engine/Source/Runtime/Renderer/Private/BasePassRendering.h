@@ -435,7 +435,7 @@ public:
 };
 
 /** The concrete base pass compute shader type. */
-template<typename LightMapPolicyType, bool bEnableSkyLight>
+template<typename LightMapPolicyType, bool bEnableSkyLight, EShaderFrequency ShaderFrequency>
 class TBasePassCS : public TBasePassComputeShaderBaseType<LightMapPolicyType>
 {
 	DECLARE_SHADER_TYPE(TBasePassCS,MeshMaterial);
@@ -470,6 +470,12 @@ public:
 		ModifyBasePassCSPSCompilationEnvironment(Parameters, GBL_ForceVelocity, bEnableSkyLight, OutEnvironment);
 
 		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADED"), 1);
+
+		if (ShaderFrequency == SF_WorkGraph)
+		{
+			OutEnvironment.SetDefine(TEXT("WORKGRAPH_NODE"), 1);
+			OutEnvironment.CompilerFlags.Add(CFLAG_WorkgraphLocalNodes);
+		}
 
 		const bool bTranslucent = IsTranslucentBlendMode(Parameters.MaterialParameters);
 		const bool bIsSingleLayerWater = Parameters.MaterialParameters.ShadingModels.HasShadingModel(MSM_SingleLayerWater);
@@ -668,15 +674,29 @@ public:
  */
 
 template <typename LightMapPolicyType>
-void AddBasePassComputeShader(bool bEnableSkyLight, FMaterialShaderTypes& OutShaderTypes)
+void AddBasePassComputeShader(bool bEnableSkyLight, EShaderFrequency ShaderFrequency, FMaterialShaderTypes& OutShaderTypes)
 {
-	if (bEnableSkyLight)
+	if (ShaderFrequency == SF_Compute)
 	{
-		OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, true>>();
+		if (bEnableSkyLight)
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, true, SF_Compute>>();
+		}
+		else
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false, SF_Compute>>();
+		}
 	}
-	else
+	else if (ShaderFrequency == SF_WorkGraph)
 	{
-		OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false>>();
+		if (bEnableSkyLight)
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, true, SF_WorkGraph>>();
+		}
+		else
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false, SF_WorkGraph>>();
+		}
 	}
 }
 
@@ -687,6 +707,7 @@ bool GetBasePassShader(
 	LightMapPolicyType LightMapPolicy,
 	ERHIFeatureLevel::Type FeatureLevel,
 	bool bEnableSkyLight,
+	EShaderFrequency ShaderFrequency,
 	TShaderRef<TBasePassComputeShaderPolicyParamType<LightMapPolicyType>>* ComputeShader
 )
 {
@@ -694,7 +715,7 @@ bool GetBasePassShader(
 
 	if (ComputeShader)
 	{
-		AddBasePassComputeShader<LightMapPolicyType>(bEnableSkyLight, ShaderTypes);
+		AddBasePassComputeShader<LightMapPolicyType>(bEnableSkyLight, ShaderFrequency, ShaderTypes);
 	}
 
 	FMaterialShaders Shaders;
@@ -703,7 +724,7 @@ bool GetBasePassShader(
 		return false;
 	}
 
-	Shaders.TryGetComputeShader(ComputeShader);
+	Shaders.TryGetShader(ShaderFrequency, ComputeShader);
 	return true;
 }
 
@@ -714,6 +735,7 @@ bool GetBasePassShader<FUniformLightMapPolicy>(
 	FUniformLightMapPolicy LightMapPolicy,
 	ERHIFeatureLevel::Type FeatureLevel,
 	bool bEnableSkyLight,
+	EShaderFrequency ShaderFrequency,
 	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>>* ComputeShader
 );
 

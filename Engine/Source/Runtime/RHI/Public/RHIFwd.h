@@ -85,6 +85,8 @@ class FRHIVertexDeclaration;
 class FRHIVertexShader;
 class FRHIViewableResource;
 class FRHIViewport;
+class FRHIWorkGraphPipelineState;
+class FRHIWorkGraphShader;
 
 struct FRHIUniformBufferLayout;
 
@@ -125,6 +127,8 @@ using FUnorderedAccessViewRHIRef       = TRefCountPtr<FRHIUnorderedAccessView>;
 using FVertexDeclarationRHIRef         = TRefCountPtr<FRHIVertexDeclaration>;
 using FVertexShaderRHIRef              = TRefCountPtr<FRHIVertexShader>;
 using FViewportRHIRef                  = TRefCountPtr<FRHIViewport>;
+using FWorkGraphPipelineStateRHIRef    = TRefCountPtr<FRHIWorkGraphPipelineState>;
+using FWorkGraphShaderRHIRef           = TRefCountPtr<FRHIWorkGraphShader>;
 
 // Deprecated typenames
 using FRHITexture2D         UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FRHITexture2D is now deprecated. Use FRHITexture instead."           ) = FRHITexture;

@@ -73,6 +73,7 @@ struct FTextureMemoryStats;
 class FComputePipelineState;
 class FGraphicsPipelineState;
 class FRayTracingPipelineState;
+class FWorkGraphPipelineState;
 
 DECLARE_STATS_GROUP(TEXT("RHICmdList"), STATGROUP_RHICMDLIST, STATCAT_Advanced);
 
@@ -948,6 +949,7 @@ protected:
 	FORCEINLINE void ValidateBoundShader(FRHIPixelShader*         ShaderRHI) { checkSlow(PersistentState.BoundShaderInput.PixelShaderRHI           == ShaderRHI); }
 	FORCEINLINE void ValidateBoundShader(FRHIGeometryShader*      ShaderRHI) { checkSlow(PersistentState.BoundShaderInput.GetGeometryShader()      == ShaderRHI); }
 	FORCEINLINE void ValidateBoundShader(FRHIComputeShader*       ShaderRHI) { checkSlow(PersistentState.BoundComputeShaderRHI                     == ShaderRHI); }
+	FORCEINLINE void ValidateBoundShader(FRHIWorkGraphShader*     ShaderRHI) { checkSlow(PersistentState.BoundWorkGraphShaderRHI                   == ShaderRHI); }
 	FORCEINLINE void ValidateBoundShader(FRHIMeshShader*          ShaderRHI) { checkSlow(PersistentState.BoundShaderInput.GetMeshShader()          == ShaderRHI); }
 	FORCEINLINE void ValidateBoundShader(FRHIAmplificationShader* ShaderRHI) { checkSlow(PersistentState.BoundShaderInput.GetAmplificationShader() == ShaderRHI); }
 
@@ -1096,6 +1098,7 @@ protected:
 
 		FBoundShaderStateInput BoundShaderInput;
 		FRHIComputeShader* BoundComputeShaderRHI = nullptr;
+		FRHIWorkGraphShader* BoundWorkGraphShaderRHI = nullptr;
 
 #if WITH_RHI_BREADCRUMBS
 		FRHIBreadcrumbNode* LocalBreadcrumb = FRHIBreadcrumbNode::Sentinel;
@@ -2263,6 +2266,7 @@ extern RHI_API FRHIGraphicsPipelineState*	ExecuteSetGraphicsPipelineState(class 
 extern RHI_API FComputePipelineState*		FindComputePipelineState(FRHIComputeShader* ComputeShader, bool bVerifyUse = true);
 extern RHI_API FComputePipelineState*		GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader);
 extern RHI_API FRHIComputePipelineState*	GetRHIComputePipelineState(FComputePipelineState*);
+extern RHI_API FRHIWorkGraphPipelineState*	GetRHIWorkGraphPipelineState(FWorkGraphPipelineState*);
 extern RHI_API FRHIRayTracingPipelineState*	GetRHIRayTracingPipelineState(FRayTracingPipelineState*);
 
 class FRHIComputeCommandList : public FRHICommandListBase

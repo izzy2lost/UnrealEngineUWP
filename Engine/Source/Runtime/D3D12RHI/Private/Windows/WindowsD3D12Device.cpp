@@ -1685,8 +1685,9 @@ void FD3D12DynamicRHI::Init()
 	GRHISupportsFirstInstance = true;
 
 	GRHISupportsShaderRootConstants = true;
-	GRHISupportsShaderBundleDispatch = true;
-	GRHISupportsShaderBundleParallel = true;
+	GRHISupportsShaderBundleDispatch = false; // Shader Bundles only implemented with Work Graphs
+	GRHISupportsShaderBundleWorkGraphDispatch = GRHISupportsShaderWorkGraphsTier1;
+	GRHISupportsShaderBundleParallel = false; // TODO: FD3D12ExplicitDescriptorHeap::UpdateSyncPoint() is not safe for parallel translate due to frame fencing
 
 	// Indicate that the RHI needs to use the engine's deferred deletion queue.
 	GRHINeedsExtraDeletionLatency = true;

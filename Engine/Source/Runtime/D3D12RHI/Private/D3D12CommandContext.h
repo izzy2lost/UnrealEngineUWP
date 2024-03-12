@@ -358,6 +358,10 @@ public:
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 9
 	auto GraphicsCommandList9 () { return GetCommandList().GraphicsCommandList9(); }
 #endif
+#if D3D12_MAX_COMMANDLIST_INTERFACE >= 10
+	auto GraphicsCommandList10() { return GetCommandList().GraphicsCommandList10(); }
+#endif
+
 #if D3D12_SUPPORTS_DEBUG_COMMAND_LIST			    
 	auto DebugCommandList     () { return GetCommandList().DebugCommandList(); }
 #endif
@@ -769,6 +773,8 @@ private:
 	void PostGpuEvent();
 
 	static void ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12CommandContext>& RHICmdList, FD3D12UnorderedAccessView_RHI* UAV, const void* ClearValues, bool bFloat);
+
+	void DispatchWorkGraphShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIShaderResourceView* RecordArgBufferSRV, TConstArrayView<FRHIShaderBundleDispatch> Dispatches);
 
 	void HandleDiscardResources          (TArrayView<const FRHITransition*> Transitions, bool bIsBeginTransition);
 	void HandleResourceTransitions       (const struct FD3D12TransitionData* TransitionData, bool& bUAVBarrier);

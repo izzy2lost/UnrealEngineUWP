@@ -326,8 +326,15 @@ static const TCHAR* BreadcrumbOpNames[] =
 	TEXT("SetPipelineState1"),
 	TEXT("InitializeExtensionCommand"),
 	TEXT("ExecuteExtensionCommand"),
+	TEXT("DispatchMesh"),
+	TEXT("EncodeFrame"),
+	TEXT("ResolveEncoderOutputMetadata"),
+	TEXT("Barrier"),
+	TEXT("BeginCommandList"),
+	TEXT("DispatchGraph"),
+	TEXT("SetProgram"),
 };
-static_assert(UE_ARRAY_COUNT(BreadcrumbOpNames) == D3D12_AUTO_BREADCRUMB_OP_EXECUTEEXTENSIONCOMMAND + 1, "OpNames array length mismatch");
+static_assert(UE_ARRAY_COUNT(BreadcrumbOpNames) == D3D12_AUTO_BREADCRUMB_OP_SETPROGRAM + 1, "OpNames array length mismatch");
 
 /** 
  * Calculate the number of active scopes in the case of a DRED history where the number of 
@@ -1394,6 +1401,19 @@ const FD3D12RootSignature* FD3D12Adapter::GetRootSignature(const FD3D12ComputeSh
 	return RootSignatureManager.GetRootSignature(QBSS);
 
 #endif //! USE_STATIC_ROOT_SIGNATURE
+}
+
+const FD3D12RootSignature* FD3D12Adapter::GetRootSignature(const FD3D12WorkGraphShader* WorkGraphShader)
+{
+	check(WorkGraphShader);
+
+	FD3D12QuantizedBoundShaderState QBSS{};
+	QuantizeBoundShaderStateCommon(QBSS, WorkGraphShader, GetResourceBindingTier(), SV_All, true /*bAllowUAVs*/);
+
+	QBSS.RootSignatureType = WorkGraphShader->IsWorkGraphLocal() ? RS_WorkGraphLocal : RS_WorkGraphGlobal;
+	check(QBSS.bAllowIAInputLayout == false); // No access to vertex buffers needed
+
+	return RootSignatureManager.GetRootSignature(QBSS);
 }
 
 #if D3D12_RHI_RAYTRACING

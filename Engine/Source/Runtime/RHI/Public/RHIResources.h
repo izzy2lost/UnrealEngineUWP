@@ -1018,6 +1018,29 @@ private:
 	struct FPipelineStateStats* Stats;
 };
 
+class FRHIWorkGraphShader : public FRHIShader
+{
+public:
+	FRHIWorkGraphShader()
+		: FRHIShader(RRT_WorkGraphShader, SF_WorkGraph)
+		, bWorkGraphLocal(0)
+	{
+	}
+
+	inline void SetWorkGraphLocal(bool bValue)
+	{
+		bWorkGraphLocal = bValue;
+	}
+
+	inline bool IsWorkGraphLocal() const
+	{
+		return bWorkGraphLocal;
+	}
+
+private:
+	uint8 bWorkGraphLocal : 1;
+};
+
 //
 // Pipeline States
 //
@@ -1050,6 +1073,12 @@ public:
 
 private:
 	bool bIsValid = true;
+};
+
+class FRHIWorkGraphPipelineState : public FRHIResource
+{
+public:
+	FRHIWorkGraphPipelineState() : FRHIResource(RRT_WorkGraphPipelineState) {}
 };
 
 class FRHIRayTracingPipelineState : public FRHIResource
@@ -4029,6 +4058,95 @@ public:
 	uint64							StatePrecachePSOHash;
 };
 
+/** Helper for fast compute of hash for a shader table. */
+template<typename TShaderType>
+inline uint64 ComputeShaderTableHash(const TArrayView<TShaderType*>& ShaderTable, uint64 InitialHash = 5699878132332235837ull)
+{
+	uint64 CombinedHash = InitialHash;
+	for (FRHIShader* ShaderRHI : ShaderTable)
+	{
+		uint64 ShaderHash = 0;
+		if (ShaderRHI)
+		{
+			// 64 bits from the shader SHA1
+			FMemory::Memcpy(&ShaderHash, ShaderRHI->GetHash().Hash, sizeof(ShaderHash));
+		}
+
+		// 64 bit hash combination as per boost::hash_combine_impl
+		CombinedHash ^= ShaderHash + 0x9e3779b9 + (CombinedHash << 6) + (CombinedHash >> 2);
+	}
+
+	return CombinedHash;
+}
+
+class FWorkGraphPipelineStateSignature
+{
+public:
+	bool operator==(const FWorkGraphPipelineStateSignature& Rhs) const
+	{
+		return BaseHash == Rhs.BaseHash && NameHash == Rhs.NameHash && ShaderBundleNodeHash == Rhs.ShaderBundleNodeHash;
+	}
+
+	friend uint32 GetTypeHash(const FWorkGraphPipelineStateSignature& Initializer)
+	{
+		return GetTypeHash(Initializer.BaseHash) ^ GetTypeHash(Initializer.NameHash) ^ GetTypeHash(Initializer.ShaderBundleNodeHash);
+	}
+
+protected:
+	uint64 BaseHash = 0;
+	uint64 NameHash = 0;
+	uint64 ShaderBundleNodeHash = 0;
+};
+
+class FWorkGraphPipelineStateInitializer : public FWorkGraphPipelineStateSignature
+{
+public:
+	FWorkGraphPipelineStateInitializer() = default;
+	FWorkGraphPipelineStateRHIRef BasePipeline;
+
+	void SetProgramName(TCHAR const* InProgramName)
+	{
+		ProgramName = InProgramName;
+		NameHash = ComputeNameHash();
+	}
+
+	FString const& GetProgramName() const { return ProgramName; }
+
+	void SetShader(FRHIWorkGraphShader* InShader)
+	{
+		BaseShader = InShader;
+		FMemory::Memcpy(&BaseHash, InShader->GetHash().Hash, sizeof(BaseHash));	// 64 bits from the shader SHA1
+	}
+
+	FRHIWorkGraphShader* GetShader() const { return BaseShader; }
+
+	void SetShaderBundleNodeTable(const TArrayView<FRHIWorkGraphShader*>& InShaders, TCHAR const* InEntryPointName, TCHAR const* InNodeName, uint64 Hash = 0)
+	{
+		ShaderBundleNodeTable = InShaders;
+		ShaderBundleNodeHash = Hash ? Hash : ComputeShaderTableHash(InShaders);
+
+		ShaderBundleEntryPointName = InEntryPointName;
+		ShaderBundleNodeName = InNodeName;
+		NameHash = ComputeNameHash();
+	}
+
+	const TArrayView<FRHIWorkGraphShader*>& GetShaderBundleNodeTable() const { return ShaderBundleNodeTable; }
+	const FString& GetShaderBundleEntryPointName() const { return ShaderBundleEntryPointName; }
+	const FString& GetShaderBundleNodeName() const { return ShaderBundleNodeName; }
+
+private:
+	uint64 ComputeNameHash() const
+	{
+		return HashCombineFast(HashCombineFast(GetTypeHash(ProgramName), GetTypeHash(ShaderBundleEntryPointName)), GetTypeHash(ShaderBundleNodeName));
+	}
+
+	FRHIWorkGraphShader* BaseShader = nullptr;
+	FString ProgramName;
+	TArrayView<FRHIWorkGraphShader*> ShaderBundleNodeTable;
+	FString ShaderBundleEntryPointName;
+	FString ShaderBundleNodeName;
+};
+
 class FRayTracingPipelineStateSignature
 {
 public:
@@ -4133,22 +4251,6 @@ public:
 	}
 
 private:
-
-	uint64 ComputeShaderTableHash(const TArrayView<FRHIRayTracingShader*>& ShaderTable, uint64 InitialHash = 5699878132332235837ull)
-	{
-		uint64 CombinedHash = InitialHash;
-		for (FRHIRayTracingShader* ShaderRHI : ShaderTable)
-		{
-			uint64 ShaderHash; // 64 bits from the shader SHA1
-			FMemory::Memcpy(&ShaderHash, ShaderRHI->GetHash().Hash, sizeof(ShaderHash));
-
-			// 64 bit hash combination as per boost::hash_combine_impl
-			CombinedHash ^= ShaderHash + 0x9e3779b9 + (CombinedHash << 6) + (CombinedHash >> 2);
-		}
-
-		return CombinedHash;
-	}
-
 	TArrayView<FRHIRayTracingShader*> RayGenTable;
 	TArrayView<FRHIRayTracingShader*> MissTable;
 	TArrayView<FRHIRayTracingShader*> HitGroupTable;

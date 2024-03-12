@@ -2204,6 +2204,7 @@ namespace CrossCompiler
 		TEXT("Pixel"),
 		TEXT("Geometry"),
 		TEXT("Compute"),
+		TEXT("WorkGraph"),
 		TEXT("RayGen"),
 		TEXT("RayMiss"),
 		TEXT("RayHitGroup"),

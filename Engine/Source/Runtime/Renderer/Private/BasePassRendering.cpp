@@ -131,8 +131,12 @@ IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FTranslucentBasePassUniformParameters, "T
 	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassPS##LightMapPolicyName##SkyLightName##LayoutName,TEXT("/Engine/Private/BasePassPixelShader.usf"),TEXT("MainPS"),SF_Pixel);
 
 #define IMPLEMENT_BASEPASS_COMPUTESHADER_TYPE(LightMapPolicyType,LightMapPolicyName,bEnableSkyLight,SkyLightName) \
-	typedef TBasePassCS<LightMapPolicyType, bEnableSkyLight> TBasePassCS##LightMapPolicyName##SkyLightName; \
+	typedef TBasePassCS<LightMapPolicyType, bEnableSkyLight, SF_Compute> TBasePassCS##LightMapPolicyName##SkyLightName; \
 	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassCS##LightMapPolicyName##SkyLightName,TEXT("/Engine/Private/BasePassPixelShader.usf"),TEXT("MainCS"),SF_Compute);
+
+#define IMPLEMENT_BASEPASS_WORKGRAPHSHADER_TYPE(LightMapPolicyType,LightMapPolicyName,bEnableSkyLight,SkyLightName) \
+	typedef TBasePassCS<LightMapPolicyType, bEnableSkyLight, SF_WorkGraph> TBasePassWorkGraphCS##LightMapPolicyName##SkyLightName; \
+	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassWorkGraphCS##LightMapPolicyName##SkyLightName,TEXT("/Engine/Private/BasePassPixelShader.usf"),TEXT("MainCS"),SF_WorkGraph);
 
 // Implement a pixel and compute shader type for skylights and one without, and one vertex shader that will be shared between them
 #define IMPLEMENT_BASEPASS_LIGHTMAPPED_SHADER_TYPE(LightMapPolicyType,LightMapPolicyName) \
@@ -142,7 +146,9 @@ IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FTranslucentBasePassUniformParameters, "T
 	IMPLEMENT_BASEPASS_PIXELSHADER_TYPE(LightMapPolicyType,LightMapPolicyName,true,Skylight,GBL_ForceVelocity,ForceVelocity) \
 	IMPLEMENT_BASEPASS_PIXELSHADER_TYPE(LightMapPolicyType,LightMapPolicyName,false,,GBL_ForceVelocity,ForceVelocity) \
 	IMPLEMENT_BASEPASS_COMPUTESHADER_TYPE(LightMapPolicyType,LightMapPolicyName,true,Skylight) \
-	IMPLEMENT_BASEPASS_COMPUTESHADER_TYPE(LightMapPolicyType,LightMapPolicyName,false,)
+	IMPLEMENT_BASEPASS_COMPUTESHADER_TYPE(LightMapPolicyType,LightMapPolicyName,false,) \
+	IMPLEMENT_BASEPASS_WORKGRAPHSHADER_TYPE(LightMapPolicyType,LightMapPolicyName,true,Skylight) \
+	IMPLEMENT_BASEPASS_WORKGRAPHSHADER_TYPE(LightMapPolicyType,LightMapPolicyName,false,)
 
 // Implement shader types per lightmap policy
 // If renaming or refactoring these, remember to update FMaterialResource::GetRepresentativeInstructionCounts and FPreviewMaterial::ShouldCache().
@@ -617,15 +623,29 @@ bool GetBasePassShaders<FUniformLightMapPolicy>(
 }
 
 template <ELightMapPolicyType Policy>
-void AddUniformBasePassComputeShader(bool bEnableSkyLight, FMaterialShaderTypes& OutShaderTypes)
+void AddUniformBasePassComputeShader(bool bEnableSkyLight, EShaderFrequency ShaderFrequency, FMaterialShaderTypes& OutShaderTypes)
 {
-	if (bEnableSkyLight)
+	if (ShaderFrequency == SF_Compute)
 	{
-		OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, true>>();
+		if (bEnableSkyLight)
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, true, SF_Compute>>();
+		}
+		else
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, false, SF_Compute>>();
+		}
 	}
-	else
+	else if (ShaderFrequency == SF_WorkGraph)
 	{
-		OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, false>>();
+		if (bEnableSkyLight)
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, true, SF_WorkGraph>>();
+		}
+		else
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, false, SF_WorkGraph>>();
+		}
 	}
 }
 
@@ -635,6 +655,7 @@ bool GetUniformBasePassShader(
 	const FVertexFactoryType* VertexFactoryType,
 	ERHIFeatureLevel::Type FeatureLevel,
 	bool bEnableSkyLight,
+	EShaderFrequency ShaderFrequency,
 	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>>* ComputeShader
 )
 {
@@ -642,7 +663,7 @@ bool GetUniformBasePassShader(
 
 	if (ComputeShader)
 	{
-		AddUniformBasePassComputeShader<Policy>(bEnableSkyLight, ShaderTypes);
+		AddUniformBasePassComputeShader<Policy>(bEnableSkyLight, ShaderFrequency, ShaderTypes);
 	}
 
 	FMaterialShaders Shaders;
@@ -651,7 +672,7 @@ bool GetUniformBasePassShader(
 		return false;
 	}
 
-	Shaders.TryGetComputeShader(ComputeShader);
+	Shaders.TryGetShader(ShaderFrequency, ComputeShader);
 	return true;
 }
 
@@ -662,25 +683,26 @@ bool GetBasePassShader<FUniformLightMapPolicy>(
 	FUniformLightMapPolicy LightMapPolicy,
 	ERHIFeatureLevel::Type FeatureLevel,
 	bool bEnableSkyLight,
+	EShaderFrequency ShaderFrequency,
 	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>>* ComputeShader
 	)
 {
 	switch (LightMapPolicy.GetIndirectPolicy())
 	{
 	case LMP_PRECOMPUTED_IRRADIANCE_VOLUME_INDIRECT_LIGHTING:
-		return GetUniformBasePassShader<LMP_PRECOMPUTED_IRRADIANCE_VOLUME_INDIRECT_LIGHTING>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ComputeShader);
+		return GetUniformBasePassShader<LMP_PRECOMPUTED_IRRADIANCE_VOLUME_INDIRECT_LIGHTING>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ShaderFrequency, ComputeShader);
 	case LMP_CACHED_VOLUME_INDIRECT_LIGHTING:
-		return GetUniformBasePassShader<LMP_CACHED_VOLUME_INDIRECT_LIGHTING>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ComputeShader);
+		return GetUniformBasePassShader<LMP_CACHED_VOLUME_INDIRECT_LIGHTING>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ShaderFrequency, ComputeShader);
 	case LMP_CACHED_POINT_INDIRECT_LIGHTING:
-		return GetUniformBasePassShader<LMP_CACHED_POINT_INDIRECT_LIGHTING>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ComputeShader);
+		return GetUniformBasePassShader<LMP_CACHED_POINT_INDIRECT_LIGHTING>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ShaderFrequency, ComputeShader);
 	case LMP_LQ_LIGHTMAP:
-		return GetUniformBasePassShader<LMP_LQ_LIGHTMAP>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ComputeShader);
+		return GetUniformBasePassShader<LMP_LQ_LIGHTMAP>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ShaderFrequency, ComputeShader);
 	case LMP_HQ_LIGHTMAP:
-		return GetUniformBasePassShader<LMP_HQ_LIGHTMAP>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ComputeShader);
+		return GetUniformBasePassShader<LMP_HQ_LIGHTMAP>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ShaderFrequency, ComputeShader);
 	case LMP_DISTANCE_FIELD_SHADOWS_AND_HQ_LIGHTMAP:
-		return GetUniformBasePassShader<LMP_DISTANCE_FIELD_SHADOWS_AND_HQ_LIGHTMAP>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ComputeShader);
+		return GetUniformBasePassShader<LMP_DISTANCE_FIELD_SHADOWS_AND_HQ_LIGHTMAP>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ShaderFrequency, ComputeShader);
 	case LMP_NO_LIGHTMAP:
-		return GetUniformBasePassShader<LMP_NO_LIGHTMAP>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ComputeShader);
+		return GetUniformBasePassShader<LMP_NO_LIGHTMAP>(Material, VertexFactoryType, FeatureLevel, bEnableSkyLight, ShaderFrequency, ComputeShader);
 	default:
 		check(false);
 		return false;

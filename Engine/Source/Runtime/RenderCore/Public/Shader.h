@@ -1110,6 +1110,11 @@ public:
 	{
 		return static_cast<FRHIComputeShader*>(GetRHIShaderBase(SF_Compute));
 	}
+	/** @return the shader's work graph shader */
+	inline FRHIWorkGraphShader* GetWorkGraphShader() const
+	{
+		return static_cast<FRHIWorkGraphShader*>(GetRHIShaderBase(SF_WorkGraph));
+	}
 
 #if RHI_RAYTRACING
 	inline FRHIRayTracingShader* GetRayTracingShader() const

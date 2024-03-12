@@ -577,8 +577,11 @@ struct FRHIGlobals
 	/** Whether current RHI supports shader root constants. */
 	bool SupportsShaderRootConstants = false;
 
-	/** Whether current RHI supports shader bundle dispatch. */
+	/** Whether current RHI supports native shader bundle dispatch. */
 	bool SupportsShaderBundleDispatch = false;
+	
+	/** Whether current RHI supports shader bundle dispatch using work graphs. */
+	bool SupportsShaderBundleWorkGraphDispatch = false;
 
 	/** Whether current RHI supports shader bundle dispatch and RHI parallel translate. */
 	bool SupportsShaderBundleParallel = false;
@@ -588,6 +591,9 @@ struct FRHIGlobals
 
 	/** true if the RHI supports Mesh and Amplification shaders with tier1 capability */
 	bool SupportsMeshShadersTier1 = false;
+
+	/** Whether current RHI supports work graphs with tier1 capability. */
+	bool SupportsShaderWorkGraphsTier1 = false;
 
 	/**
 	* True if the RHI supports reading system timer in shaders via GetShaderTimestamp().
@@ -810,9 +816,11 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHISupportsConservativeRasterization                  GRHIGlobals.SupportsConservativeRasterization
 #define GRHISupportsShaderRootConstants                        GRHIGlobals.SupportsShaderRootConstants
 #define GRHISupportsShaderBundleDispatch                       GRHIGlobals.SupportsShaderBundleDispatch
+#define GRHISupportsShaderBundleWorkGraphDispatch              GRHIGlobals.SupportsShaderBundleWorkGraphDispatch
 #define GRHISupportsShaderBundleParallel                       GRHIGlobals.SupportsShaderBundleParallel
 #define GRHISupportsMeshShadersTier0                           GRHIGlobals.SupportsMeshShadersTier0
 #define GRHISupportsMeshShadersTier1                           GRHIGlobals.SupportsMeshShadersTier1
+#define GRHISupportsShaderWorkGraphsTier1                      GRHIGlobals.SupportsShaderWorkGraphsTier1
 #define GRHISupportsShaderTimestamp                            GRHIGlobals.SupportsShaderTimestamp
 #define GRHISupportsEfficientUploadOnResourceCreation          GRHIGlobals.SupportsEfficientUploadOnResourceCreation
 #define GRHISupportsMapWriteNoOverwrite                        GRHIGlobals.SupportsMapWriteNoOverwrite

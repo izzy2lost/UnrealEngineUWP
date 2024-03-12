@@ -1287,6 +1287,13 @@ bool NaniteComputeMaterialsSupported()
 	return bAllowComputeMaterials;
 }
 
+bool NaniteWorkGraphMaterialsSupported()
+{
+	static const auto AllowWorkGraphMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowWorkGraphMaterials"));
+	static const bool bAllowWorkGraphMaterials = (AllowWorkGraphMaterials && AllowWorkGraphMaterials->GetValueOnAnyThread() != 0);
+	return bAllowWorkGraphMaterials;
+}
+
 bool NaniteLegacyMaterialsSupported()
 {
 	static const auto AllowLegacyMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowLegacyMaterials"));

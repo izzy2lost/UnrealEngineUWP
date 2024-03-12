@@ -17,6 +17,10 @@ MAX_OCCUPANCY
 #include "VariableRateShading/VRSShadingRateCommon.ush"
 #include "Nanite/NaniteShadeCommon.ush"
 
+#if WORKGRAPH_NODE
+#include "ShaderBundleWorkGraphCommon.ush"
+#endif
+
 #if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
 
 #include "/Engine/Shared/HLSLReservedSpaces.h"
@@ -298,8 +302,19 @@ void ProcessPixel(uint ShadingBin, const uint2 PixelPos, const float2 SVPosition
 	}
 }
 
+#if WORKGRAPH_NODE
+[Shader("node")]
+[NodeLaunch("broadcasting")]
+[NodeMaxDispatchGrid(65535,1,1)]
+#endif
 [numthreads(COMPUTE_MATERIAL_GROUP_SIZE, 1, 1)]
-void MainCS(uint ThreadIndex : SV_GroupIndex, uint GroupID : SV_GroupID)
+void MainCS(
+	uint ThreadIndex : SV_GroupIndex, 
+	uint GroupID : SV_GroupID
+#if WORKGRAPH_NODE
+	, DispatchNodeInputRecord<FShaderBundleNodeRecord> InputRecord
+#endif
+)
 {
 #if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
 	const uint ShadingBin		= UERootConstants.RecordIndex;

@@ -63,6 +63,12 @@ static TAutoConsoleVariable<int32> CVarNaniteAllowComputeMaterials(
 	TEXT("Whether to enable support for Nanite compute materials"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+static TAutoConsoleVariable<int32> CVarNaniteAllowWorkGraphMaterials(
+	TEXT("r.Nanite.AllowWorkGraphMaterials"),
+	0,
+	TEXT("Whether to enable support for Nanite work graph materials"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 static TAutoConsoleVariable<int32> CVarNaniteAllowLegacyMaterials(
 	TEXT("r.Nanite.AllowLegacyMaterials"),
 	1,
@@ -2423,7 +2429,7 @@ bool FNaniteVertexFactory::ShouldCompilePermutation(const FVertexFactoryShaderPe
 {
 	bool bShouldCompile =
 		NaniteComputeMaterialsSupported() &&
-		Parameters.ShaderType->GetFrequency() == SF_Compute &&
+		(Parameters.ShaderType->GetFrequency() == SF_Compute || (Parameters.ShaderType->GetFrequency() == SF_WorkGraph && NaniteWorkGraphMaterialsSupported() && RHISupportsWorkGraphs(Parameters.Platform))) &&
 		(Parameters.MaterialParameters.bIsUsedWithNanite || Parameters.MaterialParameters.bIsSpecialEngineMaterial) &&
 		Nanite::IsSupportedMaterialDomain(Parameters.MaterialParameters.MaterialDomain) &&
 		Nanite::IsSupportedBlendMode(Parameters.MaterialParameters) &&

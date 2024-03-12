@@ -67,7 +67,7 @@ static bool IsGlobalConstantBufferSupported(const FShaderTarget& Target)
 	}
 }
 
-static uint32 GetAutoBindingSpace(const FShaderTarget& Target)
+static uint32 GetAutoBindingSpace(const FShaderTarget& Target, bool bIsWorkGraphLocal)
 {
 	switch (Target.Frequency)
 	{
@@ -77,6 +77,8 @@ static uint32 GetAutoBindingSpace(const FShaderTarget& Target)
 	case SF_RayHitGroup:
 	case SF_RayCallable:
 		return UE_HLSL_SPACE_RAY_TRACING_LOCAL;
+	case SF_WorkGraph:
+		return bIsWorkGraphLocal ? UE_HLSL_SPACE_WORK_GRAPH_LOCAL : UE_HLSL_SPACE_WORK_GRAPH_GLOBAL;
 	default:
 		return 0;
 	}
@@ -241,7 +243,9 @@ public:
 			ExtraArguments.Add(TEXT("-WX"));
 		}
 
-		const uint32 AutoBindingSpace = GetAutoBindingSpace(Input.Target);
+		const bool bIsWorkGraphLocal = Input.Target.Frequency == SF_WorkGraph && Input.Environment.CompilerFlags.Contains(CFLAG_WorkgraphLocalNodes);
+
+		const uint32 AutoBindingSpace = GetAutoBindingSpace(Input.Target, bIsWorkGraphLocal);
 		{
 			ExtraArguments.Add(TEXT("-auto-binding-space"));
 			ExtraArguments.Add(FString::Printf(TEXT("%d"), AutoBindingSpace));
@@ -859,7 +863,9 @@ bool CompileAndProcessD3DShaderDXC(
 
 	const bool bIsRayTracingShader = Input.IsRayTracingShader();
 
-	const uint32 AutoBindingSpace = GetAutoBindingSpace(Input.Target);
+	const bool bIsWorkGraphLocal = Input.Target.Frequency == SF_WorkGraph && Input.Environment.CompilerFlags.Contains(CFLAG_WorkgraphLocalNodes);
+
+	const uint32 AutoBindingSpace = GetAutoBindingSpace(Input.Target, bIsWorkGraphLocal);
 
 	FString RayEntryPoint; // Primary entry point for all ray tracing shaders
 	FString RayAnyHitEntryPoint; // Optional for hit group shaders
@@ -884,6 +890,8 @@ bool CompileAndProcessD3DShaderDXC(
 			RayTracingExports += RayIntersectionEntryPoint;
 		}
 	}
+
+	const bool bIsWorkGraphShader = Input.Target.GetFrequency() == SF_WorkGraph;
 
 	FDxcArguments Args
 	(
@@ -1003,7 +1011,7 @@ bool CompileAndProcessD3DShaderDXC(
 			}
 		}
 
-		if (bIsRayTracingShader)
+		if (bIsWorkGraphShader || bIsRayTracingShader)
 		{
 			TRefCountPtr<ID3D12LibraryReflection> LibraryReflection;
 			VERIFYHRESULT(Utils->CreateReflection(&ReflBuffer, IID_PPV_ARGS(LibraryReflection.GetInitReference())));
@@ -1014,22 +1022,31 @@ bool CompileAndProcessD3DShaderDXC(
 			ID3D12FunctionReflection* FunctionReflection = nullptr;
 			D3D12_FUNCTION_DESC FunctionDesc = {};
 
-			// MangledEntryPoints contains partial mangled entry point signatures in a the following form:
-			// ?QualifiedName@ (as described here: https://en.wikipedia.org/wiki/Name_mangling)
-			// Entry point parameters are currently not included in the partial mangling.
-			TArray<FString, TInlineAllocator<3>> MangledEntryPoints;
+			bool bEntryPointsAreMangled = false;
+			TArray<FString, TInlineAllocator<3>> EntryPoints;
+			if (bIsRayTracingShader)
+			{
+				// EntryPoints contains partial mangled entry point signatures in a the following form:
+				// ?QualifiedName@ (as described here: https://en.wikipedia.org/wiki/Name_mangling)
+				// Entry point parameters are currently not included in the partial mangling.
+				bEntryPointsAreMangled = true;
 
-			if (!RayEntryPoint.IsEmpty())
-			{
-				MangledEntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayEntryPoint));
+				if (!RayEntryPoint.IsEmpty())
+				{
+					EntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayEntryPoint));
+				}
+				if (!RayAnyHitEntryPoint.IsEmpty())
+				{
+					EntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayAnyHitEntryPoint));
+				}
+				if (!RayIntersectionEntryPoint.IsEmpty())
+				{
+					EntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayIntersectionEntryPoint));
+				}
 			}
-			if (!RayAnyHitEntryPoint.IsEmpty())
+			else
 			{
-				MangledEntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayAnyHitEntryPoint));
-			}
-			if (!RayIntersectionEntryPoint.IsEmpty())
-			{
-				MangledEntryPoints.Add(FString::Printf(TEXT("?%s@"), *RayIntersectionEntryPoint));
+				EntryPoints.Add(Input.EntryPointName);
 			}
 
 			uint32 NumFoundEntryPoints = 0;
@@ -1041,25 +1058,37 @@ bool CompileAndProcessD3DShaderDXC(
 
 				ShaderRequiresFlags |= FunctionDesc.RequiredFeatureFlags;
 
-				for (const FString& MangledEntryPoint : MangledEntryPoints)
+				bool bAddFunctionEntryPoint = false;
+				for (const FString& EntryPoint : EntryPoints)
 				{
 					// Entry point parameters are currently not included in the partial mangling, therefore partial substring match is used here.
-					if (FCStringAnsi::Strstr(FunctionDesc.Name, TCHAR_TO_ANSI(*MangledEntryPoint)))
+					if (bEntryPointsAreMangled && FCStringAnsi::Strstr(FunctionDesc.Name, TCHAR_TO_ANSI(*EntryPoint)))
 					{
-						// Note: calling ExtractParameterMapFromD3DShader multiple times merges the reflection data for multiple functions
-						ExtractParameterMapFromD3DShader<ID3D12FunctionReflection, D3D12_FUNCTION_DESC, D3D12_SHADER_INPUT_BIND_DESC,
-							ID3D12ShaderReflectionConstantBuffer, D3D12_SHADER_BUFFER_DESC,
-							ID3D12ShaderReflectionVariable, D3D12_SHADER_VARIABLE_DESC>(
-								Input,
-								ShaderParameterParser,
-								AutoBindingSpace,
-								FunctionReflection,
-								FunctionDesc, 
-								CompileData,
-								Output);
-
-						NumFoundEntryPoints++;
+						bAddFunctionEntryPoint = true;
+						break;
 					}
+					else if (!bEntryPointsAreMangled && FunctionDesc.Name == EntryPoint)
+					{
+						bAddFunctionEntryPoint = true;
+						break;
+					}
+				}
+
+				if (bAddFunctionEntryPoint)
+				{
+					// Note: calling ExtractParameterMapFromD3DShader multiple times merges the reflection data for multiple functions
+					ExtractParameterMapFromD3DShader<ID3D12FunctionReflection, D3D12_FUNCTION_DESC, D3D12_SHADER_INPUT_BIND_DESC,
+						ID3D12ShaderReflectionConstantBuffer, D3D12_SHADER_BUFFER_DESC,
+						ID3D12ShaderReflectionVariable, D3D12_SHADER_VARIABLE_DESC>(
+							Input,
+							ShaderParameterParser,
+							AutoBindingSpace,
+							FunctionReflection,
+							FunctionDesc, 
+							CompileData,
+							Output);
+
+					NumFoundEntryPoints++;
 				}
 			}
 
@@ -1076,7 +1105,7 @@ bool CompileAndProcessD3DShaderDXC(
 				}
 			}
 
-			if (NumFoundEntryPoints == MangledEntryPoints.Num())
+			if (NumFoundEntryPoints == EntryPoints.Num())
 			{
 				Output.bSucceeded = true;
 
@@ -1166,6 +1195,11 @@ bool CompileAndProcessD3DShaderDXC(
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::NoDerivativeOps;
 			}
 
+			if (bIsWorkGraphLocal)
+			{
+				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::WorkGraphLocal;
+			}
+
 			if (Input.Environment.CompilerFlags.Contains(CFLAG_ShaderBundle))
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::ShaderBundle;
@@ -1188,7 +1222,12 @@ bool CompileAndProcessD3DShaderDXC(
 			}
 			auto PostSRTWriterCallback = [&](FMemoryWriter& Ar)
 			{
-				if (bIsRayTracingShader)
+				if (bIsWorkGraphShader)
+				{
+					FString EntryPoint = Input.EntryPointName;
+					Ar << EntryPoint;
+				}
+				else if (bIsRayTracingShader)
 				{
 					Ar << RayEntryPoint;
 					Ar << RayAnyHitEntryPoint;

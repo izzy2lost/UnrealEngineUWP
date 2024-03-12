@@ -2,23 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "GlobalShader.h"
-#include "HAL/Platform.h"
-#include "Misc/AssertionMacros.h"
-#include "RHICommandList.h"
-#include "RHIDefinitions.h"
-#include "Serialization/MemoryLayout.h"
-#include "Shader.h"
-#include "ShaderCore.h"
-#include "ShaderParameterMacros.h"
-#include "ShaderParameterStruct.h"
-#include "ShaderParameterUtils.h"
-#include "ShaderParameters.h"
-#include "ShaderPermutation.h"
 
-class FRHIShaderBundle;
-
+/** Global shader to fill a shader bundle. */
 class FDispatchShaderBundleCS : public FGlobalShader
 {
 	DECLARE_EXPORTED_GLOBAL_SHADER(FDispatchShaderBundleCS, RENDERCORE_API);
@@ -46,4 +32,35 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
+};
+
+
+/** Global work graph shader used to dispatch a shader bundle. */
+class FDispatchShaderBundleWorkGraph : public FGlobalShader
+{
+	DECLARE_EXPORTED_GLOBAL_SHADER(FDispatchShaderBundleWorkGraph, RENDERCORE_API);
+
+	FDispatchShaderBundleWorkGraph() = default;
+	FDispatchShaderBundleWorkGraph(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FGlobalShader(Initializer)
+	{
+		RecordArgBufferParam.Bind(Initializer.ParameterMap, TEXT("RecordArgBuffer"), SPF_Mandatory);
+	}
+
+	static const uint32 ThreadGroupSizeX = 64;
+
+	LAYOUT_FIELD(FShaderResourceParameter, RecordArgBufferParam);
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
+
+	RENDERCORE_API static int32 GetMaxShaderBundleSize();
+
+	// Input record structure should match the one declared in the shader.
+	struct FEntryNodeRecord
+	{
+		uint32 DispatchGridSize;
+		uint32 NumItems;
+	};
+	RENDERCORE_API static FEntryNodeRecord MakeInputRecord(uint32 ShaderBundleRecordNum);
 };

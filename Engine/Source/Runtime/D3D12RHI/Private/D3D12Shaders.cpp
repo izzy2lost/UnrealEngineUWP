@@ -116,61 +116,87 @@ bool InitShaderCommon(FShaderCodeReader& ShaderCode, int32 Offset, TShaderType* 
 	return true;
 }
 
-template <typename TShaderType>
-TShaderType* CreateStandardShader(TArrayView<const uint8> InCode)
+template <typename TShaderType, typename LambdaType>
+TShaderType* InitStandardShaderWithCustomSerialization(TShaderType* InShader, TArrayView<const uint8> InCode, const LambdaType& CustomSerializationLambda)
 {
 	FShaderCodeReader ShaderCode(InCode);
-	TShaderType* Shader = new TShaderType();
 
 	FMemoryReaderView Ar(InCode, true);
-	Shader->SerializeShaderResourceTable(Ar);
+	InShader->SerializeShaderResourceTable(Ar);
 
-	const int32 Offset = Ar.Tell();
+	int32 Offset = Ar.Tell();
 
-	if (!InitShaderCommon(ShaderCode, Offset, Shader))
+	CustomSerializationLambda(Ar, InShader, Offset);
+
+	if (!InitShaderCommon(ShaderCode, Offset, InShader))
 	{
-		Shader->AddRef();
-		Shader->Release();
+		InShader->AddRef();
+		InShader->Release();
 		return nullptr;
 	}
 
-	UE::RHICore::InitStaticUniformBufferSlots(Shader);
+	UE::RHICore::InitStaticUniformBufferSlots(InShader);
 
-	return Shader;
+	return InShader;
+}
+
+template <typename TShaderType>
+TShaderType* InitStandardShader(TShaderType* InShader, TArrayView<const uint8> InCode)
+{
+	auto CustomSerialization = [](FMemoryReaderView&, TShaderType*, int32&) {};
+	return InitStandardShaderWithCustomSerialization<TShaderType>(InShader, InCode, CustomSerialization);
 }
 
 FVertexShaderRHIRef FD3D12DynamicRHI::RHICreateVertexShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
-	return CreateStandardShader<FD3D12VertexShader>(Code);
+	return InitStandardShader(new FD3D12VertexShader(), Code);
 }
 
 FMeshShaderRHIRef FD3D12DynamicRHI::RHICreateMeshShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
-	return CreateStandardShader<FD3D12MeshShader>(Code);
+	return InitStandardShader(new FD3D12MeshShader(), Code);
 }
 
 FAmplificationShaderRHIRef FD3D12DynamicRHI::RHICreateAmplificationShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
-	return CreateStandardShader<FD3D12AmplificationShader>(Code);
+	return InitStandardShader(new FD3D12AmplificationShader(), Code);
 }
 
 FPixelShaderRHIRef FD3D12DynamicRHI::RHICreatePixelShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
-	return CreateStandardShader<FD3D12PixelShader>(Code);
+	return InitStandardShader(new FD3D12PixelShader(), Code);
 }
 
 FGeometryShaderRHIRef FD3D12DynamicRHI::RHICreateGeometryShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
-	return CreateStandardShader<FD3D12GeometryShader>(Code);
+	return InitStandardShader(new FD3D12GeometryShader(), Code);
 }
 
 FComputeShaderRHIRef FD3D12DynamicRHI::RHICreateComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
-	FD3D12ComputeShader* Shader = CreateStandardShader<FD3D12ComputeShader>(Code);
+	FD3D12ComputeShader* Shader = InitStandardShader(new FD3D12ComputeShader(), Code);
 	if (Shader)
 	{
 		Shader->RootSignature = GetAdapter().GetRootSignature(Shader);
 		Shader->SetNoDerivativeOps(EnumHasAnyFlags(Shader->ResourceCounts.UsageFlags, EShaderResourceUsageFlags::NoDerivativeOps));
+	}
+
+	return Shader;
+}
+
+FWorkGraphShaderRHIRef FD3D12DynamicRHI::RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+{
+	auto CustomSerialization = [](FMemoryReaderView& Ar, FD3D12WorkGraphShader* Shader, int32& Offset)
+	{
+		Ar << Shader->EntryPoint;
+		Offset = Ar.Tell();
+	};
+
+	FD3D12WorkGraphShader* Shader = InitStandardShaderWithCustomSerialization(new FD3D12WorkGraphShader(), Code, CustomSerialization);
+	if (Shader)
+	{
+		Shader->SetWorkGraphLocal(EnumHasAnyFlags(Shader->ResourceCounts.UsageFlags, EShaderResourceUsageFlags::WorkGraphLocal));
+		Shader->RootSignature = GetAdapter().GetRootSignature(Shader);
 	}
 
 	return Shader;
@@ -182,45 +208,36 @@ FRayTracingShaderRHIRef FD3D12DynamicRHI::RHICreateRayTracingShader(TArrayView<c
 {
 	checkf(GRHISupportsRayTracing && GRHISupportsRayTracingShaders, TEXT("Tried to create RayTracing shader but RHI doesn't support it!"));
 
-	FShaderCodeReader ShaderCode(Code);
-	FD3D12RayTracingShader* Shader = new FD3D12RayTracingShader(ShaderFrequency);
-
-	FMemoryReaderView Ar(Code, true);
-	Shader->SerializeShaderResourceTable(Ar);
-	Ar << Shader->EntryPoint;
-	Ar << Shader->AnyHitEntryPoint;
-	Ar << Shader->IntersectionEntryPoint;
-	Ar << Shader->RayTracingPayloadType;
-	Ar << Shader->RayTracingPayloadSize;
-
-	checkf(Shader->RayTracingPayloadType != 0, TEXT("Ray Tracing Shader must not have an empty payload type!"));
-	checkf(	(FMath::CountBits(Shader->RayTracingPayloadType) == 1 && (ShaderFrequency == SF_RayHitGroup || ShaderFrequency == SF_RayMiss || ShaderFrequency == SF_RayCallable)) ||
+	auto CustomSerialization = [this, ShaderFrequency](FMemoryReaderView& Ar, FD3D12RayTracingShader* Shader, int32& Offset)
+	{
+		Ar << Shader->EntryPoint;
+		Ar << Shader->AnyHitEntryPoint;
+		Ar << Shader->IntersectionEntryPoint;
+		Ar << Shader->RayTracingPayloadType;
+		Ar << Shader->RayTracingPayloadSize;
+	
+		checkf(Shader->RayTracingPayloadType != 0, TEXT("Ray Tracing Shader must not have an empty payload type!"));
+		checkf((FMath::CountBits(Shader->RayTracingPayloadType) == 1 && (ShaderFrequency == SF_RayHitGroup || ShaderFrequency == SF_RayMiss || ShaderFrequency == SF_RayCallable)) ||
 			(FMath::CountBits(Shader->RayTracingPayloadType) >= 1 && (ShaderFrequency == SF_RayGen)),
 			TEXT("Ray Tracing Shader has %d bits set, which is not the expected count for shader frequency %d"), FMath::CountBits(Shader->RayTracingPayloadType), int(ShaderFrequency)
-	);
+		);
 
-	int32 Offset = Ar.Tell();
+		Offset = Ar.Tell();
 
-	int32 PrecompiledKey = 0;
-	Ar << PrecompiledKey;
-	if (PrecompiledKey == RayTracingPrecompiledPSOKey)
+		int32 PrecompiledKey = 0;
+		Ar << PrecompiledKey;
+		if (PrecompiledKey == RayTracingPrecompiledPSOKey)
+		{
+			Offset += sizeof(PrecompiledKey); // Skip the precompiled PSO marker if it's present
+			Shader->bPrecompiledPSO = true;
+		}
+	};
+
+	FD3D12RayTracingShader* Shader = InitStandardShaderWithCustomSerialization(new FD3D12RayTracingShader(ShaderFrequency), Code, CustomSerialization);
+	if (Shader)
 	{
-		Offset += sizeof(PrecompiledKey); // Skip the precompiled PSO marker if it's present
-		Shader->bPrecompiledPSO = true;
+		Shader->pRootSignature = GetAdapter().GetRootSignature(Shader);
 	}
-
-	if (!InitShaderCommon(ShaderCode, Offset, Shader))
-	{
-		// We can't just call delete on the shader since it's an FRHIResource, so it must use the deletion queue mechanism.
-		// However, since it starts with refcount 0, we must first AddRef it in order to be able to call Release.
-		Shader->AddRef();
-		Shader->Release();
-		return nullptr;
-	}
-
-	UE::RHICore::InitStaticUniformBufferSlots(Shader);
-
-	Shader->pRootSignature = GetAdapter().GetRootSignature(Shader);
 
 	return Shader;
 }

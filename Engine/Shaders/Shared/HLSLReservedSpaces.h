@@ -25,6 +25,12 @@
 // Register space for "system" parameters (index buffer, vertex buffer, fetch parameters)
 #define UE_HLSL_SPACE_RAY_TRACING_SYSTEM 2
 
+// Default register space for local node shader resources
+#define UE_HLSL_SPACE_WORK_GRAPH_LOCAL 0
+
+// Register space for global work graph shared shader resources
+#define UE_HLSL_SPACE_WORK_GRAPH_GLOBAL 1
+
 // Register space for shader root constants (4xu32)
 #define UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS 3
 

@@ -128,8 +128,9 @@ enum EShaderFrequency : uint8
 	SF_RayMiss			= 7,
 	SF_RayHitGroup		= 8,
 	SF_RayCallable		= 9,
+	SF_WorkGraph		= 10,
 
-	SF_NumFrequencies	= 10,
+	SF_NumFrequencies	= 11,
 
 	// Number of standard shader frequencies for graphics pipeline (excluding compute)
 	SF_NumGraphicsFrequencies = 5,
@@ -950,6 +951,8 @@ enum ERHIResourceType : uint8
 	RRT_ShaderLibrary,
 	RRT_PipelineBinaryLibrary,
 	RRT_ShaderBundle,
+	RRT_WorkGraphShader,
+	RRT_WorkGraphPipelineState,
 
 	RRT_Num
 };

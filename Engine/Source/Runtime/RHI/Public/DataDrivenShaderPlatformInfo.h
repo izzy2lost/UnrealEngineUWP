@@ -124,6 +124,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 SupportsBarycentricsSemantic : int32(ERHIFeatureSupport::NumBits);
 	uint32 bSupportsWave64 : 1;
 	uint32 bSupportsIndependentSamplers : 1;
+	uint32 bSupportsWorkGraphs : 1;
 
 	// NOTE: When adding fields, you must also add to ParseDataDrivenShaderInfo!
 	uint32 bContainsValidPlatformInfo : 1;
@@ -794,6 +795,12 @@ public:
 		return Infos[Platform].bSupportsIndependentSamplers;
 	}
 
+	static FORCEINLINE_DEBUGGABLE const bool GetSupportsWorkGraphs(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bSupportsWorkGraphs;
+	}
+
 	static FORCEINLINE_DEBUGGABLE const bool IsValid(const FStaticShaderPlatform Platform)
 	{
 		return Infos[Platform].bContainsValidPlatformInfo;
@@ -1182,6 +1189,12 @@ inline bool RHISupportsVolumeTextureAtomics(EShaderPlatform Platform)
 inline bool RHISupportsWaveSize64(const FStaticShaderPlatform Platform)
 {
 	return FDataDrivenShaderPlatformInfo::GetSupportsWave64(Platform);
+}
+
+/** True if the platform supports Work Graphs */
+inline bool RHISupportsWorkGraphs(const FStaticShaderPlatform Platform)
+{
+	return FDataDrivenShaderPlatformInfo::GetSupportsWorkGraphs(Platform);
 }
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3

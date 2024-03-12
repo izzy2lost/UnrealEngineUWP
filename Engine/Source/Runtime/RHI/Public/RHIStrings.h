@@ -91,6 +91,7 @@ inline const TCHAR* GetShaderFrequencyString(EShaderFrequency Frequency, bool bI
 	case SF_RayMiss:		String = TEXT("SF_RayMiss"); break;
 	case SF_RayHitGroup:	String = TEXT("SF_RayHitGroup"); break;
 	case SF_RayCallable:	String = TEXT("SF_RayCallable"); break;
+	case SF_WorkGraph:		String = TEXT("SF_WorkGraph"); break;
 
 	default:
 		break;

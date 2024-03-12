@@ -145,6 +145,17 @@ static FAutoConsoleVariableRef CVarNaniteValidateShadeBinning(
 	ECVF_RenderThreadSafe
 );
 
+static bool CanUseShaderBundleWorkGraph(EShaderPlatform Platform)
+{
+	static bool bNaniteBundleSupportWorkGraphs = NaniteWorkGraphMaterialsSupported();
+	return bNaniteBundleSupportWorkGraphs && !!GRHISupportsShaderBundleWorkGraphDispatch && RHISupportsWorkGraphs(Platform);
+}
+
+static bool UseShaderBundle(EShaderPlatform Platform)
+{
+	return  GNaniteBundleShading != 0 && (!!GRHISupportsShaderBundleDispatch || CanUseShaderBundleWorkGraph(Platform));
+}
+
 static uint32 GetShadingRateTileSizeBits()
 {
 	uint32 TileSizeBits = 0;
@@ -419,8 +430,9 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::BuildShadingCommands);
 		const auto& Pipelines = ShadingPipelines.GetShadingPipelineMap();
+		const EShaderPlatform ShaderPlatform = Scene.GetShaderPlatform();
 
-		ShadingCommands.SetupTask = GraphBuilder.AddSetupTask([&ShadingCommands, &Pipelines]
+		ShadingCommands.SetupTask = GraphBuilder.AddSetupTask([&ShadingCommands, &Pipelines, ShaderPlatform]
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::BuildShadingCommandsMetadata);
 			ShadingCommands.MaxShadingBin = 0u;
@@ -445,7 +457,7 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 			}
 
 			// Create Shader Bundle
-			if (!!GRHISupportsShaderBundleDispatch && ShadingCommands.NumCommands > 0)
+			if (UseShaderBundle(ShaderPlatform) && ShadingCommands.NumCommands > 0)
 			{
 				const uint32 NumRecords = ShadingCommands.MaxShadingBin + 1u;
 				ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords);
@@ -560,6 +572,7 @@ bool LoadBasePassPipeline(
 	bool bRenderSkylight = false;
 
 	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>> BasePassComputeShader;
+	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>> BasePassWorkGraphShader;
 
 	auto LoadShadingMaterial = [&](const FMaterialRenderProxy* MaterialProxyPtr)
 	{
@@ -581,8 +594,22 @@ bool LoadBasePassPipeline(
 			FUniformLightMapPolicy(LightMapPolicyType),
 			FeatureLevel,
 			bRenderSkylight,
+			SF_Compute,
 			&BasePassComputeShader
 		);
+
+		if (CanUseShaderBundleWorkGraph(Scene.GetShaderPlatform()))
+		{
+			bShadersValid &= GetBasePassShader<FUniformLightMapPolicy>(
+				ShadingMaterial,
+				NaniteVertexFactoryType,
+				FUniformLightMapPolicy(LightMapPolicyType),
+				FeatureLevel,
+				bRenderSkylight,
+				SF_WorkGraph,
+				&BasePassWorkGraphShader
+				);
+		}
 
 		return bShadersValid;
 	};
@@ -600,6 +627,7 @@ bool LoadBasePassPipeline(
 		ShadingPipeline.Material			= MaterialProxy->GetMaterialNoFallback(FeatureLevel);
 		ShadingPipeline.BoundTargetMask		= BasePassComputeShader->GetBoundTargetMask();
 		ShadingPipeline.ComputeShader		= BasePassComputeShader.GetComputeShader();
+		ShadingPipeline.WorkGraphShader		= BasePassWorkGraphShader.GetWorkGraphShader();
 		ShadingPipeline.bIsTwoSided			= !!Section.MaterialRelevance.bTwoSided;
 		ShadingPipeline.bIsMasked			= !!Section.MaterialRelevance.bMasked;
 		ShadingPipeline.bNoDerivativeOps	= HasNoDerivativeOps(ShadingPipeline.ComputeShader);
@@ -1096,7 +1124,7 @@ void DispatchBasePass(
 	);
 
 	const bool bSkipBarriers = GNaniteBarrierTest != 0;
-	const bool bBundleShading = !!GRHISupportsShaderBundleDispatch && GNaniteBundleShading != 0 && ShaderBundle != nullptr;
+	const bool bBundleShading = ShaderBundle != nullptr && UseShaderBundle(Scene.GetShaderPlatform());
 	const bool bBundleEmulation = bBundleShading && GNaniteBundleEmulation != 0;
 
 	auto ShadePassWork = []
@@ -1237,6 +1265,7 @@ void DispatchBasePass(
 								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
 								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
 								Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
+								Dispatch.WorkGraphShader = ShadingCommand.Pipeline->WorkGraphShader;
 								Dispatch.Constants = ShadingCommand.PassData;
 								Dispatch.PipelineState = FindComputePipelineState(Dispatch.Shader);
 								if (Dispatch.PipelineState != nullptr)
@@ -1787,6 +1816,7 @@ void CollectShadingPSOInitializers(
 					FUniformLightMapPolicy(UniformLightMapPolicyType),
 					FeatureLevel,
 					bRenderSkyLight,
+					SF_Compute,
 					&BasePassComputeShader
 				);
 

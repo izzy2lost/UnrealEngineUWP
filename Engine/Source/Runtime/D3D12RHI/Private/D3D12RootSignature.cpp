@@ -152,7 +152,17 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 
 	const bool bUseShaderDiagnosticBuffer = D3D12_ALLOW_SHADER_DIAGNOSTIC_BUFFER
 		&& QBSS.bUseDiagnosticBuffer
-		&& QBSS.RootSignatureType != RS_RayTracingLocal;
+		&& QBSS.RootSignatureType != RS_RayTracingLocal
+		&& QBSS.RootSignatureType != RS_WorkGraphLocal;
+
+	if (QBSS.RootSignatureType == RS_WorkGraphLocal)
+	{
+		BindingSpace = UE_HLSL_SPACE_WORK_GRAPH_LOCAL;
+	}
+	else if (QBSS.RootSignatureType == RS_WorkGraphGlobal)
+	{
+		BindingSpace = UE_HLSL_SPACE_WORK_GRAPH_GLOBAL;
+	}
 
 #if D3D12_RHI_RAYTRACING
 	if (QBSS.RootSignatureType == RS_RayTracingLocal)
@@ -207,7 +217,7 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 	}
 #endif //D3D12_RHI_RAYTRACING
 
-	const uint32 RootDescriptorTableCost = QBSS.RootSignatureType == RS_RayTracingLocal ? RootDescriptorTableCostLocal : RootDescriptorTableCostGlobal;
+	const uint32 RootDescriptorTableCost = QBSS.RootSignatureType == RS_RayTracingLocal || QBSS.RootSignatureType == RS_WorkGraphLocal ? RootDescriptorTableCostLocal : RootDescriptorTableCostGlobal;
 
 	// For each root parameter type...
 	for (uint32 RootParameterTypeIndex = 0; RootParameterTypeIndex < UE_ARRAY_COUNT(RootParameterTypePriorityOrder); RootParameterTypeIndex++)
@@ -235,7 +245,7 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 
 				if (Shader.ConstantBufferCount > MAX_ROOT_CBVS)
 				{
-					checkf(QBSS.RootSignatureType != RS_RayTracingLocal, TEXT("CBV descriptor tables are not implemented for local root signatures"));
+					checkf(QBSS.RootSignatureType != RS_RayTracingLocal && QBSS.RootSignatureType != RS_WorkGraphLocal, TEXT("CBV descriptor tables are not implemented for local root signatures"));
 
 					// Use a descriptor table for the 'excess' CBVs
 					check(RootParameterCount < MaxRootParameters);
@@ -296,17 +306,15 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 		Flags |= D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 	}
 
-#if D3D12_RHI_RAYTRACING
-	if (QBSS.RootSignatureType == RS_RayTracingLocal)
+	if (QBSS.RootSignatureType == RS_RayTracingLocal || QBSS.RootSignatureType == RS_WorkGraphLocal)
 	{
 		Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 	}
-	else if(QBSS.RootSignatureType == RS_RayTracingGlobal)
+	else if(QBSS.RootSignatureType == RS_RayTracingGlobal || QBSS.RootSignatureType == RS_WorkGraphGlobal)
 	{
 		Flags |= FD3D12_ROOT_SIGNATURE_FLAG_GLOBAL_ROOT_SIGNATURE;
 	}
 	else if (QBSS.RootSignatureType == RS_Raster)
-#endif // D3D12_RHI_RAYTRACING
 	{
 		// Determine what shader stages need access in the root signature.
 
@@ -367,15 +375,13 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 	}
 #endif
 
-#if D3D12_RHI_RAYTRACING
-	if (QBSS.RootSignatureType == RS_RayTracingLocal)
+	if (QBSS.RootSignatureType == RS_RayTracingLocal || QBSS.RootSignatureType == RS_WorkGraphLocal)
 	{
 		// Local root signatures don't need to provide static samplers as they are provided by global RS already.
 		// Providing static sampler bindings in global and local RS simultaneously is invalid due to overlapping register ranges.
 		RootDesc.Init_1_1(RootParameterCount, TableSlots, 0, nullptr, Flags);
 	}
 	else
-#endif
 	{
 		// Only use static samplers for binding tier higher than 1 otherwise root signature only supports 16 samplers
 		// Only use by DXR shaders and validated that DXR has at least Tier 2 support
@@ -465,7 +471,15 @@ void FD3D12RootSignature::Init(const FD3D12QuantizedBoundShaderState& InQBSS)
 
 	uint32 BindingSpace = 0; // Default binding space for D3D 11 & 12 shaders
 
-	if (InQBSS.RootSignatureType == RS_RayTracingGlobal)
+	if (InQBSS.RootSignatureType == RS_WorkGraphLocal)
+	{
+		BindingSpace = UE_HLSL_SPACE_WORK_GRAPH_LOCAL;
+	}
+	else if (InQBSS.RootSignatureType == RS_WorkGraphGlobal)
+	{
+		BindingSpace = UE_HLSL_SPACE_WORK_GRAPH_GLOBAL;
+	}
+	else if (InQBSS.RootSignatureType == RS_RayTracingGlobal)
 	{
 		BindingSpace = UE_HLSL_SPACE_RAY_TRACING_GLOBAL;
 	}
@@ -546,11 +560,7 @@ void FD3D12RootSignature::InternalAnalyzeSignature(const RootSignatureDescType& 
 	const bool bDenyAS = (Desc.Flags & D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS) != 0;
 #endif
 
-#if D3D12_RHI_RAYTRACING
 	const uint32 RootDescriptorTableCost = (Desc.Flags & D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE) ? RootDescriptorTableCostLocal : RootDescriptorTableCostGlobal;
-#else
-	const uint32 RootDescriptorTableCost = RootDescriptorTableCostGlobal;
-#endif
 
 	// Go through each root parameter.
 	for (uint32 i = 0; i < Desc.NumParameters; i++)

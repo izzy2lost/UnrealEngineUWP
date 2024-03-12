@@ -121,6 +121,7 @@ static const TCHAR* GetShaderProfileName(const FShaderCompilerInput& Input, ED3D
 		case SF_RayMiss:
 		case SF_RayHitGroup:
 		case SF_RayCallable:   return TEXT("lib_6_6");
+		case SF_WorkGraph:     return TEXT("lib_6_8");
 		}
 	}
 	else if (ShaderModel == ED3DShaderModel::SM6_0)

@@ -179,6 +179,12 @@ public:
 	// FlushType: Wait RHI Thread
 	virtual FComputeShaderRHIRef RHICreateComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash) = 0;
 
+	// FlushType: Wait RHI Thread
+	virtual FWorkGraphShaderRHIRef RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+	{
+		return FWorkGraphShaderRHIRef();
+	}
+
 	/**
 	 * Attempts to open a shader library for the given shader platform & name within the provided directory.
 	 * @param Platform The shader platform for shaders withing the library.
@@ -308,6 +314,12 @@ public:
 	virtual FComputePipelineStateRHIRef RHICreateComputePipelineState(FRHIComputeShader* ComputeShader, FRHIPipelineBinaryLibrary* PipelineBinary)
 	{
 		return RHICreateComputePipelineState(ComputeShader);
+	}
+
+	virtual FWorkGraphPipelineStateRHIRef RHICreateWorkGraphPipelineState(const FWorkGraphPipelineStateInitializer& Initializer)
+	{
+		checkNoEntry();
+		return nullptr;
 	}
 
 	/**
@@ -1057,6 +1069,12 @@ FORCEINLINE FComputeShaderRHIRef RHICreateComputeShader(TArrayView<const uint8> 
 	return GDynamicRHI->RHICreateComputeShader(Code, Hash);
 }
 
+FORCEINLINE FWorkGraphShaderRHIRef RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+{
+	LLM_SCOPE(ELLMTag::Shaders);
+	return GDynamicRHI->RHICreateWorkGraphShader(Code, Hash);
+}
+
 FORCEINLINE FGPUFenceRHIRef RHICreateGPUFence(const FName& Name)
 {
 	return GDynamicRHI->RHICreateGPUFence(Name);
@@ -1114,6 +1132,12 @@ FORCEINLINE FComputePipelineStateRHIRef RHICreateComputePipelineState(FRHIComput
 {
 	LLM_SCOPE(ELLMTag::Shaders);
 	return GDynamicRHI->RHICreateComputePipelineState(ComputeShader);
+}
+
+FORCEINLINE TRefCountPtr<FRHIWorkGraphPipelineState> RHICreateWorkGraphPipelineState(const FWorkGraphPipelineStateInitializer& Initializer)
+{
+	LLM_SCOPE(ELLMTag::Shaders);
+	return GDynamicRHI->RHICreateWorkGraphPipelineState(Initializer);
 }
 
 FORCEINLINE FRenderQueryRHIRef RHICreateRenderQuery(ERenderQueryType QueryType)

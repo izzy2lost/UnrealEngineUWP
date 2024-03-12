@@ -650,6 +650,61 @@ public:
 #endif
 };
 
+/* State for work graphs  */
+class FWorkGraphPipelineState : public FPipelineState
+{
+public:
+	FWorkGraphPipelineState(FRHIWorkGraphShader* InWorkGraphShader)
+		: WorkGraphShader(InWorkGraphShader)
+	{
+		WorkGraphShader->AddRef();
+	}
+
+	~FWorkGraphPipelineState()
+	{
+		WorkGraphShader->Release();
+	}
+
+	virtual bool IsCompute() const
+	{
+		return true;
+	}
+
+	bool IsCompilationComplete() const
+	{
+		return !CompletionEvent.IsValid() || CompletionEvent->IsComplete();
+	}
+
+	inline void Verify_IncUse()
+	{
+#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+		int32 Result = InUseCount.Increment();
+		check(Result >= 1);
+#endif
+	}
+
+	inline void Verify_DecUse()
+	{
+#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+		int32 Result = InUseCount.Decrement();
+		check(Result >= 0);
+#endif
+	}
+
+	inline void Verify_NoUse()
+	{
+#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+		check(InUseCount.GetValue() == 0);
+#endif
+	}
+
+	FWorkGraphShaderRHIRef WorkGraphShader;
+	FWorkGraphPipelineStateRHIRef RHIPipeline;
+#if PIPELINESTATECACHE_VERIFYTHREADSAFE
+	FThreadSafeCounter InUseCount;
+#endif
+};
+
 /* State for graphics */
 class FGraphicsPipelineState : public FPipelineState
 {
@@ -777,6 +832,13 @@ public:
 };
 
 RHI_API FRHIComputePipelineState* GetRHIComputePipelineState(FComputePipelineState* PipelineState)
+{
+	ensure(PipelineState->RHIPipeline);
+	PipelineState->CompletionEvent = nullptr;
+	return PipelineState->RHIPipeline;
+}
+
+RHI_API FRHIWorkGraphPipelineState* GetRHIWorkGraphPipelineState(FWorkGraphPipelineState* PipelineState)
 {
 	ensure(PipelineState->RHIPipeline);
 	PipelineState->CompletionEvent = nullptr;
@@ -1628,10 +1690,12 @@ public:
 
 // Typed caches for compute and graphics
 typedef TSharedPipelineStateCache<FRHIComputeShader*, FComputePipelineState*> FComputePipelineCache;
+typedef TSharedPipelineStateCache<FWorkGraphPipelineStateInitializer, FWorkGraphPipelineState*> FWorkGraphPipelineCache;
 typedef TSharedPipelineStateCache<FGraphicsPipelineStateInitializer, FGraphicsPipelineState*> FGraphicsPipelineCache;
 
 // These are the actual caches for both pipelines
 FComputePipelineCache GComputePipelineCache;
+FWorkGraphPipelineCache GWorkGraphPipelineCache;
 FGraphicsPipelineCache GGraphicsPipelineCache;
 FPrecacheGraphicsPipelineCache GPrecacheGraphicsPipelineCache;
 FPrecacheComputePipelineCache GPrecacheComputePipelineCache;
@@ -2150,6 +2214,9 @@ void PipelineStateCache::FlushResources()
 	GComputePipelineCache.ConsolidateThreadedCaches();
 	GComputePipelineCache.ProcessDelayedCleanup();
 
+	GWorkGraphPipelineCache.ConsolidateThreadedCaches();
+	GWorkGraphPipelineCache.ProcessDelayedCleanup();
+
 	GGraphicsPipelineCache.ConsolidateThreadedCaches();
 	GGraphicsPipelineCache.ProcessDelayedCleanup();
 
@@ -2222,14 +2289,16 @@ void PipelineStateCache::FlushResources()
 
 	int32 ReleasedComputeEntries = 0;
 	int32 ReleasedGraphicsEntries = 0;
+	int32 ReleasedWorkGraphEntries = 0;
 
 	ReleasedComputeEntries  =  GComputePipelineCache.DiscardAndSwap();
 	ReleasedGraphicsEntries = GGraphicsPipelineCache.DiscardAndSwap();
+	ReleasedWorkGraphEntries = GWorkGraphPipelineCache.DiscardAndSwap();
 
 #if PSO_TRACK_CACHE_STATS
-	UE_LOG(LogRHI, Log, TEXT("Cleared state cache in %.02f ms. %d ComputeEntries, %d Graphics entries")
+	UE_LOG(LogRHI, Log, TEXT("Cleared state cache in %.02f ms. %d ComputeEntries, %d GraphicsEntries, %d WorkGraphEntries")
 		, (FPlatformTime::Seconds() - CurrentTime) / 1000
-		, ReleasedComputeEntries, ReleasedGraphicsEntries);
+		, ReleasedComputeEntries, ReleasedGraphicsEntries, ReleasedWorkGraphEntries);
 #endif // PSO_TRACK_CACHE_STATS
 
 }
@@ -2337,6 +2406,35 @@ FComputePipelineState* PipelineStateCache::GetAndOrCreateComputePipelineState(FR
 	}
 
 	// return the state pointer
+	return OutCachedState;
+}
+
+inline void ValidateWorkGraphPipelineStateInitializer(const FWorkGraphPipelineStateInitializer& Initializer)
+{
+	check(Initializer.GetShader() != nullptr);
+}
+
+FWorkGraphPipelineState* PipelineStateCache::GetAndOrCreateWorkGraphPipelineState(FRHIComputeCommandList& RHICmdList, const FWorkGraphPipelineStateInitializer& Initializer)
+{
+	LLM_SCOPE(ELLMTag::PSO);
+	ValidateWorkGraphPipelineStateInitializer(Initializer);
+
+	FWorkGraphPipelineState* OutCachedState = nullptr;
+	bool bWasFound = GWorkGraphPipelineCache.Find(Initializer, OutCachedState);
+
+	if (!bWasFound)
+	{
+		OutCachedState = new FWorkGraphPipelineState(Initializer.GetShader());
+		OutCachedState->RHIPipeline = RHICreateWorkGraphPipelineState(Initializer);
+		GWorkGraphPipelineCache.Add(Initializer, OutCachedState);
+	}
+	else
+	{
+#if PSO_TRACK_CACHE_STATS
+		OutCachedState->AddHit();
+#endif
+	}
+
 	return OutCachedState;
 }
 
@@ -2869,6 +2967,29 @@ FComputePipelineState* PipelineStateCache::FindComputePipelineState(FRHIComputeS
 	}
 }
 
+FWorkGraphPipelineState* PipelineStateCache::FindWorkGraphPipelineState(const FWorkGraphPipelineStateInitializer& Initializer, bool bVerifyUse)
+{
+	LLM_SCOPE(ELLMTag::PSO);
+	ValidateWorkGraphPipelineStateInitializer(Initializer);
+
+	FWorkGraphPipelineState* PipelineState = nullptr;
+	GWorkGraphPipelineCache.Find(Initializer, PipelineState);
+
+	if (PipelineState && PipelineState->IsComplete())
+	{
+		if (bVerifyUse)
+		{
+			PipelineState->Verify_IncUse();
+		}
+
+		return PipelineState;
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
 FGraphicsPipelineState* PipelineStateCache::FindGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer, bool bVerifyUse)
 {
 	LLM_SCOPE(ELLMTag::PSO);
@@ -3204,6 +3325,7 @@ static FCriticalSection GVertexDeclarationLock;
 void PipelineStateCache::Shutdown()
 {
 	GComputePipelineCache.WaitTasksComplete();
+	GWorkGraphPipelineCache.WaitTasksComplete();
 	GGraphicsPipelineCache.WaitTasksComplete();
 	GPrecacheGraphicsPipelineCache.WaitTasksComplete();
 	GPrecacheComputePipelineCache.WaitTasksComplete();
@@ -3215,6 +3337,7 @@ void PipelineStateCache::Shutdown()
 	for (int32 i = 0; i < 2; i++)
 	{
 		GComputePipelineCache.DiscardAndSwap();
+		GWorkGraphPipelineCache.DiscardAndSwap();
 		GGraphicsPipelineCache.DiscardAndSwap();
 	}
 	FPipelineFileCacheManager::Shutdown();

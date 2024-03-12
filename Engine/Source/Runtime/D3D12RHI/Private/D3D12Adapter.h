@@ -238,6 +238,7 @@ public:
 	const FD3D12RootSignature* GetRootSignature(const FBoundShaderStateInput& BoundShaderState);
 	const FD3D12RootSignature* GetRootSignature(const class FD3D12RayTracingShader* Shader);
 	const FD3D12RootSignature* GetRootSignature(const class FD3D12ComputeShader* Shader);
+	const FD3D12RootSignature* GetRootSignature(const class FD3D12WorkGraphShader* Shader);
 	const FD3D12RootSignature* GetGlobalRayTracingRootSignature();
 
 	FORCEINLINE FD3D12RootSignatureManager* GetRootSignatureManager()

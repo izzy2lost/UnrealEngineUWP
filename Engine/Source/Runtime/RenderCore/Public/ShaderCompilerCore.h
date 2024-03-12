@@ -162,6 +162,8 @@ enum ECompilerFlags
 	CFLAG_IndirectDraw,
 	// Shader is used with shader bundles.
 	CFLAG_ShaderBundle,
+	// Shader contains workgraph nodes that are only intended for linking against other workgraph shaders containing the program entry node.
+	CFLAG_WorkgraphLocalNodes,
 	CFLAG_Max,
 };
 static_assert(CFLAG_Max < 64, "Out of bitfield space! Modify FShaderCompilerFlags");

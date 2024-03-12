@@ -78,6 +78,8 @@ enum ERTRootSignatureType
 	RS_Raster,
 	RS_RayTracingGlobal,
 	RS_RayTracingLocal,
+	RS_WorkGraphGlobal,
+	RS_WorkGraphLocal,
 };
 
 struct FShaderRegisterCounts

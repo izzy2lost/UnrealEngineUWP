@@ -7,12 +7,12 @@
 #pragma once
 
 #include "BoundShaderStateCache.h"
-#include "D3D12NvidiaExtensions.h"
-#include "D3D12ShaderResources.h"
-#include "D3D12Residency.h"
-#include "D3D12Util.h"
-#include "D3D12State.h"
 #include "D3D12DirectCommandListManager.h"
+#include "D3D12NvidiaExtensions.h"
+#include "D3D12Residency.h"
+#include "D3D12ShaderResources.h"
+#include "D3D12State.h"
+#include "D3D12Util.h"
 #include "RHIPoolAllocator.h"
 #include "Templates/UniquePtr.h"
 
@@ -32,6 +32,7 @@ class FD3D12CommandContext;
 class FD3D12SegListAllocator;
 class FD3D12PoolAllocator;
 struct FD3D12ComputePipelineState;
+struct FD3D12WorkGraphPipelineState;
 struct FD3D12GraphicsPipelineState;
 struct FD3D12ResourceDesc;
 
@@ -1124,6 +1125,11 @@ template<>
 struct TD3D12ResourceTraits<FRHIComputePipelineState>
 {
 	typedef FD3D12ComputePipelineState TConcreteType;
+};
+template<>
+struct TD3D12ResourceTraits<FRHIWorkGraphPipelineState>
+{
+	typedef FD3D12WorkGraphPipelineState TConcreteType;
 };
 template<>
 struct TD3D12ResourceTraits<FRHIGPUFence>

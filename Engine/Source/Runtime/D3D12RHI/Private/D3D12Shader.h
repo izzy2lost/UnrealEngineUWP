@@ -155,6 +155,16 @@ public:
 	const FD3D12RootSignature* RootSignature = nullptr;
 };
 
+class FD3D12WorkGraphShader : public FRHIWorkGraphShader, public FD3D12ShaderData
+{
+public:
+	enum { StaticFrequency = SF_WorkGraph };
+
+	const FD3D12RootSignature* RootSignature = nullptr;
+
+	FString EntryPoint;
+};
+
 #if D3D12_RHI_RAYTRACING
 
 class FD3D12RayTracingShader : public FRHIRayTracingShader, public FD3D12ShaderData
@@ -202,6 +212,11 @@ template<>
 struct TD3D12ResourceTraits<FRHIComputeShader>
 {
 	typedef FD3D12ComputeShader TConcreteType;
+};
+template<>
+struct TD3D12ResourceTraits<FRHIWorkGraphShader>
+{
+	typedef FD3D12WorkGraphShader TConcreteType;
 };
 template<>
 struct TD3D12ResourceTraits<FRHIVertexDeclaration>

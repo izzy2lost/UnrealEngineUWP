@@ -216,6 +216,7 @@ static const FTypeLayoutDesc* GetVertexFactoryParametersLayout(EShaderFrequency 
 	case SF_RayMiss: return TVertexFactoryParameterTraits<SF_RayMiss, VertexFactoryType>::GetLayout();
 	case SF_RayHitGroup: return TVertexFactoryParameterTraits<SF_RayHitGroup, VertexFactoryType>::GetLayout();
 	case SF_RayCallable: return TVertexFactoryParameterTraits<SF_RayCallable, VertexFactoryType>::GetLayout();
+	case SF_WorkGraph: return TVertexFactoryParameterTraits<SF_WorkGraph, VertexFactoryType>::GetLayout();
 	default: checkNoEntry(); return nullptr;
 	}
 }
@@ -235,6 +236,7 @@ static FVertexFactoryShaderParameters* ConstructVertexFactoryParameters(EShaderF
 	case SF_RayMiss: return TVertexFactoryParameterTraits<SF_RayMiss, VertexFactoryType>::Create(ParameterMap);
 	case SF_RayHitGroup: return TVertexFactoryParameterTraits<SF_RayHitGroup, VertexFactoryType>::Create(ParameterMap);
 	case SF_RayCallable: return TVertexFactoryParameterTraits<SF_RayCallable, VertexFactoryType>::Create(ParameterMap);
+	case SF_WorkGraph: return TVertexFactoryParameterTraits<SF_WorkGraph, VertexFactoryType>::Create(ParameterMap);
 	default: checkNoEntry(); return nullptr;
 	}
 }
@@ -264,6 +266,7 @@ static void GetVertexFactoryParametersElementShaderBindings(EShaderFrequency Sha
 	case SF_RayMiss: TVertexFactoryParameterTraits<SF_RayMiss, VertexFactoryType>::GetElementShaderBindings(Parameters, Scene, View, Shader, InputStreamType, FeatureLevel, VertexFactory, BatchElement, ShaderBindings, VertexStreams); break;
 	case SF_RayHitGroup: TVertexFactoryParameterTraits<SF_RayHitGroup, VertexFactoryType>::GetElementShaderBindings(Parameters, Scene, View, Shader, InputStreamType, FeatureLevel, VertexFactory, BatchElement, ShaderBindings, VertexStreams); break;
 	case SF_RayCallable: TVertexFactoryParameterTraits<SF_RayCallable, VertexFactoryType>::GetElementShaderBindings(Parameters, Scene, View, Shader, InputStreamType, FeatureLevel, VertexFactory, BatchElement, ShaderBindings, VertexStreams); break;
+	case SF_WorkGraph: TVertexFactoryParameterTraits<SF_WorkGraph, VertexFactoryType>::GetElementShaderBindings(Parameters, Scene, View, Shader, InputStreamType, FeatureLevel, VertexFactory, BatchElement, ShaderBindings, VertexStreams); break;
 	default: checkNoEntry(); break;
 	}
 }

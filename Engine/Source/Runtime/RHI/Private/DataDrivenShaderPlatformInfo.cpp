@@ -298,6 +298,7 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_SUPPORT_HELPER(SupportsBarycentricsSemantic);
 	GET_SECTION_BOOL_HELPER(bSupportsWave64);
 	GET_SECTION_BOOL_HELPER(bSupportsIndependentSamplers);
+	GET_SECTION_BOOL_HELPER(bSupportsWorkGraphs);
 #undef GET_SECTION_BOOL_HELPER
 #undef GET_SECTION_INT_HELPER
 #undef GET_SECTION_SUPPORT_HELPER
