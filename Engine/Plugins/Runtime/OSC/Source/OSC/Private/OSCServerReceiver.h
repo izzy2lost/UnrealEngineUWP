@@ -42,10 +42,10 @@ namespace UE::OSC
 			uint32 MaxReadBufferSize = 65507u;
 		};
 
-		explicit FServerReceiver(FPrivateToken, FOptions&& InOptions);
+		explicit FServerReceiver(FPrivateToken, FOptions InOptions);
 		virtual ~FServerReceiver();
 
-		static TSharedRef<FServerReceiver> Launch(const FString& InName, const FIPv4Endpoint& InEndpoint, FOptions&& InOptions);
+		static TSharedRef<FServerReceiver> Launch(const FString& InName, const FIPv4Endpoint& InEndpoint, FOptions InOptions);
 
 		FString GetDescription() const;
 
