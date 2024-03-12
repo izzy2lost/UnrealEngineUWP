@@ -1321,11 +1321,7 @@ void RenderSkyViewLutCS(uint3 ThreadId : SV_DispatchThreadID)
 ////////////////////////////////////////////////////////////
 
 // see SkyAtmosphereRendering.cpp GetSkyLutTextureFormat
-#if SHADING_PATH_MOBILE
-RWTexture2D<float4> DistantSkyLightLutUAV;
-#else
-RWTexture2D<float3> DistantSkyLightLutUAV;
-#endif
+RWBuffer<float4> DistantSkyLightLutBufferUAV;
 //Buffer<float4> UniformSphereSamplesBuffer;
 float4 AtmosphereLightDirection0;
 float4 AtmosphereLightDirection1;
@@ -1416,12 +1412,10 @@ void RenderDistantSkyLightLutCS(uint3 ThreadId : SV_DispatchThreadID)
 		const float SamplerSolidAngle = 4.0f * PI / float(THREADGROUP_SIZE * THREADGROUP_SIZE);
 		const float3 Illuminance = AccumulatedLuminanceSamples * SamplerSolidAngle;
 		const float3 UniformPhaseFunction = 1.0f / (4.0f * PI);
+		
 		// Luminance assuming scattering in a medium with a uniform phase function.
-#if SHADING_PATH_MOBILE
-		DistantSkyLightLutUAV[int2(PixPos)] = float4(Illuminance * UniformPhaseFunction, 0.0f);
-#else
-		DistantSkyLightLutUAV[int2(PixPos)] = Illuminance * UniformPhaseFunction;
-#endif
+		DistantSkyLightLutBufferUAV[0] = float4(Illuminance * UniformPhaseFunction, 0.0f);
+		
 		// Since this is ran once per scene, we do not have access to view data (VIEWDATA_AVAILABLE==0). 
 		// So this buffer is not pre-exposed today.
 	}

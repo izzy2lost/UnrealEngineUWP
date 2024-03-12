@@ -496,13 +496,25 @@ FSkyAtmosphereRenderSceneInfo::~FSkyAtmosphereRenderSceneInfo()
 {
 }
 
-TRefCountPtr<IPooledRenderTarget>& FSkyAtmosphereRenderSceneInfo::GetDistantSkyLightLutTexture()
+void FSkyAtmosphereRenderSceneInfo::CreateDistantSkyLightLutBufferAndSRV(FRDGBuilder& GraphBuilder)
+{
+	DistantSkyLightLutBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(FVector4f), 1), TEXT("SkyAtmosphere.DistantSkyLightLutBuffer"));
+	DistantSkyLightLutBufferSRV = DistantSkyLightLutBuffer->GetOrCreateSRV(GraphBuilder.RHICmdList, FRHIBufferSRVCreateInfo(PF_A32B32G32R32F));
+}
+
+TRefCountPtr<FRDGPooledBuffer>& FSkyAtmosphereRenderSceneInfo::GetDistantSkyLightLutBuffer()
+{
+	check(CVarSkyAtmosphereDistantSkyLightLUT.GetValueOnRenderThread() > 0);
+	return DistantSkyLightLutBuffer;
+}
+
+FRHIShaderResourceView* FSkyAtmosphereRenderSceneInfo::GetDistantSkyLightLutBufferSRV()
 {
 	if (CVarSkyAtmosphereDistantSkyLightLUT.GetValueOnRenderThread() > 0)
 	{
-		return DistantSkyLightLutTexture;
+		return DistantSkyLightLutBufferSRV;
 	}
-	return GSystemTextures.BlackDummy;
+	return GBlackVertexBufferWithSRV->ShaderResourceViewRHI;
 }
 
 
@@ -825,7 +837,7 @@ public:
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FAtmosphereUniformShaderParameters, Atmosphere)
 		SHADER_PARAMETER_STRUCT_REF(FSkyAtmosphereInternalCommonParameters, SkyAtmosphere)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, DistantSkyLightLutUAV)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float4>, DistantSkyLightLutBufferUAV)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, TransmittanceLutTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, MultiScatteredLuminanceLutTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, TransmittanceLutTextureSampler)
@@ -1097,9 +1109,9 @@ TGlobalResource<FUniformSphereSamplesBuffer> GUniformSphereSamplesBuffer;
 	FSceneRenderer functions
 =============================================================================*/
 
-void FSceneRenderer::InitSkyAtmosphereForViews(FRHICommandListImmediate& RHICmdList)
+void FSceneRenderer::InitSkyAtmosphereForViews(FRHICommandListImmediate& RHICmdList, FRDGBuilder& GraphBuilder)
 {
-	InitSkyAtmosphereForScene(RHICmdList, Scene);
+	InitSkyAtmosphereForScene(RHICmdList, GraphBuilder, Scene);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
@@ -1126,7 +1138,7 @@ static EPixelFormat GetSkyLutSmallTextureFormat()
 	return PF_R8G8B8A8;
 }
 
-void InitSkyAtmosphereForScene(FRHICommandListImmediate& RHICmdList, FScene* Scene)
+void InitSkyAtmosphereForScene(FRHICommandListImmediate& RHICmdList, FRDGBuilder& GraphBuilder, FScene* Scene)
 {
 	if (Scene)
 	{
@@ -1165,12 +1177,7 @@ void InitSkyAtmosphereForScene(FRHICommandListImmediate& RHICmdList, FScene* Sce
 
 		if (CVarSkyAtmosphereDistantSkyLightLUT.GetValueOnRenderThread() > 0)
 		{
-			TRefCountPtr<IPooledRenderTarget>& DistantSkyLightLutTexture = SkyInfo.GetDistantSkyLightLutTexture();
-			Desc = FPooledRenderTargetDesc::Create2DDesc(
-				FIntPoint(1, 1),
-				TextureLUTFormat, FClearValueBinding::None, TexCreate_None, TexCreate_ShaderResource | TexCreate_UAV, false);
-			GRenderTargetPool.FindFreeElement(RHICmdList, Desc, DistantSkyLightLutTexture, TEXT("SkyAtmosphere.DistantSkyLightLut"));
-		//	RHICmdList.Transition(FRHITransitionInfo(DistantSkyLightLutTexture->GetRHI(), ERHIAccess::Unknown, ERHIAccess::SRVMask)); // ERHIPipeline::All
+			SkyInfo.CreateDistantSkyLightLutBufferAndSRV(GraphBuilder);
 		}
 	}
 }
@@ -1369,8 +1376,8 @@ void FSceneRenderer::RenderSkyAtmosphereLookUpTables(FRDGBuilder& GraphBuilder, 
 	// Distant Sky Light LUT
 	if(CVarSkyAtmosphereDistantSkyLightLUT.GetValueOnRenderThread() > 0)
 	{
-		FRDGTextureRef DistantSkyLightLut = GraphBuilder.RegisterExternalTexture(SkyInfo.GetDistantSkyLightLutTexture());
-		FRDGTextureUAVRef DistantSkyLightLutUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(DistantSkyLightLut, 0));
+		FRDGBufferRef DistantSkyLightLutBuffer = GraphBuilder.RegisterExternalBuffer(SkyInfo.GetDistantSkyLightLutBuffer());
+		FRDGBufferUAVRef DistantSkyLightLutBufferUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(DistantSkyLightLutBuffer, PF_A32B32G32R32F));
 
 		FRenderDistantSkyLightLutCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FSecondAtmosphereLight>(bSecondAtmosphereLightEnabled);
@@ -1384,7 +1391,7 @@ void FSceneRenderer::RenderSkyAtmosphereLookUpTables(FRDGBuilder& GraphBuilder, 
 		PassParameters->TransmittanceLutTexture = TransmittanceLut;
 		PassParameters->MultiScatteredLuminanceLutTexture = MultiScatteredLuminanceLut;
 		PassParameters->UniformSphereSamplesBuffer = GUniformSphereSamplesBuffer.UniformSphereSamplesBuffer.SRV;
-		PassParameters->DistantSkyLightLutUAV = DistantSkyLightLutUAV;
+		PassParameters->DistantSkyLightLutBufferUAV = DistantSkyLightLutBufferUAV;
 
 		FLightSceneInfo* Light0 = Scene->AtmosphereLights[0];
 		FLightSceneInfo* Light1 = Scene->AtmosphereLights[1];
@@ -1414,7 +1421,7 @@ void FSceneRenderer::RenderSkyAtmosphereLookUpTables(FRDGBuilder& GraphBuilder, 
 		const FIntVector NumGroups = FIntVector::DivideAndRoundUp(TextureSize, FRenderDistantSkyLightLutCS::GroupSize);
 		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("DistantSkyLightLut"), PassFlag, ComputeShader, PassParameters, NumGroups);
 
-		PendingRDGResources.DistantSkyLightLut = DistantSkyLightLut;
+		PendingRDGResources.DistantSkyLightLutBuffer = DistantSkyLightLutBuffer;
 	}
 
 	SkyAtmosphereLightShadowData LightShadowData;
@@ -1705,9 +1712,9 @@ void FSkyAtmospherePendingRDGResources::CommitToSceneAndViewUniformBuffers(FRDGB
 	FScene* Scene = SceneRenderer->Scene;
 	FSkyAtmosphereRenderSceneInfo& SkyInfo = *Scene->GetSkyAtmosphereSceneInfo();
 
-	if (DistantSkyLightLut)
+	if (DistantSkyLightLutBuffer && CVarSkyAtmosphereDistantSkyLightLUT.GetValueOnRenderThread() > 0)
 	{
-		SkyInfo.GetDistantSkyLightLutTexture() = ConvertToExternalAccessTexture(GraphBuilder, ExternalAccessQueue, DistantSkyLightLut, ERHIAccess::SRVMask, ERHIPipeline::All);
+		SkyInfo.GetDistantSkyLightLutBuffer() = ConvertToExternalAccessBuffer(GraphBuilder, ExternalAccessQueue, DistantSkyLightLutBuffer, ERHIAccess::SRVMask, ERHIPipeline::All);
 	}
 
 	if (RealTimeReflectionCaptureSkyAtmosphereViewLutTexture)

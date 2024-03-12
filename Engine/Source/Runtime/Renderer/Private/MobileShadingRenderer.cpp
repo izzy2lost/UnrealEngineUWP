@@ -639,7 +639,7 @@ void FMobileSceneRenderer::InitViews(
 		// Initialise Sky/View resources before the view global uniform buffer is built.
 		if (ShouldRenderSkyAtmosphere(Scene, ViewFamily.EngineShowFlags))
 		{
-			InitSkyAtmosphereForViews(RHICmdList);
+			InitSkyAtmosphereForViews(RHICmdList, GraphBuilder);
 		}
 
 		if (bRequiresShadowProjections)

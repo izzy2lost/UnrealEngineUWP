@@ -1286,7 +1286,7 @@ void FViewInfo::SetupUniformBufferParameters(
 	FRHITexture* CameraAerialPerspectiveVolumeFound = nullptr;
 	FRHITexture* CameraAerialPerspectiveVolumeMieOnlyFound = nullptr;
 	FRHITexture* CameraAerialPerspectiveVolumeRayOnlyFound = nullptr;
-	FRHITexture* DistantSkyLightLutTextureFound = nullptr;
+	FRHIShaderResourceView* DistantSkyLightLutBufferSRVFound = nullptr;
 	if (ShouldRenderSkyAtmosphere(Scene, Family->EngineShowFlags))
 	{
 		ViewUniformShaderParameters.SkyAtmospherePresentInScene = 1.0f;
@@ -1302,11 +1302,8 @@ void FViewInfo::SetupUniformBufferParameters(
 		{
 			TransmittanceLutTextureFound = PooledTransmittanceLutTexture->GetRHI();
 		}
-		const TRefCountPtr<IPooledRenderTarget>& PooledDistantSkyLightLutTexture = SkyAtmosphere->GetDistantSkyLightLutTexture();
-		if (PooledDistantSkyLightLutTexture.IsValid())
-		{
-			DistantSkyLightLutTextureFound = PooledDistantSkyLightLutTexture->GetRHI();
-		}
+
+		DistantSkyLightLutBufferSRVFound = SkyAtmosphere->GetDistantSkyLightLutBufferSRV();
 
 		if (this->SkyAtmosphereCameraAerialPerspectiveVolume.IsValid())
 		{
@@ -1435,8 +1432,11 @@ void FViewInfo::SetupUniformBufferParameters(
 
 	ViewUniformShaderParameters.TransmittanceLutTexture = OrWhite2DIfNull(TransmittanceLutTextureFound);
 	ViewUniformShaderParameters.TransmittanceLutTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
-	ViewUniformShaderParameters.DistantSkyLightLutTexture = OrBlack2DIfNull(DistantSkyLightLutTextureFound);
-	ViewUniformShaderParameters.DistantSkyLightLutTextureSampler = TStaticSamplerState<SF_Point, AM_Wrap, AM_Wrap>::GetRHI();
+	ViewUniformShaderParameters.DistantSkyLightLutBufferSRV = GBlackVertexBufferWithSRV->ShaderResourceViewRHI.GetReference();
+	if(DistantSkyLightLutBufferSRVFound != nullptr)
+	{
+		ViewUniformShaderParameters.DistantSkyLightLutBufferSRV = DistantSkyLightLutBufferSRVFound;
+	}
 	ViewUniformShaderParameters.SkyViewLutTexture = OrBlack2DIfNull(SkyViewLutTextureFound);
 	ViewUniformShaderParameters.SkyViewLutTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 	ViewUniformShaderParameters.CameraAerialPerspectiveVolume = OrBlack3DAlpha1IfNull(CameraAerialPerspectiveVolumeFound);

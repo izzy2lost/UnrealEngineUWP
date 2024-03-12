@@ -2497,7 +2497,7 @@ protected:
 	void RenderPlanarReflection(class FPlanarReflectionSceneProxy* ReflectionSceneProxy);
 
 	/** Initialise sky atmosphere resources.*/
-	void InitSkyAtmosphereForViews(FRHICommandListImmediate& RHICmdList);
+	void InitSkyAtmosphereForViews(FRHICommandListImmediate& RHICmdList, FRDGBuilder& GraphBuilder);
 	
 	/** Render the sky atmosphere look up table needed for this frame.*/
 	void RenderSkyAtmosphereLookUpTables(FRDGBuilder& GraphBuilder, class FSkyAtmospherePendingRDGResources& PendingRDGResources);

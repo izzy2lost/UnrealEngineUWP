@@ -153,6 +153,27 @@ public:
 
 FVertexBufferWithSRV* GWhiteVertexBufferWithSRV = new TGlobalResource<FWhiteVertexBuffer, FRenderResource::EInitPhase::Pre>;
 
+class FBlackVertexBuffer : public FVertexBufferWithSRV
+{
+public:
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
+	{
+		// Create the texture RHI.  		
+		FRHIResourceCreateInfo CreateInfo(TEXT("BlackVertexBuffer"));
+
+		VertexBufferRHI = RHICmdList.CreateVertexBuffer(sizeof(FVector4f), BUF_Static | BUF_ShaderResource, CreateInfo);
+
+		FVector4f* BufferData = (FVector4f*)RHICmdList.LockBuffer(VertexBufferRHI, 0, sizeof(FVector4f), RLM_WriteOnly);
+		*BufferData = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+		RHICmdList.UnlockBuffer(VertexBufferRHI);
+
+		// Create a view of the buffer
+		ShaderResourceViewRHI = RHICmdList.CreateShaderResourceView(VertexBufferRHI, sizeof(FVector4f), PF_A32B32G32R32F);
+	}
+};
+
+FVertexBufferWithSRV* GBlackVertexBufferWithSRV = new TGlobalResource<FBlackVertexBuffer, FRenderResource::EInitPhase::Pre>;
+
 class FWhiteVertexBufferWithRDG : public FBufferWithRDG
 {
 public:
