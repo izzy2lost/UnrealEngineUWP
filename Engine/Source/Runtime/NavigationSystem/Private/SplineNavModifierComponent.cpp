@@ -4,13 +4,29 @@
 
 #include "AI/NavigationSystemBase.h"
 #include "AI/Navigation/NavigationRelevantData.h"
-#include "Components/SplineComponent.h"
 #include "Curves/BezierUtilities.h"
+#include "Components/SplineComponent.h"
+#include "VisualLogger/VisualLogger.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SplineNavModifierComponent)
 
 namespace
 {
+	// Fetch the spline component from the actor
+	const USplineComponent* GetSpline(const AActor* Owner)
+	{
+		if (!Owner)
+		{
+			UE_LOG(LogNavigation, Warning, TEXT("USplineNavModifierComponent has no owner, cannot proceed"));
+			return nullptr;
+		}
+
+		const USplineComponent* Spline = Owner->GetComponentByClass<USplineComponent>();
+		UE_CVLOG_UELOG(!Spline, Owner, LogNavigation, Warning, TEXT("USplineNavModifierComponent attached to \"%s\" could not find a spline component, cannot proceed"), *Owner->GetName());
+
+		return Spline;
+	}
+
 	// Subdivide the spline into linear segments, adapting to its curvature (more curvy means more linear segments)
 	void SubdivideSpline(TArray<FVector>& OutSubdivisions, const USplineComponent& Spline, const float SubdivisionThreshold)
 	{
@@ -48,19 +64,19 @@ namespace
 
 void USplineNavModifierComponent::CalculateBounds() const
 {
-	Bounds = FBox(ForceInit);
-
-	if (const USplineComponent* Spline = Cast<USplineComponent>(AttachedSpline.GetComponent(GetOwner())))
+	const USplineComponent* Spline = GetSpline(GetOwner());
+	if (!Spline)
 	{
-		// The largest stroke length is used to expand the bounds
-		const double Buffer = FMath::Max(StrokeWidth / 2.0, StrokeHeight / 2.0);
-		Bounds = Spline->CalcBounds(SplineTransform).GetBox().ExpandBy(Buffer);
+		return;
 	}
+
+	const double Buffer = FMath::Max(StrokeWidth / 2.0, StrokeHeight / 2.0);
+	Bounds = Spline->CalcBounds(Spline->GetComponentTransform()).GetBox().ExpandBy(Buffer);
 }
 
 void USplineNavModifierComponent::GetNavigationData(FNavigationRelevantData& Data) const
 {
-	const USplineComponent* Spline = Cast<USplineComponent>(AttachedSpline.GetComponent(GetOwner()));
+	const USplineComponent* Spline = GetSpline(GetOwner());
 	if (!Spline)
 	{
 		return;
@@ -81,7 +97,7 @@ void USplineNavModifierComponent::GetNavigationData(FNavigationRelevantData& Dat
 
 	// Subdivide the spline so that high curvature sections get smaller and more linear segments than straighter sections
 	TArray<FVector> Subdivisions;
-	SubdivideSpline(Subdivisions, *Spline, GetSubdivisionThreshold());
+	SubdivideSpline(Subdivisions, *Spline, GetSudivisionThreshold());
 	const int32 NumSubdivisions = Subdivisions.Num();
 
 	// Create volumes from the spline subdivisions and use them to mark the nav mesh with the given are
@@ -92,7 +108,7 @@ void USplineNavModifierComponent::GetNavigationData(FNavigationRelevantData& Dat
 		// Compute the rotation of this tube segment
 		const double TubeAngle = (Subdivisions[SubdivisionIndex] - Subdivisions[PrevIndex]).HeadingAngle();
 		const FQuat TubeRotation(FVector::UnitZ(), TubeAngle);
-
+		
 		// Compute the vertices of this tube segment
 		for (int i = 0; i < NumCrossSectionVertices; i++)
 		{
@@ -109,84 +125,7 @@ void USplineNavModifierComponent::GetNavigationData(FNavigationRelevantData& Dat
 	}
 }
 
-#if WITH_EDITORONLY_DATA
-USplineNavModifierComponent::USplineNavModifierComponent(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
-{
-	// Should tick in the editor in order to track whether the spline has updated
-	bTickInEditor = true;
-	PrimaryComponentTick.bCanEverTick = true;
-
-	// If a spline is already attached, store its update-checking data
-	if (const USplineComponent* Spline = Cast<USplineComponent>(AttachedSpline.GetComponent(GetOwner())))
-	{
-		SplineVersion = Spline->SplineCurves.Version;
-		SplineTransform = Spline->GetComponentTransform();
-	}
-}
-
-bool USplineNavModifierComponent::IsComponentTickEnabled() const
-{
-	const UWorld* World = GetWorld();
-	return World && !World->IsGameWorld();
-}
-
-void USplineNavModifierComponent::UpdateNavigationData()
-{
-	CalculateBounds();
-	FNavigationSystem::UpdateComponentData(*this);
-}
-
-void USplineNavModifierComponent::TickComponent(const float DeltaTime, const ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	if (const USplineComponent* Spline = Cast<USplineComponent>(AttachedSpline.GetComponent(GetOwner())))
-	{
-		// Update spline data, and if anything changed then update nav data 
-		if (SplineVersion != INVALID_SPLINE_VERSION)
-		{
-			bool bRequiresNavigationUpdate = false;
-	
-			const uint32 NextVersion = Spline->SplineCurves.Version;
-			if (SplineVersion != NextVersion)
-			{
-				SplineVersion = NextVersion;
-				bRequiresNavigationUpdate = true;
-			}
-
-			const FTransform& NextTransform = Spline->GetComponentTransform();
-			if (!SplineTransform.Equals(NextTransform))
-			{
-				SplineTransform = NextTransform;
-				bRequiresNavigationUpdate = true;
-			}
-
-			// This can be expensive (i.e. updating every tick as the user drags a spline point), so only update nav data if the editor flag is set
-			if (bRequiresNavigationUpdate && bUpdateNavDataOnSplineChange)
-			{
-				UpdateNavigationData();
-			}
-		}
-		else
-		{
-			// The spline just became valid; store its data and use it to update nav data
-			SplineVersion = Spline->SplineCurves.Version;
-			SplineTransform = Spline->GetComponentTransform();
-
-			UpdateNavigationData();
-		}
-	}
-	else if (SplineVersion != INVALID_SPLINE_VERSION)
-	{
-		// The spline just became invalid; reset the version and recompute nav data without the spline
-		SplineVersion = INVALID_SPLINE_VERSION;
-		UpdateNavigationData();
-	}
-}
-
-#endif // WITH_EDITORONLY_DATA
-
-float USplineNavModifierComponent::GetSubdivisionThreshold() const
+float USplineNavModifierComponent::GetSudivisionThreshold() const
 {
 	switch (SubdivisionLOD)
 	{
