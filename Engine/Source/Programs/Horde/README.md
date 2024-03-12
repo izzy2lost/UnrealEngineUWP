@@ -1,18 +1,19 @@
 ![Horde](Docs/Images/Logo.png#gh-light-mode-only)![Horde](Docs/Images/Logo-DarkMode.png#gh-dark-mode-only)
 
-**Horde** is a set of services that support workflows that Epic uses to develop Fortnite,
+**Horde** is a set of services supporting workflows Epic uses to develop Fortnite,
 Unreal Engine, and other titles.
 
-It is provided with full source code to Unreal Engine licensees, and is meant for licensees to host and configure
-themselves. We provide pre-built Docker images for deployment on Linux, and an MSI installer for Windows.
+> **NOTE:** We intend for licensees to host and configure Horde themselves.
 
-Horde provides the following functionality, each of which may be enabled or disabled independently:
+We provide Horde with full source code to Unreal Engine licensees, pre-built Docker images for deployment on Linux, and an MSI installer for Windows.
+
+Horde offers the following functionality, each of which may be enabled or disabled independently:
 
 * **[Remote Execution](Docs/Tutorials/RemoteCompilation.md)**: Functionality to offload compute work to other machines,
   including C++ compilation with **Unreal Build Accelerator**.
 * **[Build Automation (CI/CD)](Docs/Tutorials/BuildAutomation.md)**: A build automation system designed for teams working
   with large Perforce repositories.
-* **[Studio Analytics](Docs/Config/Analytics.md)**: Receives telemetry from the Unreal Editor, and shows charts for
+* **[Studio Analytics](Docs/Config/Analytics.md)**: Receives telemetry from Unreal Editor, and shows charts for
   key workflow metrics.
 * **[UnrealGameSync Metadata Server](Docs/Config/UgsMetadataServer.md)**: Various features for teams using
   UnrealGameSync, including build status reporting, comment aggregation, and crowdsourced build health functionality.
@@ -29,7 +30,7 @@ Horde is under heavy development, and large parts of it are still in flux. While
 the CI system) heavily at Epic, we consider it experimental for Unreal Engine licensees and offer limited support
 for it.
 
-See also: [Feature Status Page](Docs/Features.md)
+See also: [Feature Status](Docs/Features.md)
 
 ## Getting Started
 
@@ -48,7 +49,7 @@ Horde's reference documentation is divided into sections by target audience:
   * Describes how to set up and administer Horde.<br>
   **Audience:** Build/dev ops teams, admins.
 * [**Horde Internals**](Docs/Internals.md)
-  * Describes how to build and modify Horde, and its architecture.<br>
+  * Describes how to build and modify Horde and its architecture.<br>
   **Audience:** Developers wishing to extend Horde.
 
 ## Further Reading

@@ -4,17 +4,17 @@
 
 ## Introduction
 
-Several parts of Horde allow specifying a query condition to select particular agents for an operation. These
-condition strings are stored in JSON configuration flies as a string, and have a C-like syntax.
+In several parts of Horde, you can specify a query condition to select particular agents for an operation. These
+condition strings are stored in JSON configuration flies as a string and have a C-like syntax.
 
-Agents report a large number of properties collected from their characteristics, which can be viewed from the
+Agents report many properties collected from their characteristics, which you can view from the
 Agents page on the Horde dashboard. Agents may report multiple values for a particular key, such as
 `PlatformGroup: Desktop` and `PlatformGroup: Unix`. Conditions evaluate to true if there is any value for a particular
 key that satisfies the expression.
 
 ## Values
 
-Values in condition strings are dynamically typed, and coerced into the correct format for the operation performed on
+Values in condition strings are dynamically typed and coerced into the correct format for the operation performed on
 them. For example, the integer `0`, the strings `'0'` and `'false'`, and the boolean `false` are functionally
 equivalent.
 

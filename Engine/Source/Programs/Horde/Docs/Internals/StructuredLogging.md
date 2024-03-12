@@ -2,14 +2,14 @@
 
 # Structured Logging
 
-Horde makes heavy use of structured logging output from the engine and tools, which allows more context-specific
+Horde heavily uses structured logging output from Unreal Engine and tools, which provides more context-specific
 information than is typically available in plain-text logs.
 
-To explain how Horde uses structured logging, it's helpful to consider the sort of information we'd like to get from
+To understand how Horde uses structured logging, it's helpful to consider the sort of information we'd like to get from
 diagnostics in our automated processes:
 
 * Human-readable message
-* Source of diagnostic (compiler, linker, etc…)
+* Source of diagnostic (compiler, linker, etc.)
 * File(s) triggering the error (local path, path in version control)
 * Line number
 * Severity
@@ -26,7 +26,7 @@ following log fragment:
 
 ...provides the following information:
 
-* There has been a **compile** error
+* There has been a **compile** error.
 * It occurred while compiling `NVENC_EncoderH264.cpp`, due to a conflict between macros defined in `winnt.h` (line 603)
   and `Platform.h` (line 1081).
 * We can map `NVENC_EncoderH264.cpp` and `Platform.h` to files in source control and see their revision history.
@@ -34,12 +34,14 @@ following log fragment:
 * It took 5.95 seconds to compile the file.
 
 Rather than outputting plain text for log events, we preserve the format string and arguments and render them later.
-That allows us to render those arguments in different ways for types we understand, and allows us to index and search
-logs based on those fields. Horde natively supports structured log events, which we use to do things like render source
-files as links to the P4V timelapse view, and error codes as links to MSDN. We can also map paths back to their history
+That allows us to render those arguments differently for types we understand and enables us to index and search
+logs based on those fields. 
+
+Horde natively supports structured log events, which we use to do things like render source
+files as links to the P4V timelapse view and error codes as links to MSDN. We can also map paths back to their history
 in source control, which we use to figure out who broke the build via Horde's build health system.
 
-Anyone that's bumped up against the build system treating any log line containing the string "error:" as an error can
+Anyone who's bumped up against the build system treating any log line containing the string "error:" as an error can
 rejoice; if you output a structured log event directly, Horde will no longer need to guess whether it's an error or not.
 
 ## Formatting
@@ -51,12 +53,12 @@ Unreal Engine uses standard [message templates](https://messagetemplates.org) sy
 Notably:
 
 * All parameters in a format string should be named rather than using numeric placeholders (ie. {Text} rather than {0},
-  {1} etc..). These identifiers are used to name properties in the structured log event, and can be indexed and
-  searched on through tools like Splunk and Datadog.
-* Format strings should be constants, rather than using interpolated or concatenated strings. This allows the logger
+  {1} etc.). These identifiers are used to name properties in the structured log event and can be indexed and
+  searched through tools like Splunk and Datadog.
+* Format strings should be constants rather than using interpolated or concatenated strings. This allows the logger
   implementation to cache and reuse parsed format strings between messages.
 
-The log events may be renderered into a plain-text log for display in the console immediately, or preserved in a
+The log events may be rendered into a plain-text log for display in the console immediately or preserved in a
 structured form in a [JSONL](https://jsonlines.org/) file.
 
 ## Writing events from C#
@@ -66,21 +68,21 @@ AutomationTool and UnrealBuildTool have support for writing log events using the
 All logging should be done through an
 [ILogger](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.logging.ilogger)
 instance (defined in the Microsoft.Extensions.Logging namespace) rather than passed through the legacy 
-`Log.TraceInformation` et al static methods.
+`Log.TraceInformation` and other static methods.
 
 ## Writing events from C++
 
-The engine runtime supports writing structured log events using the `UE_LOGFMT` macro.
+Unreal Engine runtime supports writing structured log events using the `UE_LOGFMT` macro.
 
 ## Capturing Output
 
-Horde sets a UE_LOG_JSON_TO_STDOUT environment variable which instructs tools such as AutomationTool to output JSON
+Horde sets a UE_LOG_JSON_TO_STDOUT environment variable, which instructs tools such as AutomationTool to output JSON
 directly to stdout, which it ingests and stores for rendering on the dashboard.
 
 ## Legacy Log Output
 
-For external tools that doesn't support structured logs (eg. compilers, etc...), we have a library of regexes that run
-over plain text output and construct structured log events from them. There are some of these in UBT
+For external tools that don't support structured logs (e.g. compilers, etc.), we have a library of regexes that run
+over plain text output and construct structured log events from them. Some are in UBT
 (`Engine/Source/Programs/UnrealBuildTool/Matchers/...`) and some in UAT (
 `Engine/Source/Programs/AutomationTool/AutomationUtils/Matchers/...`).
 These are used by the `LogEventParser` class in EpicGames.Core.

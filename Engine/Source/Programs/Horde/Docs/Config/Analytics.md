@@ -2,14 +2,14 @@
 
 # Analytics
 
-Horde implements HTTP endpoints to allow collecting telemetry data sent by the Unreal Editor. This data can
-provide insights into bottlenecks and workflow issues that a team, and the Horde dashboard can aggregate and
+Horde implements HTTP endpoints to collect telemetry data sent by Unreal Editor. This data can
+provide insights into bottlenecks and workflow issues that a team and the Horde dashboard can aggregate and
 chart it to highlight improvements and regressions over time.
 
 ## Configuring the Editor
 
 To configure the editor to send analytics data to Horde, add the following lines to the
-`{{ PROJECT_DIR }}/Config/DefaultEngine.ini` file, and submit it to source control.
+`{{ PROJECT_DIR }}/Config/DefaultEngine.ini` file and submit it to source control.
 
     [StudioTelemetry.Horde]
     Name=HordeStudioAnalytics
@@ -21,14 +21,14 @@ To configure the editor to send analytics data to Horde, add the following lines
 
 ## Telemetry Sinks
 
-Horde can both collect telemetry data in its own database, and forward it on to other telemetry sinks.
+Horde can collect telemetry data in its own database and forward it to other telemetry sinks.
 
-Telemetry sinks can be configured through the `Telemetry` property in the server's
+You can configure telemetry sinks through the `Telemetry` property in the server's
 [Server.json](../Deployment/ServerSettings.md) file.
 
 ## Metrics and Aggregation
 
-To allow efficient aggregation of analytics data over large time periods, Horde aggregates telemetry events into
+To provide efficient aggregation of analytics data over large time periods, Horde aggregates telemetry events into
 running metrics for each time interval. This aggregation is performed according to rules specified in the
 `Telemetry.Metrics` section of the globals.json file (see [MetricConfig](Schema/Globals.md#metricconfig)).
 

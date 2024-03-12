@@ -7,16 +7,16 @@
 ### MSI Installer (Windows)
 
 Installing the agent in this manner also installs a background application that shows the agent status in the Windows
-notification area, and allows configuring the agent to only run when the machine is idle.
+notification area. You can also configure the agent to only run when the machine is idle.
 
-Note that agents installed in this manner will need to be upgraded manually for new Horde versions.
+> **NOTE:** Agents installed in this manner must be upgraded manually for new Horde versions.
 
 ### Download from Server
 
 The Horde server can be used as a download source for the Horde agent. Distributing the agent in this way allows the
 agent to upgrade automatically to new versions added to the server.
 
-To install from a browser, go to the Horde dashboard and navigate to the the `Server > Agents` menu item, then click
+To install from a browser, go to the Horde dashboard, navigate to the `Server > Agents` menu item, and click
 on the `Download Agent` link.
 
 Alternatively, you can download the agent via the command line using the following commands. The `AUTH-TOKEN`
@@ -67,10 +67,10 @@ full list of available options.
 ### Registration
 
 Navigating to the `http://[HORDE-SERVER-URL]/account` page with an admin user logged in will include a **Get agent
-registration token** link. This token can be embedded into the default agent config file, or passed to the `SetServer`
+registration token** link. This token can be embedded into the default agent config file or passed to the `SetServer`
 command (see above).
 
-The first time that an agent connects to the server, it will generate a unique connection token for itself.
+The first time an agent connects to the server, it will generate a unique connection token for itself.
 
 On Windows, connection tokens are stored in:
 
@@ -151,7 +151,7 @@ Adjust `/etc/newsyslog.conf` Log file out size limit (optional):
 
     append '/Library/Logs/hordeagent_error.log 700 2 1000 * J'
 
-Set any Horde agent environment variables you want defined outside of the plist (optional):
+Set any Horde agent environment variables you want to be defined outside of the plist (optional):
 
     launchctl setenv Horde:WorkingDirectory {horde_working_directory}
 
@@ -161,9 +161,9 @@ Launch the daemon:
 
 #### Linux
 
-Create a user to run the agent service. The Unreal Editor cannot be run as root on Linux, so the horde-agent service
+Create a user to run the agent service. Unreal Editor cannot be run as root on Linux, so the horde-agent service
 needs to run as a non-root user. The working directory for the agent needs to be recursively owned by that user. The
-user must have `sudo` access in order to restart/shutdown/autoscale Horde agents.
+user must have `sudo` access to restart/shutdown/autoscale Horde agents.
 
 Create a service descriptor file in `/etc/systemd/system/horde-agent.service` (substitute the `{{ HORDE_PATH }}`,
 `{{ HORDE_WORKING_DIRECTORY }}` and `{{ HORDE_SERVICE_ACCOUNT }}` variables as appropriate):
@@ -196,11 +196,11 @@ Launch the daemon:
 The default location for data used by the agent (Perforce workspaces, caches, scratch space) is
 `C:\ProgramData\HordeAgent` on Windows and the application directory on Mac/Linux.
 
-This path can be overriden using the `WorkingDir` property in the agent's [`appsettings.json`](AgentSettings.md) file.
+This path can be overridden using the `WorkingDir` property in the agent's [`appsettings.json`](AgentSettings.md) file.
 
-In order to prevent agents being affected by runaway jobs filling up the disk with data, it's a good idea to have the
-agent store data on a drive other than the system disk. Setting the `%TEMP%` and `%TMP%` environment variables to this
-drive on Windows is also recommended.
+ITo prevent agents from being affected by runaway jobs filling up the disk with data, 
+having the agent store data on a drive other than the system disk is a good idea.  
+Setting the `%TEMP%` and `%TMP%` environment variables to this drive on Windows is also recommended.
 
 ### Mounting Network Shares
 
