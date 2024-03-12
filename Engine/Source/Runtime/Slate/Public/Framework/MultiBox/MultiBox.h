@@ -825,7 +825,10 @@ private:
 	/** Creates the SearchTextWidget if the MultiBox has requested one */
 	SLATE_API void CreateSearchTextWidget();
 
-	/** Called when the SearchText changes */
+	/** Called when the search field text is committed (such as pressing ESC). */
+	SLATE_API void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type CommitType);
+	
+	/** Called when the search field text changes. */
 	SLATE_API void OnFilterTextChanged(const FText& InFilterText);
 
 	/**

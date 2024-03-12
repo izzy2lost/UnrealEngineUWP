@@ -883,7 +883,8 @@ void SMultiBoxWidget::CreateSearchTextWidget()
 		SNew(SSearchBox)
 			.HintText(LOCTEXT("SearchHintStartTyping", "Start typing to search"))
 			.SelectAllTextWhenFocused(false)
-			.OnTextChanged(this, &SMultiBoxWidget::OnFilterTextChanged);
+			.OnTextChanged(this, &SMultiBoxWidget::OnFilterTextChanged)
+			.OnTextCommitted(this, &SMultiBoxWidget::OnFilterTextCommitted);
 
 	TSharedRef<SBox> SearchBox =
 		SNew(SBox)
@@ -918,6 +919,15 @@ void SMultiBoxWidget::OnFilterTextChanged(const FText& InFilterText)
 	SearchText = InFilterText;
 
 	FilterMultiBoxEntries();
+}
+
+void SMultiBoxWidget::OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type CommitType)
+{
+	if (CommitType == ETextCommit::Type::OnCleared)
+	{
+		SearchText = InFilterText;
+		FilterMultiBoxEntries();
+	}
 }
 
 /**
