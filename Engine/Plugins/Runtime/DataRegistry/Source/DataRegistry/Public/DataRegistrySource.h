@@ -79,7 +79,7 @@ public:
 	virtual bool IsSpecificAssetRegistered(const FSoftObjectPath& AssetPath) const;
 
 	/** Attempt to register a specified asset with a source, returns true if any changes were made. Can be used to update priority for existing asset as well */
-	virtual bool RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority = 0);
+	virtual EDataRegistryRegisterAssetResult RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority = 0);
 
 	/** Removes references to a specific asset, returns bool if it was removed */
 	virtual bool UnregisterSpecificAsset(const FSoftObjectPath& AssetPath);
@@ -148,7 +148,7 @@ public:
 	virtual void RefreshRuntimeSources() override;
 	virtual void AddRuntimeSources(TArray<UDataRegistrySource*>& OutRuntimeSources) override;
 	virtual bool IsSpecificAssetRegistered(const FSoftObjectPath& AssetPath) const override;
-	virtual bool RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority) override;
+	virtual EDataRegistryRegisterAssetResult RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority) override;
 	virtual bool UnregisterSpecificAsset(const FSoftObjectPath& AssetPath) override;
 	virtual int32 UnregisterAssetsWithPriority(int32 AssetPriority) override;
 

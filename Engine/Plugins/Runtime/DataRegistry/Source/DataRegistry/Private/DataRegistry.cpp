@@ -193,26 +193,37 @@ void UDataRegistry::RuntimeRefreshIfNeeded()
 	}
 }
 
-bool UDataRegistry::RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority /*= 0*/)
+EDataRegistryRegisterAssetResult UDataRegistry::RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority /*= 0*/)
 {
-	bool bMadeChange = false;
+	EDataRegistryRegisterAssetResult RegisterAssetResult = EDataRegistryRegisterAssetResult::NotRegistered;
 
 	for (int32 i = 0; i < DataSources.Num(); i++)
 	{
 		UDataRegistrySource* Source = DataSources[i];
-		if (Source && Source->RegisterSpecificAsset(AssetData, AssetPriority))
+		if (Source)
 		{
-			bMadeChange = true;
+			EDataRegistryRegisterAssetResult CurrentRegisterAssetResult = Source->RegisterSpecificAsset(AssetData, AssetPriority);
+
+			// Don't clobber Asset already registered if Not Registered, Only move to a higher Result state, with success being the highest.
+			if (CurrentRegisterAssetResult > RegisterAssetResult)
+			{
+				RegisterAssetResult = CurrentRegisterAssetResult;
+			}
 		}
 	}
 
-	if (bMadeChange && IsInitialized())
+	if (IsRegisterAssetResultSuccess(RegisterAssetResult) && IsInitialized())
 	{
 		// Don't want to do a full reset, but do clear cache as lookup rules may have changed
 		RefreshRuntimeSources();
 	}
 	
-	return bMadeChange;
+	return RegisterAssetResult;
+}
+
+bool UDataRegistry::IsRegisterAssetResultSuccess(EDataRegistryRegisterAssetResult RegisterAssetStatus)
+{
+	return RegisterAssetStatus == EDataRegistryRegisterAssetResult::RegisteredSuccesfully;
 }
 
 bool UDataRegistry::UnregisterSpecificAsset(const FSoftObjectPath& AssetPath)

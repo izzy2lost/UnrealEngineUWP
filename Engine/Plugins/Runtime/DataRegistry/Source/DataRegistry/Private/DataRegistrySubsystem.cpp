@@ -498,7 +498,7 @@ bool UDataRegistrySubsystem::RegisterSpecificAsset(FDataRegistryType RegistryTyp
 			UDataRegistry* Registry = RegistryPair.Value;
 			if (Registry)
 			{
-				bMadeChange |= Registry->RegisterSpecificAsset(AssetData, AssetPriority);
+				bMadeChange |= Registry->IsRegisterAssetResultSuccess(Registry->RegisterSpecificAsset(AssetData, AssetPriority));
 			}
 		}
 		return bMadeChange;
@@ -507,7 +507,7 @@ bool UDataRegistrySubsystem::RegisterSpecificAsset(FDataRegistryType RegistryTyp
 	UDataRegistry* FoundRegistry = GetRegistryForType(RegistryType);
 	if (FoundRegistry)
 	{
-		return FoundRegistry->RegisterSpecificAsset(AssetData, AssetPriority);
+		return FoundRegistry->IsRegisterAssetResultSuccess(FoundRegistry->RegisterSpecificAsset(AssetData, AssetPriority));
 	}
 
 	return false;
@@ -672,24 +672,29 @@ void UDataRegistrySubsystem::ApplyPreregisterMap(UDataRegistry* Registry)
 		const FTopLevelAssetPath ObjectClassPath(TEXT("/Script/CoreUObject"), TEXT("Object"));
 		for (int32 i = 0; i < FoundPreregister->Num(); i++)
 		{
+			EDataRegistryRegisterAssetResult RegisterAssetResult = EDataRegistryRegisterAssetResult::NotRegistered;
 			bool bRegistered = false;
 			const FSoftObjectPath& AssetPath = (*FoundPreregister)[i].Key;
 			FAssetData AssetData;
 			if (AssetManager.GetAssetDataForPath(AssetPath, AssetData))
 			{
-				bRegistered = Registry->RegisterSpecificAsset(AssetData, (*FoundPreregister)[i].Value);
+				RegisterAssetResult = Registry->RegisterSpecificAsset(AssetData, (*FoundPreregister)[i].Value);
 			}
 			else if (Settings->CanIgnoreMissingAssetData())
 			{
 				// Construct fake asset data and register that
 				AssetData = FAssetData(AssetPath.GetLongPackageName(), AssetPath.GetAssetPathString(), ObjectClassPath);
-				bRegistered = Registry->RegisterSpecificAsset(AssetData, (*FoundPreregister)[i].Value);
+				RegisterAssetResult = Registry->RegisterSpecificAsset(AssetData, (*FoundPreregister)[i].Value);
 			}
 
-			if (!bRegistered)
+			if (RegisterAssetResult == EDataRegistryRegisterAssetResult::NotRegistered)
 			{
-				// If specific type is mentioned, it is expected to always succeed
+				// If specific type is mentioned, it is expected to always succeed unless it was already registered
 				UE_LOG(LogDataRegistry, Warning, TEXT("ApplyPreregisterMap failed to register %s with %s, there needs to be a meta source that handles registered assets with matching data"), *AssetPath.ToString(), *Registry->GetRegistryType().ToString());
+			}
+			else if (RegisterAssetResult == EDataRegistryRegisterAssetResult::AssetAlreadyRegistered)
+			{
+				UE_LOG(LogDataRegistry, Log, TEXT("ApplyPreregisterMap did not register %s with %s, this asset was already registered with the data registry."), *AssetPath.ToString(), *Registry->GetRegistryType().ToString());
 			}
 		}
 	}

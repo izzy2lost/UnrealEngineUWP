@@ -213,6 +213,19 @@ enum class EDataRegistryCacheGetStatus : uint8
 	FoundPersistent,
 };
 
+/** Error code returned when attempting to register a specific asset. */
+enum class EDataRegistryRegisterAssetResult: uint8
+{
+	/** Asset was not registered */
+	NotRegistered,
+
+	/** Asset already registered in the data registry*/
+	AssetAlreadyRegistered,
+
+	/** Asset was successfully registered */
+	RegisteredSuccesfully, // Maintain as highest result.
+};
+
 /** Where the cache version comes from, the upper values of this can be used for game-specific sources */
 enum class EDataRegistryCacheVersionSource : uint8
 {
