@@ -188,6 +188,45 @@ void FConcertTakeRecorderManager::Unregister(TSharedRef<IConcertClientSession> I
 	WeakSession.Reset();
 }
 
+const FConcertClientRecordSetting* FConcertTakeRecorderManager::FindClientRecorderSetting(const FGuid& EndpointId) const
+{
+	return Customization ? Customization->FindClientSettings(EndpointId) : nullptr;
+}
+
+bool FConcertTakeRecorderManager::EditClientSettings(
+	const FGuid& EndpointId,
+	TFunctionRef<void(FTakeRecordSettings& Settings)> ModifierFunc,
+	TOptional<TFunctionRef<bool(const FTakeRecordSettings& Settings)>> Predicate
+	)
+{
+	const FConcertClientRecordSetting* Setting = FindClientRecorderSetting(EndpointId);
+	if (!Setting)
+	{
+		return false;
+	}
+
+	const bool bFailedPredicate = Predicate && !(*Predicate)(Setting->Settings);
+	if (bFailedPredicate)
+	{
+		return true;
+	}
+
+	// This unnecessarily copies a bunch of strings in FConcertSessionClientInfo as well but it keeps this logic simple...
+	// Should refactor FConcertClientRecordSetting to contain a sub-struct that is then copied.
+	FConcertClientRecordSetting SettingCopy = *Setting;
+	ModifierFunc(SettingCopy.Settings);
+
+	// Update the other clients...
+	RecordSettingChange(SettingCopy);
+	// ... and the local UI
+	if (Customization)
+	{
+		Customization->UpdateClientSettings(EConcertClientStatus::Updated, SettingCopy);
+	}
+
+	return true;
+}
+
 void FConcertTakeRecorderManager::RegisterExtensions()
 {
 	ITakeRecorderModule& Module = FTakeRecorderRecorderManagerGetModule();

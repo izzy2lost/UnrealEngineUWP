@@ -38,11 +38,15 @@
 	],
 	"Plugins": [
 		{
-			"Name" : "VirtualCameraCore",
+			"Name" : "CineCameraRigs",
 			"Enabled": true
 		},
 		{
-			"Name" : "CineCameraRigs",
+			"Name" : "MultiUserTakes",
+			"Enabled": true
+		},
+		{
+			"Name" : "VirtualCameraCore",
 			"Enabled": true
 		}
 	]

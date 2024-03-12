@@ -40,16 +40,24 @@ public class VirtualCamera : ModuleRules
 		
 		if (Target.bBuildEditor == true)
 		{
-			PublicDependencyModuleNames.Add("LevelSequenceEditor");
-			PublicDependencyModuleNames.Add("Sequencer");
-			PublicDependencyModuleNames.Add("SlateCore");
-			PublicDependencyModuleNames.Add("TakeRecorder");
-			PrivateDependencyModuleNames.Add("LevelEditor");
-			PrivateDependencyModuleNames.Add("EditorFramework");
-			PrivateDependencyModuleNames.Add("UnrealEd");
-			PrivateDependencyModuleNames.Add("EditorScriptingUtilities");
-			PrivateDependencyModuleNames.Add("VPUtilitiesEditor");
-			PrivateDependencyModuleNames.Add("TakesCore");
+			PublicDependencyModuleNames.AddRange(new string[]
+			{
+				"LevelSequenceEditor",
+				"Sequencer",
+				"SlateCore",
+				"TakeRecorder"
+			});
+			
+			PrivateDependencyModuleNames.AddRange(new string[]
+			{
+				"ConcertTakeRecorder",
+				"EditorFramework",
+				"EditorScriptingUtilities",
+				"LevelEditor",
+				"TakesCore",
+				"UnrealEd",
+				"VPUtilitiesEditor",
+			});
 		}
 	}
 }
