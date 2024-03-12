@@ -139,19 +139,15 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 		}
 	}
 
+	const TSharedRef<SWidget> ThisWidget = this->AsWidget();
+
 	// Add this widget to the search list of the multibox
-	OwnerMultiBoxWidgetPinned->AddElement(this->AsWidget(), SearchLabel, MultiBlock->GetSearchable());
+	OwnerMultiBoxWidgetPinned->AddElement(ThisWidget, SearchLabel, MultiBlock->GetSearchable());
 
 	// This widget holds the search text, set it as the search block widget
 	if (OwnerMultiBoxWidgetPinned->GetSearchTextWidget() && OwnerMultiBoxWidgetPinned->GetSearchTextWidget()->GetParentWidget() == WidgetBlock->ContentWidget)
 	{
-		OwnerMultiBoxWidgetPinned->SetSearchBlockWidget(this->AsWidget());
-
-		// When we are always showing the search widget, we should not hide it here.
-		if (!OwnerMultiBoxWidgetPinned->ShouldShowMenuSearchField())
-		{
-			this->AsWidget()->SetVisibility(EVisibility::Collapsed);
-		}
+		OwnerMultiBoxWidgetPinned->SetSearchBlockWidget(ThisWidget);
 	}
 
 	ChildSlot

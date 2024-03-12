@@ -810,6 +810,7 @@ public:
 	 */
 	SLATE_API double GetSummonedMenuTime() const;
 
+	UE_DEPRECATED_FORGAME(5.5, "This function will be made private in the future.")
 	bool ShouldShowMenuSearchField();
 
 private:
