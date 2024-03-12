@@ -2647,7 +2647,7 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	UActorDescContainerSubsystem::GetChecked().NotifyContainerUpdated(WorldAssetPackage);
 
 	
-	TMap<ULevelInstanceSubsystem*, TArray<FLevelInstanceID>> LevelInstancesToUpdate;
+	TArray<TPair<ULevelInstanceSubsystem*, FLevelInstanceID>> LevelInstancesToUpdate;
 	// Gather list to update
 	for (TObjectIterator<UWorld> It(RF_ClassDefaultObject | RF_ArchetypeObject, true); It; ++It)
 	{
@@ -2661,7 +2661,7 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 				{
 					if (CurrentLevelInstance == LevelInstance || bChangesCommitted)
 					{
-						LevelInstancesToUpdate.FindOrAdd(LevelInstanceSubsystem).Add(CurrentLevelInstance->GetLevelInstanceID());
+						LevelInstancesToUpdate.Add({ LevelInstanceSubsystem, CurrentLevelInstance->GetLevelInstanceID() });
 					}
 				}
 			}
@@ -2671,12 +2671,9 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	// Do update
 	for (const auto& KeyValuePair : LevelInstancesToUpdate)
 	{
-		for (const FLevelInstanceID& LevelInstanceIDToUpdate : KeyValuePair.Value)
+		if (ILevelInstanceInterface* LevelInstanceToUpdate = KeyValuePair.Key->GetLevelInstance(KeyValuePair.Value))
 		{
-			if (ILevelInstanceInterface* LevelInstanceToUpdate = KeyValuePair.Key->GetLevelInstance(LevelInstanceIDToUpdate))
-			{
-				LevelInstanceToUpdate->UpdateLevelInstanceFromWorldAsset();
-			}
+			LevelInstanceToUpdate->UpdateLevelInstanceFromWorldAsset();
 		}
 	}
 
@@ -2711,24 +2708,6 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	if (bChangesCommitted)
 	{
 		LevelInstanceChangedEvent.Broadcast(WorldAssetPackage);
-
-		// Send event per World (per LevelInstanceSubsystem)
-		for (const auto& KeyValuePair : LevelInstancesToUpdate)
-		{
-			TArray<ILevelInstanceInterface*> UpdatedLevelInstances;
-			for (const FLevelInstanceID& UpdatedLevelInstanceID : KeyValuePair.Value)
-			{
-				if (ILevelInstanceInterface* UpdatedLevelInstance = KeyValuePair.Key->GetLevelInstance(UpdatedLevelInstanceID))
-				{
-					UpdatedLevelInstances.Add(UpdatedLevelInstance);
-				}
-			}
-
-			if (UpdatedLevelInstances.Num() > 0)
-			{
-				KeyValuePair.Key->LevelInstancesUpdatedEvent.Broadcast(UpdatedLevelInstances);
-			}
-		}
 	}
 
 	GEngine->BroadcastLevelActorListChanged();

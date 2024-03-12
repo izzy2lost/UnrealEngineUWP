@@ -161,10 +161,6 @@ public:
 	DECLARE_EVENT_OneParam(ULevelInstanceSubsystem, FLevelInstanceChanged, FName);
 	FLevelInstanceChanged& OnLevelInstanceChanged() { return LevelInstanceChangedEvent; }
 
-	/** Editor-only even triggered when level instances are reloaded after a change */
-	DECLARE_EVENT_OneParam(ULevelInstanceSubsystem, FLevelInstancesUpdated, const TArray<ILevelInstanceInterface*>&);
-	FLevelInstancesUpdated& OnLevelInstancesUpdated() { return LevelInstancesUpdatedEvent; }
-
 	static ENGINE_API void ResetLoadersForWorldAsset(const FString& WorldAsset);
 
 	ENGINE_API bool PassLevelInstanceFilter(UWorld* World, const FWorldPartitionHandle& Actor) const;
@@ -315,8 +311,6 @@ private:
 	bool bIsCommittingLevelInstance;
 
 	FLevelInstanceChanged LevelInstanceChangedEvent;
-	FLevelInstancesUpdated LevelInstancesUpdatedEvent;
-
 #endif
 
 	struct FLevelInstance

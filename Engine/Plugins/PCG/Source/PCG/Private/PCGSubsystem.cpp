@@ -116,6 +116,12 @@ UPCGSubsystem::UPCGSubsystem()
 	: Super()
 	, ActorAndComponentMapping(this)
 {
+#if WITH_EDITOR
+	if (!HasAnyFlags(RF_ClassDefaultObject))
+	{
+		ActorAndComponentMapping.RegisterTrackingCallbacks();
+	}
+#endif // WITH_EDITOR
 }
 
 UPCGSubsystem* UPCGSubsystem::GetSubsystemForCurrentWorld()
@@ -188,10 +194,6 @@ void UPCGSubsystem::PostInitialize()
 			});
 		}
 	}
-
-#if WITH_EDITOR
-	ActorAndComponentMapping.RegisterTrackingCallbacks();
-#endif // WITH_EDITOR
 }
 
 UPCGSubsystem* UPCGSubsystem::GetInstance(UWorld* World)
