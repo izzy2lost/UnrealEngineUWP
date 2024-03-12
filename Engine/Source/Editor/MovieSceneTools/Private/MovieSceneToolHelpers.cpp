@@ -138,6 +138,39 @@ void MovieSceneToolHelpers::TrimSection(const TSet<UMovieSceneSection*>& Section
 	}
 }
 
+bool MovieSceneToolHelpers::CanTrimSectionLeft(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time)
+{
+	for (UMovieSceneSection* Section : Sections)
+	{
+		if (Section && Section->HasStartFrame() && Time.Time.FrameNumber > Section->GetInclusiveStartFrame())
+		{
+			// Don't allow an empty section
+			if (Section->HasEndFrame() && Time.Time.FrameNumber >= Section->GetExclusiveEndFrame())
+			{
+				continue;
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+bool MovieSceneToolHelpers::CanTrimSectionRight(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time)
+{
+	for (UMovieSceneSection* Section : Sections)
+	{
+		if (Section && Section->HasEndFrame() && Time.Time.FrameNumber < Section->GetExclusiveEndFrame())
+		{
+			// Don't allow an empty section
+			if (Section->HasStartFrame() && Time.Time.FrameNumber <= Section->GetInclusiveStartFrame())
+			{
+				continue;
+			}
+			return true;
+		}
+	}
+	return false;
+}
 
 void MovieSceneToolHelpers::TrimOrExtendSection(UMovieSceneTrack* Track, TOptional<int32> SpecifiedRowIndex, FQualifiedFrameTime Time, bool bTrimOrExtendLeft, bool bDeleteKeys)
 {
@@ -230,6 +263,26 @@ void MovieSceneToolHelpers::SplitSection(const TSet<UMovieSceneSection*>& Sectio
 			Section->SplitSection(Time, bDeleteKeys);
 		}
 	}
+}
+
+bool MovieSceneToolHelpers::CanSplitSection(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time)
+{
+	for (UMovieSceneSection* Section : Sections)
+	{
+		if (Section && Section->IsTimeWithinSection(Time.Time.FrameNumber))
+		{
+			if (Section->HasStartFrame() && Time.Time.FrameNumber <= Section->GetInclusiveStartFrame())
+			{
+				continue;
+			}
+			if (Section->HasEndFrame() && Time.Time.FrameNumber >= Section->GetExclusiveEndFrame())
+			{
+				continue;
+			}
+			return true;
+		}
+	}
+	return false;
 }
 
 bool MovieSceneToolHelpers::ParseShotName(const FString& InShotName, FString& ShotPrefix, uint32& ShotNumber, uint32& TakeNumber, uint32& ShotNumberDigits, uint32& TakeNumberDigits)

@@ -10673,27 +10673,15 @@ void FSequencer::BindCommands()
 		Commands.TranslateRight,
 		FExecuteAction::CreateSP( this, &FSequencer::TranslateSelectedKeysAndSections, false) );
 
-	auto CanTrimSection = [this]{
-		for (UMovieSceneSection* Section : this->ViewModel->GetSelection()->GetSelectedSections())
-		{
-			if (Section && Section->IsTimeWithinSection(GetLocalTime().Time.FrameNumber))
-			{
-				return true;
-			}
-		}
-		return false;
-	};
-
 	SequencerCommandBindings->MapAction(
 		Commands.TrimSectionLeft,
 		FExecuteAction::CreateSP( this, &FSequencer::TrimSection, true ),
-		FCanExecuteAction::CreateLambda(CanTrimSection));
-
+		FCanExecuteAction::CreateLambda([this] { return MovieSceneToolHelpers::CanTrimSectionLeft(this->ViewModel->GetSelection()->GetSelectedSections(), GetLocalTime()); }));
 
 	SequencerCommandBindings->MapAction(
 		Commands.TrimSectionRight,
 		FExecuteAction::CreateSP( this, &FSequencer::TrimSection, false ),
-		FCanExecuteAction::CreateLambda(CanTrimSection));
+		FCanExecuteAction::CreateLambda([this] { return MovieSceneToolHelpers::CanTrimSectionRight(this->ViewModel->GetSelection()->GetSelectedSections(), GetLocalTime()); }));
 
 	SequencerCommandBindings->MapAction(
 		Commands.TrimOrExtendSectionLeft,
@@ -10706,7 +10694,7 @@ void FSequencer::BindCommands()
 	SequencerCommandBindings->MapAction(
 		Commands.SplitSection,
 		FExecuteAction::CreateSP( this, &FSequencer::SplitSection ),
-		FCanExecuteAction::CreateLambda(CanTrimSection));
+		FCanExecuteAction::CreateLambda([this] { return MovieSceneToolHelpers::CanSplitSection(this->ViewModel->GetSelection()->GetSelectedSections(), GetLocalTime()); }));
 
 	// We can convert to spawnables if anything selected is a root-level possessable
 	auto CanConvertToSpawnables = [this]{

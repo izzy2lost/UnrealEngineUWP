@@ -109,6 +109,8 @@ public:
 	 * @param bDeleteKeys Delete keys outside the split ranges
 	 */
 	static void TrimSection(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time, bool bTrimLeft, bool bDeleteKeys);
+	static bool CanTrimSectionLeft(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time);
+	static bool CanTrimSectionRight(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time);
 
 	/**
 	 * Trim or extend section at the given time
@@ -129,6 +131,7 @@ public:
 	 * @param bDeleteKeys Delete keys outside the split ranges
 	 */
 	static void SplitSection(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time, bool bDeleteKeys);
+	static bool CanSplitSection(const TSet<UMovieSceneSection*>& Sections, FQualifiedFrameTime Time);
 
 	/**
 	 * Parse a shot name into its components.
