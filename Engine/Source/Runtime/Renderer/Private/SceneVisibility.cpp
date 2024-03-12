@@ -3501,13 +3501,6 @@ void FVisibilityViewPacket::BeginInitVisibility()
 	// Mark all primitives as visible when not visibility culling
 	bool bShouldVisibilityCull = GFrustumCullEnabled;
 
-	// Allocate the view's visibility maps.
-	View.PrimitiveVisibilityMap.Init(!bShouldVisibilityCull, Scene.Primitives.Num());
-	View.PrimitiveRayTracingVisibilityMap.Init(false, Scene.Primitives.Num());
-	View.PotentiallyFadingPrimitiveMap.Init(false, Scene.Primitives.Num());
-	View.PrimitiveFadeUniformBuffers.AddZeroed(Scene.Primitives.Num());
-	View.PrimitiveFadeUniformBufferMap.Init(false, Scene.Primitives.Num());
-
 	UE::Tasks::FTaskEvent RelevancePrereqs{ UE_SOURCE_LOCATION };
 	RelevancePrereqs.AddPrerequisites(Scene.GetCacheMeshDrawCommandsTask());
 
@@ -3520,10 +3513,17 @@ void FVisibilityViewPacket::BeginInitVisibility()
 		View.StaticMeshVisibilityMap.Init(false, Scene.StaticMeshes.GetMaxIndex());
 		View.StaticMeshFadeOutDitheredLODMap.Init(false, Scene.StaticMeshes.GetMaxIndex());
 		View.StaticMeshFadeInDitheredLODMap.Init(false, Scene.StaticMeshes.GetMaxIndex());
-		View.PrimitiveViewRelevanceMap.Reset(Scene.Primitives.Num());
-		View.PrimitiveViewRelevanceMap.AddZeroed(Scene.Primitives.Num());
 
 	}, TaskConfig.TaskPriority));
+
+	// Allocate the view's visibility maps.
+	View.PrimitiveVisibilityMap.Init(!bShouldVisibilityCull, Scene.Primitives.Num());
+	View.PrimitiveRayTracingVisibilityMap.Init(false, Scene.Primitives.Num());
+	View.PotentiallyFadingPrimitiveMap.Init(false, Scene.Primitives.Num());
+	View.PrimitiveFadeUniformBuffers.AddZeroed(Scene.Primitives.Num());
+	View.PrimitiveFadeUniformBufferMap.Init(false, Scene.Primitives.Num());
+	View.PrimitiveViewRelevanceMap.Reset(Scene.Primitives.Num());
+	View.PrimitiveViewRelevanceMap.AddZeroed(Scene.Primitives.Num());
 
 	RelevancePrereqs.Trigger();
 
