@@ -626,8 +626,6 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 									RemovedSubObjectNode.Operation = EOverriddenPropertyOperation::Remove;
 								}
 							}
-
-							OverridableManager.ClearInstancedSubObjectOverrides(*Owner, *RemovedSubObject);
 						}
 					};
 
@@ -867,16 +865,6 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 					{
 						RemovedKeyNode.Operation = EOverriddenPropertyOperation::Remove;
 					}
-				}
-
-				// @todo support instanced object as a key in maps
-				//if (UObject* RemovedKeySubObject = KeyInstancedObjectProperty ? KeyInstancedObjectProperty->GetObjectPropertyValue(PreEditMapHelper.GetKeyPtr(InternalPreEditMapIndex)) : nullptr)
-				//{
-				//	OverridableManager.ClearInstancedSubObjectOverrides(*Owner, *RemovedKeySubObject);
-				//}
-				if (UObject* RemovedValueSubObject = ValueInstancedObjectProperty ? ValueInstancedObjectProperty->GetObjectPropertyValue(PreEditMapHelper.GetValuePtr(InternalPreEditMapIndex)) : nullptr)
-				{
-					OverridableManager.ClearInstancedSubObjectOverrides(*Owner, *RemovedValueSubObject);
 				}
 			};
 
