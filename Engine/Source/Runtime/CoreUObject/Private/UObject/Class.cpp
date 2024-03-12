@@ -1423,7 +1423,16 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 				// Overridden values are saved independently in transaction, so do no need to restore them here.
 				if (!UnderlyingArchive.IsTransacting())
 				{
-					ControlContext.OverriddenProperties = &FOverridableManager::Get().SetOverriddenProperties(*(UObject*)Data, Operation);
+					if (UnderlyingArchive.ArMergeOverrides)
+					{
+						ControlContext.OverriddenProperties = FOverridableManager::Get().GetOverriddenProperties(*(UObject*)Data);
+					}
+					
+					if (!ControlContext.OverriddenProperties)
+					{
+						ControlContext.OverriddenProperties = &FOverridableManager::Get().SetOverriddenProperties(*(UObject*)Data, Operation);
+					}
+					
 					ControlContext.OverriddenProperties->bNeedsSubobjectTemplateInstantiation = true;
 				}
 			}
@@ -1683,6 +1692,23 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					// TODO: Might we find defaults in a property bag for Defaults?
 					FStructuredArchive::FSlot ValueSlot = PropertyRecord.EnterField(TEXT("Value"));
 					PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot);
+					
+					// we still want to set overrides for loose properties because they will be used by the IDO.
+					if (!UnderlyingArchive.IsTransacting())
+					{
+						if (FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties())
+						{
+							// No need to restore none operations
+							if (Tag.OverrideOperation != EOverriddenPropertyOperation::None)
+							{
+								// SetOverriddenPropertyOperation only needs to know the property name so we'll just construct a dummy property
+								FProperty* PropertyToOverride = CastField<FProperty>(FField::TryConstruct(Tag.Type, {}, Tag.Name, RF_NoFlags));
+								check(PropertyToOverride);
+								OverriddenProperties->SetOverriddenPropertyOperation(Tag.OverrideOperation, UnderlyingArchive.GetSerializedPropertyChain(), PropertyToOverride);
+								delete PropertyToOverride;
+							}
+						}
+					}
 				}
 
 				// Broadcast that a property was serialized if tracking the serialized property path.

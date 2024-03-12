@@ -860,6 +860,9 @@ public:
 	/** Set TRUE to use the custom property list attribute for serialization. */
 	uint8 ArUseCustomPropertyList : 1;
 
+	/** Set to false if OverriddenProperties should be cleared at the beginning of SerializeVersionedTaggedProperties. */
+	uint8 ArMergeOverrides : 1;
+
 	/** Whether we are currently serializing defaults. > 0 means yes, <= 0 means no. */
 	int32 ArSerializingDefaults;
 
@@ -2077,6 +2080,7 @@ public:
 	using FArchiveState::ArSerializingDefaults;
 	using FArchiveState::ArPortFlags;
 	using FArchiveState::ArMaxSerializeSize;
+	using FArchiveState::ArMergeOverrides;
 
 public:
 	using FArchiveState::SetIsLoading;
