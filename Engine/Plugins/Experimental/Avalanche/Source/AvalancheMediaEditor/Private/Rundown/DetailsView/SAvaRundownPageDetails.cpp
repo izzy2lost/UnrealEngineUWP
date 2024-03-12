@@ -2,6 +2,7 @@
 
 #include "SAvaRundownPageDetails.h"
 #include "Async/Async.h"
+#include "AvaMediaEditorSettings.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IAvaMediaModule.h"
 #include "Input/Reply.h"
@@ -174,7 +175,7 @@ void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPt
 			.AutoHeight()
 			[
 				SAssignNew(RemoteControlProps, SAvaRundownPageRemoteControlProps, InRundownEditor)
-				.Visibility(EVisibility::Collapsed)
+				.Visibility(UAvaMediaEditorSettings::Get().bPlaybackShowPropertyList ? EVisibility::Visible : EVisibility::Collapsed)
 			]
 		]
 	];
@@ -257,7 +258,11 @@ void SAvaRundownPageDetails::OnManagedInstanceCacheEntryInvalidated(const FSoftO
 
 FReply SAvaRundownPageDetails::ToggleExposedPropertiesVisibility()
 {
-	if (RemoteControlProps->GetVisibility() == EVisibility::Collapsed)
+	UAvaMediaEditorSettings& MediaEditorSettings = UAvaMediaEditorSettings::GetMutable();
+	MediaEditorSettings.bPlaybackShowPropertyList = !MediaEditorSettings.bPlaybackShowPropertyList;
+	MediaEditorSettings.SaveConfig();
+
+	if (MediaEditorSettings.bPlaybackShowPropertyList)
 	{
 		RemoteControlProps->SetVisibility(EVisibility::SelfHitTestInvisible);
 	}
@@ -271,13 +276,13 @@ FReply SAvaRundownPageDetails::ToggleExposedPropertiesVisibility()
 
 const FSlateBrush* SAvaRundownPageDetails::GetExposedPropertiesVisibilityBrush() const
 {
-	if (RemoteControlProps->GetVisibility() == EVisibility::Collapsed)
+	if (UAvaMediaEditorSettings::Get().bPlaybackShowPropertyList)
 	{
-		return FAppStyle::GetBrush("Level.NotVisibleHighlightIcon16x");
+		return FAppStyle::GetBrush(TEXT("Level.VisibleHighlightIcon16x"));
 	}
 	else
 	{
-		return FAppStyle::GetBrush("Level.VisibleHighlightIcon16x");
+		return FAppStyle::GetBrush(TEXT("Level.NotVisibleHighlightIcon16x"));
 	}
 }
 
