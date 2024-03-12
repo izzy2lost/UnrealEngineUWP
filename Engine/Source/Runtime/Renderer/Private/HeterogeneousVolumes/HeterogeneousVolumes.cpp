@@ -32,6 +32,16 @@ static TAutoConsoleVariable<int32> CVarTranslucencyHeterogeneousVolumes(
 	ECVF_RenderThreadSafe | ECVF_ReadOnly
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesComposition(
+	TEXT("r.HeterogeneousVolumes.Composition"),
+	0,
+	TEXT("Change the order of Heterogeneous Volumes composition (Default = 0)\n")
+	TEXT("0: Before Translucency\n")
+	TEXT("1: After Translucency\n")
+	TEXT("Requires enabling Heterogeneous Volumes Project Setting: 'Composite with Translucency'"),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowMode(
 	TEXT("r.HeterogeneousVolumes.Shadows.Mode"),
 	0,
@@ -184,8 +194,8 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesLightingCache(
 
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesLightingCacheUseAVSM(
 	TEXT("r.HeterogeneousVolumes.LightingCache.UseAVSM"),
-	0,
-	TEXT("Enables use of AVSMs when evaluating self-shadowing (Default = 0)"),
+	1,
+	TEXT("Enables use of AVSMs when evaluating self-shadowing (Default = 1)"),
 	ECVF_RenderThreadSafe
 );
 
@@ -242,6 +252,30 @@ bool ShouldHeterogeneousVolumesCastShadows()
 bool ShouldCompositeHeterogeneousVolumesWithTranslucency()
 {
 	return CVarTranslucencyHeterogeneousVolumes.GetValueOnAnyThread() != 0;
+}
+
+EHeterogeneousVolumesCompositionType GetHeterogeneousVolumesCompositionType()
+{
+	int32 CompositionOrder = CVarHeterogeneousVolumesComposition.GetValueOnRenderThread();
+	switch (CompositionOrder)
+	{
+		case 0:
+		default:
+			return EHeterogeneousVolumesCompositionType::BeforeTranslucent;
+		case 1:
+			return EHeterogeneousVolumesCompositionType::AfterTranslucent;
+	}
+}
+
+EHeterogeneousVolumesCompositionType GetHeterogeneousVolumesComposition()
+{
+	// Composition order can only be modified if the Project Setting is enabled
+	if (!ShouldCompositeHeterogeneousVolumesWithTranslucency())
+	{
+		return EHeterogeneousVolumesCompositionType::AfterTranslucent;
+	}
+
+	return GetHeterogeneousVolumesCompositionType();
 }
 
 bool ShouldRenderHeterogeneousVolumes(

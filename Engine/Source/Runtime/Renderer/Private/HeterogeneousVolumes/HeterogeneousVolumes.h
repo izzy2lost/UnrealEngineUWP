@@ -44,6 +44,13 @@ bool ShouldRenderMeshBatchWithHeterogeneousVolumes(
 bool ShouldCompositeHeterogeneousVolumesWithTranslucency();
 bool ShouldHeterogeneousVolumesCastShadows();
 
+enum class EHeterogeneousVolumesCompositionType : uint8
+{
+	BeforeTranslucent,
+	AfterTranslucent
+};
+EHeterogeneousVolumesCompositionType GetHeterogeneousVolumesComposition();
+
 //
 // Internal API
 //
