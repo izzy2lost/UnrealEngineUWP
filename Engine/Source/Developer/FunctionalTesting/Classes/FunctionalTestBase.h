@@ -102,6 +102,6 @@ protected:
 
 private:
 
-	static bool bIsFunctionalTestRunning;
+	FUNCTIONALTESTING_API static bool bIsFunctionalTestRunning;
 	static FString ActiveTestName;
 };
