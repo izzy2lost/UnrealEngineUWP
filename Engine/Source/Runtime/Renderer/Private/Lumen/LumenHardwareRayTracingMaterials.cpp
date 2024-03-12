@@ -102,17 +102,6 @@ class FLumenHardwareRayTracingMaterialMS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FLumenHardwareRayTracingMaterialMS, "/Engine/Private/Lumen/LumenHardwareRayTracingMaterials.usf", "LumenHardwareRayTracingMaterialMS", SF_RayMiss);
 
-void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(FRDGBuilder& GraphBuilder, FViewInfo& View)
-{
-	const FRayTracingSceneInitializer2& SceneInitializer = Scene->RayTracingScene.GetRHIRayTracingSceneChecked()->GetInitializer();
-	const uint32 NumTotalSegments = FMath::Max(SceneInitializer.NumTotalSegments, 1u);
-
-	const uint32 ElementCount = NumTotalSegments;
-	const uint32 ElementSize = sizeof(Lumen::FHitGroupRootConstants);
-	
-	View.LumenHardwareRayTracingHitDataBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredUploadDesc(ElementSize, ElementCount), TEXT("LumenHardwareRayTracingHitDataBuffer"));
-}
-
 void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingUniformBuffer(FRDGBuilder& GraphBuilder, FViewInfo& View)
 {
 	FLumenHardwareRayTracingUniformBufferParameters* LumenHardwareRayTracingUniformBufferParameters = GraphBuilder.AllocParameters<FLumenHardwareRayTracingUniformBufferParameters>();
@@ -132,28 +121,56 @@ uint32 CalculateLumenHardwareRayTracingUserData(const FRayTracingMeshCommand& Me
 }
 
 // TODO: This should be moved into FRayTracingScene and used as a base for other effects. There is not need for it to be Lumen specific.
-void FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingHitGroupData(FRHICommandListBase& RHICmdList, FRayTracingScene& RayTracingScene, const FViewInfo& ReferenceView, FRDGBufferRef DstBuffer)
+void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(FRDGBuilder& GraphBuilder, FViewInfo& View)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingHitGroupData);
 
-	Lumen::FHitGroupRootConstants* DstBasePtr = (Lumen::FHitGroupRootConstants*)RHICmdList.LockBuffer(DstBuffer->GetRHI(), 0, DstBuffer->GetSize(), RLM_WriteOnly);
+	const FRayTracingSceneInitializer2& SceneInitializer = Scene->RayTracingScene.GetRHIRayTracingSceneChecked()->GetInitializer();
+	const uint32 NumTotalSegments = FMath::Max(SceneInitializer.NumTotalSegments, 1u);
 
-	const FRayTracingSceneInitializer2& SceneInitializer = RayTracingScene.GetRHIRayTracingSceneChecked()->GetInitializer();
+	FRDGUploadData<Lumen::FHitGroupRootConstants> HitGroupData(GraphBuilder, NumTotalSegments);
 
-	for (const FVisibleRayTracingMeshCommand VisibleMeshCommand : ReferenceView.VisibleRayTracingMeshCommands)
+	TArray<UE::Tasks::FTask, SceneRenderingAllocator> TaskList;
+
 	{
-		const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
+		const uint32 TargetCommandsPerTask = 512;
 
-		const uint32 InstanceIndex = VisibleMeshCommand.InstanceIndex;
-		const uint32 SegmentIndex = MeshCommand.GeometrySegmentIndex;
+		// Distribute work evenly to the available task graph workers based on NumTotalMeshCommands.
+		const uint32 NumTotalMeshCommands = View.VisibleRayTracingMeshCommands.Num();
+		const uint32 NumThreads = FMath::Min(FTaskGraphInterface::Get().GetNumWorkerThreads(), CVarRHICmdWidth.GetValueOnRenderThread());
+		const uint32 NumTasks = FMath::Min(NumThreads, FMath::DivideAndRoundUp(NumTotalMeshCommands, TargetCommandsPerTask));
+		const uint32 NumCommandsPerTask = FMath::DivideAndRoundUp(NumTotalMeshCommands, NumTasks);
 
-		const uint32 HitGroupIndex = SceneInitializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex;
+		TaskList.Reserve(NumTasks);
 
-		DstBasePtr[HitGroupIndex].BaseInstanceIndex = SceneInitializer.BaseInstancePrefixSum[InstanceIndex];
-		DstBasePtr[HitGroupIndex].UserData = CalculateLumenHardwareRayTracingUserData(MeshCommand);
+		for (uint32 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
+		{
+			const uint32 FirstTaskCommandIndex = TaskIndex * NumCommandsPerTask;
+			const FVisibleRayTracingMeshCommand* MeshCommands = View.VisibleRayTracingMeshCommands.GetData() + FirstTaskCommandIndex;
+			const uint32 NumCommands = FMath::Min(NumCommandsPerTask, NumTotalMeshCommands - FirstTaskCommandIndex);
+
+			TaskList.Add(GraphBuilder.AddSetupTask([MeshCommands, NumCommands, HitGroupData, &SceneInitializer]()
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(BuildLumenHardwareRayTracingHitGroupDataTask);
+
+					for (uint32 CommandIndex = 0; CommandIndex < NumCommands; ++CommandIndex)
+					{
+						const FVisibleRayTracingMeshCommand VisibleMeshCommand = MeshCommands[CommandIndex];
+						const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
+
+						const uint32 InstanceIndex = VisibleMeshCommand.InstanceIndex;
+						const uint32 SegmentIndex = MeshCommand.GeometrySegmentIndex;
+
+						const uint32 HitGroupIndex = SceneInitializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex;
+
+						HitGroupData[HitGroupIndex].BaseInstanceIndex = SceneInitializer.BaseInstancePrefixSum[InstanceIndex];
+						HitGroupData[HitGroupIndex].UserData = CalculateLumenHardwareRayTracingUserData(MeshCommand);
+					}
+				}));
+		}
 	}
-
-	RHICmdList.UnlockBuffer(DstBuffer->GetRHI());
+	
+	View.LumenHardwareRayTracingHitDataBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("LumenHardwareRayTracingHitDataBuffer"), HitGroupData);
 }
 
 FRayTracingLocalShaderBindings* FDeferredShadingSceneRenderer::BuildLumenHardwareRayTracingMaterialBindings(FRHICommandList& RHICmdList, const FViewInfo& View, FRHIUniformBuffer* SceneUniformBuffer)
