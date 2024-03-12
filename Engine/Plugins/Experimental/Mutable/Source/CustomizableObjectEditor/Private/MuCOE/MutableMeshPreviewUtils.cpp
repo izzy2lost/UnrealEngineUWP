@@ -384,7 +384,6 @@ namespace MutableMeshPreviewUtils
 			UnrealConversionUtils::SetupRenderSections(
 				LODResource,
 				InMutableMesh,
-				0,
 				BoneMap,
 				0);
 

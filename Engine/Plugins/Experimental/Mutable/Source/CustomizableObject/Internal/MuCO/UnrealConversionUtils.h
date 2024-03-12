@@ -32,23 +32,22 @@ namespace UnrealConversionUtils
 	
 	/**
 	 * Prepares the render sections found on the InSkeletalMesh and sets them up accordingly what the InMutableMesh requires
-	 * @param OutSkeletalMesh - The Skeletal mesh whose sections are ought to be updated
+	 * @param LODResource - LODRenderData whose sections are ought to be updated
 	 * @param InMutableMesh - Mutable mesh to be used as reference for the section data update on the Skeletal Mesh
-	 * @param MeshLODIndex - The Mesh lod to be working with
-	 * @param InBoneMap - The bones to be set as part of the sections.
+	 * @param InBoneMap - Bones to be set as part of the sections.
+	 * @param InFirstBoneMapIndex - Index to the first BoneMap bone that belongs to this LODResource.
 	 */
 	CUSTOMIZABLEOBJECT_API void SetupRenderSections(
 		FSkeletalMeshLODRenderData& LODResource,
 		const mu::Ptr<const mu::Mesh> InMutableMesh,
-		const int32 InMeshLODIndex,
 		const TArray<uint16>& InBoneMap,
 		const int32 InFirstBoneMapIndex);
 
 
 	/** Performs a copy of the data found on the vertex buffers on the mutable mesh to the buffers of the skeletal mesh
-	 * @param OutSkeletalMesh - Skeletal Mesh to be updated with new buffer data
+	 * @param LODResource - LODRenderData to update
 	 * @param InMutableMesh - Mutable mesh to be used as reference for the section data update on the Skeletal Mesh
-	 * @param MeshLODIndex - The LOD index we are working with.
+	 * @param bAllowCPUAccess - Keeps this LODs data on the CPU so it can be used for things such as sampling in FX.
 	 */
 	CUSTOMIZABLEOBJECT_API void CopyMutableVertexBuffers(
 		FSkeletalMeshLODRenderData& LODResource,
@@ -58,8 +57,8 @@ namespace UnrealConversionUtils
 	
 	/**
 	 *Performs a copy of the data found on the index buffers on the mutable mesh to the buffers of the skeletal mesh
+	 * @param LODResource - LODRenderData to be updated.
 	 * @param InMutableMesh - The mutable mesh whose index buffers you want to work with
-	 * @param OutLODModel - The LOD model to be updated.
 	 * @return True if the operation could be performed successfully, false if not.
 	 */
 	CUSTOMIZABLEOBJECT_API bool CopyMutableIndexBuffers(
@@ -69,7 +68,7 @@ namespace UnrealConversionUtils
 
 	/**
 	 *Performs a copy of the data found on the index buffers on the mutable mesh to the buffers of the skeletal mesh
-	 * @param OutLODModel - The LOD model to be updated.
+	 * @param LODResource - LODRenderData to be updated.
 	 * @param InProfileName - Name of the profile to generate.
 	 * @param InMutableMeshVertexBuffers - The mutable buffers to be reading data from
 	 * @param InBoneIndexBuffer - The buffer containing the indices for the bones.
@@ -84,17 +83,25 @@ namespace UnrealConversionUtils
 
 	/**
 	 *Performs a copy of the render data of a specific Skeletal Mesh LOD to another Skeletal Mesh
-	 * @param SrcSkeletalMesh - Skeletal Mesh with the data to copy.
-	 * @param DestSkeletalMesh - Skeletal Mesh where the data will be copied.
-	 * @param SrcLODIndex - Index of the LOD to copy.
-	 * @param DestSkeletalMesh - Index of the LOD that will be copyed to.
+	 * @param LODResource - LODRenderData to copy to.
+	 * @param SourceLODResource - LODRenderData to copy from.
+	 * @param SkeletalMesh - Owner of both LODResource and SourceLODResource. 
+	 * @param bAllowCPUAccess - Keeps this LODs data on the CPU so it can be used for things such as sampling in FX.
 	 */
 	CUSTOMIZABLEOBJECT_API void CopySkeletalMeshLODRenderData(
-		const USkeletalMesh* SrcSkeletalMesh,
-		USkeletalMesh* DestSkeletalMesh,
-		int32 SrcLODIndex,
-		int32 DestLODIndex);
+		FSkeletalMeshLODRenderData& LODResource,
+		FSkeletalMeshLODRenderData& SourceLODResource,
+		const USkeletalMesh& SkeletalMesh,
+		const bool bAllowCPUAccess
+	);
 
+	/**
+	 * Update SkeletalMeshLODRenderData buffers size.
+	 * @param LODResource - LODRenderData to be updated.
+	 */
+	CUSTOMIZABLEOBJECT_API void UpdateSkeletalMeshLODRenderDataBuffersSize(
+		FSkeletalMeshLODRenderData& LODResource
+	);
 }
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
