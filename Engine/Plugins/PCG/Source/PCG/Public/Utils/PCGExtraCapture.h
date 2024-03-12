@@ -9,6 +9,7 @@ class UPCGComponent;
 class UPCGNode;
 enum class EPCGExecutionPhase : uint8;
 struct FPCGContext;
+struct FPCGStack;
 
 class IPCGElement;
 
@@ -18,20 +19,25 @@ namespace PCGUtils
 	struct PCG_API FCallTime
 	{
 		// sum of all frames
-		double ExecutionStartTime = 0.0;
+		double ExecutionStartTime = MAX_dbl;
 		double ExecutionTime = 0.0;
-		double ExecutionWallTime = 0.0;
+		double ExecutionEndTime = 0.0;
 		// how many frames
 		int32 ExecutionFrameCount = 0;
 		double MinExecutionFrameTime = MAX_dbl;
 		double MaxExecutionFrameTime = 0.0;
 
-		double PrepareDataStartTime = 0.0;
+		double PrepareDataStartTime = MAX_dbl;
 		double PrepareDataTime = 0.0;
-		double PrepareDataWallTime = 0.0;
+		double PrepareDataEndTime = 0.0;
 		int32 PrepareDataFrameCount = 0;
 
 		double PostExecuteTime = 0.0;
+
+		double PrepareDataWallTime() const { return PrepareDataEndTime - PrepareDataStartTime; }
+		double ExecutionWallTime() const { return ExecutionEndTime - ExecutionStartTime; }
+		double TotalTime() const { return ExecutionTime + PrepareDataTime; }
+		double TotalWallTime() const { return ExecutionEndTime - PrepareDataStartTime; }
 	};
 
 	struct PCG_API FCapturedMessage
@@ -44,9 +50,9 @@ namespace PCGUtils
 
 	struct PCG_API FCallTreeInfo
 	{
-		FPCGTaskId TaskId;
-		FString Name; // name of the task, Node may be nullptr for generated tasks
 		const UPCGNode* Node = nullptr;
+		int32 LoopIndex = INDEX_NONE;
+		FString Name; // overriden name for the task, will take precedence over the node name if not empty
 		FCallTime CallTime;
 
 		TArray<FCallTreeInfo> Children;
@@ -76,19 +82,15 @@ namespace PCGUtils
 	public:
 		void Update(const FScopedCall& InScopedCall);
 
-		void ResetTimers();
 		void ResetCapturedMessages();
 
-		using TTimersMap = TMap<FPCGTaskId, FCallTime>;
 		using TCapturedMessageMap = TMap<TWeakObjectPtr<const UPCGNode>, TArray<FCapturedMessage>>;
 
-		const TTimersMap& GetTimers() const { return Timers; }
 		const TCapturedMessageMap& GetCapturedMessages() const { return CapturedMessages; }
 
-		FCallTreeInfo CalculateCallTreeInfo(const UPCGComponent* Component) const;
+		FCallTreeInfo CalculateCallTreeInfo(const UPCGComponent* Component, const FPCGStack& RootStack) const;
 
 	private:
-		TTimersMap Timers;
 		TCapturedMessageMap CapturedMessages;
 		mutable FCriticalSection Lock;
 	};

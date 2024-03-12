@@ -5,15 +5,11 @@
 #include "PCGComponent.h"
 #include "PCGContext.h"
 #include "PCGGraph.h"
+#include "PCGSubgraph.h"
 #include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
 
 #if WITH_EDITOR
-
-void PCGUtils::FExtraCapture::ResetTimers()
-{
-	Timers.Empty();
-}
 
 void PCGUtils::FExtraCapture::ResetCapturedMessages()
 {
@@ -22,7 +18,7 @@ void PCGUtils::FExtraCapture::ResetCapturedMessages()
 
 void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 {
-	if (!InScopedCall.Context->Node)
+	if (!InScopedCall.Context || !InScopedCall.Context->Stack)
 	{
 		return;
 	}
@@ -30,9 +26,7 @@ void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 	const double CurrentTime = FPlatformTime::Seconds();
 	const double ThisFrameTime = CurrentTime - InScopedCall.StartTime;
 
-	FScopeLock ScopedLock(&Lock);
-
-	FCallTime& Timer = Timers.FindOrAdd(InScopedCall.Context->CompiledTaskId);
+	FCallTime& Timer = const_cast<FPCGStack*>(InScopedCall.Context->Stack)->Timer;
 
 	switch (InScopedCall.Phase)
 	{
@@ -47,7 +41,7 @@ void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 
 		Timer.PrepareDataFrameCount++;
 		Timer.PrepareDataTime += ThisFrameTime;
-		Timer.PrepareDataWallTime = CurrentTime - Timer.PrepareDataStartTime;
+		Timer.PrepareDataEndTime = CurrentTime;
 		break;
 	case EPCGExecutionPhase::Execute:
 		if (Timer.ExecutionFrameCount == 0)
@@ -57,7 +51,7 @@ void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 
 		Timer.ExecutionTime += ThisFrameTime;
 		Timer.ExecutionFrameCount++;
-		Timer.ExecutionWallTime = CurrentTime - Timer.ExecutionStartTime;
+		Timer.ExecutionEndTime = CurrentTime;
 
 		Timer.MaxExecutionFrameTime = FMath::Max(Timer.MaxExecutionFrameTime, ThisFrameTime);
 		Timer.MinExecutionFrameTime = FMath::Min(Timer.MinExecutionFrameTime, ThisFrameTime);
@@ -67,6 +61,7 @@ void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 		break;
 	}
 
+	FScopeLock ScopedLock(&Lock);
 	if (!InScopedCall.CapturedMessages.IsEmpty())
 	{
 		TArray<FCapturedMessage>& InstanceMessages = CapturedMessages.FindOrAdd(InScopedCall.Context->Node);
@@ -76,147 +71,145 @@ void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 
 namespace PCGUtils
 {
-	void AddTimers(FCallTreeInfo& RootInfo, const FExtraCapture::TTimersMap& Timers, const TMap<FPCGTaskId, const FPCGGraphTask*>& TaskLookup)
+	void BuildTreeInfo(FCallTreeInfo& Info, const TMap<const UPCGNode*, const UPCGGraph*>& SubgraphNodeToGraphMap)
 	{
-		// re-use this map
-		TArray<FPCGTaskId> PathIds;
-		TArray<const UPCGNode*> PathNodes;
-
-		for (const auto& Pair : Timers)
+		if (const UPCGGraph* const* Subgraph = SubgraphNodeToGraphMap.Find(Info.Node))
 		{
-			const FPCGTaskId TaskId = Pair.Key;
-			const FCallTime& CallTime = Pair.Value;
-
-			PathIds.Reset();
-			PathNodes.Reset();
-
-			// build a list of parent ids that we need to populate our tree with
-			PathIds.Add(TaskId);
-			while (true)
-			{
-				const FPCGGraphTask*const * TaskItr = TaskLookup.Find(PathIds.Last());
-				if (!TaskItr || !*TaskItr)
-				{
-					// can't find an entry in our list ignore it
-					PathIds.Reset();
-					PathNodes.Reset();
-					break;
-				}
-
-				const FPCGGraphTask& Task = **TaskItr;
-
-				if (PathNodes.Num() < PathIds.Num())
-				{
-					PathNodes.Add(Task.Node);
-				}
-
-				if (Task.ParentId == InvalidPCGTaskId)
-				{
-					break;
-				}
-
-				if (Task.ParentId == PathIds.Last())
-				{
-					ensureMsgf(false, TEXT("Parent ID is same as current task ID which will result in infinite loop."));
-					break;
-				}
-
-				PathIds.Add(Task.ParentId);
-			}
-
-			FCallTreeInfo* CurrentInfo = &RootInfo;
-
-			// now add the entries, the order is reversed b/c top level ones were pushed to the end
-			for (int32 Idx = PathIds.Num()-1; Idx >= 0; --Idx)
-			{
-				const FPCGTaskId CurrentId = PathIds[Idx];
-
-				FCallTreeInfo* FoundInfo = nullptr;
-				for (FCallTreeInfo& Child : CurrentInfo->Children)
-				{
-					if (Child.TaskId == CurrentId)
-					{
-						FoundInfo = &Child;
-						break;
-					}
-				}
-
-				if (!FoundInfo)
-				{
-					// didn't find an existing entry, add one
-					FCallTreeInfo& Child = CurrentInfo->Children.Emplace_GetRef();
-					Child.TaskId = CurrentId;
-					Child.Node = PathNodes[Idx];
-
-					CurrentInfo = &Child;
-				}
-				else
-				{
-					CurrentInfo = FoundInfo;
-				}
-			}
-
-			CurrentInfo->CallTime = CallTime;
+			check(*Subgraph);
+			// This is the same as in UPCGSubgraphSettings::GetAdditionalTitleInformation
+			Info.Name = FName::NameToDisplayString((*Subgraph)->GetName(), /*bIsBool=*/false);
 		}
-	}
 
-	void BuildTreeInfo(FCallTreeInfo& Info)
-	{
 		for (FCallTreeInfo& Child : Info.Children)
 		{
-			BuildTreeInfo(Child);
+			BuildTreeInfo(Child, SubgraphNodeToGraphMap);
 
 			Info.CallTime.PrepareDataTime += Child.CallTime.PrepareDataTime;
-			Info.CallTime.PrepareDataWallTime += Child.CallTime.PrepareDataWallTime;
 			Info.CallTime.ExecutionTime += Child.CallTime.ExecutionTime;
-			Info.CallTime.ExecutionWallTime += Child.CallTime.ExecutionWallTime;
 			Info.CallTime.PostExecuteTime += Child.CallTime.PostExecuteTime;
+
+			Info.CallTime.PrepareDataStartTime = FMath::Min(Info.CallTime.PrepareDataStartTime, Child.CallTime.PrepareDataStartTime);
+			Info.CallTime.PrepareDataEndTime = FMath::Max(Info.CallTime.PrepareDataEndTime, Child.CallTime.PrepareDataEndTime);
+			Info.CallTime.ExecutionStartTime = FMath::Min(Info.CallTime.ExecutionStartTime, Child.CallTime.ExecutionStartTime);
+			Info.CallTime.ExecutionEndTime = FMath::Max(Info.CallTime.ExecutionEndTime, Child.CallTime.ExecutionEndTime);
+
 			Info.CallTime.MinExecutionFrameTime = FMath::Min(Info.CallTime.MinExecutionFrameTime, Child.CallTime.MinExecutionFrameTime);
 			Info.CallTime.MaxExecutionFrameTime = FMath::Max(Info.CallTime.MaxExecutionFrameTime, Child.CallTime.MaxExecutionFrameTime);
 		}
 	}
 }
 
-PCGUtils::FCallTreeInfo PCGUtils::FExtraCapture::CalculateCallTreeInfo(const UPCGComponent* Component) const
+PCGUtils::FCallTreeInfo PCGUtils::FExtraCapture::CalculateCallTreeInfo(const UPCGComponent* Component, const FPCGStack& RootStack) const
 {
-	UPCGSubsystem* PCGSubsystem = Component ? Component->GetSubsystem() : nullptr;
-	const UPCGGraph* PCGGraph = Component ? Component->GetGraph() : nullptr;
-	if (!PCGSubsystem || !PCGGraph)
-	{
-		return {};
-	}
-
-	const FPCGGraphCompiler* Compiler = PCGSubsystem->GetGraphCompiler();
-	if (!Compiler)
-	{
-		return {};
-	}
-
-	const uint32 GridSize = PCGGraph->IsHierarchicalGenerationEnabled() ? Component->GetGenerationGridSize() : PCGHiGenGrid::UninitializedGridSize();
-
-	FPCGStackContext DummyStackContext;
-	TArray<FPCGGraphTask> CompiledTasks = Compiler->GetPrecompiledTasks(PCGGraph, GridSize, DummyStackContext);
-	if (CompiledTasks.IsEmpty())
-	{
-		return {};
-	}
-
-	// the last task on a top level graph is post execute task that doesn't need to be in the call tree
-	CompiledTasks.Pop(); 
-
-	TMap<FPCGTaskId, const FPCGGraphTask*> TaskLookup;
-
-	// build some lookup maps
-	for (const FPCGGraphTask& Task : CompiledTasks)
-	{
-		TaskLookup.Add(Task.CompiledTaskId, &Task);
-	}
-
 	FCallTreeInfo RootInfo;
 
-	PCGUtils::AddTimers(RootInfo, Timers, TaskLookup);
-	PCGUtils::BuildTreeInfo(RootInfo);
+	// Basically, what we want is - visit all entries in the "NodeToStacksInWhichNodeExecuted" and build our information from there.
+	TMap<TObjectKey<const UPCGNode>, TSet<FPCGStack>> NodeToStacksInWhichNodeExecuted = Component->GetExecutedNodeStacks();
 
+	TArray<const UPCGNode*> NodePath;
+	TArray<int32> NodePathLoop;
+	TMap<const UPCGNode*, const UPCGGraph*> SubgraphToGraphMap;
+
+	auto GetNodePath = [&NodePath, &NodePathLoop, &RootStack](const FPCGStack& Stack)
+	{
+		NodePath.Reset();
+		NodePathLoop.Reset();
+
+		if (!Stack.BeginsWith(RootStack))
+		{
+			return false;
+		}
+
+		const TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFrames();
+		for(int StackFrameIndex = RootStack.GetStackFrames().Num(); StackFrameIndex < StackFrames.Num(); ++StackFrameIndex)
+		{
+			const FPCGStackFrame& StackFrame = StackFrames[StackFrameIndex];
+
+			if (const UPCGNode* Node = Cast<UPCGNode>(StackFrame.Object.Get()))
+			{
+				NodePath.Add(Node);
+				NodePathLoop.Add(-1);
+			}
+			else if (StackFrame.LoopIndex != INDEX_NONE)
+			{
+				NodePath.Add(nullptr);
+				NodePathLoop.Add(StackFrame.LoopIndex);
+			}
+		}
+
+		return true;
+	};
+
+	auto GetCallInfo = [&NodePath, &NodePathLoop, &RootInfo]()
+	{
+		FCallTreeInfo* Current = &RootInfo;
+
+		int NodeDepth = 0;
+		while (NodeDepth < NodePath.Num())
+		{
+			const UPCGNode* NodeToFind = NodePath[NodeDepth];
+			const int32 LoopToFind = NodePathLoop[NodeDepth];
+			++NodeDepth;
+
+			bool bFound = false;
+			for (FCallTreeInfo& Child : Current->Children)
+			{
+				if((NodeToFind != nullptr && Child.Node == NodeToFind) || 
+					(LoopToFind != INDEX_NONE && Child.Node == nullptr && Child.LoopIndex == LoopToFind))
+				{
+					bFound = true;
+					Current = &Child;
+					break;
+				}
+			}
+
+			if (!bFound)
+			{
+				FCallTreeInfo& Child = Current->Children.Emplace_GetRef();
+				Child.Node = NodeToFind;
+				Child.LoopIndex = LoopToFind;
+				Current = &Child;
+			}
+		}
+
+		return Current;
+	};
+
+	for (const auto& NodeToStacks : NodeToStacksInWhichNodeExecuted)
+	{
+		const UPCGNode* Node = NodeToStacks.Key.ResolveObjectPtr();
+		const TSet<FPCGStack>& Stacks = NodeToStacks.Value;
+
+		for (const FPCGStack& Stack : Stacks)
+		{
+			if (!GetNodePath(Stack))
+			{
+				continue;
+			}
+
+			// Set subgraph node name if immediate parent is a subgraph (loop or subgraph - NOT spawn actor)
+			const UPCGNode* ParentNode = NodePath.IsEmpty() ? nullptr : ((NodePathLoop.Last() != INDEX_NONE && NodePath.Num() > 1) ? NodePath.Last(1) : NodePath.Last());
+			if (const UPCGSubgraphNode* SubgraphNode = Cast<UPCGSubgraphNode>(ParentNode))
+			{
+				const UPCGGraph* CurrentGraph = Stack.GetGraphForCurrentFrame();
+				if(CurrentGraph && !SubgraphToGraphMap.Contains(SubgraphNode))
+				{
+					SubgraphToGraphMap.Add(SubgraphNode, CurrentGraph);
+				}
+			}
+			
+			// Need to add "this" node to the stack
+			NodePath.Add(Node);
+			NodePathLoop.Add(INDEX_NONE);
+
+			FCallTreeInfo* Info = GetCallInfo();
+
+			check(Info);
+			Info->CallTime = Stack.Timer;
+		}
+	}
+
+	PCGUtils::BuildTreeInfo(RootInfo, SubgraphToGraphMap);
 	return RootInfo;
 }
 

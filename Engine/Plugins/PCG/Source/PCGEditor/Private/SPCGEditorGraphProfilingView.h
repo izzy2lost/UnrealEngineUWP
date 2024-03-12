@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "Graph/PCGStackContext.h"
 #include "Utils/PCGExtraCapture.h"
 
+#include "Framework/Commands/GenericCommands.h"
 #include "Widgets/Views/ITableRow.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
@@ -14,10 +16,11 @@ class UPCGComponent;
 class UPCGEditorGraphNode;
 class UPCGEditorGraph;
 class UPCGNode;
-struct FPCGStack;
 
 struct FPCGProfilingListViewItem
 {
+	FText GetTextForColumn(FName ColumnId, bool bNoGrouping) const;
+
 	const UPCGNode* PCGNode = nullptr;
 	const UPCGEditorGraphNode* EditorNode = nullptr;
 
@@ -53,26 +56,31 @@ public:
 	~SPCGEditorGraphProfilingView();
 
 	void Construct(const FArguments& InArgs, TSharedPtr<FPCGEditor> InPCGEditor);
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 private:
 	TSharedRef<SHeaderRow> CreateHeaderRowWidget();
 
-	ECheckBoxState IsSubgraphExpanded() const;
-	void OnSubgraphExpandedChanged(ECheckBoxState InNewState);
+	int32 GetSubgraphExpandDepth() const { return ExpandSubgraphDepth; }
+	void OnSubgraphExpandDepthChanged(int32 NewValue);
 
 	void OnDebugStackChanged(const FPCGStack& InPCGStack);
 
 	void OnGenerateUpdated(UPCGComponent* InPCGComponent);
 	
 	// Callbacks
+	void RequestRefresh();
 	FReply Refresh();
-	FReply ResetTimers();
 	TSharedRef<ITableRow> OnGenerateRow(PCGProfilingListViewItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable) const;
 	void OnItemDoubleClicked(PCGProfilingListViewItemPtr Item);
 	void OnSortColumnHeader(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type NewSortMode);
 	EColumnSortMode::Type GetColumnSortMode(const FName ColumnId) const;
 	FText GetTotalTimeLabel() const;
 	FText GetTotalWallTimeLabel() const;
+
+	FReply OnListViewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) const;
+	void CopySelectionToClipboard() const;
+	bool CanCopySelectionToClipboard() const;
 
 	/** Called when user changes the text they are searching for */
 	void OnSearchTextChanged(const FText& InText);
@@ -89,9 +97,13 @@ private:
 	/** Cached PCGComponent being viewed */
 	TWeakObjectPtr<UPCGComponent> PCGComponent;
 
+	/** Current stack being viewed */
+	FPCGStack PCGStack;
+
 	TSharedPtr<SHeaderRow> ListViewHeader;
 	TSharedPtr<SListView<PCGProfilingListViewItemPtr>> ListView;
 	TArray<PCGProfilingListViewItemPtr> ListViewItems;
+	TSharedPtr<FUICommandList> ListViewCommands;
 
 	// To allow sorting
 	FName SortingColumn = NAME_None;
@@ -100,7 +112,10 @@ private:
 	double TotalTime = 0.0;
 	double TotalWallTime = 0.0;
 
-	bool bExpandSubgraph = true;
+	bool bNeedsRefresh = false;
+
+	/** Currently depth of entry exposition - if 0, only the nodes in the currently debugged graph will be shown. */
+	int32 ExpandSubgraphDepth = 0;
 
 	/** The string to search for */
 	FString SearchValue;

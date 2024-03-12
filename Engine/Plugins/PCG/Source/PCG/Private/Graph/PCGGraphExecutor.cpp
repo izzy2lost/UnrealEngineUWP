@@ -824,7 +824,7 @@ void FPCGGraphExecutor::Execute()
 						if (Task.StackIndex != INDEX_NONE)
 						{
 							const FPCGStack* Stack = Task.GetStack();
-							SourceComponent->StoreInspectionData(Stack, Task.Node, TaskInput, CachedOutput);
+							SourceComponent->StoreInspectionData(Stack, Task.Node, TaskInput, CachedOutput, /*bUsedCache=*/true);
 						}
 					}
 #endif
@@ -1003,7 +1003,7 @@ void FPCGGraphExecutor::Execute()
 					if (ActiveTask.StackIndex != INDEX_NONE)
 					{
 						const FPCGStack* Stack = ActiveTask.StackContext->GetStack(ActiveTask.StackIndex);
-						SourceComponent->StoreInspectionData(Stack, ActiveTask.Context->Node, ActiveTask.Context->InputData, ActiveTask.Context->OutputData);
+						SourceComponent->StoreInspectionData(Stack, ActiveTask.Context->Node, ActiveTask.Context->InputData, ActiveTask.Context->OutputData, /*bUsedCache=*/false);
 					}
 				}
 			}

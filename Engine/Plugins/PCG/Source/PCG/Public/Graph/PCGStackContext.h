@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Utils/PCGExtraCapture.h"
+
 #include "Containers/Array.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -110,6 +112,11 @@ public:
 
 		return Hash;
 	}
+
+#if WITH_EDITOR
+	// Used to store node & hierarchy information
+	PCGUtils::FCallTime Timer;
+#endif
 
 private:
 	TArray<FPCGStackFrame> StackFrames;

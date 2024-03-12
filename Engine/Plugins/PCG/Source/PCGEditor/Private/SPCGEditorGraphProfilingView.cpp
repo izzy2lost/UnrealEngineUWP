@@ -10,9 +10,11 @@
 #include "PCGEditorGraphNode.h"
 
 #include "Framework/Views/TableViewMetadata.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Views/SListView.h"
 
@@ -26,6 +28,7 @@ namespace PCGEditorGraphProfilingView
 	const FName NAME_Node = FName(TEXT("Node"));
 	const FName NAME_PrepareDataTime = FName(TEXT("PrepareDataTime"));
 	const FName NAME_PrepareDataWallTime = FName(TEXT("PrepareData_WallTime"));
+	const FName NAME_NbPrepareFrames = FName(TEXT("NbPrepareFrames"));
 	const FName NAME_MinExecutionFrameTime = FName(TEXT("MinFrameTime"));
 	const FName NAME_MaxExecutionFrameTime = FName(TEXT("MaxFrameTime"));
 	const FName NAME_ExecutionTime = FName(TEXT("ExecutionTime"));
@@ -38,6 +41,7 @@ namespace PCGEditorGraphProfilingView
 	const FText TEXT_NodeLabel = LOCTEXT("NodeLabel", "Node");
 	const FText TEXT_PrepareDataTimeLabel = LOCTEXT("PrepareDataTimeLabel", "Prepare");
 	const FText TEXT_PrepareDataWallTimeLabel = LOCTEXT("PrepareDataWallTimeLabel", "Prepare WallTime");
+	const FText TEXT_NbPrepareFramesLabel = LOCTEXT("NbPrepareFramesLabel", "Prep Frames");
 	const FText TEXT_MinExecutionFrameTimeLabel = LOCTEXT("MinExecutionFrameTimeLabel", "Min FrameTime");
 	const FText TEXT_MaxExecutionFrameTimeLabel = LOCTEXT("MaxExecutionFrameTimeLabel", "Max FrameTime");
 	const FText TEXT_ExecutionTimeLabel = LOCTEXT("ExecutionTimeLabel", "Exec");
@@ -49,6 +53,7 @@ namespace PCGEditorGraphProfilingView
 	/** Tooltips */
 	const FText TEXT_PrepareDataTimeTooltip = LOCTEXT("PrepareDataTimeTooltip", "Cost of the PrepareData execution phase which some nodes use to process the incoming data, in ms.");
 	const FText TEXT_PrepareDataWallTimeTooltip = LOCTEXT("PrepareDataWallTimeTooltip", "Total real time elapsed between prepare data first being called until completion, including any wait/sleep time, in ms.");
+	const FText TEXT_NbPrepareFramesTooltip = LOCTEXT("NbPrepareFramesTooltip", "The number of frames in which one or more prepare data phases were executed.");
 	const FText TEXT_MinExecutionFrameTimeTooltip = LOCTEXT("MinExecutionFrameTimeTooltip", "The minimum time spent of all execution frames, in ms.");
 	const FText TEXT_MaxExecutionFrameTimeTooltip = LOCTEXT("MaxExecutionFrameTimeTooltip", "The maximum time spent of all execution frames, in ms.");
 	const FText TEXT_ExecutionTimeTooltip = LOCTEXT("ExecutionTimeTooltip", "The total time spent for execution, summed over all execution frames, in ms.");
@@ -68,68 +73,98 @@ void SPCGProfilingListViewItemRow::Construct(const FArguments& InArgs, const TSh
 		InOwnerTableView);
 }
 
+FText FPCGProfilingListViewItem::GetTextForColumn(FName ColumnId, bool bNoGrouping) const
+{
+	const FNumberFormattingOptions* NumberFormattingOptions = (bNoGrouping ? &FNumberFormattingOptions::DefaultNoGrouping() : nullptr);
+
+	if (ColumnId == PCGEditorGraphProfilingView::NAME_Node)
+	{
+		if (bHasData)
+		{
+			return FText::FromString(Name);
+		}
+		else
+		{
+			return FText::FromString(Name + TEXT(" (cached)"));
+		}
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_NbExecutionFrames)
+	{
+		return ((CallTime.ExecutionFrameCount >= 0) ? FText::AsNumber(CallTime.ExecutionFrameCount, NumberFormattingOptions) : FText());
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_NbPrepareFrames)
+	{
+		return ((CallTime.PrepareDataFrameCount >= 0) ? FText::AsNumber(CallTime.PrepareDataFrameCount, NumberFormattingOptions) : FText());
+	}
+	else if (!bHasData)
+	{
+		return PCGEditorGraphProfilingView::NoDataAvailableText;
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_MinExecutionFrameTime)
+	{
+		// In ms
+		return ((CallTime.MinExecutionFrameTime >= 0) ? FText::AsNumber(CallTime.MinExecutionFrameTime * 1000.0, NumberFormattingOptions) : FText());
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_MaxExecutionFrameTime)
+	{
+		// In ms
+		return ((CallTime.MaxExecutionFrameTime >= 0) ? FText::AsNumber(CallTime.MaxExecutionFrameTime * 1000.0, NumberFormattingOptions) : FText());
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_ExecutionTime)
+	{
+		// In ms
+		return FText::AsNumber(CallTime.ExecutionTime * 1000.0, NumberFormattingOptions);
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_ExecutionWallTime)
+	{
+		// In ms
+		return FText::AsNumber(CallTime.ExecutionWallTime() * 1000.0, NumberFormattingOptions);
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_PrepareDataTime)
+	{
+		// In ms
+		return FText::AsNumber(CallTime.PrepareDataTime * 1000.0, NumberFormattingOptions);
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_PrepareDataWallTime)
+	{
+		// In ms
+		return FText::AsNumber(CallTime.PrepareDataWallTime() * 1000.0, NumberFormattingOptions);
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_TotalTime)
+	{
+		// In ms
+		return FText::AsNumber((CallTime.TotalTime()) * 1000.0, NumberFormattingOptions);
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_TotalWallTime)
+	{
+		// In ms
+		return FText::AsNumber((CallTime.TotalWallTime()) * 1000.0, NumberFormattingOptions);
+	}
+	else
+	{
+		return LOCTEXT("ItemColumnError", "Unrecognized Column");
+	}
+}
+
 TSharedRef<SWidget> SPCGProfilingListViewItemRow::GenerateWidgetForColumn(const FName& ColumnId)
 {
 	FText ColumnData = LOCTEXT("ColumnError", "Unrecognized Column");
+	FColor ColumnDataColor = FColor::White;
+
 	if (InternalItem.IsValid())
 	{
-		if (ColumnId == PCGEditorGraphProfilingView::NAME_Node)
+		ColumnData = InternalItem->GetTextForColumn(ColumnId, /*bNoGrouping=*/false);
+
+		if (!InternalItem->bHasData)
 		{
-			ColumnData = FText::FromString(InternalItem->Name);
-		}
-		else if (ColumnId == PCGEditorGraphProfilingView::NAME_NbExecutionFrames)
-		{
-			ColumnData = ((InternalItem->CallTime.ExecutionFrameCount >= 0) ? FText::AsNumber(InternalItem->CallTime.ExecutionFrameCount) : FText());
-		}
-		else if (!InternalItem->bHasData)
-		{
-			ColumnData = PCGEditorGraphProfilingView::NoDataAvailableText;
-		}
-		else if (ColumnId == PCGEditorGraphProfilingView::NAME_MinExecutionFrameTime)
-		{
-			// In ms
-			ColumnData = ((InternalItem->CallTime.MinExecutionFrameTime >= 0) ? FText::AsNumber(InternalItem->CallTime.MinExecutionFrameTime * 1000.0) : FText());
-		}
-		else if (ColumnId == PCGEditorGraphProfilingView::NAME_MaxExecutionFrameTime)
-		{
-			// In ms
-			ColumnData = ((InternalItem->CallTime.MaxExecutionFrameTime >= 0) ? FText::AsNumber(InternalItem->CallTime.MaxExecutionFrameTime * 1000.0) : FText());
-		}
-		else if (ColumnId == PCGEditorGraphProfilingView::NAME_ExecutionTime)
-		{
-			// In ms
-			ColumnData = FText::AsNumber(InternalItem->CallTime.ExecutionTime * 1000.0);
-		}
-		else if (ColumnId == PCGEditorGraphProfilingView::NAME_ExecutionWallTime)
-		{
-			// In ms
-			ColumnData = FText::AsNumber(InternalItem->CallTime.ExecutionWallTime * 1000.0);
-		}
-		else if (ColumnId == PCGEditorGraphProfilingView::NAME_PrepareDataTime)
-		{
-			// In ms
-			ColumnData = FText::AsNumber(InternalItem->CallTime.PrepareDataTime * 1000.0);
-		}
-		else if (ColumnId == PCGEditorGraphProfilingView::NAME_PrepareDataWallTime)
-		{
-			// In ms
-			ColumnData = FText::AsNumber(InternalItem->CallTime.PrepareDataWallTime * 1000.0);
-		}
-		else if (ColumnId == PCGEditorGraphProfilingView::NAME_TotalTime)
-		{
-			// In ms
-			ColumnData = FText::AsNumber((InternalItem->CallTime.PrepareDataTime + InternalItem->CallTime.ExecutionTime) * 1000.0);
-		}
-		else if (ColumnId == PCGEditorGraphProfilingView::NAME_TotalWallTime)
-		{
-			// In ms
-			ColumnData = FText::AsNumber((InternalItem->CallTime.PrepareDataWallTime + InternalItem->CallTime.ExecutionWallTime) * 1000.0);
+			ColumnDataColor = FColor(75, 75, 75);
 		}
 	}
 
 	TSharedRef<SWidget> DataWidget = 
 		SNew(STextBlock)
 		.Text(ColumnData)
+		.ColorAndOpacity(ColumnDataColor)
 		.OverflowPolicy(ETextOverflowPolicy::Ellipsis);
 
 	// Add the internal name of the node as tooltip
@@ -182,6 +217,11 @@ void SPCGEditorGraphProfilingView::Construct(const FArguments& InArgs, TSharedPt
 	SortMode = EColumnSortMode::Descending;
 	ListViewHeader = CreateHeaderRowWidget();
 
+	ListViewCommands = MakeShareable(new FUICommandList);
+	ListViewCommands->MapAction(FGenericCommands::Get().Copy,
+		FExecuteAction::CreateSP(this, &SPCGEditorGraphProfilingView::CopySelectionToClipboard),
+		FCanExecuteAction::CreateSP(this, &SPCGEditorGraphProfilingView::CanCopySelectionToClipboard));
+
 	const TSharedRef<SScrollBar> HorizontalScrollBar = SNew(SScrollBar)
 		.Orientation(Orient_Horizontal)
 		.Thickness(FVector2D(12.0f, 12.0f));
@@ -197,6 +237,7 @@ void SPCGEditorGraphProfilingView::Construct(const FArguments& InArgs, TSharedPt
 		.OnMouseButtonDoubleClick(this, &SPCGEditorGraphProfilingView::OnItemDoubleClicked)
 		.AllowOverscroll(EAllowOverscroll::No)
 		.ExternalScrollbar(VerticalScrollBar)
+		.OnKeyDownHandler(this, &SPCGEditorGraphProfilingView::OnListViewKeyDown)
 		.ConsumeMouseWheel(EConsumeMouseWheel::Always);
 	
 	this->ChildSlot
@@ -216,28 +257,22 @@ void SPCGEditorGraphProfilingView::Construct(const FArguments& InArgs, TSharedPt
 			]
 			+SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(1.0f, 1.0f)
-			[
-				SNew(SButton)
-				.Text(LOCTEXT("ResetButton", "Reset"))
-				.OnClicked(this, &SPCGEditorGraphProfilingView::ResetTimers)
-			]
-			+SHorizontalBox::Slot()
-			.AutoWidth()
 			.VAlign(VAlign_Center)
 			.Padding(1.0f, 0.0f)
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("ExpandSubgraph", "Expand Subgraph"))
+				.Text(LOCTEXT("ExpandSubgraphDepth", "Expand Subgraph Depth"))
 			]
 			+SHorizontalBox::Slot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)
 			.Padding(1.0f, 0.0f)
 			[
-				SNew(SCheckBox)
-				.IsChecked(this, &SPCGEditorGraphProfilingView::IsSubgraphExpanded)
-				.OnCheckStateChanged(this, &SPCGEditorGraphProfilingView::OnSubgraphExpandedChanged)
+				SNew(SSpinBox<int32>)
+				.Value(this, &SPCGEditorGraphProfilingView::GetSubgraphExpandDepth)
+				.OnValueChanged(this, &SPCGEditorGraphProfilingView::OnSubgraphExpandDepthChanged)
+				.MinValue(0)
+				.MaxValue(20)
 			]
 			+SHorizontalBox::Slot()
 			.Padding(FMargin(30.0f, 0.0f, 2.0f, 0.0f))
@@ -307,6 +342,17 @@ void SPCGEditorGraphProfilingView::Construct(const FArguments& InArgs, TSharedPt
 	Refresh();
 }
 
+void SPCGEditorGraphProfilingView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+
+	if (bNeedsRefresh)
+	{
+		bNeedsRefresh = false;
+		Refresh();
+	}
+}
+
 TSharedRef<SHeaderRow> SPCGEditorGraphProfilingView::CreateHeaderRowWidget()
 {
 	return SNew(SHeaderRow)
@@ -337,6 +383,15 @@ TSharedRef<SHeaderRow> SPCGEditorGraphProfilingView::CreateHeaderRowWidget()
 		.OnSort(this, &SPCGEditorGraphProfilingView::OnSortColumnHeader)
 		.InitialSortMode(EColumnSortMode::Descending)
 		.DefaultTooltip(PCGEditorGraphProfilingView::TEXT_PrepareDataWallTimeTooltip)
+		+ SHeaderRow::Column(PCGEditorGraphProfilingView::NAME_NbPrepareFrames)
+		.ManualWidth(90.0f)
+		.DefaultLabel(PCGEditorGraphProfilingView::TEXT_NbPrepareFramesLabel)
+		.HAlignHeader(HAlign_Center)
+		.HAlignCell(HAlign_Right)
+		.SortMode(this, &SPCGEditorGraphProfilingView::GetColumnSortMode, PCGEditorGraphProfilingView::NAME_NbPrepareFrames)
+		.OnSort(this, &SPCGEditorGraphProfilingView::OnSortColumnHeader)
+		.InitialSortMode(EColumnSortMode::Descending)
+		.DefaultTooltip(PCGEditorGraphProfilingView::TEXT_NbPrepareFramesTooltip)
 		+ SHeaderRow::Column(PCGEditorGraphProfilingView::NAME_NbExecutionFrames)
 		.ManualWidth(90.0f)
 		.DefaultLabel(PCGEditorGraphProfilingView::TEXT_NbExecutionFramesLabel)
@@ -425,18 +480,87 @@ void SPCGEditorGraphProfilingView::OnSortColumnHeader(const EColumnSortPriority:
 		SortMode = NewSortMode;
 	}
 
-	Refresh();
+	RequestRefresh();
 }
 
-ECheckBoxState SPCGEditorGraphProfilingView::IsSubgraphExpanded() const
+void SPCGEditorGraphProfilingView::OnSubgraphExpandDepthChanged(int32 NewValue)
 {
-	return bExpandSubgraph ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	ExpandSubgraphDepth = NewValue;
+	RequestRefresh();
 }
 
-void SPCGEditorGraphProfilingView::OnSubgraphExpandedChanged(ECheckBoxState InNewState)
+FReply SPCGEditorGraphProfilingView::OnListViewKeyDown(const FGeometry& /*InGeometry*/, const FKeyEvent& InKeyEvent) const
 {
-	bExpandSubgraph = (InNewState == ECheckBoxState::Checked);
-	Refresh();
+	if (ListViewCommands->ProcessCommandBindings(InKeyEvent))
+	{
+		return FReply::Handled();
+	}
+
+	return FReply::Unhandled();
+}
+
+void SPCGEditorGraphProfilingView::CopySelectionToClipboard() const
+{
+	constexpr TCHAR Delimiter = TEXT(',');
+	constexpr TCHAR LineEnd = TEXT('\n');
+
+	TStringBuilder<2048> CSVExport;
+	TArray<FName> VisibleColumns;
+
+	// Write column header row
+	bool bHasWrittenAColumn = false;
+	const TIndirectArray<SHeaderRow::FColumn>& Columns = ListViewHeader->GetColumns();
+	for (auto Column : Columns)
+	{
+		if (!Column.bIsVisible)
+		{
+			continue;
+		}
+
+		VisibleColumns.Add(Column.ColumnId);
+		const FText& ColumnTitle = Column.DefaultText.Get();
+
+		if (bHasWrittenAColumn)
+		{
+			CSVExport += Delimiter;
+		}
+
+		CSVExport += ColumnTitle.ToString();
+		bHasWrittenAColumn = true;
+	}
+
+	// Gather selected rows and sort them to match the display order instead of selection order
+	TArray<PCGProfilingListViewItemPtr> SelectedListViewItems = ListView->GetSelectedItems();
+
+	TArray<int32> SelectedListViewItemsIndices;
+	Algo::Transform(SelectedListViewItems, SelectedListViewItemsIndices, [this](const PCGProfilingListViewItemPtr& InItem) { return ListViewItems.IndexOfByKey(InItem); });
+	Algo::Sort(SelectedListViewItemsIndices, [](const int32& A, const int32& B) { return A < B; });
+
+	SelectedListViewItems.Reset();
+	Algo::Transform(SelectedListViewItemsIndices, SelectedListViewItems, [this](const int32& InItemIndex) { return ListViewItems[InItemIndex]; });
+
+	// Write each row
+	for (const PCGProfilingListViewItemPtr& ListViewItem : SelectedListViewItems)
+	{
+		CSVExport += LineEnd;
+
+		for (int ColumnIndex = 0; ColumnIndex < VisibleColumns.Num(); ++ColumnIndex)
+		{
+			if (ColumnIndex > 0)
+			{
+				CSVExport += Delimiter;
+			}
+
+			CSVExport += ListViewItem->GetTextForColumn(VisibleColumns[ColumnIndex], /*bNoGrouping=*/true).ToString();
+		}
+	}
+
+	FPlatformApplicationMisc::ClipboardCopy(*CSVExport);
+}
+
+bool SPCGEditorGraphProfilingView::CanCopySelectionToClipboard() const
+{
+	return ListView->GetNumItemsSelected() > 0;
 }
 
 EColumnSortMode::Type SPCGEditorGraphProfilingView::GetColumnSortMode(const FName ColumnId) const
@@ -449,35 +573,13 @@ EColumnSortMode::Type SPCGEditorGraphProfilingView::GetColumnSortMode(const FNam
 	return SortMode;
 }
 
-FReply SPCGEditorGraphProfilingView::ResetTimers()
-{
-	const TSharedPtr<FPCGEditor> PCGEditor = PCGEditorPtr.Pin();
-	if (!PCGEditor.IsValid())
-	{
-		return FReply::Handled();
-	}
-
-	if (!PCGEditorGraph)
-	{
-		return FReply::Handled();
-	}
-
-	if (const UPCGComponent* Component = PCGComponent.Get())
-	{
-		Component->ExtraCapture.ResetTimers();
-		Refresh();
-	}
-
-	return FReply::Handled();
-}
-
 namespace PCGEditorGraphProfilingView
 {
 	void AddListItems(
 		TArray<PCGProfilingListViewItemPtr>& OutListViewItems,
 		const TArray<PCGUtils::FCallTreeInfo>& TreeInfo,
 		const TMap<const UPCGNode*, UPCGEditorGraphNode*>& EditorNodeLookup,
-		bool bExpandSubgraph,
+		int ExpandSubgraphDepth,
 		const FString& FolderName,
 		const FString& SearchString,
 		UPCGEditorGraphNode* CurrentEditorNode = nullptr)
@@ -488,38 +590,53 @@ namespace PCGEditorGraphProfilingView
 			UPCGEditorGraphNode* EditorNode = EditorNodeItr ? *EditorNodeItr : CurrentEditorNode;
 
 			FString Fullname = FolderName;
-			if (Info.Node)
+			if (!Info.Name.IsEmpty())
+			{
+				Fullname += Info.Name;
+			}
+			else if (Info.Node)
 			{
 				Fullname += Info.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString();
+			}
+			else if (Info.LoopIndex != INDEX_NONE)
+			{
+				Fullname += FString::Printf(TEXT("Loop_%d"), Info.LoopIndex);
 			}
 
 			const bool bFilteredIn = SearchString.IsEmpty() || Fullname.Find(SearchString) != INDEX_NONE || (Info.Node && Info.Node->GetName().Find(SearchString) != INDEX_NONE);
 
-			// don't show inclusive times when bExpandSubgraph is on or the total sum of everything will mismatch reality
-			if (bFilteredIn && (Info.Children.IsEmpty() || bExpandSubgraph == false) && Info.CallTime.MaxExecutionFrameTime > 0)
+			if (bFilteredIn && (Info.Children.IsEmpty() || ExpandSubgraphDepth == 0))
 			{
 				PCGProfilingListViewItemPtr ListViewItem = MakeShared<FPCGProfilingListViewItem>();
 
 				ListViewItem->PCGNode = Info.Node;
 				ListViewItem->EditorNode = EditorNode;
 				ListViewItem->Name = Fullname;
-				ListViewItem->bHasData = true;
+				ListViewItem->bHasData = (Info.CallTime.MaxExecutionFrameTime > 0);
 
 				ListViewItem->CallTime = Info.CallTime;
 
 				OutListViewItems.Add(ListViewItem);
 			}
 
-			if (bExpandSubgraph && !Info.Children.IsEmpty())
+			if(ExpandSubgraphDepth > 0 && !Info.Children.IsEmpty())
 			{
-				AddListItems(OutListViewItems, Info.Children, EditorNodeLookup, /* bExpandSubgraph */ true, Fullname + "/", SearchString, EditorNode);
+				AddListItems(OutListViewItems, Info.Children, EditorNodeLookup, ExpandSubgraphDepth - 1, Fullname + "/", SearchString, EditorNode);
 			}
 		}
 	}
 }
 
+void SPCGEditorGraphProfilingView::RequestRefresh()
+{
+	bNeedsRefresh = true;
+}
+
 FReply SPCGEditorGraphProfilingView::Refresh()
 {
+	TotalTime = 0;
+	TotalWallTime = 0;
+
 	ListViewItems.Empty();
 	ListView->RequestListRefresh();
 
@@ -549,15 +666,18 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 		EditorNodeLookup.Add(EditorNode->GetPCGNode(), EditorNode);
 	}
 
-	PCGUtils::FCallTreeInfo TreeInfo = Component->ExtraCapture.CalculateCallTreeInfo(Component);
-
-	TotalTime = TreeInfo.CallTime.ExecutionTime;
-	TotalWallTime = TreeInfo.CallTime.ExecutionWallTime;
+	PCGUtils::FCallTreeInfo TreeInfo = Component->ExtraCapture.CalculateCallTreeInfo(Component, PCGStack);
 
 	ListViewItems.Reserve(TreeInfo.Children.Num());
 
+	if (TreeInfo.Children.Num() > 0)
+	{
+		TotalTime = TreeInfo.CallTime.TotalTime();
+		TotalWallTime = TreeInfo.CallTime.TotalWallTime();
+	}
+
 	//TODO: could turn this into a tree instead of expanding into a list
-	PCGEditorGraphProfilingView::AddListItems(ListViewItems, TreeInfo.Children, EditorNodeLookup, bExpandSubgraph, FString(), SearchValue);
+	PCGEditorGraphProfilingView::AddListItems(ListViewItems, TreeInfo.Children, EditorNodeLookup, ExpandSubgraphDepth, FString(), SearchValue);
 
 	if (SortingColumn != NAME_None && SortMode != EColumnSortMode::None)
 	{
@@ -574,7 +694,11 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 				}
 				else if (SortingColumn == PCGEditorGraphProfilingView::NAME_PrepareDataWallTime)
 				{
-					isLess = A->CallTime.PrepareDataWallTime < B->CallTime.PrepareDataWallTime;
+					isLess = A->CallTime.PrepareDataWallTime() < B->CallTime.PrepareDataWallTime();
+				}
+				else if (SortingColumn == PCGEditorGraphProfilingView::NAME_NbPrepareFrames)
+				{
+					isLess = A->CallTime.PrepareDataFrameCount < B->CallTime.PrepareDataFrameCount;
 				}
 				else if (SortingColumn == PCGEditorGraphProfilingView::NAME_MinExecutionFrameTime)
 				{
@@ -590,7 +714,7 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 				}
 				else if (SortingColumn == PCGEditorGraphProfilingView::NAME_ExecutionWallTime)
 				{
-					isLess = A->CallTime.ExecutionWallTime < B->CallTime.ExecutionWallTime;
+					isLess = A->CallTime.ExecutionWallTime() < B->CallTime.ExecutionWallTime();
 				}
 				else if (SortingColumn == PCGEditorGraphProfilingView::NAME_NbExecutionFrames)
 				{
@@ -598,11 +722,11 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 				}
 				else if (SortingColumn == PCGEditorGraphProfilingView::NAME_TotalTime)
 				{
-					isLess = (A->CallTime.ExecutionTime + A->CallTime.PrepareDataTime) < (B->CallTime.ExecutionTime + B->CallTime.PrepareDataTime);
+					isLess = A->CallTime.TotalTime() < B->CallTime.TotalTime();
 				}
 				else if (SortingColumn == PCGEditorGraphProfilingView::NAME_TotalWallTime)
 				{
-					isLess = (A->CallTime.ExecutionWallTime + A->CallTime.PrepareDataWallTime) < (B->CallTime.ExecutionWallTime + B->CallTime.PrepareDataWallTime);
+					isLess = A->CallTime.TotalWallTime() < B->CallTime.TotalWallTime();
 				}
 
 				return SortMode == EColumnSortMode::Ascending ? isLess : !isLess;
@@ -616,6 +740,8 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 
 void SPCGEditorGraphProfilingView::OnDebugStackChanged(const FPCGStack& InPCGStack)
 {
+	PCGStack = InPCGStack;
+
 	if (PCGComponent.IsValid())
 	{
 		PCGComponent->OnPCGGraphGeneratedDelegate.RemoveAll(this);
