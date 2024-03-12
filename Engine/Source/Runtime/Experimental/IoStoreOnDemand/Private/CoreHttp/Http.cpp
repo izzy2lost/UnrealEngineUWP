@@ -3648,7 +3648,8 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 #endif
 
 	TAnsiStringBuilder<64> Ret;
-	auto BuildUrl = [&] (const ANSICHAR* Suffix=nullptr, int32 Port=9493) -> const auto& {
+	auto BuildUrl = [&] (const ANSICHAR* Suffix=nullptr, uint32 Port=9493) -> const auto&
+	{
 		Ret.Reset();
 		Ret << "http://";
 		Ret << TestHost;
@@ -3824,11 +3825,11 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 		};
 
 		FConnectionPool::FParams Params;
-		Params.SetHostFromUrl(BuildUrl("", 9494));
+		Params.SetHostFromUrl(BuildUrl());
 		FConnectionPool Pool(Params);
 
 		FEventLoop Loop2;
-		Loop2.Send(Loop2.Get("/data?stall", Pool), Sink);
+		Loop2.Send(Loop2.Get("/data?stall=1", Pool), Sink);
 
 		// Requests are pipelined. The second one will get went during the stall so
 		// we expect it to fail. The subsequent ones are expected to succeed.
@@ -3907,8 +3908,8 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 			const ANSICHAR* Uri;
 			bool Disconnect;
 		} StressUrls[] = {
-			{ "/data",				false },
-			{ "/data?disconnect",	true },
+			{ "/data?slowly=1",		false },
+			{ "/data?disconnect=1",	true },
 		};
 
 		uint64 Errors = 0;
@@ -3938,7 +3939,7 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 		{
 			FTicketSink Sink = ExpectDisconnect ? FTicketSink(ErrorSink) : FTicketSink(HashSink);
 
-			const auto& StressUrl = BuildUrl(StressUri, 9494);
+			const auto& StressUrl = BuildUrl(StressUri);
 			for (bool AddDelay : {false, true})
 			{
 				FTicket Tickets[StressLoad];
@@ -3994,7 +3995,7 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 	{
 		TAnsiStringBuilder<32> TamperUrl;
 		TamperUrl << "/data?tamper=" << i;
-		FAnsiStringView Url = BuildUrl(TamperUrl.ToString(), 9494);
+		FAnsiStringView Url = BuildUrl(TamperUrl.ToString());
 
 		for (int j = 0; j < 48; ++j)
 		{
