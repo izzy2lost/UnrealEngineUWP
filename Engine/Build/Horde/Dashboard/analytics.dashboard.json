@@ -72,9 +72,9 @@
 					"group": "StepName"
 				}
 			],
-            "categories": [
-                {
-                    "name": "Editor Iteration",
+			"categories": [
+				{
+					"name": "Editor Iteration",
 					"charts": [
 						{
 							"name": "User Load Time (75th Percentile)",
@@ -219,9 +219,50 @@
 							]
 						}
 					]
-                },
-                {
-                    "name": "Cook",
+				},
+				{
+					"name": "Editor Performance",
+					"charts": [
+						{
+							"name": "Count",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "editor-performance-warning-count"
+								}
+							]
+						},
+						{
+							"name": "Editor",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "editor-performance-editor-warning"
+								}
+							]
+						},
+						{
+							"name": "PIE",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "editor-performance-pie-warning"
+								}
+							]
+						},
+						{
+							"name": "Cache",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "editor-performance-cache-warning"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "Cook",
 					"charts": [
 						{
 							"name": "Cook Time (KPIs)",
@@ -418,7 +459,7 @@
 							]
 						}
 					]
-                },
+				},
 				{
 					"name": "Cache",
 					"charts": [
@@ -516,7 +557,7 @@
 						}
 					]
 				}
-            ]
+			]
         }
     ]
 }
