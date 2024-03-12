@@ -222,7 +222,12 @@ void FCurveEditorExtension::CreateCurveEditor(const FTimeSliderArgs& TimeSliderA
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			[
-				SAssignNew(CurveEditorSearchBox, SCurveEditorTreeTextFilter, CurveEditorModel)
+				SNew(SBorder)
+				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+				.Clipping(EWidgetClipping::ClipToBounds)
+				[
+					SAssignNew(CurveEditorSearchBox, SCurveEditorTreeTextFilter, CurveEditorModel)
+				]
 			]
 
 			+ SVerticalBox::Slot()
