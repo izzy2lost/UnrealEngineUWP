@@ -6,6 +6,7 @@
 
 #include "Algo/AnyOf.h"
 #include "Styling/AppStyle.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -44,7 +45,26 @@ namespace UE::MultiUserClient
 			return PathToOwningActor;
 		}
 	}
-	
+
+	void SReplicationStatus::AppendReplicationStatus(SVerticalBox& VerticalBox, FGlobalAuthorityCache& InAuthorityCache, const FArguments& InArgs)
+	{
+		VerticalBox.AddSlot()
+			.AutoHeight()
+			.Padding(4, 3)
+			[
+				SNew(SSeparator)
+			];
+
+		VerticalBox.AddSlot()
+			.AutoHeight()
+			.Padding(4, 0, 4, 3)
+			[
+				SNew(SReplicationStatus, InAuthorityCache)
+				.DisplayedClients(InArgs._DisplayedClients)
+				.ForEachReplicatedObject(InArgs._ForEachReplicatedObject)
+			];
+	}
+
 	void SReplicationStatus::Construct(const FArguments& InArgs, FGlobalAuthorityCache& InAuthorityCache)
 	{
 		AuthorityCache = &InAuthorityCache;

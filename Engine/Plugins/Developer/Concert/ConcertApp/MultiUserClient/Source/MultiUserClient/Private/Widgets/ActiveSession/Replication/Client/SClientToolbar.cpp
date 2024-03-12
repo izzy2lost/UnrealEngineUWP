@@ -9,7 +9,7 @@
 
 namespace UE::MultiUserClient
 {
-	void SClientToolbar::Construct(const FArguments& InArgs, FGlobalAuthorityCache& InAuthorityCache)
+	void SClientToolbar::Construct(const FArguments& InArgs)
 	{
 		ChildSlot
 		[
@@ -21,27 +21,6 @@ namespace UE::MultiUserClient
 			[
 				InArgs._ViewSelectionArea.Widget
 			]
-			
-			+SHorizontalBox::Slot()
-			.FillWidth(1.f)
-			[
-				SNew(SSpacer)
-			]
-
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			.Padding(0.f, 0.f, 5.f, 0.f)
-			[
-				SAssignNew(ReplicationStatus, SReplicationStatus, InAuthorityCache)
-				.DisplayedClients(InArgs._DisplayedClients)
-				.ForEachReplicatedObject(InArgs._ForEachReplicatedObject)
-			]
 		];
-	}
-
-	void SClientToolbar::RefreshStatusText()
-	{
-		ReplicationStatus->RefreshStatusText();
 	}
 }

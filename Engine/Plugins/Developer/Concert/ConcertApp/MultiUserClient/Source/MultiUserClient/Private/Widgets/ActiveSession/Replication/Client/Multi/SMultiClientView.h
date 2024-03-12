@@ -22,7 +22,6 @@ namespace UE::MultiUserClient
 	class FReplicationClient;
 	class FReplicationClientManager;
 	class IClientSelectionModel;
-	class SClientToolbar;
 
 	/** Displays a selection of clients. */
 	class SMultiClientView
@@ -38,9 +37,6 @@ namespace UE::MultiUserClient
 		virtual ~SMultiClientView() override;
 
 	private:
-
-		/** Used to access and update the replication status widget. */
-		TSharedPtr<SClientToolbar> Toolbar;
 
 		FReplicationClientManager* ClientManager = nullptr;
 		IClientSelectionModel* SelectionModel = nullptr;

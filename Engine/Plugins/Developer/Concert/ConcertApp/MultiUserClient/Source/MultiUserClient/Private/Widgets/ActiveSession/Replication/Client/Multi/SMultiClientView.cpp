@@ -15,6 +15,7 @@
 #include "Widgets/ActiveSession/Replication/Client/FrequencyContextMenuUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
 #include "Widgets/ActiveSession/Replication/Client/SClientToolbar.h"
+#include "Widgets/ActiveSession/Replication/Client/SReplicationStatus.h"
 
 #include "Widgets/SBoxPanel.h"
 
@@ -30,20 +31,19 @@ namespace UE::MultiUserClient
 		ClientManager->OnRemoteClientsChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
 		SelectionModel = &InDisplayClientsModel;
 		SelectionModel->OnSelectionChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
-		
+
+		TSharedPtr<SVerticalBox> Content;
 		ChildSlot
 		[
-			SNew(SVerticalBox)
+			SAssignNew(Content, SVerticalBox)
 
 			// Toolbar
 			+SVerticalBox::Slot()
 			.AutoHeight()
 			.Padding(2.f)
 			[
-				SAssignNew(Toolbar, SClientToolbar, InClientManager.GetAuthorityCache())
+				SNew(SClientToolbar)
 				.ViewSelectionArea() [ InArgs._ViewSelectionArea.Widget ]
-				.DisplayedClients(this, &SMultiClientView::GetDisplayClientIds)
-				.ForEachReplicatedObject(this, &SMultiClientView::EnumerateObjectsInStreams)
 			]
 
 			// Editor
@@ -53,6 +53,12 @@ namespace UE::MultiUserClient
 				CreateEditorContent(InConcertClient, InClientManager)
 			]
 		];
+		
+		SReplicationStatus::AppendReplicationStatus(*Content, InClientManager.GetAuthorityCache(),
+			SReplicationStatus::FArguments()
+			.DisplayedClients(this, &SMultiClientView::GetDisplayClientIds)
+			.ForEachReplicatedObject(this, &SMultiClientView::EnumerateObjectsInStreams)
+			);
 
 		RebuildClientSubscriptions();
 	}

@@ -10,11 +10,12 @@
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
+#include "Widgets/ActiveSession/Replication/Client/FrequencyContextMenuUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/Single/Columns/SingleClientColumns.h"
+#include "Widgets/ActiveSession/Replication/Client/SReplicationStatus.h"
 #include "Widgets/ActiveSession/Replication/Client/SClientToolbar.h"
 
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/ActiveSession/Replication/Client/FrequencyContextMenuUtils.h"
 #include "Widgets/Layout/SBox.h"
 
 #define LOCTEXT_NAMESPACE "SReplicationClientView"
@@ -31,19 +32,18 @@ namespace UE::MultiUserClient
 		check(ReplicationClient);
 		
 		FGlobalAuthorityCache& AuthorityCache = ClientManager->GetAuthorityCache();
+		TSharedPtr<SVerticalBox> Content;
 		ChildSlot
 		[
-			SNew(SVerticalBox)
+			SAssignNew(Content, SVerticalBox)
 
 			// Toolbar
 			+SVerticalBox::Slot()
 			.AutoHeight()
 			.Padding(2.f)
 			[
-				SNew(SClientToolbar, AuthorityCache)
+				SNew(SClientToolbar)
 				.ViewSelectionArea() [ InArgs._ViewSelectionArea.Widget ]
-				.DisplayedClients(TSet{ ReplicationClient->GetEndpointId() })
-				.ForEachReplicatedObject(this, &SReplicationClientView::EnumerateReplicatedObjects)
 			]
 
 			// Editor
@@ -53,6 +53,12 @@ namespace UE::MultiUserClient
 				CreateContent(*ReplicationClient)
 			]
 		];
+
+		SReplicationStatus::AppendReplicationStatus(*Content, InClientManager.GetAuthorityCache(),
+			SReplicationStatus::FArguments()
+			.DisplayedClients(TSet{ ReplicationClient->GetEndpointId() })
+			.ForEachReplicatedObject(this, &SReplicationClientView::EnumerateReplicatedObjects)
+			);
 		
 		// Refresh UI if streams change externally, e.g. a remote client changed what they sent
 		ReplicationClient->OnModelChanged().AddSP(this, &SReplicationClientView::OnModelChanged);
