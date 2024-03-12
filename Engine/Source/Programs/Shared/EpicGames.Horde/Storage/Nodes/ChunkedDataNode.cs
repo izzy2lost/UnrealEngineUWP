@@ -289,10 +289,10 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="writer">Writer for output nodes</param>
 		/// <param name="stream">Stream to read from</param>
 		/// <param name="options">Options for finding chunk boundaries</param>
-		/// <param name="copyStats">Stats for the copy operation</param>
+		/// <param name="updateStats">Stats for the copy operation</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Hash of the full file data</returns>
-		internal static async Task<LeafChunkedData> CreateFromStreamAsync(IBlobWriter writer, Stream stream, LeafChunkedDataNodeOptions options, CopyStats? copyStats, CancellationToken cancellationToken)
+		internal static async Task<LeafChunkedData> CreateFromStreamAsync(IBlobWriter writer, Stream stream, LeafChunkedDataNodeOptions options, UpdateStats? updateStats, CancellationToken cancellationToken)
 		{
 			using Blake3.Hasher hasher = Blake3.Hasher.New();
 			using IMemoryOwner<byte> readBuffer = MemoryPool<byte>.Shared.Rent(options.MaxSize);
@@ -318,7 +318,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				sizeSinceProgressUpdate += nextLength;
 				if (sizeSinceProgressUpdate > 512 * 1024)
 				{
-					copyStats?.Update(0, sizeSinceProgressUpdate);
+					updateStats?.Update(0, sizeSinceProgressUpdate);
 					sizeSinceProgressUpdate = 0;
 				}
 
@@ -329,7 +329,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				size -= nextLength;
 			}
 
-			copyStats?.Update(1, sizeSinceProgressUpdate);
+			updateStats?.Update(1, sizeSinceProgressUpdate);
 
 			IoHash hash = IoHash.FromBlake3(hasher);
 			return new LeafChunkedData(hash, leafNodeRefs);

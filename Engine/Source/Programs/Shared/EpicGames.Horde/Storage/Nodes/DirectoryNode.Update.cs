@@ -2,15 +2,141 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Nodes
 {
+	/// <summary>
+	/// Stats reported for copy operations
+	/// </summary>
+	public interface IUpdateStats
+	{
+		/// <summary>
+		/// Number of files that have been copied
+		/// </summary>
+		int Count { get; }
+
+		/// <summary>
+		/// Total size of data to be copied
+		/// </summary>
+		long Size { get; }
+
+		/// <summary>
+		/// Processing speed, in bytes per second
+		/// </summary>
+		double Rate { get; }
+	}
+
+	/// <summary>
+	/// Reports progress info back to callers
+	/// </summary>
+	class UpdateStats : IUpdateStats
+	{
+		readonly object _lockObject = new object();
+		readonly Stopwatch _timer = Stopwatch.StartNew();
+		readonly IProgress<IUpdateStats>? _progress;
+		long _lastTotalSize;
+
+		public int Count { get; set; }
+		public long Size { get; set; }
+		public double Rate { get; set; }
+
+		public UpdateStats(IProgress<IUpdateStats>? progress)
+		{
+			_progress = progress;
+		}
+
+		public void Update(int count, long size)
+		{
+			if (_progress != null)
+			{
+				lock (_lockObject)
+				{
+					Count += count;
+					Size += size;
+					if (_timer.Elapsed > TimeSpan.FromSeconds(5.0))
+					{
+						Rate = (Size - _lastTotalSize) / _timer.Elapsed.TotalSeconds;
+						_lastTotalSize = Size;
+
+						FlushInternal();
+					}
+				}
+			}
+		}
+
+		public void Flush()
+		{
+			if (_progress != null)
+			{
+				lock (_lockObject)
+				{
+					FlushInternal();
+				}
+			}
+		}
+
+		void FlushInternal()
+		{
+			_progress!.Report(this);
+			_timer.Restart();
+		}
+	}
+
+	/// <summary>
+	/// Progress logger for writing copy stats
+	/// </summary>
+	public class UpdateStatsLogger : IProgress<IUpdateStats>
+	{
+		readonly int _totalCount;
+		readonly long _totalSize;
+		readonly ILogger _logger;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public UpdateStatsLogger(ILogger logger)
+			=> _logger = logger;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public UpdateStatsLogger(int totalCount, long totalSize, ILogger logger)
+		{
+			_totalCount = totalCount;
+			_totalSize = totalSize;
+			_logger = logger;
+		}
+
+		/// <inheritdoc/>
+		public void Report(IUpdateStats stats)
+		{
+			if (_totalCount > 0 && _totalSize > 0)
+			{
+				_logger.LogInformation("Copied {NumFiles:n0}/{TotalFiles:n0} files ({Size:n1}/{TotalSize:n1}mb, {Rate:n1}mb/s, {Pct}%)", stats.Count, _totalCount, stats.Size / (1024.0 * 1024.0), _totalSize / (1024.0 * 1024.0), stats.Rate / (1024.0 * 1024.0), (int)((Math.Max(stats.Size, 1) * 100) / Math.Max(_totalSize, 1)));
+			}
+			else if (_totalCount > 0)
+			{
+				_logger.LogInformation("Copied {NumFiles:n0}/{TotalFiles:n0} files ({Size:n1}mb, {Rate:n1}mb/s)", stats.Count, _totalCount, stats.Size / (1024.0 * 1024.0), stats.Rate / (1024.0 * 1024.0));
+			}
+			else if (_totalSize > 0)
+			{
+				_logger.LogInformation("Copied {NumFiles:n0} files ({Size:n1}/{TotalSize:n1}mb, {Rate:n1}mb/s, {Pct}%)", stats.Count, stats.Size / (1024.0 * 1024.0), _totalSize / (1024.0 * 1024.0), stats.Rate / (1024.0 * 1024.0), (int)((Math.Max(stats.Size, 1) * 100) / Math.Max(_totalSize, 1)));
+			}
+			else
+			{
+				_logger.LogInformation("Copied {NumFiles:n0} files ({Size:n1}mb, {Rate:n1}mb/s)", stats.Count, stats.Size / (1024.0 * 1024.0), stats.Rate / (1024.0 * 1024.0));
+			}
+		}
+	}
+
 	/// <summary>
 	/// Describes an update to a file in a directory tree
 	/// </summary>
@@ -214,7 +340,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Writes a tree of files to a storage writer
 		/// </summary>
-		public static async Task<IBlobRef<DirectoryNode>> WriteFilesAsync(this IBlobWriter writer, DirectoryReference baseDir, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		public static async Task<IBlobRef<DirectoryNode>> WriteFilesAsync(this IBlobWriter writer, DirectoryReference baseDir, ChunkingOptions? options = null, IProgress<IUpdateStats>? progress = null, CancellationToken cancellationToken = default)
 		{
 			DirectoryNode outputNode = new DirectoryNode();
 			await outputNode.AddFilesAsync(baseDir, DirectoryReference.EnumerateFiles(baseDir, "*", SearchOption.AllDirectories), writer, options, progress, cancellationToken);
@@ -224,7 +350,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Writes a tree of files to a storage writer
 		/// </summary>
-		public static async Task<IBlobRef<DirectoryNode>> WriteFilesAsync(this IBlobWriter writer, DirectoryInfo baseDir, IReadOnlyList<FileInfo> files, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		public static async Task<IBlobRef<DirectoryNode>> WriteFilesAsync(this IBlobWriter writer, DirectoryInfo baseDir, IReadOnlyList<FileInfo> files, ChunkingOptions? options = null, IProgress<IUpdateStats>? progress = null, CancellationToken cancellationToken = default)
 		{
 			DirectoryNode outputNode = new DirectoryNode();
 			await outputNode.AddFilesAsync(baseDir, files, writer, options, progress, cancellationToken);
@@ -234,27 +360,27 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Writes a tree of files to a storage writer
 		/// </summary>
-		public static async Task<IBlobRef<DirectoryNode>> WriteFilesAsync(this IBlobWriter writer, DirectoryReference baseDir, IReadOnlyList<FileReference> files, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		public static async Task<IBlobRef<DirectoryNode>> WriteFilesAsync(this IBlobWriter writer, DirectoryReference baseDir, IReadOnlyList<FileReference> files, ChunkingOptions? options = null, IProgress<IUpdateStats>? progress = null, CancellationToken cancellationToken = default)
 		{
 			DirectoryNode outputNode = new DirectoryNode();
 			await outputNode.AddFilesAsync(baseDir, files, writer, options, progress, cancellationToken);
 			return await writer.WriteBlobAsync(outputNode, cancellationToken: cancellationToken);
 		}
 
-		/// <inheritdoc cref="AddFilesAsync(DirectoryNode, DirectoryReference, IEnumerable{FileInfo}, IBlobWriter, ChunkingOptions?, IProgress{ICopyStats}?, CancellationToken)"/>
-		public static async Task AddFilesAsync(this DirectoryNode directoryNode, DirectoryInfo directoryInfo, IBlobWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		/// <inheritdoc cref="AddFilesAsync(DirectoryNode, DirectoryReference, IEnumerable{FileInfo}, IBlobWriter, ChunkingOptions?, IProgress{IUpdateStats}?, CancellationToken)"/>
+		public static async Task AddFilesAsync(this DirectoryNode directoryNode, DirectoryInfo directoryInfo, IBlobWriter writer, ChunkingOptions? options = null, IProgress<IUpdateStats>? progress = null, CancellationToken cancellationToken = default)
 		{
 			await directoryNode.AddFilesAsync(new DirectoryReference(directoryInfo), directoryInfo.EnumerateFiles("*", SearchOption.AllDirectories).ToList(), writer, options, progress, cancellationToken);
 		}
 
-		/// <inheritdoc cref="AddFilesAsync(DirectoryNode, DirectoryReference, IEnumerable{FileInfo}, IBlobWriter, ChunkingOptions?, IProgress{ICopyStats}?, CancellationToken)"/>
-		public static Task AddFilesAsync(this DirectoryNode directoryNode, DirectoryReference baseDir, IEnumerable<FileReference> files, IBlobWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		/// <inheritdoc cref="AddFilesAsync(DirectoryNode, DirectoryReference, IEnumerable{FileInfo}, IBlobWriter, ChunkingOptions?, IProgress{IUpdateStats}?, CancellationToken)"/>
+		public static Task AddFilesAsync(this DirectoryNode directoryNode, DirectoryReference baseDir, IEnumerable<FileReference> files, IBlobWriter writer, ChunkingOptions? options = null, IProgress<IUpdateStats>? progress = null, CancellationToken cancellationToken = default)
 		{
 			return directoryNode.AddFilesAsync(baseDir, files.Select(x => x.ToFileInfo()).ToList(), writer, options, progress, cancellationToken);
 		}
 
-		/// <inheritdoc cref="AddFilesAsync(DirectoryNode, DirectoryReference, IEnumerable{FileInfo}, IBlobWriter, ChunkingOptions?, IProgress{ICopyStats}?, CancellationToken)"/>
-		public static Task AddFilesAsync(this DirectoryNode directoryNode, DirectoryInfo baseDir, IEnumerable<FileInfo> files, IBlobWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		/// <inheritdoc cref="AddFilesAsync(DirectoryNode, DirectoryReference, IEnumerable{FileInfo}, IBlobWriter, ChunkingOptions?, IProgress{IUpdateStats}?, CancellationToken)"/>
+		public static Task AddFilesAsync(this DirectoryNode directoryNode, DirectoryInfo baseDir, IEnumerable<FileInfo> files, IBlobWriter writer, ChunkingOptions? options = null, IProgress<IUpdateStats>? progress = null, CancellationToken cancellationToken = default)
 		{
 			return directoryNode.AddFilesAsync(new DirectoryReference(baseDir), files.ToList(), writer, options, progress, cancellationToken);
 		}
@@ -319,14 +445,14 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="writer">Writer for new node data</param>
 		/// <param name="progress">Feedback interface for progress updates</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task AddFilesAsync(this DirectoryNode directoryNode, DirectoryReference baseDir, IEnumerable<FileInfo> files, IBlobWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		public static async Task AddFilesAsync(this DirectoryNode directoryNode, DirectoryReference baseDir, IEnumerable<FileInfo> files, IBlobWriter writer, ChunkingOptions? options = null, IProgress<IUpdateStats>? progress = null, CancellationToken cancellationToken = default)
 		{
 			options ??= new ChunkingOptions();
 
-			CopyStats? copyStats = null;
+			UpdateStats? updateStats = null;
 			if (progress != null)
 			{
-				copyStats = new CopyStats(progress);
+				updateStats = new UpdateStats(progress);
 			}
 
 			DirectoryUpdate update = new DirectoryUpdate();
@@ -353,7 +479,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					// Partition them up into parallel writers
 					List<(int Start, int Count)> partitions = ComputePartitions(batch, batchSize);
 					LeafChunkedData[] leafChunkedFiles = new LeafChunkedData[batch.Count];
-					await Parallel.ForEachAsync(partitions, cancellationToken, (filePartition, ctx) => CreateLeafChunkNodesAsync(writer, batch, leafChunkedFiles, filePartition.Start, filePartition.Count, copyStats, options, cancellationToken));
+					await Parallel.ForEachAsync(partitions, cancellationToken, (filePartition, ctx) => CreateLeafChunkNodesAsync(writer, batch, leafChunkedFiles, filePartition.Start, filePartition.Count, updateStats, options, cancellationToken));
 
 					// Write all the interior nodes and generate the directory update
 					for (int idx = 0; idx < batch.Count; idx++)
@@ -407,7 +533,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			return partitions;
 		}
 
-		static async ValueTask CreateLeafChunkNodesAsync(IBlobWriter writer, IReadOnlyList<FileInfo> files, LeafChunkedData[] leafChunks, int start, int count, CopyStats? copyStats, ChunkingOptions options, CancellationToken cancellationToken)
+		static async ValueTask CreateLeafChunkNodesAsync(IBlobWriter writer, IReadOnlyList<FileInfo> files, LeafChunkedData[] leafChunks, int start, int count, UpdateStats? updateStats, ChunkingOptions options, CancellationToken cancellationToken)
 		{
 			await using IBlobWriter writerFork = writer.Fork();
 			for (int idx = start; idx < start + count; idx++)
@@ -415,7 +541,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				FileInfo file = files[idx];
 				using (Stream stream = file.OpenRead())
 				{
-					leafChunks[idx] = await LeafChunkedDataNode.CreateFromStreamAsync(writerFork, stream, options.LeafOptions, copyStats, cancellationToken);
+					leafChunks[idx] = await LeafChunkedDataNode.CreateFromStreamAsync(writerFork, stream, options.LeafOptions, updateStats, cancellationToken);
 				}
 			}
 			await writerFork.FlushAsync(cancellationToken);

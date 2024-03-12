@@ -214,6 +214,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		{
 			using IReadOnlyMemoryOwner<byte> encodedData = await ReadEncodedPacketAsync(cancellationToken);
 			IRefCountedHandle<Packet> packet = Packet.Decode(encodedData.Memory, _cache.Allocator, cacheKey);
+			Interlocked.Add(ref _storageClient.PacketReaderStats._numDecodedBytesRead, packet.Target.Length);
 #pragma warning disable CA2000
 			PacketReader reader = new PacketReader(_storageClient, _cache, _outer, this, packet.Target, packet);
 			return new Scoped<PacketReader>(reader);
@@ -222,6 +223,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		async ValueTask<IReadOnlyMemoryOwner<byte>> ReadEncodedPacketAsync(CancellationToken cancellationToken)
 		{
+			Interlocked.Add(ref _storageClient.PacketReaderStats._numEncodedBytesRead, _packetLength);
+
 			int minPageIdx = _packetOffset / _cache.BundlePageSize;
 			int maxPageIdx = ((_packetOffset + _packetLength) + (_cache.BundlePageSize - 1)) / _cache.BundlePageSize;
 
@@ -268,6 +271,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		async Task<Scoped<IReadOnlyMemoryOwner<byte>>> ReadBundlePageInternalAsync(BundlePageCacheKey key, CancellationToken cancellationToken)
 		{
 			IReadOnlyMemoryOwner<byte> owner = await _outer.ReadAsync(key.Index * _cache.BundlePageSize, _cache.BundlePageSize, cancellationToken);
+			Interlocked.Add(ref _storageClient.PacketReaderStats._numBytesRead, owner.Memory.Length);
 			return new Scoped<IReadOnlyMemoryOwner<byte>>(owner);
 		}
 

@@ -871,7 +871,7 @@ namespace Horde.Agent.Execution
 					try
 					{
 						DirectoryNode dir = new DirectoryNode();
-						await dir.AddFilesAsync(baseDir, files, blobWriter, progress: new CopyStatsLogger(logger), cancellationToken: cancellationToken);
+						await dir.AddFilesAsync(baseDir, files, blobWriter, progress: new UpdateStatsLogger(logger), cancellationToken: cancellationToken);
 						rootRef = await blobWriter.WriteBlobAsync(dir, cancellationToken: cancellationToken);
 					}
 					catch (Exception ex)

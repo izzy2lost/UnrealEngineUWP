@@ -11,17 +11,15 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// </summary>
 	class PacketReaderStats
 	{
-		public int _numReads;
-		public int _numPacketsRead;
 		public long _numBytesRead;
-		public long _numWastedBytesRead;
+		public long _numEncodedBytesRead;
+		public long _numDecodedBytesRead;
 
 		public void GetStats(StorageStats stats)
 		{
-			stats.Add("bundle.packet_reader.num_reads", _numReads);
-			stats.Add("bundle.packet_reader.num_packets", _numPacketsRead);
-			stats.Add("bundle.packet_reader.num_bytes", _numBytesRead);
-			stats.Add("bundle.packet_reader.num_wasted_bytes", _numWastedBytesRead);
+			stats.Add("bundle.packet_reader.num_bytes_read", _numBytesRead);
+			stats.Add("bundle.packet_reader.num_encoded_bytes_read", _numEncodedBytesRead);
+			stats.Add("bundle.packet_reader.num_decoded_bytes_read", _numDecodedBytesRead);
 		}
 	}
 
