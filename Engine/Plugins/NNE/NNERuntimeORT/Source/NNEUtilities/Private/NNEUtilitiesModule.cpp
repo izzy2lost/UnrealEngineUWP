@@ -1,7 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Modules/ModuleManager.h"
-#include "NNEUtilitiesORTIncludeHelper.h"
+
+THIRD_PARTY_INCLUDES_START
+#include "onnxruntime_cxx_api.h"
+THIRD_PARTY_INCLUDES_END
 
 class FNNEUtilitiesModule : public IModuleInterface
 {

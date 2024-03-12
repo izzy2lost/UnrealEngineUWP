@@ -8,16 +8,11 @@
 #include "NNEUtilitiesModelOptimizerONNX.h"
 #include "NNEUtilitiesHelpers.h"
 
-#include "NNEUtilitiesThirdPartyWarningDisabler.h"
-NNE_THIRD_PARTY_INCLUDES_START
-#undef check
-#undef TEXT
-
+THIRD_PARTY_INCLUDES_START
 #include <onnx/onnx_pb.h>
 #include <onnx/shape_inference/implementation.h>
 #include <onnx/defs/schema.h>
-NNE_THIRD_PARTY_INCLUDES_END
-
+THIRD_PARTY_INCLUDES_END
 
 namespace UE::NNEUtilities::Internal
 {

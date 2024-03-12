@@ -14,8 +14,15 @@ THIRD_PARTY_INCLUDES_START
 #include <unknwn.h>
 #include "Microsoft/COMPointer.h"
 #include "DirectML.h"
+#include "dml_provider_factory.h"
 THIRD_PARTY_INCLUDES_END
 #include "Windows/HideWindowsPlatformTypes.h"
+#include "ID3D12DynamicRHI.h"
+#endif // PLATFORM_WINDOWS
+
+THIRD_PARTY_INCLUDES_START
+#include "cpu_provider_factory.h"
+THIRD_PARTY_INCLUDES_END
 
 // DirectML is implemented using COM on all platforms
 #ifdef IID_GRAPHICS_PPV_ARGS
@@ -23,22 +30,6 @@ THIRD_PARTY_INCLUDES_END
 #else
 #define DML_PPV_ARGS(x) IID_PPV_ARGS(x)
 #endif
-
-#include "ID3D12DynamicRHI.h"
-#endif // PLATFORM_WINDOWS
-
-#include "NNERuntimeORTThirdPartyWarningDisabler.h"
-NNE_THIRD_PARTY_INCLUDES_START
-
-#undef check
-#undef TEXT
-#include "cpu_provider_factory.h"
-
-#if PLATFORM_WINDOWS
-#include "dml_provider_factory.h"
-#endif // PLATFORM_WINDOWS
-
-NNE_THIRD_PARTY_INCLUDES_END
 
 BEGIN_SHADER_PARAMETER_STRUCT(FORTModelInstanceRDGParameters, )
 	RDG_BUFFER_ACCESS_ARRAY(InputBuffers)

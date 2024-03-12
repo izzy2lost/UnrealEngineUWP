@@ -5,16 +5,16 @@ using System.Collections.Generic;
 using System.IO;
 using UnrealBuildTool;
 
-public class NNEOnnxruntimeEditor : ModuleRules
+public class NNEOnnxruntime : ModuleRules
 {
-	public NNEOnnxruntimeEditor(ReadOnlyTargetRules Target) : base(Target)
+	public NNEOnnxruntime(ReadOnlyTargetRules Target) : base(Target)
 	{
 		Type = ModuleType.External;
 
 		string PlatformDir = Target.Platform.ToString();
 		string IncDirPath = Path.Combine(ModuleDirectory, "include");
 		string LibDirPath = Path.Combine(ModuleDirectory, "lib", PlatformDir);
-		string OrtPlatformRelativePath = Path.Combine("Binaries", "ThirdParty", "OnnxruntimeEditor", PlatformDir);
+		string OrtPlatformRelativePath = Path.Combine("Binaries", "ThirdParty", "Onnxruntime", PlatformDir);
 		string OrtPlatformPath = Path.Combine(PluginDirectory, OrtPlatformRelativePath);
 		string SharedLibFileName = "UNSUPPORTED_PLATFORM";
 

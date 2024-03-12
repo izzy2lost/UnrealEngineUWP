@@ -19,7 +19,7 @@ public class NNEUtilities : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"NNEProtobufEditor",
-				"NNEOnnxruntimeEditor",
+				"NNEOnnxruntime",
 				"NNEOnnxEditor"
 			}
 		);

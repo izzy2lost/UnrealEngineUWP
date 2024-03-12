@@ -5,18 +5,11 @@
 #include "NNE.h"
 #include "NNERuntimeFormat.h"
 
-#include "NNEUtilitiesThirdPartyWarningDisabler.h"
-NNE_THIRD_PARTY_INCLUDES_START
-#undef check
-#undef TEXT
-
+THIRD_PARTY_INCLUDES_START
 #include "onnx/common/common.h"
 #include "onnx/checker.h"
 #include "onnx/proto_utils.h"
-
-NNE_THIRD_PARTY_INCLUDES_END
-
-
+THIRD_PARTY_INCLUDES_END
 
 namespace UE::NNEUtilities::Internal
 {

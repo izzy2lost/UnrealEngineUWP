@@ -6,17 +6,12 @@
 #include "NNEAttributeMap.h"
 #include "NNERuntimeFormat.h"
 
-#include "NNEUtilitiesThirdPartyWarningDisabler.h"
-NNE_THIRD_PARTY_INCLUDES_START
-#undef check
-#undef TEXT
-
+THIRD_PARTY_INCLUDES_START
 #include "onnx/checker.h"
 #include "onnx/common/ir.h"
 #include "onnx/common/constants.h"
 #include "onnx/defs/operator_sets.h"
-
-NNE_THIRD_PARTY_INCLUDES_END
+THIRD_PARTY_INCLUDES_END
 
 namespace UE::NNEUtilities::Internal
 {

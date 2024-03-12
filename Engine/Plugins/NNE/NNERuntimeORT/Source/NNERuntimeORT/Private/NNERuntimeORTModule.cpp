@@ -7,8 +7,11 @@
 #include "Misc/Paths.h"
 #include "NNE.h"
 #include "NNERuntimeORT.h"
-#include "NNERuntimeORTThirdPartyIncludeHelper.h"
 #include "UObject/WeakInterfacePtr.h"
+
+THIRD_PARTY_INCLUDES_START
+#include "onnxruntime_cxx_api.h"
+THIRD_PARTY_INCLUDES_END
 
 namespace UE::NNERuntimeORT::Private::DllHelper
 {

@@ -8,7 +8,10 @@
 #include "NNERuntimeGPU.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
-#include "NNERuntimeORTThirdPartyIncludeHelper.h"
+
+THIRD_PARTY_INCLUDES_START
+#include "onnxruntime_cxx_api.h"
+THIRD_PARTY_INCLUDES_END
 
 namespace UE::NNERuntimeORT::Private
 {

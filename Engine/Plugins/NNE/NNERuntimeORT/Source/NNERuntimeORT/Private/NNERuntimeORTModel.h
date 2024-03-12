@@ -7,10 +7,13 @@
 #include "NNEModelData.h"
 #include "NNERuntimeCPU.h"
 #include "NNERuntimeGPU.h"
-#include "NNERuntimeORTThirdPartyIncludeHelper.h"
 #include "NNERuntimeRDG.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
+
+THIRD_PARTY_INCLUDES_START
+#include "onnxruntime_cxx_api.h"
+THIRD_PARTY_INCLUDES_END
 
 namespace UE::NNERuntimeORT::Private
 {
