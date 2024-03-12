@@ -55,7 +55,6 @@
 #include "SortHelper.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "SCommonEditorViewportToolbarBase.h"
-#include "SActionableMessageViewportWidget.h"
 
 #define LOCTEXT_NAMESPACE "LevelViewportToolBar"
 
@@ -202,200 +201,178 @@ void SLevelViewportToolBar::Construct( const FArguments& InArgs )
 		.BorderImage(FAppStyle::Get().GetBrush("EditorViewportToolBar.Background"))
 		.Cursor(EMouseCursor::Default)
 		[
-			SNew( SVerticalBox )
-			+ SVerticalBox::Slot()
-			.AutoHeight()
+			SNew( SHorizontalBox )
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
 			.Padding(ToolbarSlotPadding)
 			[
+				SNew( SEditorViewportToolbarMenu )
+				.ParentToolBar( SharedThis( this ) )
+				.Visibility(Viewport.Pin().Get(), &SLevelViewport::GetToolbarVisibility)
+				.Image("EditorViewportToolBar.OptionsDropdown")
+				.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("EditorViewportToolBar.MenuDropdown")))
+				.OnGetMenuContent( this, &SLevelViewportToolBar::GenerateOptionsMenu )
+			]
+			+ SHorizontalBox::Slot()
+			[
 				SNew( SHorizontalBox )
+				.Visibility(Viewport.Pin().Get(), &SLevelViewport::GetFullToolbarVisibility)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding( ToolbarSlotPadding )
+				[
+					SNew( SEditorViewportToolbarMenu )
+					.ParentToolBar( SharedThis( this ) )
+					.Label( this, &SLevelViewportToolBar::GetCameraMenuLabel )
+					.LabelIcon( this, &SLevelViewportToolBar::GetCameraMenuLabelIcon )
+					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("EditorViewportToolBar.CameraMenu")))
+					.OnGetMenuContent( this, &SLevelViewportToolBar::GenerateCameraMenu ) 
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding( ToolbarSlotPadding )
+				[
+					SNew( SLevelEditorViewportViewMenu, ViewportRef, SharedThis(this) )
+					.MenuExtenders(GetViewMenuExtender())
+					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ViewMenuButton")))
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding( ToolbarSlotPadding )
+				[
+					SNew( SEditorViewportToolbarMenu )
+					.Label( LOCTEXT("ShowMenuTitle", "Show") )
+					.ParentToolBar( SharedThis( this ) )
+					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("EditorViewportToolBar.ShowMenu")))
+					.OnGetMenuContent( this, &SLevelViewportToolBar::GenerateShowMenu ) 
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding( ToolbarSlotPadding )
+				[
+					SNew( SEditorViewportToolbarMenu )
+					.Label( this, &SLevelViewportToolBar::GetViewModeOptionsMenuLabel )
+					.ParentToolBar( SharedThis( this ) )
+					.Visibility( this, &SLevelViewportToolBar::GetViewModeOptionsVisibility )
+					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("EditorViewportToolBar.ViewModeOptions")))
+					.OnGetMenuContent( this, &SLevelViewportToolBar::GenerateViewModeOptionsMenu ) 
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding( ToolbarSlotPadding )
+				[
+					SNew( SEditorViewportToolbarMenu )
+					.ParentToolBar( SharedThis( this ) )
+					.Label( this, &SLevelViewportToolBar::GetDevicePreviewMenuLabel )
+					.LabelIcon( this, &SLevelViewportToolBar::GetDevicePreviewMenuLabelIcon )
+					.OnGetMenuContent( this, &SLevelViewportToolBar::GenerateDevicePreviewMenu )
+					//@todo rendering: mobile preview in view port is not functional yet - remove this once it is.
+					.Visibility(EVisibility::Collapsed)
+				]
+				+ SHorizontalBox::Slot()
+				.Padding(ToolbarSlotPadding)
+				.AutoWidth()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Fill)
+				[
+					SNew(SExtensionPanel)
+					.ExtensionPanelID("LevelViewportToolBar.LeftExtension")
+					.ExtensionContext(ExtensionContextObject)
+				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.Padding(ToolbarSlotPadding)
 				[
-					SNew( SEditorViewportToolbarMenu )
-					.ParentToolBar( SharedThis( this ) )
-					.Visibility(Viewport.Pin().Get(), &SLevelViewport::GetToolbarVisibility)
-					.Image("EditorViewportToolBar.OptionsDropdown")
-					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("EditorViewportToolBar.MenuDropdown")))
-					.OnGetMenuContent( this, &SLevelViewportToolBar::GenerateOptionsMenu )
+					// Button to show that realtime is off
+					SNew(SEditorViewportToolBarButton)	
+					.ButtonType(EUserInterfaceActionType::Button)
+					.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("EditorViewportToolBar.WarningButton"))
+					.OnClicked(this, &SLevelViewportToolBar::OnRealtimeWarningClicked)
+					.Visibility(this, &SLevelViewportToolBar::GetRealtimeWarningVisibility)
+					.ToolTipText(LOCTEXT("RealtimeOff_ToolTip", "This viewport is not updating in realtime.  Click to turn on realtime mode."))
+					.Content()
+					[
+						SNew(STextBlock)
+						.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SmallText"))
+						.Text(LOCTEXT("RealtimeOff", "Realtime Off"))
+					]
 				]
 				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(ToolbarSlotPadding)
 				[
-					SNew( SHorizontalBox )
-					.Visibility(Viewport.Pin().Get(), &SLevelViewport::GetFullToolbarVisibility)
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.Padding( ToolbarSlotPadding )
-					[
-						SNew( SEditorViewportToolbarMenu )
-						.ParentToolBar( SharedThis( this ) )
-						.Label( this, &SLevelViewportToolBar::GetCameraMenuLabel )
-						.LabelIcon( this, &SLevelViewportToolBar::GetCameraMenuLabelIcon )
-						.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("EditorViewportToolBar.CameraMenu")))
-						.OnGetMenuContent( this, &SLevelViewportToolBar::GenerateCameraMenu ) 
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.Padding( ToolbarSlotPadding )
-					[
-						SNew( SLevelEditorViewportViewMenu, ViewportRef, SharedThis(this) )
-						.MenuExtenders(GetViewMenuExtender())
-						.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ViewMenuButton")))
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.Padding( ToolbarSlotPadding )
-					[
-						SNew( SEditorViewportToolbarMenu )
-						.Label( LOCTEXT("ShowMenuTitle", "Show") )
-						.ParentToolBar( SharedThis( this ) )
-						.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("EditorViewportToolBar.ShowMenu")))
-						.OnGetMenuContent( this, &SLevelViewportToolBar::GenerateShowMenu ) 
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.Padding( ToolbarSlotPadding )
-					[
-						SNew( SEditorViewportToolbarMenu )
-						.Label( this, &SLevelViewportToolBar::GetViewModeOptionsMenuLabel )
-						.ParentToolBar( SharedThis( this ) )
-						.Visibility( this, &SLevelViewportToolBar::GetViewModeOptionsVisibility )
-						.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("EditorViewportToolBar.ViewModeOptions")))
-						.OnGetMenuContent( this, &SLevelViewportToolBar::GenerateViewModeOptionsMenu ) 
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.Padding( ToolbarSlotPadding )
-					[
-						SNew( SEditorViewportToolbarMenu )
-						.ParentToolBar( SharedThis( this ) )
-						.Label( this, &SLevelViewportToolBar::GetDevicePreviewMenuLabel )
-						.LabelIcon( this, &SLevelViewportToolBar::GetDevicePreviewMenuLabelIcon )
-						.OnGetMenuContent( this, &SLevelViewportToolBar::GenerateDevicePreviewMenu )
-						//@todo rendering: mobile preview in view port is not functional yet - remove this once it is.
-						.Visibility(EVisibility::Collapsed)
-					]
-					+ SHorizontalBox::Slot()
-					.Padding(ToolbarSlotPadding)
-					.AutoWidth()
-					.HAlign(HAlign_Left)
-					.VAlign(VAlign_Fill)
-					[
-						SNew(SExtensionPanel)
-						.ExtensionPanelID("LevelViewportToolBar.LeftExtension")
-						.ExtensionContext(ExtensionContextObject)
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.Padding(ToolbarSlotPadding)
-					[
-						// Button to show that realtime is off
-						SNew(SEditorViewportToolBarButton)	
-						.ButtonType(EUserInterfaceActionType::Button)
-						.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("EditorViewportToolBar.WarningButton"))
-						.OnClicked(this, &SLevelViewportToolBar::OnRealtimeWarningClicked)
-						.Visibility(this, &SLevelViewportToolBar::GetRealtimeWarningVisibility)
-						.ToolTipText(LOCTEXT("RealtimeOff_ToolTip", "This viewport is not updating in realtime.  Click to turn on realtime mode."))
-						.Content()
-						[
-							SNew(STextBlock)
-							.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SmallText"))
-							.Text(LOCTEXT("RealtimeOff", "Realtime Off"))
-						]
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.Padding(ToolbarSlotPadding)
-					[
-						// Button to show scalability warnings
-						SNew(SEditorViewportToolbarMenu)
-						.ParentToolBar(SharedThis(this))
-						.Label(this, &SLevelViewportToolBar::GetScalabilityWarningLabel)
-						.MenuStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("EditorViewportToolBar.WarningButton"))
-						.OnGetMenuContent(this, &SLevelViewportToolBar::GetScalabilityWarningMenuContent)
-						.Visibility(this, &SLevelViewportToolBar::GetScalabilityWarningVisibility)
-						.ToolTipText(LOCTEXT("ScalabilityWarning_ToolTip", "Non-default scalability settings could be affecting what is shown in this viewport.\nFor example you may experience lower visual quality, reduced particle counts, and other artifacts that don't match what the scene would look like when running outside of the editor. Click to make changes."))
-					]
-					+ SHorizontalBox::Slot()
-					.Padding(ToolbarSlotPadding)
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Fill)
-					[
-						SNew(SExtensionPanel)
-						.ExtensionPanelID("LevelViewportToolBar.MiddleExtension")
-						.ExtensionContext(ExtensionContextObject)
-					]
-					+ SHorizontalBox::Slot()
-					.Padding(ToolbarSlotPadding)
-					.AutoWidth()
-					.HAlign(HAlign_Right)
-					.VAlign(VAlign_Fill)
-					[
-						SNew(SExtensionPanel)
-						.ExtensionPanelID("LevelViewportToolBar.RightExtension")
-						.ExtensionContext(ExtensionContextObject)
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.MaxWidth(TAttribute<float>::CreateSP(this, &SLevelViewportToolBar::GetTransformToolbarWidth))
-					.Padding(ToolbarSlotPadding)
-					.HAlign(HAlign_Right)
-					[
-						SAssignNew(TransformToolbar, STransformViewportToolBar)
-						.Viewport(ViewportRef)
-						.CommandList(ViewportRef->GetCommandList())
-						.Extenders(LevelEditorModule.GetToolBarExtensibilityManager()->GetAllExtenders())
-						.Visibility(ViewportRef, &SLevelViewport::GetTransformToolbarVisibility)
-					]
-					+ SHorizontalBox::Slot()
-					.HAlign(HAlign_Right)
-					.AutoWidth()
-					.Padding(ToolbarSlotPadding)
-					[
-						//The Maximize/Minimize button is only displayed when not in Immersive mode.
-						SNew(SEditorViewportToolBarButton)
-						.ButtonType(EUserInterfaceActionType::ToggleButton)
-						.CheckBoxStyle(&FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("EditorViewportToolBar.MaximizeRestoreButton"))
-						.IsChecked(ViewportRef, &SLevelViewport::IsMaximized)
-						.OnClicked(ViewportRef, &SLevelViewport::OnToggleMaximize)
-						.Visibility(ViewportRef, &SLevelViewport::GetMaximizeToggleVisibility)
-						.Image("EditorViewportToolBar.Maximize")
-						.ToolTipText(LOCTEXT("Maximize_ToolTip", "Maximizes or restores this viewport"))
-					]
-					+ SHorizontalBox::Slot()
-					.HAlign(HAlign_Right)
-					.AutoWidth()
-					.Padding(ToolbarSlotPadding)
-					[
-						//The Restore from Immersive' button is only displayed when the editor is in Immersive mode.
-						SNew(SEditorViewportToolBarButton)
-						.ButtonType(EUserInterfaceActionType::Button)
-						.OnClicked(ViewportRef, &SLevelViewport::OnToggleMaximize)
-						.Visibility(ViewportRef, &SLevelViewport::GetCloseImmersiveButtonVisibility)
-						.Image("EditorViewportToolBar.RestoreFromImmersive.Normal")
-						.ToolTipText(LOCTEXT("RestoreFromImmersive_ToolTip", "Restore from Immersive"))
-					]
+					// Button to show scalability warnings
+					SNew(SEditorViewportToolbarMenu)
+					.ParentToolBar(SharedThis(this))
+					.Label(this, &SLevelViewportToolBar::GetScalabilityWarningLabel)
+					.MenuStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("EditorViewportToolBar.WarningButton"))
+					.OnGetMenuContent(this, &SLevelViewportToolBar::GetScalabilityWarningMenuContent)
+					.Visibility(this, &SLevelViewportToolBar::GetScalabilityWarningVisibility)
+					.ToolTipText(LOCTEXT("ScalabilityWarning_ToolTip", "Non-default scalability settings could be affecting what is shown in this viewport.\nFor example you may experience lower visual quality, reduced particle counts, and other artifacts that don't match what the scene would look like when running outside of the editor. Click to make changes."))
 				]
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.f, 8.f, 10.f, 0.f)
-			.VAlign(VAlign_Center)
-			.HAlign(HAlign_Right)
-			[
-				SNew(SBorder)
-				.BorderImage(FAppStyle::Get().GetBrush("LandscapeEditor.ActionableMessage.Border"))
+				+ SHorizontalBox::Slot()
+				.Padding(ToolbarSlotPadding)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Fill)
 				[
-					SAssignNew(ActionableMessageViewportWidget, SActionableMessageViewportWidget)
-					.Visibility_Lambda([this]()
-					{
-						return ActionableMessageViewportWidget->GetVisibility();
-					})
+					SNew(SExtensionPanel)
+					.ExtensionPanelID("LevelViewportToolBar.MiddleExtension")
+					.ExtensionContext(ExtensionContextObject)
+				]
+				+ SHorizontalBox::Slot()
+				.Padding(ToolbarSlotPadding)
+				.AutoWidth()
+				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Fill)
+				[
+					SNew(SExtensionPanel)
+					.ExtensionPanelID("LevelViewportToolBar.RightExtension")
+					.ExtensionContext(ExtensionContextObject)
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.MaxWidth(TAttribute<float>::CreateSP(this, &SLevelViewportToolBar::GetTransformToolbarWidth))
+				.Padding(ToolbarSlotPadding)
+				.HAlign(HAlign_Right)
+				[
+					SAssignNew(TransformToolbar, STransformViewportToolBar)
+					.Viewport(ViewportRef)
+					.CommandList(ViewportRef->GetCommandList())
+					.Extenders(LevelEditorModule.GetToolBarExtensibilityManager()->GetAllExtenders())
+					.Visibility(ViewportRef, &SLevelViewport::GetTransformToolbarVisibility)
+				]
+				+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Right)
+				.AutoWidth()
+				.Padding(ToolbarSlotPadding)
+				[
+					//The Maximize/Minimize button is only displayed when not in Immersive mode.
+					SNew(SEditorViewportToolBarButton)
+					.ButtonType(EUserInterfaceActionType::ToggleButton)
+					.CheckBoxStyle(&FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("EditorViewportToolBar.MaximizeRestoreButton"))
+					.IsChecked(ViewportRef, &SLevelViewport::IsMaximized)
+					.OnClicked(ViewportRef, &SLevelViewport::OnToggleMaximize)
+					.Visibility(ViewportRef, &SLevelViewport::GetMaximizeToggleVisibility)
+					.Image("EditorViewportToolBar.Maximize")
+					.ToolTipText(LOCTEXT("Maximize_ToolTip", "Maximizes or restores this viewport"))
+				]
+				+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Right)
+				.AutoWidth()
+				.Padding(ToolbarSlotPadding)
+				[
+					//The Restore from Immersive' button is only displayed when the editor is in Immersive mode.
+					SNew(SEditorViewportToolBarButton)
+					.ButtonType(EUserInterfaceActionType::Button)
+					.OnClicked(ViewportRef, &SLevelViewport::OnToggleMaximize)
+					.Visibility(ViewportRef, &SLevelViewport::GetCloseImmersiveButtonVisibility)
+					.Image("EditorViewportToolBar.RestoreFromImmersive.Normal")
+					.ToolTipText(LOCTEXT("RestoreFromImmersive_ToolTip", "Restore from Immersive"))
 				]
 			]
 		]
 	];
-	
+
 	SViewportToolBar::Construct(SViewportToolBar::FArguments());
 }
 
