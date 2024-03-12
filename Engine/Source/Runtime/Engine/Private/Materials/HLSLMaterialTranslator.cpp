@@ -14596,13 +14596,17 @@ void FHLSLMaterialTranslator::AsyncQueryDDC(
 		DDCRequestOwner,
 		[&](UE::DerivedData::FCacheGetResponse&& Response)
 		{
+			// If the request was't canceled it means it came back with an answer. Mark the query complete.
+			if (Response.Status != UE::DerivedData::EStatus::Canceled)
+			{
+				DDCQueryCompleted = true;
+			}
+
+			// If the status isn't Ok, the request either missed or was canceled.
 			if (Response.Status != UE::DerivedData::EStatus::Ok)
 			{
 				return;
 			}
-			
-			// The DDC request was fullfilled and we got data from it.
-			DDCQueryCompleted = true;
 
 			// Try fetching the translation results from the DDC using the generated key hash
 			FSharedBuffer MaterialCompilationOutputBuffer = Response.Record.GetValue(MaterialCompilationOutputId).GetData().Decompress();
