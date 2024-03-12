@@ -8,7 +8,9 @@
 
 class FAvaRundownEditor;
 class FAvaRundownManagedInstance;
+class FAvaRundownPageControllerContextMenu;
 class FAvaRundownRCControllerItem;
+class FUICommandList;
 class IPropertyRowGenerator;
 class ITableRow;
 class SAvaRundownRCControllerPanel;
@@ -51,6 +53,8 @@ public:
 	
 	TSharedRef<ITableRow> OnGenerateControllerRow(FAvaRundownRCControllerItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable);
 
+	const TArray<FAvaRundownRCControllerItemPtr> GetSelectedControllerItems() const;
+
 private:
 	static FAvaRundownRCControllerHeaderRowExtensionDelegate HeaderRowExtensionDelegate;
 	static TMap<FName, TArray<FAvaRundownRCControllerTableRowExtensionDelegate>> TableRowExtensionDelegates;
@@ -78,6 +82,8 @@ private:
 	FAvaRundownPage& GetActivePageMutable(UAvaRundown* InRundown) const;
 	FAvaRundownPage& GetActivePageMutable() const { return GetActivePageMutable(GetRundown()); }
 
+	TSharedPtr<SWidget> GetContextMenuContent();
+
 	TWeakPtr<FAvaRundownEditor> RundownEditorWeak;
 
 	class FPropertyRowGeneratorWrapper : public FNotifyHook
@@ -104,4 +110,8 @@ private:
 	TArray<FAvaRundownRCControllerItemPtr> ControllerItems;
 
 	int32 ActivePageId = -1;
+
+	TSharedPtr<FUICommandList> CommandList;
+
+	TSharedPtr<FAvaRundownPageControllerContextMenu> ContextMenu;
 };

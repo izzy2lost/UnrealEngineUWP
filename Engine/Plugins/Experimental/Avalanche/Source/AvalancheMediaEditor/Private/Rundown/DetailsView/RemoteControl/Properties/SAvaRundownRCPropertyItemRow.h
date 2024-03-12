@@ -27,14 +27,16 @@ public:
 	void UpdateValue();
 
 protected:
+	/** Get this field's label. */
+	FText GetFieldLabel() const;
+
+	TSharedRef<SWidget> CreateValue();
+
+	FText GetPropertyTooltipText() const;
+
 	TWeakPtr<const FAvaRundownRCPropertyItem> ItemPtrWeak;
 	TWeakPtr<SAvaRundownPageRemoteControlProps> PropertyPanelWeak;
 	TSharedPtr<IPropertyRowGenerator> Generator;
 	TSharedPtr<SBox> ValueContainer;
 	TSharedPtr<SWidget> ValueWidget;
-
-	/** Get this field's label. */
-	FText GetFieldLabel() const;
-
-	TSharedRef<SWidget> CreateValue();
 };

@@ -1,16 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownPageRemoteControlProps.h"
-
 #include "AvaRundownRCPropertyItem.h"
+#include "IAvaMediaEditorModule.h"
 #include "Playable/AvaPlayableRemoteControl.h"
 #include "Playable/AvaPlayableRemoteControlValues.h"
 #include "RemoteControlEntity.h"
 #include "RemoteControlPreset.h"
+#include "Rundown/AvaRundownCommands.h"
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/AvaRundownEditorUtils.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPage.h"
+#include "Rundown/DetailsView/RemoteControl/Properties/AvaRundownPagePropertyContextMenu.h"
+#include "Rundown/Pages/AvaRundownPagePropertyContext.h"
 #include "SAvaRundownRCPropertyItemRow.h"
 #include "SlateOptMacros.h"
 #include "UObject/NameTypes.h"
@@ -20,8 +23,8 @@
 
 #define LOCTEXT_NAMESPACE "SAvaRundownPageRemoteControlProps"
 
-const FName SAvaRundownPageRemoteControlProps::PropertyColumnName = "PropertyColumn";
-const FName SAvaRundownPageRemoteControlProps::ValueColumnName = "ValueColumn";
+const FName SAvaRundownPageRemoteControlProps::PropertyColumnName = TEXT("PropertyColumn");
+const FName SAvaRundownPageRemoteControlProps::ValueColumnName = TEXT("ValueColumn");
 
 FAvaRundownRCPropertyHeaderRowExtensionDelegate SAvaRundownPageRemoteControlProps::HeaderRowExtensionDelegate;
 TMap<FName, TArray<FAvaRundownRCPropertyTableRowExtensionDelegate>> SAvaRundownPageRemoteControlProps::TableRowExtensionDelegates;
@@ -37,6 +40,10 @@ void SAvaRundownPageRemoteControlProps::Construct(const FArguments& InArgs, TSha
 {
 	RundownEditorWeak = InRundownEditor;
 	ActivePageId = FAvaRundownPage::InvalidPageId;
+
+	CommandList = MakeShared<FUICommandList>();
+
+	ContextMenu = MakeShared<FAvaRundownPagePropertyContextMenu>(CommandList);
 
 	TSharedRef<SHeaderRow> HeaderRow =
 		SNew(SHeaderRow)
@@ -57,7 +64,8 @@ void SAvaRundownPageRemoteControlProps::Construct(const FArguments& InArgs, TSha
 		[
 			SAssignNew(PropertyContainer, SListView<FAvaRundownRCPropertyItemPtr>)
 			.ListItemsSource(&PropertyItems)
-			.SelectionMode(ESelectionMode::None)
+			.SelectionMode(ESelectionMode::Multi)
+			.OnContextMenuOpening(this, &SAvaRundownPageRemoteControlProps::GetContextMenuContent)
 			.OnGenerateRow(this, &SAvaRundownPageRemoteControlProps::OnGenerateControllerRow)
 			.HeaderRow(HeaderRow)
 		]
@@ -440,6 +448,21 @@ bool SAvaRundownPageRemoteControlProps::SetSelectedPageEntityValue(const TShared
 	}
 
 	return false;
+}
+
+const TArray<FAvaRundownRCPropertyItemPtr> SAvaRundownPageRemoteControlProps::GetSelectedPropertyItems() const
+{
+	return PropertyContainer->GetSelectedItems();
+}
+
+TSharedPtr<SWidget> SAvaRundownPageRemoteControlProps::GetContextMenuContent()
+{
+	TArray<FAvaRundownRCPropertyItemPtr> SelectedItems = GetSelectedPropertyItems();
+	if (SelectedItems.Num() > 0)
+	{
+		return ContextMenu->GeneratePageContextMenuWidget(RundownEditorWeak, *GetActivePage(), SharedThis(this));
+	}
+	return SNullWidget::NullWidget;
 }
 
 #undef LOCTEXT_NAMESPACE

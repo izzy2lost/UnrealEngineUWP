@@ -5,6 +5,7 @@
 #include "IDetailTreeNode.h"
 #include "Internationalization/Text.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/WeakObjectPtrTemplatesFwd.h"
 
 class ITableRow;
 class SAvaRundownRCControllerPanel;
@@ -24,6 +25,8 @@ public:
 	int32 GetInstanceIndex() const { return InstanceIndex; }
 	int32 GetDisplayIndex() const { return DisplayIndex; }
 	FName GetAssetName() const { return AssetName; }
+
+	URCController* GetController() const;
 	
 private:
 	int32 InstanceIndex = 0;
@@ -31,4 +34,6 @@ private:
 	FName AssetName;
 	FText DisplayNameText;
 	FNodeWidgets NodeWidgets;
+
+	TWeakObjectPtr<URCController> Controller;
 };

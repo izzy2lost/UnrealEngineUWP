@@ -12,8 +12,10 @@
 
 class FAvaRundownEditor;
 class FAvaRundownManagedInstance;
+class FAvaRundownPagePropertyContextMenu;
 class FAvaRundownRCPropertyItem;
 class FName;
+class FUICommandList;
 class ITableRow;
 class SAvaRundownPageRemoteControlProps;
 class STableViewBase;
@@ -55,6 +57,8 @@ public:
 	/** Refreshes the content of this widget. */
 	void Refresh(const TArray<int32>& InSelectedPageIds);
 
+	const TArray<FAvaRundownRCPropertyItemPtr> GetSelectedPropertyItems() const;
+
 private:
 	static FAvaRundownRCPropertyHeaderRowExtensionDelegate HeaderRowExtensionDelegate;
 	static TMap<FName, TArray<FAvaRundownRCPropertyTableRowExtensionDelegate>> TableRowExtensionDelegates;
@@ -91,6 +95,8 @@ private:
 
 	void RefreshTable(const TSet<FGuid>& InEntityIds = TSet<FGuid>());
 
+	TSharedPtr<SWidget> GetContextMenuContent();
+
 	TWeakPtr<FAvaRundownEditor> RundownEditorWeak;
 	
 	TArray<TSharedPtr<FAvaRundownManagedInstance>> ManagedInstances;
@@ -102,4 +108,8 @@ private:
 	TArray<FAvaRundownRCPropertyItemPtr> PropertyItems;
 
 	int32 ActivePageId = -1;
+
+	TSharedPtr<FUICommandList> CommandList;
+
+	TSharedPtr<FAvaRundownPagePropertyContextMenu> ContextMenu;
 };
