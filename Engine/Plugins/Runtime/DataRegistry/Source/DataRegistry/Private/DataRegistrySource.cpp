@@ -121,9 +121,9 @@ bool UDataRegistrySource::IsSpecificAssetRegistered(const FSoftObjectPath& Asset
 	return false;
 }
 
-bool UDataRegistrySource::RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority)
+EDataRegistryRegisterAssetResult UDataRegistrySource::RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority)
 {
-	return false;
+	return EDataRegistryRegisterAssetResult::NotRegistered;
 }
 
 bool UDataRegistrySource::UnregisterSpecificAsset(const FSoftObjectPath& AssetPath)
@@ -325,7 +325,7 @@ bool UMetaDataRegistrySource::IsSpecificAssetRegistered(const FSoftObjectPath& A
 	return false;
 }
 
-bool UMetaDataRegistrySource::RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority)
+EDataRegistryRegisterAssetResult UMetaDataRegistrySource::RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority)
 {
 	bool bMadeChange = false;
 	
@@ -337,7 +337,7 @@ bool UMetaDataRegistrySource::RegisterSpecificAsset(const FAssetData& AssetData,
 			if (Existing.Value == AssetPriority)
 			{
 				// Nothing to do
-				return false;
+				return EDataRegistryRegisterAssetResult::AssetAlreadyRegistered;
 			}
 			bMadeChange = true;
 			Existing.Value = AssetPriority;
@@ -359,7 +359,7 @@ bool UMetaDataRegistrySource::RegisterSpecificAsset(const FAssetData& AssetData,
 		SortRegisteredAssets();
 	}
 
-	return bMadeChange;
+	return bMadeChange ? EDataRegistryRegisterAssetResult::RegisteredSuccesfully : EDataRegistryRegisterAssetResult::NotRegistered;
 }
 
 bool UMetaDataRegistrySource::UnregisterSpecificAsset(const FSoftObjectPath& AssetPath)
