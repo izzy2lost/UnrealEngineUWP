@@ -214,6 +214,18 @@ struct FNaniteFullscreenVSToPS
 	StructuredBuffer<uint>			RayTracingDataBuffer;
 #endif
 
+// TODO: Workaround for WaveReadLaneAt(float4x4) being stripped when compiling metal shaders
+// Will remove when we switch to MSC
+float4x4 WaveReadLaneAtMatrix(float4x4 In, uint SrcIndex)
+{
+	float4x4 Result;
+	Result[0] = WaveReadLaneAt(In[0], SrcIndex);
+	Result[1] = WaveReadLaneAt(In[1], SrcIndex);
+	Result[2] = WaveReadLaneAt(In[2], SrcIndex);
+	Result[3] = WaveReadLaneAt(In[3], SrcIndex);
+	return Result;
+}
+
 HLSL_STATIC_ASSERT(sizeof(FInstanceDynamicData) == 132, "Unexpected size of FInstanceDynamicData. Update WaveReadLaneAt to reflect changes.");
 FInstanceDynamicData WaveReadLaneAt(FInstanceDynamicData In, uint SrcIndex)
 {
