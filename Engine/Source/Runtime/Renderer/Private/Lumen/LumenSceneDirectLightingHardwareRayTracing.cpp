@@ -135,7 +135,7 @@ float GetHeightfieldProjectionBiasSearchRadius()
 
 void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingDirectLightingLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	if (Lumen::UseHardwareRayTracedDirectLighting(*View.Family))
+	if (Lumen::UseHardwareRayTracedDirectLighting(*View.Family) && !Lumen::UseHardwareInlineRayTracing(*View.Family))
 	{
 		FLumenDirectLightingHardwareRayTracingBatchedRGS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FLumenDirectLightingHardwareRayTracingBatchedRGS::FEnableFarFieldTracing>(Lumen::UseFarField(*View.Family));

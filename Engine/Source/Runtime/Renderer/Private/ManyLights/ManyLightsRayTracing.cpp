@@ -430,7 +430,7 @@ void FDeferredShadingSceneRenderer::PrepareManyLightsHardwareRayTracingLumenMate
 
 	const bool bEvaluateMaterials = CVarManyLightsHardwareRayTracingEvaluateMaterialMode.GetValueOnRenderThread() > 0;
 
-	if (ManyLights::UseHardwareRayTracing(*View.Family))
+	if (ManyLights::UseHardwareRayTracing(*View.Family) && !ManyLights::UseInlineHardwareRayTracing(*View.Family))
 	{
 		for (int32 HairVoxelTraces = 0; HairVoxelTraces < 2; ++HairVoxelTraces)
 		{

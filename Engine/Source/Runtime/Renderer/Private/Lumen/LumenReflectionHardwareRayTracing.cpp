@@ -293,6 +293,12 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingReflectionsLum
 		const bool bLumenGIEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
 		const bool bUseFarField = LumenReflections::UseFarField(*View.Family);
 		const bool bUseHitLighting = LumenReflections::UseHitLighting(View, bLumenGIEnabled);
+		const bool bUseInlineRayTracing = Lumen::UseHardwareInlineRayTracing(*View.Family);
+
+		if (bUseInlineRayTracing && !bUseHitLighting)
+		{			
+			return;
+		}
 		
 		// Default
 		for (int RadianceCache = 0; RadianceCache < 2; ++RadianceCache)

@@ -197,7 +197,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingScreenProbeGat
 
 void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingScreenProbeGatherLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	if (Lumen::UseHardwareRayTracedScreenProbeGather(*View.Family))
+	if (Lumen::UseHardwareRayTracedScreenProbeGather(*View.Family) && !Lumen::UseHardwareInlineRayTracing(*View.Family))
 	{
 		const bool bUseRadianceCache = LumenScreenProbeGather::UseRadianceCache(View);
 		const bool bUseFarField = LumenScreenProbeGather::UseFarField(*View.Family);

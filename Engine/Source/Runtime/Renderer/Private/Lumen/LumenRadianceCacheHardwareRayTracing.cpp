@@ -256,7 +256,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingRadianceCache(
 
 void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingRadianceCacheLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	if (Lumen::UseHardwareRayTracedRadianceCache(*View.Family))
+	if (Lumen::UseHardwareRayTracedRadianceCache(*View.Family) && !Lumen::UseHardwareInlineRayTracing(*View.Family))
 	{
 		// Default trace
 		{
