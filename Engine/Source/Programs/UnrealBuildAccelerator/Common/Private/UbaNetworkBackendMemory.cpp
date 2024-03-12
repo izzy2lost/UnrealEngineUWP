@@ -13,7 +13,6 @@ namespace uba
 	{
 		struct Peer
 		{
-			ReaderWriterLock lock;
 			RecvHeaderCallback* headerCallback = nullptr;
 			RecvBodyCallback* bodyCallback = nullptr;
 			void* context = nullptr;
@@ -26,7 +25,7 @@ namespace uba
 
 		Peer peer[2];
 		Guid uid;
-		bool connected = true;
+		Atomic<bool> connected;
 	};
 
 	NetworkBackendMemory::NetworkBackendMemory(LogWriter& writer, const tchar* prefix)
@@ -35,17 +34,16 @@ namespace uba
 
 	NetworkBackendMemory::~NetworkBackendMemory()
 	{
+		delete m_connection;
 	}
 
 	void NetworkBackendMemory::Shutdown(void* connection)
 	{
 		u64 from = ((uintptr_t)connection)-1;
 		u64 to = from == 0 ? 1 : 0;
-
 		auto& rc = m_connection->peer[to];
-		SCOPED_WRITE_LOCK(rc.lock, l);
+
 		m_connection->connected = false;
-		l.Leave();
 
 		if (auto cb = rc.disconnectCallback)
 			cb(rc.disconnectContext, m_connection->uid, connection);
@@ -61,8 +59,6 @@ namespace uba
 		u64 to = from == 0 ? 1 : 0;
 
 		auto& peer = m_connection->peer[to];
-
-		SCOPED_READ_LOCK(peer.lock, l);
 
 		if (!m_connection->connected)
 			return false;
@@ -139,6 +135,7 @@ namespace uba
 		}
 		UBA_ASSERT(!m_connection);
 		m_connection = new Connection();
+		m_connection->connected = true;
 		if (!m_connectedFunc((void*)1, {}))
 			return false;
 		l.Leave();
