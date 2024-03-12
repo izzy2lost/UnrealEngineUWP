@@ -221,7 +221,7 @@ bool FOptimusHalfEdgeDataProviderProxy::IsValid(FValidationData const& InValidat
 	// Invalid if there is no cooked buffer and run time generation isn't possible either
 	const FRawStaticIndexBuffer16or32Interface* IndexBuffer = LodRenderData->MultiSizeIndexContainer.GetIndexBuffer();
 	const FPositionVertexBuffer& VertexBuffer = LodRenderData->StaticVertexBuffers.PositionVertexBuffer;
-	if (!LodRenderData->HalfEdgeBuffer.IsInitialized())
+	if (!LodRenderData->HalfEdgeBuffer.IsReadyForRendering())
 	{
 		if (!IndexBuffer->GetNeedsCPUAccess() || !VertexBuffer.GetAllowCPUAccess())
 		{
