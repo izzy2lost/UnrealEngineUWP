@@ -11,17 +11,6 @@
 
 namespace Chaos::Private
 {
-	// Adapter for FContactEdgeID use in THashMappedArray
-	template<> struct THashMappedArrayIDTraits<FContactEdgeID>
-	{
-		using FIDType = FContactEdgeID;
-
-		static uint32 HashID(const FIDType& ID)
-		{
-			return uint32(MurmurFinalize64(ID.EdgeID));
-		}
-	};
-
 	class FMeshContactGeneratorSettings
 	{
 	public:
@@ -487,10 +476,20 @@ namespace Chaos::Private
 		TArray<FTriangleContactPointData> ContactDatas;
 
 		// A map of EdgeID to the two triangles (indices) that use the Edge
-		THashMappedArray<FContactEdgeID, FEdgeTriangleIndices> EdgeTriangleIndicesMap;
+		struct FEdgeTriangleIndicesMapTraits
+		{
+			static uint32 GetIDHash(const FContactEdgeID& EdgeID) { return uint32(MurmurFinalize64(EdgeID.EdgeID)); }
+			static bool ElementHasID(const FEdgeTriangleIndices& TriangleIndices, const FContactEdgeID& EdgeID) { return TriangleIndices.ID == EdgeID; }
+		};
+		THashMappedArray<FContactEdgeID, FEdgeTriangleIndices, FEdgeTriangleIndicesMapTraits> EdgeTriangleIndicesMap;
 
 		// A map of VertexID to contact index on that vertex - we only ever keep one contact per vertex
-		THashMappedArray<FContactVertexID, FVertexContactIndex> VertexContactIndicesMap;
+		struct VertexContactIndicesMapTraits
+		{
+			static uint32 GetIDHash(const FContactVertexID& VertexID) { return MurmurFinalize32(VertexID); }
+			static bool ElementHasID(const FVertexContactIndex& VertexIndex, const FContactVertexID& VertexID) { return VertexIndex.ID == VertexID; }
+		};
+		THashMappedArray<FContactVertexID, FVertexContactIndex, VertexContactIndicesMapTraits> VertexContactIndicesMap;
 	};
 
 }
