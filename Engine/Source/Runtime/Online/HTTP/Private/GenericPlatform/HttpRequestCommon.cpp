@@ -267,7 +267,11 @@ void FHttpRequestCommon::StartActivityTimeoutTimer()
 
 void FHttpRequestCommon::StartActivityTimeoutTimerBy(double DelayToTrigger)
 {
-	check(ActivityTimeoutHttpTaskTimerHandle == nullptr);
+	if (ActivityTimeoutHttpTaskTimerHandle != nullptr)
+	{
+		UE_LOG(LogHttp, Warning, TEXT("Request %p already started activity timeout timer"), this);
+		return;
+	}
 
 	TWeakPtr<IHttpRequest> RequestWeakPtr(AsShared());
 	ActivityTimeoutHttpTaskTimerHandle = FHttpModule::Get().GetHttpManager().AddHttpThreadTask([RequestWeakPtr]() {
