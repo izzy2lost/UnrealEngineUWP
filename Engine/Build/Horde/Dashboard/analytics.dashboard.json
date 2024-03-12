@@ -1,8 +1,9 @@
 {
-    "analytics": [
-        {
-            "id": "core-loading-user",
-            "name": "Core Loading User",
+	"analytics": [
+		{
+			"id": "engine",
+			"name": "UE5",
+			"telemetryStoreId": "engine",
 			"variables": [
 				{
 					"name": "Stream",
@@ -558,6 +559,6 @@
 					]
 				}
 			]
-        }
-    ]
+		}
+	]
 }
