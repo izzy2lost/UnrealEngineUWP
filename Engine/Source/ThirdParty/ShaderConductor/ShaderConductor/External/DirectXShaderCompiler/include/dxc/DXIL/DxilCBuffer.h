@@ -13,6 +13,7 @@
 
 #include "dxc/DXIL/DxilResourceBase.h"
 
+
 namespace hlsl {
 
 /// Use this class to represent HLSL cbuffer.
@@ -26,7 +27,7 @@ public:
   void SetSize(unsigned InstanceSizeInBytes);
 
 private:
-  unsigned m_SizeInBytes; // Cbuffer instance size in bytes.
+  unsigned m_SizeInBytes;   // Cbuffer instance size in bytes.
 };
 
 } // namespace hlsl

@@ -9,19 +9,19 @@
 
 #pragma once
 
-#include "dxc/DXIL/DxilConstants.h"
 #include "llvm/ADT/StringRef.h"
+#include "dxc/DXIL/DxilConstants.h"
 
-#include <map>
 #include <string>
+#include <map>
 
 namespace llvm {
-class raw_ostream;
-class Module;
-} // namespace llvm
+  class raw_ostream;
+  class Module;
+}
 
 namespace hlsl {
-class DxilModule;
+  class DxilModule;
 }
 
 namespace hlsl {
@@ -34,9 +34,8 @@ struct DxcBindingTable {
   std::map<Key, Entry> entries;
 };
 
-bool ParseBindingTable(llvm::StringRef fileName, llvm::StringRef content,
-                       llvm::raw_ostream &errors, DxcBindingTable *outTable);
+bool ParseBindingTable(llvm::StringRef fileName, llvm::StringRef content, llvm::raw_ostream &errors, DxcBindingTable *outTable);
 void WriteBindingTableToMetadata(llvm::Module &M, const DxcBindingTable &table);
 void ApplyBindingTableFromMetadata(hlsl::DxilModule &DM);
 
-} // namespace hlsl
+}

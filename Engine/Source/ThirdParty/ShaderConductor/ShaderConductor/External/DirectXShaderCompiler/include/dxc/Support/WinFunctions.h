@@ -15,10 +15,12 @@
 #ifndef LLVM_SUPPORT_WINFUNCTIONS_H
 #define LLVM_SUPPORT_WINFUNCTIONS_H
 
-#include "dxc/WinAdapter.h"
-
 #ifndef _WIN32
 
+#include "dxc/Support/WinAdapter.h"
+
+HRESULT StringCchCopyEx(LPSTR pszDest, size_t cchDest, LPCSTR pszSrc,
+                        LPSTR *ppszDestEnd, size_t *pcchRemaining, DWORD dwFlags);
 HRESULT StringCchPrintfA(char *dst, size_t dstSize, const char *format, ...);
 HRESULT UIntAdd(UINT uAugend, UINT uAddend, UINT *puResult);
 HRESULT IntToUInt(int in, UINT *out);
@@ -30,26 +32,34 @@ int _stricmp(const char *str1, const char *str2);
 int _wcsicmp(const wchar_t *str1, const wchar_t *str2);
 int _wcsnicmp(const wchar_t *str1, const wchar_t *str2, size_t n);
 int wsprintf(wchar_t *wcs, const wchar_t *fmt, ...);
-unsigned char _BitScanForward(unsigned long *Index, unsigned long Mask);
+unsigned char _BitScanForward(unsigned long * Index, unsigned long Mask);
+HRESULT CoGetMalloc(DWORD dwMemContext, IMalloc **ppMalloc);
 
-HANDLE CreateFile2(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode,
-                   DWORD dwCreationDisposition, void *pCreateExParams);
+HANDLE CreateFile2(_In_ LPCWSTR lpFileName, _In_ DWORD dwDesiredAccess,
+                   _In_ DWORD dwShareMode, _In_ DWORD dwCreationDisposition,
+                   _In_opt_ void *pCreateExParams);
 
-HANDLE CreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode,
-                   void *lpSecurityAttributes, DWORD dwCreationDisposition,
-                   DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
+HANDLE CreateFileW(_In_ LPCWSTR lpFileName, _In_ DWORD dwDesiredAccess,
+                   _In_ DWORD dwShareMode, _In_opt_ void *lpSecurityAttributes,
+                   _In_ DWORD dwCreationDisposition,
+                   _In_ DWORD dwFlagsAndAttributes,
+                   _In_opt_ HANDLE hTemplateFile);
 
-BOOL GetFileSizeEx(HANDLE hFile, PLARGE_INTEGER lpFileSize);
+BOOL GetFileSizeEx(_In_ HANDLE hFile, _Out_ PLARGE_INTEGER lpFileSize);
 
-BOOL ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead,
-              LPDWORD lpNumberOfBytesRead, void *lpOverlapped);
-BOOL WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite,
-               LPDWORD lpNumberOfBytesWritten, void *lpOverlapped);
+BOOL ReadFile(_In_ HANDLE hFile, _Out_ LPVOID lpBuffer,
+              _In_ DWORD nNumberOfBytesToRead,
+              _Out_opt_ LPDWORD lpNumberOfBytesRead,
+              _Inout_opt_ void *lpOverlapped);
+BOOL WriteFile(_In_ HANDLE hFile, _In_ LPCVOID lpBuffer,
+               _In_ DWORD nNumberOfBytesToWrite,
+               _Out_opt_ LPDWORD lpNumberOfBytesWritten,
+               _Inout_opt_ void *lpOverlapped);
 
-BOOL CloseHandle(HANDLE hObject);
+BOOL CloseHandle(_In_ HANDLE hObject);
 
 // Windows-specific heap functions
-HANDLE HeapCreate(DWORD flOptions, SIZE_T dwInitialSize, SIZE_T dwMaximumSize);
+HANDLE HeapCreate(DWORD flOptions, SIZE_T dwInitialSize , SIZE_T dwMaximumSize);
 BOOL HeapDestroy(HANDLE heap);
 LPVOID HeapAlloc(HANDLE hHeap, DWORD dwFlags, SIZE_T nBytes);
 LPVOID HeapReAlloc(HANDLE hHeap, DWORD dwFlags, LPVOID lpMem, SIZE_T dwBytes);

@@ -15,8 +15,6 @@
 #ifndef LLVM_ADT_ILIST_NODE_H
 #define LLVM_ADT_ILIST_NODE_H
 
-#include "llvm/Config/abi-breaking.h"
-
 namespace llvm {
 
 template<typename NodeTy>

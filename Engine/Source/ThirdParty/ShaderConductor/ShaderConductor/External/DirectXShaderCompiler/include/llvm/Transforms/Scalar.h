@@ -144,9 +144,6 @@ void initializeDxilInsertPreservesPass(PassRegistry&);
 Pass *createDxilFinalizePreservesPass();
 void initializeDxilFinalizePreservesPass(PassRegistry&);
 
-Pass *createDxilReinsertNopsPass();
-void initializeDxilReinsertNopsPass(PassRegistry&);
-
 Pass *createDxilPreserveToSelectPass();
 void initializeDxilPreserveToSelectPass(PassRegistry&);
 
@@ -181,11 +178,6 @@ void initializeMultiDimArrayToOneDimArrayPass(PassRegistry&);
 //
 ModulePass *createResourceToHandlePass();
 void initializeResourceToHandlePass(PassRegistry&);
-//===----------------------------------------------------------------------===//
-// Flatten resource into handle.
-//
-ModulePass *createLowerWaveMatTypePass();
-void initializeLowerWaveMatTypePass(PassRegistry &);
 
 //===----------------------------------------------------------------------===//
 // Hoist a local array initialized with constant values to a global array with
@@ -222,7 +214,6 @@ Pass *createIndVarSimplifyPass();
 //    %Z = add int 2, %X
 //
 FunctionPass *createInstructionCombiningPass();
-FunctionPass *createInstructionCombiningPass(bool HLSLSkipSinkSelect); // HLSL Change
 
 //===----------------------------------------------------------------------===//
 //

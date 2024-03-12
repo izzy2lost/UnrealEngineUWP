@@ -74,16 +74,16 @@ void LLVMDisposeGenericValue(LLVMGenericValueRef GenVal);
 
 LLVMBool LLVMCreateExecutionEngineForModule(LLVMExecutionEngineRef *OutEE,
                                             LLVMModuleRef M,
-                                            char **OutError);
+											_Out_opt_  char **OutError);
 
 LLVMBool LLVMCreateInterpreterForModule(LLVMExecutionEngineRef *OutInterp,
                                         LLVMModuleRef M,
-                                        char **OutError);
+										_Out_opt_ char **OutError);
 
 LLVMBool LLVMCreateJITCompilerForModule(LLVMExecutionEngineRef *OutJIT,
                                         LLVMModuleRef M,
                                         unsigned OptLevel,
-                                        char **OutError);
+										_Out_opt_ char **OutError);
 
 void LLVMInitializeMCJITCompilerOptions(
   struct LLVMMCJITCompilerOptions *Options, size_t SizeOfOptions);
@@ -108,23 +108,23 @@ void LLVMInitializeMCJITCompilerOptions(
 LLVMBool LLVMCreateMCJITCompilerForModule(
   LLVMExecutionEngineRef *OutJIT, LLVMModuleRef M,
   struct LLVMMCJITCompilerOptions *Options, size_t SizeOfOptions,
-  char **OutError);
+	  _Out_opt_ char **OutError);
 
 /** Deprecated: Use LLVMCreateExecutionEngineForModule instead. */
 LLVMBool LLVMCreateExecutionEngine(LLVMExecutionEngineRef *OutEE,
                                    LLVMModuleProviderRef MP,
-                                   char **OutError);
+								   _Out_opt_ char **OutError);
 
 /** Deprecated: Use LLVMCreateInterpreterForModule instead. */
 LLVMBool LLVMCreateInterpreter(LLVMExecutionEngineRef *OutInterp,
                                LLVMModuleProviderRef MP,
-                               char **OutError);
+							   _Out_opt_ char **OutError);
 
 /** Deprecated: Use LLVMCreateJITCompilerForModule instead. */
 LLVMBool LLVMCreateJITCompiler(LLVMExecutionEngineRef *OutJIT,
                                LLVMModuleProviderRef MP,
                                unsigned OptLevel,
-                               char **OutError);
+							   _Out_opt_ char **OutError);
 
 void LLVMDisposeExecutionEngine(LLVMExecutionEngineRef EE);
 
@@ -148,12 +148,12 @@ void LLVMAddModule(LLVMExecutionEngineRef EE, LLVMModuleRef M);
 void LLVMAddModuleProvider(LLVMExecutionEngineRef EE, LLVMModuleProviderRef MP);
 
 LLVMBool LLVMRemoveModule(LLVMExecutionEngineRef EE, LLVMModuleRef M,
-                          LLVMModuleRef *OutMod, char **OutError);
+	LLVMModuleRef *OutMod, _Out_opt_  char **OutError);
 
 /** Deprecated: Use LLVMRemoveModule instead. */
 LLVMBool LLVMRemoveModuleProvider(LLVMExecutionEngineRef EE,
                                   LLVMModuleProviderRef MP,
-                                  LLVMModuleRef *OutMod, char **OutError);
+								  LLVMModuleRef *OutMod, _Out_opt_ char **OutError);
 
 LLVMBool LLVMFindFunction(LLVMExecutionEngineRef EE, const char *Name,
                           LLVMValueRef *OutFn);

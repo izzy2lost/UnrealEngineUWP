@@ -18,7 +18,7 @@
 #ifdef _WIN32
 #include <sal.h>
 #else
-#include "dxc/WinAdapter.h"
+#include "dxc/Support/WinAdapter.h"
 #endif
 // HLSL Change Ends
 
@@ -30,7 +30,7 @@ class raw_ostream;
 /// \returns true on error, false otherwise
 typedef bool TableGenMainFn(raw_ostream &OS, RecordKeeper &Records);
 
-int TableGenMain(char *argv0, TableGenMainFn *MainFn);
+int TableGenMain(_In_z_ char *argv0, _In_ TableGenMainFn *MainFn);  // HLSL Change - SAL
 }
 
 #endif

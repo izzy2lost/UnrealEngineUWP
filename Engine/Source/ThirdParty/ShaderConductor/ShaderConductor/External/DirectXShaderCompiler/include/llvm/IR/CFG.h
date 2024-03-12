@@ -27,15 +27,10 @@ namespace llvm {
 //===----------------------------------------------------------------------===//
 
 template <class Ptr, class USE_iterator> // Predecessor Iterator
-class PredIterator {
-public:
-  using iterator_category = std::forward_iterator_tag;
-  using value_type = Ptr;
-  using difference_type = std::ptrdiff_t;
-  using pointer = Ptr *;
-  using reference = Ptr *;
-
-private:
+class PredIterator : public std::iterator<std::forward_iterator_tag,
+                                          Ptr, ptrdiff_t, Ptr*, Ptr*> {
+  typedef std::iterator<std::forward_iterator_tag, Ptr, ptrdiff_t, Ptr*,
+                                                                    Ptr*> super;
   typedef PredIterator<Ptr, USE_iterator> Self;
   USE_iterator It;
 
@@ -46,6 +41,8 @@ private:
   }
 
 public:
+  typedef typename super::pointer pointer;
+  typedef typename super::reference reference;
 
   PredIterator() {}
   explicit inline PredIterator(Ptr *bb) : It(bb->user_begin()) {
@@ -115,14 +112,14 @@ inline pred_const_range predecessors(const BasicBlock *BB) {
 ///////////////////////////////////////////////////////////////////////////////
 
 template <class Term_, class BB_>           // Successor Iterator
-class SuccIterator {
+class SuccIterator : public std::iterator<std::random_access_iterator_tag, BB_,
+                                          int, BB_ *, BB_ *> {
+  typedef std::iterator<std::random_access_iterator_tag, BB_, int, BB_ *, BB_ *>
+  super;
 
 public:
-  using iterator_category = std::random_access_iterator_tag;
-  using value_type = BB_;
-  using difference_type = int;
-  using pointer = BB_ *;
-  using reference = BB_ *;
+  typedef typename super::pointer pointer;
+  typedef typename super::reference reference;
 
 private:
   Term_ Term;

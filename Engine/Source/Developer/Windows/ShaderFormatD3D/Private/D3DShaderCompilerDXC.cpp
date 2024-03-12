@@ -988,14 +988,15 @@ bool CompileAndProcessD3DShaderDXC(
 				uint32 PartKind;
 				VERIFYHRESULT(ContainerRefl->GetPartKind(PartIndex, &PartKind));
 
-				if (PartKind == DXC_PART_FEATURE_INFO)
+				//if (PartKind == DXC_PART_USER_INFO)
+				if (PartKind == DXC_PART_PRIVATE_DATA) // HACK TODO: Use PrivateData for now (pass validation)
 				{
 					TRefCountPtr<IDxcBlob> UserPartBlob;
 					ContainerRefl->GetPartContent(PartIndex, UserPartBlob.GetInitReference());
 					if (UserPartBlob->GetBufferSize() == sizeof(uint64))
 					{
-						uint64 FeaturesFlags = *(uint64*)UserPartBlob->GetBufferPointer();
-						bHasNoDerivativeOps = (FeaturesFlags & hlsl::DXIL::OptFeatureInfo_UsesDerivatives) == 0;
+						uint64 UserFlags = *(uint64*)UserPartBlob->GetBufferPointer();
+						bHasNoDerivativeOps = (UserFlags & hlsl::DXIL::kNoDerivativeOps) != 0;
 					}
 					break;
 				}

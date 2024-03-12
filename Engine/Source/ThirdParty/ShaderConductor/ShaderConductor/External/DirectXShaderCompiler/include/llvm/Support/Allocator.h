@@ -90,6 +90,7 @@ class MallocAllocator : public AllocatorBase<MallocAllocator> {
 public:
   void Reset() {}
 
+  _Ret_notnull_   // HLSL Change - SAL
   LLVM_ATTRIBUTE_RETURNS_NONNULL void *Allocate(size_t Size,
                                                 size_t /*Alignment*/) {
     return ::operator new(Size); // HLSL Change: use overridable operator new and throw on OOM

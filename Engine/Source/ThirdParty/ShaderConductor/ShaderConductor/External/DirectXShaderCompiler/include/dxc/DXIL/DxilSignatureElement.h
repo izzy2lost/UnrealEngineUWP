@@ -11,13 +11,13 @@
 
 #pragma once
 
-#include "dxc/DXIL/DxilCompType.h"
-#include "dxc/DXIL/DxilInterpolationMode.h"
-#include "dxc/DXIL/DxilSemantic.h"
 #include "llvm/ADT/StringRef.h"
-#include <limits.h>
+#include "dxc/DXIL/DxilSemantic.h"
+#include "dxc/DXIL/DxilInterpolationMode.h"
+#include "dxc/DXIL/DxilCompType.h"
 #include <string>
 #include <vector>
+#include <limits.h>
 
 namespace hlsl {
 
@@ -35,12 +35,10 @@ public:
   DxilSignatureElement(Kind K);
   virtual ~DxilSignatureElement();
 
-  void Initialize(
-      llvm::StringRef Name, const CompType &ElementType,
-      const InterpolationMode &InterpMode, unsigned Rows, unsigned Cols,
-      int StartRow = Semantic::kUndefinedRow,
-      int StartCol = Semantic::kUndefinedCol, unsigned ID = kUndefinedID,
-      const std::vector<unsigned> &IndexVector = std::vector<unsigned>());
+  void Initialize(llvm::StringRef Name, const CompType &ElementType, const InterpolationMode &InterpMode, 
+                  unsigned Rows, unsigned Cols, 
+                  int StartRow = Semantic::kUndefinedRow, int StartCol = Semantic::kUndefinedCol,
+                  unsigned ID = kUndefinedID, const std::vector<unsigned> &IndexVector = std::vector<unsigned>());
 
   unsigned GetID() const;
   void SetID(unsigned ID);

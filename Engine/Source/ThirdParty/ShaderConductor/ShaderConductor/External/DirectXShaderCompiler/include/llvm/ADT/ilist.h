@@ -142,16 +142,18 @@ struct ilist_traits<const Ty> : public ilist_traits<Ty> {};
 // ilist_iterator<Node> - Iterator for intrusive list.
 //
 template<typename NodeTy>
-class ilist_iterator {
+class ilist_iterator
+  : public std::iterator<std::bidirectional_iterator_tag, NodeTy, ptrdiff_t> {
 
 public:
-  using iterator_category = std::bidirectional_iterator_tag;
-  using value_type = NodeTy;
-  using difference_type = std::ptrdiff_t;
-  using pointer = value_type *;
-  using reference = value_type &;
-
   typedef ilist_traits<NodeTy> Traits;
+  typedef std::iterator<std::bidirectional_iterator_tag,
+                        NodeTy, ptrdiff_t> super;
+
+  typedef typename super::value_type value_type;
+  typedef typename super::difference_type difference_type;
+  typedef typename super::pointer pointer;
+  typedef typename super::reference reference;
 private:
   pointer NodePtr;
 
@@ -246,24 +248,22 @@ void operator+(ilist_iterator<T>,int) = delete;
 
 // operator!=/operator== - Allow mixed comparisons without dereferencing
 // the iterator, which could very likely be pointing to end().
-// HLSL Change Begin: Support for C++20
-template<typename T, typename U>
-bool operator!=(const T* LHS, const ilist_iterator<const U> &RHS) {
+template<typename T>
+bool operator!=(const T* LHS, const ilist_iterator<const T> &RHS) {
   return LHS != RHS.getNodePtrUnchecked();
 }
-template<typename T, typename U>
-bool operator==(const T* LHS, const ilist_iterator<const U> &RHS) {
+template<typename T>
+bool operator==(const T* LHS, const ilist_iterator<const T> &RHS) {
   return LHS == RHS.getNodePtrUnchecked();
 }
-template<typename T, typename U>
-bool operator!=(T* LHS, const ilist_iterator<U> &RHS) {
+template<typename T>
+bool operator!=(T* LHS, const ilist_iterator<T> &RHS) {
   return LHS != RHS.getNodePtrUnchecked();
 }
-template<typename T, typename U>
-bool operator==(T* LHS, const ilist_iterator<U> &RHS) {
+template<typename T>
+bool operator==(T* LHS, const ilist_iterator<T> &RHS) {
   return LHS == RHS.getNodePtrUnchecked();
 }
-// HLSL Change End
 
 
 // Allow ilist_iterators to convert into pointers to a node automatically when

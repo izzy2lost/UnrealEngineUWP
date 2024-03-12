@@ -268,7 +268,7 @@ namespace llvm {
     unsigned short Levels;
     bool LoopIndependent;
     bool Consistent; // Init to true, then refine.
-    DVEntry *DV;
+    _Field_size_opt_(Levels) DVEntry *DV;
     friend class DependenceAnalysis;
   };
 

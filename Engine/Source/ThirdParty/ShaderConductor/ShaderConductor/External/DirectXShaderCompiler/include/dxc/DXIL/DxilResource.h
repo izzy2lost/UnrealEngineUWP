@@ -12,8 +12,9 @@
 #pragma once
 
 #include "DxilConstants.h"
-#include "dxc/DXIL/DxilCompType.h"
 #include "dxc/DXIL/DxilResourceBase.h"
+#include "dxc/DXIL/DxilCompType.h"
+
 
 namespace hlsl {
 
@@ -86,13 +87,12 @@ public:
   void SetHasAtomic64Use(bool b);
 
   static bool classof(const DxilResourceBase *R) {
-    return R->GetClass() == DXIL::ResourceClass::SRV ||
-           R->GetClass() == DXIL::ResourceClass::UAV;
+    return R->GetClass() == DXIL::ResourceClass::SRV || R->GetClass() == DXIL::ResourceClass::UAV;
   }
 
 private:
   unsigned m_SampleCount;
-  unsigned m_ElementStride;     // in bytes
+  unsigned m_ElementStride; // in bytes
   unsigned m_baseAlignLog2 = 0; // worst-case alignment
   CompType m_CompType;
   DXIL::SamplerFeedbackType m_SamplerFeedbackType;

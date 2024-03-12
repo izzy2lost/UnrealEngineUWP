@@ -49,7 +49,6 @@ struct SpirvCodeGenOptions {
   bool defaultRowMajor;
   bool disableValidation;
   bool enable16BitTypes;
-  bool finiteMathOnly;
   bool enableReflect;
   // UE Change Begin: Add 'fused-multiply-add' pass to emulate invariant
   // qualifier for older versions of Metal.
@@ -59,12 +58,13 @@ struct SpirvCodeGenOptions {
   bool disableScalarBlockLayout;
   // UE Change End: Allow to disable scalar block layout
   // qualifier for older versions of Metal.
+  // UE Change Begin: Added new flag for forceStorageImageFormat
+  bool forceStorageImageFormat;
+  // UE Change End: Added new flag for forceStorageImageFormat
   bool invertY; // Additive inverse
   bool invertW; // Multiplicative inverse
   bool noWarnEmulatedFeatures;
   bool noWarnIgnoredFeatures;
-  bool preserveBindings;
-  bool preserveInterface;
   bool useDxLayout;
   bool useGlLayout;
   bool useLegacyBufferMatrixOrder;
@@ -89,7 +89,6 @@ struct SpirvCodeGenOptions {
   bool autoShiftBindings;
   bool supportNonzeroBaseInstance;
   bool fixFuncCallArguments;
-  bool allowRWStructuredBufferArrays;
   /// Maximum length in words for the OpString literal containing the shader
   /// source for DebugSource and DebugSourceContinued. If the source code length
   /// is larger than this number, we will use DebugSourceContinued instructions

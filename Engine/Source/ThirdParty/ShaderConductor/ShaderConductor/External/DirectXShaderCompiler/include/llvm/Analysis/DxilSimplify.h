@@ -34,7 +34,8 @@ namespace hlsl {
 /// If this call could not be simplified returns null.
 llvm::Value *SimplifyDxilCall(llvm::Function *F,
                               llvm::ArrayRef<llvm::Value *> Args,
-                              llvm::Instruction *I, bool MayInsert);
+                              llvm::Instruction *I,
+                              bool MayInsert);
 
 /// CanSimplify
 /// Return true on dxil operation function which can be simplified.

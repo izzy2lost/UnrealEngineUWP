@@ -13,13 +13,14 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Dominators.h"
 
-#include <unordered_map>
 #include <unordered_set>
+#include <unordered_map>
 
 namespace llvm {
-class Function;
-class raw_ostream;
-} // namespace llvm
+  class Function;
+  class raw_ostream;
+}
+
 
 namespace hlsl {
 
@@ -36,19 +37,15 @@ public:
 
 private:
   using BasicBlockVector = std::vector<llvm::BasicBlock *>;
-  using ControlDependenceType =
-      std::unordered_map<llvm::BasicBlock *, BasicBlockSet>;
+  using ControlDependenceType = std::unordered_map<llvm::BasicBlock *, BasicBlockSet>;
 
   llvm::Function *m_pFunc;
   ControlDependenceType m_ControlDependence;
   BasicBlockSet m_EmptyBBSet;
 
-  llvm::BasicBlock *GetIPostDom(PostDomRelationType &PostDomRel,
-                                llvm::BasicBlock *pBB);
-  void ComputeRevTopOrderRec(PostDomRelationType &PostDomRel,
-                             llvm::BasicBlock *pBB,
-                             BasicBlockVector &RevTopOrder,
-                             BasicBlockSet &VisitedBBs);
+  llvm::BasicBlock *GetIPostDom(PostDomRelationType &PostDomRel, llvm::BasicBlock *pBB);
+  void ComputeRevTopOrderRec(PostDomRelationType &PostDomRel, llvm::BasicBlock *pBB,
+                             BasicBlockVector &RevTopOrder, BasicBlockSet &VisitedBBs);
 };
 
-} // namespace hlsl
+} // end of hlsl namespace

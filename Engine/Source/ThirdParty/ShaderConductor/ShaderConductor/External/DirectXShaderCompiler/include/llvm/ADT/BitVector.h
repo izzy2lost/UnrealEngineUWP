@@ -534,10 +534,8 @@ private:
     // HLSL Change Starts: Use overridable operator new
     // Bits = (BitWord *)std::realloc(Bits, Capacity * sizeof(BitWord));
     BitWord  *newBits = new BitWord[Capacity];
-    if (Bits != nullptr) {
-      std::memcpy(newBits, Bits, NumBitWords(Size) * sizeof(BitWord));
-      delete[] Bits;
-    }
+    std::memcpy(newBits, Bits, NumBitWords(Size) * sizeof(BitWord));
+    delete[] Bits;
     Bits = newBits;
     // HLSL Change Ends
 

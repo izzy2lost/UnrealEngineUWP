@@ -14,10 +14,11 @@
 #include "llvm/IR/IRBuilder.h"
 
 namespace llvm {
-class Type;
-class Value;
-template <typename T> class ArrayRef;
-} // namespace llvm
+  class Type;
+  class Value;
+  template<typename T>
+  class ArrayRef;
+}
 
 namespace hlsl {
 
@@ -26,7 +27,8 @@ class DxilTypeSystem;
 
 namespace HLMatrixLower {
 
-llvm::Value *BuildVector(llvm::Type *EltTy, llvm::ArrayRef<llvm::Value *> elts,
+llvm::Value *BuildVector(llvm::Type *EltTy,
+                         llvm::ArrayRef<llvm::Value *> elts,
                          llvm::IRBuilder<> &Builder);
 
 } // namespace HLMatrixLower
