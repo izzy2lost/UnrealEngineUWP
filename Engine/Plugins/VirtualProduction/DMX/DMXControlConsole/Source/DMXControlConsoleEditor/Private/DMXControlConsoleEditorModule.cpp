@@ -11,10 +11,14 @@
 #include "DMXEditorModule.h"
 #include "DMXEditorSettings.h"
 #include "Factories/DMXControlConsoleFactory.h"
+#include "Framework/Docking/TabManager.h"
 #include "LevelEditor.h"
 #include "Misc/CoreDelegates.h"
+#include "Models/DMXControlConsoleCompactEditorModel.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "Views/SDMXControlConsoleCompactEditorView.h"
+#include "Widgets/Docking/SDockTab.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorModule"
@@ -22,6 +26,7 @@
 const FName FDMXControlConsoleEditorModule::ControlConsoleEditorTabName("ControlConsoleTabName");
 const FName FDMXControlConsoleEditorModule::ControlConsoleEditorAppIdentifier(TEXT("ControlConsoleApp"));
 EAssetTypeCategories::Type FDMXControlConsoleEditorModule::DMXEditorAssetCategory;
+const FName FDMXControlConsoleEditorModule::CompactEditorTabId = TEXT("ControlConsoleCompactEditor");
 
 FDMXControlConsoleEditorModule::FDMXControlConsoleEditorModule()
 	: ControlConsoleCategory(LOCTEXT("ControlConsoleAssetTypeCategory", "DMX"))
@@ -40,10 +45,14 @@ void FDMXControlConsoleEditorModule::StartupModule()
 
 	// Try UpgradePath if configurations settings have data from Output Consoles, the Console that was used before 5.2.
 	FDMXControlConsoleEditorFromLegacyUpgradeHandler::TryUpgradePathFromLegacy();
+
+	RegisterCompactEditorTabSpawner();
 }
 
 void FDMXControlConsoleEditorModule::ShutdownModule()
 {
+	// It is required to explicitly let the widget go, before further shutting down this module.
+	CompactEditorTab.Reset();
 }
 
 void FDMXControlConsoleEditorModule::OpenControlConsole()
@@ -111,6 +120,40 @@ void FDMXControlConsoleEditorModule::ExtendDMXMenu(FMenuBuilder& MenuBuilder)
 		LOCTEXT("DMXControlConsoleMenuTooltip", "Opens a control console asset that can send DMX locally or over the network"),
 		FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.TabIcon")
 	);
+}
+
+void FDMXControlConsoleEditorModule::RegisterCompactEditorTabSpawner()
+{
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
+		CompactEditorTabId,
+		FOnSpawnTab::CreateStatic(&FDMXControlConsoleEditorModule::OnSpawnCompactEditorTab))
+		.SetMenuType(ETabSpawnerMenuType::Hidden)
+		.SetIcon(FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.TabIcon"));
+}
+
+TSharedRef<SDockTab> FDMXControlConsoleEditorModule::OnSpawnCompactEditorTab(const FSpawnTabArgs& InSpawnTabArgs)
+{
+	using namespace UE::DMX::Private;
+
+	FDMXControlConsoleEditorModule& ThisModule = FModuleManager::GetModuleChecked<FDMXControlConsoleEditorModule>(TEXT("DMXControlConsoleEditor"));
+	ThisModule.CompactEditorTab = SNew(SDockTab)
+		.Label(LOCTEXT("CompactEditorTabTitle", "Compact DMX Control Console"))
+		.TabRole(ETabRole::NomadTab)
+		.OnTabClosed(SDockTab::FOnTabClosedCallback::CreateStatic(&FDMXControlConsoleEditorModule::OnCompactEditorTabClosed))
+		[
+			SNew(SDMXControlConsoleCompactEditorView)
+		];
+
+	return ThisModule.CompactEditorTab.ToSharedRef();
+}
+
+void FDMXControlConsoleEditorModule::OnCompactEditorTabClosed(TSharedRef<SDockTab> Tab)
+{
+	UDMXControlConsoleCompactEditorModel* CompactEditorModel = GetMutableDefault<UDMXControlConsoleCompactEditorModel>();
+	CompactEditorModel->StopPlayingDMX();
+
+	FDMXControlConsoleEditorModule& ThisModule = FModuleManager::GetModuleChecked<FDMXControlConsoleEditorModule>(TEXT("DMXControlConsoleEditor"));
+	ThisModule.CompactEditorTab.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE

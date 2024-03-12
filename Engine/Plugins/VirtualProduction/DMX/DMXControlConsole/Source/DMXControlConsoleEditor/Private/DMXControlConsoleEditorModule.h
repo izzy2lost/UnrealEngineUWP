@@ -7,6 +7,9 @@
 #include "Misc/AssetCategoryPath.h"
 
 class FMenuBuilder;
+class FSpawnTabArgs;
+class SDockTab;
+class UDMXControlConsole;
 
 
 /** Editor Module for DMXControlConsole */
@@ -32,8 +35,14 @@ public:
 	/** Opens the ControlConsole */
 	static void OpenControlConsole();
 
+	/** Returns the compact editor tab, or nullptr if the compact editor tab is closed */
+	TSharedPtr<SDockTab> GetCompactEditorTab() const { return CompactEditorTab; }
+
 	/** Name identifier for the Control Console Editor app */
 	static const FName ControlConsoleEditorAppIdentifier;
+
+	/** Tab Id for the compact editor tab */
+	static const FName CompactEditorTabId;
 
 private:
 	/** Registers Control Console commands in the Level Editor */
@@ -44,6 +53,22 @@ private:
 
 	/** Extends the Level Editor Toolbar DMX Menu */
 	static void ExtendDMXMenu(FMenuBuilder& MenuBuilder);
+
+	/** Registers a tab spawner for the compact editor */
+	void RegisterCompactEditorTabSpawner();
+
+	/** Called when the compact editor tab is spawned */
+	static TSharedRef<SDockTab> OnSpawnCompactEditorTab(const FSpawnTabArgs& InSpawnTabArgs);
+
+	/** Called when the compact editor tab was closed */
+	static void OnCompactEditorTabClosed(TSharedRef<SDockTab> Tab);
+
+	/** 
+	 * The compact control console editor tab, or nullptr if the tab is closed.
+	 * Mind we explicitly hold the active tab here, as it may be assigned to any tab manager,
+	 * not just the global or the level editor tab manager.
+	 */
+	TSharedPtr<SDockTab> CompactEditorTab;
 
 	/** The category path under which Control Console assets are nested. */
 	FAssetCategoryPath ControlConsoleCategory;

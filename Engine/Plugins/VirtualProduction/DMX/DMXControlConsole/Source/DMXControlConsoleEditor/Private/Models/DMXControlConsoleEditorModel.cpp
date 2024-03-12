@@ -18,11 +18,13 @@
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorModel"
 
-void UDMXControlConsoleEditorModel::Initialize(const TSharedPtr<UE::DMX::Private::FDMXControlConsoleEditorToolkit>& InToolkit)
+void UDMXControlConsoleEditorModel::Initialize(UDMXControlConsole* InControlConsole)
 {
-	checkf(InToolkit.IsValid(), TEXT("Invalid control console toolkit, can't initialize toolkit correctly."));
-	WeakToolkit = InToolkit;
-	ControlConsole = InToolkit->GetControlConsole();
+	if (!ensureMsgf(InControlConsole, TEXT("Invalid control console, can't initialize editor model correctly.")))
+	{
+		return;
+	}
+	ControlConsole = InControlConsole;
 
 	InitializeEditorLayouts();
 	InitializeEditorData();

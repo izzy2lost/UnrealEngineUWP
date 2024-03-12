@@ -15,24 +15,26 @@ class UDMXControlConsoleData;
 class UDMXControlConsoleEditorData;
 class UDMXControlConsoleEditorLayouts;
 class UDMXControlConsoleEditorModel;
+class UDMXControlConsoleEditorPlayMenuModel;
 
 
 namespace UE::DMX::Private
 {
+	class FDMXControlConsoleEditorToolbar;
 	class SDMXControlConsoleEditorDetailsView;
 	class SDMXControlConsoleEditorDMXLibraryView;
 	class SDMXControlConsoleEditorFiltersView;
 	class SDMXControlConsoleEditorLayoutView;
-	class FDMXControlConsoleEditorToolbar;
 
 	/** Implements an Editor toolkit for Control Console. */
 	class FDMXControlConsoleEditorToolkit
 		: public FAssetEditorToolkit
 		, public FGCObject
 	{
+		using Super = FAssetEditorToolkit;
+
 	public:
 		FDMXControlConsoleEditorToolkit();
-		virtual ~FDMXControlConsoleEditorToolkit();
 
 		/**
 		 * Edits the specified control console object.
@@ -69,6 +71,9 @@ namespace UE::DMX::Private
 
 		/** Resets all the elements in the Control Console to zero */
 		void ResetToZero();
+
+		/** Closes this editor and presents the compact editor instead */
+		void ShowCompactEditor();
 
 		/** Name of the DMX Library View Tab */
 		static const FName DMXLibraryViewTabID;
@@ -138,34 +143,10 @@ namespace UE::DMX::Private
 		/** Extends the asset toolkit's toolbar */
 		void ExtendToolbar();
 
-		/** Starts to play DMX */
-		void PlayDMX();
+		/** True while switching to compact editor */
+		bool bSwitchingToCompactEditor = false;
 
-		/** Returns true if the console currently sends DMX */
-		bool IsPlayingDMX() const;
-
-		/** Pauses playing DMX. Current DMX values will still be sent at a lower rate. */
-		void PauseDMX();
-
-		/** Stops playing DMX */
-		void StopPlayingDMX();
-
-		/** Toggles between playing and pausing DMX */
-		void TogglePlayPauseDMX();
-
-		/** Toggles between playing and stopping DMX */
-		void TogglePlayStopDMX();
-
-		/** Sets the stop mode for the asset being edited */
-		void SetStopDMXMode(EDMXControlConsoleStopDMXMode StopDMXMode);
-
-		/** Returns true if console uses tested stop mode */
-		bool IsUsingStopDMXMode(EDMXControlConsoleStopDMXMode TestStopMode) const;
-
-		/** True when sending DMX is paused */
-		bool bPaused = false;
-
-		/** Reference to this asset toolkit's toolbar */
+		/** The DMX toolbar extension for this toolkit's toolbar */
 		TSharedPtr<FDMXControlConsoleEditorToolbar> Toolbar;
 
 		/** The DMX Library View instance */
@@ -179,6 +160,9 @@ namespace UE::DMX::Private
 
 		/** The Filters View instance */
 		TSharedPtr<SDMXControlConsoleEditorFiltersView> FiltersView;
+
+		/** The Play Menu Model for the Control Console this toolkit is based on */
+		TObjectPtr<UDMXControlConsoleEditorPlayMenuModel> PlayMenuModel;
 
 		/** The Editor Model for the Control Console this toolkit is based on */
 		TObjectPtr<UDMXControlConsoleEditorModel> EditorModel;

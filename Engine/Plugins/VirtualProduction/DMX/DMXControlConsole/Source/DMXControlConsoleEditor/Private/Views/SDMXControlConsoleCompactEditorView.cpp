@@ -1,0 +1,258 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "SDMXControlConsoleCompactEditorView.h"
+
+#include "Commands/DMXControlConsoleEditorCommands.h"
+#include "DMXControlConsole.h"
+#include "DMXControlConsoleCompactEditorMenuContext.h"
+#include "DMXControlConsoleEditorSelection.h"
+#include "Editor.h"
+#include "FileHelpers.h"
+#include "Models/DMXControlConsoleCompactEditorModel.h"
+#include "Models/DMXControlConsoleEditorModel.h"
+#include "Models/DMXControlConsoleEditorPlayMenuModel.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
+#include "Views/SDMXControlConsoleEditorLayoutView.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
+#include "UObject/Package.h"
+
+
+#define LOCTEXT_NAMESPACE "SDMXControlConsoleCompactEditorView"
+
+namespace UE::DMX::Private
+{
+	const FName SDMXControlConsoleCompactEditorView::ToolbarMenuName = "DMX.ControlConsole.CompactEditorToolbar";
+
+	void SDMXControlConsoleCompactEditorView::Construct(const FArguments& InArgs)
+	{
+		UDMXControlConsoleCompactEditorModel* CompactEditorModel = GetMutableDefault<UDMXControlConsoleCompactEditorModel>();
+		ControlConsole = CompactEditorModel->LoadControlConsoleSynchronous();
+
+		if (ControlConsole)
+		{
+			EditorModel = NewObject<UDMXControlConsoleEditorModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
+			EditorModel->Initialize(ControlConsole);
+
+			SetupCommands();
+
+			PlayMenuModel = NewObject<UDMXControlConsoleEditorPlayMenuModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
+			PlayMenuModel->Initialize(ControlConsole, CommandList.ToSharedRef());
+			
+			ChildSlot
+			[
+				SNew(SVerticalBox)
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(SHorizontalBox)
+				
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0)
+					[
+						CreateToolbar()
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SNew(SBorder)
+						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+						.VAlign(VAlign_Center)
+						.Padding(FMargin(4.f, 0.f, 20.f, 0.f))
+						.OnMouseButtonDown_Lambda([this, SharedThis = AsShared()](const FGeometry&, const FPointerEvent&) { checkNoEntry(); return FReply::Handled(); })
+						[
+							SNew(STextBlock)
+							.Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+							.Text(this, &SDMXControlConsoleCompactEditorView::GetAssetNameText)
+						]
+					]
+				]
+
+				+ SVerticalBox::Slot()
+				.FillHeight(1.f)
+				[
+					SNew(SDMXControlConsoleEditorLayoutView, EditorModel)
+				]
+			];
+		}
+		else
+		{
+			ChildSlot
+			[
+				SNullWidget::NullWidget
+			];
+		}
+	}
+
+	FReply SDMXControlConsoleCompactEditorView::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+	{
+		if (CommandList->ProcessCommandBindings(InKeyEvent))
+		{
+			return FReply::Handled();
+		}
+
+		return FReply::Unhandled();
+	}
+
+	void SDMXControlConsoleCompactEditorView::AddReferencedObjects(FReferenceCollector& Collector)
+	{
+		Collector.AddReferencedObject(ControlConsole);
+		Collector.AddReferencedObject(EditorModel);
+		Collector.AddReferencedObject(PlayMenuModel);
+	}
+
+	FString SDMXControlConsoleCompactEditorView::GetReferencerName() const
+	{
+		return TEXT("UE::DMX::Private::SDMXControlConsoleCompactEditorView");
+	}
+
+	void SDMXControlConsoleCompactEditorView::SetupCommands()
+	{
+		CommandList = MakeShared<FUICommandList>();
+
+		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+		constexpr bool bSelectOnlyVisible = true;
+		CommandList->MapAction
+		(
+			FDMXControlConsoleEditorCommands::Get().SelectAll,
+			FExecuteAction::CreateSP(SelectionHandler, &FDMXControlConsoleEditorSelection::SelectAll, bSelectOnlyVisible)
+		);
+	}
+
+	TSharedRef<SWidget> SDMXControlConsoleCompactEditorView::CreateToolbar()
+	{
+		// Using the same pattern as SSequencer to present the menu depending on the current asset
+		UToolMenus* ToolMenus = UToolMenus::Get();
+		if (!ToolMenus->IsMenuRegistered(ToolbarMenuName))
+		{
+			UToolMenu* Toolbar = ToolMenus->RegisterMenu(ToolbarMenuName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
+			Toolbar->AddDynamicSection("PopulateToolBar", FNewToolMenuDelegate::CreateStatic(&SDMXControlConsoleCompactEditorView::PopulateToolbar));
+		}
+
+		UDMXControlConsoleCompactEditorMenuContext* ContextObject = NewObject<UDMXControlConsoleCompactEditorMenuContext>();
+		ContextObject->WeakCompactEditorView = SharedThis(this);
+
+		const FToolMenuContext MenuContext(CommandList, TSharedPtr<FExtender>(), ContextObject);
+		UToolMenu* ToolMenu = UToolMenus::Get()->GenerateMenu(ToolbarMenuName, MenuContext);
+		return UToolMenus::Get()->GenerateWidget(ToolbarMenuName, MenuContext);
+	}
+
+	void SDMXControlConsoleCompactEditorView::PopulateToolbar(UToolMenu* InMenu)
+	{
+		UDMXControlConsoleCompactEditorMenuContext* ContextObject = InMenu ? InMenu->FindContext<UDMXControlConsoleCompactEditorMenuContext>() : nullptr;
+		TSharedPtr<SDMXControlConsoleCompactEditorView> CompactEditorView = ContextObject && ContextObject->WeakCompactEditorView.IsValid() ? ContextObject->WeakCompactEditorView.Pin() : nullptr;
+		if (!CompactEditorView.IsValid())
+		{
+			return;
+		}
+
+		// Asset section
+		{
+			FToolMenuSection& AssetSection = InMenu->AddSection("Asset");
+
+			const FToolMenuEntry SaveEntry = FToolMenuEntry::InitToolBarButton(
+				"Save",
+				FUIAction(FExecuteAction::CreateSP(CompactEditorView.Get(), &SDMXControlConsoleCompactEditorView::OnSaveClicked)),
+				FText::GetEmpty(),
+				LOCTEXT("SaveTooltip", "Saves the control console"),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAsset")
+			);
+			AssetSection.AddEntry(SaveEntry);
+
+			const FToolMenuEntry FindInContentBrowserEntry = FToolMenuEntry::InitToolBarButton(
+				"FindInContentBrowser",
+				FUIAction(FExecuteAction::CreateSP(CompactEditorView.Get(), &SDMXControlConsoleCompactEditorView::OnFindInContentBrowserClicked)),
+				FText::GetEmpty(),
+				LOCTEXT("FindInContentBrowserTooltip", "Finds this asset in the content browser"),
+				FSlateIcon(FAppStyle::Get().GetStyleSetName(), "SystemWideCommands.FindInContentBrowser")
+			);
+			AssetSection.AddEntry(FindInContentBrowserEntry);
+		}
+
+		// Play Section
+		{
+			if (UDMXControlConsoleEditorPlayMenuModel* ContextualPlayMenuModel = CompactEditorView->PlayMenuModel)
+			{
+				ContextualPlayMenuModel->CreatePlayMenu(*InMenu);
+			}
+		}
+
+		// 'Show Full Editor' section
+		{
+			FToolMenuSection& ShowFullEditorSection = InMenu->AddSection("ShowFullEditor");
+
+			const TSharedRef<SWidget> ShowFullEditorButton = SNew(SButton)
+				.OnClicked(CompactEditorView.Get(), &SDMXControlConsoleCompactEditorView::OnShowFullEditorButtonClicked)
+				[
+					SNew(SBorder)
+					.VAlign(VAlign_Center)
+					.BorderImage(FAppStyle::GetBrush("NoBorder"))
+					[
+						SNew(STextBlock)
+						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+						.Text(LOCTEXT("ShowFullWindowLabel", "Show Full Editor"))
+						.ToolTipText(LOCTEXT("ShowFulllWindowTooltip", "Shows the full control console editor"))
+					]
+				];
+
+			const FToolMenuEntry ShowFullEditorEntry = FToolMenuEntry::InitWidget(
+				NAME_None,
+				ShowFullEditorButton,
+				FText::GetEmpty()
+			);
+
+			ShowFullEditorSection.AddEntry(ShowFullEditorEntry);
+		}
+	}
+
+	void SDMXControlConsoleCompactEditorView::OnSaveClicked()
+	{
+		if (ControlConsole)
+		{
+			const TArray<UPackage*> PackagesToSave({ ControlConsole->GetOutermost() });
+
+			constexpr bool bCheckDirtyOnAssetSave = false;
+			constexpr bool bPromptToSave = false;
+			FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, bCheckDirtyOnAssetSave, bPromptToSave);
+		}
+	}
+
+	void SDMXControlConsoleCompactEditorView::OnFindInContentBrowserClicked()
+	{
+		if (ControlConsole)
+		{
+			const TArray<FAssetData> AssetsToFind({ FAssetData(ControlConsole) });
+			GEditor->SyncBrowserToObjects(AssetsToFind);
+		}
+	}
+
+	FReply SDMXControlConsoleCompactEditorView::OnShowFullEditorButtonClicked()
+	{
+		UDMXControlConsoleCompactEditorModel* CompactEditorModel = GetMutableDefault<UDMXControlConsoleCompactEditorModel>();
+		CompactEditorModel->RestoreFullEditor();
+
+		return FReply::Handled();
+	}
+
+	FText SDMXControlConsoleCompactEditorView::GetAssetNameText() const
+	{
+		if (ControlConsole && ControlConsole->GetPackage())
+		{
+			FString AssetName = ControlConsole->GetName();
+			if (ControlConsole->GetPackage() && ControlConsole->GetPackage()->IsDirty())
+			{
+				AssetName += TEXT("*");
+			}
+			return FText::FromString(AssetName);
+		}
+
+		return FText::GetEmpty();
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

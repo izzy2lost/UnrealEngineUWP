@@ -2,10 +2,13 @@
 
 #include "AssetDefinition_DMXControlConsole.h"
 
+#include "Algo/Find.h"
 #include "DMXControlConsole.h"
 #include "DMXControlConsoleEditorModule.h"
-#include "Toolkits/DMXControlConsoleEditorToolkit.h"
+#include "Models/DMXControlConsoleCompactEditorModel.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
+#include "Toolkits/DMXControlConsoleEditorToolkit.h"
+#include "Widgets/Docking/SDockTab.h"
 
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_DMXControlConsole"
@@ -33,9 +36,26 @@ TConstArrayView<FAssetCategoryPath> UAssetDefinition_DMXControlConsole::GetAsset
 
 EAssetCommandResult UAssetDefinition_DMXControlConsole::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
-	for (UDMXControlConsole* DMXControlConsole : OpenArgs.LoadObjects<UDMXControlConsole>())
+	using namespace UE::DMX::Private;
+
+	const FDMXControlConsoleEditorModule& EditorModule = FModuleManager::GetModuleChecked<FDMXControlConsoleEditorModule>(TEXT("DMXControlConsoleEditor"));
+	const TSharedPtr<SDockTab> CompactEditorTab = EditorModule.GetCompactEditorTab();
+
+	const UDMXControlConsoleCompactEditorModel* CompactEditorModel = GetDefault<UDMXControlConsoleCompactEditorModel>();
+
+	const TArray<UDMXControlConsole*> ControlConsoles = OpenArgs.LoadObjects<UDMXControlConsole>();
+	UDMXControlConsole* const* ConsoleUsedInCompactEditorPtr = Algo::FindByPredicate(ControlConsoles, [CompactEditorModel](UDMXControlConsole* PossibleCompactConsole)
+		{
+			return CompactEditorModel->IsUsingControlConsole(PossibleCompactConsole);
+		});
+	if (ConsoleUsedInCompactEditorPtr && CompactEditorTab.IsValid())
 	{
-		using namespace UE::DMX::Private;
+		// Restore the full editor if the control console is displayed in the compact editor
+		CompactEditorTab->SetContent(SNullWidget::NullWidget);
+	}
+
+	for (UDMXControlConsole* DMXControlConsole : ControlConsoles)
+	{
 		TSharedRef<FDMXControlConsoleEditorToolkit> NewEditor(MakeShared<FDMXControlConsoleEditorToolkit>());
 		NewEditor->InitControlConsoleEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, DMXControlConsole);
 	}
