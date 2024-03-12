@@ -155,8 +155,9 @@ namespace uba
 
 	StringBufferBase& StringBufferBase::AppendDir(const StringBufferBase& str)
 	{
-		const tchar* last = str.Last(PathSeparator);
-		return Append(str.data, u64(last - str.data));
+		if (const tchar* last = str.Last(PathSeparator))
+			return Append(str.data, u64(last - str.data));
+		return *this;
 	}
 
 	StringBufferBase& StringBufferBase::AppendDir(const tchar* dir)
