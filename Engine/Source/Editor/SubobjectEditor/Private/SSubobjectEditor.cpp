@@ -1638,8 +1638,16 @@ FText SSubobject_RowWidget::GetTooltipText() const
 		}
 		else
 		{
-			return LOCTEXT("DefaultSceneRootToolTip",
-			               "This is the default scene root component. It cannot be renamed or deleted.\nIt can be replaced by drag/dropping another scene component over it.");
+			if (Data->CanDelete())
+			{
+				return LOCTEXT("DefaultSceneRootDeletableToolTip",
+					"This is the default scene root component.\nIt can be replaced by drag/dropping another scene component over it.");
+			}
+			else
+			{
+				return LOCTEXT("DefaultSceneRootToolTip",
+					"This is the default scene root component. It cannot be renamed or deleted.\nIt can be replaced by drag/dropping another scene component over it.");
+			}
 		}
 	}
 	else
