@@ -1067,7 +1067,8 @@ bool UTakeRecorderActorSource::EnsureObjectTemplateHasComponent(UActorComponent*
 
 	// Ensure the component name is unique within the Object Template. If there's complex spawn/destroy patterns that don't always use unique names this can
 	// cause UniqueComponentName to become a different name than the object it's being copied from which will cause anything attached to this to fail attachment.
-	FName UniqueComponentName = MakeUniqueObjectName(CachedObjectTemplate.Get(), InComponent->GetClass(), InComponent->GetFName());
+	// Note, we use NAME_None as the base name as opposed to anything the actual component's name because it could conflict with subsequence spawned components.
+	FName UniqueComponentName = MakeUniqueObjectName(CachedObjectTemplate.Get(), InComponent->GetClass(), NAME_None);
 	OutComponent = Cast<UActorComponent>(StaticDuplicateObject(InComponent, CachedObjectTemplate.Get(), UniqueComponentName, RF_AllFlags & ~RF_Transient));
 
 	// Restore attachment
