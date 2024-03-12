@@ -100,6 +100,8 @@ FDistributionEndpoints::EResult FDistributionEndpoints::ParseResponse(FHttpRespo
 			}
 
 			TArray<FJsonValuePtr> JsonValues = JsonObj->GetArrayField(TEXT("distributions"));
+			OutUrls.Reserve(JsonValues.Num());
+
 			for (const FJsonValuePtr& JsonValue : JsonValues)
 			{
 				FString ServiceUrl = JsonValue->AsString();

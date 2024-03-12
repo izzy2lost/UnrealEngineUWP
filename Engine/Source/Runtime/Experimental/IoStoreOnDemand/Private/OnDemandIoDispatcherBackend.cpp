@@ -2016,6 +2016,8 @@ bool FOnDemandIoBackend::ResolveDistributedEndpoint(const FDistributedEndpointUr
 		if (Result == FDistributionEndpoints::EResult::Success)
 		{
 			FWriteScopeLock _(Lock);
+			AvailableEps.Urls.Reserve(AvailableEps.Urls.Num() + ServiceUrls.Num());
+
 			for (const FString& Url : ServiceUrls)
 			{
 				AvailableEps.Urls.Add(Url.Replace(TEXT("https"), TEXT("http")));
