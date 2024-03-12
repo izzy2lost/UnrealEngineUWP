@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Iris/Core/NetChunkedArray.h"
 #include "Iris/ReplicationSystem/ReplicationView.h"
 #include "UObject/ObjectMacros.h"
 #include "NetObjectPrioritizer.generated.h"
@@ -120,6 +121,9 @@ struct FNetObjectPrioritizerUpdateParams
 
 	/** InstanceProtocols for updated objects. Index using 0..ObjectCount-1. */
 	UE::Net::FReplicationInstanceProtocol const*const* InstanceProtocols;
+
+	/** State buffers for all objects. Index using ObjectIndices[0..ObjectCount-1]. */
+	const UE::Net::TNetChunkedArray<uint8*>* StateBuffers = nullptr;
 
 	/** Infos for all objects. Index using ObjectIndices[0..ObjectCount-1]. */
 	FNetObjectPrioritizationInfo* PrioritizationInfos;
