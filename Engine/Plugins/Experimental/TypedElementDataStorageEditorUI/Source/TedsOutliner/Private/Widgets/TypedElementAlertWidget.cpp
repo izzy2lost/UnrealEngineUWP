@@ -39,8 +39,8 @@ namespace AlertWidgetInternal
 					if (!Alert.IsEmpty())
 					{
 						Background.SetImage(bIsWarning
-							? FAppStyle::GetBrush("Icons.WarningWithColor.Background")
-							: FAppStyle::GetBrush("Icons.ErrorWithColor.Background"));
+							? FAppStyle::GetBrush("Icons.Warning.Background")
+							: FAppStyle::GetBrush("Icons.Error.Background"));
 					}
 					else
 					{
@@ -52,8 +52,8 @@ namespace AlertWidgetInternal
 					if (!Alert.IsEmpty())
 					{
 						Background.SetImage(bIsWarning
-							? FAppStyle::GetBrush("Icons.WarningWithColor.Solid")
-							: FAppStyle::GetBrush("Icons.ErrorWithColor.Solid"));
+							? FAppStyle::GetBrush("Icons.Warning.Solid")
+							: FAppStyle::GetBrush("Icons.Error.Solid"));
 					}
 					else
 					{
@@ -272,7 +272,7 @@ void UTypedElementAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDa
 				{
 					if (TSharedPtr<SWidget> WidgetPtr = Widget.Widget.Pin())
 					{
-						static_cast<SImage*>(WidgetPtr.Get())->SetImage(FAppStyle::GetBrush("Icons.WarningWithColor.Solid"));
+						static_cast<SImage*>(WidgetPtr.Get())->SetImage(FAppStyle::GetBrush("Icons.Warning.Solid"));
 						Context.AddColumns<FTypedElementAlertHeaderActiveWidgetTag>(Row);
 					}
 				}
@@ -296,7 +296,7 @@ void UTypedElementAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDa
 				{
 					if (TSharedPtr<SWidget> WidgetPtr = Widget.Widget.Pin())
 					{
-						static_cast<SImage*>(WidgetPtr.Get())->SetImage(FAppStyle::GetBrush("Icons.Warning"));
+						static_cast<SImage*>(WidgetPtr.Get())->SetImage(FAppStyle::GetBrush("Icons.Alert"));
 						Context.RemoveColumns<FTypedElementAlertHeaderActiveWidgetTag>(Row);
 					}
 				}
@@ -406,7 +406,7 @@ TSharedPtr<SWidget> FTypedElementAlertHeaderWidgetConstructor::CreateWidget(
 	return SNew(SImage)
 		.DesiredSizeOverride(FVector2D(16.f, 16.f))
 		.ColorAndOpacity(FSlateColor::UseForeground())
-		.Image(FAppStyle::GetBrush("Icons.Warning"))
+		.Image(FAppStyle::GetBrush("Icons.Alert"))
 		.ToolTipText(FText(LOCTEXT("AlertColumnHeader", "Alerts")));
 }
 

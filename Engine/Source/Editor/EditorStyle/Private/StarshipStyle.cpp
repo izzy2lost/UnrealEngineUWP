@@ -464,6 +464,14 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set("Icons.Toolbar.Details", new IMAGE_BRUSH_SVG("Starship/Common/Details", Icon16x16));
 		Set("Icons.Toolbar.Import", new CORE_IMAGE_BRUSH_SVG("Starship/Common/import_20", Icon20x20));
 		Set("Icons.Toolbar.Export", new CORE_IMAGE_BRUSH_SVG("Starship/Common/export_20", Icon20x20));
+
+		Set("Icons.Alert.Solid", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleSolid", Icon16x16, FStyleColors::Foreground));
+		Set("Icons.Alert.Badge", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleBadge", Icon16x16, FStyleColors::Foreground));
+		Set("Icons.Alert.Background", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleBackground", Icon16x16, FStyleColors::Hover2));
+		Set("Icons.Error.Solid", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleSolid", Icon16x16, FStyleColors::Error));
+		Set("Icons.Error.Background", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleBackground", Icon16x16, FStyleColors::Error));
+		Set("Icons.Warning.Solid", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleSolid", Icon16x16, FStyleColors::Warning));
+		Set("Icons.Warning.Background", new IMAGE_BRUSH_SVG("Starship/Common/AlertTriangleBackground", Icon16x16, FStyleColors::Warning));
 	}
 
 	// Theme Icons
@@ -2725,7 +2733,6 @@ void FStarshipEditorStyle::FStyle::SetupGeneralIcons()
 	Set("AssetEditor.CompileStatus.Overlay.Warning", new IMAGE_BRUSH_SVG("Starship/Blueprints/CompileStatus_Warning_Badge", Icon20x20, FStyleColors::Warning));
 	Set("AssetEditor.CompileStatus.Overlay.Good", new IMAGE_BRUSH_SVG("Starship/Blueprints/CompileStatus_Good_Badge", Icon20x20, FStyleColors::AccentGreen));
 	Set("AssetEditor.CompileStatus.Overlay.Error", new IMAGE_BRUSH_SVG("Starship/Blueprints/CompileStatus_Fail_Badge", Icon20x20, FStyleColors::Error));
-
 	
 	Set("Debug", new IMAGE_BRUSH_SVG( "Starship/Common/Debug", Icon16x16 ) );
 	Set("Modules", new IMAGE_BRUSH_SVG( "Starship/Common/Modules", Icon16x16 ) );
