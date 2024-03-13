@@ -3,6 +3,7 @@
 #pragma once
 
 #include "PhysicsControlData.h"
+#include "PhysicsControlPoseData.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/EngineTypes.h"
 
@@ -22,6 +23,7 @@ struct FPhysicsControlRecord
 		UMeshComponent*              InChildMeshComponent)
 		: PhysicsControl(InControl)
 		, ControlTarget(InControlTarget)
+		, ExpectedUpdateCounter(-1)
 		, ParentMeshComponent(InParentMeshComponent)
 		, ChildMeshComponent(InChildMeshComponent)
 	{}
@@ -51,8 +53,17 @@ struct FPhysicsControlRecord
 	 * skeletal meshes have the option to use skeletal animation as well, in which case these targets are 
 	 * expressed as relative to that animation.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FPhysicsControlTarget ControlTarget;
+
+	// The previous skeletal control target. This will have been set at the end of a previous update
+	// (but only if the control was enabled etc), so to check if it is valid, check the update
+	// counter. Note that explicit control targets (which contain their own velocity) will be added
+	// onto this.
+	UE::PhysicsControl::FPosQuat PreviousSkeletalTargetTM;
+
+	// Only use the previous target TM if the current counter is equal to this expected counter. The
+	// expected update counter will be set when the control/previous target TM has just been updated.
+	int64 ExpectedUpdateCounter;
 
 	/**  The mesh that will be doing the driving. Blank/non-existent means it will happen in world space */
 	TWeakObjectPtr<UMeshComponent> ParentMeshComponent;
@@ -128,81 +139,3 @@ public:
 	int32 ReferenceCount;
 };
 
-/**
- * Used internally/only at runtime to cache skeletal transforms at the start of the tick, to avoid
- * calculating them separately for every control.
- */
-struct FCachedSkeletalMeshData
-{
-public:
-	FCachedSkeletalMeshData() : ReferenceCount(0) {}
-
-public:
-	struct FBoneData
-	{
-		FBoneData()
-			: Position(FVector::ZeroVector), Orientation(FQuat::Identity)
-			, Velocity(FVector::ZeroVector), AngularVelocity(FVector::ZeroVector) {}
-		FBoneData(const FVector& InPosition, const FQuat& InOrientation)
-			: Position(InPosition), Orientation(InOrientation),
-			Velocity(FVector::ZeroVector), AngularVelocity(FVector::ZeroVector) {}
-
-		/**
-		 * Sets position/orientation and calculates velocity/angular velocity - requires Dt > 0 
-		 */
-		void Update(const FVector& InPosition, const FQuat& InOrientation, float Dt);
-
-		/**
-		 * Sets position/orientation, and sets velocity to zero
-		 */
-		void Update(const FVector& InPosition, const FQuat& InOrientation);
-
-		FTransform GetTM() const { return FTransform(Orientation, Position); }
-
-		FVector Position;
-		FQuat   Orientation;
-		FVector Velocity;
-		FVector AngularVelocity;
-	};
-
-public:
-
-	/**
-	 * The cached skeletal data, updated at the start of each tick
-	 */
-	TArray<FBoneData> BoneData;
-
-	/**
-	 * The component transform. This is only stored so we can detect teleports
-	 */
-	FTransform ComponentTM;
-
-	/**
-	 * Track when skeletal meshes are going to be used so this entry can be removed, and also so we
-	 * can add a tick dependency
-	 */
-	int32 ReferenceCount;
-};
-
-//======================================================================================================================
-inline void FCachedSkeletalMeshData::FBoneData::Update(const FVector& InPosition, const FQuat& InOrientation, float Dt)
-{
-	check(Dt > 0);
-
-	Velocity = (InPosition - Position) / Dt;
-	Orientation.EnforceShortestArcWith(InOrientation);
-	// Note that quats multiply in the opposite order to TMs
-	const FQuat DeltaQ = InOrientation * Orientation.Inverse();
-	AngularVelocity = DeltaQ.ToRotationVector() / Dt;
-	Position = InPosition;
-	Orientation = InOrientation;
-}
-
-//======================================================================================================================
-inline void FCachedSkeletalMeshData::FBoneData::Update(const FVector& InPosition, const FQuat& InOrientation)
-{
-	Position = InPosition;
-	Orientation = InOrientation;
-	Velocity = FVector::ZeroVector;
-	AngularVelocity = FVector::ZeroVector;
-}

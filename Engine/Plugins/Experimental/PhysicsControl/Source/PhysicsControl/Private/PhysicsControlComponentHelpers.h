@@ -96,5 +96,5 @@ static void ConvertSpringToStrengthParams(
 	}
 }
 
-} // namespace PhysicsControlComponent
+} // namespace PhysicsControl
 } // namespace UE

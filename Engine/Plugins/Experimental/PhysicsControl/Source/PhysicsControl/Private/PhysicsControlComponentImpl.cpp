@@ -47,11 +47,13 @@ static USkeletalMeshComponent* GetValidSkeletalMeshComponentFromBodyModifier(
 
 //======================================================================================================================
 bool UPhysicsControlComponent::GetBoneData(
-	FCachedSkeletalMeshData::FBoneData& OutBoneData,
-	const USkeletalMeshComponent*       InSkeletalMeshComponent,
-	const FName                         InBoneName) const
+	UE::PhysicsControl::FBoneData&                      OutBoneData,
+	const UE::PhysicsControl::FPhysicsControlPoseData*& OutPoseData,
+	const USkeletalMeshComponent*                       InSkeletalMeshComponent,
+	const FName                                         InBoneName) const
 {
 	check(InSkeletalMeshComponent);
+	OutPoseData = nullptr;
 	const FReferenceSkeleton& RefSkeleton = InSkeletalMeshComponent->GetSkeletalMeshAsset()->GetRefSkeleton();
 	const int32 BoneIndex = RefSkeleton.FindBoneIndex(InBoneName);
 
@@ -61,14 +63,15 @@ bool UPhysicsControlComponent::GetBoneData(
 		return false;
 	}
 
-	const FCachedSkeletalMeshData* CachedSkeletalMeshData = CachedSkeletalMeshDatas.Find(InSkeletalMeshComponent);
-	if (CachedSkeletalMeshData &&
-		CachedSkeletalMeshData->ReferenceCount > 0 &&
-		!CachedSkeletalMeshData->BoneData.IsEmpty())
+	const UE::PhysicsControl::FPhysicsControlPoseData* CachedSkeletalMeshData =
+		CachedPoseDatas.Find(InSkeletalMeshComponent);
+	if (CachedSkeletalMeshData && CachedSkeletalMeshData->ReferenceCount > 0 &&
+		!CachedSkeletalMeshData->BoneDatas.IsEmpty())
 	{
-		if (BoneIndex < CachedSkeletalMeshData->BoneData.Num())
+		if (BoneIndex < CachedSkeletalMeshData->BoneDatas.Num())
 		{
-			OutBoneData = CachedSkeletalMeshData->BoneData[BoneIndex];
+			OutBoneData = CachedSkeletalMeshData->BoneDatas[BoneIndex];
+			OutPoseData = CachedSkeletalMeshData;
 			return true;
 		}
 		UE_LOG(LogPhysicsControl, Warning, TEXT("BoneIndex is out of range"));
@@ -80,9 +83,9 @@ bool UPhysicsControlComponent::GetBoneData(
 
 //======================================================================================================================
 bool UPhysicsControlComponent::GetModifiableBoneData(
-	FCachedSkeletalMeshData::FBoneData*& OutBoneData,
-	const USkeletalMeshComponent*        InSkeletalMeshComponent,
-	const FName                          InBoneName)
+	UE::PhysicsControl::FBoneData*& OutBoneData,
+	const USkeletalMeshComponent*   InSkeletalMeshComponent,
+	const FName                     InBoneName)
 {
 	check(InSkeletalMeshComponent);
 	const FReferenceSkeleton& RefSkeleton = InSkeletalMeshComponent->GetSkeletalMeshAsset()->GetRefSkeleton();
@@ -94,14 +97,15 @@ bool UPhysicsControlComponent::GetModifiableBoneData(
 		return false;
 	}
 
-	FCachedSkeletalMeshData* CachedSkeletalMeshData = CachedSkeletalMeshDatas.Find(InSkeletalMeshComponent);
+	UE::PhysicsControl::FPhysicsControlPoseData* CachedSkeletalMeshData = 
+		CachedPoseDatas.Find(InSkeletalMeshComponent);
 	if (CachedSkeletalMeshData &&
 		CachedSkeletalMeshData->ReferenceCount > 0 &&
-		!CachedSkeletalMeshData->BoneData.IsEmpty())
+		!CachedSkeletalMeshData->BoneDatas.IsEmpty())
 	{
-		if (BoneIndex < CachedSkeletalMeshData->BoneData.Num())
+		if (BoneIndex < CachedSkeletalMeshData->BoneDatas.Num())
 		{
-			OutBoneData = &CachedSkeletalMeshData->BoneData[BoneIndex];
+			OutBoneData = &CachedSkeletalMeshData->BoneDatas[BoneIndex];
 			return true;
 		}
 		UE_LOG(LogPhysicsControl, Warning, TEXT("BoneIndex is out of range"));
@@ -153,42 +157,15 @@ const FPhysicsControl* UPhysicsControlComponent::FindControl(const FName Name) c
 }
 
 //======================================================================================================================
-bool UPhysicsControlComponent::DetectTeleport(
-	const FVector& OldPosition, const FQuat& OldOrientation,
-	const FVector& NewPosition, const FQuat& NewOrientation) const
+void UPhysicsControlComponent::UpdateCachedSkeletalBoneData(float DeltaTime)
 {
-	if (TeleportDistanceThreshold > 0)
-	{
-		const double Distance = FVector::Distance(OldPosition, NewPosition);
-		if (Distance > TeleportDistanceThreshold)
-		{
-			return true;
-		}
-	}
-	if (TeleportRotationThreshold > 0)
-	{
-		const double Radians = OldOrientation.AngularDistance(NewOrientation);
-		if (FMath::RadiansToDegrees(Radians) > TeleportRotationThreshold)
-		{
-			return true;
-		}
-	}
-	return false;
-}
+	// Allow the target counter to wrap, after 2e19 frames
+	++CurrentUpdateCounter;
 
-//======================================================================================================================
-bool UPhysicsControlComponent::DetectTeleport(const FTransform& OldTM, const FTransform& NewTM) const
-{
-	return DetectTeleport(OldTM.GetTranslation(), OldTM.GetRotation(), NewTM.GetTranslation(), NewTM.GetRotation());
-}
-
-//======================================================================================================================
-void UPhysicsControlComponent::UpdateCachedSkeletalBoneData(float Dt)
-{
-	for (TPair<TWeakObjectPtr<USkeletalMeshComponent>, FCachedSkeletalMeshData>& CachedSkeletalMeshDataPair :
-		CachedSkeletalMeshDatas)
+	for (TPair<TWeakObjectPtr<USkeletalMeshComponent>, UE::PhysicsControl::FPhysicsControlPoseData>&
+		CachedSkeletalMeshDataPair : CachedPoseDatas)
 	{
-		FCachedSkeletalMeshData& CachedSkeletalMeshData = CachedSkeletalMeshDataPair.Value;
+		UE::PhysicsControl::FPhysicsControlPoseData& CachedSkeletalMeshData = CachedSkeletalMeshDataPair.Value;
 		if (!CachedSkeletalMeshData.ReferenceCount)
 		{
 			continue;
@@ -197,44 +174,12 @@ void UPhysicsControlComponent::UpdateCachedSkeletalBoneData(float Dt)
 		TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent = CachedSkeletalMeshDataPair.Key;
 		if (USkeletalMeshComponent* SkeletalMesh = SkeletalMeshComponent.Get())
 		{
-			const FTransform ComponentTM = SkeletalMesh->GetComponentTransform();
-			const TArray<FTransform>& TMs = SkeletalMesh->GetEditableComponentSpaceTransforms();
-			const int32 NumTMs = TMs.Num();
-			if (NumTMs == CachedSkeletalMeshData.BoneData.Num() &&
-				!DetectTeleport(CachedSkeletalMeshData.ComponentTM, ComponentTM))
-			{
-				// Avoid the Dt test on every bone
-				if (Dt > 0)
-				{
-					for (int32 Index = 0; Index != NumTMs; ++Index)
-					{
-						FTransform TM = TMs[Index] * ComponentTM;
-						CachedSkeletalMeshData.BoneData[Index].Update(TM.GetTranslation(), TM.GetRotation(), Dt);
-					}
-				}
-				else
-				{
-					for (int32 Index = 0; Index != NumTMs; ++Index)
-					{
-						FTransform TM = TMs[Index] * ComponentTM;
-						CachedSkeletalMeshData.BoneData[Index].Update(TM.GetTranslation(), TM.GetRotation());
-					}
-				}
-			}
-			else
-			{
-				CachedSkeletalMeshData.BoneData.Empty(NumTMs);
-				for (const FTransform& BoneTM : TMs)
-				{
-					FTransform TM = BoneTM * ComponentTM;
-					CachedSkeletalMeshData.BoneData.Emplace(TM.GetTranslation(), TM.GetRotation());
-				}
-			}
-			CachedSkeletalMeshData.ComponentTM = ComponentTM;
+			CachedSkeletalMeshData.Update(
+				SkeletalMesh, DeltaTime, TeleportDistanceThreshold, TeleportRotationThreshold);
 		}
 		else
 		{
-			CachedSkeletalMeshData.BoneData.Empty();
+			CachedSkeletalMeshData.Reset();
 		}
 	}
 }
@@ -273,22 +218,26 @@ void UPhysicsControlComponent::ApplyKinematicTarget(const FPhysicsBodyModifierRe
 		KinematicTarget.SetTranslation(Record.KinematicTargetPosition);
 		if (Record.BodyModifier.ModifierData.bUseSkeletalAnimation)
 		{
-			FCachedSkeletalMeshData::FBoneData BoneData;
-			if (GetBoneData(BoneData, SkeletalMeshComponent, Record.BodyModifier.BoneName))
+			UE::PhysicsControl::FBoneData BoneData;
+			const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
+			if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, Record.BodyModifier.BoneName))
 			{
-				FTransform BoneTM = BoneData.GetTM();
+				FTransform BoneTM = BoneData.CurrentTM.ToTransform();
 				KinematicTarget = KinematicTarget * BoneTM;
 			}
 		}
-		ETeleportType TT = DetectTeleport(TM, KinematicTarget) ? ETeleportType::ResetPhysics : ETeleportType::None;
+		ETeleportType TT = UE::PhysicsControl::DetectTeleport(
+			TM, KinematicTarget, TeleportRotationThreshold, TeleportRotationThreshold) ? 
+			ETeleportType::ResetPhysics : ETeleportType::None;
 		BodyInstance->SetBodyTransform(KinematicTarget, TT);
 	}
 	else
 	{
 		const FTransform TM = Record.MeshComponent->GetComponentToWorld();
-		const ETeleportType TT = DetectTeleport(
+		const ETeleportType TT = UE::PhysicsControl::DetectTeleport(
 			TM.GetTranslation(), TM.GetRotation(), 
-			Record.KinematicTargetPosition, Record.KinematicTargetOrientation)
+			Record.KinematicTargetPosition, Record.KinematicTargetOrientation,
+			TeleportDistanceThreshold, TeleportRotationThreshold)
 			? ETeleportType::ResetPhysics : ETeleportType::None;
 		// Note that calling BodyInstance->SetBodyTransform moves the physics, but not the mesh
 		Record.MeshComponent->SetWorldLocationAndRotation(
@@ -308,16 +257,17 @@ void UPhysicsControlComponent::ResetToCachedTarget(const FPhysicsBodyModifierRec
 
 	if (USkeletalMeshComponent* SkeletalMeshComponent = GetValidSkeletalMeshComponentFromBodyModifier(Record))
 	{
-		FCachedSkeletalMeshData::FBoneData BoneData;
-		if (GetBoneData(BoneData, SkeletalMeshComponent, Record.BodyModifier.BoneName))
+		UE::PhysicsControl::FBoneData BoneData;
+		const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
+		if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, Record.BodyModifier.BoneName))
 		{
 			FTransform BoneTM = BodyInstance->GetUnrealWorldTransform(); // Preserve scale
-			BoneTM.SetLocation(BoneData.Position);
-			BoneTM.SetRotation(BoneData.Orientation);
+			BoneTM.SetLocation(BoneData.CurrentTM.GetTranslation());
+			BoneTM.SetRotation(BoneData.CurrentTM.GetRotation());
 
 			BodyInstance->SetBodyTransform(BoneTM, ETeleportType::TeleportPhysics);
-			BodyInstance->SetLinearVelocity(BoneData.Velocity, false);
-			BodyInstance->SetAngularVelocityInRadians(BoneData.AngularVelocity, false);
+			BodyInstance->SetLinearVelocity(BoneData.CalculateLinearVelocity(PoseData->DeltaTime), false);
+			BodyInstance->SetAngularVelocityInRadians(BoneData.CalculateAngularVelocity(PoseData->DeltaTime), false);
 		}
 	}
 }
@@ -327,18 +277,18 @@ void UPhysicsControlComponent::AddSkeletalMeshReferenceForCaching(
 	USkeletalMeshComponent* InSkeletalMeshComponent)
 {
 	check(InSkeletalMeshComponent);
-	for (TPair<TWeakObjectPtr<USkeletalMeshComponent>, FCachedSkeletalMeshData>& CachedSkeletalMeshDataPair :
-		CachedSkeletalMeshDatas)
+	for (TPair<TWeakObjectPtr<USkeletalMeshComponent>, UE::PhysicsControl::FPhysicsControlPoseData>& 
+		CachedSkeletalMeshDataPair : CachedPoseDatas)
 	{
 		TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent = CachedSkeletalMeshDataPair.Key;
 		if (SkeletalMeshComponent.Get() == InSkeletalMeshComponent)
 		{
-			FCachedSkeletalMeshData& CachedSkeletalMeshData = CachedSkeletalMeshDataPair.Value;
+			UE::PhysicsControl::FPhysicsControlPoseData& CachedSkeletalMeshData = CachedSkeletalMeshDataPair.Value;
 			++CachedSkeletalMeshData.ReferenceCount;
 			return;
 		}
 	}
-	FCachedSkeletalMeshData& Data = CachedSkeletalMeshDatas.Add(InSkeletalMeshComponent);
+	UE::PhysicsControl::FPhysicsControlPoseData& Data = CachedPoseDatas.Add(InSkeletalMeshComponent);
 	Data.ReferenceCount = 1;
 	PrimaryComponentTick.AddPrerequisite(InSkeletalMeshComponent, InSkeletalMeshComponent->PrimaryComponentTick);
 }
@@ -354,10 +304,10 @@ bool UPhysicsControlComponent::RemoveSkeletalMeshReferenceForCaching(
 		return false;
 	}
 
-	for (auto It = CachedSkeletalMeshDatas.CreateIterator(); It; ++It)
+	for (auto It = CachedPoseDatas.CreateIterator(); It; ++It)
 	{
 		TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent = It.Key();
-		FCachedSkeletalMeshData& Data = It.Value();
+		UE::PhysicsControl::FPhysicsControlPoseData& Data = It.Value();
 		if (SkeletalMeshComponent.Get() == InSkeletalMeshComponent)
 		{
 			if (--Data.ReferenceCount == 0)
@@ -442,164 +392,118 @@ bool UPhysicsControlComponent::RemoveSkeletalMeshReferenceForModifier(
 //======================================================================================================================
 void UPhysicsControlComponent::CalculateControlTargetData(
 	FTransform&                  OutTargetTM,
+	FTransform&                  OutSkeletalTargetTM,
 	FVector&                     OutTargetVelocity,
 	FVector&                     OutTargetAngularVelocity,
 	const FPhysicsControlRecord& Record,
-	bool                         bCalculateVelocity) const
+	bool                         bUsePreviousSkeletalTargetTM) const
 {
 	OutTargetTM = FTransform();
+	OutSkeletalTargetTM = FTransform();
 	OutTargetVelocity.Set(0, 0, 0);
 	OutTargetAngularVelocity.Set(0, 0, 0);
+	float SkeletalDeltaTime = 0.0f;
 
 	bool bUsedSkeletalAnimation = false;
+	bool bHasJustTeleported = false;
 
 	// Set the target TM and velocities based on any skeletal action. Note that the targets from animation 
 	// should always account for the control point
 	if (Record.PhysicsControl.ControlData.bUseSkeletalAnimation)
 	{
-		FCachedSkeletalMeshData::FBoneData ChildBoneData, ParentBoneData;
+		UE::PhysicsControl::FBoneData ChildBoneData, ParentBoneData;
+		const UE::PhysicsControl::FPhysicsControlPoseData* ChildPoseData = nullptr;
+		const UE::PhysicsControl::FPhysicsControlPoseData* ParentPoseData = nullptr;
 		bool bHaveChildBoneData = false;
 		bool bHaveParentBoneData = false;
 
 		if (USkeletalMeshComponent* ChildSkeletalMeshComponent = GetValidSkeletalMeshComponentFromControlChild(Record))
 		{
 			bHaveChildBoneData = GetBoneData(
-				ChildBoneData, ChildSkeletalMeshComponent, Record.PhysicsControl.ChildBoneName);
+				ChildBoneData, ChildPoseData, ChildSkeletalMeshComponent, Record.PhysicsControl.ChildBoneName);
 		}
 
 		if (USkeletalMeshComponent* ParentSkeletalMeshComponent = GetValidSkeletalMeshComponentFromControlParent(Record))
 		{
 			bHaveParentBoneData = GetBoneData(
-				ParentBoneData, ParentSkeletalMeshComponent, Record.PhysicsControl.ParentBoneName);
+				ParentBoneData, ParentPoseData, ParentSkeletalMeshComponent, Record.PhysicsControl.ParentBoneName);
 		}
 		else if (Record.ParentMeshComponent.IsValid())
 		{
 			const FTransform ParentTM = Record.ParentMeshComponent->GetComponentTransform();
-			ParentBoneData.Position = ParentTM.GetLocation();
-			ParentBoneData.Orientation = ParentTM.GetRotation();
-			ParentBoneData.Velocity = Record.ParentMeshComponent->GetPhysicsLinearVelocity();
-			ParentBoneData.AngularVelocity = Record.ParentMeshComponent->GetPhysicsAngularVelocityInRadians();
+			ParentBoneData.CurrentTM = ParentTM;
 			bHaveParentBoneData = true;
-			bCalculateVelocity = false;
 		}
 
-		// Note that the TargetTM/velocity calculated so far are supposed to be interpreted as
+		// Note that the TargetTM calculated so far are supposed to be interpreted as
 		// expressed relative to the skeletal animation pose.
-		//
-		// Also note that the velocities calculated in the bone data are the strict rates of change
-		// of the transform position/orientation - not of the center of mass (which is what physics
-		// bodies often use for velocity).
 		if (bHaveChildBoneData)
 		{
 			bUsedSkeletalAnimation = true;
-			const FTransform ChildBoneTM = ChildBoneData.GetTM();
+			bHasJustTeleported = ChildPoseData->bHasJustTeleported;
+			SkeletalDeltaTime = ChildPoseData->DeltaTime;
+			const UE::PhysicsControl::FPosQuat ChildBoneTM = ChildBoneData.CurrentTM;
 			if (bHaveParentBoneData)
 			{
-				const FTransform ParentBoneTM = ParentBoneData.GetTM();
-				const FTransform SkeletalDeltaTM = ChildBoneTM * ParentBoneTM.Inverse();
+				const UE::PhysicsControl::FPosQuat ParentBoneTM = ParentBoneData.CurrentTM;
+				const UE::PhysicsControl::FPosQuat SkeletalDeltaTM = ChildBoneTM * ParentBoneTM.Inverse();
 				// This puts TargetTM in the space of the ParentBone
-				OutTargetTM = SkeletalDeltaTM;
-
-				// Add on the control point offset
-				OutTargetTM.AddToTranslation(OutTargetTM.GetRotation() * Record.GetControlPoint());
-
-				const FQuat ParentBoneQ = ParentBoneTM.GetRotation();
-				const FQuat ParentBoneInvQ = ParentBoneQ.Inverse();
-
-				if (bCalculateVelocity)
-				{
-					if (Record.PhysicsControl.ControlData.SkeletalAnimationVelocityMultiplier != 0)
-					{
-						// Offset of the control point from the target child bone TM, in world space.
-						const FVector WorldControlPointOffset = ChildBoneTM.GetRotation() * Record.GetControlPoint();
-						// World space position of the target control point
-						const FVector WorldChildControlPointPosition = ChildBoneTM.GetTranslation() + WorldControlPointOffset;
-
-						// World-space velocity of the control point due to the motion of the parent
-						// linear and angular velocity.
-						const FVector ChildTargetVelocityDueToParent =
-							ParentBoneData.Velocity + ParentBoneData.AngularVelocity.Cross(
-								WorldChildControlPointPosition - ParentBoneTM.GetTranslation());
-						// World-space velocity of the control point due to the motion of the child
-						// linear and angular velocity
-						const FVector ChildTargetVelocity =
-							ChildBoneData.Velocity + ChildBoneData.AngularVelocity.Cross(WorldControlPointOffset);
-
-						// Pull out just the motion in the child that isn't due to the parent
-						const FVector SkeletalTargetVelocity =
-							ParentBoneInvQ * (ChildTargetVelocity - ChildTargetVelocityDueToParent);
-						OutTargetVelocity += SkeletalTargetVelocity *
-							Record.PhysicsControl.ControlData.SkeletalAnimationVelocityMultiplier;
-
-						const FVector SkeletalTargetAngularVelocity =
-							ParentBoneInvQ * (ChildBoneData.AngularVelocity - ParentBoneData.AngularVelocity);
-						OutTargetAngularVelocity += SkeletalTargetAngularVelocity *
-							Record.PhysicsControl.ControlData.SkeletalAnimationVelocityMultiplier;
-					}
-				}
+				OutSkeletalTargetTM = SkeletalDeltaTM.ToTransform();
 			}
 			else
 			{
-				OutTargetTM = ChildBoneTM;
-
-				// Add on the control point offset
-				OutTargetTM.AddToTranslation(OutTargetTM.GetRotation()* Record.GetControlPoint());
-
-				if (bCalculateVelocity)
-				{
-					OutTargetVelocity = ChildBoneTM.GetRotation() * OutTargetVelocity;
-					OutTargetAngularVelocity = ChildBoneTM.GetRotation() * OutTargetAngularVelocity;
-
-					if (Record.PhysicsControl.ControlData.SkeletalAnimationVelocityMultiplier != 0)
-					{
-						const FVector WorldControlPointOffset = ChildBoneTM.GetRotation() * Record.GetControlPoint();
-						const FVector WorldChildControlPointPosition = ChildBoneTM.GetTranslation() + WorldControlPointOffset;
-
-						// const World-space velocity of the control point due to the motion of the child
-						const FVector ChildTargetVelocity =
-							ChildBoneData.Velocity + ChildBoneData.AngularVelocity.Cross(WorldControlPointOffset);
-
-						OutTargetVelocity += ChildTargetVelocity *
-							Record.PhysicsControl.ControlData.SkeletalAnimationVelocityMultiplier;
-
-						OutTargetAngularVelocity += ChildBoneData.AngularVelocity *
-							Record.PhysicsControl.ControlData.SkeletalAnimationVelocityMultiplier;
-					}
-				}
+				OutSkeletalTargetTM = ChildBoneTM.ToTransform();
 			}
+			// Add on the control point offset
+			OutSkeletalTargetTM.AddToTranslation(OutSkeletalTargetTM.GetRotation() * Record.GetControlPoint());
+		}
+	}
+
+	// Calculate the velocity targets due to skeletal animation
+	if (bUsePreviousSkeletalTargetTM && !bHasJustTeleported)
+	{
+		if (SkeletalDeltaTime * Record.PhysicsControl.ControlData.LinearTargetVelocityMultiplier != 0)
+		{
+			OutTargetVelocity = (OutSkeletalTargetTM.GetTranslation() - Record.PreviousSkeletalTargetTM.GetTranslation()) *
+				(Record.PhysicsControl.ControlData.LinearTargetVelocityMultiplier / SkeletalDeltaTime);
+		}
+		if (SkeletalDeltaTime * Record.PhysicsControl.ControlData.AngularTargetVelocityMultiplier != 0)
+		{
+			const FQuat Q = OutSkeletalTargetTM.GetRotation();
+			FQuat PrevQ = Record.PreviousSkeletalTargetTM.GetRotation();
+			PrevQ.EnforceShortestArcWith(Q);
+			const FQuat DeltaQ = Q * PrevQ.Inverse();
+			OutTargetAngularVelocity = DeltaQ.ToRotationVector() * (
+				Record.PhysicsControl.ControlData.AngularTargetVelocityMultiplier / SkeletalDeltaTime);
 		}
 	}
 
 	// Now apply the explicit target specified in the record. It operates in the space of the target
 	// transform we (may have) just calculated.
+	const FPhysicsControlTarget& Target = Record.ControlTarget;
+
+	// Calculate the authored target position/orientation - i.e. not using the skeletal animation
+	FQuat TargetOrientationQ = Target.TargetOrientation.Quaternion();
+	const FVector TargetPosition = Target.TargetPosition;
+
+	FVector ExtraTargetPosition(0);
+	// Incorporate the offset from the control point. If we used animation, then we don't need
+	// to do this.
+	if (!bUsedSkeletalAnimation && 
+		Record.ControlTarget.bApplyControlPointToTarget)
 	{
-		const FPhysicsControlTarget& Target = Record.ControlTarget;
-
-		// Calculate the authored target position/orientation - i.e. not using the skeletal animation
-		FQuat TargetOrientationQ = Target.TargetOrientation.Quaternion();
-		const FVector TargetPosition = Target.TargetPosition;
-
-		FVector ExtraTargetPosition(0);
-		// Incorporate the offset from the control point. If we used animation, then we don't need
-		// to do this.
-		if (!bUsedSkeletalAnimation && 
-			Record.ControlTarget.bApplyControlPointToTarget)
-		{
-			ExtraTargetPosition = TargetOrientationQ * Record.GetControlPoint();
-		}
-
-		// The record's target is specified in the space of the previously calculated/set OutTargetTM
-		OutTargetTM = FTransform(TargetOrientationQ, TargetPosition + ExtraTargetPosition) * OutTargetTM;
-
-		if (bCalculateVelocity)
-		{
-			// Note that Target.TargetAngularVelocity is in revs per second (as it's user-facing)
-			const FVector TargetAngularVelocity = Target.TargetAngularVelocity * UE_TWO_PI;
-			OutTargetAngularVelocity += TargetAngularVelocity;
-			const FVector ExtraVelocity = TargetAngularVelocity.Cross(ExtraTargetPosition);
-			OutTargetVelocity += Target.TargetVelocity + ExtraVelocity;
-		}
+		ExtraTargetPosition = TargetOrientationQ * Record.GetControlPoint();
 	}
+
+	// Note that Target.TargetAngularVelocity is in revs per second (as it's user-facing)
+	// Also, these need to be converted (rotated) from the skeletal target space 
+	const FVector TargetAngularVelocity = Target.TargetAngularVelocity * UE_TWO_PI;
+	OutTargetAngularVelocity += OutSkeletalTargetTM.GetRotation() * TargetAngularVelocity;
+	const FVector ExtraVelocity = TargetAngularVelocity.Cross(ExtraTargetPosition);
+	OutTargetVelocity += ExtraVelocity + OutSkeletalTargetTM.GetRotation() * Target.TargetVelocity;
+
+	// The record's target is specified in the space of the previously calculated/set OutSkeletalTargetTM
+	OutTargetTM = FTransform(TargetOrientationQ, TargetPosition + ExtraTargetPosition) * OutSkeletalTargetTM;
 }
 
 //======================================================================================================================
@@ -697,10 +601,14 @@ void UPhysicsControlComponent::ApplyControl(FPhysicsControlRecord& Record)
 	// Set strengths etc and then targets (if there were strengths)
 	if (ApplyControlStrengths(Record, ConstraintInstance))
 	{
-		FTransform TargetTM;
+		FTransform TargetTM, SkeletalTargetTM;
 		FVector TargetVelocity;
 		FVector TargetAngularVelocity;
-		CalculateControlTargetData(TargetTM, TargetVelocity, TargetAngularVelocity, Record, true);
+		bool bUsePreviousSkeletalTargetTM = CurrentUpdateCounter == Record.ExpectedUpdateCounter;
+		CalculateControlTargetData(
+			TargetTM, SkeletalTargetTM, TargetVelocity, TargetAngularVelocity, Record, bUsePreviousSkeletalTargetTM);
+		Record.PreviousSkeletalTargetTM = SkeletalTargetTM;
+		Record.ExpectedUpdateCounter = CurrentUpdateCounter + 1;
 
 		ConstraintInstance->SetLinearPositionTarget(TargetTM.GetTranslation());
 		ConstraintInstance->SetAngularOrientationTarget(TargetTM.GetRotation());
@@ -807,7 +715,7 @@ bool UPhysicsControlComponent::DestroyControl(const FName Name, const EDestroyBe
 			RemoveSkeletalMeshReferenceForCaching(SkeletalMeshComponent);
 		}
 
-		Record->ResetConstraint();
+		Record->ResetConstraint(); // This terminates the constraint
 		NameRecords.RemoveControl(Name);
 		if (DestroyBehavior == EDestroyBehavior::RemoveRecord)
 		{

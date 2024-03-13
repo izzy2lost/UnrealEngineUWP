@@ -4,7 +4,9 @@
 #include "Animation/AnimNodeBase.h"
 #include "Animation/AnimInstanceProxy.h"
 
-namespace RigidBodyWithControl
+namespace UE
+{
+namespace PhysicsControl
 {
 
 //======================================================================================================================
@@ -47,4 +49,7 @@ void FRigidBodyPoseData::Update(
 	}
 }
 
-}
+} // namespace PhysicsControl
+} // namespace UE
+
+

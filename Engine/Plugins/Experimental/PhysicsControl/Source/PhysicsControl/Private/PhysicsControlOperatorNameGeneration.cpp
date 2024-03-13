@@ -392,5 +392,5 @@ void CreateAdditionalSets(
 	CreateAdditionalSets_Implementation(AdditionalSets, BodyModifierRecords, Controls, NameRecords);
 }
 
-} // namespace PhysicsControlComponent
+} // namespace PhysicsControl
 } // namespace UE

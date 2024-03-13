@@ -589,7 +589,7 @@ private:
 		bool bExpired;
 	};
 
-	TArray<RigidBodyWithControl::FOutputBoneData> OutputBoneData;
+	TArray<UE::PhysicsControl::FOutputBoneData> OutputBoneData;
 	// Note that the Bodies and Joints arrays will be the same size - i.e. there will be a
 	// correspondence between every joint and body. The joint will correspond to the parent of the
 	// body. Note that some joints will not be set.
@@ -601,7 +601,7 @@ private:
 	friend class UAnimGraphNode_RigidBodyWithControl;
 
 	// Each update we cache the incoming pose transforms in whatever space the simulation is running in
-	RigidBodyWithControl::FRigidBodyPoseData PoseData;
+	UE::PhysicsControl::FRigidBodyPoseData PoseData;
 
 	// Map of control records - they will be referenced by name
 	TMap<FName, FRigidBodyControlRecord> ControlRecords;

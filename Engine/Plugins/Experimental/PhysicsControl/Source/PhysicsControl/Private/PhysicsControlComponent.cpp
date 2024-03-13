@@ -2378,13 +2378,14 @@ TArray<FTransform> UPhysicsControlComponent::GetCachedBoneTransforms(
 {
 	TArray<FTransform> Result;
 	Result.Reserve(BoneNames.Num());
-	FCachedSkeletalMeshData::FBoneData BoneData;
+	UE::PhysicsControl::FBoneData BoneData;
+	const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
 
 	for (const FName& BoneName : BoneNames)
 	{
-		if (GetBoneData(BoneData, SkeletalMeshComponent, BoneName))
+		if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, BoneName))
 		{
-			FTransform BoneTransform(BoneData.Orientation, BoneData.Position);
+			FTransform BoneTransform(BoneData.CurrentTM.GetRotation(), BoneData.CurrentTM.GetTranslation());
 			Result.Add(BoneTransform);
 		}
 		else
@@ -2402,13 +2403,14 @@ TArray<FVector> UPhysicsControlComponent::GetCachedBonePositions(
 {
 	TArray<FVector> Result;
 	Result.Reserve(BoneNames.Num());
-	FCachedSkeletalMeshData::FBoneData BoneData;
+	UE::PhysicsControl::FBoneData BoneData;
+	const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
 
 	for (const FName& BoneName : BoneNames)
 	{
-		if (GetBoneData(BoneData, SkeletalMeshComponent, BoneName))
+		if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, BoneName))
 		{
-			Result.Add(BoneData.Position);
+			Result.Add(BoneData.CurrentTM.GetTranslation());
 		}
 		else
 		{
@@ -2425,13 +2427,14 @@ TArray<FRotator> UPhysicsControlComponent::GetCachedBoneOrientations(
 {
 	TArray<FRotator> Result;
 	Result.Reserve(BoneNames.Num());
-	FCachedSkeletalMeshData::FBoneData BoneData;
+	UE::PhysicsControl::FBoneData BoneData;
+	const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
 
 	for (const FName& BoneName : BoneNames)
 	{
-		if (GetBoneData(BoneData, SkeletalMeshComponent, BoneName))
+		if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, BoneName))
 		{
-			Result.Add(BoneData.Orientation.Rotator());
+			Result.Add(BoneData.CurrentTM.GetRotation().Rotator());
 		}
 		else
 		{
@@ -2442,62 +2445,15 @@ TArray<FRotator> UPhysicsControlComponent::GetCachedBoneOrientations(
 }
 
 //======================================================================================================================
-TArray<FVector> UPhysicsControlComponent::GetCachedBoneVelocities(
-	const USkeletalMeshComponent* SkeletalMeshComponent,
-	const TArray<FName>&          BoneNames)
-{
-	TArray<FVector> Result;
-	Result.Reserve(BoneNames.Num());
-	FCachedSkeletalMeshData::FBoneData BoneData;
-
-	for (const FName& BoneName : BoneNames)
-	{
-		if (GetBoneData(BoneData, SkeletalMeshComponent, BoneName))
-		{
-			Result.Add(BoneData.Velocity);
-		}
-		else
-		{
-			Result.Add(FVector::ZeroVector);
-		}
-	}
-
-	return Result;
-}
-
-//======================================================================================================================
-TArray<FVector> UPhysicsControlComponent::GetCachedBoneAngularVelocities(
-	const USkeletalMeshComponent* SkeletalMeshComponent,
-	const TArray<FName>&          BoneNames)
-{
-	TArray<FVector> Result;
-	Result.Reserve(BoneNames.Num());
-	FCachedSkeletalMeshData::FBoneData BoneData;
-
-	for (const FName& BoneName : BoneNames)
-	{
-		if (GetBoneData(BoneData, SkeletalMeshComponent, BoneName))
-		{
-			Result.Add(BoneData.AngularVelocity);
-		}
-		else
-		{
-			Result.Add(FVector::ZeroVector);
-		}
-	}
-
-	return Result;
-}
-
-//======================================================================================================================
 FTransform UPhysicsControlComponent::GetCachedBoneTransform(
 	const USkeletalMeshComponent* SkeletalMeshComponent,
 	const FName                   Name)
 {
-	FCachedSkeletalMeshData::FBoneData BoneData;
-	if (GetBoneData(BoneData, SkeletalMeshComponent, Name))
+	UE::PhysicsControl::FBoneData BoneData;
+	const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
+	if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, Name))
 	{
-		return FTransform(BoneData.Orientation, BoneData.Position);
+		return FTransform(BoneData.CurrentTM.GetRotation(), BoneData.CurrentTM.GetTranslation());
 	}
 	if (bWarnAboutInvalidNames)
 	{
@@ -2512,10 +2468,11 @@ FVector UPhysicsControlComponent::GetCachedBonePosition(
 	const USkeletalMeshComponent* SkeletalMeshComponent,
 	const FName                   Name)
 {
-	FCachedSkeletalMeshData::FBoneData BoneData;
-	if (GetBoneData(BoneData, SkeletalMeshComponent, Name))
+	UE::PhysicsControl::FBoneData BoneData;
+	const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
+	if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, Name))
 	{
-		return BoneData.Position;
+		return BoneData.CurrentTM.GetTranslation();
 	}
 	if (bWarnAboutInvalidNames)
 	{
@@ -2530,10 +2487,11 @@ FRotator UPhysicsControlComponent::GetCachedBoneOrientation(
 	const USkeletalMeshComponent* SkeletalMeshComponent,
 	const FName                   Name)
 {
-	FCachedSkeletalMeshData::FBoneData BoneData;
-	if (GetBoneData(BoneData, SkeletalMeshComponent, Name))
+	UE::PhysicsControl::FBoneData BoneData;
+	const UE::PhysicsControl::FPhysicsControlPoseData* PoseData;
+	if (GetBoneData(BoneData, PoseData, SkeletalMeshComponent, Name))
 	{
-		return BoneData.Orientation.Rotator();
+		return BoneData.CurrentTM.GetRotation().Rotator();
 	}
 	if (bWarnAboutInvalidNames)
 	{
@@ -2544,56 +2502,15 @@ FRotator UPhysicsControlComponent::GetCachedBoneOrientation(
 }
 
 //======================================================================================================================
-FVector UPhysicsControlComponent::GetCachedBoneVelocity(
-	const USkeletalMeshComponent* SkeletalMeshComponent,
-	const FName                   Name)
-{
-	FCachedSkeletalMeshData::FBoneData BoneData;
-	if (GetBoneData(BoneData, SkeletalMeshComponent, Name))
-	{
-		return BoneData.Velocity;
-	}
-	if (bWarnAboutInvalidNames)
-	{
-		UE_LOG(LogPhysicsControl, Warning,
-			TEXT("GetCachedBoneVelocity - invalid name %s"), *Name.ToString());
-	}
-	return FVector::Zero();
-}
-
-//======================================================================================================================
-FVector UPhysicsControlComponent::GetCachedBoneAngularVelocity(
-	const USkeletalMeshComponent* SkeletalMeshComponent,
-	const FName                   Name)
-{
-	FCachedSkeletalMeshData::FBoneData BoneData;
-	if (GetBoneData(BoneData, SkeletalMeshComponent, Name))
-	{
-		return BoneData.AngularVelocity;
-	}
-	if (bWarnAboutInvalidNames)
-	{
-		UE_LOG(LogPhysicsControl, Warning,
-			TEXT("GetCachedBoneAngularVelocity - invalid name %s"), *Name.ToString());
-	}
-	return FVector::Zero();
-}
-
-//======================================================================================================================
 bool UPhysicsControlComponent::SetCachedBoneData(
 	const USkeletalMeshComponent* SkeletalMeshComponent,
 	const FName                   Name,
-	const FTransform&             TM,
-	const FVector                 Velocity,
-	const FVector                 AngularVelocity)
+	const FTransform&             TM)
 {
-	FCachedSkeletalMeshData::FBoneData* BoneData;
+	UE::PhysicsControl::FBoneData* BoneData;
 	if (GetModifiableBoneData(BoneData, SkeletalMeshComponent, Name))
 	{
-		BoneData->Position = TM.GetLocation();
-		BoneData->Orientation = TM.GetRotation();
-		BoneData->Velocity = Velocity;
-		BoneData->AngularVelocity = AngularVelocity;
+		BoneData->CurrentTM = TM;
 		return true;
 	}
 	if (bWarnAboutInvalidNames)
@@ -2827,10 +2744,11 @@ void UPhysicsControlComponent::DebugDrawControl(
 			Record.ParentMeshComponent.Get(), Record.PhysicsControl.ParentBoneName);
 		const FTransform ParentBodyTM = ParentBodyInstance ? ParentBodyInstance->GetUnrealWorldTransform() : FTransform();
 
-		FTransform TargetTM;
+		FTransform TargetTM, SkeletalTargetTM;
 		FVector TargetVelocity;
 		FVector TargetAngularVelocity;
-		CalculateControlTargetData(TargetTM, TargetVelocity, TargetAngularVelocity, Record, true);
+		// Note that we want velocities, but there is a risk that they will be invalid, depending on the update times
+		CalculateControlTargetData(TargetTM, SkeletalTargetTM, TargetVelocity, TargetAngularVelocity, Record, true);
 
 		// WorldChildFrameTM is the world-space transform of the child (driven) constraint frame
 		const FTransform WorldChildFrameTM = ConstraintInstance->GetRefFrame(EConstraintFrame::Frame1) * ChildBodyTM;

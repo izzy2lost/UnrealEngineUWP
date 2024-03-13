@@ -557,19 +557,19 @@ static bool UpdateDriveSpringDamperSettings(
 }
 
 //======================================================================================================================
-static RigidBodyWithControl::FPosQuat CalculateTargetTM(
-	const Chaos::FPBDJointSettings&                 JointSettings, 
-	const RigidBodyWithControl::FRigidBodyPoseData& PoseData,
-	const int32                                     ParentBodyIndex, 
-	const int32                                     ChildBodyIndex)
+static UE::PhysicsControl::FPosQuat CalculateTargetTM(
+	const Chaos::FPBDJointSettings&               JointSettings, 
+	const UE::PhysicsControl::FRigidBodyPoseData& PoseData,
+	const int32                                   ParentBodyIndex, 
+	const int32                                   ChildBodyIndex)
 {
-	const RigidBodyWithControl::FPosQuat ChildTargetTM =
-		RigidBodyWithControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintChildIndex]) * 
+	const UE::PhysicsControl::FPosQuat ChildTargetTM =
+		UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintChildIndex]) * 
 		PoseData.GetTM(ChildBodyIndex);
 	if (ParentBodyIndex >= 0)
 	{
-		const RigidBodyWithControl::FPosQuat ParentTargetTM =
-			RigidBodyWithControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintParentIndex]) * 
+		const UE::PhysicsControl::FPosQuat ParentTargetTM =
+			UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintParentIndex]) * 
 			PoseData.GetTM(ParentBodyIndex);
 		return ChildTargetTM * ParentTargetTM.Inverse();
 	}
@@ -619,13 +619,13 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 					checkSlow((ControlRecord.Control.ParentBoneName.IsNone() ? -1 : 
 						FindBodyIndexFromBoneName(ControlRecord.Control.ParentBoneName)) == ControlRecord.ParentBodyIndex);
 
-					RigidBodyWithControl::FPosQuat TargetTM(
+					UE::PhysicsControl::FPosQuat TargetTM(
 						ControlRecord.ControlTarget.TargetOrientation, 
 						ControlRecord.ControlTarget.TargetPosition);
 
 					if (ControlRecord.ControlData.bUseSkeletalAnimation)
 					{
-						RigidBodyWithControl::FPosQuat AnimTargetTM = CalculateTargetTM(
+						UE::PhysicsControl::FPosQuat AnimTargetTM = CalculateTargetTM(
 							JointSettings, PoseData, ControlRecord.ParentBodyIndex, ControlRecord.ChildBodyIndex);
 						TargetTM = TargetTM * AnimTargetTM;
 					}
@@ -635,7 +635,8 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 
 					if ((DeltaTime * ControlRecord.ControlData.LinearTargetVelocityMultiplier) != 0)
 					{
-						FVector Velocity = (TargetTM.GetTranslation() - ControlRecord.PrevTargetTM.GetTranslation()) / DeltaTime;
+						FVector Velocity = 
+							(TargetTM.GetTranslation() - ControlRecord.PreviousTargetTM.GetTranslation()) / DeltaTime;
 						Constraint->SetLinearDriveVelocityTarget(
 							Velocity * ControlRecord.ControlData.LinearTargetVelocityMultiplier);
 					}
@@ -648,7 +649,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 					{
 						// Note that quats multiply in the opposite order to TMs, and must be in the same hemisphere.
 						const FQuat Q = TargetTM.GetRotation();
-						FQuat PrevQ = ControlRecord.PrevTargetTM.GetRotation();
+						FQuat PrevQ = ControlRecord.PreviousTargetTM.GetRotation();
 						PrevQ.EnforceShortestArcWith(Q);
 						const FQuat DeltaQ = Q * PrevQ.Inverse();
 						const FVector AngularVelocity = DeltaQ.ToRotationVector() / DeltaTime;
@@ -662,7 +663,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 					}
 
 
-					ControlRecord.PrevTargetTM = TargetTM;
+					ControlRecord.PreviousTargetTM = TargetTM;
 					ControlRecord.ExpectedUpdateCounter = PoseData.UpdateCounter;
 					ControlRecord.ExpectedUpdateCounter.Increment();
 				}
@@ -878,7 +879,7 @@ void FAnimNode_RigidBodyWithControl::ApplyKinematicTargets()
 				const int32 BodyIndex = FindBodyIndexFromBoneName(ModifierRecord->Modifier.BoneName);
 				if (ActorHandle->GetIsKinematic() && BodyIndex != INDEX_NONE)
 				{
-					RigidBodyWithControl::FPosQuat TM(Target.TargetOrientation, Target.TargetPosition);
+					UE::PhysicsControl::FPosQuat TM(Target.TargetOrientation, Target.TargetPosition);
 					if (Target.bUseSkeletalAnimation)
 					{
 						TM = TM * PoseData.GetTM(BodyIndex);
@@ -968,57 +969,63 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentControlProfile()
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
-	const USkeletalMesh* const SkeletalMeshAsset,
+	const USkeletalMesh*             SkeletalMeshAsset,
 	const MapConstraintsBehaviorType PositionBehavior,
 	const MapConstraintsBehaviorType OrientationBehavior,
-	TArray<FConstraintInstance*>& ConstraintInstances)
+	TArray<FConstraintInstance*>&    ConstraintInstances)
 {
 	// Bone1 = Child
 	// Bone2 = Parent 
 
 	if (SkeletalMeshAsset != nullptr)
 	{
-		const bool bAuthoredTransformRequired = ((PositionBehavior == MapConstraintsBehaviorType::AuthoredSkeleton) || (OrientationBehavior == MapConstraintsBehaviorType::AuthoredSkeleton)) && (PhysicsAssetAuthoredSkeletalMesh != nullptr) && (SkeletalMeshAsset != PhysicsAssetAuthoredSkeletalMesh);
-		const bool bDefaultTransformRequired = (PositionBehavior == MapConstraintsBehaviorType::DefaultTransform) || (OrientationBehavior == MapConstraintsBehaviorType::DefaultTransform);
+		const bool bAuthoredTransformRequired = 
+			((PositionBehavior == MapConstraintsBehaviorType::AuthoredSkeleton) || 
+				(OrientationBehavior == MapConstraintsBehaviorType::AuthoredSkeleton)) && 
+			(PhysicsAssetAuthoredSkeletalMesh != nullptr) && 
+			(SkeletalMeshAsset != PhysicsAssetAuthoredSkeletalMesh);
+		const bool bDefaultTransformRequired = 
+			(PositionBehavior == MapConstraintsBehaviorType::DefaultTransform) || 
+			(OrientationBehavior == MapConstraintsBehaviorType::DefaultTransform);
 
 		if (bAuthoredTransformRequired || bDefaultTransformRequired)
 		{
 #if !NO_LOGGING
-			const FString AuthoredSkeletalMeshName = (PhysicsAssetAuthoredSkeletalMesh) ? PhysicsAssetAuthoredSkeletalMesh->GetName() : FString("UNDEFINED");
+			const FString AuthoredSkeletalMeshName = 
+				(PhysicsAssetAuthoredSkeletalMesh) ? PhysicsAssetAuthoredSkeletalMesh->GetName() : FString("UNDEFINED");
 			UE_LOGFMT(LogPhysicsControl, Log,
 				"Modify Constraint parent transforms to match the current skeleton \"{0}\". Settings: Authored Skeleton {1}, Position set from {2}, Orientation set from {3}",
 				SkeletalMeshAsset->GetName(), AuthoredSkeletalMeshName, MapConstraintsBehaviorTypeToString(PositionBehavior), MapConstraintsBehaviorTypeToString(OrientationBehavior));
 #endif
-			
 
-			for (FConstraintInstance* const ConstraintInstance : ConstraintInstances)
+			for (FConstraintInstance* ConstraintInstance : ConstraintInstances)
 			{
-				FTransform AuthoredCurrentRefFrame;
-				FTransform DefaultCurrentRefFrame;
+				const FReferenceSkeleton& SkeletalMeshReferenceSkeleton = SkeletalMeshAsset->GetRefSkeleton();
+				const FName ChildBoneName = ConstraintInstance->ConstraintBone1;
+				const FName ParentBoneName = ConstraintInstance->ConstraintBone2;
 
+				// This function might be overkill, but it handles the case that there are sketal
+				// bones missing in the physics hierarchy.
+				const FTransform CurrentChildRelParentTM = CalculateRelativeBoneTransform(
+					ChildBoneName, ParentBoneName, SkeletalMeshReferenceSkeleton);
+
+				FTransform AuthoredCurrentRefFrame;
 				if (bAuthoredTransformRequired)
 				{
-					const FTransform CurrentParentRelChildTM = CalculateRelativeBoneTransform(
-						ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, SkeletalMeshAsset->GetRefSkeleton());
-					const FTransform OriginalParentRelChildTM = CalculateRelativeBoneTransform(
-						ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, PhysicsAssetAuthoredSkeletalMesh->GetRefSkeleton());
+					const FTransform OriginalChildRelParentTM = CalculateRelativeBoneTransform(
+						ChildBoneName, ParentBoneName, 
+						PhysicsAssetAuthoredSkeletalMesh->GetRefSkeleton());
 
 					// Find the transform that maps the parent-bone-relative-to-the-child-bone transform
 					// in the original skeleton to the parent-bone-relative-to-the-child-bone transform
 					// in the current skeleton.
-					// Should be equivalent to CurrentParentRelChildTM * OriginalParentRelChildTM.Inverse()
+					// Should be equivalent to CurrentChildRelParentTM * OriginalChildRelParentTM.Inverse()
 					const FTransform OriginalToCurrentParentRelChildTM =
-						CurrentParentRelChildTM.GetRelativeTransform(OriginalParentRelChildTM);
+						CurrentChildRelParentTM.GetRelativeTransform(OriginalChildRelParentTM);
 
 					// Update the constraints transform relative to the parent bone.
 					const FTransform OriginalRefFrame = ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2);
 					AuthoredCurrentRefFrame = OriginalToCurrentParentRelChildTM * OriginalRefFrame;
-				}
-
-				if (bDefaultTransformRequired)
-				{
-					DefaultCurrentRefFrame = CalculateRelativeBoneTransform(
-						ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, SkeletalMeshAsset->GetRefSkeleton());
 				}
 
 #if !NO_LOGGING
@@ -1031,23 +1038,25 @@ void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
 				}
 				else if (PositionBehavior == MapConstraintsBehaviorType::DefaultTransform)
 				{
-					ConstraintInstance->SetRefPosition(EConstraintFrame::Frame2, DefaultCurrentRefFrame.GetTranslation());
+					ConstraintInstance->SetRefPosition(EConstraintFrame::Frame2, CurrentChildRelParentTM.GetTranslation());
 				}
 
 				if (OrientationBehavior == MapConstraintsBehaviorType::AuthoredSkeleton)
 				{
-					ConstraintInstance->SetRefOrientation(EConstraintFrame::Frame2, AuthoredCurrentRefFrame.GetUnitAxis(EAxis::X), AuthoredCurrentRefFrame.GetUnitAxis(EAxis::Y));
+					ConstraintInstance->SetRefOrientation(EConstraintFrame::Frame2, 
+						AuthoredCurrentRefFrame.GetUnitAxis(EAxis::X), AuthoredCurrentRefFrame.GetUnitAxis(EAxis::Y));
 				}
 				else if (OrientationBehavior == MapConstraintsBehaviorType::DefaultTransform)
 				{
-					ConstraintInstance->SetRefOrientation(EConstraintFrame::Frame2, DefaultCurrentRefFrame.GetUnitAxis(EAxis::X), DefaultCurrentRefFrame.GetUnitAxis(EAxis::Y));
+					ConstraintInstance->SetRefOrientation(EConstraintFrame::Frame2, 
+						CurrentChildRelParentTM.GetUnitAxis(EAxis::X), CurrentChildRelParentTM.GetUnitAxis(EAxis::Y));
 				}
 
 #if !NO_LOGGING
 				UE_LOGFMT(LogPhysicsControl, Log,
 					"Constraint {0} - {1}  - transform relative to parent was {2} now {3}.",
-					ConstraintInstance->ConstraintBone1.ToString(),
-					ConstraintInstance->ConstraintBone2.ToString(),
+					ChildBoneName.ToString(),
+					ParentBoneName.ToString(),
 					LogPreviousConstraintTransformRelParent.ToString(),
 					ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2).ToString());
 #endif

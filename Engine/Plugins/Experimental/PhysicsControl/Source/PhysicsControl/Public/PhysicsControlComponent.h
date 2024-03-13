@@ -7,6 +7,7 @@
 #include "PhysicsControlNameRecords.h"
 #include "PhysicsControlProfileAsset.h"
 #include "PhysicsControlRecord.h"
+#include "PhysicsControlPoseData.h"
 
 #include "UObject/ObjectMacros.h"
 #include "Components/SceneComponent.h"
@@ -1508,30 +1509,6 @@ public:
 		const TArray<FName>&          BoneNames);
 
 	/**
-	 * Gets the linear velocities of the requested bones that will be used as targets (in world space). Target 
-	 * velocities for bones that are not found will be set to zero. Note that these targets will have been 
-	 * calculated and cached at the start of the Physics Control Component, so if using the built in tick, 
-	 * may be too old to be useful. If you manually update the component then you can access these target 
-	 * velocities prior to applying your own targets.
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	TArray<FVector> GetCachedBoneVelocities(
-		const USkeletalMeshComponent* SkeletalMeshComponent,
-		const TArray<FName>&          BoneNames);
-
-	/**
-	 * Gets the angular velocities of the requested bones that will be used as targets (in world space). Target 
-	 * velocities for bones that are not found will be set to zero. Note that these targets will have been 
-	 * calculated and cached at the start of the Physics Control Component, so if using the built in tick, 
-	 * may be too old to be useful. If you manually update the component then you can access these target 
-	 * velocities prior to applying your own targets.
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	TArray<FVector> GetCachedBoneAngularVelocities(
-		const USkeletalMeshComponent* SkeletalMeshComponent,
-		const TArray<FName>&          BoneNames);
-
-	/**
 	 * Gets the transforms of the requested bone that will be used as a target (in world space). Targets for bones
 	 * that are not found will be set to Identity. Note that these targets will have been calculated and cached
 	 * at the start of the Physics Control Component, so if using the built in tick, may be too old to be useful.
@@ -1568,30 +1545,6 @@ public:
 		const FName                   BoneName);
 
 	/**
-	 * Gets the linear velocity of the requested bone that will be used as a target (in world space). Target 
-	 * velocities for bones that are not found will be set to zero. Note that these targets will have been 
-	 * calculated and cached at the start of the Physics Control Component, so if using the built in tick, 
-	 * may be too old to be useful. If you manually update the component then you can access these target 
-	 * velocities prior to applying your own targets.
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	FVector GetCachedBoneVelocity(
-		const USkeletalMeshComponent* SkeletalMeshComponent,
-		const FName                   BoneName);
-
-	/**
-	 * Gets the angular velocity of the requested bone that will be used as a target (in world space). Target 
-	 * velocities for bones that are not found will be set to zero. Note that these targets will have been 
-	 * calculated and cached at the start of the Physics Control Component update, so if using the built in tick, 
-	 * may be too old to be useful. If you manually update the component then you can access these target 
-	 * velocities prior to applying your own targets.
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	FVector GetCachedBoneAngularVelocity(
-		const USkeletalMeshComponent* SkeletalMeshComponent,
-		const FName                   BoneName);
-
-	/**
 	 * This allows the caller to override the target that will have been calculated and cached at the start of 
 	 * the Physics Control Component update. This is unlikely to be useful when using the built in tick, 
 	 * but if you are manually updating the component then you may wish to call this after UpdateTargetCaches 
@@ -1603,9 +1556,7 @@ public:
 	bool SetCachedBoneData(
 		const USkeletalMeshComponent* SkeletalMeshComponent,
 		const FName                   BoneName, 
-		const FTransform&             TM,
-		const FVector                 Velocity,
-		const FVector                 AngularVelocity);
+		const FTransform&             TM);
 
 	/**
 	 * This flags the body associated with the modifier to set (using teleport) its position and velocity to 
@@ -1740,14 +1691,16 @@ protected:
 	 * Retrieves the bone data for the specified bone given the skeletal mesh component.
 	 * 
 	 * @param OutBoneData If successful, this will contain the output bone data.
+	 * @param OutPoseData If successful, this will contain the pose data structure, in case more info is required
 	 * @param InSkeletalMeshComponent Required to be a valid pointer to a skeletal mesh component
 	 * @param InBoneName The name of the bone to retrieve data for
 	 * @return true if the bone and data were found, false if not (in which case warnings will be logged)
 	 */
 	bool GetBoneData(
-		FCachedSkeletalMeshData::FBoneData& OutBoneData,
-		const USkeletalMeshComponent*       InSkeletalMeshComponent,
-		const FName                         InBoneName) const;
+		UE::PhysicsControl::FBoneData&                      OutBoneData,
+		const UE::PhysicsControl::FPhysicsControlPoseData*& OutPoseData,
+		const USkeletalMeshComponent*                       InSkeletalMeshComponent,
+		const FName                                         InBoneName) const;
 
 	/*
 	 * Retrieves the bone data for the specified bone given the skeletal mesh component, for modification
@@ -1758,7 +1711,7 @@ protected:
 	 * @return true if the bone and data were found, false if not (in which case warnings will be logged)
 	 */
 	bool GetModifiableBoneData(
-		FCachedSkeletalMeshData::FBoneData*& OutBoneData,
+		UE::PhysicsControl::FBoneData*&      OutBoneData,
 		const USkeletalMeshComponent*        InSkeletalMeshComponent,
 		const FName                          InBoneName);
 
@@ -1778,20 +1731,6 @@ protected:
 	 * Updates the world-space bone positions etc for each skeleton we're tracking
 	 */
 	void UpdateCachedSkeletalBoneData(float DeltaTime);
-
-	/**
-	 * @return true if the difference between the old and new TMs exceeds the teleport
-	 * translation/rotation thresholds
-	 */
-	bool DetectTeleport(const FTransform& OldTM, const FTransform& NewTM) const;
-
-	/**
-	 * @return true if the difference between the old and new TMs exceeds the teleport
-	 * translation/rotation thresholds
-	 */
-	bool DetectTeleport(
-		const FVector& OldPosition, const FQuat& OldOrientation,
-		const FVector& NewPosition, const FQuat& NewOrientation) const;
 
 	/**
 	 * Terminates the underlying physical constraints, resets our internal stored state for each control,
@@ -1836,10 +1775,11 @@ protected:
 	 */
 	void CalculateControlTargetData(
 		FTransform&                  OutTargetTM, 
+		FTransform&                  OutSkeletalTargetTM,
 		FVector&                     OutTargetVelocity,
 		FVector&                     OutTargetAngularVelocity,
 		const FPhysicsControlRecord& Record,
-		bool                         bCalculateVelocity) const;
+		bool                         bUsePreviousSkeletalTargetTM) const;
 
 	/** Updates the body based on the modifier */
 	void ApplyBodyModifier(FPhysicsBodyModifierRecord& BodyModifier);
@@ -1887,7 +1827,7 @@ protected:
 
 	// Cached transforms from each skeletal mesh we're working with. Will be updated at the
 	// beginning of each tick.
-	TMap<TWeakObjectPtr<USkeletalMeshComponent>, FCachedSkeletalMeshData> CachedSkeletalMeshDatas;
+	TMap<TWeakObjectPtr<USkeletalMeshComponent>, UE::PhysicsControl::FPhysicsControlPoseData> CachedPoseDatas;
 
 	// Track which skeletons have been affected by a body modifier - some settings get overridden
 	// and then need to be restored when the last body modifier is destroyed.
@@ -1899,4 +1839,7 @@ protected:
 	// Keep track of the names of everything we have created
 	FPhysicsControlNameRecords NameRecords;
 
+	// Update counter - incremented every tick, and used to check whether previous targets etc are
+	// valid when calculating velocities.
+	int64 CurrentUpdateCounter = 0;
 };

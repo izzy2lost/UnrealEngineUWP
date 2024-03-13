@@ -141,6 +141,6 @@ FName GetPhysicalParentBone(USkeletalMeshComponent* SkeletalMeshComponent, FName
 	return FName();
 }
 
-} // namespace PhysicsControlComponent
+} // namespace PhysicsControl
 } // namespace UE
 
