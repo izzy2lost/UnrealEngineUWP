@@ -15038,6 +15038,10 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 		}
 
 		const FRigVMTemplate* Template = DispatchNode->GetTemplate();
+		if (!Template)
+		{
+			return false;
+		}
 
 		FRigVMDispatchContext DispatchContext = DispatchNode->GetDispatchContext();
 		auto AddExecutePins = [Template, DispatchNode, &Registry, &DispatchContext, &NewPinInfos, &PreviousPinInfos, this](ERigVMPinDirection InPinDirection)

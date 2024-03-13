@@ -1392,7 +1392,10 @@ FSlateIcon URigVMEdGraphNode::GetIconAndTint(FLinearColor& OutColor) const
 		}
 		else if (const URigVMDispatchNode* DispatchNode = Cast<URigVMDispatchNode>(ModelNode))
 		{
-			MetadataScriptStruct = DispatchNode->GetFactory()->GetScriptStruct();
+			if (const FRigVMDispatchFactory* Factory = DispatchNode->GetFactory())
+			{
+				MetadataScriptStruct = Factory->GetScriptStruct();
+			}
 		}
 
 		if(MetadataScriptStruct && MetadataScriptStruct->HasMetaDataHierarchical(FRigVMStruct::IconMetaName))
