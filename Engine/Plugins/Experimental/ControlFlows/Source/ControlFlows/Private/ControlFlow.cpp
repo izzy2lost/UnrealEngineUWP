@@ -124,7 +124,9 @@ void FControlFlow::HandleControlFlowNodeCompleted(TSharedRef<const FControlFlowN
 				}
 				else
 				{
+					bBroadcastingStepComplete = true;
 					OnStepCompletedDelegate.Broadcast();
+					bBroadcastingStepComplete = false;
 					ExecuteNextNodeInQueue();
 				}
 			}
@@ -252,6 +254,11 @@ void FControlFlow::Reset()
 	SubFlowStack_ForDebugging.Reset();
 	UnnamedNodeCounter = 0;
 	UnnamedBranchCounter = 0;
+}
+
+bool FControlFlow::IsRunning() const
+{
+	return CurrentNode.IsValid() || bBroadcastingStepComplete;
 }
 
 void FControlFlow::CancelFlow()

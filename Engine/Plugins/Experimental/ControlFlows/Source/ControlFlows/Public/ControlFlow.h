@@ -131,7 +131,7 @@ public:
 	/** This needs to be called, otherwise nothing will happen!! Call after you finish adding functions to the queue. Calling with an empty queue is safe. */
 	CONTROLFLOWS_API void ExecuteFlow();
 	CONTROLFLOWS_API void Reset();
-	bool IsRunning() const { return CurrentNode.IsValid(); }
+	CONTROLFLOWS_API bool IsRunning() const;
 	size_t NumInQueue() const { return FlowQueue.Num(); }
 
 	FSimpleMulticastDelegate& OnNodeComplete() const { return OnStepCompletedDelegate; }
@@ -383,6 +383,8 @@ private:
 	FString DebugName;
 
 	bool bInterpretCancelledNodeAsComplete = false;
+
+	bool bBroadcastingStepComplete = false;
 
 	int32 UnnamedNodeCounter = 0;
 
