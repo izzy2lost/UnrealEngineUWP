@@ -90,14 +90,14 @@ UPackage* UPCGLevelToAsset::UpdateAsset(const FAssetData& PCGAsset)
 	UPCGDataAsset* Asset = Cast<UPCGDataAsset>(PCGAsset.GetAsset());
 	if (!Asset)
 	{
-		UE_LOG(LogPCG, Error, TEXT("Asset '%s' isn't a PCG data asset or could not be properly loaded."), *PCGAsset.GetObjectPathString());
+		UE_LOG(LogPCGEditor, Error, TEXT("Asset '%s' isn't a PCG data asset or could not be properly loaded."), *PCGAsset.GetObjectPathString());
 		return nullptr;
 	}
 
 	UPackage* Package = Asset->GetPackage();
 	if (!Package)
 	{
-		UE_LOG(LogPCG, Error, TEXT("Unable to retrieve package from Asset '%s'."), *PCGAsset.GetObjectPathString());
+		UE_LOG(LogPCGEditor, Error, TEXT("Unable to retrieve package from Asset '%s'."), *PCGAsset.GetObjectPathString());
 		return nullptr;
 	}
 
@@ -183,7 +183,12 @@ bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FStrin
 	FPCGMetadataAttribute<int64>* ParentIndexAttribute = PointMetadata->CreateAttribute<int64>(ParentIndexAttributeName, -1, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
 	FPCGMetadataAttribute<FTransform>* RelativeTransformAttribute = PointMetadata->CreateAttribute<FTransform>(RelativeTransformAttributeName, FTransform::Identity, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true);
 
+	// Map from raw/unsanitized tag name to corresponding attribute.
 	TMap<FName, FPCGMetadataAttributeBase*> TagToAttributeMap;
+
+	// Relationship Tag:SanitizedName is many:1, so keep track of which sanitized names are created so we don't attempt to create the same one multiple times.
+	TSet<FName> SanitizedAttributeNames;
+
 	TSet<FName> ReservedTags;
 	ReservedTags.Add(MaterialAttributeName);
 	ReservedTags.Add(MeshAttributeName);
@@ -235,7 +240,7 @@ bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FStrin
 				continue;
 			}
 
-			const FString TagString = ActorTag.ToString();
+			FString TagString = ActorTag.ToString();
 			int32 DividerPosition = INDEX_NONE;
 			
 			if (TagString.FindChar(':', DividerPosition))
@@ -248,26 +253,48 @@ bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FStrin
 					continue;
 				}
 
-				const FName AttributeName = FName(LeftSide);
-				if (ReservedTags.Contains(AttributeName) || TagToAttributeMap.Contains(AttributeName))
+				const FName TagName(LeftSide);
+				FString SanitizedAttributeNameString = LeftSide;
+				const bool bSanitized = FPCGMetadataAttributeBase::SanitizeName(SanitizedAttributeNameString);
+				const FName SanitizedAttributeName(SanitizedAttributeNameString);
+
+				// Once sanitized, multiple tags can map to a single attribute name. The first tag will be used, remaining will be ignored.
+				if (ReservedTags.Contains(SanitizedAttributeName) || TagToAttributeMap.Contains(TagName) || SanitizedAttributeNames.Contains(SanitizedAttributeName))
 				{
 					continue;
+				}
+
+				if (bSanitized)
+				{
+					UE_LOG(LogPCGEditor, Warning, TEXT("Sanitized tag string on actor '%s' to remove invalid characters: '%s' -> '%s'"), *Actor->GetName(), *LeftSide, *SanitizedAttributeNameString);
 				}
 
 				// Otherwise, create the attribute based on the type of the data after the colon.
 				if (RightSide.IsNumeric())
 				{
-					TagToAttributeMap.Add(AttributeName, PointMetadata->CreateAttribute<double>(AttributeName, 0.0f, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
+					TagToAttributeMap.Add(TagName, PointMetadata->CreateAttribute<double>(SanitizedAttributeName, 0.0f, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
 				}
 				else
 				{
-					TagToAttributeMap.Add(AttributeName, PointMetadata->CreateAttribute<FString>(AttributeName, FString(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
+					TagToAttributeMap.Add(TagName, PointMetadata->CreateAttribute<FString>(SanitizedAttributeName, FString(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
 				}
+
+				SanitizedAttributeNames.Add(SanitizedAttributeName);
 			}
 			else
 			{
 				// Simple boolean attribute
-				TagToAttributeMap.Add(ActorTag, PointMetadata->CreateAttribute<bool>(ActorTag, false, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
+				FString& SanitizedTagString = TagString;
+				FPCGMetadataAttributeBase::SanitizeName(SanitizedTagString);
+				const FName SanitizedTagName(SanitizedTagString);
+
+				// Once sanitized, multiple tags can map to a single attribute name. The first tag will be used, remaining will be ignored.
+				if (!ReservedTags.Contains(SanitizedTagName) && !SanitizedAttributeNames.Contains(SanitizedTagName))
+				{
+					TagToAttributeMap.Add(ActorTag, PointMetadata->CreateAttribute<bool>(SanitizedTagName, false, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
+
+					SanitizedAttributeNames.Add(SanitizedTagName);
+				}
 			}
 		}
 
@@ -306,7 +333,8 @@ bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FStrin
 			RelativeTransformAttribute->SetValue(Point.MetadataEntry, RelativeTransform);
 			HierarchyDepthAttribute->SetValue(Point.MetadataEntry, HierarchyDepth);
 
-			// For all tags, set attribute value to true.
+			// For all tags, if the tag is of format 'Name:Value' then create attribute Name and assign Value, otherwise
+			// create a boolean attribute with the name given by the sanitized tag string.
 			for (FName ActorTag : Actor->Tags)
 			{
 				const FString TagString = ActorTag.ToString();
@@ -322,8 +350,8 @@ bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FStrin
 						continue;
 					}
 
-					const FName AttributeName = FName(LeftSide);
-					if (FPCGMetadataAttributeBase** Attribute = TagToAttributeMap.Find(AttributeName))
+					const FName TagName(LeftSide);
+					if (FPCGMetadataAttributeBase** Attribute = TagToAttributeMap.Find(TagName))
 					{
 						check(*Attribute);
 						if (RightSide.IsNumeric() && (*Attribute)->GetTypeId() == PCG::Private::MetadataTypes<double>::Id)

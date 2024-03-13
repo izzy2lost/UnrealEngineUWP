@@ -26,6 +26,7 @@ namespace PCGDataFromActorConstants
 {
 	static const FName SinglePointPinLabel = TEXT("Single Point");
 	static const FString PCGComponentDataGridSizeTagPrefix = TEXT("PCG_GridSize_");
+	static const FText TagNamesSanitizedWarning = LOCTEXT("TagAttributeNamesSanitized", "One or more tag names contained invalid characters and were sanitized when creating the corresponding attributes.");
 }
 
 namespace PCGDataFromActorHelpers
@@ -526,14 +527,24 @@ void FPCGDataFromActorElement::MergeActorsIntoPointData(FPCGContext* Context, co
 	{
 		UPCGPointData* Data = NewObject<UPCGPointData>();
 		bool bHasData = false;
+		bool bAnyAttributeNameWasSanitized = false;
 
 		for (AActor* Actor : FoundActors)
 		{
 			if (Actor)
 			{
-				Data->AddSinglePointFromActor(Actor);
+				bool bAttributeNameWasSanitized = false;
+				Data->AddSinglePointFromActor(Actor, &bAttributeNameWasSanitized);
+
+				bAnyAttributeNameWasSanitized |= bAttributeNameWasSanitized;
+
 				bHasData = true;
 			}
+		}
+
+		if (bAnyAttributeNameWasSanitized && !Settings->bSilenceSanitizedAttributeNameWarnings)
+		{
+			PCGE_LOG(Warning, GraphAndLog, PCGDataFromActorConstants::TagNamesSanitizedWarning);
 		}
 
 		if (bHasData)
@@ -546,14 +557,24 @@ void FPCGDataFromActorElement::MergeActorsIntoPointData(FPCGContext* Context, co
 	{
 		FPCGDataCollection DataToMerge;
 		const bool bParseActor = false;
+		bool bAnyAttributeNameWasSanitized = false;
 
 		for (AActor* Actor : FoundActors)
 		{
 			if (Actor)
 			{
-				FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(Actor, Context->SourceComponent.Get(), EPCGDataType::Any, bParseActor);
+				bool bAttributeNameWasSanitized = false;
+				FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(Actor, Context->SourceComponent.Get(), EPCGDataType::Any, bParseActor, &bAttributeNameWasSanitized);
+
+				bAnyAttributeNameWasSanitized |= bAttributeNameWasSanitized;
+
 				DataToMerge.TaggedData += Collection.TaggedData;
 			}
+		}
+
+		if (bAnyAttributeNameWasSanitized && !Settings->bSilenceSanitizedAttributeNameWarnings)
+		{
+			PCGE_LOG(Warning, GraphAndLog, PCGDataFromActorConstants::TagNamesSanitizedWarning);
 		}
 
 		// Perform point data-to-point data merge
@@ -693,7 +714,14 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 	else
 	{
 		const bool bParseActor = (Settings->Mode != EPCGGetDataFromActorMode::GetSinglePoint);
-		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, SourceComponent, Settings->GetDataFilter(), bParseActor);
+		bool bAttributeNameWasSanitized = false;
+		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, SourceComponent, Settings->GetDataFilter(), bParseActor, &bAttributeNameWasSanitized);
+
+		if (bAttributeNameWasSanitized && !Settings->bSilenceSanitizedAttributeNameWarnings)
+		{
+			PCGE_LOG(Warning, GraphAndLog, PCGDataFromActorConstants::TagNamesSanitizedWarning);
+		}
+
 		Outputs += Collection.TaggedData;
 	}
 
@@ -701,7 +729,14 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 	if (Settings->bAlsoOutputSinglePointData && (Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent || Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponentOrParseComponents))
 	{
 		const bool bParseActor = false;
-		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, SourceComponent, EPCGDataType::Any, bParseActor);
+		bool bAttributeNameWasSanitized = false;
+		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, SourceComponent, EPCGDataType::Any, bParseActor, &bAttributeNameWasSanitized);
+
+		if (bAttributeNameWasSanitized && !Settings->bSilenceSanitizedAttributeNameWarnings)
+		{
+			PCGE_LOG(Warning, GraphAndLog, PCGDataFromActorConstants::TagNamesSanitizedWarning);
+		}
+
 		for (const FPCGTaggedData& SinglePointData : Collection.TaggedData)
 		{
 			FPCGTaggedData& OutSinglePoint = Outputs.Add_GetRef(SinglePointData);

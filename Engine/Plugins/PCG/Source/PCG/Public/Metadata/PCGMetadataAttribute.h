@@ -78,8 +78,12 @@ public:
 
 	const FPCGMetadataAttributeBase* GetParent() const { return Parent; }
 
+	/** Returns true if for valid attribute names, which are alphanumeric with some special characters allowed. */
 	static bool IsValidName(const FString& Name);
 	static bool IsValidName(const FName& Name);
+
+	/** Replaces any invalid characters in name with underscores. Returns true if Name was changed. */
+	static bool SanitizeName(FString& InOutName);
 
 private:
 	// Unsafe version, needs to be write lock protected.

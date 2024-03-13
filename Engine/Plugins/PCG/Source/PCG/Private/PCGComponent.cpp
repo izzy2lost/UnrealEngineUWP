@@ -2477,9 +2477,15 @@ UPCGData* UPCGComponent::CreateActorPCGData(AActor* Actor, const UPCGComponent* 
 	}
 }
 
-FPCGDataCollection UPCGComponent::CreateActorPCGDataCollection(AActor* Actor, const UPCGComponent* Component, EPCGDataType InDataFilter, bool bParseActor)
+FPCGDataCollection UPCGComponent::CreateActorPCGDataCollection(AActor* Actor, const UPCGComponent* Component, EPCGDataType InDataFilter, bool bParseActor, bool* bOutOptionalSanitizedTagAttributeName)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::CreateActorPCGData);
+
+	if (bOutOptionalSanitizedTagAttributeName)
+	{
+		*bOutOptionalSanitizedTagAttributeName = false;
+	}
+
 	FPCGDataCollection Collection;
 
 	if (!Actor)
@@ -2501,7 +2507,7 @@ FPCGDataCollection UPCGComponent::CreateActorPCGDataCollection(AActor* Actor, co
 	if (!bParseActor && !!(InDataFilter & EPCGDataType::Point))
 	{
 		UPCGPointData* Data = NewObject<UPCGPointData>();
-		Data->InitializeFromActor(Actor);
+		Data->InitializeFromActor(Actor, bOutOptionalSanitizedTagAttributeName);
 
 		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
 		TaggedData.Data = Data;
@@ -2692,7 +2698,7 @@ FPCGDataCollection UPCGComponent::CreateActorPCGDataCollection(AActor* Actor, co
 	if (Collection.TaggedData.IsEmpty() && !!(InDataFilter & EPCGDataType::Point))
 	{
 		UPCGPointData* Data = NewObject<UPCGPointData>();
-		Data->InitializeFromActor(Actor);
+		Data->InitializeFromActor(Actor, bOutOptionalSanitizedTagAttributeName);
 
 		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
 		TaggedData.Data = Data;
