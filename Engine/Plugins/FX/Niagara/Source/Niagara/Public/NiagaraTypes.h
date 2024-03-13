@@ -1156,6 +1156,7 @@ enum class ENiagaraTypeRegistryFlags : uint32
 	AllowEmitterVariable	= (1 << 2),
 	AllowParticleVariable	= (1 << 3),
 	AllowAnyVariable		= (AllowUserVariable | AllowSystemVariable | AllowEmitterVariable | AllowParticleVariable),
+	AllowNotUserVariable	= (AllowSystemVariable | AllowEmitterVariable | AllowParticleVariable),
 
 	AllowParameter			= (1 << 4),
 	AllowPayload			= (1 << 5),
