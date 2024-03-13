@@ -147,7 +147,9 @@ public:
 
 	void CreateDistantSkyLightLutBufferAndSRV(FRDGBuilder& GraphBuilder);
 	TRefCountPtr<FRDGPooledBuffer>& GetDistantSkyLightLutBuffer();
+	TRefCountPtr<FRDGPooledBuffer>& GetMobileDistantSkyLightLutBuffer();
 	FRHIShaderResourceView* GetDistantSkyLightLutBufferSRV();
+	FRHIShaderResourceView* GetMobileDistantSkyLightLutBufferSRV();
 
 	FRDGTextureRef GetTransmittanceLutTexture(FRDGBuilder& GraphBuilder) const { return GraphBuilder.RegisterExternalTexture(TransmittanceLutTexture); }
 
@@ -170,6 +172,8 @@ private:
 	TRefCountPtr<IPooledRenderTarget> MultiScatteredLuminanceLutTexture;
 	TRefCountPtr<FRDGPooledBuffer> DistantSkyLightLutBuffer;
 	FRHIShaderResourceView* DistantSkyLightLutBufferSRV = nullptr;
+	TRefCountPtr<FRDGPooledBuffer> MobileDistantSkyLightLutBuffer;
+	FRHIShaderResourceView* MobileDistantSkyLightLutBufferSRV = nullptr;
 };
 
 /** Pending RDG resource to commit after the pre-pass / nanite rasterization so that RenderSkyAtmosphereLookUpTables() can overlap them on async compute. */
@@ -190,6 +194,7 @@ private:
 	TArray<FViewRDGResources, TInlineAllocator<4>> ViewResources;
 
 	FRDGBufferRef DistantSkyLightLutBuffer = nullptr;
+	FRDGBufferRef MobileDistantSkyLightLutBuffer = nullptr;
 	FRDGTextureRef RealTimeReflectionCaptureSkyAtmosphereViewLutTexture = nullptr;
 	FRDGTextureRef RealTimeReflectionCaptureCamera360APLutTexture = nullptr;
 	FRDGTextureRef TransmittanceLut = nullptr;

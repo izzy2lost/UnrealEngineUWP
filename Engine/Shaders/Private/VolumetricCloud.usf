@@ -680,7 +680,7 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 				// TODO Only works for ground view. This should be spatially varying for space viewsspace view. 
 				// TODO Have a illuminance texture to get that overall ambient contribution? 
 				// TODO An approximation would be to multiply it with sun transmittance?
-				DistantSkyLightLuminance = View.DistantSkyLightLutBufferSRV[0].rgb;
+				DistantSkyLightLuminance = GetViewDistanceSkyLightColor();
 			}
 			else
 			{

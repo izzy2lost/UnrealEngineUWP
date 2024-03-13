@@ -1287,6 +1287,7 @@ void FViewInfo::SetupUniformBufferParameters(
 	FRHITexture* CameraAerialPerspectiveVolumeMieOnlyFound = nullptr;
 	FRHITexture* CameraAerialPerspectiveVolumeRayOnlyFound = nullptr;
 	FRHIShaderResourceView* DistantSkyLightLutBufferSRVFound = nullptr;
+	FRHIShaderResourceView* MobileDistantSkyLightLutBufferSRVFound = nullptr;
 	if (ShouldRenderSkyAtmosphere(Scene, Family->EngineShowFlags))
 	{
 		ViewUniformShaderParameters.SkyAtmospherePresentInScene = 1.0f;
@@ -1304,6 +1305,7 @@ void FViewInfo::SetupUniformBufferParameters(
 		}
 
 		DistantSkyLightLutBufferSRVFound = SkyAtmosphere->GetDistantSkyLightLutBufferSRV();
+		MobileDistantSkyLightLutBufferSRVFound = SkyAtmosphere->GetMobileDistantSkyLightLutBufferSRV();
 
 		if (this->SkyAtmosphereCameraAerialPerspectiveVolume.IsValid())
 		{
@@ -1432,10 +1434,21 @@ void FViewInfo::SetupUniformBufferParameters(
 
 	ViewUniformShaderParameters.TransmittanceLutTexture = OrWhite2DIfNull(TransmittanceLutTextureFound);
 	ViewUniformShaderParameters.TransmittanceLutTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
-	ViewUniformShaderParameters.DistantSkyLightLutBufferSRV = GBlackVertexBufferWithSRV->ShaderResourceViewRHI.GetReference();
 	if(DistantSkyLightLutBufferSRVFound != nullptr)
 	{
 		ViewUniformShaderParameters.DistantSkyLightLutBufferSRV = DistantSkyLightLutBufferSRVFound;
+	}
+	else
+	{
+		ViewUniformShaderParameters.DistantSkyLightLutBufferSRV = GBlackStructuredBufferWithSRV->ShaderResourceViewRHI.GetReference();
+	}
+	if(MobileDistantSkyLightLutBufferSRVFound != nullptr)
+	{
+		ViewUniformShaderParameters.MobileDistantSkyLightLutBufferSRV = MobileDistantSkyLightLutBufferSRVFound;
+	}
+	else
+	{
+		ViewUniformShaderParameters.MobileDistantSkyLightLutBufferSRV = GBlackVertexBufferWithSRV->ShaderResourceViewRHI.GetReference();
 	}
 	ViewUniformShaderParameters.SkyViewLutTexture = OrBlack2DIfNull(SkyViewLutTextureFound);
 	ViewUniformShaderParameters.SkyViewLutTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();

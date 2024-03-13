@@ -1090,7 +1090,8 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT_WITH_CONSTRUCTOR(FViewUniformShaderParamete
 	SHADER_PARAMETER_SAMPLER(SamplerState, CameraAerialPerspectiveVolumeMieOnlySampler)
 	SHADER_PARAMETER_TEXTURE(Texture3D, CameraAerialPerspectiveVolumeRayOnly)
 	SHADER_PARAMETER_SAMPLER(SamplerState, CameraAerialPerspectiveVolumeRayOnlySampler)
-	SHADER_PARAMETER_SRV(Buffer<float4>, DistantSkyLightLutBufferSRV)
+	SHADER_PARAMETER_SRV(StructuredBuffer<float4>, DistantSkyLightLutBufferSRV)	
+	SHADER_PARAMETER_SRV(Buffer<float4>, MobileDistantSkyLightLutBufferSRV)		
 	// Hair
 	SHADER_PARAMETER_TEXTURE(Texture3D, HairScatteringLUTTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, HairScatteringLUTSampler)

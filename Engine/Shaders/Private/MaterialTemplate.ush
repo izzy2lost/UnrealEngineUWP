@@ -2236,7 +2236,7 @@ float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters
 float3 MaterialExpressionSkyAtmosphereDistantLightScatteredLuminance(FMaterialPixelParameters Parameters)
 {
 #if MATERIAL_SKY_ATMOSPHERE && PROJECT_SUPPORT_SKY_ATMOSPHERE
-	return View.DistantSkyLightLutBufferSRV[0].rgb;
+	return GetViewDistanceSkyLightColor();
 #else
 	return float3(0.0f, 0.0f, 0.0f);
 #endif

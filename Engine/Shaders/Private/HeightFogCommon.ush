@@ -7,6 +7,7 @@
 #pragma once
 
 #include "/Engine/Shared/EnvironmentComponentsFlags.h"
+#include "/Engine/Private/SkyAtmosphereCommon.ush"
 
 #ifndef PERMUTATION_SUPPORT_FOG_INSCATTERING_TEXTURE
 #define PERMUTATION_SUPPORT_FOG_INSCATTERING_TEXTURE 1
@@ -75,7 +76,7 @@ float3 ComputeInscatteringColor(float3 CameraToReceiver, float CameraToReceiverL
 #endif
 
 #if PROJECT_SUPPORT_SKY_ATMOSPHERE_AFFECTS_HEIGHFOG
-	Inscattering += FogStruct.SkyAtmosphereAmbientContributionColorScale.rgb * View.SkyAtmosphereHeightFogContribution.xxx * View.DistantSkyLightLutBufferSRV[0].rgb;
+	Inscattering += FogStruct.SkyAtmosphereAmbientContributionColorScale.rgb * View.SkyAtmosphereHeightFogContribution.xxx * GetViewDistanceSkyLightColor();
 #endif
 
 	return Inscattering;
