@@ -621,9 +621,120 @@ void UPCGComponent::Cleanup_Implementation(bool bRemoveComponents, bool bSave)
 	CleanupLocal(bRemoveComponents);
 }
 
+void UPCGComponent::PurgeUnlinkedResources(const AActor* InActor)
+{
+	const AActor* ThisActor = InActor;
+	if (!ThisActor)
+	{
+		return;
+	}
+
+	TSet<TSoftObjectPtr<AActor>> ActorsToDelete;
+
+	TArray<AActor*>AttachedActors;
+	TArray<UActorComponent*> ActorComponentList;
+
+	ThisActor->GetAttachedActors(AttachedActors);
+
+	for (const AActor* Actor : AttachedActors)
+	{
+		if (Actor && Actor->ActorHasTag(PCGHelpers::DefaultPCGActorTag))
+		{
+			ActorsToDelete.Add(Actor);
+		}
+	};
+
+	// Cleanup any actor components with tag and not managed by any other components
+	ThisActor->ForEachComponent(/*bIncludeFromChildActors=*/true, [&ActorComponentList](UActorComponent* ActorComponent)
+	{
+		if (ActorComponent && ActorComponent->ComponentHasTag(PCGHelpers::DefaultPCGTag))
+		{
+			ActorComponentList.Add(ActorComponent);
+		}
+	});
+	
+	ThisActor->ForEachComponent<UPCGComponent>(/*bIncludeFromChildActors=*/true, [&ActorComponentList, &ActorsToDelete](UPCGComponent* Component)
+	{
+		for (UPCGManagedResource* ManagedResource : Component->GeneratedResources)
+		{
+			if (UPCGManagedComponent* ManagedComponent = Cast<UPCGManagedComponent>(ManagedResource))
+			{
+				ActorComponentList.RemoveSwap(ManagedComponent->GeneratedComponent.Get());
+			}
+			else if (UPCGManagedActors* ManagedActors = Cast<UPCGManagedActors>(ManagedResource))
+			{
+				for (const TSoftObjectPtr<AActor>& GeneratedActor : ManagedActors->GeneratedActors)
+				{
+					ActorsToDelete.Remove(GeneratedActor);
+				}
+			}
+		}
+	});
+
+	for (UActorComponent* ActorComponent : ActorComponentList)
+	{
+		ActorComponent->DestroyComponent();
+	}
+
+	if (UWorld* World = InActor->GetWorld())
+	{
+		UPCGActorHelpers::DeleteActors(World, ActorsToDelete.Array());
+	}
+}
+
+void UPCGComponent::CleanupLocalDeleteAllGeneratedObjects(const TArray<FPCGTaskId>& Dependencies)
+{
+	UPCGSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return;
+	}
+	
+	TArray<FPCGTaskId> TaskIds;
+	
+	auto SchedulePurge = [this, Subsystem, &TaskIds, &Dependencies](UPCGComponent* Component)
+	{
+		FPCGTaskId TaskId;
+		TWeakObjectPtr<UPCGComponent> ScheduledComponent(Component);
+
+		TaskId = Subsystem->ScheduleGeneric([this, ScheduledComponent]()
+			{
+				if (UPCGComponent* Component = ScheduledComponent.Get())
+				{
+					if (IsValid(Component))
+					{
+						Component->PurgeUnlinkedResources(this->GetOwner());
+					}
+				}
+
+				return true;
+			},
+			this, Dependencies);
+
+		if (TaskId != InvalidPCGTaskId)
+		{
+			TaskIds.Add(TaskId);
+		}
+	};
+	
+	SchedulePurge(this);
+
+	if (IsPartitioned())
+	{
+		Subsystem->ForAllRegisteredLocalComponents(this, SchedulePurge);
+	}
+
+	CleanupLocal(/*bRemoveComponents=*/true, /*bSave=*/true, TaskIds);
+}
+
 void UPCGComponent::CleanupLocal(bool bRemoveComponents, bool bSave)
 {
-	CleanupInternal(bRemoveComponents, {});
+	CleanupLocal(bRemoveComponents, bSave, {});
+}
+
+void UPCGComponent::CleanupLocal(bool bRemoveComponents, bool bSave, const TArray<FPCGTaskId>& Dependencies)
+{
+	CleanupInternal(bRemoveComponents, Dependencies);
 }
 
 FPCGTaskId UPCGComponent::CleanupInternal(bool bRemoveComponents, const TArray<FPCGTaskId>& Dependencies)

@@ -99,6 +99,7 @@ void FPCGComponentDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 			[
 				SNew(SButton)
 				.OnClicked(this, &FPCGComponentDetails::OnCleanupClicked)
+				.ToolTipText(FText::FromString("Cleans up graph data. \nCtrl + Click purges all components and attached actors tagged as created by PCG."))
 				.Visibility(this, &FPCGComponentDetails::CleanupButtonVisible)
 				[
 					SNew(STextBlock)
@@ -294,7 +295,15 @@ FReply FPCGComponentDetails::OnCleanupClicked()
 	{
 		if (Component.IsValid())
 		{
-			Component.Get()->Cleanup();
+			FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
+			if (ModifierKeys.IsControlDown())
+			{
+				Component.Get()->CleanupLocalDeleteAllGeneratedObjects({});
+			}
+			else
+			{
+				Component.Get()->Cleanup();
+			}
 		}
 	}
 
