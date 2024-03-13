@@ -9,8 +9,7 @@
 					"name": "Stream",
 					"group": "Build_BranchName",
 					"defaults": [
-						"++fortnite+main",
-						"++ue5+main"
+						"++fortnite+main"
 					]
 				},
 				{
