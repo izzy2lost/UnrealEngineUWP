@@ -1156,6 +1156,7 @@ namespace UE::MLDeformer
 		{
 			UpdateDeformerGraph();
 			GetEditor()->GetVizSettingsDetailsView()->ForceRefresh();
+			GetEditor()->GetModelDetailsView()->ForceRefresh();
 		}
 	}
 

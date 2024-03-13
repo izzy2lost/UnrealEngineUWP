@@ -154,7 +154,6 @@ namespace UE::MLDeformer
 		}
 
 		FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
-
 		if (!MeshAttributes.HasSourceGeometryParts())
 		{
 			return;
@@ -172,9 +171,8 @@ namespace UE::MLDeformer
 
 		const int32 NumSourceGeoParts = MeshAttributes.GetNumSourceGeometryParts();
 		const FSkeletalMeshAttributes::FSourceGeometryPartNameConstRef GeoPartNames = MeshAttributes.GetSourceGeometryPartNames();
-		const FSkeletalMeshAttributes::FSourceGeometryPartVertexOffsetAndCountConstRef GeoPartOffsetAndCounts = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
-		
-
+		const FSkeletalMeshAttributes::FSourceGeometryPartVertexOffsetAndCountConstRef GeoPartOffsetAndCounts = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();	
+	
 		const bool bIsSoloMesh = (GeomCache->Tracks.Num() == 1 && NumSourceGeoParts == 1);	// Do we just have one mesh and one track?
 		for (int32 TrackIndex = 0; TrackIndex < GeomCache->Tracks.Num(); ++TrackIndex)
 		{
@@ -256,6 +254,21 @@ namespace UE::MLDeformer
 							Mapping.ImportedVertexToRenderVertexMap[VertexIndex] = RenderVertexIndex;
 						}
 					});
+
+					// Figure out what materials we use.
+					for (int32 VertexIndex = 0; VertexIndex < NumSkelMeshVerts; ++VertexIndex)
+					{
+						const int32 RenderVertexIndex = Mapping.ImportedVertexToRenderVertexMap[VertexIndex];
+
+						int32 SectionIndex = INDEX_NONE;
+						int32 SectionVertexIndex = INDEX_NONE;
+						LODModel.GetSectionFromVertexIndex(RenderVertexIndex, SectionIndex, SectionVertexIndex);
+						if (SectionIndex != INDEX_NONE && SectionVertexIndex != INDEX_NONE)
+						{
+							const int32 MaterialIndex = LODModel.Sections[SectionIndex].MaterialIndex;
+							Mapping.MaterialIndices.AddUnique(MaterialIndex);
+						}
+					}
 
 					// We found a match, no need to iterate over more Tracks.
 					bFoundMatch = true;

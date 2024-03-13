@@ -22,6 +22,7 @@ namespace UE::MLDeformer
 		int32 TrackIndex = INDEX_NONE;	// The geometry cache track that this mesh is mapped to.
 		TArray<int32> SkelMeshToTrackVertexMap;	// This maps imported model individual meshes to the geomcache track's mesh data.
 		TArray<int32> ImportedVertexToRenderVertexMap; // Map the imported DCC vertex number to a render vertex. This is just one of the duplicates, which shares the same position.
+		TArray<int32> MaterialIndices;	// List of material indices that point inside the SkelMesh. These materials are used on parts of the mesh that are modified by the ML Deformer.
 	};
 
 	/**
