@@ -69,7 +69,7 @@ void UMidiFile::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	FString Tempo = FString::Printf(TEXT("%.2f BPM"), TheMidiData.SongMaps.GetTempoAtTick(0));
 	Context.AddTag(UObject::FAssetRegistryTag("InitialTempo",  Tempo, UObject::FAssetRegistryTag::TT_Numerical));
 	
-	FString Length = FString::Printf(TEXT("%.5f Bars ( %s )"), TheMidiData.SongMaps.GetSongLengthData().LengthFractionalBars, *TheMidiData.SongMaps.GetSongLengthString());
+	FString Length = FString::Printf(TEXT("%d Bars"), TheMidiData.SongMaps.GetSongLengthData().LengthBars);
 	Context.AddTag(UObject::FAssetRegistryTag("Length", Length, UObject::FAssetRegistryTag::TT_Numerical));
 
 #if WITH_EDITORONLY_DATA
@@ -179,6 +179,8 @@ void UMidiFile::LoadStdMidiFile(
 	// Create the reader and read all the data...
 	FStdMidiFileReader reader(Archive, Filename, &AllReceivers, TheMidiData.TicksPerQuarterNote, InTextEncoding);
 	reader.ReadAllTracks();
+
+	TheMidiData.LastEventTick = EventReceiver.GetLastTick();
 
 	if (reader.IsFailed())
 	{
@@ -417,98 +419,357 @@ void UMidiFile::FindAllTextEvents(const FString& EventText, int32 TrackIndex, TA
 	}
 }
 
-void UMidiFile::ScanTracksForSongLengthChange()
+void UMidiFile::TracksChanged()
 {
-	TheMidiData.ScanTracksForSongLengthChange();
-	MarkPackageDirty();
-}
-
-bool UMidiFile::LengthIsAPerfectSubdivision() const
-{
-	return TheMidiData.LengthIsAPerfectSubdivision();
-}
-
-void UMidiFile::QuantizeLengthToNearestPerfectSubdivision(const EMidiFileQuantizeDirection Direction)
-{
-	EMidiClockSubdivisionQuantization Subdivision = EMidiClockSubdivisionQuantization::None;
-	int32 QuantizedLength = TheMidiData.SongMaps.QuantizeTickToAnyNearestSubdivision(TheMidiData.SongMaps.GetSongLengthData().LengthTicks, Direction, Subdivision);
-	if (QuantizedLength == 0)
+	int32 NewLastEventTick = 0;
+	bool bIsFileEmpty = true;
+	for (auto& Track : TheMidiData.Tracks)
 	{
-		// If we were specifically asked to go down and going down gets
-		// us a zero length file, then warn and don't quantize...
-		if (Direction == EMidiFileQuantizeDirection::Down)
+		FMidiEventList& Events = Track.GetRawEvents();
+		//check if the file is empty
+		if (bIsFileEmpty && !Events.IsEmpty())
 		{
-			UE_LOG(LogMIDI, Warning, TEXT("QuantizeLengthToNearestPerfectSubdivision: Asked to Quantize file length DOWN, but that would result in a zero length midi file. NOT ALLOWED! Skipping quantization!"));
-			return;
+			bIsFileEmpty = false;
 		}
-
-		// If we were ask to go up and we STILL got a zero length
-		// file that is super weird! Warn the user and skip quantizing...
-		if (Direction == EMidiFileQuantizeDirection::Up)
+		int32 LastTickOnTrack = Events.IsEmpty() ? 0 : Events.Last().GetTick();
+		if (NewLastEventTick < LastTickOnTrack)
 		{
-			UE_LOG(LogMIDI, Error, TEXT("This is odd. Asked to quantize MIDI file length UP to the nearest subdivision, but returned length is zero! Skipping."));
-			return;
+			NewLastEventTick = LastTickOnTrack;
 		}
-
-		// We MUST have been asked to quantize to nearest, but nearest must be
-		// down and result in a zero length file. So... this time force up, as
-		// that will be the only valid "nearest"!
-		QuantizedLength = TheMidiData.SongMaps.QuantizeTickToAnyNearestSubdivision(TheMidiData.SongMaps.GetSongLengthData().LengthTicks, EMidiFileQuantizeDirection::Up, Subdivision);
-		check (QuantizedLength > 0);
 	}
-	TheMidiData.ConformToLength(QuantizedLength);
-	MarkPackageDirty();
-}
 
-void UMidiFile::QuantizeLengthToSubdivision(const EMidiFileQuantizeDirection Direction, const EMidiClockSubdivisionQuantization Subdivision)
-{
-	int32 QuantizedLength = TheMidiData.SongMaps.QuantizeTickToNearestSubdivision(TheMidiData.SongMaps.GetSongLengthData().LengthTicks, Direction, Subdivision);
-	if (QuantizedLength == 0)
+	if (NewLastEventTick == 0 && !bIsFileEmpty)
 	{
-		// If we were specifically asked to go down and going down gets
-		// us a zero length file, then warn and don't quantize...
-		if (Direction == EMidiFileQuantizeDirection::Down)
-		{
-			UE_LOG(LogMIDI, Warning, TEXT("QuantizeLengthToNearestPerfectSubdivision: Asked to Quantize file length DOWN, but that would result in a zero length midi file. NOT ALLOWED! Skipping quantization!"));
-			return;
-		}
-
-		// If we were ask to go up and we STILL got a zero length
-		// file that is super weird! Warn the user and skip quantizing...
-		if (Direction == EMidiFileQuantizeDirection::Up)
-		{
-			UE_LOG(LogMIDI, Error, TEXT("This is odd. Asked to quantize MIDI file length UP to the nearest subdivision, but returned length is zero! Skipping."));
-			return;
-		}
-
-		// We MUST have been asked to quantize to nearest, but nearest must be
-		// down and result in a zero length file. So... this time force up, as
-		// that will be the only valid "nearest"!
-		QuantizedLength = TheMidiData.SongMaps.QuantizeTickToNearestSubdivision(TheMidiData.SongMaps.GetSongLengthData().LengthTicks, EMidiFileQuantizeDirection::Up, Subdivision);
-		check(QuantizedLength > 0);
+		TheMidiData.LastEventTick = NewLastEventTick;
+		FSongLengthData& LengthData = TheMidiData.SongMaps.GetSongLengthData();
+		//if the last event tick in a file is 0 and the file is not empty, we know that the length in tick is 1
+		LengthData.LengthTicks = 1;
+		LengthData.LastTick = NewLastEventTick;
+		LengthData.LengthBars = TheMidiData.SongMaps.GetBarMap().TickToBarIncludingCountIn(LengthData.LengthTicks);
+		return;
 	}
-	TheMidiData.ConformToLength(QuantizedLength);
-	MarkPackageDirty();
+
+	//update length data in song length data if needed 
+	if (NewLastEventTick != TheMidiData.LastEventTick)
+	{
+		TheMidiData.LastEventTick = NewLastEventTick;
+		FMusicTimestamp Timestamp = TheMidiData.SongMaps.GetBarMap().TickToMusicTimestamp(NewLastEventTick + 1);
+		FSongLengthData& LengthData = TheMidiData.SongMaps.GetSongLengthData();
+		LengthData.LengthTicks = TheMidiData.SongMaps.GetBarMap().MusicTimestampToTick(Timestamp);
+		LengthData.LastTick = LengthData.LengthTicks - 1;
+		LengthData.LengthBars = TheMidiData.SongMaps.GetBarMap().TickToBarIncludingCountIn(LengthData.LengthTicks);
+	}
 }
 
-bool UMidiFile::ConformToLength(int32 NewLengthTicks)
+bool UMidiFile::ShouldConformMidiFileLength(EMidiFileLengthConformOption Option)
 {
-	if (TheMidiData.ConformToLength(NewLengthTicks))
+	//if file length is already rounded down, there's nothing more can be done
+	if (bLengthRoundedDown) return false;
+
+	//if a file's length is rounded up, it can be rounded down once more, but nothing else 
+	if (bLengthRoundedUp)
 	{
-		MarkPackageDirty();
+		if (Option == EMidiFileLengthConformOption::RoundDown)
+		{
+			//if the file's length is less than 1, cannot round down
+			return TheMidiData.SongMaps.GetSongLengthData().LengthBars > 1 ? true : false;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	if (bLengthRoundedToNearest && Option == EMidiFileLengthConformOption::Nearest) return false;
+
+	//if bar length is 1 bar (or less, it will round up to 1 bar if the file is imported, 0 if the file is manually created), 
+	//it CANNOT be rounded down to 0 bar, can only be rounded up
+	if (TheMidiData.SongMaps.GetSongLengthData().LengthBars <= 1 && Option != EMidiFileLengthConformOption::RoundUp)
+	{
+		return false;
+	}
+
+	//Special case: a manually created Midi file only has events on tick 0
+	//This should still be able to be conformed by rounding up ONLY
+	bool bIsFileEmpty = true;
+	for (auto& Track : TheMidiData.Tracks)
+	{
+		FMidiEventList& Events = Track.GetRawEvents();
+		//check if the file is empty
+		if (bIsFileEmpty && !Events.IsEmpty())
+		{
+			bIsFileEmpty = false;
+			break;
+		}
+	}
+
+	//get the last event tick in file
+	int32 LastEventTick = TheMidiData.LastEventTick;
+
+	if (LastEventTick == 0 && !bIsFileEmpty && Option == EMidiFileLengthConformOption::RoundUp) return true;
+
+	//if the last event tick is at the very end of an integer bar, the next tick should be the at the next bar, beat 1.0 
+	FMusicTimestamp Timestamp = TheMidiData.SongMaps.GetBarMap().TickToMusicTimestamp(LastEventTick + 1);
+	//for manually created Midi files, we can specify that the last event tick is at the very end of an integer bar
+	//however,some DAWs places the very last event of an integer bar at the very beginning of the next bar, causing a 1-tick difference
+	//the current solution is to tolerate this 1-tick error when checking the last event tick
+	double OneTickTimeStampBeat = TheMidiData.SongMaps.GetBarMap().TickToMusicTimestamp(1).Beat;
+	double OneTickError = OneTickTimeStampBeat - 1.0;
+	if (!FMath::IsNearlyEqual(Timestamp.Beat, 1.0f, OneTickError))
+	{
 		return true;
+	}
+	else if (!FMath::IsNearlyEqual(Timestamp.Beat, 1.0f))
+	{
+		ConformMidiFileLength(EMidiFileLengthConformOption::RoundDown, true);
 	}
 	return false;
 }
 
-bool UMidiFile::ConformToLengthGivenLastEventTick(int32 NewLastEventTick)
+void UMidiFile::ConformMidiFileLength(EMidiFileLengthConformOption Option, bool Force)
 {
-	if (TheMidiData.ConformToLengthGivenLastEventTick(NewLastEventTick))
+	//check whether midi file length needs to be conformed
+	if (!Force && !ShouldConformMidiFileLength(Option))
 	{
-		MarkPackageDirty();
-		return true;
+		UE_LOG(LogMIDI, Log, TEXT("Midi file does not need to be conformed."));
+		return;
 	}
-	return false;
+	
+	int32 LastTickInSongLengthData = TheMidiData.SongMaps.GetSongLengthData().LastTick;
+	//Currently, file length is automatically rounded up to the nearest integer bar for imported midi files, if the conform option is Round Up, early out
+	//(NOTE: Round Up doesn't add/change/remove anything to the midi file or events)
+	if (Option == EMidiFileLengthConformOption::RoundUp)
+	{
+		//for manually created Midi files, update the song length data to keep up with 
+		//results of imported Midi files WITHOUT adding/changing/removing events
+		FMusicTimestamp Timestamp = TheMidiData.SongMaps.GetBarMap().TickToMusicTimestamp(TheMidiData.LastEventTick + 1);
+		if (!FMath::IsNearlyEqual(Timestamp.Beat, 1.0f))
+		{
+			Timestamp.Bar++;
+			Timestamp.Beat = 1.0f;
+			FSongLengthData& LengthData = TheMidiData.SongMaps.GetSongLengthData();
+			LengthData.LengthTicks = TheMidiData.SongMaps.GetBarMap().MusicTimestampToTick(Timestamp);
+			LengthData.LastTick = LengthData.LengthTicks - 1;
+			LengthData.LengthBars = TheMidiData.SongMaps.GetBarMap().TickToBarIncludingCountIn(LengthData.LengthTicks);
+		}
+		
+		bLengthRoundedUp = true;
+		return;
+	}
+
+	//Get file's fractional bar length (not rounded up)
+	float OriginalLengthFractionalBar = TheMidiData.SongMaps.GetBarIncludingCountInAtTick(TheMidiData.LastEventTick);
+
+	//Round Down to the nearest integer bar
+	int32 ConformedLastBar = (int32)OriginalLengthFractionalBar;
+
+	//rounding to nearest is still either round down or round up
+	//depending on the result from FMath::RoundToInt()
+	if (Option == EMidiFileLengthConformOption::Nearest)
+	{
+		ConformedLastBar = FMath::RoundToInt(OriginalLengthFractionalBar);
+		EMidiFileLengthConformOption NearestRoundingOption = ConformedLastBar > (int32)OriginalLengthFractionalBar ? EMidiFileLengthConformOption::RoundUp : EMidiFileLengthConformOption::RoundDown;
+		
+		//if round to nearest ends up being rounding up, early out
+		if (NearestRoundingOption == EMidiFileLengthConformOption::RoundUp)
+		{
+			//round the length up by updating the song length data
+			FMusicTimestamp Timestamp = TheMidiData.SongMaps.GetBarMap().TickToMusicTimestamp(TheMidiData.LastEventTick + 1);
+			if (!FMath::IsNearlyEqual(Timestamp.Beat, 1.0f))
+			{
+				Timestamp.Bar++;
+				Timestamp.Beat = 1.0f;
+				FSongLengthData& LengthData = TheMidiData.SongMaps.GetSongLengthData();
+				LengthData.LengthTicks = TheMidiData.SongMaps.GetBarMap().MusicTimestampToTick(Timestamp);
+				LengthData.LastTick = LengthData.LengthTicks - 1;
+				LengthData.LengthBars = TheMidiData.SongMaps.GetBarMap().TickToBarIncludingCountIn(LengthData.LengthTicks);
+			}
+			bLengthRoundedUp = true;
+			bLengthRoundedToNearest = true;
+			return;
+		}
+	}
+
+	//the actual tick to conform to by rounding down
+	int32 ConformedLastEventTick = TheMidiData.SongMaps.GetBarMap().BarIncludingCountInToTick(ConformedLastBar) - 1;
+
+	//Retrieve midi file name for logging after moving/removing midi events
+	FString MidiFileName = this->GetName();
+
+	//keep track of the events that are moved to the last tick and excessive events removed after moving
+	int32 NumEventsMovedToLastTick = 0;
+	int32 TotalNumEventsRemoved = 0;
+	int32 NumNoteOnNoteOffPairsRemoved = 0;
+	int32 NumAftertouchEventsRemoved = 0;
+	int32 NumPitchEventsRemoved = 0;
+	int32 NumControlEventsRemoved = 0;
+
+	//go through midi events in each midi track 
+	for (int32 TrackIndex = 0; TrackIndex < TheMidiData.Tracks.Num(); ++TrackIndex)
+	{
+		//Get the raw midi events and the last tick of the last event
+		FMidiTrack& Track = TheMidiData.Tracks[TrackIndex];
+		FMidiEventList& Events = Track.GetRawEvents();
+		int32 LastEventTick = Events.Last().GetTick();
+	
+		//if the last tick of this event is less than the tick of the conformed last tick,
+		//this midi track does not need to be conformed, go to the next midi track
+		if (LastEventTick <= ConformedLastEventTick) continue;
+
+		//move all events with tick > ConfromedLastEventTick to ConformedLastTick
+		for (int32 EventIndex = Events.Num() - 1; EventIndex >= 0 && Events[EventIndex].GetTick() > ConformedLastEventTick; --EventIndex)
+		{
+			// NOTE: It is safe for us to do this BECAUSE...
+			// We do not have to re-sort the midi data on the tracks because while we may have slid events earlier,
+			// their relative position to each other MUST be unchanged!
+			Events[EventIndex].Tick = ConformedLastEventTick;
+			NumEventsMovedToLastTick++;
+		}
+
+		//filter the midi events (at the new conformed last tick) after moving them, remove note on/note off pairs on the last tick, and other excessive events
+		int32 NumItemsRemoved = 0;
+		int32 CurrentEventIndex = Events.Num() - 1;
+
+		while (CurrentEventIndex >= 0 && Events[CurrentEventIndex].GetTick() == ConformedLastEventTick)
+		{
+			FMidiEvent& Event = Events[CurrentEventIndex];
+			FMidiMsg& Msg = Event.GetMsg();
+
+			//filter Note On/Note off pairs on the last tick
+			if (Msg.IsNoteOff())
+			{
+				int32 NoteOnEventIndex = -1;
+				for (int32 i = CurrentEventIndex - 1; i > 0 && Events[i].GetTick() == ConformedLastEventTick; --i)
+				{
+					//check equality of note on/note off events' midi note number (data1) 
+					if (Events[i].GetMsg().IsNoteOn() && Events[i].GetMsg().GetStdData1() == Msg.GetStdData1())
+					{
+						NoteOnEventIndex = i;
+						break;
+					}
+				}
+				//remove note on/note off pairs on the conformed last tick
+				if (NoteOnEventIndex != -1) 
+				{
+					Events.RemoveAt(CurrentEventIndex);
+					NumItemsRemoved++;
+					Events.RemoveAt(NoteOnEventIndex);
+					NumItemsRemoved++;
+					NumNoteOnNoteOffPairsRemoved++;
+					TotalNumEventsRemoved += 2;
+				}
+			}
+			uint8 MsgStatus = Msg.Status;
+
+			using namespace Harmonix::Midi::Constants;
+			
+			//filter chan press/pitch bend/program change events
+			if (MsgStatus == GChanPres|| MsgStatus == GPitch || MsgStatus == GProgram)
+			{
+				int32 OtherEventIndexToRemove = -1;
+				//check if there exist multiple events with same status on the last tick
+				for (int32 i = CurrentEventIndex - 1; i >= 0 && Events[i].GetTick() == ConformedLastEventTick; --i)
+				{
+					if (Events[i].GetMsg().Status == MsgStatus) {
+						OtherEventIndexToRemove = CurrentEventIndex;
+						break;
+					}
+				}
+				//remove excessive events on the conformed last tick
+				if (OtherEventIndexToRemove != -1)
+				{
+					Events.RemoveAt(OtherEventIndexToRemove);
+					NumItemsRemoved++;
+					if (MsgStatus == GChanPres || MsgStatus == GPolyPres)
+					{
+						NumAftertouchEventsRemoved++;
+					}
+					else {
+						NumPitchEventsRemoved++;
+					}
+					TotalNumEventsRemoved++;
+				}
+
+			}
+
+			//filter Control Change events and Poly Pres events
+			if (MsgStatus == GControl || MsgStatus == GPolyPres)
+			{
+				uint8 CurrentEventControllerId = Msg.Data1;
+				int32 ControlEventIndexToRemove = -1; 
+				for (int32 i = CurrentEventIndex - 1; i >= 0 && Events[i].GetTick() == ConformedLastEventTick; --i)
+				{
+					//check control change events for identical controller ID (data1) on the same tick and remove the later one
+					//check poly pres events for the same note number (data1) on the same tick and remove the later one
+					if (Events[i].GetMsg().Data1 == CurrentEventControllerId) {
+						ControlEventIndexToRemove = CurrentEventIndex;
+						break;
+					}
+				}
+				//remove excessive control changes or poly pressure on conformed last tick
+				if (ControlEventIndexToRemove != -1)
+				{
+					Events.RemoveAt(ControlEventIndexToRemove);
+					NumItemsRemoved++;
+					NumControlEventsRemoved++;
+					TotalNumEventsRemoved++;
+				}
+			}
+
+			//update indices after removing excessive events
+			if (NumItemsRemoved == 0)
+			{
+				CurrentEventIndex -= 1;
+			}
+			else {
+				CurrentEventIndex -= NumItemsRemoved;
+				NumItemsRemoved = 0;
+			}
+		}
+	}
+
+	TracksChanged();
+
+	//update the conformed length in SongLengthData if conformed to an integer bar, and marks the file is being conformed with the current conform option(s)
+	if (Option == EMidiFileLengthConformOption::RoundDown || Option == EMidiFileLengthConformOption::Nearest)
+	{
+		FSongLengthData& LengthData = TheMidiData.SongMaps.GetSongLengthData();
+		LengthData.LengthTicks = ConformedLastEventTick + 1;
+		LengthData.LastTick = ConformedLastEventTick;
+		LengthData.LengthBars = TheMidiData.SongMaps.GetBarMap().TickToBarIncludingCountIn(LengthData.LengthTicks);
+		bLengthRoundedDown = true;
+
+		//if we get here by rounding up first (or round up by rounding to the nearest integer) and then round down
+		//this means the file is ultimately rounded down, NOT rounded up
+		if (bLengthRoundedUp) bLengthRoundedUp = false;
+
+		bLengthRoundedToNearest = Option == EMidiFileLengthConformOption::Nearest ? true : false;
+		
+		//Log conform summary 
+		FString MidiFileLengthConformSummary = FString::Printf(
+			TEXT("Midi file '%s.mid' length conformance summary: original length: %f bars, rounded down to new length: %d bar(s), moved %d Midi event(s) to tick %d"),
+			*MidiFileName,
+			OriginalLengthFractionalBar,
+			ConformedLastBar,
+			NumEventsMovedToLastTick,
+			ConformedLastEventTick
+		);
+		if (TotalNumEventsRemoved > 0)
+		{
+			MidiFileLengthConformSummary.Append(FString::Printf(TEXT("; removed %d Midi event(s):"),TotalNumEventsRemoved));
+			if (NumNoteOnNoteOffPairsRemoved > 0) MidiFileLengthConformSummary.Append(FString::Printf(TEXT(" %d Note On/Note off event pair(s),"), NumNoteOnNoteOffPairsRemoved));
+			if (NumAftertouchEventsRemoved > 0) MidiFileLengthConformSummary.Append(FString::Printf(TEXT(" %d Aftertouch event(s),"), NumAftertouchEventsRemoved));
+			if (NumPitchEventsRemoved > 0) MidiFileLengthConformSummary.Append(FString::Printf(TEXT(" %d Pitch Bend event(s),"), NumPitchEventsRemoved));
+			if (NumControlEventsRemoved > 0) MidiFileLengthConformSummary.Append(FString::Printf(TEXT(" %d Control Change event(s),"), NumControlEventsRemoved));
+			MidiFileLengthConformSummary.Append(FString::Printf(TEXT(" at tick %d "), ConformedLastEventTick));
+		}
+		UE_LOG(LogMIDI, Log, TEXT("%s"),*MidiFileLengthConformSummary);
+	}
+
+	//This prevents the current conform option affecting any midi file that is currently being obtained from RenderableCopyOfMidiFileData
+	//e.g. if file length is being conformed while the un-conformed file is occupied during playback, changes to the midi file won't be reflected until the 
+	//current playback is stopped and starts playing again (we only create a new RenderableCopyOfMidiFileData if there isn't one existed already)
+	RenderableCopyOfMidiFileData = nullptr;
 }
 
 #if WITH_EDITORONLY_DATA
@@ -644,12 +905,8 @@ bool FMidiFileData::operator==(const FMidiFileData& Other) const
 
 	return MidiFileName == Other.MidiFileName &&
 		TicksPerQuarterNote == Other.TicksPerQuarterNote &&
-		SongMaps == Other.SongMaps;
-}
-
-int32 FMidiFileData::GetLastEventTick() const
-{
-	return SongMaps.GetSongLengthData().LastTick;
+		SongMaps == Other.SongMaps &&
+		LastEventTick == Other.LastEventTick;
 }
 
 int32 FMidiFileData::FindTrackIndexByName(const FString& TrackName)
@@ -691,200 +948,8 @@ void FMidiFileData::PostSerialize(const FArchive& Ar)
 				BarMap.AddTimeSignatureAtBarIncludingCountIn(BarIndex, Event.GetMsg().GetTimeSigNumerator(), Event.GetMsg().GetTimeSigDenominator());
 			}
 		}
-		BarMap.Finalize(GetLastEventTick());
+		BarMap.Finalize(LastEventTick);
 	}
-}
-
-bool FMidiFileData::ConformToLength(int32 NewLengthTicks)
-{
-	return ConformToLengthGivenLastEventTick(NewLengthTicks - 1);
-}
-
-bool FMidiFileData::ConformToLengthGivenLastEventTick(int32 NewLastEventTick)
-{
-	if (NewLastEventTick < 0)
-	{
-		NewLastEventTick = 0;
-		UE_LOG(LogMIDI, Warning, TEXT("Asked to comform length such that the last event tick would be less than 0... Not possible! Conforming length to 1 tick, with last event being placed on tick 0!"));
-	}
-
-	if (SongMaps.GetSongLengthData().LastTick == NewLastEventTick && SongMaps.GetSongLengthData().LengthTicks != 0)
-	{
-		// nothing to change...
-		return false;
-	}
-
-	if (SongMaps.GetSongLengthData().LastTick < NewLastEventTick)
-	{
-		// easy... just change the length data...
-		SongMaps.SetSongLengthTicks(NewLastEventTick + 1);
-		// we changed something so report it...
-		return true;
-	}
-
-	//keep track of the events that are moved to the last tick and excessive events removed after moving
-	int32 NumEventsMovedToLastTick = 0;
-	int32 TotalNumEventsRemoved = 0;
-	int32 NumNoteOnNoteOffPairsRemoved = 0;
-	int32 NumControlEventsRemoved = 0;
-
-	//go through midi events in each midi track 
-	for (int32 TrackIndex = 0; TrackIndex < Tracks.Num(); ++TrackIndex)
-	{
-		//Get the raw midi events and the last tick of the last event
-		FMidiTrack& Track = Tracks[TrackIndex];
-		FMidiEventList& Events = Track.GetRawEvents();
-		int32 LastEventTick = Events.Last().GetTick();
-
-		//if the last tick of this event is less than the tick of the conformed last tick,
-		//this midi track does not need to be conformed, go to the next midi track
-		if (LastEventTick <= NewLastEventTick) continue;
-
-		//move all events with tick > ConfromedLastEventTick to ConformedLastTick
-		for (int32 EventIndex = Events.Num() - 1; EventIndex >= 0 && Events[EventIndex].GetTick() > NewLastEventTick; --EventIndex)
-		{
-			// NOTE: It is safe for us to do this BECAUSE...
-			// We do not have to re-sort the midi data on the tracks because while we may have slid events earlier,
-			// their relative position to each other MUST be unchanged!
-			Events[EventIndex].Tick = NewLastEventTick;
-			NumEventsMovedToLastTick++;
-		}
-
-		//filter the midi events (at the new conformed last tick) after moving them, remove note on/note off pairs on the last tick, and other excessive events
-		int32 NumItemsRemoved = 0;
-		int32 CurrentEventIndex = Events.Num() - 1;
-
-		while (CurrentEventIndex >= 0 && Events[CurrentEventIndex].GetTick() == NewLastEventTick)
-		{
-			using namespace Harmonix::Midi::Constants;
-
-			FMidiEvent& Event = Events[CurrentEventIndex];
-			FMidiMsg& Msg = Event.GetMsg();
-
-			if (Msg.IsStd())
-			{
-				uint8 MsgType = Msg.GetStdStatusType();
-
-				//filter Note On/Note off pairs on the last tick
-				if (MsgType == GNoteOff)
-				{
-					int32 NoteOnEventIndex = -1;
-					for (int32 i = CurrentEventIndex - 1; i > 0 && Events[i].GetTick() == NewLastEventTick; --i)
-					{
-						//check equality of note on/note off events' midi note number (data1) 
-						if (Events[i].GetMsg().IsNoteOn() && Events[i].GetMsg().GetStdData1() == Msg.GetStdData1())
-						{
-							NoteOnEventIndex = i;
-							break;
-						}
-					}
-					//remove note on/note off pairs on the conformed last tick
-					if (NoteOnEventIndex != -1)
-					{
-						Events.RemoveAt(CurrentEventIndex);
-						NumItemsRemoved++;
-						Events.RemoveAt(NoteOnEventIndex);
-						NumItemsRemoved++;
-						NumNoteOnNoteOffPairsRemoved++;
-						TotalNumEventsRemoved += 2;
-					}
-				}
-
-				//filter chan press/pitch bend/program change events
-				else if (MsgType == GChanPres || MsgType == GPitch || MsgType == GProgram)
-				{
-					TArray<int32> OtherEventIndexesToRemove;
-					//check if there exist multiple events with same status on the last tick
-					for (int32 i = CurrentEventIndex - 1; i >= 0 && Events[i].GetTick() == NewLastEventTick; --i)
-					{
-						if (Events[i].GetMsg().IsStd() &&
-							Events[i].GetMsg().Status == Msg.Status) 
-						{
-							OtherEventIndexesToRemove.Add(i);
-						}
-					}
-					//remove excessive events on the conformed last tick
-					if (!OtherEventIndexesToRemove.IsEmpty())
-					{
-						for (int32 i : OtherEventIndexesToRemove)
-						{
-							Events.RemoveAt(i);
-						}
-						NumItemsRemoved += OtherEventIndexesToRemove.Num();
-						NumControlEventsRemoved += OtherEventIndexesToRemove.Num();
-						TotalNumEventsRemoved += OtherEventIndexesToRemove.Num();
-					}
-				}
-
-				//filter Control Change events and Poly Pres events
-				else if (MsgType == GControl || MsgType == GPolyPres)
-				{
-					TArray<int32> ControlEventIndexesToRemove;
-					for (int32 i = CurrentEventIndex - 1; i >= 0 && Events[i].GetTick() == NewLastEventTick; --i)
-					{
-						//check control change events for identical controller ID (data1) on the same tick and remove the later one
-						//check poly pres events for the same note number (data1) on the same tick and remove the later one
-						if (Events[i].GetMsg().IsStd() &&
-							Events[i].GetMsg().GetStdStatus() == Msg.GetStdStatus() && 
-							Events[i].GetMsg().Data1 == Msg.Data1)
-						{
-							ControlEventIndexesToRemove.Add(i);
-						}
-					}
-					//remove excessive control changes or poly pressure on conformed last tick
-					if (!ControlEventIndexesToRemove.IsEmpty())
-					{
-						for (int32 i : ControlEventIndexesToRemove)
-						{
-							Events.RemoveAt(i);
-						}
-						NumItemsRemoved += ControlEventIndexesToRemove.Num();
-						NumControlEventsRemoved += ControlEventIndexesToRemove.Num();
-						TotalNumEventsRemoved += ControlEventIndexesToRemove.Num();
-					}
-				}
-
-				//update indices after removing excessive events
-				if (NumItemsRemoved == 0)
-				{
-					CurrentEventIndex -= 1;
-				}
-				else 
-				{
-					CurrentEventIndex -= NumItemsRemoved;
-					NumItemsRemoved = 0;
-				}
-			} 
-			else
-			{
-				CurrentEventIndex--;
-			}
-		}
-	}
-
-	// TracksChanged may have cause the song length data to
-	// shrink down because we have have removed all of the 
-	// "past-the-end" events above, and be left with an 
-	// unquantized length. So here will will force the song
-	// length to the proper valyue.
-	SongMaps.SetSongLengthTicks(NewLastEventTick + 1);
-
-	//Log conform summary 
-	FString MidiFileLengthConformSummary = FString::Printf(
-		TEXT("Midi file '%s.mid' length conformance summary: moved %d Midi event(s) to tick %d"),
-		*MidiFileName,
-		NumEventsMovedToLastTick,
-		NewLastEventTick);
-	if (TotalNumEventsRemoved > 0)
-	{
-		MidiFileLengthConformSummary.Append(FString::Printf(TEXT("\n\tRemoved %d Midi event(s):"), TotalNumEventsRemoved));
-		if (NumNoteOnNoteOffPairsRemoved > 0) MidiFileLengthConformSummary.Append(FString::Printf(TEXT("\n\t\t%d Note On/Note off event pair(s)"), NumNoteOnNoteOffPairsRemoved));
-		if (NumControlEventsRemoved > 0) MidiFileLengthConformSummary.Append(FString::Printf(TEXT("\n\t\t%d Aftertouch / Program / Pitch Wheel / CC event(s)"), NumControlEventsRemoved));
-		MidiFileLengthConformSummary.Append(FString::Printf(TEXT("\n\tat tick %d "), NewLastEventTick));
-	}
-	UE_LOG(LogMIDI, Log, TEXT("%s"), *MidiFileLengthConformSummary);
-	
-	return true;
 }
 
 void FMidiFileData::AddTempoChange(int32 TrackIdx, int32 Tick, float TempoBPM)
@@ -913,36 +978,5 @@ void FMidiFileData::AddTimeSigChange(int32 TrackIdx, int32 Tick, int32 InTimeSig
 	Tracks[TrackIdx].AddEvent(FMidiEvent(Tick, FMidiMsg((uint8)TimeSigNum, (uint8)TimeSigDenom)));
 	Tracks[TrackIdx].Sort();
 	BarMap.AddTimeSignatureAtBarIncludingCountIn(AbsoluteBar, TimeSigNum, TimeSigDenom);
-}
-
-void FMidiFileData::ScanTracksForSongLengthChange()
-{
-	int32 NewLastEventTick = 0;
-	bool bIsFileEmpty = true;
-	for (auto& Track : Tracks)
-	{
-		FMidiEventList& Events = Track.GetRawEvents();
-		if (bIsFileEmpty && !Events.IsEmpty())
-		{
-			bIsFileEmpty = false;
-		}
-		int32 LastTickOnTrack = Events.IsEmpty() ? 0 : Events.Last().GetTick();
-		if (NewLastEventTick < LastTickOnTrack)
-		{
-			NewLastEventTick = LastTickOnTrack;
-		}
-	}
-
-	FSongLengthData& LengthData = SongMaps.GetSongLengthData();
-
-	//update length data in song length data if needed 
-	LengthData.LengthTicks = NewLastEventTick + 1;
-	LengthData.LastTick = NewLastEventTick;
-	LengthData.LengthFractionalBars = SongMaps.GetBarMap().TickToFractionalBarIncludingCountIn(LengthData.LengthTicks);
-}
-
-bool FMidiFileData::LengthIsAPerfectSubdivision() const
-{
-	return SongMaps.LengthIsAPerfectSubdivision();
 }
 

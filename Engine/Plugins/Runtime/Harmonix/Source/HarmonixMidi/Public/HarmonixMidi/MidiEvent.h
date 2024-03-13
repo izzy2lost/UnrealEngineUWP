@@ -57,7 +57,6 @@ protected:
 
 private:
 	friend struct FMidiTrack;
-	friend struct FMidiFileData;
 	friend class  UMidiFile;
 
 	UPROPERTY()

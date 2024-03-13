@@ -49,8 +49,6 @@ public:
 	bool  IsAllNotesOff() const { return Type == EType::Runtime && Status == Harmonix::Midi::Constants::GRuntimeAllNotesOffStatus; }
 	bool  IsAllNotesKill() const { return Type == EType::Runtime && Status == Harmonix::Midi::Constants::GRuntimeAllNotesKillStatus; }
 	bool  IsControlChange() const { return IsStd() && Harmonix::Midi::Constants::IsControl(Status); }
-	bool  IsTempo() const { return Type == EType::Tempo; }
-	bool  IsTimeSignature() const { return Type == EType::TimeSig; }
 
 	/** Construct a standard (std) midi message */
 	FMidiMsg(uint8 InStatus, uint8 InData1, uint8 InData2);

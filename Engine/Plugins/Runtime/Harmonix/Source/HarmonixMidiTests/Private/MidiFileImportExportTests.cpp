@@ -33,7 +33,7 @@ namespace HarmonixMidiTests::ImportExportTests
 	*	1 Note On / Note Off pair and 1 Text event will be added to the tick position of that fractional bar length
 	*	(Note On and Note Off events are 1 tick away so they don't end up on the same tick)
 	*/
-	void AddEventsToTestMidiFile(UMidiFile* InMidiFile, int32 InNumTracksExcludingConductorTrack, int32 InNumChannels, float InFileLengthBars)
+	void AddEventsToTestMidiFile(UMidiFile* InMidiFile, int32 InNumTracks, int32 InNumChannels, float InFileLengthBars)
 	{
 		constexpr int32 DefaultNoteNumber = 60;//C4
 		constexpr int32 DefaultNoteVelocity = 90;
@@ -44,66 +44,56 @@ namespace HarmonixMidiTests::ImportExportTests
 		constexpr uint8 DefaultPolyPressNoteNumber = 62;
 		constexpr uint8 DefaultPolyPresValue = 127;
 
-		// these will be useful below...
-		const FSongMaps* SongMaps =  InMidiFile->GetSongMaps();
-		const FBarMap& BarMap =SongMaps->GetBarMap();
-		
 		//Add events to track 1 - InNumTracks, Track 0 is the conductor track
-		for (int32 TrackIndex = 1; TrackIndex < (InNumTracksExcludingConductorTrack + 1); ++TrackIndex)
+		for (int32 TrackIndex = 1; TrackIndex < InNumTracks; ++TrackIndex)
 		{
 			FMidiTrack* CurrentTrack = InMidiFile->GetTrack(TrackIndex);
 			for (int32 Channel = 0; Channel < InNumChannels; ++Channel)
 			{
 				for (int32 Bar = 0; Bar < FMath::CeilToInt32(InFileLengthBars); ++Bar)
 				{
-					int32 DestinationTick = BarMap.BarBeatTickIncludingCountInToTick(Bar, 1, 0);
-					int32 Duration = SongMaps->SubdivisionToMidiTicks(EMidiClockSubdivisionQuantization::Beat, DestinationTick) - 1;
-					AddNoteOnNoteOffPairToFile(InMidiFile, DefaultNoteNumber, DefaultNoteVelocity, TrackIndex, Channel, DestinationTick, Duration);
+					AddNoteOnNoteOffPairsToFile(InMidiFile, DefaultNoteNumber, DefaultNoteVelocity, TrackIndex, Channel, (float)Bar);
 
 					//Currently, Midi CC events & Midi Text events are added to bars with EVEN bar numbers,
 					//Midi Poly Press & Pitch Bend event are added to bars with ODD bar numbers
 					if (Bar % 2 == 0)
 					{
 						//Add Control Events to each channels/tracks
-						AddCCEventToFile(InMidiFile, DefaultControllerID, DefaultNoteNumber, TrackIndex, Channel, DestinationTick);
+						AddCCEventsToFile(InMidiFile, DefaultControllerID, DefaultNoteNumber, TrackIndex, Channel, (float)Bar);
 						//Add Text events to tracks
-						AddTextEventToFile(InMidiFile, TEXT("TextInMidiFile"), TrackIndex, DestinationTick);
+						AddTextEventsToFile(InMidiFile, TEXT("TextInMidiFile"), TrackIndex, Bar);
 					}
 					else
 					{
 						//Add pitch bend events to channels/tracks
-						AddPitchEventToFile(InMidiFile, DefaultPitchBendValueLSB, DefaultPitchBendValueMSB, TrackIndex, Channel, DestinationTick);
+						AddPitchEventsToFile(InMidiFile, DefaultPitchBendValueLSB, DefaultPitchBendValueMSB, TrackIndex, Channel, (float)Bar);
 						//Add Poly Pres events to channels/tracks
-						AddPolyPresEventToFile(InMidiFile, DefaultPolyPressNoteNumber, DefaultPolyPresValue, TrackIndex, Channel, DestinationTick);
+						AddPolyPresEventsToFile(InMidiFile, DefaultPolyPressNoteNumber, DefaultPolyPresValue, TrackIndex, Channel, (float)Bar);
 					}
 				}
 				//if bar length is a fractional number, add additional midi events after the last integer bar
 				if (InFileLengthBars != (int32)InFileLengthBars)
 				{
-					int32 DestinationTick = BarMap.FractionalBarIncludingCountInToTick(InFileLengthBars) - 1;
-					int32 Duration = SongMaps->SubdivisionToMidiTicks(EMidiClockSubdivisionQuantization::Beat, DestinationTick) - 1;
-					int32 NoteDestinationTick = DestinationTick - (Duration + 1);
-
 					//This will end up getting removed
-					AddNoteOnNoteOffPairToFile(InMidiFile, DefaultNoteNumber, DefaultNoteVelocity, TrackIndex, Channel, NoteDestinationTick, Duration);
+					AddNoteOnNoteOffPairsToFile(InMidiFile, DefaultNoteNumber, DefaultNoteVelocity, TrackIndex, Channel, InFileLengthBars);
 					//Add 2 CC Events (same controller ID) to test the conform function where it should remove events with the same type on the last tick
-					AddCCEventToFile(InMidiFile, DefaultControllerID, DefaultControlValue, TrackIndex, Channel, DestinationTick);
-					AddCCEventToFile(InMidiFile, DefaultControllerID, DefaultControlValue + 1, TrackIndex, Channel, DestinationTick);
+					AddCCEventsToFile(InMidiFile, DefaultControllerID, DefaultControlValue, TrackIndex, Channel, InFileLengthBars);
+					AddCCEventsToFile(InMidiFile, DefaultControllerID, DefaultControlValue + 1, TrackIndex, Channel, InFileLengthBars);
 
 					//Add 2 Pitch Bend Events to test the conform function where it should remove events with the same type on the last tick
-					AddPitchEventToFile(InMidiFile, DefaultPitchBendValueLSB, DefaultPitchBendValueMSB, TrackIndex, Channel, DestinationTick);
-					AddPitchEventToFile(InMidiFile, DefaultPitchBendValueLSB + 1, DefaultPitchBendValueMSB + 1, TrackIndex, Channel, DestinationTick);
+					AddPitchEventsToFile(InMidiFile, DefaultPitchBendValueLSB, DefaultPitchBendValueMSB, TrackIndex, Channel, InFileLengthBars);
+					AddPitchEventsToFile(InMidiFile, DefaultPitchBendValueLSB + 1, DefaultPitchBendValueMSB + 1, TrackIndex, Channel, InFileLengthBars);
 
 					//Add 2 Pitch Bend Events to test the conform function where it should remove events with the same type on the last tick
-					AddPolyPresEventToFile(InMidiFile, DefaultPolyPressNoteNumber, DefaultPolyPresValue, TrackIndex, Channel, DestinationTick);
-					AddPolyPresEventToFile(InMidiFile, DefaultPolyPressNoteNumber, DefaultPolyPresValue + 1, TrackIndex, Channel, DestinationTick);
+					AddPolyPresEventsToFile(InMidiFile, DefaultPolyPressNoteNumber, DefaultPolyPresValue, TrackIndex, Channel, InFileLengthBars);
+					AddPolyPresEventsToFile(InMidiFile, DefaultPolyPressNoteNumber, DefaultPolyPresValue + 1, TrackIndex, Channel, InFileLengthBars);
 				}
 			}
 			InMidiFile->GetTrack(TrackIndex)->Sort();
 		}
 
 		//update file information in SongLengthData
-		InMidiFile->ScanTracksForSongLengthChange();
+		InMidiFile->TracksChanged();
 	}
 
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -115,8 +105,7 @@ namespace HarmonixMidiTests::ImportExportTests
 		//input test values for creating a midi file
 		const float FileLengthBars = 5.5f;
 		const int32 NumChannels = 2;
-		const int32 NumTracksIncludingConductorTrack = 4;
-		const int32 NumTracksExcludingConductorTrack = NumTracksIncludingConductorTrack - 1;
+		const int32 NumTracks = 4;
 		const int32 TimeSigNum6 = 6;
 		const int32 TimeSigDenum8 = 8;
 		const int32 TimeSigNum4 = 4;
@@ -124,9 +113,9 @@ namespace HarmonixMidiTests::ImportExportTests
 		const int32 Tempo = 120;
 		
 		//create an empty midi file to test for rounding to nearest (down)
-		UMidiFile* GeneratedMidiFile = CreateAndInitializaMidiFile(FileLengthBars, NumTracksIncludingConductorTrack, TimeSigNum4, TimeSigDenum4, Tempo, true);
+		UMidiFile* GeneratedMidiFile = BuildMidiFile(FileLengthBars, NumChannels, NumTracks, TimeSigNum4, TimeSigDenum4, Tempo);
 		//Add some events to the midi file for testing 
-		AddEventsToTestMidiFile(GeneratedMidiFile, NumTracksExcludingConductorTrack, NumChannels, FileLengthBars);
+		AddEventsToTestMidiFile(GeneratedMidiFile, NumTracks, NumChannels, FileLengthBars);
 
 		TArray<uint8> StdMidiFileBytes;
 		TSharedPtr<FMemoryWriter> StdMidiFileOut = MakeShared<FMemoryWriter>(StdMidiFileBytes, true);
@@ -153,8 +142,7 @@ namespace HarmonixMidiTests::ImportExportTests
 		//input test values for creating a midi file
 		const float FileLengthBars = 5.5f;
 		const int32 NumChannels = 2;
-		const int32 NumTracksIncludingConductorTrack = 4;
-		const int32 NumTracksExcludingConductorTrack = NumTracksIncludingConductorTrack - 1;
+		const int32 NumTracks = 4;
 		const int32 TimeSigNum6 = 6;
 		const int32 TimeSigDenum8 = 8;
 		const int32 TimeSigNum4 = 4;
@@ -162,9 +150,9 @@ namespace HarmonixMidiTests::ImportExportTests
 		const int32 Tempo = 120;
 
 		//create an empty midi file to test for rounding to nearest (down)
-		UMidiFile* GeneratedMidiFile = CreateAndInitializaMidiFile(FileLengthBars, NumTracksIncludingConductorTrack, TimeSigNum4, TimeSigDenum4, Tempo, true);
+		UMidiFile* GeneratedMidiFile = BuildMidiFile(FileLengthBars, NumChannels, NumTracks, TimeSigNum4, TimeSigDenum4, Tempo);
 		//Add some events to the midi file for testing 
-		AddEventsToTestMidiFile(GeneratedMidiFile, NumTracksExcludingConductorTrack, NumChannels, FileLengthBars);
+		AddEventsToTestMidiFile(GeneratedMidiFile, NumTracks, NumChannels, FileLengthBars);
 
 		TArray<uint8> StdMidiFileBytes;
 		TSharedPtr<FMemoryWriter> StdMidiFileOut = MakeShared<FMemoryWriter>(StdMidiFileBytes, true);

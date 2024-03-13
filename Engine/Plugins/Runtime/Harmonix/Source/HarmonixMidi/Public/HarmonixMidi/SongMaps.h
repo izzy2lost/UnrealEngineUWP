@@ -14,14 +14,6 @@ class FStdMidiFileReader;
 class FSongMapReceiver;
 class UMidiFile;
 
-UENUM()
-enum class EMidiFileQuantizeDirection : uint8
-{
-	Nearest,
-	Up,
-	Down
-};
-
 UENUM(BlueprintType)
 enum class EMidiClockSubdivisionQuantization : uint8
 {
@@ -54,14 +46,14 @@ public:
 	UPROPERTY()
 	int32 LengthTicks = 0;
 	UPROPERTY()
-	float LengthFractionalBars = 0.0f;
+	int32 LengthBars = 0;
 	UPROPERTY()
 	int32 LastTick = 0;
 
 	bool operator==(const FSongLengthData& Other) const
 	{
 		return	LengthTicks == Other.LengthTicks &&
-				LengthFractionalBars == Other.LengthFractionalBars && 
+				LengthBars == Other.LengthBars && 
 				LastTick == Other.LastTick;
 	}
 };
@@ -147,8 +139,7 @@ public:
 	void                  EmptyBarMap() { BarMap.Empty(); }
 	void                  SetLengthTotalBars(int32 Bars);
 	int32                 CalculateMidiTick(const FMusicTimestamp& Timestamp, const EMidiClockSubdivisionQuantization Quantize) const;
-	int32                 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const int32 AtTick) const;
-	int32                 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const FTimeSignature& TimeSignature) const;
+	int32                 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const int32 Tick) const;
 	static float          SubdivisionToBeats(EMidiClockSubdivisionQuantization Subdivision, const FTimeSignature& TimeSignature);
 
 
@@ -186,17 +177,9 @@ public:
 	const FSongLengthData& GetSongLengthData() const { return LengthData; }
 	float GetSongLengthMs() const;
 	int32 GetSongLengthBeats() const;
-	float GetSongLengthFractionalBars() const;
+	int32 GetSongLengthBars() const;
 
 	int32 GetTicksPerQuarterNote() const { return TicksPerQuarterNote; }
-
-	void SetSongLengthTicks(int32 NewLengthTicks);
-	bool LengthIsAPerfectSubdivision() const;
-
-	int32 QuantizeTickToAnyNearestSubdivision(int32 InTick, EMidiFileQuantizeDirection Direction, EMidiClockSubdivisionQuantization& Division) const;
-	int32 QuantizeTickToNearestSubdivision(int32 InTick, EMidiFileQuantizeDirection Direction, EMidiClockSubdivisionQuantization Division) const;
-	void GetTicksForNearestSubdivision(int32 InTick, EMidiClockSubdivisionQuantization Division, int32& LowerTick, int32& UpperTick) const;
-	FString GetSongLengthString() const;
 
 protected:
 	friend class FSongMapReceiver;

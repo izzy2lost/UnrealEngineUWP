@@ -521,9 +521,9 @@ float UMusicClockComponent::GetSongLengthBeats() const
 	return GetSongMaps().GetSongLengthBeats();
 }
 
-float UMusicClockComponent::GetSongLengthBars() const
+int32 UMusicClockComponent::GetSongLengthBars() const
 {
-	return GetSongMaps().GetSongLengthFractionalBars();
+	return GetSongMaps().GetSongLengthBars();
 }
 
 float UMusicClockComponent::GetSongRemainingMs(ECalibratedMusicTimebase Timebase) const

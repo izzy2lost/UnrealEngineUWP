@@ -3,15 +3,8 @@
 #include "MidiFileDetailCustomization.h"
 #include "HarmonixMidi/MidiFile.h"
 #include "Math/UnitConversion.h"
-#include "MidiFileFactory.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixMIDIEditor"
-
-void FMidiFileDetailCustomization::CustomizeDetails(const TSharedPtr<IDetailLayoutBuilder>& InDetailBuilder)
-{
-	DetailBuilder = InDetailBuilder;
-	CustomizeDetails(*DetailBuilder);
-}
 
 void FMidiFileDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 {
@@ -38,16 +31,185 @@ void FMidiFileDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Detail
 	MidiFile = Objects.Last();
 	TWeakObjectPtr<UMidiFile> MidiFileBeingEdited = Cast<UMidiFile>(MidiFile);
 	
-	//Detail Customization for the File Length Row
-	LengthRow = &MidiFileLengthCategory.AddCustomRow(FText::FromString("Midi File Length"));
-	LengthRow->NameContent()
-		[
-			SNew(STextBlock)
-			.Text(FText::FromString("File Length"))
-			.Font(IDetailLayoutBuilder::GetDetailFont())
-		];
+	//determine if file length is already conformed during import:
+	//if it's already conformed just display the conformed length otherwise the original fractional length
+	int32 MidiFileLengthConformed = MidiFileBeingEdited->GetSongMaps()->GetSongLengthData().LengthBars;
+	float MidiFileFractionalLength = MidiFileBeingEdited->GetSongMaps()->GetBarIncludingCountInAtTick(MidiFileBeingEdited->GetLastEventTick());
+	if (MidiFileBeingEdited->bLengthRoundedUp)
+	{
+		//if the file length is 1 bar, it CANNOT be rounded down to 0 bar
+		//otherwise still allowing it to be conformed by rounding down by showing a message on a  tooptip 
+		if (MidiFileLengthConformed != 1)
+		{
+			RoundedLengthToolTipText = FText::FromString(FString::Printf(TEXT("*rounded up from file length of %.3f bars, can still round down"), MidiFileFractionalLength));
+			FileLengthText = FText::FromString(FString::Printf(TEXT("%d Bar(s)*"), MidiFileLengthConformed));
+		}
+		else {
+			RoundedLengthToolTipText = FText::FromString(TEXT(""));
+			FileLengthText = FText::FromString(FString::Printf(TEXT("%d Bar(s)"), MidiFileLengthConformed));
+		}
 
-	BuildLengthRow(MidiFileBeingEdited.Get());
+	}
+	else if (MidiFileBeingEdited->bLengthRoundedDown)
+	{
+		RoundedLengthToolTipText = FText::FromString(TEXT(""));
+		FileLengthText = FText::FromString(FString::Printf(TEXT("%d Bar(s)"), MidiFileLengthConformed));
+	}
+	else {
+		RoundedLengthToolTipText = FText::FromString(TEXT(""));
+		//if the file doesn't need to be conformed (and hence never conformed), display the integer bar length, otherwise display fractional bar length
+		if (!MidiFileBeingEdited->ShouldConformMidiFileLength(EMidiFileLengthConformOption::RoundDown) && !MidiFileBeingEdited->ShouldConformMidiFileLength(EMidiFileLengthConformOption::RoundUp))
+		{
+			FileLengthText = FText::FromString(FString::Printf(TEXT("%d Bar(s)"), MidiFileLengthConformed));
+		}
+		else {
+			FileLengthText = FText::FromString(FString::Printf(TEXT("%.3f Bar(s)"), MidiFileFractionalLength));
+		}
+	}
+
+	//determine whether the file length should be conformed, disable buttons if not
+	auto ShouldConformRoundDown = [MidiFileBeingEdited]
+	{
+		return MidiFileBeingEdited->ShouldConformMidiFileLength(EMidiFileLengthConformOption::RoundDown);
+	};
+
+	auto ShouldConformRoundUp = [this,MidiFileBeingEdited,&MidiFileLengthCategory]
+	{
+		return MidiFileBeingEdited->ShouldConformMidiFileLength(EMidiFileLengthConformOption::RoundUp);
+	};
+
+	auto ShouldConformRoundToNearest = [MidiFileBeingEdited]
+	{
+		return MidiFileBeingEdited->ShouldConformMidiFileLength(EMidiFileLengthConformOption::Nearest);
+	};
+
+
+	//conform buttons OnClick callback function
+	auto OnLengthConformedRoundDown = [this, MidiFileBeingEdited, &MidiFileLengthCategory,MidiFileFractionalLength]
+	{
+		if (MidiFileBeingEdited.IsValid())
+			MidiFileBeingEdited->ConformMidiFileLength(EMidiFileLengthConformOption::RoundDown);
+
+		//update display text for file length
+		FileLengthText = FText::FromString(FString::Printf(TEXT("%d Bar(s)"), MidiFileBeingEdited->GetSongMaps()->GetSongLengthData().LengthBars));
+		FileLengthTextBlock->SetText(FileLengthText);
+		RoundedLengthToolTipText = FText::FromString(TEXT(""));
+		FileLengthTextBlock->SetToolTipText(RoundedLengthToolTipText);
+
+		return FReply::Handled();
+	};
+
+	auto OnLengthConformedRoundUp = [this, MidiFileBeingEdited, &MidiFileLengthCategory,MidiFileFractionalLength]
+	{
+		if (MidiFileBeingEdited.IsValid())
+			MidiFileBeingEdited->ConformMidiFileLength(EMidiFileLengthConformOption::RoundUp);
+		
+		//update display text for file length
+		FileLengthText = FText::FromString(FString::Printf(TEXT("%d Bar(s)*"), MidiFileBeingEdited->GetSongMaps()->GetSongLengthData().LengthBars));
+		FileLengthTextBlock->SetText(FileLengthText);
+		RoundedLengthToolTipText = FText::FromString(FString::Printf(TEXT("*rounded up from file length of %.3f bars, can still round down"), MidiFileFractionalLength));
+		FileLengthTextBlock->SetToolTipText(RoundedLengthToolTipText);
+
+		return FReply::Handled();
+	};
+
+	auto OnLengthConformedRoundToNearest = [this, MidiFileBeingEdited, &MidiFileLengthCategory, MidiFileFractionalLength]
+	{
+		if (MidiFileBeingEdited.IsValid())
+			MidiFileBeingEdited->ConformMidiFileLength(EMidiFileLengthConformOption::Nearest);
+
+	
+		if (MidiFileBeingEdited->bLengthRoundedDown && MidiFileBeingEdited->bLengthRoundedToNearest)
+		{
+			FileLengthText = FText::FromString(FString::Printf(TEXT("%d Bar(s)"), MidiFileBeingEdited->GetSongMaps()->GetSongLengthData().LengthBars));
+			RoundedLengthToolTipText = FText::FromString(TEXT(""));
+		}
+
+		if (MidiFileBeingEdited->bLengthRoundedUp && MidiFileBeingEdited->bLengthRoundedToNearest)
+		{
+			FileLengthText = FText::FromString(FString::Printf(TEXT("%d Bar(s)*"), MidiFileBeingEdited->GetSongMaps()->GetSongLengthData().LengthBars));
+			RoundedLengthToolTipText = FText::FromString(FString::Printf(TEXT("*rounded up from file length of %.3f bars, can still round down"), MidiFileFractionalLength));
+		}
+		 
+		FileLengthTextBlock->SetText(FileLengthText);
+		FileLengthTextBlock->SetToolTipText(RoundedLengthToolTipText);
+
+		return FReply::Handled();
+	};
+
+	//Detail Customization for the File Length Row
+	MidiFileLengthCategory.AddCustomRow(FText::FromString("Midi File Length"))
+	.NameContent()
+	[
+		SNew(STextBlock)
+		.Text(FText::FromString("File Length"))
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+	]
+	.ValueContent()
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.HAlign(HAlign_Left)
+		.VAlign(VAlign_Center)
+		.FillWidth(0.9f)
+		[
+			SAssignNew(FileLengthTextBlock,STextBlock)
+			.Text(FileLengthText)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.ToolTipText(RoundedLengthToolTipText)
+		]
+		+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			.FillWidth(0.1f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text(FText::FromString("Conform file length to a whole bar by: "))
+			]
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			[
+				SNew(SButton)
+				.VAlign(VAlign_Center)
+				.Text(FText::FromString("Round to Nearest"))
+				.OnClicked_Lambda(OnLengthConformedRoundToNearest)
+				.IsEnabled_Lambda(ShouldConformRoundToNearest)
+			]
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			.Padding(10, 0)
+			[
+				SNew(SButton)
+				.VAlign(VAlign_Center)
+				.Text(FText::FromString("Round Down"))
+				.OnClicked_Lambda(OnLengthConformedRoundDown)
+				.IsEnabled_Lambda(ShouldConformRoundDown)
+			]
+			+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+			[
+				SNew(SButton)
+				.VAlign(VAlign_Center)
+				.Text(FText::FromString("Round Up"))
+				.OnClicked_Lambda(OnLengthConformedRoundUp)
+				.IsEnabled_Lambda(ShouldConformRoundUp)
+			]
+
+		]
+	];
 
 	IDetailCategoryBuilder& TrackInfoCategory = DetailLayout.EditCategory(TEXT("Track Info"), LOCTEXT("TrackInfo", "Tracks:"));
 	const UMidiFile::FMidiTrackList& Tracks = MidiFileBeingEdited->GetTracks();
@@ -98,142 +260,4 @@ void FMidiFileDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Detail
 		];
 	}
 }
-
-void FMidiFileDetailCustomization::BuildLengthRow(UMidiFile* TheMidiFile)
-{
-	bool bLengthIsAPerfectSubdivision = TheMidiFile->GetSongMaps()->LengthIsAPerfectSubdivision();
-	if (bLengthIsAPerfectSubdivision)
-	{
-		FileLengthText = FText::FromString(TheMidiFile->GetSongMaps()->GetSongLengthString());
-	}
-	else
-	{
-		FileLengthText = FText::Format(LOCTEXT("NonQualtizedMIDIFileLength", "{0} (Warning: File is not quantized to any standard musical subdivision.)"),
-			FText::FromString(TheMidiFile->GetSongMaps()->GetSongLengthString()));
-	}
-
-	//conform buttons OnClick callback function
-	auto OnLengthConformTrivial = [this, TheMidiFile]
-		{
-			TheMidiFile->QuantizeLengthToNearestPerfectSubdivision(EMidiFileQuantizeDirection::Nearest);
-			TheMidiFile->PostEditChange();
-			BuildLengthRow(TheMidiFile);
-			return FReply::Handled();
-		};
-
-	auto OnLengthConformGross = [this, TheMidiFile]
-		{
-			int32 CurrentLengthTicks = TheMidiFile->GetSongMaps()->GetSongLengthData().LengthTicks;
-			EMidiClockSubdivisionQuantization Subdivision = EMidiClockSubdivisionQuantization::None;
-			int32 QuantizedLengthTick = TheMidiFile->GetSongMaps()->QuantizeTickToAnyNearestSubdivision(CurrentLengthTicks, EMidiFileQuantizeDirection::Nearest, Subdivision);
-			UMidiFileFactory::AskOrDoGrossConform(TheMidiFile, false, nullptr, CurrentLengthTicks, QuantizedLengthTick, Subdivision);
-			TheMidiFile->PostEditChange();
-			BuildLengthRow(TheMidiFile);
-			return FReply::Handled();
-		};
-
-	bool bLengthBoxIsNew = false;
-	if (!LengthBox.IsValid())
-	{
-		bLengthBoxIsNew = true;
-		LengthRow->ValueContent()
-			[
-				SAssignNew(LengthBox, SHorizontalBox)
-			];
-	}
-	LengthBox->ClearChildren();
-
-	if (bLengthIsAPerfectSubdivision)
-	{
-		LengthBox->AddSlot()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.AutoWidth()
-			[
-				SAssignNew(FileLengthTextBlock, STextBlock)
-					.Text(FileLengthText)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.ColorAndOpacity(FLinearColor::White)
-					.ToolTipText(RoundedLengthToolTipText)
-			];
-	}
-	else if (UMidiFileFactory::LengthCanBeTriviallyConformed(TheMidiFile))
-	{
-		LengthBox->AddSlot()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.AutoWidth()
-			[
-				SAssignNew(FileLengthTextBlock, STextBlock)
-					.Text(FileLengthText)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.ColorAndOpacity(FLinearColor::Yellow)
-					.ToolTipText(RoundedLengthToolTipText)
-			];
-		LengthBox->AddSlot()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.AutoWidth()
-			[
-				SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.HAlign(HAlign_Right)
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					.Padding(10.0f, 0.0f, 0.0f, 0.0f)
-					[
-						SNew(STextBlock)
-							.Font(IDetailLayoutBuilder::GetDetailFont())
-							.Text(LOCTEXT("ConformByPrompt", "MIDI file is only a tick or two away from a musical subdivision: "))
-					]
-					+ SHorizontalBox::Slot()
-					.HAlign(HAlign_Left)
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					[
-						SNew(SButton)
-							.VAlign(VAlign_Center)
-							.Text(LOCTEXT("ConformTrivial", "Conform To Nearest Subdivision"))
-							.OnClicked_Lambda(OnLengthConformTrivial)
-					]
-			];
-	}
-	else
-	{
-		LengthBox->AddSlot()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.AutoWidth()
-			[
-				SAssignNew(FileLengthTextBlock, STextBlock)
-					.Text(FileLengthText)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.ColorAndOpacity(bLengthIsAPerfectSubdivision ? FLinearColor::White : FLinearColor::Yellow)
-					.ToolTipText(RoundedLengthToolTipText)
-			];
-		LengthBox->AddSlot()
-			.HAlign(HAlign_Right)
-			.VAlign(VAlign_Center)
-			.AutoWidth()
-			[
-				SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.HAlign(HAlign_Left)
-					.VAlign(VAlign_Center)
-					.Padding(30.0f, 0.0f, 0.0f, 0.0f)
-					.AutoWidth()
-					[
-						SNew(SButton)
-							.VAlign(VAlign_Center)
-							.Text(LOCTEXT("ConformByWorkflow", "Conform..."))
-							.OnClicked_Lambda(OnLengthConformGross)
-					]
-			];
-	}
-	if (!bLengthBoxIsNew)
-	{
-		LengthBox->Invalidate(EInvalidateWidgetReason::Layout);
-	}
-}
-
 #undef LOCTEXT_NAMESPACE
