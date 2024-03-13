@@ -212,13 +212,11 @@ const FOnAnimatablePropertyChanged* FSequencerObjectChangeListener::FindProperty
 
 	if (const FOnAnimatablePropertyChanged* DelegatePtr = PropertyChangedEventMap.Find(PropertyKey))
 	{
-		FString PropertyVarName = PropertyOrContainer->GetName();
-
-		// If this is a bool property, strip off the 'b' so that the "Set" functions to be 
-		// found are, for example, "SetHidden" instead of "SetbHidden"
-		if (PropertyKey.PropertyTypeName == "BoolProperty")
+		// Skip deprecated properties
+		static const FName NAME_DeprecatedProperty = TEXT("DeprecatedProperty");
+		if (PropertyOrContainer->HasAnyPropertyFlags(CPF_Deprecated) || PropertyOrContainer->HasMetaData(NAME_DeprecatedProperty))
 		{
-			PropertyVarName.RemoveFromStart("b", ESearchCase::CaseSensitive);
+			return nullptr;
 		}
 
 		// Interp properties are always keyable
@@ -246,6 +244,15 @@ const FOnAnimatablePropertyChanged* FSequencerObjectChangeListener::FindProperty
 			{
 				static const FString Set(TEXT("Set"));
 				static const FName DeprecatedFunctionName(TEXT("DeprecatedFunction"));
+
+				FString PropertyVarName = PropertyOrContainer->GetName();
+
+				// If this is a bool property, strip off the 'b' so that the "Set" functions to be 
+				// found are, for example, "SetHidden" instead of "SetbHidden"
+				if (PropertyKey.PropertyTypeName == "BoolProperty")
+				{
+					PropertyVarName.RemoveFromStart("b", ESearchCase::CaseSensitive);
+				}
 
 				FName FunctionName = FName(*(Set + PropertyVarName));
 				UFunction* Function = Class->FindFunctionByName(FunctionName);
