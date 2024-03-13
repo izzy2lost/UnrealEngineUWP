@@ -62,11 +62,7 @@ namespace EMeshPass
 		LumenFrontLayerTranslucencyGBuffer,
 		DitheredLODFadingOutMaskPass, /** A mini depth pass used to mark pixels with dithered LOD fading out. Currently only used by ray tracing shadows. */
 		NaniteMeshPass,
-		MeshDecal_DBuffer,
-		MeshDecal_SceneColorAndGBuffer,
-		MeshDecal_SceneColorAndGBufferNoNormal,
-		MeshDecal_SceneColor,
-		MeshDecal_AmbientOcclusion,
+		MeshDecal,
 		WaterInfoTextureDepthPass,
 		WaterInfoTexturePass,
 
@@ -117,11 +113,7 @@ inline const TCHAR* GetMeshPassName(EMeshPass::Type MeshPass)
 	case EMeshPass::LumenFrontLayerTranslucencyGBuffer: return TEXT("LumenFrontLayerTranslucencyGBuffer");
 	case EMeshPass::DitheredLODFadingOutMaskPass: return TEXT("DitheredLODFadingOutMaskPass");
 	case EMeshPass::NaniteMeshPass: return TEXT("NaniteMeshPass");
-	case EMeshPass::MeshDecal_DBuffer: return TEXT("MeshDecal_DBuffer");
-	case EMeshPass::MeshDecal_SceneColorAndGBuffer: return TEXT("MeshDecal_SceneColorAndGBuffer");
-	case EMeshPass::MeshDecal_SceneColorAndGBufferNoNormal: return TEXT("MeshDecal_SceneColorAndGBufferNoNormal");
-	case EMeshPass::MeshDecal_SceneColor: return TEXT("MeshDecal_SceneColor");
-	case EMeshPass::MeshDecal_AmbientOcclusion: return TEXT("MeshDecal_AmbientOcclusion");
+	case EMeshPass::MeshDecal: return TEXT("MeshDecal");
 	case EMeshPass::WaterInfoTextureDepthPass: return TEXT("WaterInfoTextureDepthPass");
 	case EMeshPass::WaterInfoTexturePass: return TEXT("WaterInfoTexturePass");
 #if WITH_EDITOR
@@ -133,9 +125,9 @@ inline const TCHAR* GetMeshPassName(EMeshPass::Type MeshPass)
 	}
 
 #if WITH_EDITOR
-	static_assert(EMeshPass::Num == 36 + 4, "Need to update switch(MeshPass) after changing EMeshPass"); // GUID to prevent incorrect auto-resolves, please change when changing the expression: {674D7D62-CFD8-4971-9A8D-CD91E5612CD8}
+	static_assert(EMeshPass::Num == 32 + 4, "Need to update switch(MeshPass) after changing EMeshPass"); // GUID to prevent incorrect auto-resolves, please change when changing the expression: {674D7D62-CFD8-4971-9A8D-CD91E5612CD8}
 #else
-	static_assert(EMeshPass::Num == 36, "Need to update switch(MeshPass) after changing EMeshPass"); // GUID to prevent incorrect auto-resolves, please change when changing the expression: {674D7D62-CFD8-4971-9A8D-CD91E5612CD8}
+	static_assert(EMeshPass::Num == 32, "Need to update switch(MeshPass) after changing EMeshPass"); // GUID to prevent incorrect auto-resolves, please change when changing the expression: {674D7D62-CFD8-4971-9A8D-CD91E5612CD8}
 #endif
 
 	checkf(0, TEXT("Missing case for EMeshPass %u"), (uint32)MeshPass);

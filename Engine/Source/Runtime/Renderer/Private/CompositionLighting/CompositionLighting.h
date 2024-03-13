@@ -18,7 +18,7 @@
 class FCompositionLighting
 {
 public:
-	FCompositionLighting(TArrayView<FViewInfo> InViews, const FSceneTextures& InSceneTextures, TUniqueFunction<bool(int32)> RequestSSAOFunction);
+	FCompositionLighting(TArrayView<const FViewInfo> InViews, const FSceneTextures& InSceneTextures, TUniqueFunction<bool(int32)> RequestSSAOFunction);
 
 	void ProcessAfterOcclusion(FRDGBuilder& GraphBuilder);
 
@@ -36,7 +36,7 @@ public:
 private:
 	void TryInit();
 
-	const TArrayView<FViewInfo> Views;
+	const TArrayView<const FViewInfo> Views;
 	const FSceneViewFamily& ViewFamily;
 	const FSceneTextures& SceneTextures;
 
