@@ -137,9 +137,9 @@ namespace Horde.Agent.Tests
 				return Task.CompletedTask;
 			}
 
-			protected override async Task<int> UpdateLogTailAsync(int tailNext, ReadOnlyMemory<byte> tailData)
+			protected override async Task<int> UpdateLogTailAsync(int tailNext, ReadOnlyMemory<byte> tailData, CancellationToken cancellationToken)
 			{
-				await Task.Delay(TimeSpan.FromSeconds(2.0));
+				await Task.Delay(TimeSpan.FromSeconds(2.0), cancellationToken);
 				return -1;
 			}
 		}
