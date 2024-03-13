@@ -758,6 +758,7 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 			void SetSkelMesh(USkeletalMeshComponent* InComponent)
 			{
 				SkeletalMeshRestoreState.SaveState(InComponent);
+				AnimationMode = InComponent->GetAnimationMode();
 			}
 
 			virtual void RestoreState(UObject& InObject, const UE::MovieScene::FRestoreStateParams& Params) override
@@ -921,6 +922,11 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 								SkeletalMeshComponent->MarkRenderTransformDirty();
 								SkeletalMeshComponent->MarkRenderDynamicDataDirty();
 								SkeletalMeshRestoreState.RestoreState(SkeletalMeshComponent);
+
+								if (SkeletalMeshComponent->GetAnimationMode() != AnimationMode)
+								{
+									SkeletalMeshComponent->SetAnimationMode(AnimationMode);
+								}
 							}
 						}
 						//only unbind if not a component
@@ -942,7 +948,7 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 			TArray< TNameAndValue<FVector2D> > Vector2DValues;
 			TArray< TNameAndValue<FEulerTransform> > TransformValues;
 			FSkeletalMeshRestoreState SkeletalMeshRestoreState;
-
+			EAnimationMode::Type AnimationMode;
 		};
 
 
