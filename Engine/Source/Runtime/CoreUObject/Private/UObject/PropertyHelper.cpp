@@ -292,6 +292,33 @@ const TCHAR* DelegatePropertyTools::ImportDelegateFromText( FScriptDelegate& Del
 namespace UE
 {
 
+#if WITH_EDITORONLY_DATA
+FPropertyTypeName FindOriginalType(const FStructProperty* Struct)
+{
+	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
+	if (Context && Context->bImpersonateProperties)
+	{
+		const FString* OriginalType = Struct->FindMetaData(NAME_OriginalType);
+		if (!OriginalType)
+		{
+			//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
+			if (FField* OwnerField = Struct->Owner.ToField())
+			{
+				OriginalType = OwnerField->FindMetaData(NAME_OriginalType);
+			}
+		}
+		if (OriginalType)
+		{
+			if (UE::FPropertyTypeNameBuilder Type; Type.TryParse(*OriginalType))
+			{
+				return Type.Build();
+			}
+		}
+	}
+	return {};
+}
+#endif // WITH_EDITORONLY_DATA
+
 static FCoreRedirectObjectName BuildCoreRedirectObjectName(FPropertyTypeName TypeName)
 {
 	FName OuterName;
@@ -371,7 +398,7 @@ static bool FindRedirectForProperty(FPropertyTypeName OldType, FPropertyTypeName
 
 	// If the type in the tag matches the field then skip looking for redirects.
 	// This is necessary to handle redirects where the old name continues to be used.
-	FCoreRedirectObjectName OldNameRedirect = BuildCoreRedirectObjectName(OldType);
+	const FCoreRedirectObjectName OldNameRedirect = BuildCoreRedirectObjectName(OldType);
 	if (Field && Field->GetFName() == OldNameRedirect.ObjectName)
 	{
 		return false;
@@ -387,12 +414,32 @@ static bool FindRedirectForProperty(FPropertyTypeName OldType, FPropertyTypeName
 
 	// If a partial match does not match the field then repeat the lookup without allowing partial matches.
 	// This is necessary to handle redirects of the original type of a property that changed type.
-	if (Field && Field->GetFName() != NewNameRedirect.ObjectName)
+	if (Field)
 	{
-		NewNameRedirect = FCoreRedirects::GetRedirectedName(FTraits::GetFlags(), OldNameRedirect, ECoreRedirectMatchFlags::None);
-		if (OldNameRedirect == NewNameRedirect)
+		FName FieldName = Field->GetFName();
+
+	#if WITH_EDITORONLY_DATA
+		// Compare against the original type of an impersonated struct.
+		if constexpr (std::is_same_v<PropertyType, FStructProperty>)
 		{
-			return false;
+			if (const FPropertyTypeName OriginalType = FindOriginalType(Property); !OriginalType.IsEmpty())
+			{
+				FieldName = OriginalType.GetName();
+				if (FieldName == OldNameRedirect.ObjectName)
+				{
+					return false;
+				}
+			}
+		}
+	#endif // WITH_EDITORONLY_DATA
+
+		if (FieldName != NewNameRedirect.ObjectName)
+		{
+			NewNameRedirect = FCoreRedirects::GetRedirectedName(FTraits::GetFlags(), OldNameRedirect, ECoreRedirectMatchFlags::None);
+			if (OldNameRedirect == NewNameRedirect)
+			{
+				return false;
+			}
 		}
 	}
 

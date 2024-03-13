@@ -456,35 +456,6 @@ void FStructProperty::AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) c
 }
 #endif
 
-#if WITH_EDITORONLY_DATA
-static const FName NAME_StructOriginalType(ANSITEXTVIEW("OriginalType"));
-
-static UE::FPropertyTypeName FindOriginalType(const FStructProperty* Struct)
-{
-	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
-	if (Context && Context->bImpersonateProperties)
-	{
-		const FString* OriginalType = Struct->FindMetaData(NAME_StructOriginalType);
-		if (!OriginalType)
-		{
-			//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
-			if (FField* OwnerField = Struct->Owner.ToField())
-			{
-				OriginalType = OwnerField->FindMetaData(NAME_StructOriginalType);
-			}
-		}
-		if (OriginalType)
-		{
-			if (UE::FPropertyTypeNameBuilder Type; Type.TryParse(*OriginalType))
-			{
-				return Type.Build();
-			}
-		}
-	}
-	return {};
-}
-#endif // WITH_EDITORONLY_DATA
-
 bool FStructProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
 	if (!Super::LoadTypeName(Type, Tag))
@@ -515,7 +486,7 @@ void FStructProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 
 	Type.BeginParameters();
 #if WITH_EDITORONLY_DATA
-	if (const UE::FPropertyTypeName OriginalType = FindOriginalType(this); !OriginalType.IsEmpty())
+	if (const UE::FPropertyTypeName OriginalType = UE::FindOriginalType(this); !OriginalType.IsEmpty())
 	{
 		Type.AddType(OriginalType);
 	}
@@ -554,7 +525,7 @@ bool FStructProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	}
 
 #if WITH_EDITORONLY_DATA
-	if (const UE::FPropertyTypeName OriginalType = FindOriginalType(this); !OriginalType.IsEmpty())
+	if (const UE::FPropertyTypeName OriginalType = UE::FindOriginalType(this); !OriginalType.IsEmpty())
 	{
 		return StructName == OriginalType.GetName();
 	}

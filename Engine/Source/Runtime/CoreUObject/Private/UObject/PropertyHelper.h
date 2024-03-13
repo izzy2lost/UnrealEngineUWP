@@ -3,12 +3,14 @@
 
 #include "CoreTypes.h"
 #include "Logging/LogMacros.h"
+#include "UObject/NameTypes.h"
 #include "UObject/PropertyPathName.h"
 #include "UObject/PropertyTypeName.h"
 #include "UObject/ScriptDelegateFwd.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/WeakObjectPtrFwd.h"
 
+class FStructProperty;
 class UFunction;
 class UObject;
 
@@ -78,6 +80,11 @@ namespace DelegatePropertyTools
 
 namespace UE
 {
+
+#if WITH_EDITORONLY_DATA
+inline static const FName NAME_OriginalType(ANSITEXTVIEW("OriginalType"));
+FPropertyTypeName FindOriginalType(const FStructProperty* Struct);
+#endif // WITH_EDITORONLY_DATA
 
 /**
  * Applies core redirects to type names and paths within the property type.
