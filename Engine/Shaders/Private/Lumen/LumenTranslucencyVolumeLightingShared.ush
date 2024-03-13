@@ -11,9 +11,9 @@ uint3 TranslucencyGIGridSize;
 float3 TranslucencyGIGridZParams;
 uint TranslucencyGIGridPixelSizeShift;
 
-uint UseJitter;
-float3 FrameJitterOffset; 
-float4x4 UnjitteredClipToTranslatedWorld;    
+int FroxelDirectionJitterFrameIndex;
+float3 FrameJitterOffset;
+float4x4 UnjitteredClipToTranslatedWorld;
 float GridCenterOffsetFromDepthBuffer;
 
 float ComputeDepthFromZSlice(float ZSlice)
@@ -72,7 +72,7 @@ void GetProbeTracingUV(
 
 float2 GetProbeTexelCenter(uint3 GridCoordinate)
 {
-	return Rand4DPCG32(int4(GridCoordinate.xyz, UseJitter ? View.StateFrameIndex : 0)).xy / (float)0xffffffff;
+	return Rand4DPCG32(int4(GridCoordinate.xyz, FroxelDirectionJitterFrameIndex < 0 ? 0 : FroxelDirectionJitterFrameIndex)).xy / (float)0xffffffff;
 }
 
 Texture2D FurthestHZBTexture;

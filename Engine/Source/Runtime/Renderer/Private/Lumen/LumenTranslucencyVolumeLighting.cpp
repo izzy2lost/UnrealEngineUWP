@@ -130,6 +130,12 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeHistoryWeight(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
+TAutoConsoleVariable<int32> CVarLumenTranslucencyVolumeTemporalMaxRayDirections(
+	TEXT("r.Lumen.TranslucencyVolume.Temporal.MaxRayDirections"),
+	8,
+	TEXT("Number of possible random directions from froxel center when sampling the lumen scene."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
 float GTranslucencyVolumeTraceStepFactor = 2;
 FAutoConsoleVariableRef CVarTranslucencyVolumeTraceStepFactor(
 	TEXT("r.Lumen.TranslucencyVolume.TraceStepFactor"),
@@ -585,6 +591,7 @@ FLumenTranslucencyLightingVolumeParameters GetTranslucencyLightingVolumeParamete
 {
 	const FIntPoint GridSizeXY = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), GTranslucencyFroxelGridPixelSize);
 	const float FarPlane = LumenTranslucencyVolume::GetEndDistanceFromCamera(View);
+	const uint32 ViewStateFrameIndex = View.ViewState ? View.ViewState->GetFrameIndex() : 0;
 
 	FVector ZParams;
 	int32 GridSizeZ;
@@ -597,10 +604,10 @@ FLumenTranslucencyLightingVolumeParameters GetTranslucencyLightingVolumeParamete
 	Parameters.TranslucencyGIGridPixelSizeShift = FMath::FloorLog2(GTranslucencyFroxelGridPixelSize);
 	Parameters.TranslucencyGIGridSize = TranslucencyGridSize;
 
-	Parameters.UseJitter = GTranslucencyVolumeJitter;
-	Parameters.FrameJitterOffset = (FVector3f)TranslucencyVolumeTemporalRandom(View.ViewState ? View.ViewState->GetFrameIndex() : 0);
+	Parameters.FrameJitterOffset = (FVector3f)TranslucencyVolumeTemporalRandom(ViewStateFrameIndex);
 	Parameters.UnjitteredClipToTranslatedWorld = FMatrix44f(View.ViewMatrices.ComputeInvProjectionNoAAMatrix() * View.ViewMatrices.GetTranslatedViewMatrix().GetTransposed());		// LWC_TODO: Precision loss?
 	Parameters.GridCenterOffsetFromDepthBuffer = GTranslucencyVolumeRadianceCacheGridCenterOffsetFromDepthBuffer;
+	Parameters.FroxelDirectionJitterFrameIndex = GTranslucencyVolumeJitter ? int32(ViewStateFrameIndex % FMath::Max(1, CVarLumenTranslucencyVolumeTemporalMaxRayDirections.GetValueOnRenderThread())) : -1;
 
 	Parameters.SceneTexturesStruct = View.GetSceneTextures().UniformBuffer;
 		
