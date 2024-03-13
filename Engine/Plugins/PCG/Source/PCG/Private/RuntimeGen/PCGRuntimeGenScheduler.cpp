@@ -150,6 +150,14 @@ bool FPCGRuntimeGenScheduler::ShouldTick()
 		return false;
 	}
 
+#if WITH_EDITOR
+	// Avoid ticking during open editor transactions.
+	if (GUndo)
+	{
+		return false;
+	}
+#endif
+
 	// Disable tick of editor scheduling if in runtime or PIE.
 	if (PCGHelpers::IsRuntimeOrPIE() && !World->IsGameWorld())
 	{
@@ -247,7 +255,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::CollectLocalComponents);
 
-		if (!ensure(OriginalComponent) || !OriginalComponent->GetGraph())
+		if (!ensure(OriginalComponent) || !OriginalComponent->GetGraph() || !OriginalComponent->bActivated)
 		{
 			continue;
 		}
@@ -384,7 +392,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::CollectNonPartitionedComponents);
 
-		if (!ensure(OriginalComponent) || !OriginalComponent->GetGraph())
+		if (!ensure(OriginalComponent) || !OriginalComponent->GetGraph() || !OriginalComponent->bActivated)
 		{
 			continue;
 		}
@@ -453,9 +461,17 @@ void FPCGRuntimeGenScheduler::TickCleanup(const TSet<IPCGGenSourceBase*>& InGenS
 		const uint32 GridSize = GenerationKey.GetGridSize();
 		const FIntVector& GridCoords = GenerationKey.GetGridCoords();
 		UPCGComponent* OriginalComponent = GenerationKey.GetOriginalComponent();
-		check(OriginalComponent);
-
 		const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(GridSize);
+
+		// The original component can be marked invalid by BP construction scripts, in which case we should always cleanup to avoid hanging onto dead entries.
+		if (!OriginalComponent || !IsValid(OriginalComponent) || !OriginalComponent->bActivated)
+		{
+			// If the Grid is unbounded, we should clean up the original component.
+			// Otherwise, the local component may be unrecoverable so we provide a nullptr and let the PA clean itself up.
+			UPCGComponent* ComponentToClean = Grid == EPCGHiGenGrid::Unbounded ? OriginalComponent : nullptr;
+			ComponentsToClean.Add({ GenerationKey, ComponentToClean });
+			continue;
+		}
 
 		// If the Grid is unbounded, we have a non-partitioned or unbounded component.
 		if (Grid == EPCGHiGenGrid::Unbounded)

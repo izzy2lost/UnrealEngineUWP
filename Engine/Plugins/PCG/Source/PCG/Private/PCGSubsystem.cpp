@@ -164,7 +164,7 @@ void UPCGSubsystem::Deinitialize()
 	bHasTickedOnce = false;
 
 #if WITH_EDITOR
-	ActorAndComponentMapping.TeardownTrackingCallbacks();
+	ActorAndComponentMapping.UnregisterDelegates();
 #endif // WITH_EDITOR
 
 	Super::Deinitialize();
@@ -173,6 +173,10 @@ void UPCGSubsystem::Deinitialize()
 void UPCGSubsystem::PostInitialize()
 {
 	Super::PostInitialize();
+
+#if WITH_EDITOR
+	ActorAndComponentMapping.RegisterDelegates();
+#endif
 
 	// Initialize graph executor
 	check(!GraphExecutor);
