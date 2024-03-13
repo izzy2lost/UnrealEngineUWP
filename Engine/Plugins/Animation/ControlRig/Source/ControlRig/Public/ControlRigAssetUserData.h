@@ -18,17 +18,18 @@ public:
 
 	/** If assigned, the data asset link will provide access to the data asset's content. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = General, BlueprintGetter = GetShapeLibrary, BlueprintSetter = SetShapeLibrary, Meta = (DisplayAfter="NameSpace"))
-	TObjectPtr<UControlRigShapeLibrary> ShapeLibrary;
+	TSoftObjectPtr<UControlRigShapeLibrary> ShapeLibrary;
 
 	UFUNCTION(BlueprintGetter)
-	UControlRigShapeLibrary* GetShapeLibrary() const { return ShapeLibrary; }
+	TSoftObjectPtr<UControlRigShapeLibrary> GetShapeLibrary() const { return ShapeLibrary; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetShapeLibrary(UControlRigShapeLibrary* InShapeLibrary);
+	void SetShapeLibrary(TSoftObjectPtr<UControlRigShapeLibrary> InShapeLibrary);
 
 	virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const override;
 	virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const override;
 
+	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -37,6 +38,10 @@ protected:
 
 	UPROPERTY(transient)
 	TArray<FName> ShapeNames;
+
+	UPROPERTY(transient)
+	TObjectPtr<UControlRigShapeLibrary> ShapeLibraryCached;
+	
 
 	static inline constexpr TCHAR DefaultShapePath[] = TEXT("DefaultShape");
 	static inline constexpr TCHAR ShapeNamesPath[] = TEXT("ShapeNames");
