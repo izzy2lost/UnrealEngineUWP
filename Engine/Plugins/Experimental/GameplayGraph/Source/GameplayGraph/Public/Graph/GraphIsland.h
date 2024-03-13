@@ -66,6 +66,12 @@ public:
 		}
 	}
 
+	/** Adds a single node into this island. */
+	void AddVertex(const FGraphVertexHandle& Node);
+
+	/** Removes a node from the island. */
+	void RemoveVertex(const FGraphVertexHandle& Node);
+
 	FOnGraphIslandVertexAdded OnVertexAdded;
 	FOnGraphIslandVertexRemoved OnVertexRemoved;
 	FOnGraphIslandDestroyed OnDestroyed;
@@ -81,12 +87,6 @@ protected:
 
 	/** Called when removing the island from the graph. */
 	void Destroy();
-
-	/** Adds a single node into this island. */
-	void AddVertex(const FGraphVertexHandle& Node);
-
-	/** Removes a node from the island. */
-	void RemoveVertex(const FGraphVertexHandle& Node);
 
 private:
 	UPROPERTY(SaveGame)

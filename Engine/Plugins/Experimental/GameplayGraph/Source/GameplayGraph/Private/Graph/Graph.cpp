@@ -818,21 +818,82 @@ void operator>>(const IGraphDeserialization& Input, UGraph& Graph)
 					return FGraphIslandHandle{};
 				}
 
-				TArray<FGraphVertexHandle> IslandVertices;
-				IslandVertices.Reserve(Data.Vertices.Num());
+				TArray<FGraphVertexHandle> NewIslandVertices;
+				NewIslandVertices.Reserve(Data.Vertices.Num());
+
+				// This is a fallback to handle potentially degenerate cases where serialization
+				// has said that a vertex is in more than one island. In that case, we treat each a
+				// vertex as having an "implicit edge" to itself. This means that all these islands
+				// should be merged instead of creating a new one.
+				TArray<FGraphIslandHandle> ExistingIslands;
+				UGraphIsland* TargetMergeIsland = nullptr;
 		
 				for (const FGraphVertexHandle& VertexHandle : Data.Vertices)
 				{
 					FGraphVertexHandle CompleteHandle = Graph.GetCompleteNodeHandle(VertexHandle);
-					if (CompleteHandle.IsComplete())
+					if (UGraphVertex* Vertex = CompleteHandle.GetVertex())
 					{
-						IslandVertices.Add(CompleteHandle);
+						if (UGraphIsland* ParentIsland = Vertex->GetParentIsland().GetIsland())
+						{
+							ExistingIslands.Add(ParentIsland->Handle());
+
+							if (TargetMergeIsland)
+							{
+								if (ParentIsland->Num() > TargetMergeIsland->Num())
+								{
+									TargetMergeIsland = ParentIsland;
+								}
+							}
+							else
+							{
+								TargetMergeIsland = ParentIsland;
+							}
+						}
+						else
+						{
+							NewIslandVertices.Add(CompleteHandle);
+						}
 					}
 				}
 
-				FGraphIslandHandle NewIslandHandle = Graph.CreateIsland(IslandVertices, InHandle.GetUniqueIndex());
-				AllIslands.Add(NewIslandHandle);
-				return NewIslandHandle;
+				if (ExistingIslands.IsEmpty() || !TargetMergeIsland)
+				{
+					FGraphIslandHandle NewIslandHandle = Graph.CreateIsland(NewIslandVertices, InHandle.GetUniqueIndex());
+					AllIslands.Add(NewIslandHandle);
+					return NewIslandHandle;
+				}
+				else
+				{
+					// Stick all new vertices into the target merge island. Also all the ExistingIslands will get merged into the TargetMergeIsland as well.
+					// This handles the case where this new island holds vertices that are different islands already...which would be crazy!
+					for (const FGraphVertexHandle& VertexHandle : NewIslandVertices)
+					{
+						TargetMergeIsland->AddVertex(VertexHandle);
+					}
+
+					for (const FGraphIslandHandle& IslandHandle : ExistingIslands)
+					{
+						if (IslandHandle == TargetMergeIsland->Handle())
+						{
+							continue;
+						}
+
+						if (UGraphIsland* Island = IslandHandle.GetIsland())
+						{
+							TSet<FGraphVertexHandle> IslandVertices = Island->GetVertices();
+							for (const FGraphVertexHandle& VertexHandle : IslandVertices)
+							{
+								TargetMergeIsland->AddVertex(VertexHandle);
+							}
+
+							ensure(Island->Num() == 0);
+							Graph.RemoveIsland(IslandHandle);
+						}
+					}
+
+					// Return a null handle since this is technically not a new island.
+					return FGraphIslandHandle{};
+				}
 			}
 		);
 	}

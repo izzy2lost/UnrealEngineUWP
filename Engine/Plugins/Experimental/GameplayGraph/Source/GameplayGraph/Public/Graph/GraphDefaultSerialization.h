@@ -173,6 +173,11 @@ public:
 	{
 		for (const TPair<FGraphIslandHandle, FSerializedIslandData>& Serialized : Data.Islands)
 		{
+			if (Serialized.Value.Vertices.IsEmpty())
+			{
+				continue;
+			}
+
 			FIslandConstructionData Construction;
 			Construction.Vertices = Serialized.Value.Vertices;
 
