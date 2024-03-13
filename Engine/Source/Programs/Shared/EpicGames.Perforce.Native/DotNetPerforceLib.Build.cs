@@ -19,34 +19,38 @@ namespace UnrealBuildTool.Rules
 
 			PrivateDependencyModuleNames.Add("OpenSSL");
 
-			string ApiPath = Target.UEThirdPartySourceDirectory + "Perforce/p4api-2018.1/";
+			string ApiPath = Target.UEThirdPartySourceDirectory + "Perforce/p4api-2023.2/";
 			if (Target.Platform == UnrealTargetPlatform.Linux)
 			{
-				PublicSystemIncludePaths.Add(ApiPath + "Include/Linux");
-				PublicAdditionalLibraries.Add(ApiPath + "Lib/Linux/libclient.a");
-				PublicAdditionalLibraries.Add(ApiPath + "Lib/Linux/librpc.a");
-				PublicAdditionalLibraries.Add(ApiPath + "Lib/Linux/libsupp.a");
+				PublicSystemIncludePaths.Add(ApiPath + "Linux/include");
+				PublicAdditionalLibraries.Add(ApiPath + "Linux/lib/libclient.a");
+				PublicAdditionalLibraries.Add(ApiPath + "Linux/lib/librpc.a");
+				PublicAdditionalLibraries.Add(ApiPath + "Linux/lib/libsupp.a");
+				PublicAdditionalLibraries.Add(ApiPath + "Linux/lib/libp4script_cstub.a");
 
 				PublicSystemLibraries.Add("dl");
 			}
 			else if (Target.Platform == UnrealTargetPlatform.Mac)
 			{
-				PublicIncludePaths.Add(ApiPath + "Include/Mac");
-				PublicAdditionalLibraries.Add(ApiPath + "Lib/Mac/libclient.a");
-				PublicAdditionalLibraries.Add(ApiPath + "Lib/Mac/librpc.a");
-				PublicAdditionalLibraries.Add(ApiPath + "Lib/Mac/libsupp.a");
+				PublicIncludePaths.Add(ApiPath + "Mac/include");
+				PublicAdditionalLibraries.Add(ApiPath + "Mac/lib/libclient.a");
+				PublicAdditionalLibraries.Add(ApiPath + "Mac/lib/librpc.a");
+				PublicAdditionalLibraries.Add(ApiPath + "Mac/lib/libsupp.a");
+				PublicAdditionalLibraries.Add(ApiPath + "Mac/lib/libp4script_cstub.a");
 
 				PublicFrameworks.Add("Foundation");
 				PublicFrameworks.Add("CoreFoundation");
 				PublicFrameworks.Add("CoreGraphics");
 				PublicFrameworks.Add("CoreServices");
+				PublicFrameworks.Add("Security");
 			}
 			else if (Target.Platform == UnrealTargetPlatform.Win64)
 			{
-				PublicIncludePaths.Add(ApiPath + "Include/Win64/VS2015");
-				PublicAdditionalLibraries.Add(ApiPath + "Lib/Win64/VS2015/Release/libclient.lib");
-				PublicAdditionalLibraries.Add(ApiPath + "Lib/Win64/VS2015/Release/librpc.lib");
-				PublicAdditionalLibraries.Add(ApiPath + "Lib/Win64/VS2015/Release/libsupp.lib");
+				PublicIncludePaths.Add(ApiPath + "Win64/include");
+				PublicAdditionalLibraries.Add(ApiPath + "Win64/lib/libclient.lib");
+				PublicAdditionalLibraries.Add(ApiPath + "Win64/lib/librpc.lib");
+				PublicAdditionalLibraries.Add(ApiPath + "Win64/lib/libsupp.lib");
+				PublicAdditionalLibraries.Add(ApiPath + "Win64/lib/libp4script_cstub.lib");
 			}
 		}
 	}
