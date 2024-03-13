@@ -879,7 +879,7 @@ public:
 
 private:
 
-	bool UpdatePerParticleCollisionProfilesNum();
+	GEOMETRYCOLLECTIONENGINE_API bool UpdatePerParticleCollisionProfilesNum();
 
 public:
 
@@ -1816,7 +1816,7 @@ private:
 		bool GetIsBroken(int32 TransformIndex) const;
 		bool GetHasDecayed(int32 TransformIndex) const;
 		double GetRootBrokenEventTimeInMs() const;
-		double GetRootBrokenElapsedTimeInMs() const;
+		GEOMETRYCOLLECTIONENGINE_API double GetRootBrokenElapsedTimeInMs() const;
 
 		void SetRootIsBroken(bool bIsBroken);
 		void SetIsBroken(int32 TransformIndex);
