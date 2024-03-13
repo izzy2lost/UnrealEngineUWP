@@ -4,6 +4,7 @@
 #include "AudioMaterialSlate/SAudioMaterialKnob.h"
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "AudioWidgetsStyle.h"
+#include "Framework/Application/SlateApplication.h"
 #include "SlateOptMacros.h"
 #include "Components/Widget.h"
 
@@ -11,7 +12,16 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SAudioMaterialKnob::Construct(const FArguments& InArgs)
 {
 	Owner = InArgs._Owner;
+
+	TuneSpeed = InArgs._TuneSpeed;
+	FineTuneSpeed = InArgs._FineTuneSpeed;
+	bIsFocusable = InArgs._IsFocusable;
+	bLocked = InArgs._Locked;
+	bMouseUsesStep = InArgs._MouseUsesStep;
+	StepSize = InArgs._StepSize;
+
 	AudioMaterialKnobStyle = InArgs._AudioMaterialKnobStyle;
+
 	OnValueChanged = InArgs._OnFloatValueChanged;
 	OnMouseCaptureBegin = InArgs._OnMouseCaptureBegin;
 	OnMouseCaptureEnd = InArgs._OnMouseCaptureEnd;
@@ -34,6 +44,36 @@ END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SAudioMaterialKnob::SetValue(float InValue)
 {
 	CommitValue(InValue);
+}
+
+void SAudioMaterialKnob::SetTuneSpeed(const float InTurnSpeed)
+{
+	TuneSpeed.Set(InTurnSpeed);
+}
+
+void SAudioMaterialKnob::SetFineTuneSpeed(const float InFineTuneTurnSpeed)
+{
+	FineTuneSpeed.Set(InFineTuneTurnSpeed);
+}
+
+void SAudioMaterialKnob::SetLocked(const bool InLocked)
+{
+	bLocked.Set(InLocked);
+}
+
+void SAudioMaterialKnob::SetMouseUsesStep(const bool InUsesStep)
+{
+	bMouseUsesStep.Set(InUsesStep);
+}
+
+void SAudioMaterialKnob::SetStepSize(const float InStepSize)
+{
+	StepSize.Set(InStepSize);
+}
+
+bool SAudioMaterialKnob::IsLocked() const
+{
+	return bLocked.Get();
 }
 
 UMaterialInstanceDynamic* SAudioMaterialKnob::ApplyNewMaterial()
@@ -146,15 +186,22 @@ FVector2D SAudioMaterialKnob::ComputeDesiredSize(float) const
 
 FReply SAudioMaterialKnob::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	if (this->HasMouseCapture())
+	if (this->HasMouseCapture() && !IsLocked())
 	{
 		SetCursor(EMouseCursor::GrabHandClosed);
 
 		int32 CurrentYValue = MouseEvent.GetLastScreenSpacePosition().Y;
-		const float MouseSpeed = 0.2f;
+		const float Speed = bIsFineTune ? FineTuneSpeed.Get() : TuneSpeed.Get();
 
-		float ValueDelta = (float)(MouseDownPosition.Y - CurrentYValue) / PixelDelta * MouseSpeed;
+		float ValueDelta = (float)(MouseDownPosition.Y - CurrentYValue) / PixelDelta * Speed;
 		float NewValue = FMath::Clamp(MouseDownValue + ValueDelta, 0.0f, 1.0f);
+
+		if (bMouseUsesStep.Get())
+		{
+			const float SteppedValue = FMath::RoundToInt(NewValue / StepSize.Get()) * StepSize.Get();
+			NewValue = SteppedValue;
+		}
+
 		CommitValue(NewValue);
 
 		return FReply::Handled();
@@ -165,7 +212,7 @@ FReply SAudioMaterialKnob::OnMouseMove(const FGeometry& MyGeometry, const FPoint
 
 FReply SAudioMaterialKnob::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	if ((MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton))
+	if ((MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton) && !IsLocked())
 	{
 		CachedCursor = GetCursor().Get(EMouseCursor::Default);
 
@@ -190,6 +237,37 @@ FReply SAudioMaterialKnob::OnMouseButtonUp(const FGeometry& MyGeometry, const FP
 	}
 
 	return FReply::Unhandled();
+}
+
+FReply SAudioMaterialKnob::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (InKeyEvent.GetKey() == EKeys::LeftShift)
+	{	
+		MouseDownPosition = FSlateApplication::Get().GetCursorPos();
+		MouseDownValue = ValueAttribute.Get();
+		bIsFineTune = true;
+	}
+	
+	return FReply::Unhandled();
+}
+
+FReply SAudioMaterialKnob::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	bIsFineTune = false;
+	MouseDownPosition = FSlateApplication::Get().GetCursorPos();
+	MouseDownValue = ValueAttribute.Get();
+	
+	return FReply::Unhandled();
+}
+
+bool SAudioMaterialKnob::SupportsKeyboardFocus() const
+{
+	return bIsFocusable.Get();
+}
+
+bool SAudioMaterialKnob::IsInteractable() const
+{
+	return IsEnabled() && !IsLocked() && SupportsKeyboardFocus();;
 }
 
 void SAudioMaterialKnob::CommitValue(float NewValue)

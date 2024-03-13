@@ -25,7 +25,7 @@ class AUDIOWIDGETS_API UAudioMaterialKnob : public UWidget
 
 public:
 
-	UAudioMaterialKnob();
+	UAudioMaterialKnob(const FObjectInitializer& ObjectInitializer);
 
 	/** The button's style */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))
@@ -44,13 +44,53 @@ public:
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 	// End of UVisual
 
-	/** Gets the current value of the knob.*/
+	/** Get the current value of the knob.*/
 	UFUNCTION(BlueprintPure, Category = "Behavior")
 	float GetValue();
 
-	/** Sets the current value of the knob. InValue is Clamped between 0.f - 1.f */
+	/** Set the current value of the knob. InValue is Clamped between 0.f - 1.f */
 	UFUNCTION(BlueprintCallable, Category = "Behavior")
-	void SetValue(float InValue);
+	void SetValue(float InValue);	
+	
+	/** Set the knobs tune speed. InValue is Clamped between 0.f - 1.f */
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetTuneSpeed(float InValue);	
+
+	/** Get the Knobs tune speed*/
+	UFUNCTION(BlueprintPure, Category = "Behavior")
+	float GetTuneSpeed() const;
+	
+	/** Set the knobs fine-tune speed. InValue is Clamped between 0.f - 1.f */
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetFineTuneSpeed(float InValue);
+
+	/** Get the Knobs fine-tune speed*/
+	UFUNCTION(BlueprintPure, Category = "Behavior")
+	float GetFineTuneSpeed() const;
+	
+	/** Set the knob to be interactive or fixed */
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetLocked(bool InLocked);	
+
+	/** Get whether the knob is interactive or fixed.*/
+	UFUNCTION(BlueprintPure, Category = "Behavior")
+	bool GetIsLocked() const;
+	
+	/** Set the knob to use steps when turning On Mouse move */
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetMouseUsesStep(bool InUsesStep);
+
+	/** Get whether the knob uses steps when tuning On Mouse move*/
+	UFUNCTION(BlueprintPure, Category = "Behavior")
+	bool GetMouseUsesStep() const;
+
+	/** Set the amount to adjust the value when using steps*/
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetStepSize(float InValue);
+
+	/** Get Step Size*/
+	UFUNCTION(BlueprintPure, Category = "Behavior")
+	float GetStepSize() const;
 
 public:
 
@@ -71,6 +111,26 @@ private:
 	/**Default Value of the Knob*/
 	UPROPERTY(EditAnywhere, BlueprintSetter = SetValue, BlueprintGetter = GetValue, Category = "Appearance", meta = (UIMin = "0", UIMax = "1"))
 	float Value = 1.f;
+
+	/** The tune speed of the knob */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetTuneSpeed, BlueprintGetter = GetTuneSpeed, Category = Appearance, meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float TuneSpeed;
+
+	/** The tune speed when fine-tuning the knob */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetFineTuneSpeed, BlueprintGetter = GetFineTuneSpeed, Category = Appearance, AdvancedDisplay, meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float FineTuneSpeed;
+
+	/** Whether the knob is interactive or fixed. */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetLocked, BlueprintGetter = GetIsLocked, Category = Appearance, AdvancedDisplay)
+	bool bLocked;
+
+	/** Sets new value if mouse position is greater/less than half the step size. */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetMouseUsesStep, BlueprintGetter = GetMouseUsesStep, Category = Appearance, AdvancedDisplay)
+	bool bMouseUsesStep;
+
+	/** The amount to adjust the value by, when using steps */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetStepSize, BlueprintGetter = GetStepSize, Category = Appearance, AdvancedDisplay, meta = (UIMin = "0", UIMax = "1"))
+	float StepSize;
 
 private:
 
