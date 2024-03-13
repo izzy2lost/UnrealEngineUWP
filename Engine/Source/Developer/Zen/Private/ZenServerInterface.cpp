@@ -1189,6 +1189,7 @@ ReadCbLockFile(FStringView FileName)
 
 	if (errno != EWOULDBLOCK && errno != EAGAIN)
 	{
+		close(Fd);
 		return {};
 	}
 
@@ -1199,6 +1200,7 @@ ReadCbLockFile(FStringView FileName)
 	FUniqueBuffer FileBytes = FUniqueBuffer::Alloc(FileSize);
 	if (read(Fd, FileBytes.GetData(), FileSize) == FileSize)
 	{
+		close(Fd);
 		return ReadLockData(std::move(FileBytes));
 	}
 
@@ -1256,7 +1258,7 @@ IsLockFileLocked(const TCHAR* FileName, bool bAttemptCleanUp = false)
 	flock(Fd, LOCK_UN);
 	close(Fd);
 
-	return true;
+	return false;
 #endif
 }
 
