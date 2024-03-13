@@ -969,6 +969,7 @@ namespace UnrealBuildTool
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Package", Role.Immediate, Arity.Fixed, "VPackage")
 				.Arg("Name", Role.Immediate, Arity.Fixed, "VUTF8String")
+				.Arg("UEMangledName", Role.Immediate, Arity.Fixed, "VUTF8String")
 				.Const("ClassKind", CppType.ClassKind)
 				.Const("bNative", CppType.Bool)
 				.Arg("Inherited", Role.Use, Arity.Variadic)

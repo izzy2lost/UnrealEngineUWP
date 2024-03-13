@@ -146,7 +146,9 @@ struct VClass : VType
 		Interface
 	};
 
-	VUTF8String& GetName() const { return *ClassName; }
+	FUtf8StringView GetName() const { return ClassName.Get() != nullptr ? ClassName->AsCString() : FUtf8StringView(); }
+	FUtf8StringView GetUEMangledName() const { return UEMangledName.Get() != nullptr ? UEMangledName->AsStringView() : FUtf8StringView(); }
+	FUtf8StringView ExtractClassName() const;
 	EKind GetKind() const { return Kind; }
 	bool IsNative() const { return bNative; }
 
@@ -177,16 +179,17 @@ public:
 	/**
 	 * Creates a new class.
 	 *
-	 * @param Scope       Containing package or null.
-	 * @param Name        Name or null.
-	 * @param Kind        Class, Struct or Interface.
-	 * @param Inherited   An array of base classes in order of inheritance.
-	 * @param Constructor The sequence of fields and blocks in the class body.
+	 * @param Scope         Containing package or null.
+	 * @param Name          Name or null.
+	 * @param UEMangledName Name to be used when creating the UE version of the class or the UE package.  Can be null.
+	 * @param Kind          Class, Struct or Interface.
+	 * @param Inherited     An array of base classes in order of inheritance.
+	 * @param Constructor   The sequence of fields and blocks in the class body.
 	 */
-	static VClass& New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor);
+	static VClass& New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, VUTF8String* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor);
 
 private:
-	VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* Name, EKind Kind, bool bNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor);
+	VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* InName, VUTF8String* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor);
 
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
 	COREUOBJECT_API static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
@@ -194,6 +197,7 @@ private:
 	bool SubsumesImpl(FRunningContext, VValue);
 
 	TWriteBarrier<VUTF8String> ClassName;
+	TWriteBarrier<VUTF8String> UEMangledName;
 
 	/// The package this class is in
 	TWriteBarrier<VPackage> Scope;

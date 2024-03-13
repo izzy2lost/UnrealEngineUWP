@@ -2,6 +2,7 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "AutoRTFM/AutoRTFM.h"
+#include "Containers/StringConv.h"
 #include "Containers/Utf8String.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformMisc.h"
@@ -1489,7 +1490,7 @@ class FInterpreter
 			InheritedClasses.Add(&CurrentArg.StaticCast<VClass>());
 		}
 		VConstructor* Constructor = Op.Constructor.Get();
-		VClass& NewClass = VClass::New(Context, Op.Package.Get(), Op.Name.Get(), Op.ClassKind, Op.bNative, InheritedClasses, *Constructor);
+		VClass& NewClass = VClass::New(Context, Op.Package.Get(), Op.Name.Get(), Op.UEMangledName.Get(), Op.ClassKind, Op.bNative, InheritedClasses, *Constructor);
 		DEF(Op.Dest, NewClass);
 		return {FOpResult::Return};
 	}
@@ -1521,7 +1522,7 @@ class FInterpreter
 		}
 		if (bUObject)
 		{
-			V_RUNTIME_ERROR_IF(!verse::CanAllocateUObjects(), Context, FUtf8String::Printf("Ran out of memory for allocating `UObject`s while attempting to construct a Verse object of type %s!", *Class.GetName().AsCString()));
+			V_RUNTIME_ERROR_IF(!verse::CanAllocateUObjects(), Context, FUtf8String::Printf("Ran out of memory for allocating `UObject`s while attempting to construct a Verse object of type %s!", *FString(Class.GetName())));
 
 			NewObject = Class.NewUObject(Context, ArchetypeFields, ArchetypeValues, Initializers);
 		}

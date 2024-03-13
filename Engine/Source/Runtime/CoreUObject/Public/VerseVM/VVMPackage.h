@@ -7,6 +7,7 @@
 #include "VVMCell.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMNameValueMap.h"
+#include "VerseVM/VVMPackageName.h" // Needed for the EPackage enums
 
 class UPackage;
 
@@ -36,35 +37,38 @@ struct VPackage : VCell
 	template <typename CellType>
 	CellType* LookupDefinition(FUtf8StringView Name) const { return Map.LookupCell<CellType>(Name); }
 
-	bool HasUPackage() const { return !!AssociatedUPackage; }
-	UPackage* GetUPackage() const { return AssociatedUPackage ? reinterpret_cast<UPackage*>(AssociatedUPackage.Get().AsUObject()) : nullptr; }
-	UPackage* GetOrCreateUPackage(FAllocationContext Context) { return AssociatedUPackage ? reinterpret_cast<UPackage*>(AssociatedUPackage.Get().AsUObject()) : CreateUPackage(Context); }
-	enum class EPackageStage : uint8
-	{
-		Global,
-		Temp,
-		Dead
-	};
-	COREUOBJECT_API FString GetUPackageName(EPackageStage Stage) const;
+	COREUOBJECT_API UPackage* GetUPackage(const TCHAR* QualifiedClassName) const;
+	COREUOBJECT_API UPackage* GetOrCreateUPackage(FAllocationContext Context, const TCHAR* QualifiedClassName);
+	COREUOBJECT_API FString GetUPackageName(const TCHAR* QualifiedClassName, EPackageStage Stage, EPackageType* OutPackageType = nullptr) const;
 
-	static VPackage& New(FAllocationContext Context, VUTF8String& Name, uint32 Capacity)
+	EPackageStage GetStage() const { return PackageStage; }
+	COREUOBJECT_API void SetStage(EPackageStage InPackageStage);
+
+	EPackageType GetPackageType() const { return PackageType; }
+
+	static VPackage& New(FAllocationContext Context, VUTF8String& Name, uint32 Capacity, EPackageStage InPackageStage = EPackageStage::Global)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VPackage))) VPackage(Context, Name, Capacity);
+		return *new (Context.AllocateFastCell(sizeof(VPackage))) VPackage(Context, Name, Capacity, InPackageStage);
 	}
 
 private:
-	VPackage(FAllocationContext Context, VUTF8String& Name, uint32 Capacity)
+	VPackage(FAllocationContext Context, VUTF8String& Name, uint32 Capacity, EPackageStage InPackageStage)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 		, PackageName(Context, &Name)
 		, Map(Context, Capacity)
+		, UPackageMap(Context, 0)
+		, PackageType(FPackageName::GetPackageType(StringCast<TCHAR>(Name.AsCString()).Get()))
 	{
 	}
 
-	COREUOBJECT_API UPackage* CreateUPackage(FAllocationContext Context);
+	UPackage* GetUPackageInternal(FUtf8StringView FilteredQualifiedClassName) const;
+	COREUOBJECT_API UPackage* CreateUPackage(FAllocationContext Context, const TCHAR* QualifiedClassName, FUtf8StringView FilteredQualifiedClassName);
 
 	TWriteBarrier<VUTF8String> PackageName;
 	VNameValueMap Map;
-	TWriteBarrier<VValue> AssociatedUPackage;
+	VNameValueMap UPackageMap;
+	EPackageType PackageType;
+	EPackageStage PackageStage;
 };
 } // namespace Verse
 #endif // WITH_VERSE_VM

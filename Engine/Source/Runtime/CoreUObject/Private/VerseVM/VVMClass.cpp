@@ -98,6 +98,7 @@ template <typename TVisitor>
 void VClass::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.Visit(ClassName, TEXT("ClassName"));
+	Visitor.Visit(UEMangledName, TEXT("UEMangledName"));
 	Visitor.Visit(Scope, TEXT("Scope"));
 	Visitor.Visit(Constructor, TEXT("Constructor"));
 	Visitor.Visit(AssociatedUClass, TEXT("AssociatedUClass"));
@@ -270,11 +271,17 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 {
 	ensure(!AssociatedUClass && Kind != EKind::Interface); // Only an actual class should be associated with a UClass
 
-	// 1) Create the new UClass object
+	// 1) Make sure we have a destination package
 
-	UPackage* ClassPackage = Scope ? Scope->GetOrCreateUPackage(Context) : GetTransientPackage();
-	const FName Name = ClassName ? FName(ClassName->AsStringView()) : NAME_None;
-	UVerseVMClass* NewClass = NewObject<UVerseVMClass>(ClassPackage, Name, RF_Public | RF_Transient);
+	FUtf8StringView MangledNameView = UEMangledName && UEMangledName->Num() > 0 ? UEMangledName->AsStringView() : ExtractClassName();
+	ensure(MangledNameView.Len() > 0);
+	UPackage* ClassPackage = Scope ? Scope->GetOrCreateUPackage(Context, *FString(MangledNameView)) : GetTransientPackage();
+
+	// 2) Create the new UClass object
+
+	FUtf8StringView UEClassNameView = Scope && Scope->GetPackageType() == EPackageType::VNI ? MangledNameView : ExtractClassName();
+	const FName UEClassName = UEClassNameView.Len() > 0 ? FName(UEClassNameView) : NAME_None;
+	UVerseVMClass* NewClass = NewObject<UVerseVMClass>(ClassPackage, UEClassName, RF_Public | RF_Transient);
 	NewClass->Class.Set(Context, this);
 #if WITH_EDITOR
 	NewClass->SetMetaData(TEXT("IsBlueprintBase"), TEXT("false"));
@@ -289,7 +296,7 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 	NewClass->SetSuperStruct(SuperUClass);
 	NewClass->ClassConfigName = SuperUClass->ClassConfigName;
 
-	// 2) Generate special shape for it
+	// 3) Generate special shape for it
 
 	VShape::FieldsMap AllFields;
 	for (uint32 Index = 0; Index < Constructor->NumEntries; ++Index)
@@ -304,7 +311,7 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 	VShape* ThisShape = VShape::New(Context, MoveTemp(AllFields));
 	NewClass->Shape.Set(Context, *ThisShape);
 
-	// 3) Populate its properties
+	// 4) Populate its properties
 
 	VShape* SuperShape = SuperClass ? static_cast<UVerseVMClass*>(SuperUClass)->Shape.Get() : nullptr;
 	FField** PrevProperty = &NewClass->ChildProperties;
@@ -328,7 +335,7 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 		}
 	}
 
-	// 4) Finalize class
+	// 5) Finalize class
 
 	NewClass->Bind();
 	NewClass->StaticLink(/*bRelinkExistingProperties =*/true);
@@ -360,7 +367,7 @@ void VClass::AssembleUClass(FAllocationContext Context)
 		Inherited[0]->AssembleUClass(Context);
 	}
 
-	// 5) Create and initialize CDO
+	// 6) Create and initialize CDO
 
 	// Collect all UObjects referenced by FProperties and assemble the GC token stream
 	NewClass->CollectBytecodeAndPropertyReferencedObjectsRecursively();
@@ -433,6 +440,20 @@ bool VClass::SubsumesImpl(FRunningContext Context, VValue Value)
 	}
 
 	return false;
+}
+
+FUtf8StringView VClass::ExtractClassName() const
+{
+	FUtf8StringView ScratchName = GetName();
+	if (ScratchName.Len() > 0)
+	{
+		int StartOfName = ScratchName.Find(":)");
+		StartOfName = StartOfName == INDEX_NONE ? 0 : StartOfName + 2;
+		int EndOfName = ScratchName.Find("(", StartOfName);
+		EndOfName = EndOfName == INDEX_NONE ? ScratchName.Len() : EndOfName;
+		ScratchName = ScratchName.SubStr(StartOfName, EndOfName - StartOfName);
+	}
+	return ScratchName;
 }
 
 } // namespace Verse
