@@ -244,6 +244,7 @@ public:
 	void SelectForward();
 	void SelectBackward();
 	void SelectNone();
+	void InvertSelection();
 
 	/** Toggle the expansion state of the selected nodes or all nodes if none selected */
 	void ToggleExpandCollapseNodes(bool bRecursive);

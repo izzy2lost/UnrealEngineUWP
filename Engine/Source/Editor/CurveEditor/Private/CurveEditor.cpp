@@ -432,6 +432,7 @@ void FCurveEditor::BindCommands()
 	CommandList->MapAction(FCurveEditorCommands::Get().SelectForward, FExecuteAction::CreateSP(this, &FCurveEditor::SelectForward));
 	CommandList->MapAction(FCurveEditorCommands::Get().SelectBackward, FExecuteAction::CreateSP(this, &FCurveEditor::SelectBackward));
 	CommandList->MapAction(FCurveEditorCommands::Get().SelectNone, FExecuteAction::CreateSP(this, &FCurveEditor::SelectNone));
+	CommandList->MapAction(FCurveEditorCommands::Get().InvertSelection, FExecuteAction::CreateSP(this, &FCurveEditor::InvertSelection));
 
 	{
 		FExecuteAction   ToggleInputSnapping     = FExecuteAction::CreateSP(this,   &FCurveEditor::ToggleInputSnapping);
@@ -1161,6 +1162,27 @@ void FCurveEditor::SelectNone()
 	Selection.Clear();
 }
 
+void FCurveEditor::InvertSelection()
+{
+	for (const TTuple<FCurveModelID, FKeyHandleSet>& Pair : Selection.GetAll())
+	{
+		if (FCurveModel* Curve = FindCurve(Pair.Key))
+		{
+			TArray<FKeyHandle> KeyHandles;
+			Curve->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			
+			TArrayView<const FKeyHandle> SelectedKeyHandles = Pair.Value.AsArray();
+				
+			for (const FKeyHandle& SelectedKeyHandle : SelectedKeyHandles)
+			{
+				KeyHandles.Remove(SelectedKeyHandle);
+			}
+
+			Selection.Remove(Pair.Key, ECurvePointType::Key, SelectedKeyHandles);
+			Selection.Add(Pair.Key, ECurvePointType::Key, KeyHandles);
+		}
+	}	
+}
 
 bool FCurveEditor::IsInputSnappingEnabled() const
 {

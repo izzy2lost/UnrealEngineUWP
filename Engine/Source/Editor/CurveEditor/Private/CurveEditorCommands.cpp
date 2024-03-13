@@ -90,6 +90,7 @@ void FCurveEditorCommands::RegisterCommands()
 	UI_COMMAND(SelectBackward, "Select All Keys Backward", "Select all keys backward from the current time", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Control, EKeys::LeftBracket));
 
 	UI_COMMAND(SelectNone, "Select None", "Select none", EUserInterfaceActionType::Button, FInputChord(EKeys::Escape));
+	UI_COMMAND(InvertSelection, "Invert Selection", "Invert the selection of keys on curves with selected keys.", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Control, EKeys::I));
 
 	// Buffer and Apply Curves. Like copy and paste, but directly onto the curves they were stored from.
 	// These names are overwritten in CurveEditorContextMenu to show the number of stashed curves.
