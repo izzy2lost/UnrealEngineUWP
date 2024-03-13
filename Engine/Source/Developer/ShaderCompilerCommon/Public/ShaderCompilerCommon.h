@@ -124,7 +124,7 @@ namespace UE::ShaderCompilerCommon
 		TArray<FAdditionalOutput> AdditionalOutputs;
 		bool bSourceOnly = false; // if true, will only output source .usf as directed and skip all other debug data artifacts
 
-		SHADERCOMPILERCOMMON_API FString GetDebugShaderPath(const FShaderCompilerInput& Input) const;
+		SHADERCOMPILERCOMMON_API FString GetDebugShaderPath(const FShaderCompilerInput& Input, const TCHAR* Suffix = nullptr) const;
 	};
 
 	/*
@@ -166,7 +166,7 @@ namespace UE::ShaderCompilerCommon
 	 * @param	PreprocessedSource The unmodified preprocessed source (used as input to the compilation)
 	 * @param	Options Options which can change behaviour of the debug dump; see above.
 	 */
-	extern SHADERCOMPILERCOMMON_API FString GetDebugShaderContents(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options = FDebugShaderDataOptions());
+	extern SHADERCOMPILERCOMMON_API FString GetDebugShaderContents(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options = FDebugShaderDataOptions(), const TCHAR* Suffix = nullptr);
 	
 	UE_DEPRECATED(5.4, "Use overload of GetDebugShaderContents accepting an FStringView")
 	inline FString GetDebugShaderContents(const FShaderCompilerInput& Input, const FString& PreprocessedSource, const FDebugShaderDataOptions& Options = FDebugShaderDataOptions())
