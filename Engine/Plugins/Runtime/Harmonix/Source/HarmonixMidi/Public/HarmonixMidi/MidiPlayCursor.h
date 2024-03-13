@@ -111,7 +111,9 @@ protected:
 	int32 CurrentTick = 0;  // We've broadcast all events up to and including this tick
 	int32 LoopCount = 0;
 	bool  UnregisterASAP = false;
+private:
 	FMidiPlayCursorMgr* Owner = nullptr;
+protected:
 	FMidiPlayCursorTracker* Tracker = nullptr;
 
 protected:

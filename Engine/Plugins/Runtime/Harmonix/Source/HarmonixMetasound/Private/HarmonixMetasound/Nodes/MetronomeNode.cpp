@@ -294,7 +294,7 @@ namespace HarmonixMetasound
 		int32 NewTick = MidiClockOutPin->GetCurrentMidiTick() + (InTick - PrevTick);
 		float Ms = MidiClockOutPin->GetSongMaps().TickToMs(NewTick);
 		float CurrentSpeed = MetronomeClock.GetSpeedAtBlockSampleFrame(MetronomeClock.GetCurrentBlockFrameIndex());
-		float AdvanceRatio = Owner->GetSongMaps().GetTempoAtTick(PrevTick)
+		float AdvanceRatio = GetOwner()->GetSongMaps().GetTempoAtTick(PrevTick)
 		                   / MidiClockOutPin->GetSongMaps().GetTempoAtTick(MidiClockOutPin->GetCurrentMidiTick());
 		MidiClockOutPin->InformOfCurrentAdvanceRate(CurrentSpeed * AdvanceRatio);
 		MidiClockOutPin->AdvanceHiResToMs(MetronomeClock.GetCurrentBlockFrameIndex(), Ms, true);
