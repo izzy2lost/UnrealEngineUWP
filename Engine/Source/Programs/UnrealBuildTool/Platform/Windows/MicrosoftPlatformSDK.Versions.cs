@@ -72,13 +72,13 @@ namespace UnrealBuildTool
 			{
 				return PreferredVisualCppVersions.Any(x => x.Contains(version));
 			}
-			else if (toolchain.IsClang())
-			{
-				return PreferredClangVersions.Any(x => x.Contains(version));
-			}
 			else if (toolchain.IsIntel())
 			{
 				return PreferredIntelOneApiVersions.Any(x => x.Contains(version));
+			}
+			else if (toolchain.IsClang())
+			{
+				return PreferredClangVersions.Any(x => x.Contains(version));
 			}
 			return false;
 		}
@@ -94,13 +94,13 @@ namespace UnrealBuildTool
 			{
 				return PreferredVisualCppVersions.Select(x => x.Min).Max()!;
 			}
-			else if (toolchain.IsClang())
-			{
-				return PreferredClangVersions.Select(x => x.Min).Max()!;
-			}
 			else if (toolchain.IsIntel())
 			{
 				return PreferredIntelOneApiVersions.Select(x => x.Min).Max()!;
+			}
+			else if (toolchain.IsClang())
+			{
+				return PreferredClangVersions.Select(x => x.Min).Max()!;
 			}
 			return new VersionNumber(0);
 		}
