@@ -171,40 +171,56 @@ void FLiveLinkHubPlaybackController::PreparePlayback(ULiveLinkRecording* InLiveL
 	}
 	else if (InLiveLinkRecording != RecordingToPlay.Get())
 	{
+		TStrongObjectPtr<ULiveLinkRecording> RecordingStrongPtr(InLiveLinkRecording);
+
+		auto PreparePlaybackCallback = [this, RecordingStrongPtr]()
+		{
+			if (RecordingStrongPtr.IsValid())
+			{
+				// Make sure PreparingPlayback is set to false when the scope exits.
+				TGuardValue<bool> PreparingPlaybackGuard(bIsPreparingPlayback, true);
+
+				RecordingToPlay.Reset(RecordingStrongPtr.Get());
+				RecordingPlayer->PreparePlayback(RecordingToPlay.Get());
+		
+				CurrentFrameRate = RecordingPlayer->GetInitialFramerate();
+
+				// The start and end of playback.
+				SetSelectionStartTime(FQualifiedFrameTime(FFrameTime::FromDecimal(0.f), GetFrameRate()));
+				SetSelectionEndTime(GetLength());
+		
+				// The range the user sees.
+				SliderViewRange = TRange<double>(SelectionStartTime.AsSeconds(), SelectionEndTime.AsSeconds());
+		
+				const FName UniqueName = MakeUniqueObjectName(GetTransientPackage(), ULiveLinkPreset::StaticClass(), TEXT("RecordingRollbackPreset"));
+				RollbackPreset.Reset(NewObject<ULiveLinkPreset>(GetTransientPackage(), UniqueName));
+				// Save the current state of the sources/subjects in a rollback preset.
+				RollbackPreset->BuildFromClient();
+
+				// This clears out any live streams which might be occurring. They will be restored when exiting playback later.
+				{
+					FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+
+					LiveLinkClient.RemoveAllSources();
+					LiveLinkClient.Tick();
+				}
+		
+				RecordingToPlay->RecordingPreset->ApplyToClientLatent([this](bool)
+				{
+					bIsReady = true;
+					SyncToFrame(0); // Needed to establish connection with client
+				});
+			}
+		};
+
 		if (RecordingToPlay.IsValid())
 		{
-			Eject();
+			Eject(PreparePlaybackCallback);
 		}
-		
-		RecordingToPlay.Reset(InLiveLinkRecording);
-		RecordingPlayer->PreparePlayback(RecordingToPlay.Get());
-		
-		CurrentFrameRate = RecordingPlayer->GetInitialFramerate();
-
-		// The start and end of playback.
-		SetSelectionStartTime(FQualifiedFrameTime(FFrameTime::FromDecimal(0.f), GetFrameRate()));
-		SetSelectionEndTime(GetLength());
-		
-		// The range the user sees.
-		SliderViewRange = TRange<double>(SelectionStartTime.AsSeconds(), SelectionEndTime.AsSeconds());
-		
-		RollbackPreset.Reset(NewObject<ULiveLinkPreset>(GetTransientPackage(), TEXT("RecordingRollbackPreset")));
-		// Save the current state of the sources/subjects in a rollback preset.
-		RollbackPreset->BuildFromClient();
-
-		// This clears out any live streams which might be occurring. They will be restored when exiting playback later.
+		else
 		{
-			FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-
-			LiveLinkClient.RemoveAllSources();
-			LiveLinkClient.Tick();
+			PreparePlaybackCallback();
 		}
-		
-		RecordingToPlay->RecordingPreset->ApplyToClientLatent([this](bool)
-		{
-			bIsReady = true;
-			SyncToFrame(0); // Needed to establish connection with client
-		});
 	}
 }
 
@@ -283,7 +299,7 @@ void FLiveLinkHubPlaybackController::StopPlayback()
 	bIsReverse = false;
 }
 
-void FLiveLinkHubPlaybackController::Eject()
+void FLiveLinkHubPlaybackController::Eject(TFunction<void()> CompletionCallback)
 {
 	bIsReady = false;
 	
@@ -296,13 +312,24 @@ void FLiveLinkHubPlaybackController::Eject()
 	SetSelectionEndTime(FQualifiedFrameTime(FFrameTime::FromDecimal(0), GetFrameRate()));
 	Playhead->SetValue(FQualifiedFrameTime(FFrameTime::FromDecimal(0), GetFrameRate()));
 	StartTimestamp = 0.f;
+
+	// Recording is done, clear the pointer.
+	RecordingToPlay.Reset();
 	
 	if (RollbackPreset.IsValid())
 	{
-		RollbackPreset->ApplyToClientLatent();
+		RollbackPreset->ApplyToClientLatent([CompletionCallback](bool)
+		{
+			if (CompletionCallback)
+			{
+				CompletionCallback();
+			}
+		});
 	}
-	// Recording is done, clear the pointer.
-	RecordingToPlay.Reset();
+	else if (CompletionCallback)
+	{
+		CompletionCallback();
+	}
 }
 
 void FLiveLinkHubPlaybackController::GoToTime(FQualifiedFrameTime InTime)
@@ -450,7 +477,7 @@ void FLiveLinkHubPlaybackController::OnPlaybackFinished_Internal()
 
 void FLiveLinkHubPlaybackController::OnSourceRemoved(FGuid Guid)
 {
-	if (RecordingToPlay.IsValid())
+	if (RecordingToPlay.IsValid() && !bIsPreparingPlayback)
 	{
 		// Look for a source that is for this recording and eject. This can occur if the user presses the trash icon
 		// on the playback source while it is in playback.

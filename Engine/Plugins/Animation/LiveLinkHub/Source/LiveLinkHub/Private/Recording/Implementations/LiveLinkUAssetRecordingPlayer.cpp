@@ -300,7 +300,7 @@ FFrameRate FLiveLinkPlaybackTracks::GetInitialFrameRate() const
 		}
 	}
 
-	UE_LOG(LogLiveLinkHub, Warning, TEXT("Could not find an initial framerate for the recording. Using the defualt value."));
+	UE_LOG(LogLiveLinkHub, Warning, TEXT("Could not find an initial framerate for the recording. Using the default value."));
 	
 	return FFrameRate(30, 1);
 }
