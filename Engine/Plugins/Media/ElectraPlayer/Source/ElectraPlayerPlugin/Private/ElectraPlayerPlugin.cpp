@@ -61,6 +61,9 @@ FElectraPlayerPlugin::FElectraPlayerPlugin()
 	static_assert((int32)EMediaRateThinning::Unthinned == (int32)IElectraPlayerInterface::EPlayRateType::Unthinned, "check alignment of both enums");
 	static_assert((int32)EMediaRateThinning::Thinned == (int32)IElectraPlayerInterface::EPlayRateType::Thinned, "check alignment of both enums");
 
+	static_assert((int32)EMediaTimeRangeType::Absolute == (int32)IElectraPlayerInterface::ETimeRangeType::Absolute, "check alignment of both enums");
+	static_assert((int32)EMediaTimeRangeType::Current == (int32)IElectraPlayerInterface::ETimeRangeType::Current, "check alignment of both enums");
+
 	static_assert(IMediaPlayerLifecycleManagerDelegate::ResourceFlags_Decoder == IElectraPlayerInterface::ResourceFlags_Decoder, "check alignment of both enums");
 	static_assert(IMediaPlayerLifecycleManagerDelegate::ResourceFlags_OutputBuffers == IElectraPlayerInterface::ResourceFlags_OutputBuffers, "check alignment of both enums");
 	static_assert(IMediaPlayerLifecycleManagerDelegate::ResourceFlags_Any == IElectraPlayerInterface::ResourceFlags_Any, "check alignment of both enums");
@@ -901,6 +904,10 @@ bool FElectraPlayerPlugin::CanControl(EMediaControl Control) const
 	{
 		return CurrentState == EMediaState::Playing || CurrentState == EMediaState::Paused || CurrentState == EMediaState::Stopped;
 	}
+	else if (Control == EMediaControl::PlaybackRange)
+	{
+		return true;
+	}
 	return false;
 }
 
@@ -980,6 +987,20 @@ bool FElectraPlayerPlugin::Seek(const FTimespan& Time)
 	CSV_EVENT(ElectraPlayer, TEXT("Seeking"));
 
 	return Player->Seek(Time);
+}
+
+TRange<FTimespan> FElectraPlayerPlugin::GetPlaybackTimeRange(EMediaTimeRangeType InRangeToGet) const
+{
+	return Player->GetPlaybackRange(static_cast<IElectraPlayerInterface::ETimeRangeType>(InRangeToGet));
+}
+
+bool FElectraPlayerPlugin::SetPlaybackTimeRange(const TRange<FTimespan>& InTimeRange)
+{
+	IElectraPlayerInterface::FPlaybackRange Range;
+	Range.Start = InTimeRange.GetLowerBoundValue();
+	Range.End = InTimeRange.GetUpperBoundValue();
+	Player->SetPlaybackRange(Range);
+	return true;
 }
 
 

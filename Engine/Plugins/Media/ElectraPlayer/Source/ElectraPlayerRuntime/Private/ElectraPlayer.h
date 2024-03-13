@@ -110,6 +110,7 @@ public:
 
 	void SetPlaybackRange(const FPlaybackRange& InPlaybackRange) override;
 	void GetPlaybackRange(FPlaybackRange& OutPlaybackRange) const override;
+	TRange<FTimespan> GetPlaybackRange(ETimeRangeType InRangeToGet) const override;
 
 	TRangeSet<float> GetSupportedRates(EPlayRateType InPlayRateType) const override;
 	float GetRate() const override;
