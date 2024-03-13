@@ -1248,10 +1248,6 @@ const TCHAR* FGenericPlatformMisc::ProjectDir()
 {
 	FString& ProjectDir = TLazySingleton<FStaticData>::Get().ProjectDir;
 
-	// always call this at ProjectDir() time and cache it (internally) because there could be pak file interaction that can disable
-	// ini file loading
-	bool bIsStaged = FPaths::IsStaged();
-
 	// track if last time we called this function the .ini was ready and had fixed the GameName case
 	static bool bWasIniReady = false;
 	bool bIsIniReady = GConfig && GConfig->IsReadyForUse();
@@ -1281,7 +1277,7 @@ const TCHAR* FGenericPlatformMisc::ProjectDir()
 		ProjectDir.Reserve(FPlatformMisc::GetMaxPathLength());
 		if (FPlatformProperties::IsProgram())
 		{
-			if (bIsStaged)
+			if (FPaths::IsStaged())
 			{
 				// if staged, use the remapped location
 				ProjectDir = FString::Printf(TEXT("../../../%s/"), FApp::GetProjectName());
