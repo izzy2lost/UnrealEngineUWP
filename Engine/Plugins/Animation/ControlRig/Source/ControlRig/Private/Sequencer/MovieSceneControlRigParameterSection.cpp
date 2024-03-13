@@ -3470,6 +3470,19 @@ void UMovieSceneControlRigParameterSection::RemoveAllKeys(bool bIncludeSpaceKeys
 	}
 }
 
+UControlRig* UMovieSceneControlRigParameterSection::GetControlRig(UWorld* InGameWorld) const
+{
+	if (InGameWorld == nullptr)
+	{
+		return ControlRig;
+	}
+	else if (UMovieSceneControlRigParameterTrack* Track = GetTypedOuter<UMovieSceneControlRigParameterTrack>())
+	{
+		return Track->GetGameWorldControlRig(InGameWorld);
+	}
+	return nullptr;
+}
+
 
 int32 UMovieSceneControlRigParameterSection::GetActiveCategoryIndex(FName ControlName) const
 {
