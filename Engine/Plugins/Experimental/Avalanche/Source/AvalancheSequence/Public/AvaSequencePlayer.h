@@ -42,6 +42,7 @@ public:
 
 	void ContinueSequence();
 
+	UE_DEPRECATED(5.5, "Use IAvaSequencePlaybackObject::PreviewFrame instead")
 	void PreviewFrame();
 
 	/** Jump to the given Frame, in Tick Resolution space */

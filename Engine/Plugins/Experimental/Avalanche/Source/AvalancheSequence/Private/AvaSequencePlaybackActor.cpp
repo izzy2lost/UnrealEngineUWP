@@ -77,6 +77,38 @@ UAvaSequencePlayer* AAvaSequencePlaybackActor::PlaySequence(UAvaSequence* InSequ
 	return nullptr;
 }
 
+UAvaSequencePlayer* AAvaSequencePlaybackActor::PreviewFrame(UAvaSequence* InSequence)
+{
+	if (!IsValid(InSequence))
+	{
+		return nullptr;
+	}
+
+	const FAvaMark* PreviewMark = InSequence->GetPreviewMark();
+	if (!PreviewMark)
+	{
+		UE_LOG(LogAvaSequencePlayback, Warning
+			, TEXT("Failed to preview Sequence '%s' ('%s'). Missing Preview Mark.")
+			, *InSequence->GetLabel().ToString()
+			, *InSequence->GetName());
+		return nullptr;
+	}
+
+	FFrameTime PreviewPosition;
+	{
+		FMovieSceneSequencePlaybackParams PlaybackParams;
+		PlaybackParams.MarkedFrame = PreviewMark->GetLabel();
+		PlaybackParams.PositionType = EMovieScenePositionType::MarkedFrame;
+
+		PreviewPosition = PlaybackParams.GetPlaybackPosition(InSequence);
+	}
+
+	FAvaSequencePlayParams PlaySettings;
+	PlaySettings.Start = PlaySettings.End = FAvaSequenceTime(PreviewPosition);
+
+	return PlaySequence(InSequence, PlaySettings);
+}
+
 UAvaSequencePlayer* AAvaSequencePlaybackActor::PlaySequenceBySoftReference(TSoftObjectPtr<UAvaSequence> InSequence, FAvaSequencePlayParams InPlaySettings)
 {
 	if (UAvaSequence* const ResolvedSequence = InSequence.Get())

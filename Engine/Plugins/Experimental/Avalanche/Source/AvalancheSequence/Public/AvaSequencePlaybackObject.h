@@ -43,6 +43,14 @@ public:
 	virtual UAvaSequencePlayer* PlaySequence(UAvaSequence* InSequence, const FAvaSequencePlayParams& InPlaySettings = FAvaSequencePlayParams()) = 0;
 
 	/**
+	 * Evaluates the Preview Frame of a Sequence.
+	 * Does nothing if the Sequence has no preview frame.
+	 * @param InSequence the sequence to preview
+	 * @return the player instantiated for the Sequence, or null if Sequence was not valid or did not have a preview mark
+	 */
+	virtual UAvaSequencePlayer* PreviewFrame(UAvaSequence* InSequence) = 0;
+
+	/**
 	 * Plays a single sequence by its soft reference
 	 * @param InSequence soft reference of the sequence to play
 	 * @param InPlaySettings the play settings to use for playback

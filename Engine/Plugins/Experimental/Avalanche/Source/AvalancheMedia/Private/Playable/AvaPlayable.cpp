@@ -180,21 +180,23 @@ EAvaPlayableCommandResult UAvaPlayable::ExecuteAnimationCommand(EAvaPlaybackAnim
 		// Remark: if the command doesn't specify the sequence name, we run the command on all the sequences.
 		if (Sequence && (Sequence->GetFName() == InAnimPlaySettings.AnimationName || InAnimPlaySettings.AnimationName.IsNone()))
 		{
-			if (InAnimAction == EAvaPlaybackAnimAction::Play || InAnimAction == EAvaPlaybackAnimAction::PreviewFrame)
+			switch (InAnimAction)
 			{
-				UAvaSequencePlayer* const SequencePlayer = PlaybackObject->PlaySequence(Sequence, InAnimPlaySettings.AsPlayParams());
-				if (InAnimAction == EAvaPlaybackAnimAction::PreviewFrame && SequencePlayer)
-				{
-					SequencePlayer->PreviewFrame();
-				}
-			}
-			else if (InAnimAction == EAvaPlaybackAnimAction::Continue)
-			{
+			case EAvaPlaybackAnimAction::Play:
+				PlaybackObject->PlaySequence(Sequence, InAnimPlaySettings.AsPlayParams());
+				break;
+
+			case EAvaPlaybackAnimAction::Continue:
 				PlaybackObject->ContinueSequence(Sequence);
-			}
-			else if (InAnimAction == EAvaPlaybackAnimAction::Stop)
-			{
+				break;
+
+			case EAvaPlaybackAnimAction::Stop:
 				PlaybackObject->StopSequence(Sequence);
+				break;
+
+			case EAvaPlaybackAnimAction::PreviewFrame:
+				PlaybackObject->PreviewFrame(Sequence);
+				break;
 			}
 		}
 	}
