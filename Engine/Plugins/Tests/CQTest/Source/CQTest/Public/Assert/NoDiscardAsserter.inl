@@ -130,12 +130,7 @@ template <typename T>
 template <typename TExpected, typename TActual>
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreEqual(const TExpected& Expected, const TActual& Actual)
 {
-	if (CQTestCondition::IsNotEqual(Expected, Actual))
-	{
-		Fail(FString::Printf(TEXT("Expected %s to equal %s."), *CQTestConvert::ToString(Expected), *CQTestConvert::ToString(Actual)));
-		return false;
-	}
-	return true;
+	return AreEqual(Expected, Actual, FString::Printf(TEXT("Expected %s to equal %s."), *CQTestConvert::ToString(Expected), *CQTestConvert::ToString(Actual)));
 }
 
 template <typename TExpected, typename TActual>
@@ -153,6 +148,9 @@ template <typename TExpected, typename TActual>
 template <typename TExpected, typename TActual>
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreEqual(const TExpected& Expected, const TActual& Actual, const FString& FailureMessage)
 {
+	static_assert(!std::is_floating_point<TExpected>::value && !std::is_floating_point<TActual>::value,
+		"Floating point types should not be compared for strict equality. Instead use IsNear() to account for floating point error. To directly compare without accounting for error, use IsTrue(A == B).");
+
 	if (CQTestCondition::IsNotEqual(Expected, Actual))
 	{
 		Fail(FailureMessage);
@@ -163,12 +161,7 @@ template <typename TExpected, typename TActual>
 
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreEqualIgnoreCase(const FString& Expected, const FString& Actual)
 {
-	if (CQTestCondition::IsNotEqualIgnoreCase(Expected, Actual))
-	{
-		Fail(FString::Printf(TEXT("Expected %s to equal %s ignoring case."), *Expected, *Actual));
-		return false;
-	}
-	return true;
+	return AreEqualIgnoreCase(Expected, Actual, FString::Printf(TEXT("Expected %s to equal %s ignoring case."), *Expected, *Actual));
 }
 
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreEqualIgnoreCase(const FString& Expected, const FString& Actual, const char* FailureMessage)
@@ -194,12 +187,7 @@ template <typename TExpected, typename TActual>
 template <typename TExpected, typename TActual>
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreNotEqual(const TExpected& Expected, const TActual& Actual)
 {
-	if (CQTestCondition::IsEqual(Expected, Actual))
-	{
-		Fail(FString::Printf(TEXT("Expected %s to not equal %s."), *CQTestConvert::ToString(Expected), *CQTestConvert::ToString(Actual)));
-		return false;
-	}
-	return true;
+	return AreNotEqual(Expected, Actual, FString::Printf(TEXT("Expected %s to not equal %s."), *CQTestConvert::ToString(Expected), *CQTestConvert::ToString(Actual)));
 }
 
 template <typename TExpected, typename TActual>
@@ -217,6 +205,9 @@ template <typename TExpected, typename TActual>
 template <typename TExpected, typename TActual>
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreNotEqual(const TExpected& Expected, const TActual& Actual, const FString& FailureMessage)
 {
+	static_assert(!std::is_floating_point<TExpected>::value && !std::is_floating_point<TActual>::value,
+		"Floating point types should not be compared for strict equality. Instead use !IsNear() to account for floating point error. To directly compare without accounting for error, use IsTrue(A != B).");
+
 	if (CQTestCondition::IsEqual(Expected, Actual))
 	{
 		Fail(FailureMessage);
@@ -227,12 +218,7 @@ template <typename TExpected, typename TActual>
 
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreNotEqualIgnoreCase(const FString& Expected, const FString& Actual)
 {
-	if (CQTestCondition::IsEqualIgnoreCase(Expected, Actual))
-	{
-		Fail(FString::Printf(TEXT("Expected %s to not equal %s ignoring case."), *Expected, *Actual));
-		return false;
-	}
-	return true;
+	return AreNotEqualIgnoreCase(Expected, Actual, FString::Printf(TEXT("Expected %s to not equal %s ignoring case."), *Expected, *Actual));
 }
 
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::AreNotEqualIgnoreCase(const FString& Expected, const FString& Actual, const char* FailureMessage)
@@ -258,12 +244,7 @@ template <typename TExpected, typename TActual>
 template <typename TExpected, typename TActual, typename TEpsilon>
 [[nodiscard]] FORCEINLINE bool FNoDiscardAsserter::IsNear(TExpected Expected, TActual Actual, TEpsilon Epsilon)
 {
-	if (CQTestCondition::IsNotNearlyEqual(Expected, Actual, Epsilon))
-	{
-		Fail(FString::Printf(TEXT("Expected %s to be near %s (within %s)."), *CQTestConvert::ToString(Expected), *CQTestConvert::ToString(Actual), *CQTestConvert::ToString(Epsilon)));
-		return false;
-	}
-	return true;
+	return IsNear(Expected, Actual, Epsilon, FString::Printf(TEXT("Expected %s to be near %s (within %s)."), *CQTestConvert::ToString(Expected), *CQTestConvert::ToString(Actual), *CQTestConvert::ToString(Epsilon)));
 }
 
 template <typename TExpected, typename TActual, typename TEpsilon>

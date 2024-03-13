@@ -109,16 +109,16 @@ TEST_CLASS(ObjectBuilder_Success, "TestFramework.CQTest.Actor")
 						   .SetParam("DoubleProperty", doubleValue)
 						   .Spawn();
 
-		ASSERT_THAT(AreEqual(Result.FloatProperty, floatValue));
-		ASSERT_THAT(AreEqual(Result.DoubleProperty, doubleValue));
+		ASSERT_THAT(IsTrue(Result.FloatProperty == floatValue));
+		ASSERT_THAT(IsTrue(Result.DoubleProperty == doubleValue));
 
 		auto& ConstResult = TObjectBuilder<ATestActorWithProperties>(Spawner)
 						   .SetParam<const float>("FloatProperty", floatValue)
 						   .SetParam<const double>("DoubleProperty", doubleValue)
 						   .Spawn();
 
-		ASSERT_THAT(AreEqual(ConstResult.FloatProperty, floatValue));
-		ASSERT_THAT(AreEqual(ConstResult.DoubleProperty, doubleValue));
+		ASSERT_THAT(IsTrue(Result.FloatProperty == floatValue));
+		ASSERT_THAT(IsTrue(Result.DoubleProperty == doubleValue));
 	}
 
 	TEST_METHOD(Spawn_ActorWithEnums_SetsEnums)

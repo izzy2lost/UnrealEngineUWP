@@ -143,27 +143,93 @@ namespace CQTests
 			Assert.ExpectError(ExpectedError);
 			ASSERT_THAT(AreEqual(42, 0, ExpectedError));
 		}
-		TEST_METHOD(AssertNear_WithSameNumbers_Succeeds)
+
+		/* These cases intentionally do not compile to avoid accidental floating point error
+		TEST_METHOD(AssertEqual_WithDoubles_CompileError)
+		{
+			ASSERT_THAT(AreEqual(42.0, 42.0));
+		}
+		TEST_METHOD(AssertEqual_WithFloats_CompileError)
+		{
+			ASSERT_THAT(AreEqual(42.f, 42.f));
+		}
+		TEST_METHOD(AssertEqual_WithMixedFloat_CompileError)
+		{
+			ASSERT_THAT(AreEqual(42, 42.f));
+		}
+
+		TEST_METHOD(AssertNotEqual_WithDoubles_CompileError)
+		{
+			ASSERT_THAT(AreNotEqual(42.0, 42.0));
+		}
+		TEST_METHOD(AssertNotEqual_WithFloats_CompileError)
+		{
+			ASSERT_THAT(AreNotEqual(42.f, 42.f));
+		}
+		TEST_METHOD(AssertNotEqual_WithMixedFloat_CompileError)
+		{
+			ASSERT_THAT(AreNotEqual(42, 42.f));
+		}
+		*/
+
+		TEST_METHOD(AssertNotEqual_WithDifferentInts_Succeeds)
+		{
+			ASSERT_THAT(AreNotEqual(42, 0));
+		}
+		TEST_METHOD(AssertNotEqual_WithDifferentAndErrorMessage_DoesNotAddErrorMessage)
+		{
+			ASSERT_THAT(AreNotEqual(42, 0, "Unexpected"));
+		}
+		TEST_METHOD(AssertNotEqual_WithSameInts_AddsError)
+		{
+			Assert.ExpectError(AnyError);
+			ASSERT_THAT(AreNotEqual(42, 42));
+		}
+		TEST_METHOD(AssertNotEqual_WithSameIntsAndErrorMessage_AddsSpecificError)
+		{
+			Assert.ExpectError(ExpectedError);
+			ASSERT_THAT(AreNotEqual(42, 42, ExpectedError));
+		}
+
+		TEST_METHOD(AssertNear_WithSameDoubles_Succeeds)
 		{
 			ASSERT_THAT(IsNear(3.14, 3.14, 0.001));
 		}
-		TEST_METHOD(AssertNear_WithSameNumbersAndErrorMessage_DoesNotAddErrorMessage)
+		TEST_METHOD(AssertNear_WithSameDoublesAndErrorMessage_DoesNotAddErrorMessage)
 		{
 			ASSERT_THAT(IsNear(3.14, 3.14, 0.001, "Unexpected"));
 		}
-		TEST_METHOD(AssertNear_WithSimilarNumbers_Succeeds)
+		TEST_METHOD(AssertNear_WithSimilarDoubles_Succeeds)
 		{
 			ASSERT_THAT(IsNear(3.0, 3.1, 1.0));
 		}
-		TEST_METHOD(AssertNear_WithDifferentNumbers_AddsError)
+		TEST_METHOD(AssertNear_WithDifferentDoubles_AddsError)
 		{
 			Assert.ExpectError(AnyError);
 			ASSERT_THAT(IsNear(1.0, 2.0, 0.001));
 		}
-		TEST_METHOD(AssertNear_WithDifferentNumbersAndError_AddsSpecificError)
+		TEST_METHOD(AssertNear_WithDifferentDoublesAndError_AddsSpecificError)
 		{
 			Assert.ExpectError(ExpectedError);
 			ASSERT_THAT(IsNear(1.0, 2.0, 0.001, ExpectedError));
+		}
+		TEST_METHOD(AssertNear_WithSimilarDoubleWithinTolerance_Succeeds)
+		{
+			ASSERT_THAT(IsNear(3.0, 3.001, 0.01));
+		}
+		TEST_METHOD(AssertNear_WithSimilarDoubleWithinNegativeTolerance_Succeeds)
+		{
+			ASSERT_THAT(IsNear(3.0, 2.999, 0.01));
+		}
+		TEST_METHOD(AssertNear_WithSimilarDoubleOutsideTolerance_AddsError)
+		{
+			Assert.ExpectError(AnyError);
+			ASSERT_THAT(IsNear(3.0, 3.1, 0.01));
+		}
+		TEST_METHOD(AssertNear_WithSimilarDoubleOutsideNegativeTolerance_AddsError)
+		{
+			Assert.ExpectError(AnyError);
+			ASSERT_THAT(IsNear(3.0, 2.9, 0.01));
 		}
 	};
 
