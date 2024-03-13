@@ -173,7 +173,7 @@ private:
 				TotalNumElementsWasted += (SlabSizeInElements - Slab.NumElementsUsed);
 				FMemory::Free(Slab.Allocation);
 			}
-			UE_LOG(LogLocalization, Log, TEXT("FTextKey slab allocator allocated %d slabs (of %d elements) and wasted %d elements (%d bytes)"), Slabs.Num(), SlabSizeInElements, TotalNumElementsWasted, TotalNumElementsWasted * sizeof(TCHAR));
+			//UE_LOG(LogLocalization, Log, TEXT("FTextKey slab allocator allocated %d slabs (of %d elements) and wasted %d elements (%d bytes)"), Slabs.Num(), SlabSizeInElements, TotalNumElementsWasted, TotalNumElementsWasted * sizeof(TCHAR));
 		}
 
 		const TCHAR* Add(FStringView InStr)
