@@ -88,7 +88,7 @@ namespace Horde.Server.Artifacts
 						using IStorageClient storageClient = _storageService.CreateClient(group.Key);
 						foreach (IArtifact artifact in group)
 						{
-							_logger.LogDebug("Expiring {StreamId} artifact {ArtifactId}, ref {RefName} (created {CreateTime})", artifact.StreamId, artifact.Id, artifact.RefName, artifact.CreatedAtUtc);
+							_logger.LogInformation("Expiring {StreamId} artifact {ArtifactId}, ref {RefName} (created {CreateTime})", artifact.StreamId, artifact.Id, artifact.RefName, artifact.CreatedAtUtc);
 							await storageClient.DeleteRefAsync(artifact.RefName, cancellationToken);
 						}
 					}
