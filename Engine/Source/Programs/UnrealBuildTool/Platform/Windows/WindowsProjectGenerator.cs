@@ -83,5 +83,17 @@ namespace UnrealBuildTool
 		{
 			return true;
 		}
+
+		/// <inheritdoc/>
+		public override IList<string> GetSystemIncludePaths(UEBuildTarget InTarget)
+		{
+			List<string> Result = new List<string>();
+			foreach (DirectoryReference Path in InTarget.Rules.WindowsPlatform.Environment!.IncludePaths)
+			{
+				Result.Add(Path.FullName);
+			}
+
+			return Result;
+		}
 	}
 }

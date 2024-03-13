@@ -500,7 +500,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Adds all rules project files to the solution.
 		/// </summary>
-		void AddRulesModules(Rules.RulesFileType RulesFileType, string ProgramSubDirectory, List<ProjectFile> AddedProjectFiles,
+		protected void AddRulesModules(Rules.RulesFileType RulesFileType, string ProgramSubDirectory, List<ProjectFile> AddedProjectFiles,
 			List<FileReference> UnrealProjectFiles, PrimaryProjectFolder RootFolder, PrimaryProjectFolder ProgramsFolder, ILogger Logger)
 		{
 			List<DirectoryReference> GameFolders = new List<DirectoryReference>();
