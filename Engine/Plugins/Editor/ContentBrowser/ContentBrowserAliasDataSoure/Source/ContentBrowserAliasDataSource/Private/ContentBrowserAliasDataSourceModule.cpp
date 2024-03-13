@@ -15,7 +15,7 @@ void FContentBrowserAliasDataSourceModule::PreUnloadCallback()
 	AliasDataSource.Reset();
 }
 
-UContentBrowserAliasDataSource* FContentBrowserAliasDataSourceModule::GetAliasDataSource()
+UContentBrowserAliasDataSource* FContentBrowserAliasDataSourceModule::TryGetAliasDataSource()
 {
 	// GExitPurge guard required because crash inspecting object after GExitPurge
 	if (!GExitPurge)

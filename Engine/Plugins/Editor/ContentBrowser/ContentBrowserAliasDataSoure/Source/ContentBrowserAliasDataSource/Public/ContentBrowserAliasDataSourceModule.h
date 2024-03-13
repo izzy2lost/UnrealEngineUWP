@@ -12,7 +12,10 @@ public:
 	virtual void StartupModule() override;
 	virtual void PreUnloadCallback() override;
 
-	CONTENTBROWSERALIASDATASOURCE_API UContentBrowserAliasDataSource* GetAliasDataSource();
+	UE_DEPRECATED(5.4, "Call TryGetAliasDataSource instead.")
+	TWeakObjectPtr<UContentBrowserAliasDataSource> GetAliasDataSource() { return AliasDataSource.Get(); }
+
+	CONTENTBROWSERALIASDATASOURCE_API UContentBrowserAliasDataSource* TryGetAliasDataSource();
 
 private:
 	TStrongObjectPtr<UContentBrowserAliasDataSource> AliasDataSource;

@@ -26,7 +26,7 @@ namespace ContentBrowserAliasDataSource
 		FConsoleCommandWithArgsDelegate::CreateLambda(
 			[](const TArray<FString>& /*Args*/)
 			{
-				if (UContentBrowserAliasDataSource* AliasDataSource = FModuleManager::Get().LoadModuleChecked<FContentBrowserAliasDataSourceModule>("ContentBrowserAliasDataSource").GetAliasDataSource())
+				if (UContentBrowserAliasDataSource* AliasDataSource = FModuleManager::Get().LoadModuleChecked<FContentBrowserAliasDataSourceModule>("ContentBrowserAliasDataSource").TryGetAliasDataSource())
 				{
 					AliasDataSource->LogAliases();
 				}
