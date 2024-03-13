@@ -7,6 +7,7 @@
 #include "Misc/FrameRate.h"
 #include "Math/Axis.h"
 #include "Math/Vector2D.h"
+#include "CurveEditorSettings.h"
 
 struct FCurveSnapMetrics
 {
@@ -74,19 +75,17 @@ struct FCurveEditorAxisSnap
 	};
 
 	/** Can be set to either X, Y, or None to control which axis GetSnappedPosition snaps to. User can override None by pressing shift. */
-	EAxisList::Type RestrictedAxisList;
+	ECurveEditorSnapAxis RestrictedAxisList;
 
 	FCurveEditorAxisSnap()
 	{
-		RestrictedAxisList = EAxisList::None;
+		RestrictedAxisList = ECurveEditorSnapAxis::CESA_None;
 	}
 
 	FVector2D GetSnappedPosition(FVector2D InitialPosition, FVector2D LastPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent, FSnapState& InOutSnapState, const bool bIgnoreAxisLock = false)
 	{
-		check(RestrictedAxisList == EAxisList::Type::None || RestrictedAxisList == EAxisList::Type::X || RestrictedAxisList == EAxisList::Type::Y);
-
 		// If we're ignoring axis lock (such as for UI) we allow them to use shift anyways
-		bool bCanUseShift = bIgnoreAxisLock || RestrictedAxisList == EAxisList::Type::None;
+		bool bCanUseShift = bIgnoreAxisLock || RestrictedAxisList == ECurveEditorSnapAxis::CESA_None;
 
 		FVector2D MouseLockVector = FVector2D::UnitVector;
 		if (bCanUseShift)
@@ -131,11 +130,11 @@ struct FCurveEditorAxisSnap
 
 			MouseLockVector = InOutSnapState.MouseLockVector;
 		}
-		else if (!bIgnoreAxisLock && RestrictedAxisList == EAxisList::Type::X)
+		else if (!bIgnoreAxisLock && RestrictedAxisList == ECurveEditorSnapAxis::CESA_X)
 		{
 			MouseLockVector.Y = 0;
 		}
-		else if (!bIgnoreAxisLock && RestrictedAxisList == EAxisList::Type::Y)
+		else if (!bIgnoreAxisLock && RestrictedAxisList == ECurveEditorSnapAxis::CESA_Y)
 		{
 			MouseLockVector.X = 0;
 		}

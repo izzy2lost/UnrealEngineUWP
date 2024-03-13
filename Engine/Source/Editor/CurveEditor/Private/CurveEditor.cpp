@@ -85,6 +85,7 @@ FCurveEditor::FCurveEditor()
 	GridLineLabelFormatYAttribute = LOCTEXT("GridYLabelFormat", "{0}");
 	
 	Settings->GetOnCustomColorsChanged().AddRaw(this, &FCurveEditor::OnCustomColorsChanged);
+	Settings->GetOnAxisSnappingChanged().AddRaw(this, &FCurveEditor::OnAxisSnappingChanged);
 }
 
 FCurveEditor::~FCurveEditor()
@@ -92,6 +93,7 @@ FCurveEditor::~FCurveEditor()
 	if (Settings)
 	{
 		Settings->GetOnCustomColorsChanged().RemoveAll(this);
+		Settings->GetOnAxisSnappingChanged().RemoveAll(this);
 	}
 }
 
@@ -2376,6 +2378,15 @@ void FCurveEditor::OnCustomColorsChanged()
 				// other things to change. So, this is intentionally not implemented.
 			}
 		}
+	}
+}
+
+void FCurveEditor::OnAxisSnappingChanged()
+{
+	TSharedPtr<SCurveEditorPanel> Panel = WeakPanel.Pin();
+	if (Panel.IsValid())
+	{
+		Panel->UpdateAxisSnapping();
 	}
 }
 

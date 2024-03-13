@@ -142,7 +142,7 @@ void SLensDataViewer::Construct(const FArguments& InArgs, ULensFile* InLensFile,
 
 	// Snap only Y axis
 	FCurveEditorAxisSnap SnapYAxisOnly = CurveEditor->GetAxisSnap();
-	SnapYAxisOnly.RestrictedAxisList = EAxisList::Type::Y;
+	SnapYAxisOnly.RestrictedAxisList = ECurveEditorSnapAxis::CESA_Y;
 	CurveEditor->SetAxisSnap(SnapYAxisOnly);
 
 	CurvePanel = SNew(SCameraCalibrationCurveEditorPanel, CurveEditor.ToSharedRef(), TimeSliderController);

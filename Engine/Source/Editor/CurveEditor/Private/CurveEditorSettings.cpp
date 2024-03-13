@@ -14,6 +14,7 @@ UCurveEditorSettings::UCurveEditorSettings()
 	bShowCurveEditorCurveToolTips = true;
 	TangentVisibility = ECurveEditorTangentVisibility::SelectedKeys;
 	ZoomPosition = ECurveEditorZoomPosition::CurrentTime;
+	SnapAxis = ECurveEditorSnapAxis::CESA_None;
 	bSnapTimeToSelection = false;
 
 	SelectionColor = FLinearColor::White;
@@ -131,6 +132,20 @@ void UCurveEditorSettings::SetZoomPosition(ECurveEditorZoomPosition InZoomPositi
 	if (ZoomPosition != InZoomPosition)
 	{
 		ZoomPosition = InZoomPosition;
+		SaveConfig();
+	}
+}
+
+ECurveEditorSnapAxis UCurveEditorSettings::GetSnapAxis() const
+{
+	return SnapAxis;
+}
+
+void UCurveEditorSettings::SetSnapAxis(ECurveEditorSnapAxis InSnapAxis)
+{
+	if (SnapAxis != InSnapAxis)
+	{
+		SnapAxis = InSnapAxis;
 		SaveConfig();
 	}
 }
@@ -330,6 +345,11 @@ void UCurveEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& Propert
 	{
 		OnCustomColorsChangedEvent.Broadcast();
 	}
-	
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UCurveEditorSettings, SnapAxis) ||
+		MemberPropertyName == GET_MEMBER_NAME_CHECKED(UCurveEditorSettings, SnapAxis))
+	{
+		OnAxisSnappingChangedEvent.Broadcast();
+	}
+
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }

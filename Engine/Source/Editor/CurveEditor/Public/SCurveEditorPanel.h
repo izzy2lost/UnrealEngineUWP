@@ -168,6 +168,9 @@ class CURVEEDITOR_API SCurveEditorPanel : public SCompoundWidget
 	/** Reset Stored Min/Max's*/
 	void ResetMinMaxes();
 
+	/** Update the axis snapping based on the settings. */
+	void UpdateAxisSnapping();
+
 	/** Delegate for when the chosen filter class has changed */
 	FSimpleDelegate OnFilterClassChanged;
 	void FilterClassChanged();
@@ -275,7 +278,7 @@ private:
 	bool CanSetKeyInterpolation() const;
 
 	/** Sets the axis snapping to the specified value. Only supports X, Y and None. */
-	void SetAxisSnapping(EAxisList::Type InAxis);
+	void SetAxisSnapping(ECurveEditorSnapAxis);
 
 	/** Get a reference to the curve editor this panel represents. */
 	TSharedPtr<FCurveEditor> GetCurveEditor() const { return CurveEditor; }

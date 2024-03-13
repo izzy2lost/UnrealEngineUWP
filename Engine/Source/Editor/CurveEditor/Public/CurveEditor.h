@@ -596,6 +596,7 @@ protected:
 	void ApplyBufferedCurveToTarget(const IBufferedCurveModel* BufferedCurve, FCurveModel* TargetCurve);
 
 	void OnCustomColorsChanged();
+	void OnAxisSnappingChanged();
 
 protected:
 
