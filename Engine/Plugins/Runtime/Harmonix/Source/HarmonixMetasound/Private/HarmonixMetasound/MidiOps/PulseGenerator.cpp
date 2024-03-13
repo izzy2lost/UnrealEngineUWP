@@ -9,7 +9,7 @@ namespace Harmonix::Midi::Ops
 		Enabled = bEnable;
 	}
 
-	void FPulseGenerator::SetClock(const HarmonixMetasound::FMidiClock* Clock)
+	void FPulseGenerator::SetClock(const TSharedPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>& Clock)
 	{
 		Cursor.SetClock(Clock);
 	}
@@ -74,21 +74,27 @@ namespace Harmonix::Midi::Ops
 		SetMessageFilter(EFilterPassFlags::TimeSig);
 	}
 
-	void FPulseGenerator::FCursor::SetClock(const HarmonixMetasound::FMidiClock* NewClock)
+	FPulseGenerator::FCursor::~FCursor()
+	{
+		// NB: If we let ~FMidiPlayCursor do this, we get warnings for potentially bad access
+		SetClock(nullptr);
+	}
+
+	void FPulseGenerator::FCursor::SetClock(const TSharedPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>& NewClock)
 	{
 		if (Clock == NewClock)
 		{
 			return;
 		}
-		
-		if (nullptr == NewClock)
+
+		// unregister if we already have a clock
+		if (const auto PinnedClock = Clock.Pin())
 		{
-			if (nullptr != Owner)
-			{
-				Owner->UnregisterPlayCursor(this);
-			}
+			PinnedClock->UnregisterPlayCursor(this);
 		}
-		else
+
+		// register the new clock if we were given one
+		if (NewClock.IsValid())
 		{
 			NewClock->RegisterHiResPlayCursor(this);
 		}
@@ -133,17 +139,18 @@ namespace Harmonix::Midi::Ops
 		{
 			return;
 		}
-
-		check(nullptr != Clock);
-		int32 NextPulseTick = Clock->GetBarMap().MusicTimestampToTick(NextPulseTimestamp);
+		
+		check(Clock.IsValid()); // if we're here and we don't have a clock, we have problems
+		const auto PinnedClock = Clock.Pin();
+		int32 NextPulseTick = PinnedClock->GetBarMap().MusicTimestampToTick(NextPulseTimestamp);
 
 		while (CurrentTick >= NextPulseTick)
 		{
-			Push({ Clock->GetCurrentBlockFrameIndex(), NextPulseTick });
+			Push({ PinnedClock->GetCurrentBlockFrameIndex(), NextPulseTick });
 			
 			IncrementTimestampByInterval(NextPulseTimestamp, Interval, CurrentTimeSignature);
 
-			NextPulseTick = Clock->GetBarMap().MusicTimestampToTick(NextPulseTimestamp);
+			NextPulseTick = PinnedClock->GetBarMap().MusicTimestampToTick(NextPulseTimestamp);
 		}
 	}
 
@@ -152,10 +159,11 @@ namespace Harmonix::Midi::Ops
 		CurrentTimeSignature.Numerator = Numerator;
 		CurrentTimeSignature.Denominator = Denominator;
 		
-		check(nullptr != Owner);
+		check(Clock.IsValid()); // if we're here and we don't have a clock, we have problems
+		const auto PinnedClock = Clock.Pin();
 		// Time sig changes will come on the downbeat, and if we change time signature,
 		// we want to reset the pulse, so the next pulse is now plus the offset
-		NextPulseTimestamp = Owner->GetBarMap().TickToMusicTimestamp(Tick);
+		NextPulseTimestamp = PinnedClock->GetBarMap().TickToMusicTimestamp(Tick);
 		IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
 	}
 }

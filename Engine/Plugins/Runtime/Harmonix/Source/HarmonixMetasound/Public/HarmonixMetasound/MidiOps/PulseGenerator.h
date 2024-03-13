@@ -19,7 +19,7 @@ namespace Harmonix::Midi::Ops
 	public:
 		void Enable(bool bEnable);
 		
-		void SetClock(const HarmonixMetasound::FMidiClock* Clock);
+		void SetClock(const TSharedPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>& Clock);
 
 		Dsp::Parameters::TParameter<uint8> Channel{ 1, 16, 1 };
 
@@ -45,7 +45,9 @@ namespace Harmonix::Midi::Ops
 		public:
 			FCursor();
 
-			void SetClock(const HarmonixMetasound::FMidiClock* NewClock);
+			virtual ~FCursor() override;
+
+			void SetClock(const TSharedPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>& NewClock);
 
 			void SetInterval(const FMusicTimeInterval& NewInterval);
 
@@ -66,7 +68,7 @@ namespace Harmonix::Midi::Ops
 			
 			virtual void OnTimeSig(int32 TrackIndex, int32 Tick, int32 Numerator, int32 Denominator, bool IsPreroll) override;
 
-			const HarmonixMetasound::FMidiClock* Clock{ nullptr };
+			TWeakPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe> Clock;
 			FMusicTimeInterval Interval{};
 			TSpscQueue<FPulseTime> PulsesSinceLastProcess;
 			int32 QueueSize{0};

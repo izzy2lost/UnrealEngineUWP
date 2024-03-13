@@ -20,21 +20,21 @@ namespace Harmonix::Midi::Ops::Tests
 		constexpr float Tempo = 123;
 		constexpr uint8 TimeSigNumerator = 4;
 		constexpr uint8 TimeSigDenominator = 4;
-		HarmonixMetasound::FMidiClock Clock{ OperatorSettings };
-		Clock.AttachToMidiResource(HarmonixMetasound::FMidiClock::MakeClockConductorMidiData(Tempo, TimeSigNumerator, TimeSigDenominator));
+		const auto Clock = MakeShared<HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>(OperatorSettings);
+		Clock->AttachToMidiResource(HarmonixMetasound::FMidiClock::MakeClockConductorMidiData(Tempo, TimeSigNumerator, TimeSigDenominator));
 		
 		HarmonixMetasound::FMidiStream OutputStream;
 
-		PulseGenerator.SetClock(&Clock);
+		PulseGenerator.SetClock(Clock);
 
 		// Default: a pulse every beat
 		{
 			constexpr int32 NotesUntilWeAreSatisfiedThisWorks = 23;
 			int32 NumNotesReceived = 0;
 
-			Clock.ResetAndStart(0);
+			Clock->ResetAndStart(0);
 
-			FTimeSignature TimeSignature = Clock.GetBarMap().GetTimeSignatureAtTick(0);
+			FTimeSignature TimeSignature = Clock->GetBarMap().GetTimeSignatureAtTick(0);
 			FMusicTimeInterval Interval = PulseGenerator.GetInterval();
 			FMusicTimestamp NextPulse{ 1, 1 };
 			IncrementTimestampByOffset(NextPulse, Interval, TimeSignature);
@@ -46,21 +46,21 @@ namespace Harmonix::Midi::Ops::Tests
 				{
 					IncrementTimestampByInterval(EndTimestamp, Interval, TimeSignature);
 				}
-				EndTick = Clock.GetBarMap().MusicTimestampToTick(EndTimestamp);
+				EndTick = Clock->GetBarMap().MusicTimestampToTick(EndTimestamp);
 			}
 			
-			while (Clock.GetCurrentMidiTick() < EndTick)
+			while (Clock->GetCurrentMidiTick() < EndTick)
 			{
 				// Advance the clock, which will advance the play cursor in the pulse generator
-				Clock.PrepareBlock();
-				Clock.WriteAdvance(0, OperatorSettings.GetNumFramesPerBlock());
+				Clock->PrepareBlock();
+				Clock->WriteAdvance(0, OperatorSettings.GetNumFramesPerBlock());
 
 				// Process, which will pop the next notes
 				OutputStream.PrepareBlock();
 				PulseGenerator.Process(OutputStream);
 				
 				// If this is a block where we should get a pulse, check that we got it
-				if (Clock.GetCurrentMidiTick() >= Clock.GetBarMap().MusicTimestampToTick(NextPulse))
+				if (Clock->GetCurrentMidiTick() >= Clock->GetBarMap().MusicTimestampToTick(NextPulse))
 				{
 					const bool ShouldGetNoteOff = NumNotesReceived > 0;
 
