@@ -834,7 +834,7 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 			case EImageFormat::IF_BC5:
 			{
 				ImagePixelFormatInternal::BlockDecompressionLODRangeHelper(
-						Result, Base, ResultLODBegin, BaseLODBegin, NumLODs, miro::BC4_to_RGBA);
+						Result, Base, ResultLODBegin, BaseLODBegin, NumLODs, miro::BC5_to_RGBA);
 				break;
 			}
 			case EImageFormat::IF_ASTC_4x4_RGB_LDR:
