@@ -466,7 +466,8 @@ namespace HarmonixMetasound
 
 		// create conductor track
 		FMidiTrack& Track = OutMidiData->Tracks.Add_GetRef(FMidiTrack(TEXT("conductor")));
-		OutMidiData->LastEventTick = std::numeric_limits<int32>::max();
+		// max out song length data so the midi can play indefinitely
+		OutMidiData->ConformToLength(std::numeric_limits<int32>::max());
 
 		// add time sig info
 		int32 TimeSigNum = FMath::Clamp(InTimeSigNum, 1, 64);
@@ -481,11 +482,6 @@ namespace HarmonixMetasound
 		TempoMap.AddTempoInfoPoint(MidiTempo, 0);
 
 		Track.Sort();
-
-		// max out song length data so the midi can play indefinitely
-		OutMidiData->SongMaps.GetSongLengthData().LastTick = std::numeric_limits<int32>::max();
-		OutMidiData->SongMaps.GetSongLengthData().LengthTicks = std::numeric_limits<int32>::max();
-		OutMidiData->SongMaps.GetSongLengthData().LengthBars = std::numeric_limits<int32>::max();
 
 		return OutMidiData;
 	}

@@ -18,6 +18,8 @@
 Customize details panel for UMidiFile
 */
 
+class UMidiFile;
+
 class FMidiFileDetailCustomization : public IDetailCustomization
 {
 public:
@@ -27,11 +29,18 @@ public:
 	}
 
 	//Text Display for midi file length
+	virtual void CustomizeDetails(const TSharedPtr<IDetailLayoutBuilder>& InDetailBuilder) override;
+	virtual void CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder) override;
+
+private:
+	TSharedPtr<IDetailLayoutBuilder> DetailBuilder;
 	FText FileLengthText;
 	FText RoundedLengthToolTipText;
 	TSharedPtr<STextBlock> FileLengthTextBlock;
-	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+	TSharedPtr<SHorizontalBox> LengthBox;
+	FDetailWidgetRow* LengthRow = nullptr;
 
-private:
 	TWeakObjectPtr<UObject> MidiFile;
+
+	void BuildLengthRow(UMidiFile* TheMidiFile);
 };
