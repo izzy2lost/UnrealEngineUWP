@@ -1080,6 +1080,7 @@ void FAssetSourceControlContextMenuState::TryCacheCanExecuteVars(const TArray<FS
 
 	const bool bUsesCheckout = SourceControlProvider.UsesCheckout();
 	const bool bUsesFileRevisions = SourceControlProvider.UsesFileRevisions();
+	const bool bUsesSnapshots = SourceControlProvider.UsesSnapshots();
 
 	// If a package is dirty, allow a revert of the in-memory changes that have not yet been saved to disk.
 	if (AllowExecuteSCCRevertUnsaved())
@@ -1132,7 +1133,10 @@ void FAssetSourceControlContextMenuState::TryCacheCanExecuteVars(const TArray<FS
 				{
 					bCanExecuteSCCSync = bCanSyncCurrentItem = true;
 				}
+			}
 
+			if (!bUsesSnapshots)
+			{
 				if (SourceControlState->CanCheckIn())
 				{
 					bCanExecuteSCCCheckIn = true;
