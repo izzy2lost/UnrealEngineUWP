@@ -271,7 +271,7 @@ void SAvaLevelViewportStatusBarButtons::PopulateActorButtons(TSharedPtr<SHorizon
 	TSharedRef<SComboButton> AlignmentButton = ViewportStatusBarButton::MakeMenuButton(
 		LOCTEXT("ActorAlign", "Align Actors"),
 		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetActorAlignmentMenuContent),
-		FAppStyle::Get().GetBrush(TEXT("Icons.Layout")),
+		FAvaLevelViewportStyle::Get().GetBrush(TEXT("Icons.Alignment.Left")),
 		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetActorAlignmentColor)
 	);
 
@@ -294,20 +294,6 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 
 	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
 	const FLevelViewportCommands& ViewportActionsRef = FLevelViewportCommands::Get();
-
-	InContainer->AddSlot()
-		.AutoWidth()
-		.Padding(ViewportStatusBarButton::Padding)
-		[
-			ViewportStatusBarButton::MakeButton(
-				this,
-				ViewportActionsRef.HighResScreenshot,
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelViewport.HighResScreenshot").GetIcon(),
-				&SAvaLevelViewportStatusBarButtons::HighResScreenshot,
-				&SAvaLevelViewportStatusBarButtons::GetHighResScreenshotEnabled,
-				&SAvaLevelViewportStatusBarButtons::GetHighResScreenshotColor
-			)
-		];
 
 	InContainer->AddSlot()
 		.AutoWidth()
@@ -478,6 +464,20 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 		.Padding(ViewportStatusBarButton::Padding)
 		[
 			SnapButton
+		];
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			ViewportStatusBarButton::MakeButton(
+				this,
+				ViewportActionsRef.HighResScreenshot,
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelViewport.HighResScreenshot").GetIcon(),
+				&SAvaLevelViewportStatusBarButtons::HighResScreenshot,
+				&SAvaLevelViewportStatusBarButtons::GetHighResScreenshotEnabled,
+				&SAvaLevelViewportStatusBarButtons::GetHighResScreenshotColor
+			)
 		];
 
 	TSharedRef<SComboButton> ViewportInfoButton = ViewportStatusBarButton::MakeMenuButton(
