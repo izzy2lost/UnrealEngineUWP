@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
+#include "UObject/UObjectAnnotation.h"
 #include "WorldPartition/ActorDescList.h"
 #include "WorldPartition/WorldPartitionHandle.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
@@ -11,7 +12,27 @@
 #include "ActorDescContainer.generated.h"
 
 class FLinkerInstancingContext;
+class UDeletedObjectPlaceholder;
 class UWorldPartition;
+
+#if WITH_EDITOR
+struct FDeletedObjectPlaceholderAnnotation
+{
+public:
+	FDeletedObjectPlaceholderAnnotation(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder = nullptr, const FString& InActorDescContainerName = FString());
+	bool IsDefault() const { return DeletedObjectPlaceholder.IsExplicitlyNull() && ActorDescContainerName.IsEmpty(); }
+	bool IsValid() const { return DeletedObjectPlaceholder.IsValid() && !ActorDescContainerName.IsEmpty(); }
+	const UDeletedObjectPlaceholder* GetDeletedObjectPlaceholder() const { return DeletedObjectPlaceholder.Get(); }
+	UActorDescContainer* GetActorDescContainer() const;
+
+private:
+	TWeakObjectPtr<const UDeletedObjectPlaceholder> DeletedObjectPlaceholder;
+	// We store the container name instead of keeping a WeakObjectPtr to properly handle the case where the container 
+	// is unregistered/re-registered between usage of annotation (this can happen if a plugin is unregistered/re-registered).
+	FString ActorDescContainerName;
+};
+#endif
+
 
 UCLASS(MinimalAPI)
 class UActorDescContainer : public UObject, public FActorDescList
@@ -174,8 +195,13 @@ private:
 	// GetWorld() should never be called on an ActorDescContainer to avoid any confusion as it can be used as a template
 	UWorld* GetWorld() const override { return nullptr; }
 
+	bool ShouldHandleDeletedObjectPlaceholderEvent(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder) const;
+	void OnDeletedObjectPlaceholderCreated(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder);
+
 	ENGINE_API void RegisterEditorDelegates();
 	ENGINE_API void UnregisterEditorDelegates();
+
+	static FUObjectAnnotationSparse<FDeletedObjectPlaceholderAnnotation, true> DeletedObjectPlaceholdersAnnotation;
 
 protected:
 	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;

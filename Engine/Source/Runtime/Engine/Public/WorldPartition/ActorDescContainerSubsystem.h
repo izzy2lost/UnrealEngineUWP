@@ -41,6 +41,8 @@ public:
 	
 	template <class ContainerType = UActorDescContainer>
 	ContainerType* RegisterContainer(const typename UActorDescContainer::FInitializeParams& InitParams) { return ContainerManager.RegisterContainer<ContainerType>(InitParams); }
+	UActorDescContainer* GetActorDescContainer(const FString& InContainerName) { return ContainerManager.GetActorDescContainer(InContainerName); }
+	const UActorDescContainer* GetActorDescContainer(const FString& InContainerName) const { return ContainerManager.GetActorDescContainer(InContainerName); }
 	void RegisterContainer(UActorDescContainer* Container) { ContainerManager.RegisterContainer(Container); }
 	void UnregisterContainer(UActorDescContainer* Container) { ContainerManager.UnregisterContainer(Container); }
 	FBox GetContainerBounds(const FString& ContainerName) const { return ContainerManager.GetContainerBounds(ContainerName); }
@@ -128,6 +130,17 @@ private:
 		{
 			FRegisteredContainer& RegisteredContainer = RegisteredContainers.FindChecked(Container->GetContainerName());
 			RegisteredContainer.RefCount++;
+		}
+
+		UActorDescContainer* GetActorDescContainer(const FString& InContainerName)
+		{ 
+			FRegisteredContainer* RegisteredContainer = RegisteredContainers.Find(InContainerName);
+			return RegisteredContainer ? RegisteredContainer->Container : nullptr;
+		}
+
+		const UActorDescContainer* GetActorDescContainer(const FString& InContainerName) const 
+		{
+			return const_cast<FContainerManager*>(this)->GetActorDescContainer(InContainerName);
 		}
 				
 		void UnregisterContainer(UActorDescContainer* Container);

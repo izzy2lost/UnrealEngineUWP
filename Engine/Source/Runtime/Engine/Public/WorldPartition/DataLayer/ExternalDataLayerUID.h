@@ -17,6 +17,7 @@ public:
 
 	FString ToString() const;
 #if WITH_EDITOR
+	FExternalDataLayerUID(uint32 InValue = 0) { Value = InValue; }
 	static bool Parse(const FString& InUIDString, FExternalDataLayerUID& OutUID);
 #endif
 

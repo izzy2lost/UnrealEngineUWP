@@ -41,6 +41,7 @@
 #include "Algo/Transform.h"
 #include "Algo/RemoveIf.h"
 #include "Misc/DataValidation.h"
+#include "DeletedObjectPlaceholder.h"
 
 #define LOCTEXT_NAMESPACE "ErrorChecking"
 
@@ -1082,18 +1083,29 @@ void AActor::SetPackageExternal(bool bExternal, bool bShouldDirty, UPackage* Act
     // Mark the current actor & package as dirty
 	Modify(bShouldDirty);
 
-	UPackage* LevelPackage = GetLevel()->GetPackage(); 
 	if (bExternal)
 	{
-		UPackage* NewActorPackage = ActorExternalPackage ? ActorExternalPackage : ULevel::CreateActorPackage(LevelPackage, GetLevel()->GetActorPackagingScheme(), GetPathName(), this);
-		SetExternalPackage(NewActorPackage);
+		UPackage* LevelPackage = GetLevel()->GetPackage();
+		UPackage* ActorPackage = ActorExternalPackage ? ActorExternalPackage : ULevel::CreateActorPackage(LevelPackage, GetLevel()->GetActorPackagingScheme(), GetPathName(), this);
+		// Cleanup the package from its UDeletedObjectPlaceholder if any (CreateActorPackage can return an existing package)
+		UDeletedObjectPlaceholder::RemoveFromPackage(ActorPackage);
+		SetExternalPackage(ActorPackage);
 	}
 	else
 	{
+		const bool bWasMainActorInPackage = IsMainPackageActor();
 		UPackage* ActorPackage = GetExternalPackage();
 		// Detach the linker exports so it doesn't resolve to this actor anymore
 		ResetLinkerExports(ActorPackage);
 		SetExternalPackage(nullptr);
+
+		// If the old external package is empty, create a dummy object outered to the level part of the original external package
+		// so that ULevel::CleanupLevel will be able to visit & process this empty external package.
+		// This object will allow the save package dialog to display the label of the previously removed actor (see FAssetTypeActions_DeletedObjectPlaceholder::GetObjectDisplayName)
+		if (!ActorPackage->HasAnyPackageFlags(PKG_NewlyCreated) && bWasMainActorInPackage && !AActor::FindActorInPackage(ActorPackage))
+		{
+			UDeletedObjectPlaceholder::Create(GetLevel(), ActorPackage, this);
+		}
 	}
 
 	for (UActorComponent* ActorComponent : GetComponents())

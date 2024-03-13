@@ -18,8 +18,26 @@
 #include "WorldPartition/WorldPartitionClassDescRegistry.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/ActorDescContainerSubsystem.h"
+#include "DeletedObjectPlaceholder.h"
 
 UActorDescContainer::FActorDescContainerInitializeDelegate UActorDescContainer::OnActorDescContainerInitialized;
+
+FUObjectAnnotationSparse<FDeletedObjectPlaceholderAnnotation, true> UActorDescContainer::DeletedObjectPlaceholdersAnnotation;
+
+FDeletedObjectPlaceholderAnnotation::FDeletedObjectPlaceholderAnnotation(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder, const FString& InActorDescContainerName)
+	: DeletedObjectPlaceholder(InDeletedObjectPlaceholder)
+	, ActorDescContainerName(InActorDescContainerName)
+{
+}
+
+UActorDescContainer* FDeletedObjectPlaceholderAnnotation::GetActorDescContainer() const
+{
+	UActorDescContainerSubsystem* ActorDescContainerSubsystem = UActorDescContainerSubsystem::Get();
+	UActorDescContainer* ActorDescContainer = ActorDescContainerSubsystem ? ActorDescContainerSubsystem->GetActorDescContainer(ActorDescContainerName) : nullptr;
+	return ActorDescContainer;
+}
+
 #endif
 
 UActorDescContainer::UActorDescContainer(const FObjectInitializer& ObjectInitializer)
@@ -291,6 +309,31 @@ const FWorldPartitionActorDesc* UActorDescContainer::GetActorDescByName(FName Ac
 	return nullptr;
 }
 
+bool UActorDescContainer::ShouldHandleDeletedObjectPlaceholderEvent(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder) const
+{
+	const FExternalDataLayerUID ContainerExternalDataLayerUID = ExternalDataLayerAsset ? ExternalDataLayerAsset->GetUID() : FExternalDataLayerUID();
+	if (ContainerExternalDataLayerUID == InDeletedObjectPlaceholder->GetExternalDataLayerUID())
+	{
+		const FString PackageName = InDeletedObjectPlaceholder->GetPackage()->GetName();
+		const FString ContainerExternalActorPath = GetExternalActorPath() / TEXT("");
+		return PackageName.StartsWith(ContainerExternalActorPath);
+	}
+	return false;
+};
+
+void UActorDescContainer::OnDeletedObjectPlaceholderCreated(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder)
+{
+	const UObject* OriginalObject = InDeletedObjectPlaceholder->GetOriginalObject();
+	if (const AActor* Actor = Cast<AActor>(OriginalObject))
+	{
+		if (ShouldHandleDeletedObjectPlaceholderEvent(InDeletedObjectPlaceholder))
+		{
+			check(GetActorDescriptor(Actor->GetActorGuid()));
+			DeletedObjectPlaceholdersAnnotation.AddAnnotation(Actor, FDeletedObjectPlaceholderAnnotation(InDeletedObjectPlaceholder, GetContainerName()));
+		}
+	}
+}
+
 void UActorDescContainer::OnObjectPreSave(UObject* Object, FObjectPreSaveContext SaveContext)
 {
 	if (!SaveContext.IsProceduralSave() && !(SaveContext.GetSaveFlags() & SAVE_FromAutosave))
@@ -300,6 +343,23 @@ void UActorDescContainer::OnObjectPreSave(UObject* Object, FObjectPreSaveContext
 			if (ShouldHandleActorEvent(Actor))
 			{
 				check(IsValidChecked(Actor));
+
+				// Handle the case where the actor changed package but the old/empty package has not been processed/deleted
+				// One case where this can happen is if the user choses to save the new package but unchecks the deleted package
+				// Remove(unhash) the corresponding original actor (guid) from its original container before adding the new one (unhash before hashing)
+				if (FDeletedObjectPlaceholderAnnotation Annotation = DeletedObjectPlaceholdersAnnotation.GetAndRemoveAnnotation(Actor); Annotation.IsValid())
+				{
+					// In the case where the object changed to a new container and created a new package, then changed back to its original location,
+					// OnDeletedObjectPlaceholderCreated will not be called for the newly created package
+					// This is why we need to validate that the annotation's container is still relevant by the annotation's DeletedObjectPlaceholder using ShouldHandleDeletedObjectPlaceholderEvent
+					UActorDescContainer* ActorDescContainer = Annotation.GetActorDescContainer();
+					if (ActorDescContainer && ActorDescContainer->ShouldHandleDeletedObjectPlaceholderEvent(Annotation.GetDeletedObjectPlaceholder()))
+					{
+						check(Annotation.GetDeletedObjectPlaceholder()->GetOriginalObject() == Actor);
+						verify(ActorDescContainer->RemoveActor(Actor->GetActorGuid()));
+					}
+				}
+				
 				if (TUniquePtr<FWorldPartitionActorDesc>* ExistingActorDesc = GetActorDescriptor(Actor->GetActorGuid()))
 				{
 					// Existing actor
@@ -321,11 +381,26 @@ void UActorDescContainer::OnObjectPreSave(UObject* Object, FObjectPreSaveContext
 
 void UActorDescContainer::OnPackageDeleted(UPackage* Package)
 {
-	AActor* Actor = AActor::FindActorInPackage(Package);
-
-	if (ShouldHandleActorEvent(Actor))
+	if (const AActor* Actor = AActor::FindActorInPackage(Package))
 	{
-		RemoveActor(Actor->GetActorGuid());
+		if (ShouldHandleActorEvent(Actor))
+		{
+			RemoveActor(Actor->GetActorGuid());
+		}
+	}
+	else if (UDeletedObjectPlaceholder* DeletedObjectPlaceholder = UDeletedObjectPlaceholder::FindInPackage(Package))
+	{
+		if (ShouldHandleDeletedObjectPlaceholderEvent(DeletedObjectPlaceholder))
+		{
+			// Here we validate that we didn't already processed the DeletedObjectPlaceholder in OnObjectPreSave
+			const AActor* OriginalActor = CastChecked<AActor>(DeletedObjectPlaceholder->GetOriginalObject());
+			if (FDeletedObjectPlaceholderAnnotation Annotation = DeletedObjectPlaceholdersAnnotation.GetAndRemoveAnnotation(OriginalActor); Annotation.IsValid())
+			{
+				check(Annotation.GetDeletedObjectPlaceholder() == DeletedObjectPlaceholder);
+				check(Annotation.GetActorDescContainer() == this);
+				verify(RemoveActor(OriginalActor->GetActorGuid()));
+			}
+		}
 	}
 }
 
@@ -405,6 +480,8 @@ void UActorDescContainer::RegisterEditorDelegates()
 
 		FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
 		ClassDescRegistry.OnClassDescriptorUpdated().AddUObject(this, &UActorDescContainer::OnClassDescriptorUpdated);
+
+		UDeletedObjectPlaceholder::OnObjectCreated.AddUObject(this, &UActorDescContainer::OnDeletedObjectPlaceholderCreated);
 	}
 }
 
@@ -417,6 +494,8 @@ void UActorDescContainer::UnregisterEditorDelegates()
 
 		FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
 		ClassDescRegistry.OnClassDescriptorUpdated().RemoveAll(this);
+
+		UDeletedObjectPlaceholder::OnObjectCreated.RemoveAll(this);
 	}
 }
 
