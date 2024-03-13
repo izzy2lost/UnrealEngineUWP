@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "../BlueNoise.ush"
+
 uint TranslucencyVolumeTracingOctahedronResolution;
 uint3 TranslucencyGIGridSize;
 float3 TranslucencyGIGridZParams;
@@ -70,9 +72,9 @@ void GetProbeTracingUV(
 	ConeHalfAngle = acosFast(1.0f - 1.0f / (float)(TranslucencyVolumeTracingOctahedronResolution * TranslucencyVolumeTracingOctahedronResolution));
 }
 
-float2 GetProbeTexelCenter(uint3 GridCoordinate)
+float2 GetProbeTexelCenter(uint2 GridCoordinate)
 {
-	return Rand4DPCG32(int4(GridCoordinate.xyz, FroxelDirectionJitterFrameIndex < 0 ? 0 : FroxelDirectionJitterFrameIndex)).xy / (float)0xffffffff;
+	return BlueNoiseVec2(GridCoordinate, FroxelDirectionJitterFrameIndex < 0 ? 0 : FroxelDirectionJitterFrameIndex);
 }
 
 Texture2D FurthestHZBTexture;

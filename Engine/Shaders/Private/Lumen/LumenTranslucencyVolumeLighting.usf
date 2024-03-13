@@ -103,7 +103,7 @@ void TranslucencyVolumeTraceVoxelsCS(
 
 			float2 ProbeUV;
 			float ConeHalfAngle;
-			GetProbeTracingUV(TraceTexelCoord, GetProbeTexelCenter(GridCoordinate), ProbeUV, ConeHalfAngle);
+			GetProbeTracingUV(TraceTexelCoord, GetProbeTexelCenter(GridCoordinate.xy), ProbeUV, ConeHalfAngle);
 
 			float3 WorldConeDirection = EquiAreaSphericalMapping(ProbeUV);
 

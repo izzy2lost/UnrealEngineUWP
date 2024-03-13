@@ -7,6 +7,7 @@
 #include "ShaderParameterMacros.h"
 #include "LumenRadianceCacheInterpolation.h"
 #include "LumenFrontLayerTranslucency.h"
+#include "BlueNoise.h"
 
 DECLARE_UNIFORM_BUFFER_STRUCT(FSceneTextureUniformParameters, ENGINE_API);
 
@@ -54,6 +55,7 @@ extern FLumenTranslucencyLightingParameters GetLumenTranslucencyLightingParamete
 
 // Used by Translucency Lighting pipeline shaders
 BEGIN_SHADER_PARAMETER_STRUCT(FLumenTranslucencyLightingVolumeParameters, )
+	SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 	SHADER_PARAMETER(FVector3f, TranslucencyGIGridZParams)
 	SHADER_PARAMETER(uint32, TranslucencyGIGridPixelSizeShift)
 	SHADER_PARAMETER(FIntVector, TranslucencyGIGridSize)

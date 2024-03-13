@@ -610,6 +610,8 @@ FLumenTranslucencyLightingVolumeParameters GetTranslucencyLightingVolumeParamete
 	Parameters.FroxelDirectionJitterFrameIndex = GTranslucencyVolumeJitter ? int32(ViewStateFrameIndex % FMath::Max(1, CVarLumenTranslucencyVolumeTemporalMaxRayDirections.GetValueOnRenderThread())) : -1;
 
 	Parameters.SceneTexturesStruct = View.GetSceneTextures().UniformBuffer;
+
+	Parameters.BlueNoise = CreateUniformBufferImmediate(GetBlueNoiseGlobalParameters(), EUniformBufferUsage::UniformBuffer_SingleDraw);
 		
 	Parameters.TranslucencyVolumeTracingOctahedronResolution = GTranslucencyVolumeTracingOctahedronResolution;
 	
