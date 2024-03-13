@@ -21,19 +21,6 @@ public:
 	}
 
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
-private:
-	int32 CurrentKeyzoneIndex = 0;
-	
-	void AddKeyzonesNameToMenuArray(TSharedPtr<IPropertyHandleArray> KeyzonesHandle, int32 NumKeyzones);
-
-	//helper functions to paint customized properties
-	FDetailWidgetRow& AddCustomMinMaxSliderRow(IDetailCategoryBuilder& FusionPatchDataCategory, const FText& DisplayName, TSharedPtr<IPropertyHandle> MinPropertyHandle, TSharedPtr<IPropertyHandle> MaxPropertyHandle);
-	void DrawSelectedKeyzoneProperties(IDetailCategoryBuilder& FusionPatchDataCategory, TSharedPtr<IPropertyHandleArray> KeyzonesHandle, int32 NumKeyzones);
-
-	TSharedPtr<FString> CurrentKeyzoneName;
-	TArray<TSharedPtr<FString>> KeyzonesNameMenu;
-
-	TSharedRef<SWidget> CreateMinMaxSliderWidget(TSharedPtr<IPropertyHandle> MinValuePropertyHandle, TSharedPtr<IPropertyHandle> MaxValuePropertyHandle);
 };
 
 
