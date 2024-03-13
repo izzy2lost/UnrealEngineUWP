@@ -78,6 +78,7 @@ Level.cpp: Level-related functions
 #include "Engine/LevelActorContainer.h"
 #include "ObjectTrace.h"
 #include "UObject/MetaData.h"
+#include "UObject/PropertyBagRepository.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Level)
@@ -451,6 +452,7 @@ void ULevel::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collecto
 void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 {
 	OnCleanupLevel.Broadcast();
+	UE::FPropertyBagRepository::Get().CleanupLevel(this);
 
 	if (bCleanupResources)
 	{

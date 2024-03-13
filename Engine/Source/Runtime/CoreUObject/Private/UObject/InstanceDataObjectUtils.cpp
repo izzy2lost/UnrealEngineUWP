@@ -133,7 +133,7 @@ namespace UE
 	{
 		// Note: NULL is a valid (default) input here; in that case we just return the enable flag.
 		bool bIsEnabled = bEnableIDOSupport;
-		if (bIsEnabled && InObject)
+		if (bIsEnabled && InObject && !InObject->IsInPackage(GetTransientPackage()))
 		{
 			//@todo FH: change to check trait when available or use config object
 			const UClass* ObjClass = InObject->GetClass();
@@ -622,6 +622,16 @@ namespace UE
 			}
 		}
 	}
+
+	static void SetClassFlags(UClass* IDOClass, const UClass* OwnerClass)
+	{
+		// always set
+		IDOClass->AssembleReferenceTokenStream();
+		IDOClass->ClassFlags |= CLASS_NotPlaceable | CLASS_Hidden | CLASS_HideDropDown;
+		
+		// copy flags from OwnerClass
+		IDOClass->ClassFlags |= OwnerClass->ClassFlags & (CLASS_ScriptInherit | CLASS_CompiledFromBlueprint);
+	}
 	
 	UClass* CreateInstanceDataObjectClass(const FPropertyBag* PropertyBag, UClass* OwnerClass, UObject* Outer)
 	{
@@ -636,6 +646,8 @@ namespace UE
 		}
 #endif
 
+		SetClassFlags(Result, OwnerClass);
+
 		const UObject* OwnerCDO = OwnerClass->GetDefaultObject(true);
 		UObject* ResultCDO = Result->GetDefaultObject(true);
 		if (ensure(OwnerCDO && ResultCDO))
@@ -644,7 +656,7 @@ namespace UE
 		}
 		return Result;
 	}
-
+	
 	static void MarkPropertySetBySerialization(const UStruct* Struct, const void* StructData, const void* PropertyDataPtr)
 	{
 		if (const FSetProperty* ValuesSetByPropertyBagProperty = CastField<FSetProperty>(Struct->FindPropertyByName(NAME_ValuesSetBySerialization)))
@@ -657,6 +669,11 @@ namespace UE
 				ValuesSetByPropertyBag.AddElement(&ValueOffset);
 			}
 		}
+	}
+	
+	void MarkPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
+	{
+		return MarkPropertySetBySerialization(Struct, StructData, Property->ContainerPtrToValuePtr<void>(StructData, ArrayIndex));
 	}
 	
 	void MarkPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path)
@@ -707,26 +724,106 @@ namespace UE
 	
 	bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
 	{
-		if (ArrayIndex == INDEX_NONE)
-		{
-			ArrayIndex = 0;
-		}
-		if (const FSetProperty* ValuesSetByPropertyBagProperty = CastField<FSetProperty>(Struct->FindPropertyByName(NAME_ValuesSetBySerialization)))
-		{
-			const uint8* PropertyDataPtr;
-			if (ArrayIndex == INDEX_NONE || Property->IsA<FArrayProperty>() || Property->IsA<FMapProperty>() || Property->IsA<FSetProperty>())
-			{
-				PropertyDataPtr = Property->ContainerPtrToValuePtr<uint8>(StructData);
-			}
-			else
-			{
-				PropertyDataPtr = Property->ContainerPtrToValuePtr<uint8>(StructData, ArrayIndex);
-			}
+		return WasPropertySetBySerialization(Struct, StructData, Property->ContainerPtrToValuePtr<void>(StructData, ArrayIndex));
+	}
 
-			const FScriptSetHelper ValuesSetByPropertyBag(ValuesSetByPropertyBagProperty, ValuesSetByPropertyBagProperty->ContainerPtrToValuePtr<void>(StructData));
-			const int64 ValueOffset = PropertyDataPtr - static_cast<const uint8*>(StructData);
-			return ValuesSetByPropertyBag.FindElementIndex(&ValueOffset) != INDEX_NONE;
+	void CopyPropertySetBySerializationData(const FFieldVariant& OldField, void* OldDataPtr, const FFieldVariant& NewField, void* NewDataPtr)
+	{
+		if (const FStructProperty* OldAsStructProperty = OldField.Get<FStructProperty>())
+		{
+			const FStructProperty* NewAsStructProperty = NewField.Get<FStructProperty>();
+			checkf(NewAsStructProperty, TEXT("Type mismatch between OldField and NewField. Expected FStructProperty"));
+			CopyPropertySetBySerializationData(OldAsStructProperty->Struct, OldDataPtr, NewAsStructProperty->Struct, NewDataPtr);
 		}
-		return false;
+		else if (const FArrayProperty* OldAsArrayProperty = OldField.Get<FArrayProperty>())
+		{
+			const FArrayProperty* NewAsArrayProperty = NewField.Get<FArrayProperty>();
+			checkf(NewAsArrayProperty, TEXT("Type mismatch between OldField and NewField. Expected FArrayProperty"));
+			
+			FScriptArrayHelper OldArrayHelper(OldAsArrayProperty, OldDataPtr);
+			FScriptArrayHelper NewArrayHelper(NewAsArrayProperty, NewDataPtr);
+			for (int32 ArrayIndex = 0; ArrayIndex < OldArrayHelper.Num(); ++ArrayIndex)
+			{
+				if (NewArrayHelper.IsValidIndex(ArrayIndex))
+				{
+					CopyPropertySetBySerializationData(
+						OldAsArrayProperty->Inner, OldArrayHelper.GetElementPtr(ArrayIndex),
+						NewAsArrayProperty->Inner, NewArrayHelper.GetElementPtr(ArrayIndex));
+				}
+			}
+		}
+		else if (const FSetProperty* OldAsSetProperty = OldField.Get<FSetProperty>())
+		{
+			const FSetProperty* NewAsSetProperty = NewField.Get<FSetProperty>();
+			checkf(NewAsSetProperty, TEXT("Type mismatch between OldField and NewField. Expected FSetProperty"));
+			
+			FScriptSetHelper OldSetHelper(OldAsSetProperty, OldDataPtr);
+			FScriptSetHelper NewSetHelper(NewAsSetProperty, NewDataPtr);
+			FScriptSetHelper::FIterator OldItr = OldSetHelper.CreateIterator();
+			FScriptSetHelper::FIterator NewItr = NewSetHelper.CreateIterator();
+			
+			for (; OldItr && NewItr; ++OldItr, ++NewItr)
+			{
+				CopyPropertySetBySerializationData(
+					OldAsSetProperty->ElementProp, OldSetHelper.GetElementPtr(OldItr),
+					NewAsSetProperty->ElementProp, NewSetHelper.GetElementPtr(NewItr));
+			}
+		}
+		else if (const FMapProperty* OldAsMapProperty = OldField.Get<FMapProperty>())
+		{
+			const FMapProperty* NewAsMapProperty = NewField.Get<FMapProperty>();
+			checkf(NewAsMapProperty, TEXT("Type mismatch between OldField and NewField. Expected FMapProperty"));
+			
+			FScriptMapHelper OldMapHelper(OldAsMapProperty, OldDataPtr);
+			FScriptMapHelper NewMapHelper(NewAsMapProperty, NewDataPtr);
+			FScriptMapHelper::FIterator OldItr = OldMapHelper.CreateIterator();
+			FScriptMapHelper::FIterator NewItr = NewMapHelper.CreateIterator();
+			
+			for (; OldItr && NewItr; ++OldItr, ++NewItr)
+			{
+				CopyPropertySetBySerializationData(
+					OldAsMapProperty->KeyProp, OldMapHelper.GetKeyPtr(OldItr),
+					NewAsMapProperty->KeyProp, NewMapHelper.GetKeyPtr(NewItr));
+				CopyPropertySetBySerializationData(
+					OldAsMapProperty->ValueProp, OldMapHelper.GetValuePtr(OldItr),
+					NewAsMapProperty->ValueProp, NewMapHelper.GetValuePtr(NewItr));
+			}
+		}
+		else if (UStruct* OldAsStruct = OldField.Get<UStruct>())
+		{
+			const UStruct* NewAsStruct = NewField.Get<UStruct>();
+			checkf(NewAsStruct, TEXT("Type mismatch between OldField and NewField. Expected UStruct"));
+
+			auto FindMatchingProperty = [](const UStruct* Struct, const FProperty* Property) -> const FProperty*
+			{
+				for (const FProperty* StructProperty : TFieldRange<FProperty>(Struct))
+				{
+					if (StructProperty->GetFName() == Property->GetFName() && StructProperty->GetID() == Property->GetID())
+					{
+						return StructProperty;
+					}
+				}
+				return nullptr;
+			};
+			for (const FProperty* OldSubProperty : TFieldRange<FProperty>(OldAsStruct))
+			{
+				if (const FProperty* NewSubProperty = FindMatchingProperty(NewAsStruct, OldSubProperty))
+				{
+					for (int32 ArrayIndex = 0; ArrayIndex < FMath::Min(OldSubProperty->ArrayDim, NewSubProperty->ArrayDim); ++ArrayIndex)
+					{
+						// copy set flags to new struct instance
+						if (WasPropertySetBySerialization(OldAsStruct, OldDataPtr, NewSubProperty, ArrayIndex))
+						{
+							MarkPropertySetBySerialization(NewAsStruct, NewDataPtr, NewSubProperty, ArrayIndex);
+						}
+					
+						// recurse
+						CopyPropertySetBySerializationData(
+							OldSubProperty, OldSubProperty->ContainerPtrToValuePtr<void>(OldDataPtr, ArrayIndex),
+							NewSubProperty, NewSubProperty->ContainerPtrToValuePtr<void>(NewDataPtr, ArrayIndex));
+					}
+				}
+			}
+		}
 	}
 } // UE

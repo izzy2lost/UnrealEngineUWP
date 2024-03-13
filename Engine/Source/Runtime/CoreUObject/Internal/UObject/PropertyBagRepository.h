@@ -73,9 +73,10 @@ public:
 	/**
 	 * Instantiate an InstanceDataObject object representing all fields within the bag, tracked against the owner object.
 	 * @param Owner			- Associated in world object.
+	 * @param Archive		- used to read value of new archive from. Leave this set to nullptr to use the object's linker or copy Owner
 	 * @return				- Custom InstanceDataObject object, UClass derived from associated bag.
 	 */
-	COREUOBJECT_API UObject* CreateInstanceDataObject(const UObjectBase* Owner);
+	COREUOBJECT_API UObject* CreateInstanceDataObject(const UObjectBase* Owner, FArchive* Archive = nullptr);
 
 	// TODO: Restrict property bag  destruction to within UObject::BeginDestroy() & FPropertyBagProperty destructor.
 	// Removes bag, InstanceDataObject, and all associated data for this object.
@@ -86,6 +87,12 @@ public:
 	 * @param ReplacedObjects - old/new owner object pairs. Reassigns InstanceDataObjects/bags to the new owner.
 	 */
 	COREUOBJECT_API void ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects);
+
+	/**
+	 * CleanupLevel - Removes all IDOs for objects outered to the level
+	 * @param Level - The level being cleaned up
+	 */
+	COREUOBJECT_API void CleanupLevel(const UObject* Level);
 
 	/**
 	 * RequiresFixup - test if InstanceDataObject properties perfectly match object instance properties. This is necessary for the object to be published in UEFN.    
@@ -119,6 +126,8 @@ public:
 	static COREUOBJECT_API bool IsPropertyBagPlaceholderObject(UObject* Object);
 	// query for whether or not creating property bag placeholder objects should be allowed
 	static COREUOBJECT_API bool IsPropertyBagPlaceholderObjectSupportEnabled();
+	// query whether an object supports IDO generation
+	static COREUOBJECT_API bool IsInstanceDataObjectSupportEnabled(UObject* InObject = nullptr);
 
 	// create a new placeholder type object to swap in for a missing class/struct; this will be associated with a property bag when objects are serialized so we don't lose data
 	static COREUOBJECT_API UStruct* CreatePropertyBagPlaceholderType(UObject* Outer, UClass* Class, FName Name = NAME_None, EObjectFlags Flags = RF_NoFlags, UStruct* SuperStruct = nullptr);
@@ -138,7 +147,7 @@ private:
 	bool RemoveAssociationUnsafe(const UObjectBase* Owner);
 	
 	// Instantiate InstanceDataObject within BagData. Returns InstanceDataObject object. 
-	void CreateInstanceDataObjectUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData);
+	void CreateInstanceDataObjectUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive = nullptr);
 };
 
 } // UE

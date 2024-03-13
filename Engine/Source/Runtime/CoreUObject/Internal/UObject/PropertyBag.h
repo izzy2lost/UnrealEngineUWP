@@ -111,6 +111,7 @@ public:
 		inline const FProperty* GetProperty() const { return CurrentValue->Tag.GetProperty(); }
 		inline void* GetValue() const { return CurrentValue->Data; }
 		inline int32 GetValueSize() const { return CurrentValue->GetSize(); }
+		inline EOverriddenPropertyOperation GetOverrideOperation() const { return CurrentValue->Tag.OverrideOperation; }
 
 	private:
 		UE_API void EnterNode();

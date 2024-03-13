@@ -12,6 +12,7 @@
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/InstanceDataObjectUtils.h"
+#include "UObject/OverridableManager.h"
 #include "UObject/Package.h"
 
 #if WITH_EDITOR
@@ -127,19 +128,30 @@ FPropertyBagRepository::FPropertyBagRepository()
 void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
-	FPropertyBagAssociationData BagData;
-	for(const TPair<UObject*, UObject*>& Pair : ReplacedObjects)
+	FPropertyBagAssociationData OldBagData;
+	for (const TPair<UObject*, UObject*>& Pair : ReplacedObjects)
 	{
-		if(AssociatedData.RemoveAndCopyValue(Pair.Key, BagData))
+		if(AssociatedData.RemoveAndCopyValue(Pair.Key, OldBagData))
 		{
-			// We may see duplicate bags generated during TPS based duplication of the old object - these can be safely deleted/replaced, although ideally we shouldn't be creating new bags during duplication.
-			if(RemoveAssociationUnsafe(Pair.Value))
-			{
-				UE_LOG(LogPropertyBagRepository, Warning, TEXT("Duplicate property bag detected for %s"), *Pair.Value->GetName());
-			}
-			//UE_LOG(LogPropertyBagRepository, Log, TEXT("Bag fixup: %s (#%08x) -> %s (#%08x)"), *Pair.Key->GetName(), uint64(Pair.Key), *Pair.Value->GetName(), uint64(Pair.Value));
-			AssociatedData.Emplace(Pair.Value, BagData);
+			FPropertyBagAssociationData& NewBagData = AssociatedData.FindChecked(Pair.Value);
+			
+			CopyPropertySetBySerializationData(
+				OldBagData.InstanceDataObject->GetClass(), OldBagData.InstanceDataObject,
+				NewBagData.InstanceDataObject->GetClass(), NewBagData.InstanceDataObject);
+			OldBagData.Destroy();
 		}
+		Namespaces.Remove(Pair.Key);
+	}
+}
+
+void FPropertyBagRepository::CleanupLevel(const UObject* Level)
+{
+	FPropertyBagRepositoryLock LockRepo(this);
+	TArray<UObject*> Instances = {const_cast<UObject*>(Level)};
+	GetObjectsWithOuter(Level, Instances, true);
+	for (const UObject* Instance : Instances)
+	{
+		RemoveAssociationUnsafe(Instance);
 	}
 }
 
@@ -157,13 +169,13 @@ FPropertyBag* FPropertyBagRepository::CreateOuterBag(const UObjectBase* Owner)
 	return BagData->Bag;
 }
 
-UObject* FPropertyBagRepository::CreateInstanceDataObject(const UObjectBase* Owner)
+UObject* FPropertyBagRepository::CreateInstanceDataObject(const UObjectBase* Owner, FArchive* Archive)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	FPropertyBagAssociationData& BagData = AssociatedData.FindOrAdd(Owner);
 	if(!BagData.InstanceDataObject)
 	{
-		CreateInstanceDataObjectUnsafe(Owner, BagData);
+		CreateInstanceDataObjectUnsafe(Owner, BagData, Archive);
 	}
 	return BagData.InstanceDataObject;
 }
@@ -264,7 +276,7 @@ FString FPropertyBagRepository::GetReferencerName() const
 	return TEXT("FPropertyBagRepository");
 }
 
-void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData)
+void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive)
 {
 	check(!BagData.InstanceDataObject);	// No repeated calls
 	const FPropertyBag* PropertyBag = BagData.Bag;
@@ -286,6 +298,12 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(const UObjectBase* O
 		}
 	}
 
+	// if an old IDO still exists with the same name, rename it out of the way so StaticConstructObject_Internal doesn't have conflicts
+	if (UObject* OldIDO = StaticFindObjectFastInternal( /*Class=*/ nullptr, *OuterPtr, Owner->GetFName() ))
+	{
+		OldIDO->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders | REN_DoNotDirty);
+	}
+
 	// construct InstanceDataObject object
 	FStaticConstructObjectParameters Params(InstanceDataObjectClass);
 	Params.SetFlags |= EObjectFlags::RF_Transactional;
@@ -298,8 +316,25 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(const UObjectBase* O
 	FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
 	TGuardValue<bool> ScopedImpersonateProperties(LoadContext->bImpersonateProperties, true);
 	
+	auto CopyTaggedProperties = [](const UObject* Source, UObject* Dest)
+	{
+		TArray<uint8> Buffer;
+		Buffer.Reserve(Source->GetClass()->GetStructureSize());
+		FObjectWriter Writer(Buffer);
+		Source->GetClass()->SerializeTaggedProperties(Writer, (uint8*)Source, Source->GetClass(), (uint8*)Source->GetArchetype());
+		
+		FObjectReader Reader(Buffer);
+		Reader.ArMergeOverrides = true;
+		Dest->GetClass()->SerializeTaggedProperties(Reader, (uint8*)Dest, Dest->GetClass(), (uint8*)Dest->GetArchetype());
+	};
+	
 	UObject* OwnerAsObject = (UObject*)Owner;
-	if (FLinkerLoad* Linker = OwnerAsObject->GetLinker())
+	if (Archive)
+	{
+		// re-deserialize Owner but redirect it into the IDO instead using impersonation
+		OwnerAsObject->Serialize(*Archive);
+	}
+	else if (FLinkerLoad* Linker = OwnerAsObject->GetLinker())
 	{
 		const FDelegateHandle OnTaggedPropertySerializeHandle = LoadContext->OnTaggedPropertySerialize.AddLambda(
 			[&BagData](const FUObjectSerializeContext& Context)
@@ -310,15 +345,21 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(const UObjectBase* O
 				}
 			}
 		);
+
+		// TODO: @jordan.hoffmann - this is very inefficient! We should remove this call to Preload. To do so, we'd need to change MarkPropertySetBySerialization
+		// to cache the serialized property list in the property bag instead of the structs. We'd also need to copy the property bag values to the IDO
 		OwnerAsObject->SetFlags(RF_NeedLoad);
 		Linker->Preload(OwnerAsObject);
 		LoadContext->OnTaggedPropertySerialize.Remove(OnTaggedPropertySerializeHandle);
+		
+		// copy data from owner to IDO
+		CopyTaggedProperties(OwnerAsObject, BagData.InstanceDataObject);
 	}
-	else if (ensureMsgf(BagData.Bag == nullptr, TEXT("Linker missing when generating IDO for an object with loose properties")))
+	else
 	{
-		TArray<uint8> Buffer;
-		FObjectWriter(OwnerAsObject, Buffer);
-		FObjectReader(BagData.InstanceDataObject, Buffer);
+		ensureMsgf(BagData.Bag == nullptr, TEXT("Linker missing when generating IDO for an object with loose properties. Loose properties will be lost"));
+		// copy data from owner to IDO
+		CopyTaggedProperties(OwnerAsObject, BagData.InstanceDataObject);
 	}
 }
 
@@ -374,6 +415,15 @@ bool FPropertyBagRepository::IsPropertyBagPlaceholderObjectSupportEnabled()
 	}
 	
 	return Private::bEnablePropertyBagPlaceholderObjectSupport;
+#else
+	return false;
+#endif
+}
+
+bool FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(UObject* InObject)
+{
+#if WITH_EDITOR
+	return UE::IsInstanceDataObjectSupportEnabled(InObject);
 #else
 	return false;
 #endif

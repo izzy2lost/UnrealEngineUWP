@@ -1283,6 +1283,16 @@ void UObject::ConditionalPostLoad()
 		}
 
 		ConditionalPostLoadSubobjects();
+		
+		
+		// Object has been deserialized, if IDO is enabled, generate it
+		UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
+		const FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
+		const bool bIDOEnabled = PropertyBagRepository.IsInstanceDataObjectSupportEnabled(this) && !LoadContext->bImpersonateProperties;
+		if (bIDOEnabled)
+		{
+			PropertyBagRepository.CreateInstanceDataObject(this);
+		}
 
 		{
 			FExclusiveLoadPackageTimeTracker::FScopedPostLoadTracker Tracker(this);

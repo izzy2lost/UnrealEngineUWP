@@ -4779,12 +4779,6 @@ void FLinkerLoad::Preload( UObject* Object )
 						Object->SetFlags(RF_LoadCompleted);
 						CurrentLoadContext->SerializedObject = PrevSerializedObject;
 					}
-
-					// Object has been deserialized, if IDO is enabled, generate it
-					if (bCreateIDO)
-					{
-						UE::FPropertyBagRepository::Get().CreateInstanceDataObject(Object);
-					}
 				}
 
 #if USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
