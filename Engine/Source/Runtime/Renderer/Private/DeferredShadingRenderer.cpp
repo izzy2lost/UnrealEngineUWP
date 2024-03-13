@@ -711,7 +711,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 
 		if (LumenHardwareRayTracingRayGenShaders.Num())
 		{
-			CreateLumenHardwareRayTracingMaterialPipeline(GraphBuilder.RHICmdList, ReferenceView, LumenHardwareRayTracingRayGenShaders);
+			CreateLumenHardwareRayTracingMaterialPipeline(GraphBuilder, ReferenceView, LumenHardwareRayTracingRayGenShaders);
 		}
 	}
 
@@ -956,10 +956,16 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	// Keep mask the same as what's already set (which will be the view mask) if TLAS updates should be masked to the view
 	RDG_GPU_MASK_SCOPE(GraphBuilder, GRayTracingMultiGpuTLASMask ? GraphBuilder.RHICmdList.GetGPUMask() : FRHIGPUMask::All());
 
-	SetupRayTracingPipelineStates(GraphBuilder);
-
 	const int32 ReferenceViewIndex = 0;
 	FViewInfo& ReferenceView = Views[ReferenceViewIndex];
+
+	if (Lumen::UseHardwareRayTracing(ViewFamily)
+		|| ManyLights::UseHardwareRayTracing(ViewFamily))
+	{
+		SetupLumenHardwareRayTracingUniformBuffer(GraphBuilder, ReferenceView);
+	}
+
+	SetupRayTracingPipelineStates(GraphBuilder);
 
 	bool bAnyLumenHardwareInlineRayTracingPassEnabled = false;
 	for (const FViewInfo& View : Views)
@@ -974,12 +980,6 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	if (bAnyLumenHardwareInlineRayTracingPassEnabled)
 	{
 		SetupLumenHardwareRayTracingHitGroupBuffer(GraphBuilder, ReferenceView);
-	}
-
-	if (Lumen::UseHardwareRayTracing(ViewFamily) 
-		|| ManyLights::UseHardwareRayTracing(ViewFamily))
-	{
-		SetupLumenHardwareRayTracingUniformBuffer(GraphBuilder, ReferenceView);
 	}
 
 	const bool bIsPathTracing = ViewFamily.EngineShowFlags.PathTracing;
@@ -1054,7 +1054,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 				if (ReferenceView.LumenHardwareRayTracingMaterialPipeline)
 				{
 					RHICmdList.SetRayTracingMissShader(ReferenceView.GetRayTracingSceneChecked(), RAY_TRACING_MISS_SHADER_SLOT_DEFAULT, ReferenceView.LumenHardwareRayTracingMaterialPipeline, 0 /* MissShaderPipelineIndex */, 0, nullptr, 0);
-					BindLumenHardwareRayTracingMaterialPipeline(RHICmdList, ReferenceView, PassParams->Scene->GetRHI());
+					BindLumenHardwareRayTracingMaterialPipeline(RHICmdList, ReferenceView);
 				}
 			}
 		}

@@ -275,4 +275,12 @@ private:
 	}
 };
 
+void MergeAndSetRayTracingBindings(
+	FRHICommandList& RHICmdList,
+	FSceneRenderingBulkObjectAllocator& Allocator,
+	FRHIRayTracingScene* RayTracingScene,
+	FRayTracingPipelineState* Pipeline,
+	TConstArrayView<FRayTracingLocalShaderBindingWriter*> Bindings,
+	ERayTracingBindingType BindingType);
+
 #endif // RHI_RAYTRACING

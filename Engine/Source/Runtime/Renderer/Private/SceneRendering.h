@@ -1601,10 +1601,14 @@ public:
 	TRDGUniformBufferRef<FLumenHardwareRayTracingUniformBufferParameters> LumenHardwareRayTracingUniformBuffer = nullptr;
 
 	TArray<FRayTracingLocalShaderBindingWriter*, SceneRenderingAllocator>	RayTracingMaterialBindings; // One per binding task
-	FGraphEventRef									RayTracingMaterialBindingsTask;
+	FGraphEventRef															RayTracingMaterialBindingsTask;
 
 	TArray<FRayTracingLocalShaderBindingWriter*, SceneRenderingAllocator>	RayTracingCallableBindings; // One per binding task
-	FGraphEventRef									RayTracingCallableBindingsTask;
+	FGraphEventRef															RayTracingCallableBindingsTask;
+
+	TArray<FRayTracingLocalShaderBindingWriter*, SceneRenderingAllocator>	LumenRayTracingMaterialBindings; // One per binding task
+	FGraphEventRef															LumenRayTracingMaterialBindingsTask;
+	FMemStackBase															LumenRayTracingMaterialBindingsMemory;
 
 	// Common resources used for lighting in ray tracing effects
 	TRDGUniformBufferRef<FRayTracingLightGrid>			RayTracingLightGridUniformBuffer;
