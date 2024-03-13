@@ -3,6 +3,8 @@
 #include "AssetDefinition_PCGGraphInterface.h"
 
 #include "PCGGraph.h"
+
+#include "PCGEditorStyle.h"
 #include "PCGGraphFactory.h"
 
 #include "ContentBrowserMenuContexts.h"
@@ -70,7 +72,7 @@ namespace MenuExtension_PCGGraphInterface
 					const TAttribute<FText> ToolTip = LOCTEXT("PCGGraph_NewInstanceToolTip", "Creates a parameterized PCG graph using this graph as a base.");
 					const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteNewPCGGraphInstance);
 
-					InSection.AddMenuEntry("PCGGraph_NewInstance", Label, ToolTip, FSlateIcon(), UIAction);
+					InSection.AddMenuEntry("PCGGraph_NewInstance", Label, ToolTip, FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "ClassIcon.PCGGraphInstance"), UIAction);
 				}
 			}));
 		}));
