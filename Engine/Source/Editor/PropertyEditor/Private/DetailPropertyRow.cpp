@@ -75,6 +75,7 @@ FDetailPropertyRow::FDetailPropertyRow(TSharedPtr<FPropertyNode> InPropertyNode,
 			MakePropertyEditor(PropertyNodeRef, Utilities, PropertyEditor);
 		}
 		
+		static FName InlineCustomizationKeyMeta("AllowEditInlineCustomization");
 		if (PropertyNode->AsComplexNode() && ExternalRootNode.IsValid()) // AsComplexNode works both for objects and structs
 		{
 			// We are showing an entirely different object inline.  Generate a layout for it now.
@@ -82,6 +83,22 @@ FDetailPropertyRow::FDetailPropertyRow(TSharedPtr<FPropertyNode> InPropertyNode,
 			{
 				ExternalObjectLayout = MakeShared<FDetailLayoutData>();
 				DetailsView->UpdateSinglePropertyMap(InExternalRootNode, *ExternalObjectLayout, true);
+			}
+		}
+		else if (PropertyNode->HasNodeFlags(EPropertyNodeFlags::EditInlineNew) && PropertyNode->GetProperty()->HasMetaData(InlineCustomizationKeyMeta))
+		{
+			// Allow customization of 'edit inline new' objects if the metadata key has been specified.
+			// The child of this node, if set, will be an object node that we will want to treat as an 'external object layout'
+			TSharedPtr<FPropertyNode> ChildNode = PropertyNode->GetNumChildNodes() > 0 ? PropertyNode->GetChildNode(0) : nullptr;
+			TSharedPtr<FComplexPropertyNode> ComplexChildNode = StaticCastSharedPtr<FComplexPropertyNode>(ChildNode);
+			if (ComplexChildNode.IsValid())
+			{
+				// We are showing an entirely different object inline.  Generate a layout for it now.
+				if (IDetailsViewPrivate* DetailsView = InParentCategory->GetDetailsView())
+				{
+					ExternalObjectLayout = MakeShared<FDetailLayoutData>();
+					DetailsView->UpdateSinglePropertyMap(ComplexChildNode, *ExternalObjectLayout, true);
+				}
 			}
 		}
 

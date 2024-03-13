@@ -1518,7 +1518,10 @@ namespace UM
 		///
 		/// UFUNCTION()
 		/// TArray<UClass*> FuncName() const;
-		GetDisallowedClasses
+		GetDisallowedClasses,
+
+		/// [PropertyMetadata] Used for edit inline UObject* properties, enables detail class customization for instanced UObject properties.
+		AllowEditInlineCustomization,
 	};
 
 	// Metadata usable in UPROPERTY for customizing the behavior of Persona and UMG
