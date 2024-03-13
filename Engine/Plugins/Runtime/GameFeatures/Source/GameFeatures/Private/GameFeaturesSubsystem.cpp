@@ -1233,18 +1233,37 @@ void UGameFeaturesSubsystem::LoadGameFeaturePlugin(TConstArrayView<FString> Plug
 		FMultipleGameFeaturePluginsLoaded CompleteDelegate;
 
 		int32 NumPluginsLoaded = 0;
+		bool bPushedTagsBroadcast = false;
+
+		FLoadContext()
+		{
+			if (!IsEngineExitRequested())
+			{
+				UGameplayTagsManager::Get().PushDeferOnGameplayTagTreeChangedBroadcast();
+				bPushedTagsBroadcast = true;
+			}
+			else if(UGameplayTagsManager* TagsManager = UGameplayTagsManager::GetIfAllocated())
+			{
+				TagsManager->PushDeferOnGameplayTagTreeChangedBroadcast();
+				bPushedTagsBroadcast = true;
+			}
+		}
 
 		~FLoadContext()
 		{
-			UGameplayTagsManager::Get().PopDeferOnGameplayTagTreeChangedBroadcast();
+			if (bPushedTagsBroadcast)
+			{
+				if (UGameplayTagsManager* TagsManager = UGameplayTagsManager::GetIfAllocated())
+				{
+					TagsManager->PopDeferOnGameplayTagTreeChangedBroadcast();
+				}
+			}
 
 			CompleteDelegate.ExecuteIfBound(Results);
 		}
 	};
 	TSharedRef<FLoadContext> LoadContext = MakeShared<FLoadContext>();
 	LoadContext->CompleteDelegate = CompleteDelegate;
-
-	UGameplayTagsManager::Get().PushDeferOnGameplayTagTreeChangedBroadcast();
 
 	LoadContext->Results.Reserve(PluginURLs.Num());
 	for (const FString& PluginURL : PluginURLs)
@@ -1367,18 +1386,37 @@ void UGameFeaturesSubsystem::ChangeGameFeatureTargetState(TConstArrayView<FStrin
 		FMultipleGameFeaturePluginsLoaded CompleteDelegate;
 
 		int32 NumPluginsLoaded = 0;
+		bool bPushedTagsBroadcast = false;
+
+		FLoadContext()
+		{
+			if (!IsEngineExitRequested())
+			{
+				UGameplayTagsManager::Get().PushDeferOnGameplayTagTreeChangedBroadcast();
+				bPushedTagsBroadcast = true;
+			}
+			else if(UGameplayTagsManager* TagsManager = UGameplayTagsManager::GetIfAllocated())
+			{
+				TagsManager->PushDeferOnGameplayTagTreeChangedBroadcast();
+				bPushedTagsBroadcast = true;
+			}
+		}
 
 		~FLoadContext()
 		{
-			UGameplayTagsManager::Get().PopDeferOnGameplayTagTreeChangedBroadcast();
+			if (bPushedTagsBroadcast)
+			{
+				if (UGameplayTagsManager* TagsManager = UGameplayTagsManager::GetIfAllocated())
+				{
+					TagsManager->PopDeferOnGameplayTagTreeChangedBroadcast();
+				}
+			}
 
 			CompleteDelegate.ExecuteIfBound(Results);
 		}
 	};
 	TSharedRef<FLoadContext> LoadContext = MakeShared<FLoadContext>();
 	LoadContext->CompleteDelegate = CompleteDelegate;
-
-	UGameplayTagsManager::Get().PushDeferOnGameplayTagTreeChangedBroadcast();
 
 	LoadContext->Results.Reserve(PluginURLs.Num());
 	for (const FString& PluginURL : PluginURLs)
@@ -1861,20 +1899,55 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugins(FBuiltInPluginAdditio
 		FBuiltInGameFeaturePluginsLoaded CompleteDelegate;
 
 		int32 NumPluginsLoaded = 0;
+		bool bPushedTagsBroadcast = false;
+		bool bPushedAssetBulkScanning = false;
+
+		FLoadContext()
+		{
+			if (!IsEngineExitRequested())
+			{
+				UAssetManager::Get().PushBulkScanning();
+				bPushedAssetBulkScanning = true;
+				UGameplayTagsManager::Get().PushDeferOnGameplayTagTreeChangedBroadcast();
+				bPushedTagsBroadcast = true;
+			}
+			else
+			{
+				if(UAssetManager* AssetManager =  UAssetManager::GetIfInitialized())
+				{
+					AssetManager->PushBulkScanning();
+					bPushedAssetBulkScanning = true;
+				}
+				if(UGameplayTagsManager* TagsManager = UGameplayTagsManager::GetIfAllocated())
+				{
+					TagsManager->PushDeferOnGameplayTagTreeChangedBroadcast();
+					bPushedTagsBroadcast = true;
+				}
+			}
+		}
 
 		~FLoadContext()
 		{
-			UGameplayTagsManager::Get().PopDeferOnGameplayTagTreeChangedBroadcast();
-			UAssetManager::Get().PopBulkScanning();
+			if (bPushedTagsBroadcast)
+			{
+				if (UGameplayTagsManager* TagsManager = UGameplayTagsManager::GetIfAllocated())
+				{
+					TagsManager->PopDeferOnGameplayTagTreeChangedBroadcast();
+				}
+			}
+			if (bPushedAssetBulkScanning)
+			{
+				if(UAssetManager* AssetManager =  UAssetManager::GetIfInitialized())
+				{
+					AssetManager->PopBulkScanning();
+				}
+			}
 
 			CompleteDelegate.ExecuteIfBound(Results);
 		}
 	};
 	TSharedRef<FLoadContext> LoadContext = MakeShared<FLoadContext>();
 	LoadContext->CompleteDelegate = InCompleteDelegate;
-
-	UAssetManager::Get().PushBulkScanning();
-	UGameplayTagsManager::Get().PushDeferOnGameplayTagTreeChangedBroadcast();
 
 	FBuiltInPluginLoadTimeTracker PluginLoadTimeTracker;
 	TArray<TSharedRef<IPlugin>> EnabledPlugins = IPluginManager::Get().GetEnabledPlugins();
