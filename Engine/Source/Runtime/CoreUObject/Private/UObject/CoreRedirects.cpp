@@ -1579,13 +1579,14 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 
 					if (bMatchWildcard || bMatchSubstring)
 					{
-						// Enable once we deprecate MatchSubstring across the engine
-						//UE_CLOG(bMatchSubstring, LogCoreRedirects, Warning, TEXT("ReadRedirectsFromIni(%s) 'MatchSubstring=' is deprecated. "
-						//	"Please prefer `MatchWildcard=' instead for redirect %s!"), *IniName, *ValueString);
+						UE_CLOG(bMatchSubstring, LogCoreRedirects, Warning, TEXT("ReadRedirectsFromIni(%s) 'MatchSubstring=' is deprecated. "
+							"Please prefer `MatchWildcard=' instead for redirect %s. "
+							"For more information refer to the documentation in Engine/Config/BaseEngine.ini."), *IniName, *ValueString);
 
 						constexpr FStringView WildcardMarker(TEXTVIEW("..."));
-						const bool bMatchPrefix = OldName.EndsWith(WildcardMarker, ESearchCase::CaseSensitive);
-						const bool bMatchSuffix = OldName.StartsWith(WildcardMarker, ESearchCase::CaseSensitive);
+						bool bMatchPrefix = OldName.EndsWith(WildcardMarker, ESearchCase::CaseSensitive);
+						bool bMatchSuffix = OldName.StartsWith(WildcardMarker, ESearchCase::CaseSensitive);
+
 						bMatchSubstring = bMatchSubstring || (bMatchPrefix && bMatchSuffix);
 
 						// Count how many '...' there are to ensure the OldName is not malformed
@@ -1616,6 +1617,12 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 						{
 							NewFlags |= ECoreRedirectFlags::Option_MatchSuffix;
 							OldName.RightChopInline(WildcardMarker.Len(), EAllowShrinking::No);
+						}
+
+						// UE-209583 - Convert prefix and suffix matches to substring matches since prefix/suffix is currently unoptimized
+						if (bMatchPrefix || bMatchSuffix)
+						{
+							bMatchSubstring = true;
 						}
 
 						NewFlags |= bMatchSubstring ? ECoreRedirectFlags::Option_MatchSubstring : ECoreRedirectFlags::None;
