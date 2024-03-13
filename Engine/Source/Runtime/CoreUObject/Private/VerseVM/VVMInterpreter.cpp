@@ -1490,7 +1490,8 @@ class FInterpreter
 			InheritedClasses.Add(&CurrentArg.StaticCast<VClass>());
 		}
 		VConstructor* Constructor = Op.Constructor.Get();
-		VClass& NewClass = VClass::New(Context, Op.Package.Get(), Op.Name.Get(), Op.UEMangledName.Get(), Op.ClassKind, Op.bNative, InheritedClasses, *Constructor);
+		UClass* ImportClass = Op.ImportClass.Get() ? CastChecked<UClass>(Op.ImportClass.Get().AsUObject()) : nullptr;
+		VClass& NewClass = VClass::New(Context, Op.Package.Get(), Op.Name.Get(), Op.UEMangledName.Get(), Op.ClassKind, Op.bNative, InheritedClasses, *Constructor, ImportClass);
 		DEF(Op.Dest, NewClass);
 		return {FOpResult::Return};
 	}
@@ -1551,7 +1552,7 @@ class FInterpreter
 		else
 		{
 			UObject* Object = ObjectOperand.AsUObject();
-			UVerseVMClass* Class = static_cast<UVerseVMClass*>(Object->GetClass());
+			UVerseVMClass* Class = CastChecked<UVerseVMClass>(Object->GetClass());
 			FVRestValueProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
 			FieldValue = FieldProperty->ContainerPtrToValuePtr<VRestValue>(Object)->Get(Context);
 		}
@@ -1608,7 +1609,7 @@ class FInterpreter
 		else
 		{
 			UObject* Object = ObjectOperand.AsUObject();
-			UVerseVMClass* Class = static_cast<UVerseVMClass*>(Object->GetClass());
+			UVerseVMClass* Class = CastChecked<UVerseVMClass>(Object->GetClass());
 			FVRestValueProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
 			VRestValue& Slot = *FieldProperty->ContainerPtrToValuePtr<VRestValue>(Object);
 			bSucceeded = Def(Slot, ValueOperand);

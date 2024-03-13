@@ -167,10 +167,10 @@ private:
 	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
 	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames);
 
-	UVerseVMClass* GetOrCreateUClass(FAllocationContext Context);
+	UClass* GetOrCreateUClass(FAllocationContext Context);
 
 	/// Creates an associated UClass for this VClass
-	COREUOBJECT_API UVerseVMClass* CreateUClass(FAllocationContext Context);
+	COREUOBJECT_API UClass* CreateUClass(FAllocationContext Context);
 
 	COREUOBJECT_API void AssembleUClass(FAllocationContext Context);
 	friend FVerseNativeModule;
@@ -186,10 +186,10 @@ public:
 	 * @param Inherited     An array of base classes in order of inheritance.
 	 * @param Constructor   The sequence of fields and blocks in the class body.
 	 */
-	static VClass& New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, VUTF8String* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor);
+	static VClass& New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, VUTF8String* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass);
 
 private:
-	VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* InName, VUTF8String* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor);
+	VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* InName, VUTF8String* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor, UClass* InImportClass);
 
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
 	COREUOBJECT_API static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);

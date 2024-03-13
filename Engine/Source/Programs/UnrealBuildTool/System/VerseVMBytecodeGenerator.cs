@@ -974,6 +974,7 @@ namespace UnrealBuildTool
 				.Const("bNative", CppType.Bool)
 				.Arg("Inherited", Role.Use, Arity.Variadic)
 				.Arg("Constructor", Role.Immediate, Arity.Fixed, "VConstructor")
+				.Arg("ImportClass", Role.Immediate, Arity.Fixed, "VValue")
 				.Suspends();
 
 			Inst("NewObject")

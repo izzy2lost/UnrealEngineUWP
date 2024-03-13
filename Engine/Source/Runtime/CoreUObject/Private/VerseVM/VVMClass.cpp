@@ -167,7 +167,7 @@ VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& Archet
 
 UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers)
 {
-	UVerseVMClass* ObjectUClass = GetOrCreateUClass(Context);
+	UVerseVMClass* ObjectUClass = CastChecked<UVerseVMClass>(GetOrCreateUClass(Context));
 
 	FStaticConstructObjectParameters Parameters(ObjectUClass);
 	// Note: Object will get a default name based on class name
@@ -267,7 +267,7 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 	return *NewEmergentType;
 }
 
-UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
+UClass* VClass::CreateUClass(FAllocationContext Context)
 {
 	ensure(!AssociatedUClass && Kind != EKind::Interface); // Only an actual class should be associated with a UClass
 
@@ -313,7 +313,8 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 
 	// 4) Populate its properties
 
-	VShape* SuperShape = SuperClass ? static_cast<UVerseVMClass*>(SuperUClass)->Shape.Get() : nullptr;
+	UVerseVMClass* SuperVerseUClass = Cast<UVerseVMClass>(SuperUClass);
+	VShape* SuperShape = SuperVerseUClass ? SuperVerseUClass->Shape.Get() : nullptr;
 	FField** PrevProperty = &NewClass->ChildProperties;
 	for (auto& Pair : ThisShape->Fields)
 	{
@@ -354,7 +355,12 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 void VClass::AssembleUClass(FAllocationContext Context)
 {
 	ensure(AssociatedUClass);
-	UVerseVMClass* NewClass = static_cast<UVerseVMClass*>(AssociatedUClass.Get().AsUObject());
+	UVerseVMClass* NewClass = Cast<UVerseVMClass>(AssociatedUClass.Get().AsUObject());
+	if (NewClass == nullptr)
+	{
+		return;
+	}
+
 	VShape* ThisShape = NewClass->Shape.Get();
 
 	if (NewClass->ClassDefaultObject != nullptr)
@@ -408,7 +414,7 @@ bool VClass::SubsumesImpl(FRunningContext Context, VValue Value)
 	}
 	else if (Value.IsUObject())
 	{
-		InputType = static_cast<UVerseVMClass*>(Value.AsUObject()->GetClass())->Class.Get();
+		InputType = CastChecked<UVerseVMClass>(Value.AsUObject()->GetClass())->Class.Get();
 	}
 	else
 	{

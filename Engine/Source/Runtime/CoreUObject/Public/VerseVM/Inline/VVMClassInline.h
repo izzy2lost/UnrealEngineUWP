@@ -3,6 +3,7 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+#include "UObject/Class.h"
 #include "VerseVM/VVMCVars.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
@@ -34,13 +35,13 @@ inline uint32 FEmergentTypesCacheKeyFuncs::GetKeyHash(const VUniqueStringSet& Ke
 	return GetTypeHash(Key);
 }
 
-inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, VUTF8String* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor)
+inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, VUTF8String* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass)
 {
 	const size_t NumBytes = offsetof(VClass, Inherited) + Inherited.Num() * sizeof(Inherited[0]);
-	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Scope, Name, UEMangledName, Kind, bNative, Inherited, Constructor);
+	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Scope, Name, UEMangledName, Kind, bNative, Inherited, Constructor, ImportClass);
 }
 
-inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* InName, VUTF8String* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor)
+inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* InName, VUTF8String* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor, UClass* InImportClass)
 	: VType(Context, &GlobalTrivialEmergentType.Get(Context))
 	, ClassName(Context, InName)
 	, UEMangledName(Context, InUEMangledName)
@@ -49,6 +50,11 @@ inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VUTF8String
 	, bNative(bInNative)
 	, NumInherited(InInherited.Num())
 {
+	if (InImportClass != nullptr)
+	{
+		AssociatedUClass.Set(Context, InImportClass);
+	}
+
 	if (InInherited.IsEmpty())
 	{
 		Constructor.Set(Context, InConstructor);

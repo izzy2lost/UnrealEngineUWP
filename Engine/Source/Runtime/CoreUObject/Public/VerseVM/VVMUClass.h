@@ -3,6 +3,7 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+#include "Templates/Casts.h"
 #include "UObject/Class.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMRestValue.h"
@@ -30,9 +31,9 @@ public:
 
 namespace Verse
 {
-inline UVerseVMClass* VClass::GetOrCreateUClass(FAllocationContext Context)
+inline UClass* VClass::GetOrCreateUClass(FAllocationContext Context)
 {
-	return AssociatedUClass ? static_cast<UVerseVMClass*>(AssociatedUClass.Get().AsUObject()) : CreateUClass(Context);
+	return AssociatedUClass ? CastChecked<UClass>(AssociatedUClass.Get().AsUObject()) : CreateUClass(Context);
 }
 } // namespace Verse
 #endif
