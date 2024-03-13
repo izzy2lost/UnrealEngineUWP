@@ -460,7 +460,10 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 			GenerationContext.AddParticipatingObject(*ReferenceMaterial);
 
-			if (!Material || ReferenceMaterial->GetMaterial() != Material->GetMaterial())
+			const bool bTableMaterialCheckDisabled = GenerationContext.Object->bDisableTableMaterialsParentCheck;
+			const bool bMaterialParentMismatch = !bTableMaterialCheckDisabled && ReferenceMaterial->GetMaterial() != Material->GetMaterial();
+
+			if (!Material || bMaterialParentMismatch)
 			{
 				FText Warning;
 
