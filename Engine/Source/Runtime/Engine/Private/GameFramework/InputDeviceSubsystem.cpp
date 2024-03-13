@@ -57,7 +57,12 @@ class FInputDeviceSubsystemProcessor : public IInputProcessor
 			// If there isn't a recent input device scope, then we can check if the key was from a keyboard and mouse
 			else if (!Key.IsGamepadKey())
 			{
-				SubSystem->SetMostRecentlyUsedHardwareDevice(InDeviceId, FHardwareDeviceIdentifier::DefaultKeyboardAndMouse);
+				// We only want to set our "fallback" of DefaultKeyboardAndMouse if there is no known existing data for the device id
+				const FHardwareDeviceIdentifier ExistingDevice = SubSystem->GetInputDeviceHardwareIdentifier(InDeviceId);
+				if (ExistingDevice == FHardwareDeviceIdentifier::Invalid)
+				{
+					SubSystem->SetMostRecentlyUsedHardwareDevice(InDeviceId, FHardwareDeviceIdentifier::DefaultKeyboardAndMouse);	
+				}
 			}
 		}
 	}
@@ -506,10 +511,19 @@ void UInputDeviceSubsystem::SetMostRecentlyUsedHardwareDevice(const FInputDevice
 	const FPlatformUserId OwningUserId = IPlatformInputDeviceMapper::Get().GetUserForInputDevice(InDeviceId);
 
 	// If this hardware is the same as what the platform user already has, then there is no need to fire this event
-	if (const FHardwareDeviceIdentifier* ExistingDevice = LatestUserDeviceIdentifiers.Find(OwningUserId))
+	if (FHardwareDeviceIdentifier* ExistingDevice = LatestUserDeviceIdentifiers.Find(OwningUserId))
 	{
+		// If they are exactly the same, do nothing
 		if (InHardwareId == *ExistingDevice)
 		{
+			return;
+		}
+		// If they are the same device but different input API's, just update the data but don't broadcast the delegate
+		// This can happen if there are multiple input interfaces sending messages for the same device (such as a keyboard)
+		// Which your gameplay code doesn't really care about switching which API the input came from
+		else if (InHardwareId.HardwareDeviceIdentifier == ExistingDevice->HardwareDeviceIdentifier)
+		{
+			*ExistingDevice = InHardwareId;
 			return;
 		}
 	}
