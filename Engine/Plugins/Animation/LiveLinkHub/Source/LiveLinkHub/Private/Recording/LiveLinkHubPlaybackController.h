@@ -54,7 +54,7 @@ public:
 	void StopPlayback();
 
 	/** Stop playback and restore the previous settings. */
-	void Eject();
+	void Eject(TFunction<void()> CompletionCallback = nullptr);
 
 	/** Go to a specific time. */
 	void GoToTime(FQualifiedFrameTime InTime);
@@ -192,6 +192,8 @@ private:
 	std::atomic<bool>bIsReverse = false;
 	/** The timestamp of the animation when first playing. Can be > 0 when running in reverse. */
 	std::atomic<double> StartTimestamp = 0.f;
+	/** Indicates that we're in the process of preparing the playback. Used by the OnSourceRemoved callback to make sure we don't eject during the PreparePlayback step. */
+	bool bIsPreparingPlayback = false;
 	/** LiveLinkRecording to play.  */
 	TStrongObjectPtr<ULiveLinkRecording> RecordingToPlay;
 	/** Delegate called when a recording playback is finished (if it's not looping). */
