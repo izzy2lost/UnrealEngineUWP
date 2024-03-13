@@ -84,6 +84,7 @@
 #include "Serialization/ZenPackageHeader.h"
 #include "Trace/Trace.h"
 #include "Containers/Ticker.h"
+#include "Logging/MessageLog.h"
 
 #include <atomic>
 
@@ -5194,17 +5195,18 @@ void FAsyncPackage2::ImportPackagesRecursiveInner(FAsyncLoadingThreadState2& Thr
 						FPackageName::GetExplanationForUnavailablePackage(ImportedPackageNameToLoad, Explanation);
 						if (Explanation.Len())
 						{
-							UE_LOG(LogStreaming, Warning, TEXT("While trying to load package %s, a dependent package %s was not available. Additional explanatory information follows:\n%s"), 
-								*PackagePathToLoadString,
-								*ImportedPackageNameToLoadString,
-								Explanation.ToString());
+							FMessageLog("LoadErrors").Warning(FText::Format(NSLOCTEXT("Core", "AsyncLoading_SkippedPackage_Explanation", "While trying to load package {MissingPackage}, a dependent package {DependentPackage} was not available. Additional explanatory information follows:\n{Explanation}"),
+								FText::FromString(PackagePathToLoadString),
+								FText::FromString(ImportedPackageNameToLoadString),
+								FText::FromString(Explanation.ToString())));
 						}
 						else
 						{
-							UE_LOG(LogStreaming, Warning, TEXT("While trying to load package %s, a dependent package %s was not available. No additional explanation was available."),
-								*PackagePathToLoadString,
-								*ImportedPackageNameToLoadString);
+							FMessageLog("LoadErrors").Warning(FText::Format(NSLOCTEXT("Core", "AsyncLoading_SkippedPackage_NoExplanation", "While trying to load package {MissingPackage}, a dependent package {DependentPackage} was not available. No additional explanation was available."),
+								FText::FromString(PackagePathToLoadString),
+								FText::FromString(ImportedPackageNameToLoadString)));
 						}
+
 						return false;
 					});
 				}
