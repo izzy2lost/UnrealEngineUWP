@@ -26,7 +26,6 @@ import { ProjectHome } from './components/ProjectHome';
 import { StreamView } from './components/StreamView';
 import { TestReportView } from './components/TestReportView';
 import { ToolView } from './components/ToolView';
-import { UnderConstruction } from './components/UnderConstruction';
 import { UserHomeView } from './components/UserHome';
 import { UtilizationReportView } from './components/UtilizationReportView';
 import { AccountsView } from './components/accounts/AccountsView';
@@ -38,6 +37,7 @@ import { JobDetailViewV2 } from './components/jobDetailsV2/JobDetailViewV2';
 import { PreflightConfigRedirector } from './components/preflights/PreflightConfigCheckRedirector';
 import { ServerStatusView } from './components/server/ServerStatus';
 import { HordeSetupView } from './components/setup/HordeSetupView';
+import { TelemetryView } from './components/telemetry/TelemetryView';
 import { StepIssueReportTest } from './components/test/IssueStepReport';
 import { preloadFonts } from './styles/Styles';
 import { darkTheme } from './styles/darkTheme';
@@ -146,7 +146,7 @@ const Main: React.FC = () => {
                { path: "lease/:leaseId", element: <DebugView /> },
                { path: "docs", element: <DocView /> },
                { path: "docs/*", element: <DocView /> },
-               { path: "analytics", element: <UnderConstruction /> },
+               { path: "analytics", element: <TelemetryView /> },
                { path: "accounts", element: <AccountsView /> },
                { path: "accounts/service", element: <ServiceAccountsView /> },
                { path: "test/stepissuereport", element: <StepIssueReportTest /> },

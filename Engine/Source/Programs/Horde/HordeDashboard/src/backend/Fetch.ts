@@ -407,7 +407,7 @@ export class Fetch {
         }
 
         while (url.endsWith("/")) {
-            url = url.slice(0, url.length);
+            url = url.slice(0, url.length - 1);
         }
 
         url = `${this.baseUrl}/${url}`;

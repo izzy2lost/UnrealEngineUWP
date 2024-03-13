@@ -1455,10 +1455,10 @@ export class Backend {
         });
     }
 
-    getMetrics(query: MetricsQuery): Promise<GetTelemetryMetricsResponse[]> {
+    getMetrics(telemetryStoreId: string, query: MetricsQuery): Promise<GetTelemetryMetricsResponse[]> {
         query.id = query.id.map(id => encodeURIComponent(id));
         return new Promise<GetTelemetryMetricsResponse[]>((resolve, reject) => {
-            this.backend.get(`api/v1/telemetry/metrics`, { params: query }).then((response) => {
+            this.backend.get(`api/v1/telemetry/${telemetryStoreId}/metrics`, { params: query }).then((response) => {
                 const result = response.data as GetTelemetryMetricsResponse[];
                 result?.forEach(r => {
                     r?.metrics.forEach(m => {
