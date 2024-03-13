@@ -122,9 +122,7 @@ public:
 	
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterEnumBase);
 
-#if WITH_EDITORONLY_DATA
 	virtual void PostLoad() override;
-#endif
 };
 
 // deprecated class version for converting old data

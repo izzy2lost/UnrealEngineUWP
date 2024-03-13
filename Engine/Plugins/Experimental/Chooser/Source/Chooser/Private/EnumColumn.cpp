@@ -24,9 +24,7 @@ FEnumColumn::FEnumColumn()
 #endif
 }
 
-#if WITH_EDITORONLY_DATA
 void FEnumColumn::PostLoad()
-
 {
 	Super::PostLoad();
 	
@@ -35,6 +33,7 @@ void FEnumColumn::PostLoad()
 		InputValue.GetMutable<FChooserParameterBase>().PostLoad();
 	}
 
+#if WITH_EDITORONLY_DATA
 	// upgrade data for "Any" support
 	for(FChooserEnumRowData& CellData : RowValues)
 	{
@@ -44,8 +43,8 @@ void FEnumColumn::PostLoad()
 			CellData.Comparison = EEnumColumnCellValueComparison::MatchNotEqual;
 		}
 	}
-}
 #endif
+}
 
 bool FChooserEnumRowData::Evaluate(const uint8 LeftHandSide) const
 {

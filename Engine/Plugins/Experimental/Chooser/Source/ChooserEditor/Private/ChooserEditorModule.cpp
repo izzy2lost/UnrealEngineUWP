@@ -15,6 +15,7 @@
 #include "FrameTimeCustomization.h"
 #include "GameplayTagColumnEditor.h"
 #include "IAssetTools.h"
+#include "MultiEnumColumnEditor.h"
 #include "ObjectColumnEditor.h"
 #include "OutputFloatColumnEditor.h"
 #include "OutputStructColumnEditor.h"
@@ -40,6 +41,7 @@ void FModule::StartupModule()
 	RegisterOutputFloatWidgets();
 	RegisterBoolWidgets();
 	RegisterEnumWidgets();
+	RegisterMultiEnumWidgets();
 	RegisterObjectWidgets();
 	RegisterStructWidgets();
 	RegisterRandomizeWidgets();
