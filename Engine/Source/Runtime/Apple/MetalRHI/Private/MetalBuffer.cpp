@@ -2041,7 +2041,7 @@ void FMetalResourceHeap::ReleaseTexture(FMetalSurface* Surface, MTLTexturePtr Te
 {
 	FScopeLock ScopeLock(&InUseResourcesCS);
 	
-	if (Texture && !Texture->buffer() && !Texture->parentTexture() && !Texture->heap())
+	if (Texture && !Texture->buffer() && !Texture->parentTexture())
 	{
 		auto It = AllocationHandlesLUT.Find(Texture.get());
 		if (It && *It != UINT32_MAX)

@@ -1387,7 +1387,7 @@ uint32 FMetalSurface::GetMemorySize()
 		return TotalTextureSize;
 	}
 	
-	if (Texture)
+	if (!Texture)
 	{
 		return 0;
 	}
