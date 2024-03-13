@@ -48,31 +48,7 @@ void FDMLevelEditorIntegrationInstance::RemoveIntegrations()
 
 const FDMLevelEditorIntegrationInstance* FDMLevelEditorIntegrationInstance::GetIntegrationForWorld(UWorld* InWorld)
 {
-	if (!IsValid(InWorld))
-	{
-		return nullptr;
-	}
-
-	ValidateInstances();
-
-	for (const FDMLevelEditorIntegrationInstance& Instance : Instances)
-	{
-		// Always return the first level editor integration for null words - they are assets.
-		if (!InWorld)
-		{
-			return &Instance;
-		}
-
-		if (TSharedPtr<ILevelEditor> LevelEditor = Instance.LevelEditorWeak.Pin())
-		{
-			if (LevelEditor->GetWorld() == InWorld)
-			{
-				return &Instance;
-			}
-		}
-	}
-
-	return nullptr;
+	return GetMutableIntegrationForWorld(InWorld);
 }
 
 FDMLevelEditorIntegrationInstance::~FDMLevelEditorIntegrationInstance()
@@ -118,7 +94,17 @@ TSharedPtr<SDockTab> FDMLevelEditorIntegrationInstance::InvokeTab() const
 	return Tab;
 }
 
-void FDMLevelEditorIntegrationInstance::FDMLevelEditorIntegrationInstance::ValidateInstances()
+const FString& FDMLevelEditorIntegrationInstance::GetLastOpenAssetPartialPath() const
+{
+	return LastOpenAssetPartialPath;
+}
+
+void FDMLevelEditorIntegrationInstance::SetLastAssetOpenPartialPath(const FString& InPath)
+{
+	LastOpenAssetPartialPath = InPath;
+}
+
+void FDMLevelEditorIntegrationInstance::ValidateInstances()
 {
 	for (int32 Index = 0; Index < Instances.Num(); ++Index)
 	{
@@ -128,6 +114,35 @@ void FDMLevelEditorIntegrationInstance::FDMLevelEditorIntegrationInstance::Valid
 			--Index;
 		}
 	}
+}
+
+FDMLevelEditorIntegrationInstance* FDMLevelEditorIntegrationInstance::GetMutableIntegrationForWorld(UWorld* InWorld)
+{
+	if (!IsValid(InWorld))
+	{
+		return nullptr;
+	}
+
+	ValidateInstances();
+
+	for (FDMLevelEditorIntegrationInstance& Instance : Instances)
+	{
+		// Always return the first level editor integration for null words - they are assets.
+		if (!InWorld)
+		{
+			return &Instance;
+		}
+
+		if (TSharedPtr<ILevelEditor> LevelEditor = Instance.LevelEditorWeak.Pin())
+		{
+			if (LevelEditor->GetWorld() == InWorld)
+			{
+				return &Instance;
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 FDMLevelEditorIntegrationInstance::FDMLevelEditorIntegrationInstance(const TSharedRef<ILevelEditor>& InLevelEditor)

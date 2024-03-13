@@ -438,6 +438,43 @@ void FDynamicMaterialEditorModule::AddBuildRequest(UObject* InToBuild, bool bInD
 	UDMMaterialComponent::PreventClean(VeryShortTime);
 }
 
+void FDynamicMaterialEditorModule::RemoveBuildRequest(UObject* InToNotBuild)
+{
+	if (!InToNotBuild)
+	{
+		return;
+	}
+
+	FDynamicMaterialEditorModule::Get().BuildRequestList.Remove({InToNotBuild->GetPathName(), false});
+}
+
+void FDynamicMaterialEditorModule::RemoveBuildRequestForOuter(UObject* InOuter)
+{
+	if (!InOuter)
+	{
+		return;
+	}
+
+	const FString ObjectPath = InOuter->GetPathName();
+	const int32 ObjectPathLength = ObjectPath.Len();
+
+	for (TSet<FDMBuildRequestEntry>::TIterator Iter(FDynamicMaterialEditorModule::Get().BuildRequestList); Iter; ++Iter)
+	{
+		if (Iter->AssetPath.Len() > ObjectPathLength && Iter->AssetPath.StartsWith(ObjectPath))
+		{
+			// Make sure it's a path separator after the parent path.
+			switch (Iter->AssetPath[ObjectPathLength])
+			{
+				case '.':
+				case '/':
+				case ':':
+					Iter.RemoveCurrent();
+					break;
+			}
+		}
+	}
+}
+
 void FDynamicMaterialEditorModule::OpenEditor(UWorld* InWorld)
 {
 	if (!IsValid(InWorld))

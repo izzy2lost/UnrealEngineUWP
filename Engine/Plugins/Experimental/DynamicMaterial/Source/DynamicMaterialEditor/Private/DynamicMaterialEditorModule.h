@@ -111,6 +111,10 @@ public:
 
 	void AddBuildRequest(UObject* InToBuild, bool bInDirtyAssets);
 
+	void RemoveBuildRequest(UObject* InToNotBuild);
+
+	void RemoveBuildRequestForOuter(UObject* InOuter);
+
 	const TSharedRef<FUICommandList>& GetCommandList() const { return CommandList; }
 
 protected:

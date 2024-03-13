@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "Containers/Array.h"
+#include "Containers/ArrayView.h"
+#include "Containers/UnrealString.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -22,11 +25,17 @@ public:
 
 	static const FDMLevelEditorIntegrationInstance* GetIntegrationForWorld(UWorld* InWorld);
 
+	static FDMLevelEditorIntegrationInstance* GetMutableIntegrationForWorld(UWorld* InWorld);
+
 	~FDMLevelEditorIntegrationInstance();
 
 	const TSharedPtr<SDMEditor>& GetEditor() const;
 
 	TSharedPtr<SDockTab> InvokeTab() const;
+
+	const FString& GetLastOpenAssetPartialPath() const;
+
+	void SetLastAssetOpenPartialPath(const FString& InPath);
 
 private:
 	static TArray<FDMLevelEditorIntegrationInstance, TInlineAllocator<1>> Instances;
@@ -37,6 +46,7 @@ private:
 	TWeakObjectPtr<UTypedElementSelectionSet> ActorSelectionSetWeak;
 	TWeakObjectPtr<UTypedElementSelectionSet> ObjectSelectionSetWeak;
 	TSharedPtr<SDMEditor> Editor;
+	FString LastOpenAssetPartialPath;
 
 	FDMLevelEditorIntegrationInstance(const TSharedRef<ILevelEditor>& InLevelEditor);
 
