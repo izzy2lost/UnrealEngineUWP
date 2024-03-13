@@ -90,15 +90,6 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeSpatialFilterNumPasses(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
-int32 GTranslucencyVolumeSpatialFilterMode = 1;
-FAutoConsoleVariableRef CVarTranslucencyVolumeSpatialFilterMode(
-
-	TEXT("r.Lumen.TranslucencyVolume.SpatialFilter.Mode"),
-	GTranslucencyVolumeSpatialFilterMode,
-	TEXT("When 0, chain cube filters. When 1, apply the filter in a separable fashion to gather even more samples (GI is more stable but leaking might be more present)."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-	);
-
 int32 GTranslucencyVolumeSpatialFilterSampleCount = 3;
 FAutoConsoleVariableRef CVarTranslucencyVolumeSpatialFilterSampleCount(
 	TEXT("r.Lumen.TranslucencyVolume.SpatialFilter.SampleCount"),
@@ -505,10 +496,10 @@ class FTranslucencyVolumeTraceVoxelsCS : public FGlobalShader
 IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeTraceVoxelsCS, "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "TranslucencyVolumeTraceVoxelsCS", SF_Compute);
 
 
-class FTranslucencyVolumeSpatialFilterCS : public FGlobalShader
+class FTranslucencyVolumeSpatialSeparableFilterCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FTranslucencyVolumeSpatialFilterCS)
-	SHADER_USE_PARAMETER_STRUCT(FTranslucencyVolumeSpatialFilterCS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FTranslucencyVolumeSpatialSeparableFilterCS)
+	SHADER_USE_PARAMETER_STRUCT(FTranslucencyVolumeSpatialSeparableFilterCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float3>, RWVolumeTraceRadiance)
@@ -518,37 +509,6 @@ class FTranslucencyVolumeSpatialFilterCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
 		SHADER_PARAMETER(FVector3f, PreviousFrameJitterOffset)
 		SHADER_PARAMETER(FMatrix44f, UnjitteredPrevWorldToClip)
-	END_SHADER_PARAMETER_STRUCT()
-
-	using FPermutationDomain = TShaderPermutationDomain<>;
-
-	static FIntVector GetGroupSize()
-	{
-		return FIntVector(8, 8, 1);
-	}
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return DoesPlatformSupportLumenGI(Parameters.Platform);
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize().X);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FTranslucencyVolumeSpatialFilterCS, "/Engine/Private/Lumen/LumenTranslucencyVolumeLighting.usf", "TranslucencyVolumeSpatialFilterCS", SF_Compute);
-
-
-class FTranslucencyVolumeSpatialSeparableFilterCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FTranslucencyVolumeSpatialSeparableFilterCS)
-	SHADER_USE_PARAMETER_STRUCT(FTranslucencyVolumeSpatialSeparableFilterCS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FTranslucencyVolumeSpatialFilterCS::FParameters, SpatialFilterParameters)
 		SHADER_PARAMETER(FIntVector3, SpatialFilterDirection)
 		SHADER_PARAMETER(FVector3f, SpatialFilterGaussParams)
 		SHADER_PARAMETER(int32, SpatialFilterSampleCount)
@@ -863,77 +823,42 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 
 			if (GTranslucencyVolumeSpatialFilter)
 			{
-				if (GTranslucencyVolumeSpatialFilterMode == 0)
+				for (int32 PassIndex = 0; PassIndex < 3; PassIndex++) // 3 passes for the separable filter , one for each axis
 				{
-					for (int32 PassIndex = 0; PassIndex < GTranslucencyVolumeSpatialFilterNumPasses; PassIndex++)
-					{
-						FRDGTextureRef FilteredVolumeTraceRadiance = GraphBuilder.CreateTexture(VolumeTraceRadianceDesc, TEXT("Lumen.TranslucencyVolume.FilteredVolumeTraceRadiance"));
+					FRDGTextureRef FilteredVolumeTraceRadiance = GraphBuilder.CreateTexture(VolumeTraceRadianceDesc, TEXT("Lumen.TranslucencyVolume.FilteredVolumeTraceRadiance"));
 
-						FTranslucencyVolumeSpatialFilterCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTranslucencyVolumeSpatialFilterCS::FParameters>();
-						PassParameters->RWVolumeTraceRadiance = GraphBuilder.CreateUAV(FilteredVolumeTraceRadiance);
+					FTranslucencyVolumeSpatialSeparableFilterCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTranslucencyVolumeSpatialSeparableFilterCS::FParameters>();
+					PassParameters->RWVolumeTraceRadiance = GraphBuilder.CreateUAV(FilteredVolumeTraceRadiance);
 
-						PassParameters->VolumeTraceRadiance = VolumeTraceRadiance;
-						PassParameters->VolumeTraceHitDistance = VolumeTraceHitDistance;
-						PassParameters->View = View.ViewUniformBuffer;
-						PassParameters->VolumeParameters = VolumeParameters;
-						const int32 PreviousFrameIndexOffset = View.bStatePrevViewInfoIsReadOnly ? 0 : 1;
-						PassParameters->PreviousFrameJitterOffset = (FVector3f)TranslucencyVolumeTemporalRandom(View.ViewState ? View.ViewState->GetFrameIndex() - PreviousFrameIndexOffset : 0);
-						PassParameters->UnjitteredPrevWorldToClip = FMatrix44f(View.PrevViewInfo.ViewMatrices.GetViewMatrix() * View.PrevViewInfo.ViewMatrices.ComputeProjectionNoAAMatrix());		// LWC_TODO: Precision loss?
+					PassParameters->VolumeTraceRadiance = VolumeTraceRadiance;
+					PassParameters->VolumeTraceHitDistance = VolumeTraceHitDistance;
+					PassParameters->View = View.ViewUniformBuffer;
+					PassParameters->VolumeParameters = VolumeParameters;
 
-						FTranslucencyVolumeSpatialFilterCS::FPermutationDomain PermutationVector;
-						auto ComputeShader = View.ShaderMap->GetShader<FTranslucencyVolumeSpatialFilterCS>(PermutationVector);
+					const int32 PreviousFrameIndexOffset = View.bStatePrevViewInfoIsReadOnly ? 0 : 1;
+					PassParameters->PreviousFrameJitterOffset = (FVector3f)TranslucencyVolumeTemporalRandom(View.ViewState ? View.ViewState->GetFrameIndex() - PreviousFrameIndexOffset : 0);
+					PassParameters->UnjitteredPrevWorldToClip = FMatrix44f(View.PrevViewInfo.ViewMatrices.GetViewMatrix() * View.PrevViewInfo.ViewMatrices.ComputeProjectionNoAAMatrix());		// LWC_TODO: Precision loss?
 
-						const FIntVector GroupSize = FComputeShaderUtils::GetGroupCount(OctahedralAtlasSize, FTranslucencyVolumeSpatialFilterCS::GetGroupSize());
+					PassParameters->SpatialFilterDirection = FIntVector3(PassIndex == 0 ? 1 : 0, PassIndex == 1 ? 1 : 0, PassIndex == 2 ? 1 : 0);
+					PassParameters->SpatialFilterSampleCount = FMath::Max(1, GTranslucencyVolumeSpatialFilterSampleCount);
 
-						FComputeShaderUtils::AddPass(
-							GraphBuilder,
-							RDG_EVENT_NAME("SpatialFilter"),
-							ComputePassFlags,
-							ComputeShader,
-							PassParameters,
-							GroupSize);
+					const float GaussianFilterStandardDev = FMath::Max(0.1, GTranslucencyVolumeSpatialFilterStandardDeviation);
+					PassParameters->SpatialFilterGaussParams = FVector3f(GaussianFilterStandardDev, 1.0f/(2.0f*GaussianFilterStandardDev*GaussianFilterStandardDev), 1.0/(GaussianFilterStandardDev*FMath::Sqrt(2.0f*PI)));
 
-						VolumeTraceRadiance = FilteredVolumeTraceRadiance;
-					}
-				}
-				else
-				{
-					for (int32 PassIndex = 0; PassIndex < 3; PassIndex++) // 3 passes for the separable filter , one for each axis
-					{
-						FRDGTextureRef FilteredVolumeTraceRadiance = GraphBuilder.CreateTexture(VolumeTraceRadianceDesc, TEXT("Lumen.TranslucencyVolume.FilteredVolumeTraceRadiance"));
+					FTranslucencyVolumeSpatialSeparableFilterCS::FPermutationDomain PermutationVector;
+					auto ComputeShader = View.ShaderMap->GetShader<FTranslucencyVolumeSpatialSeparableFilterCS>(PermutationVector);
 
-						FTranslucencyVolumeSpatialSeparableFilterCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTranslucencyVolumeSpatialSeparableFilterCS::FParameters>();
-						PassParameters->SpatialFilterParameters.RWVolumeTraceRadiance = GraphBuilder.CreateUAV(FilteredVolumeTraceRadiance);
+					const FIntVector GroupSize = FComputeShaderUtils::GetGroupCount(OctahedralAtlasSize, FTranslucencyVolumeSpatialSeparableFilterCS::GetGroupSize());
 
-						PassParameters->SpatialFilterParameters.VolumeTraceRadiance = VolumeTraceRadiance;
-						PassParameters->SpatialFilterParameters.VolumeTraceHitDistance = VolumeTraceHitDistance;
-						PassParameters->SpatialFilterParameters.View = View.ViewUniformBuffer;
-						PassParameters->SpatialFilterParameters.VolumeParameters = VolumeParameters;
-						const int32 PreviousFrameIndexOffset = View.bStatePrevViewInfoIsReadOnly ? 0 : 1;
-						PassParameters->SpatialFilterParameters.PreviousFrameJitterOffset = (FVector3f)TranslucencyVolumeTemporalRandom(View.ViewState ? View.ViewState->GetFrameIndex() - PreviousFrameIndexOffset : 0);
-						PassParameters->SpatialFilterParameters.UnjitteredPrevWorldToClip = FMatrix44f(View.PrevViewInfo.ViewMatrices.GetViewMatrix() * View.PrevViewInfo.ViewMatrices.ComputeProjectionNoAAMatrix());		// LWC_TODO: Precision loss?
+					FComputeShaderUtils::AddPass(
+						GraphBuilder,
+						RDG_EVENT_NAME("SpatialFilter"),
+						ComputePassFlags,
+						ComputeShader,
+						PassParameters,
+						GroupSize);
 
-						PassParameters->SpatialFilterDirection = FIntVector3(PassIndex == 0 ? 1 : 0, PassIndex == 1 ? 1 : 0, PassIndex == 2 ? 1 : 0);
-						PassParameters->SpatialFilterSampleCount = FMath::Max(1, GTranslucencyVolumeSpatialFilterSampleCount);
-
-						const float GaussianFilterStandardDev = FMath::Max(0.1, GTranslucencyVolumeSpatialFilterStandardDeviation);
-						PassParameters->SpatialFilterGaussParams = FVector3f(GaussianFilterStandardDev, 1.0f/(2.0f*GaussianFilterStandardDev*GaussianFilterStandardDev), 1.0/(GaussianFilterStandardDev*FMath::Sqrt(2.0f*PI)));
-
-						FTranslucencyVolumeSpatialSeparableFilterCS::FPermutationDomain PermutationVector;
-						auto ComputeShader = View.ShaderMap->GetShader<FTranslucencyVolumeSpatialSeparableFilterCS>(PermutationVector);
-
-						const FIntVector GroupSize = FComputeShaderUtils::GetGroupCount(OctahedralAtlasSize, FTranslucencyVolumeSpatialSeparableFilterCS::GetGroupSize());
-
-						FComputeShaderUtils::AddPass(
-							GraphBuilder,
-							RDG_EVENT_NAME("SpatialFilter"),
-							ComputePassFlags,
-							ComputeShader,
-							PassParameters,
-							GroupSize);
-
-						VolumeTraceRadiance = FilteredVolumeTraceRadiance;
-					}
+					VolumeTraceRadiance = FilteredVolumeTraceRadiance;
 				}
 			}
 
