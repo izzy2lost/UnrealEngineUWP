@@ -485,7 +485,7 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 
 				for (const FRuntimePartitionStreamingData* StreamingData : *StreamingDataList)
 				{
-					Source.ForEachShape(StreamingData->LoadingRange, StreamingData->Name, false, [this, &Source, StreamingData, &Func](const FSphericalSector& Shape)
+					Source.ForEachShape(StreamingData->LoadingRange, false, [this, &Source, StreamingData, &Func](const FSphericalSector& Shape)
 					{
 						const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
 
