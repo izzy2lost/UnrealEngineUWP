@@ -246,7 +246,7 @@ namespace UnrealBuildTool
 				//return FileReference.Combine(CompilerDir, "bin", "compiler", "lld-link.exe");
 				//return FileReference.Combine(CompilerDir, "bin", "xilib.exe");
 			}
-			return FileReference.Combine(GetVCToolPath(ToochainDir, Architecture), "lib.exe");
+			return FileReference.Combine(GetVCToolPath(ToochainDir, Architecture), "link.exe"); // We add /LIB to cmd line so we can use link.exe directly instead of going via lib.exe
 		}
 
 		/// <summary>
