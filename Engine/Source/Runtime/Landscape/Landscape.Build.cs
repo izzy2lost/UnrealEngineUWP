@@ -61,6 +61,7 @@ public class Landscape : ModuleRules
 					"MeshUtilitiesCommon",
 					"MeshBuilderCommon",
 					"MeshBuilder",
+					"ActionableMessage"
 				}
 			);
 
