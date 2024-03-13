@@ -1,4 +1,4 @@
-[Horde](Home.md) > [Glossary](Glossary.md)
+[Horde](../README.md) > [Glossary](Glossary.md)
 
 ## General
 

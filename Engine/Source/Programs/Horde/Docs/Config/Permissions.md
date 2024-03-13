@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Configuration](../Config.md) > Permissions
+[Horde](../../README.md) > [Configuration](../Config.md) > Permissions
 
 # Permissions
 

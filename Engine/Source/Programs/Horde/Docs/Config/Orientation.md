@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Configuration](../Config.md) > Orientation
+[Horde](../../README.md) > [Configuration](../Config.md) > Orientation
 
 # Orientation
 

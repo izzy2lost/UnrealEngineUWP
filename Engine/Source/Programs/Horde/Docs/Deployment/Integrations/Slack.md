@@ -1,4 +1,4 @@
-[Horde](../../Home.md) > [Deployment](../../Deployment.md) > Integrations > Slack
+[Horde](../../../README.md) > [Deployment](../../Deployment.md) > Integrations > Slack
 
 # Slack
 

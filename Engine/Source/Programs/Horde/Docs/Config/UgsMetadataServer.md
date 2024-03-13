@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Configuration](../Config.md) > UnrealGameSync Metadata Server
+[Horde](../../README.md) > [Configuration](../Config.md) > UnrealGameSync Metadata Server
 
 # UnrealGameSync Metadata Server
 

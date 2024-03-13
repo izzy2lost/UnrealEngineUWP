@@ -1,4 +1,4 @@
-[Horde](Home.md) > Configuration
+[Horde](../README.md) > Configuration
 
 # Configuration
 

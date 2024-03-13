@@ -1,4 +1,4 @@
-[Horde](Home.md) > Feature Status
+[Horde](../README.md) > Feature Status
 
 # Feature Status
 

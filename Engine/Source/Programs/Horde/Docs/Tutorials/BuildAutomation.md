@@ -1,4 +1,4 @@
-[Horde](../Home.md) > Getting Started: Build Automation
+[Horde](../../README.md) > Getting Started: Build Automation
 
 # Getting Started: Build Automation
 

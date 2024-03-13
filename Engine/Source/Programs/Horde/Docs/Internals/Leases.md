@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Internals](../Internals.md) > Leases
+[Horde](../../README.md) > [Internals](../Internals.md) > Leases
 
 # Leases
 

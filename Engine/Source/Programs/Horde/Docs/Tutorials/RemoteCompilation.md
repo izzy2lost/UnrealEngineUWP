@@ -1,4 +1,4 @@
-[Horde](../Home.md) > Getting Started: Remote Compilation
+[Horde](../../README.md) > Getting Started: Remote Compilation
 
 # Getting Started: Remote Compilation
 

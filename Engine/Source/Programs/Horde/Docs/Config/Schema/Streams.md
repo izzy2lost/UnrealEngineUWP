@@ -1,4 +1,4 @@
-[Horde](../../Home.md) > [Configuration](../../Config.md) > *.stream.json
+[Horde](../../../README.md) > [Configuration](../../Config.md) > *.stream.json
 
 # *.stream.json
 

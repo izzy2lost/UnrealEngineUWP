@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Deployment](../Deployment.md) > [Agent](Agent.md) > appsettings.json (Agent)
+[Horde](../../README.md) > [Deployment](../Deployment.md) > [Agent](Agent.md) > appsettings.json (Agent)
 
 # appsettings.json (Agent)
 

@@ -1,6 +1,6 @@
 # Release Notes
 
-## 2024-03-??
+## 2024-03-07
 
 * Store the URL of the default Horde server in the registry on Windows (31994865)
 * Download UGS deployment settings from Horde parameters endpoint (32001513)

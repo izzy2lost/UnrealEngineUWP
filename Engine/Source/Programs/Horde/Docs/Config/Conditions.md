@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Configuration](../Config.md) > Conditions
+[Horde](../../README.md) > [Configuration](../Config.md) > Conditions
 
 # Conditions
 
