@@ -102,7 +102,7 @@ void FContextualAnimSceneSection::GenerateAlignmentTracks(UContextualAnimSceneAs
 		{
 			UE_LOG(LogContextualAnim, Log, TEXT("Generating AlignmentTracks Tracks. Animation: %s"), *GetNameSafe(AnimTrack.Animation));
 
-			const FTransform MeshToComponentInverse = SceneAsset.GetMeshToComponentForRole(AnimTrack.Role).Inverse();
+			const FTransform MeshToComponentInverse = FTransform(SceneAsset.GetMeshToComponentForRole(AnimTrack.Role).GetRotation()).Inverse();
 			const float SampleInterval = 1.f / SceneAsset.GetSampleRate();
 
 			// Initialize tracks for each alignment section
@@ -715,7 +715,7 @@ FTransform UContextualAnimSceneAsset::GetAlignmentTransform(const FContextualAni
 		const FName WarpTargetName = Section->GetWarpPointDefinitions()[WarpPointIdx].WarpTargetName;
 		if (const FTransform* WarpPointTransformPtr = AnimSet->WarpPoints.Find(WarpTargetName))
 		{
-			const FTransform MeshToComponentInverse = GetMeshToComponentForRole(AnimTrack.Role).Inverse();
+			const FTransform MeshToComponentInverse = FTransform(GetMeshToComponentForRole(AnimTrack.Role).GetRotation()).Inverse();
 
 			if (AnimTrack.Animation)
 			{

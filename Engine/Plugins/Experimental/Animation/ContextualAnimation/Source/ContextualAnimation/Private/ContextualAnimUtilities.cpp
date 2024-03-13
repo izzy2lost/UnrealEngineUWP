@@ -166,7 +166,7 @@ void UContextualAnimUtilities::DrawDebugAnimSet(const UWorld* World, const UCont
 	{
 		for (const FContextualAnimTrack& AnimTrack : AnimSet.Tracks)
 		{
-			const FTransform Transform = (SceneAsset.GetMeshToComponentForRole(AnimTrack.Role) * SceneAsset.GetAlignmentTransform(AnimTrack, 0, Time)) * ToWorldTransform;
+			const FTransform Transform = (FTransform(SceneAsset.GetMeshToComponentForRole(AnimTrack.Role).GetRotation()) * SceneAsset.GetAlignmentTransform(AnimTrack, 0, Time)) * ToWorldTransform;
 
 			if (const UAnimSequenceBase* Animation = AnimTrack.Animation)
 			{

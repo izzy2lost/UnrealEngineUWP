@@ -199,7 +199,7 @@ void FContextualAnimEdMode::Render(const FSceneView* View, FViewport* Viewport, 
 								{
 									const float Time = 0.f;
 									const FTransform RelativeToPrimary = SceneAsset->GetAlignmentTransformForRoleRelativeToOtherRole(AnimTrack.SectionIdx, AnimTrack.AnimSetIdx, AnimTrack.Role, PrimaryRole, Time);
-									FTransform Transform = (SceneAsset->GetMeshToComponentForRole(AnimTrack.Role) * RelativeToPrimary) * PrimaryTransform;
+									FTransform Transform = (FTransform(SceneAsset->GetMeshToComponentForRole(AnimTrack.Role).GetRotation()) * RelativeToPrimary) * PrimaryTransform;
 
 									if (ACharacter* PrimaryAsCharacter = Cast<ACharacter>(PrimaryBinding->GetActor()))
 									{

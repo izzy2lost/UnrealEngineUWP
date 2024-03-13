@@ -227,7 +227,7 @@ struct FContextualAnimRoleDefinition
 	float PreviewCapsuleRadius = 34.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defaults")
-	FTransform MeshToComponent = FTransform(FRotator(0.f, -90.f, 0.f));
+	FTransform MeshToComponent = FTransform(FRotator(0.f, 0.f, 0.f));
 
 	static const FContextualAnimRoleDefinition InvalidRoleDefinition;
 };
