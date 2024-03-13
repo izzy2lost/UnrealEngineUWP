@@ -16,6 +16,7 @@
 #include "Stateless/Modules/NiagaraStatelessModule_GravityForce.h"
 #include "Stateless/Modules/NiagaraStatelessModule_InitializeParticle.h"
 #include "Stateless/Modules/NiagaraStatelessModule_InitialMeshOrientation.h"
+#include "Stateless/Modules/NiagaraStatelessModule_MeshRotationRate.h"
 #include "Stateless/Modules/NiagaraStatelessModule_RotateAroundPoint.h"
 #include "Stateless/Modules/NiagaraStatelessModule_ScaleColor.h"
 #include "Stateless/Modules/NiagaraStatelessModule_ScaleMeshSize.h"
@@ -77,6 +78,7 @@ void UNiagaraStatelessEmitterDefault::InitModulesAndAttributes()
 		UNiagaraStatelessModule_ScaleSpriteSizeBySpeed::StaticClass(),
 		UNiagaraStatelessModule_ScaleMeshSize::StaticClass(),
 		UNiagaraStatelessModule_ScaleMeshSizeBySpeed::StaticClass(),
+		UNiagaraStatelessModule_MeshRotationRate::StaticClass(),
 		UNiagaraStatelessModule_AddVelocity::StaticClass(),
 		UNiagaraStatelessModule_AccelerationForce::StaticClass(),
 		UNiagaraStatelessModule_CurlNoiseForce::StaticClass(),

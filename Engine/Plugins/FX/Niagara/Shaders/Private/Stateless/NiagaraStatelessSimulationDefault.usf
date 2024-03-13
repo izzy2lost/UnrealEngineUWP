@@ -34,6 +34,7 @@
 	PARTICLE_MODULE(ScaleSpriteSize) \
 	PARTICLE_MODULE(SpriteFacingAndAlignment) \
 	PARTICLE_MODULE(SpriteRotationRate) \
+	PARTICLE_MODULE(MeshRotationRate) \
 	PARTICLE_MODULE(ScaleMeshSize) \
 	PARTICLE_MODULE(SolveVelocitiesAndForces) \
 	PARTICLE_MODULE(ScaleMeshSizeBySpeed) \

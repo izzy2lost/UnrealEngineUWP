@@ -27,7 +27,7 @@ public:
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
 		if (IsModuleEnabled())
 		{
-			Parameters->InitialMeshOrientation_Rotation			= Rotation;
+			Parameters->InitialMeshOrientation_Rotation			= Rotation / 360.0f;
 			Parameters->InitialMeshOrientation_RandomRangeScale	= RandomRotationRange / 360.0f;
 		}
 		else
