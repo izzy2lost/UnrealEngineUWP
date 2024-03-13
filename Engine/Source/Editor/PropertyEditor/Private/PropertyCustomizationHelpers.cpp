@@ -359,7 +359,7 @@ namespace PropertyCustomizationHelpers
 			.OnUseSelected(OnUseSelected);
 	}
 
-	TSharedRef<SWidget> MakeActorPickerWithMenu(AActor* const InitialActor, const bool AllowClear, const bool AllowPickingLevelInstanceContent, FOnShouldFilterActor ActorFilter, FOnActorSelected OnSet, FSimpleDelegate OnClose, FSimpleDelegate OnUseSelected)
+	TSharedRef<SWidget> MakeActorPickerWithMenu(AActor* const InitialActor, const bool AllowClear, const bool AllowPickingLevelInstanceContent, FOnShouldFilterActor ActorFilter, FOnActorSelected OnSet, FSimpleDelegate OnClose, FSimpleDelegate OnUseSelected, bool bDisplayUseSelected)
 	{
 		return
 			SNew(SPropertyMenuActorPicker)
@@ -369,7 +369,8 @@ namespace PropertyCustomizationHelpers
 			.ActorFilter(ActorFilter)
 			.OnSet(OnSet)
 			.OnClose(OnClose)
-			.OnUseSelected(OnUseSelected);
+			.OnUseSelected(OnUseSelected)
+			.DisplayUseSelected(bDisplayUseSelected);
 	}
 
 	TSharedRef<SWidget> MakeComponentPickerWithMenu( UActorComponent* const InitialComponent, const bool AllowClear, FOnShouldFilterActor ActorFilter, FOnShouldFilterComponent ComponentFilter, FOnComponentSelected OnSet, FSimpleDelegate OnClose )
@@ -384,14 +385,14 @@ namespace PropertyCustomizationHelpers
 			.OnClose(OnClose);
 	}
 
-	TSharedRef<SWidget> MakeInteractiveActorPicker( FOnGetAllowedClasses OnGetAllowedClasses, FOnShouldFilterActor OnShouldFilterActor, FOnActorSelected OnActorSelectedFromPicker )
+	TSharedRef<SWidget> MakeInteractiveActorPicker( FOnGetAllowedClasses OnGetAllowedClasses, FOnShouldFilterActor OnShouldFilterActor, FOnActorSelected OnActorSelectedFromPicker)
 	{
-		return 
-			SNew( SPropertyEditorInteractiveActorPicker )
-			.ToolTipText( LOCTEXT( "PickButtonLabel", "Pick Actor from scene") )
-			.OnGetAllowedClasses( OnGetAllowedClasses )
-			.OnShouldFilterActor( OnShouldFilterActor )
-			.OnActorSelected( OnActorSelectedFromPicker );
+		return
+			SNew(SPropertyEditorInteractiveActorPicker)
+			.ToolTipText(LOCTEXT("PickButtonLabel", "Pick Actor from scene"))
+			.OnGetAllowedClasses(OnGetAllowedClasses)
+			.OnShouldFilterActor(OnShouldFilterActor)
+			.OnActorSelected(OnActorSelectedFromPicker);
 	}
 
 	TSharedRef<SWidget> MakeSceneDepthPicker(FOnSceneDepthLocationSelected OnSceneDepthLocationSelected)

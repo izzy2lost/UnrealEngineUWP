@@ -319,6 +319,7 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 	OnSetObject = InArgs._OnSetObject;
 	OnShouldFilterActor = InArgs._OnShouldFilterActor;
 	ObjectPath = InArgs._ObjectPath;
+	bDisplayUseSelected = InArgs._DisplayUseSelected;
 
 	// Override this as we stole the value to use as OnIsEnabled for the inner widgets
 	SetEnabled(true);
@@ -675,7 +676,7 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 		];
 	}
 
-	if( InArgs._DisplayUseSelected )
+	if( bDisplayUseSelected )
 	{
 		ButtonBox->AddSlot()
 		.VAlign(VAlign_Center)
@@ -863,7 +864,8 @@ TSharedRef<SWidget> SPropertyEditorAsset::OnGetMenuContent()
 																	 FOnShouldFilterActor::CreateSP( this, &SPropertyEditorAsset::IsFilteredActor ),
 																	 FOnActorSelected::CreateSP( this, &SPropertyEditorAsset::OnActorSelected),
 																	 FSimpleDelegate::CreateSP( this, &SPropertyEditorAsset::CloseComboButton ),
-																	 FSimpleDelegate::CreateSP( this, &SPropertyEditorAsset::OnUse ) );
+																	 FSimpleDelegate::CreateSP( this, &SPropertyEditorAsset::OnUse), 
+																	 bDisplayUseSelected);
 	}
 	else
 	{

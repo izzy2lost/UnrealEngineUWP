@@ -438,4 +438,7 @@ private:
 	 * The system will test first the PropertyHandle follow by the PropertyEditor and if nothing this array of assets
 	 */
 	TArray<FAssetData> OwnerAssetDataArray;
+
+	/*Whether to show the 'Use Selected' item*/
+	bool bDisplayUseSelected;
 };
