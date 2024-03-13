@@ -43,9 +43,11 @@ int64 FNumericProperty::ReadEnumAsInt64(FStructuredArchive::FSlot Slot, UStruct*
 	Slot.GetUnderlyingArchive().Preload(Enum);
 
 	// This handles redirects internally
-	int64 Result = Enum->GetValueByName(EnumName);
-	if (!Enum->IsValidEnumValue(Result))
+	int64 Result = Enum->GetValueOrBitfieldFromString(EnumName.ToString());
+	if (!Enum->IsValidEnumValueOrBitfield(Result))
 	{
+		int64 ReplacementValue = Enum->HasAnyEnumFlags(EEnumFlags::Flags) ? 0 : Enum->GetMaxEnumValue();
+
 		UE_LOG(
 			LogClass,
 			Warning,
@@ -53,10 +55,10 @@ int64 FNumericProperty::ReadEnumAsInt64(FStructuredArchive::FSlot Slot, UStruct*
 			*EnumName.ToString(),
 			*Enum->GetName(),
 			*Tag.Name.ToString(),
-			*Enum->GetNameByValue(Enum->GetMaxEnumValue()).ToString()
+			*Enum->GetNameByValue(ReplacementValue).ToString()
 			);
 
-		return Enum->GetMaxEnumValue();
+		return ReplacementValue;
 	}
 
 	return Result;

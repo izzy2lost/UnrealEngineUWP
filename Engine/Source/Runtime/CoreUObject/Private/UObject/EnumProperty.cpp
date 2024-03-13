@@ -16,8 +16,10 @@ namespace UE::CoreUObject::Private
 		using LargeIntType = std::conditional_t<TIsSigned<OldIntType>::Value, int64, uint64>;
 
 		LargeIntType NewValue = OldValue;
-		if (!UnderlyingProp->CanHoldValue(NewValue) || !Enum->IsValidEnumValue(NewValue))
+		if (!UnderlyingProp->CanHoldValue(NewValue) || !Enum->IsValidEnumValueOrBitfield(NewValue))
 		{
+			NewValue = Enum->HasAnyEnumFlags(EEnumFlags::Flags) ? 0 : Enum->GetMaxEnumValue();
+
 			UE_LOG(
 				LogClass,
 				Warning,
@@ -25,10 +27,8 @@ namespace UE::CoreUObject::Private
 				*LexToString(OldValue),
 				*Enum->GetName(),
 				*EnumProp->GetName(),
-				*Enum->GetNameByValue(Enum->GetMaxEnumValue()).ToString()
+				*Enum->GetNameByValue(NewValue).ToString()
 			);
-
-			NewValue = Enum->GetMaxEnumValue();
 		}
 
 		UnderlyingProp->SetIntPropertyValue(Obj, NewValue);
