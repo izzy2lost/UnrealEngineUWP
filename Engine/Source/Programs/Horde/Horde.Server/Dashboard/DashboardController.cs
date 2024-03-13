@@ -11,6 +11,7 @@ using EpicGames.Horde.Dashboard;
 using EpicGames.Horde.Server;
 using Horde.Server.Accounts;
 using Horde.Server.Server;
+using Horde.Server.Telemetry;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -182,38 +183,41 @@ namespace Horde.Server.Dashboard
 				dashboardConfigResponse.PoolCategories.Add(new GetDashboardPoolCategoryResponse { Name = category.Name, Condition = category.Condition });
 			}
 
-			foreach (TelemetryViewConfig telemetry in _globalConfig.Value.Dashboard.Analytics)
+			if (_globalConfig.Value.Authorize(TelemetryAclAction.QueryMetrics, User))
 			{
-				GetTelemetryViewResponse rview = new GetTelemetryViewResponse();
-				rview.Id = telemetry.Id.ToString();
-				rview.Name = telemetry.Name;
-				rview.TelemetryStoreId = telemetry.TelemetryStoreId.ToString();
-
-				foreach (TelemetryVariableConfig variable in telemetry.Variables)
+				foreach (TelemetryViewConfig telemetry in _globalConfig.Value.Dashboard.Analytics)
 				{
-					rview.Variables.Add(new GetTelemetryVariableResponse { Name = variable.Name, Group = variable.Group, Defaults = variable.Defaults });
-				}
+					GetTelemetryViewResponse rview = new GetTelemetryViewResponse();
+					rview.Id = telemetry.Id.ToString();
+					rview.Name = telemetry.Name;
+					rview.TelemetryStoreId = telemetry.TelemetryStoreId.ToString();
 
-				foreach (TelemetryCategoryConfig category in telemetry.Categories)
-				{
-					GetTelemetryCategoryResponse rcategory = new GetTelemetryCategoryResponse { Name = category.Name };
-
-					foreach (TelemetryChartConfig chart in category.Charts)
+					foreach (TelemetryVariableConfig variable in telemetry.Variables)
 					{
-						GetTelemetryChartResponse rchart = new GetTelemetryChartResponse { Name = chart.Name, Display = chart.Display.ToString(), Graph = chart.Graph.ToString(), Min = chart.Min, Max = chart.Max, Metrics = new List<GetTelemetryChartMetricResponse>() };
-
-						foreach (TelemetryChartMetricConfig metric in chart.Metrics)
-						{
-							rchart.Metrics.Add(new GetTelemetryChartMetricResponse { MetricId = metric.Id.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
-						}
-
-						rcategory.Charts.Add(rchart);
+						rview.Variables.Add(new GetTelemetryVariableResponse { Name = variable.Name, Group = variable.Group, Defaults = variable.Defaults });
 					}
 
-					rview.Categories.Add(rcategory);
-				}
+					foreach (TelemetryCategoryConfig category in telemetry.Categories)
+					{
+						GetTelemetryCategoryResponse rcategory = new GetTelemetryCategoryResponse { Name = category.Name };
 
-				dashboardConfigResponse.TelemetryViews.Add(rview);
+						foreach (TelemetryChartConfig chart in category.Charts)
+						{
+							GetTelemetryChartResponse rchart = new GetTelemetryChartResponse { Name = chart.Name, Display = chart.Display.ToString(), Graph = chart.Graph.ToString(), Min = chart.Min, Max = chart.Max, Metrics = new List<GetTelemetryChartMetricResponse>() };
+
+							foreach (TelemetryChartMetricConfig metric in chart.Metrics)
+							{
+								rchart.Metrics.Add(new GetTelemetryChartMetricResponse { MetricId = metric.Id.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
+							}
+
+							rcategory.Charts.Add(rchart);
+						}
+
+						rview.Categories.Add(rcategory);
+					}
+
+					dashboardConfigResponse.TelemetryViews.Add(rview);
+				}
 			}
 
 			return dashboardConfigResponse;
