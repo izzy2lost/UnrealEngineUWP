@@ -126,6 +126,7 @@ class UWorldPartitionRuntimeHashSet final : public UWorldPartitionRuntimeHash
 	//~ Begin UObject Interface
 #if WITH_EDITOR
 	ENGINE_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
+	ENGINE_API virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 #endif
 	//~ End UObject Interface
 

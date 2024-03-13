@@ -666,6 +666,19 @@ void UWorldPartitionRuntimeHashSet::PostEditChangeChainProperty(FPropertyChanged
 	}
 }
 
+void UWorldPartitionRuntimeHashSet::PostDuplicate(EDuplicateMode::Type DuplicateMode)
+{
+	Super::PostDuplicate(DuplicateMode);
+	
+	// In PIE, create streaming datas spatial indexes and runtime grid data maps right after world duplication to allow making spatial queries from calls 
+	// to BlockTillLevelStreamingCompleted before the world has issued OnBeginPlay (see UGameInstance::StartPlayInEditorGameInstance).
+	if (DuplicateMode == EDuplicateMode::PIE)
+	{
+		ForEachStreamingData([this](const FRuntimePartitionStreamingData& StreamingData) { StreamingData.CreatePartitionsSpatialIndex(); return true; });
+		UpdateRuntimeDataGridMap();
+	}
+}
+
 UWorldPartitionRuntimeHashSet::FCellUniqueId UWorldPartitionRuntimeHashSet::GetCellUniqueId(const URuntimePartition::FCellDescInstance& InCellDescInstance) const
 {
 	FCellUniqueId CellUniqueId;
