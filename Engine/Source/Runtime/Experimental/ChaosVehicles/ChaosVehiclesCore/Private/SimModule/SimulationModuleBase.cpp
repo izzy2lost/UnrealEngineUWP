@@ -93,7 +93,14 @@ FPBDRigidParticleHandle* ISimulationModuleBase::GetParticleFromUniqueIndex(int32
 	return nullptr;
 }
 
-bool ISimulationModuleBase::GetDebugString(FString& StringOut) const 
+void ISimulationModuleBase::SetAnimationData(const FName& BoneNameIn, const FVector& AnimationOffsetIn, int AnimationSetupIndexIn)
+{
+	BoneName = BoneNameIn;
+	AnimationOffset = AnimationOffsetIn;
+	AnimationSetupIndex = AnimationSetupIndexIn;
+}
+
+bool ISimulationModuleBase::GetDebugString(FString& StringOut) const
 {
 	StringOut += FString::Format(TEXT("{0}: TreeIndex {1}, Enabled {2}, InCluster {3}, TFormIdx {4}, ")
 		, { GetDebugName(), GetTreeIndex(), IsEnabled(), IsClustered(), GetTransformIndex() });
@@ -116,6 +123,8 @@ const FTransform& ISimulationModuleBase::GetParentRelativeTransform() const
 
 void FSimOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 {
+	AnimationSetupIndex = SimModule->AnimationSetupIndex;
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	if (SimModule)
 	{	
@@ -123,6 +132,21 @@ void FSimOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 		SimModule->GetDebugString(DebugString);
 	}
 #endif
+}
+
+void FSimOutputData::Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha)
+{
+	AnimationSetupIndex = InNext.AnimationSetupIndex;
+	AnimFlags = InNext.AnimFlags;
+	if (AnimFlags & EAnimationFlags::AnimatePosition)
+	{
+		AnimationLocOffset = FMath::Lerp(InCurrent.AnimationLocOffset, InNext.AnimationLocOffset, Alpha);
+	}
+
+	if (AnimFlags & EAnimationFlags::AnimateRotation)
+	{
+		AnimationRotOffset = FMath::Lerp(InCurrent.AnimationRotOffset, InNext.AnimationRotOffset, Alpha);
+	}
 }
 
 

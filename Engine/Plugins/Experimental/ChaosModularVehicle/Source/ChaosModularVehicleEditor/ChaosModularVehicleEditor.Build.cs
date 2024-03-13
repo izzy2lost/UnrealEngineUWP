@@ -2,9 +2,9 @@
 
 namespace UnrealBuildTool.Rules
 {
-	public class ChaosModularVehicleEngine : ModuleRules
+	public class ChaosModularVehicleEditor : ModuleRules
 	{
-		public ChaosModularVehicleEngine(ReadOnlyTargetRules Target) : base(Target)
+		public ChaosModularVehicleEditor(ReadOnlyTargetRules Target) : base(Target)
 		{
 			SetupModulePhysicsSupport(Target);
 
@@ -15,15 +15,15 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Chaos",
 					"Engine",
-					"RenderCore",
-					"RHI",
+					"EditorFramework",
+					"UnrealEd",
+					"PropertyEditor",
 					"AnimGraphRuntime",
-					"Renderer",
-					"ChaosVehiclesCore",
-					"ChaosModularVehicle",
-					"NetCore",
-					"GeometryCollectionEngine",
-					"ChaosSolverEngine"
+					"AnimGraph",
+					"BlueprintGraph",
+					"ToolMenus",
+					"AnimGraphRuntime",
+					"ChaosModularVehicleEngine"
 				}
 			);
 

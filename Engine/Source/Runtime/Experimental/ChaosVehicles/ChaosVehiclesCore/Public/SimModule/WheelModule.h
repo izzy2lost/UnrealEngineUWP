@@ -57,6 +57,8 @@ namespace Chaos
 		float ForceIntoSurface;
 		float SlipAngle;
 		float RPM;
+		float AngularPositionDegrees;
+		float SteeringAngleDegrees;
 
 		//HitLocation
 		//PhysMaterial

@@ -151,6 +151,34 @@ struct CHAOSMODULARVEHICLEENGINE_API FConstructionData
 };
 
 
+USTRUCT()
+struct CHAOSMODULARVEHICLEENGINE_API FModuleAnimationSetup
+{
+	GENERATED_USTRUCT_BODY()
+
+	FModuleAnimationSetup(FName BoneNameIn)
+		: BoneName(BoneNameIn)
+		, RotOffset(FRotator::ZeroRotator)
+		, LocOffset(FVector::ZeroVector)
+		, AnimFlags(0)
+	{
+	}
+
+	FModuleAnimationSetup() 
+		: BoneName(NAME_None)
+		, RotOffset(FRotator::ZeroRotator)
+		, LocOffset(FVector::ZeroVector)
+		, AnimFlags(0)
+	{
+	}
+
+	FName BoneName;
+	FRotator RotOffset;
+	FVector LocOffset;
+	uint16 AnimFlags;
+};
+
+
 UCLASS(ClassGroup = (Physics), meta = (BlueprintSpawnableComponent), hidecategories = (PlanarMovement, "Components|Movement|Planar", Activation, "Components|Activation"))
 class CHAOSMODULARVEHICLEENGINE_API UModularVehicleBaseComponent : public UPawnMovementComponent
 {
@@ -337,6 +365,9 @@ public:
 		SuspensionTraceCollisionResponses.SetResponse(Channel, NewResponse);
 	}
 
+	TArray<FModuleAnimationSetup>& AccessModuleAnimationSetups() { return ModuleAnimationSetups; }
+	const TArray<FModuleAnimationSetup>& GetModuleAnimationSetups() const { return ModuleAnimationSetups; }
+
 protected:
 
 	void CreateVehicleSim();
@@ -344,6 +375,7 @@ protected:
 	void UpdatePhysicalProperties();
 	void AddOverlappingComponentsToCluster();
 	void AddGeometryCollectionsFromOwnedActor();
+	void SetupSkeletalAnimationStructure();
 
 	void ActionTreeUpdates(Chaos::FSimTreeUpdates* NextTreeUpdates);
 
@@ -552,5 +584,8 @@ private:
 	int32 ClusteringCount = 0;
 
 	bool bIsLocallyControlled;
+
+	TArray<FModuleAnimationSetup> ModuleAnimationSetups;
+
 };
 

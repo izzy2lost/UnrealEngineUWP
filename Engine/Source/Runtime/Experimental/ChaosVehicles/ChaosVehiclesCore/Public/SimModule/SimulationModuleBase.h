@@ -162,11 +162,15 @@ namespace Chaos
 	 */
 	class CHAOSVEHICLESCORE_API ISimulationModuleBase
 	{
+	friend FSimOutputData;
+
 	public:
 		const static int INVALID_IDX = -1;
 
 		ISimulationModuleBase()
 			: SimModuleTree(nullptr)
+			, BoneName(NAME_None)
+			, AnimationSetupIndex(-1)
 			, SimTreeIndex(INVALID_IDX)
 			, StateFlags(Enabled)
 			, TransformIndex(INVALID_IDX)
@@ -220,6 +224,11 @@ namespace Chaos
 
 		void SetAnimationEnabled(bool bInEnabled) { bAnimationEnabled = bInEnabled; }
 		bool IsAnimationEnabled() { return bAnimationEnabled; }
+
+		void SetAnimationData(const FName& BoneNameIn, const FVector& AnimationOffsetIn, int AnimationSetupIndexIn);
+		const FVector& GetAnimationOffset() const { return AnimationOffset; }
+		const FName& GetBoneName() const { return BoneName; }
+		int GetAnimationSetupIndex() { return AnimationSetupIndex; }
 
 		/**
 		 * Option to draw debug for this module requires CVar p.Chaos.DebugDraw.Enabled 1
@@ -332,6 +341,8 @@ namespace Chaos
 	protected:
 
 		FSimModuleTree* SimModuleTree;	// A pointer back to the simulation tree where we are stored
+		FName BoneName;
+		int AnimationSetupIndex;
 		int SimTreeIndex;	// Index of this SimModule in the FSimModuleTree
 		eSimModuleState StateFlags;	// TODO: make this more like flags
 		int TransformIndex; // Index of this Sim Module's node in Geometry Collection Transform array
@@ -347,6 +358,8 @@ namespace Chaos
 		FVector LocalAngularVelocity;
 		bool bClustered;
 		bool bAnimationEnabled;
+		FVector AnimationOffset; 
+		FVector AnimationRotation;
 
 		// for headless chaos testing
 		FVector AppliedForce;
@@ -385,6 +398,13 @@ namespace Chaos
 
 	using FModuleNetDataArray = TArray<TSharedPtr<FModuleNetData>>;
 
+	namespace EAnimationFlags
+	{
+		static uint16 AnimateNone = 0x00000000;
+		static uint16 AnimatePosition = 0x00000001;
+		static uint16 AnimateRotation = 0x00000002;
+	}
+
 	struct CHAOSVEHICLESCORE_API FSimOutputData
 	{
 		FSimOutputData() = default;
@@ -394,9 +414,13 @@ namespace Chaos
 		virtual bool IsEnabled() { return bEnabled; }
 		virtual FSimOutputData* MakeNewData() = 0;
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule);
-		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) = 0;
+		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha);
 
 		bool bEnabled = true;
+		int AnimationSetupIndex;
+		uint16 AnimFlags;
+		FVector AnimationLocOffset;
+		FRotator AnimationRotOffset;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		virtual FString ToString() { return FString(); }

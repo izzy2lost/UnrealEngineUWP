@@ -50,14 +50,15 @@ public:
 	virtual Chaos::ISimulationModuleBase* CreateNewCoreModule() const { return nullptr; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ModularVehicle)
-	int TransformIndex;
+	FName BoneName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ModularVehicle)
-	bool bRemoveFromClusterCollisionModel;
+	FVector AnimationOffset;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ModularVehicle)
 	bool bAnimationEnabled;
 
+	int AnimationSetupIndex;
 	int TreeIndex; // helper - since Component->GetAttachChildren doesn't contain any data
 };
 

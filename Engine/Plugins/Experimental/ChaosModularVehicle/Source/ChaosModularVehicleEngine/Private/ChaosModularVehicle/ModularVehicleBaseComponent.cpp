@@ -4,6 +4,7 @@
 #include "ChaosModularVehicle/ChaosSimModuleManager.h"
 #include "ChaosModularVehicle/VehicleSimBaseComponent.h"
 #include "ChaosModularVehicle/ModularVehicleDefaultAsyncInput.h"
+#include "ChaosModularVehicle/ModularVehicleAnimationInstance.h"
 #include "Engine/Engine.h"
 #include "Engine/Canvas.h"
 #include "Engine/OverlapResult.h"
@@ -250,6 +251,32 @@ void UModularVehicleBaseComponent::CreateAssociatedSimComponents(const UPrimitiv
 
 		FTransform ClusterredTransform(FQuat::Identity, InitialTransform.GetLocation());
 		NewModule->SetClusteredTransform(ClusterredTransform);
+
+		if (Component->bAnimationEnabled && (Component->BoneName != NAME_None))
+		{
+			// if bone already exists then use that (seperate wheel and suspension modules can share same bone)
+
+			int FoundIndex = -1;
+			for (int I = 0; I < ModuleAnimationSetups.Num(); I++)
+			{
+				if (ModuleAnimationSetups[I].BoneName == Component->BoneName)
+				{
+					FoundIndex = I;
+					break;
+				}
+			}
+
+			if (FoundIndex != -1)
+			{
+				NewModule->SetAnimationData(Component->BoneName, Component->AnimationOffset, FoundIndex);
+			}
+			else
+			{
+				NewModule->SetAnimationData(Component->BoneName, Component->AnimationOffset, ModuleAnimationSetups.Num());
+				FModuleAnimationSetup AnimSetup(NewModule->GetBoneName());
+				ModuleAnimationSetups.Add(AnimSetup);
+			}
+		}
 
 		ParentIndex = TreeIndex;
 
@@ -672,14 +699,17 @@ void UModularVehicleBaseComponent::ParallelUpdate(float DeltaTime)
 		{
 			if (const FModularVehicleAsyncOutput* NextOutput = static_cast<FModularVehicleAsyncOutput*>(NextAsyncOutput))
 			{
-				PVehicleOutput->Clean();
+				UE_LOG(LogTemp, Warning, TEXT("Next output is valid"));
+			}
 
-				int NumItems = CurrentOutput->VehicleSimOutput.SimTreeOutputData.Num();
-				PVehicleOutput->SimTreeOutputData.Reserve(NumItems);
+			PVehicleOutput->Clean();
+			int NumItems = CurrentOutput->VehicleSimOutput.SimTreeOutputData.Num();
+			PVehicleOutput->SimTreeOutputData.Reserve(NumItems);
 
+			if (const FModularVehicleAsyncOutput* NextOutput = static_cast<FModularVehicleAsyncOutput*>(NextAsyncOutput))
+			{
 				for (int I = 0; I < NumItems; I++)
 				{
-					// #TODO: check we are lerping current/next of the same thing - the number can grow/shrink when construction/destruction happens
 					if (I < NextOutput->VehicleSimOutput.SimTreeOutputData.Num())
 					{
 						Chaos::FSimOutputData* CurrentSimData = CurrentOutput->VehicleSimOutput.SimTreeOutputData[I];
@@ -687,25 +717,54 @@ void UModularVehicleBaseComponent::ParallelUpdate(float DeltaTime)
 						PVehicleOutput->SimTreeOutputData.EmplaceAt(I, CurrentSimData->MakeNewData());
 						PVehicleOutput->SimTreeOutputData[I]->Lerp(*CurrentSimData, *NextSimData, OutputInterpAlpha);
 
-						// extract/cache some generally useful values as we go as trying to locate this data later requires a search
-						if (PVehicleOutput->SimTreeOutputData[I]->GetType() == Chaos::eSimType::Transmission)
-						{
-							// if there is more than one transmission then the last one will inform us of the current gear
-							CurrentGear = static_cast<Chaos::FTransmissionOutputData*>(PVehicleOutput->SimTreeOutputData[I])->CurrentGear;
-						}
-						else if (PVehicleOutput->SimTreeOutputData[I]->GetType() == Chaos::eSimType::Engine)
-						{
-							// if there is more than one engine then the last one will inform us of the engine RPM
-							Chaos::FEngineOutputData* Engine = static_cast<Chaos::FEngineOutputData*>(PVehicleOutput->SimTreeOutputData[I]);
-
-							EngineRPM = Engine->RPM;
-							EngineTorque = Engine->Torque;
-						}
-
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-						PVehicleOutput->SimTreeOutputData[I]->DebugString = NextOutput->VehicleSimOutput.SimTreeOutputData[I]->DebugString;
+						if (PVehicleOutput && !PVehicleOutput->SimTreeOutputData.IsEmpty() && PVehicleOutput->SimTreeOutputData[I])
+						{
+							PVehicleOutput->SimTreeOutputData[I]->DebugString = CurrentOutput->VehicleSimOutput.SimTreeOutputData[I]->DebugString;
+						}
 #endif
 					}
+					else
+					{
+						Chaos::FSimOutputData* CurrentSimData = CurrentOutput->VehicleSimOutput.SimTreeOutputData[I];
+						Chaos::FSimOutputData* NextSimData = NextOutput->VehicleSimOutput.SimTreeOutputData[I];
+						PVehicleOutput->SimTreeOutputData.EmplaceAt(I, CurrentSimData->MakeNewData());
+						*PVehicleOutput->SimTreeOutputData[I] = *CurrentSimData;
+					}
+
+					// extract/cache some generally useful values as we go as trying to locate this data later requires a search
+					if (PVehicleOutput->SimTreeOutputData[I]->GetType() == Chaos::eSimType::Transmission)
+					{
+						// if there is more than one transmission then the last one will inform us of the current gear
+						CurrentGear = static_cast<Chaos::FTransmissionOutputData*>(PVehicleOutput->SimTreeOutputData[I])->CurrentGear;
+					}
+					else if (PVehicleOutput->SimTreeOutputData[I]->GetType() == Chaos::eSimType::Engine)
+					{
+						// if there is more than one engine then the last one will inform us of the engine RPM
+						Chaos::FEngineOutputData* Engine = static_cast<Chaos::FEngineOutputData*>(CurrentOutput->VehicleSimOutput.SimTreeOutputData[I]);
+
+						EngineRPM = Engine->RPM;
+						EngineTorque = Engine->Torque;
+					}
+
+					if (Chaos::FSimOutputData* ModuleOutput = PVehicleOutput->SimTreeOutputData[I])
+					{
+						if (ModuleOutput->AnimationSetupIndex >= 0)
+						{
+							ModuleAnimationSetups[ModuleOutput->AnimationSetupIndex].AnimFlags |= ModuleOutput->AnimFlags;
+
+							if (ModuleOutput->AnimFlags & Chaos::EAnimationFlags::AnimateRotation)
+							{
+								ModuleAnimationSetups[ModuleOutput->AnimationSetupIndex].RotOffset = ModuleOutput->AnimationRotOffset;
+							}
+
+							if (ModuleOutput->AnimFlags & Chaos::EAnimationFlags::AnimatePosition)
+							{
+								ModuleAnimationSetups[ModuleOutput->AnimationSetupIndex].LocOffset = ModuleOutput->AnimationLocOffset;
+							}
+						}
+					}
+
 				}
 			}
 

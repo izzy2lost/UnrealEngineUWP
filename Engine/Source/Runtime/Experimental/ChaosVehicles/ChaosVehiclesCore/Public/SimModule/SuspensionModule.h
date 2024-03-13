@@ -55,6 +55,7 @@ namespace Chaos
 #endif
 
 		float SpringDisplacement;
+		FVector SpringDisplacementVector;
 		float SpringSpeed;
 	};
 

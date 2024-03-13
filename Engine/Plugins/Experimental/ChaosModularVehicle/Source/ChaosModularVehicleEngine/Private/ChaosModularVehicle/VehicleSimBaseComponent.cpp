@@ -6,9 +6,10 @@
 UVehicleSimBaseComponent::UVehicleSimBaseComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	TransformIndex = 0;
-	bRemoveFromClusterCollisionModel = false;
-	TreeIndex = -1;
+	BoneName = NAME_None;
+	AnimationOffset = FVector::ZeroVector;
 	bAnimationEnabled = false;
+	AnimationSetupIndex = -1;
+	TreeIndex = -1;
 }
 

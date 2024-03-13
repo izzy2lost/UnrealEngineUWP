@@ -9,7 +9,7 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION_SHIP
 #endif
 
 namespace Chaos
@@ -178,12 +178,19 @@ namespace Chaos
 		if (const FSuspensionSimModule* Sim = static_cast<const FSuspensionSimModule*>(SimModule))
 		{
 			SpringDisplacement = Sim->SpringDisplacement;
+			SpringDisplacementVector = -Sim->Setup().SuspensionAxis * Sim->SpringDisplacement + Sim->GetAnimationOffset();
 			SpringSpeed = Sim->SpringSpeed;
+
+			AnimFlags = EAnimationFlags::AnimatePosition;
+			AnimationLocOffset = SpringDisplacementVector;
+
 		}
 	}
 
 	void FSuspensionOutputData::Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha)
 	{
+		FSimOutputData::Lerp(InCurrent, InNext, Alpha);
+
 		const FSuspensionOutputData& Current = static_cast<const FSuspensionOutputData&>(InCurrent);
 		const FSuspensionOutputData& Next = static_cast<const FSuspensionOutputData&>(InNext);
 
@@ -201,5 +208,5 @@ namespace Chaos
 } // namespace Chaos
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION_SHIP
 #endif

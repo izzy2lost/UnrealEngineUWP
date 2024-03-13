@@ -5,7 +5,7 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION_SHIP
 #endif
 
 namespace Chaos
@@ -249,11 +249,19 @@ namespace Chaos
 			ForceIntoSurface = Sim->ForceIntoSurface;
 			SlipAngle = Sim->SlipAngle;
 			RPM = Sim->GetRPM();
+			AngularPositionDegrees = -Sim->AngularPosition * 180.0f / PI;
+			SteeringAngleDegrees = Sim->SteerAngleDegrees;
+
+			AnimFlags = EAnimationFlags::AnimateRotation;
+			AnimationRotOffset.Pitch = AngularPositionDegrees;
+			AnimationRotOffset.Yaw = SteeringAngleDegrees;
 		}
 	}
 
 	void FWheelOutputData::Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha)
 	{
+		FSimOutputData::Lerp(InCurrent, InNext, Alpha);
+
 		const FWheelOutputData& Current = static_cast<const FWheelOutputData&>(InCurrent);
 		const FWheelOutputData& Next = static_cast<const FWheelOutputData&>(InNext);
 
@@ -275,5 +283,5 @@ namespace Chaos
 
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION_SHIP
 #endif
