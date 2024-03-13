@@ -54,7 +54,7 @@ namespace
 
 		static void* U_CALLCONV Malloc(const void* context, size_t size)
 		{
-			LLM_SCOPE(ELLMTag::Localization);
+			LLM_SCOPE_BYNAME(TEXT("Localization/ICU"));
 			void* Result = FMemory::Malloc(size);
 #if STATS
 			BytesInUseCount += FMemory::GetAllocSize(Result);
@@ -75,7 +75,7 @@ namespace
 
 		static void* U_CALLCONV Realloc(const void* context, void* mem, size_t size)
 		{
-			LLM_SCOPE(ELLMTag::Localization);
+			LLM_SCOPE_BYNAME(TEXT("Localization/ICU"));
 			return FMemory::Realloc(mem, size);
 		}
 
@@ -768,7 +768,7 @@ UDate FICUInternationalization::UEDateTimeToICUDate(const FDateTime& DateTime)
 
 UBool FICUInternationalization::OpenDataFile(const void* InContext, void** OutFileContext, void** OutContents, const char* InPath)
 {
-	LLM_SCOPE(ELLMTag::Localization);
+	LLM_SCOPE_BYNAME(TEXT("Localization/ICU"));
 
 	FICUInternationalization* This = (FICUInternationalization*)InContext;
 	check(This);
