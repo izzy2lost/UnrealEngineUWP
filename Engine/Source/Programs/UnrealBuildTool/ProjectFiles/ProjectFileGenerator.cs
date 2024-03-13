@@ -2465,7 +2465,11 @@ namespace UnrealBuildTool
 
 					foreach (ProjectFile aProjectFile in ProjectFiles)
 					{
-						aProjectFile.AddFilesToProject(FoundFiles, BaseFolder);
+						if (aProjectFile.SourceFiles.Find(x => x.Reference == CurModuleFile) == null)
+						{
+							// Skip if already added
+							aProjectFile.AddFilesToProject(FoundFiles, BaseFolder);
+						}
 						// Check if there's a plugin directory here
 						if (!ProjectsWithPlugins.Contains(aProjectFile))
 						{
@@ -2642,7 +2646,8 @@ namespace UnrealBuildTool
 				{
 					foreach (ProjectFile ProgramProject in ProgramProjects.Values)
 					{
-						if (Path == ProgramProject.BaseDir)
+						// program name needs to matche module name, e.g. to prevent FortniteGame being added to FortniteContentSentry
+						if (Path == ProgramProject.BaseDir && ProgramProject.ProjectFilePath.GetFileNameWithoutAnyExtensions() == CurModuleFile.GetFileNameWithoutAnyExtensions())
 						{
 							BaseFolder = ProgramProject.BaseDir;
 							FoundProjects.Add(ProgramProject);
