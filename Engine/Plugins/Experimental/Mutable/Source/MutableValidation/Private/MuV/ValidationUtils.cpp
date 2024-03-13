@@ -15,8 +15,13 @@ void PrepareAssetRegistry()
 {
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName);
 	UE_LOG(LogMutable,Display,TEXT("Searching all assets (this will take some time)..."));
+	
+	const double AssetRegistrySearchStartSeconds = FPlatformTime::Seconds();
 	AssetRegistryModule.Get().SearchAllAssets(true /* bSynchronousSearch */);
-	UE_LOG(LogMutable,Display,TEXT("Asset searching completed!"));
+	const double AssetRegistrySearchEndSeconds = FPlatformTime::Seconds() - AssetRegistrySearchStartSeconds;
+	UE_LOG(LogMutable, Log, TEXT("(double) asset_registry_search_time_s : %f "), AssetRegistrySearchEndSeconds);
+
+	UE_LOG(LogMutable,Display,TEXT("Asset searching completed in \"%f\" seconds!"), AssetRegistrySearchEndSeconds);
 }
 
 
