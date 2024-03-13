@@ -462,6 +462,15 @@ public:
 		return 0; 
 	}
 
+	/**
+	 * A shadow ConsoleObject is one that exists and can be used, but shouldn't be iterated over in anything that walks over every 
+	 * object and acts on it
+	 */
+	virtual bool IsShadowObject() const
+	{
+		return false;
+	}
+
 private: // -----------------------------------------
 
 #if TRACK_CONSOLE_FIND_COUNT
@@ -2037,6 +2046,60 @@ public:
 };
 
 #endif
+
+
+enum class EShadowCVarBehavior : uint8
+{
+	// skip all messaging
+	NoMessaging,
+	// log a warning on first usage
+	Warn,
+	// log an error on first usage
+	Error,
+	// throw an ensure on first usage
+	Ensure,
+	// throw an assertion on first usage
+	Assert,
+};
+
+/**
+ * A class that can be used to shadow a CVar, where both are valid to use. To deprecate a CVar, it's suggested to use the FAutoConsoleVariableDeprecated class below
+ * 
+ * FAutoConsoleVariableShadow ShadowCVar(TEXT("r.newname"), TEXT("r.oldname"));
+ * 
+ */
+class FAutoConsoleVariableShadow
+{
+public:
+
+		/**
+		 * @param Name The name of this cvar
+		 * @param CVarToShadow The name of the existing cvar that this one will shadow
+		 * @param LookupFailureBehavior How to handle failure of looking up the CVarToShadow name - defaults to ensure
+		 */
+		CORE_API FAutoConsoleVariableShadow(const TCHAR* Name, const TCHAR* CVarToShadow, EShadowCVarBehavior LookupFailureBehavior=EShadowCVarBehavior::Ensure);
+};
+
+/**
+ * A class that can be used to deprecate a CVar - rename your existing CVar to the new name, then
+ * create a shadow of it with the old name with something like this:
+ *
+ * FAutoConsoleVariableDeprecated ShadowCVar(TEXT("r.newname"), TEXT("r.oldname"), TEXT("5.5"));
+ * FAutoConsoleVariableDeprecated ShadowCVar(TEXT("r.newname"), TEXT("r.oldname"), TEXT("5.5"), EShadowCVarBehavior::Assert);
+ *
+ */
+class FAutoConsoleVariableDeprecated
+{
+public:
+	/**
+	 * @param Name The name of this cvar
+	 * @param CVarToShadow The name of the existing cvar that this one will shadow
+	 * @param DeprecatedAtVersion THe first UE version when this was deprecated
+	 * @param UsageBehavior How to handle uses of the shadowed cvar by the deprecated name - defaults to ensure
+	 * @param LookupFailureBehavior How to handle failure of looking up the CVarToShadow name - defaults to ensure
+	 */
+	CORE_API FAutoConsoleVariableDeprecated(const TCHAR* Name, const TCHAR* CVarToShadow, const TCHAR* DeprecatedAtVersion, EShadowCVarBehavior UsageBehavior=EShadowCVarBehavior::Ensure, EShadowCVarBehavior LookupFailureBehavior = EShadowCVarBehavior::Ensure);
+};
 
 CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogConsoleResponse, Log, All);
 
