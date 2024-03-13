@@ -33,11 +33,11 @@ namespace mu
 			int y1 = FMath::Max( 0, FMath::Min( sizeY-1, y   ) );
 			int y2 = FMath::Max( 0, FMath::Min( sizeY-1, y+1 ) );
 
-            const uint8_t* pS0 = pSource->GetData() + y0 * rowSize;
-            const uint8_t* pS1 = pSource->GetData() + y1 * rowSize;
-            const uint8_t* pS2 = pSource->GetData() + y2 * rowSize;
+            const uint8_t* pS0 = pSource->GetLODData(0) + y0 * rowSize;
+            const uint8_t* pS1 = pSource->GetLODData(0) + y1 * rowSize;
+            const uint8_t* pS2 = pSource->GetLODData(0) + y2 * rowSize;
 
-            uint8_t* pR = pImage->GetData() + y1 * rowSize;
+            uint8_t* pR = pImage->GetLODData(0) + y1 * rowSize;
 
 			if ( pS0[0] || pS2[0] || pS1[1] )
 			{
@@ -85,13 +85,13 @@ namespace mu
 
 		for ( int y=0; y<sizeY; ++y )
 		{
-            const uint8_t* pS0 = y>0 ? pMask->GetData() + (y-1) * sizeX : nullptr;
-            const uint8_t* pS1 = pMask->GetData() + y * sizeX;
-            const uint8_t* pS2 = y<sizeY-1 ? pMask->GetData() + (y+1) * sizeX : nullptr;
+            const uint8_t* pS0 = y>0 ? pMask->GetLODData(0) + (y-1) * sizeX : nullptr;
+            const uint8_t* pS1 = pMask->GetLODData(0) + y * sizeX;
+            const uint8_t* pS2 = y<sizeY-1 ? pMask->GetLODData(0) + (y+1) * sizeX : nullptr;
 
-            const uint8_t* pR0 = y>0 ? pImage->GetData() + (y-1) * rowSize : nullptr;
-                  uint8_t* pR1 = pImage->GetData() + y * rowSize;
-            const uint8_t* pR2 = y<sizeY-1 ? pImage->GetData() + (y+1) * rowSize : nullptr;
+            const uint8_t* pR0 = y>0 ? pImage->GetLODData(0) + (y-1) * rowSize : nullptr;
+                  uint8_t* pR1 = pImage->GetLODData(0) + y * rowSize;
+            const uint8_t* pR2 = y<sizeY-1 ? pImage->GetLODData(0) + (y+1) * rowSize : nullptr;
 
 			for ( int x=0; x<sizeX; ++x )
 			{
