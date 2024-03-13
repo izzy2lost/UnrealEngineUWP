@@ -15,8 +15,6 @@
 
 #define LOCTEXT_NAMESPACE "SDMLayerEffectsItem"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 FDMEffectsLayerItem::FDMEffectsLayerItem(UDMMaterialEffect* InMaterialEffect)
 {
 	MaterialEffectWeak = InMaterialEffect;
@@ -114,8 +112,6 @@ TSharedRef<SWidget> SDMLayerEffectsItem::CreateLayerRemoveButton()
 			.DesiredSizeOverride(FVector2D(12.0f))
 		];
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 FCursorReply SDMLayerEffectsItem::OnCursorQuery(const FGeometry& InMyGeometry, const FPointerEvent& InCursorEvent) const
 {

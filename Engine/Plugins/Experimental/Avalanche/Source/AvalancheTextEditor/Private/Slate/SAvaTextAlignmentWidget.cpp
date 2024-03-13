@@ -18,8 +18,6 @@
 
 #define LOCTEXT_NAMESPACE "SAvaTextAlignmentWidget"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SAvaTextAlignmentWidget::Construct(const FArguments& InArgs)
 {
 	TextAlignmentPropertyHandle = InArgs._TextAlignmentPropertyHandle;
@@ -87,8 +85,6 @@ void SAvaTextAlignmentWidget::Construct(const FArguments& InArgs)
 
 	TextAlignmentPropertyHandle.Get()->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &SAvaTextAlignmentWidget::OnAlignmentPropertyChanged));
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 TSharedRef<SButton> SAvaTextAlignmentWidget::GetHorizontalAlignmentButton(TSharedPtr<SButton>& OutButton, EText3DHorizontalTextAlignment InHorizontalAlignment, FName Image, FText Tooltip)
 {

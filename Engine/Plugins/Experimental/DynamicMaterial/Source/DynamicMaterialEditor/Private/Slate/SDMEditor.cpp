@@ -479,8 +479,6 @@ TSharedRef<SWidget> SDMEditor::CreateActorMaterialSlotSelector(const AActor* InA
 		];
 }
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 TSharedRef<SWidget> SDMEditor::GetEmptyContent()
 {
 	return SNew(SBox)
@@ -876,8 +874,6 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 
 	return SlotSelector;
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 TSharedPtr<SDMSlot> SDMEditor::GetSlotWidget(UDMMaterialSlot* Slot) const
 {

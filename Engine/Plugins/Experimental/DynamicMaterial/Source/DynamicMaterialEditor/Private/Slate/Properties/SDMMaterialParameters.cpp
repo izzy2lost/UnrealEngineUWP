@@ -23,8 +23,6 @@
 
 #define LOCTEXT_NAMESPACE "SDMMaterialParameters"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SDMMaterialParameters::Construct(const FArguments& InArgs, TWeakObjectPtr<UDynamicMaterialModel> InBuilderWeak)
 {
 	ensure(InBuilderWeak.IsValid());
@@ -215,8 +213,6 @@ TSharedRef<SWidget> SDMMaterialParameters::CreateValuesWidget()
 
 	return ValuesList;
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SDMMaterialParameters::RefreshWidgets()
 {

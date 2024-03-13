@@ -8,8 +8,6 @@
 
 #define LOCTEXT_NAMESPACE "AvaRundownPageRemoteControlWidgetUtils"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 TSharedRef<SWidget> FAvaRundownPageRemoteControlWidgetUtils::CreateNodeValueWidget(const TSharedPtr<IDetailTreeNode>& InNode)
 {
 	FNodeWidgets NodeWidgets = InNode->CreateNodeWidgets();
@@ -108,7 +106,5 @@ TSharedPtr<IDetailTreeNode> FAvaRundownPageRemoteControlWidgetUtils::FindNode(co
 
 	return nullptr;
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 #undef LOCTEXT_NAMESPACE

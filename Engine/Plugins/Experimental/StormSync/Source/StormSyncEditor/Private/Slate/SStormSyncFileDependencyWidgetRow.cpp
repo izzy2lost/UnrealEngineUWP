@@ -7,8 +7,6 @@
 #include "StormSyncImportTypes.h"
 #include "Widgets/Text/STextBlock.h"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SStormSyncFileDependencyWidgetRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView)
 {
 	WidgetItem = InArgs._Item;
@@ -18,8 +16,6 @@ void SStormSyncFileDependencyWidgetRow::Construct(const FArguments& InArgs, cons
 		InOwnerTableView
 	);
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 TSharedRef<SWidget> SStormSyncFileDependencyWidgetRow::GenerateWidgetForColumn(const FName& InColumnName)
 {

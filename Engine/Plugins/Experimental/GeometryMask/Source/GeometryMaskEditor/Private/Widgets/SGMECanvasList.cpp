@@ -9,8 +9,6 @@
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Views/SListView.h"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 #define LOCTEXT_NAMESPACE "SGMECanvasList"
 
 SGMECanvasList::~SGMECanvasList()
@@ -102,5 +100,3 @@ void SGMECanvasList::Refresh()
 }
 
 #undef LOCTEXT_NAMESPACE
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION

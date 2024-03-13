@@ -78,8 +78,6 @@ SDMSlot::~SDMSlot()
 	SDMEditor::ClearPropertyHandles(this);
 }
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SDMSlot::Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& InEditor, UDMMaterialSlot* InSlot)
 {
 	EditorWidgetWeak = InEditor;
@@ -869,8 +867,6 @@ TSharedRef<SWidget> SDMSlot::CreateSlotSettingsRow()
 
 	return Row;
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SDMSlot::InvalidateMainWidget()
 {

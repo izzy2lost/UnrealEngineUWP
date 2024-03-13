@@ -27,8 +27,6 @@
 
 #define LOCTEXT_NAMESPACE "SDMToolBar"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SDMToolBar::Construct(const FArguments& InArgs)
 {
 	SetCanTick(true);
@@ -217,8 +215,6 @@ TSharedRef<SWidget> SDMToolBar::GenerateSelectedMaterialSlotRow(TSharedPtr<FDMOb
 	}
 	return SNullWidget::NullWidget;
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 FText SDMToolBar::GetSlotDisplayName(TSharedPtr<FDMObjectMaterialProperty> InSlot) const
 {

@@ -12,8 +12,6 @@
 
 #define LOCTEXT_NAMESPACE "SMaterialToolTip"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 SMaterialToolTip::SMaterialToolTip()
 	: MaterialBrush(FSlateMaterialBrush(FVector2D(1.0f, 1.0f)))
 {
@@ -105,7 +103,5 @@ FOptionalSize SMaterialToolTip::GetMaterialSizeY() const
 {
 	return MaterialSize.Get().Y;
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 #undef LOCTEXT_NAMESPACE

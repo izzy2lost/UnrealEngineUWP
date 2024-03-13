@@ -33,8 +33,6 @@ namespace UE::GeometryMaskEditor::Private
 	static FName FeatherParameterName = TEXT("Feather");
 }
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 SGeometryMaskCanvasPreview::SGeometryMaskCanvasPreview()
 	: PreviewMaterialPath(UE::GeometryMaskEditor::Private::PreviewMaterialPath)
 	, DefaultTexturePath(UE::GeometryMaskEditor::Private::DefaultTexturePath)
@@ -319,5 +317,3 @@ void SGeometryMaskCanvasPreview::UpdateBrush(const UGeometryMaskCanvas* InCanvas
 		AspectRatio.Set(ImageSize.X / ImageSize.Y);
 	}
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION

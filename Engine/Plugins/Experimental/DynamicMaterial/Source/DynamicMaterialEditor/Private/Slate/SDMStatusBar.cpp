@@ -13,8 +13,6 @@
 
 #define LOCTEXT_NAMESPACE "SDMStatusBar"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SDMStatusBar::Construct(const FArguments& InArgs, const TWeakObjectPtr<UDynamicMaterialModel>& InEditorModel, const TSharedRef<SDMEditor>& InEditorWidget)
 {
 	SetCanTick(true);
@@ -87,8 +85,6 @@ SWrapBox::FSlot::FSlotArguments SDMStatusBar::CreateStatsWrapBoxEntry(TAttribute
 			]
 		);
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 FText SDMStatusBar::GetNumMaterialSlotsText() const
 {

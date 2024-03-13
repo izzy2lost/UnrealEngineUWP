@@ -33,8 +33,6 @@
 
 #define LOCTEXT_NAMESPACE "SDMSlotLayer"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SDMSlotLayerItem::Construct(const FArguments& InArgs, const TSharedPtr<SDMSlot>& InSlotWidget, const TSharedRef<STableViewBase>& InLayerView, 
 	const TSharedPtr<FDMMaterialLayerReference>& InLayerItem)
 {
@@ -460,8 +458,6 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateEffectsToggleButton()
 			.Image(this, &SDMSlotLayerItem::GetEffectsToggleButtonImage)
 		];
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 UDMMaterialStage* SDMSlotLayerItem::GetBaseStage() const
 {

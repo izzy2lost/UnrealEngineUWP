@@ -34,8 +34,6 @@
 
 #define LOCTEXT_NAMESPACE "SDMStage"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 SDMStage::~SDMStage()
 {
 	SDMEditor::ClearPropertyHandles(this);
@@ -169,8 +167,6 @@ TSharedRef<SWidget> SDMStage::CreateTextBlockBackground()
 			]
 		];
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 EVisibility SDMStage::GetBorderVisibility() const
 {

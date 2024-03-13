@@ -8,8 +8,6 @@
 #include "ViewModels/GMEResourceListViewModel.h"
 #include "Widgets/Layout/SSeparator.h"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 #define LOCTEXT_NAMESPACE "SGMEResourceList"
 
 SGMEResourceList::~SGMEResourceList()
@@ -138,5 +136,3 @@ void SGMEResourceList::Refresh()
 }
 
 #undef LOCTEXT_NAMESPACE
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION

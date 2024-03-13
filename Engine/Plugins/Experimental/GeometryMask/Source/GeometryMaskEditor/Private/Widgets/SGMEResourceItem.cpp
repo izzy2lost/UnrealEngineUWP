@@ -6,8 +6,6 @@
 #include "SlateOptMacros.h"
 #include "ViewModels/GMEResourceItemViewModel.h"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SGMEResourceItem::Construct(
 	const FArguments& InArgs,
 	const TSharedRef<STableViewBase>& InOwnerTableView,
@@ -50,5 +48,3 @@ FOptionalSize SGMEResourceItem::GetAspectRatio()
 
 	return AspectRatio;
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION

@@ -29,8 +29,6 @@ const FName SAvaRundownPageRemoteControlProps::ValueColumnName = TEXT("ValueColu
 FAvaRundownRCPropertyHeaderRowExtensionDelegate SAvaRundownPageRemoteControlProps::HeaderRowExtensionDelegate;
 TMap<FName, TArray<FAvaRundownRCPropertyTableRowExtensionDelegate>> SAvaRundownPageRemoteControlProps::TableRowExtensionDelegates;
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 TArray<FAvaRundownRCPropertyTableRowExtensionDelegate>& SAvaRundownPageRemoteControlProps::GetTableRowExtensionDelegates(FName InExtensionName)
 {
 	return TableRowExtensionDelegates.FindOrAdd(InExtensionName);
@@ -73,8 +71,6 @@ void SAvaRundownPageRemoteControlProps::Construct(const FArguments& InArgs, TSha
 
 	Refresh({});
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 SAvaRundownPageRemoteControlProps::~SAvaRundownPageRemoteControlProps()
 {

@@ -8,8 +8,6 @@
 
 #define LOCTEXT_NAMESPACE "SAvaDepthAlignment"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SAvaDepthAlignment::Construct(const FArguments& InArgs)
 {
 	Alignment = InArgs._Alignment;
@@ -34,8 +32,6 @@ void SAvaDepthAlignment::Construct(const FArguments& InArgs)
 			.ToolTip(LOCTEXT("DAlignBack", "Back Align Depth"))
 	];
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 EAvaDepthAlignment SAvaDepthAlignment::GetCurrentAlignment() const
 {
