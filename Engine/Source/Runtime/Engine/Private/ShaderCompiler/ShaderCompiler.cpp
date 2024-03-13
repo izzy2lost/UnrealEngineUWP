@@ -2036,7 +2036,7 @@ static constexpr int32 GSingleThreadedRunsDisabled = -2;
 static constexpr int32 GSingleThreadedRunsIncreaseFactor = 8;
 static constexpr int32 GSingleThreadedRunsMaxCount = (1 << 24);
 
-static void ModalErrorOrLog(const FString& Title, const FString& Text, int64 CurrentFilePos = 0, int64 ExpectedFileSize = 0)
+static void ModalErrorOrLog(const FString& Title, const FString& Text, int64 CurrentFilePos = 0, int64 ExpectedFileSize = 0, bool bIsErrorFatal = true)
 {
 	static FThreadSafeBool bModalReported;
 
@@ -2062,9 +2062,13 @@ static void ModalErrorOrLog(const FString& Title, const FString& Text, int64 Cur
 			FPlatformProcess::SleepInfinite();
 		}
 	}
-	else
+	else if (bIsErrorFatal)
 	{
 		UE_LOG(LogShaderCompilers, Fatal, TEXT("%s\n%s\n%s"), *Title, *Text, *BadFile);
+	}
+	else
+	{
+		UE_LOG(LogShaderCompilers, Error, TEXT("%s\n%s\n%s"), *Title, *Text, *BadFile);
 	}
 }
 
@@ -2448,7 +2452,10 @@ namespace ShaderCompileWorkerError
 
 	void HandleCrashInsidePlatformCompiler(const TCHAR* Data)
 	{
-		ModalErrorOrLog(TEXT("ShaderCompileWorker failed"), FString::Printf(TEXT("Crash inside the platform compiler:\n%s"), Data));
+		// If the crash originates from a platform compiler, the error code must have been reported and we don't have to assume a corrupted output file.
+		// In that case, don't crash the cooker with a fatal error, just report the error so the cooker can dump debug info.
+		constexpr bool bIsErrorFatal = false;
+		ModalErrorOrLog(TEXT("ShaderCompileWorker failed"), FString::Printf(TEXT("Crash inside the platform compiler:\n%s"), Data), 0, 0, bIsErrorFatal);
 	}
 
 	void HandleBadInputFile(const TCHAR* Data)
