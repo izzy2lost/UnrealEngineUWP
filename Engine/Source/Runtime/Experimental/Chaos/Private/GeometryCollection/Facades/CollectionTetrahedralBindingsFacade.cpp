@@ -54,10 +54,10 @@ namespace GeometryCollection::Facades
 		const FVector3f& CurrPtC)
 	{
 		Chaos::PMatrix<float, 3, 3> BasisVectors = GetOrthogonalBasisVectors(RestPtA, RestPtB, RestPtC);
-		Chaos::PMatrix<float, 3, 3> RestRotInv = BasisVectors.GetTransposed(); // Ortho matrix, so T == I
+		Chaos::PMatrix<float, 3, 3> RestRotInv = BasisVectors.Inverse();
 		Chaos::PMatrix<float, 3, 3> CurrRot = GetOrthogonalBasisVectors(CurrPtA, CurrPtB, CurrPtC);
 		Chaos::PMatrix<float, 3, 3> BasisDelta = RestRotInv * CurrRot;
-		return BasisDelta.TransformVector(Offset); // ryan - mult order?
+		return BasisDelta.TransformVector(Offset);
 	}
 
 	FVector3f
@@ -72,6 +72,7 @@ namespace GeometryCollection::Facades
 			RestVertices[Parents[0]], RestVertices[Parents[1]], RestVertices[Parents[2]],
 			CurrVertices[Parents[0]], CurrVertices[Parents[1]], CurrVertices[Parents[2]]);
 	}
+	FString bump;
 
 	FVector3f
 	FleshDeformerImpl::GetEmbeddedPosition(
@@ -85,19 +86,23 @@ namespace GeometryCollection::Facades
 		const FIntVector4& Parents = ParentsArray->Get()[SurfaceIndex];
 		const FVector4f& Weights = WeightsArray->Get()[SurfaceIndex];
 
-		FVector3f Pos(0, 0, 0);
+		FVector3f Pos = FVector3f::Zero();
 
 		const int32 iEnd = Parents[3] == INDEX_NONE ? 3 : 4;
 		for (int32 i = 0; i < iEnd; i++)
 		{
 			Pos += CurrVertices[Parents[i]] * Weights[i];
 		}
+		FVector3f Pos2 = Pos;
+		FString bumpe = FString::Printf(TEXT("(%f,%f,%f)"), Pos.X, Pos.Y, Pos.Z);
+		bump = bumpe;
 
 		// If surface binding, the last index is -1.
 		if (Parents[3] == INDEX_NONE)
 		{
 			const FVector3f& Offset = OffsetArray->Get()[SurfaceIndex];
-			Pos += GetRotatedOffsetVector(Parents, Offset, RestVertices, CurrVertices);
+			const FVector3f RotatedOffset = GetRotatedOffsetVector(Parents, Offset, RestVertices, CurrVertices);
+			Pos -= Offset;
 		}
 
 		return Pos;
