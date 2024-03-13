@@ -640,7 +640,7 @@ const FRigVMFunction* RigVMTypeUtils::GetCastForTypeIndices(const TRigVMTypeInde
 	{
 		Registry.FindTemplate(CastTemplateNotation),
 		Registry.FindTemplate(FRigVMDispatch_CastObject().GetTemplateNotation()),
-		Registry.FindTemplate(FRigVMDispatch_CastEnum().GetTemplateNotation()),
+		Registry.FindTemplate(FRigVMDispatch_CastIntToEnum().GetTemplateNotation()),
 		Registry.FindTemplate(FRigVMDispatch_CastEnumToInt().GetTemplateNotation())
 	};
 
