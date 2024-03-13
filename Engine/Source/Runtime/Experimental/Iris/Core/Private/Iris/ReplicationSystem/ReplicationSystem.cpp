@@ -29,10 +29,9 @@
 
 namespace ReplicationSystemCVars
 {
-#if !UE_BUILD_SHIPPING
+
 static bool bForcePruneBeforeUpdate = false;
 static FAutoConsoleVariableRef CVarForcePruneBeforeUpdate(TEXT("net.Iris.ForcePruneBeforeUpdate"), bForcePruneBeforeUpdate, TEXT("Verify integrity of all tracked instances at the start of every update."));
-#endif
 
 static bool bAllowAttachmentSendPolicyFlags = true;
 static FAutoConsoleVariableRef CVarAllowAttachmentSendPolicyFlags(TEXT("net.Iris.Attachments.AllowSendPolicyFlags"), bAllowAttachmentSendPolicyFlags, TEXT("Allow use of ENetObjectAttachmentSendPolicyFlags to specify behavior of RPCs."));
@@ -663,13 +662,11 @@ void UReplicationSystem::PreSendUpdate(const FSendUpdateParams& Params)
 		}
 #endif
 	
-#if !UE_BUILD_SHIPPING
 		// Force a integrity check of all replicated instances
 		if (bDoCollectGarbage || ReplicationSystemCVars::bForcePruneBeforeUpdate)
 		{
 			CollectGarbage();
 		}
-#endif
 
 		if (bAllowObjectReplication)
 		{
