@@ -91,11 +91,9 @@ public:
 	void ResetBufferUsage() { BufferUsageSize = 0; }
 
 	/** Resizes buffer, accumulates states safely on render thread */
-	void PreFillBuffer(int32 RequiredVertexCount, bool bShrinkToMinSize)
+	void PreFillBuffer(FRHICommandListBase& RHICmdList, int32 RequiredVertexCount, bool bShrinkToMinSize)
 	{
-		SCOPE_CYCLE_COUNTER(STAT_SlatePreFullBufferRTTime);
-
-		checkSlow(IsInRenderingThread());
+		SCOPE_CYCLE_COUNTER(STAT_SlatePreFullBufferTime);
 
 		if (RequiredVertexCount > 0 )
 		{
@@ -106,28 +104,26 @@ public:
 			int32 RequiredBufferSize = RequiredVertexCount*sizeof(VertexType);
 
 			// resize if needed
-			if(RequiredBufferSize > GetBufferSize() || bShrinkToMinSize)
+			if (RequiredBufferSize > GetBufferSize() || bShrinkToMinSize)
 			{
-				ResizeBuffer(RequiredBufferSize);
+				ResizeBuffer(RHICmdList, RequiredBufferSize);
 			}
 
 			BufferUsageSize = RequiredBufferSize;
 		}
-
 	}
 
 	int32 GetMinBufferSize() const { return MinBufferSize; }
 
 private:
 	/** Resizes the buffer to the passed in size.  Preserves internal data*/
-	void ResizeBuffer( int32 NewSizeBytes )
+	void ResizeBuffer(FRHICommandListBase& RHICmdList, int32 NewSizeBytes)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(Slate_RTResizeBuffer);
-		FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 
 		int32 FinalSize = FMath::Max( NewSizeBytes, MinBufferSize );
 
-		if( FinalSize != 0 && FinalSize != BufferSize )
+		if (FinalSize != 0 && FinalSize != BufferSize)
 		{
 			VertexBufferRHI.SafeRelease();
 

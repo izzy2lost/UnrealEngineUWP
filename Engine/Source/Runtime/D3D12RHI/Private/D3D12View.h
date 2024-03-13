@@ -221,17 +221,17 @@ protected:
 	FD3D12View(FD3D12Device* InDevice, ERHIDescriptorHeapType InHeapType);
 	virtual ~FD3D12View();
 
-	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) override;
+	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) override;
 	virtual void UpdateDescriptor() = 0;
 
 	void UpdateResourceInfo(FResourceInfo const& InResource, FNullDescPtr NullDescriptor);
 	void CreateView(FResourceInfo const& InResource, FNullDescPtr NullDescriptor);
-	void UpdateView(FRHICommandListBase& RHICmdList, const FResourceInfo& InResource, FNullDescPtr NullDescriptor);
+	void UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, FNullDescPtr NullDescriptor);
 
 	bool IsInitialized() const { return ResourceInfo.ResourceLocation != nullptr; }
 
 	void InitializeBindlessSlot();
-	void UpdateBindlessSlot(FRHICommandListBase& RHICmdList);
+	void UpdateBindlessSlot(FD3D12ContextArray const& Contexts);
 
 	FResourceInfo ResourceInfo;
 	FD3D12ViewSubset ViewSubset;
@@ -261,11 +261,11 @@ protected:
 		FD3D12View::CreateView(InResource, TParent::Null);
 	}
 
-	void UpdateView(FRHICommandListBase& RHICmdList, FResourceInfo const& InResource, TDesc const& InD3DViewDesc)
+	void UpdateView(FD3D12ContextArray const& Contexts, FResourceInfo const& InResource, TDesc const& InD3DViewDesc)
 	{
 		D3DViewDesc = InD3DViewDesc;
 		ViewSubset.Range = InD3DViewDesc;
-		FD3D12View::UpdateView(RHICmdList, InResource, TParent::Null);
+		FD3D12View::UpdateView(Contexts, InResource, TParent::Null);
 	}
 
 public:
@@ -281,7 +281,7 @@ public:
 	void CreateView(FResourceInfo const& InResource, uint32 InOffset, uint32 InAlignedSize);
 
 private:
-	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) override;
+	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) override;
 	virtual void UpdateDescriptor() override;
 
 	uint32 Offset;
@@ -301,14 +301,14 @@ public:
 
 	FD3D12ShaderResourceView(FD3D12Device* InDevice);
 	void CreateView(FResourceInfo const& InResource, D3D12_SHADER_RESOURCE_VIEW_DESC const& InD3DViewDesc, EFlags InFlags);
-	void UpdateView(FRHICommandListBase& RHICmdList, const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags);
+	void UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags);
 
 	bool GetSkipFastClearFinalize() const { return EnumHasAnyFlags(Flags, EFlags::SkipFastClearFinalize); }
-	void UpdateMinLODClamp(FRHICommandListBase& RHICmdList, float MinLODClamp);
+	void UpdateMinLODClamp(FD3D12ContextArray const& Contexts, float MinLODClamp);
 
 protected:
 	void UpdateResourceInfo(const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags);
-	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) override;
+	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) override;
 	virtual void UpdateDescriptor() override;
 
 	// Required for resource renaming
@@ -334,7 +334,7 @@ public:
 
 	FD3D12UnorderedAccessView(FD3D12Device* InDevice);
 	void CreateView(FResourceInfo const& InResource, D3D12_UNORDERED_ACCESS_VIEW_DESC const& InD3DViewDesc, EFlags InFlags);
-	void UpdateView(FRHICommandListBase& RHICmdList, const FResourceInfo& InResource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& InD3DViewDesc, EFlags InFlags);
+	void UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& InD3DViewDesc, EFlags InFlags);
 
 	FD3D12Resource* GetCounterResource() const
 	{
@@ -343,7 +343,7 @@ public:
 
 protected:
 	void UpdateResourceInfo(const FResourceInfo& InResource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& InD3DViewDesc, EFlags InFlags);
-	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) override;
+	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) override;
 	virtual void UpdateDescriptor() override;
 
 	TRefCountPtr<FD3D12Resource> CounterResource;
@@ -423,13 +423,13 @@ public:
 	FD3D12ShaderResourceView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc);
 
 	virtual void CreateView();
-	virtual void UpdateView(FRHICommandListBase& RHICmdList);
+	virtual void UpdateView(FD3D12ContextArray const& Contexts);
 
-	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource*, FD3D12ResourceLocation*) override
+	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource*, FD3D12ResourceLocation*) override
 	{
 		// Recreate the view from the FRHIViewDesc rather than simply updating the D3D12 descriptor handle from the existing D3D view desc.
 		// This is because the streaming system may have replaced the underlying resource with one that has a different layout.
-		UpdateView(RHICmdList);
+		UpdateView(Contexts);
 	}
 
 	virtual FRHIDescriptorHandle GetBindlessHandle() const override { return FD3D12ShaderResourceView::GetBindlessHandle(); }
@@ -444,13 +444,13 @@ public:
 	FD3D12UnorderedAccessView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc);
 
 	virtual void CreateView();
-	virtual void UpdateView(FRHICommandListBase& RHICmdList);
+	virtual void UpdateView(FD3D12ContextArray const& Contexts);
 
-	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource*, FD3D12ResourceLocation*) override
+	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource*, FD3D12ResourceLocation*) override
 	{
 		// Recreate the view from the FRHIViewDesc rather than simply updating the D3D12 descriptor handle from the existing D3D view desc.
 		// This is because the streaming system may have replaced the underlying resource with one that has a different layout.
-		UpdateView(RHICmdList);
+		UpdateView(Contexts);
 	}
 
 	virtual FRHIDescriptorHandle GetBindlessHandle() const override { return FD3D12UnorderedAccessView::GetBindlessHandle(); }

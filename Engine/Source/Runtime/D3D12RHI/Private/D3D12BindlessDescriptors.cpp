@@ -137,32 +137,22 @@ void FD3D12BindlessResourceManager::UpdateDescriptorImmediately(FRHIDescriptorHa
 	}
 }
 
-void FD3D12BindlessResourceManager::UpdateDescriptor(FRHICommandListBase& RHICmdList, FRHIDescriptorHandle DstHandle, FD3D12View* View)
+void FD3D12BindlessResourceManager::UpdateDescriptor(FD3D12ContextArray const& Contexts, FRHIDescriptorHandle DstHandle, FD3D12View* View)
 {
 	if (DstHandle.IsValid())
 	{
-		for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
+		uint32 const GPUIndex = GetParentDevice()->GetGPUIndex();
+		for (FD3D12CommandContextBase* ContextBase : Contexts)
 		{
-			FRHICommandListScopedPipeline Scope(RHICmdList, Pipeline);
-			RHICmdList.EnqueueLambda([this, View, DstHandle](FRHICommandListBase& ExecutingCmdList)
+			FD3D12CommandContext& Context = *ContextBase->GetSingleDeviceContext(GPUIndex);
+			if (Context.IsOpen())
 			{
-				FD3D12CommandContext& Context =
-					ExecutingCmdList.IsGraphics()
-					? static_cast<FD3D12CommandContext&>(ExecutingCmdList.GetContext())
-					: static_cast<FD3D12CommandContext&>(ExecutingCmdList.GetComputeContext());
-
-				if (Context.IsOpen())
-				{
-					FD3D12OfflineDescriptor CopyOfPreviousDescriptorValue = UE::D3D12Descriptors::CreateOfflineCopy(GetParentDevice(), CpuHeap, DstHandle);
-					Context.GetBindlessState().PendingDescriptorRollbacks.Add(GetParentDevice(), DstHandle, CopyOfPreviousDescriptorValue);
-				}
-			});
+				FD3D12OfflineDescriptor CopyOfPreviousDescriptorValue = UE::D3D12Descriptors::CreateOfflineCopy(GetParentDevice(), CpuHeap, DstHandle);
+				Context.GetBindlessState().PendingDescriptorRollbacks.Add(GetParentDevice(), DstHandle, CopyOfPreviousDescriptorValue);
+			}
 		}
 
-		RHICmdList.EnqueueLambda([this, DstHandle, View](FRHICommandListBase& ExecutingCmdList)
-		{
-			UpdateDescriptorImmediately(DstHandle, View);
-		});
+		UpdateDescriptorImmediately(DstHandle, View);
 	}
 }
 
@@ -409,11 +399,11 @@ void FD3D12BindlessDescriptorManager::UpdateDescriptorImmediately(FRHIDescriptor
 	checkNoEntry();
 }
 
-void FD3D12BindlessDescriptorManager::UpdateDescriptor(FRHICommandListBase& RHICmdList, FRHIDescriptorHandle DstHandle, FD3D12View* View)
+void FD3D12BindlessDescriptorManager::UpdateDescriptor(FD3D12ContextArray const& Contexts, FRHIDescriptorHandle DstHandle, FD3D12View* View)
 {
 	if (ResourceManager)
 	{
-		ResourceManager->UpdateDescriptor(RHICmdList, DstHandle, View);
+		ResourceManager->UpdateDescriptor(Contexts, DstHandle, View);
 		return;
 	}
 

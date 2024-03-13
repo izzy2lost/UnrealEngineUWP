@@ -575,7 +575,7 @@ FRHIMemoryPool* FD3D12PoolAllocator::CreateNewPool(int16 InPoolIndex, uint32 InM
 }
 
 
-bool FD3D12PoolAllocator::HandleDefragRequest(FRHICommandListBase& RHICmdList, FRHIPoolAllocationData* InSourceBlock, FRHIPoolAllocationData& InTmpTargetBlock)
+bool FD3D12PoolAllocator::HandleDefragRequest(FRHIContextArray const& Contexts, FRHIPoolAllocationData* InSourceBlock, FRHIPoolAllocationData& InTmpTargetBlock)
 {
 	// Cache source copy data
 	FD3D12ResourceLocation* Owner = (FD3D12ResourceLocation*)InSourceBlock->GetOwner();
@@ -593,7 +593,7 @@ bool FD3D12PoolAllocator::HandleDefragRequest(FRHICommandListBase& RHICmdList, F
 	Owner->SetPoolAllocator(this);
 
 	// Notify owner of moved allocation data (recreated resources and SRVs if needed)
-	Owner->OnAllocationMoved(RHICmdList, InSourceBlock);
+	Owner->OnAllocationMoved(Contexts, InSourceBlock);
 
 	// Add request to unlock the source block on the next fence value (copy operation should have been done by then)
 	FD3D12Adapter* Adapter = GetParentDevice()->GetParentAdapter();

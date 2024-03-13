@@ -3,8 +3,7 @@
 #include "SlateUpdatableBuffer.h"
 #include "RenderingThread.h"
 
-DECLARE_CYCLE_STAT(TEXT("UpdateInstanceBuffer Time (RT)"), STAT_SlateUpdateInstanceBuffer_RT, STATGROUP_Slate);
-DECLARE_CYCLE_STAT(TEXT("UpdateInstanceBuffer Time (RHIT)"), STAT_SlateUpdateInstanceBuffer_RHIT, STATGROUP_Slate);
+DECLARE_CYCLE_STAT(TEXT("UpdateInstanceBuffer Time"), STAT_SlateUpdateInstanceBuffer, STATGROUP_Slate);
 
 FSlateUpdatableInstanceBuffer::FSlateUpdatableInstanceBuffer(int32 InitialInstanceCount)
 {
@@ -41,25 +40,16 @@ void FSlateUpdatableInstanceBuffer::Update(FSlateInstanceBufferData& Data)
 
 void FSlateUpdatableInstanceBuffer::FRenderProxy::Update(FRHICommandListImmediate& RHICmdList, FSlateInstanceBufferData& Data)
 {
-	SCOPE_CYCLE_COUNTER(STAT_SlateUpdateInstanceBuffer_RT);
+	SCOPE_CYCLE_COUNTER(STAT_SlateUpdateInstanceBuffer);
 
-	InstanceBufferResource.PreFillBuffer(Data.Num(), false);
+	InstanceBufferResource.PreFillBuffer(RHICmdList, Data.Num(), false);
 
-	// Enqueue the lock/unlock to the RHI thread
-	FRHIBuffer* VertexBuffer = InstanceBufferResource.VertexBufferRHI;
-	RHICmdList.EnqueueLambda([VertexBuffer, LocalData = MoveTemp(Data)](FRHICommandListImmediate& InRHICmdList)
-	{
-		SCOPE_CYCLE_COUNTER(STAT_SlateUpdateInstanceBuffer_RHIT);
+	int32 RequiredVertexBufferSize = Data.Num() * Data.GetTypeSize();
+	uint8* InstanceBufferData = (uint8*)RHICmdList.LockBuffer(InstanceBufferResource.VertexBufferRHI, 0, RequiredVertexBufferSize, RLM_WriteOnly);
 
-		int32 RequiredVertexBufferSize = LocalData.Num() * LocalData.GetTypeSize();
-		uint8* InstanceBufferData = (uint8*)InRHICmdList.LockBuffer(VertexBuffer, 0, RequiredVertexBufferSize, RLM_WriteOnly);
-
-		FMemory::Memcpy(InstanceBufferData, LocalData.GetData(), RequiredVertexBufferSize);
+	FMemory::Memcpy(InstanceBufferData, Data.GetData(), RequiredVertexBufferSize);
 	
-		InRHICmdList.UnlockBuffer(VertexBuffer);
-	});
-
-	RHICmdList.RHIThreadFence(true);
+	RHICmdList.UnlockBuffer(InstanceBufferResource.VertexBufferRHI);
 }
 
 void FSlateUpdatableInstanceBuffer::FRenderProxy::BindStreamSource(FRHICommandList& RHICmdList, int32 StreamIndex, uint32 InstanceOffset)

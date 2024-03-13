@@ -1487,3 +1487,64 @@ void FMetalDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 {
 	// Nothing to do
 }
+
+void FMetalDynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
+{
+	RHICmdList.EnqueueLambda(TEXT("FMetalDynamicRHI::RHIReplaceResources"),
+		[ReplaceInfos = MoveTemp(ReplaceInfos)](FRHICommandListBase&)
+		{
+			MTL_SCOPED_AUTORELEASE_POOL;
+
+			for (FRHIResourceReplaceInfo const& Info : ReplaceInfos)
+			{
+				switch (Info.GetType())
+				{
+				default:
+					checkNoEntry();
+					break;
+
+				case FRHIResourceReplaceInfo::EType::Buffer:
+					{
+						FMetalRHIBuffer* Dst = ResourceCast(Info.GetBuffer().Dst);
+						FMetalRHIBuffer* Src = ResourceCast(Info.GetBuffer().Src);
+
+						if (Src)
+						{
+							// The source buffer should not have any associated views.
+							check(!Src->HasLinkedViews());
+
+							Dst->TakeOwnership(*Src);
+						}
+						else
+						{
+							Dst->ReleaseOwnership();
+						}
+
+						Dst->UpdateLinkedViews();
+					}
+					break;
+
+#if METAL_RHI_RAYTRACING
+				case FRHIResourceReplaceInfo::EType::RTGeometry:
+					{
+						FMetalRayTracingGeometry* Dst = ResourceCast(Info.GetRTGeometry().Dst);
+						FMetalRayTracingGeometry* Src = ResourceCast(Info.GetRTGeometry().Src);
+
+						if (!Src)
+						{
+							Dst->ReleaseUnderlyingResource();
+						}
+						else
+						{
+							Dst->Swap(*Src);
+						}
+					}
+					break;
+#endif // METAL_RHI_RAYTRACING
+				}
+			}
+		}
+	);
+
+	RHICmdList.RHIThreadFence(true);
+}

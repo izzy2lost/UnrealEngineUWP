@@ -50,13 +50,13 @@ void FD3D12ShaderResourceView::CreateView(FResourceInfo const& InResource, D3D12
 	TD3D12View::CreateView(InResource, InD3DViewDesc);
 }
 
-void FD3D12ShaderResourceView::UpdateView(FRHICommandListBase& RHICmdList, const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
+void FD3D12ShaderResourceView::UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
 {
 	UpdateResourceInfo(InResource, InD3DViewDesc, InFlags);
-	TD3D12View::UpdateView(RHICmdList, InResource, InD3DViewDesc);
+	TD3D12View::UpdateView(Contexts, InResource, InD3DViewDesc);
 }
 
-void FD3D12ShaderResourceView::ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
+void FD3D12ShaderResourceView::ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
 {
 	check(IsInitialized());
 
@@ -76,10 +76,10 @@ void FD3D12ShaderResourceView::ResourceRenamed(FRHICommandListBase& RHICmdList, 
 	}
 #endif
 
-	TD3D12View::ResourceRenamed(RHICmdList, InRenamedResource, InNewResourceLocation);
+	TD3D12View::ResourceRenamed(Contexts, InRenamedResource, InNewResourceLocation);
 }
 
-void FD3D12ShaderResourceView::UpdateMinLODClamp(FRHICommandListBase& RHICmdList, float MinLODClamp)
+void FD3D12ShaderResourceView::UpdateMinLODClamp(FD3D12ContextArray const& Contexts, float MinLODClamp)
 {
 	check(IsInitialized());
 
@@ -94,7 +94,7 @@ void FD3D12ShaderResourceView::UpdateMinLODClamp(FRHICommandListBase& RHICmdList
 	}
 
 	UpdateDescriptor();
-	UpdateBindlessSlot(RHICmdList);
+	UpdateBindlessSlot(Contexts);
 }
 
 void FD3D12ShaderResourceView::UpdateDescriptor()
@@ -265,7 +265,7 @@ void FD3D12ShaderResourceView_RHI::CreateView()
 	}
 }
 
-void FD3D12ShaderResourceView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
+void FD3D12ShaderResourceView_RHI::UpdateView(FD3D12ContextArray const& Contexts)
 {
 	if (IsBuffer())
 	{
@@ -274,7 +274,7 @@ void FD3D12ShaderResourceView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
 		D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
 		const EFlags CreateFlags = TranslateDesc(SRVDesc, Buffer, ViewDesc.Buffer.SRV.GetViewInfo(Buffer));
 
-		FD3D12ShaderResourceView::UpdateView(RHICmdList, Buffer, SRVDesc, CreateFlags);
+		FD3D12ShaderResourceView::UpdateView(Contexts, Buffer, SRVDesc, CreateFlags);
 	}
 	else
 	{
@@ -283,7 +283,7 @@ void FD3D12ShaderResourceView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
 		D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
 		const EFlags CreateFlags = TranslateDesc(SRVDesc, Texture, ViewDesc.Texture.SRV.GetViewInfo(Texture));
 
-		FD3D12ShaderResourceView::UpdateView(RHICmdList, Texture, SRVDesc, CreateFlags);
+		FD3D12ShaderResourceView::UpdateView(Contexts, Texture, SRVDesc, CreateFlags);
 	}
 }
 

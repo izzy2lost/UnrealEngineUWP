@@ -131,46 +131,43 @@ inline FRHICommandListScopedPipelineGuard::~FRHICommandListScopedPipelineGuard()
 
 inline FRHIResourceReplaceBatcher::~FRHIResourceReplaceBatcher()
 {
-	if (Infos.Num() > 0)
-	{
-		RHICmdList.ReplaceResources(MoveTemp(Infos));
-	}
+	RHICmdList.ReplaceResources(MoveTemp(Infos));
 }
 
 #if WITH_RHI_BREADCRUMBS
 
+	// Top-of-pipe breadcrumb event scope for RHI command lists
 	template<size_t N, typename... TArgs>
-	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(FRHIComputeCommandList& RHICmdList, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
-		: RHICmdList(&RHICmdList)
+	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		: FRHIBreadcrumbEventScope(InRHICmdList, InRHICmdList.GetPipeline(), bCondition, FormatString, Forward<TArgs>(Args)...)
+	{}
+
+	// Bottom-of-pipe breadcrumb event scope for RHI contexts
+	template<size_t N, typename... TArgs>
+	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(IRHIComputeContext& InRHIContext, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		: FRHIBreadcrumbEventScope(static_cast<FRHIComputeCommandList&>(InRHIContext.GetExecutingCommandList()), InRHIContext.GetPipeline(), bCondition, FormatString, Forward<TArgs>(Args)...)
+	{}
+
+	template<size_t N, typename... TArgs>
+	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, ERHIPipeline InPipeline, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
+		: RHICmdList(InRHICmdList)
 		, Node(bCondition ? RHICmdList.GetBreadcrumbAllocator().AllocBreadcrumb(FormatString, Forward<TArgs>(Args)...) : nullptr)
-	#if DO_CHECK
-		, Pipeline(RHICmdList.GetPipeline())
-	#endif
+		, Pipeline(InPipeline)
 	{
 		if (Node)
 		{
 			Node->SetParent(RHICmdList.PersistentState.LocalBreadcrumb);
 			RHICmdList.BeginBreadcrumbCPU(Node, true);
-			RHICmdList.BeginBreadcrumbGPU(Node);
+			RHICmdList.BeginBreadcrumbGPU(Node, Pipeline);
 		}
 	}
 
-	template<size_t N, typename... TArgs>
-	inline FRHIBreadcrumbEventScope::FRHIBreadcrumbEventScope(IRHIComputeContext& RHIContext, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args)
-		: FRHIBreadcrumbEventScope(FRHIComputeCommandList::Get(RHIContext.GetExecutingCommandList()), bCondition, FormatString, Forward<TArgs>(Args)...)
-	{}
-
 	inline FRHIBreadcrumbEventScope::~FRHIBreadcrumbEventScope()
 	{
-		checkf(Pipeline == RHICmdList->GetPipeline(), TEXT("Breadcrumb event was started and ended on different pipelines. Start: %s, End: %s")
-			, *GetRHIPipelineName(Pipeline)
-			, *GetRHIPipelineName(RHICmdList->GetPipeline())
-		);
-
 		if (Node)
 		{
-			RHICmdList->EndBreadcrumbGPU(Node);
-			RHICmdList->EndBreadcrumbCPU(Node, true);
+			RHICmdList.EndBreadcrumbGPU(Node, Pipeline);
+			RHICmdList.EndBreadcrumbCPU(Node, true);
 		}
 	}
 
@@ -186,7 +183,7 @@ inline FRHIResourceReplaceBatcher::~FRHIResourceReplaceBatcher()
 
 		Node->SetParent(RHICmdList.PersistentState.LocalBreadcrumb);
 		RHICmdList.BeginBreadcrumbCPU(Node.Get(), true);
-		RHICmdList.BeginBreadcrumbGPU(Node.Get());
+		RHICmdList.BeginBreadcrumbGPU(Node.Get(), RHICmdList.GetPipeline());
 	}
 
 	inline void FRHIBreadcrumbEventManual::End(FRHIComputeCommandList& RHICmdList)
@@ -199,7 +196,7 @@ inline FRHIResourceReplaceBatcher::~FRHIResourceReplaceBatcher()
 
 		checkf(ThreadId == FPlatformTLS::GetCurrentThreadId(), TEXT("Manual breadcrumbs must be started and ended on the same thread."));
 
-		RHICmdList.EndBreadcrumbGPU(Node.Get());
+		RHICmdList.EndBreadcrumbGPU(Node.Get(), RHICmdList.GetPipeline());
 		RHICmdList.EndBreadcrumbCPU(Node.Get(), true);
 		Node = {};
 	}
@@ -210,3 +207,20 @@ inline FRHIResourceReplaceBatcher::~FRHIResourceReplaceBatcher()
 	}
 
 #endif // WITH_RHI_BREADCRUMBS
+
+template <typename RHICmdListType, typename LAMBDA>
+inline void TRHILambdaCommandMultiPipe<RHICmdListType, LAMBDA>::ExecuteAndDestruct(FRHICommandListBase& CmdList)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_ON_CHANNEL(Name, RHICommandsChannel);
+
+	FRHIContextArray Contexts { InPlace, nullptr };
+	for (ERHIPipeline Pipeline : MakeFlagsRange(Pipelines))
+	{
+		Contexts[Pipeline] = CmdList.Contexts[Pipeline];
+		check(Contexts[Pipeline]);
+	}
+
+	// Static cast to enforce const type in lambda args
+	Lambda(static_cast<FRHIContextArray const&>(Contexts));
+	Lambda.~LAMBDA();
+}

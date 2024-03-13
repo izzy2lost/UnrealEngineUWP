@@ -38,13 +38,13 @@ public:
 	void ResetBufferUsage() { BufferUsageSize = 0; }
 
 	/** Resizes buffer, accumulates states safely on render thread */
-	void PreFillBuffer(int32 RequiredIndexCount, bool bShrinkToMinSize);
+	void PreFillBuffer(FRHICommandListBase& RHICmdList, int32 RequiredIndexCount, bool bShrinkToMinSize);
 
 	int32 GetMinBufferSize() const { return MinBufferSize; }
 
 private:
 	/** Resizes the buffer to the passed in size.  Preserves internal data */
-	void ResizeBuffer( int32 NewSizeBytes );
+	void ResizeBuffer(FRHICommandListBase& RHICmdList, int32 NewSizeBytes);
 
 	/** Sets the buffer size variable and updates stats. */
 	void SetBufferSize(int32 NewBufferSize);

@@ -613,16 +613,21 @@ void FD3D12ContextCommon::ConditionalSplitCommandList()
 
 void FD3D12DynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
 {
-	RHICmdList.EnqueueLambda([](FRHICommandListBase& ExecutingCmdList)
-	{
-		for (uint32 GPUIndex : FRHIGPUMask::All())
+	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), TEXT("FD3D12DynamicRHI::RHIBeginFrame"),
+		[this](FD3D12ContextArray const& Contexts)
 		{
-			FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, GPUIndex);
-			Context.Device->GetGPUProfiler().BeginFrame();
-			Context.Device->GetDefaultBufferAllocator().BeginFrame(ExecutingCmdList);
-			Context.Device->GetTextureAllocator().BeginFrame(ExecutingCmdList);
+			for (auto& Adapter : ChosenAdapters)
+			{
+				for (auto& Device : Adapter->GetDevices())
+				{
+					Device->GetGPUProfiler().BeginFrame();
+
+					Device->GetDefaultBufferAllocator().BeginFrame(Contexts);
+					Device->GetTextureAllocator().BeginFrame(Contexts);
+				}
+			}
 		}
-	});
+	);
 }
 
 void FD3D12CommandContext::RHIBeginFrame()

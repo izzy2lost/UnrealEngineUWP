@@ -278,24 +278,45 @@ void FD3D11DynamicRHI::RHICopyBuffer(FRHIBuffer* SourceBufferRHI, FRHIBuffer* De
 	GPUProfilingData.RegisterGPUWork(1);
 }
 
-void FD3D11DynamicRHI::RHITransferBufferUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer)
+void FD3D11DynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
 {
-	FD3D11Buffer* Dst = ResourceCast(DestBuffer);
-	FD3D11Buffer* Src = ResourceCast(SrcBuffer);
+	RHICmdList.EnqueueLambda(TEXT("FD3D11DynamicRHI::RHIReplaceResources"),
+		[ReplaceInfos = MoveTemp(ReplaceInfos)](FRHICommandListBase&)
+		{
+			for (FRHIResourceReplaceInfo const& Info : ReplaceInfos)
+			{
+				switch (Info.GetType())
+				{
+				default:
+					checkNoEntry();
+					break;
 
-	if (Src)
-	{
-		// The source buffer should not have any associated views.
-		check(!Src->HasLinkedViews());
+				case FRHIResourceReplaceInfo::EType::Buffer:
+					{
+						FD3D11Buffer* Dst = ResourceCast(Info.GetBuffer().Dst);
+						FD3D11Buffer* Src = ResourceCast(Info.GetBuffer().Src);
 
-		Dst->TakeOwnership(*Src);
-	}
-	else
-	{
-		Dst->ReleaseOwnership();
-	}
+						if (Src)
+						{
+							// The source buffer should not have any associated views.
+							check(!Src->HasLinkedViews());
 
-	Dst->UpdateLinkedViews();
+							Dst->TakeOwnership(*Src);
+						}
+						else
+						{
+							Dst->ReleaseOwnership();
+						}
+
+						Dst->UpdateLinkedViews();
+					}
+					break;
+				}
+			}
+		}
+	);
+
+	RHICmdList.RHIThreadFence(true);
 }
 
 void FD3D11DynamicRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHIBuffer* BufferRHI, const TCHAR* Name)

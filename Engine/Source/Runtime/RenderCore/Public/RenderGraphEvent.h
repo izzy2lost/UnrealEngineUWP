@@ -180,7 +180,7 @@ struct FRDGScope_Budget
 				RHICmdList.BeginBreadcrumbCPU(Node, !bPreScope);
 				if (!bPreScope)
 				{
-					RHICmdList.BeginBreadcrumbGPU(Node);
+					RHICmdList.BeginBreadcrumbGPU(Node, RHICmdList.GetPipeline());
 				}
 			}
 		}
@@ -191,7 +191,7 @@ struct FRDGScope_Budget
 			{
 				if (!bPreScope)
 				{
-					RHICmdList.EndBreadcrumbGPU(Node);
+					RHICmdList.EndBreadcrumbGPU(Node, RHICmdList.GetPipeline());
 				}
 				RHICmdList.EndBreadcrumbCPU(Node, !bPreScope);
 			}

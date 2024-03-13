@@ -1174,28 +1174,24 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 				RHICmdList.UnlockBuffer(InstanceUploadBuffer);
 			}
 
-			// Pull this out here, because command list playback (where the lambda is executed) doesn't update the GPU mask
-			FRHIGPUMask IterateGPUMasks = RHICmdList.GetGPUMask();
+			for (uint32 GPUIndex : RHICmdList.GetGPUMask())
+			{
+				FRayTracingAccelerationStructureAddress* AddressesPtr = (FRayTracingAccelerationStructureAddress*)RHICmdList.LockBufferMGPU(
+					AccelerationStructureAddressesBuffer.Buffer,
+					GPUIndex,
+					0,
+					SceneInitializer.ReferencedGeometries.Num() * sizeof(FRayTracingAccelerationStructureAddress), RLM_WriteOnly);
 
-			RHICmdList.EnqueueLambda([BufferRHIRef = AccelerationStructureAddressesBuffer.Buffer, &SceneInitializer, IterateGPUMasks](FRHICommandListImmediate& RHICmdList)
+				RHICmdList.EnqueueLambda([AddressesPtr, &SceneInitializer, GPUIndex](FRHICommandListBase&)
 				{
-					for (uint32 GPUIndex : IterateGPUMasks)
+					for (int32 GeometryIndex = 0; GeometryIndex < SceneInitializer.ReferencedGeometries.Num(); ++GeometryIndex)
 					{
-						FRayTracingAccelerationStructureAddress* AddressesPtr = (FRayTracingAccelerationStructureAddress*)RHICmdList.LockBufferMGPU(
-							BufferRHIRef,
-							GPUIndex,
-							0,
-							SceneInitializer.ReferencedGeometries.Num() * sizeof(FRayTracingAccelerationStructureAddress), RLM_WriteOnly);
-
-						const uint32 NumGeometries = SceneInitializer.ReferencedGeometries.Num();
-						for (uint32 GeometryIndex = 0; GeometryIndex < NumGeometries; ++GeometryIndex)
-						{
-							AddressesPtr[GeometryIndex] = SceneInitializer.ReferencedGeometries[GeometryIndex]->GetAccelerationStructureAddress(GPUIndex);
-						}
-
-						RHICmdList.UnlockBufferMGPU(BufferRHIRef, GPUIndex);
+						AddressesPtr[GeometryIndex] = SceneInitializer.ReferencedGeometries[GeometryIndex]->GetAccelerationStructureAddress(GPUIndex);
 					}
 				});
+
+				RHICmdList.UnlockBufferMGPU(AccelerationStructureAddressesBuffer.Buffer, GPUIndex);
+			}
 
 			const FDFVector3 PreViewTranslation { View.ViewMatrices.GetPreViewTranslation() };
 

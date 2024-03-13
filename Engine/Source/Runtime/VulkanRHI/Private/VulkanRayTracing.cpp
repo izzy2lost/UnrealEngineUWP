@@ -1071,23 +1071,6 @@ FVulkanRayTracingShaderTable* FVulkanRayTracingScene::FindOrCreateShaderTable(co
 	return CreatedShaderTable;
 }
 
-void FVulkanDynamicRHI::RHITransferRayTracingGeometryUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry)
-{
-	check(DestGeometry);
-	FVulkanRayTracingGeometry* Dest = ResourceCast(DestGeometry);
-	if (!SrcGeometry)
-	{
-		TRefCountPtr<FVulkanRayTracingGeometry> DeletionProxy = new FVulkanRayTracingGeometry(NoInit);
-		Dest->RemoveCompactionRequest();
-		Dest->Swap(*DeletionProxy);
-	}
-	else
-	{
-		FVulkanRayTracingGeometry* Src = ResourceCast(SrcGeometry);
-		Dest->Swap(*Src);
-	}
-}
-
 FRayTracingAccelerationStructureSize FVulkanDynamicRHI::RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
 {
 	FVkRtTLASBuildData BuildData;

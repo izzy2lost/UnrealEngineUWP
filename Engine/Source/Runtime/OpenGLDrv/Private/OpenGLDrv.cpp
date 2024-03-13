@@ -791,4 +791,45 @@ void InitDefaultGLContextState(void)
 	FOpenGL::SetupDefaultGLContextState(ExtensionsString);
 }
 
+void FOpenGLDynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
+{
+	RHICmdList.EnqueueLambda(TEXT("FOpenGLDynamicRHI::RHIReplaceResources"),
+		[ReplaceInfos = MoveTemp(ReplaceInfos)](FRHICommandListBase&)
+		{
+			for (FRHIResourceReplaceInfo const& Info : ReplaceInfos)
+			{
+				switch (Info.GetType())
+				{
+				default:
+					checkNoEntry();
+					break;
+
+				case FRHIResourceReplaceInfo::EType::Buffer:
+					{
+						FOpenGLBuffer* Dst = ResourceCast(Info.GetBuffer().Dst);
+						FOpenGLBuffer* Src = ResourceCast(Info.GetBuffer().Src);
+
+						if (Src)
+						{
+							// The source buffer should not have any associated views.
+							check(!Src->HasLinkedViews());
+
+							Dst->TakeOwnership(*Src);
+						}
+						else
+						{
+							Dst->ReleaseOwnership();
+						}
+
+						Dst->UpdateLinkedViews();
+					}
+					break;
+				}
+			}
+		}
+	);
+
+	RHICmdList.RHIThreadFence(true);
+}
+
 #undef LOCTEXT_NAMESPACE

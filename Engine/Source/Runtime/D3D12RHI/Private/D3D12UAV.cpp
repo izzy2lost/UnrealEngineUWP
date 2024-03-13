@@ -64,13 +64,13 @@ void FD3D12UnorderedAccessView::CreateView(FResourceInfo const& InResource, D3D1
 	TD3D12View::CreateView(InResource, InD3DViewDesc);
 }
 
-void FD3D12UnorderedAccessView::UpdateView(FRHICommandListBase& RHICmdList, const FResourceInfo& InResource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
+void FD3D12UnorderedAccessView::UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
 {
 	UpdateResourceInfo(InResource, InD3DViewDesc, InFlags);
-	TD3D12View::UpdateView(RHICmdList, InResource, InD3DViewDesc);
+	TD3D12View::UpdateView(Contexts, InResource, InD3DViewDesc);
 }
 
-void FD3D12UnorderedAccessView::ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
+void FD3D12UnorderedAccessView::ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
 {
 	// Buffer SRV descriptors contain offsets / GPU virtual addresses which need to be updated to match the new resource location.
 	if (D3DViewDesc.ViewDimension == D3D12_UAV_DIMENSION_BUFFER)
@@ -78,7 +78,7 @@ void FD3D12UnorderedAccessView::ResourceRenamed(FRHICommandListBase& RHICmdList,
 		D3DViewDesc.Buffer.FirstElement = (OffsetInBytes + InNewResourceLocation->GetOffsetFromBaseOfResource()) / StrideInBytes;
 	}
 
-	TD3D12View::ResourceRenamed(RHICmdList, InRenamedResource, InNewResourceLocation);
+	TD3D12View::ResourceRenamed(Contexts, InRenamedResource, InNewResourceLocation);
 }
 
 void FD3D12UnorderedAccessView::UpdateDescriptor()
@@ -216,7 +216,7 @@ void FD3D12UnorderedAccessView_RHI::CreateView()
 	}
 }
 
-void FD3D12UnorderedAccessView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
+void FD3D12UnorderedAccessView_RHI::UpdateView(FD3D12ContextArray const& Contexts)
 {
 	if (IsBuffer())
 	{
@@ -225,7 +225,7 @@ void FD3D12UnorderedAccessView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
 		D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc{};
 		const EFlags CreateFlags = TranslateDesc(UAVDesc, Buffer, ViewDesc.Buffer.UAV.GetViewInfo(Buffer));
 
-		FD3D12UnorderedAccessView::UpdateView(RHICmdList, Buffer, UAVDesc, CreateFlags);
+		FD3D12UnorderedAccessView::UpdateView(Contexts, Buffer, UAVDesc, CreateFlags);
 	}
 	else
 	{
@@ -234,7 +234,7 @@ void FD3D12UnorderedAccessView_RHI::UpdateView(FRHICommandListBase& RHICmdList)
 		D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc{};
 		const EFlags CreateFlags = TranslateDesc(UAVDesc, Texture, ViewDesc.Texture.UAV.GetViewInfo(Texture));
 
-		FD3D12UnorderedAccessView::UpdateView(RHICmdList, Texture, UAVDesc, CreateFlags);
+		FD3D12UnorderedAccessView::UpdateView(Contexts, Texture, UAVDesc, CreateFlags);
 	}
 }
 

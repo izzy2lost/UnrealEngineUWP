@@ -973,13 +973,12 @@ FTextureReferenceRHIRef FVulkanDynamicRHI::RHICreateTextureReference(FRHICommand
 
 void FVulkanDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* InNewTexture)
 {
-	FRHITexture* NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture();
-
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (Device->SupportsBindless())
+	if (Device->SupportsBindless() && TextureRef && TextureRef->IsBindless())
 	{
-		if (TextureRef && TextureRef->IsBindless())
+		RHICmdList.EnqueueLambda(TEXT("FVulkanDynamicRHI::RHIUpdateTextureReference"), [TextureRef, InNewTexture](FRHICommandListBase& ExecutingCmdList)
 		{
+			FVulkanTexture* NewVulkanTexture = ResourceCast(InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture());
 			FVulkanTextureReference* VulkanTextureReference = ResourceCast(TextureRef);
 
 			FVulkanShaderResourceView* VulkanTextureRefSRV = VulkanTextureReference->BindlessView;
@@ -989,12 +988,11 @@ void FVulkanDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdLis
 			{
 				checkf(VulkanTextureRefSRV->IsInitialized(), TEXT("TextureReference should always be created with a view of the default texture at least"));
 
-				FVulkanTexture* NewVulkanTexture = ResourceCast(NewTexture);
 				const FRHITextureDesc& Desc = NewVulkanTexture->GetDesc();
 
 				VulkanTextureRefSRV->Invalidate();
 				VulkanTextureRefSRV->InitAsTextureView(
-					  NewVulkanTexture->Image
+					NewVulkanTexture->Image
 					, NewVulkanTexture->GetViewType()
 					, NewVulkanTexture->GetPartialAspectMask()
 					, Desc.Format
@@ -1005,11 +1003,11 @@ void FVulkanDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdLis
 					, NewVulkanTexture->GetNumberOfArrayLevels()
 					, !NewVulkanTexture->SupportsSampling());
 			}
-		}
+		});
 	}
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
-	FDynamicRHI::RHIUpdateTextureReference(RHICmdList, TextureRef, NewTexture);
+	FDynamicRHI::RHIUpdateTextureReference(RHICmdList, TextureRef, InNewTexture);
 }
 
 /*-----------------------------------------------------------------------------

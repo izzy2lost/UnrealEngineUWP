@@ -1564,7 +1564,7 @@ void FD3D12DefaultBufferAllocator::FreeDefaultBufferPools()
 }
 
 
-void FD3D12DefaultBufferAllocator::BeginFrame(FRHICommandListBase& RHICmdList)
+void FD3D12DefaultBufferAllocator::BeginFrame(FD3D12ContextArray const& Contexts)
 {
 #if USE_BUFFER_POOL_ALLOCATOR
 	FScopeLock Lock(&CS);
@@ -1579,7 +1579,7 @@ void FD3D12DefaultBufferAllocator::BeginFrame(FRHICommandListBase& RHICmdList)
 		{
 			if (DefaultBufferPool)
 			{
-				DefaultBufferPool->Defrag(RHICmdList, MaxCopySize, CopySize);
+				DefaultBufferPool->Defrag(Contexts, MaxCopySize, CopySize);
 
 				// break when we reach the max copy size
 				if (CopySize >= MaxCopySize)
@@ -1775,7 +1775,7 @@ HRESULT FD3D12TextureAllocatorPool::AllocateTexture(
 }
 
 
-void FD3D12TextureAllocatorPool::BeginFrame(FRHICommandListBase& RHICmdList)
+void FD3D12TextureAllocatorPool::BeginFrame(FD3D12ContextArray const& Contexts)
 {
 	if (GD3D12VRAMTexturePoolDefrag > 0 && GD3D12VRAMTexturePoolDefragMaxCopySizePerFrame > 0)
 	{
@@ -1785,7 +1785,7 @@ void FD3D12TextureAllocatorPool::BeginFrame(FRHICommandListBase& RHICmdList)
 		uint32 CopySize = 0;
 		for (uint32 PoolIndex = 0; PoolIndex < (uint32)EPoolType::Count; ++PoolIndex)
 		{
-			PoolAllocators[PoolIndex]->Defrag(RHICmdList, MaxCopySize, CopySize);
+			PoolAllocators[PoolIndex]->Defrag(Contexts, MaxCopySize, CopySize);
 		}
 	}
 

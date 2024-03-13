@@ -7,6 +7,7 @@
 #include "Misc/EnumRange.h"
 #include "Containers/ArrayView.h"
 #include "Containers/StaticArray.h"
+#include "RHIGlobals.h"
 
 enum class ERHIPipeline : uint8
 {
@@ -18,6 +19,11 @@ enum class ERHIPipeline : uint8
 	Num = 2
 };
 ENUM_CLASS_FLAGS(ERHIPipeline)
+
+inline constexpr bool IsSingleRHIPipeline(ERHIPipeline Pipelines)
+{
+	return Pipelines != ERHIPipeline::None && FMath::IsPowerOfTwo(static_cast<std::underlying_type_t<ERHIPipeline>>(Pipelines));
+}
 
 inline constexpr uint32 GetRHIPipelineIndex(ERHIPipeline Pipeline)
 {
@@ -34,6 +40,13 @@ inline constexpr uint32 GetRHIPipelineIndex(ERHIPipeline Pipeline)
 inline constexpr uint32 GetRHIPipelineCount()
 {
 	return uint32(ERHIPipeline::Num);
+}
+
+inline ERHIPipeline GetEnabledRHIPipelines()
+{
+	return GRHIGlobals.SupportsEfficientAsyncCompute
+		? ERHIPipeline::All
+		: ERHIPipeline::Graphics;
 }
 
 UE_DEPRECATED(5.5, "GetRHIPipelines is deprecated. Prefer ranged-for iteration over pipelines using 'for (ERHIPipeline Pipeline : MakeFlagsRange(Pipelines))'.")

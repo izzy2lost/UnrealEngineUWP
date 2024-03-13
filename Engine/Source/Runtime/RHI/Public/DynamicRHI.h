@@ -343,7 +343,7 @@ public:
 	 * @param DestBuffer - the buffer to update
 	 * @param SrcBuffer - don't use after call. If null, will release any resource owned by DestBuffer
 	 */
-	virtual void RHITransferBufferUnderlyingResource(FRHICommandListBase& CmdList, FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer) = 0;
+	virtual void RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos) = 0;
 
 	/**
 	* @param ResourceArray - An optional pointer to a resource array containing the resource's data.
@@ -979,11 +979,6 @@ public:
 	{
 		checkNoEntry();
 		return nullptr;
-	}
-
-	virtual void RHITransferRayTracingGeometryUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry)
-	{
-		checkNoEntry();
 	}
 #endif // RHI_RAYTRACING
 

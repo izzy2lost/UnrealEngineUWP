@@ -7,6 +7,7 @@
 #pragma once
 
 #include "HAL/Platform.h"
+#include "RHIPipeline.h"
 
 #include "D3D12ThirdParty.h"
 #include "D3D12RHI.h"
@@ -18,6 +19,9 @@
 
 class FD3D12Adapter;
 class FD3D12Device;
+
+class FD3D12CommandContext;
+class FD3D12ContextArray;
 
 template <typename ObjectType0, typename ObjectType1>
 class TD3D12DualLinkedObjectIterator;

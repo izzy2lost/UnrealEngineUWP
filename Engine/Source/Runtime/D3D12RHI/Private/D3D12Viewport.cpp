@@ -919,7 +919,7 @@ void FD3D12CommandContextBase::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI
 			ThreadName.GetCharArray().GetData(),
 			Viewport,
 			RenderTargetRHI,
-			GetContext(0)->BaseCommandList().GetNoRefCount()
+			GetSingleDeviceContext(0)->BaseCommandList().GetNoRefCount()
 		);
 	}
 #endif
@@ -943,7 +943,7 @@ void FD3D12CommandContextBase::RHIEndDrawingViewport(FRHIViewport* ViewportRHI, 
 			ThreadName.GetCharArray().GetData(),
 			Viewport,
 			Viewport->GetBackBuffer_RHIThread(),
-			GetContext(0)->BaseCommandList().GetNoRefCount()
+			GetSingleDeviceContext(0)->BaseCommandList().GetNoRefCount()
 		);
 	}
 #endif

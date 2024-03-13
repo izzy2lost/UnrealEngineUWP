@@ -48,38 +48,35 @@ void FSlateElementIndexBuffer::Destroy()
 /** Initializes the index buffers RHI resource. */
 void FSlateElementIndexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	checkSlow( IsInRenderingThread() );
-
-	check( MinBufferSize > 0 );
+	check(MinBufferSize > 0);
 
 	SetBufferSize(MinBufferSize);
 
 	FRHIResourceCreateInfo CreateInfo(TEXT("FSlateElementIndexBuffer"));
-	IndexBufferRHI = RHICmdList.CreateIndexBuffer( sizeof(SlateIndex), MinBufferSize, BUF_Dynamic, CreateInfo );
-	check( IsValidRef(IndexBufferRHI) );
+	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(SlateIndex), MinBufferSize, BUF_Dynamic, CreateInfo);
+	check(IsValidRef(IndexBufferRHI));
 }
 
 /** Resizes the buffer to the passed in size.  Preserves internal data */
-void FSlateElementIndexBuffer::ResizeBuffer( int32 NewSizeBytes )
+void FSlateElementIndexBuffer::ResizeBuffer(FRHICommandListBase& RHICmdList, int32 NewSizeBytes)
 {
-	checkSlow( IsInRenderingThread() );
+	int32 FinalSize = FMath::Max(NewSizeBytes, MinBufferSize);
 
-	int32 FinalSize = FMath::Max( NewSizeBytes, MinBufferSize );
-
-	if( FinalSize != 0 && FinalSize != BufferSize )
+	if (FinalSize != 0 && FinalSize != BufferSize)
 	{
 		IndexBufferRHI.SafeRelease();
+
 		FRHIResourceCreateInfo CreateInfo(TEXT("FSlateElementIndexBuffer"));
-		IndexBufferRHI = FRHICommandListImmediate::Get().CreateIndexBuffer( sizeof(SlateIndex), FinalSize, BUF_Dynamic, CreateInfo );
+		IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(SlateIndex), FinalSize, BUF_Dynamic, CreateInfo);
 		check(IsValidRef(IndexBufferRHI));
 
 		SetBufferSize(FinalSize);
 	}
 }
 
-void FSlateElementIndexBuffer::PreFillBuffer(int32 RequiredIndexCount, bool bShrinkToMinSize)
+void FSlateElementIndexBuffer::PreFillBuffer(FRHICommandListBase& RHICmdList, int32 RequiredIndexCount, bool bShrinkToMinSize)
 {
-	SCOPE_CYCLE_COUNTER( STAT_SlatePreFullBufferRTTime );
+	SCOPE_CYCLE_COUNTER(STAT_SlatePreFullBufferTime);
 
 	checkSlow(IsInRenderingThread());
 
@@ -91,7 +88,7 @@ void FSlateElementIndexBuffer::PreFillBuffer(int32 RequiredIndexCount, bool bShr
 		if (RequiredBufferSize > GetBufferSize() || bShrinkToMinSize)
 		{
 			// Use array resize techniques for the vertex buffer
-			ResizeBuffer(RequiredBufferSize);
+			ResizeBuffer(RHICmdList, RequiredBufferSize);
 		}
 
 		BufferUsageSize = RequiredBufferSize;		

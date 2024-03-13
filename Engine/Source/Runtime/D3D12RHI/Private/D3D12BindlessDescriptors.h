@@ -6,10 +6,8 @@
 #include "D3D12Descriptors.h"
 #include "RHIDefinitions.h"
 #include "RHIDescriptorAllocator.h"
-#include "RHIPipeline.h"
 #include "Templates/RefCounting.h"
 
-class FD3D12CommandContext;
 class FRHICommandListBase;
 class FD3D12SamplerState;
 class FD3D12ShaderResourceView;
@@ -122,7 +120,7 @@ public:
 	void                 Free(FRHIDescriptorHandle InHandle);
 
 	void UpdateDescriptorImmediately(FRHIDescriptorHandle DstHandle, FD3D12View* View);
-	void UpdateDescriptor(FRHICommandListBase& RHICmdList, FRHIDescriptorHandle DstHandle, FD3D12View* View);
+	void UpdateDescriptor(FD3D12ContextArray const& Contexts, FRHIDescriptorHandle DstHandle, FD3D12View* View);
 
 	void FlushPendingDescriptorUpdates(FD3D12CommandContext& Context);
 
@@ -175,7 +173,7 @@ public:
 	void                 DeferredFreeFromDestructor(FRHIDescriptorHandle InHandle);
 
 	void UpdateDescriptorImmediately(FRHIDescriptorHandle DstHandle, FD3D12View* View);
-	void UpdateDescriptor(FRHICommandListBase& RHICmdList, FRHIDescriptorHandle DstHandle, FD3D12View* SourceView);
+	void UpdateDescriptor(FD3D12ContextArray const& Contexts, FRHIDescriptorHandle DstHandle, FD3D12View* SourceView);
 
 	void FinalizeContext(FD3D12CommandContext& Context);
 

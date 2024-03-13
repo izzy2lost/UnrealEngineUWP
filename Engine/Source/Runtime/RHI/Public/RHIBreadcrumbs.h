@@ -752,23 +752,24 @@
 	//
 	class FRHIBreadcrumbEventScope
 	{
-		FRHIComputeCommandList* RHICmdList = nullptr;
-		IRHIComputeContext* RHIContext  = nullptr;
-		FRHIBreadcrumbNode* Node;
-
-	#if DO_CHECK
+		FRHIComputeCommandList& RHICmdList;
+		FRHIBreadcrumbNode* const Node;
 		ERHIPipeline const Pipeline;
-	#endif
 
 		FRHIBreadcrumbEventScope(FRHIBreadcrumbEventScope const&) = delete;
 		FRHIBreadcrumbEventScope(FRHIBreadcrumbEventScope&&) = delete;
 
-	public:
 		template<size_t N, typename... TArgs>
-		inline FRHIBreadcrumbEventScope(FRHIComputeCommandList& RHICmdList, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
+		inline FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, ERHIPipeline InPipeline, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
 
+	public:
+		// Top-of-pipe breadcrumb event scope for RHI command lists
 		template<size_t N, typename... TArgs>
-		inline FRHIBreadcrumbEventScope(IRHIComputeContext& RHIContext, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
+		inline FRHIBreadcrumbEventScope(FRHIComputeCommandList& InRHICmdList, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
+
+		// Bottom-of-pipe breadcrumb event scope for RHI contexts
+		template<size_t N, typename... TArgs>
+		inline FRHIBreadcrumbEventScope(IRHIComputeContext& InRHIContext, bool bCondition, TCHAR const(&FormatString)[N], TArgs&&... Args);
 
 		inline ~FRHIBreadcrumbEventScope();
 	};

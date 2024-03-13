@@ -244,21 +244,24 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 		RHICmdList.UnlockBuffer(InstanceUploadBuffer);
 	}
 
-	RHICmdList.EnqueueLambda([&AccelerationStructureAddressesBuffer, &SceneInitializer](FRHICommandListImmediate& RHICmdList)
+	for (uint32 GPUIndex : RHICmdList.GetGPUMask())
+	{
+		FRayTracingAccelerationStructureAddress* AddressesPtr = (FRayTracingAccelerationStructureAddress*)RHICmdList.LockBufferMGPU(
+			AccelerationStructureAddressesBuffer.Buffer,
+			GPUIndex,
+			0,
+			SceneInitializer.ReferencedGeometries.Num() * sizeof(FRayTracingAccelerationStructureAddress), RLM_WriteOnly);
+
+		RHICmdList.EnqueueLambda([AddressesPtr, &SceneInitializer, GPUIndex](FRHICommandListBase&)
 		{
-			FRayTracingAccelerationStructureAddress* AddressesPtr = (FRayTracingAccelerationStructureAddress*)RHICmdList.LockBuffer(
-				AccelerationStructureAddressesBuffer.Buffer, 
-				0, 
-				SceneInitializer.ReferencedGeometries.Num() * sizeof(FRayTracingAccelerationStructureAddress), RLM_WriteOnly);
-
-			const uint32 NumGeometries = SceneInitializer.ReferencedGeometries.Num();
-			for (uint32 GeometryIndex = 0; GeometryIndex < NumGeometries; ++GeometryIndex)
+			for (int32 GeometryIndex = 0; GeometryIndex < SceneInitializer.ReferencedGeometries.Num(); ++GeometryIndex)
 			{
-				AddressesPtr[GeometryIndex] = SceneInitializer.ReferencedGeometries[GeometryIndex]->GetAccelerationStructureAddress(RHICmdList.GetGPUMask().ToIndex());
+				AddressesPtr[GeometryIndex] = SceneInitializer.ReferencedGeometries[GeometryIndex]->GetAccelerationStructureAddress(GPUIndex);
 			}
-
-			RHICmdList.UnlockBuffer(AccelerationStructureAddressesBuffer.Buffer);
 		});
+
+		RHICmdList.UnlockBufferMGPU(AccelerationStructureAddressesBuffer.Buffer, GPUIndex);
+	}
 
 	BuildRayTracingInstanceBuffer(
 		RHICmdList,

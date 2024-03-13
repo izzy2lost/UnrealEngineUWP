@@ -361,6 +361,33 @@ struct TRHILambdaCommand final : public FRHICommandBase
 	}
 };
 
+class FRHIContextArray : public TRHIPipelineArray<IRHIComputeContext*>
+{
+	using Base = TRHIPipelineArray<IRHIComputeContext*>;
+public:
+	using Base::Base;
+};
+
+template <typename RHICmdListType, typename LAMBDA>
+struct TRHILambdaCommandMultiPipe final : public FRHICommandBase
+{
+	LAMBDA Lambda;
+#if CPUPROFILERTRACE_ENABLED
+	const TCHAR* Name;
+#endif
+	ERHIPipeline Pipelines;
+
+	TRHILambdaCommandMultiPipe(LAMBDA&& InLambda, const TCHAR* InName, ERHIPipeline InPipelines)
+		: Lambda(Forward<LAMBDA>(InLambda))
+#if CPUPROFILERTRACE_ENABLED
+		, Name(InName)
+#endif
+		, Pipelines(InPipelines)
+	{}
+
+	inline void ExecuteAndDestruct(FRHICommandListBase& CmdList) override final;
+};
+
 // Using variadic macro because some types are fancy template<A,B> stuff, which gets broken off at the comma and interpreted as multiple arguments. 
 #define ALLOC_COMMAND(...) new ( AllocCommand(sizeof(__VA_ARGS__), alignof(__VA_ARGS__)) ) __VA_ARGS__
 #define ALLOC_COMMAND_CL(RHICmdList, ...) new ( (RHICmdList).AllocCommand(sizeof(__VA_ARGS__), alignof(__VA_ARGS__)) ) __VA_ARGS__
@@ -534,6 +561,34 @@ public:
 		FRHICommandListBase::EnqueueLambda(TEXT("TRHILambdaCommand"), Forward<LAMBDA>(Lambda));
 	}
 
+	template <typename LAMBDA>
+	void EnqueueLambdaMultiPipe(ERHIPipeline Pipelines, const TCHAR* LambdaName, LAMBDA&& Lambda)
+	{
+		checkf(IsTopOfPipe() || Bypass(), TEXT("Cannot enqueue a multi-pipe lambda from the bottom of pipe."));
+
+		ERHIPipeline OldPipeline = ActivePipelines;
+		ActivatePipelines(Pipelines);
+
+		if (IsBottomOfPipe())
+		{
+			FRHIContextArray LocalContexts { InPlace, nullptr };
+			for (ERHIPipeline Pipeline : MakeFlagsRange(Pipelines))
+			{
+				LocalContexts[Pipeline] = Contexts[Pipeline];
+				check(LocalContexts[Pipeline]);
+			}
+
+			// Static cast to enforce const type in lambda args
+			Lambda(static_cast<FRHIContextArray const&>(LocalContexts));
+		}
+		else
+		{
+			ALLOC_COMMAND(TRHILambdaCommandMultiPipe<FRHICommandListBase, LAMBDA>)(Forward<LAMBDA>(Lambda), LambdaName, Pipelines);
+		}
+
+		ActivatePipelines(OldPipeline);
+	}
+
 	FORCEINLINE bool HasCommands() const
 	{
 		// Assume we have commands if anything is allocated.
@@ -557,33 +612,42 @@ public:
 
 	FORCEINLINE bool IsGraphics() const
 	{
-		return ActivePipeline == ERHIPipeline::Graphics;
+		// Exact equality is deliberate. Only return true if the graphics pipe is the only active pipe.
+		return ActivePipelines == ERHIPipeline::Graphics;
 	}
 
 	FORCEINLINE bool IsAsyncCompute() const
 	{
-		return ActivePipeline == ERHIPipeline::AsyncCompute;
+		// Exact equality is deliberate. Only return true if the compute pipe is the only active pipe.
+		return ActivePipelines == ERHIPipeline::AsyncCompute;
 	}
 
 	FORCEINLINE ERHIPipeline GetPipeline() const
 	{
-		return ActivePipeline;
+		check(ActivePipelines == ERHIPipeline::None || IsSingleRHIPipeline(ActivePipelines));
+		return ActivePipelines;
 	}
 
 	FORCEINLINE IRHICommandContext& GetContext()
 	{
+		checkf(IsSingleRHIPipeline(ActivePipelines), TEXT("Exactly one pipeline must be active to call GetContext(). Current pipeline mask is '0x%02x'."), static_cast<std::underlying_type_t<ERHIPipeline>>(ActivePipelines));
 		checkf(GraphicsContext, TEXT("There is no active graphics context on this command list. There may be a missing call to SwitchPipeline()."));
 		return *GraphicsContext;
 	}
 
 	FORCEINLINE IRHIComputeContext& GetComputeContext()
 	{
+		checkf(IsSingleRHIPipeline(ActivePipelines), TEXT("Exactly one pipeline must be active to call GetComputeContext(). Current pipeline mask is '0x%02x'."), static_cast<std::underlying_type_t<ERHIPipeline>>(ActivePipelines));
 		checkf(ComputeContext, TEXT("There is no active compute context on this command list. There may be a missing call to SwitchPipeline()."));
 		return *ComputeContext;
 	}
 
 	inline bool Bypass() const;
 
+private:
+	RHI_API void ActivatePipelines(ERHIPipeline Pipelines);
+
+public:
 	RHI_API ERHIPipeline SwitchPipeline(ERHIPipeline Pipeline);
 
 	FORCEINLINE FRHIGPUMask GetGPUMask() const { return PersistentState.CurrentGPUMask; }
@@ -601,12 +665,16 @@ public:
 
 	FORCEINLINE void* LockBuffer(FRHIBuffer* Buffer, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode)
 	{
+		checkf(IsTopOfPipe() || Bypass(), TEXT("Buffers may only be locked while recording RHI command lists, not during RHI command list execution."));
+
 		FRHICommandListScopedPipelineGuard ScopedPipeline(*this);
 		return GDynamicRHI->RHILockBuffer(*this, Buffer, Offset, SizeRHI, LockMode);
 	}
 
 	FORCEINLINE void UnlockBuffer(FRHIBuffer* Buffer)
 	{
+		checkf(IsTopOfPipe() || Bypass(), TEXT("Buffers may only be unlocked while recording RHI command lists, not during RHI command list execution."));
+
 		FRHICommandListScopedPipelineGuard ScopedPipeline(*this);
 		GDynamicRHI->RHIUnlockBuffer(*this, Buffer);
 	}
@@ -901,7 +969,15 @@ public:
 	}
 #endif
 
-	RHI_API void ReplaceResources(TArray<FRHIResourceReplaceInfo>&& ReplaceInfos);
+	FORCEINLINE void ReplaceResources(TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
+	{
+		if (ReplaceInfos.Num() == 0)
+		{
+			return;
+		}
+
+		GDynamicRHI->RHIReplaceResources(*this, MoveTemp(ReplaceInfos));
+	}
 
 	FORCEINLINE void BindDebugLabelName(FRHITexture* Texture, const TCHAR* Name)
 	{
@@ -1007,7 +1083,7 @@ protected:
 
 	// The RHI contexts available to the command list during execution.
 	// These are always set for the immediate command list, see InitializeImmediateContexts().
-	TRHIPipelineArray<IRHIComputeContext*> Contexts { InPlace, nullptr };
+	FRHIContextArray Contexts { InPlace, nullptr };
 
 	FRHIBatchedShaderParameters ScratchShaderParameters;
 	FRHIBatchedShaderUnbinds ScratchShaderUnbinds;
@@ -1018,9 +1094,9 @@ protected:
 	bool bUsesSetTrackedAccess   = false;
 	bool bUsesShaderBundles      = false;
 
-	// The currently selected pipeline that RHI commands are directed to, during command list recording.
+	// The currently selected pipelines that RHI commands are directed to, during command list recording.
 	// This is also adjusted during command list execution based on recorded use of SwitchPipeline().
-	ERHIPipeline ActivePipeline = ERHIPipeline::None;
+	ERHIPipeline ActivePipelines = ERHIPipeline::None;
 
 #if DO_CHECK
 	// Used to check for valid pipelines passed to SwitchPipeline().
@@ -1057,17 +1133,17 @@ protected:
 	FRHIBreadcrumbAllocatorArray BreadcrumbAllocatorRefs {};
 	TSharedPtr<FRHIBreadcrumbAllocator> BreadcrumbAllocator;
 
-	struct FSwitchPipelineCommand
+	struct FActivatePipelineCommand
 	{
-		FSwitchPipelineCommand* Next = nullptr;
+		FActivatePipelineCommand* Next = nullptr;
 		FRHIBreadcrumbNode* Target = nullptr;
-		ERHIPipeline Pipeline;
+		ERHIPipeline Pipelines;
 	};
 	struct
 	{
-		FSwitchPipelineCommand* First = nullptr;
-		FSwitchPipelineCommand* Prev = nullptr;
-	} SwitchPipelineCommands {};
+		FActivatePipelineCommand* First = nullptr;
+		FActivatePipelineCommand* Prev = nullptr;
+	} ActivatePipelineCommands {};
 #endif
 
 #if HAS_GPU_STATS
@@ -1162,6 +1238,9 @@ private:
 	friend class FRHICommandList_RecursiveHazardous;
 	friend class FRHIComputeCommandList_RecursiveHazardous;
 	friend struct FRHICommandSetGPUMask;
+
+	template <typename RHICmdListType, typename LAMBDA>
+	friend struct TRHILambdaCommandMultiPipe;
 
 #if WITH_RHI_BREADCRUMBS
 	friend bool IRHIComputeContext::ShouldEmitBreadcrumbs() const;
@@ -2758,47 +2837,49 @@ public:
 		});
 	}
 
-	FORCEINLINE_DEBUGGABLE void BeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	FORCEINLINE_DEBUGGABLE void BeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb, ERHIPipeline Pipeline)
 	{
 		check(Breadcrumb && Breadcrumb != FRHIBreadcrumbNode::Sentinel);
-		check(ActivePipeline != ERHIPipeline::None);
-		check(!EnumHasAnyFlags(ERHIPipeline(Breadcrumb->BeginPipes.fetch_or(std::underlying_type_t<ERHIPipeline>(ActivePipeline))), ActivePipeline));
+		check(IsSingleRHIPipeline(Pipeline));
+		check(EnumHasAllFlags(ActivePipelines, Pipeline));
+		check(!EnumHasAnyFlags(ERHIPipeline(Breadcrumb->BeginPipes.fetch_or(std::underlying_type_t<ERHIPipeline>(Pipeline))), Pipeline));
 
 		BreadcrumbAllocatorRefs.AddUnique(Breadcrumb->Allocator);
 
-		auto& State = GPUBreadcrumbState[ActivePipeline];
+		auto& State = GPUBreadcrumbState[Pipeline];
 		State.Current = Breadcrumb;
 		State.Latest = Breadcrumb;
 
-		EnqueueLambda(TEXT("BeginBreadcrumbGPU"), [Breadcrumb](FRHICommandListBase& ExecutingCmdList)
+		EnqueueLambda(TEXT("BeginBreadcrumbGPU"), [Breadcrumb, Pipeline](FRHICommandListBase& ExecutingCmdList)
 		{
-			auto& State = ExecutingCmdList.GPUBreadcrumbState[ExecutingCmdList.ActivePipeline];
+			auto& State = ExecutingCmdList.GPUBreadcrumbState[Pipeline];
 
-			State.Range.InsertAfter(Breadcrumb, State.Prev, ExecutingCmdList.ActivePipeline);
+			State.Range.InsertAfter(Breadcrumb, State.Prev, Pipeline);
 			State.Prev = Breadcrumb;
 
 			State.Current = Breadcrumb;
 			State.Latest = Breadcrumb;
 
-			ExecutingCmdList.GetComputeContext().RHIBeginBreadcrumbGPU(Breadcrumb);
+			ExecutingCmdList.Contexts[Pipeline]->RHIBeginBreadcrumbGPU(Breadcrumb);
 		});
 	}
 
-	FORCEINLINE_DEBUGGABLE void EndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	FORCEINLINE_DEBUGGABLE void EndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb, ERHIPipeline Pipeline)
 	{
 		check(Breadcrumb && Breadcrumb != FRHIBreadcrumbNode::Sentinel);
-		check(ActivePipeline != ERHIPipeline::None);
-		check(!EnumHasAnyFlags(ERHIPipeline(Breadcrumb->EndPipes.fetch_or(std::underlying_type_t<ERHIPipeline>(ActivePipeline))), ActivePipeline));
+		check(IsSingleRHIPipeline(Pipeline));
+		check(EnumHasAllFlags(ActivePipelines, Pipeline));
+		check(!EnumHasAnyFlags(ERHIPipeline(Breadcrumb->EndPipes.fetch_or(std::underlying_type_t<ERHIPipeline>(Pipeline))), Pipeline));
 
 		BreadcrumbAllocatorRefs.AddUnique(Breadcrumb->Allocator);
 
-		auto& State = GPUBreadcrumbState[ActivePipeline];
+		auto& State = GPUBreadcrumbState[Pipeline];
 		State.Current = Breadcrumb->GetParent();
 		State.Latest = Breadcrumb->GetParent();
 
-		EnqueueLambda(TEXT("EndBreadcrumbGPU"), [Breadcrumb](FRHICommandListBase& ExecutingCmdList)
+		EnqueueLambda(TEXT("EndBreadcrumbGPU"), [Breadcrumb, Pipeline](FRHICommandListBase& ExecutingCmdList)
 		{
-			auto& State = ExecutingCmdList.GPUBreadcrumbState[ExecutingCmdList.ActivePipeline];
+			auto& State = ExecutingCmdList.GPUBreadcrumbState[Pipeline];
 
 			State.Current = Breadcrumb->GetParent();
 			check(State.Current != FRHIBreadcrumbNode::Sentinel);
@@ -2806,7 +2887,7 @@ public:
 			State.Latest = Breadcrumb->GetParent();
 			check(State.Latest != FRHIBreadcrumbNode::Sentinel);
 
-			ExecutingCmdList.GetComputeContext().RHIEndBreadcrumbGPU(Breadcrumb);
+			ExecutingCmdList.Contexts[Pipeline]->RHIEndBreadcrumbGPU(Breadcrumb);
 		});
 	}
 #endif // WITH_RHI_BREADCRUMBS
@@ -3968,11 +4049,15 @@ public:
 	//
 	FORCEINLINE void* LockBufferMGPU(FRHIBuffer* Buffer, uint32 GPUIndex, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode)
 	{
+		checkf(IsTopOfPipe() || Bypass(), TEXT("Buffers may only be locked while recording RHI command lists, not during RHI command list execution."));
+
 		return GDynamicRHI->RHILockBufferMGPU(*this, Buffer, GPUIndex, Offset, SizeRHI, LockMode);
 	}
 
 	FORCEINLINE void UnlockBufferMGPU(FRHIBuffer* Buffer, uint32 GPUIndex)
 	{
+		checkf(IsTopOfPipe() || Bypass(), TEXT("Buffers may only be unlocked while recording RHI command lists, not during RHI command list execution."));
+
 		GDynamicRHI->RHIUnlockBufferMGPU(*this, Buffer, GPUIndex);
 	}
 	

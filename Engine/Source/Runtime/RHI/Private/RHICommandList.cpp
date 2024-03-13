@@ -201,143 +201,167 @@ TOptional<FRHIDrawStatsCategory const*> FRHICommandListBase::SetDrawStatsCategor
 }
 #endif
 
-ERHIPipeline FRHICommandListBase::SwitchPipeline(ERHIPipeline Pipeline)
+void FRHICommandListBase::ActivatePipelines(ERHIPipeline Pipelines)
 {
-	checkf(Pipeline == ERHIPipeline::None || FMath::IsPowerOfTwo(std::underlying_type_t<ERHIPipeline>(Pipeline)), TEXT("Only one pipeline may be active at a time."));
-	checkf(Pipeline == ERHIPipeline::None || EnumHasAnyFlags(AllowedPipelines, Pipeline), TEXT("The specified pipeline is not allowed on this RHI command list."));
+	checkf(IsTopOfPipe() || Bypass(), TEXT("Cannot be called from the bottom of pipe."));
+	checkf(Pipelines == ERHIPipeline::None || EnumHasAllFlags(AllowedPipelines, Pipelines), TEXT("At least one of the specified pipelinea are not allowed on this RHI command list."));
 
-	Exchange(ActivePipeline, Pipeline);
-	if (ActivePipeline != Pipeline)
+	if (ActivePipelines == Pipelines)
 	{
+		// Nothing to do.
+		return;
+	}
+
+	ActivePipelines = Pipelines;
+
 #if WITH_RHI_BREADCRUMBS
-		FSwitchPipelineCommand* Command = nullptr;
-		FSwitchPipelineCommand LocalFixup;
+	FActivatePipelineCommand* Command = nullptr;
+	FActivatePipelineCommand LocalFixup;
 
-		if (ActivePipeline != ERHIPipeline::None)
+	if (ActivePipelines != ERHIPipeline::None)
+	{
+		LocalFixup.Target = CPUBreadcrumbState.Current;
+		LocalFixup.Pipelines = ActivePipelines;
+
+		for (ERHIPipeline Pipeline : MakeFlagsRange(ActivePipelines))
 		{
-			LocalFixup.Target = CPUBreadcrumbState.Current;
-			LocalFixup.Pipeline = ActivePipeline;
-
-			GPUBreadcrumbState[ActivePipeline].Latest = FRHIBreadcrumbNode::Sentinel;
-
-			if (IsTopOfPipe())
-			{
-				Command = new (Alloc<FSwitchPipelineCommand>()) FSwitchPipelineCommand(LocalFixup);
-
-				// Link the commands together
-				if (!SwitchPipelineCommands.First) { SwitchPipelineCommands.First = Command; }
-				if ( SwitchPipelineCommands.Prev ) { SwitchPipelineCommands.Prev->Next = Command; }
-				SwitchPipelineCommands.Prev = Command;
-			}
-			else
-			{
-				Command = &LocalFixup;
-			}
+			GPUBreadcrumbState[Pipeline].Latest = FRHIBreadcrumbNode::Sentinel;
 		}
-#endif
 
-		EnqueueLambda([NewPipeline = ActivePipeline
-#if WITH_RHI_BREADCRUMBS
-			, Command
-#endif
-		](FRHICommandListBase& ExecutingCmdList)
+		if (IsTopOfPipe())
 		{
-			ExecutingCmdList.ActivePipeline = NewPipeline;
+			Command = new (Alloc<FActivatePipelineCommand>()) FActivatePipelineCommand(LocalFixup);
 
-			//
-			// Grab the appropriate command contexts from the RHI if we don't already have them.
-			// Also update the GraphicsContext/ComputeContext pointers to direct recorded commands
-			// to the correct target context, based on which pipeline is now active.
-			//
-			if (NewPipeline == ERHIPipeline::None)
+			// Link the commands together
+			if (!ActivatePipelineCommands.First) { ActivatePipelineCommands.First = Command; }
+			if ( ActivatePipelineCommands.Prev ) { ActivatePipelineCommands.Prev->Next = Command; }
+			ActivatePipelineCommands.Prev = Command;
+		}
+		else
+		{
+			Command = &LocalFixup;
+		}
+	}
+#endif
+
+	EnqueueLambda([
+		NewPipelines = ActivePipelines,
+		bSinglePipeline = IsSingleRHIPipeline(ActivePipelines)
+#if WITH_RHI_BREADCRUMBS
+		, Command
+#endif
+	](FRHICommandListBase& ExecutingCmdList)
+	{
+		ExecutingCmdList.ActivePipelines = NewPipelines;
+
+		if (!bSinglePipeline)
+		{
+			// Graphics/compute context handling is disabled in multi-pipe/none-pipe mode.
+			ExecutingCmdList.GraphicsContext = nullptr;
+			ExecutingCmdList.ComputeContext = nullptr;
+		}
+
+		//
+		// Grab the appropriate command contexts from the RHI if we don't already have them.
+		//
+		for (ERHIPipeline Pipeline : MakeFlagsRange(NewPipelines))
+		{
+			IRHIComputeContext*& Context = ExecutingCmdList.Contexts[Pipeline];
+
+			switch (Pipeline)
 			{
-				ExecutingCmdList.GraphicsContext = nullptr;
-				ExecutingCmdList.ComputeContext = nullptr;
-			}
-			else
+			default:
+				checkNoEntry();
+				break;
+
+			case ERHIPipeline::Graphics:
 			{
-				IRHIComputeContext*& Context = ExecutingCmdList.Contexts[NewPipeline];
-
-				switch (NewPipeline)
+				if (!Context)
 				{
-				default: checkNoEntry();
-				case ERHIPipeline::Graphics:
-				{
-					if (!Context)
-					{
-						// Need to handle the "immediate" context separately.
-						Context = ExecutingCmdList.AllowParallelTranslate()
-							? GDynamicRHI->RHIGetCommandContext(NewPipeline, FRHIGPUMask::All()) // This mask argument specifies which contexts are included in an mGPU redirector (we always want all of them).
-							: ::RHIGetDefaultContext();
-					}
+					// Need to handle the "immediate" context separately.
+					Context = ExecutingCmdList.AllowParallelTranslate()
+						? GDynamicRHI->RHIGetCommandContext(Pipeline, FRHIGPUMask::All()) // This mask argument specifies which contexts are included in an mGPU redirector (we always want all of them).
+						: ::RHIGetDefaultContext();
+				}
 
+				if (bSinglePipeline)
+				{
 					ExecutingCmdList.GraphicsContext = static_cast<IRHICommandContext*>(Context);
 					ExecutingCmdList.ComputeContext = Context;
 				}
-				break;
+			}
+			break;
 
-				case ERHIPipeline::AsyncCompute:
+			case ERHIPipeline::AsyncCompute:
+			{
+				if (!Context)
 				{
-					if (!Context)
-					{
-						Context = GDynamicRHI->RHIGetCommandContext(NewPipeline, FRHIGPUMask::All()); // This mask argument specifies which contexts are included in an mGPU redirector (we always want all of them).
-						check(Context);
-					}
+					Context = GDynamicRHI->RHIGetCommandContext(Pipeline, FRHIGPUMask::All()); // This mask argument specifies which contexts are included in an mGPU redirector (we always want all of them).
+					check(Context);
+				}
 
+				if (bSinglePipeline)
+				{
 					ExecutingCmdList.GraphicsContext = nullptr;
 					ExecutingCmdList.ComputeContext = Context;
 				}
-				break;
-				}
+			}
+			break;
+			}
 
-				// (Re-)apply the current GPU mask.
-				Context->RHISetGPUMask(ExecutingCmdList.PersistentState.CurrentGPUMask);
-				Context->SetExecutingCommandList(&ExecutingCmdList);
+			// (Re-)apply the current GPU mask.
+			Context->RHISetGPUMask(ExecutingCmdList.PersistentState.CurrentGPUMask);
+			Context->SetExecutingCommandList(&ExecutingCmdList);
 
 #if WITH_RHI_BREADCRUMBS
-				FRHIBreadcrumbNode* Target = Command->Target;
-				check(Command->Pipeline == NewPipeline);
-				check(Target != FRHIBreadcrumbNode::Sentinel);
+			FRHIBreadcrumbNode* Target = Command->Target;
+			check(EnumHasAllFlags(Command->Pipelines, Pipeline));
+			check(Target != FRHIBreadcrumbNode::Sentinel);
 
-				FRHIBreadcrumbNode*& Current = ExecutingCmdList.GPUBreadcrumbState[NewPipeline].Current;
-				check(Current != FRHIBreadcrumbNode::Sentinel);
+			FRHIBreadcrumbNode*& Current = ExecutingCmdList.GPUBreadcrumbState[Pipeline].Current;
+			check(Current != FRHIBreadcrumbNode::Sentinel);
 
-				if (Current != Target)
+			if (Current != Target)
+			{
+				//
+				// The breadcrumb currently at the top of the new context's GPU stack is not the same as the current breadcrumb on the CPU stack.
+				// This happens when we switch to a new pipeline after pushing breadcrumbs on a different one.
+				//
+				// Fix up the breadcrumbs by pushing/popping the difference (i.e. pop down to the common ancestor, then push up to the current GPU breadcrumb).
+				// Use the RHI begin/end command directly to ensure breadcrumbs get appended to the GPU pipeline ranges etc.
+				//
+
+				FRHIBreadcrumbNode const* CommonAncestor = FRHIBreadcrumbNode::FindCommonAncestor(Current, Target);
+				while (Current != CommonAncestor)
 				{
-					//
-					// The breadcrumb currently at the top of the new context's GPU stack is not the same as the current breadcrumb on the CPU stack.
-					// This happens when we switch to a new pipeline after pushing breadcrumbs on a different one.
-					//
-					// Fix up the breadcrumbs by pushing/popping the difference (i.e. pop down to the common ancestor, then push up to the current GPU breadcrumb).
-					// Use the RHI begin/end command directly to ensure breadcrumbs get appended to the GPU pipeline ranges etc.
-					//
-
-					FRHIBreadcrumbNode const* CommonAncestor = FRHIBreadcrumbNode::FindCommonAncestor(Current, Target);
-					while (Current != CommonAncestor)
-					{
-						FRHIComputeCommandList::Get(ExecutingCmdList).EndBreadcrumbGPU(Current);
-					}
-
-					auto Recurse = [CommonAncestor, &ExecutingCmdList](FRHIBreadcrumbNode* Current, auto& Recurse) -> void
-					{
-						if (Current == CommonAncestor)
-							return;
-
-						Recurse(Current->GetParent(), Recurse);
-						FRHIComputeCommandList::Get(ExecutingCmdList).BeginBreadcrumbGPU(Current);
-					};
-					Recurse(Target, Recurse);
-
-					check(Target == Current);
+					FRHIComputeCommandList::Get(ExecutingCmdList).EndBreadcrumbGPU(Current, Pipeline);
 				}
 
-				ExecutingCmdList.GPUBreadcrumbState[NewPipeline].Latest = Current;
-#endif
-			}
-		});
-	}
+				auto Recurse = [CommonAncestor, &ExecutingCmdList, Pipeline](FRHIBreadcrumbNode* Current, auto& Recurse) -> void
+				{
+					if (Current == CommonAncestor)
+						return;
 
-	return Pipeline;
+					Recurse(Current->GetParent(), Recurse);
+					FRHIComputeCommandList::Get(ExecutingCmdList).BeginBreadcrumbGPU(Current, Pipeline);
+				};
+				Recurse(Target, Recurse);
+
+				check(Target == Current);
+			}
+
+			ExecutingCmdList.GPUBreadcrumbState[Pipeline].Latest = Current;
+#endif
+		}
+	});
+}
+
+ERHIPipeline FRHICommandListBase::SwitchPipeline(ERHIPipeline Pipeline)
+{
+	checkf(Pipeline == ERHIPipeline::None || FMath::IsPowerOfTwo(std::underlying_type_t<ERHIPipeline>(Pipeline)), TEXT("Only one pipeline may be active at a time."));
+	ERHIPipeline Original = ActivePipelines;
+	ActivatePipelines(Pipeline);
+	return Original;
 }
 
 void FRHICommandListBase::Execute()
@@ -709,7 +733,7 @@ void FRHICommandListExecutor::FSubmitState::Dispatch(FRHICommandListBase* CmdLis
 			}
 
 			// Walk the SwitchPipeline commands, resolve unknown targets, and update per-pipe pointers.
-			for (FRHICommandListBase::FSwitchPipelineCommand* Command = CmdList->SwitchPipelineCommands.First; Command; Command = Command->Next)
+			for (FRHICommandListBase::FActivatePipelineCommand* Command = CmdList->ActivatePipelineCommands.First; Command; Command = Command->Next)
 			{
 				if (Command->Target == FRHIBreadcrumbNode::Sentinel)
 				{
@@ -720,7 +744,10 @@ void FRHICommandListExecutor::FSubmitState::Dispatch(FRHICommandListBase* CmdLis
 					GRHICommandList.Breadcrumbs.CPU.Current = Command->Target;
 				}
 
-				GRHICommandList.Breadcrumbs.GPU[Command->Pipeline].Current = GRHICommandList.Breadcrumbs.CPU.Current;
+				for (ERHIPipeline Pipeline : MakeFlagsRange(Command->Pipelines))
+				{
+					GRHICommandList.Breadcrumbs.GPU[Pipeline].Current = GRHICommandList.Breadcrumbs.CPU.Current;
+				}
 			}
 
 			for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
@@ -804,7 +831,7 @@ void FRHICommandListExecutor::FTranslateState::Translate(FRHICommandListBase* Cm
 		}
 	}
 
-	CmdList->ActivePipeline = ERHIPipeline::None;
+	CmdList->ActivePipelines = ERHIPipeline::None;
 
 #if WITH_RHI_BREADCRUMBS
 	// Walk into the breadcrumb tree to the first breadcrumb this RHI command list starts in.
@@ -1242,6 +1269,8 @@ RHI_API void FRHICommandListImmediate::QueueAsyncCommandListSubmit(TArrayView<FQ
 
 FGraphEventRef FRHICommandListBase::RHIThreadFence(bool bSetLockFence)
 {
+	checkf(IsTopOfPipe() || Bypass(), TEXT("RHI thread fences only work when recording RHI commands (or in bypass mode)."));
+
 	if (IsRunningRHIInSeparateThread())
 	{
 		FGraphEventRef Fence = nullptr;
@@ -1272,9 +1301,9 @@ FGraphEventRef FRHICommandListBase::RHIThreadFence(bool bSetLockFence)
 FRHICommandList_RecursiveHazardous::FRHICommandList_RecursiveHazardous(IRHICommandContext* Context)
 	: FRHICommandList(Context->RHIGetGPUMask())
 {
-	ActivePipeline = ERHIPipeline::Graphics;
+	ActivePipelines = ERHIPipeline::Graphics;
 #if DO_CHECK
-	AllowedPipelines = ActivePipeline;
+	AllowedPipelines = ActivePipelines;
 #endif
 
 	// Always grab the validation RHI context if active, so that the
@@ -1301,16 +1330,17 @@ FRHICommandList_RecursiveHazardous::~FRHICommandList_RecursiveHazardous()
 FRHIComputeCommandList_RecursiveHazardous::FRHIComputeCommandList_RecursiveHazardous(IRHIComputeContext* Context)
 	: FRHIComputeCommandList(Context->RHIGetGPUMask())
 {
-	ActivePipeline = Context->GetPipeline();
+	ActivePipelines = Context->GetPipeline();
+	check(IsSingleRHIPipeline(ActivePipelines));
 #if DO_CHECK
-	AllowedPipelines = ActivePipeline;
+	AllowedPipelines = ActivePipelines;
 #endif
 
 	// Always grab the validation RHI context if active, so that the
 	// validation RHI can see any RHI commands enqueued within the RHI itself.
 	GraphicsContext = nullptr;
 	ComputeContext = &Context->GetHighestLevelContext();
-	Contexts[ActivePipeline] = ComputeContext;
+	Contexts[ActivePipelines] = ComputeContext;
 
 	PersistentState.bRecursive = true;
 }
@@ -2084,54 +2114,8 @@ void FRHICommandListBase::UpdateTextureReference(FRHITextureReference* TextureRe
 	{
 		return;
 	}
-
-	// Workaround for a crash bug where FRHITextureReferences are deleted before this command is executed on the RHI thread.
-	// Take a reference on the FRHITextureReference object to keep it alive.
-	// @todo dev-pr - This should be refactored out when we eventually remove FRHITextureReference.
-	TRefCountPtr<FRHITextureReference> Ref = TextureRef;
-
-	EnqueueLambda(TEXT("UpdateTextureReference"), [TextureRef, NewTexture, LocalRef = MoveTemp(Ref)](FRHICommandListBase& RHICmdList)
-	{
-		GDynamicRHI->RHIUpdateTextureReference(RHICmdList, TextureRef, NewTexture);
-	});
-
-	RHIThreadFence(true);
-}
-
-void FRHICommandListBase::ReplaceResources(TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
-{
-	EnqueueLambda(TEXT("ReplaceResources"), [Infos = MoveTemp(ReplaceInfos)](FRHICommandListBase& ExecutingCmdList)
-	{
-		RHISTAT(ReplaceResources);
-		for (FRHIResourceReplaceInfo const& Info : Infos)
-		{
-			switch (Info.GetType())
-			{
-
-			case FRHIResourceReplaceInfo::EType::Buffer:
-				GDynamicRHI->RHITransferBufferUnderlyingResource(
-					ExecutingCmdList,
-					Info.GetBuffer().Dst,
-					Info.GetBuffer().Src);
-				break;
-
-#if RHI_RAYTRACING
-			case FRHIResourceReplaceInfo::EType::RTGeometry:
-				GDynamicRHI->RHITransferRayTracingGeometryUnderlyingResource(
-					ExecutingCmdList,
-					Info.GetRTGeometry().Dst,
-					Info.GetRTGeometry().Src);
-				break;
-#endif // RHI_RAYTRACING
-
-			default:
-				checkNoEntry();
-				break;
-			}
-		}
-	});
-
-	RHIThreadFence(true);
+	
+	GDynamicRHI->RHIUpdateTextureReference(*this, TextureRef, NewTexture);
 }
 
 void FRHICommandListExecutor::CleanupGraphEvents()

@@ -293,17 +293,17 @@ FD3D12Buffer* FD3D12Adapter::CreateRHIBuffer(
 	return BufferOut;
 }
 
-void FD3D12Buffer::Rename(FRHICommandListBase& RHICmdList, FD3D12ResourceLocation& NewLocation)
+void FD3D12Buffer::Rename(FD3D12ContextArray const& Contexts, FD3D12ResourceLocation& NewLocation)
 {
 	FD3D12ResourceLocation::TransferOwnership(ResourceLocation, NewLocation);
-	ResourceRenamed(RHICmdList);
+	ResourceRenamed(Contexts);
 }
 
-void FD3D12Buffer::RenameLDAChain(FRHICommandListBase& RHICmdList, FD3D12ResourceLocation& NewLocation)
+void FD3D12Buffer::RenameLDAChain(FD3D12ContextArray const& Contexts, FD3D12ResourceLocation& NewLocation)
 {
 	// Dynamic buffers use cross-node resources (with the exception of BUF_MultiGPUAllocate)
 	//ensure(GetUsage() & BUF_AnyDynamic);
-	Rename(RHICmdList, NewLocation);
+	Rename(Contexts, NewLocation);
 
 	if (GNumExplicitGPUsForRendering > 1)
 	{
@@ -317,7 +317,7 @@ void FD3D12Buffer::RenameLDAChain(FRHICommandListBase& RHICmdList, FD3D12Resourc
 			for (auto NextBuffer = ++FLinkedObjectIterator(this); NextBuffer; ++NextBuffer)
 			{
 				FD3D12ResourceLocation::ReferenceNode(NextBuffer->GetParentDevice(), NextBuffer->ResourceLocation, ResourceLocation);
-				NextBuffer->ResourceRenamed(RHICmdList);
+				NextBuffer->ResourceRenamed(Contexts);
 			}
 		}
 	}
@@ -494,45 +494,36 @@ void* FD3D12DynamicRHI::LockBuffer(FRHICommandListBase& RHICmdList, FD3D12Buffer
 			FD3D12ResourceLocation NewLocation(Device);
 			Data = Adapter.GetUploadHeapAllocator(Device->GetGPUIndex()).AllocUploadResource(BufferSize, Buffer->BufferAlignment, NewLocation);
 
-			// Make sure we have an active pipeline when running at the top of the pipe, so the lambda below can obtain a context.
-			TOptional<ERHIPipeline> PreviousPipeline;
-			if (RHICmdList.IsTopOfPipe() && RHICmdList.GetPipeline() == ERHIPipeline::None)
-			{
-				PreviousPipeline = RHICmdList.SwitchPipeline(ERHIPipeline::Graphics);
-			}
-
-			RHICmdList.EnqueueLambda([
+			RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), TEXT("FD3D12DynamicRHI::LockBuffer"),
+			[
 				Resource = Buffer,
 				NewLocation = MoveTemp(NewLocation)
-			](FRHICommandListBase& ExecutingCmdList) mutable
+			](FD3D12ContextArray const& Contexts) mutable
 			{
 				const static FLazyName ExecuteName(TEXT("FRHICommandRenameUploadBuffer::Execute"));
 				UE_TRACE_METADATA_SCOPE_ASSET_FNAME(Resource->GetName(), ExecuteName, Resource->GetOwnerName());
 
-				// Clear the resource if still bound to make sure the SRVs are rebound again on next operation. This needs to happen
-				// on the RHI timeline when this command runs at the top of the pipe (which can happen when locking buffers in
-				// RLM_WriteOnly_NoOverwrite mode).
-				
-				FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, Resource->GetParentDevice()->GetGPUIndex());
-				Context.ConditionalClearShaderResource(&Resource->ResourceLocation, EShaderParameterTypeMask::SRVMask);
+				for (FD3D12Buffer& DeviceBuffer : *Resource)
+				{
+					for (FD3D12CommandContextBase* ContextBase : Contexts)
+					{
+						if (FD3D12CommandContext* Context = ContextBase ? ContextBase->GetSingleDeviceContext(DeviceBuffer.GetParentDevice()->GetGPUIndex()) : nullptr)
+						{
+							// Clear the resource if still bound to make sure the SRVs are rebound again on next operation. This needs to happen
+							// on the RHI timeline when this command runs at the top of the pipe (which can happen when locking buffers in
+							// RLM_WriteOnly_NoOverwrite mode).
+							Context->ConditionalClearShaderResource(&DeviceBuffer.ResourceLocation, EShaderParameterTypeMask::SRVMask);
+						}
+					}
+				}
 
 #if UE_MEMORY_TRACE_ENABLED
 				// This memory trace happens before RenameLDAChain so the old & new GPU addresses are correct
 				MemoryTrace_ReallocFree(Resource->ResourceLocation.GetGPUVirtualAddress(), EMemoryTraceRootHeap::VideoMemory);
 				MemoryTrace_ReallocAlloc(NewLocation.GetGPUVirtualAddress(), Resource->ResourceLocation.GetSize(), Resource->BufferAlignment, EMemoryTraceRootHeap::VideoMemory);
 #endif
-				Resource->RenameLDAChain(ExecutingCmdList, NewLocation);
+				Resource->RenameLDAChain(Contexts, NewLocation);
 			});
-
-			if (RHICmdList.IsTopOfPipe())
-			{
-				RHICmdList.RHIThreadFence(true);
-			}
-
-			if (PreviousPipeline.IsSet())
-			{
-				RHICmdList.SwitchPipeline(PreviousPipeline.GetValue());
-			}
 		}
 	}
 	else
@@ -693,26 +684,6 @@ void FD3D12DynamicRHI::RHIUnlockBufferMGPU(FRHICommandListBase& RHICmdList, FRHI
 
 	FD3D12Buffer* Buffer = FD3D12DynamicRHI::ResourceCast(BufferRHI, GPUIndex);
 	UnlockBuffer(RHICmdList, Buffer, Buffer->GetUsage());
-}
-
-void FD3D12DynamicRHI::RHITransferBufferUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer)
-{
-	FD3D12Buffer* Dst = ResourceCast(DestBuffer);
-	FD3D12Buffer* Src = ResourceCast(SrcBuffer);
-
-	if (Src)
-	{
-		// The source buffer should not have any associated views.
-		check(!Src->HasLinkedViews());
-
-		Dst->TakeOwnership(*Src);
-	}
-	else
-	{
-		Dst->ReleaseOwnership();
-	}
-
-	Dst->ResourceRenamed(RHICmdList);
 }
 
 void FD3D12DynamicRHI::RHICopyBuffer(FRHIBuffer* SourceBufferRHI, FRHIBuffer* DestBufferRHI)

@@ -682,7 +682,7 @@ public:
 	FD3D12PoolAllocatorPrivateData&    GetPoolAllocatorPrivateData   ()       { return AllocatorData.PoolAllocatorPrivateData;               }
 
 	// Pool allocation specific functions
-	bool OnAllocationMoved(FRHICommandListBase& RHICmdList, FRHIPoolAllocationData* InNewData);
+	bool OnAllocationMoved(FD3D12ContextArray const& Contexts, FRHIPoolAllocationData* InNewData);
 	void UnlockPoolData();
 
 	bool IsValid() const { return Type != ResourceLocationType::eUndefined; }
@@ -837,7 +837,7 @@ struct FD3D12LockedResource : public FD3D12DeviceChild
 /** Resource which might needs to be notified about changes on dependent resources (Views, RTGeometryObject, Cached binding tables) */
 struct FD3D12ShaderResourceRenameListener
 {
-	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) = 0;
+	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) = 0;
 };
 
 
@@ -872,12 +872,12 @@ public:
 		return RenameListeners.Num() != 0;
 	}
 
-	void ResourceRenamed(FRHICommandListBase& RHICmdList)
+	void ResourceRenamed(FD3D12ContextArray const& Contexts)
 	{
 		FScopeLock Lock(&RenameListenersCS);
 		for (FD3D12ShaderResourceRenameListener* RenameListener : RenameListeners)
 		{
-			RenameListener->ResourceRenamed(RHICmdList, this, &ResourceLocation);
+			RenameListener->ResourceRenamed(Contexts, this, &ResourceLocation);
 		}
 	}
 
@@ -957,8 +957,8 @@ public:
 	}
 #endif
 
-	void Rename(FRHICommandListBase& RHICmdList, FD3D12ResourceLocation& NewLocation);
-	void RenameLDAChain(FRHICommandListBase& RHICmdList, FD3D12ResourceLocation& NewLocation);
+	void Rename(FD3D12ContextArray const& Contexts, FD3D12ResourceLocation& NewLocation);
+	void RenameLDAChain(FD3D12ContextArray const& Contexts, FD3D12ResourceLocation& NewLocation);
 
 	void TakeOwnership(FD3D12Buffer& Other);
 	void ReleaseOwnership();

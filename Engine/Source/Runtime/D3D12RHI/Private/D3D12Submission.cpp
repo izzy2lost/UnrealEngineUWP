@@ -188,7 +188,7 @@ IRHIPlatformCommandList* FD3D12DynamicRHI::RHIFinalizeContext(FRHIFinalizeContex
 	if (FD3D12CommandContextRedirector* Redirector = CmdContextBase->AsRedirector())
 	{
 		for (uint32 GPUIndex : Redirector->GetPhysicalGPUMask())
-			FinalizeContext(Redirector->GetContext(GPUIndex));
+			FinalizeContext(Redirector->GetSingleDeviceContext(GPUIndex));
 
 		if (!Redirector->bIsDefaultContext)
 		{

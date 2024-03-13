@@ -32,7 +32,7 @@ FD3D12RHITextureReference::~FD3D12RHITextureReference()
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 }
 
-void FD3D12RHITextureReference::SwitchToNewTexture(FRHICommandListBase& RHICmdList, FD3D12Texture* InNewTexture)
+void FD3D12RHITextureReference::SwitchToNewTexture(FD3D12ContextArray const& Contexts, FD3D12Texture* InNewTexture)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (BindlessHandle.IsValid())
@@ -50,7 +50,7 @@ void FD3D12RHITextureReference::SwitchToNewTexture(FRHICommandListBase& RHICmdLi
 
 			NewTexture->AddRenameListener(this);
 
-			GetParentDevice()->GetBindlessDescriptorManager().UpdateDescriptor(RHICmdList, BindlessHandle, NewTexture->GetShaderResourceView());
+			GetParentDevice()->GetBindlessDescriptorManager().UpdateDescriptor(Contexts, BindlessHandle, NewTexture->GetShaderResourceView());
 		}
 	}
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
@@ -59,14 +59,14 @@ void FD3D12RHITextureReference::SwitchToNewTexture(FRHICommandListBase& RHICmdLi
 }
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-void FD3D12RHITextureReference::ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
+void FD3D12RHITextureReference::ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
 {
 	if (ensure(BindlessHandle.IsValid()))
 	{
 		FD3D12Texture* RenamedTexture = static_cast<FD3D12Texture*>(InRenamedResource);
 		checkSlow(RenamedTexture == ReferencedTexture);
 
-		GetParentDevice()->GetBindlessDescriptorManager().UpdateDescriptor(RHICmdList, BindlessHandle, RenamedTexture->GetShaderResourceView());
+		GetParentDevice()->GetBindlessDescriptorManager().UpdateDescriptor(Contexts, BindlessHandle, RenamedTexture->GetShaderResourceView());
 	}
 }
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
@@ -84,10 +84,22 @@ FTextureReferenceRHIRef FD3D12DynamicRHI::RHICreateTextureReference(FRHICommandL
 
 void FD3D12DynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* InNewTexture)
 {
-	FRHITexture* NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture();
+	// Workaround for a crash bug where FRHITextureReferences are deleted before this command is executed on the RHI thread.
+	// Take a reference on the FRHITextureReference object to keep it alive.
+	// @todo dev-pr - This should be refactored out when we eventually remove FRHITextureReference.
+	TRefCountPtr<FRHITextureReference> Ref = TextureRef;
 
-	for (TD3D12DualLinkedObjectIterator<FD3D12RHITextureReference, FD3D12Texture> It(ResourceCast(TextureRef), ResourceCast(NewTexture)); It; ++It)
+	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), TEXT("FD3D12DynamicRHI::RHIUpdateTextureReference"),
+	[
+		TextureRef = MoveTemp(Ref),
+		NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture()
+	](FD3D12ContextArray const& Contexts)
 	{
-		It.GetFirst()->SwitchToNewTexture(RHICmdList, It.GetSecond());
-	}
+		for (TD3D12DualLinkedObjectIterator<FD3D12RHITextureReference, FD3D12Texture> It(ResourceCast(TextureRef.GetReference()), ResourceCast(NewTexture)); It; ++It)
+		{
+			It.GetFirst()->SwitchToNewTexture(Contexts, It.GetSecond());
+		}
+	});
+
+	RHICmdList.RHIThreadFence(true);
 }

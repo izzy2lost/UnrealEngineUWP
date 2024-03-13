@@ -6,7 +6,7 @@
 #include "Fonts/FontMeasure.h"
 #include "Widgets/SWindow.h"
 
-DEFINE_STAT(STAT_SlatePreFullBufferRTTime);
+DEFINE_STAT(STAT_SlatePreFullBufferTime);
 
 /* FSlateFontCacheProvider interface
  *****************************************************************************/

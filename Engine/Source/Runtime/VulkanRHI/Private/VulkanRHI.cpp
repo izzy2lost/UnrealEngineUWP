@@ -2218,5 +2218,65 @@ bool FVulkanDynamicRHI::RHIMatchPrecachePSOInitializers(const FGraphicsPipelineS
 	return true;
 }
 
+void FVulkanDynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
+{
+	RHICmdList.EnqueueLambda(TEXT("FVulkanDynamicRHI::RHIReplaceResources"),
+		[ReplaceInfos = MoveTemp(ReplaceInfos)](FRHICommandListBase& ExecutingCmdList)
+		{
+			for (FRHIResourceReplaceInfo const& Info : ReplaceInfos)
+			{
+				switch (Info.GetType())
+				{
+				default:
+					checkNoEntry();
+					break;
+
+				case FRHIResourceReplaceInfo::EType::Buffer:
+					{
+						FVulkanResourceMultiBuffer* Dst = ResourceCast(Info.GetBuffer().Dst);
+						FVulkanResourceMultiBuffer* Src = ResourceCast(Info.GetBuffer().Src);
+
+						if (Src)
+						{
+							// The source buffer should not have any associated views.
+							check(!Src->HasLinkedViews());
+
+							Dst->TakeOwnership(*Src);
+						}
+						else
+						{
+							Dst->ReleaseOwnership();
+						}
+
+						Dst->UpdateLinkedViews();
+					}
+					break;
+
+#if VULKAN_RHI_RAYTRACING
+				case FRHIResourceReplaceInfo::EType::RTGeometry:
+					{
+						FVulkanRayTracingGeometry* Src = ResourceCast(Info.GetRTGeometry().Src);
+						FVulkanRayTracingGeometry* Dst = ResourceCast(Info.GetRTGeometry().Dst);
+
+						if (!Src)
+						{
+							TRefCountPtr<FVulkanRayTracingGeometry> DeletionProxy = new FVulkanRayTracingGeometry(NoInit);
+							Dst->RemoveCompactionRequest();
+							Dst->Swap(*DeletionProxy);
+						}
+						else
+						{
+							Dst->Swap(*Src);
+						}
+					}
+					break;
+#endif // VULKAN_RHI_RAYTRACING
+				}
+			}
+		}
+	);
+
+	RHICmdList.RHIThreadFence(true);
+}
 
 #undef LOCTEXT_NAMESPACE

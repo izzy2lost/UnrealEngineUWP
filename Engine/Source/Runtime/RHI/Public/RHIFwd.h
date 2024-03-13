@@ -37,6 +37,7 @@ class FRHICommandListImmediate;
 // Contexts
 class IRHIComputeContext;
 class IRHICommandContext;
+class FRHIContextArray;
 
 class FRHIResourceReplaceInfo;
 class FRHIResourceReplaceBatcher;

@@ -64,13 +64,6 @@ static FAutoConsoleVariableRef CVarSlateDrawBatchNum(TEXT("Slate.DrawBatchNum"),
 	#define SLATE_DRAW_EVENTF(RHICmdList, EventName, Format, ...)
 #endif
 
-TAutoConsoleVariable<int32> CVarSlateAbsoluteIndices(
-	TEXT("Slate.AbsoluteIndices"),
-	0,
-	TEXT("0: Each element first vertex index starts at 0 (default), 1: Use absolute indices, simplifies draw call setup on RHIs that do not support BaseVertex"),
-	ECVF_Default
-);
-
 FSlateRHIRenderingPolicy::FSlateRHIRenderingPolicy(TSharedRef<FSlateFontServices> InSlateFontServices, TSharedRef<FSlateRHIResourceManager> InResourceManager, TOptional<int32> InitialBufferSize)
 	: FSlateRenderingPolicy(InSlateFontServices, 0)
 	, PostProcessor(new FSlatePostProcessor)
@@ -146,47 +139,26 @@ void FSlateRHIRenderingPolicy::BuildRenderingBuffers(FRHICommandListImmediate& R
 	const FSlateVertexArray& FinalVertexData = InBatchData.GetFinalVertexData();
 	const FSlateIndexArray& FinalIndexData = InBatchData.GetFinalIndexData();
 
-	const int32 NumVertices = FinalVertexData.Num();
-	const int32 NumIndices = FinalIndexData.Num();
+	const int32 NumBatchedVertices = FinalVertexData.Num();
+	const int32 NumBatchedIndices = FinalIndexData.Num();
 
-	if (InBatchData.GetRenderBatches().Num() > 0 && NumVertices > 0 && NumIndices > 0)
+	if (InBatchData.GetRenderBatches().Num() > 0 && NumBatchedVertices > 0 && NumBatchedIndices > 0)
 	{
-		bool bShouldShrinkResources = false;
-		bool bAbsoluteIndices = CVarSlateAbsoluteIndices.GetValueOnRenderThread() != 0;
+		const bool bShouldShrinkResources = false;
+		SourceVertexBuffer.PreFillBuffer(RHICmdList, NumBatchedVertices, bShouldShrinkResources);
+		SourceIndexBuffer.PreFillBuffer(RHICmdList, NumBatchedIndices, bShouldShrinkResources);
 
-		SourceVertexBuffer.PreFillBuffer(NumVertices, bShouldShrinkResources);
-		SourceIndexBuffer.PreFillBuffer(NumIndices, bShouldShrinkResources);
+		const uint32 RequiredVertexBufferSize = NumBatchedVertices * sizeof(FSlateVertex);
+		const uint32 RequiredIndexBufferSize = NumBatchedIndices * sizeof(SlateIndex);
 
-		RHICmdList.EnqueueLambda([
-			VertexBuffer = SourceVertexBuffer.VertexBufferRHI.GetReference(),
-			IndexBuffer = SourceIndexBuffer.IndexBufferRHI.GetReference(),
-			&InBatchData,
-			bAbsoluteIndices
-		](FRHICommandListImmediate& InRHICmdList)
-		{
-			SCOPE_CYCLE_COUNTER(STAT_SlateUpdateBufferRTTimeLambda);
+		uint8* DstVertexData = (uint8*)RHICmdList.LockBuffer(SourceVertexBuffer.VertexBufferRHI, 0, RequiredVertexBufferSize, RLM_WriteOnly);
+		uint8* DstIndexData  = (uint8*)RHICmdList.LockBuffer(SourceIndexBuffer.IndexBufferRHI, 0, RequiredIndexBufferSize, RLM_WriteOnly);
 
-			// Note: Use "Lambda" prefix to prevent clang/gcc warnings of '-Wshadow' warning
-			const FSlateVertexArray& LambdaFinalVertexData = InBatchData.GetFinalVertexData();
-			const FSlateIndexArray& LambdaFinalIndexData = InBatchData.GetFinalIndexData();
+		FMemory::Memcpy(DstVertexData, FinalVertexData.GetData(), RequiredVertexBufferSize);
+		FMemory::Memcpy(DstIndexData, FinalIndexData.GetData(), RequiredIndexBufferSize);
 
-			const int32 NumBatchedVertices = LambdaFinalVertexData.Num();
-			const int32 NumBatchedIndices = LambdaFinalIndexData.Num();
-
-			uint32 RequiredVertexBufferSize = NumBatchedVertices * sizeof(FSlateVertex);
-			uint8* VertexBufferData = (uint8*)InRHICmdList.LockBuffer(VertexBuffer, 0, RequiredVertexBufferSize, RLM_WriteOnly);
-
-			uint32 RequiredIndexBufferSize = NumBatchedIndices * sizeof(SlateIndex);
-			uint8* IndexBufferData = (uint8*)InRHICmdList.LockBuffer(IndexBuffer, 0, RequiredIndexBufferSize, RLM_WriteOnly);
-
-			FMemory::Memcpy(VertexBufferData, LambdaFinalVertexData.GetData(), RequiredVertexBufferSize);
-			FMemory::Memcpy(IndexBufferData, LambdaFinalIndexData.GetData(), RequiredIndexBufferSize);
-
-			InRHICmdList.UnlockBuffer(VertexBuffer);
-			InRHICmdList.UnlockBuffer(IndexBuffer);
-		});
-
-		RHICmdList.RHIThreadFence(true);
+		RHICmdList.UnlockBuffer(SourceVertexBuffer.VertexBufferRHI);
+		RHICmdList.UnlockBuffer(SourceIndexBuffer.IndexBufferRHI);
 	}
 
 	checkSlow(SourceVertexBuffer.GetBufferUsageSize() <= SourceVertexBuffer.GetBufferSize());
@@ -791,8 +763,6 @@ void FSlateRHIRenderingPolicy::DrawElements(
 #if WITH_SLATE_VISUALIZERS
 	FRandomStream BatchColors(1337);
 #endif
-
-	const bool bAbsoluteIndices = CVarSlateAbsoluteIndices.GetValueOnRenderThread() != 0;
 
 	// This variable tracks the last clipping state, so that if multiple batches have the same clipping state, we don't have to do any work.
 	const FSlateClippingState* LastClippingState;

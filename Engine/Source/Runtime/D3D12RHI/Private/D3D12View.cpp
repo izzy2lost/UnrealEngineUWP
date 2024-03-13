@@ -256,13 +256,13 @@ void FD3D12View::InitializeBindlessSlot()
 #endif
 }
 
-void FD3D12View::UpdateBindlessSlot(FRHICommandListBase& RHICmdList)
+void FD3D12View::UpdateBindlessSlot(FD3D12ContextArray const& Contexts)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (BindlessHandle.IsValid())
 	{
 		check(BindlessHandle.GetType() == ERHIDescriptorHeapType::Standard);
-		GetParentDevice()->GetBindlessDescriptorManager().UpdateDescriptor(RHICmdList, BindlessHandle, this);
+		GetParentDevice()->GetBindlessDescriptorManager().UpdateDescriptor(Contexts, BindlessHandle, this);
 	}
 #endif
 }
@@ -309,13 +309,13 @@ void FD3D12View::CreateView(FResourceInfo const& InResource, FNullDescPtr NullDe
 	InitializeBindlessSlot();
 }
 
-void FD3D12View::UpdateView(FRHICommandListBase& RHICmdList, const FResourceInfo& InResource, FNullDescPtr NullDescriptor)
+void FD3D12View::UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, FNullDescPtr NullDescriptor)
 {
 	UpdateResourceInfo(InResource, NullDescriptor);
-	UpdateBindlessSlot(RHICmdList);
+	UpdateBindlessSlot(Contexts);
 }
 
-void FD3D12View::ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
+void FD3D12View::ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
 {
 	// Can only be called if the base shader resource is not null.
 	check(ResourceInfo.BaseResource == InRenamedResource && ResourceInfo.ResourceLocation == InNewResourceLocation);
@@ -324,7 +324,7 @@ void FD3D12View::ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShad
 	ResourceInfo = InRenamedResource;
 
 	UpdateDescriptor();
-	UpdateBindlessSlot(RHICmdList);
+	UpdateBindlessSlot(Contexts);
 }
 
 
@@ -350,10 +350,10 @@ void FD3D12ConstantBufferView::CreateView(FResourceInfo const& InResource, uint3
 	TD3D12View::CreateView(InResource, CBVDesc);
 }
 
-void FD3D12ConstantBufferView::ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
+void FD3D12ConstantBufferView::ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
 {
 	D3DViewDesc.BufferLocation = InNewResourceLocation->GetGPUVirtualAddress() + Offset;
-	TD3D12View::ResourceRenamed(RHICmdList, InRenamedResource, InNewResourceLocation);
+	TD3D12View::ResourceRenamed(Contexts, InRenamedResource, InNewResourceLocation);
 }
 
 void FD3D12ConstantBufferView::UpdateDescriptor()

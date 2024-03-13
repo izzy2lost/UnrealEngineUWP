@@ -477,9 +477,15 @@ public:
 		return static_cast<FD3D12CommandContextBase&>(RHICmdList.GetComputeContext().GetLowestLevelContext());
 	}
 
+	static FD3D12CommandContextBase* Get(IRHIComputeContext* RHIContext)
+	{
+		return RHIContext ? static_cast<FD3D12CommandContextBase*>(&RHIContext->GetLowestLevelContext()) : nullptr;
+	}
+
+	virtual FD3D12CommandContext* GetSingleDeviceContext(uint32 InGPUIndex) = 0;
+
 protected:
 	friend class FD3D12CommandContext;
-	virtual FD3D12CommandContext* GetContext(uint32 InGPUIndex) = 0;
 
 	FRHIGPUMask GPUMask;
 	FRHIGPUMask PhysicalGPUMask;
@@ -496,7 +502,7 @@ public:
 	{
 		FD3D12CommandContextBase& Base = FD3D12CommandContextBase::Get(RHICmdList);
 #if WITH_MGPU
-		return *Base.GetContext(GPUIndex);
+		return *Base.GetSingleDeviceContext(GPUIndex);
 #else
 		return static_cast<FD3D12CommandContext&>(Base);
 #endif
@@ -760,7 +766,7 @@ public:
 
 protected:
 
-	FD3D12CommandContext* GetContext(uint32 InGPUIndex) final override 
+	FD3D12CommandContext* GetSingleDeviceContext(uint32 InGPUIndex) final override
 	{  
 		return InGPUIndex == GetGPUIndex() ? this : nullptr; 
 	}
@@ -1089,7 +1095,7 @@ public:
 		PhysicalContexts[GPUIndex] = Context;
 	}
 
-	FORCEINLINE FD3D12CommandContext* GetContext(uint32 GPUIndex) final override
+	FORCEINLINE FD3D12CommandContext* GetSingleDeviceContext(uint32 GPUIndex) final override
 	{
 		return PhysicalContexts[GPUIndex];
 	}
@@ -1119,4 +1125,27 @@ struct FD3D12TransitionData
 	TArray<TRHIPipelineArray<FD3D12SyncPointRef>, TInlineAllocator<MAX_NUM_GPUS>> SyncPoints;
 
 	bool bCrossPipeline = false;
+};
+
+class FD3D12ContextArray : public TRHIPipelineArray<FD3D12CommandContextBase*>
+{
+public:
+	FD3D12ContextArray(FRHIContextArray const& Contexts)
+	{
+		for (int32 Index = 0; Index < int32(ERHIPipeline::Num); ++Index)
+		{
+			(*this)[Index] = FD3D12CommandContextBase::Get(Contexts[Index]);
+		}
+	}
+
+	operator FRHIContextArray() const
+	{
+		FRHIContextArray Result;
+		for (int32 Index = 0; Index < int32(ERHIPipeline::Num); ++Index)
+		{
+			FD3D12CommandContextBase* Base = (*this)[Index];
+			Result[Index] = Base ? &Base->GetHighestLevelContext() : nullptr;
+		}
+		return Result;
+	}
 };

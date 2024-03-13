@@ -534,9 +534,9 @@ public:
 		return Texture;
 	}
 
-	void RHITransferBufferUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer) override final
+	virtual void RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos) override final
 	{
-		RHI->RHITransferBufferUnderlyingResource(RHICmdList, DestBuffer, SrcBuffer);
+		RHI->RHIReplaceResources(RHICmdList, MoveTemp(ReplaceInfos));
 	}
 
 	/**
@@ -1245,11 +1245,6 @@ public:
 	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer) override final
 	{
 		return RHI->RHICalcRayTracingGeometrySize(Initializer);
-	}
-
-	void RHITransferRayTracingGeometryUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry) override final
-	{
-		RHI->RHITransferRayTracingGeometryUnderlyingResource(RHICmdList, DestGeometry, SrcGeometry);
 	}
 #endif // RHI_RAYTRACING
 

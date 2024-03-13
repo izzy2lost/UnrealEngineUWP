@@ -662,22 +662,6 @@ void FMetalRHICommandContext::RHIBuildAccelerationStructure(const FRayTracingSce
 		InstanceBuffer, SceneBuildParams.InstanceBufferOffset);
 }
 
-void FMetalDynamicRHI::RHITransferRayTracingGeometryUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry)
-{
-	check(DestGeometry);
-	FMetalRayTracingGeometry* Dest = ResourceCast(DestGeometry);
-
-	if (!SrcGeometry)
-	{
-		Dest->ReleaseUnderlyingResource();
-	}
-	else
-	{
-		FMetalRayTracingGeometry* Src = ResourceCast(SrcGeometry);
-		Dest->Swap(*Src);
-	}
-}
-
 void FMetalRHICommandContext::RHIBuildAccelerationStructures(const TArrayView<const FRayTracingGeometryBuildParams> Params, const FRHIBufferRange& ScratchBufferRange)
 {
 	checkf(ScratchBufferRange.Buffer != nullptr, TEXT("BuildAccelerationStructures requires valid scratch buffer"));

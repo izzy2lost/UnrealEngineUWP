@@ -7,6 +7,7 @@ D3D12Resources.cpp: D3D RHI utility implementation.
 #include "D3D12Resources.h"
 #include "D3D12RHIPrivate.h"
 #include "D3D12IntelExtensions.h"
+#include "D3D12RayTracing.h"
 #include "EngineModule.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "ProfilingDebugging/MemoryTrace.h"
@@ -1423,7 +1424,7 @@ void FD3D12ResourceLocation::AsStandAlone(FD3D12Resource* Resource, uint64 InSiz
 }
 
 
-bool FD3D12ResourceLocation::OnAllocationMoved(FRHICommandListBase& RHICmdList, FRHIPoolAllocationData* InNewData)
+bool FD3D12ResourceLocation::OnAllocationMoved(FD3D12ContextArray const& Contexts, FRHIPoolAllocationData* InNewData)
 {
 	// Assume linked list allocated for now - only defragging allocator
 	FRHIPoolAllocationData& AllocationData = GetPoolAllocatorPrivateData().PoolData;
@@ -1516,7 +1517,7 @@ bool FD3D12ResourceLocation::OnAllocationMoved(FRHICommandListBase& RHICmdList, 
 	check(!CurrentResource->GetDesc().NeedsUAVAliasWorkarounds());
 
 	// Notify all the dependent resources about the change
-	Owner->ResourceRenamed(RHICmdList);
+	Owner->ResourceRenamed(Contexts);
 
 	return true;
 }
@@ -1641,4 +1642,62 @@ void FD3D12ResourceBarrierBatcher::FlushIntoCommandList(FD3D12CommandList& Comma
 uint32 FD3D12Buffer::GetParentGPUIndex() const
 {
 	return Parent->GetGPUIndex();
+}
+
+void FD3D12DynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
+{
+	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), TEXT("FD3D12DynamicRHI::RHIReplaceResources"),
+		[ReplaceInfos = MoveTemp(ReplaceInfos)](FD3D12ContextArray const& Contexts)
+		{
+			for (FRHIResourceReplaceInfo const& Info : ReplaceInfos)
+			{
+				switch (Info.GetType())
+				{
+				default:
+					checkNoEntry();
+					break;
+
+				case FRHIResourceReplaceInfo::EType::Buffer:
+					{
+						FD3D12Buffer* Dst = ResourceCast(Info.GetBuffer().Dst);
+						FD3D12Buffer* Src = ResourceCast(Info.GetBuffer().Src);
+
+						if (Src)
+						{
+							// The source buffer should not have any associated views.
+							check(!Src->HasLinkedViews());
+							Dst->TakeOwnership(*Src);
+						}
+						else
+						{
+							Dst->ReleaseOwnership();
+						}
+
+						Dst->ResourceRenamed(Contexts);
+					}
+					break;
+
+#if D3D12_RHI_RAYTRACING
+				case FRHIResourceReplaceInfo::EType::RTGeometry:
+					{
+						FD3D12RayTracingGeometry* Src = ResourceCast(Info.GetRTGeometry().Src);
+						FD3D12RayTracingGeometry* Dst = ResourceCast(Info.GetRTGeometry().Dst);
+
+						if (Src)
+						{
+							Dst->Swap(*Src);
+						}
+						else
+						{
+							Dst->ReleaseUnderlyingResource();
+						}
+					}
+					break;
+#endif // D3D12_RHI_RAYTRACING
+				}
+			}
+		}
+	);
+
+	RHICmdList.RHIThreadFence(true);
 }

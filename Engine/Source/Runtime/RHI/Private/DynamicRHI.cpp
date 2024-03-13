@@ -536,8 +536,18 @@ FTextureReferenceRHIRef FDynamicRHI::RHICreateTextureReference(FRHICommandListBa
 
 void FDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* InReferencedTexture)
 {
-	FRHITexture* ReferencedTexture = InReferencedTexture ? InReferencedTexture : FRHITextureReference::GetDefaultTexture();
-	TextureRef->SetReferencedTexture(ReferencedTexture);
+	// Workaround for a crash bug where FRHITextureReferences are deleted before this command is executed on the RHI thread.
+	// Take a reference on the FRHITextureReference object to keep it alive.
+	// @todo dev-pr - This should be refactored out when we eventually remove FRHITextureReference.
+	TRefCountPtr<FRHITextureReference> Ref = TextureRef;
+
+	RHICmdList.EnqueueLambda(TEXT("FDynamicRHI::RHIUpdateTextureReference"), [TextureRef = MoveTemp(Ref), InReferencedTexture](FRHICommandListBase&)
+	{
+		FRHITexture* ReferencedTexture = InReferencedTexture ? InReferencedTexture : FRHITextureReference::GetDefaultTexture();
+		TextureRef->SetReferencedTexture(ReferencedTexture);
+	});
+	
+	RHICmdList.RHIThreadFence(true);
 }
 
 void FDynamicRHI::RHIVirtualTextureSetFirstMipInMemory(FRHICommandListImmediate& RHICmdList, FRHITexture* TextureRHI, uint32 FirstMip)
