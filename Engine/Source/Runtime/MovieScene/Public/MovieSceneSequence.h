@@ -98,7 +98,9 @@ public:
 	/**
 	 * Unloads an object that has been loaded via a locator.
 	 */
-	MOVIESCENE_API void UnloadBoundObject(const UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& ObjectId, int32 BindingIndex);
+	UE_DEPRECATED(5.5, "UnloadBoundObject no longer supported")
+	MOVIESCENE_API void UnloadBoundObject(const UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& ObjectId, int32 BindingIndex) {}
+
 
 	/**
 	 * Called when Sequencer has created an object binding for a possessable object
@@ -130,7 +132,8 @@ public:
 	virtual void LocateBoundObjects(const FGuid& ObjectId, UObject* Context, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const {}
 
 	/**
-	 * Locate all the objects that correspond to the specified object ID, using the specified parameters
+	 * Locate all the objects that correspond to the specified object ID, using the specified parameters.
+	 * Calling this directly instead of IMovieScenePlayer::ResolveBoundObjects means that you won't be able to locate Spawnable objects or objects from Custom Bindings.
 	 *
 	 * @param ObjectId				The unique identifier of the object.
 	 * @param Params				Resolve parameters specifying the context and fragment-specific parameters
@@ -140,6 +143,7 @@ public:
 
 	/**
 	 * Locate all the objects that correspond to the specified object ID, using the specified context
+	 * Calling this directly instead of IMovieScenePlayer::ResolveBoundObjects means that you won't be able to locate Spawnable objects or objects from Custom Bindings.
 	 *
 	 * @param ObjectId				The unique identifier of the object.
 	 * @param Context				Optional context to use to find the required object (for instance, a parent spawnable object)
@@ -202,6 +206,13 @@ public:
 	 * @return true if objects can be spawned by sequencer, false if only existing objects can be possessed.
 	 */
 	virtual bool AllowsSpawnableObjects() const { return false; }
+
+	/**
+	 * Whether the sequence type supports custom bindings.
+	 *
+	 * @return true if custom bindings are supported, false if they are not
+	 */
+	virtual bool AllowsCustomBindings() const { return false; }
 
 	/**
 	 * Unbinds all possessable objects from the provided GUID.

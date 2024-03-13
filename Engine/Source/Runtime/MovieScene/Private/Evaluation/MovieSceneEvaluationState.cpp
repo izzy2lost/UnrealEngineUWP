@@ -15,7 +15,6 @@
 #include "MovieSceneObjectBindingID.h"
 #include "MovieSceneSequence.h"
 #include "UniversalObjectLocatorResolveParams.h"
-#include "UniversalObjectLocatorResolveParameterBuffer.inl"
 
 DECLARE_CYCLE_STAT(TEXT("Find Bound Objects"), MovieSceneEval_FindBoundObjects, STATGROUP_MovieSceneEval);
 DECLARE_CYCLE_STAT(TEXT("Iterate Bound Objects"), MovieSceneEval_IterateBoundObjects, STATGROUP_MovieSceneEval);
@@ -314,43 +313,6 @@ bool FMovieSceneObjectCache::InvalidateInternal(const FGuid& InGuid)
 	return true;
 }
 
-void FMovieSceneObjectCache::UnloadBinding(const FGuid& Guid, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
-{
-	// Invalidate binding, forcing it to be reloaded
-	InvalidateInternal(Guid);
-
-	TArray<FMovieSceneLocatorSpawnedCacheKey, TInlineAllocator<1>> LoadedCacheKeys;
-	Algo::TransformIf(LoadedBindingIds,
-		LoadedCacheKeys,
-		[Guid](const TPair<FMovieSceneLocatorSpawnedCacheKey, TWeakObjectPtr<>>  Pair) { return Pair.Key.BindingID == Guid; },
-		[Guid](const TPair<FMovieSceneLocatorSpawnedCacheKey, TWeakObjectPtr<>> Pair) { return Pair.Key; });
-	
-	for (const FMovieSceneLocatorSpawnedCacheKey& CacheKey : LoadedCacheKeys)
-	{
-		UnloadBindingInternal(CacheKey, SharedPlaybackState);
-	}
-}
-	
-
-void FMovieSceneObjectCache::UnloadBindingInternal(const FMovieSceneLocatorSpawnedCacheKey& CacheKey, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
-{
-	if (LoadedBindingIds.Contains(CacheKey))
-	{
-		UMovieSceneSequence* Sequence = WeakSequence.Get();
-		if (!Sequence)
-		{
-			return;
-		}
-		UE::UniversalObjectLocator::TResolveParamsWithBuffer<128> ResolveParams(SharedPlaybackState->GetPlaybackContext(), ELocatorResolveFlags::Unload);
-		ResolveParams.AddParameter(FLocatorSpawnedCacheResolveParameter::ParameterType, this);
-
-		SetResolvingBindingCacheKey(CacheKey);
-		Sequence->UnloadBoundObject(ResolveParams, CacheKey.BindingID, CacheKey.BindingIndex);
-		ClearResolvingBindingCacheKey();
-		LoadedBindingIds.Remove(CacheKey);
-	}
-}
-
 void FMovieSceneObjectCache::Clear(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	using namespace UE::MovieScene;
@@ -387,8 +349,6 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 	TGuardValue<bool> ReentrancyGuard(bReentrantUpdate, true);
 
 	// Invalidate existing bindings, we're going to rebuild them.
-
-	// Unload any objects that have been loaded during original resolution
 	FBoundObjects* Bindings = &BoundObjects.FindOrAdd(InGuid);
 	Bindings->Objects.Reset();
 
@@ -413,12 +373,6 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 	// Binding is inactive, do not resolve.
 	if (InactiveBindingIds.Contains(InGuid))
 	{
-		return;
-	}
-
-	if (CurrentlyResolvingCacheKey.IsValid())
-	{
-		// We're getting called recursively to resolve something. Return to avoid looping.
 		return;
 	}
 
@@ -493,9 +447,7 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 						}
 						else
 						{
-							UE::UniversalObjectLocator::TResolveParamsWithBuffer<128> ResolveParams(ResolutionContext);
-							ResolveParams.AddParameter(FLocatorSpawnedCacheResolveParameter::ParameterType, this);
-							SetResolvingBindingCacheKey({ InGuid, 0 });
+							UE::UniversalObjectLocator::FResolveParams ResolveParams(ResolutionContext);
 							if (Player)
 							{
 								Player->ResolveBoundObjects(ResolveParams, InGuid, SequenceID, *Sequence, FoundObjects);
@@ -547,9 +499,7 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 					}
 					else
 					{
-						UE::UniversalObjectLocator::TResolveParamsWithBuffer<128> ResolveParams(ResolutionContext);
-						ResolveParams.AddParameter(FLocatorSpawnedCacheResolveParameter::ParameterType, this);
-						SetResolvingBindingCacheKey({ InGuid, 0 });
+						UE::UniversalObjectLocator::FResolveParams ResolveParams(ResolutionContext);
 						if (Player)
 						{
 							Player->ResolveBoundObjects(ResolveParams, InGuid, SequenceID, *Sequence, FoundObjects);
@@ -570,7 +520,7 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 		}
 		else
 		{
-			// Probably a spawnable then (or an phantom)
+			// Probably a FMovieSceneSpawnable then (or an phantom)
 			bool bUseDefault = true;
 
 			// Allow external overrides for spawnables
@@ -589,7 +539,7 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 			if (bUseDefault)
 			{
 				const FMovieSceneSpawnRegister* SpawnRegister = SharedPlaybackState->FindCapability<FMovieSceneSpawnRegister>();
-				UObject* SpawnedObject = SpawnRegister ? SpawnRegister->FindSpawnedObject(InGuid, SequenceID).Get() : nullptr;
+				UObject* SpawnedObject = SpawnRegister ? SpawnRegister->FindSpawnedObject(InGuid, SequenceID, 0).Get() : nullptr;
 				if (SpawnedObject)
 				{
 					Bindings->Objects.Add(SpawnedObject);
@@ -635,8 +585,6 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 		}
 		ChildBindings.Remove(InGuid);
 	}
-
-	ClearResolvingBindingCacheKey();
 }
 
 void FMovieSceneObjectCache::UpdateSerialNumber()
@@ -673,59 +621,6 @@ void FMovieSceneObjectCache::Clear(IMovieScenePlayer& Player)
 void FMovieSceneObjectCache::FilterObjectBindings(UObject* PredicateObject, IMovieScenePlayer& Player, TArray<FMovieSceneObjectBindingID>* OutBindings)
 {
 	FilterObjectBindings(PredicateObject, Player.GetSharedPlaybackState(), OutBindings);
-}
-
-UObject* FMovieSceneObjectCache::FindExistingObject()
-{
-	if (CurrentlyResolvingCacheKey.IsValid())
-	{
-		if (TWeakObjectPtr<>* LoadedObjectPtr = LoadedBindingIds.Find(CurrentlyResolvingCacheKey))
-		{
-			return LoadedObjectPtr->Get();
-		}
-	}
-	return nullptr;
-}
-
-
-FName FMovieSceneObjectCache::GetRequestedObjectName()
-{
-#if WITH_EDITOR
-	// Find the object binding display name. If it's currently set to "Empty Binding" or some variant, return nothing, otherwise return the name
-	if (CurrentlyResolvingCacheKey.IsValid())
-	{
-		UMovieSceneSequence* Sequence = WeakSequence.Get();
-		UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
-		if (MovieScene)
-		{
-			if (FMovieScenePossessable* Possessable = MovieScene->FindPossessable(CurrentlyResolvingCacheKey.BindingID))
-			{
-				FString DisplayName = Possessable->GetName();
-				if (!DisplayName.StartsWith(TEXT("Empty Binding")))
-				{
-					return *DisplayName;
-				}
-			}
-		}
-	}
-#endif
-	return FName();
-}
-
-void FMovieSceneObjectCache::ReportSpawnedObject(UObject* Object)
-{
-	if (CurrentlyResolvingCacheKey.IsValid())
-	{
-		LoadedBindingIds.Add(CurrentlyResolvingCacheKey, Object);
-	}
-}
-
-void FMovieSceneObjectCache::SpawnedObjectDestroyed()
-{
-	if (CurrentlyResolvingCacheKey.IsValid())
-	{
-		LoadedBindingIds.Remove(CurrentlyResolvingCacheKey);
-	}
 }
 
 UE::MovieScene::TPlaybackCapabilityID<FMovieSceneEvaluationState> FMovieSceneEvaluationState::ID = UE::MovieScene::TPlaybackCapabilityID<FMovieSceneEvaluationState>::Register();
@@ -852,11 +747,6 @@ void FMovieSceneEvaluationState::RegisterObjectCacheEvents(UMovieSceneEntitySyst
 	FVersionedObjectCache& VersionedObjectCache = ObjectCaches.FindChecked(SequenceID);
 	VersionedObjectCache.OnInvalidateObjectBindingHandle = ObjectCache.OnBindingInvalidated.AddUObject(
 			Linker, &UMovieSceneEntitySystemLinker::InvalidateObjectBinding, InstanceHandle);
-}
-
-bool FMovieSceneEvaluationState::IsResolvingObject() const
-{
-	return Algo::AnyOf(ObjectCaches, [](TPair<FMovieSceneSequenceID, FVersionedObjectCache> Pair) { return Pair.Value.ObjectCache.GetResolvingBindingCacheKey().IsValid(); });
 }
 
 void FMovieSceneEvaluationState::AssignSequence(FMovieSceneSequenceIDRef InSequenceID, UMovieSceneSequence& InSequence, IMovieScenePlayer& Player)

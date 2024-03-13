@@ -23,6 +23,7 @@ struct FMovieScenePossessable;
 struct FMovieSceneSpawnable;
 struct FNotificationInfo;
 class ULevelSequence;
+class UMovieSceneCustomBinding;
 enum class EMovieSceneBlendType : uint8;
 
 namespace UE::Sequencer
@@ -50,7 +51,23 @@ struct FCreateBindingParams
 	}
 
 	FString BindingNameOverride;
+	
 	FName DesiredFolder;
+	
+	/* If true, will prefer the creation of a custom or regular Spawnable binding, unless such is incompatible with the passed in object.*/
+	bool bSpawnable = false;
+	/* If true, will prefer the creation of a custom Replaceable binding, unless such is incompatible with the passed in object.*/
+	bool bReplaceable = false;
+	/* If true, will allow the creation of custom bindings if they support the object type.*/
+	bool bAllowCustomBinding = true;
+	/* If set, will attempt to replace any existing possessable binding at the provided guid and binding index */
+	FGuid ReplacementGuid;
+	/* Optional BindingIndex used if bReplace is true to replace a specific possessable binding*/
+	int32 BindingIndex = 0;
+	/* Optional pre-created custom binding to use when creating the binding.*/
+	TObjectPtr<UMovieSceneCustomBinding> CustomBinding = nullptr;
+	/* May be used depending on options if an asset UObject is passed in to create a custom or regular spawnable actor binding*/
+	TObjectPtr<UActorFactory> ActorFactory = nullptr;
 };
 
 } // namespace UE::Sequencer
@@ -184,11 +201,14 @@ struct SEQUENCER_API FSequencerUtilities
 
 	static FGuid MakeNewSpawnable(TSharedRef<ISequencer> Sequencer, UObject& SourceObject, UActorFactory* ActorFactory = nullptr, bool bSetupDefaults = true, FName SpawnableName = NAME_None);
 
-	/** Convert the requested possessable to spawnable. If there are multiple objects assigned to the possessable, multiple spawnables will be created */
+	/** Convert the requested object binding to old-style spawnable. If there are multiple objects assigned to the possessable, multiple spawnables will be created */
 	static TArray<FMovieSceneSpawnable*> ConvertToSpawnable(TSharedRef<ISequencer> Sequencer, FGuid PossessableGuid);
 	
-	/** Convert the requested spawnable to possessable */
-	static FMovieScenePossessable* ConvertToPossessable(TSharedRef<ISequencer> Sequencer, FGuid SpawnableGuid);
+	/** Convert the requested object binding and object binding index to a possessable */
+	static FMovieScenePossessable* ConvertToPossessable(TSharedRef<ISequencer> Sequencer, FGuid BindingGuid, int32 BindingIndex=0);
+
+	/** Convert the selected object binding and object binding index to a custom binding of the chosen type.*/
+	static FMovieScenePossessable* ConvertToCustomBinding(TSharedRef<ISequencer> Sequencer, FGuid BindingGuid, TSubclassOf<UMovieSceneCustomBinding> CustomBindingType, int32 BindingIndex = 0);
 
 	/** Copy/paste folders */
 	static void CopyFolders(const TArray<UMovieSceneFolder*>& Folders, FString& ExportedText);

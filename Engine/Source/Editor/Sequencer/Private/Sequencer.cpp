@@ -164,6 +164,9 @@
 #include "EngineModule.h"
 #include "Tracks/MovieSceneBindingLifetimeTrack.h"
 #include "Sections/MovieSceneBindingLifetimeSection.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
+#include "Bindings/MovieSceneSpawnableActorBinding.h"
+#include "Bindings/MovieSceneReplaceableActorBinding.h"
 
 #define LOCTEXT_NAMESPACE "Sequencer"
 
@@ -430,13 +433,6 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->CloseAllEditorsForAsset(GetRootMovieSceneSequence());
 					return;
 				}
-			}
-
-			 /*If we are mid-resolve, we may be loading objects and trying to get a handle here may go into infinite recursion trying 
-			 to resolve the same binding.*/
-			if (State.IsResolvingObject())
-			{
-				return;
 			}
 
 			// Reset Bindings for replaced objects.
@@ -1307,9 +1303,9 @@ void FSequencer::SuppressAutoEvaluation(UMovieSceneSequence* Sequence, const FGu
 	SuppressAutoEvalSignature = MakeTuple(MakeWeakObjectPtr(Sequence), InSequenceSignature);
 }
 
-FGuid FSequencer::CreateBinding(UObject& InObject, const FString& InName)
+FGuid FSequencer::CreateBinding(UObject& InObject, const UE::Sequencer::FCreateBindingParams& InParams)
 {
-    return FSequencerUtilities::CreateBinding(AsShared(), InObject, UE::Sequencer::FCreateBindingParams().Name(CopyTemp(InName)));
+    return FSequencerUtilities::CreateBinding(AsShared(), InObject, InParams);
 }
 
 UObject* FSequencer::GetPlaybackContext() const
@@ -1615,6 +1611,22 @@ void FSequencer::UpdateSequencerCustomizations(const UMovieSceneSequence* Previo
 			OnPaste.Add(CustomizationInfo.OnPaste);
 		}
 	}
+
+	// TODO: Allow customization of which custom bindings are allowed? For now just iterate over all subclasses and sort by priority
+
+	// Cache custom spawnable types
+	SupportedCustomBindingTypes.Empty();
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		if (It->IsChildOf(UMovieSceneCustomBinding::StaticClass()) && !It->HasAnyClassFlags(CLASS_Abstract))
+		{
+			SupportedCustomBindingTypes.Add(*It);
+		}
+	}
+
+	// Sort by spawner priority to allow disambiguation for similar object types
+	SupportedCustomBindingTypes.Sort([](const TSubclassOf<UMovieSceneCustomBinding>& A, const TSubclassOf<UMovieSceneCustomBinding>& B) {
+		return A && B && A->GetDefaultObject<UMovieSceneCustomBinding>()->GetCustomBindingPriority() > B->GetDefaultObject<UMovieSceneCustomBinding>()->GetCustomBindingPriority(); });
 }
 
 void FSequencer::RerunConstructionScripts()
@@ -3825,42 +3837,62 @@ TSharedRef<SWidget> FSequencer::MakeTimeRange(const TSharedRef<SWidget>& InnerCo
 FGuid FSequencer::FindUnspawnedObjectGuid(UObject& InObject)
 {
 	if (UMovieSceneSequence* FocusedMovieSceneSequence = GetFocusedMovieSceneSequence())
-{
+	{
 		UMovieScene* MovieScene = FocusedMovieSceneSequence->GetMovieScene();
 
-	// If the object is an archetype, the it relates to an unspawned spawnable.
+		// If the object is an archetype, the it relates to an unspawned spawnable.
 		UObject* ParentObject = FocusedMovieSceneSequence->GetParentObject(&InObject);
-	if (ParentObject && FMovieSceneSpawnable::IsSpawnableTemplate(*ParentObject))
-	{
-		FMovieSceneSpawnable* ParentSpawnable = MovieScene->FindSpawnable([&](FMovieSceneSpawnable& InSpawnable){
-			return InSpawnable.GetObjectTemplate() == ParentObject;
-		});
-
-		if (ParentSpawnable)
+		if (ParentObject && FMovieSceneSpawnable::IsSpawnableTemplate(*ParentObject))
 		{
-			// The only way to find the object now is to resolve all the child bindings, and see if they are the same
-			for (const FGuid& ChildGuid : ParentSpawnable->GetChildPossessables())
+			FMovieSceneSpawnable* ParentSpawnable = MovieScene->FindSpawnable([&](FMovieSceneSpawnable& InSpawnable){
+				return InSpawnable.GetObjectTemplate() == ParentObject;
+			});
+
+			if (ParentSpawnable)
 			{
-					TArrayView<TWeakObjectPtr<>> BoundObjects = State.FindBoundObjects(ChildGuid, GetFocusedTemplateID(), GetSharedPlaybackState());
-					const bool bHasObject = BoundObjects.Contains(&InObject);
-				if (bHasObject)
+				// TODO: Won't this always fail to find anything if the spawnable actor is unspawned?
+
+				// The only way to find the object now is to resolve all the child bindings, and see if they are the same
+				for (const FGuid& ChildGuid : ParentSpawnable->GetChildPossessables())
 				{
-					return ChildGuid;
+						TArrayView<TWeakObjectPtr<>> BoundObjects = State.FindBoundObjects(ChildGuid, GetFocusedTemplateID(), GetSharedPlaybackState());
+						const bool bHasObject = BoundObjects.Contains(&InObject);
+					if (bHasObject)
+					{
+						return ChildGuid;
+					}
 				}
 			}
 		}
-	}
-	else if (FMovieSceneSpawnable::IsSpawnableTemplate(InObject))
-	{
-		FMovieSceneSpawnable* SpawnableByArchetype = MovieScene->FindSpawnable([&](FMovieSceneSpawnable& InSpawnable){
-			return InSpawnable.GetObjectTemplate() == &InObject;
-		});
-
-		if (SpawnableByArchetype)
+		else if (FMovieSceneSpawnable::IsSpawnableTemplate(InObject))
 		{
-			return SpawnableByArchetype->GetGuid();
+			FMovieSceneSpawnable* SpawnableByArchetype = MovieScene->FindSpawnable([&](FMovieSceneSpawnable& InSpawnable){
+				return InSpawnable.GetObjectTemplate() == &InObject;
+			});
+
+			if (SpawnableByArchetype)
+			{
+				return SpawnableByArchetype->GetGuid();
+			}
+
+			// Also check for custom spawnables
+			if (const FMovieSceneBindingReferences* BindingReferences = FocusedMovieSceneSequence->GetBindingReferences())
+			{
+				for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+				{
+					if (BindingReference.CustomBinding)
+					{
+						if (UMovieSceneSpawnableBindingBase* SpawnableBinding = BindingReference.CustomBinding->AsSpawnable(GetSharedPlaybackState()))
+						{
+							if (SpawnableBinding->SupportsObjectTemplates() && SpawnableBinding->GetObjectTemplate() == &InObject)
+							{
+								return BindingReference.ID;
+							}
+						}
+					}
+				}
+			}
 		}
-	}
 	}
 
 	return FGuid();
@@ -3945,9 +3977,8 @@ FGuid FSequencer::GetHandleToObject( UObject* Object, bool bCreateHandleIfMissin
 
 	if (ObjectGuid.IsValid())
 	{
-		// Check here for spawnable otherwise spawnables get recreated as possessables, which doesn't make sense
-		FMovieSceneSpawnable* Spawnable = FocusedMovieScene->FindSpawnable(ObjectGuid);
-		if (Spawnable)
+		// Check here for spawnable and custom spawnables otherwise spawnables get recreated as possessables, which doesn't make sense
+		if (MovieSceneHelpers::IsBoundToAnySpawnable(FocusedMovieSceneSequence, ObjectGuid, GetSharedPlaybackState()))
 		{
 			return ObjectGuid;
 		}
@@ -4597,27 +4628,24 @@ UObject* FSequencer::FindSpawnedObjectOrTemplate(const FGuid& BindingId)
 	if (Possessable && Possessable->GetParent().IsValid())
 	{
 		// If we're a spawnable and we don't have the object, use the default object to build up the track menu
-		FMovieSceneSpawnable* ParentSpawnable = FocusedMovieScene->FindSpawnable(Possessable->GetParent());
-		if (ParentSpawnable)
+		UObject* ParentObject = MovieSceneHelpers::GetObjectTemplate(Sequence, Possessable->GetParent(), GetSharedPlaybackState());
+
+		if (ParentObject)
 		{
-			UObject* ParentObject = ParentSpawnable->GetObjectTemplate();
-			if (ParentObject)
+			TArrayView<TWeakObjectPtr<>> BoundObjects = State.FindBoundObjects(BindingId, GetFocusedTemplateID(), GetSharedPlaybackState());
+			for (TWeakObjectPtr<> WeakObj : BoundObjects)
 			{
-				TArrayView<TWeakObjectPtr<>> BoundObjects = State.FindBoundObjects(BindingId, GetFocusedTemplateID(), GetSharedPlaybackState());
-				for (TWeakObjectPtr<> WeakObj : BoundObjects)
-				{
-					if (UObject* Obj = WeakObj.Get())
+				if (UObject* Obj = WeakObj.Get())
 				{
 					return Obj;
 				}
 			}
 		}
 	}
-	}
 	// If we're a spawnable and we don't have the object, use the default object to build up the track menu
-	else if (FMovieSceneSpawnable* Spawnable = FocusedMovieScene->FindSpawnable(BindingId))
+	else if (UObject* Template = MovieSceneHelpers::GetObjectTemplate(Sequence, BindingId, GetSharedPlaybackState()))
 	{
-		return Spawnable->GetObjectTemplate();
+		return Template;
 	}
 
 	return nullptr;
@@ -5739,8 +5767,9 @@ void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, cons
 {
 	bool bAddSpawnable = FSlateApplication::Get().GetModifierKeys().IsShiftDown();
 	bool bAddPossessable = FSlateApplication::Get().GetModifierKeys().IsControlDown();
+	bool bAddReplaceable = FSlateApplication::Get().GetModifierKeys().IsAltDown();
 
-	if (bAddSpawnable || bAddPossessable)
+	if (bAddSpawnable || bAddPossessable || bAddReplaceable)
 	{
 		TArray<AActor*> SpawnedActors;
 
@@ -5766,12 +5795,15 @@ void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, cons
 
 				OnActorAddedToSequencerEvent.Broadcast(NewActor, PossessableGuid);
 
-				if (bAddSpawnable)
+				if (bAddSpawnable || bAddReplaceable)
 				{
-					TArray<FMovieSceneSpawnable*> Spawnables = FSequencerUtilities::ConvertToSpawnable(AsShared(), PossessableGuid);
-					if (Spawnables.Num() > 0)
+					TSubclassOf<UMovieSceneCustomBinding> CustomBindingClass = bAddSpawnable ? UMovieSceneSpawnableActorBinding::StaticClass() : UMovieSceneReplaceableActorBinding::StaticClass();
+
+					FMovieScenePossessable* NewPossessable = FSequencerUtilities::ConvertToCustomBinding(AsShared(), NewGuid, CustomBindingClass);
+
+					if (NewPossessable)
 					{
-						for (TWeakObjectPtr<> WeakObject : FindBoundObjects(Spawnables[0]->GetGuid(), ActiveTemplateIDs.Top()))
+						for (TWeakObjectPtr<> WeakObject : FindBoundObjects(NewPossessable->GetGuid(), ActiveTemplateIDs.Top()))
 						{
 							AActor* SpawnedActor = Cast<AActor>(WeakObject.Get());
 							if (SpawnedActor)
@@ -5780,7 +5812,8 @@ void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, cons
 								NewActor = SpawnedActor;
 							}
 						}
-						NewGuid = Spawnables[0]->GetGuid();
+
+						NewGuid = NewPossessable->GetGuid();
 					}
 				}
 
@@ -6360,7 +6393,7 @@ void FSequencer::SynchronizeExternalSelectionWithSequencerSelection()
 			: SelectedItem->FindAncestorOfType<IObjectBindingExtension>(true);
 
 		// If the closest node is an object node, try to get the actor/component nodes from it.
-		if (ObjectBinding)
+	if (ObjectBinding)
 		{
 			for (auto RuntimeObject : FindBoundObjects(ObjectBinding->GetObjectGuid(), ActiveTemplateIDs.Top()) )
 			{
@@ -8539,7 +8572,8 @@ void FSequencer::SaveSelectedNodesSpawnableState()
 {
 	using namespace UE::Sequencer;
 
-	UMovieScene* MovieScene = GetFocusedMovieSceneSequence()->GetMovieScene();
+	UMovieSceneSequence* Sequence = GetFocusedMovieSceneSequence();
+	UMovieScene* MovieScene = Sequence->GetMovieScene();
 
 	if (MovieScene->IsReadOnly())
 	{
@@ -8551,33 +8585,22 @@ void FSequencer::SaveSelectedNodesSpawnableState()
 
 	MovieScene->Modify();
 
-	TArray<FMovieSceneSpawnable*> Spawnables;
-
-	for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : ViewModel->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
-	{
-		FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBindingNode->GetObjectGuid());
-		if (Spawnable)
-		{
-			Spawnables.Add(Spawnable);
-		}
-	}
-
-	FScopedSlowTask SlowTask(Spawnables.Num(), LOCTEXT("SaveSpawnableStateProgress", "Saving selected spawnables"));
+	FScopedSlowTask SlowTask(ViewModel->GetSelection()->Outliner.Num(), LOCTEXT("SaveSpawnableStateProgress", "Saving selected spawnables"));
 	SlowTask.MakeDialog(true);
 
-	TArray<AActor*> PossessedActors;
-	for (FMovieSceneSpawnable* Spawnable : Spawnables)
+	for (TViewModelPtr<IOutlinerExtension> OutlinerSelectionNode : ViewModel->GetSelection()->Outliner)
 	{
 		SlowTask.EnterProgressFrame();
-		
-		SpawnRegister->SaveDefaultSpawnableState(*Spawnable, ActiveTemplateIDs.Top(), *this);
-
-		if (GWarn->ReceivedUserCancel())
+		if (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode = OutlinerSelectionNode.ImplicitCast())
 		{
-			break;
+			SpawnRegister->SaveDefaultSpawnableState(ObjectBindingNode->GetObjectGuid(), ActiveTemplateIDs.Top(), GetSharedPlaybackState());
+
+			if (GWarn->ReceivedUserCancel())
+			{
+				break;
+			}
 		}
 	}
-
 	NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 }
 
@@ -8744,8 +8767,7 @@ void FSequencer::ConvertSelectedNodesToPossessables()
 
 	for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : ViewModel->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
 	{
-		FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBindingNode->GetObjectGuid());
-		if (Spawnable && SpawnRegister->CanConvertSpawnableToPossessable(*Spawnable))
+		if (SpawnRegister->CanConvertToPossessable(ObjectBindingNode->GetObjectGuid(), GetFocusedTemplateID(), GetSharedPlaybackState()))
 		{
 			ObjectBindingNodes.Add(ObjectBindingNode.Get());
 		}
@@ -8764,19 +8786,15 @@ void FSequencer::ConvertSelectedNodesToPossessables()
 		{
 			SlowTask.EnterProgressFrame();
 
-			FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBindingNode->GetObjectGuid());
-			if (Spawnable)
+			FMovieScenePossessable* Possessable = FSequencerUtilities::ConvertToPossessable(AsShared(), ObjectBindingNode->GetObjectGuid());
+
+			ForceEvaluate();
+
+			for (TWeakObjectPtr<> WeakObject : FindBoundObjects(Possessable->GetGuid(), ActiveTemplateIDs.Top()))
 			{
-				FMovieScenePossessable* Possessable = FSequencerUtilities::ConvertToPossessable(AsShared(), Spawnable->GetGuid());
-
-				ForceEvaluate();
-
-				for (TWeakObjectPtr<> WeakObject : FindBoundObjects(Possessable->GetGuid(), ActiveTemplateIDs.Top()))
+				if (AActor* PossessedActor = Cast<AActor>(WeakObject.Get()))
 				{
-					if (AActor* PossessedActor = Cast<AActor>(WeakObject.Get()))
-					{
-						PossessedActors.Add(PossessedActor);
-					}
+					PossessedActors.Add(PossessedActor);
 				}
 			}
 
@@ -10716,19 +10734,14 @@ void FSequencer::BindCommands()
 		}
 		return false;
 	};
-	SequencerCommandBindings->MapAction(
-		FSequencerCommands::Get().ConvertToSpawnable,
-		FExecuteAction::CreateSP(this, &FSequencer::ConvertSelectedNodesToSpawnables),
-		FCanExecuteAction::CreateLambda(CanConvertToSpawnables)
-	);
 
-	auto AreConvertableSpawnablesSelected = [this] {
+
+	auto CanSelectedNodesBeConvertedToPossessables = [this] {
 		UMovieScene* MovieScene = GetFocusedMovieSceneSequence()->GetMovieScene();
 
 		for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : ViewModel->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
 		{
-			FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBindingNode->GetObjectGuid());
-			if (Spawnable && SpawnRegister->CanConvertSpawnableToPossessable(*Spawnable))
+			if (SpawnRegister->CanConvertToPossessable(ObjectBindingNode->GetObjectGuid(), GetFocusedTemplateID(), GetSharedPlaybackState()))
 			{
 				return true;
 			}
@@ -10739,16 +10752,15 @@ void FSequencer::BindCommands()
 	SequencerCommandBindings->MapAction(
 		FSequencerCommands::Get().ConvertToPossessable,
 		FExecuteAction::CreateSP(this, &FSequencer::ConvertSelectedNodesToPossessables),
-		FCanExecuteAction::CreateLambda(AreConvertableSpawnablesSelected)
+		FCanExecuteAction::CreateLambda(CanSelectedNodesBeConvertedToPossessables)
 	);
 
 	auto AreSpawnablesSelected = [this] {
-		UMovieScene* MovieScene = GetFocusedMovieSceneSequence()->GetMovieScene();
+		UMovieSceneSequence* MovieSceneSequence = GetFocusedMovieSceneSequence();
 
 		for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : ViewModel->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
 		{
-			FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBindingNode->GetObjectGuid());
-			if (Spawnable)
+			if (MovieSceneHelpers::IsBoundToAnySpawnable(MovieSceneSequence, ObjectBindingNode->GetObjectGuid(), GetSharedPlaybackState()))
 			{
 				return true;
 			}

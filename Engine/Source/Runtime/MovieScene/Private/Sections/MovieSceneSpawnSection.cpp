@@ -33,6 +33,7 @@ void UMovieSceneSpawnSection::ImportEntityImpl(UMovieSceneEntitySystemLinker* En
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()
 		.Add(FBuiltInComponentTypes::Get()->SpawnableBinding, Params.GetObjectBindingID())
+		.AddTag(FBuiltInComponentTypes::Get()->Tags.OldStyleSpawnable)
 	);
 }
 

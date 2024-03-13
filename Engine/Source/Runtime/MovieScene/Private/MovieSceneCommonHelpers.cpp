@@ -1,5 +1,4 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "MovieSceneCommonHelpers.h"
 #include "Components/SceneComponent.h"
 #include "GameFramework/Actor.h"
@@ -17,6 +16,8 @@
 #include "MovieSceneTrack.h"
 #include "Engine/Engine.h"
 #include "UObject/Package.h"
+#include "MovieSceneBindingReferences.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
 
 bool MovieSceneHelpers::IsSectionKeyable(const UMovieSceneSection* Section)
 {
@@ -578,6 +579,31 @@ float MovieSceneHelpers::CalculateWeightForBlending(UMovieSceneSection* SectionT
 	return Weight;
 }
 
+FString MovieSceneHelpers::MakeUniqueBindingName(UMovieScene* MovieScene, const FString& InName)
+{
+	FString NewName = InName;
+
+	auto DuplNameSpawnable = [&](FMovieSceneSpawnable& InSpawnable)
+	{
+		return InSpawnable.GetName() == NewName;
+	};
+
+	auto DuplNamePossessable = [&](FMovieScenePossessable& InPossessable)
+	{
+		return InPossessable.GetName() == NewName;
+	};
+
+	int32 Index = 2;
+	FString UniqueString;
+	while (MovieScene->FindSpawnable(DuplNameSpawnable) || MovieScene->FindPossessable(DuplNamePossessable))
+	{
+		NewName.RemoveFromEnd(UniqueString);
+		UniqueString = FString::Printf(TEXT(" (%d)"), Index++);
+		NewName += UniqueString;
+	}
+	return NewName;
+}
+
 FString MovieSceneHelpers::MakeUniqueSpawnableName(UMovieScene* MovieScene, const FString& InName)
 {
 	FString NewName = InName;
@@ -609,6 +635,13 @@ UObject* MovieSceneHelpers::MakeSpawnableTemplateFromInstance(UObject& InSourceO
 	UEngine::CopyPropertiesForUnrelatedObjects(&InSourceObject, NewInstance, CopyParams);
 
 	AActor* Actor = CastChecked<AActor>(NewInstance);
+	
+	// Remove tags that may have gotten stuck on- for spawnables/replaceables these tags will be added after spawning
+	static const FName SequencerActorTag(TEXT("SequencerActor"));
+	static const FName SequencerPreviewActorTag(TEXT("SequencerPreviewActor"));
+	Actor->Tags.Remove(SequencerActorTag);
+	Actor->Tags.Remove(SequencerPreviewActorTag);
+
 	if (Actor->GetAttachParentActor() != nullptr)
 	{
 		// We don't support spawnables and attachments right now
@@ -628,6 +661,206 @@ UObject* MovieSceneHelpers::MakeSpawnableTemplateFromInstance(UObject& InSourceO
 
 	return NewInstance;
 }
+
+
+bool MovieSceneHelpers::IsBoundToAnySpawnable(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
+{
+	if (Sequence)
+	{
+		if (UMovieScene* MovieScene = Sequence->GetMovieScene())
+		{
+			if (MovieScene->FindSpawnable(ObjectId))
+			{
+				return true;
+			}
+		}
+
+		const FMovieSceneBindingReferences* Refs = Sequence->GetBindingReferences();
+		if (Refs)
+		{
+			return Algo::AnyOf(Refs->GetReferences(ObjectId), [&SharedPlaybackState](const FMovieSceneBindingReference& BindingReference) {
+				return BindingReference.CustomBinding && BindingReference.CustomBinding->WillSpawnObject(SharedPlaybackState);
+			});
+		}
+	}
+	return false;
+}
+
+bool MovieSceneHelpers::IsBoundToSpawnable(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex)
+{
+	if (Sequence)
+	{
+		if (UMovieScene* MovieScene = Sequence->GetMovieScene())
+		{
+			if (MovieScene->FindSpawnable(ObjectId))
+			{
+				return true;
+			}
+		}
+
+		const FMovieSceneBindingReferences* Refs = Sequence->GetBindingReferences();
+		if (Refs)
+		{
+			if (const FMovieSceneBindingReference* Ref = Refs->GetReference(ObjectId, BindingIndex))
+			{
+				return Ref->CustomBinding && Ref->CustomBinding->WillSpawnObject(SharedPlaybackState);
+			}
+		}
+	}
+	return false;
+}
+
+UObject* MovieSceneHelpers::GetObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex)
+{
+	if (Sequence)
+	{
+		UMovieScene* MovieScene = Sequence->GetMovieScene();
+		if (!MovieScene)
+		{
+			return nullptr;
+		}
+		if (FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectId))
+		{
+			return Spawnable->GetObjectTemplate();
+		}
+		else if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			if (UMovieSceneCustomBinding* CustomBinding = BindingReferences->GetCustomBinding(ObjectId, BindingIndex))
+			{
+				if (UMovieSceneSpawnableBindingBase* SpawnableBinding = CustomBinding->AsSpawnable(SharedPlaybackState))
+				{
+					return SpawnableBinding->GetObjectTemplate();
+				}
+			}
+		}
+	}
+	return nullptr;
+}
+
+bool MovieSceneHelpers::SetObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, UObject* InSourceObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex)
+{
+	if (Sequence)
+	{
+		UMovieScene* MovieScene = Sequence->GetMovieScene();
+		if (!MovieScene)
+		{
+			return false;
+		}
+		if (FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectId))
+		{
+			Spawnable->SetObjectTemplate(InSourceObject);
+			return true;
+		}
+		else if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			if (UMovieSceneCustomBinding* CustomBinding = BindingReferences->GetCustomBinding(ObjectId, BindingIndex))
+			{
+				if (UMovieSceneSpawnableBindingBase* SpawnableBinding = CustomBinding->AsSpawnable(SharedPlaybackState))
+				{
+					SpawnableBinding->SetObjectTemplate(InSourceObject);
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+bool MovieSceneHelpers::SupportsObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex)
+{
+	if (Sequence)
+	{
+		UMovieScene* MovieScene = Sequence->GetMovieScene();
+		if (!MovieScene)
+		{
+			return false;
+		}
+		if (FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectId))
+		{
+			return true;
+		}
+		else if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			if (const UMovieSceneCustomBinding* CustomBinding = BindingReferences->GetCustomBinding(ObjectId, BindingIndex))
+			{
+				if (const UMovieSceneSpawnableBindingBase* SpawnableBinding = CustomBinding->AsSpawnable(SharedPlaybackState))
+				{
+					if (SpawnableBinding && SpawnableBinding->SupportsObjectTemplates())
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
+bool MovieSceneHelpers::CopyObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, UObject* InSourceObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex )
+{
+	if (Sequence && InSourceObject)
+	{
+		UMovieScene* MovieScene = Sequence->GetMovieScene();
+		if (!MovieScene)
+		{
+			return false;
+		}
+		if (FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectId))
+		{
+			Spawnable->CopyObjectTemplate(*InSourceObject, *Sequence);
+			return true;
+		}
+		else if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			if (UMovieSceneCustomBinding* CustomBinding = BindingReferences->GetCustomBinding(ObjectId, BindingIndex))
+			{
+				if (UMovieSceneSpawnableBindingBase* SpawnableBinding = CustomBinding->AsSpawnable(SharedPlaybackState))
+				{
+					SpawnableBinding->CopyObjectTemplate(InSourceObject, *Sequence);
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+#if WITH_EDITORONLY_DATA
+
+const UClass* MovieSceneHelpers::GetBoundObjectClass(UMovieSceneSequence* Sequence, const FGuid& ObjectId, int32 BindingIndex)
+{
+	if (Sequence)
+	{
+		UMovieScene* MovieScene = Sequence->GetMovieScene();
+		if (!MovieScene)
+		{
+			return nullptr;
+		}
+		if (FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectId))
+		{
+			if (UObject* ObjectTemplate = Spawnable->GetObjectTemplate())
+			{
+				return ObjectTemplate->GetClass();
+			}
+		}
+		else if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			if (UMovieSceneCustomBinding* CustomBinding = BindingReferences->GetCustomBinding(ObjectId, BindingIndex))
+			{
+				return CustomBinding->GetBoundObjectClass();
+			}
+		}
+
+		if (FMovieScenePossessable* Possessable = MovieScene->FindPossessable(ObjectId))
+		{
+			return Possessable->GetPossessedObjectClass();
+		}
+	}
+	return nullptr;
+}
+
+#endif
+
 
 
 MovieSceneHelpers::FMovieSceneScopedPackageDirtyGuard::FMovieSceneScopedPackageDirtyGuard(USceneComponent* InComponent)

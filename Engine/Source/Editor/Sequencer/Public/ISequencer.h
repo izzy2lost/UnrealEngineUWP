@@ -35,6 +35,7 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
 #include "ITimeSlider.h"
 #endif
+#include "Bindings/MovieSceneCustomBinding.h"
 
 #include "ISequencer.generated.h"
 
@@ -81,6 +82,7 @@ namespace Sequencer
 {
 
 class FSequencerEditorViewModel;
+struct FCreateBindingParams;
 
 } // namespace Sequencer
 } // namespace UE
@@ -296,9 +298,12 @@ public:
 	virtual void SuppressAutoEvaluation(UMovieSceneSequence* Sequence, const FGuid& InSignature) = 0;
 
 	/**
-	 * Create a new binding for the specified object
-	 */
-	virtual FGuid CreateBinding(UObject& InObject, const FString& InName) = 0;
+	* Create a new binding for the specified object
+	*/
+	SEQUENCER_API virtual FGuid CreateBinding(UObject& InObject, const UE::Sequencer::FCreateBindingParams& InParams) = 0;
+
+	// Override from IMovieScenePlayer
+	FGuid CreateBinding(UMovieSceneSequence* InSequence, UObject* InObject) override;
 
 	/**
 	 * Attempts to add a new spawnable to the MovieScene for the specified object (asset, class or actor instance)
@@ -834,6 +839,12 @@ public:
 
 
 	/**
+	 * Create a new binding for the specified object, lightly deprecated and no longer virtual in favor of the overload with binding parameters
+	 */
+	SEQUENCER_API FGuid CreateBinding(UObject& InObject, const FString& InName);
+
+
+	/**
 	* Get the Display Name of the Object Binding Track.
 	* @param InBinding the Binding of the Object
 	* @return The name of the object binding track.
@@ -846,6 +857,12 @@ public:
 	* @param InDisplayName The new name of the object binding track.
 	*/
 	virtual void SetDisplayName(FGuid InBinding, const FText& InDisplayName) = 0;
+
+	/*
+	* Returns priority-sorted list of custom binding types supported by this Sequencer. 
+	*/
+	virtual TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> GetSupportedCustomBindingTypes() const { static TArray<TSubclassOf<UMovieSceneCustomBinding>> EmptyArray; return EmptyArray; }
+
 protected:
 	FOnInitializeDetailsPanel InitializeDetailsPanelEvent;
 	FOnCameraAddedToSequencer CameraAddedToSequencer;

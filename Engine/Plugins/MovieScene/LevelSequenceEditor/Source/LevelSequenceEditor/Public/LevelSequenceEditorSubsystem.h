@@ -33,8 +33,9 @@ class UMovieSceneFolder;
 class UMovieSceneSection;
 class UMovieSceneSequence;
 class USequencerModuleScriptingLayer;
-class IStructureDetailsView;
+class IDetailsView;
 class USequencerCurveEditorObject;
+class UMovieSceneCustomBinding;
 
 USTRUCT(BlueprintType)
 struct FMovieSceneScriptingParams
@@ -49,7 +50,7 @@ struct FMovieSceneScriptingParams
 
 // Helper struct for Binding Properties UI for locators.
 USTRUCT()
-struct FMovieSceneUniversalLocatorInfo
+struct FMovieSceneBindingPropertyInfo
 {
 	GENERATED_BODY()
 
@@ -60,17 +61,20 @@ struct FMovieSceneUniversalLocatorInfo
 	// Flags for how to resolve the locator
 	UPROPERTY()
 	ELocatorResolveFlags ResolveFlags = ELocatorResolveFlags::None;
+
+	UPROPERTY(Instanced, EditAnywhere, Category = "Default", meta=(AllowEditInlineCustomization))
+	UMovieSceneCustomBinding* CustomBinding = nullptr;
 };
 
-// Helper struct for editing arrays of locators for object bindings
-USTRUCT()
-struct FMovieSceneUniversalLocatorList
+// Helper UObject for editing arrays of locators for object bindings. A UObject instead of a UStruct because we need to support instanced sub objects
+UCLASS()
+class UMovieSceneBindingPropertyInfoList : public UObject
 {
 	GENERATED_BODY()
-
+public:
 	// List of locator info for a particular binding
 	UPROPERTY(EditAnywhere, Category = "Default")
-	TArray<FMovieSceneUniversalLocatorInfo> Bindings;
+	TArray<FMovieSceneBindingPropertyInfo> Bindings;
 };
 
 /**
@@ -249,9 +253,12 @@ private:
 		virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
 	};
 
+	TObjectPtr<UMovieSceneBindingPropertyInfoList> BindingPropertyInfoList = nullptr;
 	FBindingPropertiesNotifyHook NotifyHook;
 
 private:
+
+	void AddBindingDetailCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, FGuid BindingGuid);
 
 	TSharedPtr<ISequencer> GetActiveSequencer();
 	
@@ -267,7 +274,7 @@ private:
 
 	void AddAssignActorMenu(FMenuBuilder& MenuBuilder);
 	void AddBindingPropertiesMenu(FMenuBuilder& MenuBuilder);
-	void OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IStructureDetailsView> StructDetailsView, TSharedRef<FStructOnScope> LocatorsStruct, FGuid ObjectBindingID);
+	void OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IDetailsView> DetailsView, FGuid ObjectBindingID);
 
 	void GetRebindComponentNames(TArray<FName>& OutComponentNames);
 	void RebindComponentMenu(FMenuBuilder& MenuBuilder);

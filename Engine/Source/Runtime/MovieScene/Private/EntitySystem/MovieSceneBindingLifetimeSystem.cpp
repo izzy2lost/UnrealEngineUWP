@@ -25,50 +25,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneBindingLifetimeSystem)
 #define LOCTEXT_NAMESPACE "MovieSceneBindingLifetimeSystem"
 
-namespace UE
-{
-	namespace MovieScene
-	{
-		const FMovieSceneAnimTypeID BindingLifetimeAnimTypeID = FMovieSceneAnimTypeID::Unique();
-
-		struct FBindingLifetimeTrackPreAnimatedTokenProducer : IMovieScenePreAnimatedTokenProducer
-		{
-			FMovieSceneEvaluationOperand Operand;
-			FBindingLifetimeTrackPreAnimatedTokenProducer(FMovieSceneEvaluationOperand InOperand) : Operand(InOperand) {}
-
-			virtual IMovieScenePreAnimatedTokenPtr CacheExistingState(UObject& Object) const
-			{
-				struct FToken : IMovieScenePreAnimatedToken
-				{
-					FMovieSceneEvaluationOperand OperandToDestroy;
-					FToken(FMovieSceneEvaluationOperand InOperand) : OperandToDestroy(InOperand) {}
-
-					virtual void RestoreState(UObject& Object, const UE::MovieScene::FRestoreStateParams& Params) override
-					{
-						TSharedPtr<const FSharedPlaybackState> PlaybackState = Params.GetTerminalPlaybackState();
-						if (!ensure(PlaybackState))
-						{
-							return;
-						}
-
-						// Destroy any loaded bindings
-						if (FMovieSceneEvaluationState* EvaluationState = PlaybackState->FindCapability<FMovieSceneEvaluationState>())
-						{
-							if (FMovieSceneObjectCache* Cache = EvaluationState->FindObjectCache(OperandToDestroy.SequenceID))
-							{
-								Cache->UnloadBinding(OperandToDestroy.ObjectBindingID, PlaybackState.ToSharedRef());
-							}
-						}
-					}
-				};
-
-				return FToken(Operand);
-			}
-		};
-
-	} // namespace MovieScene
-} // namespace UE
-
 
 UMovieSceneBindingLifetimeSystem::UMovieSceneBindingLifetimeSystem(const FObjectInitializer& ObjInit)
 	: Super(ObjInit)
@@ -83,11 +39,6 @@ UMovieSceneBindingLifetimeSystem::UMovieSceneBindingLifetimeSystem(const FObject
 	{
 		DefineImplicitPrerequisite(GetClass(), UMovieSceneSpawnablesSystem::StaticClass());
 	}
-}
-
-FMovieSceneAnimTypeID UMovieSceneBindingLifetimeSystem::GetAnimTypeID()
-{
-	return UE::MovieScene::BindingLifetimeAnimTypeID;
 }
 
 void UMovieSceneBindingLifetimeSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)
@@ -137,19 +88,6 @@ void UMovieSceneBindingLifetimeSystem::OnRun(FSystemTaskPrerequisites& InPrerequ
 								}
 							}
 						}
-
-						if (bLink)
-						{
-							Player->PreAnimatedState.SavePreAnimatedState(*BoundObject, BindingLifetimeAnimTypeID, FBindingLifetimeTrackPreAnimatedTokenProducer({SequenceID, BindingLifetime.BindingGuid}));
-						}
-					}
-				}
-				if (!bLink)
-				{
-					// In addition, on unlink of the active range, unload any loaded objects with that binding id
-					if (FMovieSceneObjectCache* Cache = Player->State.FindObjectCache(SequenceID))
-					{
-						Cache->UnloadBinding(BindingLifetime.BindingGuid, Player->GetSharedPlaybackState());
 					}
 				}
 			}

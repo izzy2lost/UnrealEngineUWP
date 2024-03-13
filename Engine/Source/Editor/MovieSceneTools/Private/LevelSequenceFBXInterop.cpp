@@ -216,7 +216,7 @@ void FLevelSequenceFBXInterop::ExportFBXInternal(const FString& ExportFilename, 
 		UnFbx::FFbxExporter::FLevelSequenceNodeNameAdapter NodeNameAdapter(MovieScene, Sequencer.Get(), Template);
 
 		{
-			FSpawnableRestoreState SpawnableRestoreState(MovieScene);
+			FSpawnableRestoreState SpawnableRestoreState(MovieScene, Sequencer->GetSharedPlaybackState().ToSharedPtr());
 			if (SpawnableRestoreState.bWasChanged)
 			{
 				// Evaluate at the beginning of the subscene time to ensure that spawnables are created before export

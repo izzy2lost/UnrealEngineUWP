@@ -769,6 +769,8 @@ public:
 
 		FComponentTypeID RemoveHierarchicalBlendTarget;
 
+		FComponentTypeID OldStyleSpawnable;
+
 	} Tags;
 
 	struct

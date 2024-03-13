@@ -86,7 +86,7 @@ TSharedPtr<SWidget> FActorLocatorEditor::MakeEditUI(TSharedPtr<IUniversalObjectL
 	.AllowedClass(AActor::StaticClass())
 	.OnObjectChanged(this, &FActorLocatorEditor::OnSetObject, TWeakPtr<IUniversalObjectLocatorCustomization>(Customization))
 	.AllowClear(true)
-	.DisplayUseSelected(true)
+	.DisplayUseSelected(false)
 	.DisplayBrowse(true)
 	.DisplayThumbnail(true);
 

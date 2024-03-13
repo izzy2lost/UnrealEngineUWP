@@ -84,18 +84,44 @@ void FPossessableModel::OnConstruct()
 
 FText FPossessableModel::GetIconToolTipText() const
 {
+	TSharedPtr<ISequencer> Sequencer = GetEditor()->GetSequencer();
+	if (Sequencer)
+	{
+		const int32 NumBoundObjects = Sequencer->FindObjectsInCurrentSequence(ObjectBindingID).Num();
+		if (NumBoundObjects > 1)
+		{
+			return LOCTEXT("MultiplePossessableToolTip", "This item is bound to multiple objects.");
+		}
+	}
+
+	UMovieSceneSequence* Sequence = OwnerModel ? OwnerModel->GetSequence() : nullptr;
+	if (Sequence)
+	{
+		if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetReferences(ObjectBindingID))
+			{
+				if (BindingReference.CustomBinding)
+				{
+					FText CustomTooltipText = BindingReference.CustomBinding->GetBindingTrackIconTooltip();
+					if (CustomTooltipText.IsEmpty())
+					{
+						CustomTooltipText = FText::Format(LOCTEXT("DefaultCustomBindingTooltipText", "This is a custom binding of type {0}"), BindingReference.CustomBinding->GetBindingTypePrettyName());
+					}
+					if (!CustomTooltipText.IsEmpty())
+					{
+						return CustomTooltipText;
+					}
+				}
+			}
+		}
+	}
+
 	return LOCTEXT("PossessableToolTip", "This item is a possessable reference to an existing object.");
 }
 
 const FSlateBrush* FPossessableModel::GetIconOverlayBrush() const
 {
-	UMovieScene*            MovieScene  = OwnerModel ? OwnerModel->GetMovieScene() : nullptr;
-	FMovieScenePossessable* Possessable = MovieScene ? MovieScene->FindPossessable(ObjectBindingID) : nullptr;
-	if (Possessable && Possessable->DynamicBinding.WeakEndpoint.IsValid())
-	{
-		return FAppStyle::GetBrush("Sequencer.DynamicBindingIconOverlay");
-	}
-
 	TSharedPtr<ISequencer> Sequencer = GetEditor()->GetSequencer();
 	if (Sequencer)
 	{
@@ -105,6 +131,32 @@ const FSlateBrush* FPossessableModel::GetIconOverlayBrush() const
 			return FAppStyle::GetBrush("Sequencer.MultipleIconOverlay");
 		}
 	}
+
+	UMovieScene*            MovieScene  = OwnerModel ? OwnerModel->GetMovieScene() : nullptr;
+	FMovieScenePossessable* Possessable = MovieScene ? MovieScene->FindPossessable(ObjectBindingID) : nullptr;
+	if (Possessable && Possessable->DynamicBinding.WeakEndpoint.IsValid())
+	{
+		if (Possessable->DynamicBinding.WeakEndpoint.IsValid())
+		{
+			return FAppStyle::GetBrush("Sequencer.DynamicBindingIconOverlay");
+		}
+	}
+
+	UMovieSceneSequence* Sequence = OwnerModel ? OwnerModel->GetSequence() : nullptr;
+	if (Sequence)
+	{
+		if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetReferences(ObjectBindingID))
+			{
+				if (const FSlateBrush* CustomBrush = BindingReference.CustomBinding ? BindingReference.CustomBinding->GetBindingTrackCustomIconOverlay() : nullptr)
+				{
+					return CustomBrush;
+				}
+			}
+		}
+	}
+
 	return nullptr;
 }
 
@@ -136,6 +188,23 @@ void FPossessableModel::Delete()
 		if (MovieScene->RemovePossessable(ObjectBindingID))
 		{
 			Sequence->Modify();
+			if (OwnerModel)
+			{
+				TSharedPtr<ISequencer> Sequencer = OwnerModel->GetSequencer();
+				// If we have a custom spawnable, destroy it
+				if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+				{
+					int32 BindingIndex = 0;
+					for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetReferences(ObjectBindingID))
+					{
+						if (BindingReference.CustomBinding && BindingReference.CustomBinding->WillSpawnObject(Sequencer->GetSharedPlaybackState()))
+						{
+							Sequencer->GetSpawnRegister().DestroySpawnedObject(ObjectBindingID, OwnerModel->GetSequenceID(), Sequencer->GetSharedPlaybackState(), BindingIndex);
+						}
+						BindingIndex++;
+					}
+				}
+			}
 			Sequence->UnbindPossessableObjects(ObjectBindingID);
 		}
 	}
@@ -156,7 +225,7 @@ FSlateColor FPossessableModel::GetInvalidBindingLabelColor() const
 		{
 			for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetReferences(ObjectBindingID))
 			{
-				if (BindingReference.Locator.IsEmpty())
+				if (BindingReference.Locator.IsEmpty() && BindingReference.CustomBinding == nullptr)
 				{
 					// Show empty bindings as yellow rather than red
 					return FLinearColor::Yellow;

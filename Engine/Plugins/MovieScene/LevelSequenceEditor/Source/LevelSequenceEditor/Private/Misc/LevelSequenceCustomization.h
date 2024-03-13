@@ -42,6 +42,7 @@ private:
 
 	void AddDynamicSpawnMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FObjectBindingModel> ObjectBindingModel);
 	void AddDynamicPossessionMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FObjectBindingModel> ObjectBindingModel);
+	void ConvertToCustomBinding(TSharedPtr<FObjectBindingModel> ObjectBindingModel, TSubclassOf<UMovieSceneCustomBinding> CustomBindingType);
 
 private:
 

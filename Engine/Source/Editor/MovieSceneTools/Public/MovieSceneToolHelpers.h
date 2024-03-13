@@ -676,12 +676,16 @@ public:
 // Helper to make spawnables persist throughout the export process and then restore properly afterwards
 struct MOVIESCENETOOLS_API FSpawnableRestoreState
 {
+	UE_DEPRECATED(5.5, "This constructor is deprecated in favor of passing in shared playback state")
 	FSpawnableRestoreState(UMovieScene* MovieScene);
+
+	FSpawnableRestoreState(UMovieScene* MovieScene, TSharedPtr<UE::MovieScene::FSharedPlaybackState> InSharedPlaybackState);
 	~FSpawnableRestoreState();
 
 	bool bWasChanged;
 	TMap<FGuid, ESpawnOwnership> SpawnOwnershipMap;
 	TWeakObjectPtr<UMovieScene> WeakMovieScene;
+	TSharedPtr<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState;
 };
 
 class FTrackEditorBindingIDPicker : public FMovieSceneObjectBindingIDPicker

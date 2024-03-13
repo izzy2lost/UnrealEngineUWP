@@ -91,6 +91,10 @@ namespace UE::LevelSequenceExporterUSD::Private
 	}
 
 #if USE_USD_SDK
+
+
+	using FSpawnedInstanceKey = TPair<FGuid, int32>;
+
 	// Custom spawn register so that when DestroySpawnedObject is called while bDestroyingJustHides is true we
 	// actually just hide the objects, so that we can keep a live reference to components within the bakers.
 	// We're going to convert the spawnable tracks into visibility tracks when exporting to USD, which
@@ -98,19 +102,24 @@ namespace UE::LevelSequenceExporterUSD::Private
 	class FLevelSequenceHidingSpawnRegister : public FLevelSequenceEditorSpawnRegister
 	{
 	public:
+
 		bool bDestroyingJustHides = true;
 
-		virtual UObject* SpawnObject(
-			FMovieSceneSpawnable& Spawnable,
-			FMovieSceneSequenceIDRef TemplateID,
-			TSharedRef<const FSharedPlaybackState> SharedPlaybackState
+		virtual UObject* SpawnObject(const FGuid& Guid, 
+			UMovieScene& MovieScene, 
+			FMovieSceneSequenceIDRef TemplateID, 
+			TSharedRef<const FSharedPlaybackState> SharedPlaybackState, 
+			int32 BindingIndex
 		) override
 		{
+
+			FSpawnedInstanceKey InstanceKey(Guid, BindingIndex);
+
 			// Never spawn ASphereReflectionCapture actors. These are useless in USD anyway, and we run into
 			// trouble after we're done exporting them because on the tick where they're destroyed the editor
 			// will still attempt to update their captures and some downstream code doesn't like that their
 			// components are pending kill (check UE-167593 for more info)
-			if (const ASphereReflectionCapture* ReflectionCapture = Cast<const ASphereReflectionCapture>(Spawnable.GetObjectTemplate()))
+			if (Cast<ASphereReflectionCapture>(MovieSceneHelpers::GetObjectTemplate(MovieScene.GetTypedOuter<UMovieSceneSequence>(), Guid, SharedPlaybackState)))
 			{
 				return nullptr;
 			}
@@ -123,17 +132,15 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 			UObject* Object = nullptr;
 
-			const FGuid& Guid = Spawnable.GetGuid();
+			TArray<UObject*>& ExistingInstancesForGuid = SpawnableInstances.FindOrAdd(InstanceKey);
 
-			TArray<UObject*>& ExistingInstancesForGuid = SpawnableInstances.FindOrAdd(Guid);
-
-			TMap<FMovieSceneSequenceID, TMap<FGuid, int32>>& SequenceInstanceToSpawnableIndices = RootSequenceToSpawnableInstanceIndices.FindOrAdd(
+			TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>& SequenceInstanceToSpawnableIndices = RootSequenceToSpawnableInstanceIndices.FindOrAdd(
 				RootSequence
 			);
-			TMap<FGuid, int32>& SpawnableIndices = SequenceInstanceToSpawnableIndices.FindOrAdd(TemplateID);
+			TMap<FSpawnedInstanceKey, int32>& SpawnableIndices = SequenceInstanceToSpawnableIndices.FindOrAdd(TemplateID);
 
 			// Already have an instance of this spawnable for this movie scene sequence instance
-			if (int32* ExistingIndex = SpawnableIndices.Find(Guid))
+			if (int32* ExistingIndex = SpawnableIndices.Find(InstanceKey))
 			{
 				Object = ExistingInstancesForGuid[*ExistingIndex];
 
@@ -161,9 +168,9 @@ namespace UE::LevelSequenceExporterUSD::Private
 				TArray<bool> UsedIndices;
 				UsedIndices.SetNumZeroed(ExistingInstancesForGuid.Num());
 
-				for (const TPair<FMovieSceneSequenceID, TMap<FGuid, int32>>& Pair : SequenceInstanceToSpawnableIndices)
+				for (const TPair<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>& Pair : SequenceInstanceToSpawnableIndices)
 				{
-					if (const int32* UsedIndex = Pair.Value.Find(Guid))
+					if (const int32* UsedIndex = Pair.Value.Find(InstanceKey))
 					{
 						UsedIndices[*UsedIndex] = true;
 					}
@@ -182,7 +189,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 				if (IndexToReuse != INDEX_NONE)
 				{
 					Object = ExistingInstancesForGuid[IndexToReuse];
-					SpawnableIndices.Add(Guid, IndexToReuse);
+					SpawnableIndices.Add(InstanceKey, IndexToReuse);
 
 					UE_LOG(
 						LogUsd,
@@ -201,7 +208,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 			// Don't even have anything we can reuse: We need to spawn a brand new instance of this spawnable
 			if (!Object)
 			{
-				Object = FLevelSequenceEditorSpawnRegister::SpawnObject(Spawnable, TemplateID, SharedPlaybackState);
+				Object = FMovieSceneSpawnRegister::SpawnObject(Guid, MovieScene, TemplateID, SharedPlaybackState, BindingIndex);
 				UE_LOG(
 					LogUsd,
 					VeryVerbose,
@@ -227,7 +234,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 				}
 
 				ExistingInstancesForGuid.Add(Object);
-				SpawnableIndices.Add(Guid, ExistingInstancesForGuid.Num() - 1);
+				SpawnableIndices.Add(InstanceKey, ExistingInstancesForGuid.Num() - 1);
 			}
 
 			if (Object)
@@ -256,19 +263,19 @@ namespace UE::LevelSequenceExporterUSD::Private
 			return Object;
 		}
 
-		virtual void PreDestroyObject(UObject& Object, const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID) override
+		virtual void PreDestroyObject(UObject& Object, const FGuid& BindingId, int32 BindingIndex, FMovieSceneSequenceIDRef TemplateID) override
 		{
 			// Don't let the FLevelSequenceEditorSpawnRegister's overload run as it will mess with our editor selection
 			if (bDestroyingJustHides)
 			{
-				FLevelSequenceSpawnRegister::PreDestroyObject(Object, BindingId, TemplateID);
+				FLevelSequenceSpawnRegister::PreDestroyObject(Object, BindingId, BindingIndex, TemplateID);
 				return;
 			}
 
-			FLevelSequenceEditorSpawnRegister::PreDestroyObject(Object, BindingId, TemplateID);
+			FLevelSequenceEditorSpawnRegister::PreDestroyObject(Object, BindingId, BindingIndex, TemplateID);
 		}
 
-		virtual void DestroySpawnedObject(UObject& Object) override
+		virtual void DestroySpawnedObject(UObject& Object, UMovieSceneSpawnableBindingBase* CustomSpawnableBinding) override
 		{
 			if (bDestroyingJustHides)
 			{
@@ -299,9 +306,9 @@ namespace UE::LevelSequenceExporterUSD::Private
 			{
 				// We shouldn't need to do this because we only ever fully delete when we're cleaning up,
 				// and by then we'll delete all of these maps anyway
-				for (TPair<FGuid, TArray<UObject*>>& Pair : SpawnableInstances)
+				for (TPair<FSpawnedInstanceKey, TArray<UObject*>>& Pair : SpawnableInstances)
 				{
-					const FGuid& Guid = Pair.Key;
+					const FSpawnedInstanceKey& InstanceKey = Pair.Key;
 					TArray<UObject*>& InstancesForGuid = Pair.Value;
 
 					int32 IndexToDelete = INDEX_NONE;
@@ -316,17 +323,17 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 					if (IndexToDelete != INDEX_NONE)
 					{
-						for (TPair<const UMovieSceneSequence*, TMap<FMovieSceneSequenceID, TMap<FGuid, int32>>>& RootSequencePair :
+						for (TPair<const UMovieSceneSequence*, TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>>& RootSequencePair :
 							 RootSequenceToSpawnableInstanceIndices)
 						{
-							for (TPair<FMovieSceneSequenceID, TMap<FGuid, int32>>& SequenceIDPair : RootSequencePair.Value)
+							for (TPair<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>& SequenceIDPair : RootSequencePair.Value)
 							{
-								TMap<FGuid, int32>& GuidToInstance = SequenceIDPair.Value;
-								if (int32* InstanceIndex = GuidToInstance.Find(Guid))
+								TMap<FSpawnedInstanceKey, int32>& GuidToInstance = SequenceIDPair.Value;
+								if (int32* InstanceIndex = GuidToInstance.Find(InstanceKey))
 								{
 									if (*InstanceIndex == IndexToDelete)
 									{
-										GuidToInstance.Remove(Guid);
+										GuidToInstance.Remove(InstanceKey);
 									}
 								}
 							}
@@ -336,14 +343,14 @@ namespace UE::LevelSequenceExporterUSD::Private
 						break;
 					}
 				}
-
-				FLevelSequenceEditorSpawnRegister::DestroySpawnedObject(Object);
+				
+				FLevelSequenceEditorSpawnRegister::DestroySpawnedObject(Object, CustomSpawnableBinding);
 			}
 		}
 
-		bool HasSpawnedObject(const FGuid& BindingGuid) const
+		bool HasSpawnedObject(const FSpawnedInstanceKey& InstanceKey) const
 		{
-			return SpawnableInstances.Contains(BindingGuid);
+			return SpawnableInstances.Contains(InstanceKey);
 		}
 
 		void DeleteSpawns(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
@@ -358,7 +365,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 			// alive when bDestroyingJustHides=true. Because of this we must explicitly clean up these "abandoned" spawns here,
 			// which resynchronizes us with Register:
 			TArray<UObject*> ObjectsToDelete;
-			for (TPair<FGuid, TArray<UObject*>>& Pair : SpawnableInstances)
+			for (TPair<FSpawnedInstanceKey, TArray<UObject*>>& Pair : SpawnableInstances)
 			{
 				ObjectsToDelete.Append(Pair.Value);
 			}
@@ -366,7 +373,10 @@ namespace UE::LevelSequenceExporterUSD::Private
 			{
 				if (Object)
 				{
-					DestroySpawnedObject(*Object);
+					// TODO: I think this will likely be fine for most cases, but I could see it potentially being problematic in all cases to destroy
+					// an object in the default way this way. However, to do this 'correctly' would also involve storing the UCustomBinding object in this process,
+					// which I'm skipping for now.
+					DestroySpawnedObject(*Object, nullptr);
 				}
 			}
 		}
@@ -376,14 +386,14 @@ namespace UE::LevelSequenceExporterUSD::Private
 		// will still nevertheless clear it's Register entry for the spawnable when deleting (even if just hiding),
 		// and there's nothing we can do to prevent it. This means we can't call FindSpawnedObject and must use our
 		// own GetExistingSpawn and data members
-		UObject* GetExistingSpawn(const UMovieSceneSequence& RootSequence, FMovieSceneSequenceID SequenceID, const FGuid& SpawnableGuid)
+		UObject* GetExistingSpawn(const UMovieSceneSequence& RootSequence, FMovieSceneSequenceID SequenceID, const FSpawnedInstanceKey& InstanceKey)
 		{
 			int32 SpawnableIndex = INDEX_NONE;
-			if (TMap<FMovieSceneSequenceID, TMap<FGuid, int32>>* SequenceIDsToSpawns = RootSequenceToSpawnableInstanceIndices.Find(&RootSequence))
+			if (TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>* SequenceIDsToSpawns = RootSequenceToSpawnableInstanceIndices.Find(&RootSequence))
 			{
-				if (TMap<FGuid, int32>* Spawns = SequenceIDsToSpawns->Find(SequenceID))
+				if (TMap<FSpawnedInstanceKey, int32>* Spawns = SequenceIDsToSpawns->Find(SequenceID))
 				{
-					if (int32* Index = Spawns->Find(SpawnableGuid))
+					if (int32* Index = Spawns->Find(InstanceKey))
 					{
 						SpawnableIndex = *Index;
 					}
@@ -392,7 +402,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 			if (SpawnableIndex != INDEX_NONE)
 			{
-				if (TArray<UObject*>* Instances = SpawnableInstances.Find(SpawnableGuid))
+				if (TArray<UObject*>* Instances = SpawnableInstances.Find(InstanceKey))
 				{
 					return (*Instances)[SpawnableIndex];
 				}
@@ -405,12 +415,12 @@ namespace UE::LevelSequenceExporterUSD::Private
 		// Ensures all of our new spawns have unique names
 		TSet<FString> UsedActorLabels;
 
-		// Tracks all instances we created for a given spawnable guid
-		TMap<FGuid, TArray<UObject*>> SpawnableInstances;
+		// Tracks all instances we created for a given spawnable guid and binding index
+		TMap<FSpawnedInstanceKey, TArray<UObject*>> SpawnableInstances;
 
 		// Tracks the indices into SpawnableInstances for each spawnable guid, used by each sequence ID, in the hierarchy of each root
 		// sequence
-		TMap<const UMovieSceneSequence*, TMap<FMovieSceneSequenceID, TMap<FGuid, int32>>> RootSequenceToSpawnableInstanceIndices;
+		TMap<const UMovieSceneSequence*, TMap<FMovieSceneSequenceID, TMap<FSpawnedInstanceKey, int32>>> RootSequenceToSpawnableInstanceIndices;
 	};
 
 	// Contain all of the baker lambda functions for a given component. Only one baker per baking type is allowed.
@@ -557,7 +567,26 @@ namespace UE::LevelSequenceExporterUSD::Private
 					const FGuid& Guid = Spawnable.GetGuid();
 
 					StaticCastSharedRef<FMovieSceneSpawnRegister>(Context.SpawnRegister)
-						->SpawnObject(Guid, *MovieScene, SequenceInstance, *Context.Sequencer);
+						->SpawnObject(Guid, *MovieScene, SequenceInstance, Context.Sequencer->GetSharedPlaybackState(), 0);
+				}
+
+				if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+				{
+					int32 BindingIndex = 0;
+					FGuid LastGuid;
+					for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+					{
+						if (LastGuid != BindingReference.ID)
+						{
+							LastGuid = BindingReference.ID;
+							BindingIndex = 0;
+						}
+						if (BindingReference.CustomBinding && BindingReference.CustomBinding->WillSpawnObject(Context.Sequencer->GetSharedPlaybackState()))
+						{
+							StaticCastSharedRef<FMovieSceneSpawnRegister>(Context.SpawnRegister)
+								->SpawnObject(BindingReference.ID, *MovieScene, SequenceInstance, Context.Sequencer->GetSharedPlaybackState(), BindingIndex++);
+						}
+					}
 				}
 			}
 		}
@@ -628,7 +657,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 						// Using the spawn register is an easy way of telling if a Guid is a spawnable or not,
 						// but it's more appropriate because we really only ever care about the spawnables that
 						// we have spawned on our TempSequencer
-						const bool bIsSpawnable = SpawnRegister.HasSpawnedObject(Binding.GetGuid());
+						const bool bIsSpawnable = SpawnRegister.HasSpawnedObject(FSpawnedInstanceKey(Binding.GetGuid(), 0));
 						if (!bIsSpawnable)
 						{
 							continue;
@@ -758,14 +787,14 @@ namespace UE::LevelSequenceExporterUSD::Private
 		// bound to root components but also separate tracks bound directly to the actors, and we want to
 		// capture both.
 		// Index from UObject to FGuid because we may have multiple spawned objects for a given spawnable Guid
-		TMap<UObject*, FGuid> BoundObjects;
+		TMap<UObject*, FSpawnedInstanceKey> BoundObjects;
 
 		// Collect any USD-related DynamicBinding. The idea being that if we find any, we're likely looking at a
 		// loaded USD Stage that's going to be exported, and the possessable is one of the transient actors and
 		// components. It that's the case, we don't want to just come up with a random name for the prim based on
 		// the actor/component path, but instead want to use the prim path that it has been given on the dynamic binding,
 		// if any
-		TMap<FGuid, const FMovieSceneDynamicBinding*> DynamicBindings;
+		TMap<FSpawnedInstanceKey, const FMovieSceneDynamicBinding*> DynamicBindings;
 
 		const TArray<FMovieSceneSequenceID>* InstancesOfThisSequence = SequenceInstances.Find(&MovieSceneSequence);
 		if (!InstancesOfThisSequence)
@@ -796,6 +825,42 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 				UObject* BoundObject = nullptr;
 
+				// We need to check for custom spawnables here as well
+				if (const FMovieSceneBindingReferences* BindingReferences = MovieSceneSequence.GetBindingReferences())
+				{
+					int32 BindingIndex = 0;
+					FGuid LastGuid;
+					for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+					{
+						if (LastGuid != BindingReference.ID)
+						{
+							LastGuid = BindingReference.ID;
+							BindingIndex = 0;
+						}
+						if (BindingReference.CustomBinding && BindingReference.CustomBinding->WillSpawnObject(Context.Sequencer->GetSharedPlaybackState()))
+						{
+							BoundObject = Context.SpawnRegister->GetExistingSpawn(*RootSequence, SequenceInstance, FSpawnedInstanceKey(Guid, BindingIndex++));
+							if (!BoundObject)
+							{
+								// This should never happen as we preemptively spawn everything:
+								// At this point all our spawns should be spawned, but invisible
+								UE_LOG(LogUsd, Warning, TEXT("Failed to find spawned object for spawnable with Guid '%s'"), *Guid.ToString());
+								continue;
+							}
+
+							if (BoundObject && (BoundObject->IsA<USceneComponent>() || BoundObject->IsA<AActor>()))
+							{
+								BoundObjects.Add(BoundObject, FSpawnedInstanceKey(Guid, BindingIndex));
+
+								if (Possessable.DynamicBinding.Function)
+								{
+									DynamicBindings.Add(FSpawnedInstanceKey(Guid, BindingIndex), &Possessable.DynamicBinding);
+								}
+							}
+						}
+					}
+				}
+
 				// Go through FMovieSceneObjectCache and FindBoundObjects because that will also evaluate DynamicBindings.
 				// Note that we need to make sure that PreSpawnSpawnables has been called above this (at all, but also at
 				// least once *after* Context.SpawnRegister->CleanUp(), if that has been called). The idea here is that FindBoundObjects
@@ -816,11 +881,11 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 				if (BoundObject && (BoundObject->IsA<USceneComponent>() || BoundObject->IsA<AActor>()))
 				{
-					BoundObjects.Add(BoundObject, Guid);
+					BoundObjects.Add(BoundObject, FSpawnedInstanceKey(Guid, 0));
 
 					if (Possessable.DynamicBinding.Function)
 					{
-						DynamicBindings.Add(Guid, &Possessable.DynamicBinding);
+						DynamicBindings.Add(FSpawnedInstanceKey(Guid, 0), &Possessable.DynamicBinding);
 					}
 				}
 			}
@@ -839,7 +904,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 					continue;
 				}
 
-				UObject* BoundObject = Context.SpawnRegister->GetExistingSpawn(*RootSequence, SequenceInstance, Guid);
+				UObject* BoundObject = Context.SpawnRegister->GetExistingSpawn(*RootSequence, SequenceInstance, FSpawnedInstanceKey(Guid, 0));
 				if (!BoundObject)
 				{
 					// This should never happen as we preemptively spawn everything:
@@ -850,21 +915,21 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 				if (BoundObject && (BoundObject->IsA<USceneComponent>() || BoundObject->IsA<AActor>()))
 				{
-					BoundObjects.Add(BoundObject, Guid);
+					BoundObjects.Add(BoundObject, FSpawnedInstanceKey(Guid, 0));
 
 					if (Spawnable.DynamicBinding.Function)
 					{
-						DynamicBindings.Add(Guid, &Spawnable.DynamicBinding);
+						DynamicBindings.Add(FSpawnedInstanceKey(Guid, 0), &Spawnable.DynamicBinding);
 					}
 				}
 			}
 		}
 
 		// Generate bakers
-		for (const TPair<UObject*, FGuid>& Pair : BoundObjects)
+		for (const TPair<UObject*, FSpawnedInstanceKey>& Pair : BoundObjects)
 		{
 			UObject* BoundObject = Pair.Key;
-			const FGuid& Guid = Pair.Value;
+			const FSpawnedInstanceKey& InstanceKey = Pair.Value;
 
 			// We always use components here because when exporting actors and components to USD we basically
 			// just ignore actors altogether and export the component attachment hierarchy instead
@@ -903,7 +968,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 			// If this binding has one of our dynamic bindings set up pointing to a valid prim path, let's use that path
 			// instead of using our generated PrimPath, as that one will better match the prim paths that we'll get when
 			// opening a referenced stage via an exported UsdStageActor
-			if (const FMovieSceneDynamicBinding* DynamicBinding = DynamicBindings.FindRef(Guid))
+			if (const FMovieSceneDynamicBinding* DynamicBinding = DynamicBindings.FindRef(InstanceKey))
 			{
 				if (const FMovieSceneDynamicBindingPayloadVariable* FoundPrimPathPayload = DynamicBinding->PayloadVariables.Find(TEXT("PrimPa"
 																																	  "th")))
@@ -987,7 +1052,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 			}
 
 			bool bHasTransformBaker = false;
-			if (const FMovieSceneBinding* Binding = MovieScene->FindBinding(Guid))
+			if (const FMovieSceneBinding* Binding = MovieScene->FindBinding(InstanceKey.Key))
 			{
 				for (const UMovieSceneTrack* Track : Binding->GetTracks())
 				{

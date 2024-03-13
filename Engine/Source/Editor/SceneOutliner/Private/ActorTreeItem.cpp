@@ -170,10 +170,15 @@ private:
 	const FSlateBrush* GetIconOverlay() const
 	{
 		static const FName SequencerActorTag(TEXT("SequencerActor"));
+		static const FName SequencerPreviewActorTag(TEXT("SequencerPreviewActor"));
 
 		if (const AActor* Actor = ActorPtr.Get())
 		{
-			if (Actor->ActorHasTag(SequencerActorTag))
+			if (Actor->ActorHasTag(SequencerPreviewActorTag))
+			{
+				return FAppStyle::GetBrush("Sequencer.ReplaceableIconOverlay");
+			}
+			else if (Actor->ActorHasTag(SequencerActorTag))
 			{
 				return FAppStyle::GetBrush("Sequencer.SpawnableIconOverlay");
 			}

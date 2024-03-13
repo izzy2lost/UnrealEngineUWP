@@ -14,6 +14,7 @@
 #include "MovieSceneSequence.h"
 #include "MovieSceneSequenceID.h"
 #include "UniversalObjectLocatorResolveParameterBuffer.inl"
+#include "MovieSceneBindingReferences.h"
 
 namespace UE
 {
@@ -124,9 +125,20 @@ void IMovieScenePlayer::ResolveBoundObjects(const FGuid& InBindingId, FMovieScen
 	}
 }
 
-void IMovieScenePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& Sequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+void IMovieScenePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& LocatorResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
-	Sequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
+	using namespace UE::UniversalObjectLocator;
+	using namespace UE::MovieScene;
+
+	if (const FMovieSceneBindingReferences* BindingReferences = InSequence.GetBindingReferences())
+	{
+		FMovieSceneBindingResolveParams BindingResolveParams{ &InSequence, InBindingId, SequenceID };
+		BindingReferences->ResolveBinding(BindingResolveParams, LocatorResolveParams, ConstCastSharedPtr<const UE::MovieScene::FSharedPlaybackState>(const_cast<IMovieScenePlayer*>(this)->FindSharedPlaybackState()), OutObjects);
+	}
+	else
+	{
+		InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, OutObjects);
+	}
 }
 
 TArrayView<TWeakObjectPtr<>> IMovieScenePlayer::FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID)
@@ -222,6 +234,16 @@ bool IMovieScenePlayer::IsDisablingEventTriggers(FFrameTime& DisabledUntilTime) 
 		}
 	}
 	return false;
+}
+
+
+FGuid IMovieScenePlayer::CreateBinding(UMovieSceneSequence* InSequence, UObject* InObject)
+{
+	if (InSequence && InObject)
+	{
+		return InSequence->CreatePossessable(InObject);
+	}
+	return FGuid();
 }
 
 void IMovieScenePlayer::InitializeRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState)

@@ -21,6 +21,11 @@ class USoundBase;
 struct FRichCurve;
 enum class EMovieSceneKeyInterpolation : uint8;
 
+namespace UE::MovieScene
+{
+	struct FSharedPlaybackState;
+}
+
 class MovieSceneHelpers
 {
 public:
@@ -179,6 +184,14 @@ public:
 	static MOVIESCENE_API float CalculateWeightForBlending(UMovieSceneSection* SectionToKey, FFrameNumber Time);
 
 	/*
+	 * Return a name unique to the binding names in the given movie scene
+	 * @param InMovieScene The movie scene to look for existing possessables.
+	 * @param InName The requested name to make unique.
+	 * @return The unique name
+	 */
+	static MOVIESCENE_API FString MakeUniqueBindingName(UMovieScene* InMovieScene, const FString& InName);
+
+	/*
 	 * Return a name unique to the spawnable names in the given movie scene
 	 * @param InMovieScene The movie scene to look for existing spawnables.
 	 * @param InName The requested name to make unique.
@@ -194,6 +207,51 @@ public:
 	 * @return The spawnable template
 	 */
 	static MOVIESCENE_API UObject* MakeSpawnableTemplateFromInstance(UObject& InSourceObject, UMovieScene* InMovieScene, FName InName);
+
+	/*
+	* Returns whether the given ObjectId is valid and is currently bound to at least 1 spawnable give the current context.
+	* More specifically, if a FMovieSceneSpawnable exists with this ObjectId, true will be returned.
+	* If a Level Sequence binding reference exists with a Custom Binding implementing MovieSceneSpawnableBindingBase, true will be returned.
+	* If a Level Sequence binding reference exists with a Custom Binding implementing MovieSceneReplaceableBindingBase and the Context is an editor world, then true will be returned.
+	* Otherwise, false will be returned.
+	*/
+	static MOVIESCENE_API bool IsBoundToAnySpawnable(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState);
+
+	/*
+	* Returns whether the given ObjectId is valid and is the given bindingindex is currently bound to a spawnable give the current context.
+	* More specifically, if a FMovieSceneSpawnable exists with this ObjectId, true will be returned.
+	* If a Level Sequence binding reference for this guid with the given BindingIndex exists with a Custom Binding implementing MovieSceneSpawnableBindingBase, true will be returned.
+	* If a Level Sequence binding reference for this guid with the given BindingIndex exists with a Custom Binding implementing MovieSceneReplaceableBindingBase and the Context is an editor world, then true will be returned.
+	* Otherwise, false will be returned.
+	*/
+	static MOVIESCENE_API bool IsBoundToSpawnable(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+
+	/*
+	* If the binding for the given ObjectId supports object templates, returns the template, otherwise returns nullptr
+	*/
+	static MOVIESCENE_API UObject* GetObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+
+	/*
+	* If the binding for the given ObjectId supports object templates, sets the template and returns true, otherwise returns false
+	*/
+	static MOVIESCENE_API bool SetObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, UObject* InSourceObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+
+	/*
+	* Returns whether the binding for the given ObjectId supports object templates
+	*/
+	static MOVIESCENE_API bool SupportsObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+
+	/*
+	* If the binding for the given ObjectId supports object templates, copies the object template into the binding and returns true, otherwise returns false
+	*/
+	static MOVIESCENE_API bool CopyObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, UObject* InSourceObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+#if WITH_EDITORONLY_DATA
+	/*
+	* Returns the bound object class for the binding for the given ObjectId.
+	*/
+	static MOVIESCENE_API const UClass* GetBoundObjectClass(UMovieSceneSequence* Sequence, const FGuid& ObjectId, int32 BindingIndex = 0);
+#endif
+
 };
 
 /**

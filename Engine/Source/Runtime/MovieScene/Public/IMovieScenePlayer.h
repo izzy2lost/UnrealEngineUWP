@@ -275,6 +275,11 @@ public:
 	*/
 	virtual TScriptInterface<IMovieSceneSequencePlayerObserver> GetObserver() { return nullptr; }
 
+	/*
+	* Attempts to create a binding for the given object in the given sequence.
+	*/
+	MOVIESCENE_API virtual FGuid CreateBinding(UMovieSceneSequence* InSequence, UObject* InObject);
+
 public:
 
 	/**

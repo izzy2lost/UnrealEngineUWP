@@ -67,6 +67,8 @@ class UMovieSceneCopyableBinding;
 class UMovieSceneCompiledDataManager;
 class UMovieSceneCopyableTrack;
 class UMovieSceneNodeGroup;
+template <class TClass> class TSubclassOf;
+class UMovieSceneCustomBinding;
 
 struct FMovieSceneTimeController;
 struct FMovieSceneSequencePlaybackParams;
@@ -791,7 +793,7 @@ public:
 	virtual FOnCurveDisplayChanged& GetCurveDisplayChanged() override { return OnCurveDisplayChanged; }
 	virtual FOnSelectionChangedSections& GetSelectionChangedSections() override { return OnSelectionChangedSectionsDelegate; }
 	virtual FOnTreeViewChanged& OnTreeViewChanged() override { return OnTreeViewChangedDelegate; }
-	virtual FGuid CreateBinding(UObject& InObject, const FString& InName) override;
+	virtual FGuid CreateBinding(UObject& InObject, const UE::Sequencer::FCreateBindingParams& InParams) override;
 	virtual UObject* GetPlaybackContext() const override;
 	virtual IMovieScenePlaybackClient* GetPlaybackClient() override;
 	virtual TArray<UObject*> GetEventContexts() const override; 
@@ -851,6 +853,8 @@ public:
 	 * Gets the time boundaries of the root movie scene in local space. If this is a looping subsequence, this will include all loops.
 	 */
 	TRange<FFrameNumber> GetRootTimeBounds() const;
+
+	virtual TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> GetSupportedCustomBindingTypes() const override { return SupportedCustomBindingTypes; }
 
 protected:
 
@@ -1488,4 +1492,7 @@ private:
 	/** Cache of all bound cameras in the sequence hierarchy */
 	TMap<AActor*, FGuid> CachedCameraActors;
 	uint32 LastKnownStateSerial = 0;
+
+	/* Cached list of supported custom binding types*/
+	TArray<TSubclassOf<UMovieSceneCustomBinding>> SupportedCustomBindingTypes;
 };

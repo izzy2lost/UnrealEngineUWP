@@ -50,6 +50,7 @@ public:
 	LEVELSEQUENCE_API virtual void UnbindObjects(const FGuid& ObjectId, const TArray<UObject*>& InObjects, UObject* InContext) override;
 	LEVELSEQUENCE_API virtual void UnbindInvalidObjects(const FGuid& ObjectId, UObject* InContext) override;
 	LEVELSEQUENCE_API virtual bool AllowsSpawnableObjects() const override;
+	LEVELSEQUENCE_API virtual bool AllowsCustomBindings() const override;
 	LEVELSEQUENCE_API virtual bool CanRebindPossessable(const FMovieScenePossessable& InPossessable) const override;
 	LEVELSEQUENCE_API virtual UObject* MakeSpawnableTemplateFromInstance(UObject& InSourceObject, FName ObjectName) override;
 	LEVELSEQUENCE_API virtual bool CanAnimateObject(UObject& InObject) const override;

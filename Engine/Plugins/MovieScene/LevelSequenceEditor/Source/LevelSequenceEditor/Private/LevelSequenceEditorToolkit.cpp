@@ -39,6 +39,7 @@
 #include "ToolMenus.h"
 #include "ClassViewerFilter.h"
 #include "ClassViewerModule.h"
+#include "SequencerUtilities.h"
 
 // @todo sequencer: hack: setting defaults for transform tracks
 
@@ -742,7 +743,10 @@ void FLevelSequenceEditorToolkit::AddShot(UMovieSceneCinematicShotTrack* ShotTra
 		FGuid CameraGuid;
 		if (bCreateSpawnableCamera)
 		{
-			CameraGuid = GetSequencer()->MakeNewSpawnable(*NewCamera);
+			UE::Sequencer::FCreateBindingParams CreateBindingParams;
+			CreateBindingParams.bSpawnable = true;
+			CameraGuid = FSequencerUtilities::CreateBinding(GetSequencer().ToSharedRef(), *NewCamera, CreateBindingParams);
+
 			UObject* SpawnedCamera = GetSequencer()->FindSpawnedObjectOrTemplate(CameraGuid);
 			if (SpawnedCamera)
 			{

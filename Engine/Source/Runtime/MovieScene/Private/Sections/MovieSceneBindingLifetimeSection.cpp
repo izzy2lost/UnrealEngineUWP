@@ -9,6 +9,9 @@
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "Evaluation/MovieSceneEvaluationField.h"
 #include "MovieScene.h"
+#include "EntitySystem/MovieSceneInstanceRegistry.h"
+#include "MovieSceneSequence.h"
+#include "MovieSceneCommonHelpers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneBindingLifetimeSection)
 
@@ -24,10 +27,24 @@ void UMovieSceneBindingLifetimeSection::ImportEntityImpl(UMovieSceneEntitySystem
 
 	FBuiltInComponentTypes* BuiltInComponentTypes = FBuiltInComponentTypes::Get();
 
+	// Conditionally add this as a spawnable binding if our binding says so.
+	// Also conditionally add the binding lifetime component to manage lifetime events.
+
+	UMovieSceneSequence* Sequence = GetTypedOuter<UMovieSceneSequence>();
+	ensure(Sequence);
+
+	const FSequenceInstance& RootInstance = EntityLinker->GetInstanceRegistry()->GetInstance(Params.Sequence.RootInstanceHandle);
+	TSharedRef<const FSharedPlaybackState> SharedPlaybackState = RootInstance.GetSharedPlaybackState();
+
+	bool bSpawnable = MovieSceneHelpers::IsBoundToAnySpawnable(Sequence, Params.GetObjectBindingID(), SharedPlaybackState);
+
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()
+		.AddConditional(BuiltInComponentTypes->SpawnableBinding, Params.GetObjectBindingID(), Params.GetObjectBindingID().IsValid() && bSpawnable)
 		.AddConditional(BuiltInComponentTypes->BindingLifetime, FMovieSceneBindingLifetimeComponentData{ Params.GetObjectBindingID(), EMovieSceneBindingLifetimeState::Active }, Params.GetObjectBindingID().IsValid())
 	);
+
+
 }
 
 bool UMovieSceneBindingLifetimeSection::PopulateEvaluationFieldImpl(const TRange<FFrameNumber>& EffectiveRange, const FMovieSceneEvaluationFieldEntityMetaData& InMetaData, FMovieSceneEntityComponentFieldBuilder* OutFieldBuilder)

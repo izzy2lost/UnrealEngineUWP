@@ -125,6 +125,7 @@
 #include "Editor/UnrealEdEngine.h"
 #include "UnrealEdGlobals.h"
 #include "UniversalObjectLocators/ActorLocatorFragment.h"
+#include "SequencerUtilities.h"
 
 #define LOCTEXT_NAMESPACE "Sequencer"
 
@@ -3408,16 +3409,16 @@ void SSequencer::OnAssetsDropped( const FAssetDragDropOp& DragDropOp )
 					continue;
 				}
 
-				// If the object dragged resolves to a locator of actor type, or is natively a non-supported object type, attempt to use the actor factory to make a spawnable actor from it.
-				// Otherwise, the CreateBinding will have succeeded.
-				FUniversalObjectLocator TestLocator(CurObject, SequencerRef.GetPlaybackContext());
-				if (TestLocator.GetLastFragmentTypeHandle() == FActorLocatorFragment::FragmentType || !SequencerRef.CreateBinding(*CurObject, CurObject->GetName()).IsValid())
+				UE::Sequencer::FCreateBindingParams Params;
+				Params.BindingNameOverride = CurObject->GetName();
+				Params.bSpawnable = true;
+				Params.ActorFactory = DragDropOp.GetActorFactory();
+
+				if (SequencerRef.CreateBinding(*CurObject, Params).IsValid())
 				{
-					SequencerRef.MakeNewSpawnable(*CurObject, DragDropOp.GetActorFactory());
+					DropResult = ESequencerDropResult::DropHandled;
 				}
 			}
-
-			DropResult = ESequencerDropResult::DropHandled;
 		}
 
 		FMovieSceneTrackEditor::EndKeying();
@@ -3465,7 +3466,10 @@ void SSequencer::OnClassesDropped( const FClassDragDropOp& DragDropOp )
 			{
 				UObject* Object = Class->GetDefaultObject();
 
-				FGuid NewGuid = SequencerRef.MakeNewSpawnable(*Object);
+				UE::Sequencer::FCreateBindingParams Params;
+				Params.bSpawnable = true;
+
+				SequencerRef.CreateBinding(*Object, Params);
 			}
 		}
 	}

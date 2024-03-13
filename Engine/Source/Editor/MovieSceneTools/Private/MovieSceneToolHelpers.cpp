@@ -88,6 +88,9 @@
 #include "ConstraintsManager.h"
 #include "Constraints/MovieSceneConstraintChannelHelper.inl"
 #include "Exporters/FbxExportOption.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
+#include "Tracks/MovieSceneBindingLifetimeTrack.h"
+#include "Sections/MovieSceneBindingLifetimeSection.h"
 
 /* FSkelMeshRecorder
  ***********/
@@ -1161,7 +1164,7 @@ static FGuid GetHandleToObject(UObject* InObject, UMovieSceneSequence* InSequenc
 	if (bCreateIfMissing)
 	{
 		// Otherwise, create a possessable for this object. Note this will handle creating the parent possessables if this is a component.
-		PropertyOwnerGuid = InSequence->CreatePossessable(InObject);
+		PropertyOwnerGuid = Player->CreateBinding(InSequence, InObject);
 	}
 	
 	return PropertyOwnerGuid;
@@ -3118,11 +3121,7 @@ void MovieSceneToolHelpers::ImportFBXCameraToExisting(UnFbx::FFbxImporter* FbxIm
 				}
 
 				// If copying properties to a spawnable object, the template object must be updated
-				FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(InObjectBinding.Key);
-				if (Spawnable)
-				{
-					Spawnable->CopyObjectTemplate(*FoundObject, *InSequence);
-				}
+				MovieSceneHelpers::CopyObjectTemplate(InSequence, InObjectBinding.Key, FoundObject, Player->GetSharedPlaybackState());
 
 				UMovieSceneFloatTrack* FloatTrack = MovieScene->FindTrack<UMovieSceneFloatTrack>(PropertyOwnerGuid, TrackName);
 				if (FloatTrack)
@@ -4027,9 +4026,18 @@ bool MovieSceneToolHelpers::ExportToAnimSequence(UAnimSequence* AnimSequence, UA
 	return AnimSequence->GetDataModel()->HasBeenPopulated();
 }
 
+
+
 FSpawnableRestoreState::FSpawnableRestoreState(UMovieScene* MovieScene)
+	: FSpawnableRestoreState(MovieScene, nullptr)
+{
+
+}
+
+FSpawnableRestoreState::FSpawnableRestoreState(UMovieScene* MovieScene, TSharedPtr<UE::MovieScene::FSharedPlaybackState> InSharedPlaybackState)
 	: bWasChanged(false)
 	, WeakMovieScene(MovieScene)
+	, SharedPlaybackState(InSharedPlaybackState)
 {
 	for (int32 SpawnableIndex = 0; SpawnableIndex < WeakMovieScene->GetSpawnableCount(); ++SpawnableIndex)
 	{
@@ -4058,6 +4066,59 @@ FSpawnableRestoreState::FSpawnableRestoreState(UMovieScene* MovieScene)
 		}
 	}
 
+	TSharedPtr<UE::MovieScene::FSharedPlaybackState> SharedPlaybackStateToUse = SharedPlaybackState;
+	if (!SharedPlaybackStateToUse)
+	{
+		// Supporting deprecated path where we have no SharedPlaybackState
+		UE::MovieScene::FSharedPlaybackStateCreateParams CreateParams;
+		CreateParams.PlaybackContext = GEditor->GetEditorWorldContext().World();
+		UMovieSceneSequence* ThisSequence = WeakMovieScene->GetTypedOuter<UMovieSceneSequence>();
+		SharedPlaybackStateToUse = MakeShared<UE::MovieScene::FSharedPlaybackState>(*ThisSequence, CreateParams);
+
+		FMovieSceneEvaluationState State;
+		SharedPlaybackStateToUse->AddCapabilityRaw(&State);
+		State.AssignSequence(MovieSceneSequenceID::Root, *ThisSequence, SharedPlaybackStateToUse.ToSharedRef());
+	}
+	ensure(SharedPlaybackStateToUse.IsValid());
+	if (UMovieSceneSequence* Sequence = WeakMovieScene->GetTypedOuter<UMovieSceneSequence>())
+	{
+		if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			for (FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+			{
+				if (BindingReference.CustomBinding)
+				{
+					if (UMovieSceneSpawnableBindingBase* SpawnableBinding = BindingReference.CustomBinding->AsSpawnable(SharedPlaybackStateToUse.ToSharedRef()))
+					{
+						UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = WeakMovieScene->FindTrack<UMovieSceneBindingLifetimeTrack>(BindingReference.ID);
+						if (BindingLifetimeTrack && BindingLifetimeTrack->GetAllSections().Num() > 0)
+						{
+							// Start a transaction that will be undone later for the modifications to the binding lifetime track
+							if (!bWasChanged)
+							{
+								GEditor->BeginTransaction(NSLOCTEXT("MovieSceneToolHelpers", "SpwanableRestoreState", "SpawnableRestoreState"));
+							}
+
+							bWasChanged = true;
+
+							// Spawnable could be in a subscene, so temporarily override it to persist throughout
+							SpawnOwnershipMap.Add(BindingReference.ID, SpawnableBinding->SpawnOwnership);
+							SpawnableBinding->SpawnOwnership = ESpawnOwnership::RootSequence;
+
+							BindingLifetimeTrack->Modify();
+							BindingLifetimeTrack->RemoveAllAnimationData();
+							// Add a single infinite section
+							UMovieSceneSection* NewSection = NewObject<UMovieSceneSection>(BindingLifetimeTrack, UMovieSceneBindingLifetimeSection::StaticClass(), NAME_None, RF_Transactional);
+							check(NewSection);
+							NewSection->SetRange(TRange<FFrameNumber>::All());
+							BindingLifetimeTrack->AddSection(*NewSection);
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if (bWasChanged)
 	{
 		GEditor->EndTransaction();
@@ -4075,6 +4136,38 @@ FSpawnableRestoreState::~FSpawnableRestoreState()
 	{
 		FMovieSceneSpawnable& Spawnable = WeakMovieScene->GetSpawnable(SpawnableIndex);
 		Spawnable.SetSpawnOwnership(SpawnOwnershipMap[Spawnable.GetGuid()]);
+	}
+
+	TSharedPtr<UE::MovieScene::FSharedPlaybackState> SharedPlaybackStateToUse = SharedPlaybackState;
+	if (!SharedPlaybackStateToUse)
+	{
+		// Supporting deprecated path where we have no SharedPlaybackState
+		UE::MovieScene::FSharedPlaybackStateCreateParams CreateParams;
+		CreateParams.PlaybackContext = GEditor->GetEditorWorldContext().World();
+		UMovieSceneSequence* ThisSequence = WeakMovieScene->GetTypedOuter<UMovieSceneSequence>();
+		SharedPlaybackStateToUse = MakeShared<UE::MovieScene::FSharedPlaybackState>(*ThisSequence, CreateParams);
+
+		FMovieSceneEvaluationState State;
+		SharedPlaybackStateToUse->AddCapabilityRaw(&State);
+		State.AssignSequence(MovieSceneSequenceID::Root, *ThisSequence, SharedPlaybackStateToUse.ToSharedRef());
+	}
+	ensure(SharedPlaybackStateToUse.IsValid());
+
+	if (UMovieSceneSequence* Sequence = WeakMovieScene->GetTypedOuter<UMovieSceneSequence>())
+	{
+		if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			for (FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+			{
+				if (BindingReference.CustomBinding)
+				{
+					if (UMovieSceneSpawnableBindingBase* SpawnableBinding = BindingReference.CustomBinding->AsSpawnable(SharedPlaybackStateToUse.ToSharedRef()))
+					{
+						SpawnableBinding->SpawnOwnership = SpawnOwnershipMap[BindingReference.ID];
+					}
+				}
+			}
+		}
 	}
 
 	// Restore modified spawned sections

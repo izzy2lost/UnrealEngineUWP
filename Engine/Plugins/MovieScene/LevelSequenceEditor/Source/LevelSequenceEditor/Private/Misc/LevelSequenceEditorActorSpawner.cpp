@@ -231,23 +231,26 @@ void FLevelSequenceEditorActorSpawner::SetupDefaultsForSpawnable(UObject* Spawne
 	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
 	UMovieScene* OwnerMovieScene = Sequence->GetMovieScene();
 
-	// Ensure it has a spawn track
-	UMovieSceneSpawnTrack* SpawnTrack = Cast<UMovieSceneSpawnTrack>(OwnerMovieScene->FindTrack(UMovieSceneSpawnTrack::StaticClass(), Guid, NAME_None));
-	if (!SpawnTrack)
+	// Ensure it has a spawn track if it's an old style spawnable. Otherwise, a custom spawnable will handle adding a binding lifetime track elsewhere
+	if (OwnerMovieScene->FindSpawnable(Guid))
 	{
-		SpawnTrack = Cast<UMovieSceneSpawnTrack>(OwnerMovieScene->AddTrack(UMovieSceneSpawnTrack::StaticClass(), Guid));
-	}
-
-	if (SpawnTrack)
-	{
-		UMovieSceneBoolSection* SpawnSection = Cast<UMovieSceneBoolSection>(SpawnTrack->CreateNewSection());
-		SpawnSection->GetChannel().SetDefault(true);
-		if (Sequencer->GetInfiniteKeyAreas())
+		UMovieSceneSpawnTrack* SpawnTrack = Cast<UMovieSceneSpawnTrack>(OwnerMovieScene->FindTrack(UMovieSceneSpawnTrack::StaticClass(), Guid, NAME_None));
+		if (!SpawnTrack)
 		{
-			SpawnSection->SetRange(TRange<FFrameNumber>::All());
+			SpawnTrack = Cast<UMovieSceneSpawnTrack>(OwnerMovieScene->AddTrack(UMovieSceneSpawnTrack::StaticClass(), Guid));
 		}
-		SpawnTrack->AddSection(*SpawnSection);
-		SpawnTrack->SetObjectId(Guid);
+
+		if (SpawnTrack)
+		{
+			UMovieSceneBoolSection* SpawnSection = Cast<UMovieSceneBoolSection>(SpawnTrack->CreateNewSection());
+			SpawnSection->GetChannel().SetDefault(true);
+			if (Sequencer->GetInfiniteKeyAreas())
+			{
+				SpawnSection->SetRange(TRange<FFrameNumber>::All());
+			}
+			SpawnTrack->AddSection(*SpawnSection);
+			SpawnTrack->SetObjectId(Guid);
+		}
 	}
 
 	// Ensure it will spawn in the right place

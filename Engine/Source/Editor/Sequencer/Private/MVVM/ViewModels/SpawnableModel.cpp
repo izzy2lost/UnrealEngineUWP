@@ -100,7 +100,7 @@ FText FSpawnableModel::GetTooltipForSingleObjectBinding() const
 {
 	const UClass* ClassForObjectBinding = FindObjectClass();
 	if (ClassForObjectBinding)
-	{\
+	{
 		return FText::Format(LOCTEXT("SpawnableBoundObjectToolTip", "Spawnable Class: {0} (BindingID: {1})"), FText::FromName(ClassForObjectBinding->GetFName()), FText::FromString(LexToString(ObjectBindingID)));
 	}
 	return FObjectBindingModel::GetTooltipForSingleObjectBinding();

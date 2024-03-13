@@ -34,11 +34,12 @@ public:
 public:
 
 	// FLevelSequenceSpawnRegister interface
-
-	virtual UObject* SpawnObject(FMovieSceneSpawnable& Spawnable, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) override;
-	virtual void PreDestroyObject(UObject& Object, const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID) override;
-	virtual void SaveDefaultSpawnableState(FMovieSceneSpawnable& Spawnable, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
+	// Prevents clang warning on the old deprecated SpawnObject overload that takes a FMovieSceneSpawnable
+	using FLevelSequenceSpawnRegister::SpawnObject;
+	virtual UObject* SpawnObject(const FGuid& BindingId, UMovieScene& MovieScene, FMovieSceneSequenceIDRef Template, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex);
+	virtual void PreDestroyObject(UObject& Object, const FGuid& BindingId, int32 BindingIndex, FMovieSceneSequenceIDRef TemplateID) override;
 #if WITH_EDITOR
+	virtual void SaveDefaultSpawnableState(const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
 	virtual TValueOrError<FNewSpawnable, FText> CreateNewSpawnableType(UObject& SourceObject, UMovieScene& OwnerMovieScene, UActorFactory* ActorFactory = nullptr) override;
 	virtual void SetupDefaultsForSpawnable(UObject* SpawnedObject, const FGuid& Guid, const TOptional<FTransformData>& TransformData, TSharedRef<ISequencer> Sequencer, USequencerSettings* Settings) override;
 	virtual void HandleConvertPossessableToSpawnable(UObject* OldObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, TOptional<FTransformData>& OutTransformData) override;
@@ -51,8 +52,7 @@ private:
 	void HandleActorSelectionChanged(const TArray<UObject*>& NewSelection, bool bForceRefresh);
 
 	/** Saves the default state for the specified spawnable, if an instance for it currently exists */
-	void SaveDefaultSpawnableState(const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID);
-	void SaveDefaultSpawnableStateImpl(FMovieSceneSpawnable& Spawnable, UMovieSceneSequence* Sequence, UObject* SpawnedObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
+	void SaveDefaultSpawnableStateImpl(const FGuid& BindingId, int32 BindingIndex, UMovieSceneSequence* Sequence, UObject* SpawnedObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/** Called from the editor when a blueprint object replacement has occurred */
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewInstanceMap);
@@ -66,17 +66,21 @@ private:
 	/** Called on pre/post GC */
 	void UpdateIsEngineCollectingGarbage(bool bIsCollectingGarbage);
 
+
 private:
 
 	struct FTrackedObjectState
 	{
-		FTrackedObjectState(FMovieSceneSequenceIDRef InTemplateID, const FGuid& InObjectBindingID) : TemplateID(InTemplateID), ObjectBindingID(InObjectBindingID), bHasBeenModified(false) {}
+		FTrackedObjectState(FMovieSceneSequenceIDRef InTemplateID, const FGuid& InObjectBindingID, int32 InBindingIndex=0) : TemplateID(InTemplateID), ObjectBindingID(InObjectBindingID), BindingIndex(InBindingIndex), bHasBeenModified(false) {}
 
 		/** The sequence ID that spawned this object */
 		FMovieSceneSequenceID TemplateID;
 
 		/** The object binding ID of the object in the template */
 		FGuid ObjectBindingID;
+
+		/** The index of the binding being tracked*/
+		int32 BindingIndex = 0;
 
 		/** true if this object has been modified since it was spawned and is different from the current object template */
 		bool bHasBeenModified;

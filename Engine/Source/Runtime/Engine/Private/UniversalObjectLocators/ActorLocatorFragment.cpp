@@ -112,6 +112,13 @@ UE::UniversalObjectLocator::FResolveResult FActorLocatorFragment::Resolve(const 
 	// Finally fallback to just trying to resolve the path directly
 	if (!Result)
 	{
+		FSoftObjectPath TempPath = Path;
+
+		// Soft Object Paths don't follow asset redirectors when attempting to call ResolveObject or TryLoad.
+		// We want to follow the asset redirector so that maps that have been renamed (from Untitled to their first asset name)
+		// properly resolve. This fixes Possessable bindings losing their references the first time you save a map.
+		TempPath.PreSavePath();
+
 #if WITH_EDITORONLY_DATA
 		UPackage* ContextPackage = Params.Context ? Params.Context->GetOutermost() : nullptr;
 		if (ContextPackage)
@@ -120,7 +127,7 @@ UE::UniversalObjectLocator::FResolveResult FActorLocatorFragment::Resolve(const 
 			const int32 PIEInstanceID = ContextPackage->GetPIEInstanceID();
 			if (PIEInstanceID != INDEX_NONE)
 			{
-				FSoftObjectPath PIEPath = Path;
+				FSoftObjectPath PIEPath = TempPath;
 				PIEPath.FixupForPIE(PIEInstanceID);
 
 				Result = PIEPath.ResolveObject();
@@ -129,7 +136,7 @@ UE::UniversalObjectLocator::FResolveResult FActorLocatorFragment::Resolve(const 
 		}
 #endif
 
-		Result = Path.ResolveObject();
+		Result = TempPath.ResolveObject();
 	}
 
 	return FResolveResultData(Result);

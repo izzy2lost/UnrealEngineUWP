@@ -261,7 +261,7 @@ bool ExportFBXInternal(const FSequencerExportFBXParams& InParams, UMovieSceneSeq
 	bool bDidExport = false;
 	
 	{
-		FSpawnableRestoreState SpawnableRestoreState(MovieScene);
+		FSpawnableRestoreState SpawnableRestoreState(MovieScene, Player->GetSharedPlaybackState().ToSharedPtr());
 
 		if (SpawnableRestoreState.bWasChanged)
 		{
@@ -349,7 +349,7 @@ bool USequencerToolsFunctionLibrary::ExportAnimSequence(UWorld* World, ULevelSeq
 	bool bResult = false;
 	
 	{
-		FSpawnableRestoreState SpawnableRestoreState(MovieScene);
+		FSpawnableRestoreState SpawnableRestoreState(MovieScene, Player->GetSharedPlaybackState().ToSharedPtr());
  
 		if (SpawnableRestoreState.bWasChanged)
 		{
@@ -676,7 +676,7 @@ bool ImportFBXInternal(UWorld* World, UMovieSceneSequence* Sequence, const TArra
 	bool bResult = false;
 	FScopedTransaction ImportFBXTransaction(NSLOCTEXT("Sequencer", "ImportFBX", "Import FBX"));
 	{
-		FSpawnableRestoreState SpawnableRestoreState(MovieScene);
+		FSpawnableRestoreState SpawnableRestoreState(MovieScene, Player->GetSharedPlaybackState().ToSharedPtr());
  
 		if (SpawnableRestoreState.bWasChanged)
 		{

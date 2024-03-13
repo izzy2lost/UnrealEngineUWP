@@ -7,6 +7,7 @@
 #include "MovieScene.h"
 #include "MovieSceneSequence.h"
 #include "ITimeSlider.h"
+#include "SequencerUtilities.h"
 
 FAnimatedRange ISequencer::GetViewRange() const
 {
@@ -59,4 +60,22 @@ FFrameRate ISequencer::GetFocusedDisplayRate() const
 
 	ensureMsgf(false, TEXT("No valid sequence found."));
 	return FFrameRate();
+}
+
+FGuid ISequencer::CreateBinding(UObject& InObject, const FString& InName)
+{
+	UE::Sequencer::FCreateBindingParams BindingParams;
+	BindingParams.BindingNameOverride = InName;
+	return CreateBinding(InObject, BindingParams);
+}
+
+FGuid ISequencer::CreateBinding(UMovieSceneSequence* InSequence, UObject* InObject)
+{
+	if (GetFocusedMovieSceneSequence() == InSequence && InObject)
+	{
+		UE::Sequencer::FCreateBindingParams BindingParams;
+		BindingParams.bAllowCustomBinding = true;
+		return CreateBinding(*InObject, BindingParams);
+	}
+	return IMovieScenePlayer::CreateBinding(InSequence, InObject);
 }

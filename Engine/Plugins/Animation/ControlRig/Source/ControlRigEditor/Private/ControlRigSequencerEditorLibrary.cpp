@@ -1158,7 +1158,7 @@ bool UControlRigSequencerEditorLibrary::BakeToControlRig(UWorld* World, ULevelSe
 	bool bResult = false;
 	const FScopedTransaction Transaction(LOCTEXT("BakeToControlRig_Transaction", "Bake To Control Rig"));
 	{
-		FSpawnableRestoreState SpawnableRestoreState(MovieScene);
+		FSpawnableRestoreState SpawnableRestoreState(MovieScene, Player->GetSharedPlaybackState().ToSharedPtr());
 
 		if (LevelPlayer && SpawnableRestoreState.bWasChanged)
 		{

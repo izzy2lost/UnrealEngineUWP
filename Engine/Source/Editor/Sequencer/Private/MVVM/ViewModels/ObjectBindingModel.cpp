@@ -1321,12 +1321,6 @@ void FObjectBindingModel::Delete()
 			ParentFolder->GetFolder()->RemoveChildObjectBinding(ObjectBindingID);
 		}
 
-		// Delete any loaded object that may be bound to this object binding
-		if (FMovieSceneObjectCache* Cache = Sequencer->State.FindObjectCache(OwnerModel->GetSequenceID()))
-		{
-			Cache->UnloadBinding(ObjectBindingID, Sequencer->GetSharedPlaybackState());
-		}
-
 		BindingLifetimeOverlayModel.Reset();
 	}
 }

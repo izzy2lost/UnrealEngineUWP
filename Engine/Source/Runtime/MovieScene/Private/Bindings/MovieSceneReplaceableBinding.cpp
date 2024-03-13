@@ -1,0 +1,177 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Bindings/MovieSceneReplaceableBinding.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "MovieScene.h"
+#include "Engine/World.h"
+#include "Engine/Level.h"
+#include "MovieSceneBindingReferences.h"
+#include "Tracks/MovieSceneBindingLifetimeTrack.h"
+#include "Sections/MovieSceneBindingLifetimeSection.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
+#include "MovieSceneCommonHelpers.h"
+#include "Styling/SlateBrush.h"
+#include "Styling/AppStyle.h"
+#include "Internationalization/Internationalization.h"
+
+#define LOCTEXT_NAMESPACE "FPossessableModel"
+
+static const FName SequencerPreviewActorTag(TEXT("SequencerPreviewActor"));
+
+#if WITH_EDITOR
+void UMovieSceneReplaceableBindingBase::SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
+{
+	Super::SetupDefaults(SpawnedObject, ObjectBindingId, OwnerMovieScene, SharedPlaybackState);
+	// Ensure it has a binding lifetime track which it will need in editor
+	UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(OwnerMovieScene.FindTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBindingId, NAME_None));
+	if (!BindingLifetimeTrack)
+	{
+		BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(OwnerMovieScene.AddTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBindingId));
+	}
+
+	if (BindingLifetimeTrack && BindingLifetimeTrack->GetAllSections().IsEmpty())
+	{
+		UMovieSceneBindingLifetimeSection* BindingLifetimeSection = Cast<UMovieSceneBindingLifetimeSection>(BindingLifetimeTrack->CreateNewSection());
+		BindingLifetimeSection->SetRange(TRange<FFrameNumber>::All());
+		BindingLifetimeTrack->AddSection(*BindingLifetimeSection);
+	}
+}
+
+const FSlateBrush* UMovieSceneReplaceableBindingBase::GetBindingTrackCustomIconOverlay() const
+{
+	return FAppStyle::GetBrush("Sequencer.ReplaceableIconOverlay");
+}
+
+FText UMovieSceneReplaceableBindingBase::GetBindingTrackIconTooltip() const
+{
+	return LOCTEXT("CustomReplaceableTooltip", "This item is dynamically bound at runtime, and spawns a preview object in Editor within Sequencer");
+}
+
+
+bool UMovieSceneReplaceableBindingBase::SupportsConversionFromBinding(const FMovieSceneBindingReference& BindingReference, const UObject* SourceObject) const
+{
+	return SupportsBindingCreationFromObject(SourceObject);
+}
+
+UMovieSceneCustomBinding* UMovieSceneReplaceableBindingBase::CreateCustomBindingFromBinding(const FMovieSceneBindingReference& BindingReference, UObject* SourceObject, UMovieScene& OwnerMovieScene)
+{
+	return CreateNewCustomBinding(SourceObject, OwnerMovieScene);
+}
+
+UClass* UMovieSceneReplaceableBindingBase::GetBoundObjectClass() const
+{
+	// We use the bound object class of the preview spawnable by default
+	if (TSubclassOf<UMovieSceneSpawnableBindingBase> SpawnableBindingClass = GetInnerSpawnableClass())
+	{
+		return SpawnableBindingClass->GetDefaultObject<UMovieSceneSpawnableBindingBase>()->GetBoundObjectClass();
+	}
+	return AActor::StaticClass();
+}
+
+#endif
+
+bool UMovieSceneReplaceableBindingBase::SupportsBindingCreationFromObject(const UObject* SourceObject) const
+{
+	// We can create this binding if our chosen inner spawnable can be created from it.
+	if (TSubclassOf<UMovieSceneSpawnableBindingBase> SpawnableBindingClass = GetInnerSpawnableClass())
+	{
+		return SpawnableBindingClass->GetDefaultObject<UMovieSceneSpawnableBindingBase>()->SupportsBindingCreationFromObject(SourceObject);
+	}
+	return false;
+}
+
+bool UMovieSceneReplaceableBindingBase::WillSpawnObject(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+#if WITH_EDITOR
+	if (UObject* WorldContext = SharedPlaybackState->GetPlaybackContext())
+	{
+		if (UWorld* World = WorldContext->GetWorld())
+		{
+			if (World->WorldType == EWorldType::Editor)
+			{
+				return true;
+			}
+		}
+	}
+#endif
+	return false;
+}
+
+FMovieSceneBindingResolveResult UMovieSceneReplaceableBindingBase::ResolveBinding(const FMovieSceneBindingResolveParams& ResolveParams, int32 BindingIndex, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+#if WITH_EDITOR
+	if (UObject* WorldContext = SharedPlaybackState->GetPlaybackContext())
+	{
+		if (UWorld* World = WorldContext->GetWorld())
+		{
+			if (World->WorldType == EWorldType::Editor && PreviewSpawnable)
+			{
+				FMovieSceneBindingResolveResult Result = PreviewSpawnable->ResolveBinding(ResolveParams, BindingIndex, SharedPlaybackState);
+				if (AActor* Actor = Cast<AActor>(Result.Object.Get()))
+				{
+					// In addition to the spawnable tag (which the spawnable will have added), we add a replaceable tag
+					Actor->Tags.AddUnique(SequencerPreviewActorTag);
+				}
+				return Result;
+			}
+		}
+	}
+#endif
+
+	return ResolveRuntimeBindingInternal(ResolveParams, BindingIndex, SharedPlaybackState);
+}
+
+
+const UMovieSceneSpawnableBindingBase* UMovieSceneReplaceableBindingBase::AsSpawnable(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+#if WITH_EDITOR
+	if (UObject* WorldContext = SharedPlaybackState->GetPlaybackContext())
+	{
+		if (UWorld* World = WorldContext->GetWorld())
+		{
+			if (World->WorldType == EWorldType::Editor)
+			{
+				return PreviewSpawnable;
+			}
+		}
+	}
+#endif
+
+	return nullptr;
+}
+
+UMovieSceneSpawnableBindingBase* UMovieSceneReplaceableBindingBase::CreateInnerSpawnable(UObject* SourceObject, UMovieScene& OwnerMovieScene)
+{
+	if (TSubclassOf<UMovieSceneSpawnableBindingBase> SpawnableClass = GetInnerSpawnableClass())
+	{
+		ensure(!SpawnableClass->HasAnyClassFlags(EClassFlags::CLASS_Abstract));
+		
+		return Cast<UMovieSceneSpawnableBindingBase>(SpawnableClass->GetDefaultObject<UMovieSceneSpawnableBindingBase>()->CreateNewCustomBinding(SourceObject, OwnerMovieScene));
+	}
+	return nullptr;
+}
+
+UMovieSceneCustomBinding* UMovieSceneReplaceableBindingBase::CreateNewCustomBinding(UObject* SourceObject, UMovieScene& OwnerMovieScene)
+{
+	if (!SourceObject)
+	{
+		return nullptr;
+	}
+
+	UMovieSceneReplaceableBindingBase* NewCustomBinding = nullptr;
+
+	FString BindingNameToSet = MovieSceneHelpers::MakeUniqueBindingName(&OwnerMovieScene, FName::NameToDisplayString(SourceObject->GetName(), false));
+
+	const FName TemplateName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), SourceObject->GetFName());
+	const FName InstancedBindingName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), *FString(TemplateName.ToString() + TEXT("_CustomBinding")));
+
+	NewCustomBinding = NewObject<UMovieSceneReplaceableBindingBase>(&OwnerMovieScene, GetClass(), InstancedBindingName, RF_Transactional);
+	NewCustomBinding->BindingName = BindingNameToSet;
+#if WITH_EDITORONLY_DATA
+	NewCustomBinding->PreviewSpawnable = NewCustomBinding->CreateInnerSpawnable(SourceObject, OwnerMovieScene);
+#endif
+	NewCustomBinding->InitReplaceableBinding(SourceObject, OwnerMovieScene);
+	return NewCustomBinding;
+}
+
+#undef LOCTEXT_NAMESPACE

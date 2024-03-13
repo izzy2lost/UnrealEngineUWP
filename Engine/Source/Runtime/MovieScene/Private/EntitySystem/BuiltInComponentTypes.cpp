@@ -412,6 +412,7 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 	Tags.PreRoll                 = ComponentRegistry->NewTag(TEXT("Pre Roll"));
 	Tags.SectionPreRoll          = ComponentRegistry->NewTag(TEXT("Section Pre Roll"));
 	Tags.AlwaysCacheInitialValue = ComponentRegistry->NewTag(TEXT("Always Cache Initial Value"));
+	Tags.OldStyleSpawnable		= ComponentRegistry->NewTag(TEXT("Old Style Spawnable"));
 
 	SymbolicTags.CreatesEntities = ComponentRegistry->NewTag(TEXT("~~ SYMBOLIC ~~ Creates Entities"));
 

@@ -7,6 +7,7 @@
 #include "LevelSequenceModule.h"
 #include "IMovieSceneObjectSpawner.h"
 #include "Modules/ModuleManager.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
 
 FLevelSequenceSpawnRegister::FLevelSequenceSpawnRegister()
 {
@@ -31,18 +32,25 @@ UObject* FLevelSequenceSpawnRegister::SpawnObject(FMovieSceneSpawnable& Spawnabl
 	return nullptr;
 }
 
-void FLevelSequenceSpawnRegister::DestroySpawnedObject(UObject& Object)
+void FLevelSequenceSpawnRegister::DestroySpawnedObject(UObject& Object, UMovieSceneSpawnableBindingBase* CustomSpawnableBinding)
 {
-	for (TSharedRef<IMovieSceneObjectSpawner> MovieSceneObjectSpawner : MovieSceneObjectSpawners)
+	if (CustomSpawnableBinding)
 	{
-		if (Object.IsA(MovieSceneObjectSpawner->GetSupportedTemplateType()))
-		{
-			MovieSceneObjectSpawner->DestroySpawnedObject(Object);
-			return;
-		}
+		CustomSpawnableBinding->DestroySpawnedObject(&Object);
 	}
+	else
+	{
+		for (TSharedRef<IMovieSceneObjectSpawner> MovieSceneObjectSpawner : MovieSceneObjectSpawners)
+		{
+			if (Object.IsA(MovieSceneObjectSpawner->GetSupportedTemplateType()))
+			{
+				MovieSceneObjectSpawner->DestroySpawnedObject(Object);
+				return;
+			}
+		}
 
-	checkf(false, TEXT("No valid object spawner found to destroy spawned object of type %s"), *Object.GetClass()->GetName());
+		checkf(false, TEXT("No valid object spawner found to destroy spawned object of type %s"), *Object.GetClass()->GetName());
+	}
 }
 
 #if WITH_EDITOR

@@ -539,6 +539,11 @@ bool ULevelSequence::AllowsSpawnableObjects() const
 	return true;
 }
 
+bool ULevelSequence::AllowsCustomBindings() const
+{
+	return true;
+}
+
 bool ULevelSequence::CanRebindPossessable(const FMovieScenePossessable& InPossessable) const
 {
 	return !InPossessable.GetParent().IsValid();

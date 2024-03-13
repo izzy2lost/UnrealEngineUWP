@@ -10,6 +10,7 @@
 #include "MovieSceneCopyableBinding.generated.h"
 
 class UMovieSceneTrack;
+class UMovieSceneCustomBinding;
 
 UCLASS(Transient)
 class UMovieSceneCopyableBinding : public UObject
@@ -24,7 +25,7 @@ public:
 	* the rest of the text as it'll fall back to the same reference issue. Marking this as TextExportTransient solves this.
 	*/
 	UPROPERTY(TextExportTransient)
-	TObjectPtr<UObject> SpawnableObjectTemplate;
+	TArray<TObjectPtr<UObject>> SpawnableObjectTemplates;
 
 	/**
 	 * Tracks are also owned by the owning Movie Sequence. We manually copy the tracks out of a binding when we copy,
@@ -51,4 +52,7 @@ public:
 
 	UPROPERTY()
 	TArray<FName> Tags;
+
+	UPROPERTY()
+	TArray<UMovieSceneCustomBinding*> CustomBindings;
 };

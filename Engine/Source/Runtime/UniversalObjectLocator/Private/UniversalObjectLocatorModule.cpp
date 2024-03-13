@@ -11,7 +11,6 @@
 #include "Misc/DelayedAutoRegister.h"
 
 #include "DirectPathObjectLocator.h"
-#include "ILocatorSpawnedCache.h"
 
 namespace UE::UniversalObjectLocator
 {
@@ -37,8 +36,6 @@ public:
 					FFragmentTypeParameters FragmentTypeParams("uobj", NSLOCTEXT("DirectPathObjectLocator", "Object", "Object"));
 					FDirectPathObjectLocator::FragmentType = this->RegisterFragmentType<FDirectPathObjectLocator>(FragmentTypeParams);
 				}
-
-				FLocatorSpawnedCacheResolveParameter::ParameterType = this->RegisterParameterType<FLocatorSpawnedCacheResolveParameter>();
 			}
 		);
 

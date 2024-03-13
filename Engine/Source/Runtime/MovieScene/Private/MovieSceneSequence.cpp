@@ -19,6 +19,7 @@
 #include "EntitySystem/IMovieSceneEntityProvider.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
 #include "UniversalObjectLocator.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSequence)
 
@@ -63,15 +64,6 @@ FMovieSceneBindingReferences* UMovieSceneSequence::GetBindingReferences()
 {
 	const FMovieSceneBindingReferences* Result = const_cast<const UMovieSceneSequence*>(this)->GetBindingReferences();
 	return const_cast<FMovieSceneBindingReferences*>(Result);
-}
-
-void UMovieSceneSequence::UnloadBoundObject(const UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& ObjectId, int32 BindingIndex)
-{
-	FMovieSceneBindingReferences* Refs = GetBindingReferences();
-	if (Refs)
-	{
-		Refs->UnloadBoundObject(ResolveParams, ObjectId, BindingIndex);
-	}
 }
 
 void UMovieSceneSequence::LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
