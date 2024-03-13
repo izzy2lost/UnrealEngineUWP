@@ -204,6 +204,7 @@ private:
 	struct FRequested
 	{
 		uint32 ViewUniqueId = 0;				// View requested to be visualized -- zero visualizes the last non-scene-capture view
+		FString ViewName;						// Alternately, string name of view to visualize
 		FString Name;
 		TOptional<uint32> Version;
 	} Requested;
