@@ -1181,6 +1181,59 @@ namespace ElectraDecodersUtil
 				CurrentPOC = PreviousPOC;
 			}
 
+			bool FSlicePOCVars::HandleMissingFrames(TArray<FOutputFrameInfo>& OutOutputFrameInfos, TArray<FOutputFrameInfo>& OutUnrefFrameInfos, uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, const FSequenceParameterSet& InSequenceParameterSet)
+			{
+				bool bIsIDR = InNalUnitType == 5;
+				// Do we need to check?
+				if (bLastHadMMCO5 || bIsIDR)
+				{
+					// No need. Just continue.
+					return true;
+				}
+				// Is there a frame missing?
+				if (!(InSliceHeader.frame_num != CurrentPOC.prev_frame_num && InSliceHeader.frame_num != (CurrentPOC.prev_frame_num + 1) % max_frame_num))
+				{
+					// No. Continue.
+					return true;
+				}
+				/*
+					Decoding process for gaps in frame_num, Section 8.2.5.2
+						the current picture is considered to be a picture considered having frame_num inferred to be equal to UnusedShortTermFrameNum,
+						nal_ref_idc inferred to be not equal to 0,
+						nal_unit_type inferred to be not equal to 5,
+						IdrPicFlag inferred to be equal to 0,
+						field_pic_flag inferred to be equal to 0,
+						adaptive_ref_pic_marking_mode_flag inferred to be equal to 0,
+						delta_pic_order_cnt[ 0 ] (if needed) inferred to be equal to 0, and delta_pic_order_cnt[ 1 ] (if needed) inferred to be equal to 0.
+				*/
+				InNalUnitType = 1;
+				InNalRefIdc = 1;
+				FSliceHeader TempSliceHeader(InSliceHeader);
+				TempSliceHeader.delta_pic_order_cnt[0] = TempSliceHeader.delta_pic_order_cnt[1] = 0;
+				TempSliceHeader.adaptive_ref_pic_marking_mode_flag = 0;
+				TempSliceHeader.MemoryManagementControl.Empty();
+				TempSliceHeader.field_pic_flag = 0;
+				TempSliceHeader.long_term_reference_flag = 0;
+				uint32 UnusedShortTermFrameNum = (CurrentPOC.prev_frame_num + 1) % max_frame_num;
+				FOutputFrameInfo NoInfo;
+				NoInfo.bDoNotOutput = true;
+				while(InSliceHeader.frame_num != UnusedShortTermFrameNum)
+				{
+					TempSliceHeader.frame_num = UnusedShortTermFrameNum;
+					if (InSequenceParameterSet.pic_order_cnt_type != 0)
+					{
+						UpdatePOCInternal(InNalUnitType, InNalRefIdc, TempSliceHeader, InSequenceParameterSet);
+					}
+					CurrentPOC.prev_frame_num = UnusedShortTermFrameNum;
+					UnusedShortTermFrameNum = (UnusedShortTermFrameNum + 1) % max_frame_num;
+					if (!EndFrame(OutOutputFrameInfos, OutUnrefFrameInfos, NoInfo, InNalUnitType, InNalRefIdc, TempSliceHeader, true))
+					{
+						return false;
+					}
+				}
+				return true;
+			}
+
 			bool FSlicePOCVars::UpdatePOC(uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, const FSequenceParameterSet& InSequenceParameterSet)
 			{
 				PreviousPOC = CurrentPOC;
@@ -1196,11 +1249,18 @@ namespace ElectraDecodersUtil
 				{
 					CurrentPOC.prev_frame_num = InSliceHeader.frame_num;
 				}
+				// Missing frames should have been covered in HandleMissingFrames() already!
 				if (InSliceHeader.frame_num != CurrentPOC.prev_frame_num && InSliceHeader.frame_num != (CurrentPOC.prev_frame_num + 1) % max_frame_num)
 				{
 					return SetLastError(FString::Printf(TEXT("Gap in frame_num detected. Cannot conceal error.")));
 				}
+				UpdatePOCInternal(InNalUnitType, InNalRefIdc, InSliceHeader, InSequenceParameterSet);
+				return true;
+			}
 
+			void FSlicePOCVars::UpdatePOCInternal(uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, const FSequenceParameterSet& InSequenceParameterSet)
+			{
+				bool bIsIDR = InNalUnitType == 5;
 				// Decoding process for picture order count, Section 8.2.1
 				if (InSequenceParameterSet.pic_order_cnt_type == 0)
 				{
@@ -1361,7 +1421,6 @@ namespace ElectraDecodersUtil
 						it->LongTermPicNum = it->LongTermFrameIndex;
 					}
 				}
-				return true;
 			}
 
 			void FSlicePOCVars::GetCurrentReferenceFrames(TArray<FReferenceFrameListEntry>& OutCurrentReferenceFrames)
@@ -1683,7 +1742,7 @@ namespace ElectraDecodersUtil
 			}
 
 
-			bool FSlicePOCVars::EndFrame(TArray<FOutputFrameInfo>& OutOutputFrameInfos, TArray<FOutputFrameInfo>& OutUnrefFrameInfos, const FOutputFrameInfo& InOutputFrameInfo, uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader)
+			bool FSlicePOCVars::EndFrame(TArray<FOutputFrameInfo>& OutOutputFrameInfos, TArray<FOutputFrameInfo>& OutUnrefFrameInfos, const FOutputFrameInfo& InOutputFrameInfo, uint8 InNalUnitType, uint8 InNalRefIdc, const FSliceHeader& InSliceHeader, bool bIsNonExisting)
 			{
 				bool bIsIDR = InNalUnitType == 5;
 				bLastHadMMCO5 = false;
@@ -1696,6 +1755,11 @@ namespace ElectraDecodersUtil
 				dinf->FramePOC = CurrentPOC.FramePOC;
 				dinf->TopPOC = CurrentPOC.TopPOC;
 				dinf->BottomPOC = CurrentPOC.BottomPOC;
+				if ((dinf->bIsNonExisting = bIsNonExisting) == true)
+				{
+					dinf->bHasBeenOutput = true;
+				}
+
 
 				// Decoded reference picture marking process
 				// Section 8.2.5
@@ -1942,7 +2006,7 @@ namespace ElectraDecodersUtil
 				UE_LOG(LogElectraDecoders, Log, TEXT("Current DPB POC"));
 				for(auto& it : FrameDPBInfos)
 				{
-					UE_LOG(LogElectraDecoders, Log, TEXT("fn=%u  poc=%d  ref=%d  ltref=%d  out=%d"), it->FrameNum, it->POC, it->bIsUsedForReference, it->bIsLongTermReference, it->bHasBeenOutput);
+					UE_LOG(LogElectraDecoders, Log, TEXT("fn=%u  poc=%d  ref=%d  ltref=%d  out=%d"), it->FrameNum, it->FramePOC, it->bIsUsedForReference, it->bIsLongTermReference, it->bHasBeenOutput);
 				}
 #endif
 				return true;

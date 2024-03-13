@@ -222,11 +222,18 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H264::DecodeAccessUnit(const F
 			if (!CurrentConfig.VideoDecoderHeap.IsValid())
 			{
 				int32 DPBSize = spsPtr->GetDPBSize();
-				int32 NumFrames = spsPtr->GetDPBSize() + 1;	// 1 extra for the current frame that's not in the DPB yet.
+				int32 NumFrames = spsPtr->GetDPBSize() + 2;	// 1 extra for the current frame that's not in the DPB yet, and 1 extra that acts as a 'missing' frame.
 				if (!CreateDecoderHeapAndDPB(DPBSize, NumFrames, 16))
 				{
 					return IElectraDecoder::EDecoderError::Error;
 				}
+				MissingReferenceFrame = DPB->GetNextUnusedFrame();
+				if (!MissingReferenceFrame.IsValid())
+				{
+					PostError(0, TEXT("Could not create empty frame used to fill in for missing frames"), ERRCODE_INTERNAL_FAILED_TO_DECODE);
+					return IElectraDecoder::EDecoderError::Error;
+				}
+
 			}
 
 		}
@@ -286,11 +293,6 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H264::DecodeSlicesH264(const F
 	}
 
 	// Some capability checks
-	if (InSequenceParameterSet.gaps_in_frame_num_value_allowed_flag)
-	{
-		PostError(0, FString::Printf(TEXT("DecodeSlicesH264() failed. Cannot decode streams that have gaps_in_frame_num_value_allowed_flag set")), ERRCODE_INTERNAL_FAILED_TO_DECODE);
-		return IElectraDecoder::EDecoderError::Error;
-	}
 	if (InSequenceParameterSet.mb_adaptive_frame_field_flag || InSliceInfos[0].Header.field_pic_flag || InSliceInfos[0].Header.bottom_field_flag)
 	{
 		PostError(0, FString::Printf(TEXT("DecodeSlicesH264() failed. Cannot decode interlaced video.")), ERRCODE_INTERNAL_FAILED_TO_DECODE);
@@ -457,6 +459,18 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H264::DecodeSlicesH264(const F
 		PostError(0, FString::Printf(TEXT("DecodeSlicesH264() failed. %s"), *BitstreamParamsH264.DPBPOC.GetLastError()), ERRCODE_INTERNAL_FAILED_TO_DECODE);
 		return IElectraDecoder::EDecoderError::Error;
 	}
+	TArray<ElectraDecodersUtil::MPEG::H264::FOutputFrameInfo> OutputFrameInfos, UnrefFrameInfos;
+	// Handle potentially missing frames. If there are any, an entry must be made in the DPB which could result in
+	// output of one or many already decoded frames that we need to handle first.
+	BitstreamParamsH264.DPBPOC.HandleMissingFrames(OutputFrameInfos, UnrefFrameInfos, InSliceInfos[0].NalUnitType, InSliceInfos[0].NalRefIdc, InSliceInfos[0].Header, InSequenceParameterSet);
+	IElectraDecoder::EDecoderError MissingFrameOutputResult = HandleOutputListH264(OutputFrameInfos);
+	OutputFrameInfos.Empty();
+	UnrefFrameInfos.Empty();
+	if (MissingFrameOutputResult != IElectraDecoder::EDecoderError::None)
+	{
+		return MissingFrameOutputResult;
+	}
+
 	// Update the current POC values.
 	if (!BitstreamParamsH264.DPBPOC.UpdatePOC(InSliceInfos[0].NalUnitType, InSliceInfos[0].NalRefIdc, InSliceInfos[0].Header, InSequenceParameterSet))
 	{
@@ -473,11 +487,18 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H264::DecodeSlicesH264(const F
 		pp.RefFrameList[i].bPicEntry = 0xff;
 		if (i < RefFrames.Num())
 		{
-			TSharedPtr<FDecodedFrame, ESPMode::ThreadSafe> refFrame = DPB->GetFrameAtIndex(RefFrames[i].UserFrameInfo.IndexInBuffer);
+			TSharedPtr<FDecodedFrame, ESPMode::ThreadSafe> refFrame;
+			if (RefFrames[i].UserFrameInfo.IndexInBuffer >= 0)
+			{
+				refFrame = DPB->GetFrameAtIndex(RefFrames[i].UserFrameInfo.IndexInBuffer);
+			}
+			else
+			{
+				refFrame = MissingReferenceFrame;
+			}
 			if (refFrame.IsValid())
 			{
 				int32 dpbPos = refFrame->IndexInPictureBuffer;
-				check(RefFrames[i].UserFrameInfo.IndexInBuffer == dpbPos);
 				fdr->ReferenceFrameList[dpbPos] = refFrame->Texture.GetReference();
 				pp.RefFrameList[i].Index7Bits = (UCHAR)dpbPos;
 				pp.RefFrameList[i].AssociatedFlag = !RefFrames[i].bIsLongTerm ? 0 : 1;
@@ -485,6 +506,10 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H264::DecodeSlicesH264(const F
 				pp.FieldOrderCntList[i][0] = RefFrames[i].TopPOC;
 				pp.FieldOrderCntList[i][1] = RefFrames[i].BottomPOC;
 				pp.FrameNumList[i] = !RefFrames[i].bIsLongTerm ? RefFrames[i].FrameNum : RefFrames[i].LongTermFrameIndex;
+				if (refFrame == MissingReferenceFrame)
+				{
+					pp.NonExistingFrameFlags |= (1 << i);
+				}
 			}
 		}
 	}
@@ -591,8 +616,7 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H264::DecodeSlicesH264(const F
 	FrameInfo.IndexInBuffer = TargetFrame->IndexInPictureBuffer;
 	FrameInfo.PTS = InInputAccessUnit.PTS;
 	FrameInfo.UserValue0 = AssociatedUserValue;
-	TArray<ElectraDecodersUtil::MPEG::H264::FOutputFrameInfo> OutputFrameInfos, UnrefFrameInfos;
-	BitstreamParamsH264.DPBPOC.EndFrame(OutputFrameInfos, UnrefFrameInfos, FrameInfo, InSliceInfos[0].NalUnitType, InSliceInfos[0].NalRefIdc, InSliceInfos[0].Header);
+	BitstreamParamsH264.DPBPOC.EndFrame(OutputFrameInfos, UnrefFrameInfos, FrameInfo, InSliceInfos[0].NalUnitType, InSliceInfos[0].NalRefIdc, InSliceInfos[0].Header, false);
 	return HandleOutputListH264(OutputFrameInfos);
 }
 
@@ -601,6 +625,12 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H264::HandleOutputListH264(con
 	TSharedPtr<FVideoDecoderOutputD3D12Electra, ESPMode::ThreadSafe> InDec;
 	for(int32 i=0; i<InOutputFrameInfos.Num(); ++i)
 	{
+		// In case the frame is a missing frame we ignore it.
+		if (InOutputFrameInfos[i].IndexInBuffer < 0)
+		{
+			continue;
+		}
+
 //		UE_LOG(LogD3D12VideoDecodersElectra, Log, TEXT("Output frame %d, %lld"), InOutputFrameInfos[i].IndexInBuffer, (long long int)InOutputFrameInfos[i].PTS.GetTicks());
 		TSharedPtr<FDecodedFrame, ESPMode::ThreadSafe> Frame = DPB->GetFrameAtIndex(InOutputFrameInfos[i].IndexInBuffer);
 		check(Frame.IsValid());
