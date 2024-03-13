@@ -46,6 +46,9 @@ enum _GestureState {
   cameraTrackingAndZooming,
 }
 
+/// Radius for decoration of dropdowns in the control panel.
+const Radius _panelDropdownRadius = Radius.circular(20);
+
 /// A map displaying all stage actors pins on an azimuthal projection map of the scene.
 class StageMap extends StatefulWidget {
   const StageMap({
@@ -343,22 +346,24 @@ class StageMapState extends State<StageMap> with PreviewRenderConsumer, GuardedR
                               spacing: 16,
                               children: [
                                 const _StageMapControlModeToggle(),
+
+                                // View mode
                                 ConstrainedBox(
                                   constraints: const BoxConstraints(minWidth: 128),
                                   child: Tooltip(
                                     message: AppLocalizations.of(context)!.stageMapProjectionMode,
-                                    child: PreferenceBuilder<ProjectionMode>(
-                                      preference: stageMapSettings.projectionMode,
-                                      builder: (context, projectionMode) {
+                                    child: ValueListenableBuilder<ProjectionMode>(
+                                      valueListenable: stageMapSettings.projectionMode,
+                                      builder: (context, projectionMode, _) {
                                         // Projection mode control
                                         return DropdownSelector<ProjectionMode>(
-                                          borderRadius: const Radius.circular(20),
+                                          borderRadius: _panelDropdownRadius,
                                           value: projectionMode,
                                           items: ProjectionMode.values,
                                           makeItemName: (ProjectionMode value) => _getProjectionModeName(value),
                                           onChanged: (ProjectionMode? value) {
                                             if (value != null) {
-                                              stageMapSettings.projectionMode.setValue(value);
+                                              stageMapSettings.projectionMode.value = value;
                                             }
                                           },
                                         );
@@ -366,6 +371,9 @@ class StageMapState extends State<StageMap> with PreviewRenderConsumer, GuardedR
                                     ),
                                   ),
                                 ),
+
+                                // View controls
+                                const _StageMapViewDropdownButton(),
                               ],
                             ),
                           ),
@@ -918,7 +926,7 @@ class StageMapState extends State<StageMap> with PreviewRenderConsumer, GuardedR
       } else if (details.pointerCount >= 2) {
         _onTransformScaleStart();
       }
-    } else if (details.pointerCount > 1 || stageMapSettings.projectionMode.getValue() == ProjectionMode.uv) {
+    } else if (details.pointerCount > 1 || stageMapSettings.projectionMode.value == ProjectionMode.uv) {
       // Start a camera track and zoom if we're using a scale gesture or just dragging in UV mode (since it can't
       // tumble)
       _onCameraTrackAndZoomStart(details);
@@ -941,7 +949,7 @@ class StageMapState extends State<StageMap> with PreviewRenderConsumer, GuardedR
         default:
           break;
       }
-    } else if (details.pointerCount == 1 && stageMapSettings.projectionMode.getValue() != ProjectionMode.uv) {
+    } else if (details.pointerCount == 1 && stageMapSettings.projectionMode.value != ProjectionMode.uv) {
       // We don't tumble in UV mode, so skip to track and zoom in that case
       _onCameraTumbleUpdate(details);
     } else {
@@ -999,11 +1007,11 @@ class StageMapState extends State<StageMap> with PreviewRenderConsumer, GuardedR
 
     final stageMapSettings = Provider.of<StageMapSettings>(context, listen: false);
 
-    vec.Vector2 cameraAngle = stageMapSettings.cameraAngle.getValue();
+    vec.Vector2 cameraAngle = stageMapSettings.cameraAngle.value;
     cameraAngle.x += details.focalPointDelta.dx * _tumbleSensitivity.dx;
     cameraAngle.y = (cameraAngle.y - details.focalPointDelta.dy * _tumbleSensitivity.dy).clamp(-90.0, 90.0);
 
-    stageMapSettings.cameraAngle.setValue(cameraAngle);
+    stageMapSettings.cameraAngle.value = cameraAngle;
   }
 
   /// Called when the user starts a scale gesture that should track and zoom the camera.
@@ -1961,5 +1969,72 @@ class _StageMapControlModeToggleButton extends StatelessWidget {
       iconPath: iconPath,
       buttonSize: const Size(48, 36),
     );
+  }
+}
+
+/// Button and dropdown menu controlling the camera view in the stage map.
+class _StageMapViewDropdownButton extends StatelessWidget {
+  const _StageMapViewDropdownButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ModalDropdownButton(
+      buttonBuilder: (context, state) => DropdownSelectorStyleButton(
+        state: state,
+        label: AppLocalizations.of(context)!.stageMapViewMenuLabel,
+        borderRadius: _panelDropdownRadius,
+      ),
+      menuBuilder: (context, originTabBuilder) => DropDownListMenu(
+        originTabBuilder: originTabBuilder,
+        children: [
+          const SizedBox(height: 16),
+          ListMenuHeader(AppLocalizations.of(context)!.stageMapViewMenuSectionOrientation),
+          ListMenuSimpleItem(
+            title: AppLocalizations.of(context)!.stageMapViewMenuOrientationTop,
+            iconPath: 'assets/images/icons/view_top.svg',
+            onTap: () => _setCameraAngle(context, vec.Vector2(0, 90)),
+          ),
+          ListMenuSimpleItem(
+            title: AppLocalizations.of(context)!.stageMapViewMenuOrientationBottom,
+            iconPath: 'assets/images/icons/view_bottom.svg',
+            onTap: () => _setCameraAngle(context, vec.Vector2(0, -90)),
+          ),
+          ListMenuSimpleItem(
+            title: AppLocalizations.of(context)!.stageMapViewMenuOrientationLeft,
+            iconPath: 'assets/images/icons/view_left.svg',
+            onTap: () => _setCameraAngle(context, vec.Vector2(-90, 0)),
+          ),
+          ListMenuSimpleItem(
+            title: AppLocalizations.of(context)!.stageMapViewMenuOrientationRight,
+            iconPath: 'assets/images/icons/view_right.svg',
+            onTap: () => _setCameraAngle(context, vec.Vector2(90, 0)),
+          ),
+          ListMenuSimpleItem(
+            title: AppLocalizations.of(context)!.stageMapViewMenuOrientationFront,
+            iconPath: 'assets/images/icons/view_front.svg',
+            onTap: () => _setCameraAngle(context, vec.Vector2(0, 0)),
+          ),
+          ListMenuSimpleItem(
+            title: AppLocalizations.of(context)!.stageMapViewMenuOrientationBack,
+            iconPath: 'assets/images/icons/view_back.svg',
+            onTap: () => _setCameraAngle(context, vec.Vector2(180, 0)),
+          ),
+          ListMenuHeader(AppLocalizations.of(context)!.stageMapViewMenuSectionOptions),
+          ListMenuSimpleItem(
+            title: AppLocalizations.of(context)!.stageMapViewMenuOptionsReset,
+            iconPath: 'packages/epic_common/assets/icons/reset.svg',
+            onTap: () => _setCameraAngle(context, vec.Vector2(0, 90)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Given the build [context], set the stage map camera [angle] and close the menu.
+  void _setCameraAngle(BuildContext context, vec.Vector2 angle) {
+    final stageMapSettings = Provider.of<StageMapSettings>(context, listen: false);
+    stageMapSettings.cameraAngle.value = angle;
+
+    Navigator.of(context, rootNavigator: true).pop();
   }
 }

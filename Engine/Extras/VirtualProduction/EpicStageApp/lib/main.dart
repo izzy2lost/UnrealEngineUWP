@@ -166,7 +166,10 @@ class _EpicStageAppState extends State<EpicStageApp> with TickerProviderStateMix
         Provider<PreferencesBundle>(create: (_) => _preferenceBundle),
         Provider<ConnectionSettings>(create: (_) => ConnectionSettings(_preferenceBundle)),
         Provider<SelectedActorSettings>(create: (_) => SelectedActorSettings(_preferenceBundle)),
-        Provider<StageMapSettings>(create: (_) => StageMapSettings(_preferenceBundle)),
+        Provider<StageMapSettings>(
+          create: (context) => StageMapSettings(_preferenceBundle, context),
+          dispose: (_, value) => value.dispose(),
+        ),
         Provider<RecentActorSettings>(create: (_) => RecentActorSettings(_preferenceBundle)),
         Provider<MainScreenSettings>(create: (_) => MainScreenSettings(_preferenceBundle)),
         Provider<DeltaWidgetSettings>(create: (_) => DeltaWidgetSettings(_preferenceBundle)),

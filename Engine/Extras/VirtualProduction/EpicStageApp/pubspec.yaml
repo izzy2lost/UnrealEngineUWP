@@ -82,6 +82,7 @@ flutter:
 
   assets:
     - assets/images/map/
+    - assets/images/icons/
 
   fonts:
     - family: Inter

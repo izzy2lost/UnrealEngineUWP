@@ -128,9 +128,10 @@ class PreviewRenderManager with WidgetsBindingObserver {
 
     _settingSubscriptions.addAll([
       _selectedActorSettings.displayClusterRootPath.listen(_onRootActorPathChanged),
-      _stageMapSettings.projectionMode.listen(_onProjectionModeChanged),
-      _stageMapSettings.cameraAngle.listen(_onCameraAngleChanged),
     ]);
+
+    _stageMapSettings.projectionMode.addListener(_onProjectionModeChanged);
+    _stageMapSettings.cameraAngle.addListener(_onCameraAngleChanged);
 
     WidgetsBinding.instance.addObserver(this);
   }
@@ -272,6 +273,9 @@ class PreviewRenderManager with WidgetsBindingObserver {
     for (final StreamSubscription subscription in _settingSubscriptions) {
       subscription.cancel();
     }
+
+    _stageMapSettings.projectionMode.removeListener(_onProjectionModeChanged);
+    _stageMapSettings.cameraAngle.removeListener(_onCameraAngleChanged);
   }
 
   /// Start listening for messages from the engine connection manager.
@@ -371,7 +375,7 @@ class PreviewRenderManager with WidgetsBindingObserver {
             },
             'Rotation': _getCameraRotationSettings(),
             'IncludeActorPositions': true,
-            'ProjectionType': _getProjectionModeTypeName(_stageMapSettings.projectionMode.getValue()),
+            'ProjectionType': _getProjectionModeTypeName(_stageMapSettings.projectionMode.value),
             'FOV': _getFOV(),
           },
         });
@@ -563,15 +567,15 @@ class PreviewRenderManager with WidgetsBindingObserver {
   }
 
   /// Update the preview renderer camera's angle.
-  void _onCameraAngleChanged(vec.Vector2 cameraAngle) {
+  void _onCameraAngleChanged() {
     _tickRendererSettingsChanges['Rotation'] = _getCameraRotationSettings();
   }
 
   /// Update the projection mode and affected settings.
-  void _onProjectionModeChanged(ProjectionMode projectionMode) {
-    _tickRendererSettingsChanges['ProjectionType'] = _getProjectionModeTypeName(projectionMode);
+  void _onProjectionModeChanged() {
+    _tickRendererSettingsChanges['ProjectionType'] = _getProjectionModeTypeName(_stageMapSettings.projectionMode.value);
     _tickRendererSettingsChanges['FOV'] = _getFOV();
-    _onCameraAngleChanged(_stageMapSettings.cameraAngle.getValue());
+    _onCameraAngleChanged();
   }
 
   /// Called when the root actors in the engine have changed.
@@ -618,7 +622,7 @@ class PreviewRenderManager with WidgetsBindingObserver {
 
   /// Get the field of view based on the current projection mode.
   double _getFOV() {
-    switch (_stageMapSettings.projectionMode.getValue()) {
+    switch (_stageMapSettings.projectionMode.value) {
       case ProjectionMode.uv:
         return 45.0;
 
@@ -633,8 +637,8 @@ class PreviewRenderManager with WidgetsBindingObserver {
 
   /// Get the JSON data representing the camera's rotation settings based on the projection mode and user settings.
   dynamic _getCameraRotationSettings() {
-    final bool bIsUvMode = _stageMapSettings.projectionMode.getValue() == ProjectionMode.uv;
-    final vec.Vector2 cameraAngle = _stageMapSettings.cameraAngle.getValue();
+    final bool bIsUvMode = _stageMapSettings.projectionMode.value == ProjectionMode.uv;
+    final vec.Vector2 cameraAngle = _stageMapSettings.cameraAngle.value;
 
     return {
       'Yaw': bIsUvMode ? 0 : cameraAngle.x,
