@@ -864,6 +864,7 @@ protected:
 	/**
 	 * Notify a wholesale item data update, for data sources that can't provide delta-updates.
 	 */
+	 UE_DEPRECATED(5.5, "No data source should be able request a full data refresh. On large projects this can quickly destroy the editor performance. To avoid that all data sources should support queueing the required incremental data updates for their items. Look for uses of the function QueueItemDataUpdate for examples.")
 	void NotifyItemDataRefreshed();
 
 	/**

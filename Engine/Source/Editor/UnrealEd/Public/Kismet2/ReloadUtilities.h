@@ -44,6 +44,10 @@ public:
 	UNREALED_API virtual void Reinstance() override;
 	UNREALED_API virtual UObject* GetReinstancedCDO(UObject* CDO) override;
 	UNREALED_API virtual const UObject* GetReinstancedCDO(const UObject* CDO) override;
+	UNREALED_API virtual const TMap<UClass*, UClass*>* GetReinstancedClasses() override
+	{
+		return &ReinstancedClasses;
+	}
 
 	/**
 	 * If you wish to reuse the same reload object, invoke this method to reset the state

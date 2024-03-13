@@ -45,6 +45,7 @@
 #include "Misc/StringBuilder.h"
 #include "Modules/ModuleManager.h"
 #include "PathViewTypes.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Settings/ContentBrowserSettings.h"
 #include "SlotBase.h"
 #include "SourcesData.h"
@@ -1518,6 +1519,8 @@ FText SPathView::GetHighlightText() const
 
 void SPathView::Populate(const bool bIsRefreshingFilter)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SPathView::Populate);
+
 	// Update the list of expanded path before removing the items
 	UpdateLastExpandedPathsIfDirty();
 
@@ -2303,6 +2306,8 @@ SFavoritePathView::~SFavoritePathView()
 
 void SFavoritePathView::Populate(const bool bIsRefreshingFilter)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SFavoritePathView::Populate);
+
 	// Don't allow the selection changed delegate to be fired here
 	FScopedPreventTreeItemChangedDelegate DelegatePrevention(SharedThis(this));
 

@@ -400,12 +400,12 @@ bool UContentBrowserClassDataSource::EnumerateItemsForObjects(const TArrayView<U
 		if (UClass* InClass = Cast<UClass>(InObject))
 		{
 			InternalPath.Reset();
-			if (NativeClassHierarchy->GetClassPath(InClass, InternalPath, NativeClassHierarchyGetClassPathCache))
+			if (NativeClassHierarchy->GetClassPath(InClass, InternalPath, NativeClassHierarchyGetClassPathCache.GameModules))
 			{
 				FName ClassPath = FName(InternalPath);
 				TSharedPtr<const FNativeClassHierarchyNode> ClassNode = NativeClassHierarchy->FindNode(ClassPath, ENativeClassHierarchyNodeType::Class);
 				const FContentBrowserItemPath ContentBrowserItemPath(InternalPath, EContentBrowserPathType::Internal);
-				if (!InCallback(ContentBrowserClassData::CreateClassFileItem(this, ContentBrowserItemPath.GetVirtualPathName(), ClassPath, InClass, ClassNode.IsValid() && ClassNode->LoadedFrom.IsSet())))
+				if (!InCallback(ContentBrowserClassData::CreateClassFileItem(this, ContentBrowserItemPath.GetVirtualPathName(), ClassPath, InClass, ClassNode->LoadedFrom.IsSet())))
 				{
 					return false;
 				}
@@ -595,11 +595,17 @@ bool UContentBrowserClassDataSource::GetClassPathsForCollections(TArrayView<cons
 
 FContentBrowserItemData UContentBrowserClassDataSource::CreateClassFolderItem(const FName InFolderPath)
 {
+	TSharedPtr<const FNativeClassHierarchyNode> FolderNode = NativeClassHierarchy->FindNode(InFolderPath, ENativeClassHierarchyNodeType::Folder);
+
+	return CreateClassFolderItem(InFolderPath, FolderNode);
+}
+
+FContentBrowserItemData UContentBrowserClassDataSource::CreateClassFolderItem(const FName InFolderPath, const TSharedPtr<const FNativeClassHierarchyNode>& InFolderNode)
+{
 	FName VirtualizedPath;
 	TryConvertInternalPathToVirtual(InFolderPath, VirtualizedPath);
-	
-	TSharedPtr<const FNativeClassHierarchyNode> FolderNode = NativeClassHierarchy->FindNode(InFolderPath, ENativeClassHierarchyNodeType::Folder);
-	return ContentBrowserClassData::CreateClassFolderItem(this, VirtualizedPath, InFolderPath, FolderNode.IsValid() && FolderNode->LoadedFrom.IsSet());
+
+	return ContentBrowserClassData::CreateClassFolderItem(this, VirtualizedPath, InFolderPath, InFolderNode->LoadedFrom.IsSet());
 }
 
 FContentBrowserItemData UContentBrowserClassDataSource::CreateClassFileItem(UClass* InClass, FNativeClassHierarchyGetClassPathCache& InCache)
@@ -609,16 +615,22 @@ FContentBrowserItemData UContentBrowserClassDataSource::CreateClassFileItem(UCla
 	FName ClassPath;
 	{
 		FString ClassPathStr;
-		const bool bValidClassPath = NativeClassHierarchy->GetClassPath(InClass, ClassPathStr, InCache);
+		const bool bValidClassPath = NativeClassHierarchy->GetClassPath(InClass, ClassPathStr, InCache.GameModules);
 		checkf(bValidClassPath, TEXT("GetClassPath failed to return a result for '%s'"), *InClass->GetPathName());
 		ClassPath = *ClassPathStr;
 	}
 
-	FName VirtualizedPath;
-	TryConvertInternalPathToVirtual(ClassPath, VirtualizedPath);
-
 	TSharedPtr<const FNativeClassHierarchyNode> ClassNode = NativeClassHierarchy->FindNode(ClassPath, ENativeClassHierarchyNodeType::Class);
-	return ContentBrowserClassData::CreateClassFileItem(this, VirtualizedPath, ClassPath, InClass, ClassNode.IsValid() && ClassNode->LoadedFrom.IsSet());
+
+	return CreateClassFileItem(ClassPath, ClassNode);
+}
+
+FContentBrowserItemData UContentBrowserClassDataSource::CreateClassFileItem(const FName InClassPath, const TSharedPtr<const FNativeClassHierarchyNode>& InClassNode)
+{
+	FName VirtualizedPath;
+	TryConvertInternalPathToVirtual(InClassPath, VirtualizedPath);
+
+	return ContentBrowserClassData::CreateClassFileItem(this, VirtualizedPath, InClassPath, InClassNode->Class, InClassNode->LoadedFrom.IsSet());
 }
 
 TSharedPtr<const FContentBrowserClassFolderItemDataPayload> UContentBrowserClassDataSource::GetClassFolderItemPayload(const FContentBrowserItemData& InItem) const
@@ -689,15 +701,50 @@ void UContentBrowserClassDataSource::ConditionalCreateNativeClassHierarchy()
 	if (!NativeClassHierarchy)
 	{
 		NativeClassHierarchy = MakeShared<FNativeClassHierarchy>();
-		NativeClassHierarchy->OnClassHierarchyUpdated().AddUObject(this, &UContentBrowserClassDataSource::ClassHierarchyUpdated);
+
+		NativeClassHierarchy->OnClassesAdded().AddUObject(this, &UContentBrowserClassDataSource::OnClassesAdded);
+		NativeClassHierarchy->OnClassesRemoved().AddUObject(this, &UContentBrowserClassDataSource::OnClassesRemoved);
+		NativeClassHierarchy->OnFoldersAdded().AddUObject(this, &UContentBrowserClassDataSource::OnFoldersAdded);
+		NativeClassHierarchy->OnFoldersRemoved().AddUObject(this, &UContentBrowserClassDataSource::OnFoldersRemoved);
 	}
 }
 
-void UContentBrowserClassDataSource::ClassHierarchyUpdated()
+void UContentBrowserClassDataSource::OnFoldersAdded(const TArrayView<TSharedRef<const FNativeClassHierarchyNode>> InFolders)
 {
 	NativeClassHierarchyGetClassPathCache.Reset();
 	SetVirtualPathTreeNeedsRebuild();
-	NotifyItemDataRefreshed();
+
+	for (const TSharedRef<const FNativeClassHierarchyNode>& Folder : InFolders)
+	{
+		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemAddedUpdate(CreateClassFolderItem(*Folder->EntryPath, Folder)));
+	}
+}
+
+void UContentBrowserClassDataSource::OnFoldersRemoved(const TArrayView<TSharedRef<const FNativeClassHierarchyNode>> InFolders)
+{
+	NativeClassHierarchyGetClassPathCache.Reset();
+	SetVirtualPathTreeNeedsRebuild();
+
+	for (const TSharedRef<const FNativeClassHierarchyNode>& Folder : InFolders)
+	{
+		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemRemovedUpdate(CreateClassFolderItem(*Folder->EntryPath, Folder)));
+	}
+}
+
+void UContentBrowserClassDataSource::OnClassesAdded(const TArrayView<TSharedRef<const FNativeClassHierarchyNode>> InClasses)
+{
+	for (const TSharedRef<const FNativeClassHierarchyNode>& Class : InClasses)
+	{
+		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemAddedUpdate(CreateClassFileItem(*Class->EntryPath, Class)));
+	}
+}
+
+void UContentBrowserClassDataSource::OnClassesRemoved(const TArrayView<TSharedRef<const FNativeClassHierarchyNode>> InClasses)
+{
+	for (const TSharedRef<const FNativeClassHierarchyNode>& Class : InClasses)
+	{
+		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemRemovedUpdate(CreateClassFileItem(*Class->EntryPath, Class)));
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

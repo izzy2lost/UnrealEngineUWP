@@ -755,6 +755,8 @@ void UContentBrowserDataSubsystem::Tick(const float InDeltaTime)
 
 	if (bPendingItemDataRefreshedNotification)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserDataSubsystem::BroadcastItemDataRefreshed);
+
 		bPendingItemDataRefreshedNotification = false;
 		bHasIgnoredItemUpdates = false;
 		PendingUpdates.Empty();

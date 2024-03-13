@@ -1,16 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NativeClassHierarchy.h"
-#include "Modules/ModuleManager.h"
-#include "UObject/UObjectIterator.h"
-#include "UObject/Package.h"
-#include "Misc/App.h"
-#include "Misc/PackageName.h"
-#include "Kismet2/KismetEditorUtilities.h"
-#include "SourceCodeNavigation.h"
+
 #include "Interfaces/IPluginManager.h"
 #include "Interfaces/IProjectManager.h"
+#include "Kismet2/KismetEditorUtilities.h"
+#include "Misc/App.h"
+#include "Misc/PackageName.h"
+#include "Modules/ModuleManager.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "ProjectDescriptor.h"
+#include "SourceCodeNavigation.h"
+#include "String/ParseTokens.h"
+#include "UObject/Package.h"
+#include "UObject/Reload.h"
+#include "UObject/UObjectIterator.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogNativeClassHierarchy, Log, All);
 
@@ -52,14 +56,16 @@ FNativeClassHierarchy::FNativeClassHierarchy()
 	FModuleManager::Get().OnModulesChanged().AddRaw(this, &FNativeClassHierarchy::OnModulesChanged);
 
 	// Register to be notified of reloads
-	FCoreUObjectDelegates::ReloadCompleteDelegate.AddRaw(this, &FNativeClassHierarchy::OnReloadComplete);
+	FCoreUObjectDelegates::ReloadReinstancingCompleteDelegate.AddRaw(this, &FNativeClassHierarchy::OnReloadReinstancingComplete);
+	FCoreUObjectDelegates::ReloadAddedClassesDelegate.AddRaw(this, &FNativeClassHierarchy::OnReloadClassesAdded);
 }
 
 FNativeClassHierarchy::~FNativeClassHierarchy()
 {
 	FModuleManager::Get().OnModulesChanged().RemoveAll(this);
 
-	FCoreUObjectDelegates::ReloadCompleteDelegate.RemoveAll(this);
+	FCoreUObjectDelegates::ReloadReinstancingCompleteDelegate.RemoveAll(this);
+	FCoreUObjectDelegates::ReloadAddedClassesDelegate.RemoveAll(this);
 }
 
 TSharedPtr<const FNativeClassHierarchyNode> FNativeClassHierarchy::FindNode(const FName InClassPath, const ENativeClassHierarchyNodeType InType) const
@@ -286,7 +292,8 @@ void FNativeClassHierarchy::GatherMatchingNodesForPaths(const TArrayView<const F
 				// Try and find the node associated with this part of the path...
 				const FName ClassPathPartName = *ClassPathPart;
 
-				if (InType == ENativeClassHierarchyNodeType::Class && ClassPathPart == ClassPathParts.Last())
+				// Compare the address of the strings to see if it is the last part
+				if (InType == ENativeClassHierarchyNodeType::Class && &ClassPathPart == &ClassPathParts.Last())
 				{
 
 					CurrentNode = (CurrentNode.IsValid()) ? CurrentNode->Children.FindRef(FNativeClassHierarchyNodeKey(ClassPathPartName, ENativeClassHierarchyNodeType::Class)) : RootNodes.FindRef(ClassPathPartName);
@@ -313,7 +320,11 @@ void FNativeClassHierarchy::GatherMatchingNodesForPaths(const TArrayView<const F
 
 void FNativeClassHierarchy::PopulateHierarchy()
 {
-	FAddClassMetrics AddClassMetrics;
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNativeClassHierarchy::PopulateHierarchy);
+
+	double StartTime = FPlatformTime::Seconds();
+
+	FClassChanges ClassChanges;
 
 	RootNodes.Empty();
 
@@ -322,17 +333,27 @@ void FNativeClassHierarchy::PopulateHierarchy()
 	for(TObjectIterator<UClass> ClassIt; ClassIt; ++ClassIt)
 	{
 		UClass* const CurrentClass = *ClassIt;
-		AddClass(CurrentClass, GameModules, AddClassMetrics);
+		AddClass(CurrentClass, GameModules, ClassChanges);
 	}
 
-	UE_LOG(LogNativeClassHierarchy, Verbose, TEXT("Native class hierarchy populated in %0.4f seconds. Added %d classes and %d folders."), FPlatformTime::Seconds() - AddClassMetrics.StartTime, AddClassMetrics.NumClassesAdded, AddClassMetrics.NumFoldersAdded);
+	UE_LOG(LogNativeClassHierarchy, Verbose, TEXT("Native class hierarchy populated in %0.4f seconds. Added %d classes and %d folders."), FPlatformTime::Seconds() - StartTime, ClassChanges.ClassesModified.Num(), ClassChanges.FoldersModified.Num());
 
-	ClassHierarchyUpdatedDelegate.Broadcast();
+	if (!ClassChanges.FoldersModified.IsEmpty())
+	{
+		FoldersAddedDelegate.Broadcast(ClassChanges.FoldersModified);
+	}
+	if (!ClassChanges.ClassesModified.IsEmpty())
+	{
+		ClassesAddedDelegate.Broadcast(ClassChanges.ClassesModified);
+	}
 }
 
 void FNativeClassHierarchy::AddClassesForModule(const FName& InModuleName)
 {
-	FAddClassMetrics AddClassMetrics;
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNativeClassHierarchy::AddClassesForModule);
+
+	double StartTime = FPlatformTime::Seconds();
+	FClassChanges ClassChanges;
 
 	// Find the class package for this module
 	UPackage* const ClassPackage = FindPackage(nullptr, *(FString("/Script/") + InModuleName.ToString()));
@@ -345,38 +366,63 @@ void FNativeClassHierarchy::AddClassesForModule(const FName& InModuleName)
 	
 	TArray<UObject*> PackageObjects;
 	GetObjectsWithOuter(ClassPackage, PackageObjects, false);
+	ClassChanges.ClassesModified.Reserve(PackageObjects.Num());
+
 	for(UObject* Object : PackageObjects)
 	{
 		UClass* const CurrentClass = Cast<UClass>(Object);
 		if(CurrentClass)
 		{
-			AddClass(CurrentClass, GameModules, AddClassMetrics);
+			AddClass(CurrentClass, GameModules, ClassChanges);
 		}
 	}
 
-	UE_LOG(LogNativeClassHierarchy, Verbose, TEXT("Native class hierarchy updated for '%s' in %0.4f seconds. Added %d classes and %d folders."), *InModuleName.ToString(), FPlatformTime::Seconds() - AddClassMetrics.StartTime, AddClassMetrics.NumClassesAdded, AddClassMetrics.NumFoldersAdded);
+	UE_LOG(LogNativeClassHierarchy, Verbose, TEXT("Native class hierarchy updated for '%s' in %0.4f seconds. Added %d classes and %d folders."), *InModuleName.ToString(), FPlatformTime::Seconds() - StartTime, ClassChanges.ClassesModified.Num(), ClassChanges.FoldersModified.Num());
 
-	ClassHierarchyUpdatedDelegate.Broadcast();
+	if (!ClassChanges.FoldersModified.IsEmpty())
+	{
+		FoldersAddedDelegate.Broadcast(ClassChanges.FoldersModified);
+	}
+	if (!ClassChanges.ClassesModified.IsEmpty())
+	{
+		ClassesAddedDelegate.Broadcast(ClassChanges.ClassesModified);
+	}
 }
 
 void FNativeClassHierarchy::RemoveClassesForModule(const FName& InModuleName)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNativeClassHierarchy::RemoveClassesForModule);
+
 	// Modules always exist directly under a root
 	for(const auto& RootNode : RootNodes)
 	{
 		TSharedPtr<FNativeClassHierarchyNode> ModuleNode = RootNode.Value->Children.FindRef(FNativeClassHierarchyNodeKey(InModuleName, ENativeClassHierarchyNodeType::Folder));
 		if(ModuleNode.IsValid())
 		{
-			// Remove this module from its root
-			RootNode.Value->Children.Remove(FNativeClassHierarchyNodeKey(InModuleName, ENativeClassHierarchyNodeType::Folder));
+			FClassChanges ClassChanges;
 
 			// If this module was the only child of this root, then we need to remove the root as well
-			if(RootNode.Value->Children.Num() == 0)
+			if(RootNode.Value->Children.Num() == 1)
 			{
+				PopulateClassChanges(RootNode.Value, ClassChanges);
 				RootNodes.Remove(RootNode.Key);
 			}
+			else
+			{
+				// Remove this module from its root
+				TSharedPtr<FNativeClassHierarchyNode> RemovedNode;
+				RootNode.Value->Children.RemoveAndCopyValue(FNativeClassHierarchyNodeKey(InModuleName, ENativeClassHierarchyNodeType::Folder), RemovedNode);
+				PopulateClassChanges(RemovedNode, ClassChanges);
+			}
 
-			ClassHierarchyUpdatedDelegate.Broadcast();
+			if (!ClassChanges.ClassesModified.IsEmpty())
+			{
+				ClassesRemovedDelegate.Broadcast(ClassChanges.ClassesModified);
+			}
+			if (!ClassChanges.FoldersModified.IsEmpty())
+			{
+				FoldersRemovedDelegate.Broadcast(ClassChanges.FoldersModified);
+			}
 
 			// We've found the module - break
 			break;
@@ -384,7 +430,7 @@ void FNativeClassHierarchy::RemoveClassesForModule(const FName& InModuleName)
 	}
 }
 
-void FNativeClassHierarchy::AddClass(UClass* InClass, const TSet<FName>& InGameModules, FAddClassMetrics& AddClassMetrics)
+void FNativeClassHierarchy::AddClass(UClass* InClass, const TSet<FName>& InGameModules, FClassChanges& ClassChanges)
 {
 	// Ignore deprecated and temporary classes
 	if(InClass->HasAnyClassFlags(CLASS_Deprecated | CLASS_NewerVersionExists) || FKismetEditorUtilities::IsClassABlueprintSkeleton(InClass))
@@ -419,7 +465,7 @@ void FNativeClassHierarchy::AddClass(UClass* InClass, const TSet<FName>& InGameM
 	{
 		RootNode = FNativeClassHierarchyNode::MakeFolderEntry(RootNodeName, TEXT("/") + RootNodeName.ToString(), WhereLoadedFrom);
 		RootNode->LoadedFrom = WhereLoadedFrom;
-		++AddClassMetrics.NumFoldersAdded;
+		ClassChanges.FoldersModified.Add(RootNode.ToSharedRef());
 	}
 
 	// Split the class path and ensure we have nodes for each part
@@ -433,14 +479,94 @@ void FNativeClassHierarchy::AddClass(UClass* InClass, const TSet<FName>& InGameM
 		if(!ChildNode.IsValid())
 		{
 			ChildNode = FNativeClassHierarchyNode::MakeFolderEntry(HierarchyPathPartName, CurrentNode->EntryPath + TEXT("/") + HierarchyPathPart, WhereLoadedFrom);
-			++AddClassMetrics.NumFoldersAdded;
+			ClassChanges.FoldersModified.Add(ChildNode.ToSharedRef());
 		}
 		CurrentNode = ChildNode;
 	}
 
 	// Now add the final entry for the class
-	CurrentNode->AddChild(FNativeClassHierarchyNode::MakeClassEntry(InClass, ClassModuleName, ClassModuleRelativePath, CurrentNode->EntryPath + TEXT("/") + InClass->GetName(), WhereLoadedFrom));
-	++AddClassMetrics.NumClassesAdded;
+	TSharedRef<FNativeClassHierarchyNode> ClassNode = FNativeClassHierarchyNode::MakeClassEntry(InClass, ClassModuleName, ClassModuleRelativePath, CurrentNode->EntryPath + TEXT("/") + InClass->GetName(), WhereLoadedFrom);
+	ClassChanges.ClassesModified.Add(ClassNode);
+	CurrentNode->AddChild(MoveTemp(ClassNode));
+}
+
+void FNativeClassHierarchy::RemoveClass(UClass* InClass, TSet<FName>& InGameModules, FClassChanges& ClassChanges)
+{
+	FString OutClassPath;
+	constexpr bool bIncludeClass = false;
+	if (!GetClassPath(InClass, OutClassPath, InGameModules, bIncludeClass))
+	{
+		return;
+	}
+	
+	// Most items aren't deep in the three but having a little buffer still help
+	TArray<TSharedRef<FNativeClassHierarchyNode>, TInlineAllocator<10>> FoldersVisited;
+	bool bHasProcessRootNodes = false;
+
+	auto Visitor = [&FoldersVisited, &bHasProcessRootNodes, this](FStringView Token)
+		{
+			if (!bHasProcessRootNodes)
+			{
+				if (TSharedPtr<FNativeClassHierarchyNode>* NodePtr = RootNodes.Find(FName(Token)))
+				{
+					FoldersVisited.Add(NodePtr->ToSharedRef());
+				}
+
+				bHasProcessRootNodes = true;
+			}
+			else if (!FoldersVisited.IsEmpty())
+			{
+				if (TSharedPtr<FNativeClassHierarchyNode>* NodePtr = FoldersVisited.Last()->Children.Find(FNativeClassHierarchyNodeKey(FName(Token), ENativeClassHierarchyNodeType::Folder)))
+				{
+					FoldersVisited.Add(NodePtr->ToSharedRef());
+				}
+			}
+
+		};
+
+	UE::String::ParseTokens(FStringView(OutClassPath), TEXT('/'), TFunctionRef<void (FStringView)>(Visitor));
+
+	if (!FoldersVisited.IsEmpty())
+	{
+		TSharedPtr<FNativeClassHierarchyNode> RemovedClass;
+		bool bHasRemovedNode = false;
+
+		bHasRemovedNode = FoldersVisited.Last()->Children.RemoveAndCopyValue(FNativeClassHierarchyNodeKey(InClass->GetFName(), ENativeClassHierarchyNodeType::Class), RemovedClass);
+		ClassChanges.ClassesModified.Add(RemovedClass.ToSharedRef());
+
+		if (bHasRemovedNode)
+		{
+			for (int Index = FoldersVisited.Num() - 2; Index >= 0; --Index)
+			{
+				const TSharedRef<FNativeClassHierarchyNode> ToRemoveIfEmpty = FoldersVisited[Index + 1];
+				if (ToRemoveIfEmpty->Children.IsEmpty())
+				{
+					ClassChanges.FoldersModified.Add(ToRemoveIfEmpty);
+					FoldersVisited[Index]->Children.Remove(FNativeClassHierarchyNodeKey(ToRemoveIfEmpty->EntryName, ENativeClassHierarchyNodeType::Folder));
+				}
+				else
+				{
+					bHasRemovedNode = false;
+				}
+
+				if (!bHasRemovedNode)
+				{
+					break;
+				}
+			}
+
+			// If we removed all the node until the root. Check if we should remove the root also
+			if (bHasRemovedNode)
+			{
+				const TSharedRef<FNativeClassHierarchyNode>& ToRemoveIfEmpty = FoldersVisited[0];
+				if (ToRemoveIfEmpty->Children.IsEmpty())
+				{
+					ClassChanges.FoldersModified.Add(ToRemoveIfEmpty);
+					RootNodes.Remove(ToRemoveIfEmpty->EntryName);
+				}
+			}
+		}
+	}
 }
 
 bool FNativeClassHierarchy::GetFileSystemPath(const FString& InClassPath, FString& OutFileSystemPath) const
@@ -482,7 +608,7 @@ bool FNativeClassHierarchy::GetFileSystemPath(const FString& InClassPath, FStrin
 	return false;
 }
 
-bool FNativeClassHierarchy::GetClassPath(const UClass* InClass, FString& OutClassPath, FNativeClassHierarchyGetClassPathCache& InCache, const bool bIncludeClassName) const
+bool FNativeClassHierarchy::GetClassPath(const UClass* InClass, FString& OutClassPath, TSet<FName>& InGameModuleCache, const bool bIncludeClassName) const
 {
 	const FName ClassModuleName = GetClassModuleName(InClass);
 	if(ClassModuleName.IsNone())
@@ -497,14 +623,14 @@ bool FNativeClassHierarchy::GetClassPath(const UClass* InClass, FString& OutClas
 		return false;
 	}
 
-	if (InCache.GameModules.Num() == 0)
+	if (InGameModuleCache.Num() == 0)
 	{
-		InCache.GameModules = GetGameModules();
+		InGameModuleCache = GetGameModules();
 	}
 
 	// Work out which root this class should go under
 	TOptional<EPluginLoadedFrom> WhereLoadedFrom;
-	const FName RootNodeName = GetClassPathRootForModule(ClassModuleName, InCache.GameModules, WhereLoadedFrom);
+	const FName RootNodeName = GetClassPathRootForModule(ClassModuleName, InGameModuleCache, WhereLoadedFrom);
 
 	// Work out the final path to this class within the hierarchy (which isn't the same as the path on disk)
 	const FString ClassModuleRelativePath = ClassModuleRelativeIncludePath.Left(ClassModuleRelativeIncludePath.Find(TEXT("/"), ESearchCase::CaseSensitive, ESearchDir::FromEnd));
@@ -540,9 +666,87 @@ void FNativeClassHierarchy::OnModulesChanged(FName InModuleName, EModuleChangeRe
 	}
 }
 
-void FNativeClassHierarchy::OnReloadComplete(EReloadCompleteReason Reason)
+void FNativeClassHierarchy::OnReloadReinstancingComplete()
 {
-	PopulateHierarchy();
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNativeClassHierarchy::OnReloadReinstancingComplete);
+
+	if (IReload* ActiveReload = GetActiveReloadInterface())
+	{
+		if (const TMap<UClass*, UClass*>* ReinstancedClassesPtr = ActiveReload->GetReinstancedClasses())
+		{
+			const TMap<UClass*, UClass*>& ReinstancedClasses = *ReinstancedClassesPtr;
+			if (!ReinstancedClasses.IsEmpty())
+			{
+				FClassChanges ClassChanges;
+
+				TSet<FName> GameModules = GetGameModules();
+
+				// Add the new classes first
+				for (const TPair<UClass*, UClass*>& OldAndNew : ReinstancedClasses)
+				{
+					
+
+					if (OldAndNew.Value)
+					{
+						// Adding the new class will replace old entry
+						AddClass(OldAndNew.Value, GameModules, ClassChanges);
+					}
+				}
+
+				if (!ClassChanges.FoldersModified.IsEmpty())
+				{
+					FoldersAddedDelegate.Broadcast(ClassChanges.FoldersModified);
+				}
+				if (!ClassChanges.ClassesModified.IsEmpty())
+				{
+					ClassesAddedDelegate.Broadcast(ClassChanges.ClassesModified);
+				}
+
+				// Reset the class changes tracking
+				ClassChanges.Reset();
+
+				// Then remove the old classes
+				for (const TPair<UClass*, UClass*>& OldAndNew : ReinstancedClasses)
+				{
+					if (OldAndNew.Key && !OldAndNew.Value)
+					{
+						RemoveClass(OldAndNew.Key, GameModules, ClassChanges);
+					}
+					}
+
+				if (!ClassChanges.ClassesModified.IsEmpty())
+				{
+					ClassesRemovedDelegate.Broadcast(ClassChanges.ClassesModified);
+				}
+				if (!ClassChanges.FoldersModified.IsEmpty())
+				{
+					FoldersRemovedDelegate.Broadcast(ClassChanges.FoldersModified);
+				}
+			}
+		}
+	}
+}
+
+void FNativeClassHierarchy::OnReloadClassesAdded(const TArray<UClass*>& InAddedClasses)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNativeClassHierarchy::InAddedClasses);
+
+	FClassChanges ClassChanges;
+	TSet<FName> GameModules = GetGameModules();
+
+	for (UClass* AddedClass : InAddedClasses)
+	{
+		AddClass(AddedClass, GameModules, ClassChanges);
+	}
+
+	if (!ClassChanges.FoldersModified.IsEmpty())
+	{
+		FoldersAddedDelegate.Broadcast(ClassChanges.FoldersModified);
+	}
+	if (!ClassChanges.ClassesModified.IsEmpty())
+	{
+		ClassesAddedDelegate.Broadcast(ClassChanges.ClassesModified);
+	}
 }
 
 FName FNativeClassHierarchy::GetClassModuleName(const UClass* InClass)
@@ -598,4 +802,21 @@ TSet<FName> FNativeClassHierarchy::GetGameModules()
 	}
 
 	return GameModules;
+}
+
+void FNativeClassHierarchy::PopulateClassChanges(const TSharedPtr<FNativeClassHierarchyNode>& InNode, FClassChanges& OutClassChanges)
+{
+	for (const TPair<FNativeClassHierarchyNodeKey, TSharedPtr<FNativeClassHierarchyNode>>& Childs : InNode->Children)
+	{
+		PopulateClassChanges(Childs.Value, OutClassChanges);
+	}
+
+	if (InNode->Type == ENativeClassHierarchyNodeType::Folder)
+	{
+		OutClassChanges.FoldersModified.Add(InNode.ToSharedRef());
+	}
+	else if (InNode->Type == ENativeClassHierarchyNodeType::Class)
+	{
+		OutClassChanges.ClassesModified.Add(InNode.ToSharedRef());
+	}
 }

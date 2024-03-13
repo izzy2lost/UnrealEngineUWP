@@ -139,6 +139,11 @@ public:
 		return CDO;
 	}
 
+	virtual const TMap<UClass*, UClass*>* GetReinstancedClasses() override
+	{
+		return nullptr;
+	}
+
 	bool HasReinstancingOccurred() const
 	{
 		return bHasReinstancingOccurred;
