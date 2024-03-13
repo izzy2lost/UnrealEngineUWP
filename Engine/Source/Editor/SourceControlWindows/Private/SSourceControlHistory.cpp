@@ -1823,6 +1823,7 @@ bool FSourceControlWindows::DiffAgainstShelvedFile(const FSourceControlStateRef&
 					FRevisionInfo ShelvedRevision;
 					ShelvedRevision.Changelist = Revision->GetCheckInIdentifier();
 					ShelvedRevision.Revision = TEXT("Shelved");
+					ShelvedRevision.Date = Revision->GetDate();
 
 					FRevisionInfo NewRevision;
 					NewRevision.Revision = TEXT("");

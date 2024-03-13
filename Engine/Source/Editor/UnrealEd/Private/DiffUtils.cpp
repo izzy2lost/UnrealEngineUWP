@@ -1495,13 +1495,13 @@ FText DiffViewUtils::GetPanelLabel(const UObject* Asset, const FRevisionInfo& Re
 			RevisionData = FText::Format(NSLOCTEXT("DiffViewUtils", "RevisionData", "Revision {0} - CL {1} - {2}")
 				, FText::FromString(Revision.Revision)
 				, FText::AsNumber(Revision.Changelist, &FNumberFormattingOptions::DefaultNoGrouping())
-				, FText::FromString(Revision.Date.ToString(TEXT("%m/%d/%Y"))));
+				, FText::AsDateTime(Revision.Date));
 		}
 		else
 		{
 			RevisionData = FText::Format(NSLOCTEXT("DiffViewUtils", "RevisionDataNoChangelist", "Revision {0} - {1}")
 				, FText::FromString(Revision.Revision)
-				, FText::FromString(Revision.Date.ToString(TEXT("%m/%d/%Y"))));		
+				, FText::AsDateTime(Revision.Date));
 		}
 
 		if (Label.IsEmpty())
