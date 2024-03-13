@@ -150,12 +150,36 @@ FAutoConsoleVariableRef CVarDisableRemapScriptActors(TEXT("net.DisableRemapScrip
 static bool bDisableInGamePerfTrackersForUninitializedWorlds = true;
 FAutoConsoleVariableRef CVarDisableInGamePerfTrackersForUninitializedWorlds(TEXT("s.World.SkipPerfTrackerForUninitializedWorlds"), bDisableInGamePerfTrackersForUninitializedWorlds, TEXT("When set, disables allocation of InGamePerformanceTrackers for Worlds that aren't initialized."));
 
+// Now that it's possible for subclasses of ULevelStreaming to indicate which async loads are necessary for loading,
+// it's possible existing subclasses haven't added their required loads to their StreamingLevel->GetAsyncRequestIDs() array. As a fallback,
+// allow users to force flushing of all async loads during level streaming, as was done in UE 5.4 and lower.
+static bool bForceFlushAllAsyncLoadsDuringLevelStreaming = false;
+FAutoConsoleVariableRef CVarForceFlushAllAsyncLoadsDuringLevelStreaming(TEXT("s.World.ForceFlushAllAsyncLoadsDuringLevelStreaming"), bForceFlushAllAsyncLoadsDuringLevelStreaming, TEXT("When set, level streaming will wait for all outstanding async loads globally."));
 
 static TAutoConsoleVariable<int32> CVarPurgeEditorSceneDuringPIE(
 	TEXT("r.PurgeEditorSceneDuringPIE"),
 	0,
 	TEXT("0 to keep editor scene fully initialized during PIE (default)\n")
 	TEXT("1 to purge editor scene from memory during PIE and restore when the session finishes."));
+
+namespace UE::Private::World
+{
+	struct FStreamingLevelsToConsiderIterationScope
+	{
+		FStreamingLevelsToConsiderIterationScope(FStreamingLevelsToConsider& InStreamingLevelsToConsider)
+			: StreamingLevelsToConsider(InStreamingLevelsToConsider)
+		{
+			StreamingLevelsToConsider.BeginConsideration();
+		}
+
+		~FStreamingLevelsToConsiderIterationScope()
+		{
+			StreamingLevelsToConsider.EndConsideration();
+		}
+
+		FStreamingLevelsToConsider& StreamingLevelsToConsider;
+	};
+}
 
 /*-----------------------------------------------------------------------------
 	FAdaptiveAddToWorld implementation.
@@ -4177,8 +4201,8 @@ void UWorld::BlockTillLevelStreamingCompleted()
 		// Probe if we have anything to do
 		UpdateLevelStreaming();
 		
-		// Everytime we have work to do, add an extra loop to handle FlushAsyncLoading calls
-		if (IsVisibilityRequestPending() || IsAsyncLoading())
+		// Everytime we have work to do, add an extra loop to handle outstanding async loads to stream
+		if (IsVisibilityRequestPending() || HasAsyncLevelRequests())
 		{
 			WorkToDo = 2;
 		}
@@ -4264,6 +4288,60 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 extern ENGINE_API bool GIsLowMemory;
 
+bool UWorld::HasAsyncLevelRequests()
+{
+	const TArray<TObjectPtr<ULevelStreaming>>& ConsideredStreamingLevels = StreamingLevelsToConsider.GetStreamingLevels();
+	if (ConsideredStreamingLevels.IsEmpty())
+	{
+		return false;
+	}
+
+	UE::Private::World::FStreamingLevelsToConsiderIterationScope Scope(StreamingLevelsToConsider);
+	for (const ULevelStreaming* StreamingLevel : ConsideredStreamingLevels)
+	{
+		if (!StreamingLevel->GetAsyncRequestIDs().IsEmpty())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void UWorld::FlushAsyncLevelRequests()
+{
+	if (bForceFlushAllAsyncLoadsDuringLevelStreaming)
+	{
+		// Flushing an empty list implies flushing all async loads globally.
+		FlushAsyncLoading();
+		return;
+	}
+
+	TArray<int32> LevelStreamingRequestIDs;
+	{
+		const TArray<TObjectPtr<ULevelStreaming>>& ConsideredStreamingLevels = StreamingLevelsToConsider.GetStreamingLevels();
+		if (ConsideredStreamingLevels.IsEmpty())
+		{
+			return;
+		}
+
+		UE::Private::World::FStreamingLevelsToConsiderIterationScope Scope(StreamingLevelsToConsider);
+		for (ULevelStreaming* StreamingLevel : ConsideredStreamingLevels)
+		{
+			const TArray<int32>& RequestIDs = StreamingLevel->GetAsyncRequestIDs();
+			if (!RequestIDs.IsEmpty())
+			{
+				LevelStreamingRequestIDs.Append(RequestIDs);
+			}
+		}
+	}
+
+	if(!LevelStreamingRequestIDs.IsEmpty())
+	{
+		FlushAsyncLoading(LevelStreamingRequestIDs);
+	}
+}
+
 void UWorld::UpdateLevelStreaming()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UWorld::UpdateLevelStreaming);
@@ -4291,44 +4369,45 @@ void UWorld::UpdateLevelStreaming()
 	// Store current number of pending unload levels, it may change in loop bellow
 	const int32 NumLevelsPendingPurge = FLevelStreamingGCHelper::GetNumLevelsPendingPurge();
 
-	StreamingLevelsToConsider.BeginConsideration();
-
-	for (int32 Index = StreamingLevelsToConsider.GetStreamingLevels().Num() - 1; Index >= 0; --Index)
 	{
-		// Call the blocking tick on the movie player periodically.
-		if ((Index & 0x7) == 7)
-		{
-			FMoviePlayerProxy::BlockingTick();
-		}
+		UE::Private::World::FStreamingLevelsToConsiderIterationScope Scope(StreamingLevelsToConsider);
 
-		if (ULevelStreaming* StreamingLevel = StreamingLevelsToConsider.GetStreamingLevels()[Index])
+		for (int32 Index = StreamingLevelsToConsider.GetStreamingLevels().Num() - 1; Index >= 0; --Index)
 		{
-			bool bUpdateAgain = true;
-			bool bShouldContinueToConsider = true;
-			while (bUpdateAgain && bShouldContinueToConsider)
+			// Call the blocking tick on the movie player periodically.
+			if ((Index & 0x7) == 7)
 			{
-				bool bRedetermineTarget = false;
-				FStreamingLevelPrivateAccessor::UpdateStreamingState(StreamingLevel, bUpdateAgain, bRedetermineTarget);
-
-				if (bRedetermineTarget)
-				{
-					bShouldContinueToConsider = FStreamingLevelPrivateAccessor::UpdateTargetState(StreamingLevel);
-				}
+				FMoviePlayerProxy::BlockingTick();
 			}
 
-			if (!bShouldContinueToConsider)
+			if (ULevelStreaming* StreamingLevel = StreamingLevelsToConsider.GetStreamingLevels()[Index])
+			{
+				bool bUpdateAgain = true;
+				bool bShouldContinueToConsider = true;
+				while (bUpdateAgain && bShouldContinueToConsider)
+				{
+					bool bRedetermineTarget = false;
+					FStreamingLevelPrivateAccessor::UpdateStreamingState(StreamingLevel, bUpdateAgain, bRedetermineTarget);
+
+					if (bRedetermineTarget)
+					{
+						bShouldContinueToConsider = FStreamingLevelPrivateAccessor::UpdateTargetState(StreamingLevel);
+					}
+				}
+
+				if (!bShouldContinueToConsider)
+				{
+					StreamingLevelsToConsider.RemoveAt(Index);
+				}
+			}
+			else
 			{
 				StreamingLevelsToConsider.RemoveAt(Index);
 			}
 		}
-		else
-		{
-			StreamingLevelsToConsider.RemoveAt(Index);
-		}
-	}
 
-	AllLevelsChangedEvent.Broadcast();
-	StreamingLevelsToConsider.EndConsideration();
+		AllLevelsChangedEvent.Broadcast();
+	}
 
 	const int32 CurrentNumLevelsPendingPurge = FLevelStreamingGCHelper::GetNumLevelsPendingPurge();
 	const int32 LevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge = GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurgeOverride ? 1 : GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge;
@@ -4571,7 +4650,7 @@ void UWorld::FlushLevelStreaming(EFlushLevelStreamingType FlushType)
 		if (FlushLevelStreamingType == EFlushLevelStreamingType::Full)
 		{
 			// Make sure all outstanding loads are taken care of, other than ones associated with the excluded type
-			FlushAsyncLoading();
+			FlushAsyncLevelRequests();
 		}
 
 		// Kick off making levels visible if loading finished by flushing.

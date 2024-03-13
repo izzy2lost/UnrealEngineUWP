@@ -333,7 +333,7 @@ bool UWorldPartitionLevelStreamingDynamic::RequestLevel(UWorld* InPersistentWorl
 					}
 
 					// Finish all async loading.
-					FlushAsyncLoading();
+					FlushAsyncLoading(AsyncRequestIDs);
 				}
 				else
 				{
@@ -466,7 +466,7 @@ bool UWorldPartitionLevelStreamingDynamic::IssueLoadRequests()
 			.SetActorPackages(ChildPackagesToLoad)
 			.SetPackageReferencer(&PackageReferencer)
 			.SetCompletionCallback(FinalizeLoading)
-			.SetLoadAsync(World->IsGameWorld())
+			.SetLoadAsync(World->IsGameWorld(), &AsyncRequestIDs)
 			.SetInstancingContext(MoveTemp(InstancingContext));
 
 		FWorldPartitionLevelHelper::LoadActors(MoveTemp(Params));

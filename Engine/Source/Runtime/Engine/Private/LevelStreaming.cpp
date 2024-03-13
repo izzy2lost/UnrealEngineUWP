@@ -1698,7 +1698,7 @@ bool ULevelStreaming::RequestLevel(UWorld* PersistentWorld, bool bAllowLevelLoad
 				InstancingContextPtr = &InstancingContext;
 			}
 #endif
-			LoadPackageAsync(PackagePath, DesiredPackageName, FLoadPackageAsyncDelegate::CreateUObject(this, &ULevelStreaming::AsyncLevelLoadComplete), PackageFlags, PIEInstanceID, GetPriority(), InstancingContextPtr);
+			AsyncRequestIDs.Add(LoadPackageAsync(PackagePath, DesiredPackageName, FLoadPackageAsyncDelegate::CreateUObject(this, &ULevelStreaming::AsyncLevelLoadComplete), PackageFlags, PIEInstanceID, GetPriority(), InstancingContextPtr));
 
 			// streamingServer: server loads everything?
 			// Editor immediately blocks on load and we also block if background level streaming is disabled.
@@ -1710,7 +1710,7 @@ bool ULevelStreaming::RequestLevel(UWorld* PersistentWorld, bool bAllowLevelLoad
 				}
 
 				// Finish all async loading.
-				FlushAsyncLoading();
+				FlushAsyncLoading(AsyncRequestIDs);
 			}
 		}
 		else
@@ -2043,6 +2043,9 @@ void ULevelStreaming::OnLoadingStarted()
 
 void ULevelStreaming::OnLoadingFinished()
 {
+	// Clear our request ids as we are done loading
+	AsyncRequestIDs.Empty();
+
 	UWorld* World = GetWorld();
 	if (World && World->IsGameWorld())
 	{

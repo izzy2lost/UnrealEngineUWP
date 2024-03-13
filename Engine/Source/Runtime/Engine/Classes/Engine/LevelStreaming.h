@@ -267,6 +267,9 @@ protected:
 	/** Whether the streaming level can safely skip making visible transaction request from the client to the server */
 	uint8 bSkipClientUseMakingVisibleTransactionRequest:1;
 
+	/** IDs used to track the underlying async load requests for the level */
+	TArray<int32> AsyncRequestIDs;
+
 private:
 	/** What the current streamed state of the streaming level is */
 	ELevelStreamingState CurrentState;
@@ -453,6 +456,12 @@ public:
 	bool HasLoadedLevel() const
 	{
 		return (LoadedLevel || PendingUnloadLevel);
+	}
+
+	/** Returns the RequestIDs for the async load requests required to load the level. These IDs are cleared during OnLoadingFinished */
+	const TArray<int32>& GetAsyncRequestIDs() const
+	{
+		return AsyncRequestIDs; 
 	}
 
 	/** Returns if the streaming level has requested to be unloaded and removed. */

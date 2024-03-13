@@ -495,7 +495,7 @@ bool FWorldPartitionLevelHelper::LoadActorsWithPropertyOverridesInternal(FLoadAc
 	}
 
 	LoadProgress->NumPendingLoadRequests = PropertyOverridesToLoad.Num();
-	
+
 	// Do Loading
 	for (auto const&[AssetPath, PackageName] : PropertyOverridesToLoad)
 	{
@@ -550,7 +550,11 @@ bool FWorldPartitionLevelHelper::LoadActorsWithPropertyOverridesInternal(FLoadAc
 		{
 			FPackagePath PackagePath = FPackagePath::FromPackageNameChecked(PackageToLoad);
 
-			::LoadPackageAsync(PackagePath, RemappedPackageName, CompletionCallback, PKG_None, -1, 0, &InstancingContext);
+			int32 RequestID = ::LoadPackageAsync(PackagePath, RemappedPackageName, CompletionCallback, PKG_None, -1, 0, &InstancingContext);
+			if (LoadProgress->Params.AsyncRequestIDs)
+			{
+				LoadProgress->Params.AsyncRequestIDs->Add(RequestID);
+			}
 		}
 		else
 		{
@@ -576,7 +580,7 @@ bool FWorldPartitionLevelHelper::LoadActors(const FLoadActorsParams& InParams)
 		.SetCompletionCallback(InParams.CompletionCallback)
 		.SetDestLevel(InParams.DestLevel)
 		.SetInstancingContext(MoveTemp(InParams.InstancingContext))
-		.SetLoadAsync(InParams.bLoadAsync)
+		.SetLoadAsync(InParams.bLoadAsync, InParams.AsyncRequestIDs)
 		.SetOuterWorld(InParams.OuterWorld)
 		.SetPackageReferencer(InParams.PackageReferencer);
 	return LoadActors(MoveTemp(ParamsCopy));
@@ -850,7 +854,11 @@ bool FWorldPartitionLevelHelper::LoadActorsInternal(FLoadActorsParams&& InParams
 			const UPackage* DestPackage = InParams.DestLevel->GetPackage();
 			const EPackageFlags PackageFlags = InParams.DestLevel->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor) ? PKG_PlayInEditor : PKG_None;
 			const FPackagePath PackagePath = FPackagePath::FromPackageNameChecked(PackageToLoad);
-			::LoadPackageAsync(PackagePath, PackageName, CompletionCallback, PackageFlags, DestPackage->GetPIEInstanceID(), 0, &ContainerInstancingContext);
+			int32 RequestID = ::LoadPackageAsync(PackagePath, PackageName, CompletionCallback, PackageFlags, DestPackage->GetPIEInstanceID(), 0, &ContainerInstancingContext);
+			if (InParams.AsyncRequestIDs)
+			{
+				InParams.AsyncRequestIDs->Add(RequestID);
+			}
 		}
 		else
 		{

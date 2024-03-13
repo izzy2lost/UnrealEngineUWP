@@ -52,6 +52,7 @@ public:
 			, DestLevel(nullptr)
 			, PackageReferencer(nullptr)
 			, bLoadAsync(false)
+			, AsyncRequestIDs(nullptr)
 		{}
 
 		UWorld* OuterWorld;
@@ -60,6 +61,7 @@ public:
 		FPackageReferencer* PackageReferencer;
 		TFunction<void(bool)> CompletionCallback;
 		bool bLoadAsync;
+		TArray<int32>* AsyncRequestIDs;
 		mutable FLinkerInstancingContext InstancingContext;
 
 		FLoadActorsParams& SetOuterWorld(UWorld* InOuterWorld) { OuterWorld = InOuterWorld; return *this; }
@@ -67,7 +69,12 @@ public:
 		FLoadActorsParams& SetActorPackages(TArrayView<FWorldPartitionRuntimeCellObjectMapping> InActorPackages) { ActorPackages = InActorPackages; return *this; }
 		FLoadActorsParams& SetPackageReferencer(FPackageReferencer* InPackageReferencer) { PackageReferencer = InPackageReferencer; return *this; }
 		FLoadActorsParams& SetCompletionCallback(TFunction<void(bool)> InCompletionCallback) { CompletionCallback = InCompletionCallback; return *this; }
-		FLoadActorsParams& SetLoadAsync(bool bInLoadAsync) { bLoadAsync = bInLoadAsync; return *this; }
+		FLoadActorsParams& SetLoadAsync(bool bInLoadAsync, TArray<int32>* OutAsyncRequestIDs = nullptr)
+		{ 
+			bLoadAsync = bInLoadAsync;
+			AsyncRequestIDs = OutAsyncRequestIDs;
+			return *this;
+		}
 		FLoadActorsParams& SetInstancingContext(FLinkerInstancingContext InInstancingContext) { InstancingContext = InInstancingContext; return *this; }
 	};
 

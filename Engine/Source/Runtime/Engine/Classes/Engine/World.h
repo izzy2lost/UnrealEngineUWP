@@ -2960,6 +2960,13 @@ public:
 
 private:
 	UMaterialParameterCollectionInstance* CreateParameterCollectionInstance(int32 ExistingIndex, UMaterialParameterCollection* Collection, bool bUpdateScene);
+
+	/** Returns true if streaming levels have not loaded and are waiting on outstanding async load requests */
+	bool HasAsyncLevelRequests();
+
+	/** Waits for all streaming levels with outstanding async load requests */
+	void FlushAsyncLevelRequests();
+
 public:
 
 	/** Gets the canvas object for rendering to a render target.  Will allocate one if needed. */
