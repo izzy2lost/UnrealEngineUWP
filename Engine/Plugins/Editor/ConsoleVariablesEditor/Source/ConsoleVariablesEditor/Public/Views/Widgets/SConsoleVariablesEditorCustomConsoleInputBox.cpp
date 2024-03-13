@@ -24,6 +24,7 @@ void SConsoleVariablesEditorCustomConsoleInputBox::Construct(
 	const FArguments& InArgs)
 {
 	bHideOnFocusLost = InArgs._HideOnFocusLost;
+	bCommitOnFocusLost = InArgs._CommitOnFocusLost;
 	bClearOnCommit = InArgs._ClearOnCommit;
 	IsEnabledAttribute = InArgs._IsEnabled;
 	Font = InArgs._Font;
@@ -69,6 +70,11 @@ void SConsoleVariablesEditorCustomConsoleInputBox::Construct(
 						FSlateApplication::Get().GetUserFocusedWidget(0) != InputText)
 					{
 						SuggestionBox->SetIsOpen(false);
+
+						if (bCommitOnFocusLost)
+						{
+							CommitInput();
+						}
 
 						if (bHideOnFocusLost)
 						{

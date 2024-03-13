@@ -3,6 +3,8 @@
 #include "Graph/Nodes/MovieGraphSetCVarValueNode.h"
 
 #include "Graph/MovieGraphConfig.h"
+#include "Internationalization/FastDecimalFormat.h"
+#include "Math/BasicMathExpressionEvaluator.h"
 #include "Styling/AppStyle.h"
 
 FString UMovieGraphSetCVarValueNode::GetNodeInstanceName() const
@@ -18,12 +20,19 @@ EMovieGraphBranchRestriction UMovieGraphSetCVarValueNode::GetBranchRestriction()
 #if WITH_EDITOR
 FText UMovieGraphSetCVarValueNode::GetNodeTitle(const bool bGetDescriptive) const
 {
-	static const FText SetCVarNodeName = NSLOCTEXT("MovieGraphNodes", "NodeName_SetCVar", "Set CVar Value");
-	static const FText SetCVarNodeDescription = NSLOCTEXT("MovieGraphNodes", "NodeDescription_SetCVar", "Set CVar Value\n{0}");
+	static const FText SetCVarNodeName = NSLOCTEXT("MovieGraphNodes", "NodeName_SetCVar", "Set Console Variable");
+	static const FText SetCVarNodeDescription = NSLOCTEXT("MovieGraphNodes", "NodeDescription_SetCVar", "Set Console Variable\n{0} ({1})");
 
 	if (bGetDescriptive && !Name.IsEmpty())
 	{
-		return FText::Format(SetCVarNodeDescription, FText::FromString(Name));
+		// Format the float value so it looks nice for display purposes
+		const FNumberFormattingOptions NumberFormattingOptions = FNumberFormattingOptions()
+			.SetUseGrouping(false)
+			.SetMinimumFractionalDigits(0)
+			.SetMaximumFractionalDigits(4);
+		const FString CVarValue = FastDecimalFormat::NumberToString(Value, ExpressionParser::GetLocalizedNumberFormattingRules(), NumberFormattingOptions);
+		
+		return FText::Format(SetCVarNodeDescription, FText::FromString(Name), FText::FromString(CVarValue));
 	}
 	
 	return SetCVarNodeName;
@@ -58,7 +67,14 @@ void UMovieGraphSetCVarValueNode::PostEditChangeProperty(FPropertyChangedEvent& 
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMovieGraphSetCVarValueNode, Name))
+	// Skip rapid updates from properties; only refresh on commit
+	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive)
+	{
+		return;
+	}
+	
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMovieGraphSetCVarValueNode, Name) ||
+		PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMovieGraphSetCVarValueNode, Value))
 	{
 		OnNodeChangedDelegate.Broadcast(this);
 	}

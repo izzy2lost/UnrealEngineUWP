@@ -15,9 +15,14 @@ public:
 	DECLARE_DELEGATE_OneParam(FOnTextChanged, const FText&);
 
 	SLATE_BEGIN_ARGS(SConsoleVariablesEditorCustomConsoleInputBox)
+		: _CommitOnFocusLost(false)
 	{}
+	
 		/** If true, hide the input box when focus is lost. */
 		SLATE_ARGUMENT(bool, HideOnFocusLost)
+
+		/** If true, commit the input box's text when the input box loses focus (calls the OnTextCommitted event). */
+		SLATE_ARGUMENT(bool, CommitOnFocusLost)
 
 		/** If true, clear the input box when text is committed. */
 		SLATE_ARGUMENT(bool, ClearOnCommit)
@@ -138,6 +143,7 @@ private:
 	bool bIgnoreUIUpdate = false;
 
 	bool bHideOnFocusLost = true;
+	bool bCommitOnFocusLost = false;
 	bool bClearOnCommit = true;
 	TAttribute<bool> IsEnabledAttribute;
 	FSlateFontInfo Font;

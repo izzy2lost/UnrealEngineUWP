@@ -3,6 +3,7 @@
 #include "Graph/Nodes/MovieGraphApplyCVarPresetNode.h"
 
 #include "Graph/MovieGraphConfig.h"
+#include "Sections/MovieSceneConsoleVariableTrackInterface.h"
 #include "Styling/AppStyle.h"
 
 FString UMovieGraphApplyCVarPresetNode::GetNodeInstanceName() const
@@ -23,13 +24,17 @@ EMovieGraphBranchRestriction UMovieGraphApplyCVarPresetNode::GetBranchRestrictio
 #if WITH_EDITOR
 FText UMovieGraphApplyCVarPresetNode::GetNodeTitle(const bool bGetDescriptive) const
 {
-	static const FText ApplyCVarPresetNodeName = NSLOCTEXT("MovieGraphNodes", "NodeName_ApplyCVarPreset", "Apply CVar Preset");
-	static const FText ApplyCVarPresetNodeDescription = NSLOCTEXT("MovieGraphNodes", "NodeDescription_ApplyCVarPreset", "Apply CVar Preset\n{0}");
+	static const FText ApplyCVarPresetNodeName = NSLOCTEXT("MovieGraphNodes", "NodeName_ApplyCVarPreset", "Apply Console Variable Preset");
+	static const FText ApplyCVarPresetNodeDescription = NSLOCTEXT("MovieGraphNodes", "NodeDescription_ApplyCVarPreset", "Apply Console Variable Preset\n{0} ({1} CVars)");
 
 	const FString InstanceName = GetNodeInstanceName();
 	if (bGetDescriptive && !InstanceName.IsEmpty())
 	{
-		return FText::Format(ApplyCVarPresetNodeDescription, FText::FromString(InstanceName));
+		constexpr bool bOnlyIncludeChecked = true;
+		TArray<TTuple<FString, FString>> ConsoleVariables;
+		ConsoleVariablePreset->GetConsoleVariablesForTrack(bOnlyIncludeChecked, ConsoleVariables);
+		
+		return FText::Format(ApplyCVarPresetNodeDescription, FText::FromString(InstanceName), FText::FromString(LexToString(ConsoleVariables.Num())));
 	}
 	
 	return ApplyCVarPresetNodeName;
