@@ -121,30 +121,51 @@ namespace uba
 			infoFunc(di);
 		}
 
-		u64 buff[(sizeof(FILE_ID_BOTH_DIR_INFORMATION) + 512) / 8];
-		auto& FileInformation = (FILE_ID_BOTH_DIR_INFORMATION&)buff;
+		u8 buff[64*1024];
 		while (true)
 		{
-			res = NtQueryDirectoryFile(handle, 0, NULL, NULL, &IoStatusBlock, &FileInformation, sizeof(buff), (FILE_INFORMATION_CLASS)FileIdBothDirectoryInformation, TRUE, NULL, FALSE);
+			res = NtQueryDirectoryFile(handle, 0, NULL, NULL, &IoStatusBlock, buff, sizeof(buff) - 2, (FILE_INFORMATION_CLASS)FileIdBothDirectoryInformation, FALSE, NULL, FALSE);
 			if (res != STATUS_SUCCESS)
 			{
 				if (res != STATUS_NO_MORE_FILES)
-					logger.Warning(L"NtQueryDirectoryFile returned error %i", res);
+					logger.Error(L"NtQueryDirectoryFile returned error 0x%x", res);
 				break;
 			}
-			FileInformation.FileName[FileInformation.FileNameLength / 2] = 0;
-			if (wcscmp(FileInformation.FileName, L".") == 0 || wcscmp(FileInformation.FileName, L"..") == 0)
-				continue;
 
-			DirectoryEntry entry;
-			entry.name = FileInformation.FileName;
-			entry.nameLen = u32(FileInformation.FileNameLength/sizeof(tchar));
-			entry.lastWritten = FileInformation.LastWriteTime.QuadPart;
-			entry.attributes = FileInformation.FileAttributes;
-			entry.volumeSerial = volumeSerial;
-			entry.id = FileInformation.FileId.QuadPart;
-			entry.size = FileInformation.EndOfFile.QuadPart;
-			iteratorFunc(entry);
+			u8* it = buff;
+			while (true)
+			{
+				auto& FileInformation = *(FILE_ID_BOTH_DIR_INFORMATION*)it;
+
+				auto fileName = FileInformation.FileName;
+				u64 fileNameCharCount = FileInformation.FileNameLength/sizeof(tchar);
+				wchar_t& fileNameEnd = fileName[fileNameCharCount];
+				wchar_t old = fileNameEnd;
+				fileNameEnd = 0;
+				if (fileNameCharCount == 1 && fileName[0] == '.' || (fileNameCharCount == 2 && fileName[0] == '.' && fileName[1] == '.'))
+				{
+					if (!FileInformation.NextEntryOffset)
+						break;
+					fileNameEnd = old;
+					it += FileInformation.NextEntryOffset;
+					continue;
+				}
+
+				DirectoryEntry entry;
+				entry.name = fileName;
+				entry.nameLen = u32(fileNameCharCount);
+				entry.lastWritten = FileInformation.LastWriteTime.QuadPart;
+				entry.attributes = FileInformation.FileAttributes;
+				entry.volumeSerial = volumeSerial;
+				entry.id = FileInformation.FileId.QuadPart;
+				entry.size = FileInformation.EndOfFile.QuadPart;
+				iteratorFunc(entry);
+
+				if (!FileInformation.NextEntryOffset)
+					break;
+				fileNameEnd = old;
+				it += FileInformation.NextEntryOffset;
+			}
 		}
 		return true;
 	}
