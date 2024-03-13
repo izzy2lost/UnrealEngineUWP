@@ -950,7 +950,7 @@ bool CompileAndProcessD3DShaderDXC(
 		{
 			CompileData.MaxSamplers = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
 		}
-		else if (ShaderModel == ED3DShaderModel::SM6_6)
+		else if (ShaderModel >= ED3DShaderModel::SM6_6)
 		{
 			CompileData.MaxSamplers = 32; // DDSPI: MaxSamplers=32
 		}

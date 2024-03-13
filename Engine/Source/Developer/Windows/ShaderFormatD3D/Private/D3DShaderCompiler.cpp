@@ -107,7 +107,24 @@ static void D3D11FilterShaderCompileWarnings(const FString& CompileWarnings, TAr
 // @return 0 if not recognized
 static const TCHAR* GetShaderProfileName(const FShaderCompilerInput& Input, ED3DShaderModel ShaderModel)
 {
-	if (ShaderModel == ED3DShaderModel::SM6_6)
+	if (ShaderModel == ED3DShaderModel::SM6_8)
+	{
+		switch (Input.Target.GetFrequency())
+		{
+		case SF_Pixel:         return TEXT("ps_6_8");
+		case SF_Vertex:        return TEXT("vs_6_8");
+		case SF_Mesh:          return TEXT("ms_6_8");
+		case SF_Amplification: return TEXT("as_6_8");
+		case SF_Geometry:      return TEXT("gs_6_8");
+		case SF_Compute:       return TEXT("cs_6_8");
+		case SF_RayGen:
+		case SF_RayMiss:
+		case SF_RayHitGroup:
+		case SF_RayCallable:
+		case SF_WorkGraph:     return TEXT("lib_6_8");
+		}
+	}
+	else if (ShaderModel == ED3DShaderModel::SM6_6)
 	{
 		switch (Input.Target.GetFrequency())
 		{
@@ -121,7 +138,6 @@ static const TCHAR* GetShaderProfileName(const FShaderCompilerInput& Input, ED3D
 		case SF_RayMiss:
 		case SF_RayHitGroup:
 		case SF_RayCallable:   return TEXT("lib_6_6");
-		case SF_WorkGraph:     return TEXT("lib_6_8");
 		}
 	}
 	else if (ShaderModel == ED3DShaderModel::SM6_0)

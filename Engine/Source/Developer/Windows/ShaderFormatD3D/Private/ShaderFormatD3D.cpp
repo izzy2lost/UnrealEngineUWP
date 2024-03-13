@@ -111,6 +111,11 @@ public:
 		return ELanguage::Invalid;
 	}
 
+	static bool IsSM68(const FShaderCompilerInput& Input, ELanguage Language)
+	{
+		return Input.Target.GetFrequency() == SF_WorkGraph;
+	}
+
 	static bool IsSM66(const FShaderCompilerInput& Input, ELanguage Language)
 	{
 		return Language == ELanguage::SM6 || IsRayTracingShaderFrequency(Input.Target.GetFrequency());
@@ -119,7 +124,8 @@ public:
 	// Do we need any SM6.0 features?
 	static bool RequiresSM6Features(const FShaderCompilerInput& Input, ELanguage Language)
 	{
-		return IsSM66(Input, Language)
+		return IsSM68(Input, Language)
+			|| IsSM66(Input, Language)
 			|| Input.Environment.CompilerFlags.Contains(CFLAG_WaveOperations)
 			// TODO: Forcing DXC should not change platform flags, this needs to be moved to IsSM60 once existing uses are accounted for.
 			|| Input.Environment.CompilerFlags.Contains(CFLAG_ForceDXC)
@@ -136,6 +142,11 @@ public:
 
 	static ED3DShaderModel DetermineShaderModel(const FShaderCompilerInput& Input, ELanguage Language)
 	{
+		if (IsSM68(Input, Language))
+		{
+			return ED3DShaderModel::SM6_8;
+		}
+
 		if (IsSM66(Input, Language))
 		{
 			return ED3DShaderModel::SM6_6;
@@ -200,7 +211,6 @@ public:
 		// Assume min. spec HW supports with DX12/SM5
 		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_ROV"), true);
 
-		const bool bSM66        = IsSM66(Input, Language);
 		const bool bSM6Features = RequiresSM6Features(Input, Language);
 		const bool bDXC         = DoesShaderModelRequireDXC(ShaderModel);
 
@@ -215,12 +225,12 @@ public:
 		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_DIAGNOSTIC_BUFFER"),     bSM6Features);
 
 		// "profiles" are almost analogous to ERHIFeatureLevel but RT shaders are forcing themselves to SM6
-		Input.Environment.SetDefine(TEXT("SM6_PROFILE"),   bSM66);
+		Input.Environment.SetDefine(TEXT("SM6_PROFILE"),   ShaderModel >= ED3DShaderModel::SM6_6);
 		Input.Environment.SetDefine(TEXT("SM5_PROFILE"),   (Language == ELanguage::SM5));
 		Input.Environment.SetDefine(TEXT("ES3_1_PROFILE"), (Language == ELanguage::ES3_1));
 
 		// Add SM6.6+ specific defines. None of these are intended to be enabled in lower SM's
-		if (bSM66)
+		if (ShaderModel >= ED3DShaderModel::SM6_6)
 		{
 			Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_REAL_TYPES"),         Input.Environment.CompilerFlags.Contains(CFLAG_AllowRealTypes));
 			Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_INLINE_RAY_TRACING"), Input.Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing));
@@ -241,6 +251,9 @@ public:
 			break;
 		case ED3DShaderModel::SM6_6:
 			AddShaderTargetDefines(Input, 6, 6);
+			break;
+		case ED3DShaderModel::SM6_8:
+			AddShaderTargetDefines(Input, 6, 8);
 			break;
 		}
 	}

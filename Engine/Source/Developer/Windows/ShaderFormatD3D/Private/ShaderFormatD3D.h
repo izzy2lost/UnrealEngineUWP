@@ -13,6 +13,7 @@ enum class ED3DShaderModel
 	SM5_0,
 	SM6_0,
 	SM6_6,
+	SM6_8,
 };
 
 inline bool DoesShaderModelRequireDXC(ED3DShaderModel ShaderModel)
