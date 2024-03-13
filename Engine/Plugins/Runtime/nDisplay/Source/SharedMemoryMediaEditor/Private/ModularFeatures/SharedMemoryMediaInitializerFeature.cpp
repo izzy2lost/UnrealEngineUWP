@@ -18,26 +18,58 @@ bool FSharedMemoryMediaInitializerFeature::IsMediaSubjectSupported(const UObject
 	return false;
 }
 
-void FSharedMemoryMediaInitializerFeature::InitializeMediaSubjectForTile(UObject* MediaSubject, const FString& OwnerName, uint8 OwnerUniqueIdx, const FIntPoint& TilePos)
+static constexpr const TCHAR* GetMediaPrefix(const IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType OwnerType)
 {
-	checkSlow(MediaSubject);
+	switch (OwnerType)
+	{
+	case IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::ICVFXCamera:
+		return TEXT("icam");
+
+	case IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::Viewport:
+		return TEXT("vp");
+
+	case IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::Backbuffer:
+		return TEXT("node");
+
+	default:
+		return TEXT("unknown");
+	}
+}
+
+void FSharedMemoryMediaInitializerFeature::InitializeMediaSubjectForTile(UObject* MediaSubject, const FMediaSubjectOwnerInfo& OnwerInfo, const FIntPoint& TilePos)
+{
+	const FString UniqueName = FString::Printf(TEXT("%s@%s_tile_%d:%d"), GetMediaPrefix(OnwerInfo.OwnerType), *OnwerInfo.OwnerName, TilePos.X, TilePos.Y);
 
 	if (USharedMemoryMediaSource* SMMediaSource = Cast<USharedMemoryMediaSource>(MediaSubject))
 	{
+		SMMediaSource->UniqueName   = UniqueName;
 		SMMediaSource->bZeroLatency = true;
 		SMMediaSource->Mode         = ESharedMemoryMediaSourceMode::Framelocked;
-		SMMediaSource->UniqueName   = GenerateUniqueName(OwnerName, TilePos);
 	}
 	else if (USharedMemoryMediaOutput* SMMediaOutput = Cast<USharedMemoryMediaOutput>(MediaSubject))
 	{
-		SMMediaOutput->UniqueName   = GenerateUniqueName(OwnerName, TilePos);
+		SMMediaOutput->UniqueName   = UniqueName;
 		SMMediaOutput->bInvertAlpha = true;
 		SMMediaOutput->bCrossGpu    = true;
 		SMMediaOutput->NumberOfTextureBuffers = 4;
 	}
 }
 
-FString FSharedMemoryMediaInitializerFeature::GenerateUniqueName(const FString& OwnerName, const FIntPoint& TilePos)
+void FSharedMemoryMediaInitializerFeature::InitializeMediaSubjectForFullFrame(UObject* MediaSubject, const FMediaSubjectOwnerInfo& OnwerInfo)
 {
-	return FString::Printf(TEXT("%s_tile_%d:%d"), *OwnerName, TilePos.X, TilePos.Y);
+	const FString UniqueName = FString::Printf(TEXT("%s@%s"), GetMediaPrefix(OnwerInfo.OwnerType), *OnwerInfo.OwnerName);
+
+	if (USharedMemoryMediaSource* SMMediaSource = Cast<USharedMemoryMediaSource>(MediaSubject))
+	{
+		SMMediaSource->UniqueName   = UniqueName;
+		SMMediaSource->bZeroLatency = true;
+		SMMediaSource->Mode         = ESharedMemoryMediaSourceMode::Framelocked;
+	}
+	else if (USharedMemoryMediaOutput* SMMediaOutput = Cast<USharedMemoryMediaOutput>(MediaSubject))
+	{
+		SMMediaOutput->UniqueName   = UniqueName;
+		SMMediaOutput->bInvertAlpha = true;
+		SMMediaOutput->bCrossGpu    = true;
+		SMMediaOutput->NumberOfTextureBuffers = 4;
+	}
 }

@@ -87,10 +87,7 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::CustomizeChildren(TShar
 	FDisplayClusterConfiguratorBaseTypeCustomization::CustomizeChildren(InPropertyHandle, InChildBuilder, InCustomizationUtils);
 
 	// Create auto-configure button in the bottom
-	if (SplitTypeValue == EDisplayClusterConfigurationMediaSplitType::UniformTiles)
-	{
-		AddAutoConfigurationButton(InChildBuilder);
-	}
+	AddAutoConfigurationButton(InChildBuilder);
 }
 
 void FDisplayClusterConfiguratorICVFXMediaCustomization::AddAutoConfigurationButton(IDetailChildrenBuilder& InChildBuilder)
@@ -107,7 +104,7 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::AddAutoConfigurationBut
 						[
 							SNew(STextBlock)
 								.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-								.Text(LOCTEXT("AutoConfigureTiledInputButtonTitle", "Auto-Configure"))
+								.Text(LOCTEXT("AutoConfigureInputButtonTitle", "Auto-Configure"))
 						]
 				]
 		];
@@ -116,7 +113,7 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::AddAutoConfigurationBut
 FReply FDisplayClusterConfiguratorICVFXMediaCustomization::OnAutoConfigureButtonClicked()
 {
 	// Notify tile customizators to re-initialize their media subjects
-	FDisplayClusterConfiguratorMediaUtils::Get().OnTiledMediaAutoConfiguration().Broadcast(EditingObject.Get());
+	FDisplayClusterConfiguratorMediaUtils::Get().OnMediaAutoConfiguration().Broadcast(EditingObject.Get());
 
 	return FReply::Handled();
 }
