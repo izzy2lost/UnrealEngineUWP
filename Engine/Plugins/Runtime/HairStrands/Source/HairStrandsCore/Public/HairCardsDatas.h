@@ -35,7 +35,7 @@ struct FHairCardsMaterialFormat
 	typedef uint32 Type;
 	static const uint32 ComponentCount = 1;
 	static const uint32 SizeInByte = sizeof(Type);
-	static const EVertexElementType VertexElementType = VET_UByte4;
+	static const EVertexElementType VertexElementType = VET_UByte4N; 
 	static const EPixelFormat Format = PF_R8G8B8A8;
 };
 
