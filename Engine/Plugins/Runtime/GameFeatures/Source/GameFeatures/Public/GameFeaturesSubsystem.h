@@ -233,26 +233,16 @@ void GAMEFEATURES_API LexFromString(EGameFeatureTargetState& Value, const TCHAR*
 struct FGameFeaturePluginReferenceDetails
 {
 	FString PluginName;
-	bool bShouldActivate;
-
-	FGameFeaturePluginReferenceDetails(FString InPluginName, bool bInShouldActivate)
-		: PluginName(MoveTemp(InPluginName))
-		, bShouldActivate(bInShouldActivate)
-	{
-	}
+	TArray<FString> AssetReferences;
+	bool bShouldActivate = false;
 };
 
 struct FGameFeaturePluginDetails
 {
 	TArray<FGameFeaturePluginReferenceDetails> PluginDependencies;
 	TMap<FString, TSharedPtr<class FJsonValue>> AdditionalMetadata;
-	bool bHotfixable;
-	EBuiltInAutoState BuiltInAutoState;
-
-	FGameFeaturePluginDetails()
-		: bHotfixable(false)
-		, BuiltInAutoState(EBuiltInAutoState::Installed)
-	{}
+	bool bHotfixable = false;
+	EBuiltInAutoState BuiltInAutoState = EBuiltInAutoState::Invalid;
 };
 
 struct FBuiltInGameFeaturePluginBehaviorOptions
@@ -713,9 +703,6 @@ private:
 	void PruneCachedGameFeaturePluginDetails(const FString& PluginURL, const FString& PluginDescriptorFilename) const;
 	friend struct FGameFeaturePluginState_Unmounting;
 
-	/** Gets the state machine associated with the specified plugin name */
-	UGameFeaturePluginStateMachine* FindGameFeaturePluginStateMachineByPluginName(const FString& PluginName) const;
-
 	/** Gets the state machine associated with the specified URL */
 	UGameFeaturePluginStateMachine* FindGameFeaturePluginStateMachine(const FString& PluginURL) const;
 
@@ -741,6 +728,9 @@ private:
 	void BeginTermination(UGameFeaturePluginStateMachine* Machine);
 	void FinishTermination(UGameFeaturePluginStateMachine* Machine);
 	friend class UGameFeaturePluginStateMachine;
+
+	TArray<FString> FindPluginAssetDependencies(const FString& PluginDescriptorFilename);
+	friend struct FGameFeaturePluginState_AssetDependencyStreaming;
 
 	/** Handler for when a state machine requests its dependencies. Returns false if the dependencies could not be read */
 	bool FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FGameFeaturePluginStateMachineProperties& InStateProperties, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines);

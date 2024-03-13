@@ -86,6 +86,10 @@ namespace UE::GameFeatures
 		false,
 		TEXT("Enable to make block deactivation until all dependencies are deactivated. Warning - this can lead to failure to unload"));
 
+	static TAutoConsoleVariable<bool> CVarEnableAssetStreaming(TEXT("GameFeaturePlugin.EnableAssetStreaming"),
+		false,
+		TEXT("Enable experimental asset streaming"));
+
 	bool ShouldSkipVerify(const FString& PluginName)
 	{
 		static const FAsciiSet Wildcards("*?");
@@ -2223,7 +2227,7 @@ struct FWaitingForDependenciesTransitionPolicy
 
 	static EGameFeaturePluginState GetTransitionState()
 	{
-		return EGameFeaturePluginState::Registering;
+		return UE::GameFeatures::CVarEnableAssetStreaming.GetValueOnGameThread() ? EGameFeaturePluginState::AssetDependencyStreaming : EGameFeaturePluginState::Registering;
 	}
 
 	static EGameFeaturePluginState GetErrorState()
@@ -2242,6 +2246,39 @@ struct FGameFeaturePluginState_WaitingForDependencies : public FTransitionDepend
 	FGameFeaturePluginState_WaitingForDependencies(FGameFeaturePluginStateMachineProperties& InStateProperties)
 		: FTransitionDependenciesGameFeaturePluginState(InStateProperties)
 	{
+	}
+};
+
+struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePluginState
+{
+	FGameFeaturePluginState_AssetDependencyStreaming(FGameFeaturePluginStateMachineProperties& InStateProperties) : FGameFeaturePluginState(InStateProperties) {}
+
+	TArray<FString> AssetDependencies;
+
+	virtual void BeginState() override
+	{
+		AssetDependencies = UGameFeaturesSubsystem::Get().FindPluginAssetDependencies(StateProperties.PluginInstalledFilename);
+	}
+
+	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
+	{
+		StateStatus.SetTransition(EGameFeaturePluginState::Registering);
+	}
+
+	virtual void EndState() override
+	{
+		AssetDependencies.Empty();
+	}
+
+	virtual void TryCancelState() override
+	{
+		// TODO: support pause, cancel etc.  We could possibly be streaming hundreds of assets.
+	}
+
+	virtual UE::GameFeatures::FResult TryUpdateProtocolOptions(const FGameFeatureProtocolOptions& NewOptions) override
+	{
+		// TODO: support pause, cancel etc.  We could possibly be streaming hundreds of assets.
+		return FGameFeaturePluginState::TryUpdateProtocolOptions(NewOptions);
 	}
 };
 

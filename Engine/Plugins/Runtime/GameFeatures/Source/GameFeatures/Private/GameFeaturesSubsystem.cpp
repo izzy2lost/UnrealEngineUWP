@@ -2162,15 +2162,15 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 			FString FileContents;
 			if (!FFileHelper::LoadFileToString(FileContents, *PluginDescriptorFilename))
 			{
-				UE_LOG(LogGameFeatures, Error, TEXT("UGameFeaturesSubsystem could not determine if feature was hotfixable. Failed to read file. File:%s Error:%d"), *PluginDescriptorFilename, FPlatformMisc::GetLastError());
+				UE_LOG(LogGameFeatures, Error, TEXT("UGameFeaturesSubsystem could not load plugin descriptor. Failed to read file. File:%s Error:%d"), *PluginDescriptorFilename, FPlatformMisc::GetLastError());
 				return false;
 			}
 
 			// Deserialize a JSON object from the string	
-			TSharedRef< TJsonReader<> > Reader = TJsonReaderFactory<>::Create(FileContents);
+			TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(FileContents);
 			if (!FJsonSerializer::Deserialize(Reader, ObjectPtr) || !ObjectPtr.IsValid())
 			{
-				UE_LOG(LogGameFeatures, Error, TEXT("UGameFeaturesSubsystem could not determine if feature was hotfixable. Json invalid. File:%s. Error:%s"), *PluginDescriptorFilename, *Reader->GetErrorMessage());
+				UE_LOG(LogGameFeatures, Error, TEXT("UGameFeaturesSubsystem could not load plugin descriptor. Json invalid. File:%s. Error:%s"), *PluginDescriptorFilename, *Reader->GetErrorMessage());
 				return false;
 			}
 		}
@@ -2179,7 +2179,7 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 	// Read the properties
 	// Hotfixable. If it is not specified, then we assume it is
 	OutPluginDetails.bHotfixable = true;
-	ObjectPtr->TryGetBoolField(TEXT("Hotfixable"), OutPluginDetails.bHotfixable);
+	ObjectPtr->TryGetBoolField(TEXTVIEW("Hotfixable"), OutPluginDetails.bHotfixable);
 
 	// Determine the initial plugin state
 	OutPluginDetails.BuiltInAutoState = DetermineBuiltInInitialFeatureState(ObjectPtr, PluginDescriptorFilename);
@@ -2200,47 +2200,67 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 
 	// Parse plugin dependencies
 	const TArray<TSharedPtr<FJsonValue>>* PluginsArray = nullptr;
-	ObjectPtr->TryGetArrayField(TEXT("Plugins"), PluginsArray);
+	ObjectPtr->TryGetArrayField(TEXTVIEW("Plugins"), PluginsArray);
 	if (PluginsArray)
 	{
-		FString NameField = TEXT("Name");
-		FString EnabledField = TEXT("Enabled");
-		FString ActivateField = TEXT("Activate");
+		const FStringView NameField = TEXTVIEW("Name");
+		const FStringView EnabledField = TEXTVIEW("Enabled");
+		const FStringView ActivateField = TEXTVIEW("Activate");
+		const FStringView AssetReferencesField = TEXTVIEW("AssetReferences");
 		for (const TSharedPtr<FJsonValue>& PluginElement : *PluginsArray)
 		{
-			if (PluginElement.IsValid())
+			if (!PluginElement)
 			{
-				const TSharedPtr<FJsonObject>* ElementObjectPtr = nullptr;
-				PluginElement->TryGetObject(ElementObjectPtr);
-				if (ElementObjectPtr && ElementObjectPtr->IsValid())
+				continue;
+			}
+
+			const TSharedPtr<FJsonObject>* ElementObjectPtr = nullptr;
+			PluginElement->TryGetObject(ElementObjectPtr);
+			if (!ElementObjectPtr || !ElementObjectPtr->IsValid())
+			{
+				continue;
+			}
+			const TSharedPtr<FJsonObject>& ElementObject = *ElementObjectPtr;
+
+			FString DependencyName;
+			ElementObject->TryGetStringField(NameField, DependencyName);
+			if (DependencyName.IsEmpty())
+			{
+				UE_LOG(LogGameFeatures, Error, TEXT("Error parsing dependency name in %s! Invalid JSON data!"), *PluginDescriptorFilename);
+				continue;
+			}
+
+			bool bElementEnabled = false;
+			ElementObject->TryGetBoolField(EnabledField, bElementEnabled);
+			if (!bElementEnabled)
+			{
+				UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Skipping adding dependency %s in %s. Plugin is disabled."), *DependencyName, *PluginDescriptorFilename);
+				continue;
+			}
+
+			//Have to get Activate from JSON as it's unique to GFP and not in the PluginManager
+			bool bElementActivate = false;
+			ElementObject->TryGetBoolField(ActivateField, bElementActivate);
+
+			TArray<FString> AssetReferences;
+			const TArray<TSharedPtr<FJsonValue>>* AssetRefsArray = nullptr;
+			ElementObject->TryGetArrayField(AssetReferencesField, AssetRefsArray);
+			if (AssetRefsArray)
+			{
+				for (const TSharedPtr<FJsonValue>& AssetRefElement : *AssetRefsArray)
 				{
-					const TSharedPtr<FJsonObject>& ElementObject = *ElementObjectPtr;
-
-					FString DependencyName;
-					ElementObject->TryGetStringField(NameField, DependencyName);
-					if (!DependencyName.IsEmpty())
+					FString AssetRef;
+					if (AssetRefElement && AssetRefElement->TryGetString(AssetRef))
 					{
-						bool bElementEnabled = false;
-						ElementObject->TryGetBoolField(EnabledField, bElementEnabled);
-						if (bElementEnabled)
-						{
-							//Have to get Activate from JSON as it's unique to GFP and not in the PluginManager
-							bool bElementActivate = false;
-							ElementObject->TryGetBoolField(ActivateField, bElementActivate);
-
-							OutPluginDetails.PluginDependencies.Emplace(FGameFeaturePluginReferenceDetails(MoveTemp(DependencyName), bElementActivate));
-						}
-						else
-						{
-							UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Skipping adding dependency %s in %s. Plugin is disabled."), *DependencyName, *PluginDescriptorFilename);
-						}
-					}
-					else
-					{
-						UE_LOG(LogGameFeatures, Error, TEXT("Error parsing dependency name in %s! Invalid JSON data!"), *PluginDescriptorFilename);
+						AssetReferences.Add(MoveTemp(AssetRef));
 					}
 				}
 			}
+
+			FGameFeaturePluginReferenceDetails& RefDetails = OutPluginDetails.PluginDependencies.Emplace_GetRef();
+			RefDetails.PluginName = MoveTemp(DependencyName);
+			RefDetails.AssetReferences = MoveTemp(AssetReferences);
+			RefDetails.bShouldActivate = bElementActivate;
 		}
 	}
 
@@ -2248,6 +2268,7 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 	{
 		CachedPluginDetailsByFilename.Add(PluginDescriptorFilename, FCachedGameFeaturePluginDetails(OutPluginDetails, FileTimeStamp));
 	}
+
 	return true;
 }
 
@@ -2576,22 +2597,6 @@ TSharedRef<FGameFeaturePluginPredownloadHandle> UGameFeaturesSubsystem::Predownl
 	return Context;
 }
 
-UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindGameFeaturePluginStateMachineByPluginName(const FString& PluginName) const
-{
-	for (auto StateMachineIt = GameFeaturePluginStateMachines.CreateConstIterator(); StateMachineIt; ++StateMachineIt)
-	{
-		if (UGameFeaturePluginStateMachine* GFSM = StateMachineIt.Value())
-		{
-			if (GFSM->GetGameFeatureName() == PluginName)
-			{
-				return GFSM;
-			}
-		}
-	}
-
-	return nullptr;
-}
-
 UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindGameFeaturePluginStateMachine(const FString& PluginURL) const
 {
 	FGameFeaturePluginIdentifier FindPluginIdentifier(PluginURL);
@@ -2781,6 +2786,23 @@ void UGameFeaturesSubsystem::FinishTermination(UGameFeaturePluginStateMachine* M
 {
 	UE_LOG(LogGameFeatures, Display, TEXT("FinishTermination of GameFeaturePlugin. Identifier:%.*s URL:%s"), Machine->GetPluginIdentifier().GetIdentifyingString().Len(), Machine->GetPluginIdentifier().GetIdentifyingString().GetData(), *(Machine->GetPluginURL()));
 	TerminalGameFeaturePluginStateMachines.RemoveSwap(Machine);
+}
+
+TArray<FString> UGameFeaturesSubsystem::FindPluginAssetDependencies(const FString& PluginDescriptorFilename)
+{
+	FGameFeaturePluginDetails Details;
+	ensure(GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, Details));
+
+	TArray<FString> OutAssetPaths;
+	for (const FGameFeaturePluginReferenceDetails& RefDetails : Details.PluginDependencies)
+	{
+		for (const FString& AssetRef : RefDetails.AssetReferences)
+		{
+			OutAssetPaths.Emplace(FString::Printf(TEXT("/%s/%s"), *RefDetails.PluginName, *AssetRef));
+		}
+	}
+
+	return OutAssetPaths;
 }
 
 bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FGameFeaturePluginStateMachineProperties& InStateProperties, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
