@@ -36,15 +36,36 @@ namespace  mu
 	class RangeIndex;
 
     /** Code execution of the mutable virtual machine. */
-    class CodeRunner
+    class CodeRunner : public TSharedFromThis<CodeRunner>
     {
-    public:
-		CodeRunner(const Ptr<const Settings>&, class System::Private*, 
+		// The private token allows only members or friends to call MakeShared.
+		struct FPrivateToken { explicit FPrivateToken() = default; };
+
+	public:
+		static TSharedRef<CodeRunner> Create(
+				const Ptr<const Settings>&, 
+				class System::Private*, 
+				EExecutionStrategy,
+				const TSharedPtr<const Model>&, 
+				const Parameters* pParams,
+				OP::ADDRESS at, uint32 lodMask, uint8 executionOptions, int32 InImageLOD, FScheduledOp::EType);
+
+		// Private constructor to prevent stack allocation. In general we can not call AsShared() if the lifetime is
+		// bounded.
+		explicit CodeRunner(FPrivateToken, 
+			const Ptr<const Settings>&, 
+			class System::Private*, 
 			EExecutionStrategy,
-			const TSharedPtr<const Model>&, const Parameters* pParams,
-			OP::ADDRESS at, uint32 lodMask, uint8 executionOptions, int32 InImageLOD, FScheduledOp::EType );
+			const TSharedPtr<const Model>&, 
+			const Parameters* pParams,
+			OP::ADDRESS at, uint32 lodMask, uint8 executionOptions, int32 InImageLOD, FScheduledOp::EType);
 
     protected:
+		struct FProfileContext
+		{
+			uint32 NumRunOps = 0;
+			uint32 RunOpsPerType[int32(OP_TYPE::COUNT)] = {};
+		};
 
         /** Type of data sometimes stored in the code runner heap to pass info between operation stages. */
         struct FScheduledOpData
@@ -135,15 +156,19 @@ namespace  mu
     protected:
         //! Heap of intermediate data pushed by some instructions and referred by others.
         //! It is not released until no operations are pending.
-		TArray< FScheduledOpData > m_heapData;
-		TArray< FImageDesc > m_heapImageDesc;
+		TArray<FScheduledOpData> m_heapData;
+		TArray<FImageDesc> m_heapImageDesc;
 
 		/** Only used for correct mip skipping with external images. It is the LOD for which the image is build. */
 		int32 ImageLOD;
 
+		UE::Tasks::FTaskEvent RunnerCompletionEvent;
+
+		void Run(TUniquePtr<FProfileContext>&& ProfileContext, bool bForceInlineExecution);
+		void AbortRun();
 	public:
 
-		void Run();
+		UE::Tasks::FTask StartRun(bool bForceInlineExecution);
 
 		//!
 		void GetImageDescResult(FImageDesc& OutDesc);

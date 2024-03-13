@@ -33,7 +33,7 @@ namespace impl_deprecated
 
 			// This should only be done when using progressive images, since GetImageDesc does some actual processing.
 			{
-				System->GetImageDesc(OperationData->InstanceID, Image.ImageID, ImageDesc);
+				System->GetImageDescInline(OperationData->InstanceID, Image.ImageID, ImageDesc);
 
 				const uint16 MaxTextureSizeToGenerate = static_cast<uint16>(CustomizableObjectSystemPrivateData->MaxTextureSizeToGenerate);
 				const uint16 MaxSize = FMath::Max(ImageDesc.m_size[0], ImageDesc.m_size[1]);
@@ -80,7 +80,7 @@ namespace impl_deprecated
 				}
 				else
 				{
-					Image.Image = System->GetImage(OperationData->InstanceID, Image.ImageID, Image.BaseMip + MipsToSkip, Image.BaseLOD);
+					Image.Image = System->GetImageInline(OperationData->InstanceID, Image.ImageID, Image.BaseMip + MipsToSkip, Image.BaseLOD);
 				}
 
 				check(Image.Image);
@@ -230,7 +230,7 @@ namespace impl_deprecated
 
 					if(bGenerateLOD)
 					{
-						Component.Mesh = System->GetMesh(OperationData->InstanceID, Component.MeshID);
+						Component.Mesh = System->GetMeshInline(OperationData->InstanceID, Component.MeshID);
 					}
 				}
 
@@ -309,7 +309,7 @@ namespace impl_deprecated
 									Image.bIsPassThrough = true;
 
 									// Since it's known it's a pass-through texture there is no need to cache or convert it so we can generate it here already.
-									Image.Image = System->GetImage(OperationData->InstanceID, Image.ImageID, 0, 0);
+									Image.Image = System->GetImageInline(OperationData->InstanceID, Image.ImageID, 0, 0);
 									check(Image.Image->IsReference());
 
 									uint32 ReferenceID = Image.Image->GetReferencedTexture();

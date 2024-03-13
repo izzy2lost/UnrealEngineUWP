@@ -332,8 +332,7 @@ namespace mu
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	Ptr<const Image> System::GetImage(Instance::ID instanceID, FResourceID ImageId, int32 MipsToSkip, int32 InImageLOD)
+	Ptr<const Image> System::GetImageInline(Instance::ID instanceID, FResourceID ImageId, int32 MipsToSkip, int32 InImageLOD)
 	{
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 		MUTABLE_CPUPROFILER_SCOPE(SystemGetImage);
@@ -359,6 +358,65 @@ namespace mu
 		return pResult;
 	}
 
+	UE::Tasks::TTask<Ptr<const Image>> System::GetImage(Instance::ID instanceID, FResourceID ImageId, int32 MipsToSkip, int32 InImageLOD)
+	{
+		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
+		MUTABLE_CPUPROFILER_SCOPE(SystemGetImage);
+
+		Ptr<const Image> pResult;
+
+		// Find the live instance
+		FLiveInstance* pLiveInstance = m_pD->FindLiveInstance(instanceID);
+		check(pLiveInstance);
+		m_pD->WorkingMemoryManager.CurrentInstanceCache = pLiveInstance->Cache;
+
+		OP::ADDRESS RootAddress = GetResourceIDRoot(ImageId);
+		
+		m_pD->WorkingMemoryManager.BeginRunnerThread();
+		
+		mu::OP_TYPE OpType = pLiveInstance->Model->GetPrivate()->m_program.GetOpType(RootAddress);
+		if (GetOpDataType(OpType) != DT_IMAGE)
+		{
+			m_pD->WorkingMemoryManager.EndRunnerThread();
+			m_pD->WorkingMemoryManager.CurrentInstanceCache = nullptr;
+
+			return UE::Tasks::MakeCompletedTask<Ptr<const Image>>(
+					new mu::Image(16, 16, 1, EImageFormat::IF_RGBA_UBYTE, EInitializationType::Black));
+		}
+		
+		TSharedRef<CodeRunner> Runner = CodeRunner::Create(
+				m_pD->Settings, m_pD, EExecutionStrategy::MinimizeMemory, pLiveInstance->Model, pLiveInstance->OldParameters.get(), RootAddress, System::AllLODs, MipsToSkip, InImageLOD, FScheduledOp::EType::Full);
+	
+		
+		constexpr bool bForceInlineExecution = false;
+		UE::Tasks::FTask RunnerCompletionEvent = Runner->StartRun(bForceInlineExecution);
+
+		return UE::Tasks::Launch(TEXT("System::GetImageResultTask"),
+				[SystemPrivate = m_pD, Runner, RootAddress, MipsToSkip]() -> Ptr<const Image>
+				{
+					Ptr<const Image> Result;
+
+					SystemPrivate->bUnrecoverableError = Runner->bUnrecoverableError;
+					if (!Runner->bUnrecoverableError)
+					{
+						Result = SystemPrivate->WorkingMemoryManager.LoadImage(FCacheAddress(RootAddress, 0, MipsToSkip), true);
+					}
+
+					if (!Result)
+					{
+						Result = new mu::Image(16, 16, 1, EImageFormat::IF_RGBA_UBYTE, EInitializationType::Black);
+					}
+
+					SystemPrivate->WorkingMemoryManager.EndRunnerThread();
+					SystemPrivate->WorkingMemoryManager.CurrentInstanceCache = nullptr;
+					
+					return Result;
+				},
+				UE::Tasks::Prerequisites(RunnerCompletionEvent),
+				UE::Tasks::ETaskPriority::Inherit,
+				UE::Tasks::EExtendedTaskPriority::Inline);
+	}
+
 
 	// Temporarily make the Image DescCache clear at every image because otherwise it makes some textures 
 	// not evaluate their layout and be of size 0 and 0 lods, making them incorrectly evaluate MipsToSkip
@@ -368,9 +426,7 @@ namespace mu
 		TEXT("If different than 0, clear the image desc cache at every image."),
 		ECVF_Scalability);
 
-
-	//---------------------------------------------------------------------------------------------
-	void System::GetImageDesc(Instance::ID instanceID, FResourceID ImageId, FImageDesc& OutDesc)
+	void System::GetImageDescInline(Instance::ID instanceID, FResourceID ImageId, FImageDesc& OutDesc)
 	{
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 		MUTABLE_CPUPROFILER_SCOPE(SystemGetImageDesc);
@@ -401,9 +457,14 @@ namespace mu
 			m_pD->WorkingMemoryManager.BeginRunnerThread();
 					
 			int8 executionOptions = 0;
-			CodeRunner Runner(m_pD->Settings, m_pD, EExecutionStrategy::MinimizeMemory, pLiveInstance->Model, pLiveInstance->OldParameters.get(), RootAddress, System::AllLODs, executionOptions, 0, FScheduledOp::EType::ImageDesc);
-			Runner.Run();
-			Runner.GetImageDescResult(OutDesc);
+			TSharedRef<CodeRunner> Runner = CodeRunner::Create(
+					m_pD->Settings, m_pD, EExecutionStrategy::MinimizeMemory, pLiveInstance->Model, pLiveInstance->OldParameters.get(), RootAddress, System::AllLODs, executionOptions, 0, FScheduledOp::EType::ImageDesc);
+			
+			constexpr bool bForceInlineExecution = true;
+			UE::Tasks::FTask CompletionEvent = Runner->StartRun(bForceInlineExecution);
+			check(CompletionEvent.IsCompleted());
+
+			Runner->GetImageDescResult(OutDesc);
 
 			m_pD->WorkingMemoryManager.EndRunnerThread();
 		}
@@ -412,13 +473,70 @@ namespace mu
 	}
 
 
-    //---------------------------------------------------------------------------------------------
-    MeshPtrConst System::GetMesh( Instance::ID instanceID, FResourceID MeshId )
+	UE::Tasks::TTask<FImageDesc> System::GetImageDesc(Instance::ID instanceID, FResourceID ImageId)
+	{
+		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
+		MUTABLE_CPUPROFILER_SCOPE(SystemGetImageDesc);
+
+		// Find the live instance
+		FLiveInstance* pLiveInstance = m_pD->FindLiveInstance(instanceID);
+		check(pLiveInstance);
+		m_pD->WorkingMemoryManager.CurrentInstanceCache = pLiveInstance->Cache;
+
+		OP::ADDRESS RootAddress = GetResourceIDRoot(ImageId);
+
+		const mu::Model* Model = pLiveInstance->Model.Get();
+		const mu::FProgram& program = Model->GetPrivate()->m_program;
+
+		// TODO: It should be possible to reuse this data if cleared in the correct places only, together with m_heapImageDesc.
+		int32 VarValue = CVarClearImageDescCache.GetValueOnAnyThread();
+		if (VarValue != 0)
+		{
+			m_pD->WorkingMemoryManager.CurrentInstanceCache->ClearDescCache();
+		}
+
+		m_pD->WorkingMemoryManager.BeginRunnerThread();
+		mu::OP_TYPE OpType = program.GetOpType(RootAddress);
+		if (GetOpDataType(OpType) != DT_IMAGE)
+		{
+			m_pD->WorkingMemoryManager.EndRunnerThread();
+			m_pD->WorkingMemoryManager.CurrentInstanceCache = nullptr;
+
+			return UE::Tasks::MakeCompletedTask<FImageDesc>(); 
+		}
+
+		// GetImageDesc may call normal execution paths where meshes are computed.
+		int8 ExecutionOptions = 0;
+		TSharedRef<CodeRunner> Runner = CodeRunner::Create(
+				m_pD->Settings, m_pD, EExecutionStrategy::MinimizeMemory, pLiveInstance->Model, pLiveInstance->OldParameters.get(), RootAddress, System::AllLODs, ExecutionOptions, 0, FScheduledOp::EType::ImageDesc);
+		
+		constexpr bool bForceInlineExecution = false;
+		UE::Tasks::FTask RunnerCompletionEvent = Runner->StartRun(bForceInlineExecution);
+		
+		return UE::Tasks::Launch(TEXT("System::GetImageDescResultTask"),
+				[SystemPrivate = m_pD, Runner]() -> FImageDesc
+				{
+					FImageDesc Result;
+					Runner->GetImageDescResult(Result);
+
+					SystemPrivate->WorkingMemoryManager.EndRunnerThread();
+					SystemPrivate->WorkingMemoryManager.CurrentInstanceCache = nullptr;
+
+					return Result;
+				},
+				UE::Tasks::Prerequisites(RunnerCompletionEvent),
+				UE::Tasks::ETaskPriority::Inherit,
+				UE::Tasks::EExtendedTaskPriority::Inline);
+
+	}
+
+
+    Ptr<const Mesh> System::GetMeshInline(Instance::ID instanceID, FResourceID MeshId)
     {
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 		MUTABLE_CPUPROFILER_SCOPE(SystemGetMesh);
 
-		MeshPtrConst pResult;
+		Ptr<const Mesh> Result;
 
 		// Find the live instance
 		FLiveInstance* pLiveInstance = m_pD->FindLiveInstance(instanceID);
@@ -426,16 +544,72 @@ namespace mu
 		m_pD->WorkingMemoryManager.CurrentInstanceCache = pLiveInstance->Cache;
 
 		OP::ADDRESS RootAddress = GetResourceIDRoot(MeshId);
-		pResult = m_pD->BuildMesh(pLiveInstance->Model, pLiveInstance->OldParameters.get(), RootAddress);
+		Result = m_pD->BuildMesh(pLiveInstance->Model, pLiveInstance->OldParameters.get(), RootAddress);
 
 		// If the mesh is null it means empty, but we still need to return a valid one
-		if (!pResult)
+		if (!Result)
 		{
-			pResult = new Mesh();
+			Result = new Mesh();
 		}
 
 		m_pD->WorkingMemoryManager.CurrentInstanceCache = nullptr;
-		return pResult;
+		return Result;
+	}
+
+	UE::Tasks::TTask<Ptr<const Mesh>> System::GetMesh(Instance::ID instanceID, FResourceID MeshId)
+    {
+		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
+		MUTABLE_CPUPROFILER_SCOPE(SystemGetImage);
+
+		Ptr<const Mesh> ResultMesh;
+
+		// Find the live instance
+		FLiveInstance* pLiveInstance = m_pD->FindLiveInstance(instanceID);
+		check(pLiveInstance);
+		m_pD->WorkingMemoryManager.CurrentInstanceCache = pLiveInstance->Cache;
+		m_pD->WorkingMemoryManager.BeginRunnerThread();
+		
+		OP::ADDRESS RootAddress = GetResourceIDRoot(MeshId);
+			
+		mu::OP_TYPE OpType = pLiveInstance->Model->GetPrivate()->m_program.GetOpType(RootAddress);
+		if (GetOpDataType(OpType) != DT_MESH)
+		{
+			m_pD->WorkingMemoryManager.EndRunnerThread();
+			m_pD->WorkingMemoryManager.CurrentInstanceCache = nullptr;
+
+			return UE::Tasks::MakeCompletedTask<Ptr<const Mesh>>(new Mesh());
+		}
+		
+		TSharedRef<CodeRunner> Runner = CodeRunner::Create(
+				m_pD->Settings, m_pD, EExecutionStrategy::MinimizeMemory, pLiveInstance->Model, pLiveInstance->OldParameters.get(), RootAddress, System::AllLODs, 0, 0, FScheduledOp::EType::Full);
+		
+		constexpr bool bForceInlineExecution = false;
+		UE::Tasks::FTask RunnerCompletionEvent = Runner->StartRun(bForceInlineExecution);
+
+		return UE::Tasks::Launch(TEXT("System::GetMeshResultTask"),
+				[SystemPrivate = m_pD, Runner, RootAddress]() -> Ptr<const Mesh>
+				{
+					Ptr<const Mesh> Result;
+
+					SystemPrivate->bUnrecoverableError = Runner->bUnrecoverableError;
+					if (!Runner->bUnrecoverableError)
+					{
+						Result = SystemPrivate->WorkingMemoryManager.LoadMesh(FCacheAddress(RootAddress, 0, 0), true);
+					}
+
+					if (!Result)
+					{
+						Result = new Mesh();
+					}
+
+					SystemPrivate->WorkingMemoryManager.EndRunnerThread();
+					SystemPrivate->WorkingMemoryManager.CurrentInstanceCache = nullptr;
+					
+					return Result;
+				},
+				UE::Tasks::Prerequisites(RunnerCompletionEvent),
+				UE::Tasks::ETaskPriority::Inherit,
+				UE::Tasks::EExtendedTaskPriority::Inline);
 	}
 
 
@@ -682,10 +856,14 @@ namespace mu
 	void System::Private::RunCode(const TSharedPtr<const Model>& InModel,
 		const Parameters* InParameters, OP::ADDRESS InCodeRoot, uint32 InLODs, uint8 executionOptions, int32 InImageLOD)
 	{
-		CodeRunner Runner(Settings, this, EExecutionStrategy::MinimizeMemory, InModel, InParameters, InCodeRoot, InLODs,
+		TSharedRef<CodeRunner> Runner = CodeRunner::Create(Settings, this, EExecutionStrategy::MinimizeMemory, InModel, InParameters, InCodeRoot, InLODs,
 			executionOptions, InImageLOD, FScheduledOp::EType::Full);
-		Runner.Run();
-		bUnrecoverableError = Runner.bUnrecoverableError;
+		
+		constexpr bool bForceInlineExecutution = true;
+		UE::Tasks::FTask RunnerCompletionEvent = Runner->StartRun(bForceInlineExecutution);
+		check(RunnerCompletionEvent.IsCompleted());
+
+		bUnrecoverableError = Runner->bUnrecoverableError;
 	}
 
 
@@ -788,7 +966,6 @@ namespace mu
 	}
 
 	
-	//---------------------------------------------------------------------------------------------
 	Ptr<const Image> System::Private::BuildImage(const TSharedPtr<const Model>& pModel,
 		const Parameters* Params, OP::ADDRESS at, int32 MipsToSkip, int32 InImageLOD)
 	{
