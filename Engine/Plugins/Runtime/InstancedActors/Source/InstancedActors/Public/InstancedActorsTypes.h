@@ -16,6 +16,11 @@ struct FStaticMeshInstanceVisualizationDesc;
 struct FStreamableHandle;
 struct FMassISMCSharedData;
 class UInstancedActorsData;
+class UWorld;
+class UServerInstancedActorsSpawnerSubsystem;
+class UClientInstancedActorsSpawnerSubsystem;
+class UMassActorSpawnerSubsystem;
+class UInstancedActorsSubsystem;
 
 enum class EInstancedActorsBulkLOD : uint8
 {
@@ -37,6 +42,18 @@ enum class EInstancedActorsFragmentFlags : uint8
 };
 ENUM_CLASS_FLAGS(EInstancedActorsFragmentFlags);
 
+namespace UE::InstancedActors::Utils
+{
+	INSTANCEDACTORS_API TSubclassOf<UMassActorSpawnerSubsystem> DetermineActorSpawnerSubsystemClass(UWorld& World);
+	INSTANCEDACTORS_API UServerInstancedActorsSpawnerSubsystem* GetServerInstancedActorsSpawnerSubsystem(UWorld& World);
+	INSTANCEDACTORS_API UClientInstancedActorsSpawnerSubsystem* GetClientInstancedActorsSpawnerSubsystem(UWorld& World);
+	/** 
+	 * Calls either GetServerInstancedActorsSpawnerSubsystem or GetClientInstancedActorsSpawnerSubsystem, depending on 
+	 * given UWorld's net mode.
+	 */
+	INSTANCEDACTORS_API UMassActorSpawnerSubsystem* GetActorSpawnerSubsystem(UWorld& World);
+	INSTANCEDACTORS_API UInstancedActorsSubsystem* GetInstancedActorsSubsystem(UWorld& World);
+}
 
 // FInstancedActorsTagSet -> FInstancedActorsTagSet
 /** An immutable hashed tag container used to categorize / partition instances */

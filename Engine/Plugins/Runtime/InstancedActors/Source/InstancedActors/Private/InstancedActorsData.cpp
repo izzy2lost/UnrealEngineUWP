@@ -10,6 +10,7 @@
 #include "InstancedActorsSubsystem.h"
 #include "InstancedActorsVisualizationTrait.h"
 #include "InstancedActorsSettingsTypes.h"
+#include "InstancedActorsSettings.h"
 #include "UObject/ObjectSaveContext.h"
 #include "Algo/Count.h"
 #include "Algo/NoneOf.h"
@@ -163,7 +164,7 @@ void UInstancedActorsData::Initialize()
 	AInstancedActorsManager& Manager = GetManagerChecked();
 
 	// Get the settings setup nice and early.
-	UInstancedActorsSubsystem& InstancedActorSubsystem = UInstancedActorsSubsystem::GetChecked(GetManager());
+	UInstancedActorsSubsystem& InstancedActorSubsystem = Manager.GetInstancedActorSubsystemChecked();
 	SharedSettings = InstancedActorSubsystem.GetOrCompileSettingsForActorClass(ActorClass);
 	const FInstancedActorsSettings* Settings = GetSettingsPtr<const FInstancedActorsSettings>();
 
@@ -204,7 +205,7 @@ void UInstancedActorsData::Initialize()
 	}
 
 	// Get or create exemplar actor to derive entities from
-	const AActor& ExemplarActor = Manager.GetInstancedActorSubsystemChecked().GetOrCreateExemplarActor(ActorClass);
+	const AActor& ExemplarActor = InstancedActorSubsystem.GetOrCreateExemplarActor(ActorClass);
 
 	// Add default visualization at index 0
 	//FInstancedActorsVisualizationDesc DefaultVisualiation = FInstancedActorsVisualizationDesc::FromActor(ExemplarActor, &UE::InstancedActors::VisualizationDescrFromActorAdditionalSteps);

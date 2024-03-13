@@ -7,6 +7,7 @@
 #include "InstancedActorsDebug.h"
 #include "InstancedActorsData.h"
 #include "InstancedActorsSettingsTypes.h"
+#include "InstancedActorsSettings.h"
 #include "ActorPartition/ActorPartitionSubsystem.h"
 #include "Algo/Find.h"
 #include "DataRegistry.h"
@@ -111,12 +112,6 @@ UInstancedActorsSubsystem& UInstancedActorsSubsystem::GetChecked(UObject* WorldC
 bool UInstancedActorsSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
 	if(!Super::ShouldCreateSubsystem(Outer))
-	{
-		return false;
-	}
-
-	// do not instantiate if configured to use a different (sub)class
-	if (GET_INSTANCEDACTORS_CONFIG_VALUE(InstancedActorsSubsystemClass) != GetClass())
 	{
 		return false;
 	}

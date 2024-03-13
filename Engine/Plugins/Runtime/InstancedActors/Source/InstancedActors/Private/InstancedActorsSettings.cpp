@@ -7,37 +7,94 @@
 #include "InstancedActorsVisualizationTrait.h"
 
 
-// @todo In the code below using ResolveClass rather than TryLoadClass since the latter emits "Warning: Failed to find object"
-// if the indicated class cannot be loaded. That can happen if the target class is loaded later with a GameplayFeatyre plugin
-// This whole section needs changing so that different game modes can utilize different classes.
-
 //-----------------------------------------------------------------------------
 // UInstancedActorsProjectSettings
 //-----------------------------------------------------------------------------
 UInstancedActorsProjectSettings::UInstancedActorsProjectSettings()
 {
-	ServerActorSpawnerSubsystemClass = UServerInstancedActorsSpawnerSubsystem::StaticClass();
-	ClientActorSpawnerSubsystemClass = UClientInstancedActorsSpawnerSubsystem::StaticClass();
-	InstancedActorsSubsystemClass = UInstancedActorsSubsystem::StaticClass();
-	StationaryVisualizationTraitClass = UInstancedActorsVisualizationTrait::StaticClass();
+	DefaultConfig.ServerActorSpawnerSubsystemClass = UServerInstancedActorsSpawnerSubsystem::StaticClass();
+	DefaultConfig.ClientActorSpawnerSubsystemClass = UClientInstancedActorsSpawnerSubsystem::StaticClass();
+	DefaultConfig.InstancedActorsSubsystemClass = UInstancedActorsSubsystem::StaticClass();
+	DefaultConfig.StationaryVisualizationTraitClass = UInstancedActorsVisualizationTrait::StaticClass();
+
+	CompiledActiveConfig = DefaultConfig;
 }
 
 TSubclassOf<UMassActorSpawnerSubsystem> UInstancedActorsProjectSettings::GetServerActorSpawnerSubsystemClass() const 
 { 
-	return ServerActorSpawnerSubsystemClass.ResolveClass();
+	return CompiledActiveConfig.ServerActorSpawnerSubsystemClass;
 }
 
 TSubclassOf<UMassActorSpawnerSubsystem> UInstancedActorsProjectSettings::GetClientActorSpawnerSubsystemClass() const 
-{ 
-	return ClientActorSpawnerSubsystemClass.ResolveClass();
+{
+	return CompiledActiveConfig.ClientActorSpawnerSubsystemClass;
 }
 
 TSubclassOf<UInstancedActorsSubsystem> UInstancedActorsProjectSettings::GetInstancedActorsSubsystemClass() const 
 {
-	return InstancedActorsSubsystemClass.ResolveClass();
+	return CompiledActiveConfig.InstancedActorsSubsystemClass;
 }
 
 TSubclassOf<UMassStationaryDistanceVisualizationTrait> UInstancedActorsProjectSettings::GetStationaryVisualizationTraitClass() const
 {
-	return StationaryVisualizationTraitClass.ResolveClass();
+	return CompiledActiveConfig.StationaryVisualizationTraitClass;
 }
+
+void UInstancedActorsProjectSettings::RegisterConfigOverride(UObject& Owner, const FInstancedActorsConfig& Config)
+{
+	FClassConfigOverrideEntry* Entry = ClassConfigOverrides.FindByPredicate([OwnerKey = &Owner](const FClassConfigOverrideEntry& Entry)
+		{ 
+			return Entry.Owner == OwnerKey;
+		});
+	if (Entry)
+	{
+		Entry->ConfigOverride = Config;
+	}
+	else
+	{
+		ClassConfigOverrides.Add({ &Owner, Config });
+	}
+	CompileSettings();
+}
+
+void UInstancedActorsProjectSettings::UnregisterConfigOverride(UObject& Owner)
+{
+	const int32 NumRemoved = ClassConfigOverrides.RemoveAll([OwnerKey = &Owner](const FClassConfigOverrideEntry& Entry)
+		{
+			return Entry.Owner == OwnerKey;
+		});
+	
+	if (NumRemoved)
+	{
+		CompileSettings();
+	}
+}
+
+/** 
+ * A helper macro for applying overrides to the specified Property. Note that we iterate starting from the latest
+ * override and quit as soon as a valid override is found.
+ */
+#define APPLY_OVERRIDE(Config, Property) \
+	for (int32 OverrideIndex = ClassConfigOverrides.Num() - 1; OverrideIndex >=0; --OverrideIndex) \
+	{ \
+		const FClassConfigOverrideEntry& Entry = ClassConfigOverrides[OverrideIndex]; \
+		if (Entry.ConfigOverride.Property) \
+		{ \
+			Config.Property = Entry.ConfigOverride.Property; \
+			break; \
+		} \
+	} \
+
+void UInstancedActorsProjectSettings::CompileSettings()
+{
+	CompiledActiveConfig = DefaultConfig;
+
+	APPLY_OVERRIDE(CompiledActiveConfig, ServerActorSpawnerSubsystemClass);
+	APPLY_OVERRIDE(CompiledActiveConfig, ClientActorSpawnerSubsystemClass);
+	APPLY_OVERRIDE(CompiledActiveConfig, InstancedActorsSubsystemClass);
+	APPLY_OVERRIDE(CompiledActiveConfig, StationaryVisualizationTraitClass);
+
+	OnSettingsUpdated.Broadcast();
+}
+
+#undef APPLY_OVERRIDE

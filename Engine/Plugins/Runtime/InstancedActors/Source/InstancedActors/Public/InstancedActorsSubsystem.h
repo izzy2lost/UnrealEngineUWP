@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "InstancedActorsSettings.h"
 #include "InstancedActorsDebug.h"
 #include "InstancedActorsManager.h"
 #include "GameplayTagContainer.h"
@@ -21,6 +20,7 @@ class ULevel;
 struct FInstancedActorsInstanceHandle;
 struct FInstancedActorsManagerHandle;
 struct FInstancedActorsModifierVolumeHandle;
+class UInstancedActorsProjectSettings;
 
 /**
  * Instanced Actor subsystem used to spawn AInstancedActorsManager's and populate their instance data.

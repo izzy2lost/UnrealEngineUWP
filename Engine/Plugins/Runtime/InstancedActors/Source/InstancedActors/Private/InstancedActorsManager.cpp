@@ -7,6 +7,7 @@
 #include "InstancedActorsIteration.h"
 #include "InstancedActorsModifierVolumeComponent.h"
 #include "InstancedActorsSettingsTypes.h"
+#include "InstancedActorsSettings.h"
 #include "InstancedActorsSubsystem.h"
 #include "InstancedActorsRepresentationActorManagement.h"
 #include "ActorPartition/ActorPartitionSubsystem.h"
@@ -169,7 +170,7 @@ void AInstancedActorsManager::BeginPlay()
 
 	// Register with IA subsystem if it's available already, otherwise the subsystem will
 	// collect this manager when it initializes later and call OnAddedToSubsystem
-	UInstancedActorsSubsystem* PreinitializedInstancedActorSubsystem = World->GetSubsystem<UInstancedActorsSubsystem>();
+	UInstancedActorsSubsystem* PreinitializedInstancedActorSubsystem = UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
 	if (PreinitializedInstancedActorSubsystem)
 	{
 		// Register manager with subsystem now, which will immediately call OnAddedToSubsystem
@@ -645,7 +646,7 @@ UInstancedActorsData& AInstancedActorsManager::GetOrCreateActorInstanceData(TSub
 	// Get or create exemplar actor to derive entities from
 	UWorld* World = GetWorld();
 	check(World);
-	UInstancedActorsSubsystem* EditorInstancedActorSubsystem = World->GetSubsystem<UInstancedActorsSubsystem>();
+	UInstancedActorsSubsystem* EditorInstancedActorSubsystem = UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
 	check(EditorInstancedActorSubsystem);
 	const AActor& ExemplarActor = EditorInstancedActorSubsystem->GetOrCreateExemplarActor(ActorClass);
 

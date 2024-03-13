@@ -25,12 +25,6 @@ bool UClientInstancedActorsSpawnerSubsystem::ShouldCreateSubsystem(UObject* Oute
 		return false;
 	}
 
-	// do not instantiate if configured to use a different (sub)class
-	if (GET_INSTANCEDACTORS_CONFIG_VALUE(ClientActorSpawnerSubsystemClass) != GetClass())
-	{
-		return false;
-	}
-
 	// @todo Add support for non-replay NM_Standalone where we should use UServerInstancedActorsSpawnerSubsystem for 
 	// authoritative actor spawning.
 	UWorld* World = Cast<UWorld>(Outer);

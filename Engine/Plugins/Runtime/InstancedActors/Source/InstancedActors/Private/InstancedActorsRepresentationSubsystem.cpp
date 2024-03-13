@@ -2,35 +2,39 @@
 
 #include "InstancedActorsRepresentationSubsystem.h"
 #include "InstancedActorsSettings.h"
-#include "InstancedActorsTypes.h"
 
 
 void UInstancedActorsRepresentationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	TSubclassOf<UMassActorSpawnerSubsystem> SpawnerSystemSubclass;
-	// @todo Add support for non-replay NM_Standalone where we should use UServerInstancedActorsSpawnerSubsystem for 
-	// authoritative actor spawning.
-	if (GetWorldRef().GetNetMode() == NM_DedicatedServer)
-	{
-		SpawnerSystemSubclass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetServerActorSpawnerSubsystemClass());
-
-	}
-	else
-	{
-		SpawnerSystemSubclass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass());
-	}
-
+	TSubclassOf<UMassActorSpawnerSubsystem> SpawnerSystemSubclass = UE::InstancedActors::Utils::DetermineActorSpawnerSubsystemClass(GetWorldRef());
 	if (SpawnerSystemSubclass)
 	{
 		ActorSpawnerSubsystem = Cast<UMassActorSpawnerSubsystem>(Collection.InitializeDependency(SpawnerSystemSubclass));
 
 		ensureMsgf(ActorSpawnerSubsystem, TEXT("Trying to initialize dependency on class %s failed. Verify InstanedActors settings.")
-			, *GetNameSafe(ActorSpawnerSubsystem));
+			, *SpawnerSystemSubclass->GetName());
 	}
-	else
+
+	OnSettingsChangedHandle = GET_INSTANCEDACTORS_CONFIG_VALUE(GetOnSettingsUpdated()).AddUObject(this, &UInstancedActorsRepresentationSubsystem::OnSettingsChanged);
+}
+
+void UInstancedActorsRepresentationSubsystem::Deinitialize()
+{
+	GET_INSTANCEDACTORS_CONFIG_VALUE(GetOnSettingsUpdated()).Remove(OnSettingsChangedHandle);
+	ActorSpawnerSubsystem = nullptr;
+
+	Super::Deinitialize();
+}
+
+void UInstancedActorsRepresentationSubsystem::OnSettingsChanged()
+{
+	if (UWorld* World = GetWorld())
 	{
-		UE_LOG(LogInstancedActors, Warning, TEXT("%hs failed to load SpawnerSystemSubclass"), __FUNCTION__);
+		ActorSpawnerSubsystem = UE::InstancedActors::Utils::GetActorSpawnerSubsystem(*World);
+		UE_CLOG(ActorSpawnerSubsystem == nullptr, LogInstancedActors, Warning
+			, TEXT("%s %hs failed to fetch ActorSpawnerSubsystem instance, class %s.")
+			, *GetName(), __FUNCTION__, *GetNameSafe(UE::InstancedActors::Utils::DetermineActorSpawnerSubsystemClass(*World)));
 	}
 }
