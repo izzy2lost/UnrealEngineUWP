@@ -73,6 +73,8 @@ class UPropertyWrapper;
 enum ELifetimeCondition : int;
 struct CGetTypeHashable;
 struct FUObjectSerializeContext;
+class FProperty;
+class FNumericProperty;
 template <typename FuncType> class TFunctionRef;
 namespace UE { class FPropertyTypeName; }
 namespace UE { class FPropertyTypeNameBuilder; }
@@ -155,6 +157,15 @@ enum class EPropertyPointerType
 	Direct = 0, /** Raw property access */
 	Container = 1, /** Property access through its owner container */
 };
+
+namespace UE::CoreUObject::Private
+{
+	// Defined in EnumProperty.cpp and used by both FEnumProperty and FByteProperty.
+	// They don't have an API macro because they're not intended to be called outside of CoreUObject.
+	const TCHAR* ImportEnumFromBuffer(UEnum* Enum, const FProperty* PropertyToSet, const FNumericProperty* UnderlyingProp, const TCHAR* PropertyClassName, const TCHAR* Buffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, FOutputDevice* ErrorText);
+
+	void ExportEnumToBuffer(const UEnum* Enum, const FProperty* Prop, const FNumericProperty* NumericProp, FString& ValueStr, const void* PropertyValueOrContainer, EPropertyPointerType PropertyPointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope);
+}
 
 //
 // An UnrealScript variable.
@@ -646,6 +657,9 @@ private:
 	}
 
 protected:
+
+	friend const TCHAR* UE::CoreUObject::Private::ImportEnumFromBuffer(UEnum* Enum, const FProperty* PropertyToSet, const FNumericProperty* UnderlyingProp, const TCHAR* PropertyClassName, const TCHAR* Buffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, FOutputDevice* ErrorText);
+	friend void UE::CoreUObject::Private::ExportEnumToBuffer(const UEnum* Enum, const FProperty* Prop, const FNumericProperty* NumericProp, FString& ValueStr, const void* PropertyValueOrContainer, EPropertyPointerType PropertyPointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope);
 
 	FORCEINLINE void* PointerToValuePtr(void const* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, int32 ArrayIndex = 0) const
 	{
