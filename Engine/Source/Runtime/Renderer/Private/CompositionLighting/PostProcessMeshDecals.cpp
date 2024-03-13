@@ -32,7 +32,7 @@ static TAutoConsoleVariable<int32> CVarParallelMeshDecal(
 
 static TAutoConsoleVariable<int32> CVarDecalUseCachedMDCs(
 	TEXT("r.Decal.UseCachedMDCs"),
-	0,
+	1,
 	TEXT("Use cached MDCs for decal rendering."),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
 	{
