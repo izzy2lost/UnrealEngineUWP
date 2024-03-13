@@ -54,6 +54,8 @@ extern SHADERCOMPILERCOMMON_API int16 GetNumUniformBuffersUsed(const FShaderComp
 
 namespace UE::ShaderCompilerCommon
 {
+	extern SHADERCOMPILERCOMMON_API void BuildShaderResourceTable(const FShaderCompilerResourceTable& GenericSRT, FShaderResourceTable& OutSRT, bool bGenerateEmptyTokenStreamIfNoResources = false);
+
 	extern SHADERCOMPILERCOMMON_API bool ExecuteShaderPreprocessingSteps(
 		FShaderPreprocessOutput& PreprocessOutput,
 		const FShaderCompilerInput& Input,

@@ -472,7 +472,7 @@ static void AddUBResources( const FString& UBName,
 }
 
 static void AddUniformBuffer(
-	const FShaderCompilerResourceTable& ShaderResourceTable,
+	const FShaderResourceTable& ShaderResourceTable,
 	const TArray<VkDescriptorType>& DescriptorTypes,
 	const FShaderCompilerInput& ShaderInput,
 	const FString& UBName,
@@ -589,7 +589,7 @@ static void PrepareUBResourceEntryGlobals(const TArray<uint32>& BindingArray, co
 }
 
 
-static void PrepareGlobals(const FVulkanBindingTable& BindingTable, const FSpirvReflectBindings& SpirvReflectBindings, const FShaderCompilerResourceTable& SRT, const TMap<FString, FVulkanShaderHeader::EType>& EntryTypes, const FShaderCompilerInput& ShaderInput, const TArray<FString>& ParameterNames, FShaderParameterMap& ParameterMap, TArray<FString>& OutGlobalNames, FVulkanShaderHeader& OutHeader)
+static void PrepareGlobals(const FVulkanBindingTable& BindingTable, const FSpirvReflectBindings& SpirvReflectBindings, const FShaderResourceTable& SRT, const TMap<FString, FVulkanShaderHeader::EType>& EntryTypes, const FShaderCompilerInput& ShaderInput, const TArray<FString>& ParameterNames, FShaderParameterMap& ParameterMap, TArray<FString>& OutGlobalNames, FVulkanShaderHeader& OutHeader)
 {
 	auto IsSamplerState = [&SpirvReflectBindings](const FString& ParameterName)
 	{
@@ -711,7 +711,7 @@ static void PrepareGlobals(const FVulkanBindingTable& BindingTable, const FSpirv
 }
 
 static void ConvertToHeader(
-	FShaderCompilerResourceTable& ShaderResourceTable,
+	FShaderResourceTable& ShaderResourceTable,
 	const FVulkanBindingTable& BindingTable,
 	const TArray<VkDescriptorType>& DescriptorTypes,
 	const TMap<FString, FVulkanShaderHeader::EType>& EntryTypes,
@@ -843,21 +843,16 @@ static void ConvertToHeader(
 // NOTE: Keep in sync with BuildResourceTableMapping.
 static FShaderResourceTable BuildSRTFromHeader(const FVulkanShaderHeader& NEWHeader)
 {
-	FShaderResourceTable ShaderResourceTable;
-
-	TArray<uint32> TextureMap;
-	TArray<uint32> ShaderResourceViewMap;
-	TArray<uint32> SamplerMap;
-	TArray<uint32> UnorderedAccessViewMap;
+	FShaderCompilerResourceTable GenericSRT;
 
 	for (int32 UBIndex = 0; UBIndex < NEWHeader.UniformBuffers.Num(); ++UBIndex)
 	{
 		const FVulkanShaderHeader::FUniformBufferInfo& UBHeader = NEWHeader.UniformBuffers[UBIndex];
 
-		ShaderResourceTable.ResourceTableLayoutHashes.Emplace(UBHeader.LayoutHash);
+		GenericSRT.ResourceTableLayoutHashes.Emplace(UBHeader.LayoutHash);
 		if (UBHeader.ResourceEntries.Num() > 0)
 		{
-			ShaderResourceTable.ResourceTableBits |= 1 << UBIndex;
+			GenericSRT.ResourceTableBits |= 1 << UBIndex;
 
 			for (const FVulkanShaderHeader::FUBResourceInfo& UBRes : UBHeader.ResourceEntries)
 			{
@@ -866,20 +861,20 @@ static FShaderResourceTable BuildSRTFromHeader(const FVulkanShaderHeader& NEWHea
 				{
 				case UBMT_TEXTURE:
 				case UBMT_RDG_TEXTURE:
-					TextureMap.Add(ResourceMap);
+					GenericSRT.TextureMap.Add(ResourceMap);
 					break;
 				case UBMT_SAMPLER:
-					SamplerMap.Add(ResourceMap);
+					GenericSRT.SamplerMap.Add(ResourceMap);
 					break;
 				case UBMT_SRV:
 				case UBMT_RDG_TEXTURE_SRV:
 				case UBMT_RDG_BUFFER_SRV:
-					ShaderResourceViewMap.Add(ResourceMap);
+					GenericSRT.ShaderResourceViewMap.Add(ResourceMap);
 					break;
 				case UBMT_UAV:
 				case UBMT_RDG_TEXTURE_UAV:
 				case UBMT_RDG_BUFFER_UAV:
-					UnorderedAccessViewMap.Add(ResourceMap);
+					GenericSRT.UnorderedAccessViewMap.Add(ResourceMap);
 					break;
 				default:
 					check(false);
@@ -888,11 +883,10 @@ static FShaderResourceTable BuildSRTFromHeader(const FVulkanShaderHeader& NEWHea
 		}
 	}
 
-	const int32 MaxBoundResourceTable = NEWHeader.UniformBuffers.Num();
-	BuildResourceTableTokenStream(TextureMap, MaxBoundResourceTable, ShaderResourceTable.TextureMap);
-	BuildResourceTableTokenStream(ShaderResourceViewMap, MaxBoundResourceTable, ShaderResourceTable.ShaderResourceViewMap);
-	BuildResourceTableTokenStream(SamplerMap, MaxBoundResourceTable, ShaderResourceTable.SamplerMap);
-	BuildResourceTableTokenStream(UnorderedAccessViewMap, MaxBoundResourceTable, ShaderResourceTable.UnorderedAccessViewMap);
+	GenericSRT.MaxBoundResourceTable = NEWHeader.UniformBuffers.Num();
+
+	FShaderResourceTable ShaderResourceTable;
+	UE::ShaderCompilerCommon::BuildShaderResourceTable(GenericSRT, ShaderResourceTable);
 
 	return ShaderResourceTable;
 }
@@ -1018,7 +1012,7 @@ static void BuildShaderOutput(
 	ShaderOutput.ParameterMap.GetAllParameterNames(OriginalParameters);
 
 	// Build the SRT for this shader.
-	FShaderCompilerResourceTable ShaderResourceTable;
+	FShaderResourceTable ShaderResourceTable;
 	{
 		// Build the generic SRT for this shader.
 		FShaderCompilerResourceTable GenericSRT;
@@ -1028,15 +1022,7 @@ static void BuildShaderOutput(
 			return;
 		}
 
-		// Copy over the bits indicating which resource tables are active.
-		ShaderResourceTable.ResourceTableBits = GenericSRT.ResourceTableBits;
-		ShaderResourceTable.ResourceTableLayoutHashes = GenericSRT.ResourceTableLayoutHashes;
-
-		// Now build our token streams.
-		BuildResourceTableTokenStream(GenericSRT.TextureMap, GenericSRT.MaxBoundResourceTable, ShaderResourceTable.TextureMap, true);
-		BuildResourceTableTokenStream(GenericSRT.ShaderResourceViewMap, GenericSRT.MaxBoundResourceTable, ShaderResourceTable.ShaderResourceViewMap, true);
-		BuildResourceTableTokenStream(GenericSRT.SamplerMap, GenericSRT.MaxBoundResourceTable, ShaderResourceTable.SamplerMap, true);
-		BuildResourceTableTokenStream(GenericSRT.UnorderedAccessViewMap, GenericSRT.MaxBoundResourceTable, ShaderResourceTable.UnorderedAccessViewMap, true);
+		UE::ShaderCompilerCommon::BuildShaderResourceTable(GenericSRT, ShaderResourceTable, true);
 	}
 
 	TArray<FString> NewParameters;

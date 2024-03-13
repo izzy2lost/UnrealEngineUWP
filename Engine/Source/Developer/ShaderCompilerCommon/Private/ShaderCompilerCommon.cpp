@@ -83,6 +83,20 @@ void BuildResourceTableTokenStream(const TArray<uint32>& InResourceMap, int32 Ma
 	}
 }
 
+void UE::ShaderCompilerCommon::BuildShaderResourceTable(const FShaderCompilerResourceTable& GenericSRT, FShaderResourceTable& OutSRT, bool bGenerateEmptyTokenStreamIfNoResources)
+{
+	// Copy over the bits indicating which resource tables are active.
+	OutSRT.ResourceTableBits = GenericSRT.ResourceTableBits;
+
+	OutSRT.ResourceTableLayoutHashes = GenericSRT.ResourceTableLayoutHashes;
+
+	// Now build our token streams.
+	BuildResourceTableTokenStream(GenericSRT.TextureMap,             GenericSRT.MaxBoundResourceTable, OutSRT.TextureMap,             bGenerateEmptyTokenStreamIfNoResources);
+	BuildResourceTableTokenStream(GenericSRT.ShaderResourceViewMap,  GenericSRT.MaxBoundResourceTable, OutSRT.ShaderResourceViewMap,  bGenerateEmptyTokenStreamIfNoResources);
+	BuildResourceTableTokenStream(GenericSRT.SamplerMap,             GenericSRT.MaxBoundResourceTable, OutSRT.SamplerMap,             bGenerateEmptyTokenStreamIfNoResources);
+	BuildResourceTableTokenStream(GenericSRT.UnorderedAccessViewMap, GenericSRT.MaxBoundResourceTable, OutSRT.UnorderedAccessViewMap, bGenerateEmptyTokenStreamIfNoResources);
+}
+
 
 bool BuildResourceTableMapping(
 	const FShaderResourceTableMap& ResourceTableMap,
