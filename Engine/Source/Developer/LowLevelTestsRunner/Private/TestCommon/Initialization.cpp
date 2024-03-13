@@ -10,6 +10,7 @@
 #include "HAL/PlatformFileManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DelayedAutoRegister.h"
+#include "Misc/OutputDeviceRedirector.h"
 #include "Misc/Paths.h"
 
 
@@ -117,6 +118,20 @@ void InitAll(bool bAllowLogging, bool bMultithreaded)
 	GIsRunning = true;
 }
 
+void CleanupLogs()
+{
+	if (GLog)
+	{
+		GLog->TearDown();
+	}
+}
+
+void CleanupLocalization()
+{
+	FTextLocalizationManager::TearDown();
+	FInternationalization::TearDown();
+}
+
 void CleanupAll()
 {
 #if WITH_ENGINE
@@ -127,4 +142,6 @@ void CleanupAll()
 #endif
 	CleanupAllThreadPools();
 	CleanupTaskGraph();
+	CleanupLogs();
+	CleanupLocalization();
 }
