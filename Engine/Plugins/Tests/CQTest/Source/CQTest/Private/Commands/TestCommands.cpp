@@ -45,6 +45,33 @@ bool CQTEST_API FWaitUntil::Update()
 	return false;
 }
 
+bool CQTEST_API FWaitDelay::Update()
+{
+	if (!bHasTimerStarted)
+	{
+		EndTime = FDateTime::UtcNow() + Timeout;
+		bHasTimerStarted = true;
+		if (Description != nullptr)
+		{
+			UE_LOG(LogCqTest, Log, TEXT("Starting %s"), Description);
+		}
+	}
+	if (TestRunner.HasAnyErrors())
+	{
+		return true;
+	}
+
+	if (FDateTime::UtcNow() >= EndTime)
+	{
+		if (Description)
+		{
+			UE_LOG(LogCqTest, Log, TEXT("Finished %s"), Description);
+		}
+		return true;
+	}
+	return false;
+}
+
 bool CQTEST_API FExecute::Update()
 {
 	bool bHasToRun = !TestRunner.HasAnyErrors() || FailureBehavior == ECQTestFailureBehavior::Run;

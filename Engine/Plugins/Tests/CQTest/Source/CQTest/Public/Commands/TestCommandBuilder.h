@@ -65,6 +65,22 @@ public:
 		return Until(Description, Query, Timeout);
 	}
 
+	/** Note that using a timed-wait can introduce test flakiness due to variable runtimes. Please consider using `Until` and waiting until something happens instead. */
+	FTestCommandBuilder& WaitDelay(FTimespan Timeout)
+	{
+		return WaitDelay(nullptr, Timeout);
+	}
+
+	/** Note that using a timed-wait can introduce test flakiness due to variable runtimes. Please consider using `Until` and waiting until something happens instead. */
+	FTestCommandBuilder& WaitDelay(const TCHAR* Description, FTimespan Timeout)
+	{
+		if (!TestRunner.HasAnyErrors())
+		{
+			CommandQueue.Add(MakeShared<FWaitDelay>(TestRunner, Timeout, Description));
+		}
+		return *this;
+	}
+
 	FTestCommandBuilder& OnTearDown(const TCHAR* Description, TFunction<void()> Action)
 	{
 		if (!TestRunner.HasAnyErrors())

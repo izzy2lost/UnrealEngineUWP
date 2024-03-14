@@ -9,5 +9,6 @@
 
 #define DO(Cmd) TestCommandBuilder.Do([&]() { Cmd })
 #define START_WHEN(Query) TestCommandBuilder.StartWhen([&]() { Query })
+#define WAIT_DELAY(Duration) TestCommandBuilder.WaitDelay(Duration)
 #define THEN(Cmd) Then([&]() { Cmd })
 #define UNTIL(Query) Until([&]() { Query })

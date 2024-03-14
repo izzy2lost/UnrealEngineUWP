@@ -24,6 +24,27 @@ public:
 	bool bHasTimerStarted = false;
 };
 
+/** Latent Command that waits a set time frame.
+ * Note that using a timed-wait can introduce test flakiness due to variable runtimes. Please consider using `FWaitUntil` and waiting until something happens instead.
+ */
+class CQTEST_API FWaitDelay : public IAutomationLatentCommand
+{
+public:
+	FWaitDelay(FAutomationTestBase& InTestRunner, FTimespan Timeout, const TCHAR* InDescription = nullptr)
+		: TestRunner(InTestRunner)
+		, Timeout(Timeout)
+		, Description(InDescription)
+	{}
+
+	bool Update() override;
+
+	FAutomationTestBase& TestRunner;
+	FTimespan Timeout;
+	FDateTime EndTime;
+	const TCHAR* Description;
+	bool bHasTimerStarted = false;
+};
+
 enum class ECQTestFailureBehavior
 {
 	Skip,
