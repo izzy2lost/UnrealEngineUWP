@@ -27,11 +27,8 @@ public:
 		// If the FGameplayMediaEncoder instance was created, then explicitly destroy it here
 		// instead of waiting for the automatic cleanup, since at that point some objects
 		// it depends to for a clean shutdown are not available any longer.
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FGameplayMediaEncoder::Singleton.Reset();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
-	
 private:
 };
 

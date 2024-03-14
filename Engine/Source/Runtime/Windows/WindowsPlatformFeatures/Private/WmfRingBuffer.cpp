@@ -6,8 +6,6 @@
 DECLARE_LOG_CATEGORY_EXTERN(WmfRingBuffer, Log, VeryVerbose);
 DEFINE_LOG_CATEGORY(WmfRingBuffer);
 
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FWmfRingBuffer::Push(AVEncoder::FMediaPacket&& Sample)
 {
 	check(MaxDuration != 0);
@@ -66,7 +64,6 @@ void FWmfRingBuffer::Push(AVEncoder::FMediaPacket&& Sample)
 		}
 	}
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FWmfRingBuffer::Cleanup()
 // removes a/v samples grouped by the oldest key-frame period
@@ -75,18 +72,14 @@ void FWmfRingBuffer::Cleanup()
 
 	check(Samples.Num() != 0);
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	check(Samples[0].IsVideoKeyFrame());
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// find the second key-frame
 	int i = 1; // skip the first sample which is a keyframe
 	bool bFound = false;
 	for (; i != Samples.Num(); ++i)
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (Samples[i].IsVideoKeyFrame())
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			bFound = true;
 			break;
@@ -96,18 +89,14 @@ void FWmfRingBuffer::Cleanup()
 
 	// remove key-frame period
 	Samples.RemoveAt(0, i, EAllowShrinking::No);
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	check(Samples[0].IsVideoKeyFrame());
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UE_LOG(WmfRingBuffer, VeryVerbose, TEXT("%d samples, %.3f s, %.3f - %.3f:%.3f"),
 		Samples.Num(),
 		GetDuration().GetTotalSeconds(),
 		Samples[0].Timestamp.GetTotalSeconds(),
 		Samples.Last().Timestamp.GetTotalSeconds(),
 		Samples.Last().Duration.GetTotalSeconds());
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FWmfRingBuffer::PauseCleanup(bool bPause)
@@ -124,12 +113,9 @@ FTimespan FWmfRingBuffer::GetDuration() const
 
 	// A duration of a video is not "LastFrameCaptureTime - FirstFrameCaptureTime" , but 
 	// (LastFrameCaptureTime - FirstFrameCaptureTime) + LastFrameDuration.
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return Samples.Last().Timestamp + Samples.Last().Duration - Samples[0].Timestamp;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TArray<AVEncoder::FMediaPacket> FWmfRingBuffer::GetCopy()
 {
 	FScopeLock Lock(&Mutex);
@@ -142,7 +128,6 @@ TArray<AVEncoder::FMediaPacket> FWmfRingBuffer::GetCopy()
 
 	return Copy;
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FWmfRingBuffer::Reset()
 {

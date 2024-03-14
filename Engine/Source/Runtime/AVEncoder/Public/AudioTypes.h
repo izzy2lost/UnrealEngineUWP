@@ -17,7 +17,7 @@ namespace LibRtc
 	using FAudioChannelSample = int16_t;
 
 	/** Describes the data format of the audio stream */
-	struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FAudioStreamFormat
+	struct FAudioStreamFormat
 	{
 		/** The number of samples per seconds */
 		uint32_t SampleRate;
@@ -42,7 +42,7 @@ namespace LibRtc
 	 * One second - one frame * SampleRate
 	 * The number of samples per seconds - one sample byte * NumberBytesPerSample * NumberChannels * SampleRate
 	 */
-	struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FAudioSampleBuffer
+	struct FAudioSampleBuffer
 	{
 		/** The sequence of audio samples */
 		TArrayView<const FAudioChannelSample> AudioSamples;
@@ -50,7 +50,7 @@ namespace LibRtc
 		FAudioStreamFormat AudioStreamFormat;
 	};
 
-	struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FAudioCodecConfig
+	struct FAudioCodecConfig
 	{
 		int32_t SampleRate;
 		int32_t NumChannels;
@@ -78,7 +78,7 @@ namespace LibRtc
 	 */
 	using OnAudioDecodeCallback = TFunction<void(const FAudioByteBuffer& AudioBytes, const FAudioSampleBuffer&)>;
 
-	struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FAudioCodec
+	struct FAudioCodec
 	{
 		FAudioCodecConfig AudioCodecConfig;
 		OnAudioEncodeCallback OnAudioEncodeCallback;
@@ -86,19 +86,19 @@ namespace LibRtc
 	};
 
 	/** Information which is used to initialize the incoming audio channel */
-	struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FIncomingAudioChannelInfo
+	struct FIncomingAudioChannelInfo
 	{
 		// nothing
 	};
 
 	/** Information which is used to initialize the outgoing audio channel */
-	struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FOutgoingAudioChannelInfo
+	struct FOutgoingAudioChannelInfo
 	{
 		/** Initial muted state of the audio channel */
 		bool bIsMuted;
 	};
 
-	enum class UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") EAudioMuteReason
+	enum class EAudioMuteReason
 	{
 		Unsupported,
 		Manual,
@@ -106,7 +106,7 @@ namespace LibRtc
 		AdminDisabled
 	};
 
-	struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FAudioMuteInfo
+	struct FAudioMuteInfo
 	{
 		TOptional<EAudioMuteReason> Reason;
 	};

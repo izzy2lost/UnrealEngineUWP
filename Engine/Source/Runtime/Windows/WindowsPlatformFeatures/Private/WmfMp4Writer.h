@@ -17,7 +17,6 @@ public:
 	/**
 	 * Create an audio stream and return the its index on success
 	 */
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TOptional<DWORD> CreateAudioStream(const FString& Codec, const AVEncoder::FAudioConfig& Config);
 
 	/**
@@ -25,10 +24,8 @@ public:
 	 */
 	TOptional<DWORD> CreateVideoStream(const FString& Codec, const AVEncoder::FVideoConfig& Config);
 
-	bool Write(const AVEncoder::FMediaPacket& InSample, DWORD StreamIndex);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	bool Start();
+	bool Write(const AVEncoder::FMediaPacket& InSample, DWORD StreamIndex);
 	bool Finalize();
 
 private:

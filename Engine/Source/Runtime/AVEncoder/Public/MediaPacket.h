@@ -5,7 +5,7 @@
 
 namespace AVEncoder
 {
-	struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FVideoConfig
+	struct FVideoConfig
 	{
 		FString Codec;
 		uint32 Width;
@@ -14,7 +14,7 @@ namespace AVEncoder
 		uint32 Bitrate;
 	};
 
-	struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FAudioConfig
+	struct FAudioConfig
 	{
 		FString Codec;
 		uint32 Samplerate;
@@ -22,18 +22,16 @@ namespace AVEncoder
 		uint32 Bitrate;
 	};
 
-	enum class UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") EPacketType
+	enum class EPacketType
 	{
 		Audio,
 		Video,
 		Invalid
 	};
 
-	struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FMediaPacket
+	struct FMediaPacket
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		EPacketType Type;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		FTimespan Timestamp;
 		FTimespan Duration;
 		TArray<uint8> Data;
@@ -54,19 +52,13 @@ namespace AVEncoder
 			} Audio;
 		};
 
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		explicit FMediaPacket(EPacketType TypeIn)
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			Type = TypeIn;
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			if (Type == EPacketType::Audio)
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 			}
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			else if (Type == EPacketType::Video)
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				FMemory::Memzero(Video);
 			}
@@ -74,9 +66,7 @@ namespace AVEncoder
 
 		bool IsVideoKeyFrame() const
 		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			return (Type == EPacketType::Video && Video.bKeyFrame) ? true : false;
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	};
 }

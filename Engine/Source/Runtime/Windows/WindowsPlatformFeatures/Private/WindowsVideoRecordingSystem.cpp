@@ -155,23 +155,19 @@ private:
 
 
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FWindowsVideoRecordingSystem::FWindowsVideoRecordingSystem()
 {
 	UE_LOG(WindowsVideoRecordingSystem, Verbose, TEXT("%s"), __FUNCTIONW__);
 
 	EnableRecording(true);
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FWindowsVideoRecordingSystem::~FWindowsVideoRecordingSystem()
 {
 	UE_LOG(WindowsVideoRecordingSystem, Verbose, TEXT("%s"), __FUNCTIONW__);
 
 	EnableRecording(false);
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FWindowsVideoRecordingSystem::EnableRecording(bool bEnableRecording)
 {
@@ -409,11 +405,8 @@ void FWindowsVideoRecordingSystem::FinalizeCallbackOnGameThread(bool bSaved, boo
 
 	if (bBroadcast)
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		OnVideoRecordingFinalized.Broadcast(bSaved, Path);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
-	
 }
 
 EVideoRecordingState FWindowsVideoRecordingSystem::GetRecordingState() const

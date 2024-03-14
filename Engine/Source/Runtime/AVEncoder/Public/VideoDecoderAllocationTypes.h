@@ -9,7 +9,7 @@
 /**
  * Type of video frame buffer to allocate.
  */
-enum class UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") EFrameBufferType
+enum class EFrameBufferType
 {
 	CODEC_RawBuffer = 0,
 	CODEC_TextureHandle = 1,
@@ -19,12 +19,10 @@ enum class UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVC
 /**
  * Video frame buffer allocation parameters.
  */
-struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FVideoDecoderAllocFrameBufferParams
+struct FVideoDecoderAllocFrameBufferParams
 {
 	/** Type of output frame buffer to allocate */
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	EFrameBufferType FrameBufferType;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/**
 	 * Number of bytes to allocate with the specified alignment.
 	 * For a raw buffer the allocation size is required as it may include oversize for padding.
@@ -46,7 +44,7 @@ struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodec
 /**
  * Return value for the video decoder frame buffer allocation callback.
  */
-enum class UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") EFrameBufferAllocReturn
+enum class EFrameBufferAllocReturn
 {
 	/** Buffer successfully allocated. */
 	CODEC_Success = 0,
@@ -69,7 +67,7 @@ DECLARE_DELEGATE_TwoParams(FReleaseFrameBuffer, void* /* , This */, void* /*Buff
 /**
  * Output buffer plane description.
  */
-struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FFrameBufferOutPlaneDesc
+struct FFrameBufferOutPlaneDesc
 {
 	/** Width of the allocated buffer plane in pixels, including necessary padding. */
 	int32_t Width;
@@ -88,7 +86,7 @@ struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodec
 /**
  * Result structure to be filled in by the application.
  */
-struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FVideoDecoderAllocFrameBufferResult
+struct FVideoDecoderAllocFrameBufferResult
 {
 	/** The buffer the application has allocated. */
 	void* AllocatedBuffer;
@@ -99,9 +97,7 @@ struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodec
 	 *  to allocate). Supports at most 4 planes (R,G,B,A). Usually 2 (Y, UV) or 3 (Y,U,V or R,G,B). */
 	int32_t AllocatedPlanesNum;
 	int32_t AllocatedPlaneLayout;	/* reserved */
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FFrameBufferOutPlaneDesc AllocatedPlaneDesc[4];
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Callback within the application to retain the allocated buffer. */
 	FRetainFrameBuffer RetainCallback;
@@ -116,9 +112,7 @@ struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodec
  * Video frame buffer allocation callback within the application.
  * We call this to get a new output frame buffer to decode into.
  */
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 DECLARE_DELEGATE_RetVal_ThreeParams(EFrameBufferAllocReturn, FAllocFrameBuffer, void* /*This*/, const FVideoDecoderAllocFrameBufferParams* /*InAllocParams*/, FVideoDecoderAllocFrameBufferResult* /*OutBuffer*/);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 
@@ -127,7 +121,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 DECLARE_DELEGATE_RetVal_ThreeParams(int32_t, FGetD3DDevice, void* /* , This */, void** /* , OutD3DDevice */, int32_t* /* , OutD3DVersion */);
 
-struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FVideoDecoderMethodsWindows
+struct FVideoDecoderMethodsWindows
 {
 	/** Magic cookie to check for if this is indeed the expected structure. */
 	uint32_t MagicCookie;	// 'WinX' 0x57696e58
@@ -145,7 +139,7 @@ DECLARE_DELEGATE_RetVal_FiveParams(int32_t, FMemAlloc, void* /*, This*/, void** 
 DECLARE_DELEGATE_RetVal_ThreeParams(int32_t, FMemFree, void* /* , This */, void** /* , InAddress */, int32_t /* , MemType */);
 DECLARE_DELEGATE_RetVal_ThreeParams(int32_t, FConfigQuery, void* /* , This */, void** /* , OutInfo */, void** /* , InInfo */);
 
-struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FVideoDecoderMethods
+struct FVideoDecoderMethods
 {
 	/** Magic cookie to check for if this is indeed the expected structure. */
 	uint32_t MagicCookie;

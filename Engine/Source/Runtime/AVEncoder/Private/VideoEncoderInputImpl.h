@@ -17,7 +17,6 @@ namespace AVEncoder
 {
 class FVideoEncoderInputFrameImpl;
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class FVideoEncoderInputImpl : public FVideoEncoderInput
 {
 public:
@@ -166,5 +165,5 @@ private:
 	const FVideoEncoderInputFrame*			ClonedReference = nullptr;
 	const FCloneDestroyedCallback			OnCloneDestroyed;
 };
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 } /* namespace AVEncoder */

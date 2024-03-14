@@ -5,15 +5,11 @@
 namespace AVEncoder
 {
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class FVideoDecoderInputImpl : public FVideoDecoderInput
 {
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 public:
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual ~FVideoDecoderInputImpl() = default;
 	FVideoDecoderInputImpl(const FInputData& InInputData);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	virtual int32 GetWidth() const override
 	{ return Width; }
@@ -49,14 +45,12 @@ private:
 	bool		bMissingFrames;
 };
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TSharedPtr<FVideoDecoderInput> FVideoDecoderInput::Create(const FInputData& InInputData)
 {
 	return MakeShared<FVideoDecoderInputImpl>(InInputData);
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 FVideoDecoderInputImpl::FVideoDecoderInputImpl(const FInputData& InInputData)
 {
 	AccessUnit = InInputData.EncodedData;
@@ -70,6 +64,6 @@ FVideoDecoderInputImpl::FVideoDecoderInputImpl(const FInputData& InInputData)
 	bIsCompleteFrame = InInputData.bIsComplete;
 	bMissingFrames = InInputData.bMissingFrames;
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 
 } /* namespace AVEncoder */
