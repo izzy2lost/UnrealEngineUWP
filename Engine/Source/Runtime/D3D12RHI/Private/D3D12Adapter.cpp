@@ -770,6 +770,17 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 		UE_LOG(LogD3D12RHI, Log, TEXT("Enabling multi-GPU with %d nodes"), Desc.NumDeviceNodes);
 	}
 #endif
+
+	if (RootDevice)
+	{
+		extern int32 GD3D12RHIStablePowerState;
+		if (GD3D12RHIStablePowerState == 2)
+		{
+			bool bWorked = SUCCEEDED(RootDevice->SetStablePowerState(true));
+			// This will fail if windows developper mode is not enabled. Windows will remove the adapter on failure, so we can't really gracefully exit here.
+			checkf(bWorked, TEXT("Enabling state power state requires Windows developer mode to be enabled."));
+		}
+	}
 }
 
 void FD3D12Adapter::SetDrawingViewport(FD3D12Viewport* InViewport)

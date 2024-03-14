@@ -10,7 +10,10 @@ int32 GD3D12RHIStablePowerState = 0;
 static FAutoConsoleVariableRef CVarD3D12RHIStablePowerState(
 	TEXT("D3D12.StablePowerState"),
 	GD3D12RHIStablePowerState,
-	TEXT("If true, enable stable power state. This increases GPU timing measurement accuracy but may decrease overall GPU clock rate."),
+	TEXT("Enable stable power state. This increases GPU timing measurement accuracy but may decrease overall GPU clock rate.\n")
+	TEXT("    0 (default): off\n")
+	TEXT("    1          : set during profiling\n")
+	TEXT("    2          : set on startup\n"),
 	ECVF_Default
 );
 
