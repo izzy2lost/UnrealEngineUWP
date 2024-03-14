@@ -10,6 +10,7 @@
 #include "AvaSceneRigSubsystem.generated.h"
 
 class AActor;
+class FAssetRegistryTagsContext;
 class FName;
 class UClass;
 class ULevel;
@@ -19,12 +20,6 @@ class UWorld;
 struct FAssetData;
 
 DECLARE_LOG_CATEGORY_EXTERN(AvaSceneRigSubsystemLog, Log, All);
-
-UCLASS(MinimalAPI)
-class UAvaSceneRigData : public UAssetUserData
-{
-	GENERATED_BODY()
-};
 
 UCLASS(MinimalAPI)
 class UAvaSceneRigSubsystem : public UWorldSubsystem
@@ -80,12 +75,20 @@ public:
 	AVALANCHESCENERIG_API void ForEachActiveSceneRigActor(TFunction<void(AActor* const InActor)> InFunction) const;
 
 	//~ Begin UObject
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Initialize(FSubsystemCollectionBase& InOutCollection) override;
 	virtual void Deinitialize() override;
 	//~ End UObject
 
 private:
+#if WITH_EDITOR
+	void OnGetWorldTags(FAssetRegistryTagsContext InContext) const;
+#endif
+
 	//~ Begin WorldSubsystem
 	virtual bool ShouldCreateSubsystem(UObject* const InOuter) const override;
 	//~ End WorldSubsystem
+
+#if WITH_EDITOR
+	FDelegateHandle WorldTagGetterDelegate;
+#endif
 };

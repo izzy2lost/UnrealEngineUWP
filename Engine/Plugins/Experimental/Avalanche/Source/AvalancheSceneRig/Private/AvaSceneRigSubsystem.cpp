@@ -1,30 +1,69 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaSceneRigSubsystem.h"
+#include "AvaSceneRigAssetTags.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Containers/Array.h"
 #include "Engine/Level.h"
 #include "Engine/LevelStreaming.h"
 #include "Engine/LevelStreamingDynamic.h"
 #include "Engine/World.h"
-#include "Interfaces/Interface_AssetUserData.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Class.h"
-#include "UObject/SoftObjectPtr.h"
 #include "UObject/NoExportTypes.h"
+#include "UObject/Object.h"
+#include "UObject/SoftObjectPtr.h"
 
 DEFINE_LOG_CATEGORY(AvaSceneRigSubsystemLog);
 
 #define LOCTEXT_NAMESPACE "AvaSceneRigSubsystem"
 
-void UAvaSceneRigSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void UAvaSceneRigSubsystem::Initialize(FSubsystemCollectionBase& InOutCollection)
 {
-	Super::Initialize(Collection);
+	Super::Initialize(InOutCollection);
+
+#if WITH_EDITOR
+	if (!HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
+	{
+		WorldTagGetterDelegate = UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.AddUObject(this, &UAvaSceneRigSubsystem::OnGetWorldTags);
+	}
+#endif
 }
 
 void UAvaSceneRigSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
+
+#if WITH_EDITOR
+	UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.Remove(WorldTagGetterDelegate);
+	WorldTagGetterDelegate.Reset();
+#endif
 }
+
+#if WITH_EDITOR
+void UAvaSceneRigSubsystem::OnGetWorldTags(FAssetRegistryTagsContext InContext) const
+{
+	// Outer of this subsystem should always be the Motion Design level the scene rig exists in
+	const UWorld* const OuterWorld = GetTypedOuter<UWorld>();
+	if (!IsValid(OuterWorld))
+	{
+		return;
+	}
+
+	// The context object should be the scene rig world asset
+	const UWorld* const SceneRigWorld = Cast<UWorld>(InContext.GetObject());
+	if (!IsValid(SceneRigWorld) || SceneRigWorld == OuterWorld)
+	{
+		return;
+	}
+
+	// NOTE: Are there other cases where a context world object has the motion design level as outer?
+	// May need to add an additional check here in that case.
+
+	using namespace UE::AvaSceneRig::AssetTags;
+	InContext.AddTag(UObject::FAssetRegistryTag(SceneRig, Values::Enabled, UObject::FAssetRegistryTag::TT_Alphabetical));
+}
+#endif
 
 UAvaSceneRigSubsystem* UAvaSceneRigSubsystem::ForWorld(const UWorld* const InWorld)
 {
@@ -56,22 +95,12 @@ bool UAvaSceneRigSubsystem::IsSceneRigAssetData(const FAssetData& InAssetData)
 		return false;
 	}
 
-	UWorld* const SceneRigAsset = Cast<UWorld>(InAssetData.GetAsset());
-	if (!IsValid(SceneRigAsset) || !IsValid(SceneRigAsset->PersistentLevel))
-	{
-		return false;
-	}
+	using namespace UE::AvaSceneRig::AssetTags;
+	
+	FString TagValue;
+	InAssetData.GetTagValue(SceneRig, TagValue);
 
-	if (IInterface_AssetUserData* AssetUserData = Cast<IInterface_AssetUserData>(SceneRigAsset->PersistentLevel))
-	{
-		UAvaSceneRigData* const SceneRigData = AssetUserData->GetAssetUserData<UAvaSceneRigData>();
-		if (IsValid(SceneRigData))
-		{
-			return true;
-		}
-	}
-
-	return false;
+	return TagValue.Equals(Values::Enabled);
 }
 
 bool UAvaSceneRigSubsystem::IsSceneRigAsset(UObject* const InObject)

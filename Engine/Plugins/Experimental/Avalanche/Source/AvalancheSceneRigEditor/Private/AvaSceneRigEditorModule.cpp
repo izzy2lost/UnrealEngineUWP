@@ -394,21 +394,6 @@ FSoftObjectPath FAvaSceneRigEditorModule::CreateSceneRigAssetWithDialog() const
 		return FSoftObjectPath();
 	}
 
-	// Add asset data to specify this level as a Scene Rig
-	if (IInterface_AssetUserData* AssetUserData = Cast<IInterface_AssetUserData>(NewSceneRigAsset->PersistentLevel))
-	{
-		UAvaSceneRigData* const SceneRigData = NewObject<UAvaSceneRigData>(NewSceneRigAsset->PersistentLevel, NAME_None, RF_Public | RF_Transactional);
-		check(IsValid(SceneRigData));
-		AssetUserData->AddAssetUserData(SceneRigData);
-	}
-
-	UEditorAssetSubsystem* const EditorAssetSubsystem = GEditor->GetEditorSubsystem<UEditorAssetSubsystem>();
-	if (IsValid(EditorAssetSubsystem))
-	{
-		using namespace UE::AvaSceneRig;
-		EditorAssetSubsystem->SetMetadataTag(NewSceneRigAsset, AssetTags::SceneRig, AssetTags::Values::Enabled);
-	}
-
 	// Save package
 	TArray<UPackage*> PackagesToSave;
 	PackagesToSave.Add(NewSceneRigAsset->GetPackage());
