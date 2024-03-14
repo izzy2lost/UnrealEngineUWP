@@ -808,16 +808,7 @@ namespace uba
 
 		struct Entry
 		{
-			Entry(NetworkClient& client, u16 fetchId, u8* slot, u32 readIndex, u32 i, u32 messageMaxSize)
-				: message(client, ServiceId, StorageMessageType_FetchSegment, writer)
-				, reader(slot + i * messageMaxSize, 0, SendMaxSize)
-				, done(true)
-			{
-				writer.WriteU16(fetchId);
-				writer.WriteU32(readIndex + i + 1);
-			}
-
-			StackBinaryWriter<32> writer;
+			Entry(u8* slot, u32 i, u32 messageMaxSize) : reader(slot + i * messageMaxSize, 0, SendMaxSize), done(true) {}
 			NetworkMessage message;
 			BinaryReader reader;
 			Event done;
@@ -837,22 +828,24 @@ namespace uba
 
 		Entry* entries = (Entry*)entriesMem;
 
-		for (u32 i=0; i!=sendCount; ++i)
-			new (entries + i) Entry(client, fetchId, slot, readIndex, i, messageMaxSize);
-
 		bool success = true;
-		u32 inFlight = u32(sendCount);
+		u32 inFlightCount = u32(sendCount);
 		for (u32 i=0; i!=sendCount; ++i)
 		{
-			auto& entry = entries[i];
+			auto& entry = *new (entries + i) Entry(slot, i, messageMaxSize);
+			StackBinaryWriter<32> writer;
+			entry.message.Init(client, ServiceId, StorageMessageType_FetchSegment, writer);
+			writer.WriteU16(fetchId);
+			writer.WriteU32(readIndex + i + 1);
 			if (entry.message.SendAsync(entry.reader, [](bool error, void* userData) { ((Event*)userData)->Set(); }, &entry.done))
 				continue;
-			inFlight = i;
+			entry.~Entry();
+			inFlightCount = i;
 			success = false;
 			break;
 		}
 
-		for (u32 i=0; i!=inFlight; ++i)
+		for (u32 i=0; i!=inFlightCount; ++i)
 		{
 			Entry& entry = entries[i];
 			if (!entry.done.IsSet(5*60*1000))
@@ -863,90 +856,13 @@ namespace uba
 				responseSize += u32(entry.reader.GetLeft());
 		}
 
-		for (u32 i=0; i!=sendCount; ++i)
+		for (u32 i=0; i!=inFlightCount; ++i)
 			entries[i].~Entry();
 
 		readIndex += u32(sendCount);
 		return success;
 	}
 	
-	bool StorageClient::SendAllSegments(NetworkClient& client, u16 fetchId, u8* readBuffer, u64 left, u32 messageMaxSize)
-	{
-		struct Entry
-		{
-			Entry(NetworkClient& client, u16 fetchId, u8* readBuffer, u32 fetchIndex)
-				: message(client, ServiceId, StorageMessageType_FetchSegment, writer)
-				, reader(readBuffer, 0, SendMaxSize)
-				, done(true)
-			{
-				writer.WriteU16(fetchId);
-				writer.WriteU32(fetchIndex + 1);
-			}
-
-			StackBinaryWriter<16> writer;
-			NetworkMessage message;
-			BinaryReader reader;
-			Event done;
-		};
-
-		constexpr u32 EntryCount = 128;
-		u64 entriesMem[sizeof(Entry) * EntryCount / 8];
-		Entry* entries = (Entry*)entriesMem;
-
-		u32 entryIndex = 0;
-		u32 fetchIndex = 0;
-		bool success = true;
-		while (left)
-		{
-			if (fetchIndex >= EntryCount)
-			{
-				auto& entry = entries[entryIndex];
-				if (!entry.done.IsSet())
-				{
-					success = false;
-					break;
-				}
-				entry.~Entry();
-				UBA_ASSERT(entry.reader.GetLeft() == messageMaxSize);
-			}
-
-			auto& entry = *new (entries + entryIndex) Entry(client, fetchId, readBuffer, fetchIndex);
-			if (!entry.message.SendAsync(entry.reader, [](bool error, void* userData) { ((Event*)userData)->Set(); }, &entry.done))
-			{
-				entry.~Entry();
-				success = false;
-				break;
-			}
-			++fetchIndex;
-			entryIndex = (entryIndex + 1) % EntryCount;
-
-			if (left < messageMaxSize)
-				break;
-			left -= messageMaxSize;
-			readBuffer += messageMaxSize;
-		}
-
-		u32 waitIndex = 0;
-		u32 waitCount = entryIndex;
-		if (fetchIndex >= EntryCount)
-		{
-			waitIndex = entryIndex;
-			waitCount = EntryCount;
-		}
-		for (u32 i = 0; i != waitCount; ++i)
-		{
-			auto& entry = entries[waitIndex];
-			if (!entry.done.IsSet())
-				success = false;
-			if (!entry.message.ProcessAsyncResults(entry.reader))
-				success = false;
-			entry.~Entry();
-			waitIndex = (waitIndex + 1) % EntryCount;
-		}
-		return success;
-	}
-
-
 	bool StorageClient::SendFile(const CasKey& casKey, const tchar* fileName, u8* sourceMem, u64 sourceSize, const tchar* hint)
 	{
 		UBA_ASSERT(casKey != CasKeyZero);
