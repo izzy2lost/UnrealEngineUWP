@@ -45,6 +45,7 @@ extern TAutoConsoleVariable<bool> CVarEnableMeshCache;
 
 extern TAutoConsoleVariable<bool> CVarRollbackFixModelDiskStreamerDataRace;
 
+extern TAutoConsoleVariable<bool> CVarEnableNewSplitMutableTask;
 
 #if WITH_EDITOR
 

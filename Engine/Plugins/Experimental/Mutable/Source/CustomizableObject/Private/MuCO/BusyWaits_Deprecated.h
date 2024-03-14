@@ -7,6 +7,7 @@
 #include "Templates/SharedPointer.h"
 
 class FUpdateContextPrivate;
+struct FMutableImageOperationData;
 namespace mu
 {
 	class Model;
@@ -26,4 +27,11 @@ namespace impl_deprecated
 
 	// This runs in a worker thread.
 	void Task_Mutable_Update_GetMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, const TSharedPtr<mu::Model>& Model);
+
+}
+
+namespace CustomizableObjectMipDataProvider::ImplDeprecated
+{
+	// This runs in the mutable thread.
+	void Task_Mutable_UpdateImage(TSharedPtr<FMutableImageOperationData> OperationData);
 }

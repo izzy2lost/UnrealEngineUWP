@@ -112,6 +112,12 @@ TAutoConsoleVariable<bool> CVarEnableMeshCache(
 	TEXT("Enables or disables the reuse of meshes."),
 	ECVF_Scalability);
 
+TAutoConsoleVariable<bool> CVarEnableNewSplitMutableTask(
+	TEXT("mutable.EnableNewSplitMutableTask"),
+	true,
+	TEXT("Enables or disables the then new split GetImages and GetMesh tasks that remove BusyWaits."),
+	ECVF_Scalability);
+
 int32 UCustomizableObjectSystemPrivate::SkeletalMeshMinLodQualityLevel = -1;
 
 static void CVarMutableSinkFunction()

@@ -4,6 +4,9 @@
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableObjectSystemPrivate.h"
+#include "MuCO/CustomizableObjectMipDataProvider.h"
+
+#include "MuR/Model.h"
 #include "MuR/MutableTrace.h"
 
 
@@ -228,7 +231,7 @@ namespace impl_deprecated
 
 					Component.MeshID = Instance->GetMeshId(MutableLODIndex, ComponentIndex, 0);
 
-					if(bGenerateLOD)
+					if (bGenerateLOD)
 					{
 						Component.Mesh = System->GetMeshInline(OperationData->InstanceID, Component.MeshID);
 					}
@@ -310,6 +313,7 @@ namespace impl_deprecated
 
 									// Since it's known it's a pass-through texture there is no need to cache or convert it so we can generate it here already.
 									Image.Image = System->GetImageInline(OperationData->InstanceID, Image.ImageID, 0, 0);
+
 									check(Image.Image->IsReference());
 
 									uint32 ReferenceID = Image.Image->GetReferencedTexture();
@@ -420,5 +424,174 @@ namespace impl_deprecated
 		const uint32 EndCycles = FPlatformTime::Cycles();
 		OperationData->MutableRuntimeCycles = EndCycles - StartCycles;
 #endif
+	}
+}
+
+namespace CustomizableObjectMipDataProvider::ImplDeprecated
+{
+	void Task_Mutable_UpdateImage(TSharedPtr<FMutableImageOperationData> OperationData)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_UpdateImage);
+		const double StartTime = FPlatformTime::Seconds();
+		
+		// Cache memory used when starting the update of the image
+		OperationData->ImageUpdateStartBytes = mu::FGlobalMemoryCounter::GetCounter();
+		mu::FGlobalMemoryCounter::Zero();
+		
+		// Any external texture that may be needed for this update will be requested from Mutable Core's GetImage
+		// which will safely access the GlobalExternalImages map, and then just get the cached image or issue a disk read
+
+		// This runs in a worker thread.
+		check(OperationData.IsValid());
+		check(OperationData->UpdateContext->GetSystem().get());
+		check(OperationData->UpdateContext->GetModel());
+		check(OperationData->UpdateContext->GetParameters().get());
+
+		if (OperationData.IsValid())
+		{
+			mu::SystemPtr System = OperationData->UpdateContext->GetSystem();
+			const TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = OperationData->UpdateContext->GetModel();
+
+#if WITH_EDITOR
+			// Recompiling a CO in the editor will invalidate the previously generated Model. Check that it is valid before accessing the streamed data.
+			if (Model && Model->IsValid())
+#endif
+			{
+
+				// For now, we are forcing the recreation of mutable-side instances with every update.
+				mu::Instance::ID InstanceID = System->NewInstance(Model);
+				UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for a single UpdateImage"), InstanceID)
+
+					const mu::Instance* Instance = nullptr;
+
+				// Main instance generation step
+				{
+					// LOD mask, set to all ones to build all LODs
+					uint32 LODMask = 0xFFFFFFFF;
+
+					Instance = System->BeginUpdate(InstanceID, OperationData->UpdateContext->GetParameters(), OperationData->UpdateContext->GetState(), LODMask);
+					check(Instance);
+				}
+
+
+				// Generate the required image
+				{
+					MUTABLE_CPUPROFILER_SCOPE(RequestedImage);
+
+					const FMutableImageReference& ImageRef = OperationData->RequestedImage;
+
+					int32 SurfaceIndex = Instance->FindSurfaceById(ImageRef.LOD, ImageRef.Component, ImageRef.SurfaceId);
+					check(SurfaceIndex >= 0);
+
+					// This ID may be different than the ID obtained the first time the image was generated, because the mutable
+					// runtime cannot remember all the resources it has built, and only remembers a fixed amount.
+					mu::FResourceID MipImageID = Instance->GetImageId(ImageRef.LOD, ImageRef.Component, SurfaceIndex, ImageRef.Image);
+
+
+					mu::Ptr<const mu::Image> ResultImage;
+					{
+						MUTABLE_CPUPROFILER_SCOPE(GetImage);
+
+						ResultImage = System->GetImageInline(InstanceID, MipImageID, ImageRef.BaseMip + OperationData->MipsToSkip, ImageRef.LOD);
+					}
+
+					check(ResultImage);
+
+					int32 FullMipCount = ResultImage->GetMipmapCount(ResultImage->GetSizeX(), ResultImage->GetSizeY());
+					int32 RealMipCount = ResultImage->GetLODCount();
+
+					bool bForceMipchain =
+						// Did we fail to generate the entire mipchain (if we have mips at all)?
+						(RealMipCount != 1) && (RealMipCount != FullMipCount);
+
+					if (bForceMipchain)
+					{
+						MUTABLE_CPUPROFILER_SCOPE(GetImage_MipFix);
+
+						UE_LOG(LogMutable, Warning, TEXT("Mutable generated an incomplete mip chain for image."));
+
+						// Force the right number of mips. The missing data will be black.
+						mu::Ptr<mu::Image> NewImage = new mu::Image(ResultImage->GetSizeX(), ResultImage->GetSizeY(), FullMipCount, ResultImage->GetFormat(), mu::EInitializationType::Black);
+
+						// Formats with BytesPerBlock == 0 will not allocate memory. This type of images are not expected here.
+						check(!NewImage->DataStorage.IsEmpty());
+
+						for (int32 L = 0; L < RealMipCount; ++L)
+						{
+							TArrayView<uint8> DestView = NewImage->DataStorage.GetLOD(L);
+							TArrayView<const uint8> SrcView = ResultImage->DataStorage.GetLOD(L);
+
+							check(DestView.Num() == SrcView.Num());
+							FMemory::Memcpy(DestView.GetData(), SrcView.GetData(), DestView.Num());
+						}
+
+						ResultImage = NewImage;
+					}
+
+					OperationData->Result = ResultImage;
+				}
+
+				// End update
+				{
+					MUTABLE_CPUPROFILER_SCOPE(EndUpdate);
+					System->EndUpdate(InstanceID);
+					System->ReleaseInstance(InstanceID);
+
+					if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
+					{
+						System->ClearWorkingMemory();
+					}
+				}
+			}
+		}
+
+		if (CVarEnableBenchmark.GetValueOnAnyThread())
+		{
+			double Time = FPlatformTime::Seconds() - StartTime;
+			// Report the peak memory used by the operation
+			const int64 PeakMemory = mu::FGlobalMemoryCounter::GetPeak();
+			// Report the peak memory used during the operation (operation + baseline)
+			const int64 RealMemoryPeak = PeakMemory + OperationData->ImageUpdateStartBytes;
+
+			const FString& CustomizableObjectPathName = OperationData->UpdateContext->GetCustomizableObjectPathName();
+			const FString& InstancePathName = OperationData->UpdateContext->GetInstancePathName();
+			
+			FFunctionGraphTask::CreateAndDispatchWhenReady(
+			[CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak]()
+			{
+				if (!UCustomizableObjectSystem::IsCreated()) // We are shutting down
+				{
+					return;	
+				}
+				
+				UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
+				if (!System)
+				{
+					return;
+				}
+
+				System->GetPrivate()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak);
+			},
+			TStatId{},
+			nullptr,
+			ENamedThreads::GameThread);
+		}
+		
+		{
+			// The request could be cancelled in parallel from CancelCounterSafely and its value be changed
+			// between reading it and actually running Decrement() and RescheduleCallback(), so lock
+			FScopeLock Lock(&OperationData->CounterTaskLock);
+
+			if (OperationData->Counter) // If the request has been cancelled the counter will be null
+			{
+				// Make the FMutableTextureMipDataProvider continue
+				OperationData->Counter->Decrement();
+
+				if (OperationData->Counter->GetValue() == 0)
+				{
+					OperationData->RescheduleCallback();
+				}
+			}
+		}
 	}
 }
