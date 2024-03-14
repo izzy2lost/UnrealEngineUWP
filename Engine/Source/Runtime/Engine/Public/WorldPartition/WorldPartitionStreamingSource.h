@@ -346,6 +346,7 @@ struct FWorldPartitionStreamingSource
 		, TargetBehavior(EStreamingSourceTargetBehavior::Include)
 		, bReplay(false)
 		, bRemote(false)
+		, bForce2D(false)
 		, Hash2D(0)
 		, Hash3D(0)
 		, OldLocation(FVector::ZeroVector)
@@ -367,6 +368,7 @@ struct FWorldPartitionStreamingSource
 		, TargetBehavior(EStreamingSourceTargetBehavior::Include)
 		, bReplay(false)
 		, bRemote(bRemote)
+		, bForce2D(false)
 		, Hash2D(0)
 		, Hash3D(0)
 		, OldLocation(InLocation)
@@ -397,6 +399,7 @@ struct FWorldPartitionStreamingSource
 		Shapes = Other.Shapes;
 		bReplay = Other.bReplay;
 		bRemote = Other.bRemote;
+		bForce2D = Other.bForce2D;
 		Hash2D = Other.Hash2D;
 		Hash3D = Other.Hash3D;
 		OldLocation = Other.OldLocation;
@@ -464,6 +467,9 @@ struct FWorldPartitionStreamingSource
 
 	/** If true, this streaming source is from a remote session */
 	bool bRemote;
+
+	/** If true, this streaming source will force intersecting cells in 2D */
+	bool bForce2D;
 
 	/** Returns a box encapsulating all shapes. */
 	inline FBox CalcBounds(float InGridLoadingRange, FName InGridName, bool bCalcIn2D = false) const

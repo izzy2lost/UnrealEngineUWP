@@ -87,6 +87,7 @@ struct FRuntimePartitionStreamingData
 
 	// Transient
 	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex;
+	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex2D;
 };
 
 template<>

@@ -57,6 +57,11 @@ FString FWorldPartitionStreamingSource::ToString() const
 		(int32)(Velocity.Size() * 0.0223694f)
 	);
 
+	if (bForce2D)
+	{
+		StringBuilder += TEXT(" | Force2D");
+	}
+
 	if (Shapes.Num())
 	{
 		StringBuilder += TEXT(" | ");

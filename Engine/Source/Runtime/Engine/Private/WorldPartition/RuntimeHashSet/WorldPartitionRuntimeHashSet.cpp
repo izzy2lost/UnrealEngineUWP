@@ -16,19 +16,34 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 	if (!SpatialIndex)
 	{
 		SpatialIndex = MakeUnique<FStaticSpatialIndexType>();
-
-		TArray<TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>> PartitionsElements;
-		Algo::Transform(SpatiallyLoadedCells, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
 		{
-			return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(Cell->GetContentBounds(), Cell);
-		});
-		SpatialIndex->Init(PartitionsElements);
+			TArray<TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>> PartitionsElements;
+			Algo::Transform(SpatiallyLoadedCells, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
+			{
+				return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(Cell->GetStreamingBounds(), Cell);
+			});
+			SpatialIndex->Init(PartitionsElements);
+		}
+		
+		SpatialIndex2D = MakeUnique<FStaticSpatialIndexType>();
+		{
+			TArray<TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>> PartitionsElements;
+			Algo::Transform(SpatiallyLoadedCells, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
+			{
+				FBox CellBounds = Cell->GetStreamingBounds();
+				CellBounds.Min.Z = -HALF_WORLD_MAX;
+				CellBounds.Max.Z = HALF_WORLD_MAX;
+				return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(CellBounds, Cell);
+			});
+			SpatialIndex2D->Init(PartitionsElements);
+		}
 	}
 }
 
 void FRuntimePartitionStreamingData::DestroyPartitionsSpatialIndex() const
 {
 	SpatialIndex.Reset();
+	SpatialIndex2D.Reset();
 }
 
 void URuntimeHashSetExternalStreamingObject::CreatePartitionsSpatialIndex() const
@@ -56,6 +71,11 @@ void URuntimeHashSetExternalStreamingObject::AddReferencedObjects(UObject* InThi
 		if (StreamingData.SpatialIndex.IsValid())
 		{
 			StreamingData.SpatialIndex->AddReferencedObjects(Collector);
+		}
+		
+		if (StreamingData.SpatialIndex2D.IsValid())
+		{
+			StreamingData.SpatialIndex2D->AddReferencedObjects(Collector);
 		}
 	}
 #endif
@@ -489,7 +509,7 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 					{
 						const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
 
-						StreamingData->SpatialIndex->ForEachIntersectingElement(ShapeSphere, [this, &Source, &Shape, &Func](UWorldPartitionRuntimeCell* Cell)
+						auto ForEachIntersectingElementFunc = [this, &Source, &Shape, &Func](UWorldPartitionRuntimeCell* Cell)
 						{
 #if WITH_EDITOR
 							if (!IsCellRelevantFor(Cell->GetClientOnlyVisible()))
@@ -505,7 +525,16 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 								Cell->AppendStreamingSourceInfo(Source, Shape);
 								Func(Cell, ((CellEffectiveWantedState == EDataLayerRuntimeState::Loaded) || (Source.TargetState == EStreamingSourceTargetState::Loaded)) ? EStreamingSourceTargetState::Loaded : EStreamingSourceTargetState::Activated);
 							}
-						});
+						};
+
+						if (Source.bForce2D)
+						{
+							StreamingData->SpatialIndex2D->ForEachIntersectingElement(ShapeSphere, ForEachIntersectingElementFunc);
+						}
+						else
+						{
+							StreamingData->SpatialIndex->ForEachIntersectingElement(ShapeSphere, ForEachIntersectingElementFunc);
+						}
 					});
 				}
 			}
