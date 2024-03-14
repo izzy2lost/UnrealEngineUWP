@@ -2299,7 +2299,8 @@ bool FStaticMeshOperations::GenerateUV(const FMeshDescription& MeshDescription, 
 	if (OutTexCoords.IsEmpty())
 	{
 		IGeometryProcessingInterfacesModule* GeomProcInterfaces = FModuleManager::Get().GetModulePtr<IGeometryProcessingInterfacesModule>("GeometryProcessingInterfaces");
-		if (GeomProcInterfaces)
+		IGeometryProcessing_MeshAutoUV* MeshAutoUV = GeomProcInterfaces ? GeomProcInterfaces->GetMeshAutoUVImplementation() : nullptr;
+		if (MeshAutoUV)
 		{
 		    FMeshDescription MeshCopy = MeshDescription;
 			TArray<FTriangleID>	RemapTriangles;
@@ -2333,8 +2334,6 @@ bool FStaticMeshOperations::GenerateUV(const FMeshDescription& MeshDescription, 
 				}
 			};
 			    
-			IGeometryProcessing_MeshAutoUV* MeshAutoUV = GeomProcInterfaces->GetMeshAutoUVImplementation();
-
 		    IGeometryProcessing_MeshAutoUV::FOptions Options = MeshAutoUV->ConstructDefaultOptions();
 			Options.Method = GetAutoUVMethod(GenerateUVOptions.UVMethod);
 
