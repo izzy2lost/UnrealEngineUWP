@@ -12,8 +12,6 @@
 #include "ShaderPreprocessTypes.h"
 #include "RayTracingDefinitions.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogD3D12ShaderCompiler, Log, All);
-
 // D3D doesn't define a mask for this, so we do so here
 #define SHADER_OPTIMIZATION_LEVEL_MASK (D3DCOMPILE_OPTIMIZATION_LEVEL0 | D3DCOMPILE_OPTIMIZATION_LEVEL1 | D3DCOMPILE_OPTIMIZATION_LEVEL2 | D3DCOMPILE_OPTIMIZATION_LEVEL3)
 
@@ -134,18 +132,18 @@ static void LogFailedHRESULT(const TCHAR* FailedExpressionStr, HRESULT Result)
 	{
 		const FString ErrorReport = FString::Printf(TEXT("%s failed: Result=0x%08x (E_OUTOFMEMORY)"), FailedExpressionStr, Result);
 		FSCWErrorCode::Report(FSCWErrorCode::OutOfMemory, ErrorReport);
-		UE_LOG(LogD3D12ShaderCompiler, Fatal, TEXT("%s"), *ErrorReport);
+		UE_LOG(LogD3DShaderCompiler, Fatal, TEXT("%s"), *ErrorReport);
 	}
 	else if (const TCHAR* ErrorCodeStr = DxcErrorCodeToString(Result))
 	{
-		UE_LOG(LogD3D12ShaderCompiler, Fatal, TEXT("%s failed: Result=0x%08x (%s)"), FailedExpressionStr, Result, ErrorCodeStr);
+		UE_LOG(LogD3DShaderCompiler, Fatal, TEXT("%s failed: Result=0x%08x (%s)"), FailedExpressionStr, Result, ErrorCodeStr);
 	}
 	else
 	{
 		// Turn HRESULT into human readable string for error report
 		TCHAR ResultStr[4096] = {};
 		FPlatformMisc::GetSystemErrorMessage(ResultStr, UE_ARRAY_COUNT(ResultStr), Result);
-		UE_LOG(LogD3D12ShaderCompiler, Fatal, TEXT("%s failed: Result=0x%08x (%s)"), FailedExpressionStr, Result, ResultStr);
+		UE_LOG(LogD3DShaderCompiler, Fatal, TEXT("%s failed: Result=0x%08x (%s)"), FailedExpressionStr, Result, ResultStr);
 	}
 }
 
@@ -1145,7 +1143,7 @@ bool CompileAndProcessD3DShaderDXC(
 			}
 			else
 			{
-				UE_LOG(LogD3D12ShaderCompiler, Fatal, TEXT("Failed to find required points in the shader library."));
+				UE_LOG(LogD3DShaderCompiler, Fatal, TEXT("Failed to find required points in the shader library."));
 				Output.bSucceeded = false;
 			}
 		}

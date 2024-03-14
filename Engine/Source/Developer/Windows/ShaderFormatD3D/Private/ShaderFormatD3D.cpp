@@ -11,6 +11,8 @@
 #include "Interfaces/IShaderFormatModule.h"
 #include "DXCWrapper.h"
 
+DEFINE_LOG_CATEGORY(LogD3DShaderCompiler);
+
 static FName NAME_PCD3D_SM6(TEXT("PCD3D_SM6"));
 static FName NAME_PCD3D_SM5(TEXT("PCD3D_SM5"));
 static FName NAME_PCD3D_ES3_1(TEXT("PCD3D_ES31"));

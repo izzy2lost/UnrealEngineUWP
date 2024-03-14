@@ -5,6 +5,8 @@
 #include "Windows/WindowsHWrapper.h"
 #include "ShaderCompilerCommon.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogD3DShaderCompiler, Log, All)
+
 struct FShaderTarget;
 
 enum class ED3DShaderModel
