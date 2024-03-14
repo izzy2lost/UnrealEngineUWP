@@ -144,11 +144,14 @@ void FD3D12BindlessResourceManager::UpdateDescriptor(FD3D12ContextArray const& C
 		uint32 const GPUIndex = GetParentDevice()->GetGPUIndex();
 		for (FD3D12CommandContextBase* ContextBase : Contexts)
 		{
-			FD3D12CommandContext& Context = *ContextBase->GetSingleDeviceContext(GPUIndex);
-			if (Context.IsOpen())
+			if (ContextBase)
 			{
-				FD3D12OfflineDescriptor CopyOfPreviousDescriptorValue = UE::D3D12Descriptors::CreateOfflineCopy(GetParentDevice(), CpuHeap, DstHandle);
-				Context.GetBindlessState().PendingDescriptorRollbacks.Add(GetParentDevice(), DstHandle, CopyOfPreviousDescriptorValue);
+				FD3D12CommandContext& Context = *ContextBase->GetSingleDeviceContext(GPUIndex);
+				if (Context.IsOpen())
+				{
+					FD3D12OfflineDescriptor CopyOfPreviousDescriptorValue = UE::D3D12Descriptors::CreateOfflineCopy(GetParentDevice(), CpuHeap, DstHandle);
+					Context.GetBindlessState().PendingDescriptorRollbacks.Add(GetParentDevice(), DstHandle, CopyOfPreviousDescriptorValue);
+				}
 			}
 		}
 
