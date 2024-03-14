@@ -6,13 +6,13 @@
 #include "Engine/SkeletalMesh.h"
 
 #include "MuR/Ptr.h"
+#include "MuR/Model.h"
+#include "MuR/Parameters.h"
 
 #include "CustomizableObjectSkeletalMesh.generated.h"
 
 namespace mu
 {
-	class Model;
-	class Parameters;
 	typedef uint64 FResourceID;
 }
 
