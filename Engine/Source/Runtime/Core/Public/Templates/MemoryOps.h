@@ -44,7 +44,7 @@ FORCEINLINE void DefaultConstructItems(void* Address, SizeType Count)
 		ElementType* Element = (ElementType*)Address;
 		while (Count)
 		{
-			new (Element) ElementType;
+			::new ((void*)Element) ElementType;
 			++Element;
 			--Count;
 		}
@@ -128,7 +128,7 @@ FORCEINLINE void ConstructItems(void* Dest, const SourceElementType* Source, Siz
 	{
 		while (Count)
 		{
-			new (Dest) DestinationElementType(*Source);
+			::new ((void*)Dest) DestinationElementType(*Source);
 			++(DestinationElementType*&)Dest;
 			++Source;
 			--Count;
@@ -198,7 +198,7 @@ FORCEINLINE void RelocateConstructItem(void* Dest, const SourceElementType* Sour
 		// We need a typedef here because VC won't compile the destructor call below if SourceElementType itself has a member called SourceElementType
 		typedef SourceElementType RelocateConstructItemsElementTypeTypedef;
 
-		new (Dest) DestinationElementType(*Source);
+		::new ((void*)Dest) DestinationElementType(*Source);
 		Source->RelocateConstructItemsElementTypeTypedef::~RelocateConstructItemsElementTypeTypedef();
 	}
 }
@@ -237,7 +237,7 @@ FORCEINLINE void RelocateConstructItems(void* Dest, const SourceElementType* Sou
 			// We need a typedef here because VC won't compile the destructor call below if SourceElementType itself has a member called SourceElementType
 			typedef SourceElementType RelocateConstructItemsElementTypeTypedef;
 
-			new (Dest) DestinationElementType(*Source);
+			::new ((void*)Dest) DestinationElementType(*Source);
 			++(DestinationElementType*&)Dest;
 			(Source++)->RelocateConstructItemsElementTypeTypedef::~RelocateConstructItemsElementTypeTypedef();
 			--Count;
@@ -267,7 +267,7 @@ FORCEINLINE void MoveConstructItems(void* Dest, const ElementType* Source, SizeT
 	{
 		while (Count)
 		{
-			new (Dest) ElementType((ElementType&&)*Source);
+			::new ((void*)Dest) ElementType((ElementType&&)*Source);
 			++(ElementType*&)Dest;
 			++Source;
 			--Count;

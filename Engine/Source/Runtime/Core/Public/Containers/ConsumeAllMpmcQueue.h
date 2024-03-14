@@ -50,8 +50,8 @@ namespace UE
 		template <typename... ArgTypes>
 		EConsumeAllMpmcQueueResult ProduceItem(ArgTypes&&... Args)
 		{
-			FNode* New = new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode;
-			new (&New->Item) T(Forward<ArgTypes>(Args)...);
+			FNode* New = ::new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode;
+			::new ((void*)&New->Item) T(Forward<ArgTypes>(Args)...);
 
 			//Atomically append to the top of the Queue
 			FNode* Prev = Head.load(std::memory_order_relaxed);

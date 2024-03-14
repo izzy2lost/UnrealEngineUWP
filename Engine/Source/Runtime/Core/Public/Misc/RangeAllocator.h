@@ -381,7 +381,7 @@ public:
 			ChunkIndex = Chunks.AddUninitialized();
 		}
 		FChunk& Chunk = Chunks[ChunkIndex];
-		new (&Chunk) FChunk(*this);
+		::new ((void*)&Chunk) FChunk(*this);
 		SIZE_T Ptr = Chunk.Alloc(Size, Alignment, MaxFreeRangeSize, OutAllocInfo.RangeOffset, OutAllocInfo.RangeSize);
 		Check(Ptr != 0);
 #if RANGE_ALLOCATOR_RECORD_STATS

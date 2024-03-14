@@ -1178,7 +1178,7 @@ public:
 			const FTypeLayoutDesc& ElementTypeDesc = StaticGetTypeLayoutDesc<ElementType>();
 			TSparseArray* DstObject = (TSparseArray*)Dst;
 			{
-				new(&DstObject->Data) DataType();
+				::new((void*)&DstObject->Data) DataType();
 				DstObject->Data.SetNumUninitialized(this->Data.Num());
 				for (int32 i = 0; i < this->Data.Num(); ++i)
 				{
@@ -1196,13 +1196,13 @@ public:
 				}
 			}
 
-			new(&DstObject->AllocationFlags) AllocationBitArrayType(this->AllocationFlags);
+			::new((void*)&DstObject->AllocationFlags) AllocationBitArrayType(this->AllocationFlags);
 			DstObject->FirstFreeIndex = this->FirstFreeIndex;
 			DstObject->NumFreeIndices = this->NumFreeIndices;
 		}
 		else
 		{
-			new(Dst) TSparseArray();
+			::new((void*)Dst) TSparseArray();
 		}
 	}
 

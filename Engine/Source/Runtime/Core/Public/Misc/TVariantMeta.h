@@ -216,7 +216,7 @@ namespace Private
 		/** Call the copy constructor of a type with the provided memory location and value */
 		static void Construct(void* Storage, const void* Value)
 		{
-			new(Storage) T(*static_cast<const T*>(Value));
+			::new(Storage) T(*static_cast<const T*>(Value));
 		}
 	};
 
@@ -241,7 +241,7 @@ namespace Private
 		/** Call the move constructor of a type with the provided memory location and value */
 		static void Construct(void* Storage, void* Value)
 		{
-			new(Storage) T(MoveTemp(*static_cast<T*>(Value)));
+			::new(Storage) T(MoveTemp(*static_cast<T*>(Value)));
 		}
 	};
 

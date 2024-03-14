@@ -193,7 +193,7 @@ public:
 	{
 		ElementType* DataPtr = AllocateMemoryForEmplace(InKey);
 	
-		new(DataPtr) ElementType(TPairInitializer<InitKeyType&&, InitValueType&&>(Forward<InitKeyType>(InKey), Forward<InitValueType>(InValue)));
+		::new((void*)DataPtr) ElementType(TPairInitializer<InitKeyType&&, InitValueType&&>(Forward<InitKeyType>(InKey), Forward<InitValueType>(InValue)));
 
 		return DataPtr->Value;
 	}
@@ -209,7 +209,7 @@ public:
 	{
 		ElementType* DataPtr = AllocateMemoryForEmplace(InKey);
 
-		new(DataPtr) ElementType(TKeyInitializer<InitKeyType&&>(Forward<InitKeyType>(InKey)));
+		::new((void*)DataPtr) ElementType(TKeyInitializer<InitKeyType&&>(Forward<InitKeyType>(InKey)));
 
 		return DataPtr->Value;
 	}

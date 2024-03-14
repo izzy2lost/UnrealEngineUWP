@@ -82,7 +82,7 @@ public:
 		}
 		for (uint32 CurrentItem = FirstItem; CurrentItem < FirstItem + Count; CurrentItem++)
 		{
-			new (GetRawItem(CurrentItem)) T();
+			::new (GetRawItem(CurrentItem)) T();
 		}
 		return FirstItem;
 	}

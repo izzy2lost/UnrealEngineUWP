@@ -50,7 +50,7 @@ public:
 		}
 
 		FNode* New = new FNode;
-		new (&New->Value) T(Forward<ArgTypes>(Args)...);
+		::new ((void*)&New->Value) T(Forward<ArgTypes>(Args)...);
 
 		while (!Head.compare_exchange_weak(Prev, New, std::memory_order_release) && Prev != nullptr) // linearisation point
 		{

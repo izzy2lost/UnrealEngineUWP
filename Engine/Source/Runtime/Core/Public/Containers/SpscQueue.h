@@ -23,7 +23,7 @@ public:
 
 	TSpscQueue()
 	{
-		FNode* Node = new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode;
+		FNode* Node = ::new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode;
 		Tail.store(Node, std::memory_order_relaxed);
 		Head = First = TailCopy = Node;
 	}
@@ -57,7 +57,7 @@ public:
 	void Enqueue(ArgTypes&&... Args)
 	{
 		FNode* Node = AllocNode();
-		new(&Node->Value) ElementType(Forward<ArgTypes>(Args)...);
+		::new((void*)&Node->Value) ElementType(Forward<ArgTypes>(Args)...);
 
 		Head->Next.store(Node, std::memory_order_release);
 		Head = Node;
@@ -148,7 +148,7 @@ private:
 			return AllocFromCache();
 		}
 
-		return new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode();
+		return ::new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode();
 	}
 
 private:

@@ -212,7 +212,7 @@ static LockFreeLinkAllocator_TLSCache& GetLockFreeAllocator()
 	static bool bIsInitialized = false;
 	if (!bIsInitialized)
 	{
-		new(Data)LockFreeLinkAllocator_TLSCache();
+		::new((void*)Data)LockFreeLinkAllocator_TLSCache();
 		bIsInitialized = true;
 	}
 	return *(LockFreeLinkAllocator_TLSCache*)Data;

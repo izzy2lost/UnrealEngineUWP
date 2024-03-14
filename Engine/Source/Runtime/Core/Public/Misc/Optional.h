@@ -92,7 +92,7 @@ public:
 		//     // Won't compile if the caller doesn't have access to FMyType::FPrivateToken
 		//     TOptional<FMyType> Opt(InPlace, FMyType::FPrivateToken{}, 5, 3.14f, TEXT("Banana"));
 		//
-		new(&Value) OptionalType(Forward<ArgTypes>(Args)...);
+		::new((void*)&Value) OptionalType(Forward<ArgTypes>(Args)...);
 
 		if constexpr (!bUsingIntrusiveUnsetState)
 		{
@@ -116,7 +116,7 @@ public:
 	{
 		if constexpr (bUsingIntrusiveUnsetState)
 		{
-			new (&Value) OptionalType(FIntrusiveUnsetOptionalState{});
+			::new ((void*)&Value) OptionalType(FIntrusiveUnsetOptionalState{});
 		}
 		else
 		{
@@ -142,7 +142,7 @@ public:
 			}
 		}
 
-		new(&Value) OptionalType(*(const OptionalType*)&Other.Value);
+		::new((void*)&Value) OptionalType(*(const OptionalType*)&Other.Value);
 	}
 	TOptional(TOptional&& Other)
 	{
@@ -156,7 +156,7 @@ public:
 			}
 		}
 
-		new(&Value) OptionalType(MoveTempIfPossible(*(OptionalType*)&Other.Value));
+		::new((void*)&Value) OptionalType(MoveTempIfPossible(*(OptionalType*)&Other.Value));
 	}
 
 	TOptional& operator=(const TOptional& Other)
@@ -172,7 +172,7 @@ public:
 				Reset();
 				if (Other.Value.bIsSet)
 				{
-					new(&Value) OptionalType(*(const OptionalType*)&Other.Value);
+					::new((void*)&Value) OptionalType(*(const OptionalType*)&Other.Value);
 					Value.bIsSet = true;
 				}
 			}
@@ -192,7 +192,7 @@ public:
 				Reset();
 				if (Other.Value.bIsSet)
 				{
-					new(&Value) OptionalType(MoveTempIfPossible(*(OptionalType*)&Other.Value));
+					::new((void*)&Value) OptionalType(MoveTempIfPossible(*(OptionalType*)&Other.Value));
 					Value.bIsSet = true;
 				}
 			}
@@ -274,7 +274,7 @@ public:
 		//     // Won't compile if the caller doesn't have access to FMyType::FPrivateToken
 		//     Opt.Emplace(FMyType::FPrivateToken{}, 5, 3.14f, TEXT("Banana"));
 		//
-		OptionalType* Result = new(&Value) OptionalType(Forward<ArgsType>(Args)...);
+		OptionalType* Result = ::new((void*)&Value) OptionalType(Forward<ArgsType>(Args)...);
 
 		if constexpr (!bUsingIntrusiveUnsetState)
 		{

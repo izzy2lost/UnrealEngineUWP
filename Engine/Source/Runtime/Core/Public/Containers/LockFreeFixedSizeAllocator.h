@@ -327,7 +327,7 @@ public:
 	 */
 	T* New()
 	{
-		return new (Allocate()) T();
+		return ::new (Allocate()) T();
 	}
 
 	/**
@@ -371,7 +371,7 @@ public:
 	 */
 	T* New()
 	{
-		return new (Allocate()) T();
+		return ::new (Allocate()) T();
 	}
 
 	/**

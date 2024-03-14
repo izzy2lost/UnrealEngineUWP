@@ -40,7 +40,7 @@ namespace Impl
 		
 		const T* Access() const { return &Value; }
 
-		virtual void Reseat(uint8* Dst) override 			{ new(Dst) FInlineDataStorage(MoveTemp(Value)); }
+		virtual void Reseat(uint8* Dst) override 			{ ::new((void*)Dst) FInlineDataStorage(MoveTemp(Value)); }
 		virtual void MoveAssign(uint8* Dst) override 		{ reinterpret_cast<FInlineDataStorage*>(Dst)->Value = MoveTemp(Value); }
 		virtual FExpressionNode Copy() const override		{ return Value; }
 	};
@@ -59,7 +59,7 @@ namespace Impl
 		
 		const T* Access() const { return Value.Get(); }
 
-		virtual void Reseat(uint8* Dst) override 			{ new(Dst) FHeapDataStorage(MoveTemp(*this)); }
+		virtual void Reseat(uint8* Dst) override 			{ ::new((void*)Dst) FHeapDataStorage(MoveTemp(*this)); }
 		virtual void MoveAssign(uint8* Dst) override 		{ reinterpret_cast<FHeapDataStorage*>(Dst)->Value = MoveTemp(Value); }
 		virtual FExpressionNode Copy() const override		{ return *Value; }
 	};
@@ -168,7 +168,7 @@ FExpressionNode::FExpressionNode(T In, typename TEnableIf<!TPointerIsConvertible
 	: TypeId(TGetExpressionNodeTypeId<T>::GetTypeId())
 {
 	// Choose the relevant allocation strategy based on the size of the type
-	new(InlineBytes) typename Impl::TStorageTypeDeduction<T, MaxStackAllocationSize>::Type(MoveTemp(In));
+	::new((void*)InlineBytes) typename Impl::TStorageTypeDeduction<T, MaxStackAllocationSize>::Type(MoveTemp(In));
 }
 
 template<typename T>

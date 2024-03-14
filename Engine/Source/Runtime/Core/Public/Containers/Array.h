@@ -1647,7 +1647,7 @@ public:
 		// construct a copy in place at Index (this new operator will insert at 
 		// Index, then construct that memory with Item)
 		InsertUninitializedImpl(Index);
-		new(GetData() + Index) ElementType(MoveTempIfPossible(Item));
+		::new((void*)(GetData() + Index)) ElementType(MoveTempIfPossible(Item));
 		return Index;
 	}
 
@@ -1666,7 +1666,7 @@ public:
 		// construct a copy in place at Index (this new operator will insert at 
 		// Index, then construct that memory with Item)
 		InsertUninitializedImpl(Index);
-		new(GetData() + Index) ElementType(Item);
+		::new((void*)(GetData() + Index)) ElementType(Item);
 		return Index;
 	}
 
@@ -1687,7 +1687,7 @@ public:
 		// Index, then construct that memory with Item)
 		InsertUninitializedImpl(Index);
 		ElementType* Ptr = GetData() + Index;
-		new(Ptr) ElementType(MoveTempIfPossible(Item));
+		::new((void*)Ptr) ElementType(MoveTempIfPossible(Item));
 		return *Ptr;
 	}
 
@@ -1707,7 +1707,7 @@ public:
 		// Index, then construct that memory with Item)
 		InsertUninitializedImpl(Index);
 		ElementType* Ptr = GetData() + Index;
-		new(Ptr) ElementType(Item);
+		::new((void*)Ptr) ElementType(Item);
 		return *Ptr;
 	}
 
@@ -2230,7 +2230,7 @@ public:
 		//     // Won't compile if the caller doesn't have access to FMyType::FPrivateToken
 		//     Arr.Emplace(FMyType::FPrivateToken{}, 5, 3.14f, TEXT("Banana"));
 		//
-		new(GetData() + Index) ElementType(Forward<ArgsType>(Args)...);
+		::new((void*)(GetData() + Index)) ElementType(Forward<ArgsType>(Args)...);
 		return Index;
 	}
 
@@ -2245,7 +2245,7 @@ public:
 	{
 		const SizeType Index = AddUninitialized();
 		ElementType* Ptr = GetData() + Index;
-		new(Ptr) ElementType(Forward<ArgsType>(Args)...);
+		::new((void*)Ptr) ElementType(Forward<ArgsType>(Args)...);
 		return *Ptr;
 	}
 
@@ -2259,7 +2259,7 @@ public:
 	FORCEINLINE void EmplaceAt(SizeType Index, ArgsType&&... Args)
 	{
 		InsertUninitializedImpl(Index, 1);
-		new(GetData() + Index) ElementType(Forward<ArgsType>(Args)...);
+		::new((void*)(GetData() + Index)) ElementType(Forward<ArgsType>(Args)...);
 	}
 
 	/**
@@ -2274,7 +2274,7 @@ public:
 	{
 		InsertUninitializedImpl(Index, 1);
 		ElementType* Ptr = GetData() + Index;
-		new(Ptr) ElementType(Forward<ArgsType>(Args)...);
+		::new((void*)Ptr) ElementType(Forward<ArgsType>(Args)...);
 		return *Ptr;
 	}
 
@@ -3255,13 +3255,13 @@ public:
 	{
 		if constexpr (TAllocatorTraits<AllocatorType>::SupportsFreezeMemoryImage && THasTypeLayout<ElementType>::Value)
 		{
-			TArray* DstArray = new(Dst) TArray();
+			TArray* DstArray = ::new(Dst) TArray();
 			DstArray->SetNumZeroed(this->ArrayNum);
 			this->AllocatorInstance.CopyUnfrozen(Context, StaticGetTypeLayoutDesc<ElementType>(), this->ArrayNum, DstArray->GetData());
 		}
 		else
 		{
-			new(Dst) TArray();
+			::new(Dst) TArray();
 		}
 	}
 

@@ -186,7 +186,7 @@ public:
 
 		Reset();
 
-		new(SubtypeValuePointer) Subtype();
+		::new((void*)SubtypeValuePointer) Subtype();
 
 		CurrentSubtypeIndex = SubtypeIndex;
 		return SubtypeValuePointer;
@@ -202,7 +202,7 @@ public:
 
 		Reset();
 
-		new(SubtypeValuePointer) Subtype(NewValue);
+		::new((void*)SubtypeValuePointer) Subtype(NewValue);
 
 		CurrentSubtypeIndex = SubtypeIndex;
 		return SubtypeValuePointer;
@@ -342,7 +342,7 @@ private:
 	Subtype& InitSubtype()
 	{
 		Subtype* NewSubtype = &GetSubtype<Subtype>();
-		return *new(NewSubtype) Subtype;
+		return *::new((void*)NewSubtype) Subtype;
 	}
 
 	/** Determines the index and reference to the potential value for the given union subtype. */

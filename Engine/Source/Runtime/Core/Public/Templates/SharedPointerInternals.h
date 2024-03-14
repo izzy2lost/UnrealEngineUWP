@@ -411,7 +411,7 @@ namespace SharedPointerInternals
 			//     // Won't compile if the caller doesn't have access to FMyType::FPrivateToken
 			//     TSharedPtr<FMyType> Val = MakeShared<FMyType>(FMyType::FPrivateToken{}, 5, 3.14f, TEXT("Banana"));
 			//
-			new ((void*)&ObjectStorage) ObjectType(Forward<ArgTypes>(Args)...);
+			::new ((void*)&ObjectStorage) ObjectType(Forward<ArgTypes>(Args)...);
 		}
 
 		ObjectType* GetObjectPtr() const

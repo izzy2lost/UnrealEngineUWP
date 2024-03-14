@@ -274,7 +274,7 @@ public:
 	{
 		IndexType ResultIndex = AddUninitialized();
 		ElementType& Result = GetAtIndexNoCheck(ResultIndex);
-		new (&Result) ElementType(MoveTempIfPossible(Element));
+		::new ((void*)&Result) ElementType(MoveTempIfPossible(Element));
 		return ResultIndex;
 	}
 
@@ -282,7 +282,7 @@ public:
 	ElementType& Add_GetRef(ElementType&& Element)
 	{
 		ElementType& Result = AddUninitialized_GetRef();
-		new (&Result) ElementType(MoveTempIfPossible(Element));
+		::new ((void*)&Result) ElementType(MoveTempIfPossible(Element));
 		return Result;
 	}
 
@@ -291,7 +291,7 @@ public:
 	{
 		IndexType ResultIndex = AddUninitialized();
 		ElementType& Result = GetAtIndexNoCheck(ResultIndex);
-		new (&Result) ElementType(Element);
+		::new ((void*)&Result) ElementType(Element);
 		return ResultIndex;
 	}
 
@@ -300,7 +300,7 @@ public:
 	{
 		IndexType ResultIndex = AddUninitialized();
 		ElementType& Result = GetAtIndexNoCheck(ResultIndex);
-		new (&Result) ElementType(Element);
+		::new ((void*)&Result) ElementType(Element);
 		return Result;
 	}
 
@@ -310,7 +310,7 @@ public:
 	{
 		IndexType ResultIndex = AddUninitialized();
 		ElementType& Result = GetAtIndexNoCheck(ResultIndex);
-		new (&Result) ElementType(Forward<ArgsType>(Args)...);
+		::new ((void*)&Result) ElementType(Forward<ArgsType>(Args)...);
 		return ResultIndex;
 	}
 
@@ -319,7 +319,7 @@ public:
 	ElementType& Emplace_GetRef(ArgsType&&... Args)
 	{
 		ElementType& Result = AddUninitialized_GetRef();
-		new (&Result) ElementType(Forward<ArgsType>(Args)...);
+		::new ((void*)&Result) ElementType(Forward<ArgsType>(Args)...);
 		return Result;
 	}
 
@@ -380,7 +380,7 @@ public:
 	{
 		IndexType ResultIndex = AddFrontUninitialized();
 		ElementType& Result = GetAtIndexNoCheck(ResultIndex);
-		new (&Result) ElementType(MoveTempIfPossible(Element));
+		::new ((void*)&Result) ElementType(MoveTempIfPossible(Element));
 		return ResultIndex;
 	}
 
@@ -388,7 +388,7 @@ public:
 	ElementType& AddFront_GetRef(ElementType&& Element)
 	{
 		ElementType& Result = AddFrontUninitialized_GetRef();
-		new (&Result) ElementType(MoveTempIfPossible(Element));
+		::new ((void*)&Result) ElementType(MoveTempIfPossible(Element));
 		return Result;
 	}
 
@@ -397,7 +397,7 @@ public:
 	{
 		IndexType ResultIndex = AddFrontUninitialized();
 		ElementType& Result = GetAtIndexNoCheck(ResultIndex);
-		new (&Result) ElementType(Element);
+		::new ((void*)&Result) ElementType(Element);
 		return ResultIndex;
 	}
 
@@ -406,7 +406,7 @@ public:
 	{
 		IndexType ResultIndex = AddFrontUninitialized();
 		ElementType& Result = GetAtIndexNoCheck(ResultIndex);
-		new (&Result) ElementType(Element);
+		::new ((void*)&Result) ElementType(Element);
 		return Result;
 	}
 
@@ -416,7 +416,7 @@ public:
 	{
 		IndexType ResultIndex = AddFrontUninitialized();
 		ElementType& Result = GetAtIndexNoCheck(ResultIndex);
-		new (&Result) ElementType(Forward<ArgsType>(Args)...);
+		::new ((void*)&Result) ElementType(Forward<ArgsType>(Args)...);
 		return ResultIndex;
 	}
 
@@ -425,7 +425,7 @@ public:
 	ElementType& EmplaceFront_GetRef(ArgsType&&... Args)
 	{
 		ElementType& Result = AddFrontUninitialized_GetRef();
-		new (&Result) ElementType(Forward<ArgsType>(Args)...);
+		::new ((void*)&Result) ElementType(Forward<ArgsType>(Args)...);
 		return Result;
 	}
 
@@ -695,7 +695,7 @@ public:
 				{
 					DestructItem(&Data[WriteIndex & IndexMask]);
 				}
-				new (&Data[WriteIndex & IndexMask]) ElementType(MoveTemp(Data[ReadIndex & IndexMask]));
+				::new ((void*)&Data[WriteIndex & IndexMask]) ElementType(MoveTemp(Data[ReadIndex & IndexMask]));
 				++WriteIndex;
 			}
 			++ReadIndex;
@@ -807,12 +807,12 @@ private:
 				StorageModuloType WriteIndex = 0;
 				for (StorageModuloType ReadIndex = MaskedFront; ReadIndex < SrcCapacity; ++ReadIndex)
 				{
-					new (&NewData[WriteIndex++]) ElementType(MoveTemp(SrcData[ReadIndex]));
+					::new ((void*)&NewData[WriteIndex++]) ElementType(MoveTemp(SrcData[ReadIndex]));
 				}
 				DestructRange(MaskedFront, SrcCapacity);
 				for (StorageModuloType ReadIndex = 0; ReadIndex < MaskedAfterBack; ++ReadIndex)
 				{
-					new (&NewData[WriteIndex++]) ElementType(MoveTemp(SrcData[ReadIndex]));
+					::new ((void*)&NewData[WriteIndex++]) ElementType(MoveTemp(SrcData[ReadIndex]));
 				}
 				DestructRange(0, MaskedAfterBack);
 			}
@@ -821,7 +821,7 @@ private:
 				StorageModuloType WriteIndex = 0;
 				for (StorageModuloType ReadIndex = MaskedFront; ReadIndex < MaskedAfterBack; ++ReadIndex)
 				{
-					new(&NewData[WriteIndex++]) ElementType(MoveTemp(SrcData[ReadIndex]));
+					::new((void*)&NewData[WriteIndex++]) ElementType(MoveTemp(SrcData[ReadIndex]));
 				}
 				DestructRange(MaskedFront, MaskedAfterBack);
 			}
@@ -912,11 +912,11 @@ private:
 				StorageModuloType OldValueIndex = Index & IndexMask;
 				StorageModuloType NewValueIndex = (Index + RangeDirection) & IndexMask;
 				DestructItems(Data + OldValueIndex, 1);
-				new (Data + OldValueIndex) ElementType(MoveTemp(Data[NewValueIndex]));
+				::new ((void*)(Data + OldValueIndex)) ElementType(MoveTemp(Data[NewValueIndex]));
 			}
 			StorageModuloType OldValueIndex = RangeFirst & IndexMask;
 			DestructItems(Data + OldValueIndex, 1);
-			new (Data + OldValueIndex) ElementType(MoveTemp(Copy));
+			::new ((void*)(Data + OldValueIndex)) ElementType(MoveTemp(Copy));
 		}
 		else
 		{
@@ -924,10 +924,10 @@ private:
 			{
 				StorageModuloType OldValueIndex = Index & IndexMask;
 				StorageModuloType NewValueIndex = (Index + RangeDirection) & IndexMask;
-				new (Data + OldValueIndex) ElementType(MoveTemp(Data[NewValueIndex]));
+				::new ((void*)(Data + OldValueIndex)) ElementType(MoveTemp(Data[NewValueIndex]));
 			}
 			StorageModuloType OldValueIndex = RangeFirst & IndexMask;
-			new (Data + OldValueIndex) ElementType(MoveTemp(Copy));
+			::new ((void*)(Data + OldValueIndex)) ElementType(MoveTemp(Copy));
 		}
 	}
 

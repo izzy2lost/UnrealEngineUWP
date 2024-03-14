@@ -55,7 +55,7 @@ FORCEINLINE void Move(T& A,typename TMoveSupportTraits<T>::Copy B)
 	A.~T();
 
 	// Use placement new and a copy constructor so types with const members will work.
-	new(&A) T(B);
+	::new((void*)&A) T(B);
 }
 
 /** This is used to provide type specific behavior for a move which may change the value of B. */
@@ -66,7 +66,7 @@ FORCEINLINE void Move(T& A,typename TMoveSupportTraits<T>::Move B)
 	A.~T();
 
 	// Use placement new and a copy constructor so types with const members will work.
-	new(&A) T(MoveTemp(B));
+	::new((void*)&A) T(MoveTemp(B));
 }
 
 /**

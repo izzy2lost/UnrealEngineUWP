@@ -62,7 +62,7 @@ public:
 		int32 Result = Num();
 
 		void* LocationToAdd = InsertUninitialized(Result);
-		new (LocationToAdd) T(Forward<ArgTypes>(Args)...);
+		::new (LocationToAdd) T(Forward<ArgTypes>(Args)...);
 
 		return Result;
 	}
@@ -71,7 +71,7 @@ public:
 	void EmplaceAt(int32 Index, ArgTypes&&... Args)
 	{
 		void* LocationToAdd = InsertUninitialized(Index);
-		new (LocationToAdd) T(Forward<ArgTypes>(Args)...);
+		::new (LocationToAdd) T(Forward<ArgTypes>(Args)...);
 	}
 
 	void RemoveAt(int32 Index, int32 NumToRemove = 1)

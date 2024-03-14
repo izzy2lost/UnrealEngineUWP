@@ -351,7 +351,7 @@ namespace RobinHoodHashTable_Private
 				if (FreeList.Num() > 0)
 				{
 					Index = FreeList.Pop();
-					new (&KeyVals[Index]) KeyValueType{ Forward<DeducedKeyType>(Key), Forward<DeducedValueType>(Val) };
+					::new ((void*)&KeyVals[Index]) KeyValueType{ Forward<DeducedKeyType>(Key), Forward<DeducedValueType>(Val) };
 					Hashes[Index] = Hash;
 
 				}

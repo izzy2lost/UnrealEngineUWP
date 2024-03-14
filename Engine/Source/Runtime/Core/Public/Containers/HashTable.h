@@ -470,13 +470,13 @@ public:
 	{
 		if constexpr (TAllocatorTraits<Allocator>::SupportsFreezeMemoryImage)
 		{
-			THashTable* DstTable = new(Dst) THashTable(this->HashMask + 1u, this->IndexSize);
+			THashTable* DstTable = ::new(Dst) THashTable(this->HashMask + 1u, this->IndexSize);
 			FMemory::Memcpy(DstTable->Hash.GetAllocation(), this->Hash.GetAllocation(), (this->HashMask + 1u) * 4);
 			FMemory::Memcpy(DstTable->NextIndex.GetAllocation(), this->NextIndex.GetAllocation(), this->IndexSize * 4);
 		}
 		else
 		{
-			new(Dst) THashTable();
+			::new(Dst) THashTable();
 		}
 	}
 };

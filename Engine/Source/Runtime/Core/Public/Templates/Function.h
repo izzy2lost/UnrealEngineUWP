@@ -334,7 +334,7 @@ namespace UE::Core::Private::Function
 			}
 
 			CA_ASSUME(NewAlloc);
-			auto* NewOwned = new (NewAlloc) OwnedType(Forward<FunctorType>(InFunc));
+			auto* NewOwned = ::new (NewAlloc) OwnedType(Forward<FunctorType>(InFunc));
 			return &NewOwned->Obj;
 		}
 	};
@@ -358,7 +358,7 @@ namespace UE::Core::Private::Function
 			CA_ASSUME(NewAlloc);
 		}
 
-		auto* NewOwned = new (NewAlloc) TFunction_CopyableOwnedObject(this->Obj);
+		auto* NewOwned = ::new (NewAlloc) TFunction_CopyableOwnedObject(this->Obj);
 
 		return &NewOwned->Obj;
 	}
@@ -531,7 +531,7 @@ namespace UE::Core::Private::Function
 				// but it ensures that the vptr is set correctly for the bound type, and so is
 				// visualizable.  We never depend on the state of this object at runtime, so it's
 				// ok.
-				new ((void*)&DebugPtrStorage) TDebugHelper<DecayedFunctorType>;
+				::new ((void*)&DebugPtrStorage) TDebugHelper<DecayedFunctorType>;
 				DebugPtrStorage.Ptr = (void*)Binding;
 			#endif
 		}

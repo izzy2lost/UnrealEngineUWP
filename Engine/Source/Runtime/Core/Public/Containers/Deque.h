@@ -225,7 +225,7 @@ public:
 	{
 		GrowIfRequired();
 		ElementType* Target = GetData() + Tail;
-		new (Target) ElementType(Forward<ArgsType>(Args)...);
+		::new ((void*)Target) ElementType(Forward<ArgsType>(Args)...);
 		Tail = UE::Deque::Private::WrapAround(Tail + 1, Capacity);
 		Count++;
 		return *Target;
@@ -241,7 +241,7 @@ public:
 		GrowIfRequired();
 		Head = UE::Deque::Private::WrapAround(Head + Capacity - 1, Capacity);
 		ElementType* Target = GetData() + Head;
-		new (Target) ElementType(Forward<ArgsType>(Args)...);
+		::new ((void*)Target) ElementType(Forward<ArgsType>(Args)...);
 		Count++;
 		return *Target;
 	}

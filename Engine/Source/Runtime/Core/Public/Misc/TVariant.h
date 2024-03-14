@@ -42,7 +42,7 @@ public:
 	TVariant()
 	{
 		static_assert(std::is_constructible_v<T>, "To default-initialize a TVariant, the first type in the parameter pack must be default constructible. Use FEmptyVariantState as the first type if none of the other types can be listed first.");
-		new(&UE::Core::Private::CastToStorage(*this).Storage) T();
+		::new((void*)&UE::Core::Private::CastToStorage(*this).Storage) T();
 		TypeIndex = 0;
 	}
 
@@ -53,7 +53,7 @@ public:
 		constexpr SIZE_T Index = UE::Core::Private::TParameterPackTypeIndex<U, T, Ts...>::Value;
 		static_assert(Index != (SIZE_T)-1, "The TVariant is not declared to hold the type being constructed");
 
-		new(&UE::Core::Private::CastToStorage(*this).Storage) U(Forward<TArgs>(Args)...);
+		::new((void*)&UE::Core::Private::CastToStorage(*this).Storage) U(Forward<TArgs>(Args)...);
 		TypeIndex = (uint8)Index;
 	}
 
@@ -169,7 +169,7 @@ public:
 		static_assert(Index != (SIZE_T)-1, "The TVariant is not declared to hold the type passed to Emplace<>");
 
 		UE::Core::Private::TDestructorLookup<T, Ts...>::Destruct(TypeIndex, &UE::Core::Private::CastToStorage(*this).Storage);
-		new(&UE::Core::Private::CastToStorage(*this).Storage) U(Forward<TArgs>(Args)...);
+		::new((void*)&UE::Core::Private::CastToStorage(*this).Storage) U(Forward<TArgs>(Args)...);
 		TypeIndex = (uint8)Index;
 	}
 

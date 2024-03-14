@@ -1416,14 +1416,14 @@ public:
 			TSet* DstObject = static_cast<TSet*>(Dst);
 			this->Elements.CopyUnfrozen(Context, &DstObject->Elements);
 
-			new(&DstObject->Hash) HashType();
+			::new((void*)&DstObject->Hash) HashType();
 			DstObject->Hash.ResizeAllocation(0, this->HashSize, sizeof(FSetElementId));
 			FMemory::Memcpy(DstObject->Hash.GetAllocation(), this->Hash.GetAllocation(), sizeof(FSetElementId) * this->HashSize);
 			DstObject->HashSize = this->HashSize;
 		}
 		else
 		{
-			new(Dst) TSet();
+			::new(Dst) TSet();
 		}
 	}
 
