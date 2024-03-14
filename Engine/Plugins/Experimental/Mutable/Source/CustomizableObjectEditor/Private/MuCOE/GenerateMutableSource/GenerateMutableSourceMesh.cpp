@@ -2989,14 +2989,10 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 						check(AssetIndex != INDEX_NONE);
 
-						TSoftObjectPtr<UPhysicsAsset> PhysicsAsset = ClothingAssetCommon->PhysicsAsset.Get();
-
-						FString ClothPhysicsAssetTag = FString("__ClothPhysicsAsset:") + FString::Printf(TEXT("%d_AssetIdx_"), AssetIndex) + PhysicsAsset.ToString();
-
 						GenerationContext.AddParticipatingObject(*ClothingAssetCommon->PhysicsAsset);
 						
-						GenerationContext.PhysicsAssets.AddUnique(ClothingAssetCommon->PhysicsAsset);
-
+						const int32 PhysicsAssetIndex = GenerationContext.PhysicsAssets.AddUnique(ClothingAssetCommon->PhysicsAsset);
+						FString ClothPhysicsAssetTag = FString::Printf(TEXT("__ClothPA:%d_%d"), AssetIndex, PhysicsAssetIndex);
 						AddTagToMutableMeshUnique(*MutableMesh, ClothPhysicsAssetTag);
 					}
 				}

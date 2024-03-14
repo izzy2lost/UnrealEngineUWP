@@ -4990,31 +4990,36 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndDataAsync(
 						}
 					}
 				}
-				else if (Tag.RemoveFromStart("__ClothPhysicsAsset:"))
+				else if (Tag.RemoveFromStart("__ClothPA:"))
 				{
 					FString AssetIndexString, PhysicsAssetIndexString;
 
-					if (Tag.Split(TEXT("_AssetIdx_"), &AssetIndexString, &PhysicsAssetIndexString) && AssetIndexString.IsNumeric())
+					if (Tag.Split(TEXT("_"), &AssetIndexString, &PhysicsAssetIndexString))
 					{
-						const int32 AssetIndex = FCString::Atoi(*AssetIndexString);
-						const int32 PhysicsAssetIndex = FCString::Atoi(*PhysicsAssetIndexString);
-
-						const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset = ModelResources.PhysicsAssets.IsValidIndex(PhysicsAssetIndex) ? ModelResources.PhysicsAssets[PhysicsAssetIndex] : nullptr;
-
-						// The entry should always be in the map
-						if (!PhysicsAsset.IsNull())
+						if (AssetIndexString.IsNumeric() && PhysicsAssetIndexString.IsNumeric())
 						{
-							if (PhysicsAsset.Get())
+							const int32 AssetIndex = FCString::Atoi(*AssetIndexString);
+							const int32 PhysicsAssetIndex = FCString::Atoi(*PhysicsAssetIndexString);
+
+							const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset = ModelResources.PhysicsAssets.IsValidIndex(PhysicsAssetIndex) 
+									? ModelResources.PhysicsAssets[PhysicsAssetIndex] 
+									: nullptr;
+
+							// The entry should always be in the map
+							if (!PhysicsAsset.IsNull())
 							{
-								if (ClothingPhysicsAssets.IsValidIndex(AssetIndex))
+								if (PhysicsAsset.Get())
 								{
-									ClothingPhysicsAssets[AssetIndex] = PhysicsAsset.Get();
+									if (ClothingPhysicsAssets.IsValidIndex(AssetIndex))
+									{
+										ClothingPhysicsAssets[AssetIndex] = PhysicsAsset.Get();
+									}
 								}
-							}
-							else
-							{
-								ComponentData->ClothingPhysicsAssetsToStream.Emplace(AssetIndex, PhysicsAssetIndex);
-								AssetsToStream.Add(PhysicsAsset.ToSoftObjectPath());
+								else
+								{
+									ComponentData->ClothingPhysicsAssetsToStream.Emplace(AssetIndex, PhysicsAssetIndex);
+									AssetsToStream.Add(PhysicsAsset.ToSoftObjectPath());
+								}
 							}
 						}
 					}
