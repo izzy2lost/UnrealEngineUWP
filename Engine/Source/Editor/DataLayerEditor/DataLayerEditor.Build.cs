@@ -15,7 +15,6 @@ public class DataLayerEditor : ModuleRules
 				"EditorSubsystem",
 				"PropertyEditor",
 				"Engine",
-				"LevelEditor",
 				"InputCore",
 				"Slate",
 				"SlateCore",
@@ -26,7 +25,5 @@ public class DataLayerEditor : ModuleRules
 				"ContentBrowserData"
 			}
 		);
-
-		CircularlyReferencedDependentModules.Add("LevelEditor");
 	}
 }
