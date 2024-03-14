@@ -90,6 +90,15 @@ public:
 	// Update the registry when old types are removed
     void OnAssetRemoved(const FAssetData& InAssetData);
 
+	// Update the registry a user defined struct is loaded
+	void OnUserDefinedStructLoaded(UUserDefinedStruct* InLoadedStruct);
+
+	// Update the registry a user defined enum is loaded
+	void OnUserDefinedEnumLoaded(UUserDefinedEnum* InLoadedEnum);
+
+	// Update the registry a user defined type is loaded
+	void OnUserDefinedTypeLoaded(UObject* InLoadedTypeObject);
+
 	// Removes all types associated with a plugin that's being unloaded. 
 	void OnPluginUnloaded(IPlugin& InPlugin);
 	
