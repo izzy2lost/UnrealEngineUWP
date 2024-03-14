@@ -89,6 +89,12 @@
         {
             InterlockedMax(Dest[Coord], Value);
         }
+
+		void ImageInterlockedAddUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongType Value)
+		{
+			InterlockedAdd(Dest[Coord], Value);
+		}
+
     #endif
     
     #if PLATFORM_SUPPORTS_BINDLESS
