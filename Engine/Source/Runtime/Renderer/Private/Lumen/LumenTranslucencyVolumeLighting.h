@@ -67,6 +67,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenTranslucencyLightingVolumeParameters, )
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
 	SHADER_PARAMETER(float, HZBMipLevel)
 	SHADER_PARAMETER(float, GridCenterOffsetFromDepthBuffer)
+	SHADER_PARAMETER(float, GridCenterOffsetThresholdToAcceptDepthBufferOffset)
 	SHADER_PARAMETER(FVector2f, ViewportUVToHZBBufferUV)
 END_SHADER_PARAMETER_STRUCT()
 

@@ -256,11 +256,19 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheStats(
 	ECVF_RenderThreadSafe
 );
 
-float GTranslucencyVolumeRadianceCacheGridCenterOffsetFromDepthBuffer = 0.5f;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheGridCenterOffsetFromDepthBuffer(
-	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.GridCenterOffsetFromDepthBuffer"),
-	GTranslucencyVolumeRadianceCacheGridCenterOffsetFromDepthBuffer,
+float GTranslucencyVolumeGridCenterOffsetFromDepthBuffer = 0.5f;
+FAutoConsoleVariableRef CVarTranslucencyVolumeGridCenterOffsetFromDepthBuffer(
+	TEXT("r.Lumen.TranslucencyVolume.GridCenterOffsetFromDepthBuffer"),
+	GTranslucencyVolumeGridCenterOffsetFromDepthBuffer,
 	TEXT("Offset in grid units to move grid center sample out form the depth buffer along the Z direction. -1 means disabled. This reduces sample self intersection with geometry when tracing the global distance field buffer, and thus reduces flickering in those areas, as well as results in less leaking sometimes."),
+	ECVF_RenderThreadSafe
+);
+
+float GTranslucencyVolumeOffsetThresholdToAcceptDepthBufferOffset = 1.0f;
+FAutoConsoleVariableRef CVarTranslucencyVolumeOffsetThresholdToAcceptDepthBufferOffset(
+	TEXT("r.Lumen.TranslucencyVolume.OffsetThresholdToAcceptDepthBufferOffset"),
+	GTranslucencyVolumeOffsetThresholdToAcceptDepthBufferOffset,
+	TEXT("Offset in grid units to accept a sample to be moved forward in front of the depth buffer. This is to avoid moving all samples behind the depth buffer forward which would affect the lighting of translucent and volumetric at edges of mesh."),
 	ECVF_RenderThreadSafe
 );
 
@@ -606,7 +614,8 @@ FLumenTranslucencyLightingVolumeParameters GetTranslucencyLightingVolumeParamete
 
 	Parameters.FrameJitterOffset = (FVector3f)TranslucencyVolumeTemporalRandom(ViewStateFrameIndex);
 	Parameters.UnjitteredClipToTranslatedWorld = FMatrix44f(View.ViewMatrices.ComputeInvProjectionNoAAMatrix() * View.ViewMatrices.GetTranslatedViewMatrix().GetTransposed());		// LWC_TODO: Precision loss?
-	Parameters.GridCenterOffsetFromDepthBuffer = GTranslucencyVolumeRadianceCacheGridCenterOffsetFromDepthBuffer;
+	Parameters.GridCenterOffsetFromDepthBuffer = GTranslucencyVolumeGridCenterOffsetFromDepthBuffer;
+	Parameters.GridCenterOffsetThresholdToAcceptDepthBufferOffset = FMath::Max(0, GTranslucencyVolumeOffsetThresholdToAcceptDepthBufferOffset);
 	Parameters.FroxelDirectionJitterFrameIndex = GTranslucencyVolumeJitter ? int32(ViewStateFrameIndex % FMath::Max(1, CVarLumenTranslucencyVolumeTemporalMaxRayDirections.GetValueOnRenderThread())) : -1;
 
 	Parameters.SceneTexturesStruct = View.GetSceneTextures().UniformBuffer;

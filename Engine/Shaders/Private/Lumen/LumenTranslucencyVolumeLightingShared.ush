@@ -17,6 +17,7 @@ int FroxelDirectionJitterFrameIndex;
 float3 FrameJitterOffset;
 float4x4 UnjitteredClipToTranslatedWorld;
 float GridCenterOffsetFromDepthBuffer;
+float GridCenterOffsetThresholdToAcceptDepthBufferOffset;
 
 float ComputeDepthFromZSlice(float ZSlice)
 {
