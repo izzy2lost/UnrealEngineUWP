@@ -2552,14 +2552,14 @@ void FTextHistory_StringTableEntry::FStringTableReferenceData::Initialize(FName 
 	{
 		// No loading attempt
 		LoadingPhase = EStringTableLoadingPhase::Loaded;
-		ResolveStringTableEntry();
+		ResolveDisplayString();
 	}
 	else if (InLoadingPolicy == EStringTableLoadingPolicy::FindOrFullyLoad && IStringTableEngineBridge::CanFindOrLoadStringTableAsset())
 	{
 		// Forced synchronous load
 		LoadingPhase = EStringTableLoadingPhase::Loaded;
 		IStringTableEngineBridge::FullyLoadStringTableAsset(TableId);
-		ResolveStringTableEntry();
+		ResolveDisplayString();
 	}
 	else
 	{
@@ -2721,7 +2721,7 @@ void FTextHistory_StringTableEntry::FStringTableReferenceData::ConditionalBeginA
 		}
 		This->LoadingPhase = EStringTableLoadingPhase::Loaded;
 
-		This->ResolveStringTableEntry();
+		This->ResolveDisplayString();
 	});
 }
 
