@@ -24,7 +24,7 @@ AWorldPartitionMiniMap::AWorldPartitionMiniMap(const FObjectInitializer& ObjectI
 	, MiniMapTexture(nullptr)
 	, WorldUnitsPerPixel(50)
 	, BuilderCellSize(102400)
-	, CaptureSource(ESceneCaptureSource::SCS_BaseColor)
+	, CaptureSource(ESceneCaptureSource::SCS_SceneColorHDR)
 	, CaptureWarmupFrames(5)
 {
 }

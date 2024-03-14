@@ -89,6 +89,15 @@ void FWorldPartitionMiniMapHelper::CaptureBoundsMiniMapToTexture(UWorld* InWorld
 	CaptureComponent->bCaptureEveryFrame = false;
 	CaptureComponent->bCaptureOnMovement = false;
 
+	// We only want a basic color view of the world which isn't affected by any lighting or atmospheric effects which might obscure the minimap view:
+	CaptureComponent->ShowFlags.Lighting = false;
+	CaptureComponent->ShowFlags.Atmosphere = false;
+	CaptureComponent->ShowFlags.PostProcessing = false;
+	CaptureComponent->ShowFlags.AntiAliasing = false;
+	CaptureComponent->ShowFlags.Fog = false;
+	CaptureComponent->ShowFlags.VolumetricFog = false;
+	CaptureComponent->ShowFlags.DynamicShadows = false;
+
 	// Disable vignetting, otherwise we'll see it as a pattern between each captured tiles
 	CaptureComponent->PostProcessSettings.bOverride_VignetteIntensity = true;
 	CaptureComponent->PostProcessSettings.VignetteIntensity = 0.0f;
