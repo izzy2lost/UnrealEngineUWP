@@ -25,7 +25,7 @@ struct FDMTextLine
 	FString Line;
 
 	UPROPERTY()
-	float Width;
+	float Width = 0.f;
 };
 
 UCLASS(BlueprintType, ClassGroup = "Material Designer")
