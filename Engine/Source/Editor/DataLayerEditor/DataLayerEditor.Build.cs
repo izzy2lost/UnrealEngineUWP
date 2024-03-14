@@ -26,5 +26,7 @@ public class DataLayerEditor : ModuleRules
 				"ContentBrowserData"
 			}
 		);
+
+		CircularlyReferencedDependentModules.Add("LevelEditor");
 	}
 }
