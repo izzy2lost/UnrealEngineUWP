@@ -353,16 +353,16 @@ namespace HarmonixMetasound
 
 						if (Event.BlockFrameIndex >= StartFrameIndex)
 						{
-							switch (Event.Type)
+							switch (Event.Msg.Type)
 							{
-							case FMidiClockEvent::EType::AdvanceThru:
-								AdvanceThruTick(Event.BlockFrameIndex, Event.Tick2, Event.IsPreRoll);
+							case FMidiClockMsg::EType::AdvanceThru:
+								AdvanceThruTick(Event.BlockFrameIndex, Event.Msg.ThruTick(), Event.Msg.AsAdvanceThru().IsPreRoll);
 								break;
-							case FMidiClockEvent::EType::SeekThru:
-								SeekThruTick(Event.BlockFrameIndex, Event.Tick2);
+							case FMidiClockMsg::EType::SeekThru:
+								SeekThruTick(Event.BlockFrameIndex, Event.Msg.ThruTick());
 								break;
-							case FMidiClockEvent::EType::SeekTo:
-								SeekToTick(Event.BlockFrameIndex, Event.Tick2);
+							case FMidiClockMsg::EType::SeekTo:
+								SeekToTick(Event.BlockFrameIndex, Event.Msg.ToTick());
 								break;
 							}
 						}

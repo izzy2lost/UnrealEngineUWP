@@ -400,47 +400,47 @@ namespace HarmonixMetasound
 					// We should be advancing midi clock events in order (never repeating)!
 					check(CurrentMidiClockEventIndex < EventIndex);
 					CurrentMidiClockEventIndex = EventIndex;
-					switch (Event.Type)
+					switch (Event.Msg.Type)
 					{
-					case FMidiClockEvent::EType::Reset:
+					case FMidiClockMsg::EType::Reset:
 					{
-						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Tick2);
+						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Msg.ToTick());
 						MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
 						break;
 					}
-					case FMidiClockEvent::EType::Loop:
+					case FMidiClockMsg::EType::Loop:
 					{
 						// loops should actually be handled by seeking and advancing...
 						break;
 					}
-					case FMidiClockEvent::EType::SeekTo:
+					case FMidiClockMsg::EType::SeekTo:
 					{
-						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Tick2);
+						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Msg.ToTick());
 						MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick, PrerollBars);
 						break;
 					}
-					case FMidiClockEvent::EType::SeekThru:
+					case FMidiClockMsg::EType::SeekThru:
 					{
-						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Tick2);
+						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Msg.ThruTick());
 						MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
 						break;
 					}
-					case FMidiClockEvent::EType::AdvanceThru:
+					case FMidiClockMsg::EType::AdvanceThru:
 					{
 						// if this advance is a preroll, perform a seek instead so we don't trigger events doing an advance
 						// NOTE: This code is/should be identical to the SeekThru event above
-						if (Event.IsPreRoll)
+						if (Event.Msg.AsAdvanceThru().IsPreRoll)
 						{
-							int32 Tick = MidiClockOut->CalculateMappedTick(Event.Tick2);
+							int32 Tick = MidiClockOut->CalculateMappedTick(Event.Msg.ThruTick());
 							MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
 							break;
 						}
 						// The MidiClock handles looping on its own, so we can conveniently advance it
-						int32 Tick = MidiClockOut->GetCurrentMidiTick() + (Event.Tick2 - Event.Tick1);
+						int32 Tick = MidiClockOut->GetCurrentMidiTick() + (Event.Msg.ThruTick() - Event.Msg.FromTick());
 						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
 
 						float ClockInSpeed = MidiClockIn->GetSpeedAtBlockSampleFrame(StartFrameIndex);
-						float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.Tick1)
+						float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.Msg.FromTick())
 							               / MidiClockOut->GetSongMaps().GetTempoAtTick(MidiClockOut->GetCurrentMidiTick());
 						// midi clock needs to know how fast its advancing based on their authority
 						MidiClockOut->InformOfCurrentAdvanceRate(ClockInSpeed * *SpeedMultInPin * AdvanceRatio);

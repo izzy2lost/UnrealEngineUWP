@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundFacade.h"
@@ -171,12 +171,12 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 			for (int32 EventIndex = 0; EventIndex < MidiClockEvents.Num(); ++EventIndex)
 			{
 				const FMidiClockEvent& Event = MidiClockEvents[EventIndex];
-				switch (Event.Type)
+				switch (Event.Msg.Type)
 				{
-				case FMidiClockEvent::EType::SeekTo:
-				case FMidiClockEvent::EType::Reset:
+				case FMidiClockMsg::EType::SeekTo:
+				case FMidiClockMsg::EType::Reset:
 					{
-						const int32 Tick = GetTickWithOffset(Event.Tick2, OffsetBars, OffsetBeats, OffsetMs);
+						const int32 Tick = GetTickWithOffset(Event.Msg.ToTick(), OffsetBars, OffsetBeats, OffsetMs);
 						FMusicSeekTarget SeekTarget;
 						SeekTarget.Type = ESeekPointType::Millisecond;
 						SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
@@ -184,9 +184,9 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 						MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
 						break;
 					}
-				case FMidiClockEvent::EType::SeekThru:
+				case FMidiClockMsg::EType::SeekThru:
 					{
-						const int32 Tick = GetTickWithOffset(Event.Tick2, OffsetBars, OffsetBeats, OffsetMs);
+						const int32 Tick = GetTickWithOffset(Event.Msg.ThruTick(), OffsetBars, OffsetBeats, OffsetMs);
 						FMusicSeekTarget SeekTarget;
 						SeekTarget.Type = ESeekPointType::Millisecond;
 						SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick + 1);
@@ -194,9 +194,9 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 						MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
 						break;
 					}
-				case FMidiClockEvent::EType::AdvanceThru:
+				case FMidiClockMsg::EType::AdvanceThru:
 					{
-						const int32 Tick = GetTickWithOffset(Event.Tick2, OffsetBars, OffsetBeats, OffsetMs);
+						const int32 Tick = GetTickWithOffset(Event.Msg.ThruTick(), OffsetBars, OffsetBeats, OffsetMs);
 						
 						// if our offset changed while we were advancing, seek to the new offset first
 						if (!FMath::IsNearlyEqual(PrevOffsetMs, OffsetMs) || !FMath::IsNearlyEqual(PrevOffsetBeats, OffsetBeats) || PrevOffsetBars != OffsetBars)
@@ -214,12 +214,12 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 
 						const float AdvanceToMs = MidiClockOut->GetSongMaps().TickToMs(Tick);
 						const float ClockInSpeed = MidiClockIn->GetSpeedAtBlockSampleFrame(EventIndex);
-						const float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.Tick2) / MidiClockOut->GetSongMaps().GetTempoAtTick(Tick);
+						const float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.Msg.ThruTick()) / MidiClockOut->GetSongMaps().GetTempoAtTick(Tick);
 						MidiClockOut->InformOfCurrentAdvanceRate(ClockInSpeed * AdvanceRatio);
 						MidiClockOut->AdvanceHiResToMs(Event.BlockFrameIndex, AdvanceToMs, true);
 						break;
 					}
-				case FMidiClockEvent::EType::Loop:
+				case FMidiClockMsg::EType::Loop:
 					{
 						break;
 					}
