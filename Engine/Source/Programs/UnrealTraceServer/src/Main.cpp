@@ -122,9 +122,23 @@ static void GetUnrealTraceHome(FPath& Out, bool Make=false)
 	Out = Buffer;
 	Out /= "UnrealEngine/Common/UnrealTrace";
 #else
-	int UserId = getuid();
-	const passwd* Passwd = getpwuid(UserId);
-	Out = Passwd->pw_dir;
+	if (const char* Home = getenv("HOME"))
+	{
+		Out = Home;
+	}
+	else
+	{
+		int UserId = getuid();
+		const passwd* Passwd = getpwuid(UserId);
+		if (Passwd)
+		{
+			Out = Passwd->pw_dir;
+		}
+		else 
+		{
+			Out = "/";
+		}
+	}
 	Out /= "UnrealEngine/UnrealTrace";
 #endif
 
