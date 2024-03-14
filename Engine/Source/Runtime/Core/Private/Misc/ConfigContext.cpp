@@ -83,6 +83,8 @@ void FConfigContext::CachePaths()
 		// are we loading a plugin?
 		if (ConfigSystem != nullptr)
 		{
+			FScopeLock Lock(&FConfigCacheIni::RegisteredPluginsLock);
+			
 			FConfigCacheIni::FPluginInfo* PluginInfo = ConfigSystem->RegisteredPlugins.FindRef(ConfigFileTag == NAME_None ? FName(*BaseIniName) : ConfigFileTag);
 			if (PluginInfo != nullptr)
 			{
