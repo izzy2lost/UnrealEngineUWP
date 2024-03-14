@@ -50,6 +50,17 @@ namespace Chaos
 	void TGeometryParticlesImp<T, d, SimType>::RemoveShapesAtSortedIndices(const int32 ParticleIndex, const TArrayView<const int32>& InIndices)
 	{
 		RemoveArrayItemsAtSortedIndices(MShapesArray[ParticleIndex], InIndices);
+
+		// ShapeIdx need to be be updated 
+		const int32 NumShapes = MShapesArray[ParticleIndex].Num();
+		for (int32 ShapeIndex = 0; ShapeIndex < NumShapes; ++ShapeIndex)
+		{
+			const FShapeInstancePtr& Shape = MShapesArray[ParticleIndex][ShapeIndex];
+			if (Shape)
+			{
+				Shape->ModifyShapeIndex(ShapeIndex);
+			}
+		}
 	}
 
 	template <typename T, int d, EGeometryParticlesSimType SimType>

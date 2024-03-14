@@ -2266,15 +2266,43 @@ namespace Chaos
 							return;
 						}
 
-						// At the moment, we don't want to apply strains to children of ClusterUnions, we want instead
-						// to apply the strains to GRANDchildren of ClusterUnions.
-						FPBDRigidParticleHandle* ClosestChild = FindClosestChild(Cluster, ContactWorldLocation);
+						FPBDRigidParticleHandle* ChildParticleInContact = nullptr;
+						if (Chaos::FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnionFromParticle(Cluster))
+						{
+							// At the moment, we don't want to apply strains to children of ClusterUnions, we want instead
+							// to apply the strains to GRANDchildren of ClusterUnions.
+							// We are looking for the child particle that match the shape in contact 
+							// We cannot use a proximity method because this may return the wrong child if its center of mass is closer than actual child in contact
+							// Like in the example below where A would be wrongly reported:
+							//               +-------+
+							//               |   x A |
+							//            +--+-------+--------------------------------+
+							// contact-> *|                    x B                    |
+							//            +-------------------------------------------+
+							int32 ShapeInContactIndex = ContactHandle->GetContact().GetShape0()->GetShapeIndex();
+							if (Cluster == ContactHandle->GetContact().GetParticle1())
+							{
+								ShapeInContactIndex = ContactHandle->GetContact().GetShape1()->GetShapeIndex();
+							}
 
+							// cluster union garantee a one to one mapping between shapes index and children
+							// ( note : we cannot use MChildren because it can be oput of order, so we need to use the ChildParticles from FClusterUnion ) 
+							if (ensureAlways(ClusterUnion->ChildParticles.IsValidIndex(ShapeInContactIndex)))
+							{
+								ChildParticleInContact = ClusterUnion->ChildParticles[ShapeInContactIndex];
+							}
+
+							if (ChildParticleInContact == nullptr)
+							{
+								// if anything above failed to find a particle fall back to the distance based method
+								ChildParticleInContact = FindClosestChild(Cluster, ContactWorldLocation);
+							}
+						}
 						// If Closest child is not a clustered, then there is no substructure to apply strain to,
 						// so null Cluster
 						Cluster
-							= ClosestChild
-							? ClosestChild->CastToClustered()
+							= ChildParticleInContact
+							? ChildParticleInContact->CastToClustered()
 							: nullptr;
 					}
 
