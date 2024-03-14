@@ -13,7 +13,49 @@ namespace UE
 	{
 		namespace Private
 		{
-			void FFbxConvert::ConvertScene(FbxScene* SDKScene, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit)
+			FString GetFileAxisDirection(FbxAxisSystem FileAxisSystem)
+			{
+				FString AxisDirection;
+				int32 Sign = 1;
+				switch (FileAxisSystem.GetUpVector(Sign))
+				{
+					case FbxAxisSystem::eXAxis:
+						{
+							AxisDirection += TEXT("X");
+						}
+						break;
+					case FbxAxisSystem::eYAxis:
+						{
+							AxisDirection += TEXT("Y");
+						}
+						break;
+					case FbxAxisSystem::eZAxis:
+						{
+							AxisDirection += TEXT("Z");
+						}
+						break;
+				}
+
+				//Negative sign mean down instead of up
+				AxisDirection += Sign == 1 ? TEXT("-UP") : TEXT("-DOWN");
+
+				switch (FileAxisSystem.GetCoorSystem())
+				{
+					case FbxAxisSystem::eLeftHanded:
+						{
+							AxisDirection += TEXT(" (LH)");
+						}
+						break;
+					case FbxAxisSystem::eRightHanded:
+						{
+							AxisDirection += TEXT(" (RH)");
+						}
+						break;
+				}
+				return AxisDirection;
+			}
+
+			void FFbxConvert::ConvertScene(FbxScene* SDKScene, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit, FString& FileSystemDirection, FString& FileUnitSystem)
 			{
 				if (!ensure(SDKScene))
 				{
@@ -42,13 +84,11 @@ namespace UE
 					}
 				}
 
+				FbxAxisSystem FileAxisSystem = SDKScene->GetGlobalSettings().GetAxisSystem();
+				FileSystemDirection = GetFileAxisDirection(FileAxisSystem);
 
 				if (bConvertScene)
 				{
-					//Set the original file information
-					FbxAxisSystem FileAxisSystem = SDKScene->GetGlobalSettings().GetAxisSystem();
-
-
 					//UE is: z up, front x, left handed
 					FbxAxisSystem::EUpVector UpVector = FbxAxisSystem::EUpVector::eZAxis;
 					FbxAxisSystem::EFrontVector FrontVector = (FbxAxisSystem::EFrontVector)(bForceFrontXAxis ? FbxAxisSystem::eParityEven : -FbxAxisSystem::eParityOdd);
@@ -62,10 +102,12 @@ namespace UE
 					}
 				}
 
+				FbxSystemUnit OriginalFileUnitSystem = SDKScene->GetGlobalSettings().GetSystemUnit();
+				FileUnitSystem = FString(UTF8_TO_TCHAR(OriginalFileUnitSystem.GetScaleFactorAsString(false).Buffer()));
+
 				if (bConvertSceneUnit)
 				{
-					FbxSystemUnit FileUnitSystem = SDKScene->GetGlobalSettings().GetSystemUnit();
-					if (FileUnitSystem != FbxSystemUnit::cm)
+					if (OriginalFileUnitSystem != FbxSystemUnit::cm)
 					{
 						FbxSystemUnit::cm.ConvertScene(SDKScene);
 					}

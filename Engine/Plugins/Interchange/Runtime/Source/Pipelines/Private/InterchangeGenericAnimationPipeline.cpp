@@ -460,12 +460,13 @@ void UInterchangeGenericAnimationPipeline::CreateAnimSequenceFactoryNode(UInterc
 
 	if (bImportBoneTracks)
 	{
-		if (const UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::GetUniqueInstance(BaseNodeContainer))
+		int32 Numerator, Denominator;
+		const UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::GetUniqueInstance(BaseNodeContainer);
+		if (SourceNode && SourceNode->GetCustomSourceFrameRateNumerator(Numerator) && SourceNode->GetCustomSourceFrameRateDenominator(Denominator))
 		{
-			int32 Numerator, Denominator;
-			if (!bUse30HzToBakeBoneAnimation && CustomBoneAnimationSampleRate == 0 && SourceNode->GetCustomSourceFrameRateNumerator(Numerator))
+			if (!bUse30HzToBakeBoneAnimation && CustomBoneAnimationSampleRate == 0)
 			{
-				if (SourceNode->GetCustomSourceFrameRateDenominator(Denominator) && Denominator > 0 && Numerator > 0)
+				if (Denominator > 0 && Numerator > 0)
 				{
 					SampleRate = static_cast<double>(Numerator) / static_cast<double>(Denominator);
 				}

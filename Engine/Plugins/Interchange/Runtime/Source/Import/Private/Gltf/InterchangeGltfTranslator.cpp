@@ -407,12 +407,24 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 		SendAnalytics(TranslationResult::INPUT_FILE_NOTFOUND);
 		return false;
 	}
-	
+
 	GLTF::FFileReader GltfFileReader;
 
 	const bool bLoadImageData = false;
-	const bool bLoadMetaData = false;
+	const bool bLoadMetaData = true;
 	GltfFileReader.ReadFile( FilePath, bLoadImageData, bLoadMetaData, const_cast< UInterchangeGLTFTranslator* >( this )->GltfAsset );
+
+	UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::FindOrCreateUniqueInstance(&NodeContainer);
+	SourceNode->SetExtraInformation(TEXT("File Units"), TEXT("meter"));
+	SourceNode->SetExtraInformation(TEXT("File Axis Direction"), TEXT("Y-UP (RH)"));
+	if (GltfAsset.Metadata.GeneratorName.Len() > 0)
+	{
+		SourceNode->SetExtraInformation(TEXT("Generator Name"), GltfAsset.Metadata.GeneratorName);
+	}
+	for (const GLTF::FMetadata::FExtraData& Extra : GltfAsset.Metadata.Extras)
+	{
+		SourceNode->SetExtraInformation(Extra.Name, Extra.Value);
+	}
 
 	const FString FileName = GltfAsset.Name;
 

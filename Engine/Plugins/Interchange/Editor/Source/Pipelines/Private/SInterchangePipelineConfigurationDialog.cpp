@@ -15,6 +15,7 @@
 #include "InterchangePipelineConfigurationBase.h"
 #include "InterchangeProjectSettings.h"
 #include "InterchangeTranslatorBase.h"
+#include "Nodes/InterchangeSourceNode.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
@@ -195,6 +196,15 @@ void SInterchangePipelineConfigurationDialog::SetEditPipeline(FInterchangePipeli
 			PipelineItemToEdit->ConflictInfos = PipelineItemToEdit->Pipeline->GetConflictInfos(PipelineItemToEdit->ReimportObject, PipelineItemToEdit->Container, PipelineItemToEdit->SourceData);
 		}
 		FInterchangePipelineBaseDetailsCustomization::SetConflictsInfo(PipelineItemToEdit->ConflictInfos);
+
+		//Acquire ExtraInformation from SourceNode and pass it to FInterchangePipelineBaseDetailsCustomization:
+		TMap<FString, FString> ExtraInformation;
+		const UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::GetUniqueInstance(PipelineItemToEdit->Container);
+		if (SourceNode)
+		{
+			SourceNode->GetExtraInformation(ExtraInformation);
+		}
+		FInterchangePipelineBaseDetailsCustomization::SetExtraInformation(ExtraInformation);
 	}
 	PipelineConfigurationDetailsView->SetObjects(ObjectsToEdit);
 }

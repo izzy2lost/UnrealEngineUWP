@@ -16,6 +16,7 @@
 #include "Mesh/InterchangeMeshPayload.h"
 #endif
 #include "Nodes/InterchangeBaseNodeContainer.h"
+#include "Nodes/InterchangeSourceNode.h"
 #include "Misc/SecureHash.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeFbxParser"
@@ -130,9 +131,32 @@ namespace UE
 				bool bStatus = SDKImporter->Import(SDKScene);
 
 				//We always convert scene to UE axis and units
-				FFbxConvert::ConvertScene(SDKScene, bConvertScene, bForceFrontXAxis, bConvertSceneUnit);
+				FFbxConvert::ConvertScene(SDKScene, bConvertScene, bForceFrontXAxis, bConvertSceneUnit, FileDetails.AxisDirection, FileDetails.UnitSystem);
 
 				FrameRate = FbxTime::GetFrameRate(SDKScene->GetGlobalSettings().GetTimeMode());
+				FileDetails.FrameRate = FString::Printf(TEXT("%.2f"), FrameRate);
+
+				// Get the version number of the FBX file format.
+				int32 FileMajor, FileMinor, FileRevision;
+				SDKImporter->GetFileVersion(FileMajor, FileMinor, FileRevision);
+				FileDetails.FbxFileVersion = FString::Printf(TEXT("%d.%d.%d"), FileMajor, FileMinor, FileRevision);
+
+				// Get The Creator of the FBX File.
+				FileDetails.FbxFileCreator = UTF8_TO_TCHAR(SDKImporter->GetFileHeaderInfo()->mCreator.Buffer());
+
+				FbxDocumentInfo* DocInfo = SDKImporter->GetSceneInfo();
+				if (DocInfo)
+				{
+					FString LastSavedVendor(UTF8_TO_TCHAR(DocInfo->LastSaved_ApplicationVendor.Get().Buffer()));
+					FString LastSavedAppName(UTF8_TO_TCHAR(DocInfo->LastSaved_ApplicationName.Get().Buffer()));
+					FString LastSavedAppVersion(UTF8_TO_TCHAR(DocInfo->LastSaved_ApplicationVersion.Get().Buffer()));
+
+					FileDetails.FbxFileCreatorApplication = LastSavedVendor + TEXT(" ") + LastSavedAppName + TEXT(" ") + LastSavedAppVersion;
+				}
+				else
+				{
+					FileDetails.FbxFileCreatorApplication = TEXT("");
+				}
 
 				return true;
 			}
@@ -158,6 +182,8 @@ namespace UE
 				FbxScene.AddHierarchy(SDKScene, NodeContainer, PayloadContexts);
 				FbxScene.AddAnimation(SDKScene, NodeContainer, PayloadContexts);
 				FbxScene.AddMorphTargetAnimations(SDKScene, NodeContainer, PayloadContexts, FbxMesh.GetMorphTargetAnimationsBuildingData());
+
+				ProcessExtraInformation(NodeContainer);
 			}
 
 			bool FFbxParser::FetchPayloadData(const FString& PayloadKey, const FString& PayloadFilepath)
@@ -290,6 +316,18 @@ namespace UE
 					}
 					MakeFbxObjectNameUnique(Mesh, MeshNames);
 				}
+			}
+
+			void FFbxParser::ProcessExtraInformation(UInterchangeBaseNodeContainer& NodeContainer)
+			{
+				UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::FindOrCreateUniqueInstance(&NodeContainer);
+
+				SourceNode->SetExtraInformation(TEXT("File Version"), FileDetails.FbxFileVersion);
+				SourceNode->SetExtraInformation(TEXT("File Creator"), FileDetails.FbxFileCreator);
+				SourceNode->SetExtraInformation(TEXT("File Creator Application"), FileDetails.FbxFileCreatorApplication);
+				SourceNode->SetExtraInformation(TEXT("File Units"), FileDetails.UnitSystem);
+				SourceNode->SetExtraInformation(TEXT("File Axis Direction"), FileDetails.AxisDirection);
+				SourceNode->SetExtraInformation(TEXT("File Frame Rate"), FileDetails.FrameRate);
 			}
 		} //ns Private
 	} //ns Interchange

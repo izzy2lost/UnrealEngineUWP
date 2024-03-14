@@ -109,6 +109,7 @@ namespace UE
 			private:
 
 				void CleanupFbxData();
+				void ProcessExtraInformation(UInterchangeBaseNodeContainer& NodeContainer);
 
 				TWeakObjectPtr<UInterchangeResultsContainer> ResultsContainer;
 				FbxManager* SDKManager = nullptr;
@@ -127,6 +128,17 @@ namespace UE
 				bool bConvertScene = true;
 				bool bForceFrontXAxis = false;
 				bool bConvertSceneUnit = true;
+
+				struct FileDetails
+				{
+					FString FbxFileVersion;
+					FString FbxFileCreator;
+					FString FbxFileCreatorApplication;
+					FString UnitSystem;
+					FString AxisDirection;
+					FString FrameRate;
+				} FileDetails;
+				
 			};
 		}//ns Private
 	}//ns Interchange

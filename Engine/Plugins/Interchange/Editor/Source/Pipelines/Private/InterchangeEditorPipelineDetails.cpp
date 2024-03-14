@@ -119,6 +119,12 @@ void FInterchangePipelineBaseDetailsCustomization::SetConflictsInfo(TArray<FInte
 	}
 }
 
+static TMap<FString, FString> InterchangeAssetExtraInformation;
+void FInterchangePipelineBaseDetailsCustomization::SetExtraInformation(const TMap<FString, FString>& InExtraInformation)
+{
+	InterchangeAssetExtraInformation = InExtraInformation;
+}
+
 void FInterchangePipelineBaseDetailsCustomization::SetTextComboBoxWidget(IDetailPropertyRow& PropertyRow, const TSharedPtr<IPropertyHandle>& Handle, const TArray<FString>& PossibleValues)
 {
 	if (!Handle.IsValid() || !Handle->IsValidHandle() || PossibleValues.Num() < 1)
@@ -335,6 +341,36 @@ void FInterchangePipelineBaseDetailsCustomization::AddConflictSection()
 	}
 }
 
+void FInterchangePipelineBaseDetailsCustomization::AddExtraInformationSection()
+{
+	if (InterchangeAssetExtraInformation.Num() > 0)
+	{
+		const FText ExtraInformationCategoryText = LOCTEXT("ExtraInformationCategoryName", "Extra Information");
+		const FName ExtraInformationCategoryName = FName(TEXT("Extra Information"));
+		IDetailCategoryBuilder& AttributeCategoryBuilder = CachedDetailBuilder->EditCategory(ExtraInformationCategoryName, ExtraInformationCategoryText);
+		
+		for (const TPair<FString, FString>& Pair : InterchangeAssetExtraInformation)
+		{
+			FText AttributeName = FText::FromString(Pair.Key);
+			FText AttributeValue = FText::FromString(Pair.Value);
+			FDetailWidgetRow& CustomRow = AttributeCategoryBuilder.AddCustomRow(AttributeName)
+				.NameContent()
+				[
+					SNew(STextBlock)
+						.Text(AttributeName)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+				.ValueContent()
+				[
+					SNew(STextBlock)
+						.Text(AttributeValue)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+				];
+		}
+
+		InterchangeAssetExtraInformation.Reset();
+	}
+}
 
 void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
@@ -362,9 +398,11 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 	CachedDetailBuilder->GetCategoryNames(AllCategoryNames);
 	TMap<FName, TArray<FName>> PropertiesPerCategorys;
 	InternalGetPipelineProperties(InterchangePipeline.Get(), AllCategoryNames, PropertiesPerCategorys);
-
+	
 	AddConflictSection();
 	
+	AddExtraInformationSection();
+
 	for (const TPair<FName, TArray<FName>>& CategoryAndProperties : PropertiesPerCategorys)
 	{
 		//Category meta value Subgroup data

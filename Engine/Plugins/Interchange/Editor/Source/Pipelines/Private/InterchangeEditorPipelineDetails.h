@@ -36,6 +36,9 @@ public:
 	// Temporary: Used to pass data to the next instance created.
 	static void SetConflictsInfo(TArray<FInterchangeConflictInfo>& ConflictInfos);
 
+	// Temporary: Used to pass ExtraInformation to the next instance created.
+	static void SetExtraInformation(const TMap<FString, FString>& InExtraInformation);
+
 	/** IDetailCustomization interface */
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 	/** End IDetailCustomization interface */
@@ -51,6 +54,7 @@ private:
 	void AddSubCategory(IDetailLayoutBuilder& DetailBuilder, TMap<FName, TMap<FName, TArray<FInternalPropertyData>>>& SubCategoriesPropertiesPerMainCategory);
 	void InternalGetPipelineProperties(const UInterchangePipelineBase* Pipeline, const TArray<FName>& AllCategoryNames, TMap<FName, TArray<FName>>& PropertiesPerCategorys) const;
 	void AddConflictSection();
+	void AddExtraInformationSection();
 	FReply ShowConflictDialog(FInterchangeConflictInfo ConflictInfo);
 
 	void SetTextComboBoxWidget(IDetailPropertyRow& PropertyRow, const TSharedPtr<IPropertyHandle>& Handle, const TArray<FString>& PossibleValues);
