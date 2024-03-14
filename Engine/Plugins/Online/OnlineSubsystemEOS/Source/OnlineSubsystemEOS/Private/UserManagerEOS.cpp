@@ -1293,7 +1293,7 @@ FLocalUserEOS& FUserManagerEOS::AddLocalUser(int32 LocalUserNum, EOS_EpicAccount
 		NotificationPairPtr->NotificationId = EOS_Connect_AddNotifyAuthExpiration(EOSSubsystem->ConnectHandle, &Options, CallbackObj, CallbackObj->GetCallbackPtr());
 	}
 
-	const FOnlineUserEOSRef UserRef(new FOnlineUserEOS(UserNetId, *EOSSubsystem));
+	const FOnlineUserEOSRef UserRef(new FOnlineUserEOS(UserNetId));
 	UniqueNetIdToUserRefMap.Emplace(UserNetId, UserRef);
 
 	// Once all the fields are set, we start gathering additional information
@@ -1303,52 +1303,6 @@ FLocalUserEOS& FUserManagerEOS::AddLocalUser(int32 LocalUserNum, EOS_EpicAccount
 	UpdateUserInfo(UserAccountRef, EpicAccountId, EpicAccountId);
 
 	return LocalUser;
-}
-
-FString FUserManagerEOS::GetBestDisplayName(EOS_EpicAccountId TargetUserId, const FStringView RequestedPlatform) const
-{
-	FString Result;
-
-	EOS_UserInfo_BestDisplayName* EosBestDisplayName = nullptr;
-	EOS_EResult BestDisplayNameResult = EOS_EResult::EOS_Success;
-
-	const EOS_EpicAccountId LocalUserId = GetLocalEpicAccountId(GetDefaultLocalUser());
-
-	if (RequestedPlatform.IsEmpty())
-	{
-		EOS_UserInfo_CopyBestDisplayNameOptions BestDisplayNameOptions = { };
-		BestDisplayNameOptions.ApiVersion = 1; 
-		UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAME_API_LATEST, 1);
-		BestDisplayNameOptions.LocalUserId = LocalUserId;
-		BestDisplayNameOptions.TargetUserId = TargetUserId;
-
-		BestDisplayNameResult = EOS_UserInfo_CopyBestDisplayName(EOSSubsystem->UserInfoHandle, &BestDisplayNameOptions, &EosBestDisplayName);
-	}
-
-	if (!RequestedPlatform.IsEmpty() || BestDisplayNameResult == EOS_EResult::EOS_UserInfo_BestDisplayNameIndeterminate)
-	{
-		EOS_UserInfo_CopyBestDisplayNameWithPlatformOptions BestDisplayNameWithPlatformOptions = {};
-		BestDisplayNameWithPlatformOptions.ApiVersion = 1;
-		UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAMEWITHPLATFORM_API_LATEST, 1);
-		BestDisplayNameWithPlatformOptions.LocalUserId = LocalUserId;
-		BestDisplayNameWithPlatformOptions.TargetUserId = TargetUserId;
-		
-		BestDisplayNameWithPlatformOptions.TargetPlatformType = EOS_OPT_Epic;
-		if (!RequestedPlatform.IsEmpty())
-		{
-			BestDisplayNameWithPlatformOptions.TargetPlatformType = EOSOnlinePlatformTypeFromString(RequestedPlatform);
-		}
-
-		BestDisplayNameResult = EOS_UserInfo_CopyBestDisplayNameWithPlatform(EOSSubsystem->UserInfoHandle, &BestDisplayNameWithPlatformOptions, &EosBestDisplayName);
-	}
-
-	if (EosBestDisplayName)
-	{
-		Result = GetBestDisplayNameStr(*EosBestDisplayName);
-		EOS_UserInfo_BestDisplayName_Release(EosBestDisplayName);
-	}
-
-	return Result;
 }
 
 void FUserManagerEOS::UpdateUserInfo(IAttributeAccessInterfaceRef AttributeAccessRef, EOS_EpicAccountId LocalId, EOS_EpicAccountId AccountId)
@@ -1361,13 +1315,45 @@ void FUserManagerEOS::UpdateUserInfo(IAttributeAccessInterfaceRef AttributeAcces
 
 	EOS_UserInfo* UserInfo = nullptr;
 
-	const EOS_EResult CopyResult = EOS_UserInfo_CopyUserInfo(EOSSubsystem->UserInfoHandle, &Options, &UserInfo);
-	UE_CLOG_ONLINE(CopyResult != EOS_EResult::EOS_Success, Warning, TEXT("%hs Result=[%s]"), __FUNCTION__, *LexToString(CopyResult));
+	EOS_EResult CopyResult = EOS_UserInfo_CopyUserInfo(EOSSubsystem->UserInfoHandle, &Options, &UserInfo);
 	if (CopyResult == EOS_EResult::EOS_Success)
 	{
 		AttributeAccessRef->SetInternalAttribute(USER_ATTR_COUNTRY, UTF8_TO_TCHAR(UserInfo->Country));
 		AttributeAccessRef->SetInternalAttribute(USER_ATTR_LANG, UTF8_TO_TCHAR(UserInfo->PreferredLanguage));
 		EOS_UserInfo_Release(UserInfo);
+	}
+
+	EOS_UserInfo_CopyBestDisplayNameOptions BestDisplayNameOptions = { };
+	BestDisplayNameOptions.ApiVersion = 1; 
+	UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAME_API_LATEST, 1);
+	BestDisplayNameOptions.LocalUserId = LocalId;
+	BestDisplayNameOptions.TargetUserId = AccountId;
+
+	EOS_UserInfo_BestDisplayName* BestDisplayName;
+	EOS_EResult BestDisplayNameResult = EOS_UserInfo_CopyBestDisplayName(EOSSubsystem->UserInfoHandle, &BestDisplayNameOptions, &BestDisplayName);
+
+	if (BestDisplayNameResult == EOS_EResult::EOS_UserInfo_BestDisplayNameIndeterminate)
+	{
+		EOS_UserInfo_CopyBestDisplayNameWithPlatformOptions BestDisplayNameWithPlatformOptions = {};
+		BestDisplayNameWithPlatformOptions.ApiVersion = 1;
+		UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAMEWITHPLATFORM_API_LATEST, 1);
+		BestDisplayNameWithPlatformOptions.LocalUserId = LocalId;
+		BestDisplayNameWithPlatformOptions.TargetUserId = AccountId;
+		BestDisplayNameWithPlatformOptions.TargetPlatformType = EOS_OPT_Epic;
+
+		BestDisplayNameResult = EOS_UserInfo_CopyBestDisplayNameWithPlatform(EOSSubsystem->UserInfoHandle, &BestDisplayNameWithPlatformOptions, &BestDisplayName);
+	}
+
+	if (BestDisplayNameResult == EOS_EResult::EOS_Success)
+	{
+		// We'll prioritize which name is chosen: Nickname > DisplayNameSanitized > DisplayName
+		AttributeAccessRef->SetInternalAttribute(USER_ATTR_DISPLAY_NAME, *GetBestDisplayNameStr(*BestDisplayName));
+
+		EOS_UserInfo_BestDisplayName_Release(BestDisplayName);
+	}
+	else
+	{
+		UE_LOG_ONLINE(Warning, TEXT("[FUserManagerEOS::UpdateUserInfo] Failed to retrieve BestDisplayName EOS_EResult: %s."), *LexToString(BestDisplayNameResult));
 	}
 }
 
@@ -2205,7 +2191,7 @@ FOnlineFriendEOSRef FUserManagerEOS::AddFriend(int32 LocalUserNum, const FUnique
 {
 	const FOnlineUserEOSRef UserRef = UniqueNetIdToUserRefMap[FriendNetId.AsShared()];
 	const FUniqueNetIdEOSRef FriendNetIdEOSRef = StaticCastSharedRef<const FUniqueNetIdEOS>(FriendNetId.AsShared());
-	const FOnlineFriendEOSRef FriendRef = MakeShareable(new FOnlineFriendEOS(FriendNetIdEOSRef, UserRef->UserAttributes, *EOSSubsystem));
+	const FOnlineFriendEOSRef FriendRef = MakeShareable(new FOnlineFriendEOS(FriendNetIdEOSRef, UserRef->UserAttributes));
 
 	GetLocalUserChecked(LocalUserNum).FriendsList->Add(FriendNetId.AsShared(), FriendRef);
 
@@ -2233,7 +2219,7 @@ void FUserManagerEOS::AddRemotePlayer(int32 LocalUserNum, EOS_EpicAccountId Epic
 {
 	const FResolveUniqueNetIdCallback IdResolutionCallback = [this, LocalUserNum, EpicAccountId, Callback](FUniqueNetIdEOSRef ResolvedUniqueNetId) mutable
 	{
-		const FOnlineUserEOSRef AttributeRef = MakeShareable(new FOnlineUserEOS(ResolvedUniqueNetId, *EOSSubsystem));
+		const FOnlineUserEOSRef AttributeRef = MakeShareable(new FOnlineUserEOS(ResolvedUniqueNetId));
 
 		UniqueNetIdToUserRefMap.Emplace(ResolvedUniqueNetId, AttributeRef);
 
@@ -2250,7 +2236,7 @@ void FUserManagerEOS::AddRemotePlayers(int32 LocalUserNum, TArray<EOS_EpicAccoun
 	{
 		for (const TPair<EOS_EpicAccountId, FUniqueNetIdEOSRef>& Entry : ResolvedUniqueNetIds)
 		{
-			const FOnlineUserEOSRef AttributeRef = MakeShareable(new FOnlineUserEOS(Entry.Value, *EOSSubsystem));
+			const FOnlineUserEOSRef AttributeRef = MakeShareable(new FOnlineUserEOS(Entry.Value));
 
 			UniqueNetIdToUserRefMap.Emplace(Entry.Value, AttributeRef);
 
