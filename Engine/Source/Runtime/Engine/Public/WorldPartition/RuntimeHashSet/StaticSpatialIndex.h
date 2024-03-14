@@ -124,9 +124,9 @@ namespace FStaticSpatialIndex
 
 		void Init(const TArray<TPair<FBox, uint32>>& InElements);
 
-		bool ForEachElement(TFunctionRef<bool(uint32 InValueIndex)> Func) const;
-		bool ForEachIntersectingElement(const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
-		bool ForEachIntersectingElement(const FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
+		bool ForEachElement(TFunctionRef<bool(uint32 InValueIndex)> InFunc) const;
+		bool ForEachIntersectingElement(const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const;
+		bool ForEachIntersectingElement(const FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const;
 
 		uint32 GetAllocatedSize() const;
 
@@ -143,9 +143,9 @@ namespace FStaticSpatialIndex
 
 		void Init(const TArray<TPair<FBox, uint32>>& InElements);
 
-		bool ForEachElement(TFunctionRef<bool(uint32 InValueIndex)> Func) const;
-		bool ForEachIntersectingElement(const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
-		bool ForEachIntersectingElement(const FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
+		bool ForEachElement(TFunctionRef<bool(uint32 InValueIndex)> InFunc) const;
+		bool ForEachIntersectingElement(const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const;
+		bool ForEachIntersectingElement(const FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const;
 
 		uint32 GetAllocatedSize() const;
 
@@ -159,9 +159,9 @@ namespace FStaticSpatialIndex
 			TVariant<FNodeType, FLeafType> Content;
 		};
 
-		bool ForEachElementRecursive(const FNode* Node, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
-		bool ForEachIntersectingElementRecursive(const FNode* Node, const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
-		bool ForEachIntersectingElementRecursive(const FNode* Node, const FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
+		bool ForEachElementRecursive(const FNode* InNode, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const;
+		bool ForEachIntersectingElementRecursive(const FNode* InNode, const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const;
+		bool ForEachIntersectingElementRecursive(const FNode* InNode, const FVector& InSphereCenter, FSphere::FReal InRadiusSquared, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const;
 
 		FNode RootNode;
 	};
