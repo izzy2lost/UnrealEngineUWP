@@ -3,6 +3,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMVerse.h"
 #include "AutoRTFM/AutoRTFM.h"
+#include "UObject/CoreRedirects.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
 #include "VerseVM/VVMFalse.h"
 #include "VerseVM/VVMHeap.h"
@@ -22,6 +23,10 @@ void VerseVM::Startup()
 #if UE_AUTORTFM || defined(__INTELLISENSE__)
 	AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime(AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_Enabled);
 #endif
+
+	TArray<FCoreRedirect> Redirects;
+	Redirects.Emplace(ECoreRedirectFlags::Type_Class, TEXT("/Script/Solaris.VerseClass"), TEXT("/Script/CoreUObject.VerseVMClass"));
+	FCoreRedirects::AddRedirectList(Redirects, TEXT("VerseVM"));
 }
 
 void VerseVM::Shutdown()

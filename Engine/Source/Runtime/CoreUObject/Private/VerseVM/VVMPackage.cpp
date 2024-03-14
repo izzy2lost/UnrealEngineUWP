@@ -63,6 +63,27 @@ UPackage* VPackage::CreateUPackage(FAllocationContext Context, const TCHAR* Qual
 {
 	ensure(GetUPackageInternal(FilteredQualifiedClassName) == nullptr);
 	UPackage* Package = CreatePackage(*GetUPackageName(QualifiedClassName, PackageStage));
+
+	// @TODO: SOL-997, this flag will need to be cleared for cooked assets
+	Package->SetPackageFlags(PKG_InMemoryOnly);
+
+	// @TODO: SOL-1175, this works around a crash when cooking any game on any platform.  During cooking, the Event Driven Loader (EDL)
+	// records when UObjects are requested for load (ENotifyRegistrationPhase::NRP_Added), when they're started (ENotifyRegistrationPhase::NRP_Started),
+	// and then when they're finished.  Using this information, it tries to order loading for maximum efficiency.  UClasses are special, because they have
+	// an associated CDO with them.  For Blueprint classes, the CDO is always ahead of its associated class in the linker table, meaning it is loaded first (NRP_Added),
+	// and then the UClass is loaded (NRP_Added).  When loading the UClass, it calls CreateDefaultObject(), which then attempts to serialize the CDO manually (NRP_Started).
+	//
+	// For Verse classes currently, we generate these classes and their CDOs at runtime.  So, the UClass gets created, and then it runs CreateDefaultObject().  Unlike the
+	// Blueprint case, the CDO hasn't been loaded because the class didn't exist on disk.  So, when UClass::CreateDefaultObject() tries to note the loading for EDL (with NRP_Started),
+	// the EDL code asserts because the NRP_Started event for the CDO happened before NRP_Added.  Native classes get around this in their binding code, where a struct helper manually
+	// fires the EDL events for NRP_Added for both the Class and the CDO.  Since Verse classes are not necessarily native, but are generated at runtime like native classes, we
+	// bypass the event behaviour with this package flag.
+	//
+	// This probably has ramifications for cooked games, and should be revisited when Verse supports cooked projects.  In the meantime, this is a surgical fix to prevent crashes
+	// and allow runtime classes to exist.  Note that EDL is strictly contained in CoreUObject, because nothing should ever mess with it.  UClasses are the exception in UObjects,
+	// but since they exist in CoreUObject unlike Verse class, we decided not to expose the EDL notifications publicly.  The intent is that you should never have to mess with it.
+	Package->SetPackageFlags(PKG_RuntimeGenerated);
+
 	UPackageMap.AddValue(Context, FilteredQualifiedClassName, VValue(Package));
 	return Package;
 }
