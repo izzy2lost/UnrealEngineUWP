@@ -77,7 +77,7 @@ FD3D12WorkGraphPipelineState::FD3D12WorkGraphPipelineState(FD3D12Device* Device,
 			if (LocalNodeShaders[Index])
 			{
 				FString NodeName = FString::Printf(TEXT("%s_%d"), *Initializer.GetShaderBundleNodeName(), Index);
-				CD3DX12_BROADCASTING_LAUNCH_NODE_OVERRIDES* Override = WorkGraph->CreateBroadcastingLaunchNodeOverrides(*NodeName);
+				CD3DX12_COMMON_COMPUTE_NODE_OVERRIDES* Override = WorkGraph->CreateCommonComputeNodeOverrides(*NodeName);
 				Override->NewName(D3D12_NODE_ID{ *Initializer.GetShaderBundleNodeName(), (uint32)Index });
 			}
 		}
