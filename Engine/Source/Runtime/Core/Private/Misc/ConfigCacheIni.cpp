@@ -3191,6 +3191,13 @@ FConfigBranch* FConfigCacheIni::FindBranch(FName BaseIniName, const FString& Fil
 			}
 		}
 	}
+
+	// if Filename is a .ini and it doesn't match what the KnownFile has (if it has one yet), then we can't use it
+	if (Branch && Branch->IniPath.Len() > 0 && Filename.Len() > 0 && Filename.EndsWith(".ini") && Branch->IniPath != Filename)
+	{
+		Branch = nullptr;
+	}
+	
 	return Branch;
 }
 

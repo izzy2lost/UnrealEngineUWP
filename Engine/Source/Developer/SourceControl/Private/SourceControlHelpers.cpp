@@ -2048,6 +2048,7 @@ const FString& USourceControlHelpers::GetGlobalSettingsIni()
 	{
 		FConfigContext Context = FConfigContext::ReadIntoGConfig();
 		Context.GeneratedConfigDir = FPaths::EngineSavedDir() + TEXT("Config/");
+		Context.ProjectConfigDir = (""); // don't load anything from project configs
 		Context.Load(TEXT("SourceControlSettings"), SourceControlGlobalSettingsIni);
 	}
 	return SourceControlGlobalSettingsIni;

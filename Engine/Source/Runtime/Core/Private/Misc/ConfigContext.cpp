@@ -96,10 +96,11 @@ void FConfigContext::CachePaths()
 		
 		// for the hierarchy replacements, we need to have a directory called Config - or we will have to do extra processing for these non-standard cases
 		check(EngineConfigDir.EndsWith(TEXT("Config/")));
-		check(ProjectConfigDir.EndsWith(TEXT("Config/")));
+		// allow for an empty projcet config dir, which means (below) to not load any of the {PROJECT} layers
+		check(ProjectConfigDir.Len() == 0 || ProjectConfigDir.EndsWith(TEXT("Config/")));
 
 		EngineRootDir = FPaths::GetPath(FPaths::GetPath(EngineConfigDir));
-		ProjectRootDir = FPaths::GetPath(FPaths::GetPath(ProjectConfigDir));
+		ProjectRootDir = (ProjectConfigDir.Len() > 0) ? FPaths::GetPath(FPaths::GetPath(ProjectConfigDir)) : FString();
 
 		if (FPaths::IsUnderDirectory(ProjectRootDir, EngineRootDir))
 		{
@@ -112,6 +113,18 @@ void FConfigContext::CachePaths()
 		{
 			ProjectNotForLicenseesDir = FPaths::Combine(ProjectRootDir, TEXT("Restricted/NotForLicensees"));
 			ProjectNoRedistDir = FPaths::Combine(ProjectRootDir, TEXT("Restricted/NoRedist"));
+		}
+		
+		// if we explicitly don't want project configs, then make a limited layer set without any {PROJECT} paths
+		if (ProjectConfigDir.Len() == 0 && OverrideLayers.Num() == 0)
+		{
+			for (const FConfigLayer& Layer : GConfigLayers)
+			{
+				if (FCString::Strstr(Layer.Path, TEXT("{PROJECT}")) == nullptr)
+				{
+					OverrideLayers.Add(Layer);
+				}
+			}
 		}
 	}
 }
