@@ -135,9 +135,17 @@ namespace Jupiter.Implementation
 
 			Task objectStorePut = _referencesStore.PutAsync(ns, bucket, key, blobHash, payload.GetView().ToArray(), isFinalized);
 
-			Task<BlobId> blobStorePut = _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash);
-			
-			await Task.WhenAll(objectStorePut, blobStorePut);
+			Task<BlobId>? blobStorePut = null;
+			if (_cloudDDCSettings.CurrentValue.EnablePutRefBodyIntoBlobStore)
+			{
+				blobStorePut = _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash);
+			}
+
+			await objectStorePut;
+			if (blobStorePut != null)
+			{
+				await blobStorePut;
+			}
 
 			return await DoFinalizeAsync(ns, bucket, key, blobHash, payload);
 		}

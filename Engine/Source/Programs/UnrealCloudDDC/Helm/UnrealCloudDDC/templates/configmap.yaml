@@ -41,6 +41,10 @@ UnrealCloudDDC:
   EnableBucketStatsTracking: {{ $config.EnableBucketStatsTracking }}
 {{- end }}
 
+{{- if $config.EnablePutRefBodyIntoBlobStore }}
+  EnablePutRefBodyIntoBlobStore: {{ $config.EnablePutRefBodyIntoBlobStore }}
+{{- end }}
+
 {{ if $config.StorageImplementations }}
   StorageImplementations:
   {{- range $config.StorageImplementations -}}

@@ -115,6 +115,7 @@ namespace Jupiter
 		public bool EnableOnDemandReplication { get; set; } = true;
 
 		public bool EnableBucketStatsTracking { get; set; } = true;
+		public bool EnablePutRefBodyIntoBlobStore { get; set; } = true;
 	}
 
 	public class MongoSettings
