@@ -52,7 +52,6 @@ float NormalBias;
 float AvoidSelfIntersectionTraceDistance;
 float SkipFirstTwoSidedHitDistance;
 uint MaxTraversalIterations;
-float MinTraceDistanceToSampleSurfaceCache;
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 {
@@ -109,7 +108,6 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 			CullingMode,
 			MaxTraversalIterations);
 		Context.bCalculateHitVelocity = true;
-		Context.MinTraceDistanceToSampleSurfaceCache = MinTraceDistanceToSampleSurfaceCache;
 
 		#if LUMEN_HARDWARE_INLINE_RAYTRACING
 		{

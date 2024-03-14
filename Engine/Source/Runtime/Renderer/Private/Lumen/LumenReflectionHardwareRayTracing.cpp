@@ -147,7 +147,6 @@ class FLumenReflectionHardwareRayTracing : public FLumenHardwareRayTracingShader
 		SHADER_PARAMETER(uint32, UseReflectionCaptures)
 		SHADER_PARAMETER(float, FarFieldBias)
 		SHADER_PARAMETER(float, PullbackBias)
-		SHADER_PARAMETER(uint32, MaxTraversalIterations)
 		SHADER_PARAMETER(int, ApplySkyLight)
 		SHADER_PARAMETER(int, HitLightingForceEnabled)
 		SHADER_PARAMETER(FVector3f, FarFieldReferencePos)
@@ -413,7 +412,6 @@ void DispatchRayGenOrComputeShader(
 		Parameters->FarFieldBias = LumenHardwareRayTracing::GetFarFieldBias();
 		Parameters->FarFieldReferencePos = (FVector3f)Lumen::GetFarFieldReferencePos();
 		Parameters->PullbackBias = Lumen::GetHardwareRayTracingPullbackBias();
-		Parameters->MaxTraversalIterations = LumenHardwareRayTracing::GetMaxTraversalIterations();
 		Parameters->ApplySkyLight = bApplySkyLight;
 		Parameters->HitLightingForceEnabled = bIsHitLightingForceEnabled;
 		

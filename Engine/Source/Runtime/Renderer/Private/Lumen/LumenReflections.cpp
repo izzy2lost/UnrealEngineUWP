@@ -1065,7 +1065,7 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 
 		ReflectionTracingParameters.ReflectionsStateFrameIndex = StateFrameIndex;
 		ReflectionTracingParameters.ReflectionsStateFrameIndexMod8 = StateFrameIndex % 8;
-		ReflectionTracingParameters.ReflectionsRayDirectionFrameIndex = StateFrameIndex % FMath::Clamp(CVarLumenReflectionTemporalMaxRayDirections.GetValueOnRenderThread(), 1, 128);
+		ReflectionTracingParameters.ReflectionsRayDirectionFrameIndex = StateFrameIndex % FMath::Max(CVarLumenReflectionTemporalMaxRayDirections.GetValueOnRenderThread(), 1);
 	}
 
 	FRDGBufferRef VisualizeTracesData = nullptr;

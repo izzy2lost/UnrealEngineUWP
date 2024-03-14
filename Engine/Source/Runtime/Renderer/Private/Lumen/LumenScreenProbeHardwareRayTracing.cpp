@@ -105,8 +105,6 @@ class FLumenScreenProbeGatherHardwareRayTracing : public FLumenHardwareRayTracin
 		SHADER_PARAMETER(float, FarFieldMaxTraceDistance)
 		SHADER_PARAMETER(float, PullbackBias)
 		SHADER_PARAMETER(float, NormalBias)
-		SHADER_PARAMETER(uint32, MaxTraversalIterations)
-		SHADER_PARAMETER(float, MinTraceDistanceToSampleSurfaceCache)
 		SHADER_PARAMETER(float, FarFieldBias)
 		SHADER_PARAMETER(FVector3f, FarFieldReferencePos)
 	END_SHADER_PARAMETER_STRUCT()
@@ -291,8 +289,6 @@ void DispatchRayGenOrComputeShader(
 		Parameters->FarFieldReferencePos = (FVector3f)Lumen::GetFarFieldReferencePos();
 		Parameters->PullbackBias = Lumen::GetHardwareRayTracingPullbackBias();
 		Parameters->NormalBias = CVarLumenHardwareRayTracingNormalBias.GetValueOnRenderThread();
-		Parameters->MaxTraversalIterations = LumenHardwareRayTracing::GetMaxTraversalIterations();
-		Parameters->MinTraceDistanceToSampleSurfaceCache = LumenHardwareRayTracing::GetMinTraceDistanceToSampleSurfaceCache();
 	}
 
 	const LumenScreenProbeGather::ERayTracingPass RayTracingPass = PermutationVector.Get<FLumenScreenProbeGatherHardwareRayTracing::FRayTracingPass>();

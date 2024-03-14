@@ -413,7 +413,6 @@ class FLumenVisualizeHardwareRayTracing : public FLumenHardwareRayTracingShaderB
 		SHADER_PARAMETER(int, GroupCount)
 		SHADER_PARAMETER(int, LightingMode)
 		SHADER_PARAMETER(uint32, UseReflectionCaptures)
-		SHADER_PARAMETER(uint32, MaxTraversalIterations)
 		SHADER_PARAMETER(int, MaxRayAllocationCount)
 		SHADER_PARAMETER(float, MaxTraceDistance)
 		SHADER_PARAMETER(float, FarFieldMaxTraceDistance)
@@ -649,7 +648,6 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 
 			PassParameters->ThreadCount = RayGenThreadCount;
 			PassParameters->GroupCount = RayGenGroupCount;
-			PassParameters->MaxTraversalIterations = LumenHardwareRayTracing::GetMaxTraversalIterations();
 			PassParameters->MaxRayAllocationCount = RayCount;
 			PassParameters->MaxTraceDistance = MaxTraceDistance;
 			PassParameters->FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;
@@ -834,7 +832,6 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 			PassParameters->GroupCount = RayGenGroupCount;
 			PassParameters->LightingMode = (int32)Lumen::GetHardwareRayTracingLightingMode(View, bLumenGIEnabled);
 			PassParameters->UseReflectionCaptures = Lumen::UseReflectionCapturesForHitLighting();
-			PassParameters->MaxTraversalIterations = LumenHardwareRayTracing::GetMaxTraversalIterations();
 			PassParameters->MaxRayAllocationCount = RayCount;
 			PassParameters->MaxTraceDistance = MaxTraceDistance;
 			PassParameters->FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;

@@ -3,7 +3,7 @@
 #pragma once
 
 // Change this to force recompilation of all Lumen HWRT shaders
-#pragma message("UESHADERMETADATA_VERSION D785AE61-2AB9-4012-B09C-8FE948A2A0B7")
+#pragma message("UESHADERMETADATA_VERSION AB85AE61-2AB9-4012-B09C-3FE94A72A09A")
 
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_HAIR_LIGHTING 0
@@ -135,7 +135,6 @@ struct FRayTracedLightingContext
 	// Max ray tracing traversal iterations on supported platforms
 	uint MaxTraversalIterations;
 
-	float MinTraceDistanceToSampleSurfaceCache;
 	float FarFieldMaxTraceDistance;
 	float3 FarFieldReferencePos;
 
@@ -176,7 +175,6 @@ FRayTracedLightingContext CreateRayTracedLightingContext(
 	Context.FarFieldMaxTraceDistance = -1.0;
 	Context.FarFieldReferencePos = 0;
 	Context.MaxTraversalIterations = MaxTraversalIterations;
-	Context.MinTraceDistanceToSampleSurfaceCache = 0.0f;
 	Context.CullingMode = CullingMode;
 	Context.bHiResSurface = bHiResSurface;
 	Context.bAcceptFirstHitAndEndSearch = false;
@@ -500,6 +498,9 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 	return MinimalRayResult;
 }
 
+float MinTraceDistanceToSampleSurfaceCache;
+float SurfaceCacheSamplingDepthBias;
+
 FSurfaceCacheSample CalculateSurfaceCacheLighting(
 	FRayDesc Ray,
 	FRayTracedLightingContext Context,
@@ -510,9 +511,7 @@ FSurfaceCacheSample CalculateSurfaceCacheLighting(
 )
 {
 	float InterpolateRadius = tan(Context.RayCone.SpreadAngle) * HitDistance;
-	// FarField proxies are less accurate
-	float SurfaceCacheBias = (Context.InstanceMask == RAY_TRACING_MASK_FAR_FIELD) ? 1000.0f : 20.0f;
-
+	float SurfaceCacheDepthBias = (Context.InstanceMask == RAY_TRACING_MASK_FAR_FIELD) ? 1000.0f : SurfaceCacheSamplingDepthBias;
 	const uint MeshCardsIndex = GetMeshCardsIndexFromSceneInstanceIndex(SceneInstanceIndex);
 
 	FSurfaceCacheSample SurfaceCacheSample = EvaluateRayHitFromSurfaceCache(
@@ -521,12 +520,12 @@ FSurfaceCacheSample CalculateSurfaceCacheLighting(
 		RayHitTranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation), // LUMEN_LWC_TODO
 		RayHitWorldNormal,
 		InterpolateRadius,
-		SurfaceCacheBias,
+		SurfaceCacheDepthBias,
 		Context.bHiResSurface
 	);
 
 	// Surface cache has limited resolution. Make sure we don't self-intersect and cause leaking or GI feedback loop
-	if (HitDistance < Context.MinTraceDistanceToSampleSurfaceCache)
+	if (HitDistance < MinTraceDistanceToSampleSurfaceCache)
 	{
 		SurfaceCacheSample.Radiance = float3(0, 0, 0);
 		SurfaceCacheSample.DirectLighting = float3(0, 0, 0);

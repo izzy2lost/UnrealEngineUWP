@@ -1914,7 +1914,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 	{
 		StateFrameIndex = ScreenProbeParameters.FixedJitterIndex;
 	}
-	ScreenProbeParameters.ScreenProbeRayDirectionFrameIndex = StateFrameIndex % FMath::Clamp(CVarLumenScreenProbeTemporalMaxRayDirections.GetValueOnRenderThread(), 1, 128);
+	ScreenProbeParameters.ScreenProbeRayDirectionFrameIndex = StateFrameIndex % FMath::Max(CVarLumenScreenProbeTemporalMaxRayDirections.GetValueOnRenderThread(), 1);
 
 	FRDGTextureDesc DownsampledDepthDesc(FRDGTextureDesc::Create2D(ScreenProbeParameters.ScreenProbeAtlasBufferSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 	ScreenProbeParameters.ScreenProbeSceneDepth = GraphBuilder.CreateTexture(DownsampledDepthDesc, TEXT("Lumen.ScreenProbeGather.ScreenProbeSceneDepth"));

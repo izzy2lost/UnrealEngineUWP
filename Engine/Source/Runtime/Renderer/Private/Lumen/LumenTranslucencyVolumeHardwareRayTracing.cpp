@@ -61,7 +61,6 @@ class FLumenTranslucencyVolumeHardwareRayTracing : public FLumenHardwareRayTraci
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCacheParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeParameters, VolumeParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenTranslucencyLightingVolumeTraceSetupParameters, TraceSetupParameters)
-		SHADER_PARAMETER(uint32, MaxTraversalIterations)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, FShaderCompilerEnvironment& OutEnvironment)
@@ -129,8 +128,6 @@ void HardwareRayTraceTranslucencyVolume(
 		PassParameters->RWVolumeTraceHitDistance = GraphBuilder.CreateUAV(VolumeTraceHitDistance);
 		PassParameters->VolumeParameters = VolumeParameters;
 		PassParameters->TraceSetupParameters = TraceSetupParameters;
-		PassParameters->MaxTraversalIterations = LumenHardwareRayTracing::GetMaxTraversalIterations();
-
 		PassParameters->RadianceCacheParameters = RadianceCacheParameters;
 
 		FLumenTranslucencyVolumeHardwareRayTracingRGS::FPermutationDomain PermutationVector;

@@ -141,13 +141,6 @@ namespace Lumen
 	void Shutdown();
 };
 
-namespace LumenHardwareRayTracing
-{
-	float GetFarFieldBias();
-	uint32 GetMaxTraversalIterations();
-	float GetMinTraceDistanceToSampleSurfaceCache();
-};
-
 extern int32 GLumenFastCameraMode;
 
 LLM_DECLARE_TAG(Lumen);

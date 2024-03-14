@@ -55,14 +55,14 @@ static TAutoConsoleVariable<float> CVarLumenHardwareRayTracingPullbackBias(
 	TEXT("r.Lumen.HardwareRayTracing.PullbackBias"),
 	8.0,
 	TEXT("Determines the pull-back bias when resuming a screen-trace ray (default = 8.0)"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<float> CVarLumenHardwareRayTracingFarFieldBias(
 	TEXT("r.Lumen.HardwareRayTracing.FarFieldBias"),
 	200.0f,
 	TEXT("Determines bias for the far field traces. Default = 200"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMaxIterations(
@@ -71,13 +71,20 @@ static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMaxIterations(
 	TEXT("Limit number of ray tracing traversal iterations on supported platfoms.\n"
 		"Incomplete misses will be treated as hitting a black surface (can cause overocculsion).\n"
 		"Incomplete hits will be treated as a hit (can cause leaking)."),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 TAutoConsoleVariable<float> CVarLumenHardwareRayTracingMinTraceDistanceToSampleSurfaceCache(
 	TEXT("r.Lumen.HardwareRayTracing.MinTraceDistanceToSampleSurfaceCache"),
 	10.0f,
 	TEXT("Ray hit distance from which we can start sampling surface cache in order to fix feedback loop where surface cache texel hits itself and propagates lighting."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarLumenHardwareRayTracingSurfaceCacheSamplingDepthBias(
+	TEXT("r.Lumen.HardwareRayTracing.SurfaceCacheSampling.DepthBias"),
+	10.0f,
+	TEXT("Max distance to project a texel from a mesh card onto a hit point. Higher values will fix issues of mismatch between ray tracing geometry and rasterization, but will also increase leaking."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -114,11 +121,6 @@ bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, co
 	}
 
 	return false;
-}
-
-float LumenHardwareRayTracing::GetMinTraceDistanceToSampleSurfaceCache()
-{
-	return CVarLumenHardwareRayTracingMinTraceDistanceToSampleSurfaceCache.GetValueOnRenderThread();
 }
 
 Lumen::EHardwareRayTracingLightingMode Lumen::GetHardwareRayTracingLightingMode(const FViewInfo& View, bool bLumenGIEnabled)
@@ -176,11 +178,6 @@ bool Lumen::UseHardwareInlineRayTracing(const FSceneViewFamily& ViewFamily)
 float LumenHardwareRayTracing::GetFarFieldBias()
 {
 	return FMath::Max(CVarLumenHardwareRayTracingFarFieldBias.GetValueOnRenderThread(), 0.0f);
-}
-
-uint32 LumenHardwareRayTracing::GetMaxTraversalIterations()
-{
-	return FMath::Max(CVarLumenHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
 }
 
 #if RHI_RAYTRACING
@@ -303,8 +300,11 @@ void SetLumenHardwareRayTracingSharedParameters(
 	checkf(View.RayTracingSceneInitTask == nullptr, TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
 	SharedParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked()->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
 
-	// Use surface cache, instead
+	// Lumen
 	SharedParameters->TracingParameters = TracingParameters;
+	SharedParameters->MaxTraversalIterations = FMath::Max(CVarLumenHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
+	SharedParameters->MinTraceDistanceToSampleSurfaceCache = CVarLumenHardwareRayTracingMinTraceDistanceToSampleSurfaceCache.GetValueOnRenderThread();
+	SharedParameters->SurfaceCacheSamplingDepthBias = CVarLumenHardwareRayTracingSurfaceCacheSamplingDepthBias.GetValueOnRenderThread();
 }
 
 #endif // RHI_RAYTRACING

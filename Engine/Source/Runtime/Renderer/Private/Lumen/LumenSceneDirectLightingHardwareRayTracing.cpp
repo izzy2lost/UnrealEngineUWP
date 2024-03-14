@@ -74,7 +74,6 @@ class FLumenDirectLightingHardwareRayTracingBatched : public FLumenHardwareRayTr
 
 		// Constants
 		SHADER_PARAMETER(float, PullbackBias)
-		SHADER_PARAMETER(uint32, MaxTraversalIterations)
 		SHADER_PARAMETER(uint32, ViewIndex)
 		SHADER_PARAMETER(float, MaxTraceDistance)
 		SHADER_PARAMETER(float, FarFieldMaxTraceDistance)
@@ -172,7 +171,6 @@ void SetLumenHardwareRayTracedDirectLightingShadowsParameters(
 	Parameters->LumenPackedLights = GraphBuilder.CreateSRV(LumenPackedLights);
 
 	Parameters->PullbackBias = 0.0f;
-	Parameters->MaxTraversalIterations = LumenHardwareRayTracing::GetMaxTraversalIterations();
 	Parameters->ViewIndex = ViewIndex;
 	Parameters->MaxTraceDistance = Lumen::GetMaxTraceDistance(View);
 	Parameters->FarFieldMaxTraceDistance = Lumen::GetFarFieldMaxTraceDistance();
