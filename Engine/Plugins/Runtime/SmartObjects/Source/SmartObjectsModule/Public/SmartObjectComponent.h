@@ -63,14 +63,14 @@ public:
 	FBox GetSmartObjectBounds() const;
 
 	/** @return Smart Object Definition with parameters applied. */
-	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Gets Smart Object Definition.", ReturnDisplayName="Definition Asset"))
+	UFUNCTION(BlueprintGetter)
 	const USmartObjectDefinition* GetDefinition() const;
 
 	/** @return Smart Object Definition without applied parameters. */
 	const USmartObjectDefinition* GetBaseDefinition() const;
 
 	/** Sets the Smart Object Definition. */
-	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Sets Smart Object Definition asset."))
+	UFUNCTION(BlueprintSetter)
 	void SetDefinition(USmartObjectDefinition* DefinitionAsset);
 
 	bool GetCanBePartOfCollection() const { return bCanBePartOfCollection; }
@@ -183,24 +183,10 @@ protected:
 	static FOnSmartObjectChanged OnSmartObjectChanged;
 #endif // WITH_EDITORONLY_DATA
 
-
-	// BlueprintGetter for the CachedDefinitionAssetVariation property.
-	UFUNCTION(BlueprintSetter)
-	void SetDefinitionAsset(USmartObjectDefinition* Definition)
-	{
-		SetDefinition(Definition);
-	}
-
-	// BlueprintGetter for the CachedDefinitionAssetVariation property.
-	UFUNCTION(BlueprintGetter)
-	const USmartObjectDefinition* GetDefinitionAsset() const
-	{
-		return GetDefinition();
-	}
-
 private:
-	// Do not use directly, use SetDefinition() / SetDefinitionAsset instead.
-	UPROPERTY(Transient, Category = SmartObject, BlueprintSetter = SetDefinitionAsset, BlueprintGetter = GetDefinitionAsset, meta = (DisplayName="Definition Asset"))
+	// Do not use directly from native code, use GetDefinition() / SetDefinition() instead.
+	// Also Keeping blueprint accessors for convenience and deprecation purposes.
+	UPROPERTY(Transient, Category = SmartObject, BlueprintSetter = SetDefinition, BlueprintGetter = GetDefinition, meta = (DisplayName="Definition Asset"))
 	mutable TObjectPtr<USmartObjectDefinition> CachedDefinitionAssetVariation = nullptr;
 
 #if WITH_EDITORONLY_DATA
@@ -214,7 +200,7 @@ private:
 	UPROPERTY()
 	bool bDeprecationApplied = false;
 
-	UPROPERTY(meta = (DeprecatedProperty))
+	UPROPERTY(Category = SmartObject, BlueprintSetter = SetDefinition, BlueprintGetter = GetDefinition, meta = (DeprecatedProperty, DisplayName="Deprecated Definition Asset", BlueprintPrivate))
 	TObjectPtr<USmartObjectDefinition> DefinitionAsset_DEPRECATED;
 #endif//WITH_EDITOR
 };
