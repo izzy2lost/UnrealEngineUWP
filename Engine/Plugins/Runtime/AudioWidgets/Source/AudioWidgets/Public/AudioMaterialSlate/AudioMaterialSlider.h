@@ -24,7 +24,7 @@ class AUDIOWIDGETS_API UAudioMaterialSlider : public UWidget
 
 public:
 
-	UAudioMaterialSlider();
+	UAudioMaterialSlider(const FObjectInitializer& ObjectInitializer);
 
 	/** The slider's style */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))
@@ -52,6 +52,46 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Behavior")
 	void SetValue(float InValue);
 
+	/** Set the tune speed of the slider. InValue is Clamped between 0.f - 1.f */
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetTuneSpeed(const float InValue);
+
+	/** Get slider tune speed*/
+	UFUNCTION(BlueprintPure, Category = "Behavior")
+	float GetTuneSpeed() const;
+
+	/** Set the fine-tune speed of the slider. InValue is Clamped between 0.f - 1.f */
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetFineTuneSpeed(const float InValue);
+
+	/** Get slider fine-tune speed*/
+	UFUNCTION(BlueprintPure, Category = "Behavior")
+	float GetFineTuneSpeed() const;
+
+	/** Set the slider to be interactive or fixed */
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetLocked(bool bInLocked);
+
+	/** Get whether the slider is interactive or fixed.*/
+	UFUNCTION(BlueprintPure, Category = "Behavior")
+	bool GetIsLocked() const;
+
+	/** Sets the slider to use steps when turning On Mouse move */
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetMouseUsesStep(bool bInUsesStep);
+
+	/** Get whether the slider uses steps when turning On Mouse move*/
+	UFUNCTION(BlueprintPure, Category = "Behavior")
+	bool GetMouseUsesStep() const;
+
+	/** Sets the amount to adjust the value when using steps*/
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetStepSize(float InValue);
+
+	/** Get Step Size*/
+	UFUNCTION(BlueprintPure, Category = "Behavior")
+	float GetStepSize() const;
+
 public:
 
 	/** Called when the value is changed by slider. */
@@ -75,6 +115,26 @@ private:
 	/**Orientation of the slider*/
 	UPROPERTY(EditAnywhere, Category = "Appearance")
 	TEnumAsByte<EOrientation> Orientation = EOrientation::Orient_Horizontal;
+
+	/** The tune speed of the slider On Mouse move */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetTuneSpeed, BlueprintGetter = GetTuneSpeed, Category = Appearance, meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float TuneSpeed;
+
+	/** The tune speed of the slider when fine-tuning the slider On Mouse move && Left-Shift pressed */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetFineTuneSpeed, BlueprintGetter = GetFineTuneSpeed, Category = Appearance, AdvancedDisplay, meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float FineTuneSpeed;
+
+	/** Whether the slider is interactive or fixed. */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetLocked, BlueprintGetter = GetIsLocked, Category = Appearance, AdvancedDisplay)
+	bool bLocked;
+
+	/** Sets new value if mouse position is greater/less than half the step size. */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetMouseUsesStep, BlueprintGetter = GetMouseUsesStep, Category = Appearance, AdvancedDisplay)
+	bool bMouseUsesStep;
+
+	/** The amount to adjust the value by, when using steps */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetStepSize, BlueprintGetter = GetStepSize, Category = Appearance, AdvancedDisplay, meta = (UIMin = "0", UIMax = "1"))
+	float StepSize;
 
 private:
 

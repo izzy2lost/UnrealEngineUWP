@@ -4,6 +4,7 @@
 #include "AudioMaterialSlate/SAudioMaterialSlider.h"
 #include "AudioMaterialSlate/AudioMaterialSlider.h"
 #include "AudioWidgetsStyle.h"
+#include "Framework/Application/SlateApplication.h"
 #include "SlateOptMacros.h"
 #include "Styling/SlateBrush.h"
 
@@ -12,8 +13,17 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SAudioMaterialSlider::Construct(const FArguments& InArgs)
 {
 	Owner = InArgs._Owner;
+
+	TuneSpeed = InArgs._TuneSpeed;
+	FineTuneSpeed = InArgs._FineTuneSpeed;
+	bIsFocusable = InArgs._IsFocusable;
 	Orientation = InArgs._Orientation;
+	bMouseUsesStep = InArgs._MouseUsesStep;
+	bLocked = InArgs._Locked;
+	StepSize = InArgs._StepSize;
+
 	AudioMaterialSliderStyle = InArgs._AudioMaterialSliderStyle;
+
 	OnValueChanged = InArgs._OnValueChanged;
 	OnValueCommitted = InArgs._OnValueCommitted;
 
@@ -113,6 +123,36 @@ void SAudioMaterialSlider::SetValue(TAttribute<float> InValueAttribute)
 	CommitValue(InValueAttribute.Get());
 }
 
+void SAudioMaterialSlider::SetTuneSpeed(const float InMouseTuneSpeed)
+{
+	TuneSpeed.Set(InMouseTuneSpeed);
+}
+
+void SAudioMaterialSlider::SetFineTuneSpeed(const float InMouseFineTuneSpeed)
+{
+	FineTuneSpeed.Set(InMouseFineTuneSpeed);
+}
+
+void SAudioMaterialSlider::SetMouseUsesStep(const bool InUsesStep)
+{
+	bMouseUsesStep.Set(InUsesStep);
+}
+
+void SAudioMaterialSlider::SetStepSize(const float InStepSize)
+{
+	StepSize.Set(InStepSize);
+}
+
+void SAudioMaterialSlider::SetLocked(const bool bInLocked)
+{
+	bLocked.Set(bInLocked);
+}
+
+bool SAudioMaterialSlider::IsLocked() const
+{
+	return bLocked.Get();
+}
+
 void SAudioMaterialSlider::ApplyNewMaterial()
 {
 	if (AudioMaterialSliderStyle)
@@ -132,12 +172,12 @@ void SAudioMaterialSlider::SetOrientation(EOrientation InOrientation)
 
 FReply SAudioMaterialSlider::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	if ((MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton))
-	{
-		FVector2D Value2D = PositionToValue(MyGeometry, MouseEvent.GetLastScreenSpacePosition());
-		const float Value = Orientation == Orient_Horizontal ? Value2D.X : Value2D.Y;
-		CommitValue(Value);
+	if ((MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton) && !IsLocked())
+	{	
+		CachedCursor = GetCursor().Get(EMouseCursor::Default);
 
+		MouseDownStartPosition = MouseEvent.GetScreenSpacePosition();
+		MouseDownValue = ValueAttribute.Get();
 		return FReply::Handled().CaptureMouse(SharedThis(this));
 	}
 
@@ -148,6 +188,7 @@ FReply SAudioMaterialSlider::OnMouseButtonUp(const FGeometry& MyGeometry, const 
 {
 	if ((MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton) && HasMouseCapture())
 	{
+		SetCursor(CachedCursor);
 		return FReply::Handled().ReleaseMouseCapture();
 	}
 
@@ -156,11 +197,25 @@ FReply SAudioMaterialSlider::OnMouseButtonUp(const FGeometry& MyGeometry, const 
 
 FReply SAudioMaterialSlider::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	if (this->HasMouseCapture())
+	if (this->HasMouseCapture() && !IsLocked())
 	{
-		FVector2D Value2D = PositionToValue(MyGeometry, MouseEvent.GetLastScreenSpacePosition());
-		const float Value = Orientation == Orient_Horizontal ? Value2D.X : Value2D.Y;
-		CommitValue(Value);
+		SetCursor(EMouseCursor::GrabHandClosed);
+
+		int32 MouseCurrentPosition = Orientation == Orient_Horizontal ? MouseEvent.GetLastScreenSpacePosition().X : MouseEvent.GetLastScreenSpacePosition().Y;
+		float MouseDownPosition = Orientation == Orient_Horizontal ? MouseDownStartPosition.X : MouseDownStartPosition.Y;
+		const float Speed = bIsFineTune ? FineTuneSpeed.Get() : TuneSpeed.Get();
+
+		float ValueDelta = (float)(MouseDownPosition - MouseCurrentPosition) / PixelDelta * Speed;
+
+		float NewValue = Orientation == Orient_Horizontal ? FMath::Clamp(MouseDownValue - ValueDelta, 0.0f, 1.0f) : FMath::Clamp(MouseDownValue + ValueDelta, 0.0f, 1.0f);
+
+		if (bMouseUsesStep.Get())
+		{
+			const float SteppedValue = FMath::RoundToInt(NewValue / StepSize.Get()) * StepSize.Get();
+			NewValue = SteppedValue;
+		}
+
+		CommitValue(NewValue);
 
 		return FReply::Handled();
 	}
@@ -173,6 +228,38 @@ void SAudioMaterialSlider::OnMouseCaptureLost(const FCaptureLostEvent& CaptureLo
 	OnValueCommitted.ExecuteIfBound(ValueAttribute.Get());
 	SLeafWidget::OnMouseCaptureLost(CaptureLostEvent);
 }
+
+FReply SAudioMaterialSlider::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (InKeyEvent.GetKey() == EKeys::LeftShift)
+	{
+		MouseDownStartPosition = FSlateApplication::Get().GetCursorPos();
+		MouseDownValue = ValueAttribute.Get();
+		bIsFineTune = true;
+	}
+
+	return FReply::Unhandled();
+}
+
+FReply SAudioMaterialSlider::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	bIsFineTune = false;
+	MouseDownStartPosition = FSlateApplication::Get().GetCursorPos();
+	MouseDownValue = ValueAttribute.Get();
+
+	return FReply::Unhandled();
+}
+
+bool SAudioMaterialSlider::SupportsKeyboardFocus() const
+{
+	return bIsFocusable.Get();
+}
+
+bool SAudioMaterialSlider::IsInteractable() const
+{
+	return IsEnabled() && !IsLocked() && SupportsKeyboardFocus();
+}
+
 void SAudioMaterialSlider::CommitValue(float NewValue)
 {
 	const float OldValue = ValueAttribute.Get();
@@ -188,17 +275,4 @@ void SAudioMaterialSlider::CommitValue(float NewValue)
 		Invalidate(EInvalidateWidgetReason::Paint);
 		OnValueChanged.ExecuteIfBound(Val);
 	}
-}
-
-FVector2D SAudioMaterialSlider::PositionToValue(const FGeometry& MyGeometry, const FVector2D& AbsolutePosition)
-{
-	const FVector2D LocalPosition = MyGeometry.AbsoluteToLocal(AbsolutePosition);
-
-	float RelativeValueX = (LocalPosition.X) / (MyGeometry.Size.X);
-	float RelativeValueY = 1 - (LocalPosition.Y) / (MyGeometry.Size.Y);
-
-	RelativeValueX = FMath::Clamp(RelativeValueX, 0.0f, 1.0f);
-	RelativeValueY = FMath::Clamp(RelativeValueY, 0.0f, 1.0f);
-
-	return FVector2D(RelativeValueX, RelativeValueY);
 }
