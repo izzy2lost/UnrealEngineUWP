@@ -453,6 +453,12 @@ UMovieSceneCustomBinding* UMovieSceneSpawnableActorBinding::CreateNewCustomBindi
 		}
 
 		NewCustomBinding = CreateBinding();
+
+		if (!NewCustomBinding)
+		{
+			return nullptr;
+		}
+
 		AActor* SpawnedActor = Cast<AActor>(StaticDuplicateObject(Actor, NewCustomBinding, TemplateName, RF_AllFlags));
 		SpawnedActor->DetachFromActor(FDetachmentTransformRules(EDetachmentRule::KeepRelative, false));
 #if WITH_EDITORONLY_DATA
@@ -476,6 +482,10 @@ UMovieSceneCustomBinding* UMovieSceneSpawnableActorBinding::CreateNewCustomBindi
 			return nullptr;
 		}
 		NewCustomBinding = CreateBinding();
+		if (!NewCustomBinding)
+		{
+			return nullptr;
+		}
 		NewCustomBinding->SetObjectTemplate(NewObject<UObject>(NewCustomBinding, SourceBlueprint->GeneratedClass, TemplateName, RF_Transactional));
 	}
 #if WITH_EDITORONLY_DATA
@@ -489,6 +499,11 @@ UMovieSceneCustomBinding* UMovieSceneSpawnableActorBinding::CreateNewCustomBindi
 			}
 
 			NewCustomBinding = CreateBinding();
+
+			if (!NewCustomBinding)
+			{
+				return nullptr;
+			}
 
 			NewCustomBinding->SetObjectTemplate(NewObject<UObject>(NewCustomBinding, BlueprintGeneratedBy->GeneratedClass, TemplateName, RF_Transactional));
 		}
@@ -505,6 +520,12 @@ UMovieSceneCustomBinding* UMovieSceneSpawnableActorBinding::CreateNewCustomBindi
 			}
 
 			NewCustomBinding = CreateBinding();
+
+			if (!NewCustomBinding)
+			{
+				return nullptr;
+			}
+
 			NewCustomBinding->SetObjectTemplate(NewObject<UObject>(&OwnerMovieScene, InClass, TemplateName, RF_Transactional));
 		}
 	}

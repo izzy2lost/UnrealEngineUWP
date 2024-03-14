@@ -109,6 +109,7 @@ void FLevelSequenceEditorSpawnRegister::PreDestroyObject(UObject& Object, const 
 	UMovieSceneSequence*  Sequence      = Sequencer.IsValid() ? Sequencer->GetEvaluationTemplate().GetSequence(TemplateID) : nullptr;
 	UObject*              SpawnedObject = FindSpawnedObject(BindingId, TemplateID, BindingIndex).Get();
 
+
 	if (SpawnedObject)
 	{
 		const FTrackedObjectState* TrackedState = TrackedObjects.Find(&Object);
@@ -117,7 +118,10 @@ void FLevelSequenceEditorSpawnRegister::PreDestroyObject(UObject& Object, const 
 			// SaveDefaultSpawnableState will reset bHasBeenModified to false
 			SaveDefaultSpawnableStateImpl(BindingId, BindingIndex, Sequence, SpawnedObject, Sequencer->GetSharedPlaybackState());
 
-			Sequence->MarkPackageDirty();
+			if (Sequence)
+			{
+				Sequence->MarkPackageDirty();
+			}
 		}
 	}
 
