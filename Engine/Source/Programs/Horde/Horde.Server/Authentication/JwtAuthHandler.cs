@@ -48,7 +48,7 @@ namespace Horde.Server.Authentication
 			// Get the current state
 			IGlobals globals = await _globals.GetAsync();
 
-			Options.TokenValidationParameters.ValidateAudience = false;
+			Options.TokenValidationParameters.ValidateAudience = false; // Don't need to validate audience because we only issue tokens for our own consumption.
 
 			Options.TokenValidationParameters.RequireExpirationTime = false;
 			Options.TokenValidationParameters.ValidateLifetime = true;
