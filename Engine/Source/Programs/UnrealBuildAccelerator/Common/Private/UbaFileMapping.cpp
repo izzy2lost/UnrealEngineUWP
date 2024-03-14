@@ -606,10 +606,7 @@ namespace uba
 	{
 		m_mappingHandle = uba::CreateMemoryMappingW(m_logger, PAGE_READWRITE|SEC_RESERVE, capacity);
 		if (!m_mappingHandle.IsValid())
-		{
-			m_logger.Error(TC("%s - Failed to create memory map (%s)"), m_name, LastErrorToText().data);
-			return false;
-		}
+			return m_logger.Error(TC("%s - Failed to create memory map (%s)"), m_name, LastErrorToText().data);
 
 		m_blockSize = blockSize;
 		m_pageSize = 64*1024;

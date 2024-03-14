@@ -171,7 +171,11 @@ namespace uba
 		m_detoursLibrary = detoursFile.data;
 		#endif
 
-		Create(info);
+		if (!Create(info))
+		{
+			UBA_ASSERT(false);
+			return;
+		}
 	}
 
 	SessionServer::~SessionServer()

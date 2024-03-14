@@ -155,6 +155,8 @@ namespace uba
 		#if PLATFORM_WINDOWS
 		Write7BitEncoded(strLen);
 
+		UBA_ASSERT_WRITE(GetWrittenBytes(str, strLen));
+
 		for (const tchar* i = str, *e = str + strLen; i != e; ++i)
 		{
 			int c = *i;
