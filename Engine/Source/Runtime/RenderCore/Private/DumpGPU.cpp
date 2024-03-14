@@ -95,6 +95,11 @@ static TAutoConsoleVariable<float> GDumpGPUDelay(
 	TEXT("Delay in seconds before dumping the frame."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> GDumpGPUFrameDelay(
+	TEXT("r.DumpGPU.FrameDelay"), 0,
+	TEXT("Delay in frames before dumping the frame."),
+	ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> GDumpGPUFrameCount(
 	TEXT("r.DumpGPU.FrameCount"), 1,
 	TEXT("Number of consecutive frames to dump (default=1)."),
@@ -2003,6 +2008,7 @@ static FRDGResourceDumpContext* GRDGResourceDumpContext_GameThread = nullptr;
 static FRDGResourceDumpContext* GRDGResourceDumpContext_RenderThread = nullptr;
 
 static float GNextDumpingRemainingTime = -1.0f;
+static int32 GNextDumpingRemaingFrames = -1;
 static FRDGResourceDumpContext* GNextRDGResourceDumpContext = nullptr;
 
 
@@ -2114,6 +2120,11 @@ FString FRDGBuilder::BeginResourceDump(const TCHAR* Cmd)
 	{
 		GNextDumpingRemainingTime = GDumpGPUDelay.GetValueOnGameThread();
 		UE_LOG(LogDumpGPU, Display, TEXT("DumpGPU to %s armed for %d frames starting in %f seconds."), *NewResourceDumpContext->DumpingDirectoryPath, NewResourceDumpContext->FrameCount, GNextDumpingRemainingTime);
+	}
+	else if (GDumpGPUFrameDelay.GetValueOnGameThread() > 0)
+	{
+		GNextDumpingRemaingFrames = GDumpGPUFrameDelay.GetValueOnGameThread();
+		UE_LOG(LogDumpGPU, Display, TEXT("DumpGPU to %s armed for %d frames starting in %d frames."), *NewResourceDumpContext->DumpingDirectoryPath, NewResourceDumpContext->FrameCount, GNextDumpingRemaingFrames);
 	}
 	else
 	{
@@ -2931,6 +2942,16 @@ void TickEndFrame()
 			if (GNextDumpingRemainingTime <= 0.0)
 			{
 				GNextDumpingRemainingTime = -1.0f;
+				GNextRDGResourceDumpContext->Start();
+			}
+		}
+		else if (GNextDumpingRemaingFrames > 0)
+		{
+			check(GNextRDGResourceDumpContext);
+			GNextDumpingRemaingFrames -= 1;
+			if (GNextDumpingRemaingFrames <= 0)
+			{
+				GNextDumpingRemaingFrames = -1;
 				GNextRDGResourceDumpContext->Start();
 			}
 		}
