@@ -21,7 +21,7 @@ bool FStaticSpatialIndex::FListImpl::ForEachElement(TFunctionRef<bool(uint32 InV
 	return true;
 }
 
-bool  FStaticSpatialIndex::FListImpl::ForEachIntersectingElement(const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> Func) const
+bool FStaticSpatialIndex::FListImpl::ForEachIntersectingElement(const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> Func) const
 {
 	for (uint32 ValueIndex : Elements)
 	{
@@ -53,6 +53,11 @@ bool FStaticSpatialIndex::FListImpl::ForEachIntersectingElement(const FSphere& I
 		}
 	}
 	return true;
+}
+
+uint32 FStaticSpatialIndex::FListImpl::GetAllocatedSize() const
+{
+	return sizeof(*this) + Elements.GetAllocatedSize();
 }
 
 void FStaticSpatialIndex::FRTreeImpl::Init(const TArray<TPair<FBox, uint32>>& InElements)
@@ -213,4 +218,30 @@ bool FStaticSpatialIndex::FRTreeImpl::ForEachIntersectingElementRecursive(const 
 		}
 	}
 	return true;
+}
+
+uint32 FStaticSpatialIndex::FRTreeImpl::GetAllocatedSize() const
+{
+	TFunction<uint32(const FNode*, uint32)> GetAllocatedSizeRecursive = [this, &GetAllocatedSizeRecursive](const FNode* Node, uint32 BaseSize)
+	{
+		uint32 AllocatedSize = BaseSize;
+
+		if (Node->Content.IsType<FNode::FNodeType>())
+		{
+			AllocatedSize += Node->Content.Get<FNode::FNodeType>().GetAllocatedSize();
+
+			for (auto& ChildNode : Node->Content.Get<FNode::FNodeType>())
+			{
+				AllocatedSize += GetAllocatedSizeRecursive(&ChildNode, sizeof(FNode));
+			}
+		}
+		else
+		{
+			AllocatedSize += Node->Content.Get<FNode::FLeafType>().GetAllocatedSize();
+		}
+
+		return AllocatedSize;
+	};
+	
+	return sizeof(*this) + GetAllocatedSizeRecursive(&RootNode, 0);
 }

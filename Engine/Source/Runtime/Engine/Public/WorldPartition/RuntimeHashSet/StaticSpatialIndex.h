@@ -11,7 +11,8 @@
 struct IStaticSpatialIndexDataInterface
 {
 	virtual ~IStaticSpatialIndexDataInterface() {}
-	virtual const FBox& GetBox(uint32 InIndex) const =0;
+	virtual const FBox& GetBox(uint32 InIndex) const = 0;
+	virtual uint32 GetAllocatedSize() const = 0;
 };
 
 template <typename ValueType, class SpatialIndexType>
@@ -80,6 +81,11 @@ public:
 		return Elements[InIndex].Key;
 	}
 
+	virtual uint32 GetAllocatedSize() const override
+	{
+		return sizeof(*this) + Elements.GetAllocatedSize() + SpatialIndex.GetAllocatedSize();
+	}
+
 private:
 	void InitSpatialIndex()
 	{		
@@ -122,6 +128,8 @@ namespace FStaticSpatialIndex
 		bool ForEachIntersectingElement(const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
 		bool ForEachIntersectingElement(const FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
 
+		uint32 GetAllocatedSize() const;
+
 	private:
 		TArray<uint32> Elements;
 	};
@@ -138,6 +146,8 @@ namespace FStaticSpatialIndex
 		bool ForEachElement(TFunctionRef<bool(uint32 InValueIndex)> Func) const;
 		bool ForEachIntersectingElement(const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
 		bool ForEachIntersectingElement(const FSphere& InSphere, TFunctionRef<bool(uint32 InValueIndex)> Func) const;
+
+		uint32 GetAllocatedSize() const;
 
 	private:
 		struct FNode
