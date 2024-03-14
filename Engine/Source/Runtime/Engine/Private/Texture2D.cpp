@@ -711,6 +711,13 @@ void UTexture2D::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	//	it does not tell you if the texture actually has non-opaque alpha
 	Context.AddTag( FAssetRegistryTag("HasAlphaChannel", HasAlphaChannel() ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical) );
 	Context.AddTag( FAssetRegistryTag("Format", GPixelFormats[GetPixelFormat()].Name, FAssetRegistryTag::TT_Alphabetical) );
+#if WITH_EDITORONLY_DATA
+	const FString PowerOfTwoModeStr = StaticEnum<ETexturePowerOfTwoSetting::Type>()->GetNameStringByValue(static_cast<int64>(PowerOfTwoMode));
+	Context.AddTag(FAssetRegistryTag("PowerOfTwoMode", *PowerOfTwoModeStr, FAssetRegistryTag::TT_Alphabetical));
+	const FString MipGenSettingsStr = StaticEnum<TextureMipGenSettings>()->GetNameStringByValue(static_cast<int64>(MipGenSettings));
+	Context.AddTag(FAssetRegistryTag("MipGenSettings", *MipGenSettingsStr, FAssetRegistryTag::TT_Alphabetical));
+	Context.AddTag(FAssetRegistryTag("MaxTextureSize", FString::FromInt(MaxTextureSize), FAssetRegistryTag::TT_Numerical));
+#endif
 
 	Super::GetAssetRegistryTags(Context);
 }

@@ -388,7 +388,10 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateAssetsInternal(
 	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 	FScopedSlowTask SlowTask(AssetDataList.Num(), LOCTEXT("DataValidation.ValidateAssetsTask", "Validating Assets"));
-	SlowTask.MakeDialog();
+	if (!InSettings.bSilent)
+	{
+		SlowTask.MakeDialog();
+	}
 	
 	UE_LOG(LogContentValidation, Display, TEXT("Starting to validate %d assets"), AssetDataList.Num());
 	UE_LOG(LogContentValidation, Log, TEXT("Enabled validators:"));
@@ -441,7 +444,7 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateAssetsInternal(
 	}
 
 	// Dont let other async compilation warnings be attributed incorrectly to the package that is loading.
-	WaitForAssetCompilationIfNecessary(InSettings.ValidationUsecase);
+	WaitForAssetCompilationIfNecessary(InSettings.ValidationUsecase, !InSettings.bSilent);
 
 	OutResults.NumRequested = AssetDataList.Num();
 	
@@ -452,7 +455,10 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateAssetsInternal(
 	{
 		ensure(Data.IsValid());
 
-		SlowTask.EnterProgressFrame(1.0f, FText::Format(LOCTEXT("DataValidation.ValidatingFilename", "Validating {0}"), FText::FromString(Data.GetFullName())));
+		if (!InSettings.bSilent)
+		{
+			SlowTask.EnterProgressFrame(1.0f, FText::Format(LOCTEXT("DataValidation.ValidatingFilename", "Validating {0}"), FText::FromString(Data.GetFullName())));
+		}
 		
 		if (OutResults.NumChecked >= InSettings.MaxAssetsToValidate)
 		{
@@ -837,7 +843,10 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateChangelistsInternal(
 {
 	FScopedSlowTask SlowTask(Changelists.Num(), LOCTEXT("DataValidation.ValidatingChangelistTask", "Validating Changelists"));
 	SlowTask.Visibility = ESlowTaskVisibility::Invisible;
-	SlowTask.MakeDialog();
+	if (!Settings.bSilent)
+	{
+		SlowTask.MakeDialog();
+	}
 
 	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
@@ -873,7 +882,10 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateChangelistsInternal(
 	{
 		FText ValidationMessage = FText::Format(LOCTEXT("DataValidation.ValidatingChangelistMessage", "Validating changelist {0}"), Changelist->Description);
 		DataValidationLog.Info(ValidationMessage);
-		SlowTask.EnterProgressFrame(1.0f, ValidationMessage);
+		if (!Settings.bSilent)
+		{
+			SlowTask.EnterProgressFrame(1.0f, ValidationMessage);
+		}
 
 		FValidateAssetsDetails& Details = OutResults.AssetsDetails.FindOrAdd(Changelist->GetPathName());
 		{
@@ -1040,7 +1052,7 @@ TArray<FAssetData> UEditorValidatorSubsystem::GetAssetsResolvingRedirectors(FARF
 	return Found;
 }
 
-void UEditorValidatorSubsystem::WaitForAssetCompilationIfNecessary(EDataValidationUsecase InUsecase) const
+void UEditorValidatorSubsystem::WaitForAssetCompilationIfNecessary(EDataValidationUsecase InUsecase, bool bShowProgress) const
 {
 	if (InUsecase == EDataValidationUsecase::Save)
 	{
@@ -1049,8 +1061,11 @@ void UEditorValidatorSubsystem::WaitForAssetCompilationIfNecessary(EDataValidati
 
 	if (FAssetCompilingManager::Get().GetNumRemainingAssets())
 	{
-		FScopedSlowTask CompileAssetsSlowTask(0.f, LOCTEXT("DataValidation.CompilingAssetsBeforeCheckingContentTask", "Finishing asset compilations before checking content..."));
-		CompileAssetsSlowTask.MakeDialog();
+		if (bShowProgress)
+		{
+			FScopedSlowTask CompileAssetsSlowTask(0.f, LOCTEXT("DataValidation.CompilingAssetsBeforeCheckingContentTask", "Finishing asset compilations before checking content..."));
+			CompileAssetsSlowTask.MakeDialog();
+		}
 		FAssetCompilingManager::Get().FinishAllCompilation();
 	}
 }

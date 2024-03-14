@@ -160,9 +160,12 @@ struct DATAVALIDATION_API FValidateAssetsSettings
 	 * Defaults to warning, can be disabled by emptying the optional.
 	 */
 	TOptional<EMessageSeverity::Type> ShowMessageLogSeverity;
-	
+
 	/** Title of message log page to use for warnings/errors/etc */
 	FText MessageLogPageTitle;
+
+	/** Show progress window */
+	bool bSilent = false;
 };
 
 /**
@@ -338,7 +341,7 @@ public:
 protected:
 	void CleanupValidators();
 	
-	void WaitForAssetCompilationIfNecessary(EDataValidationUsecase InUsecase) const;
+	void WaitForAssetCompilationIfNecessary(EDataValidationUsecase InUsecase, bool bShowProgress = true) const;
 
 	/**
 	 * @return Returns true if the current Path should be skipped for validation. Returns false otherwise.
