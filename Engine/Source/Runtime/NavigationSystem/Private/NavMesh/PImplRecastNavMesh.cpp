@@ -2187,6 +2187,32 @@ bool FPImplRecastNavMesh::GetRandomPointInPoly(NavNodeRef PolyID, FVector& OutPo
 	return false;
 }
 
+FVector::FReal FPImplRecastNavMesh::GetPolySurfaceArea(NavNodeRef PolyID) const
+{
+	if (DetourNavMesh)
+	{
+		dtPoly const* Poly = 0;
+		dtMeshTile const* Tile = 0;
+		dtStatus Status = DetourNavMesh->getTileAndPolyByRef((dtPolyRef)PolyID, &Tile, &Poly);
+		if (dtStatusSucceed(Status))
+		{
+			// Calc area of the polygon.
+			dtReal PolyArea = 0;
+			for (int j = 2; j < Poly->vertCount; ++j)
+			{
+				const dtReal* VA = &Tile->verts[Poly->verts[0] * 3];
+				const dtReal* VB = &Tile->verts[Poly->verts[j - 1] * 3];
+				const dtReal* VC = &Tile->verts[Poly->verts[j] * 3];
+				PolyArea += dtTriArea2D(VA, VB, VC);
+			}
+
+			return (FVector::FReal)PolyArea;
+		}
+	}
+
+	return 0;
+}
+
 uint32 FPImplRecastNavMesh::GetPolyAreaID(NavNodeRef PolyID) const
 {
 	uint32 AreaID = RECAST_NULL_AREA;

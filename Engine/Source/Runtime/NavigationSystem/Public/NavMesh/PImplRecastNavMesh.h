@@ -183,6 +183,8 @@ public:
 	NAVIGATIONSYSTEM_API bool GetPolyVerts(NavNodeRef PolyID, TArray<FVector>& OutVerts) const;
 	/** Retrieves a random point inside the specified polygon. Returns false on error. */
 	NAVIGATIONSYSTEM_API bool GetRandomPointInPoly(NavNodeRef PolyID, FVector& OutPoint) const;
+	/** Retrieves the surface area of the specified polygon. Returns 0 on error. */
+	NAVIGATIONSYSTEM_API FVector::FReal GetPolySurfaceArea(NavNodeRef PolyID) const;
 	/** Retrieves the flags for the specified polygon. Returns false on error. */
 	NAVIGATIONSYSTEM_API bool GetPolyData(NavNodeRef PolyID, uint16& Flags, uint8& AreaType) const;
 	/** Retrieves area ID for the specified polygon. */

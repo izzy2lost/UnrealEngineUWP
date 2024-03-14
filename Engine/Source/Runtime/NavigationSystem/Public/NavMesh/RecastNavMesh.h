@@ -1349,6 +1349,9 @@ public:
 	/** Retrieves a random point inside the specified polygon. Returns false on error. */
 	NAVIGATIONSYSTEM_API bool GetRandomPointInPoly(NavNodeRef PolyID, FVector& OutPoint) const;
 
+	/** Retrieves the surface area of the specified polygon. Returns 0 on error. */
+	NAVIGATIONSYSTEM_API FVector::FReal GetPolySurfaceArea(NavNodeRef PolyID) const;
+
 	/** Retrieves area ID for the specified polygon. */
 	NAVIGATIONSYSTEM_API uint32 GetPolyAreaID(NavNodeRef PolyID) const;
 
