@@ -279,7 +279,9 @@ namespace UnrealGameSync
 
 		static void AsyncDispose(IAsyncDisposable disposable)
 		{
-			disposable.DisposeAsync().AsTask().ConfigureAwait(false).GetAwaiter().GetResult();
+			// Force the dispose to run on a task without a synchronization context, so we don't have to worry about waiting for it on the Winforms thread.
+			Task task = Task.Run(async () => await disposable.DisposeAsync());
+			task.GetAwaiter().GetResult();
 		}
 
 		public static string GetCurrentExecutable()

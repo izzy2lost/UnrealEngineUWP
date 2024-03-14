@@ -32,7 +32,7 @@ namespace EpicGames.Core
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
-			await StopAsync();
+			await StopAsync().ConfigureAwait(false);
 			_cancellationTokenSource.Dispose();
 		}
 
@@ -83,7 +83,7 @@ namespace EpicGames.Core
 				try
 				{
 					_cancellationTokenSource.Cancel();
-					await _task.WaitAsync(cancellationToken);
+					await _task.WaitAsync(cancellationToken).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException)
 				{
