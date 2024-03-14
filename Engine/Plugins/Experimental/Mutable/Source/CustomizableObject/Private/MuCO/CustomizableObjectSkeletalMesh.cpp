@@ -9,6 +9,9 @@
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectMeshUpdate.h"
 
+#include "MuR/Model.h"
+#include "MuR/Parameters.h"
+
 UCustomizableObjectSkeletalMesh* UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, const UCustomizableObjectInstance& Instance, const int32 InComponentIndex)
 {
 	UCustomizableObject* CustomizableObject = Instance.GetCustomizableObject();
