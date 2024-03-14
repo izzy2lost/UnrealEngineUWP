@@ -260,6 +260,10 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 
 				FScriptArrayHelper DefaultsArrayHelper(this, Defaults);
 
+				// If the arrays are not the same size, the code will not be able to remove items correctly
+				// as it searches for the items to remove in the default array but removes them from this array.
+				checkf(DefaultsArrayHelper.Num() == ArrayHelper.Num(), TEXT("The array \'%s\' is expected to be the same size as it default for removal logic."), *GetName());
+
 				auto FindObject = [InnerObjectProperty](UObject* Object, UObject* Object2, FScriptArrayHelper& ArrayHelper) -> int32
 				{
 					if (Object)
