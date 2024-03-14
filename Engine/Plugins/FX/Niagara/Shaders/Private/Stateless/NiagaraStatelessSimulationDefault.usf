@@ -3,6 +3,7 @@
 #define PARTICLE_ATTRIBUTES_OUTPUT \
 	PARTICLE_ATTRIBUTE(int,		UniqueID) \
 	PARTICLE_ATTRIBUTE(float3,	Position) \
+	PARTICLE_ATTRIBUTE(float,	CameraOffset) \
 	PARTICLE_ATTRIBUTE(float4,	Color) \
 	PARTICLE_ATTRIBUTE(float4,	DynamicMaterialParameter0) \
 	PARTICLE_ATTRIBUTE(float4,	MeshOrientation) \
@@ -14,6 +15,7 @@
 	PARTICLE_ATTRIBUTE(float,	SpriteRotation) \
 	PARTICLE_ATTRIBUTE(float,	SubImageIndex) \
 	PARTICLE_ATTRIBUTE(float3,	Velocity) \
+	PARTICLE_ATTRIBUTE(float,	PreviousCameraOffset) \
 	PARTICLE_ATTRIBUTE(float3,	PreviousPosition) \
 	PARTICLE_ATTRIBUTE(float4,	PreviousMeshOrientation) \
 	PARTICLE_ATTRIBUTE(float,	PreviousRibbonWidth) \
@@ -30,6 +32,7 @@
 	PARTICLE_MODULE(InitializeParticle) \
 	PARTICLE_MODULE(InitialMeshOrientation) \
 	PARTICLE_MODULE(ShapeLocation) \
+	PARTICLE_MODULE(CameraOffset) \
 	PARTICLE_MODULE(ScaleColor) \
 	PARTICLE_MODULE(ScaleSpriteSize) \
 	PARTICLE_MODULE(SpriteFacingAndAlignment) \
