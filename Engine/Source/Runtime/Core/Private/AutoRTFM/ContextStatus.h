@@ -7,8 +7,6 @@
 
 namespace AutoRTFM
 {
-static_assert(static_cast<unsigned>(EContextStatus::OnTrack) == Constants::Context_Status_OnTrack, "Not equal");
-
 inline const char* GetContextStatusName(EContextStatus Status)
 {
     switch (Status)

@@ -318,19 +318,9 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_check_abi(void* const Ptr, const
 {
     struct FConstants final
     {
-        const size_t LogLineBytes = Constants::LogLineBytes;
-        const size_t LineBytes = Constants::LineBytes;
-        const size_t LineTableSize = Constants::LineTableSize;
-        const size_t Offset_Context_CurrentTransaction = Constants::Offset_Context_CurrentTransaction;
-        const size_t Offset_Context_LineTable = Constants::Offset_Context_LineTable;
-        const size_t Offset_Context_Status = Constants::Offset_Context_Status;
-        const size_t LogSize_LineEntry = Constants::LogSize_LineEntry;
-        const size_t Size_LineEntry = Constants::Size_LineEntry;
-        const size_t Offset_LineEntry_LogicalLine = Constants::Offset_LineEntry_LogicalLine;
-        const size_t Offset_LineEntry_ActiveLine = Constants::Offset_LineEntry_ActiveLine;
-        const size_t Offset_LineEntry_LoggingTransaction = Constants::Offset_LineEntry_LoggingTransaction;
-        const size_t Offset_LineEntry_AccessMask = Constants::Offset_LineEntry_AccessMask;
-        const uint32_t Context_Status_OnTrack = Constants::Context_Status_OnTrack;
+		const uint32_t Major = AutoRTFM::Constants::Major;
+		const uint32_t Minor = AutoRTFM::Constants::Minor;
+		const uint32_t Patch = AutoRTFM::Constants::Patch;
 
 		// This is messy - but we want to do comparisons but without comparing any padding bytes.
 		// Before C++20 we cannot use a default created operator== and operator!=, so we use this
@@ -338,7 +328,7 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_check_abi(void* const Ptr, const
 	private:
 		auto Tied() const
 		{
-			return Tie(LogLineBytes, LineBytes, LineTableSize, Offset_Context_CurrentTransaction, Offset_Context_LineTable, Offset_Context_Status, LogSize_LineEntry, Size_LineEntry, Offset_LineEntry_LogicalLine, Offset_LineEntry_ActiveLine, Offset_LineEntry_LoggingTransaction, Offset_LineEntry_AccessMask, Context_Status_OnTrack);
+			return Tie(Major, Minor, Patch);
 		}
 
 	public:
