@@ -411,6 +411,15 @@ namespace GLTF
 			}
 		}
 
+		if (Object.HasField(TEXT("extras")))
+		{
+			const TSharedPtr<FJsonObject>& Extras = Object.GetObjectField(TEXT("extras"));
+			for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+			{
+				Mesh.Primitives.Last().Extras.Add(Pair.Key, Pair.Value->AsString());
+			}
+		}
+
 		ExtensionsHandler->SetupPrimitiveExtensions(Object, Mesh.Primitives.Last(), Mesh.Primitives.Num()-1, Mesh.UniqueId);
 	}
 
@@ -470,6 +479,14 @@ namespace GLTF
 					Mesh.MorphTargetNames.Add(Value->AsString());
 				}
 			}
+
+			for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+			{
+				if (Pair.Key != TEXT("targetNames"))
+				{
+					Mesh.Extras.Add(Pair.Key, Pair.Value->AsString());
+				}
+			}
 		}
 
 		Mesh.GenerateIsValidCache();
@@ -492,6 +509,15 @@ namespace GLTF
 				Scene.Nodes.Add(NodeIndex);
 
 				BuildParentIndices(INDEX_NONE, NodeIndex);
+			}
+		}
+
+		if (Object.HasField(TEXT("extras")))
+		{
+			const TSharedPtr<FJsonObject>& Extras = Object.GetObjectField(TEXT("extras"));
+			for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+			{
+				Scene.Extras.Add(Pair.Key, Pair.Value->AsString());
 			}
 		}
 
@@ -548,6 +574,15 @@ namespace GLTF
 			}
 		}
 
+		if (Object.HasField(TEXT("extras")))
+		{
+			const TSharedPtr<FJsonObject>& Extras = Object.GetObjectField(TEXT("extras"));
+			for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+			{
+				Node.Extras.Add(Pair.Key, Pair.Value->AsString());
+			}
+		}
+
 		ExtensionsHandler->SetupNodeExtensions(Object, Node);
 	}
 
@@ -587,7 +622,18 @@ namespace GLTF
 			Camera.bIsPerspective              = false;
 		}
 		else
+		{
 			Messages.Emplace(EMessageSeverity::Error, TEXT("Invalid camera type: ") + Type);
+		}
+
+		if (Object.HasField(TEXT("extras")))
+		{
+			const TSharedPtr<FJsonObject>& Extras = Object.GetObjectField(TEXT("extras"));
+			for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+			{
+				Camera.Extras.Add(Pair.Key, Pair.Value->AsString());
+			}
+		}
 
 		ExtensionsHandler->SetupCameraExtensions(Object, Camera);
 	}
@@ -655,6 +701,15 @@ namespace GLTF
 			}
 		}
 
+		if (Object.HasField(TEXT("extras")))
+		{
+			const TSharedPtr<FJsonObject>& Extras = Object.GetObjectField(TEXT("extras"));
+			for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+			{
+				Animation.Extras.Add(Pair.Key, Pair.Value->AsString());
+			}
+		}
+
 		ExtensionsHandler->SetupAnimationExtensions(Object, Animation);
 	}
 
@@ -674,6 +729,15 @@ namespace GLTF
 		}
 
 		Skin.Skeleton = GetIndex(Object, TEXT("skeleton"));
+
+		if (Object.HasField(TEXT("extras")))
+		{
+			const TSharedPtr<FJsonObject>& Extras = Object.GetObjectField(TEXT("extras"));
+			for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+			{
+				Skin.Extras.Add(Pair.Key, Pair.Value->AsString());
+			}
+		}
 
 		ExtensionsHandler->SetupSkinExtensions(Object, Skin);
 	}
@@ -753,6 +817,15 @@ namespace GLTF
 			CurrentBufferOffset += Image.DataByteLength;
 		}
 
+		if (Object.HasField(TEXT("extras")))
+		{
+			const TSharedPtr<FJsonObject>& Extras = Object.GetObjectField(TEXT("extras"));
+			for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+			{
+				Image.Extras.Add(Pair.Key, Pair.Value->AsString());
+			}
+		}
+
 		ExtensionsHandler->SetupImageExtensions(Object, Image);
 	}
 
@@ -788,6 +861,16 @@ namespace GLTF
 			const FSampler& Sampler = HasSampler ? Asset->Samplers[SamplerIndex] : FSampler::DefaultSampler;
 
 			Asset->Textures.Emplace(TexName, Source, Sampler);
+
+			if (Object.HasField(TEXT("extras")))
+			{
+				const TSharedPtr<FJsonObject>& Extras = Object.GetObjectField(TEXT("extras"));
+				for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+				{
+					Asset->Textures.Last().Extras.Add(Pair.Key, Pair.Value->AsString());
+				}
+			}
+
 			ExtensionsHandler->SetupTextureExtensions(Object, Asset->Textures.Last());
 		}
 		else
@@ -829,6 +912,15 @@ namespace GLTF
 		}
 
 		Material.bIsDoubleSided = GetBool(Object, TEXT("doubleSided"));
+
+		if (Object.HasField(TEXT("extras")))
+		{
+			const TSharedPtr<FJsonObject>& Extras = Object.GetObjectField(TEXT("extras"));
+			for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+			{
+				Material.Extras.Add(Pair.Key, Pair.Value->AsString());
+			}
+		}
 
 		ExtensionsHandler->SetupMaterialExtensions(Object, Material);
 	}

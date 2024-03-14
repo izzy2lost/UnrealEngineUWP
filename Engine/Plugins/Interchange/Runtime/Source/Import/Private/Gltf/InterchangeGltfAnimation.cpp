@@ -15,6 +15,7 @@
 #include "InterchangeSceneNode.h"
 #include "InterchangeMeshNode.h"
 #include "InterchangeAnimationTrackSetNode.h"
+#include "Nodes/InterchangeUserDefinedAttribute.h"
 
 namespace UE::Interchange::Gltf::Private
 {
@@ -743,6 +744,11 @@ namespace UE::Interchange::Gltf::Private
 					TrackNode->SetCustomSkeletonNodeUid(SkeletonNodeUid);
 
 					NodeContainer.AddNode(TrackNode);
+
+					for (const TPair<FString, FString>& Extra : GLTFAnimation.Extras)
+					{
+						UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(TrackNode, Extra.Key, Extra.Value, TOptional<FString>());
+					}
 
 					RootJointIndexToTrackNodeMap.Add(SkeletonNodeUid, TrackNode);
 				}

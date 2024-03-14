@@ -54,6 +54,7 @@ namespace GLTF
 	{
 		FString       Name;
 		TArray<int32> Nodes;
+		TMap<FString, FString> Extras;
 		FString	      UniqueId; //will be generated in FAsset::GenerateNames
 	};
 

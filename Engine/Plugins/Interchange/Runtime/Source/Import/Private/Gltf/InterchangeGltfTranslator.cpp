@@ -24,6 +24,7 @@
 #include "InterchangeTranslatorHelper.h"
 #include "InterchangeVariantSetNode.h"
 #include "Nodes/InterchangeSourceNode.h"
+#include "Nodes/InterchangeUserDefinedAttribute.h"
 
 #include "Sections/MovieScene3DTransformSection.h"
 #include "Texture/InterchangeImageWrapperTranslator.h"
@@ -226,6 +227,11 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 	InterchangeSceneNode->SetAssetName(GltfNode.UniqueId);
 	NodeContainer.AddNode( InterchangeSceneNode );
 
+	for (const TPair<FString, FString>& Extra : GltfNode.Extras)
+	{
+		UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(InterchangeSceneNode, Extra.Key, Extra.Value, TOptional<FString>());
+	}
+
 	NodeUidMap.Add( &GltfNode, NodeUid );
 
 	FTransform Transform = GltfNode.Transform;
@@ -330,7 +336,13 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 			if ( GltfAsset.Cameras.IsValidIndex( GltfNode.CameraIndex ) )
 			{
 				const FString CameraNodeUid = TEXT("\\Camera\\") + GltfAsset.Cameras[ GltfNode.CameraIndex ].UniqueId;
+				const FString Prefix = GltfAsset.Cameras[GltfNode.CameraIndex].Name + TEXT("_");
 				InterchangeSceneNode->SetCustomAssetInstanceUid( CameraNodeUid );
+
+				for (const TPair<FString, FString>& Extra : GltfAsset.Cameras[GltfNode.CameraIndex].Extras)
+				{
+					UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(InterchangeSceneNode, Prefix + Extra.Key, Extra.Value, TOptional<FString>());
+				}
 			}
 			break;
 		}
@@ -546,6 +558,15 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 
 			TextureNode->SetCustomWrapU( UE::Interchange::Gltf::Private::ConvertWrap( GltfTexture.Sampler.WrapS ) );
 			TextureNode->SetCustomWrapV( UE::Interchange::Gltf::Private::ConvertWrap( GltfTexture.Sampler.WrapT ) );
+
+			for (const TPair<FString, FString>& Extra : GltfTexture.Source.Extras)
+			{
+				UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(TextureNode, Extra.Key, Extra.Value, TOptional<FString>());
+			}
+			for (const TPair<FString, FString>& Extra : GltfTexture.Extras)
+			{
+				UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(TextureNode, Extra.Key, Extra.Value, TOptional<FString>());
+			}
 		}
 	}
 
@@ -594,6 +615,11 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 
 			UInterchangeShaderGraphNode* ShaderGraphNode = UInterchangeShaderGraphNode::Create(&NodeContainer, GltfMaterial.UniqueId);
 			ShaderGraphNode->SetDisplayLabel(GltfMaterial.Name);
+
+			for (const TPair<FString, FString>& Extra : GltfMaterial.Extras)
+			{
+				UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(ShaderGraphNode, Extra.Key, Extra.Value, TOptional<FString>());
+			}
 
 			UE::Interchange::GLTFMaterials::HandleGltfMaterial(NodeContainer, GltfMaterial, GltfAsset.Textures, ShaderGraphNode);
 			
@@ -733,6 +759,11 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 			FString SceneNodeUid = TEXT("\\Scene\\") + GltfScene.UniqueId;
 			SceneNode->InitializeNode( SceneNodeUid, SceneName, EInterchangeNodeContainerType::TranslatedScene );
 			NodeContainer.AddNode( SceneNode );
+
+			for (const TPair<FString, FString>& Extra : GltfScene.Extras)
+			{
+				UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(SceneNode, Extra.Key, Extra.Value, TOptional<FString>());
+			}
 
 			//All scene node should have a valid local transform
 			SceneNode->SetCustomLocalTransform(&NodeContainer, FTransform::Identity);
@@ -1245,6 +1276,7 @@ void UInterchangeGLTFTranslator::HandleGltfSkeletons(UInterchangeBaseNodeContain
 				SkeletalMeshNode->SetSkeletonDependencyUid(*SkeletonNodeUid);
 			}
 
+			TSet<int32> SkinIndices;
 			//generate payload key:
 			//of template:
 			//"LexToString(SkinnedMeshNode.MeshIndex | (SkinnedMeshNode.Skindex << 16))":"LexToString(SkinnedMeshNode.MeshIndex | (SkinnedMeshNode.Skindex << 16))".....
@@ -1258,8 +1290,21 @@ void UInterchangeGLTFTranslator::HandleGltfSkeletons(UInterchangeBaseNodeContain
 				}
 				
 				Payload += LexToString(SkinnedMeshNode.MeshIndex | (SkinnedMeshNode.Skindex << 16));
+				SkinIndices.Add(SkinnedMeshNode.Skindex);
 			}
 			SkeletalMeshNode->SetPayLoadKey(Payload, EInterchangeMeshPayLoadType::SKELETAL);
+
+			for (const int32& SkinIndex : SkinIndices)
+			{
+				if (GltfAsset.Skins.IsValidIndex(SkinIndex))
+				{
+					const FString Prefix = GltfAsset.Skins[SkinIndex].Name + TEXT("_");
+					for (const TPair<FString, FString>& Extra : GltfAsset.Skins[SkinIndex].Extras)
+					{
+						UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(SkeletalMeshNode, Prefix + Extra.Key, Extra.Value, TOptional<FString>());
+					}
+				}
+			}
 
 			//set the mesh actor node's custom asset instance uid to the new duplicated mesh
 			//if there are more than one skins, then choose the topmost (root node of the collection, top most in a hierarchical tree term) occurance of SkinnedMeshIndex
@@ -1305,6 +1350,22 @@ UInterchangeMeshNode* UInterchangeGLTFTranslator::HandleGltfMesh(UInterchangeBas
 	//Create Mesh Node:
 	UInterchangeMeshNode* MeshNode = NewObject< UInterchangeMeshNode >(&NodeContainer);
 	MeshNode->InitializeNode(MeshNodeUid, MeshName, EInterchangeNodeContainerType::TranslatedAsset);
+
+	int32 PrimitiveIndex = 0;
+	for (const GLTF::FPrimitive& Primitive : GltfMesh.Primitives)
+	{
+		FString Prefix = TEXT("Primitive[") + FString::FromInt(PrimitiveIndex) + TEXT("]_");
+		for (const TPair<FString, FString>& Extra : Primitive.Extras)
+		{
+			UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(MeshNode, Prefix + Extra.Key, Extra.Value, TOptional<FString>());
+		}
+
+		PrimitiveIndex++;
+	}
+	for (const TPair<FString, FString>& Extra : GltfMesh.Extras)
+	{
+		UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(MeshNode, Extra.Key, Extra.Value, TOptional<FString>());
+	}
 
 	//Generate Mesh Payload:
 	FString PayloadKey = LexToString(MeshIndex);

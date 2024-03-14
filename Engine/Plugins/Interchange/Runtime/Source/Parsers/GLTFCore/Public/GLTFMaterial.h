@@ -185,6 +185,7 @@ namespace GLTF
 		bool            bHasEmissiveStrength;
 		FIridescence    Iridescence;
 
+		TMap<FString, FString> Extras;
 
 		FString UniqueId; //will be generated in FAsset::GenerateNames
 

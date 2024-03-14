@@ -26,6 +26,8 @@ namespace GLTF
 		uint32       DataByteLength;
 		const uint8* Data;
 
+		TMap<FString, FString> Extras;
+
 		FString      UniqueId; //will be generated in FAsset::GenerateNames
 
 		FImage()
@@ -79,6 +81,8 @@ namespace GLTF
 		const FImage&   Source;
 		const FSampler& Sampler;
 		FString         Name;
+
+		TMap<FString, FString> Extras;
 
 		FString			UniqueId; //will be generated in FAsset::GenerateNames
 
