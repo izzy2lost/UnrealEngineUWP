@@ -1958,25 +1958,28 @@ namespace uba
 			{
 				// This is to kill I/O when writing lots of pdb/dlls in parallel
 				#if PLATFORM_WINDOWS
-				constexpr u32 bottleneckMax = 8;
+				constexpr u32 bottleneckMax = 32;
 				bool shouldBottleneck = false;//useOverlap;
 				static Bottleneck bottleneck(bottleneckMax);
 				auto bng = MakeGuard([&]() { if (shouldBottleneck) bottleneck.Leave(); });
 				#endif
+
+				shouldBottleneck = true;
+				bottleneck.Enter();
 
 				u64 fileSize = file.mappingWritten;
 				u8* mem = MapViewOfFile(file.mappingHandle, FILE_MAP_READ, 0, fileSize);
 				if (!mem)
 					return m_logger.Error(TC("Failed to map view of filehandle for read %s (%s)"), file.name.c_str(), LastErrorToText().data);
 
-				PrefetchVirtualMemory(mem, fileSize);
+				//PrefetchVirtualMemory(mem, fileSize);
 
 				auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize, file.name.c_str()); });
 
 				// Seems like best combo (for windows at least) is to use writes with overlap and max 16 at the same time.
 				// On one machine we get twice as fast without overlap if no bottleneck. On another machine (ntfs compression on) we get twice as slow without overlap
 				// Both machines behaves well with overlap AND bottleneck. Both machine are 128 logical core thread rippers.
-				constexpr bool useFileMapForWrite = false;
+				constexpr bool useFileMapForWrite = true;
 				bool useOverlap = false;//fileSize > 8 * 1024 * 1024;
 
 
