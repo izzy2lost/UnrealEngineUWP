@@ -45,25 +45,39 @@ void FParameterCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 					FAddPropertyParams AddPropertyParams;
 					TArray<IDetailPropertyRow*> DetailPropertyRows;
 
-					if (ReferencedGraph->PropertyBag.FindPropertyDescByName(ParameterName))
+					if (const FPropertyBagPropertyDesc* PropertyDesc = ReferencedGraph->PropertyBag.FindPropertyDescByName(ParameterName))
 					{
 						IDetailPropertyRow* DetailPropertyRow = DefaultValueCategory.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(ReferencedGraph->PropertyBag), ParameterName, EPropertyLocation::Default, AddPropertyParams);
 						if (TSharedPtr<IPropertyHandle> Handle = DetailPropertyRow->GetPropertyHandle(); Handle.IsValid())
 						{
-							Handle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda([this, ReferencedGraph]()
-							{
-								ReferencedGraph->Modify(); // needed to enable the transaction when we modify the PropertyBag
-							}));
-							Handle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([this, ReferencedGraph, ParameterName]()
-							{
-								if (UAnimNextGraph_EditorData* EditorData = Cast<UAnimNextGraph_EditorData>(ReferencedGraph->EditorData))
+							const TWeakObjectPtr<UAnimNextGraph> ReferencedGraphWeak = ReferencedGraph;
+
+							const auto OnPropertyValuePreChange = [ReferencedGraphWeak]()
 								{
-									if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(ParameterName))
+									if (ReferencedGraphWeak.IsValid())
 									{
-										AssetEntry->MarkPackageDirty();
+										ReferencedGraphWeak->Modify(); // needed to enable the transaction when we modify the PropertyBag
 									}
-								}
-							}));
+								};
+							const auto OnPropertyValueChange = [ReferencedGraphWeak](const FPropertyChangedEvent& InEvent)
+								{
+									if (ReferencedGraphWeak.IsValid())
+									{
+										if (UAnimNextGraph_EditorData* EditorData = Cast<UAnimNextGraph_EditorData>(ReferencedGraphWeak->EditorData))
+										{
+											if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(InEvent.GetPropertyName()))
+											{
+												AssetEntry->MarkPackageDirty();
+											}
+										}
+									}
+								};
+
+							Handle->SetOnPropertyValuePreChange(FSimpleDelegate::CreateLambda(OnPropertyValuePreChange));
+							Handle->SetOnPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateLambda(OnPropertyValueChange));
+
+							Handle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda(OnPropertyValuePreChange));
+							Handle->SetOnChildPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateLambda(OnPropertyValueChange));
 						}
 					}
 				}

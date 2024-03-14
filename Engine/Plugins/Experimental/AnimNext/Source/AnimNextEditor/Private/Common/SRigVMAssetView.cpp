@@ -856,17 +856,21 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 						FInstancedPropertyBag& PropertyBag = ParameterInterface->GetPropertyBag();
 						const FName ParameterName = AssetEntry->GetEntryName();
 
-						if (PropertyBag.FindPropertyDescByName(ParameterName))
-						{
-							FSinglePropertyParams SinglePropertyArgs;
-							SinglePropertyArgs.NamePlacement = EPropertyNamePlacement::Hidden;
-							SinglePropertyArgs.NotifyHook = this;
 
-							FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-							const TSharedPtr<ISinglePropertyView> SingleStructPropertyView = PropertyEditorModule.CreateSingleProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(PropertyBag), ParameterName, SinglePropertyArgs);
-							if (SingleStructPropertyView.IsValid())
+						if (const FPropertyBagPropertyDesc* PropertyDesc = PropertyBag.FindPropertyDescByName(ParameterName))
+						{
+							if (PropertyDesc->ContainerTypes.IsEmpty()) // avoid trying to inline containers
 							{
-								ColumnWidget = SingleStructPropertyView.ToSharedRef();
+								FSinglePropertyParams SinglePropertyArgs;
+								SinglePropertyArgs.NamePlacement = EPropertyNamePlacement::Hidden;
+								SinglePropertyArgs.NotifyHook = this;
+
+								FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+								const TSharedPtr<ISinglePropertyView> SingleStructPropertyView = PropertyEditorModule.CreateSingleProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(PropertyBag), ParameterName, SinglePropertyArgs);
+								if (SingleStructPropertyView.IsValid())
+								{
+									ColumnWidget = SingleStructPropertyView.ToSharedRef();
+								}
 							}
 						}
 					}

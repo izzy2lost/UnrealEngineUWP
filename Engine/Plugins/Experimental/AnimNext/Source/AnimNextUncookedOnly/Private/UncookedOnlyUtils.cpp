@@ -1303,6 +1303,11 @@ void FUtils::GetAssetParameters(const UAnimNextRigVMAssetEditorData* EditorData,
 
 void FUtils::GetGraphParameters(const URigVMGraph* Graph, FAnimNextParameterProviderAssetRegistryExports& OutExports)
 {
+	if (Graph == nullptr)
+	{
+		return;
+	}
+
 	const TArray<URigVMNode*>& Nodes = Graph->GetNodes();
 	for (URigVMNode* Node : Nodes)
 	{

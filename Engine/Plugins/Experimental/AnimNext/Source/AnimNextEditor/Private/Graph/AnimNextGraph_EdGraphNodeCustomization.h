@@ -75,7 +75,8 @@ protected:
 		{
 		}
 
-		TArray<TWeakObjectPtr<URigVMPin>> ModelPinsToDisplay;
+		TArray<FName> ModelPinsNamesToDisplay;
+		TArray <TArray<FString>> ModelPinPaths;
 		TArray <TSharedPtr<FRigVMMemoryStorageStruct>> MemoryStorages;
 	};
 
