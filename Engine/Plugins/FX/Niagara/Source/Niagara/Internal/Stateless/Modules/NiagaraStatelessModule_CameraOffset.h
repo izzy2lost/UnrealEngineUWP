@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Stateless/NiagaraStatelessModule.h"
+#include "Stateless/NiagaraStatelessEmitterDataBuildContext.h"
 #include "Stateless/NiagaraStatelessModuleShaderParameters.h"
 
 #include "NiagaraStatelessModule_CameraOffset.generated.h"
