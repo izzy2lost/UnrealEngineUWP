@@ -871,24 +871,25 @@ bool UExternalDataLayerManager::OnActorPreSpawnInitialization(AActor* InActor, c
 	return SetupActorPackageForExternalDataLayerAsset(InActor, InExternalDataLayerAsset);
 }
 
-bool UExternalDataLayerManager::OnActorExternalDataLayerAssetChanged(AActor* InActor)
+bool UExternalDataLayerManager::ValidateOnActorExternalDataLayerAssetChanged(AActor* InActor)
 {
-	// Check that the actor package is valid (it is currently not supported to change the EDL of an actor)
 	check(InActor);
 	check(InActor->IsPackageExternal());
 	const UExternalDataLayerAsset* ExternalDataLayerAsset = InActor->GetExternalDataLayerAsset();
-	check(ExternalDataLayerAsset);
-
+	if (ExternalDataLayerAsset)
+	{
 #if DO_CHECK
-	// Validate that the container
-	FExternalDataLayerContainerMap::ValueType ActorDescContainer = EDLContainerMap.FindChecked(ExternalDataLayerAsset);
-	check(ActorDescContainer->GetExternalActorPath() == ULevel::GetExternalActorsPath(GetExternalDataLayerLevelRootPath(ExternalDataLayerAsset)));
+		// Validate the corresponding container for this External Data Layer asset
+		FExternalDataLayerContainerMap::ValueType ActorDescContainer = EDLContainerMap.FindChecked(ExternalDataLayerAsset);
+		check(ActorDescContainer->GetExternalActorPath() == ULevel::GetExternalActorsPath(GetExternalDataLayerLevelRootPath(ExternalDataLayerAsset)));
 #endif
-	
-	const FString ActorPackageName = InActor->GetExternalPackage()->GetName();
-	const FString NewActorPackageName = GetActorPackageName(ExternalDataLayerAsset, InActor->GetLevel(), InActor->GetPathName());
-	check(NewActorPackageName == ActorPackageName);
-	return (NewActorPackageName == ActorPackageName);
+		// Validate that the actor package is valid
+		const FString ActorPackageName = InActor->GetExternalPackage()->GetName();
+		const FString NewActorPackageName = GetActorPackageName(ExternalDataLayerAsset, InActor->GetLevel(), InActor->GetPathName());
+		check(NewActorPackageName == ActorPackageName);
+		return (NewActorPackageName == ActorPackageName);
+	}
+	return true;
 }
 
 AWorldDataLayers* UExternalDataLayerManager::GetWorldDataLayers(const UExternalDataLayerAsset* InExternalDataLayerAsset, bool bAllowCreate) const

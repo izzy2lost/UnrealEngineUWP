@@ -75,7 +75,7 @@ private:
 	// Used in editor
 	UActorDescContainerInstance* RegisterExternalDataLayerActorDescContainer(const UExternalDataLayerAsset* InExternalDataLayerAsset);
 	bool UnregisterExternalDataLayerActorDescContainer(const UExternalDataLayerAsset* InExternalDataLayerAsset);
-	bool OnActorExternalDataLayerAssetChanged(AActor* InActor);
+	bool ValidateOnActorExternalDataLayerAssetChanged(AActor* InActor);
 	bool RegisterExternalDataLayerInstance(UExternalDataLayerInstance* InExternalDataLayerInstance);
 	bool UnregisterExternalDataLayerInstance(UExternalDataLayerInstance* InExternalDataLayerInstance);
 	const UExternalDataLayerAsset* GetMatchingExternalDataLayerAssetForObjectPath(const FSoftObjectPath& InObjectPath);
@@ -85,6 +85,7 @@ private:
 	FString GetActorPackageName(const UExternalDataLayerAsset* InExternalDataLayerAsset, const ULevel* InDestinationLevel, const FString& InActorPath) const;
 	bool SetupActorPackageForExternalDataLayerAsset(AActor* InActor, const UExternalDataLayerAsset* InExternalDataLayerAsset);
 	URuntimeHashExternalStreamingObjectBase* CreateExternalStreamingObjectUsingStreamingGeneration(const UExternalDataLayerAsset* InExternalDataLayerAsset);
+	bool HasInjectedExternalDataLayerAssets() const { return InjectedExternalDataLayerAssets.Num() > 0; }
 
 	// Used for PIE/-game
 	void PrepareEditorGameWorld();
@@ -119,6 +120,8 @@ private:
 #endif
 
 	friend class FDataLayerMode;
+	friend class FDataLayerEditorModule;
+	friend class FExternalDataLayerHelper;
 	friend class AWorldDataLayers;
 	friend class UWorldPartition;
 	friend class UExternalDataLayerInstance;

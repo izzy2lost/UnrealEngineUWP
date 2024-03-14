@@ -5,8 +5,10 @@
 #include "Containers/StringView.h"
 #include "Templates/Function.h"
 
+class AActor;
 class FAssetRegistryTagsContext;
 class UExternalDataLayerAsset;
+class UExternalDataLayerInstance;
 struct FExternalDataLayerUID;
 struct FAssetData;
 
@@ -52,6 +54,21 @@ public:
 
 private:
 
+#if WITH_EDITOR
+	/** 
+	 * Validates that all actors can change their External Data Layer to the new provided value (supports passing null) 
+	 * Returns false if any actor fails and fills OutFailureReason with the reason (if non-null). 
+	 */
+	ENGINE_API static bool CanMoveActorsToExternalDataLayer(const TArray<AActor*>& InActors, const UExternalDataLayerInstance* InExternalDataLayerInstance, FText* OutFailureReason = nullptr);
+
+	/** 
+	 * Changes all actors External Data Layer to the new provided value (supports passing null)
+	 * Returns false if any actor fails and fills OutFailureReason with the reason (if non-null). 
+	 */
+	ENGINE_API static bool MoveActorsToExternalDataLayer(const TArray<AActor*>& InActors, const UExternalDataLayerInstance* InExternalDataLayerInstance, FText* OutFailureReason = nullptr);
+
+	friend class FDataLayerEditorModule;
+#endif
 	static constexpr FStringView GetExternalDataLayerFolder() { return ExternalDataLayerFolder; }
 	static constexpr FStringView ExternalDataLayerFolder = TEXTVIEW("/EDL/");
 };

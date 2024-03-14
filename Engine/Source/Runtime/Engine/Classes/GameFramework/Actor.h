@@ -979,7 +979,7 @@ protected:
 
 	TArray<TSoftObjectPtr<UDataLayerAsset>> PreEditChangeDataLayers;
 
-	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = DataLayers, TextExportTransient, NonTransactional)
+	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = DataLayers, TextExportTransient)
 	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;
 
 public:
@@ -4227,6 +4227,7 @@ private:
 	friend struct FSetActorInstanceGuid;
 	friend struct FSetActorContentBundleGuid;
 	friend struct FAssignActorDataLayer;
+	friend struct FScopeRawAssignActorExternalDataLayer;
 	friend struct FSetActorSelectable;
 	friend struct FSetActorFolderPath;
 #endif
@@ -4541,13 +4542,14 @@ private:
 struct FAssignActorDataLayer
 {
 private:
-	static bool AddDataLayerAsset(AActor* InActor, const UDataLayerAsset* InDataLayerAsset);
-	static bool RemoveDataLayerAsset(AActor* InActor, const UDataLayerAsset* InDataLayerAsset);
+	ENGINE_API static bool AddDataLayerAsset(AActor* InActor, const UDataLayerAsset* InDataLayerAsset);
+	ENGINE_API static bool RemoveDataLayerAsset(AActor* InActor, const UDataLayerAsset* InDataLayerAsset);
 
 	friend class UDataLayerInstanceWithAsset;
 	friend class UDataLayerInstancePrivate;
 	friend class UExternalDataLayerInstance;
 	friend class ULevelInstanceSubsystem;
+	friend class FExternalDataLayerHelper;
 };
 
 struct FSetActorIsInLevelInstance
