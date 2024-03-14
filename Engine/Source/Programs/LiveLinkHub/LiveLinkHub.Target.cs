@@ -54,19 +54,6 @@ public class LiveLinkHubTarget : TargetRules
 			"AppleARKitFaceSupport"
 		});
 
-		if (bEnableThirdPartyPlugins)
-		{
-			OptionalPlugins.AddRange(new string[]
-			{
-				"LiveLinkMvnPlugin",
-				"LiveLinkViconDataStream",
-				"MocopiLiveLink",
-				"OptitrackLiveLink",
-				"PoseAILiveLink",
-				"Smartsuit"
-			});
-		}
-
 		bCompileAgainstCoreUObject = true;
 		bCompileAgainstEngine = true;
 		bCompileAgainstEditor = true;
