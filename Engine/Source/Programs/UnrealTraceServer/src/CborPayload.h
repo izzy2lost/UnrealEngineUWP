@@ -195,7 +195,7 @@ inline int64 FResponse::GetInteger(const char* Key, int64 Default) const
 	return GetValue(
 		Key,
 		Default,
-		[this] (const FCborContext& Context)
+		[] (const FCborContext& Context)
 		{
 			return Context.AsInteger();
 		}
@@ -210,7 +210,7 @@ inline FStringView FResponse::GetString(const char* Key, const char (&Default)[N
 	return GetValue(
 		Key,
 		DefaultView,
-		[this, DefaultView] (const FCborContext& Context)
+		[DefaultView] (const FCborContext& Context)
 		{
 			if (Context.GetType() == ECborType::String)
 			{

@@ -194,7 +194,7 @@ public:
 
 	ParseResults Parse(int ArgC, char** ArgV)
 	{
-		Parsed = MoveTemp(Options.parse(ArgC, ArgV));
+		Parsed = Options.parse(ArgC, ArgV);
 		const bool bCommandOk = Parsed["command"].count() == 1;
 		const bool bHelp = Parsed["help"].count() > 0;
 
@@ -310,14 +310,14 @@ private:
 };
 
 FOptions::FCommandHelp FOptions::CommandHelp[] = {
-	"fork", "	Starts a background server, upgrading any existing instance. ", 
+	{"fork", "	Starts a background server, upgrading any existing instance. ", 
 				"Checks if there is an existing instance running. If the running version is the same "
 				"version or newer that instance is used. If a sponsor pid is specified that pid is added "
-				"to the running instance.", {"settings", "sponsor"},
-	"daemon", "The mode that a background server runs in. ", "", {"sponsor"},
-	"kill", "	Shuts down a currently running instance. ", "", {},
-	"test", "	Run tests. ", "", {},
-	nullptr, nullptr, nullptr, {}
+				"to the running instance.", {"settings", "sponsor"}},
+	{"daemon", "The mode that a background server runs in. ", "", {"sponsor"}},
+	{"kill", "	Shuts down a currently running instance. ", "", {}},
+	{"test", "	Run tests. ", "", {}},
+	{nullptr, nullptr, nullptr, {}}
 };
 
 // {{{1 return codes -----------------------------------------------------------
@@ -1399,10 +1399,10 @@ int main(int ArgC, char** ArgV)
 		const char*	Verb;
 		int			(*Entry)(int, char**, const FOptions&);
 	} Dispatches[] = {
-		"fork",		MainFork,
-		"daemon",	MainDaemon,
-		"test",		MainTest,
-		"kill",		MainKill,
+		{"fork",		MainFork},
+		{"daemon",		MainDaemon},
+		{"test",		MainTest},
+		{"kill",		MainKill},
 	};
 
 	for (const auto& Dispatch : Dispatches)

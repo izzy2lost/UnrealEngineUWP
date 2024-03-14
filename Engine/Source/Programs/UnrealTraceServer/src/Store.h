@@ -67,12 +67,15 @@ public:
 		void			ClearTraces();
 		uint32			Refresh();
 		void			WatchDir();
+		
 		FPath			Dir;
 		TArray<FTrace*>	Traces;
 		uint32			Id;
 		FDirWatcher*	DirWatcher = nullptr;
 		FStore*			Parent = nullptr;
+#if TS_USING(TS_PLATFORM_WINDOWS)
 		asio::io_context& IoContext;
+#endif
 	};
 
 	void SetupMounts();
