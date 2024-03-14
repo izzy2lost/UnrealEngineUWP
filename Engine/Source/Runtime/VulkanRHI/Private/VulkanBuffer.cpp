@@ -292,6 +292,9 @@ void* FVulkanResourceMultiBuffer::Lock(FVulkanCommandListContext& Context, EReso
 	void* Data = nullptr;
 	uint32 DataOffset = 0;
 
+	// High level code might create SRVs on an allocated buffer, make sure size of the buffer is at least multiple of float4 (16bytes)
+	LockSize = Align(LockSize, 16u);
+
 	const bool bVolatile = EnumHasAnyFlags(GetUsage(), BUF_Volatile);
 	check(LockStatus == ELockStatus::Unlocked);
 
