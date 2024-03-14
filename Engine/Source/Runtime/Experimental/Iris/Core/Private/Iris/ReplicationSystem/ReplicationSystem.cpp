@@ -617,6 +617,8 @@ void UReplicationSystem::Shutdown()
 	Impl->Deinit();
 	Impl.Reset();
 
+	// Destroy bridge
+	ReplicationBridge->MarkAsGarbage();
 	ReplicationBridge = nullptr;
 }
 
