@@ -413,7 +413,7 @@ bool FEditorPerformanceModule::RecordTelemetryEvent(const FKPIValue& KPIValue)
 		Attributes.Emplace(TEXT("KPI_DisplayType"), *FKPIValue::GetDisplayTypeAsString(KPIValue.DisplayType));
 		Attributes.Emplace(TEXT("KPI_Profile"), KPIProfileName);
 		
-		FStudioTelemetry::Get().RecordEvent(TEXT("Editor.PerformanceWarning"), Attributes);
+		FStudioTelemetry::Get().RecordEvent(TEXT("Editor.Performance.Warning"), Attributes);
 
 		return true;
 	}
