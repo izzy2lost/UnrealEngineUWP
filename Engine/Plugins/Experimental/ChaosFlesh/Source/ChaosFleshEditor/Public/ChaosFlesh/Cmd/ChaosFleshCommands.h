@@ -39,6 +39,8 @@ public:
 	* needs to contain deformer bindings for the import geometry.
 	* @param Args - Supported arguments:
 	*   'UsdFile </path/to/file.usd>' overrides which usd file to use, rather than inferring it from a chaos cache manager.
+	*   'FrameRate 24' overrides the default 24 FPS frame rate for the output cache samples.
+	*   'MaxNumFrames <int>' clamps the number of frames to MaxNumFrames.
 	*/
 	static void CreateGeometryCache(const TArray<FString>& Args, UWorld* World);
 
