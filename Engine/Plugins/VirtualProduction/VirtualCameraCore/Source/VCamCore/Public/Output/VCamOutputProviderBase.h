@@ -133,7 +133,7 @@ public:
 	TWeakPtr<SWindow> GetTargetInputWindow() const;
 
 	/** @return Whether this output provider is currently outputting (initialized, active, and owning VCam is enabled). */
-	bool IsOutputting() const { return IsActive() && IsInitialized() && IsOuterComponentEnabled(); }
+	bool IsOutputting() const { return IsActive() && IsInitialized() && IsOuterComponentEnabledAndInitialized(); }
 
 	//~ Begin UObject Interface
 	virtual void Serialize(FArchive& Ar) override;
@@ -262,8 +262,8 @@ private:
 	UPROPERTY(Transient)
 	TSet<TWeakObjectPtr<APlayerController>> PlayersWhoseViewTargetsWereSet; 
 
-	bool IsActiveAndOuterComponentEnabled() const { return bIsActive && IsOuterComponentEnabled(); }
-	bool IsOuterComponentEnabled() const;
+	bool IsActiveAndOuterComponentAllowsActivity() const { return bIsActive && IsOuterComponentEnabledAndInitialized(); }
+	bool IsOuterComponentEnabledAndInitialized() const;
 
 #if WITH_EDITOR
 	/** Passed to FEditorViewportClient::ViewModifiers whenever DisplayType == EVPWidgetDisplayType::PostProcessWithBlendMaterial. */
