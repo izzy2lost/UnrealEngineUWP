@@ -118,6 +118,14 @@ bool UMoverNetworkPredictionLiaisonComponent::WritePendingSyncState(const FMover
 void UMoverNetworkPredictionLiaisonComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (const AActor* OwnerActor = GetOwner())
+	{
+		ensureMsgf(!OwnerActor->IsReplicatingMovement(),
+			TEXT("MoverComponent owning actor %s has the ReplicateMovement property enabled. This will conflict with Network Prediction and cause poor quality movement. Please disable it."),
+			*GetNameSafe(GetOwner()));
+	}
+
 	if (StartingOutSync && StartingOutAux)
 	{
 		if (FMoverDefaultSyncState* StartingSyncState = StartingOutSync->SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
