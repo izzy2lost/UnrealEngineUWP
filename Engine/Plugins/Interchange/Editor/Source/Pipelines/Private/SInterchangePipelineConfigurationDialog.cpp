@@ -42,7 +42,6 @@ static FAutoConsoleVariableRef CCvarInterchangeEnableFBXImport(
 	ECVF_Default);
 
 const FName ReimportStackName = TEXT("ReimportPipeline");
-const FString ReimportPipelinePrefix = TEXT("reimport_");
 
 void SInterchangePipelineItem::Construct(
 	const FArguments& InArgs,
@@ -161,23 +160,11 @@ SInterchangePipelineConfigurationDialog::~SInterchangePipelineConfigurationDialo
  // As this is the name displayed in the Dialog, conflicts won't matter.
 FString SInterchangePipelineConfigurationDialog::GetPipelineDisplayName(const UInterchangePipelineBase* Pipeline)
 {
-	static int32 RightChopIndex = ReimportPipelinePrefix.Len();
 
 	FString PipelineDisplayName = Pipeline->ScriptedGetPipelineDisplayName();
 	if(PipelineDisplayName.IsEmpty())
 	{
 		PipelineDisplayName = Pipeline->GetName();
-	}
-	if (PipelineDisplayName.StartsWith(ReimportPipelinePrefix))
-	{
-		PipelineDisplayName = PipelineDisplayName.RightChop(RightChopIndex);
-	}
-
-	FString StackName;
-	FString DisplayName;
-	if (PipelineDisplayName.Split("_", &StackName, &DisplayName))
-	{
-		return DisplayName;
 	}
 
 	return PipelineDisplayName;
@@ -316,7 +303,7 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 			for (const TObjectPtr<UInterchangePipelineBase>& DefaultPipeline : Stack.Pipelines)
 			{
 				check(DefaultPipeline);
-				if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstanceInSourceAssetPackage(DefaultPipeline))
+				if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(DefaultPipeline))
 				{
 					GeneratedPipeline->TransferAdjustSettings(DefaultPipeline);
 					if (Stack.StackName == ReimportStackName)
@@ -809,7 +796,7 @@ FReply SInterchangePipelineConfigurationDialog::OnResetToDefault()
 							TObjectPtr<UInterchangePipelineBase> PipelineElement = PipelineListViewItems[PipelineIndex]->Pipeline;
 							if (PipelineElement.Get() == Pipeline)
 							{
-								if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstanceInSourceAssetPackage(DefaultPipeline))
+								if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(DefaultPipeline))
 								{
 									GeneratedPipeline->TransferAdjustSettings(DefaultPipeline);
 									GeneratedPipeline->SetBasicLayoutMode(bBasicLayout);
@@ -905,12 +892,6 @@ void SInterchangePipelineConfigurationDialog::ClosePipelineConfiguration(const E
 		//Fill the OutPipelines array
 		for (TSharedPtr<FInterchangePipelineItemType> PipelineElement : PipelineListViewItems)
 		{
-			if (!bReimport)
-			{
-				// Create a name that would not cause conflict when this asset maybe reimported.
-				FString NewPipelineName = ReimportPipelinePrefix + PipelineElement->DisplayName;
-				PipelineElement->Pipeline->Rename(*NewPipelineName);
-			}
 			OutPipelines->Add(PipelineElement->Pipeline);
 		}
 	}
@@ -984,7 +965,7 @@ void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionC
 		for (const TObjectPtr<UInterchangePipelineBase>& DefaultPipeline : Stack.Pipelines)
 		{
 			check(DefaultPipeline);
-			if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstanceInSourceAssetPackage(DefaultPipeline))
+			if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(DefaultPipeline))
 			{
 				GeneratedPipeline->TransferAdjustSettings(DefaultPipeline);
 				if (Stack.StackName != ReimportStackName || !bStackSelectionChange)

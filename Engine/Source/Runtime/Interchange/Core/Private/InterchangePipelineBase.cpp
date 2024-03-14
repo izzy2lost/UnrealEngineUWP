@@ -33,6 +33,8 @@ void UInterchangePipelineBase::LoadSettings(const FName PipelineStackName)
 void UInterchangePipelineBase::SaveSettings(const FName PipelineStackName)
 {
 	SaveSettingsInternal(PipelineStackName, GEditorPerProjectIni);
+	//Flush the config only once, we do not want to flush when recursively save the sub object pipeline.
+	GConfig->Flush(0);
 }
 
 void UInterchangePipelineBase::AdjustSettingsForContext(EInterchangePipelineContext ReimportType, TObjectPtr<UObject> ReimportAsset)
@@ -288,7 +290,6 @@ void UInterchangePipelineBase::SaveSettingsInternal(const FName PipelineStackNam
 			}
 		}
 	}
-	GConfig->Flush(0);
 }
 
 

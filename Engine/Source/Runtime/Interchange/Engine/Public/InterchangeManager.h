@@ -239,9 +239,6 @@ namespace UE
 			FGraphEventRef PreCompletionTask;
 			FGraphEventRef CompletionTask;
 
-			// Package where the Pipeline Instances are stored during an import.
-			FString PipelineInstancesPackageName;
-
 			//Return true if we can import this class, or false otherwise.
 			bool IsClassImportAllowed(UClass* Class);
 
@@ -321,10 +318,7 @@ namespace UE
 		void SanitizeObjectName(FString& ObjectName);
 
 		/* This function takes an asset that represents a pipeline and generates a UInterchangePipelineBase asset. */
-		INTERCHANGEENGINE_API UInterchangePipelineBase* GeneratePipelineInstance(const FSoftObjectPath& PipelineInstance, UPackage* PipelineInstancePackage = nullptr);
-
-		INTERCHANGEENGINE_API UInterchangePipelineBase* GeneratePipelineInstanceInSourceAssetPackage(const FSoftObjectPath& PipelineInstance);
-
+		INTERCHANGEENGINE_API UInterchangePipelineBase* GeneratePipelineInstance(const FSoftObjectPath& PipelineInstance);
 	} //ns interchange
 } //ns UE
 

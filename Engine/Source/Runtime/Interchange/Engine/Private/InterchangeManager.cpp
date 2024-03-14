@@ -612,24 +612,6 @@ void UE::Interchange::FImportAsyncHelper::CleanUp()
 		}
 	}
 	CreatedFactories.Empty();
-
-
-	for (TObjectIterator<UInterchangePipelineBase> PipelinesItr;PipelinesItr;++PipelinesItr)
-	{
-		const FString PackageName = PipelinesItr->GetPackage()->GetName();
-		if (PipelineInstancesPackageName == PackageName)
-		{
-			PipelinesItr->RemoveFromRoot();
-			PipelinesItr->MarkAsGarbage();
-		}
-	}
-
-	if (UPackage* PipelineInstancesPackage = FindPackage(nullptr, *PipelineInstancesPackageName))
-	{
-		PipelineInstancesPackage->ClearFlags(RF_Public| RF_Standalone| RF_Transactional);
-		PipelineInstancesPackage->SetFlags(RF_Transient);
-		PipelineInstancesPackage->MarkAsGarbage();
-	}
 }
 
 UE::Interchange::FImportResult::FImportResult()
@@ -807,18 +789,12 @@ void UE::Interchange::SanitizeObjectName(FString& ObjectName)
 	}
 }
 
-UInterchangePipelineBase* UE::Interchange::GeneratePipelineInstanceInSourceAssetPackage(const FSoftObjectPath& SourcePipeline)
+UInterchangePipelineBase* UE::Interchange::GeneratePipelineInstance(const FSoftObjectPath& PipelineInstance)
 {
-	FString PackageName = FPackageUtils::ExtractPackageName(SourcePipeline.ToString());
-	UPackage* TargetPackage = FindPackage(nullptr, *PackageName);
-	return GeneratePipelineInstance(SourcePipeline, TargetPackage);
-}
-
-UInterchangePipelineBase* UE::Interchange::GeneratePipelineInstance(const FSoftObjectPath& PipelineInstance, UPackage* PipelineInstancePackage /*= nullptr*/)
-{
-	if (!PipelineInstancePackage)
+	UPackage* PipelineInstancePackage = GetTransientPackage();
+	if (!ensure(PipelineInstancePackage))
 	{
-		PipelineInstancePackage = GetTransientPackage();
+		return nullptr;
 	}
 	UObject* ReferenceInstance = PipelineInstance.TryLoad();
 	if (!ReferenceInstance)
@@ -1104,7 +1080,7 @@ bool UInterchangeManager::ConvertImportData(const UObject* SourceImportData, FIm
 				const FInterchangePipelineStack& PipelineStack = InterchangeImportSettings.PipelineStacks.FindChecked(InterchangeImportSettings.DefaultPipelineStack);
 				for (const FSoftObjectPath& PipelinePath : PipelineStack.Pipelines)
 				{
-					if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(PipelinePath, GetTransientPackage()))
+					if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(PipelinePath))
 					{
 						GeneratedPipeline->AdjustSettingsForContext(EInterchangePipelineContext::AssetImport, nullptr);
 						if (GeneratedPipeline->IsA(ConvertedPipelineClass))
@@ -1702,17 +1678,6 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		Pipeline->DestinationName = TaskData.DestinationName;
 	};
 
-	// Use counter to guarantee uniqueness of packages on each call to ImportInternal
-	static uint64 ImportCounter = 0;
-	static FString TransientPackageBasePath = GetTransientPackage()->GetPathName();
-
-	const FString PackageName = FString::Printf(TEXT("InterchangePipelinePackage-%llu"), ++ImportCounter);
-	AsyncHelper->PipelineInstancesPackageName = TransientPackageBasePath / PackageName;
-
-	UPackage* PipelineInstancesPackage = CreatePackage(*AsyncHelper->PipelineInstancesPackageName);
-	PipelineInstancesPackage->ClearFlags(RF_Public | RF_Standalone);
-	PipelineInstancesPackage->SetPackageFlags(PKG_NewlyCreated);
-
 	const bool bSkipImportDialog = AsyncTranslator ? ImportAllWithSamePipelines.Contains(AsyncTranslator->GetClass()) : false;
 	if (bSkipImportDialog)
 	{
@@ -1790,7 +1755,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				if (SourcePipeline && SourcePipeline->SupportReimport()) //Its possible a pipeline doesnt exist anymore so it wont load into memory when we loading the outer asset
 				{
 					//Duplicate the pipeline saved in the asset import data
-					UInterchangePipelineBase* GeneratedPipeline = Cast<UInterchangePipelineBase>(StaticDuplicateObject(SourcePipeline, PipelineInstancesPackage));
+					UInterchangePipelineBase* GeneratedPipeline = Cast<UInterchangePipelineBase>(StaticDuplicateObject(SourcePipeline, GetTransientPackage()));
 					// Make sure that the instance does not carry over standalone and public flags as they are not actual assets to be persisted
 					GeneratedPipeline->ClearFlags(EObjectFlags::RF_Standalone | EObjectFlags::RF_Public);
 					AdjustPipelineSettingForContext(GeneratedPipeline);
@@ -1829,14 +1794,8 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 
 				for (int32 PipelineIndex = 0; PipelineIndex < Pipelines->Num(); ++PipelineIndex)
 				{
-					if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance((*Pipelines)[PipelineIndex], PipelineInstancesPackage))
+					if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance((*Pipelines)[PipelineIndex]))
 					{
-						if (bShowPipelineStacksConfigurationDialog)
-						{
-							FString CurrentName = GeneratedPipeline->GetName();
-							FString NewName = FString::Printf(TEXT("%s_%s"), *StackName.ToString(), *CurrentName);
-							ensure(GeneratedPipeline->Rename(*NewName, nullptr, REN_DoNotDirty | REN_NonTransactional));
-						}
 						AdjustPipelineSettingForContext(GeneratedPipeline);
 						StackInfo.Pipelines.Add(GeneratedPipeline);
 					}
@@ -1962,7 +1921,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	{
 		for (int32 GraphPipelineIndex = 0; GraphPipelineIndex < ImportAssetParameters.OverridePipelines.Num(); ++GraphPipelineIndex)
 		{
-			UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(ImportAssetParameters.OverridePipelines[GraphPipelineIndex], PipelineInstancesPackage);
+			UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(ImportAssetParameters.OverridePipelines[GraphPipelineIndex]);
 			if (!GeneratedPipeline)
 			{
 				UE_LOG(LogInterchangeEngine, Error, TEXT("Interchange Import: Overridden pipeline array contains a NULL pipeline. Fix your script or code to avoid this issue."));
