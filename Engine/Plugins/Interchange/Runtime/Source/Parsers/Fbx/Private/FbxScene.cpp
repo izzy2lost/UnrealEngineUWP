@@ -20,6 +20,7 @@
 #include "Nodes/InterchangeUserDefinedAttribute.h"
 #include "InterchangeAnimationTrackSetNode.h"
 #include "InterchangeAnimationDefinitions.h"
+#include "InterchangeFbxSettings.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeFbxScene"
 
@@ -382,18 +383,7 @@ namespace UE
 					NodeContainer.AddNode(AnimTrackNode);
 				};
 
-				using namespace UE::Interchange::Animation;
-				static TMap<FString, TPair<FName, EInterchangeAnimationPayLoadType>> PropertyTracks
-				{
-					{TEXT("Intensity"), {PropertyTracks::Light::Intensity, EInterchangeAnimationPayLoadType::CURVE}},
-					{TEXT("Color"), {PropertyTracks::Light::Color, EInterchangeAnimationPayLoadType::CURVE}},
-					{TEXT("bUseTemperature"), {PropertyTracks::Light::UseTemperature, EInterchangeAnimationPayLoadType::STEPCURVE}},
-					{TEXT("IntensityUnits"), {PropertyTracks::Light::IntensityUnits, EInterchangeAnimationPayLoadType::STEPCURVE}},
-					{TEXT("bHidden"), {PropertyTracks::Visibility, EInterchangeAnimationPayLoadType::STEPCURVE}},
-					{TEXT("CurrentFocalLength"), {PropertyTracks::Camera::CurrentFocalLength, EInterchangeAnimationPayLoadType::CURVE}},
-					{TEXT("CurrentAperture"), {PropertyTracks::Camera::CurrentAperture, EInterchangeAnimationPayLoadType::CURVE}},
-					{TEXT("AspectRatioAxisConstraint"), {PropertyTracks::Camera::AspectRatioAxisConstraint, EInterchangeAnimationPayLoadType::CURVE}},
-				};
+				const UInterchangeFbxSettings* InterchangeFbxSettings = GetDefault<UInterchangeFbxSettings>();
 
 				//Add all Node Attributes for the node
 				for(int32 i = 0, Count = Node->GetNodeAttributeCount(); i < Count; ++i)
@@ -413,10 +403,10 @@ namespace UE
 
 							if(PayloadKey.IsSet())
 							{
-								const char* CurveNodeName = CurveNode->GetName();
-								if(TPair<FName, EInterchangeAnimationPayLoadType>* Track = PropertyTracks.Find(CurveNodeName))
+								const char* CurveNodeName = CurveNode->GetName();								
+								if(FInterchangePropertyTracksSettings PropertyTrack = InterchangeFbxSettings->GetPropertyTrack(CurveNodeName); PropertyTrack.Property != EInterchangePropertyTracks::None)
 								{
-									AddAnimationTrackNode(Track->Key, CurveNodeName, *PayloadKey, Track->Value);
+									AddAnimationTrackNode(PropertyTrack.GetPropertyName(), CurveNodeName, *PayloadKey, PropertyTrack.Type);
 								}
 							}
 						}
@@ -443,9 +433,9 @@ namespace UE
 							if(PayloadKey.IsSet())
 							{
 								const char* CurveNodeName = CurveNode->GetName();
-								if(TPair<FName, EInterchangeAnimationPayLoadType>* Track = PropertyTracks.Find(CurveNodeName))
+								if(FInterchangePropertyTracksSettings PropertyTrack = InterchangeFbxSettings->GetPropertyTrack(CurveNodeName); PropertyTrack.Property != EInterchangePropertyTracks::None)
 								{
-									AddAnimationTrackNode(Track->Key, CurveNodeName, *PayloadKey, Track->Value);
+									AddAnimationTrackNode(PropertyTrack.GetPropertyName(), CurveNodeName, *PayloadKey, PropertyTrack.Type);
 								}
 							}
 						}

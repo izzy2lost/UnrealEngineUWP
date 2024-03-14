@@ -4,6 +4,40 @@
 
 #include "UObject/NameTypes.h"
 
+#include "InterchangeAnimationDefinitions.generated.h"
+
+UENUM()
+enum class EInterchangePropertyTracks : int32
+{
+	/** Common Properties*/
+	Visibility,
+
+	/** Light Properties */
+	LightColor,
+	LightIntensity,
+	LightIntensityUnits,
+	LightTemperature,
+	LightUseTemperature,
+
+	/** Camera Properties*/
+	CameraAutoActivate,
+	CameraAspectRatioAxisConstraint,
+	CameraConstrainAspectRatio,
+	CameraCurrentAperture,
+	CameraCurrentFocalLength,
+	CameraCustomNearClippingPlane,
+	CameraFieldOfView,
+	CameraMobility,
+	CameraOrthoFarClipPlane,
+	CameraOrthoWidth,
+	CameraPostProcessBlendWeight,
+	CameraProjectionMode,
+	CameraShouldUpdatePhysicsVolume,
+	CameraUseFieldOfViewForLOD,
+
+	None = -1 UMETA(hidden),
+};
+
 namespace UE
 {
 	namespace Interchange
