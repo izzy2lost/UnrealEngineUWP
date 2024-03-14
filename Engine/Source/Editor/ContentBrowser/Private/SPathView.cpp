@@ -143,6 +143,8 @@ void SPathView::Construct( const FArguments& InArgs )
 	InitialCategoryFilter = InArgs._InitialCategoryFilter;
 	bAllowClassesFolder = InArgs._AllowClassesFolder;
 	bAllowReadOnlyFolders = InArgs._AllowReadOnlyFolders;
+	bShowRedirectors = InArgs._ShowRedirectors;
+	bLastShowRedirectors = bShowRedirectors.Get(false);
 	PreventTreeItemChangedDelegateCount = 0;
 	TreeTitle = LOCTEXT("AssetTreeTitle", "Asset Tree");
 	if ( InArgs._FocusSearchBoxWhenOpened )
@@ -330,6 +332,19 @@ void SPathView::Construct( const FArguments& InArgs )
 			RecursiveExpandParents(FoundItem);
 			TreeViewPtr->SetItemExpansion(FoundItem, true);
 		}
+	}
+}
+
+void SPathView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	Super::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+
+	const bool bNewShowRedirectors = bShowRedirectors.Get(false);
+	if (bNewShowRedirectors != bLastShowRedirectors)
+	{
+		UE_LOG(LogContentBrowser, Verbose, TEXT("PathView bShowRedirectors changed to %d"), bNewShowRedirectors);
+		bLastShowRedirectors = bNewShowRedirectors;
+		HandleSettingChanged("ShowRedirectors");
 	}
 }
 
@@ -934,6 +949,14 @@ EContentBrowserItemCategoryFilter SPathView::GetContentBrowserItemCategoryFilter
 		ItemCategoryFilter &= ~EContentBrowserItemCategoryFilter::IncludeClasses;
 	}
 	ItemCategoryFilter &= ~EContentBrowserItemCategoryFilter::IncludeCollections;
+	if (bShowRedirectors.Get(false))
+	{
+		ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeRedirectors;
+	}
+	else
+	{
+		ItemCategoryFilter &= ~EContentBrowserItemCategoryFilter::IncludeRedirectors;
+	}
 
 	return ItemCategoryFilter;
 }
@@ -1520,6 +1543,7 @@ FText SPathView::GetHighlightText() const
 void SPathView::Populate(const bool bIsRefreshingFilter)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SPathView::Populate);
+	UE_LOG(LogContentBrowser, Verbose, TEXT("Repopulating path view"));
 
 	// Update the list of expanded path before removing the items
 	UpdateLastExpandedPathsIfDirty();
@@ -1545,23 +1569,36 @@ void SPathView::Populate(const bool bIsRefreshingFilter)
 
 		UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
 		const FContentBrowserDataCompiledFilter CompiledDataFilter = CreateCompiledFolderFilter();
+		TOptional<FContentBrowserFolderContentsFilter> FolderFilter;
+		if (!bDisplayEmpty)
+		{
+			FolderFilter = FContentBrowserFolderContentsFilter{};
+			FolderFilter->ItemCategoryFilter = CompiledDataFilter.ItemCategoryFilter;
+		}
+		EContentBrowserIsFolderVisibleFlags FolderFlags = ContentBrowserUtils::GetIsFolderVisibleFlags(bDisplayEmpty);
 
 		TArray<TSharedPtr<FTreeItem>> ItemsCreated;
-		ContentBrowserData->EnumerateItemsMatchingFilter(CompiledDataFilter, [this, bFilteringByText, bDisplayEmpty, ContentBrowserData, &ItemsCreated](FContentBrowserItemData&& InItemData)
-		{
-			bool bPassesFilter = ContentBrowserData->IsFolderVisible(InItemData.GetVirtualPath(), ContentBrowserUtils::GetIsFolderVisibleFlags(bDisplayEmpty));
-			if (bPassesFilter && bFilteringByText)
-			{
-				// Use the whole path so we deliberately include any children of matched parents in the filtered list
-				const FString PathStr = InItemData.GetVirtualPath().ToString();
-				bPassesFilter &= SearchBoxFolderFilter->PassesFilter(PathStr);
-			}
+		ContentBrowserData->EnumerateItemsMatchingFilter(CompiledDataFilter,
+			[this, bFilteringByText, bDisplayEmpty, CompiledDataFilter, FolderFilter, FolderFlags, ContentBrowserData, &ItemsCreated](FContentBrowserItemData&& InItemData) {
+				if (!ContentBrowserData->IsFolderVisible(InItemData.GetVirtualPath(), FolderFlags, FolderFilter))
+				{
+					UE_LOG(LogContentBrowser, VeryVerbose, TEXT("Hiding folder %s that fails current pre-text filtering"), *WriteToString<256>(InItemData.GetVirtualPath()));
+					return true; // continue enumerating
+				}
 
-			if (bPassesFilter)
-			{
+				if (bFilteringByText)
+				{
+					// Use the whole path so we deliberately include any children of matched parents in the filtered list
+					const FString PathStr = InItemData.GetVirtualPath().ToString();
+					if (!SearchBoxFolderFilter->PassesFilter(PathStr))
+					{
+						return true; // continue enumerating
+					}
+				}
+
 				// Using array of all items created to handle item expansion of fully virtual paths that may not be included in enumeration
 				ItemsCreated.Reset();
-				AddFolderItem(MoveTemp(InItemData), /*bUserNamed=*/ false, &ItemsCreated);
+				AddFolderItem(MoveTemp(InItemData), /*bUserNamed=*/false, &ItemsCreated);
 
 				for (TSharedPtr<FTreeItem> Item : ItemsCreated)
 				{
@@ -1593,10 +1630,9 @@ void SPathView::Populate(const bool bIsRefreshingFilter)
 						}
 					}
 				}
-			}
 
-			return true;
-		});
+				return true;
+			});
 	}
 
 	SortRootItems();
@@ -2002,16 +2038,23 @@ void SPathView::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataUp
 		}
 	};
 
-	auto DoesItemPassFilter = [this, bFilteringByText, bDisplayEmpty, ContentBrowserData, &CompiledDataFilter](const FContentBrowserItemData& InItemData)
+	TOptional<FContentBrowserFolderContentsFilter> FolderFilter;
+	if (!bDisplayEmpty)
 	{
+		FolderFilter = FContentBrowserFolderContentsFilter{};
+		FolderFilter->ItemCategoryFilter = CompiledDataFilter.ItemCategoryFilter;
+	}
+	EContentBrowserIsFolderVisibleFlags FolderFlags = ContentBrowserUtils::GetIsFolderVisibleFlags(bDisplayEmpty);
+	auto DoesItemPassFilter = [this, bFilteringByText, FolderFlags, FolderFilter, ContentBrowserData, &CompiledDataFilter](const FContentBrowserItemData& InItemData) {
 		UContentBrowserDataSource* ItemDataSource = InItemData.GetOwnerDataSource();
 		if (!ItemDataSource->DoesItemPassFilter(InItemData, CompiledDataFilter))
 		{
 			return false;
 		}
 
-		if (!ContentBrowserData->IsFolderVisible(InItemData.GetVirtualPath(), ContentBrowserUtils::GetIsFolderVisibleFlags(bDisplayEmpty)))
+		if (!ContentBrowserData->IsFolderVisible(InItemData.GetVirtualPath(), FolderFlags, FolderFilter))
 		{
+			UE_LOG(LogContentBrowser, VeryVerbose, TEXT("Hiding folder %s that fails broad visibility filter"), *WriteToString<256>(InItemData.GetVirtualPath()));
 			return false;
 		}
 
@@ -2114,14 +2157,15 @@ bool SPathView::PathIsFilteredFromViewBySearch(const FString& InPath) const
 
 void SPathView::HandleSettingChanged(FName PropertyName)
 {
-	if ((PropertyName == GET_MEMBER_NAME_CHECKED(UContentBrowserSettings, DisplayEmptyFolders)) ||
-		(PropertyName == "DisplayDevelopersFolder") ||
-		(PropertyName == "DisplayEngineFolder") ||
-		(PropertyName == "DisplayPluginFolders") ||
-		(PropertyName == "DisplayL10NFolder") ||
-		(PropertyName == GET_MEMBER_NAME_CHECKED(UContentBrowserSettings, bDisplayContentFolderSuffix)) ||
-		(PropertyName == GET_MEMBER_NAME_CHECKED(UContentBrowserSettings, bDisplayFriendlyNameForPluginFolders)) ||
-		(PropertyName == NAME_None))	// @todo: Needed if PostEditChange was called manually, for now
+	if ((PropertyName == GET_MEMBER_NAME_CHECKED(UContentBrowserSettings, DisplayEmptyFolders))
+		|| (PropertyName == "ShowRedirectors")
+		|| (PropertyName == "DisplayDevelopersFolder")
+		|| (PropertyName == "DisplayEngineFolder")
+		|| (PropertyName == "DisplayPluginFolders")
+		|| (PropertyName == "DisplayL10NFolder")
+		|| (PropertyName == GET_MEMBER_NAME_CHECKED(UContentBrowserSettings, bDisplayContentFolderSuffix))
+		|| (PropertyName == GET_MEMBER_NAME_CHECKED(UContentBrowserSettings, bDisplayFriendlyNameForPluginFolders))
+		|| (PropertyName == NAME_None)) // @todo: Needed if PostEditChange was called manually, for now
 	{
 		const bool bHadSelectedPath = TreeViewPtr->GetNumItemsSelected() > 0;
 

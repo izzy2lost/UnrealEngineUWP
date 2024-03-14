@@ -25,7 +25,10 @@ class FPathPermissionList;
 class UContentBrowserDataSource;
 class UContentBrowserDataSubsystem;
 
-/** Flags controlling which item types should be included */
+/**
+ * Flags controlling which item types should be included
+ * Generally matches EContentBrowserItemFlags::Type_MASK
+ */
 UENUM(Flags)
 enum class EContentBrowserItemTypeFilter : uint8
 {
@@ -36,7 +39,10 @@ enum class EContentBrowserItemTypeFilter : uint8
 };
 ENUM_CLASS_FLAGS(EContentBrowserItemTypeFilter);
 
-/** Flags controlling which item categories should be included */
+/**
+ * Flags controlling which item categories should be included
+ * Generally matches EContentBrowserItemFlags::Category_MASK
+ */
 UENUM(Flags)
 enum class EContentBrowserItemCategoryFilter : uint8
 {
@@ -44,8 +50,9 @@ enum class EContentBrowserItemCategoryFilter : uint8
 	IncludeAssets = 1<<0,
 	IncludeClasses = 1<<1,
 	IncludeCollections = 1<<2,
-	IncludeMisc = 1<<3,
-	IncludeAll = IncludeAssets | IncludeClasses | IncludeCollections | IncludeMisc,
+	IncludeRedirectors = 1 << 3,
+	IncludeMisc = 1 << 4,
+	IncludeAll = IncludeAssets | IncludeClasses | IncludeCollections | IncludeRedirectors | IncludeMisc,
 };
 ENUM_CLASS_FLAGS(EContentBrowserItemCategoryFilter);
 
@@ -340,6 +347,24 @@ public:
 	bool bIncludeChildCollections = false;
 };
 
+/*
+ * Structure used to optionally filter folders by their broad contents
+ */
+USTRUCT(BlueprintType)
+struct CONTENTBROWSERDATA_API FContentBrowserFolderContentsFilter
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ContentBrowser")
+	EContentBrowserItemTypeFilter ItemTypeFilter = EContentBrowserItemTypeFilter::IncludeAll;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ContentBrowser")
+	EContentBrowserItemCategoryFilter ItemCategoryFilter = EContentBrowserItemCategoryFilter::IncludeAll;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ContentBrowser")
+	EContentBrowserItemAttributeFilter ItemAttributeFilter = EContentBrowserItemAttributeFilter::IncludeAll;
+};
 
 /**
  * Data used to tell the content browser to show the item that doesn't pass the class permission list as a unsupported asset

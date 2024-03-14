@@ -12,6 +12,7 @@
 #include "Delegates/Delegate.h"
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
+#include "Filters.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/UIAction.h"
@@ -315,6 +316,7 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		}
 	}
 
+	// clang-format off
 	VerticalBox->AddSlot()
 	.FillHeight(1.f)
 	[
@@ -331,6 +333,7 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		.OnVisualizeAssetToolTip(InArgs._AssetPickerConfig.OnVisualizeAssetToolTip)
 		.OnAssetToolTipClosing(InArgs._AssetPickerConfig.OnAssetToolTipClosing)
 		.FrontendFilters(FrontendFilters)
+	   	.ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
 		.InitialSourcesData(CurrentSourcesData)
 		.InitialBackendFilter(CurrentBackendFilter)
 		.InitialViewType(InArgs._AssetPickerConfig.InitialAssetViewType)
@@ -360,7 +363,7 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		.OnSearchOptionsChanged(this, &SAssetPicker::HandleSearchSettingsChanged)
 		.InitialThumbnailSize(InArgs._AssetPickerConfig.InitialThumbnailSize)
 	];
-
+	// clang-format on
 
 	HorizontalBox->AddSlot()
 	.AutoWidth()

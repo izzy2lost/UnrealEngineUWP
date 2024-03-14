@@ -537,7 +537,7 @@ bool UContentBrowserDataSubsystem::PrioritizeSearchPath(const FName InPath)
 	return bDidPrioritize;
 }
 
-bool UContentBrowserDataSubsystem::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags) const
+bool UContentBrowserDataSubsystem::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags, TOptional<FContentBrowserFolderContentsFilter> InContentsFilter) const
 {
 	bool bIsKnownPath = false;
 	for (const auto& ActiveDataSourcePair : ActiveDataSources)
@@ -546,7 +546,7 @@ bool UContentBrowserDataSubsystem::IsFolderVisible(const FName InPath, const ECo
 		if (DataSource->IsVirtualPathUnderMountRoot(InPath))
 		{
 			bIsKnownPath = true;
-			if (DataSource->IsFolderVisible(InPath, InFlags))
+			if (DataSource->IsFolderVisible(InPath, InFlags, InContentsFilter))
 			{
 				return true;
 			}
@@ -559,7 +559,9 @@ bool UContentBrowserDataSubsystem::IsFolderVisible(const FName InPath, const ECo
 
 bool UContentBrowserDataSubsystem::IsFolderVisibleIfHidingEmpty(const FName InPath) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return IsFolderVisible(InPath, EContentBrowserIsFolderVisibleFlags::Default | EContentBrowserIsFolderVisibleFlags::HideEmptyFolders);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 bool UContentBrowserDataSubsystem::CanCreateFolder(const FName InPath, FText* OutErrorMsg) const

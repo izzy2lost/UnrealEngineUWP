@@ -265,7 +265,8 @@ private:
 };
 
 /** An inverse filter that allows display of object redirectors */
-class CONTENTBROWSER_API FFrontendFilter_ShowRedirectors : public FFrontendFilter
+class UE_DEPRECATED(5.5, "FFrontendFilter_ShowRedirectors is deprecated. FFilter_ShowRedirectors is a virtual filter which controls backend search state instead.")
+	CONTENTBROWSER_API FFrontendFilter_ShowRedirectors : public FFrontendFilter
 {
 public:
 	/** Constructor */

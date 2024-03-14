@@ -41,6 +41,84 @@
 
 #define LOCTEXT_NAMESPACE "ContentBrowserAssetDataSource"
 
+enum class EContentBrowserFolderAttributes : uint8
+{
+	/**
+	 * No special attributes.
+	 */
+	None = 0,
+
+	/**
+	 * This folder should always be visible, even if it contains no content in the Content Browser view.
+	 * This will include root content folders, and any folders that have been created directly (or indirectly) by a user action.
+	 */
+	AlwaysVisible = 1 << 0,
+
+	/**
+	 * This folder has non-redirector assets that will appear in the Content Browser view.
+	 */
+	HasAssets = 1 << 1,
+
+	/**
+	 * This folder has public content that will appear in the Content Browser view.
+	 */
+	HasPublicContent = 1 << 2,
+
+	/**
+	 * This folder has source (uncooked) content that will appear in the Content Browser view.
+	 */
+	HasSourceContent = 1 << 3,
+
+	/**
+	 * This folder is inside a plugin.
+	 */
+	IsInPlugin = 1 << 4,
+
+	/**
+	 * This folder has redirector assets that will appear in the Content Browser view if the UI wishes to display them
+	 */
+	HasRedirectors = 1 << 5,
+};
+ENUM_CLASS_FLAGS(EContentBrowserFolderAttributes);
+
+// Produce a string of flags |'d together for logging
+FStringBuilderBase& operator<<(FStringBuilderBase& Builder, EContentBrowserFolderAttributes Attribs)
+{
+	bool bFirst = true;
+	for (EContentBrowserFolderAttributes Flag : MakeFlagsRange(Attribs))
+	{
+		if (!bFirst)
+		{
+			Builder << TEXTVIEW("|");
+		}
+		switch (Flag)
+		{
+			case EContentBrowserFolderAttributes::AlwaysVisible:
+				Builder << TEXTVIEW("AlwaysVisible");
+				break;
+			case EContentBrowserFolderAttributes::HasAssets:
+				Builder << TEXTVIEW("HasAssets");
+				break;
+			case EContentBrowserFolderAttributes::HasPublicContent:
+				Builder << TEXTVIEW("HasPublicContent");
+				break;
+			case EContentBrowserFolderAttributes::HasSourceContent:
+				Builder << TEXTVIEW("HasSourceContent");
+				break;
+			case EContentBrowserFolderAttributes::IsInPlugin:
+				Builder << TEXTVIEW("IsInPlugin");
+				break;
+			case EContentBrowserFolderAttributes::HasRedirectors:
+				Builder << TEXTVIEW("HasRedirectors");
+				break;
+			default:
+				Builder << TEXTVIEW("Unknown");
+				break;
+		}
+	}
+	return Builder;
+}
+
 UContentBrowserAssetDataSource::FOnAssetDataSourcePathAdded UContentBrowserAssetDataSource::OnAssetPathAddedDelegate;
 UContentBrowserAssetDataSource::FOnAssetDataSourcePathRemoved UContentBrowserAssetDataSource::OnAssetPathRemovedDelegate;
 
@@ -219,9 +297,16 @@ bool UContentBrowserAssetDataSource::PopulateAssetFilterInputParams(FAssetFilter
 	Params.bIncludeFolders = EnumHasAnyFlags(InFilter.ItemTypeFilter, EContentBrowserItemTypeFilter::IncludeFolders);
 	Params.bIncludeFiles = EnumHasAnyFlags(InFilter.ItemTypeFilter, EContentBrowserItemTypeFilter::IncludeFiles);
 	Params.bIncludeAssets = EnumHasAnyFlags(InFilter.ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeAssets);
+	Params.bIncludeRedirectors = EnumHasAnyFlags(InFilter.ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeRedirectors);
 
-	// If we aren't including anything, then we can just bail now
-	if (!Params.bIncludeAssets || (!Params.bIncludeFolders && !Params.bIncludeFiles))
+	// Everything this data source tracks is either an asset or a redirector
+	if (!Params.bIncludeAssets && !Params.bIncludeRedirectors)
+	{
+		return false;
+	}
+
+	// Everything this data source tracks is either a file or a folder
+	if (!Params.bIncludeFolders && !Params.bIncludeFiles)
 	{
 		return false;
 	}
@@ -252,6 +337,7 @@ bool UContentBrowserAssetDataSource::PopulateAssetFilterInputParams(FAssetFilter
 	Params.AssetDataFilter = &Params.FilterList->FindOrAddFilter<FContentBrowserCompiledAssetDataFilter>();
 	Params.AssetDataFilter->bFilterExcludesAllAssets = true;
 	Params.AssetDataFilter->ItemAttributeFilter = InFilter.ItemAttributeFilter;
+	Params.AssetDataFilter->ItemCategoryFilter = InFilter.ItemCategoryFilter;
 	Params.InternalPaths.Reset();
 
 	Params.UnsupportedClassFilter = InFilter.ExtraFilters.FindFilter<FContentBrowserDataUnsupportedClassFilter>();
@@ -787,6 +873,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				ExclusiveFilter.bRecursiveClasses |= Params.ClassFilter->bRecursiveClassNamesToExclude;
 			}
 
+			if (!Params.bIncludeRedirectors)
+			{
+				// Add redirectors to the class paths to exclude unless it's already in the class paths to explicitly include
+				FTopLevelAssetPath RedirectorClassPath(UObjectRedirector::StaticClass());
+				if (!CompiledInclusiveFilter.ClassPaths.Contains(RedirectorClassPath))
+				{
+					ExclusiveFilter.ClassPaths.Add(RedirectorClassPath);
+				}
+			}
+
 			Params.AssetRegistry->CompileFilter(ExclusiveFilter, CompiledExclusiveFilter);
 		}
 
@@ -1058,6 +1154,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return true;
 }
 
+// Note that this function is deprecated and is no longer maintained, see declaration
 bool UContentBrowserAssetDataSource::CreateAssetFilter(FAssetFilterInputParams& Params, FName InPath, const FContentBrowserDataFilter& InFilter, FContentBrowserDataCompiledFilter& OutCompiledFilter, FCompileARFilterFunc CreateCompiledFilter)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserAssetDataSource::LegacyCreateAssetFilter);
@@ -1932,8 +2029,40 @@ bool UContentBrowserAssetDataSource::PrioritizeSearchPath(const FName InPath)
 	return true;
 }
 
-bool UContentBrowserAssetDataSource::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags)
+bool UContentBrowserAssetDataSource::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags, TOptional<FContentBrowserFolderContentsFilter> InContentsFilter)
 {
+	auto IsInternalFolderVisible = [this, InContentsFilter](FName InternalFolderPath) {
+		const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InternalFolderPath);
+		if (EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::AlwaysVisible))
+		{
+			return true;
+		}
+
+		// Hide folders that only contain cooked private content
+		if (EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasAssets | EContentBrowserFolderAttributes::HasRedirectors)
+			&& !EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasPublicContent | EContentBrowserFolderAttributes::HasSourceContent))
+		{
+			return false;
+		}
+
+		if (InContentsFilter.IsSet())
+		{
+			if (EnumHasAnyFlags(InContentsFilter->ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeAssets)
+				&& EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasAssets))
+			{
+				return true;
+			}
+			if (EnumHasAnyFlags(InContentsFilter->ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeRedirectors)
+				&& EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasRedirectors))
+			{
+				return true;
+			}
+			return false;
+		}
+
+		return true;
+	};
+
 	FName ConvertedPath;
 	const EContentBrowserPathType ConvertedPathType = TryConvertVirtualPath(InPath, ConvertedPath);
 	if (ConvertedPathType == EContentBrowserPathType::Internal)
@@ -1942,30 +2071,28 @@ bool UContentBrowserAssetDataSource::IsFolderVisible(const FName InPath, const E
 		{
 			return false;
 		}
+		return IsInternalFolderVisible(ConvertedPath);
 	}
 	else if (ConvertedPathType == EContentBrowserPathType::Virtual)
 	{
+		bool bAnyVisible = false;
+		// Make virtual folders visible if any of their child folders will be visible
+		RootPathVirtualTree.EnumerateSubPaths(
+			ConvertedPath,
+			[this, &bAnyVisible, &IsInternalFolderVisible](FName ChildVirtualPath, FName ChildInternalPath) -> bool {
+				if (!ChildInternalPath.IsNone())
+				{
+					bAnyVisible = IsInternalFolderVisible(ChildInternalPath);
+				}
+				return !bAnyVisible;
+			},
+			true);
 		return true;
 	}
 	else
 	{
 		return false;
 	}
-
-	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(ConvertedPath);
-	if (EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::AlwaysVisible))
-	{
-		return true;
-	}
-
-	// Hide folders that only contain cooked private content
-	if (EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasContent) && !EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasPublicContent | EContentBrowserFolderAttributes::HasSourceContent))
-	{
-		return false;
-	}
-
-	return !EnumHasAnyFlags(InFlags, EContentBrowserIsFolderVisibleFlags::HideEmptyFolders)
-		|| EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasContent);
 }
 
 bool UContentBrowserAssetDataSource::CanCreateFolder(const FName InPath, FText* OutErrorMsg)
@@ -2701,7 +2828,8 @@ FContentBrowserItemData UContentBrowserAssetDataSource::CreateAssetFolderItem(co
 	TryConvertInternalPathToVirtual(InFolderPath, VirtualizedPath);
 
 	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InFolderPath);
-	const bool bIsCookedPath = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasContent) && !EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasSourceContent);
+	const bool bIsCookedPath = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasAssets | EContentBrowserFolderAttributes::HasRedirectors)
+							&& !EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasSourceContent);
 	const bool bIsPlugin = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::IsInPlugin);
 	return ContentBrowserAssetData::CreateAssetFolderItem(this, VirtualizedPath, InFolderPath, bIsCookedPath, bIsPlugin);
 }
@@ -2894,10 +3022,10 @@ void UContentBrowserAssetDataSource::OnPathsRemoved(TConstArrayView<FStringView>
 
 void UContentBrowserAssetDataSource::OnPathPopulated(const FAssetData& InAssetData)
 {
-	const EContentBrowserFolderAttributes FolderAttributes 
-		= EContentBrowserFolderAttributes::HasContent
-		| (InAssetData.PackageFlags & PKG_Cooked ? EContentBrowserFolderAttributes::None : EContentBrowserFolderAttributes::HasSourceContent)
-		| (InAssetData.PackageFlags & PKG_NotExternallyReferenceable ? EContentBrowserFolderAttributes::None : EContentBrowserFolderAttributes::HasPublicContent);
+	EContentBrowserFolderAttributes FolderAttributes =
+		InAssetData.IsRedirector() ? EContentBrowserFolderAttributes::HasRedirectors : EContentBrowserFolderAttributes::HasAssets;
+	FolderAttributes |= (InAssetData.PackageFlags & PKG_Cooked ? EContentBrowserFolderAttributes::None : EContentBrowserFolderAttributes::HasSourceContent);
+	FolderAttributes |= (InAssetData.PackageFlags & PKG_NotExternallyReferenceable ? EContentBrowserFolderAttributes::None : EContentBrowserFolderAttributes::HasPublicContent);
 
 	OnPathPopulated(FNameBuilder(InAssetData.PackagePath), FolderAttributes);
 }
@@ -3017,6 +3145,11 @@ bool UContentBrowserAssetDataSource::SetAssetFolderAttributes(const FName InPath
 		EnumAddFlags(FolderAttributes, InAttributesToSet);
 
 		const bool bHasChanged = FolderAttributes != PreviousAttributes;
+		if (bHasChanged)
+		{
+			const EContentBrowserFolderAttributes NewAttributes = InAttributesToSet & ~(PreviousAttributes);
+			UE_LOG(LogContentBrowserAssetDataSource, Verbose, TEXT("Updated folder attributes: %s %s"), *WriteToString<256>(InPath), *WriteToString<256>(NewAttributes));
+		}
 		return bHasChanged;
 	}
 
@@ -3385,9 +3518,14 @@ FContentBrowserItemData UContentBrowserAssetDataSource::OnFinalizeDuplicateAsset
 	return CreateAssetFileItem(FAssetData(Asset));
 }
 
-bool UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(const FContentBrowserCompiledAssetDataFilter& InFilter, const FName InPath)
+bool UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(const FContentBrowserCompiledAssetDataFilter& InFilter, const FName InInternalPath)
 {
-	FNameBuilder PathStr(InPath);
+	if (InFilter.ExcludedPackagePaths.Contains(InInternalPath)) // PassesExcludedPathsFilter
+	{
+		return false;
+	}
+
+	FNameBuilder PathStr(InInternalPath);
 	FStringView Path(PathStr);
 
 	auto PathPassesFilter = [Path](const FPathPermissionList& InPathFilter, const bool InRecursive)
@@ -3397,8 +3535,7 @@ bool UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(const FContent
 
 	return PathPassesFilter(InFilter.PackagePathsToInclude, InFilter.bRecursivePackagePathsToInclude)
 		&& PathPassesFilter(InFilter.PackagePathsToExclude, InFilter.bRecursivePackagePathsToExclude)
-		&& PathPassesFilter(InFilter.PathPermissionList, /*bRecursive*/true) // PassesPathFilter
-		&& !InFilter.ExcludedPackagePaths.Contains(InPath) // PassesExcludedPathsFilter
+		&& PathPassesFilter(InFilter.PathPermissionList, /*bRecursive*/ true)                         // PassesPathFilter
 		&& ContentBrowserDataUtils::PathPassesAttributeFilter(Path, 0, InFilter.ItemAttributeFilter); // PassesAttributeFilter
 }
 

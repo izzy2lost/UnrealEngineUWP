@@ -38,6 +38,7 @@
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
 #include "FileHelpers.h"
+#include "Filters.h"
 #include "Filters/FilterBase.h"
 #include "Filters/SAssetFilterBar.h"
 #include "Filters/SBasicFilterBar.h"
@@ -378,34 +379,34 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 	const bool bShowBottomToolbar = Config != nullptr ? Config->bShowBottomToolbar : true;
 
 	AssetViewPtr = SNew(SAssetView)
-		.ThumbnailLabel(Config != nullptr ? Config->ThumbnailLabel : EThumbnailLabel::ClassName)
-		//.ThumbnailScale(Config != nullptr ? Config->ThumbnailScale : 0.18f)
-		.InitialViewType(Config != nullptr ? Config->InitialAssetViewType : EAssetViewType::Tile)
-		.OnNewItemRequested(this, &SContentBrowser::OnNewItemRequested)
-		.OnItemSelectionChanged(this, &SContentBrowser::OnItemSelectionChanged, EContentBrowserViewContext::AssetView)
-		.OnItemsActivated(this, &SContentBrowser::OnItemsActivated)
-		.OnGetItemContextMenu(this, &SContentBrowser::GetItemContextMenu, EContentBrowserViewContext::AssetView)
-		.OnItemRenameCommitted(this, &SContentBrowser::OnItemRenameCommitted)
-		.OnShouldFilterItem(this, &SContentBrowser::HandlePrivateContentFilter)
-		.FrontendFilters(FrontendFilters)
-		.HighlightedText(this, &SContentBrowser::GetHighlightedText)
-		.ShowBottomToolbar(bShowBottomToolbar)
-		.ShowViewOptions(false)  // We control this for the main content browser
-		.AllowThumbnailEditMode(true)
-		.AllowThumbnailHintLabel(false)
-		.CanShowFolders(Config != nullptr ? Config->bCanShowFolders : true)
-		.CanShowClasses(Config != nullptr ? Config->bCanShowClasses : true)
-		.CanShowRealTimeThumbnails(Config != nullptr ? Config->bCanShowRealTimeThumbnails : true)
-		.CanShowDevelopersFolder(Config != nullptr ? Config->bCanShowDevelopersFolder : true)
-		.CanShowFavorites(true)
-		.CanDockCollections(true)
-		.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ContentBrowserAssets")))
-		.OwningContentBrowser(SharedThis(this))
-		.OnSearchOptionsChanged(this, &SContentBrowser::HandleAssetViewSearchOptionsChanged)
-		.bShowPathViewFilters(true)
-		.FillEmptySpaceInTileView(true)
-		.ShowDisallowedAssetClassAsUnsupportedItems(true);
-
+					   .ThumbnailLabel(Config != nullptr ? Config->ThumbnailLabel : EThumbnailLabel::ClassName)
+					   //.ThumbnailScale(Config != nullptr ? Config->ThumbnailScale : 0.18f)
+					   .InitialViewType(Config != nullptr ? Config->InitialAssetViewType : EAssetViewType::Tile)
+					   .OnNewItemRequested(this, &SContentBrowser::OnNewItemRequested)
+					   .OnItemSelectionChanged(this, &SContentBrowser::OnItemSelectionChanged, EContentBrowserViewContext::AssetView)
+					   .OnItemsActivated(this, &SContentBrowser::OnItemsActivated)
+					   .OnGetItemContextMenu(this, &SContentBrowser::GetItemContextMenu, EContentBrowserViewContext::AssetView)
+					   .OnItemRenameCommitted(this, &SContentBrowser::OnItemRenameCommitted)
+					   .OnShouldFilterItem(this, &SContentBrowser::HandlePrivateContentFilter)
+					   .FrontendFilters(FrontendFilters)
+					   .ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
+					   .HighlightedText(this, &SContentBrowser::GetHighlightedText)
+					   .ShowBottomToolbar(bShowBottomToolbar)
+					   .ShowViewOptions(false) // We control this for the main content browser
+					   .AllowThumbnailEditMode(true)
+					   .AllowThumbnailHintLabel(false)
+					   .CanShowFolders(Config != nullptr ? Config->bCanShowFolders : true)
+					   .CanShowClasses(Config != nullptr ? Config->bCanShowClasses : true)
+					   .CanShowRealTimeThumbnails(Config != nullptr ? Config->bCanShowRealTimeThumbnails : true)
+					   .CanShowDevelopersFolder(Config != nullptr ? Config->bCanShowDevelopersFolder : true)
+					   .CanShowFavorites(true)
+					   .CanDockCollections(true)
+					   .AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ContentBrowserAssets")))
+					   .OwningContentBrowser(SharedThis(this))
+					   .OnSearchOptionsChanged(this, &SContentBrowser::HandleAssetViewSearchOptionsChanged)
+					   .bShowPathViewFilters(true)
+					   .FillEmptySpaceInTileView(true)
+					   .ShowDisallowedAssetClassAsUnsupportedItems(true);
 
 	TSharedRef<SWidget> ViewOptions = SNullWidget::NullWidget;
 
@@ -1197,7 +1198,8 @@ void SContentBrowser::SetPathViewExpanded(bool bExpanded)
 }
 
 TSharedRef<SWidget> SContentBrowser::CreatePathView(const FContentBrowserConfig* Config)
-{	
+{
+	// clang-format off
 	return
 		SAssignNew(PathArea, SExpandableArea)
 		.BorderImage(FAppStyle::Get().GetBrush("Brushes.Header"))
@@ -1252,6 +1254,7 @@ TSharedRef<SWidget> SContentBrowser::CreatePathView(const FContentBrowserConfig*
 					.FocusSearchBoxWhenOpened(false)
 					.ShowTreeTitle(false)
 					.ShowSeparator(false)
+				   	.ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
 					.AllowClassesFolder(true)
 					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ContentBrowserSources")))
 					.ExternalSearch(SourcesSearch)
@@ -1260,6 +1263,7 @@ TSharedRef<SWidget> SContentBrowser::CreatePathView(const FContentBrowserConfig*
 				]
 			]
 		];
+	// clang-format on
 }
 
 TSharedRef<SWidget> SContentBrowser::CreateDockedCollectionsView(const FContentBrowserConfig* Config)
@@ -1634,6 +1638,13 @@ void SContentBrowser::PrepareToSyncItems(TArrayView<const FContentBrowserItem> I
  			}
 		}
 	}
+	
+	if (bDisableFiltersThatHideAssets)
+	{
+		// Disable the filter categories
+		// Do this before repopulate because the redirectors filter can hide folders
+		FilterListPtr->DisableFiltersThatHideItems(ItemsToSync);
+	}
 
 	// If we have auto-enabled any flags or found a non-existant path, force a refresh
 	if (bRepopulate)
@@ -1675,12 +1686,6 @@ void SContentBrowser::PrepareToSyncItems(TArrayView<const FContentBrowserItem> I
 		}
 		PathViewPtr->Populate();
 		FavoritePathViewPtr->Populate();
-	}
-
-	if ( bDisableFiltersThatHideAssets )
-	{
-		// Disable the filter categories
-		FilterListPtr->DisableFiltersThatHideItems(ItemsToSync);
 	}
 
 	// Disable the filter search (reset the filter, then clear the search text)

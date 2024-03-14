@@ -1063,8 +1063,13 @@ bool UContentBrowserFileDataSource::PrioritizeSearchPath(const FName InPath)
 	return true;
 }
 
-bool UContentBrowserFileDataSource::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags)
+bool UContentBrowserFileDataSource::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags, TOptional<FContentBrowserFolderContentsFilter> ContentsFilter)
 {
+	if (ContentsFilter.IsSet() && !EnumHasAllFlags(ContentsFilter->ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeMisc))
+	{
+		return false;
+	}
+
 	FName ConvertedPath;
 	const EContentBrowserPathType ConvertedPathType = TryConvertVirtualPath(InPath, ConvertedPath);
 	if (ConvertedPathType == EContentBrowserPathType::Internal)
@@ -1087,9 +1092,16 @@ bool UContentBrowserFileDataSource::IsFolderVisible(const FName InPath, const EC
 	const FStringView InternalPathStrView = InternalPathStr;
 	const uint32 InternalPathHash = GetTypeHash(InternalPathStrView);
 
-	return AlwaysVisibleFolders.ContainsByHash(InternalPathHash, InternalPathStrView)
-		|| !EnumHasAnyFlags(InFlags, EContentBrowserIsFolderVisibleFlags::HideEmptyFolders)
-		|| !EmptyFolders.ContainsByHash(InternalPathHash, InternalPathStrView);
+	if (AlwaysVisibleFolders.ContainsByHash(InternalPathHash, InternalPathStrView))
+	{
+		return true;
+	}
+	// Misc flag was checked above - if we are filtering out folders that don't contain "misc" elements, we are filtering out all empty folders from this provider
+	if (ContentsFilter.IsSet() && EmptyFolders.ContainsByHash(InternalPathHash, InternalPathStrView))
+	{
+		return false;
+	}
+	return true;
 }
 
 bool UContentBrowserFileDataSource::DoesItemPassFilter(const FContentBrowserItemData& InItem, const FContentBrowserDataCompiledFilter& InFilter)

@@ -18,6 +18,7 @@
 class FPathPermissionList;
 class FSlateRect;
 class SAssetView;
+class SFilterList;
 class SPathView;
 class SWidget;
 struct FARFilter;
@@ -140,4 +141,7 @@ namespace ContentBrowserUtils
 
 	/** Returns whether we should display icons for plugins in the content browser */
 	bool ShouldShowPluginFolderIcon();
+	
+	/** Returns whether the content browser should be showing redirectors based on the current filter state or content browser settings */
+	bool ShouldShowRedirectors(TSharedPtr<SFilterList> Filters);
 }

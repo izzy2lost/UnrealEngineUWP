@@ -18,6 +18,7 @@
 #include "Framework/Application/IMenu.h"
 #include "Framework/Application/MenuStack.h"
 #include "Framework/Application/SlateApplication.h"
+#include "FrontendFilterBase.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformCrt.h"
@@ -40,6 +41,7 @@
 #include "Misc/Optional.h"
 #include "Misc/Paths.h"
 #include "SAssetView.h"
+#include "SFilterList.h"
 #include "SPathView.h"
 #include "SlateOptMacros.h"
 #include "SlotBase.h"
@@ -785,7 +787,9 @@ FName ContentBrowserUtils::GetInvariantPath(const FContentBrowserItemPath& ItemP
 
 EContentBrowserIsFolderVisibleFlags ContentBrowserUtils::GetIsFolderVisibleFlags(const bool bDisplayEmpty)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return EContentBrowserIsFolderVisibleFlags::Default | (bDisplayEmpty ? EContentBrowserIsFolderVisibleFlags::None : EContentBrowserIsFolderVisibleFlags::HideEmptyFolders);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 bool ContentBrowserUtils::IsFavoriteFolder(const FString& FolderPath)
@@ -919,6 +923,19 @@ FAutoConsoleVariable CVarShowPluginFolderIcon(
 bool ContentBrowserUtils::ShouldShowPluginFolderIcon()
 {
 	return CVarShowPluginFolderIcon->GetBool();
+}
+
+bool ContentBrowserUtils::ShouldShowRedirectors(TSharedPtr<SFilterList> Filters)
+{
+	if (Filters.IsValid())
+	{
+		TSharedPtr<FFrontendFilter> ShowRedirectorsFilter = Filters->GetFrontendFilter(TEXT("ShowRedirectorsBackend"));
+		if (ShowRedirectorsFilter.IsValid())
+		{
+			return Filters->IsFrontendFilterActive(ShowRedirectorsFilter);
+		}
+	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

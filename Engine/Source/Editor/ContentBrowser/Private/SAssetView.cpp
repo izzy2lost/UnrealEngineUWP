@@ -110,8 +110,14 @@ public:
 	explicit FAssetViewFrontendFilterHelper(SAssetView* InAssetView)
 		: AssetView(InAssetView)
 		, ContentBrowserData(IContentBrowserDataModule::Get().GetSubsystem())
+		, FolderFilter()
 		, bDisplayEmptyFolders(AssetView->IsShowingEmptyFolders())
 	{
+		if (!bDisplayEmptyFolders)
+		{
+			FolderFilter = FContentBrowserFolderContentsFilter{};
+			FolderFilter->ItemCategoryFilter = InAssetView->DetermineItemCategoryFilter();
+		}
 	}
 
 	bool DoesItemPassQueryFilter(const TSharedPtr<FAssetViewItem>& InItemToFilter)
@@ -146,7 +152,11 @@ public:
 		// Folders are only subject to "empty" filtering
 		if (InItemToFilter->IsFolder())
 		{
-			return ContentBrowserData->IsFolderVisible(InItemToFilter->GetItem().GetVirtualPath(), ContentBrowserUtils::GetIsFolderVisibleFlags(bDisplayEmptyFolders));
+			if (!ContentBrowserData->IsFolderVisible(InItemToFilter->GetItem().GetVirtualPath(), ContentBrowserUtils::GetIsFolderVisibleFlags(bDisplayEmptyFolders), FolderFilter))
+			{
+				return false;
+			}
+			return true;
 		}
 
 		// Run the item through the filters
@@ -161,6 +171,7 @@ public:
 private:
 	SAssetView* AssetView = nullptr;
 	UContentBrowserDataSubsystem* ContentBrowserData = nullptr;
+	TOptional<FContentBrowserFolderContentsFilter> FolderFilter;
 	const bool bDisplayEmptyFolders = true;
 };
 
@@ -198,6 +209,9 @@ void SAssetView::Construct( const FArguments& InArgs )
 
 	bFillEmptySpaceInTileView = InArgs._FillEmptySpaceInTileView;
 	FillScale = 1.0f;
+
+	bShowRedirectors = InArgs._ShowRedirectors;
+	bLastShowRedirectors = bShowRedirectors.Get(false);
 
 	ThumbnailHintFadeInSequence.JumpToStart();
 	ThumbnailHintFadeInSequence.AddCurve(0, 0.5f, ECurveEaseFunction::Linear);
@@ -1005,6 +1019,13 @@ void SAssetView::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 	{
 		// If we're in a model window then we need to tick the thumbnail pool in order for thumbnails to render correctly.
 		AssetThumbnailPool->Tick(InDeltaTime);
+	}
+
+	const bool bNewShowRedirectors = bShowRedirectors.Get(false);
+	if (bNewShowRedirectors != bLastShowRedirectors)
+	{
+		bLastShowRedirectors = bNewShowRedirectors;
+		OnFrontendFiltersChanged(); // refresh the same as if filters changed
 	}
 
 	CalculateThumbnailHintColorAndOpacity();
@@ -1860,6 +1881,37 @@ bool SAssetView::IsValidSearchToken(const FString& Token) const
 	return true;
 }
 
+EContentBrowserItemCategoryFilter SAssetView::DetermineItemCategoryFilter() const
+{
+	// Check whether any legacy delegates are bound (the Content Browser doesn't use these, only pickers do)
+	// These limit the view to things that might use FAssetData
+	const bool bHasLegacyDelegateBindings = OnIsAssetValidForCustomToolTip.IsBound()
+										 || OnGetCustomAssetToolTip.IsBound()
+										 || OnVisualizeAssetToolTip.IsBound()
+										 || OnAssetToolTipClosing.IsBound()
+										 || OnShouldFilterAsset.IsBound();
+
+	EContentBrowserItemCategoryFilter ItemCategoryFilter = bHasLegacyDelegateBindings ? EContentBrowserItemCategoryFilter::IncludeAssets : InitialCategoryFilter;
+	if (IsShowingCppContent())
+	{
+		ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeClasses;
+	}
+	else
+	{
+		ItemCategoryFilter &= ~EContentBrowserItemCategoryFilter::IncludeClasses;
+	}
+	ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeCollections;
+	if (IsShowingRedirectors())
+	{
+		ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeRedirectors;
+	}
+	else
+	{
+		ItemCategoryFilter &= ~EContentBrowserItemCategoryFilter::IncludeRedirectors;
+	}
+	return ItemCategoryFilter;
+}
+
 FContentBrowserDataFilter SAssetView::CreateBackendDataFilter(bool bInvalidateCache) const
 {
 	// Assemble the filter using the current sources
@@ -1868,31 +1920,13 @@ FContentBrowserDataFilter SAssetView::CreateBackendDataFilter(bool bInvalidateCa
 	const bool bRecurse = ShouldFilterRecursively();
 	const bool bUsingFolders = IsShowingFolders() && !bRecurse;
 
-	// Check whether any legacy delegates are bound (the Content Browser doesn't use these, only pickers do)
-	// These limit the view to things that might use FAssetData
-	const bool bHasLegacyDelegateBindings 
-		=  OnIsAssetValidForCustomToolTip.IsBound()
-		|| OnGetCustomAssetToolTip.IsBound()
-		|| OnVisualizeAssetToolTip.IsBound()
-		|| OnAssetToolTipClosing.IsBound()
-		|| OnShouldFilterAsset.IsBound();
-
 	FContentBrowserDataFilter DataFilter;
 	DataFilter.bRecursivePaths = bRecurse || !bUsingFolders || bHasCollections;
 
 	DataFilter.ItemTypeFilter = EContentBrowserItemTypeFilter::IncludeFiles
 		| ((bUsingFolders && !bHasCollections) ? EContentBrowserItemTypeFilter::IncludeFolders : EContentBrowserItemTypeFilter::IncludeNone);
 
-	DataFilter.ItemCategoryFilter = bHasLegacyDelegateBindings ? EContentBrowserItemCategoryFilter::IncludeAssets : InitialCategoryFilter;
-	if (IsShowingCppContent())
-	{
-		DataFilter.ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeClasses;
-	}
-	else
-	{
-		DataFilter.ItemCategoryFilter &= ~EContentBrowserItemCategoryFilter::IncludeClasses;
-	}
-	DataFilter.ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeCollections;
+	DataFilter.ItemCategoryFilter = DetermineItemCategoryFilter();
 
 	DataFilter.ItemAttributeFilter = EContentBrowserItemAttributeFilter::IncludeProject
 		| (IsShowingEngineContent() ? EContentBrowserItemAttributeFilter::IncludeEngine : EContentBrowserItemAttributeFilter::IncludeNone)
@@ -2492,6 +2526,10 @@ void SAssetView::OnCollectionUpdated( const FCollectionNameType& Collection )
 
 void SAssetView::OnFrontendFiltersChanged()
 {
+	// We're refreshing so update the redirector visibility state in case it's not also bound to a frontend filter.
+	// This potentially avoids a double refresh on the next tick.
+	bLastShowRedirectors = bShowRedirectors.Get(false);
+
 	RequestQuickFrontendListRefresh();
 
 	// If we're not operating on recursively filtered data, we need to ensure a full slow
@@ -3041,6 +3079,11 @@ bool SAssetView::IsShowingEmptyFolders() const
 	}
 
 	return GetDefault<UContentBrowserSettings>()->DisplayEmptyFolders;
+}
+
+bool SAssetView::IsShowingRedirectors() const
+{
+	return bShowRedirectors.Get(false);
 }
 
 void SAssetView::ToggleRealTimeThumbnails()

@@ -4,4 +4,4 @@
 
 #include "CoreMinimal.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogContentBrowser, Verbose, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogContentBrowser, Log, Log);

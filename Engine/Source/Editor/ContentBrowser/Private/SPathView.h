@@ -62,6 +62,8 @@ typedef TTextFilter< const FString& > FolderTextFilter;
  */
 class SPathView : public SCompoundWidget
 {
+	using Super = SCompoundWidget;
+
 public:
 	/** Delegate for when plugin filters have changed */
 	DECLARE_DELEGATE( FOnFrontendPluginFilterChanged );
@@ -115,6 +117,9 @@ public:
 		/** If true, the favorites expander will be displayed */
 		SLATE_ARGUMENT(bool, ShowFavorites);
 
+		/** If true, redirectors are taken into consideration when deciding if folders are empty */
+		SLATE_ATTRIBUTE(bool, ShowRedirectors);
+
 		/** The selection mode for the tree view */
 		SLATE_ARGUMENT( ESelectionMode::Type, SelectionMode )
 
@@ -137,6 +142,9 @@ public:
 
 	/** Constructs this widget with InArgs */
 	virtual void Construct( const FArguments& InArgs );
+
+	/** Tick to poll attributes */
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 	/** Selects the closest matches to the supplied paths in the tree. "/" delimited */
 	void SetSelectedPaths(const TArray<FName>& Paths);
@@ -445,6 +453,9 @@ protected:
 
 	/** Custom Folder permissions */
 	TSharedPtr<FPathPermissionList> CustomFolderPermissionList;
+
+	TAttribute<bool> bShowRedirectors;
+	bool bLastShowRedirectors;
 
 private:
 	/** Used to track if the list of last expanded path should be updated */

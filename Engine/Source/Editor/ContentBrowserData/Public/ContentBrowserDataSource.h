@@ -256,8 +256,11 @@ public:
 	/**
 	 * Query whether the given virtual folder should be visible in the UI.
 	 * @note This function must be able to answer the question quickly or not at all (and assume visible). It *must not* block doing something like a file system scan.
+	 * @param Path Virtual path of folder e.g. /All/GameData/Stuff
+	 * @param Flags Currently unused
+	 * @param ContentsFilter Optional filter for limiting visibility to only folders with a certain type of contents based on desired view filtering. If this is unset, folders may be visible regardless of their contents or empty status.
 	 */
-	virtual bool IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags);
+	virtual bool IsFolderVisible(const FName Path, const EContentBrowserIsFolderVisibleFlags Flags, TOptional<FContentBrowserFolderContentsFilter> ContentsFilter);
 
 	/*
 	 * Query whether a folder can be created at the given virtual path, optionally providing error information if it cannot.

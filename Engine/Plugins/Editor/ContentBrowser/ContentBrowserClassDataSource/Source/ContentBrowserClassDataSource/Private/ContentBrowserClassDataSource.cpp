@@ -416,8 +416,14 @@ bool UContentBrowserClassDataSource::EnumerateItemsForObjects(const TArrayView<U
 	return true;
 }
 
-bool UContentBrowserClassDataSource::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags)
+bool UContentBrowserClassDataSource::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags, TOptional<FContentBrowserFolderContentsFilter> InContentsFilter)
 {
+	// We only contain classes, bail if the caller wants to filter out folders that contain only classes
+	if (InContentsFilter.IsSet() && !EnumHasAnyFlags(InContentsFilter->ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeClasses))
+	{
+		return false;
+	}
+
 	FName ConvertedPath;
 	const EContentBrowserPathType ConvertedPathType = TryConvertVirtualPath(InPath, ConvertedPath);
 	if (ConvertedPathType == EContentBrowserPathType::Internal)
@@ -438,9 +444,17 @@ bool UContentBrowserClassDataSource::IsFolderVisible(const FName InPath, const E
 
 	ConditionalCreateNativeClassHierarchy();
 
-	return ContentBrowserDataUtils::IsTopLevelFolder(ConvertedPath) 
-		|| !EnumHasAnyFlags(InFlags, EContentBrowserIsFolderVisibleFlags::HideEmptyFolders)
-		|| NativeClassHierarchy->HasClasses(ConvertedPath, /*bRecursive*/true);
+	if (ContentBrowserDataUtils::IsTopLevelFolder(ConvertedPath))
+	{
+		return true;
+	}
+
+	// Class flag was checked above - if we are filtering out folders that don't contain "class" elements, we are filtering out all empty folders from this provider
+	if (InContentsFilter.IsSet() && !NativeClassHierarchy->HasClasses(ConvertedPath, /*bRecursive*/ true))
+	{
+		return false;
+	}
+	return true;
 }
 
 bool UContentBrowserClassDataSource::DoesItemPassFilter(const FContentBrowserItemData& InItem, const FContentBrowserDataCompiledFilter& InFilter)

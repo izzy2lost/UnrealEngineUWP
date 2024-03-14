@@ -55,7 +55,7 @@ enum class EContentBrowserIsFolderVisibleFlags : uint8
 	/**
 	 * Hide folders that recursively contain no file items.
 	 */
-	HideEmptyFolders = 1<<0,
+	HideEmptyFolders UE_DEPRECATED(5.5, "Empty folder filtering is now dependent on which types of contents are visible, use the FContentBrowserFolderContentsFilter argument to IsFolderVisible") = 1 << 0,
 
 	/**
 	 * Default visibility flags.
@@ -253,8 +253,11 @@ public:
 
 	/**
 	 * Query whether the given virtual folder should be visible in the UI.
+	 * @param Path Virtual path of folder e.g. /All/GameData/Stuff
+	 * @param Flags Currently unused
+	 * @param ContentsFilter Optional filter for limiting visibility to only folders with a certain type of contents based on desired view filtering.
 	 */
-	bool IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags = EContentBrowserIsFolderVisibleFlags::Default) const;
+	bool IsFolderVisible(const FName Path, const EContentBrowserIsFolderVisibleFlags Flags = EContentBrowserIsFolderVisibleFlags::Default, TOptional<FContentBrowserFolderContentsFilter> ContentsFilter = {}) const;
 
 	/**
 	 * Query whether the given virtual folder should be visible if the UI is asking to hide empty content folders.

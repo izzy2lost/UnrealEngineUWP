@@ -254,7 +254,7 @@ bool UContentBrowserDataSource::PrioritizeSearchPath(const FName InPath)
 	return false;
 }
 
-bool UContentBrowserDataSource::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags)
+bool UContentBrowserDataSource::IsFolderVisible(const FName Path, const EContentBrowserIsFolderVisibleFlags Flags, TOptional<FContentBrowserFolderContentsFilter> ContentsFilter)
 {
 	return true;
 }

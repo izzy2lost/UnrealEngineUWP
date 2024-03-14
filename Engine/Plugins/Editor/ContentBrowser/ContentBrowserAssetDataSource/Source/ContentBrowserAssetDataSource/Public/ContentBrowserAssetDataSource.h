@@ -44,6 +44,7 @@ public:
 	FPathPermissionList PathPermissionList;
 	TSet<FName> ExcludedPackagePaths;
 	EContentBrowserItemAttributeFilter ItemAttributeFilter = EContentBrowserItemAttributeFilter::IncludeAll;
+	EContentBrowserItemCategoryFilter ItemCategoryFilter = EContentBrowserItemCategoryFilter::IncludeAll;
 	FString VirtualPathToScanOnDemand;
 	// Cached filtering
 	TSet<FName> CachedSubPaths;
@@ -76,40 +77,7 @@ public:
 	FARCompiledFilter ExclusiveFilter;
 };
 
-enum class EContentBrowserFolderAttributes : uint8
-{
-	/**
-	 * No special attributes.
-	 */
-	None = 0,
-
-	/**
-	 * This folder should always be visible, even if it contains no content in the Content Browser view.
-	 * This will include root content folders, and any folders that have been created directly (or indirectly) by a user action.
-	 */
-	AlwaysVisible = 1<<0,
-
-	/**
-	 * This folder has content that will appear in the Content Browser view.
-	 */
-	HasContent = 1<<1,
-
-	/**
-	 * This folder has public content that will appear in the Content Browser view.
-	 */
-	HasPublicContent = 1<<2,
-
-	/**
-	 * This folder has source (uncooked) content that will appear in the Content Browser view.
-	 */
-	HasSourceContent = 1<<3,
-
-	/** 
-	 * This folder is inside a plugin.
-	 */
-	IsInPlugin = 1<<4,
-};
-ENUM_CLASS_FLAGS(EContentBrowserFolderAttributes);
+enum class EContentBrowserFolderAttributes : uint8;
 
 UCLASS()
 class CONTENTBROWSERASSETDATASOURCE_API UContentBrowserAssetDataSource : public UContentBrowserDataSource
@@ -192,6 +160,7 @@ public:
 		bool bIncludeFolders = false;
 		bool bIncludeFiles = false;
 		bool bIncludeAssets = false;
+		bool bIncludeRedirectors = false;
 	};
 
 	typedef TFunctionRef<void(FName, TFunctionRef<bool(FName)>, bool)> FSubPathEnumerationFunc;
@@ -279,7 +248,7 @@ public:
 
 	virtual bool PrioritizeSearchPath(const FName InPath) override;
 
-	virtual bool IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags) override;
+	virtual bool IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags, TOptional<FContentBrowserFolderContentsFilter> InContentsFilter) override;
 
 	virtual bool CanCreateFolder(const FName InPath, FText* OutErrorMsg) override;
 

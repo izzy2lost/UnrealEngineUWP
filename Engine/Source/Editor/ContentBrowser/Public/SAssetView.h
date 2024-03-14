@@ -50,6 +50,7 @@ class FAssetViewItem;
 class FContentBrowserItemDataTemporaryContext;
 class FContentBrowserItemDataUpdate;
 class FDragDropEvent;
+class FFilter_ShowRedirectors;
 class FMenuBuilder;
 class FPathPermissionList;
 class FSlateRect;
@@ -179,6 +180,9 @@ public:
 
 		/** The filter collection used to further filter down assets returned from the backend */
 		SLATE_ARGUMENT( TSharedPtr<FAssetFilterCollectionType>, FrontendFilters )
+
+		/** If true, redirectors are visible even if not explicitly searching for them. */
+		SLATE_ATTRIBUTE(bool, ShowRedirectors);
 
 		/** Show path view filters submenu in view options menu */
 		SLATE_ARGUMENT( bool, bShowPathViewFilters )
@@ -543,6 +547,9 @@ private:
 	/** @return true when we are showing empty folders */
 	bool IsShowingEmptyFolders() const;
 
+	/** @return true when the asset view is showing object redirectors */
+	bool IsShowingRedirectors() const;
+
 	/** Toggle whether localized content should be shown or not */
 	void ToggleShowLocalizedContent();
 
@@ -862,6 +869,7 @@ private:
 	/** Append the current effective backend filter (intersection of BackendFilter and SupportedFilter) to the given filter. */
 	void AppendBackendFilter(FARFilter& FilterToAppendTo) const;
 
+	EContentBrowserItemCategoryFilter DetermineItemCategoryFilter() const;
 	FContentBrowserDataFilter CreateBackendDataFilter(bool bInvalidateCache) const;
 
 	/** Handles updating the view when content items are changed */
@@ -920,6 +928,9 @@ private:
 	TSharedPtr<FPathPermissionList> FolderPermissionList;
 	TSharedPtr<FPathPermissionList> WritableFolderPermissionList;
 	TSharedPtr<FAssetFilterCollectionType> FrontendFilters;
+
+	TAttribute<bool> bShowRedirectors;
+	bool bLastShowRedirectors;
 
 	/** Show path view filters submenu in view options menu  */
 	bool bShowPathViewFilters;

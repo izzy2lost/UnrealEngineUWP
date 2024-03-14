@@ -3,6 +3,7 @@
 
 #include "SFilterList.h"
 
+#include "Algo/AnyOf.h"
 #include "AssetRegistry/ARFilter.h"
 #include "ContentBrowserDataFilter.h"
 #include "ContentBrowserDataSource.h"
@@ -12,6 +13,7 @@
 #include "ContentBrowserItemData.h"
 #include "ContentBrowserMenuContexts.h"
 #include "ContentBrowserUtils.h"
+#include "Filters.h"
 #include "Filters/FilterBarConfig.h"
 #include "Filters/SAssetFilterBar.h"
 #include "Framework/Application/MenuStack.h"
@@ -75,7 +77,7 @@ void SFilterList::Construct( const FArguments& InArgs )
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_Writable(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_ShowOtherDevelopers(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_ReplicatedBlueprint(DefaultCategory)) );
-	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_ShowRedirectors(DefaultCategory)) );
+	AllFrontendFilters_Internal.Add(MakeShared<FFilter_ShowRedirectors>(DefaultCategory));
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_InUseByLoadedLevels(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_UsedInAnyLevel(DefaultCategory)) );
 	AllFrontendFilters_Internal.Add( MakeShareable(new FFrontendFilter_NotUsedInAnyLevel(DefaultCategory)) );
@@ -249,6 +251,26 @@ void SFilterList::DisableFiltersThatHideItems(TArrayView<const FContentBrowserIt
 						}
 					}
 				}
+			}
+		}
+
+		// Special case: if the object is a redirector then enable the 'show redirectors' filter - this will also prevent
+		// folders that contain only redirectors from being hidden with the "hide empty folders" setting
+		FString RedirectorClassPath = UObjectRedirector::StaticClass()->GetPathName();
+		const bool bAnyRedirectors = Algo::AnyOf(ItemList, [RedirectorClassPath](const FContentBrowserItem& Item) {
+			FContentBrowserItemDataAttributeValue Attribute = Item.GetItemAttribute(ContentBrowserItemAttributes::ItemTypeName, false);
+			return Attribute.IsValid() && Attribute.GetValueString() == RedirectorClassPath;
+		});
+		if (bAnyRedirectors)
+		{
+			TSharedPtr<FFilter_ShowRedirectors> RedirectorFilter = StaticCastSharedPtr<FFilter_ShowRedirectors>(GetFrontendFilter("ShowRedirectorsBackend"));
+			if (RedirectorFilter.IsValid())
+			{
+				int32 ExistingIndex = Filters.IndexOfByPredicate([RedirectorFilter](TSharedPtr<SFilter> Filter) { return Filter->GetFrontendFilter() == RedirectorFilter; });
+				TSharedRef<SFilter> FilterWidget = ExistingIndex == INDEX_NONE ? AddFilterToBar(RedirectorFilter.ToSharedRef()) : Filters[ExistingIndex];
+				FilterWidget->SetEnabled(true, false);
+				SetFrontendFilterActive(RedirectorFilter.ToSharedRef(), true);
+				ExecuteOnFilterChanged = true;
 			}
 		}
 
