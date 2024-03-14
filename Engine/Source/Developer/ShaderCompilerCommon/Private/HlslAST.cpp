@@ -535,8 +535,9 @@ namespace CrossCompiler
 			}
 		}
 
-		FStaticAssertStatement::FStaticAssertStatement(FLinearAllocator* InAllocator, const FSourceInfo& InInfo) :
+		FStaticAssertStatement::FStaticAssertStatement(FLinearAllocator* InAllocator, const FSourceInfo& InInfo, const FString& InKeyword) :
 			FNode(InAllocator, InInfo),
+			Keyword(InKeyword),
 			Condition(nullptr)
 		{
 		}
@@ -553,7 +554,6 @@ namespace CrossCompiler
 			checkf(Condition != nullptr, TEXT("Cannot write %s()-statement in HLSL without a conditional expression"), *Keyword);
 			Condition->Write(Writer);
 			Writer << TEXT(", \"") << *Message << TEXT("\");\n");
-			checkf(false, TEXT("TEST: %s()"), *Keyword);
 		}
 
 		FFunctionDefinition::FFunctionDefinition(FLinearAllocator* InAllocator, const FSourceInfo& InInfo) :

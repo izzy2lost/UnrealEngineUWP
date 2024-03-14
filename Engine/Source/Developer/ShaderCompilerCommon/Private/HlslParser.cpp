@@ -1490,13 +1490,16 @@ Done:
 
 	EParseResult ParseStaticAssertStatement(FHlslParser& Parser, FLinearAllocator* Allocator, AST::FNode** OutDeclaration)
 	{
-		const FHlslToken* CurrentToken = Parser.Scanner.GetCurrentToken();
-		check(CurrentToken);
+		const FHlslToken* StaticAssertToken = Parser.Scanner.PeekToken();
+		if (!Parser.Scanner.MatchToken(EHlslToken::StaticAssert))
+		{
+			return EParseResult::NotMatched;
+		}
 
-		AST::FStaticAssertStatement* Statement = new(Allocator) AST::FStaticAssertStatement(Allocator, CurrentToken->SourceInfo);
+		check(StaticAssertToken);
 
 		// Store statement keyword to support _Static_assert (HLSL) and static_assert (C++11 like compilers)
-		Statement->Keyword = CurrentToken->String;
+		AST::FStaticAssertStatement* Statement = new(Allocator) AST::FStaticAssertStatement(Allocator, StaticAssertToken->SourceInfo, StaticAssertToken->String);
 
 		if (!Parser.Scanner.MatchToken(EHlslToken::LeftParenthesis))
 		{
@@ -1518,8 +1521,8 @@ Done:
 			return ParseResultError();
 		}
 
-		const FHlslToken* MessageToken = Parser.Scanner.GetCurrentToken();
-		if (MessageToken->Token != EHlslToken::StringConstant)
+		const FHlslToken* MessageToken = Parser.Scanner.PeekToken();
+		if (!Parser.Scanner.MatchToken(EHlslToken::StringConstant))
 		{
 			Parser.Scanner.SourceError(TEXT("')' expected!\n"));
 			return ParseResultError();
@@ -1538,6 +1541,8 @@ Done:
 			Parser.Scanner.SourceError(TEXT("';' expected!\n"));
 			return ParseResultError();
 		}
+
+		*OutDeclaration = Statement;
 
 		return EParseResult::Matched;
 	}
@@ -2241,6 +2246,12 @@ Done:
 			return Result;
 		}
 
+		Result = ParseStaticAssertStatement(Parser, Allocator, OutNode);
+		if (Result == EParseResult::Error || Result == EParseResult::Matched)
+		{
+			return Result;
+		}
+
 		Parser.Scanner.SourceError(TEXT("Unable to match rule!"));
 		return ParseResultError();
 	}
@@ -2262,7 +2273,6 @@ Done:
 				RulesStatements.Add(FRulePair(EHlslToken::Break, ParseBreakStatement));
 				RulesStatements.Add(FRulePair(EHlslToken::Continue, ParseContinueStatement));
 				RulesStatements.Add(FRulePair(EHlslToken::Invalid, ParseLocalDeclaration, true));
-				RulesStatements.Add(FRulePair(EHlslToken::StaticAssert, ParseStaticAssertStatement));
 				// Always try expressions last
 				RulesStatements.Add(FRulePair(EHlslToken::Invalid, ParseExpressionStatement));
 			}

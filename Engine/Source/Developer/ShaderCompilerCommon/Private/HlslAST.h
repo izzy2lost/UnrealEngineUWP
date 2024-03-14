@@ -476,12 +476,12 @@ namespace CrossCompiler
 
 		struct FStaticAssertStatement : public FNode
 		{
-			FStaticAssertStatement(FLinearAllocator* InAllocator, const FSourceInfo& InInfo);
+			FStaticAssertStatement(FLinearAllocator* InAllocator, const FSourceInfo& InInfo, const FString& InKeyword);
 			~FStaticAssertStatement();
 
 			virtual void Write(FASTWriter& Writer) const override;
 
-			FString Keyword; // Either "_Static_assert" (DXC) or "static_assert" (C++11 like compilers)
+			const FString Keyword; // Either "_Static_assert" (DXC) or "static_assert" (C++11 like compilers)
 			FExpression* Condition;
 			FString Message;
 		};
