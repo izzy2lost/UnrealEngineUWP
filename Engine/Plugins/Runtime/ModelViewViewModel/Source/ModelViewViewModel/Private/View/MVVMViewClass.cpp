@@ -302,6 +302,21 @@ FString FMVVMViewClass_Source::ToString(const UMVVMViewClass* ViewClass, FToStri
 			AddPipe();
 			StringBuilder << TEXT("IsViewModel");
 		}
+		if ((Flags & (uint16)EFlags::IsViewModelInstanceExposed) != 0)
+		{
+			AddPipe();
+			StringBuilder << TEXT("EditDefaultOnly");
+		}
+		if (RequireGlobalViewModelCollectionUpdate())
+		{
+			AddPipe();
+			StringBuilder << TEXT("GlobalCollectionAutoUpdate");
+		}
+		if (AlwaysExecuteBindingsOnSetSource())
+		{
+			AddPipe();
+			StringBuilder << TEXT("AlwaysExecuteBindingsOnSetSource");
+		}
 	}
 
 	if (Args.bAddCreationMode)

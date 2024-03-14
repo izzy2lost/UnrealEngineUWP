@@ -179,7 +179,7 @@ public:
 	TArray<TObjectPtr<UEdGraph>> TemporaryGraph;
 
 private:
-	UPROPERTY()
+	UPROPERTY(Instanced)
 	TObjectPtr<UMVVMBlueprintViewSettings> Settings;
 
 	UPROPERTY(EditAnywhere, Category = "Viewmodel")

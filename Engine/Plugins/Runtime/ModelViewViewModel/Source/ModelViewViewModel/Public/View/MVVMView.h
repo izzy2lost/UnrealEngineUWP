@@ -16,6 +16,8 @@ class UMVVMViewClass;
 struct FMVVMViewClass_Binding;
 struct FMVVMViewClass_Event;
 struct FMVVMViewClass_Source;
+struct FMVVMViewClass_SourceBinding;
+struct FMVVMViewClass_SourceKey;
 
 /**
  * Instance FMVVMViewClass_Source for the UUserWdiget
@@ -162,6 +164,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "View")
 	bool SetViewModelByClass(TScriptInterface<INotifyFieldValueChanged> NewValue);
 
+	/**
+	 * Execute all the bindings that use the viewmodel.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "View")
+	bool ExecuteViewModelBindings(FName ViewModelName);
+
 private:
 	/**
 	 * Set the viewmodel of the specified name.
@@ -183,7 +191,9 @@ private:
 	void InitializeSourceBindingsCommon();
 	void UninitializeSourceBindings(FMVVMViewClass_SourceKey SourceKey, const FMVVMViewClass_Source& ClassSource, FMVVMView_Source& ViewSource);
 	void HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNotification::FFieldId InFieldId);
+	void ExecuteBindingInternal(const FMVVMViewClass_SourceBinding& SourceBinding) const;
 	void ExecuteBindingImmediately(const FMVVMViewClass_Binding& ClassBinding, FMVVMViewClass_BindingKey KeyForLog) const;
+	void ExecuteViewModelBindingsInternal(FMVVMViewClass_SourceKey SourceKey);
 
 	//~ evaluate source
 	bool EvaluateSource(FMVVMViewClass_SourceKey SourceIndex);

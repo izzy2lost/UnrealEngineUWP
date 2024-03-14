@@ -164,6 +164,17 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay)
 	bool bGlobalViewModelCollectionUpdate = false;
 
+	UPROPERTY()
+	bool bOverrideForceExecuteBindingsOnSetSource = false;
+
+	/**
+	 * When a viewmodel is set manually and the viewmodel already initialized, then always execute the bindings associated with that viewmodel.
+	 * For performance and to keep the same pattern in all UMG, the bindings are usually skip if the new viewmodel value match the previous viewmodel value.
+	 * This behavior can be desired if the widget is inside a pool or a binding has a side effect with another widget.
+	 */
+	UPROPERTY(EditAnywhere, Category = "View", meta = (EditCondition = "bOverrideForceExecuteBindingsOnSetSource"))
+	bool bForceExecuteBindingsOnSetSource = false;
+
 	/** Can change the name in the editor. */
 	UPROPERTY()
 	bool bCanRename = true;

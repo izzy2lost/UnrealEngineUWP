@@ -194,10 +194,19 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 	bool bCanEdit = ContextPtr->bCanEdit;
 	bool bCanRename = ContextPtr->bCanRename;
 
+	// Reset the value to what the user expect to see. It is not used in by the compiler.
+	if (!ContextPtr->bOverrideForceExecuteBindingsOnSetSource)
+	{
+		ContextPtr->bForceExecuteBindingsOnSetSource = GetDefault<UMVVMDeveloperProjectSettings>()->bForceExecuteBindingsOnSetSource;
+	}
+	
 	NotifyFieldValueClassHandle = PropertyHandle->GetChildHandle(TEXT("NotifyFieldValueClass"), false);
 	PropertyPathHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, ViewModelPropertyPath), false);
 	CreationTypeHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, CreationType), false);
 	ViewModelNameHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, ViewModelName), false);
+	OptionalHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bOptional), false);
+	CreateSetterFunctionHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bCreateSetterFunction), false);
+	ForceExecuteBindingsOnSetSourceHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bForceExecuteBindingsOnSetSource), false);
 
 	if (ensure(NotifyFieldValueClassHandle))
 	{
@@ -217,6 +226,11 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 	if (ensure(CreationTypeHandle))
 	{
 		CreationTypeHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FBlueprintViewModelContextDetailCustomization::HandleCreationTypeChanged));
+	}
+
+	if (ensure(CreateSetterFunctionHandle))
+	{
+		CreateSetterFunctionHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FBlueprintViewModelContextDetailCustomization::HandleCreateSetterFunctionChanged));
 	}
 
 	if (ensure(ViewModelNameHandle))
@@ -374,7 +388,6 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 
 		if (GetDefault<UMVVMDeveloperProjectSettings>()->bAllowGeneratedViewModelSetter)
 		{
-			TSharedPtr<IPropertyHandle> CreateSetterFunctionHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bCreateSetterFunction), false);
 			if (ensure(CreateSetterFunctionHandle))
 			{
 				ChildBuilder.AddProperty(CreateSetterFunctionHandle.ToSharedRef())
@@ -417,7 +430,6 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 					}));
 		}
 
-		TSharedPtr<IPropertyHandle> OptionalHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bOptional), false);
 		if (ensure(OptionalHandle))
 		{
 			ChildBuilder.AddProperty(OptionalHandle.ToSharedRef())
@@ -427,6 +439,17 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 						 || ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::PropertyPath
 						 || ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::Resolver;
 						return bResult && bCanEdit;
+					}));
+		}
+
+		if (ensure(ForceExecuteBindingsOnSetSourceHandle))
+		{
+			ChildBuilder.AddProperty(ForceExecuteBindingsOnSetSourceHandle.ToSharedRef())
+				.IsEnabled(bCanEdit)
+				.Visibility(MakeAttributeLambda([ContextPtr]()
+					{
+						bool bResult = ContextPtr->bCreateSetterFunction;
+						return bResult ? EVisibility::Visible : EVisibility::Collapsed;
 					}));
 		}
 	}
@@ -487,8 +510,30 @@ void FBlueprintViewModelContextDetailCustomization::HandleCreationTypeChanged()
 		if (FMVVMBlueprintViewModelContext* ContextPtr = Private::GetViewModelContext(ContextHandle.ToSharedRef()))
 		{
 			const bool bIsManual = (EMVVMBlueprintViewModelContextCreationType)NewValue == EMVVMBlueprintViewModelContextCreationType::Manual;
-			ContextPtr->bOptional = bIsManual;
-			ContextPtr->bCreateSetterFunction = bIsManual;
+			if (ContextPtr->bOptional != bIsManual)
+			{
+				OptionalHandle->SetValue(bIsManual);
+			}
+			if (ContextPtr->bCreateSetterFunction != bIsManual)
+			{
+				CreateSetterFunctionHandle->SetValue(bIsManual);
+			}
+		}
+	}
+}
+
+void FBlueprintViewModelContextDetailCustomization::HandleCreateSetterFunctionChanged()
+{
+	bool bNewCreateSetterFunctionHandle = false;
+	if (CreateSetterFunctionHandle->GetValue(bNewCreateSetterFunctionHandle) == FPropertyAccess::Success)
+	{
+		if (FMVVMBlueprintViewModelContext* ContextPtr = Private::GetViewModelContext(ContextHandle.ToSharedRef()))
+		{
+			if (ContextPtr->bOverrideForceExecuteBindingsOnSetSource && !bNewCreateSetterFunctionHandle)
+			{
+				ContextPtr->bOverrideForceExecuteBindingsOnSetSource = false;
+				ForceExecuteBindingsOnSetSourceHandle->SetValue(GetDefault<UMVVMDeveloperProjectSettings>()->bForceExecuteBindingsOnSetSource);
+			}
 		}
 	}
 }

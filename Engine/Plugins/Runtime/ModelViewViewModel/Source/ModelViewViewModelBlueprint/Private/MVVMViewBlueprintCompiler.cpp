@@ -2175,6 +2175,7 @@ void FMVVMViewBlueprintCompiler::CompileSources(const FCompiledBindingLibraryCom
 		bool bIsUserWidgetProperty = !SourceCreatorContext.DynamicContext.IsValid();
 		bool bExposeInstanceInEditor = false;
 		bool bGlobalViewModelCollectionUpdate = false;
+		bool bAlwaysExecuteBindingsOnSetSource =  GetDefault<UMVVMDeveloperProjectSettings>()->bForceExecuteBindingsOnSetSource;
 
 		if (ViewModelContext.CreationType == EMVVMBlueprintViewModelContextCreationType::Manual)
 		{
@@ -2277,6 +2278,12 @@ void FMVVMViewBlueprintCompiler::CompileSources(const FCompiledBindingLibraryCom
 			}
 		}
 
+		if (ViewModelContext.bOverrideForceExecuteBindingsOnSetSource)
+		{
+			bAlwaysExecuteBindingsOnSetSource = ViewModelContext.bForceExecuteBindingsOnSetSource;
+		}
+		bAlwaysExecuteBindingsOnSetSource = bCanBeSet && bAlwaysExecuteBindingsOnSetSource;
+
 		CompiledSourceCreator.Flags = 0;
 		CompiledSourceCreator.Flags |= bCreateInstance ? (uint16)FMVVMViewClass_Source::EFlags::TypeCreateInstance : 0;
 		CompiledSourceCreator.Flags |= bIsUserWidgetProperty ? (uint16)FMVVMViewClass_Source::EFlags::IsUserWidgetProperty : 0;
@@ -2287,6 +2294,7 @@ void FMVVMViewBlueprintCompiler::CompileSources(const FCompiledBindingLibraryCom
 		CompiledSourceCreator.Flags |= (uint16)FMVVMViewClass_Source::EFlags::IsViewModel;
 		CompiledSourceCreator.Flags |= bExposeInstanceInEditor ? (uint16)FMVVMViewClass_Source::EFlags::IsViewModelInstanceExposed : 0;
 		CompiledSourceCreator.Flags |= bGlobalViewModelCollectionUpdate ? (uint16)FMVVMViewClass_Source::EFlags::GlobalViewModelCollectionUpdate : 0;
+		CompiledSourceCreator.Flags |= bAlwaysExecuteBindingsOnSetSource ? (uint16)FMVVMViewClass_Source::EFlags::AlwaysExecuteBindingsOnSetSource : 0;
 
 		{
 			FSortData SortData;

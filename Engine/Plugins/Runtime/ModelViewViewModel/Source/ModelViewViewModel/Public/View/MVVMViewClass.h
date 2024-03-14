@@ -298,6 +298,12 @@ public:
 	{
 		return (Flags & (uint16)EFlags::GlobalViewModelCollectionUpdate) != 0;
 	}
+
+	/** When a source is manually set, then always execute that source the bindings. */
+	bool AlwaysExecuteBindingsOnSetSource() const
+	{
+		return (Flags & (uint16)EFlags::AlwaysExecuteBindingsOnSetSource) != 0;;
+	}
 	
 	/**
 	 * The source GetOrCreateInstance can fail.
@@ -409,6 +415,7 @@ private:
 		IsViewModel = 1 << 9,
 		IsViewModelInstanceExposed = 1 << 10,
 		GlobalViewModelCollectionUpdate = 1 << 11,
+		AlwaysExecuteBindingsOnSetSource = 1 << 12,
 	};
 
 	UPROPERTY(VisibleAnywhere, Category = "View")
@@ -520,13 +527,13 @@ public:
 	{
 		return bInitializeBindingsOnConstruct;
 	}
-	
+
 	/** Should it automatically register the events when the view is constructed. */
 	[[nodiscard]] bool DoesInitializeEventsOnConstruct() const
 	{
 		return bInitializeEventsOnConstruct;
 	}
-	
+
 	/** Should the view listen to modification made in the global viewmodel collection. */
 	[[nodiscard]] bool DoesListenToViewModelCollectionChanged() const
 	{

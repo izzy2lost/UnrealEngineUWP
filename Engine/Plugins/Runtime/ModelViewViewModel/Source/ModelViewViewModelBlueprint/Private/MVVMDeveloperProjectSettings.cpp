@@ -29,8 +29,10 @@ UMVVMDeveloperProjectSettings::UMVVMDeveloperProjectSettings()
 	AllowedContextCreationType.Add(EMVVMBlueprintViewModelContextCreationType::PropertyPath);
 	AllowedContextCreationType.Add(EMVVMBlueprintViewModelContextCreationType::Resolver);
 
-	AllowedClassForConversionFunctions.Add(UBlueprintFunctionLibrary::StaticClass());
-	AllowedClassForConversionFunctions.Add(UK2Node_FormatText::StaticClass());
+	FTopLevelAssetPath BlueprintFunctionLibrary = FTopLevelAssetPath("/Script/Engine", "BlueprintFunctionLibrary");
+	FTopLevelAssetPath FormatText = FTopLevelAssetPath("/Script/BlueprintGraph", "K2Node_FormatText");
+	AllowedClassForConversionFunctions.Add(FSoftClassPath(BlueprintFunctionLibrary.ToString()));
+	AllowedClassForConversionFunctions.Add(FSoftClassPath(FormatText.ToString()));
 }
 
 FName UMVVMDeveloperProjectSettings::GetCategoryName() const
