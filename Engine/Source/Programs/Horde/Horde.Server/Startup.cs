@@ -782,20 +782,6 @@ namespace Horde.Server
 					throw new ArgumentException($"Invalid auth method {settings.AuthMethod}");
 			}
 
-			services.AddSingleton<TelemetryManager>();
-			services.AddSingleton<ITelemetrySink>(sp => sp.GetRequiredService<TelemetryManager>());
-			services.AddHostedService(sp => sp.GetRequiredService<TelemetryManager>());
-			services.AddSingleton<MongoTelemetrySink>();
-			services.AddHostedService(sp => sp.GetRequiredService<MongoTelemetrySink>());
-			services.AddSingleton<MetricTelemetrySink>();
-
-			services.AddSingleton<MetricCollection>();
-			services.AddHostedService(sp => sp.GetRequiredService<MetricCollection>());
-			services.AddSingleton<IMetricCollection, MetricCollection>(sp => sp.GetRequiredService<MetricCollection>());
-
-			services.AddHttpClient(EpicTelemetrySink.HttpClientName, client => { });
-			services.AddHttpClient(ClickHouseTelemetrySink.HttpClientName, client => { });
-
 			authBuilder.AddScheme<JwtBearerOptions, JwtAuthHandler>(JwtAuthHandler.AuthenticationScheme, options => { });
 			schemes.Add(JwtAuthHandler.AuthenticationScheme);
 
@@ -812,6 +798,20 @@ namespace Horde.Server
 						.RequireAuthenticatedUser()
 						.Build();
 				});
+
+			services.AddSingleton<TelemetryManager>();
+			services.AddSingleton<ITelemetrySink>(sp => sp.GetRequiredService<TelemetryManager>());
+			services.AddHostedService(sp => sp.GetRequiredService<TelemetryManager>());
+			services.AddSingleton<MongoTelemetrySink>();
+			services.AddHostedService(sp => sp.GetRequiredService<MongoTelemetrySink>());
+			services.AddSingleton<MetricTelemetrySink>();
+
+			services.AddSingleton<MetricCollection>();
+			services.AddHostedService(sp => sp.GetRequiredService<MetricCollection>());
+			services.AddSingleton<IMetricCollection, MetricCollection>(sp => sp.GetRequiredService<MetricCollection>());
+
+			services.AddHttpClient(EpicTelemetrySink.HttpClientName, client => { });
+			services.AddHttpClient(ClickHouseTelemetrySink.HttpClientName, client => { });
 
 			// Hosted service that needs to run no matter the run mode of the process (server vs worker)
 			services.AddHostedService(provider => (DowntimeService)provider.GetRequiredService<IDowntimeService>());
