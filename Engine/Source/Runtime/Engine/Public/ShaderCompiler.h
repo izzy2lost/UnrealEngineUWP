@@ -140,7 +140,12 @@ protected:
 	
 	TAtomic<bool> bForceFinish;
 
-	virtual void PrintWorkerMemoryUsage() {}
+	/**
+	* Tries to print out the memory usage of all shader compile workers. When called during an out-of-memory event, it is useful to allow this process
+	* to wait for any locks, so we can rule out deadlocks while reporting out-of-memory errors.
+	* Returns whether the memory usage was successfully printed.
+	*/
+	virtual bool PrintWorkerMemoryUsage(bool bAllowToWaitForLock=true) { return false; }
 	/** Returns the amount of memory (in bytes) used by external processes related to this, if any. */
 	virtual FShaderCompileMemoryUsage GetExternalWorkerMemoryUsage() { return FShaderCompileMemoryUsage{}; }
 
@@ -207,7 +212,7 @@ public:
 	virtual ~FShaderCompileThreadRunnable();
 
 protected:
-	virtual void PrintWorkerMemoryUsage() override;
+	virtual bool PrintWorkerMemoryUsage(bool bAllowToWaitForLock = true) override;
 	virtual FShaderCompileMemoryUsage GetExternalWorkerMemoryUsage() override;
 
 private:
@@ -238,6 +243,8 @@ private:
 	virtual int32 CompilingLoop() override;
 
 	virtual void OnMachineResourcesChanged() override;
+
+	void PrintWorkerMemoryUsageWithLockTaken();
 };
 
 class FShaderCompileUtilities

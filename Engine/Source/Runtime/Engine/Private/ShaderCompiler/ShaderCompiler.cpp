@@ -37,6 +37,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/ScopedSlowTask.h"
+#include "Misc/ScopeTryLock.h"
 #include "Modules/ModuleManager.h"
 #include "ObjectCacheContext.h"
 #include "ProfilingDebugging/CookStats.h"
@@ -4103,9 +4104,8 @@ void FShaderCompileThreadRunnable::CompileDirectlyThroughDll()
 	}
 }
 
-void FShaderCompileThreadRunnable::PrintWorkerMemoryUsage()
+void FShaderCompileThreadRunnable::PrintWorkerMemoryUsageWithLockTaken()
 {
-	FScopeLock WorkerScopeLock(&WorkerInfosLock);
 	FPlatformProcessMemoryStats TotalMemoryStats{};
 	int32 NumValidWorkers = 0;
 	constexpr int64 Gibibyte = 1024 * 1024 * 1024;
@@ -4156,6 +4156,26 @@ void FShaderCompileThreadRunnable::PrintWorkerMemoryUsage()
 			TotalMemoryStats.UsedVirtual, double(TotalMemoryStats.UsedVirtual) / Gibibyte,
 			TotalMemoryStats.PeakUsedVirtual, double(TotalMemoryStats.PeakUsedVirtual) / Gibibyte
 		);
+	}
+}
+
+bool FShaderCompileThreadRunnable::PrintWorkerMemoryUsage(bool bAllowToWaitForLock)
+{
+	if (bAllowToWaitForLock)
+	{
+		FScopeLock WorkerScopeLock(&WorkerInfosLock);
+		PrintWorkerMemoryUsageWithLockTaken();
+		return true;
+	}
+	else
+	{
+		FScopeTryLock WorkerScopeLock(&WorkerInfosLock);
+		if (WorkerScopeLock.IsLocked())
+		{
+			PrintWorkerMemoryUsageWithLockTaken();
+			return true;
+		}
+		return false;
 	}
 }
 
@@ -5570,9 +5590,11 @@ IDistributedBuildController* FShaderCompilingManager::FindRemoteCompilerControll
 
 void FShaderCompilingManager::ReportMemoryUsage()
 {
+	// This function runs from within an OOM callback. It should not take locks, as much as possible.
+	constexpr bool bAllowToWaitForLock = false;
 	for (const TUniquePtr<FShaderCompileThreadRunnableBase>& ThreadPtr : Threads)
 	{
-		ThreadPtr->PrintWorkerMemoryUsage();
+		ThreadPtr->PrintWorkerMemoryUsage(bAllowToWaitForLock);
 	}
 }
 
