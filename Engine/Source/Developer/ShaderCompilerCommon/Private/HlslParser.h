@@ -24,6 +24,7 @@ namespace CrossCompiler
 	{
 		Matched,
 		NotMatched,
+		Ignore,
 		Error,
 	};
 
