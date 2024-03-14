@@ -5,6 +5,7 @@
 #include "Algo/AnyOf.h"
 #include "Misc/LazySingleton.h"
 #include "Misc/ScopeRWLock.h"
+#include "UserManagerEOS.h"
 
 const FUniqueNetIdEOS& FUniqueNetIdEOS::Cast(const FUniqueNetId& NetId)
 {
@@ -269,3 +270,11 @@ FUniqueNetIdEOSRef FUniqueNetIdEOSRegistry::FindCheckedImpl(EOS_ProductUserId Pr
 		return FUniqueNetIdEOS::EmptyId();
 	}
 }
+
+namespace OnlineSubsystemEOSTypesPrivate
+{
+FString GetBestDisplayName(const FOnlineSubsystemEOS& EOSSubsystem, const EOS_EpicAccountId TargetUserId, const FStringView Platform)
+{
+	return EOSSubsystem.UserManager->GetBestDisplayName(TargetUserId, Platform);
+}
+} // namespace OnlineSubsystemEOSTypesPrivate
