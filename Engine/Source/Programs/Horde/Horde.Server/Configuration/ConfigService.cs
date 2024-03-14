@@ -460,21 +460,32 @@ namespace Horde.Server.Configuration
 			}
 		}
 
+		internal Uri GetGlobalConfigUri()
+		{
+			return GetGlobalConfigUri(_serverSettings.ConfigPath, ServerApp.ConfigDir.FullName);
+		}
+
 		/// <summary>
 		/// Gets the path to the root config file
 		/// </summary>
-		Uri GetGlobalConfigUri()
+		internal static Uri GetGlobalConfigUri(string configPath, string defaultConfigDir)
 		{
-			if (Path.IsPathRooted(_serverSettings.ConfigPath) && !_serverSettings.ConfigPath.StartsWith("//", StringComparison.Ordinal))
+			bool isPerforcePath = configPath.StartsWith("//", StringComparison.Ordinal);
+			bool isAbsPath = Path.IsPathRooted(configPath);
+
+			if (isPerforcePath)
 			{
-				// absolute path to config
-				return new Uri(_serverSettings.ConfigPath);
+				return ConfigType.CombinePaths(new Uri(FileReference.Combine(new DirectoryReference(defaultConfigDir), "_").FullName), configPath);				
 			}
-			else
+
+			if (isAbsPath)
 			{
-				// relative (development) or perforce path
-				return ConfigType.CombinePaths(new Uri(FileReference.Combine(ServerApp.ConfigDir, "_").FullName), _serverSettings.ConfigPath);
+				return new UriBuilder("file", String.Empty) { Path = configPath }.Uri;
 			}
+			
+			// Path is relative
+			FileReference fileReference = FileReference.Combine(new DirectoryReference(defaultConfigDir), configPath);
+			return new UriBuilder("file", String.Empty) { Path = fileReference.FullName }.Uri;
 		}
 		
 		/// <summary>
