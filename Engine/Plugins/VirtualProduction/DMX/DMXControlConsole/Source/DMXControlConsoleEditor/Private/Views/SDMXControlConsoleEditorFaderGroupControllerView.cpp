@@ -386,26 +386,26 @@ namespace UE::DMX::Private
 		TArray<TWeakPtr<SWidget>> ElementControllerWidgetsToRemove;
 		for (TWeakPtr<SWidget>& Widget : ElementControllerWidgets)
 		{
-			if (!Widget.IsValid())
+			const UDMXControlConsoleElementController* ElementController = [Widget]() -> const UDMXControlConsoleElementController*
+				{
+					if (Widget.IsValid() && Widget.Pin()->GetTypeAsString() == TEXT("SDMXControlConsoleEditorElementControllerView"))
+					{
+						const TSharedPtr<SDMXControlConsoleEditorElementControllerView> ElementControllerView = StaticCastSharedPtr<SDMXControlConsoleEditorElementControllerView>(Widget.Pin());
+						return ElementControllerView.IsValid() ? ElementControllerView->GetElementController() : nullptr;
+					}
+					else if (Widget.IsValid() && Widget.Pin()->GetTypeAsString() == TEXT("SDMXControlConsoleEditorMatrixCellControllerView"))
+					{
+						const TSharedPtr<SDMXControlConsoleEditorMatrixCellControllerView> MatrixCellWidget = StaticCastSharedPtr<SDMXControlConsoleEditorMatrixCellControllerView>(Widget.Pin());
+						return MatrixCellWidget.IsValid() ? MatrixCellWidget->GetMatrixCellController() : nullptr;
+					}
+
+					return nullptr;
+				}();
+
+
+			if (ElementController && ElementControllers.Contains(ElementController))
 			{
 				continue;
-			}
-			
-			if (const TSharedPtr<SDMXControlConsoleEditorElementControllerView> ElementControllerView = StaticCastSharedPtr<SDMXControlConsoleEditorElementControllerView>(Widget.Pin()))
-			{
-				UDMXControlConsoleElementController* ElementController = ElementControllerView.IsValid() ? ElementControllerView->GetElementController() : nullptr;
-				if (ElementController && ElementControllers.Contains(ElementController))
-				{
-					continue;
-				}
-			}
-			else if (const TSharedPtr<SDMXControlConsoleEditorMatrixCellControllerView> MatrixCellWidget = StaticCastSharedPtr<SDMXControlConsoleEditorMatrixCellControllerView>(Widget.Pin()))
-			{
-				UDMXControlConsoleElementController* ElementController = MatrixCellWidget.IsValid() ? MatrixCellWidget->GetMatrixCellController() : nullptr;
-				if (ElementController && ElementControllers.Contains(ElementController))
-				{
-					continue;
-				}
 			}
 
 			ElementControllersHorizontalBox->RemoveSlot(Widget.Pin().ToSharedRef());
@@ -427,26 +427,23 @@ namespace UE::DMX::Private
 
 		const auto IsElementControllerInUseLambda = [InElementController](const TWeakPtr<SWidget>& Widget)
 			{
-				if (!Widget.IsValid())
-				{
-					return false;
-				}
+				const UDMXControlConsoleElementController* ElementController = [Widget]() -> const UDMXControlConsoleElementController*
+					{
+						if (Widget.IsValid() && Widget.Pin()->GetTypeAsString() == TEXT("SDMXControlConsoleEditorElementControllerView"))
+						{
+							const TSharedPtr<SDMXControlConsoleEditorElementControllerView> ElementControllerView = StaticCastSharedPtr<SDMXControlConsoleEditorElementControllerView>(Widget.Pin());
+							return ElementControllerView.IsValid() ? ElementControllerView->GetElementController() : nullptr;
+						}
+						else if (Widget.IsValid() && Widget.Pin()->GetTypeAsString() == TEXT("SDMXControlConsoleEditorMatrixCellControllerView"))
+						{
+							const TSharedPtr<SDMXControlConsoleEditorMatrixCellControllerView> MatrixCellWidget = StaticCastSharedPtr<SDMXControlConsoleEditorMatrixCellControllerView>(Widget.Pin());
+							return MatrixCellWidget.IsValid() ? MatrixCellWidget->GetMatrixCellController() : nullptr;
+						}
 
-				const TSharedPtr<SDMXControlConsoleEditorElementControllerView> ElementControllerView = StaticCastSharedPtr<SDMXControlConsoleEditorElementControllerView>(Widget.Pin());
-				UDMXControlConsoleElementController* ElementController = ElementControllerView.IsValid() ? ElementControllerView->GetElementController() : nullptr;
-				if (ElementController)
-				{
-					return ElementController == InElementController;
-				}
+						return nullptr;
+					}();
 
-				const TSharedPtr<SDMXControlConsoleEditorMatrixCellControllerView> MatrixCellWidget = StaticCastSharedPtr<SDMXControlConsoleEditorMatrixCellControllerView>(Widget.Pin());
-				ElementController = MatrixCellWidget.IsValid() ? MatrixCellWidget->GetMatrixCellController() : nullptr;
-				if (ElementController)
-				{
-					return ElementController == InElementController;
-				}
-
-				return false;
+				return ElementController && ElementController == InElementController;
 			};
 
 		return Algo::FindByPredicate(ElementControllerWidgets, IsElementControllerInUseLambda) != nullptr;
