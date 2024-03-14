@@ -46,6 +46,11 @@ UMoverComponent::UMoverComponent()
 	PrimaryComponentTick.TickGroup = TG_PrePhysics;
 	PrimaryComponentTick.bCanEverTick = true;
 
+	BasedMovementTickFunction.bCanEverTick = true;
+	BasedMovementTickFunction.bStartWithTickEnabled = false;
+	BasedMovementTickFunction.SetTickFunctionEnable(false);
+	BasedMovementTickFunction.TickGroup = TG_PostPhysics;
+
 	bWantsInitializeComponent = true;
 	bAutoActivate = true;
 
@@ -162,6 +167,23 @@ void UMoverComponent::RegisterComponentTickFunctions(bool bRegister)
 	if (bRegister && PrimaryComponentTick.bCanEverTick && Owner && Owner->CanEverTick())
 	{
 		Owner->PrimaryActorTick.AddPrerequisite(this, PrimaryComponentTick);
+	}
+
+
+	if (bRegister)
+	{
+		if (SetupActorComponentTickFunction(&BasedMovementTickFunction))
+		{
+			BasedMovementTickFunction.TargetMoverComp = this;
+			BasedMovementTickFunction.AddPrerequisite(this, this->PrimaryComponentTick);
+		}
+	}
+	else
+	{
+		if (BasedMovementTickFunction.IsTickFunctionRegistered())
+		{
+			BasedMovementTickFunction.UnRegisterTickFunction();
+		}
 	}
 }
 
@@ -374,6 +396,11 @@ void UMoverComponent::SimulationTick(const FMoverTimeStep& InTimeStep, const FMo
 	CachedLastUsedInputCmd = SimInput.InputCmd;
 	bHasValidCachedUsedInput = true;
 
+	if (bSupportsKinematicBasedMovement)
+	{ 
+		UpdateBasedMovementScheduling(SimOutput);
+	}
+
 	OnPostSimulationTick.Broadcast(MoverTimeStep);
 
 	CachedLastSimTickTimeStep = MoverTimeStep;
@@ -469,6 +496,55 @@ void UMoverComponent::HandleImpact(FMoverOnImpactParams& ImpactParams)
 void UMoverComponent::OnHandleImpact(const FMoverOnImpactParams& ImpactParams)
 {
 	// TODO: Handle physics impacts here - ie when player runs into box, impart force onto box
+}
+
+void UMoverComponent::UpdateBasedMovementScheduling(const FMoverTickEndData& SimOutput)
+{
+	// If we have a dynamic movement base, enable later based movement tick
+	UPrimitiveComponent* SyncStateDynamicBase = nullptr;
+	if (const FMoverDefaultSyncState* OutputSyncState = SimOutput.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+	{
+		if (UBasedMovementUtils::IsADynamicBase(OutputSyncState->GetMovementBase()))
+		{
+			SyncStateDynamicBase = OutputSyncState->GetMovementBase();
+		}
+	}
+
+	// Remove any stale dependency
+	if (MovementBaseDependency && (MovementBaseDependency != SyncStateDynamicBase))
+	{
+		UBasedMovementUtils::RemoveTickDependency(BasedMovementTickFunction, MovementBaseDependency);
+		MovementBaseDependency = nullptr;
+	}
+
+	// Set up current dependencies
+	if (SyncStateDynamicBase)
+	{
+		BasedMovementTickFunction.SetTickFunctionEnable(true);
+
+		if (UBasedMovementUtils::IsBaseSimulatingPhysics(SyncStateDynamicBase))
+		{
+			BasedMovementTickFunction.TickGroup = TG_PostPhysics;
+		}
+		else
+		{
+			BasedMovementTickFunction.TickGroup = TG_PrePhysics;
+		}
+
+		if (MovementBaseDependency == nullptr)
+		{
+			UBasedMovementUtils::AddTickDependency(BasedMovementTickFunction, SyncStateDynamicBase);
+			MovementBaseDependency = SyncStateDynamicBase;
+		}
+	}
+	else
+	{
+		BasedMovementTickFunction.SetTickFunctionEnable(false);
+		MovementBaseDependency = nullptr;
+
+		SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
+		SimBlackboard->Invalidate(CommonBlackboard::LastAppliedDynamicMovementBase);
+	}
 }
 
 void UMoverComponent::SetUpdatedComponent(USceneComponent* NewUpdatedComponent)
@@ -1228,6 +1304,11 @@ bool UMoverComponent::TryGetFloorCheckHitResult(FHitResult& OutHitResult) const
 }
 
 const UMoverBlackboard* UMoverComponent::GetSimBlackboard() const
+{
+	return SimBlackboard;
+}
+
+UMoverBlackboard* UMoverComponent::GetSimBlackboard_Mutable() const
 {
 	return SimBlackboard;
 }

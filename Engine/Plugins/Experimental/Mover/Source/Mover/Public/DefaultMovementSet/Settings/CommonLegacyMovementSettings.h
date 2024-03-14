@@ -92,6 +92,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="General", meta = (ClampMin = "0", UIMin = "0", ForceUnits = "Multiplier"))
 	float TurningBoost = 8.f;
 
+ 	/** Whether the actor ignores changes in rotation of the base it is standing on when using based movement.
+  	 * If true, the actor maintains its current world rotation.
+  	 * If false, the actor rotates with the moving base.
+  	 */
+ 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General")
+	bool bIgnoreBaseRotation = false;
+
 	/** Instantaneous speed induced in an actor upon jumping */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Jumping", meta = (ClampMin = "0", UIMin = "0", ForceUnits = "cm/s"))
 	float JumpUpwardsSpeed = 500.0f;

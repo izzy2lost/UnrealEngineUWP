@@ -26,7 +26,8 @@ namespace CommonBlackboard
 {
 	const FName LastFloorResult = TEXT("LastFloor");
 	const FName LastWaterResult = TEXT("LastWater");
-	const FName LastMovementBase = TEXT("LastMovementBase");
+	const FName LastFoundDynamicMovementBase = TEXT("LastFoundDynamicMovementBase");
+	const FName LastAppliedDynamicMovementBase = TEXT("LastAppliedDynamicMovementBase");
 	const FName TimeSinceSupported = TEXT("TimeSinceSupported");
 }
 

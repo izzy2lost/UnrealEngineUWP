@@ -9,6 +9,7 @@
 #include "MovementMode.h"
 #include "MoverTypes.h"
 #include "LayeredMove.h"
+#include "MoveLibrary/BasedMovementUtils.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Engine/HitResult.h"
 #endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
@@ -256,6 +257,8 @@ public:	// Queries
 	UFUNCTION(BlueprintPure, Category=Mover)
 	const UMoverBlackboard* GetSimBlackboard() const;
 
+	UMoverBlackboard* GetSimBlackboard_Mutable() const;
+
 	/** Find settings object by type. Returns null if there is none of that type */
 	const IMovementSettingsInterface* FindSharedSettings(const UClass* ByType) const { return FindSharedSettings_Mutable(ByType); }
 	template<class T>
@@ -343,6 +346,11 @@ protected:
 	virtual void PhysicsVolumeChanged(class APhysicsVolume* NewVolume);
 
 	virtual void OnHandleImpact(const FMoverOnImpactParams& ImpactParams);
+
+	/** internal function to perform post-sim scheduling to optionally support simple based movement */
+	void UpdateBasedMovementScheduling(const FMoverTickEndData& SimOutput);
+
+	TObjectPtr<UPrimitiveComponent> MovementBaseDependency;	// used internally for based movement scheduling management
 	
 	/** internal function to ensure SharedSettings array matches what's needed by the list of Movement Modes */
 	void RefreshSharedSettings();
@@ -374,6 +382,9 @@ protected:
 
 	TWeakInterfacePtr<IMoverBackendLiaisonInterface> BackendLiaisonComp;
 
+	/** Tick function that may be called anytime after this actor's movement step, useful as a way to support based movement on objects that are not */
+	FMoverDynamicBasedMovementTickFunction BasedMovementTickFunction;
+
 private:
 	/** Collection of settings objects that are shared between movement modes. This list is automatically managed based on the @MovementModes contents. */
 	UPROPERTY(EditDefaultsOnly, EditFixedSize, Instanced, Category = Mover, meta = (NoResetToDefault, MustImplement = "/Script/Mover.MovementSettingsInterface"))
@@ -386,6 +397,10 @@ private:
 	// cm/s^2, only meaningful if @bHasGravityOverride is enabled. Set @SetGravityOverride
 	UPROPERTY(EditDefaultsOnly, Category="Mover|Gravity", meta=(ForceUnits = "cm/s^2"))
 	FVector GravityAccelOverride;
+
+	/** If enabled, this actor will be moved to follow a base actor that it's standing on. Typically disabled for physics-based movement, which handles based movement internally. */
+	UPROPERTY(EditDefaultsOnly, Category = "Mover")
+	bool bSupportsKinematicBasedMovement = true;
 
 	/** Transient flag indicating whether we are executing OnRegister(). */
 	bool bInOnRegister = false;
@@ -407,4 +422,5 @@ private:
 	friend class UBaseMovementMode;
 	friend class UMoverNetworkPhysicsLiaisonComponent;
 	friend class UMoverDebugComponent;
+	friend class UBasedMovementUtils;
 };

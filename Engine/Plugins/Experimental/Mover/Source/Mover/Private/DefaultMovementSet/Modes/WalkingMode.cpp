@@ -142,8 +142,6 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	MoveRecord.SetDeltaSeconds(DeltaSeconds);
 
 	FFloorCheckResult CurrentFloor;
-	FRelativeBaseInfo OldRelativeBase;	// last known movement base (typically from a prior frame or prior substep)
-
 	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
 
 	// If we don't have cached floor information, we need to search for it again
@@ -152,20 +150,6 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 		UFloorQueryUtils::FindFloor(UpdatedComponent, UpdatedPrimitive,
 			CommonLegacySettings->FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine,
 			UpdatedPrimitive->GetComponentLocation(), CurrentFloor);
-	}
-
-	if (!SimBlackboard->TryGet(CommonBlackboard::LastMovementBase, OldRelativeBase))
-	{
-		OldRelativeBase = UpdateFloorAndBaseInfo(CurrentFloor);
-	}
-	
-	
-	// If we're on a dynamic movement base, attempt to move along with whatever motion is has performed since we last ticked
-	if (OldRelativeBase.UsesSameBase(StartingSyncState->GetMovementBase(), StartingSyncState->GetMovementBaseBoneName()))
-	{
-		FHitResult BasedMoveHitResult;
-		bool bDidMoveAlongWithBase = UBasedMovementUtils::TryMoveToStayWithBase(UpdatedComponent, UpdatedPrimitive, OldRelativeBase, MoveRecord, bIgnoreBaseRotation);
-
 	}
 
 	OutputSyncState.MoveDirectionIntent = (ProposedMove.bHasDirIntent ? ProposedMove.DirectionIntent : FVector::ZeroVector);
@@ -189,11 +173,15 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	
 	FOptionalFloorCheckResult StepUpFloorResult;	// passed to sub-operations, so we can use their final floor results if they did a test
 
+	bool bDidAttemptMovement = false;
+
 	float PercentTimeAppliedSoFar = MoveHitResult.Time;
 	bool bWasFirstMoveBlocked = false;
+
 	if (!CurMoveDelta.IsNearlyZero() || bIsOrientationChanging)
 	{
 		// Attempt to move the full amount first
+		bDidAttemptMovement = true;
 		bool bMoved = UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, CurMoveDelta, TargetOrientQuat, true, MoveHitResult, ETeleportType::None, MoveRecord);
 		float LastMoveSeconds = DeltaSeconds;
 
@@ -272,7 +260,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 			OutputState.MovementEndState.NextModeName = CommonLegacySettings->AirMovementModeName;
 			OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs - (Params.TimeStep.StepMs * PercentTimeAppliedSoFar);
 			MoveRecord.SetDeltaSeconds((Params.TimeStep.StepMs - OutputState.MovementEndState.RemainingMs) * 0.001f);
-			CaptureFinalState(UpdatedComponent, CurrentFloor, MoveRecord, OutputSyncState);
+			CaptureFinalState(UpdatedComponent, bDidAttemptMovement, CurrentFloor, MoveRecord, OutputSyncState);
 			return;
 		}
 	}
@@ -303,12 +291,12 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 			OutputState.MovementEndState.NextModeName = CommonLegacySettings->AirMovementModeName;
 			OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs;
 			MoveRecord.SetDeltaSeconds((Params.TimeStep.StepMs - OutputState.MovementEndState.RemainingMs) * 0.001f);
-			CaptureFinalState(UpdatedComponent, CurrentFloor, MoveRecord, OutputSyncState);
+			CaptureFinalState(UpdatedComponent, bDidAttemptMovement, CurrentFloor, MoveRecord, OutputSyncState);
 			return;
 		}
 	}
 
-	CaptureFinalState(UpdatedComponent, CurrentFloor, MoveRecord, OutputSyncState);
+	CaptureFinalState(UpdatedComponent, bDidAttemptMovement, CurrentFloor, MoveRecord, OutputSyncState);
 
 }
 
@@ -350,8 +338,11 @@ bool UWalkingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVec
 												  nullptr ); // no movement base
 		
 		// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-		GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastFloorResult);
-		GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastMovementBase);
+		if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
+		{
+			SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
+			SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
+		}
 
 		return true;
 	}
@@ -359,22 +350,40 @@ bool UWalkingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVec
 	return false;
 }
 
-// TODO: replace this function with simply looking at/collapsing the MovementRecord
-void UWalkingMode::CaptureFinalState(USceneComponent* UpdatedComponent, const FFloorCheckResult& FloorResult, const FMovementRecord& Record, FMoverDefaultSyncState& OutputSyncState) const
+void UWalkingMode::CaptureFinalState(USceneComponent* UpdatedComponent, bool bDidAttemptMovement, const FFloorCheckResult& FloorResult, const FMovementRecord& Record, FMoverDefaultSyncState& OutputSyncState) const
 {
-	FRelativeBaseInfo BaseInfo = UpdateFloorAndBaseInfo(FloorResult);
+	FRelativeBaseInfo PriorBaseInfo;
+
+	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+
+	const bool bHasPriorBaseInfo = SimBlackboard->TryGet(CommonBlackboard::LastFoundDynamicMovementBase, PriorBaseInfo);
+
+	FRelativeBaseInfo CurrentBaseInfo = UpdateFloorAndBaseInfo(FloorResult);
+
+	// If we're on a dynamic base and we're not trying to move, keep using the same relative actor location. This prevents slow relative 
+	//  drifting that can occur from repeated floor sampling as the base moves through the world.
+	if (CurrentBaseInfo.HasRelativeInfo() 
+		&& bHasPriorBaseInfo && !bDidAttemptMovement 
+		&& PriorBaseInfo.UsesSameBase(CurrentBaseInfo))
+	{
+		CurrentBaseInfo.ContactLocalPosition = PriorBaseInfo.ContactLocalPosition;
+	}
 
 	// TODO: Update Main/large movement record with substeps from our local record
 	
-	if (BaseInfo.HasRelativeInfo())
+	if (CurrentBaseInfo.HasRelativeInfo())
 	{
+		SimBlackboard->Set(CommonBlackboard::LastFoundDynamicMovementBase, CurrentBaseInfo);
+
 		OutputSyncState.SetTransforms_WorldSpace( UpdatedComponent->GetComponentLocation(),
 												  UpdatedComponent->GetComponentRotation(),
 												  Record.GetRelevantVelocity(),
-												  BaseInfo.MovementBase, BaseInfo.BoneName);
+												  CurrentBaseInfo.MovementBase.Get(), CurrentBaseInfo.BoneName);
 	}
 	else
 	{
+		SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
+
 		OutputSyncState.SetTransforms_WorldSpace( UpdatedComponent->GetComponentLocation(),
 												  UpdatedComponent->GetComponentRotation(),
 												  Record.GetRelevantVelocity(),
@@ -396,13 +405,6 @@ FRelativeBaseInfo UWalkingMode::UpdateFloorAndBaseInfo(const FFloorCheckResult& 
 	if (FloorResult.IsWalkableFloor() && UBasedMovementUtils::IsADynamicBase(FloorResult.HitResult.GetComponent()))
 	{
 		ReturnBaseInfo.SetFromFloorResult(FloorResult);
-
-		SimBlackboard->Set(CommonBlackboard::LastMovementBase, ReturnBaseInfo);
-	}
-	else
-	{
-
-		SimBlackboard->Invalidate(CommonBlackboard::LastMovementBase);
 	}
 
 	return ReturnBaseInfo;
