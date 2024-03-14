@@ -61,6 +61,7 @@ public:
 		FRDGTextureRef ColorTex;
 		FRDGTextureRef AlbedoTex;
 		FRDGTextureRef NormalTex;
+		FRDGTextureRef VarianceTex;
 		FRDGTextureRef OutputTex;
 
 		FRDGTextureRef FlowTex;

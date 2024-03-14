@@ -3248,13 +3248,12 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			DenoisingContext.RadianceTexture = RadianceTexture;
 			DenoisingContext.AlbedoTexture = AlbedoTexture;
 			DenoisingContext.NormalTexture = NormalTexture;
+			DenoisingContext.VarianceBuffer = PathTracingState->VarianceBuffer ? 
+				GraphBuilder.RegisterExternalBuffer(PathTracingState->VarianceBuffer, TEXT("PathTracing.VarianceBuffer")) : nullptr;
+			DenoisingContext.LastVarianceBuffer = PathTracingState->LastVarianceBuffer ?
+				GraphBuilder.RegisterExternalBuffer(PathTracingState->LastVarianceBuffer, TEXT("PathTracing.LastVarianceBuffer")) : nullptr;
 
-			if (PathTracingState->VarianceBuffer)
-			{
-				DenoisingContext.VarianceBuffer = GraphBuilder.RegisterExternalBuffer(PathTracingState->VarianceBuffer, TEXT("PathTracing.VarianceBuffer"));
-			}
-
-			PathTracingSpatialTemporalDenoisingPrePass(GraphBuilder, View, Config.PathTracingData.Iteration, DenoisingContext);
+			PathTracingSpatialTemporalDenoisingPrePass(GraphBuilder, View, Config.PathTracingData.Iteration, MaxSPP, DenoisingContext);
 
 			CurrentVarianceBufer = DenoisingContext.VarianceBuffer;
 		}
@@ -3276,9 +3275,6 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 					GraphBuilder.RegisterExternalTexture(PathTracingState->LastNormalRT, TEXT("PathTracing.LastNormalTexture"));
 				DenoisingContext.LastAlbedoTexture =
 					GraphBuilder.RegisterExternalTexture(PathTracingState->LastAlbedoRT, TEXT("PathTracing.LastAlbedoTexture"));
-
-				DenoisingContext.LastVarianceBuffer = PathTracingState->LastVarianceBuffer?
-					GraphBuilder.RegisterExternalBuffer(PathTracingState->LastVarianceBuffer, TEXT("PathTracing.LastVarianceBuffer")) : nullptr;
 			}
 
 			PathTracingSpatialTemporalDenoising(GraphBuilder,

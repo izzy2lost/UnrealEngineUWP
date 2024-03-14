@@ -59,6 +59,7 @@ void PathTracingSpatialTemporalDenoisingPrePass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	int IterationNumber,
+	int MaxSPP,
 	FPathTracingSpatialTemporalDenoisingContext& SpatialTemporalDenoisingContext
 );
 

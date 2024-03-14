@@ -805,7 +805,7 @@ float4 GetMeanFromTextures(int2 Position)
 	//The length of the average normal indicates the variance
 	//1: All pointing to the same direction
 	//0: Uniform in all directions
-	Value.z = length2(NormalTexture[Position].rgb);
+	Value.z = length(NormalTexture[Position].rgb);
 	
 	// Special case handling:
 	// 1. Regions without normal has a zero length, like sky
@@ -871,12 +871,10 @@ void PrepassGenerateTextureCS(uint3 DT_ID : SV_DispatchThreadID)
 		int index = Position.x + Position.y * TargetViewport_Extent.x;
 		FPixelMaterialLightingFingerprint VarianceInfo = VarianceMap[index];
 
-		float4 StandDerivation= sqrt((VarianceInfo.Var) / (VarianceInfo.Mean.w + 1));
+		// VarianceInfo.Var = sigma^2 * n.
+		// Std of mean = sqrt(sigma^2/n) = sqrt(VarianceInfo.Var/n^2)
+		float4 StandDerivation= sqrt(VarianceInfo.Var) / (VarianceInfo.Mean.w + 1);
 
-#if VARIANCE_TYPE == RADIANCE_ALBEDO_NORMAL_SINGLECHANNEL
-		// The normal variance is indicated by 1 - sqrt for the lengh2(normal).
-		StandDerivation.z = 1 - sqrt(VarianceInfo.Mean.z);
-#endif
 		OutputTexture[Position] = float4(StandDerivation.xyz, 1.0f);
 	}
 }
