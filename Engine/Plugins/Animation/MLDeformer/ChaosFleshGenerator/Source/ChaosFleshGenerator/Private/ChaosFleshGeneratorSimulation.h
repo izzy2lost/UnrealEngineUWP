@@ -60,11 +60,6 @@ namespace UE::Chaos::FleshGenerator
 		TObjectPtr<USkeletalGeneratorComponent> SkeletalComponent = nullptr;
 		TObjectPtr<UDeformableSolverComponent> SolverComponent = nullptr;
 
-		TUniquePtr<::UE::Tasks::FPipe> Pipe;
-
-		FEvent* SkinEvent = nullptr;
-		std::atomic<bool> bNeedsSkin = false;
-
 		TArrayView<TArray<FVector3f>> SimulatedPositions;
 		std::atomic<int32>* NumSimulatedFrames = nullptr;
 

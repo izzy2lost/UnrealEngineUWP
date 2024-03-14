@@ -52,7 +52,6 @@ namespace UE::Chaos::FleshGenerator
 			DeformableSolver->SolverForces = Properties->SolverForces;
 			DeformableSolver->SolverDebugging = Properties->SolverDebugging;
 			DeformableSolver->Reset();
-			check(FleshComponent->GetPhysicsProxy());
 
 
 			constexpr int32 LODIndex = 0;
@@ -68,19 +67,10 @@ namespace UE::Chaos::FleshGenerator
 			SimResource.FleshComponent = TObjectPtr<UFleshGeneratorComponent>(FleshComponent);
 			SimResource.SkeletalComponent = TObjectPtr<USkeletalGeneratorComponent>(SkeletalMeshComponent);
 			SimResource.SolverComponent = TObjectPtr<UDeformableSolverComponent>(DeformableSolver);
-			SimResource.Pipe = MakeUnique<UE::Tasks::FPipe>(*FString::Printf(TEXT("SimPipe:%d"), Index));
-			SimResource.SkinEvent = FPlatformProcess::GetSynchEventFromPool();
-			SimResource.bNeedsSkin.store(false);
-	
+				
 			SimResource.SimulatedPositions = TArrayView<TArray<FVector3f>>(SimulatedPositions);
 			SimResource.NumSimulatedFrames = &NumSimulatedFrames;
 			SimResource.bCancelled = &bCancelled;
-	
-			if (FleshComponent == nullptr || SimResource.Pipe == nullptr)
-			{
-				UE_LOG(LogChaosFleshGenerator, Error, TEXT("Failed to allocate simulation resources"));
-				return false;
-			}
 		}
 
 		return true;
@@ -94,8 +84,6 @@ namespace UE::Chaos::FleshGenerator
 		}
 		for (TSharedPtr<FSimResource>& SimResource : SimResources)
 		{
-			FPlatformProcess::ReturnSynchEventToPool(SimResource->SkinEvent);
-			SimResource->Pipe.Reset();
 			SimResource->FleshComponent->UnregisterComponent();
 			SimResource->FleshComponent->DestroyComponent();
 		}
@@ -105,29 +93,6 @@ namespace UE::Chaos::FleshGenerator
 	
 	void FTaskResource::FlushRendering()
 	{
-		// Copy bNeedsSkin
-		TArray<bool> NeedsSkin;
-		NeedsSkin.SetNum(SimResources.Num());
-		bool bAnyNeedsSkin = false;
-		for (int32 Index = 0; Index < SimResources.Num(); ++Index)
-		{
-			const bool bNeedsSkin = SimResources[Index]->bNeedsSkin.load();
-			bAnyNeedsSkin |= bNeedsSkin;
-			NeedsSkin[Index] = bNeedsSkin;
-		}
-	
-		if (bAnyNeedsSkin)
-		{
-			FlushRenderingCommands();
-			for (int32 Index = 0; Index < SimResources.Num(); ++Index)
-			{
-				if (NeedsSkin[Index])
-				{
-					SimResources[Index]->bNeedsSkin.store(false);
-					SimResources[Index]->SkinEvent->Trigger();
-				}
-			}
-		}
 	}
 
 	void FTaskResource::Cancel()

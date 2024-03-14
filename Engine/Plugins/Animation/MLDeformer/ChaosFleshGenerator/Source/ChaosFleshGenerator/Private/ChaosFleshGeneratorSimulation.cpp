@@ -35,15 +35,11 @@ namespace UE::Chaos::FleshGenerator
 		{
 			if (!TaskResource->bCancelled.load())
 			{
-				const int32 ThreadIdx = Frame % NumThreads;
 				const int32 AnimFrame = TaskResource->FramesToSimulate[Frame];
 	
+				const int32 ThreadIdx = 0;// Frame% NumThreads;
 				FSimResource& SimResource = *SimResources[ThreadIdx].Get();
-				SimResource.Pipe->Launch(*FString::Printf(TEXT("SimFrame:%d"), AnimFrame), [this, &SimResource, AnimFrame, Frame]()
-				{ 
-					FMemMark Mark(FMemStack::Get());
-					Simulate(SimResource, AnimFrame, Frame);
-				});
+				Simulate(SimResource, AnimFrame, Frame);
 			}
 			else
 			{
@@ -51,11 +47,6 @@ namespace UE::Chaos::FleshGenerator
 			}
 		}
 
-		for (TSharedPtr<FSimResource> SimResource : SimResources)
-		{
-			SimResource->Pipe->WaitUntilEmpty();
-		}
-	
 		RestoreAnimationSequence();
 	}
 
@@ -154,11 +145,7 @@ namespace UE::Chaos::FleshGenerator
 		check(SimResource.FleshComponent);
 		check(SimResource.SkeletalComponent);
 
-		// @todo(brice) : Do we need this?
-		// This could potentially be slow. 
 		SimResource.SkeletalComponent->RecreateRenderState_Concurrent();
-		SimResource.bNeedsSkin.store(true);
-		SimResource.SkinEvent->Wait();
 
 		TArray<FVector3f> Positions;
 		const UFleshDynamicAsset* DynamicCollection = SimResource.FleshComponent->GetDynamicCollection();
