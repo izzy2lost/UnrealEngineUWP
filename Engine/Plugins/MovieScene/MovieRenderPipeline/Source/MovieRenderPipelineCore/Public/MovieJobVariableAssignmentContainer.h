@@ -230,10 +230,9 @@ public:
 	 * the graph variable name, value type, object type, and container type. Additionally, stale overrides that have no
 	 * corresponding graph variable will be removed, and overrides will be created for graph variables which do not have
 	 * existing overrides.
-	 * @param bOnlyIncludeConnectedVariables Optionally, if the stored variable overrides should only include variables that 1) have nodes referencing them in the graph, and 2) at least one of those variable nodes has a connection to another node, set bOnlyIncludeConnectedVariables to true. This will ensure that variable overrides that have no chance of being utilized in the graph are not available to be changed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Experimental")
-	void UpdateGraphVariableOverrides(const bool bOnlyIncludeConnectedVariables = false);
+	void UpdateGraphVariableOverrides();
 #endif
 
 protected:

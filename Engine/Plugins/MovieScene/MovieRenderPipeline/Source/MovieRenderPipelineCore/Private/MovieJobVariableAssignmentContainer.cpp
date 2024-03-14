@@ -4,7 +4,6 @@
 
 #include "Graph/MovieGraphCommon.h"
 #include "Graph/MovieGraphConfig.h"
-#include "Graph/Nodes/MovieGraphVariableNode.h"
 
 // The prefix for property descriptions that are in charge of variable assignment EditCondition enable/disable state
 static const TCHAR* EditConditionPrefix = TEXT("bOverride_");
@@ -307,7 +306,7 @@ bool UMovieJobVariableAssignmentContainer::GenerateVariableOverride(const UMovie
 }
 
 #if WITH_EDITOR
-void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides(const bool bOnlyIncludeConnectedVariables/*= false*/)
+void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides()
 {
 	auto GetVariableGuidFromDesc = [](const FPropertyBagPropertyDesc& Desc) -> FGuid
 	{
@@ -443,26 +442,6 @@ void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides(const bo
 				ModifiedDescs.Add(EditConditionPropertyDesc);
 				bNeedsToRegenerate = true;
 			}
-		}
-	}
-
-	// Optionally, remove any descs that don't correspond to a variable node with an outgoing connection whose Guid matches the desc's Guid
-	if (bOnlyIncludeConnectedVariables)
-	{
-		const int32 NumDescsRemoved = ModifiedDescs.RemoveAll([&GetVariableGuidFromDesc, this](const FPropertyBagPropertyDesc& Desc)
-		{
-			const FGuid DescGuid = GetVariableGuidFromDesc(Desc);
-			return !GraphPreset->GetNodes().ContainsByPredicate([&DescGuid](UMovieGraphNode* Node)
-				{
-					const UMovieGraphVariableNode* VariableNode = Cast<UMovieGraphVariableNode>(Node);
-					return VariableNode && VariableNode->GetFirstConnectedOutputPin() && 
-						VariableNode->GetVariable() && (VariableNode->GetVariable()->GetGuid() == DescGuid);
-				});
-		});
-
-		if (NumDescsRemoved > 0) 
-		{
-			bNeedsToRegenerate = true;
 		}
 	}
 
