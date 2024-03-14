@@ -21,7 +21,7 @@ public:
 	GENERATED_BODY()
 
 	UPROPERTY(transient)
-	TObjectPtr<UWorld> World;
+	TWeakObjectPtr<UWorld> World;
 
 	UPROPERTY(transient)
 	mutable TArray<TWeakObjectPtr<UTickableConstraint>> Constraints;

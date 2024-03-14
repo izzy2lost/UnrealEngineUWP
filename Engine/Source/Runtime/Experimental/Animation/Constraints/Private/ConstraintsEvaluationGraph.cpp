@@ -41,7 +41,7 @@ FConstraintNode& FConstraintsEvaluationGraph::GetNode(const TWeakObjectPtr<UTick
 
 	FConstraintNode Node;
 	Node.ConstraintID = InConstraint->ConstraintID;
-	Node.ConstraintTick = &InConstraint->GetTickFunction(ConstraintsInWorld.World);
+	Node.ConstraintTick = &InConstraint->GetTickFunction(ConstraintsInWorld.World.Get());
 	return Nodes.Emplace_GetRef(MoveTemp(Node)); 
 }
 
