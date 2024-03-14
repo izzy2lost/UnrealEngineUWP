@@ -162,12 +162,10 @@ private:
 	 */
 	void ImplementUseSourceNameForAssetOption(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas);
 
-#if WITH_EDITORONLY_DATA
 	/**
-	 * Adds the user defined attributes (UInterchangeUserDefinedAttributesAPI) to the package meta data (UMetaData)
+	 * Adds the user defined attributes (UInterchangeUserDefinedAttributesAPI) to the package meta data (UMetaData) for WITH_EDITORONLY_DATA, and add UAssetUserData for AActors.
 	 */
-	void AddPackageMetaData(UObject* CreatedAsset, const UInterchangeBaseNode* Node);
-#endif // WITH_EDITORONLY_DATA
+	void AddMetaData(UObject* CreatedAsset, const UInterchangeBaseNode* Node);
 
 	struct FMaterialConflictData
 	{
