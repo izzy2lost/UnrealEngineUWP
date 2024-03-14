@@ -1420,13 +1420,13 @@ void UInterchangeGenericAssetsPipeline::AddMetaData(UObject* CreatedAsset, const
 					InterchangeUserData->MetaData.Reset();
 				}
 
-				for (const TPair<FString, FString>& MetaDataPair : MetaDataMap)
-				{
-					InterchangeUserData->MetaData.Add(MetaDataPair.Key, MetaDataPair.Value);
-				}
-
 				if (InterchangeUserData)
 				{
+					for (const TPair<FString, FString>& MetaDataPair : MetaDataMap)
+					{
+						InterchangeUserData->MetaData.Add(MetaDataPair.Key, MetaDataPair.Value);
+					}
+
 					InterchangeUserData->MetaData.KeySort(TLess<FString>());
 				}
 			}
