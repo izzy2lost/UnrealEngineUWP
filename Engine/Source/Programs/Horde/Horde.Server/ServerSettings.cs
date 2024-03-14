@@ -485,6 +485,11 @@ namespace Horde.Server
 		public string? OidcAuthority { get; set; }
 
 		/// <summary>
+		/// Audience for validating externally issued tokens
+		/// </summary>
+		public string? OidcAudience { get; set; }
+
+		/// <summary>
 		/// Client id for the OIDC authority
 		/// </summary>
 		public string? OidcClientId { get; set; }
