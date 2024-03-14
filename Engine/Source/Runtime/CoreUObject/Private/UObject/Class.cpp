@@ -1423,7 +1423,15 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 				// Overridden values are saved independently in transaction, so do no need to restore them here.
 				if (!UnderlyingArchive.IsTransacting())
 				{
-					ControlContext.OverriddenProperties = &FOverridableManager::Get().SetOverriddenProperties(*(UObject*)Data, Operation);
+					ControlContext.OverriddenProperties = nullptr;
+					if (UnderlyingArchive.ArMergeOverrides)
+					{
+						ControlContext.OverriddenProperties = FOverridableManager::Get().GetOverriddenProperties(*(UObject*)Data);
+					}
+					if (!ControlContext.OverriddenProperties)
+					{
+						ControlContext.OverriddenProperties = &FOverridableManager::Get().SetOverriddenProperties(*(UObject*)Data, Operation);
+					}
 					ControlContext.OverriddenProperties->bNeedsSubobjectTemplateInstantiation = true;
 				}
 			}
