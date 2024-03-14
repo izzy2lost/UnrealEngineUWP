@@ -469,6 +469,17 @@ void FEQSParametrizedQueryExecutionRequest::PostEditChangeProperty(UObject& Owne
 			QueryConfig.Reset();
 		}
 	}
+	else if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(FAIDynamicParam, bAllowBBKey))
+	{
+		const int32 ChangedIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_CHECKED(FEQSParametrizedQueryExecutionRequest, QueryConfig).ToString());
+		if (QueryConfig.IsValidIndex(ChangedIndex))
+		{
+			if (!QueryConfig[ChangedIndex].bAllowBBKey)
+			{
+				QueryConfig[ChangedIndex].BBKey.InvalidateResolvedKey();
+			}
+		}
+	}
 }
 #endif // WITH_EDITOR
 

@@ -1295,17 +1295,22 @@ struct FAIDynamicParam
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = EQS)
 	EAIParamType ParamType;
 
+	UPROPERTY(BlueprintReadWrite, Category = EQS)
+	uint8 bAllowBBKey : 1;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EQS)
 	float Value;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EQS)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EQS, meta=(EditCondition="bAllowBBKey", EditConditionHides))
 	FBlackboardKeySelector BBKey;
+
 
 	FAIDynamicParam()
 	{
 		ParamType = EAIParamType::Float;
 		Value = 0.f;
 		BBKey.AllowNoneAsValue(true);
+		bAllowBBKey = true;
 	}
 
 	AIMODULE_API void ConfigureBBKey(UObject &QueryOwner);

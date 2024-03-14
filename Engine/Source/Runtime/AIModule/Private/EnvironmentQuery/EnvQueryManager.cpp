@@ -78,9 +78,10 @@ FEnvQueryRequest& FEnvQueryRequest::SetNamedParams(const TArray<FEnvNamedValue>&
 FEnvQueryRequest& FEnvQueryRequest::SetDynamicParam(const FAIDynamicParam& Param, const UBlackboardComponent* BlackboardComponent)
 {
 	checkf(BlackboardComponent || (Param.BBKey.IsSet() == false), TEXT("BBKey.IsSet but no BlackboardComponent provided"));
+	ensureMsgf(Param.bAllowBBKey || !Param.BBKey.IsSet(), TEXT("Dynamic Param %s for query template %s doesn't allow BBKey but has a bbkey set."), *Param.ParamName.ToString(), *GetNameSafe(QueryTemplate));
 
 	// check if given param requires runtime resolve, like reading from BB
-	if (Param.BBKey.IsSet() && BlackboardComponent)
+	if (Param.bAllowBBKey && Param.BBKey.IsSet() && BlackboardComponent)
 	{
 		// grab info from BB
 		switch (Param.ParamType)

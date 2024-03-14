@@ -1,0 +1,66 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "StateTreeTaskBase.h"
+
+#include "EnvironmentQuery/EnvQueryTypes.h"
+#include "NativeGameplayTags.h"
+#include "StateTreePropertyRef.h"
+
+#include "StateTreeRunEnvQueryTask.generated.h"
+
+USTRUCT()
+struct FStateTreeRunEnvQueryInstanceData
+{
+	GENERATED_BODY()
+
+	// Result of the query. If an array is binded, it will output all the created values otherwise it will output the best one.
+	UPROPERTY(EditAnywhere, Category = Out, meta = (RefType = "Vector, Actor", CanRefToArray))
+	FStateTreePropertyRef Result;
+
+	// If set, the query will be run with this object has the owner object. Otherwise the task will use the context one.
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	TObjectPtr<UObject> OptionalQueryOwner = nullptr;
+
+	// The query template to run
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	TObjectPtr<UEnvQuery> QueryTemplate;
+
+	// Query config associated with the query template.
+	UPROPERTY(EditAnywhere, EditFixedSize, Category = Parameter)
+	TArray<FAIDynamicParam> QueryConfig;
+
+	/** determines which item will be stored (All = only first matching) */
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	TEnumAsByte<EEnvQueryRunMode::Type> RunMode;
+
+	TSharedPtr<FEnvQueryResult> QueryResult = nullptr;
+
+	int32 RequestId = INDEX_NONE;
+};
+
+/**
+* Task that runs an async environment query and outputs the result to an outside parameter. Supports Actor and vector types EQS.
+* The task is usually run in a sibling state to the result user will be with the data being stored in the parent state's parameters.
+* - Parent (Has an EQS result parameter)
+*	- Run Env Query (If success go to Use Query Result)
+*	- Use Query Result
+*/
+USTRUCT(meta = (DisplayName = "Run Env Query", Category = "Common"))
+struct FStateTreeRunEnvQueryTask : public FStateTreeTaskCommonBase
+{
+	GENERATED_BODY()
+
+	using FInstanceDataType = FStateTreeRunEnvQueryInstanceData;
+
+	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
+
+	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
+	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override;
+	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
+
+#if WITH_EDITOR
+	virtual void PostEditInstanceDataChangeChainProperty(const FPropertyChangedChainEvent& PropertyChangedEvent, FStateTreeDataView InstanceDataView) override;
+#endif // WITH_EDITOR
+};
