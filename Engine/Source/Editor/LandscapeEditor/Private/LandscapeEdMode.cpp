@@ -3680,9 +3680,6 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 			NewLandscape->bIncludeGridSizeInNameForLandscapeActors = OldLandscape->bIncludeGridSizeInNameForLandscapeActors;
 			NewLandscape->bUseGeneratedLandscapeSplineMeshesActors = OldLandscape->bUseGeneratedLandscapeSplineMeshesActors;
 
-			const FVector OldScale = OldLandscape->GetActorScale();
-			NewLandscape->SetActorRelativeScale3D(FVector(OldScale.X * LandscapeScaleFactor, OldScale.Y * LandscapeScaleFactor, OldScale.Z));
-
 			// Copy all of the shared property settings over
 			NewLandscape->CopySharedProperties(OldLandscape);
 
@@ -3690,6 +3687,9 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 			check(NewLandscape->GetPerLODOverrideMaterials().Num() == OldLandscape->GetPerLODOverrideMaterials().Num());
 			check(NewLandscape->RuntimeVirtualTextures.Num() == OldLandscape->RuntimeVirtualTextures.Num());
 			check(NewLandscape->LandscapeMaterial == OldLandscape->LandscapeMaterial);
+			
+			const FVector OldScale = OldLandscape->GetActorScale();
+			NewLandscape->SetActorRelativeScale3D(FVector(OldScale.X * LandscapeScaleFactor, OldScale.Y * LandscapeScaleFactor, OldScale.Z));
 
 			// LandscapeGuid is stomped by CopySharedProperties, but original guid is not -- fix the mismatch or it will complain during Import
  			NewLandscape->SetLandscapeGuid(FGuid(), /* bValidateGuid= */ false);
