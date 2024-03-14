@@ -156,8 +156,8 @@ void FChannel::Setup(const ANSICHAR* InChannelName, const InitArgs& InArgs)
 		}
 	}
 
-	// If channel is initialized after the all channels are disabled (post static init)
-	// this channel needs to be disabled.
+	// If channel is initialized after all channels are disabled (post static init)
+	// this channel needs to be disabled too.
 	if (GChannelsInitialized)
 	{
 		Enabled = -1;
@@ -177,8 +177,11 @@ void FChannel::Announce() const
 ///////////////////////////////////////////////////////////////////////////////
 void FChannel::Initialize()
 {
-	// All channels are initialized as enabled (zero), and act like so during
-	// from process start until this method is called (i.e. when Trace is initalized).
+	// During static initialization, all channels are created as enabled (zero),
+	// and act like so from the process start until this method is called (i.e. when Trace is initialized).
+	// Now we can disable all channels.
+	// Channels specified on the command line (using -trace=<channels> argument)
+	// will be further re-enabled after this call.
 	ToggleAll(false);
 	GChannelsInitialized = true;
 }
@@ -246,24 +249,6 @@ FChannel* FChannel::FindChannel(const ANSICHAR* ChannelName)
 	}
 
 	return nullptr;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void FChannel::EnumerateChannels(ChannelIterFunc Func, void* User) 
-{
-	using namespace Private;
-	FChannel* ChannelLists[] =
-	{
-		AtomicLoadAcquire(&GNewChannelList),
-		AtomicLoadAcquire(&GHeadChannel),
-	};
-	for (FChannel* Channel : ChannelLists)
-	{
-		for (; Channel != nullptr; Channel = Channel->Next)
-		{
-			Func(Channel->Name.Ptr, Channel->IsEnabled(), User);
-		}
-	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

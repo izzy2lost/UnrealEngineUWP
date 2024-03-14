@@ -136,12 +136,11 @@ private:
 
 	struct FChannelEntry
 	{
-		FString	Name;
+		FString Name;
 		bool bActive = false;
 	};
 
-	void AddChannel(const TCHAR* Name, const FTraceAuxiliary::FLogCategoryAlias& LogCategory);
-	void RemoveChannel(const TCHAR* Name, const FTraceAuxiliary::FLogCategoryAlias& LogCategory);
+	void AddCommandlineChannel(const TCHAR* Name, const FTraceAuxiliary::FLogCategoryAlias& LogCategory);
 	template <class T> void ForEachChannel(const TCHAR* ChannelList, bool bResolvePresets, const FTraceAuxiliary::FLogCategoryAlias& LogCategory, T Callable);
 	static uint32 HashChannelName(const TCHAR* Name);
 	bool EnableChannel(const TCHAR* Channel, const FTraceAuxiliary::FLogCategoryAlias& LogCategory);
@@ -181,9 +180,28 @@ bool FTraceAuxiliaryImpl::IsParentProcessAndPreFork()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void FTraceAuxiliaryImpl::AddCommandlineChannel(const TCHAR* Name, const FTraceAuxiliary::FLogCategoryAlias& LogCategory)
+{
+	uint32 Hash = HashChannelName(Name);
+
+	if (CommandlineChannels.Find(Hash) != nullptr)
+	{
+		return;
+	}
+
+	FChannelEntry& Value = CommandlineChannels.Add(Hash, {});
+	Value.Name = Name;
+
+	if (IsConnected() && !Value.bActive)
+	{
+		Value.bActive = EnableChannel(*Value.Name, LogCategory);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void FTraceAuxiliaryImpl::AddCommandlineChannels(const TCHAR* ChannelList)
 {
-	ForEachChannel(ChannelList, true, LogTrace, &FTraceAuxiliaryImpl::AddChannel);
+	ForEachChannel(ChannelList, true, LogTrace, &FTraceAuxiliaryImpl::AddCommandlineChannel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,11 +250,11 @@ void FTraceAuxiliaryImpl::ForEachChannel(const TCHAR* ChannelList, bool bResolve
 		{
 			FString Value;
 			// Check against hard coded presets
-			if(FCString::Stricmp(Name, TEXT("default")) == 0)
+			if (FCString::Stricmp(Name, TEXT("default")) == 0)
 			{
 				ForEachChannel(GDefaultChannels, false, LogCategory, Callable);
 			}
-			else if(FCString::Stricmp(Name, TEXT("memory"))== 0)
+			else if (FCString::Stricmp(Name, TEXT("memory"))== 0)
 			{
 				ForEachChannel(GMemoryChannels, false, LogCategory, Callable);
 			}
@@ -262,43 +280,6 @@ uint32 FTraceAuxiliaryImpl::HashChannelName(const TCHAR* Name)
 		Hash = ((Hash << 5) + Hash) + LowerC;
 	}
 	return Hash;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void FTraceAuxiliaryImpl::AddChannel(const TCHAR* Name, const FTraceAuxiliary::FLogCategoryAlias& LogCategory)
-{
-	uint32 Hash = HashChannelName(Name);
-
-	if (CommandlineChannels.Find(Hash) != nullptr)
-	{
-		return;
-	}
-
-	FChannelEntry& Value = CommandlineChannels.Add(Hash, {});
-	Value.Name = Name;
-
-	if (IsConnected() && !Value.bActive)
-	{
-		Value.bActive = EnableChannel(*Value.Name, LogCategory);
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void FTraceAuxiliaryImpl::RemoveChannel(const TCHAR* Name, const FTraceAuxiliary::FLogCategoryAlias& LogCategory)
-{
-	uint32 Hash = HashChannelName(Name);
-
-	FChannelEntry Channel;
-	if (!CommandlineChannels.RemoveAndCopyValue(Hash, Channel))
-	{
-		return;
-	}
-
-	if (IsConnected() && Channel.bActive)
-	{
-		DisableChannel(*Channel.Name, LogCategory);
-		Channel.bActive = false;
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -403,7 +384,7 @@ bool FTraceAuxiliaryImpl::IsReadOnlyChannel(const TCHAR* InChannel)
 		FAnsiStringView Channel;
 		bool bIsReadOnlyChannel = false;
 	} UserData = { FAnsiStringView(ChannelA.Get(), ChannelA.Length()), false};
-	
+
 	UE::Trace::EnumerateChannels([](const UE::Trace::FChannelInfo& Info, void* User)
 	{
 		FAnsiStringView NameView = FAnsiStringView(Info.Name).LeftChop(7); // Remove "Channel" suffix
@@ -430,22 +411,22 @@ bool FTraceAuxiliaryImpl::EnableChannel(const TCHAR* Channel, const FTraceAuxili
 		return false;
 	}
 
-	// It is not possible to change read only channels once trace is
-	// initialized.
-	if(bReadOnlyChannelsFrozen && IsReadOnlyChannel(Channel))
+	// It is not possible to change read only channels once trace is initialized.
+	if (bReadOnlyChannelsFrozen && IsReadOnlyChannel(Channel))
 	{
 		UE_LOG_REF(
 			LogCategory,
 			Error,
-			TEXT("Channel '%s' is a read only channel. It is only possible to enable on startup using command line parameters."),
+			TEXT("Channel '%s' is read only. It is not allowed to manually enable this channel."),
 			Channel
 		);
 		return false;
 	}
 
-	FPlatformEventsTrace::OnTraceChannelUpdated(Channel, true);
+	bool bIsEnabled = UE::Trace::ToggleChannel(Channel, true);
+	FPlatformEventsTrace::OnTraceChannelUpdated(Channel, bIsEnabled);
 
-	return UE::Trace::ToggleChannel(Channel, true);
+	return bIsEnabled;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -458,22 +439,21 @@ void FTraceAuxiliaryImpl::DisableChannel(const TCHAR* Channel, const FTraceAuxil
 	{
 		return;
 	}
-	
-	// Warn when disabling a read-only channel after init, it will not be possible
-	// to enable again.
-	if(bReadOnlyChannelsFrozen && IsReadOnlyChannel(Channel))
+
+	// It is not possible to change read only channels once trace is initialized.
+	if (bReadOnlyChannelsFrozen && IsReadOnlyChannel(Channel))
 	{
 		UE_LOG_REF(
 			LogCategory,
-			Warning,
-			TEXT("Channel '%s' is a read only channel. It has been disabled, but cannot be enabled again."),
+			Error,
+			TEXT("Channel '%s' is read only. It is not allowed to manually disable this channel."),
 			Channel
 		);
+		return;
 	}
 
-	FPlatformEventsTrace::OnTraceChannelUpdated(Channel, false);
-
-	UE::Trace::ToggleChannel(Channel, false);
+	bool bIsEnabled = UE::Trace::ToggleChannel(Channel, false);
+	FPlatformEventsTrace::OnTraceChannelUpdated(Channel, bIsEnabled);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -853,7 +833,7 @@ static void SetupInitFromConfig(UE::Trace::FInitializeDesc& OutDesc)
 
 	// Note that these options can only be used when tracing from a forked process (e.g. server).
 	// For a regular process use command line argument -TraceThreadSleepTime and -TraceTailSizeMb
-	
+
 	int32 SleepTimeConfig = 0;
 	if (GConfig->GetInt(GTraceConfigSection, TEXT("SleepTimeInMS"), SleepTimeConfig, GEngineIni))
 	{
@@ -1321,7 +1301,7 @@ static bool StartFromCommandlineArguments(const TCHAR* CommandLine, bool& bOutSt
 
 	// Trace's worker thread should really only be started by Trace itself as
 	// order is important. At the very least it must be done after Trace is
-	// initialised. It isn't yet here so we defer it.
+	// initialized. It isn't yet here so we defer it.
 	bOutStartWorkerThread = !Opts.bNoWorkerThread;
 	Opts.bNoWorkerThread = true;
 
@@ -1516,8 +1496,8 @@ void FTraceAuxiliary::Initialize(const TCHAR* CommandLine)
 	}
 #endif
 
-	// Trace out information about this session. This is done before initialisation,
-	// so that it is always sent (all channels are enabled prior to initialisation).
+	// Trace out information about this session. This is done before initialization,
+	// so that it is always sent (all channels are enabled prior to initialization).
 	const TCHAR* BranchName = BuildSettings::GetBranchName();
 	const TCHAR* BuildVersion = BuildSettings::GetBuildVersion();
 	constexpr uint32 PlatformLen = UE_ARRAY_COUNT(PREPROCESSOR_TO_STRING(UBT_COMPILED_PLATFORM)) - 1;
@@ -1545,7 +1525,7 @@ void FTraceAuxiliary::Initialize(const TCHAR* CommandLine)
 		<< Session2.TargetType(uint8(FApp::GetBuildTargetType()));
 
 	// Attempt to send trace data somewhere from the command line. It perhaps
-	// seems odd to do this before initialising Trace, but it is done this way
+	// seems odd to do this before initializing Trace, but it is done this way
 	// to support disabling the "important" cache without losing any events.
 	bool bShouldStartWorkerThread = false;
 	StartFromCommandlineArguments(CommandLine, bShouldStartWorkerThread);
