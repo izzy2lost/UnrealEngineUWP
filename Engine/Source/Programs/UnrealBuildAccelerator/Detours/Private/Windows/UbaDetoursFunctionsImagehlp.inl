@@ -82,6 +82,7 @@ BOOL Detoured_ImageGetDigestStream(HANDLE FileHandle, DWORD DigestLevel, DIGEST_
 	ReportSection(".rdata");
 	ReportSection(".data");
 	ReportSection(".pdata");
+	ReportSection("_RDATA");
 	ReportSection(".debug");
 	ReportSection(".didat");
 	ReportSection(".rsrc");
