@@ -2,12 +2,13 @@
 
 #pragma once
 
+#include "Widgets/SCompoundWidget.h"
+#include "Components/DMMaterialValue.h"
 #include "DynamicMaterialEditorModule.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSpinBox.h"
-#include "Widgets/SCompoundWidget.h"
 
 class SDMComponentEdit;
 class SHorizontalBox;

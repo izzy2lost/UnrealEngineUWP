@@ -99,6 +99,7 @@ void UDynamicMaterialEditorSettings::ResetAllLayoutSettings()
 	TooltipTextureSize = 512;
 	MaxFloatSliderWidth = 200.f;
 	bPreviewImagesUseTextureUVs = true;
+	bUVVisualizerVisible = true;
 }
 
 float UDynamicMaterialEditorSettings::GetSpinboxValueChangeMultiplier(const FModifierKeysState& InModifierKeys) const

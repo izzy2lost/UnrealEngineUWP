@@ -308,20 +308,44 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 
 	for (const FDMPropertyHandle& EditRow : EditRows)
 	{
-		if (!EditRow.DetailTreeNode)
+		const bool bHasValidCustomWidget = EditRow.ValueWidget.IsValid() && !EditRow.ValueName.IsNone() && EditRow.NameOverride.IsSet();
+
+		if (!EditRow.DetailTreeNode && !bHasValidCustomWidget)
 		{
 			continue;
 		}
 
 		ECustomDetailsTreeInsertPosition Position = ECustomDetailsTreeInsertPosition::Child;
 
-		if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("HighPriority"))
+		if (EditRow.DetailTreeNode)
 		{
-			Position = ECustomDetailsTreeInsertPosition::FirstChild;
+			if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("HighPriority"))
+			{
+				Position = ECustomDetailsTreeInsertPosition::FirstChild;
+			}
+			else if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("LowPriority"))
+			{
+				Position = ECustomDetailsTreeInsertPosition::LastChild;
+			}
 		}
-		else if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("LowPriority"))
+
+		if (bHasValidCustomWidget)
 		{
-			Position = ECustomDetailsTreeInsertPosition::LastChild;
+			TSharedPtr<ICustomDetailsViewCustomItem> Item = DetailsView->CreateCustomItem(EditRow.ValueName, EditRow.NameOverride.GetValue(), EditRow.NameToolTipOverride.GetValue());
+
+			if (!Item.IsValid())
+			{
+				continue;
+			}
+
+			Item->SetValueWidget(EditRow.ValueWidget.ToSharedRef());
+			DetailsView->ExtendTree(RootId, Position, Item->AsItem());
+			continue;
+		}
+
+		if (!EditRow.DetailTreeNode)
+		{
+			continue;
 		}
 
 		TSharedRef<ICustomDetailsViewItem> Item = DetailsView->CreateDetailTreeItem(EditRow.DetailTreeNode.ToSharedRef());

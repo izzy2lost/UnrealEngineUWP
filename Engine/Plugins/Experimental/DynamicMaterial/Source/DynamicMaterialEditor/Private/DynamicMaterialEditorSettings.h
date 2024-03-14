@@ -79,6 +79,9 @@ public:
 		ClampMin = "100", UIMin = "100", ClampMax = "1000", UIMax = "1000"))
 	float MaxFloatSliderWidth;
 
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
+	bool bUVVisualizerVisible;
+
 	/** The size of the material layer preview images. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (ClampMin = "32", UIMin = "32", ClampMax = "128", UIMax = "128"))
 	int32 LayerPreviewSize;

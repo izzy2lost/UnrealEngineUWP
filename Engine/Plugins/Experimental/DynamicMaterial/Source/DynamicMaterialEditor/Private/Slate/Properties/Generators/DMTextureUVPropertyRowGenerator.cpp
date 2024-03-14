@@ -12,6 +12,7 @@
 #include "Slate/Properties/Editors/SDMPropertyEditFloat.h"
 #include "Slate/Properties/Editors/SDMPropertyEditVector.h"
 #include "Slate/SDMComponentEdit.h"
+#include "Slate/Properties/SDMTextureUVVisualizerProperty.h"
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Layout/SBox.h"
 
@@ -37,6 +38,8 @@ namespace UE::DynamicMaterialEditor::Private
 
 	void AddMirrorRow(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMTextureUV* InTextureUV, TArray<FDMPropertyHandle>& InOutPropertyRows);
 	TSharedRef<SWidget> CreateMirrorExtensionButtons(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMTextureUV* InTextureUV);
+
+	void AddVisualizerRow(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMTextureUV* InTextureUV, TArray<FDMPropertyHandle>& InOutPropertyRows);
 }
 
 void FDMTextureUVPropertyRowGenerator::AddComponentProperties(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMMaterialComponent* InComponent,
@@ -70,6 +73,7 @@ void FDMTextureUVPropertyRowGenerator::AddComponentProperties(const TSharedRef<S
 	AddScaleRow(InComponentEditWidget, TextureUV, InOutPropertyRows);
 	AddPropertyEditRows(InComponentEditWidget, InComponent, UDMTextureUV::NAME_Pivot, InOutPropertyRows, InOutProcessedObjects);
 	AddMirrorRow(InComponentEditWidget, TextureUV, InOutPropertyRows);
+	AddVisualizerRow(InComponentEditWidget, TextureUV, InOutPropertyRows);
 }
 
 bool FDMTextureUVPropertyRowGenerator::AllowKeyframeButton(UDMMaterialComponent* InComponent, FProperty* InProperty)
@@ -409,6 +413,24 @@ TSharedRef<SWidget> UE::DynamicMaterialEditor::Private::CreateMirrorExtensionBut
 		];
 
 	return ButtonsBox;
+}
+
+void UE::DynamicMaterialEditor::Private::AddVisualizerRow(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMTextureUV* InTextureUV, TArray<FDMPropertyHandle>& InOutPropertyRows)
+{
+	// Make sure we don't get a substage
+	UDMMaterialStage* Stage = InTextureUV->GetTypedParent<UDMMaterialStage>(/* Allow Subclasses */ false);
+
+	if (!Stage)
+	{
+		return;
+	}
+
+	FDMPropertyHandle VisualizerHandle;
+	VisualizerHandle.NameOverride = LOCTEXT("Visualizer", "UV Visualizer");
+	VisualizerHandle.NameToolTipOverride = LOCTEXT("VisualizerToolTip", "A graphical Texture UV editor.\n\n- Offset Mode: Change the Texture UV offset.\n- Pivot Mode: Change the Texture UV pivot, rotation and scale.\n\nControl+click to reset values to default.");
+	VisualizerHandle.ValueName = FName(*InTextureUV->GetComponentPath());
+	VisualizerHandle.ValueWidget = SNew(SDMTextureUVVisualizerProperty, Stage, InTextureUV);
+	InOutPropertyRows.Add(VisualizerHandle);
 }
 
 #undef LOCTEXT_NAMESPACE
