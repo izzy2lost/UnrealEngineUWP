@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
 
@@ -10,6 +12,19 @@ namespace EpicGames.Horde
 	/// </summary>
 	public interface IHordeClient
 	{
+		/// <summary>
+		/// Connect to the Horde server
+		/// </summary>
+		/// <param name="allowLogin">Whether to allow interactive logins</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>True if the connection succeded</returns>
+		Task<bool> ConnectAsync(bool allowLogin, CancellationToken cancellationToken);
+
+		/// <summary>
+		/// Gets the current connection state
+		/// </summary>
+		bool IsConnected();
+
 		/// <summary>
 		/// Creates a http client 
 		/// </summary>

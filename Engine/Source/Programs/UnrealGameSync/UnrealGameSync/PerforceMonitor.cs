@@ -53,7 +53,6 @@ namespace UnrealGameSync
 		readonly DirectoryReference _cacheFolder;
 		readonly List<KeyValuePair<FileReference, DateTime>> _localConfigFiles;
 		readonly IAsyncDisposer _asyncDisposeTasks;
-		readonly OidcTokenManager _oidcTokenManager;
 		readonly IHordeClient _hordeClient;
 
 		string[] prevCodeRules = Array.Empty<string>();
@@ -72,7 +71,7 @@ namespace UnrealGameSync
 			private set;
 		}
 
-		public PerforceMonitor(IPerforceSettings perforceSettings, ProjectInfo projectInfo, ConfigFile projectConfigFile, DirectoryReference cacheFolder, List<KeyValuePair<FileReference, DateTime>> localConfigFiles, OidcTokenClient? oidcTokenClient, IServiceProvider serviceProvider)
+		public PerforceMonitor(IPerforceSettings perforceSettings, ProjectInfo projectInfo, ConfigFile projectConfigFile, DirectoryReference cacheFolder, List<KeyValuePair<FileReference, DateTime>> localConfigFiles, IServiceProvider serviceProvider)
 		{
 			_perforceSettings = perforceSettings;
 			_branchClientPath = projectInfo.ClientRootPath;
@@ -89,11 +88,9 @@ namespace UnrealGameSync
 			_asyncDisposeTasks = serviceProvider.GetRequiredService<IAsyncDisposer>();
 			_synchronizationContext = SynchronizationContext.Current!;
 			_cancellationSource = new CancellationTokenSource();
-			_oidcTokenManager = serviceProvider.GetRequiredService<OidcTokenManager>();
 			_hordeClient = serviceProvider.GetRequiredService<IHordeClient>();
 
 			AvailableArchives = (new List<IArchiveInfo>()).AsReadOnly();
-			LatestOidcTokenClient = oidcTokenClient;
 		}
 
 		public void Start()
@@ -491,7 +488,6 @@ namespace UnrealGameSync
 			if(_localConfigFiles.Any(x => FileReference.GetLastWriteTimeUtc(x.Key) != x.Value))
 			{
 				await UpdateProjectConfigFileAsync(perforce, cancellationToken);
-				// TODO: Also check OIDC config
 				_synchronizationContext.Post(_ => OnUpdateMetadata?.Invoke(), null);
 			}
 
@@ -521,7 +517,6 @@ namespace UnrealGameSync
 		{
 			_localConfigFiles.Clear();
 			LatestProjectConfigFile = await ConfigUtils.ReadProjectConfigFileAsync(perforce, _branchClientPath, _selectedClientFileName, _cacheFolder, _localConfigFiles, _logger, cancellationToken);
-			LatestOidcTokenClient = await ConfigUtils.CreateOidcTokenClientAsync(_oidcTokenManager, LatestProjectConfigFile, _selectedProjectIdentifier, perforce, _branchClientPath, _selectedClientFileName, _localConfigFiles, _cacheFolder, _logger, cancellationToken);
 		}
 
 		public List<ChangesRecord> GetChanges()
@@ -566,12 +561,6 @@ namespace UnrealGameSync
 		}
 
 		public ConfigFile LatestProjectConfigFile
-		{
-			get;
-			private set;
-		}
-
-		public OidcTokenClient? LatestOidcTokenClient
 		{
 			get;
 			private set;

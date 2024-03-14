@@ -15,6 +15,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using EpicGames.OIDC;
+using EpicGames.Horde;
 
 #nullable enable
 
@@ -195,12 +196,13 @@ namespace UnrealGameSync
 				if (IsValidProject(projectSettings, _logger))
 				{
 					ILogger<OpenProjectInfo> logger = serviceProvider.GetRequiredService<ILogger<OpenProjectInfo>>();
-					OidcTokenManager oidcTokenManager = serviceProvider.GetRequiredService<OidcTokenManager>();
-					Task<OpenProjectInfo> startupTask = Task.Run(() => OpenProjectInfo.CreateAsync(defaultPerforceSettings, projectSettings, _settings, oidcTokenManager, false, logger, _startupCancellationSource.Token), _startupCancellationSource.Token);
+					Task<OpenProjectInfo> startupTask = Task.Run(() => OpenProjectInfo.CreateAsync(defaultPerforceSettings, projectSettings, _settings, false, logger, _startupCancellationSource.Token), _startupCancellationSource.Token);
 					startupTasks.Add((projectSettings, new ModalTask<OpenProjectInfo>(startupTask)));
 				}
 			}
-			_startupTask = Task.Run(() => WaitForStartupTasks(startupTasks));
+
+			HordeHttpAuthHandlerState? hordeAuthState = _serviceProvider.GetService<HordeHttpAuthHandlerState>();
+			_startupTask = Task.Run(() => WaitForStartupTasks(startupTasks, hordeAuthState));
 
 			_startupWindow = new ModalTaskWindow("Opening Projects", "Opening projects, please wait...", FormStartPosition.CenterScreen, _startupTask, _startupCancellationSource);
 			_components.Add(_startupWindow);
@@ -234,7 +236,7 @@ namespace UnrealGameSync
 			}
 		}
 
-		static async Task WaitForStartupTasks(List<(UserSelectedProjectSettings, ModalTask<OpenProjectInfo>)> startupTasks)
+		static async Task WaitForStartupTasks(List<(UserSelectedProjectSettings, ModalTask<OpenProjectInfo>)> startupTasks, HordeHttpAuthHandlerState? hordeAuthState)
 		{
 			foreach ((_, ModalTask<OpenProjectInfo> modalTask) in startupTasks)
 			{
@@ -255,6 +257,11 @@ namespace UnrealGameSync
 				{
 					Program.CaptureException(ex);
 				}
+			}
+
+			if (hordeAuthState != null)
+			{
+				await hordeAuthState.RefreshAsync(false, CancellationToken.None);
 			}
 		}
 
