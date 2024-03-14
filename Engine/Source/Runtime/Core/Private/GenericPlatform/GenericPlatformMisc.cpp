@@ -1909,35 +1909,6 @@ bool FGenericPlatformMisc::RequestDeviceCheckToken(TFunction<void(const TArray<u
 	return false;
 }
 
-TArray<FCustomChunk> FGenericPlatformMisc::GetOnDemandChunksForPakchunkIndices(const TArray<int32>& PakchunkIndices)
-{
-	return TArray<FCustomChunk>();
-}
-
-TArray<FCustomChunk> FGenericPlatformMisc::GetAllOnDemandChunks()
-{
-	return TArray<FCustomChunk>();
-}
-
-TArray<FCustomChunk> FGenericPlatformMisc::GetAllLanguageChunks()
-{
-	return TArray<FCustomChunk>();
-}
-
-TArray<FCustomChunk> FGenericPlatformMisc::GetCustomChunksByType(ECustomChunkType DesiredChunkType)
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (DesiredChunkType == ECustomChunkType::OnDemandChunk)
-	{
-		return GetAllOnDemandChunks();
-	}
-	else
-	{
-		return GetAllLanguageChunks();
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
 FString FGenericPlatformMisc::LoadTextFileFromPlatformPackage(const FString& RelativePath)
 {
 	FString Path = RootDir() / RelativePath;

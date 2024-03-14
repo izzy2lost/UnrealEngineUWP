@@ -111,24 +111,6 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FPlatformNamedChunkInstallMultiDelegate, FN
 DECLARE_DELEGATE_OneParam(FPlatformNamedChunkCompleteDelegate, const FNamedChunkCompleteCallbackParam&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FPlatformNamedChunkCompleteMultiDelegate, const FNamedChunkCompleteCallbackParam&);
 
-enum class ECustomChunkType : uint8
-{
-	OnDemandChunk,
-	LanguageChunk
-};
-
-struct FCustomChunk
-{
-	FString ChunkTag;
-	FString ChunkTag2;
-	uint32	ChunkID;
-	ECustomChunkType ChunkType;
-
-	FCustomChunk(FString InTag, uint32 InID, ECustomChunkType InChunkType, FString InTag2 = TEXT("")) :
-		ChunkTag(InTag), ChunkTag2(InTag2), ChunkID(InID), ChunkType(InChunkType)
-	{}
-};
-
 struct FCustomChunkMapping
 {
 	enum class CustomChunkMappingType : uint8
@@ -240,10 +222,6 @@ public:
 	 * @param Delegate		The delegate to remove.
 	 */
 	virtual void RemoveChunkInstallDelegate( FDelegateHandle Delegate ) = 0;
-
-
-	UE_DEPRECATED(5.2, "Call GetNamedChunksByType instead")
-	virtual TArray<FCustomChunk> GetCustomChunksByType(ECustomChunkType DesiredChunkType) = 0;
 
 
 	/**
@@ -478,11 +456,6 @@ public:
 	virtual void RemoveChunkInstallDelegate(FDelegateHandle Delegate) override
 	{
 		InstallDelegate.Remove(Delegate);
-	}
-
-	virtual TArray<FCustomChunk> GetCustomChunksByType(ECustomChunkType DesiredChunkType) override
-	{
-		return TArray<FCustomChunk>();
 	}
 
 	virtual bool SupportsNamedChunkInstall() const override

@@ -26,13 +26,10 @@ class IInstallBundleManager;
 class IPlatformChunkInstall;
 class IPlatformCompression;
 class IPlatformHostCommunication;
-struct FCustomChunk;
 struct FDefaultDelegateUserPolicy;
 struct FGenericCrashContext;
 struct FGenericMemoryWarningContext;
 struct FGuid;
-
-enum class ECustomChunkType : uint8;
 
 template <typename FuncType>
 class TFunction;
@@ -1773,18 +1770,6 @@ public:
 	}
 
 	static CORE_API bool RequestDeviceCheckToken(TFunction<void(const TArray<uint8>&)> QuerySucceededFunc, TFunction<void(const FString&, const FString&)> QueryFailedFunc);
-
-	UE_DEPRECATED(5.1, "Use named chunks instead")
-	static CORE_API TArray<FCustomChunk> GetOnDemandChunksForPakchunkIndices(const TArray<int32>& PakchunkIndices);
-
-	UE_DEPRECATED(5.1, "Use IPlatformChunkInstall::GetNamedChunksByType instead")
-	static CORE_API TArray<FCustomChunk> GetAllOnDemandChunks();
-
-	UE_DEPRECATED(5.1, "Use IPlatformChunkInstall::GetNamedChunksByType instead")
-	static CORE_API TArray<FCustomChunk> GetAllLanguageChunks();
-
-	UE_DEPRECATED(5.1, "Use IPlatformChunkInstall::GetNamedChunksByType instead")
-	static CORE_API TArray<FCustomChunk> GetCustomChunksByType(ECustomChunkType DesiredChunkType);
 
 	/**
 	 * Loads a text file relative to the package root on platforms that distribute apps in package formats.
