@@ -213,6 +213,11 @@ public:
 		// Unpack uniform matrices as row-major to match the CPU layout.
 		ExtraArguments.Add(TEXT("-Zpr"));
 
+		if (Input.Environment.CompilerFlags.Contains(CFLAG_SkipValidation))
+		{
+			ExtraArguments.Add(TEXT("-Vd"));
+		}
+
 		if (Input.Environment.CompilerFlags.Contains(CFLAG_Debug) || Input.Environment.CompilerFlags.Contains(CFLAG_SkipOptimizationsDXC))
 		{
 			ExtraArguments.Add(TEXT("-Od"));
@@ -948,7 +953,7 @@ bool CompileAndProcessD3DShaderDXC(
 		{
 			CompileData.MaxSamplers = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
 		}
-		else if (ShaderModel >= ED3DShaderModel::SM6_6)
+		else if (ShaderModel == ED3DShaderModel::SM6_6)
 		{
 			CompileData.MaxSamplers = 32; // DDSPI: MaxSamplers=32
 		}
@@ -994,15 +999,23 @@ bool CompileAndProcessD3DShaderDXC(
 				uint32 PartKind;
 				VERIFYHRESULT(ContainerRefl->GetPartKind(PartIndex, &PartKind));
 
-				//if (PartKind == DXC_PART_USER_INFO)
-				if (PartKind == DXC_PART_PRIVATE_DATA) // HACK TODO: Use PrivateData for now (pass validation)
+				if (PartKind == DXC_PART_PRIVATE_DATA)
 				{
+					struct UE5CustomData
+					{
+						uint32_t FourCC;
+						uint64_t Data;
+					};
+
 					TRefCountPtr<IDxcBlob> UserPartBlob;
 					ContainerRefl->GetPartContent(PartIndex, UserPartBlob.GetInitReference());
-					if (UserPartBlob->GetBufferSize() == sizeof(uint64))
+					if (UserPartBlob->GetBufferSize() == sizeof(UE5CustomData))
 					{
-						uint64 UserFlags = *(uint64*)UserPartBlob->GetBufferPointer();
-						bHasNoDerivativeOps = (UserFlags & hlsl::DXIL::kNoDerivativeOps) != 0;
+						const UE5CustomData& CustomData = *(UE5CustomData*)UserPartBlob->GetBufferPointer();
+						if (CustomData.FourCC == DXC_PART_FEATURE_INFO)
+						{
+							bHasNoDerivativeOps = (CustomData.Data & hlsl::DXIL::OptFeatureInfo_UsesDerivatives) == 0;
+						}
 					}
 					break;
 				}
