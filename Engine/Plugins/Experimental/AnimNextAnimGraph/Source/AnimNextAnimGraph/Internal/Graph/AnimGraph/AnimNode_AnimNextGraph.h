@@ -13,7 +13,7 @@
  * Animation node that allows a AnimNextGraph output to be used in an animation graph
  */
 USTRUCT()
-struct ANIMNEXT_API FAnimNode_AnimNextGraph : public FAnimNode_CustomProperty
+struct ANIMNEXTANIMGRAPH_API FAnimNode_AnimNextGraph : public FAnimNode_CustomProperty
 {
 	GENERATED_BODY()
 

@@ -17,7 +17,7 @@ struct FAnimNextTestData
 namespace UE::AnimNext::Tests
 {
 
-struct FUtils
+struct ANIMNEXTTESTSUITE_API FUtils final
 {
 	// Clean up after tests. Clears transaction buffer, collects garbage
 	static void CleanupAfterTests();

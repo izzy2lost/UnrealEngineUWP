@@ -2,12 +2,10 @@
 
 #include "Scheduler/AnimNextScheduleGraphTask.h"
 
+#include "IAnimNextModule.h"
 #include "Scheduler/ScheduleContext.h"
 #include "Graph/AnimNextGraph.h"
 #include "Context.h"
-#include "TraitInterfaces/IEvaluate.h"
-#include "TraitInterfaces/IUpdate.h"
-#include "EvaluationVM/EvaluationVM.h"
 #include "Graph/AnimNext_LODPose.h"
 #include "AnimNextStats.h"
 #include "Logging/StructuredLog.h"
@@ -164,31 +162,6 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// This reduces churn internally by avoiding a chunk to be repeatedly allocated and freed as we push/pop marks
 	MemStack.Alloc(size_t(FPageAllocator::SmallPageSize) + 1, 16);
 
-	UE::AnimNext::UpdateGraph(GraphCache.GraphInstanceData, InContext.GetDeltaTime());
-
-	{
-		const FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(GraphCache.GraphInstanceData);
-
-		FEvaluationVM EvaluationVM(EEvaluationFlags::All, RefPose, *GraphLODLevel);
-		bool bHasValidOutput = false;
-
-		if (!EvaluationProgram.IsEmpty())
-		{
-			EvaluationProgram.Execute(EvaluationVM);
-
-			TUniquePtr<FKeyframeState> EvaluatedKeyframe;
-			if (EvaluationVM.PopValue(KEYFRAME_STACK_NAME, EvaluatedKeyframe))
-			{
-				OutputPose->LODPose.CopyFrom(EvaluatedKeyframe->Pose);
-				bHasValidOutput = true;
-			}
-		}
-
-		if (!bHasValidOutput)
-		{
-			// We need to output a valid pose, generate one
-			FKeyframeState ReferenceKeyframe = EvaluationVM.MakeReferenceKeyframe(false);
-			OutputPose->LODPose.CopyFrom(ReferenceKeyframe.Pose);
-		}
-	}
+	IAnimNextModule::Get().UpdateGraph(GraphCache.GraphInstanceData, InContext.GetDeltaTime());
+	IAnimNextModule::Get().EvaluateGraph(GraphCache.GraphInstanceData, RefPose, *GraphLODLevel, OutputPose->LODPose);
 }

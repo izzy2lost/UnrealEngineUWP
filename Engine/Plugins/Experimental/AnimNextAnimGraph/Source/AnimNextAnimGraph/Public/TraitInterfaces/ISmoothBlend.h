@@ -13,7 +13,7 @@ namespace UE::AnimNext
 	 *
 	 * This interface exposes blend smoothing related information.
 	 */
-	struct ANIMNEXT_API ISmoothBlend : ITraitInterface
+	struct ANIMNEXTANIMGRAPH_API ISmoothBlend : ITraitInterface
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(ISmoothBlend, 0x1c2c1739)
 

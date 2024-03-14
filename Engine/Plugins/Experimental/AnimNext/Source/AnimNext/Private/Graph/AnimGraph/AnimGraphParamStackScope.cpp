@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AnimGraphParamStackScope.h"
+#include "Graph/AnimGraphParamStackScope.h"
 #include "Param/ParamStack.h"
 #include "Animation/AnimNodeBase.h"
 

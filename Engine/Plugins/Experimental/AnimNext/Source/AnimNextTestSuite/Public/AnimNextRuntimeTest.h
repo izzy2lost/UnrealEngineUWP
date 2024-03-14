@@ -69,7 +69,7 @@ namespace UE::AnimNext
 	}
 
 	// Creates a temporary empty node template registry instance and swaps it for the current one
-	struct FScopedClearNodeTemplateRegistry final
+	struct ANIMNEXTTESTSUITE_API FScopedClearNodeTemplateRegistry final
 	{
 		FScopedClearNodeTemplateRegistry(const FScopedClearNodeTemplateRegistry&) = delete;
 		FScopedClearNodeTemplateRegistry& operator=(const FScopedClearNodeTemplateRegistry&) = delete;
@@ -80,7 +80,7 @@ namespace UE::AnimNext
 		FNodeTemplateRegistry TmpRegistry;
 	};
 
-	struct FTestUtils final
+	struct ANIMNEXTTESTSUITE_API FTestUtils final
 	{
 		// Loads the graph data from the provided archive buffer and returns true on success, false otherwise
 		// On success, we resolve every node handle provided as argument

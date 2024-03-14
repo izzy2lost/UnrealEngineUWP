@@ -120,7 +120,7 @@ namespace UE::AnimNext
 	 * 
 	 * Represents a named and typed VM stack.
 	 */
-	struct FEvaluationVMStack final
+	struct ANIMNEXT_API FEvaluationVMStack final
 	{
 		// Name of the stack
 		FName Name;
@@ -312,6 +312,6 @@ namespace UE::AnimNext
 	// Various commonly used VM stacks
 
 	// A stack of FKeyframeState instances used when sampling sequences and blending their results
-	extern const FEvaluationVMStackName KEYFRAME_STACK_NAME;
+	extern ANIMNEXT_API const FEvaluationVMStackName KEYFRAME_STACK_NAME;
 	ANIM_NEXT_ENABLE_EVALUATION_STACK_USAGE(TUniquePtr<FKeyframeState>)
 }

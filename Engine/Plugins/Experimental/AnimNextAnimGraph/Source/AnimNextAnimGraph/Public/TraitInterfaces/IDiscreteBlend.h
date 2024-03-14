@@ -15,7 +15,7 @@ namespace UE::AnimNext
 	 *
 	 * This interface exposes discrete blend related information.
 	 */
-	struct ANIMNEXT_API IDiscreteBlend : ITraitInterface
+	struct ANIMNEXTANIMGRAPH_API IDiscreteBlend : ITraitInterface
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(IDiscreteBlend, 0x2d395d56)
 

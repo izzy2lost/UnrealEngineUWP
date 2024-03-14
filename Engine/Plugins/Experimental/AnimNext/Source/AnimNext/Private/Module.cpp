@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreMinimal.h"
+#include "IAnimNextModule.h"
 #include "AnimNextConfig.h"
 #include "Animation/BlendProfile.h"
 #include "Curves/CurveFloat.h"
-#include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 #include "Misc/CoreDelegates.h"
 #include "DataRegistry.h"
@@ -33,7 +33,7 @@
 namespace UE::AnimNext
 {
 
-class FModule : public IModuleInterface
+class FModule : public IAnimNextModule
 {
 public:
 	virtual void StartupModule() override
@@ -95,6 +95,34 @@ public:
 		}
 		ConsoleCommands.Empty();
 #endif
+	}
+
+	const IAnimNextAnimGraph* AnimGraphImpl = nullptr;
+
+	virtual void RegisterAnimNextAnimGraph(const IAnimNextAnimGraph& InAnimGraphImpl) override
+	{
+		AnimGraphImpl = &InAnimGraphImpl;
+	}
+
+	virtual void UnregisterAnimNextAnimGraph() override
+	{
+		AnimGraphImpl = nullptr;
+	}
+
+	virtual void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime) override
+	{
+		if (AnimGraphImpl != nullptr)
+		{
+			AnimGraphImpl->UpdateGraph(GraphInstance, DeltaTime);
+		}
+	}
+
+	virtual void EvaluateGraph(FAnimNextGraphInstancePtr& GraphInstance, const UE::AnimNext::FReferencePose& RefPose, int32 GraphLODLevel, FLODPoseHeap& OutputPose) const override
+	{
+		if (AnimGraphImpl != nullptr)
+		{
+			AnimGraphImpl->EvaluateGraph(GraphInstance, RefPose, GraphLODLevel, OutputPose);
+		}
 	}
 
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
@@ -261,6 +289,11 @@ public:
 	}
 #endif
 };
+
+IAnimNextModule& IAnimNextModule::Get()
+{
+	return FModuleManager::LoadModuleChecked<IAnimNextModule>(TEXT("AnimNext"));
+}
 
 }
 

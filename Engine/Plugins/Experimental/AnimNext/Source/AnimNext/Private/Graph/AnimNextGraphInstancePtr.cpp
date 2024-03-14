@@ -22,7 +22,6 @@ void FAnimNextGraphInstancePtr::Release()
 		{
 			const UAnimNextGraph* Graph = Impl->GetGraph();
 			FScopeLock Lock(&Graph->GraphInstancesLock);
-			check(Graph->GraphInstances.Contains(Impl.Get()));
 			Graph->GraphInstances.Remove(Impl.Get());
 		}
 #endif

@@ -8,7 +8,7 @@
 #include "TraitCore/TraitSharedData.h"
 #include "Graph/AnimNextGraph.h"
 
-#include "AnimNextTraitGraphTest.generated.h"
+#include "AnimNextAnimGraphTraitGraphTest.generated.h"
 
 USTRUCT()
 struct FTestTraitSharedData : public FAnimNextTraitSharedData

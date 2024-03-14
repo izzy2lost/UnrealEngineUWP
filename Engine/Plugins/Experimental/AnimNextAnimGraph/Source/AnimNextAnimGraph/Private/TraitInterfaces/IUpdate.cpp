@@ -4,7 +4,7 @@
 
 #include "TraitInterfaces/IHierarchy.h"
 #include "Graph/GraphInstanceComponent.h"
-#include "AnimNextStats.h"
+#include "AnimNextAnimGraphStats.h"
 
 DEFINE_STAT(STAT_AnimNext_UpdateGraph);
 

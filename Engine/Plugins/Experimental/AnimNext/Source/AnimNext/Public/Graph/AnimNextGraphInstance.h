@@ -28,7 +28,7 @@ using GraphInstanceComponentMapType = TMap<FName, TSharedPtr<UE::AnimNext::FGrap
 // This struct uses UE reflection because we wish for the GC to keep the graph
 // alive while we own a reference to it. It is not intended to be serialized on disk with a live instance.
 USTRUCT()
-struct FAnimNextGraphInstance
+struct ANIMNEXT_API FAnimNextGraphInstance
 {
 	GENERATED_BODY()
 

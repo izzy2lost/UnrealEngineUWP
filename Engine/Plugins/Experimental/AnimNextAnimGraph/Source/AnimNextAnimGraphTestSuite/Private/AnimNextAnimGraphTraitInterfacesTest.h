@@ -7,7 +7,7 @@
 #include "TraitCore/TraitHandle.h"
 #include "TraitCore/TraitSharedData.h"
 
-#include "AnimNextTraitInterfacesTest.generated.h"
+#include "AnimNextAnimGraphTraitInterfacesTest.generated.h"
 
 USTRUCT()
 struct FTraitWithOneChildSharedData : public FAnimNextTraitSharedData

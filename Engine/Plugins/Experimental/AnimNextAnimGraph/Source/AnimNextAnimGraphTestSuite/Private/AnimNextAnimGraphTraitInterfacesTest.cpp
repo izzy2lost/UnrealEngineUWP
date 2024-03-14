@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AnimNextTraitInterfacesTest.h"
+#include "AnimNextAnimGraphTraitInterfacesTest.h"
 #include "AnimNextRuntimeTest.h"
 #include "AnimNextTest.h"
 

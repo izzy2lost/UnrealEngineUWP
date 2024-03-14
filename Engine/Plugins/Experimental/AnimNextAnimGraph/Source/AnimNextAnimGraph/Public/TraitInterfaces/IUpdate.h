@@ -133,7 +133,7 @@ namespace UE::AnimNext
 		// be warmer in the CPU cache
 		Private::FUpdateEntry* FreeEntryStackHead = nullptr;
 
-		friend ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
+		friend ANIMNEXTANIMGRAPH_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
 		friend FUpdateTraversalQueue;
 	};
 
@@ -147,7 +147,7 @@ namespace UE::AnimNext
 	{
 		// Queued a child for traversal
 		// Children are processed in the same order they are queued
-		ANIMNEXT_API void Push(const FWeakTraitPtr& ChildPtr, const FTraitUpdateState& ChildTraitState);
+		ANIMNEXTANIMGRAPH_API void Push(const FWeakTraitPtr& ChildPtr, const FTraitUpdateState& ChildTraitState);
 
 	private:
 		explicit FUpdateTraversalQueue(FUpdateTraversalContext& InTraversalContext);
@@ -161,7 +161,7 @@ namespace UE::AnimNext
 		// emptied and pushed onto the update stack
 		Private::FUpdateEntry* QueuedUpdateStackHead = nullptr;
 
-		friend ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
+		friend ANIMNEXTANIMGRAPH_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
 		friend FUpdateTraversalContext;
 	};
 
@@ -175,7 +175,7 @@ namespace UE::AnimNext
 	 * all traits have had the chance to PreUpdate, the children will then evaluate and PostUpdate will
 	 * then be called afterwards on the original trait.
 	 */
-	struct ANIMNEXT_API IUpdate : ITraitInterface
+	struct ANIMNEXTANIMGRAPH_API IUpdate : ITraitInterface
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(IUpdate, 0x59d24dc5)
 
@@ -198,7 +198,7 @@ namespace UE::AnimNext
 	 * If this interface is not implemented, the IHierarchy interface will be used to retrieve and queue
 	 * the children with the same update state as the owning trait.
 	 */
-	struct ANIMNEXT_API IUpdateTraversal : ITraitInterface
+	struct ANIMNEXTANIMGRAPH_API IUpdateTraversal : ITraitInterface
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(IUpdateTraversal, 0x256c21b1)
 
@@ -254,5 +254,5 @@ namespace UE::AnimNext
 	 *
 	 * @see IUpdate::PreUpdate, IUpdate::PostUpdate, IHierarchy::GetChildren
 	 */
-	ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
+	ANIMNEXTANIMGRAPH_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
 }

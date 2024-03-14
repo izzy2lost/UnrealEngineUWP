@@ -13,7 +13,7 @@ namespace UE::AnimNext
 	 *
 	 * This interface exposes continuous blend related information.
 	 */
-	struct ANIMNEXT_API IContinuousBlend : ITraitInterface
+	struct ANIMNEXTANIMGRAPH_API IContinuousBlend : ITraitInterface
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(IContinuousBlend, 0xe7d79186)
 

@@ -4,7 +4,7 @@
 
 #include "TraitCore/ExecutionContext.h"
 #include "TraitInterfaces/IHierarchy.h"
-#include "AnimNextStats.h"
+#include "AnimNextAnimGraphStats.h"
 
 DEFINE_STAT(STAT_AnimNext_EvaluateGraph);
 

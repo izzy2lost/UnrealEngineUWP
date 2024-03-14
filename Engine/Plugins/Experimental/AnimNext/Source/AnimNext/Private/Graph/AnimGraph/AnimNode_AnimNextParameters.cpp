@@ -3,7 +3,7 @@
 #include "Graph/AnimGraph/AnimNode_AnimNextParameters.h"
 #include "Param/ParamStack.h"
 #include "Graph/AnimNextGraph.h"
-#include "AnimGraphParamStackScope.h"
+#include "Graph/AnimGraphParamStackScope.h"
 #include "Param/ParametersProxy.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_AnimNextParameters)

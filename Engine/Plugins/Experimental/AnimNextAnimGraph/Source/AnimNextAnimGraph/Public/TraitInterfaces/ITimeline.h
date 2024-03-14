@@ -13,7 +13,7 @@ namespace UE::AnimNext
 	 *
 	 * This interface exposes timeline related information.
 	 */
-	struct ANIMNEXT_API ITimeline : ITraitInterface
+	struct ANIMNEXTANIMGRAPH_API ITimeline : ITraitInterface
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(ITimeline, 0x53760727)
 

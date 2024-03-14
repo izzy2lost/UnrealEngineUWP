@@ -30,7 +30,7 @@ namespace UE::AnimNext
 
 		FEvaluationProgram& EvaluationProgram;
 
-		friend ANIMNEXT_API FEvaluationProgram EvaluateGraph(const FWeakTraitPtr& GraphRootPtr);
+		friend ANIMNEXTANIMGRAPH_API FEvaluationProgram EvaluateGraph(const FWeakTraitPtr& GraphRootPtr);
 	};
 
 	/**
@@ -47,7 +47,7 @@ namespace UE::AnimNext
 	 * The execution context contains what to evaluate.
 	 * @see FEvaluationProgram
 	 */
-	struct ANIMNEXT_API IEvaluate : ITraitInterface
+	struct ANIMNEXTANIMGRAPH_API IEvaluate : ITraitInterface
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(IEvaluate, 0xa303e9e7)
 
@@ -92,7 +92,7 @@ namespace UE::AnimNext
 	 *
 	 * @see IEvaluate::PreEvaluate, IEvaluate::PostEvaluate, IHierarchy::GetChildren
 	 */
-	[[nodiscard]] ANIMNEXT_API FEvaluationProgram EvaluateGraph(FAnimNextGraphInstancePtr& GraphInstance);
+	[[nodiscard]] ANIMNEXTANIMGRAPH_API FEvaluationProgram EvaluateGraph(FAnimNextGraphInstancePtr& GraphInstance);
 
 	/**
 	 * Evaluates a sub-graph starting at its root and produces an evaluation program.
@@ -107,5 +107,5 @@ namespace UE::AnimNext
 	 *
 	 * @see IEvaluate::PreEvaluate, IEvaluate::PostEvaluate, IHierarchy::GetChildren
 	 */
-	[[nodiscard]] ANIMNEXT_API FEvaluationProgram EvaluateGraph(const FWeakTraitPtr& GraphRootPtr);
+	[[nodiscard]] ANIMNEXTANIMGRAPH_API FEvaluationProgram EvaluateGraph(const FWeakTraitPtr& GraphRootPtr);
 }

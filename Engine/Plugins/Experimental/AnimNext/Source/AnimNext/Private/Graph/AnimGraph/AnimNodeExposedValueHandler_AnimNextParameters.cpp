@@ -5,7 +5,7 @@
 #include "Animation/AnimNodeBase.h"
 #include "Animation/AnimSubsystem_PropertyAccess.h"
 #include "Animation/AnimClassInterface.h"
-#include "AnimGraphParamStackScope.h"
+#include "Graph/AnimGraphParamStackScope.h"
 
 void FAnimNodeExposedValueHandler_AnimNextParameters::Initialize(const UClass* InClass)
 {

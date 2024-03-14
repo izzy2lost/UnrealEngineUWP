@@ -266,6 +266,8 @@ private:
 	TArray<TObjectPtr<UAnimNextScheduleEntry>> Entries;
 #endif
 
+	// TODO: By having the structs below inline, it prevents us from defining them in external plugins that we know nothing about
+
 	// TEMP: Instructions derived from the entries above
 	UPROPERTY(NonTransactional)
 	TArray<FAnimNextScheduleInstruction> Instructions;

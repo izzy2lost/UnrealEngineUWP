@@ -14,7 +14,7 @@ namespace UE::AnimNext
 	 *
 	 * This interface exposes group synchronization related information and behavior.
 	 */
-	struct ANIMNEXT_API IGroupSynchronization : ITraitInterface
+	struct ANIMNEXTANIMGRAPH_API IGroupSynchronization : ITraitInterface
 	{
 		DECLARE_ANIM_TRAIT_INTERFACE(IGroupSynchronization, 0xf607d0fd)
 
