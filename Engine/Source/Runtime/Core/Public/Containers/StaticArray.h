@@ -19,9 +19,20 @@ public:
 
 	TStaticArray() = default;
 
+	// Constructs each element with Args
 	template <typename... ArgTypes>
 	explicit TStaticArray(EInPlace, ArgTypes&&... Args)
 		: Storage(InPlace, TMakeIntegerSequence<uint32, NumElements>(), Forward<ArgTypes>(Args)...)
+	{
+	}
+
+	// Directly initializes the array with the provided values.
+	template <
+		typename... ArgTypes
+		UE_REQUIRES((sizeof...(ArgTypes) > 0 && sizeof...(ArgTypes) <= NumElements) && (std::is_convertible_v<ArgTypes, InElementType> && ...))
+	>
+	TStaticArray(ArgTypes&&... Args)
+		: Storage(PerElement, Forward<ArgTypes>(Args)...)
 	{
 	}
 
@@ -92,7 +103,7 @@ private:
 	{
 		TArrayStorageElementAligned() = default;
 
-		// Index is used to achieve pack expansion in TArrayStorage, but is unused here
+		// Index is used to achieve pack expansion in TArrayStorage's first constructor, but is unused here
 		template <typename... ArgTypes>
 		explicit TArrayStorageElementAligned(EInPlace, uint32 /*Index*/, ArgTypes&&... Args)
 			: Element(Forward<ArgTypes>(Args)...)
@@ -117,6 +128,12 @@ private:
 			// This'll mean that it'll be a compile error to use move-only types like TUniquePtr when in-place constructing
 			// TStaticArray elements, which is a natural expectation because that TUniquePtr can only transfer ownership to
 			// a single element.
+		}
+
+		template<typename... ArgTypes>
+		explicit TArrayStorage(EPerElement, ArgTypes&&... Args)
+			: Elements{ TArrayStorageElementAligned(InPlace, 0 /* dummy index */, Forward<ArgTypes>(Args))... }
+		{
 		}
 
 		TArrayStorageElementAligned Elements[NumElements];
