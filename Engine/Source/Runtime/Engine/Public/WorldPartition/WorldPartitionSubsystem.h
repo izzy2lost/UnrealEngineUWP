@@ -147,7 +147,6 @@ private:
 	void UpdateServerClientsVisibleLevelNames();
 
 	static ENGINE_API void UpdateStreamingStateInternal(const UWorld* InWorld, UWorldPartition* InWorldPartition = nullptr);
-	static int32 GetMaxCellsToLoad(const UWorld* InWorld);
 	static bool IsServer(const UWorld* InWorld);
 
 	ENGINE_API bool HasAnyWorldPartitionServerStreamingEnabled() const;
