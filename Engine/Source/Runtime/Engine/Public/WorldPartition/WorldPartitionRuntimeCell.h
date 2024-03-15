@@ -286,6 +286,14 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 
 	ENGINE_API UDataLayerManager* GetDataLayerManager() const;
 	ENGINE_API EDataLayerRuntimeState GetCellEffectiveWantedState() const;
+	FORCEINLINE EDataLayerRuntimeState GetCellEffectiveWantedState(int32 InDataLayersStateEpoch) const
+	{
+		if (EffectiveWantedStateEpoch != InDataLayersStateEpoch)
+		{
+			return GetCellEffectiveWantedState();
+		}
+		return EffectiveWantedState;
+	}
 	FORCEINLINE bool HasDataLayers() const { return !DataLayers.IsEmpty(); }
 
 	void SetBlockOnSlowLoading(bool bInBlockOnSlowLoading) { bBlockOnSlowLoading = bInBlockOnSlowLoading; }
