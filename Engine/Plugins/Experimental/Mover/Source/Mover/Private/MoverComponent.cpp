@@ -767,6 +767,22 @@ bool UMoverComponent::ValidateSetup(FDataValidationContext& Context) const
 	return !bDidFindAnyProblems;
 }
 
+TArray<FString> UMoverComponent::GetStartingMovementModeNames()
+{
+	TArray<FString> PossibleModeNames;
+
+	PossibleModeNames.Add(TEXT(""));
+
+	for (const TPair<FName, TObjectPtr<UBaseMovementMode>>& Element : MovementModes)
+	{
+		FString ModeNameAsString;
+		Element.Key.ToString(ModeNameAsString);
+		PossibleModeNames.Add(ModeNameAsString);
+	}
+
+	return PossibleModeNames;
+}
+
 #endif // WITH_EDITOR
 
 
