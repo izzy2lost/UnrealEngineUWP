@@ -371,7 +371,7 @@ void FWaterViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& 
 		// Render the water info texture using custom render pass method
 		else if (WaterInfoRenderMethod == 2)
 		{
-			UE::WaterInfo::UpdateWaterInfoRendering_CustomRenderPass(Scene, Context);
+			UE::WaterInfo::UpdateWaterInfoRendering_CustomRenderPass(Scene, InViewFamily, Context);
 		}
 	}
 

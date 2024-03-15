@@ -7233,6 +7233,12 @@ void FScene::DebugRender(TArrayView<FViewInfo> Views)
 }
 #endif
 
+bool FScene::AddCustomRenderPass(const FSceneViewFamily* ViewFamily, const FCustomRenderPassRendererInput& CustomRenderPassInput)
+{
+	CustomRenderPassRendererInputs.Add(CustomRenderPassInput);
+	return true;
+}
+
 void FScene::UpdateCachedShadowState(const FScenePreUpdateChangeSet &ScenePreUpdateChangeSet, const FScenePostUpdateChangeSet &ScenePostUpdateChangeSet)
 {
 	for (const FLightSceneInfo* LightSceneInfo : DirectionalLights)

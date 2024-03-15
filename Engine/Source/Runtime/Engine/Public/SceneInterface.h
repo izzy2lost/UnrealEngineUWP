@@ -68,6 +68,7 @@ struct FPersistentPrimitiveIndex;
 template<int32 MaxSHOrder> class TSHVectorRGB;
 using FSHVectorRGB3 = TSHVectorRGB<3>;
 struct FCustomPrimitiveData;
+class FSceneViewFamily;
 
 
 struct FPrimitiveSceneDesc;
@@ -706,7 +707,9 @@ public:
 
 		class FCustomRenderPassBase* CustomRenderPass = nullptr;
 	};
-	TArray<FCustomRenderPassRendererInput> CustomRenderPassRendererInputs;
+
+	/** Enqueues a new custom render pass to execute the next time this scene is rendered by ANY scene renderer. It will be immediately removed from the scene afterwards. */
+	virtual bool AddCustomRenderPass(const FSceneViewFamily* ViewFamily, const FCustomRenderPassRendererInput& CustomRenderPassInput) { return false; }
 
 protected:
 	virtual ~FSceneInterface() {}
