@@ -267,6 +267,10 @@ float4 DebugRayTracingInstance(FRayDesc Ray, out float OutDepth)
 		OutDepth = ClipPosition.z / ClipPosition.w;
 		Result.a = 0.0;
 	}
+	else
+	{
+		OutDepth = 0.0;
+	}
 
 	return Result;
 }

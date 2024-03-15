@@ -31,7 +31,7 @@ bool FindCollisionGroup(int GPUSceneIndexId, out int CollisionGroup)
 		CollisionGroup = HashToCollisionGroups[Index];
 		return true;
 	}
-
+	CollisionGroup = 0;
 	return false;
 }
 #endif
