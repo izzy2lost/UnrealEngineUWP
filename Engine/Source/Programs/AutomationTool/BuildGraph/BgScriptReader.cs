@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.BuildGraph;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -9,12 +12,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
-using System.Xml.Linq;
 using System.Xml.Schema;
-using EpicGames.BuildGraph;
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json.Linq;
 using UnrealBuildBase;
 
 #nullable enable
@@ -582,14 +580,14 @@ namespace AutomationTool
 					LogError(element, "Property '{Propertyname}' has CreateInParentScope=\"true\" but has no parent scope.", name);
 					return;
 				}
-				else 
+				else
 				{
 					scopeIdx--;
 				}
 			}
 
 			if (_shadowProperties[scopeIdx].Contains(name))
-			{	
+			{
 				// Make sure this property name was not already used in a child scope; it likely indicates an error.
 				LogError(element, "Property '{PropertyName}' was already used in a child scope. Move this definition before the previous usage if they are intended to share scope, or use a different name.", name);
 			}
@@ -903,9 +901,9 @@ namespace AutomationTool
 				string input = ReadAttribute(element, "Input");
 				string method = ReadAttribute(element, "Method");
 				string output = ReadAttribute(element, "Output");
-				
+
 				string operationResult = string.Empty;
-				
+
 				string[] arguments = { };
 
 				const string ArgumentsName = "Arguments";
@@ -916,7 +914,7 @@ namespace AutomationTool
 				}
 
 				// Supply more string operations here
-				switch(method)
+				switch (method)
 				{
 					case "ToLower": operationResult = input.ToLower(); break;
 					case "ToUpper": operationResult = input.ToUpper(); break;
@@ -927,14 +925,14 @@ namespace AutomationTool
 						}
 						operationResult = input.Replace(arguments[0], arguments[1]);
 						break;
-					case "SplitFirst": 
+					case "SplitFirst":
 						if (arguments.Length != 1)
 						{
 							throw new AutomationException($"String operation 'SplitFirst' requires exactly 1 argument.");
 						}
 						operationResult = input.Split(arguments[0]).First();
 						break;
-					case "SplitLast": 
+					case "SplitLast":
 						if (arguments.Length != 1)
 						{
 							throw new AutomationException($"String operation 'SplitLast' requires exactly 1 argument.");
@@ -1223,6 +1221,24 @@ namespace AutomationTool
 			string? name;
 			if (await EvaluateConditionAsync(element) && TryReadObjectName(element, out name))
 			{
+				string? type = ReadAttribute(element, "Type");
+				if (String.IsNullOrEmpty(type))
+				{
+					type = null;
+				}
+
+				string? description = ReadAttribute(element, "Description");
+				if (String.IsNullOrEmpty(description))
+				{
+					description = null;
+				}
+
+				string? basePath = ReadAttribute(element, "BasePath");
+				if (String.IsNullOrEmpty(basePath))
+				{
+					basePath = null;
+				}
+
 				string tag = ReadAttribute(element, "Tag");
 				if (String.IsNullOrEmpty(tag))
 				{
@@ -1231,7 +1247,7 @@ namespace AutomationTool
 
 				string[] keys = ReadListAttribute(element, "Keys");
 
-				BgArtifactDef newArtifact = new BgArtifactDef(name, tag, keys);
+				BgArtifactDef newArtifact = new BgArtifactDef(name, type, description, basePath, tag, keys);
 				_graph.Artifacts.Add(newArtifact);
 			}
 		}
