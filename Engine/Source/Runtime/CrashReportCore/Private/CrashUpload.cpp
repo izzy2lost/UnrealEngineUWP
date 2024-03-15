@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 	
 #include "CrashUpload.h"
+
+#include "AnalyticsEventAttribute.h"
 #include "CrashReportCoreModule.h"
 #include "HAL/FileManager.h"
 #include "Misc/Compression.h"
@@ -249,18 +251,17 @@ bool FCrashUploadBase::CompressData(const TArray<FString>& InPendingFiles, FComp
 
 	int UncompressedSize = UncompressedData.Num();
 
-	uint8* CompressedDataRaw = new uint8[UncompressedSize];
+	TArray<uint8> CompressedDataRaw;
+	CompressedDataRaw.AddUninitialized(UncompressedSize);
 
 	OutCompressedData.FileCount = CurrentFileIndex;
 	OutCompressedData.CompressedSize = UncompressedSize;
 	OutCompressedData.UncompressedSize = UncompressedSize;
-	const bool bResult = FCompression::CompressMemory(NAME_Zlib, CompressedDataRaw, OutCompressedData.CompressedSize, UncompressedData.GetData(), OutCompressedData.UncompressedSize);
+	const bool bResult = FCompression::CompressMemory(NAME_Zlib, CompressedDataRaw.GetData(), OutCompressedData.CompressedSize, UncompressedData.GetData(), OutCompressedData.UncompressedSize);
 	if (bResult)
 	{
 		// Copy compressed data into the array.
-		OutCompressedData.Data.Append(CompressedDataRaw, OutCompressedData.CompressedSize);
-		delete[] CompressedDataRaw;
-		CompressedDataRaw = nullptr;
+		OutCompressedData.Data.Append(CompressedDataRaw.GetData(), OutCompressedData.CompressedSize);
 	}
 
 	return bResult;
@@ -540,7 +541,7 @@ void FCrashUploadToReceiver::PostReportComplete()
 	{
 #if PRIMARY_UPLOAD_RECEIVER
 		// completed upload to CRR so send analytics
-		FPrimaryCrashProperties::Get()->SendPostUploadAnalytics();
+		FPrimaryCrashProperties::Get()->SendPostUploadAnalytics(0.0, false, 0, 0);
 #endif
 		SetCurrentState(EUploadState::PostingReportComplete);
 	}
@@ -718,6 +719,7 @@ bool FCrashUploadToReceiver::ParseServerResponse(FHttpResponsePtr Response, bool
 
 FCrashUploadToDataRouter::FCrashUploadToDataRouter(const FString& InDataRouterUrl)
 	: DataRouterUrl(InDataRouterUrl)
+	, Timer(Duration)
 {
 	if (!DataRouterUrl.IsEmpty())
 	{
@@ -736,15 +738,18 @@ FCrashUploadToDataRouter::FCrashUploadToDataRouter(const FString& InDataRouterUr
 
 FCrashUploadToDataRouter::~FCrashUploadToDataRouter()
 {
+	Timer.Stop();
 #if PRIMARY_UPLOAD_DATAROUTER
 	// completed upload to DR so send analytics
-	FPrimaryCrashProperties::Get()->SendPostUploadAnalytics();
+	FPrimaryCrashProperties::Get()->SendPostUploadAnalytics(Duration, bResult, ResponseCode, PayloadSize, ReportCount);
 #endif		
 }
 
 void FCrashUploadToDataRouter::BeginUpload(const FPlatformErrorReport& PlatformErrorReport)
 {
 	bUploadCalled = true;
+
+	Timer.Start();
 
 	ErrorReport = PlatformErrorReport;
 	PendingFiles = FPlatformErrorReport(ErrorReport.GetReportDirectory()).GetFilesToUpload();
@@ -772,6 +777,9 @@ void FCrashUploadToDataRouter::CompressAndSendData()
 		return;
 	}
 
+	PayloadSize += CompressedData.Data.Num();
+	++ReportCount;
+
 	PendingFiles.Empty();
 
 	FString UserId = FString::Printf(TEXT("%s|%s|%s"), *FPlatformMisc::GetLoginId(), *FPlatformMisc::GetEpicAccountId(), *FPlatformMisc::GetOperatingSystemId());
@@ -791,11 +799,7 @@ void FCrashUploadToDataRouter::CompressAndSendData()
 	Request->SetContent(CompressedData.Data);
 	UE_LOG(CrashReportCoreLog, Log, TEXT("Sending HTTP request: %s, Payload size: %d"), *Request->GetURL(), CompressedData.Data.Num());
 
-	if (Request->ProcessRequest())
-	{
-		return;
-	}
-	else
+	if (!Request->ProcessRequest())
 	{
 		UE_LOG(CrashReportCoreLog, Warning, TEXT("Failed to send file upload request"));
 		SetCurrentState(EUploadState::Cancelled);
@@ -811,7 +815,18 @@ TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FCrashUploadToDataRouter::CreateHt
 
 void FCrashUploadToDataRouter::OnProcessRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
 {
-	UE_LOG(CrashReportCoreLog, Log, TEXT("OnProcessRequestComplete(), State=%s bSucceeded=%i"), ToString(State), (int32)bSucceeded);
+	bResult = bSucceeded;
+	ResponseCode = HttpResponse->GetResponseCode();
+
+	UE_LOG(CrashReportCoreLog, Log, TEXT("OnProcessRequestComplete(), State=%s Response=%u ConnectedSuccesfully=%i"), ToString(State), ResponseCode, (int32)bSucceeded);
+	
+	if (!EHttpResponseCodes::IsOk(ResponseCode))
+	{
+		const FText Description = GetDescription((EHttpResponseCodes::Type)ResponseCode);
+		UE_LOG(CrashReportCoreLog, Error, TEXT("Failed to send crash report. Server returned error code %u (%s)."), ResponseCode, *Description.ToString());
+		SetCurrentState(EUploadState::Cancelled);
+	}
+	
 	switch (State)
 	{
 	default:
@@ -837,17 +852,20 @@ void FCrashUploadToDataRouter::OnProcessRequestComplete(FHttpRequestPtr HttpRequ
 
 void FCrashUploadToDataRouter::CheckPendingReportsForFilesToUpload()
 {
-	SetCurrentState(EUploadState::CompressAndSendData);
-
-	for (; PendingReportDirectoryIndex < PendingReportDirectories.Num(); PendingReportDirectoryIndex++)
+	if (!PendingReportDirectories.IsEmpty())
 	{
-		ErrorReport = FPlatformErrorReport(PendingReportDirectories[PendingReportDirectoryIndex]);
-		PendingFiles = ErrorReport.GetFilesToUpload();
-
-		if (PendingFiles.Num() > 0)
+		UE_LOG(CrashReportCoreLog, Log, TEXT("Found additional pending reports"));
+		SetCurrentState(EUploadState::CompressAndSendData);
+		for (; PendingReportDirectoryIndex < PendingReportDirectories.Num(); PendingReportDirectoryIndex++)
 		{
-			CompressAndSendData();
-			return;
+			ErrorReport = FPlatformErrorReport(PendingReportDirectories[PendingReportDirectoryIndex]);
+			PendingFiles = ErrorReport.GetFilesToUpload();
+
+			if (PendingFiles.Num() > 0)
+			{
+				CompressAndSendData();
+				return;
+			}
 		}
 	}
 

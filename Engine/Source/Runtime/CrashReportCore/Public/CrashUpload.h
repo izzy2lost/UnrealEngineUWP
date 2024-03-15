@@ -9,6 +9,7 @@
 #include "Interfaces/IHttpRequest.h"
 #include "Internationalization/Text.h"
 #include "PlatformErrorReport.h"
+#include "ProfilingDebugging/ScopedTimers.h"
 #include "Templates/SharedPointer.h"
 
 struct FCompressedData;
@@ -286,4 +287,22 @@ private:
 private:
 	/** Url for data router requests */
 	FString DataRouterUrl;
+
+	/** HTTP request result */
+	bool bResult = false;
+	
+	/** HTTP response code */
+	int32 ResponseCode = 0;
+
+	/** Payload size */
+	uint32 PayloadSize = 0;
+
+	/** Reports uploaded */
+	uint32 ReportCount;
+
+	/** Duration of compression + upload */
+	double Duration = 0.0;
+
+	/** Timer */
+	FDurationTimer Timer;
 };

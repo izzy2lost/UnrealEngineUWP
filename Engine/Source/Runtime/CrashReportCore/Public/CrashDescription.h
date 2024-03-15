@@ -499,8 +499,8 @@ public:
 	/** Sends this crash for analytics (before upload). */
 	void SendPreUploadAnalytics();
 
-	/** Sends this crash for analytics (after successful upload). */
-	void SendPostUploadAnalytics();
+	/** Sends this crash for analytics (after upload) with additional stats about the upload. */
+	void SendPostUploadAnalytics(double Duration, bool bResult, int32 ResponseCode, uint32 PayloadSize, uint32 ReportCount);
 
 	/** Saves the data. */
 	void Save();
