@@ -4,16 +4,16 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 import '../widgets/elements/delta_widget_base.dart';
 import '../widgets/elements/unreal_widget_base.dart';
+import 'navigator_keys.dart';
 import 'property_modify_operations.dart';
 import 'unreal_property_manager.dart';
 import 'unreal_types.dart';
-import 'navigator_keys.dart';
 
 final _log = Logger('UnrealPropertyController');
 
@@ -74,12 +74,6 @@ class UnrealPropertyController<PropertyType> with ChangeNotifier {
 
   /// The property's maximum value as received from the engine.
   PropertyType? get engineMax => _propertyMetadata?.maxValue;
-
-  /// The overridden minimum value the controlled properties can reach. If null, [engineMin] will be used.
-  PropertyType? get overrideMin => null;
-
-  /// The overridden maximum value the controlled properties can reach. If null, [engineMax] will be used.
-  PropertyType? get overrideMax => null;
 
   /// The property's possible enum values as received from the engine.
   List<String> get propertyEnumValues => _propertyMetadata?.enumValues ?? [];
@@ -186,13 +180,18 @@ class UnrealPropertyController<PropertyType> with ChangeNotifier {
   /// Apply an [operation] to each property this controls by the amounts specified in [values].
   /// If [values] is null, this is treated as if it was a list of null values matching the number of properties.
   /// If [bIgnoreLimits] is true, the min and max for the widget will be ignored.
-  /// If [_bShouldInitTransaction] is false, we ought to call [beginTransaction] before calling
+  /// If [minMaxBehaviour] behaviour is provided, it will change how the value is handled when it passes the engine's
+  /// min/max values for the property.
+  /// If [overrideMin] and/or [overrideMax] are provided, they will be used instead of the min/max values provided by
+  /// the engine when applying the [minMaxBehaviour].
+  /// If [_bShouldInitTransaction] is false,[beginTransaction] must be called before calling this.
   void modifyProperties(
     PropertyModifyOperation operation, {
     List<dynamic>? values,
     bool bIgnoreLimits = false,
     PropertyMinMaxBehaviour minMaxBehaviour = PropertyMinMaxBehaviour.clamp,
-    void Function()? onChangedByUser,
+    dynamic overrideMin = null,
+    dynamic overrideMax = null,
   }) {
     assert(values == null || values.length == _properties.length);
 
@@ -203,11 +202,9 @@ class UnrealPropertyController<PropertyType> with ChangeNotifier {
         value: values?[index],
         bIgnoreLimits: bIgnoreLimits,
         minMaxBehaviour: minMaxBehaviour,
+        overrideMax: overrideMax,
+        overrideMin: overrideMin,
       );
-    }
-
-    if (onChangedByUser != null) {
-      onChangedByUser();
     }
   }
 
@@ -215,13 +212,19 @@ class UnrealPropertyController<PropertyType> with ChangeNotifier {
   /// in [value].
   /// If [value] is null, this is treated as null and applied to matching property [index].
   /// If [bIgnoreLimits] is true, the min and max for the widget will be ignored.
-  /// If [_bShouldInitTransaction] is false, we ought to call [beginTransaction] before calling
+  /// If [minMaxBehaviour] behaviour is provided, it will change how the value is handled when it passes the engine's
+  /// min/max values for the property.
+  /// If [overrideMin] and/or [overrideMax] are provided, they will be used instead of the min/max values provided by
+  /// the engine when applying the [minMaxBehaviour].
+  /// If [_bShouldInitTransaction] is false,[beginTransaction] must be called before calling this.
   void modifyProperty(
     PropertyModifyOperation operation,
     int index, {
     dynamic value,
     bool bIgnoreLimits = false,
     PropertyMinMaxBehaviour minMaxBehaviour = PropertyMinMaxBehaviour.clamp,
+    dynamic overrideMin = null,
+    dynamic overrideMax = null,
   }) {
     if (_bShouldInitTransaction == true) {
       if (!_bIsInTransaction) {
