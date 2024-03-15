@@ -9582,13 +9582,13 @@ namespace FramePro
 			//------------------------------------------------------------------------
 			void VSPrintf(char* p_buffer, size_t const buffer_size, const char* p_format, va_list arg_list)
 			{
-				vsprintf(p_buffer, p_format, arg_list);
+				vsnprintf(p_buffer, buffer_size, p_format, arg_list);
 			}
 
 			//------------------------------------------------------------------------
-			void ToString(int value, char* p_dest, int)
+			void ToString(int value, char* p_dest, int dest_size)
 			{
-				sprintf(p_dest, "%d", value);
+				snprintf(p_dest, dest_size, "%d", value);
 			}
 
 			//------------------------------------------------------------------------
