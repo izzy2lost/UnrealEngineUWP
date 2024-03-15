@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Engine/NetDriver.h"
 #include "Engine/NetSerialization.h"
 #include "Net/Serialization/FastArraySerializer.h"
 #include "GameplayPrediction.generated.h"
@@ -296,6 +295,11 @@ struct GAMEPLAYABILITIES_API FPredictionKey
 	typedef int16 KeyType;
 	FPredictionKey() = default;
 
+	/** On the server, what network connection this was serialized on. */
+	UE_DEPRECATED(5.0, "No longer used in favor of GetPredictiveConnectionKey, to avoid holding a direct object reference.")
+	UPROPERTY(NotReplicated)
+	TObjectPtr<UPackageMap> PredictiveConnection = nullptr;
+
 	/** The unique ID of this prediction key */
 	UPROPERTY()
 	int16	Current = 0;
@@ -304,15 +308,19 @@ struct GAMEPLAYABILITIES_API FPredictionKey
 	UPROPERTY(NotReplicated)
 	int16	Base = 0;
 
+	/** If stale, this key cannot be used for more prediction */
+	UPROPERTY(NotReplicated)
+	bool bIsStale = false;
+
 	/** True if this was created as a server initiated activation key, used to identify server activations but cannot be used for prediction */
 	UPROPERTY()
 	bool bIsServerInitiated = false;
 
 	/** Construct a new prediction key with no dependencies */
-	static FPredictionKey CreateNewPredictionKey(const UAbilitySystemComponent*);
+	static FPredictionKey CreateNewPredictionKey(class UAbilitySystemComponent*);
 
 	/** Construct a new server initiation key, for abilities activated on the server */
-	static FPredictionKey CreateNewServerInitiatedKey(const UAbilitySystemComponent*);
+	static FPredictionKey CreateNewServerInitiatedKey(class UAbilitySystemComponent*);
 
 	/** Create a new dependent prediction key: keep our existing base or use the current key as the base. */
 	void GenerateDependentPredictionKey();
@@ -349,7 +357,7 @@ struct GAMEPLAYABILITIES_API FPredictionKey
 	/** Can this key be used for more predictive actions, or has it already been sent off to the server? */
 	bool IsValidForMorePrediction() const
 	{
-		return IsLocalClientKey();
+		return Current > 0 && bIsStale == false && bIsServerInitiated == false;
 	}
 
 	/** Was this PredictionKey received from a NetSerialize or created locally? */
@@ -484,12 +492,6 @@ private:
 	bool ClearScopedPredictionKey;
 	bool SetReplicatedPredictionKey;
 	FPredictionKey RestoreKey;
-
-#if !UE_BUILD_SHIPPING
-	FOnSendRPC DebugSavedOnSendRPC;
-	TWeakObjectPtr<UNetDriver> DebugSavedNetDriver;
-	TOptional<FPredictionKey::KeyType> DebugBaseKeyOfChain;
-#endif
 };
 
 // -----------------------------------------------------------------
@@ -527,14 +529,14 @@ struct FReplicatedPredictionKeyItem : public FFastArraySerializerItem
 	UPROPERTY()
 	FPredictionKey PredictionKey;
 	
-	void PostReplicatedAdd(const struct FReplicatedPredictionKeyMap &InArray) { OnRep(InArray); }
-	void PostReplicatedChange(const struct FReplicatedPredictionKeyMap &InArray) { OnRep(InArray); }
+	void PostReplicatedAdd(const struct FReplicatedPredictionKeyMap &InArray) { OnRep(); }
+	void PostReplicatedChange(const struct FReplicatedPredictionKeyMap &InArray) { OnRep(); }
 
 	FString GetDebugString() { return PredictionKey.ToString(); }
 
 private:
 
-	void OnRep(const struct FReplicatedPredictionKeyMap& InArray);
+	void OnRep();
 };
 
 USTRUCT()
