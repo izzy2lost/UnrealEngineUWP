@@ -308,6 +308,11 @@ void MainPS(
 	float4 OutGBufferD = 0;
 	float4 OutGBufferE = 0;
 	float  OutDepth = 0;
+#elif PERMUTATION_OUTPUT_TYPE == 1
+	OutGBufferC = 0;
+	OutGBufferD = 0;
+	OutGBufferE = 0;
+	OutDepth = 0;
 #endif
 
 	const uint3 PixelCoord = uint3(floor(SvPosition.xy), 0);
