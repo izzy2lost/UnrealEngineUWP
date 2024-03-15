@@ -101,7 +101,7 @@ struct FNavigationDirtyArea
 	TWeakObjectPtr<UObject> OptionalSourceObject;
 	
 	FNavigationDirtyArea() : Flags(0) {}
-	FNavigationDirtyArea(const FBox& InBounds, int32 InFlags, UObject* const InOptionalSourceObject = nullptr) : Bounds(InBounds), Flags(InFlags), OptionalSourceObject(InOptionalSourceObject) {}
+	ENGINE_API FNavigationDirtyArea(const FBox& InBounds, int32 InFlags, UObject* const InOptionalSourceObject = nullptr);
 	FORCEINLINE bool HasFlag(ENavigationDirtyFlag::Type Flag) const { return (Flags & Flag) != 0; }
 
 	bool operator==(const FNavigationDirtyArea& Other) const 
