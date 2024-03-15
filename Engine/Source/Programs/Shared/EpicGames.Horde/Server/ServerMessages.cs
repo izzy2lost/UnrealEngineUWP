@@ -108,6 +108,11 @@ namespace EpicGames.Horde.Server
 		public AuthMethod Method { get; set; }
 
 		/// <summary>
+		/// Optional profile name used by OidcToken
+		/// </summary>
+		public string? ProfileName { get; set; }
+
+		/// <summary>
 		/// Issuer for tokens from the auth provider
 		/// </summary>
 		public string? ServerUrl { get; set; }
