@@ -1168,7 +1168,7 @@ namespace Horde.Server.Agents
 				reason = $"Missing session claim for {agent.SessionId.Value}";
 				return false;
 			}
-			
+
 			if (!agent.IsSessionValid(_clock.UtcNow))
 			{
 				reason = $"Session has expired";

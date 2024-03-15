@@ -19,12 +19,12 @@ public enum Ec2InstanceState
 	/// Normal state
 	/// </summary>
 	InService,
-	
+
 	/// <summary>
 	/// Termination is caused by a spot interruption.
 	/// </summary>
 	TerminatingSpot,
-	
+
 	/// <summary>
 	/// Termination is caused by the auto-scaling group
 	/// Can be caused by capacity re-balancing, scale-ins etc.
@@ -66,7 +66,7 @@ class AwsInstanceLifecycleService : BackgroundService
 	private readonly FileReference _terminationSignalFile;
 	private readonly ILogger<AwsInstanceLifecycleService> _logger;
 	private readonly TimeSpan _pollInterval = TimeSpan.FromSeconds(5);
-	
+
 	internal delegate Task TerminationWarningDelegate(Ec2TerminationInfo info, CancellationToken cancellationToken);
 	internal delegate Task TerminationDelegate(Ec2TerminationInfo info, CancellationToken cancellationToken);
 	internal TerminationWarningDelegate _terminationWarningCallback;
@@ -77,13 +77,13 @@ class AwsInstanceLifecycleService : BackgroundService
 	/// In practice, this is dictated by the lifecycle hook set for the ASG.
 	/// Set to 120 sec to mimic the TTL for spot interruption, leading to similar handling of both for now.
 	/// </summary>
-	internal TimeSpan _timeToLiveAsg = TimeSpan.FromSeconds(120); 
-	
+	internal TimeSpan _timeToLiveAsg = TimeSpan.FromSeconds(120);
+
 	/// <summary>
 	/// Time to live for EC2 instance once a spot interruption is detected. Strictly defined by AWS EC2.
 	/// </summary>
 	internal TimeSpan _timeToLiveSpot = TimeSpan.FromSeconds(120); // Strictly defined by AWS EC2
-	
+
 	/// <summary>
 	/// Duration of the time-to-live to allocate towards shutting down the Horde agent and the machine itself.
 	/// Example: if TTL is 120 seconds, 90 seconds will be reported in the termination warning.
@@ -124,7 +124,7 @@ class AwsInstanceLifecycleService : BackgroundService
 
 		return Ec2InstanceState.InService;
 	}
-	
+
 	private async Task<bool> IsSpotInstanceAsync(CancellationToken cancellationToken)
 	{
 		HttpResponseMessage res = await _httpClient.GetAsync(new Uri(BaseUri + "/instance-life-cycle"), cancellationToken);
@@ -136,7 +136,7 @@ class AwsInstanceLifecycleService : BackgroundService
 
 		return false;
 	}
-	
+
 	private async Task<bool> IsImdsAvailableAsync(CancellationToken cancellationToken)
 	{
 		try
@@ -150,7 +150,7 @@ class AwsInstanceLifecycleService : BackgroundService
 			return false;
 		}
 	}
-	
+
 	internal async Task MonitorInstanceLifecycleAsync(CancellationToken cancellationToken)
 	{
 		if (!await IsImdsAvailableAsync(cancellationToken))
@@ -158,7 +158,7 @@ class AwsInstanceLifecycleService : BackgroundService
 			_logger.LogInformation("EC2 metadata server (IMDS) not available. Will not monitor EC2 lifecycle state");
 			return;
 		}
-		
+
 		_logger.LogInformation("Monitoring EC2 instance lifecycle state...");
 		while (!cancellationToken.IsCancellationRequested)
 		{
@@ -174,7 +174,7 @@ class AwsInstanceLifecycleService : BackgroundService
 					ttl -= _terminationBufferTime;
 					ttl = ttl.Ticks >= 0 ? ttl : TimeSpan.Zero;
 					DateTime terminateAt = DateTime.UtcNow + ttl;
-					Ec2TerminationInfo info = new (state, isSpot, ttl, terminateAt, GetReason(state));
+					Ec2TerminationInfo info = new(state, isSpot, ttl, terminateAt, GetReason(state));
 
 					await _terminationWarningCallback(info, cancellationToken);
 					await Task.Delay(ttl, cancellationToken);
@@ -192,7 +192,7 @@ class AwsInstanceLifecycleService : BackgroundService
 			{
 				_logger.LogError(e, "Unhandled exception during EC2 instance monitoring");
 			}
-			
+
 			await Task.Delay(_pollInterval, cancellationToken);
 		}
 	}
@@ -207,17 +207,17 @@ class AwsInstanceLifecycleService : BackgroundService
 	{
 		return state switch
 		{
-			Ec2InstanceState.TerminatingAsg => _timeToLiveAsg, 
+			Ec2InstanceState.TerminatingAsg => _timeToLiveAsg,
 			Ec2InstanceState.TerminatingSpot => _timeToLiveSpot,
 			_ => throw new ArgumentException($"Invalid state {state}")
 		};
 	}
-	
+
 	private static string GetReason(Ec2InstanceState state)
 	{
 		return state switch
 		{
-			Ec2InstanceState.TerminatingAsg => "AWS EC2 ASG termination", 
+			Ec2InstanceState.TerminatingAsg => "AWS EC2 ASG termination",
 			Ec2InstanceState.TerminatingSpot => "AWS EC2 Spot interruption",
 			_ => throw new ArgumentException($"Invalid state {state}")
 		};
@@ -227,12 +227,12 @@ class AwsInstanceLifecycleService : BackgroundService
 	{
 		// Signal to server we are disabled, setting state to paused preventing new leases getting scheduled
 		_statusService.IsBusy = true;
-		
+
 		// Create and write the termination signal file, containing the time-to-live for the EC2 instance.
 		// Workloads executed by the agent that support this protocol can pick this up and prepare/clean up prior to termination
 		await WriteTerminationSignalFileAsync(info, cancellationToken);
 	}
-	
+
 	private Task OnTerminationAsync(Ec2TerminationInfo info, CancellationToken cancellationToken)
 	{
 		if (info.IsSpot)
@@ -240,7 +240,7 @@ class AwsInstanceLifecycleService : BackgroundService
 			_logger.LogInformation("Shutting down");
 			return Shutdown.ExecuteAsync(false, _logger, cancellationToken);
 		}
-		
+
 		return Task.CompletedTask;
 	}
 

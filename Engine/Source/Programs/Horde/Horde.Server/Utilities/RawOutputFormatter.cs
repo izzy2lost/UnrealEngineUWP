@@ -69,7 +69,7 @@ namespace Horde.Server.Utilities
 				throw new Exception("RawOutputProperty field can not be null");
 			}
 
-			byte[] value = (byte[]) nullableValue;
+			byte[] value = (byte[])nullableValue;
 			await response.Body.WriteAsync(value);
 		}
 	}

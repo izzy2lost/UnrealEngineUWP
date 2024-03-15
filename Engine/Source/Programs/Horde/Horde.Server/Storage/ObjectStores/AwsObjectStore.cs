@@ -12,12 +12,12 @@ using Amazon.Extensions.NETCore.Setup;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
+using EpicGames.Core;
+using EpicGames.Horde.Storage;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Storage;
 using OpenTelemetry.Trace;
-using EpicGames.Core;
 
 namespace Horde.Server.Storage.ObjectStores
 {
@@ -269,7 +269,7 @@ namespace Horde.Server.Storage.ObjectStores
 							response = await _client.GetObjectAsync(newGetRequest, cancellationToken);
 							return new WrappedResponseStream(semaLock, semaphoreSpan, response);
 						}
-						catch(Exception ex2)
+						catch (Exception ex2)
 						{
 							_logger.LogInformation(ex2, "Alternate S3 read (no extension) of {BucketId} {Key} failed: {Message}", newGetRequest.BucketName, newGetRequest.Key, ex2.Message);
 						}
@@ -293,7 +293,7 @@ namespace Horde.Server.Storage.ObjectStores
 					}
 
 					// Temp hack for case changes with sanitized object keys AND no extension
-					if(newFullPath.EndsWith(BlobExtension, StringComparison.OrdinalIgnoreCase))
+					if (newFullPath.EndsWith(BlobExtension, StringComparison.OrdinalIgnoreCase))
 					{
 						try
 						{

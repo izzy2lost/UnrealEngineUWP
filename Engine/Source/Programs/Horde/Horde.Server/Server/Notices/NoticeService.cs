@@ -2,17 +2,17 @@
 
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using MongoDB.Bson;
-using EpicGames.Horde.Users;
 using System.Threading;
+using System.Threading.Tasks;
+using EpicGames.Horde.Users;
+using MongoDB.Bson;
 
 namespace Horde.Server.Server.Notices
 {
 	/// <summary>
 	/// Notice service
 	/// </summary>
-	public sealed class NoticeService 
+	public sealed class NoticeService
 	{
 		/// <summary>
 		/// Notice collection

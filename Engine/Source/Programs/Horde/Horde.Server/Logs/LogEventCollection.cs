@@ -138,7 +138,7 @@ namespace Horde.Server.Logs
 			FilterDefinitionBuilder<LogEventDocument> builder = Builders<LogEventDocument>.Filter;
 
 			FilterDefinition<LogEventDocument> filter = builder.Eq(x => x.Id.LogId, logId);
-			if(spanId != null)
+			if (spanId != null)
 			{
 				filter &= builder.Eq(x => x.SpanId, spanId.Value);
 			}

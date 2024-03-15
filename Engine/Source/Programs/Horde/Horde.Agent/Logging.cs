@@ -23,7 +23,7 @@ namespace Horde.Agent
 			s_env = newEnv;
 		}
 
-		public static LoggingLevelSwitch LogLevelSwitch =  new LoggingLevelSwitch();
+		public static LoggingLevelSwitch LogLevelSwitch = new LoggingLevelSwitch();
 
 		private class DatadogLogEnricher : ILogEventEnricher
 		{

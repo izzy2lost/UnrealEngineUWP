@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde;
 using Horde.Server.Server;
 using MongoDB.Bson.Serialization.Attributes;
-using EpicGames.Horde;
-using System.Threading;
 
 namespace Horde.Server.Utilities
 {

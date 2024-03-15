@@ -77,7 +77,7 @@ public abstract class DatabaseRunner : IDisposable
 		_processGroup = new ManagedProcessGroup();
 		_process = new ManagedProcess(_processGroup, GetBinaryPath(), GetArguments(), TempDir, null, ProcessPriorityClass.Normal);
 		Task.Run(() => RelayOutputAsync(_process));
-		
+
 		// Try detect when main .NET process exits and kill the runner
 		AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
 		{
@@ -95,7 +95,7 @@ public abstract class DatabaseRunner : IDisposable
 			{
 				break;
 			}
-//			Console.WriteLine("{0} output: {1}", _name, line);
+			//			Console.WriteLine("{0} output: {1}", _name, line);
 		}
 	}
 

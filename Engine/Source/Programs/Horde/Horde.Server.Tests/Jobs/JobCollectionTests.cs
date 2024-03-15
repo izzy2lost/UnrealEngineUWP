@@ -5,24 +5,24 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
 using Horde.Server.Jobs.Templates;
+using Horde.Server.Logs;
 using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
-using Horde.Server.Agents.Sessions;
-using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Agents.Sessions;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Tests.Jobs
 {
@@ -219,7 +219,7 @@ namespace Horde.Server.Tests.Jobs
 			// Try a batch and fail it
 			job = await RunBatchAsync(job, baseGraph, 0);
 			job = Deref(await JobCollection.TryUpdateBatchAsync(job, baseGraph, job.Batches[0].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
-			
+
 			// Start the replacement batch and update the graph
 			job = await RunBatchAsync(job, baseGraph, 1);
 			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, graph1));
@@ -245,12 +245,12 @@ namespace Horde.Server.Tests.Jobs
 			SessionId sessionId1 = SessionIdUtils.GenerateNewId();
 			await JobCollection.TryAssignLeaseAsync(fixture.Job1, 0, new PoolId("foo"), fixture.Agent1.Id,
 				sessionId1, new LeaseId(BinaryIdUtils.CreateNew()), LogIdUtils.GenerateNewId());
-			
+
 			SessionId sessionId2 = SessionIdUtils.GenerateNewId();
 			IJob job = (await JobCollection.GetAsync(fixture.Job1.Id))!;
 			await JobCollection.TryAssignLeaseAsync(job, 0, new PoolId("foo"), fixture.Agent1.Id,
 				sessionId2, new LeaseId(BinaryIdUtils.CreateNew()), LogIdUtils.GenerateNewId());
-			
+
 			// Manually verify the log output
 		}
 
@@ -286,7 +286,7 @@ namespace Horde.Server.Tests.Jobs
 
 			NewGroup initialGroup = AddGroup(newGroups);
 			AddNode(initialGroup, "Step 1", null);
-			AddNode(initialGroup, "Step 2", hasDependency? new[] { "Step 1" } : null);
+			AddNode(initialGroup, "Step 2", hasDependency ? new[] { "Step 1" } : null);
 			AddNode(initialGroup, "Step 3", new[] { "Step 2" });
 
 			IGraph graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);

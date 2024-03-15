@@ -13,7 +13,7 @@ namespace Horde.Server.Compute
 		/// User can add tasks to the compute cluster
 		/// </summary>
 		public static AclAction AddComputeTasks { get; } = new AclAction("AddComputeTasks");
-		
+
 		/// <summary>
 		/// User can get and list tasks from the compute cluster
 		/// </summary>

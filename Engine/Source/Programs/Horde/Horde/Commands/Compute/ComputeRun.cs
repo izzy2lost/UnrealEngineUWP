@@ -51,7 +51,7 @@ namespace Horde.Commands.Compute
 		[CommandLine("-InProc")]
 		[Description("If true, attempts to load and execute the compute process in the host process. The process to remote must be a .NET assembly invoked through the dotnet command.")]
 		public bool InProc { get; set; }
-		
+
 		[CommandLine("-Encryption")]
 		[Description("Encryption for communicating with compute task (Aes, Ssl, None).")]
 		public string? Encryption { get; set; }

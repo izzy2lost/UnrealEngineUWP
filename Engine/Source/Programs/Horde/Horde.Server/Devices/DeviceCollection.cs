@@ -234,7 +234,7 @@ namespace Horde.Server.Devices
 			/// <summary>
 			/// The job id which utilized device
 			/// </summary>
-			[BsonIgnoreIfNull,BsonElement("job")]
+			[BsonIgnoreIfNull, BsonElement("job")]
 			public string? JobId { get; set; }
 
 			/// <summary>
@@ -365,7 +365,7 @@ namespace Horde.Server.Devices
 			}
 
 			public DevicePlatformTelemetryDocument(DevicePlatformId platformId, List<DeviceId>? available, Dictionary<StreamId, List<DeviceReservationPoolTelemetryDocument>>? reserved, List<DeviceId>? maintenance, List<DeviceId>? problem, List<DeviceId>? disabled)
-			{								
+			{
 				PlatformId = platformId;
 
 				if (available != null && available.Count > 0)
@@ -391,7 +391,7 @@ namespace Horde.Server.Devices
 				if (disabled != null && disabled.Count > 0)
 				{
 					Disabled = disabled;
-				}				
+				}
 			}
 		}
 
@@ -632,7 +632,7 @@ namespace Horde.Server.Devices
 
 		/// <inheritdoc/>
 		public async Task<IDeviceReservation?> TryFindReserveBlockAsync(JobId? jobId, JobStepId? stepId)
-		{			
+		{
 			if (jobId != null && stepId != null)
 			{
 				FilterDefinitionBuilder<DeviceReservationDocument> filterBuilder = Builders<DeviceReservationDocument>.Filter;
@@ -653,19 +653,19 @@ namespace Horde.Server.Devices
 
 		/// <inheritdoc/>
 		public async Task<(IDeviceReservation?, bool)> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, int problemCooldown, string? hostname, string? reservationDetails, IJob? job, JobStepId? stepId, string? stepName, List<JobStepId>? stepIds)
-		{		
+		{
 			if (request.Count == 0)
 			{
 				return (null, false);
 			}
 
 			IDeviceReservation? existing = await TryFindReserveBlockAsync(job?.Id, stepId);
-			if (existing != null && existing.ProblemDevice == null) 
+			if (existing != null && existing.ProblemDevice == null)
 			{
 				// Check the device models match
 				bool modelChange = false;
 
-				List<DeviceDocument> devices = await _devices.Find(x => existing.Devices.Contains(x.Id)).ToListAsync(); 				
+				List<DeviceDocument> devices = await _devices.Find(x => existing.Devices.Contains(x.Id)).ToListAsync();
 				foreach (DeviceRequestData data in request)
 				{
 					if (modelChange)
@@ -673,7 +673,7 @@ namespace Horde.Server.Devices
 						break;
 					}
 
-					foreach(DeviceDocument a in devices )
+					foreach (DeviceDocument a in devices)
 					{
 						if (data.IncludeModels.Count > 0 && !data.IncludeModels.Contains(a.ModelId ?? "Base"))
 						{
@@ -716,7 +716,7 @@ namespace Horde.Server.Devices
 			// filter out currently reserved devices
 			poolDevices = poolDevices.FindAll(x => poolReservations.FirstOrDefault(p => p.Devices.Contains(x.Id)) == null);
 
-			int availablePoolDevices = poolDevices.Count;			
+			int availablePoolDevices = poolDevices.Count;
 
 			// sort to use last reserved first to cycle devices
 			poolDevices.Sort((a, b) =>
@@ -795,7 +795,7 @@ namespace Horde.Server.Devices
 					utilization = utilization.GetRange(0, 99);
 				}
 
-				utilization.Insert(0, new DeviceUtilizationTelemetry(reservationTimeUtc) { JobId = job?.Id.ToString(), StepId = stepId?.ToString()});
+				utilization.Insert(0, new DeviceUtilizationTelemetry(reservationTimeUtc) { JobId = job?.Id.ToString(), StepId = stepId?.ToString() });
 
 				UpdateDefinitionBuilder<DeviceDocument> deviceBuilder = Builders<DeviceDocument>.Update;
 				List<UpdateDefinition<DeviceDocument>> deviceUpdates = new List<UpdateDefinition<DeviceDocument>>();
@@ -865,7 +865,7 @@ namespace Horde.Server.Devices
 			}
 
 			Expression<Func<DeviceReservationDocument, bool>> filter = x => x.Id == id;
-			return await _reservations.FindOneAndUpdateAsync(filter, updateBuilder.Combine(updates), options: new FindOneAndUpdateOptions<DeviceReservationDocument, DeviceReservationDocument> { ReturnDocument = ReturnDocument.After });	
+			return await _reservations.FindOneAndUpdateAsync(filter, updateBuilder.Combine(updates), options: new FindOneAndUpdateOptions<DeviceReservationDocument, DeviceReservationDocument> { ReturnDocument = ReturnDocument.After });
 		}
 
 		/// <inheritdoc/>
@@ -998,7 +998,7 @@ namespace Horde.Server.Devices
 				filter &= filterBuilder.Lte(x => x.CreateTimeUtc!, maxCreateTime.Value.UtcDateTime);
 			}
 
-			List<DeviceTelemetryDocument> results = await _deviceTelemetry.Find(filter).Range(index, count).ToListAsync();	
+			List<DeviceTelemetryDocument> results = await _deviceTelemetry.Find(filter).Range(index, count).ToListAsync();
 			return results.ConvertAll<IDeviceTelemetry>(x => x);
 		}
 
@@ -1019,7 +1019,7 @@ namespace Horde.Server.Devices
 		/// <returns></returns>
 		public async Task CreatePoolTelemetrySnapshotAsync(List<IDevicePool> pools, int problemCooldown)
 		{
-			List<IDevice> devices = await FindAllDevicesAsync();			
+			List<IDevice> devices = await FindAllDevicesAsync();
 			IReadOnlyList<IDeviceReservation> reservations = await FindAllDeviceReservationsAsync();
 
 			// narrow to automation pools, may want to collect telemetry on other pools in the future
@@ -1035,13 +1035,13 @@ namespace Horde.Server.Devices
 
 			List<IDevice> reservedDevices = devices.Where(x => reservations.FirstOrDefault(r => r.Devices.Contains(x.Id)) != null).ToList();
 			List<IDevice> maintenanceDevices = devices.Where(x => x.MaintenanceTimeUtc != null).ToList();
-			List<IDevice> disabledDevices  = devices.Where(x => !x.Enabled).ToList();
+			List<IDevice> disabledDevices = devices.Where(x => !x.Enabled).ToList();
 			List<IDevice> problemDevices = devices.Where(x => (x.ProblemTimeUtc != null && ((now - x.ProblemTimeUtc).Value.TotalMinutes < problemCooldown))).ToList();
 
 			Dictionary<DevicePoolId, List<DevicePlatformTelemetryDocument>> poolTelemetry = new Dictionary<DevicePoolId, List<DevicePlatformTelemetryDocument>>();
 
 			foreach (IDevicePool pool in pools)
-			{								
+			{
 				List<IDevice> poolDevices = devices.Where(x => x.PoolId == pool.Id).ToList();
 				HashSet<DevicePlatformId> platforms = new HashSet<DevicePlatformId>();
 				poolDevices.ForEach(d => platforms.Add(d.PlatformId));
@@ -1051,7 +1051,7 @@ namespace Horde.Server.Devices
 				{
 					helpers[platform] = new DevicePoolTelemetryHelper();
 				}
-				
+
 				foreach (IDevice device in poolDevices)
 				{
 					DevicePoolTelemetryHelper helper = helpers[device.PlatformId];
@@ -1140,7 +1140,7 @@ namespace Horde.Server.Devices
 			if (results.Count > 0)
 			{
 				_logger.LogInformation("Found {Count} device documents to upgrade", results.Count);
-			}			
+			}
 
 			foreach (DeviceDocument device in results)
 			{
@@ -1157,7 +1157,7 @@ namespace Horde.Server.Devices
 						DateTime now = DateTime.UtcNow;
 						double days = (now - device.CheckOutTime!.Value).TotalDays;
 						if (days > 3)
-						{							
+						{
 							updates.Add(updateBuilder.Set(x => x.CheckOutTime, now));
 							updates.Add(updateBuilder.Set(x => x.CheckoutExpiringNotificationSent, null));
 						}

@@ -12,7 +12,7 @@ namespace Horde.Agent.Execution
 		private readonly LocalExecutorSettings _settings;
 		private readonly DirectoryReference _localWorkspaceDir;
 
-		public LocalExecutor(JobExecutorOptions options, LocalExecutorSettings settings, ILogger logger) 
+		public LocalExecutor(JobExecutorOptions options, LocalExecutorSettings settings, ILogger logger)
 			: base(options, logger)
 		{
 			_settings = settings;
@@ -30,7 +30,7 @@ namespace Horde.Agent.Execution
 		{
 			const string HordeSlnRelativePath = "Engine/Source/Programs/Horde/Horde.sln";
 
-			DirectoryReference executableFileDir = new (AppContext.BaseDirectory);
+			DirectoryReference executableFileDir = new(AppContext.BaseDirectory);
 			for (DirectoryReference? directory = executableFileDir; directory != null; directory = directory.ParentDirectory)
 			{
 				FileReference hordeSln = FileReference.Combine(directory, HordeSlnRelativePath);

@@ -57,7 +57,7 @@ namespace Horde.Server.Agents.Pools
 		{
 			await _updatePoolsTicker.StopAsync();
 			await _shutdownDisabledAgentsTicker.StopAsync();
-		} 
+		}
 
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
@@ -92,7 +92,7 @@ namespace Horde.Server.Agents.Pools
 
 			span.SetAttribute("numShutdown", c);
 		}
-		
+
 		private bool HasGracePeriodExpired(IAgent agent, IReadOnlyList<IPoolConfig> pools, TimeSpan globalGracePeriod)
 		{
 			if (agent.LastStatusChange == null)
@@ -111,7 +111,7 @@ namespace Horde.Server.Agents.Pools
 			IPoolConfig? pool = pools.FirstOrDefault(x => poolIds.Contains(x.Id) && x.ShutdownIfDisabledGracePeriod != null);
 			return pool?.ShutdownIfDisabledGracePeriod;
 		}
-		
+
 		private static bool IsAgentAutoScaled(IAgent agent, IReadOnlyList<IPoolConfig> pools)
 		{
 			IEnumerable<PoolId> poolIds = agent.ExplicitPools.Concat(agent.DynamicPools);
@@ -126,7 +126,7 @@ namespace Horde.Server.Agents.Pools
 		async ValueTask UpdatePoolsAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PoolUpdateService)}.{nameof(UpdatePoolsAsync)}");
-			
+
 			// Capture the start time for this operation. We use this to attempt to sequence updates to agents, and prevent overriding another server's updates.
 			DateTime startTime = DateTime.UtcNow;
 
@@ -206,11 +206,11 @@ namespace Horde.Server.Agents.Pools
 
 						if (newAutoSdkConfig != null)
 						{
-							_logger.LogInformation("New autosdk view for pool {Pool}:{View}", currentPool.Id, String.Join("", newAutoSdkConfig.View.Select(x => $"\n  {x}"))); 
+							_logger.LogInformation("New autosdk view for pool {Pool}:{View}", currentPool.Id, String.Join("", newAutoSdkConfig.View.Select(x => $"\n  {x}")));
 						}
 
 #pragma warning disable CS0618 // Type or member is obsolete
-						await _pools.UpdateConfigAsync(currentPool.Id, new UpdatePoolConfigOptions{ Workspaces = newWorkspaces, AutoSdkConfig = newAutoSdkConfig }, cancellationToken);
+						await _pools.UpdateConfigAsync(currentPool.Id, new UpdatePoolConfigOptions { Workspaces = newWorkspaces, AutoSdkConfig = newAutoSdkConfig }, cancellationToken);
 #pragma warning restore CS0618 // Type or member is obsolete
 					}
 				}

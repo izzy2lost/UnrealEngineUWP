@@ -4,9 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using MongoDB.Bson.Serialization;
-using EpicGames.Horde.Streams;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Streams;
+using MongoDB.Bson.Serialization;
 
 namespace Horde.Server.Jobs.TestData
 {
@@ -468,7 +468,7 @@ namespace Horde.Server.Jobs.TestData
 			if (testData.TestId != null)
 			{
 				Outcome = testData.Outcome;
-			}			
+			}
 			SuiteId = testData.SuiteId?.ToString();
 			SuiteSkipCount = testData.SuiteSkipCount;
 			SuiteWarningCount = testData.SuiteWarningCount;

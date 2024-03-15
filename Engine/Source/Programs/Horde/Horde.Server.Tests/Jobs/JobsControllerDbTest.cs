@@ -15,11 +15,11 @@ namespace Horde.Server.Tests.Jobs
 	/// the entire ASP.NET chain.
 	/// </summary>
 	[TestClass]
-    public class JobsControllerDbTest : TestSetup
-    {
-        [TestMethod]
-        public async Task GetJobsAsync()
-        {
+	public class JobsControllerDbTest : TestSetup
+	{
+		[TestMethod]
+		public async Task GetJobsAsync()
+		{
 			await CreateFixtureAsync();
 
 			ActionResult<List<object>> res = await JobsController.FindJobsAsync();
@@ -31,47 +31,47 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual("hello1", responses[0].Name);
 			Assert.AreEqual("hello2", responses[1].Name);
 
-	        res = await JobsController.FindJobsAsync(includePreflight: false);
-	        Assert.AreEqual(1, res.Value!.Count);
-	        Assert.AreEqual("hello2", (res.Value[0] as GetJobResponse)!.Name);
-        }
-        
-        [TestMethod]
-        public async Task AbortStepTestAsync()
-        {
+			res = await JobsController.FindJobsAsync(includePreflight: false);
+			Assert.AreEqual(1, res.Value!.Count);
+			Assert.AreEqual("hello2", (res.Value[0] as GetJobResponse)!.Name);
+		}
+
+		[TestMethod]
+		public async Task AbortStepTestAsync()
+		{
 			Fixture fixture = await CreateFixtureAsync();
 
-	        IJob job = fixture.Job1;
-	        JobStepBatchId batchId = job.Batches[0].Id;
-	        JobStepId stepId = job.Batches[0].Steps[0].Id;
+			IJob job = fixture.Job1;
+			JobStepBatchId batchId = job.Batches[0].Id;
+			JobStepId stepId = job.Batches[0].Steps[0].Id;
 
-	        object obj = (await JobsController.GetStepAsync(job.Id, batchId, stepId)).Value!;
-	        GetStepResponse stepRes = (obj as GetStepResponse)!;
-	        Assert.IsFalse(stepRes.AbortRequested);
-	        
-	        UpdateStepRequest updateReq = new UpdateStepRequest();
-	        updateReq.AbortRequested = true;
+			object obj = (await JobsController.GetStepAsync(job.Id, batchId, stepId)).Value!;
+			GetStepResponse stepRes = (obj as GetStepResponse)!;
+			Assert.IsFalse(stepRes.AbortRequested);
+
+			UpdateStepRequest updateReq = new UpdateStepRequest();
+			updateReq.AbortRequested = true;
 			await JobsController.UpdateStepAsync(job.Id, batchId, stepId, updateReq);
-//	        UpdateStepResponse updateRes = (obj as UpdateStepResponse)!;
-	        
-	        obj = (await JobsController.GetStepAsync(job.Id, batchId, stepId)).Value!;
-	        stepRes = (obj as GetStepResponse)!;
-	        Assert.IsTrue(stepRes.AbortRequested);
-//	        Assert.AreEqual("Anonymous", StepRes.AbortByUser);
-        }
-        
-        [TestMethod]
-        public async Task FindJobTimingsTestAsync()
-        {
-	        Fixture fixture = await CreateFixtureAsync();
-	        IJob job = fixture.Job1;
-	        string[] templates = { job.TemplateId.ToString() };
-	        object obj = (await JobsController.FindJobTimingsAsync(fixture.StreamConfig!.Id.ToString(), templates)).Value!;
-	        FindJobTimingsResponse res = (obj as FindJobTimingsResponse)!;
-	        Assert.AreEqual(1, res.Timings.Count);
-	        GetJobTimingResponse timingResponse = res.Timings[job.Id.ToString()];
-	        Assert.AreEqual(0, timingResponse.JobResponse!.Labels!.Count);
-//	        Assert.AreEqual(job.Name, timingResponse.Job!.Name);
-        }
-    }
+			//	        UpdateStepResponse updateRes = (obj as UpdateStepResponse)!;
+
+			obj = (await JobsController.GetStepAsync(job.Id, batchId, stepId)).Value!;
+			stepRes = (obj as GetStepResponse)!;
+			Assert.IsTrue(stepRes.AbortRequested);
+			//	        Assert.AreEqual("Anonymous", StepRes.AbortByUser);
+		}
+
+		[TestMethod]
+		public async Task FindJobTimingsTestAsync()
+		{
+			Fixture fixture = await CreateFixtureAsync();
+			IJob job = fixture.Job1;
+			string[] templates = { job.TemplateId.ToString() };
+			object obj = (await JobsController.FindJobTimingsAsync(fixture.StreamConfig!.Id.ToString(), templates)).Value!;
+			FindJobTimingsResponse res = (obj as FindJobTimingsResponse)!;
+			Assert.AreEqual(1, res.Timings.Count);
+			GetJobTimingResponse timingResponse = res.Timings[job.Id.ToString()];
+			Assert.AreEqual(0, timingResponse.JobResponse!.Labels!.Count);
+			//	        Assert.AreEqual(job.Name, timingResponse.Job!.Name);
+		}
+	}
 }

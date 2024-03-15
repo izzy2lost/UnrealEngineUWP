@@ -21,7 +21,7 @@ namespace Horde.Server.Tests.Fleet;
 /// </summary>
 public sealed class FakeAmazonSqs : IAmazonSQS
 {
-	private readonly ConcurrentDictionary<string, List<string>> _queues = new ();
+	private readonly ConcurrentDictionary<string, List<string>> _queues = new();
 
 	public void Dispose()
 	{
@@ -34,11 +34,11 @@ public sealed class FakeAmazonSqs : IAmazonSQS
 			messages = new();
 			_queues[queueUrl] = messages;
 		}
-		
+
 		messages.Add(messageBody);
 		return Task.FromResult(new SendMessageResponse() { MessageId = "unset" });
 	}
-	
+
 	public Task<ReceiveMessageResponse> ReceiveMessageAsync(ReceiveMessageRequest request, CancellationToken cancellationToken = default)
 	{
 		if (_queues.TryGetValue(request.QueueUrl, out List<string>? messages))
@@ -51,17 +51,17 @@ public sealed class FakeAmazonSqs : IAmazonSQS
 
 		return Task.FromResult(new ReceiveMessageResponse());
 	}
-	
+
 	public Task<DeleteMessageResponse> DeleteMessageAsync(DeleteMessageRequest request, CancellationToken cancellationToken = default)
 	{
 		return Task.FromResult(new DeleteMessageResponse());
 	}
-	
-#region Not implemented
+
+	#region Not implemented
 
 	public ISQSPaginatorFactory Paginators { get; } = null!;
 	public IClientConfig Config { get; } = null!;
-	
+
 	public Task<Dictionary<string, string>> GetAttributesAsync(string queueUrl)
 	{
 		throw new NotImplementedException();

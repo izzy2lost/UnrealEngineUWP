@@ -216,7 +216,7 @@ namespace Horde.Agent
 			services.AddSingleton<IJobExecutorFactory, WorkspaceExecutorFactory>();
 			services.AddSingleton<IJobExecutorFactory, LocalExecutorFactory>();
 			services.AddSingleton<IJobExecutorFactory, TestExecutorFactory>();
-			
+
 			services.AddSingleton<IWorkspaceMaterializerFactory, WorkspaceMaterializerFactory>();
 
 			services.AddSingleton<JobHandler>();
@@ -377,9 +377,9 @@ namespace Horde.Agent
 			string? directoryName = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 			if (!String.IsNullOrEmpty(directoryName))
 			{
-				return new DirectoryReference(directoryName);	
+				return new DirectoryReference(directoryName);
 			}
-			
+
 			// When C# project is packaged as a single file, GetExecutingAssembly above does not work
 			return DirectoryReference.FromFile(new FileReference(Environment.ProcessPath!));
 		}

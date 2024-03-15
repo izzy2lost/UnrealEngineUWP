@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;
+using System.Threading.Tasks;
 using EpicGames.Horde.Dashboard;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Dashboard
 {
@@ -21,7 +21,7 @@ namespace Horde.Server.Tests.Dashboard
 			request.Summary = "This is a test preview item";
 
 			// create a reservation
-			GetDashboardPreviewResponse result =  (await DashboardController!.CreateDashbordPreviewAsync(request)).Value!;
+			GetDashboardPreviewResponse result = (await DashboardController!.CreateDashbordPreviewAsync(request)).Value!;
 
 			Assert.AreEqual(1, result.Id);
 			Assert.AreEqual("This is a test preview item", result.Summary);

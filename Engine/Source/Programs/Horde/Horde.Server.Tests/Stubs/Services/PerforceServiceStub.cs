@@ -207,12 +207,12 @@ namespace Horde.Server.Tests.Stubs.Services
 		{
 			throw new NotImplementedException();
 		}
-/*
-		public Task<ICommit> GetChangeDetailsAsync(IStream stream, int changeNumber, CancellationToken cancellationToken)
-		{
-			return Task.FromResult<ICommit>(Changes[stream.Id][changeNumber]);
-		}
-*/
+		/*
+				public Task<ICommit> GetChangeDetailsAsync(IStream stream, int changeNumber, CancellationToken cancellationToken)
+				{
+					return Task.FromResult<ICommit>(Changes[stream.Id][changeNumber]);
+				}
+		*/
 		class CommitCollection : ICommitCollection
 		{
 			readonly PerforceServiceStub _owner;

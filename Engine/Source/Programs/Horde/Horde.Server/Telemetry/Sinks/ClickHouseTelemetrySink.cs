@@ -23,7 +23,7 @@ namespace Horde.Server.Telemetry.Sinks
 		/// Name of the HTTP client for writing telemetry data
 		/// </summary>
 		public const string HttpClientName = "ClickHouseTelemetrySink";
-		
+
 		private const string EmptyObjectId = "000000000000000000000000";
 
 		private readonly IHttpClientFactory _httpClientFactory;
@@ -50,7 +50,7 @@ namespace Horde.Server.Telemetry.Sinks
 		{
 			return ValueTask.CompletedTask;
 		}
-		
+
 		/// <inheritdoc/>
 		public void SendEvent(TelemetryStoreId telemetryStoreId, TelemetryEvent telemetryEvent)
 		{
@@ -82,14 +82,14 @@ namespace Horde.Server.Telemetry.Sinks
 
 			if (sb.Length > 0)
 			{
-				await SendClickHouseQueryAsync(Encoding.UTF8.GetBytes(sb.ToString()), cancellationToken);	
+				await SendClickHouseQueryAsync(Encoding.UTF8.GetBytes(sb.ToString()), cancellationToken);
 			}
 		}
 
 		private async Task SendClickHouseQueryAsync(byte[] query, CancellationToken cancellationToken)
 		{
 			HttpClient httpClient = _httpClientFactory.CreateClient(HttpClientName);
-			
+
 			using HttpRequestMessage request = new();
 			request.RequestUri = _uri;
 			request.Method = HttpMethod.Post;
@@ -105,7 +105,7 @@ namespace Horde.Server.Telemetry.Sinks
 				string responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
 				string queryStr = Encoding.UTF8.GetString(query);
 				queryStr = queryStr.Substring(0, Math.Min(queryStr.Length, 300));
-				
+
 				_logger.LogError("Unable to send telemetry data to server. StatusCode={StatusCode}) Response={Response} Query={Query}",
 					(int)response.StatusCode, responseContent, queryStr);
 			}
@@ -135,7 +135,7 @@ namespace Horde.Server.Telemetry.Sinks
 				sb.Append(';');
 			}
 		}
-		
+
 		/// <summary>
 		/// Generate a INSERT INTO statement for a list of AgentMetadataEvent
 		/// </summary>
@@ -164,7 +164,7 @@ namespace Horde.Server.Telemetry.Sinks
 				throw new ArgumentException($"Expected a MongoDB ObjectId string of 24 chars. Got: '{value}'");
 			}
 
-			StringBuilder sb = new (value.Length * 2);
+			StringBuilder sb = new(value.Length * 2);
 			for (int i = 0; i < value.Length; i += 2)
 			{
 				sb.Append("\\x");
@@ -174,15 +174,15 @@ namespace Horde.Server.Telemetry.Sinks
 
 			return sb.ToString();
 		}
-		
+
 		private static string WriteDictionaryAsClickHouseMap(IDictionary<string, string> dict)
 		{
 			if (dict.Count == 0)
 			{
 				return "{}";
 			}
-			
-			StringBuilder sb = new (dict.Count * 2 * 20);
+
+			StringBuilder sb = new(dict.Count * 2 * 20);
 			sb.Append('{');
 			foreach ((string key, string value) in dict)
 			{

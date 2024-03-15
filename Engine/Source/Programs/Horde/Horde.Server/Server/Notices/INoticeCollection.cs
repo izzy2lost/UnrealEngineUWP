@@ -2,10 +2,10 @@
 
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using MongoDB.Bson;
-using EpicGames.Horde.Users;
 using System.Threading;
+using System.Threading.Tasks;
+using EpicGames.Horde.Users;
+using MongoDB.Bson;
 
 namespace Horde.Server.Server.Notices
 {

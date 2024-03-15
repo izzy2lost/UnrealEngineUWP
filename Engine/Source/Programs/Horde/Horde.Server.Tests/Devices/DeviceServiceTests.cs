@@ -1,28 +1,28 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Horde.Devices;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Projects;
+using EpicGames.Horde.Streams;
 using Horde.Server.Devices;
 using Horde.Server.Jobs;
+using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.Templates;
+using Horde.Server.Server;
+using Horde.Server.Users;
+using Horde.Server.Utilities;
+using HordeCommon;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Horde.Server.Utilities;
-using Horde.Server.Users;
-using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
-using Horde.Server.Server;
-using System;
-using EpicGames.Horde.Devices;
-using EpicGames.Horde.Projects;
-using Horde.Server.Jobs.Graphs;
-using HordeCommon;
-using System.Linq;
-using EpicGames.Core;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Streams;
-using Horde.Server.Jobs.Templates;
 using Moq;
-using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Tests.Devices
 {
@@ -49,10 +49,10 @@ namespace Horde.Server.Tests.Devices
 					controllerContext.HttpContext = new DefaultHttpContext();
 					controllerContext.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
 						new List<Claim>
-						{ 
+						{
 							HordeClaims.AdminClaim.ToClaim(),
 							new Claim(ClaimTypes.Name, "TestUser"),
-							new Claim(HordeClaimTypes.UserId, user.Id.ToString()) 
+							new Claim(HordeClaimTypes.UserId, user.Id.ToString())
 						}
 						, "TestAuthType"));
 					_deviceController.ControllerContext = controllerContext;
@@ -62,7 +62,7 @@ namespace Horde.Server.Tests.Devices
 			}
 		}
 
-		static T ResultToValue<T>(ActionResult<T> result) where T: class
+		static T ResultToValue<T>(ActionResult<T> result) where T : class
 		{
 			return ((result.Result! as JsonResult)!.Value! as T)!;
 		}
@@ -74,11 +74,11 @@ namespace Horde.Server.Tests.Devices
 			return group;
 		}
 
-		static NewNode AddNode(NewGroup group, string name, string[]? inputDependencies, Action<NewNode>? action = null, IReadOnlyNodeAnnotations? annotations= null)
+		static NewNode AddNode(NewGroup group, string name, string[]? inputDependencies, Action<NewNode>? action = null, IReadOnlyNodeAnnotations? annotations = null)
 		{
 			NewNode node = new NewNode(name, inputDependencies: inputDependencies?.ToList(), orderDependencies: inputDependencies?.ToList(), annotations: annotations);
 			action?.Invoke(node);
-			group.Nodes.Add(node);			
+			group.Nodes.Add(node);
 			return node;
 		}
 
@@ -108,7 +108,7 @@ namespace Horde.Server.Tests.Devices
 		async Task<IJob> RunStepAsync(IJob job, IGraph graph, int batchIdx, int stepIdx, JobStepOutcome outcome)
 		{
 			job = Deref(await StartStepAsync(job, graph, batchIdx, stepIdx));
-			return  Deref(await FinishStepAsync(job, graph, batchIdx, stepIdx, outcome));
+			return Deref(await FinishStepAsync(job, graph, batchIdx, stepIdx, outcome));
 		}
 
 		JobStepId GetStepId(IJob job, string nodeName)
@@ -161,7 +161,7 @@ namespace Horde.Server.Tests.Devices
 			}
 
 			UpdateConfig(x => x.Devices = devices);
-			
+
 			for (int i = 1; i < 4; i++)
 			{
 				for (int j = 0; j < 4; j++)
@@ -180,7 +180,7 @@ namespace Horde.Server.Tests.Devices
 						await DeviceController.CreateDeviceAsync(new CreateDeviceRequest() { Name = "TestDevice" + (j * 5 + k) + "_Platform" + i + "_" + poolId, Address = "10.0.0.1", Enabled = true, PlatformId = "testdeviceplatform" + i, ModelId = modelId, PoolId = poolId });
 					}
 				}
-			}			
+			}
 
 			await DeviceService.TickForTestingAsync();
 
@@ -217,14 +217,14 @@ namespace Horde.Server.Tests.Devices
 			NewGroup testGroup = AddGroup(newGroups);
 			NodeAnnotations? annotations = String.IsNullOrEmpty(annotationsIn) ? null : new NodeAnnotations();
 			if (annotationsIn == "DeviceReserveNodes")
-			{					
+			{
 				annotations!.Add("DeviceReserveNodes", "Run Test 1,Run Test 2,Run Test 3,Run Test 4");
 			}
 			else if (annotationsIn == "DeviceReserve")
 			{
 				annotations!.Add("DeviceReserve", "Begin");
 			}
-			
+
 			AddNode(testGroup, "Install Build", new[] { "Cook Client", "Compile Client" }, annotations: annotations);
 			AddNode(testGroup, "Run Test 1", new[] { "Install Build" });
 			AddNode(testGroup, "Run Test 2", new[] { "Install Build" });
@@ -234,11 +234,10 @@ namespace Horde.Server.Tests.Devices
 			{
 				annotations!.Add("DeviceReserve", "End");
 			}
-			
 
 			AddNode(testGroup, "Run Test 3", new[] { "Install Build" }, annotations: annotations);
 			AddNode(testGroup, "Run Test 4", new[] { "Install Build" });
-				
+
 			AddNode(testGroup, "Run Tests", new[] { "Run Test 1", "Run Test 2", "Run Test 3", "Run Test 4" });
 
 			_graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
@@ -278,9 +277,9 @@ namespace Horde.Server.Tests.Devices
 
 			IJob job = await SetupJobAsync();
 			LegacyCreateReservationRequest request = SetupReservationTestAsync(job, modelId: "Base");
-			
+
 			// create a reservation
-			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));			
+			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
 			Assert.AreEqual(1, reservation.DeviceNames.Length);
 			Assert.AreEqual(1, reservation.DeviceModels.Length);
 			Assert.AreEqual("Base", reservation.DeviceModels[0]);
@@ -327,7 +326,6 @@ namespace Horde.Server.Tests.Devices
 			job = await RunStepAsync(job, graph, 3, 0, JobStepOutcome.Success); // Cook Client
 
 			job = await StartBatchAsync(job, graph, 4);
-			
 
 			// Install  the build
 			JobStepId stepId = GetStepId(job, "Install Build");
@@ -366,9 +364,7 @@ namespace Horde.Server.Tests.Devices
 				}
 
 				Assert.IsNotNull(reservation);
-				
-
-				Assert.AreEqual(installReservation.Guid, reservation.Guid);				
+				Assert.AreEqual(installReservation.Guid, reservation.Guid);
 
 				// Do not finish test 3, to test parallel step error
 				if (i != 3)
@@ -376,7 +372,6 @@ namespace Horde.Server.Tests.Devices
 					await DeviceController!.DeleteReservationV1Async(reservation.Guid);
 					job = await FinishStepAsync(job, graph, 4, i, JobStepOutcome.Success);
 				}
-				
 
 				await DeviceService.TickForTestingAsync();
 			}
@@ -422,12 +417,12 @@ namespace Horde.Server.Tests.Devices
 			Assert.IsTrue(installReservation.InstallRequired);
 
 			string installProblemDeviceName = installReservation!.DeviceNames[0];
-			
+
 			await DeviceController!.PutDeviceErrorAsync(installProblemDeviceName);
 			installReservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
 			Assert.IsTrue(installReservation.InstallRequired);
 			Assert.AreNotEqual(installProblemDeviceName, installReservation.DeviceNames[0]);
-						
+
 			job = await FinishStepAsync(job, graph, 4, 0, JobStepOutcome.Success); // Install Build
 
 			for (int i = 1; i < 5; i++)
@@ -443,7 +438,7 @@ namespace Horde.Server.Tests.Devices
 				else
 				{
 					request = SetupReservationTestAsync(job, stepId: stepId, modelId: "Base");
-				}				
+				}
 
 				ActionResult<GetLegacyReservationResponse> result = await DeviceController!.CreateDeviceReservationV1Async(request);
 
@@ -469,7 +464,7 @@ namespace Horde.Server.Tests.Devices
 					await DeviceController!.PutDeviceErrorAsync(problemDeviceName);
 					result = await DeviceController!.CreateDeviceReservationV1Async(request);
 					reservation = ResultToValue(result);
-					Assert.IsNotNull(reservation);					
+					Assert.IsNotNull(reservation);
 					Assert.IsTrue(reservation.InstallRequired);
 					Assert.AreNotEqual(problemDeviceName, reservation.DeviceNames[0]);
 					Assert.AreEqual(reservation.DeviceModels[0], "Base");
@@ -484,7 +479,6 @@ namespace Horde.Server.Tests.Devices
 					Assert.IsNull(reservation.InstallRequired);
 					Assert.AreNotEqual(installReservation.Guid, reservation.Guid);
 				}
-				
 
 				await DeviceController!.DeleteReservationV1Async(reservation.Guid);
 				job = await FinishStepAsync(job, graph, 4, i, JobStepOutcome.Success);
@@ -559,7 +553,7 @@ namespace Horde.Server.Tests.Devices
 			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
 			Assert.AreEqual(1, reservation.DeviceNames.Length);
 			Assert.AreEqual("Test job", reservation.JobName);
-			Assert.AreEqual("abcd", reservation.StepId);			
+			Assert.AreEqual("abcd", reservation.StepId);
 
 			// get the device in the reservation, and make sure it is the right platform and an acceptable model
 			GetLegacyDeviceResponse device = ResultToValue(await DeviceController!.GetDeviceV1Async(reservation.DeviceNames[0]));
@@ -606,7 +600,7 @@ namespace Horde.Server.Tests.Devices
 			// make sure the reswrvation time was finished for the problem device
 			Assert.IsNotNull(telemetry[0].Telemetry[0].ReservationFinishUtc);
 		}
-		
+
 		[TestMethod]
 		public async Task TestDevicePoolTelemetryCaptureAsync()
 		{
@@ -631,7 +625,7 @@ namespace Horde.Server.Tests.Devices
 
 			IDevice? maintenanceDevice = await DeviceService.GetDeviceAsync(new DeviceId("testdevice1_platform1_testdevicepool1"));
 			Assert.IsNotNull(maintenanceDevice);
-			
+
 			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(reservationRequest));
 			Assert.AreEqual(1, reservation.DeviceNames.Length);
 			Assert.AreNotSame(maintenanceDevice!.Name, reservation.DeviceNames[0]);

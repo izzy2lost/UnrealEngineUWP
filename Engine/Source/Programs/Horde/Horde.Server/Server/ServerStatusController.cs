@@ -20,7 +20,7 @@ public class ServerStatusUpdatesViewModel
 	/// Status for each subsystem
 	/// </summary>
 	public IReadOnlyList<SubsystemStatus> SubsystemStatuses { get; init; } = Array.Empty<SubsystemStatus>();
-	
+
 	/// <summary>
 	/// Format a date/time to human-readable relative date
 	/// </summary>
@@ -49,7 +49,7 @@ public class ServerStatusUpdatesViewModel
 		{
 			return $"{timeSpan.Days / 30} months ago";
 		}
-		
+
 		return $"{timeSpan.Days / 365} years ago";
 	}
 }
@@ -81,30 +81,30 @@ public class ServerStatusController : Controller
 	public async Task<ActionResult<ServerStatusResponse>> GetUpdatesAsync([FromQuery] string? format = null)
 	{
 		IReadOnlyList<SubsystemStatus> subsystemStatuses = await _serverStatus.GetSubsystemStatusesAsync();
-		
+
 		if (format == "html")
 		{
 			return GetUpdatesHtml(subsystemStatuses);
 		}
-		
+
 		return new ServerStatusResponse
+		{
+			Statuses = subsystemStatuses.Select(x =>
 			{
-				Statuses = subsystemStatuses.Select(x =>
+				return new ServerStatusSubsystem()
 				{
-					return new ServerStatusSubsystem()
-					{
-						Name = x.Name,
-						Updates = x.Updates.Select(
-							u => new ServerStatusUpdate()
-							{
-								Result = ConvertSubsystemResult(u.Result),
-								Message = u.Message,
-								UpdatedAt = u.UpdatedAt
-							}).ToArray()
-					};
-				}).ToArray(),
-			};
-		}
+					Name = x.Name,
+					Updates = x.Updates.Select(
+						u => new ServerStatusUpdate()
+						{
+							Result = ConvertSubsystemResult(u.Result),
+							Message = u.Message,
+							UpdatedAt = u.UpdatedAt
+						}).ToArray()
+				};
+			}).ToArray(),
+		};
+	}
 
 	private ActionResult GetUpdatesHtml(IReadOnlyList<SubsystemStatus> subsystemStatuses)
 	{

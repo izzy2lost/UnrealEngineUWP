@@ -207,7 +207,7 @@ namespace Horde.Agent.Utility
 		public WindowsServiceStatus WaitForStatusChange(WindowsServiceStatus transitionStatus, TimeSpan maxWaitTime)
 		{
 			Stopwatch timer = Stopwatch.StartNew();
-			for(; ;)
+			for (; ; )
 			{
 				WindowsServiceStatus status = GetStatus();
 				if (status != transitionStatus || timer.Elapsed > maxWaitTime)

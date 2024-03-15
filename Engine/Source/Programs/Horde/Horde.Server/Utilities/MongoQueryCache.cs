@@ -69,7 +69,7 @@ namespace Horde.Server.Utilities
 				}
 			}
 
-			if(state._queryTask != null && state._queryTask.IsCompleted)
+			if (state._queryTask != null && state._queryTask.IsCompleted)
 			{
 				await state._queryTask;
 				state._queryTask = null;

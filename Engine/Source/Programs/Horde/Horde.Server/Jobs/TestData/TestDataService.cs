@@ -18,7 +18,7 @@ namespace Horde.Server.Jobs.TestData
 	/// </summary>
 	public sealed class TestDataService : IHostedService, IAsyncDisposable
 	{
-		
+
 		readonly ITestDataCollection _testData;
 		readonly IOptionsMonitor<ServerSettings> _settings;
 		readonly ITicker _ticker;
@@ -71,7 +71,7 @@ namespace Horde.Server.Jobs.TestData
 			{
 				try
 				{
-					await _testData.UpdateAsync(_settings.CurrentValue.TestDataRetainMonths, stoppingToken);					
+					await _testData.UpdateAsync(_settings.CurrentValue.TestDataRetainMonths, stoppingToken);
 				}
 				catch (Exception ex)
 				{
@@ -82,7 +82,7 @@ namespace Horde.Server.Jobs.TestData
 
 		internal async Task TickForTestingAsync()
 		{
-			await TickAsync(CancellationToken.None);			
+			await TickAsync(CancellationToken.None);
 		}
 
 		/// <summary>
@@ -93,7 +93,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <returns></returns>
 		public async Task<IReadOnlyList<ITestStream>> FindTestStreamsAsync(StreamId[] streamIds, CancellationToken cancellationToken = default)
 		{
-			return await _testData.FindTestStreamsAsync(streamIds, cancellationToken);			
+			return await _testData.FindTestStreamsAsync(streamIds, cancellationToken);
 		}
 
 		/// <summary>

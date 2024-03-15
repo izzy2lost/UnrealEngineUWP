@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
 using EpicGames.Horde;
-using EpicGames.Serialization;
-using System.ComponentModel;
-using EpicGames.Horde.Telemetry.Metrics;
 using EpicGames.Horde.Telemetry;
+using EpicGames.Horde.Telemetry.Metrics;
+using EpicGames.Serialization;
 
 namespace Horde.Server.Dashboard
 {
@@ -101,7 +101,7 @@ namespace Horde.Server.Dashboard
 		/// <summary>
 		/// The max unit value for clamping chart
 		/// </summary>
-		public int? Max {  get; set; }
+		public int? Max { get; set; }
 	}
 
 	/// <summary>

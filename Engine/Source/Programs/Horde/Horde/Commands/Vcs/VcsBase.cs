@@ -120,7 +120,7 @@ namespace Horde.Commands.Vcs
 			public int Change { get; set; }
 			public DirectoryState Tree { get; set; }
 
-			public WorkspaceState() 
+			public WorkspaceState()
 				: this(new RefName("main"), 0, new DirectoryState())
 			{
 			}
@@ -253,7 +253,7 @@ namespace Horde.Commands.Vcs
 					return oldState;
 				}
 			}
-	
+
 			return newState;
 		}
 

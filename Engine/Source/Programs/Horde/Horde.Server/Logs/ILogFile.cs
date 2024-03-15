@@ -138,7 +138,7 @@ namespace Horde.Server.Logs
 		public static int GetChunkForLine(this IReadOnlyList<ILogChunk> chunks, int lineIndex)
 		{
 			int chunkIndex = chunks.BinarySearch(x => x.LineIndex, lineIndex);
-			if(chunkIndex < 0)
+			if (chunkIndex < 0)
 			{
 				chunkIndex = ~chunkIndex - 1;
 			}

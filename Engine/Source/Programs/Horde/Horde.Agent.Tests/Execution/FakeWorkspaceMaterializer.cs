@@ -51,7 +51,7 @@ class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 		{
 			throw new WorkspaceMaterializationException("Already initialized");
 		}
-		
+
 		_rootDir = new DirectoryReference(Path.Join(Path.GetTempPath(), "horde-fakeworkspace-" + Guid.NewGuid().ToString()[..8]));
 		Directory.CreateDirectory(_rootDir.FullName);
 		_isInitialized = true;
@@ -66,12 +66,12 @@ class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 		{
 			throw new WorkspaceMaterializationException("Cannot finalize before initialization");
 		}
-		
+
 		if (Directory.Exists(_rootDir.FullName))
 		{
 			Directory.Delete(_rootDir.FullName, true);
 		}
-		
+
 		return Task.CompletedTask;
 	}
 
@@ -82,7 +82,7 @@ class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 		{
 			throw new WorkspaceMaterializationException("Cannot get settings before initialization");
 		}
-		
+
 		return Task.FromResult(new WorkspaceMaterializerSettings(_rootDir, "fakeWorkspaceIdentifier", "fakeWorkspaceStreamRoot", new Dictionary<string, string>(), false));
 	}
 
@@ -98,7 +98,7 @@ class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 		{
 			changeNum = _changeToFiles.Keys.Max();
 		}
-		
+
 		if (!_changeToFiles.ContainsKey(changeNum))
 		{
 			throw new WorkspaceMaterializationException($"Change {changeNum} could not be found");
@@ -132,15 +132,15 @@ class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 
 	private static void DeleteAllFiles(string dirPath)
 	{
-		DirectoryInfo di = new (dirPath);
-		
+		DirectoryInfo di = new(dirPath);
+
 		foreach (FileInfo file in di.EnumerateFiles())
 		{
 			file.Delete();
 		}
 		foreach (DirectoryInfo dir in di.EnumerateDirectories())
 		{
-			dir.Delete(true); 
+			dir.Delete(true);
 		}
 	}
 }

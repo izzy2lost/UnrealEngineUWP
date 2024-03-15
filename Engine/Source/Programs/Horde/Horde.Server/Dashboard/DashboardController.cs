@@ -64,7 +64,7 @@ namespace Horde.Server.Dashboard
 		/// Challenge endpoint for the dashboard, using cookie authentication scheme	
 		/// </summary>	
 		/// <returns>Ok on authorized, otherwise will 401</returns>	
-		[HttpGet]		
+		[HttpGet]
 		[Route("/api/v1/dashboard/challenge")]
 		public async Task<IActionResult> GetChallengeAsync()
 		{
@@ -72,8 +72,8 @@ namespace Horde.Server.Dashboard
 			if (_settings.AuthMethod == AuthMethod.Horde)
 			{
 				IAccount? account = await _hordeAccounts.FindByLoginAsync("Admin");
-				if (account == null) 
-				{ 
+				if (account == null)
+				{
 					needsFirstTimeSetup = true;
 				}
 			}
@@ -167,7 +167,7 @@ namespace Horde.Server.Dashboard
 			{
 				dashboardConfigResponse.PerforceSwarmUrl = _settings.P4SwarmUrl.ToString().TrimEnd('/');
 			}
-				
+
 			dashboardConfigResponse.HelpEmailAddress = _settings.HelpEmailAddress;
 			dashboardConfigResponse.HelpSlackChannel = _settings.HelpSlackChannel;
 

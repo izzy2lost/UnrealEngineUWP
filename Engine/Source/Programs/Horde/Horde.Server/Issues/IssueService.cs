@@ -10,8 +10,9 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Issues;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using Horde.Server.Jobs;
@@ -29,7 +30,6 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using OpenTelemetry.Trace;
-using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Issues
 {
@@ -108,7 +108,7 @@ namespace Horde.Server.Issues
 			Steps = steps;
 			Suspects = suspects;
 			SuspectUsers = suspectUsers;
-			ExternalIssueKey = externalIssueKey; 
+			ExternalIssueKey = externalIssueKey;
 			_showDesktopAlerts = showDesktopAlerts;
 
 			if (issue.OwnerId == null)
@@ -313,10 +313,10 @@ namespace Horde.Server.Issues
 
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
-			foreach(StreamConfig streamConfig in globalConfig.Streams)
+			foreach (StreamConfig streamConfig in globalConfig.Streams)
 			{
 				HashSet<TemplateId> templates = new HashSet<TemplateId>(streamConfig.Templates.Where(x => x.ShowUgsAlerts).Select(x => x.Id));
-				if(templates.Count > 0)
+				if (templates.Count > 0)
 				{
 					newCachedDesktopAlerts[streamConfig.Id] = templates;
 				}
@@ -365,7 +365,7 @@ namespace Horde.Server.Issues
 
 			// Cache the details for any issues that are still open
 			List<IIssueDetails> newCachedOpenIssues = new List<IIssueDetails>();
-			foreach(IIssue openIssue in openIssues)
+			foreach (IIssue openIssue in openIssues)
 			{
 				newCachedOpenIssues.Add(await GetIssueDetailsAsync(openIssue, cancellationToken));
 			}
@@ -392,7 +392,7 @@ namespace Horde.Server.Issues
 		{
 			IUser? owner = issue.OwnerId.HasValue ? await _userCollection.GetCachedUserAsync(issue.OwnerId.Value, cancellationToken) : null;
 			IUser? nominatedBy = issue.NominatedById.HasValue ? await _userCollection.GetCachedUserAsync(issue.NominatedById.Value, cancellationToken) : null;
-			IUser? resolvedBy = (issue.ResolvedById.HasValue && issue.ResolvedById != IIssue.ResolvedByTimeoutId && issue.ResolvedById != IIssue.ResolvedByUnknownId)? await _userCollection.GetCachedUserAsync(issue.ResolvedById.Value, cancellationToken) : null;
+			IUser? resolvedBy = (issue.ResolvedById.HasValue && issue.ResolvedById != IIssue.ResolvedByTimeoutId && issue.ResolvedById != IIssue.ResolvedByUnknownId) ? await _userCollection.GetCachedUserAsync(issue.ResolvedById.Value, cancellationToken) : null;
 			IUser? quarantinedBy = issue.QuarantinedByUserId.HasValue ? await _userCollection.GetCachedUserAsync(issue.QuarantinedByUserId.Value, cancellationToken) : null;
 			IUser? forceClosedBy = issue.ForceClosedByUserId.HasValue ? await _userCollection.GetCachedUserAsync(issue.ForceClosedByUserId.Value, cancellationToken) : null;
 
@@ -421,7 +421,7 @@ namespace Horde.Server.Issues
 			bool showDesktopAlerts = false;
 
 			HashSet<(StreamId, TemplateId)> checkedTemplates = new HashSet<(StreamId, TemplateId)>();
-			foreach(IIssueSpan span in spans)
+			foreach (IIssueSpan span in spans)
 			{
 				if (span.NextSuccess == null && checkedTemplates.Add((span.StreamId, span.TemplateRefId)))
 				{
@@ -501,7 +501,7 @@ namespace Horde.Server.Issues
 					}
 
 					await _issueCollection.TryUpdateSpanAsync(span, newNextSuccess: new NewIssueStepData(step.Change, step.Severity, step.JobName, step.JobId, step.BatchId, step.StepId, step.StepTime, step.LogId, step.Annotations, step.PromoteByDefault), cancellationToken: cancellationToken);
-				}				
+				}
 			}
 
 			if (addSpanIds != null)
@@ -618,7 +618,7 @@ namespace Horde.Server.Issues
 			HashSet<IssueEventGroupInternal> eventGroups = await GetEventGroupsForStepAsync(job, batch, step, node, annotations, workflow, cancellationToken);
 
 			// Try to update all the events. We may need to restart this due to optimistic transactions, so keep track of any existing spans we do not need to check against.
-			await using(IAsyncDisposable issueLock = await _issueCollection.EnterCriticalSectionAsync())
+			await using (IAsyncDisposable issueLock = await _issueCollection.EnterCriticalSectionAsync())
 			{
 				HashSet<ObjectId> checkedSpanIds = new HashSet<ObjectId>();
 				for (; ; )
@@ -775,7 +775,7 @@ namespace Horde.Server.Issues
 		/// <returns>True if the adding completed</returns>
 		async Task<bool> AddEventsToExistingSpansAsync(IJob job, IJobStepBatch batch, IJobStep step, HashSet<IssueEventGroupInternal> newEventGroups, IReadOnlyList<IIssueSpan> openSpans, HashSet<ObjectId> checkedSpanIds, IReadOnlyNodeAnnotations? annotations, bool promoteByDefault, CancellationToken cancellationToken)
 		{
-			for(int spanIdx = 0; spanIdx < openSpans.Count; spanIdx++)
+			for (int spanIdx = 0; spanIdx < openSpans.Count; spanIdx++)
 			{
 				IIssueSpan openSpan = openSpans[spanIdx];
 				if (!checkedSpanIds.Contains(openSpan.Id))
@@ -917,7 +917,7 @@ namespace Horde.Server.Issues
 		async Task<IIssue?> UpdateIssueDerivedDataAsync(int issueId, CancellationToken cancellationToken)
 		{
 			IIssue? issue = await _issueCollection.GetIssueAsync(issueId, cancellationToken);
-			if(issue != null)
+			if (issue != null)
 			{
 				issue = await UpdateIssueDerivedDataAsync(issue, cancellationToken);
 			}
@@ -1364,7 +1364,7 @@ namespace Horde.Server.Issues
 				existingIssues = await _issueCollection.FindIssuesForChangesAsync(span.Suspects.ConvertAll(x => x.OriginatingChange ?? x.Change), cancellationToken);
 				_logger.LogDebug("Found {NumIssues} open issues in {StreamId} from [{ChangeList}]", existingIssues.Count, span.StreamId, String.Join(", ", span.Suspects.ConvertAll(x => (x.OriginatingChange ?? x.Change).ToString())));
 			}
-			
+
 			IIssue? issue = existingIssues.FirstOrDefault(x => x.VerifiedAt == null && x.Fingerprints.Any(y => y.IsMatch(span.Fingerprint)));
 			if (issue == null)
 			{
@@ -1506,7 +1506,7 @@ namespace Horde.Server.Issues
 		/// <returns></returns>
 		async Task<bool> TryUpdateSentinelsAsync(IReadOnlyList<IIssueSpan> spans, StreamConfig streamConfig, IJob job, IJobStepBatch batch, IJobStep step, CancellationToken cancellationToken)
 		{
-			foreach(IIssueSpan span in spans)
+			foreach (IIssueSpan span in spans)
 			{
 				if (job.Change < span.FirstFailure.Change && (span.LastSuccess == null || job.Change > span.LastSuccess.Change))
 				{
@@ -1522,7 +1522,7 @@ namespace Horde.Server.Issues
 					await UpdateIssueDerivedDataAsync(span.IssueId, cancellationToken);
 				}
 				else if (job.Change > span.LastFailure.Change && (span.NextSuccess == null || job.Change < span.NextSuccess.Change))
-				{					
+				{
 					IIssue? issue = await _issueCollection.GetIssueAsync(span.IssueId, cancellationToken);
 					if (issue == null || issue.QuarantinedByUserId == null)
 					{
@@ -1547,7 +1547,7 @@ namespace Horde.Server.Issues
 							_logger.LogInformation("Adding step to quarantined issue {IssueId}, template {TemplateId}, node {Node} job {JobId} batch {BatchId} step {StepId} cl {Change}", span.IssueId, job.TemplateId, span.NodeName, job.Id, batch.Id, step.Id, job.Change);
 						}
 					}
-					
+
 					await UpdateIssueDerivedDataAsync(span.IssueId, cancellationToken);
 				}
 			}

@@ -20,7 +20,7 @@ public class WorkspaceInfoTest
 		Assert.IsTrue(WorkspaceInfo.ShouldUseHaveTable("name=managedWorkspace$#@!@#"));
 		Assert.IsTrue(WorkspaceInfo.ShouldUseHaveTable("name=managedWorkspace$#@!@#"));
 		Assert.IsTrue(WorkspaceInfo.ShouldUseHaveTable("name=managedWorkspace&useHaveTable=true"));
-		
+
 		Assert.IsFalse(WorkspaceInfo.ShouldUseHaveTable("name=managedWorkspace&useHaveTable=false"));
 		Assert.IsFalse(WorkspaceInfo.ShouldUseHaveTable("name=ManagedWorkspace&useHaveTable=FalsE"));
 	}
@@ -28,7 +28,7 @@ public class WorkspaceInfoTest
 	[TestMethod]
 	public void GetManagedWorkspaceOptions()
 	{
-		ManagedWorkspaceOptions defaultOptions = new ();
+		ManagedWorkspaceOptions defaultOptions = new();
 		Assert.AreEqual(defaultOptions, GetMwOptions(null));
 		Assert.AreEqual(defaultOptions, GetMwOptions(""));
 		Assert.AreEqual(defaultOptions, GetMwOptions("name=somethingElse&numParallelSyncThreads=111"));

@@ -150,7 +150,7 @@ namespace Horde.Server.Utilities
 
 		Task<State> CreateOrGetStateTaskAsync(ref Task<State>? stateTask)
 		{
-			for(; ;)
+			for (; ; )
 			{
 				Task<State>? currentStateTask = stateTask;
 				if (currentStateTask != null)

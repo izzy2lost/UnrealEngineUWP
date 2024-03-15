@@ -5,6 +5,11 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using Horde.Server.Perforce;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
@@ -12,12 +17,7 @@ using HordeCommon;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Users;
 using OpenTelemetry.Trace;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Jobs.Bisect;
 
 namespace Horde.Server.Jobs.Bisect
 {
@@ -175,7 +175,7 @@ namespace Horde.Server.Jobs.Bisect
 		public async Task<IReadOnlyList<IBisectTask>> FindAsync(BisectTaskId[]? taskIds = null, JobId? jobId = null, UserId? ownerId = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(BisectTaskCollection)}.{nameof(FindAsync)}");
-			
+
 			// Find all the bisection tasks matching the given criteria
 			FilterDefinitionBuilder<BisectTaskDoc> filterBuilder = Builders<BisectTaskDoc>.Filter;
 
@@ -245,10 +245,10 @@ namespace Horde.Server.Jobs.Bisect
 			{
 				update = update.AddToSet(x => x.Steps, options.NewJobStep.Value);
 			}
-		
+
 			if (options.IncludeChanges != null && options.IncludeChanges.Count > 0)
 			{
-				update = update.PullAll(x => x.IgnoreChanges, options.IncludeChanges); 
+				update = update.PullAll(x => x.IgnoreChanges, options.IncludeChanges);
 			}
 			else if (options.ExcludeChanges != null && options.ExcludeChanges.Count > 0)
 			{

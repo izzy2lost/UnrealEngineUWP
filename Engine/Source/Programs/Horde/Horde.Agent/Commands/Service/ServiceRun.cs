@@ -45,7 +45,7 @@ namespace Horde.Agent.Commands.Service
 				Console.WriteLine($"Unable to parse log level: {LogLevelStr}");
 				return 0;
 			}
-			
+
 			IHostBuilder hostBuilder = Host.CreateDefaultBuilder();
 
 			// Attempt to setup this process as a Windows service. A race condition inside Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService

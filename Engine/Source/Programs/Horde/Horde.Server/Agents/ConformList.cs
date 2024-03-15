@@ -2,11 +2,11 @@
 
 using System;
 using System.Collections.Generic;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Agents
 {

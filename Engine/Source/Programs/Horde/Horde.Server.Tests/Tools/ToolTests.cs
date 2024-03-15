@@ -18,8 +18,8 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Horde.Server.Tests.Tools
 {
 	[TestClass]
-    public class ToolTests : TestSetup
-    {
+	public class ToolTests : TestSetup
+	{
 		ToolId _toolId = new ToolId("ugs");
 
 		public ToolTests()
@@ -33,9 +33,9 @@ namespace Horde.Server.Tests.Tools
 			SetConfig(globalConfig);
 		}
 
-        [TestMethod]
-        public async Task AddToolAsync()
-        {
+		[TestMethod]
+		public async Task AddToolAsync()
+		{
 			IToolCollection collection = ServiceProvider.GetRequiredService<IToolCollection>();
 
 			ITool tool = Deref(await collection.GetAsync(_toolId, GlobalConfig.CurrentValue));
@@ -47,7 +47,7 @@ namespace Horde.Server.Tests.Tools
 			Assert.AreEqual(tool.Id, tool2.Id);
 			Assert.AreEqual(tool.Config.Name, tool2.Config.Name);
 			Assert.AreEqual(tool.Config.Description, tool2.Config.Description);
-        }
+		}
 
 		[TestMethod]
 		public async Task AddDeploymentAsync()

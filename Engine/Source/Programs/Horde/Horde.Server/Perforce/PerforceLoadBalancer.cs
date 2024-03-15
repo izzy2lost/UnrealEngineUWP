@@ -180,7 +180,7 @@ namespace Horde.Server.Perforce
 			{
 				_ticker = clock.AddSharedTicker<PerforceLoadBalancer>(TimeSpan.FromMinutes(1.0), TickInternalAsync, logger);
 			}
-			
+
 			_health = health;
 			_health.SetName("Perforce");
 		}
@@ -234,7 +234,7 @@ namespace Horde.Server.Perforce
 			PerforceServerList serverList = await GetServerListAsync(cancellationToken);
 
 			List<PerforceServerEntry> candidates = serverList.Servers.Where(x => x.Cluster == cluster && x.Status >= PerforceServerStatus.Healthy).ToList();
-			if(candidates.Count == 0)
+			if (candidates.Count == 0)
 			{
 				int idx = _random.Next(0, candidates.Count);
 				return candidates[idx];
@@ -250,7 +250,7 @@ namespace Horde.Server.Perforce
 		/// <returns></returns>
 		public Task<IPerforceServer?> SelectServerAsync(PerforceCluster cluster, CancellationToken cancellationToken)
 		{
-			List<string> properties = new List<string>{ "HordeServer=1" };
+			List<string> properties = new List<string> { "HordeServer=1" };
 			return SelectServerAsync("server", cluster, properties, cancellationToken);
 		}
 
@@ -337,7 +337,7 @@ namespace Horde.Server.Perforce
 				if (candidates.Count == 0)
 				{
 					_logger.LogWarning("Unable to resolve any Perforce servers from valid list");
-					return null; 
+					return null;
 				}
 			}
 
@@ -375,7 +375,7 @@ namespace Horde.Server.Perforce
 				for (; index + 1 < candidates.Count; index++)
 				{
 					weight -= GetWeight(candidates[index], prevCandidate, totalLeases);
-					if(weight < 0)
+					if (weight < 0)
 					{
 						break;
 					}
@@ -421,7 +421,7 @@ namespace Horde.Server.Perforce
 		async ValueTask TickInternalAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PerforceLoadBalancer)}.{nameof(TickInternalAsync)}");
-			
+
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
 			// Set of new server entries
@@ -643,7 +643,7 @@ namespace Horde.Server.Perforce
 
 		internal async Task UpdateHealthTestOnlyAsync(string cluster, string serverAndPort, string? healthCheckUrl, CancellationToken cancellationToken)
 		{
-			PerforceServerEntry pse = new (serverAndPort, serverAndPort, healthCheckUrl, cluster, false, PerforceServerStatus.Unknown, null, null);
+			PerforceServerEntry pse = new(serverAndPort, serverAndPort, healthCheckUrl, cluster, false, PerforceServerStatus.Unknown, null, null);
 			await _serverListSingleton.UpdateAsync((x) => x.Servers = [pse], cancellationToken);
 			await UpdateHealthAsync(pse, cancellationToken);
 		}
@@ -663,7 +663,7 @@ namespace Horde.Server.Perforce
 		}
 
 		internal record ServerHealth(PerforceServerStatus Status, string Detail);
-		
+
 		/// <summary>
 		/// Queries the server's associated health check URL for status
 		/// </summary>
@@ -674,7 +674,7 @@ namespace Horde.Server.Perforce
 		{
 			try
 			{
-				Uri healthCheckUri = new (healthCheckUrl);
+				Uri healthCheckUri = new(healthCheckUrl);
 				HttpResponseMessage response = await _httpClient.GetAsync(healthCheckUri, cancellationToken);
 
 				byte[] data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
@@ -715,7 +715,7 @@ namespace Horde.Server.Perforce
 		/// <returns>Health status of server</returns>
 		internal static async Task<ServerHealth> GetServerHealthViaP4InfoAsync(string serverAndPort, ILogger logger, CancellationToken cancellationToken)
 		{
-			PerforceSettings settings = new (serverAndPort, "") { AppName = "Horde.Server", PreferNativeClient = true };
+			PerforceSettings settings = new(serverAndPort, "") { AppName = "Horde.Server", PreferNativeClient = true };
 
 			try
 			{

@@ -12,10 +12,14 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using Horde.Common.Rpc;
 using Horde.Server.Acls;
 using Horde.Server.Artifacts;
 using Horde.Server.Jobs.Artifacts;
@@ -26,7 +30,6 @@ using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Utilities;
-using Horde.Common.Rpc;
 using HordeCommon;
 using HordeCommon.Rpc;
 using Microsoft.AspNetCore.Authorization;
@@ -34,15 +37,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
-using EpicGames.Horde.Agents.Sessions;
 
 namespace Horde.Server.Jobs
 {
-	using RpcGetStreamResponse = HordeCommon.Rpc.GetStreamResponse;
 	using RpcGetJobResponse = HordeCommon.Rpc.GetJobResponse;
 	using RpcGetStepResponse = HordeCommon.Rpc.GetStepResponse;
+	using RpcGetStreamResponse = HordeCommon.Rpc.GetStreamResponse;
 	using RpcUpdateJobRequest = HordeCommon.Rpc.UpdateJobRequest;
 	using RpcUpdateStepRequest = HordeCommon.Rpc.UpdateStepRequest;
 
@@ -370,7 +370,7 @@ namespace Horde.Server.Jobs
 
 			IGraph graph = await _jobService.GetGraphAsync(job);
 			AgentConfig agentConfig = streamConfig.AgentTypes[graph.Groups[batch.GroupIdx].AgentType];
-			
+
 			BeginBatchResponse response = new BeginBatchResponse();
 			response.LogId = batch.LogId.ToString();
 			response.AgentType = graph.Groups[batch.GroupIdx].AgentType;

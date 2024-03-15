@@ -115,7 +115,7 @@ namespace Horde.Server.Issues
 
 			public int UpdateIndex { get; set; }
 
-			IReadOnlyList<IIssueFingerprint> IIssue.Fingerprints => Fingerprints ?? ((Fingerprint == null)? new List<IssueFingerprint>() : new List<IssueFingerprint> { Fingerprint });
+			IReadOnlyList<IIssueFingerprint> IIssue.Fingerprints => Fingerprints ?? ((Fingerprint == null) ? new List<IssueFingerprint>() : new List<IssueFingerprint> { Fingerprint });
 			UserId? IIssue.OwnerId => OwnerId ?? DefaultOwnerId ?? GetDefaultOwnerId();
 			IReadOnlyList<IIssueStream> IIssue.Streams => Streams;
 			DateTime IIssue.LastSeenAt => (LastSeenAt == default) ? DateTime.UtcNow : LastSeenAt;
@@ -172,9 +172,10 @@ namespace Horde.Server.Issues
 						return String.Empty;
 					}
 
-					return String.Join(", ", Fingerprints.Select(x => {
-					   return $"(Type: {x.Type} / Keys: {String.Join(", ", x.Keys)} / RejectKeys: {String.Join(", ", x.RejectKeys ?? new HashSet<IssueKey>())})";
-				   }));
+					return String.Join(", ", Fingerprints.Select(x =>
+					{
+						return $"(Type: {x.Type} / Keys: {String.Join(", ", x.Keys)} / RejectKeys: {String.Join(", ", x.RejectKeys ?? new HashSet<IssueKey>())})";
+					}));
 				}
 			}
 		}
@@ -317,7 +318,7 @@ namespace Horde.Server.Issues
 #pragma warning restore IDE0051
 
 			[return: NotNullIfNotNull("set")]
-			static HashSet<IssueKey>? ParseKeySet(CaseInsensitiveStringSet? set) => (set == null)? null : new HashSet<IssueKey>(set.Select(x => ParseKey(x)));
+			static HashSet<IssueKey>? ParseKeySet(CaseInsensitiveStringSet? set) => (set == null) ? null : new HashSet<IssueKey>(set.Select(x => ParseKey(x)));
 
 			static IssueKey ParseKey(string key)
 			{
@@ -729,7 +730,7 @@ namespace Horde.Server.Issues
 			{
 				_telemetrySink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new
 				{
-					EventName = "State.Issue", 
+					EventName = "State.Issue",
 					Id = issue.Id,
 					AcknowledgedAt = issue.AcknowledgedAt,
 					CreatedAt = issue.CreatedAt,
@@ -799,7 +800,7 @@ namespace Horde.Server.Issues
 			if (newIssue.OwnerId != oldIssue.OwnerId)
 			{
 				if (newIssue.NominatedById != null)
-				{					
+				{
 					issueLogger.LogInformation("User {UserName} ({UserId}) was nominated by {NominatedByUserName} ({NominatedByUserId})", await GetUserNameAsync(newIssue.OwnerId, cancellationToken), newIssue.OwnerId, await GetUserNameAsync(newIssue.NominatedById, cancellationToken), newIssue.NominatedById);
 				}
 				else
@@ -1296,7 +1297,7 @@ namespace Horde.Server.Issues
 				}
 				else
 				{
-					updates.Add(Builders<Issue>.Update.Set(x => x.ForceClosedByUserId, newForceClosedById.Value));					
+					updates.Add(Builders<Issue>.Update.Set(x => x.ForceClosedByUserId, newForceClosedById.Value));
 				}
 			}
 
@@ -1316,7 +1317,7 @@ namespace Horde.Server.Issues
 			}
 
 			Issue? newIssue = await TryUpdateIssueAsync(issue, Builders<Issue>.Update.Combine(updates), cancellationToken);
-			if(newIssue == null)
+			if (newIssue == null)
 			{
 				return null;
 			}
@@ -1366,7 +1367,7 @@ namespace Horde.Server.Issues
 			if (autoAssignToUser != null)
 			{
 				IUser? user = await _userCollection.FindUserByLoginAsync(autoAssignToUser, cancellationToken);
-				if(user != null)
+				if (user != null)
 				{
 					newDefaultOwnerId = user.Id;
 				}
@@ -1441,7 +1442,7 @@ namespace Horde.Server.Issues
 			}
 
 			Issue? newIssue = await TryUpdateIssueAsync(issue, Builders<Issue>.Update.Combine(updates), cancellationToken);
-			if(newIssue != null)
+			if (newIssue != null)
 			{
 				await LogIssueChangesAsync(null, issueImpl, newIssue, cancellationToken);
 				await LogIssueSuspectChangesAsync(GetLogger(issue.Id), oldSuspectImpls, newSuspectImpls, cancellationToken);
@@ -1606,7 +1607,7 @@ namespace Horde.Server.Issues
 		{
 			FilterDefinition<IssueSpan> filter = FilterDefinition<IssueSpan>.Empty;
 
-			if(spanIds != null)
+			if (spanIds != null)
 			{
 				filter &= Builders<IssueSpan>.Filter.In(x => x.Id, spanIds);
 			}

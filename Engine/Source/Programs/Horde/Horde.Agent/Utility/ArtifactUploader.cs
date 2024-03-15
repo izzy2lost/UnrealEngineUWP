@@ -14,35 +14,35 @@ namespace Horde.Agent.Utility
 	/// </summary>
 	static class ArtifactUploader
 	{
-        /// <summary>
-        /// Dictionary of horde common mime types
-        /// </summary>
-        private static readonly Dictionary<string, string> s_hordeMimeTypes = new Dictionary<string, string>()
-        {
-            { ".bin", "application/octet-stream" },
-            { ".json", "application/json" },
-            { ".pm", "text/plain" },
-            { ".pl", "text/plain" },
-            { ".sh", "application/x-sh" },
-            { ".txt", "text/plain" },
-            { ".log", "text/plain" },
-            { ".xml", "text/xml" }
-        };
+		/// <summary>
+		/// Dictionary of horde common mime types
+		/// </summary>
+		private static readonly Dictionary<string, string> s_hordeMimeTypes = new Dictionary<string, string>()
+		{
+			{ ".bin", "application/octet-stream" },
+			{ ".json", "application/json" },
+			{ ".pm", "text/plain" },
+			{ ".pl", "text/plain" },
+			{ ".sh", "application/x-sh" },
+			{ ".txt", "text/plain" },
+			{ ".log", "text/plain" },
+			{ ".xml", "text/xml" }
+		};
 
-        /// <summary>
-        /// Gets a mime type from a file extension
-        /// </summary>
-        /// <param name="file">The file object to parse</param>
-        /// <returns>the mimetype if present in the dictionary, binary otherwise</returns>
-        private static string GetMimeType(FileReference file)
-        {
-            string? contentType;
-            if (!s_hordeMimeTypes.TryGetValue(file.GetExtension(), out contentType))
-            {
-                contentType = "application/octet-stream";
-            }
-            return contentType;
-        }
+		/// <summary>
+		/// Gets a mime type from a file extension
+		/// </summary>
+		/// <param name="file">The file object to parse</param>
+		/// <returns>the mimetype if present in the dictionary, binary otherwise</returns>
+		private static string GetMimeType(FileReference file)
+		{
+			string? contentType;
+			if (!s_hordeMimeTypes.TryGetValue(file.GetExtension(), out contentType))
+			{
+				contentType = "application/octet-stream";
+			}
+			return contentType;
+		}
 
 		/// <summary>
 		/// Uploads an artifact (with retries)
@@ -76,7 +76,7 @@ namespace Horde.Agent.Utility
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns></returns>
 		public static async Task<string?> UploadAsync(IRpcConnection rpcConnection, JobId jobId, JobStepBatchId batchId, JobStepId stepId, string artifactName, FileReference artifactFile, ILogger logger, CancellationToken cancellationToken)
-        {
+		{
 			try
 			{
 				const long MaxSize = 192 * 1024 * 1024;
@@ -96,9 +96,9 @@ namespace Horde.Agent.Utility
 				logger.LogInformation(KnownLogEvents.Systemic_Horde_ArtifactUpload, ex, "Exception while attempting to upload artifact: {Message}", ex.Message);
 				return null;
 			}
-        }
+		}
 
-        /// <summary>
+		/// <summary>
 		/// Uploads an artifact
 		/// </summary>
 		/// <param name="client">The grpc client</param>
@@ -111,12 +111,12 @@ namespace Horde.Agent.Utility
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns></returns>
 		private static async Task<string> DoUploadAsync(JobRpc.JobRpcClient client, JobId jobId, JobStepBatchId batchId, JobStepId stepId, string artifactName, FileReference artifactFile, ILogger logger, CancellationToken cancellationToken)
-        {
-            using (FileStream artifactStream = FileReference.Open(artifactFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+		{
+			using (FileStream artifactStream = FileReference.Open(artifactFile, FileMode.Open, FileAccess.Read, FileShare.Read))
 			{
 				logger.LogInformation("Uploading artifact {ArtifactName} from {ArtifactFile} ({Size:n0} bytes)", artifactName, artifactFile, artifactStream.Length);
 				using (AsyncClientStreamingCall<UploadArtifactRequest, UploadArtifactResponse> cursor = client.UploadArtifact(null, null, cancellationToken))
-                {
+				{
 					// Upload the metadata in the initial request
 					UploadArtifactMetadata metadata = new UploadArtifactMetadata();
 					metadata.JobId = jobId.ToString();
@@ -133,10 +133,10 @@ namespace Horde.Agent.Utility
 
 					// Upload the data in chunks
 					byte[] buffer = new byte[4096];
-					for (int offset = 0; offset < metadata.Length; )
-                    {
-                        int bytesRead = await artifactStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
-						if(bytesRead == 0)
+					for (int offset = 0; offset < metadata.Length;)
+					{
+						int bytesRead = await artifactStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+						if (bytesRead == 0)
 						{
 							throw new InvalidDataException($"Unable to read data from {artifactFile} beyond offset {offset}; expected length to be {metadata.Length}");
 						}
@@ -145,17 +145,17 @@ namespace Horde.Agent.Utility
 						request.Data = Google.Protobuf.ByteString.CopyFrom(buffer, 0, bytesRead);
 						await cursor.RequestStream.WriteAsync(request, cancellationToken);
 
-                        offset += bytesRead;
-                    }
+						offset += bytesRead;
+					}
 
 					// Close the stream
-                    await cursor.RequestStream.CompleteAsync();
+					await cursor.RequestStream.CompleteAsync();
 
 					// Read the response
 					UploadArtifactResponse response = await cursor.ResponseAsync;
 					return response.Id;
-                }
-            }
-        }
+				}
+			}
+		}
 	}
 }

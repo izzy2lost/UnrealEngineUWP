@@ -34,7 +34,7 @@ namespace Horde.Agent.Leases.Handlers
 		/// Exposed as internal to ease testing.
 		/// </summary>
 		internal TimeSpan _stepAbortPollInterval = TimeSpan.FromSeconds(5);
-		
+
 		/// <summary>
 		/// How long to wait before retrying a failed step abort check request
 		/// </summary>
@@ -44,12 +44,12 @@ namespace Horde.Agent.Leases.Handlers
 		/// Current lease ID being executed
 		/// </summary>
 		public LeaseId? CurrentLeaseId { get; private set; } = null;
-		
+
 		/// <summary>
 		/// Current job ID being executed
 		/// </summary>
 		public string? CurrentJobId { get; private set; } = null;
-		
+
 		/// <summary>
 		/// Current job batch ID being executed
 		/// </summary>
@@ -79,7 +79,7 @@ namespace Horde.Agent.Leases.Handlers
 				CurrentLeaseId = leaseId;
 				CurrentJobId = executeTask.JobId;
 				CurrentBatchId = executeTask.BatchId;
-				
+
 				executeTask.JobOptions ??= new JobOptions();
 
 				if (executeTask.JobOptions.RunInSeparateProcess ?? false)
@@ -89,7 +89,7 @@ namespace Horde.Agent.Leases.Handlers
 						// TODO: Implement handling for invoking a self-contained agent process (i.e handle "dotnet" below)
 						throw new NotSupportedException("Running job in a separate process not supported for self-contained agents");
 					}
-					
+
 					using (ManagedProcessGroup processGroup = new ManagedProcessGroup())
 					{
 						List<string> arguments = new List<string>();
@@ -109,11 +109,11 @@ namespace Horde.Agent.Leases.Handlers
 						localLogger.LogInformation("Running child process with arguments: {CommandLine}", commandLine);
 
 						using (ManagedProcess process = new ManagedProcess(processGroup, "dotnet", commandLine, null,
-							       null, ProcessPriorityClass.Normal))
+								   null, ProcessPriorityClass.Normal))
 						{
 							using (LogEventParser parser = new LogEventParser(localLogger))
 							{
-								for (;;)
+								for (; ; )
 								{
 									string? line = await process.ReadLineAsync(cancellationToken);
 									if (line == null)
@@ -217,7 +217,7 @@ namespace Horde.Agent.Leases.Handlers
 
 			// Create an executor for this job
 			string executorName = String.IsNullOrEmpty(options.JobOptions.Executor) ? _settings.Executor : options.JobOptions.Executor;
-			
+
 			logger.LogInformation("Executing batch {BatchId} using {Executor} executor", options.BatchId, executorName);
 			await session.TerminateProcessesAsync(TerminateCondition.BeforeBatch, logger, cancellationToken);
 
@@ -377,7 +377,7 @@ namespace Horde.Agent.Leases.Handlers
 			{
 				await session.TerminateProcessesAsync(TerminateCondition.AfterBatch, logger, CancellationToken.None);
 			}
-			catch(Exception ex)
+			catch (Exception ex)
 			{
 				logger.LogWarning(ex, "Exception while terminating processes: {Message}", ex.Message);
 			}

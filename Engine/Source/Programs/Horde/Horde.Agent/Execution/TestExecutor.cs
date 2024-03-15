@@ -196,13 +196,13 @@ namespace Horde.Agent.Execution
 
 			using (LogParser filter = new LogParser(perforceLogger, new List<string>()))
 			{
-				if(outcome == JobStepOutcome.Warnings)
+				if (outcome == JobStepOutcome.Warnings)
 				{
 					filter.WriteLine("D:\\Test\\Path\\To\\Source\\File.cpp(234): warning: This is a compilation warning");
 					logger.LogWarning("This is a warning!");
 					filter.WriteLine("warning: this is a test");
 				}
-				if(outcome == JobStepOutcome.Failure)
+				if (outcome == JobStepOutcome.Failure)
 				{
 					filter.WriteLine("D:\\Test\\Path\\To\\Source\\File.cpp(234): error: This is a compilation error");
 					logger.LogError("This is an error!");
@@ -210,7 +210,7 @@ namespace Horde.Agent.Execution
 				}
 			}
 
-			FileReference tempFileName = new (Path.GetTempFileName());
+			FileReference tempFileName = new(Path.GetTempFileName());
 			await File.WriteAllTextAsync(tempFileName.FullName, "Some example data", cancellationToken);
 			await ArtifactUploader.UploadAsync(RpcConnection, JobId, BatchId, step.StepId, tempFileName.GetFileName(), tempFileName, logger, cancellationToken);
 

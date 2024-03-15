@@ -5,15 +5,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Agents.Sessions;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Sessions;
+using Horde.Server.Agents;
 using Horde.Server.Agents.Leases;
+using Horde.Server.Agents.Sessions;
 using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Horde.Server.Agents;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Agents.Sessions;
-using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Server
 {
@@ -70,7 +70,7 @@ namespace Horde.Server.Server
 
 			// Find any sessions that do not have a finish time despite their agents running something else
 			DateTime utcNow = _clock.UtcNow;
-			foreach(ISession session in sessions)
+			foreach (ISession session in sessions)
 			{
 				if (!agentIdToInstance.TryGetValue(session.AgentId, out IAgent? agent) || agent.SessionId != session.Id)
 				{

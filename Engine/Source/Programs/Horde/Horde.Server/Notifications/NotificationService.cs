@@ -9,8 +9,9 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Redis;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Users;
+using EpicGames.Redis;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
@@ -31,7 +32,6 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using StackExchange.Redis;
 using JsonSerializer = System.Text.Json.JsonSerializer;
-using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Notifications
 {
@@ -79,12 +79,12 @@ namespace Horde.Server.Notifications
 		/// Instance of the <see cref="_logFileService"/>.
 		/// </summary>
 		private readonly ILogFileService _logFileService;
-		
+
 		/// <summary>
 		/// Cache for de-duplicating queued notifications
 		/// </summary>
 		private readonly IMemoryCache _cache;
-		
+
 		/// <summary>
 		/// Lock object for manipulating the above cache
 		/// Used since batch notification queue handling is run async.
@@ -95,7 +95,7 @@ namespace Horde.Server.Notifications
 		/// Connection pool for Redis databases
 		/// </summary>
 		private readonly RedisConnectionPool _redisConnectionPool;
-		
+
 		/// <summary>
 		/// Settings for the application.
 		/// </summary>
@@ -115,7 +115,7 @@ namespace Horde.Server.Notifications
 		/// Settings for the application.
 		/// </summary>
 		private readonly ILogger<NotificationService> _logger;
-		
+
 		/// <summary>
 		/// Ticker for running batch sender method
 		/// </summary>
@@ -228,7 +228,7 @@ namespace Horde.Server.Notifications
 			}
 
 			INotificationTrigger? trigger = await _triggerCollection.GetAsync(triggerId, cancellationToken);
-			if(trigger == null)
+			if (trigger == null)
 			{
 				return null;
 			}
@@ -254,7 +254,7 @@ namespace Horde.Server.Notifications
 				EnqueueTask(ctx => RecordJobCompleteMetricsAsync(job, ctx));
 			}
 		}
-		
+
 		/// <inheritdoc/>
 		public void NotifyJobScheduled(IPoolConfig pool, bool poolHasAgentsOnline, IJob job, IGraph graph, JobStepBatchId batchId)
 		{
@@ -358,7 +358,7 @@ namespace Horde.Server.Notifications
 					{
 						return;
 					}
-					_cache.Set(notification, notification, _notificationBatchInterval / 2);					
+					_cache.Set(notification, notification, _notificationBatchInterval / 2);
 				}
 			}
 
@@ -384,7 +384,7 @@ namespace Horde.Server.Notifications
 				}
 			}
 		}
-		
+
 		/// <summary>
 		/// Get and clear all queued notifications of type T from Redis
 		/// </summary>
@@ -495,7 +495,7 @@ namespace Horde.Server.Notifications
 				return null;
 			}
 
-			INotificationTrigger? trigger = await _triggerCollection.GetAsync(triggerId.Value, cancellationToken	);
+			INotificationTrigger? trigger = await _triggerCollection.GetAsync(triggerId.Value, cancellationToken);
 			if (trigger == null)
 			{
 				return null;
@@ -503,7 +503,7 @@ namespace Horde.Server.Notifications
 
 			return fireTrigger ? await _triggerCollection.FireAsync(trigger, cancellationToken) : trigger;
 		}
-	
+
 		private async Task SendJobNotificationsAsync(IJob job, IGraph graph, CancellationToken cancellationToken)
 		{
 			using IDisposable? scope = _logger.BeginScope("Sending notifications for job {JobId}", job.Id);
@@ -514,9 +514,9 @@ namespace Horde.Server.Notifications
 			IReadOnlyList<IUser> usersToNotify = await GetUsersToNotifyAsync(jobCompleteEvent, job.NotificationTriggerId, true, cancellationToken);
 			foreach (IUser userToNotify in usersToNotify)
 			{
-				if(job.PreflightChange != 0)
+				if (job.PreflightChange != 0)
 				{
-					if(userToNotify.Id != job.StartedByUserId)
+					if (userToNotify.Id != job.StartedByUserId)
 					{
 						continue;
 					}
@@ -546,7 +546,7 @@ namespace Horde.Server.Notifications
 					JobStepOutcome.Success => "success",
 					_ => "unspecified"
 				};
-				
+
 				KeyValuePair<string, object?>[] tags =
 				{
 					KeyValuePair.Create<string, object?>("stream", job.StreamId.ToString()),
@@ -627,7 +627,7 @@ namespace Horde.Server.Notifications
 			using IDisposable? scope = _logger.BeginScope("Sending notifications for step {JobId}:{BatchId}:{StepId}", job.Id, batchId, stepId);
 
 			IJobStepBatch? batch;
-			if(!job.TryGetBatch(batchId, out batch))
+			if (!job.TryGetBatch(batchId, out batch))
 			{
 				_logger.LogError("Unable to find batch {BatchId} in job {JobId}", batchId, job.Id);
 				return;
@@ -677,7 +677,7 @@ namespace Horde.Server.Notifications
 			}
 
 			ILogFile? logFile = await _logFileService.GetLogFileAsync(step.LogId.Value, cancellationToken);
-			if(logFile == null)
+			if (logFile == null)
 			{
 				_logger.LogError("Step does not have a log file");
 				return;
@@ -693,9 +693,9 @@ namespace Horde.Server.Notifications
 
 			foreach (IUser slackUser in usersToNotify)
 			{
-				if(job.PreflightChange != 0)
+				if (job.PreflightChange != 0)
 				{
-					if(slackUser.Id != job.StartedByUserId)
+					if (slackUser.Id != job.StartedByUserId)
 					{
 						continue;
 					}

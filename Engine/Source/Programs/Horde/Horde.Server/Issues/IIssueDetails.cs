@@ -2,10 +2,10 @@
 
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using Horde.Server.Users;
-using EpicGames.Horde.Users;
 using System.Threading;
+using System.Threading.Tasks;
+using EpicGames.Horde.Users;
+using Horde.Server.Users;
 
 namespace Horde.Server.Issues
 {
@@ -103,7 +103,7 @@ namespace Horde.Server.Issues
 		public static async Task<IIssueDetails?> GetIssueDetailsAsync(this IssueService issueService, int issueId, CancellationToken cancellationToken)
 		{
 			IIssue? issue = await issueService.Collection.GetIssueAsync(issueId, cancellationToken);
-			if(issue == null)
+			if (issue == null)
 			{
 				return null;
 			}

@@ -197,7 +197,7 @@ namespace Horde.Server.Perforce
 			public async ValueTask<bool> MatchesFilterAsync(FileFilter filter, CancellationToken cancellationToken)
 			{
 				int maxFiles = 1000;
-				for(; ;)
+				for (; ; )
 				{
 					// Query the files up to the current maximum
 					IReadOnlyList<string> files = await GetFilesAsync(maxFiles, cancellationToken);
@@ -261,7 +261,7 @@ namespace Horde.Server.Perforce
 			_tracer = tracer;
 			_logger = logger;
 
-			if(settings.Value.UseLocalPerforceEnv)
+			if (settings.Value.UseLocalPerforceEnv)
 			{
 				IPerforceSettings perforceSettings = PerforceSettings.Default;
 				_perforceServerOverride = perforceSettings.ServerAndPort;
@@ -288,7 +288,7 @@ namespace Horde.Server.Perforce
 
 			PerforceSettings settings = new PerforceSettings(serverAndPort, credentials.UserName);
 			settings.AppName = "Horde.Server";
-			settings.Password = String.IsNullOrEmpty(credentials.Ticket) ? credentials.Password : credentials.Ticket; 
+			settings.Password = String.IsNullOrEmpty(credentials.Ticket) ? credentials.Password : credentials.Ticket;
 			settings.HostName = clientRecord?.Host;
 			settings.ClientName = clientRecord?.Name ?? "__DOES_NOT_EXIST__";
 			settings.PreferNativeClient = true;
@@ -593,7 +593,7 @@ namespace Horde.Server.Perforce
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PerforceService)}.{nameof(FindOrAddUserAsync)}");
 			span.SetAttribute("clusterName", cluster.Name);
 			span.SetAttribute("userName", userName);
-			
+
 			IUser? user;
 			if (!_userCache.TryGetValue((cluster.Name, userName), out user))
 			{
@@ -782,13 +782,13 @@ namespace Horde.Server.Perforce
 			span.SetAttribute("clusterName", streamConfig.ClusterName);
 			span.SetAttribute("streamName", streamConfig.Name);
 			span.SetAttribute("changeNumber", changeNumber);
-			
+
 			PerforceCluster cluster = _globalConfig.CurrentValue.GetPerforceCluster(streamConfig.ClusterName);
 
 			using (IPooledPerforceConnection perforce = await ConnectAsync(cluster, null, cancellationToken))
 			{
 				PerforceResponse<DescribeRecord> response = await perforce.TryDescribeAsync(DescribeOptions.Shelved, -1, changeNumber, cancellationToken);
-				if(response.Error != null)
+				if (response.Error != null)
 				{
 					if (response.Error.Generic == PerforceGenericCode.Empty)
 					{
@@ -825,7 +825,7 @@ namespace Horde.Server.Perforce
 
 				if (hasUnmappedFile)
 				{
-					return ((mappedFiles.Count > 0)? CheckShelfResult.MixedStream : CheckShelfResult.WrongStream, null);
+					return ((mappedFiles.Count > 0) ? CheckShelfResult.MixedStream : CheckShelfResult.WrongStream, null);
 				}
 
 				List<CommitTag> tags = new List<CommitTag>();
@@ -854,7 +854,7 @@ namespace Horde.Server.Perforce
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PerforceService)}.{nameof(DeleteShelvedChangeAsync)}");
 			span.SetAttribute("clusterName", clusterName);
 			span.SetAttribute("shelvedChange", shelvedChange);
-			
+
 			PerforceCluster cluster = _globalConfig.CurrentValue.GetPerforceCluster(clusterName);
 
 			using (IPerforceConnection perforce = await ConnectAsChangeOwnerAsync(cluster, shelvedChange, cancellationToken))
@@ -900,7 +900,7 @@ namespace Horde.Server.Perforce
 			await perforce.RevertAsync(-1, null, RevertOptions.KeepWorkspaceFiles, FileSpecList.Any, cancellationToken);
 
 			List<ChangesRecord> changes = await perforce.GetChangesAsync(ChangesOptions.None, perforce.Settings.ClientName, -1, ChangeStatus.Pending, null, FileSpecList.Any, cancellationToken);
-			foreach(ChangesRecord change in changes)
+			foreach (ChangesRecord change in changes)
 			{
 				await perforce.DeleteShelvedFilesAsync(change.Number, FileSpecList.Any, cancellationToken);
 				await perforce.DeleteChangeAsync(DeleteChangeOptions.None, change.Number, cancellationToken);
@@ -914,7 +914,7 @@ namespace Horde.Server.Perforce
 			span.SetAttribute("clusterName", clusterName);
 			span.SetAttribute("streamName", streamName);
 			span.SetAttribute("filePath", filePath);
-			
+
 			using (PooledConnectionHandle perforce = await ConnectWithStreamClientAsync(clusterName, null, streamName, cancellationToken))
 			{
 				string workspaceFilePath = $"//{perforce.Client!.Name}/{filePath.TrimStart('/')}";
@@ -924,7 +924,7 @@ namespace Horde.Server.Perforce
 				int attempt = 0;
 				const int MaxAttempts = 5;
 
-				for(; ;)
+				for (; ; )
 				{
 					attempt++;
 					await ResetClientAsync(perforce, cancellationToken);

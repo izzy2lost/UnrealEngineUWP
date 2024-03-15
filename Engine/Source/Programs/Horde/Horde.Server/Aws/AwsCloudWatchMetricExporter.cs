@@ -24,7 +24,7 @@ public sealed class AwsCloudWatchMetricExporter : IHostedService, IAsyncDisposab
 	private readonly IAmazonCloudWatch _cloudWatch;
 	private readonly AsyncTaskQueue _asyncTaskQueue;
 	private readonly ILogger<AwsCloudWatchMetricExporter> _logger;
-	
+
 	/// <summary>
 	/// Constructor
 	/// </summary>
@@ -61,7 +61,7 @@ public sealed class AwsCloudWatchMetricExporter : IHostedService, IAsyncDisposab
 				new() { Name = "Pool", Value = poolId },
 				new() { Name = "Resource", Value = resourceName }
 			};
-			List<MetricDatum> metricDatums = new ()
+			List<MetricDatum> metricDatums = new()
 			{
 				new ()
 				{
@@ -72,10 +72,10 @@ public sealed class AwsCloudWatchMetricExporter : IHostedService, IAsyncDisposab
 					TimestampUtc = utcNow
 				}
 			};
-		
+
 			PutMetricDataRequest request = new() { Namespace = "Horde", MetricData = metricDatums };
 			PutMetricDataResponse response = await _cloudWatch.PutMetricDataAsync(request, cancellationToken);
-			
+
 			if (response.HttpStatusCode != HttpStatusCode.OK)
 			{
 				throw new HttpRequestException($"PutMetricData failed. Status code {response.HttpStatusCode}");

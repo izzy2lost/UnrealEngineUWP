@@ -23,7 +23,7 @@ namespace Horde.Server.Accounts
 	{
 		readonly IAccountCollection _accountCollection;
 		readonly GlobalConfig _globalConfig;
-		readonly IOptionsMonitor<ServerSettings> _settings;		 
+		readonly IOptionsMonitor<ServerSettings> _settings;
 
 		/// <summary>
 		/// Constructor

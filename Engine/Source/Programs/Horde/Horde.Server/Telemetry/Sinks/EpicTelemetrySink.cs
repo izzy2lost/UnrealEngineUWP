@@ -193,7 +193,7 @@ namespace Horde.Server.Telemetry.Sinks
 			}
 
 			// Post the event data
-			foreach((Uri uri, byte[] packet) in packets)
+			foreach ((Uri uri, byte[] packet) in packets)
 			{
 				HttpClient httpClient = _httpClientFactory.CreateClient(HttpClientName);
 				using (HttpRequestMessage request = new HttpRequestMessage())

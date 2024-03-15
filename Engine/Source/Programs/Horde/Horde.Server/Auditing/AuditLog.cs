@@ -168,7 +168,7 @@ namespace Horde.Server.Auditing
 		readonly string _subjectProperty;
 		readonly ILogger _logger;
 		readonly BackgroundTask _backgroundTask;
-		
+
 		TaskCompletionSource? _flushEvent;
 
 		public IAuditLogChannel<TSubject> this[TSubject subject] => new AuditLogChannel(this, subject);
@@ -199,7 +199,7 @@ namespace Horde.Server.Auditing
 		/// </summary>
 		internal async Task<int> FlushMessagesInternalAsync(CancellationToken cancellationToken)
 		{
-			List<AuditLogMessage> newMessages = new ();
+			List<AuditLogMessage> newMessages = new();
 			while (_messageChannel.Reader.TryRead(out AuditLogMessage? newMessage))
 			{
 				if (newMessage != null)
@@ -211,10 +211,10 @@ namespace Horde.Server.Auditing
 			{
 				await _messages.InsertManyAsync(newMessages, null, cancellationToken);
 			}
-			
+
 			return newMessages.Count;
 		}
-		
+
 		async Task WriteMessagesAsync(CancellationToken cancellationToken)
 		{
 			while (await _messageChannel.Reader.WaitToReadAsync(cancellationToken))

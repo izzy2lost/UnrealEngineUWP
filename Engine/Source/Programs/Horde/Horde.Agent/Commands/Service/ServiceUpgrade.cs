@@ -52,7 +52,7 @@ namespace Horde.Agent.Commands.Service
 				HashSet<string> targetFiles = new HashSet<string>(targetDir.EnumerateFiles("*", SearchOption.AllDirectories).Select(x => x.FullName), StringComparer.OrdinalIgnoreCase);
 
 				// Find all the source files
-				DirectoryInfo sourceDir = new (AppContext.BaseDirectory);
+				DirectoryInfo sourceDir = new(AppContext.BaseDirectory);
 				HashSet<string> sourceFiles = new HashSet<string>(sourceDir.EnumerateFiles("*", SearchOption.AllDirectories).Select(x => x.FullName), StringComparer.OrdinalIgnoreCase);
 
 				// Exclude all the source files from the list of target files, since we may be in a subdirectory
@@ -146,7 +146,7 @@ namespace Horde.Agent.Commands.Service
 		{
 			// Try to get the service associated with the passed-in process id
 			using ServiceController? service = GetServiceForProcess(ProcessId);
-			
+
 			// Stop the process
 			if (service == null)
 			{
@@ -166,7 +166,7 @@ namespace Horde.Agent.Commands.Service
 			if (service == null)
 			{
 				string executable;
-				StringBuilder arguments = new ();
+				StringBuilder arguments = new();
 				if (AgentApp.IsSelfContained)
 				{
 					if (Environment.ProcessPath == null)

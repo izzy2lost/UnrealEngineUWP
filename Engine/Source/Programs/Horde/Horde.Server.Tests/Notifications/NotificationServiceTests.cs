@@ -2,25 +2,25 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Streams;
+using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Devices;
 using Horde.Server.Issues;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
+using Horde.Server.Logs;
 using Horde.Server.Notifications;
-using Horde.Server.Users;
 using Horde.Server.Streams;
+using Horde.Server.Users;
 using HordeCommon;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
-using Horde.Server.Logs;
-using Microsoft.Extensions.Caching.Memory;
-using Horde.Server.Agents;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Jobs;
-using System.Threading;
 
 namespace Horde.Server.Tests.Notifications
 {
@@ -28,7 +28,7 @@ namespace Horde.Server.Tests.Notifications
 	{
 		public List<JobScheduledNotification> JobScheduledNotifications { get; } = new();
 		public int JobScheduledCallCount { get; set; }
-		
+
 		public Task NotifyJobScheduledAsync(List<JobScheduledNotification> notifications, CancellationToken cancellationToken)
 		{
 			JobScheduledNotifications.AddRange(notifications);
@@ -98,7 +98,7 @@ namespace Horde.Server.Tests.Notifications
 			job.SetupGet(x => x.Batches).Returns(batches);
 			return job.Object;
 		}
-		
+
 		[TestMethod]
 		public async Task NotifyJobScheduledAsync()
 		{
@@ -113,7 +113,7 @@ namespace Horde.Server.Tests.Notifications
 			Assert.AreEqual(0, fakeSink.JobScheduledNotifications.Count);
 			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, JobStepBatchId.GenerateNewId());
 			service.NotifyJobScheduled(pool, false, fixture.Job2, fixture.Graph, JobStepBatchId.GenerateNewId());
-			
+
 			// Currently no good way to wait for NotifyJobScheduled() to complete as the execution is completely async in background task (see ExecuteAsync)
 			await Task.Delay(1000);
 			await Clock.AdvanceAsync(service._notificationBatchInterval + TimeSpan.FromMinutes(5));
@@ -128,26 +128,26 @@ namespace Horde.Server.Tests.Notifications
 			NotificationService service = (NotificationService)ServiceProvider.GetRequiredService<INotificationService>();
 			await service._ticker.StartAsync();
 			Fixture fixture = await CreateFixtureAsync();
-			IPool pool = await CreatePoolAsync(new PoolConfig { Name = "BogusPool", Properties = new Dictionary<string, string>()});
+			IPool pool = await CreatePoolAsync(new PoolConfig { Name = "BogusPool", Properties = new Dictionary<string, string>() });
 
 			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, JobStepBatchId.GenerateNewId());
 			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, JobStepBatchId.GenerateNewId());
 			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, JobStepBatchId.GenerateNewId());
-			
+
 			// Currently no good way to wait for NotifyJobScheduled() to complete as the execution is completely async in background task (see ExecuteAsync)
 			await Task.Delay(1000);
 			await Clock.AdvanceAsync(service._notificationBatchInterval + TimeSpan.FromMinutes(5));
-			
+
 			// Only one job scheduled notification should have been sent, despite queuing three
 			Assert.AreEqual(1, fakeSink.JobScheduledNotifications.Count);
-			
+
 			// Clear the cache by compacting it 100%
 			MemoryCache cache = (MemoryCache)ServiceProvider.GetRequiredService<IMemoryCache>();
 			cache.Compact(1.0);
-			
+
 			// Notify of exactly the same job again
 			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, JobStepBatchId.GenerateNewId());
-			
+
 			await Task.Delay(1000);
 			await Clock.AdvanceAsync(service._notificationBatchInterval + TimeSpan.FromMinutes(5));
 			Assert.AreEqual(2, fakeSink.JobScheduledNotifications.Count);

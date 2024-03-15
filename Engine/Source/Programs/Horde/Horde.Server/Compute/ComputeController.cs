@@ -85,7 +85,7 @@ namespace Horde.Server.Compute
 				return cse.ShowToUser ? StatusCode((int)HttpStatusCode.InternalServerError, cse.Message) : StatusCode((int)HttpStatusCode.InternalServerError);
 			}
 
-			Dictionary<string, ConnectionMetadataPort> responsePorts = new ();
+			Dictionary<string, ConnectionMetadataPort> responsePorts = new();
 			foreach ((string name, ComputeResourcePort crp) in computeResource.Ports)
 			{
 				responsePorts[name] = new ConnectionMetadataPort(crp.Port, crp.AgentPort);
@@ -113,7 +113,7 @@ namespace Horde.Server.Compute
 
 			return response;
 		}
-		
+
 		/// <summary>
 		/// Get current resource needs for active sessions
 		/// </summary>
@@ -128,7 +128,7 @@ namespace Horde.Server.Compute
 			{
 				return NotFound(clusterId);
 			}
-			
+
 			if (!clusterConfig.Authorize(ComputeAclAction.GetComputeTasks, User))
 			{
 				return Forbid(ComputeAclAction.GetComputeTasks, clusterId);
@@ -143,7 +143,7 @@ namespace Horde.Server.Compute
 
 			return new GetResourceNeedsResponse { ResourceNeeds = resourceNeeds };
 		}
-		
+
 		/// <summary>
 		/// Declare resource needs for a session to help server calculate current demand
 		/// <see cref="KnownPropertyNames"/> for resource name property names
@@ -160,7 +160,7 @@ namespace Horde.Server.Compute
 			{
 				return NotFound(clusterId);
 			}
-			
+
 			if (!clusterConfig.Authorize(ComputeAclAction.AddComputeTasks, User))
 			{
 				return Forbid(ComputeAclAction.AddComputeTasks, clusterId);

@@ -44,13 +44,13 @@ namespace Horde.Server.Compute
 		/// Whether this exception message can be shown to user or client
 		/// </summary>
 		public bool ShowToUser { get; init; } = false;
-		
+
 		/// <inheritdoc/>
 		public ComputeServiceException(string? message, Exception? innerException) : base(message, innerException)
 		{
 		}
 	}
-	
+
 	/// <summary>
 	/// Outcome for a compute allocation request
 	/// </summary>
@@ -60,7 +60,7 @@ namespace Horde.Server.Compute
 		/// A lease was allocated
 		/// </summary>
 		Accepted,
-		
+
 		/// <summary>
 		/// A lease was not allocated
 		/// </summary>
@@ -86,12 +86,12 @@ namespace Horde.Server.Compute
 		/// Criteria for selecting an agent
 		/// </summary>
 		public Requirements Requirements { get; }
-		
+
 		/// <summary>
 		/// Unique ID of this allocation request. If the same allocation retried, the same request ID should be used
 		/// </summary> 
 		public string? RequestId { get; init; }
-		
+
 		/// <summary>
 		/// Optional parent lease
 		/// </summary>
@@ -101,19 +101,19 @@ namespace Horde.Server.Compute
 		/// IP address of the requester
 		/// </summary>
 		public IPAddress? RequesterIp { get; init; }
-		
+
 		/// <inheritdoc cref="ConnectionMetadataRequest.ClientPublicIp" />
 		public string? RequesterPublicIp { get; init; }
-		
+
 		/// <inheritdoc cref="ConnectionMetadataRequest.Ports" />
-		public Dictionary<string, int> Ports { get; init; } = new ();
-		
+		public Dictionary<string, int> Ports { get; init; } = new();
+
 		/// <inheritdoc cref="ConnectionMetadataRequest.ModePreference" />
 		public ConnectionMode? ConnectionMode { get; init; }
-		
+
 		/// <inheritdoc cref="ConnectionMetadataRequest.PreferPublicIp" />
 		public bool? UsePublicIp { get; init; }
-		
+
 		/// <inheritdoc cref="ConnectionMetadataRequest.Encryption" />
 		public ComputeEncryption Encryption { get; init; }
 
@@ -127,7 +127,7 @@ namespace Horde.Server.Compute
 			Requirements = requirements ?? new Requirements();
 		}
 	}
-	
+
 	/// <summary>
 	/// Assigns compute leases to agents
 	/// </summary>
@@ -137,32 +137,32 @@ namespace Horde.Server.Compute
 		/// Time-to-live for each bucket of request (currently grouped per minute)
 		/// </summary>
 		private readonly TimeSpan _requestLogTtl = TimeSpan.FromMinutes(5);
-		
+
 		/// <summary>
 		/// How often the queue metric of allocation requests should be calculated
 		/// </summary>
 		private readonly TimeSpan _requestLogMetricInterval = TimeSpan.FromMinutes(1);
-		
+
 		/// <summary>
 		/// How often to look for stale leases and relayed ports
 		/// </summary>
 		private readonly TimeSpan _relayPortCleanupInterval = TimeSpan.FromMinutes(1);
-		
+
 		/// <summary>
 		/// Max age before discarding a reported resource need
 		/// </summary>
 		private readonly TimeSpan _resourceNeedsMaxAge = TimeSpan.FromMinutes(2);
-		
+
 		/// <summary>
 		/// Delegate for resource need events
 		/// </summary>
 		public delegate void ResourceNeedEvent(string clusterId, string poolId, string resourceName, int total);
-		
+
 		/// <summary>
 		/// Event triggered when resource needs have been calculated and updated
 		/// </summary>
 		public event ResourceNeedEvent? OnResourceNeedsUpdated;
-		
+
 		readonly IAgentCollection _agentCollection;
 		readonly ILogFileService _logService;
 		readonly AgentService _agentService;
@@ -177,9 +177,9 @@ namespace Horde.Server.Compute
 		readonly ITicker _requestLogMetricTicker;
 		readonly ITicker _relayPortCleanupTicker;
 		readonly ILogger<ComputeService> _logger;
-		
-		List<Measurement<int>> _unservedMeasurements = new ();
-		List<Measurement<int>> _resourceNeedsMeasurements = new ();
+
+		List<Measurement<int>> _unservedMeasurements = new();
+		List<Measurement<int>> _resourceNeedsMeasurements = new();
 
 		/// <summary>
 		/// Constructor
@@ -209,7 +209,7 @@ namespace Horde.Server.Compute
 			_requestLogMetricTicker = clock.AddTicker($"{nameof(ComputeService)}.RequestLogMetric", _requestLogMetricInterval, RequestLogMetricTickAsync, logger);
 			_relayPortCleanupTicker = clock.AddTicker($"{nameof(ComputeService)}.RelayPortCleanup", _relayPortCleanupInterval, RelayPortCleanupTickAsync, logger);
 			_logger = logger;
-			
+
 			_allocationsAcceptedCount = meter.CreateCounter<int>("horde.compute.allocations.accepted");
 			_allocationsDeniedCount = meter.CreateCounter<int>("horde.compute.allocations.denied");
 			meter.CreateObservableGauge("horde.compute.allocations.unserved", () =>
@@ -218,20 +218,20 @@ namespace Horde.Server.Compute
 				_unservedMeasurements.Clear();
 				return temp;
 			});
-			
+
 			meter.CreateObservableGauge("horde.compute.resourceNeeds", () =>
 			{
 				if (_resourceNeedsMeasurements.Count == 0)
 				{
 					// If no new measurements are available, send zero to prevent OpenTelemetry gauge from caching last observed value
-					return new List<Measurement<int>> { new (0) };
+					return new List<Measurement<int>> { new(0) };
 				}
 				List<Measurement<int>> copy = new(_resourceNeedsMeasurements);
 				_resourceNeedsMeasurements.Clear();
 				return copy;
 			});
 		}
-		
+
 		/// <inheritdoc/>
 		public async Task StartAsync(CancellationToken cancellationToken)
 		{
@@ -245,7 +245,7 @@ namespace Horde.Server.Compute
 			await _requestLogMetricTicker.StopAsync();
 			await _relayPortCleanupTicker.StopAsync();
 		}
-		
+
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
@@ -258,7 +258,7 @@ namespace Horde.Server.Compute
 			_unservedMeasurements = await CalculateUnservedRequestsMetricAsync();
 			_resourceNeedsMeasurements = await CalculateResourceNeedsAsync();
 		}
-		
+
 		private async ValueTask RelayPortCleanupTickAsync(CancellationToken cancellationToken)
 		{
 			await CleanStaleRelayPortsAsync(cancellationToken);
@@ -316,7 +316,7 @@ namespace Horde.Server.Compute
 			{
 				foreach ((string resource, int value) in srn.ResourceNeeds)
 				{
-					MetricKey key = new (srn.ClusterId, srn.Pool, resource);
+					MetricKey key = new(srn.ClusterId, srn.Pool, resource);
 					summedResourceValues.TryGetValue(key, out int currentValue);
 					summedResourceValues[key] = currentValue + value;
 				}
@@ -380,7 +380,7 @@ namespace Horde.Server.Compute
 					if (match)
 					{
 						using TelemetrySpan matchSpan = _tracer.StartActiveSpan("Found match");
-	
+
 						ComputeProtocol protocol = ComputeProtocol.Initial;
 						foreach (string value in agent.GetPropertyValues("ComputeProtocol"))
 						{
@@ -445,7 +445,7 @@ namespace Horde.Server.Compute
 			{
 				return null;
 			}
-			
+
 			_globalConfig.CurrentValue.TryGetNetworkConfig(ipAddress ?? IPAddress.Any, out NetworkConfig? networkConfig);
 			string networkId = networkConfig?.Id ?? "default";
 			string computeId = networkConfig?.ComputeId ?? "default";
@@ -453,7 +453,7 @@ namespace Horde.Server.Compute
 				.Replace("%REQUESTER_NETWORK_ID%", networkId, StringComparison.InvariantCulture)
 				.Replace("%REQUESTER_COMPUTE_ID%", computeId, StringComparison.InvariantCulture);
 		}
-		
+
 		/// <summary>
 		/// Declare resource needs for a session to help server calculate current demand
 		/// Any previous declaration associated with the same session ID will be replaced.
@@ -464,7 +464,7 @@ namespace Horde.Server.Compute
 		/// <param name="resourceNeeds">Resource needs</param>
 		public async Task SetResourceNeedsAsync(ClusterId clusterId, string sessionId, string pool, Dictionary<string, int> resourceNeeds)
 		{
-			SessionResourceNeeds needs = new (_clock.UtcNow, clusterId.ToString(), sessionId, pool, resourceNeeds);
+			SessionResourceNeeds needs = new(_clock.UtcNow, clusterId.ToString(), sessionId, pool, resourceNeeds);
 			await _redisService.GetDatabase().HashSetAsync(RedisKeyResourceNeeds(), needs.GetRedisHashKey(), needs.Serialize());
 		}
 
@@ -474,7 +474,7 @@ namespace Horde.Server.Compute
 			HashEntry[] hashEntries = await redis.HashGetAllAsync(RedisKeyResourceNeeds());
 			List<SessionResourceNeeds> validResourceNeeds = new();
 			List<RedisValue> invalidKeys = new();
-			
+
 			foreach (HashEntry entry in hashEntries)
 			{
 				try
@@ -499,9 +499,9 @@ namespace Horde.Server.Compute
 
 			if (invalidKeys.Any())
 			{
-				await redis.HashDeleteAsync(RedisKeyResourceNeeds(), invalidKeys.ToArray());	
+				await redis.HashDeleteAsync(RedisKeyResourceNeeds(), invalidKeys.ToArray());
 			}
-			
+
 			return validResourceNeeds;
 		}
 
@@ -528,7 +528,7 @@ namespace Horde.Server.Compute
 			long unixTimeClosestMin = unixTime - unixTime % 60; // Round to closest starting minute (buckets per minute)
 			return $"compute/requests/{unixTimeClosestMin}";
 		}
-		
+
 		/// <summary>
 		/// Record to be stored in Redis for representing a compute allocation request
 		/// </summary>
@@ -539,11 +539,11 @@ namespace Horde.Server.Compute
 		/// <param name="ParentLeaseId"></param>
 		internal record RequestInfo(DateTimeOffset Timestamp, AllocationOutcome Outcome, string RequestId, string Pool, string? ParentLeaseId)
 		{
-			private const int Version = 1; 
-			
+			private const int Version = 1;
+
 			public string Serialize()
 			{
-				StringBuilder sb = new (100);
+				StringBuilder sb = new(100);
 				sb.Append(Version).Append('\t');
 				sb.Append(Timestamp.ToUnixTimeSeconds()).Append('\t');
 				sb.Append(Outcome).Append('\t');
@@ -580,20 +580,20 @@ namespace Horde.Server.Compute
 				return new RequestInfo(DateTimeOffset.FromUnixTimeSeconds(unixTimeSec), outcome, parts[3], parts[4], String.IsNullOrEmpty(parts[5]) ? null : parts[5]);
 			}
 		}
-		
+
 		internal async Task LogRequestAsync(AllocationOutcome outcome, string? requestId, Requirements requirements, LeaseId? parentLeaseId, TelemetrySpan currentSpan, CancellationToken cancellationToken = default)
 		{
 			int? numActiveLeases = await GetNumActiveLeasesAsync(parentLeaseId, cancellationToken);
 			currentSpan.SetAttribute("numActiveLeases", numActiveLeases);
-			
-			KeyValuePair<string, object?> poolTag = new ("pool", requirements.Pool);
-			KeyValuePair<string, object?> activeLeasesTag = new ("activeLeases", numActiveLeases?.ToString() ?? "null");
+
+			KeyValuePair<string, object?> poolTag = new("pool", requirements.Pool);
+			KeyValuePair<string, object?> activeLeasesTag = new("activeLeases", numActiveLeases?.ToString() ?? "null");
 
 			if (requestId != null && requirements.Pool != null)
 			{
-				DateTimeOffset timestamp = new (_clock.UtcNow);
+				DateTimeOffset timestamp = new(_clock.UtcNow);
 				string key = RedisKeyComputeRequests(timestamp);
-				RequestInfo requestInfo = new (timestamp, outcome, requestId, requirements.Pool, parentLeaseId?.ToString());
+				RequestInfo requestInfo = new(timestamp, outcome, requestId, requirements.Pool, parentLeaseId?.ToString());
 				await _redisService.GetDatabase().ListRightPushAsync(key, requestInfo.Serialize());
 				await _redisService.GetDatabase().KeyExpireAsync(key, _requestLogTtl);
 			}
@@ -611,12 +611,12 @@ namespace Horde.Server.Compute
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(ComputeService)}.{nameof(GetUnservedRequestsAsync)}");
 			IDatabase redis = _redisService.GetDatabase();
 			DateTime utcNow = _clock.UtcNow;
-			DateTimeOffset startTime = new (utcNow - TimeSpan.FromMinutes(1));
-			DateTimeOffset endTime = new (utcNow);
-			
+			DateTimeOffset startTime = new(utcNow - TimeSpan.FromMinutes(1));
+			DateTimeOffset endTime = new(utcNow);
+
 			RedisValue[] lastMinValues = await redis.ListRangeAsync(RedisKeyComputeRequests(startTime));
 			RedisValue[] currentMinValues = await redis.ListRangeAsync(RedisKeyComputeRequests(endTime));
-			List<RedisValue> values = new (lastMinValues.Concat(currentMinValues));
+			List<RedisValue> values = new(lastMinValues.Concat(currentMinValues));
 			List<RequestInfo> requestInfos = values
 				.Select(RequestInfo.Deserialize)
 				.OfType<RequestInfo>()
@@ -632,7 +632,7 @@ namespace Horde.Server.Compute
 					idToInfo[ri.RequestId] = ri;
 				}
 			}
-			
+
 			List<RequestInfo> results = idToInfo
 				.Where(pair => pair.Value.Outcome == AllocationOutcome.Denied)
 				.Select(pair => pair.Value)
@@ -684,7 +684,7 @@ namespace Horde.Server.Compute
 			{
 				return null;
 			}
-			
+
 			string? tunnelAddress = _settings.CurrentValue.ComputeTunnelAddress;
 
 			if (arp.ConnectionMode is null or ConnectionMode.Direct)
@@ -696,7 +696,7 @@ namespace Horde.Server.Compute
 				{
 					ports[portId] = new ComputeResourcePort(port, port);
 				}
-				
+
 				return new ComputeResource(ConnectionMode.Direct, agentIp, null, ports, computeTask, agent.Properties, agent.Id, leaseId);
 			}
 			else if (arp.ConnectionMode == ConnectionMode.Tunnel && tunnelAddress != null)
@@ -708,12 +708,12 @@ namespace Horde.Server.Compute
 				{
 					ports[portId] = new ComputeResourcePort(-1, port);
 				}
-				
+
 				return new ComputeResource(ConnectionMode.Tunnel, agentIp, tunnelAddress, ports, computeTask, agent.Properties, agent.Id, leaseId);
 			}
 			else if (arp.ConnectionMode == ConnectionMode.Relay)
 			{
-				Dictionary<string,int> portsWithComputePort = new (arp.Ports) { { ConnectionMetadataPort.ComputeId, computePort } };
+				Dictionary<string, int> portsWithComputePort = new(arp.Ports) { { ConnectionMetadataPort.ComputeId, computePort } };
 				List<Port> relayPorts = portsWithComputePort
 					.SelectMany(kvp => new List<Port>()
 					{
@@ -722,7 +722,7 @@ namespace Horde.Server.Compute
 					})
 					.OrderBy(x => x.AgentPort)
 					.ToList();
-				
+
 				IPAddress? clientPublicIp = arp.RequesterPublicIp == null ? null : IPAddress.Parse(arp.RequesterPublicIp);
 				PortMappingResult pmResult = await _agentRelayService.RequestPortMappingAsync(arp.ClusterId, leaseId, clientPublicIp, agentIp, relayPorts);
 
@@ -744,7 +744,7 @@ namespace Horde.Server.Compute
 
 			throw new Exception("Unable to resolve a suitable connection mode for compute task");
 		}
-		
+
 		private static IPAddress FindBestRelayIp(IPAddress? clientIp, IPAddress? publicClientIp, IEnumerable<string> relayIps)
 		{
 			return FindBestRelayIp(clientIp, publicClientIp, relayIps.Select(IPAddress.Parse).ToList());
@@ -780,7 +780,7 @@ namespace Horde.Server.Compute
 				_ => Array.Empty<byte>()
 			};
 		}
-		
+
 		internal static Encryption ConvertEncryptionFromProto(ComputeEncryption proto)
 		{
 			return proto switch
@@ -793,7 +793,7 @@ namespace Horde.Server.Compute
 				_ => throw new ArgumentOutOfRangeException(nameof(proto), proto, null)
 			};
 		}
-		
+
 		internal static ComputeEncryption ConvertEncryptionToProto(Encryption? json)
 		{
 			return json switch

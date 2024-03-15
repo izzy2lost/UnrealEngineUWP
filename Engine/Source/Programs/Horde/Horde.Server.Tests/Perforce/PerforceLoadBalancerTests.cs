@@ -23,10 +23,10 @@ public class FakeHealthMonitor<T> : IHealthMonitor<T>
 {
 	/// <summary>Name set by SetName()</summary>
 	public string Name { get; set; } = "<not-set>";
-	
+
 	/// <summary>Updates sent</summary>
 	public List<(HealthStatus result, string? message, DateTimeOffset? timestamp)> Updates { get; } = [];
-	
+
 	/// <inheritdoc/>
 	public void SetName(string name) { Name = name; }
 
@@ -42,7 +42,7 @@ public class FakeHealthMonitor<T> : IHealthMonitor<T>
 public class PerforceLoadBalancerTests : TestSetup
 {
 	private const string PerforceHostname = "";
-	
+
 	private readonly ILogger<PerforceLoadBalancer> _logger = CreateConsoleLogger<PerforceLoadBalancer>();
 
 	[TestMethod]
@@ -55,7 +55,7 @@ public class PerforceLoadBalancerTests : TestSetup
 		IPerforceServer server = (await plb.GetServersAsync(CancellationToken.None)).First();
 		Assert.AreEqual(PerforceServerStatus.Healthy, server.Status);
 	}
-	
+
 	[TestMethod]
 	public async Task StatusHealthyViaHttpAsync()
 	{
@@ -66,7 +66,7 @@ public class PerforceLoadBalancerTests : TestSetup
 		IPerforceServer server = (await plb.GetServersAsync(CancellationToken.None)).First();
 		Assert.AreEqual(PerforceServerStatus.Healthy, server.Status);
 	}
-	
+
 	[TestMethod]
 	public async Task StatusUnhealthyViaHttpAsync()
 	{
@@ -80,7 +80,7 @@ public class PerforceLoadBalancerTests : TestSetup
 
 	private static GlobalConfig GetConfig(string perforceHost)
 	{
-		PerforceCluster perforceCluster = new () { Servers = [new PerforceServer { ServerAndPort = perforceHost }] };
+		PerforceCluster perforceCluster = new() { Servers = [new PerforceServer { ServerAndPort = perforceHost }] };
 		GlobalConfig gc = new() { PerforceClusters = [perforceCluster] };
 		return gc;
 	}
@@ -95,7 +95,7 @@ public class PerforceLoadBalancerTests : TestSetup
 			_ => GetHealthCheckJson("this-is-not-valid"),
 		};
 	}
-	
+
 	private static string GetHealthCheckJson(string output)
 	{
 		string result = """{"checker": "edge_traffic_lights", "output": "%OUTPUT%"}""".Replace("%OUTPUT%", output, StringComparison.Ordinal);
@@ -113,11 +113,11 @@ public class PerforceLoadBalancerTests : TestSetup
 	private PerforceLoadBalancer Create(GlobalConfig gc, string httpCheckResponse)
 	{
 #pragma warning disable CA2000 // Dispose objects before losing scope
-		HttpClient httpClient = new (new StubMessageHandler(HttpStatusCode.OK, httpCheckResponse));
+		HttpClient httpClient = new(new StubMessageHandler(HttpStatusCode.OK, httpCheckResponse));
 		return new(MongoService, GetRedisServiceSingleton(), LeaseCollection, Clock, httpClient, new TestOptionsMonitor<GlobalConfig>(gc), new FakeHealthMonitor<PerforceLoadBalancer>(), Tracer, _logger);
 #pragma warning restore CA2000 // Dispose objects before losing scope		
 	}
-	
+
 	private class StubMessageHandler(HttpStatusCode statusCode, string content) : HttpMessageHandler
 	{
 		public string Content { get; set; } = content;

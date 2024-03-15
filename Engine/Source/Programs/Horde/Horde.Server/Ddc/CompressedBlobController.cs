@@ -53,7 +53,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
 			if (result != null)
 			{
 				return result;
@@ -90,14 +90,14 @@ namespace Horde.Server.Ddc
 				return NotFound(new ValidationProblemDetails { Title = $"Content Id {e.ContentId} not found" });
 			}
 		}
-		
+
 		[HttpHead("{ns}/{id}")]
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> HeadAsync(
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
 			if (result != null)
 			{
 				return result;
@@ -131,9 +131,9 @@ namespace Horde.Server.Ddc
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> ExistsMultipleAsync(
 			[Required] NamespaceId ns,
-			[Required] [FromQuery] List<ContentId> id)
+			[Required][FromQuery] List<ContentId> id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
 			if (result != null)
 			{
 				return result;
@@ -165,8 +165,8 @@ namespace Horde.Server.Ddc
 
 			List<ContentId> needs = new List<ContentId>(invalidContentIds);
 			needs.AddRange(partialContentIds);
-			 
-			return Ok(new ExistCheckMultipleContentIdResponse { Needs = needs.ToArray()});
+
+			return Ok(new ExistCheckMultipleContentIdResponse { Needs = needs.ToArray() });
 		}
 
 		[HttpPost("{ns}/exist")]
@@ -175,7 +175,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[FromBody] ContentId[] bodyIds)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
 			if (result != null)
 			{
 				return result;
@@ -207,8 +207,8 @@ namespace Horde.Server.Ddc
 
 			List<ContentId> needs = new List<ContentId>(invalidContentIds);
 			needs.AddRange(partialContentIds);
-			 
-			return Ok(new ExistCheckMultipleContentIdResponse { Needs = needs.ToArray()});
+
+			return Ok(new ExistCheckMultipleContentIdResponse { Needs = needs.ToArray() });
 		}
 
 		[HttpPut("{ns}/{id}")]
@@ -219,7 +219,7 @@ namespace Horde.Server.Ddc
 			[Required] ContentId id,
 			CancellationToken cancellationToken)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.WriteBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
 			if (result != null)
 			{
 				return result;
@@ -256,7 +256,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			CancellationToken cancellationToken)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.WriteBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
 			if (result != null)
 			{
 				return result;

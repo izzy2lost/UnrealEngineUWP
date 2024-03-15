@@ -13,21 +13,50 @@ using Amazon.CloudWatch;
 using Amazon.EC2;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.ObjectStores;
+using Horde.Server.Accounts;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
+using Horde.Server.Agents.Enrollment;
+using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
+using Horde.Server.Agents.Pools;
+using Horde.Server.Agents.Relay;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Streams;
+using Horde.Server.Agents.Utilization;
+using Horde.Server.Artifacts;
+using Horde.Server.Auditing;
+using Horde.Server.Compute;
+using Horde.Server.Configuration;
+using Horde.Server.Dashboard;
+using Horde.Server.Devices;
 using Horde.Server.Issues;
 using Horde.Server.Jobs;
+using Horde.Server.Jobs.Artifacts;
+using Horde.Server.Jobs.Bisect;
+using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.Schedules;
+using Horde.Server.Jobs.Templates;
+using Horde.Server.Jobs.TestData;
+using Horde.Server.Jobs.Timing;
 using Horde.Server.Logs;
+using Horde.Server.Logs.Storage;
 using Horde.Server.Notifications;
+using Horde.Server.Perforce;
 using Horde.Server.Server;
 using Horde.Server.Storage;
+using Horde.Server.Streams;
+using Horde.Server.Tasks;
+using Horde.Server.Telemetry;
+using Horde.Server.Telemetry.Sinks;
+using Horde.Server.Tests.Server;
 using Horde.Server.Tests.Stubs.Services;
 using Horde.Server.Tools;
+using Horde.Server.Ugs;
+using Horde.Server.Users;
 using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.AspNetCore.Http;
@@ -38,38 +67,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Horde.Server.Users;
-using Horde.Server.Ugs;
-using Horde.Server.Jobs.Timing;
-using Horde.Server.Configuration;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.TestData;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Jobs.Artifacts;
-using Horde.Server.Jobs.Schedules;
-using Horde.Server.Perforce;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Agents.Relay;
-using Horde.Server.Agents.Utilization;
-using Horde.Server.Logs.Storage;
-using Horde.Server.Tasks;
-using Horde.Server.Auditing;
-using Horde.Server.Devices;
-using Moq;
-using Horde.Server.Telemetry;
-using Horde.Server.Artifacts;
-using Horde.Server.Compute;
-using Horde.Server.Dashboard;
-using OpenTelemetry.Trace;
-using Horde.Server.Jobs.Bisect;
-using Horde.Server.Telemetry.Sinks;
-using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Storage.ObjectStores;
-using Horde.Server.Tests.Server;
-using Horde.Server.Agents.Enrollment;
-using Horde.Server.Accounts;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EpicGames.Horde.Storage.Bundles;
+using Moq;
+using OpenTelemetry.Trace;
 
 namespace Horde.Server.Tests
 {
@@ -91,11 +91,11 @@ namespace Horde.Server.Tests
 		public IJobStepRefCollection JobStepRefCollection => ServiceProvider.GetRequiredService<IJobStepRefCollection>();
 		public IJobTimingCollection JobTimingCollection => ServiceProvider.GetRequiredService<IJobTimingCollection>();
 		public IUgsMetadataCollection UgsMetadataCollection => ServiceProvider.GetRequiredService<IUgsMetadataCollection>();
-		public IIssueCollection IssueCollection => ServiceProvider.GetRequiredService <IIssueCollection>();
-		public IPoolCollection PoolCollection => ServiceProvider.GetRequiredService <IPoolCollection>();
-		public ILeaseCollection LeaseCollection => ServiceProvider.GetRequiredService <ILeaseCollection>();
+		public IIssueCollection IssueCollection => ServiceProvider.GetRequiredService<IIssueCollection>();
+		public IPoolCollection PoolCollection => ServiceProvider.GetRequiredService<IPoolCollection>();
+		public ILeaseCollection LeaseCollection => ServiceProvider.GetRequiredService<ILeaseCollection>();
 		public ILogFileCollection LogFileCollection => ServiceProvider.GetRequiredService<ILogFileCollection>();
-		public ISessionCollection SessionCollection => ServiceProvider.GetRequiredService <ISessionCollection>();
+		public ISessionCollection SessionCollection => ServiceProvider.GetRequiredService<ISessionCollection>();
 		public ITestDataCollection TestDataCollection => ServiceProvider.GetRequiredService<ITestDataCollection>();
 		public IUserCollection UserCollection => ServiceProvider.GetRequiredService<IUserCollection>();
 		public IDeviceCollection DeviceCollection => ServiceProvider.GetRequiredService<IDeviceCollection>();
@@ -243,7 +243,7 @@ namespace Horde.Server.Tests
 			services.AddSingleton<IClock>(sp => sp.GetRequiredService<FakeClock>());
 			services.AddSingleton<IHostApplicationLifetime, AppLifetimeStub>();
 			services.AddSingleton<IHostEnvironment, WebHostEnvironmentStub>();
-			
+
 			// Empty mocked object to satisfy basic test runs
 			services.AddSingleton<IAmazonEC2>(sp => new Mock<IAmazonEC2>().Object);
 			services.AddSingleton<IAmazonAutoScaling>(sp => new Mock<IAmazonAutoScaling>().Object);
@@ -303,11 +303,11 @@ namespace Horde.Server.Tests
 		}
 
 		private JobsController GetJobsController()
-        {
+		{
 			JobsController jobsCtrl = ActivatorUtilities.CreateInstance<JobsController>(ServiceProvider);
-	        jobsCtrl.ControllerContext = GetControllerContext();
-	        return jobsCtrl;
-        }
+			jobsCtrl.ControllerContext = GetControllerContext();
+			return jobsCtrl;
+		}
 
 		private DevicesController GetDevicesController()
 		{
@@ -343,21 +343,21 @@ namespace Horde.Server.Tests
 			agentCtrl.ControllerContext = GetControllerContext();
 			return agentCtrl;
 		}
-		
+
 		private PoolsController GetPoolsController()
 		{
 			PoolsController controller = ActivatorUtilities.CreateInstance<PoolsController>(ServiceProvider);
 			controller.ControllerContext = GetControllerContext();
 			return controller;
 		}
-		
+
 		private LeasesController GetLeasesController()
 		{
 			LeasesController controller = ActivatorUtilities.CreateInstance<LeasesController>(ServiceProvider);
 			controller.ControllerContext = GetControllerContext();
 			return controller;
 		}
-		
+
 		private static ControllerContext GetControllerContext()
 		{
 			ControllerContext controllerContext = new ControllerContext();
@@ -366,13 +366,13 @@ namespace Horde.Server.Tests
 				new List<Claim> { HordeClaims.AdminClaim.ToClaim() }, "TestAuthType"));
 			return controllerContext;
 		}
-		
+
 		private static int s_agentIdCounter = 1;
 		public Task<IAgent> CreateAgentAsync(IPool pool, bool enabled = true, bool requestShutdown = false, List<string>? properties = null, TimeSpan? adjustClockBy = null)
 		{
 			return CreateAgentAsync(pool.Id, enabled, requestShutdown, properties, adjustClockBy);
 		}
-		
+
 		/// <summary>
 		/// Helper function for setting up agents to be used in tests
 		/// </summary>
@@ -395,7 +395,7 @@ namespace Horde.Server.Tests
 				Clock.UtcNow = now + adjustClockBy.Value;
 			}
 
-			Dictionary<string,int> resources = new ();
+			Dictionary<string, int> resources = new();
 			List<string> tempProps = new(properties ?? new List<string>());
 			if (awsInstanceId != null)
 			{
@@ -420,7 +420,7 @@ namespace Horde.Server.Tests
 			{
 				await AgentCollection.TryAddLeaseAsync(agent, lease);
 			}
-			
+
 			Clock.UtcNow = now;
 			return agent;
 		}
@@ -441,38 +441,38 @@ namespace Horde.Server.Tests
 			s_datadogWriterPatched = true;
 
 			string msg = "Unable to patch Datadog agent writer! Tests will still work, but shutdown will block for +20 seconds.";
-			
+
 			FieldInfo? agentWriterField = Datadog.Trace.Tracer.Instance.GetType().GetField("_agentWriter", BindingFlags.NonPublic | BindingFlags.Instance);
 			if (agentWriterField == null)
 			{
 				Console.Error.WriteLine(msg);
 				return;
 			}
-			
+
 			object? agentWriterInstance = agentWriterField.GetValue(Datadog.Trace.Tracer.Instance);
 			if (agentWriterInstance == null)
 			{
 				Console.Error.WriteLine(msg);
-				return;	
+				return;
 			}
-	        
+
 			FieldInfo? processExitField = agentWriterInstance.GetType().GetField("_processExit", BindingFlags.NonPublic | BindingFlags.Instance);
 			if (processExitField == null)
 			{
 				Console.Error.WriteLine(msg);
 				return;
 			}
-			
-			TaskCompletionSource<bool>? processExitInstance = (TaskCompletionSource<bool>?) processExitField.GetValue(agentWriterInstance);
+
+			TaskCompletionSource<bool>? processExitInstance = (TaskCompletionSource<bool>?)processExitField.GetValue(agentWriterInstance);
 			if (processExitInstance == null)
 			{
 				Console.Error.WriteLine(msg);
 				return;
 			}
-			
+
 			processExitInstance.TrySetResult(true);
 		}
-		
+
 		/// <summary>
 		/// Find an available TCP/IP port
 		/// </summary>
@@ -498,7 +498,7 @@ namespace Horde.Server.Tests
 				builder.SetMinimumLevel(LogLevel.Debug);
 				builder.AddSimpleConsole(options => { options.SingleLine = true; });
 			});
-			
+
 			return loggerFactory.CreateLogger<T>();
 		}
 
@@ -508,7 +508,7 @@ namespace Horde.Server.Tests
 			return await PoolCollection.GetAsync(poolConfig.Id) ?? throw new NotImplementedException();
 		}
 	}
-	
+
 	public class DowntimeServiceStub : IDowntimeService
 	{
 		public DowntimeServiceStub(bool isDowntimeActive = false)

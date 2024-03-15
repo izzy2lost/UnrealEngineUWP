@@ -31,11 +31,11 @@ namespace Horde.Agent.Commands.Service
 		[CommandLine("-Server=")]
 		[Description("The server profile to use")]
 		public string? Server { get; set; } = null;
-		
+
 		[CommandLine("-DotNetExecutable=")]
 		[Description("Path to dotnet executable (dotnet.exe on Windows). When left empty, the value of \"dotnet\" will be used.")]
 		public string DotNetExecutable { get; set; } = "dotnet";
-		
+
 		[CommandLine("-Start=")]
 		[Description("Whether to start the service after installation (true/false)")]
 		public string? Start { get; set; } = "true";
@@ -52,7 +52,7 @@ namespace Horde.Agent.Commands.Service
 				logger.LogError("This command requires Windows");
 				return Task.FromResult(1);
 			}
-			
+
 			using (WindowsServiceManager serviceManager = new WindowsServiceManager())
 			{
 				using (WindowsService service = serviceManager.Open(ServiceName))
@@ -76,7 +76,7 @@ namespace Horde.Agent.Commands.Service
 
 				logger.LogInformation("Registering {ServiceName} service", ServiceName);
 
-				StringBuilder commandLine = new ();
+				StringBuilder commandLine = new();
 				if (AgentApp.IsSelfContained)
 				{
 					if (Environment.ProcessPath == null)
@@ -92,8 +92,8 @@ namespace Horde.Agent.Commands.Service
 					commandLine.AppendFormat("{0} \"{1}\" service run", DotNetExecutable, Assembly.GetEntryAssembly()!.Location);
 #pragma warning restore IL3000 // Avoid accessing Assembly file path when publishing as a single file					
 				}
-				
-				if(Server != null)
+
+				if (Server != null)
 				{
 					commandLine.Append($" -server={Server}");
 				}
@@ -106,7 +106,7 @@ namespace Horde.Agent.Commands.Service
 					{
 						logger.LogInformation("Starting...");
 						service.Start();
-						
+
 						WindowsServiceStatus status = service.WaitForStatusChange(WindowsServiceStatus.Starting, TimeSpan.FromSeconds(30.0));
 						if (status != WindowsServiceStatus.Running)
 						{

@@ -76,7 +76,7 @@ namespace Horde.Server.Jobs.Graphs
 			public Node(string name, NodeOutputRef[]? inputs, string[]? outputNames, NodeRef[] inputDependencies, NodeRef[] orderDependencies, Priority priority, bool allowRetry, bool runEarly, bool warnings, Dictionary<string, string>? credentials, Dictionary<string, string>? properties, IReadOnlyNodeAnnotations? annotations)
 			{
 				Name = name;
-				Inputs = (inputs != null && inputs.Length > 0) ? inputs: null;
+				Inputs = (inputs != null && inputs.Length > 0) ? inputs : null;
 				OutputNames = (outputNames != null && outputNames.Length > 0) ? outputNames : null;
 				InputDependencies = inputDependencies;
 				OrderDependencies = orderDependencies;
@@ -376,7 +376,7 @@ namespace Horde.Server.Jobs.Graphs
 		{
 			_graphs = mongoService.GetCollection<GraphDocument>("Graphs");
 		}
-		
+
 		/// <inheritdoc/>
 		public void Dispose()
 		{

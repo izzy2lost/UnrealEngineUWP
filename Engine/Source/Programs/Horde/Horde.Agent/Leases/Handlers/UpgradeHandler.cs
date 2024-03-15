@@ -66,17 +66,17 @@ namespace Horde.Agent.Leases.Handlers
 				//				}
 
 				// Get the current process and assembly. This may be different if running through dotnet.exe rather than a native PE image.
-				DirectoryReference targetDir = new (AppContext.BaseDirectory);
+				DirectoryReference targetDir = new(AppContext.BaseDirectory);
 				StringBuilder currentArguments = new StringBuilder();
-				
+
 				foreach (string arg in AgentApp.Args)
 				{
 					currentArguments.AppendArgument(arg);
 				}
-				
+
 				bool isUpdateSelfContained = !FileReference.Exists(FileReference.Combine(extractedDir, "HordeAgent.dll"));
 
-				StringBuilder arguments = new ();
+				StringBuilder arguments = new();
 				string executable;
 				if (AgentApp.IsSelfContained)
 				{
@@ -103,9 +103,9 @@ namespace Horde.Agent.Leases.Handlers
 				else
 				{
 #pragma warning disable IL3000 // Avoid accessing Assembly file path when publishing as a single file
-					FileReference assemblyFileName = new (Assembly.GetExecutingAssembly().Location);
+					FileReference assemblyFileName = new(Assembly.GetExecutingAssembly().Location);
 #pragma warning restore IL3000 // Avoid accessing Assembly file path when publishing as a single file
-					
+
 					// New unpacked agent is not self-contained, launch the upgrade command via "dotnet" external executable
 					executable = "dotnet";
 					FileReference newAssemblyFileName = FileReference.Combine(extractedDir, assemblyFileName.MakeRelativeTo(targetDir));
@@ -117,7 +117,7 @@ namespace Horde.Agent.Leases.Handlers
 
 					arguments.AppendArgument(newAssemblyFileName.FullName);
 				}
-				
+
 				arguments.AppendArgument("Service");
 				arguments.AppendArgument("Upgrade");
 				arguments.AppendArgument("-ProcessId=", Environment.ProcessId.ToString());

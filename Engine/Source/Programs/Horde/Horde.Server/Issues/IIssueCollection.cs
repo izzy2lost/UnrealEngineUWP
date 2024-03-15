@@ -3,19 +3,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Issues;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Logs;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using Horde.Server.Auditing;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using EpicGames.Horde.Issues;
-using EpicGames.Horde.Users;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
-using System.Threading;
 
 namespace Horde.Server.Issues
 {
@@ -40,7 +40,7 @@ namespace Horde.Server.Issues
 		public HashSet<IssueKey> RejectKeys { get; set; } = new HashSet<IssueKey>();
 
 		/// <inheritdoc/>
-		IReadOnlySet<IssueKey>? IIssueFingerprint.RejectKeys => (RejectKeys.Count > 0)? RejectKeys : null;
+		IReadOnlySet<IssueKey>? IIssueFingerprint.RejectKeys => (RejectKeys.Count > 0) ? RejectKeys : null;
 
 		/// <inheritdoc/>
 		public HashSet<IssueMetadata> Metadata { get; set; } = new HashSet<IssueMetadata>();

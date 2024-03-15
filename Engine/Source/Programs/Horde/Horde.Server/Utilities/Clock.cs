@@ -208,7 +208,7 @@ namespace HordeCommon
 						}
 
 						TimeSpan? nextDelay = await triggerAsync(_cancellationSource.Token);
-						if(nextDelay == null)
+						if (nextDelay == null)
 						{
 							break;
 						}
@@ -285,7 +285,7 @@ namespace HordeCommon
 
 		async ValueTask TriggerSharedAsync(string name, RedisKey key, TimeSpan interval, Func<CancellationToken, ValueTask> tickAsync, CancellationToken cancellationToken)
 		{
-			using (RedisLock sharedLock = new (_redis.GetDatabase(), key))
+			using (RedisLock sharedLock = new(_redis.GetDatabase(), key))
 			{
 				if (await sharedLock.AcquireAsync(interval, false))
 				{
@@ -398,9 +398,9 @@ namespace HordeCommon
 
 		/// <inheritdoc/>
 		public DateTime UtcNow
-		{ 
+		{
 			get => _utcNowPrivate;
-			set => _utcNowPrivate = value.ToUniversalTime(); 
+			set => _utcNowPrivate = value.ToUniversalTime();
 		}
 
 		/// <inheritdoc/>

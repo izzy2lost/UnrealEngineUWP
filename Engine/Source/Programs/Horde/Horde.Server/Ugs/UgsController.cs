@@ -5,17 +5,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Users;
-using Horde.Server.Logs;
+using EpicGames.Horde.Issues;
+using EpicGames.Horde.Logs;
+using EpicGames.Horde.Users;
 using Horde.Server.Issues;
+using Horde.Server.Logs;
+using Horde.Server.Users;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
-using EpicGames.Horde.Users;
-using EpicGames.Horde.Logs;
-using EpicGames.Horde.Issues;
 
 namespace Horde.Server.Ugs
 {
@@ -126,9 +126,9 @@ namespace Horde.Server.Ugs
 		public async Task<GetUgsMetadataListResponse> FindMetadataAsync([FromQuery] string stream, [FromQuery(Name = "change")] List<int>? changes = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery(Name = "project")] List<string>? projects = null, [FromQuery] long? sequence = null)
 		{
 			List<IUgsMetadata> metadataList = await _ugsMetadataCollection.FindAsync(stream, changes, minChange, maxChange, sequence);
-		
+
 			GetUgsMetadataListResponse response = new GetUgsMetadataListResponse();
-			if(sequence != null)
+			if (sequence != null)
 			{
 				response.SequenceNumber = sequence.Value;
 			}
@@ -172,7 +172,7 @@ namespace Horde.Server.Ugs
 			if (includeResolved)
 			{
 				IReadOnlyList<IIssue> issues = await _issueService.Collection.FindIssuesAsync(null, resolved: null, count: maxResults, cancellationToken: cancellationToken);
-				foreach(IIssue issue in issues)
+				foreach (IIssue issue in issues)
 				{
 					IIssueDetails details = await _issueService.GetIssueDetailsAsync(issue, cancellationToken);
 					bool notify = userInfo != null && details.Suspects.Any(x => x.AuthorId == userInfo.Id);
@@ -278,7 +278,7 @@ namespace Horde.Server.Ugs
 			foreach (ILogEvent logEvent in events)
 			{
 				ILogFile? logFile;
-				if(!logFiles.TryGetValue(logEvent.LogId, out logFile))
+				if (!logFiles.TryGetValue(logEvent.LogId, out logFile))
 				{
 					logFile = await _logFileService.GetLogFileAsync(logEvent.LogId, cancellationToken);
 					logFiles.Add(logEvent.LogId, logFile);

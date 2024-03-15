@@ -222,7 +222,7 @@ namespace Horde.Server.Configuration
 					{
 						file = overrideFile;
 					}
-					else 
+					else
 					{
 						file = (await _inner.GetAsync(new[] { uris[idx] }, cancellationToken))[0];
 					}
@@ -248,7 +248,7 @@ namespace Horde.Server.Configuration
 			{
 				overrideSources.Add(schema, new OverrideConfigSource(source, overrideFiles));
 			}
-		
+
 			ConfigContext context = new ConfigContext(_jsonOptions, overrideSources, NullLogger.Instance);
 			try
 			{
@@ -475,19 +475,19 @@ namespace Horde.Server.Configuration
 
 			if (isPerforcePath)
 			{
-				return ConfigType.CombinePaths(new Uri(FileReference.Combine(new DirectoryReference(defaultConfigDir), "_").FullName), configPath);				
+				return ConfigType.CombinePaths(new Uri(FileReference.Combine(new DirectoryReference(defaultConfigDir), "_").FullName), configPath);
 			}
 
 			if (isAbsPath)
 			{
 				return new UriBuilder("file", String.Empty) { Path = configPath }.Uri;
 			}
-			
+
 			// Path is relative
 			FileReference fileReference = FileReference.Combine(new DirectoryReference(defaultConfigDir), configPath);
 			return new UriBuilder("file", String.Empty) { Path = fileReference.FullName }.Uri;
 		}
-		
+
 		/// <summary>
 		/// Get the appropriate update interval for checking of new config updates
 		/// </summary>
@@ -580,7 +580,7 @@ namespace Horde.Server.Configuration
 		{
 			return JsonSerializer.SerializeToUtf8Bytes(config, _jsonOptions);
 		}
-		
+
 		internal GlobalConfig? Deserialize(byte[] data)
 		{
 			return JsonSerializer.Deserialize<GlobalConfig>(data, _jsonOptions);
@@ -613,7 +613,7 @@ namespace Horde.Server.Configuration
 			}
 
 			// Group the dependencies by scheme in order to allow the source to batch-query them
-			foreach(IGrouping<string, KeyValuePair<Uri, string>> group in snapshot.Dependencies.GroupBy(x => x.Key.Scheme))
+			foreach (IGrouping<string, KeyValuePair<Uri, string>> group in snapshot.Dependencies.GroupBy(x => x.Key.Scheme))
 			{
 				KeyValuePair<Uri, string>[] pairs = group.ToArray();
 

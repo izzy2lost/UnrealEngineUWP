@@ -36,7 +36,7 @@ namespace Horde.Server.Agents.Fleet.Providers
 			Name = name ?? throw new ArgumentException($"Parameter {nameof(name)} is null");
 		}
 	}
-	
+
 	/// <summary>
 	/// Fleet manager for handling AWS EC2 instances
 	/// Uses an EC2 auto-scaling group for controlling the number of running instances.
@@ -63,13 +63,13 @@ namespace Horde.Server.Agents.Fleet.Providers
 		public async Task<ScaleResult> ExpandPoolAsync(IPool pool, IReadOnlyList<IAgent> agents, int count, CancellationToken cancellationToken)
 		{
 			int desiredCapacity = agents.Count + count;
-			
+
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AwsAsgFleetManager)}.{nameof(ExpandPoolAsync)}");
 			span.SetAttribute("poolName", pool.Name);
 			span.SetAttribute("numAgents", agents.Count);
 			span.SetAttribute("count", count);
 			span.SetAttribute("desiredCapacity", desiredCapacity);
-			
+
 			await UpdateAsgAsync(pool.Id, desiredCapacity, span, cancellationToken);
 			return new ScaleResult(FleetManagerOutcome.Success, count, 0);
 		}
@@ -78,23 +78,22 @@ namespace Horde.Server.Agents.Fleet.Providers
 		public async Task<ScaleResult> ShrinkPoolAsync(IPool pool, IReadOnlyList<IAgent> agents, int count, CancellationToken cancellationToken)
 		{
 			int desiredCapacity = Math.Max(0, agents.Count - count);
-			
-			
+
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AwsAsgFleetManager)}.{nameof(ShrinkPoolAsync)}");
 			span.SetAttribute("poolName", pool.Name);
 			span.SetAttribute("numAgents", agents.Count);
 			span.SetAttribute("count", count);
 			span.SetAttribute("desiredCapacity", desiredCapacity);
-			
+
 			await UpdateAsgAsync(pool.Id, desiredCapacity, span, cancellationToken);
 			return new ScaleResult(FleetManagerOutcome.Success, 0, count);
 		}
-		
+
 		private async Task UpdateAsgAsync(PoolId poolId, int desiredCapacity, TelemetrySpan span, CancellationToken cancellationToken)
 		{
-			UpdateAutoScalingGroupRequest request = new () { AutoScalingGroupName = Settings.Name, DesiredCapacity = desiredCapacity };
+			UpdateAutoScalingGroupRequest request = new() { AutoScalingGroupName = Settings.Name, DesiredCapacity = desiredCapacity };
 			UpdateAutoScalingGroupResponse response = await _awsAutoScaling.UpdateAutoScalingGroupAsync(request, cancellationToken);
-			
+
 			span.SetAttribute("res.statusCode", (int)response.HttpStatusCode);
 			if (response.HttpStatusCode != HttpStatusCode.OK)
 			{

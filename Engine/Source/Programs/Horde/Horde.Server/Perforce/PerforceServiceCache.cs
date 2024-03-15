@@ -478,7 +478,7 @@ namespace Horde.Server.Perforce
 
 				if (changeNumbers.Count == 0)
 				{
-					return modified? state : null;
+					return modified ? state : null;
 				}
 
 				// If we've retrieved the maximum number of changes from the server, we no longer have a complete chronological cache and need to reset it.

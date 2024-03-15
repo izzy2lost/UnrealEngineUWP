@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
 using System;
-using EpicGames.Horde.Jobs.Templates;
-using MongoDB.Bson;
-using EpicGames.Horde.Streams;
+using System.Collections.Generic;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using MongoDB.Bson;
 
 namespace Horde.Server.Jobs.TestData
 {
@@ -201,7 +201,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// The environment the test ran in
 		/// </summary>
-		TestMetaId Metadata { get; }	
+		TestMetaId Metadata { get; }
 
 		/// <summary>
 		/// The ITest in stream
@@ -255,7 +255,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// Suite test data
 		/// </summary>		
-		IReadOnlyList<ISuiteTestData>? SuiteTests { get; } 
+		IReadOnlyList<ISuiteTestData>? SuiteTests { get; }
 	}
 
 	/// <summary>
@@ -276,7 +276,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// Test suite ids
 		/// </summary>
-		IReadOnlyList<TestSuiteId> TestSuites { get; } 
+		IReadOnlyList<TestSuiteId> TestSuites { get; }
 	}
 
 	/// <summary>

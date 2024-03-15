@@ -1,20 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Threading;
 using System;
-using EpicGames.Core;
-using Horde.Server.Server;
-using EpicGames.Redis;
-using StackExchange.Redis;
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Hosting;
-using HordeCommon;
-using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
 using System.Globalization;
-using Microsoft.Extensions.Options;
+using System.Threading;
+using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Logs;
+using EpicGames.Redis;
+using Horde.Server.Server;
+using HordeCommon;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
 namespace Horde.Server.Logs
 {

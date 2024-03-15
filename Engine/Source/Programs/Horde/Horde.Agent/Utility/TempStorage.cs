@@ -1,5 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
+using System.Xml;
+using System.Xml.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Artifacts;
@@ -10,11 +15,6 @@ using EpicGames.Horde.Storage.Nodes;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
 using Microsoft.Extensions.Logging;
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Text;
-using System.Xml;
-using System.Xml.Serialization;
 
 #pragma warning disable CA1819 // Properties should not return arrays
 
@@ -149,11 +149,11 @@ namespace Horde.Storage.Utility
 		{
 			// Check the file exists and is in the right location
 			FileReference file = new FileReference(fileInfo);
-			if(!file.IsUnderDirectory(rootDir))
+			if (!file.IsUnderDirectory(rootDir))
 			{
 				throw new TempStorageException($"Attempt to add file to temp storage manifest that is outside the root directory ({file.FullName})");
 			}
-			if(!fileInfo.Exists)
+			if (!fileInfo.Exists)
 			{
 				throw new TempStorageException($"Attempt to add file to temp storage manifest that does not exist ({file.FullName})");
 			}
@@ -177,9 +177,9 @@ namespace Horde.Storage.Utility
 		public bool Compare(DirectoryReference rootDir, ILogger logger)
 		{
 			string? message;
-			if(Compare(rootDir, out message))
+			if (Compare(rootDir, out message))
 			{
-				if(message != null)
+				if (message != null)
 				{
 					logger.LogInformation("{Message}", message);
 				}
@@ -187,7 +187,7 @@ namespace Horde.Storage.Utility
 			}
 			else
 			{
-				if(message != null)
+				if (message != null)
 				{
 					logger.LogError("{Message}", message);
 				}
@@ -207,16 +207,16 @@ namespace Horde.Storage.Utility
 
 			// Get the local file info, and check it exists
 			FileInfo info = new FileInfo(localFile.FullName);
-			if(!info.Exists)
+			if (!info.Exists)
 			{
 				message = String.Format("Missing file from manifest - {0}", RelativePath);
 				return false;
 			}
 
 			// Check the size matches
-			if(info.Length != Length)
+			if (info.Length != Length)
 			{
-				if(TempStorage.IsDuplicateBuildProduct(localFile))
+				if (TempStorage.IsDuplicateBuildProduct(localFile))
 				{
 					message = String.Format("Ignored file size mismatch for {0} - was {1} bytes, expected {2} bytes", RelativePath, info.Length, Length);
 					return true;
@@ -321,7 +321,7 @@ namespace Horde.Storage.Utility
 		/// <summary>
 		/// Construct a static Xml serializer to avoid throwing an exception searching for the reflection info at runtime
 		/// </summary>
-		static readonly XmlSerializer s_serializer = XmlSerializer.FromTypes(new Type[]{ typeof(TempStorageBlockManifest) })[0]!;
+		static readonly XmlSerializer s_serializer = XmlSerializer.FromTypes(new Type[] { typeof(TempStorageBlockManifest) })[0]!;
 
 		/// <summary>
 		/// Construct an empty temp storage manifest
@@ -356,7 +356,7 @@ namespace Horde.Storage.Utility
 		public long GetTotalSize()
 		{
 			long result = 0;
-			foreach(TempStorageFile file in Files)
+			foreach (TempStorageFile file in Files)
 			{
 				result += file.Length;
 			}
@@ -385,7 +385,7 @@ namespace Horde.Storage.Utility
 		/// <param name="file">File to save</param>
 		public void Save(FileReference file)
 		{
-			using(StreamWriter writer = new StreamWriter(file.FullName))
+			using (StreamWriter writer = new StreamWriter(file.FullName))
 			{
 				XmlWriterSettings writerSettings = new() { Indent = true };
 				using (XmlWriter xmlWriter = XmlWriter.Create(writer, writerSettings))
@@ -426,7 +426,7 @@ namespace Horde.Storage.Utility
 		/// <summary>
 		/// Construct a static Xml serializer to avoid throwing an exception searching for the reflection info at runtime
 		/// </summary>
-		static readonly XmlSerializer s_serializer = XmlSerializer.FromTypes(new Type[]{ typeof(TempStorageTagManifest) })[0]!;
+		static readonly XmlSerializer s_serializer = XmlSerializer.FromTypes(new Type[] { typeof(TempStorageTagManifest) })[0]!;
 
 		/// <summary>
 		/// Construct an empty file list for deserialization
@@ -461,9 +461,9 @@ namespace Horde.Storage.Utility
 		{
 			List<string> newLocalFiles = new List<string>();
 			List<string> newExternalFiles = new List<string>();
-			foreach(FileReference file in files)
+			foreach (FileReference file in files)
 			{
-				if(file.IsUnderDirectory(rootDir))
+				if (file.IsUnderDirectory(rootDir))
 				{
 					newLocalFiles.Add(file.MakeRelativeTo(rootDir).Replace(Path.DirectorySeparatorChar, '/'));
 				}
@@ -484,7 +484,7 @@ namespace Horde.Storage.Utility
 		/// <param name="file">File to load</param>
 		public static TempStorageTagManifest Load(FileReference file)
 		{
-			using(StreamReader reader = new StreamReader(file.FullName))
+			using (StreamReader reader = new StreamReader(file.FullName))
 			{
 				XmlReaderSettings settings = new XmlReaderSettings();
 				using (XmlReader xmlReader = XmlReader.Create(reader, settings))
@@ -728,7 +728,7 @@ namespace Horde.Storage.Utility
 
 			// Read the manifest, either from local storage or shared storage
 			TempStorageBlockManifest? manifest;
-			if(local)
+			if (local)
 			{
 				logger.LogInformation("Reading block manifest from {File}", localManifestFile.FullName);
 				manifest = TempStorageBlockManifest.Load(localManifestFile);
@@ -790,11 +790,11 @@ namespace Horde.Storage.Utility
 
 			// Check all the local files are as expected
 			bool allMatch = true;
-			foreach(TempStorageFile file in manifest.Files)
+			foreach (TempStorageFile file in manifest.Files)
 			{
 				allMatch &= file.Compare(rootDir, logger);
 			}
-			if(!allMatch)
+			if (!allMatch)
 			{
 				throw new TempStorageException("Files have been modified");
 			}
@@ -809,7 +809,7 @@ namespace Horde.Storage.Utility
 		/// <param name="blockName">Name of the output block to get the manifest for</param>
 		public static FileReference GetBlockManifestLocation(DirectoryReference baseDir, string nodeName, string? blockName)
 		{
-			return FileReference.Combine(baseDir, nodeName, String.IsNullOrEmpty(blockName)? "Manifest.xml" : String.Format("Manifest-{0}.xml", blockName));
+			return FileReference.Combine(baseDir, nodeName, String.IsNullOrEmpty(blockName) ? "Manifest.xml" : String.Format("Manifest-{0}.xml", blockName));
 		}
 
 		/// <summary>

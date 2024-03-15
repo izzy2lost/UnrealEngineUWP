@@ -47,14 +47,14 @@ namespace Horde.Commands.Bundles
 
 			int packetIdx = 0;
 			int packetOffset = 0;
-			for(int exportIdx = 0; exportIdx < header.Exports.Count; exportIdx++)
+			for (int exportIdx = 0; exportIdx < header.Exports.Count; exportIdx++)
 			{
 				BundleExport export = header.Exports[exportIdx];
 				logger.LogInformation("  EXP [{ExportIdx}] EXP = hash: {ExportHash}, type: {Type}, length: {NumBytes:n0}, packet: {PacketIdx}", exportIdx, export.Hash, types[export.TypeIdx], export.Length, packetIdx);
 
 				if (Verbose)
 				{
-					for(int referenceIdx = 0; referenceIdx < export.References.Count; referenceIdx++)
+					for (int referenceIdx = 0; referenceIdx < export.References.Count; referenceIdx++)
 					{
 						BundleExportRef exportRef = export.References[referenceIdx];
 						logger.LogInformation("            REF {RefIdx,-3} -> {Node}", referenceIdx, $"{header.Imports[exportRef.ImportIdx]}#{exportRef.NodeIdx}");
@@ -62,7 +62,7 @@ namespace Horde.Commands.Bundles
 				}
 
 				packetOffset += export.Length;
-				if(packetOffset >= header.Packets[packetIdx].DecodedLength)
+				if (packetOffset >= header.Packets[packetIdx].DecodedLength)
 				{
 					packetIdx++;
 					packetOffset = 0;

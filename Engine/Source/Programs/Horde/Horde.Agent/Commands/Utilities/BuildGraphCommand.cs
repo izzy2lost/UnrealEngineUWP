@@ -74,7 +74,7 @@ namespace Horde.Agent.Commands.Utilities
 				while (span.Length > 0)
 				{
 					int idx = span.IndexOf((byte)'\n');
-					if(idx == -1)
+					if (idx == -1)
 					{
 						break;
 					}
@@ -89,7 +89,7 @@ namespace Horde.Agent.Commands.Utilities
 		/// <inheritdoc/>
 		public override void Configure(CommandLineArguments arguments, ILogger logger)
 		{
-			for(int idx = 0; idx < arguments.Count; idx++)
+			for (int idx = 0; idx < arguments.Count; idx++)
 			{
 				if (!arguments.HasBeenUsed(idx))
 				{
@@ -114,7 +114,7 @@ namespace Horde.Agent.Commands.Utilities
 				}
 
 				DirectoryReference? nextDir = baseDir.ParentDirectory;
-				if(nextDir == null)
+				if (nextDir == null)
 				{
 					logger.LogError("Unable to find RunUAT.bat in the current path");
 					return 1;

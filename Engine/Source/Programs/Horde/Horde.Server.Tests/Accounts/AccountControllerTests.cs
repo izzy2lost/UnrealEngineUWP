@@ -33,7 +33,7 @@ public class AccountControllerTest : IAsyncDisposable
 		_app = new FakeHordeWebApp(settings, allowAutoRedirect: false);
 		_accountCollection = _app.ServiceProvider.GetRequiredService<IAccountCollection>();
 	}
-	
+
 	public async ValueTask DisposeAsync()
 	{
 		await _app.DisposeAsync();
@@ -43,7 +43,7 @@ public class AccountControllerTest : IAsyncDisposable
 	[TestInitialize]
 	public async Task InitAsync()
 	{
-		List<IUserClaim> claims = new ()
+		List<IUserClaim> claims = new()
 		{
 			new UserClaim("myClaimType1", "myClaimValue1"),
 			new UserClaim("myClaimType2", "myClaimValue2")
@@ -58,7 +58,7 @@ public class AccountControllerTest : IAsyncDisposable
 		Assert.AreEqual(HttpStatusCode.OK, res.StatusCode);
 		Assert.IsTrue((await res.Content.ReadAsStringAsync()).Contains("<b>Login</b>"));
 	}
-	
+
 	[TestMethod]
 	public async Task NotLoggedIn_DefaultLoginRedirectsToUserPassFormAsync()
 	{
@@ -66,7 +66,7 @@ public class AccountControllerTest : IAsyncDisposable
 		Assert.AreEqual(HttpStatusCode.Found, res.StatusCode);
 		Assert.AreEqual("/account/login/horde?ReturnUrl=%2Faccount", res.Headers.Location!.PathAndQuery);
 	}
-	
+
 	[TestMethod]
 	public async Task NotLoggedIn_UserPassFormAsync()
 	{
@@ -74,7 +74,7 @@ public class AccountControllerTest : IAsyncDisposable
 		Assert.AreEqual(HttpStatusCode.OK, res.StatusCode);
 		Assert.IsTrue((await res.Content.ReadAsStringAsync()).Contains("<form action"));
 	}
-	
+
 	[TestMethod]
 	public async Task NotLoggedIn_BadCredentialsShowsErrorAsync()
 	{
@@ -90,7 +90,7 @@ public class AccountControllerTest : IAsyncDisposable
 			Assert.IsTrue((await res.Content.ReadAsStringAsync()).Contains("Invalid username or password"));
 		}
 	}
-	
+
 	[TestMethod]
 	public async Task NotLoggedIn_CorrectCredentialsLogsInAsync()
 	{
@@ -98,7 +98,7 @@ public class AccountControllerTest : IAsyncDisposable
 		Assert.AreEqual(HttpStatusCode.Redirect, res.StatusCode);
 		Assert.AreEqual("/", res.Headers.Location!.ToString());
 	}
-	
+
 	[TestMethod]
 	public async Task LoggedIn_ShowsCredentialsAsync()
 	{
@@ -113,11 +113,11 @@ public class AccountControllerTest : IAsyncDisposable
 
 	private async Task<HttpResponseMessage> LoginAsync(string username, string password, string? redirectUrl = null)
 	{
-		using StringContent sc = new ($"username={username}&password={password}", Encoding.UTF8, "application/x-www-form-urlencoded");
+		using StringContent sc = new($"username={username}&password={password}", Encoding.UTF8, "application/x-www-form-urlencoded");
 		string url = "account/login/horde";
 		if (redirectUrl != null)
 		{
-			url = QueryHelpers.AddQueryString("account/login/horde", "ReturnUrl", redirectUrl);	
+			url = QueryHelpers.AddQueryString("account/login/horde", "ReturnUrl", redirectUrl);
 		}
 		HttpResponseMessage response = await _app.HttpClient.PostAsync(url, sc);
 		return response;

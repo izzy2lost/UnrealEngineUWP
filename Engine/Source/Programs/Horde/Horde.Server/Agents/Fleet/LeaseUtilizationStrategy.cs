@@ -4,7 +4,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Pools;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
@@ -13,9 +16,6 @@ using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using OpenTelemetry.Trace;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Agents.Pools;
-using System.Threading;
 
 namespace Horde.Server.Agents.Fleet
 {
@@ -27,13 +27,13 @@ namespace Horde.Server.Agents.Fleet
 		/// <summary>
 		/// Time period for each sample
 		/// </summary>
-		public int SampleTimeSec { get; set;  } = 6 * 60;
-		
+		public int SampleTimeSec { get; set; } = 6 * 60;
+
 		/// <summary>
 		/// Number of samples to collect for calculating lease utilization
 		/// </summary>
-		public int NumSamples { get; set;  } = 10;
-		
+		public int NumSamples { get; set; } = 10;
+
 		/// <summary>
 		/// Min number of samples for a valid result
 		/// </summary>
@@ -52,7 +52,7 @@ namespace Horde.Server.Agents.Fleet
 		/// <inheritdoc />
 		public override string ToString()
 		{
-			StringBuilder sb = new (150);
+			StringBuilder sb = new(150);
 			sb.AppendFormat("{0}={1} ", nameof(SampleTimeSec), SampleTimeSec);
 			sb.AppendFormat("{0}={1} ", nameof(NumSamples), NumSamples);
 			sb.AppendFormat("{0}={1} ", nameof(NumSamplesForResult), NumSamplesForResult);
@@ -61,14 +61,14 @@ namespace Horde.Server.Agents.Fleet
 			return sb.ToString();
 		}
 	}
-	
+
 	/// <summary>
 	/// Calculate pool size by looking at previously finished leases
 	/// </summary>
 	public class LeaseUtilizationStrategy : IPoolSizeStrategy
 	{
 		private const string CacheKey = nameof(LeaseUtilizationStrategy);
-		
+
 		struct UtilizationSample
 		{
 			public double _jobWork;
@@ -79,7 +79,7 @@ namespace Horde.Server.Agents.Fleet
 		{
 			public IAgent Agent { get; }
 			public UtilizationSample[] Samples { get; }
-			public List<ILease> Leases { get; } = new ();
+			public List<ILease> Leases { get; } = new();
 			private readonly int _numSamples;
 
 			public AgentData(IAgent agent, int numSamples)
@@ -105,7 +105,7 @@ namespace Horde.Server.Agents.Fleet
 		class PoolData
 		{
 			public IPoolConfig Pool { get; }
-			public List<IAgent> Agents { get; } = new ();
+			public List<IAgent> Agents { get; } = new();
 			public UtilizationSample[] Samples { get; }
 
 			public PoolData(IPoolConfig pool, int numSamples)
@@ -124,9 +124,9 @@ namespace Horde.Server.Agents.Fleet
 				}
 			}
 		}
-		
+
 		internal LeaseUtilizationSettings Settings { get; }
-		
+
 		private readonly IAgentCollection _agentCollection;
 		private readonly IPoolCollection _poolCollection;
 		private readonly ILeaseCollection _leaseCollection;
@@ -155,7 +155,7 @@ namespace Horde.Server.Agents.Fleet
 		private async Task<Dictionary<AgentId, AgentData>> GetAgentDataAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(LeaseUtilizationStrategy)}.{nameof(GetAgentDataAsync)}");
-			
+
 			// Find all the current agents
 			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(status: AgentStatus.Ok, cancellationToken: cancellationToken);
 
@@ -174,7 +174,7 @@ namespace Horde.Server.Agents.Fleet
 					agentData.Leases.Add(lease);
 				}
 			}
-			
+
 			// Compute utilization for each agent
 			foreach (AgentData agentData in agentIdToData.Values)
 			{
@@ -200,7 +200,7 @@ namespace Horde.Server.Agents.Fleet
 			span.SetAttribute("agentDataCount", agentIdToData.Count);
 			return agentIdToData;
 		}
-		
+
 		private async Task<Dictionary<PoolId, PoolData>> GetPoolDataAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(LeaseUtilizationStrategy)}.{nameof(GetPoolDataAsync)}");
@@ -237,9 +237,9 @@ namespace Horde.Server.Agents.Fleet
 			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(LeaseUtilizationStrategy)}.{nameof(CalculatePoolSizeAsync)}");
 			span.SetAttribute(OpenTelemetryTracers.DatadogResourceAttribute, pool.Id.ToString());
 			span.SetAttribute("currentAgentCount", agents.Count);
-			
+
 			Dictionary<PoolId, PoolData>? poolToData;
-			
+
 			// Cache pool data for a short while for faster runs when many pools are scaled
 			if (!_cache.TryGetValue(CacheKey, out poolToData) || poolToData == null)
 			{
@@ -249,15 +249,15 @@ namespace Horde.Server.Agents.Fleet
 			}
 
 			PoolData poolData = poolToData[pool.Id];
-			
+
 			double utilization = poolData.Samples.Select(x => x._jobWork).OrderByDescending(x => x).Skip(Settings.NumSamples - Settings.NumSamplesForResult).First();
-		
+
 			// Number of agents in use over the sampling period. Can never be greater than number of agents available in pool.
 			int numAgentsUtilized = (int)utilization;
-			
+
 			// Include reserve agent count to ensure pool always can grow
 			int desiredAgentCount = Math.Max(numAgentsUtilized + Settings.NumReserveAgents, Settings.MinAgents);
-			
+
 			Dictionary<string, object> status = new()
 			{
 				["Name"] = GetType().Name,
@@ -274,9 +274,9 @@ namespace Horde.Server.Agents.Fleet
 				["NumReserveAgents"] = Settings.NumReserveAgents,
 			};
 
-			return new PoolSizeResult(agents.Count, desiredAgentCount, status); 
+			return new PoolSizeResult(agents.Count, desiredAgentCount, status);
 		}
-		
+
 		/// <summary>
 		/// Creates a string of characters indicating a sequence of 0-1 values over time
 		/// </summary>

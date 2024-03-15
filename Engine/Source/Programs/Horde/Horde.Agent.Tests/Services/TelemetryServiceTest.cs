@@ -18,17 +18,17 @@ namespace Horde.Agent.Tests.Services;
 public sealed class TelemetryServiceTest : IDisposable
 {
 	private readonly TelemetryService _telemetryService;
-	private readonly NullLoggerFactory _loggerFactory = new ();
+	private readonly NullLoggerFactory _loggerFactory = new();
 
 	public TelemetryServiceTest()
 	{
-		AgentSettings settings = new() { Server = "Test", ServerProfiles = { ["Test"] = new ServerProfile() { Name = "Test", Url = new Uri("http://localhost:1234") } }};
-		OptionsWrapper<AgentSettings> settingsOpt = new (settings);
-		
-		using WorkerService workerService = new (null!, null!, null!, new List<LeaseHandler>(), null!, null!, null!);
+		AgentSettings settings = new() { Server = "Test", ServerProfiles = { ["Test"] = new ServerProfile() { Name = "Test", Url = new Uri("http://localhost:1234") } } };
+		OptionsWrapper<AgentSettings> settingsOpt = new(settings);
+
+		using WorkerService workerService = new(null!, null!, null!, new List<LeaseHandler>(), null!, null!, null!);
 		JobHandler jobHandler = new JobHandler(new List<IJobExecutorFactory>(), settingsOpt, null!, null!);
-		GrpcService grpcService = new (settingsOpt, NullLogger<GrpcService>.Instance, _loggerFactory);
-		
+		GrpcService grpcService = new(settingsOpt, NullLogger<GrpcService>.Instance, _loggerFactory);
+
 		_telemetryService = new TelemetryService(workerService, jobHandler, grpcService, settingsOpt, NullLogger<TelemetryService>.Instance);
 	}
 
@@ -42,7 +42,7 @@ public sealed class TelemetryServiceTest : IDisposable
 		(bool onTime, TimeSpan diff) = await task;
 		Assert.IsTrue(onTime);
 	}
-	
+
 	[TestMethod]
 	public async Task SlowEventLoopTooEarlyAsync()
 	{
@@ -53,12 +53,12 @@ public sealed class TelemetryServiceTest : IDisposable
 		(bool onTime, TimeSpan diff) = await task;
 		Assert.IsFalse(onTime);
 	}
-	
+
 	[TestMethod]
 	public async Task SlowEventLoopTooLateAsync()
 	{
 		DateTime now = DateTime.UtcNow;
-		_telemetryService.GetUtcNow = () => now;		
+		_telemetryService.GetUtcNow = () => now;
 		Task<(bool onTime, TimeSpan diff)> task = _telemetryService.IsEventLoopOnTimeAsync(TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(100), CancellationToken.None);
 		_telemetryService.GetUtcNow = () => now + TimeSpan.FromMilliseconds(2500);
 		(bool onTime, TimeSpan diff) = await task;
@@ -72,10 +72,10 @@ public sealed class TelemetryServiceTest : IDisposable
 Filter listing failed with error: 0x80070005
 Access is denied.
 ";
-		
+
 		List<string>? noFilters = TelemetryService.ParseFltMcOutput(emptyOutput);
 		Assert.IsNull(noFilters);
-		
+
 		string output = @"
 Filter Name                     Num Instances    Altitude    Frame
 ------------------------------  -------------  ------------  -----

@@ -4,17 +4,17 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Jobs;
+using Horde.Server.Agents;
 using Horde.Server.Devices;
+using Horde.Server.Issues;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Issues;
+using Horde.Server.Streams;
 using Horde.Server.Users;
 using MongoDB.Bson;
-using Horde.Server.Streams;
-using Horde.Server.Agents;
-using EpicGames.Horde.Jobs;
-using System.Threading;
 
 namespace Horde.Server.Notifications
 {
@@ -32,10 +32,10 @@ namespace Horde.Server.Notifications
 	{
 		/// <summary>Job ID</summary>
 		public string JobId { get; }
-		
+
 		/// <summary>Job name</summary>
 		public string JobName { get; }
-		
+
 		/// <summary>Pool name job got scheduled in</summary>
 		public string PoolName { get; }
 
@@ -90,7 +90,7 @@ namespace Horde.Server.Notifications
 			return HashCode.Combine(JobId, JobName, PoolName);
 		}
 	}
-	
+
 	/// <summary>
 	/// Interface for the notification service
 	/// </summary>
@@ -125,7 +125,7 @@ namespace Horde.Server.Notifications
 		/// <param name="stepId">The step id</param>
 		/// <returns>Async task</returns>
 		void NotifyJobStepComplete(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId);
-		
+
 		/// <summary>
 		/// Notify all subscribers that a job step's outcome has changed
 		/// </summary>

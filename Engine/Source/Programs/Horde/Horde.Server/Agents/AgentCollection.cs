@@ -233,27 +233,27 @@ namespace Horde.Server.Agents
 			{
 				filter &= filterBuilder.Ne(x => x.Deleted, true);
 			}
-			
+
 			if (poolId != null)
 			{
 				filter &= filterBuilder.Eq(nameof(AgentDocument.Pools), poolId);
 			}
-			
+
 			if (modifiedAfter != null)
 			{
 				filter &= filterBuilder.Gt(x => x.UpdateTime, modifiedAfter.Value);
 			}
-			
+
 			if (property != null)
 			{
 				filter &= filterBuilder.AnyEq(x => x.Properties, property);
 			}
-			
+
 			if (status != null)
 			{
 				filter &= filterBuilder.Eq(x => x.Status, status.Value);
 			}
-			
+
 			if (enabled != null)
 			{
 				filter &= filterBuilder.Eq(x => x.Enabled, enabled.Value);
@@ -277,15 +277,15 @@ namespace Horde.Server.Agents
 		{
 			return await _agents.Find(x => x.SessionId.HasValue && !(x.SessionExpiresAt > utcNow)).Limit(maxAgents).ToListAsync(cancellationToken);
 		}
-		
+
 		/// <inheritdoc/>
 		public async Task<IReadOnlyList<IAgent>> FindDeletedAsync(CancellationToken cancellationToken)
 		{
 			return await _agents.Find(x => x.Deleted).ToListAsync(cancellationToken);
 		}
-		
+
 		/// <inheritdoc/>
-		public async Task<List<LeaseId>> FindActiveLeaseIdsAsync( CancellationToken cancellationToken)
+		public async Task<List<LeaseId>> FindActiveLeaseIdsAsync(CancellationToken cancellationToken)
 		{
 			RedisValue[] activeLeaseIds = await _redisService.GetDatabase().SetMembersAsync(RedisKeyActiveLeaseIds());
 			return activeLeaseIds.Select(x => LeaseId.Parse(x.ToString())).ToList();
@@ -297,7 +297,7 @@ namespace Horde.Server.Agents
 			RedisValue[] childIds = await _redisService.GetDatabase().SetMembersAsync(RedisKeyLeaseChildren(id));
 			return childIds.Select(x => LeaseId.Parse(x.ToString())).ToList();
 		}
-		
+
 		/// <summary>
 		/// Update a single document
 		/// </summary>
@@ -437,7 +437,7 @@ namespace Horde.Server.Agents
 				{
 					if (lease.Payload != null && (agent.Leases == null || !agent.Leases.Any(x => x.Id == lease.Id)))
 					{
-						GetNewLeaseUpdates(agent, lease, updates); 
+						GetNewLeaseUpdates(agent, lease, updates);
 					}
 				}
 
@@ -445,12 +445,12 @@ namespace Horde.Server.Agents
 				List<AgentLease> newLeases = leases;
 				List<AgentLease> leasesToAdd = newLeases.Where(nl => currentLeases.All(cl => cl.Id != nl.Id)).ToList();
 				List<AgentLease> leasesToRemove = currentLeases.Where(cl => newLeases.All(nl => nl.Id != cl.Id)).ToList();
-				
+
 				foreach (AgentLease lease in leasesToAdd)
 				{
 					await AddActiveLeaseAsync(lease);
 				}
-				
+
 				foreach (AgentLease lease in leasesToRemove)
 				{
 					await RemoveActiveLeaseAsync(lease);
@@ -513,9 +513,9 @@ namespace Horde.Server.Agents
 		{
 			AgentDocument agent = (AgentDocument)agentInterface;
 			List<string> newProperties = properties.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
-			Dictionary<string, int> newResources = new (resources);
-			List<PoolId> newPools = new (pools);
-			List<PoolId> newDynamicPools = new (dynamicPools);
+			Dictionary<string, int> newResources = new(resources);
+			List<PoolId> newPools = new(pools);
+			List<PoolId> newDynamicPools = new(dynamicPools);
 
 			// Reset the agent to use the new session
 			UpdateDefinitionBuilder<AgentDocument> updateBuilder = Builders<AgentDocument>.Update;
@@ -550,7 +550,7 @@ namespace Horde.Server.Agents
 			{
 				await RemoveActiveLeaseAsync(agentLease);
 			}
-			
+
 			// Apply the update
 			return await TryUpdateAsync(agent, updateBuilder.Combine(updates), cancellationToken);
 		}
@@ -582,7 +582,7 @@ namespace Horde.Server.Agents
 
 		private static string RedisKeyActiveLeaseIds() => $"agent/active-lease-id";
 		private static string RedisKeyLeaseChildren(LeaseId parentId) => $"agent/lease-children/{parentId.ToString()}";
-		
+
 		/// <inheritdoc/>
 		public async Task<IAgent?> TryAddLeaseAsync(IAgent agentInterface, AgentLease newLease, CancellationToken cancellationToken)
 		{
@@ -606,14 +606,14 @@ namespace Horde.Server.Agents
 			{
 				await AddActiveLeaseAsync(newLease);
 			}
-			
+
 			return updatedDoc;
 		}
 
 		private async Task AddActiveLeaseAsync(AgentLease lease)
 		{
 			IDatabase redis = _redisService.GetDatabase();
-			
+
 			await redis.SetAddAsync(RedisKeyActiveLeaseIds(), lease.Id.ToString());
 			await redis.KeyExpireAsync(RedisKeyActiveLeaseIds(), TimeSpan.FromHours(36));
 
@@ -623,7 +623,7 @@ namespace Horde.Server.Agents
 				await redis.KeyExpireAsync(RedisKeyLeaseChildren(lease.ParentId.Value), TimeSpan.FromHours(36));
 			}
 		}
-		
+
 		private async Task RemoveActiveLeaseAsync(AgentLease lease)
 		{
 			IDatabase redis = _redisService.GetDatabase();

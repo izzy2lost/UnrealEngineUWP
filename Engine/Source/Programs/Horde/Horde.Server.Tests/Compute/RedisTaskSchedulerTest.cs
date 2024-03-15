@@ -37,12 +37,12 @@ namespace Horde.Server.Tests.Compute
 			string? dequeuedTask = await _scheduler.DequeueAsync("queue");
 			Assert.AreEqual("task1", dequeuedTask);
 		}
-		
+
 		[TestMethod]
 		[Ignore("Currently fails as nothing picks up tasks(?)")]
 		public async Task DequeueWithPredicateFromMiddleOfQueueAsync()
 		{
-			using CancellationTokenSource cts = new (2000);
+			using CancellationTokenSource cts = new(2000);
 			await _scheduler.EnqueueAsync("queue", "task1", true);
 			await _scheduler.EnqueueAsync("queue", "task2", true);
 			await _scheduler.EnqueueAsync("queue", "task3", true);
@@ -53,7 +53,7 @@ namespace Horde.Server.Tests.Compute
 			Assert.AreEqual("queue", queueId);
 			Assert.AreEqual("task2", task);
 		}
-		
+
 		[TestMethod]
 		public async Task EnqueueTaskAtFrontAsync()
 		{
@@ -61,7 +61,7 @@ namespace Horde.Server.Tests.Compute
 			await _scheduler.EnqueueAsync("queue", "task2", true);
 			Assert.AreEqual("task2", await _scheduler.DequeueAsync("queue"));
 		}
-		
+
 		[TestMethod]
 		public async Task EnqueueTaskAtBackAsync()
 		{
@@ -69,7 +69,7 @@ namespace Horde.Server.Tests.Compute
 			await _scheduler.EnqueueAsync("queue", "task2", false);
 			Assert.AreEqual("task1", await _scheduler.DequeueAsync("queue"));
 		}
-		
+
 		[TestMethod]
 		public async Task EnqueueTasksOnSeparateQueuesAsync()
 		{
@@ -78,19 +78,19 @@ namespace Horde.Server.Tests.Compute
 			Assert.AreEqual("task1", await _scheduler.DequeueAsync("queue1"));
 			Assert.AreEqual("task2", await _scheduler.DequeueAsync("queue2"));
 		}
-		
+
 		[TestMethod]
 		public async Task DequeueEmptyQueueAsync()
 		{
 			Assert.IsNull(await _scheduler.DequeueAsync("queue"));
 		}
-		
+
 		[TestMethod]
 		public async Task DequeuingMakesQueueActiveAsync()
 		{
 			await _scheduler.EnqueueAsync("queue", "task1", true);
 			Assert.AreEqual(1, (await _scheduler.GetInactiveQueuesAsync()).Count);
-			
+
 			await _scheduler.DequeueAsync("queue");
 			Assert.AreEqual(0, (await _scheduler.GetInactiveQueuesAsync()).Count);
 		}

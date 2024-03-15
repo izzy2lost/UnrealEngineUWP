@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -10,21 +11,20 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Bisect;
+using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
 using Horde.Server.Projects;
 using Horde.Server.Streams;
 using Horde.Server.Users;
+using Horde.Server.Utilities;
 using HordeCommon;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
-using Horde.Server.Utilities;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace Horde.Server.Tests.Jobs.Bisect
 {
@@ -37,7 +37,7 @@ namespace Horde.Server.Tests.Jobs.Bisect
 			(IJob failedJob, IGraph graph) = await SetupBisectionTestAsync();
 
 			// Create the bisection task
-			CreateBisectTaskResponse task = Deref(await BisectTasksController!.CreateAsync(new CreateBisectTaskRequest() {JobId = failedJob.Id, NodeName = "CompileEditor" }));
+			CreateBisectTaskResponse task = Deref(await BisectTasksController!.CreateAsync(new CreateBisectTaskRequest() { JobId = failedJob.Id, NodeName = "CompileEditor" }));
 
 			GetBisectTaskResponse response = Deref(await BisectTasksController!.GetAsync(task!.BisectTaskId));
 			Assert.AreEqual(failedJob.TemplateId, response.TemplateId);
@@ -52,7 +52,7 @@ namespace Horde.Server.Tests.Jobs.Bisect
 
 			IUser user = await UserCollection.FindOrAddUserByLoginAsync("TestUser");
 			IUserSettings settings = await UserCollection.GetSettingsAsync(user.Id);
-			
+
 			Assert.AreEqual(task.BisectTaskId, settings.PinnedBisectTaskIds[0]);
 
 			Assert.AreEqual(task.BisectTaskId, response.Id);
@@ -67,7 +67,7 @@ namespace Horde.Server.Tests.Jobs.Bisect
 
 			GetBisectTaskResponse bisectTask = Deref(await BisectTasksController!.GetAsync(task!.BisectTaskId));
 			Assert.AreEqual(BisectTaskState.Running, bisectTask.State);
-			Assert.AreEqual(10, bisectTask.MinChange);			
+			Assert.AreEqual(10, bisectTask.MinChange);
 			jobs = await JobCollection.FindBisectTaskJobsAsync(bisectTask.Id, running: true).ToListAsync();
 			Assert.AreEqual(1, jobs.Count);
 			Assert.AreEqual(14, jobs[0].Change);

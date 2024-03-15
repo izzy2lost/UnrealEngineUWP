@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using Microsoft.Extensions.Logging;
-using Horde.Agent.Utility;
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Clients;
+using Horde.Agent.Utility;
+using Microsoft.Extensions.Logging;
 
 namespace Horde.Agent.Services
 {

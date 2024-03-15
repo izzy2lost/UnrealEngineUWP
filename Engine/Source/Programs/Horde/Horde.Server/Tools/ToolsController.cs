@@ -1,5 +1,11 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
@@ -14,12 +20,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Horde.Server.Tools
 {
@@ -198,7 +198,7 @@ namespace Horde.Server.Tools
 			List<GetToolSummaryResponse> toolSummaryList = new List<GetToolSummaryResponse>();
 			foreach (ToolConfig toolConfig in tools.Values.OrderBy(x => x.Name, StringComparer.Ordinal))
 			{
-				if(AuthorizeDownload(toolConfig))
+				if (AuthorizeDownload(toolConfig))
 				{
 					ITool? tool = await _toolCollection.GetAsync(toolConfig.Id, _globalConfig.Value);
 					if (tool != null)

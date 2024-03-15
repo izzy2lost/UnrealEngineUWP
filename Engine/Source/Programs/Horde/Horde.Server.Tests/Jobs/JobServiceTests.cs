@@ -123,21 +123,21 @@ namespace Horde.Server.Tests.Jobs
 		{
 			Fixture fixture = await CreateFixtureAsync();
 
-			string[] args = {"-Target=bogus"};
+			string[] args = { "-Target=bogus" };
 			IJob orgJob = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, args);
 			IJob newJob = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, args);
 			IJob differentTplRef = await CreatePreflightJobAsync(fixture, "tpl-ref-other", "tpl-hash-1", "elvis", 1000, args);
 			IJob differentTplHash = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-other", "elvis", 1000, args);
 			IJob differentUserName = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "julia", 1000, args);
-			IJob differentArgs = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, new []{"-Target=other"});
-			
+			IJob differentArgs = await CreatePreflightJobAsync(fixture, "tpl-ref-1", "tpl-hash-1", "elvis", 1000, new[] { "-Target=other" });
+
 			orgJob = (await JobService.GetJobAsync(orgJob.Id))!;
 			newJob = (await JobService.GetJobAsync(newJob.Id))!;
 			differentTplRef = (await JobService.GetJobAsync(differentTplRef.Id))!;
 			differentTplHash = (await JobService.GetJobAsync(differentTplHash.Id))!;
 			differentUserName = (await JobService.GetJobAsync(differentUserName.Id))!;
 			differentArgs = (await JobService.GetJobAsync(differentArgs.Id))!;
-			
+
 			Assert.AreEqual(KnownUsers.System, orgJob.AbortedByUserId);
 			Assert.IsNull(newJob.AbortedByUserId);
 			Assert.IsNull(differentTplRef.AbortedByUserId);
@@ -167,10 +167,10 @@ namespace Horde.Server.Tests.Jobs
 			Assert.IsNotNull(settings.JobTemplateSettings);
 			Assert.AreEqual(settings.JobTemplateSettings!.Count, 2);
 
-			TemplateId templateRef1 = new TemplateId("tpl-ref-1");			
-			IUserJobTemplateSettings? templateSettings = settings.JobTemplateSettings.FirstOrDefault(x => x.TemplateId ==templateRef1);
+			TemplateId templateRef1 = new TemplateId("tpl-ref-1");
+			IUserJobTemplateSettings? templateSettings = settings.JobTemplateSettings.FirstOrDefault(x => x.TemplateId == templateRef1);
 			Assert.IsNotNull(templateSettings);
-			Assert.AreEqual(templateSettings.Arguments[0], "-Target=targetd" );
+			Assert.AreEqual(templateSettings.Arguments[0], "-Target=targetd");
 
 			TemplateId templateRefOther = new TemplateId("tpl-ref-other");
 			templateSettings = settings.JobTemplateSettings.FirstOrDefault(x => x.TemplateId == templateRefOther);
@@ -199,7 +199,7 @@ namespace Horde.Server.Tests.Jobs
 				options
 			);
 		}
-		
+
 		// Only test for cancelled preflights
 		// [TestMethod]
 		// public async Task StopAnyDuplicateJobsByChange()

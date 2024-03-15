@@ -36,7 +36,7 @@ namespace Horde.Agent.Leases.Handlers
 		/// <inheritdoc/>
 		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ComputeTask computeTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
-			await using IServerLogger? serverLogger = (computeTask.LogId != null)? _serverLoggerFactory.CreateLogger(session, LogId.Parse(computeTask.LogId), localLogger, null, LogLevel.Trace) : null;
+			await using IServerLogger? serverLogger = (computeTask.LogId != null) ? _serverLoggerFactory.CreateLogger(session, LogId.Parse(computeTask.LogId), localLogger, null, LogLevel.Trace) : null;
 			ILogger logger = serverLogger ?? localLogger;
 
 			if (!String.IsNullOrEmpty(computeTask.ParentLeaseId))
@@ -128,12 +128,12 @@ namespace Horde.Agent.Leases.Handlers
 					TcpSslTransport sslTransport = new(socket, computeTask.Certificate.ToByteArray(), true);
 					await sslTransport.AuthenticateAsync(cancellationToken);
 					return sslTransport;
-				
+
 				case ComputeEncryption.Aes:
 #pragma warning disable CA2000 // Dispose objects before losing scope
 					return new AesTransport(new TcpTransport(socket), computeTask.Key.ToByteArray(), computeTask.Nonce.ToByteArray());
 #pragma warning restore CA2000 // Restore CA2000
-				
+
 				case ComputeEncryption.Unspecified:
 				case ComputeEncryption.None:
 				default:

@@ -5,20 +5,20 @@ using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
-using Microsoft.IdentityModel.Tokens;
-using MongoDB.Driver;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
-using Horde.Server.Jobs;
-using Horde.Server.Agents.Leases;
 using Google.Protobuf.WellKnownTypes;
+using Horde.Server.Agents.Leases;
+using Horde.Server.Jobs;
+using Horde.Server.Server;
+using Horde.Server.Utilities;
 using HordeCommon.Rpc.Tasks;
-using System.Threading;
+using Microsoft.IdentityModel.Tokens;
+using MongoDB.Driver;
 
 namespace Horde.Server.Acls
 {
@@ -84,7 +84,7 @@ namespace Horde.Server.Acls
 		}
 	}
 
-    internal static class ClaimExtensions
+	internal static class ClaimExtensions
 	{
 		public static bool HasAdminClaim(this ClaimsPrincipal user)
 		{
@@ -161,7 +161,7 @@ namespace Horde.Server.Acls
 				return sessionIdValue;
 			}
 		}
-		
+
 		public static string GetSessionClaimsAsString(this ClaimsPrincipal user)
 		{
 			return String.Join(",", user.Claims

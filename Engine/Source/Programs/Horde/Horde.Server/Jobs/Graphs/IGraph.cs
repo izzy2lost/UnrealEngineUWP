@@ -553,7 +553,7 @@ namespace Horde.Server.Jobs.Graphs
 		/// <param name="group">Node group to copy</param>
 		public NewGroup(IGraph graph, INodeGroup group)
 			: this(group.AgentType, group.Nodes.Select(x => new NewNode(graph, x)).ToList())
-		{ 
+		{
 		}
 	}
 

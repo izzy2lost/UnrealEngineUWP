@@ -12,6 +12,9 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using Horde.Server.Acls;
@@ -24,9 +27,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using OpenTelemetry.Trace;
-using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Agents.Sessions;
 
 namespace Horde.Server.Logs
 {
@@ -198,7 +198,7 @@ namespace Horde.Server.Logs
 			await stream.CopyToAsync(outputStream, cancellationToken);
 		}
 	}
-	
+
 	/// <summary>
 	/// Wraps functionality for manipulating logs
 	/// </summary>
@@ -1006,7 +1006,7 @@ namespace Horde.Server.Logs
 		{
 			int currentLength = 0;
 			int currentLineCount = 0;
-			if(chunkData != null)
+			if (chunkData != null)
 			{
 				currentLength = chunkData.Length;
 				currentLineCount = chunkData.LineCount;
@@ -1108,7 +1108,7 @@ namespace Horde.Server.Logs
 			if (logFile.LineCount > 0)
 			{
 				LogNode? root = await storageClient.ReadRefTargetAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
-				if(root != null)
+				if (root != null)
 				{
 					LogIndexNode index = await root.IndexRef.ReadBlobAsync(cancellationToken: cancellationToken);
 					await foreach (int lineIdx in index.SearchAsync(firstLine, searchText, searchStats, cancellationToken: cancellationToken))
@@ -1197,12 +1197,12 @@ namespace Horde.Server.Logs
 			if (logFile.IndexLength != null)
 			{
 				LogIndexData? indexData = await ReadIndexAsync(logFile, logFile.IndexLength.Value);
-				if(indexData != null && firstLine < indexData.LineCount)
+				if (indexData != null && firstLine < indexData.LineCount)
 				{
 					using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(LogFileService)}.{nameof(SearchLogDataInternalAsync)}.Indexed");
 					span.SetAttribute("lineCount", indexData.LineCount);
 
-					foreach(int lineIndex in indexData.Search(firstLine, searchText, searchStats))
+					foreach (int lineIndex in indexData.Search(firstLine, searchText, searchStats))
 					{
 						yield return lineIndex;
 					}

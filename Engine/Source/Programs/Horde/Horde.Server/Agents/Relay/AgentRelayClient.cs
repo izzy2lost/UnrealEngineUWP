@@ -22,11 +22,11 @@ public class AgentRelayClient
 	/// Cooldown after an exception occurs. Primarily set to speed up tests.
 	/// </summary>
 	public TimeSpan CooldownOnException { get; set; } = TimeSpan.FromSeconds(5);
-	
+
 	/// <summary>
 	/// Last received revision number after a long-polling responses has returned
 	/// </summary>
-	public int RevisionNumber { get; private set; }= -2;
+	public int RevisionNumber { get; private set; } = -2;
 
 	private readonly string _clusterId;
 	private readonly string _agentId;
@@ -81,7 +81,7 @@ public class AgentRelayClient
 
 		return null;
 	}
-	
+
 	/// <summary>
 	/// Continuously listen for port mappings from server and apply them
 	/// </summary>

@@ -54,13 +54,13 @@ namespace Horde.Agent.Leases.Handlers
 			{
 				bool isPerforceExecutor = _settings.Executor.Equals(PerforceExecutor.Name, StringComparison.OrdinalIgnoreCase);
 				bool isWorkspaceExecutor = _settings.Executor.Equals(WorkspaceExecutor.Name, StringComparison.OrdinalIgnoreCase);
-				
+
 				// When using WorkspaceExecutor, only job options can override exact materializer to use
 				// It will default to ManagedWorkspaceMaterializer, which is compatible with the conform call below
 				// Therefore, compatibility is assumed for now. Exact materializer to use should be changed to a per workspace setting.
 				// See WorkspaceExecutorFactory.CreateExecutor
 				bool isExecutorConformCompatible = isPerforceExecutor || isWorkspaceExecutor;
-				
+
 				// Run the conform task
 				if (isExecutorConformCompatible && _settings.PerforceExecutor.RunConform)
 				{

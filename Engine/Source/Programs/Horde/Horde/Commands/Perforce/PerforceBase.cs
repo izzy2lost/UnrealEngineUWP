@@ -25,11 +25,11 @@ namespace Horde.Commands.Perforce
 		[CommandLine("-Overwrite")]
 		[Description("")]
 		protected bool Overwrite { get; set; } = false;
-		
+
 		[CommandLine("-PreferNativeClient")]
 		[Description("Prefer to use native Perforce client (instead of launching separate p4 process)")]
 		protected bool PreferNativeClient { get; set; } = false;
-		
+
 		[CommandLine("-UseHaveTable")]
 		[Description("Use have-table for syncing")]
 		string UseHaveTable { get; set; } = "true";
@@ -38,7 +38,7 @@ namespace Horde.Commands.Perforce
 		{
 			base.Configure(arguments, logger);
 
-			if(BaseDir == null)
+			if (BaseDir == null)
 			{
 				for (DirectoryReference? parentDir = DirectoryReference.GetCurrentDirectory(); parentDir != null; parentDir = parentDir.ParentDirectory)
 				{
