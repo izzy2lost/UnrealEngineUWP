@@ -255,6 +255,12 @@ namespace UE::DMX::Private
 				SNew(SDMXControlConsoleEditorFilterButton, FilterModel)
 				.OnDisableAllFilters(this, &SDMXControlConsoleEditorFiltersView::OnDisableAllFilters)
 			];
+
+			const bool bIsUserFilterEnabled = UserFilter.bIsEnabled;
+			if (bIsUserFilterEnabled)
+			{
+				FilterModel->SetIsEnabled(bIsUserFilterEnabled);
+			}
 		}
 	}
 
@@ -345,7 +351,8 @@ namespace UE::DMX::Private
 	void SDMXControlConsoleEditorFiltersView::OnFilterStateChanged(TSharedPtr<FDMXControlConsoleFilterModel> FilterModel)
 	{
 		const TSharedPtr<FDMXControlConsoleEditorToolbar> Toolbar = WeakToolbarPtr.Pin();
-		if (!FilterModel.IsValid() || !Toolbar)
+		UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		if (!FilterModel.IsValid() || !Toolbar || !ControlConsoleEditorData)
 		{
 			return;
 		}
@@ -355,7 +362,16 @@ namespace UE::DMX::Private
 		{
 			return;
 		}
-		
+
+		// If the filter is a user filter, update its state
+		const FString& FilterLabel = FilterModel->GetFilterLabel();
+		FDMXControlConsoleEditorUserFilter* UserFilter = ControlConsoleEditorData->FindUserFilter(FilterLabel);
+		if (UserFilter)
+		{
+			UserFilter->bIsEnabled = FilterModel->IsEnabled();
+		}
+
+		// Update the search box text string
 		FString NewSearchBoxString = FilterSearchBox->GetText().ToString();
 
 		const FString& FilterString = FilterModel->GetFilterString();

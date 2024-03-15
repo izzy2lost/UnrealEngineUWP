@@ -68,6 +68,9 @@ namespace UE::DMX::Private
 		/** Called to create a custom filter from the filtering data */
 		void OnCreateCustomTextFilter(const FCustomTextFilterData& InFilterData, bool bApplyFilter);
 
+		/** Called when the cancel button in the custom filter window is clicked */
+		void OnCancelCustomFilterWindowClicked();
+
 		/** Called when the Port selection has changed */
 		void OnSelectedPortsChanged();
 

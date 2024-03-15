@@ -51,6 +51,10 @@ struct FDMXControlConsoleEditorUserFilter
 	/** The color showed by the filter in the editor */
 	UPROPERTY()
 	FLinearColor FilterColor = FLinearColor::White;
+
+	/** True if the filter is enabled */
+	UPROPERTY()
+	bool bIsEnabled = false;
 };
 
 /** Struct for collecting DMX Control Console filter strings */
@@ -85,10 +89,13 @@ class UDMXControlConsoleEditorData
 
 public:
 	/** Adds a new User Filter with the given parameters */
-	void AddUserFilter(const FString& FilterLabel, const FString& FilterString, const FLinearColor FilterColor);
+	void AddUserFilter(const FString& FilterLabel, const FString& FilterString, const FLinearColor FilterColor, bool bIsEnabled);
 
 	/** Removes all the User Filters with the given filter name */
 	void RemoveUserFilter(const FString& FilterLabel);
+
+	/** Finds the User Filter which matches the given filter label, or nullptr if none exists */
+	FDMXControlConsoleEditorUserFilter* FindUserFilter(const FString& FilterLabel);
 
 	/** Updates the filters collection based on the given Control Console Data */
 	void UpdateFilters(UDMXControlConsoleData* ControlConsoleData);
