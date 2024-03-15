@@ -242,6 +242,10 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	UPROPERTY(Transient)
 	uint32 bShowRootMotionVisualizations:1;
 
+	/** Display Metadata visualizations in viewport */
+	UPROPERTY(Transient)
+	uint32 bShowAssetUserDataVisualizations:1;
+
 	/** Display Bound **/
 	UPROPERTY(transient)
 	bool bDisplayBound;
@@ -491,6 +495,10 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Sets flags whether we root motion visualization should be drawn in the viewport. */
 	UNREALED_API void SetShowRootMotionVisualizations(const bool bShow) { bShowRootMotionVisualizations = bShow; }
 	UNREALED_API bool IsRootMotionVisualizationsEnabled() const { return bShowRootMotionVisualizations; }
+
+	/** Sets flags whether we AssetUserData visualizations should be drawn in the viewport. */
+	UNREALED_API void SetShowAssetUserDataVisualizations(const bool bShow) { bShowAssetUserDataVisualizations = bShow; }
+	UNREALED_API bool IsAssetUserDataVisualizationsEnabled() const { return bShowAssetUserDataVisualizations; }
 
 	/** Whether the current LOD of the debug mesh is being synced with the attached (preview) mesh instance. */
 	UNREALED_API bool IsTrackingAttachedLOD() const;

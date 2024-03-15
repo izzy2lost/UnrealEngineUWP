@@ -796,6 +796,21 @@ void FStaticMeshEditorViewportClient::DrawCanvas(FViewport& InViewport, FSceneVi
 		}
 	}
 
+	if( bDrawAdditionalData )
+	{
+		const TArray<UAssetUserData*>* UserDataArray = StaticMesh->GetAssetUserDataArray();
+		if (UserDataArray != NULL)
+		{
+			for (int32 AdditionalDataIndex = 0; AdditionalDataIndex < UserDataArray->Num(); ++AdditionalDataIndex)
+			{
+				if ((*UserDataArray)[AdditionalDataIndex] != NULL)
+				{
+					(*UserDataArray)[AdditionalDataIndex]->DrawCanvas(Canvas, View);
+				}
+			}
+		}
+	}
+	
 	TArray<SStaticMeshEditorViewport::FOverlayTextItem, TInlineAllocator<10>> TextItems;
 
 	const int32 CurrentLODLevel = [this, &StaticMeshEditor, &View]()

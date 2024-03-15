@@ -449,6 +449,12 @@ private:
 	/* Draws visualization from animation notifies into canvas. */
 	void DrawCanvasNotifies(UDebugSkelMeshComponent* MeshComponent, FCanvas& Canvas, FSceneView& View) const;
 
+	/* Draws visualization from Asset User Data into viewport. */
+	void DrawAssetUserData(FPrimitiveDrawInterface* PDI) const;
+
+	/* Draws visualization from Asset User Data into canvas. */
+	void DrawCanvasAssetUserData(FCanvas& Canvas, FSceneView& View) const;
+
 	/** Draws root motion trajectory */
 	void DrawRootMotionTrajectory(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const;
 
@@ -492,6 +498,10 @@ private:
 	void HandlePreviewScenePostTick();
 
 private:
+
+	/** @return array of AssetUserData interfaces from editable objects on associated asset toolkit. */
+	TArray<IInterface_AssetUserData*> GetEditedObjectsWithAssetUserData() const;
+	
 	/** Custom Animation speed in the viewport. Transient setting. */
 	float CustomAnimationSpeed = 1.0f;
 

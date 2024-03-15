@@ -159,6 +159,9 @@ public:
 	/** Show Root motion visualization */
 	TSharedPtr< FUICommandInfo > ShowRootMotionVisualization;
 
+	/** Show AssetUserData Visualizations */
+	TSharedPtr< FUICommandInfo > ShowAssetUserDataVisualizations;
+
 public:
 	/** Registers our commands with the binding system */
 	virtual void RegisterCommands() override;

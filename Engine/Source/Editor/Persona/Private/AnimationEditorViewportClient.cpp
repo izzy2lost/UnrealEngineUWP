@@ -614,7 +614,8 @@ void FAnimationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterf
 			DrawNotifies(PreviewMeshComponent, PDI);
 
 			DrawRootMotionTrajectory(PreviewMeshComponent, PDI);
-			
+
+			DrawAssetUserData(PDI);
 		}
 		else if (bValidComponent && !bValidSkeletalMesh)
 		{
@@ -672,6 +673,8 @@ void FAnimationViewportClient::DrawCanvas( FViewport& InViewport, FSceneView& Vi
 
 		DrawCanvasNotifies(PreviewMeshComponent, Canvas, View);
 
+		DrawCanvasAssetUserData(Canvas, View);
+		
 		if (bDrawUVs)
 		{
 			DrawUVsForMesh(Viewport, &Canvas, 1, PreviewMeshComponent);
@@ -2004,6 +2007,62 @@ void FAnimationViewportClient::DrawCanvasNotifies(UDebugSkelMeshComponent* MeshC
 				if (Notify.NotifyStateClass)
 				{
 					Notify.NotifyStateClass->DrawCanvasInEditor(Canvas, View, MeshComponent, AnimSequenceBase, Notify);
+				}
+			}
+		}
+	}
+}
+
+TArray<IInterface_AssetUserData*> FAnimationViewportClient::GetEditedObjectsWithAssetUserData() const
+{
+	TArray<IInterface_AssetUserData*> Result;
+	if (const TSharedPtr<FAssetEditorToolkit> AssetEditorToolkit = AssetEditorToolkitPtr.Pin())
+	{
+		if (const TArray<UObject*>* ObjectsCurrentlyBeingEdited = AssetEditorToolkit->GetObjectsCurrentlyBeingEdited())
+		{
+			for (UObject* Object : *ObjectsCurrentlyBeingEdited)
+			{
+				if (IInterface_AssetUserData* AssetUserDataInterface = Cast<IInterface_AssetUserData>(Object))
+				{
+					Result.Add(AssetUserDataInterface);
+				}
+			}
+		}
+	}
+
+	return Result;
+}
+
+void FAnimationViewportClient::DrawAssetUserData(FPrimitiveDrawInterface* PDI) const
+{
+	TArray<IInterface_AssetUserData*> AssetsWithUserData = GetEditedObjectsWithAssetUserData();
+	for (const IInterface_AssetUserData* AssetUserDataInterface : AssetsWithUserData)
+	{
+		if (const TArray<UAssetUserData*>* AssetUserDataArray = AssetUserDataInterface->GetAssetUserDataArray())
+		{
+			for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
+			{
+				if (AssetUserData)
+				{
+					AssetUserData->Draw(PDI, PDI->View);
+				}
+			}
+		}
+	}	
+}
+
+void FAnimationViewportClient::DrawCanvasAssetUserData(FCanvas& Canvas, FSceneView& View) const
+{
+	TArray<IInterface_AssetUserData*> AssetsWithUserData = GetEditedObjectsWithAssetUserData();
+	for (const IInterface_AssetUserData* AssetUserDataInterface : AssetsWithUserData)
+	{
+		if (const TArray<UAssetUserData*>* AssetUserDataArray = AssetUserDataInterface->GetAssetUserDataArray())
+		{
+			for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
+			{
+				if (AssetUserData)
+				{
+					AssetUserData->DrawCanvas(Canvas, View);
 				}
 			}
 		}

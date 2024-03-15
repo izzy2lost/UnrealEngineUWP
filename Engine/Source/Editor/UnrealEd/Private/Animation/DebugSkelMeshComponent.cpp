@@ -58,6 +58,7 @@ UDebugSkelMeshComponent::UDebugSkelMeshComponent(const FObjectInitializer& Objec
 
 	bShowNotificationVisualizations = true;
 	bShowRootMotionVisualizations = false;
+	bShowAssetUserDataVisualizations = true;
 
 	TurnTableSpeedScaling = 1.f;
 	TurnTableMode = EPersonaTurnTableMode::Stopped;

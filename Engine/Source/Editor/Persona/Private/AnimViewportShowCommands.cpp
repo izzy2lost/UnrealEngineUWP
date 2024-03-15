@@ -74,6 +74,7 @@ void FAnimViewportShowCommands::RegisterCommands()
 
 	UI_COMMAND(ShowNotificationVisualizations, "Show Notification", "Display animation notifications visualizations in viewport", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(ShowRootMotionVisualization, "Show Root Motion", "Display root motion visualizations in viewport", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(ShowAssetUserDataVisualizations, "Show Meta Data", "Display animation meta data visualizations in viewport", EUserInterfaceActionType::ToggleButton, FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE

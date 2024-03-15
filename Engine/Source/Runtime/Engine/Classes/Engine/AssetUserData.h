@@ -21,6 +21,9 @@ class UAssetUserData
 	/** used for debugging UAssetUserData data in editor */
 	virtual void Draw(class FPrimitiveDrawInterface* PDI, const class FSceneView* View) const {}
 
+	/** used for debugging UAssetUserData data in editor */
+	virtual void DrawCanvas(class FCanvas& Canvas, class FSceneView& View) const {}
+	
 	/** Called when the owner object is modified */
 	virtual void PostEditChangeOwner() {}
 };

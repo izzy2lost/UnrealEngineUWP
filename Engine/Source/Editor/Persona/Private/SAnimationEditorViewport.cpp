@@ -1115,6 +1115,12 @@ void SAnimationEditorViewportTabBody::BindCommands()
 		FIsActionChecked(),
 		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsRootMotionVisualizationsEnabled));
 
+	CommandList.MapAction(
+		ViewportShowMenuCommands.ShowAssetUserDataVisualizations,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ToggleAssetUserDataVisualizations),
+		FIsActionChecked(),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsAssetUserDataVisualizationsEnabled));
+
 	CommandList.EndGroup();
 
 	CommandList.MapAction(
@@ -2185,6 +2191,22 @@ bool SAnimationEditorViewportTabBody::IsRootMotionVisualizationsEnabled() const
 	return false;
 }
 
+void SAnimationEditorViewportTabBody::ToggleAssetUserDataVisualizations()
+{
+	if (UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		PreviewComponent->SetShowAssetUserDataVisualizations(!PreviewComponent->IsAssetUserDataVisualizationsEnabled());
+	}
+}
+
+bool SAnimationEditorViewportTabBody::IsAssetUserDataVisualizationsEnabled() const
+{
+	if (const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->IsAssetUserDataVisualizationsEnabled();
+	}
+	return false;
+}
 
 bool SAnimationEditorViewportTabBody::IsClothSimulationEnabled() const
 {

@@ -525,6 +525,9 @@ private:
 	void ToggleRootMotionVisualizations();
 	bool IsRootMotionVisualizationsEnabled() const;
 
+	void ToggleAssetUserDataVisualizations();
+	bool IsAssetUserDataVisualizationsEnabled() const;
+
 private:
 	/** Selected Turn Table speed  */
 	EAnimationPlaybackSpeeds::Type SelectedTurnTableSpeed;
