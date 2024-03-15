@@ -9,6 +9,8 @@
 #include "IMessageContext.h"
 #include "LiveLinkHubMessages.h"
 #include "LiveLinkProviderImpl.h"
+#include "Templates/Function.h"
+
 
 class ILiveLinkHubSessionManager;
 struct FLiveLinkHubClientId;
@@ -64,6 +66,27 @@ private:
 
 	/** Send timecode settings to connected Live Link Hub provider. */
 	void SendTimecodeSettings();
+
+	/** Send a message to clients that are connected and enabled through the hub clients list. */
+	template<typename MessageType>
+	void SendMessageToEnabledClients(MessageType* Message)
+	{
+		TArray<FMessageAddress> AllAddresses;
+		GetConnectedAddresses(AllAddresses);
+
+		TArray<FMessageAddress> EnabledAddresses = AllAddresses.FilterByPredicate([this](const FMessageAddress& Address)
+		{
+			return ShouldTransmitToClient_AnyThread(Address);
+		});
+
+		SendMessage(Message, EnabledAddresses);
+	}
+
+	/**
+	 * Whether a message should be transmitted to a particular client, identified by a message address.
+	 * You can specify an additional filter method if you want to filter based on the client info.
+	 **/
+	bool ShouldTransmitToClient_AnyThread(FMessageAddress Address, TFunctionRef<bool(const FLiveLinkHubUEClientInfo* ClientInfoPtr)> AdditionalFilter = [](const FLiveLinkHubUEClientInfo* ClientInfoPtr){ return true; }) const;
 
 protected:
 	//~ Begin ILiveLinkHubClientsModel interface

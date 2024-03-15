@@ -54,35 +54,12 @@ FLiveLinkHubProvider::~FLiveLinkHubProvider()
 
 bool FLiveLinkHubProvider::ShouldTransmitToSubject_AnyThread(FName SubjectName, FMessageAddress Address) const
 {
-	FReadScopeLock Locker(ClientsMapLock);
-
-	const FLiveLinkHubClientId ClientId = AddressToIdCache.FindRef(Address);
-	if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(ClientId))
+	auto AdditionalFilter = [SubjectName](const FLiveLinkHubUEClientInfo* ClientInfoPtr)
 	{
-		if (const TSharedPtr<ILiveLinkHubSessionManager> Manager = SessionManager.Pin())
-		{
-			if (const TSharedPtr<ILiveLinkHubSession> CurrentSession = Manager->GetCurrentSession())
-			{
-				if (!CurrentSession->IsClientInSession(ClientInfoPtr->Id))
-				{
-					return false;
-				}
-			}
-		}
-
-		if (!ClientInfoPtr->bEnabled)
-		{
-			return false;
-		}
-
 		return !ClientInfoPtr->DisabledSubjects.Contains(SubjectName);
-	}
-	else
-	{
-		UE_LOG(LogLiveLinkHub, Warning, TEXT("Attempted to transmit data to an invalid client."));
-	}
+	};
 
-	return true;
+	return ShouldTransmitToClient_AnyThread(Address, AdditionalFilter);
 }
 
 void FLiveLinkHubProvider::SetTimecodeSettings(FLiveLinkHubTimecodeSettings InSettings)
@@ -93,7 +70,7 @@ void FLiveLinkHubProvider::SetTimecodeSettings(FLiveLinkHubTimecodeSettings InSe
 
 void FLiveLinkHubProvider::SendTimecodeSettings()
 {
-	SendMessage(FMessageEndpoint::MakeMessage<FLiveLinkHubTimecodeSettings>(TimecodeSettings));
+	SendMessageToEnabledClients(FMessageEndpoint::MakeMessage<FLiveLinkHubTimecodeSettings>(TimecodeSettings));
 }
 
 void FLiveLinkHubProvider::AddRestoredClient(FLiveLinkHubUEClientInfo& RestoredClientInfo)
@@ -248,6 +225,44 @@ void FLiveLinkHubProvider::HandleClientInfoMessage(const FLiveLinkClientInfoMess
 	{
 		OnClientEventDelegate.Broadcast(ClientId, EClientEventType::Modified);
 	}
+}
+
+bool FLiveLinkHubProvider::ShouldTransmitToClient_AnyThread(FMessageAddress Address, TFunctionRef<bool(const FLiveLinkHubUEClientInfo* ClientInfoPtr)> AdditionalFilter) const
+{
+	if (!Address.IsValid())
+	{
+		return false;
+	}
+
+	FReadScopeLock Locker(ClientsMapLock);
+
+	const FLiveLinkHubClientId ClientId = AddressToIdCache.FindRef(Address);
+	if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(ClientId))
+	{
+		if (const TSharedPtr<ILiveLinkHubSessionManager> Manager = SessionManager.Pin())
+		{
+			if (const TSharedPtr<ILiveLinkHubSession> CurrentSession = Manager->GetCurrentSession())
+			{
+				if (!CurrentSession->IsClientInSession(ClientInfoPtr->Id))
+				{
+					return false;
+				}
+			}
+		}
+
+		if (!ClientInfoPtr->bEnabled)
+		{
+			return false;
+		}
+
+		return AdditionalFilter(ClientInfoPtr);
+	}
+	else
+	{
+		UE_LOG(LogLiveLinkHub, Warning, TEXT("Attempted to transmit data to an invalid client."));
+	}
+
+	return true;
 }
 
 void FLiveLinkHubProvider::OnConnectionsClosed(const TArray<FMessageAddress>& ClosedAddresses)
