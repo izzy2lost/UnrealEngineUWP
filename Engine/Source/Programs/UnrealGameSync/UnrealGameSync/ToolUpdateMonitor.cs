@@ -1,11 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Horde;
-using EpicGames.Horde.Tools;
-using EpicGames.Perforce;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -15,6 +9,12 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Horde.Tools;
+using EpicGames.Perforce;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 #nullable enable
 
@@ -160,7 +160,7 @@ namespace UnrealGameSync
 		{
 			foreach (ToolInfo tool in _tools)
 			{
-				if(tool.Id == toolId)
+				if (tool.Id == toolId)
 				{
 					return tool.Name;
 				}
@@ -196,7 +196,7 @@ namespace UnrealGameSync
 				{
 					await PollForUpdatesOnce(cancellationToken);
 				}
-				catch(Exception ex)
+				catch (Exception ex)
 				{
 					_logger.LogError(ex, "Exception while checking for tool updates");
 				}
@@ -488,7 +488,7 @@ namespace UnrealGameSync
 				ForceDeleteDirectory(directoryName);
 				return true;
 			}
-			catch(Exception ex)
+			catch (Exception ex)
 			{
 				_logger.LogWarning(ex, "Unable to delete directory {DirectoryName}", directoryName);
 				return false;

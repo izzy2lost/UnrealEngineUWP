@@ -3,18 +3,12 @@
 #pragma warning disable IDE0005
 #pragma warning disable CA1802 // warning CA1802: Field 'EnableAlerts' is declared as 'readonly' but is initialized with a constant value. Mark this field as 'const' instead.
 
-using EpicGames.Core;
-using EpicGames.Horde;
-using EpicGames.Horde.Tools;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Xml;
+using EpicGames.Core;
+using EpicGames.Horde.Tools;
 
 namespace UnrealGameSync
 {
