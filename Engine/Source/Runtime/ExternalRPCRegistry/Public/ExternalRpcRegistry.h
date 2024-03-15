@@ -106,13 +106,15 @@ struct FExternalRouteDesc
 public:
 	FHttpRouteHandle Handle;
 	FString InputContentType;
+	FString RpcCategory;
 	TArray<FExternalRpcArgumentDesc> ExpectedArguments;
 	FExternalRouteDesc() = default;
-	FExternalRouteDesc(FHttpRouteHandle InHandle, FString InContentType, TArray<FExternalRpcArgumentDesc> InArguments)
+	FExternalRouteDesc(FHttpRouteHandle InHandle, FString InContentType, TArray<FExternalRpcArgumentDesc> InArguments, FString InCategory = "")
 	{
 		Handle = InHandle;
 		InputContentType = InContentType;
 		ExpectedArguments = InArguments;
+		RpcCategory = InCategory;
 	}
 };
 
@@ -176,5 +178,11 @@ public:
 	 * Always registered at /listrpcs GET by default
 	 */
 	EXTERNALRPCREGISTRY_API bool HttpListOpenRoutes(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+
+	/**
+	 * Route Listing http, formatted for Swagger OASv3. Spits out all registered routes and describes them via a REST API call.
+	 * Always registered at /swagger.json GET by default
+	 */
+	EXTERNALRPCREGISTRY_API bool HttpListOASv3JSONRoutes(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 
 };
