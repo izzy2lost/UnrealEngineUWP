@@ -30,7 +30,7 @@ static uint64 GetLoadedModuleVersion(const TCHAR* ModuleName)
 #if PLATFORM_WINDOWS
 	//@lh-todo - Temporarily disable DXC versioning mechanism until detoured "ImageGetDigestStream" in UBA is fixed (buggy on POSIX/Wine)
 #if 1
-	constexpr uint64 FixedVersionNo = 0x64da28316d6b9ea4;
+	constexpr uint64 FixedVersionNo = 0x6ceef78bbe6a53a;
 	return FixedVersionNo;
 #else
 	HMODULE ModuleDll = ::GetModuleHandleW(ModuleName);

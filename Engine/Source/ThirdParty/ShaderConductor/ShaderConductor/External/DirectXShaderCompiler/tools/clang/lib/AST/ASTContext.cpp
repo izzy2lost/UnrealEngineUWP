@@ -1343,7 +1343,10 @@ const llvm::fltSemantics &ASTContext::getFloatTypeSemantics(QualType T) const {
   case BuiltinType::Float:      return Target->getFloatFormat();
   case BuiltinType::Double:     return Target->getDoubleFormat();
   case BuiltinType::LongDouble: return Target->getLongDoubleFormat();
-  case BuiltinType::LitFloat:   return Target->getDoubleFormat();     // HLSL Change
+  //case BuiltinType::LitFloat:   return Target->getDoubleFormat();     // HLSL Change
+  // UE Change Begin: Temporary fix to prevent crash with float literals in intrinsics
+  case BuiltinType::LitFloat:	return Target->getFloatFormat();
+  // UE Change End: Temporary fix to prevent crash with float literals in intrinsics
   }
 }
 
