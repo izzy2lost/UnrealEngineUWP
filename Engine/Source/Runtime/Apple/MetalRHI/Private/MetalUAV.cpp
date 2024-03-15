@@ -44,14 +44,8 @@ void FMetalResourceViewBase::Invalidate()
                 
         case EMetalType::TextureBufferBacked:
             FTextureBufferBacked & View = Storage.Get<FTextureBufferBacked>();
-            if (View.bIsBuffer)
-            {
-                SafeReleaseMetalTexture(View.Texture);
-            }
-            else
-            {
-                SafeReleaseMetalBuffer(View.Buffer);
-            }
+            SafeReleaseMetalTexture(View.Texture);
+            SafeReleaseMetalBuffer(View.Buffer);
             break;
 		}
 	}
