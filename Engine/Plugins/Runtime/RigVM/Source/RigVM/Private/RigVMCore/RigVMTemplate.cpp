@@ -83,7 +83,7 @@ FRigVMTemplateArgument::FRigVMTemplateArgument(FProperty* InProperty, FRigVMRegi
 	}
 	
 	const FRigVMTemplateArgumentType Type(CPPTypeName, CPPTypeObject);
-	const TRigVMTypeIndex TypeIndex = InRegistry.FindOrAddType_Internal(Type, true); 
+	const TRigVMTypeIndex TypeIndex = InRegistry.FindOrAddType(Type, true); 
 
 	TypeIndices.Add(TypeIndex);
 	EnsureValidExecuteType(InRegistry);

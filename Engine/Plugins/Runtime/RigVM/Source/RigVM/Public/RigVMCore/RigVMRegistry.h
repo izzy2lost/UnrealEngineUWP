@@ -107,11 +107,8 @@ public:
 	void Reset();
 
 	// Adds a type if it doesn't exist yet and returns its index.
-	// This function is not thead-safe
-	TRigVMTypeIndex FindOrAddType(const FRigVMTemplateArgumentType& InType)
-	{
-		return FindOrAddType_Internal(InType, false);
-	}
+	// This function is thread-safe
+	TRigVMTypeIndex FindOrAddType(const FRigVMTemplateArgumentType& InType, bool bForce = false);
 
 	// Removes a type from the registry, and updates all dependent templates
 	// which also creates invalid permutations in templates that we should ignore
@@ -335,7 +332,7 @@ private:
 	// Initialize the base types
 	void Initialize();
 	
-	TRigVMTypeIndex FindOrAddType_Internal(const FRigVMTemplateArgumentType& InType, bool bForce);
+	TRigVMTypeIndex FindOrAddType_NoLock(const FRigVMTemplateArgumentType& InType, bool bForce);
 
 	void RefreshEngineTypes_NoLock();
 
@@ -419,7 +416,7 @@ private:
 	// This is true if the engine has ever refreshed the engine types
 	bool bEverRefreshedEngineTypes;
 
-	static FCriticalSection RefreshTypesMutex;
+	static FCriticalSection FindOrAddTypeMutex;
 	static FCriticalSection FunctionRegistryMutex;
 	static FCriticalSection FactoryRegistryMutex;
 	static FCriticalSection TemplateRegistryMutex;
