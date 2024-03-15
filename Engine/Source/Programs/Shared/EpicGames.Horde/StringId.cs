@@ -23,7 +23,7 @@ namespace EpicGames.Horde
 		/// Enum used to disable validation on string arguments
 		/// </summary>
 		public enum Validate
-		{ 
+		{
 			/// <summary>
 			/// No validation required
 			/// </summary>
@@ -212,7 +212,7 @@ namespace EpicGames.Horde
 
 		/// <inheritdoc/>
 		public bool Equals(string? other) => other != null && Equals(other.AsMemory());
-	
+
 		/// <inheritdoc/>
 		public bool Equals(ReadOnlyMemory<char> other)
 		{

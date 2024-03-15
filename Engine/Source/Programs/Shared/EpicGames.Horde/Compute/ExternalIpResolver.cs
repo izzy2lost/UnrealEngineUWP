@@ -34,7 +34,7 @@ public class ExternalIpResolver
 	/// Cache of last resolved IP address. Once resolved, the address is cached for the lifetime of this class.
 	/// </summary>
 	private IPAddress? _resolvedIp;
-	
+
 	private readonly HttpClient _httpClient;
 	private readonly List<string> _ipLookupUrls = new()
 	{
@@ -62,7 +62,7 @@ public class ExternalIpResolver
 		{
 			return _resolvedIp;
 		}
-		
+
 		ExternalIpResolverException? lastException = null;
 		foreach (string lookupUrl in _ipLookupUrls)
 		{
@@ -88,13 +88,13 @@ public class ExternalIpResolver
 		{
 			throw new ExternalIpResolverException($"Non-successful response code: {res.StatusCode}");
 		}
-		
+
 		string content = await res.Content.ReadAsStringAsync(cancellationToken);
 		if (!IPAddress.TryParse(content, out IPAddress? ipAddress))
 		{
 			throw new ExternalIpResolverException($"Failed parsing HTTP body as an IP address: {content}");
 		}
-		
+
 		return ipAddress;
 	}
 }

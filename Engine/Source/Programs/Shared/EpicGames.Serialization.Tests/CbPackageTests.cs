@@ -38,7 +38,7 @@ namespace EpicGames.Serialization.Tests
 			};
 			CbObject rootObject = CbSerializer.Serialize(root);
 			IoHash rootHash = IoHash.Compute(rootObject.GetView().Span);
-			
+
 			using CbPackageBuilder builder = new();
 			builder.AddAttachment(rootHash, CbPackageAttachmentFlags.IsObject, rootObject.GetView().ToArray());
 			byte[] bytes = await builder.ToByteArray();

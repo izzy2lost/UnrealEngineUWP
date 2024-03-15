@@ -16,7 +16,7 @@ namespace EpicGames.Horde.Issues.Handlers
 		/// <inheritdoc/>
 		public override bool HandleEvent(IssueEvent issueEvent)
 		{
-			if(issueEvent.EventId == KnownLogEvents.AutomationTool_UnacceptableWords)
+			if (issueEvent.EventId == KnownLogEvents.AutomationTool_UnacceptableWords)
 			{
 				IssueEventGroup issue = new IssueEventGroup("UnacceptableWords", "Unacceptable words in {Files}", IssueChangeFilter.Code);
 				issue.Events.Add(issueEvent);

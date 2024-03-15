@@ -61,7 +61,7 @@ namespace EpicGames.BuildGraph
 		public object? Get(string name, object? defaultValue)
 		{
 			object? value;
-			if(!Properties.TryGetValue(name, out value))
+			if (!Properties.TryGetValue(name, out value))
 			{
 				value = defaultValue;
 			}

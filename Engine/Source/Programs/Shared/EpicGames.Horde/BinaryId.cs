@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Buffers.Binary;
 using System.ComponentModel;
@@ -8,6 +7,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using EpicGames.Core;
 
 namespace EpicGames.Horde
 {

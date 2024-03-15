@@ -87,7 +87,7 @@ namespace EpicGames.Horde.Tests
 			}
 
 			int equalSize = 0;
-			while(equalSize < _data.Length && _data[equalSize] == readData[equalSize])
+			while (equalSize < _data.Length && _data[equalSize] == readData[equalSize])
 			{
 				equalSize++;
 			}
@@ -127,7 +127,7 @@ namespace EpicGames.Horde.Tests
 			// Read it back in and test the index
 			LogNode rootNode = await rootNodeRef.ReadBlobAsync();
 			LogIndexNode index = await rootNode.IndexRef.ReadBlobAsync();
-		
+
 			for (int lineIdx = 0; lineIdx < lines.Length; lineIdx++)
 			{
 				for (int strLen = 1; strLen < 7; strLen++)

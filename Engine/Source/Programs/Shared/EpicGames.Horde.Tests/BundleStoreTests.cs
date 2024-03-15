@@ -1,24 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Clients;
-using EpicGames.Horde.Storage.Nodes;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Threading;
-using System.Text;
 using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Core;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging.Abstractions;
+using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Bundles.V1;
+using EpicGames.Horde.Storage.Clients;
+using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Serialization;
-using EpicGames.Horde.Storage.Backends;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace EpicGames.Horde.Tests
 {
@@ -81,7 +81,7 @@ namespace EpicGames.Horde.Tests
 			List<BlobType> types = new List<BlobType>();
 			types.Add(new BlobType("{F63606D4-4061-5DBB-446F-55A69E22654F}", 1));
 
-			List <BundleExport> exports = new List<BundleExport>();
+			List<BundleExport> exports = new List<BundleExport>();
 			exports.Add(new BundleExport(0, 0, 0, payload.Length, Array.Empty<BundleExportRef>()));
 
 			List<BundlePacket> packets = new List<BundlePacket>();
@@ -171,7 +171,7 @@ namespace EpicGames.Horde.Tests
 				await writer.FlushAsync();
 
 				await store.WriteRefAsync(new RefName("test"), rootRef);
-			
+
 				BundleReader reader = new BundleReader(store, BundleCache.None, NullLogger.Instance);
 				await CheckTreeAsync(root);
 			}

@@ -167,7 +167,7 @@ namespace EpicGames.Perforce.Managed
 		/// Name of the main data file for a repository
 		/// </summary>
 		const string DataFileName = "Repository.dat";
-		
+
 		/// <summary>
 		/// Name of the host
 		/// </summary>
@@ -394,7 +394,7 @@ namespace EpicGames.Perforce.Managed
 			bool requiresRepair = reader.ReadBoolean();
 			uint nextSequenceNumber = reader.ReadUInt32();
 
-			ManagedWorkspace repo = new (hostName, nextSequenceNumber, baseDir, options, logger);
+			ManagedWorkspace repo = new(hostName, nextSequenceNumber, baseDir, options, logger);
 			repo._requiresRepair = requiresRepair;
 
 			int numTrackedFiles = reader.ReadInt32();
@@ -501,20 +501,20 @@ namespace EpicGames.Perforce.Managed
 				using (ILoggerProgress scope = _logger.BeginProgressScope("Cleaning files..."))
 				{
 					Stopwatch timer = Stopwatch.StartNew();
-					
+
 					ParallelOptions options = new() { MaxDegreeOfParallelism = _options.MaxFileConcurrency, CancellationToken = cancellationToken };
 					await Parallel.ForEachAsync(filesToDelete, options, (fileToDelete, ct) =>
 					{
 						FileUtils.ForceDeleteFile(fileToDelete);
 						return ValueTask.CompletedTask;
 					});
-					
+
 					await Parallel.ForEachAsync(directoriesToDelete, options, (directoryToDelete, ct) =>
 					{
 						FileUtils.ForceDeleteDirectory(directoryToDelete);
 						return ValueTask.CompletedTask;
 					});
-					
+
 					scope.Progress = $"({timer.Elapsed.TotalSeconds:0.0}s)";
 				}
 
@@ -590,7 +590,7 @@ namespace EpicGames.Perforce.Managed
 				int numMissingFiles = 0;
 				foreach (CachedFileInfo trackedFile in trackedFiles)
 				{
-					if (!trackedFile.CheckIntegrity((numMissingFiles < MaxLoggedMissingFiles)? _logger : NullLogger.Instance))
+					if (!trackedFile.CheckIntegrity((numMissingFiles < MaxLoggedMissingFiles) ? _logger : NullLogger.Instance))
 					{
 						RemoveTrackedFile(trackedFile);
 						numMissingFiles++;
@@ -876,7 +876,7 @@ namespace EpicGames.Perforce.Managed
 				{
 					if (_options.UseHaveTable)
 					{
-						contents = await FindClientContentsAsync(perforce, changeNumber, cancellationToken);						
+						contents = await FindClientContentsAsync(perforce, changeNumber, cancellationToken);
 					}
 					else
 					{
@@ -1223,7 +1223,7 @@ namespace EpicGames.Perforce.Managed
 
 			return client;
 		}
-		
+
 		/// <summary>
 		/// Sets the stream for the current client
 		/// </summary>
@@ -1576,7 +1576,7 @@ namespace EpicGames.Perforce.Managed
 
 			return new StreamSnapshotFromMemory(builder);
 		}
-		
+
 		class FStatRecordWithoutHaveTable
 		{
 			// Note: This enum is used for indexing an array of fields, and member names much match P4 field names (including case).
@@ -1617,7 +1617,7 @@ namespace EpicGames.Perforce.Managed
 		public async Task<StreamSnapshotFromMemory> FindClientContentsWithoutHaveTableAsync(IPerforceConnection perforceClient, string streamName, IReadOnlyList<string> view, int changeNumber, CancellationToken cancellationToken)
 		{
 			DepotStreamTreeBuilder builder = new();
-			
+
 			using (Trace("FetchMetadata"))
 			using (ILoggerProgress scope = _logger.BeginProgressScope("Fetching metadata (without have table)..."))
 			{
@@ -1638,7 +1638,7 @@ namespace EpicGames.Perforce.Managed
 					rawRecord.CopyInto(FStatRecordWithoutHaveTable.Utf8FieldNames, record.Values);
 					if (record.Digest.IsEmpty)
 					{
-						return; 
+						return;
 					}
 
 					if (viewMap.TryMapFile(record.DepotFile.ToString(), StringComparison.OrdinalIgnoreCase, out string clientFile))
@@ -1933,7 +1933,7 @@ namespace EpicGames.Perforce.Managed
 						MoveFileFromCache(fileToMove, transaction._filesToSync);
 						return ValueTask.CompletedTask;
 					});
-					
+
 					_contentIdToTrackedFile = _contentIdToTrackedFile.Where(x => !transaction._filesToMove.ContainsKey(x.Value)).ToDictionary(x => x.Key, x => x.Value);
 					status.Progress = $"({timer.Elapsed.TotalSeconds:0.0}s)";
 				}
@@ -2185,11 +2185,11 @@ namespace EpicGames.Perforce.Managed
 				FileReference targetFile = fileToMove._workspaceFile.GetLocation();
 				FileReference.Move(fileToMove._trackedFile.GetLocation(), targetFile);
 				try
-				{ 
+				{
 					FileReference.SetLastWriteTimeUtc(targetFile, DateTime.UtcNow);
 					fileToMove._workspaceFile.UpdateMetadata();
-				} 
-				catch 
+				}
+				catch
 				{
 					_logger.LogWarning("Unable to update timestamp on {TargetFile}", targetFile);
 				}

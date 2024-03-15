@@ -4,8 +4,8 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace EpicGames.Core
 {

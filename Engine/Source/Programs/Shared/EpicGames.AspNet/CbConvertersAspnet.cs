@@ -33,7 +33,7 @@ namespace EpicGames.AspNet
 			{
 				throw new CbException($"Error converting field \"{field.Name}\" to ProblemDetails. Expected CbObject.");
 			}
-			
+
 			ProblemDetails result = new ProblemDetails
 			{
 				Title = field[new Utf8String("title")].AsString(),
@@ -82,7 +82,7 @@ namespace EpicGames.AspNet
 			{
 				objectWriter.WriteInteger(new Utf8String("status"), problemDetails.Status.Value);
 			}
-			
+
 			objectWriter.EndObject();
 
 			return objectWriter.ToObject();

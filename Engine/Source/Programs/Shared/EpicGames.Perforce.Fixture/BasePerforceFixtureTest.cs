@@ -25,13 +25,13 @@ public abstract class BasePerforceFixtureTest : IDisposable
 	/// Console-based logger factory
 	/// </summary>
 	protected ILoggerFactory LoggerFactory { get; }
-	
+
 	/// <summary>
 	/// Temporary scratch dir, deleted after every test.
 	/// Provides a location for (managed) workspace root or cache files. 
 	/// </summary>
 	protected DirectoryReference TempDir { get; }
-	
+
 	/// <summary>
 	/// A Perforce connection to the fixture test server
 	/// </summary>
@@ -40,18 +40,18 @@ public abstract class BasePerforceFixtureTest : IDisposable
 	/// <summary>
 	/// Fixture data mirroring how the stream/depot looks
 	/// </summary>
-	protected PerforceFixture Fixture { get; } = new ();
+	protected PerforceFixture Fixture { get; } = new();
 
 	private readonly string _clientName;
-	
+
 	protected BasePerforceFixtureTest()
 	{
 		LoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder => builder.AddConsole());
-		
+
 		// PerforceConnection is set in a [TestInitialize] method as Assert.Inconclusive cannot be raised in the constructor.
 		// That initialize method will get called after the constructor ensuring the connection is instantiated.
 		PerforceConnection = null!;
-		
+
 		_clientName = "test-fixture-" + Guid.NewGuid().ToString()[..8];
 		TempDir = new DirectoryReference(Path.Join(Path.GetTempPath(), "p4-" + _clientName));
 		DirectoryReference.CreateDirectory(TempDir);
@@ -66,7 +66,7 @@ public abstract class BasePerforceFixtureTest : IDisposable
 			// Only the first ~120 chars of the message is printed by MSTest runner. Try to keep it below that.
 			Assert.Inconclusive($"P4 fixture server not configured. Set env var {EnvVar} to enable. See {nameof(BasePerforceFixtureTest)}.");
 		}
-		
+
 		PerforceConnection = GetPerforceConnection(serverUrl!);
 	}
 
@@ -81,7 +81,7 @@ public abstract class BasePerforceFixtureTest : IDisposable
 				FileInfo fileInfo = new FileInfo(filePath);
 				fileInfo.IsReadOnly = false;
 			}
-			
+
 			Directory.Delete(TempDir.FullName, true);
 		}
 	}
@@ -89,14 +89,14 @@ public abstract class BasePerforceFixtureTest : IDisposable
 	private PerforceConnection GetPerforceConnection(string connectionString)
 	{
 		connectionString = connectionString == UseDefaultMarker ? DefaultUrl : connectionString;
-		Uri uri = new (connectionString);
-		
+		Uri uri = new(connectionString);
+
 		Assert.AreEqual("p4", uri.Scheme, "P4 fixture server URL must start with p4://");
 
 		string serverAndPort = $"{uri.Host}:{uri.Port}";
 		(string username, string? password) = GetCredentialsFromUri(uri);
-		
-		PerforceSettings perforceSettings = new (serverAndPort, username)
+
+		PerforceSettings perforceSettings = new(serverAndPort, username)
 		{
 			AppName = "Perforce Test Fixture",
 			ClientName = _clientName,
@@ -127,7 +127,7 @@ public abstract class BasePerforceFixtureTest : IDisposable
 		Dispose(true);
 		GC.SuppressFinalize(this);
 	}
-	
+
 	/// <summary>
 	/// Standard Dispose pattern method
 	/// </summary>

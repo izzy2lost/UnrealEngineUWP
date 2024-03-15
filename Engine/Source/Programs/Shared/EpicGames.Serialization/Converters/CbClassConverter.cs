@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -8,6 +7,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
+using EpicGames.Core;
 
 namespace EpicGames.Serialization.Converters
 {
@@ -300,7 +300,7 @@ namespace EpicGames.Serialization.Converters
 		static void CreateConcreteObjectReader(Type type, ILGenerator generator)
 		{
 			// Construct the object
-			ConstructorInfo? constructor = 
+			ConstructorInfo? constructor =
 				type.GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, Type.EmptyTypes, null) ?? throw new CbException($"Unable to find default constructor for {type}");
 
 			// Find the reflected properties from this type
@@ -452,7 +452,7 @@ namespace EpicGames.Serialization.Converters
 
 		static void CopyCollection<TCollection, TElement>(TCollection source, TCollection target) where TCollection : ICollection<TElement>
 		{
-			foreach(TElement element in source)
+			foreach (TElement element in source)
 			{
 				target.Add(element);
 			}

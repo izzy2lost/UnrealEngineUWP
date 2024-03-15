@@ -172,7 +172,7 @@ namespace EpicGames.Slack
 
 			[JsonPropertyName("attachments")]
 			public List<SlackAttachment>? Attachments { get; set; }
-			
+
 			[JsonPropertyName("reply_broadcast")]
 			public bool? ReplyBroadcast { get; set; }
 
@@ -197,7 +197,7 @@ namespace EpicGames.Slack
 		/// </summary>
 		/// <param name="recipient">Recipient of the message. May be a channel or Slack user id.</param>
 		/// <param name="message">New message to post</param>
- 		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Identifier for the message. Note that the returned channel value will respond to a concrete channel identifier if a user is specified as recipient, and must be used to update the message.</returns>
 		public async Task<SlackMessageId> PostMessageAsync(string recipient, SlackMessage message, CancellationToken cancellationToken = default)
 		{
@@ -256,8 +256,8 @@ namespace EpicGames.Slack
 		{
 			PostMessageRequest request = new PostMessageRequest();
 			request.Channel = recipient;
-			request.Ts = String.IsNullOrEmpty(ts)? null : ts;
-			request.ThreadTs = String.IsNullOrEmpty(threadTs)? null : threadTs;
+			request.Ts = String.IsNullOrEmpty(ts) ? null : ts;
+			request.ThreadTs = String.IsNullOrEmpty(threadTs) ? null : threadTs;
 			request.Text = message.Text;
 			request.Blocks = message.Blocks;
 			request.Markdown = message.Markdown;
@@ -279,7 +279,7 @@ namespace EpicGames.Slack
 				request.UnfurlMedia = false;
 			}
 
-			PostMessageResponse response = await SendRequestAsync<PostMessageResponse>(ts == null? PostMessageUrl : UpdateMessageUrl, request, cancellationToken);
+			PostMessageResponse response = await SendRequestAsync<PostMessageResponse>(ts == null ? PostMessageUrl : UpdateMessageUrl, request, cancellationToken);
 			if (!response.Ok || response.Ts == null)
 			{
 				throw new SlackException(response.Error ?? "unknown");

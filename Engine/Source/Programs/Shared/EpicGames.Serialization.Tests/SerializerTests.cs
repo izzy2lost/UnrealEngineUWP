@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using EpicGames.Core;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace EpicGames.Serialization.Tests
 {

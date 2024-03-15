@@ -31,13 +31,13 @@ namespace EpicGames.Horde.Compute.Clients
 
 			/// <inheritdoc/>
 			public RemoteComputeSocket Socket => _source.Current;
-			
+
 			/// <inheritdoc/>
 			public string Ip => "127.0.0.1";
-			
+
 			/// <inheritdoc/>
 			public ConnectionMode ConnectionMode => ConnectionMode.Direct;
-			
+
 			/// <inheritdoc/>
 			public IReadOnlyDictionary<string, ConnectionMetadataPort> Ports => new Dictionary<string, ConnectionMetadataPort>();
 
@@ -73,7 +73,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 		/// <inheritdoc/>
 		public ValueTask DisposeAsync() => new ValueTask();
-		
+
 		/// <inheritdoc/>
 		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
 		{
@@ -106,8 +106,8 @@ namespace EpicGames.Horde.Compute.Clients
 			await using BackgroundTask agentTask = BackgroundTask.StartNew(ctx => RunAgentAsync(_hordeAgentAssembly, _port, logger, ctx));
 			using Socket tcpSocket = await listener.AcceptAsync(cancellationToken);
 
-			await using TcpTransport tcpTransport = new (tcpSocket);
-			await using RemoteComputeSocket socket = new (tcpTransport, ComputeProtocol.Latest, _logger);
+			await using TcpTransport tcpTransport = new(tcpSocket);
+			await using RemoteComputeSocket socket = new(tcpTransport, ComputeProtocol.Latest, _logger);
 			yield return socket;
 
 			await socket.CloseAsync(cancellationToken);

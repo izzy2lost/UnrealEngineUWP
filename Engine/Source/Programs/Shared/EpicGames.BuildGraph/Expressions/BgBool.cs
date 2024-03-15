@@ -128,7 +128,7 @@ namespace EpicGames.BuildGraph.Expressions
 			Value = value;
 		}
 
-		public override void Write(BgBytecodeWriter writer) => writer.WriteOpcode(Value? BgOpcode.BoolTrue : BgOpcode.BoolFalse);
+		public override void Write(BgBytecodeWriter writer) => writer.WriteOpcode(Value ? BgOpcode.BoolTrue : BgOpcode.BoolFalse);
 	}
 
 	class BgBoolWrappedExpr : BgBool

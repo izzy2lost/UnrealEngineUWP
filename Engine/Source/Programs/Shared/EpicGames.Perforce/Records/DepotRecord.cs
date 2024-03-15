@@ -45,7 +45,7 @@ namespace EpicGames.Perforce
 		/// A string containing either an integer value or an example path (i.e. //depot/foo/bar represents a depth of 2)
 		/// </summary>
 		[PerforceTag("StreamDepth", Optional = true)]
-		public string StreamDepthString { get;  set; } = String.Empty;
+		public string StreamDepthString { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Helper to get Depot Stream Depth (number of slashes after depot that define the stream name) as an integer

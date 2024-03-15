@@ -76,9 +76,9 @@ namespace EpicGames.Horde.Compute.Clients
 		static async Task RunListenerAsync(Socket listener, DirectoryReference sandboxDir, bool executeInProcess, ILogger logger, CancellationToken cancellationToken)
 		{
 			using Socket tcpSocket = await listener.AcceptAsync(cancellationToken);
-			await using TcpTransport tcpTransport = new (tcpSocket);
-			await using RemoteComputeSocket socket = new (tcpTransport, ComputeProtocol.Latest, logger);
-			AgentMessageHandler worker = new (sandboxDir, null, executeInProcess, null, null, logger);
+			await using TcpTransport tcpTransport = new(tcpSocket);
+			await using RemoteComputeSocket socket = new(tcpTransport, ComputeProtocol.Latest, logger);
+			AgentMessageHandler worker = new(sandboxDir, null, executeInProcess, null, null, logger);
 			await worker.RunAsync(socket, cancellationToken);
 			await socket.CloseAsync(cancellationToken);
 		}

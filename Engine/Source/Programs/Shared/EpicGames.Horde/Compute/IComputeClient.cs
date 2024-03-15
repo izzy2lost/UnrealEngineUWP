@@ -23,7 +23,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="logger">Logger for output from this worker</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken = default);
-		
+
 		/// <summary>
 		/// Declare resource needs for current client
 		/// Helps inform the server about current demand.
@@ -44,10 +44,10 @@ namespace EpicGames.Horde.Compute
 		/// <inheritdoc cref="IComputeClient.TryAssignWorkerAsync" />
 		public static Task<IComputeLease?> TryAssignWorkerAsync(this IComputeClient computeClient, ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMode? connectionPreference, ILogger logger, CancellationToken cancellationToken = default)
 		{
-			ConnectionMetadataRequest cmr = new () { ModePreference = connectionPreference };
+			ConnectionMetadataRequest cmr = new() { ModePreference = connectionPreference };
 			return computeClient.TryAssignWorkerAsync(clusterId, requirements, requestId, cmr, logger, cancellationToken);
 		}
-		
+
 		/// <inheritdoc cref="IComputeClient.TryAssignWorkerAsync" />
 		[Obsolete("Prefer taking a requestId parameter")]
 		public static Task<IComputeLease?> TryAssignWorkerAsync(this IComputeClient computeClient, ClusterId clusterId, Requirements? requirements, ILogger logger, CancellationToken cancellationToken)
@@ -62,7 +62,7 @@ namespace EpicGames.Horde.Compute
 			return computeClient.TryAssignWorkerAsync(clusterId, requirements, requestId, null, logger, cancellationToken);
 		}
 	}
-	
+
 	/// <summary>
 	/// Exception from ComputeClient
 	/// </summary>

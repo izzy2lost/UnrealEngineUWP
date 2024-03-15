@@ -53,7 +53,7 @@ namespace EpicGames.Horde.Storage
 				=> _inner!.Innermost;
 
 			/// <inheritdoc/>
-			public IoHash Hash 
+			public IoHash Hash
 				=> _inner!.Hash;
 
 			/// <inheritdoc/>

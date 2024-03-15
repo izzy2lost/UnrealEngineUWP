@@ -31,7 +31,7 @@ public sealed class TcpSslTransport : ComputeTransport
 	public TcpSslTransport(Socket socket, byte[] certData, bool isServer) : this(socket, new X509Certificate2(certData), isServer)
 	{
 	}
-	
+
 	/// <summary>
 	/// Constructor
 	/// </summary>
@@ -46,7 +46,7 @@ public sealed class TcpSslTransport : ComputeTransport
 		_networkStream = new NetworkStream(socket);
 		_sslStream = new SslStream(_networkStream, false);
 	}
-	
+
 	/// <inheritdoc/>
 	public override ValueTask DisposeAsync()
 	{
@@ -72,7 +72,7 @@ public sealed class TcpSslTransport : ComputeTransport
 
 	private async Task AuthenticateAsClientAsync()
 	{
-		SslClientAuthenticationOptions options = new ()
+		SslClientAuthenticationOptions options = new()
 		{
 			TargetHost = "horde", // Since cert is self-signed and not CA-based, this is ignored
 			ClientCertificates = new X509CertificateCollection { _cert },
@@ -80,10 +80,10 @@ public sealed class TcpSslTransport : ComputeTransport
 			EncryptionPolicy = EncryptionPolicy.RequireEncryption,
 			RemoteCertificateValidationCallback = ValidateCert
 		};
-		
+
 		await _sslStream.AuthenticateAsClientAsync(options);
 	}
-	
+
 	private async Task AuthenticateAsServerAsync(CancellationToken cancellationToken)
 	{
 		SslServerAuthenticationOptions opt = new()
@@ -96,7 +96,7 @@ public sealed class TcpSslTransport : ComputeTransport
 		};
 		await _sslStream.AuthenticateAsServerAsync(opt, cancellationToken);
 	}
-	
+
 	/// <summary>
 	/// Checks the certificate returned by the server is indeed the correct one
 	/// </summary>
@@ -132,7 +132,7 @@ public sealed class TcpSslTransport : ComputeTransport
 		_socket.Shutdown(SocketShutdown.Send);
 		return new ValueTask();
 	}
-	
+
 	/// <summary>
 	/// Generate a self-signed certificate to be used for communicating between client and server of this transport
 	/// </summary>
@@ -143,24 +143,24 @@ public sealed class TcpSslTransport : ComputeTransport
 		DateTimeOffset notBefore = DateTimeOffset.UtcNow - TimeSpan.FromSeconds(10);
 		DateTimeOffset notAfter = DateTimeOffset.UtcNow.AddHours(24);
 		string subjectName = "cn=horde";
-		
+
 		if (encryption == Encryption.Ssl)
 		{
 			using RSA rsa = RSA.Create(2048);
-			CertificateRequest req = new (subjectName, rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+			CertificateRequest req = new(subjectName, rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 			cert = req.CreateSelfSigned(notBefore, notAfter);
 		}
 		else if (encryption == Encryption.SslEcdsaP256)
 		{
 			using ECDsa ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-			CertificateRequest req = new (subjectName, ecdsa, HashAlgorithmName.SHA256);
+			CertificateRequest req = new(subjectName, ecdsa, HashAlgorithmName.SHA256);
 			cert = req.CreateSelfSigned(notBefore, notAfter);
 		}
 		else
 		{
 			throw new ArgumentException($"Cannot generate certificate for encryption {encryption}", nameof(encryption));
 		}
-		
+
 		return cert.Export(X509ContentType.Pkcs12); // Note: Need to reimport this to use immediately, otherwise key is ephemeral
 	}
 }

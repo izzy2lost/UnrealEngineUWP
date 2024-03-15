@@ -27,8 +27,8 @@ namespace EpicGames.Perforce.Managed
 		public static async Task<RemoveTransaction> CreateAsync(WorkspaceDirectoryInfo workspaceRootDir, StreamSnapshot streamSnapshot, Dictionary<FileContentId, CachedFileInfo> contentIdToTrackedFile, int numWorkers)
 		{
 			RemoveTransaction transaction = new(workspaceRootDir, streamSnapshot, contentIdToTrackedFile);
-			
-			using AsyncThreadPoolWorkQueue queue = new (numWorkers);
+
+			using AsyncThreadPoolWorkQueue queue = new(numWorkers);
 			await queue.EnqueueAsync(_ => transaction.MergeAsync(workspaceRootDir, transaction._newWorkspaceRootDir, streamSnapshot.Root, queue));
 			await queue.ExecuteAsync();
 			return transaction;

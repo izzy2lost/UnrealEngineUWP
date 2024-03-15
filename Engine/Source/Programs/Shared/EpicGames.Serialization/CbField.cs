@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
@@ -13,6 +12,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using EpicGames.Core;
 
 #pragma warning disable CA1721 // Property names should not match get methods
 #pragma warning disable CA1028 // Enum Storage should be Int32
@@ -655,7 +655,7 @@ namespace EpicGames.Serialization
 	class CbFieldDebugView
 	{
 		public CbFieldDebugView(CbField field) => Value = field.HasName()
-				? new CbFieldWithNameDebugView { Name = field.Name.ToString(), Value = field.Value } 
+				? new CbFieldWithNameDebugView { Name = field.Name.ToString(), Value = field.Value }
 				: field.Value;
 
 		[DebuggerBrowsable(DebuggerBrowsableState.RootHidden)]
@@ -1466,7 +1466,7 @@ namespace EpicGames.Serialization
 		/// <inheritdoc cref="CbFieldUtils.IsTimeSpan(CbFieldType)"/>
 		public bool IsTimeSpan() => CbFieldUtils.IsTimeSpan(TypeWithFlags);
 
-		
+
 		/// <inheritdoc cref="CbFieldUtils.IsObjectId(CbFieldType)"/>
 		public bool IsObjectId() => CbFieldUtils.IsObjectId(TypeWithFlags);
 
@@ -2335,7 +2335,7 @@ namespace EpicGames.Serialization
 		/// </summary>
 		public bool TryGetView(out ReadOnlyMemory<byte> outView)
 		{
-			if(_innerField.HasName())
+			if (_innerField.HasName())
 			{
 				outView = ReadOnlyMemory<byte>.Empty;
 				return false;

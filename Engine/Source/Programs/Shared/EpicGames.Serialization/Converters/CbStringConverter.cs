@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.ComponentModel;
 
@@ -26,7 +25,7 @@ namespace EpicGames.Serialization.Converters
 		}
 
 		public override void Write(CbWriter writer, T value)
-		{ 
+		{
 			writer.WriteStringValue(_typeConverter.ConvertToInvariantString(value)!);
 		}
 	}

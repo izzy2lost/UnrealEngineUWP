@@ -17,7 +17,7 @@ namespace EpicGames.AspNet
 		private readonly double? _duration;
 		private readonly string? _description;
 		private string? _serverTimingMetric;
-		
+
 		public ServerTimingMetric(string metricName, double? duration, string? description)
 		{
 			_metricName = metricName;
@@ -145,7 +145,8 @@ namespace EpicGames.AspNet
 
 		private Task HandleServerTimingAsResponseHeadersAsync(HttpContext context, IServerTiming serverTiming)
 		{
-			context.Response.OnStarting(() => {
+			context.Response.OnStarting(() =>
+			{
 				if (serverTiming.Metrics.Any())
 				{
 					string serverTimingValue = String.Join(",", serverTiming.Metrics.Take(10));

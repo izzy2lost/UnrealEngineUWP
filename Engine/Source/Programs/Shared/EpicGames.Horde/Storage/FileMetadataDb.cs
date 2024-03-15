@@ -78,7 +78,7 @@ namespace EpicGames.Horde.Storage
 				await connection.OpenAsync(cancellationToken);
 
 				int version = await connection.ExecuteScalarAsync<int>("PRAGMA user_version;");
-				if(version == 0)
+				if (version == 0)
 				{
 					// Configure the directories table
 					await connection.ExecuteAsync(

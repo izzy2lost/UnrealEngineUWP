@@ -35,7 +35,7 @@ public class IdleTimeoutTransport : ComputeTransport
 		NoDataTimeout = noDataTimeout ?? NoDataTimeout;
 		_lastPingTicks = Stopwatch.GetTimestamp();
 	}
-	
+
 	/// <inheritdoc/>
 	public override ValueTask DisposeAsync()
 	{
@@ -47,7 +47,7 @@ public class IdleTimeoutTransport : ComputeTransport
 	/// Time since last send or receive completed
 	/// </summary>
 	public TimeSpan TimeSinceActivity => TimeSpan.FromTicks((long)((Stopwatch.GetTimestamp() - Interlocked.CompareExchange(ref _lastPingTicks, 0, 0)) * s_ticksToSystemTicks));
-	
+
 	/// <inheritdoc/>
 	public override async ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 	{
@@ -68,7 +68,7 @@ public class IdleTimeoutTransport : ComputeTransport
 
 	/// <inheritdoc/>
 	public override ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => new ValueTask();
-	
+
 	/// <summary>
 	/// Start a loop monitoring activity on the inner transport
 	/// </summary>

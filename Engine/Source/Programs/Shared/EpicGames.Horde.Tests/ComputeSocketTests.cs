@@ -74,10 +74,10 @@ namespace EpicGames.Horde.Tests
 		{
 			Pipe recvPipe = new Pipe();
 			Pipe sendPipe = new Pipe();
-			await using PipeTransport localTransport = new (sendPipe.Reader, recvPipe.Writer);
-			await using PipeTransport agentTransport = new (recvPipe.Reader, sendPipe.Writer);
-			await using RemoteComputeSocket localSocket = new (localTransport, ComputeProtocol.Latest, new TestLogger());
-			await using RemoteComputeSocket agentSocket = new (agentTransport, ComputeProtocol.Latest, new TestLogger());
+			await using PipeTransport localTransport = new(sendPipe.Reader, recvPipe.Writer);
+			await using PipeTransport agentTransport = new(recvPipe.Reader, sendPipe.Writer);
+			await using RemoteComputeSocket localSocket = new(localTransport, ComputeProtocol.Latest, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new(agentTransport, ComputeProtocol.Latest, new TestLogger());
 
 			await RunAgentTestsAsync(localSocket, agentSocket);
 		}
@@ -85,36 +85,36 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TestAgentMessageLoopTcpAsync()
 		{
-			using CancellationTokenSource cts = new (5000);
+			using CancellationTokenSource cts = new(5000);
 			(Socket clientSocket, Socket serverSocket) = await CreateSocketsAsync(cts.Token);
 
-			await using TcpTransport clientTransport = new (clientSocket);
-			await using TcpTransport serverTransport = new (serverSocket);
-			await using RemoteComputeSocket localSocket = new (clientTransport, ComputeProtocol.Latest, new TestLogger());
-			await using RemoteComputeSocket agentSocket = new (serverTransport, ComputeProtocol.Latest, new TestLogger());
+			await using TcpTransport clientTransport = new(clientSocket);
+			await using TcpTransport serverTransport = new(serverSocket);
+			await using RemoteComputeSocket localSocket = new(clientTransport, ComputeProtocol.Latest, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new(serverTransport, ComputeProtocol.Latest, new TestLogger());
 
 			await RunAgentTestsAsync(localSocket, agentSocket, cts.Token);
 		}
-		
+
 		[TestMethod]
 		[DataRow(Encryption.Ssl)]
 		[DataRow(Encryption.SslEcdsaP256)]
 		public async Task TestAgentMessageLoopTcpSslAsync(Encryption encryption)
 		{
-			using CancellationTokenSource cts = new (5000);
+			using CancellationTokenSource cts = new(5000);
 			(Socket clientSocket, Socket serverSocket) = await CreateSocketsAsync(cts.Token);
-			
+
 			byte[] certData = TcpSslTransport.GenerateCert(encryption);
-			await using TcpSslTransport clientTransport = new (clientSocket, certData, false);
-			await using TcpSslTransport serverTransport = new (serverSocket, certData, true);
-			
+			await using TcpSslTransport clientTransport = new(clientSocket, certData, false);
+			await using TcpSslTransport serverTransport = new(serverSocket, certData, true);
+
 			Task t1 = clientTransport.AuthenticateAsync(cts.Token);
 			Task t2 = serverTransport.AuthenticateAsync(cts.Token);
 			await t2;
 			await t1;
-			
-			await using RemoteComputeSocket localSocket = new (clientTransport, ComputeProtocol.Latest, new TestLogger());
-			await using RemoteComputeSocket agentSocket = new (serverTransport, ComputeProtocol.Latest, new TestLogger());
+
+			await using RemoteComputeSocket localSocket = new(clientTransport, ComputeProtocol.Latest, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new(serverTransport, ComputeProtocol.Latest, new TestLogger());
 			await RunAgentTestsAsync(localSocket, agentSocket, cts.Token);
 		}
 
@@ -124,10 +124,10 @@ namespace EpicGames.Horde.Tests
 #if NET8_0_OR_GREATER
 			using TcpListener listener = new (IPAddress.Loopback, port);
 #else
-			TcpListener listener = new (IPAddress.Loopback, port);
+			TcpListener listener = new(IPAddress.Loopback, port);
 #endif
 			listener.Start();
-			Socket clientSocket = new (SocketType.Stream, ProtocolType.Tcp);
+			Socket clientSocket = new(SocketType.Stream, ProtocolType.Tcp);
 			Task clientConnectTask = clientSocket.ConnectAsync(IPAddress.Loopback, port, cancellationToken).AsTask();
 			Socket serverSocket = await listener.AcceptSocketAsync(cancellationToken);
 			await clientConnectTask;
@@ -224,7 +224,7 @@ namespace EpicGames.Horde.Tests
 			await localSocket.CloseAsync(CancellationToken.None);
 			await agentSocket.CloseAsync(CancellationToken.None);
 		}
-		
+
 		static int GetAvailablePort()
 		{
 #if NET8_0_OR_GREATER

@@ -1,5 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
@@ -8,12 +14,6 @@ using EpicGames.Horde.Storage.Bundles.V1;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace EpicGames.Horde.Tests
 {
@@ -115,7 +115,7 @@ namespace EpicGames.Horde.Tests
 			using MemoryStream memoryStream = new MemoryStream();
 			await ChunkedDataNode.CopyToStreamAsync(nodeRef.Handle, memoryStream, default);
 			ReadOnlyMemory<byte> read = memoryStream.ToArray().AsMemory();
-			Assert.IsTrue(read.Span.SequenceEqual(expected.Span));			
+			Assert.IsTrue(read.Span.SequenceEqual(expected.Span));
 		}
 
 		[TestMethod]
@@ -144,7 +144,7 @@ namespace EpicGames.Horde.Tests
 			byte[] serializedData = oldHeader.ToByteArray();
 
 			BundleHeader newHeader = BundleHeader.Read(serializedData);
-				
+
 			Assert.AreEqual(oldHeader.Imports.Count, newHeader.Imports.Count);
 			for (int idx = 0; idx < oldHeader.Imports.Count; idx++)
 			{
@@ -203,14 +203,14 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, memoryStore.Blobs.Count);
 
 			// Check the ref
-//			IBlobHandle refTarget =  await store.ReadRefTargetAsync(refName);
-//			IBlobHandle bundleTarget = store.CreateBlobHandle(refTarget.GetLocator().BaseLocator);
-//			using BlobData bundleData = await bundleTarget.ReadBlobDataAsync();
+			//			IBlobHandle refTarget =  await store.ReadRefTargetAsync(refName);
+			//			IBlobHandle bundleTarget = store.CreateBlobHandle(refTarget.GetLocator().BaseLocator);
+			//			using BlobData bundleData = await bundleTarget.ReadBlobDataAsync();
 
-// This is specific to V1 data
-//			BundleHeader bundleHeader = BundleHeader.Read(bundleData.Data);
-//			Assert.AreEqual(0, bundleHeader.Imports.Count);
-//			Assert.AreEqual(3, bundleHeader.Exports.Count);
+			// This is specific to V1 data
+			//			BundleHeader bundleHeader = BundleHeader.Read(bundleData.Data);
+			//			Assert.AreEqual(0, bundleHeader.Imports.Count);
+			//			Assert.AreEqual(3, bundleHeader.Exports.Count);
 
 			// Create a new bundle and read it back in again
 			DirectoryNode newRoot = await store.ReadRefTargetAsync<DirectoryNode>(refName);

@@ -79,7 +79,7 @@ namespace EpicGames.Horde.Issues.Handlers
 
 					return true;
 				}
-				else if(_issues.Count > 0 && IsMaskedEventId(eventId))
+				else if (_issues.Count > 0 && IsMaskedEventId(eventId))
 				{
 					return true;
 				}

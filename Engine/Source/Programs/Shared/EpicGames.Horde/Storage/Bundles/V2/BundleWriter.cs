@@ -29,7 +29,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 			public PendingPacketHandle(PendingBundleHandle bundle) => _bundle = bundle;
 
-			public override ValueTask FlushAsync(CancellationToken cancellationToken = default) 
+			public override ValueTask FlushAsync(CancellationToken cancellationToken = default)
 				=> _bundle.FlushAsync(cancellationToken);
 
 			public void CompletePacket(FlushedPacketHandle flushedHandle)

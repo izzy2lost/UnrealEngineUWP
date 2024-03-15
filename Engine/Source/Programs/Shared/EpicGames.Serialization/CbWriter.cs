@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using EpicGames.Core;
 
 namespace EpicGames.Serialization
 {
@@ -377,7 +377,7 @@ namespace EpicGames.Serialization
 				_bufferPos = 0;
 				_bufferEnd = 0;
 			}
-			
+
 			Memory<byte> data = _buffer.Slice(_bufferEnd, length);
 			_bufferEnd += length;
 
@@ -1040,7 +1040,7 @@ namespace EpicGames.Serialization
 		/// <param name="value">Value to be written</param>
 		public static void WriteString(this ICbWriter writer, CbFieldName name, string? value)
 		{
-			if(value != null)
+			if (value != null)
 			{
 				writer.WriteUtf8String(name, new Utf8String(value));
 			}

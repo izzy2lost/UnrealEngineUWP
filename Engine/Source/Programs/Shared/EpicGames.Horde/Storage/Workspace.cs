@@ -170,7 +170,7 @@ namespace EpicGames.Horde.Storage
 				for (int idx = 0; idx < numFiles; idx++)
 				{
 					string fileName = reader.ReadString();
-				
+
 					FileState fileState = new FileState(this, fileName);
 					fileState.Read(reader);
 

@@ -66,7 +66,7 @@ namespace EpicGames.Serialization
 
 			return new CbPackageHeader(attachmentCount, reserved1, reserved2);
 		}
-		
+
 		public readonly void Write(Stream stream)
 		{
 			using BinaryWriter writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true);
@@ -103,7 +103,7 @@ namespace EpicGames.Serialization
 	/// Header for each attachment in the package
 	/// </summary>
 	public struct CbPackageAttachmentEntry
-	{ 
+	{
 		/// <summary>
 		/// The size of the attachment
 		/// </summary>
@@ -259,7 +259,7 @@ namespace EpicGames.Serialization
 		{
 			// close the stream after we have iterated the attachments as there should be nothing left in it
 			await using Stream s = _attachmentsStream;
-			
+
 			foreach (CbPackageAttachmentEntry entry in _attachmentEntries)
 			{
 				if (entry.PayloadSize > Int32.MaxValue)

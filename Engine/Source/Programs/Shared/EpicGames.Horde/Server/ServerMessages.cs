@@ -88,7 +88,7 @@ namespace EpicGames.Horde.Server
 		/// Generic OpenID Connect authentication, recommended for most
 		/// </summary>
 		OpenIdConnect,
-		
+
 		/// <summary>
 		/// Authenticate using username and password credentials stored in Horde
 		/// OpenID Connect (OIDC) is first and foremost recommended.
@@ -170,18 +170,18 @@ namespace EpicGames.Horde.Server
 	/// </summary>
 	public class ServerStatusSubsystem
 	{
-	
+
 		/// <summary>
 		/// Name of the subsystem
 		/// </summary>
 		public string Name { get; init; } = "";
-		
+
 		/// <summary>
 		/// List of updates
 		/// </summary>
 		public ServerStatusUpdate[] Updates { get; set; } = Array.Empty<ServerStatusUpdate>();
 	}
-	
+
 	/// <summary>
 	/// Type of status result for a single update
 	/// </summary>
@@ -191,18 +191,18 @@ namespace EpicGames.Horde.Server
 		/// Indicates that the health check determined that the subsystem was unhealthy
 		/// </summary>
 		Unhealthy,
-		
+
 		/// <summary>
 		/// Indicates that the health check determined that the component was in a subsystem state
 		/// </summary>
 		Degraded,
-		
+
 		/// <summary>
 		/// Indicates that the health check determined that the subsystem was healthy
 		/// </summary>
 		Healthy,
 	}
-	
+
 	/// <summary>
 	/// A single status update
 	/// </summary>
@@ -212,12 +212,12 @@ namespace EpicGames.Horde.Server
 		/// Result of status update
 		/// </summary>
 		public ServerStatusResult Result { get; set; }
-		
+
 		/// <summary>
 		/// Optional message describing the result
 		/// </summary>
 		public string? Message { get; set; }
-		
+
 		/// <summary>
 		/// Time this update was created
 		/// </summary>

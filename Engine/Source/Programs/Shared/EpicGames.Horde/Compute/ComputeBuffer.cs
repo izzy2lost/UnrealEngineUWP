@@ -307,7 +307,7 @@ namespace EpicGames.Horde.Compute
 			public ChunkStatePtr(ulong* data) => _data = data;
 
 			// Current value of the chunk state
-			public ChunkState Get() => new ChunkState(Interlocked.CompareExchange(ref * _data, 0, 0));
+			public ChunkState Get() => new ChunkState(Interlocked.CompareExchange(ref *_data, 0, 0));
 
 			// Set the current state
 			public void Set(ChunkState value) => Interlocked.Exchange(ref *_data, value.Value);
@@ -340,7 +340,7 @@ namespace EpicGames.Horde.Compute
 		protected internal record struct ReaderState(ulong Value)
 		{
 			public ReaderState(int chunkIdx, int offset, int refCount, bool detached)
-				: this((ulong)(uint)offset | ((ulong)(uint)chunkIdx << 32) | ((ulong)(uint)refCount << 40) | ((ulong)((detached? (1UL << 63) : 0))))
+				: this((ulong)(uint)offset | ((ulong)(uint)chunkIdx << 32) | ((ulong)(uint)refCount << 40) | ((ulong)((detached ? (1UL << 63) : 0))))
 			{ }
 
 			public readonly int Offset => (int)(Value & 0xffffffff);
@@ -554,7 +554,7 @@ namespace EpicGames.Horde.Compute
 			for (int readerIdx = 0; readerIdx < _headerPtr.NumReaders; readerIdx++)
 			{
 				ReaderStatePtr readerStatePtr = _headerPtr.GetReaderStatePtr(readerIdx);
-				for (; ;)
+				for (; ; )
 				{
 					ReaderState readerState = readerStatePtr.Get();
 					if (readerState.RefCount > 0)
@@ -699,7 +699,7 @@ namespace EpicGames.Horde.Compute
 		public bool IsComplete(int readerIdx)
 		{
 			ReaderState readerState = _headerPtr.GetReaderStatePtr(readerIdx).Get();
-			if(readerState.Detached)
+			if (readerState.Detached)
 			{
 				return true;
 			}

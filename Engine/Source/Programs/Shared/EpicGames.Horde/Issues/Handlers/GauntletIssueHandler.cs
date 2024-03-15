@@ -51,7 +51,7 @@ namespace EpicGames.Horde.Issues.Handlers
 		/// <summary>
 		///  Known Gauntlet events
 		/// </summary>
-		static readonly Dictionary<EventId, string> s_knownGauntletEvents = new Dictionary<EventId, string> 
+		static readonly Dictionary<EventId, string> s_knownGauntletEvents = new Dictionary<EventId, string>
 		{
 			{ KnownLogEvents.Gauntlet, FrameworkPrefix},
 			{ KnownLogEvents.Gauntlet_TestEvent, TestPrefix},
@@ -123,7 +123,7 @@ namespace EpicGames.Horde.Issues.Handlers
 		/// <param name="metadata"></param>
 		private static void GetPaths(IssueEvent issueEvent, HashSet<IssueKey> paths, HashSet<IssueMetadata> metadata)
 		{
-			if(issueEvent.EventId == KnownLogEvents.Gauntlet_BuildDropEvent)
+			if (issueEvent.EventId == KnownLogEvents.Gauntlet_BuildDropEvent)
 			{
 				foreach (JsonLogEvent line in issueEvent.Lines)
 				{
@@ -158,7 +158,7 @@ namespace EpicGames.Horde.Issues.Handlers
 		/// <param name="metadata">Receives a set of metadata</param>
 		private void GetHash(string message, HashSet<IssueKey> keys, HashSet<IssueMetadata> metadata)
 		{
-			string error = message.Length > MaxMessageLength? message.Substring(0, MaxMessageLength) : message;
+			string error = message.Length > MaxMessageLength ? message.Substring(0, MaxMessageLength) : message;
 
 			if (TryGetHash(error, out Md5Hash hash))
 			{

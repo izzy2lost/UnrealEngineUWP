@@ -104,7 +104,7 @@ namespace EpicGames.Horde.Replicators
 		/// <summary>
 		/// Discards all replicated changes and starts replication from scratch
 		/// </summary>
- 		public bool? Reset { get; set; }
+		public bool? Reset { get; set; }
 
 		/// <summary>
 		/// Pauses replication after one change has been replicated

@@ -65,12 +65,12 @@ namespace EpicGames.Horde.Compute
 		/// Execute a process in a sandbox (Initiator -> Remote)
 		/// </summary>
 		ExecuteV1 = 0x16,
-		
+
 		/// <summary>
 		/// Execute a process in a sandbox (Initiator -> Remote)
 		/// </summary>
 		ExecuteV2 = 0x22,
-		
+
 		/// <summary>
 		/// Execute a process in a sandbox (Initiator -> Remote)
 		/// </summary>
@@ -116,7 +116,7 @@ namespace EpicGames.Horde.Compute
 
 		#endregion
 	}
-	
+
 	/// <summary>
 	/// Flags describing how to execute a compute task process on the agent
 	/// </summary>
@@ -127,13 +127,13 @@ namespace EpicGames.Horde.Compute
 		/// No execute flags set
 		/// </summary>
 		None = 0,
-		
+
 		/// <summary>
 		/// Request execution to be wrapped under Wine when running on Linux.
 		/// Agent still reserves the right to refuse it (e.g no Wine executable configured, mismatching OS etc)
 		/// </summary>
 		UseWine = 1,
-		
+
 		/// <summary>
 		/// Use compute process executable as entrypoint for container
 		/// If not set, path to the executable is passed as the first parameter to the container invocation
@@ -487,7 +487,7 @@ namespace EpicGames.Horde.Compute
 			}
 			return new AgentManagedProcess(channel);
 		}
-		
+
 		/// <summary>
 		/// Executes a remote process (using ExecuteV2)
 		/// </summary>
@@ -511,7 +511,7 @@ namespace EpicGames.Horde.Compute
 			}
 			return new AgentManagedProcess(channel);
 		}
-		
+
 		/// <summary>
 		/// Executes a remote process (using ExecuteV3)
 		/// </summary>
@@ -549,7 +549,7 @@ namespace EpicGames.Horde.Compute
 			Dictionary<string, string?> envVars = message.ReadDictionary(MemoryReaderExtensions.ReadString, MemoryReaderExtensions.ReadOptionalString);
 			return new ExecuteProcessMessage(executable, arguments, workingDir, envVars, ExecuteProcessFlags.None, null);
 		}
-		
+
 		/// <summary>
 		/// Parses a message as a <see cref="ExecuteProcessMessage"/>
 		/// </summary>
@@ -562,7 +562,7 @@ namespace EpicGames.Horde.Compute
 			ExecuteProcessFlags flags = (ExecuteProcessFlags)message.ReadInt32();
 			return new ExecuteProcessMessage(executable, arguments, workingDir, envVars, flags, null);
 		}
-		
+
 		/// <summary>
 		/// Parses a message as a <see cref="ExecuteProcessMessage"/>
 		/// </summary>
@@ -670,7 +670,7 @@ namespace EpicGames.Horde.Compute
 			}
 
 			byte[]? buffer = null;
-			for(; ;)
+			for (; ; )
 			{
 				AgentMessage? response = null;
 				try
@@ -723,7 +723,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async Task SendBlobDataAsync(this AgentMessageChannel channel, BlobLocator locator, int offset, int length, IStorageBackend storage, CancellationToken cancellationToken = default)
 		{
-			using Stream stream = await storage.OpenBlobAsync(locator, offset, (length == 0)? null : length, cancellationToken);
+			using Stream stream = await storage.OpenBlobAsync(locator, offset, (length == 0) ? null : length, cancellationToken);
 
 			const int MaxChunkSize = 512 * 1024;
 			for (int chunkOffset = 0; ;)
@@ -741,7 +741,7 @@ namespace EpicGames.Horde.Compute
 				}
 
 				chunkOffset += chunkLength;
-				if(chunkOffset == stream.Length)
+				if (chunkOffset == stream.Length)
 				{
 					break;
 				}

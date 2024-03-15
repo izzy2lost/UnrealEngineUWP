@@ -146,7 +146,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public static FileEntryFlags GetPermissions(FileInfo fileInfo)
 		{
 			FileEntryFlags flags = FileEntryFlags.None;
-			if((fileInfo.Attributes & FileAttributes.ReadOnly) != 0)
+			if ((fileInfo.Attributes & FileAttributes.ReadOnly) != 0)
 			{
 				flags |= FileEntryFlags.ReadOnly;
 			}
