@@ -21,7 +21,7 @@ This section targets operating and managing Horde installations and shares some 
 * [Build Automation](Config/BuildAutomation.md)
 * [Remote Execution](Config/RemoteExecution.md)
 * DDC Server (Coming Soon)
-* Automation Hub (Coming Soon)
+* [Automation Hub](Config/AutomationHub.md)
 * [UnrealGameSync Metadata Server](Config/UgsMetadataServer.md)
 
 ## Reference
