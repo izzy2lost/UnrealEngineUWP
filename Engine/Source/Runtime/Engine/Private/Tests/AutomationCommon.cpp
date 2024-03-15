@@ -70,7 +70,6 @@ bool FTestWorldWrapper::CreateTestWorld(EWorldType::Type WorldType)
 		case EWorldType::Game:
 			// Create something close to a game world that can be manually ticked
 			TestGameInstance = NewObject<UGameInstance>(GEngine);
-			TestGameInstance->Init();
 			break;
 
 		case EWorldType::Editor:
@@ -100,15 +99,17 @@ bool FTestWorldWrapper::CreateTestWorld(EWorldType::Type WorldType)
 	TestWorld->SetShouldTick(false);
 	TestWorld->AddToRoot();
 	
-	if (TestGameInstance)
-	{
-		TestWorld->SetGameInstance(TestGameInstance);
-	}
-
 	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(WorldType);
-	WorldContext.SetCurrentWorld(TestWorld);
 	WorldContext.OwningGameInstance = TestGameInstance;
 
+	TestWorld->SetGameInstance(TestGameInstance);
+	WorldContext.SetCurrentWorld(TestWorld);
+
+	if (TestGameInstance)
+	{
+		TestGameInstance->Init();
+	}
+	
 	return true;
 }
 

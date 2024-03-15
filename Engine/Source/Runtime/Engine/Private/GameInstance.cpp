@@ -591,6 +591,23 @@ UGameViewportClient* UGameInstance::GetGameViewportClient() const
 	return WC ? WC->GameViewport : nullptr;
 }
 
+void UGameInstance::OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld)
+{
+	// Fix up our world context if it is incorrect
+	FWorldContext* NewWorldContext = const_cast<FWorldContext*>(GEngine->GetWorldContextFromWorld(NewWorld));
+
+	if (WorldContext == nullptr)
+	{
+		// This may be a test/preview world that did not have a world context set before
+		WorldContext = NewWorldContext;
+	}
+	else if (WorldContext != NewWorldContext)
+	{
+		UE_LOG(LogLoad, Warning, TEXT("GameInstance %s changed from world %s to world %s with a different world context!"), *GetName(), *GetPathNameSafe(OldWorld), *GetPathNameSafe(NewWorld));
+		WorldContext = NewWorldContext;
+	}
+}
+
 // This can be defined in the target.cs file to allow map overrides in shipping builds
 #ifndef UE_ALLOW_MAP_OVERRIDE_IN_SHIPPING
 #define UE_ALLOW_MAP_OVERRIDE_IN_SHIPPING 0

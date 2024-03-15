@@ -302,8 +302,8 @@ public:
 	struct FWorldContext* GetWorldContext() const { return WorldContext; };
 	ENGINE_API class UGameViewportClient* GetGameViewportClient() const;
 
-	/** Callback from the world context when the world changes */
-	virtual void OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld) {}
+	/** Callback from the world context when the world changes, this ensure the world context is set properly */
+	ENGINE_API virtual void OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld);
 
 	/** Starts the GameInstance state machine running */
 	ENGINE_API virtual void StartGameInstance();
