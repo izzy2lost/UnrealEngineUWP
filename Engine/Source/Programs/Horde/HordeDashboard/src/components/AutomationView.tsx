@@ -788,6 +788,8 @@ class AutomationGraph {
          return;
       }
 
+      const { modeColors } = getHordeStyling();
+
       this.clear();
 
       this.hasRendered = true;
@@ -907,7 +909,7 @@ class AutomationGraph {
          .append("div")
          .attr("id", "tooltip")
          .style("display", "none")
-         // .style("background-color", modeColors.background)
+         .style("background-color", modeColors.background)
          .style("border", "solid")
          .style("border-width", "1px")
          .style("border-radius", "3px")

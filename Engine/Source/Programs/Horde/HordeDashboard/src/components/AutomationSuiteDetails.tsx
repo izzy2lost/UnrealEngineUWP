@@ -536,6 +536,8 @@ class SuiteGraphRenderer {
          return;
       }
 
+      const { modeColors } = getHordeStyling()
+
       this.clear();
 
       this.initData();
@@ -659,7 +661,7 @@ class SuiteGraphRenderer {
          .append("div")
          .attr("id", "tooltip")
          .style("display", "none")
-         //.style("background-color", modeColors.background)
+         .style("background-color", modeColors.background)
          .style("border", "solid")
          .style("border-width", "1px")
          .style("border-radius", "3px")
