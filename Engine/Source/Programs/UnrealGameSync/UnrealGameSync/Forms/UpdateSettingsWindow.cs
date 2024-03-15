@@ -140,10 +140,7 @@ namespace UnrealGameSync
 				return;
 			}
 
-			if (task != null)
-			{
-				PromptLabel.Text = task.Error;
-			}
+			PromptLabel.Text = task.Error;
 
 			_logText = logger.Render(Environment.NewLine);
 			ViewLogBtn.Visible = true;

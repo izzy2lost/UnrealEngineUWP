@@ -97,7 +97,9 @@ namespace UnrealGameSync
 				// Don't auto install (or - more importantly- auto *un-install*) the winforms sync context. We want to be able to access it from the
 				// constructor of our ApplicationContext, which will be after the temporary install/uninstall prompted by spawning the settings dialog.
 				WindowsFormsSynchronizationContext.AutoInstall = false;
-				SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
+
+				using WindowsFormsSynchronizationContext synchronizationContext = new WindowsFormsSynchronizationContext();
+				SynchronizationContext.SetSynchronizationContext(synchronizationContext);
 
 				using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "ActivateUnrealGameSync"))
 				{
@@ -229,12 +231,12 @@ namespace UnrealGameSync
 
 					using (ITelemetrySink telemetrySink = CreateTelemetrySink(launcherSettings.PerforceUserName, sessionId, telemetryLogger))
 					{
-						ITelemetrySink? prevTelemetrySink = Telemetry.ActiveSink;
+						ITelemetrySink? prevTelemetrySink = UgsTelemetry.ActiveSink;
 						try
 						{
-							Telemetry.ActiveSink = telemetrySink;
+							UgsTelemetry.ActiveSink = telemetrySink;
 
-							Telemetry.SendEvent("Startup", new { User = Environment.UserName, Machine = System.Net.Dns.GetHostName() });
+							UgsTelemetry.SendEvent("Startup", new { User = Environment.UserName, Machine = System.Net.Dns.GetHostName() });
 
 							AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
@@ -261,12 +263,12 @@ namespace UnrealGameSync
 						}
 						catch (Exception ex)
 						{
-							Telemetry.SendEvent("Crash", new { Exception = ex.ToString() });
+							UgsTelemetry.SendEvent("Crash", new { Exception = ex.ToString() });
 							throw;
 						}
 						finally
 						{
-							Telemetry.ActiveSink = prevTelemetrySink;
+							UgsTelemetry.ActiveSink = prevTelemetrySink;
 						}
 					}
 				}
@@ -337,7 +339,7 @@ namespace UnrealGameSync
 			Exception? ex = args.ExceptionObject as Exception;
 			if(ex != null)
 			{
-				Telemetry.SendEvent("Crash", new {Exception = ex.ToString()});
+				UgsTelemetry.SendEvent("Crash", new {Exception = ex.ToString()});
 			}
 		}
 

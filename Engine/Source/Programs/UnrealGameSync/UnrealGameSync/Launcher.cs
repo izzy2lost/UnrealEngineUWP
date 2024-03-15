@@ -1,11 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Horde;
-using EpicGames.Horde.Tools;
-using EpicGames.Perforce;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -13,12 +7,16 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Horde.Tools;
+using EpicGames.Perforce;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace UnrealGameSync
 {
@@ -349,7 +347,7 @@ namespace UnrealGameSync
 				text = File.ReadAllText(fileName);
 				return true;
 			}
-			catch(Exception)
+			catch (Exception)
 			{
 				text = null;
 				return false;
@@ -363,7 +361,7 @@ namespace UnrealGameSync
 				File.WriteAllText(fileName, text);
 				return true;
 			}
-			catch(Exception)
+			catch (Exception)
 			{
 				return false;
 			}
@@ -376,7 +374,7 @@ namespace UnrealGameSync
 				Directory.CreateDirectory(directoryName);
 				return true;
 			}
-			catch(Exception)
+			catch (Exception)
 			{
 				return false;
 			}
@@ -389,7 +387,7 @@ namespace UnrealGameSync
 				Directory.Delete(directoryName, true);
 				return true;
 			}
-			catch(Exception)
+			catch (Exception)
 			{
 				return false;
 			}
@@ -400,18 +398,18 @@ namespace UnrealGameSync
 			try
 			{
 				DirectoryInfo directory = new DirectoryInfo(directoryName);
-				foreach(FileInfo childFile in directory.EnumerateFiles("*", SearchOption.AllDirectories))
+				foreach (FileInfo childFile in directory.EnumerateFiles("*", SearchOption.AllDirectories))
 				{
 					childFile.Attributes &= ~FileAttributes.ReadOnly;
 					childFile.Delete();
 				}
-				foreach(DirectoryInfo childDirectory in directory.EnumerateDirectories())
+				foreach (DirectoryInfo childDirectory in directory.EnumerateDirectories())
 				{
 					SafeDeleteDirectory(childDirectory.FullName);
 				}
 				return true;
 			}
-			catch(Exception)
+			catch (Exception)
 			{
 				return false;
 			}

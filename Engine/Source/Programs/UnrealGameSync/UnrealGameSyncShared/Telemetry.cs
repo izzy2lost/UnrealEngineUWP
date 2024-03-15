@@ -154,7 +154,7 @@ namespace UnrealGameSync
 	/// <summary>
 	/// Global telemetry static class
 	/// </summary>
-	public static class Telemetry
+	public static class UgsTelemetry
 	{
 		/// <summary>
 		/// The current telemetry provider
