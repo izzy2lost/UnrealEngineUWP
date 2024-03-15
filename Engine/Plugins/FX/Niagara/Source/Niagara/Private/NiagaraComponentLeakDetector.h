@@ -10,6 +10,7 @@
 // Very simple leak detector, will be revised over time.
 class FNiagaraComponentLeakDetector
 {
+public:
 	struct FSystemData
 	{
 		static constexpr uint32 HistoryLength = 4;
@@ -27,14 +28,16 @@ class FNiagaraComponentLeakDetector
 		int32	ActiveShrinkCounter = 0;
 		uint32	ActiveCurrCount = 0;
 		uint32	ActivePrevCount = 0;
+		
+		bool	bScalabilityHasWarned = false;
+		int32	ScalabilityCurrActiveExecState = 0;
+		int32	ScalabilityMaxActiveExecState = 0;
+		int32	ScalabilityAllowedActiveExecState = 0;
 	};
 
 public:
 	void Tick(UWorld* World);
 	void ReportLeaks(UWorld* World);
-
-private:
-	void ReportLeak(UWorld* World, FName SystemName, FSystemData& SystemData, bool bReportTotalLeaks, bool bReportActiveLeaks);
 
 private:
 	double						NextUpdateTime = 0.0;
