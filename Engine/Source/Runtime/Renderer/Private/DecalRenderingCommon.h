@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Materials/Material.h"
 #include "RenderUtils.h"
+#include "MeshPassProcessor.h"
 
 class FMaterial;
 class FRHIBlendState;
@@ -66,6 +67,8 @@ enum class EDecalRenderTargetMode : uint8
 	SceneColorAndGBufferNoNormal = 3,
 	SceneColor = 4,
 	AmbientOcclusion = 5,
+
+	Num,
 };
 
 /** Enumeration of decal rasterization states. */
@@ -90,11 +93,23 @@ namespace DecalRendering
 	/** Returns true if a decal should be rendered in the render stage. */
 	bool IsCompatibleWithRenderStage(FDecalBlendDesc DecalBlendDesc, EDecalRenderStage DecalRenderStage);
 
+	/** Returns the main render stage from render target mode and shading path */
+	EDecalRenderStage GetRenderStage(EDecalRenderTargetMode RenderTargetMode, EShadingPath ShadingPath);
+
 	/** Returns the main render stage for a decal (does not include the emissive, and AO stages). Can return EDecalRenderStage::None if there is no valid main render stage. */
 	EDecalRenderStage GetBaseRenderStage(FDecalBlendDesc DecalBlendDesc);
 
 	/** Get the render target mode that a decal uses for a given stage. Can return EDecalRenderTargetMode::None if there is no valid render target mode. */
 	EDecalRenderTargetMode GetRenderTargetMode(FDecalBlendDesc DecalBlendDesc, EDecalRenderStage DecalRenderStage);
+
+	/** Setup a mask for each render target mode where the material should render to */
+	uint8 GetDecalRenderTargetModeMask(const FMaterial& Material, ERHIFeatureLevel::Type FeatureLevel);
+
+	/** Returns true if a decal should be rendered in the render target mode. */
+	bool IsCompatibleWithRenderTargetMode(uint8 DecalRenderTargetModeMask, EDecalRenderTargetMode DecalRenderTargetMode);
+
+	/** Get the mesh pass processer type to use for given render target mode */
+	EMeshPass::Type GetMeshPassType(EDecalRenderTargetMode RenderTargetMode);
 
 	/** Get render target count for the given render target mode. */
 	uint32 GetRenderTargetCount(FDecalBlendDesc DecalBlendDesc, EDecalRenderTargetMode RenderTargetMode);

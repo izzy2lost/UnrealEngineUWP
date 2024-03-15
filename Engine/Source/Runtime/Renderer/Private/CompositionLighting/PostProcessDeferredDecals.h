@@ -48,7 +48,7 @@ FDeferredDecalPassTextures GetDeferredDecalPassTextures(
 
 void AddDeferredDecalPass(
 	FRDGBuilder& GraphBuilder,
-	const FViewInfo& ViewInfo,
+	FViewInfo& ViewInfo,
 	TConstArrayView<FTransientDecalRenderData> VisibleDecals,
 	const FDeferredDecalPassTextures& Textures,
 	FInstanceCullingManager& InstanceCullingManager,
@@ -98,10 +98,16 @@ void GetDeferredDecalPassParameters(
 void RenderMeshDecals(
 	FRDGBuilder& GraphBuilder,
 	const FScene& Scene,
-	const FViewInfo& View,
+	FViewInfo& View,
 	const FDeferredDecalPassTextures& DecalPassTextures,
 	FInstanceCullingManager& InstanceCullingManager, 
 	EDecalRenderStage DecalRenderStage);
+
+bool HasAnyDrawCommandDecalCount(
+	EDecalRenderStage DecalRenderStage, 
+	FViewInfo& View);
+
+bool UseDecalCachedMDCs();
 
 void ExtractNormalsForNextFrameReprojection(
 	FRDGBuilder& GraphBuilder,
