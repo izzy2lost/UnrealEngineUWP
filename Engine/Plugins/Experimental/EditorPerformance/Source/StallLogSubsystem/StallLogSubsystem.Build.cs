@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 using UnrealBuildTool;
 
 public class StallLogSubsystem : ModuleRules
@@ -30,5 +32,7 @@ public class StallLogSubsystem : ModuleRules
 				"WorkspaceMenuStructure"
 			}
 		);
+
+		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 	}
 }

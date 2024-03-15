@@ -234,33 +234,32 @@ FString	FKPIValue::GetValueAsString( float Value, FKPIValue::EDisplayType Displa
 	}
 }
 
-bool FKPIRegistry::DeclareKPIValue(const FName Category, const FName Name, float InitialValue, float ThresholdValue, FKPIValue::ECompare Compare, FKPIValue::EDisplayType Type)
+FGuid FKPIRegistry::DeclareKPIValue(const FName Category, const FName Name, float InitialValue, float ThresholdValue, FKPIValue::ECompare Compare, FKPIValue::EDisplayType Type)
 {
 	return DeclareKPIValue(FKPIValue(Category, Name, InitialValue, ThresholdValue, Compare, Type, FKPIValue::EState::NotSet));
 }
 
-bool FKPIRegistry::DeclareKPIValue( const FKPIValue& Value )
+FGuid FKPIRegistry::DeclareKPIValue( const FKPIValue& Value )
 {
-	if (Values.Find(Value.Name) == nullptr)
+	if (Values.Find(Value.Id) == nullptr)
 	{
-		Values.Emplace(Value.Name, Value);
-		return true;
+		Values.Emplace(Value.Id, Value);
+		return Value.Id;
 	}
-	return false;
+	return FGuid();
 }
 
-bool FKPIRegistry::DeclareKPIHint(const FName Category, const FName Name, const FText& HintMessage, const FText& HintURL)
+bool FKPIRegistry::DeclareKPIHint(FGuid Id, const FText& HintMessage, const FText& HintURL)
 {
-	if (Values.Find(Name) != nullptr)
+	if (Values.Find(Id) != nullptr)
 	{
 		FKPIHint NewKPIHint;
 
-		NewKPIHint.Name = Name;
-		NewKPIHint.Category = Category;
+		NewKPIHint.Id = Id;
 		NewKPIHint.Message = HintMessage;
 		NewKPIHint.URL = HintURL;
 
-		FKPIHint* KPIHint = Hints.Find(Name);
+		FKPIHint* KPIHint = Hints.Find(Id);
 
 		if (KPIHint != nullptr)
 		{
@@ -269,7 +268,7 @@ bool FKPIRegistry::DeclareKPIHint(const FName Category, const FName Name, const 
 		}
 		else
 		{
-			Hints.Emplace(Name, NewKPIHint);
+			Hints.Emplace(Id, NewKPIHint);
 			return true;
 		}
 	}
@@ -278,9 +277,9 @@ bool FKPIRegistry::DeclareKPIHint(const FName Category, const FName Name, const 
 }
 
 
-bool FKPIRegistry::InvalidateKPIValue(const FName Name)
+bool FKPIRegistry::InvalidateKPIValue(FGuid Id)
 {
-	FKPIValue* ExistingValue = Values.Find(Name);
+	FKPIValue* ExistingValue = Values.Find(Id);
 
 	if (ExistingValue != nullptr)
 	{
@@ -294,9 +293,9 @@ bool FKPIRegistry::InvalidateKPIValue(const FName Name)
 	
 
 
-bool FKPIRegistry::SetKPIValue(const FName Name, float CurrentValue)
+bool FKPIRegistry::SetKPIValue(FGuid Id, float CurrentValue)
 {
-	FKPIValue* ExistingValue = Values.Find(Name);
+	FKPIValue* ExistingValue = Values.Find(Id);
 
 	if (ExistingValue != nullptr)
 	{
@@ -307,9 +306,9 @@ bool FKPIRegistry::SetKPIValue(const FName Name, float CurrentValue)
 	return false;
 }
 
-bool FKPIRegistry::SetKPIThreshold(const FName Name, float ThresholdValue)
+bool FKPIRegistry::SetKPIThreshold(FGuid Id, float ThresholdValue)
 {
-	FKPIValue* ExistingValue = Values.Find(Name);
+	FKPIValue* ExistingValue = Values.Find(Id);
 
 	if (ExistingValue != nullptr)
 	{
@@ -320,9 +319,9 @@ bool FKPIRegistry::SetKPIThreshold(const FName Name, float ThresholdValue)
 	return false;
 }
 
-bool FKPIRegistry::GetKPIValue(const FName Name, FKPIValue& Result) const
+bool FKPIRegistry::GetKPIValue(FGuid Id, FKPIValue& Result) const
 {
-	const FKPIValue* ExistingValue = Values.Find(Name);
+	const FKPIValue* ExistingValue = Values.Find(Id);
 
 	if (ExistingValue != nullptr)
 	{
@@ -333,9 +332,9 @@ bool FKPIRegistry::GetKPIValue(const FName Name, FKPIValue& Result) const
 	return false;
 }
 
-bool FKPIRegistry::GetKPIHint(const FName Name, FKPIHint& Result) const
+bool FKPIRegistry::GetKPIHint(FGuid Id, FKPIHint& Result) const
 {
-	const FKPIHint* Hint = Hints.Find(Name);
+	const FKPIHint* Hint = Hints.Find(Id);
 
 	if (Hint != nullptr)
 	{
@@ -346,7 +345,7 @@ bool FKPIRegistry::GetKPIHint(const FName Name, FKPIHint& Result) const
 	return false;
 }
 
-const TMap<FName, FKPIValue>& FKPIRegistry::GetKPIValues() const
+const TMap<FGuid, FKPIValue>& FKPIRegistry::GetKPIValues() const
 {
 	return Values;
 }
@@ -409,11 +408,10 @@ void FKPIRegistry::LoadKPIProfiles(const FString& ProfileSectionName, const FStr
 					for (FKPIValues::TConstIterator It(GetKPIValues()); It; ++It)
 					{
 						const FKPIValue &KPIValue = It->Value;
-						FString KPIName = FString::Printf(TEXT("%s_%s"), *KPIValue.Category.ToString(), *KPIValue.Name.ToString()).Replace(TEXT(" "), TEXT("_"));
-					
+						
 						float ThresholdValue;
 
-						if (GConfig->GetFloat(*SectionName, *KPIName, ThresholdValue, FileName))
+						if (GConfig->GetFloat(*SectionName, *It->Value.Path.ToString(), ThresholdValue, FileName))
 						{
 							Profile.Thresholds.Emplace(It->Key, ThresholdValue);
 						}

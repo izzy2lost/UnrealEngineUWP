@@ -297,7 +297,7 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetHintGridPanel()
 
 		FKPIHint KPIHint;
 
-		if (KPIValue.State == FKPIValue::Bad && EditorPerfModule.GetKPIRegistry().GetKPIHint(KPIValue.Name, KPIHint))
+		if (KPIValue.State == FKPIValue::Bad && EditorPerfModule.GetKPIRegistry().GetKPIHint(KPIValue.Id, KPIHint))
 		{
 			KPIHints.Emplace(KPIHint);
 		}
@@ -324,76 +324,81 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetHintGridPanel()
 
 		const FKPIHint& KPIHint = KPIHints[CurrentHintIndex];
 
-		Panel->AddSlot(0, Row)
-			.HAlign(HAlign_Left)
-			[
-				SNew(STextBlock)
-				.Margin(TitleMarginFirstColumn)
-				.ColorAndOpacity(TitleColor)
-				.Font(TitleFont)
-				.Justification(ETextJustify::Left)
-				.Text(LOCTEXT("HintsTitle", "Hints"))
-			];
+		FKPIValue KPIValue;
 
-		Row++;
-
-		Panel->AddSlot(0, Row)
-			.HAlign(HAlign_Left)
-			[
-				SNew(STextBlock)
-				.Margin(TitleMarginFirstColumn)
-				.ColorAndOpacity(EStyleColor::Foreground)
-				.Font(TitleFont)
-				.Text(FText::FromString(*FString::Printf(TEXT("%s %s"), *KPIHint.Category.ToString(), *KPIHint.Name.ToString())))
-			];
-
-		Row++;
-
-		Panel->AddSlot(0, Row)
-			.HAlign(HAlign_Left)
-			[
-				SNew(STextBlock)
-				.AutoWrapText(true)
-				.Margin(DefaultMarginFirstColumn)
-				.ColorAndOpacity(EStyleColor::Foreground)
-				.Justification(ETextJustify::Left)
-				.Text(KPIHint.Message)
-			];
-
-		Row++;
-
-		if (!KPIHint.URL.IsEmpty())
+		if (EditorPerfModule.GetKPIRegistry().GetKPIValue(KPIHint.Id, KPIValue) == true)
 		{
 			Panel->AddSlot(0, Row)
 				.HAlign(HAlign_Left)
-				.Padding(FMargin(10.0f, 10.0f))
 				[
-					SNew(SHyperlink)
-					.Text(LOCTEXT("HintLinkName", "Further Help & Documentation"))
-					.ToolTipText_Lambda([=]() { return FText::FromString(*KPIHint.URL.ToString()); })
-					.OnNavigate_Lambda([=]() { FPlatformProcess::LaunchURL(*KPIHint.URL.ToString(), nullptr, nullptr); })
+					SNew(STextBlock)
+						.Margin(TitleMarginFirstColumn)
+						.ColorAndOpacity(TitleColor)
+						.Font(TitleFont)
+						.Justification(ETextJustify::Left)
+						.Text(LOCTEXT("HintsTitle", "Hints"))
 				];
 
 			Row++;
-		}
 
-		if (KPIHints.Num() > 1)
-		{
 			Panel->AddSlot(0, Row)
 				.HAlign(HAlign_Left)
-				.Padding(FMargin(10.0f, 10.0f))
 				[
-					SNew(SButton)
-					.Text(LOCTEXT("NextHintName", "Next Hint"))
-					.OnClicked_Lambda([this]()
-					{
-						CurrentHintIndex++;
-						UpdateGridPanels(0.0f, 0.0f);
-						return FReply::Handled();
-					})
+					SNew(STextBlock)
+						.Margin(TitleMarginFirstColumn)
+						.ColorAndOpacity(EStyleColor::Foreground)
+						.Font(TitleFont)
+						.Text(FText::FromString(*FString::Printf(TEXT("%s %s"), *KPIValue.Category.ToString(), *KPIValue.Name.ToString())))
 				];
 
 			Row++;
+
+			Panel->AddSlot(0, Row)
+				.HAlign(HAlign_Left)
+				[
+					SNew(STextBlock)
+						.AutoWrapText(true)
+						.Margin(DefaultMarginFirstColumn)
+						.ColorAndOpacity(EStyleColor::Foreground)
+						.Justification(ETextJustify::Left)
+						.Text(KPIHint.Message)
+				];
+
+			Row++;
+
+			if (!KPIHint.URL.IsEmpty())
+			{
+				Panel->AddSlot(0, Row)
+					.HAlign(HAlign_Left)
+					.Padding(FMargin(10.0f, 10.0f))
+					[
+						SNew(SHyperlink)
+							.Text(LOCTEXT("HintLinkName", "Further Help & Documentation"))
+							.ToolTipText_Lambda([=]() { return FText::FromString(*KPIHint.URL.ToString()); })
+							.OnNavigate_Lambda([=]() { FPlatformProcess::LaunchURL(*KPIHint.URL.ToString(), nullptr, nullptr); })
+					];
+
+				Row++;
+			}
+
+			if (KPIHints.Num() > 1)
+			{
+				Panel->AddSlot(0, Row)
+					.HAlign(HAlign_Left)
+					.Padding(FMargin(10.0f, 10.0f))
+					[
+						SNew(SButton)
+							.Text(LOCTEXT("NextHintName", "Next Hint"))
+							.OnClicked_Lambda([this]()
+								{
+									CurrentHintIndex++;
+									UpdateGridPanels(0.0f, 0.0f);
+									return FReply::Handled();
+								})
+					];
+
+				Row++;
+			}
 		}
 	}
 
@@ -503,8 +508,6 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 
 	Row++;
 	
-	EditorPerfModule.UpdateKPIs();
-
 	TMap<FName, TArray<FKPIValue>> SortedKPIValues;
 
 	for (FKPIValues::TConstIterator It(EditorPerfModule.GetKPIRegistry().GetKPIValues()); It; ++It)
@@ -554,6 +557,7 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 			const FSlateBrush* KPIWarningIcon = FAppStyle::Get().GetBrush("EditorPerformance.Report.Warning");
 			const float KPIIconSize = 8.0f;
 			const FName& KPIName = KPIValue.Name;
+			const FName& KPIPath = KPIValue.Path;
 
 			Panel->AddSlot(0, Row)
 				.HAlign(HAlign_Left)
@@ -621,13 +625,13 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 					[
 						SNew(SComboBox<FName>)
 						.OptionsSource(&NotifcationOptions)
-						.InitiallySelectedItem(EditorPerformanceSettings->NotificationList.Find(KPIName) != INDEX_NONE ? NotifcationOptions[0] : NotifcationOptions[1])
-						.OnGenerateWidget_Lambda([KPIName, &EditorPerfModule](FName Name)
+						.InitiallySelectedItem(EditorPerformanceSettings->NotificationList.Find(KPIPath) != INDEX_NONE ? NotifcationOptions[0] : NotifcationOptions[1])
+						.OnGenerateWidget_Lambda([](FName Name)
 							{
 								return SNew(STextBlock)
 									.Text(FText::FromString(*Name.ToString()));
 							})
-						.OnSelectionChanged_Lambda([this, KPIName, &EditorPerfModule](FName Name, ESelectInfo::Type)
+						.OnSelectionChanged_Lambda([this, KPIPath, &EditorPerfModule](FName Name, ESelectInfo::Type)
 						{
 							UEditorPerformanceSettings* EditorPerformanceSettings = GetMutableDefault<UEditorPerformanceSettings>();
 
@@ -635,16 +639,16 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 							{
 								if (Name == NotifcationOptions[0])
 								{
-									if (EditorPerformanceSettings->NotificationList.Find(KPIName) == INDEX_NONE)
+									if (EditorPerformanceSettings->NotificationList.Find(KPIPath) == INDEX_NONE)
 									{
 										// Add this KPI to the notification list
-										EditorPerformanceSettings->NotificationList.Emplace(KPIName);
+										EditorPerformanceSettings->NotificationList.Emplace(KPIPath);
 									}
 								}
 								else
 								{
 									// Remove this KPI to the notification ignore list
-									EditorPerformanceSettings->NotificationList.Remove(KPIName);
+									EditorPerformanceSettings->NotificationList.Remove(KPIPath);
 								}
 
 								EditorPerformanceSettings->PostEditChange();
@@ -656,7 +660,7 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 						.Content()
 						[
 							SNew(STextBlock)
-							.Text(FText::FromString(EditorPerformanceSettings->NotificationList.Find(KPIName) != INDEX_NONE ? *NotifcationOptions[0].ToString() : *NotifcationOptions[1].ToString() ))
+							.Text(FText::FromString(EditorPerformanceSettings->NotificationList.Find(KPIPath) != INDEX_NONE ? *NotifcationOptions[0].ToString() : *NotifcationOptions[1].ToString() ))
 						]
 					];
 			}

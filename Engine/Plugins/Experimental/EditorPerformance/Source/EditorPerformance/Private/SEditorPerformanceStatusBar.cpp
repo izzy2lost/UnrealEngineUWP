@@ -176,7 +176,7 @@ EActiveTimerReturnType SEditorPerformanceStatusBarWidget::UpdateState(double InC
 	const UEditorPerformanceSettings* EditorPerformanceSettings = GetDefault<UEditorPerformanceSettings>();
 
 	// Update the KPIS
-	EditorPerfModule.UpdateKPIs();
+	EditorPerfModule.UpdateKPIs(InDeltaTime);
 
 	WarningCount = 0;
 
@@ -192,7 +192,7 @@ EActiveTimerReturnType SEditorPerformanceStatusBarWidget::UpdateState(double InC
 
 			if (EditorPerformanceSettings)
 			{
-				if (EditorPerformanceSettings->NotificationList.Find(KPIValue.Name) != INDEX_NONE && AcknowledgedNotifications.Find(KPIValue.Name) == INDEX_NONE && CurrentNotificationName.IsNone())
+				if (EditorPerformanceSettings->NotificationList.Find(KPIValue.Path) != INDEX_NONE && AcknowledgedNotifications.Find(KPIValue.Path) == INDEX_NONE && CurrentNotificationName.IsNone())
 				{
 					CurrentNotificationMessage = FText::FromString(*FString::Printf(TEXT("%s - %s was %s but should be %s than %s"),
 						*KPIValue.Category.ToString(),
@@ -201,21 +201,21 @@ EActiveTimerReturnType SEditorPerformanceStatusBarWidget::UpdateState(double InC
 						*FKPIValue::GetComparisonAsPrettyString(KPIValue.Compare),
 						*FKPIValue::GetValueAsString(KPIValue.ThresholdValue, KPIValue.DisplayType)));
 
-					CurrentNotificationName = KPIValue.Name;
+					CurrentNotificationName = KPIValue.Path;
 				}
 
-				if (RecordedSnapshot.Find(KPIValue.Name) == INDEX_NONE && EditorPerformanceSettings->bEnableSnapshots)
+				if (RecordedSnapshot.Find(KPIValue.Path) == INDEX_NONE && EditorPerformanceSettings->bEnableSnapshots)
 				{
 					// Create an Insights Snapshot
 					EditorPerfModule.RecordInsightsSnaphshot(KPIValue);
-					RecordedSnapshot.Emplace(KPIValue.Name);
+					RecordedSnapshot.Emplace(KPIValue.Path);
 				}
 
-				if (RecordedTelemetry.Find(KPIValue.Name) == INDEX_NONE && EditorPerformanceSettings->bEnableTelemetry)
+				if (RecordedTelemetry.Find(KPIValue.Path) == INDEX_NONE && EditorPerformanceSettings->bEnableTelemetry)
 				{
 					// Create a new telemetry event
 					EditorPerfModule.RecordTelemetryEvent(KPIValue);
-					RecordedTelemetry.Emplace(KPIValue.Name);
+					RecordedTelemetry.Emplace(KPIValue.Path);
 				}
 			}
 
@@ -225,9 +225,9 @@ EActiveTimerReturnType SEditorPerformanceStatusBarWidget::UpdateState(double InC
 		{
 			// No longer exceeding threshold, so no need to acknowledge the last time it was raised to the user
 			// There may be subsequent times that this same KPI is exceeded this session so we may want to alert the user again
-			AcknowledgedNotifications.Remove(KPIValue.Name);
-			RecordedSnapshot.Remove(KPIValue.Name);
-			RecordedTelemetry.Remove(KPIValue.Name);
+			AcknowledgedNotifications.Remove(KPIValue.Path);
+			RecordedSnapshot.Remove(KPIValue.Path);
+			RecordedTelemetry.Remove(KPIValue.Path);
 		}
 	}
 

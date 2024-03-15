@@ -56,7 +56,11 @@ class UEditorPerformanceSettings : public UDeveloperSettings
 	/** Whether to Show Warnings Only */
 	UPROPERTY(EditAnywhere, config, Category = EditorPerformanceTool, meta = (DisplayName = "Show Warnings Only", ConfigRestartRequired = false, EditCondition = "bEnableEditorPeformanceTool"))
 	bool bShowWarningsOnly = false;
-	
+
+	/** Whether to enable Editor Perf Tool Experimental Features */
+	UPROPERTY(EditAnywhere, config, Category = EditorPerformanceTool, meta = (DisplayName = "Experiemntal Features", ConfigRestartRequired = true, EditCondition = "bEnableEditorPeformanceTool"))
+	bool bEnableExperimentalFeatures = false;
+
 	/** When enabled, the application frame rate, memory and Unreal object count will be displayed in the main editor UI */
 	UPROPERTY(EditAnywhere, config, Category=EditorPerformance)
 	uint32 bShowFrameRateAndMemory:1;
