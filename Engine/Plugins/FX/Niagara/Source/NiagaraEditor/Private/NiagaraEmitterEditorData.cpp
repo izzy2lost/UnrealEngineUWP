@@ -32,6 +32,31 @@ UNiagaraEmitterEditorData::UNiagaraEmitterEditorData(const FObjectInitializer& O
 	PlaybackRangeMax = 10;
 }
 
+void UNiagaraEmitterEditorData::Serialize(FArchive& Ar)
+{
+#if WITH_EDITORONLY_DATA
+	// When cooking an emitter that's not an asset, clear out the thumbnail image to prevent issues
+	// with cooked editor data.
+	bool bCookingNonAssetEmitter = Ar.IsCooking() && GetTypedOuter<UNiagaraEmitter>() && GetTypedOuter<UNiagaraEmitter>()->IsAsset() == false;
+	UTexture2D* CachedThumbnail = nullptr;
+	if (bCookingNonAssetEmitter)
+	{
+		CachedThumbnail = EmitterThumbnail;
+		EmitterThumbnail = nullptr;
+	}
+	
+#endif
+	Super::Serialize(Ar);
+
+#if WITH_EDITORONLY_DATA
+	// Restore the thumbnail image that was cleared before serialize.
+	if (bCookingNonAssetEmitter)
+	{
+		EmitterThumbnail = CachedThumbnail;
+	}
+#endif
+}
+
 void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 {
 	// ATTENTION

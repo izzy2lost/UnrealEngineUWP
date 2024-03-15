@@ -26,6 +26,8 @@ public:
 public:
 	UNiagaraEmitterEditorData(const FObjectInitializer& ObjectInitializer);
 
+	virtual void Serialize(FArchive& Ar) override;
+	
 	virtual void PostLoad() override;
 	virtual void PostLoadFromOwner(UObject* InOwner) override;
 #if WITH_EDITORONLY_DATA
