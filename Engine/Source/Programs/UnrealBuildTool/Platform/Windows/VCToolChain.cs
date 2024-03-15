@@ -2479,6 +2479,8 @@ namespace UnrealBuildTool
 			if (LinkEnvironment.bIsCrossReferenced && !bBuildImportLibraryOnly)
 			{
 				Arguments.Add("/NOIMPLIB");
+				if (!Target.WindowsPlatform.bAllowClangLinker)
+					Arguments.Add("/NOEXP"); // This compiler flag does not exist on lld-link.exe.. it skips the writing of the .exp file
 			}
 			else if (Target.bShouldCompileAsDLL)
 			{
