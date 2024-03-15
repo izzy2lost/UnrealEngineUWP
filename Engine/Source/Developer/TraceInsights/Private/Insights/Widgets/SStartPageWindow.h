@@ -13,6 +13,10 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Views/SListView.h"
 
+#if PLATFORM_MAC || PLATFORM_LINUX
+#include <semaphore.h>
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FActiveTimerHandle;
@@ -685,6 +689,8 @@ private:
 
 #if PLATFORM_WINDOWS
 	void* AutoConnectEvent = nullptr;
+#elif PLATFORM_MAC || PLATFORM_LINUX
+    sem_t* AutoConnectEvent = SEM_FAILED;
 #endif
 };
 

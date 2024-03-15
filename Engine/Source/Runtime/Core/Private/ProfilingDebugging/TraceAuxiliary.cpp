@@ -13,6 +13,7 @@
 #endif
 #if PLATFORM_LINUX || PLATFORM_MAC
 # 	include <sys/wait.h>
+#   include <semaphore.h>
 #endif
 
 #if defined(WITH_UNREAL_TRACE_LAUNCH)
@@ -1741,7 +1742,18 @@ void FTraceAuxiliary::TryAutoConnect()
 			::CloseHandle(KnownEvent);
 		}
 	}
-#endif // PLATFORM_WINDOWS
+#elif PLATFORM_MAC || PLATFORM_LINUX
+    if (GTraceAutoStart && !IsConnected())
+    {
+        sem_t* AutoConnectSemaphore = sem_open("/UnrealInsightsAutoConnect", O_RDONLY);
+        if (AutoConnectSemaphore != SEM_FAILED)
+        {
+            UE_LOG(LogTrace, Display, TEXT("Unreal Insights instance detected, auto-connecting to local trace server..."));
+            Start(EConnectionType::Network, TEXT("127.0.0.1"), GTraceAuxiliary.HasCommandlineChannels() ? nullptr : TEXT("default"), nullptr);
+            sem_close(AutoConnectSemaphore);
+        }
+    }
+#endif // PLATFORMS
 #endif // UE_TRACE_ENABLED
 }
 

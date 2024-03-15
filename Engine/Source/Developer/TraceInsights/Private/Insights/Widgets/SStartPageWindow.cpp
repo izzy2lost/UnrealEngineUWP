@@ -923,6 +923,7 @@ STraceStoreWindow::~STraceStoreWindow()
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Insights.Usage.SessionBrowser"), FAnalyticsEventAttribute(TEXT("Duration"), DurationActive));
 	}
 #endif // WITH_EDITOR
+	DisableAutoConnect();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1926,7 +1927,6 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructAutoStartPanel()
 		]
 	];
 
-#if PLATFORM_WINDOWS
 	Box->AddSlot()
 		.AutoWidth()
 		.Padding(6.0f, 0.0f, 0.0f, 0.0f)
@@ -1952,7 +1952,6 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructAutoStartPanel()
 				.Text(LOCTEXT("AutoConnect_Text", "Auto-connect"))
 			]
 		];
-#endif // PLATFORM_WINDOWS
 
 	return Box;
 }
@@ -2856,6 +2855,14 @@ void STraceStoreWindow::EnableAutoConnect()
 	{
 		UE_LOG(TraceInsights, Warning, TEXT("[TraceStore] Failed to create AutoConnect event."));
 	}
+#elif PLATFORM_MAC || PLATFORM_LINUX
+    ensure(AutoConnectEvent == SEM_FAILED);
+	sem_unlink("/UnrealInsightsAutoConnect");
+    AutoConnectEvent = sem_open("/UnrealInsightsAutoConnect", O_CREAT | O_WRONLY | O_EXCL, 0644, 1);
+    if (AutoConnectEvent == SEM_FAILED)
+    {
+        UE_LOG(TraceInsights, Warning, TEXT("[TraceStore] Failed to create AutoConnect semaphore: %d"), errno);
+    }
 #endif
 }
 
@@ -2869,6 +2876,16 @@ void STraceStoreWindow::DisableAutoConnect()
 		CloseHandle(AutoConnectEvent);
 		AutoConnectEvent = nullptr;
 	}
+#elif PLATFORM_MAC || PLATFORM_LINUX
+    if (AutoConnectEvent != SEM_FAILED)
+    {
+    	sem_close(AutoConnectEvent);
+        AutoConnectEvent = SEM_FAILED;
+        if (sem_unlink("/UnrealInsightsAutoConnect"))
+        {
+	        UE_LOG(TraceInsights, Warning, TEXT("[TraceStore] Failed to remove AutoConnect semaphore: %d"), errno);
+        }
+    }
 #endif
 }
 
