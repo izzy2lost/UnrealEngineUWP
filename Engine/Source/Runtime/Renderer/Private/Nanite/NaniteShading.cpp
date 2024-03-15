@@ -1297,8 +1297,18 @@ void DispatchBasePass(
 									continue;
 								}
 
+								// If we don't have precaching, then GetComputePipelineState() might return a PipelineState that isn't ready.
+								const bool bSkipDraw = !PipelineStateCache::IsPSOPrecachingEnabled();
+
 								// This cache lookup cannot be parallelized due to the possibility of a fence insertion into the command list during a miss.
-								Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader);
+								Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader, !bSkipDraw);
+
+								if (bSkipDraw)
+								{
+									Dispatch.RecordIndex = ~uint32(0u);
+									continue;
+								}
+								
 								if (RHICmdList.Bypass())
 								{
 									Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
@@ -1319,12 +1329,25 @@ void DispatchBasePass(
 
 								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
 								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
-
 								Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
-								check(Dispatch.Shader);
+								Dispatch.WorkGraphShader = ShadingCommand.Pipeline->WorkGraphShader;
+								Dispatch.Constants = ShadingCommand.PassData;
 
-								Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader);
-								check(Dispatch.PipelineState);
+								Dispatch.PipelineState = FindComputePipelineState(Dispatch.Shader);
+								if (Dispatch.PipelineState == nullptr)
+								{
+									// If we don't have precaching, then GetComputePipelineState() might return a PipelineState that isn't ready.
+									const bool bSkipDraw = !PipelineStateCache::IsPSOPrecachingEnabled();
+
+									Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader, !bSkipDraw);
+									
+									if (bSkipDraw)
+									{
+										Dispatch.RecordIndex = ~uint32(0u);
+										continue;
+									}
+								}								
+								
 								if (RHICmdList.Bypass())
 								{
 									Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);

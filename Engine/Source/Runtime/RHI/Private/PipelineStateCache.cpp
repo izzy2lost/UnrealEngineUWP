@@ -354,7 +354,7 @@ void PipelineStateCache::PreCompileComplete()
 }
 
 extern RHI_API FComputePipelineState* FindComputePipelineState(FRHIComputeShader* ComputeShader, bool bVerifyUse);
-extern RHI_API FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader);
+extern RHI_API FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, bool bVerifyUse);
 extern RHI_API FRHIComputePipelineState* ExecuteSetComputePipelineState(FComputePipelineState* ComputePipelineState);
 extern RHI_API FRHIGraphicsPipelineState* ExecuteSetGraphicsPipelineState(FGraphicsPipelineState* GraphicsPipelineState);
 
@@ -903,16 +903,19 @@ FComputePipelineState* FindComputePipelineState(FRHIComputeShader* ComputeShader
 	return PipelineStateCache::FindComputePipelineState(ComputeShader, bVerifyUse);
 }
 
-FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, EPSOPrecacheResult PSOPrecacheResult)
+FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, EPSOPrecacheResult PSOPrecacheResult, bool bVerifyUse = true)
 {
 	FComputePipelineState* PipelineState = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, ComputeShader, false, PSOPrecacheResult);
-	PipelineState->Verify_IncUse();
+	if (bVerifyUse)
+	{
+		PipelineState->Verify_IncUse();
+	}
 	return PipelineState;
 }
 
-FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader)
+FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, bool bVerifyUse)
 {
-	return GetComputePipelineState(RHICmdList, ComputeShader, EPSOPrecacheResult::Untracked);
+	return GetComputePipelineState(RHICmdList, ComputeShader, EPSOPrecacheResult::Untracked, bVerifyUse);
 }
 
 void SetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, EPSOPrecacheResult PSOPrecacheResult)
