@@ -13,16 +13,12 @@ public class NDISDK : ModuleRules
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
             string IncludePath = Path.Combine(ModuleDirectory, "Include");
-
-            string LibraryName = "Processing.NDI.Lib.x64";
-            string ThirdPartyBinaryPath = Path.Combine(ModuleDirectory, "../../../Binaries/ThirdParty");
-
 	        PublicIncludePaths.Add(IncludePath);
 
-            string DllName = Path.Combine(LibraryName, ".dll");
+            string DllName = Path.Combine("Processing.NDI.Lib.x64.dll");
             PublicDelayLoadDLLs.Add(DllName);
 
-            string DllPath = Path.Combine(ThirdPartyBinaryPath, DllName);
+            string DllPath = Path.Combine(PluginDirectory, "Binaries", "ThirdParty", "Win64", DllName);
             RuntimeDependencies.Add(DllPath);
 
             // Ensure that we define our c++ define
