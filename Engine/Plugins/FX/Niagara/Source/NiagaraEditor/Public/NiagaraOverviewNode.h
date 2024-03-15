@@ -58,6 +58,7 @@ private:
 	static NIAGARAEDITOR_API bool bColorsAreInitialized;
 	static NIAGARAEDITOR_API FLinearColor SystemColor;
 	static NIAGARAEDITOR_API FLinearColor EmitterColor;
+	static NIAGARAEDITOR_API FLinearColor StatelessEmitterColor;
 	static NIAGARAEDITOR_API FLinearColor IsolatedColor;
 	static NIAGARAEDITOR_API FLinearColor NotIsolatedColor;
 };
