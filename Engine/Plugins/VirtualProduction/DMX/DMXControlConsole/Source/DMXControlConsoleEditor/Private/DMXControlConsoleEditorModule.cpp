@@ -41,16 +41,15 @@ void FDMXControlConsoleEditorModule::StartupModule()
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	DMXEditorAssetCategory = AssetTools.RegisterAdvancedAssetCategory(FName(TEXT("DMX")), LOCTEXT("DmxCategory", "DMX"));
 
-	FCoreDelegates::OnPostEngineInit.AddStatic(&FDMXControlConsoleEditorModule::RegisterDMXMenuExtender);
-
-	// Try UpgradePath if configurations settings have data from Output Consoles, the Console that was used before 5.2.
-	FDMXControlConsoleEditorFromLegacyUpgradeHandler::TryUpgradePathFromLegacy();
+	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FDMXControlConsoleEditorModule::OnPostEnginInit);
 
 	RegisterCompactEditorTabSpawner();
 }
 
 void FDMXControlConsoleEditorModule::ShutdownModule()
 {
+	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
+
 	// It is required to explicitly let the widget go, before further shutting down this module.
 	CompactEditorTab.Reset();
 }
@@ -154,6 +153,14 @@ void FDMXControlConsoleEditorModule::OnCompactEditorTabClosed(TSharedRef<SDockTa
 
 	FDMXControlConsoleEditorModule& ThisModule = FModuleManager::GetModuleChecked<FDMXControlConsoleEditorModule>(TEXT("DMXControlConsoleEditor"));
 	ThisModule.CompactEditorTab.Reset();
+}
+
+void FDMXControlConsoleEditorModule::OnPostEnginInit()
+{
+	RegisterDMXMenuExtender();
+
+	// Try UpgradePath if configurations settings have data from Output Consoles, the Console that was used before 5.2.
+	FDMXControlConsoleEditorFromLegacyUpgradeHandler::TryUpgradePathFromLegacy();
 }
 
 #undef LOCTEXT_NAMESPACE

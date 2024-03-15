@@ -63,6 +63,9 @@ private:
 	/** Called when the compact editor tab was closed */
 	static void OnCompactEditorTabClosed(TSharedRef<SDockTab> Tab);
 
+	// Called at the end of UEngine::Init, right before loading PostEngineInit modules for both normal execution and commandlets
+	void OnPostEnginInit();
+
 	/** 
 	 * The compact control console editor tab, or nullptr if the tab is closed.
 	 * Mind we explicitly hold the active tab here, as it may be assigned to any tab manager,
