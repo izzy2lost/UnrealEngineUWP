@@ -324,10 +324,34 @@ bool FWorldPartitionHelpers::FixupRedirectedAssetPath(FName& InOutAssetPath)
 	return true;
 }
 
-TSet<FGuid> FWorldPartitionHelpers::GetLoadedActorGuidsForLevel(const ULevel* InLevel)
+TMap<FGuid, AActor*> FWorldPartitionHelpers::GetLoadedActorsForLevel(const ULevel* InLevel)
 {
-	TSet<FGuid> Result;
-	Algo::TransformIf(InLevel->Actors, Result, [](const AActor* Actor) { return IsValid(Actor); }, [](const AActor* Actor) { return Actor->GetActorGuid(); });
+	TMap<FGuid, AActor*> Result;
+	ForEachObjectWithOuter(InLevel, [&Result](UObject* Object)
+	{
+		if (AActor* Actor = Cast<AActor>(Object))
+		{
+			if (!Actor->IsTemplate() && Actor->GetActorGuid().IsValid())
+			{
+				Result.Add(Actor->GetActorGuid(), Actor);
+			}
+		}
+	});
+	return MoveTemp(Result);
+}
+
+TMap<FGuid, AActor*> FWorldPartitionHelpers::GetRegisteredActorsForLevel(const ULevel* InLevel)
+{
+	TMap<FGuid, AActor*> Result;
+	Algo::TransformIf(InLevel->Actors, Result, 
+		[](const AActor* Actor)
+		{
+			return IsValid(Actor);
+		}, 
+		[](AActor* Actor)
+		{
+			return TPair<FGuid, AActor*>(Actor->GetActorGuid(), Actor);
+		});
 	return MoveTemp(Result);
 }
 #endif // #if WITH_EDITOR

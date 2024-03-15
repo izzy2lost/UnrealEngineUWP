@@ -178,7 +178,11 @@ public:
 	UE_DEPRECATED(5.4, "Use UAssetRegistryHelpers::FixupRedirectedAssetPath instead.")
 	static ENGINE_API bool FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath);
 
-	static ENGINE_API TSet<FGuid> GetLoadedActorGuidsForLevel(const ULevel* InLevel);
+	// Returns all loaded actors for a specific level, including unregistered and garbage ones
+	static ENGINE_API TMap<FGuid, AActor*> GetLoadedActorsForLevel(const ULevel* InLevel);
+
+	// Returns all loaded and registered actors for a specific level
+	static ENGINE_API TMap<FGuid, AActor*> GetRegisteredActorsForLevel(const ULevel* InLevel);
 #endif // WITH_EDITOR
 
 	// Editor/Runtime conversions
