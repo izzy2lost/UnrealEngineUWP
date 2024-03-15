@@ -71,6 +71,13 @@ FString TProperty_Verse<T>::GetCPPMacroType(FString& ExtendedTypeText) const
 template <typename T>
 bool TProperty_Verse<T>::Identical(const void* A, const void* B, uint32 PortFlags) const
 {
+	check(A);
+
+	if (nullptr == B) // if the comparand is NULL, we just call this no-match
+	{
+		return false;
+	}
+
 	const TCppType* Lhs = reinterpret_cast<const TCppType*>(A);
 	const TCppType* Rhs = reinterpret_cast<const TCppType*>(B);
 	return *Lhs == *Rhs;
@@ -88,8 +95,7 @@ void TProperty_Verse<T>::SerializeItem(FStructuredArchive::FSlot Slot, void* Val
 	else
 	{
 		UE::Private::FVerseObjectReferenceScan::Scan(Ar, LocalValue); 
-		uint8 ScratchValue = 0; // This is needed to keep FStructuredArchive happy
-		Slot << ScratchValue;
+		Slot.EnterStream();
 	}
 }
 
