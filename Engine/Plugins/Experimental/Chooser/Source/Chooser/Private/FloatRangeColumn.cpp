@@ -27,22 +27,23 @@ bool FFloatRangeColumn::EditorTestFilter(int32 RowIndex) const
 {
 	if (RowValues.IsValidIndex(RowIndex))
 	{
+		const FChooserFloatRangeRowData& RowValue = RowValues[RowIndex];
+		
 		if (bWrapInput)
 		{
 			double TestResult = FMath::Wrap(TestValue, MinValue, MaxValue);
-			const FChooserFloatRangeRowData& RowValue = RowValues[RowIndex];
 			if (RowValue.Max < RowValue.Min) // eg for an angle range from  135 to -135  (135 to 180 or -180 to -135)
 			{
-				return TestResult >= RowValue.Min || TestResult <= RowValue.Max;
+				return (RowValue.bNoMin || TestResult >= RowValue.Min) || (RowValue.bNoMax || TestResult <= RowValue.Max);
 			}
 			else
 			{
-				return TestResult >= RowValue.Min && TestResult <= RowValue.Max;
+				return (RowValue.bNoMin || TestResult >= RowValue.Min) && (RowValue.bNoMax || TestResult <= RowValue.Max);
 			}
 		}
 		else
 		{
-			return TestValue >= RowValues[RowIndex].Min && TestValue <= RowValues[RowIndex].Max;
+			return (RowValue.bNoMin || TestValue >= RowValue.Min) && (RowValue.bNoMax || TestValue <= RowValue.Max);
 		}
 	}
 	return false;

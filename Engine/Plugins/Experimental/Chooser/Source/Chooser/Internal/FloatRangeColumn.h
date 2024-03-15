@@ -42,11 +42,19 @@ struct FChooserFloatRangeRowData
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category=Runtime)
+	UPROPERTY(EditAnywhere, meta=(DisplayAfter="bNoMin", EditCondition="bNoMin==false"), Category=Runtime)
 	float Min=0;
 	
-	UPROPERTY(EditAnywhere, Category=Runtime)
+	UPROPERTY(EditAnywhere, meta=(DisplayAfter="bNoMax", EditCondition="bNoMax==false"), Category=Runtime)
 	float Max=0;
+
+	// Infinite minimum range
+	UPROPERTY(EditAnywhere, Category=Runtime)
+   	bool bNoMin=false;
+	
+	// Infinite maximum range
+	UPROPERTY(EditAnywhere, Category=Runtime)
+   	bool bNoMax=false;
 };
 
 

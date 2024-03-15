@@ -4,11 +4,13 @@
 #include "FloatRangeColumn.h"
 #include "ObjectChooserWidgetFactories.h"
 #include "ChooserTableEditor.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Images/SImage.h"
 #include "GraphEditorSettings.h"
 #include "SPropertyAccessChainWidget.h"
 #include "ScopedTransaction.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 
 #define LOCTEXT_NAMESPACE "FloatRangeColumnEditor"
 
@@ -86,24 +88,40 @@ TSharedRef<SWidget> CreateFloatRangeColumnWidget(UChooserTable* Chooser, FChoose
 	]
 	+ SHorizontalBox::Slot().FillWidth(0.5f)
 	[
-		SNew(SNumericEntryBox<float>)
-		.MaxValue_Lambda([FloatRangeColumn, Row]()
-		{
-			return (Row < FloatRangeColumn->RowValues.Num()) ? FloatRangeColumn->RowValues[Row].Max : 0;
-		})
-		.Value_Lambda([FloatRangeColumn, Row]()
-		{
-			return (Row < FloatRangeColumn->RowValues.Num()) ? FloatRangeColumn->RowValues[Row].Min : 0;
-		})
-		.OnValueCommitted_Lambda([Chooser, FloatRangeColumn, Row](float NewValue, ETextCommit::Type CommitType)
-		{
-			if (Row < FloatRangeColumn->RowValues.Num())
+		SNew(SOverlay)
+		+ SOverlay::Slot()
+		[
+			SNew(SNumericEntryBox<float>)
+			.Visibility_Lambda([FloatRangeColumn, Row]
 			{
-				const FScopedTransaction Transaction(LOCTEXT("Edit Min Value", "Edit Min Value"));
-				Chooser->Modify(true);
-				FloatRangeColumn->RowValues[Row].Min = NewValue;
-			}
-		})
+				return FloatRangeColumn->RowValues[Row].bNoMin ? EVisibility::Hidden : EVisibility::Visible;
+			})
+			.MaxValue_Lambda([FloatRangeColumn, Row]()
+			{
+				return (Row < FloatRangeColumn->RowValues.Num()) ? FloatRangeColumn->RowValues[Row].Max : 0;
+			})
+			.Value_Lambda([FloatRangeColumn, Row]()
+			{
+				return (Row < FloatRangeColumn->RowValues.Num()) ? FloatRangeColumn->RowValues[Row].Min : 0;
+			})
+			.OnValueCommitted_Lambda([Chooser, FloatRangeColumn, Row](float NewValue, ETextCommit::Type CommitType)
+			{
+				if (Row < FloatRangeColumn->RowValues.Num())
+				{
+					const FScopedTransaction Transaction(LOCTEXT("Edit Min Value", "Edit Min Value"));
+					Chooser->Modify(true);
+					FloatRangeColumn->RowValues[Row].Min = NewValue;
+				}
+			})
+		]
+		+ SOverlay::Slot()
+		[
+			SNew(SEditableTextBox).IsReadOnly(true).Text(LOCTEXT("negativeinfinity","-∞"))
+				.Visibility_Lambda([FloatRangeColumn, Row]
+				{
+					return FloatRangeColumn->RowValues[Row].bNoMin ? EVisibility::Visible : EVisibility::Hidden;
+				})
+		]
 	]
 	+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 	[
@@ -111,24 +129,40 @@ TSharedRef<SWidget> CreateFloatRangeColumnWidget(UChooserTable* Chooser, FChoose
 	]
 	+ SHorizontalBox::Slot().FillWidth(0.5f)
 	[
-		SNew(SNumericEntryBox<float>)
-		.MinValue_Lambda([FloatRangeColumn, Row]()
-		{
-			return (Row < FloatRangeColumn->RowValues.Num()) ? FloatRangeColumn->RowValues[Row].Min : 0;
-		})
-		.Value_Lambda([FloatRangeColumn, Row]()
-		{
-			return (Row < FloatRangeColumn->RowValues.Num()) ? FloatRangeColumn->RowValues[Row].Max : 0;
-		})
-		.OnValueCommitted_Lambda([Chooser, FloatRangeColumn, Row](float NewValue, ETextCommit::Type CommitType)
-		{
-			if (Row < FloatRangeColumn->RowValues.Num())
+		SNew(SOverlay)
+		+ SOverlay::Slot()
+		[
+			SNew(SNumericEntryBox<float>)
+			.Visibility_Lambda([FloatRangeColumn, Row]
 			{
-				const FScopedTransaction Transaction(LOCTEXT("Edit Max", "Edit Max Value"));
-				Chooser->Modify(true);
-				FloatRangeColumn->RowValues[Row].Max = NewValue;
-			}
-		})
+				return FloatRangeColumn->RowValues[Row].bNoMax ? EVisibility::Hidden : EVisibility::Visible;
+			})
+			.MinValue_Lambda([FloatRangeColumn, Row]()
+			{
+				return (Row < FloatRangeColumn->RowValues.Num()) ? FloatRangeColumn->RowValues[Row].Min : 0;
+			})
+			.Value_Lambda([FloatRangeColumn, Row]()
+			{
+				return (Row < FloatRangeColumn->RowValues.Num()) ? FloatRangeColumn->RowValues[Row].Max : 0;
+			})
+			.OnValueCommitted_Lambda([Chooser, FloatRangeColumn, Row](float NewValue, ETextCommit::Type CommitType)
+			{
+				if (Row < FloatRangeColumn->RowValues.Num())
+				{
+					const FScopedTransaction Transaction(LOCTEXT("Edit Max", "Edit Max Value"));
+					Chooser->Modify(true);
+					FloatRangeColumn->RowValues[Row].Max = NewValue;
+				}
+			})
+		]
+		+ SOverlay::Slot()
+		[
+			SNew(SEditableTextBox).IsReadOnly(true).Text(LOCTEXT("infinity","∞"))
+				.Visibility_Lambda([FloatRangeColumn, Row]
+				{
+					return FloatRangeColumn->RowValues[Row].bNoMax ? EVisibility::Visible : EVisibility::Hidden;
+				})
+		]
 	]
 	+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 	[
