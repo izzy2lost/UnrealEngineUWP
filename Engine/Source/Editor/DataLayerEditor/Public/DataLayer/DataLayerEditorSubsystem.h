@@ -796,6 +796,12 @@ private:
 	/** Delegate used to notify changes to ActorEditorContextSubsystem */
 	FOnActorEditorContextClientChanged ActorEditorContextClientChanged;
 
+	/** Last World to have registered world delegates */
+	TWeakObjectPtr<UWorld> LastRegisteredWorldDelegates;
+
+	/** Delegate handle for world's AddOnActorPreSpawnInitialization */
+	FDelegateHandle OnActorPreSpawnInitializationDelegate;
+
 	friend class FDataLayersBroadcast;
 	friend struct FExternalDataLayerWorldSurrogateReferencingObject;
 };

@@ -583,9 +583,21 @@ TArray<const UDataLayerInstance*> UDataLayerEditorSubsystem::GetDataLayerInstanc
 
 void UDataLayerEditorSubsystem::UpdateRegisteredWorldDelegates()
 {
+	if (UWorld* PreviousWorld = LastRegisteredWorldDelegates.Get())
+	{
+		PreviousWorld->RemoveOnActorPreSpawnInitialization(OnActorPreSpawnInitializationDelegate);
+		PreviousWorld->PersistentLevel->OnLoadedActorAddedToLevelEvent.RemoveAll(this);
+		PreviousWorld->OnWorldPartitionInitialized().RemoveAll(this);
+		PreviousWorld->OnWorldPartitionUninitialized().RemoveAll(this);
+	}
+
+	LastRegisteredWorldDelegates.Reset();
+	OnActorPreSpawnInitializationDelegate.Reset();
+
 	if (UWorld* World = GetWorld())
 	{
-		World->AddOnActorPreSpawnInitialization(FOnActorSpawned::FDelegate::CreateUObject(this, &UDataLayerEditorSubsystem::OnActorPreSpawnInitialization));
+		LastRegisteredWorldDelegates = World;
+		OnActorPreSpawnInitializationDelegate = World->AddOnActorPreSpawnInitialization(FOnActorSpawned::FDelegate::CreateUObject(this, &UDataLayerEditorSubsystem::OnActorPreSpawnInitialization));
 		World->PersistentLevel->OnLoadedActorAddedToLevelEvent.AddUObject(this, &UDataLayerEditorSubsystem::OnLoadedActorAddedToLevel);
 		World->OnWorldPartitionInitialized().AddUObject(this, &UDataLayerEditorSubsystem::OnWorldPartitionInitialized);
 		World->OnWorldPartitionUninitialized().AddUObject(this, &UDataLayerEditorSubsystem::OnWorldPartitionUninitialized);
