@@ -166,6 +166,67 @@ namespace UE::MLDeformer
 		Collector.AddReferencedObject(EditorInputInfo);
 	}
 
+	void FMLDeformerEditorModel::CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel)
+	{
+		UMLDeformerModel* SourceModel = SourceEditorModel->GetModel();
+		if (SourceModel == nullptr)
+		{
+			return;
+		}
+
+		UMLDeformerModel* TargetModel = GetModel();
+		check(TargetModel);
+
+		// Copy model properties.
+		TargetModel->SetSkeletalMesh(SourceModel->GetSkeletalMesh());
+		TargetModel->SetAlignmentTransform(SourceModel->GetAlignmentTransform());
+		TargetModel->SetTrainingFrameLimit(SourceModel->GetTrainingFrameLimit());
+		if (TargetModel->DoesSupportBones())
+		{
+			TargetModel->SetBoneIncludeList(SourceModel->GetBoneIncludeList());
+		}
+		if (TargetModel->DoesSupportCurves())
+		{
+			TargetModel->SetCurveIncludeList(SourceModel->GetCurveIncludeList());
+		}
+
+		// Copy visualization properties.
+		const UMLDeformerVizSettings* SourceVizSettings = SourceModel->GetVizSettings();
+		UMLDeformerVizSettings* TargetVizSettings = TargetModel->GetVizSettings();
+		check(TargetVizSettings);
+		if (SourceVizSettings)
+		{
+			TargetVizSettings->SetLabelHeight(SourceVizSettings->GetLabelHeight());
+			TargetVizSettings->SetVisualizationMode(SourceVizSettings->GetVisualizationMode());
+			TargetVizSettings->SetMeshSpacing(SourceVizSettings->GetMeshSpacing());
+			TargetVizSettings->SetLabelScale(SourceVizSettings->GetLabelScale());
+			TargetVizSettings->SetDrawLabels(SourceVizSettings->GetDrawLabels());
+			TargetVizSettings->SetWeight(SourceVizSettings->GetWeight());
+			TargetVizSettings->SetTestAnimSequence((UAnimSequence*)SourceVizSettings->GetTestAnimSequence());
+			TargetVizSettings->SetTrainingFrameNumber(SourceVizSettings->GetTrainingFrameNumber());
+			TargetVizSettings->SetTestingFrameNumber(SourceVizSettings->GetTestingFrameNumber());
+			TargetVizSettings->SetAnimPlaySpeed(SourceVizSettings->GetAnimPlaySpeed());
+			TargetVizSettings->SetDrawLinearSkinnedActor(SourceVizSettings->GetDrawLinearSkinnedActor());
+			TargetVizSettings->SetDrawMLDeformedActor(SourceVizSettings->GetDrawMLDeformedActor());
+			TargetVizSettings->SetDrawGroundTruthActor(SourceVizSettings->GetDrawGroundTruthActor());
+			TargetVizSettings->SetDrawMLCompareActors(SourceVizSettings->GetDrawMLCompareActors());
+			TargetVizSettings->SetDrawDebugActorBounds(SourceVizSettings->GetDrawDebugActorBounds());
+			TargetVizSettings->SetDrawVertexDeltas(SourceVizSettings->GetDrawVertexDeltas());
+			TargetVizSettings->SetXRayDeltas(SourceVizSettings->GetXRayDeltas());
+			TargetVizSettings->SetHeatMapMax(SourceVizSettings->GetHeatMapMax());
+			TargetVizSettings->SetGroundTruthLerp(SourceVizSettings->GetGroundTruthLerp());
+			TargetVizSettings->SetShowHeatMap(SourceVizSettings->GetShowHeatMap());
+			TargetVizSettings->SetHeatMapMode(SourceVizSettings->GetHeatMapMode());
+			TargetVizSettings->SetDebugBoundsColor(SourceVizSettings->GetDebugBoundsColor());
+			TargetVizSettings->SetCompareActors(SourceVizSettings->GetCompareActors());
+
+			// NOTE: We don't copy the DeformerGraph on purpose, as this model might need another one, so we let it get the default graph.
+		}
+
+		TargetModel->UpdateMemoryUsage();
+		UpdateMemoryUsage();	
+	}
+
 	void FMLDeformerEditorModel::UpdateEditorInputInfo()
 	{
 		InitInputInfo(EditorInputInfo);

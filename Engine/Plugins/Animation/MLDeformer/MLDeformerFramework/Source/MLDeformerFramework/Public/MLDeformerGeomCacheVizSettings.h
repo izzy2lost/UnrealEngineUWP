@@ -31,6 +31,12 @@ public:
 	 */
 	UGeometryCache* GetTestGroundTruth() const			{ return GroundTruth.LoadSynchronous(); }
 
+	/**
+	 * Set the test ground truth geometry cache.
+	 * @param InGroundTruth The ground truth model.
+	 */
+	void SetTestGroundTruth(TSoftObjectPtr<UGeometryCache> InGroundTruth)	{ GroundTruth = InGroundTruth; }
+
 	// Get property names.
 	static FName GetTestGroundTruthPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerGeomCacheVizSettings, GroundTruth); }
 

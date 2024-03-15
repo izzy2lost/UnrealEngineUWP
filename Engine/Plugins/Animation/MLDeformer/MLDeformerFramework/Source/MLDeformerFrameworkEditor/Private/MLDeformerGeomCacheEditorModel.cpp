@@ -35,6 +35,30 @@ namespace UE::MLDeformer
 		}
 	}
 
+	void FMLDeformerGeomCacheEditorModel::CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel)
+	{
+		UMLDeformerGeomCacheModel* SourceGeomCacheModel = Cast<UMLDeformerGeomCacheModel>(SourceEditorModel->GetModel());
+		if (SourceGeomCacheModel) // If we have a model derived from the UMLDeformerGeomCacheModel
+		{
+			// Copy the training input animations.
+			UMLDeformerGeomCacheModel* TargetModel = Cast<UMLDeformerGeomCacheModel>(GetModel());
+			TArray<FMLDeformerGeomCacheTrainingInputAnim>& TargetInputAnims = TargetModel->GetTrainingInputAnims();
+			TargetInputAnims = SourceGeomCacheModel->GetTrainingInputAnims();
+
+			// Copy the ground truth in the visualization settings.
+			UMLDeformerGeomCacheVizSettings* SourceVizSettings = Cast<UMLDeformerGeomCacheVizSettings>(SourceGeomCacheModel->GetVizSettings());
+			if (SourceVizSettings)
+			{
+				UMLDeformerGeomCacheVizSettings* TargetVizSettings = Cast<UMLDeformerGeomCacheVizSettings>(TargetModel->GetVizSettings());
+				check(TargetVizSettings)
+				TargetVizSettings->SetTestGroundTruth(SourceVizSettings->GetTestGroundTruth());
+			}
+		}
+
+		// Copy the settings of the base class.
+		FMLDeformerEditorModel::CopyBaseSettingsFromModel(SourceEditorModel);
+	}
+
 	TSharedPtr<FMLDeformerSampler> FMLDeformerGeomCacheEditorModel::CreateSamplerObject() const
 	{
 		return MakeShared<FMLDeformerGeomCacheSampler>();

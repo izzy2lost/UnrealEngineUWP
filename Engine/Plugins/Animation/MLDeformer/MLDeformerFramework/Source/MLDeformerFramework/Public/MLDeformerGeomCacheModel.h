@@ -102,7 +102,8 @@ private:
 	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use the training input anims instead."))
 	TSoftObjectPtr<UGeometryCache> GeometryCache_DEPRECATED;
 
-	UPROPERTY(EditAnywhere, Category = "Target Mesh")
+	/** The training animation inputs. */
+	UPROPERTY(EditAnywhere, Category = "Inputs")
 	TArray<FMLDeformerGeomCacheTrainingInputAnim> TrainingInputAnims;
 #endif // WITH_EDITORONLY_DATA
 };

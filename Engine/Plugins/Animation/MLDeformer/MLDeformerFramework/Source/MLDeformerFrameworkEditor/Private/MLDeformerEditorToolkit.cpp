@@ -296,7 +296,6 @@ namespace UE::MLDeformer
 		if (ActiveModel)
 		{
 			ActiveModel->ClearWorldAndPersonaPreviewScene();
-			ActiveModel.Reset();
 
 			if (ModelDetailsView)
 			{
@@ -327,7 +326,11 @@ namespace UE::MLDeformer
 		EditorModel->Init(InitSettings);
 
 		// Tell the editor we use this model now.
-		ActiveModel = TSharedPtr<FMLDeformerEditorModel>(EditorModel);
+		TSharedPtr<FMLDeformerEditorModel> NewModel = TSharedPtr<FMLDeformerEditorModel>(EditorModel);
+		NewModel->CopyBaseSettingsFromModel(ActiveModel.Get());
+
+		ActiveModel.Reset();
+		ActiveModel = NewModel;
 
 		// Create the new scene for this model.
 		if (PersonaToolkit)

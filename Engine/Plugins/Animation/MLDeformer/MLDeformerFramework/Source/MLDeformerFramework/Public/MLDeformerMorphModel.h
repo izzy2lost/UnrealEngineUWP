@@ -64,11 +64,14 @@ public:
 	bool CanDynamicallyUpdateMorphTargets() const;
 
 	void SetMorphDeltaZeroThreshold(float Threshold)				{ MorphDeltaZeroThreshold = Threshold; }
-	void SetMorphCompressionlevel(float Tolerance)					{ MorphCompressionLevel = Tolerance; }
+	void SetMorphCompressionLevel(float Tolerance)					{ MorphCompressionLevel = Tolerance; }
 	void SetIncludeMorphTargetNormals(bool bInclude)				{ bIncludeNormals = bInclude; }
 	void SetMaskChannel(EMLDeformerMaskChannel Channel)				{ MaskChannel = Channel; }
 	void SetInvertMaskChannel(bool bInvert)							{ bInvertMaskChannel = bInvert; }
 	void SetClampMorphTargetsWeights(bool bEnabled)					{ bClampMorphWeights = bEnabled; }
+
+	UE_DEPRECATED(5.5, "Please use SetMorphCompressionLevel, with upper case L for Level.")
+	void SetMorphCompressionlevel(float Tolerance)					{ MorphCompressionLevel = Tolerance; }
 
 	UE_DEPRECATED(5.3, "Use SetMaskChannel instead.")
 	void SetWeightMask(EMLDeformerMaskChannel Channel)				{ MaskChannel = Channel; }

@@ -74,6 +74,24 @@ public:
 	void SetTestingFrameNumber(int32 FrameNumber)			{ TestingFrameNumber = FrameNumber; }
 	void SetWeight(float InWeight)							{ Weight = InWeight; }
 	void SetTestAnimSequence(UAnimSequence* InAnim)  		{ TestAnimSequence = InAnim; }
+	void SetMeshSpacing(float Spacing)						{ MeshSpacing = Spacing; }
+	void SetLabelHeight(float Height)						{ LabelHeight = Height; }
+	void SetLabelScale(float Scale)							{ LabelScale = Scale; }
+	void SetDrawLabels(bool bDraw)							{ bDrawLabels = bDraw; }
+	void SetAnimPlaySpeed(float SpeedFactor)				{ AnimPlaySpeed = SpeedFactor; }
+	void SetDrawLinearSkinnedActor(bool bDraw)				{ bDrawLinearSkinnedActor = bDraw; }
+	void SetDrawMLDeformedActor(bool bDraw)					{ bDrawMLDeformedActor = bDraw; }
+	void SetDrawGroundTruthActor(bool bDraw)				{ bDrawGroundTruthActor = bDraw; }
+	void SetDrawMLCompareActors(bool bDraw)					{ bDrawMLCompareActors = bDraw; }
+	void SetDrawDebugActorBounds(bool bDraw)				{ bDrawDebugActorBounds = bDraw; }
+	void SetDrawVertexDeltas(bool bDraw)					{ bDrawDeltas = bDraw; }
+	void SetXRayDeltas(bool bEnable)						{ bXRayDeltas = bEnable; }
+	void SetHeatMapMax(float Value)							{ HeatMapMax = Value; }
+	void SetGroundTruthLerp(float Alpha)					{ GroundTruthLerp = Alpha; }
+	void SetShowHeatMap(bool bShow)							{ bShowHeatMap = bShow; }
+	void SetHeatMapMode(EMLDeformerHeatMapMode Mode)		{ HeatMapMode = Mode; }
+	void SetDebugBoundsColor(const FColor& Color)			{ DebugBoundsColor = Color; }
+	void SetCompareActors(const TArray<FMLDeformerCompareActor>& Actors) { CompareActors = Actors; }
 
 	FVector GetMeshSpacingOffsetVector() const				{ return FVector(MeshSpacing, 0.0f, 0.0f); }
 	float GetMeshSpacing() const							{ return MeshSpacing; }
@@ -102,7 +120,6 @@ public:
 	const TArray<FMLDeformerCompareActor>& GetCompareActors() const { return CompareActors; }
 	TArray<FMLDeformerCompareActor>& GetCompareActors()		{ return CompareActors; }
 	FColor GetDebugBoundsColor() const						{ return DebugBoundsColor; }
-
 
 	UE_DEPRECATED(5.4, "This method will be removed.")
 	void SetQualityLevel(int32 InQualityLevel)				{ QualityLevel_DEPRECATED = FMath::Max<int32>(InQualityLevel, 0); }

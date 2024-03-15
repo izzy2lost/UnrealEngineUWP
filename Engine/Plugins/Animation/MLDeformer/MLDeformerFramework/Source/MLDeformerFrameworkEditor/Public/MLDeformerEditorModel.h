@@ -95,6 +95,13 @@ namespace UE::MLDeformer
 		// ~END FGCObject overrides.
 
 		/**
+		 * Copy the common property values from a source model into this model.		 
+		 * This includes the skeletal mesh, input animations, and shared visualization settings.
+		 * @param SourceEditorModel The source model to copy the shared settings from.
+		 */
+		virtual void CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel);
+
+		/**
 		 * Change the skeletal mesh on a specific skeletal mesh component.
 		 * This internally will not only call SkelMeshComponent->SetSkeletalMesh(Mesh), but also will reassign the materials.
 		 * The reason for this is because if there are material instances set already, the skeletal mesh component will not override them to preserve changes done by the user.
@@ -107,7 +114,6 @@ namespace UE::MLDeformer
 		 */
 		static void ChangeSkeletalMeshOnComponent(USkeletalMeshComponent* SkelMeshComponent, USkeletalMesh* Mesh);
 
-		// Required overrides.
 		/**
 		 * Get the number of training frames.
 		 * This must not be clamped yet to the maximum training frame limit. It must return the full amount of frames available in your training data.
@@ -212,8 +218,28 @@ namespace UE::MLDeformer
 		 */
 		virtual TSharedPtr<FMLDeformerSampler> CreateSamplerObject() const;
 
+		/**
+		 * Get the number of training input animations.
+		 * Each training input anim is a pair of a source animation and a target mesh deformation with the same poses.
+		 * This data is fed into the training process.
+		 * @return The number of training input anims.
+		 */
 		virtual int32 GetNumTrainingInputAnims() const;
+
+		/**
+		 * Get a given training input animation.
+		 * Each training input anim is a pair of a source animation and a target mesh deformation with the same poses.
+		 * This data is fed into the training process.
+		 * @param Index The training input animation to get.
+		 * @see GetNumTrainingInputAnims
+		 */
 		virtual FMLDeformerTrainingInputAnim* GetTrainingInputAnim(int32 Index) const;
+
+		/**
+		 * Update the timeline's training input animation list.
+		 * This is the list of animations that show inside the timeline when in training mode.
+		 * Each training input animation pair needs some name that is shown inside the timeline.
+		 */
 		virtual void UpdateTimelineTrainingAnimList();
 
 		/**
@@ -283,8 +309,25 @@ namespace UE::MLDeformer
 		 */
 		virtual void CreateTestMLDeformedActor(UWorld* World);
 
+		/**
+		 * Create the compare actors for the testing mode.
+		 * @param World The world to create the actors in.
+		 */
 		virtual void CreateTestCompareActors(UWorld* World);
+
+		/**
+		 * Check if this model is compatible with a specific deformer asset.
+		 * For example it will check whether the other deformer asset's skeletal mesh is the same as the one used
+		 * by this model.
+		 * @param Deformer The deformer asset to check against.
+		 * @return Returns true if the specified asset is compatible with this one, otherwise false is returned.
+		 */
 		virtual bool IsCompatibleDeformer(UMLDeformerAsset* Deformer) const;
+
+		/**
+		 * Update the mesh offset factors, which is basically controlling where to place the actors in the scene.
+		 * The spacing between the characters is the mesh offset factor multiplied by the mesh spacing.
+		 */
 		virtual void UpdateMeshOffsetFactors();
 
 		/**
@@ -744,6 +787,11 @@ namespace UE::MLDeformer
 		UE_DEPRECATED(5.4, "Please use GetSamplerForTrainingAnim instead.")
 		FMLDeformerSampler* GetSampler() const;
 
+		/**
+		 * Get the vertex delta sampler for a given training input animation.
+		 * @param AnimIndex The training input animation index.
+		 * @return A pointer to the sampler for this specific input anim, or nullptr in case the index is out of range.
+		 */
 		FMLDeformerSampler* GetSamplerForTrainingAnim(int32 AnimIndex) const	{ return Samplers.IsValidIndex(AnimIndex) ? Samplers[AnimIndex].Get() : nullptr; }
 
 		/**

@@ -32,6 +32,25 @@ namespace UE::MLDeformer
 		return new FMLDeformerMorphModelEditorModel();
 	}
 
+	void FMLDeformerMorphModelEditorModel::CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel)
+	{
+		// Copy the morph related settings.
+		const UMLDeformerMorphModel* SourceMorphModel = Cast<UMLDeformerMorphModel>(SourceEditorModel->GetModel());
+		if (SourceMorphModel)
+		{
+			UMLDeformerMorphModel* TargetModel = Cast<UMLDeformerMorphModel>(GetModel());
+			check(TargetModel);
+			TargetModel->SetMorphCompressionLevel(SourceMorphModel->GetMorphCompressionLevel());
+			TargetModel->SetMorphDeltaZeroThreshold(SourceMorphModel->GetMorphDeltaZeroThreshold());
+			TargetModel->SetIncludeMorphTargetNormals(SourceMorphModel->GetIncludeMorphTargetNormals());
+			TargetModel->SetMaskChannel(SourceMorphModel->GetMaskChannel());
+			TargetModel->SetInvertMaskChannel(SourceMorphModel->GetInvertMaskChannel());
+		}
+
+		// Copy all base class settings.
+		FMLDeformerGeomCacheEditorModel::CopyBaseSettingsFromModel(SourceEditorModel);
+	}
+
 	bool FMLDeformerMorphModelEditorModel::IsInputMaskingSupported() const
 	{
 		return false;
