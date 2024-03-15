@@ -1008,6 +1008,7 @@ struct FGeometryParticleStateBase
 	bool IsInSync(const FGeometryParticleHandle& Handle, const FFrameAndPhase FrameAndPhase, const FDirtyPropertiesPool& Pool) const;
 
 	/** Check if the handle resim frame is valid (before the current one) */
+	UE_DEPRECATED(5.4, "Not recommended for use, will not return a correct response if the particle is not in contact with anything else in the physics scene. Note also that naming is inversed, returns false when valid.")
 	bool IsResimFrameValid(const FGeometryParticleHandle& Handle, const FFrameAndPhase FrameAndPhase) const;
 	
 	template <typename TParticle>

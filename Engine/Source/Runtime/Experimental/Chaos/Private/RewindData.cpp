@@ -68,6 +68,7 @@ bool SimWritablePropsMayChange(const TGeometryParticleHandle<FReal,3>& Handle)
 	return ObjectState == EObjectStateType::Dynamic || ObjectState == EObjectStateType::Sleeping;
 }
 
+/* Deprecated UE5.4 */
 bool FGeometryParticleStateBase::IsResimFrameValid(const FGeometryParticleHandle& Handle, const FFrameAndPhase FrameAndPhase) const
 {
 	if (FPBDRigidsSolver* RigidSolver = Handle.PhysicsProxy()->GetSolver<FPBDRigidsSolver>())
@@ -87,68 +88,59 @@ bool FGeometryParticleStateBase::IsResimFrameValid(const FGeometryParticleHandle
 template <bool bSkipDynamics>
 bool FGeometryParticleStateBase::IsInSync(const FGeometryParticleHandle& Handle, const FFrameAndPhase FrameAndPhase, const FDirtyPropertiesPool& Pool) const
 {
-	if(Chaos::FPhysicsSolverBase::IsNetworkPhysicsPredictionEnabled() && !TargetPositions.IsEmpty() && !TargetVelocities.IsEmpty() && !TargetStates.IsEmpty())
+	if (!ParticlePositionRotation.IsInSync(Handle, FrameAndPhase, Pool))
 	{
-		if(!IsResimFrameValid(Handle, FrameAndPhase))
+		return false;
+	}
+
+	if (!NonFrequentData.IsInSync(Handle, FrameAndPhase, Pool))
+	{
+		return false;
+	}
+
+	//todo: deal with state change mismatch
+
+	if (auto Kinematic = Handle.CastToKinematicParticle())
+	{
+		if (!Velocities.IsInSync(*Kinematic, FrameAndPhase, Pool))
+		{
+			return false;
+		}
+
+		if (!KinematicTarget.IsInSync(*Kinematic, FrameAndPhase, Pool))
 		{
 			return false;
 		}
 	}
-	else
-	{ 
-		if(!ParticlePositionRotation.IsInSync(Handle, FrameAndPhase, Pool))
+
+	if (auto Rigid = Handle.CastToRigidParticle())
+	{
+		if (!bSkipDynamics)
+		{
+			if (!Dynamics.IsInSync(*Rigid, FrameAndPhase, Pool))
+			{
+				return false;
+			}
+		}
+
+		if (!DynamicsMisc.IsInSync(*Rigid, FrameAndPhase, Pool))
 		{
 			return false;
 		}
 
-		if(!NonFrequentData.IsInSync(Handle, FrameAndPhase, Pool))
+		if (!MassProps.IsInSync(*Rigid, FrameAndPhase, Pool))
 		{
 			return false;
-		}
-
-		//todo: deal with state change mismatch
-
-		if(auto Kinematic = Handle.CastToKinematicParticle())
-		{
-			if(!Velocities.IsInSync(*Kinematic, FrameAndPhase, Pool))
-			{
-				return false;
-			}
-
-			if (!KinematicTarget.IsInSync(*Kinematic, FrameAndPhase, Pool))
-			{
-				return false;
-			}
-		}
-
-		if(auto Rigid = Handle.CastToRigidParticle())
-		{
-			if(!bSkipDynamics)
-			{
-				if (!Dynamics.IsInSync(*Rigid, FrameAndPhase, Pool))
-				{
-					return false;
-				}
-			}
-
-			if(!DynamicsMisc.IsInSync(*Rigid, FrameAndPhase, Pool))
-			{
-				return false;
-			}
-
-			if(!MassProps.IsInSync(*Rigid, FrameAndPhase, Pool))
-			{
-				return false;
-			}
 		}
 	}
-
+	
 	//TODO: this assumes geometry is never modified. Geometry modification has various issues in higher up Chaos code. Need stable shape id
 	//For now iterate over all the shapes in latest and see if they have any mismatches
 	/*if(ShapesArrayState.PerShapeData.Num())
 	{
 		return false;	//if any shapes changed just resim, this is not efficient but at least it's correct
 	}*/
+
 	return true;
 }
 

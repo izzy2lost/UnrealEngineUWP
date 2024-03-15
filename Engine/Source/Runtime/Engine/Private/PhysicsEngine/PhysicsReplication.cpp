@@ -90,7 +90,13 @@ namespace PhysicsReplicationCVars
 	namespace ResimulationCVars
 	{
 		bool bRuntimeCorrectionEnabled = true;
-		static FAutoConsoleVariableRef CVarResimRuntimeCorrectionEnabled(TEXT("np2.Resim.RuntimeCorrectionEnabled"), bRuntimeCorrectionEnabled, TEXT("Apply runtime corrections while error is smalle enough not to trigger a resim."));
+		static FAutoConsoleVariableRef CVarResimRuntimeCorrectionEnabled(TEXT("np2.Resim.RuntimeCorrectionEnabled"), bRuntimeCorrectionEnabled, TEXT("Apply runtime corrections while error is small enough not to trigger a resim."));
+
+		bool bRuntimeVelocityCorrection = false;
+		static FAutoConsoleVariableRef CVarResimRuntimeVelocityCorrection(TEXT("np2.Resim.RuntimeVelocityCorrection"), bRuntimeVelocityCorrection, TEXT("Apply linear and angular velocity corrections in runtime while within resim trigger. Used if RuntimeCorrectionEnabled is true."));
+
+		bool bRuntimeCorrectConnectedBodies = true;
+		static FAutoConsoleVariableRef CVarResimRuntimeCorrectConnectedBodies(TEXT("np2.Resim.RuntimeCorrectConnectedBodies"), bRuntimeCorrectConnectedBodies, TEXT("If true runtime position and rotation correction will also shift transform of any connected physics objects. Used if RuntimeCorrectionEnabled is true."));
 
 		bool bDisableReplicationOnInteraction = true;
 		static FAutoConsoleVariableRef CVarResimDisableReplicationOnInteraction(TEXT("np2.Resim.DisableReplicationOnInteraction"), bDisableReplicationOnInteraction, TEXT("If a resim object interacts with another object not running resimulation, deactivate that objects replication until interaction stops."));
@@ -100,6 +106,15 @@ namespace PhysicsReplicationCVars
 
 		float RotStabilityMultiplier = 1.0f;
 		static FAutoConsoleVariableRef CVarResimRotStabilityMultiplier(TEXT("np2.Resim.RotStabilityMultiplier"), RotStabilityMultiplier, TEXT("Recommended range between 0.0-1.0. Lower value means more stable rotational corrections."));
+	
+		float VelStabilityMultiplier = 0.5f;
+		static FAutoConsoleVariableRef CVarResimVelStabilityMultiplier(TEXT("np2.Resim.VelStabilityMultiplier"), VelStabilityMultiplier, TEXT("Recommended range between 0.0-1.0. Lower value means more stable linear velocity corrections."));
+
+		float AngVelStabilityMultiplier = 0.5f;
+		static FAutoConsoleVariableRef CVarResimAngVelStabilityMultiplier(TEXT("np2.Resim.AngVelStabilityMultiplier"), AngVelStabilityMultiplier, TEXT("Recommended range between 0.0-1.0. Lower value means more stable angular velocity corrections."));
+
+		bool bDrawDebug = false;
+		static FAutoConsoleVariableRef CVarResimDrawDebug(TEXT("np2.Resim.DrawDebug"), bDrawDebug, TEXT("Resimulation debug draw-calls"));
 	}
 
 	namespace PredictiveInterpolationCVars
@@ -1794,17 +1809,18 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 		UE_LOG(LogTemp, Log, TEXT("Particle Target Velocity = %s | Current Velocity = %s"), *Target.TargetState.LinVel.ToString(), *PastState.GetV().ToString());
 		UE_LOG(LogTemp, Log, TEXT("Particle Target Quaternion = %s | Current Quaternion = %s"), *Target.TargetState.Quaternion.ToString(), *PastState.GetR().ToString());
 		UE_LOG(LogTemp, Log, TEXT("Particle Target Omega = %s | Current Omega= %s"), *Target.TargetState.AngVel.ToString(), *PastState.GetW().ToString());
+	}
 
-		{ // DrawDebug
-			static constexpr float BoxSize = 5.0f;
-			const float ColorLerp = ShouldTriggerResim ? 1.0f : 0.0f;
-			const FColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor::Green, FLinearColor::Red, ColorLerp).ToFColor(false);
+	if (PhysicsReplicationCVars::ResimulationCVars::bDrawDebug)
+	{ 
+		static constexpr float BoxSize = 5.0f;
+		const float ColorLerp = ShouldTriggerResim ? 1.0f : 0.0f;
+		const FColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor::Green, FLinearColor::Red, ColorLerp).ToFColor(false);
 
-			Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Target.TargetState.Position, FVector(BoxSize, BoxSize, BoxSize), Target.TargetState.Quaternion, FColor::Orange, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
-			Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(PastState.GetX(), FVector(6, 6, 6), PastState.GetR(), DebugColor, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
+		Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Target.TargetState.Position, FVector(BoxSize, BoxSize, BoxSize), Target.TargetState.Quaternion, FColor::Orange, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
+		Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(PastState.GetX(), FVector(6, 6, 6), PastState.GetR(), DebugColor, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
 
-			Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PastState.GetX(), Target.TargetState.Position, 5.0f, FColor::MakeRandomSeededColor(LocalFrame), true, CharacterMovementCVars::NetCorrectionLifetime, 0, 0.5f);
-		}
+		Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PastState.GetX(), Target.TargetState.Position, 5.0f, FColor::MakeRandomSeededColor(LocalFrame), true, CharacterMovementCVars::NetCorrectionLifetime, 0, 0.5f);
 	}
 #endif
 
@@ -1825,26 +1841,44 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 
 			if (Target.TickCount <= NumPredictedFrames && NumPredictedFrames > 0)
 			{
-				// Calculate correction to position
-				const float CorrectionAmountX = SettingsCurrent.ResimulationSettings.GetPosStabilityMultiplier() / NumPredictedFrames; // Same result as (ErrorOffset / NumPredictedFrames) * PosStabilityMultiplier
-				const FVector CorrectedX = Handle->GetX() + (ErrorOffset * CorrectionAmountX);
+				// Positional Correction
+				const float CorrectionAmountX = SettingsCurrent.ResimulationSettings.GetPosStabilityMultiplier() / NumPredictedFrames;
+				const FVector PosDiffCorrection = ErrorOffset * CorrectionAmountX; // Same result as (ErrorOffset / NumPredictedFrames) * PosStabilityMultiplier
+				const FVector CorrectedX = Handle->GetX() + PosDiffCorrection;
 
-				// Calculate correction to rotation
-				const float CorrectionAmountR = (1.f / NumPredictedFrames) * SettingsCurrent.ResimulationSettings.GetRotStabilityMultiplier();
-				const FQuat InvTargetQuat = Target.TargetState.Quaternion;
-				const FQuat DeltaQuat = PastState.GetR().Inverse() * InvTargetQuat;
+				// Rotational Correction
+				const float CorrectionAmountR = SettingsCurrent.ResimulationSettings.GetRotStabilityMultiplier() / NumPredictedFrames;
+				const FQuat DeltaQuat = PastState.GetR().Inverse() * Target.TargetState.Quaternion;
 				const FQuat TargetCorrectionR = Handle->GetR() * DeltaQuat;
 				const FQuat CorrectedR = FQuat::Slerp(Handle->GetR(), TargetCorrectionR, CorrectionAmountR);
 
-	#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				if (Chaos::FPhysicsSolverBase::CanDebugNetworkPhysicsPrediction())
+				if (SettingsCurrent.ResimulationSettings.GetRuntimeVelocityCorrectionEnabled())
+				{
+					// Linear Velocity Correction
+					const FVector LinVelDiff = Target.TargetState.LinVel - PastState.GetV(); // Velocity vector that the server covers but the client doesn't
+					const float CorrectionAmountV = SettingsCurrent.ResimulationSettings.GetVelStabilityMultiplier() / NumPredictedFrames;
+					const FVector VelCorrection = LinVelDiff * CorrectionAmountV; // Same result as (LinVelDiff / NumPredictedFrames) * VelStabilityMultiplier
+					const FVector CorrectedV = Handle->GetV() + VelCorrection;
+
+					// Angular Velocity Correction
+					const FVector AngVelDiff = Target.TargetState.AngVel - PastState.GetW(); // Angular velocity vector that the server covers but the client doesn't
+					const float CorrectionAmountW = SettingsCurrent.ResimulationSettings.GetAngVelStabilityMultiplier() / NumPredictedFrames;
+					const FVector AngVelCorrection = AngVelDiff * CorrectionAmountW; // Same result as (AngVelDiff / NumPredictedFrames) * VelStabilityMultiplier
+					const FVector CorrectedW = Handle->GetW() + AngVelCorrection;
+					
+					// Apply correction to velocities
+					Handle->SetV(CorrectedV);
+					Handle->SetW(CorrectedW);
+				}
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				if (PhysicsReplicationCVars::ResimulationCVars::bDrawDebug)
 				{
 					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(Handle->GetX(), CorrectedX, 5.0f, FColor::MakeRandomSeededColor(LocalFrame), true, CharacterMovementCVars::NetCorrectionLifetime, 0, 0.5f);
 				}
-	#endif
-				// Apply correction
-				Handle->SetX(CorrectedX);
-				Handle->SetR(CorrectedR);
+#endif
+				// Apply correction to position and rotation
+				RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, CorrectedX, CorrectedR, PhysicsReplicationCVars::ResimulationCVars::bRuntimeCorrectConnectedBodies);
 			}
 
 			// Keep target for NumPredictedFrames time to perform runtime corrections with until a new target is received

@@ -619,7 +619,7 @@ private:
 	TUniquePtr<FNetworkPhysicsData> StateData;
 
 	// Send last N number of inputs each replication call to patch up holes due to packet loss
-	int8 InputRedundancy = 4;
+	int8 InputRedundancy = 3;
 
 	// Current index used in the inputs offsets
 	int8 InputIndex = 0;
