@@ -114,11 +114,11 @@ FChooserTableEditor::~FChooserTableEditor()
 	FCoreUObjectDelegates::OnObjectTransacted.RemoveAll(this);
 
 	DetailsView.Reset();
-	
 }
 
-
 FName FChooserTableEditor::EditorName = "ChooserTableEditor";
+	
+FName FChooserTableEditor::ContextMenuName("ChooserEditorContextMenu"); // todo: for this to actually be extensible this needs to be somewhere public
 	
 FName FChooserTableEditor::GetEditorName() const
 {
@@ -203,8 +203,15 @@ void FChooserTableEditor::MakeDebugTargetMenu(UToolMenu* InToolMenu)
 						));
 		}
 	);
-	
 
+}
+	
+TSharedPtr<SWidget> FChooserTableEditor::GenerateRowContextMenu()
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	FToolMenuContext ToolMenuContext;
+	InitToolMenuContext(ToolMenuContext);
+	return ToolMenus->GenerateWidget(ContextMenuName, ToolMenuContext);
 }
 
 void FChooserTableEditor::RegisterToolbar()
@@ -263,12 +270,73 @@ void FChooserTableEditor::RegisterToolbar()
 
 }
 
+void FChooserTableEditor::RegisterMenus()
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	const FChooserTableEditorCommands& Commands = FChooserTableEditorCommands::Get();
+
+	// Table Context Menu
+	UToolMenu* ToolMenu;
+	if (ToolMenus->IsMenuRegistered(ContextMenuName))
+	{
+		ToolMenu = ToolMenus->ExtendMenu(ContextMenuName);
+	}
+	else
+	{
+		ToolMenu = UToolMenus::Get()->RegisterMenu(ContextMenuName, NAME_None, EMultiBoxType::Menu);
+	}
+
+	if (ToolMenu)
+	{
+		FToolMenuSection& Section = ToolMenu->AddSection("ChooserTableRow", TAttribute<FText>());
+	
+		Section.AddEntry(FToolMenuEntry::InitMenuEntry(
+			Commands.Delete,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon()));
+	
+		Section.AddEntry(FToolMenuEntry::InitMenuEntry(
+			Commands.Disable,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon()));
+	}
+
+	
+	struct Local
+	{
+		static void FillEditMenu(FMenuBuilder& MenuBuilder)
+		{
+			MenuBuilder.BeginSection("ChooserEditing", LOCTEXT("Chooser Table Editing", "Chooser Table"));
+			{
+				MenuBuilder.AddMenuEntry(FChooserTableEditorCommands::Get().RemoveDisabledData, NAME_None);
+				MenuBuilder.AddMenuEntry(FChooserTableEditorCommands::Get().Delete, NAME_None, LOCTEXT("Delete Selection", "Delete Selection"));
+				MenuBuilder.AddMenuEntry(FChooserTableEditorCommands::Get().Disable, NAME_None, LOCTEXT("Disable Selection", "Disable Selection"));
+			}
+			MenuBuilder.EndSection();
+		}
+	};
+
+	TSharedPtr<FExtender> MenuExtender = MakeShareable(new FExtender);
+
+	// Extend the Edit menu
+	MenuExtender->AddMenuExtension(
+		"EditHistory",
+		EExtensionHook::After,
+		GetToolkitCommands(),
+		FMenuExtensionDelegate::CreateStatic(&Local::FillEditMenu));
+
+	AddMenuExtender(MenuExtender);
+}
+
 void FChooserTableEditor::InitToolMenuContext(FToolMenuContext& MenuContext)
 {
 	FAssetEditorToolkit::InitToolMenuContext(MenuContext);
 
 	UChooserEditorToolMenuContext* Context = NewObject<UChooserEditorToolMenuContext>();
 	Context->ChooserEditor = SharedThis(this);
+	MenuContext.AppendCommandList(GetToolkitCommands());
 	MenuContext.AddObject(Context);
 }
 
@@ -279,6 +347,24 @@ void FChooserTableEditor::BindCommands()
 	ToolkitCommands->MapAction(
 		Commands.EditChooserSettings,
 		FExecuteAction::CreateSP(this, &FChooserTableEditor::SelectRootProperties));
+	
+	ToolkitCommands->MapAction(
+		Commands.RemoveDisabledData,
+		FExecuteAction::CreateSP(this, &FChooserTableEditor::RemoveDisabledData));
+	
+	ToolkitCommands->MapAction(
+		Commands.Delete,
+		FExecuteAction::CreateSP(this, &FChooserTableEditor::DeleteSelection),
+		FCanExecuteAction::CreateSP(this, &FChooserTableEditor::HasSelection)
+		);
+	
+	ToolkitCommands->MapAction(
+		Commands.Disable,
+		FExecuteAction::CreateSP(this, &FChooserTableEditor::ToggleDisableSelection),
+		FCanExecuteAction::CreateSP(this, &FChooserTableEditor::HasSelection),
+		FIsActionChecked::CreateSP(this, &FChooserTableEditor::IsSelectionDisabled)
+		);
+
 }
 
 void FChooserTableEditor::OnObjectsTransacted(UObject* Object, const FTransactionObjectEvent& Event)
@@ -315,6 +401,9 @@ void FChooserTableEditor::OnObjectsTransacted(UObject* Object, const FTransactio
 				Column.SetFromDetails(RowDetails->Properties, ColumnIndex, RowDetails->Row);
 				ColumnIndex++;
 			}
+			
+			TValueOrError<bool, EPropertyBagResult> DisabledResult = RowDetails->Properties.GetValueBool("Disabled");
+			RowDetails->Chooser->DisabledRows[RowDetails->Row] = DisabledResult.GetValue();
 		}
 	}
 }
@@ -375,11 +464,14 @@ void FChooserTableEditor::InitEditor( const EToolkitMode::Type Mode, const TShar
 	FAssetEditorToolkit::InitAssetEditor( Mode, InitToolkitHost, FChooserTableEditor::ChooserEditorAppIdentifier, StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, ObjectsToEdit );
 
 	BindCommands();
-	RegenerateMenusAndToolbars();
+	
+	// todo: should these be triggered once per session by the module?
 	RegisterToolbar();
+	RegisterMenus();
+	
+	RegenerateMenusAndToolbars();
 
 	SelectRootProperties();
-
 		
 	FAnimAssetFindReplaceConfig FindReplaceConfig;
 	FindReplaceConfig.InitialProcessorClass = UChooserFindProperties::StaticClass();
@@ -607,6 +699,7 @@ void FChooserTableEditor::SetPropertyEditingEnabledDelegate(FIsPropertyEditingEn
 	DetailsView->ForceRefresh();
 }
 
+
 TSharedRef<SDockTab> FChooserTableEditor::SpawnPropertiesTab( const FSpawnTabArgs& Args )
 {
 	check( Args.GetTabId() == PropertiesTabId );
@@ -653,6 +746,16 @@ void FChooserTableEditor::SelectRootProperties()
 	}
 }
 
+void FChooserTableEditor::RemoveDisabledData()
+{
+	UChooserTable* Chooser = GetChooser();
+	const FScopedTransaction Transaction(LOCTEXT("Move Row", "Move Row"));
+
+	Chooser->Modify(true);
+	Chooser->RemoveDisabledData();
+	RefreshAll();
+}
+
 int FChooserTableEditor::MoveRow(int SourceRowIndex, int TargetRowIndex)
 {
 	UChooserTable* Chooser = GetChooser();
@@ -670,12 +773,14 @@ int FChooserTableEditor::MoveRow(int SourceRowIndex, int TargetRowIndex)
 
 	FInstancedStruct Result = Chooser->ResultsStructs[SourceRowIndex];
 	Chooser->ResultsStructs.RemoveAt(SourceRowIndex);
+	bool bDisabled = Chooser->DisabledRows[SourceRowIndex];
+	Chooser->DisabledRows.RemoveAt(SourceRowIndex);
 	if (SourceRowIndex < TargetRowIndex)
 	{
 		TargetRowIndex--;
 	}
 	Chooser->ResultsStructs.Insert(Result, TargetRowIndex);
-
+	Chooser->DisabledRows.Insert(bDisabled, TargetRowIndex);
 	UpdateTableRows();
 
 	return TargetRowIndex;
@@ -948,7 +1053,13 @@ void FChooserTableEditor::RefreshRowSelectionDetails()
 				Column.AddToDetails(Selection->Properties, ColumnIndex, SelectedItem->RowIndex);
 				ColumnIndex++;
 			}
-		
+
+			if (Chooser->DisabledRows.IsValidIndex(SelectedItem->RowIndex))
+			{
+				Selection->Properties.AddProperty("Disabled", EPropertyBagPropertyType::Bool);
+				Selection->Properties.SetValueBool("Disabled", Chooser->DisabledRows[SelectedItem->RowIndex]);
+			}
+
 			SelectedRows.Add(Selection);
 			
 		}
@@ -966,7 +1077,7 @@ void FChooserTableEditor::RefreshRowSelectionDetails()
 		DetailsView->SetObjects( DetailsObjects );
 	}
 }
-    										
+
 
 TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Args )
 {
@@ -1032,39 +1143,13 @@ TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Ar
 
 	TableView = SNew(SListView<TSharedPtr<FChooserTableRow>>)
     			.ListItemsSource(&TableRows)
+				.OnContextMenuOpening_Raw(this, &FChooserTableEditor::GenerateRowContextMenu)
 				.OnKeyDownHandler_Lambda([this](const FGeometry&, const FKeyEvent& Event)
 				{
 					
 					if (Event.GetKey() == EKeys::Delete)
 					{
-						const FScopedTransaction Transaction(LOCTEXT("Delete Row Transaction", "Delete Row"));
-						UChooserTable* Chooser = GetChooser();
-						Chooser->Modify(true);
-						// delete selected rows.
-						TArray<uint32> RowsToDelete;
-						for(auto& SelectedRow:SelectedRows)
-						{
-							RowsToDelete.Add(SelectedRow->Row);
-						}
-
-						SelectedRows.SetNum(0);
-						SelectRootProperties();
-
-						// sort indices in reverse
-						RowsToDelete.Sort([](int32 A, int32 B){ return A>B; });
-						for(uint32 RowIndex : RowsToDelete)
-						{
-							Chooser->ResultsStructs.RemoveAt(RowIndex);
-						}
-
-						for(FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
-						{
-							FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
-							Column.DeleteRows(RowsToDelete);
-						}
-
-						UpdateTableRows();
-						
+						DeleteSelectedRows();
 						return FReply::Handled();
 					}
 					return FReply::Unhandled();
@@ -1154,6 +1239,7 @@ void FChooserTableEditor::UpdateTableRows()
 {
 	UChooserTable* Chooser = GetChooser();
 	int32 NewNum = Chooser->ResultsStructs.Num();
+	Chooser->DisabledRows.SetNum(NewNum);
 
 	// Sync the TableRows array which drives the ui table to match the number of results.
 	TableRows.SetNum(0, EAllowShrinking::No);
@@ -1273,6 +1359,120 @@ void FChooserTableEditor::DeleteColumn(int Index)
 		Chooser->Modify(true);
 		Chooser->ColumnsStructs.RemoveAt(Index);
 		UpdateTableColumns();
+	}
+}
+	
+void FChooserTableEditor::DeleteSelectedRows()
+{
+	const FScopedTransaction Transaction(LOCTEXT("Delete Row Transaction", "Delete Row"));
+	UChooserTable* Chooser = GetChooser();
+	Chooser->Modify(true);
+	// delete selected rows.
+	TArray<uint32> RowsToDelete;
+	for(auto& SelectedRow:SelectedRows)
+	{
+		RowsToDelete.Add(SelectedRow->Row);
+	}
+
+	SelectedRows.SetNum(0);
+	SelectRootProperties();
+
+	// sort indices in reverse
+	RowsToDelete.Sort([](int32 A, int32 B){ return A>B; });
+	for(uint32 RowIndex : RowsToDelete)
+	{
+		Chooser->ResultsStructs.RemoveAt(RowIndex);
+		Chooser->DisabledRows.RemoveAt(RowIndex);
+	}
+
+	for(FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+	{
+		FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+		Column.DeleteRows(RowsToDelete);
+	}
+	UpdateTableRows();
+}
+	
+inline bool FChooserTableEditor::HasSelection()
+{
+	if (CurrentSelectionType == ESelectionType::Column)
+	{
+		return true;
+	}
+	else if (CurrentSelectionType == ESelectionType::Rows)
+	{
+		return !SelectedRows.IsEmpty();
+	}
+	return false;
+}
+	
+inline bool FChooserTableEditor::IsSelectionDisabled()
+{
+	if (UChooserTable* Chooser = GetChooser())
+	{
+		if (CurrentSelectionType == ESelectionType::Column)
+		{
+			if (SelectedColumn && Chooser->ColumnsStructs.IsValidIndex(SelectedColumn->Column))
+			{
+				FChooserColumnBase& Column = Chooser->ColumnsStructs[SelectedColumn->Column].GetMutable<FChooserColumnBase>();
+				return Column.bDisabled;
+			}
+		}
+		else if (CurrentSelectionType == ESelectionType::Rows)
+		{
+			if (SelectedRows.IsEmpty())
+			{
+				return false;
+			}
+
+			bool bSomethingEnabled = false;
+			for(auto& Row : SelectedRows)
+			{
+				if (!Chooser->IsRowDisabled(Row->Row))
+				{
+					bSomethingEnabled = true;
+					break;
+				}
+			}
+			return !bSomethingEnabled;
+		}
+	}
+	return false;
+}
+
+void FChooserTableEditor::ToggleDisableSelection()
+{
+	bool bDisabled = IsSelectionDisabled();
+	if (UChooserTable* Chooser = GetChooser())
+	{
+		if (CurrentSelectionType == ESelectionType::Column)
+		{
+			if (SelectedColumn && Chooser->ColumnsStructs.IsValidIndex(SelectedColumn->Column))
+			{
+				FChooserColumnBase& Column = Chooser->ColumnsStructs[SelectedColumn->Column].GetMutable<FChooserColumnBase>();
+				Column.bDisabled = !Column.bDisabled;
+			}
+		}
+		else if (CurrentSelectionType == ESelectionType::Rows)
+		{
+			for (auto& Row : SelectedRows)
+			{
+				Chooser->DisabledRows[Row->Row] = !bDisabled;
+			}
+			RefreshRowSelectionDetails();
+		}
+	}
+}
+
+void FChooserTableEditor::DeleteSelection()
+{
+	if (CurrentSelectionType == ESelectionType::Column)
+	{
+		DeleteColumn(SelectedColumn->Column);
+	}
+	else if (CurrentSelectionType == ESelectionType::Rows)
+	{
+		DeleteSelectedRows();
 	}
 }
 
