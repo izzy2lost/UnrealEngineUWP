@@ -200,7 +200,6 @@ public:
 	bool operator==(const class UStereoLayerShapeEquirect& Other) const;
 };
 
-
 UCLASS(meta = (DisplayName = "Equirect Layer"), MinimalAPI)
 class UStereoLayerShapeEquirect : public UStereoLayerShape
 {
@@ -276,7 +275,6 @@ public:
 	//~ Begin UObject Interface
 	ENGINE_API virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	ENGINE_API virtual void OnUnregister() override;
-	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 	ENGINE_API virtual void PostLoad() override;
 	//~ End UObject Interface
 
@@ -396,29 +394,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, export, Category="StereoLayer")
 	FBox2D UVRect;
 
-	UE_DEPRECATED(4.25, "float CylinderRadius is deprecated. Use the corresponding property of the UStereoLayerShapeCylinder subobject instead.")
-	UPROPERTY()
-	float CylinderRadius_DEPRECATED;
-
-	UE_DEPRECATED(4.25, "float CylinderOverlayArc is deprecated. Use the corresponding property of the UStereoLayerShapeCylinder subobject instead.")
-	UPROPERTY()
-	float CylinderOverlayArc_DEPRECATED;
-
-	UE_DEPRECATED(4.25, "int CylinderHeight is deprecated. Use the corresponding property of the UStereoLayerShapeCylinder subobject instead.")
-	UPROPERTY()
-	int CylinderHeight_DEPRECATED;
-
-	UE_DEPRECATED(4.25, "FEquirectProps EquirectProps is deprecated. Use the corresponding properties of the UStereoLayerShapeEquirect subobject instead.")
-	UPROPERTY()
-	FEquirectProps EquirectProps_DEPRECATED;
-
 	/** Specifies how and where the quad is rendered to the screen **/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, export, Category="StereoLayer")
     TEnumAsByte<enum EStereoLayerType> StereoLayerType;
-
-	UE_DEPRECATED(4.25, "TEnumAsByte<enum EStereoLayerShape> StereoLayerShape is deprecated. Use Shape instead.")
-	UPROPERTY()
-	TEnumAsByte<enum EStereoLayerShape> StereoLayerShape_DEPRECATED;
 
 	/** Specifies which shape of layer it is.  Note that some shapes will be supported only on certain platforms! **/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, NoClear, Instanced, Category = "StereoLayer", DisplayName="Stereo Layer Shape")
@@ -444,8 +422,5 @@ private:
 
 	/** Last frames visiblity state **/
 	bool bLastVisible;
-
-	/** Set if the component was loaded from an old version */
-	bool bNeedsPostLoadFixup;
 };
 
