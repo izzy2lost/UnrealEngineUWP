@@ -144,7 +144,7 @@ void VClass::Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& 
 VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers)
 {
 	// Combine the class and archetype to determine which fields will live in the object.
-	VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForArchetype(Context, ArchetypeFields);
+	VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForArchetype(Context, ArchetypeFields, &VObject::StaticCppClassInfo);
 	VObject& NewObject = VObject::NewUninitialized(Context, NewEmergentType);
 
 	if (Kind == EKind::Struct)
@@ -218,7 +218,7 @@ void VClass::GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProce
 	}
 }
 
-VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames)
+VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames, VCppClassInfo* CppClassInfo)
 {
 	UE::FExternalMutex ExternalMutex(Mutex);
 	UE::TUniqueLock Lock(ExternalMutex);
@@ -234,6 +234,9 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 	VShape::FieldsMap Fields;
 	for (const TWriteBarrier<VUniqueString>& Field : ArchetypeFieldNames)
 	{
+		// Only VObjects have space for fields in the object rather than the shape.
+		V_DIE_UNLESS(CppClassInfo == &VObject::StaticCppClassInfo);
+
 		// Always store fields from the archetype in the object.
 		Fields.Add({Context, Field.Get()}, VShape::VEntry::Offset());
 	}
@@ -244,6 +247,9 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 		{
 			if (Entry.bDynamic)
 			{
+				// Only VObjects have space for fields in the object rather than the shape.
+				V_DIE_UNLESS(CppClassInfo == &VObject::StaticCppClassInfo);
+
 				// Store dynamically-initialized and uninitialized fields in the object.
 				Fields.FindOrAdd({Context, FieldName}, VShape::VEntry::Offset());
 			}
@@ -257,7 +263,7 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 
 	// Compute the shape by interning the set of fields.
 	VShape* NewShape = VShape::New(Context, MoveTemp(Fields));
-	VEmergentType* NewEmergentType = VEmergentType::New(Context, NewShape, this, &VObject::StaticCppClassInfo);
+	VEmergentType* NewEmergentType = VEmergentType::New(Context, NewShape, this, CppClassInfo);
 	V_DIE_IF(NewEmergentType == nullptr);
 
 	// This new type will then be kept alive in the cache to re-vend if ever the exact same set of fields are used for

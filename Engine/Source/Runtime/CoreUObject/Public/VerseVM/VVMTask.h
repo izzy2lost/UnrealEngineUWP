@@ -5,7 +5,11 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "VerseVM/VVMCell.h"
+#include "VerseVM/VVMClass.h"
+#include "VerseVM/VVMGlobalProgram.h"
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
+#include "VerseVM/VVMNativeFunction.h"
+#include "VerseVM/VVMObject.h"
 #include "VerseVM/VVMReturnSlot.h"
 #include "VerseVM/VVMTree.h"
 #include "VerseVM/VVMWriteBarrier.h"
@@ -15,11 +19,15 @@ namespace Verse
 struct FOp;
 struct VFailureContext;
 
-struct VTask : VCell
-	, TIntrusiveTree<VTask>
+struct VTask : VHeapValue
 {
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
-	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
+	COREUOBJECT_API static TGlobalHeapPtr<VEmergentType> EmergentType;
+
+	// Tasks to resume on completion.
+	TWriteBarrier<VValue> Result;
+	TWriteBarrier<VTask> Awaiters;  // Head of a linked list of tasks that have called Await, most recent first.
+	TWriteBarrier<VTask> PrevAwait; // Link for when this task is on some other task's Awaiters list.
 
 	// Where execution should continue when suspending.
 	FOp* YieldPC;
@@ -30,8 +38,7 @@ struct VTask : VCell
 	// Where the task should resume after suspending.
 	FOp* ResumePC{nullptr};
 	TWriteBarrier<VFrame> ResumeFrame;
-	VReturnSlot ResumeSlot;          // May point into ResumeFrame or one of its ancestors.
-	TWriteBarrier<VTask> ResumeTask; // May be this or a child task due to leniency.
+	VReturnSlot ResumeSlot; // May point into ResumeFrame or one of its ancestors.
 
 	bool bSuspended{false};
 	void* NativeResumeSlot{nullptr};
@@ -39,39 +46,56 @@ struct VTask : VCell
 
 	COREUOBJECT_API void ResumeInTransaction(FRunningContext Context, VValue ResumeArgument);
 
-	static VTask& New(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VFailureContext* FailureContext, VTask* Parent)
+	static VTask& New(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VFailureContext* FailureContext)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VTask))) VTask(Context, YieldPC, YieldFrame, FailureContext, Parent);
+		return *new (Context.AllocateFastCell(sizeof(VTask))) VTask(Context, YieldPC, YieldFrame, YieldTask, FailureContext);
+	}
+
+	static FOpResult AwaitImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+	{
+		if (!Scope.IsCellOfType<VTask>())
+		{
+			V_DIE("Tried to await non-VTask");
+		}
+		VTask& This = Scope.StaticCast<VTask>();
+
+		if (This.Result.Get().IsUninitialized())
+		{
+			Task->PrevAwait.Set(Context, This.Awaiters.Get());
+			This.Awaiters.Set(Context, Task);
+			V_YIELD();
+		}
+		else
+		{
+			V_RETURN(This.Result.Get());
+		}
 	}
 
 	void Suspend(FAccessContext Context)
 	{
-		ForEach([](VTask& Task) {
-			Task.FailureContext.Reset();
-			Task.bSuspended = true;
-		});
+		FailureContext.Reset();
+		bSuspended = true;
 	}
 
 	void Resume(FAccessContext Context, VFailureContext& InheritedFailureContext)
 	{
-		ForEach([&](VTask& Task) {
-			Task.FailureContext.Set(Context, InheritedFailureContext);
-			Task.bSuspended = false;
-		});
+		FailureContext.Set(Context, InheritedFailureContext);
+		bSuspended = false;
 	}
 
-	void FinishedExecuting(FAccessContext Context)
+	VTask* FinishedExecuting(FAccessContext Context)
 	{
-		Detach(Context);
+		VTask* ToResume = Awaiters.Get();
+		Awaiters.Reset();
+		return ToResume;
 	}
 
 private:
-	VTask(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VFailureContext* FailureContext, VTask* Parent)
-		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
-		, TIntrusiveTree(Context, Parent)
+	VTask(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VFailureContext* FailureContext)
+		: VHeapValue(Context, EmergentType.Get())
 		, YieldPC(YieldPC)
 		, YieldFrame(Context, YieldFrame)
-		, YieldTask(Context, Parent)
+		, YieldTask(Context, YieldTask)
 		, FailureContext(Context, FailureContext)
 		, ResumeSlot(Context, nullptr)
 	{

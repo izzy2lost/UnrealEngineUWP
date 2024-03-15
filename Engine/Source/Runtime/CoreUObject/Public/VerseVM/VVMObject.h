@@ -20,7 +20,6 @@ static constexpr uint8 IsStructBit = 4;
 struct VObject : VHeapValue
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
-	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	/// Allocate a new object with the given shape, populated with placeholders
 	static VObject& NewUninitialized(FAllocationContext Context, VEmergentType& InEmergentType);
@@ -40,6 +39,8 @@ private:
 	COREUOBJECT_API uint32 GetTypeHashImpl();
 
 	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
+
+	friend class FInterpreter;
 
 	/*
 	 * Mutable variables store their data as a `VRestValue`.

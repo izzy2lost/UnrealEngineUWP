@@ -18,7 +18,6 @@
 namespace Verse
 {
 DEFINE_DERIVED_VCPPCLASSINFO(VObject);
-TGlobalTrivialEmergentTypePtr<&VObject::StaticCppClassInfo> VObject::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
 void VObject::VisitReferencesImpl(TVisitor& Visitor)

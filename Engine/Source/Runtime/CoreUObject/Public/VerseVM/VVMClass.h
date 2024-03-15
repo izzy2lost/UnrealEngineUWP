@@ -164,8 +164,9 @@ private:
 	// Helper to find initializer procedures after archetype fields have been set on an object
 	void GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProcedure*>& OutInitializers);
 
+public:
 	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
-	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames);
+	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames, VCppClassInfo* CppClassInfo);
 
 	UClass* GetOrCreateUClass(FAllocationContext Context);
 
@@ -173,9 +174,7 @@ private:
 	COREUOBJECT_API UClass* CreateUClass(FAllocationContext Context);
 
 	COREUOBJECT_API void AssembleUClass(FAllocationContext Context);
-	friend FVerseNativeModule;
 
-public:
 	/**
 	 * Creates a new class.
 	 *

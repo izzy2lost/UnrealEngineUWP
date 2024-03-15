@@ -848,8 +848,10 @@ namespace UnrealBuildTool
 				.Jump("Done");
 
 			Inst("BeginTask")
+				.Arg("Dest", Role.UnifyDef)
 				.Jump("OnYield");
-			Inst("EndTask");
+			Inst("EndTask")
+				.Arg("Value", Role.Use);
 
 			Inst("Call")
 				.Arg("Dest", Role.UnifyDef)

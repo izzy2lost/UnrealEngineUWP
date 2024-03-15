@@ -259,7 +259,7 @@ class FInterpreter
 	VSuspension* CurrentSuspension{nullptr};
 
 	VFailureContext* const OutermostFailureContext;
-	VTask* const OutermostTask;
+	VTask* OutermostTask;
 	FOp* OutermostStartPC;
 	FOp* OutermostEndPC;
 
@@ -759,37 +759,31 @@ class FInterpreter
 	// the outermost frame of this Interpreter instance.
 	bool YieldIfNeeded(FOp* NextPC)
 	{
-		if (!Task->bSuspended)
+		while (Task->bSuspended)
 		{
-			return true;
-		}
+			VTask* SuspendedTask = Task;
 
-		VTask* SuspendedTask = Task;
-		while (SuspendedTask != OutermostTask)
-		{
-			VTask* Parent = SuspendedTask->YieldTask.Get();
-			if (!Parent->bSuspended)
+			// Save the current state for when the task is resumed.
+			SuspendedTask->ResumePC = NextPC;
+			SuspendedTask->ResumeFrame.Set(Context, State.Frame);
+
+			// Switch back to the task that started or resumed this one.
+			State = FExecutionState(SuspendedTask->YieldPC, SuspendedTask->YieldFrame.Get());
+			Task = SuspendedTask->YieldTask.Get();
+
+			// Detach the task from the stack.
+			SuspendedTask->YieldPC = &StopInterpreterSentry;
+			SuspendedTask->YieldTask.Reset();
+
+			if (SuspendedTask == OutermostTask)
 			{
-				break;
+				return false;
 			}
-			SuspendedTask = Parent;
+
+			NextPC = State.PC;
 		}
 
-		// Save the current state for when the task is resumed.
-		// If suspended by an unblocked instruction, Task may actually be a child of SuspendedTask.
-		SuspendedTask->ResumePC = NextPC;
-		SuspendedTask->ResumeFrame.Set(Context, State.Frame);
-		SuspendedTask->ResumeTask.Set(Context, Task);
-
-		// Switch back to the task that started or resumed this one.
-		State = FExecutionState(SuspendedTask->YieldPC, SuspendedTask->YieldFrame.Get());
-		Task = SuspendedTask->YieldTask.Get();
-
-		// Detach the task from the stack.
-		SuspendedTask->YieldPC = &StopInterpreterSentry;
-		SuspendedTask->YieldTask.Reset();
-
-		return SuspendedTask != OutermostTask;
+		return true;
 	}
 
 	enum class TransactAction
@@ -1544,12 +1538,26 @@ class FInterpreter
 		REQUIRE_CONCRETE(ObjectOperand);
 		VUniqueString& FieldName = *Op.Name.Get();
 		VValue FieldValue;
-		if (!ObjectOperand.IsUObject())
+		if (ObjectOperand.IsCell())
 		{
-			VObject& Object = ObjectOperand.StaticCast<VObject>();
-			FieldValue = Object.LoadField(Context, FieldName);
+			VShape* Shape = ObjectOperand.StaticCast<VCell>().GetEmergentType()->Shape.Get();
+			V_DIE_IF(Shape == nullptr);
+			const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
+			V_DIE_IF(Field == nullptr);
+			switch (Field->Type)
+			{
+				case EFieldType::Offset:
+					FieldValue = ObjectOperand.StaticCast<VObject>().Data[Field->Index].Get(Context);
+					break;
+				case EFieldType::Constant:
+					FieldValue = Field->Value.Get();
+					break;
+				default:
+					V_DIE("Field: %hs has an unsupported type; cannot load!", FieldName.AsCString());
+					break;
+			}
 		}
-		else
+		else if (ensure(ObjectOperand.IsUObject()))
 		{
 			UObject* Object = ObjectOperand.AsUObject();
 			UVerseVMClass* Class = CastChecked<UVerseVMClass>(Object->GetClass());
@@ -1578,35 +1586,26 @@ class FInterpreter
 		VUniqueString& FieldName = *Op.Name.Get();
 
 		bool bSucceeded = false;
-		if (!ObjectOperand.IsUObject())
+		if (ObjectOperand.IsCell())
 		{
-			VObject& Object = ObjectOperand.StaticCast<VObject>();
-
-			const VEmergentType* EmergentType = Object.GetEmergentType();
-			V_DIE_IF(EmergentType == nullptr);
-			const VShape* Shape = EmergentType->Shape.Get();
+			VShape* Shape = ObjectOperand.StaticCast<VCell>().GetEmergentType()->Shape.Get();
 			V_DIE_IF(Shape == nullptr);
 			const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
 			V_DIE_IF(Field == nullptr);
 			switch (Field->Type)
 			{
 				case EFieldType::Offset:
-				{
-					VRestValue& Slot = Object.GetFieldSlot(Context, FieldName);
-					bSucceeded = Def(Slot, ValueOperand);
+					bSucceeded = Def(ObjectOperand.StaticCast<VObject>().Data[Field->Index], ValueOperand);
 					break;
-				}
 				case EFieldType::Constant:
-				{
 					bSucceeded = Def(Field->Value.Get(), ValueOperand);
 					break;
-				}
 				default:
 					V_DIE("Field: %hs has an unsupported type; cannot unify!", Op.Name.Get()->AsCString());
 					break;
 			}
 		}
-		else
+		else if (ensure(ObjectOperand.IsUObject()))
 		{
 			UObject* Object = ObjectOperand.AsUObject();
 			UVerseVMClass* Class = CastChecked<UVerseVMClass>(Object->GetClass());
@@ -2027,7 +2026,8 @@ class FInterpreter
 				BEGIN_OP_CASE(EndFailureContext)
 				{
 					VFailureContext& FailureContext = *Failure;
-					V_DIE_IF(FailureContext.bFailed); // We shouldn't have failed and still made it here.
+					V_DIE_IF(FailureContext.bFailed);   // We shouldn't have failed and still made it here.
+					V_DIE_UNLESS(FailureContext.Frame); // A null Frame indicates an artificial context from task resumption.
 
 					FailureContext.bExecutedEndFailureContextOpcode = true;
 					FailureContext.ThenPC = NextPC;
@@ -2065,7 +2065,9 @@ class FInterpreter
 
 				BEGIN_OP_CASE(BeginTask)
 				{
-					Task = &VTask::New(Context, Op.OnYield.GetLabeledPC(), State.Frame, Failure, Task);
+					Task = &VTask::New(Context, Op.OnYield.GetLabeledPC(), State.Frame, Task, Failure);
+
+					DEF(Op.Dest, *Task);
 				}
 				END_OP_CASE()
 
@@ -2074,15 +2076,50 @@ class FInterpreter
 					V_DIE_IF(Task->bSuspended);
 					V_DIE_UNLESS(Failure == Task->FailureContext.Get());
 
-					Task->FinishedExecuting(Context);
+					VTask* Awaiter = Task->FinishedExecuting(Context);
+
+					VValue Result = GetOperand(Op.Value);
+					Task->Result.Set(Context, Result);
 
 					// This task may be resumed to run unblocked suspensions, but nothing remains to run after them.
 					Task->ResumePC = &StopInterpreterSentry;
 					Task->ResumeFrame.Set(Context, State.Frame);
-					Task->ResumeTask.Set(Context, Task);
 
 					UpdateExecutionState(Task->YieldPC, Task->YieldFrame.Get());
-					Task = Task->Parent.Get();
+					Task = Task->YieldTask.Get();
+
+					// Resume any awaiting tasks in the order they arrived.
+					// The front of the Awaiters list is the most recent awaiting task, which should run last.
+					if (Task == nullptr)
+					{
+						OutermostTask = Awaiter;
+					}
+					while (Awaiter != nullptr)
+					{
+						V_DIE_UNLESS(Awaiter->bSuspended);
+
+						Awaiter->YieldPC = NextPC;
+						Awaiter->YieldFrame.Set(Context, State.Frame);
+						Awaiter->YieldTask.Set(Context, Task);
+						Awaiter->Resume(Context, *Failure);
+
+						UpdateExecutionState(Awaiter->ResumePC, Awaiter->ResumeFrame.Get());
+						Task = Awaiter;
+
+						// NOTE: This should not fail, but if it did its effect on control would be strange.
+						DEF(Task->ResumeSlot, Result);
+
+						VTask* PrevAwait = Awaiter->PrevAwait.Get();
+						Awaiter->PrevAwait.Reset();
+						Awaiter = PrevAwait;
+					}
+
+					// YieldTask may have already been suspended leniently.
+					if (Task == nullptr || !YieldIfNeeded(NextPC))
+					{
+						return;
+					}
+					NextPC = State.PC;
 				}
 				END_OP_CASE()
 
@@ -2435,7 +2472,7 @@ public:
 			[&](uint32 Arg) {
 				return Arguments[Arg];
 			});
-		VTask& Task = VTask::New(Context, CallerPC, &Frame, /*FailureContext*/ nullptr, /*Parent*/ nullptr);
+		VTask& Task = VTask::New(Context, CallerPC, &Frame, /*YieldTask*/ nullptr, /*FailureContext*/ nullptr);
 		VFailureContext& FailureContext = VFailureContext::New(
 			Context,
 			&Task,
@@ -2482,11 +2519,17 @@ public:
 			&StopInterpreterSentry);
 		Task.Resume(Context, FailureContext);
 
+		if (CVarTraceExecution.GetValueOnAnyThread())
+		{
+			UE_LOG(LogVerseVM, Display, TEXT(""));
+			UE_LOG(LogVerseVM, Display, TEXT("Resuming:"));
+		}
+
 		FInterpreter Interpreter(
 			Context,
 			FExecutionState(Task.ResumePC, Task.ResumeFrame.Get()),
 			&FailureContext,
-			Task.ResumeTask.Get(),
+			&Task,
 			VValue::EffectDoneMarker());
 		AutoRTFM::TransactThenOpen([&] {
 			FailureContext.Transaction.Start(Context);

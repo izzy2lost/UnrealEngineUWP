@@ -13,12 +13,14 @@ namespace Verse
 {
 
 DEFINE_DERIVED_VCPPCLASSINFO(VTask);
-TGlobalTrivialEmergentTypePtr<&VTask::StaticCppClassInfo> VTask::GlobalTrivialEmergentType;
+TGlobalHeapPtr<VEmergentType> VTask::EmergentType;
 
 template <typename TVisitor>
 void VTask::VisitReferencesImpl(TVisitor& Visitor)
 {
-	TIntrusiveTree<VTask>::VisitReferencesImpl(Visitor);
+	Visitor.Visit(Result, TEXT("Result"));
+	Visitor.Visit(Awaiters, TEXT("Awaiters"));
+	Visitor.Visit(PrevAwait, TEXT("PrevAwait"));
 
 	Visitor.Visit(YieldFrame, TEXT("YieldFrame"));
 	Visitor.Visit(YieldTask, TEXT("YieldTask"));
@@ -26,7 +28,6 @@ void VTask::VisitReferencesImpl(TVisitor& Visitor)
 
 	Visitor.Visit(ResumeFrame, TEXT("ResumeFrame"));
 	ResumeSlot.Visit(Visitor);
-	Visitor.Visit(ResumeTask, TEXT("ResumeTask"));
 }
 
 } // namespace Verse
