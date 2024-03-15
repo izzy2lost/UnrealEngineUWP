@@ -1219,7 +1219,8 @@ ERHIBindlessConfiguration RHIParseBindlessConfiguration(EShaderPlatform Platform
 	static const bool bCommandLine = FParse::Param(FCommandLine::Get(), TEXT("Bindless"));
 	if (bCommandLine)
 	{
-		return ERHIBindlessConfiguration::AllShaders;
+		// Only allow what the platform supports
+		return (BindlessSupport == ERHIBindlessSupport::RayTracingOnly) ? ERHIBindlessConfiguration::RayTracingShaders : ERHIBindlessConfiguration::AllShaders;
 	}
 #endif
 
