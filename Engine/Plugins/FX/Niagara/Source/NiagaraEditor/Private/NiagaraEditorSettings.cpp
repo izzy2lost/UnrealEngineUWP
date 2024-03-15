@@ -390,6 +390,20 @@ void UNiagaraEditorSettings::SetShowMemoryInfo(bool bInShowInfo)
 	}
 }
 
+bool UNiagaraEditorSettings::IsShowStatelessInfo() const
+{
+	return ViewportSettings.bShowStatelessInfo;
+}
+
+void UNiagaraEditorSettings::SetShowStatelessInfo(bool bInShowInfo)
+{
+	if (ViewportSettings.bShowStatelessInfo != bInShowInfo)
+	{
+		ViewportSettings.bShowStatelessInfo = bInShowInfo;
+		SaveConfig();
+	}
+}
+
 TArray<float> UNiagaraEditorSettings::GetPlaybackSpeeds() const
 {
 	if(!CachedPlaybackSpeeds.IsSet())

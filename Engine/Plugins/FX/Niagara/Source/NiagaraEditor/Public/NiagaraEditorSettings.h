@@ -330,6 +330,9 @@ struct FNiagaraViewportSharedSettings
 
 	UPROPERTY(config)
 	bool bShowMemoryInfo = false;
+
+	UPROPERTY(config)
+	bool bShowStatelessInfo = true;
 };
 
 FORCEINLINE uint32 GetTypeHash(const FNiagaraNamespaceMetadata& NamespaceMetaData)
@@ -613,4 +616,6 @@ public:
 	NIAGARAEDITOR_API void SetShowGpuTickInformation(bool bShowGpuTickInformation);
 	NIAGARAEDITOR_API bool IsShowMemoryInfo() const;
 	NIAGARAEDITOR_API void SetShowMemoryInfo(bool bInShowInfo);
+	NIAGARAEDITOR_API bool IsShowStatelessInfo() const;
+	NIAGARAEDITOR_API void SetShowStatelessInfo(bool bInShowInfo);
 };

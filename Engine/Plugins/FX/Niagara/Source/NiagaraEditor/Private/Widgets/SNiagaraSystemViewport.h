@@ -84,6 +84,7 @@ public:
 		EmitterExecutionOrder	= 0x100,
 		GpuTickInformation		= 0x200,
 		MemoryInfo				= 0x400,
+		StatelessInfo			= 0x800,
 	};
 
 	bool GetDrawElement(EDrawElements Element) const;

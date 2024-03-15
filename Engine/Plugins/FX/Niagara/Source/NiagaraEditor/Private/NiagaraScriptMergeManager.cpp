@@ -1565,6 +1565,8 @@ INiagaraMergeManager::FMergeEmitterResults FNiagaraScriptMergeManager::MergeEmit
 	}
 	else if (State == EmitterMergeState::DuplicateParent)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(EmitterMergeState::DuplicateParent);
+
 		// If there were differences from the parent or the parent diff failed we can just return a copy of the parent as the merged instance since there
 		// were no changes in the instance which need to be applied.
 		MergeResults.MergeResult = EMergeEmitterResult::SucceededDifferencesApplied;
@@ -1575,6 +1577,8 @@ INiagaraMergeManager::FMergeEmitterResults FNiagaraScriptMergeManager::MergeEmit
 	}
 	else if (State == EmitterMergeState::Failed)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(EmitterMergeState::Failed);
+
 		MergeResults.MergeResult = EMergeEmitterResult::FailedToDiff;
 		MergeResults.ErrorMessages = DiffResults.GetErrorMessages();
 
@@ -1604,6 +1608,8 @@ INiagaraMergeManager::FMergeEmitterResults FNiagaraScriptMergeManager::MergeEmit
 	}
 	else if (State == EmitterMergeState::CopyProperties) //-V547
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(EmitterMergeState::CopyProperties);
+
 		UNiagaraEmitter* MergedInstance = Parent.Emitter->DuplicateWithoutMerging(GetTransientPackage());
 		MergedInstance->DisableVersioning(Parent.Version);
 		FVersionedNiagaraEmitter VersionedMergedInstance = FVersionedNiagaraEmitter(MergedInstance, Parent.Version);
@@ -1644,12 +1650,19 @@ INiagaraMergeManager::FMergeEmitterResults FNiagaraScriptMergeManager::MergeEmit
 			}
 		};
 
-		PopulateIdToNodeMap(MakeShared<FNiagaraEmitterMergeAdapter>(Parent), ParentFunctionIdToNodeMap);
-		PopulateIdToNodeMap(DiffResults.BaseEmitterAdapter.ToSharedRef(), LastMergedParentFunctionIdToNodeMap);
-		PopulateIdToNodeMap(DiffResults.OtherEmitterAdapter.ToSharedRef(), InstanceFunctionIdToNodeMap);
+
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Chunk1);
+			PopulateIdToNodeMap(MakeShared<FNiagaraEmitterMergeAdapter>(Parent), ParentFunctionIdToNodeMap);
+			PopulateIdToNodeMap(DiffResults.BaseEmitterAdapter.ToSharedRef(), LastMergedParentFunctionIdToNodeMap);
+			PopulateIdToNodeMap(DiffResults.OtherEmitterAdapter.ToSharedRef(), InstanceFunctionIdToNodeMap);
+		}
 
 		TMap<FGuid, FGuid> FunctionIdToForcedChangeId;
-		GetForcedChangeIds(ParentFunctionIdToNodeMap, LastMergedParentFunctionIdToNodeMap, InstanceFunctionIdToNodeMap, FunctionIdToForcedChangeId);
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Chunk2);
+			GetForcedChangeIds(ParentFunctionIdToNodeMap, LastMergedParentFunctionIdToNodeMap, InstanceFunctionIdToNodeMap, FunctionIdToForcedChangeId);
+		}
 
 		FVersionedNiagaraEmitterData* MergedEmitterData = VersionedMergedInstance.GetEmitterData();
 		MergedEmitterData->ParentScratchPads->AppendScripts(MergedEmitterData->ScratchPads);
@@ -2835,6 +2848,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::AddMod
 	UNiagaraNodeOutput& TargetOutputNode,
 	TSharedRef<FNiagaraStackFunctionMergeAdapter> AddModule) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::AddModule);
+
 	FApplyDiffResults Results;
 
 	UNiagaraNodeFunctionCall* AddedModuleNode = nullptr;
@@ -2891,6 +2906,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::AddMod
 
 FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::RemoveInputOverride(UNiagaraScript& OwningScript, TSharedRef<FNiagaraStackFunctionInputOverrideMergeAdapter> OverrideToRemove) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::RemoveInputOverride);
+
 	FApplyDiffResults Results;
 	Results.bSucceeded = true;
 	Results.bModifiedGraph = false;
@@ -2954,6 +2971,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::AddInp
 	UNiagaraNodeFunctionCall& TargetFunctionCall,
 	TSharedRef<FNiagaraStackFunctionInputOverrideMergeAdapter> OverrideToAdd) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::AddInputOverride);
+
 	FApplyDiffResults Results;
 
 	// If an assignment node, make sure that we have an assignment target for the input override.
@@ -3221,6 +3240,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 	const FNiagaraScriptStackDiffResults& DiffResults,
 	const bool bNoParentAtLastMerge) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::ApplyScriptStackDiff);
+
 	FApplyDiffResults Results;
 
 	if (DiffResults.IsEmpty())
@@ -3267,6 +3288,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 
 	for (TSharedRef<FNiagaraStackFunctionInputOverrideMergeAdapter> RemovedInputOverrideAdapter : DiffResults.RemovedBaseInputOverrides)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraStackGraphUtilities::RemovedInputOverrideAdapter);
+
 		TSharedPtr<FNiagaraStackFunctionMergeAdapter> MatchingModuleAdapter = BaseScriptStackAdapter->GetModuleFunctionById(RemovedInputOverrideAdapter->GetOwningFunctionCall()->NodeGuid);
 		if (MatchingModuleAdapter.IsValid())
 		{
@@ -3281,6 +3304,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 
 	for (TSharedRef<FNiagaraStackFunctionInputOverrideMergeAdapter> AddedInputOverrideAdapter : DiffResults.AddedOtherInputOverrides)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraStackGraphUtilities::AddedInputOverrideAdapter);
+
 		TSharedPtr<FNiagaraStackFunctionMergeAdapter> MatchingModuleAdapter = BaseScriptStackAdapter->GetModuleFunctionById(AddedInputOverrideAdapter->GetOwningFunctionCall()->NodeGuid);
 		if (MatchingModuleAdapter.IsValid())
 		{
@@ -3300,6 +3325,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 
 	for (TSharedRef<FNiagaraStackFunctionInputOverrideMergeAdapter> ModifiedInputOverrideAdapter : DiffResults.ModifiedOtherInputOverrides)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraStackGraphUtilities::ModifiedInputOverrideAdapter);
+
 		TSharedPtr<FNiagaraStackFunctionMergeAdapter> MatchingModuleAdapter = BaseScriptStackAdapter->GetModuleFunctionById(ModifiedInputOverrideAdapter->GetOwningFunctionCall()->NodeGuid);
 		if (MatchingModuleAdapter.IsValid())
 		{
@@ -3343,6 +3370,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 	// Apply the graph actions.
 	for (TSharedRef<FNiagaraStackFunctionMergeAdapter> RemoveModule : RemoveModules)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraStackGraphUtilities::RemoveModuleFromStack);
+
 		bool bRemoveResults = FNiagaraStackGraphUtilities::RemoveModuleFromStack(*BaseScriptStackAdapter->GetScript(), *RemoveModule->GetFunctionCallNode());
 		if (bRemoveResults == false)
 		{
@@ -3381,6 +3410,7 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 	}
 
 	// Apply enabled state last so that it applies to function calls added  from input overrides;
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::SetModuleIsEnabled);
 	for (TSharedRef<FNiagaraStackFunctionMergeAdapter> EnableModule : EnableModules)
 	{
 		FNiagaraStackGraphUtilities::SetModuleIsEnabled(*EnableModule->GetFunctionCallNode(), true);
@@ -3399,6 +3429,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyE
 	const FNiagaraEmitterDiffResults& DiffResults,
 	const bool bNoParentAtLastMerge) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::ApplyEventHandlerDiff);
+
 	FApplyDiffResults Results;
 	if (DiffResults.RemovedBaseEventHandlers.Num() > 0)
 	{
@@ -3507,6 +3539,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 	const FNiagaraEmitterDiffResults& DiffResults,
 	const bool bNoParentAtLastMerge) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::ApplySimulationStageDiff);
+
 	FApplyDiffResults Results;
 	if (DiffResults.RemovedBaseSimulationStages.Num() > 0)
 	{
@@ -3614,6 +3648,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 
 FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyRendererDiff(const FVersionedNiagaraEmitter& BaseEmitter, const FNiagaraEmitterDiffResults& DiffResults, const bool bNoParentAtLastMerge) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::ApplyRendererDiff);
+
 	TArray<UNiagaraRendererProperties*> RenderersToRemove;
 	TArray<UNiagaraRendererProperties*> RenderersToAdd;
 	TArray<UNiagaraRendererProperties*> RenderersToDisable;
@@ -3678,6 +3714,8 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyR
 
 FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyEmitterSummaryDiff(const FVersionedNiagaraEmitter& BaseEmitter, const FNiagaraEmitterDiffResults& DiffResults) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::ApplyEmitterSummaryDiff);
+
 	FVersionedNiagaraEmitterData* BaseEmitterData = BaseEmitter.GetEmitterData();
 	UNiagaraEmitterEditorData* EditorData = Cast<UNiagaraEmitterEditorData>(BaseEmitterData->GetEditorData());
 
@@ -3769,6 +3807,7 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyE
 
 FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyStackEntryDisplayNameDiffs(FVersionedNiagaraEmitter BaseEmitter, const FNiagaraEmitterDiffResults& DiffResults) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::ApplyStackEntryDisplayNameDiffs);
 	if (DiffResults.ModifiedStackEntryDisplayNames.Num() > 0)
 	{
 		UNiagaraEmitterEditorData* EditorData = Cast<UNiagaraEmitterEditorData>(BaseEmitter.GetEmitterData()->GetEditorData());
@@ -3787,6 +3826,7 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyS
 
 FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyStackNoteDiffs(FVersionedNiagaraEmitter BaseEmitter, const FNiagaraEmitterDiffResults& DiffResults) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraScriptMergeManager::ApplyStackNoteDiffs);
 	if(DiffResults.AddedOrModifiedStackNotesInOther.Num() > 0)
 	{
 		if(UNiagaraEmitterEditorData* EmitterEditorData = Cast<UNiagaraEmitterEditorData>(BaseEmitter.GetEmitterData()->GetEditorData()))
