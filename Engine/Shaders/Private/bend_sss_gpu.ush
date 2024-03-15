@@ -256,6 +256,10 @@ struct DispatchParameters
 	//	(int)	inGroupThreadId:	Compute shader group thread id register (SV_GroupThreadID)
 	void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int inGroupThreadID, out float outResult, out int2 outResultXY, out float2 outHitUV)
 	{
+		outResult = 0;
+		outResultXY = 0;
+		outHitUV = 0;
+
 		float2 xy_delta;
 		float2 pixel_xy;
 		float pixel_distance;
