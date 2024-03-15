@@ -75,6 +75,36 @@ namespace HarmonixMetasound
 		TransportState = InitFn(DesiredState);
 	}
 
+	EMusicPlayerTransportState FMusicTransportControllable::GetNextTransportState(EMusicPlayerTransportState DesiredState) const
+	{
+		switch (DesiredState)
+     	{
+		case EMusicPlayerTransportState::Invalid:
+		case EMusicPlayerTransportState::Preparing:
+		case EMusicPlayerTransportState::Prepared:
+		case EMusicPlayerTransportState::Stopping:
+		case EMusicPlayerTransportState::Killing:
+			return EMusicPlayerTransportState::Prepared;
+			
+		case EMusicPlayerTransportState::Starting:
+		case EMusicPlayerTransportState::Playing:
+		case EMusicPlayerTransportState::Continuing:
+			return EMusicPlayerTransportState::Playing;
+			
+     	case EMusicPlayerTransportState::Seeking:
+     		return GetTransportState();
+     
+     	case EMusicPlayerTransportState::Pausing:
+		case EMusicPlayerTransportState::Paused:
+     		return EMusicPlayerTransportState::Paused;
+     
+     	default:
+     		checkNoEntry();
+     		return EMusicPlayerTransportState::Invalid;
+     	}
+	}
+
+
 	void FMusicTransportControllable::ExecuteTransportSpans(FMusicTransportEventStreamReadRef& InTransportPin, int32 InBlockSize, TransportSpanProcessor& Callback)
 	{
 		TransportSpanPostProcessor PostProcessor = [](int32, int32, EMusicPlayerTransportState) {};

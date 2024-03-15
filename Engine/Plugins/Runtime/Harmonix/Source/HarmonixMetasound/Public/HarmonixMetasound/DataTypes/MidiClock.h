@@ -179,8 +179,25 @@ namespace HarmonixMetasound
 
 		TSharedPtr<FMidiPlayCursorMgr> GetDrivingMidiPlayCursorMgr() const { return DrivingMidiPlayCursorMgr.ToSharedPtr(); }
 		//*****************************************************************************************
+		
+		// handle and add transport change event
+		// to be called within the Transport Post Processor with the new transport state after the normal Processor
+		void HandleTransportChange(int32 BlockFrameIndex, EMusicPlayerTransportState TransportState);
 
+		// handle single clock event
+		void HandleClockEvent(const FMidiClock& DrivingClock, const FMidiClockEvent& Event, int32 PrerollBars, float Speed = 1.0f);
+		
+		// process and advance the clock based on the driving clock given sample frames
+		// will handle the driving clock events based on the frame range
+		void Process(const FMidiClock& DrivingClock, int32 StartFrame, int32 NumFrames, int32 PrerollBars, float Speed = 1.0f);
+
+		// process and advance the clock normally based on the given sample frames
+		void Process(int32 StartFrame, int32 NumFrames, int32 PrerollBars, float Speed = 1.0f);
+		
+		// directly perform and write an advance to this clock
 		void WriteAdvance(int32 StartFrameIndex, int32 EndFrameIndex, float InSpeed = 1.0f);
+
+		// directly seek this clock with a musical seek target or a specific tick
 		void SeekTo(int32 BlockFrameIndex, const FMusicSeekTarget& InTarget, int32 InPrerollBars);
 		void SeekTo(int32 BlockFrameIndex, int32 Tick, int32 InPrerollBars);
 		

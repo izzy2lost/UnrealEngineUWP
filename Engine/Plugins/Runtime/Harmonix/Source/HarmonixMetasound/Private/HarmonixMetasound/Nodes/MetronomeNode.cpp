@@ -23,7 +23,7 @@ namespace HarmonixMetasound
 {
 	using namespace Metasound;
 
-	class FMetronomeOperator : public TExecutableOperator<FMetronomeOperator>, public FMusicTransportControllable, public FMidiPlayCursor
+	class FMetronomeOperator : public TExecutableOperator<FMetronomeOperator>, public FMusicTransportControllable
 	{
 	public:
 		static const FNodeClassMetadata& GetNodeInfo();
@@ -47,14 +47,6 @@ namespace HarmonixMetasound
 
 		void Reset(const FResetParams& Params);
 		void Execute();
-
-		//~ BEGIN FMidiPlayCursor Overrides
-		virtual void Reset(bool ForceNoBroadcast = false) override;
-		virtual void OnLoop(int32 LoopStartTick, int32 LoopEndTick) override;
-		virtual void SeekToTick(int32 Tick) override;
-		virtual void SeekThruTick(int32 Tick) override;
-		virtual void AdvanceThruTick(int32 Tick, bool IsPreRoll) override;
-		//~ END FMidiPlayCursor Overrides
 
 	private:
 		void Init();
@@ -86,7 +78,7 @@ namespace HarmonixMetasound
 		void UpdateMidi();
 		void AddTempoChangeForMidi(float TempoBPM);
 		void AddTimeSigChangeForMidi(int32 TimeSigNum, int32 TimeSigDenom);
-		void AddTransportStateChangeToMidiClock(int32 StartFrameIndex, EMusicPlayerTransportState NewTransportState);
+		void HandleTransportChange(int32 StartFrameIndex, EMusicPlayerTransportState NewTransportState);
 
 		FMidiClock& GetDrivingMidiClock() { return LoopInPin ? MetronomeClock : (*MidiClockOutPin); }
 	};
@@ -197,7 +189,6 @@ namespace HarmonixMetasound
 	{
 		if (LoopInPin)
 		{
-			MetronomeClock.RegisterHiResPlayCursor(this);
 			MidiClockOutPin->AttachToTimeAuthority(MetronomeClock);
 		}
 
@@ -251,55 +242,6 @@ namespace HarmonixMetasound
 		LastClockTickUpdate = -1;
 	}
 
-	void FMetronomeOperator::Reset(bool ForceNoBroadcast /*= false*/)
-	{
-		FMidiPlayCursor::Reset(ForceNoBroadcast);
-		int32 Tick = MidiClockOutPin->CalculateMappedTick(MetronomeClock.GetCurrentHiResTick());
-		MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), Tick + 1, SeekPreRollBarsInPin);
-	}
-
-	void FMetronomeOperator::OnLoop(int32 LoopStartTick, int32 LoopEndTick)
-	{
-		FMidiPlayCursor::OnLoop(LoopStartTick, LoopEndTick);
-	}
-
-	void FMetronomeOperator::SeekToTick(int32 Tick)
-	{
-		FMidiPlayCursor::SeekToTick(Tick);
-		int32 MappedTick = MidiClockOutPin->CalculateMappedTick(Tick);
-		MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), MappedTick, SeekPreRollBarsInPin);
-	}
-
-	void FMetronomeOperator::SeekThruTick(int32 Tick)
-	{
-		FMidiPlayCursor::SeekThruTick(Tick);
-		int32 MappedTick = MidiClockOutPin->CalculateMappedTick(Tick);
-		MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), MappedTick + 1, SeekPreRollBarsInPin);
-	}
-
-	void FMetronomeOperator::AdvanceThruTick(int32 InTick, bool IsPreRoll)
-	{
-		int32 PrevTick = CurrentTick;
-		FMidiPlayCursor::AdvanceThruTick(InTick, IsPreRoll);
-
-		// if this is a pre-roll, perform a seek instead
-		// NOTE: This code is/should be identical to SeekThruTick above
-		if (IsPreRoll)
-		{
-			int32 MappedTick = MidiClockOutPin->CalculateMappedTick(InTick);
-			MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), MappedTick + 1, SeekPreRollBarsInPin);
-			return;
-		}
-		
-		int32 NewTick = MidiClockOutPin->GetCurrentMidiTick() + (InTick - PrevTick);
-		float Ms = MidiClockOutPin->GetSongMaps().TickToMs(NewTick);
-		float CurrentSpeed = MetronomeClock.GetSpeedAtBlockSampleFrame(MetronomeClock.GetCurrentBlockFrameIndex());
-		float AdvanceRatio = GetOwner()->GetSongMaps().GetTempoAtTick(PrevTick)
-		                   / MidiClockOutPin->GetSongMaps().GetTempoAtTick(MidiClockOutPin->GetCurrentMidiTick());
-		MidiClockOutPin->InformOfCurrentAdvanceRate(CurrentSpeed * AdvanceRatio);
-		MidiClockOutPin->AdvanceHiResToMs(MetronomeClock.GetCurrentBlockFrameIndex(), Ms, true);
-	}
-
 	void FMetronomeOperator::Init()
 	{
 		BuildMidiData();
@@ -307,52 +249,20 @@ namespace HarmonixMetasound
 		FTransportInitFn InitFn = [this](EMusicPlayerTransportState CurrentState)
 		{
 			FMidiClock& DrivingMidiClock = GetDrivingMidiClock();
-			
 			switch (CurrentState)
 			{
-			case EMusicPlayerTransportState::Invalid:
-			case EMusicPlayerTransportState::Preparing:
-				MidiClockOutPin->AddTransportStateChangeToBlock({ 0, 0.0f, EMusicPlayerTransportState::Prepared });
-				return EMusicPlayerTransportState::Prepared;
-
-			case EMusicPlayerTransportState::Prepared:
-				return CurrentState;
-
 			case EMusicPlayerTransportState::Starting:
 				DrivingMidiClock.ResetAndStart(0, true);
-				return EMusicPlayerTransportState::Playing;
+				break;
 
 			case EMusicPlayerTransportState::Playing:
 				DrivingMidiClock.WriteAdvance(0, 0, *SpeedMultInPin);
-				return EMusicPlayerTransportState::Playing;
-
-			case EMusicPlayerTransportState::Seeking:
-				checkNoEntry();
-				return EMusicPlayerTransportState::Invalid;
-
-			case EMusicPlayerTransportState::Continuing:
-				MidiClockOutPin->AddTransportStateChangeToBlock({ 0, 0.0f, EMusicPlayerTransportState::Playing });
-				return EMusicPlayerTransportState::Playing;
-
-			case EMusicPlayerTransportState::Pausing:
-				MidiClockOutPin->AddTransportStateChangeToBlock({ 0, 0.0f, EMusicPlayerTransportState::Paused });
-				return EMusicPlayerTransportState::Paused;
-
-			case EMusicPlayerTransportState::Paused:
-				return EMusicPlayerTransportState::Paused;
-
-			case EMusicPlayerTransportState::Stopping:
-				MidiClockOutPin->AddTransportStateChangeToBlock({ 0, 0.0f, EMusicPlayerTransportState::Prepared });
-				return EMusicPlayerTransportState::Prepared;
-
-			case EMusicPlayerTransportState::Killing:
-				MidiClockOutPin->AddTransportStateChangeToBlock({ 0, 0.0f, EMusicPlayerTransportState::Prepared });
-				return EMusicPlayerTransportState::Prepared;
-
-			default:
-				checkNoEntry();
-				return EMusicPlayerTransportState::Invalid;
+				break;
 			}
+
+			const EMusicPlayerTransportState NextState = GetNextTransportState(CurrentState);
+			HandleTransportChange(0, NextState);
+			return NextState;
 		};
 		
 		FMusicTransportControllable::Init(*TransportInPin, MoveTemp(InitFn));
@@ -379,18 +289,25 @@ namespace HarmonixMetasound
 			LastClockTickUpdate = ClockTick;
 		}
 
+		TransportSpanPostProcessor HandleMidiClockEvents = [this](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
+		{
+			int32 NumFrames = EndFrameIndex - StartFrameIndex;
+			HandleTransportChange(StartFrameIndex, CurrentState);
+			if (MidiClockOutPin->DoesLoop())
+			{
+				MetronomeClock.Process(StartFrameIndex, NumFrames, SeekPreRollBarsInPin, *SpeedMultInPin);
+				MidiClockOutPin->Process(MetronomeClock, StartFrameIndex, NumFrames, SeekPreRollBarsInPin, *SpeedMultInPin);
+			}
+			else
+			{
+				MidiClockOutPin->Process(StartFrameIndex, NumFrames, SeekPreRollBarsInPin, *SpeedMultInPin);
+			}
+		};
+
 		TransportSpanProcessor TransportHandler = [this, &DrivingMidiClock](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
 		{
 			switch (CurrentState)
 			{
-			case EMusicPlayerTransportState::Invalid:
-			case EMusicPlayerTransportState::Preparing:
-				AddTransportStateChangeToMidiClock(StartFrameIndex, EMusicPlayerTransportState::Prepared);
-				return EMusicPlayerTransportState::Prepared;
-
-			case EMusicPlayerTransportState::Prepared:
-				return CurrentState;
-
 			case EMusicPlayerTransportState::Starting:
 				// Play from the beginning if we haven't received a seek call while we were stopped...
 				if (!ReceivedSeekWhileStopped())
@@ -399,13 +316,8 @@ namespace HarmonixMetasound
 					LastClockTickUpdate = -1;
 				}
 				DrivingMidiClock.ResetAndStart(StartFrameIndex, !ReceivedSeekWhileStopped());
-				DrivingMidiClock.WriteAdvance(StartFrameIndex, EndFrameIndex, *SpeedMultInPin);
 				return EMusicPlayerTransportState::Playing;
-
-			case EMusicPlayerTransportState::Playing:
-				DrivingMidiClock.WriteAdvance(StartFrameIndex, EndFrameIndex, *SpeedMultInPin);
-				return EMusicPlayerTransportState::Playing;
-
+				
 			case EMusicPlayerTransportState::Seeking:
 				BuildMidiData(false);
 				DrivingMidiClock.SeekTo(StartFrameIndex, TransportInPin->GetNextSeekDestination(), SeekPreRollBarsInPin);
@@ -413,33 +325,11 @@ namespace HarmonixMetasound
 				// Here we will return that we want to be in the same state we were in before this request to 
 				// seek since we can seek "instantaneously"...
 				return GetTransportState();
-
-			case EMusicPlayerTransportState::Continuing:
-				AddTransportStateChangeToMidiClock(StartFrameIndex, EMusicPlayerTransportState::Playing);
-				DrivingMidiClock.WriteAdvance(StartFrameIndex, EndFrameIndex, *SpeedMultInPin);
-				return EMusicPlayerTransportState::Playing;
-
-			case EMusicPlayerTransportState::Pausing:
-				AddTransportStateChangeToMidiClock(StartFrameIndex, EMusicPlayerTransportState::Paused);
-				return EMusicPlayerTransportState::Paused;
-
-			case EMusicPlayerTransportState::Paused:
-				return EMusicPlayerTransportState::Paused;
-
-			case EMusicPlayerTransportState::Stopping:
-				AddTransportStateChangeToMidiClock(StartFrameIndex, EMusicPlayerTransportState::Prepared);
-				return EMusicPlayerTransportState::Prepared;
-
-			case EMusicPlayerTransportState::Killing:
-				AddTransportStateChangeToMidiClock(StartFrameIndex, EMusicPlayerTransportState::Prepared);
-				return EMusicPlayerTransportState::Prepared;
-
-			default:
-				checkNoEntry();
-				return EMusicPlayerTransportState::Invalid;
 			}
+
+			return GetNextTransportState(CurrentState);
 		};
-		ExecuteTransportSpans(TransportInPin, BlockSize, TransportHandler);
+		ExecuteTransportSpans(TransportInPin, BlockSize, TransportHandler, HandleMidiClockEvents);
 
 		if (LoopInPin)
 		{
@@ -550,13 +440,12 @@ namespace HarmonixMetasound
 		}
 	}
 
-	void FMetronomeOperator::AddTransportStateChangeToMidiClock(int32 StartFrameIndex, EMusicPlayerTransportState NewTransportState)
+	void FMetronomeOperator::HandleTransportChange(int32 StartFrameIndex, EMusicPlayerTransportState NewTransportState)
 	{
-		FMidiTimestampTransportState NewState{ StartFrameIndex, 0.0f, NewTransportState };
-		MidiClockOutPin->AddTransportStateChangeToBlock(NewState);
+		MidiClockOutPin->HandleTransportChange(StartFrameIndex, NewTransportState);
 		if (LoopInPin)
 		{
-			MetronomeClock.AddTransportStateChangeToBlock(NewState);
+			MetronomeClock.HandleTransportChange(StartFrameIndex, NewTransportState);
 		}
 	}
 }
