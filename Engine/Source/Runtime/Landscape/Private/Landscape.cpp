@@ -169,6 +169,15 @@ static FAutoConsoleVariableRef CVarRenderCaptureNextMergeRenders(
 
 #if WITH_EDITOR
 
+namespace UE::Landscape
+{
+	int32 NaniteExportCacheMaxQuadCount = 2048 * 2048;
+	static FAutoConsoleVariableRef CVarNaniteExportCacheMaxQuadCount(
+		TEXT("landscape.NaniteExportCacheMaxQuadCount"),
+		NaniteExportCacheMaxQuadCount,
+		TEXT("The maximum number of quads in a landscape proxy that will use the DDC cache when exporting the nanite mesh (any larger landscapes will be uncached).  Set to a negative number to always cache."));
+}
+
 float LandscapeNaniteAsyncDebugWait = 0.0f;
 static FAutoConsoleVariableRef CVarNaniteAsyncDebugWait(
 	TEXT("landscape.Nanite.AsyncDebugWait"),

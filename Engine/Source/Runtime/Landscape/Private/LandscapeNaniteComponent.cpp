@@ -41,6 +41,10 @@
 #endif
 
 extern float LandscapeNaniteAsyncDebugWait;
+namespace UE::Landscape
+{
+	extern int32 NaniteExportCacheMaxQuadCount;
+}
 
 ULandscapeNaniteComponent::ULandscapeNaniteComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -190,7 +194,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			AsyncBuildData->SourceModel = &AsyncBuildData->NaniteStaticMesh->AddSourceModel();
 			AsyncBuildData->NaniteMeshDescription = AsyncBuildData->NaniteStaticMesh->CreateMeshDescription(0);
 
-			// ExportRawMesh places Lightmap UVs in coord 2
+			// ExportToRawMeshDataCopy places Lightmap UVs in coord 2
 			const int32 LightmapUVCoordIndex = 2;
 			AsyncBuildData->NaniteStaticMesh->SetLightMapCoordinateIndex(LightmapUVCoordIndex);
 
@@ -247,7 +251,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			ExportParams.UVConfiguration.ExportUVMappingTypes.SetNumZeroed(4);
 			ExportParams.UVConfiguration.ExportUVMappingTypes[0] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XY; // In LandscapeVertexFactory, Texcoords0 = ETerrainCoordMappingType::TCMT_XY (or ELandscapeCustomizedCoordType::LCCT_CustomUV0)
 			ExportParams.UVConfiguration.ExportUVMappingTypes[1] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XZ; // In LandscapeVertexFactory, Texcoords1 = ETerrainCoordMappingType::TCMT_XZ (or ELandscapeCustomizedCoordType::LCCT_CustomUV1)
-			ExportParams.UVConfiguration.ExportUVMappingTypes[2] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::LightmapUV;			  // In LandscapeVertexFactory, Texcoords2 = ETerrainCoordMappingType::TCMT_YZ (or ELandscapeCustomizedCoordType::LCCT_CustomUV2)
+			ExportParams.UVConfiguration.ExportUVMappingTypes[2] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::LightmapUV;			  // Note that this does not match LandscapeVertexFactory's usage, but we work around it in the material graph node to remap TCMT_YZ
 			ExportParams.UVConfiguration.ExportUVMappingTypes[3] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::WeightmapUV;			  // In LandscapeVertexFactory, Texcoords3 = ELandscapeCustomizedCoordType::LCCT_WeightMapUV
 
 			// in case we do generate lightmap UVs, use the "XY" mapping as the source chart UV, and store them to UV channel 2
@@ -258,10 +262,37 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			//ExportParams.UVConfiguration.ExportUVMappingTypes[4] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::LightmapUV; // In LandscapeVertexFactory, Texcoords4 = lightmap UV
 			//ExportParams.UVConfiguration.ExportUVMappingTypes[5] = ALandscapeProxy::FRawMeshExportParams::EUVMappingType::HeightmapUV; // // In LandscapeVertexFactory, Texcoords5 = heightmap UV
 
-			constexpr bool bDisableDDCMeshBuildCache = false;
+			// calculate the lightmap resolution for the proxy, and the number of quads
+			int32 ProxyLightmapRes = 64;
+			int32 ProxyQuadCount = 0;
+			{
+				const int32 ComponentSizeQuads = AsyncBuildData->LandscapeWeakRef->ComponentSizeQuads;
+				const float LightMapRes = AsyncBuildData->LandscapeWeakRef->StaticLightingResolution;
+			
+				// min/max section bases of all exported components
+				FIntPoint MinSectionBase(INT_MAX, INT_MAX);
+				FIntPoint MaxSectionBase(-INT_MAX, -INT_MAX);
+				for (ULandscapeComponent* Component : AsyncBuildData->InputComponents)
+				{
+					FIntPoint SectionBase{ Component->SectionBaseX, Component->SectionBaseY };
+					MinSectionBase = MinSectionBase.ComponentMin(SectionBase);
+					MaxSectionBase = MaxSectionBase.ComponentMax(SectionBase);
+					ProxyQuadCount += ComponentSizeQuads;
+				}
+				int ProxyQuadsX = (MaxSectionBase.X + ComponentSizeQuads + 1 - MinSectionBase.X);
+				int ProxyQuadsY = (MaxSectionBase.Y + ComponentSizeQuads + 1 - MinSectionBase.Y);
+
+				// as the lightmap is just mapped as a square, it uses the square bounds to determine the resolution
+				ProxyLightmapRes = (ProxyQuadsX > ProxyQuadsY ? ProxyQuadsX : ProxyQuadsY) * LightMapRes;
+			}
+
+			AsyncBuildData->NaniteStaticMesh->SetLightMapResolution(ProxyLightmapRes);
+
+			const bool bUseNaniteExportCache = (UE::Landscape::NaniteExportCacheMaxQuadCount < 0) || (ProxyQuadCount <= UE::Landscape::NaniteExportCacheMaxQuadCount);
+
 			bool bSuccess = false;
 			TArray<uint8> MeshDescriptionData;
-			if (!bDisableDDCMeshBuildCache && GetDerivedDataCacheRef().GetSynchronous(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName()))
+			if (bUseNaniteExportCache && GetDerivedDataCacheRef().GetSynchronous(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName()))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync - ReadExportedMeshFromDDC);
 
@@ -280,19 +311,14 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 				MeshDescriptionHelper.SetupRenderMeshDescription(AsyncBuildData->NaniteStaticMesh, *AsyncBuildData->NaniteMeshDescription, true /* Is Nanite */, false /* bNeedTangents */);
 
 				// cache mesh description, only if we succeeded (failure may be non-deterministic)
-				if (!bDisableDDCMeshBuildCache && bSuccess)
+				if (bUseNaniteExportCache && bSuccess)
 				{
-					// don't bother to save large mesh descriptions into the DDC cache
-					// a 1k x 1k landscape ends up being around ~500 megs of serialized mesh description data
-					int32 PosCount = AsyncBuildData->NaniteMeshDescription->GetVertexPositions().GetNumElements();
-					if (PosCount <= (1024+32)*1024)
-					{
-						// serialize the nanite mesh description and submit it to DDC 
-						FMemoryWriter Writer(MeshDescriptionData);
-						AsyncBuildData->NaniteMeshDescription->Serialize(Writer);
+					// serialize the nanite mesh description and submit it to DDC 
+					TArray<uint8, FDefaultAllocator64> MeshDescriptionData64;
+					FMemoryWriter64 Writer(MeshDescriptionData64);
+					AsyncBuildData->NaniteMeshDescription->Serialize(Writer);
 
-						GetDerivedDataCacheRef().Put(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName());
-					}
+					GetDerivedDataCacheRef().Put(*ExportDDCKey, MeshDescriptionData, *AsyncBuildData->LandscapeWeakRef->GetFullName());
 				}
 			}
 
