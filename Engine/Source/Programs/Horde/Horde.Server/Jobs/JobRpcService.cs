@@ -12,6 +12,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
@@ -831,8 +832,24 @@ namespace Horde.Server.Jobs
 					newLabels.Add(newLabel);
 				}
 
+				// Add all the new artifacts
+				List<NewGraphArtifact> newArtifacts = new List<NewGraphArtifact>();
+				foreach (CreateGraphArtifactRequest artifact in request.Artifacts)
+				{
+					ArtifactName name = new ArtifactName(StringId.Sanitize(artifact.Name));
+					ArtifactType type = new ArtifactType(artifact.Type);
+
+					string description = artifact.Description;
+					if (String.IsNullOrEmpty(description))
+					{
+						description = artifact.Name;
+					}
+
+					newArtifacts.Add(new NewGraphArtifact(name, type, description, artifact.BasePath, artifact.OutputName));
+				}
+
 				// Create the new graph
-				IGraph newGraph = await _graphs.AppendAsync(null, newGroups, newAggregates, newLabels);
+				IGraph newGraph = await _graphs.AppendAsync(null, newGroups, newAggregates, newLabels, newArtifacts);
 
 				// Try to update the graph with the new value
 				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, oldGraph, newGraph, context.CancellationToken);

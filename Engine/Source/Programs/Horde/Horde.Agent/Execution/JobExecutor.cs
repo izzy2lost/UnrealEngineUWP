@@ -27,7 +27,6 @@ using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using OpenTracing;
 using OpenTracing.Util;
-using CreateArtifactRequest = HordeCommon.Rpc.CreateArtifactRequest;
 
 namespace Horde.Agent.Execution
 {
@@ -43,7 +42,7 @@ namespace Horde.Agent.Execution
 		IReadOnlyList<string> Inputs,
 		IReadOnlyList<string> OutputNames,
 		IList<int> PublishOutputs,
-		IReadOnlyList<CreateArtifactRequest> Artifacts
+		IReadOnlyList<CreateGraphArtifactRequest> Artifacts
 	)
 	{
 		public JobStepInfo(BeginStepResponse response)
@@ -752,7 +751,7 @@ namespace Horde.Agent.Execution
 
 			foreach (ExportedArtifact exportedArtifact in graph.Artifacts)
 			{
-				CreateArtifactRequest createArtifact = new CreateArtifactRequest();
+				CreateGraphArtifactRequest createArtifact = new CreateGraphArtifactRequest();
 
 				createArtifact.Name = exportedArtifact.Name;
 				createArtifact.Type = exportedArtifact.Type ?? String.Empty;
@@ -1139,7 +1138,7 @@ namespace Horde.Agent.Execution
 			}
 
 			// Create all the named artifacts. TODO: Merge this with regular temp storage artifacts?
-			foreach (CreateArtifactRequest graphArtifact in step.Artifacts)
+			foreach (CreateGraphArtifactRequest graphArtifact in step.Artifacts)
 			{
 				HashSet<FileReference>? files;
 				if (!tagNameToFileSet.TryGetValue(graphArtifact.OutputName, out files))
