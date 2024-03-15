@@ -52,7 +52,7 @@ bool UWorldPartitionPropertyOverride::ApplyPropertyOverrides(const FActorPropert
 
 			Object->Modify(false);
 			FWorldPartitionPropertyOverrideReader Reader(SubObjectOverride->SerializedTaggedProperties);
-			FWorldPartitionPropertyOverrideArchive Archive(Reader);
+			FWorldPartitionPropertyOverrideArchive Archive(Reader, InPropertyOverride->ReferenceTable);
 			UClass* ObjectClass = Object->GetClass();
 			ObjectClass->SerializeTaggedProperties(Archive, (uint8*)Object, ObjectClass, nullptr);
 			bAppliedProperties = true;

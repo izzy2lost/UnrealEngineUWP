@@ -25,6 +25,27 @@ public:
 #endif
 };
 
+USTRUCT(NotBlueprintable)
+struct FPropertyOverrideReferenceTable
+{
+	GENERATED_BODY()
+
+#if WITH_EDITORONLY_DATA
+	// Contains SoftObjectPaths from the FSubObjectPropertyOverride serialization so that they can be properly fixed up (fixup redirectors)
+	// This table should not be changed outside of serialization of the SubObjectOverrides
+	UPROPERTY()
+	TArray<FSoftObjectPath> SoftObjectPathTable;
+
+	// Contains hard refs from the SoftObjectPathTable
+	UPROPERTY()
+	TSet<TObjectPtr<UObject>> ObjectReferences;
+
+	// Support previous data this will be false until this override is resaved
+	UPROPERTY()
+	bool bIsValid = false;
+#endif
+};
+
 // Per Actor overrides, includes a map of Sub-Object name to FSubObjectPropertyOverride data
 USTRUCT(NotBlueprintable)
 struct FActorPropertyOverride
@@ -39,6 +60,9 @@ public:
 
 	UPROPERTY()
 	TMap<FString, FSubObjectPropertyOverride> SubObjectOverrides;
+
+	UPROPERTY()
+	mutable FPropertyOverrideReferenceTable ReferenceTable;
 #endif
 };
 

@@ -34,7 +34,8 @@ struct FLevelInstancePropertyOverrideUtils
 				const UObject* DummyObject = GetDefault<UObject>();
 				TArray<uint8> Payload;
 				FWorldPartitionPropertyOverrideWriter Writer(Payload);
-				FWorldPartitionPropertyOverrideArchive Archive(Writer);
+				FPropertyOverrideReferenceTable ReferenceTable;
+				FWorldPartitionPropertyOverrideArchive Archive(Writer, ReferenceTable);
 				UClass* Class = DummyObject->GetClass();
 
 				// By serializing the component with itself as its defaults we guarantee that no properties will be written out
@@ -57,6 +58,9 @@ struct FLevelInstancePropertyOverrideUtils
 
 		Objects.Add(InActor);
 
+		// Reset table
+		OutActorPropertyOverrides.ReferenceTable = FPropertyOverrideReferenceTable();
+
 		TArray<uint8> Payload;
 		// Serialize SubObjects
 		const FString ActorName = InActor->GetName();
@@ -64,7 +68,7 @@ struct FLevelInstancePropertyOverrideUtils
 		{
 			Payload.Reset();
 			FWorldPartitionPropertyOverrideWriter Writer(Payload);
-			FWorldPartitionPropertyOverrideArchive Archive(Writer);
+			FWorldPartitionPropertyOverrideArchive Archive(Writer, OutActorPropertyOverrides.ReferenceTable);
 			UObject* Archetype = InLevelStreaming->GetArchetypeForObject(Object);
 			if (Archetype->GetTypedOuter<ULevel>() == InLevelStreaming->GetArchetypeLevel())
 			{
