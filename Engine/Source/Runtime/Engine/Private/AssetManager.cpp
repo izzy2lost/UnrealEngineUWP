@@ -2,6 +2,7 @@
 
 #include "Engine/AssetManager.h"
 
+#include "Algo/Compare.h"
 #include "Algo/Unique.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetBundleData.h"
@@ -1719,12 +1720,11 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForPrimaryAssets(c
 			bool bLoadIfNeeded = false;
 			
 			// Use pending state if valid
-			TArray<FName> CurrentBundleState = NameData->PendingState.IsValid() ? NameData->PendingState.BundleNames : NameData->CurrentState.BundleNames;
-			TArray<FName> NewBundleState;
+			TArray<FName, TInlineAllocator<32>> NewBundleState;
 
 			if (!bRemoveAllBundles)
 			{
-				NewBundleState = CurrentBundleState;
+				NewBundleState = NameData->PendingState.IsValid() ? NameData->PendingState.BundleNames : NameData->CurrentState.BundleNames;
 
 				for (const FName& RemoveBundle : RemoveBundles)
 				{
@@ -1742,7 +1742,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForPrimaryAssets(c
 			// If the pending state is valid, check if it is different
 			if (NameData->PendingState.IsValid())
 			{
-				if (NameData->PendingState.BundleNames == NewBundleState)
+				if (Algo::Compare(NameData->PendingState.BundleNames, NewBundleState))
 				{
 					// This will wait on any existing handles to finish
 					ExistingHandles.Add(NameData->PendingState.Handle);
@@ -1752,7 +1752,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForPrimaryAssets(c
 				// Clear pending state
 				NameData->PendingState.Reset(true);
 			}
-			else if (NameData->CurrentState.IsValid() && NameData->CurrentState.BundleNames == NewBundleState)
+			else if (NameData->CurrentState.IsValid() && Algo::Compare(NameData->CurrentState.BundleNames, NewBundleState))
 			{
 				// If no pending, compare with current
 				continue;
@@ -2935,7 +2935,9 @@ bool UAssetManager::GetAssetDataForPath(const FSoftObjectPath& ObjectPath, FAsse
 static bool EndsWithBlueprint(const FTopLevelAssetPath& Name)
 {
 	// Numbered names can't end with Blueprint
-	return Name.GetAssetName().ToString().EndsWith(TEXT("Blueprint"));
+	TStringBuilder<512> AssetName;
+	Name.GetAssetName().ToString(AssetName);
+	return AssetName.ToView().EndsWith(TEXT("Blueprint"));
 }
 
 static bool ContainsSubobjectDelimiter(FName Name)
