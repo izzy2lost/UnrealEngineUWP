@@ -20,6 +20,10 @@
 
 namespace UE::ChooserEditor
 {
+	static const FLinearColor DisabledColor(0.0105,0.0105,0.0105,0.5);
+	static const FLinearColor TestPassedColor(0.0,1.0, 0.0,0.3);
+	static const FLinearColor TestFailedColor(1.0,0.0, 0.0,0.2);
+	
 	void SChooserTableRow::Construct(const FArguments& Args, const TSharedRef<STableViewBase>& OwnerTableView)
 	{
 		RowIndex = Args._Entry;
@@ -77,13 +81,34 @@ namespace UE::ChooserEditor
 	{
 		static FName Result = "Result";
 		static FName Handles = "Handles";
+		static FName AddColumn = "Add";
 	
 		if (Chooser->ResultsStructs.IsValidIndex(RowIndex->RowIndex))
 		{
-			if (ColumnName == Handles)
+			if (ColumnName == AddColumn || ColumnName == Handles)
 			{
+				bool bShowHandleImage = ColumnName == Handles;
+				
 				// row drag handle
-				return SNew(SChooserRowHandle).ChooserEditor(Editor).RowIndex(RowIndex->RowIndex);
+				return SNew(SOverlay)
+						+ SOverlay::Slot()
+						[
+							SNew(SChooserRowHandle, bShowHandleImage).ChooserEditor(Editor).RowIndex(RowIndex->RowIndex)
+						]
+						+ SOverlay::Slot()
+						[
+							SNew(SColorBlock).Color(DisabledColor)
+									.Visibility_Lambda(
+									[this]()
+									{
+										if (Chooser->IsRowDisabled(RowIndex->RowIndex))
+										{
+											return EVisibility::HitTestInvisible;
+										}
+										return EVisibility::Hidden;
+									})
+									
+						];
 			}
 			else if (ColumnName == Result) 
 			{
@@ -99,8 +124,26 @@ namespace UE::ChooserEditor
 				}),
 				&CacheBorder
 				);
-			
-				return ResultWidget.ToSharedRef();
+
+				return SNew(SOverlay)
+							+ SOverlay::Slot()
+    						[
+    							ResultWidget.ToSharedRef()
+    						]
+							+ SOverlay::Slot()
+							[
+								SNew(SColorBlock).Color(DisabledColor)
+										.Visibility_Lambda(
+										[this]()
+										{
+											if (Chooser->IsRowDisabled(RowIndex->RowIndex))
+											{
+												return EVisibility::HitTestInvisible;
+											}
+											return EVisibility::Hidden;
+										})
+										
+							];
 			}
 			else
 			{
@@ -128,16 +171,32 @@ namespace UE::ChooserEditor
 										{
 											if (Column->EditorTestFilter(RowIndex->RowIndex))
 											{
-												return FLinearColor(0.0,1.0,0.0,0.30);
+												return TestPassedColor;
 											}
 											else
 											{
-												return FLinearColor(1.0,0.0,0.0,0.20);
+												return TestFailedColor;
 											}
 										}
 										return FLinearColor::Transparent;
 									})
-						];
+									
+						]
+						+ SOverlay::Slot()
+						[
+							SNew(SColorBlock).Color(DisabledColor)
+									.Visibility_Lambda(
+									[this,Column]()
+									{
+										if (Chooser->IsRowDisabled(RowIndex->RowIndex) || Column->bDisabled)
+										{
+											return EVisibility::HitTestInvisible;
+										}
+										return EVisibility::Hidden;
+									})
+									
+						]
+						;
 					}
 				}
 			}

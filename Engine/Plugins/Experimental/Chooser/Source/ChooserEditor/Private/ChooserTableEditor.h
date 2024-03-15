@@ -91,13 +91,19 @@ namespace UE::ChooserEditor
 		void SetPropertyVisibilityDelegate(FIsPropertyVisible InVisibilityDelegate);
 		/** Can be used to disable the details view making it read-only */
 		void SetPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled InPropertyEditingDelegate);
-	
+
+		bool HasSelection();
+		bool IsSelectionDisabled();
+		void ToggleDisableSelection();
+		void DeleteSelection();
+		
 		void UpdateTableRows();
 		void SelectColumn(UChooserTable* Chooser, int Index);
 		void ClearSelectedColumn();
 		void DeleteColumn(int Index);
 		void AddColumn(const UScriptStruct* ColumnType);
 		void RefreshRowSelectionDetails();
+		void DeleteSelectedRows();
 		int MoveRow(int SourceRowIndex, int TargetIndex);
 		void SelectRow(int32 RowIndex, bool bClear = true);
 		void ClearSelectedRows(); 
@@ -112,10 +118,13 @@ namespace UE::ChooserEditor
 	private:
 
 		void SelectRootProperties();
+		void RemoveDisabledData();
 		void RegisterToolbar();
+		void RegisterMenus();
 		void BindCommands();
 		void OnObjectsTransacted(UObject* Object, const FTransactionObjectEvent& Event);
 		void MakeDebugTargetMenu(UToolMenu* InToolMenu);
+		TSharedPtr<SWidget> GenerateRowContextMenu();
 	
 		/** Create the properties tab and its content */
 		TSharedRef<SDockTab> SpawnPropertiesTab( const FSpawnTabArgs& Args );
@@ -173,9 +182,13 @@ namespace UE::ChooserEditor
 		static void RegisterWidgets();
 		
 		static FName EditorName;
+		static FName ContextMenuName;
 	};
+
+
 }
 
+// todo: for menus to actually be extensible this needs to be somewhere public
 UCLASS()
 class UChooserEditorToolMenuContext : public UObject
 {

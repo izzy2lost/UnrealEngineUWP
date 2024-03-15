@@ -10,6 +10,10 @@
 #include "IChooserParameterGameplayTag.h"
 #include "UObject/AssetRegistryTagsContext.h"
 
+#if WITH_EDITORONLY_DATA
+#include "UObject/UObjectIterator.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Chooser)
 
 DEFINE_LOG_CATEGORY(LogChooser)
@@ -85,7 +89,10 @@ void UChooserTable::PostLoad()
 void UChooserTable::BeginDestroy()
 {
 	ColumnsStructs.Empty();
+#if WITH_EDITORONLY_DATA
 	ResultsStructs.Empty();
+#endif
+	CookedResults.Empty();
 	Super::BeginDestroy();
 }
 
@@ -156,6 +163,7 @@ void UChooserTable::Compile(bool bForce)
 		}
 	}
 
+#if WITH_EDITORONLY_DATA
 	for(FInstancedStruct& ResultData : ResultsStructs)
 	{
 		if (ResultData.IsValid())
@@ -164,7 +172,73 @@ void UChooserTable::Compile(bool bForce)
 			Result.Compile(ContextOwner, bForce);
 		}
 	}
+#endif
+
+	if (IsCookedData())
+	{
+		for(FInstancedStruct& ResultData : CookedResults)
+		{
+			if (ResultData.IsValid())
+			{
+				FObjectChooserBase& Result = ResultData.GetMutable<FObjectChooserBase>();
+				Result.Compile(ContextOwner, bForce);
+			}
+		}
+	}
 }
+
+void UChooserTable::Serialize(FArchive& Ar)
+{
+#if WITH_EDITORONLY_DATA
+	if (Ar.IsCooking() && !Ar.IsObjectReferenceCollector())
+	{
+		CookData();
+	}
+#endif
+	
+	UObject::Serialize(Ar);
+}
+
+#if WITH_EDITORONLY_DATA
+void UChooserTable::RemoveDisabledData()
+{
+	// remove disabled or invalid columns
+	ColumnsStructs.RemoveAll([](const FInstancedStruct& ColumnStruct)
+	{
+		return !ColumnStruct.IsValid() || ColumnStruct.Get<FChooserColumnBase>().bDisabled;
+	});
+	
+	// remove disabled rows and corresponding row data from columns
+	TArray<uint32> RowsToDelete;
+	const int NumResults = ResultsStructs.Num();
+	for (int ResultIndex = NumResults - 1; ResultIndex>=0; ResultIndex--)
+	{
+		if (IsRowDisabled(ResultIndex))
+		{
+			RowsToDelete.Add(ResultIndex);
+		}
+	}
+	
+	DisabledRows.SetNum(0);
+
+	for (uint32 Index : RowsToDelete)
+	{
+		ResultsStructs.RemoveAt(Index);
+	}
+	for(FInstancedStruct& Column : ColumnsStructs)
+	{
+		Column.GetMutable<FChooserColumnBase>().DeleteRows(RowsToDelete);
+	}
+}
+
+void UChooserTable::CookData()
+{
+	RemoveDisabledData();
+
+	// copy stripped results struct into CookedResults array
+	CookedResults = ResultsStructs;
+}
+#endif
 
 #if WITH_EDITOR
 void UChooserTable::PostEditUndo()
@@ -275,17 +349,28 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 	Context.DebuggingInfo.CurrentChooser = Chooser;
 #endif
 
-	uint32 Count = Chooser->ResultsStructs.Num();
+	const TArray<FInstancedStruct>* ResultsArray = &Chooser->CookedResults;
+
+#if WITH_EDITORONLY_DATA
+	if (!Chooser->IsCookedData())
+	{
+		ResultsArray = &Chooser->ResultsStructs;
+	}
+#endif
+	
+
+	uint32 Count = ResultsArray->Num();
 	uint32 BufferSize = Count * sizeof(uint32);
 
 	FChooserIndexArray Indices1(static_cast<uint32*>(FMemory_Alloca(BufferSize)), Count);
 	FChooserIndexArray Indices2(static_cast<uint32*>(FMemory_Alloca(BufferSize)), Count);
 
-	int RowCount = Chooser->ResultsStructs.Num();
-	Indices1.SetNum(RowCount);
-	for(int i=0;i<RowCount;i++)
+	for(uint32 i=0;i<Count;i++)
 	{
-		Indices1[i]=i;
+		if (!Chooser->IsRowDisabled(i))
+		{
+			Indices1.Push(i);
+		}
 	}
 	FChooserIndexArray* IndicesOut = &Indices1;
 	FChooserIndexArray* IndicesIn = &Indices2;
@@ -293,6 +378,14 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 	for (const FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
 	{
 		const FChooserColumnBase& Column = ColumnData.Get<FChooserColumnBase>();
+
+#if WITH_EDITORONLY_DATA
+		if (Column.bDisabled)
+		{
+			continue;
+		}
+#endif
+		
 		if (Column.HasFilters())
 		{
 			Swap(IndicesIn, IndicesOut);
@@ -339,9 +432,9 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 		// of the rows that passed all column filters, iterate through them calling the callback until it returns Stop
 		for (uint32 SelectedIndex : *IndicesOut)
 		{
-			if (Chooser->ResultsStructs.Num() > (int32)SelectedIndex)
+			if (ResultsArray->Num() > (int32)SelectedIndex)
 			{
-				const FObjectChooserBase& SelectedResult = Chooser->ResultsStructs[SelectedIndex].Get<FObjectChooserBase>();
+				const FObjectChooserBase& SelectedResult = (*ResultsArray)[SelectedIndex].Get<FObjectChooserBase>();
 				FObjectChooserBase::EIteratorStatus Status = SelectedResult.ChooseMulti(Context, Callback);
 				if (Status != FObjectChooserBase::EIteratorStatus::Continue)
 				{
@@ -422,3 +515,21 @@ void FNestedChooser::GetDebugName(FString& OutDebugName) const
 {
 	OutDebugName  = GetNameSafe(Chooser);
 }
+
+#if WITH_EDITORONLY_DATA
+namespace {
+	void TestCook()
+	{
+		for (TObjectIterator<UChooserTable> It; It; ++It)
+		{
+			It->CookData();
+		}
+	}
+}
+
+static FAutoConsoleCommand CCmdTestCookChoosers(
+	TEXT("Chooser.TestCook"),
+	TEXT(""),
+	FConsoleCommandDelegate::CreateStatic(TestCook));
+
+#endif

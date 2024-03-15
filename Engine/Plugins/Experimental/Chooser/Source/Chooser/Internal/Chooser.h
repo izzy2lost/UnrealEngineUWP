@@ -24,6 +24,21 @@ public:
 
 	virtual void PostLoad() override;
 	virtual void Compile(bool bForce = false) override;
+	virtual void Serialize(FArchive& Ar) override;
+
+#if WITH_EDITORONLY_DATA
+	void RemoveDisabledData();
+	void CookData();
+#endif
+
+	bool IsRowDisabled(int32 RowIndex) const
+	{
+#if WITH_EDITORONLY_DATA
+		return CookedResults.IsEmpty() && DisabledRows.IsValidIndex(RowIndex) && DisabledRows[RowIndex];
+#else
+		return false;
+#endif
+	}
 #if WITH_EDITOR
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
@@ -99,10 +114,18 @@ public:
 	// FallbackResult will be used as the Result if there are no rows in the chooser which pass all filters.  If FallbackResult is not assigned, then the Chooser will return null in that case.
 	UPROPERTY(EditAnywhere, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ObjectChooserBase"), Category = "Fallback")
 	FInstancedStruct FallbackResult;
-	
+
+#if WITH_EDITORONLY_DATA
 	// Each possible Result (Rows of chooser table)
 	UPROPERTY(EditAnywhere, NoClear, DisplayName = "Results", Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ObjectChooserBase"), Category = "Hidden")
 	TArray<FInstancedStruct> ResultsStructs;
+
+	UPROPERTY()
+	TArray<bool> DisabledRows;
+#endif
+	
+	UPROPERTY()
+	TArray<FInstancedStruct> CookedResults;
 
 	// Columns which filter Results
 	UPROPERTY(EditAnywhere, NoClear, DisplayName = "Columns", Category = Hidden, meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ChooserColumnBase"))
@@ -117,7 +140,8 @@ public:
 	EObjectChooserResultType ResultType = EObjectChooserResultType::ObjectResult;
 
 	virtual TConstArrayView<FInstancedStruct> GetContextData() const override { return ContextData; }
-	
+
+	bool IsCookedData() const { return !CookedResults.IsEmpty(); }
 	static FObjectChooserBase::EIteratorStatus EvaluateChooser(FChooserEvaluationContext& Context, const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback);
 };
 
@@ -182,3 +206,5 @@ public:
 	TWeakObjectPtr<UChooserTable> Chooser;
 	int ColumnIndex;
 };
+
+

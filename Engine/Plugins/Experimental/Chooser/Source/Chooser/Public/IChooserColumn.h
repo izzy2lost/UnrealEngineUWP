@@ -75,6 +75,11 @@ public:
 	virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) {}
 	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) {}
 #endif
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(EditAnywhere, Category=Base)
+	bool bDisabled = false;
+#endif
 };
 
 
