@@ -181,6 +181,8 @@ public:
 	ENGINE_API const FTransform& GetInstanceTransform() const;
 	//~ End UActorDescContainer Interface
 
+	FORCEINLINE bool HasInstanceTransform() const { return InstanceTransform.IsSet(); }
+
 	//~ Begin UObject Interface
 #if WITH_EDITOR
 	ENGINE_API virtual bool CanEditChange(const FProperty* InProperty) const override;

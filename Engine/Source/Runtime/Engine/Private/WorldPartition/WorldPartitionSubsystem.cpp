@@ -988,7 +988,7 @@ void UWorldPartitionSubsystem::GetStreamingSources(const UWorldPartition* InWorl
 #endif
 
 	// Transform to Local
-	if (OutStreamingSources.Num())
+	if (OutStreamingSources.Num() && InWorldPartition->HasInstanceTransform())
 	{
 		const FTransform WorldToLocal = InWorldPartition->GetInstanceTransform().Inverse();
 		for (FWorldPartitionStreamingSource& StreamingSource : OutStreamingSources)
