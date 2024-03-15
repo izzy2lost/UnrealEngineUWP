@@ -37,6 +37,8 @@ void FRCAssetPathElementCustomization::CustomizeHeader(TSharedRef<IPropertyHandl
 		return;
 	}
 
+	PathHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FRCAssetPathElementCustomization::OnPathChanged));
+
 	const TSharedRef<SToolTip> GetAssetPathToolTipWidget = SNew(SToolTip)
 		.Text(LOCTEXT("RCGetAssetPathButton_Tooltip", "Get the path of the currently first selected asset in the content browser and set it to the current path"));
 
@@ -125,6 +127,24 @@ void FRCAssetPathElementCustomization::CustomizeChildren(TSharedRef<IPropertyHan
 {
 }
 
+void FRCAssetPathElementCustomization::OnPathChanged() const
+{
+	if (!PathHandle.IsValid() || !IsInputHandle.IsValid())
+	{
+		return;
+	}
+
+	bool bIsRCInput = false;
+	IsInputHandle->GetValue(bIsRCInput);
+
+	if (bIsRCInput)
+	{
+		return;
+	}
+
+	RemoveSlashFromPathEnd();
+}
+
 ECheckBoxState FRCAssetPathElementCustomization::IsChecked() const
 {
 	ECheckBoxState ReturnValue = ECheckBoxState::Undetermined;
@@ -146,7 +166,13 @@ void FRCAssetPathElementCustomization::OnCheckStateChanged(ECheckBoxState InNewS
 	{
 		return;
 	}
-	IsInputHandle->SetValue(InNewState == ECheckBoxState::Checked ? true : false);
+	const bool bIsInput = InNewState == ECheckBoxState::Checked;
+	IsInputHandle->SetValue(bIsInput);
+
+	if (!bIsInput)
+	{
+		RemoveSlashFromPathEnd();
+	}
 }
 
 FReply FRCAssetPathElementCustomization::OnGetAssetFromSelectionClicked() const
@@ -211,6 +237,21 @@ FReply FRCAssetPathElementCustomization::OnCreateControllerButtonClicked() const
 int32 FRCAssetPathElementCustomization::OnGetWidgetSwitcherIndex() const
 {
 	return IsChecked() == ECheckBoxState::Checked ? 1 : 0;
+}
+
+void FRCAssetPathElementCustomization::RemoveSlashFromPathEnd() const
+{
+	FString CurrentPath;
+	PathHandle->GetValue(CurrentPath);
+
+	// remove all / that are at the end of the path
+	bool bRemoved = false;
+	do
+	{
+		bRemoved = CurrentPath.RemoveFromEnd(TEXT("/"), 1);
+	} while (bRemoved);
+
+	PathHandle->SetValue(CurrentPath, EPropertyValueSetFlags::NotTransactable);
 }
 
 #undef LOCTEXT_NAMESPACE
