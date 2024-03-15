@@ -6,20 +6,17 @@
 
 
 /**
- * Viewport media capture
+ * Tile media capture
  */
-class FDisplayClusterMediaCaptureCamera
+class FDisplayClusterMediaCaptureTile
 	: public FDisplayClusterMediaCaptureViewport
 {
 public:
-	FDisplayClusterMediaCaptureCamera(const FString& MediaId, const FString& ClusterNodeId, const FString& CameraId, const FString& ViewportId, UMediaOutput* MediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy = nullptr);
+	FDisplayClusterMediaCaptureTile(const FString& MediaId, const FString& ClusterNodeId, const FString& ViewportId, UMediaOutput* MediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy = nullptr);
 
 protected:
+
 	//~ Begin FDisplayClusterMediaCaptureViewport
 	virtual bool GetCaptureSizeFromConfig(FIntPoint& OutSize) const override;
 	//~ End FDisplayClusterMediaCaptureViewport
-
-private:
-	/** ICVFX camera name */
-	const FString CameraId;
 };

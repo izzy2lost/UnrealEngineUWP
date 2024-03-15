@@ -19,6 +19,7 @@
 
 #include "Capture/DisplayClusterMediaCaptureCamera.h"
 #include "Capture/DisplayClusterMediaCaptureNode.h"
+#include "Capture/DisplayClusterMediaCaptureTile.h"
 #include "Capture/DisplayClusterMediaCaptureViewport.h"
 #include "Input/DisplayClusterMediaInputViewport.h"
 
@@ -454,7 +455,7 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesOutput(const U
 						UE_LOG(LogDisplayClusterMedia, Log, TEXT("Initializing ICVFX media output '%s' for camera '%s' tile '%d,%d'"),
 							*MediaOutputId, *ICVFXCameraName, MediaOutputTile.Position.X, MediaOutputTile.Position.Y);
 
-						TSharedPtr<FDisplayClusterMediaCaptureViewport> NewICVFXTileOutput = MakeShared<FDisplayClusterMediaCaptureViewport>(
+						TSharedPtr<FDisplayClusterMediaCaptureTile> NewICVFXTileOutput = MakeShared<FDisplayClusterMediaCaptureTile>(
 							MediaOutputId, ClusterNodeId,
 							ICVFXViewportTileId,
 							MediaOutputTile.MediaOutput);

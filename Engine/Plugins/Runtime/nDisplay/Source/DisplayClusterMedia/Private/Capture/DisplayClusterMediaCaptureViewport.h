@@ -38,6 +38,12 @@ protected:
 	/** Returns texture size of a viewport assigned to capture */
 	virtual FIntPoint GetCaptureSize() const override;
 
+	/** Provides default texture size from config */
+	virtual bool GetCaptureSizeFromConfig(FIntPoint& OutSize) const;
+
+	/** Provides texture size from a game proxy (if available) */
+	bool GetCaptureSizeFromGameProxy(FIntPoint& OutSize) const;
+
 private:
 	/** PostRenderViewFamily callback handler where data is captured */
 	void OnPostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const IDisplayClusterViewportProxy* ViewportProxy);

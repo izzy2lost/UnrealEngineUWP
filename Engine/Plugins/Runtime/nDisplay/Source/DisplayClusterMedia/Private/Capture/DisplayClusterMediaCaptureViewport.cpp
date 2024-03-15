@@ -7,8 +7,10 @@
 
 #include "DisplayClusterConfigurationTypes_Viewport.h"
 #include "DisplayClusterMediaLog.h"
+#include "DisplayClusterRootActor.h"
 
 #include "Config/IDisplayClusterConfigManager.h"
+#include "Game/IDisplayClusterGameManager.h"
 
 #include "Render/IDisplayClusterRenderManager.h"
 #include "Render/Viewport/IDisplayClusterViewport.h"
@@ -68,6 +70,46 @@ void FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState(IDisplayClu
 
 FIntPoint FDisplayClusterMediaCaptureViewport::GetCaptureSize() const
 {
+	FIntPoint CaptureSize{ FIntPoint::ZeroValue };
+
+	if (GetCaptureSizeFromGameProxy(CaptureSize))
+	{
+		UE_LOG(LogDisplayClusterMedia, Verbose, TEXT("'%s' acquired capture size from game proxy [%d, %d]"), *GetMediaId(), CaptureSize.X, CaptureSize.Y);
+	}
+	else if (GetCaptureSizeFromConfig(CaptureSize))
+	{
+		UE_LOG(LogDisplayClusterMedia, Verbose, TEXT("'%s' acquired capture size from config [%d, %d]"), *GetMediaId(), CaptureSize.X, CaptureSize.Y);
+	}
+	else
+	{
+		UE_LOG(LogDisplayClusterMedia, Verbose, TEXT("'%s' couldn't acquire capture"), *GetMediaId());
+	}
+
+	return CaptureSize;
+}
+
+bool FDisplayClusterMediaCaptureViewport::GetCaptureSizeFromConfig(FIntPoint& OutSize) const
+{
+	if (const ADisplayClusterRootActor* const ActiveRootActor = IDisplayCluster::Get().GetGameMgr()->GetRootActor())
+	{
+		if (const UDisplayClusterConfigurationData* const ConfigData = ActiveRootActor->GetConfigData())
+		{
+			const FString& NodeId = GetClusterNodeId();
+			if (const UDisplayClusterConfigurationViewport* const ViewportCfg = ConfigData->GetViewport(NodeId, ViewportId))
+			{
+				const FIntRect ViewportRect = ViewportCfg->Region.ToRect();
+				OutSize = FIntPoint(ViewportRect.Width(), ViewportRect.Height());
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool FDisplayClusterMediaCaptureViewport::GetCaptureSizeFromGameProxy(FIntPoint& OutSize) const
+{
 	// We need to get actual texture size for the viewport
 	if (const IDisplayClusterRenderManager* const RenderMgr = IDisplayCluster::Get().GetRenderMgr())
 	{
@@ -78,15 +120,14 @@ FIntPoint FDisplayClusterMediaCaptureViewport::GetCaptureSize() const
 				const TArray<FDisplayClusterViewport_Context>& Contexts = Viewport->GetContexts();
 				if (Contexts.Num() > 0)
 				{
-					const FIntPoint Size = Contexts[0].RenderTargetRect.Size();
-					UE_LOG(LogDisplayClusterMedia, Log, TEXT("'%s' capture size is [%d, %d]"), *GetMediaId(), Size.X, Size.Y);
-					return Size;
+					OutSize = Contexts[0].RenderTargetRect.Size();
+					return true;
 				}
 			}
 		}
 	}
 
-	return FIntPoint::ZeroValue;
+	return false;
 }
 
 void FDisplayClusterMediaCaptureViewport::OnPostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const IDisplayClusterViewportProxy* ViewportProxy)
