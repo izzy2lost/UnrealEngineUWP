@@ -558,12 +558,6 @@ void FRHICommandEndDrawingViewport::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR(RHIEndDrawingViewport)(Viewport, bPresent, bLockToVsync);
 }
 
-void FRHICommandInvalidateCachedState::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(RHIInvalidateCachedState);
-	INTERNAL_DECORATOR(RHIInvalidateCachedState)();
-}
-
 void FRHICommandDiscardRenderTargets::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(RHIDiscardRenderTargets);

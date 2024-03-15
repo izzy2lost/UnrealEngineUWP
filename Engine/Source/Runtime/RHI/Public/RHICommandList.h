@@ -2184,11 +2184,6 @@ FRHICOMMAND_MACRO(FRHICommandEndDrawingViewport)
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
-FRHICOMMAND_MACRO(FRHICommandInvalidateCachedState)
-{
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-
 FRHICOMMAND_MACRO(FRHICommandDiscardRenderTargets)
 {
 	uint32 ColorBitMask;
@@ -3603,15 +3598,9 @@ public:
 		IncrementSubpass();
 	}
 
+	UE_DEPRECATED(5.5, "RHIInvalidateCachedState is not implemented by any platform RHI.")
 	FORCEINLINE_DEBUGGABLE void RHIInvalidateCachedState()
-	{
-		if (Bypass())
-		{
-			GetContext().RHIInvalidateCachedState();
-			return;
-		}
-		ALLOC_COMMAND(FRHICommandInvalidateCachedState)();
-	}
+	{}
 
 	FORCEINLINE void DiscardRenderTargets(bool Depth, bool Stencil, uint32 ColorBitMask)
 	{

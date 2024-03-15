@@ -348,12 +348,6 @@ public:
 #endif
 
 	/**
-	 * Some RHI implementations (OpenGL) cache render state internally
-	 * Signal to RHI that cached state is no longer valid
-	 */
-	virtual void RHIInvalidateCachedState() {}
-
-	/**
 	 * Performs a copy of the data in 'SourceBuffer' to 'DestinationStagingBuffer.' This will occur inline on the GPU timeline. This is a mechanism to perform nonblocking readback of a buffer at a point in time.
 	 * @param SourceBuffer The source vertex buffer that will be inlined copied.
 	 * @param DestinationStagingBuffer The the host-visible destination buffer
