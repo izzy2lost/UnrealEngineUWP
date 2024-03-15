@@ -19,7 +19,7 @@ void FRivermaxMediaTextureSampleConverter::Setup(const TSharedPtr<FRivermaxMedia
 	Sample = InSample;
 }
 
-bool FRivermaxMediaTextureSampleConverter::Convert(FTextureRHIRef& InDestinationTexture, const FConversionHints& Hints)
+bool FRivermaxMediaTextureSampleConverter::Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDestinationTexture, const FConversionHints& Hints)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxSampleConverter::Convert);
 
@@ -53,7 +53,7 @@ bool FRivermaxMediaTextureSampleConverter::Convert(FTextureRHIRef& InDestination
 		return false;
 	}
 	
-	FRDGBuilder GraphBuilder(FRHICommandListExecutor::GetImmediateCommandList());
+	FRDGBuilder GraphBuilder(RHICmdList);
 	if (Setup.PreConvertFunc)
 	{
 		Setup.PreConvertFunc(GraphBuilder);

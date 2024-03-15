@@ -61,6 +61,6 @@ namespace UE::MediaCaptureData
 		 * Function called when the last copy of the media capture pipeline is completed. 
 		 * This will handle calling the right capture callback on the MediaCapture (ie. OnRHIResourceCaptured_RenderingThread)
 		 */
-		static void OnReadbackComplete(FRHICommandList& RHICmdList, UMediaCapture* MediaCapture, TSharedPtr<UE::MediaCaptureData::FCaptureFrame> ReadyFrame);
+		static void OnReadbackComplete(UMediaCapture* MediaCapture, TSharedPtr<UE::MediaCaptureData::FCaptureFrame> ReadyFrame);
 	};
 }

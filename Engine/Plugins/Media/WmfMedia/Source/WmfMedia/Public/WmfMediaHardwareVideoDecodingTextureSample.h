@@ -94,9 +94,9 @@ public:
 	/**
 	 * Texture sample convert using hardware video decoding.
 	 */
-	virtual bool Convert(FTextureRHIRef & InDstTexture, const FConversionHints & Hints) override
+	virtual bool Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override
 	{
-		FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread(this, InDstTexture);
+		FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread(RHICmdList, this, InDstTexture);
 		return true;
 	}
 

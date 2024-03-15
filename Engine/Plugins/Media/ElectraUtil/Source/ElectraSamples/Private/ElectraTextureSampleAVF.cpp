@@ -445,7 +445,7 @@ uint32 FElectraTextureSample::GetConverterInfoFlags() const
 	return ConverterInfoFlags_Default;
 }
 
-bool FElectraTextureSample::Convert(FTextureRHIRef & InDstTexture, const FConversionHints & Hints)
+bool FElectraTextureSample::Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
 {
 	if (VideoDecoderOutput)
 	{

@@ -15,6 +15,7 @@
 #include "RenderGraphUtils.h"
 
 void UPixelStreamingMediaIOCapture::OnRHIResourceCaptured_RenderingThread(
+	FRHICommandListImmediate& /*RHICmdList*/,
 	const FCaptureBaseData& InBaseData,
 	TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData,
 	FTextureRHIRef InTexture)

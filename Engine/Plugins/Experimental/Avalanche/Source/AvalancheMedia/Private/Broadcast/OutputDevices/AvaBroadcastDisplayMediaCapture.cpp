@@ -113,7 +113,7 @@ UAvaBroadcastDisplayMediaCapture::~UAvaBroadcastDisplayMediaCapture()
 	delete CaptureInstance;
 }
 
-void UAvaBroadcastDisplayMediaCapture::OnRHIResourceCaptured_RenderingThread(const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
+void UAvaBroadcastDisplayMediaCapture::OnRHIResourceCaptured_RenderingThread(FRHICommandListImmediate& RHICmdList, const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
 {
 	FScopeLock ScopeLock(&CaptureInstanceCriticalSection);
 	if (CaptureInstance)
@@ -137,7 +137,6 @@ void UAvaBroadcastDisplayMediaCapture::OnRHIResourceCaptured_RenderingThread(con
 
 		if (Target.IsValid())
 		{
-			FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 			UE::AvaBroadcastRenderTargetMediaUtils::CopyTexture(RHICmdList, InTexture, Target);
 		}
 	}

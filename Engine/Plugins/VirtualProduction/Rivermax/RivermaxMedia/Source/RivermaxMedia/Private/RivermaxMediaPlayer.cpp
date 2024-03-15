@@ -1051,20 +1051,18 @@ namespace UE::RivermaxMedia
 			OutConverterSetup.GetGPUBufferFunc = [SampleWrapper]() { return SampleWrapper->Sample->GetGPUBuffer(); };
 
 			// Setup requirements for sample to be ready to be rendered
-			FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-			RHICmdList.EnqueueLambda(
-				[NextFrameExpectations, this](FRHICommandList& RHICmdList)
+			FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+			RHICmdList.EnqueueLambda([NextFrameExpectations, this](FRHICommandList&)
+			{
+				FWaitConditionFunc ReadyToRenderConditionFunc = [](const TSharedPtr<FRivermaxSampleWrapper>& Sample)
 				{
-					FWaitConditionFunc ReadyToRenderConditionFunc = [](const TSharedPtr<FRivermaxSampleWrapper>& Sample)
-					{
-						return Sample->bIsReadyToRender.load();
-					};
+					return Sample->bIsReadyToRender.load();
+				};
 
-					TRACE_CPUPROFILER_EVENT_SCOPE(RmaxWaitSampleReadyness);
-					constexpr bool bCanTimeout = true;
-					WaitForSample(NextFrameExpectations, MoveTemp(ReadyToRenderConditionFunc), bCanTimeout);
-				}
-			);
+				TRACE_CPUPROFILER_EVENT_SCOPE(RmaxWaitSampleReadyness);
+				constexpr bool bCanTimeout = true;
+				WaitForSample(NextFrameExpectations, MoveTemp(ReadyToRenderConditionFunc), bCanTimeout);
+			});
 		}
 		else
 		{
@@ -1139,17 +1137,15 @@ namespace UE::RivermaxMedia
 			}
 			
 			// Setup requirements for sample to be ready to be rendered
-			FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
-			SCOPED_GPU_STAT(RHICmdList, Rmax_WaitForPixels);
-			SCOPED_DRAW_EVENT(RHICmdList, Rmax_WaitForPixels);
+			SCOPED_GPU_STAT(GraphBuilder.RHICmdList, Rmax_WaitForPixels);
+			SCOPED_DRAW_EVENT(GraphBuilder.RHICmdList, Rmax_WaitForPixels);
 
 			// Since we are going to enqueue a lambda that can potentially sleep in the RHI thread if the pixels haven't arrived,
 			// we dispatch the existing commands (including the draw event start timing in the SCOPED_DRAW_EVENT above) before any potential sleep.
-			RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+			GraphBuilder.RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
 
-			RHICmdList.EnqueueLambda(
-				[NextFrameExpectations, this](FRHICommandList& RHICmdList)
+			GraphBuilder.RHICmdList.EnqueueLambda(
+				[NextFrameExpectations, this](FRHICommandListImmediate&)
 				{
 					FWaitConditionFunc ReadyToRenderConditionFunc = [](const TSharedPtr<FRivermaxSampleWrapper>& Sample)
 					{
@@ -1168,7 +1164,7 @@ namespace UE::RivermaxMedia
 			// Final step, if the memory was locked (non gpu direct), enqueue unlock after the wait for sample in order to render it
 			if (SampleWrapper->LockedMemory && ensure(!bDoesStreamSupportsGPUDirect))
 			{
-				RHICmdList.UnlockBuffer(SampleWrapper->Sample->GetGPUBuffer()->GetRHI());
+				GraphBuilder.RHICmdList.UnlockBuffer(SampleWrapper->Sample->GetGPUBuffer()->GetRHI());
 			}
 		};
 	}

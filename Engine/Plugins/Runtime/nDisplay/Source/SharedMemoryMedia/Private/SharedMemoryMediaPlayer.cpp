@@ -707,10 +707,8 @@ bool FSharedMemoryMediaPlayer::DetermineNextSourceFrame(uint64 FrameNumber, uint
 	return false;
 }
 
-void FSharedMemoryMediaPlayer::JustInTimeSampleRender()
+void FSharedMemoryMediaPlayer::JustInTimeSampleRender(FRHICommandListImmediate& RHICmdList)
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
 	// We only allow this function to run once per frame.
 	if (LastFrameNumberThatUpdatedJustInTime == GFrameCounterRenderThread)
 	{

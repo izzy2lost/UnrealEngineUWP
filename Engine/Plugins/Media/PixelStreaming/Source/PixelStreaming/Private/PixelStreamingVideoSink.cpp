@@ -52,7 +52,7 @@ void FPixelStreamingVideoSink::OnFrame(const webrtc::VideoFrame& Frame)
     	    FScopeLock Lock(&RenderSyncContext);
 
     	    const FIntPoint FrameSize = FIntPoint(SizeX, SizeY);
-    	    FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+    	    FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
             FTextureRHIRef SourceTexture;
 
@@ -78,7 +78,7 @@ void FPixelStreamingVideoSink::OnFrame(const webrtc::VideoFrame& Frame)
     	                .SetInitialState(ERHIAccess::SRVMask);
 #endif
 
-            	SourceTexture = RHICreateTexture(RenderTargetTextureDesc);
+            	SourceTexture = RHICmdList.CreateTexture(RenderTargetTextureDesc);
 
             	// Find a free target-able texture from the render pool
             	GRenderTargetPool.FindFreeElement(RHICmdList,
@@ -90,7 +90,7 @@ void FPixelStreamingVideoSink::OnFrame(const webrtc::VideoFrame& Frame)
         		const FUpdateTextureRegion2D Region(0, 0, 0, 0, FrameSize.X, FrameSize.Y);
 
         		// Set the Pixel data of the webrtc Frame to the SourceTexture
-        		RHIUpdateTexture2D(SourceTexture, 0, Region, FrameSize.X * 4, Buffer.GetData());
+        		RHICmdList.UpdateTexture2D(SourceTexture, 0, Region, FrameSize.X * 4, Buffer.GetData());
 
             	OnFrame(SourceTexture);
         	}

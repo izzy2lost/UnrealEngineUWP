@@ -19,6 +19,7 @@ public:
 	* GPU copy methods
 	*/
 	virtual void OnRHIResourceCaptured_RenderingThread(
+		FRHICommandListImmediate& RHICmdList,
 		const FCaptureBaseData& InBaseData,
 		TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData,
 		FTextureRHIRef InTexture) override;

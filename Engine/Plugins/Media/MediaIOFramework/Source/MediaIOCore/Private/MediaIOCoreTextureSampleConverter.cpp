@@ -12,7 +12,7 @@ void FMediaIOCoreTextureSampleConverter::Setup(const TSharedPtr<FMediaIOCoreText
 	JITRProxySample = InSample;
 }
 
-bool FMediaIOCoreTextureSampleConverter::Convert(FTextureRHIRef& InDestinationTexture, const FConversionHints& Hints)
+bool FMediaIOCoreTextureSampleConverter::Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDestinationTexture, const FConversionHints& Hints)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(JITR);
 
@@ -31,7 +31,7 @@ bool FMediaIOCoreTextureSampleConverter::Convert(FTextureRHIRef& InDestinationTe
 	}
 
 	// Let the player pick a proper sample and render it into this proxy's texture (JITR)
-	return PlayerPtr->JustInTimeSampleRender_RenderThread(SamplePtr);
+	return PlayerPtr->JustInTimeSampleRender_RenderThread(RHICmdList, SamplePtr);
 }
 
 uint32 FMediaIOCoreTextureSampleConverter::GetConverterInfoFlags() const

@@ -334,15 +334,12 @@ struct FRHICommandCopyResourceDX11 final : public FRHICommand<FRHICommandCopyRes
 /**
  * "Converter" for textures - here: a copy from the decoder owned texture (possibly in another device) into a RHI one (as prep for the real conversion to RGB etc.)
  */
-bool FElectraTextureSample::Convert(FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
+bool FElectraTextureSample::Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
 {
 	LLM_SCOPE(ELLMTag::MediaStreaming);
 
-	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
-
 	SCOPED_DRAW_EVENT(RHICmdList, WinMediaOutputConvertTexture);
 	SCOPED_GPU_STAT(RHICmdList, MediaWinDecoder_Convert);
-
 
 	bool bHasTexture = !!VideoDecoderOutputPC->GetTexture();
 
@@ -428,7 +425,7 @@ bool FElectraTextureSample::Convert(FTextureRHIRef& InDstTexture, const FConvers
 			FRHITextureCreateDesc::Create2D(TEXT("FElectraTextureSample"), Dim, Format)
 			.SetFlags(ETextureCreateFlags::Dynamic | ((bCanUseSRGB && IsOutputSrgb()) ? ETextureCreateFlags::SRGB : ETextureCreateFlags::None));
 
-		Texture = RHICreateTexture(Desc);
+		Texture = RHICmdList.CreateTexture(Desc);
 	}
 
 	uint64 SyncValue = 0;

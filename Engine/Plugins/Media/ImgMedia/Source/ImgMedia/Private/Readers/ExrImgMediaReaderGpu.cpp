@@ -691,13 +691,13 @@ void FExrImgMediaReaderGpu::ReturnGpuBufferToPool(uint32 AllocSize, FStructuredB
 /* FExrMediaTextureSampleConverter implementation
  *****************************************************************************/
 
-bool FExrMediaTextureSampleConverter::Convert(FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
+bool FExrMediaTextureSampleConverter::Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
 {
 	FScopeLock ScopeLock(&ConverterCallbacksCriticalSection);
 	bool bExecutionSuccessful = false;
 	if (ConvertExrBufferCallback.IsBound())
 	{
-		bExecutionSuccessful = ConvertExrBufferCallback.Execute(FRHICommandListExecutor::GetImmediateCommandList(), InDstTexture, MipBuffers, GetParams());
+		bExecutionSuccessful = ConvertExrBufferCallback.Execute(RHICmdList, InDstTexture, MipBuffers, GetParams());
 	}
 	return bExecutionSuccessful;
 }

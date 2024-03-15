@@ -167,7 +167,7 @@ public:
 	 * Just in time sample rendering. This method is responsible for late sample picking,
 	 * then rendering it into the proxy sample provided.
 	 */
-	bool JustInTimeSampleRender_RenderThread(TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
+	bool JustInTimeSampleRender_RenderThread(FRHICommandListImmediate& RHICmdList, TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
 
 protected:
 
@@ -263,7 +263,7 @@ protected:
 	 * A wrapper method responsible for transferring of the sample textures into GPU memory based
 	 * on the current settings and hardware capabilities.
 	 */
-	void TransferTexture_RenderThread(const TSharedPtr<FMediaIOCoreTextureSampleBase>& Sample, const TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
+	void TransferTexture_RenderThread(FRHICommandListImmediate& RHICmdList, const TSharedPtr<FMediaIOCoreTextureSampleBase>& Sample, const TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample);
 
 protected:
 	/** Url used to open the media player. */

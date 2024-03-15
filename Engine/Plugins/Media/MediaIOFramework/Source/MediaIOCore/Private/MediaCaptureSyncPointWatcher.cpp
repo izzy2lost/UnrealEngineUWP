@@ -87,15 +87,15 @@ void FSyncPointWatcher::ProcessPendingCapture(const FPendingCaptureData& Data)
 
 		if (MediaCapture->UseAnyThreadCapture())
 		{
-			FMediaCaptureHelper::OnReadbackComplete(FRHICommandListExecutor::GetImmediateCommandList(), MediaCapture, Data.CapturingFrame);
+			FMediaCaptureHelper::OnReadbackComplete(MediaCapture, Data.CapturingFrame);
 		}
 		else
 		{
 			++MediaCapture->WaitingForRenderCommandExecutionCounter;
 
-			ENQUEUE_RENDER_COMMAND(MediaOutputCaptureReadbackComplete)([OwnerCapture = MediaCapture, CapturingFrame = Data.CapturingFrame](FRHICommandList& RHICommandList)
+			ENQUEUE_RENDER_COMMAND(MediaOutputCaptureReadbackComplete)([OwnerCapture = MediaCapture, CapturingFrame = Data.CapturingFrame](FRHICommandListImmediate&)
 			{
-				FMediaCaptureHelper::OnReadbackComplete(RHICommandList, OwnerCapture, CapturingFrame);
+				FMediaCaptureHelper::OnReadbackComplete(OwnerCapture, CapturingFrame);
 			});
 		}
 	}

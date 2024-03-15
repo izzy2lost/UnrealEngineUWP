@@ -138,7 +138,7 @@ protected:
 	 * @param ClearColor The clear color to use.
 	 * @param SrgbOutput Whether the output texture is in sRGB color space.
 	 */
-	void ClearTexture(const FLinearColor& ClearColor, bool SrgbOutput);
+	void ClearTexture(FRHICommandListImmediate& RHICmdList, const FLinearColor& ClearColor, bool SrgbOutput);
 
 	/**
 	 * Render the given texture sample by converting it on the GPU.
@@ -148,9 +148,9 @@ protected:
 	 * @param Number of mips
 	 * @see CopySample
 	 */
-	void ConvertSample(const TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& Sample, const FLinearColor& ClearColor, uint8 InNumMips);
+	void ConvertSample(FRHICommandListImmediate& RHICmdList, const TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& Sample, const FLinearColor& ClearColor, uint8 InNumMips);
 
-	void ConvertTextureToOutput(FRHITexture* InputTexture, const TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& Sample);
+	void ConvertTextureToOutput(FRHICommandListImmediate& RHICmdList, FRHITexture* InputTexture, const TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& Sample);
 
 	/**
 	 * Render the given texture sample by using it as or copying it to the render target.
@@ -161,7 +161,7 @@ protected:
 	 * @param Number of mips
 	 * @see ConvertSample
 	 */
-	void CopySample(const TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& Sample, const FLinearColor& ClearColor, uint8 InNumMips, const FGuid & TextureGUID);
+	void CopySample(FRHICommandListImmediate& RHICmdList, const TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& Sample, const FLinearColor& ClearColor, uint8 InNumMips, const FGuid & TextureGUID);
 
 	/** Calculates the current resource size and notifies the owner texture. */
 	void UpdateResourceSize();
@@ -171,12 +171,12 @@ protected:
 	 *
 	 * @param NewTexture The texture to set.
 	 */
-	void UpdateTextureReference(FRHITexture* NewTexture);
+	void UpdateTextureReference(FRHICommandListImmediate& RHICmdList, FRHITexture* NewTexture);
 
 	/**
 	 * Create/update intermediate render target as needed. If no color conversion is needed, the RT will be used as the output.
 	 */
-	void CreateIntermediateRenderTarget(const FIntPoint & InDim, EPixelFormat InPixelFormat, bool bInSRGB, const FLinearColor & InClearColor, uint8 InNumMips, bool bNeedsUAVSupport);
+	void CreateIntermediateRenderTarget(FRHICommandListImmediate& RHICmdList, const FIntPoint & InDim, EPixelFormat InPixelFormat, bool bInSRGB, const FLinearColor & InClearColor, uint8 InNumMips, bool bNeedsUAVSupport);
 	
 	/**
 	 * Caches next available sample from queue in MediaTexture owner to keep single consumer access
@@ -189,7 +189,7 @@ protected:
 	void SetupSampler();
 
 	/** Copy to local buffer from external texture */
-	void CopyFromExternalTexture(const TSharedPtr <IMediaTextureSample, ESPMode::ThreadSafe>& Sample, const FGuid & TextureGUID);
+	void CopyFromExternalTexture(FRHICommandListImmediate& RHICmdList, const TSharedPtr <IMediaTextureSample, ESPMode::ThreadSafe>& Sample, const FGuid & TextureGUID);
 
 	bool RequiresConversion(const TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& Sample, uint8 numMips) const;
 	bool RequiresConversion(const FTextureRHIRef& SampleTexture, const FIntPoint & OutputDim, uint8 numMips) const;

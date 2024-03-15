@@ -483,10 +483,8 @@ uint32 FElectraTextureSample::GetStride() const
 }
 
 
-bool FElectraTextureSample::Convert(FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
+bool FElectraTextureSample::Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
-
 	if (GDynamicRHI->RHIIsRenderingSuspended())
 	{
 		return false;
@@ -504,7 +502,7 @@ bool FElectraTextureSample::Convert(FTextureRHIRef& InDstTexture, const FConvers
 			FRHITextureCreateDesc::Create2D(TEXT("FMediaTextureResource"), SampleDim, VideoDecoderOutputAndroid->GetFormat())
 			.SetFlags(TexCreate_Dynamic)
 			.SetInitialState(ERHIAccess::SRVMask);
-		InputTexture = RHICreateTexture(Desc);
+		InputTexture = RHICmdList.CreateTexture(Desc);
 		if (!InputTexture.IsValid())
 		{
 			return false;
@@ -512,7 +510,7 @@ bool FElectraTextureSample::Convert(FTextureRHIRef& InDstTexture, const FConvers
 
 		// copy sample data to input render target
 		FUpdateTextureRegion2D Region(0, 0, 0, 0, SampleDim.X, SampleDim.Y);
-		RHIUpdateTexture2D(InputTexture, 0, Region, GetStride(), (const uint8*)GetBuffer());
+		RHICmdList.UpdateTexture2D(InputTexture, 0, Region, GetStride(), (const uint8*)GetBuffer());
 	}
 	else
 	{

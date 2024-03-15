@@ -647,39 +647,39 @@ void FMediaIOCorePlayerBase::RegisterSampleBuffer(const TSharedPtr<FMediaIOCoreT
 		RegisteredBuffers.Add(InSample->GetMutableBuffer());
 
 		// Enqueue buffer registration on the render  thread to ensure it happens before the call to TransferTexture
-		ENQUEUE_RENDER_COMMAND(RegisterSampleBuffers)([this, InSample](FRHICommandList& CommandList)
+		ENQUEUE_RENDER_COMMAND(RegisterSampleBuffers)([this, InSample](FRHICommandListImmediate&)
+		{
+			if (!InSample->GetMutableBuffer())
 			{
-				if (!InSample->GetMutableBuffer())
-				{
-					UE_LOG(LogMediaIOCore, Error, TEXT("A buffer was not available while performing a gpu texture transfer."));
-					return;
-				}
+				UE_LOG(LogMediaIOCore, Error, TEXT("A buffer was not available while performing a gpu texture transfer."));
+				return;
+			}
 
-				if (!InSample->GetTexture())
-				{
-					UE_LOG(LogMediaIOCore, Error, TEXT("A texture was not available while performing a gpu texture transfer."));
-					return;
-				}
+			if (!InSample->GetTexture())
+			{
+				UE_LOG(LogMediaIOCore, Error, TEXT("A texture was not available while performing a gpu texture transfer."));
+				return;
+			}
 
-				const uint32 TextureWidth = InSample->GetTexture()->GetDesc().Extent.X;
-				const uint32 TextureHeight = InSample->GetTexture()->GetDesc().Extent.Y;
-				uint32 TextureStride = TextureWidth * 4;
+			const uint32 TextureWidth = InSample->GetTexture()->GetDesc().Extent.X;
+			const uint32 TextureHeight = InSample->GetTexture()->GetDesc().Extent.Y;
+			uint32 TextureStride = TextureWidth * 4;
 
-				EPixelFormat Format = InSample->GetTexture()->GetFormat();
-				if (Format == PF_R32G32B32A32_UINT)
-				{
-					TextureStride *= 4;
-				}
+			EPixelFormat Format = InSample->GetTexture()->GetFormat();
+			if (Format == PF_R32G32B32A32_UINT)
+			{
+				TextureStride *= 4;
+			}
 
-				UE_LOG(LogMediaIOCore, Verbose, TEXT("Registering buffer %u"), reinterpret_cast<uintptr_t>(InSample->GetMutableBuffer()));
-				UE::GPUTextureTransfer::FRegisterDMABufferArgs Args;
-				Args.Buffer = InSample->GetMutableBuffer();
-				Args.Width = TextureWidth;
-				Args.Height = TextureHeight;
-				Args.Stride = TextureStride;
-				Args.PixelFormat = Format == PF_B8G8R8A8 ? UE::GPUTextureTransfer::EPixelFormat::PF_8Bit : UE::GPUTextureTransfer::EPixelFormat::PF_10Bit;
-				GPUTextureTransfer->RegisterBuffer(Args);
-			});
+			UE_LOG(LogMediaIOCore, Verbose, TEXT("Registering buffer %u"), reinterpret_cast<uintptr_t>(InSample->GetMutableBuffer()));
+			UE::GPUTextureTransfer::FRegisterDMABufferArgs Args;
+			Args.Buffer = InSample->GetMutableBuffer();
+			Args.Width = TextureWidth;
+			Args.Height = TextureHeight;
+			Args.Stride = TextureStride;
+			Args.PixelFormat = Format == PF_B8G8R8A8 ? UE::GPUTextureTransfer::EPixelFormat::PF_8Bit : UE::GPUTextureTransfer::EPixelFormat::PF_10Bit;
+			GPUTextureTransfer->RegisterBuffer(Args);
+		});
 	}
 	else
 	{
@@ -689,16 +689,16 @@ void FMediaIOCorePlayerBase::RegisterSampleBuffer(const TSharedPtr<FMediaIOCoreT
 
 void FMediaIOCorePlayerBase::UnregisterSampleBuffers()
 {
-	ENQUEUE_RENDER_COMMAND(UnregisterSampleBuffers)([TextureTransfer = GPUTextureTransfer, BuffersToUnregister = RegisteredBuffers](FRHICommandList& CommandList)
+	ENQUEUE_RENDER_COMMAND(UnregisterSampleBuffers)([TextureTransfer = GPUTextureTransfer, BuffersToUnregister = RegisteredBuffers](FRHICommandListImmediate&)
+	{
+		if (TextureTransfer)
 		{
-			if (TextureTransfer)
+			for (void* RegisteredBuffer : BuffersToUnregister)
 			{
-				for (void* RegisteredBuffer : BuffersToUnregister)
-				{
-					TextureTransfer->UnregisterBuffer(RegisteredBuffer);
-				}
+				TextureTransfer->UnregisterBuffer(RegisteredBuffer);
 			}
-		});
+		}
+	});
 
 	RegisteredBuffers.Reset();
 }
@@ -852,12 +852,12 @@ void FMediaIOCorePlayerBase::PreGPUTransfer(const TSharedPtr<FMediaIOCoreTexture
 	{
 		InSample->SetTexture(Texture);
 		InSample->SetDestructionCallback([MediaPlayerWeakPtr = TWeakPtr<FMediaIOCorePlayerBase>(AsShared())](TRefCountPtr<FRHITexture> InTexture)
+		{
+			if (TSharedPtr<FMediaIOCorePlayerBase> MediaPlayerPtr = MediaPlayerWeakPtr.Pin())
 			{
-				if (TSharedPtr<FMediaIOCorePlayerBase> MediaPlayerPtr = MediaPlayerWeakPtr.Pin())
-				{
-					MediaPlayerPtr->OnSampleDestroyed(InTexture);
-				}
-			});
+				MediaPlayerPtr->OnSampleDestroyed(InTexture);
+			}
+		});
 
 		RegisterSampleBuffer(InSample);
 	}
@@ -1132,7 +1132,7 @@ void FMediaIOCorePlayerBase::AddVideoSample(const TSharedRef<FMediaIOCoreTexture
 	}
 }
 
-bool FMediaIOCorePlayerBase::JustInTimeSampleRender_RenderThread(TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample)
+bool FMediaIOCorePlayerBase::JustInTimeSampleRender_RenderThread(FRHICommandListImmediate& RHICmdList, TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample)
 {
 	checkSlow(IsInRenderingThread());
 
@@ -1163,7 +1163,7 @@ bool FMediaIOCorePlayerBase::JustInTimeSampleRender_RenderThread(TSharedPtr<FMed
 	JITRProxySample->CopyConfiguration(SourceSample);
 
 	// Now we know which sample to use, transfer its texture
-	TransferTexture_RenderThread(SourceSample, JITRProxySample);
+	TransferTexture_RenderThread(RHICmdList, SourceSample, JITRProxySample);
 
 	// Update frame number so we won't render this sample again
 	LastEngineRTFrameThatUpdatedJustInTime = GFrameCounterRenderThread;
@@ -1310,10 +1310,8 @@ TSharedPtr<FMediaIOCoreTextureSampleBase> FMediaIOCorePlayerBase::PickSampleToRe
 	return PickSampleToRenderForTimeSynchronized_RenderThread(JITRProxySample);
 }
 
-void FMediaIOCorePlayerBase::TransferTexture_RenderThread(const TSharedPtr<FMediaIOCoreTextureSampleBase>& Sample, const TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample)
+void FMediaIOCorePlayerBase::TransferTexture_RenderThread(FRHICommandListImmediate& RHICmdList, const TSharedPtr<FMediaIOCoreTextureSampleBase>& Sample, const TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample)
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
-
 	// DMA P2P transfer
 	const bool bIsSampleAwaitingForGpuTransfer = Sample->IsAwaitingForGPUTransfer();
 	if (CanUseGPUTextureTransfer() && bIsSampleAwaitingForGpuTransfer)

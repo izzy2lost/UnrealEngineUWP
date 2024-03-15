@@ -77,7 +77,7 @@ private:
 	void InitializeTexture(EPixelFormat PixelFormat);
 	void SetupFromBuffer(const void* InBuffer, int32 InBufferSize);
 
-	virtual bool Convert(FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override;
+	virtual bool Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override;
 	virtual uint32 GetConverterInfoFlags() const
 	{
 		return ConverterInfoFlags_Default;

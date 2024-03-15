@@ -824,7 +824,7 @@ void UBlackmagicMediaCapture::OnFrameCaptured_AnyThread(const FCaptureBaseData& 
 	OnFrameCapturedInternal_AnyThread(InBaseData, InUserData, InResourceData);
 }
 
-void UBlackmagicMediaCapture::OnRHIResourceCaptured_RenderingThread(const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
+void UBlackmagicMediaCapture::OnRHIResourceCaptured_RenderingThread(FRHICommandListImmediate& /*RHICmdList*/, const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UBlackmagicMediaCapture::OnRHIResourceCaptured_RenderingThread);
 	OnRHIResourceCaptured_AnyThread(InBaseData, InUserData, InTexture);

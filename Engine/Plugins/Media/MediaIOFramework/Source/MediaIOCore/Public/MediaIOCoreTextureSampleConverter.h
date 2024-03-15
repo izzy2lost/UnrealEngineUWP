@@ -29,7 +29,7 @@ public:
 
 public:
 	//~ Begin IMediaTextureSampleConverter interface
-	virtual bool Convert(FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override;
+	virtual bool Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override;
 	virtual uint32 GetConverterInfoFlags() const override;
 	//~ End IMediaTextureSampleConverter interface
 

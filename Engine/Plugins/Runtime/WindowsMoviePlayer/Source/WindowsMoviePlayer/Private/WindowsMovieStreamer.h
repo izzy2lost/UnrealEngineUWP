@@ -53,7 +53,7 @@ private:
 	/** Cleans up rendering resources once movies are done playing */
 	void CleanupRenderingResources();
 	/** Use shader to generate final image */
-	void ConvertSample();
+	void ConvertSample(FRHICommandListImmediate& RHICmdList);
 
 private:
 	/** A list of all the stored movie paths we have enqueued for playing */

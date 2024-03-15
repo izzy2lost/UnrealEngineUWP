@@ -104,7 +104,7 @@ struct FRHICommandCopyResource final : public FRHICommand<FRHICommandCopyResourc
 	}
 };
 
-bool FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread(FWmfMediaHardwareVideoDecodingTextureSample* InSample, FTextureRHIRef InDstTexture)
+bool FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread(FRHICommandListImmediate& RHICmdList, FWmfMediaHardwareVideoDecodingTextureSample* InSample, FTextureRHIRef InDstTexture)
 {
 	LLM_SCOPE(ELLMTag::MediaStreaming);
 
@@ -113,7 +113,6 @@ bool FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread
 		return false;
 	}
 
-	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	check(InSample);
 	
 	TComPtr<ID3D11Texture2D> SampleTexture = InSample->GetSourceTexture();
@@ -148,7 +147,7 @@ bool FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread
 			uint32 Stride = InSample->GetStride();
 			uint32 Height = InSample->GetDim().Y;
 			FUpdateTextureRegion2D Region(0, 0, 0, 0, InSample->GetDim().X, Height);
-			RHIUpdateTexture2D(SampleDestinationTexture, 0, Region, Stride, Data);
+			RHICmdList.UpdateTexture2D(SampleDestinationTexture, 0, Region, Stride, Data);
 		}
 		else
 		{
@@ -251,7 +250,7 @@ bool FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread
 				uint32 Stride = InSample->GetDim().X * 2;
 				uint32 Height = InSample->GetDim().Y;
 				FUpdateTextureRegion2D Region(0, 0, 0, 0, InSample->GetDim().X, Height);
-				RHIUpdateTexture2D(SampleDestinationAlphaTexture, 0, Region, Stride, Data);
+				RHICmdList.UpdateTexture2D(SampleDestinationAlphaTexture, 0, Region, Stride, Data);
 			}
 			
 			TShaderMapRef< FHardwareVideoDecodingVS > VertexShader(GlobalShaderMap);

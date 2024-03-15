@@ -212,7 +212,7 @@ void FMediaCaptureHelper::ExecuteSyncPointPass(FRHICommandListImmediate& RHICmdL
 	}
 }
 
-void FMediaCaptureHelper::OnReadbackComplete(FRHICommandList& RHICmdList, UMediaCapture* MediaCapture, TSharedPtr<UE::MediaCaptureData::FCaptureFrame> ReadyFrame)
+void FMediaCaptureHelper::OnReadbackComplete(UMediaCapture* MediaCapture, TSharedPtr<UE::MediaCaptureData::FCaptureFrame> ReadyFrame)
 {
 	UE_LOG(LogMediaIOCore, Verbose, TEXT("[%s - %s] - Processing pending frame %d"), *MediaCapture->GetMediaOutputName(), *FThreadManager::GetThreadName(FPlatformTLS::GetCurrentThreadId()), ReadyFrame->GetId());
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMediaCapture::OnReadbackComplete);
@@ -229,6 +229,8 @@ void FMediaCaptureHelper::OnReadbackComplete(FRHICommandList& RHICmdList, UMedia
 		// Path where resource ready callback (readback / rhi capture) is on render thread (old method)
 		if (IsInRenderingThread())
 		{
+			FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+
 			// Scoped gpu mask shouldn't be needed for readback since we specify the gpu mask used during copy when we lock
 			// Keeping it for old render thread path
 			FRHIGPUMask GPUMask;
@@ -255,14 +257,14 @@ void FMediaCaptureHelper::OnReadbackComplete(FRHICommandList& RHICmdList, UMedia
 
 					TRACE_CPUPROFILER_EVENT_SCOPE(UMediaCapture::RHIResourceCaptured);
 					TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("MediaCapture Output Frame %d"), ReadyFrame->CaptureBaseData.SourceFrameNumberRenderThread % 10));
-					SCOPE_CYCLE_COUNTER(STAT_MediaCaptureHelper_RenderThread_RHI_CaptureCallback)
+					SCOPE_CYCLE_COUNTER(STAT_MediaCaptureHelper_RenderThread_RHI_CaptureCallback);
 
-						MediaCapture->OnRHIResourceCaptured_RenderingThread(ReadyFrame->CaptureBaseData, ReadyFrame->UserData, ReadyFrame->GetTextureResource());
+					MediaCapture->OnRHIResourceCaptured_RenderingThread(RHICmdList, ReadyFrame->CaptureBaseData, ReadyFrame->UserData, ReadyFrame->GetTextureResource());
 				}
 				else
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(UMediaCapture::RHIResourceCaptured);
-					MediaCapture->OnRHIResourceCaptured_RenderingThread(ReadyFrame->CaptureBaseData, ReadyFrame->UserData, ReadyFrame->GetBufferResource());
+					MediaCapture->OnRHIResourceCaptured_RenderingThread(RHICmdList, ReadyFrame->CaptureBaseData, ReadyFrame->UserData, ReadyFrame->GetBufferResource());
 				}
 			}
 			else
@@ -273,7 +275,7 @@ void FMediaCaptureHelper::OnReadbackComplete(FRHICommandList& RHICmdList, UMedia
 
 				// Readback should be ready since we're after the sync point.
 				SCOPE_CYCLE_COUNTER(STAT_MediaCaptureHelper_RenderThread_LockResource);
-				ColorDataBuffer = ReadyFrame->Lock(FRHICommandListExecutor::GetImmediateCommandList(), RowStride);
+				ColorDataBuffer = ReadyFrame->Lock(RHICmdList, RowStride);
 
 				if (ensure(ColorDataBuffer))
 				{

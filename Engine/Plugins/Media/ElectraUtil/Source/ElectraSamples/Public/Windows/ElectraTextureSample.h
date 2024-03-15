@@ -56,7 +56,7 @@ public:
 private:
 	virtual float GetSampleDataScale(bool b10Bit) const override;
 
-	virtual bool Convert(FTextureRHIRef & InDstTexture, const FConversionHints & Hints) override;
+	virtual bool Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override;
 	virtual uint32 GetConverterInfoFlags() const
 	{
 		return ConverterInfoFlags_PreprocessOnly;

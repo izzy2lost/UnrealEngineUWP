@@ -185,7 +185,7 @@ class FExrMediaTextureSampleConverter: public IMediaTextureSampleConverter
 {
 
 public:
-	virtual bool Convert(FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override;
+	virtual bool Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override;
 	virtual ~FExrMediaTextureSampleConverter() {};
 	
 	void AddCallback(FExrConvertBufferCallback&& Callback) 
