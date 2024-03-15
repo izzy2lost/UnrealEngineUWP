@@ -10,6 +10,17 @@
 #include "PhysicsMoverSimulationTypes.generated.h"
 
 //////////////////////////////////////////////////////////////////////////
+
+namespace Chaos
+{
+	class FCharacterGroundConstraint;
+	class FCharacterGroundConstraintHandle;
+	class FCollisionContactModifier;
+}
+
+class UPrimitiveComponent;
+
+//////////////////////////////////////////////////////////////////////////
 // Debug
 
 struct FPhysicsDrivenMotionDebugParams
@@ -32,8 +43,6 @@ struct FPhysicsMoverSimulationTickParams
 	float SimTimeSeconds = 0.0f;
 	float DeltaTimeSeconds = 0.0f;
 };
-
-namespace Chaos { class FCharacterGroundConstraintHandle; }
 
 struct FPhysicsMoverAsyncInput
 {
@@ -60,8 +69,14 @@ struct FPhysicsMoverAsyncOutput
 //////////////////////////////////////////////////////////////////////////
 // Movement modes
 
+struct FPhysicsMoverSimulationContactModifierParams
+{
+	Chaos::FCharacterGroundConstraintHandle* ConstraintHandle;
+	UPrimitiveComponent* UpdatedPrimitive;
+};
+
 /**
- * PhysicsDrivenMotionMode: Interface for movement modes that are for physics driven motion
+ * UPhysicsCharacterMovementModeInterface: Interface for movement modes that are for physics driven motion
  * A physics driven motion mode needs to update the character ground constraint with the
  * parameters associated with that mode
  */
@@ -71,14 +86,16 @@ class UPhysicsCharacterMovementModeInterface : public UInterface
 	GENERATED_BODY()
 };
 
-namespace Chaos { class FCharacterGroundConstraint; }
-
 class IPhysicsCharacterMovementModeInterface
 {
 	GENERATED_BODY()
 
 public:
+	// Update the constraint settings on the game thread
 	virtual void UpdateConstraintSettings(Chaos::FCharacterGroundConstraint& Constraint) const = 0;
+
+	// Optionally run contact modification on the physics thread
+	virtual void OnContactModification_Internal(const FPhysicsMoverSimulationContactModifierParams& Params, Chaos::FCollisionContactModifier& Modifier) const {};
 };
 
 //////////////////////////////////////////////////////////////////////////
