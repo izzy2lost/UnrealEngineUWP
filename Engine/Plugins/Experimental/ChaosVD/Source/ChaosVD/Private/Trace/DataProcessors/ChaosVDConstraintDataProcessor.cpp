@@ -5,7 +5,6 @@
 #include "ChaosVDRecording.h"
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
-#include "Serialization/MemoryReader.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
 FChaosVDConstraintDataProcessor::FChaosVDConstraintDataProcessor() : IChaosVDDataProcessor(FChaosVDConstraint::WrapperTypeName)
@@ -20,13 +19,8 @@ bool FChaosVDConstraintDataProcessor::ProcessRawData(const TArray<uint8>& InData
 		return false;
 	}
 
-	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
-	{
-		return false;
-	}
-
 	FChaosVDConstraint RecordedConstraint;
-	const bool bSuccess = ReadDataFromBuffer(InData, RecordedConstraint, ProviderSharedPtr->GetNameTable().ToSharedRef());
+	const bool bSuccess = Chaos::VisualDebugger::ReadDataFromBuffer(InData, RecordedConstraint, ProviderSharedPtr.ToSharedRef());
 
 	if (bSuccess)
 	{

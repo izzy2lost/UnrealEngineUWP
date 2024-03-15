@@ -4,7 +4,6 @@
 
 #include "ChaosVDRecording.h"
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
-#include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "Trace/ChaosVDTraceProvider.h"
@@ -21,13 +20,8 @@ bool FChaosVDTraceParticleDataProcessor::ProcessRawData(const TArray<uint8>& InD
 		return false;
 	}
 
-	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
-	{
-		return false;
-	}
-
 	TSharedPtr<FChaosVDParticleDataWrapper> ParticleData = MakeShared<FChaosVDParticleDataWrapper>();
-	const bool bSuccess = ReadDataFromBuffer(InData, *ParticleData, ProviderSharedPtr->GetNameTable().ToSharedRef());
+	const bool bSuccess = Chaos::VisualDebugger::ReadDataFromBuffer(InData, *ParticleData, ProviderSharedPtr.ToSharedRef());
 
 	if (bSuccess)
 	{

@@ -149,6 +149,13 @@ namespace Chaos
 using FChaosVDImplicitObjectWrapper = FChaosVDImplicitObjectDataWrapper<Chaos::FImplicitObjectPtr, Chaos::FChaosArchive>;
 using FChaosVDSerializableNameTable = Chaos::VisualDebugger::FChaosVDSerializableNameTable;
 
+enum class EChaosVDTraceBinaryDataOptions
+{
+	None = 0,
+	ForceTrace = 1 << 0
+};
+ENUM_CLASS_FLAGS(EChaosVDTraceBinaryDataOptions)
+
 /** Class containing  all the Tracing logic to record data for the Chaos Visual Debugger tool */
 class FChaosVisualDebuggerTrace
 {
@@ -223,7 +230,7 @@ public:
 	 * @param InData Data to trace
 	 * @param TypeName Type name the data represents. It is used during Trace Analysis serialize it back (this is not automatic)
 	 */
-	static CHAOS_API void TraceBinaryData(TConstArrayView<uint8> InData, FStringView TypeName);
+	static CHAOS_API void TraceBinaryData(TConstArrayView<uint8> InData, FStringView TypeName, EChaosVDTraceBinaryDataOptions Options = EChaosVDTraceBinaryDataOptions::None);
 
 	/**
 	 * Serializes the implicit object contained in the wrapper and trace its it as binary data
@@ -299,6 +306,7 @@ private:
 	static void Reset();
 
 	static void HandleRecordingStop();
+	static void TraceArchiveHeader();
 	static void HandleRecordingStart();
 
 	/** Sets up the tracer to perform a full capture in the next solver frame */

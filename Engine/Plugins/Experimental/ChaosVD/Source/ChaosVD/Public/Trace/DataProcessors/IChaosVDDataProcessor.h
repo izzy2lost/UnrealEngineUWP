@@ -2,36 +2,57 @@
 
 #pragma once
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
+#include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "Containers/Array.h"
 #include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
 #include "Templates/SharedPointer.h"
+#include "Trace/ChaosVDTraceProvider.h"
 
-class FChaosVDTraceProvider;
+#include <type_traits>
+
+struct FFortniteSeasonBranchObjectVersion;
 
 namespace Chaos::VisualDebugger
 {
-	template<typename TDataToSerialize>
-	bool ReadDataFromBuffer(const TArray<uint8>& InDataBuffer, TDataToSerialize& Data, const TSharedRef<FChaosVDSerializableNameTable>& InNameTableInstance)
+	template<typename TArchive>
+	void ApplyHeaderDataToArchive(TArchive& InOutArchive, const FChaosVDArchiveHeader& InRecordedHeader)
 	{
-		FChaosVDMemoryReader MemReader(InDataBuffer, InNameTableInstance);
-		MemReader.SetShouldSkipUpdateCustomVersion(true);
-
-		Data.Serialize(MemReader);
-
-		return !MemReader.IsError() && !MemReader.IsCriticalError();
+		InOutArchive.SetCustomVersions(InRecordedHeader.CustomVersionContainer);
+		InOutArchive.SetEngineVer(InRecordedHeader.EngineVersion);
+		InOutArchive.SetShouldSkipUpdateCustomVersion(true);
 	}
 
-	template<typename TDataToSerialize, typename TArchive>
-	bool ReadDataFromBuffer(const TArray<uint8>& InDataBuffer, TDataToSerialize& Data, const TSharedRef<FChaosVDSerializableNameTable>& InNameTableInstance)
+	template<typename TDataToSerialize>
+	bool ReadDataFromBuffer(const TArray<uint8>& InDataBuffer, TDataToSerialize& Data, const TSharedRef<FChaosVDTraceProvider>& DataProvider)
 	{
-		FChaosVDMemoryReader MemReader(InDataBuffer, InNameTableInstance);
-		TArchive Ar(MemReader);
-		Ar.SetShouldSkipUpdateCustomVersion(true);
+		const TSharedPtr<FChaosVDRecording> RecordingInstance = DataProvider->GetRecordingForSession();
+		const TSharedPtr<FChaosVDSerializableNameTable> NameTableInstance = RecordingInstance ? RecordingInstance->GetNameTableInstance() : nullptr;
 
-		Data.Serialize(Ar);
+		if (!ensure(NameTableInstance.IsValid()))
+		{
+			return false;
+		}
+		
+		FChaosVDMemoryReader MemReader(InDataBuffer, NameTableInstance.ToSharedRef());
+		const FChaosVDArchiveHeader& RecordedHeader =  RecordingInstance->GetHeaderData();
+		ApplyHeaderDataToArchive(MemReader, RecordedHeader);
 
-		return !Ar.IsError() && !Ar.IsCriticalError();
+		bool bSuccess = false;
+
+		// We need to use FChaosArchive as proxy to properly read serialized Implicit objects
+		// Note: I don't expect we will need a proxy archive for other types, but if we end up in that situation, we should use to switch to use traits 
+		if constexpr (std::is_same_v<TDataToSerialize, FChaosVDImplicitObjectWrapper>)
+		{
+			FChaosArchive Ar(MemReader);
+			bSuccess = Data.Serialize(Ar);
+		}
+		else
+		{
+			bSuccess = Data.Serialize(MemReader);
+		}
+
+		return bSuccess;
 	}
 }
 

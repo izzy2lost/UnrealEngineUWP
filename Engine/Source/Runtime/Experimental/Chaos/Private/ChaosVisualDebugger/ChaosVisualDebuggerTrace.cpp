@@ -546,9 +546,9 @@ void FChaosVisualDebuggerTrace::TraceSolverSimulationSpace(const Chaos::FRigidTr
 		<< CVD_TRACE_ROTATOR_ON_EVENT(ChaosVDSolverSimulationSpace, Rotation, Transform.GetRotation());
 }
 
-void FChaosVisualDebuggerTrace::TraceBinaryData(TConstArrayView<uint8> InData, FStringView TypeName)
+void FChaosVisualDebuggerTrace::TraceBinaryData(TConstArrayView<uint8> InData, FStringView TypeName, EChaosVDTraceBinaryDataOptions Options)
 {
-	if (!IsTracing())
+	if (!IsTracing() && !EnumHasAnyFlags(Options, EChaosVDTraceBinaryDataOptions::ForceTrace))
 	{
 		return;
 	}
@@ -831,6 +831,22 @@ void FChaosVisualDebuggerTrace::HandleRecordingStop()
 	Reset();
 }
 
+void FChaosVisualDebuggerTrace::TraceArchiveHeader()
+{
+	using namespace Chaos::VisualDebugger;
+
+	TArray<uint8> HeaderDataBuffer;
+
+	FMemoryWriter MemWriterAr(HeaderDataBuffer);
+
+	FChaosVDArchiveHeader::Current().Serialize(MemWriterAr);
+
+	// We intentionally trace the header when the recording start was requested but we are not in a tracing state
+	// So we need to force a trace
+	// We do this to ensure the header is traced before any other binary data is generated, as we will need it to be read first on load 
+	TraceBinaryData(HeaderDataBuffer, FChaosVDArchiveHeader::WrapperTypeName, EChaosVDTraceBinaryDataOptions::ForceTrace);
+}
+
 void FChaosVisualDebuggerTrace::HandleRecordingStart()
 {
 	Reset();
@@ -859,7 +875,9 @@ void FChaosVisualDebuggerTrace::HandleRecordingStart()
 			return true;
 		});
 	}
-	
+
+	TraceArchiveHeader();
+
 	bIsTracing = true;
 }
 

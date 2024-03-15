@@ -7,6 +7,9 @@
 FChaosVDRecording::FChaosVDRecording()
 {
 	NameTable = MakeShared<Chaos::VisualDebugger::FChaosVDSerializableNameTable>();
+
+	// Start with a default header data as a fallback
+	HeaderData = Chaos::VisualDebugger::FChaosVDArchiveHeader::Current();
 }
 
 int32 FChaosVDRecording::GetAvailableGameFramesNumber() const
@@ -438,6 +441,12 @@ void FChaosVDRecording::AddImplicitObject(const uint32 ID, const Chaos::FImplici
 	{
 		AddImplicitObject_Internal(ID, Chaos::FConstImplicitObjectPtr(InImplicitObject));
 	}
+}
+
+bool FChaosVDRecording::IsEmpty() const
+{
+	FReadScopeLock ReadLock(RecordingDataLock);
+	return GetAvailableSolversNumber_AssumesLocked() == 0 && GetAvailableGameFrames_AssumesLocked().Num() == 0 && ImplicitObjects.Num() == 0;
 }
 
 void FChaosVDRecording::AddImplicitObject(const uint32 ID, const Chaos::FImplicitObject* InImplicitObject)

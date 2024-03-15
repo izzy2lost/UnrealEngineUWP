@@ -17,16 +17,10 @@ bool FChaosVDMidPhaseDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 	{
 		return false;
 	}
-	
-	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
-	{
-		return false;
-	}
-
 
 	TSharedPtr<FChaosVDParticlePairMidPhase> MidPhase = MakeShared<FChaosVDParticlePairMidPhase>();
 
-	const bool bSuccess = ReadDataFromBuffer(InData, *MidPhase, ProviderSharedPtr->GetNameTable().ToSharedRef());
+	const bool bSuccess = Chaos::VisualDebugger::ReadDataFromBuffer(InData, *MidPhase, ProviderSharedPtr.ToSharedRef());
 
 	if (bSuccess)
 	{

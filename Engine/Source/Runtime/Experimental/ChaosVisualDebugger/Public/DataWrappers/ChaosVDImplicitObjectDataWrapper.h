@@ -17,12 +17,14 @@ struct FChaosVDImplicitObjectDataWrapper
 	uint32 Hash;
 	SerializableImplicitType ImplicitObject;
 
-	void Serialize(ArchiveType& Ar);
+	bool Serialize(ArchiveType& Ar);
 };
 
 template <class SerializableImplicitType, class ArchiveType>
-void FChaosVDImplicitObjectDataWrapper<SerializableImplicitType, ArchiveType>::Serialize(ArchiveType& Ar)
+bool FChaosVDImplicitObjectDataWrapper<SerializableImplicitType, ArchiveType>::Serialize(ArchiveType& Ar)
 {
 	Ar << Hash;
 	Ar << ImplicitObject;
+
+	return !Ar.IsError();
 }

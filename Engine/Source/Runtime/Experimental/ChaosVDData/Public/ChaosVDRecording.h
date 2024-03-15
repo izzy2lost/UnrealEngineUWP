@@ -10,6 +10,7 @@
 #include "Containers/UnrealString.h"
 #include "Chaos/ImplicitFwd.h"
 #include "Chaos/ImplicitObject.h"
+#include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
 #include "DataWrappers/ChaosVDJointDataWrappers.h"
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
 
@@ -267,7 +268,17 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	/** Sets if this recording is being populated from a live session */
 	void SetIsLive(bool bNewIsLive) { bIsLive = bNewIsLive; }
 
+	/** Returns the name table instances used to de-duplicate strings serialization */
 	TSharedPtr<Chaos::VisualDebugger::FChaosVDSerializableNameTable> GetNameTableInstance() const { return NameTable; }
+
+	/** Returns the FArchive header used to read the serialized binary data */
+	const Chaos::VisualDebugger::FChaosVDArchiveHeader& GetHeaderData() const { return HeaderData; }
+	
+	/** Sets the FArchive header used to read the serialized binary data */
+	void SetHeaderData(const Chaos::VisualDebugger::FChaosVDArchiveHeader& InNewHeader) { HeaderData = InNewHeader; }
+
+	/** Returns true if this recording does not have any usable data */
+	bool IsEmpty() const;
 
 protected:
 
@@ -302,6 +313,8 @@ protected:
 
 	/** Map that temporary holds generated particle data during the key frame generation process, keeping its memory allocation between generated frames*/
 	TMap<int32, TSharedPtr<FChaosVDParticleDataWrapper>> ParticlesOnCurrentGeneratedKeyframe;
+
+	Chaos::VisualDebugger::FChaosVDArchiveHeader HeaderData;
 
 	friend class FChaosVDTraceProvider;
 	friend class FChaosVDTraceImplicitObjectProcessor;
