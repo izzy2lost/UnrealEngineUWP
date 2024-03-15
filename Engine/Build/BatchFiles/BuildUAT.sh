@@ -47,6 +47,8 @@ elif [ -f ../Intermediate/Build/AutomationToolLastBuildTime ]; then
     Programs/Shared/EpicGames.UBA \
     Programs/Shared/EpicGames.UHT \
     Programs/UnrealBuildTool \
+    ../Restricted/**/Source/Programs/Shared \
+    ../Platforms/*/Source/Programs/Shared \
     ../Restricted/**/Source/Programs/UnrealBuildTool \
     ../Platforms/*/Source/Programs/UnrealBuildTool \
     ../Restricted/**/Source/Programs/AutomationTool \
