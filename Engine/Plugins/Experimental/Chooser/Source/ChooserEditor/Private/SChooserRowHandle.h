@@ -30,7 +30,7 @@ public:
 	SLATE_ARGUMENT(uint32, RowIndex)
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, bool bShowImage);
+	void Construct(const FArguments& InArgs);
 	
 	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
 	FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;

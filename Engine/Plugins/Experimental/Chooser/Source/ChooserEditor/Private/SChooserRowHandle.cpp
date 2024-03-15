@@ -21,38 +21,35 @@ namespace UE::ChooserEditor
 		return Operation;
 	}
 	
-	void SChooserRowHandle::Construct(const FArguments& InArgs, bool bShowImage)
+	void SChooserRowHandle::Construct(const FArguments& InArgs)
 	{
 		ChooserEditor = InArgs._ChooserEditor;
 		RowIndex = InArgs._RowIndex;
 
-		if (bShowImage)
-		{
-			ChildSlot
+		ChildSlot
+		[
+			SNew(SOverlay)
+			+ SOverlay::Slot()
 			[
-				SNew(SOverlay)
-				+ SOverlay::Slot()
+				SNew(SBox) .Padding(0.0f) .HAlign(HAlign_Center) .VAlign(VAlign_Center) .WidthOverride(16.0f)
 				[
-					SNew(SBox) .Padding(0.0f) .HAlign(HAlign_Center) .VAlign(VAlign_Center) .WidthOverride(16.0f)
-					[
-						SNew(SImage)
-						.Image(FCoreStyle::Get().GetBrush("VerticalBoxDragIndicatorShort"))
-					]
+					SNew(SImage)
+					.Image(FCoreStyle::Get().GetBrush("VerticalBoxDragIndicatorShort"))
 				]
-				+ SOverlay::Slot()
+			]
+			+ SOverlay::Slot()
+			[
+				SNew(SBox).Padding(0.0f) .HAlign(HAlign_Center) .VAlign(VAlign_Center) .WidthOverride(16.0f)
 				[
-					SNew(SBox).Padding(0.0f) .HAlign(HAlign_Center) .VAlign(VAlign_Center) .WidthOverride(16.0f)
-					[
-						SNew(SImage)
-						.Visibility_Lambda([this]()
-						{
-							return ChooserEditor->GetChooser()->bDebugTestValuesValid && RowIndex == ChooserEditor->GetChooser()->GetDebugSelectedRow() ? EVisibility::HitTestInvisible : EVisibility::Hidden;
-						})
-						.Image(FAppStyle::Get().GetBrush("Icons.ArrowRight"))
-					]
+					SNew(SImage)
+					.Visibility_Lambda([this]()
+					{
+						return ChooserEditor->GetChooser()->bDebugTestValuesValid && RowIndex == ChooserEditor->GetChooser()->GetDebugSelectedRow() ? EVisibility::HitTestInvisible : EVisibility::Hidden;
+					})
+					.Image(FAppStyle::Get().GetBrush("Icons.ArrowRight"))
 				]
-			];
-		}
+			]
+		];
 	}
 	
 	FReply SChooserRowHandle::OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
@@ -72,7 +69,7 @@ namespace UE::ChooserEditor
 	FReply SChooserRowHandle::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 	{
 		// act as a move handle if the row is already selected, and if there are multiselect modifiers pressed
-		if (MouseEvent.GetEffectingButton() != EKeys::RightMouseButton && !MouseEvent.IsControlDown() && !MouseEvent.IsShiftDown()
+		if (!MouseEvent.IsControlDown() && !MouseEvent.IsShiftDown()
 			&& ChooserEditor->IsRowSelected(RowIndex))
 		{
 			return FReply::Handled().DetectDrag(SharedThis(this), EKeys::LeftMouseButton);

@@ -18,17 +18,11 @@ public:
 	}
 
 	TSharedPtr<FUICommandInfo> EditChooserSettings;
-	TSharedPtr<FUICommandInfo> RemoveDisabledData;
-	TSharedPtr<FUICommandInfo> Delete;
-	TSharedPtr<FUICommandInfo> Disable;
 
 	/** Initialize commands */
 	virtual void RegisterCommands() override
 	{
 		UI_COMMAND(EditChooserSettings, "Table Settings", "Edit the root properties of the ChooserTable asset.", EUserInterfaceActionType::Button, FInputChord())
-		UI_COMMAND(RemoveDisabledData, "Remove Disabled Data", "Delete all data that's marked as disabled.", EUserInterfaceActionType::Button, FInputChord())
-		UI_COMMAND(Delete, "Delete", "Delete the selected Rows or Column.", EUserInterfaceActionType::Button, FInputChord())
-		UI_COMMAND(Disable, "Disable", "Disable the selected Rows or Column.", EUserInterfaceActionType::Check, FInputChord())
 	}
 };
 	
