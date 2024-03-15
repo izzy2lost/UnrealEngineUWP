@@ -17,9 +17,6 @@ class UStructCookedMetaData;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnStructChanged, UUserDefinedStruct*);
 
-// this is fired when the user defined type has finished loading in the serialize method (not after postload)
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnStructLoaded, UUserDefinedStruct*);
-
 UENUM()
 enum EUserDefinedStructureStatus : int
 {
@@ -94,17 +91,18 @@ public:
 	ENGINE_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	ENGINE_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+	ENGINE_API virtual void PostLoad() override;
 	ENGINE_API virtual void PreSaveRoot(FObjectPreSaveRootContext ObjectSaveContext) override;
 	ENGINE_API virtual void PostSaveRoot(FObjectPostSaveRootContext ObjectSaveContext) override;
 	// End of UObject interface.
+
+	/** Creates a new guid if needed */
+	ENGINE_API void ValidateGuid();
 
 	ENGINE_API virtual void OnChanged();
 
 	friend UUserDefinedStructEditorData;
 #endif	// WITH_EDITOR
-
-	/** Creates a new guid if needed */
-	ENGINE_API void ValidateGuid();
 
 	// UObject interface.
 	ENGINE_API virtual void Serialize(FStructuredArchive::FRecord Record) override;
@@ -136,15 +134,6 @@ public:
 
 	/** Inspects properties and default values, setting appropriate StructFlags */
 	ENGINE_API void UpdateStructFlags();
-
-public:
-	ENGINE_API FORCEINLINE static FOnStructLoaded& OnStructLoaded() { return LoadedEvent; }
-
-protected:
-
-	ENGINE_API static FOnStructLoaded LoadedEvent;
-
-public:
 
 #if WITH_EDITORONLY_DATA
 	FORCEINLINE FOnStructChanged& OnStructChanged() { return ChangedEvent; }

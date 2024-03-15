@@ -309,9 +309,6 @@ void FRigVMRegistry::Initialize()
 				AssetRegistryModule->Get().OnAssetRemoved().RemoveAll(this);
 				AssetRegistryModule->Get().OnAssetRenamed().RemoveAll(this);
 			}
-
-			UUserDefinedStruct::OnStructLoaded().RemoveAll(this);
-			UUserDefinedEnum::OnEnumLoaded().RemoveAll(this);
 		}
 
 		IPluginManager::Get().OnPluginUnmounted().RemoveAll(this);
@@ -322,9 +319,6 @@ void FRigVMRegistry::Initialize()
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 	AssetRegistryModule.Get().OnAssetRemoved().AddRaw(this, &FRigVMRegistry::OnAssetRemoved);
 	AssetRegistryModule.Get().OnAssetRenamed().AddRaw(this, &FRigVMRegistry::OnAssetRenamed);
-
-	UUserDefinedStruct::OnStructLoaded().AddRaw(this, &FRigVMRegistry::OnUserDefinedStructLoaded);
-	UUserDefinedEnum::OnEnumLoaded().AddRaw(this, &FRigVMRegistry::OnUserDefinedEnumLoaded);
 
 	IPluginManager::Get().OnPluginUnmounted().AddRaw(this, &FRigVMRegistry::OnPluginUnloaded);
 	
@@ -441,40 +435,6 @@ void FRigVMRegistry::OnAssetRemoved(const FAssetData& InAssetData)
 	if (RemoveType(InAssetData.ToSoftObjectPath(), InAssetData.GetClass()))
 	{
 		OnRigVMRegistryChangedDelegate.Broadcast();
-	}
-}
-
-void FRigVMRegistry::OnUserDefinedStructLoaded(UUserDefinedStruct* InLoadedStruct)
-{
-	OnUserDefinedTypeLoaded(InLoadedStruct);
-}
-
-void FRigVMRegistry::OnUserDefinedEnumLoaded(UUserDefinedEnum* InLoadedEnum)
-{
-	OnUserDefinedTypeLoaded(InLoadedEnum);
-}
-
-void FRigVMRegistry::OnUserDefinedTypeLoaded(UObject* InLoadedTypeObject)
-{
-	check(InLoadedTypeObject);
-	
-	FScopeLock FindOrAddTypeLock(&FindOrAddTypeMutex);
-	
-	const FSoftObjectPath Path(InLoadedTypeObject);
-	if(!UserDefinedTypeToIndex.Contains(Path))
-	{
-		if(UScriptStruct* Struct = Cast<UScriptStruct>(InLoadedTypeObject))
-		{
-			(void)FindOrAddType_NoLock(Struct, false);
-		}
-		else if(UEnum* Enum = Cast<UEnum>(InLoadedTypeObject))
-		{
-			(void)FindOrAddType_NoLock(Enum, false);
-		}
-		else
-		{
-			checkNoEntry();
-		}
 	}
 }
 
@@ -975,16 +935,7 @@ TRigVMTypeIndex FRigVMRegistry::GetTypeIndex(const FRigVMTemplateArgumentType& I
 {
 	if(const TRigVMTypeIndex* Index = TypeToIndex.Find(InType))
 	{
-#if UE_RIGVM_DEBUG_TYPEINDEX
-		TRigVMTypeIndex TypeIndex = *Index;
-		if(TypeIndex != INDEX_NONE)
-		{
-			TypeIndex.Name = Types[TypeIndex].Type.CPPType;
-		}
-		return TypeIndex;
-#else
 		return *Index;
-#endif
 	}
 	return INDEX_NONE;
 }
@@ -1047,12 +998,6 @@ TRigVMTypeIndex FRigVMRegistry::GetTypeIndexFromCPPType(const FString& InCPPType
 			});
 		}
 	}
-#if UE_RIGVM_DEBUG_TYPEINDEX
-	if(Result != INDEX_NONE)
-	{
-		Result.Name = Types[Result].Type.CPPType;
-	}
-#endif
 	return Result;
 }
 

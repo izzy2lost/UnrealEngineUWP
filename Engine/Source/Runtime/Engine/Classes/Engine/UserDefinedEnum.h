@@ -16,10 +16,6 @@
 #include "UserDefinedEnum.generated.h"
 
 class UEnumCookedMetaData;
-class UUserDefinedEnum;
-
-// this is fired when the user defined type has finished loading in the serialize method (not after postload)
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnEnumLoaded, UUserDefinedEnum*);
 
 /** 
  *	An Enumeration is a list of named values.
@@ -90,15 +86,6 @@ public:
 
 	ENGINE_API FString GenerateNewEnumeratorName();
 #endif	// WITH_EDITOR
-
-public:
-	ENGINE_API FORCEINLINE static FOnEnumLoaded& OnEnumLoaded() { return LoadedEvent; }
-
-protected:
-
-	ENGINE_API static FOnEnumLoaded LoadedEvent;
-
-public:
 
 #if WITH_EDITORONLY_DATA
 protected:
