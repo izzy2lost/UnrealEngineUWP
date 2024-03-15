@@ -9,7 +9,6 @@
 #include "GameFramework/PlayerController.h"
 #include "PBDRigidsSolver.h"
 #include "Net/UnrealNetwork.h"
-#include "PhysicsReplication.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Chaos/PhysicsObjectInternalInterface.h"
 

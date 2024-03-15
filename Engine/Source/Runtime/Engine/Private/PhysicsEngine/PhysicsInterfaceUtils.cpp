@@ -108,7 +108,7 @@ FCollisionFilterData CreateQueryFilterData(const uint8 MyChannel, const bool bTr
 // NOTE: Once the old Create/Destroy methods are deprecated, remove the default implementations
 //
 
-#include "PhysicsReplication.h"
+#include "PhysicsReplication.h" // Remove when the deprecated Create() function is removed
 TUniquePtr<IPhysicsReplication> IPhysicsReplicationFactory::CreatePhysicsReplication(FPhysScene* OwningPhysScene)
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

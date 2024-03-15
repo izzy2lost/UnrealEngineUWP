@@ -33,7 +33,6 @@
 #include "GameFramework/HUD.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 
-#include "PhysicsReplication.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "Chaos/Particle/ParticleUtilities.h"
 #include "Chaos/ParticleHandleFwd.h"
