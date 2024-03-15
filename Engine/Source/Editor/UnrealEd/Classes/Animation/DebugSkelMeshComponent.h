@@ -311,9 +311,6 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Storage of Source Animation Pose for when bDisplaySourceAnimation == true, as they have to be calculated */
 	TArray<FTransform> SourceAnimationPoses;
 
-	/** Accumulated root motion. */
-	FTransform RootMotionTransform;
-
 	/** Transform representing the actor transform at the beginning of the animation sequence. */
 	FTransform RootMotionReferenceTransform;
 
@@ -409,18 +406,6 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	// we don't want to use default refpose because you still want to move joint when this mode is on
 	UNREALED_API virtual void ShowReferencePose(bool bRefPose);
 	UNREALED_API virtual bool IsReferencePoseShown() const;
-
-	/** @return Accumulated root motion with turntable animation. */
-	FTransform GetRootMotionTransform() const
-	{
-		return RootMotionTransform * TurntableTransform;
-	}
-
-	/** @return Transform representing the actor transform at the beginning of the animation with turntable animation. */
-	FTransform GetRootMotionReferenceTransform() const
-	{
-		return RootMotionReferenceTransform * TurntableTransform;
-	}
 
 	/** Called when mirror data table changes on anim instance. */
 	UNREALED_API void OnMirrorDataTableChanged();
@@ -635,8 +620,6 @@ public:
 	EPersonaTurnTableMode::Type TurnTableMode;
 	/** Current turn table speed scaling */
 	float TurnTableSpeedScaling;
-	/** Current turn table transform */
-	FTransform TurntableTransform;
 
 	UNREALED_API virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 
