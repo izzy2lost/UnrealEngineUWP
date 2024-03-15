@@ -39,7 +39,13 @@ FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDir
 	, Direction(InDirection)
 {}
 
-FRigVMTemplateArgument::FRigVMTemplateArgument(FProperty* InProperty)
+FRigVMTemplateArgument::FRigVMTemplateArgument(FProperty* InProperty):
+	FRigVMTemplateArgument(InProperty, FRigVMRegistry::Get())
+{
+	
+}
+
+FRigVMTemplateArgument::FRigVMTemplateArgument(FProperty* InProperty, FRigVMRegistry& InRegistry)
 	: Name(InProperty->GetFName())
 {
 #if WITH_EDITOR
@@ -77,10 +83,10 @@ FRigVMTemplateArgument::FRigVMTemplateArgument(FProperty* InProperty)
 	}
 	
 	const FRigVMTemplateArgumentType Type(CPPTypeName, CPPTypeObject);
-	const TRigVMTypeIndex TypeIndex = FRigVMRegistry::Get().FindOrAddType_Internal(Type, true); 
+	const TRigVMTypeIndex TypeIndex = InRegistry.FindOrAddType_Internal(Type, true); 
 
 	TypeIndices.Add(TypeIndex);
-	EnsureValidExecuteType();
+	EnsureValidExecuteType(InRegistry);
 	UpdateTypeToPermutations();
 }
 
@@ -89,7 +95,7 @@ FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDir
 	, Direction(InDirection)
 	, TypeIndices({InTypeIndex})
 {
-	EnsureValidExecuteType();
+	EnsureValidExecuteType(FRigVMRegistry::Get());
 	UpdateTypeToPermutations();
 }
 
@@ -99,7 +105,7 @@ FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDir
 	, TypeIndices(InTypeIndices)
 {
 	check(TypeIndices.Num() > 0);
-	EnsureValidExecuteType();
+	EnsureValidExecuteType(FRigVMRegistry::Get());
 	UpdateTypeToPermutations();
 }
 
@@ -143,19 +149,18 @@ FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDir
 		{
 			TArray<TRigVMTypeIndex> Indices = AllTypes.Array();
 			TypeIndices = MoveTemp(Indices);
-			EnsureValidExecuteType();
+			EnsureValidExecuteType(FRigVMRegistry::Get());
 		}
 
 		UpdateTypeToPermutations();
 	}
 }
 
-void FRigVMTemplateArgument::EnsureValidExecuteType()
+void FRigVMTemplateArgument::EnsureValidExecuteType(FRigVMRegistry& InRegistry)
 {
-	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 	for(TRigVMTypeIndex& TypeIndex : TypeIndices)
 	{
-		Registry.ConvertExecuteContextToBaseType(TypeIndex);
+		InRegistry.ConvertExecuteContextToBaseType(TypeIndex);
 	}
 }
 

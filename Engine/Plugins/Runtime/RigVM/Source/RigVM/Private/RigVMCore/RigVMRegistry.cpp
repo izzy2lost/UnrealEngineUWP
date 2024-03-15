@@ -35,6 +35,13 @@ static FDelayedAutoRegisterHelper GRigVMRegistrySingletonHelper(EDelayedRegister
 });
 
 
+FRigVMRegistry::FRigVMRegistry() :
+	bIsRefreshingEngineTypes(false),
+	bEverRefreshedEngineTypes(false)
+{
+	Initialize();
+}
+
 FRigVMRegistry::~FRigVMRegistry()
 {
 	Reset();
@@ -45,7 +52,6 @@ FRigVMRegistry& FRigVMRegistry::Get()
 	// static in a function scope ensures that the GC system is initiated before 
 	// the registry constructor is called
 	static FRigVMRegistry s_RigVMRegistry;
-	s_RigVMRegistry.InitializeIfNeeded();
 	return s_RigVMRegistry;
 }
 
@@ -211,16 +217,9 @@ uint32 FRigVMRegistry::GetHashForProperty(const FProperty* InProperty) const
 	return Hash;
 }
 
-void FRigVMRegistry::InitializeIfNeeded()
-{
-	// we don't need to use a mutex here since this is called on
-	// the main thread during engine startup for the first time
-	
-	if(!Types.IsEmpty())
-	{
-		return;
-	}
 
+void FRigVMRegistry::Initialize()
+{
 	Types.Reserve(512);
 	TypeToIndex.Reserve(512);
 	TypesPerCategory.Reserve(19);
@@ -793,7 +792,7 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_Internal(const FRigVMTemplateArgum
 				{
 					// by creating a template argument for the child property
 					// the type will be added by calling ::FindOrAddType_Internal recursively.
-					FRigVMTemplateArgument DummyArgument(Property);
+					FRigVMTemplateArgument DummyArgument(Property, *this);
 				}
 #if WITH_EDITOR
 				else

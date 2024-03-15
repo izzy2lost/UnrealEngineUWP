@@ -4,7 +4,6 @@
 
 #include "Containers/Array.h"
 #include "Containers/Map.h"
-#include "Containers/SparseArray.h"
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
 #include "Delegates/Delegate.h"
@@ -13,8 +12,6 @@
 #include "Math/Color.h"
 #include "Misc/AssertionMacros.h"
 #include "RigVMFunction.h"
-#include "RigVMModule.h"
-#include "RigVMTraits.h"
 #include "RigVMTypeIndex.h"
 #include "RigVMTypeUtils.h"
 #include "UObject/Class.h"
@@ -31,6 +28,7 @@ struct FRigVMDispatchFactory;
 struct FRigVMTemplate;
 struct FRigVMDispatchContext;
 struct FRigVMUserDefinedTypeResolver;
+struct FRigVMRegistry;
 
 typedef TMap<FName, TRigVMTypeIndex> FRigVMTemplateTypeMap;
 
@@ -264,10 +262,12 @@ protected:
 	bool bUseCategories = false;
 	TArray<ETypeCategory> TypeCategories;
 
-	// constructor from a property. this forces the type to be created
 	FRigVMTemplateArgument(FProperty* InProperty);
 
-	void EnsureValidExecuteType();
+	// constructor from a property. this forces the type to be created
+	FRigVMTemplateArgument(FProperty* InProperty, FRigVMRegistry& InRegistry);
+
+	void EnsureValidExecuteType(FRigVMRegistry& InRegistry);
 	void UpdateTypeToPermutations();
 
 	friend struct FRigVMTemplate;
