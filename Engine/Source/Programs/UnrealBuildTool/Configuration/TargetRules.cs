@@ -683,7 +683,6 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Whether the target uses Steam.
 		/// </summary>
-		[Obsolete("Deprecated in UE5.5 - No longer used in engine.")]
 		public bool bUsesSteam { get; set; }
 
 		/// <summary>
