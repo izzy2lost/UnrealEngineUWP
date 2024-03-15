@@ -4,6 +4,7 @@
 
 #include "UbaLogWriter.h"
 #include "UbaSynchronization.h"
+#include <stdarg.h>
 
 #define UBA_DEBUG_LOGGER 0
 

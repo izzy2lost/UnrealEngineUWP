@@ -72,15 +72,32 @@ namespace uba
 		if (allowRead)
 			dwDesiredAccess |= GENERIC_READ;
 		u32 dwShareMode = 0;// FILE_SHARE_READ | FILE_SHARE_WRITE;
-		m_fileHandle = uba::CreateFileW(realFileName, dwDesiredAccess, dwShareMode, createDisp, flagsAndAttributes);
-		if (m_fileHandle == InvalidFileHandle)
+		u32 retryCount = 0;
+		StringBuffer<256> additionalInfo;
+		while (true)
 		{
+			m_fileHandle = uba::CreateFileW(realFileName, dwDesiredAccess, dwShareMode, createDisp, flagsAndAttributes);
+			if (m_fileHandle != InvalidFileHandle)
+			{
+				if (retryCount)
+					m_logger.Warning(TC("Had to retry %u times to open file %s for write (because is was being used%s)"), retryCount, realFileName, additionalInfo.data);
+				break;
+			}
 			u32 lastError = GetLastError();
-			StringBuffer<256> additionalInfo;
-#if PLATFORM_WINDOWS
+			#if PLATFORM_WINDOWS
 			if (lastError == ERROR_SHARING_VIOLATION)
-				GetProcessHoldingFile(additionalInfo, m_fileName);
-#endif
+			{
+				if (retryCount == 0)
+					GetProcessHoldingFile(additionalInfo, m_fileName);
+
+				if (retryCount < 5)
+				{
+					Sleep(1000);
+					++retryCount;
+					continue;
+				}
+			}
+			#endif
 			return m_logger.Error(TC("ERROR opening file %s for write (%s%s)"), realFileName, LastErrorToText(lastError).data, additionalInfo.data);
 		}
 
