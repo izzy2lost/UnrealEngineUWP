@@ -57,7 +57,7 @@ namespace UnrealGameSync
 	public class PerforceSyncOptions
 	{
 		public const int DefaultNumRetries = 0;
-		public const int DefaultNumThreads = 2;
+		public const int DefaultNumThreads = 4;
 		public const int DefaultTcpBufferSize = 0;
 		public const int DefaultFileBufferSize = 0;
 
