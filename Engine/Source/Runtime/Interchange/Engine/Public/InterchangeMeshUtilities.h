@@ -3,12 +3,37 @@
 #pragma once
 
 #include "Async/Future.h"
+#include "InterchangeFactoryBase.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 
 #include "InterchangeMeshUtilities.generated.h"
 
 class UInterchangeSourceData;
+class USkeletalMesh;
+
+class INTERCHANGEENGINE_API FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask : public FInterchangePostImportTask
+{
+public:
+	FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask(USkeletalMesh* InSkeletalMesh);
+
+	virtual ~FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask() {};
+
+	virtual void Execute() override;
+
+	// This delegate should execute the following editor function (since we are a runtime module we need this delegate to call the editor function)
+	// FSkinWeightsUtilities::ReimportAlternateSkinWeight(SkeletalMesh, LodIndex);
+	DECLARE_DELEGATE_RetVal_TwoParams(bool, FInterchangeReimportAlternateSkinWeight, USkeletalMesh*, int32 LodIndex);
+	FInterchangeReimportAlternateSkinWeight ReimportAlternateSkinWeightDelegate;
+
+	bool AddLodToReimportAlternate(int32 LodToAdd);
+	
+private:
+	TObjectPtr<USkeletalMesh> SkeletalMesh;
+
+	//Alternate skin weights reimport
+	TArray<int32> ReImportAlternateSkinWeightsLods;
+};
 
 UCLASS(Experimental, MinimalAPI)
 class UInterchangeMeshUtilities : public UObject
@@ -39,6 +64,7 @@ public:
 	 * @Note - This function will search for an available interchange asset factory that can do the job for the MeshObject class
 	 */
 	static INTERCHANGEENGINE_API TFuture<bool> ImportCustomLod(UObject* MeshObject, const int32 LodIndex, const UInterchangeSourceData* SourceData);
+
 
 private:
 

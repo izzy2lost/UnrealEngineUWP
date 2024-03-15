@@ -14,6 +14,7 @@
 #include "InterchangePythonPipelineBase.h"
 #include "InterchangeSourceData.h"
 #include "Logging/LogMacros.h"
+#include "Misc/ScopedSlowTask.h"
 #include "UObject/Class.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
@@ -23,6 +24,78 @@
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeMeshUtilities)
+
+FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask::FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask(USkeletalMesh* InSkeletalMesh)
+	:SkeletalMesh(InSkeletalMesh)
+{
+
+}
+
+void FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask::Execute()
+{
+#if WITH_EDITOR
+	//This code works only on the game thread and is not asynchronous
+	if (!ensure(IsInGameThread()))
+	{
+		return;
+	}
+
+	//The delegate must be bound if we want to reimport the alternate skinning.
+	if (!SkeletalMesh
+		|| !ReimportAlternateSkinWeightDelegate.IsBound()
+		|| ReImportAlternateSkinWeightsLods.IsEmpty())
+	{
+		return;
+	}
+
+	//User say yes so re-import the alternate skinning
+	const int32 LodCount = SkeletalMesh->GetLODNum();
+	float ProgressCount = LodCount + 0.1f;
+
+	FScopedSlowTask Progress(ProgressCount, NSLOCTEXT("UInterchangeSkeletalMeshPostImportTask", "SkeletalMeshPostImportTaskGameThread", "Executing Skeletal Mesh Post Import Tasks..."));
+	Progress.MakeDialog();
+	{
+		//Make sure we rebuild the skeletal mesh after re-importing all skin weight
+		FScopedSkeletalMeshPostEditChange ScopePostEditChange(SkeletalMesh);
+
+		//Wait until the asset is finish building then lock the skeletal mesh properties to prevent the UI to update during the alternate skinning reimport
+		FEvent* LockEvent = SkeletalMesh->LockPropertiesUntil();
+		FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
+
+		//We have a 0.1 progress for the lock
+		Progress.EnterProgressFrame(0.1f);
+
+		//Reimport all the alternate skinning
+		for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
+		{
+			if (ReImportAlternateSkinWeightsLods.Contains(LodIndex))
+			{
+				// This delegate should execute the following editor function
+				// FSkinWeightsUtilities::ReimportAlternateSkinWeight(SkeletalMesh, LodIndex);
+				ReimportAlternateSkinWeightDelegate.Execute(SkeletalMesh, LodIndex);
+			}
+			Progress.EnterProgressFrame(1.0f);
+		}
+
+		//Release the skeletal mesh async properties
+		LockEvent->Trigger();
+
+		//Skeletal mesh will rebuild when going out of scope
+	}
+#endif //WITH_EDITOR
+}
+
+//DECLARE_DELEGATE_RetVal_TwoParams(bool, FInterchangeReimportAlternateSkinWeight, USkeletalMesh*, int32 LodIndex);
+
+bool FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask::AddLodToReimportAlternate(int32 LodToAdd)
+{
+	if (!SkeletalMesh || !SkeletalMesh->IsValidLODIndex(LodToAdd))
+	{
+		return false;
+	}
+	ReImportAlternateSkinWeightsLods.AddUnique(LodToAdd);
+	return true;
+}
 
 TFuture<bool> UInterchangeMeshUtilities::ImportCustomLod(UObject* MeshObject, const int32 LodIndex)
 {

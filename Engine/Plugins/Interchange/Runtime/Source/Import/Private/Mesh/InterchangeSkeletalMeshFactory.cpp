@@ -19,6 +19,7 @@
 #include "InterchangeManager.h"
 #include "InterchangeMaterialFactoryNode.h"
 #include "InterchangeMeshNode.h"
+#include "InterchangeMeshUtilities.h"
 #include "InterchangeSceneNode.h"
 #include "InterchangeSkeletalMeshLodDataNode.h"
 #include "InterchangeSkeletalMeshFactoryNode.h"
@@ -933,69 +934,6 @@ namespace UE
 } //namespace UE
 
 #endif //#if WITH_EDITOR
-
-void FInterchangeSkeletalMeshPostImportTask::Execute()
-{
-#if WITH_EDITOR
-	if (!SkeletalMesh)
-	{
-		return;
-	}
-
-	//This code works only on the game thread and is not asynchronous
-	check(IsInGameThread());
-
-	if (bReImportAlternateSkinWeights)
-	{
-		//We can't show user if unattended just return;
-		if (GIsAutomationTesting || GIsRunningUnattendedScript || FApp::IsUnattended())
-		{
-			return;
-		}
-
-		FText MessageText = FText::Format(NSLOCTEXT("UInterchangeSkeletalMeshPostImportTask", "ShouldReimportAlternateSkinning", "When reimporting asset \"{0}\" the system cannot re-apply the alternate skinning data, do you want to re-import all alternate skinning?")
-			, FText::FromString(SkeletalMesh->GetName()));
-
-		EAppReturnType::Type ReimportAlternateSkinningChoice = FMessageDialog::Open(EAppMsgType::YesNo
-			, EAppReturnType::No
-			, MessageText);
-		if (ReimportAlternateSkinningChoice == EAppReturnType::No)
-		{
-			return;
-		}
-
-		//User say yes so re-import the alternate skinning
-		const int32 LodCount = SkeletalMesh->GetLODNum();
-		float ProgressCount = LodCount + 0.1f;
-
-		FScopedSlowTask Progress(ProgressCount, NSLOCTEXT("UInterchangeSkeletalMeshPostImportTask", "SkeletalMeshPostImportTaskGameThread", "Executing Skeletal Mesh Post Import Tasks..."));
-		Progress.MakeDialog();
-		{
-			//Make sure we rebuild the skeletal mesh after re-importing all skin weight
-			FScopedSkeletalMeshPostEditChange ScopePostEditChange(SkeletalMesh);
-
-			//Wait until the asset is finish building then lock the skeletal mesh properties to prevent the UI to update during the alternate skinning reimport
-			FEvent* LockEvent = SkeletalMesh->LockPropertiesUntil();
-			FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
-
-			//We have a 0.1 progress for the lock
-			Progress.EnterProgressFrame(0.1f);
-
-			//Reimport all the alternate skinning
-			for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
-			{
-				FSkinWeightsUtilities::ReimportAlternateSkinWeight(SkeletalMesh, LodIndex);
-				Progress.EnterProgressFrame(1.0f);
-			}
-
-			//Release the skeletal mesh async properties
-			LockEvent->Trigger();
-
-			//Skeletal mesh will rebuild when going out of scope
-		}
-	}
-#endif //WITH_EDITOR
-}
 
 UClass* UInterchangeSkeletalMeshFactory::GetFactoryClass() const
 {
@@ -2078,19 +2016,27 @@ void UInterchangeSkeletalMeshFactory::SetupObject_GameThread(const FSetupObjectP
 		//Re-apply the alternate skinning data
 		if (ImportAssetObjectData.ExistingSkinWeightProfileInfos.Num() > 0)
 		{
-			TSharedPtr<FInterchangeSkeletalMeshPostImportTask> SkeletalMeshPostImportTask = nullptr;
+			//Reimport alternate skin of the reimport lod only by looking at the factory node lod data count.
+			int32 LodCount = SkeletalMesh->GetLODNum();
+			if (const UInterchangeSkeletalMeshFactoryNode* SkeletalMeshFactoryNode = Cast<const UInterchangeSkeletalMeshFactoryNode>(Arguments.NodeContainer->GetFactoryNode(Arguments.NodeUniqueID)))
+			{
+				int32 ImportedLodCount = SkeletalMeshFactoryNode->GetLodDataCount();
+				if (ImportedLodCount >  0 && ImportedLodCount <= SkeletalMesh->GetLODNum())
+				{
+					LodCount = ImportedLodCount;
+				}
+			}
+
+			TSharedPtr<FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask> SkeletalMeshPostImportTask = nullptr;
 			TArray<FSkinWeightProfileInfo>& SkinProfiles = SkeletalMesh->GetSkinWeightProfiles();
 			SkinProfiles = ImportAssetObjectData.ExistingSkinWeightProfileInfos;
 			for (const FSkinWeightProfileInfo& ProfileInfo : SkinProfiles)
 			{
-				const int32 LodCount = SkeletalMesh->GetLODNum();
 				for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
 				{
-					if (!ImportAssetObjectData.ExistingAlternateImportDataPerLOD.IsValidIndex(LodIndex))
-					{
-						continue;
-					}
-					if (!SkeletalMesh->HasMeshDescription(LodIndex))
+					if (!SkeletalMesh->IsValidLODIndex(LodIndex)
+						|| !ImportAssetObjectData.ExistingAlternateImportDataPerLOD.IsValidIndex(LodIndex)
+						|| !SkeletalMesh->HasMeshDescription(LodIndex))
 					{
 						continue;
 					}
@@ -2108,49 +2054,49 @@ void UInterchangeSkeletalMeshFactory::SetupObject_GameThread(const FSetupObjectP
 					PRAGMA_DISABLE_DEPRECATION_WARNINGS
 					SkeletalMesh->LoadLODImportedData(LodIndex, ImportDataDest);
 					PRAGMA_ENABLE_DEPRECATION_WARNINGS
-					
+
 					int32 PointNumberDest = ImportDataDest.Points.Num();
 					int32 VertexNumberDest = ImportDataDest.Points.Num();
 
-					if (ExistingImportDataSrc.Points.Num() != PointNumberDest)
+					if (ExistingImportDataSrc.Points.Num() == PointNumberDest)
 					{
-						//Warn the user but still apply the data
-						UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
-						Message->Text = FText::Format(NSLOCTEXT("InterchangeSkeletalMeshFactory", "SetupObject_GameThread_AlternateSkinning missmatch", "Alternate skinning mesh vertex number is different from the mesh LOD, we cannot apply the existing alternate skinning [{0}] when re-importing skeletal mesh LOD{1} [{2}]")
-							, FText::FromString(ProfileNameStr)
-							, FText::AsNumber(LodIndex)
-							, FText::FromString(SkeletalMesh->GetName()));
-
-						//We must enqueue a post import task that will re-import all skin weight profile.
-						if (!SkeletalMeshPostImportTask.IsValid())
+						//Replace the data into the destination bulk data and save it, so the build dont complain until we reimport the new alternate skinning
+						int32 ProfileIndex = 0;
+						if (ImportDataDest.AlternateInfluenceProfileNames.Find(ProfileNameStr, ProfileIndex))
 						{
-							SkeletalMeshPostImportTask = MakeShared<FInterchangeSkeletalMeshPostImportTask>();
-							SkeletalMeshPostImportTask->SkeletalMesh = SkeletalMesh;
-							SkeletalMeshPostImportTask->bReImportAlternateSkinWeights = true;
-							UInterchangeManager::GetInterchangeManager().EnqueuePostImportTask(SkeletalMeshPostImportTask);
+							ImportDataDest.AlternateInfluenceProfileNames.RemoveAt(ProfileIndex);
+							ImportDataDest.AlternateInfluences.RemoveAt(ProfileIndex);
 						}
-						continue;
+						int32 SrcProfileIndex = 0;
+						if (ExistingImportDataSrc.AlternateInfluenceProfileNames.Find(ProfileNameStr, SrcProfileIndex))
+						{
+							ImportDataDest.AlternateInfluenceProfileNames.Add(ProfileNameStr);
+							ImportDataDest.AlternateInfluences.Add(ExistingImportDataSrc.AlternateInfluences[SrcProfileIndex]);
+						}
+
+						//Resave the bulk data with the new or refreshed data
+						PRAGMA_DISABLE_DEPRECATION_WARNINGS
+						SkeletalMesh->SaveLODImportedData(LodIndex, ImportDataDest);
+						PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					}
 
-					//Replace the data into the destination bulk data and save it
-					int32 ProfileIndex = 0;
-					if (ImportDataDest.AlternateInfluenceProfileNames.Find(ProfileNameStr, ProfileIndex))
+					//We must enqueue a post import task that will re-import all skin weight profile.
+					if (!SkeletalMeshPostImportTask.IsValid())
 					{
-						ImportDataDest.AlternateInfluenceProfileNames.RemoveAt(ProfileIndex);
-						ImportDataDest.AlternateInfluences.RemoveAt(ProfileIndex);
+						SkeletalMeshPostImportTask = MakeShared<FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask>(SkeletalMesh);
+						SkeletalMeshPostImportTask->ReimportAlternateSkinWeightDelegate.BindLambda([](USkeletalMesh* SkeletalMesh, int32 LodIndex)
+							{
+								return FSkinWeightsUtilities::ReimportAlternateSkinWeight(SkeletalMesh, LodIndex);
+							});
 					}
-					int32 SrcProfileIndex = 0;
-					if (ExistingImportDataSrc.AlternateInfluenceProfileNames.Find(ProfileNameStr, SrcProfileIndex))
-					{
-						ImportDataDest.AlternateInfluenceProfileNames.Add(ProfileNameStr);
-						ImportDataDest.AlternateInfluences.Add(ExistingImportDataSrc.AlternateInfluences[SrcProfileIndex]);
-					}
-
-					//Resave the bulk data with the new or refreshed data
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					SkeletalMesh->SaveLODImportedData(LodIndex, ImportDataDest);
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					SkeletalMeshPostImportTask->AddLodToReimportAlternate(LodIndex);
 				}
+			}
+			
+			//Enqueue the task if needed
+			if (SkeletalMeshPostImportTask.IsValid())
+			{
+				UInterchangeManager::GetInterchangeManager().EnqueuePostImportTask(SkeletalMeshPostImportTask);
 			}
 		}
 #endif //WITH_EDITOR

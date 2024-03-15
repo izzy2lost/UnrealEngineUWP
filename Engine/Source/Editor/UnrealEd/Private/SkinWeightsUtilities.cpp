@@ -68,6 +68,10 @@ bool FSkinWeightsUtilities::ImportAlternateSkinWeight(USkeletalMesh* SkeletalMes
 		UE_LOG(LogSkinWeightsUtilities, Error, TEXT("Path containing Skin Weight Profile data does not exist (%s)."), *Path);
 		return false;
 	}
+
+	FString Action = bIsReimport ? TEXT("Reimport") : TEXT("Import");
+	UE_ASSET_LOG(LogSkinWeightsUtilities, Display, SkeletalMesh, TEXT("%s Alternate skin weight Begin [LodIndex: %d] [Profile: %s] [file: %s]."), *Action, TargetLODIndex, *ProfileName.ToString(), *Path);
+
 	FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(SkeletalMesh);
 	FScopedSkeletalMeshPostEditChange ScopePostEditChange(SkeletalMesh);
 

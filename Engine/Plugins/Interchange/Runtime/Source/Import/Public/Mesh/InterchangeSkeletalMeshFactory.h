@@ -16,15 +16,6 @@ class UInterchangeSkeletalMeshFactoryNode;
 class USkeletalMesh;
 class USkeleton;
 
-class INTERCHANGEIMPORT_API FInterchangeSkeletalMeshPostImportTask : public FInterchangePostImportTask
-{
-public:
-	virtual void Execute() override;
-
-	TObjectPtr<USkeletalMesh> SkeletalMesh;
-	bool bReImportAlternateSkinWeights = false;
-};
-
 UCLASS(BlueprintType)
 class INTERCHANGEIMPORT_API UInterchangeSkeletalMeshFactory : public UInterchangeFactoryBase
 {

@@ -507,6 +507,20 @@ namespace FbxMeshUtils
 						{
 							if (bResult)
 							{
+								//If we use alternate skinweight, we must re-import all profile for this LOD
+								if(!SelectedSkelMesh->GetSkinWeightProfiles().IsEmpty())
+								{
+									//Enqueue the re-import alternate skinning
+									TSharedPtr<FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask> SkeletalMeshPostImportTask = MakeShared<FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask>(SelectedSkelMesh);
+									SkeletalMeshPostImportTask->ReimportAlternateSkinWeightDelegate.BindLambda([](USkeletalMesh* SkeletalMesh, int32 LodIndex)
+										{
+											return FSkinWeightsUtilities::ReimportAlternateSkinWeight(SkeletalMesh, LodIndex);
+										});
+									SkeletalMeshPostImportTask->AddLodToReimportAlternate(LODLevel);
+									UInterchangeManager::GetInterchangeManager().EnqueuePostImportTask(SkeletalMeshPostImportTask);
+								}
+								
+
 								// Notification of success
 								FNotificationInfo NotificationInfo(FText::GetEmpty());
 								NotificationInfo.Text = FText::Format(NSLOCTEXT("UnrealEd", "LODImportSuccessful", "Mesh for LOD {0} imported successfully!"), FText::AsNumber(LODLevel));
@@ -981,6 +995,18 @@ namespace FbxMeshUtils
 					bool bResult = FutureResult.Get();
 					if (bResult)
 					{
+						//If we use alternate skinweight, we must re-import all profile for this LOD
+						if (!SkeletalMesh->GetSkinWeightProfiles().IsEmpty())
+						{
+							//Enqueue the re-import alternate skinning
+							TSharedPtr<FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask> SkeletalMeshPostImportTask = MakeShared<FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask>(SkeletalMesh);
+							SkeletalMeshPostImportTask->ReimportAlternateSkinWeightDelegate.BindLambda([](USkeletalMesh* SkeletalMesh, int32 LodIndex)
+								{
+									return FSkinWeightsUtilities::ReimportAlternateSkinWeight(SkeletalMesh, LodIndex);
+								});
+							SkeletalMeshPostImportTask->AddLodToReimportAlternate(LODLevel);
+							UInterchangeManager::GetInterchangeManager().EnqueuePostImportTask(SkeletalMeshPostImportTask);
+						}
 						if (bNotifyCB)
 						{
 							if (SkeletalMesh)
