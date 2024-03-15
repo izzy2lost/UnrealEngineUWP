@@ -203,6 +203,10 @@ private:
 	// If we are queuing data for a batch we must also defer calls to EndReplication
 	// This method writes this method in the form of a QueuedChunk
 	bool EnqueueEndReplication(FPendingBatchData* PendingBatchData, bool bShouldDestroyInstance, FNetRefHandle NetRefHandleToEndReplication);
+
+	// Remove a handle from the hot and cold unresolved caches used by ResolveAndDispatchUnresolvedReferences(). If this handle is marked as unresolved
+	// again, it will be added to the hot cache.
+	void RemoveFromUnresolvedCache(const FNetRefHandle Handle);
 	
 private:
 
@@ -219,6 +223,16 @@ private:
 	FNetRefHandleManager* NetRefHandleManager;
 	FReplicationStateStorage* StateStorage;
 	UReplicationBridge* ReplicationBridge;
+
+	// A cache holding unresolved handles that should be resolved each time ResolveAndDispatchUnresolvedReferences() is called.
+	TMap<FNetRefHandle, uint32> HotUnresolvedHandleCache;
+
+	// A cache holding unresolved handles that should be resolved by ResolveAndDispatchUnresolvedReferences() at fixed intervals.
+	TMap<FNetRefHandle, uint32> ColdUnresolvedHandleCache;
+
+	// Temporary buffers used by ResolveAndDispatchUnresolvedReferences().
+	TSet<FNetRefHandle> VisitedUnresolvedHandles;
+	TSet<uint32> InternalObjectsToResolve;
 
 	// We track some data about incoming objects
 	// Stored in a map for now
