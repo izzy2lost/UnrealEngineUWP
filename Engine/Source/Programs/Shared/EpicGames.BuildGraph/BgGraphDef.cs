@@ -445,7 +445,7 @@ namespace EpicGames.BuildGraph
 					{
 						jsonWriter.WriteValue("BasePath", artifact.BasePath);
 					}
-					jsonWriter.WriteValue("Tag", artifact.Tag);
+					jsonWriter.WriteValue("OutputName", artifact.TagName);
 					jsonWriter.WriteObjectEnd();
 				}
 				jsonWriter.WriteArrayEnd();

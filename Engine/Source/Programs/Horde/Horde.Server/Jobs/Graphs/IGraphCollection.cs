@@ -29,9 +29,10 @@ namespace Horde.Server.Jobs.Graphs
 		/// <param name="newGroupRequests">List of group requests</param>
 		/// <param name="newAggregateRequests">List of aggregate requests</param>
 		/// <param name="newLabelRequests">List of label requests</param>
+		/// <param name="newArtifactRequests">List of artifact requests</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new graph definition</returns>
-		Task<IGraph> AppendAsync(IGraph? baseGraph, List<NewGroup>? newGroupRequests = null, List<NewAggregate>? newAggregateRequests = null, List<NewLabel>? newLabelRequests = null, CancellationToken cancellationToken = default);
+		Task<IGraph> AppendAsync(IGraph? baseGraph, List<NewGroup>? newGroupRequests = null, List<NewAggregate>? newAggregateRequests = null, List<NewLabel>? newLabelRequests = null, List<NewGraphArtifact>? newArtifactRequests = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets the graph for a job

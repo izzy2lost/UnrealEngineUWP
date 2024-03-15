@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using EpicGames.Core;
+using EpicGames.Horde.Artifacts;
 using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -268,6 +269,37 @@ namespace Horde.Server.Jobs.Graphs
 	}
 
 	/// <summary>
+	/// Artifact produced by a graph
+	/// </summary>
+	public interface IGraphArtifact
+	{
+		/// <summary>
+		/// Name of the artifact
+		/// </summary>
+		public ArtifactName Name { get; }
+
+		/// <summary>
+		/// Type of the artifact
+		/// </summary>
+		public ArtifactType Type { get; }
+
+		/// <summary>
+		/// Description for the artifact
+		/// </summary>
+		public string Description { get; }
+
+		/// <summary>
+		/// Base path for files in the artifact
+		/// </summary>
+		public string BasePath { get; }
+
+		/// <summary>
+		/// Tag for the artifact files
+		/// </summary>
+		public string OutputName { get; }
+	}
+
+	/// <summary>
 	/// A unique dependency graph instance
 	/// </summary>
 	public interface IGraph
@@ -296,6 +328,11 @@ namespace Horde.Server.Jobs.Graphs
 		/// Status labels for this graph
 		/// </summary>
 		public IReadOnlyList<ILabel> Labels { get; }
+
+		/// <summary>
+		/// Artifacts for this graph
+		/// </summary>
+		public IReadOnlyList<IGraphArtifact> Artifacts { get; }
 	}
 
 	/// <summary>
@@ -636,4 +673,9 @@ namespace Horde.Server.Jobs.Graphs
 			Nodes = nodes;
 		}
 	}
+
+	/// <summary>
+	/// Information about an artifact
+	/// </summary>
+	public record class NewGraphArtifact(ArtifactName Name, ArtifactType Type, string Description, string BasePath, string OutputName);
 }

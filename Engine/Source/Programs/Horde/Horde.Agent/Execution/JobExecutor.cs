@@ -27,6 +27,7 @@ using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using OpenTracing;
 using OpenTracing.Util;
+using CreateArtifactRequest = HordeCommon.Rpc.CreateArtifactRequest;
 
 namespace Horde.Agent.Execution
 {
@@ -41,11 +42,12 @@ namespace Horde.Agent.Execution
 		bool? Warnings,
 		IReadOnlyList<string> Inputs,
 		IReadOnlyList<string> OutputNames,
-		IList<int> PublishOutputs
+		IList<int> PublishOutputs,
+		IReadOnlyList<CreateArtifactRequest> Artifacts
 	)
 	{
 		public JobStepInfo(BeginStepResponse response)
-			: this(JobStepId.Parse(response.StepId), LogId.Parse(response.LogId), response.Name, response.Credentials, response.Properties, response.EnvVars, response.Warnings, response.Inputs, response.OutputNames, response.PublishOutputs)
+			: this(JobStepId.Parse(response.StepId), LogId.Parse(response.LogId), response.Name, response.Credentials, response.Properties, response.EnvVars, response.Warnings, response.Inputs, response.OutputNames, response.PublishOutputs, response.Artifacts)
 		{
 		}
 	}
@@ -124,12 +126,22 @@ namespace Horde.Agent.Execution
 			public string? Dependencies { get; set; }
 		}
 
+		protected class ExportedArtifact
+		{
+			public string Name { get; set; } = String.Empty;
+			public string? Type { get; set; }
+			public string? Description { get; set; }
+			public string? BasePath { get; set; }
+			public string OutputName { get; set; } = String.Empty;
+		}
+
 		protected class ExportedGraph
 		{
 			public List<ExportedGroup> Groups { get; set; } = new List<ExportedGroup>();
 			public List<ExportedAggregate> Aggregates { get; set; } = new List<ExportedAggregate>();
 			public List<ExportedLabel> Labels { get; set; } = new List<ExportedLabel>();
 			public List<ExportedBadge> Badges { get; set; } = new List<ExportedBadge>();
+			public List<ExportedArtifact> Artifacts { get; set; } = new List<ExportedArtifact>();
 		}
 
 		class TraceEvent
@@ -738,6 +750,19 @@ namespace Horde.Agent.Execution
 				updateGraph.Labels.Add(createLabel);
 			}
 
+			foreach (ExportedArtifact exportedArtifact in graph.Artifacts)
+			{
+				CreateArtifactRequest createArtifact = new CreateArtifactRequest();
+
+				createArtifact.Name = exportedArtifact.Name;
+				createArtifact.Type = exportedArtifact.Type ?? String.Empty;
+				createArtifact.Description = exportedArtifact.Description ?? String.Empty;
+				createArtifact.BasePath = exportedArtifact.BasePath ?? String.Empty;
+				createArtifact.OutputName = exportedArtifact.OutputName;
+
+				updateGraph.Artifacts.Add(createArtifact);
+			}
+
 			return updateGraph;
 		}
 
@@ -1111,6 +1136,54 @@ namespace Horde.Agent.Execution
 				// Write the final node
 				await storage.WriteRefAsync(artifact.RefName, outputNodeRef, new RefOptions(), cancellationToken: cancellationToken);
 				logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
+			}
+
+			// Create all the named artifacts. TODO: Merge this with regular temp storage artifacts?
+			foreach (CreateArtifactRequest graphArtifact in step.Artifacts)
+			{
+				HashSet<FileReference>? files;
+				if (!tagNameToFileSet.TryGetValue(graphArtifact.OutputName, out files))
+				{
+					logger.LogWarning("Missing output fileset for artifact {Name} (output={OutputName})", graphArtifact.Name, graphArtifact.OutputName);
+					continue;
+				}
+
+				using (GlobalTracer.Instance.BuildSpan("Artifact").WithTag("name", graphArtifact.Name).WithTag("resource", "Write").StartActive())
+				{
+					// Create the artifact
+					CreateJobArtifactRequestV2 artifactRequest = new CreateJobArtifactRequestV2();
+					artifactRequest.JobId = JobId.ToString();
+					artifactRequest.StepId = step.StepId.ToString();
+					artifactRequest.Name = graphArtifact.Name;
+					artifactRequest.Type = graphArtifact.Type;
+					artifactRequest.Description = graphArtifact.Description;
+
+					CreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
+					logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifact.Id, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Session.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
+
+					using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
+
+					// Upload the data
+					Stopwatch timer = Stopwatch.StartNew();
+
+					IBlobRef<DirectoryNode> outputNodeRef;
+					await using (IBlobWriter blobWriter = storage.CreateBlobWriter(artifact.RefName))
+					{
+						DirectoryNode outputNode = new DirectoryNode();
+
+						DirectoryReference baseDir = DirectoryReference.Combine(workspaceDir, graphArtifact.BasePath);
+						if (DirectoryReference.Exists(baseDir))
+						{
+							await outputNode.AddFilesAsync(baseDir, files, blobWriter, cancellationToken: cancellationToken);
+						}
+
+						outputNodeRef = await blobWriter.WriteBlobAsync(outputNode, cancellationToken: cancellationToken);
+					}
+
+					// Write the final node
+					await storage.WriteRefAsync(artifact.RefName, outputNodeRef, new RefOptions(), cancellationToken: cancellationToken);
+					logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
+				}
 			}
 
 			return true;
