@@ -104,7 +104,7 @@ namespace uba
 
 		int m_stdOutPipe = -1;
 		int m_stdErrPipe = -1;
-		u32 m_waitidCount = 0;
+		bool m_doOneExtraCheckForExitMessage = true;
 	#endif
 
 		ProcHandle m_nativeProcessHandle = InvalidProcHandle;
