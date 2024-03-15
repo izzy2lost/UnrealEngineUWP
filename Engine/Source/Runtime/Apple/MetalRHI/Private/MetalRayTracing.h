@@ -29,7 +29,7 @@ public:
 	/** FRHIRayTracingGeometry Interface */
 	virtual FRayTracingAccelerationStructureAddress GetAccelerationStructureAddress(uint64 GPUIndex) const final override { return (FRayTracingAccelerationStructureAddress)SceneIndex;
 	}
-	virtual void SetInitializer(const FRayTracingGeometryInitializer& Initializer) final override;
+	virtual void SetInitializer(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer) final override;
 	/** FRHIRayTracingGeometry Interface */
 
 	void Swap(FMetalRayTracingGeometry& Other);

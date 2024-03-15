@@ -139,7 +139,7 @@ public:
 	~FVulkanRayTracingGeometry();
 
 	virtual FRayTracingAccelerationStructureAddress GetAccelerationStructureAddress(uint64 GPUIndex) const final override { return Address; }	
-	virtual void SetInitializer(const FRayTracingGeometryInitializer& Initializer) final override;
+	virtual void SetInitializer(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer) final override;
 
 	void Swap(FVulkanRayTracingGeometry& Other);
 

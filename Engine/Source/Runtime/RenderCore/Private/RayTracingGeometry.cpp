@@ -61,9 +61,9 @@ void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Bat
 	}
 }
 
-void FRayTracingGeometry::RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority)
+void FRayTracingGeometry::RequestBuildIfNeeded(FRHICommandListBase& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
 {
-	RayTracingGeometryRHI->SetInitializer(Initializer);
+	RayTracingGeometryRHI->SetInitializer(RHICmdList, Initializer);
 
 	if (GetRequiresBuild())
 	{
@@ -106,7 +106,7 @@ void FRayTracingGeometry::MakeResident(FRHICommandList& RHICmdList)
 			// We need to do it before we build the current geometry (also on RHI thread).
 		}
 
-		RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority::Normal);
+		RequestBuildIfNeeded(RHICmdList, ERTAccelerationStructureBuildPriority::Normal);
 	}
 	else
 	{

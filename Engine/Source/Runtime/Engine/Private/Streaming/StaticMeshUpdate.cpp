@@ -305,7 +305,7 @@ void FStaticMeshStreamIn::DoFinishUpdate(const FContext& Context)
 				// Under very rare circumstances that we switch ray tracing on/off right in the middle of streaming RayTracingGeometryRHI might not be valid.
 				if (IsRayTracingEnabled() && ensure(LODResource.RayTracingGeometry.IsValid()))
 				{
-					LODResource.RayTracingGeometry.RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority::Normal);
+					LODResource.RayTracingGeometry.RequestBuildIfNeeded(FRHICommandListImmediate::Get(), ERTAccelerationStructureBuildPriority::Normal);
 				}
 			}
 		}

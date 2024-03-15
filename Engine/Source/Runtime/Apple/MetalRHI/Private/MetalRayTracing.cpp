@@ -392,7 +392,7 @@ void FMetalRayTracingGeometry::ReleaseUnderlyingResource()
 	}
 }
 
-void FMetalRayTracingGeometry::SetInitializer(const FRayTracingGeometryInitializer& InInitializer)
+void FMetalRayTracingGeometry::SetInitializer(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& InInitializer)
 {
 	checkf(InitializedType == ERayTracingGeometryInitializerType::StreamingDestination, TEXT("Only FMetalRayTracingGeometry that was created as StreamingDestination can update their initializer."));
 	Initializer = InInitializer;

@@ -3094,7 +3094,7 @@ void FD3D12RayTracingGeometry::UpdateResidency(FD3D12CommandContext& CommandCont
 	CommandContext.UpdateResidency(AccelerationStructureBuffers[GPUIndex]->GetResource());
 }
 
-void FD3D12RayTracingGeometry::SetInitializer(const FRayTracingGeometryInitializer& InInitializer)
+void FD3D12RayTracingGeometry::SetInitializer(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& InInitializer)
 {
 	checkf(InitializedType == ERayTracingGeometryInitializerType::StreamingDestination, TEXT("Only FD3D12RayTracingGeometry that was created as StreamingDestination can update their initializer."));
 	Initializer = InInitializer;
@@ -3111,17 +3111,15 @@ void FD3D12RayTracingGeometry::SetInitializer(const FRayTracingGeometryInitializ
 	GeometryDescs.SetNumUninitialized(Initializer.Segments.Num());
 	TranslateRayTracingGeometryDescs(Initializer, GeometryDescs);
 	
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-	RHICmdList.EnqueueLambda(
-		[this](FRHICommandListImmediate& RHICmdList)
-		{
-			for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
-			{				
-				RegisterAsRenameListener(GPUIndex);
-				SetupHitGroupSystemParameters(GPUIndex);		
-			}
+	RHICmdList.EnqueueLambda([this](FRHICommandListBase&)
+	{
+		for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
+		{				
+			RegisterAsRenameListener(GPUIndex);
+			SetupHitGroupSystemParameters(GPUIndex);		
 		}
-	);
+	});
+	RHICmdList.RHIThreadFence(true);
 }
 
 void FD3D12RayTracingGeometry::SetupHitGroupSystemParameters(uint32 InGPUIndex)
