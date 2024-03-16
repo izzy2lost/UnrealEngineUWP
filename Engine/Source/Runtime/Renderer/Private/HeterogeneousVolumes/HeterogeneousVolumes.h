@@ -105,6 +105,14 @@ namespace HeterogeneousVolumes
 	bool UseAdaptiveVolumetricShadowMapForSelfShadowing();
 	bool ShouldApplyHeightFog();
 	bool ShouldApplyVolumetricFog();
+
+	enum class EFogMode
+	{
+		Off,
+		Reference,
+		Stochastic
+	};
+	EFogMode GetApplyFogInscattering();
 	bool ShouldWriteVelocity();
 
 	bool EnableIndirectionGrid();

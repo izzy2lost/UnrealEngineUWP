@@ -15,6 +15,7 @@
 #include "SceneManagement.h"
 #include "VolumeLighting.h"
 #include "VolumetricFog.h"
+#include "BlueNoise.h"
 
 static TAutoConsoleVariable<int32> CVarHeterogeneousLightingCacheBoundsCulling(
 	TEXT("r.HeterogeneousVolumes.LightingCache.BoundsCulling"),
@@ -234,13 +235,15 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 	class FUseLumenGI : SHADER_PERMUTATION_BOOL("DIM_USE_LUMEN_GI");
 	class FWriteVelocity : SHADER_PERMUTATION_BOOL("DIM_WRITE_VELOCITY");
 	class FUseAdaptiveVolumetricShadowMap : SHADER_PERMUTATION_BOOL("DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP");
-	using FPermutationDomain = TShaderPermutationDomain<FUseTransmittanceVolume, FUseInscatteringVolume, FUseLumenGI, FWriteVelocity, FUseAdaptiveVolumetricShadowMap>;
+	class FApplyFogInscattering : SHADER_PERMUTATION_INT("APPLY_FOG_INSCATTERING", 3);
+	using FPermutationDomain = TShaderPermutationDomain<FUseTransmittanceVolume, FUseInscatteringVolume, FUseLumenGI, FWriteVelocity, FUseAdaptiveVolumetricShadowMap, FApplyFogInscattering>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene data
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+		SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 
 		// Light data
 		SHADER_PARAMETER(int, bApplyEmissionAndTransmittance)
@@ -316,12 +319,24 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 		const FMaterialShaderPermutationParameters& Parameters
 	)
 	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FApplyFogInscattering>() == 0)
+		{
+			return false;
+		}
+
 		return DoesPlatformSupportHeterogeneousVolumes(Parameters.Platform)
 			&& DoesMaterialShaderSupportHeterogeneousVolumes(Parameters.MaterialParameters);
 	}
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
 	{
+		// Remap Off to Stochastic and turn off individual fog modes
+		if (PermutationVector.Get<FApplyFogInscattering>() == 0)
+		{
+			PermutationVector.Set<FApplyFogInscattering>(2);
+		}
+
 		return PermutationVector;
 	}
 
@@ -333,7 +348,6 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_1D"), GetThreadGroupSize1D());
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_2D"), GetThreadGroupSize2D());
-		OutEnvironment.SetDefine(TEXT("APPLY_FOG_INSCATTERING"), 1);
 		OutEnvironment.SetDefine(TEXT("FOG_MATERIALBLENDING_OVERRIDE"), 1);
 
 		bool bSupportVirtualShadowMap = IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
@@ -646,6 +660,8 @@ static void RenderSingleScatteringWithLiveShading(
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures);
 		PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+		FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
+		PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
 		// Light data
 		PassParameters->bApplyEmissionAndTransmittance = bApplyEmissionAndTransmittance;
@@ -714,8 +730,14 @@ static void RenderSingleScatteringWithLiveShading(
 
 		TRDGUniformBufferRef<FFogUniformParameters> FogBuffer = CreateFogUniformBuffer(GraphBuilder, View);
 		PassParameters->FogStruct = FogBuffer;
-		PassParameters->bApplyHeightFog = HeterogeneousVolumes::ShouldApplyHeightFog();
-		PassParameters->bApplyVolumetricFog = HeterogeneousVolumes::ShouldApplyVolumetricFog();
+		PassParameters->bApplyHeightFog = 0;
+		PassParameters->bApplyVolumetricFog = 0;
+		if (bApplyEmissionAndTransmittance &&
+			(HeterogeneousVolumes::GetApplyFogInscattering() != HeterogeneousVolumes::EFogMode::Off))
+		{
+			PassParameters->bApplyHeightFog = HeterogeneousVolumes::ShouldApplyHeightFog();
+			PassParameters->bApplyVolumetricFog = HeterogeneousVolumes::ShouldApplyVolumetricFog();
+		}
 
 		// Indirect lighting data
 		auto* LumenUniforms = GraphBuilder.AllocParameters<FLumenTranslucencyLightingUniforms>();
@@ -767,6 +789,8 @@ static void RenderSingleScatteringWithLiveShading(
 	PermutationVector.Set<FRenderSingleScatteringWithLiveShadingCS::FUseLumenGI>(HeterogeneousVolumes::UseIndirectLighting() && View.GetLumenTranslucencyGIVolume().Texture0 != nullptr);
 	PermutationVector.Set<FRenderSingleScatteringWithLiveShadingCS::FWriteVelocity>(bWriteVelocity);
 	PermutationVector.Set<FRenderSingleScatteringWithLiveShadingCS::FUseAdaptiveVolumetricShadowMap>(HeterogeneousVolumes::UseAdaptiveVolumetricShadowMapForSelfShadowing());
+	PermutationVector.Set<FRenderSingleScatteringWithLiveShadingCS::FApplyFogInscattering>(static_cast<int32>(HeterogeneousVolumes::GetApplyFogInscattering()));
+	PermutationVector = FRenderSingleScatteringWithLiveShadingCS::RemapPermutation(PermutationVector);
 	TShaderRef<FRenderSingleScatteringWithLiveShadingCS> ComputeShader = Material.GetShader<FRenderSingleScatteringWithLiveShadingCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
 	if (!ComputeShader.IsNull())
 	{
@@ -807,7 +831,8 @@ static void RenderWithTransmittanceVolumePipeline(
 	int32 NumPasses = FMath::Max(LightSceneInfoCompact.Num(), 1);
 	for (int32 PassIndex = 0; PassIndex < NumPasses; ++PassIndex)
 	{
-		bool bApplyEmissionAndTransmittance = (PassIndex == (NumPasses - 1));
+		bool bIsLastPass = (PassIndex == (NumPasses - 1));
+		bool bApplyEmissionAndTransmittance = bIsLastPass;
 		bool bApplyDirectLighting = !LightSceneInfoCompact.IsEmpty();
 		bool bApplyShadowTransmittance = false;
 
@@ -1075,6 +1100,7 @@ class FRenderVolumetricShadowMapForLightWithLiveShadingCS : public FMeshMaterial
 		// Scene data
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
+		SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 
 		// Volumetric Shadow Map data
 		SHADER_PARAMETER(FVector3f, TranslatedWorldOrigin)
@@ -1304,6 +1330,8 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 		// Scene data
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures);
+		FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
+		PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
 		// Shadow map data
 		PassParameters->TranslatedWorldOrigin = TranslatedWorldOrigin;
