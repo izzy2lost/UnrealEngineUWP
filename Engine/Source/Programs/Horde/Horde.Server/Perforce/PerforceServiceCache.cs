@@ -476,6 +476,11 @@ namespace Horde.Server.Perforce
 
 				// Find the changes within that range, and abort if there's nothing new
 				List<ChangesRecord> changes = await perforce.GetChangesAsync(ChangesOptions.None, MaxChanges, ChangeStatus.Submitted, spec, cancellationToken);
+				if (changes.Count > 0)
+				{
+					telemetrySpan.SetAttribute("MinChange", changes.Min(x => x.Number));
+					telemetrySpan.SetAttribute("MaxChange", changes.Max(x => x.Number));
+				}
 
 				List<int> changeNumbers = new List<int>();
 				changeNumbers.AddRange(refreshNumbers.Where(x => x <= state.MaxChange));
@@ -487,9 +492,6 @@ namespace Horde.Server.Perforce
 				{
 					return modified ? state : null;
 				}
-
-				telemetrySpan.SetAttribute("MinChange", changes.Min(x => x.Number));
-				telemetrySpan.SetAttribute("MaxChange", changes.Max(x => x.Number));
 
 				// If we've retrieved the maximum number of changes from the server, we no longer have a complete chronological cache and need to reset it.
 				bool reset = false;
