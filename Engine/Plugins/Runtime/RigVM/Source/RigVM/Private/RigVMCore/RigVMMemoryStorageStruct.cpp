@@ -585,11 +585,11 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 {
 	EPropertyBagPropertyType BagPropertyType = EPropertyBagPropertyType::None;
 
-	FString VMType = RigVMDescriptor.CPPType;
+	FString VMTypeString = *RigVMDescriptor.CPPType;
 
 	OutBagContainerTypes.Reset(); // in case it is reused by the caller
 
-	if (RigVMTypeUtils::IsArrayType(VMType))
+	if (RigVMTypeUtils::IsArrayType(VMTypeString))
 	{
 		const int32 NumContainers = RigVMDescriptor.Containers.Num();
 		for (int i= 0; i < NumContainers; ++i)
@@ -600,18 +600,20 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 				OutBagContainerTypes.Add(EPropertyBagContainerType::Array);
 				break;
 			case EPinContainerType::Set:
-				ensureMsgf(false, TEXT("Unsuported Set type container : %s"), *VMType);
+				ensureMsgf(false, TEXT("Unsuported Set type container : %s"), *VMTypeString);
 				break;
 			case EPinContainerType::Map:
-				ensureMsgf(false, TEXT("Unsuported Map type container : %s"), *VMType);
+				ensureMsgf(false, TEXT("Unsuported Map type container : %s"), *VMTypeString);
 				break;
 			default:
 				break;
 			}
 		}
 
-		VMType = RigVMDescriptor.GetTailCPPType();
+		VMTypeString = RigVMDescriptor.GetTailCPPType();
 	}
+
+	FName VMType = *VMTypeString;
 
 	static const FName IntTypeName(TEXT("int")); // type used by some engine tests
 	static const FName Int64TypeName(TEXT("Int64"));
@@ -667,7 +669,7 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 	}
 	else
 	{
-		ensureMsgf(false, TEXT("Unsupported type : %s"), *VMType);
+		ensureMsgf(false, TEXT("Unsupported type : %s"), *VMTypeString);
 		OutBagPropertyType = EPropertyBagPropertyType::None;
 	}
 
