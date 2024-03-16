@@ -2271,7 +2271,8 @@ static void ReplaceObjectHelper(UObject*& OldObject, UClass* OldClass, UObject*&
 	NewUObject->SetFlags(OldFlags & UE::ReinstanceUtils::FlagMask);
 
 	TMap<UObject*, UObject*> CreatedInstanceMap;
-	FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(OldToNewClassMap, OldObject, NewUObject, CreatedInstanceMap, &OldToNewInstanceMap);
+	TArray< TTuple<UObject*, UObject*>> OrderedListOfObjectToCopy;
+	FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(OldToNewClassMap, OldObject, NewUObject, CreatedInstanceMap, &OldToNewInstanceMap, &OrderedListOfObjectToCopy);
 	OldToNewInstanceMap.Append(CreatedInstanceMap);
 
 	// Copy property values
@@ -2293,7 +2294,7 @@ static void ReplaceObjectHelper(UObject*& OldObject, UClass* OldClass, UObject*&
 		Options.bDoDelta = false;
 	}
 	// We only need to copy properties of the pre-created instances, the rest of the default sub object is done inside the UEditorEngine::CopyPropertiesForUnrelatedObjects
-	for (const auto& Pair : CreatedInstanceMap)
+	for (const auto& Pair : OrderedListOfObjectToCopy)
 	{
 		UEditorEngine::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, Options);
 	}
@@ -3187,17 +3188,33 @@ void FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(UObject* Ol
 	UEngine::CopyPropertiesForUnrelatedObjects(OldObject, NewObject, Params);
 }
 
-void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(const TMap<UClass*, UClass*>& OldToNewClassMap, UObject* OldObject, UObject* NewUObject, TMap<UObject*, UObject*>& CreatedInstanceMap, const TMap<UObject*, UObject*>* OldToNewInstanceMap/* = nullptr*/)
+void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(
+	const TMap<UClass*, UClass*>& OldToNewClassMap, 
+	UObject* OldObject, UObject* NewUObject, 
+	TMap<UObject*, UObject*>& CreatedInstanceMap, 
+	const TMap<UObject*, UObject*>* OldToNewInstanceMap/* = nullptr*/, 
+	TArray< TTuple<UObject*, UObject*>>* OrderedListOfObjectToCopy /*= nullptr*/)
 {
 	TSet<UObject*> OldInstancedSubObjects;
 	FReplaceReferenceHelper::GetOwnedSubobjectsRecursive(OldObject, OldInstancedSubObjects);
 
 	// Add the mapping from the old to the new object exists...
 	CreatedInstanceMap.Add(OldObject, NewUObject);
-	PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjects, OldToNewClassMap, OldObject, NewUObject, CreatedInstanceMap, OldToNewInstanceMap);
+	PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjects, OldToNewClassMap, OldObject, NewUObject, CreatedInstanceMap, OldToNewInstanceMap, OrderedListOfObjectToCopy);
+	if (OrderedListOfObjectToCopy)
+	{
+		// Post add for deep first order
+		OrderedListOfObjectToCopy->Add({OldObject, NewUObject});
+	}
 }
 
-void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation_Inner(const TSet<UObject*>& OldInstancedSubObjects, const TMap<UClass*, UClass*>& OldToNewClassMap, UObject* OldObject, UObject* NewUObject, TMap<UObject*, UObject*>& CreatedInstanceMap, const TMap<UObject*, UObject*>* OldToNewInstanceMap/* = nullptr*/)
+void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation_Inner(
+	const TSet<UObject*>& OldInstancedSubObjects, 
+	const TMap<UClass*, UClass*>& OldToNewClassMap, 
+	UObject* OldObject, UObject* NewUObject, 
+	TMap<UObject*, UObject*>& CreatedInstanceMap, 
+	const TMap<UObject*, UObject*>* OldToNewInstanceMap,
+	TArray< TTuple<UObject*, UObject*>>* OrderedListOfObjectToCopy)
 {
 	// Gather subobjects on old object and pre-create them if needed
 	TArray<UObject*> ContainedOldSubObjects;
@@ -3266,14 +3283,19 @@ void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation_Inner(c
 						NewSubObject = NewObject<UObject>(NewUObject, SubObjectClass, SubObjectName, SubObjectFlags);
 					}
 					CreatedInstanceMap.Add(OldSubObject, NewSubObject);
-					PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjects, OldToNewClassMap, OldSubObject, NewSubObject, CreatedInstanceMap, OldToNewInstanceMap);
+					PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjects, OldToNewClassMap, OldSubObject, NewSubObject, CreatedInstanceMap, OldToNewInstanceMap, OrderedListOfObjectToCopy);
+					if (OrderedListOfObjectToCopy)
+					{
+						// Post add for deep first order
+						OrderedListOfObjectToCopy->Add({OldSubObject, NewSubObject});
+					}
 				}
 			}
 		}
 		// There might be new subobjects attached to the sub object that are particular to this instance, let's traverse it to find them out.
 		else if (UObject** NewSubObject = ContainedNewSubObjects.FindByPredicate([SubObjectName](UObject* SubObject) { return SubObject && SubObject->GetFName() == SubObjectName; }))
 		{
-			PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjects, OldToNewClassMap, OldSubObject, *NewSubObject, CreatedInstanceMap, OldToNewInstanceMap);
+			PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjects, OldToNewClassMap, OldSubObject, *NewSubObject, CreatedInstanceMap, OldToNewInstanceMap, OrderedListOfObjectToCopy);
 		}
 	}
 }

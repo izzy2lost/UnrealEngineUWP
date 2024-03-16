@@ -1783,7 +1783,8 @@ void FBlueprintEditorUtils::PostDuplicateBlueprint(UBlueprint* Blueprint, bool b
 
 			TMap<UClass*, UClass*> InOutOldToNewClassMap;
 			TMap<UObject*, UObject*> CreatedInstanceMap;
-			FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(InOutOldToNewClassMap, OldCDO, NewCDO, CreatedInstanceMap);
+			TArray< TTuple<UObject*, UObject*>> OrderedListOfObjectToCopy;
+			FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(InOutOldToNewClassMap, OldCDO, NewCDO, CreatedInstanceMap, nullptr, &OrderedListOfObjectToCopy);
 
 			// We only need to copy properties of the pre-created instances, the rest of the default sub object is done inside the UEditorEngine::CopyPropertiesForUnrelatedObjects
 			TMap<UObject*, UObject*> OldToNewInstanceMap(CreatedInstanceMap);
@@ -1791,7 +1792,7 @@ void FBlueprintEditorUtils::PostDuplicateBlueprint(UBlueprint* Blueprint, bool b
 			Params.OptionalReplacementMappings = &OldToNewInstanceMap;
 			Params.bOnlyHandleDirectSubObjects = true;
 			Params.bReplaceInternalReferenceUponRead = true;
-			for (const auto& Pair : CreatedInstanceMap)
+			for (const auto& Pair : OrderedListOfObjectToCopy)
 			{
 				UEditorEngine::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, Params);
 			}
