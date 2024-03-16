@@ -93,6 +93,8 @@ void UAvaAutoSizeModifier::OnModifierAdded(EActorModifierCoreEnableReason InReas
 	{
 		SceneExtension->TrackSceneTree(0, &ReferenceActor);
 	}
+
+	bDeprecatedPropertiesMigrated = true;
 }
 
 void UAvaAutoSizeModifier::OnModifierEnabled(EActorModifierCoreEnableReason InReason)
@@ -116,8 +118,6 @@ void UAvaAutoSizeModifier::OnModifierEnabled(EActorModifierCoreEnableReason InRe
 			}
 		}
 	}
-
-	bDeprecatedPropertiesMigrated = true;
 }
 
 void UAvaAutoSizeModifier::OnModifierDisabled(EActorModifierCoreDisableReason InReason)
@@ -279,9 +279,8 @@ void UAvaAutoSizeModifier::PostLoad()
 		ReferenceActor.ReferenceContainer = ReferenceContainer_DEPRECATED;
 		ReferenceActor.ReferenceActorWeak = ReferenceActorWeak_DEPRECATED;
 		ReferenceActor.bSkipHiddenActors = bIgnoreHiddenActors_DEPRECATED;
+		bDeprecatedPropertiesMigrated = true;
 	}
-
-	bDeprecatedPropertiesMigrated = true;
 
 	Super::PostLoad();
 }
