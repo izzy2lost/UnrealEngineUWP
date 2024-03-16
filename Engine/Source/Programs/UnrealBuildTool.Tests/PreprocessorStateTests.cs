@@ -14,133 +14,133 @@ namespace UnrealBuildToolTests
 		[TestMethod]
 		public void Run()
 		{
-			PreprocessorState BaseState = new PreprocessorState();
-			BaseState.DefineMacro(ParseMacro("FOO", null, "123"));
-			BaseState.DefineMacro(ParseMacro("BAR", new List<string> { "Arg1", "Arg2" }, "Arg1 + Arg2"));
-			Assert.AreEqual("m BAR(Arg1, Arg2)=Arg1 + Arg2\nm FOO=123\n", FormatState(BaseState));
+			PreprocessorState baseState = new PreprocessorState();
+			baseState.DefineMacro(ParseMacro("FOO", null, "123"));
+			baseState.DefineMacro(ParseMacro("BAR", new List<string> { "Arg1", "Arg2" }, "Arg1 + Arg2"));
+			Assert.AreEqual("m BAR(Arg1, Arg2)=Arg1 + Arg2\nm FOO=123\n", FormatState(baseState));
 
 			// Modify the state and revert it
 			{
-				PreprocessorState State = new PreprocessorState(BaseState);
-				Assert.AreEqual(FormatState(BaseState), FormatState(State));
+				PreprocessorState state = new PreprocessorState(baseState);
+				Assert.AreEqual(FormatState(baseState), FormatState(state));
 
-				PreprocessorTransform Transform1 = State.BeginCapture();
-				State.UndefMacro(Identifier.FindOrAdd("FOO"));
-				State.DefineMacro(ParseMacro("FOO2", null, "FOO()"));
-				State.PushBranch(PreprocessorBranch.Active);
-				Assert.AreEqual("b Active\nm BAR(Arg1, Arg2)=Arg1 + Arg2\nm FOO2=FOO()\n", FormatState(State));
-				Assert.AreEqual("+b Active\n+m FOO undef\n+m FOO2=FOO()\n", FormatTransform(Transform1));
+				PreprocessorTransform transform1 = state.BeginCapture();
+				state.UndefMacro(Identifier.FindOrAdd("FOO"));
+				state.DefineMacro(ParseMacro("FOO2", null, "FOO()"));
+				state.PushBranch(PreprocessorBranch.Active);
+				Assert.AreEqual("b Active\nm BAR(Arg1, Arg2)=Arg1 + Arg2\nm FOO2=FOO()\n", FormatState(state));
+				Assert.AreEqual("+b Active\n+m FOO undef\n+m FOO2=FOO()\n", FormatTransform(transform1));
 
-				PreprocessorState State2 = new PreprocessorState(BaseState);
-				State2.TryToApply(Transform1);
-				Assert.AreEqual(FormatState(State), FormatState(State2));
+				PreprocessorState state2 = new PreprocessorState(baseState);
+				state2.TryToApply(transform1);
+				Assert.AreEqual(FormatState(state), FormatState(state2));
 
-				PreprocessorTransform Transform2 = State.BeginCapture();
-				State.PopBranch();
-				State.UndefMacro(Identifier.FindOrAdd("FOO"));
-				State.DefineMacro(ParseMacro("FOO", null, "123"));
-				State.UndefMacro(Identifier.FindOrAdd("FOO2"));
-				Assert.AreEqual(FormatState(BaseState), FormatState(State));
-				Assert.AreEqual("-b Active\n+m FOO=123\n+m FOO2 undef\n", FormatTransform(Transform2));
+				PreprocessorTransform transform2 = state.BeginCapture();
+				state.PopBranch();
+				state.UndefMacro(Identifier.FindOrAdd("FOO"));
+				state.DefineMacro(ParseMacro("FOO", null, "123"));
+				state.UndefMacro(Identifier.FindOrAdd("FOO2"));
+				Assert.AreEqual(FormatState(baseState), FormatState(state));
+				Assert.AreEqual("-b Active\n+m FOO=123\n+m FOO2 undef\n", FormatTransform(transform2));
 
-				State2.TryToApply(Transform2);
-				Assert.AreEqual(FormatState(BaseState), FormatState(State2));
+				state2.TryToApply(transform2);
+				Assert.AreEqual(FormatState(baseState), FormatState(state2));
 			}
 
 			// Check the tracking of branches
 			{
-				PreprocessorState State = new PreprocessorState(BaseState);
-				PreprocessorTransform Transform1 = State.BeginCapture();
-				State.IsCurrentBranchActive();
-				Assert.AreEqual("=b Active\n", FormatTransform(Transform1));
+				PreprocessorState state = new PreprocessorState(baseState);
+				PreprocessorTransform transform1 = state.BeginCapture();
+				state.IsCurrentBranchActive();
+				Assert.AreEqual("=b Active\n", FormatTransform(transform1));
 
-				State.PushBranch(PreprocessorBranch.Active);
-				PreprocessorTransform Transform2 = State.BeginCapture();
-				State.IsCurrentBranchActive();
-				State.PopBranch();
-				State.EndCapture();
-				Assert.AreEqual("-b Active\n", FormatTransform(Transform2));
+				state.PushBranch(PreprocessorBranch.Active);
+				PreprocessorTransform transform2 = state.BeginCapture();
+				state.IsCurrentBranchActive();
+				state.PopBranch();
+				state.EndCapture();
+				Assert.AreEqual("-b Active\n", FormatTransform(transform2));
 
-				State.PushBranch(0);
-				Assert.AreEqual("False", State.CanApply(Transform2).ToString());
+				state.PushBranch(0);
+				Assert.AreEqual("False", state.CanApply(transform2).ToString());
 
-				State.PopBranch();
-				State.PushBranch(PreprocessorBranch.Active);
-				Assert.AreEqual("True", State.CanApply(Transform2).ToString());
+				state.PopBranch();
+				state.PushBranch(PreprocessorBranch.Active);
+				Assert.AreEqual("True", state.CanApply(transform2).ToString());
 			}
 		}
 
-		static string FormatState(PreprocessorState State)
+		static string FormatState(PreprocessorState state)
 		{
-			StringBuilder Result = new StringBuilder();
-			foreach (PreprocessorBranch Branch in State.CurrentBranches)
+			StringBuilder result = new StringBuilder();
+			foreach (PreprocessorBranch branch in state.CurrentBranches)
 			{
-				Result.AppendFormat("b {0}\n", Branch);
+				result.AppendFormat("b {0}\n", branch);
 			}
-			foreach (PreprocessorMacro Macro in State.CurrentMacros.OrderBy(x => x.Name))
+			foreach (PreprocessorMacro macro in state.CurrentMacros.OrderBy(x => x.Name))
 			{
-				Result.AppendFormat("m {0}\n", Macro.ToString().TrimEnd());
+				result.AppendFormat("m {0}\n", macro.ToString().TrimEnd());
 			}
-			return Result.ToString();
+			return result.ToString();
 		}
 
-		static string FormatTransform(PreprocessorTransform Transform)
+		static string FormatTransform(PreprocessorTransform transform)
 		{
-			StringBuilder Result = new StringBuilder();
-			if (Transform.RequireTopmostActive.HasValue)
+			StringBuilder result = new StringBuilder();
+			if (transform.RequireTopmostActive.HasValue)
 			{
-				Result.AppendFormat("=b {0}\n", Transform.RequireTopmostActive.Value ? "Active" : "0");
+				result.AppendFormat("=b {0}\n", transform.RequireTopmostActive.Value ? "Active" : "0");
 			}
-			foreach (PreprocessorBranch Branch in Transform.RequiredBranches)
+			foreach (PreprocessorBranch branch in transform.RequiredBranches)
 			{
-				Result.AppendFormat("-b {0}\n", Branch);
+				result.AppendFormat("-b {0}\n", branch);
 			}
-			foreach (PreprocessorBranch Branch in Transform.NewBranches)
+			foreach (PreprocessorBranch branch in transform.NewBranches)
 			{
-				Result.AppendFormat("+b {0}\n", Branch);
+				result.AppendFormat("+b {0}\n", branch);
 			}
-			foreach (KeyValuePair<Identifier, PreprocessorMacro> Macro in Transform.RequiredMacros)
+			foreach (KeyValuePair<Identifier, PreprocessorMacro> macro in transform.RequiredMacros)
 			{
-				if (Macro.Value == null)
+				if (macro.Value == null)
 				{
-					Result.AppendFormat("=m {0} undef\n", Macro.Key);
+					result.AppendFormat("=m {0} undef\n", macro.Key);
 				}
 				else
 				{
-					Result.AppendFormat("=m {0}\n", Macro.Value.ToString().TrimEnd());
+					result.AppendFormat("=m {0}\n", macro.Value.ToString().TrimEnd());
 				}
 			}
-			foreach (KeyValuePair<Identifier, PreprocessorMacro> Macro in Transform.NewMacros)
+			foreach (KeyValuePair<Identifier, PreprocessorMacro> macro in transform.NewMacros)
 			{
-				if (Macro.Value == null)
+				if (macro.Value == null)
 				{
-					Result.AppendFormat("+m {0} undef\n", Macro.Key);
+					result.AppendFormat("+m {0} undef\n", macro.Key);
 				}
 				else
 				{
-					Result.AppendFormat("+m {0}\n", Macro.Value.ToString().TrimEnd());
+					result.AppendFormat("+m {0}\n", macro.Value.ToString().TrimEnd());
 				}
 			}
-			return Result.ToString();
+			return result.ToString();
 		}
 
-		static PreprocessorMacro ParseMacro(string Name, List<string> Parameters, string Value)
+		static PreprocessorMacro ParseMacro(string name, List<string> parameters, string value)
 		{
-			List<Token> Tokens = new List<Token>();
+			List<Token> tokens = new List<Token>();
 
-			using TokenReader Reader = new TokenReader(Value);
-			while (Reader.MoveNext())
+			using TokenReader reader = new TokenReader(value);
+			while (reader.MoveNext())
 			{
-				Tokens.Add(Reader.Current);
+				tokens.Add(reader.Current);
 			}
 
-			if (Parameters == null)
+			if (parameters == null)
 			{
-				return new PreprocessorMacro(Identifier.FindOrAdd(Name), null, Tokens);
+				return new PreprocessorMacro(Identifier.FindOrAdd(name), null, tokens);
 			}
 			else
 			{
-				return new PreprocessorMacro(Identifier.FindOrAdd(Name), Parameters.Select(x => Identifier.FindOrAdd(x)).ToList(), Tokens);
+				return new PreprocessorMacro(Identifier.FindOrAdd(name), parameters.Select(x => Identifier.FindOrAdd(x)).ToList(), tokens);
 			}
 		}
 	}

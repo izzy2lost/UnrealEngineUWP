@@ -218,58 +218,58 @@ namespace UnrealBuildToolTests
 		/// <summary>
 		/// Preprocess a fragment of code, and check it results in an expected sequence of tokens
 		/// </summary>
-		/// <param name="Fragment">The code fragment to preprocess</param>
-		/// <param name="ExpectedResult">The expected sequence of tokens, as a string. Null to indicate that the input is invalid, and an exception is expected.</param>
-		static void RunTest(string Fragment, string ExpectedResult)
+		/// <param name="fragment">The code fragment to preprocess</param>
+		/// <param name="expectedResult">The expected sequence of tokens, as a string. Null to indicate that the input is invalid, and an exception is expected.</param>
+		static void RunTest(string fragment, string expectedResult)
 		{
-			string[] Lines = Fragment.Split('\n');
+			string[] lines = fragment.Split('\n');
 
-			SourceFile File = new SourceFile(null, TokenReader.GetNullTerminatedByteArray(Fragment));
+			SourceFile file = new SourceFile(null, TokenReader.GetNullTerminatedByteArray(fragment));
 
-			Preprocessor Instance = new Preprocessor();
+			Preprocessor instance = new Preprocessor();
 
-			string Result;
+			string result;
 			try
 			{
-				List<Token> OutputTokens = new List<Token>();
-				for (int MarkupIdx = 0; MarkupIdx < File.Markup.Length; MarkupIdx++)
+				List<Token> outputTokens = new List<Token>();
+				for (int markupIdx = 0; markupIdx < file.Markup.Length; markupIdx++)
 				{
-					SourceFileMarkup Markup = File.Markup[MarkupIdx];
-					if (Markup.Type == SourceFileMarkupType.Text)
+					SourceFileMarkup markup = file.Markup[markupIdx];
+					if (markup.Type == SourceFileMarkupType.Text)
 					{
-						if (Instance.IsCurrentBranchActive())
+						if (instance.IsCurrentBranchActive())
 						{
-							StringBuilder SourceText = new StringBuilder();
+							StringBuilder sourceText = new StringBuilder();
 
-							int LastLineIndex = (MarkupIdx + 1 < File.Markup.Length) ? File.Markup[MarkupIdx + 1].LineNumber - 1 : Lines.Length;
-							for (int LineIndex = Markup.LineNumber - 1; LineIndex < LastLineIndex; LineIndex++)
+							int lastLineIndex = (markupIdx + 1 < file.Markup.Length) ? file.Markup[markupIdx + 1].LineNumber - 1 : lines.Length;
+							for (int lineIndex = markup.LineNumber - 1; lineIndex < lastLineIndex; lineIndex++)
 							{
-								SourceText.AppendLine(Lines[LineIndex]);
+								sourceText.AppendLine(lines[lineIndex]);
 							}
 
-							List<Token> Tokens = new List<Token>();
+							List<Token> tokens = new List<Token>();
 
-							using TokenReader Reader = new TokenReader(SourceText.ToString());
-							while (Reader.MoveNext())
+							using TokenReader reader = new TokenReader(sourceText.ToString());
+							while (reader.MoveNext())
 							{
-								Tokens.Add(Reader.Current);
+								tokens.Add(reader.Current);
 							}
 
-							Instance.ExpandMacros(Tokens, OutputTokens, false, null);
+							instance.ExpandMacros(tokens, outputTokens, false, null);
 						}
 					}
 					else
 					{
-						Instance.ParseMarkup(Markup.Type, Markup.Tokens, null);
+						instance.ParseMarkup(markup.Type, markup.Tokens, null);
 					}
 				}
-				Result = Token.Format(OutputTokens);
+				result = Token.Format(outputTokens);
 			}
 			catch (PreprocessorException)
 			{
-				Result = null;
+				result = null;
 			}
-			Assert.AreEqual(ExpectedResult, Result);
+			Assert.AreEqual(expectedResult, result);
 		}
 	}
 }
