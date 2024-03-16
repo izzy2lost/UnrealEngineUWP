@@ -32,7 +32,7 @@ namespace WorldPartitionTests
 		}
 
 		const double RunTime = FPlatformTime::Seconds() - StartTime;
-		Test->AddInfo(FString::Printf(TEXT("%s: %d tests in %s (%.2f/s)"), Name, Tests.Num(), *FPlatformTime::PrettyTime(RunTime), Tests.Num() / RunTime), 0);
+		Test->AddInfo(FString::Printf(TEXT("%s: %d tests in %s (%.2f/s, %s)"), Name, Tests.Num(), *FPlatformTime::PrettyTime(RunTime), Tests.Num() / RunTime, *FGenericPlatformMemory::PrettyMemory(SpatialIndex.GetAllocatedSize())));
 	}
 #endif
 

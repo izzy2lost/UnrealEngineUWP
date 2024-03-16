@@ -573,3 +573,32 @@ uint64 FGenericPlatformMemoryStats::GetAvailablePhysical(bool bExcludeExtraDevMe
 
 	return BytesAvailable;
 }
+
+FString FGenericPlatformMemory::PrettyMemory(uint64 Memory)
+{
+	static const TCHAR* Units[] = { TEXT("B"), TEXT("KB"), TEXT("MB"), TEXT("GB"), TEXT("TB"), TEXT("PB"), TEXT("EB") };
+			
+	uint64 UnitIndex = 0;
+	uint64 Remainder = 0;
+
+	while ((Memory > 1024) && (UnitIndex++ < (UE_ARRAY_COUNT(Units) - 1)))
+	{
+		Remainder = Memory & 1023;
+		Memory >>= 10llu;
+	}
+
+	// Convert remainder to percentage
+	const uint64 RemainderPerc = (Remainder * 100) >> 10;
+
+	if (RemainderPerc)
+	{
+		if (RemainderPerc % 10)
+		{
+			return FString::Printf(TEXT("%llu.%02llu%s"), Memory, RemainderPerc, Units[UnitIndex]);
+		}
+
+		return FString::Printf(TEXT("%llu.%llu%s"), Memory, RemainderPerc / 10, Units[UnitIndex]);
+	}
+
+	return FString::Printf(TEXT("%llu%s"), Memory, Units[UnitIndex]);
+}

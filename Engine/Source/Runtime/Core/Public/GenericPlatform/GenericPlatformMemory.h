@@ -808,6 +808,13 @@ public:
 		return false; // Most platform do not implement this.
 	}
 
+	/**
+	 * Returns a pretty-string for an amount of memory given in bytes.
+	 *
+	 * @param Memory amount in bytes
+	 * @return Memory in a pretty formatted string
+	 */
+	static CORE_API FString PrettyMemory( uint64 Memory );
 
 protected:
 	friend struct FGenericStatsUpdater;
