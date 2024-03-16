@@ -112,7 +112,7 @@ struct FAvaVisibilitySharedActorState
  * We want to save the state of that actor once before any modifier changes it
  * and restore it when no other modifier is watching it
  */
-UCLASS()
+UCLASS(Hidden)
 class UAvaVisibilityModifierShared : public UActorModifierCoreSharedObject
 {
 	GENERATED_BODY()

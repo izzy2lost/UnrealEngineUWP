@@ -61,7 +61,7 @@ struct FAvaTranslucentPriorityModifierComponentState
 /**
  * Singleton class for translucent priority modifiers to share data about component state
  */
-UCLASS()
+UCLASS(Hidden)
 class UAvaTranslucentPriorityModifierShared : public UActorModifierCoreSharedObject
 {
 	GENERATED_BODY()

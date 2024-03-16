@@ -48,7 +48,7 @@ struct FAvaBooleanModifierSharedChannelInfo
  * Singleton class for boolean modifiers to share data
  * Transient because we can rebuild it, no need to save the asset
  */
-UCLASS(Transient)
+UCLASS(Transient, Hidden)
 class UAvaBooleanModifierShared : public UActorModifierCoreSharedObject
 {
 	GENERATED_BODY()
