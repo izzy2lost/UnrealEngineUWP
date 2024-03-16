@@ -9,8 +9,6 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-class FMovieScenePreAnimatedState;
-class IMovieScenePlayer;
 class UClass;
 class UMovieSceneEntitySystemLinker;
 class UObject;
@@ -24,18 +22,16 @@ template <typename FuncType> class TFunctionRef;
 /**
  * Class that caches pre-animated state for objects that were manipulated by sequencer
  */
-class FMovieScenePreAnimatedState
+class FMovieSceneInstancePreAnimatedState
 {
 public:
 
-	FMovieScenePreAnimatedState() = default;
+	FMovieSceneInstancePreAnimatedState(UMovieSceneEntitySystemLinker* InLinker, UE::MovieScene::FRootInstanceHandle InInstanceHandle);
 
-	FMovieScenePreAnimatedState(const FMovieScenePreAnimatedState&) = delete;
-	FMovieScenePreAnimatedState& operator=(const FMovieScenePreAnimatedState&) = delete;
+	FMovieSceneInstancePreAnimatedState(const FMovieSceneInstancePreAnimatedState&) = delete;
+	FMovieSceneInstancePreAnimatedState& operator=(const FMovieSceneInstancePreAnimatedState&) = delete;
 
-	MOVIESCENE_API ~FMovieScenePreAnimatedState();
-
-	MOVIESCENE_API void Initialize(UMovieSceneEntitySystemLinker* Linker, UE::MovieScene::FRootInstanceHandle InstanceHandle);
+	MOVIESCENE_API ~FMovieSceneInstancePreAnimatedState();
 
 	/**
 	 * Check whether this sequence instance is capturing any and all changes of state so they can be restored later
@@ -91,11 +87,6 @@ public:
 	 */
 	MOVIESCENE_API void DiscardAndRemoveEntityTokensForObject(UObject& Object);
 
-	/**
-	 * Called when objects have been replaced so that pre animated state can swap out to the new objects
-	 */
-	MOVIESCENE_API void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
-
 public:
 
 	/**
@@ -110,13 +101,51 @@ private:
 
 private:
 
-	friend struct FScopedPreAnimatedCaptureSource;
-
 	/** Weak pointer to the linker that we're associated with */
 	TWeakObjectPtr<UMovieSceneEntitySystemLinker> WeakLinker;
 
 	/** The instance handle for the root sequence instance */
 	UE::MovieScene::FRootInstanceHandle InstanceHandle;
 
+	/** Whether global pre-animated state capture has been requested on the linker extension */
 	bool bCapturingGlobalPreAnimatedState;
 };
+
+/**
+ * A class similar to FMovieSceneInstancePreAnimatedState (above), which doesn't manage global pre-animated state 
+ * requests, deferring those to the other class. This class is mostly for IMovieScenePlayer, for backwards
+ * compatibility.
+ */
+class FMovieScenePreAnimatedState
+{
+public:
+
+	FMovieScenePreAnimatedState() = default;
+	FMovieScenePreAnimatedState(const FMovieScenePreAnimatedState&) = delete;
+	FMovieScenePreAnimatedState& operator=(const FMovieScenePreAnimatedState&) = delete;
+
+	MOVIESCENE_API void Initialize(UMovieSceneEntitySystemLinker* Linker, UE::MovieScene::FRootInstanceHandle InstanceHandle);
+	MOVIESCENE_API bool IsCapturingGlobalPreAnimatedState() const;
+	MOVIESCENE_API void EnableGlobalPreAnimatedStateCapture();
+	MOVIESCENE_API UMovieSceneEntitySystemLinker* GetLinker() const;
+	MOVIESCENE_API void SavePreAnimatedState(UObject& InObject, FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedTokenProducer& Producer);
+	MOVIESCENE_API void SavePreAnimatedState(FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedGlobalTokenProducer& Producer);
+	MOVIESCENE_API void RestorePreAnimatedState();
+	MOVIESCENE_API void RestorePreAnimatedState(UObject& Object);
+	MOVIESCENE_API void RestorePreAnimatedState(UClass* GeneratedClass);
+	MOVIESCENE_API void RestorePreAnimatedState(UObject& Object, TFunctionRef<bool(FMovieSceneAnimTypeID)> InFilter);
+	MOVIESCENE_API void DiscardPreAnimatedState();
+	MOVIESCENE_API void DiscardEntityTokens();
+	MOVIESCENE_API void DiscardAndRemoveEntityTokensForObject(UObject& Object);
+	MOVIESCENE_API bool ContainsAnyStateForSequence() const;
+
+private:
+
+	FMovieSceneInstancePreAnimatedState* GetState() const;
+
+	TWeakObjectPtr<UMovieSceneEntitySystemLinker> WeakLinker;
+	UE::MovieScene::FRootInstanceHandle InstanceHandle;
+
+	friend struct FScopedPreAnimatedCaptureSource;
+};
+

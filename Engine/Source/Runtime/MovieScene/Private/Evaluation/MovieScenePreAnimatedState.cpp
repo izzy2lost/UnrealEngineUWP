@@ -4,6 +4,8 @@
 #include "GameFramework/Actor.h"
 #include "Components/ActorComponent.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
+#include "EntitySystem/MovieSceneInstanceRegistry.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedStateExtension.h"
 #include "Evaluation/PreAnimatedState/MovieSceneRestoreStateParams.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSources.h"
@@ -12,7 +14,14 @@
 
 DECLARE_CYCLE_STAT(TEXT("Save Pre Animated State"), MovieSceneEval_SavePreAnimatedState, STATGROUP_MovieSceneEval);
 
-FMovieScenePreAnimatedState::~FMovieScenePreAnimatedState()
+FMovieSceneInstancePreAnimatedState::FMovieSceneInstancePreAnimatedState(UMovieSceneEntitySystemLinker* InLinker, UE::MovieScene::FRootInstanceHandle InInstanceHandle)
+	: WeakLinker(InLinker)
+	, InstanceHandle(InInstanceHandle)
+	, bCapturingGlobalPreAnimatedState(false)
+{
+}
+
+FMovieSceneInstancePreAnimatedState::~FMovieSceneInstancePreAnimatedState()
 {
 	// Ensure that the global state capture request is removed
 	UMovieSceneEntitySystemLinker* CurrentLinker = WeakLinker.Get();
@@ -23,35 +32,17 @@ FMovieScenePreAnimatedState::~FMovieScenePreAnimatedState()
 	}
 }
 
-void FMovieScenePreAnimatedState::Initialize(UMovieSceneEntitySystemLinker* Linker, UE::MovieScene::FRootInstanceHandle InInstanceHandle)
-{
-	// If we're re-using a pre-animated state class and it was previously
-	// capturing global state make sure to decrement that request
-	UMovieSceneEntitySystemLinker* PreviousLinker = WeakLinker.Get();
-	if (PreviousLinker && bCapturingGlobalPreAnimatedState)
-	{
-		checkf(PreviousLinker->PreAnimatedState.NumRequestsForGlobalState > 0, TEXT("Increment/Decrement mismatch on FPreAnimatedState::NumRequestsForGlobalState"));
-		--PreviousLinker->PreAnimatedState.NumRequestsForGlobalState;
-
-	}
-
-	bCapturingGlobalPreAnimatedState = false;
-
-	WeakLinker = Linker;
-	InstanceHandle = InInstanceHandle;
-}
-
-UMovieSceneEntitySystemLinker* FMovieScenePreAnimatedState::GetLinker() const
+UMovieSceneEntitySystemLinker* FMovieSceneInstancePreAnimatedState::GetLinker() const
 {
 	return WeakLinker.Get();
 }
 
-bool FMovieScenePreAnimatedState::IsCapturingGlobalPreAnimatedState() const
+bool FMovieSceneInstancePreAnimatedState::IsCapturingGlobalPreAnimatedState() const
 {
 	return bCapturingGlobalPreAnimatedState;
 }
 
-void FMovieScenePreAnimatedState::EnableGlobalPreAnimatedStateCapture()
+void FMovieSceneInstancePreAnimatedState::EnableGlobalPreAnimatedStateCapture()
 {
 	if (bCapturingGlobalPreAnimatedState)
 	{
@@ -67,7 +58,7 @@ void FMovieScenePreAnimatedState::EnableGlobalPreAnimatedStateCapture()
 	}
 }
 
-void FMovieScenePreAnimatedState::SavePreAnimatedState(UObject& InObject, FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedTokenProducer& Producer)
+void FMovieSceneInstancePreAnimatedState::SavePreAnimatedState(UObject& InObject, FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedTokenProducer& Producer)
 {
 	using namespace UE::MovieScene;
 
@@ -83,7 +74,7 @@ void FMovieScenePreAnimatedState::SavePreAnimatedState(UObject& InObject, FMovie
 	}
 }
 
-void FMovieScenePreAnimatedState::SavePreAnimatedState(FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedGlobalTokenProducer& Producer)
+void FMovieSceneInstancePreAnimatedState::SavePreAnimatedState(FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedGlobalTokenProducer& Producer)
 {
 	using namespace UE::MovieScene;
 
@@ -99,7 +90,7 @@ void FMovieScenePreAnimatedState::SavePreAnimatedState(FMovieSceneAnimTypeID InT
 	}
 }
 
-void FMovieScenePreAnimatedState::RestorePreAnimatedState()
+void FMovieSceneInstancePreAnimatedState::RestorePreAnimatedState()
 {
 	using namespace UE::MovieScene;
 
@@ -110,7 +101,7 @@ void FMovieScenePreAnimatedState::RestorePreAnimatedState()
 	}
 }
 
-void FMovieScenePreAnimatedState::DiscardPreAnimatedState()
+void FMovieSceneInstancePreAnimatedState::DiscardPreAnimatedState()
 {
 	using namespace UE::MovieScene;
 
@@ -121,7 +112,7 @@ void FMovieScenePreAnimatedState::DiscardPreAnimatedState()
 	}
 }
 
-void FMovieScenePreAnimatedState::RestorePreAnimatedState(UObject& Object)
+void FMovieSceneInstancePreAnimatedState::RestorePreAnimatedState(UObject& Object)
 {
 	using namespace UE::MovieScene;
 
@@ -146,7 +137,7 @@ void FMovieScenePreAnimatedState::RestorePreAnimatedState(UObject& Object)
 	Linker->PreAnimatedState.RestoreStateForGroup(Group, FRestoreStateParams{Linker, InstanceHandle});
 }
 
-void FMovieScenePreAnimatedState::RestorePreAnimatedState(UClass* GeneratedClass)
+void FMovieSceneInstancePreAnimatedState::RestorePreAnimatedState(UClass* GeneratedClass)
 {
 	using namespace UE::MovieScene;
 
@@ -171,7 +162,7 @@ void FMovieScenePreAnimatedState::RestorePreAnimatedState(UClass* GeneratedClass
 }
 
 
-void FMovieScenePreAnimatedState::RestorePreAnimatedState(UObject& Object, TFunctionRef<bool(FMovieSceneAnimTypeID)> InFilter)
+void FMovieSceneInstancePreAnimatedState::RestorePreAnimatedState(UObject& Object, TFunctionRef<bool(FMovieSceneAnimTypeID)> InFilter)
 {
 	using namespace UE::MovieScene;
 
@@ -205,7 +196,7 @@ void FMovieScenePreAnimatedState::RestorePreAnimatedState(UObject& Object, TFunc
 	ObjectStorage->SetRestoreMask(nullptr);
 }
 
-void FMovieScenePreAnimatedState::DiscardEntityTokens()
+void FMovieSceneInstancePreAnimatedState::DiscardEntityTokens()
 {
 	using namespace UE::MovieScene;
 
@@ -216,7 +207,7 @@ void FMovieScenePreAnimatedState::DiscardEntityTokens()
 	}
 }
 
-void FMovieScenePreAnimatedState::DiscardAndRemoveEntityTokensForObject(UObject& Object)
+void FMovieSceneInstancePreAnimatedState::DiscardAndRemoveEntityTokensForObject(UObject& Object)
 {
 	using namespace UE::MovieScene;
 
@@ -241,27 +232,133 @@ void FMovieScenePreAnimatedState::DiscardAndRemoveEntityTokensForObject(UObject&
 	Linker->PreAnimatedState.DiscardStateForGroup(Group);
 }
 
-void FMovieScenePreAnimatedState::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
-{
-	using namespace UE::MovieScene;
-
-	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
-	if (!Linker)
-	{
-		return;
-	}
-
-	TSharedPtr<FPreAnimatedObjectGroupManager> ObjectGroupManager = Linker->PreAnimatedState.FindGroupManager<FPreAnimatedObjectGroupManager>();
-	if (ObjectGroupManager)
-	{
-		ObjectGroupManager->OnObjectsReplaced(ReplacementMap);
-	}
-}
-
-bool FMovieScenePreAnimatedState::ContainsAnyStateForSequence() const
+bool FMovieSceneInstancePreAnimatedState::ContainsAnyStateForSequence() const
 {
 	using namespace UE::MovieScene;
 
 	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
 	return Linker && InstanceHandle.IsValid() && Linker->PreAnimatedState.ContainsAnyStateForInstanceHandle(InstanceHandle);
 }
+
+void FMovieScenePreAnimatedState::Initialize(UMovieSceneEntitySystemLinker* Linker, UE::MovieScene::FRootInstanceHandle InInstanceHandle)
+{
+	WeakLinker = Linker;
+	InstanceHandle = InInstanceHandle;
+}
+
+bool FMovieScenePreAnimatedState::IsCapturingGlobalPreAnimatedState() const
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		return State->IsCapturingGlobalPreAnimatedState();
+	}
+	return false;
+}
+
+void FMovieScenePreAnimatedState::EnableGlobalPreAnimatedStateCapture()
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		State->EnableGlobalPreAnimatedStateCapture();
+	}
+}
+
+UMovieSceneEntitySystemLinker* FMovieScenePreAnimatedState::GetLinker() const
+{
+	return WeakLinker.Get();
+}
+
+void FMovieScenePreAnimatedState::SavePreAnimatedState(UObject& InObject, FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedTokenProducer& Producer)
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		State->SavePreAnimatedState(InObject, InTokenType, Producer);
+	}
+}
+
+void FMovieScenePreAnimatedState::SavePreAnimatedState(FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedGlobalTokenProducer& Producer)
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		State->SavePreAnimatedState(InTokenType, Producer);
+	}
+}
+
+void FMovieScenePreAnimatedState::RestorePreAnimatedState()
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		State->RestorePreAnimatedState();
+	}
+}
+
+void FMovieScenePreAnimatedState::RestorePreAnimatedState(UObject& Object)
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		State->RestorePreAnimatedState(Object);
+	}
+}
+
+void FMovieScenePreAnimatedState::RestorePreAnimatedState(UClass* GeneratedClass)
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		State->RestorePreAnimatedState(GeneratedClass);
+	}
+}
+
+void FMovieScenePreAnimatedState::RestorePreAnimatedState(UObject& Object, TFunctionRef<bool(FMovieSceneAnimTypeID)> InFilter)
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		State->RestorePreAnimatedState(Object, InFilter);
+	}
+}
+
+void FMovieScenePreAnimatedState::DiscardPreAnimatedState()
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		State->DiscardPreAnimatedState();
+	}
+}
+
+void FMovieScenePreAnimatedState::DiscardEntityTokens()
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		State->DiscardEntityTokens();
+	}
+}
+
+void FMovieScenePreAnimatedState::DiscardAndRemoveEntityTokensForObject(UObject& Object)
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		State->DiscardAndRemoveEntityTokensForObject(Object);
+	}
+}
+
+bool FMovieScenePreAnimatedState::ContainsAnyStateForSequence() const
+{
+	if (FMovieSceneInstancePreAnimatedState* State = GetState())
+	{
+		return State->ContainsAnyStateForSequence();
+	}
+	return false;
+}
+
+FMovieSceneInstancePreAnimatedState* FMovieScenePreAnimatedState::GetState() const
+{
+	using namespace UE::MovieScene;
+
+	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
+	if (Linker && InstanceHandle.IsValid())
+	{
+		const FSequenceInstance& Instance = Linker->GetInstanceRegistry()->GetInstance(InstanceHandle);
+		return &Instance.GetSharedPlaybackState()->GetPreAnimatedState();
+	}
+	return nullptr;
+}
+

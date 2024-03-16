@@ -255,11 +255,9 @@ void FMovieSceneRootEvaluationTemplateInstance::EnableGlobalPreAnimatedStateCapt
 {
 	using namespace UE::MovieScene;
 
-	const FRootInstanceHandle RootInstanceHandle = GetRootInstanceHandle();
-	if (ensure(EntitySystemLinker && RootInstanceHandle.IsValid()))
+	if (ensure(SharedPlaybackState))
 	{
-		const FSequenceInstance& Instance = EntitySystemLinker->GetInstanceRegistry()->GetInstance(RootInstanceHandle);
-		Instance.GetPlayer()->PreAnimatedState.EnableGlobalPreAnimatedStateCapture();
+		SharedPlaybackState->GetPreAnimatedState().EnableGlobalPreAnimatedStateCapture();
 	}
 }
 
@@ -435,7 +433,7 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 	UMovieSceneSequence* RootSequence = SharedPlaybackState->GetRootSequence();
 	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
 
-	const bool bGlobalCapture = Player.PreAnimatedState.IsCapturingGlobalPreAnimatedState();
+	const bool bGlobalCapture = SharedPlaybackState->GetPreAnimatedState().IsCapturingGlobalPreAnimatedState();
 	const FRootInstanceHandle PreviousRootInstanceHandle = SharedPlaybackState->GetRootInstanceHandle();
 
 	if (PreviousRootInstanceHandle.IsValid() &&
@@ -480,7 +478,7 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 	Player.PreAnimatedState.Initialize(EntitySystemLinker, RootInstanceHandle);
 	if (bGlobalCapture)
 	{
-		Player.PreAnimatedState.EnableGlobalPreAnimatedStateCapture();
+		SharedPlaybackState->GetPreAnimatedState().EnableGlobalPreAnimatedStateCapture();
 	}
 }
 

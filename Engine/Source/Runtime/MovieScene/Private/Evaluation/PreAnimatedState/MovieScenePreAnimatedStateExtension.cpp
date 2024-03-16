@@ -933,6 +933,14 @@ void FPreAnimatedStateExtension::AddReferencedObjects(UMovieSceneEntitySystemLin
 	}
 }
 
+void FPreAnimatedStateExtension::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+	TSharedPtr<FPreAnimatedObjectGroupManager> ObjectGroupManager = FindGroupManager<FPreAnimatedObjectGroupManager>();
+	if (ObjectGroupManager)
+	{
+		ObjectGroupManager->OnObjectsReplaced(ReplacementMap);
+	}
+}
 
 } // namespace MovieScene
 } // namespace UE

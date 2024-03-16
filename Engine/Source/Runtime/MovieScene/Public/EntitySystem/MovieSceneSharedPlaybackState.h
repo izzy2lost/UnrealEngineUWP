@@ -7,6 +7,7 @@
 #include "EntitySystem/MovieSceneSequenceInstanceHandle.h"
 #include "Evaluation/MovieSceneEvaluationOperand.h"
 #include "Evaluation/MovieScenePlaybackCapabilities.h"
+#include "Evaluation/MovieScenePreAnimatedState.h"
 #include "MovieSceneSequenceID.h"
 
 class FMovieSceneEntitySystemRunner;
@@ -25,8 +26,6 @@ struct FSharedPlaybackStateCreateParams
 {
 	/**
 	 * The playback context in which the root sequence will be evaluated.
-	 *
-	 * Requires that RootInstanceHandle and Linker are also set.
 	 */
 	UObject* PlaybackContext = nullptr;
 
@@ -34,16 +33,12 @@ struct FSharedPlaybackStateCreateParams
 	 * The handle of the root sequence instance, if the created playback state
 	 * is meant to relate to an instance that has also been created inside
 	 * a runner/linker's instance registry.
-	 *
-	 * Requires that PlaybackContext and Linker are also set.
 	 */
 	FRootInstanceHandle RootInstanceHandle;
 
 	/**
 	 * The linker that will be evaluating the sequence that the created playback
 	 * state relates to.
-	 *
-	 * Requires that PlaybackContext and RootInstanceHandle are also set.
 	 */
 	TObjectPtr<UMovieSceneEntitySystemLinker> Linker;
 
@@ -61,7 +56,7 @@ struct MOVIESCENE_API FSharedPlaybackState : TSharedFromThis<FSharedPlaybackStat
 {
 public:
 
-	FSharedPlaybackState();
+	FSharedPlaybackState(UMovieSceneEntitySystemLinker* InLinker = nullptr);
 	FSharedPlaybackState(
 			UMovieSceneSequence& InRootSequence,
 			const FSharedPlaybackStateCreateParams& CreateParams);
@@ -85,6 +80,12 @@ public:
 
 	/** Gets the compiled data ID for the root sequence */
 	const FMovieSceneCompiledDataID&  GetRootCompiledDataID() const { return RootCompiledDataID; }
+
+	/** Gets the pre-animated state utility for the sequence hierarchy */
+	const FMovieSceneInstancePreAnimatedState& GetPreAnimatedState() const { return PreAnimatedState; }
+
+	/** Gets the pre-animated state utility for the sequence hierarchy */
+	FMovieSceneInstancePreAnimatedState& GetPreAnimatedState() { return PreAnimatedState; }
 
 public:
 
@@ -314,6 +315,9 @@ private:
 
 	/** Playback capabilities for the root sequence */
 	FPlaybackCapabilities Capabilities;
+
+	/** Pre-animated state utility for the sequence hierarchy */
+	FMovieSceneInstancePreAnimatedState PreAnimatedState;
 };
 
 } // namespace UE::MovieScene

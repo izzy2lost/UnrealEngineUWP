@@ -160,8 +160,8 @@ bool FMovieScenePreAnimatedStateGlobalTest::RunTest(const FString& Parameters)
 
 	ResetValues();
 
-	FMovieScenePreAnimatedState State;
-	State.Initialize(Linker, FRootInstanceHandle());
+	TSharedRef<FSharedPlaybackState> PlaybackState = MakeShared<FSharedPlaybackState>(Linker);
+	FMovieSceneInstancePreAnimatedState& State(PlaybackState->GetPreAnimatedState());
 	State.EnableGlobalPreAnimatedStateCapture();
 
 	FPreAnimatedTokenProducer Producer(&TestValue1);
@@ -194,14 +194,14 @@ bool FMovieScenePreAnimatedStateEntityTest::RunTest(const FString& Parameters)
 
 	UMovieSceneEntitySystemLinker* Linker = GetTestLinker();
 
-	FMovieScenePreAnimatedState State;
-	State.Initialize(Linker, FRootInstanceHandle());
+	TSharedRef<FSharedPlaybackState> PlaybackState = MakeShared<FSharedPlaybackState>(Linker);
+	FMovieSceneInstancePreAnimatedState& State(PlaybackState->GetPreAnimatedState());
 	State.EnableGlobalPreAnimatedStateCapture();
 
 	FPreAnimatedTokenProducer Producer(&TestValue1);
 
 	{
-		FScopedPreAnimatedCaptureSource CaptureSource(&State, SectionKey1, true);
+		FScopedPreAnimatedCaptureSource CaptureSource(PlaybackState, SectionKey1, true);
 		State.SavePreAnimatedState(AnimType1, Producer);
 	}
 
@@ -231,8 +231,8 @@ bool FMovieScenePreAnimatedStateOverlappingEntitiesTest::RunTest(const FString& 
 
 	UMovieSceneEntitySystemLinker* Linker = GetTestLinker();
 
-	FMovieScenePreAnimatedState State;
-	State.Initialize(Linker, FRootInstanceHandle());
+	TSharedRef<FSharedPlaybackState> PlaybackState = MakeShared<FSharedPlaybackState>(Linker);
+	FMovieSceneInstancePreAnimatedState& State(PlaybackState->GetPreAnimatedState());
 	State.EnableGlobalPreAnimatedStateCapture();
 
 	FPreAnimatedTokenProducer Producer(&TestValue1);
@@ -247,7 +247,7 @@ bool FMovieScenePreAnimatedStateOverlappingEntitiesTest::RunTest(const FString& 
 
 	// 2. Save a token for the track's evaluation
 	{
-		FScopedPreAnimatedCaptureSource CaptureSource(&State, TrackKey1, true);
+		FScopedPreAnimatedCaptureSource CaptureSource(PlaybackState, TrackKey1, true);
 		State.SavePreAnimatedState(AnimType1, Producer);
 
 		TestValue1 = 50;
@@ -256,7 +256,7 @@ bool FMovieScenePreAnimatedStateOverlappingEntitiesTest::RunTest(const FString& 
 
 	// 3. Save a token for the section's evaluation
 	{
-		FScopedPreAnimatedCaptureSource CaptureSource(&State, SectionKey1, true);
+		FScopedPreAnimatedCaptureSource CaptureSource(PlaybackState, SectionKey1, true);
 		State.SavePreAnimatedState(AnimType1, Producer);
 
 		TestValue1 = 100;
@@ -265,7 +265,7 @@ bool FMovieScenePreAnimatedStateOverlappingEntitiesTest::RunTest(const FString& 
 
 	// 4. Save a token for another section's evaluation
 	{
-		FScopedPreAnimatedCaptureSource CaptureSource(&State, SectionKey2, true);
+		FScopedPreAnimatedCaptureSource CaptureSource(PlaybackState, SectionKey2, true);
 		State.SavePreAnimatedState(AnimType1, Producer);
 
 		TestValue1 = 150;
@@ -303,15 +303,15 @@ bool FMovieScenePreAnimatedStateKeepThenRestoreEntityTest::RunTest(const FString
 
 	UMovieSceneEntitySystemLinker* Linker = GetTestLinker();
 
-	FMovieScenePreAnimatedState State;
-	State.Initialize(Linker, FRootInstanceHandle());
+	TSharedRef<FSharedPlaybackState> PlaybackState = MakeShared<FSharedPlaybackState>(Linker);
+	FMovieSceneInstancePreAnimatedState& State(PlaybackState->GetPreAnimatedState());
 	State.EnableGlobalPreAnimatedStateCapture();
 
 	FPreAnimatedTokenProducer Producer(&TestValue1);
 
 	// Indicate that the entity should not capture state
 	{
-		FScopedPreAnimatedCaptureSource CaptureSource(&State, SectionKey1, false);
+		FScopedPreAnimatedCaptureSource CaptureSource(PlaybackState, SectionKey1, false);
 		// Save state - this will only save globally
 		State.SavePreAnimatedState(AnimType1, Producer);
 	}
@@ -327,7 +327,7 @@ bool FMovieScenePreAnimatedStateKeepThenRestoreEntityTest::RunTest(const FString
 
 	{
 		// Indicate that SectionKey2 is now animating, and wants to restore state
-		FScopedPreAnimatedCaptureSource CaptureSource(&State, SectionKey2, true);
+		FScopedPreAnimatedCaptureSource CaptureSource(PlaybackState, SectionKey2, true);
 		State.SavePreAnimatedState(AnimType1, Producer);
 	}
 
@@ -527,14 +527,14 @@ bool FMovieScenePreAnimatedStatePerformanceTest::RunTest(const FString& Paramete
 
 	UMovieSceneEntitySystemLinker* Linker = GetTestLinker();
 
-	FMovieScenePreAnimatedState State;
-	State.Initialize(Linker, FRootInstanceHandle());
+	TSharedRef<FSharedPlaybackState> PlaybackState = MakeShared<FSharedPlaybackState>(Linker);
+	FMovieSceneInstancePreAnimatedState& State(PlaybackState->GetPreAnimatedState());
 	State.EnableGlobalPreAnimatedStateCapture();
 
 	FPreAnimatedTokenProducer Producer(&TestValue1);
 
 	// Indicate that the entity should not capture state
-	FScopedPreAnimatedCaptureSource CaptureSource(&State, SectionKey1, false);
+	FScopedPreAnimatedCaptureSource CaptureSource(PlaybackState, SectionKey1, false);
 
 	for (int32 Iteration = 0; Iteration < 1000000; ++Iteration)
 	{

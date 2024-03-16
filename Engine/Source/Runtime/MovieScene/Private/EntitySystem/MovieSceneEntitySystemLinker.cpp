@@ -487,6 +487,8 @@ void UMovieSceneEntitySystemLinker::OnObjectsReplaced(const TMap<UObject*, UObje
 		}
 	});
 #endif
+
+	PreAnimatedState.OnObjectsReplaced(ReplacementMap);
 }
 
 void UMovieSceneEntitySystemLinker::AddReferencedObjects(UObject* Object, FReferenceCollector& Collector)

@@ -450,10 +450,6 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 			{
 				State.InvalidateExpiredObjects();
 			}
-
-			// Replace pointers inside our pre-animate state storages.
-			PreAnimatedState.OnObjectsReplaced(ReplacementMap);
-
 		});
 		AcquiredResources.Add([=] { FCoreUObjectDelegates::OnObjectsReplaced.Remove(OnObjectsReplacedHandle); });
 	}

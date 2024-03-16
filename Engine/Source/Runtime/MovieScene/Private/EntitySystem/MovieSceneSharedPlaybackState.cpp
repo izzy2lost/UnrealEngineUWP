@@ -9,7 +9,9 @@
 namespace UE::MovieScene
 {
 
-FSharedPlaybackState::FSharedPlaybackState()
+FSharedPlaybackState::FSharedPlaybackState(UMovieSceneEntitySystemLinker* InLinker)
+	: WeakLinker(InLinker)
+	, PreAnimatedState(InLinker, FRootInstanceHandle())
 {
 }
 
@@ -21,6 +23,7 @@ FSharedPlaybackState::FSharedPlaybackState(
 	, WeakLinker(CreateParams.Linker)
 	, CompiledDataManager(CreateParams.CompiledDataManager)
 	, RootInstanceHandle(CreateParams.RootInstanceHandle)
+	, PreAnimatedState(CreateParams.Linker, CreateParams.RootInstanceHandle)
 {
 	if (CompiledDataManager)
 	{

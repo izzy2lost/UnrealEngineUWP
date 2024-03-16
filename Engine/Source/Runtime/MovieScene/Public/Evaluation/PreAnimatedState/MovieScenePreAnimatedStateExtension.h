@@ -43,6 +43,7 @@ struct FPreAnimatedTemplateCaptureSources;
 struct FPreAnimatedTrackInstanceCaptureSources;
 struct FPreAnimatedTrackInstanceInputCaptureSources;
 struct FRestoreStateParams;
+struct FSharedPlaybackState;
 struct IPreAnimatedCaptureSource;
 struct IPreAnimatedStorage;
 
@@ -336,6 +337,9 @@ private:
 			FContributionRemover RemoveFunc);
 
 public:
+
+	/** Called to handle replaced objects */
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
 
 	/** The number of requests that have been made to capture global state - only one should exist per playing sequence */
 	uint32 NumRequestsForGlobalState;
