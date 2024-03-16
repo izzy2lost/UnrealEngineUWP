@@ -839,6 +839,7 @@ namespace Horde.Server
 				services.AddHostedService(provider => provider.GetRequiredService<TestDataService>());
 				services.AddHostedService(provider => provider.GetRequiredService<ComputeService>());
 				services.AddHostedService(provider => provider.GetRequiredService<EnrollmentService>());
+				services.AddHostedService(provider => provider.GetRequiredService<StorageService>());
 
 				if (settings.Commits.ReplicateMetadata)
 				{

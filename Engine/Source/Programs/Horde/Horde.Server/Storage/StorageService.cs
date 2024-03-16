@@ -594,8 +594,6 @@ namespace Horde.Server.Storage
 							NamespaceInfo? namespaceInfo;
 							if (state.Namespaces.TryGetValue(blobInfo.NamespaceId, out namespaceInfo))
 							{
-								List<ObjectId> importInfoIds = new List<ObjectId>();
-
 								BundleStorageClient? storageClient;
 								if (!cachedClients.TryGetValue(namespaceInfo.Id, out storageClient))
 								{
@@ -603,20 +601,14 @@ namespace Horde.Server.Storage
 									cachedClients.Add(namespaceInfo.Id, storageClient);
 								}
 
-								IEnumerable<BlobLocator> importLocators = await storageClient.ReadBundleReferencesAsync(blobInfo.Locator, cancellationToken);
-								foreach (BlobLocator importLocator in importLocators)
+								try
 								{
-									string importPath = importLocator.BaseLocator.ToString();
-
-									FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == importPath);
-									UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.SetOnInsert(x => x.Imports, null);
-									BlobInfo blobInfoDoc = await _blobCollection.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<BlobInfo> { IsUpsert = true, ReturnDocument = ReturnDocument.After }, cancellationToken);
-
-									importInfoIds.Add(blobInfoDoc.Id);
+									await TickBlobAsync(storageClient, blobInfo, cancellationToken);
 								}
-								await _blobCollection.UpdateOneAsync(x => x.Id == blobInfo.Id, Builders<BlobInfo>.Update.Set(x => x.Imports, importInfoIds), null, cancellationToken);
-
-								AddGcCheckRecord(blobInfo.NamespaceId, blobInfo.Id);
+								catch (Exception ex)
+								{
+									_logger.LogInformation(ex, "Unable to read references for blob {Locator}: {Message}", blobInfo.Locator, ex.Message);
+								}
 							}
 						}
 
@@ -632,6 +624,26 @@ namespace Horde.Server.Storage
 					client.Dispose();
 				}
 			}
+		}
+
+		async Task TickBlobAsync(BundleStorageClient storageClient, BlobInfo blobInfo, CancellationToken cancellationToken)
+		{
+			List<ObjectId> importInfoIds = new List<ObjectId>();
+
+			IEnumerable<BlobLocator> importLocators = await storageClient.ReadBundleReferencesAsync(blobInfo.Locator, cancellationToken);
+			foreach (BlobLocator importLocator in importLocators)
+			{
+				string importPath = importLocator.BaseLocator.ToString();
+
+				FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == importPath);
+				UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.SetOnInsert(x => x.Imports, null);
+				BlobInfo blobInfoDoc = await _blobCollection.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<BlobInfo> { IsUpsert = true, ReturnDocument = ReturnDocument.After }, cancellationToken);
+
+				importInfoIds.Add(blobInfoDoc.Id);
+			}
+			await _blobCollection.UpdateOneAsync(x => x.Id == blobInfo.Id, Builders<BlobInfo>.Update.Set(x => x.Imports, importInfoIds), null, cancellationToken);
+
+			AddGcCheckRecord(blobInfo.NamespaceId, blobInfo.Id);
 		}
 
 		#endregion
