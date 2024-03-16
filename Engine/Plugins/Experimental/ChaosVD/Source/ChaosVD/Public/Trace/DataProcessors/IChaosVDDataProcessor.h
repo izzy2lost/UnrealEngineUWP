@@ -1,10 +1,13 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
+#include "Chaos/ImplicitObject.h"
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "Containers/Array.h"
 #include "Containers/StringFwd.h"
+#include "DataWrappers/ChaosVDImplicitObjectDataWrapper.h"
 #include "HAL/Platform.h"
 #include "Templates/SharedPointer.h"
 #include "Trace/ChaosVDTraceProvider.h"
