@@ -85,7 +85,7 @@ static FAutoConsoleVariableRef CVarNaniteBundleEmulation(
 	ECVF_RenderThreadSafe
 );
 
-static int32 GNaniteBundleShading = 1;
+static int32 GNaniteBundleShading = 0;
 static FAutoConsoleVariableRef CVarNaniteBundleShading(
 	TEXT("r.Nanite.Bundle.Shading"),
 	GNaniteBundleShading,
@@ -148,7 +148,13 @@ static FAutoConsoleVariableRef CVarNaniteValidateShadeBinning(
 static bool CanUseShaderBundleWorkGraph(EShaderPlatform Platform)
 {
 	static bool bNaniteBundleSupportWorkGraphs = NaniteWorkGraphMaterialsSupported();
-	return bNaniteBundleSupportWorkGraphs && !!GRHISupportsShaderBundleWorkGraphDispatch && RHISupportsWorkGraphs(Platform);
+#if !PLATFORM_CPU_ARM_FAMILY && (PLATFORM_WINDOWS)
+	// Restrict work graph runtime to AMD for the short term
+	const bool bValidDevice = IsRHIDeviceAMD();
+#else
+	const bool bValidDevice = true;
+#endif
+	return bValidDevice && bNaniteBundleSupportWorkGraphs && !!GRHISupportsShaderBundleWorkGraphDispatch && RHISupportsWorkGraphs(Platform);
 }
 
 static bool UseShaderBundle(EShaderPlatform Platform)
