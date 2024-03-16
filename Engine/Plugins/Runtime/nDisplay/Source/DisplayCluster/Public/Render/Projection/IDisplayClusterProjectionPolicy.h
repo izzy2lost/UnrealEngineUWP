@@ -218,6 +218,33 @@ public:
 	}
 
 	/**
+	* This function can override the size of the RenderTarget texture for the viewport.
+	*
+	* @param InViewport          - viewport to override RTT size.
+	* @param OutRenderTargetSize - (out) the desired RTT size.
+	*
+	* @return is true if the RTT size should be overridden.
+	*/
+	virtual bool GetCustomRenderTargetSize(const IDisplayClusterViewport* InViewport, FIntPoint& OutRenderTargetSize) const
+	{
+		return false;
+	}
+
+	/**
+	* This function controls the RTT size multipliers - if false is returned, all modifiers should be ignored.
+	* Here is the list of ignored modifiers:
+	*    RenderTargetAdaptRatio, RenderTargetRatio,
+	*    ClusterRenderTargetRatioMult,
+	*    ClusterICVFXOuterViewportRenderTargetRatioMult, ClusterICVFXInnerViewportRenderTargetRatioMult
+	* 
+	* @param InViewport - the DC viewport.
+	*/
+	virtual bool ShouldUseAnySizeScaleForRenderTarget(const IDisplayClusterViewport* InViewport) const
+	{
+		return true;
+	}
+
+	/**
 	* Initializing the projection policy logic for the current frame before applying warp blending. Called if IsWarpBlendSupported() returns true
 	*
 	* @param RHICmdList      - RHI commands
