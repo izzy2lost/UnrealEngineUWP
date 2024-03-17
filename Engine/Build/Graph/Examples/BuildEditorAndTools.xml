@@ -136,7 +136,7 @@
 		</Node>	
 		
 		<!-- Prepare a build for UGS -->
-		<Node Name="Stage for UGS" Requires="$(SubmissionDependencies)">
+		<Node Name="Stage for UGS" Requires="$(SubmissionDependencies)" Produces="#PublishBinaries">
 			<!-- Clear out the staging directory -->
 			<Delete Files="$(ArchiveDir)\..."/>
 
@@ -159,6 +159,7 @@
 			<!-- Stage all the files to be archived -->
 			<Copy Files="#ArchiveBinaries" From="$(RootDir)" To="$(ArchiveStagingDir)"/>
 			<Strip Files="#ArchiveSymbols" BaseDir="$(RootDir)" OutputDir="$(ArchiveStagingDir)" Platform="Win64"/>
+			<Tag Files="$(ArchiveStagingDir)/..." With="#PublishBinaries"/>
 		</Node>
 		
 		<!-- Create a zip file and submit it to Perforce -->
@@ -173,9 +174,7 @@
 		</Node>
 
 		<!-- Upload binaries to Horde -->
-		<Node Name="Submit To Horde For UGS" Requires="Stage for UGS">
-			<CreateArtifact Name="editor" Type="ugs-pcb" BaseDir="$(ArchiveStagingDir)"/>
-		</Node>
+		<Artifact Name="editor" Description="Editor PCBs" Type="ugs-pcb" BasePath="$(ArchiveStagingDir)" Tag="#PublishBinaries"/>
 		
 	</Agent>
 

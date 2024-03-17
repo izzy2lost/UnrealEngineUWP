@@ -221,7 +221,7 @@
 			"arguments":
 			[
 				"-Script=Engine/Build/Graph/Examples/BuildEditorAndTools.xml",
-				"-Target=Submit To Horde For UGS",
+				"-Target=Stage for UGS",
 				"-set:UProjectPath=$(ProjectPath)",
 				"-set:EditorTarget=$(EditorTarget)",
 				"-set:PreferredAgent=IncrementalWin64;CompileWin64;Win64"
