@@ -6,6 +6,7 @@
 #include "EngineStats.h"
 #include "Engine/Level.h"
 #include "AI/NavigationSystemBase.h"
+#include "RenderUtils.h"
 #include "UObject/LinkerLoad.h"
 #include "GameFramework/OnlineReplStructs.h"
 #include "Engine/Engine.h"

@@ -2,7 +2,6 @@
 
 #pragma once 
 
-#include "RendererInterface.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "PrimitiveComponentId.h"
 
@@ -108,3 +107,7 @@ public:
 	}
 
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "RendererInterface.h"
+#endif

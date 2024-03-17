@@ -11,15 +11,9 @@
 #include "RHIResources.h"
 #include "Engine/EngineTypes.h"
 #include "PipelineStateCache.h"
+#include "PSOPrecacheFwd.h"
 
 class FVertexFactoryType;
-
-// General switch that decides whether to compile out some PSO precaching code (most importantly, reduce sizeofs of common classes)
-#ifndef UE_WITH_PSO_PRECACHING
-	#define UE_WITH_PSO_PRECACHING		(PLATFORM_SUPPORTS_PSO_PRECACHING)
-#endif // UE_WITH_PSO_PRECACHING
-
-#define PSO_PRECACHING_VALIDATE !WITH_EDITOR && UE_WITH_PSO_PRECACHING
 
 /**
  * Parameters which are needed to collect all possible PSOs used by the PSO collectors
@@ -192,8 +186,6 @@ struct FMaterialInterfacePSOPrecacheParams
 	FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;
 };
 
-typedef TArray<FMaterialInterfacePSOPrecacheParams, TInlineAllocator<4> > FMaterialInterfacePSOPrecacheParamsList;
-
 extern ENGINE_API void AddMaterialInterfacePSOPrecacheParamsToList(const FMaterialInterfacePSOPrecacheParams& EntryToAdd, FMaterialInterfacePSOPrecacheParamsList& List);
 
 /**
@@ -296,6 +288,3 @@ extern ENGINE_API EPSOPrecacheProxyCreationStrategy GetPSOPrecacheProxyCreationS
  * Delay component proxy creation when it's requested PSOs are still precaching
  */
 extern ENGINE_API bool ProxyCreationWhenPSOReady();
-
-// Unique request ID of MaterialPSOPrecache which can be used to boost the priority of a PSO precache requests if it's needed for rendering
-using FMaterialPSOPrecacheRequestID = uint32;

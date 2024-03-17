@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "RHIResources.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "Misc/Guid.h"
@@ -27,6 +28,7 @@ class FLightingBuildOptions;
 class FMeshMapBuildData;
 class FPrimitiveSceneProxy;
 class FStaticMeshStaticLightingMesh;
+class FVertexFactoryType;
 class ULightComponent;
 class UStaticMesh;
 class UStaticMeshComponent;

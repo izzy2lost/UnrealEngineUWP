@@ -9,7 +9,6 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
 #include "Misc/Guid.h"
-#include "InputCoreTypes.h"
 #include "Interfaces/IPhysicsComponent.h"
 #include "Templates/SubclassOf.h"
 #include "Engine/EngineTypes.h"
@@ -30,7 +29,7 @@
 #include "HLOD/HLODBatchingPolicy.h"
 #include "HLOD/HLODLevelExclusion.h"
 #include "Stats/Stats2.h"
-#include "PSOPrecache.h"
+#include "PSOPrecacheFwd.h"
 #include "MeshDrawCommandStatsDefines.h"
 #include "PrimitiveSceneInfoData.h"
 #include "PrimitiveComponent.generated.h"
@@ -3224,3 +3223,8 @@ bool UPrimitiveComponent::GetOverlapsWithActor_Template(const AActor* Actor, TAr
 
 	return InitialCount != OutOverlaps.Num();
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "InputCoreTypes.h"
+#include "PSOPrecache.h"
+#endif
