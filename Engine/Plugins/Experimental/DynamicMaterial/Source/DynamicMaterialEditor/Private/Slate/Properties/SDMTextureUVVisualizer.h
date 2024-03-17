@@ -60,6 +60,10 @@ public:
 
 	void TogglePivotEditMode();
 
+	UDMMaterialStage* GetStage() const;
+
+	UDMTextureUV* GetTextureUV() const;
+
 	//~ Begin SWidget
 	virtual void Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	virtual FReply OnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
@@ -94,11 +98,11 @@ protected:
 
 	FVector2f ApplyTextureUVTransform(const FVector2f& InUV) const;
 
-	FVector2f GetCenterHandleLocation(const FVector2f& InSize) const;
+	FVector2f GetOffsetLocation(const FVector2f& InSize) const;
 
 	FVector2f GetPivotLocation(const FVector2f& InSize) const;
 
-	FVector2f GetAbsoluteCenterHandleLocation() const;
+	FVector2f GetAbsoluteOffsetLocation() const;
 
 	FVector2f GetAbsolutePivotLocation() const;
 
@@ -113,7 +117,13 @@ protected:
 
 	bool TryClickCircleHandle(const FVector2f& InMousePosition, bool bInResetToDefault);
 
+	void UpdatePopoutUVs();
+
 	void SetScrubbingMode(EScrubbingMode InMode, EHandleAxis InAxis);
+
+	FVector2f ToPopoutLocation(const FVector2f& InSize, FVector2f&& InLocation) const;
+
+	FVector2f FromPopoutLocation(const FVector2f& InSize, FVector2f&& InLocation) const;
 
 	void UpdateScrub();
 	void UpdateScrub_Offset();

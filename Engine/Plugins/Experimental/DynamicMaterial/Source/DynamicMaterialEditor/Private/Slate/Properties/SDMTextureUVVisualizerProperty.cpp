@@ -1,9 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Properties/SDMTextureUVVisualizerProperty.h"
+#include "Components/DMMaterialStage.h"
+#include "Components/DMTextureUV.h"
 #include "DetailLayoutBuilder.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "Slate/Properties/SDMTextureUVVisualizer.h"
+#include "Slate/Properties/SDMTextureUVVisualizerPopout.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -29,7 +32,7 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 			[
 				SNew(SButton)
 				.OnClicked(this, &SDMTextureUVVisualizerProperty::OnOpenPopoutClicked)
-				.IsEnabled(false)
+				.IsEnabled(this, &SDMTextureUVVisualizerProperty::IsPopoutEnabled)
 				.Content()
 				[
 					SNew(STextBlock)
@@ -62,7 +65,7 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 			.MaxAspectRatio(1)
 			[
 				SAssignNew(Visualizer, SDMTextureUVVisualizer, InMaterialStage, InTextureUV)
-					.IsPopout(false)
+				.IsPopout(false)
 			]			
 		]
 		+ SVerticalBox::Slot()
@@ -118,8 +121,36 @@ FText SDMTextureUVVisualizerProperty::GetModeButtonText() const
 	return LOCTEXT("VisualizerOffset", "Offset");
 }
 
+bool SDMTextureUVVisualizerProperty::IsPopoutEnabled() const
+{
+	return !PopoutWindowWeak.IsValid();
+}
+
 FReply SDMTextureUVVisualizerProperty::OnOpenPopoutClicked()
 {
+	if (!Visualizer.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	if (PopoutWindowWeak.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	UDMMaterialStage* Stage = Visualizer->GetStage();
+	UDMTextureUV* TextureUV = Visualizer->GetTextureUV();
+
+	if (!IsValid(Stage) || !IsValid(TextureUV))
+	{
+		return FReply::Handled();
+	}
+
+	TSharedRef<SDMTextureUVVisualizerPopout> PopoutWindow = SNew(SDMTextureUVVisualizerPopout, Stage, TextureUV);
+	FSlateApplication::Get().AddWindow(PopoutWindow, /* Show Immediately */ true);
+
+	PopoutWindowWeak = PopoutWindow;
+
 	return FReply::Handled();
 }
 
