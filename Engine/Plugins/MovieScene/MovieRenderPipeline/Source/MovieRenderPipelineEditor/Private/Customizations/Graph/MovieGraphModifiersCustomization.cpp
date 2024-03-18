@@ -10,6 +10,7 @@
 #include "Graph/MovieGraphRenderLayerSubsystem.h"
 #include "Graph/Nodes/MovieGraphCollectionNode.h"
 #include "Graph/Nodes/MovieGraphModifierNode.h"
+#include "ScopedTransaction.h"
 #include "Widgets/Images/SLayeredImage.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 
@@ -256,6 +257,8 @@ void FMovieGraphModifiersCustomization::CustomizeDetails(IDetailLayoutBuilder& I
 						{
 							if (ModifierNode.IsValid())
 							{
+								const FScopedTransaction Transaction(LOCTEXT("AddCollectionToModifier", "Add Collection to Modifier"));
+								
 								ModifierNode->AddCollection(PickedCollectionName);
 								ListDataSource = ModifierNode->GetCollections();
 								CollectionsList->Refresh();
@@ -287,6 +290,8 @@ void FMovieGraphModifiersCustomization::CustomizeDetails(IDetailLayoutBuilder& I
 		{
 			if (ModifierNode.IsValid())
 			{
+				const FScopedTransaction Transaction(LOCTEXT("RemoveCollectionFromModifier", "Remove Collection from Modifier"));
+				
 				ModifierNode.Get()->RemoveCollection(DeletedCollectionName);
 				ListDataSource = ModifierNode->GetCollections();
 				CollectionsList->Refresh();

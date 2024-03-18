@@ -320,6 +320,7 @@ void FMovieGraphConditionGroupQueryBuilder::GenerateChildContent(IDetailChildren
 							{
 								if (WeakConditionGroup.IsValid() && WeakQuery.IsValid())
 								{
+									const FScopedTransaction Transaction(LOCTEXT("RemoveConditionGroupQuery", "Remove Condition Group Query"));
 									WeakConditionGroup->RemoveQuery(WeakQuery.Get());
 								}
 							}),
@@ -524,6 +525,8 @@ void FMovieGraphConditionGroupBuilder::GenerateHeaderRowContent(FDetailWidgetRow
 					const TArray<UMovieGraphConditionGroup*>& ConditionGroups = WeakCollection->GetConditionGroups();
 					if (ConditionGroups.IsValidIndex(ConditionGroupIndex))
 					{
+						const FScopedTransaction Transaction(LOCTEXT("AddConditionGroupQuery", "Add Condition Group Query"));
+						
 						// Use the Actor Name query as the default
 						ConditionGroups[ConditionGroupIndex]->AddQuery(UMovieGraphConditionGroupQuery_ActorName::StaticClass());
 					}
@@ -565,6 +568,8 @@ void FMovieGraphConditionGroupBuilder::GenerateHeaderRowContent(FDetailWidgetRow
 								const TArray<UMovieGraphConditionGroup*>& ConditionGroups = WeakCollection->GetConditionGroups();
 								if (ConditionGroups.IsValidIndex(ConditionGroupIndex))
 								{
+									const FScopedTransaction Transaction(LOCTEXT("RemoveConditionGroup", "Remove Condition Group"));
+									
 									WeakCollection->RemoveConditionGroup(ConditionGroups[ConditionGroupIndex]);
 								}
 							}
@@ -939,6 +944,8 @@ void SMovieGraphCollectionTreeQueryTypeSelectorWidget::SetQueryType(UClass* InNe
 	{
 		return;
 	}
+
+	const FScopedTransaction Transaction(LOCTEXT("ChangeConditionGroupQueryType", "Change Condition Group Query Type"));
 	
 	const int32 ExistingQueryIndex = WeakConditionGroup->GetQueries().Find(WeakQuery.Get());
 
@@ -998,6 +1005,8 @@ void FMovieGraphCollectionsCustomization::CustomizeDetails(IDetailLayoutBuilder&
 			{
 				if (WeakCollection.IsValid())
 				{
+					const FScopedTransaction Transaction(LOCTEXT("AddConditionGroup", "Add Condition Group"));
+					
 					UMovieGraphConditionGroup* NewConditionGroup = WeakCollection->AddConditionGroup();
 					NewConditionGroup->AddQuery(UMovieGraphConditionGroupQuery_ActorName::StaticClass());
 				}

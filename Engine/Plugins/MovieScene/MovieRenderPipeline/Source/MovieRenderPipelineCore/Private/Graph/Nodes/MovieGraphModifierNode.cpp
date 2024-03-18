@@ -181,9 +181,13 @@ UMovieGraphCollectionModifier* UMovieGraphModifierNode::AddModifier(TSubclassOf<
 		return nullptr;
 	}
 
+#if WITH_EDITOR
+	Modify();
+#endif
+
 	if (const UClass* ModifierClass = ModifierType.Get())
 	{
-		UMovieGraphCollectionModifier* NewModifier = NewObject<UMovieGraphCollectionModifier>(this, ModifierType, ModifierClass->GetFName());
+		UMovieGraphCollectionModifier* NewModifier = NewObject<UMovieGraphCollectionModifier>(this, ModifierType, ModifierClass->GetFName(), RF_Transactional);
 		ModifiersContainer->Modifiers.Add(NewModifier);
 
 		return NewModifier;
@@ -194,6 +198,10 @@ UMovieGraphCollectionModifier* UMovieGraphModifierNode::AddModifier(TSubclassOf<
 
 bool UMovieGraphModifierNode::RemoveModifier(TSubclassOf<UMovieGraphCollectionModifier> ModifierType)
 {
+#if WITH_EDITOR
+	Modify();
+#endif
+	
 	const int32 NumRemoved = ModifiersContainer->Modifiers.RemoveAll([&ModifierType](const TObjectPtr<UMovieGraphCollectionModifier>& Modifier)
 	{
 		return Modifier && (Modifier->GetClass() == ModifierType);
@@ -204,6 +212,10 @@ bool UMovieGraphModifierNode::RemoveModifier(TSubclassOf<UMovieGraphCollectionMo
 
 void UMovieGraphModifierNode::AddCollection(const FName& InCollectionName)
 {
+#if WITH_EDITOR
+	Modify();
+#endif
+	
 	if (InCollectionName == NAME_None)
 	{
 		return;
@@ -214,6 +226,10 @@ void UMovieGraphModifierNode::AddCollection(const FName& InCollectionName)
 
 bool UMovieGraphModifierNode::RemoveCollection(const FName& InCollectionName)
 {
+#if WITH_EDITOR
+	Modify();
+#endif
+	
 	return Collections.Remove(InCollectionName) > 0;
 }
 
