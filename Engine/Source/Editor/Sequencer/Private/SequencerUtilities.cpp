@@ -2191,6 +2191,7 @@ void FSequencerUtilities::CopyBindings(TSharedRef<ISequencer> Sequencer, const T
 								CopyableBinding->SpawnableObjectTemplates.Add(SpawnableBinding->GetObjectTemplate());
 							}
 						}
+						CopyableBinding->CustomBindings.Add(CustomBinding);
 					}
 				}
 			}

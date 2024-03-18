@@ -352,9 +352,11 @@ void UMovieSceneSpawnableActorBinding::SetObjectTemplate(UObject* InObjectTempla
 	ensure(InObjectTemplate == nullptr || InObjectTemplate->IsA<AActor>());
 	checkf(InObjectTemplate == nullptr || !InObjectTemplate->HasAnyFlags(RF_ClassDefaultObject), TEXT("Setting CDOs as object templates is not supported. Please use the class directly."));
 	ActorTemplate = Cast<AActor>(InObjectTemplate);
-
-	// TODO: We should move this out of FMovieSceneSpawnable eventually
-	FMovieSceneSpawnable::MarkSpawnableTemplate(*ActorTemplate);
+	if (ActorTemplate)
+	{
+		// TODO: We should move this out of FMovieSceneSpawnable eventually
+		FMovieSceneSpawnable::MarkSpawnableTemplate(*ActorTemplate);
+	}
 	AutoSetNetAddressableName();
 }
 
