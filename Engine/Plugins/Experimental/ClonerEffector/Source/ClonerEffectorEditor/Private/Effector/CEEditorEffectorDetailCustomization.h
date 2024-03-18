@@ -10,7 +10,9 @@
 class IPropertyHandle;
 class SWidget;
 class UEnum;
+struct FLinearColor;
 struct FSlateBrush;
+struct FSlateColor;
 
 /* Used to customize effector actor properties in details panel */
 class FCEEditorEffectorDetailCustomization : public IDetailCustomization
@@ -31,6 +33,8 @@ public:
 	//~ End IDetailCustomization
 
 protected:
+	static FSlateColor GetImageColorAndOpacity(const TSharedPtr<SWidget> InWidget);
+
 	void RegisterCustomSections() const;
 
 	void PopulateEasingInfos();

@@ -5,6 +5,7 @@
 #include "CEClonerEffectorShared.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
+#include "Styling/AppStyle.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/StyleColors.h"
 #include "Styling/SlateTypes.h"
@@ -37,6 +38,11 @@ FCEEditorStyle::FCEEditorStyle()
 			Set(EasingName, new IMAGE_BRUSH_SVG("EasingIcons/" + EasingString, Icon32x32));
 		}
 	}
+
+	// Combobox
+	FComboBoxStyle ComboBoxStyle = FAppStyle::Get().GetWidgetStyle<FComboBoxStyle>(TEXT("ComboBox"));
+	ComboBoxStyle.SetMenuRowPadding(FMargin(0));
+	Set("ComboBox", ComboBoxStyle);
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }
