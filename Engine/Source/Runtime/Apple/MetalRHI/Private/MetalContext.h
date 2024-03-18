@@ -295,9 +295,6 @@ private:
 	/** Event for coordinating pausing of render thread to keep inline with the ios display link. */
 	FEvent* FrameReadyEvent;
 	
-	/** Internal frame counter, incremented on each call to RHIBeginScene. */
-	uint32 SceneFrameCounter;
-	
 	/** Internal frame counter, used to ensure that we only drain the buffer pool one after each frame within RHIEndFrame. */
 	uint32 FrameCounter;
 	

@@ -352,7 +352,6 @@ FMetalDeviceContext::FMetalDeviceContext(MTL::Device* MetalDevice, uint32 InDevi
 	: FMetalContext(MetalDevice, *Queue)
 	, DeviceIndex(InDeviceIndex)
 	, CaptureManager(MetalDevice, *Queue)
-	, SceneFrameCounter(0)
 	, FrameCounter(0)
 	, PSOManager(0)
 	, FrameNumberRHIThread(0)
@@ -601,14 +600,6 @@ void FMetalDeviceContext::BeginScene()
 #if ENABLE_METAL_GPUPROFILE
 	FPlatformTLS::SetTlsValue(CurrentContextTLSSlot, this);
 #endif
-	
-	// Increment the frame counter. INDEX_NONE is a special value meaning "uninitialized", so if
-	// we hit it just wrap around to zero.
-	SceneFrameCounter++;
-	if (SceneFrameCounter == INDEX_NONE)
-	{
-		SceneFrameCounter++;
-	}
 }
 
 void FMetalDeviceContext::EndScene()

@@ -786,9 +786,6 @@ protected:
 	uint32 NumSimultaneousRenderTargets;
 	uint32 NumUAVs;
 
-	/** Internal frame counter, incremented on each call to RHIBeginScene. */
-	uint32 SceneFrameCounter;
-
 	/** Internal frame counter that just counts calls to Present */
 	uint32 PresentCounter;
 
@@ -799,12 +796,6 @@ protected:
 		FD3D11RenderQuery* Last = nullptr;
 	} ActiveQueries;
 	friend class FD3D11RenderQuery;
-
-	/**
-	 * Internal counter used for resource table caching.
-	 * INDEX_NONE means caching is not allowed.
-	 */
-	uint32 ResourceTableFrameCounter;
 
 	/** D3D11 defines a maximum of 14 constant buffers per shader stage. */
 	enum { MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE = 14 };

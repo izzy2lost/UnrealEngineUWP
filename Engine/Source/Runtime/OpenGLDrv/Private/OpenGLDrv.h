@@ -814,12 +814,6 @@ private:
 	/** called once per frame, used for resource processing */
 	void EndFrameTick();
 
-	/** Counter incremented each time RHIBeginScene is called. */
-	uint32 SceneFrameCounter;
-
-	/** Value used to detect when resource tables need to be recached. INDEX_NONE means always recache. */
-	uint32 ResourceTableFrameCounter;
-
 	/** RHI device state, independent of underlying OpenGL context used */
 	FOpenGLRHIState						PendingState;
 	FSamplerStateRHIRef					PointSamplerState;

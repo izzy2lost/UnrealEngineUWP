@@ -1104,12 +1104,6 @@ static_assert((int32)ERHIZBuffer::FarPlane == 0 || (int32)ERHIZBuffer::FarPlane 
 /**
  * RHI configuration settings.
  */
-
-static TAutoConsoleVariable<int32> ResourceTableCachingCvar(
-	TEXT("rhi.ResourceTableCaching"),
-	1,
-	TEXT("If 1, the RHI will cache resource table contents within a frame. Otherwise resource tables are rebuilt for every draw call.")
-	);
 static TAutoConsoleVariable<int32> GSaveScreenshotAfterProfilingGPUCVar(
 	TEXT("r.ProfileGPU.Screenshot"),
 	1,

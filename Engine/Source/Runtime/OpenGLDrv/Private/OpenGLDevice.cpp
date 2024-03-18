@@ -248,26 +248,11 @@ void FOpenGLDynamicRHI::RHIAdvanceFrameFence()
 
 void FOpenGLDynamicRHI::RHIBeginScene()
 {
-	// Increment the frame counter. INDEX_NONE is a special value meaning "uninitialized", so if
-	// we hit it just wrap around to zero.
-	SceneFrameCounter++;
-	if (SceneFrameCounter == INDEX_NONE)
-	{
-		SceneFrameCounter++;
-	}
-
-	static auto* ResourceTableCachingCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("rhi.ResourceTableCaching"));
-	if (ResourceTableCachingCvar == NULL || ResourceTableCachingCvar->GetValueOnAnyThread() == 1)
-	{
-		ResourceTableFrameCounter = SceneFrameCounter;
-	}
-
 	BeginSceneContextType = (int32)PlatformOpenGLCurrentContext(PlatformDevice);
 }
 
 void FOpenGLDynamicRHI::RHIEndScene()
 {
-	ResourceTableFrameCounter = INDEX_NONE;
 	BeginSceneContextType = CONTEXT_Other;
 }
 
@@ -1307,9 +1292,7 @@ FDynamicRHI* FOpenGLDynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type InRequest
 
 
 FOpenGLDynamicRHI::FOpenGLDynamicRHI()
-:	SceneFrameCounter(0)
-,	ResourceTableFrameCounter(INDEX_NONE)
-,	bRevertToSharedContextAfterDrawingViewport(false)
+:	bRevertToSharedContextAfterDrawingViewport(false)
 ,	bIsRenderingContextAcquired(false)
 ,   BeginSceneContextType(CONTEXT_Other)
 ,	PlatformDevice(NULL)
