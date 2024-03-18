@@ -155,5 +155,6 @@ public:
 	virtual TArray<UAvaSequencePlayer*> GetSequencePlayersByTag(const FAvaTag& InTag, bool bInExactMatch) const = 0;
 
 	/** Retrieves all Active Sequence Players */
+	UFUNCTION(BlueprintCallable, DisplayName = "Get Active Sequence Players", Category = "Playback")
 	virtual TArray<UAvaSequencePlayer*> GetAllSequencePlayers() const = 0;
 };
