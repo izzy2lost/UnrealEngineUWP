@@ -111,8 +111,11 @@ namespace NDISplineLocal
 
 UNiagaraDataInterfaceSpline::UNiagaraDataInterfaceSpline(FObjectInitializer const& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, Source(nullptr)
-	, bUseLUT(false)
+	, SoftSourceActor(nullptr)
+#if WITH_EDITORONLY_DATA
+	, Source_DEPRECATED(nullptr)
+#endif
+, bUseLUT(false)
 	, NumLUTSteps(256)
 {
 	FNiagaraTypeDefinition Def(UObject::StaticClass());
@@ -132,6 +135,18 @@ void UNiagaraDataInterfaceSpline::PostInitProperties()
 		ENiagaraTypeRegistryFlags Flags = ENiagaraTypeRegistryFlags::AllowAnyVariable | ENiagaraTypeRegistryFlags::AllowParameter;
 		FNiagaraTypeRegistry::Register(FNiagaraTypeDefinition(GetClass()), Flags);
 	}
+}
+
+void UNiagaraDataInterfaceSpline::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITORONLY_DATA
+	if (Source_DEPRECATED != nullptr)
+	{
+		SoftSourceActor = Source_DEPRECATED;
+	}
+#endif
 }
 
 #if WITH_EDITORONLY_DATA
@@ -388,7 +403,7 @@ bool UNiagaraDataInterfaceSpline::CopyToInternal(UNiagaraDataInterface* Destinat
 	}
 
 	UNiagaraDataInterfaceSpline* OtherTyped = CastChecked<UNiagaraDataInterfaceSpline>(Destination);
-	OtherTyped->Source = Source;
+	OtherTyped->SoftSourceActor = SoftSourceActor;
 	OtherTyped->SplineUserParameter = SplineUserParameter;
 	
 	OtherTyped->bUseLUT = bUseLUT;
@@ -517,7 +532,7 @@ bool UNiagaraDataInterfaceSpline::Equals(const UNiagaraDataInterface* Other) con
 		return false;
 	}
 	const UNiagaraDataInterfaceSpline* OtherTyped = CastChecked<const UNiagaraDataInterfaceSpline>(Other);
-	return OtherTyped->Source == Source && OtherTyped->SplineUserParameter == SplineUserParameter && OtherTyped->bUseLUT == bUseLUT && OtherTyped->NumLUTSteps == NumLUTSteps;
+	return OtherTyped->SoftSourceActor == SoftSourceActor && OtherTyped->SplineUserParameter == SplineUserParameter && OtherTyped->bUseLUT == bUseLUT && OtherTyped->NumLUTSteps == NumLUTSteps;
 }
 
 int32 UNiagaraDataInterfaceSpline::PerInstanceDataSize()const
@@ -599,9 +614,9 @@ bool UNiagaraDataInterfaceSpline::PerInstanceTick(void* PerInstanceData, FNiagar
 						SplineComponent = UserSplineComp;
 					}
 				}
-				else if (Cast<AActor>(UserParamObject))
+				else if (AActor* UserParamActor = Cast<AActor>(UserParamObject))
 				{
-					SplineComponent = Source->FindComponentByClass<USplineComponent>();
+					SplineComponent = UserParamActor->FindComponentByClass<USplineComponent>();
 				}
 				else
 				{
@@ -617,9 +632,9 @@ bool UNiagaraDataInterfaceSpline::PerInstanceTick(void* PerInstanceData, FNiagar
 				// The binding exists, but no object is bound. Not warning here in case the user knows what they're doing.
 			}
 		}
-		else if (Source != nullptr)
+		else if (SoftSourceActor != nullptr)
 		{
-			SplineComponent = Source->FindComponentByClass<USplineComponent>();
+			SplineComponent = SoftSourceActor->FindComponentByClass<USplineComponent>();
 		}
 		else if (USceneComponent* AttachComp = SystemInstance->GetAttachComponent())
 		{
