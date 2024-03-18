@@ -654,6 +654,12 @@ void UAbilitySystemComponent::OnRemoveAbility(FGameplayAbilitySpec& Spec)
 	if (PrimaryInstance)
 	{
 		PrimaryInstance->OnRemoveAbility(AbilityActorInfo.Get(), Spec);
+		
+		// Make sure we remove this before marking it as garbage.
+		if (GetOwnerRole() == ROLE_Authority)
+		{
+			RemoveReplicatedInstancedAbility(PrimaryInstance);
+		}
 		PrimaryInstance->MarkAsGarbage();
 	}
 	else
