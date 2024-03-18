@@ -9,9 +9,11 @@
 #include "Chaos/PhysicsObjectInternalInterface.h"
 #include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
+#include "Engine/World.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "Math/UnitConversion.h"
 #include "MoverComponent.h"
+#include "MoveLibrary/GroundMovementUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
 #include "PhysicsMover/PhysicsMoverSimulationTypes.h"
@@ -39,6 +41,7 @@ void UPhysicsDrivenWalkingMode::UpdateConstraintSettings(Chaos::FCharacterGround
 	Constraint.SetTwistTorqueLimit(FUnitConversion::Convert(TwistTorqueLimit, EUnit::NewtonMeters, EUnit::KilogramCentimetersSquaredPerSecondSquared));
 	Constraint.SetSwingTorqueLimit(FUnitConversion::Convert(SwingTorqueLimit, EUnit::NewtonMeters, EUnit::KilogramCentimetersSquaredPerSecondSquared));
 	Constraint.SetTargetHeight(TargetHeight);
+	Constraint.SetDampingFactor(GroundDamping);
 }
 
 void UPhysicsDrivenWalkingMode::OnContactModification_Internal(const FPhysicsMoverSimulationContactModifierParams& Params, Chaos::FCollisionContactModifier& Modifier) const
@@ -105,6 +108,142 @@ void UPhysicsDrivenWalkingMode::OnContactModification_Internal(const FPhysicsMov
 	}
 }
 
+bool UPhysicsDrivenWalkingMode::CanStepUpOnHitSurface(const FFloorCheckResult& FloorResult) const
+{
+	const float StepHeight = TargetHeight - FloorResult.FloorDist;
+
+	bool bWalkable = StepHeight <= CommonLegacySettings->MaxStepHeight;
+	constexpr float MinStepHeight = 2.0f;
+	const bool SteppingUp = StepHeight > MinStepHeight;
+	if (bWalkable && SteppingUp)
+	{
+		bWalkable = UGroundMovementUtils::CanStepUpOnHitSurface(FloorResult.HitResult);
+	}
+
+	return bWalkable;
+}
+
+void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncState, const FProposedMove& ProposedMove, UPrimitiveComponent* UpdatedPrimitive, float DeltaSeconds,
+	FFloorCheckResult& OutFloorResult, FWaterCheckResult& OutWaterResult, FVector& OutDeltaPos) const
+{
+	const FVector UpDir = GetMoverComponent()->GetUpDirection();
+
+	FVector DeltaPos = ProposedMove.LinearVelocity * DeltaSeconds;
+	OutDeltaPos = DeltaPos;
+
+	float PawnHalfHeight;
+	float PawnRadius;
+	UpdatedPrimitive->CalcBoundingCylinder(PawnRadius, PawnHalfHeight);
+
+	const float FloorSweepDistance = TargetHeight + CommonLegacySettings->MaxStepHeight;
+	const float ShrinkRadius = 1.0f;
+	const float QueryRadius = FMath::Max(PawnRadius - ShrinkRadius, 0.0f);
+	UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), DeltaPos, UpdatedPrimitive, UpDir,
+		QueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
+
+	if (!OutFloorResult.bBlockingHit)
+	{
+		// Floor not found
+		return;
+	}
+
+	bool bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
+	if (bWalkableFloor)
+	{
+		// Walkable floor found
+		OutFloorResult.bWalkableFloor = true;
+		return;
+	}
+
+	// Hit something but not walkable. Try a new query to find a walkable surface
+	const float StepBlockedHeight = TargetHeight - PawnHalfHeight + PawnRadius;
+	const float StepHeight = TargetHeight - OutFloorResult.FloorDist;
+
+	if (StepHeight > StepBlockedHeight)
+	{
+		// Collision should prevent movement. Just try to find ground at start of movement
+		const float ShrinkMultiplier = 0.75f;
+		UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), DeltaPos, UpdatedPrimitive, UpDir,
+			ShrinkMultiplier * QueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
+
+		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
+		return;
+	}
+
+	if (DeltaPos.SizeSquared() < UE_SMALL_NUMBER)
+	{
+		// Stationary
+		OutDeltaPos = FVector::ZeroVector;
+		return;
+	}
+
+	// Try to limit the movement to remain on a walkable surface
+	FVector NewDeltaPos = DeltaPos;
+	float NewQueryRadius = QueryRadius;
+
+	FVector HorizSurfaceDir = FVector::VectorPlaneProject(OutFloorResult.HitResult.ImpactNormal, UpDir);
+	float HorizSurfaceDirSizeSq = HorizSurfaceDir.SizeSquared();
+	bool bFoundOutwardDir = false;
+	if (HorizSurfaceDirSizeSq > UE_SMALL_NUMBER)
+	{
+		HorizSurfaceDir *= FMath::InvSqrt(HorizSurfaceDirSizeSq);
+		bFoundOutwardDir = true;
+	}
+	else
+	{
+		// Flat unwalkable surface. Try and get the horizontal direction from the normal instead
+		HorizSurfaceDir = FVector::VectorPlaneProject(OutFloorResult.HitResult.Normal, UpDir);
+		HorizSurfaceDirSizeSq = HorizSurfaceDir.SizeSquared();
+
+		if (HorizSurfaceDirSizeSq > UE_SMALL_NUMBER)
+		{
+			HorizSurfaceDir *= FMath::InvSqrt(HorizSurfaceDirSizeSq);
+			bFoundOutwardDir = true;
+		}
+	}
+
+	if (bFoundOutwardDir)
+	{
+		// If we're moving away try a ray query at the end of the motion
+		const float DP = DeltaPos.Dot(HorizSurfaceDir);
+		if (DP > 0.0f)
+		{
+			NewQueryRadius = 0.0f;
+		}
+		else
+		{
+			NewQueryRadius = 0.75f * QueryRadius;
+			NewDeltaPos = DeltaPos - DP * HorizSurfaceDir;
+		}
+
+		UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
+			NewQueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
+
+		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
+		if (OutFloorResult.bWalkableFloor)
+		{
+			OutDeltaPos = NewDeltaPos;
+		}
+		else
+		{
+			OutFloorResult.bWalkableFloor = false;
+		}
+	}
+	else
+	{
+		// Try a query at the start of the movement to find a walkable surface and prevent movement
+
+		NewDeltaPos = FVector::ZeroVector;
+		NewQueryRadius = 0.75f * QueryRadius;
+
+		UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
+			NewQueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
+
+		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
+		OutDeltaPos = NewDeltaPos;
+	}
+}
+
 #if WITH_EDITOR
 EDataValidationResult UPhysicsDrivenWalkingMode::IsDataValid(FDataValidationContext& Context) const
 {
@@ -160,15 +299,13 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	}
 
 	// Floor query
-	float PawnHalfHeight;
-	float PawnRadius;
-	UpdatedPrimitive->CalcBoundingCylinder(PawnRadius, PawnHalfHeight);
-
 	FFloorCheckResult FloorResult;
 	FWaterCheckResult WaterResult;
-	UPhysicsMovementUtils::FindFloor(StartingSyncState->GetLocation_WorldSpace(), StartingSyncState->GetVelocity_WorldSpace() * DeltaSeconds,
-		UpdatedPrimitive, UpDir, PawnRadius, TargetHeight, CommonLegacySettings->MaxStepHeight,
-		CommonLegacySettings->MaxWalkSlopeCosine, FloorResult, WaterResult);
+	FVector OutDeltaPos;
+
+	FloorCheck(*StartingSyncState, ProposedMove, UpdatedPrimitive, DeltaSeconds, FloorResult, WaterResult, OutDeltaPos);
+
+	ProposedMove.LinearVelocity = OutDeltaPos / DeltaSeconds;
 
 	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
 	SimBlackboard->Set(CommonBlackboard::LastWaterResult, WaterResult);

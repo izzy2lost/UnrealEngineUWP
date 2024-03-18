@@ -3,12 +3,12 @@
 #include "PhysicsMover/Modes/PhysicsDrivenFallingMode.h"
 
 #include "Chaos/Character/CharacterGroundConstraint.h"
-#include "GameFramework/PhysicsVolume.h"
-#include "MoverComponent.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
+#include "GameFramework/PhysicsVolume.h"
 #include "Math/UnitConversion.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
+#include "MoverComponent.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
 #if WITH_EDITOR
 #include "Backends/MoverNetworkPhysicsLiaison.h"
@@ -85,15 +85,19 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 	// Find floor
 
+	FFloorCheckResult FloorResult;
+	FWaterCheckResult WaterResult;
+
 	float PawnHalfHeight;
 	float PawnRadius;
 	UpdatedPrimitive->CalcBoundingCylinder(PawnRadius, PawnHalfHeight);
 
-	FFloorCheckResult FloorResult;
-	FWaterCheckResult WaterResult;
-	UPhysicsMovementUtils::FindFloor(StartingSyncState->GetLocation_WorldSpace(), StartingSyncState->GetVelocity_WorldSpace() * DeltaSeconds,
-	UpdatedPrimitive, UpDir, PawnRadius, TargetHeight, CommonLegacySettings->MaxStepHeight,
-		CommonLegacySettings->MaxWalkSlopeCosine, FloorResult, WaterResult);
+	const float QueryDistance = FMath::Max(1.1f * TargetHeight, TargetHeight - UpDir.Dot(ProposedMove.LinearVelocity) * DeltaSeconds);
+	const float ShrinkRadius = 5.0f; // TODO - Make this a user setting
+	const float QueryRadius = FMath::Max(PawnRadius - ShrinkRadius, 0.0f);
+
+	UPhysicsMovementUtils::FloorSweep(StartingSyncState->GetLocation_WorldSpace(), StartingSyncState->GetVelocity_WorldSpace() * DeltaSeconds,
+		UpdatedPrimitive, UpDir, QueryRadius, QueryDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, FloorResult, WaterResult);
 
 	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
 	SimBlackboard->Set(CommonBlackboard::LastWaterResult, WaterResult);

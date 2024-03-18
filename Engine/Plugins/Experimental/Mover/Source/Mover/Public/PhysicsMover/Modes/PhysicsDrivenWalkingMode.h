@@ -10,6 +10,7 @@
 
 
 namespace Chaos { class FCharacterGroundConstraint; }
+struct FWaterCheckResult;
 
 /**
  * PhysicsDrivenWalkingMode: Override base kinematic walking mode for physics based motion.
@@ -49,7 +50,7 @@ public:
 
 	// Target height for the character. This is the desired distance from the center of the capsule to the floor
 	UPROPERTY(EditAnywhere, Category = "Physics Mover", meta = (ClampMin = "0", UIMin = "0", ForceUnits = "cm"))
-	float TargetHeight = 54.0f;
+	float TargetHeight = 95.0f;
 
 	// Damping factor to control the softness of the interaction between the character and the ground
 	// Set to 0 for no damping and 1 for maximum damping
@@ -73,8 +74,13 @@ public:
 	// This provides some grace period when walking off of an edge during which locomotion
 	// and jumping are still possible even though the character has started falling under gravity
 	UPROPERTY(EditAnywhere, Category = "Physics Mover", meta = (ClampMin = "0", UIMin = "0", ForceUnits = "s"))
-	float MaxUnsupportedTimeBeforeFalling = 0.05f;
+	float MaxUnsupportedTimeBeforeFalling = 0.06f;
 
 protected:
 	void SwitchToState(const FName& StateName, const FSimulationTickParams& Params, FMoverTickEndData& OutputState);
+
+	bool CanStepUpOnHitSurface(const FFloorCheckResult& FloorResult) const;
+
+	void FloorCheck(const FMoverDefaultSyncState& SyncState, const FProposedMove& ProposedMove, UPrimitiveComponent* UpdatedPrimitive, float DeltaSeconds,
+		FFloorCheckResult& OutFloorResult, FWaterCheckResult& OutWaterResult, FVector& OutDeltaPos) const;
 };
