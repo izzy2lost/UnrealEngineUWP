@@ -4,6 +4,7 @@
 
 #include "AIController.h"
 #include "BrainComponent.h"
+#include "Conditions/StateTreeAIConditionBase.h"
 #include "StateTreeExecutionContext.h"
 #include "Tasks/StateTreeAITask.h"
 
@@ -21,12 +22,14 @@ void UStateTreeAIComponentSchema::PostLoad()
 
 bool UStateTreeAIComponentSchema::IsStructAllowed(const UScriptStruct* InScriptStruct) const
 {
-	return Super::IsStructAllowed(InScriptStruct) || InScriptStruct->IsChildOf(FStateTreeAITaskBase::StaticStruct());
+	return Super::IsStructAllowed(InScriptStruct)
+		|| InScriptStruct->IsChildOf(FStateTreeAITaskBase::StaticStruct())
+		|| InScriptStruct->IsChildOf(FStateTreeAIConditionBase::StaticStruct());
 }
 
 bool UStateTreeAIComponentSchema::SetContextRequirements(UBrainComponent& BrainComponent, FStateTreeExecutionContext& Context, bool bLogErrors /*= false*/)
 {
-	if(!Context.IsValid())
+	if (!Context.IsValid())
 	{
 		return false;
 	}
