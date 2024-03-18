@@ -1125,7 +1125,7 @@ public:
 	template <
 		typename T,
 		typename U
-		UE_REQUIRES(!TCustomLerp<T>::Value && (std::is_floating_point_v<U> || std::is_same_v<T, U>))
+		UE_REQUIRES(!TCustomLerp<T>::Value && (std::is_floating_point_v<U> || std::is_same_v<T, U>) && !std::is_same_v<T, bool>)
 	>
 	[[nodiscard]] static constexpr FORCEINLINE_DEBUGGABLE T Lerp( const T& A, const T& B, const U& Alpha )
 	{
@@ -1503,6 +1503,7 @@ public:
 	template<typename T1, typename T2 = T1, typename T3 = T2, typename T4 = T3>
 	[[nodiscard]] static auto FInterpConstantTo( T1 Current, T2 Target, T3 DeltaTime, T4 InterpSpeed )
 	{
+		static_assert(!std::is_same_v<T1, bool> && !std::is_same_v<T2, bool>, "Boolean types may not be interpolated");
 		using RetType = decltype(T1() * T2() * T3() * T4());
 	
 		const RetType Dist = Target - Current;
@@ -1521,6 +1522,7 @@ public:
 	template<typename T1, typename T2 = T1, typename T3 = T2, typename T4 = T3>
 	[[nodiscard]] static auto FInterpTo( T1  Current, T2 Target, T3 DeltaTime, T4 InterpSpeed )
 	{
+		static_assert(!std::is_same_v<T1, bool> && !std::is_same_v<T2, bool>, "Boolean types may not be interpolated");
 		using RetType = decltype(T1() * T2() * T3() * T4());
 	
 		// If no interp speed, jump to target value
