@@ -5035,7 +5035,7 @@ void FControlRigEditMode::TickControlShape(AControlRigShapeActor* ShapeActor, co
 					|| (IsControlRigSkelMeshVisible(ControlRig) == false);
 
 				bool bIsVisible = ControlElement->Settings.IsVisible();
-				bool bRespectVisibilityForSelection = true; 
+				bool bRespectVisibilityForSelection = IsInLevelEditor() ? false: true;
 
 				if(!bControlsHiddenInViewport)
 				{
