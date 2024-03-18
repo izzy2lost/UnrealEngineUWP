@@ -5,6 +5,7 @@
 #include "AvaAssetTags.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Editor/EditorWidgets/Public/SAssetSearchBox.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "HAL/PlatformApplicationMisc.h"
@@ -22,6 +23,7 @@
 #include "Rundown/Pages/AvaRundownPageContextMenu.h"
 #include "Rundown/Pages/PageViews/AvaRundownPageViewImpl.h"
 #include "Rundown/Pages/Slate/SAvaRundownPageViewRow.h"
+#include "SAvaRundownRenumberPages.h"
 #include "ScopedTransaction.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
@@ -227,7 +229,6 @@ void SAvaRundownPageList::OnPageEvent(const TArray<int32>& InSelectedPageIds, UE
 
 void SAvaRundownPageList::OnPageItemActionRequested(const TArray<int32>& InPageIds, IAvaRundownPageView::FOnPageAction& (IAvaRundownPageView::* InFunc)())
 {
-	//Only allow one page id to be renamed at a time
 	const TSet<int32> PageIdSet(InPageIds);
 	for (const FAvaRundownPageViewPtr& PageView : PageViews)
 	{
@@ -610,23 +611,56 @@ void SAvaRundownPageList::RenameSelectedPage()
 	}
 }
 
-bool SAvaRundownPageList::CanRenumberSelectedPage() const
+bool SAvaRundownPageList::CanRenumberSelectedPages() const
 {
-	if (SelectedPageIds.Num() == 1)
+	const int32 SelectedPageCount = SelectedPageIds.Num();
+	if (SelectedPageCount == 0)
 	{
-		if (const UAvaRundown* Rundown = GetRundown(); IsValid(Rundown))
+		return false;
+	}
+
+	const UAvaRundown* const Rundown = GetRundown();
+	if (!IsValid(Rundown))
+	{
+		return false;
+	}
+
+	for (const int32 PageId : SelectedPageIds)
+	{
+		if (Rundown->CanRenumberPageId(PageId))
 		{
-			return Rundown->CanRenumberPageId(SelectedPageIds[0]);
+			return true;
 		}
 	}
+
 	return false;
 }
 
-void SAvaRundownPageList::RenumberSelectedPage()
+void SAvaRundownPageList::RenumberSelectedPages()
 {
-	if (CanRenumberSelectedPage())
+	const int32 SelectedCount = SelectedPageIds.Num();
+	if (SelectedCount == 0)
 	{
+		return;
+	}
+	
+	if (SelectedCount == 1)
+	{
+		// Begin re-numbering inline
 		OnPageEvent(SelectedPageIds, UE::AvaRundown::EPageEvent::RenumberRequest);
+	}
+	else
+	{
+		// Bring up dialog for re-numbering multiple selection
+		const TSharedPtr<SAvaRundownRenumberPages> RenumberPagesDialog = SNew(SAvaRundownRenumberPages)
+			.OnAccept_Lambda([this](const int32 InBaseNumber, const int32 InIncrement)
+				{
+					if (UAvaRundown* const Rundown = GetRundown())
+					{
+						Rundown->RenumberPageIds(SelectedPageIds, FAvaRundownPageIdGeneratorParams(InBaseNumber, InIncrement));
+					}
+				});
+		FSlateApplication::Get().AddModalWindow(RenumberPagesDialog.ToSharedRef(), SharedThis(this));
 	}
 }
 

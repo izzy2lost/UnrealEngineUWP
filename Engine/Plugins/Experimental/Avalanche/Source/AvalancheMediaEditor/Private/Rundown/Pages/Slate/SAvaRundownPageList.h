@@ -105,8 +105,8 @@ public:
 	bool CanRenameSelectedPage() const;
 	void RenameSelectedPage();
 
-	bool CanRenumberSelectedPage() const;
-	void RenumberSelectedPage();
+	bool CanRenumberSelectedPages() const;
+	void RenumberSelectedPages();
 
 	bool CanReimportSelectedPage() const;
 	void ReimportSelectedPage() const;

@@ -518,6 +518,23 @@ bool UAvaRundown::CanRemovePages(const TArray<int32>& InPageIds) const
 	return InPageIds.Num() > 0;
 }
 
+bool UAvaRundown::RenumberPageIds(const TArray<int32>& InPageIds, const FAvaRundownPageIdGeneratorParams& InIdParams)
+{
+	int32 CurrentId = InIdParams.ReferenceId;
+
+	for (const int32 PageId : InPageIds)
+	{
+		const int32 NewId = GenerateUniquePageId(CurrentId, InIdParams.Increment);
+
+		// If a page re-number fails, ignore it and continue on
+		RenumberPageId(PageId, NewId);
+		
+		CurrentId += InIdParams.Increment;
+	}
+
+	return true;
+}
+
 bool UAvaRundown::RenumberPageId(int32 InPageId, int32 InNewPageId)
 {
 	if (!CanRenumberPageId(InPageId, InNewPageId))

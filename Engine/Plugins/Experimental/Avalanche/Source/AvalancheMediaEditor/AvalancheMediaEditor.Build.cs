@@ -53,6 +53,7 @@ public class AvalancheMediaEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"ToolMenus",
+				"ToolWidgets",
 				"UnrealEd",
 				"XmlSerialization",
 			}

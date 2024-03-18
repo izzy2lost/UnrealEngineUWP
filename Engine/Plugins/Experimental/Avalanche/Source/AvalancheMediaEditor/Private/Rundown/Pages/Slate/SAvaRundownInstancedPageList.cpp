@@ -216,8 +216,8 @@ void SAvaRundownInstancedPageList::BindCommands()
 			FCanExecuteAction::CreateSP(this, &SAvaRundownPageList::CanRemoveSelectedPages));
 
 		CommandList->MapAction(RundownCommands.RenumberPage,
-			FExecuteAction::CreateSP(this, &SAvaRundownPageList::RenumberSelectedPage),
-			FCanExecuteAction::CreateSP(this, &SAvaRundownPageList::CanRenumberSelectedPage));
+			FExecuteAction::CreateSP(this, &SAvaRundownPageList::RenumberSelectedPages),
+			FCanExecuteAction::CreateSP(this, &SAvaRundownPageList::CanRenumberSelectedPages));
 
 		CommandList->MapAction(RundownCommands.ReimportPage,
 			FExecuteAction::CreateSP(this, &SAvaRundownPageList::ReimportSelectedPage),

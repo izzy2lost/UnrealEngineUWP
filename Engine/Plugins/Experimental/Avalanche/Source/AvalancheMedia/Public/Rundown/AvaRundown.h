@@ -375,6 +375,7 @@ public:
 	int32 RemovePages(const TArray<int32>& InPageIds);
 	bool CanRemovePages(const TArray<int32>& InPageIds) const;
 
+	bool RenumberPageIds(const TArray<int32>& InPageIds, const FAvaRundownPageIdGeneratorParams& InIdParams);
 	bool RenumberPageId(int32 InPageId, int32 InNewPageId);
 	bool CanRenumberPageId(int32 InPageId) const;
 	bool CanRenumberPageId(int32 InPageId, int32 InNewPageId) const;

@@ -31,8 +31,8 @@ void FAvaRundownCommands::RegisterCommands()
 		, FInputChord(EKeys::Delete));
 
 	UI_COMMAND(RenumberPage
-		, "Renumber Page"
-		, "Renumbers the Id of the Selected Page"
+		, "Renumber Pages"
+		, "Renumbers the Id of the Selected Pages"
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::F3));
 	
