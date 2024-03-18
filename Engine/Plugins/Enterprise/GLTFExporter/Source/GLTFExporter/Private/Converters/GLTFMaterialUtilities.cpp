@@ -138,7 +138,7 @@ FGLTFPropertyBakeOutput FGLTFMaterialUtilities::BakeMaterialProperty(const FIntP
 		MeshSet.LightMap = MeshData->LightMap;
 		MeshSet.LightMapIndex = MeshData->LightMapTexCoord;
 		MeshSet.LightmapResourceCluster = MeshData->LightMapResourceCluster;
-		MeshSet.PrimitiveData = &MeshData->PrimitiveData;
+		MeshSet.PrimitiveData = MeshData->PrimitiveData;
 	}
 
 	FMaterialDataEx MatSet;

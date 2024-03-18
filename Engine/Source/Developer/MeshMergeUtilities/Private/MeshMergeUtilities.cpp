@@ -2804,6 +2804,11 @@ void FMeshMergeUtilities::CreateMergedMaterial(FMeshMergeDataTracker& InDataTrac
 				NewMeshData.VertexColorHash = Key.GetVertexColorHash();
 				NewMeshData.bMirrored = Component->GetComponentTransform().GetDeterminant() < 0.0f;
 				NewMeshData.MaterialIndices = SectionIndices;
+				if (!Component->GetCustomPrimitiveData().Data.IsEmpty())
+				{
+					NewMeshData.PrimitiveData = FPrimitiveData();
+					NewMeshData.PrimitiveData->CustomPrimitiveData = &Component->GetCustomPrimitiveData();
+				}
 			}
 
 			auto CompareMaterialData = [&InSettings](const FMaterialData& LHS, const FMaterialData& RHS)
@@ -2811,9 +2816,21 @@ void FMeshMergeUtilities::CreateMergedMaterial(FMeshMergeDataTracker& InDataTrac
 				return InSettings.bMergeEquivalentMaterials ? FMaterialKey(LHS.Material) == FMaterialKey(RHS.Material) : LHS.Material == RHS.Material;
 			};
 
-			auto CompareMeshData = [](const FMeshData& LHS, const FMeshData& RHS)
+			auto CompareCustomPrimitiveData = [](const FCustomPrimitiveData* LHS, const FCustomPrimitiveData* RHS)
 			{
-				return (LHS.Mesh == RHS.Mesh) && (LHS.MaterialIndices == RHS.MaterialIndices) && (LHS.bMirrored == RHS.bMirrored) && (LHS.VertexColorHash == RHS.VertexColorHash);
+				// Return true if both are null, false if one of them is null - otherwise, compare content
+				return (!LHS && !RHS) ? true : (!LHS || !RHS) ? false : (*LHS == *RHS);
+			};
+
+			auto ComparePrimitiveData = [&CompareCustomPrimitiveData](const TOptional<FPrimitiveData>& LHS, const TOptional<FPrimitiveData>& RHS)
+			{
+				// Return true if both are null, false if one of them is null - otherwise, compare content
+				return (!LHS && !RHS) ? true : (!LHS || !RHS) ? false : CompareCustomPrimitiveData(LHS->CustomPrimitiveData, RHS->CustomPrimitiveData);
+			};
+
+			auto CompareMeshData = [&ComparePrimitiveData](const FMeshData& LHS, const FMeshData& RHS)
+			{
+				return (LHS.Mesh == RHS.Mesh) && (LHS.MaterialIndices == RHS.MaterialIndices) && (LHS.bMirrored == RHS.bMirrored) && (LHS.VertexColorHash == RHS.VertexColorHash) && ComparePrimitiveData(LHS.PrimitiveData, RHS.PrimitiveData);
 			};
 
 			// Find material & mesh pair
