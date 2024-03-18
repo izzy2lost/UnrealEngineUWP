@@ -94,11 +94,21 @@ struct FClangPlatformMath : public FGenericPlatformMath
 		return 31 - __builtin_clz(Value | 1);
 	}
 
+	static FORCEINLINE uint32 FloorLog2NonZero(uint32 Value)
+	{
+		return 31 - __builtin_clz(Value);
+	}
+
 	static FORCEINLINE uint64 FloorLog2_64(uint64 Value)
 	{
 		return 63 - __builtin_clzll(Value | 1);
 	}
-	
+
+	static FORCEINLINE uint64 FloorLog2NonZero_64(uint64 Value)
+	{
+		return 63 - __builtin_clzll(Value);
+	}
+
 	/**
 	 * Adds two integers of any integer type, checking for overflow.
 	 * If there was overflow, it returns false, and OutResult may or may not be written.

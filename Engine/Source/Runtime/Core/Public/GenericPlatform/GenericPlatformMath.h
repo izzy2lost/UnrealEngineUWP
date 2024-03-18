@@ -657,6 +657,12 @@ struct FGenericPlatformMath
 		return pos;
 	}
 
+	/** FloorLog2 but the caller guarantees that Value is not 0. */
+	static constexpr FORCEINLINE uint32 FloorLog2NonZero(uint32 Value)
+	{
+		return FloorLog2(Value);
+	}
+
 	/**
 	 * Computes the base 2 logarithm for a 64-bit value.
 	 * The result is rounded down to the nearest integer.
@@ -674,6 +680,12 @@ struct FGenericPlatformMath
 		if (Value >= 1ull<< 2) { Value >>=  2; pos +=  2; }
 		if (Value >= 1ull<< 1) {               pos +=  1; }
 		return pos;
+	}
+
+	/** FloorLog2_64 but the caller guarantees that Value is not 0. */
+	static constexpr FORCEINLINE uint64 FloorLog2NonZero_64(uint64 Value)
+	{
+		return FloorLog2_64(Value);
 	}
 
 	/**
