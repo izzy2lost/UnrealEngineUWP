@@ -1641,11 +1641,32 @@ bool SHierarchyViewItem::ShouldAppearHovered() const
 void SHierarchyViewItem::HandleDragEnter(FDragDropEvent const& DragDropEvent)
 {
 	Model->HandleDragEnter(DragDropEvent);
+	if (DragHoverExpandTimer.IsValid())
+	{
+		UnRegisterActiveTimer(DragHoverExpandTimer.ToSharedRef());
+		DragHoverExpandTimer.Reset();
+	}
+	if (!IsItemExpanded())
+	{
+		DragHoverExpandTimer = RegisterActiveTimer( 0.3f, FWidgetActiveTimerDelegate::CreateLambda([this](double InCurrentTime, float InDeltaTime)
+		{
+			if (!IsItemExpanded())
+			{
+				ToggleExpansion();
+			}
+			return EActiveTimerReturnType::Stop;
+		}));
+	}
 }
 
 void SHierarchyViewItem::HandleDragLeave(const FDragDropEvent& DragDropEvent)
 {
 	Model->HandleDragLeave(DragDropEvent);
+	if (DragHoverExpandTimer.IsValid())
+	{
+		UnRegisterActiveTimer(DragHoverExpandTimer.ToSharedRef());
+		DragHoverExpandTimer.Reset();
+	}
 }
 
 TOptional<EItemDropZone> SHierarchyViewItem::HandleCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FHierarchyModel> TargetItem)

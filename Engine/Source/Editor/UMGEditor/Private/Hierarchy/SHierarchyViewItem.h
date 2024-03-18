@@ -443,4 +443,7 @@ private:
 
 	/** Keep an internal IsHovered flag*/
 	bool bHovered;
+	
+	/** If the user is dragging over a collapsed item, wait before expanding it */
+	TSharedPtr<FActiveTimerHandle> DragHoverExpandTimer;
 };
