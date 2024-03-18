@@ -834,6 +834,9 @@ void FMaterialStats::Update()
 			GetStatsGrid()->OnShaderChanged();
 		}
 
+		// update any dependent tabs
+		RefreshDependentTabs.Broadcast();
+
 		bNeedsGridRefresh = false;
 	}
 
@@ -999,8 +1002,18 @@ TSharedRef<SDockTab> FMaterialStats::SpawnTab_ShaderCode(const FSpawnTabArgs& Ar
 	TSharedPtr<FShaderPlatformSettings> PlatformPtr = GetPlatformSettings(PlatformID);
 	check(PlatformPtr.IsValid());
 
+	const TArray<TSharedPtr<FMaterialShaderEntry>> *ShaderEntriesPtr = PlatformPtr->GetShaderEntries(QualityLevel, InstanceIndex);
+
+	if (ShaderEntriesPtr == nullptr)
+	{
+		// SComboBox needs a valid pointer otherwise follow up SetItemsSource will fail.
+		static TArray<TSharedPtr<FMaterialShaderEntry>> EmptyShaderEntriesArray = {};
+		ShaderEntriesPtr = &EmptyShaderEntriesArray;
+	}
+
+	ensure(ShaderEntriesPtr != nullptr);
 	TSharedRef<SComboBox<TSharedPtr<FMaterialShaderEntry>>> ShaderBox = SNew(SComboBox<TSharedPtr<FMaterialShaderEntry>>)
-		.OptionsSource(PlatformPtr->GetShaderEntries(QualityLevel, InstanceIndex))
+		.OptionsSource(ShaderEntriesPtr)
 		.OnGenerateWidget_Lambda([](TSharedPtr<FMaterialShaderEntry> Value) { return SNew(STextBlock).Text(FText::FromString(Value->Text)); })
 		.OnSelectionChanged_Lambda([PlatformPtr, QualityLevel, InstanceIndex](TSharedPtr<FMaterialShaderEntry> Item, ESelectInfo::Type SelectInfo) { PlatformPtr->OnShaderViewComboSelectionChanged(Item, QualityLevel, InstanceIndex); })
 		[
@@ -1008,7 +1021,26 @@ TSharedRef<SDockTab> FMaterialStats::SpawnTab_ShaderCode(const FSpawnTabArgs& Ar
 			.Text_Lambda([PlatformPtr, QualityLevel, InstanceIndex]() { return PlatformPtr->GetSelectedShaderViewComboText(QualityLevel, InstanceIndex); })
 		];
 
+	// Refresh ShaderBox when shaders are updated
+	FDelegateHandle ShaderBoxUpdater = RefreshDependentTabs.AddLambda([PlatformPtrWeakPtr = PlatformPtr.ToWeakPtr(), ShaderBoxWeakPtr = ShaderBox.ToWeakPtr(), QualityLevel, InstanceIndex]()
+	{
+		TSharedPtr<FShaderPlatformSettings> PlatformPtr = PlatformPtrWeakPtr.Pin();
+		TSharedPtr<SComboBox<TSharedPtr<FMaterialShaderEntry>>> ShaderBox = ShaderBoxWeakPtr.Pin();
+		if (PlatformPtr.IsValid() && ShaderBox.IsValid())
+		{
+			ShaderBox->SetItemsSource(PlatformPtr->GetShaderEntries(QualityLevel, InstanceIndex));
+		}
+	});
+
 	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+		.OnTabClosed_Lambda([MaterialStatsWeakPtr = this->AsWeak(), ShaderBoxUpdater](TSharedRef<SDockTab> Tab)
+		{
+			TSharedPtr<FMaterialStats> MaterialStats = MaterialStatsWeakPtr.Pin();
+			if (MaterialStats.IsValid() && ShaderBoxUpdater.IsValid())
+			{
+				MaterialStats->RefreshDependentTabs.Remove(ShaderBoxUpdater);
+			}
+		})
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
