@@ -2,17 +2,14 @@
 
 #pragma once
 
-#include "Providers/IAdvancedRenamerProvider.h"
 #include "Styling/SlateTypes.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
 
-class FRegexPattern;
 class FUICommandList;
-class IAdvancedRenamerProvider;
-class SAdvancedRenamerPanel;
+class IAdvancedRenamer;
 class SBox;
 class SButton;
 class SCanvas;
@@ -21,99 +18,40 @@ class SEditableTextBox;
 class SHeaderRow;
 class SMultiLineEditableTextBox; 
 class UObject;
+struct FAdvancedRenamerPreview;
 template<typename NumericType> class SSpinBox;
 
-struct FAdvancedRenamerPreviewListItem
-{
-	static FName OriginalNameColumnName;
-	static FName NewNameColumnName;
-
-	FAdvancedRenamerPreviewListItem(int32 InHash, const FString InOriginalName)
-		: Hash(InHash)
-		, OriginalName(InOriginalName)
-		, NewName(FString(""))
-	{
-	}
-
-	int32 Hash;
-	const FString OriginalName;
-	mutable FString NewName;
-};
-
-using FObjectRenamePreviewListItemPtr = TSharedPtr<FAdvancedRenamerPreviewListItem, ESPMode::ThreadSafe>;
-using FObjectRenamePreviewListItemWeakPtr = TWeakPtr<FAdvancedRenamerPreviewListItem, ESPMode::ThreadSafe>;
-
-class SAdvancedRenamerPreviewListRow : public SMultiColumnTableRow<FObjectRenamePreviewListItemPtr>
-{
-public:
-	SLATE_BEGIN_ARGS(SAdvancedRenamerPreviewListRow) {}
-	SLATE_END_ARGS()
-
-	void Construct(const FArguments& InArgs, TSharedPtr<SAdvancedRenamerPanel> InRenamePanel, 
-		const TSharedRef<STableViewBase>& InOwnerTableView, FObjectRenamePreviewListItemPtr InRowItem);
-
-	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override;
-
-protected:
-
-	TWeakPtr<SAdvancedRenamerPanel> RenamePanel;
-	FObjectRenamePreviewListItemWeakPtr RowItem;
-
-};
-
-/**
- * Implements its own provider interface so it can avoid long Execute_ lines and handle
- * the 2 different types of provider (SharedPtr and UObject.)
- */
-class SAdvancedRenamerPanel : public SCompoundWidget, private IAdvancedRenamerProvider
+class SAdvancedRenamerPanel : public SCompoundWidget
 {
 	friend class SAdvancedRenamerPreviewListRow;
 
 public:
 	SLATE_BEGIN_ARGS(SAdvancedRenamerPanel) {}
-		SLATE_ARGUMENT(TSharedPtr<IAdvancedRenamerProvider>, SharedProvider)
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs);
+	void Construct(const FArguments& InArgs, const TSharedRef<IAdvancedRenamer>& InRenamer);
 
 protected:
-	static const inline double MinUpdateFrequency = 0.1;
+	static constexpr double MinUpdateFrequency = 0.1;
 
-	TSharedPtr<IAdvancedRenamerProvider> SharedProvider;
-	TArray<TSharedPtr<FAdvancedRenamerPreviewListItem>> ListData;
+	TSharedPtr<IAdvancedRenamer> Renamer;
 	TSharedPtr<FUICommandList> CommandList;
-
-	bool bValidNames = false;
-	bool bListNeedsUpdate = false;
-	bool bBaseName = false;
-	bool bPrefix = false;
-	bool bPrefixRemove = false;
-	bool bPrefixRemoveCharacters = false;
-	bool bSuffix = false;
-	bool bSuffixRemove = false;
-	bool bSuffixRemoveCharacters = false;
-	bool bSuffixRemoveNumber = false;
-	bool bSuffixNumber = false;
-	bool bSearchReplacePlainText = false;
-	bool bSearchReplaceRegex = false;
-	bool bSearchReplaceIgnoreCase = true;
 
 	double ListLastUpdateTime = 0;
 	float MinDesiredOriginalNameWidth = 0.f;
 	float MinDesiredNewNameWidth = 0.f;
 
-	uint8 PrefixRemoveCharacterCount = 0;
-	uint8 SuffixRemoveCharacterCount = 0;
+	bool bRemovePrefixSeparator;
+	bool bRemovePrefixNumChars;
+	bool bRemoveSuffixSeparator;
+	bool bRemoveSuffixNumChars;
 
-	TSharedPtr<SCheckBox> BaseNameCheckBox;
 	TSharedPtr<SEditableTextBox> BaseNameTextBox;
-	TSharedPtr<SCheckBox> PrefixCheckBox;
 	TSharedPtr<SEditableTextBox> PrefixTextBox;
 	TSharedPtr<SCheckBox> PrefixRemoveCheckBox;
 	TSharedPtr<SEditableTextBox> PrefixSeparatorTextBox;
 	TSharedPtr<SCheckBox> PrefixRemoveCharactersCheckBox;
 	TSharedPtr<SSpinBox<uint8>> PrefixRemoveCharactersSpinBox;
-	TSharedPtr<SCheckBox> SuffixCheckBox;
 	TSharedPtr<SEditableTextBox> SuffixTextBox;
 	TSharedPtr<SCheckBox> SuffixRemoveCheckBox;
 	TSharedPtr<SEditableTextBox> SuffixSeparatorTextBox;
@@ -130,112 +68,95 @@ protected:
 	TSharedPtr<SMultiLineEditableTextBox> SearchReplaceReplaceTextBox;
 	TSharedPtr<SBox> RenamePreviewListBox;
 	TSharedPtr<SHeaderRow> RenamePreviewListHeaderRow;
-	TSharedPtr<SListView<FObjectRenamePreviewListItemPtr>> RenamePreviewList;
+	TSharedPtr<SListView<TSharedPtr<FAdvancedRenamerPreview>>> RenamePreviewList;
 	TSharedPtr<SButton> ApplyButton;
 
-	void CreateLeftPane(TSharedRef<SCanvas> Canvas);
+	void CreateLeftPane(const TSharedRef<SCanvas>& InCanvas);
 	TSharedRef<SWidget> CreateBaseName();
 	TSharedRef<SWidget> CreatePrefix();
 	TSharedRef<SWidget> CreateSuffix();
 	TSharedRef<SWidget> CreateSearchAndReplace();
 
-	void CreateRightPane(TSharedRef<SCanvas> Canvas);
+	void CreateRightPane(const TSharedRef<SCanvas>& InCanvas);
 	TSharedRef<SWidget> CreateRenamePreview();
-
-	bool RenameObjects();
 
 	bool CloseWindow();
 
-	FString CreateNewName(int32 Index) const;
-	FString ApplyRename(const FString& OriginalName, int32 Index) const;
-	FString ApplyBaseName(const FString& OriginalName) const;
-	FString ApplyPrefix(const FString& OriginalName) const;
-	FString ApplySuffix(const FString& OriginalName, int32 Index) const;
-	FString ApplySearchPlainText(const FString& OriginalName) const;
-	FString ApplySearchReplaceRegex(const FString& OriginalName) const;
-
-	FString RegexReplace(const FString& OriginalString, const FRegexPattern Pattern, const FString& ReplaceString) const;
-
-	void UpdateEnables();
-	void RequestListViewRefresh();
 	void RefreshListView(const double InCurrentTime);
 	void UpdateRequiredListWidth();
 
 	void RemoveSelectedObjects();
 
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+	virtual void Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
-	ECheckBoxState IsBaseNameChecked() const { return bBaseName ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnBaseNameCheckBoxChanged(ECheckBoxState NewState);
+	void OnBaseNameChanged(const FText& InNewText);
 
-	void OnBaseNameChanged(const FText& NewText);
+	void OnPrefixChanged(const FText& InNewText);
 
-	ECheckBoxState IsPrefixChecked() const { return bPrefix ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnPrefixCheckBoxChanged(ECheckBoxState NewState);
+	ECheckBoxState IsPrefixRemoveChecked() const;
+	void OnPrefixRemoveCheckBoxChanged(ECheckBoxState InNewState);
 
-	void OnPrefixChanged(const FText& NewText);
-
-	ECheckBoxState IsPrefixRemoveChecked() const { return bPrefixRemove ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnPrefixRemoveCheckBoxChanged(ECheckBoxState NewState);
-
+	bool IsPrefixRemoveSeparatorEnabled() const;
 	bool OnPrefixSeparatorVerifyTextChanged(const FText& InText, FText& OutErrorText) const;
-	void OnPrefixSeparatorChanged(const FText& NewText);
+	void OnPrefixSeparatorChanged(const FText& InNewText);
 
-	ECheckBoxState IsPrefixRemoveCharactersChecked() const { return bPrefixRemoveCharacters ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnPrefixRemoveCharactersCheckBoxChanged(ECheckBoxState NewState);
+	ECheckBoxState IsPrefixRemoveCharactersChecked() const;
+	void OnPrefixRemoveCharactersCheckBoxChanged(ECheckBoxState InNewState);
 
-	void OnPrefixRemoveCharactersChanged(uint8 NewValue);
+	bool IsPrefixRemoveNumCharsEnabled() const;
+	void OnPrefixRemoveCharactersChanged(uint8 InNewValue);
 
-	ECheckBoxState IsSuffixChecked() const { return bSuffix ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnSuffixCheckBoxChanged(ECheckBoxState NewState);
+	void OnSuffixChanged(const FText& InNewText);
 
-	void OnSuffixChanged(const FText& NewText);
+	ECheckBoxState IsSuffixRemoveChecked() const;
+	void OnSuffixRemoveCheckBoxChanged(ECheckBoxState InNewState);
 
-	ECheckBoxState IsSuffixRemoveChecked() const { return bSuffixRemove ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnSuffixRemoveCheckBoxChanged(ECheckBoxState NewState);
-
+	bool IsSuffixRemoveSeparatorEnabled() const;
 	bool OnSuffixSeparatorVerifyTextChanged(const FText& InText, FText& OutErrorText) const;
-	void OnSuffixSeparatorChanged(const FText& NewText);
+	void OnSuffixSeparatorChanged(const FText& InNewText);
 
-	ECheckBoxState IsSuffixRemoveCharactersChecked() const { return bSuffixRemoveCharacters ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnSuffixRemoveCharactersCheckBoxChanged(ECheckBoxState NewState);
+	ECheckBoxState IsSuffixRemoveCharactersChecked() const;
+	void OnSuffixRemoveCharactersCheckBoxChanged(ECheckBoxState InNewState);
 
-	void OnSuffixRemoveCharactersChanged(uint8 NewValue);
+	bool IsSuffixRemoveNumCharsEnabled() const;
+	void OnSuffixRemoveCharactersChanged(uint8 InNewValue);
 
-	ECheckBoxState IsSuffixRemoveNumberChecked() const { return bSuffixRemoveNumber ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnSuffixRemoveNumberCheckBoxChanged(ECheckBoxState NewState);
+	ECheckBoxState IsSuffixRemoveNumberChecked() const;
+	void OnSuffixRemoveNumberCheckBoxChanged(ECheckBoxState InNewState);
 
-	ECheckBoxState IsSuffixNumberChecked() const { return bSuffixNumber ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnSuffixNumberCheckBoxChanged(ECheckBoxState NewState);
+	ECheckBoxState IsSuffixNumberChecked() const;
+	bool IsSuffixRemoveNumberCheckBoxEnabled() const;
+	void OnSuffixNumberCheckBoxChanged(ECheckBoxState InNewState);
 
-	void OnSuffixNumberStartChanged(int32 NewValue);
+	void OnSuffixNumberStartChanged(int32 InNewValue);
 
-	void OnSuffixNumberStepChanged(int32 NewValue);
+	void OnSuffixNumberStepChanged(int32 InNewValue);
 
-	ECheckBoxState IsSearchReplacePlainTextChecked() const { return bSearchReplacePlainText ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnSearchReplacePlainTextCheckBoxChanged(ECheckBoxState NewState);
+	ECheckBoxState IsSearchReplacePlainTextChecked() const;
+	void OnSearchReplacePlainTextCheckBoxChanged(ECheckBoxState InNewState);
 
-	ECheckBoxState IsSearchReplaceRegexChecked() const { return bSearchReplaceRegex ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnSearchReplaceRegexCheckBoxChanged(ECheckBoxState NewState);
+	ECheckBoxState IsSearchReplaceRegexChecked() const;
+	void OnSearchReplaceRegexCheckBoxChanged(ECheckBoxState InNewState);
 
-	ECheckBoxState IsSearchReplaceIgnoreCaseChecked() const { return bSearchReplaceIgnoreCase ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }
-	void OnSearchReplaceIgnoreCaseCheckBoxChanged(ECheckBoxState NewState);
+	ECheckBoxState IsSearchReplaceIgnoreCaseChecked() const;
+	void OnSearchReplaceIgnoreCaseCheckBoxChanged(ECheckBoxState InNewState);
 
-	void OnSearchReplaceSearchTextChanged(const FText& NewText);
+	void OnSearchReplaceSearchTextChanged(const FText& InNewText);
 
-	void OnSearchReplaceReplaceTextChanged(const FText& NewText);
+	void OnSearchReplaceReplaceTextChanged(const FText& InNewText);
 
-	TSharedRef<ITableRow> OnGenerateRowForList(FObjectRenamePreviewListItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable);
-	FReply OnListViewKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent);
+	TSharedRef<ITableRow> OnGenerateRowForList(TSharedPtr<FAdvancedRenamerPreview> InItem, const TSharedRef<STableViewBase>& InOwnerTable);
+
+	FReply OnListViewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent);
+
 	TSharedPtr<SWidget> GenerateListViewContextMenu();
 
+	bool IsApplyButtonEnabled() const;
 	FReply OnApplyButtonClicked();
 
-	virtual int32 Num() const override;
-	virtual bool IsValidIndex(int32 Index) const override;
-	virtual uint32 GetHash(int32 Index) const override;
-	virtual FString GetOriginalName(int32 Index) const override;
-	virtual bool RemoveIndex(int32 Index) override;
-	virtual bool CanRename(int32 Index) const override;
-	virtual bool ExecuteRename(int32 Index, const FString& NewName) override;
+	FVector2D GetRightPaneSize() const;
+
+	FVector2D GetListViewsize() const;
+
+	FVector2D GetApplyButtonSize() const;
 };

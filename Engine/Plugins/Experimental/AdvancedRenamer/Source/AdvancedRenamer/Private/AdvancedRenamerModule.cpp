@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AdvancedRenamerModule.h"
+
+#include "AdvancedRenamer.h"
 #include "AdvancedRenamerCommands.h"
 #include "AdvancedRenamerStyle.h"
 #include "EngineUtils.h"
@@ -22,10 +24,13 @@ namespace UE::AdvancedRenamer::Private
 	{
 		return SNew(SWindow)
 			.Title(LOCTEXT("AdvancedRenameWindow", "Rename Actors"))
-			.ClientSize(FVector2D(600.0f, 500.0f))
-			.SizingRule(ESizingRule::FixedSize)
+			.ClientSize(FVector2D(600, 538))
+			.SizingRule(ESizingRule::UserSized)
 			.SupportsMaximize(false)
-			.SupportsMinimize(false);
+			.SupportsMinimize(false)
+			.MinWidth(600)
+			.MinHeight(538)
+			.MaxHeight(538);
 	}
 }
 
@@ -45,21 +50,19 @@ void FAdvancedRenamerModule::ShutdownModule()
 	FAdvancedRenamerLevelEditorIntegration::Shutdown();
 }
 
+TSharedRef<IAdvancedRenamer> FAdvancedRenamerModule::CreateAdvancedRenamer(const TSharedRef<IAdvancedRenamerProvider>& InRenameProvider)
+{
+	return MakeShared<FAdvancedRenamer>(InRenameProvider);
+}
+
 void FAdvancedRenamerModule::OpenAdvancedRenamer(const TSharedRef<IAdvancedRenamerProvider>& InRenameProvider, const TSharedPtr<SWidget>& InParentWidget)
 {
-	TSharedRef<SWindow> AdvancedRenameWindow = UE::AdvancedRenamer::Private::CreateAdvancedRenamerWindow();
-	AdvancedRenameWindow->SetContent(SNew(SAdvancedRenamerPanel).SharedProvider(InRenameProvider));
-
-	TSharedPtr<SWidget> ParentWindow = FSlateApplication::Get().FindBestParentWindowForDialogs(InParentWidget);
-	FSlateApplication::Get().AddModalWindow(AdvancedRenameWindow, ParentWindow);
+	return OpenAdvancedRenamer(CreateAdvancedRenamer(InRenameProvider), InParentWidget);
 }
 
 void FAdvancedRenamerModule::OpenAdvancedRenamer(const TSharedRef<IAdvancedRenamerProvider>& InRenameProvider, const TSharedPtr<IToolkitHost>& InToolkitHost)
 {
-	if (InToolkitHost.IsValid())
-	{
-		OpenAdvancedRenamer(InRenameProvider, InToolkitHost->GetParentWidget());
-	}
+	return OpenAdvancedRenamer(CreateAdvancedRenamer(InRenameProvider), InToolkitHost);
 }
 
 void FAdvancedRenamerModule::OpenAdvancedRenamerForActors(const TArray<AActor*>& InActors, const TSharedPtr<SWidget>& InParentWidget)
@@ -89,6 +92,23 @@ void FAdvancedRenamerModule::OpenAdvancedRenamerForActors(const TArray<AActor*>&
 	{
 		OpenAdvancedRenamerForActors(InActors, InToolkitHost->GetParentWidget());
 	}
+}
+
+void FAdvancedRenamerModule::OpenAdvancedRenamer(const TSharedRef<IAdvancedRenamer>& InRenamer, const TSharedPtr<IToolkitHost>& InToolkitHost)
+{
+	if (InToolkitHost.IsValid())
+	{
+		OpenAdvancedRenamer(InRenamer, InToolkitHost->GetParentWidget());
+	}
+}
+
+void FAdvancedRenamerModule::OpenAdvancedRenamer(const TSharedRef<IAdvancedRenamer>& InRenamer, const TSharedPtr<SWidget>& InParentWidget)
+{
+	TSharedRef<SWindow> AdvancedRenameWindow = UE::AdvancedRenamer::Private::CreateAdvancedRenamerWindow();
+	AdvancedRenameWindow->SetContent(SNew(SAdvancedRenamerPanel, InRenamer));
+
+	TSharedPtr<SWidget> ParentWindow = FSlateApplication::Get().FindBestParentWindowForDialogs(InParentWidget);
+	FSlateApplication::Get().AddModalWindow(AdvancedRenameWindow, ParentWindow);
 }
 
 TArray<AActor*> FAdvancedRenamerModule::GetActorsSharingClassesInWorld(const TArray<AActor*>& InActors)

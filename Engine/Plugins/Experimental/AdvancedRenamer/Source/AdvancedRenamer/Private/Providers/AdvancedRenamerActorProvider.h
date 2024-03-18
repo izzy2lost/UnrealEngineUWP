@@ -25,7 +25,7 @@ protected:
 	//~ Begin IAdvancedRenamerProvider
 	virtual int32 Num() const override;
 	virtual bool IsValidIndex(int32 InIndex) const override;
-	virtual uint32 GetHash(int32 InIndex) const override;;
+	virtual uint32 GetHash(int32 InIndex) const override;
 	virtual FString GetOriginalName(int32 InIndex) const override;
 	virtual bool RemoveIndex(int32 InIndex) override;
 	virtual bool CanRename(int32 InIndex) const override;

@@ -1,13 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/SAdvancedRenamerPanel.h"
-#include "AdvancedRenamerModule.h"
 #include "AdvancedRenamerStyle.h"
 #include "EngineAnalytics.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Internationalization/Regex.h"
-#include "Providers/IAdvancedRenamerProvider.h"
+#include "IAdvancedRenamer.h"
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
@@ -16,9 +14,9 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
-#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SCanvas.h"
 #include "Widgets/SNullWidget.h"
@@ -27,121 +25,108 @@
 
 #define LOCTEXT_NAMESPACE "SAdvancedRenamerPanel"
 
-FName FAdvancedRenamerPreviewListItem::OriginalNameColumnName = "OriginalName";
-FName FAdvancedRenamerPreviewListItem::NewNameColumnName = "NewName";
-
 namespace UE::AdvancedRenamer::Private
 {
 	const FVector2D WindowSize = {600.f, 500.f};
 	const FSlateFontInfo TitleFont = FCoreStyle::GetDefaultFontStyle("Regular", 12);
 	const FSlateFontInfo RegularFont = FCoreStyle::GetDefaultFontStyle("Regular", 10);
-	const float LeftBlockWidth = 304.f;
+	constexpr float LeftBlockWidth = 304.f;
 	const FVector2D TitleSize = {150.f, 20.f};
-	const float TitleOffsetY = 25.f;
+	constexpr float TitleOffsetY = 25.f;
 	const FVector2D CheckboxOffset = {0.f, 2.f};
 	const FVector2D CheckboxSize = {18.f, 18.f};
 	const FVector2D RadioOffset = {1.f, 2.f};
-	const float LabelStart = 25.f;
-	const float LabelOffsetY = 3.f;
+	constexpr float LabelStart = 25.f;
+	constexpr float LabelOffsetY = 3.f;
 	const FVector2D LabelSize = {125.f, 18.f};
-	const float EntryStart = 145.f;
+	constexpr float EntryStart = 145.f;
 	const FVector2D EntrySize = {155.f, 21.f};
-	const float LineHeight = 26.f;
+	constexpr float LineHeight = 26.f;
 	const FVector2D SeparatorSize = {32.f, 21.f};
 	const FVector2D SpinSize1 = {32.f, 21.f};
 	const FVector2D SpinSize2 = {39.f, 21.f};
 	const FVector2D SpinSize3 = {46.f, 21.f};
-	const float RightBlockOffsetX = 314.f;
+	constexpr float RightBlockOffsetX = 314.f;
 	const FVector2D RightBlockSize = {281.f, 490.f};
 	const FVector2D ListViewSize = {277.f, 431.f};
-	const float ListLineHeight = 15.f;
-	const float ApplyButtonHeight = 25.f;
+	constexpr float ListLineHeight = 15.f;
+	constexpr float ApplyButtonHeight = 25.f;
+	static FName OriginalNameColumnName = "OriginalName";
+	static FName NewNameColumnName = "NewName";
 }
 
-void SAdvancedRenamerPreviewListRow::Construct(const FArguments& InArgs, TSharedPtr<SAdvancedRenamerPanel> InRenamePanel, 
-	const TSharedRef<STableViewBase>& InOwnerTableView, FObjectRenamePreviewListItemPtr InRowItem)
+class SAdvancedRenamerPreviewListRow : public SMultiColumnTableRow<TSharedPtr<FAdvancedRenamerPreview>>
 {
-	RenamePanel = InRenamePanel;
-	RowItem = InRowItem;
+public:
+	SLATE_BEGIN_ARGS(SAdvancedRenamerPreviewListRow) {}
+	SLATE_END_ARGS()
 
-	SMultiColumnTableRow<FObjectRenamePreviewListItemPtr>::Construct(FSuperRowType::FArguments(), InOwnerTableView);
-	SetBorderImage(TAttribute<const FSlateBrush*>(this, &SAdvancedRenamerPreviewListRow::GetBorder));
-}
-
-TSharedRef<SWidget> SAdvancedRenamerPreviewListRow::GenerateWidgetForColumn(const FName& ColumnName)
-{
-	if (ColumnName != FAdvancedRenamerPreviewListItem::OriginalNameColumnName
-		&& ColumnName != FAdvancedRenamerPreviewListItem::NewNameColumnName)
+	void Construct(const FArguments& InArgs, TSharedPtr<SAdvancedRenamerPanel> InRenamePanel,
+		const TSharedRef<STableViewBase>& InOwnerTableView, TSharedPtr<FAdvancedRenamerPreview> InRowItem)
 	{
-		return SNullWidget::NullWidget;
+		PanelWeak = InRenamePanel;
+		ItemWeak = InRowItem;
+
+		SMultiColumnTableRow<TSharedPtr<FAdvancedRenamerPreview>>::Construct(FSuperRowType::FArguments(), InOwnerTableView);
+		SetBorderImage(TAttribute<const FSlateBrush*>(this, &SAdvancedRenamerPreviewListRow::GetBorder));
 	}
 
-	TSharedPtr<SAdvancedRenamerPanel> RenamePanelSP = RenamePanel.Pin();
-
-	if (!RenamePanelSP.IsValid())
+	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override
 	{
-		return SNullWidget::NullWidget;
-	}
+		using namespace UE::AdvancedRenamer::Private;
 
-	FObjectRenamePreviewListItemPtr RowItemSP = RowItem.Pin();
-
-	if (!RowItemSP.IsValid())
-	{
-		return SNullWidget::NullWidget;
-	}
-
-	using namespace UE::AdvancedRenamer::Private;
-
-	TSharedRef<STextBlock> TextBlock = SNew(STextBlock)
-		.ColorAndOpacity(FStyleColors::AccentWhite.GetSpecifiedColor())
-		.Font(RegularFont)
-		.Margin(FMargin(5.f, 0.f, 5.f, 0.f));
-		
-	if (ColumnName == FAdvancedRenamerPreviewListItem::OriginalNameColumnName)
-	{
-		TextBlock->SetText(FText::FromString(RowItemSP->OriginalName));
-		RenamePanelSP->MinDesiredOriginalNameWidth = FMath::Max(RenamePanelSP->MinDesiredOriginalNameWidth, TextBlock->ComputeDesiredSize(1.f).X);
-	}
-	else if (ColumnName == FAdvancedRenamerPreviewListItem::NewNameColumnName)
-	{
-		TextBlock->SetText(FText::FromString(RowItemSP->NewName));
-		RenamePanelSP->MinDesiredNewNameWidth = FMath::Max(RenamePanelSP->MinDesiredOriginalNameWidth, TextBlock->ComputeDesiredSize(1.f).X);
-	}
-
-	RenamePanelSP->UpdateRequiredListWidth();
-
-	return TextBlock;
-}
-
-void SAdvancedRenamerPanel::Construct(const FArguments& InArgs)
-{
-	if (InArgs._SharedProvider.IsValid())
-	{
-		SharedProvider = InArgs._SharedProvider;
-	}
-	else
-	{
-		checkNoEntry();
-	}
-
-	int32 Count = Num();
-	check(Count > 0);
-
-	for (int32 Index = 0; Index < Count; ++Index)
-	{
-		if (!CanRename(Index))
+		if (InColumnName != OriginalNameColumnName
+			&& InColumnName != NewNameColumnName)
 		{
-			RemoveIndex(Index);
-			--Index;
-			--Count;
-			continue;
+			return SNullWidget::NullWidget;
 		}
 
-		int32 Hash = GetHash(Index);
-		FString OriginalName = GetOriginalName(Index);
+		TSharedPtr<SAdvancedRenamerPanel> Panel = PanelWeak.Pin();
 
-		ListData.Add(MakeShared<FAdvancedRenamerPreviewListItem>(Hash, OriginalName));
+		if (!Panel.IsValid())
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		TSharedPtr<FAdvancedRenamerPreview> Item = ItemWeak.Pin();
+
+		if (!Item.IsValid())
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		TSharedRef<STextBlock> TextBlock = SNew(STextBlock)
+			.ColorAndOpacity(FStyleColors::AccentWhite.GetSpecifiedColor())
+			.Font(RegularFont)
+			.Margin(FMargin(5.f, 0.f, 5.f, 0.f));
+
+		if (InColumnName == OriginalNameColumnName)
+		{
+			TextBlock->SetText(FText::FromString(Item->OriginalName));
+			Panel->MinDesiredOriginalNameWidth = FMath::Max(Panel->MinDesiredOriginalNameWidth, TextBlock->ComputeDesiredSize(1.f).X);
+		}
+		else if (InColumnName == NewNameColumnName)
+		{
+			TextBlock->SetText(FText::FromString(Item->NewName));
+			Panel->MinDesiredNewNameWidth = FMath::Max(Panel->MinDesiredOriginalNameWidth, TextBlock->ComputeDesiredSize(1.f).X);
+		}
+
+		return TextBlock;
 	}
+
+protected:
+	TWeakPtr<SAdvancedRenamerPanel> PanelWeak;
+	TWeakPtr<FAdvancedRenamerPreview> ItemWeak;
+};
+
+void SAdvancedRenamerPanel::Construct(const FArguments& InArgs, const TSharedRef<IAdvancedRenamer>& InRenamer)
+{
+	Renamer = InRenamer;
+
+	bRemovePrefixSeparator = false;
+	bRemovePrefixNumChars = false;
+	bRemoveSuffixSeparator = false;
+	bRemoveSuffixNumChars = false;
 
 	CommandList = MakeShared<FUICommandList>();
 	CommandList->MapAction(
@@ -152,7 +137,6 @@ void SAdvancedRenamerPanel::Construct(const FArguments& InArgs)
 
 	using namespace UE::AdvancedRenamer::Private;
 
-	// @formatter:off
 	TSharedRef<SCanvas> Canvas = SNew(SCanvas)
 		+ SCanvas::Slot()
 		.Position(FVector2D(0.f, 0.f))
@@ -161,17 +145,14 @@ void SAdvancedRenamerPanel::Construct(const FArguments& InArgs)
 			SNew(SColorBlock)
 			.Color(FStyleColors::Background.GetSpecifiedColor())
 		];
-	// @formatter:on
 
 	CreateLeftPane(Canvas);
 	CreateRightPane(Canvas);
 
-	// @formatter:off
 	ChildSlot
 	[
 		Canvas
 	];
-	// @formatter:on
 
 	if (FEngineAnalytics::IsAvailable())
 	{
@@ -179,46 +160,43 @@ void SAdvancedRenamerPanel::Construct(const FArguments& InArgs)
 	}
 }
 
-void SAdvancedRenamerPanel::CreateLeftPane(TSharedRef<SCanvas> Canvas)
+void SAdvancedRenamerPanel::CreateLeftPane(const TSharedRef<SCanvas>& InCanvas)
 {	
 	using namespace UE::AdvancedRenamer::Private;
 
-	// @formatter:off
-	Canvas->AddSlot()
+	InCanvas->AddSlot()
 		.Position(FVector2D(5.f, 5.f))
 		.Size(FVector2D(LeftBlockWidth, 50.f))
 		[
 			CreateBaseName()
 		];
 
-	Canvas->AddSlot()
+	InCanvas->AddSlot()
 		.Position(FVector2D(5.f, 60.f))
 		.Size(FVector2D(LeftBlockWidth, 102.f))
 		[
 			CreatePrefix()
 		];
 
-	Canvas->AddSlot()
+	InCanvas->AddSlot()
 		.Position(FVector2D(5.f, 167.f))
 		.Size(FVector2D(LeftBlockWidth, 154.f))
 		[
 			CreateSuffix()
 		];
 
-	Canvas->AddSlot()
+	InCanvas->AddSlot()
 		.Position(FVector2D(5.f, 327.f))
 		.Size(FVector2D(LeftBlockWidth, 168.f))
 		[
 			CreateSearchAndReplace()
 		];
-	// @formatter:on
 }
 
 TSharedRef<SWidget> SAdvancedRenamerPanel::CreateBaseName()
 {
 	using namespace UE::AdvancedRenamer::Private;
 
-	// @formatter:off
 	return SNew(SBorder)
 		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryTop"))
 		.Content()
@@ -234,21 +212,13 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateBaseName()
 				.Text(LOCTEXT("BaseNameTitle", "Name"))
 			]
 			+ SCanvas::Slot()
-			.Position(FVector2D(0.f, TitleOffsetY) + CheckboxOffset)
-			.Size(CheckboxSize)
-			[
-				SAssignNew(BaseNameCheckBox, SCheckBox)
-				.IsChecked(this, &SAdvancedRenamerPanel::IsBaseNameChecked)
-				.OnCheckStateChanged(this, &SAdvancedRenamerPanel::OnBaseNameCheckBoxChanged)
-			]
-			+ SCanvas::Slot()
-			.Position(FVector2D(LabelStart, TitleOffsetY + LabelOffsetY))
+			.Position(FVector2D(LabelStart * 2.f, TitleOffsetY + LabelOffsetY))
 			.Size(LabelSize)
 			[
 				SNew(STextBlock)
 				.ColorAndOpacity(FStyleColors::AccentWhite.GetSpecifiedColor())
 				.Font(RegularFont)
-				.Text(LOCTEXT("BaseName", "Base Name"))
+				.Text(LOCTEXT("SetBaseName", "Set Base Name"))
 			]
 			+ SCanvas::Slot()
 			.Position(FVector2D(EntryStart, TitleOffsetY))
@@ -259,18 +229,15 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateBaseName()
 				.ForegroundColor(FStyleColors::AccentWhite.GetSpecifiedColor())
 				.Font(RegularFont)
 				.HintText(LOCTEXT("BaseNameHint", "Base name"))
-				.IsEnabled(false)
 				.OnTextChanged(this, &SAdvancedRenamerPanel::OnBaseNameChanged)
 			]
 		];
-	// @formatter:on
 }
 
 TSharedRef<SWidget> SAdvancedRenamerPanel::CreatePrefix()
 {
 	using namespace UE::AdvancedRenamer::Private;
 
-	// @formatter:off
 	return SNew(SBorder)
 		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryTop"))
 		.Content()
@@ -287,24 +254,15 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreatePrefix()
 				.Font(TitleFont)
 				.Text(LOCTEXT("PrefixTitle", "Prefix"))
 			]
-
-			// Prefix name
+			//
 			+ SCanvas::Slot()
-			.Position(FVector2D(0.f, TitleOffsetY) + CheckboxOffset)
-			.Size(CheckboxSize)
-			[
-				SAssignNew(PrefixCheckBox, SCheckBox)
-				.IsChecked(this, &SAdvancedRenamerPanel::IsPrefixChecked)
-				.OnCheckStateChanged(this, &SAdvancedRenamerPanel::OnPrefixCheckBoxChanged)
-			]
-			+ SCanvas::Slot()
-			.Position(FVector2D(LabelStart, TitleOffsetY + LabelOffsetY))
+			.Position(FVector2D(LabelStart * 2.f, TitleOffsetY + LabelOffsetY))
 			.Size(LabelSize)
 			[
 				SNew(STextBlock)
 				.ColorAndOpacity(FStyleColors::AccentWhite.GetSpecifiedColor())
 				.Font(RegularFont)
-				.Text(LOCTEXT("Prefix", "Prefix"))
+				.Text(LOCTEXT("AddPrefix", "Add Prefix"))
 			]
 			+ SCanvas::Slot()
 			.Position(FVector2D(EntryStart, TitleOffsetY))
@@ -315,7 +273,6 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreatePrefix()
 				.ForegroundColor(FStyleColors::AccentWhite.GetSpecifiedColor())
 				.Font(RegularFont)
 				.HintText(LOCTEXT("PrefixHint", "Prefix"))
-				.IsEnabled(false)
 				.OnTextChanged(this, &SAdvancedRenamerPanel::OnPrefixChanged)
 			]
 
@@ -328,7 +285,6 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreatePrefix()
 				.Style(&FAdvancedRenamerStyle::Get().GetWidgetStyle<FCheckBoxStyle>("AdvancedRenamer.Style.BlackRadioButton"))
 				.IsChecked(this, &SAdvancedRenamerPanel::IsPrefixRemoveChecked)
 				.OnCheckStateChanged(this, &SAdvancedRenamerPanel::OnPrefixRemoveCheckBoxChanged)
-				.IsEnabled(false)
 			]
 			+ SCanvas::Slot()
 			.Position(FVector2D(LabelStart * 2.f, TitleOffsetY + LabelOffsetY + LineHeight))
@@ -347,7 +303,7 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreatePrefix()
 				.BackgroundColor(FStyleColors::Background.GetSpecifiedColor())
 				.ForegroundColor(FStyleColors::AccentWhite.GetSpecifiedColor())
 				.Font(RegularFont)
-				.IsEnabled(false)
+				.IsEnabled(this, &SAdvancedRenamerPanel::IsPrefixRemoveSeparatorEnabled)
 				.Text(LOCTEXT("Underscore", "_"))
 				.OnVerifyTextChanged(this, &SAdvancedRenamerPanel::OnPrefixSeparatorVerifyTextChanged)
 				.OnTextChanged(this, &SAdvancedRenamerPanel::OnPrefixSeparatorChanged)
@@ -371,7 +327,6 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreatePrefix()
 				.Style(&FAdvancedRenamerStyle::Get().GetWidgetStyle<FCheckBoxStyle>("AdvancedRenamer.Style.BlackRadioButton"))
 				.IsChecked(this, &SAdvancedRenamerPanel::IsPrefixRemoveCharactersChecked)
 				.OnCheckStateChanged(this, &SAdvancedRenamerPanel::OnPrefixRemoveCharactersCheckBoxChanged)
-				.IsEnabled(false)
 			]
 			+ SCanvas::Slot()
 			.Position(FVector2D(LabelStart * 2.f, TitleOffsetY + LabelOffsetY + LineHeight * 2.f))
@@ -393,7 +348,7 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreatePrefix()
 				.MinValue(1)
 				.MaxValue(9)
 				.Value(1)
-				.IsEnabled(false)
+				.IsEnabled(this, &SAdvancedRenamerPanel::IsPrefixRemoveNumCharsEnabled)
 				.OnValueChanged(this, &SAdvancedRenamerPanel::OnPrefixRemoveCharactersChanged)
 			]
 			+ SCanvas::Slot()
@@ -406,14 +361,12 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreatePrefix()
 				.Text(LOCTEXT("Characters", "character(s)"))
 			]
 		];
-	// @formatter:on
 }
 
 TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 {
 	using namespace UE::AdvancedRenamer::Private;
 
-	// @formatter:off
 	return SNew(SBorder)
 		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryTop"))
 		.Content()
@@ -433,21 +386,13 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 
 			// Suffix name
 			+ SCanvas::Slot()
-			.Position(FVector2D(0.f, TitleOffsetY) + CheckboxOffset)
-			.Size(CheckboxSize)
-			[
-				SAssignNew(SuffixCheckBox, SCheckBox)
-				.IsChecked(this, &SAdvancedRenamerPanel::IsSuffixChecked)
-				.OnCheckStateChanged(this, &SAdvancedRenamerPanel::OnSuffixCheckBoxChanged)
-			]
-			+ SCanvas::Slot()
-			.Position(FVector2D(LabelStart, TitleOffsetY + LabelOffsetY))
+			.Position(FVector2D(LabelStart * 2.f, TitleOffsetY + LabelOffsetY))
 			.Size(LabelSize)
 			[
 				SNew(STextBlock)
 				.ColorAndOpacity(FStyleColors::AccentWhite.GetSpecifiedColor())
 				.Font(RegularFont)
-				.Text(LOCTEXT("Suffix", "Suffix"))
+				.Text(LOCTEXT("AddSuffix", "Add Suffix"))
 			]
 			+ SCanvas::Slot()
 			.Position(FVector2D(EntryStart, TitleOffsetY))
@@ -458,7 +403,6 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 				.ForegroundColor(FStyleColors::AccentWhite.GetSpecifiedColor())
 				.Font(RegularFont)
 				.HintText(LOCTEXT("SuffixHint", "Suffix"))
-				.IsEnabled(false)
 				.OnTextChanged(this, &SAdvancedRenamerPanel::OnSuffixChanged)
 			]
 
@@ -471,7 +415,6 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 				.Style(&FAdvancedRenamerStyle::Get().GetWidgetStyle<FCheckBoxStyle>("AdvancedRenamer.Style.BlackRadioButton"))
 				.IsChecked(this, &SAdvancedRenamerPanel::IsSuffixRemoveChecked)
 				.OnCheckStateChanged(this, &SAdvancedRenamerPanel::OnSuffixRemoveCheckBoxChanged)
-				.IsEnabled(false)
 			]
 			+ SCanvas::Slot()
 			.Position(FVector2D(LabelStart * 2.f, TitleOffsetY + LabelOffsetY + LineHeight))
@@ -490,7 +433,7 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 				.BackgroundColor(FStyleColors::Background.GetSpecifiedColor())
 				.ForegroundColor(FStyleColors::AccentWhite.GetSpecifiedColor())
 				.Font(RegularFont)
-				.IsEnabled(false)
+				.IsEnabled(this, &SAdvancedRenamerPanel::IsSuffixRemoveSeparatorEnabled)
 				.Text(LOCTEXT("Underscore", "_"))
 				.OnVerifyTextChanged(this, &SAdvancedRenamerPanel::OnSuffixSeparatorVerifyTextChanged)
 				.OnTextChanged(this, &SAdvancedRenamerPanel::OnSuffixSeparatorChanged)
@@ -514,7 +457,6 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 				.Style(&FAdvancedRenamerStyle::Get().GetWidgetStyle<FCheckBoxStyle>("AdvancedRenamer.Style.BlackRadioButton"))
 				.IsChecked(this, &SAdvancedRenamerPanel::IsSuffixRemoveCharactersChecked)
 				.OnCheckStateChanged(this, &SAdvancedRenamerPanel::OnSuffixRemoveCharactersCheckBoxChanged)
-				.IsEnabled(false)
 			]
 			+ SCanvas::Slot()
 			.Position(FVector2D(LabelStart * 2.f, TitleOffsetY + LabelOffsetY + LineHeight * 2.f))
@@ -529,14 +471,13 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 			.Position(FVector2D(EntryStart, TitleOffsetY + LineHeight * 2.f))
 			.Size(SpinSize1)
 			[
-
 				SAssignNew(SuffixRemoveCharactersSpinBox, SSpinBox<uint8>)
 				.Style(&FAppStyle::Get(), "Menu.SpinBox")
 				.Font(RegularFont)
 				.MinValue(1)
 				.MaxValue(9)
 				.Value(1)
-				.IsEnabled(false)
+				.IsEnabled(this, &SAdvancedRenamerPanel::IsSuffixRemoveNumCharsEnabled)
 				.OnValueChanged(this, &SAdvancedRenamerPanel::OnSuffixRemoveCharactersChanged)
 			]
 			+ SCanvas::Slot()
@@ -557,7 +498,7 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 				SAssignNew(SuffixRemoveNumberCheckBox, SCheckBox)
 				.IsChecked(this, &SAdvancedRenamerPanel::IsSuffixRemoveNumberChecked)
 				.OnCheckStateChanged(this, &SAdvancedRenamerPanel::OnSuffixRemoveNumberCheckBoxChanged)
-				.IsEnabled(false)
+				.IsEnabled(this, &SAdvancedRenamerPanel::IsSuffixRemoveNumberCheckBoxEnabled)
 			]
 			+ SCanvas::Slot()
 			.Position(FVector2D(LabelStart * 2.f, TitleOffsetY + LabelOffsetY + LineHeight * 3.f))
@@ -577,7 +518,6 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 				SAssignNew(SuffixNumberCheckBox, SCheckBox)
 				.IsChecked(this, &SAdvancedRenamerPanel::IsSuffixNumberChecked)
 				.OnCheckStateChanged(this, &SAdvancedRenamerPanel::OnSuffixNumberCheckBoxChanged)
-				.IsEnabled(false)
 			]
 			+ SCanvas::Slot()
 			.Position(FVector2D(LabelStart * 2.f, TitleOffsetY + LabelOffsetY + LineHeight * 4.f))
@@ -586,7 +526,7 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 				SNew(STextBlock)
 				.ColorAndOpacity(FStyleColors::AccentWhite.GetSpecifiedColor())
 				.Font(RegularFont)
-				.Text(LOCTEXT("SuffixNumber", "Number"))
+				.Text(LOCTEXT("SuffixNumber", "Add Number"))
 			]
 			+ SCanvas::Slot()
 			.Position(FVector2D(EntryStart , TitleOffsetY + LabelOffsetY + LineHeight * 4.f))
@@ -635,14 +575,12 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSuffix()
 				.OnValueChanged(this, &SAdvancedRenamerPanel::OnSuffixNumberStepChanged)
 			]
 		];
-	// @formatter:on
 }
 
 TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSearchAndReplace()
 {
 	using namespace UE::AdvancedRenamer::Private;
 
-	// @formatter:off
 	return SNew(SBorder)
 		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryTop"))
 		.Content()
@@ -731,7 +669,6 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSearchAndReplace()
 				.AutoWrapText(true)
 				.HintText(LOCTEXT("RegeSearchHint", "Search"))
 				.WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
-				.IsEnabled(false)
 				.OnTextChanged(this, &SAdvancedRenamerPanel::OnSearchReplaceSearchTextChanged)
 			]
 
@@ -747,42 +684,38 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateSearchAndReplace()
 				.AutoWrapText(true)
 				.HintText(LOCTEXT("RegeReplaceHint", "Replace"))
 				.WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
-				.IsEnabled(false)
 				.OnTextChanged(this, &SAdvancedRenamerPanel::OnSearchReplaceReplaceTextChanged)
 			]
 		];
-	// @formatter:on
 }
 
-void SAdvancedRenamerPanel::CreateRightPane(TSharedRef<SCanvas> Canvas)
+void SAdvancedRenamerPanel::CreateRightPane(const TSharedRef<SCanvas>& InCanvas)
 {
 	using namespace UE::AdvancedRenamer::Private;
 
-	// @formatter:off
-	Canvas->AddSlot()
+	InCanvas->AddSlot()
 		.Position(FVector2D(RightBlockOffsetX, 5.f))
-		.Size(RightBlockSize)
+		.Size(this, &SAdvancedRenamerPanel::GetRightPaneSize)
 		[
 			CreateRenamePreview()
 		];
-	// @formatter:on
 }
 
 TSharedRef<SWidget> SAdvancedRenamerPanel::CreateRenamePreview()
 {
 	using namespace UE::AdvancedRenamer::Private;
 
-	// @formatter:off
 	return SNew(SBorder)
 		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryTop"))
+		.HAlign(EHorizontalAlignment::HAlign_Fill)
+		.VAlign(EVerticalAlignment::VAlign_Fill)
 		.Content()
 		[
-			SNew(SCanvas)
-				
-			// Title
-			+ SCanvas::Slot()
-			.Position(FVector2D(0.f, LabelOffsetY))
-			.Size(TitleSize)
+			SNew(SVerticalBox)
+
+			+ SVerticalBox::Slot()
+			.Padding(0.f, LabelOffsetY, 0.f, 0.f)
+			.AutoHeight()
 			[
 				SNew(STextBlock)
 				.ColorAndOpacity(FStyleColors::AccentBlue.GetSpecifiedColor())
@@ -790,52 +723,41 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateRenamePreview()
 				.Text(LOCTEXT("ObjectRenamePreviewTitle", "Rename Preview"))
 			]
 
-			// List View
-			+ SCanvas::Slot()
-			.Position(FVector2D(0.f, TitleOffsetY))
-			.Size(ListViewSize)
+			+ SVerticalBox::Slot()
+			.FillHeight(1.f)
+			.HAlign(EHorizontalAlignment::HAlign_Fill)
 			[
-				SNew(SScrollBox)
-				.Orientation(EOrientation::Orient_Horizontal)
-				+ SScrollBox::Slot()
+				SAssignNew(RenamePreviewListBox, SBox)
+				.Content()
 				[
-					SAssignNew(RenamePreviewListBox, SBox)
-					.WidthOverride(ListViewSize.Y)
-					.HeightOverride(ListViewSize.X)
-					.HAlign(EHorizontalAlignment::HAlign_Fill)
-					.VAlign(EVerticalAlignment::VAlign_Fill)
-					.Content()
-					[
-						SAssignNew(RenamePreviewList, SListView<FObjectRenamePreviewListItemPtr>)
-						.ItemHeight(ListLineHeight)
-						.ListItemsSource(&ListData)
-						.OnGenerateRow(this, &SAdvancedRenamerPanel::OnGenerateRowForList)
-						.HeaderRow(
-							SAssignNew(RenamePreviewListHeaderRow, SHeaderRow)
-							+ SHeaderRow::Column(FAdvancedRenamerPreviewListItem::OriginalNameColumnName)
-							.DefaultLabel(LOCTEXT("From", "From"))
-							.FillWidth(ListViewSize.X / 2.f)
-							+ SHeaderRow::Column(FAdvancedRenamerPreviewListItem::NewNameColumnName)
-							.DefaultLabel(LOCTEXT("To", "To"))
-							.FillWidth(ListViewSize.X / 2.f)
-						)
-						.OnKeyDownHandler(this, &SAdvancedRenamerPanel::OnListViewKeyDown)
-						.OnContextMenuOpening(this, &SAdvancedRenamerPanel::GenerateListViewContextMenu)
-					]
+					SAssignNew(RenamePreviewList, SListView<TSharedPtr<FAdvancedRenamerPreview>>)
+					.ItemHeight(ListLineHeight)
+					.ListItemsSource(&Renamer->GetPreviews())
+					.OnGenerateRow(this, &SAdvancedRenamerPanel::OnGenerateRowForList)
+					.HeaderRow(
+						SAssignNew(RenamePreviewListHeaderRow, SHeaderRow)
+						+ SHeaderRow::Column(OriginalNameColumnName)
+						.DefaultLabel(LOCTEXT("From", "From"))
+						.FillWidth(0.5f)
+						+ SHeaderRow::Column(NewNameColumnName)
+						.DefaultLabel(LOCTEXT("To", "To"))
+						.FillWidth(0.5f)
+					)
+					.OnKeyDownHandler(this, &SAdvancedRenamerPanel::OnListViewKeyDown)
+					.OnContextMenuOpening(this, &SAdvancedRenamerPanel::GenerateListViewContextMenu)
 				]
 			]
 
-			// Apply Button
-			+ SCanvas::Slot()
-			.Position(FVector2D(0.f, TitleOffsetY + ListViewSize.Y + 5.f))
-			.Size(FVector2D(ListViewSize.X, ApplyButtonHeight))
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(EHorizontalAlignment::HAlign_Fill)
 			[
 				SAssignNew(ApplyButton, SButton)
 				.ButtonStyle(FAdvancedRenamerStyle::Get(), "AdvancedRenamer.Style.DarkButton")
 				.ToolTipText(LOCTEXT("ApplyRenameToolTip", "Renames all actors."))
 				.HAlign(EHorizontalAlignment::HAlign_Center)
 				.VAlign(EVerticalAlignment::VAlign_Center)
-				.IsEnabled(false)
+				.IsEnabled(this, &SAdvancedRenamerPanel::IsApplyButtonEnabled)
 				.OnClicked(this, &SAdvancedRenamerPanel::OnApplyButtonClicked)
 				[
 					SNew(STextBlock)
@@ -845,52 +767,6 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateRenamePreview()
 				]
 			]
 		];
-	// @formatter:on
-}
-
-bool SAdvancedRenamerPanel::RenameObjects()
-{
-	if (!bValidNames)
-	{
-		return false;
-	}
-
-	FScopedTransaction Transaction(LOCTEXT("AdvancedObjectRename", "Advanced Object Rename"));
-	int32 ItemsRenamed = 0;
-	int32 ItemCount = Num();
-	
-	for (int32 Index = 0; Index < ItemCount; ++Index)
-	{
-		if (!ListData[Index].IsValid())
-		{
-			continue;
-		}
-
-		if (!IsValidIndex(Index))
-		{
-			continue;
-		}
-
-		if (ListData[Index]->NewName.Len() == 0)
-		{
-			continue;
-		}
-
-		if (ExecuteRename(Index, ListData[Index]->NewName))
-		{
-			++ItemsRenamed;
-		}
-	}
-
-	//Cancel Transaction if no Items could successfully Rename
-	if (ItemsRenamed == 0)
-	{
-		Transaction.Cancel();
-		//TODO: Should we keep Window Open as no renames occurred. Might be something the User did not expect
-		//return false;
-	}
-	
-	return true;
 }
 
 bool SAdvancedRenamerPanel::CloseWindow()
@@ -906,512 +782,22 @@ bool SAdvancedRenamerPanel::CloseWindow()
 	return false;
 }
 
-FString SAdvancedRenamerPanel::CreateNewName(int32 Index) const
-{
-	if (!IsValidIndex(Index))
-	{
-		return "";
-	}
-
-	FString DisplayName = GetOriginalName(Index);
-
-	if (DisplayName.Len() == 0)
-	{
-		return DisplayName;
-	}
-
-	return ApplyRename(DisplayName, Index);
-}
-
-FString SAdvancedRenamerPanel::ApplyRename(const FString& OriginalName, int32 Index) const
-{
-	FString NewName = OriginalName;
-
-	if (bBaseName)
-	{
-		NewName = ApplyBaseName(NewName);
-	}
-
-	if (bPrefix)
-	{
-		NewName = ApplyPrefix(NewName);
-	}
-
-	if (bSuffix)
-	{
-		NewName = ApplySuffix(NewName, Index);
-	}
-
-	if (bSearchReplacePlainText)
-	{
-		NewName = ApplySearchPlainText(NewName);
-	}
-	else if (bSearchReplaceRegex)
-	{
-		NewName = ApplySearchReplaceRegex(NewName);
-	}
-
-	return NewName;
-}
-
-FString SAdvancedRenamerPanel::ApplyBaseName(const FString& OriginalName) const
-{
-	if (!BaseNameTextBox.IsValid())
-	{
-		return OriginalName;
-	}
-
-	FString BaseName = BaseNameTextBox->GetText().ToString();
-	
-	if (BaseName.Len() == 0)
-	{
-		return OriginalName;
-	}
-
-	return BaseName;
-}
-
-FString SAdvancedRenamerPanel::ApplyPrefix(const FString& OriginalName) const
-{
-	FString Output = OriginalName;
-
-	if (bPrefixRemove)
-	{
-		if (PrefixSeparatorTextBox.IsValid())
-		{
-			FString Separator = PrefixSeparatorTextBox->GetText().ToString();
-
-			if (Separator.Len() != 0)
-			{
-				int32 PrefixStart = Output.Find(Separator, ESearchCase::IgnoreCase);
-
-				if (PrefixStart >= 0)
-				{
-					Output = Output.Mid(PrefixStart + Separator.Len());
-				}
-			}
-		}
-	}
-	else if (bPrefixRemoveCharacters)
-	{
-		if (PrefixRemoveCharactersSpinBox.IsValid())
-		{
-			Output = Output.RightChop(PrefixRemoveCharactersSpinBox->GetValue());
-		}
-	}
-
-	if (PrefixTextBox.IsValid())
-	{
-		FString Prefix = PrefixTextBox->GetText().ToString();
-
-		if (Prefix.Len() > 0)
-		{
-			Output = Prefix + Output;
-		}
-	}
-
-	return Output;
-}
-
-FString SAdvancedRenamerPanel::ApplySuffix(const FString& OriginalName, int32 Index) const
-{
-	static const TCHAR FirstDigit = '0';
-	static const TCHAR LastDigit = '9';
-
-	FString Output = OriginalName;
-
-	if (bSuffixRemove)
-	{
-		if (SuffixSeparatorTextBox.IsValid())
-		{
-			FString Separator = SuffixSeparatorTextBox->GetText().ToString();
-
-			if (Separator.Len() != 0)
-			{
-				int32 SuffixStart = Output.Find(Separator, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-
-				if (SuffixStart >= 0)
-				{
-					Output = Output.Mid(0, SuffixStart);
-				}
-			}
-		}
-	}
-	else if (bSuffixRemoveCharacters)
-	{
-		if (SuffixRemoveCharactersSpinBox.IsValid())
-		{
-			Output = Output.LeftChop(SuffixRemoveCharactersSpinBox->GetValue());
-		}
-	}
-
-	if (bSuffixRemoveNumber)
-	{
-		int32 LastDigitIndex = Output.Len() - 1;
-
-		while(LastDigitIndex >= 0)
-		{
-			if (Output[LastDigitIndex] < FirstDigit || Output[LastDigitIndex] > LastDigit)
-			{
-				break;
-			}
-
-			--LastDigitIndex;
-		}
-
-		Output = Output.Mid(0, LastDigitIndex + 1);
-	}
-
-	if (SuffixTextBox.IsValid())
-	{
-		FString Suffix = SuffixTextBox->GetText().ToString();
-
-		if (Suffix.Len() > 0)
-		{
-			Output = Output + Suffix;
-		}
-	}
-
-	if (bSuffixNumber)
-	{
-		if (SuffixNumberStartSpinBox.IsValid() && SuffixNumberStepSpinBox.IsValid())
-		{
-			int32 Start = SuffixNumberStartSpinBox->GetValue();
-			int32 Step = SuffixNumberStepSpinBox->GetValue();
-			int32 Current = Start + (Index * Step);
-
-			Output += FString::FromInt(Current);
-		}
-	}
-
-	return Output;
-}
-
-FString SAdvancedRenamerPanel::ApplySearchPlainText(const FString& OriginalName) const
-{
-	if (!SearchReplaceSearchTextBox.IsValid() || !SearchReplaceReplaceTextBox.IsValid())
-	{
-		return OriginalName;
-	}
-
-	FString Search = SearchReplaceSearchTextBox->GetPlainText().ToString();
-
-	if (Search.Len() == 0)
-	{
-		return OriginalName;
-	}
-
-	FString Replace = SearchReplaceReplaceTextBox->GetPlainText().ToString();
-
-	if (Replace.Len() == 0)
-	{
-		UE_LOG(LogARP, Warning, TEXT("Regex: Empty replacement string."));
-	}
-
-	return OriginalName.Replace(*Search, *Replace, bSearchReplaceIgnoreCase ? ESearchCase::IgnoreCase : ESearchCase::CaseSensitive);
-}
-
-FString SAdvancedRenamerPanel::ApplySearchReplaceRegex(const FString& OriginalName) const
-{
-	if (!SearchReplaceSearchTextBox.IsValid() || !SearchReplaceReplaceTextBox.IsValid())
-	{
-		return OriginalName;
-	}
-
-	FString Pattern = SearchReplaceSearchTextBox->GetPlainText().ToString();
-
-	if (Pattern.Len() == 0)
-	{
-		return OriginalName;
-	}
-	
-	FRegexPattern RegexPattern = FRegexPattern(
-		Pattern, 
-		bSearchReplaceIgnoreCase ? ERegexPatternFlags::CaseInsensitive : ERegexPatternFlags::None
-	);
-
-	FString ReplaceString = SearchReplaceReplaceTextBox->GetPlainText().ToString();
-
-	if (ReplaceString.Len() == 0)
-	{
-		UE_LOG(LogARP, Warning, TEXT("Regex: Empty replacement string."));
-	}
-
-	return RegexReplace(OriginalName, RegexPattern, ReplaceString);
-}
-
-FString SAdvancedRenamerPanel::RegexReplace(const FString& OriginalString, const FRegexPattern Pattern, const FString& ReplaceString) const
-{
-	static const FString EscapeString = "\\";
-	static const TCHAR EscapeChar = EscapeString[0];
-	static const FString GroupString = "$";
-	static const TCHAR GroupChar = GroupString[0];
-	static const TCHAR FirstDigit = '0';
-	static const TCHAR LastDigit = '9';
-	static const TCHAR NullChar = 0;
-
-	FRegexMatcher Matcher(Pattern, OriginalString);
-
-	FString Output = "";
-	int32 StartCharIdx = 0;
-	bool bReadingGroupName = false;
-	int32 GroupIndex = INDEX_NONE;
-	
-	while (Matcher.FindNext())
-	{
-		// Add on part of string after start/previous match
-		if (StartCharIdx != Matcher.GetMatchBeginning())
-		{
-			Output += OriginalString.Mid(StartCharIdx, Matcher.GetMatchBeginning() - StartCharIdx);
-		}
-
-		bool bEscaped = false;
-
-		for (int32 CharIdx = 0; CharIdx <= ReplaceString.Len(); ++CharIdx)
-		{
-			const TCHAR& Char = CharIdx < ReplaceString.Len() ? ReplaceString[CharIdx] : NullChar;
-
-			if (bReadingGroupName)
-			{
-				// Build group index
-				if (Char >= FirstDigit && Char <= LastDigit)
-				{
-					if (GroupIndex == INDEX_NONE)
-					{
-						GroupIndex = 0;
-					}
-					else if (GroupIndex > 0)
-					{
-						GroupIndex *= 10;
-					}
-
-					int32 NextDigit = static_cast<int32>(Char - FirstDigit);					
-					GroupIndex += NextDigit;
-					continue;
-				}
-				// We've read a group index, add it to the output string
-				else if (GroupIndex > 0)
-				{
-					if (Matcher.GetCaptureGroupBeginning(GroupIndex) == INDEX_NONE)
-					{
-						UE_LOG(LogARP, Error, TEXT("Regex: Capture group does not exist %d."), GroupIndex);
-					}
-
-					Output += Matcher.GetCaptureGroup(GroupIndex);
-				}
-				// $0 matches the entire matched string
-				else if (GroupIndex == 0)
-				{
-					Output += OriginalString.Mid(Matcher.GetMatchBeginning(), Matcher.GetMatchEnding() - Matcher.GetMatchBeginning());
-				}
-				// An unescaped $
-				else
-				{
-					UE_LOG(LogARP, Error, TEXT("Regex: Unescaped %s."), *GroupString);
-
-					Output += GroupString;
-				}
-
-				bReadingGroupName = false;
-				// Continue regular parsing of this character.
-			}
-
-			// Check for special chars
-			if (!bEscaped)
-			{
-				if (Char == EscapeChar)
-				{
-					bEscaped = true;
-					continue;
-				}
-
-				if (Char == GroupChar)
-				{
-					bReadingGroupName = true;
-					GroupIndex = INDEX_NONE;
-					continue;
-				}
-			}
-			else
-			{
-				// If the last char is a \ assume that it's not an escape char
-				if (Char == NullChar)
-				{
-					UE_LOG(LogARP, Error, TEXT("Regex: Unescaped %s."), *EscapeString);
-
-					Output += EscapeChar;
-				}
-			}
-
-			if (Char != NullChar)
-			{
-				Output += Char;
-			}
-
-			bEscaped = false;
-		}
-
-		StartCharIdx = Matcher.GetMatchEnding();
-	}
-
-	// Add on the end of the string after the last match
-	if (StartCharIdx < OriginalString.Len())
-	{
-		Output += OriginalString.Mid(StartCharIdx);
-	}
-
-	return Output;
-}
-
-void SAdvancedRenamerPanel::UpdateEnables()
-{
-	if (BaseNameTextBox.IsValid())
-	{
-		BaseNameTextBox->SetEnabled(bBaseName);
-	}
-
-	if (PrefixTextBox.IsValid())
-	{
-		PrefixTextBox->SetEnabled(bPrefix);
-	}
-
-	if (PrefixRemoveCheckBox.IsValid())
-	{
-		PrefixRemoveCheckBox->SetEnabled(bPrefix);
-	}
-
-	if (PrefixSeparatorTextBox.IsValid())
-	{
-		PrefixSeparatorTextBox->SetEnabled(bPrefix && bPrefixRemove);
-	}
-
-	if (PrefixRemoveCharactersCheckBox.IsValid())
-	{
-		PrefixRemoveCharactersCheckBox->SetEnabled(bPrefix);
-	}
-
-	if (PrefixRemoveCharactersSpinBox.IsValid())
-	{
-		PrefixRemoveCharactersSpinBox->SetEnabled(bPrefix && bPrefixRemoveCharacters);
-	}
-
-	if (SuffixTextBox.IsValid())
-	{
-		SuffixTextBox->SetEnabled(bSuffix);
-	}
-
-	if (SuffixRemoveCheckBox.IsValid())
-	{
-		SuffixRemoveCheckBox->SetEnabled(bSuffix);
-	}
-
-	if (SuffixSeparatorTextBox.IsValid())
-	{
-		SuffixSeparatorTextBox->SetEnabled(bSuffix && bSuffixRemove);
-	}
-
-	if (SuffixRemoveCharactersCheckBox.IsValid())
-	{
-		SuffixRemoveCharactersCheckBox->SetEnabled(bSuffix);
-	}
-
-	if (SuffixRemoveCharactersSpinBox.IsValid())
-	{
-		SuffixRemoveCharactersSpinBox->SetEnabled(bSuffix && bSuffixRemoveCharacters);
-	}
-
-	if (SuffixRemoveNumberCheckBox.IsValid())
-	{
-		SuffixRemoveNumberCheckBox->SetEnabled(bSuffix && !bSuffixNumber);
-	}
-
-	if (SuffixNumberCheckBox.IsValid())
-	{
-		SuffixNumberCheckBox->SetEnabled(bSuffix);
-	}
-
-	if (SuffixNumberStartSpinBox.IsValid())
-	{
-		SuffixNumberStartSpinBox->SetEnabled(bSuffix && bSuffixNumber);
-	}
-
-	if (SuffixNumberStepSpinBox.IsValid())
-	{
-		SuffixNumberStepSpinBox->SetEnabled(bSuffix && bSuffixNumber);
-	}
-
-	if (SearchReplaceIgnoreCaseCheckBox.IsValid())
-	{
-		SearchReplaceIgnoreCaseCheckBox->SetEnabled(bSearchReplacePlainText || bSearchReplaceRegex);
-	}
-
-	if (SearchReplaceSearchTextBox.IsValid())
-	{
-		SearchReplaceSearchTextBox->SetEnabled(bSearchReplacePlainText || bSearchReplaceRegex);
-	}
-
-	if (SearchReplaceReplaceTextBox.IsValid())
-	{
-		SearchReplaceReplaceTextBox->SetEnabled(bSearchReplacePlainText || bSearchReplaceRegex);
-	}
-
-	if (ApplyButton.IsValid())
-	{
-		ApplyButton->SetEnabled(bValidNames);
-	}
-
-	RequestListViewRefresh();
-}
-
-void SAdvancedRenamerPanel::RequestListViewRefresh()
-{
-	bListNeedsUpdate = true;
-}
-
 void SAdvancedRenamerPanel::RefreshListView(const double InCurrentTime)
 {
-	bool bRemovedObjects = false;
-	bValidNames = false;
+	const int32 CurrentCount = Renamer->Num();
 
-	for (int32 Index = 0; Index < ListData.Num(); ++Index)
-	{
-		if (!ListData[Index].IsValid() || !IsValidIndex(Index))
-		{
-			RemoveIndex(Index);
-			--Index;
-			bRemovedObjects = true;
-			continue;
-		}
+	Renamer->UpdatePreviews();
 
-		// Force recreation
-		ListData[Index]->NewName = CreateNewName(Index);
-
-		if (ListData[Index]->NewName.Len() == 0)
-		{
-			continue;
-		}
-
-		if (GetOriginalName(Index) == ListData[Index]->NewName)
-		{
-			continue;
-		}
-
-		bValidNames = true;
-	}
-
-	if (bRemovedObjects)
+	if (CurrentCount != Renamer->Num())
 	{
 		RenamePreviewList->RequestListRefresh();
 	}
-
-	UpdateEnables();
 
 	MinDesiredOriginalNameWidth = 0.f;
 	MinDesiredNewNameWidth = 0.f;
 	RenamePreviewList->RebuildList();
 
 	ListLastUpdateTime = InCurrentTime;
-	bListNeedsUpdate = false;
 }
 
 void SAdvancedRenamerPanel::UpdateRequiredListWidth()
@@ -1426,22 +812,19 @@ void SAdvancedRenamerPanel::UpdateRequiredListWidth()
 		return;
 	}
 
-	static const float ListViewWidth = 277.f;
-	float ActualWidth = FMath::Max(ListViewWidth, MinDesiredOriginalNameWidth + MinDesiredNewNameWidth + 20.f);
+	using namespace UE::AdvancedRenamer::Private;
 
-	RenamePreviewListBox->SetWidthOverride(ActualWidth);
-	
+	const float ActualWidth = FMath::Max(GetTickSpaceGeometry().GetLocalSize().X, MinDesiredOriginalNameWidth + MinDesiredNewNameWidth + 20.f);
+
 	RenamePreviewListHeaderRow->SetColumnWidth(
-		FAdvancedRenamerPreviewListItem::OriginalNameColumnName, 
+		OriginalNameColumnName, 
 		(MinDesiredOriginalNameWidth + 10.f) / (MinDesiredOriginalNameWidth + MinDesiredNewNameWidth + 20.f) * ActualWidth
 	);
 
 	RenamePreviewListHeaderRow->SetColumnWidth(
-		FAdvancedRenamerPreviewListItem::NewNameColumnName, 
+		NewNameColumnName, 
 		(MinDesiredNewNameWidth + 10.f) / (MinDesiredOriginalNameWidth + MinDesiredNewNameWidth + 20.f) * ActualWidth
 	);
-
-	RenamePreviewListHeaderRow->RefreshColumns();
 }
 
 void SAdvancedRenamerPanel::RemoveSelectedObjects()
@@ -1451,7 +834,7 @@ void SAdvancedRenamerPanel::RemoveSelectedObjects()
 		return;
 	}
 
-	TArray<FObjectRenamePreviewListItemPtr> SelectedItems = RenamePreviewList->GetSelectedItems();
+	TArray<TSharedPtr<FAdvancedRenamerPreview>> SelectedItems = RenamePreviewList->GetSelectedItems();
 
 	if (SelectedItems.Num() == 0)
 	{
@@ -1460,53 +843,31 @@ void SAdvancedRenamerPanel::RemoveSelectedObjects()
 
 	bool bMadeChange = false;
 
-	for (int32 Index = 0; Index < ListData.Num(); ++Index)
+	for (int32 SelectedIndex = 0; SelectedIndex < SelectedItems.Num(); ++SelectedIndex)
 	{
-		if (!ListData[Index].IsValid())
+		if (!SelectedItems[SelectedIndex].IsValid())
 		{
-			RemoveIndex(Index);
+			continue;
+		}
+
+		const int32 PreviewIndex = Renamer->FindHash(SelectedItems[SelectedIndex]->Hash);
+
+		if (PreviewIndex == INDEX_NONE)
+		{
+			continue;
+		}
+
+		if (Renamer->RemoveIndex(PreviewIndex))
+		{
 			bMadeChange = true;
-			--Index;
-			continue;
-		}
-
-		int32 MatchIdx = INDEX_NONE;
-
-		for (int32 SelectedIdx = 0; SelectedIdx < SelectedItems.Num(); ++SelectedIdx)
-		{
-			if (!SelectedItems[SelectedIdx].IsValid())
-			{
-				continue;
-			}
-
-			if (SelectedItems[SelectedIdx]->Hash != ListData[Index]->Hash)
-			{
-				continue;
-			}
-
-			MatchIdx = SelectedIdx;
-			break;
-		}
-
-		if (MatchIdx == INDEX_NONE)
-		{
-			continue;
-		}
-
-		RemoveIndex(Index);
-		--Index;
-		SelectedItems.RemoveAt(MatchIdx);
-		bMadeChange = true;
-
-		if (SelectedItems.Num() == 0)
-		{
-			break;
 		}
 	}
 
+	SelectedItems.Empty();
+
 	if (bMadeChange)
 	{
-		if (ListData.Num() == 0)
+		if (Renamer->Num() == 0)
 		{
 			if (CloseWindow())
 			{
@@ -1518,54 +879,66 @@ void SAdvancedRenamerPanel::RemoveSelectedObjects()
 	}
 }
 
-void SAdvancedRenamerPanel::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+void SAdvancedRenamerPanel::Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
-	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+	SCompoundWidget::Tick(InAllottedGeometry, InCurrentTime, InDeltaTime);
 
 	if (ListLastUpdateTime == 0)
 	{
 		ListLastUpdateTime = InCurrentTime;
 	}
-	else if (bListNeedsUpdate && InCurrentTime >= (ListLastUpdateTime + MinUpdateFrequency))
+	else if (Renamer->IsDirty() && InCurrentTime >= (ListLastUpdateTime + MinUpdateFrequency))
 	{
 		RefreshListView(InCurrentTime);
 	}
-}
-
-void SAdvancedRenamerPanel::OnBaseNameCheckBoxChanged(ECheckBoxState NewState)
-{
-	bBaseName = NewState == ECheckBoxState::Checked;
-
-	UpdateEnables();
-}
-
-void SAdvancedRenamerPanel::OnBaseNameChanged(const FText& NewText)
-{
-	RequestListViewRefresh();
-}
-
-void SAdvancedRenamerPanel::OnPrefixCheckBoxChanged(ECheckBoxState NewState)
-{
-	bPrefix = NewState == ECheckBoxState::Checked;
-
-	UpdateEnables();
-}
-
-void SAdvancedRenamerPanel::OnPrefixChanged(const FText& NewText)
-{
-	RequestListViewRefresh();
-}
-
-void SAdvancedRenamerPanel::OnPrefixRemoveCheckBoxChanged(ECheckBoxState NewState)
-{
-	bPrefixRemove = NewState == ECheckBoxState::Checked;
-
-	if (bPrefixRemove)
+	else
 	{
-		bPrefixRemoveCharacters = false;
+		UpdateRequiredListWidth();
+	}
+}
+
+void SAdvancedRenamerPanel::OnBaseNameChanged(const FText& InNewText)
+{
+	Renamer->GetOptions().BaseName = InNewText.ToString();
+	Renamer->MarkDirty();
+}
+
+void SAdvancedRenamerPanel::OnPrefixChanged(const FText& InNewText)
+{
+	Renamer->GetOptions().AddPrefix = InNewText.ToString();
+	Renamer->MarkDirty();
+}
+
+ECheckBoxState SAdvancedRenamerPanel::IsPrefixRemoveChecked() const
+{
+	return bRemovePrefixSeparator ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void SAdvancedRenamerPanel::OnPrefixRemoveCheckBoxChanged(ECheckBoxState InNewState)
+{
+	bRemovePrefixSeparator = InNewState == ECheckBoxState::Checked;
+
+	if (bRemovePrefixSeparator)
+	{
+		bRemovePrefixNumChars = false;
 	}
 
-	UpdateEnables();
+	if (bRemovePrefixSeparator && PrefixSeparatorTextBox.IsValid())
+	{
+		Renamer->GetOptions().RemovePrefixSeparator = PrefixSeparatorTextBox->GetText().ToString();
+		Renamer->GetOptions().RemovePrefixCharacterCount = 0;
+	}
+	else
+	{
+		Renamer->GetOptions().RemovePrefixSeparator = "";
+	}
+
+	Renamer->MarkDirty();
+}
+
+bool SAdvancedRenamerPanel::IsPrefixRemoveSeparatorEnabled() const
+{
+	return bRemovePrefixSeparator;
 }
 
 bool SAdvancedRenamerPanel::OnPrefixSeparatorVerifyTextChanged(const FText& InText, FText& OutErrorText) const
@@ -1579,50 +952,86 @@ bool SAdvancedRenamerPanel::OnPrefixSeparatorVerifyTextChanged(const FText& InTe
 	return true;
 }
 
-void SAdvancedRenamerPanel::OnPrefixSeparatorChanged(const FText& NewText)
+void SAdvancedRenamerPanel::OnPrefixSeparatorChanged(const FText& InNewText)
 {
-	RequestListViewRefresh();
+	Renamer->GetOptions().RemovePrefixSeparator = InNewText.ToString();
+	Renamer->MarkDirty();
 }
 
-void SAdvancedRenamerPanel::OnPrefixRemoveCharactersCheckBoxChanged(ECheckBoxState NewState)
+ECheckBoxState SAdvancedRenamerPanel::IsPrefixRemoveCharactersChecked() const
 {
-	bPrefixRemoveCharacters = NewState == ECheckBoxState::Checked;
+	return bRemovePrefixNumChars ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
 
-	if (bPrefixRemoveCharacters)
+void SAdvancedRenamerPanel::OnPrefixRemoveCharactersCheckBoxChanged(ECheckBoxState InNewState)
+{
+	bRemovePrefixNumChars = InNewState == ECheckBoxState::Checked;
+
+	if (bRemovePrefixNumChars)
 	{
-		bPrefixRemove = false;
+		bRemovePrefixSeparator = false;
 	}
 
-	UpdateEnables();
-}
-
-void SAdvancedRenamerPanel::OnPrefixRemoveCharactersChanged(uint8 NewValue)
-{
-	RequestListViewRefresh();
-}
-
-void SAdvancedRenamerPanel::OnSuffixCheckBoxChanged(ECheckBoxState NewState)
-{
-	bSuffix = NewState == ECheckBoxState::Checked;
-
-	UpdateEnables();
-}
-
-void SAdvancedRenamerPanel::OnSuffixChanged(const FText& NewText)
-{
-	RequestListViewRefresh();
-}
-
-void SAdvancedRenamerPanel::OnSuffixRemoveCheckBoxChanged(ECheckBoxState NewState)
-{
-	bSuffixRemove = NewState == ECheckBoxState::Checked;
-
-	if (bSuffixRemove)
+	if (bRemovePrefixNumChars && PrefixRemoveCharactersSpinBox.IsValid())
 	{
-		bSuffixRemoveCharacters = false;
+		Renamer->GetOptions().RemovePrefixCharacterCount = PrefixRemoveCharactersSpinBox->GetValue();
+		Renamer->GetOptions().RemovePrefixSeparator = "";
+	}
+	else
+	{
+		Renamer->GetOptions().RemovePrefixCharacterCount = 0;
 	}
 
-	UpdateEnables();
+	Renamer->MarkDirty();
+}
+
+bool SAdvancedRenamerPanel::IsPrefixRemoveNumCharsEnabled() const
+{
+	return bRemovePrefixNumChars;
+}
+
+void SAdvancedRenamerPanel::OnPrefixRemoveCharactersChanged(uint8 InNewValue)
+{
+	Renamer->GetOptions().RemovePrefixCharacterCount = InNewValue;
+	Renamer->MarkDirty();
+}
+
+void SAdvancedRenamerPanel::OnSuffixChanged(const FText& InNewText)
+{
+	Renamer->GetOptions().AddSuffix = InNewText.ToString();
+	Renamer->MarkDirty();
+}
+
+ECheckBoxState SAdvancedRenamerPanel::IsSuffixRemoveChecked() const
+{
+	return bRemoveSuffixSeparator ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void SAdvancedRenamerPanel::OnSuffixRemoveCheckBoxChanged(ECheckBoxState InNewState)
+{
+	bRemoveSuffixSeparator = InNewState == ECheckBoxState::Checked;
+
+	if (bRemoveSuffixSeparator)
+	{
+		bRemoveSuffixNumChars = false;
+	}
+
+	if (bRemoveSuffixSeparator && SuffixSeparatorTextBox.IsValid())
+	{
+		Renamer->GetOptions().RemoveSuffixSeparator = SuffixSeparatorTextBox->GetText().ToString();
+		Renamer->GetOptions().RemoveSuffixCharacterCount = 0;
+	}
+	else
+	{
+		Renamer->GetOptions().RemoveSuffixSeparator = "";
+	}
+
+	Renamer->MarkDirty();
+}
+
+bool SAdvancedRenamerPanel::IsSuffixRemoveSeparatorEnabled() const
+{
+	return bRemoveSuffixSeparator;
 }
 
 bool SAdvancedRenamerPanel::OnSuffixSeparatorVerifyTextChanged(const FText& InText, FText& OutErrorText) const
@@ -1636,107 +1045,190 @@ bool SAdvancedRenamerPanel::OnSuffixSeparatorVerifyTextChanged(const FText& InTe
 	return true;
 }
 
-void SAdvancedRenamerPanel::OnSuffixSeparatorChanged(const FText& NewText)
+void SAdvancedRenamerPanel::OnSuffixSeparatorChanged(const FText& InNewText)
 {
-	RequestListViewRefresh();
+	Renamer->GetOptions().RemoveSuffixSeparator = InNewText.ToString();
+	Renamer->MarkDirty();
 }
 
-void SAdvancedRenamerPanel::OnSuffixRemoveCharactersCheckBoxChanged(ECheckBoxState NewState)
+ECheckBoxState SAdvancedRenamerPanel::IsSuffixRemoveCharactersChecked() const
 {
-	bSuffixRemoveCharacters = NewState == ECheckBoxState::Checked;
+	return bRemoveSuffixNumChars ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
 
-	if (bSuffixRemoveCharacters)
+bool SAdvancedRenamerPanel::IsSuffixRemoveNumCharsEnabled() const
+{
+	return bRemoveSuffixNumChars;
+}
+
+void SAdvancedRenamerPanel::OnSuffixRemoveCharactersCheckBoxChanged(ECheckBoxState InNewState)
+{
+	bRemoveSuffixNumChars = InNewState == ECheckBoxState::Checked;
+
+	if (bRemoveSuffixNumChars)
 	{
-		bSuffixRemove = false;
+		bRemoveSuffixSeparator = false;
 	}
 
-	UpdateEnables();
-}
-
-void SAdvancedRenamerPanel::OnSuffixRemoveCharactersChanged(uint8 NewValue)
-{
-	RequestListViewRefresh();
-}
-
-void SAdvancedRenamerPanel::OnSuffixRemoveNumberCheckBoxChanged(ECheckBoxState NewState)
-{
-	bSuffixRemoveNumber = NewState == ECheckBoxState::Checked;
-
-	UpdateEnables();
-}
-
-void SAdvancedRenamerPanel::OnSuffixNumberCheckBoxChanged(ECheckBoxState NewState)
-{
-	bSuffixNumber = NewState == ECheckBoxState::Checked;
-
-	if (bSuffixNumber)
+	if (bRemoveSuffixNumChars && SuffixRemoveCharactersSpinBox.IsValid())
 	{
-		bSuffixRemoveNumber = true;
+		Renamer->GetOptions().RemoveSuffixCharacterCount = SuffixRemoveCharactersSpinBox->GetValue();
+		Renamer->GetOptions().RemoveSuffixSeparator = "";
+	}
+	else
+	{
+		Renamer->GetOptions().RemoveSuffixCharacterCount = 0;
 	}
 
-	UpdateEnables();
+	Renamer->MarkDirty();
 }
 
-void SAdvancedRenamerPanel::OnSuffixNumberStartChanged(int32 NewValue)
+void SAdvancedRenamerPanel::OnSuffixRemoveCharactersChanged(uint8 InNewValue)
 {
-	RequestListViewRefresh();
+	Renamer->GetOptions().RemoveSuffixCharacterCount = InNewValue;
+	Renamer->MarkDirty();
 }
 
-void SAdvancedRenamerPanel::OnSuffixNumberStepChanged(int32 NewValue)
+ECheckBoxState SAdvancedRenamerPanel::IsSuffixRemoveNumberChecked() const
 {
-	RequestListViewRefresh();
+	return Renamer->GetOptions().bRemoveSuffixNumber ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
-void SAdvancedRenamerPanel::OnSearchReplacePlainTextCheckBoxChanged(ECheckBoxState NewState)
+void SAdvancedRenamerPanel::OnSuffixRemoveNumberCheckBoxChanged(ECheckBoxState InNewState)
 {
-	bSearchReplacePlainText = NewState == ECheckBoxState::Checked;
+	Renamer->GetOptions().bRemoveSuffixNumber = InNewState == ECheckBoxState::Checked;
 
-	if (bSearchReplacePlainText)
+	if (!Renamer->GetOptions().bRemoveSuffixNumber)
 	{
-		bSearchReplaceRegex = false;
+		Renamer->GetOptions().bAddSuffixNumber = false;
 	}
 
-	UpdateEnables();
+	Renamer->MarkDirty();
 }
 
-void SAdvancedRenamerPanel::OnSearchReplaceRegexCheckBoxChanged(ECheckBoxState NewState)
+ECheckBoxState SAdvancedRenamerPanel::IsSuffixNumberChecked() const
 {
-	bSearchReplaceRegex = NewState == ECheckBoxState::Checked;
+	return Renamer->GetOptions().bAddSuffixNumber ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
 
-	if (bSearchReplaceRegex)
+bool SAdvancedRenamerPanel::IsSuffixRemoveNumberCheckBoxEnabled() const
+{
+	return !Renamer->GetOptions().bAddSuffixNumber;
+}
+
+void SAdvancedRenamerPanel::OnSuffixNumberCheckBoxChanged(ECheckBoxState InNewState)
+{
+	Renamer->GetOptions().bAddSuffixNumber = InNewState == ECheckBoxState::Checked;
+
+	if (Renamer->GetOptions().bAddSuffixNumber)
 	{
-		bSearchReplacePlainText = false;
+		Renamer->GetOptions().bRemoveSuffixNumber = true;
 	}
 
-	UpdateEnables();
+	Renamer->MarkDirty();
 }
 
-void SAdvancedRenamerPanel::OnSearchReplaceIgnoreCaseCheckBoxChanged(ECheckBoxState NewState)
+void SAdvancedRenamerPanel::OnSuffixNumberStartChanged(int32 InNewValue)
 {
-	bSearchReplaceIgnoreCase = NewState == ECheckBoxState::Checked;
-
-	UpdateEnables();
+	Renamer->GetOptions().AddSuffixNumberStart = InNewValue;
+	Renamer->MarkDirty();
 }
 
-void SAdvancedRenamerPanel::OnSearchReplaceSearchTextChanged(const FText& NewText)
+void SAdvancedRenamerPanel::OnSuffixNumberStepChanged(int32 InNewValue)
 {
-	RequestListViewRefresh();
+	Renamer->GetOptions().AddSuffixNumberStep = InNewValue;
+	Renamer->MarkDirty();
 }
 
-void SAdvancedRenamerPanel::OnSearchReplaceReplaceTextChanged(const FText& NewText)
+ECheckBoxState SAdvancedRenamerPanel::IsSearchReplacePlainTextChecked() const
 {
-	RequestListViewRefresh();
+	return Renamer->GetOptions().SearchAndReplaceType == EAdvancedRenamerSeachAndReplaceType::PlainText ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
-TSharedRef<ITableRow> SAdvancedRenamerPanel::OnGenerateRowForList(FObjectRenamePreviewListItemPtr Item, 
-	const TSharedRef<STableViewBase>& OwnerTable)
+void SAdvancedRenamerPanel::OnSearchReplacePlainTextCheckBoxChanged(ECheckBoxState InNewState)
 {
-	return SNew(SAdvancedRenamerPreviewListRow, SharedThis(this), OwnerTable, Item);
+	if (InNewState != ECheckBoxState::Checked)
+	{
+		return;
+	}
+
+	Renamer->GetOptions().SearchAndReplaceType = EAdvancedRenamerSeachAndReplaceType::PlainText;
+	Renamer->MarkDirty();
 }
 
-FReply SAdvancedRenamerPanel::OnListViewKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)
+ECheckBoxState SAdvancedRenamerPanel::IsSearchReplaceRegexChecked() const
 {
-	if (CommandList.IsValid() && CommandList->ProcessCommandBindings(KeyEvent))
+	return Renamer->GetOptions().SearchAndReplaceType == EAdvancedRenamerSeachAndReplaceType::RegularExpression ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void SAdvancedRenamerPanel::OnSearchReplaceRegexCheckBoxChanged(ECheckBoxState InNewState)
+{
+	if (InNewState != ECheckBoxState::Checked)
+	{
+		return;
+	}
+
+	Renamer->GetOptions().SearchAndReplaceType = EAdvancedRenamerSeachAndReplaceType::RegularExpression;
+	Renamer->MarkDirty();
+}
+
+ECheckBoxState SAdvancedRenamerPanel::IsSearchReplaceIgnoreCaseChecked() const
+{
+	return Renamer->GetOptions().SearchAndReplaceCase == ESearchCase::IgnoreCase ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void SAdvancedRenamerPanel::OnSearchReplaceIgnoreCaseCheckBoxChanged(ECheckBoxState InNewState)
+{
+	switch (InNewState)
+	{
+		case ECheckBoxState::Checked:
+			Renamer->GetOptions().SearchAndReplaceCase = ESearchCase::IgnoreCase;
+			break;
+
+		case ECheckBoxState::Unchecked:
+			Renamer->GetOptions().SearchAndReplaceCase = ESearchCase::CaseSensitive;
+			break;
+
+		default:
+			return;
+	}
+
+	Renamer->MarkDirty();
+}
+
+void SAdvancedRenamerPanel::OnSearchReplaceSearchTextChanged(const FText& InNewText)
+{
+	Renamer->GetOptions().SearchAndReplaceFromText = InNewText.ToString();
+
+	if (Renamer->GetOptions().SearchAndReplaceType == EAdvancedRenamerSeachAndReplaceType::None)
+	{
+		Renamer->GetOptions().SearchAndReplaceType = EAdvancedRenamerSeachAndReplaceType::PlainText;
+	}
+
+	Renamer->MarkDirty();
+}
+
+void SAdvancedRenamerPanel::OnSearchReplaceReplaceTextChanged(const FText& InNewText)
+{
+	Renamer->GetOptions().SearchAndReplaceToText = InNewText.ToString();
+
+	if (Renamer->GetOptions().SearchAndReplaceType == EAdvancedRenamerSeachAndReplaceType::None)
+	{
+		Renamer->GetOptions().SearchAndReplaceType = EAdvancedRenamerSeachAndReplaceType::PlainText;
+	}
+
+	Renamer->MarkDirty();
+}
+
+TSharedRef<ITableRow> SAdvancedRenamerPanel::OnGenerateRowForList(TSharedPtr<FAdvancedRenamerPreview> InItem, 
+	const TSharedRef<STableViewBase>& InOwnerTable)
+{
+	return SNew(SAdvancedRenamerPreviewListRow, SharedThis(this), InOwnerTable, InItem);
+}
+
+FReply SAdvancedRenamerPanel::OnListViewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (CommandList.IsValid() && CommandList->ProcessCommandBindings(InKeyEvent))
 	{
 		return FReply::Handled();
 	}
@@ -1767,9 +1259,16 @@ TSharedPtr<SWidget> SAdvancedRenamerPanel::GenerateListViewContextMenu()
 	return MenuBuilder.MakeWidget();
 }
 
+bool SAdvancedRenamerPanel::IsApplyButtonEnabled() const
+{
+	return !Renamer->IsDirty() && Renamer->HasRenames();
+}
+
 FReply SAdvancedRenamerPanel::OnApplyButtonClicked()
 {
-	if (RenameObjects())
+	FScopedTransaction Transaction(LOCTEXT("AdvancedRenamerRename", "Advanced Renamer Rename"));
+
+	if (Renamer->Execute())
 	{
 		CloseWindow();
 	}
@@ -1777,46 +1276,40 @@ FReply SAdvancedRenamerPanel::OnApplyButtonClicked()
 	return FReply::Handled();
 }
 
-int32 SAdvancedRenamerPanel::Num() const
+FVector2D SAdvancedRenamerPanel::GetRightPaneSize() const
 {
-	return SharedProvider->Num();
+	using namespace UE::AdvancedRenamer::Private;
+
+	const FVector2f GeoSize = GetTickSpaceGeometry().GetLocalSize();
+
+	return FVector2D(
+		FMath::Max(RightBlockSize.X, GeoSize.X - 319.0),
+		RightBlockSize.Y
+	);
 }
 
-bool SAdvancedRenamerPanel::IsValidIndex(int32 Index) const
+FVector2D SAdvancedRenamerPanel::GetListViewsize() const
 {
-	return SharedProvider->IsValidIndex(Index);
+	using namespace UE::AdvancedRenamer::Private;
+
+	const FVector2f GeoSize = GetTickSpaceGeometry().GetLocalSize();
+
+	return FVector2D(
+		FMath::Max(ListViewSize.X, GeoSize.X - 323.0),
+		ListViewSize.Y
+	);
 }
 
-uint32 SAdvancedRenamerPanel::GetHash(int32 Index) const
+FVector2D SAdvancedRenamerPanel::GetApplyButtonSize() const
 {
-	return SharedProvider->GetHash(Index);
-}
+	using namespace UE::AdvancedRenamer::Private;
 
-FString SAdvancedRenamerPanel::GetOriginalName(int32 Index) const
-{
-	return SharedProvider->GetOriginalName(Index);
-}
+	const FVector2f GeoSize = GetTickSpaceGeometry().GetLocalSize();
 
-bool SAdvancedRenamerPanel::RemoveIndex(int32 Index)
-{
-	// Can fail during construction when indices that aren't renameable are removed from the provider before
-	// they are added to ListData.
-	if (ListData.IsValidIndex(Index))
-	{
-		ListData.RemoveAt(Index);
-	}
-
-	return SharedProvider->RemoveIndex(Index);
-}
-
-bool SAdvancedRenamerPanel::CanRename(int32 Index) const
-{
-	return SharedProvider->CanRename(Index);
-}
-
-bool SAdvancedRenamerPanel::ExecuteRename(int32 Index, const FString& NewName)
-{
-	return SharedProvider->ExecuteRename(Index, NewName);
+	return FVector2D(
+		FMath::Max(ListViewSize.X, GeoSize.X - 323.0),
+		ApplyButtonHeight
+	);
 }
 
 #undef LOCTEXT_NAMESPACE

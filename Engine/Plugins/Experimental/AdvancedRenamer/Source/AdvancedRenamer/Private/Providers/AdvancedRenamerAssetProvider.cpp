@@ -30,14 +30,14 @@ void FAdvancedRenamerAssetProvider::AddAssetData(const FAssetData& InAsset)
 	AssetList.Add(InAsset);
 }
 
-UObject* FAdvancedRenamerAssetProvider::GetAsset(int32 Index) const
+UObject* FAdvancedRenamerAssetProvider::GetAsset(int32 InIndex) const
 {
-	if (!AssetList.IsValidIndex(Index))
+	if (!AssetList.IsValidIndex(InIndex))
 	{
 		return nullptr;
 	}
 
-	return AssetList[Index].GetAsset();
+	return AssetList[InIndex].GetAsset();
 }
 
 int32 FAdvancedRenamerAssetProvider::Num() const
@@ -45,16 +45,16 @@ int32 FAdvancedRenamerAssetProvider::Num() const
 	return AssetList.Num();
 }
 
-bool FAdvancedRenamerAssetProvider::IsValidIndex(int32 Index) const
+bool FAdvancedRenamerAssetProvider::IsValidIndex(int32 InIndex) const
 {
-	UObject* Asset = GetAsset(Index);
+	UObject* Asset = GetAsset(InIndex);
 
 	return IsValid(Asset) && Asset->IsAsset();
 }
 
-FString FAdvancedRenamerAssetProvider::GetOriginalName(int32 Index) const
+FString FAdvancedRenamerAssetProvider::GetOriginalName(int32 InIndex) const
 {
-	UObject* Asset = GetAsset(Index);
+	UObject* Asset = GetAsset(InIndex);
 
 	if (!IsValid(Asset))
 	{
@@ -64,9 +64,9 @@ FString FAdvancedRenamerAssetProvider::GetOriginalName(int32 Index) const
 	return Asset->GetName();
 }
 
-uint32 FAdvancedRenamerAssetProvider::GetHash(int32 Index) const
+uint32 FAdvancedRenamerAssetProvider::GetHash(int32 InIndex) const
 {
-	UObject* Asset = GetAsset(Index);
+	UObject* Asset = GetAsset(InIndex);
 
 	if (!IsValid(Asset))
 	{
@@ -76,20 +76,20 @@ uint32 FAdvancedRenamerAssetProvider::GetHash(int32 Index) const
 	return GetTypeHash(Asset);
 }
 
-bool FAdvancedRenamerAssetProvider::RemoveIndex(int32 Index)
+bool FAdvancedRenamerAssetProvider::RemoveIndex(int32 InIndex)
 {
-	if (!AssetList.IsValidIndex(Index))
+	if (!AssetList.IsValidIndex(InIndex))
 	{
 		return false;
 	}
 
-	AssetList.RemoveAt(Index);
+	AssetList.RemoveAt(InIndex);
 	return true;
 }
 
-bool FAdvancedRenamerAssetProvider::CanRename(int32 Index) const
+bool FAdvancedRenamerAssetProvider::CanRename(int32 InIndex) const
 {
-	UObject* Asset = GetAsset(Index);
+	UObject* Asset = GetAsset(InIndex);
 
 	if (!IsValid(Asset))
 	{
@@ -99,9 +99,9 @@ bool FAdvancedRenamerAssetProvider::CanRename(int32 Index) const
 	return true;
 }
 
-bool FAdvancedRenamerAssetProvider::ExecuteRename(int32 Index, const FString& NewName)
+bool FAdvancedRenamerAssetProvider::ExecuteRename(int32 InIndex, const FString& InNewName)
 {
-	UObject* Asset = GetAsset(Index);
+	UObject* Asset = GetAsset(InIndex);
 
 	if (!IsValid(Asset))
 	{
@@ -112,7 +112,7 @@ bool FAdvancedRenamerAssetProvider::ExecuteRename(int32 Index, const FString& Ne
 	PackagePath = FPaths::GetPath(PackagePath);
 
 	IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	return AssetTools.RenameAssets({FAssetRenameData(Asset, PackagePath, NewName)});
+	return AssetTools.RenameAssets({FAssetRenameData(Asset, PackagePath, InNewName)});
 }
 
 #undef LOCTEXT_NAMESPACE
