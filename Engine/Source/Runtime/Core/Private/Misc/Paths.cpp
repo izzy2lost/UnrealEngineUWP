@@ -146,9 +146,13 @@ namespace UE4Paths_Private
 
 bool FPaths::IsStaged()
 {
-	// if the platform requires cooked data, then we can assume staged, but if we don't require cooked data, then
+	// if it's not a program and the platform requires cooked data, then we can assume staged, but if not, then
 	// check if it went through the staging process
-	static bool bIsStaged = FPlatformProperties::RequiresCookedData() || FileExists(Combine(EngineConfigDir(), TEXT("StagedBuild.ini")));
+	static bool bIsStaged =
+#if !IS_PROGRAM
+		FPlatformProperties::RequiresCookedData() ||
+#endif
+		FileExists(Combine(EngineConfigDir(), FString::Printf(TEXT("StagedBuild_%s.ini"), FApp::GetProjectName())));
 	return bIsStaged;
 }
 
