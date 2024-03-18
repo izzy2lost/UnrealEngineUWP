@@ -42,7 +42,6 @@ namespace UE::Tasks
 			}
 #endif
 
-			bWakeUpWorker |= LowLevelTasks::FSchedulerTls::IsBusyWaiting();
 			bWakeUpWorker |= LowLevelTasks::FScheduler::Get().TryLaunch(LowLevelTask, bWakeUpWorker ? LowLevelTasks::EQueuePreference::GlobalQueuePreference : LowLevelTasks::EQueuePreference::LocalQueuePreference, bWakeUpWorker);
 		}
 

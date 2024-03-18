@@ -4,6 +4,7 @@
 #include "Async/Fundamental/Task.h"
 #include "Async/TaskTrace.h"
 #include "Logging/LogMacros.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "HAL/RunnableThread.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/CommandLine.h"
@@ -11,6 +12,10 @@
 #include "CoreGlobals.h"
 
 extern CORE_API bool GTaskGraphUseDynamicPrioritization;
+extern CORE_API float GTaskGraphOversubscriptionRatio;
+extern CORE_API bool GTaskGraphUseDynamicThreadCreation;
+
+CSV_DEFINE_CATEGORY(Scheduler, true);
 
 namespace LowLevelTasks
 {
@@ -20,13 +25,12 @@ namespace LowLevelTasks
 	thread_local FTask* FTask::ActiveTask = nullptr;
 	thread_local FSchedulerTls* FSchedulerTls::ActiveScheduler = nullptr;
 	thread_local FSchedulerTls::EWorkerType FSchedulerTls::WorkerType = FSchedulerTls::EWorkerType::None;
-	thread_local uint32 FSchedulerTls::BusyWaitingDepth = 0;
+	thread_local bool Private::FOversubscriptionTls::bIsOversubscriptionAllowed = false;
 
 	FScheduler FScheduler::Singleton;
 
-	TUniquePtr<FThread> FScheduler::CreateWorker(bool bPermitBackgroundWork, FThread::EForkable IsForkable, Private::FWaitEvent* ExternalWorkerEvent, FSchedulerTls::FLocalQueueType* ExternalWorkerLocalQueue, EThreadPriority Priority, uint64 InAffinity)
+	TUniquePtr<FThread> FScheduler::CreateWorker(uint32 WorkerId, const TCHAR* Name, bool bPermitBackgroundWork, FThread::EForkable IsForkable, Private::FWaitEvent* ExternalWorkerEvent, FSchedulerTls::FLocalQueueType* ExternalWorkerLocalQueue, EThreadPriority Priority, uint64 InAffinity)
 	{
-		uint32 WorkerId = NextWorkerId++;
 		const uint32 WaitTimes[8] = { 719, 991, 1361, 1237, 1597, 953, 587, 1439 };
 		uint32 WaitTime = WaitTimes[WorkerId % 8];
 		uint64 ThreadAffinityMask = FPlatformAffinity::GetTaskGraphThreadMask();
@@ -64,7 +68,7 @@ namespace LowLevelTasks
 		
 		return MakeUnique<FThread>
 		(
-			bPermitBackgroundWork ? *FString::Printf(TEXT("Background Worker #%d"), WorkerId) : *FString::Printf(TEXT("Foreground Worker #%d"), WorkerId),
+			Name,
 			[this, ExternalWorkerEvent, ExternalWorkerLocalQueue, WaitTime, bPermitBackgroundWork]
 			{ 
 				WorkerMain(ExternalWorkerEvent, ExternalWorkerLocalQueue, WaitTime, bPermitBackgroundWork);
@@ -78,6 +82,11 @@ namespace LowLevelTasks
 		if (FParse::Value(FCommandLine::Get(), TEXT("TaskGraphUseDynamicPrioritization="), Value))
 		{
 			GTaskGraphUseDynamicPrioritization = Value != 0;
+		}
+
+		if (FParse::Value(FCommandLine::Get(), TEXT("TaskGraphUseDynamicThreadCreation="), Value))
+		{
+			GTaskGraphUseDynamicThreadCreation = Value != 0;
 		}
 
 		if (NumForegroundWorkers == 0 && NumBackgroundWorkers == 0)
@@ -101,45 +110,95 @@ namespace LowLevelTasks
 		const bool bSupportsMultithreading = FPlatformProcess::SupportsMultithreading() || FForkProcessHelper::IsForkedMultithreadInstance();
 
 		uint32 OldActiveWorkers = ActiveWorkers.load(std::memory_order_relaxed);
-		if(OldActiveWorkers == 0 && bSupportsMultithreading && ActiveWorkers.compare_exchange_strong(OldActiveWorkers, NumForegroundWorkers + NumBackgroundWorkers, std::memory_order_relaxed))
+		if (OldActiveWorkers == 0 && bSupportsMultithreading && ActiveWorkers.compare_exchange_strong(OldActiveWorkers, NumForegroundWorkers + NumBackgroundWorkers, std::memory_order_relaxed))
 		{
 			FScopeLock Lock(&WorkerThreadsCS);
 			check(!WorkerThreads.Num());
 			check(!WorkerLocalQueues.Num());
-			check(!WorkerEvents.Num());		
+			check(!WorkerEvents.Num());
 			check(NextWorkerId == 0);
+			ForegroundCreationIndex = 0;
+			BackgroundCreationIndex = 0;
 
-			WorkerEvents.Reserve(NumForegroundWorkers + NumBackgroundWorkers);
-			WorkerLocalQueues.Reserve(NumForegroundWorkers + NumBackgroundWorkers);
-			for (uint32 WorkerId = 0; WorkerId < NumForegroundWorkers; ++WorkerId)
-			{
-				WorkerEvents.Emplace();
-				WorkerLocalQueues.Emplace(QueueRegistry, Private::ELocalQueueType::EForeground);
-			}
+			const float OversubscriptionRatio = FMath::Max(1.0f, GTaskGraphOversubscriptionRatio);
+			const int32 MaxForegroundWorkers = FMath::CeilToInt(float(NumForegroundWorkers) * OversubscriptionRatio);
+			const int32 MaxBackgroundWorkers = FMath::CeilToInt(float(NumBackgroundWorkers) * OversubscriptionRatio);
+			const int32 MaxWorkers = MaxForegroundWorkers + MaxBackgroundWorkers;
+			const EThreadPriority ActualBackgroundPriority = GTaskGraphUseDynamicPrioritization ? WorkerPriority : BackgroundPriority;
 
-			for (uint32 WorkerId = 0; WorkerId < NumBackgroundWorkers; ++WorkerId)
-			{
-				WorkerEvents.Emplace();
-				WorkerLocalQueues.Emplace(QueueRegistry, Private::ELocalQueueType::EBackground);
-			}
+			WorkerEvents.SetNum(MaxWorkers);
+			WorkerLocalQueues.Reserve(MaxWorkers);
+			WorkerThreads.Reserve(MaxWorkers);
 
-			// WorkerEvents are now ready, time to init.
-			WaitingQueue[0].Init();
-			WaitingQueue[1].Init();
+			auto CreateThread =
+				[this, IsForkable](Private::ELocalQueueType LocalQueueType, const TCHAR* ThreadGroup, const TCHAR* Prefix, std::atomic<int32>& CreationIndex, int32 NumWorkers, int32 NumMaxWorkers, EThreadPriority Priority, uint64 Affinity)
+				{
+					LLM_SCOPE_BYNAME(TEXT("EngineMisc/WorkerThreads"));
 
-			WorkerThreads.Reserve(NumForegroundWorkers + NumBackgroundWorkers);
-			UE::Trace::ThreadGroupBegin(TEXT("Foreground Workers"));
-			for (uint32 WorkerId = 0; WorkerId < NumForegroundWorkers; ++WorkerId)
+					// Thread creation can end up waiting, we don't want to recursively oversubscribe if that happens.
+					Private::FOversubscriptionAllowedScope _(false); 
+
+					const int32 LocalCreationIndex = CreationIndex++;
+					check(LocalCreationIndex < NumMaxWorkers);
+					const bool bIsStandbyWorker = LocalCreationIndex >= NumWorkers;
+					FString WorkerName;
+					if (bIsStandbyWorker)
+					{
+						WorkerName = FString::Printf(TEXT("%s Worker (Standby #%d)"), Prefix, LocalCreationIndex - NumWorkers);
+					}
+					else
+					{
+						WorkerName = FString::Printf(TEXT("%s Worker #%d"), Prefix, LocalCreationIndex);
+					}
+
+					uint32 WorkerId = NextWorkerId++;
+					UE::Trace::ThreadGroupBegin(ThreadGroup);
+					WorkerLocalQueues.Emplace(QueueRegistry, LocalQueueType);
+					WorkerEvents[WorkerId].bIsStandby = bIsStandbyWorker;
+					WorkerThreads.Add(
+						CreateWorker(
+							WorkerId,
+							*WorkerName,
+							LocalQueueType == Private::ELocalQueueType::EBackground, /* bPermitBackgroundWork */
+							IsForkable,
+							&WorkerEvents[WorkerId],
+							&WorkerLocalQueues[WorkerId],
+							Priority,
+							Affinity)
+					);
+					UE::Trace::ThreadGroupEnd();
+				};
+
+			TFunction<void()> ForegroundCreateThread =
+				[this, CreateThread, NumWorkers = NumForegroundWorkers, MaxWorkers = MaxForegroundWorkers]()
+				{
+					FScopeLock Lock(&WorkerThreadsCS);
+					CreateThread(Private::ELocalQueueType::EForeground, TEXT("Foreground Workers"), TEXT("Foreground"), ForegroundCreationIndex, NumWorkers, MaxWorkers, WorkerPriority, WorkerAffinity);
+				};
+
+			TFunction<void()> BackgroundCreateThread =
+				[this, CreateThread, NumWorkers = NumBackgroundWorkers, MaxWorkers = MaxBackgroundWorkers, ActualBackgroundPriority]()
+				{
+					FScopeLock Lock(&WorkerThreadsCS);
+					CreateThread(Private::ELocalQueueType::EBackground, TEXT("Background Workers"), TEXT("Background"), BackgroundCreationIndex, NumWorkers, MaxWorkers, ActualBackgroundPriority, BackgroundAffinity);
+				};
+
+			WaitingQueue[0].Init(NumForegroundWorkers, MaxForegroundWorkers, ForegroundCreateThread, GTaskGraphUseDynamicThreadCreation ? 0 : MaxForegroundWorkers /* ActiveThreadCount */);
+			WaitingQueue[1].Init(NumBackgroundWorkers, MaxBackgroundWorkers, BackgroundCreateThread, GTaskGraphUseDynamicThreadCreation ? 0 : MaxBackgroundWorkers /* ActiveThreadCount */);
+
+			// Precreate all the threads if dynamic thread creation is not activated.
+			if (!GTaskGraphUseDynamicThreadCreation)
 			{
-				WorkerThreads.Add(CreateWorker(false, IsForkable, &WorkerEvents[WorkerId], &WorkerLocalQueues[WorkerId], WorkerPriority, WorkerAffinity));
+				for (int32 Index = 0; Index < MaxForegroundWorkers; Index++)
+				{
+					ForegroundCreateThread();
+				}
+
+				for (int32 Index = 0; Index < MaxBackgroundWorkers; Index++)
+				{
+					BackgroundCreateThread();
+				}
 			}
-			UE::Trace::ThreadGroupEnd();
-			UE::Trace::ThreadGroupBegin(TEXT("Background Workers"));
-			for (uint32 WorkerId = 0; WorkerId < NumBackgroundWorkers; ++WorkerId)
-			{
-				WorkerThreads.Add(CreateWorker(true, IsForkable, &WorkerEvents[NumForegroundWorkers + WorkerId], &WorkerLocalQueues[NumForegroundWorkers + WorkerId], GTaskGraphUseDynamicPrioritization ? WorkerPriority : BackgroundPriority, BackgroundAffinity));
-			}
-			UE::Trace::ThreadGroupEnd();
 		}
 	}
 
@@ -191,20 +250,23 @@ namespace LowLevelTasks
 	void FScheduler::StopWorkers(bool DrainGlobalQueue)
 	{
 		uint32 OldActiveWorkers = ActiveWorkers.load(std::memory_order_relaxed);
-		if(OldActiveWorkers != 0 && ActiveWorkers.compare_exchange_strong(OldActiveWorkers, 0, std::memory_order_relaxed))
+		if (OldActiveWorkers != 0 && ActiveWorkers.compare_exchange_strong(OldActiveWorkers, 0, std::memory_order_relaxed))
 		{
 			FScopeLock Lock(&WorkerThreadsCS);
 
-			WaitingQueue[0].NotifyAll();
-			WaitingQueue[1].NotifyAll();
+			WaitingQueue[0].StartShutdown();
+			WaitingQueue[1].StartShutdown();
 
 			for (TUniquePtr<FThread>& Thread : WorkerThreads)
 			{
-				Thread->Join();
+				if (Thread.IsValid())
+				{
+					Thread->Join();
+				}
 			}
 
-			WaitingQueue[0].Shutdown();
-			WaitingQueue[1].Shutdown();
+			WaitingQueue[0].FinishShutdown();
+			WaitingQueue[1].FinishShutdown();
 
 			NextWorkerId = 0;
 			WorkerThreads.Reset();
@@ -224,6 +286,8 @@ namespace LowLevelTasks
 					}
 				}
 			}
+
+			QueueRegistry.Reset();
 		}
 	}
 
@@ -279,6 +343,32 @@ namespace LowLevelTasks
 		}
 	}
 
+	void FScheduler::IncrementOversubscription()
+	{
+		FSchedulerTls::EWorkerType LocalWorkerType = WorkerType;
+
+		if (LocalWorkerType != EWorkerType::None)
+		{
+			// The goal is to minimize the amount of wait in the worker tasks, this will help drive the
+			// total number of oversubscription down and show any regressions.
+			CSV_CUSTOM_STAT(Scheduler, Oversubscription, 1, ECsvCustomStatOp::Accumulate);
+
+			const bool bPermitBackgroundWork = LocalWorkerType == FSchedulerTls::EWorkerType::Background;
+			WaitingQueue[bPermitBackgroundWork].IncrementOversubscription();
+		}
+	}
+
+	void FScheduler::DecrementOversubscription()
+	{
+		FSchedulerTls::EWorkerType LocalWorkerType = WorkerType;
+
+		if (LocalWorkerType != EWorkerType::None)
+		{
+			const bool bPermitBackgroundWork = LocalWorkerType == FSchedulerTls::EWorkerType::Background;
+			WaitingQueue[bPermitBackgroundWork].DecrementOversubscription();
+		}
+	}
+
 #if PLATFORM_DESKTOP || !IS_MONOLITHIC
 	const FTask* FTask::GetActiveTask()
 	{
@@ -293,19 +383,10 @@ namespace LowLevelTasks
 
 	bool FSchedulerTls::IsBusyWaiting()
 	{
-		return BusyWaitingDepth != 0;
+		return false;
 	}
 
-	uint32 FSchedulerTls::GetAffinityIndex()
-	{
-		if (LocalQueue)
-		{
-			return LocalQueue->GetAffinityIndex();
-		}
-		return ~0;
-	}
-
-	template<typename QueueType, FTask* (QueueType::*DequeueFunction)(bool), bool bIsBusyWaiting>
+	template<typename QueueType, FTask* (QueueType::*DequeueFunction)(bool), bool bIsStandbyWorker>
 	bool FScheduler::TryExecuteTaskFrom(Private::FWaitEvent* WaitEvent, QueueType* Queue, Private::FOutOfWork& OutOfWork, bool bPermitBackgroundWork)
 	{
 		bool AnyExecuted = false;
@@ -313,45 +394,21 @@ namespace LowLevelTasks
 		FTask* Task = (Queue->*DequeueFunction)(bPermitBackgroundWork);
 		while (Task)
 		{
-			if constexpr (bIsBusyWaiting)
-			{
-				FTask::FInitData InitData = Task->GetInitData();
-				const bool bAllowBusyWaiting = EnumHasAnyFlags(InitData.Flags, ETaskFlags::AllowBusyWaiting) || Task->WasCanceledOrIsExpediting();
-
-				if (!bAllowBusyWaiting)
-				{
-					// The task is not allowed during busy waiting so requeue in a different
-					// queue to make sure we won't pick it up again.
-					constexpr static bool bAllowInsideBusyWaiting = false;
-					QueueRegistry.Enqueue<bAllowInsideBusyWaiting>(Task, uint32(InitData.Priority));
-
-					// Fetch another task we could potentially run.
-					Task = (Queue->*DequeueFunction)(bPermitBackgroundWork);
-
-					// Make sure we run the filtering logic again for the new task.
-					continue;
-				}
-			}
-			else
-			{
-				checkSlow(FTask::ActiveTask == nullptr);
-			}
+			checkSlow(FTask::ActiveTask == nullptr);
 
 			if (OutOfWork.Stop())
 			{
-				bool bWakeUpWanted = true;
-				if (WaitEvent)
+				// Standby workers don't need cancellation, this logic doesn't apply to them.
+				if constexpr (bIsStandbyWorker == false)
 				{
 					// CancelWait will tell us if we need to start a new worker to replace
 					// a potential wakeup we might have consumed during the cancellation.
-					bWakeUpWanted = WaitingQueue[bPermitBackgroundWork].CancelWait(WaitEvent);
-				}
-
-				if (bWakeUpWanted)
-				{
-					if (!WakeUpWorker(bPermitBackgroundWork) && !FSchedulerTls::IsBackgroundWorker())
+					if (WaitingQueue[bPermitBackgroundWork].CancelWait(WaitEvent))
 					{
-						WakeUpWorker(!bPermitBackgroundWork);
+						if (!WakeUpWorker(bPermitBackgroundWork) && !FSchedulerTls::IsBackgroundWorker())
+						{
+							WakeUpWorker(!bPermitBackgroundWork);
+						}
 					}
 				}
 			}
@@ -362,44 +419,67 @@ namespace LowLevelTasks
 			if ((Task = ExecuteTask(Task)) != nullptr)
 			{
 				verifySlow(Task->TryPrepareLaunch());
-
-				// When busy waiting, we exit every time a task is run
-				// so queue this new task for later and bail out.
-				if constexpr (bIsBusyWaiting)
-				{
-					QueueRegistry.Enqueue(Task, uint32(Task->GetPriority()));
-					return AnyExecuted;
-				}
 			}
 		}
 		return AnyExecuted;
 	}
 
-	void FScheduler::WorkerMain(Private::FWaitEvent* WorkerEvent, FSchedulerTls::FLocalQueueType* WorkerLocalQueue, uint32 WaitCycles, bool bPermitBackgroundWork)
+	void FScheduler::StandbyLoop(Private::FWaitEvent* WorkerEvent, FSchedulerTls::FLocalQueueType* WorkerLocalQueue, uint32 WaitCycles, bool bPermitBackgroundWork)
 	{
-		checkSlow(FSchedulerTls::LocalQueue == nullptr);
-		checkSlow(WorkerLocalQueue != nullptr);
-		checkSlow(WorkerEvent != nullptr);
+		bool bPreparingStandby = false;
+		Private::FOutOfWork OutOfWork;
+		while (true)
+		{
+			bool bExecutedSomething = false;
+			while (TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::Dequeue, true>(WorkerEvent, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork)
+				|| TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::DequeueSteal, true>(WorkerEvent, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork))
+			{
+				bPreparingStandby = false;
+				bExecutedSomething = true;
 
-		FTaskTagScope WorkerScope(ETaskTag::EWorkerThread);
-		FSchedulerTls::ActiveScheduler = this;
+				// If we're currently oversubscribed... we might be selected for standby even when there is work left.
+				WaitingQueue[bPermitBackgroundWork].ConditionalStandby(WorkerEvent);
+			}
 
-		FMemory::SetupTLSCachesOnCurrentThread();
-		FSchedulerTls::WorkerType = bPermitBackgroundWork ? FSchedulerTls::EWorkerType::Background : FSchedulerTls::EWorkerType::Foreground;
-		FSchedulerTls::LocalQueue = WorkerLocalQueue;
+			// Check if we're shutting down
+			if (ActiveWorkers.load(std::memory_order_relaxed) == 0)
+			{
+				OutOfWork.Stop();
+				break;
+			}
 
+			if (bExecutedSomething == false)
+			{
+				if (!bPreparingStandby)
+				{
+					OutOfWork.Start();
+					WaitingQueue[bPermitBackgroundWork].PrepareStandby(WorkerEvent);
+					bPreparingStandby = true;
+				}
+				else if (WaitingQueue[bPermitBackgroundWork].CommitStandby(WorkerEvent, OutOfWork))
+				{
+					// Only reset this when the commit succeeded, otherwise we're backing off the commit and looking at the queue again
+					bPreparingStandby = false;
+				}
+			}
+		}
+	}
+
+	void FScheduler::WorkerLoop(Private::FWaitEvent* WorkerEvent, FSchedulerTls::FLocalQueueType* WorkerLocalQueue, uint32 WaitCycles, bool bPermitBackgroundWork)
+	{
 		bool bPreparingWait = false;
 		Private::FOutOfWork OutOfWork;
 		while (true)
 		{
 			bool bExecutedSomething = false;
-			while(TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::Dequeue, false>(WorkerEvent, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork)
-			   || TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::DequeueSteal, false>(WorkerEvent, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork))
+			while (TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::Dequeue, false>(WorkerEvent, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork)
+				|| TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::DequeueSteal, false>(WorkerEvent, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork))
 			{
 				bPreparingWait = false;
 				bExecutedSomething = true;
 			}
 
+			// Check if we're shutting down
 			if (ActiveWorkers.load(std::memory_order_relaxed) == 0)
 			{
 				// Don't leave the waiting queue in a bad state
@@ -425,8 +505,33 @@ namespace LowLevelTasks
 				}
 			}
 		}
+	}
 
-		WaitingQueue[bPermitBackgroundWork].NotifyAll();
+	void FScheduler::WorkerMain(Private::FWaitEvent* WorkerEvent, FSchedulerTls::FLocalQueueType* WorkerLocalQueue, uint32 WaitCycles, bool bPermitBackgroundWork)
+	{
+		checkSlow(FSchedulerTls::LocalQueue == nullptr);
+		checkSlow(WorkerLocalQueue != nullptr);
+		checkSlow(WorkerEvent != nullptr);
+
+		FTaskTagScope WorkerScope(ETaskTag::EWorkerThread);
+		FSchedulerTls::ActiveScheduler = this;
+
+		FMemory::SetupTLSCachesOnCurrentThread();
+		FSchedulerTls::WorkerType = bPermitBackgroundWork ? FSchedulerTls::EWorkerType::Background : FSchedulerTls::EWorkerType::Foreground;
+		FSchedulerTls::LocalQueue = WorkerLocalQueue;
+
+		{
+			Private::FOversubscriptionAllowedScope _(true);
+
+			if (WorkerEvent->bIsStandby)
+			{
+				StandbyLoop(WorkerEvent, WorkerLocalQueue, WaitCycles, bPermitBackgroundWork);
+			}
+			else
+			{
+				WorkerLoop(WorkerEvent, WorkerLocalQueue, WaitCycles, bPermitBackgroundWork);
+			}
+		}
 
 		FSchedulerTls::LocalQueue = nullptr;
 		FSchedulerTls::ActiveScheduler = nullptr;
@@ -437,72 +542,12 @@ namespace LowLevelTasks
 	void FScheduler::BusyWaitInternal(const FConditional& Conditional, bool ForceAllowBackgroundWork)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FScheduler::BusyWaitInternal);
-		FTaskTagScope WorkerScope(ETaskTag::EWorkerThread);
+		CSV_SCOPED_TIMING_STAT(Scheduler, BusyWait);
 
-		++FSchedulerTls::BusyWaitingDepth;
-		ON_SCOPE_EXIT{ --FSchedulerTls::BusyWaitingDepth; };
-
-		constexpr static bool bIsInsideBusyWait = true;
-		check(ActiveWorkers.load(std::memory_order_relaxed));
-		FSchedulerTls::FLocalQueueType* WorkerLocalQueue = FSchedulerTls::LocalQueue;
-
-		uint32 WaitCount = 0;
-		bool HasWokenEmergencyWorker = false;
-		const bool bIsBackgroundWorker = FSchedulerTls::IsBackgroundWorker();
-		bool bPermitBackgroundWork = FTask::PermitBackgroundWork() || ForceAllowBackgroundWork;
-		Private::FOutOfWork OutOfWork;
-		while (true)
+		FOversubscriptionScope _;
+		while (!Conditional())
 		{
-			if (WorkerLocalQueue)
-			{
-				while(TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::Dequeue<bIsInsideBusyWait>, bIsInsideBusyWait>(nullptr, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork)
- 									|| TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::DequeueSteal, bIsInsideBusyWait>(nullptr, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork))
-				{
-					if (Conditional())
-					{
-						return;
-					}
-					WaitCount = 0;
-				}
-			}
-			else
-			{
-				while(TryExecuteTaskFrom<FSchedulerTls::FQueueRegistry, &FSchedulerTls::FQueueRegistry::DequeueGlobal<bIsInsideBusyWait>, bIsInsideBusyWait>(nullptr, &QueueRegistry, OutOfWork, bPermitBackgroundWork)
-									|| TryExecuteTaskFrom<FSchedulerTls::FQueueRegistry, &FSchedulerTls::FQueueRegistry::DequeueSteal, bIsInsideBusyWait>(nullptr, &QueueRegistry, OutOfWork, bPermitBackgroundWork))
-				{
-					if (Conditional())
-					{
-						return;
-					}
-					WaitCount = 0;
-				}
-			}
-
-			if (Conditional())
-			{
-				return;
-			}
-
-			if (WaitCount < WorkerSpinCycles)
-			{
-				OutOfWork.Start();
-				FPlatformProcess::Yield();
-				FPlatformProcess::Yield();
-				WaitCount++;
-			}
-			else if (!bPermitBackgroundWork && bIsBackgroundWorker)
-			{
-				bPermitBackgroundWork = true;
-			}
-			else
-			{
-				if(!HasWokenEmergencyWorker)
-				{
-					WakeUpWorker(true);
-					HasWokenEmergencyWorker = true;
-				}
-				WaitCount = 0;
-			}
+			FPlatformProcess::YieldThread();
 		}
 	}
 }

@@ -5,6 +5,7 @@
 #include "Containers/Set.h"
 #include "Containers/StringConv.h"
 #include "Containers/UnrealString.h"
+#include "Async/Fundamental/Scheduler.h"
 #include "CoreGlobals.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/PlatformAffinity.h"
@@ -1633,6 +1634,7 @@ bool FEventWin::Wait(uint32 WaitTime, const bool bIgnoreThreadIdleStats /*= fals
 	CSV_SCOPED_WAIT(WaitTime);
 	check(Event);
 
+	LowLevelTasks::FOversubscriptionScope _(WaitTime != 0); // Let the scheduler know one of its thread might be waiting.
 	FThreadIdleStats::FScopeIdle Scope( bIgnoreThreadIdleStats );
 	return (WaitForSingleObject( Event, WaitTime ) == WAIT_OBJECT_0);
 }

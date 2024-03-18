@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Async/EventCount.h"
 #include "Async/Fundamental/Scheduler.h"
 #include "Async/Fundamental/Task.h"
 #include "Async/Mutex.h"
@@ -436,14 +437,7 @@ public:
 			// waits until the task is completed or waiting timed out, while executing other tasks
 			bool BusyWait(FTimeout Timeout)
 			{
-				TaskTrace::FWaitingScope WaitingScope(GetTraceId());
-				TRACE_CPUPROFILER_EVENT_SCOPE(Tasks::BusyWait);
-
-				// ignore the result as we still have to make sure the task is completed upon returning from this function call
-				TryRetractAndExecute(Timeout);
-
-				LowLevelTasks::BusyWaitUntil([this, Timeout] { return IsCompleted() || Timeout; });
-				return IsCompleted();
+				return Wait(Timeout);
 			}
 
 			// waits until the task is completed or the condition returns true, while executing other tasks

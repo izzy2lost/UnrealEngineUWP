@@ -55,21 +55,7 @@ public:
 	 * @param WaitTime   Absolute time after which waiting is canceled and the thread wakes.
 	 * @return True if Notify() was called before the wait time elapsed, otherwise false.
 	 */
-	bool WaitUntil(FMonotonicTimePoint WaitTime)
-	{
-		std::unique_lock SelfLock(Lock);
-		if (WaitTime.IsInfinity())
-		{
-			Condition.wait(SelfLock, [this] { return !bWait.load(std::memory_order_acquire); });
-			return true;
-		}
-		if (FMonotonicTimeSpan WaitSpan = WaitTime - FMonotonicTimePoint::Now(); WaitSpan > FMonotonicTimeSpan::Zero())
-		{
-			const int64 WaitMs = FPlatformMath::CeilToInt64(WaitSpan.ToMilliseconds());
-			return Condition.wait_for(SelfLock, std::chrono::milliseconds(WaitMs), [this] { return !bWait.load(std::memory_order_acquire); });
-		}
-		return !bWait.load(std::memory_order_acquire);
-	}
+	bool WaitUntil(FMonotonicTimePoint WaitTime);
 
 	/**
 	 * Notifies the waiting thread.

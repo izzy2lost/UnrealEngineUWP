@@ -17,7 +17,7 @@
 
 namespace LowLevelTasks
 {
-	class FReserveScheduler final : public FSchedulerTls
+	class UE_DEPRECATED(5.5, "This class will be removed.") FReserveScheduler final : public FSchedulerTls
 	{
 		UE_NONCOPYABLE(FReserveScheduler);
 		static CORE_API FReserveScheduler Singleton;
@@ -47,8 +47,9 @@ namespace LowLevelTasks
 		};
 
 		TUniquePtr<FThread> CreateWorker(FThread::EForkable IsForkable = FThread::NonForkable, FYieldedWork* ReserveEvent = nullptr, EThreadPriority Priority = EThreadPriority::TPri_Normal);
-
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TEventStack<FYieldedWork> 						EventStack = { ReserveEvents };
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TAlignedArray<FYieldedWork>						ReserveEvents;
 		FCriticalSection 								WorkerThreadsCS;
 		TArray<TUniquePtr<FThread>>						WorkerThreads;
@@ -56,6 +57,7 @@ namespace LowLevelTasks
 		std::atomic_uint								NextWorkerId { 0 };
 	};
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	inline FReserveScheduler& FReserveScheduler::Get()
 	{
 		return Singleton;
@@ -70,4 +72,5 @@ namespace LowLevelTasks
 	{
 		StopWorkers();
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }

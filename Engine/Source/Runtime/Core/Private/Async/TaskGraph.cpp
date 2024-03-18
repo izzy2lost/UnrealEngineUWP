@@ -36,7 +36,6 @@
 #include "Misc/CoreDelegates.h"
 
 #include "Async/Fundamental/Scheduler.h"
-#include "Async/Fundamental/ReserveScheduler.h"
 #include "Tasks/Pipe.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTaskGraph, Log, All);
@@ -107,6 +106,25 @@ static FAutoConsoleVariableRef CVarTaskDynamicPrioritization(
 	TEXT("TaskGraph.UseDynamicPrioritization"),
 	GTaskGraphUseDynamicPrioritization,
 	TEXT("Adjust thread priority per-task so that higher priority tasks running on background threads can't be preempted as easily. Helps a lot under high load."),
+	ECVF_ReadOnly
+);
+
+CORE_API float GTaskGraphOversubscriptionRatio = 2.0f;
+static FAutoConsoleVariableRef CVarTaskOversubscriptionRatio(
+	TEXT("TaskGraph.OversubscriptionRatio"),
+	GTaskGraphOversubscriptionRatio,
+	TEXT("Ratio used to compute the maximum numbers of workers allowed during oversubscription.\n")
+	TEXT("You might need to increase that value depending on how many recursive waits the scheduled tasks may contain.\n")
+	TEXT("The optimal scenario to strive for is using prerequisites to setup dependencies instead of waiting.\n")
+	TEXT("Once none of the scheduled tasks contains waiting logic anymore, this can be set to 1.0f, which effectively deactivate the feature."),
+	ECVF_ReadOnly
+);
+
+CORE_API bool GTaskGraphUseDynamicThreadCreation = true;
+static FAutoConsoleVariableRef CVarTaskDynamicThreadCreation(
+	TEXT("TaskGraph.UseDynamicThreadCreation"),
+	GTaskGraphUseDynamicThreadCreation,
+	TEXT("Allow threads to be created only when needed instead of at engine initialization."),
 	ECVF_ReadOnly
 );
 
@@ -1849,17 +1867,6 @@ public:
 
 			LowLevelTasks::FScheduler::Get().StartWorkers(NumForegroundWorkers, NumBackgroundWorkers, FForkProcessHelper::IsForkedMultithreadInstance() ? FThread::Forkable : FThread::NonForkable, FPlatformAffinity::GetTaskThreadPriority(), FPlatformAffinity::GetTaskBPThreadPriority());
 
-			check(IsInGameThread()); // otherwise we can have a race on starting reserve workers below
-			if (GConfig == nullptr)
-			{
-				// postpone starting reserve workers until GConfig is initialized, to know if reserve workers are disabled
-				FCoreDelegates::TSConfigReadyForUse().AddRaw(this, &FTaskGraphCompatibilityImplementation::StartReserveWorkers);
-			}
-			else
-			{
-				StartReserveWorkers();
-			}
-
 			NumNamedThreads = ENamedThreads::ActualRenderingThread + 1;
 			ENamedThreads::bHasBackgroundThreads = 1;
 			ENamedThreads::bHasHighPriorityThreads = 1;
@@ -1867,10 +1874,6 @@ public:
 		else
 		{
 			LowLevelTasks::FScheduler::Get().StopWorkers();
-			if (bReserveWorkersEnabled)
-			{
-				LowLevelTasks::FReserveScheduler::Get().StopWorkers();
-			}
 			NumNamedThreads = ENamedThreads::ActualRenderingThread;
 			ENamedThreads::bHasBackgroundThreads = 0;
 			ENamedThreads::bHasHighPriorityThreads = 0;
@@ -1903,10 +1906,6 @@ public:
 			NamedThreads[ThreadIndex].bAttached = false;
 		}
 		LowLevelTasks::FScheduler::Get().StopWorkers();
-		if (bReserveWorkersEnabled)
-		{
-			LowLevelTasks::FReserveScheduler::Get().StopWorkers();
-		}
 		FPlatformTLS::FreeTlsSlot(PerThreadIDTLSSlot);
 	}
 
@@ -1940,12 +1939,6 @@ public:
 
 			LowLevelTasks::FScheduler::Get().StopWorkers();
 			LowLevelTasks::FScheduler::Get().StartWorkers(NumForegroundWorkers, NumBackgroundWorkers, FForkProcessHelper::IsForkedMultithreadInstance() ? FThread::Forkable : FThread::NonForkable, Pri, FPlatformAffinity::GetTaskBPThreadPriority());
-
-			if (bReserveWorkersEnabled)
-			{
-				LowLevelTasks::FReserveScheduler::Get().StopWorkers();
-				LowLevelTasks::FReserveScheduler::Get().StartWorkers(NumForegroundWorkers + NumBackgroundWorkers, FForkProcessHelper::IsForkedMultithreadInstance() ? FThread::Forkable : FThread::NonForkable, FPlatformAffinity::GetTaskBPThreadPriority());
-			}
 		}
 	}
 
@@ -2146,75 +2139,28 @@ private:
 		}
 #endif
 
-		if (LowLevelTasks::FScheduler::Get().IsWorkerThread() || LowLevelTasks::FReserveScheduler::Get().IsWorkerThread())
+		if (!FTaskGraphInterface::IsMultithread())
 		{
-			// a worker thread gets blocked, involve a reserve worker to utilise an idle core
-			bool bSuccess = false; // has a reserve worker helped?
-			if (bReserveWorkersEnabled.load(std::memory_order_relaxed))
+			bool bAnyPending = false;
+			for (int32 Index = 0; Index < Tasks.Num(); Index++)
 			{
-				if (LowLevelTasks::DoReserveWorkUntil([Index(0), Tasks]() mutable
+				FGraphEvent* Task = Tasks[Index].GetReference();
+				if (Task && !Task->IsComplete())
 				{
-					while (Index < Tasks.Num())
-					{
-						if (!Tasks[Index]->IsComplete())
-						{
-							return false;
-						}
-						Index++;
-					}
-					return true;
-				}))
-				{
-					// a reserve worker was woken up to help with the tasks.
-					// stall this thread on an event while we wait
-					FScopedEvent Event;
-					TriggerEventWhenTasksComplete(Event.Get(), Tasks, CurrentThreadIfKnown);
-					bSuccess = true;
+					bAnyPending = true;
+					break;
 				}
 			}
-			
-			// for latency reason, worker thread aren't tackling other tasks while waiting if we have reserve workers, 
-			// otherwise worker threads help with task execution while they wait
-			if(!bSuccess)
+			if (!bAnyPending)
 			{
-				LowLevelTasks::BusyWaitUntil([Index(0), &Tasks]() mutable
-				{
-					while (Index < Tasks.Num())
-					{
-						if (!Tasks[Index]->IsComplete())
-						{
-							return false;
-						}
-						Index++;
-					}
-					return true;
-				});
+				return;
 			}
+			UE_LOG(LogTaskGraph, Fatal, TEXT("Recursive waits are not allowed in single threaded mode."));
 		}
-		else
-		{
-			if (!FTaskGraphInterface::IsMultithread())
-			{
-				bool bAnyPending = false;
-				for (int32 Index = 0; Index < Tasks.Num(); Index++)
-				{
-					FGraphEvent* Task = Tasks[Index].GetReference();
-					if (Task && !Task->IsComplete())
-					{
-						bAnyPending = true;
-						break;
-					}
-				}
-				if (!bAnyPending)
-				{
-					return;
-				}
-				UE_LOG(LogTaskGraph, Fatal, TEXT("Recursive waits are not allowed in single threaded mode."));
-			}
-			// We will just stall this thread on an event while we wait
-			FScopedEvent Event;
-			TriggerEventWhenTasksComplete(Event.Get(), Tasks, CurrentThreadIfKnown);
-		}
+
+		// We will just stall this thread on an event while we wait
+		FScopedEvent Event;
+		TriggerEventWhenTasksComplete(Event.Get(), Tasks, CurrentThreadIfKnown);
 	}
 
 	void TriggerEventWhenTasksComplete(FEvent* InEvent, const FGraphEventArray& Tasks, ENamedThreads::Type CurrentThreadIfKnown = ENamedThreads::AnyThread, ENamedThreads::Type TriggerThread = ENamedThreads::AnyHiPriThreadHiPriTask) final override
@@ -2307,29 +2253,6 @@ private:
 	{
 		checkThreadGraph(NamedThreads[Index].TaskGraphWorker->GetThreadId() == Index);
 		return *NamedThreads[Index].TaskGraphWorker;
-	}
-
-	void StartReserveWorkers()
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(StartReserveWorkers);
-		if (bReserveWorkersEnabled)
-		{
-			return; // once enabled, reserve workers can't be disabled
-		}
-
-		NumBackgroundWorkers = FMath::Max(1, NumWorkerThreads - FMath::Min<int>(GNumForegroundWorkers, NumWorkerThreads));
-		NumForegroundWorkers = FMath::Max(1, NumWorkerThreads - NumBackgroundWorkers);
-
-		check(GConfig);
-		
-		bool bEnableReserveWorkers = false; // by default
-		GConfig->GetBool(TEXT("TaskGraph"), TEXT("EnableReserveWorkers"), bEnableReserveWorkers, GEngineIni);
-
-		if (bEnableReserveWorkers)
-		{
-			bReserveWorkersEnabled = true;
-			LowLevelTasks::FReserveScheduler::Get().StartWorkers(NumForegroundWorkers + NumBackgroundWorkers, FForkProcessHelper::IsForkedMultithreadInstance() ? FThread::Forkable : FThread::NonForkable, FPlatformAffinity::GetTaskBPThreadPriority());
-		}
 	}
 };
 
