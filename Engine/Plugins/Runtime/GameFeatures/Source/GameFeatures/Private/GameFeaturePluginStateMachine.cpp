@@ -2883,6 +2883,8 @@ struct FGameFeaturePluginState_Deactivating : public FGameFeaturePluginState
 			{
 				StateStatus.SetTransition(EGameFeaturePluginState::Loaded);
 			}
+
+			IPluginManager::Get().UnmountExplicitlyLoadedPluginLocalizationData(StateProperties.PluginName);
 		}
 		else
 		{

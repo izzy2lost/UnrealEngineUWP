@@ -54,13 +54,15 @@ private:
 #if WITH_EDITORONLY_DATA
 		FTextKey LocResID;
 #endif
+		int32 LocalizationTargetPathId = INDEX_NONE;
 		uint32 SourceStringHash;
 
-		FDisplayStringEntry(const FTextKey& InLocResID, const uint32 InSourceStringHash, const FTextConstDisplayStringRef& InDisplayString)
+		FDisplayStringEntry(const FTextKey& InLocResID, const int32 InLocalizationTargetPathId, const uint32 InSourceStringHash, const FTextConstDisplayStringRef& InDisplayString)
 			: DisplayString(InDisplayString)
 #if WITH_EDITORONLY_DATA
 			, LocResID(InLocResID)
 #endif
+			, LocalizationTargetPathId(InLocalizationTargetPathId)
 			, SourceStringHash(InSourceStringHash)
 		{
 		}
@@ -77,6 +79,39 @@ private:
 	/** Manages the currently loaded or registered text localizations. */
 	typedef TMap<FTextId, FDisplayStringEntry> FDisplayStringLookupTable;
 
+	struct FDisplayStringsForLocalizationTarget
+	{
+		/**
+		 * The path of this localization target.
+		 */
+		FString LocalizationTargetPath;
+
+		/**
+		 * Text IDs currently associated with this localization target.
+		 * @note This information is also known via FDisplayStringEntry::LocalizationTargetPathId, but this serves as 
+		 *       an accelerator for HandleLocalizationTargetsUnmounted to avoid spinning the entire live table.
+		 */
+		TSet<FTextId> TextIds;
+
+		/**
+		 * True if this localization target has been mounted via HandleLocalizationTargetsMounted.
+		 * @note Only mounted localization targets track TextIds, as they're the only things that can be unloaded via HandleLocalizationTargetsUnmounted.
+		 */
+		bool bIsMounted = false;
+	};
+
+	struct FDisplayStringsByLocalizationTargetId
+	{
+	public:
+		FDisplayStringsForLocalizationTarget& FindOrAdd(FStringView InLocalizationTargetPath, int32* OutLocalizationTargetPathId = nullptr);
+		FDisplayStringsForLocalizationTarget* Find(const int32 InLocalizationTargetPathId);
+		void TrackTextId(const int32 InCurrentLocalizationPathId, const int32 InNewLocalizationPathId, const FTextId& InTextId);
+
+	private:
+		TArray<FDisplayStringsForLocalizationTarget> LocalizationTargets;
+		TMap<FStringView, int32> LocalizationTargetPathsToIds;
+	};
+
 private:
 	std::atomic<ETextLocalizationManagerInitializedFlags> InitializedFlags{ ETextLocalizationManagerInitializedFlags::None };
 	
@@ -90,6 +125,7 @@ private:
 #if ENABLE_LOC_TESTING
 	TMap<FTextId, FTextConstDisplayStringPtr> DisplayStringBackupTable;
 #endif
+	FDisplayStringsByLocalizationTargetId DisplayStringsByLocalizationTargetId;
 
 	mutable FRWLock TextRevisionRW;
 	TMap<FTextId, uint16> LocalTextRevisions;
@@ -150,6 +186,12 @@ public:
 	 * Get a list of culture names that we have localized resource data for (ELocalizationLoadFlags controls which resources should be checked).
 	 */
 	CORE_API TArray<FString> GetLocalizedCultureNames(const ELocalizationLoadFlags InLoadFlags) const;
+
+	/**
+	 * Given a localization target path, get the ID associated with it.
+	 * @note This ID is unstable and should only be used for quick in-process comparison.
+	 */
+	CORE_API int32 GetLocalizationTargetPathId(FStringView InLocalizationTargetPath);
 
 	/**
 	 * Register a localized text source with the text localization manager.
@@ -215,8 +257,8 @@ public:
 	CORE_API void HandleLocalizationTargetsMounted(TArrayView<const FString> LocalizationTargetPaths);
 
 	 /**
-	  * Called when paths containing additional localization target data (LocRes) are unmounted, to allow the display strings to dynamically update without waiting for a refresh.
-	  * @note The loading is async, see WaitUntilLoadingCompletes.
+	  * Called when paths containing additional localization target data (LocRes) are unmounted, to allow the display strings to be unloaded.
+	  * @note The unloading is async, see WaitUntilLoadingCompletes.
 	  * @see FCoreDelegates::GatherAdditionalLocResPathsCallback.
 	  */
 	CORE_API void HandleLocalizationTargetsUnmounted(TArrayView<const FString> LocalizationTargetPaths);
