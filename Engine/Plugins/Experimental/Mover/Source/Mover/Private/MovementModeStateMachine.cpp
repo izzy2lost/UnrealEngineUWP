@@ -98,7 +98,7 @@ void UMovementModeStateMachine::QueueNextMode(FName DesiredNextModeName, bool bS
 		    (NextModeName != DesiredNextModeName || bShouldReenter != bShouldNextModeReenter))
 		{
 			const AActor* OwnerActor = GetOwnerActor();
-			UE_LOG(LogMover, Warning, TEXT("%s (%s) Overwriting of queued mode change (%s, reenter: %i) with (%s, reenter: %i)"), *GetNameSafe(OwnerActor), *UEnum::GetValueAsString(OwnerActor->GetLocalRole()), *NextModeName.ToString(), bShouldNextModeReenter, *DesiredNextModeName.ToString(), bShouldReenter);
+			UE_LOG(LogMover, Log, TEXT("%s (%s) Overwriting of queued mode change (%s, reenter: %i) with (%s, reenter: %i)"), *GetNameSafe(OwnerActor), *UEnum::GetValueAsString(OwnerActor->GetLocalRole()), *NextModeName.ToString(), bShouldNextModeReenter, *DesiredNextModeName.ToString(), bShouldReenter);
 		}
 
 		if (Modes.Contains(DesiredNextModeName))
