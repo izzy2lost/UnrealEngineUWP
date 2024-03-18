@@ -353,15 +353,6 @@ FCachedVertex LoadVertexFromLDS( uint VertexIndex )
 	return Result;
 }
 
-HLSL_STATIC_ASSERT( sizeof( FCachedVertex ) == sizeof( FNaniteTransformedVert ) + 16, "Unexpected size of FCachedVertex. Update WaveReadLaneAt to reflect changes.");
-FCachedVertex WaveReadLaneAt( FCachedVertex Vert, uint SrcIndex )
-{
-	FCachedVertex Result;
-	Result.TransformedVert		= WaveReadLaneAt( Vert.TransformedVert,		SrcIndex );
-	Result.PointSubpixelClip	= WaveReadLaneAt( Vert.PointSubpixelClip,	SrcIndex );
-	return Result;
-}
-
 groupshared uint GroupRefillCheckTriIndex;
 
 void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex ) 
@@ -540,8 +531,7 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 	}
 
 	FCachedVertex TriangleVerts[3];
-	FCachedVertex CachedVertex[2];
-
+	FNaniteTransformedVert CachedTransformedVerts[2];
 
 	// TODO: DXC doesn't manage to strip all the unused groupshared arrays, which is very bad for performance.
 	//       When manually stripped, the groupshared version is faster, so we should revisit once this has been fixed.
@@ -564,19 +554,27 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 		UNROLL
 		for( uint k = 0; k < 3; k++ )
 		{
+			const uint Index = VertIndexes[k];
+
 			BRANCH
 			if( bGroupsharedCache )
 			{
-				TriangleVerts[k] = LoadVertexFromLDS( VertIndexes[k] );
+				TriangleVerts[k] = LoadVertexFromLDS( Index );
 			}
 			else
 			{
-				const FCachedVertex A = WaveReadLaneAt( CachedVertex[0], VertIndexes[k] & 31 );
-				const FCachedVertex B = WaveReadLaneAt( CachedVertex[1], VertIndexes[k] & 31 );
-				if( ( VertIndexes[k] - NumCachedVerts ) & 32 )
-					TriangleVerts[k] = A;
+				const FNaniteTransformedVert A = WaveReadLaneAt( CachedTransformedVerts[0], Index & 31 );
+				const FNaniteTransformedVert B = WaveReadLaneAt( CachedTransformedVerts[1], Index & 31 );
+				
+				FCachedVertex Vert;
+				if( (Index - NumCachedVerts ) & 32 )
+					Vert.TransformedVert = A;
 				else
-					TriangleVerts[k] = B;
+					Vert.TransformedVert = B;
+
+				Vert.PointSubpixelClip = VertexCache_PointSubpixelClip[Index & 63];
+
+				TriangleVerts[k] = Vert;
 			}
 		}
 
@@ -631,21 +629,30 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 				}
 				else
 				{
-					CachedVertex[1] = CachedVertex[0];
-					CachedVertex[0] = Vert;
+					CachedTransformedVerts[1] = CachedTransformedVerts[0];
+					CachedTransformedVerts[0] = Vert.TransformedVert;
+
+					VertexCache_PointSubpixelClip[LaneVertIndex & 63] = Vert.PointSubpixelClip;
 				}
 			}
             
             UNROLL
             for( uint k = 0; k < 3; k++ )
             {
+				const uint Index = VertIndexes[k];
+
 				FCachedVertex Vert;
 				if( bGroupsharedCache )
-					Vert = LoadVertexFromLDS( VertIndexes[k] );
+				{
+					Vert = LoadVertexFromLDS( Index );
+				}
 				else
-					Vert = WaveReadLaneAt( CachedVertex[0], VertIndexes[k] & 31 );	// After refill any new vertex will be in CachedVertex[0]
+				{
+					Vert.TransformedVert = WaveReadLaneAt( CachedTransformedVerts[0], Index & 31 );	// After refill any new vertex will be in CachedVertex[0]
+					Vert.PointSubpixelClip = VertexCache_PointSubpixelClip[Index & 63];
+				}
 				
-				if( VertIndexes[k] >= NumCachedVerts )
+				if( Index >= NumCachedVerts )
 					TriangleVerts[k] = Vert;
             }
 
