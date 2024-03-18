@@ -1137,8 +1137,6 @@ FText SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& State, const 
 		default:
 			return FText::GetEmpty();
 	}
-
-	return FText::GetEmpty();
 }
 
 EVisibility SStateTreeViewRow::GetTransitionsVisibility(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger) const
