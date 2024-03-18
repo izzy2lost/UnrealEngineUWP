@@ -1314,14 +1314,15 @@ FMovieScenePossessable* FSequencerUtilities::ConvertToCustomBinding(TSharedRef<I
 
 	// If we have an old-style spawnable, use the template as the object to convert instead.
 	FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(BindingGuid);
+	const FMovieSceneBindingReference* PreviousBindingReference = BindingReferences->GetReference(BindingGuid, BindingIndex);
 	if (Spawnable)
 	{
 		ObjectToConvert = Spawnable->GetObjectTemplate();
 		bConvertFromSpawnable = true;
 	}
-	else if (const FMovieSceneBindingReference* Reference = BindingReferences->GetReference(BindingGuid, BindingIndex))
+	else if (PreviousBindingReference)
 	{
-		if (const UMovieSceneCustomBinding* CustomBinding = Reference->CustomBinding)
+		if (const UMovieSceneCustomBinding* CustomBinding = PreviousBindingReference->CustomBinding)
 		{
 			bConvertFromSpawnable = CustomBinding->WillSpawnObject(Sequencer->GetSharedPlaybackState());
 		}
@@ -1335,8 +1336,17 @@ FMovieScenePossessable* FSequencerUtilities::ConvertToCustomBinding(TSharedRef<I
 		return CreatedPossessable;
 	}
 
-	// Create the new custom binding and then we'll slot it in.
-	UMovieSceneCustomBinding* NewCustomBinding = CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->CreateNewCustomBinding(ObjectToConvert, *MovieScene);
+	
+	UMovieSceneCustomBinding* NewCustomBinding = nullptr;
+	if (PreviousBindingReference)
+	{
+		NewCustomBinding = CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->CreateCustomBindingFromBinding(*PreviousBindingReference, ObjectToConvert, *MovieScene);
+	}
+	else
+	{
+		NewCustomBinding = CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->CreateNewCustomBinding(ObjectToConvert, *MovieScene);
+	}
+
 	if (!NewCustomBinding)
 	{
 		return CreatedPossessable;
@@ -2324,8 +2334,11 @@ FGuid TryCreateCustomBinding(TSharedRef<ISequencer> Sequencer, UObject* CustomBi
 	UMovieSceneCustomBinding * NewCustomBinding = nullptr;
 	if (InParams.CustomBinding)
 	{
+		const FMovieSceneBindingReference* PreviousBindingReference = BindingReferences->GetReference(InParams.ReplacementGuid, InParams.BindingIndex);
 		// We've been provided a custom binding pre-created. Ensure it supports the object given
-		if (CustomBindingObject == nullptr || InParams.CustomBinding->SupportsBindingCreationFromObject(CustomBindingObject))
+		if (CustomBindingObject == nullptr 
+			|| InParams.CustomBinding->SupportsBindingCreationFromObject(CustomBindingObject)
+			|| (PreviousBindingReference && InParams.CustomBinding->SupportsConversionFromBinding(*PreviousBindingReference, CustomBindingObject)))
 		{
 			NewCustomBinding = InParams.CustomBinding;
 		}
@@ -2421,8 +2434,6 @@ FGuid CreateGenericBinding(TSharedRef<ISequencer> Sequencer, UObject* InObject, 
 
 	if (bAllowCustom)
 	{
-		
-
 		NewBindingID = TryCreateCustomBinding(Sequencer, InObject, BindingReferences, InParams, OwnerMovieScene, bSpawnable, bReplaceable);
 		if (NewBindingID.IsValid())
 		{

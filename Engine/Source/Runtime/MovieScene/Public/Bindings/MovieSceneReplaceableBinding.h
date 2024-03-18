@@ -77,7 +77,7 @@ protected:
 	UPROPERTY()
 	FString BindingName;
 
-private:
+protected:
 
 	/* UMovieSceneCustomBinding overrides*/
 	bool WillSpawnObject(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override final;

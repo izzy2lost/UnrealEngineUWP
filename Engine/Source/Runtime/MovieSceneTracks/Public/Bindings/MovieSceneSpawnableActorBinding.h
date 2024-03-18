@@ -75,25 +75,33 @@ protected:
 
 	/* Override to provide Actor class to be spawned*/
 	// TODO: Make UFUNCTION
-	virtual TSubclassOf<AActor> GetActorClass() const PURE_VIRTUAL(UMovieSceneSpawnableActorBindingBase::GetActorClass, return AActor::StaticClass(););
+	MOVIESCENETRACKS_API virtual TSubclassOf<AActor> GetActorClass() const PURE_VIRTUAL(UMovieSceneSpawnableActorBindingBase::GetActorClass, return AActor::StaticClass(););
 
 	/* Optionally override to provide an Actor template to use during Spawn */
-	virtual AActor* GetActorTemplate() const { return nullptr; }
+	MOVIESCENETRACKS_API virtual AActor* GetActorTemplate() const { return nullptr; }
 
 	/* Returns the transform to spawn the actor at*/
-	virtual FTransform GetSpawnTransform() const;
+	MOVIESCENETRACKS_API  FTransform GetSpawnTransform() const;
+
+#if WITH_EDITOR
+	/* MovieSceneCustomBinding overrides*/
+	MOVIESCENETRACKS_API UClass* GetBoundObjectClass() const override { return GetActorClass(); }
+#endif
 
 protected:
 	// UMovieSceneSpawnableBindingBase overrides
 
 	/* Overridden to handle Actor-specific spawning */
-	virtual UObject* SpawnObjectInternal(UWorld* WorldContext, FName SpawnName, const FGuid& BindingId, int32 BindingIndex, UMovieScene& MovieScene, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) override;
+	MOVIESCENETRACKS_API virtual UObject* SpawnObjectInternal(UWorld* WorldContext, FName SpawnName, const FGuid& BindingId, int32 BindingIndex, UMovieScene& MovieScene, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) override;
 
 	/* Overridden to handle Actor-specific destruction*/
-	virtual void DestroySpawnedObjectInternal(UObject* Object) override;
+	MOVIESCENETRACKS_API virtual void DestroySpawnedObjectInternal(UObject* Object) override;
+
+	MOVIESCENETRACKS_API FName GetSpawnName(const FGuid& BindingId, UMovieScene& MovieScene, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override;
 
 
-protected:
+private:
+	FName GetNetAddressableName(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, const FGuid& BindingId, FMovieSceneSequenceID SequenceID, const FString& BaseName) const;
 };
 
 /*
@@ -129,31 +137,26 @@ public:
 	bool SupportsConversionFromBinding(const FMovieSceneBindingReference& BindingReference, const UObject* SourceObject) const override;
 	UMovieSceneCustomBinding* CreateCustomBindingFromBinding(const FMovieSceneBindingReference& BindingReference, UObject* SourceObject, UMovieScene& OwnerMovieScene) override;
 	FText GetBindingTypePrettyName() const override;
-	UClass* GetBoundObjectClass() const override { return GetActorClass(); }
 #endif
 
 protected:
 
 	/* MovieSceneSpawnableBindingBase overrides*/
 	UWorld* GetWorldContext(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override;
-	FName GetSpawnName(const FGuid& BindingId, UMovieScene& MovieScene, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override;
-
+	
 	/* MovieSceneSpawnableActorBindingBase overrides*/
 	TSubclassOf<AActor> GetActorClass() const override;
 	AActor* GetActorTemplate() const override { return ActorTemplate; }
 
-private:
-
-	FName GetNetAddressableName(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, const FGuid& BindingId, FMovieSceneSequenceID SequenceID, const FString& BaseName) const;
-
 
 private:
 
 	UPROPERTY()
-	TObjectPtr<AActor> ActorTemplate;
+	TObjectPtr<AActor> ActorTemplate;	
 
 	UPROPERTY()
 	FString BindingName;
+
 
 };
 

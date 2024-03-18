@@ -258,9 +258,9 @@ UWorld* UMovieSceneSpawnableActorBinding::GetWorldContext(TSharedRef<const UE::M
 	return WorldContext;
 }
 
-FName UMovieSceneSpawnableActorBinding::GetSpawnName(const FGuid& BindingId, UMovieScene& MovieScene, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+FName UMovieSceneSpawnableActorBindingBase::GetSpawnName(const FGuid& BindingId, UMovieScene& MovieScene, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
 {
-	// We use the net addressable name for spawnables on any non-editor, non-standalone world (ie, all clients, servers and PIE worlds)
+	// We use the net addressable name for spawnable actors on any non-editor, non-standalone world (ie, all clients, servers and PIE worlds)
 
 	UWorld* WorldContext = GetWorldContext(SharedPlaybackState);
 	const bool bUseNetAddressableName = bNetAddressableName && (WorldContext->WorldType != EWorldType::Editor) && (WorldContext->GetNetMode() != ENetMode::NM_Standalone);
@@ -283,15 +283,7 @@ FName UMovieSceneSpawnableActorBinding::GetSpawnName(const FGuid& BindingId, UMo
 	return NAME_None;
 }
 
-TSubclassOf<AActor> UMovieSceneSpawnableActorBinding::GetActorClass() const
-{
-	if (AActor* ActorTemplatePtr = GetActorTemplate())
-	{
-		return ActorTemplatePtr->GetClass();
-	}
-	return nullptr;
-}
-FName UMovieSceneSpawnableActorBinding::GetNetAddressableName(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, const FGuid& BindingId, FMovieSceneSequenceID SequenceID, const FString& BaseName) const
+FName UMovieSceneSpawnableActorBindingBase::GetNetAddressableName(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, const FGuid& BindingId, FMovieSceneSequenceID SequenceID, const FString& BaseName) const
 {
 	UObject* AddressingContext = nullptr;
 
@@ -334,6 +326,16 @@ FName UMovieSceneSpawnableActorBinding::GetNetAddressableName(TSharedRef<const U
 
 	return FName(AddressableName.Len(), AddressableName.GetData());
 }
+
+TSubclassOf<AActor> UMovieSceneSpawnableActorBinding::GetActorClass() const
+{
+	if (AActor* ActorTemplatePtr = GetActorTemplate())
+	{
+		return ActorTemplatePtr->GetClass();
+	}
+	return nullptr;
+}
+
 
 struct FIsSpawnable
 {
