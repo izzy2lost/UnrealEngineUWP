@@ -196,7 +196,7 @@ struct RIGVM_API FRigVMTemplateArgument
 	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection);
 	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, TRigVMTypeIndex InType);
 	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, const TArray<TRigVMTypeIndex>& InTypeIndices);
-	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, const TArray<ETypeCategory>& InTypeCategories);
+	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, const TArray<ETypeCategory>& InTypeCategories, TFunction<bool(const TRigVMTypeIndex&)> InFilterType = nullptr);
 
 	// returns the name of the argument
 	const FName& GetName() const { return Name; }
@@ -214,7 +214,7 @@ struct RIGVM_API FRigVMTemplateArgument
 	int32 GetNumTypes() const;
 	void AddTypeIndex(const TRigVMTypeIndex InTypeIndex);
 	void RemoveType(const int32 InIndex);
-	void ForEachType(TFunction<void(const TRigVMTypeIndex InType)>&& InCallback) const;
+	void ForEachType(TFunction<bool(const TRigVMTypeIndex InType)>&& InCallback) const;
 	int32 FindTypeIndex(const TRigVMTypeIndex InTypeIndex) const;
 
 	template <typename Predicate>
@@ -223,6 +223,29 @@ struct RIGVM_API FRigVMTemplateArgument
 		if (!bUseCategories)
 		{
 			return TypeIndices.IndexOfByPredicate(Pred);
+		}
+		if (FilterType)
+		{
+			bool bFound = false;
+			int32 ValidIndex = 0;
+			CategoryViews(TypeCategories).ForEachType([this, &ValidIndex, &bFound, Pred](const TRigVMTypeIndex Type)
+			{
+				if (FilterType(Type))
+				{
+					if (Pred(Type))
+					{
+						bFound = true;
+						return false;
+					}
+					ValidIndex++;
+				}
+				return true;
+			});
+			if (bFound)
+			{
+				return ValidIndex;
+			}
+			return INDEX_NONE;
 		}
 		return CategoryViews(TypeCategories).IndexOfByPredicate(Pred);
 	}
@@ -261,6 +284,7 @@ protected:
 
 	bool bUseCategories = false;
 	TArray<ETypeCategory> TypeCategories;
+	TFunction<bool(const TRigVMTypeIndex&)> FilterType;
 
 	FRigVMTemplateArgument(FProperty* InProperty);
 
@@ -283,7 +307,7 @@ private:
 		CategoryViews() = delete;
 		CategoryViews(const TArray<ETypeCategory>& InCategories);
 		
-		void ForEachType(TFunction<void(const TRigVMTypeIndex InType)>&& InCallback) const;
+		void ForEachType(TFunction<bool(const TRigVMTypeIndex InType)>&& InCallback) const;
 
 		TRigVMTypeIndex GetTypeIndex(int32 InIndex) const;
 		
@@ -317,6 +341,7 @@ private:
 struct RIGVM_API FRigVMTemplateArgumentInfo
 {
 	using ArgumentCallback = TFunction<FRigVMTemplateArgument(const FName /*InName*/, ERigVMPinDirection /*InDirection*/)>;
+	using TypeFilterCallback = TFunction<bool(const TRigVMTypeIndex& InNewType)>;
 	
 	FName Name = NAME_None;
 	ERigVMPinDirection Direction = ERigVMPinDirection::Invalid;
@@ -324,7 +349,7 @@ struct RIGVM_API FRigVMTemplateArgumentInfo
 	
 	FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection, TRigVMTypeIndex InTypeIndex);
 	FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection, const TArray<TRigVMTypeIndex>& InTypeIndices);
-	FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection, const TArray<FRigVMTemplateArgument::ETypeCategory>& InTypeCategories);
+	FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection, const TArray<FRigVMTemplateArgument::ETypeCategory>& InTypeCategories, TypeFilterCallback InTypeFilter = nullptr);
 	FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection);
 	FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection, ArgumentCallback&& InCallback);
 

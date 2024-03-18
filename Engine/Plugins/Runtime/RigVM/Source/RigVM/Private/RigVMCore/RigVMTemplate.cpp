@@ -109,10 +109,11 @@ FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDir
 	UpdateTypeToPermutations();
 }
 
-FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, const TArray<ETypeCategory>& InTypeCategories)
+FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, const TArray<ETypeCategory>& InTypeCategories, TFunction<bool(const TRigVMTypeIndex&)> InFilterType)
 	: Name(InName)
 	, Direction(InDirection)
 	, TypeCategories(InTypeCategories)
+	, FilterType(InFilterType)
 {
 	const int32 NumCategories = TypeCategories.Num();
 	if (NumCategories > 0)
@@ -148,6 +149,13 @@ FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDir
 		else
 		{
 			TArray<TRigVMTypeIndex> Indices = AllTypes.Array();
+			if (FilterType)
+			{
+				Indices = Indices.FilterByPredicate([this](const TRigVMTypeIndex& Type)
+				{
+					return FilterType(Type);
+				});
+			}
 			TypeIndices = MoveTemp(Indices);
 			EnsureValidExecuteType(FRigVMRegistry::Get());
 		}
@@ -172,7 +180,8 @@ void FRigVMTemplateArgument::UpdateTypeToPermutations()
 	int32 TypeIndex = 0;
 	ForEachType([&](const TRigVMTypeIndex Type)
 	{
-	   TypeToPermutations.FindOrAdd(Type).Add(TypeIndex++);
+		TypeToPermutations.FindOrAdd(Type).Add(TypeIndex++);
+		return true;
 	});
 }
 
@@ -306,6 +315,7 @@ const TArray<int32>& FRigVMTemplateArgument::GetPermutations(const TRigVMTypeInd
 			Permutations.Add(IndexInTypes);
 		}
 		IndexInTypes++;
+		return true;
 	});
 
 	if (!Permutations.IsEmpty())
@@ -333,7 +343,21 @@ void FRigVMTemplateArgument::GetAllTypes(TArray<TRigVMTypeIndex>& OutTypes) cons
 	OutTypes.Reset();
 	for (const ETypeCategory Category: TypeCategories)
 	{
-		OutTypes.Append(FRigVMRegistry::Get().GetTypesForCategory(Category));
+		if (FilterType == nullptr)
+		{
+			OutTypes.Append(FRigVMRegistry::Get().GetTypesForCategory(Category));
+		}
+		else
+		{
+			const TArray<TRigVMTypeIndex>& CategoryTypes = FRigVMRegistry::Get().GetTypesForCategory(Category);
+			for (const TRigVMTypeIndex& Type : CategoryTypes)
+			{
+				if (FilterType(Type))
+				{
+					OutTypes.Add(Type);
+				}
+			}
+		}
 	}
 }
 
@@ -343,6 +367,26 @@ TRigVMTypeIndex FRigVMTemplateArgument::GetTypeIndex(const int32 InIndex) const
 	{
 		check(!TypeIndices.IsEmpty())
 		return TypeIndices.IsValidIndex(InIndex) ? TypeIndices[InIndex] : TypeIndices[0];		
+	}
+
+	if (FilterType)
+	{
+		TRigVMTypeIndex ValidType = INDEX_NONE;
+		int32 ValidIndex = 0;
+		CategoryViews(TypeCategories).ForEachType([this, &ValidIndex, InIndex, &ValidType](const TRigVMTypeIndex& Type) -> bool
+		{
+			if (FilterType(Type))
+			{
+				if (ValidIndex == InIndex)
+				{
+					ValidType = Type;
+					return false;
+				}
+				ValidIndex++;
+			}
+			return true;
+		});
+		return ValidType;
 	}
 
 	return CategoryViews(TypeCategories).GetTypeIndex(InIndex);
@@ -355,6 +399,30 @@ int32 FRigVMTemplateArgument::FindTypeIndex(const TRigVMTypeIndex InTypeIndex) c
 		return TypeIndices.IndexOfByKey(InTypeIndex);
 	}
 
+	if (FilterType)
+	{
+		bool bFound = false;
+		int32 ValidIndex = 0;
+		CategoryViews(TypeCategories).ForEachType([this, &ValidIndex, &bFound, InTypeIndex](const TRigVMTypeIndex& Type) -> bool
+		{
+			if (Type == InTypeIndex)
+			{
+				bFound = true;
+				return false;
+			}
+			if (FilterType(Type))
+			{
+				ValidIndex++;
+			}
+			return true;
+		});
+		if (bFound)
+		{
+			return ValidIndex;
+		}
+		return INDEX_NONE;
+	}
+
 	return CategoryViews(TypeCategories).FindIndex(InTypeIndex);
 }
 
@@ -363,6 +431,20 @@ int32 FRigVMTemplateArgument::GetNumTypes() const
 	if (!bUseCategories)
 	{
 		return TypeIndices.Num();
+	}
+
+	if (FilterType)
+	{
+		int32 NumTypes = 0;
+		CategoryViews(TypeCategories).ForEachType([this, &NumTypes](const TRigVMTypeIndex& Type) -> bool
+		{
+			if (FilterType(Type))
+			{
+				NumTypes++;
+			}
+			return true;
+		});
+		return NumTypes;
 	}
 	
 	return Algo::Accumulate(TypeCategories, 0, [](int32 Sum, const ETypeCategory Category)
@@ -383,11 +465,23 @@ void FRigVMTemplateArgument::RemoveType(const int32 InIndex)
 	TypeIndices.RemoveAt(InIndex);
 }
 
-void FRigVMTemplateArgument::ForEachType(TFunction<void(const TRigVMTypeIndex InType)>&& InCallback) const
+void FRigVMTemplateArgument::ForEachType(TFunction<bool(const TRigVMTypeIndex InType)>&& InCallback) const
 {
 	if (!bUseCategories)
 	{
 		return Algo::ForEach(TypeIndices, InCallback);
+	}
+
+	if (FilterType)
+	{
+		CategoryViews(TypeCategories).ForEachType([this, InCallback](const TRigVMTypeIndex Type)
+		{
+			if (FilterType(Type))
+			{
+				return InCallback(Type);
+			}
+			return true;
+		});
 	}
 	
 	return CategoryViews(TypeCategories).ForEachType(MoveTemp(InCallback));
@@ -405,6 +499,7 @@ TArray<TRigVMTypeIndex> FRigVMTemplateArgument::GetSupportedTypeIndices(const TA
 			{
 				SupportedTypes.AddUnique(TypeIndex);
 			}
+			return true;
 		});
 	}
 	else
@@ -438,6 +533,7 @@ TArray<FString> FRigVMTemplateArgument::GetSupportedTypeStrings(const TArray<int
 				const FString TypeString = Registry.GetType(TypeIndex).CPPType.ToString();
 				SupportedTypes.AddUnique(TypeString);
 			}
+			return true;
 		});
 	}
 	else
@@ -468,11 +564,17 @@ FRigVMTemplateArgument::CategoryViews::CategoryViews(const TArray<ETypeCategory>
 	}
 }
 
-void FRigVMTemplateArgument::CategoryViews::ForEachType(TFunction<void(const TRigVMTypeIndex InType)>&& InCallback) const
+void FRigVMTemplateArgument::CategoryViews::ForEachType(TFunction<bool(const TRigVMTypeIndex InType)>&& InCallback) const
 {
 	for (const TArrayView<const TRigVMTypeIndex>& TypeView: Types)
 	{
-		Algo::ForEach(TypeView, InCallback);
+		for (const TRigVMTypeIndex& TypeIndex : TypeView)
+		{
+			if (!InCallback(TypeIndex))
+			{
+				return;
+			}
+		}
 	}
 }
 
@@ -522,10 +624,11 @@ FRigVMTemplateArgumentInfo::FRigVMTemplateArgumentInfo(const FName InName, ERigV
 
 FRigVMTemplateArgumentInfo::FRigVMTemplateArgumentInfo(
 	const FName InName, ERigVMPinDirection InDirection,
-	const TArray<FRigVMTemplateArgument::ETypeCategory>& InTypeCategories)
+	const TArray<FRigVMTemplateArgument::ETypeCategory>& InTypeCategories,
+	TypeFilterCallback InTypeFilter)
 	: Name(InName)
 	, Direction(InDirection)
-	, FactoryCallback([InTypeCategories](const FName InName, ERigVMPinDirection InDirection){ return FRigVMTemplateArgument(InName, InDirection, InTypeCategories); })
+	, FactoryCallback([InTypeCategories, InTypeFilter](const FName InName, ERigVMPinDirection InDirection){ return FRigVMTemplateArgument(InName, InDirection, InTypeCategories, InTypeFilter); })
 {}
 
 FRigVMTemplateArgumentInfo::FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection)
@@ -1884,7 +1987,7 @@ bool FRigVMTemplate::UpdateArgumentTypes()
 					// Find if these types were already registered
 					if (ContainsPermutation(Types))
 					{
-						return;
+						return true;
 					}
 
 					uint32 TypeHash=0;
@@ -1896,12 +1999,12 @@ bool FRigVMTemplate::UpdateArgumentTypes()
 						if(TypeIndexPtr == nullptr)
 						{
 							bResult = false;
-							return;
+							return true;
 						}
 						if(*TypeIndexPtr == INDEX_NONE)
 						{
 							bResult = false;
-							return;
+							return true;
 						}
 
 						const TRigVMTypeIndex& TypeIndex = *TypeIndexPtr;
@@ -1929,6 +2032,7 @@ bool FRigVMTemplate::UpdateArgumentTypes()
 		{
 			bResult = false;
 		}
+		return true;
 	});
 
 	for(int32 ArgumentIndex = 0; ArgumentIndex < Arguments.Num(); ArgumentIndex++)
@@ -2014,6 +2118,7 @@ uint32 GetTypeHash(const FRigVMTemplateArgument& InArgument)
 	InArgument.ForEachType([&](const TRigVMTypeIndex TypeIndex)
 	{
 		Hash = HashCombine(Hash, Registry.GetHashForType(TypeIndex));
+		return true;
 	});
 	return Hash;
 }
