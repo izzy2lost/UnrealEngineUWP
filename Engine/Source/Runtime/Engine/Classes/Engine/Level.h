@@ -1269,15 +1269,6 @@ public:
 	static ENGINE_API UPackage* CreateActorPackage(UPackage* InLevelPackage, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath, const UObject* InMountPointContext = nullptr);
 
 	/**
-	 * Create an package for this actor
-	 * @param InBaseDir the base directory used when building the actor package name
-	 * @param InActorPackagingScheme the packaging scheme to use
-	 * @param InActorPath the fully qualified actor path, in the format: 'Outermost.Outer.Name'
-	 * @return the created package
-	 */
-	static ENGINE_API UPackage* CreateActorPackage(const FString& InBaseDir, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath);
-
-	/**
 	 * Detach or reattach all level actors to from/to their external package
 	 * @param bReattach if false will detach actors from their external package until reattach is called, passing true will reattach actors, no-op for non external actors
 	 */

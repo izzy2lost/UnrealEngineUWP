@@ -4234,12 +4234,6 @@ UPackage* ULevel::CreateActorPackage(UPackage* InLevelPackage, EActorPackagingSc
 	return ActorPackage;
 }
 
-UPackage* ULevel::CreateActorPackage(const FString& InBaseDir, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath)
-{
-	const FString PackageName = ULevel::GetActorPackageName(InBaseDir, InActorPackagingScheme, InActorPath);
-	return CreateActorPackageInternal(PackageName, InActorPath);
-}
-
 void ULevel::DetachAttachAllActorsPackages(bool bReattach)
 {
 	if (bReattach)
