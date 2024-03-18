@@ -2015,6 +2015,7 @@ void FLowLevelMemTracker::TickInternal()
 
 	// Compare memory the platform thinks we have allocated to what we have tracked, including the program memory
 	const int64 PlatformTrackedTotal = PlatformTracker.GetTrackedTotal();
+	ensureMsgf(PlatformProcessMemory >= PlatformTrackedTotal, TEXT("Untracked Memory is negative. This is wrong and should be investigated."));
 	MemoryUsagePlatformTotalUntracked = FMath::Max<int64>(0, PlatformProcessMemory - PlatformTrackedTotal);
 
 	PlatformTracker.SetTagAmountInUpdate(FindOrAddTagData(ELLMTag::PlatformTotal), PlatformProcessMemory, false);
