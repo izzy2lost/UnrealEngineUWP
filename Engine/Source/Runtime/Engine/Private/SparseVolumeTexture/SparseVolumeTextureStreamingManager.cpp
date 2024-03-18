@@ -730,6 +730,8 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 			// No need to write to TileDataPtrA and TileDataPtrB because we zeroed out all the occupancy bits.
 		}
 
+		const bool bAsyncCompute = UseAsyncComputeForStreaming();
+
 		// Process frames
 		for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
 		{
@@ -751,7 +753,7 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 				for (int32 MipLevelIndex = 0; MipLevelIndex < NumMipLevels; ++MipLevelIndex)
 				{
 					FRDGTextureUAV* UAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(PageTableRDG, MipLevelIndex, PageEntryFormat));
-					AddClearUAVPass(GraphBuilder, UAV, FUintVector4(ForceInitToZero));
+					AddClearUAVPass(GraphBuilder, UAV, FUintVector4(ForceInitToZero), bAsyncCompute ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute);
 				}
 
 				FrameInfo.PageTableTexture = GraphBuilder.ConvertToExternalTexture(PageTableRDG);
