@@ -2,6 +2,7 @@
 
 #include "InterchangeEditorPipelinesModule.h"
 
+#include "AssetTypeCategories.h"
 #include "InterchangeEditorPipelineDetails.h"
 #include "InterchangeEditorPipelineStyle.h"
 #include "InterchangeManager.h"
@@ -21,6 +22,12 @@
 
 class FInterchangeEditorPipelinesModule : public IInterchangeEditorPipelinesModule
 {
+public:
+	FInterchangeEditorPipelinesModule()
+		: InterchangeAssetCategory(EAssetTypeCategories::Misc)
+	{
+	}
+private:
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
@@ -35,7 +42,8 @@ class FInterchangeEditorPipelinesModule : public IInterchangeEditorPipelinesModu
 	void RegisterPropertySectionMappings();
 	void UnregisterPropertySectionMappings();
 
-private:
+	EAssetTypeCategories::Type InterchangeAssetCategory;
+
 	/** Pointer to the style set to use for the UI. */
 	TSharedPtr<ISlateStyle> InterchangeEditorPipelineStyle = nullptr;
 
@@ -101,14 +109,19 @@ void FInterchangeEditorPipelinesModule::AcquireResources()
 	// Register the InterchangeImportTestPlan asset
 	FAssetToolsModule& AssetToolsModule = FAssetToolsModule::GetModule();
 	IAssetTools& AssetTools = AssetToolsModule.Get();
-	
-	BlueprintPipelineBase_TypeActions = MakeShared<FAssetTypeActions_InterchangeBlueprintPipelineBase>();
-	AssetTools.RegisterAssetTypeActions(BlueprintPipelineBase_TypeActions.ToSharedRef());
 
-	PipelineBase_TypeActions = MakeShared<FAssetTypeActions_InterchangePipelineBase>();
+	InterchangeAssetCategory = AssetTools.RegisterAdvancedAssetCategory(FName(TEXT("Interchange")), NSLOCTEXT("InterchangeEditorPipelineModule", "InterchangeAssetCategoryCategoryName", "Interchange"));
+	
+	PipelineBase_TypeActions = MakeShared<FAssetTypeActions_InterchangePipelineBase>(InterchangeAssetCategory);
 	AssetTools.RegisterAssetTypeActions(PipelineBase_TypeActions.ToSharedRef());
 
-	PythonPipelineBase_TypeActions = MakeShared<FAssetTypeActions_InterchangePythonPipelineBase>();
+	BlueprintPipelineBase_TypeActions = MakeShared<FAssetTypeActions_InterchangeBlueprintPipelineBase>(InterchangeAssetCategory);
+	AssetTools.RegisterAssetTypeActions(BlueprintPipelineBase_TypeActions.ToSharedRef());
+
+	BlueprintEditorPipelineBase_TypeActions = MakeShared<FAssetTypeActions_InterchangeEditorBlueprintPipelineBase>(InterchangeAssetCategory);
+	AssetTools.RegisterAssetTypeActions(BlueprintEditorPipelineBase_TypeActions.ToSharedRef());
+
+	PythonPipelineBase_TypeActions = MakeShared<FAssetTypeActions_InterchangePythonPipelineBase>(InterchangeAssetCategory);
 	AssetTools.RegisterAssetTypeActions(PythonPipelineBase_TypeActions.ToSharedRef());
 
 	FCoreDelegates::OnPreExit.AddLambda([this]()
@@ -145,6 +158,7 @@ void FInterchangeEditorPipelinesModule::ReleaseResources()
 	{
 		IAssetTools& AssetTools = AssetToolsModule->Get();
 		AssetTools.UnregisterAssetTypeActions(BlueprintPipelineBase_TypeActions.ToSharedRef());
+		AssetTools.UnregisterAssetTypeActions(BlueprintEditorPipelineBase_TypeActions.ToSharedRef());
 		AssetTools.UnregisterAssetTypeActions(PipelineBase_TypeActions.ToSharedRef());
 		AssetTools.UnregisterAssetTypeActions(PythonPipelineBase_TypeActions.ToSharedRef());
 	}

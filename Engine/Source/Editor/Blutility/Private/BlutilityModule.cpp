@@ -217,8 +217,9 @@ public:
 		const UClass* BPClass = Blueprint ? Blueprint->GetClass() : nullptr;
 
 		if( BPClass && 
-			(BPClass->IsChildOf( UEditorUtilityBlueprint::StaticClass())
-			|| BPClass->IsChildOf(UEditorUtilityWidgetBlueprint::StaticClass())))
+			( BPClass->IsChildOf( UEditorUtilityBlueprint::StaticClass() )
+				|| BPClass->IsChildOf( UEditorUtilityWidgetBlueprint::StaticClass() )
+				|| IsEditorOnlyObject(BPClass) ) )
 		{
 			return true;
 		}

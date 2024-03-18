@@ -5,6 +5,7 @@
 #include "Modules/ModuleManager.h"
 
 class FAssetTypeActions_InterchangeBlueprintPipelineBase;
+class FAssetTypeActions_InterchangeEditorBlueprintPipelineBase;
 class FAssetTypeActions_InterchangePipelineBase;
 class FAssetTypeActions_InterchangePythonPipelineBase;
 
@@ -40,6 +41,7 @@ public:
 	TArray<FName> ClassesToUnregisterOnShutdown;
 
 	TSharedPtr<FAssetTypeActions_InterchangeBlueprintPipelineBase> BlueprintPipelineBase_TypeActions;
+	TSharedPtr<FAssetTypeActions_InterchangeEditorBlueprintPipelineBase> BlueprintEditorPipelineBase_TypeActions;
 	TSharedPtr<FAssetTypeActions_InterchangePipelineBase> PipelineBase_TypeActions;
 	TSharedPtr<FAssetTypeActions_InterchangePythonPipelineBase> PythonPipelineBase_TypeActions;
 };
