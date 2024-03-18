@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TransferFunctions.h"
+#include "ColorManagement/TransferFunctions.h"
 #include "Logging/LogMacros.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTransferFunctions, Log, All);

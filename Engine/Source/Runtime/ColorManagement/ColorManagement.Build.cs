@@ -6,7 +6,7 @@ public class ColorManagement : ModuleRules
 {
 	public ColorManagement(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PrivateDependencyModuleNames.AddRange(
+		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
 			}

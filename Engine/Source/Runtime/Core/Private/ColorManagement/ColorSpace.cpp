@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Math/VectorRegister.h"
 
@@ -246,7 +246,7 @@ FLinearColor FColorSpace::MakeFromColorTemperature(float Temp) const
 float FColorSpace::GetLuminance(const FLinearColor& Color) const
 {
 	//Note: Equivalent to the dot product of Color and RgbToXYZ.GetColumn(1).
-	return Color.R * RgbToXYZ.M[0][1] + Color.G * RgbToXYZ.M[1][1] + Color.B * RgbToXYZ.M[2][1];
+	return Color.R * (float)RgbToXYZ.M[0][1] + Color.G * (float)RgbToXYZ.M[1][1] + Color.B * (float)RgbToXYZ.M[2][1];
 }
 
 FLinearColor FColorSpace::GetLuminanceFactors() const

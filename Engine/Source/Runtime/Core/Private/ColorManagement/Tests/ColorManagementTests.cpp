@@ -4,8 +4,8 @@
 
 #include "CoreTypes.h"
 #include "Containers/UnrealString.h"
-#include "TransferFunctions.h"
-#include "ColorSpace.h"
+#include "ColorManagement/TransferFunctions.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Math/NumericLimits.h"
 #include "Math/UnrealMathUtility.h"
 #include "Logging/LogMacros.h"
@@ -29,7 +29,7 @@ TEST_CASE_NAMED(FTransferFunctionsTest, "System::ColorManagement::TransferFuncti
 		{
 			float Encoded = UE::Color::Encode(EncodingType, TestValue);
 			float Decoded = UE::Color::Decode(EncodingType, Encoded);
-			CHECK_MESSAGE(TEXT("Transfer function encode followed by decode must match identity"), FMath::IsNearlyEqual(Decoded, TestValue, KINDA_SMALL_NUMBER));
+			CHECK_MESSAGE(TEXT("Transfer function encode followed by decode must match identity"), FMath::IsNearlyEqual(Decoded, TestValue, UE_KINDA_SMALL_NUMBER));
 		}
 	}
 }
@@ -269,13 +269,13 @@ static void TestLuminance()
 	// Note: test factors from the python (colour-science) colour library.
 
 	FLinearColor LuminanceFactors = FColorSpace(EColorSpace::sRGB).GetLuminanceFactors();
-	CHECK_MESSAGE(TEXT("sRGB luminance factors equality test"), LuminanceFactors.Equals(FLinearColor(0.212639005872, 0.715168678768, 0.0721923153607), UE_SMALL_NUMBER));
+	CHECK_MESSAGE(TEXT("sRGB luminance factors equality test"), LuminanceFactors.Equals(FLinearColor(0.212639005872f, 0.715168678768f, 0.0721923153607f), UE_SMALL_NUMBER));
 
 	LuminanceFactors = FColorSpace(EColorSpace::ACESAP1).GetLuminanceFactors();
-	CHECK_MESSAGE(TEXT("ACESAP1 luminance factors equality test"), LuminanceFactors.Equals(FLinearColor(0.272228716781, 0.674081765811, 0.0536895174079), UE_SMALL_NUMBER));
+	CHECK_MESSAGE(TEXT("ACESAP1 luminance factors equality test"), LuminanceFactors.Equals(FLinearColor(0.272228716781f, 0.674081765811f, 0.0536895174079f), UE_SMALL_NUMBER));
 
 	LuminanceFactors = FColorSpace(EColorSpace::Rec2020).GetLuminanceFactors();
-	CHECK_MESSAGE(TEXT("Rec2020 luminance factors equality test"), LuminanceFactors.Equals(FLinearColor(0.262700212011, 0.677998071519, 0.0593017164699), UE_SMALL_NUMBER));
+	CHECK_MESSAGE(TEXT("Rec2020 luminance factors equality test"), LuminanceFactors.Equals(FLinearColor(0.262700212011f, 0.677998071519f, 0.0593017164699f), UE_SMALL_NUMBER));
 }
 
 TEST_CASE_NAMED(FColorSpaceTest, "System::ColorManagement::ColorSpace", "[EditorContext][EngineFilter]")
