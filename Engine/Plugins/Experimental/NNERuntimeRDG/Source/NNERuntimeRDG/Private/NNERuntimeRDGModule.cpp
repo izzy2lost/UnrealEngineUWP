@@ -2,7 +2,6 @@
 
 #include "NNERuntimeRDGModule.h"
 #include "NNE.h"
-#include "NNERuntimeRDGDml.h"
 #include "NNERuntimeRDGHlsl.h"
 #include "UObject/WeakInterfacePtr.h"
 
@@ -19,20 +18,6 @@ void FNNERuntimeRDGModule::StartupModule()
 		NNERuntimeRDGHlsl->AddToRoot();
 		UE::NNE::RegisterRuntime(RuntimeCPUInterface);
 	}
-
-#ifdef NNE_USE_DIRECTML
-	// NNE runtime ORT Dml startup
-	NNERuntimeRDGDml = NewObject<UNNERuntimeRDGDmlImpl>();
-	if (NNERuntimeRDGDml.IsValid())
-	{
-		TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeRDGDml.Get());
-		
-		bool bRegisterOnlyOperators = UE::NNERuntimeRDG::Private::Dml::FRuntimeDmlStartup();
-		NNERuntimeRDGDml->Init(bRegisterOnlyOperators);
-		NNERuntimeRDGDml->AddToRoot();
-		UE::NNE::RegisterRuntime(RuntimeDmlInterface);
-	}
-#endif
 }
 
 void FNNERuntimeRDGModule::ShutdownModule()
@@ -46,19 +31,6 @@ void FNNERuntimeRDGModule::ShutdownModule()
 		NNERuntimeRDGHlsl->RemoveFromRoot();
 		NNERuntimeRDGHlsl.Reset();
 	}
-
-#ifdef NNE_USE_DIRECTML
-	// NNE runtime ORT Dml shutdown
-	if (NNERuntimeRDGDml.IsValid())
-	{
-		TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeRDGDml.Get());
-
-		UE::NNE::UnregisterRuntime(RuntimeDmlInterface);
-		NNERuntimeRDGDml->RemoveFromRoot();
-		NNERuntimeRDGDml.Reset();
-	}
-#endif
-
 }
 
 IMPLEMENT_MODULE(FNNERuntimeRDGModule, NNERuntimeRDG);

@@ -22,25 +22,14 @@ public class NNERuntimeRDG : ModuleRules
 			"RenderCore"
 		});
 
-        PrivateDependencyModuleNames.AddRange(new string[]
-        {
-            "NNE",
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"NNE",
 			"NNEHlslShaders",
-            "RHI",
+			"RHI",
 			"Projects",
 			"TraceLog"
 		});
-
-        if (Target.Platform == UnrealTargetPlatform.Win64)
-		{
-			PrivateDependencyModuleNames.Add("D3D12RHI");
-			PrivateDependencyModuleNames.Add("DirectML");
-
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "DirectML");
-
-			PublicDefinitions.Add("NNE_USE_DIRECTML");
-		}
 
 		if (Target.Platform == UnrealTargetPlatform.Mac)
 		{	
