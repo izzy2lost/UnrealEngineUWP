@@ -73,7 +73,7 @@ namespace UE::Interchange::Private
 		return true;
 	}
 
-	bool FSkeletonHelper::IsCompatibleSkeleton(const USkeleton* Skeleton, const FString RootJoinUid, const UInterchangeBaseNodeContainer* BaseNodeContainer, bool bConvertStaticToSkeletalActive)
+	bool FSkeletonHelper::IsCompatibleSkeleton(const USkeleton* Skeleton, const FString RootJoinUid, const UInterchangeBaseNodeContainer* BaseNodeContainer, bool bConvertStaticToSkeletalActive, bool bCheckForIdenticalSkeleton)
 	{
 		if (!Skeleton)
 		{
@@ -112,6 +112,10 @@ namespace UE::Interchange::Private
 			}
 			else
 			{
+				if (bCheckForIdenticalSkeleton)
+				{
+					return false;
+				}
 				int32 CurrentBoneId = MeshBoneIndex;
 				// if not look for parents that matches
 				while (SkeletonBoneIndex == INDEX_NONE && CurrentBoneId != INDEX_NONE)
