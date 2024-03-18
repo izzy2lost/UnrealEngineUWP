@@ -104,20 +104,15 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		//! Get the value that this node returns
-        void GetValue( PROJECTOR_TYPE* pType,
-                       float* pPosX, float* pPosY, float* pPosZ,
-					   float* pDirX, float* pDirY, float* pDirZ,
-					   float* pUpX, float* pUpY, float *pUpZ,
-                       float* pScaleU, float* pScaleV, float* pScaleW,
-                       float* pProjectionAngle ) const;
+        void GetValue( PROJECTOR_TYPE* OutType,
+			FVector3f* OutPos,
+			FVector3f* OutDir,
+			FVector3f* OutUp,
+			FVector3f* OutScaleU,
+			float* OutProjectionAngle ) const;
 
 		//! Set the value to be returned by this node
-        void SetValue( PROJECTOR_TYPE type,
-                       float posX, float posY, float posZ,
-					   float dirX, float dirY, float dirZ,
-					   float upX, float upY, float upZ,
-                       float scaleU, float scaleV, float scaleW,
-                       float projectionAngle );
+        void SetValue( PROJECTOR_TYPE type, FVector3f pos, FVector3f dir, FVector3f up, FVector3f scale, float projectionAngle);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
@@ -175,11 +170,11 @@ namespace mu
 
 		//! Set the default value of the parameter.
         void SetDefaultValue( PROJECTOR_TYPE type,
-                              float posX, float posY, float posZ,
-							  float dirX, float dirY, float dirZ,
-							  float upX, float upY, float upZ,
-                              float scaleU, float scaleV, float scaleW,
-                              float projectionAngle );
+			FVector3f pos,
+			FVector3f dir,
+			FVector3f up,
+			FVector3f scale,
+			float projectionAngle );
 
         //! Set the number of ranges (dimensions) for this parameter.
         //! By default a parameter has 0 ranges, meaning it only has one value.

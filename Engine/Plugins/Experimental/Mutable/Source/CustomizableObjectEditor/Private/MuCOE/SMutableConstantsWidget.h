@@ -84,7 +84,7 @@ struct FMutableConstantProjectorElement : public FMutableConstantElement
 */
 struct FMutableConstantMatrixElement : public FMutableConstantElement
 { 
-	const mu::mat4f* Matrix = nullptr;
+	FMatrix44f Matrix;
 };
 
 /**

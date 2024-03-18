@@ -305,20 +305,7 @@ namespace mu
 		}
 	}
 
-	MUTABLE_DEFINE_POD_SERIALISABLE(vec2f);
-	MUTABLE_DEFINE_POD_SERIALISABLE(vec3f);
-	MUTABLE_DEFINE_POD_SERIALISABLE(vec4f);
-	MUTABLE_DEFINE_POD_SERIALISABLE(mat3f);
-	MUTABLE_DEFINE_POD_SERIALISABLE(mat4f);
-	MUTABLE_DEFINE_POD_SERIALISABLE(vec2<int>);
-
 	// Unreal POD Serializables
-	MUTABLE_DEFINE_POD_SERIALISABLE(FUintVector2);
-	MUTABLE_DEFINE_POD_SERIALISABLE(UE::Math::TIntVector2<uint16>);
-	MUTABLE_DEFINE_POD_SERIALISABLE(UE::Math::TIntVector2<int16>);
-	MUTABLE_DEFINE_POD_SERIALISABLE(FVector4f);
-	MUTABLE_DEFINE_POD_SERIALISABLE(UE::Math::TVector4<float>);
-
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(float);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(double);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(uint8);
@@ -329,19 +316,15 @@ namespace mu
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(int16);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(int32);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(int64);
-
-	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(vec2f);
-	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(vec3f);
-	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(vec4f);
-	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(mat3f);
-	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(mat4f);
-	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(vec2<int>);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(TCHAR);
 
+	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FIntVector2);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FUintVector2);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(UE::Math::TIntVector2<uint16>);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(UE::Math::TIntVector2<int16>);
+	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FVector2f);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FVector4f);
+	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FMatrix44f);
 
 	
 	//---------------------------------------------------------------------------------------------
@@ -500,24 +483,5 @@ namespace mu
 		v.SetComponents(Rot, Trans, Scale);
 	}
 
-
-	//---------------------------------------------------------------------------------------------
-	template< typename T >
-	inline void operator<< (OutputArchive& arch, const UE::Math::TVector4<T>& v)
-	{
-		arch << v.X;
-		arch << v.Y;
-		arch << v.Z;
-		arch << v.W;
-	}
-
-	template< typename T >
-	inline void operator>> (InputArchive& arch, UE::Math::TVector4<T>& v)
-	{
-		arch >> v.X;
-		arch >> v.Y;
-		arch >> v.Z;
-		arch >> v.W;
-	}
 
 }

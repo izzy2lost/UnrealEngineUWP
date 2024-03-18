@@ -473,7 +473,7 @@ namespace mu
 				FImageRect maskUsage;
 				maskUsage.min[0] = (sourceMaskUsage.min[0] / blockSize) * blockSize;
 				maskUsage.min[1] = (sourceMaskUsage.min[1] / blockSize) * blockSize;
-				vec2<uint16> minOffset = sourceMaskUsage.min - maskUsage.min;
+				FImageSize minOffset = sourceMaskUsage.min - maskUsage.min;
 				maskUsage.size[0] = ((sourceMaskUsage.size[0] + minOffset[0] + blockSize - 1) / blockSize) * blockSize;
 				maskUsage.size[1] = ((sourceMaskUsage.size[1] + minOffset[1] + blockSize - 1) / blockSize) * blockSize;
 

@@ -121,7 +121,7 @@ namespace mu
 
         for ( int v=0; v<vertexCount; ++v )
         {
-            FVector3f sourcePosition = ToUnreal(*itSource);
+            FVector3f sourcePosition = itSource.GetAsVec3f();
 			FVector3f position = FVector3f(0,0,0);
 
             float totalWeight = 0.0f;
@@ -152,7 +152,9 @@ namespace mu
                 position /= totalWeight;
             }
 
-            *itTarget = FromUnreal(position);
+			(*itTarget)[0] = position[0];
+			(*itTarget)[1] = position[1];
+			(*itTarget)[2] = position[2];
 
             ++itTarget;
             ++itSource;

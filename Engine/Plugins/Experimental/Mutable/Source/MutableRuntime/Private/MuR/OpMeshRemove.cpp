@@ -98,9 +98,9 @@ namespace mu
                 for ( int32 f=0; f<IndexCount/3; ++f )
                 {
                     uint32 sourceIndices[3];
-                    sourceIndices[0] = itSource[0][0];
-                    sourceIndices[1] = itSource[1][0];
-                    sourceIndices[2] = itSource[2][0];
+                    sourceIndices[0] = (*itSource)[0];
+                    sourceIndices[1] = (*itSource)[1];
+                    sourceIndices[2] = (*itSource)[2];
 
 					check(sourceIndices[0] < RemovedVertexCount);
 					check(sourceIndices[1] < RemovedVertexCount);
@@ -146,9 +146,9 @@ namespace mu
                 for ( int32 f=0; f<indexCount/3; ++f )
                 {
                     uint16 sourceIndices[3];
-                    sourceIndices[0] = itSource[0][0];
-                    sourceIndices[1] = itSource[1][0];
-                    sourceIndices[2] = itSource[2][0];
+                    sourceIndices[0] = (*itSource)[0];
+                    sourceIndices[1] = (*itSource)[1];
+                    sourceIndices[2] = (*itSource)[2];
 
 					check(sourceIndices[0] < RemovedVertexCount);
 					check(sourceIndices[1] < RemovedVertexCount);

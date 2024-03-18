@@ -11,7 +11,7 @@ namespace mu
 {
 	//!
 	using FImageSize = UE::Math::TIntVector2<uint16>;
-	using FImageRect = box<vec2<uint16>>;
+	using FImageRect = box<FImageSize>;
 
 	//! Pixel formats supported by the images.
 	//! \ingroup runtime

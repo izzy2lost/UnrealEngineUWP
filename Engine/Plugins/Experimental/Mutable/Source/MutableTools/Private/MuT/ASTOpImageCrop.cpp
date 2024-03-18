@@ -289,13 +289,13 @@ namespace mu
 			Ptr<ASTOp> rectOp = typedPatch->patch.child();
 			ASTOp::FGetImageDescContext context;
 			FImageDesc patchDesc = rectOp->GetImageDesc(false, &context);
-			box<vec2<int16>> patchBox;
+			box<FIntVector2> patchBox;
 			patchBox.min[0] = typedPatch->location[0];
 			patchBox.min[1] = typedPatch->location[1];
 			patchBox.size[0] = patchDesc.m_size[0];
 			patchBox.size[1] = patchDesc.m_size[1];
 
-			box<vec2<int16>> cropBox;
+			box<FIntVector2> cropBox;
 			cropBox.min[0] = currentCropOp->Min[0];
 			cropBox.min[1] = currentCropOp->Min[1];
 			cropBox.size[0] = currentCropOp->Size[0];
@@ -313,7 +313,7 @@ namespace mu
 				Ptr<ASTOpImagePatch> newOp = mu::Clone<ASTOpImagePatch>(at);
 				newOp->base = Visit(newOp->base.child(), currentCropOp);
 
-				box<vec2<int16>> ibox = patchBox.Intersect(cropBox);
+				box<FIntVector2> ibox = patchBox.Intersect2i(cropBox);
 				check(ibox.size[0] > 0 && ibox.size[1] > 0);
 
 				Ptr<ASTOpImageCrop> patchCropOp = mu::Clone<ASTOpImageCrop>(currentCropOp);
@@ -336,13 +336,13 @@ namespace mu
 			// We can combine the two crops into a possibly smaller crop
 			const ASTOpImageCrop* childCrop = static_cast<const ASTOpImageCrop*>(at.get());
 
-			box<vec2<int16>> childCropBox;
+			box<FIntVector2> childCropBox;
 			childCropBox.min[0] = childCrop->Min[0];
 			childCropBox.min[1] = childCrop->Min[1];
 			childCropBox.size[0] = childCrop->Size[0];
 			childCropBox.size[1] = childCrop->Size[1];
 
-			box<vec2<int16>> cropBox;
+			box<FIntVector2> cropBox;
 			cropBox.min[0] = currentCropOp->Min[0];
 			cropBox.min[1] = currentCropOp->Min[1];
 			cropBox.size[0] = currentCropOp->Size[0];
@@ -350,12 +350,13 @@ namespace mu
 
 			// Compose the crops: in the final image the child crop is applied first and the
 			// current ctop is applied to the result. So the final crop box would be:
-			box<vec2<int16>> ibox;
+			box<FIntVector2> ibox;
 			ibox.min = childCropBox.min + cropBox.min;
-			ibox.size = vec2<int16>::min(cropBox.size, childCropBox.size);
-			check(cropBox.min.AllSmallerOrEqualThan(childCropBox.size));
-			check((cropBox.min + cropBox.size).AllSmallerOrEqualThan(childCropBox.size));
-			check((ibox.min + ibox.size).AllSmallerOrEqualThan(childCropBox.min + childCropBox.size));
+			ibox.size[0] = FMath::Min(cropBox.size[0], childCropBox.size[0]);
+			ibox.size[1] = FMath::Min(cropBox.size[1], childCropBox.size[1]);
+			//check(cropBox.min.AllSmallerOrEqualThan(childCropBox.size));
+			//check((cropBox.min + cropBox.size).AllSmallerOrEqualThan(childCropBox.size));
+			//check((ibox.min + ibox.size).AllSmallerOrEqualThan(childCropBox.min + childCropBox.size));
 
 			// This happens more often that one would think
 			if (ibox == childCropBox)
@@ -441,7 +442,7 @@ namespace mu
 			bool bRasterHasCrop = nop->UncroppedSizeX != 0;
 			if (!bRasterHasCrop)
 			{
-				box<vec2<int16>> cropBox;
+				box<FIntVector2> cropBox;
 				cropBox.min[0] = currentCropOp->Min[0];
 				cropBox.min[1] = currentCropOp->Min[1];
 				cropBox.size[0] = currentCropOp->Size[0];

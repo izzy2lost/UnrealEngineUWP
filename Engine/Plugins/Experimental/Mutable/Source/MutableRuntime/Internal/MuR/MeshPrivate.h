@@ -340,14 +340,10 @@ namespace mu
 			}
 		}
 
-		inline vec<CTYPE,COMPONENTS>& operator*()
+		// \TODO: Replace this with safer sized-typed access.
+		inline CTYPE* operator*()
 		{
-			return *reinterpret_cast< vec<CTYPE,COMPONENTS>* >( m_pBuf );
-		}
-
-		inline vec<CTYPE,COMPONENTS>& operator[]( size_t i )
-		{
-			return *((*this)+int(i));
+			return reinterpret_cast<CTYPE*>(m_pBuf);
 		}
 
 		inline MeshBufferIterator<FORMAT,CTYPE,COMPONENTS> operator+(int c)
@@ -521,25 +517,13 @@ namespace mu
             ConvertData( 0, &res, MBF_UINT32, ptr(), m_format );
             return res;
         }
-        
-        vec<int32_t,8> GetAsVec8i() const
-        {
-            vec<int32_t, 8> res;
-            for ( int c = 0; c < FMath::Min( m_components, 8 ); ++c )
-            {
-                ConvertData( c, &res[0], MBF_INT32, ptr(), m_format );
-            }
-            return res;
-        }
-
-		vec<int32_t, 12> GetAsVec12i() const
+ 
+		void GetAsInt32Vec(int32* Data, int32 Count) const
 		{
-			vec<int32_t, 12> res;
-			for (int c = 0; c < FMath::Min(m_components, 12); ++c)
+			for (int32 c = 0; c < FMath::Min(m_components, Count); ++c)
 			{
-				ConvertData(c, &res[0], MBF_INT32, ptr(), m_format);
+				ConvertData(c, Data, MBF_INT32, ptr(), m_format);
 			}
-			return res;
 		}
 
         inline UntypedMeshBufferIteratorConst operator+(int c) const
@@ -623,14 +607,9 @@ namespace mu
 			}
 		}
 
-		inline const vec<CTYPE,COMPONENTS>& operator*() const
+		inline const CTYPE* operator*() const
 		{
-			return *reinterpret_cast< const vec<CTYPE,COMPONENTS>* >( m_pBuf );
-		}
-
-		inline const vec<CTYPE,COMPONENTS>& operator[]( size_t i ) const
-		{
-			return *((*this)+int(i));
+			return reinterpret_cast<const CTYPE*>(m_pBuf);
 		}
 
 		inline MeshBufferIteratorConst<FORMAT,CTYPE,COMPONENTS> operator+(int c) const

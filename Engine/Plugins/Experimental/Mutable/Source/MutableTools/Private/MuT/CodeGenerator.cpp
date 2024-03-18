@@ -2232,20 +2232,20 @@ namespace mu
 					morphShape.position = TypedNode->m_origin;
 					morphShape.up = TypedNode->m_normal;
 					// TODO: Move rotation to ellipse rotation reference base instead of passing it directly
-					morphShape.size = vec3f(TypedNode->m_radius1, TypedNode->m_radius2, TypedNode->m_rotation);
+					morphShape.size = FVector3f(TypedNode->m_radius1, TypedNode->m_radius2, TypedNode->m_rotation);
 
 					// Generate a "side" vector.
 					// \todo: make generic and move to the vector class
 					{
 						// Generate vector perpendicular to normal for ellipse rotation reference base
-						vec3f aux_base(0.f, 1.f, 0.f);
+						FVector3f aux_base(0.f, 1.f, 0.f);
 
-						if (fabs(dot(TypedNode->m_normal, aux_base)) > 0.95f)
+						if (FMath::Abs(FVector3f::DotProduct(TypedNode->m_normal, aux_base)) > 0.95f)
 						{
-							aux_base = vec3f(0.f, 0.f, 1.f);
+							aux_base = FVector3f(0.f, 0.f, 1.f);
 						}
 
-						morphShape.side = cross(TypedNode->m_normal, aux_base);
+						morphShape.side = FVector3f::CrossProduct(TypedNode->m_normal, aux_base);
 					}
 					op->morphShape = morphShape;
 				}

@@ -28,7 +28,7 @@ namespace mu
 	NodeColourConstantPtr NodeColourConstant::OldStaticUnserialise(InputArchive& arch)
 	{
 		NodeColourConstantPtr pResult = new NodeColourConstant();
-		vec3<float> Value;
+		FVector3f Value;
 
 		arch >> Value;
 		pResult->GetPrivate()->m_value = FVector4f(Value[0], Value[1], Value[2], 1.0f);

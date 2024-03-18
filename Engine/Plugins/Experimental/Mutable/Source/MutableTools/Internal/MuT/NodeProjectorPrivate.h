@@ -26,16 +26,16 @@ namespace mu
 		static FNodeType s_type;
 
         PROJECTOR_TYPE m_type = PROJECTOR_TYPE::PLANAR;
-		vec3<float> m_position;
-		vec3<float> m_direction;
-		vec3<float> m_up;
-        vec3<float> m_scale;
+		FVector3f m_position;
+		FVector3f m_direction;
+		FVector3f m_up;
+		FVector3f m_scale;
         float m_projectionAngle = 0.0f;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 2;
+            uint32 ver = 2;
 			arch << ver;
 
             arch << m_type;
@@ -49,7 +49,7 @@ namespace mu
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
             check(ver==2);
 
@@ -80,7 +80,7 @@ namespace mu
 		{
 			NodeProjectorConstant::Private::Serialise( arch );
 
-            uint32_t ver = 3;
+            uint32 ver = 3;
 			arch << ver;
 
 			arch << m_name;
@@ -93,7 +93,7 @@ namespace mu
 		{
 			NodeProjectorConstant::Private::Unserialise( arch );
 
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
             check(ver<=3);
 

@@ -12,7 +12,7 @@
 
 namespace mu
 {
-struct FProgram;
+	struct FProgram;
 
 	class ASTOpImageCrop final : public ASTOp
 	{
@@ -37,7 +37,7 @@ struct FProgram;
 		virtual FImageDesc GetImageDesc(bool returnBestOption, FGetImageDescContext* context) const override;
 		virtual Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
 		virtual void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
-		//TODO: virtual bool IsImagePlainConstant(vec4<float>& colour) const override;
+		//TODO: virtual bool IsImagePlainConstant(FVector4f& colour) const override;
 		virtual Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions& options, int32 Pass) const override;
 		virtual Ptr<ASTOp> OptimiseSink(const FModelOptimizationOptions& options, FOptimizeSinkContext& context) const override;
 

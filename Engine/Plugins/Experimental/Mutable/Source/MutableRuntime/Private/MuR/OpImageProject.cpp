@@ -17,6 +17,7 @@
 
 #include "Async/ParallelFor.h"
 #include "Containers/Array.h"
+#include "Intersection/IntrRay3Triangle3.h"
 #include "Math/IntPoint.h"
 #include "Math/UnrealMathSSE.h"
 #include "Misc/AssertionMacros.h"
@@ -2055,24 +2056,23 @@ void MeshProject_Optimised_Cylindrical(const FOptimizedVertex* pVertices, int ve
     // TODO: support for non uniform scale?
     float radius = projectorScale[1];
     float height = projectorScale[0];
-    mat3f worldToCylinder = mat3f(vec3f(projectorDirection), vec3f(projectorSide), vec3f(projectorUp) );
-    //worldToCylinder = worldToCylinder.GetTransposed();
+	FMatrix44f WorldToCylinder(projectorDirection, projectorSide, projectorUp,FVector3f(0,0,0));
 
     for ( int v=0; v<vertexCount; ++v )
     {
         // Cylinder is along the X axis
 
         // Project
-		vec3f relPos = vec3f(pVertices[v].Position - projectorPosition);
-        vec3f vertexPos_cylinder = worldToCylinder.Transform(relPos);
+		FVector3f RelPos = pVertices[v].Position - projectorPosition;
+		FVector3f VertexPos_Cylinder = WorldToCylinder.InverseTransformPosition(RelPos);
 
         // This final projection needs to be done per pixel
-        float x = vertexPos_cylinder.x() / height;
-        float r2 = vertexPos_cylinder.y()*vertexPos_cylinder.y()
-                + vertexPos_cylinder.z()*vertexPos_cylinder.z();
+        float x = VertexPos_Cylinder.X / height;
+        float r2 = VertexPos_Cylinder.Y * VertexPos_Cylinder.Y
+                + VertexPos_Cylinder.Z * VertexPos_Cylinder.Z;
         projectedPositions[v].pos0 = x;
-        projectedPositions[v].pos1 = vertexPos_cylinder.y() / radius;
-        projectedPositions[v].pos2 = vertexPos_cylinder.z() / radius;
+        projectedPositions[v].pos1 = VertexPos_Cylinder.Y / radius;
+        projectedPositions[v].pos2 = VertexPos_Cylinder.Z / radius;
         uint32 planeMask =
                 ((x<0.0f)<<0) |
                 ((x>1.0f)<<1) |
@@ -2193,6 +2193,9 @@ void MeshProject_Optimised_Wrapping(const Mesh* pMesh,
         vertToFacesMap.Add(collapsedVertexMap[i2], f);
     }
 
+	FRay3f Ray(projectorPosition, projectorDirection, false);
+	UE::Geometry::FIntrRay3Triangle3f Intersector(Ray, UE::Geometry::FTriangle3f());
+
     // Trace a ray in the projection direction to find the face that will be projected planarly and be the root of the unfolding
     // Also build face connectivity information
     for (int f = 0; f < faceCount; ++f)
@@ -2203,16 +2206,17 @@ void MeshProject_Optimised_Wrapping(const Mesh* pMesh,
 
 		FVector3f rayStart = projectorPosition;
 		FVector3f rayEnd = projectorPosition + projectorDirection * maxDist;
-		FVector3f aux_out_intersection;
-        int out_intersected_vert, out_intersected_edge_v0, out_intersected_edge_v1;
-        float t;
+
+		Intersector.Triangle = UE::Geometry::FTriangle3f(pVertices[i0].Position, pVertices[i1].Position, pVertices[i2].Position);
+
 
         rayLength = (rayEnd - rayStart).Length();
 
-        bool intersects = rayIntersectsFace2(rayStart, rayEnd, pVertices[i0].Position, pVertices[i1].Position, pVertices[i2].Position,
-            aux_out_intersection, out_intersected_vert, out_intersected_edge_v0, out_intersected_edge_v1, t);
+		bool bIntersects = Intersector.Find();
+		float t = Intersector.RayParameter;
+		FVector3f aux_out_intersection = Ray.PointAt(Intersector.RayParameter);
 
-        if (intersects && t < min_t)
+        if (bIntersects && t < min_t)
         {
             intersectedFace = f;
             min_t = t;

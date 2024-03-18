@@ -201,11 +201,11 @@ namespace Private
 	struct FShape
 	{
 		// Transform
-		vec3f position;
-		vec3f up;
-		vec3f side;
+		FVector3f position;
+		FVector3f up;
+		FVector3f side;
 		
-		vec3f size;
+		FVector3f size;
 
 		// 
 		enum class Type : uint8

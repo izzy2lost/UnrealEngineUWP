@@ -85,11 +85,11 @@ namespace mu
     {
         TArray< UE::Math::TIntVector2<uint16> > blocks;
 		TArray< FLayoutBlock > sorted;
-		TArray< vec2<int> > positions;
-		TArray< int > priorities;
-		TArray< vec2<int> > reductions;
-		TArray< int > ReduceBothAxes;
-		TArray< int > ReduceByTwo;
+		TArray< FIntVector2 > positions;
+		TArray< int32 > priorities;
+		TArray< FIntVector2 > reductions;
+		TArray< int32 > ReduceBothAxes;
+		TArray< int32 > ReduceByTwo;
     };
 
 
@@ -114,132 +114,6 @@ namespace mu
         }
         return '.';
     }
-
-
-    // inline void LayoutPack( Layout* pResult,
-    //                         const Layout* pSourceLayout,
-    //                         SCRATCH_LAYOUT_PACK* scratch  )
-    // {
-    //     check( pResult->GetBlockCount() == pSourceLayout->GetBlockCount() );
-
-    //     int blockCount = pSourceLayout->GetBlockCount();
-    //     check( (int)scratch->blocks.Num()==blockCount );
-
-    //     // Look for the maximum block sizes on the layout and the total area
-    //     int maxX = 0;
-    //     int maxY = 0;
-    //     int area = 0;
-    //     for ( int index=0; index<blockCount; ++index )
-    //     {
-    //         box< vec2<int> > b;
-    //         pSourceLayout->GetBlock( index, &b.min[0], &b.min[1], &b.size[0], &b.size[1] );
-
-    //         maxX = FMath::Max( maxX, b.size[0] );
-    //         maxY = FMath::Max( maxY, b.size[1] );
-
-    //         area += b.size[0] * b.size[1];
-
-    //         scratch->blocks[index] = b.size;
-    //     }
-
-    //     // Grow until the area is big enough to fit all blocks. We always grow X first, because
-    //     // in case we cannot pack everything, we will grow Y with the current horizon algorithm.
-    //     maxX = ceilPow2( maxX );
-    //     maxY = ceilPow2( maxY );
-    //     while ( maxX*maxY<area )
-    //     {
-    //         if (maxX>maxY)
-    //         {
-    //             maxY*=2;
-    //         }
-    //         else
-    //         {
-    //             maxX*=2;
-    //         }
-    //     }
-
-    //     // Sort by height, area
-    //     check( (int)scratch->sorted.Num()==blockCount );
-    //     for ( int index=0; index<blockCount; ++index )
-    //     {
-    //         scratch->sorted[index] = FLayoutBlock( index, scratch->blocks[index], scratch->priorities[index] );
-    //     }
-    //     std::sort( scratch->sorted.begin(), scratch->sorted.end(), CompareBlocks );
-
-    //     check( (int)scratch->sorted.Num()==blockCount );
-
-    //     bool fits = false;
-    //     int iterations = 0;
-
-    //     while (!fits)
-    //     {
-    //         ++iterations;
-
-    //         // Pack with fixed horizontal size
-    //         check( maxX<256 );
-    //         int16_t horizon[256];
-    //         mutable_memset( horizon, 0, 256*sizeof(int16_t) );
-    //         maxY = 0;
-
-    //         for ( size_t p=0; p<scratch->sorted.Num(); ++p )
-    //         {
-    //             // Seek for the lowest span where the block fits
-    //             int currentLevel = std::numeric_limits<int>::max();
-    //             int currentX = 0;
-    //             for ( int x=0; x<=maxX-scratch->sorted[p].size[0]; ++x )
-    //             {
-    //                 int level = 0;
-    //                 for( int xs=x; xs<x+scratch->sorted[p].size[0]; ++xs )
-    //                 {
-    //                     level = FMath::Max( level, (int)horizon[xs] );
-    //                 }
-
-    //                 if (level<currentLevel)
-    //                 {
-    //                     currentLevel = level;
-    //                     currentX = x;
-    //                 }
-
-    //             }
-
-    //             check( currentX>=0 && currentX<=maxX-scratch->sorted[p].size[0] );
-
-    //             // Update horizon
-    //             for( int xs=currentX; xs<currentX+scratch->sorted[p].size[0]; ++xs )
-    //             {
-    //                 horizon[xs] = (uint16)(currentLevel+scratch->sorted[p].size[1]);
-    //             }
-
-    //             // Store
-    //             scratch->positions[ scratch->sorted[p].index ] = vec2<int>( currentX, currentLevel );
-    //             maxY = FMath::Max( maxY, currentLevel+scratch->sorted[p].size[1] );
-    //         }
-
-    //         maxY = ceilPow2( maxY );
-
-    //         // TODO: Adjust this value
-    //         if ( maxY <= maxX || iterations>5000 )
-    //         {
-    //             fits = true;
-    //         }
-    //         else
-    //         {
-    //             fits = !std::next_permutation( scratch->sorted.begin(), scratch->sorted.end(), CompareBlocks );
-    //         }
-    //     }
-
-    //     // Set data in the result
-    //     pResult->SetGridSize( maxX, maxY );
-    //     for ( int index=0; index<blockCount; ++index )
-    //     {
-    //         pResult->SetBlock
-    //             (
-    //                 index,
-    //                 scratch->positions[index][0], scratch->positions[index][1],
-    //                 scratch->blocks[index][0], scratch->blocks[index][1]
-    //             );
-    //     }
-    // }
 
 
 	inline void ReductionOperation(uint16& BlockSize, EReductionMethod ReductionMethod, int32 bReduceByTwo)
@@ -483,7 +357,7 @@ namespace mu
 			}
 
 			// Store
-			scratch->positions[scratch->sorted[best].index] = vec2<int>(bestX, bestLevel);
+			scratch->positions[scratch->sorted[best].index] = FIntVector2(bestX, bestLevel);
 			*maxY = FMath::Max(*maxY, uint16(bestLevel + scratch->sorted[best].size[1]) );
 
 			if (packStrategy == EPackStrategy::FIXED_LAYOUT && *maxY > layoutSizeY)
@@ -552,7 +426,7 @@ namespace mu
 			bool bReduceBothAxes, bReduceByTwo;
 			pSourceLayout->GetBlockOptions(index, p, bReduceBothAxes, bReduceByTwo);
 
-			vec2<int> reductions;
+			FIntVector2 reductions;
 			reductions[0] = 0;
 			reductions[1] = 0;
 

@@ -247,7 +247,7 @@ namespace mu
 		TArray<FProjector> m_constantProjectors;
 
         //! Constant matrices, usually used for transforms
-		TArray<mat4f> m_constantMatrices;
+		TArray<FMatrix44f> m_constantMatrices;
 
 		//! Constant shapes
 		TArray<FShape> m_constantShapes;
@@ -505,7 +505,7 @@ namespace mu
             return index;
         }
 
-        OP::ADDRESS AddConstant( const mat4f& m )
+        OP::ADDRESS AddConstant( const FMatrix44f& m )
         {
             // Ensure unique
             for ( SIZE_T i=0; i<m_constantMatrices.Num(); ++i)

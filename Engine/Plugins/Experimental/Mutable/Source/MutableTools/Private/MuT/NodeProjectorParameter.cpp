@@ -53,17 +53,17 @@ namespace mu
 
 	//---------------------------------------------------------------------------------------------
     void NodeProjectorParameter::SetDefaultValue( PROJECTOR_TYPE type,
-                                                  float posX, float posY, float posZ,
-												  float dirX, float dirY, float dirZ,
-												  float upX, float upY, float upZ,
-                                                  float scaleU, float scaleV, float scaleW,
-                                                  float projectionAngle )
+		FVector3f pos,
+		FVector3f dir,
+		FVector3f up,
+		FVector3f scale,
+		float projectionAngle )
 	{
         m_pD->m_type = type;
-        m_pD->m_position = vec3<float>( posX, posY, posZ );
-		m_pD->m_direction = vec3<float>( dirX, dirY, dirZ );
-		m_pD->m_up = vec3<float>( upX, upY, upZ );
-        m_pD->m_scale = vec3<float>( scaleU, scaleV, scaleW );
+        m_pD->m_position = pos;
+		m_pD->m_direction = dir;
+		m_pD->m_up = up;
+        m_pD->m_scale = scale;
         m_pD->m_projectionAngle = projectionAngle;
     }
 
