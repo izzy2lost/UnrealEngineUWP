@@ -664,7 +664,7 @@ namespace OldTaskGraphTests
 				uint32 RunningCrc = 0;
 				for (int32 Index = 0; Index < 1000000; Index++)
 				{
-					FCrc::MemCrc32(CompletionEvent.GetReference(), sizeof(FGraphEvent), RunningCrc);
+					RunningCrc = FCrc::MemCrc32(CompletionEvent.GetReference(), sizeof(FGraphEvent), RunningCrc);
 				}
 				uint64 StartTime = FPlatformTime::Cycles64();
 				FFunctionGraphTask::CreateAndDispatchWhenReady([StartTime, &ForegroundTask] { ForegroundTask(StartTime); }, TStatId{}, nullptr, ENamedThreads::AnyHiPriThreadHiPriTask);
