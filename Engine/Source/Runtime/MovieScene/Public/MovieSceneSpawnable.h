@@ -22,7 +22,8 @@ UENUM()
 enum class ESpawnOwnership : uint8
 {
 	/** The object's lifetime is managed by the sequence that spawned it */
-	InnerSequence,
+	
+	InnerSequence UMETA(DisplayName = "This Sequence"),
 
 	/** The object's lifetime is managed by the outermost sequence */
 	RootSequence,
