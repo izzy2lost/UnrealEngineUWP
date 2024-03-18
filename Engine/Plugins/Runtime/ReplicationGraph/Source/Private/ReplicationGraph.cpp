@@ -2345,14 +2345,14 @@ bool UReplicationGraph::ProcessRemoteFunction(class AActor* Actor, UFunction* Fu
 
 		TOptional<FVector> ActorLocation;
 
-		UNetDriver::ERemoteFunctionSendPolicy SendPolicy = UNetDriver::Default;
+		UNetDriver::ERemoteFunctionSendPolicy SendPolicy = UNetDriver::ERemoteFunctionSendPolicy::Default;
 		if (CVar_RepGraph_EnableRPCSendPolicy > 0)
 		{
 			if (FRPCSendPolicyInfo* FuncSendPolicy = RPCSendPolicyMap.Find(FObjectKey(Function)))
 			{
 				if (FuncSendPolicy->bSendImmediately)
 				{
-					SendPolicy = UNetDriver::ForceSend;
+					SendPolicy = UNetDriver::ERemoteFunctionSendPolicy::ForceSend;
 				}
 			}
 		}
@@ -2464,7 +2464,7 @@ bool UReplicationGraph::ProcessRemoteFunction(class AActor* Actor, UFunction* Fu
 			{
 				NetDriver->ProcessRemoteFunctionForChannel(ConnectionActorInfo.Channel, ClassCache, FieldCache, TargetObj, NetConnection, Function, Parameters, OutParms, Stack, true, SendPolicy, RemoteFunctionFlags);
 
-				if (SendPolicy == UNetDriver::ForceSend)
+				if (SendPolicy == UNetDriver::ERemoteFunctionSendPolicy::ForceSend)
 				{
 					// Queue the send in an array that we consume in PostTickDispatch to avoid force flushing multiple times a frame on the same connection
 					ConnectionsNeedingsPostTickDispatchFlush.AddUnique(NetConnection);

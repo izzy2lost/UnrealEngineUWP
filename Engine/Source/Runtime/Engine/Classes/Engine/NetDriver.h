@@ -1530,7 +1530,7 @@ public:
 	/** Return a reference to the database that holds metrics calcluated by the networking system. */
 	ENGINE_API TObjectPtr<UNetworkMetricsDatabase> GetMetrics() { return NetworkMetricsDatabase; };
 
-	enum ERemoteFunctionSendPolicy
+	enum class ERemoteFunctionSendPolicy
 	{		
 		/** Unreliable multicast are queued. Everything else is send immediately */
 		Default, 
@@ -1540,7 +1540,13 @@ public:
 
 		/** Bunch is queued until next actor replication, no matter what */
 		ForceQueue,
-	};	
+	};
+	UE_DEPRECATED(5.4, "Use fully scoped enum class value UNetDriver::ERemoteFunctionSendPolicy::Default")
+	static constexpr ERemoteFunctionSendPolicy Default = ERemoteFunctionSendPolicy::Default;
+	UE_DEPRECATED(5.4, "Use fully scoped enum class value UNetDriver::ERemoteFunctionSendPolicy::ForceSend")
+	static constexpr ERemoteFunctionSendPolicy ForceSend = ERemoteFunctionSendPolicy::ForceSend;
+	UE_DEPRECATED(5.4, "Use fully scoped enum class value UNetDriver::ERemoteFunctionSendPolicy::ForceQueue")
+	static constexpr ERemoteFunctionSendPolicy ForceQueue = ERemoteFunctionSendPolicy::ForceQueue;
 
 	/** Process a remote function on given actor channel. This is called by ::ProcessRemoteFunction.*/
 	ENGINE_API void ProcessRemoteFunctionForChannel(
