@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
+#include "Iris/Core/IrisCsv.h"
 #include "Iris/Core/IrisDebugging.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisMemoryTracker.h"
@@ -368,6 +369,9 @@ public:
 	// Runs after filtering
 	void UpdatePrioritization(const FNetBitArrayView& ReplicatingConnections)
 	{
+#if UE_NET_IRIS_CSV_STATS
+		CSV_SCOPED_TIMING_STAT(Iris, ReplicationSystem_UpdatePrioritization);
+#endif
 		IRIS_PROFILER_SCOPE(FReplicationSystem::FImpl::UpdatePrioritization);
 		LLM_SCOPE_BYTAG(Iris);
 
