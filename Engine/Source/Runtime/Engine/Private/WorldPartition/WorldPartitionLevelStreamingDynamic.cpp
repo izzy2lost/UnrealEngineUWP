@@ -332,8 +332,10 @@ bool UWorldPartitionLevelStreamingDynamic::RequestLevel(UWorld* InPersistentWorl
 						UE_LOG(LogStreaming, Display, TEXT("UWorldPartitionLevelStreamingDynamic::RequestLevel(%s) is flushing async loading"), *WorldAssetPackageName);
 					}
 
-					// Finish all async loading.
-					FlushAsyncLoading(AsyncRequestIDs);
+					// Finish all async loading. Since we will clear our requests upon completion of all loads, 
+					// we take a copy so FlushAsyncLoading won't touch an invalidated array view
+					TArray<int32> LocalRequestIDs = AsyncRequestIDs;
+					FlushAsyncLoading(LocalRequestIDs);
 				}
 				else
 				{
