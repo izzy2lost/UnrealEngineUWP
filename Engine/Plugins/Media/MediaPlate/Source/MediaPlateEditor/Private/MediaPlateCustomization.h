@@ -9,9 +9,10 @@
 #include "MediaTextureTracker.h"
 #include "Styling/SlateTypes.h"
 
+class FMenuBuilder;
 class IDetailCategoryBuilder;
 class IDetailLayoutBuilder;
-class FMenuBuilder;
+class IPropertyHandle;
 class SWidget;
 class UMediaPlateComponent;
 class UMediaPlayer;
@@ -48,8 +49,6 @@ private:
 	FDelegateHandle PropertyChangeDelegate;
 	/** List of the media plates we are editing. */
 	TArray<TWeakObjectPtr<UMediaPlateComponent>> MediaPlatesList;
-	/** Stores the current value of the MediaPath property. */
-	FString MediaPath;
 
 	/** Whether we have a plane, sphere, etc. */
 	EMediaTextureVisibleMipsTiles MeshMode;
@@ -57,9 +56,9 @@ private:
 	/** Handles mesh stuff. */
 	FMediaPlateCustomizationMesh MeshCustomization;
 
-	/** True if the first media source in the playlist is an external asset. */
-	bool bIsMediaSourceAsset;
-	
+	/** Property handle of the currently customized Media Plate Resource */
+	TSharedPtr<IPropertyHandle> MediaPlateResourcePropertyHandle;
+
 	/**
 	 * Adds widgets for editing the mesh.
 	 */
@@ -172,64 +171,9 @@ private:
 	void OnStaticMeshChanged(const FAssetData& AssetData);
 
 	/**
-	 * Updates bIsMediaSourceAsset depending on the current playlist.
-	 */
-	void UpdateIsMediaSourceAsset();
-
-	/**
-	 * Call this to enable/disable automatic aspect ratio.
-	 */
-	void SetIsMediaSourceAsset(bool bIsAsset);
-
-	/**
-	 * Controls visibility for widgets when the media source is an asset.
-	 */
-	EVisibility ShouldShowMediaSourceAsset() const;
-
-	/**
-	 * Controls visibility for widgets when the media source is a file.
-	 */
-	EVisibility ShouldShowMediaSourceFile() const;
-
-	/**
-	 * Gets the object path for the media source object.
-	 */
-	FString GetMediaSourcePath() const;
-
-	/**
-	 * Gets the object path for the media playlist object.
-	 */
-	FString GetPlaylistPath() const;
-
-	/**
-	 * Called when the playlist changes.
-	 */
-	void OnPlaylistChanged(const FAssetData& AssetData);
-
-	/**
-	 * Called when the media source widget changes.
-	 */
-	void OnMediaSourceChanged(const FAssetData& AssetData);
-
-	/**
 	* Changes the state of selected media plates and broadcasts the even to the remote endpoints.
 	*/
 	void OnButtonEvent(EMediaPlateEventState State);
-
-	/**
-	 * Updates MediaPath from the current MediaSource.
-	 */
-	void UpdateMediaPath();
-
-	/**
-	 * Called to get the media path for the file picker.
-	 */
-	FString HandleMediaPath() const;
-	
-	/**
-	 * Called when we select a media path.
-	 */
-	void HandleMediaPathPicked(const FString& PickedPath);
 
 	/**
 	 * Called when the open media plate button is pressed.
@@ -243,4 +187,3 @@ private:
 
 	UMediaPlayer* GetMediaPlayer() const;
 };
-

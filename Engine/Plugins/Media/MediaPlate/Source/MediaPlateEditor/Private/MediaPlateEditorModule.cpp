@@ -13,7 +13,7 @@
 #include "MediaPlateComponent.h"
 #include "MediaPlateCustomization.h"
 #include "MediaPlateEditorStyle.h"
-#include "MediaPlayer.h"
+#include "MediaPlateResourceCustomization.h"
 #include "MediaSoundComponent.h"
 #include "MediaSource.h"
 #include "Models/MediaPlateEditorCommands.h"
@@ -40,10 +40,14 @@ void FMediaPlateEditorModule::StartupModule()
 
 	// Register customizations.
 	MediaPlateName = UMediaPlateComponent::StaticClass()->GetFName();
+	MediaPlateResourceName = FMediaPlateResource::StaticStruct()->GetFName();
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.RegisterCustomClassLayout(MediaPlateName,
 		FOnGetDetailCustomizationInstance::CreateStatic(&FMediaPlateCustomization::MakeInstance));
+
+	PropertyModule.RegisterCustomPropertyTypeLayout(MediaPlateResourceName,
+		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMediaPlateResourceCustomization::MakeInstance));
 
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
 	TrackEditorBindingHandle = SequencerModule.RegisterPropertyTrackEditor<FMediaPlateTrackEditor>();
@@ -87,6 +91,7 @@ void FMediaPlateEditorModule::ShutdownModule()
 	// Unregister customizations.
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.UnregisterCustomClassLayout(MediaPlateName);
+	PropertyModule.UnregisterCustomPropertyTypeLayout(MediaPlateResourceName);
 }
 
 void FMediaPlateEditorModule::Tick(float DeltaTime)
@@ -374,7 +379,7 @@ TSharedRef<FExtender> FMediaPlateEditorModule::ExtendLevelViewportContextMenuFor
 									}
 
 									const FScopedTransaction Transaction(LOCTEXT("ResetDefaultMats", "Reset Default Materials"));
-									
+
 									InMediaPlateActor->Modify();
 									InMediaPlateActor->UseDefaultMaterial();
 
@@ -402,8 +407,6 @@ TSharedRef<FExtender> FMediaPlateEditorModule::ExtendLevelViewportContextMenuFor
 				)
 			);
 		}
-
-
 	}
 
 	return Extender.ToSharedRef();
@@ -413,7 +416,7 @@ void FMediaPlateEditorModule::RegisterContextMenuExtender()
 {
 	// Extend the level viewport context menu to add an option to copy the object path.
 	LevelViewportContextMenuRemoteControlExtender = FLevelEditorModule::FLevelViewportMenuExtender_SelectedActors::CreateRaw(this, &FMediaPlateEditorModule::ExtendLevelViewportContextMenuForMediaPlate);
-	
+
 	FLevelEditorModule& LevelEditorModule = FModuleManager::Get().LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 	TArray<FLevelEditorModule::FLevelViewportMenuExtender_SelectedActors>& MenuExtenders = LevelEditorModule.GetAllLevelViewportContextMenuExtenders();
 	MenuExtenders.Add(LevelViewportContextMenuRemoteControlExtender);

@@ -271,8 +271,8 @@ void FMediaPlateEditorToolkit::BindCommands()
 		Commands.NextMedia,
 		FExecuteAction::CreateLambda([this]{ MediaPlate->Next(); }),
 		FCanExecuteAction::CreateLambda([this]{
-			return (MediaPlate->MediaPlaylist != nullptr) &&
-				(MediaPlate->MediaPlaylist->Num() > 1);
+			return (MediaPlate->GetMediaPlaylist() != nullptr) &&
+				(MediaPlate->GetMediaPlaylist()->Num() > 1);
 		})
 	);
 
@@ -304,8 +304,8 @@ void FMediaPlateEditorToolkit::BindCommands()
 		Commands.PreviousMedia,
 		FExecuteAction::CreateLambda([this]{ MediaPlate->Previous(); }),
 		FCanExecuteAction::CreateLambda([this]{
-			return (MediaPlate->MediaPlaylist != nullptr) &&
-					(MediaPlate->MediaPlaylist->Num() > 1);
+			return (MediaPlate->GetMediaPlaylist() != nullptr) &&
+					(MediaPlate->GetMediaPlaylist()->Num() > 1);
 		})
 	);
 

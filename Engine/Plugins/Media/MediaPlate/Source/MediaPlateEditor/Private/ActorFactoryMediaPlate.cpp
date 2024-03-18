@@ -57,42 +57,35 @@ void UActorFactoryMediaPlate::SetUpActor(UObject* Asset, AActor* Actor)
 		UMediaSource* MediaSource = Cast<UMediaSource>(Asset);
 		if ((MediaSource != nullptr) && (MediaPlate->MediaPlateComponent != nullptr))
 		{
-			UMediaPlaylist* Playlist = MediaPlate->MediaPlateComponent->MediaPlaylist;
-			if (Playlist != nullptr)
+			// Is this media source from a drag and drop?
+			FMediaPlateEditorModule* EditorModule = FModuleManager::LoadModulePtr<FMediaPlateEditorModule>("MediaPlateEditor");
+			if (EditorModule != nullptr)
 			{
-				// This gets called twice so only add the media source once.
-				if (Playlist->Num() == 0)
+				bool bIsInDragDropCache = EditorModule->RemoveMediaSourceFromDragDropCache(MediaSource);
+				if (bIsInDragDropCache && MediaSource->GetOuter() == GetTransientPackage())
 				{
-					Playlist->Add(MediaSource);
-
-					// Is this media source from a drag and drop?
-					FMediaPlateEditorModule* EditorModule = FModuleManager::LoadModulePtr<FMediaPlateEditorModule>("MediaPlateEditor");
-					if (EditorModule != nullptr)
+					// Yes. Move this out of transient.
+					// Can't do it here as the asset is still being used.
+					TWeakObjectPtr<UMediaPlateComponent> MediaPlateComponentPtr(MediaPlate->MediaPlateComponent);
+					AsyncTask(ENamedThreads::GameThread, [MediaPlateComponentPtr]()
 					{
-						bool bIsInDragDropCache = EditorModule->RemoveMediaSourceFromDragDropCache(MediaSource);
-						if (bIsInDragDropCache)
+						UMediaPlateComponent* MediaPlateComponent = MediaPlateComponentPtr.Get();
+						if (MediaPlateComponent != nullptr)
 						{
-							// Yes. Move this out of transient.
-							// Can't do it here as the asset is still being used.
-							TWeakObjectPtr<UMediaPlateComponent> MediaPlateComponentPtr(MediaPlate->MediaPlateComponent);
-							AsyncTask(ENamedThreads::GameThread, [MediaPlateComponentPtr]()
+							if (UMediaSource* MediaSource = MediaPlateComponent->MediaPlateResource.GetMediaAsset())
 							{
-								UMediaPlateComponent* MediaPlateComponent = MediaPlateComponentPtr.Get();
-								if (MediaPlateComponent != nullptr)
-								{
-									UMediaPlaylist* Playlist = MediaPlateComponent->MediaPlaylist;
-									if ((Playlist != nullptr) && (Playlist->Num() > 0))
-									{
-										UMediaSource* MediaSource = Playlist->Get(0);
-										if (MediaSource != nullptr)
-										{
-											MediaSource->Rename(nullptr, MediaPlateComponent);
-										}
-									}
-								}
-							});
+								MediaSource->Rename(nullptr, MediaPlateComponent);
+
+								// Let's initialize the plate source with the now non-transient MediaSource
+								MediaPlateComponent->MediaPlateResource.SelectAsset(MediaSource, MediaPlateComponent);
+							}
 						}
-					}
+					});
+				}
+				else
+				{
+					// MediaSource is non-transient, we can initialize the plate source right away
+					MediaPlate->MediaPlateComponent->MediaPlateResource.SelectAsset(MediaSource, MediaPlate->MediaPlateComponent);
 				}
 			}
 		}
@@ -100,4 +93,3 @@ void UActorFactoryMediaPlate::SetUpActor(UObject* Asset, AActor* Actor)
 }
 
 #undef LOCTEXT_NAMESPACE
-

@@ -4,25 +4,28 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "IMediaAssetsModule.h"
 #include "IMediaClock.h"
 #include "IMediaClockSink.h"
 #include "IMediaModule.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "MediaComponent.h"
-#include "MediaPlateModule.h"
 #include "MediaPlate.h"
+#include "MediaPlateModule.h"
 #include "MediaPlayer.h"
 #include "MediaPlaylist.h"
-#include "MediaSource.h"
 #include "MediaSoundComponent.h"
+#include "MediaSource.h"
 #include "MediaTexture.h"
 #include "MediaTextureTracker.h"
+
+#if WITH_EDITOR
+#include "ScopedTransaction.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MediaPlateComponent)
 
 #define LOCTEXT_NAMESPACE "MediaPlate"
-
 
 namespace UE::MediaPlateComponent
 {
@@ -101,9 +104,6 @@ private:
 	TWeakObjectPtr<UMediaPlateComponent> Owner;
 };
 
-FLazyName UMediaPlateComponent::MediaComponentName(TEXT("MediaComponent0"));
-FLazyName UMediaPlateComponent::MediaPlaylistName(TEXT("MediaPlaylist0"));
-
 UMediaPlateComponent::UMediaPlateComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -113,8 +113,12 @@ UMediaPlateComponent::UMediaPlateComponent(const FObjectInitializer& ObjectIniti
 
 	CacheSettings.bOverride = true;
 
-	// Set up playlist.
-	MediaPlaylist = CreateDefaultSubobject<UMediaPlaylist>(MediaPlaylistName);
+#if WITH_EDITORONLY_DATA
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// Still create the deprecated MediaPlaylist so the old data can be serialized during loading
+	MediaPlaylist_DEPRECATED = CreateDefaultSubobject<UMediaPlaylist>("MediaPlaylist0");
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
 
 	// Default to plane since AMediaPlate defaults to SM_MediaPlateScreen
 	VisibleMipsTilesCalculations = EMediaTextureVisibleMipsTiles::Plane;
@@ -128,6 +132,7 @@ void UMediaPlateComponent::PostLoad()
 {
 	Super::PostLoad();
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Use the old media texture if we have one.
 	if (MediaTexture_DEPRECATED != nullptr)
 	{
@@ -140,6 +145,11 @@ void UMediaPlateComponent::PostLoad()
 
 	UE::MediaPlateComponent::ApplyMediaTextureMipGenProperties(MediaTextureSettings, MediaTextures);
 
+	if (MediaPlaylist_DEPRECATED)
+	{
+		InitializeMediaPlateResource();
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 #endif // WITH_EDITOR
 
@@ -315,9 +325,9 @@ void UMediaPlateComponent::Open()
 		if (MediaPlayer != nullptr)
 		{
 			UMediaSource* MediaSource = nullptr;
-			if (MediaPlaylist != nullptr)
+			if (UMediaPlaylist* Playlist = GetMediaPlaylist())
 			{
-				MediaSource = MediaPlaylist->Get(PlaylistIndex);
+				MediaSource = Playlist->Get(PlaylistIndex);
 			}
 			bIsPlaying = PlayMediaSource(MediaSource, bPlayOnOpen);
 		}
@@ -339,15 +349,21 @@ void UMediaPlateComponent::Open()
 
 bool UMediaPlateComponent::Next()
 {
+	UMediaPlaylist* Playlist = GetMediaPlaylist();
+	if (!Playlist)
+	{
+		return false;
+	}
+
 	bool bIsSuccessful = false;
 
 	// Do we have a playlist?
-	if ((MediaPlaylist != nullptr) && (MediaPlaylist->Num() > 1))
+	if (Playlist->Num() > 1)
 	{
-		if ((PlaylistIndex < MediaPlaylist->Num() - 1) || (bLoop))
+		if ((PlaylistIndex < Playlist->Num() - 1) || (bLoop))
 		{
 			// Get the next media to play.
-			UMediaSource* NextSource = MediaPlaylist->GetNext(PlaylistIndex);
+			UMediaSource* NextSource = Playlist->GetNext(PlaylistIndex);
 			if (NextSource != nullptr)
 			{
 				bIsSuccessful = PlayMediaSource(NextSource, true);
@@ -372,15 +388,21 @@ void UMediaPlateComponent::Pause()
 
 bool UMediaPlateComponent::Previous()
 {
+	UMediaPlaylist* Playlist = GetMediaPlaylist();
+	if (!Playlist)
+	{
+		return false;
+	}
+
 	bool bIsSuccessful = false;
 
 	// Do we have a playlist?
-	if ((MediaPlaylist != nullptr) && (MediaPlaylist->Num() > 1))
+	if (Playlist->Num() > 1)
 	{
 		// Get the previous media to play.
 		if (PlaylistIndex > 0)
 		{
-			UMediaSource* NextSource = MediaPlaylist->GetPrevious(PlaylistIndex);
+			UMediaSource* NextSource = Playlist->GetPrevious(PlaylistIndex);
 			if (NextSource != nullptr)
 			{
 				bIsSuccessful = PlayMediaSource(NextSource, true);
@@ -436,6 +458,29 @@ void UMediaPlateComponent::SetLoop(bool bInLoop)
 			MediaPlayer->SetLooping(bLoop);
 		}
 	}
+}
+
+UMediaPlaylist* UMediaPlateComponent::GetMediaPlaylist() const
+{
+	return MediaPlateResource.GetActivePlaylist();
+}
+
+void UMediaPlateComponent::SetMediaPlateResource(const FMediaPlateResource& InMediaPlayerResource)
+{
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("SetMediaPlateResource", "Set media plate resource"));
+	this->Modify();
+	MediaPlateResource.Modify();
+#endif
+
+	MediaPlateResource.Init(InMediaPlayerResource);
+
+	if (MediaPlateResource.GetResourceType() == EMediaPlateResourceType::External)
+	{
+		MediaPlateResource.LoadExternalMedia(FString(InMediaPlayerResource.GetExternalMediaPath()), this);
+	}
+
+	RefreshMediaPlateResource();
 }
 
 void UMediaPlateComponent::SetMeshRange(FVector2D InMeshRange)
@@ -525,7 +570,7 @@ bool UMediaPlateComponent::PlayMediaSource(UMediaSource* InMediaSource, bool bIn
 		// Set media options.
 		if (MediaPlayer != nullptr)
 		{
-			bool bIsPlaylist = (MediaPlaylist != nullptr) && (MediaPlaylist->Num() > 1);
+			const bool bIsPlaylist = MediaPlateResource.GetResourceType() == EMediaPlateResourceType::Playlist;
 
 			// Play the source.
 			FMediaPlayerOptions Options;
@@ -691,9 +736,10 @@ const FMediaSourceCacheSettings& UMediaPlateComponent::GetCacheSettings() const
 UMediaSource* UMediaPlateComponent::ProxyGetMediaSourceFromIndex(int32 Index) const
 {
 	UMediaSource* MediaSource = nullptr;
-	if (MediaPlaylist != nullptr)
+
+	if (UMediaPlaylist* Playlist = GetMediaPlaylist())
 	{
-		MediaSource = MediaPlaylist->Get(Index);
+		MediaSource = Playlist->Get(Index);
 	}
 	return MediaSource;
 }
@@ -816,7 +862,6 @@ void UMediaPlateComponent::ProxySetTextureBlend(int32 LayerIndex, int32 TextureI
 	}
 }
 
-#if WITH_EDITOR
 float UMediaPlateComponent::GetForwardRate(UMediaPlayer* MediaPlayer)
 {
 	float Rate = MediaPlayer->GetRate();
@@ -840,7 +885,6 @@ float UMediaPlateComponent::GetReverseRate(UMediaPlayer* MediaPlayer)
 
 	return 2.0f * Rate;
 }
-#endif
 
 void UMediaPlateComponent::RestartPlayer()
 {
@@ -920,7 +964,7 @@ FTimespan UMediaPlateComponent::GetResumeTime()
 			FTimespan MediaDuration = MediaPlayer->GetDuration();
 			if ((PlayerTime > MediaDuration) && (MediaDuration > FTimespan::Zero()))
 			{
-				bool bIsPlaylist = (MediaPlaylist != nullptr) && (MediaPlaylist->Num() > 1);
+				const bool bIsPlaylist = MediaPlateResource.GetResourceType() == EMediaPlateResourceType::Playlist;
 				if ((bLoop) && (bIsPlaylist == false))
 				{
 					PlayerTime %= MediaDuration;
@@ -1219,6 +1263,78 @@ void UMediaPlateComponent::UpdateTextureLayers()
 	}
 }
 
+#if WITH_EDITORONLY_DATA
+void UMediaPlateComponent::InitializeMediaPlateResource()
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UMediaPlaylist* Playlist = MediaPlaylist_DEPRECATED;
+
+	if (!Playlist)
+	{
+		return;
+	}
+
+	const int32 PlaylistElementsNum = Playlist->Num();
+
+	if (PlaylistElementsNum == 0)
+	{
+		return;
+	}
+
+	if (PlaylistElementsNum > 1)
+	{
+		// Playlist has more than one element, source type will be set to playlist
+		MediaPlateResource.SelectPlaylist(Playlist);
+	}
+	else
+	{
+		if (UMediaSource* MediaSource = Playlist->Get(0))
+		{
+			// If outer is this, source has been created from external file
+			if (MediaSource->GetOuter() == this)
+			{
+				FString MediaPath = MediaSource->GetUrl();
+
+				const FString FilePrefix(TEXT("file://"));
+				const FString ImgPrefix(TEXT("img://"));
+				if (MediaPath.StartsWith(FilePrefix))
+				{
+					MediaPath = MediaPath.RightChop(FilePrefix.Len());
+				}
+				else if (MediaPath.StartsWith(ImgPrefix))
+				{
+					MediaPath = MediaPath.RightChop(ImgPrefix.Len());
+				}
+
+				MediaPlateResource.ExternalMediaPath = MediaPath;
+				MediaPlateResource.ExternalMedia = MediaSource;
+				MediaPlateResource.SetResourceType(EMediaPlateResourceType::External);
+				MediaPlateResource.RefreshActivePlaylist(this);
+			}
+			else
+			{
+				MediaPlateResource.SelectAsset(MediaSource, this);
+			}
+		}
+	}
+
+	MediaPlaylist_DEPRECATED = nullptr;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+#endif
+
+void UMediaPlateComponent::RefreshMediaPlateResource()
+{
+	MediaPlateResource.RefreshActivePlaylist(this);
+
+	constexpr EMediaPlateEventState State = EMediaPlateEventState::Close;
+	SwitchStates(State);
+
+	if (IMediaAssetsModule* MediaAssets = FModuleManager::LoadModulePtr<IMediaAssetsModule>("MediaAssets"))
+	{
+		MediaAssets->BroadcastOnMediaStateChangedEvent({GetOwner()->GetPathName()}, static_cast<uint8>(State));
+	}
+}
 
 #if WITH_EDITOR
 
@@ -1238,7 +1354,7 @@ void UMediaPlateComponent::PostEditChangeProperty(FPropertyChangedEvent& Propert
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	// Has bEnableAudiio changed?
+	// Has bEnableAudio changed?
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(ThisClass, bEnableAudio))
 	{
 		// Are we turning on audio?
@@ -1311,7 +1427,12 @@ void UMediaPlateComponent::PostEditChangeProperty(FPropertyChangedEvent& Propert
 		UE::MediaPlateComponent::ApplyMediaTextureMipGenProperties(MediaTextureSettings, MediaTextures);
 		RestartPlayer();
 	}
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(ThisClass, MediaPlateResource))
+	{
+		RefreshMediaPlateResource();
+	}
 }
+#endif // WITH_EDITOR
 
 void UMediaPlateComponent::SwitchStates(EMediaPlateEventState State)
 {
@@ -1367,7 +1488,5 @@ void UMediaPlateComponent::SwitchStates(EMediaPlateEventState State)
 		break;
 	}
 }
-#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE
-

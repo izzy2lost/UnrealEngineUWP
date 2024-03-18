@@ -152,7 +152,7 @@ void FMediaPlateTrackEditor::AddTrackForComponent(UMediaPlateComponent* Componen
 		MediaTrack->SetDisplayName(LOCTEXT("MediaTrackName", "Media"));
 
 		// Populate track.
-		UMediaPlaylist* Playlist = Component->MediaPlaylist;
+		UMediaPlaylist* Playlist = Component->GetMediaPlaylist();
 		if (Playlist != nullptr)
 		{
 			for (int32 Index = 0; Index < Playlist->Num(); ++Index)

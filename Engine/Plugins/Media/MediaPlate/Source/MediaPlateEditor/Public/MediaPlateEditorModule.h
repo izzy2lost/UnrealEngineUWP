@@ -50,8 +50,10 @@ public:
 	
 private:
 
-	/** Customization name to avoid reusing staticstruct during shutdown. */
+	/** Customization names to avoid reusing staticstruct during shutdown. */
 	FName MediaPlateName;
+	FName MediaPlateResourceName;
+
 	/** Holds all the media plates that are playing. */
 	TArray<TWeakObjectPtr<UMediaPlateComponent>> ActiveMediaPlates;
 
