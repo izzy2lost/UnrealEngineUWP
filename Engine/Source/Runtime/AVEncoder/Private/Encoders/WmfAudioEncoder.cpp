@@ -446,13 +446,10 @@ TArray<FString> FWmfAudioEncoderFactory::GetSupportedCodecs() const
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TUniquePtr<FAudioEncoder> FWmfAudioEncoderFactory::CreateEncoder(const FString& Codec)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 	if (Codec == "aac")
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return TUniquePtr<FAudioEncoder>(new FWmfAudioEncoder(FWmfAudioEncoder::ECodecType::AAC));
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	
 	else
@@ -461,6 +458,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return nullptr;
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 }
 
