@@ -12,7 +12,7 @@ class UAvaTagCollection;
  * Handle to a Tag in a particular Source.
  * This should be used by the UStructs/UObjects to properly reference a particular FAvaTag.
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct AVALANCHETAG_API FAvaTagHandle
 {
 	GENERATED_BODY()
@@ -51,7 +51,7 @@ struct AVALANCHETAG_API FAvaTagHandle
 		return HashCombineFast(GetTypeHash(InHandle.Source), GetTypeHash(InHandle.TagId));
 	}
 
-	UPROPERTY(EditAnywhere, Category="Tag")
+	UPROPERTY(EditAnywhere, Category = "Tag")
 	TObjectPtr<const UAvaTagCollection> Source;
 
 	UPROPERTY()

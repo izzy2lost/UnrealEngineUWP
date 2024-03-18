@@ -13,7 +13,7 @@ struct FAvaTagHandle;
  * Handle to a multiple tags in a particular Source.
  * This should be used by the UStructs/UObjects to properly reference a multiple FAvaTags.
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct AVALANCHETAG_API FAvaTagHandleContainer
 {
 	GENERATED_BODY()
@@ -43,11 +43,11 @@ struct AVALANCHETAG_API FAvaTagHandleContainer
 	/** Returns an array of resolved tags through this container's tag ids and source tag collection */
 	TArray<FAvaTag> ResolveTags() const;
 
-	UPROPERTY(EditAnywhere, Category="Tag")
+	UPROPERTY(EditAnywhere, Category = "Tag")
 	TObjectPtr<const UAvaTagCollection> Source;
 
 private:
-	UPROPERTY(EditAnywhere, Category="Tag")
+	UPROPERTY(EditAnywhere, Category = "Tag")
 	TArray<FAvaTagId> TagIds;
 };
 
