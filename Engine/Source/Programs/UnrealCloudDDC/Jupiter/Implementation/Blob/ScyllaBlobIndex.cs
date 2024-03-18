@@ -364,10 +364,11 @@ public class ScyllaBlobIndex : IBlobIndex
 
 	public async Task<BucketStats> CalculateBucketStatisticsAsync(NamespaceId ns, BucketId bucket)
 	{
-		using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.calc_bucket_stats");
-
 		string nsAsString = ns.ToString();
 		string bucketAsString = bucket.ToString();
+
+		using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.calc_bucket_stats")
+			.SetAttribute("resource.name", $"{nsAsString}.{bucketAsString}");
 
 		int totalCountOfRefs = 0;
 		int totalCountOfBlobs = 0;
@@ -406,6 +407,8 @@ public class ScyllaBlobIndex : IBlobIndex
 
 			Task calcBlobStats = Task.Run(async () =>
 			{
+				using TelemetrySpan _ =  _tracer.BuildScyllaSpan("scylla.calc_bucket_stats_shard")
+					.SetAttribute("resource.name", $"{nsAsString}.{bucketAsString}.{hashPrefix}");
 				// blob stats
 				BoundStatement? boundStatement = _getBucketStatsStatement.Bind(nsAsString, bucketAsString, hashPrefix);
 

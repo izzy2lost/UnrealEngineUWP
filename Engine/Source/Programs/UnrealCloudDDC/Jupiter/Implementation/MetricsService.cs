@@ -11,6 +11,7 @@ using Jupiter.Implementation.Blob;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
 {
@@ -113,6 +114,7 @@ namespace Jupiter.Implementation
 		private readonly IBlobIndex _blobIndex;
 
 		private readonly ILogger _logger;
+		private readonly Tracer _tracer;
 		private readonly Gauge<double> _blobSizeAvgGauge;
 		private readonly Gauge<long> _blobSizeMinGauge;
 		private readonly Gauge<long> _blobSizeMaxGauge;
@@ -120,10 +122,11 @@ namespace Jupiter.Implementation
 		private readonly Gauge<long> _blobSizeCountGauge;
 		private readonly Gauge<long> _blobSizeTotalGauge;
 
-		public MetricsCalculator(IBlobIndex blobIndex, Meter meter, ILogger<MetricsService> logger)
+		public MetricsCalculator(IBlobIndex blobIndex, Meter meter, ILogger<MetricsService> logger, Tracer tracer)
 		{
 			_blobIndex = blobIndex;
 			_logger = logger;
+			_tracer = tracer;
 
 			_blobSizeAvgGauge = meter.CreateGauge<double>("blobstats.bucket_size.avg");
 			_blobSizeMinGauge = meter.CreateGauge<long>("blobstats.bucket_size.min");
@@ -135,6 +138,10 @@ namespace Jupiter.Implementation
 
 		public async Task<BucketStats?> CalculateStatsForBucketAsync(NamespaceId ns, BucketId bucket)
 		{
+			using TelemetrySpan removeBlobScope = _tracer.StartActiveSpan("metrics.calculate")
+				.SetAttribute("operation.name", "metrics.calculate")
+				.SetAttribute("resource.name", $"{ns}.{bucket}");
+
 			KeyValuePair<string, object?>[] tags = new[] { new KeyValuePair<string, object?>("Bucket", bucket.ToString()), new KeyValuePair<string, object?>("Namespace", ns.ToString()) };
 
 			BucketStats stats = await _blobIndex.CalculateBucketStatisticsAsync(ns, bucket);
