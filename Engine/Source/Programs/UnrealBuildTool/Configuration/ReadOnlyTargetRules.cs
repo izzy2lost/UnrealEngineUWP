@@ -81,6 +81,7 @@ namespace UnrealBuildTool
 
 		public string? OutputFile => Inner.OutputFile;
 
+		[Obsolete("Deprecated in UE5.5 - No longer used in engine.")]
 		public bool bUsesSteam => Inner.bUsesSteam;
 
 		public bool bUsesCEF3 => Inner.bUsesCEF3;
