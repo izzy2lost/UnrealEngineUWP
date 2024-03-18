@@ -5872,7 +5872,6 @@ bool UEngine::HandleProfileCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 				[](FRHICommandListImmediate& RHICmdList)
 			{
 				RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-				GRHIGlobals.GPUProfile_ForceNoParallelTranslate = true;
 				GTriggerGPUProfile = true;
 			});
 			Ar.Logf(TEXT("Profiling the next GPU frame"));
@@ -5912,7 +5911,6 @@ bool UEngine::HandleProfileGPUCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 				[](FRHICommandListImmediate& RHICmdList)
 			{
 				RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-				GRHIGlobals.GPUProfile_ForceNoParallelTranslate = true;
 				GTriggerGPUProfile = true;
 			});
 			Ar.Logf(TEXT("Profiling the next GPU frame"));

@@ -608,10 +608,6 @@ void FGPUProfilerEventNodeFrame::DumpEventTree()
 		}
 #endif
 	}
-
-#if WITH_PROFILEGPU
-	GRHIGlobals.GPUProfile_ForceNoParallelTranslate = false;
-#endif
 }
 
 void FGPUProfiler::PushEvent(const TCHAR* Name, FColor Color)

@@ -682,9 +682,9 @@ FRDGScopeState::FState::FState(bool bInImmediate, bool bInParallelExecute)
 		bool bRDGChannelEnabled = false;
 		IF_RDG_ENABLE_TRACE(bRDGChannelEnabled = UE_TRACE_CHANNELEXPR_IS_ENABLED(RDGChannel));
 
-		if (FRDGBuilder::IsDumpingFrame())
+		if (FRDGBuilder::IsDumpingFrame() || GTriggerGPUProfile)
 		{
-			// We want all possible scope and pass names in a DumpGPU trace.
+			// We want all possible scope and pass names in a DumpGPU/profilegpu trace.
 			return ERDGScopeMode::AllEventsAndPassNames;
 		}
 

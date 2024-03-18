@@ -1076,7 +1076,7 @@ RHI_API void FRHICommandListExecutor::Submit(TConstArrayView<FRHICommandListBase
 #endif
 
 		// Prevent use of parallel contexts if unsupported by the RHI, while the legacy 'profilegpu' command is active, or while disabled by the cvar.
-		if (GRHISupportsParallelRHIExecute && !GRHIGlobals.GPUProfile_ForceNoParallelTranslate && CVarRHICmdParallelTranslateEnable.GetValueOnRenderThread())
+		if (GRHISupportsParallelRHIExecute && !GTriggerGPUProfile && CVarRHICmdParallelTranslateEnable.GetValueOnRenderThread())
 		{
 			SubmitState->MaxCommandsPerTranslate     = CVarRHICmdParallelTranslateMaxCommandsPerTranslate.GetValueOnRenderThread();
 			SubmitState->bAllowSingleParallelCombine = CVarRHICmdParallelTranslateCombineSingleAndParallel.GetValueOnRenderThread();

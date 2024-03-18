@@ -360,13 +360,6 @@ struct FRHIGlobals
 	/** Whether the next frame should profile the GPU. */
 	bool TriggerGPUProfile = false;
 
-#if WITH_PROFILEGPU
-	/** Workaround flag used by 'profilegpu' command to disable paralle translate (legacy GPU profiler is not compatible with threaded command translation). */
-	bool GPUProfile_ForceNoParallelTranslate = false;
-#else
-	static constexpr bool GPUProfile_ForceNoParallelTranslate = false;
-#endif
-
 	/** Whether we are profiling GPU hitches. */
 	bool TriggerGPUHitchProfile = false;
 
