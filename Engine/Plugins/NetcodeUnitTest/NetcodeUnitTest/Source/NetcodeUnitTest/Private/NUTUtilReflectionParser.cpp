@@ -196,7 +196,7 @@ FVMReflectionParser::FVMReflectionParser()
 
 		if (RealContext != nullptr)
 		{
-			FVMReflection& Refl = *(RealContext->Refl);
+			FVMReflection& Refl = *(RealContext->Refl.Get());
 
 			Refl->*(B.IdentifierName);
 
