@@ -382,11 +382,12 @@ public:
 public:
 
 	CORE_API FText();
+	
 	FText(const FText&) = default;
-	FText(FText&&) = default;
-
 	FText& operator=(const FText&) = default;
-	FText& operator=(FText&&) = default;
+	
+	CORE_API FText(FText&& Other);
+	CORE_API FText& operator=(FText&& Other);
 
 	/**
 	 * Generate an FText that represents the passed number in the current culture
@@ -765,11 +766,12 @@ public:
 #endif
 
 private:
-	/** Special constructor used to create StaticEmptyText without also allocating a history object */
-	enum class EInitToEmptyString : uint8 { Value };
-	CORE_API explicit FText( EInitToEmptyString );
-
-	CORE_API explicit FText( TSharedRef<ITextData, ESPMode::ThreadSafe> InTextData );
+	template <typename HistoryType, typename = decltype(ImplicitConv<ITextData*>((HistoryType*)nullptr))>
+	explicit FText( TRefCountPtr<HistoryType>&& InTextData )
+		: TextData(MoveTemp(InTextData))
+		, Flags(0)
+	{
+	}
 
 	CORE_API explicit FText( FString&& InSourceString );
 
@@ -806,7 +808,7 @@ private:
 
 private:
 	/** The internal shared data for this FText */
-	TSharedRef<ITextData, ESPMode::ThreadSafe> TextData;
+	TRefCountPtr<ITextData> TextData;
 
 	/** Flags with various information on what sort of FText this is */
 	uint32 Flags;
@@ -1128,7 +1130,7 @@ private:
 	static uint16 GetLocalHistoryRevisionForText(const FText& InText);
 
 	/** A pointer to the text data for the FText that we took a snapshot of (used for an efficient pointer compare) */
-	TSharedPtr<ITextData, ESPMode::ThreadSafe> TextDataPtr;
+	TRefCountPtr<ITextData> TextDataPtr;
 
 	/** The localized string of the text when we took the snapshot (if any) */
 	FTextConstDisplayStringPtr LocalizedStringPtr;
