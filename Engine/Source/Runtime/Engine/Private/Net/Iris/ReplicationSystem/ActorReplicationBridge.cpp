@@ -30,6 +30,7 @@
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/PlayerController.h"
 #include "HAL/LowLevelMemStats.h"
 #include "Net/DataBunch.h"
 #include "Net/DataChannel.h"
@@ -48,6 +49,13 @@ extern bool GDefaultUseSubObjectReplicationList;
 
 namespace UE::Net::Private
 {
+
+static bool bEnableActorLevelChanges = true;
+static FAutoConsoleVariableRef CVarEnableActorLevelChanges(
+	TEXT("net.Iris.EnableActorLevelChanges"),
+	bEnableActorLevelChanges,
+	TEXT("When true the ActorReplicationBridge will process actors that change levels by updating the actor's level groups.")
+);
 
 bool IsActorValidForIrisReplication(const AActor* Actor)
 {
@@ -75,6 +83,13 @@ void ActorReplicationBridgeGetActorWorldObjectInfo(FNetRefHandle /*Handle*/, con
 		OutWorldLocation = Actor->GetActorLocation();
 		OutCullDistance = Actor->NetCullDistanceSquared > 0.0f ? FMath::Sqrt(Actor->NetCullDistanceSquared) : 0.0f;
 	}
+}
+
+bool ShouldIncludeActorInLevelGroups(const AActor* Actor)
+{
+	// Never filter out PlayerControllers based on level as they are required for travel.
+	// Preserves the special case for PlayerControllers from UNetDriver::IsLevelInitializedForActor.
+	return !Actor->IsA<APlayerController>();
 }
 
 } // end namespace UE::Net::Private
@@ -292,30 +307,8 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 		}
 	}
 
-	// Setup Level filtering unless this actor belongs to the persistent level
-	{
-		ULevel* Level = Actor->GetLevel();
-		if (Params.bIncludeInLevelGroupFilter && (!Level->IsPersistentLevel() || (Level != NetDriver->GetWorld()->PersistentLevel)))
-		{
-			const UPackage* const LevelPackage = Level->GetOutermost();
-			const FName PackageName = LevelPackage->GetFName();
-
-			FNetObjectGroupHandle LevelGroup = GetLevelGroup(Level);
-			if (!LevelGroup.IsValid())
-			{
-				LevelGroup = CreateLevelGroup(Level);
-
-				UE_LOG_ACTORREPLICATIONBRIDGE(Log, TEXT("Created new GroupIndex: %u for Level: %s"), LevelGroup.GetGroupIndex(), ToCStr(PackageName.ToString()));
-
-				// Update the filtering status of the group based on current level visibility for all connections
-				NetDriver->UpdateGroupFilterStatusForLevel(Level, LevelGroup);
-			}
-
-			// Add object to group
-			UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("Added %s to GroupIndex: %u Level: %s"), *ActorRefHandle.ToString(), LevelGroup.GetGroupIndex(), ToCStr(PackageName.ToString()));
-			GetReplicationSystem()->AddToGroup(LevelGroup, ActorRefHandle);	
-		}
-	}
+	// Setup Level filtering
+	AddActorToLevelGroup(Actor);
 
 	// If we have registered sub objects we replicate them as well
 	const FSubObjectRegistry& ActorSubObjects = FSubObjectRegistryGetter::GetSubObjects(Actor);
@@ -981,7 +974,7 @@ void UActorReplicationBridge::GetActorCreationHeader(const AActor* Actor, UE::Ne
 
 		// Fill in Header
 		Header.ArchetypeReference = GetOrCreateObjectReference(Archetype);
-		Header.bUsePersistentLevel = NetDriver->GetWorld()->PersistentLevel == ActorLevel;
+		Header.bUsePersistentLevel = (UE::Net::Private::SerializeNewActorOverrideLevel == 0) || (NetDriver->GetWorld()->PersistentLevel == ActorLevel);
 		if (!Header.bUsePersistentLevel)
 		{
 			Header.LevelReference = GetOrCreateObjectReference(ActorLevel);
@@ -1229,6 +1222,78 @@ void UActorReplicationBridge::ReportErrorWithNetRefHandle(uint32 ErrorType, FNet
 		{
 			UE_LOG(LogIrisBridge, Error, TEXT("UActorReplicationBridge::ReportErrorWithNetRefHandle could not find Connection for id:%u"), ConnectionId);
 		}
+	}
+}
+
+void UActorReplicationBridge::ActorChangedLevel(const AActor* Actor, const ULevel* PreviousLevel)
+{
+	if (!UE::Net::Private::bEnableActorLevelChanges)
+	{
+		return;
+	}
+
+	UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("ActorChangedLevel: Actor %s from PreviousLevel %s"), *GetFullNameSafe(Actor), *GetFullNameSafe(PreviousLevel));
+
+	if (!UE::Net::Private::ShouldIncludeActorInLevelGroups(Actor))
+	{
+		return;
+	}
+
+	// Remove from previous level group
+	const bool bPreviousLevelIsPersistentLevel = PreviousLevel && (PreviousLevel->IsPersistentLevel() || (PreviousLevel == NetDriver->GetWorld()->PersistentLevel));
+	
+	if (PreviousLevel && !bPreviousLevelIsPersistentLevel)
+	{
+		const UPackage* const PreviousLevelPackage = PreviousLevel->GetOutermost();
+		const FName PreviousLevelPackageName = PreviousLevelPackage->GetFName();
+
+		const UE::Net::FNetRefHandle ActorRefHandle = GetReplicatedRefHandle(Actor);
+		UE::Net::FNetObjectGroupHandle PreviousLevelGroup = GetLevelGroup(PreviousLevel);
+		if (GetReplicationSystem()->IsInGroup(PreviousLevelGroup, ActorRefHandle))
+		{
+			UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("ActorChangedLevel: removing %s from GroupIndex: %u PreviousLevel: %s"), *ActorRefHandle.ToString(), PreviousLevelGroup.GetGroupIndex(), ToCStr(PreviousLevelPackageName.ToString()));
+			GetReplicationSystem()->RemoveFromGroup(PreviousLevelGroup, ActorRefHandle);
+		}
+		else
+		{
+			UE_LOG_ACTORREPLICATIONBRIDGE(Warning, TEXT("ActorChangedLevel: %s not found in GroupIndex: %u PreviousLevel: %s"), *ActorRefHandle.ToString(), PreviousLevelGroup.GetGroupIndex(), ToCStr(PreviousLevelPackageName.ToString()));
+		}
+	}
+
+	AddActorToLevelGroup(Actor);
+}
+
+void UActorReplicationBridge::AddActorToLevelGroup(const AActor* Actor)
+{
+	if (!UE::Net::Private::ShouldIncludeActorInLevelGroups(Actor))
+	{
+		return;
+	}
+	
+	const ULevel* Level = Actor->GetLevel();
+	
+	// Don't filter out actors in the persistent level
+	if (Level && (!Level->IsPersistentLevel() || (Level != NetDriver->GetWorld()->PersistentLevel)))
+	{
+		const UPackage* const LevelPackage = Level->GetOutermost();
+		const FName PackageName = LevelPackage->GetFName();
+
+		UE::Net::FNetObjectGroupHandle LevelGroup = GetLevelGroup(Level);
+		if (!LevelGroup.IsValid())
+		{
+			LevelGroup = CreateLevelGroup(Level);
+
+			UE_LOG_ACTORREPLICATIONBRIDGE(Log, TEXT("Created new GroupIndex: %u for Level: %s"), LevelGroup.GetGroupIndex(), ToCStr(PackageName.ToString()));
+
+			// Update the filtering status of the group based on current level visibility for all connections
+			NetDriver->UpdateGroupFilterStatusForLevel(Level, LevelGroup);
+		}
+
+		const UE::Net::FNetRefHandle ActorRefHandle = GetReplicatedRefHandle(Actor);
+
+		// Add object to group
+		UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("Added %s to GroupIndex: %u Level: %s"), *ActorRefHandle.ToString(), LevelGroup.GetGroupIndex(), ToCStr(PackageName.ToString()));
+		GetReplicationSystem()->AddToGroup(LevelGroup, ActorRefHandle);
 	}
 }
 

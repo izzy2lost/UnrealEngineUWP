@@ -390,6 +390,12 @@ extern ENGINE_API double GServerReplicateActorTimeSeconds;
 extern ENGINE_API int32 GNumClientConnections;
 extern ENGINE_API int32 GNumClientUpdateLevelVisibility;
 
+namespace UE::Net::Private
+{
+	/** Allow other internal systems to check this cvar */
+	extern int32 SerializeNewActorOverrideLevel;
+}
+
 // Delegates
 
 #if !UE_BUILD_SHIPPING
