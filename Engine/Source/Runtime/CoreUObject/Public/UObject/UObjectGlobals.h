@@ -1236,6 +1236,11 @@ public:
 		return Obj;
 	}
 
+	FORCEINLINE struct FObjectInstancingGraph* GetInstancingGraph()
+	{
+		return InstanceGraph;
+	}
+
 	/**
 	* Return the class of the object that is being constructed
 	**/
