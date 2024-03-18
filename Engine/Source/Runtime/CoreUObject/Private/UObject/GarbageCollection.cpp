@@ -5417,34 +5417,24 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 	// Reset GC skip counter
 	GNumAttemptsSinceLastGC = 0;
 
-	if (!GIsIncrementalReachabilityPending)
+	// Flush streaming before GC if requested
+	if (!GIsIncrementalReachabilityPending && GFlushStreamingOnGC && IsAsyncLoading())
 	{
-		// Do not hold the lock during flush async loading and calling into user code through a delegate
-		// because this could cause deadlocks easily.
+		UE_LOG(LogGarbage, Log, TEXT("CollectGarbageInternal() is flushing async loading"));
 		ReleaseGCLock();
-
-		// Flush streaming before GC if requested
-		if (GFlushStreamingOnGC && IsAsyncLoading())
-		{
-			UE_LOG(LogGarbage, Log, TEXT("CollectGarbageInternal() is flushing async loading"));
-			FlushAsyncLoading();
-			GGCStats.bFlushedAsyncLoading = true;
-		}
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastPreGarbageCollect);
-			FCoreUObjectDelegates::GetPreGarbageCollectDelegate().Broadcast();
-		}
-		// User code in PreGarbageCollect could have triggered new loading... need to flush that too.
-		if (GFlushStreamingOnGC && IsAsyncLoading())
-		{
-			UE_LOG(LogGarbage, Log, TEXT("CollectGarbageInternal() is flushing async loading because PreGarbageCollect triggered new loads"));
-			FlushAsyncLoading();
-			GGCStats.bFlushedAsyncLoading = true;
-		}
-
+		FlushAsyncLoading();
 		AcquireGCLock();
+
+		GGCStats.bFlushedAsyncLoading = true;
 	}
 
+	// Route callbacks so we can ensure that we are e.g. not in the middle of loading something by flushing
+	// the async loading, etc...
+	if (!GIsIncrementalReachabilityPending)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastPreGarbageCollect);
+		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().Broadcast();
+	}
 	GLastGCFrame = GFrameCounter;
 
 	{
