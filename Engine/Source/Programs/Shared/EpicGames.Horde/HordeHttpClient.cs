@@ -468,7 +468,7 @@ namespace EpicGames.Horde
 				if (!response.IsSuccessStatusCode)
 				{
 					string body = await response.Content.ReadAsStringAsync(cancellationToken);
-					throw new HttpRequestException($"{response.StatusCode} posting to {new Uri(httpClient.BaseAddress!, relativePath)}: {body}", null, response.StatusCode);
+					throw new HttpRequestException($"{(int)response.StatusCode} ({response.StatusCode}) posting to {new Uri(httpClient.BaseAddress!, relativePath)}: {body}", null, response.StatusCode);
 				}
 
 				TResponse? responseValue = await response.Content.ReadFromJsonAsync<TResponse>(s_jsonSerializerOptions, cancellationToken);
@@ -612,10 +612,9 @@ namespace EpicGames.Horde
 
 			// Create the HTTP client for handling Horde requests
 			IHttpClientBuilder builder = services.AddHttpClient<HordeHttpClient>(HordeHttpClient.HttpClientName, ConfigureClientFromEnvironment)
+				.AddHttpMessageHandler<HordeHttpAuthHandler>()
 				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()))
 				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()));
-
-			builder = builder.AddHttpMessageHandler<HordeHttpAuthHandler>();
 
 			return builder;
 		}
