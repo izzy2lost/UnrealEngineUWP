@@ -3891,7 +3891,7 @@ int32 AbilitySystemLogServerRPCBatching = 0;
 static FAutoConsoleVariableRef CVarAbilitySystemLogServerRPCBatching(TEXT("AbilitySystem.ServerRPCBatching.Log"), AbilitySystemLogServerRPCBatching, TEXT(""), ECVF_Default	);
 
 FScopedServerAbilityRPCBatcher::FScopedServerAbilityRPCBatcher(UAbilitySystemComponent* InASC, FGameplayAbilitySpecHandle InAbilityHandle) 
-: ASC(InASC), AbilityHandle(InAbilityHandle)
+	: ASC(InASC), AbilityHandle(InAbilityHandle), ScopedPredictionWindow(InASC)
 {
 	if (ASC && AbilityHandle.IsValid() && ASC->ShouldDoServerAbilityRPCBatch())
 	{
