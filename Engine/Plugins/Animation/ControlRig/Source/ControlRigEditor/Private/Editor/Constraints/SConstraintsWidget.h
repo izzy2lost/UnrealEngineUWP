@@ -10,6 +10,7 @@
 #include "BakingAnimationKeySettings.h"
 #include "Misc/QualifiedFrameTime.h"
 #include "ConstraintsManager.h"
+#include "Misc/NotifyHook.h"
 
 class UTickableTransformConstraint;
 class AActor;
@@ -28,10 +29,13 @@ public:
 	static const FSlateBrush* GetBrush(uint8 InType);
 	static int8 GetType(UClass* InClass);
 	static UTickableTransformConstraint* GetMutable(ETransformConstraintType InType);
+	static UTickableTransformConstraint* GetConfigurable(ETransformConstraintType InType);
+	
 private:
 	static const TArray< const FSlateBrush* >& GetBrushes();
 	static const TMap< UClass*, ETransformConstraintType >& GetConstraintToType();
 	static const TArray< UTickableTransformConstraint* >& GetMutableDefaults();
+	static const TArray< TFunction<UTickableTransformConstraint*()> >& GetConfigurableConstraints();
 };
 
 /**
@@ -67,7 +71,7 @@ private:
  * SConstraintMenuEntry
  */
 
-class SConstraintMenuEntry : public SCompoundWidget
+class SConstraintMenuEntry : public SCompoundWidget, public FNotifyHook
 {
 public:
 	SLATE_BEGIN_ARGS(SConstraintMenuEntry){}
@@ -86,6 +90,10 @@ public:
 	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	// End of SWidget interface
+
+	// FNotifyHook interface
+	/** NotifyPostChange is used to copy the property value from the configurable constraint to the cdo. */
+	virtual void NotifyPostChange( const FPropertyChangedEvent& InPropertyChangedEvent, FProperty* InPropertyThatChanged ) override;
 	
 private:
 
@@ -96,7 +104,7 @@ private:
 	FOnConstraintCreated OnConstraintCreated;
 
 	/** Creates a widget to edit the constraint default properties. */
-	TSharedRef<SWidget> GenerateConstraintDefaultWidget() const;
+	TSharedRef<SWidget> GenerateConstraintDefaultWidget();
 	
 	/** Creates the constraint between the current selection and the picked actor. */
 	static void CreateConstraint(
@@ -113,7 +121,8 @@ private:
 	/** State on the item. */
 	bool bIsPressed = false;
 
-	TWeakPtr<SConstraintsCreationWidget> ConstraintsWidget;
+	/** object ptr to the configurable constraint. */
+	TObjectPtr<UTickableConstraint> ConfigurableConstraint = nullptr;
 };
 
 /**
