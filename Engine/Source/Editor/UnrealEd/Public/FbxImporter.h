@@ -36,10 +36,6 @@ struct FRichCurve;
 struct FStaticMaterial;
 struct FSkeletalMaterial;
 
-namespace AnimationTransformDebug
-{
-	struct FAnimationTransformDebugData;
-}
 // Temporarily disable a few warnings due to virtual function abuse in FBX source files
 #pragma warning( push )
 
@@ -1305,11 +1301,10 @@ private:
 	 * @param AnimImportSettings	Common settings to import animation.
 	 * @param SkeletalMeshRootNode	The fbx root node of the skeletalmesh.
 	 * @param ResampleRate			The rate at which the animations are resampled.
-	 * @param TransformDebugData	Out parameter data for internal debugging.
 	 * @param OutTotalNumKeys		Out parameter returning the number of keys imported, used to set the number of keys in the sequencer.
  	 * @param bReimport				Flag indicating whether or not this operation is part of reimporting.
 	 */
-	void ImportBoneTracks(USkeleton* Skeleton, FAnimCurveImportSettings& AnimImportSettings, FbxNode* SkeletalMeshRootNode, const int32 ResampleRate, TArray<AnimationTransformDebug::FAnimationTransformDebugData>& TransformDebugData, int32& OutTotalNumKeys, const bool bReimport);
+	void ImportBoneTracks(USkeleton* Skeleton, FAnimCurveImportSettings& AnimImportSettings, FbxNode* SkeletalMeshRootNode, const int32 ResampleRate, int32& OutTotalNumKeys, const bool bReimport);
 
 public:
 	// current Fbx scene we are importing. Make sure to release it after import
