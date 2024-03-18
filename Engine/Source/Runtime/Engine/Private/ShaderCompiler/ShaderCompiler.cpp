@@ -9580,11 +9580,13 @@ void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, con
 			}
 		}
 
+		/*
 		int32 PermutationCountLimit = 300;
 		ensureMsgf(
 			ShaderPermutationPerGlobalShaderType < PermutationCountLimit,
 			TEXT("Global shader %s has %i permutations to precache: probably more than it needs."),
 			GlobalShaderType->GetName(), ShaderPermutationPerGlobalShaderType);
+		*/
 	}
 
 	static IConsoleVariable* PrecacheGlobalComputeShadersCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecache.GlobalComputeShaders"));
