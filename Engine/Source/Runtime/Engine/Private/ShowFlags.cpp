@@ -359,6 +359,9 @@ void ApplyViewMode(EViewModeIndex ViewModeIndex, bool bPerspective, FEngineShowF
 		case VMI_VisualizeGPUSkinCache:
 			bPostProcessing = false;
 			break;
+		case VMI_LWCComplexity:
+			bPostProcessing = false;
+			break;
 		case VMI_ReflectionOverride:
 			bPostProcessing = true;
 			break;
@@ -415,6 +418,7 @@ void ApplyViewMode(EViewModeIndex ViewModeIndex, bool bPerspective, FEngineShowF
 	EngineShowFlags.SetRayTracingDebug(ViewModeIndex == VMI_RayTracingDebug);
 	EngineShowFlags.SetPathTracing(ViewModeIndex == VMI_PathTracing);
 	EngineShowFlags.SetVisualizeGPUSkinCache(ViewModeIndex == VMI_VisualizeGPUSkinCache);
+	EngineShowFlags.SetVisualizeLWCComplexity(ViewModeIndex == VMI_LWCComplexity);
 }
 
 void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex ViewModeIndex, FEngineShowFlags& EngineShowFlags, bool bCanDisableTonemapper)
@@ -541,6 +545,7 @@ void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex V
 			ViewModeIndex == VMI_LODColoration ||
 			ViewModeIndex == VMI_HLODColoration ||
 			ViewModeIndex == VMI_VisualizeGPUSkinCache ||
+			ViewModeIndex == VMI_LWCComplexity ||
 			ViewModeIndex == VMI_LightmapDensity)
 		{
 			EngineShowFlags.SetLighting(false);
@@ -835,6 +840,10 @@ EViewModeIndex FindViewMode(const FEngineShowFlags& EngineShowFlags)
 	{
 		return VMI_VisualizeGPUSkinCache;
 	}
+	else if (EngineShowFlags.VisualizeLWCComplexity)
+	{
+		return VMI_LWCComplexity;
+	}
 
 	return EngineShowFlags.Lighting ? VMI_Lit : VMI_Unlit;
 }
@@ -876,6 +885,7 @@ const TCHAR* GetViewModeName(EViewModeIndex ViewModeIndex)
 		case VMI_LODColoration:				return TEXT("LODColoration");
 		case VMI_HLODColoration:			return TEXT("HLODColoration");
 		case VMI_VisualizeGPUSkinCache:		return TEXT("VisualizeGPUSkinCache");
+		case VMI_LWCComplexity:				return TEXT("LWCComplexity");
 	}
 	return TEXT("");
 }

@@ -3410,8 +3410,15 @@ void FHLSLMaterialTranslator::AddLWCFuncUsage(ELWCFunctionKind Kind, const uint3
 		// Ignore non-actionable cases
 		return;
 	}
-
-	MaterialCompilationOutput.EstimatedLWCFuncUsages[(int)Kind] += Count;
+	if (ShaderFrequency == SF_Pixel)
+	{
+		MaterialCompilationOutput.EstimatedLWCFuncUsagesPS[(int)Kind] += Count;
+	}
+	else
+	{
+		// TODO: does this handle Nanite compute-based rasterization and shading correctly?
+		MaterialCompilationOutput.EstimatedLWCFuncUsagesVS[(int)Kind] += Count;
+	}
 }
 
 FString FHLSLMaterialTranslator::GetWorldPositionOrDefault(int32 WorldPosition, EPositionOrigin PositionOrigin)

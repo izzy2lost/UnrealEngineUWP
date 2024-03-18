@@ -238,15 +238,44 @@ private:
 	LAYOUT_FIELD(FShaderParameter, MaterialDepth);
 };
 
+struct FNaniteMaterialDebugViewInfo
+{
+	#if WITH_DEBUG_VIEW_MODES
+	struct FPacked
+	{
+		uint32 Data[2];
+	};
+
+	FNaniteMaterialDebugViewInfo()
+	: InstructionCountVS(0)
+	, InstructionCountPS(0)
+	, LWCComplexityVS(0)
+	, LWCComplexityPS(0)
+	{
+	}
+
+	uint16 InstructionCountVS;
+	uint16 InstructionCountPS;
+	uint16 LWCComplexityVS;
+	uint16 LWCComplexityPS;
+
+	FPacked Pack() const
+	{
+		FPacked Result;
+		Result.Data[0] = static_cast<uint32>(InstructionCountPS) << 16u | static_cast<uint32>(InstructionCountVS);
+		Result.Data[1] = static_cast<uint32>(LWCComplexityPS)    << 16u | static_cast<uint32>(LWCComplexityVS);
+		return Result;
+	}
+	#endif
+};
+
 struct FNaniteMaterialEntry
 {
 	FNaniteMaterialEntry()
 	: ReferenceCount(0)
 	, MaterialId(0)
 	, MaterialSlot(INDEX_NONE)
-#if WITH_DEBUG_VIEW_MODES
-	, InstructionCount(0)
-#endif
+	, DebugViewInfo()
 	, bNeedUpload(false)
 	, bWPOEnabled(false)
 	{
@@ -256,9 +285,7 @@ struct FNaniteMaterialEntry
 	: ReferenceCount(Other.ReferenceCount)
 	, MaterialId(Other.MaterialId)
 	, MaterialSlot(Other.MaterialSlot)
-#if WITH_DEBUG_VIEW_MODES
-	, InstructionCount(Other.InstructionCount)
-#endif
+	, DebugViewInfo(Other.DebugViewInfo)
 	, bNeedUpload(false)
 	, bWPOEnabled(Other.bWPOEnabled)
 	{
@@ -268,9 +295,7 @@ struct FNaniteMaterialEntry
 	uint32 ReferenceCount;
 	uint32 MaterialId;
 	int32 MaterialSlot;
-#if WITH_DEBUG_VIEW_MODES
-	uint32 InstructionCount;
-#endif
+	FNaniteMaterialDebugViewInfo DebugViewInfo;
 	bool bNeedUpload;
 	bool bWPOEnabled;
 };
@@ -305,8 +330,8 @@ public:
 
 	void Release();
 
-	FNaniteCommandInfo Register(FMeshDrawCommand& Command, FCommandHash CommandHash, uint32 InstructionCount, bool bWPOEnabled);
-	FNaniteCommandInfo Register(FMeshDrawCommand& Command, uint32 InstructionCount, bool bWPOEnabled) { return Register(Command, ComputeCommandHash(Command), InstructionCount, bWPOEnabled); }
+	FNaniteCommandInfo Register(FMeshDrawCommand& Command, FCommandHash CommandHash, const FNaniteMaterialDebugViewInfo& MaterialDebugViewInfo, bool bWPOEnabled);
+	FNaniteCommandInfo Register(FMeshDrawCommand& Command, const FNaniteMaterialDebugViewInfo& MaterialDebugViewInfo, bool bWPOEnabled) { return Register(Command, ComputeCommandHash(Command), MaterialDebugViewInfo, bWPOEnabled); }
 	void Unregister(const FNaniteCommandInfo& CommandInfo);
 
 	inline const FCommandHash ComputeCommandHash(const FMeshDrawCommand& DrawCommand) const
@@ -370,16 +395,12 @@ public:
 			FMaterialUploadEntry(const FNaniteMaterialEntry& Entry)
 				: MaterialId(Entry.MaterialId)
 				, MaterialSlot(Entry.MaterialSlot)
-#if WITH_DEBUG_VIEW_MODES
-				, InstructionCount(Entry.InstructionCount)
-#endif
+				, DebugViewInfo(Entry.DebugViewInfo)
 			{}
 
 			uint32 MaterialId;
 			int32 MaterialSlot;
-#if WITH_DEBUG_VIEW_MODES
-			uint32 InstructionCount;
-#endif
+			FNaniteMaterialDebugViewInfo DebugViewInfo;
 		};
 
 		TArray<FMaterialUploadEntry, FSceneRenderingArrayAllocator> DirtyMaterialEntries;

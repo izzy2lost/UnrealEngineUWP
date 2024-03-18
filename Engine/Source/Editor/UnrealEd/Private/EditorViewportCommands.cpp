@@ -117,6 +117,8 @@ void FEditorViewportCommands::RegisterCommands()
 	UI_COMMAND( VisualizeGPUSkinCacheMode, "Skin Cache Visualization View Mode", "Visualizes various aspects of Skin ache", EUserInterfaceActionType::RadioButton, FInputChord());
 	FGPUSkinCacheVisualizationMenuCommands::Register();
 
+	UI_COMMAND( VisualizeLWCComplexity, "LWC Complexity Visualization View Mode", "Visualizes LWC usages in materials", EUserInterfaceActionType::RadioButton, FInputChord());
+
 	UI_COMMAND( VisualizeBufferMode, "Buffer Visualization View Mode", "Renders a set of selected post process materials, which visualize various intermediate render buffers (material attributes)", EUserInterfaceActionType::RadioButton, FInputChord());
 	UI_COMMAND( VisualizeNaniteMode, "Nanite Visualization View Mode", "Visualizes various rendering aspects of Nanite.", EUserInterfaceActionType::RadioButton, FInputChord());
 	UI_COMMAND( VisualizeLumenMode, "Lumen Visualization View Mode", "Visualizes Lumen debug views.", EUserInterfaceActionType::RadioButton, FInputChord());

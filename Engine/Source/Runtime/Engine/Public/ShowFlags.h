@@ -414,6 +414,7 @@ private:
 		SetLODColoration(false);
 		SetHLODColoration(false);
 		SetVisualizeGPUSkinCache(false);
+		SetVisualizeLWCComplexity(false);
 		SetStreamingBounds(false);
 		SetHISMCOcclusionBounds(false);
 		SetHISMCClusterTree(false);

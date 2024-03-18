@@ -2301,11 +2301,13 @@ void FMaterialEditor::DrawMaterialInfoStrings(
 			DrawPositionY += SpacingBetweenLines;
 		}
 
-		TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsages = MaterialResource->GetEstimatedLWCFuncUsages();
+		TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsagesVS;
+		TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsagesPS;
+		MaterialResource->GetEstimatedLWCFuncUsages(LWCFuncUsagesVS, LWCFuncUsagesPS);
 		for (int KindIndex = 0; KindIndex < (int)ELWCFunctionKind::Max; ++KindIndex)
 		{
-			int Usages = LWCFuncUsages[KindIndex];
-			if (LWCFuncUsages[KindIndex] > 0)
+			int Usages = LWCFuncUsagesVS[KindIndex] + LWCFuncUsagesPS[KindIndex];
+			if (Usages > 0)
 			{
 				Canvas->DrawShadowedString(
 					5,
@@ -3150,11 +3152,13 @@ void FMaterialEditor::UpdateMaterialinfoList_Old()
 					Messages.Add(Line);
 				}
 
-			TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsages = MaterialResource->GetEstimatedLWCFuncUsages();
+			TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsagesVS;
+			TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsagesPS;
+			MaterialResource->GetEstimatedLWCFuncUsages(LWCFuncUsagesVS, LWCFuncUsagesPS);
 			for (int KindIndex = 0; KindIndex < (int)ELWCFunctionKind::Max; ++KindIndex)
 			{
-				int Usages = LWCFuncUsages[KindIndex];
-				if (LWCFuncUsages[KindIndex] > 0)
+				int Usages = LWCFuncUsagesVS[KindIndex] + LWCFuncUsagesPS[KindIndex];
+				if (Usages > 0)
 				{
 					FString Message = FString::Printf(TEXT("LWC %s usages (Est.): %u"), *UEnum::GetDisplayValueAsText((ELWCFunctionKind)KindIndex).ToString(), Usages);
 						

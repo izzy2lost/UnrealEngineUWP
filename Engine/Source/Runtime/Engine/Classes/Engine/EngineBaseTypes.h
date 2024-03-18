@@ -928,6 +928,8 @@ enum EViewModeIndex : int
 	/** Visualize Groom debug views */
 	VMI_VisualizeGroom = 35 UMETA(DisplayName = "Groom Visualization"),
 
+	VMI_LWCComplexity = 36 UMETA(DisplayName = "Material LWC Function Usage"),
+
 	VMI_Max UMETA(Hidden),
 
 	// VMI_Unknown - The value assigned to VMI_Unknown must be the highest possible of any member of EViewModeIndex, or GetViewModeName might seg-fault

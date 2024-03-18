@@ -1889,6 +1889,7 @@ void AddDebugViewPostProcessingPasses(FRDGBuilder& GraphBuilder, const FViewInfo
 		case DVSM_ShaderComplexity:
 		case DVSM_ShaderComplexityContainedQuadOverhead:
 		case DVSM_ShaderComplexityBleedingQuadOverhead:
+		case DVSM_LWCComplexity:
 		{
 			FVisualizeComplexityInputs PassInputs;
 			PassInputs.OverrideOutput = OverrideOutput;

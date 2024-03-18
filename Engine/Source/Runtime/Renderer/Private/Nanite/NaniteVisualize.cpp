@@ -278,6 +278,8 @@ public:
 };
 IMPLEMENT_GLOBAL_SHADER(FDepthDecodeCS, "/Engine/Private/Nanite/NaniteDepthDecode.usf", "DepthDecode", SF_Compute);
 
+#if WITH_DEBUG_VIEW_MODES
+
 class FExportDebugViewPS : public FNaniteGlobalShader
 {
 public:
@@ -326,9 +328,23 @@ public:
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 		uint32 SelectedBufferCount = 1u << (uint32)PermutationVector.Get<FSearchBufferCountDim>();
 		OutEnvironment.SetDefine(TEXT("EDITOR_SELECTED_BUFFER_COUNT"), SelectedBufferCount);
+
+		// Note: Must match EDebugViewMode in NaniteVisualize.h
+		OutEnvironment.SetDefine(TEXT("DEBUG_VIEW_NONE"),				(uint32)Nanite::EDebugViewMode::None);
+		OutEnvironment.SetDefine(TEXT("DEBUG_VIEW_WIREFRAME"),			(uint32)Nanite::EDebugViewMode::Wireframe);
+		OutEnvironment.SetDefine(TEXT("DEBUG_VIEW_SHADER_COMPLEXITY"),	(uint32)Nanite::EDebugViewMode::ShaderComplexity);
+		OutEnvironment.SetDefine(TEXT("DEBUG_VIEW_LIGHTMAP_DENSITY"),	(uint32)Nanite::EDebugViewMode::LightmapDensity);
+		OutEnvironment.SetDefine(TEXT("DEBUG_VIEW_PRIMITIVE_COLOR"),	(uint32)Nanite::EDebugViewMode::PrimitiveColor);
+		OutEnvironment.SetDefine(TEXT("DEBUG_VIEW_LWC_COMPLEXITY"),		(uint32)Nanite::EDebugViewMode::LWCComplexity);
+
+		OutEnvironment.SetDefine(TEXT("MATERIAL_DEBUG_VIEW_INFO_STRIDE"), (uint32)sizeof(FNaniteMaterialDebugViewInfo::FPacked));
 	}
 };
 IMPLEMENT_GLOBAL_SHADER(FExportDebugViewPS, "/Engine/Private/Nanite/NaniteDebugViews.usf", "ExportDebugViewPS", SF_Pixel);
+
+extern float GMaxLWCComplexity;
+
+#endif // WITH_DEBUG_VIEW_MODES
 
 namespace Nanite
 {
@@ -931,7 +947,14 @@ void RenderDebugViewMode(
 	PassParameters->VisibleClustersSWHW = GraphBuilder.CreateSRV(RasterResults.VisibleClustersSWHW);
 	PassParameters->PageConstants = RasterResults.PageConstants;
 	PassParameters->ViewRect = FIntVector4(View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
-	PassParameters->InvShaderBudget = 1.0f / float(NaniteShaderBudget);
+	if (View.Family->GetDebugViewShaderMode() == DVSM_LWCComplexity)
+	{
+		PassParameters->InvShaderBudget = 1.0f / GMaxLWCComplexity;
+	}
+	else
+	{
+		PassParameters->InvShaderBudget = 1.0f / float(NaniteShaderBudget);
+	}
 	PassParameters->SelectionColor = FVector3f(SelectionColor.R, SelectionColor.G, SelectionColor.B);
 	PassParameters->DebugViewMode = uint32(DebugViewMode);
 	PassParameters->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);

@@ -70,6 +70,8 @@ public:
 		, ViewModeParamName(InViewModeParamName)
 		, NumVSInstructions(0)
 		, NumPSInstructions(0)
+		, LWCComplexityVS(0)
+		, LWCComplexityPS(0)
 	{}
 
 	const FMaterialRenderProxy& MaterialRenderProxy;
@@ -84,6 +86,9 @@ public:
 
 	int32 NumVSInstructions;
 	int32 NumPSInstructions;
+
+	uint32 LWCComplexityVS;
+	uint32 LWCComplexityPS;
 };
 
 /**
@@ -193,6 +198,8 @@ public:
 		int32 VisualizeElementIndex,
 		int32 NumVSInstructions,
 		int32 NumPSInstructions,
+		int32 LWCComplexityVS,
+		int32 LWCComplexityPS,
 		int32 ViewModeParam,
 		FName ViewModeParamName,
 		FMeshDrawSingleShaderBindings& ShaderBindings

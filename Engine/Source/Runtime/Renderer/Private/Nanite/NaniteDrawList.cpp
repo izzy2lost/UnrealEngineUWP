@@ -169,19 +169,34 @@ void FNaniteDrawListContext::FinalizeCommand(
 	MeshDrawCommand.ClearDebugPrimitiveSceneProxy();
 #endif
 
+	const ERHIFeatureLevel::Type FeatureLevel = CurrentPrimitiveSceneInfo->Scene->GetFeatureLevel();
+
+	FNaniteMaterialDebugViewInfo MaterialDebugViewInfo {};
 #if WITH_DEBUG_VIEW_MODES
-	uint32 NumPSInstructions = 0;
-	uint32 NumVSInstructions = 0;
 	if (ShadersForDebugging != nullptr)
 	{
-		NumPSInstructions = ShadersForDebugging->PixelShader->GetNumInstructions();
-		NumVSInstructions = ShadersForDebugging->VertexShader->GetNumInstructions();
-	}
+		uint32 InstructionCountVS = ShadersForDebugging->VertexShader->GetNumInstructions();
+		uint32 InstructionCountPS = ShadersForDebugging->PixelShader->GetNumInstructions();
+		MaterialDebugViewInfo.InstructionCountVS = static_cast<uint16>(FMath::Clamp(InstructionCountVS, 0, TNumericLimits<uint16>::Max()));
+		MaterialDebugViewInfo.InstructionCountPS = static_cast<uint16>(FMath::Clamp(InstructionCountPS, 0, TNumericLimits<uint16>::Max()));
 
-	const uint32 InstructionCount = static_cast<uint32>(NumPSInstructions << 16u | NumVSInstructions);
+#if WITH_EDITOR
+		FMaterialShaderMap* MaterialShaderMap = MeshDrawCommand.GetDebugData().Material->GetRenderingThreadShaderMap();
+		if (ensure(MaterialShaderMap))
+		{
+			uint32 LWCComplexityVS = 0;
+			uint32 LWCComplexityPS = 0;
+
+			MaterialShaderMap->GetEstimatedLWCFuncUsageComplexity(LWCComplexityVS, LWCComplexityPS);
+
+			// Set minimum complexity to 1, to differentiate between 0 cost and missing data
+			MaterialDebugViewInfo.LWCComplexityVS = static_cast<uint16>(FMath::Clamp(LWCComplexityVS++, 1, TNumericLimits<uint16>::Max()));
+			MaterialDebugViewInfo.LWCComplexityPS = static_cast<uint16>(FMath::Clamp(LWCComplexityPS++, 1, TNumericLimits<uint16>::Max()));
+		}
+#endif
+	}
 #endif
 
-	const ERHIFeatureLevel::Type FeatureLevel = CurrentPrimitiveSceneInfo->Scene->GetFeatureLevel();
 	const bool bWPOEnabled = MeshBatch.MaterialRenderProxy && MeshBatch.MaterialRenderProxy->GetIncompleteMaterialWithFallback(FeatureLevel).MaterialUsesWorldPositionOffset_RenderThread();
 
 	// Defer the command
@@ -190,9 +205,7 @@ void FNaniteDrawListContext::FinalizeCommand(
 			CurrentPrimitiveSceneInfo,
 			MeshDrawCommand,
 			FNaniteMaterialEntryMap::ComputeHash(MeshDrawCommand),
-		#if WITH_DEBUG_VIEW_MODES
-			InstructionCount,
-		#endif
+			MaterialDebugViewInfo,
 			MeshBatch.SegmentIndex,
 			bWPOEnabled
 		}
@@ -214,12 +227,8 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 
 		for (auto& Command : DeferredCommands[MeshPass])
 		{
-			uint32 InstructionCount = 0;
-		#if WITH_DEBUG_VIEW_MODES
-			InstructionCount = Command.InstructionCount;
-		#endif
 			FPrimitiveSceneInfo* PrimitiveSceneInfo = Command.PrimitiveSceneInfo;
-			FNaniteCommandInfo CommandInfo = ShadingCommands.Register(Command.MeshDrawCommand, Command.CommandHash, InstructionCount, Command.bWPOEnabled);
+			FNaniteCommandInfo CommandInfo = ShadingCommands.Register(Command.MeshDrawCommand, Command.CommandHash, Command.MaterialDebugViewInfo, Command.bWPOEnabled);
 			AddShadingCommand(*PrimitiveSceneInfo, CommandInfo, ENaniteMeshPass::Type(MeshPass), Command.SectionIndex);
 
 			FNaniteVisibility::PrimitiveShadingDrawType* ShadingDraws = !bUseComputeMaterials ? Visibility.GetShadingDrawReferences(PrimitiveSceneInfo) : nullptr;

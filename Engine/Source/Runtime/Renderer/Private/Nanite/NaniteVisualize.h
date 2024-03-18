@@ -38,6 +38,7 @@ enum class EDebugViewMode : uint8
 	ShaderComplexity = 2,
 	LightmapDensity = 3,
 	PrimitiveColor = 4,
+	LWCComplexity = 5
 };
 
 void RenderDebugViewMode(

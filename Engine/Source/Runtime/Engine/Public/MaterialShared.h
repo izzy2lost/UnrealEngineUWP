@@ -720,7 +720,8 @@ public:
 		bUsedWithNeuralNetworks(false)
 	{
 #if WITH_EDITOR
-		FMemory::Memzero(EstimatedLWCFuncUsages);
+		FMemory::Memzero(EstimatedLWCFuncUsagesVS);
+		FMemory::Memzero(EstimatedLWCFuncUsagesPS);
 #endif
 	}
 
@@ -778,7 +779,8 @@ public:
 	LAYOUT_FIELD_EDITORONLY(uint16, EstimatedNumTextureSamplesPS);
 
 	/** Estimate of the number of times each LWC operator occurs in the material shader code */
-	LAYOUT_ARRAY_EDITORONLY(uint16, EstimatedLWCFuncUsages, (int)ELWCFunctionKind::Max)
+	LAYOUT_ARRAY_EDITORONLY(uint16, EstimatedLWCFuncUsagesVS, (int)ELWCFunctionKind::Max)
+	LAYOUT_ARRAY_EDITORONLY(uint16, EstimatedLWCFuncUsagesPS, (int)ELWCFunctionKind::Max)
 	
 	/** Number of virtual texture lookups performed, excludes direct invocation in shaders (for example VT lightmaps) */
 	LAYOUT_FIELD_EDITORONLY(uint16, EstimatedNumVirtualTextureLookups);
@@ -1499,12 +1501,12 @@ public:
 	uint32 GetNumUsedCustomInterpolatorScalars() const { return GetContent()->MaterialCompilationOutput.NumUsedCustomInterpolatorScalars; }
 	void GetEstimatedNumTextureSamples(uint32& VSSamples, uint32& PSSamples) const { VSSamples = GetContent()->MaterialCompilationOutput.EstimatedNumTextureSamplesVS; PSSamples = GetContent()->MaterialCompilationOutput.EstimatedNumTextureSamplesPS; }
 	uint32 GetEstimatedNumVirtualTextureLookups() const { return GetContent()->MaterialCompilationOutput.EstimatedNumVirtualTextureLookups; }
-	TStaticArray<uint16, (int)ELWCFunctionKind::Max> GetEstimatedLWCFuncUsages() const
+	void GetEstimatedLWCFuncUsages(TStaticArray<uint16, (int)ELWCFunctionKind::Max>& UsagesVS, TStaticArray<uint16, (int)ELWCFunctionKind::Max>& UsagesPS) const
 	{
-		TStaticArray<uint16, (int)ELWCFunctionKind::Max> Result;
-		CopyAssignItems(Result.GetData(), GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsages, (int)ELWCFunctionKind::Max);
-		return Result;
+		CopyAssignItems(UsagesVS.GetData(), GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesVS, (int)ELWCFunctionKind::Max);
+		CopyAssignItems(UsagesPS.GetData(), GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesPS, (int)ELWCFunctionKind::Max);
 	}
+	ENGINE_API void GetEstimatedLWCFuncUsageComplexity(uint32& LWCComplexityVS, uint32& LWCComplexityPS) const;
 	uint32 GetNumPreshaders() const { return GetContent()->MaterialCompilationOutput.UniformExpressionSet.UniformPreshaders.Num(); }
 #endif
 	uint32 GetNumVirtualTextureStacks() const { return GetContent()->MaterialCompilationOutput.UniformExpressionSet.VTStacks.Num(); }
@@ -2701,7 +2703,8 @@ public:
 	ENGINE_API void GetUserInterpolatorUsage(uint32& NumUsedUVScalars, uint32& NumUsedCustomInterpolatorScalars) const;
 	ENGINE_API void GetEstimatedNumTextureSamples(uint32& VSSamples, uint32& PSSamples) const;
 	ENGINE_API uint32 GetEstimatedNumVirtualTextureLookups() const;
-	ENGINE_API TStaticArray<uint16, (int)ELWCFunctionKind::Max> GetEstimatedLWCFuncUsages() const;
+	using FLWCUsagesArray = TStaticArray<uint16, (int)ELWCFunctionKind::Max>;
+	ENGINE_API void GetEstimatedLWCFuncUsages(FLWCUsagesArray& UsagesVS, FLWCUsagesArray& UsagesPS) const;
 #endif
 	ENGINE_API uint32 GetNumVirtualTextureStacks() const;
 

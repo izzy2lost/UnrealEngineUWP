@@ -26,12 +26,6 @@ uint4 ViewRect;
 float InvShaderBudget;
 float3 SelectionColor;
 
-// Note: Must match EDebugViewMode in NaniteVisualize.h
-#define DEBUG_VIEW_NONE 0
-#define DEBUG_VIEW_WIREFRAME 1
-#define DEBUG_VIEW_SHADER_COMPLEXITY 2
-#define DEBUG_VIEW_LIGHTMAP_DENSITY 3
-#define DEBUG_VIEW_PRIMITIVE_COLOR 4
 uint DebugViewMode;
 
 #define SOBEL_WIREFRAME_FILTER_ONLY 0
@@ -148,6 +142,30 @@ bool IsInstanceSelected(FInstanceSceneData InstanceData, FVisibleCluster Visible
 	return bIsSelected;
 }
 
+struct FNaniteMaterialDebugViewInfo
+{
+	uint InstructionCountVS;
+	uint InstructionCountPS;
+	uint LWCComplexityVS;
+	uint LWCComplexityPS;
+};
+
+FNaniteMaterialDebugViewInfo ReadMaterialDebugViewInfo(uint ShadingBin)
+{
+	FNaniteMaterialDebugViewInfo Result;
+
+	const uint Stride = MATERIAL_DEBUG_VIEW_INFO_STRIDE;
+	int2 Data = MaterialEditorTable.Load2(ShadingBin * Stride);
+
+	Result.InstructionCountVS = (Data.x & 0x0000FFFFu);
+	Result.InstructionCountPS = (Data.x & 0xFFFF0000u) >> 16u;
+
+	Result.LWCComplexityVS = (Data.y & 0x0000FFFFu);
+	Result.LWCComplexityPS = (Data.y & 0xFFFF0000u) >> 16u;
+
+	return Result;
+}
+
 void ExportDebugViewPS(
 	in float4 SvPosition : SV_Position,
 	out float4 OutColor  : SV_Target0
@@ -176,7 +194,7 @@ void ExportDebugViewPS(
 			FCluster Cluster							= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
 			FShadingMask UnpackedMask = UnpackShadingMask(ShadingMask[PixelPos]);
-			const uint MaterialEditorData = GetMaterialDepthId(UnpackedMask.ShadingBin, MaterialEditorTable);
+			FNaniteMaterialDebugViewInfo MaterialDebugViewInfo = ReadMaterialDebugViewInfo(UnpackedMask.ShadingBin);
 
 			BRANCH
 			if (DebugViewMode == DEBUG_VIEW_WIREFRAME)
@@ -254,16 +272,13 @@ void ExportDebugViewPS(
 		#if USE_EDITOR_SHADERS
 			else if (DebugViewMode == DEBUG_VIEW_SHADER_COMPLEXITY)
 			{
-				const uint NumPSInstructions = (MaterialEditorData & 0xFFFF0000u) >> 16u;
-				const uint NumVSInstructions = (MaterialEditorData & 0x0000FFFFu);
-
 				// If mode is DVSM_QuadComplexity, different calculations used
 				// See: FComplexityAccumulateInterface::GetDebugViewModeShaderBindings()
 
 				// float3(PS/ShaderBudget, VS/ShaderBudget, overdraw)
 				float3 NormalizedComplexity = float3(
-					NumPSInstructions * InvShaderBudget,
-					NumVSInstructions * InvShaderBudget,
+					MaterialDebugViewInfo.InstructionCountPS * InvShaderBudget,
+					MaterialDebugViewInfo.InstructionCountVS * InvShaderBudget,
 					1.0 / 32.0f
 				);
 
@@ -280,6 +295,14 @@ void ExportDebugViewPS(
 				// Use the maximum range allowed for scene color
 				// Alpha channel needs to be 1 to have decals working where the framebuffer blend is setup to multiply with alpha
 				OutColor = float4(FinalComplexity.xyz, 1.0f);
+			}
+			else if (DebugViewMode == DEBUG_VIEW_LWC_COMPLEXITY)
+			{
+				float3 NormalizedComplexity = float3(MaterialDebugViewInfo.LWCComplexityPS, MaterialDebugViewInfo.LWCComplexityVS, 0) * InvShaderBudget;
+
+				// Use the maximum range allowed for scene color
+				// Alpha channel needs to be 1 to have decals working where the framebuffer blend is setup to multiply with alpha
+				OutColor = float4(NormalizedComplexity.xyz, 1.0f);
 			}
 			else if (DebugViewMode == DEBUG_VIEW_PRIMITIVE_COLOR)
 			{

@@ -57,6 +57,8 @@ const TCHAR* DebugViewShaderModeToString(EDebugViewShaderMode InShaderMode)
 		return TEXT("DVSM_LODColoration");
 	case DVSM_VisualizeGPUSkinCache:
 		return TEXT("DVSM_VisualizeGPUSkinCache");
+	case DVSM_LWCComplexity:
+		return TEXT("DVSM_LWCComplexity");
 	default:
 		return TEXT("DVSM_None");
 	}
@@ -107,6 +109,7 @@ bool AllowDebugViewShaderMode(EDebugViewShaderMode ShaderMode, EShaderPlatform P
 	case DVSM_VirtualTexturePendingMips:
 		return FeatureLevel >= ERHIFeatureLevel::SM5 && (bForceTextureStreamingBuild || PlatformSupportsDebugViewShaders(Platform));
 	case DVSM_VisualizeGPUSkinCache:
+	case DVSM_LWCComplexity:
 		return PlatformSupportsDebugViewShaders(Platform);
 	default:
 		return false;

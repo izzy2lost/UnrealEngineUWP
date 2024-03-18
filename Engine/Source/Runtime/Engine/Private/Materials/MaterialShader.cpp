@@ -3243,6 +3243,47 @@ void FMaterialShaderMapContent::RemoveMeshShaderMap(const FHashedName& VertexFac
 	}
 }
 
+#if WITH_EDITOR
+void FMaterialShaderMap::GetEstimatedLWCFuncUsageComplexity(uint32& LWCComplexityVS, uint32& LWCComplexityPS) const
+{
+	auto GetLWCComplexity = [](const uint16 (&Usages)[(int)ELWCFunctionKind::Max]) {
+		int Complexity = 0;
+		for (int Idx = 0; Idx < (int)ELWCFunctionKind::Max; Idx++)
+		{
+			int CurUsages = Usages[Idx];
+			int Cost;
+			switch ((ELWCFunctionKind)Idx)
+			{
+				// Somewhat arbitrary, but broadly assigns cost classes compared to working in a local/translated space instead.
+				case ELWCFunctionKind::Constructor:
+				case ELWCFunctionKind::Promote:
+					Cost = 0;
+					break;
+				case ELWCFunctionKind::Demote:
+					Cost = 10;
+					break;
+				case ELWCFunctionKind::Add:
+				case ELWCFunctionKind::Subtract:
+					Cost = 20;
+					break;
+				case ELWCFunctionKind::MultiplyVectorVector:
+				case ELWCFunctionKind::MultiplyVectorMatrix:
+				case ELWCFunctionKind::MultiplyMatrixMatrix:
+				case ELWCFunctionKind::Divide:
+					Cost = 30;
+					break;
+				default:
+					Cost = 40;
+			}
+			Complexity += Cost * CurUsages;
+		}
+		return Complexity;
+	};
+	LWCComplexityVS = GetLWCComplexity(GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesVS);
+	LWCComplexityPS = GetLWCComplexity(GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesPS);
+}
+#endif
+
 void FMaterialShaderMap::DumpDebugInfo(FOutputDevice& OutputDevice) const
 {
 	// Turn off as it makes diffing hard

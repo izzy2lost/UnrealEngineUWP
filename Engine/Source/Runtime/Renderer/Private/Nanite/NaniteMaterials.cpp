@@ -947,7 +947,7 @@ void FNaniteMaterialCommands::Release()
 #endif
 }
 
-FNaniteCommandInfo FNaniteMaterialCommands::Register(FMeshDrawCommand& Command, FCommandHash CommandHash, uint32 InstructionCount, bool bWPOEnabled)
+FNaniteCommandInfo FNaniteMaterialCommands::Register(FMeshDrawCommand& Command, FCommandHash CommandHash, const FNaniteMaterialDebugViewInfo& MaterialDebugViewInfo, bool bWPOEnabled)
 {
 	FNaniteCommandInfo CommandInfo;
 
@@ -961,9 +961,7 @@ FNaniteCommandInfo FNaniteMaterialCommands::Register(FMeshDrawCommand& Command, 
 		check(MaterialEntry.MaterialSlot == INDEX_NONE);
 		MaterialEntry.MaterialSlot = MaterialSlotAllocator.Allocate(1);
 		MaterialEntry.MaterialId = CommandInfo.GetMaterialId();
-	#if WITH_DEBUG_VIEW_MODES
-		MaterialEntry.InstructionCount = InstructionCount;
-	#endif
+		MaterialEntry.DebugViewInfo = MaterialDebugViewInfo;
 		MaterialEntry.bNeedUpload = true;
 		MaterialEntry.bWPOEnabled = bWPOEnabled;
 
@@ -999,9 +997,7 @@ void FNaniteMaterialCommands::Unregister(const FNaniteCommandInfo& CommandInfo)
 		MaterialSlotAllocator.Free(MaterialEntry.MaterialSlot, 1);
 
 		MaterialEntry.MaterialSlot = INDEX_NONE;
-	#if WITH_DEBUG_VIEW_MODES
-		MaterialEntry.InstructionCount = 0;
-	#endif
+		MaterialEntry.DebugViewInfo = {};
 
 		if (MaterialEntry.bNeedUpload)
 		{
@@ -1032,7 +1028,7 @@ void FNaniteMaterialCommands::UpdateBufferState(FRDGBuilder& GraphBuilder, uint3
 	ResizeByteAddressBufferIfNeeded(GraphBuilder, MaterialDepthDataBuffer, MaterialSlotReserve * sizeof(uint32), TEXT("Nanite.MaterialDepthDataBuffer"));
 
 #if WITH_DEBUG_VIEW_MODES
-	ResizeByteAddressBufferIfNeeded(GraphBuilder, MaterialEditorDataBuffer, MaterialSlotReserve * sizeof(uint32), TEXT("Nanite.MaterialEditorDataBuffer"));
+	ResizeByteAddressBufferIfNeeded(GraphBuilder, MaterialEditorDataBuffer, MaterialSlotReserve * sizeof(FNaniteMaterialDebugViewInfo::FPacked), TEXT("Nanite.MaterialEditorDataBuffer"));
 #endif
 }
 
@@ -1059,7 +1055,7 @@ FNaniteMaterialCommands::FUploader* FNaniteMaterialCommands::Begin(FRDGBuilder& 
 #endif
 #if WITH_DEBUG_VIEW_MODES
 	check(MaterialEditorDataBuffer);
-	check(MaterialEditorDataBuffer->GetSize() == MaterialSlotReserve * sizeof(uint32));
+	check(MaterialEditorDataBuffer->GetSize() == MaterialSlotReserve * sizeof(FNaniteMaterialDebugViewInfo::FPacked));
 #endif
 	check(MaterialDepthDataBuffer);
 	check(MaterialDepthDataBuffer->GetSize() == MaterialSlotReserve * sizeof(uint32));
@@ -1073,7 +1069,7 @@ FNaniteMaterialCommands::FUploader* FNaniteMaterialCommands::Begin(FRDGBuilder& 
 	{
 		Uploader->MaterialDepthUploader = MaterialDepthUploadBuffer.Begin(GraphBuilder, Register(MaterialDepthDataBuffer), NumMaterialDepthUpdates, sizeof(uint32), TEXT("Nanite.MaterialDepthUploadBuffer"));
 	#if WITH_DEBUG_VIEW_MODES
-		Uploader->MaterialEditorUploader = MaterialEditorUploadBuffer.Begin(GraphBuilder, Register(MaterialEditorDataBuffer), NumMaterialDepthUpdates, sizeof(uint32), TEXT("Nanite.MaterialEditorUploadBuffer"));
+		Uploader->MaterialEditorUploader = MaterialEditorUploadBuffer.Begin(GraphBuilder, Register(MaterialEditorDataBuffer), NumMaterialDepthUpdates, sizeof(FNaniteMaterialDebugViewInfo::FPacked), TEXT("Nanite.MaterialEditorUploadBuffer"));
 	#endif
 
 		for (auto& Command : EntryMap)
@@ -1109,7 +1105,8 @@ void FNaniteMaterialCommands::FUploader::Lock(FRHICommandListBase& RHICmdList)
 	{
 		*static_cast<uint32*>(MaterialDepthUploader->Add_GetRef(MaterialEntry.MaterialSlot)) = MaterialEntry.MaterialId;
 	#if WITH_DEBUG_VIEW_MODES
-		*static_cast<uint32*>(MaterialEditorUploader->Add_GetRef(MaterialEntry.MaterialSlot)) = MaterialEntry.InstructionCount;
+		FNaniteMaterialDebugViewInfo::FPacked* UploadBuffer = static_cast<FNaniteMaterialDebugViewInfo::FPacked*>(MaterialEditorUploader->Add_GetRef(MaterialEntry.MaterialSlot));
+		*UploadBuffer = MaterialEntry.DebugViewInfo.Pack();
 	#endif
 	}
 	DirtyMaterialEntries.Empty();

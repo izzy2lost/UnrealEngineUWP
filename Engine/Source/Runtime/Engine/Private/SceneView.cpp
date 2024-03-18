@@ -3004,6 +3004,10 @@ EDebugViewShaderMode FSceneViewFamily::ChooseDebugViewShaderMode() const
 	{
 		return DVSM_VisualizeGPUSkinCache;
 	}
+	else if (EngineShowFlags.VisualizeLWCComplexity)
+	{
+		return DVSM_LWCComplexity;
+	}
 	return DVSM_None;
 }
 

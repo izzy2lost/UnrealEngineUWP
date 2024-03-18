@@ -40,6 +40,7 @@ enum EDebugViewShaderMode
 	DVSM_VirtualTexturePendingMips,	// Visualize the pending virtual texture mips.
 	DVSM_LODColoration,				// Visualize primitive LOD .
 	DVSM_VisualizeGPUSkinCache,		// Visualize various properties of Skin Cache.
+	DVSM_LWCComplexity,				// Visualize usage of LWC functions in materials.
 	DVSM_MAX
 };
 

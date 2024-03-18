@@ -1368,7 +1368,9 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 	    case DVSM_QuadComplexity:							// Show quad overdraw only.
 		    NaniteDebugViewMode = Nanite::EDebugViewMode::ShaderComplexity;
 		    break;
-    
+		case DVSM_LWCComplexity:							// Show LWC function usage in materials
+			NaniteDebugViewMode = Nanite::EDebugViewMode::LWCComplexity;
+			break;
 	    default:
 		    break;
 	    }

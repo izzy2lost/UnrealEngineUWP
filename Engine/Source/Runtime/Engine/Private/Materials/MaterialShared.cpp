@@ -4092,13 +4092,12 @@ uint32 FMaterialResource::GetEstimatedNumVirtualTextureLookups() const
 	return 0;
 }
 
-TStaticArray<uint16, (int)ELWCFunctionKind::Max> FMaterialResource::GetEstimatedLWCFuncUsages() const
+void FMaterialResource::GetEstimatedLWCFuncUsages(FLWCUsagesArray& UsagesVS, FLWCUsagesArray& UsagesPS) const
 {
 	if (const FMaterialShaderMap* ShaderMap = GetGameThreadShaderMap())
 	{
-		return ShaderMap->GetEstimatedLWCFuncUsages();
+		ShaderMap->GetEstimatedLWCFuncUsages(UsagesVS, UsagesPS);
 	}
-	return {};
 }
 
 #endif // WITH_EDITOR

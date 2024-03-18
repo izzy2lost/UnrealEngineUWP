@@ -140,6 +140,10 @@ TArray<FText> FillViewModeDisplayNames()
 		{
 			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_VisualizeGPUSkinCache", "GPU Skin Cache"));
 		}
+		else if (ViewModeIndex == VMI_LWCComplexity)
+		{
+			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_VisualizeLWCComplexity", "Material LWC Function Usage"));
+		}
 
 	
 		// Ray tracing modes
@@ -360,6 +364,10 @@ TArray<const FSlateBrush*> FillViewModeDisplayIcons()
 		else if (ViewModeIndex == VMI_VisualizeGPUSkinCache)
 		{
 			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.VisualizeGPUSkinCacheMode"));
+		}
+		else if (ViewModeIndex == VMI_LWCComplexity)
+		{
+			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.LWCComplexityMode"));
 		}
 
 		// Ray tracing modes

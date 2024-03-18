@@ -566,7 +566,8 @@ void Main(
 	if (VisualizeMode == DVSM_ShaderComplexity ||
 		VisualizeMode == DVSM_ShaderComplexityContainedQuadOverhead ||
 		VisualizeMode == DVSM_ShaderComplexityBleedingQuadOverhead ||
-		VisualizeMode == DVSM_QuadComplexity)
+		VisualizeMode == DVSM_QuadComplexity ||
+		VisualizeMode == DVSM_LWCComplexity)
 	{
 		VisualizeColor = VisualizeShaderComplexityAccumulate(DebugInputs, bIsFrontFace);
 	}

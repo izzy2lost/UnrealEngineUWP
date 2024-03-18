@@ -148,6 +148,8 @@ public:
 	/** Changes the viewport to Skin Cache mode */
 	TSharedPtr< FUICommandInfo > VisualizeGPUSkinCacheMode;
 
+	TSharedPtr< FUICommandInfo > VisualizeLWCComplexity;
+
 	/** Collision Draw Mode */
 	TSharedPtr< FUICommandInfo > CollisionPawn;
 	TSharedPtr< FUICommandInfo > CollisionVisibility;

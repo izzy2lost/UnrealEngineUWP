@@ -17,7 +17,7 @@
 #include "RHIImmutableSamplerState.h"
 #include <atomic>
 
-#define MESH_DRAW_COMMAND_DEBUG_DATA ((!UE_BUILD_SHIPPING && !UE_BUILD_TEST) || VALIDATE_MESH_COMMAND_BINDINGS || WANTS_DRAW_MESH_EVENTS)
+#define MESH_DRAW_COMMAND_DEBUG_DATA ((!UE_BUILD_SHIPPING && !UE_BUILD_TEST) || VALIDATE_MESH_COMMAND_BINDINGS || WANTS_DRAW_MESH_EVENTS || WITH_DEBUG_VIEW_MODES)
 
 class FGPUScene;
 class FInstanceCullingDrawParams;
@@ -738,6 +738,7 @@ struct FMeshDrawCommandDebugData
 {
 #if MESH_DRAW_COMMAND_DEBUG_DATA
 	const FPrimitiveSceneProxy* PrimitiveSceneProxyIfNotUsingStateBuckets;
+	const FMaterial* Material;
 	const FMaterialRenderProxy* MaterialRenderProxy;
 	TShaderRef<FShader> VertexShader;
 	TShaderRef<FShader> PixelShader;
@@ -1319,6 +1320,11 @@ public:
 	void ClearDebugPrimitiveSceneProxy() const
 	{
 		DebugData.PrimitiveSceneProxyIfNotUsingStateBuckets = nullptr;
+	}
+
+	const FMeshDrawCommandDebugData& GetDebugData() const
+	{
+		return DebugData;
 	}
 private:
 	mutable FMeshDrawCommandDebugData DebugData;

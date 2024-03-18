@@ -189,6 +189,13 @@ void SEditorViewportViewMenu::FillViewMenu(UToolMenu* Menu) const
 							{
 								Section.AddMenuEntry(BaseViewportCommands.QuadOverdrawMode, UViewModeUtils::GetViewModeDisplayName(VMI_QuadOverdraw));
 							}
+							if (AllowDebugViewShaderMode(DVSM_LWCComplexity, GMaxRHIShaderPlatform, FeatureLevel))
+							{
+								Section.AddMenuEntry(BaseViewportCommands.VisualizeLWCComplexity, 
+								                     UViewModeUtils::GetViewModeDisplayName(VMI_LWCComplexity), 
+								                     TAttribute<FText>(), 
+								                     FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.LWCComplexityMode"));
+							}
 						}
 
 						{
