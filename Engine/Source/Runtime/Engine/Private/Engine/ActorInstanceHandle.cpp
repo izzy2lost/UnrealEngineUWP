@@ -451,7 +451,7 @@ uint32 GetTypeHash(const FActorInstanceHandle& Handle)
 	uint32 Hash = 0;
 	if (const AActor* Actor = Handle.GetCachedActor())
 	{
-		FCrc::StrCrc32(*(Actor->GetPathName()), Hash);
+		Hash = FCrc::StrCrc32(*(Actor->GetPathName()), Hash);
 	}
 	if (UObject* ManagerInterfaceObject = Handle.ManagerInterface.GetObject())
 	{
