@@ -388,29 +388,19 @@ half3x3 VertexFactoryGetTangentToLocal(FVertexFactoryInput Input, FVertexFactory
 // @return translated world position
 float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {
-	float4 WorldPosition = TransformLocalToTranslatedWorld(Intermediates.Position, Intermediates.SceneData.Primitive.LocalToWorld);
+	float4 WorldPosition = TransformLocalToTranslatedWorld(Intermediates.Position);
 	WorldPosition.xyz = ProcessPosition(WorldPosition.xyz, Intermediates.TangentToLocal, Input.VertexId);
 	return WorldPosition;
 }
-// local position relative to instance
-float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
-{
-	// No support for instancing, so instance == primitive
-	return Intermediates.Position;
-}
 float4 VertexFactoryGetWorldPosition(FPositionOnlyVertexFactoryInput Input)
 {
-	float4 WorldPosition = TransformLocalToTranslatedWorld(
-		ApplyClipping((bUseStaticBuffers ? Input.Position.xyz : LidarGetInstancePosition(Input.VertexId)) + LocationOffset),
-		GetPrimitiveDataFromUniformBuffer().LocalToWorld);
+	float4 WorldPosition = TransformLocalToTranslatedWorld(ApplyClipping((bUseStaticBuffers ? Input.Position.xyz : LidarGetInstancePosition(Input.VertexId)) + LocationOffset));
 	WorldPosition.xyz = ProcessPosition(WorldPosition.xyz, Input.VertexId);
 	return WorldPosition;
 }
 float4 VertexFactoryGetWorldPosition(FPositionAndNormalOnlyVertexFactoryInput Input)
 {
-	float4 WorldPosition = TransformLocalToTranslatedWorld(
-		ApplyClipping((bUseStaticBuffers ? Input.Position.xyz : LidarGetInstancePosition(Input.VertexId)) + LocationOffset),
-		GetPrimitiveDataFromUniformBuffer().LocalToWorld);
+	float4 WorldPosition = TransformLocalToTranslatedWorld(ApplyClipping((bUseStaticBuffers ? Input.Position.xyz : LidarGetInstancePosition(Input.VertexId)) + LocationOffset));
 	WorldPosition.xyz = ProcessPosition(WorldPosition.xyz, Input.VertexId);
 	return WorldPosition;
 }
@@ -437,38 +427,12 @@ float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexF
     return mul(float4(Intermediates.Position, 1), DFMultiplyTranslationDemote(Intermediates.SceneData.InstanceData.PrevLocalToWorld, ResolvedView.PrevPreViewTranslation));
 }
 
-// local position relative to instance
-float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
-{
-	// No support for instancing, so instance == primitive
-	return Intermediates.Position;
-}
-
-float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
-float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
-
 /** Converts from vertex factory specific input to a FMaterialVertexParameters, which is used by vertex shader material inputs. */
-FMaterialVertexParameters GetMaterialVertexParameters(
-	FVertexFactoryInput Input, 
-	FVertexFactoryIntermediates Intermediates, 
-	float3 WorldPosition, 
-	half3x3 TangentToLocal,
-	bool bIsPreviousFrame = false)
+FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, half3x3 TangentToLocal)
 {
     FMaterialVertexParameters Result = MakeInitializedMaterialVertexParameters();
     Result.SceneData = Intermediates.SceneData;
-	
 	Result.WorldPosition = WorldPosition;
-	if (bIsPreviousFrame)
-	{
-		Result.PositionInstanceSpace = VertexFactoryGetPreviousInstanceSpacePosition(Input, Intermediates);
-	}
-	else
-	{
-		Result.PositionInstanceSpace = VertexFactoryGetInstanceSpacePosition(Input, Intermediates);
-	}
-	Result.PositionPrimitiveSpace = Result.PositionInstanceSpace; // No support for instancing, so instance == primitive
-
     Result.TangentToWorld = Intermediates.TangentToWorld;
     Result.PreSkinnedNormal = TangentToLocal[2];
     Result.PreSkinnedPosition = WorldPosition;

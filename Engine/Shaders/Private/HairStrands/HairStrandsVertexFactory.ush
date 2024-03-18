@@ -311,25 +311,12 @@ half3x3 CalcTangentToWorldNoScale(FPrimitiveSceneData SceneData, half3x3 Tangent
 	return mul(TangentToLocal, LocalToWorld); 
 }
 
-float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, bool bInvalidJointVertex = true);
-float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
-float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, FHairViewInfo HairInfo);
-
 /** Converts from vertex factory specific input to a FMaterialVertexParameters, which is used by vertex shader material inputs. */
-FMaterialVertexParameters GetMaterialVertexParameters(
-	FVertexFactoryInput Input, 
-	FVertexFactoryIntermediates Intermediates, 
-	float3 WorldPosition, 
-	float3 PositionInstanceSpace,
-	half3x3 TangentToLocal,
-	bool bIsPreviousFrame = false)
+FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, half3x3 TangentToLocal)
 {
 	FMaterialVertexParameters Result = MakeInitializedMaterialVertexParameters();
 	Result.SceneData = Intermediates.SceneData;
-	
 	Result.WorldPosition = WorldPosition;
-	Result.PositionInstanceSpace = PositionInstanceSpace;
-	Result.PositionPrimitiveSpace = Result.PositionInstanceSpace; // No support for instancing, so instance == primitive
 
 	// does not handle instancing!
 	Result.TangentToWorld = Intermediates.TangentToWorld;
@@ -341,45 +328,6 @@ FMaterialVertexParameters GetMaterialVertexParameters(
 	Result.LWCData = MakeMaterialLWCData(Result);
 
 	return Result;
-}
-
-FMaterialVertexParameters GetMaterialVertexParameters(
-	FVertexFactoryInput Input, 
-	FVertexFactoryIntermediates Intermediates, 
-	float3 WorldPosition, 
-	half3x3 TangentToLocal,
-	FHairViewInfo HairInfo,
-	bool bIsPreviousFrame = false)
-{
-	float3 PositionInstanceSpace;
-	if (bIsPreviousFrame)
-	{
-		PositionInstanceSpace = VertexFactoryGetPreviousInstanceSpacePosition(Input, Intermediates);
-	}
-	else
-	{
-		PositionInstanceSpace = VertexFactoryGetInstanceSpacePosition(Input, Intermediates, HairInfo);
-	}
-	return GetMaterialVertexParameters(Input, Intermediates, WorldPosition, PositionInstanceSpace, TangentToLocal, bIsPreviousFrame);
-}
-
-FMaterialVertexParameters GetMaterialVertexParameters(
-	FVertexFactoryInput Input, 
-	FVertexFactoryIntermediates Intermediates, 
-	float3 WorldPosition, 
-	half3x3 TangentToLocal,
-	bool bIsPreviousFrame = false)
-{
-	float3 PositionInstanceSpace;
-	if (bIsPreviousFrame)
-	{
-		PositionInstanceSpace = VertexFactoryGetPreviousInstanceSpacePosition(Input, Intermediates);
-	}
-	else
-	{
-		PositionInstanceSpace = VertexFactoryGetInstanceSpacePosition(Input, Intermediates);
-	}
-	return GetMaterialVertexParameters(Input, Intermediates, WorldPosition, PositionInstanceSpace, TangentToLocal, bIsPreviousFrame);
 }
 
 float4 CalcWorldPosition(float3 Position, FDFMatrix LocalToWorld)
@@ -699,11 +647,6 @@ float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIn
 	return CalcWorldPosition(Input.Position.xyz, Intermediates.SceneData.Primitive.LocalToWorld);
 }
 
-float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
-{
-	return Input.Position.xyz;
-}
-
 #else
 
 float4 ComputeViewAlignedWorldPosition(FVertexFactoryInput Input, float3 WorldTangent, float4 WorldPosition, float WorldStrandRadius, FHairViewInfo HairViewInfo)
@@ -778,14 +721,6 @@ float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIn
 	return ComputeViewAlignedWorldPosition(Input, WorldTangent, WorldPosition, ControlPoint.WorldRadius, HairViewInfo);
 }
 
-float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, FHairViewInfo HairViewInfo)
-{
-	float4 TranslatedWorldPosition = VertexFactoryGetWorldPosition(Input, Intermediates, HairViewInfo);
-	float4x4 TranslatedWorldToLocal = DFFastToTranslatedWorld(Intermediates.SceneData.Primitive.WorldToLocal, ResolvedView.PreViewTranslation);
-	float4 LocalPosition = mul(TranslatedWorldPosition, TranslatedWorldToLocal);
-	return LocalPosition.xyz;
-}
-
 // This function is referenced by several "system" shaders, but none of these shaders (apart HitProxy, are actually used)
 float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {
@@ -798,14 +733,6 @@ float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIn
 	HairViewInfo.bIsOrthoView = HairRenderInfo.bIsOrthoView;
 
 	return VertexFactoryGetWorldPosition(Input, Intermediates, HairViewInfo);
-}
-
-float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
-{
-	float4 TranslatedWorldPosition = VertexFactoryGetWorldPosition(Input, Intermediates);
-	float4x4 TranslatedWorldToLocal = DFFastToTranslatedWorld(Intermediates.SceneData.Primitive.WorldToLocal, ResolvedView.PreViewTranslation);
-	float4 LocalPosition = mul(TranslatedWorldPosition, TranslatedWorldToLocal);
-	return LocalPosition.xyz;
 }
 #endif
 
@@ -857,11 +784,6 @@ float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexF
 {
 	const float3 VertexPosition = GetVertexPreviousPosition(Input, bInvalidJointVertex);
 	return DFTransformLocalToTranslatedWorld(VertexPosition, Intermediates.SceneData.Primitive.PreviousLocalToWorld, ResolvedView.PrevPreViewTranslation);
-}
-
-float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, bool bInvalidJointVertex)
-{
-	return GetVertexPreviousPosition(Input, bInvalidJointVertex);
 }
 
 float4 VertexFactoryGetTranslatedPrimitiveVolumeBounds(FVertexFactoryInterpolantsVSToPS Interpolants)
