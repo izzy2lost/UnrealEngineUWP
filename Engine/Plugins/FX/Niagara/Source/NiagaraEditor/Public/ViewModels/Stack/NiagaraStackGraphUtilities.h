@@ -171,8 +171,8 @@ namespace FNiagaraStackGraphUtilities
 	FORCEINLINE uint32 GetTypeHash(const FInputDataCacheKey& InputDataCacheKey)
 	{
 		uint32 Hash = 0;
-		HashCombine(Hash, GetTypeHash(InputDataCacheKey.NodeGuid));
-		HashCombine(Hash, GetTypeHash(InputDataCacheKey.VariableGuid));
+		Hash = HashCombine(Hash, GetTypeHash(InputDataCacheKey.NodeGuid));
+		Hash = HashCombine(Hash, GetTypeHash(InputDataCacheKey.VariableGuid));
 		return Hash;
 	}
 

@@ -71,12 +71,12 @@ FORCEINLINE uint32 GetTypeHash(const FNiagaraHierarchyIdentity& Identity)
 	
 	for(const FGuid& Guid : Identity.Guids)
 	{
-		HashCombine(Hash, GetTypeHash(Guid));
+		Hash = HashCombine(Hash, GetTypeHash(Guid));
 	}
 	
 	for(const FName& Name : Identity.Names)
 	{
-		HashCombine(Hash, GetTypeHash(Name));
+		Hash = HashCombine(Hash, GetTypeHash(Name));
 	}
 	
 	return Hash;
