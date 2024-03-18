@@ -29,21 +29,21 @@ struct FCrc
 	/** generates CRC hash of the memory area */
 	typedef uint32 (*MemCrc32Functor)( const void* Data, int32 Length, uint32 CRC );
 	static CORE_API MemCrc32Functor MemCrc32Func;
-	static FORCEINLINE uint32 MemCrc32(const void* Data, int32 Length, uint32 CRC = 0)
+	[[nodiscard]] static FORCEINLINE uint32 MemCrc32(const void* Data, int32 Length, uint32 CRC = 0)
 	{
 		return MemCrc32Func(Data, Length, CRC);
 	}
 
 	/** generates CRC hash of the element */
 	template <typename T>
-	static uint32 TypeCrc32( const T& Data, uint32 CRC=0 )
+	[[nodiscard]] static uint32 TypeCrc32( const T& Data, uint32 CRC=0 )
 	{
 		return MemCrc32(&Data, sizeof(T), CRC);
 	}
 
 	/** String CRC. */
 	template <typename CharType>
-	static typename TEnableIf<sizeof(CharType) != 1, uint32>::Type StrCrc32(const CharType* Data, uint32 CRC = 0)
+	[[nodiscard]] static typename TEnableIf<sizeof(CharType) != 1, uint32>::Type StrCrc32(const CharType* Data, uint32 CRC = 0)
 	{
 		// We ensure that we never try to do a StrCrc32 with a CharType of more than 4 bytes.  This is because
 		// we always want to treat every CRC as if it was based on 4 byte chars, even if it's less, because we
@@ -65,7 +65,7 @@ struct FCrc
 	}
 
 	template <typename CharType>
-	static typename TEnableIf<sizeof(CharType) == 1, uint32>::Type StrCrc32(const CharType* Data, uint32 CRC = 0)
+	[[nodiscard]] static typename TEnableIf<sizeof(CharType) == 1, uint32>::Type StrCrc32(const CharType* Data, uint32 CRC = 0)
 	{
 		/* Overload for when CharType is a byte, which causes warnings when right-shifting by 8 */
 		CRC = ~CRC;
