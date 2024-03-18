@@ -97,6 +97,7 @@ public:
 		ConstructSerializedType InConstructSerializedRef,
 		ConstructCompiledType InConstructCompiledRef,
 		ShouldCompilePermutationType InShouldCompilePermutationRef,
+		ShouldPrecachePermutationType InShouldPrecachePermutationRef,
 		GetRayTracingPayloadTypeType InGetRayTracingPayloadTypeRef,
 #if WITH_EDITOR
 		ModifyCompilationEnvironmentType InModifyCompilationEnvironmentRef,
@@ -109,6 +110,7 @@ public:
 			InConstructSerializedRef,
 			InConstructCompiledRef,
 			InShouldCompilePermutationRef,
+			InShouldPrecachePermutationRef,
 			InGetRayTracingPayloadTypeRef,
 #if WITH_EDITOR
 			InModifyCompilationEnvironmentRef,
@@ -132,6 +134,11 @@ public:
 	bool ShouldCompilePermutation(EShaderPlatform Platform, int32 PermutationId, EShaderPermutationFlags Flags) const
 	{
 		return FShaderType::ShouldCompilePermutation(FGlobalShaderPermutationParameters(GetFName(), Platform, PermutationId, Flags));
+	}
+
+	EShaderPermutationPrecacheRequest ShouldPrecachePermutation(EShaderPlatform Platform, int32 PermutationId, EShaderPermutationFlags Flags) const
+	{
+		return FShaderType::ShouldPrecachePermutation(FGlobalShaderPermutationParameters(GetFName(), Platform, PermutationId, Flags));
 	}
 
 #if WITH_EDITOR
@@ -211,6 +218,11 @@ public:
 	{
 		TShaderRef<FShader> Shader = GetShader(&ShaderType::GetStaticType(), PermutationId);
 		checkf(Shader.IsValid(), TEXT("Failed to find shader type %s in Platform %s"), ShaderType::GetStaticType().GetName(), *LegacyShaderPlatformToShaderFormat(Platform).ToString());
+
+		// Validate that the permutation has been precached
+		ensureMsgf(ShaderType::ShouldPrecachePermutation(FGlobalShaderPermutationParameters(ShaderType::GetStaticType().GetFName(), Platform, PermutationId)) != EShaderPermutationPrecacheRequest::NotRequired,
+			TEXT("Using a global shader permutation of %s which hasn't been requested for precaching at runtime. Check the implementation of ShouldPrecachePermutation on the global shader and make sure all required or development only permutations are requested for PSO precaching"), ShaderType::GetStaticType().GetName());
+
 		return TShaderRef<ShaderType>::Cast(Shader);
 	}
 

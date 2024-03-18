@@ -9542,42 +9542,53 @@ void VerifyGlobalShaders(EShaderPlatform Platform, bool bLoadedFromCacheFile, co
 
 void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, const ITargetPlatform* TargetPlatform)
 {
-	static IConsoleVariable* PrecacheGlobalComputeShadersCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecache.GlobalComputeShaders"));
-	if (!PipelineStateCache::IsPSOPrecachingEnabled() || PrecacheGlobalComputeShadersCVar == nullptr || PrecacheGlobalComputeShadersCVar->GetInt() == 0)
+	if (!GRHISupportsPSOPrecaching)
 	{
 		return;
 	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(PrecacheComputePipelineStatesForGlobalShaders);
 
 	FPlatformTypeLayoutParameters LayoutParams;
 	LayoutParams.InitializeForPlatform(TargetPlatform);
 	EShaderPermutationFlags PermutationFlags = GetShaderPermutationFlags(LayoutParams);
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(Platform);
-
+	
 	// some RHIs (OpenGL) can only create shaders on the Render thread. Queue the creation instead of doing it here.
 	TArray<TShaderRef<FShader>> ComputeShadersToPrecache;
 	for (TLinkedList<FShaderType*>::TIterator ShaderTypeIt(FShaderType::GetTypeList()); ShaderTypeIt; ShaderTypeIt.Next())
 	{
 		FGlobalShaderType* GlobalShaderType = ShaderTypeIt->GetGlobalShaderType();
-		if (!GlobalShaderType)
+		if (!GlobalShaderType || GlobalShaderType->GetFrequency() != SF_Compute)
 		{
 			continue;
 		}
 
+		int32 ShaderPermutationPerGlobalShaderType = 0;
 		for (int32 PermutationId = 0; PermutationId < GlobalShaderType->GetPermutationCount(); PermutationId++)
 		{
-			if (GlobalShaderType->ShouldCompilePermutation(Platform, PermutationId, PermutationFlags))
+			if (GlobalShaderType->ShouldCompilePermutation(Platform, PermutationId, PermutationFlags) &&
+				GlobalShaderType->ShouldPrecachePermutation(Platform, PermutationId, PermutationFlags) == EShaderPermutationPrecacheRequest::Required)
 			{
 				TShaderRef<FShader> GlobalShader = GlobalShaderMap->GetShader(GlobalShaderType, PermutationId);
-				if (GlobalShader.IsValid() && GlobalShader->GetFrequency() == SF_Compute)
+				if (GlobalShader.IsValid())
 				{
 					ComputeShadersToPrecache.Add(GlobalShader);
+					ShaderPermutationPerGlobalShaderType++;
 				}
 			}
 		}
+
+		int32 PermutationCountLimit = 300;
+		ensureMsgf(
+			ShaderPermutationPerGlobalShaderType < PermutationCountLimit,
+			TEXT("Global shader %s has %i permutations to precache: probably more than it needs."),
+			GlobalShaderType->GetName(), ShaderPermutationPerGlobalShaderType);
 	}
 
-	if (ComputeShadersToPrecache.Num() > 0)
+	static IConsoleVariable* PrecacheGlobalComputeShadersCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecache.GlobalComputeShaders"));
+	if (PipelineStateCache::IsPSOPrecachingEnabled() && PrecacheGlobalComputeShadersCVar != nullptr && PrecacheGlobalComputeShadersCVar->GetInt() > 0 && ComputeShadersToPrecache.Num() > 0)
 	{
 		ENQUEUE_RENDER_COMMAND(PrecachePSOsForGlobalShaders)(
 			[ComputeShadersToPrecache](FRHICommandListImmediate& RHICmdList)
@@ -9586,6 +9597,7 @@ void PrecacheComputePipelineStatesForGlobalShaders(EShaderPlatform Platform, con
 				{
 					const TCHAR* TypeName = GlobalShader.GetType()->GetName();
 					FRHIComputeShader* RHIComputeShader = GlobalShader.GetComputeShader();
+					check(RHIComputeShader);
 					PipelineStateCache::PrecacheComputePipelineState(RHIComputeShader, TypeName);
 				}
 			});

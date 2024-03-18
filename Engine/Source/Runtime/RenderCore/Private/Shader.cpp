@@ -239,6 +239,7 @@ FShaderType::FShaderType(
 	ConstructSerializedType InConstructSerializedRef,
 	ConstructCompiledType InConstructCompiledRef,
 	ShouldCompilePermutationType InShouldCompilePermutationRef,
+	ShouldPrecachePermutationType InShouldPrecachePermutationRef,
 	GetRayTracingPayloadTypeType InGetRayTracingPayloadTypeRef,
 #if WITH_EDITOR
 	ModifyCompilationEnvironmentType InModifyCompilationEnvironmentRef,
@@ -261,6 +262,7 @@ FShaderType::FShaderType(
 	ConstructSerializedRef(InConstructSerializedRef),
 	ConstructCompiledRef(InConstructCompiledRef),
 	ShouldCompilePermutationRef(InShouldCompilePermutationRef),
+	ShouldPrecachePermutationRef(InShouldPrecachePermutationRef),
 	GetRayTracingPayloadTypeRef(InGetRayTracingPayloadTypeRef),
 #if WITH_EDITOR
 	ModifyCompilationEnvironmentRef(InModifyCompilationEnvironmentRef),
@@ -420,6 +422,11 @@ static bool ShouldCompileShaderFrequency(EShaderFrequency Frequency, EShaderPlat
 bool FShaderType::ShouldCompilePermutation(const FShaderPermutationParameters& Parameters) const
 {
 	return ShouldCompileShaderFrequency((EShaderFrequency)Frequency, Parameters.Platform) && (*ShouldCompilePermutationRef)(Parameters);
+}
+
+EShaderPermutationPrecacheRequest FShaderType::ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) const
+{
+	return ShouldCompileShaderFrequency((EShaderFrequency)Frequency, Parameters.Platform) ? (*ShouldPrecachePermutationRef)(Parameters) : EShaderPermutationPrecacheRequest::NotRequired;
 }
 
 #if WITH_EDITOR
@@ -1147,6 +1154,24 @@ bool FShaderPipelineType::ShouldCompilePermutation(const FShaderPermutationParam
 		}
 	}
 	return true;
+}
+
+EShaderPermutationPrecacheRequest FShaderPipelineType::ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) const
+{
+	EShaderPermutationPrecacheRequest Result = EShaderPermutationPrecacheRequest::NotRequired;
+	for (const FShaderType* ShaderType : Stages)
+	{
+		EShaderPermutationPrecacheRequest ShaderTypeRequest = ShaderType->ShouldPrecachePermutation(Parameters);
+		if (ShaderTypeRequest == EShaderPermutationPrecacheRequest::Required)
+		{
+			return ShaderTypeRequest;
+		}
+		else if (ShaderTypeRequest == EShaderPermutationPrecacheRequest::DevelopmentOnly)
+		{
+			Result = ShaderTypeRequest;
+		}
+	}
+	return Result;
 }
 
 void FShaderPipeline::AddShader(FShader* Shader, int32 PermutationId)

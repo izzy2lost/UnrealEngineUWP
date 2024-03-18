@@ -805,6 +805,13 @@ enum class EShaderPermutationFlags : uint32
 };
 ENUM_CLASS_FLAGS(EShaderPermutationFlags);
 
+enum class EShaderPermutationPrecacheRequest : uint8
+{
+	Required,
+	DevelopmentOnly,
+	NotRequired,
+};
+
 RENDERCORE_API EShaderPermutationFlags GetShaderPermutationFlags(const FPlatformTypeLayoutParameters& LayoutParams);
 
 struct FShaderPermutationParameters
@@ -866,6 +873,9 @@ public:
 
 	/** Can be overridden by FShader subclasses to determine whether a specific permutation should be compiled. */
 	static bool ShouldCompilePermutation(const FShaderPermutationParameters&) { return true; }
+
+	/** Can be overridden by FShader subclasses to determine whether a specific permutation should be precached. */
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) { return ShouldCompilePermutation(Parameters) ? EShaderPermutationPrecacheRequest::Required : EShaderPermutationPrecacheRequest::NotRequired; }
 
 	/** Can be overridden by FShader subclasses to determine whether compilation is valid. */
 	static bool ValidateCompiledResult(EShaderPlatform InPlatform, const FShaderParameterMap& InParameterMap, TArray<FString>& OutError) { return true; }
@@ -1225,6 +1235,7 @@ public:
 	typedef class FShader* (*ConstructSerializedType)();
 	typedef FShader* (*ConstructCompiledType)(const FShader::CompiledShaderInitializerType& Initializer);
 	typedef bool (*ShouldCompilePermutationType)(const FShaderPermutationParameters&);
+	typedef EShaderPermutationPrecacheRequest (*ShouldPrecachePermutationType)(const FShaderPermutationParameters&);
 	typedef ERayTracingPayloadType(*GetRayTracingPayloadTypeType)(const int32 PermutationId);
 #if WITH_EDITOR
 	typedef void (*ModifyCompilationEnvironmentType)(const FShaderPermutationParameters&, FShaderCompilerEnvironment&);
@@ -1260,6 +1271,7 @@ public:
 		ConstructSerializedType InConstructSerializedRef,
 		ConstructCompiledType InConstructCompiledRef,
 		ShouldCompilePermutationType InShouldCompilePermutationRef,
+		ShouldPrecachePermutationType InShouldPrecachePermutationRef,
 		GetRayTracingPayloadTypeType InGetRayTracingPayloadTypeRef,
 #if WITH_EDITOR
 		ModifyCompilationEnvironmentType InModifyCompilationEnvironmentRef,
@@ -1276,6 +1288,7 @@ public:
 	RENDERCORE_API FShader* ConstructCompiled(const FShader::CompiledShaderInitializerType& Initializer) const;
 
 	RENDERCORE_API bool ShouldCompilePermutation(const FShaderPermutationParameters& Parameters) const;
+	RENDERCORE_API EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) const;
 
 #if WITH_EDITOR
 	RENDERCORE_API void ModifyCompilationEnvironment(const FShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment) const;
@@ -1482,6 +1495,7 @@ private:
 	ConstructSerializedType ConstructSerializedRef;
 	ConstructCompiledType ConstructCompiledRef;
 	ShouldCompilePermutationType ShouldCompilePermutationRef;
+	ShouldPrecachePermutationType ShouldPrecachePermutationRef;
 	GetRayTracingPayloadTypeType GetRayTracingPayloadTypeRef;
 #if WITH_EDITOR
 	ModifyCompilationEnvironmentType ModifyCompilationEnvironmentRef;
@@ -1578,6 +1592,8 @@ struct FShaderCompiledShaderInitializerType
 	{ return new ShaderClass(static_cast<const typename ShaderMetaType::CompiledShaderInitializerType&>(Initializer)); }\
 	static bool ShouldCompilePermutationImpl(const FShaderPermutationParameters& Parameters) \
 	{ return ShaderClass::ShouldCompilePermutation(static_cast<const typename ShaderClass::FPermutationParameters&>(Parameters)); } \
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutationImpl(const FShaderPermutationParameters& Parameters) \
+	{ return ShaderClass::ShouldPrecachePermutation(static_cast<const typename ShaderClass::FPermutationParameters&>(Parameters)); } \
 	SHADER_DECLARE_EDITOR_VTABLE(ShaderClass)
 
 
@@ -1624,6 +1640,7 @@ struct FShaderCompiledShaderInitializerType
 	ShaderClass::ConstructSerializedInstance, \
 	ShaderClass::ConstructCompiledInstance, \
 	ShaderClass::ShouldCompilePermutationImpl, \
+	ShaderClass::ShouldPrecachePermutationImpl, \
 	ShaderClass::GetRayTracingPayloadType \
 	SHADER_TYPE_EDITOR_VTABLE(ShaderClass)
 
@@ -1799,6 +1816,8 @@ public:
 	RENDERCORE_API const FSHAHash& GetSourceHash(EShaderPlatform ShaderPlatform) const;
 
 	RENDERCORE_API bool ShouldCompilePermutation(const FShaderPermutationParameters& Parameters) const;
+
+	RENDERCORE_API EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) const;
 
 protected:
 	const TCHAR* const Name;
