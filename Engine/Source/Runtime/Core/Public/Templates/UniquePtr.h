@@ -305,7 +305,7 @@ public:
 	 */
 	template <
 		typename DummyT = T,
-		decltype(*(DummyT*)nullptr, 0) = 0 // this construct means that operator* is only considered for overload resolution if T is dereferenceable
+		decltype((int&)*(DummyT*)nullptr, 0) = 0 // this construct means that operator* is only considered for overload resolution if T is dereferenceable
 	>
 	[[nodiscard]] FORCEINLINE DummyT& operator*() const
 	{
