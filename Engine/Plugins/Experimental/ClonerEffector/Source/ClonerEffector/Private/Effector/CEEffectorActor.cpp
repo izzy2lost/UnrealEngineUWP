@@ -3,13 +3,12 @@
 #include "Effector/CEEffectorActor.h"
 
 #include "Cloner/CEClonerActor.h"
+#include "Components/ArrowComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/SphereComponent.h"
 #include "Effector/CEEffectorComponent.h"
 #include "Math/Vector.h"
 #include "Subsystems/CEEffectorSubsystem.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogCEEffectorActor, Log, All);
 
 ACEEffectorActor::FOnEffectorIdentifierChanged ACEEffectorActor::OnEffectorRefreshClonerDelegate;
 
@@ -76,7 +75,7 @@ ACEEffectorActor::ACEEffectorActor()
 
 	// Plane
 	InnerPlaneComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("AvaInnerPlaneComponent"));
-	InnerPlaneComponent->ShapeColor = FColor::Blue;
+	InnerPlaneComponent->ShapeColor = FColor::Red;
 	InnerPlaneComponent->SetLineThickness(VisualizerThickness);
 	InnerPlaneComponent->SetBoxExtent(InnerExtent);
 	InnerPlaneComponent->SetHiddenInGame(true);
@@ -88,7 +87,7 @@ ACEEffectorActor::ACEEffectorActor()
 	InnerPlaneComponent->SetupAttachment(SceneComponent);
 
 	OuterPlaneComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("AvaOuterPlaneComponent"));
-	OuterPlaneComponent->ShapeColor = FColor::Red;
+	OuterPlaneComponent->ShapeColor = FColor::Blue;
 	OuterPlaneComponent->SetLineThickness(VisualizerThickness);
 	OuterPlaneComponent->SetBoxExtent(OuterExtent);
 	OuterPlaneComponent->SetHiddenInGame(true);
@@ -98,6 +97,31 @@ ACEEffectorActor::ACEEffectorActor()
 #endif
 	OuterPlaneComponent->bIsEditorOnly = false;
 	OuterPlaneComponent->SetupAttachment(SceneComponent);
+
+	// Radial
+	BeginRadialComponent = CreateDefaultSubobject<UArrowComponent>(TEXT("BeginRadialComponent"));
+	BeginRadialComponent->SetRelativeRotation(FRotator(0, -90, 0));
+	BeginRadialComponent->SetArrowLength(100);
+	BeginRadialComponent->SetArrowColor(FColor::Red);
+	BeginRadialComponent->SetHiddenInGame(true);
+#if WITH_EDITOR
+	// Do not show bounding box around cloner for better visibility
+	BeginRadialComponent->SetIsVisualizationComponent(true);
+#endif
+	BeginRadialComponent->bIsEditorOnly = false;
+	BeginRadialComponent->SetupAttachment(SceneComponent);
+
+	EndRadialComponent = CreateDefaultSubobject<UArrowComponent>(TEXT("EndRadialComponent"));
+	EndRadialComponent->SetRelativeRotation(FRotator(0, -90 + RadialAngle, 0));
+	EndRadialComponent->SetArrowLength(100);
+	EndRadialComponent->SetArrowColor(FColor::Blue);
+	EndRadialComponent->SetHiddenInGame(true);
+#if WITH_EDITOR
+	// Do not show bounding box around cloner for better visibility
+	EndRadialComponent->SetIsVisualizationComponent(true);
+#endif
+	EndRadialComponent->bIsEditorOnly = false;
+	EndRadialComponent->SetupAttachment(SceneComponent);
 
 	if (!IsTemplate())
 	{
@@ -128,6 +152,9 @@ TCEPropertyChangeDispatcher<ACEEffectorActor> ACEEffectorActor::PropertyChangeDi
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, InnerExtent), &ACEEffectorActor::OnBoxChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OuterExtent), &ACEEffectorActor::OnBoxChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, PlaneSpacing), &ACEEffectorActor::OnPlaneChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialAngle), &ACEEffectorActor::OnRadialChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialMinRadius), &ACEEffectorActor::OnRadialChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialMaxRadius), &ACEEffectorActor::OnRadialChanged },
 	/** Mode */
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Mode), &ACEEffectorActor::OnModeChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Offset), &ACEEffectorActor::OnTransformOptionsChanged },
@@ -365,6 +392,32 @@ void ACEEffectorActor::SetPlaneSpacing(float InSpacing)
 	OnPlaneChanged();
 }
 
+void ACEEffectorActor::SetRadialAngle(float InAngle)
+{
+	InAngle = FMath::Clamp(InAngle, 0, 360);
+
+	if (FMath::IsNearlyEqual(InAngle, RadialAngle))
+	{
+		return;
+	}
+
+	RadialAngle = InAngle;
+	OnRadialChanged();
+}
+
+void ACEEffectorActor::SetRadialMinRadius(float InRadius)
+{
+	InRadius = FMath::Max(0, InRadius);
+
+	if (FMath::IsNearlyEqual(InRadius, RadialMinRadius))
+	{
+		return;
+	}
+
+	RadialMinRadius = InRadius;
+	OnRadialChanged();
+}
+
 void ACEEffectorActor::SetInvertType(bool bInInvert)
 {
 	if (bInvertType == bInInvert)
@@ -374,6 +427,19 @@ void ACEEffectorActor::SetInvertType(bool bInInvert)
 
 	bInvertType = bInInvert;
 	OnMagnitudeChanged();
+}
+
+void ACEEffectorActor::SetRadialMaxRadius(float InRadius)
+{
+	InRadius = FMath::Max(0, InRadius);
+
+	if (FMath::IsNearlyEqual(InRadius, RadialMaxRadius))
+	{
+		return;
+	}
+
+	RadialMaxRadius = InRadius;
+	OnRadialChanged();
 }
 
 void ACEEffectorActor::SetOffset(const FVector& InOffset)
@@ -727,10 +793,13 @@ void ACEEffectorActor::SetColor(const FLinearColor& InColor)
 void ACEEffectorActor::OnEffectorTransformed(USceneComponent* InUpdatedComponent, EUpdateTransformFlags InUpdateTransformFlags, ETeleportType InTeleport)
 {
 	OnTransformChanged();
+
 	// Update when scaled or rotated
 	OnSphereChanged();
 	OnBoxChanged();
 	OnPlaneChanged();
+	OnRadialChanged();
+
 	// update if self
 	const AActor* InternalTargetActor = InternalTargetActorWeak.Get();
 	if (InternalTargetActor == this)
@@ -793,12 +862,20 @@ void ACEEffectorActor::OnTypeChanged()
 		OuterPlaneComponent->SetVisibility(Type == ECEClonerEffectorType::Plane);
 	}
 
+	// Radial
+	if (BeginRadialComponent && EndRadialComponent)
+	{
+		BeginRadialComponent->SetVisibility(Type == ECEClonerEffectorType::Radial);
+		EndRadialComponent->SetVisibility(Type == ECEClonerEffectorType::Radial);
+	}
+
 	ChannelData.Type = Type;
 
 	// Update type data
 	OnSphereChanged();
 	OnBoxChanged();
 	OnPlaneChanged();
+	OnRadialChanged();
 }
 
 void ACEEffectorActor::OnEffectorChanged()
@@ -877,7 +954,7 @@ void ACEEffectorActor::OnSphereChanged()
 
 void ACEEffectorActor::OnPlaneChanged()
 {
-	static const FVector PlaneAxis = -FVector::LeftVector;
+	static const FVector PlaneAxis = FVector::LeftVector;
 	const FVector InnerPlane = PlaneAxis * FVector(-PlaneSpacing/2);
 	const FVector OuterPlane = PlaneAxis * FVector(PlaneSpacing/2);
 
@@ -899,6 +976,25 @@ void ACEEffectorActor::OnPlaneChanged()
 
 	ChannelData.InnerExtent = PlaneAxis;
 	ChannelData.OuterExtent = FVector(PlaneSpacing);
+}
+
+void ACEEffectorActor::OnRadialChanged()
+{
+	RadialMinRadius = FMath::Min(RadialMinRadius, RadialMaxRadius);
+	RadialMaxRadius = FMath::Max(RadialMinRadius, RadialMaxRadius);
+	
+	if (BeginRadialComponent && EndRadialComponent)
+	{
+		EndRadialComponent->SetRelativeRotation(FRotator(0, -90 + RadialAngle, 0));
+	}
+
+	if (Type != ECEClonerEffectorType::Radial)
+	{
+		return;
+	}
+
+	ChannelData.InnerExtent = FVector::LeftVector;
+	ChannelData.OuterExtent = FVector(RadialAngle, RadialMinRadius, RadialMaxRadius);
 }
 
 void ACEEffectorActor::OnMagnitudeChanged()
@@ -1032,6 +1128,13 @@ void ACEEffectorActor::OnVisualizerThicknessChanged()
 	{
 		InnerPlaneComponent->SetLineThickness(VisualizerThickness);
 		OuterPlaneComponent->SetLineThickness(VisualizerThickness);
+	}
+
+	if (BeginRadialComponent && EndRadialComponent)
+	{
+		const float ArrowScale = VisualizerThickness / 2;
+		BeginRadialComponent->SetRelativeScale3D(FVector(10, ArrowScale, ArrowScale));
+		EndRadialComponent->SetRelativeScale3D(FVector(10, ArrowScale, ArrowScale));
 	}
 }
 

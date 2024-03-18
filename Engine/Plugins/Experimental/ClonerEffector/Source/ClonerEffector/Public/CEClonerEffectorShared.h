@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Components/SphereComponent.h"
+#include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraDataInterfaceArrayInt.h"
@@ -152,7 +152,9 @@ enum class ECEClonerEffectorType : uint8
 	/** Clones inside the box extent will be affected by the effector */
 	Box,
 	/** All clones will be affected by the effector with the same max weight */
-	Unbound
+	Unbound,
+	/** All clones within the angle range will be affected */
+	Radial
 };
 
 /** Enumerates the effector mode available */

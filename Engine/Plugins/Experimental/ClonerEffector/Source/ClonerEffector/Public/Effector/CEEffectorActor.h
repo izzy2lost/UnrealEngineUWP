@@ -9,6 +9,7 @@
 
 class UNiagaraDataChannelWriter;
 class ACEClonerActor;
+class UArrowComponent;
 class USphereComponent;
 class UBoxComponent;
 
@@ -106,6 +107,33 @@ public:
 	float GetPlaneSpacing() const
 	{
 		return PlaneSpacing;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetRadialAngle(float InAngle);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	float GetRadialAngle() const
+	{
+		return RadialAngle;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetRadialMinRadius(float InRadius);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	float GetRadialMinRadius() const
+	{
+		return RadialMinRadius;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetRadialMaxRadius(float InRadius);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	float GetRadialMaxRadius() const
+	{
+		return RadialMaxRadius;
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
@@ -424,6 +452,9 @@ protected:
 	/** Update values for plane type effector */
 	void OnPlaneChanged();
 
+	/** Update values for radial type effector */
+	void OnRadialChanged();
+
 	/** Called when transform of effector has changed */
 	void OnTransformChanged();
 
@@ -503,6 +534,18 @@ protected:
 	/** Plane spacing, everything inside this zone will be affected */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetPlaneSpacing", Getter="GetPlaneSpacing", Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Plane", EditConditionHides))
 	float PlaneSpacing = 200.f;
+
+	/** Radial angle in degree, everything within the angle will be affected */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", ClampMax="360", EditCondition="Type == ECEClonerEffectorType::Radial", EditConditionHides))
+	float RadialAngle = 180.f;
+
+	/** Minimum radius for the radial effect to be applied on clones, below clones will not be affected */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Radial", EditConditionHides))
+	float RadialMinRadius = 0.f;
+
+	/** Maximum radius for the radial effect to be applied on clones, above clones will not be affected */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Radial", EditConditionHides))
+	float RadialMaxRadius = 1000.f;
 
 	/** Mode of effector for each clones instances */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetMode", Getter="GetMode", Category="Mode")
@@ -636,6 +679,14 @@ private:
 	/** Plane components for plane maximum weight */
 	UPROPERTY()
 	TObjectPtr<UBoxComponent> OuterPlaneComponent;
+
+	/** Radial components for begin angle */
+	UPROPERTY()
+	TObjectPtr<UArrowComponent> BeginRadialComponent;
+
+	/** Radial components for end angle */
+	UPROPERTY()
+	TObjectPtr<UArrowComponent> EndRadialComponent;
 
 	/** Internal cloners array, deprecated since it will be moved to the cloners and emptied out on post load */
 	UPROPERTY(NonTransactional)
