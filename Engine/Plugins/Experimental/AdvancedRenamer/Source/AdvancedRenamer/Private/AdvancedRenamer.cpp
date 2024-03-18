@@ -106,7 +106,7 @@ bool FAdvancedRenamer::UpdatePreviews()
 		// Force recreation
 		Previews[Index]->NewName = ApplyRename(Previews[Index]->OriginalName, Index);
 
-		if (!Previews[Index]->NewName.IsEmpty())
+		if (Previews[Index]->NewName.IsEmpty())
 		{
 			continue;
 		}
@@ -151,7 +151,7 @@ bool FAdvancedRenamer::Execute()
 			continue;
 		}
 
-		if (!Previews[Index]->NewName.IsEmpty())
+		if (Previews[Index]->NewName.IsEmpty())
 		{
 			continue;
 		}
