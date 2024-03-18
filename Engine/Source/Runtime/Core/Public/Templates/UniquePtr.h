@@ -8,6 +8,7 @@
 #include "Templates/RemoveExtent.h"
 #include "Templates/Requires.h"
 #include "Serialization/MemoryLayout.h"
+#include <type_traits>
 
 // Single-ownership smart pointer in the vein of std::unique_ptr.
 // Use this when you need an object's lifetime to be strictly bound to the lifetime of a single smart pointer.
@@ -302,7 +303,11 @@ public:
 	 *
 	 * @return A reference to the object owned by the TUniquePtr.
 	 */
-	[[nodiscard]] FORCEINLINE T& operator*() const
+	template <
+		typename DummyT = T,
+		decltype(*(DummyT*)nullptr, 0) = 0 // this construct means that operator* is only considered for overload resolution if T is dereferenceable
+	>
+	[[nodiscard]] FORCEINLINE DummyT& operator*() const
 	{
 		return *Ptr;
 	}

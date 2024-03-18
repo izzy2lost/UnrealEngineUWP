@@ -161,6 +161,8 @@ template< class ObjectType, ESPMode InMode >
 class TSharedRef
 {
 public:
+	static_assert(!std::is_void_v<ObjectType>, "TSharedRef<void> is not supported - use TSharedPtr instead");
+
 	using ElementType = ObjectType;
 	static constexpr ESPMode Mode = InMode;
 
@@ -1097,7 +1099,11 @@ public:
 	 *
 	 * @return  Reference to the object
 	 */
-	[[nodiscard]] FORCEINLINE decltype(auto) operator*() const
+	template <
+		typename DummyObjectType = ObjectType,
+		decltype(*(DummyObjectType*)nullptr, 0) = 0 // this construct means that operator* is only considered for overload resolution if T is dereferenceable
+	>
+	[[nodiscard]] FORCEINLINE DummyObjectType& operator*() const
 	{
 		check( IsValid() );
 		return *Object;
