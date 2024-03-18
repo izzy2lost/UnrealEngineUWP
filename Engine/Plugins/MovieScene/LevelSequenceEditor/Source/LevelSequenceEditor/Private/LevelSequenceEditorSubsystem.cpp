@@ -1971,24 +1971,12 @@ void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyCh
 		// Add the new updated bindings
 		for (FMovieSceneBindingPropertyInfo& LocatorInfo : BindingPropertyInfoList->Bindings)
 		{
-			if (PropertyChangedEvent.Property != nullptr && PropertyChangedEvent.Property->GetFName() == TEXT("Locator"))
+			UMovieSceneCustomBinding* CopiedBinding = nullptr;
+			if (LocatorInfo.CustomBinding)
 			{
-				// Ensure flags are initialized from scratch
-				const FMovieSceneBindingReference* NewRef = BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator));
-				if (NewRef)
-				{
-					LocatorInfo.ResolveFlags = NewRef->ResolveFlags;
-				}
+				CopiedBinding = Cast<UMovieSceneCustomBinding>(StaticDuplicateObject(LocatorInfo.CustomBinding, MovieScene));
 			}
-			else
-			{
-				UMovieSceneCustomBinding* CopiedBinding = nullptr;
-				if (LocatorInfo.CustomBinding)
-				{
-					CopiedBinding = Cast<UMovieSceneCustomBinding>(StaticDuplicateObject(LocatorInfo.CustomBinding, MovieScene));
-				}
-				BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator), LocatorInfo.ResolveFlags, CopiedBinding);
-			}
+			BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator), LocatorInfo.ResolveFlags, CopiedBinding);
 		}
 
 		Sequencer->State.Invalidate(ObjectBindingID, Sequencer->GetFocusedTemplateID());
