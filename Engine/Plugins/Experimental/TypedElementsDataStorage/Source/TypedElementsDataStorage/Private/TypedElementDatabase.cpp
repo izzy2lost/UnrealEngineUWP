@@ -790,10 +790,10 @@ TypedElementQueryHandle UTypedElementDatabase::RegisterQuery(FQueryDescription&&
 
 void UTypedElementDatabase::UnregisterQuery(TypedElementQueryHandle Query)
 {
-	if (ActiveEditorPhaseManager)
+	if (ActiveEditorEntityManager && ActiveEditorPhaseManager)
 	{
 		const FTypedElementExtendedQueryStore::Handle StorageHandle(Query);
-		Environment->GetQueryStore().UnregisterQuery(StorageHandle, *ActiveEditorPhaseManager);
+		Environment->GetQueryStore().UnregisterQuery(StorageHandle, *ActiveEditorEntityManager, *ActiveEditorPhaseManager);
 	}
 }
 
@@ -932,9 +932,9 @@ void UTypedElementDatabase::Reset()
 	OnPostMassTickHandle.Reset();
 	OnPreMassTickHandle.Reset();
 
-	if (ActiveEditorPhaseManager)
+	if (ActiveEditorEntityManager && ActiveEditorPhaseManager)
 	{
-		Environment->GetQueryStore().Clear(*ActiveEditorPhaseManager.Get());
+		Environment->GetQueryStore().Clear(*ActiveEditorEntityManager.Get(), *ActiveEditorPhaseManager.Get());
 	}
 	Tables.Reset();
 	TableNameLookup.Reset();

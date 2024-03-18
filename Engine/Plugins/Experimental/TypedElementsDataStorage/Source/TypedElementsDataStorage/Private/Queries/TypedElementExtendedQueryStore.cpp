@@ -36,27 +36,27 @@ FTypedElementExtendedQueryStore::Handle FTypedElementExtendedQueryStore::Registe
 	return Result;
 }
 
-void FTypedElementExtendedQueryStore::UnregisterQuery(Handle Query, FMassProcessingPhaseManager& PhaseManager)
+void FTypedElementExtendedQueryStore::UnregisterQuery(Handle Query, FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager)
 {
 	if (FTypedElementExtendedQuery* QueryData = Get(Query))
 	{
-		UnregisterQueryData(Query, *QueryData, PhaseManager);
+		UnregisterQueryData(Query, *QueryData, EntityManager, PhaseManager);
 		Queries.Remove(Query);
 	}
 }
 
-void FTypedElementExtendedQueryStore::Clear(FMassProcessingPhaseManager& PhaseManager)
+void FTypedElementExtendedQueryStore::Clear(FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager)
 {
 	TickGroupDescriptions.Empty();
 
-	Queries.ListAliveEntries([this, &PhaseManager](Handle Query, FTypedElementExtendedQuery& QueryData)
+	Queries.ListAliveEntries([this, &EntityManager, &PhaseManager](Handle Query, FTypedElementExtendedQuery& QueryData)
 		{
 			if (QueryData.Processor && QueryData.Processor->IsA<UTypedElementQueryObserverCallbackAdapterProcessorBase>())
 			{
 				// Observers can't be unregistered at this point, so skip these for now.
 				return;
 			}
-			UnregisterQueryData(Query, QueryData, PhaseManager);
+			UnregisterQueryData(Query, QueryData, EntityManager, PhaseManager);
 		});
 }
 
@@ -747,7 +747,7 @@ void FTypedElementExtendedQueryStore::RunPhasePreOrPostAmbleQueries(FMassEntityM
 	}
 }
 
-void FTypedElementExtendedQueryStore::UnregisterQueryData(Handle Query, FTypedElementExtendedQuery& QueryData, FMassProcessingPhaseManager& PhaseManager)
+void FTypedElementExtendedQueryStore::UnregisterQueryData(Handle Query, FTypedElementExtendedQuery& QueryData, FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager)
 {
 	if (!QueryData.Description.Callback.ActivationName.IsNone())
 	{
@@ -766,9 +766,9 @@ void FTypedElementExtendedQueryStore::UnregisterQueryData(Handle Query, FTypedEl
 		{
 			UTypedElementQueryObserverCallbackAdapterProcessorBase* Observer =
 				static_cast<UTypedElementQueryObserverCallbackAdapterProcessorBase*>(QueryData.Processor.Get());
-			if (ensure(Observer && PhaseManager.GetEntityManager().IsValid()))
+			if (ensure(Observer))
 			{
-				PhaseManager.GetEntityManager()->GetObserverManager().RemoveObserverInstance(*Observer->GetObservedType(), Observer->GetObservedOperation(), *Observer);
+				EntityManager.GetObserverManager().RemoveObserverInstance(*Observer->GetObservedType(), Observer->GetObservedOperation(), *Observer);
 			}
 		}
 		else

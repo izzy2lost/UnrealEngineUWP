@@ -44,10 +44,10 @@ public:
 		FMassEntityManager& EntityManager,
 		FMassProcessingPhaseManager& PhaseManager);
 	/** Removes the query at the given handle if still alive and otherwise does nothing. */
-	void UnregisterQuery(Handle Query, FMassProcessingPhaseManager& PhaseManager);
+	void UnregisterQuery(Handle Query, FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager);
 
 	/** Removes all data in the query store. */
-	void Clear(FMassProcessingPhaseManager& PhaseManager);
+	void Clear(FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager);
 	
 	/** Register the defaults for a tick group. These will be applied on top of any settings provided with a query registration. */
 	void RegisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase,
@@ -177,7 +177,7 @@ private:
 	void RunPhasePreOrPostAmbleQueries(FMassEntityManager& EntityManager, FTypedElementDatabaseEnvironment& Environment,
 		ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime, TArray<Handle>& QueryHandles);
 
-	void UnregisterQueryData(Handle Query, FTypedElementExtendedQuery& QueryData, FMassProcessingPhaseManager& PhaseManager);
+	void UnregisterQueryData(Handle Query, FTypedElementExtendedQuery& QueryData, FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager);
 
 	static const ITypedElementDataStorageInterface::FQueryDescription EmptyDescription;
 
