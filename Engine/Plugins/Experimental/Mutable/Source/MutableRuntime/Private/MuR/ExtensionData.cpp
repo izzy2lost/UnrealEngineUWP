@@ -33,7 +33,7 @@ ExtensionDataPtr ExtensionData::StaticUnserialise(InputArchive& Archive)
 uint32 ExtensionData::Hash() const
 {
 	uint32 Result = ::GetTypeHash(Index);
-	HashCombine(Result, ::GetTypeHash((uint8)Origin));
+	Result = HashCombine(Result, ::GetTypeHash((uint8)Origin));
 
 	return Result;
 }
