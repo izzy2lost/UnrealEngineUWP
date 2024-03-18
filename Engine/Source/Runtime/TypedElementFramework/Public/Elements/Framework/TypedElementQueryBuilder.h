@@ -174,11 +174,13 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FProcessor& SetBeforeGroup(FName GroupName);
 		TYPEDELEMENTFRAMEWORK_API FProcessor& SetAfterGroup(FName GroupName);
 		TYPEDELEMENTFRAMEWORK_API FProcessor& ForceToGameThread(bool bForce);
+		TYPEDELEMENTFRAMEWORK_API FProcessor& MakeActivatable(FName Name);
 		
 		ITypedElementDataStorageInterface::EQueryTickPhase Phase;
 		FName Group;
 		FName BeforeGroup;
 		FName AfterGroup;
+		FName ActivationName;
 		bool bForceToGameThread{ false };
 	};
 
@@ -202,9 +204,11 @@ namespace TypedElementQueryBuilder
 		template<typename ColumnType>
 		FObserver& SetMonitoredColumn();
 		TYPEDELEMENTFRAMEWORK_API FObserver& ForceToGameThread(bool bForce);
+		TYPEDELEMENTFRAMEWORK_API FObserver& MakeActivatable(FName Name);
 
 		const UScriptStruct* Monitor;
 		EEvent Event;
+		FName ActivationName;
 		bool bForceToGameThread{ false };
 	};
 
@@ -220,9 +224,11 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& SetLocation(ELocation NewLocation);
 		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& SetPhase(ITypedElementDataStorageInterface::EQueryTickPhase NewPhase);
 		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& ForceToGameThread(bool bForce);
+		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& MakeActivatable(FName Name);
 
 		ITypedElementDataStorageInterface::EQueryTickPhase Phase;
 		ELocation Location;
+		FName ActivationName;
 		bool bForceToGameThread{ false };
 	};
 

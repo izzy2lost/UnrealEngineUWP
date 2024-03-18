@@ -84,9 +84,20 @@ public:
 	void ListAliveEntries(const ListAliveEntriesConstCallback& Callback) const;
 
 	/**
+	 * @section activatable queries
+	 * @description Functions to manipulate activatable queries
+	 */
+
+	/** Update the active activatable queries. In practice this means decrementing any active queries that automatically decrement. */
+	void UpdateActivatableQueries();
+	/** Triggers a query to run for a single update cycle. */
+	void ActivateQueries(FName ActivationName);
+	
+	/**
 	 * @section Execution
 	 * @description Various functions to run queries.
 	 */
+
 	TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query);
 	TypedElementDataStorage::FQueryResult RunQuery(
 		FMassEntityManager& EntityManager, 
@@ -155,6 +166,7 @@ private:
 	bool SetupTickGroupDefaults(ITypedElementDataStorageInterface::FQueryDescription& Query);
 	bool SetupProcessors(Handle QueryHandle, FTypedElementExtendedQuery& StoredQuery, FTypedElementDatabaseEnvironment& Environment,
 		FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager);
+	bool SetupActivatable(Handle QueryHandle, ITypedElementDataStorageInterface::FQueryDescription& Query);
 
 	EMassFragmentAccess ConvertToNativeAccessType(ITypedElementDataStorageInterface::EQueryAccessType AccessType);
 
@@ -170,7 +182,10 @@ private:
 	static const ITypedElementDataStorageInterface::FQueryDescription EmptyDescription;
 
 	QueryStore Queries;
+	TMultiMap<FName, Handle> ActivatableMapping;
 	TMap<FTickGroupId, FTickGroupDescription> TickGroupDescriptions;
 	TArray<Handle> PhasePreparationQueries[MaxTickPhase];
 	TArray<Handle> PhaseFinalizationQueries[MaxTickPhase];
+	TArray<Handle> PendingActivatables;
+	TArray<Handle> ActiveActivatables;
 };

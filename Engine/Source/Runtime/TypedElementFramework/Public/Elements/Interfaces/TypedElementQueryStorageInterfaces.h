@@ -102,6 +102,13 @@ namespace TypedElementDataStorage
 		virtual uint64 GetUpdateCycleId() const = 0;
 
 		/**
+		 * Triggers all queries registered under the activation name to run for one update cycle. The activatable queries will be activated at
+		 * start of the cycle and disabled at the end of the cycle and act like regular queries for that cycle. This includes not running
+		 * if there are not columns to match against.
+		 */
+		virtual void ActivateQueries(FName ActivationName) = 0;
+
+		/**
 		 * Adds the provided column to the requested row.
 		 *
 		 * Note: The addition of the column will not be immediately done. Instead it will be deferred until the end of the tick group. Changes

@@ -4,8 +4,7 @@
 
 FTypedElementDatabaseEnvironment::FTypedElementDatabaseEnvironment(
 	FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager)
-	: ScratchBuffer(MakeShared<FTypedElementDatabaseScratchBuffer>())
-	, MassEntityManager(InMassEntityManager)
+	: MassEntityManager(InMassEntityManager)
 	, MassPhaseManager(InMassPhaseManager)
 {
 }
@@ -22,12 +21,22 @@ const FTypedElementDatabaseIndexTable& FTypedElementDatabaseEnvironment::GetInde
 
 FTypedElementDatabaseScratchBuffer& FTypedElementDatabaseEnvironment::GetScratchBuffer()
 {
-	return *ScratchBuffer;
+	return ScratchBuffer;
 }
 
 const FTypedElementDatabaseScratchBuffer& FTypedElementDatabaseEnvironment::GetScratchBuffer() const
 {
-	return *ScratchBuffer;
+	return ScratchBuffer;
+}
+
+FTypedElementExtendedQueryStore& FTypedElementDatabaseEnvironment::GetQueryStore()
+{
+	return Queries;
+}
+
+const FTypedElementExtendedQueryStore& FTypedElementDatabaseEnvironment::GetQueryStore() const
+{
+	return Queries;
 }
 
 FMassEntityManager& FTypedElementDatabaseEnvironment::GetMassEntityManager()
@@ -52,6 +61,8 @@ const FMassProcessingPhaseManager& FTypedElementDatabaseEnvironment::GetMassPhas
 
 void FTypedElementDatabaseEnvironment::NextUpdateCycle()
 {
+	Queries.UpdateActivatableQueries();
+	ScratchBuffer.BatchDelete();
 	UpdateCycleId++;
 }
 

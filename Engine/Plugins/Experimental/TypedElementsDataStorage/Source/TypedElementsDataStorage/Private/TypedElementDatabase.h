@@ -6,7 +6,6 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "MassArchetypeTypes.h"
 #include "Misc/TVariant.h"
-#include "Queries/TypedElementExtendedQueryStore.h"
 #include "Templates/SharedPointer.h"
 #include "TypedElementDatabaseCommandBuffer.h"
 #include "TypedElementDatabaseEnvironment.h"
@@ -126,6 +125,7 @@ public:
 	FName GetQueryTickGroupName(EQueryTickGroups Group) const override;
 	FQueryResult RunQuery(TypedElementQueryHandle Query) override;
 	FQueryResult RunQuery(TypedElementQueryHandle Query, DirectQueryCallbackRef Callback) override;
+	void ActivateQueries(FName ActivationName) override;
 
 	TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override;
 	void IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row) override;
@@ -156,6 +156,10 @@ private:
 		TObjectPtr<UTypedElementDataStorageFactory> Instance;
 	};
 	
+	static const FName TickGroupName_Default;
+	static const FName TickGroupName_PreUpdate;
+	static const FName TickGroupName_Update;
+	static const FName TickGroupName_PostUpdate;
 	static const FName TickGroupName_SyncWidget;
 	
 	TArray<FMassArchetypeHandle> Tables;
@@ -165,8 +169,7 @@ private:
 	TArray<FFactoryTypePair> Factories;
 
 	TUniquePtr<FTypedElementDatabaseEnvironment> Environment;
-	FTypedElementExtendedQueryStore Queries;
-
+	
 	FTypedElementDatabaseCommandBuffer::CommandBuffer DeferredCommands;
 	
 	FTypedElementOnDataStorageUpdate OnUpdateDelegate;

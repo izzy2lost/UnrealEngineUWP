@@ -40,31 +40,18 @@ namespace TypedElementDataStorage
 			Max //< Value indicating the maximum value in this enum. Not to be used as an enum value.
 		};
 
-		using OperatorIndex = int32;
 		enum class EOperatorType : uint16
 		{
 			SimpleAll,			//< Unary: Type
 			SimpleAny,			//< Unary: Type
 			SimpleNone,			//< Unary: Type
 			SimpleOptional,		//< Unary: Type
-			And,				//< Binary: left operator index, right operator index
-			Or,					//< Binary: left operator index, right operator index
-			Not,				//< Unary: condition index
-			Type,				//< Unary: Type
-
+		
 			Max //< Value indicating the maximum value in this enum. Not to be used as an enum value.
-		};
-
-		struct FBinaryOperator final
-		{
-			OperatorIndex Left;
-			OperatorIndex Right;
 		};
 
 		union FOperator
 		{
-			FBinaryOperator Binary;
-			OperatorIndex Unary;
 			TWeakObjectPtr<const UScriptStruct> Type;
 		};
 
@@ -75,12 +62,18 @@ namespace TypedElementDataStorage
 			QueryCallback Function;
 			FName Name;
 			FName Group;
+			/** If a name is set, it indicates the query callback will not be run unless the ActivationCount is greater than zero. */
+			FName ActivationName;
 			const UScriptStruct* MonitoredType{ nullptr };
 			EQueryCallbackType Type{ EQueryCallbackType::None };
-			EQueryTickPhase Phase;
+			EQueryTickPhase Phase{ EQueryTickPhase::FrameEnd };
+			/**
+			 * The number of remaining iterations for a activatable query callback. If this is higher than 0, the query callback will be 
+			 * called. If ActivationName is set, this value will be decremented by one at the end of the update cycle.
+			 */
+			uint8 ActivationCount{ 255 };
 			bool bForceToGameThread{ false };
 		};
-
 		FCallbackData Callback;
 
 		// The list of arrays below are required to remain in the same order as they're added as the function binding expects certain entries

@@ -274,6 +274,12 @@ public:
 	 * may be called multiple times. If the query handle is invalid or has been deleted nothing happens and the callback won't be called
 	 */
 	virtual FQueryResult RunQuery(TypedElementQueryHandle Query, DirectQueryCallbackRef Callback) = 0;
+	/**
+	 * Triggers all queries registered under the activation name to run for one update cycle. The activatable queries will be activated at
+	 * start of the cycle and disabled at the end of the cycle and act like regular queries for that cycle. This includes not running
+	 * if there are no columns to match against.
+	 */
+	virtual void ActivateQueries(FName ActivationName) = 0;
 	
 	/**
 	 * @section Indexing

@@ -250,6 +250,12 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
+	FProcessor& FProcessor::MakeActivatable(FName Name)
+	{
+		ActivationName = Name;
+		return *this;
+	}
+
 
 	/**
 	 * FObserver
@@ -278,6 +284,12 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
+	FObserver& FObserver::MakeActivatable(FName Name)
+	{
+		ActivationName = Name;
+		return *this;
+	}
+
 
 	/**
 	 * FPhaseAmble
@@ -303,6 +315,12 @@ namespace TypedElementQueryBuilder
 	FPhaseAmble& FPhaseAmble::ForceToGameThread(bool bForce)
 	{
 		bForceToGameThread = bForce;
+		return *this;
+	}
+
+	FPhaseAmble& FPhaseAmble::MakeActivatable(FName Name)
+	{
+		ActivationName = Name;
 		return *this;
 	}
 

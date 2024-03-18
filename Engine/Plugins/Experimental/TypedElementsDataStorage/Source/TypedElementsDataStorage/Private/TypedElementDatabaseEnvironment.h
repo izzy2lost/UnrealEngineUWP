@@ -6,6 +6,7 @@
 #include "MassProcessingPhaseManager.h"
 #include "TypedElementDatabaseScratchBuffer.h"
 #include "TypedElementDatabaseIndexTable.h"
+#include "Queries/TypedElementExtendedQueryStore.h"
 
 class FTypedElementDatabaseEnvironment final
 {
@@ -18,6 +19,9 @@ public:
 	FTypedElementDatabaseScratchBuffer& GetScratchBuffer();
 	const FTypedElementDatabaseScratchBuffer& GetScratchBuffer() const;
 
+	FTypedElementExtendedQueryStore& GetQueryStore();
+	const FTypedElementExtendedQueryStore& GetQueryStore() const;
+
 	FMassEntityManager& GetMassEntityManager();
 	const FMassEntityManager& GetMassEntityManager() const;
 	
@@ -29,7 +33,8 @@ public:
 
 private:
 	FTypedElementDatabaseIndexTable IndexTable;
-	TSharedPtr<FTypedElementDatabaseScratchBuffer> ScratchBuffer;
+	FTypedElementDatabaseScratchBuffer ScratchBuffer;
+	FTypedElementExtendedQueryStore Queries;
 	
 	FMassEntityManager& MassEntityManager;
 	FMassProcessingPhaseManager& MassPhaseManager;

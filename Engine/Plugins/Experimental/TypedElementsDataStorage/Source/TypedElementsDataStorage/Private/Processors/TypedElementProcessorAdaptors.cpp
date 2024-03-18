@@ -173,6 +173,15 @@ public:
 		return Environment.GetUpdateCycleId();
 	}
 
+	void ActivateQueries(FName ActivationName)
+	{
+		this->Context.Defer().template PushCommand<FMassDeferredCommand<EMassCommandOperationType::None>>(
+			[Environment = &this->Environment, ActivationName](FMassEntityManager&)
+			{
+				Environment->GetQueryStore().ActivateQueries(ActivationName);
+			});
+	}
+
 	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) override
 	{
 		return AddColumnUninitialized(Row, ObjectType,
@@ -538,16 +547,19 @@ void FPhasePreOrPostAmbleExecutor::ExecuteQuery(
 	FMassEntityQuery& NativeQuery,
 	ITypedElementDataStorageInterface::QueryCallbackRef Callback)
 {
-	NativeQuery.ForEachEntityChunk(Context.GetEntityManagerChecked(), Context,
-		[&Callback, &QueryStore, &Environment, &Description](FMassExecutionContext& ExecutionContext)
-		{
-			if (FTypedElementQueryProcessorData::PrepareCachedDependenciesOnQuery(Description, ExecutionContext))
+	if (Description.Callback.ActivationCount > 0)
+	{
+		NativeQuery.ForEachEntityChunk(Context.GetEntityManagerChecked(), Context,
+			[&Callback, &QueryStore, &Environment, &Description](FMassExecutionContext& ExecutionContext)
 			{
-				FMassContextForwarder QueryContext(Description, ExecutionContext, QueryStore, Environment);
-				Callback(Description, QueryContext);
+				if (FTypedElementQueryProcessorData::PrepareCachedDependenciesOnQuery(Description, ExecutionContext))
+				{
+					FMassContextForwarder QueryContext(Description, ExecutionContext, QueryStore, Environment);
+					Callback(Description, QueryContext);
+				}
 			}
-		}
-	);
+		);
+	}
 }
 
 
@@ -624,8 +636,22 @@ EMassProcessingPhase FTypedElementQueryProcessorData::MapToMassProcessingPhase(I
 
 FString FTypedElementQueryProcessorData::GetProcessorName() const
 {
-	const FTypedElementExtendedQuery* StoredQuery = QueryStore ? QueryStore->Get(ParentQuery) : nullptr;
-	return StoredQuery ? StoredQuery->Description.Callback.Name.ToString() : FString(TEXT("<unnamed>"));
+	FString Result;
+	if (const FTypedElementExtendedQuery* StoredQuery = QueryStore ? QueryStore->Get(ParentQuery) : nullptr)
+	{
+		Result = StoredQuery->Description.Callback.Name.ToString();
+		if (!StoredQuery->Description.Callback.ActivationName.IsNone())
+		{
+			Result += TEXT(" (Activatable: '");
+			StoredQuery->Description.Callback.ActivationName.AppendString(Result);
+			Result += TEXT("')");
+		}
+	}
+	else
+	{
+		Result = TEXT("<unnamed>");
+	}
+	return Result;
 }
 
 bool FTypedElementQueryProcessorData::PrepareCachedDependenciesOnQuery(
@@ -668,19 +694,23 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	FMassEntityManager& EntityManager,
 	FTypedElementDatabaseEnvironment& Environment)
 {
-	FMassExecutionContext Context(EntityManager);
 	ITypedElementDataStorageInterface::FQueryResult Result;
 	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
 	
-	NativeQuery.ForEachEntityChunk(EntityManager, Context,
-		[&Result, &Callback, &Description](FMassExecutionContext& Context)
-		{
-			// No need to cache any subsystem dependencies as these are not accessible from a direct query.
-			FMassDirectContextForwarder QueryContext(Context);
-			Callback(Description, QueryContext);
-			Result.Count += Context.GetNumEntities();
-		}
-	);
+	if (Description.Callback.ActivationCount > 0)
+	{
+		FMassExecutionContext Context(EntityManager);
+		
+		NativeQuery.ForEachEntityChunk(EntityManager, Context,
+			[&Result, &Callback, &Description](FMassExecutionContext& Context)
+			{
+				// No need to cache any subsystem dependencies as these are not accessible from a direct query.
+				FMassDirectContextForwarder QueryContext(Context);
+				Callback(Description, QueryContext);
+				Result.Count += Context.GetNumEntities();
+			}
+		);
+	}
 	return Result;
 }
 
@@ -692,20 +722,25 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	FTypedElementDatabaseEnvironment& Environment,
 	FMassExecutionContext& ParentContext)
 {
-	FMassExecutionContext Context(EntityManager);
-	Context.SetDeferredCommandBuffer(ParentContext.GetSharedDeferredCommandBuffer());
 	ITypedElementDataStorageInterface::FQueryResult Result;
 	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
 
-	NativeQuery.ForEachEntityChunk(EntityManager, Context,
-		[&Result, &Callback, &Description, &Environment](FMassExecutionContext& Context)
-		{
-			// No need to cache any subsystem dependencies as these are not accessible from a subquery.
-			FMassSubqueryContextForwarder QueryContext(Context, Environment);
-			Callback(Description, QueryContext);
-			Result.Count += Context.GetNumEntities();
-		}
-	);
+	if (Description.Callback.ActivationCount > 0)
+	{
+		FMassExecutionContext Context(EntityManager);
+		Context.SetDeferredCommandBuffer(ParentContext.GetSharedDeferredCommandBuffer());
+		Context.SetFlushDeferredCommands(false);
+
+		NativeQuery.ForEachEntityChunk(EntityManager, Context,
+			[&Result, &Callback, &Description, &Environment](FMassExecutionContext& Context)
+			{
+				// No need to cache any subsystem dependencies as these are not accessible from a subquery.
+				FMassSubqueryContextForwarder QueryContext(Context, Environment);
+				Callback(Description, QueryContext);
+				Result.Count += Context.GetNumEntities();
+			}
+		);
+	}
 	return Result;
 }
 
@@ -722,7 +757,7 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
 
 	FMassEntityHandle NativeEntity = FMassEntityHandle::FromNumber(RowHandle);
-	if (EntityManager.IsEntityActive(NativeEntity))
+	if (Description.Callback.ActivationCount > 0 && EntityManager.IsEntityActive(NativeEntity))
 	{
 		FMassArchetypeHandle NativeArchetype = EntityManager.GetArchetypeForEntityUnsafe(NativeEntity);
 		FMassExecutionContext Context(EntityManager);
@@ -750,16 +785,19 @@ void FTypedElementQueryProcessorData::Execute(FMassEntityManager& EntityManager,
 	checkf(StoredQuery, TEXT("A query callback was registered for execution without an associated query."));
 	
 	ITypedElementDataStorageInterface::FQueryDescription& Description = StoredQuery->Description;
-	NativeQuery.ForEachEntityChunk(EntityManager, Context,
-		[this, &Description](FMassExecutionContext& Context)
-		{
-			if (PrepareCachedDependenciesOnQuery(Description, Context))
+	if (Description.Callback.ActivationCount > 0)
+	{
+		NativeQuery.ForEachEntityChunk(EntityManager, Context,
+			[this, &Description](FMassExecutionContext& Context)
 			{
-				FMassContextForwarder QueryContext(Description, Context, *QueryStore, *Environment);
-				Description.Callback.Function(Description, QueryContext);
+				if (PrepareCachedDependenciesOnQuery(Description, Context))
+				{
+					FMassContextForwarder QueryContext(Description, Context, *QueryStore, *Environment);
+					Description.Callback.Function(Description, QueryContext);
+				}
 			}
-		}
-	);
+		);
+	}
 }
 
 

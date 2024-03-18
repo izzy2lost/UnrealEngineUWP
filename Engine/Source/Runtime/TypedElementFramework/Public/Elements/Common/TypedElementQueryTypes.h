@@ -21,6 +21,15 @@ namespace TypedElementDataStorage
 		/** The standard group to run work in. */
 		Default,
 
+		/** General group that prepares for updating. */
+		PreUpdate,
+
+		/** General group that's used for updating data. */
+		Update,
+
+		/** General group that completes for updating. */
+		PostUpdate,
+
 		/**
 		 * The group for queries that need to sync data from external sources such as subsystems or the world into
 		 * the Data Storage. These typically run early in a phase.

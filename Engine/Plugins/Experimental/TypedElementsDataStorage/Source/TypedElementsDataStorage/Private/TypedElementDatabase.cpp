@@ -18,6 +18,10 @@
 #include "TickTaskManagerInterface.h"
 #include "UObject/UObjectIterator.h"
 
+const FName UTypedElementDatabase::TickGroupName_Default(TEXT("Default"));
+const FName UTypedElementDatabase::TickGroupName_PreUpdate(TEXT("PreUpdate"));
+const FName UTypedElementDatabase::TickGroupName_Update(TEXT("Update"));
+const FName UTypedElementDatabase::TickGroupName_PostUpdate(TEXT("PostUpdate"));
 const FName UTypedElementDatabase::TickGroupName_SyncWidget(TEXT("SyncWidgets"));
 
 FAutoConsoleCommandWithOutputDevice PrintQueryCallbacksConsoleCommand(
@@ -127,15 +131,29 @@ void UTypedElementDatabase::Initialize()
 					FinalizePhase(Phase, DeltaTime);
 				});
 
-			// Guarantee that syncing to the data storage always happens before syncing to external.
+			// Update external source to TEDS at the start of the phase.
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage),
-				Phase, GetQueryTickGroupName(EQueryTickGroups::SyncDataStorageToExternal), {}, false);
-			// Guarantee that widgets syncs happen after external data has been updated and internal processing 
-			// completed to the data storage.
+				Phase, {}, {}, false);
+			
+			// Default group.
+			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::Default),
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage), false);
+
+			// Order the update groups.
+			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::PreUpdate),
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::Default), false);
+			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::Update),
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::PreUpdate), false);
+			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::PostUpdate),
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::Update), false);
+
+			// After everything has processed sync the data in TEDS to external sources.
+			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncDataStorageToExternal),
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::PostUpdate), false);
+
+			// Update any widgets with data from TEDS.
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncWidgets),
-				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::Default), true /* Needs main thread*/);
-			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncWidgets),
-				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage), true /* Needs main thread*/);
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::PostUpdate), true /* Needs main thread*/);
 		}
 	}
 }
@@ -230,7 +248,7 @@ void UTypedElementDatabase::OnPostMassTick(float DeltaTime)
 {
 	checkf(IsAvailable(), TEXT("Typed Element Database was ticked while it's not ready."));
 	
-	Environment->GetScratchBuffer().BatchDelete();
+	Environment->NextUpdateCycle();
 }
 
 TSharedPtr<FMassEntityManager> UTypedElementDatabase::GetActiveMutableEditorEntityManager()
@@ -755,18 +773,18 @@ bool UTypedElementDatabase::MatchesColumns(TypedElementDataStorage::RowHandle Ro
 void UTypedElementDatabase::RegisterTickGroup(
 	FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, bool bRequiresMainThread)
 {
-	Queries.RegisterTickGroup(GroupName, Phase, BeforeGroup, AfterGroup, bRequiresMainThread);
+	Environment->GetQueryStore().RegisterTickGroup(GroupName, Phase, BeforeGroup, AfterGroup, bRequiresMainThread);
 }
 
 void UTypedElementDatabase::UnregisterTickGroup(FName GroupName, EQueryTickPhase Phase)
 {
-	Queries.UnregisterTickGroup(GroupName, Phase);
+	Environment->GetQueryStore().UnregisterTickGroup(GroupName, Phase);
 }
 
 TypedElementQueryHandle UTypedElementDatabase::RegisterQuery(FQueryDescription&& Query)
 {
 	return (ActiveEditorEntityManager && ActiveEditorPhaseManager)
-		? Queries.RegisterQuery(MoveTemp(Query), *Environment, *ActiveEditorEntityManager, *ActiveEditorPhaseManager).Packed()
+		? Environment->GetQueryStore().RegisterQuery(MoveTemp(Query), *Environment, *ActiveEditorEntityManager, *ActiveEditorPhaseManager).Packed()
 		: TypedElementInvalidQueryHandle;
 }
 
@@ -775,14 +793,14 @@ void UTypedElementDatabase::UnregisterQuery(TypedElementQueryHandle Query)
 	if (ActiveEditorPhaseManager)
 	{
 		const FTypedElementExtendedQueryStore::Handle StorageHandle(Query);
-		Queries.UnregisterQuery(StorageHandle, *ActiveEditorPhaseManager);
+		Environment->GetQueryStore().UnregisterQuery(StorageHandle, *ActiveEditorPhaseManager);
 	}
 }
 
 const ITypedElementDataStorageInterface::FQueryDescription& UTypedElementDatabase::GetQueryDescription(TypedElementQueryHandle Query) const
 {
 	const FTypedElementExtendedQueryStore::Handle StorageHandle(Query);
-	return Queries.GetQueryDescription(StorageHandle);
+	return Environment->GetQueryStore().GetQueryDescription(StorageHandle);
 }
 
 FName UTypedElementDatabase::GetQueryTickGroupName(EQueryTickGroups Group) const
@@ -790,7 +808,13 @@ FName UTypedElementDatabase::GetQueryTickGroupName(EQueryTickGroups Group) const
 	switch (Group)
 	{
 		case EQueryTickGroups::Default:
-			return NAME_None;
+			return TickGroupName_Default;
+		case EQueryTickGroups::PreUpdate:
+			return TickGroupName_PreUpdate;
+		case EQueryTickGroups::Update:
+			return TickGroupName_Update;
+		case EQueryTickGroups::PostUpdate:
+			return TickGroupName_PostUpdate;
 		case EQueryTickGroups::SyncExternalToDataStorage:
 			return UE::Mass::ProcessorGroupNames::SyncWorldToMass;
 		case EQueryTickGroups::SyncDataStorageToExternal:
@@ -810,7 +834,7 @@ ITypedElementDataStorageInterface::FQueryResult UTypedElementDatabase::RunQuery(
 	if (ActiveEditorEntityManager)
 	{
 		const FTypedElementExtendedQueryStore::Handle StorageHandle(Query);
-		return Queries.RunQuery(*ActiveEditorEntityManager, StorageHandle);
+		return Environment->GetQueryStore().RunQuery(*ActiveEditorEntityManager, StorageHandle);
 	}
 	else
 	{
@@ -826,11 +850,19 @@ ITypedElementDataStorageInterface::FQueryResult UTypedElementDatabase::RunQuery(
 	if (ActiveEditorEntityManager)
 	{
 		const FTypedElementExtendedQueryStore::Handle StorageHandle(Query);
-		return Queries.RunQuery(*ActiveEditorEntityManager, *Environment, StorageHandle, Callback);
+		return Environment->GetQueryStore().RunQuery(*ActiveEditorEntityManager, *Environment, StorageHandle, Callback);
 	}
 	else
 	{
 		return FQueryResult();
+	}
+}
+
+void UTypedElementDatabase::ActivateQueries(FName ActivationName)
+{
+	if (ActiveEditorEntityManager)
+	{
+		Environment->GetQueryStore().ActivateQueries(ActivationName);
 	}
 }
 
@@ -878,8 +910,7 @@ void UTypedElementDatabase::PreparePhase(EQueryTickPhase Phase, float DeltaTime)
 {
 	if (ActiveEditorEntityManager)
 	{
-		Environment->NextUpdateCycle();
-		Queries.RunPhasePreambleQueries(*ActiveEditorEntityManager, *Environment, Phase, DeltaTime);
+		Environment->GetQueryStore().RunPhasePreambleQueries(*ActiveEditorEntityManager, *Environment, Phase, DeltaTime);
 	}
 }
 
@@ -887,7 +918,7 @@ void UTypedElementDatabase::FinalizePhase(EQueryTickPhase Phase, float DeltaTime
 {
 	if (ActiveEditorEntityManager)
 	{
-		Queries.RunPhasePostambleQueries(*ActiveEditorEntityManager, *Environment, Phase, DeltaTime);
+		Environment->GetQueryStore().RunPhasePostambleQueries(*ActiveEditorEntityManager, *Environment, Phase, DeltaTime);
 	}
 }
 
@@ -903,7 +934,7 @@ void UTypedElementDatabase::Reset()
 
 	if (ActiveEditorPhaseManager)
 	{
-		Queries.Clear(*ActiveEditorPhaseManager.Get());
+		Environment->GetQueryStore().Clear(*ActiveEditorPhaseManager.Get());
 	}
 	Tables.Reset();
 	TableNameLookup.Reset();
@@ -914,7 +945,7 @@ void UTypedElementDatabase::Reset()
 
 void UTypedElementDatabase::DebugPrintQueryCallbacks(FOutputDevice& Output)
 {
-	Queries.DebugPrintQueryCallbacks(Output);
+	Environment->GetQueryStore().DebugPrintQueryCallbacks(Output);
 }
 
 void UTypedElementDatabase::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)

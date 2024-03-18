@@ -25,6 +25,7 @@ FTypedElementExtendedQueryStore::Handle FTypedElementExtendedQueryStore::Registe
 	bContinueSetup = bContinueSetup &&	SetupDependencies(StoredQuery.Description, NativeQuery);
 	bContinueSetup = bContinueSetup &&	SetupTickGroupDefaults(StoredQuery.Description);
 	bContinueSetup = bContinueSetup &&	SetupProcessors(Result, StoredQuery, Environment, EntityManager, PhaseManager);
+	bContinueSetup = bContinueSetup &&	SetupActivatable(Result, Query);
 	
 	if (!bContinueSetup)
 	{
@@ -64,12 +65,12 @@ void FTypedElementExtendedQueryStore::RegisterTickGroup(FName GroupName, ITypedE
 {
 	FTickGroupDescription& Group = TickGroupDescriptions.FindOrAdd({ GroupName, Phase });
 
-	if (!Group.BeforeGroups.Find(BeforeGroup))
+	if (!BeforeGroup.IsNone() && Group.BeforeGroups.Find(BeforeGroup) == INDEX_NONE)
 	{
 		Group.BeforeGroups.Add(BeforeGroup);
 	}
 
-	if (!Group.AfterGroups.Find(AfterGroup))
+	if (!AfterGroup.IsNone() && Group.AfterGroups.Find(AfterGroup) == INDEX_NONE)
 	{
 		Group.AfterGroups.Add(AfterGroup);
 	}
@@ -130,6 +131,49 @@ void FTypedElementExtendedQueryStore::ListAliveEntries(const ListAliveEntriesCon
 {
 	Queries.ListAliveEntries(Callback);
 }
+
+void FTypedElementExtendedQueryStore::UpdateActivatableQueries()
+{
+	// Update activatable counts and remove any queries that have completed.
+	for (Handle Query : ActiveActivatables)
+	{
+		FTypedElementExtendedQuery& QueryData = Queries.GetMutable(Query);
+		checkf(QueryData.Description.Callback.ActivationCount > 0,
+			TEXT("Attempting to decrement the query '%s' which is already at zero."), *QueryData.Description.Callback.Name.ToString());
+		QueryData.Description.Callback.ActivationCount--;
+	}
+	ActiveActivatables.Reset();
+
+	// Queue up the next batch of activatables.
+	for (Handle Query : PendingActivatables)
+	{
+		FTypedElementExtendedQuery& QueryData = Queries.GetMutable(Query);
+		if (QueryData.Description.Callback.ActivationCount == 0)
+		{
+			QueryData.Description.Callback.ActivationCount = 1;
+			ActiveActivatables.Add(Query);
+		}
+	}
+	PendingActivatables.Reset();
+}
+
+void FTypedElementExtendedQueryStore::ActivateQueries(FName ActivationName)
+{
+	for (TMultiMap<FName, Handle>::TKeyIterator QueryIt = ActivatableMapping.CreateKeyIterator(ActivationName); QueryIt; ++QueryIt)
+	{
+		Handle Query = QueryIt.Value();
+		if (Queries.IsAlive(Query))
+		{
+#if DO_ENSURE
+			FTypedElementExtendedQuery& QueryData = Queries.GetMutable(Query);
+			checkf(!QueryData.Description.Callback.ActivationName.IsNone(),
+				TEXT("Attempting to enable the query '%s' which isn't activatable."), *QueryData.Description.Callback.Name.ToString());
+#endif
+			PendingActivatables.Add(Query);
+		}
+	}
+}
+
 
 TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query)
 {
@@ -637,6 +681,15 @@ bool FTypedElementExtendedQueryStore::SetupProcessors(Handle QueryHandle, FTyped
 	return true;
 }
 
+bool FTypedElementExtendedQueryStore::SetupActivatable(Handle QueryHandle, ITypedElementDataStorageInterface::FQueryDescription& Query)
+{
+	if (!Query.Callback.ActivationName.IsNone())
+	{
+		ActivatableMapping.Add(Query.Callback.ActivationName, QueryHandle);
+	}
+	return true;
+}
+
 EMassFragmentAccess FTypedElementExtendedQueryStore::ConvertToNativeAccessType(ITypedElementDataStorageInterface::EQueryAccessType AccessType)
 {
 	switch (AccessType)
@@ -696,6 +749,13 @@ void FTypedElementExtendedQueryStore::RunPhasePreOrPostAmbleQueries(FMassEntityM
 
 void FTypedElementExtendedQueryStore::UnregisterQueryData(Handle Query, FTypedElementExtendedQuery& QueryData, FMassProcessingPhaseManager& PhaseManager)
 {
+	if (!QueryData.Description.Callback.ActivationName.IsNone())
+	{
+		ActivatableMapping.RemoveSingle(QueryData.Description.Callback.ActivationName, Query);
+		ActiveActivatables.RemoveSingleSwap(Query);
+		PendingActivatables.RemoveSingleSwap(Query);
+	}
+
 	if (QueryData.Processor)
 	{
 		if (QueryData.Processor->IsA<UTypedElementQueryProcessorCallbackAdapterProcessorBase>())

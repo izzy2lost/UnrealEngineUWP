@@ -1046,6 +1046,8 @@ namespace TypedElementQueryBuilder
 			Query.Callback.Type = TypedElementDataStorage::EQueryCallbackType::Processor;
 			Query.Callback.Phase = Processor.Phase;
 			Query.Callback.Group = Processor.Group;
+			Query.Callback.ActivationName = Processor.ActivationName;
+			Query.Callback.ActivationCount = Processor.ActivationName.IsNone() ? 255 : 0;
 			if (!Processor.BeforeGroup.IsNone())
 			{
 				Query.Callback.BeforeGroups.Add(Processor.BeforeGroup);
@@ -1068,6 +1070,8 @@ namespace TypedElementQueryBuilder
 				Query.Callback.Type = TypedElementDataStorage::EQueryCallbackType::ObserveRemove;
 				break;
 			}
+			Query.Callback.ActivationName = Observer.ActivationName;
+			Query.Callback.ActivationCount = Observer.ActivationName.IsNone() ? 255 : 0;
 			Query.Callback.MonitoredType = Observer.Monitor;
 			Query.Callback.bForceToGameThread = Observer.bForceToGameThread;
 		}
@@ -1083,6 +1087,8 @@ namespace TypedElementQueryBuilder
 				Query.Callback.Type = TypedElementDataStorage::EQueryCallbackType::PhaseFinalization;
 				break;
 			}
+			Query.Callback.ActivationName = PhaseAmble.ActivationName;
+			Query.Callback.ActivationCount = PhaseAmble.ActivationName.IsNone() ? 255 : 0;
 			Query.Callback.Phase = PhaseAmble.Phase;
 			Query.Callback.bForceToGameThread = PhaseAmble.bForceToGameThread;
 		}
