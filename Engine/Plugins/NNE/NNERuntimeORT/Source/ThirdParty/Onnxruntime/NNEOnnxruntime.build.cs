@@ -11,48 +11,53 @@ public class NNEOnnxruntime : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		string PlatformDir = Target.Platform.ToString();
-		string IncDirPath = Path.Combine(ModuleDirectory, "include");
-		string LibDirPath = Path.Combine(ModuleDirectory, "lib", PlatformDir);
-		string OrtPlatformRelativePath = Path.Combine("Binaries", "ThirdParty", "Onnxruntime", PlatformDir);
+		PublicIncludePaths.Add(Path.Combine(ModuleDirectory, "Internal"));
+
+		string OrtPlatformRelativePath = Path.Combine("Binaries", "ThirdParty", "Onnxruntime", Target.Platform.ToString());
 		string OrtPlatformPath = Path.Combine(PluginDirectory, OrtPlatformRelativePath);
+		
 		string SharedLibFileName = "UNSUPPORTED_PLATFORM";
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			SharedLibFileName = "onnxruntime.dll";
-			PublicAdditionalLibraries.Add(Path.Combine(LibDirPath, "onnxruntime.lib"));
-			PublicDelayLoadDLLs.Add("onnxruntime.dll");
-			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "onnxruntime.dll"));
+
+			PublicDelayLoadDLLs.Add(SharedLibFileName);
+			
+			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, SharedLibFileName));
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Linux)
 		{
 			SharedLibFileName = "libonnxruntime.so.1.14.1";
-			PublicAdditionalLibraries.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so"));
-			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so"));
-			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so.1.14.1"));
-			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so"));
-			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so.1.14.1"));
+			string SharedLibFileNameWithoutVersion = "libonnxruntime.so";
+			
+			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, SharedLibFileNameWithoutVersion));
+			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, SharedLibFileName));
+
+			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, SharedLibFileNameWithoutVersion));
+			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, SharedLibFileName));
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			SharedLibFileName = "libonnxruntime.1.14.1.dylib";
-			PublicAdditionalLibraries.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.dylib"));
-			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.dylib"));
-			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.1.14.1.dylib"));
-			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.dylib"));
-			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.1.14.1.dylib"));
+			string SharedLibFileNameWithoutVersion = "libonnxruntime.dylib";
+
+			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, SharedLibFileNameWithoutVersion));
+			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, SharedLibFileName));
+
+			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, SharedLibFileNameWithoutVersion));
+			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, SharedLibFileName));
 		}
 
-		string SharedLibRelativePath = Path.Combine(OrtPlatformRelativePath, SharedLibFileName);
+		PublicDefinitions.Add("UE_ORT_USE_INLINE_NAMESPACE = 1");
+		PublicDefinitions.Add("UE_ORT_INLINE_NAMESPACE_NAME = Ort011401");
 
 		if (Target.Type == TargetType.Game)
 		{
 			PublicDefinitions.Add("ORT_NO_EXCEPTIONS");
 		}
 
-		PublicIncludePaths.Add(IncDirPath);
 		PublicDefinitions.Add("ORT_API_MANUAL_INIT");
-		PublicDefinitions.Add("ONNXRUNTIME_SHAREDLIB_PATH=" + SharedLibRelativePath.Replace('\\', '/'));
+		PublicDefinitions.Add("ONNXRUNTIME_SHAREDLIB_PATH=" + Path.Combine(OrtPlatformRelativePath, SharedLibFileName).Replace('\\', '/'));
 	}
 }

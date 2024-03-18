@@ -6,12 +6,9 @@
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
 #include "NNE.h"
+#include "NNEOnnxruntime.h"
 #include "NNERuntimeORT.h"
 #include "UObject/WeakInterfacePtr.h"
-
-THIRD_PARTY_INCLUDES_START
-#include "onnxruntime_cxx_api.h"
-THIRD_PARTY_INCLUDES_END
 
 namespace UE::NNERuntimeORT::Private::DllHelper
 {
@@ -46,9 +43,11 @@ void FNNERuntimeORTModule::StartupModule()
 
 	if (!UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(OrtSharedLibPath, DllHandles))
 	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to load OnnxRuntime shared library. ORT Runtimes won't be available."));
+		UE_LOG(LogNNE, Error, TEXT("Failed to load ONNX Runtime shared library. ORT Runtimes won't be available."));
 		return;
 	}
+
+	void* OrtDllHandle = DllHandles.Last();
 
 #if PLATFORM_WINDOWS
 	const FString ModuleDir = FPlatformProcess::GetModulesDirectory();
@@ -61,7 +60,14 @@ void FNNERuntimeORTModule::StartupModule()
 	}
 #endif // PLATFORM_WINDOWS
 
-	Ort::InitApi();
+	TUniquePtr<UE::NNEOnnxruntime::OrtApiFunctions> OrtApiFunctions = UE::NNEOnnxruntime::LoadApiFunctions(OrtDllHandle);
+	if (!OrtApiFunctions.IsValid())
+	{
+		UE_LOG(LogNNE, Fatal, TEXT("Failed to load ONNX Runtime shared library functions!"));
+		return;
+	}
+
+	Ort::InitApi(OrtApiFunctions->OrtGetApiBase()->GetApi(ORT_API_VERSION));
 
 #if PLATFORM_WINDOWS
 	if (bDirectMLDllLoaded)

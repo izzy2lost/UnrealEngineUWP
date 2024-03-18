@@ -18,6 +18,7 @@ public class NNEUtilities : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"Projects",
 				"NNEProtobufEditor",
 				"NNEOnnxruntime",
 				"NNEOnnxEditor"

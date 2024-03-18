@@ -9,20 +9,8 @@
 #include "RenderGraphUtils.h"
 
 #if PLATFORM_WINDOWS
-#include "Windows/AllowWindowsPlatformTypes.h"
-THIRD_PARTY_INCLUDES_START
-#include <unknwn.h>
-#include "Microsoft/COMPointer.h"
-#include "DirectML.h"
-#include "dml_provider_factory.h"
-THIRD_PARTY_INCLUDES_END
-#include "Windows/HideWindowsPlatformTypes.h"
 #include "ID3D12DynamicRHI.h"
 #endif // PLATFORM_WINDOWS
-
-THIRD_PARTY_INCLUDES_START
-#include "cpu_provider_factory.h"
-THIRD_PARTY_INCLUDES_END
 
 // DirectML is implemented using COM on all platforms
 #ifdef IID_GRAPHICS_PPV_ARGS

@@ -2,14 +2,14 @@
 
 #include "NNEUtilitiesModelOptimizerONNX.h"
 
-#include "Misc/Paths.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "NNE.h"
+#include "NNEOnnxruntime.h"
 
 THIRD_PARTY_INCLUDES_START
-#include "onnxruntime_cxx_api.h"
 #include <onnx/onnx_pb.h>
 #include <onnx/shape_inference/implementation.h>
 THIRD_PARTY_INCLUDES_END

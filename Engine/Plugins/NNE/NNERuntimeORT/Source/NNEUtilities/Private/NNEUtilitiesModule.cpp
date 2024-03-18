@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Modules/ModuleManager.h"
-
-THIRD_PARTY_INCLUDES_START
-#include "onnxruntime_cxx_api.h"
-THIRD_PARTY_INCLUDES_END
+#include "Interfaces/IPluginManager.h"
+#include "Misc/Paths.h"
+#include "NNE.h"
+#include "NNEOnnxruntime.h"
 
 class FNNEUtilitiesModule : public IModuleInterface
 {
@@ -12,12 +12,35 @@ public:
 
 	virtual void StartupModule() override
 	{
-		Ort::InitApi();
+		const FString PluginDir = IPluginManager::Get().FindPlugin("NNERuntimeORT")->GetBaseDir();
+		const FString OrtSharedLibPath = FPaths::Combine(PluginDir, TEXT(PREPROCESSOR_TO_STRING(ONNXRUNTIME_SHAREDLIB_PATH)));
+
+		OrtDllHandle = FPlatformProcess::GetDllHandle(*OrtSharedLibPath);
+		if (!OrtDllHandle)
+		{
+			UE_LOG(LogNNE, Fatal, TEXT("Failed to load ONNX Runtime shared library!"));
+			return;
+		}
+
+		TUniquePtr<UE::NNEOnnxruntime::OrtApiFunctions> OrtApiFunctions = UE::NNEOnnxruntime::LoadApiFunctions(OrtDllHandle);
+		if (!OrtApiFunctions.IsValid())
+		{
+			UE_LOG(LogNNE, Fatal, TEXT("Failed to load ONNX Runtime shared library functions!"));
+			return;
+		}
+
+		Ort::InitApi(OrtApiFunctions->OrtGetApiBase()->GetApi(ORT_API_VERSION));
 	}
 
 	virtual void ShutdownModule() override
 	{
+		if (OrtDllHandle)
+		{
+			FPlatformProcess::FreeDllHandle(OrtDllHandle);
+		}
 	}
+
+	void* OrtDllHandle = nullptr;
 };
 
 IMPLEMENT_MODULE(FNNEUtilitiesModule, NNEUtilities)

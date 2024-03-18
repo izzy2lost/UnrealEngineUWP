@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "NNEOnnxruntime.h"
 #include "NNERuntime.h"
 #include "NNERuntimeCPU.h"
 #include "NNERuntimeGPU.h"
@@ -13,8 +14,6 @@
 #include "UObject/UObjectBaseUtility.h"
 
 #include "NNERuntimeORT.generated.h"
-
-namespace Ort { struct Env; };
 
 namespace UE::NNERuntimeORT::Private
 {
