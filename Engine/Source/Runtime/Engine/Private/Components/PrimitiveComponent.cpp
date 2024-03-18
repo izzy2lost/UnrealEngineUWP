@@ -4683,7 +4683,11 @@ void UPrimitiveComponent::SetupPrecachePSOParams(FPSOPrecacheParams& Params)
 void UPrimitiveComponent::PrecachePSOs()
 {
 #if UE_WITH_PSO_PRECACHING
-	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled())
+	// Only request PSO precaching if app is rendering and per component PSO precaching is enabled
+	// Also only request PSOs from game thread because TStrongObjectPtr is used on the material to make
+	// it's not deleted via garbage collection when PSO precaching is still busy. TStrongObjectPtr can only
+	// be constructed on the GameThread
+	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled() || !IsInGameThread())
 	{
 		return;
 	}
