@@ -8,11 +8,7 @@
 
 #pragma once
 
-#ifdef _MSC_VER
-	#pragma message(__FILE__"(9): has moved to it's own module ADPCMAudioDecoder, please update your code.")
-#else
-	#pragma message("ADPCMAudioInfo.h has moved to it's own module ADPCMAudioDecoder, please update your code.")
-#endif
+UE_DEPRECATED_HEADER(5.4, "ADPCMAudioInfo.h has moved to its own module ADPCMAudioDecoder.")
 
  // Include the new file so that the project still compiles, but has warnings
 #include "Decoders/ADPCMAudioInfo.h"

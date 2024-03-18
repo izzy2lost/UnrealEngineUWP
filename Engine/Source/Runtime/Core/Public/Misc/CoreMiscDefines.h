@@ -152,8 +152,6 @@ enum EPerElement {PerElement};
 	#define UE_PUSH_MACRO(name) __pragma(push_macro(name))
 	#define UE_POP_MACRO(name) __pragma(pop_macro(name))
 #endif
-#define PUSH_MACRO(name) UE_DEPRECATED_MACRO(5.0, "PUSH_MACRO is deprecated. Use UE_PUSH_MACRO and pass the macro name as a string.") UE_PUSH_MACRO(PREPROCESSOR_TO_STRING(name))
-#define POP_MACRO(name) UE_DEPRECATED_MACRO(5.0, "POP_MACRO is deprecated. Use UE_POP_MACRO and pass the macro name as a string.") UE_POP_MACRO(PREPROCESSOR_TO_STRING(name))
 
 #ifdef __COUNTER__
 	// Created a variable with a unique name
@@ -288,6 +286,21 @@ enum EPerElement {PerElement};
 #else
 	#define UE_INTERNAL
 #endif
+
+
+/**
+ * Macro which can be placed in a header to throw a deprecation warning when it is included.
+ */
+#ifdef _MSC_VER
+    #if UE_WARNINGS_AS_ERRORS
+    	#define UE_DEPRECATED_HEADER(Version, Message) __pragma(message(__FILE__ "(" PREPROCESSOR_TO_STRING(__LINE__) "): error C4996: " Message " Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile."))
+    #else
+    	#define UE_DEPRECATED_HEADER(Version, Message) __pragma(message(__FILE__ "(" PREPROCESSOR_TO_STRING(__LINE__) "): warning C4996: " Message " Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile."))
+    #endif
+#else
+	#define UE_DEPRECATED_HEADER(Version, Message) _Pragma(PREPROCESSOR_TO_STRING(message(Message " Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile.")))
+#endif
+
 
 /*
  * Macro that can be defined in the target file to strip deprecated properties in objects across the engine that check against this define.

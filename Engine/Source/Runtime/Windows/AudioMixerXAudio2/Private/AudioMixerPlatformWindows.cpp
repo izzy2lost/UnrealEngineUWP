@@ -15,7 +15,7 @@
 
 #if PLATFORM_WINDOWS
 
-#include "Windows/COMPointer.h"
+#include "Microsoft/COMPointer.h"
 #include "ScopedCom.h"					// FScopedComString
 
 #include "Windows/AllowWindowsPlatformTypes.h"

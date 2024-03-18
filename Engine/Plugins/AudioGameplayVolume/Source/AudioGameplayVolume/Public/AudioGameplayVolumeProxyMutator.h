@@ -13,11 +13,7 @@
 
 // HEADER_UNIT_SKIP - Deprecated
 
-#ifdef _MSC_VER
-#pragma message(__FILE__"(15): warning: use AudioGameplayVolumeSubsystem.h and AudioGameplayVolumeMutator.h instead of AudioGameplayVolumeProxyMutator.h")
-#else
-#pragma message("#include AudioGameplayVolumeSubsystem.h and AudioGameplayVolumeMutator.h instead of AudioGameplayVolumeProxyMutator.h")
-#endif
+UE_DEPRECATED_HEADER(5.1, "Use AudioGameplayVolumeSubsystem.h and AudioGameplayVolumeMutator.h instead of AudioGameplayVolumeProxyMutator.h.")
 
  // Include the new file so that the project still compiles, but has warnings
 #include "AudioGameplayVolumeSubsystem.h"

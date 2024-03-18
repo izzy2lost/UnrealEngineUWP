@@ -7,10 +7,6 @@
  
 #pragma once
 
-#ifdef _MSC_VER
-#pragma message(__FILE__"(9): warning: use MovieSceneBindingProxy.h instead of SequencerBindingProxy.h")
-#else
-#pragma message("#include MovieSceneBindingProxy.h instead of SequencerBindingProxy.h")
-#endif
+UE_DEPRECATED_HEADER(5.1, "Use MovieSceneBindingProxy.h instead of SequencerBindingProxy.h.")
 
 #include "MovieSceneBindingProxy.h"

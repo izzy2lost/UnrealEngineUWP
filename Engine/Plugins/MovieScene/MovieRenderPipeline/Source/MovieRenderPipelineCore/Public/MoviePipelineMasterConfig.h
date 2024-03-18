@@ -7,11 +7,7 @@
 
 #pragma once
 
-#ifdef _MSC_VER
-	#pragma message(__FILE__"(9): warning: use MoviePipelinePrimaryConfig.h instead of MoviePipelineMasterConfig.h")
-#else
-	#pragma message("#include MoviePipelinePrimaryConfig.h instead of MoviePipelineMasterConfig")
-#endif
+UE_DEPRECATED_HEADER(5.2, "Use MoviePipelinePrimaryConfig.h instead of MoviePipelineMasterConfig.h.")
 
 #include "MoviePipelinePrimaryConfig.h"
 

@@ -4,5 +4,4 @@
 
 // HEADER_UNIT_SKIP - Deprecated
 
-// Deprecated in UE 5.3.
-#pragma message (__FILE__"(8): warning: #include UObject/ICookInfo.h instead of Engine/ICookInfo.h")
+UE_DEPRECATED_HEADER(5.3, "#include UObject/ICookInfo.h instead of Engine/ICookInfo.h.")

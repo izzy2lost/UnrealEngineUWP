@@ -14,7 +14,7 @@
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "Windows/AllowWindowsPlatformAtomics.h"
 
-#include "Windows/COMPointer.h"
+#include "Microsoft/COMPointer.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <mmreg.h>				// WAVEFORMATEX

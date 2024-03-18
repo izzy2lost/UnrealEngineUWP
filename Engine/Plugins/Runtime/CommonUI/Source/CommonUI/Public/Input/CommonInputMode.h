@@ -4,10 +4,6 @@
 
 // HEADER_UNIT_SKIP - Deprecated
 
-#ifdef _MSC_VER
-#pragma message(__FILE__"(8): warning: use CommonInputModeTypes.h from CommonInput module instead of Input/CommonInputMode.h from CommonUI module")
-#else
-#pragma message("#include CommonInputModeTypes.h from CommonInput module instead of Input/CommonInputMode.h from CommonUI module")
-#endif
+UE_DEPRECATED_HEADER(5.1, "Use CommonInputModeTypes.h from CommonInput module instead of Input/CommonInputMode.h from CommonUI module.")
 
 #include "CommonInputModeTypes.h"

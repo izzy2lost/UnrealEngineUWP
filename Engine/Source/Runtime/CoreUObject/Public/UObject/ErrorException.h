@@ -4,4 +4,4 @@
 
 // HEADER_UNIT_SKIP - Deprecated
 
-#pragma message (__FILE__"(5): warning: ErrorException.h has been deprecated")
+UE_DEPRECATED_HEADER(5.2, "ErrorException.h has been deprecated.")
