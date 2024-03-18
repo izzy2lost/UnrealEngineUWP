@@ -47,6 +47,7 @@ protected:
 	virtual TArray<UAvaSequencePlayer*> GetSequencePlayersByLabels(const TArray<FName>& InSequenceLabels) const override;
 	virtual TArray<UAvaSequencePlayer*> GetSequencePlayersByTag(const FAvaTag& InTag, bool bInExactMatch) const override;
 	virtual TArray<UAvaSequencePlayer*> GetAllSequencePlayers() const override;
+	virtual bool HasActiveSequencePlayers() const override;
 	virtual void UpdateCameraCut(const UE::MovieScene::FOnCameraCutUpdatedParams& InCameraCutParams) override;
 	virtual UObject* CreateDirectorInstance(IMovieScenePlayer& InPlayer, FMovieSceneSequenceID InSequenceID) override;
 	virtual FOnCameraCut& GetOnCameraCut() override { return OnCameraCut; }

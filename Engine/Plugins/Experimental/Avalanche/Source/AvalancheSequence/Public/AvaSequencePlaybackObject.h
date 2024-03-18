@@ -157,4 +157,8 @@ public:
 	/** Retrieves all Active Sequence Players */
 	UFUNCTION(BlueprintCallable, DisplayName = "Get Active Sequence Players", Category = "Playback")
 	virtual TArray<UAvaSequencePlayer*> GetAllSequencePlayers() const = 0;
+
+	/** Returns true if there are any Active Sequence Players */
+	UFUNCTION(BlueprintCallable, DisplayName = "Has Active Sequence Players", Category = "Playback")
+	virtual bool HasActiveSequencePlayers() const = 0;
 };

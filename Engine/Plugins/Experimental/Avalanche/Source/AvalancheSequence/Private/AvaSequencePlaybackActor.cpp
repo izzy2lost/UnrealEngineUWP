@@ -427,6 +427,11 @@ TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::GetAllSequencePlayers() c
 	return SequencePlayers;
 }
 
+bool AAvaSequencePlaybackActor::HasActiveSequencePlayers() const
+{
+	return !ActiveSequencePlayers.IsEmpty();
+}
+
 TArray<UAvaSequencePlayer*> AAvaSequencePlaybackActor::GetSequencePlayersByLabels(const TArray<FName>& InSequenceLabels) const
 {
 	const TArray<UAvaSequence*> Sequences = GetSequencesByLabel(InSequenceLabels);
