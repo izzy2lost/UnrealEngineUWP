@@ -137,6 +137,7 @@ void SAvaEaseCurvePresetGroupItem::Construct(const FArguments& InArgs, const TSh
 						.CurveThickness(1.5f)
 						.Tangents(Preset->Tangents)
 						.CustomToolTip(true)
+						.BackgroundColor(FStyleColors::Dropdown.GetSpecifiedColor())
 						.UnderCurveColor(FStyleColors::SelectInactive.GetSpecifiedColor())
 						.DisplayRate(InArgs._DisplayRate)
 					]

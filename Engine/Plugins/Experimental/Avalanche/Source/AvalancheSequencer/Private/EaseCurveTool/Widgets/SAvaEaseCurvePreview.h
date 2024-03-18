@@ -44,6 +44,7 @@ public:
 		SLATE_ARGUMENT(bool, CanExpandPreview)
 		SLATE_ARGUMENT(float, CurveThickness)
 	
+		SLATE_ARGUMENT(TOptional<FLinearColor>, BackgroundColor)
 		SLATE_ARGUMENT(FLinearColor, CurveColor)
 		SLATE_ARGUMENT(FLinearColor, StraightColor)
 		SLATE_ARGUMENT(TOptional<FLinearColor>, UnderCurveColor)
@@ -93,6 +94,7 @@ protected:
 	bool CanExpandPreview = false;
 	float CurveThickness = 1.f;
 
+	TOptional<FLinearColor> BackgroundColor;
 	FLinearColor CurveColor;
 	FLinearColor StraightColor;
 	TOptional<FLinearColor> UnderCurveColor;
