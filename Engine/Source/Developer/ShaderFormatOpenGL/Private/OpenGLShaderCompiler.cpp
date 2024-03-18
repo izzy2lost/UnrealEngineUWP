@@ -8,6 +8,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/MemoryWriter.h"
+#include "ShaderCompilerCommon.h"
 #include "ShaderCompilerDefinitions.h"
 #include "ShaderFormatOpenGL.h"
 #include "ShaderParameterParser.h"
@@ -3050,32 +3051,19 @@ static bool CompileToGlslWithShaderConductor(
 
 		TSet<FString> ExternalTextures;
 		int32 Pos = 0;
-#if !PLATFORM_MAC
-		TCHAR TextureExternalName[257] = {};
-		TCHAR NextToken[2] = {};
-#else
-		ANSICHAR TextureExternalName[257] = {};
-		ANSICHAR NextToken[2] = {};
-#endif
+		static constexpr FStringView TextExternal = TEXTVIEW("TextureExternal");
+		
 		do
 		{
-			Pos = PreprocessedShader.Find(TEXT("TextureExternal"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Pos + 15);
+			Pos = PreprocessedShader.Find(TextExternal, ESearchCase::CaseSensitive, ESearchDir::FromStart, Pos + TextExternal.Len());
 			if (Pos != INDEX_NONE)
 			{
-				// handle both the case where identifier for TextureExternal declaration immediately precedes a ; and has whitespace separating the two
-#if PLATFORM_WINDOWS
-				if (swscanf_s(&PreprocessedShader[Pos], TEXT("TextureExternal %ls %ls"), TextureExternalName, 257, NextToken, 2))
-#elif PLATFORM_MAC
-				if (sscanf(TCHAR_TO_ANSI(&PreprocessedShader[Pos]), "TextureExternal %256s %1s", TextureExternalName, NextToken))
-#else // PLATFORM_LINUX
-				if (swscanf(TCHAR_TO_WCHAR(&PreprocessedShader[Pos]), L"TextureExternal %256ls %1ls", TextureExternalName, NextToken))
-#endif
+				FStringView TextureExternalName;
+
+				TextureExternalName = FindNextHLSLDefinitionOfType(FStringView(&PreprocessedShader[Pos]), FStringView(&PreprocessedShader[Pos+TextExternal.Len()]));
+				if (!TextureExternalName.IsEmpty())
 				{
-					FString Name = TextureExternalName;
-					if (Name.RemoveFromEnd(TEXT(";")) || (NextToken[0] == TEXT(';')))
-					{
-						ExternalTextures.Add(Name + TEXT("Sampler"));
-					}
+					ExternalTextures.Add(FString(TextureExternalName) + TEXT("Sampler"));	
 				}
 			}
 		}
