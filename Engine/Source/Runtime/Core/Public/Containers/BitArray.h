@@ -1506,7 +1506,7 @@ public:
 			return *this;
 		}
 
-		FORCEINLINE FBitReference operator*() const
+		FORCEINLINE FConstBitReference operator*() const
 		{
 			return GetValue();
 		}
