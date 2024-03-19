@@ -8584,7 +8584,16 @@ UMaterialExpressionDesaturation::UMaterialExpressionDesaturation(const FObjectIn
 	};
 	static FConstructorStatics ConstructorStatics;
 
-	LuminanceFactors = FLinearColor(0.3f, 0.59f, 0.11f, 0.0f);
+	static const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LegacyLuminanceFactors"));
+	if(CVar && CVar->GetInt() != 0)
+	{
+		LuminanceFactors = FLinearColor(0.3f, 0.59f, 0.11f, 0.0f); 
+	}
+	else
+	{
+		//TODO: Handle MATERIAL_DOMAIN_UI which should remain in sRGB/Rec.709
+		LuminanceFactors = UE::Color::FColorSpace::GetWorking().GetLuminanceFactors();
+	}
 
 #if WITH_EDITORONLY_DATA
 	MenuCategories.Add(ConstructorStatics.NAME_Color);

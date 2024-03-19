@@ -389,10 +389,7 @@ struct FLinearColor
 	CORE_API FLinearColor Desaturate( float Desaturation ) const;
 
 	/** Computes the perceptually weighted luminance value of a color. */
-	inline float GetLuminance() const
-	{		
-		return R * 0.3f + G * 0.59f + B * 0.11f;
-	}
+	CORE_API float GetLuminance() const;
 	
 	/**
 	 * Returns the maximum value in this color structure

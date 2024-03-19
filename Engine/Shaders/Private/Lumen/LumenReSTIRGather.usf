@@ -969,18 +969,12 @@ void CalculateUniformUpsampleInterpolationWeights(
 	ScreenProbeSample.AtlasCoord[3] = ScreenTileCoord00 + uint2(1, 1);
 }
 
-float Luma(float3 Color) 
-{
-	// Rec 709 function for luma.
-	return dot(Color, float3(0.2126f, 0.7152f, 0.0722f));
-}
-
 #define TONEMAP_WEIGHTING_ROUGH_SPECULAR 1
 
 float3 TonemapLightingForRoughSpecular(float3 Lighting)
 {
 #if TONEMAP_WEIGHTING_ROUGH_SPECULAR
-	return Lighting / (1.0f + Luma(Lighting));
+	return Lighting / (1.0f + Luminance(Lighting));
 #else
 	return Lighting;
 #endif
@@ -989,7 +983,7 @@ float3 TonemapLightingForRoughSpecular(float3 Lighting)
 float3 InverseTonemapLightingForRoughSpecular(float3 TonemappedLighting)
 {
 #if TONEMAP_WEIGHTING_ROUGH_SPECULAR
-	return TonemappedLighting / (1.0f - Luma(TonemappedLighting));
+	return TonemappedLighting / (1.0f - Luminance(TonemappedLighting));
 #else
 	return TonemappedLighting;
 #endif
@@ -1104,7 +1098,7 @@ void UpsampleAndIntegrateCS(
 						//https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Weighted_incremental_algorithm
 						float Weight = ScreenProbeSample.Weights[SampleIndex];
 						TotalWeight += Weight;
-						float LumaSampleRadiance = Luma(SampleLighting);
+						float LumaSampleRadiance = Luminance(SampleLighting);
 						float OldMean = Mean;
 						Mean += Weight / TotalWeight * (LumaSampleRadiance - OldMean);
 						S += Weight * (LumaSampleRadiance - OldMean) * (LumaSampleRadiance - Mean);
@@ -1169,7 +1163,7 @@ void UpsampleAndIntegrateCS(
 
 					#if USE_BILATERAL_FILTER
 						//https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Weighted_incremental_algorithm
-						float LumaSampleRadiance = Luma(SampleLighting);
+						float LumaSampleRadiance = Luminance(SampleLighting);
 						float OldMean = Mean;
 						Mean += Weight / TotalWeight * (LumaSampleRadiance - OldMean);
 						S += Weight * (LumaSampleRadiance - OldMean) * (LumaSampleRadiance - Mean);
@@ -1519,7 +1513,7 @@ void TemporalAccumulationCS(
 float3 TonemapLightingForBilateral(float3 Lighting)
 {
 #if TONEMAP_WEIGHTING_BILATERAL
-	return Lighting / (1.0f + Luma(Lighting));
+	return Lighting / (1.0f + Luminance(Lighting));
 #else
 	return Lighting;
 #endif
@@ -1528,7 +1522,7 @@ float3 TonemapLightingForBilateral(float3 Lighting)
 float3 InverseTonemapLightingForBilateral(float3 TonemappedLighting)
 {
 #if TONEMAP_WEIGHTING_BILATERAL
-	return TonemappedLighting / (1.0f - Luma(TonemappedLighting));
+	return TonemappedLighting / (1.0f - Luminance(TonemappedLighting));
 #else
 	return TonemappedLighting;
 #endif

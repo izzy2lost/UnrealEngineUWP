@@ -208,7 +208,7 @@ FTranslucencyLightingVector GetTranslucencyLightingVector(FDeferredLightData Lig
 
 	Out.AmbientLightingVector = float4(SHLighting.R.V.x, SHLighting.G.V.x, SHLighting.B.V.x, 1.0f);
 
-	float3 LuminanceWeights = float3(.3, .59, .11);
+	float3 LuminanceWeights = LuminanceFactors();
 	float3 Coefficient0 = float3(SHLighting.R.V.y, SHLighting.G.V.y, SHLighting.B.V.y);
 	float3 Coefficient1 = float3(SHLighting.R.V.z, SHLighting.G.V.z, SHLighting.B.V.z);
 	float3 Coefficient2 = float3(SHLighting.R.V.w, SHLighting.G.V.w, SHLighting.B.V.w);

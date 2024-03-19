@@ -95,7 +95,7 @@ void SimpleLightInjectMainPS(
 	FTwoBandSHVectorRGB SHLighting = MulSH(SHBasisFunction(NormalizedLightVector), Lighting);
 	OutColor0 = float4(SHLighting.R.V.x, SHLighting.G.V.x, SHLighting.B.V.x, 0);
 
-	float3 LuminanceWeights = float3(.3, .59, .11);
+	float3 LuminanceWeights = LuminanceFactors();
 	float3 Coefficient0 = float3(SHLighting.R.V.y, SHLighting.G.V.y, SHLighting.B.V.y);
 	float3 Coefficient1 = float3(SHLighting.R.V.z, SHLighting.G.V.z, SHLighting.B.V.z);
 	float3 Coefficient2 = float3(SHLighting.R.V.w, SHLighting.G.V.w, SHLighting.B.V.w);
@@ -271,7 +271,7 @@ void InjectMainPS(
 		// Directional light contribution in w
 		OutColor0 = float4(SHLighting.R.V.x, SHLighting.G.V.x, SHLighting.B.V.x, DirectionalLightContribution);
 
-		float3 LuminanceWeights = float3(.3, .59, .11);
+		float3 LuminanceWeights = LuminanceFactors();
 		float3 Coefficient0 = float3(SHLighting.R.V.y, SHLighting.G.V.y, SHLighting.B.V.y);
 		float3 Coefficient1 = float3(SHLighting.R.V.z, SHLighting.G.V.z, SHLighting.B.V.z);
 		float3 Coefficient2 = float3(SHLighting.R.V.w, SHLighting.G.V.w, SHLighting.B.V.w);

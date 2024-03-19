@@ -93,8 +93,8 @@ bool PerSample(int2 PixelPos, int SampleID, bool IsCenterPixelOccluded, float3 D
 
 float4 GetPixelGreyColor(float4 SceneColor, float SceneColorIntensity)
 {
-	float Luminance = (SceneColor.r * 0.3) + (SceneColor.g * 0.59) + (SceneColor.b * 0.11);
-	float4 GreyColor = float4(Luminance, Luminance, Luminance, 1.0);
+	float Grey = Luminance(SceneColor.rgb);
+	float4 GreyColor = float4(Grey, Grey, Grey, 1.0);
 	GreyColor = lerp(GreyColor, float4(1., 1., 1., 1.), 0.5);
 	return lerp(GreyColor, SceneColor, SceneColorIntensity);
 }

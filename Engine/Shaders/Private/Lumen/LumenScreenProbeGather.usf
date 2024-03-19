@@ -1091,16 +1091,10 @@ void EvaluateDirectLighting(
 
 #define TONEMAP_DURING_INTEGRATION 1
 
-float Luma(float3 Color) 
-{
-	// Rec 709 function for luma.
-	return dot(Color, float3(0.2126f, 0.7152f, 0.0722f));
-}
-
 float3 TonemapLighting(float3 Lighting)
 {
 #if TONEMAP_DURING_INTEGRATION
-	return Lighting / (1.0f + Luma(Lighting));
+	return Lighting / (1.0f + Luminance(Lighting));
 #else
 	return Lighting;
 #endif
@@ -1109,7 +1103,7 @@ float3 TonemapLighting(float3 Lighting)
 float3 InverseTonemapLighting(float3 TonemappedLighting)
 {
 #if TONEMAP_DURING_INTEGRATION
-	return TonemappedLighting / (1.0f - Luma(TonemappedLighting));
+	return TonemappedLighting / (1.0f - Luminance(TonemappedLighting));
 #else
 	return TonemappedLighting;
 #endif

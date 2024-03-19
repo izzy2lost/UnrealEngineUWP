@@ -10,6 +10,9 @@
 #include "Math/Float16Color.h"
 #include "Math/RandomStream.h"
 
+#include "ColorManagement/ColorSpace.h"
+#include "HAL/IConsoleManager.h"
+
 // Common colors.
 const FLinearColor FLinearColor::White(1.f,1.f,1.f);
 const FLinearColor FLinearColor::Gray(0.5f,0.5f,0.5f);
@@ -292,6 +295,15 @@ FLinearColor FLinearColor::Desaturate( float Desaturation ) const
 {
 	float Lum = GetLuminance();
 	return FMath::Lerp( *this, FLinearColor( Lum, Lum, Lum, 0 ), Desaturation );
+}
+
+/** Computes the perceptually weighted luminance value of a color. */
+float FLinearColor::GetLuminance() const
+{
+	static const auto CVarLegacyLuminanceFactors = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LegacyLuminanceFactors"));
+	static const FLinearColor LuminanceFactors = CVarLegacyLuminanceFactors->GetInt() != 0 ? FLinearColor(0.3f, 0.59f, 0.11f) : UE::Color::FColorSpace::GetWorking().GetLuminanceFactors();
+
+	return R * LuminanceFactors.R + G * LuminanceFactors.G + B * LuminanceFactors.B;
 }
 
 FColor FColor::FromHex( const FString& HexString )

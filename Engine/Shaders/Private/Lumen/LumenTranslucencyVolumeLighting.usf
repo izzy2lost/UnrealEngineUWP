@@ -290,7 +290,6 @@ void TranslucencyVolumeIntegrateCS(
 			RWTranslucencyGI0[GridCoordinate] = float4(AmbientLightingVector, 0);
 
 			float3 LuminanceWeights = AmbientLightingVector.rgb / (dot(AmbientLightingVector, 1) + 0.00001f);
-			//float3 LuminanceWeights = float3(.3, .59, .11);
 			float3 Coefficient0 = float3(Lighting.R.V.y, Lighting.G.V.y, Lighting.B.V.y);
 			float3 Coefficient1 = float3(Lighting.R.V.z, Lighting.G.V.z, Lighting.B.V.z);
 			float3 Coefficient2 = float3(Lighting.R.V.w, Lighting.G.V.w, Lighting.B.V.w);
@@ -337,7 +336,7 @@ void TranslucencyVolumeIntegrateCS(
 		{
 			RWTranslucencyGINewHistory0[GridCoordinate] = float4(NewHistoryLighting.R.V.x, NewHistoryLighting.G.V.x, NewHistoryLighting.B.V.x, 0);
 
-			float3 LuminanceWeights = float3(.3, .59, .11);
+			float3 LuminanceWeights = LuminanceFactors();
 			float3 Coefficient0 = float3(NewHistoryLighting.R.V.y, NewHistoryLighting.G.V.y, NewHistoryLighting.B.V.y);
 			float3 Coefficient1 = float3(NewHistoryLighting.R.V.z, NewHistoryLighting.G.V.z, NewHistoryLighting.B.V.z);
 			float3 Coefficient2 = float3(NewHistoryLighting.R.V.w, NewHistoryLighting.G.V.w, NewHistoryLighting.B.V.w);

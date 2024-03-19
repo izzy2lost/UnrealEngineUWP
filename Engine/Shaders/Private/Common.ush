@@ -600,9 +600,23 @@ MaterialFloat4 TextureCubeArraySampleLevel(TextureCubeArray Tex, SamplerState Sa
 	#define TANGENTTOWORLD_INTERPOLATOR_BLOCK	half4 TangentToWorld0 : TANGENTTOWORLD0; half4 TangentToWorld2 : TANGENTTOWORLD2;
 #endif
 
+
+float3 LuminanceFactors()
+{
+#if UE_LEGACY_LUMINANCE_FACTORS
+	return float3(0.3, 0.59, 0.11);
+#else
+	#if WORKING_COLOR_SPACE_IS_SRGB
+		return float3(0.2126390059, 0.7151686788, 0.0721923154);
+	#else
+		return float3(WORKING_COLOR_SPACE_RGB_TO_XYZ_MAT._m10_m11_m12);
+	#endif
+#endif
+}
+
 MaterialFloat Luminance( MaterialFloat3 LinearColor )
 {
-	return dot( LinearColor, MaterialFloat3( 0.3, 0.59, 0.11 ) );
+	return dot( LinearColor, MaterialFloat3(LuminanceFactors()));
 }
 
 float length2(float2 v)

@@ -2222,6 +2222,12 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 			WCSHash ^= GetTypeHash(WCS.GetWhiteChromaticity());
 			KeyString += FString::Printf(TEXT("_WCS-%u"), WCSHash);
 		}
+
+		static const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LegacyLuminanceFactors"));
+		if (CVar && CVar->GetInt() != 0)
+		{
+			KeyString += TEXT("_LLF");
+		}
 	}
 
 	{

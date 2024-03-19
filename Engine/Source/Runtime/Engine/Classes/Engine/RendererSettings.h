@@ -471,6 +471,12 @@ class URendererSettings : public UDeveloperSettings
 		ConfigRestartRequired = true))
 	FVector2D WhiteChromaticityCoordinate;
 
+	UPROPERTY(config, EditAnywhere, Category = WorkingColorSpace, meta = (
+		ConsoleVariable = "r.LegacyLuminanceFactors",
+		ToolTip = "Default luminance factors: 0 enables the working color space coefficients (default), 1 enables inaccurate legacy coefficients.",
+		ConfigRestartRequired = true))
+	uint32 bUseLegacyLuminanceFactors : 1;
+
 	UPROPERTY(config, EditAnywhere, Category = Materials, meta =(
 		ConfigRestartRequired = true,
 		ConsoleVariable = "r.ClearCoatNormal",

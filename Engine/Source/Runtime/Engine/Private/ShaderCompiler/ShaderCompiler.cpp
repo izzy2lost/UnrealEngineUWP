@@ -8753,6 +8753,10 @@ void GlobalBeginCompileShader(
 					FromSRGB.M[0][1], FromSRGB.M[1][1], FromSRGB.M[2][1],
 					FromSRGB.M[0][2], FromSRGB.M[1][2], FromSRGB.M[2][2]));
 		}
+
+		static const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LegacyLuminanceFactors"));
+		const bool bUseLegacyLuminance = CVar && CVar->GetInt() != 0;
+		SET_SHADER_DEFINE(Input.Environment, UE_LEGACY_LUMINANCE_FACTORS, bUseLegacyLuminance ? 1 : 0);
 	}
 
 	const double TileSize = FLargeWorldRenderScalar::GetTileSize();

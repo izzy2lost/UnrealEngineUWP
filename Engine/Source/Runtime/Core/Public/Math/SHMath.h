@@ -21,6 +21,8 @@ extern CORE_API int32 BasisM[9];
 
 extern CORE_API float LegendrePolynomial(int32 L, int32 M, float X);
 
+extern CORE_API FLinearColor SHGetLuminanceFactors();
+
 /** Returns the basis index of the SH basis L,M. */
 FORCEINLINE int32 SHGetBasisIndex(int32 L,int32 M)
 {
@@ -509,7 +511,9 @@ public:
 	/** Calculates greyscale spherical harmonic coefficients. */
 	TSHVector<MaxSHOrder> GetLuminance() const
 	{
-		return R * 0.3f + G * 0.59f + B * 0.11f;
+		static const FLinearColor LuminanceFactors = SHGetLuminanceFactors();
+
+		return R * LuminanceFactors.R + G * LuminanceFactors.G + B * LuminanceFactors.B;
 	}
 
 	void Desaturate(float DesaturateFraction)

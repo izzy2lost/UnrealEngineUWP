@@ -418,21 +418,15 @@ float SpatialResolveTonemapStrength;
 
 const static float DisocclusionVariance = 1.0f;
 
-float Luma(float3 Color) 
-{
-	// Rec 709 function for luma.
-	return dot(Color, float3(0.2126f, 0.7152f, 0.0722f));
-}
-
 float3 TonemapLighting(float3 Lighting)
 {
-	float Weight = 1.0f / (1.0f + SpatialResolveTonemapStrength * Luma(Lighting));
+	float Weight = 1.0f / (1.0f + SpatialResolveTonemapStrength * Luminance(Lighting));
 	return Lighting * Weight;
 }
 
 float3 InverseTonemapLighting(float3 TonemappedLighting)
 {
-	float InvertWeight = 1.0f / (1.0f - SpatialResolveTonemapStrength * Luma(TonemappedLighting));
+	float InvertWeight = 1.0f / (1.0f - SpatialResolveTonemapStrength * Luminance(TonemappedLighting));
 	return TonemappedLighting * InvertWeight;
 }
 
@@ -506,7 +500,7 @@ void ReflectionResolveCS(
 
 						#if USE_BILATERAL_FILTER
 							//https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Weighted_incremental_algorithm
-							float LumaSampleRadiance = Luma(SampleRadiance);
+							float LumaSampleRadiance = Luminance(SampleRadiance);
 							float OldMean = Mean;
 							Mean += Weight / TotalWeight * (LumaSampleRadiance - OldMean);
 							S += Weight * (LumaSampleRadiance - OldMean) * (LumaSampleRadiance - Mean);
@@ -599,7 +593,7 @@ void ReflectionResolveCS(
 							TotalWeight += ClampedWeight;
 
 							#if USE_BILATERAL_FILTER
-								float LumaSampleRadiance = Luma(SampleRadiance);
+								float LumaSampleRadiance = Luminance(SampleRadiance);
 								float OldMean = Mean;
 								Mean += ClampedWeight / TotalWeight * (LumaSampleRadiance - OldMean);
 								S += ClampedWeight * (LumaSampleRadiance - OldMean) * (LumaSampleRadiance - Mean);
@@ -963,8 +957,8 @@ void ReflectionTemporalReprojectionCS(
 	FNeighborStatistics Neighborhood = GetNeighborStatistics(Coord.SvPosition, MinScreenCoord, MaxScreenCoord, NewSpecular, Coord.ClosureIndex);
 
 	const float InvalidHistoryErrorThreshold = 1e6;
-	const float ErrorFromReflectHit = IsValidHistoryUV(HistoryCoordFromReflectHit.UV) ? abs(Luma(HistoryFromReflectHit.SpecularIndirect) - Luma(Neighborhood.Mean)) : InvalidHistoryErrorThreshold;
-	const float ErrorFromSceneDepth = IsValidHistoryUV(HistoryCoordFromSceneDepth.UV) ? abs(Luma(HistoryFromSceneDepth.SpecularIndirect) - Luma(Neighborhood.Mean)) : InvalidHistoryErrorThreshold;
+	const float ErrorFromReflectHit = IsValidHistoryUV(HistoryCoordFromReflectHit.UV) ? abs(Luminance(HistoryFromReflectHit.SpecularIndirect) - Luminance(Neighborhood.Mean)) : InvalidHistoryErrorThreshold;
+	const float ErrorFromSceneDepth = IsValidHistoryUV(HistoryCoordFromSceneDepth.UV) ? abs(Luminance(HistoryFromSceneDepth.SpecularIndirect) - Luminance(Neighborhood.Mean)) : InvalidHistoryErrorThreshold;
 
 	float3 HistorySpecularIndirect = ErrorFromReflectHit < ErrorFromSceneDepth
 		? HistoryFromReflectHit.SpecularIndirect 
@@ -1033,7 +1027,7 @@ void ReflectionTemporalReprojectionCS(
 float3 TonemapLightingForBilateral(float3 Lighting)
 {
 #if TONEMAP_WEIGHTING_BILATERAL
-	return Lighting / (1.0f + Luma(Lighting));
+	return Lighting / (1.0f + Luminance(Lighting));
 #else
 	return Lighting;
 #endif
@@ -1042,7 +1036,7 @@ float3 TonemapLightingForBilateral(float3 Lighting)
 float3 InverseTonemapLightingForBilateral(float3 TonemappedLighting)
 {
 #if TONEMAP_WEIGHTING_BILATERAL
-	return TonemappedLighting / (1.0f - Luma(TonemappedLighting));
+	return TonemappedLighting / (1.0f - Luminance(TonemappedLighting));
 #else
 	return TonemappedLighting;
 #endif

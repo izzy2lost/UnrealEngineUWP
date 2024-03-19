@@ -98,6 +98,7 @@ URendererSettings::URendererSettings(const FObjectInitializer& ObjectInitializer
 	GreenChromaticityCoordinate = FVector2D::ZeroVector;
 	BlueChromaticityCoordinate = FVector2D::ZeroVector;
 	WhiteChromaticityCoordinate = FVector2D::ZeroVector;
+	bUseLegacyLuminanceFactors = false;
 	bEnableVirtualTextureOpacityMask = false;
 }
 

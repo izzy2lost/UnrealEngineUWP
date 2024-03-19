@@ -4427,6 +4427,13 @@ static TAutoConsoleVariable<int32> CVarMobileSupportsGen4TAA(
 		 "1: Support Desktop Gen4 TAA (default)"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarLegacyLuminanceFactors(
+	TEXT("r.LegacyLuminanceFactors"),
+	0,
+	TEXT("Default luminance factors:\n"
+		"0: Working color space coefficients (default)\n"
+		"1: Legacy coefficients (inaccurate). Activate to retain the 5.4 and earlier versions behavior.\n"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 
 class FConsoleVariableShadow : public IConsoleVariable
