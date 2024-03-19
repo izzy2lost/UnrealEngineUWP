@@ -1730,7 +1730,6 @@ void UPCGGraphInstance::PreEditChange(FProperty* InProperty)
 	if (InProperty->GetOwnerClass() == UPCGGraphInstance::StaticClass() && InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGGraphInstance, Graph))
 	{
 		PreGraphCache = Graph;
-
 		TeardownCallbacks();
 	}
 }
@@ -1753,16 +1752,19 @@ void UPCGGraphInstance::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 		if (Graph && !CanGraphInterfaceBeSet(Graph))
 		{
 			UE_LOG(LogPCG, Error, TEXT("Attempting to assign %s would cause infinite recursion in the graph instance hierarchy, this is not allowed."), *Graph->GetPathName());
-			Graph = PreGraphCache;
+			Graph = PreGraphCache.Get();
 		}
 
 		SetupCallbacks();
 
-		// No need to refresh if it is the same graph
-		if (Graph != PreGraphCache)
+		// No need to refresh if it is the same graph, but we need to refresh if we have no graph anymore, but the pre graph was valid (but isn't anymore like in a Force Delete Asset)
+		if (Graph != PreGraphCache || (!Graph && !PreGraphCache.IsExplicitlyNull()))
 		{
 			OnGraphParametersChanged(Graph, EPCGGraphParameterEvent::GraphChanged, NAME_None);
 		}
+
+		// Reset them there to avoid any side effect if Pre/Post are called multiple times for the same transaction.
+		PreGraphCache = nullptr;
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FPCGOverrideInstancedPropertyBag, PropertiesIDsOverridden))
 	{
@@ -1772,8 +1774,6 @@ void UPCGGraphInstance::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	{
 		OnGraphParametersChanged(this, EPCGGraphParameterEvent::ValueModifiedLocally, PropertyChangedEvent.GetMemberPropertyName());
 	}
-
-	PreGraphCache = nullptr;
 }
 
 void UPCGGraphInstance::PreEditUndo()

@@ -5,7 +5,6 @@
 #include "PCGData.h"
 
 #include "InstancedStruct.h"
-#include "UObject/ObjectPtr.h"
 
 #include "PCGUserParametersData.generated.h"
 
@@ -28,9 +27,6 @@ public:
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Other; }
 	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override { AddUIDToCrc(Ar); }
 	// ~End UPCGData interface
-
-	UPROPERTY()
-	TObjectPtr<const UPCGGraphInterface> OriginalGraph = nullptr;
 
 	UPROPERTY()
 	FInstancedStruct UserParameters;
