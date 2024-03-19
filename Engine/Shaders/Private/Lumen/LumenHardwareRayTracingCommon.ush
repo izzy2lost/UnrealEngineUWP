@@ -3,7 +3,7 @@
 #pragma once
 
 // Change this to force recompilation of all Lumen HWRT shaders
-#pragma message("UESHADERMETADATA_VERSION AB85AE61-2AB9-4012-B09C-3FE94A72A09A")
+#pragma message("UESHADERMETADATA_VERSION A21D6780-1B5A-48B7-B9E0-1B61384BECD4")
 
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_HAIR_LIGHTING 0
@@ -135,6 +135,7 @@ struct FRayTracedLightingContext
 	// Max ray tracing traversal iterations on supported platforms
 	uint MaxTraversalIterations;
 
+	float MinTraceDistanceToSampleSurfaceCache;
 	float FarFieldMaxTraceDistance;
 	float3 FarFieldReferencePos;
 
@@ -175,6 +176,7 @@ FRayTracedLightingContext CreateRayTracedLightingContext(
 	Context.FarFieldMaxTraceDistance = -1.0;
 	Context.FarFieldReferencePos = 0;
 	Context.MaxTraversalIterations = MaxTraversalIterations;
+	Context.MinTraceDistanceToSampleSurfaceCache = 0.0f;
 	Context.CullingMode = CullingMode;
 	Context.bHiResSurface = bHiResSurface;
 	Context.bAcceptFirstHitAndEndSearch = false;
@@ -498,7 +500,6 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 	return MinimalRayResult;
 }
 
-float MinTraceDistanceToSampleSurfaceCache;
 float SurfaceCacheSamplingDepthBias;
 
 FSurfaceCacheSample CalculateSurfaceCacheLighting(
@@ -525,7 +526,7 @@ FSurfaceCacheSample CalculateSurfaceCacheLighting(
 	);
 
 	// Surface cache has limited resolution. Make sure we don't self-intersect and cause leaking or GI feedback loop
-	if (HitDistance < MinTraceDistanceToSampleSurfaceCache)
+	if (HitDistance < Context.MinTraceDistanceToSampleSurfaceCache)
 	{
 		SurfaceCacheSample.Radiance = float3(0, 0, 0);
 		SurfaceCacheSample.DirectLighting = float3(0, 0, 0);

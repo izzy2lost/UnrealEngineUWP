@@ -89,7 +89,7 @@ static TAutoConsoleVariable<int32> CVarManyLightsHardwareRayTracingMaxIterations
 static TAutoConsoleVariable<bool> CVarManyLightsHardwareRayTracingAvoidSelfIntersections(
 	TEXT("r.ManyLights.HardwareRayTracing.AvoidSelfIntersections"),
 	true,
-	TEXT("Whether to avoid self-intersections.\n")
+	TEXT("Whether to skip back face hits for a small distance in order to avoid self-intersections when BLAS mismatches rasterized geometry.Enabling it has a performance cost.Distance is controlled by r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance.\n")
 	TEXT("Currently shares config with Lumen:\n")
 	TEXT("- r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance\n")
 	TEXT("- r.Lumen.HardwareRayTracing.SkipTwoSidedHitDistance\n"),

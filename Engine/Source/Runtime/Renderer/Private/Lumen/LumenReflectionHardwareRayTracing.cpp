@@ -18,6 +18,7 @@
 #include "RayTracing/RaytracingOptions.h"
 #include "RayTracing/RayTracingLighting.h"
 #include "LumenHardwareRayTracingCommon.h"
+#endif // RHI_RAYTRACING
 
 static TAutoConsoleVariable<int32> CVarLumenReflectionsHardwareRayTracing(
 	TEXT("r.Lumen.Reflections.HardwareRayTracing"),
@@ -46,7 +47,6 @@ static TAutoConsoleVariable<int32> CVarLumenReflectionsHardwareRayTracingRetrace
 	TEXT("Determines whether a second trace will be fired for far-field contribution (Default = 1)"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
-#endif // RHI_RAYTRACING
 
 namespace Lumen
 {

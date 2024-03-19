@@ -5,7 +5,7 @@
 #include "../MonteCarlo.ush"
 #include "../SceneTextureParameters.ush"
 
-// Ensure that DiffuseAlbedo is not overrident on SSS material (as we don't split lighting with the Lumen/RT integrator)
+// Ensure that DiffuseAlbedo is not overridden on SSS material (as we don't split lighting with the Lumen/RT integrator)
 #define SUBSTRATE_SSS_MATERIAL_OVERRIDE 0
 #define SUBSTRATE_COMPLEXSPECIALPATH 1
 #define SUBSTRATE_GLINTS_ALLOWED 0
