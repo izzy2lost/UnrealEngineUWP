@@ -175,8 +175,8 @@ public:
 	 * @param  InObject  Object this shared reference to retain a reference to
 	 */
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE explicit TSharedRef( OtherType* InObject )
 		: Object( InObject )
@@ -195,8 +195,8 @@ public:
 	 */
 	template <
 		typename OtherType,
-		typename DeleterType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename DeleterType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedRef( OtherType* InObject, DeleterType&& InDeleter )
 		: Object( InObject )
@@ -228,8 +228,8 @@ public:
 	 */
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedRef( SharedPointerInternals::TRawPtrProxy< OtherType > const& InRawPtrProxy )
 		: Object( InRawPtrProxy.Object )
@@ -255,8 +255,8 @@ public:
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
 		typename OtherType,
-		typename DeleterType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename DeleterType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedRef( SharedPointerInternals::TRawPtrProxyWithDeleter< OtherType, DeleterType > const& InRawPtrProxy )
 		: Object( InRawPtrProxy.Object )
@@ -282,8 +282,8 @@ public:
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
 		typename OtherType,
-		typename DeleterType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename DeleterType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedRef( SharedPointerInternals::TRawPtrProxyWithDeleter< OtherType, DeleterType >&& InRawPtrProxy )
 		: Object( InRawPtrProxy.Object )
@@ -307,8 +307,8 @@ public:
 	 * @param  InSharedRef  The shared reference whose object we should create an additional reference to
 	 */
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedRef( TSharedRef< OtherType, Mode > const& InSharedRef )
 		: Object( InSharedRef.Object )
@@ -406,8 +406,8 @@ public:
 	 */
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedRef& operator=( SharedPointerInternals::TRawPtrProxy< OtherType > const& InRawPtrProxy )
 	{
@@ -429,8 +429,8 @@ public:
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
 		typename OtherType,
-		typename DeleterType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename DeleterType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedRef& operator=( SharedPointerInternals::TRawPtrProxyWithDeleter< OtherType, DeleterType > const& InRawPtrProxy )
 	{
@@ -452,8 +452,8 @@ public:
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
 		typename OtherType,
-		typename DeleterType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename DeleterType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedRef& operator=( SharedPointerInternals::TRawPtrProxyWithDeleter< OtherType, DeleterType >&& InRawPtrProxy )
 	{
@@ -591,8 +591,8 @@ private:
 	 * @return  Reference to the object
 	 */
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE explicit TSharedRef( TSharedPtr< OtherType, Mode > const& InSharedPtr )
 		: Object( InSharedPtr.Object )
@@ -604,8 +604,8 @@ private:
 	}
 
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE explicit TSharedRef( TSharedPtr< OtherType, Mode >&& InSharedPtr )
 		: Object( InSharedPtr.Object )
@@ -711,8 +711,8 @@ public:
 	 * @param  InObject  Object this shared pointer to retain a reference to
 	 */
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE explicit TSharedPtr( OtherType* InObject )
 		: Object( InObject )
@@ -734,8 +734,8 @@ public:
 	 */
 	template <
 		typename OtherType,
-		typename DeleterType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename DeleterType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedPtr( OtherType* InObject, DeleterType&& InDeleter )
 		: Object( InObject )
@@ -755,8 +755,8 @@ public:
 	 */
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedPtr( SharedPointerInternals::TRawPtrProxy< OtherType > const& InRawPtrProxy )
 		: Object( InRawPtrProxy.Object )
@@ -777,8 +777,8 @@ public:
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
 		typename OtherType,
-		typename DeleterType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename DeleterType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedPtr( SharedPointerInternals::TRawPtrProxyWithDeleter< OtherType, DeleterType > const& InRawPtrProxy )
 		: Object( InRawPtrProxy.Object )
@@ -799,8 +799,8 @@ public:
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
 		typename OtherType,
-		typename DeleterType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename DeleterType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedPtr( SharedPointerInternals::TRawPtrProxyWithDeleter< OtherType, DeleterType >&& InRawPtrProxy )
 		: Object( InRawPtrProxy.Object )
@@ -820,8 +820,8 @@ public:
 	 * @param  InSharedPtr  The shared pointer whose object we should create an additional reference to
 	 */
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedPtr( TSharedPtr< OtherType, Mode > const& InSharedPtr )
 		: Object( InSharedPtr.Object )
@@ -850,8 +850,8 @@ public:
 	 */
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedPtr( TSharedRef< OtherType, Mode > const& InSharedRef )
 		: Object( InSharedRef.Object )
@@ -979,8 +979,8 @@ public:
 	 */
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedPtr& operator=( SharedPointerInternals::TRawPtrProxy< OtherType > const& InRawPtrProxy )
 	{
@@ -998,8 +998,8 @@ public:
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
 		typename OtherType,
-		typename DeleterType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename DeleterType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedPtr& operator=( SharedPointerInternals::TRawPtrProxyWithDeleter< OtherType, DeleterType > const& InRawPtrProxy )
 	{
@@ -1017,8 +1017,8 @@ public:
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
 		typename OtherType,
-		typename DeleterType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename DeleterType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TSharedPtr& operator=( SharedPointerInternals::TRawPtrProxyWithDeleter< OtherType, DeleterType >&& InRawPtrProxy )
 	{
@@ -1100,8 +1100,8 @@ public:
 	 * @return  Reference to the object
 	 */
 	template <
-		typename DummyObjectType = ObjectType
-		UE_REQUIRES(UE_REQUIRES_EXPR(*(DummyObjectType*)nullptr)) // this construct means that operator* is only considered for overload resolution if T is dereferenceable
+		typename DummyObjectType = ObjectType,
+		decltype((int&)(*(DummyObjectType*)nullptr), 0) = 0 // this construct means that operator* is only considered for overload resolution if T is dereferenceable
 	>
 	[[nodiscard]] FORCEINLINE DummyObjectType& operator*() const
 	{
@@ -1164,8 +1164,8 @@ private:
 	 *       pointer to a shared pointer.  Use the weak pointer's Pin() method instead!
 	 */
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE explicit TSharedPtr( TWeakPtr< OtherType, Mode > const& InWeakPtr )
 		: Object( nullptr )
@@ -1279,8 +1279,8 @@ public:
 	 */
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TWeakPtr( TSharedRef< OtherType, Mode > const& InSharedRef )
 		: Object( InSharedRef.Object )
@@ -1294,8 +1294,8 @@ public:
 	 * @param  InSharedPtr  The shared pointer to create a weak pointer from
 	 */
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TWeakPtr( TSharedPtr< OtherType, Mode > const& InSharedPtr )
 		: Object( InSharedPtr.Object )
@@ -1340,8 +1340,8 @@ public:
 	 * @param  InWeakPtr  The weak pointer to create a weak pointer from
 	 */
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TWeakPtr( TWeakPtr< OtherType, Mode > const& InWeakPtr )
 		: Object( InWeakPtr.Object )
@@ -1350,8 +1350,8 @@ public:
 	}
 
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TWeakPtr( TWeakPtr< OtherType, Mode >&& InWeakPtr )
 		: Object( InWeakPtr.Object )
@@ -1413,8 +1413,8 @@ public:
 	 * @param  InWeakPtr  The weak pointer for the object to assign
 	 */
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TWeakPtr& operator=( TWeakPtr<OtherType, Mode> const& InWeakPtr )
 	{
@@ -1424,8 +1424,8 @@ public:
 	}
 
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TWeakPtr& operator=( TWeakPtr<OtherType, Mode>&& InWeakPtr )
 	{
@@ -1442,8 +1442,8 @@ public:
 	 */
 	// NOTE: The following is an Unreal extension to standard shared_ptr behavior
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TWeakPtr& operator=( TSharedRef< OtherType, Mode > const& InSharedRef )
 	{
@@ -1458,8 +1458,8 @@ public:
 	 * @param  InSharedPtr  The shared pointer used to assign to this weak pointer
 	 */
 	template <
-		typename OtherType
-		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<ObjectType*>((OtherType*)nullptr)))
+		typename OtherType,
+		typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))
 	>
 	FORCEINLINE TWeakPtr& operator=( TSharedPtr< OtherType, Mode > const& InSharedPtr )
 	{
