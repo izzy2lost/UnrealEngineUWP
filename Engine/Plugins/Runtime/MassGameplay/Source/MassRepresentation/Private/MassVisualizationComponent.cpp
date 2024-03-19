@@ -22,42 +22,6 @@ DECLARE_CYCLE_STAT(TEXT("Mass Visualization HandleIDs"), STAT_Mass_Visualization
 DECLARE_DWORD_COUNTER_STAT(TEXT("VisualizationComp Instances Removed"), STAT_Mass_VisualizationComponent_InstancesRemovedNum, STATGROUP_Mass);
 DECLARE_DWORD_COUNTER_STAT(TEXT("VisualizationComp Instances Added"), STAT_Mass_VisualizationComponent_InstancesAddedNum, STATGROUP_Mass);
 
-
-namespace UE::Mass::Private
-{
-	uint32 CalculateComponentHash(const TObjectPtr<UInstancedStaticMeshComponent>& ISMComponent)
-	{
-		constexpr bool bUseObjectPathHash = false;
-		constexpr bool bUseAssetPathHash = false;
-
-		if constexpr (bUseObjectPathHash)
-		{
-			// This approach can result in (desired) reuse of hash if a given component is being recreated for 
-            // due to it or the owner being streamed in and out repeatedly. This approach however is fragile 
-            // to potential outer level name changes as part of GC preparation (depending on settings and context 
-            // might take place with WorldPartition approach)
-			check(ISMComponent);
-			const FString ISMCPath = ISMComponent->GetPathName();
-			return GetTypeHash(ISMCPath);
-		}
-		else if constexpr (bUseAssetPathHash)
-		{
-			// This approach is great if a given ISMComponent's outer ULevel is never getting 
-			// used twice at the same time (i.e. it will break if said ULevel gets instantiated
-			// multiple times)
-			const FSoftObjectPath ObjectPath(ISMComponent);
-			const FString AssetPathString = ObjectPath.GetAssetPathString();
-			return HashCombine(GetTypeHash(AssetPathString), GetTypeHash(ISMComponent.GetFName()));
-		}
-		else
-		{
-			// fallback hashing that will always work at runtime, but requires care when serializing
-			// Note that at the moment Mass doesn't have a native serialization implementation.
-			return PointerHash(ISMComponent.Get());
-		}
-	}
-}
-
 //---------------------------------------------------------------
 // UMassVisualizationComponent
 //---------------------------------------------------------------
@@ -112,7 +76,12 @@ FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::FindOrAd
 		{
 			if (MeshDesc.Mesh && MeshDesc.ISMComponentClass)
 			{
-				ISMCSharedData.FindOrAdd(GetTypeHash(MeshDesc), FMassISMCSharedData());
+				// if we've already encountered MeshDesc in the past MeshDescToISMCMap already contains information
+				// about actual ISMC used to represent it, and at the same time indicates the ISMCSharedData data
+				// tied to it. Regardless we need to process all MeshDesc instances here so that we have all the 
+				// data ready when InstancedSMComponentsRequiringConstructing gets processed next time
+				// UMassVisualizationComponent::ConstructStaticMeshComponents gets called.
+				MeshDescToISMCMap.FindOrAdd(GetTypeHash(MeshDesc), FISMCSharedDataKey());
 				bValidDescription = true;
 			}
 		}
@@ -120,11 +89,10 @@ FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::FindOrAd
 		if (bValidDescription)
 		{
 			VisualDescHandle = AddInstancedStaticMeshInfo(Desc);
-			BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualDescHandle.ToIndex()]);
-
-			InstancedSMComponentsRequiringConstructing.Add(VisualDescHandle);
-
 			check(VisualDescHandle.IsValid());
+
+			// VisualDescHandle is a valid handle now, but there's initialization pending, performed in ConstructStaticMeshComponents
+			InstancedSMComponentsRequiringConstructing.Add(VisualDescHandle);
 		}
 		else
 		{
@@ -148,7 +116,7 @@ FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::AddVisua
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
 
 	FStaticMeshInstanceVisualizationDescHandle VisualHandle;
-	TArray<uint32> ISMComponentPathHashes;
+	TArray<UInstancedStaticMeshComponent*> ISMComponentsUsed;
 
 	for (int32 EntryIndex = 0; EntryIndex < Desc.Meshes.Num(); ++EntryIndex)
 	{
@@ -166,29 +134,16 @@ FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::AddVisua
 			check(VisualHandle.IsValid());
 		}
 
-		const uint32 ISMComponentPathHash = UE::Mass::Private::CalculateComponentHash(ISMComponents[EntryIndex]);
-#if WITH_MASSGAMEPLAY_DEBUG
-		const FString ISMCPath = ISMComponents[EntryIndex]->GetPathName();
-		TArray<FString>& DebugPaths = DebugHashToPathMap.FindOrAdd(ISMComponentPathHash, TArray<FString>());
-		if (!ensureMsgf(DebugPaths.Add(ISMCPath) == 0, TEXT("Multiple ISMC paths resulting in the same hash")))
-		{
-			UE_VLOG_UELOG(this, LogMassRepresentation, Error, TEXT("%hs multiple ISMComponents resulting in identical hash %u"), __FUNCTION__, ISMComponentPathHash);
-			for (const FString& Path : DebugPaths)
-			{
-				UE_VLOG_UELOG(this, LogMassRepresentation, Error, TEXT("\t%s"), *Path);
-			}
-		}
-#endif // WITH_MASSGAMEPLAY_DEBUG
-		FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(ISMComponentPathHash, FMassISMCSharedData(ISMComponents[EntryIndex], /*bInRequiresExternalInstanceIDTracking=*/true));
+		FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(ISMComponents[EntryIndex], FMassISMCSharedData(ISMComponents[EntryIndex], /*bInRequiresExternalInstanceIDTracking=*/true));
 		InstancedStaticMeshInfos[VisualHandle.ToIndex()].AddISMComponent(NewData);
-		ISMComponentPathHashes.Add(ISMComponentPathHash);
+		ISMComponentsUsed.Add(ISMComponents[EntryIndex]);
 	
-		ISMComponentMap.Add(ISMComponentPathHash, VisualHandle);
+		ISMComponentMap.Add(ISMComponents[EntryIndex], VisualHandle);
 	}
 
 	if (VisualHandle.IsValid())
 	{
-		BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualHandle.ToIndex()], ISMComponentPathHashes);
+		BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualHandle.ToIndex()], ISMComponentsUsed);
 	}
 
 	return VisualHandle;
@@ -208,24 +163,15 @@ void UMassVisualizationComponent::RemoveVisualDesc(const FStaticMeshInstanceVisu
 	{
 		for (TObjectPtr<UInstancedStaticMeshComponent>& ISMComponent : InstancedStaticMeshInfos[VisualizationHandle.ToIndex()].InstancedStaticMeshComponents)
 		{
-			// @todo using ISMComponent.GetPathName() here might be wrong for cases where we use GetTypeHash(MeshDesc)
-			// to create the ISMComponentMap key
-			const uint32 ISMComponentPathHash = UE::Mass::Private::CalculateComponentHash(ISMComponent);
-
-			const bool bValidKey = ISMComponentMap.Contains(ISMComponentPathHash);
-			checkf(bValidKey, TEXT("Failed to find %u as a key in ISMComponentMap, ISMC path: %s"), ISMComponentPathHash, *ISMComponent.GetPathName());
+			const bool bValidKey = ISMComponentMap.Contains(ISMComponent);
+			checkf(bValidKey, TEXT("Failed to find ISMC in ISMComponentMap, path: %s"), *ISMComponent.GetPathName());
 			if (bValidKey)
 			{
-				const FStaticMeshInstanceVisualizationDescHandle StoredVisualizationDescHandle = ISMComponentMap.FindAndRemoveChecked(ISMComponentPathHash);
+				const FStaticMeshInstanceVisualizationDescHandle StoredVisualizationDescHandle = ISMComponentMap.FindAndRemoveChecked(ISMComponent);
 				ensure(StoredVisualizationDescHandle == VisualizationHandle);
 			}
 		
-			ISMCSharedData.Remove(ISMComponentPathHash);
-#if WITH_MASSGAMEPLAY_DEBUG
-			const FString ISMCPath = ISMComponent.GetPathName();
-			TArray<FString>& Paths = DebugHashToPathMap.FindChecked(ISMComponentPathHash);
-			ensure(Paths.Remove(ISMCPath));
-#endif // WITH_MASSGAMEPLAY_DEBUG
+			ISMCSharedData.Remove(ISMComponent);
 		}
 		
 		InstancedStaticMeshInfos[VisualizationHandle.ToIndex()].Reset();
@@ -238,6 +184,8 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 	AActor* ActorOwner = GetOwner();
 	check(ActorOwner);
 	
+	TArray<UInstancedStaticMeshComponent*> TransientISMCs;
+
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
 	for (const FStaticMeshInstanceVisualizationDescHandle VisualDescHandle : InstancedSMComponentsRequiringConstructing)
 	{
@@ -262,16 +210,29 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 			UE_LOG(LogMassRepresentation, Error, TEXT("No associated meshes for this instanced static mesh type"));
 			continue;
 		}
+
+		TransientISMCs.Reset();
 		for (const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc : Info.Desc.Meshes)
 		{
-			FMassISMCSharedData* SharedData = ISMCSharedData.Find(GetTypeHash(MeshDesc));
+			// MeshDescToISMCMap here lets us figure out whether for the given MeshDesc we need to create a new ISM component
+			// or a one has already been created in the past. Note that we only need this intermediate map for 
+			// FMassStaticMeshInstanceVisualizationMeshDesc that has been added to the system without specifying an
+			// ISM component to handle the instances (i.e. added via FindOrAddVisualDesc rather than AddVisualDescWithISMComponents).
+			// This is the only kind of FMassStaticMeshInstanceVisualizationMeshDesc were processing here. 
+			FISMCSharedDataKey& ISMCKey = MeshDescToISMCMap.FindChecked(GetTypeHash(MeshDesc));
+			FMassISMCSharedData* SharedData = ISMCSharedData.Find(ISMCKey);
 			UInstancedStaticMeshComponent* ISMC = SharedData ? SharedData->GetMutableISMComponent() : nullptr;
 
 			if (ISMC == nullptr)
 			{
-				ISMC = NewObject<UInstancedStaticMeshComponent>(ActorOwner, MeshDesc.ISMComponentClass);
+				ISMC = NewObject<UInstancedStaticMeshComponent>(ActorOwner, MeshDesc.ISMComponentClass);	
 				CA_ASSUME(ISMC);
 				REDIRECT_OBJECT_TO_VLOG(ISMC, this);
+
+				// note that ISMCKey is a reference, so the assignment below actually sets a value in MeshDescToISMCMap
+				// and all subsequent handling of a given MeshDesc configuration (i.e. containing same values) will 
+				// result in referring to the ISMC we just created.
+				ISMCKey = ISMC;
 
 				ISMC->SetStaticMesh(MeshDesc.Mesh);
 				for (int32 ElementIndex = 0; ElementIndex < MeshDesc.MaterialOverrides.Num(); ++ElementIndex)
@@ -292,31 +253,33 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 
 				if (SharedData == nullptr)
 				{
-					SharedData = &ISMCSharedData.Add(GetTypeHash(MeshDesc), FMassISMCSharedData(ISMC));
+					SharedData = &ISMCSharedData.Add(ISMC, FMassISMCSharedData(ISMC));
 				}
 				else
 				{
 					SharedData->SetISMComponent(*ISMC);
 				}
 
-				const uint32 ISMComponentPathHash = UE::Mass::Private::CalculateComponentHash(ISMC);
-				ensureMsgf(ISMComponentMap.Find(ISMComponentPathHash) == nullptr, TEXT("We've just created the ISMC that's being used here, so this check failing indicates hash-clash."));
-				ISMComponentMap.Add(ISMComponentPathHash, VisualDescHandle); 
+				ensureMsgf(ISMComponentMap.Find(ISMC) == nullptr, TEXT("We've just created the ISMC that's being used here, so this check failing indicates hash-clash."));
+				ISMComponentMap.Add(ISMC, VisualDescHandle); 
 			}
+
+			TransientISMCs.Add(ISMC);
 
 			check(SharedData);
 			Info.AddISMComponent(*SharedData);
 		}
 
 		// Build the LOD significance ranges
-		if (Info.LODSignificanceRanges.Num() == 0)
+		if (TransientISMCs.Num())
 		{
-			BuildLODSignificanceForInfo(Info);
+			check(Info.LODSignificanceRanges.Num() == 0);
+			BuildLODSignificanceForInfo(Info, TransientISMCs);
 		}
 	}
 }
 
-void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, TConstArrayView<uint32> ForcedStaticMeshRefKeys)
+void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, TConstArrayView<UInstancedStaticMeshComponent*> StaticMeshRefKeys)
 {
 	TArray<float> AllLODSignificances;
 	auto UniqueInsertOrdered = [&AllLODSignificances](const float Significance)
@@ -358,8 +321,9 @@ void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStat
 				const bool bAddMeshInRange = (Range.MinSignificance >= MeshDesc.MinLODSignificance && Range.MinSignificance < MeshDesc.MaxLODSignificance);
 				if (bAddMeshInRange)
 				{
-					Range.StaticMeshRefs.Add(ForcedStaticMeshRefKeys.IsValidIndex(MeshIndex) && ForcedStaticMeshRefKeys[MeshIndex]
-						? ForcedStaticMeshRefKeys[MeshIndex] : GetTypeHash(MeshDesc));
+					checkf(StaticMeshRefKeys.IsValidIndex(MeshIndex) && StaticMeshRefKeys[MeshIndex]
+						, TEXT("We don't expect receiving null ISMCs at this point"));
+					Range.StaticMeshRefs.Add(StaticMeshRefKeys[MeshIndex]);
 				}
 			}
 		}
@@ -369,13 +333,7 @@ void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStat
 void UMassVisualizationComponent::ClearAllVisualInstances()
 {
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
-	for (FMassInstancedStaticMeshInfo& Info : InstancedStaticMeshInfos)
-	{
-		Info.ClearVisualInstance(ISMCSharedData);
-	}
-	InstancedStaticMeshInfos.Reset();
 	
-	// Pool should already be empty, got a problem if it's not
 	for (int32 SharedDataIndex = 0; SharedDataIndex < ISMCSharedData.Num(); ++SharedDataIndex)
 	{
 		if (UInstancedStaticMeshComponent* InstancedStaticMeshComponent = ISMCSharedData.GetAtIndex(SharedDataIndex).GetMutableISMComponent())
@@ -385,8 +343,10 @@ void UMassVisualizationComponent::ClearAllVisualInstances()
 		}
 	}
 
+	MeshDescToISMCMap.Reset();
 	ISMCSharedData.Reset();
 	InstancedSMComponentsRequiringConstructing.Reset();
+	InstancedStaticMeshInfos.Reset();
 }
 
 void UMassVisualizationComponent::DirtyVisuals()
@@ -671,35 +631,10 @@ void UMassVisualizationComponent::EndVisualChanges()
 }
 
 //---------------------------------------------------------------
-// FMassInstancedStaticMeshInfo
-//---------------------------------------------------------------
-
-void FMassInstancedStaticMeshInfo::ClearVisualInstance(FMassISMCSharedDataMap& ISMCSharedData)
-{
-	for (int i = 0; i < Desc.Meshes.Num(); i++)
-	{
-		const uint32 MeshDescHash = GetTypeHash(Desc.Meshes[i]);
-		FMassISMCSharedData* SharedData = ISMCSharedData.Find(MeshDescHash);
-		if (SharedData && SharedData->OnISMComponentReferenceReleased() == 0)
-		{
-			if (UInstancedStaticMeshComponent* ISMC = SharedData->GetMutableISMComponent())
-			{
-				ISMC->ClearInstances();
-				ISMC->DestroyComponent();
-			}
-			ISMCSharedData.Remove(MeshDescHash);
-		}
-	}
-
-	InstancedStaticMeshComponents.Reset();
-	LODSignificanceRanges.Reset();
-}
-
-//---------------------------------------------------------------
 // FMassLODSignificanceRange
 //---------------------------------------------------------------
 
-void FMassLODSignificanceRange::AddBatchedTransform(const FMassEntityHandle EntityHandle, const FTransform& Transform, const FTransform& PrevTransform, const TArray<uint32>& ExcludeStaticMeshRefs)
+void FMassLODSignificanceRange::AddBatchedTransform(const FMassEntityHandle EntityHandle, const FTransform& Transform, const FTransform& PrevTransform, TConstArrayView<FISMCSharedDataKey> ExcludeStaticMeshRefs)
 {
 	check(ISMCSharedDataPtr);
 	for (int32 StaticMeshIndex = 0; StaticMeshIndex < StaticMeshRefs.Num(); ++StaticMeshIndex)
@@ -718,7 +653,7 @@ void FMassLODSignificanceRange::AddBatchedTransform(const FMassEntityHandle Enti
 	}
 }
 
-void FMassLODSignificanceRange::AddBatchedCustomDataFloats(const TArray<float>& CustomFloats, const TArray<uint32>& ExcludeStaticMeshRefs)
+void FMassLODSignificanceRange::AddBatchedCustomDataFloats(const TArray<float>& CustomFloats, const TArray<FISMCSharedDataKey>& ExcludeStaticMeshRefs)
 {
 	check(ISMCSharedDataPtr);
 	for (int32 StaticMeshIndex = 0; StaticMeshIndex < StaticMeshRefs.Num(); ++StaticMeshIndex)
@@ -761,7 +696,7 @@ void FMassLODSignificanceRange::RemoveInstance(const FMassEntityHandle EntityHan
 	}
 }
 
-void FMassLODSignificanceRange::WriteCustomDataFloatsAtStartIndex(int32 StaticMeshIndex, const TArrayView<float>& CustomFloats, const int32 FloatsPerInstance, const int32 StartFloatIndex, const TArray<uint32>& ExcludeStaticMeshRefs)
+void FMassLODSignificanceRange::WriteCustomDataFloatsAtStartIndex(int32 StaticMeshIndex, const TArrayView<float>& CustomFloats, const int32 FloatsPerInstance, const int32 StartFloatIndex, const TArray<FISMCSharedDataKey>& ExcludeStaticMeshRefs)
 {
 	check(ISMCSharedDataPtr);
 	if (StaticMeshRefs.IsValidIndex(StaticMeshIndex))
@@ -789,17 +724,11 @@ void FMassLODSignificanceRange::WriteCustomDataFloatsAtStartIndex(int32 StaticMe
 //-----------------------------------------------------------------------------
 // DEPRECATED
 //-----------------------------------------------------------------------------
-void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKeys)
-{
-	BuildLODSignificanceForInfo(Info, MakeArrayView(&ForcedStaticMeshRefKeys, 1));
-}
-
 void UMassVisualizationComponent::RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent)
 {
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
 
-	const uint32 ISMComponentPathHash = UE::Mass::Private::CalculateComponentHash(&ISMComponent);
-	const FStaticMeshInstanceVisualizationDescHandle* VisualDescHandlePtr = ISMComponentMap.Find(ISMComponentPathHash);
+	const FStaticMeshInstanceVisualizationDescHandle* VisualDescHandlePtr = ISMComponentMap.Find(&ISMComponent);
 	if (VisualDescHandlePtr)
 	{
 		RemoveVisualDesc(*VisualDescHandlePtr);

@@ -78,6 +78,20 @@ default: \
 //-----------------------------------------------------------------------------
 // FMassInstancedStaticMeshInfo
 //-----------------------------------------------------------------------------
+void FMassInstancedStaticMeshInfo::ClearVisualInstance(UInstancedStaticMeshComponent& ISMComponent)
+{
+	if (InstancedStaticMeshComponents.RemoveSingleSwap(&ISMComponent, EAllowShrinking::No))
+	{
+		ISMComponent.ClearInstances();
+		ISMComponent.DestroyComponent();
+	}
+	else
+	{
+		InstancedStaticMeshComponents.Reset();
+		LODSignificanceRanges.Reset();
+	}
+}
+
 void FMassInstancedStaticMeshInfo::Reset()
 {
 	Desc.Reset();
@@ -91,4 +105,27 @@ void FMassInstancedStaticMeshInfo::Reset()
 FMassStaticMeshInstanceVisualizationMeshDesc::FMassStaticMeshInstanceVisualizationMeshDesc()
 {
 	ISMComponentClass = UInstancedStaticMeshComponent::StaticClass();
+}
+
+//-----------------------------------------------------------------------------
+// FMassISMCSharedDataMap - DEPRECATED
+//-----------------------------------------------------------------------------
+FMassISMCSharedData& FMassISMCSharedDataMap::GetAndMarkDirtyChecked(const uint32 Hash)
+{
+	static FMassISMCSharedData Dummy;
+	return Dummy;
+}
+
+FMassISMCSharedData* FMassISMCSharedDataMap::GetAndMarkDirty(const uint32 Hash)
+{
+	return nullptr;
+}
+
+FMassISMCSharedData* FMassISMCSharedDataMap::Find(const uint32 Hash)
+{
+	return nullptr;
+}
+
+void FMassISMCSharedDataMap::Remove(const uint32 Hash)
+{
 }
