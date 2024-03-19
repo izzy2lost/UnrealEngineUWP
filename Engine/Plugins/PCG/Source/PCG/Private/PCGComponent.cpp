@@ -466,7 +466,7 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 #if WITH_EDITOR
 	const bool bHasGeneratedOutputAfter = GeneratedGraphOutput.TaggedData.Num() > 0;
 
-	if (bHasGeneratedOutputAfter || bHadGeneratedOutputBefore)
+	if (IsValid(this) && (bHasGeneratedOutputAfter || bHadGeneratedOutputBefore))
 	{
 		FProperty* GeneratedOutputProperty = FindFProperty<FProperty>(UPCGComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UPCGComponent, GeneratedGraphOutput));
 		check(GeneratedOutputProperty);
