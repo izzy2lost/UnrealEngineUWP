@@ -301,7 +301,7 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 					}
 				}
 
-				if (bAutoResolveOtherConnectors && bResolvedPrimaryConnector)
+				if (Module && bAutoResolveOtherConnectors && bResolvedPrimaryConnector)
 				{
 					(void)AutoConnectModules( {Module->GetPath()}, false, bSetupUndo);
 				}
