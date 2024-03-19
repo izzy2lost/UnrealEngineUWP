@@ -1807,6 +1807,13 @@ void UNetDriver::SetupNetworkMetricsListeners()
 
 	for (const FNetworkMetricConfig& MetricConfig : Config->Listeners)
 	{
+		// Allow config file to selectively enable/disable listeners
+		if ((MetricConfig.EnableMode == ENetworkMetricEnableMode::EnableForIrisOnly && !IsUsingIrisReplication())
+			|| (MetricConfig.EnableMode == ENetworkMetricEnableMode::EnableForNonIrisOnly && IsUsingIrisReplication()))
+		{
+			continue;
+		}
+
 		FName ListenerClassName = *MetricConfig.Class.ToString();
 		TObjectPtr<UNetworkMetricsBaseListener>* Listener = NetworkMetricsListeners.Find(ListenerClassName);
 

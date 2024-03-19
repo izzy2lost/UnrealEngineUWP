@@ -4,6 +4,14 @@
 #include "CoreMinimal.h"
 #include "NetworkMetricsConfig.generated.h"
 
+UENUM()
+enum class ENetworkMetricEnableMode : uint8
+{
+	EnableForAllReplication,
+	EnableForIrisOnly,
+	EnableForNonIrisOnly
+};
+
 USTRUCT()
 struct FNetworkMetricConfig
 {
@@ -17,6 +25,9 @@ public:
 	/** A sub-class of UNetworkMetricBaseListener. */
 	UPROPERTY()
 	TSoftClassPtr<class UNetworkMetricsBaseListener> Class;
+
+	UPROPERTY()
+	ENetworkMetricEnableMode EnableMode = ENetworkMetricEnableMode::EnableForAllReplication;
 };
 
 UCLASS(Config=Engine)
