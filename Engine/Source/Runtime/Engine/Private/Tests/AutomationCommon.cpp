@@ -706,7 +706,17 @@ bool FExitGameCommand::Update()
 
 bool FRequestExitCommand::Update()
 {
-	FPlatformMisc::RequestExit(true, TEXT("FRequestExitCommand"));
+	GLog->FlushThreadedLogs();
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		GEngine->DeferredCommands.Add(TEXT("QUIT_EDITOR"));
+		return true;
+	}
+#endif
+	// force exit only if platform doesn't support quitting
+	FPlatformMisc::RequestExitWithStatus(!FPlatformProperties::SupportsQuit(), 0);
+
 	return true;
 }
 

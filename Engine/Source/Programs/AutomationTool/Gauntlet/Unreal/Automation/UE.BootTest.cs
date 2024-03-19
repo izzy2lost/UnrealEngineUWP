@@ -49,6 +49,10 @@ namespace UE
 			UnrealTestConfiguration Config = base.GetConfiguration();
 
 			UnrealTestRole Client = Config.RequireRole(UnrealTargetRole.Client);
+			if (string.IsNullOrEmpty(GetCompletionString()))
+			{
+				Client.CommandLineParams.Add("ExecCmds", "Automation SoftQuit");
+			}
 
 			return Config;
 		}
@@ -70,7 +74,7 @@ namespace UE
 			// track our starting condition
 			LastLogTime = DateTime.Now;
 			LogLinesLastTick = 0;
-			DidDetectLaunch = true;
+			DidDetectLaunch = false;
 
 			return true;
 		}
@@ -81,7 +85,7 @@ namespace UE
 		/// <returns></returns>
 		protected virtual string GetCompletionString()
 		{
-			return "Engine is initialized. Leaving FEngineLoop::Init()";
+			return null;
 		}
 
 		/// <summary>
@@ -118,7 +122,6 @@ namespace UE
 			}
 
 			string CompletionString = GetCompletionString();
-
 			if (!string.IsNullOrEmpty(CompletionString))
 			{
 				if (LogParser.GetLogLinesContaining(CompletionString).Any())
@@ -143,7 +146,7 @@ namespace UE
 		{
 			if (Result == TestResult.Passed)
 			{
-				if (!DidDetectLaunch)
+				if (!string.IsNullOrEmpty(GetCompletionString()) && !DidDetectLaunch)
 				{
 					ReportError("Failed to detect completion of launch");
 				}

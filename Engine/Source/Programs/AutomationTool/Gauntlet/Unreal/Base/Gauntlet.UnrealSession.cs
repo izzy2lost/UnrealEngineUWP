@@ -1111,7 +1111,7 @@ namespace Gauntlet
 			{
 				try
 				{
-					ArtifactLogFilePath = Path.Combine(DestinationDirectory.FullName, RoleName + "Output.log");
+					ArtifactLogFilePath = Path.GetFullPath(Path.Combine(DestinationDirectory.FullName, RoleName + "Output.log"));
 
 					// Write a short gauntlet blurb before the entire process log
 					using (StreamWriter Writer = new(ArtifactLogFilePath, false))
@@ -1125,9 +1125,21 @@ namespace Gauntlet
 					Log.Info($"Wrote {RoleName} Log to {ArtifactLogFilePath}");
 
 					// On build machines, copy all role logs to Horde.
-					if (IsBuildMachine)
+					if (IsBuildMachine && Horde.IsHordeJob)
 					{
-						string HordeLogFilePath = Path.Combine(CommandUtils.CmdEnv.LogFolder, RoleName + "Output.log");
+						// Extract the log path portion that includes the Gauntlet test name. ie: UE.BootTest(Win64_Test_Client)\Client\ClientOutput.log
+						// That is to handle situation where multiple tests are run within the same Gauntlet Session and logs get overwritten.
+						string LogName = ArtifactLogFilePath.Replace(Path.GetFullPath(InContext.Options.LogDir), "").TrimStart(Path.DirectorySeparatorChar);
+						if (Path.IsPathFullyQualified(LogName))
+						{
+							// The path was expected to be relative to LogDir, however it appeared to be an absolute path.
+							// So we revert to default behavior and save the log directly in UAT log folder.
+							LogName = RoleName + "Output.log";
+						}
+						string HordeLogFilePath = Path.GetFullPath(Path.Combine(CommandUtils.CmdEnv.LogFolder, LogName));
+						Log.Verbose($"Copy log for Horde to {HordeLogFilePath}");
+						string TargetDirectry = Path.GetDirectoryName(HordeLogFilePath);
+						if (!Directory.Exists(TargetDirectry)) { Directory.CreateDirectory(TargetDirectry); }
 						File.Copy(ArtifactLogFilePath, HordeLogFilePath, true);
 					}
 				}
