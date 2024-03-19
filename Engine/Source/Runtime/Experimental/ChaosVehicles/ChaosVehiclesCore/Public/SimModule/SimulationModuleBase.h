@@ -99,11 +99,11 @@ namespace Chaos
 	 * Code common between all simulation building blocks settings
 	 */
 	template <typename T>
-	class CHAOSVEHICLESCORE_API TSimModuleSettings
+	class TSimModuleSettings
 	{
 	public:
 
-		TSimModuleSettings(const T& SetupIn) : SetupData(SetupIn)
+		explicit TSimModuleSettings(const T& SetupIn) : SetupData(SetupIn)
 		{
 			SetupData = SetupIn; // deliberate copy for now
 		}
