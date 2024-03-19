@@ -1444,6 +1444,22 @@ void SRemoteControlPanel::BindRemoteControlCommands()
 		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanUpdateValue));
 }
 
+void SRemoteControlPanel::OnObjectReplaced(const TMap<UObject*, UObject*>& InObjectReplaced)
+{
+	if (!WidgetRegistry.IsValid())
+	{
+		return;
+	}
+
+	for (const TPair<UObject*, UObject*> ReplacedObject : InObjectReplaced)
+	{
+		if (ReplacedObject.Key && ReplacedObject.Value)
+		{
+			WidgetRegistry->ReplaceGeneratorObject(ReplacedObject.Key, ReplacedObject.Value);
+		}
+	}
+}
+
 void SRemoteControlPanel::RegisterEvents()
 {
 	FEditorDelegates::MapChange.AddSP(this, &SRemoteControlPanel::OnMapChange);
@@ -1464,6 +1480,7 @@ void SRemoteControlPanel::RegisterEvents()
 	Preset->OnEntityUnexposed().AddSP(this, &SRemoteControlPanel::OnEntityUnexposed);
 
 	UMaterial::OnMaterialCompilationFinished().AddSP(this, &SRemoteControlPanel::OnMaterialCompiled);
+	FCoreUObjectDelegates::OnObjectsReplaced.AddSP(this, &SRemoteControlPanel::OnObjectReplaced);
 }
 
 void SRemoteControlPanel::UnregisterEvents()
@@ -1484,8 +1501,8 @@ void SRemoteControlPanel::UnregisterEvents()
 	}
 
 	FEditorDelegates::MapChange.RemoveAll(this);
-
 	UMaterial::OnMaterialCompilationFinished().RemoveAll(this);
+	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
 }
 
 void SRemoteControlPanel::RegisterPanels()

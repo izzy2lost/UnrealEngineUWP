@@ -211,6 +211,21 @@ void FRCPanelWidgetRegistry::Refresh(const TSharedPtr<FStructOnScope>& InStruct)
 	}
 }
 
+void FRCPanelWidgetRegistry::ReplaceGeneratorObject(UObject* InOldObject, UObject* InNewObject)
+{
+	for (TPair<TWeakObjectPtr<UObject>, TSharedPtr<IPropertyRowGenerator>> Generator : ObjectToRowGenerator)
+	{
+		if (InOldObject && Generator.Value.IsValid() && Generator.Key != InNewObject)
+		{
+			if (Generator.Key == InOldObject)
+			{
+				Generator.Key = InNewObject;
+				Generator.Value->SetObjects({InNewObject});
+			}
+		}
+	}
+}
+
 void FRCPanelWidgetRegistry::Clear()
 {
 	for (const TPair <TWeakObjectPtr<UObject>, TSharedPtr<IPropertyRowGenerator>>& Pair : ObjectToRowGenerator)
@@ -323,4 +338,3 @@ TSharedPtr<IPropertyRowGenerator> FRCPanelWidgetRegistry::CreateGenerator(UObjec
 
 	return Generator;
 }
-

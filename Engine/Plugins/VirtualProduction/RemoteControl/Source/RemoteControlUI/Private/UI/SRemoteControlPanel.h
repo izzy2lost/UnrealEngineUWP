@@ -176,6 +176,9 @@ private:
 	//~ Remote Control Commands
 	void BindRemoteControlCommands();
 
+	/** Called when object are replaced, blueprint for example */
+	void OnObjectReplaced(const TMap<UObject*, UObject*>& InObjectReplaced);
+
 	/** Register editor events needed to handle reloading objects and blueprint libraries. */
 	void RegisterEvents();
 	/** Unregister editor events */

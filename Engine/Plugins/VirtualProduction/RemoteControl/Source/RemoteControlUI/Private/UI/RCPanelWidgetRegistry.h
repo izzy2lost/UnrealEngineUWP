@@ -31,7 +31,6 @@ struct FRCTreeNodeFinderHandler
 class FRCPanelWidgetRegistry : public TSharedFromThis<FRCPanelWidgetRegistry>
 {
 public:
-	
 	FRCPanelWidgetRegistry();
 	~FRCPanelWidgetRegistry();
 
@@ -60,6 +59,11 @@ public:
 	 * Update the generator for a given struct.
 	 */
 	void Refresh(const TSharedPtr<FStructOnScope>& InStruct);
+
+	/**
+	 * Replace old object if found with new object
+	 */
+	void ReplaceGeneratorObject(UObject* InOldObject, UObject* InNewObject);
 
 	/**
 	 * Clear the registry and its cache.
