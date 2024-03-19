@@ -135,7 +135,7 @@ void FMaterialRelevance::SetPrimitiveViewRelevance(FPrimitiveViewRelevance& OutV
 
 #if WITH_EDITORONLY_DATA
 
-namespace MaterialInterface
+namespace UE::MaterialInterface
 {
 	FString GetEditorOnlyDataName(const TCHAR* InMaterialName)
 	{
@@ -735,7 +735,7 @@ void UMaterialInterface::PostDuplicate(bool bDuplicateForPIE)
 #if WITH_EDITORONLY_DATA
 	// Duplication will create a new editor only data but this MI already links a populated data. This makes sure that the
 	// duplicate instance EOD has the correct name (necessary for running the editor on cooked data).
-	FString EditorOnlyDataName = MaterialInterface::GetEditorOnlyDataName(*GetName());
+	FString EditorOnlyDataName = UE::MaterialInterface::GetEditorOnlyDataName(*GetName());
 	DisposeInvalidEditorOnlyData(this, EditorOnlyDataName);
 	if (GetEditorOnlyData())
 	{
@@ -1691,7 +1691,7 @@ void UMaterialInterface::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	// Make sure the EditorOnlyData is named correctly. Some MI assets have a differently named editor only data that can cause problems in
 	// the editor running on cooked data.
 	UMaterialInterfaceEditorOnlyData* EditorOnly = GetEditorOnlyData();
-	FString EditorOnlyDataName = MaterialInterface::GetEditorOnlyDataName(*GetName());
+	FString EditorOnlyDataName = UE::MaterialInterface::GetEditorOnlyDataName(*GetName());
 	if (!ObjectSaveContext.IsProceduralSave() && EditorOnly && EditorOnly->GetName() != EditorOnlyDataName)
 	{
 		UE_LOG(LogMaterial, Display, TEXT("MaterialInterface %s has a incorrectly name EditorOnlyData '%s'. This may cause issues when running the editor on cooked data. Trying to rename it to the correct name '%s'."), *GetName(), *EditorOnly->GetName(), *EditorOnlyDataName);
@@ -1815,7 +1815,7 @@ UMaterialInterfaceEditorOnlyData* UMaterialInterface::CreateEditorOnlyData()
 	check(EditorOnlyClass);
 	check(EditorOnlyClass->HasAllClassFlags(CLASS_Optional));
 
-	const FString EditorOnlyName = MaterialInterface::GetEditorOnlyDataName(*GetName());
+	const FString EditorOnlyName = UE::MaterialInterface::GetEditorOnlyDataName(*GetName());
 	const EObjectFlags EditorOnlyFlags = GetMaskedFlags(RF_PropagateToSubObjects);
 	return NewObject<UMaterialInterfaceEditorOnlyData>(this, EditorOnlyClass, *EditorOnlyName, EditorOnlyFlags);
 }
@@ -1828,7 +1828,7 @@ bool UMaterialInterface::Rename(const TCHAR* NewName, UObject* NewOuter, ERename
 	// if we have EditorOnlyData, also rename it if we are changing the material's name
 	if (bRenamed && NewName && EditorOnlyData)
 	{
-		FString EditorOnlyDataName = MaterialInterface::GetEditorOnlyDataName(NewName);
+		FString EditorOnlyDataName = UE::MaterialInterface::GetEditorOnlyDataName(NewName);
 		DisposeInvalidEditorOnlyData(this, EditorOnlyDataName);
 		bRenamed = EditorOnlyData->Rename(*EditorOnlyDataName, nullptr, Flags);
 	}

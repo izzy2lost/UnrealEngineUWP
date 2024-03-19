@@ -5378,8 +5378,13 @@ bool FMemoryImageMaterialParameterInfo::RemapLayerIndex(TArrayView<const int32> 
 
 FMaterialShaderParameters::FMaterialShaderParameters(const FMaterial* InMaterial)
 {
-	// Make sure to zero-initialize so we get consistent hashes
+	// zero-initialize is required even when InMaterial!=null so that all bytes in sizeof(*this) are initialized
+	// and we get consistent hashes.
 	FMemory::Memzero(*this);
+	if (!InMaterial)
+	{
+		return;
+	}
 
 	MaterialDomain = InMaterial->GetMaterialDomain();
 	ShadingModels = InMaterial->GetShadingModels();

@@ -973,7 +973,7 @@ struct FMaterialShaderParameters
 		};
 	};
 
-	FMaterialShaderParameters(const FMaterial* InMaterial);
+	FMaterialShaderParameters(const FMaterial* InMaterial=nullptr);
 };
 
 /** Contains all the information needed to uniquely identify a FMaterialShaderMap. */
@@ -3106,6 +3106,15 @@ private:
 ENGINE_API uint8 GetRayTracingMaskFromMaterial(const EBlendMode BlendMode);
 
 //
+
+#if WITH_EDITOR
+/** An FMaterialResource and other information needed for cooking it. */
+struct FMaterialResourceForCooking
+{
+	TRefCountPtr<FMaterialResource> Resource;
+	EShaderPlatform Platform;
+};
+#endif
 
 inline bool ShouldIncludeMaterialInDefaultOpaquePass(const FMaterial& Material)
 {

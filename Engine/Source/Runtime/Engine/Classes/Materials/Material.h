@@ -1090,7 +1090,7 @@ private:
 	TArray<FMaterialResource*> MaterialResources;
 #if WITH_EDITOR
 	/** Material resources being cached for cooking. */
-	TMap<const class ITargetPlatform*, TArray<FMaterialResource*>> CachedMaterialResourcesForCooking;
+	TMap<const ITargetPlatform*, TArray<FMaterialResourceForCooking>> CachedMaterialResourcesForCooking;
 #endif
 	/** Flag used to guarantee that the RT is finished using various resources in this UMaterial before cleanup. */
 	FThreadSafeBool ReleasedByRT;
@@ -1537,6 +1537,7 @@ private:
 	 */
 	void CacheResourceShadersForRendering(bool bRegenerateId, EMaterialShaderPrecompileMode PrecompileMode = EMaterialShaderPrecompileMode::Default);
 
+#if WITH_EDITOR
 	/**
 	 * Cache resource shaders for cooking on the given shader platform.
 	 * If a matching shader map is not found in memory or the DDC, a new one will be compiled.
@@ -1544,7 +1545,9 @@ private:
 	 * Caller is responsible for deleting OutCachedMaterialResources.
 	 * Note: This modifies material variables used for rendering and is assumed to be called within a FMaterialUpdateContext!
 	 */
-	void CacheResourceShadersForCooking(EShaderPlatform Platform, TArray<FMaterialResource*>& OutCachedMaterialResources, const ITargetPlatform* TargetPlatform = nullptr, bool bBlocking = false);
+	void CacheResourceShadersForCooking(EShaderPlatform Platform, TArray<FMaterialResourceForCooking>& OutCachedMaterialResources, 
+		const ITargetPlatform* TargetPlatform = nullptr, bool bBlocking = false);
+#endif
 
 	void GetNewResources(EShaderPlatform ShaderPlatform, TArray<FMaterialResource*>& NewResourcesToCache);
 

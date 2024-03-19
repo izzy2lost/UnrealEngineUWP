@@ -710,7 +710,7 @@ private:
 	TArray<FMaterialResource*> StaticPermutationMaterialResources;
 #if WITH_EDITOR
 	/** Material resources being cached for cooking. */
-	TMap<const class ITargetPlatform*, TArray<FMaterialResource*>> CachedMaterialResourcesForCooking;
+	TMap<const ITargetPlatform*, TArray<FMaterialResourceForCooking>> CachedMaterialResourcesForCooking;
 #endif
 	/** Thread-safe flags used to track whether this instance is still in use by the render thread (EMaterialInstanceUsedByRTFlag) */
 	mutable std::atomic<uint32> UsedByRT;
@@ -879,6 +879,7 @@ public:
 
 	ENGINE_API void UpdateOverridableBaseProperties();
 
+#if WITH_EDITOR
 	/** 
 	 * Cache resource shaders for rendering on the given shader platform. 
 	 * If a matching shader map is not found in memory or the DDC, a new one will be compiled.
@@ -887,11 +888,12 @@ public:
 	 */
 	void CacheResourceShadersForCooking(
 		EShaderPlatform ShaderPlatform,
-		TArray<FMaterialResource*>& OutCachedMaterialResources,
+		TArray<FMaterialResourceForCooking>& OutCachedMaterialResources,
 		EMaterialShaderPrecompileMode PrecompileMode = EMaterialShaderPrecompileMode::Default,
 		const ITargetPlatform* TargetPlatform = nullptr,
 		bool bBlocking = false
 	);
+#endif
 
 	/** 
 	 * Gathers actively used shader maps from all material resources used by this material instance

@@ -2336,9 +2336,10 @@ void UMaterialInstance::CacheResourceShadersForRendering(EMaterialShaderPrecompi
 	FMaterial::DeferredDeleteArray(ResourcesToFree);
 }
 
+#if WITH_EDITOR
 void UMaterialInstance::CacheResourceShadersForCooking(
 	EShaderPlatform ShaderPlatform,
-	TArray<FMaterialResource*>& OutCachedMaterialResources,
+	TArray<FMaterialResourceForCooking>& OutCachedMaterialResources,
 	EMaterialShaderPrecompileMode PrecompileMode,
 	const ITargetPlatform* TargetPlatform,
 	bool bBlocking
@@ -2356,7 +2357,9 @@ void UMaterialInstance::CacheResourceShadersForCooking(
 
 		ERHIFeatureLevel::Type TargetFeatureLevel = GetMaxSupportedFeatureLevel(ShaderPlatform);
 
-		TArray<FMaterialResource*> NewResourcesToCache;	// only new resources need to have CacheShaders() called on them, whereas OutCachedMaterialResources may already contain resources for another shader platform
+		// only new resources need to have CacheShaders() called on them, whereas OutCachedMaterialResources
+		// may already contain resources for another shader platform
+		TArray<FMaterialResource*> NewResourcesToCache;
 		for (int32 QualityLevelIndex = 0; QualityLevelIndex < EMaterialQualityLevel::Num; QualityLevelIndex++)
 		{
 			// Cache all quality levels actually used
@@ -2384,25 +2387,26 @@ void UMaterialInstance::CacheResourceShadersForCooking(
 			NewResourcesToCache.Add(NewResource);
 		}
 
-	#if WITH_EDITOR
 		// The editor needs to block if the caching call comes from cook on the fly, where the polling mechanisms are not active.
 		// This is important so that the jobs finish and the CacheShadersCompletion() callback is triggered via FinishCacheShaders()!
 		if (bBlocking)
-	#endif
 		{
 			CacheShadersForResources(ShaderPlatform, NewResourcesToCache, PrecompileMode, TargetPlatform);
 		}
-	#if WITH_EDITOR
 		else
 		{
 			// For cooking, we can call the begin function and it will be completed as part of the polling mechanism.
 			BeginCacheShadersForResources(ShaderPlatform, NewResourcesToCache, PrecompileMode, TargetPlatform);
 		}
-	#endif
 
-		OutCachedMaterialResources.Append(NewResourcesToCache);
+		OutCachedMaterialResources.Reserve(NewResourcesToCache.Num());
+		for (FMaterialResource* NewResource : NewResourcesToCache)
+		{
+			OutCachedMaterialResources.Add({ NewResource , ShaderPlatform });
+		}
 	}
 }
+#endif // WITH_EDITOR
 
 namespace MaterialInstanceImpl
 {
@@ -2692,16 +2696,11 @@ void TrimToOverriddenOnly(TArray<ParameterType>& Parameters)
 void UMaterialInstance::BeginCacheForCookedPlatformData( const ITargetPlatform *TargetPlatform )
 {
 	LLM_SCOPE(ELLMTag::Materials);
-	TArray<FMaterialResource*> *CachedMaterialResourcesForPlatform = CachedMaterialResourcesForCooking.Find( TargetPlatform );
+	TArray<FMaterialResourceForCooking> *CachedMaterialResourcesForPlatform = CachedMaterialResourcesForCooking.Find( TargetPlatform );
 
 	if ( CachedMaterialResourcesForPlatform == NULL )
 	{
-		check( CachedMaterialResourcesForPlatform == NULL );
-
-		CachedMaterialResourcesForCooking.Add( TargetPlatform );
-		CachedMaterialResourcesForPlatform = CachedMaterialResourcesForCooking.Find( TargetPlatform );
-
-		check( CachedMaterialResourcesForPlatform != NULL );
+		CachedMaterialResourcesForPlatform = &CachedMaterialResourcesForCooking.FindOrAdd( TargetPlatform );
 
 		TArray<FName> DesiredShaderFormats;
 		TargetPlatform->GetAllTargetedShaderFormats(DesiredShaderFormats);
@@ -2713,7 +2712,8 @@ void UMaterialInstance::BeginCacheForCookedPlatformData( const ITargetPlatform *
 		{
 			const EShaderPlatform TargetShaderPlatform = ShaderFormatToLegacyShaderPlatform(DesiredShaderFormats[FormatIndex]);
 
-			CacheResourceShadersForCooking(TargetShaderPlatform, *CachedMaterialResourcesForPlatform, EMaterialShaderPrecompileMode::Background, TargetPlatform);
+			CacheResourceShadersForCooking(TargetShaderPlatform, *CachedMaterialResourcesForPlatform,
+				EMaterialShaderPrecompileMode::Background, TargetPlatform);
 		}
 	}
 }
@@ -2721,12 +2721,13 @@ void UMaterialInstance::BeginCacheForCookedPlatformData( const ITargetPlatform *
 bool UMaterialInstance::IsCachedCookedPlatformDataLoaded( const ITargetPlatform* TargetPlatform ) 
 {
 	LLM_SCOPE(ELLMTag::Materials);
-	const TArray<FMaterialResource*> *CachedMaterialResourcesForPlatform = CachedMaterialResourcesForCooking.Find( TargetPlatform );
+	const TArray<FMaterialResourceForCooking>* CachedMaterialResourcesForPlatform =
+		CachedMaterialResourcesForCooking.Find( TargetPlatform );
 	if ( CachedMaterialResourcesForPlatform != NULL )
 	{
-		for ( const auto& MaterialResource : *CachedMaterialResourcesForPlatform )
+		for (const FMaterialResourceForCooking& MaterialResource : *CachedMaterialResourcesForPlatform)
 		{
-			if ( MaterialResource->IsCompilationFinished() == false )
+			if (MaterialResource.Resource->IsCompilationFinished() == false)
 				return false;
 		}
 
@@ -2736,26 +2737,35 @@ bool UMaterialInstance::IsCachedCookedPlatformDataLoaded( const ITargetPlatform*
 }
 
 
-void UMaterialInstance::ClearCachedCookedPlatformData( const ITargetPlatform *TargetPlatform )
+void UMaterialInstance::ClearCachedCookedPlatformData(const ITargetPlatform* TargetPlatform)
 {
-	TArray<FMaterialResource*>* CachedMaterialResourcesForPlatform = CachedMaterialResourcesForCooking.Find( TargetPlatform );
-	if ( CachedMaterialResourcesForPlatform != nullptr )
+	TArray<TRefCountPtr<FMaterialResource>> MaterialsToDelete;
 	{
-		FMaterial::DeferredDeleteArray(*CachedMaterialResourcesForPlatform);
+		TArray<FMaterialResourceForCooking> CachedMaterialResourcesForPlatform;
+		CachedMaterialResourcesForCooking.RemoveAndCopyValue(TargetPlatform, CachedMaterialResourcesForPlatform);
+		MaterialsToDelete.Reserve(CachedMaterialResourcesForPlatform.Num());
+		for (FMaterialResourceForCooking& MaterialToDelete : CachedMaterialResourcesForPlatform)
+		{
+			MaterialsToDelete.Add(MoveTemp(MaterialToDelete.Resource));
+		}
 	}
-	CachedMaterialResourcesForCooking.Remove( TargetPlatform );
+	FMaterial::DeferredDeleteArray(MaterialsToDelete);
 }
 
 
 void UMaterialInstance::ClearAllCachedCookedPlatformData()
 {
-	for ( auto& It : CachedMaterialResourcesForCooking )
+	TArray<TRefCountPtr<FMaterialResource>> MaterialsToDelete;
+	for (TPair<const ITargetPlatform*, TArray<FMaterialResourceForCooking>>& It : CachedMaterialResourcesForCooking)
 	{
-		TArray<FMaterialResource*>& CachedMaterialResourcesForPlatform = It.Value;
-		FMaterial::DeferredDeleteArray(CachedMaterialResourcesForPlatform);
+		MaterialsToDelete.Reserve(MaterialsToDelete.Num() + It.Value.Num());
+		for (FMaterialResourceForCooking& MaterialToDelete : It.Value)
+		{
+			MaterialsToDelete.Add(MoveTemp(MaterialToDelete.Resource));
+		}
 	}
-
 	CachedMaterialResourcesForCooking.Empty();
+	FMaterial::DeferredDeleteArray(MaterialsToDelete);
 }
 
 #endif
@@ -2892,16 +2902,17 @@ void UMaterialInstance::Serialize(FArchive& Ar)
 				StaticParametersRuntime = MoveTemp(StaticParameters_DEPRECATED.GetRuntime());
 				GetEditorOnlyData()->StaticParameters = MoveTemp(StaticParameters_DEPRECATED.EditorOnly);
 			}
-
-			SerializeInlineShaderMaps(&CachedMaterialResourcesForCooking, Ar, LoadedMaterialResources);
-#else
-			SerializeInlineShaderMaps(
-				NULL,
-				Ar,
-				LoadedMaterialResources,
-				GetFName()
-			);
 #endif
+
+			UE::MaterialInterface::Private::SerializeInlineShaderMaps(
+				Ar, LoadedMaterialResources
+#if WITH_EDITOR
+				, NAME_None
+				, &CachedMaterialResourcesForCooking
+#else
+				, GetFName()
+#endif
+			);
 		}
 #if WITH_EDITOR
 		else
@@ -4829,11 +4840,11 @@ void UMaterialInstance::DumpDebugInfo(FOutputDevice& OutputDevice) const
 			}
 
 #if WITH_EDITOR
-			for (auto& It : CachedMaterialResourcesForCooking)
+			for (const TPair<const ITargetPlatform*, TArray<FMaterialResourceForCooking>>& It : CachedMaterialResourcesForCooking)
 			{
-				for (FMaterialResource* CurrentResource : It.Value)
+				for (const FMaterialResourceForCooking& CurrentResource : It.Value)
 				{
-					CurrentResource->DumpDebugInfo(OutputDevice);
+					CurrentResource.Resource->DumpDebugInfo(OutputDevice);
 				}
 			}
 #endif // WITH_EDITOR
@@ -4865,14 +4876,14 @@ void UMaterialInstance::SaveShaderStableKeysInner(const class ITargetPlatform* T
 	if (bHasStaticPermutationResource)
 	{
 		FStableShaderKeyAndValue SaveKeyVal(InSaveKeyVal);
-		TArray<FMaterialResource*>* MatRes = CachedMaterialResourcesForCooking.Find(TP);
+		TArray<FMaterialResourceForCooking>* MatRes = CachedMaterialResourcesForCooking.Find(TP);
 		if (MatRes)
 		{
-			for (FMaterialResource* Mat : *MatRes)
+			for (FMaterialResourceForCooking& Mat : *MatRes)
 			{
-				if (Mat)
+				if (Mat.Resource)
 				{
-					Mat->SaveShaderStableKeys(EShaderPlatform::SP_NumPlatforms, SaveKeyVal);
+					Mat.Resource->SaveShaderStableKeys(EShaderPlatform::SP_NumPlatforms, SaveKeyVal);
 				}
 			}
 		}
