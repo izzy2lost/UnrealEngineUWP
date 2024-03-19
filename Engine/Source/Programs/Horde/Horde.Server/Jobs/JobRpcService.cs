@@ -647,6 +647,7 @@ namespace Horde.Server.Jobs
 					if (node.OutputNames.Contains(artifact.OutputName))
 					{
 						CreateGraphArtifactRequest stepArtifact = new CreateGraphArtifactRequest { Name = artifact.Name.ToString(), Type = artifact.Type.ToString(), Description = artifact.Description, BasePath = artifact.BasePath, OutputName = artifact.OutputName };
+						stepArtifact.Keys.AddRange(artifact.Keys);
 						response.Artifacts.Add(stepArtifact);
 					}
 				}
@@ -861,7 +862,7 @@ namespace Horde.Server.Jobs
 						description = artifact.Name;
 					}
 
-					newArtifacts.Add(new NewGraphArtifact(name, type, description, artifact.BasePath, artifact.OutputName));
+					newArtifacts.Add(new NewGraphArtifact(name, type, description, artifact.BasePath, artifact.Keys.ToList(), artifact.OutputName));
 				}
 
 				// Create the new graph

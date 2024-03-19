@@ -131,6 +131,7 @@ namespace Horde.Agent.Execution
 			public string? Type { get; set; }
 			public string? Description { get; set; }
 			public string? BasePath { get; set; }
+			public List<string> Keys { get; set; } = new List<string>();
 			public string OutputName { get; set; } = String.Empty;
 		}
 
@@ -757,6 +758,7 @@ namespace Horde.Agent.Execution
 				createArtifact.Type = exportedArtifact.Type ?? String.Empty;
 				createArtifact.Description = exportedArtifact.Description ?? String.Empty;
 				createArtifact.BasePath = exportedArtifact.BasePath ?? String.Empty;
+				createArtifact.Keys.AddRange(exportedArtifact.Keys);
 				createArtifact.OutputName = exportedArtifact.OutputName;
 
 				updateGraph.Artifacts.Add(createArtifact);
