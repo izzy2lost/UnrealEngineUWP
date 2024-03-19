@@ -1270,7 +1270,7 @@ BOOL Detoured_DeleteFileW(LPCWSTR lpFileName)
 		TimerScope ts(g_stats.deleteFile);
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
-		writer.WriteByte(MessageType_DeleteFileW);
+		writer.WriteByte(MessageType_DeleteFile);
 		writer.WriteString(fixedName);
 		writer.WriteStringKey(fileNameKey);
 		writer.WriteU32(closeId);
@@ -1357,7 +1357,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 		TimerScope ts(g_stats.moveFile);
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
-		writer.WriteByte(MessageType_MoveFileW);
+		writer.WriteByte(MessageType_MoveFile);
 		writer.WriteStringKey(sourceKey);
 		writer.WriteString(source);
 		writer.WriteStringKey(destKey);

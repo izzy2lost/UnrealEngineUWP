@@ -67,6 +67,32 @@ namespace uba
 
 		void ThreadRun(bool runningRemote, void* environment);
 		bool HandleMessage(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleInit(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleCreateFile(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleGetFullFileName(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleCloseFile(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleDeleteFile(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleCopyFile(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleMoveFile(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleChmod(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleCreateDirectory(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleListDirectory(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleUpdateTables(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleCreateProcess(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleStartProcess(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleExitChildProcess(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleCreateTempFile(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleOpenTempFile(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleVirtualAllocFailed(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleLog(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleEchoOn(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleInputDependencies(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleExit(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleFlushWrittenFiles(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleUpdateEnvironment(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleGetNextProcess(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleCustom(BinaryReader& reader, BinaryWriter& writer);
+
 		void LogLine(bool printInSession, TString&& line, LogEntryType logType);
 		bool CreateTempFile(BinaryReader& reader, ProcHandle nativeProcessHandle, const tchar* application);
 		bool OpenTempFile(BinaryReader& reader, BinaryWriter& writer, const tchar* application);

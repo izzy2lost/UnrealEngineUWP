@@ -66,7 +66,7 @@ namespace uba
 		TimerScope ts(g_stats.createFile);
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
-		writer.WriteByte(MessageType_CreateFileW);
+		writer.WriteByte(MessageType_CreateFile);
 		writer.WriteString(fileName);
 		writer.WriteStringKey(fileNameKey);
 		writer.WriteByte(access);

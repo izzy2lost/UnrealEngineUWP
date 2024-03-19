@@ -1254,7 +1254,7 @@ UBA_EXPORT int UBA_WRAPPER(rename)(const char* oldpath, const char* newpath)
 		TimerScope ts(g_stats.moveFile);
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
-		writer.WriteByte(MessageType_MoveFileW);
+		writer.WriteByte(MessageType_MoveFile);
 		writer.WriteStringKey(oldKey);
 		writer.WriteString(fixedOldPath);
 		writer.WriteStringKey(newKey);
@@ -1364,13 +1364,13 @@ UBA_EXPORT int UBA_WRAPPER(remove)(const char* pathname)
 
 	//if (!CanDetour(fixedName.data))
 	//{
-	//	DEBUG_LOG_TRUE(L"DeleteFileW", L"(%ls)", original);
+	//	DEBUG_LOG_TRUE(L"DeleteFile", L"(%ls)", original);
 	//	return TRUE_WRAPPER(remove)(pathname);
 	//}
 
 	//if (KeepInMemory(fixedName.data, fixedName.count))
 	//{
-	//	DEBUG_LOG_DETOURED(L"DeleteFileW", L"(INMEMORY) (%ls) -> Success", lpFileName);
+	//	DEBUG_LOG_DETOURED(L"DeleteFile", L"(INMEMORY) (%ls) -> Success", lpFileName);
 	//	SetLastError(ERROR_SUCCESS);
 	//	return TRUE;
 	//}
@@ -1385,7 +1385,7 @@ UBA_EXPORT int UBA_WRAPPER(remove)(const char* pathname)
 		TimerScope ts(g_stats.deleteFile);
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
-		writer.WriteByte(MessageType_DeleteFileW);
+		writer.WriteByte(MessageType_DeleteFile);
 		writer.WriteString(fixedName);
 		writer.WriteStringKey(fileNameKey);
 		writer.WriteU32(closeId);
@@ -1397,7 +1397,7 @@ UBA_EXPORT int UBA_WRAPPER(remove)(const char* pathname)
 		pcs.Leave();
 		DEBUG_LOG_PIPE(L"DeleteFile", L"%ls", lpFileName);
 	}
-	//DEBUG_LOG_DETOURED(L"DeleteFileW", L"(%ls) -> %ls", pathname, ToString(result));
+	//DEBUG_LOG_DETOURED(L"DeleteFile", L"(%ls) -> %ls", pathname, ToString(result));
 
 	g_directoryTable.ParseDirectoryTable(directoryTableSize);
 	g_mappedFileTable.SetDeleted(fileNameKey, fixedName.data, true);
