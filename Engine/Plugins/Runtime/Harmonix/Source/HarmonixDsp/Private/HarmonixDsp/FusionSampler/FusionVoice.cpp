@@ -694,9 +694,13 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 		}
 	}
 
+	// apply the per keyzone FineTuneCents to the semitone bend.
+	// Convert cents to semitones (divide by 100)
+	SemiTonesBend += KeyZone->FineTuneCents / 100.0f;
+
+	// convert semitones to frequency
 	PitchBend *= FMath::Pow(2.0, SemiTonesBend / 12.0);
 	ResampleInc *= PitchBend;
-	ResampleInc *= KeyZone->FineTuneAdjustment;
 	check(ResampleInc > 0.0);  // for now we only support playing forward
 
 	OutputBuffer.SetAliasedChannelData(OutData, InNumChannels);

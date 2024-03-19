@@ -42,7 +42,6 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> SettingsJson, F
 	}
 
 	TryGetNumberField(SettingsJson, "fine_tune", Settings.FineTuneCents, Defaults.FineTuneCents);
-	Settings.SetFineTuneCents(Settings.FineTuneCents);
 
 	TryGetBoolField(SettingsJson, "is_note_off_zone", Settings.bIsNoteOffZone, Defaults.bIsNoteOffZone);
 	TryGetNumberField(SettingsJson, "priority", Settings.Priority, Defaults.Priority);

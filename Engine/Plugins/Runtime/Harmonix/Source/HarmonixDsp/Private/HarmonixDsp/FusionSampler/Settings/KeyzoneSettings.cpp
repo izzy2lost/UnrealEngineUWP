@@ -75,9 +75,3 @@ float FKeyzoneSettings::GetVolumeDb() const
 {
 	return HarmonixDsp::LinearToDB(FMath::Clamp(Gain, 0.0f, 1.0f));
 }
-
-void FKeyzoneSettings::SetFineTuneCents(float InCents)
-{
-	FineTuneCents = InCents;
-	FineTuneAdjustment = FMath::Pow(2.0f, FineTuneCents / 1200.0f);
-}
