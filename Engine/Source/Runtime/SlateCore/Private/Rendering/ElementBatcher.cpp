@@ -532,7 +532,6 @@ void FSlateElementBatcher::AddElementsInternal(const FSlateDrawElementMap& DrawE
 
 void FSlateElementBatcher::AddCachedElements(FSlateCachedElementData& CachedElementData, FVector2f ViewportSize)
 {
-	CSV_SCOPED_TIMING_STAT(Slate, AddCachedElements);
 	SCOPED_NAMED_EVENT_TEXT("Slate::AddCachedElements", FColor::Magenta);
 
 #if SLATE_CSV_TRACKER

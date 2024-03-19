@@ -700,7 +700,6 @@ bool FSlateInvalidationRoot::PaintFastPath_UpdateNextWidget(const FSlateInvalida
 bool FSlateInvalidationRoot::PaintFastPath(const FSlateInvalidationContext& Context)
 {
 	SCOPED_NAMED_EVENT(SWidget_FastPathUpdate, FColor::Green);
-	CSV_SCOPED_TIMING_STAT(Slate, FastPathUpdate);
 
 	check(!bNeedsSlowPath);
 
@@ -1205,7 +1204,6 @@ bool FSlateInvalidationRoot::ProcessPostUpdate()
 bool FSlateInvalidationRoot::ProcessInvalidation()
 {
 	SCOPED_NAMED_EVENT(Slate_InvalidationProcessing, FColor::Blue);
-	CSV_SCOPED_TIMING_STAT(Slate, InvalidationProcessing);
 #if WITH_SLATE_DEBUGGING
 	PerformanceStat = FPerformanceStat();
 	FScopedDurationTimer TmpPerformance_ProcessInvalidation(PerformanceStat.InvalidationProcessing);
