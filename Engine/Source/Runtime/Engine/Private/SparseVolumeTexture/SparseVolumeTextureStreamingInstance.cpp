@@ -20,6 +20,14 @@ static FAutoConsoleVariableRef CVarSVTStreamingForceEstimateFrameRate(
 	ECVF_RenderThreadSafe
 );
 
+static int32 GSVTStreamingRequestSizeGranularity = 128 * 1024;
+static FAutoConsoleVariableRef CVarSVTStreamingRequestSizeGranularity(
+	TEXT("r.SparseVolumeTexture.Streaming.RequestSizeGranularity"),
+	GSVTStreamingRequestSizeGranularity,
+	TEXT("Rounds up calculated streaming request sizes to a multiple of this value (in bytes). This avoids performance issues where the system might issue multiple very small requests."),
+	ECVF_RenderThreadSafe
+);
+
 namespace UE
 {
 namespace SVT
@@ -144,9 +152,9 @@ int64 FStreamingInstance::GetRequestedBandwidth(bool bZeroIfBlocking) const
 	{
 		return 0;
 	}
-	const int32 MipLevelIndex = FMath::Clamp(FMath::FloorToInt32(LowestRequestedMip), 0, MipLevelStreamingSizes.Num() - 1);
-	check(MipLevelStreamingSizes.IsValidIndex(MipLevelIndex));
-	const int64 RequestedBandwidth = FMath::CeilToInt64(MipLevelStreamingSizes[MipLevelIndex] * FMath::Max(1.0f, GetEstimatedFrameRate()));
+	const int64 StreamingSize = GetStreamingSize(LowestRequestedMip);
+	const int64 RequestedBandwidthRaw = FMath::CeilToInt64(StreamingSize * FMath::Max(1.0f, GetEstimatedFrameRate()));
+	const int64 RequestedBandwidth = ApplyDiscretization(RequestedBandwidthRaw);
 	return RequestedBandwidth;
 }
 
@@ -163,10 +171,9 @@ bool FStreamingInstance::IsFrameInWindow(float FrameIndex) const
 
 float FStreamingInstance::GetPrefetchMipLevel(float RequestedMipLevel, float Percentage) const
 {
-	const int32 RequestedMipLevelIndex = FMath::Clamp(FMath::FloorToInt32(RequestedMipLevel), 0, MipLevelStreamingSizes.Num() - 1);
-	check(MipLevelStreamingSizes.IsValidIndex(RequestedMipLevelIndex));
-	const uint32 RequestedMipLevelStreamingSize = MipLevelStreamingSizes[RequestedMipLevelIndex];
-	const int64 PrefetchStreamingSize = FMath::CeilToInt64(RequestedMipLevelStreamingSize * FMath::Clamp(Percentage, 0.0f, 1.0f));
+	const int64 RequestedMipLevelStreamingSize = GetStreamingSize(RequestedMipLevel);
+	const int64 PrefetchStreamingSizeRaw = FMath::CeilToInt64(RequestedMipLevelStreamingSize * FMath::Clamp(Percentage, 0.0f, 1.0f));
+	const int64 PrefetchStreamingSize = ApplyDiscretization(PrefetchStreamingSizeRaw);
 
 	// Walk from the highest to lowest mip level and find the fractional mip level which corresponds to StreamingMemorySizeOf(RequestedMipLevel) * Percentage.
 	int64 PrevMipStreamingSize = 0;
@@ -225,6 +232,23 @@ float FStreamingInstance::GetWrappedWeightedAverage(float ValueA, float WeightA,
 	}
 
 	return Result;
+}
+
+int64 FStreamingInstance::ApplyDiscretization(int64 Value)
+{
+	const int64 DiscretizationStep = FMath::Max(GSVTStreamingRequestSizeGranularity, 1);
+	Value = FMath::DivideAndRoundUp(Value, DiscretizationStep) * DiscretizationStep;
+	return Value;
+}
+
+int64 FStreamingInstance::GetStreamingSize(float MipLevel) const
+{
+	const int32 LowerMipLevelIndex = FMath::Clamp(FMath::FloorToInt32(MipLevel), 0, MipLevelStreamingSizes.Num() - 1);
+	const int32 UpperMipLevelIndex = FMath::Clamp(FMath::CeilToInt32(MipLevel), 0, MipLevelStreamingSizes.Num() - 1);
+	check(MipLevelStreamingSizes.IsValidIndex(LowerMipLevelIndex));
+	check(MipLevelStreamingSizes.IsValidIndex(UpperMipLevelIndex));
+	const double InterpolatedStreamingSize = FMath::Lerp((double)MipLevelStreamingSizes[LowerMipLevelIndex], (double)MipLevelStreamingSizes[UpperMipLevelIndex], FMath::Frac(MipLevel));
+	return static_cast<int64>(InterpolatedStreamingSize);
 }
 
 }

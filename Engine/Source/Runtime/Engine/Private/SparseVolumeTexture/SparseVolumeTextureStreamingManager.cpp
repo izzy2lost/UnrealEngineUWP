@@ -233,7 +233,7 @@ void FStreamingManager::Remove_GameThread(UStreamableSparseVolumeTexture* Sparse
 		});
 }
 
-void FStreamingManager::Request_GameThread(UStreamableSparseVolumeTexture* SparseVolumeTexture, uint32 StreamingInstanceKey, float FrameRate, float FrameIndex, int32 MipLevel, EStreamingRequestFlags Flags)
+void FStreamingManager::Request_GameThread(UStreamableSparseVolumeTexture* SparseVolumeTexture, uint32 StreamingInstanceKey, float FrameRate, float FrameIndex, float MipLevel, EStreamingRequestFlags Flags)
 {
 	if (!DoesPlatformSupportSparseVolumeTexture(GMaxRHIShaderPlatform) || !SparseVolumeTexture)
 	{
@@ -263,7 +263,7 @@ void FStreamingManager::Update_GameThread()
 		});
 }
 
-void FStreamingManager::Request(UStreamableSparseVolumeTexture* SparseVolumeTexture, uint32 StreamingInstanceKey, float FrameRate, float FrameIndex, int32 MipLevel, EStreamingRequestFlags Flags)
+void FStreamingManager::Request(UStreamableSparseVolumeTexture* SparseVolumeTexture, uint32 StreamingInstanceKey, float FrameRate, float FrameIndex, float MipLevel, EStreamingRequestFlags Flags)
 {
 	check(IsInRenderingThread());
 	if (!DoesPlatformSupportSparseVolumeTexture(GMaxRHIShaderPlatform) || !SparseVolumeTexture)
@@ -856,6 +856,12 @@ void FStreamingManager::RemoveInternal(UStreamableSparseVolumeTexture* SparseVol
 			}
 		}
 
+		// Make sure ActiveStreamingInstances doesn't have any references to this SVT anymore
+		for (TUniquePtr<FStreamingInstance>& StreamingInstance : SVTInfo->StreamingInstances)
+		{
+			ActiveStreamingInstances.Remove(StreamingInstance.Get());
+		}
+
 		// Release resources
 		for (FFrameInfo& FrameInfo : SVTInfo->PerFrameInfo)
 		{
@@ -881,7 +887,11 @@ void FStreamingManager::AddRequest(const FStreamingRequest& Request)
 		ExistingRequestPayload->MipLevelMask |= Request.Payload.MipLevelMask;
 		const int32 ExistingLowestMip = FMath::CountTrailingZeros(ExistingRequestPayload->MipLevelMask);
 		const int32 IncomingLowestMip = FMath::CountTrailingZeros(Request.Payload.MipLevelMask);
-		if (IncomingLowestMip < ExistingLowestMip)
+		if (IncomingLowestMip == ExistingLowestMip)
+		{
+			ExistingRequestPayload->LowestMipFraction = FMath::Max(ExistingRequestPayload->LowestMipFraction, Request.Payload.LowestMipFraction);
+		}
+		else if (IncomingLowestMip < ExistingLowestMip)
 		{
 			ExistingRequestPayload->LowestMipFraction = Request.Payload.LowestMipFraction;
 		}
