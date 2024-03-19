@@ -1444,6 +1444,7 @@ static void RenderShadowDepthAtlasNanite(
 
 						if (LightSceneInfo.Proxy)
 						{
+							Initializer.bUseLightingChannelMask = true;
 							Initializer.LightingChannelMask = LightSceneInfo.Proxy->GetLightingChannelMask();
 						}
 	

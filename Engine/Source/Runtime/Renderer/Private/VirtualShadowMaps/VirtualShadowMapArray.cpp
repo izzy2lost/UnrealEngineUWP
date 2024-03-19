@@ -3273,6 +3273,7 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMap
 
 	if (Clipmap->GetLightSceneInfo().Proxy)
 	{
+		BaseParams.bUseLightingChannelMask = true;
 		BaseParams.LightingChannelMask = Clipmap->GetLightSceneInfo().Proxy->GetLightingChannelMask();
 	}
 
@@ -3347,6 +3348,7 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 	BaseParams.Flags = NANITE_VIEW_FLAG_DISTANCE_CULL | (bClampToNearPlane ? 0u : NANITE_VIEW_FLAG_NEAR_CLIP);
 	if (ProjectedShadowInfo->GetLightSceneInfo().Proxy)
 	{
+		BaseParams.bUseLightingChannelMask = true;
 		BaseParams.LightingChannelMask = ProjectedShadowInfo->GetLightSceneInfo().Proxy->GetLightingChannelMask();
 	}
 

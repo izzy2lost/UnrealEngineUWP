@@ -174,6 +174,7 @@ struct FPackedViewParams
 	// Visibility mask buffer may be used if this is non-zero.
 	uint32 InstanceOcclusionQueryMask = 0;
 	uint32 LightingChannelMask = 0b111; // All channels are visible by default
+	bool bUseLightingChannelMask = false;
 };
 
 // Helper function to setup the overrides for a culling view. 

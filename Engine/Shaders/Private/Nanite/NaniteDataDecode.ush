@@ -159,6 +159,7 @@ struct FNaniteView
 	int4		HZBTestViewRect;
 	float		CullingViewScreenMultiple;
 	uint		InstanceOcclusionQueryMask;
+	bool		bUseLightingChannelMask;
 	uint		LightingChannelMask;
 };
 
@@ -775,7 +776,8 @@ FNaniteView UnpackNaniteView(FPackedNaniteView PackedView)
 
 	NaniteView.HZBTestViewRect				= PackedView.HZBTestViewRect;
 	NaniteView.InstanceOcclusionQueryMask	= PackedView.InstanceOcclusionQueryMask;
-	NaniteView.LightingChannelMask	= PackedView.LightingChannelMask;
+	NaniteView.bUseLightingChannelMask		= (PackedView.LightingChannelMask & 0b1000) > 0;
+	NaniteView.LightingChannelMask			= (PackedView.LightingChannelMask & 0b0111);
 
 	return NaniteView;
 }

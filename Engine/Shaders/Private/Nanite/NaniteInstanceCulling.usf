@@ -362,7 +362,7 @@ void InstanceCull(
 			FNaniteView NaniteView = GetNaniteView(ViewId);
 			FInstanceDynamicData DynamicData = CalculateInstanceDynamicData(NaniteView, InstanceData);
 
-			const bool bLightingChannelMismatch = ((NaniteView.LightingChannelMask & PrimLightingChannelMask) == 0u);
+			const bool bLightingChannelMismatch = NaniteView.bUseLightingChannelMask && ((NaniteView.LightingChannelMask & PrimLightingChannelMask) == 0u);
 
 			BRANCH
 			if (bLightingChannelMismatch)
