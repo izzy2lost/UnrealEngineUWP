@@ -825,6 +825,7 @@ namespace Jupiter.Controllers
 		[HttpPost("{ns}")]
 		[Consumes(CustomMediaTypeNames.UnrealCompactBinary)]
 		[Produces(CustomMediaTypeNames.UnrealCompactBinary)]
+		[ApiExplorerSettings(IgnoreApi = true)]
 		public async Task<IActionResult> BatchAsync(
 			[FromRoute] [Required] NamespaceId ns,
 			[FromBody] [Required] BatchOps ops)
