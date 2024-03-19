@@ -5,14 +5,13 @@
 #include "ChaosLog.h"
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowConnection.h"
+#include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "UObject/StructOnScope.h"
 #include "Dataflow/DataflowSettings.h"
 
 #include "DataflowNode.generated.h"
 
-struct FDataflowInput;
-struct FDataflowOutput;
 class UScriptStruct;
 
 namespace Dataflow {

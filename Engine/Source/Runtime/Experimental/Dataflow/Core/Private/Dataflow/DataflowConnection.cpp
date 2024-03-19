@@ -26,3 +26,18 @@ uint32 FDataflowConnection::GetOffset() const
 }
 
 
+bool FDataflowConnection::IsOwningNodeEnabled() const
+{
+	return (OwningNode && OwningNode->bActive);
+}
+
+FGuid FDataflowConnection::GetOwningNodeGuid() const
+{
+	return OwningNode ? OwningNode->GetGuid() : FGuid();
+}
+
+uint32 FDataflowConnection::GetOwningNodeValueHash() const
+{
+	return OwningNode ? OwningNode->GetValueHash() : 0;
+}
+

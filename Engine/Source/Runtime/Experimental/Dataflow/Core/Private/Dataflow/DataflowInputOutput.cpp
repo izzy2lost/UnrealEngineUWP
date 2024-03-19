@@ -155,3 +155,9 @@ bool FDataflowOutput::EvaluateImpl(Dataflow::FContext& Context) const
 
 	return true;
 }
+
+const FDataflowInput* FDataflowOutput::GetPassthroughInput() const
+{
+	return OwningNode ? OwningNode->FindInput(GetPassthroughRealAddress()) : nullptr;
+}
+

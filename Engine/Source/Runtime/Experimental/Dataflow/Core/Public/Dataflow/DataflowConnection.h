@@ -53,6 +53,11 @@ protected:
 
 	friend struct FDataflowNode;
 
+protected:
+	DATAFLOWCORE_API bool IsOwningNodeEnabled() const;
+	DATAFLOWCORE_API FGuid GetOwningNodeGuid() const;
+	DATAFLOWCORE_API uint32 GetOwningNodeValueHash() const;
+
 public:
 	FDataflowConnection() {};
 	DATAFLOWCORE_API FDataflowConnection(Dataflow::FPin::EDirection Direction, FName InType, FName InName, FDataflowNode* OwningNode = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid());
@@ -87,5 +92,4 @@ public:
 	}
 
 	virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) {};
-
 };

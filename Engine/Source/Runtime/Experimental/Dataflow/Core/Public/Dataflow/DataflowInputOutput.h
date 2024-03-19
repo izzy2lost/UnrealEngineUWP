@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowConnection.h"
-#include "Dataflow/DataflowNode.h"
 #include "Templates/Function.h"
 #include "Async/Async.h"
 #include "GenericPlatform/GenericPlatformCriticalSection.h"
@@ -130,7 +129,7 @@ public:
 	{
 		if (Property)
 		{
-			Context.SetData(CacheKey(), { OwningNode->GetGuid(), Property, OwningNode->GetValueHash(), Dataflow::FTimestamp::Current() }, Forward<T>(InVal));
+			Context.SetData(CacheKey(), { GetOwningNodeGuid(), Property, GetOwningNodeValueHash(), Dataflow::FTimestamp::Current() }, Forward<T>(InVal));
 		}
 	}
 
@@ -138,7 +137,7 @@ public:
 	{
 		if (!this->Evaluate<T>(Context))
 		{
-			Context.SetData(CacheKey(), { OwningNode->GetGuid(), Property, OwningNode->GetValueHash(), Dataflow::FTimestamp::Current() }, Default);
+			Context.SetData(CacheKey(), { GetOwningNodeGuid(), Property,GetOwningNodeValueHash(), Dataflow::FTimestamp::Current() }, Default);
 		}
 
 		if (Context.HasData(CacheKey()))
@@ -159,6 +158,8 @@ public:
 
 	DATAFLOWCORE_API virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) override;
 
+private:
+	DATAFLOWCORE_API const FDataflowInput* GetPassthroughInput() const;
 };
  
 template<class T>
@@ -171,7 +172,7 @@ const T& FDataflowInput::GetValue(Dataflow::FContext& Context, const T& Default)
 		{
 			if (!ConnectionOut->Evaluate<T>(Context))
 			{
-				Context.SetData(ConnectionOut->CacheKey(), { OwningNode->GetGuid(), Property, OwningNode->GetValueHash(), Dataflow::FTimestamp::Current() }, Default);
+				Context.SetData(ConnectionOut->CacheKey(), { GetOwningNodeGuid(), Property, GetOwningNodeValueHash(), Dataflow::FTimestamp::Current() }, Default);
 			}
 			if (Context.HasData(ConnectionOut->CacheKey()))
 			{
@@ -194,11 +195,11 @@ bool FDataflowOutput::Evaluate(Dataflow::FContext& Context) const
 {
 	check(OwningNode);
  
-	if (OwningNode->bActive)
+	if (IsOwningNodeEnabled())
 	{
 		return Context.Evaluate(*this);
 	}
-	else if(const FDataflowInput* PassthroughInput = OwningNode->FindInput(GetPassthroughRealAddress()))
+	else if(const FDataflowInput* PassthroughInput = GetPassthroughInput())
 	{
 		// @todo(dataflow) would be nice if the passthrough does not overwrite the existing cache value.
 		const T& PassthroughData = PassthroughInput->GetValue<T>(Context, *reinterpret_cast<const T*>(PassthroughInput->RealAddress()));
