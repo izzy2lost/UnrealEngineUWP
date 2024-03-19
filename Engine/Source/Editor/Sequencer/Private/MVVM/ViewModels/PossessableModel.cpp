@@ -225,10 +225,18 @@ FSlateColor FPossessableModel::GetInvalidBindingLabelColor() const
 		{
 			for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetReferences(ObjectBindingID))
 			{
-				if (BindingReference.Locator.IsEmpty() && BindingReference.CustomBinding == nullptr)
+				if (BindingReference.Locator.IsEmpty())
 				{
-					// Show empty bindings as yellow rather than red
-					return FLinearColor::Yellow;
+					TSharedPtr<ISequencer> Sequencer = OwnerModel->GetSequencer();
+					if (BindingReference.CustomBinding == nullptr)
+					{
+						// Show empty bindings as yellow rather than red
+						return FLinearColor::Yellow;
+					}
+					else if (BindingReference.CustomBinding->WillSpawnObject(Sequencer->GetSharedPlaybackState()))
+					{
+						return FSlateColor::UseSubduedForeground();
+					}
 				}
 			}
 

@@ -66,6 +66,7 @@
 #include "Bindings/MovieSceneSpawnableBinding.h"
 #include "Bindings/MovieSceneReplaceableBinding.h"
 #include "ActorFactories/ActorFactory.h"
+#include "Tracks/MovieSceneBindingLifetimeTrack.h"
 
 #define LOCTEXT_NAMESPACE "FSequencerUtilities"
 
@@ -1184,8 +1185,8 @@ FMovieScenePossessable* FSequencerUtilities::ConvertToPossessable(TSharedRef<ISe
 	Sequence->Modify();
 	MovieScene->Modify();
 
-	// If we're converting from an old-style spawnable, we'll need to remove the spawn track
-	if (Spawnable)
+	// If we're converting from a spawnable, we'll need to remove the spawn track
+	if (bConvertFromSpawnable)
 	{
 		// Delete the spawn track
 		UMovieSceneSpawnTrack* SpawnTrack = Cast<UMovieSceneSpawnTrack>(MovieScene->FindTrack(UMovieSceneSpawnTrack::StaticClass(), BindingGuid, NAME_None));
@@ -1315,6 +1316,7 @@ FMovieScenePossessable* FSequencerUtilities::ConvertToCustomBinding(TSharedRef<I
 	// If we have an old-style spawnable, use the template as the object to convert instead.
 	FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(BindingGuid);
 	const FMovieSceneBindingReference* PreviousBindingReference = BindingReferences->GetReference(BindingGuid, BindingIndex);
+	const UMovieSceneCustomBinding* PreviousCustomBinding = nullptr;
 	if (Spawnable)
 	{
 		ObjectToConvert = Spawnable->GetObjectTemplate();
@@ -1324,7 +1326,8 @@ FMovieScenePossessable* FSequencerUtilities::ConvertToCustomBinding(TSharedRef<I
 	{
 		if (const UMovieSceneCustomBinding* CustomBinding = PreviousBindingReference->CustomBinding)
 		{
-			bConvertFromSpawnable = CustomBinding->WillSpawnObject(Sequencer->GetSharedPlaybackState());
+			PreviousCustomBinding = CustomBinding;
+			bConvertFromSpawnable = PreviousCustomBinding->WillSpawnObject(Sequencer->GetSharedPlaybackState());
 		}
 	}
 
@@ -1356,14 +1359,23 @@ FMovieScenePossessable* FSequencerUtilities::ConvertToCustomBinding(TSharedRef<I
 	MovieScene->Modify();
 
 
-	// If we're converting from an old-style spawnable, we'll need to do some extra work and also create a new FMovieScenePossessable*.
-	if (Spawnable)
+	// If we're converting from a spawnable and the new custom binding isn't a spawnable, remove the spawn track
+	if (PreviousCustomBinding->IsA<UMovieSceneSpawnableBindingBase>() && !NewCustomBinding->IsA<UMovieSceneSpawnableBindingBase>())
 	{
 		// Delete the spawn track
 		UMovieSceneSpawnTrack* SpawnTrack = Cast<UMovieSceneSpawnTrack>(MovieScene->FindTrack(UMovieSceneSpawnTrack::StaticClass(), BindingGuid, NAME_None));
 		if (SpawnTrack)
 		{
 			MovieScene->RemoveTrack(*SpawnTrack);
+		}
+	}
+	else if (PreviousCustomBinding->IsA<UMovieSceneReplaceableBindingBase>() && !NewCustomBinding->IsA<UMovieSceneReplaceableBindingBase>())
+	{
+		// Delete the binding lifetime track
+		UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(MovieScene->FindTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), BindingGuid, NAME_None));
+		if (BindingLifetimeTrack)
+		{
+			MovieScene->RemoveTrack(*BindingLifetimeTrack);
 		}
 	}
 

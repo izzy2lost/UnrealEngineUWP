@@ -12,6 +12,8 @@
 #include "Styling/SlateBrush.h"
 #include "Styling/AppStyle.h"
 #include "Internationalization/Internationalization.h"
+#include "Tracks/MovieSceneSpawnTrack.h"
+#include "Sections/MovieSceneBoolSection.h"
 
 #define LOCTEXT_NAMESPACE "FPossessableModel"
 
@@ -88,18 +90,37 @@ void UMovieSceneSpawnableBindingBase::SetupDefaults(UObject* SpawnedObject, FGui
 		return;
 	}
 	Super::SetupDefaults(SpawnedObject, ObjectBindingId, OwnerMovieScene, SharedPlaybackState);
-	// Ensure it has a binding lifetime track
-	UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(OwnerMovieScene.FindTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBindingId, NAME_None));
-	if (!BindingLifetimeTrack)
+
+	// TODO: For now we are not using binding lifetime track for this, though it will support it. We continue to use spawn track until we improve UX of splitting sections
+	// // 
+	// 
+	//// Ensure it has a binding lifetime track
+	//UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(OwnerMovieScene.FindTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBindingId, NAME_None));
+	//if (!BindingLifetimeTrack)
+	//{
+	//	BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(OwnerMovieScene.AddTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBindingId));
+	//}
+
+	//if (BindingLifetimeTrack && BindingLifetimeTrack->GetAllSections().IsEmpty())
+	//{
+	//	UMovieSceneBindingLifetimeSection* BindingLifetimeSection = Cast<UMovieSceneBindingLifetimeSection>(BindingLifetimeTrack->CreateNewSection());
+	//	BindingLifetimeSection->SetRange(TRange<FFrameNumber>::All());
+	//	BindingLifetimeTrack->AddSection(*BindingLifetimeSection);
+	//}
+
+	UMovieSceneSpawnTrack* SpawnTrack = Cast<UMovieSceneSpawnTrack>(OwnerMovieScene.FindTrack(UMovieSceneSpawnTrack::StaticClass(), ObjectBindingId, NAME_None));
+	if (!SpawnTrack)
 	{
-		BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(OwnerMovieScene.AddTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBindingId));
+		SpawnTrack = Cast<UMovieSceneSpawnTrack>(OwnerMovieScene.AddTrack(UMovieSceneSpawnTrack::StaticClass(), ObjectBindingId));
 	}
 
-	if (BindingLifetimeTrack && BindingLifetimeTrack->GetAllSections().IsEmpty())
+	if (SpawnTrack)
 	{
-		UMovieSceneBindingLifetimeSection* BindingLifetimeSection = Cast<UMovieSceneBindingLifetimeSection>(BindingLifetimeTrack->CreateNewSection());
-		BindingLifetimeSection->SetRange(TRange<FFrameNumber>::All());
-		BindingLifetimeTrack->AddSection(*BindingLifetimeSection);
+		UMovieSceneBoolSection* SpawnSection = Cast<UMovieSceneBoolSection>(SpawnTrack->CreateNewSection());
+		SpawnSection->GetChannel().SetDefault(true);
+		SpawnSection->SetRange(TRange<FFrameNumber>::All());
+		SpawnTrack->AddSection(*SpawnSection);
+		SpawnTrack->SetObjectId(ObjectBindingId);
 	}
 }
 
