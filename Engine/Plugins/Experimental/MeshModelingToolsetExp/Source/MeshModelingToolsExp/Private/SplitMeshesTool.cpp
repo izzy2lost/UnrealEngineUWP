@@ -12,6 +12,7 @@
 #include "Selections/MeshConnectedComponents.h"
 #include "DynamicMesh/MeshTransforms.h"
 #include "DynamicSubmesh3.h"
+#include "Selections/GeometrySelectionUtil.h"
 
 #include "TargetInterfaces/MeshDescriptionProvider.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
@@ -35,7 +36,7 @@ const FToolTargetTypeRequirements& USplitMeshesToolBuilder::GetTargetRequirement
 	return TypeRequirements;
 }
 
-UMultiSelectionMeshEditingTool* USplitMeshesToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
+UMultiTargetWithSelectionTool* USplitMeshesToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	return NewObject<USplitMeshesTool>(SceneState.ToolManager);
 }
@@ -169,9 +170,21 @@ void USplitMeshesTool::UpdateSplitMeshes()
 		const TArray<UMaterialInterface*> SourceMaterials = SourceMeshes[si].Materials;
 
 		FMeshConnectedComponents MeshComponents(SourceMesh);
-		MeshComponents.FindConnectedTriangles();
-		int32 NumComponents = MeshComponents.Num();
-
+		
+		int32 NumComponents;
+		const bool bMeshHasGeometrySelection = HasGeometrySelection(si);
+		if (bMeshHasGeometrySelection)
+		{
+			// when there is a geometry selection, ignore any computations the Split Tool would normally have done to
+			// decide where to split the mesh; instead split into 2 meshes regardless: the selected geometry, and everything else
+			NumComponents = 2;
+		}
+		else
+		{
+			MeshComponents.FindConnectedTriangles();
+			NumComponents = MeshComponents.Num();
+		}
+		
 		if (NumComponents < 2)
 		{
 			SplitInfo.bNoComponents = true;
@@ -185,7 +198,45 @@ void USplitMeshesTool::UpdateSplitMeshes()
 		SplitInfo.Origins.SetNum(NumComponents);
 		for (int32 k = 0; k < NumComponents; ++k)
 		{
-			FDynamicSubmesh3 SubmeshCalc(SourceMesh, MeshComponents[k].Indices);
+			FDynamicSubmesh3 SubmeshCalc;
+			if (bMeshHasGeometrySelection)
+			{
+				// retrieve the triangles in the current selection
+				// when using Edge or Vertex selection mode, any triangle touching the selected edges/vertices will be included
+				TSet<int> SelectionTriangles;
+				const FGeometrySelection& InputSelection = GetGeometrySelection(si);
+				
+				UE::Geometry::EnumerateSelectionTriangles(InputSelection, *SourceMesh,
+			[&](int32 TriangleID) { SelectionTriangles.Add(TriangleID); });
+
+				TArray<int> SelectionTrianglesArray = SelectionTriangles.Array();
+				
+				if (k == 0) // component made of the selected triangles
+				{
+					SubmeshCalc = FDynamicSubmesh3(SourceMesh, SelectionTrianglesArray);
+				}
+				else if (k == 1) // component made of the rest of the mesh (unselected triangles)
+				{
+					TArray<int> NonSelectedTriangles;
+					for (int TID = 0; TID < SourceMesh->MaxTriangleID(); TID++)
+					{
+						if (SourceMesh->IsTriangle(TID) && !SelectionTriangles.Contains(TID))
+						{
+							NonSelectedTriangles.Add(TID);
+						}
+					}
+					SubmeshCalc = FDynamicSubmesh3(SourceMesh, NonSelectedTriangles);
+				}
+			}
+			else
+			{
+				// if statement should always be true- components should always have been calculated & populated when there's no geometry selection
+				if (!MeshComponents.Components.IsEmpty())
+				{
+					SubmeshCalc = FDynamicSubmesh3(SourceMesh, MeshComponents[k].Indices);
+				}
+			}
+
 			FDynamicMesh3& Submesh = SubmeshCalc.GetSubmesh();
 			TArray<UMaterialInterface*> NewMaterials;
 

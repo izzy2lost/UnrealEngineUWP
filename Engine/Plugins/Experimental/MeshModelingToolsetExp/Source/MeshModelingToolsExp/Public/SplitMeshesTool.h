@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "BaseTools/MultiSelectionMeshEditingTool.h"
+#include "BaseTools/MultiTargetWithSelectionTool.h"
 #include "InteractiveToolBuilder.h"
 #include "PropertySets/CreateMeshObjectTypeProperties.h"
 #include "SplitMeshesTool.generated.h"
@@ -12,11 +12,13 @@ class UMaterialInterface;
 
 
 UCLASS()
-class MESHMODELINGTOOLSEXP_API USplitMeshesToolBuilder : public UMultiSelectionMeshEditingToolBuilder
+class MESHMODELINGTOOLSEXP_API USplitMeshesToolBuilder : public UMultiTargetWithSelectionToolBuilder
 {
 	GENERATED_BODY()
 public:
-	virtual UMultiSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+	virtual UMultiTargetWithSelectionTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+
+	virtual bool RequiresInputSelection() const override { return false; }
 
 protected:
 	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
@@ -36,7 +38,7 @@ public:
 
 
 UCLASS()
-class MESHMODELINGTOOLSEXP_API USplitMeshesTool : public UMultiSelectionMeshEditingTool
+class MESHMODELINGTOOLSEXP_API USplitMeshesTool : public UMultiTargetWithSelectionTool
 {
 	GENERATED_BODY()
 
