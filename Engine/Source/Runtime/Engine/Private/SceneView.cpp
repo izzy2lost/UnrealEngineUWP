@@ -341,6 +341,16 @@ static FAutoConsoleVariableRef CVarDefaultUpdateOrthoNearPlane(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<bool> CVarAllowOrthoNearPlaneCorrection(
+	TEXT("r.Ortho.AllowNearPlaneCorrection"),
+	true,
+	TEXT("Orthographic near planes can be behind the camera position, which causes some issues with Unreal resolving lighting behind the camera position ")
+	TEXT("This CVar enables the Orthographic cameras globally to automatically update the camera location to match the NearPlane location, ")
+	TEXT("and force the pseudo camera position to be the replaced near plane location for the projection matrix calculation. ")
+	TEXT("This means Unreal can resolve lighting behind the camera correctly."),
+	ECVF_Default
+);
+
 static TAutoConsoleVariable<bool> CVarOrthoCameraHeightAsViewTarget(
 	TEXT("r.Ortho.CameraHeightAsViewTarget"),
 	true,
@@ -562,7 +572,7 @@ FVector4f CreateInvDeviceZToWorldZTransform(const FMatrix& ProjMatrix)
 
 bool FSceneViewProjectionData::UpdateOrthoPlanes(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, float& FarPlane)
 {
-	if (!InOutProjectionData)
+	if (!InOutProjectionData || !CVarAllowOrthoNearPlaneCorrection.GetValueOnAnyThread())
 	{
 		return false;
 	}
@@ -608,6 +618,7 @@ bool FSceneViewProjectionData::UpdateOrthoPlanes()
 	* Separating this step from the near plane calculation logic itself helps avoid applying the NearPlane correctiontwice /makes it easier to read.
 	*/
 	if(IsPerspectiveProjection() 
+		|| !CVarAllowOrthoNearPlaneCorrection.GetValueOnAnyThread()
 		|| ProjectionMatrix.M[2][2] == 0.0 
 		|| ProjectionMatrix.M[2][2] == ProjectionMatrix.M[2][3])
 	{ 
@@ -630,7 +641,7 @@ bool FSceneViewProjectionData::UpdateOrthoPlanes()
 
 	//Only the Near/Far plane elements need correcting, OrthoWidth/Height remains the same
 	ProjectionMatrix.M[2][2] = -ZScale;
-	ProjectionMatrix.M[2][3] = 1.0f - (ZOffset * ZScale);
+	ProjectionMatrix.M[3][2] = 1.0f - (ZOffset * ZScale);
 
 	return true;
 }

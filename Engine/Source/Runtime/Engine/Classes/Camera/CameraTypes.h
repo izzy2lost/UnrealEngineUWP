@@ -147,7 +147,7 @@ public:
 	ENGINE_API void AddWeightedViewInfo(const FMinimalViewInfo& OtherView, const float& Weight);
 
 	/** Calculates the projection matrix using this view info's aspect ratio (regardless of bConstrainAspectRatio) */
-	ENGINE_API FMatrix CalculateProjectionMatrix(float ForceOrthoNegativeNearPlane = 0.0f) const;
+	ENGINE_API FMatrix CalculateProjectionMatrix() const;
 
 	/** Calculates the projection matrix (and potentially a constrained view rectangle) given a FMinimalViewInfo and partially configured projection data (must have the view rect already set) */
 	ENGINE_API static void CalculateProjectionMatrixGivenView(FMinimalViewInfo& ViewInfo, TEnumAsByte<enum EAspectRatioAxisConstraint> AspectRatioAxisConstraint, class FViewport* Viewport, struct FSceneViewProjectionData& InOutProjectionData);
