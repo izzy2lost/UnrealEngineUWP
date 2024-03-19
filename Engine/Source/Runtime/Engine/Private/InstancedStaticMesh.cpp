@@ -2701,7 +2701,11 @@ FBoxSphereBounds UInstancedStaticMeshComponent::CalcBoundsImpl(const FTransform&
 
 void UInstancedStaticMeshComponent::UpdateBounds()
 {
-	if (bUseConservativeBounds && CachedConservativeInstanceBounds.IsValid)
+	if (PerInstanceSMData.Num() == 0)
+	{
+		Bounds = FBoxSphereBounds(GetComponentTransform().GetLocation(), FVector::ZeroVector, 0.f);
+	}
+	else if (bUseConservativeBounds && CachedConservativeInstanceBounds.IsValid)
 	{
 		Bounds = CachedConservativeInstanceBounds.TransformBy(GetComponentTransform());
 	}
