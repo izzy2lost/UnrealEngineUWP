@@ -139,7 +139,7 @@ private:
 #endif
 
 	friend class FRDGAllocatorScope;
-	static thread_local FRDGAllocator* AllocatorTLS;
+	static uint32 AllocatorTLSSlot;
 };
 
 class FRDGAllocatorScope
@@ -149,7 +149,7 @@ public:
 	RENDERCORE_API ~FRDGAllocatorScope();
 
 private:
-	FRDGAllocator* AllocatorToRestore;
+	void* AllocatorToRestore;
 };
 
 #define RDG_FRIEND_ALLOCATOR_FRIEND(Type) friend class FRDGAllocator::TObject<Type>
