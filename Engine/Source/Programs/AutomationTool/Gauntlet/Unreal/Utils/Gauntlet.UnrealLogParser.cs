@@ -959,8 +959,7 @@ namespace Gauntlet
 			var Traces = ParseTracedErrors(ErrorMsgMatches).Concat(GetASanErrors());
 
 			// Keep the one with the most information.
-			Traces.OrderBy(T => T.Callstack.Length);
-			return Traces.Count() > 0 ? Traces.Last() : null;
+			return Traces.Count() > 0 ? Traces.OrderBy(T => T.Callstack.Length).Last() : null;
 		}
 
 		/// <summary>
