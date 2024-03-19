@@ -719,18 +719,6 @@ void UTexture2D::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	Context.AddTag(FAssetRegistryTag("MaxTextureSize", FString::FromInt(MaxTextureSize), FAssetRegistryTag::TT_Numerical));
 #endif
 
-#if WITH_EDITORONLY_DATA
-	// In game max bias and dimensions
-	const int32 SurfaceWidth = static_cast<int32>(GetSurfaceWidth());
-	const int32 SurfaceHeight = static_cast<int32>(GetSurfaceHeight());
-	const int32 MaxResMipBias = GetNumMips() - GetNumMipsAllowed(true);
-	const int32 MaxInGameWidth = SurfaceWidth ? FMath::Max(SurfaceWidth >> MaxResMipBias, 1) : 0;
-	const int32 MaxInGameHeight = SurfaceHeight ? FMath::Max(SurfaceHeight >> MaxResMipBias, 1) : 0;
-
-	Context.AddTag(FAssetRegistryTag("MaxInGameX", FString::FromInt(MaxInGameWidth), FAssetRegistryTag::TT_Numerical));
-	Context.AddTag(FAssetRegistryTag("MaxInGameY", FString::FromInt(MaxInGameHeight), FAssetRegistryTag::TT_Numerical));
-#endif
-
 	Super::GetAssetRegistryTags(Context);
 }
 
