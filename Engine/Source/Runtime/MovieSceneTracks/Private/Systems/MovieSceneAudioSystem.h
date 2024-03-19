@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "EntitySystem/MovieSceneEntityIDs.h"
+#include "EntitySystem/MovieSceneSequenceInstanceHandle.h"
 #include "MovieSceneTracksComponentTypes.h"
 #include "UObject/ObjectMacros.h"
 #include "Channels/MovieSceneAudioTriggerChannel.h"
@@ -65,6 +66,7 @@ class UMovieSceneAudioSystem : public UMovieSceneEntitySystem
 
 public:
 
+	using FInstanceHandle = UE::MovieScene::FInstanceHandle;
 	using FMovieSceneEntityID = UE::MovieScene::FMovieSceneEntityID;
 	using FAudioComponentEvaluationData = UE::MovieScene::FAudioComponentEvaluationData;
 	using FAudioComponentInputEvaluationData = UE::MovieScene::FAudioComponentInputEvaluationData;
@@ -80,24 +82,24 @@ public:
 	/**
 	 * Get the evaluation data for the given actor and section. Pass a null actor key for root (world) audio.
 	 */
-	FAudioComponentEvaluationData* GetAudioComponentEvaluationData(FObjectKey ActorKey, FObjectKey SectionKey);
+	FAudioComponentEvaluationData* GetAudioComponentEvaluationData(FInstanceHandle InstanceHandle, FObjectKey ActorKey, FObjectKey SectionKey);
 
 	/**
 	 * Adds an audio component to the given bound sequencer object.
 	 * WARNING: Only to be called on the game thread.
 	 */
-	FAudioComponentEvaluationData* AddBoundObjectAudioComponent(UMovieSceneAudioSection* Section, UObject* PrincipalObject);
+	FAudioComponentEvaluationData* AddBoundObjectAudioComponent(FInstanceHandle InstanceHandle, UMovieSceneAudioSection* Section, UObject* PrincipalObject);
 
 	/**
 	 * Adds an audio component to the world, for playing root audio tracks.
 	 * WARNING: Only to be called on the game thread.
 	 */
-	FAudioComponentEvaluationData* AddRootAudioComponent(UMovieSceneAudioSection* Section, UWorld* World);
+	FAudioComponentEvaluationData* AddRootAudioComponent(FInstanceHandle InstanceHandle, UMovieSceneAudioSection* Section, UWorld* World);
 
 	/**
 	 * Stop the audio on the audio component associated with the given audio section.
 	 */
-	void StopSound(FObjectKey ActorKey, FObjectKey SectionKey);
+	void StopSound(FInstanceHandle InstanceHandle, FObjectKey ActorKey, FObjectKey SectionKey);
 
 	/**
 	 * Reset shared accumulation data required every evaluation frame
@@ -106,13 +108,15 @@ public:
 
 private:
 
+	using FInstanceObjectKey = TTuple<FInstanceHandle, FObjectKey>;
+
 	/** Map of all created audio components */
-	using FAudioComponentBySectionKey = TMap<FObjectKey, FAudioComponentEvaluationData>;
+	using FAudioComponentBySectionKey = TMap<FInstanceObjectKey, FAudioComponentEvaluationData>;
 	using FAudioComponentsByActorKey = TMap<FObjectKey, FAudioComponentBySectionKey>;
 	FAudioComponentsByActorKey AudioComponentsByActorKey;
 
 	/** Map of audio input values, rebuilt every frame */
-	using FAudioInputsBySectionKey = TMap<FObjectKey, FAudioComponentInputEvaluationData>;
+	using FAudioInputsBySectionKey = TMap<FInstanceObjectKey, FAudioComponentInputEvaluationData>;
 	FAudioInputsBySectionKey AudioInputsBySectionKey;
 
 	/** Pre-animated state */
