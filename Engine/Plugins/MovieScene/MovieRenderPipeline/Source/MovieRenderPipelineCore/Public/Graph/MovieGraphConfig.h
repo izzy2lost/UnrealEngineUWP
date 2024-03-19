@@ -431,12 +431,13 @@ public:
 * looking at a named branch). You can use the functions to fetch a node by type from a given
 * branch and it will return the right object (or the CDO if the node is NOT in the config).
 */
-UCLASS()
+UCLASS(BlueprintType)
 class MOVIERENDERPIPELINECORE_API UMovieGraphEvaluatedConfig : public UObject
 {
 	GENERATED_BODY()
 public:
 
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	const TArray<FName> GetBranchNames() const
 	{
 		TArray<FName> OutKeys;
@@ -444,6 +445,7 @@ public:
  		return OutKeys;
 	}
 
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphSettingNode* GetSettingForBranch(UClass* InClass, const FName InBranchName, bool bIncludeCDOs = true, bool bExactMatch = false) const
 	{
 		TArray<UMovieGraphSettingNode*> AllSettings = GetSettingsForBranch(InClass, InBranchName, bIncludeCDOs, bExactMatch);
@@ -455,6 +457,7 @@ public:
 		return nullptr;
 	}
 
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	TArray<UMovieGraphSettingNode*> GetSettingsForBranch(UClass* InClass, const FName InBranchName, bool bIncludeCDOs = true, bool bExactMatch = false) const
 	{
 		const FMovieGraphEvaluatedBranchConfig* BranchConfig = BranchConfigMapping.Find(InBranchName);

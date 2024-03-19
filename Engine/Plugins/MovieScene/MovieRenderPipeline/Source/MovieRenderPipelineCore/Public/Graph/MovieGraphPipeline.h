@@ -95,6 +95,7 @@ public:
 	void TeardownShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
 	
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphTimeStepBase* GetTimeStepInstance() const;
 	
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
