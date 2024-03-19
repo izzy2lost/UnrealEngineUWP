@@ -44,6 +44,7 @@ public:
 	static FORCEINLINE Vector4	ConvertTangent(const Tangent& t) { return Vector4(t.TangentX.X, t.TangentX.Y, t.TangentX.Z, t.bFlipTangentY ? -1.0f : 1.0f); }
 	static FORCEINLINE FLinearColor TangentAsLinearColor(const Tangent& t) { return FLinearColor(ConvertTangent(t)); }
 	static FORCEINLINE FLinearColor Vec2AsLinearColor(const Vector2& v) { return FLinearColor(v.X, v.Y, 0.0f, 0.0f); }
+	static FORCEINLINE FLinearColor Vec2AsLinearColor(const FVector2f& v) { return FLinearColor(v.X, v.Y, 0.0f, 0.0f); }
 	static FORCEINLINE FLinearColor Vec3AsLinearColor(const Vector3& v) { return FLinearColor(v.X, v.Y, v.Z, 0.0f); }
 	static FORCEINLINE FLinearColor Vec4AsLinearColor(const Vector4& v) { return FLinearColor(v); }
 
