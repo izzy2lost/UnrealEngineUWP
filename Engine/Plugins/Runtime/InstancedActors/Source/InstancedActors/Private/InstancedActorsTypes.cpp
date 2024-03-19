@@ -33,7 +33,7 @@ namespace UE::InstancedActors::Utils
 
 	UClientInstancedActorsSpawnerSubsystem* GetClientInstancedActorsSpawnerSubsystem(UWorld& World)
 	{
-		TSubclassOf<UMassActorSpawnerSubsystem> SpawnerSubsystemClass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetServerActorSpawnerSubsystemClass());
+		TSubclassOf<UMassActorSpawnerSubsystem> SpawnerSubsystemClass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass());
 		check(SpawnerSubsystemClass);
 		return Cast<UClientInstancedActorsSpawnerSubsystem>(World.GetSubsystemBase(SpawnerSubsystemClass));
 	}
