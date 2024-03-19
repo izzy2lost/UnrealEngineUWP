@@ -3,7 +3,6 @@
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
 using EpicGames.Horde;
-using EpicGames.Horde.Tools;
 using Microsoft.Extensions.Configuration;
 
 namespace Horde.Agent
@@ -205,11 +204,6 @@ namespace Horde.Agent
 		/// The executor to use for jobs. Defaults to the Perforce executor.
 		/// </summary>
 		public string Executor { get; set; } = Execution.WorkspaceExecutor.Name;
-
-		/// <summary>
-		/// Default channel for downloading updates
-		/// </summary>
-		public ToolId UpdateChannel { get; set; }
 
 		/// <summary>
 		/// Settings for the local executor

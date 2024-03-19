@@ -437,12 +437,6 @@ namespace Horde.Agent.Services
 			// Used during the transition period over from multi-platform, non-self-contained agent packages.
 			agent.Properties.Add($"SelfContained={AgentApp.IsSelfContained}");
 
-			// Channel to use for agent updates
-			if (!_settings.UpdateChannel.IsEmpty)
-			{
-				agent.Properties.Add($"UpdateChannel={_settings.UpdateChannel}");
-			}
-
 			// Add any additional properties from the config file
 			agent.Properties.AddRange(_settings.Properties.Select(kvp => $"{kvp.Key}={kvp.Value}"));
 			return agent;
