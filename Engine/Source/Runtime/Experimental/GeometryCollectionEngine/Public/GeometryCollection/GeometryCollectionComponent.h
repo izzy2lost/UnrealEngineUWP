@@ -590,6 +590,8 @@ class UGeometryCollectionComponent : public UMeshComponent, public IChaosNotifyH
 	friend class FScopedColorEdit;
 #endif
 	friend class FGeometryCollectionCommands;
+	friend class FGeometryCollectionSceneProxy;
+	friend class FNaniteGeometryCollectionSceneProxy;
 
 public:
 

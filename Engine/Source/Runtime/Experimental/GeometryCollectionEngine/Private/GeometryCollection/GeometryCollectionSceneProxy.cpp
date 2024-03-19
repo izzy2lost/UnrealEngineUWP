@@ -211,6 +211,8 @@ FGeometryCollectionSceneProxy::FGeometryCollectionSceneProxy(UGeometryCollection
 	// changed from the prev to curr frame, but this is expensive.  We should revisit this if the draw calls for velocity
 	// rendering become a problem. One solution could be to use internal solver sleeping state to drive motion blur.
 	bAlwaysHasVelocity = true;
+
+	DynamicData = Component->InitDynamicData(true);
 }
 
 FGeometryCollectionSceneProxy::~FGeometryCollectionSceneProxy()
@@ -302,16 +304,16 @@ void FGeometryCollectionSceneProxy::CreateRenderThreadResources(FRHICommandListB
 		const EResourceLockMode LockMode = bLocalGeometryCollectionTripleBufferUploads ? RLM_WriteOnly_NoOverwrite : RLM_WriteOnly;
 
 		FGeometryCollectionTransformBuffer& TransformBuffer = GetCurrentTransformBuffer();
-		TransformBuffer.UpdateDynamicData(RHICmdList, RestTransforms, LockMode);
+		TransformBuffer.UpdateDynamicData(RHICmdList, DynamicData->Transforms, LockMode);
 		FGeometryCollectionTransformBuffer& PrevTransformBuffer = GetCurrentPrevTransformBuffer();
-		PrevTransformBuffer.UpdateDynamicData(RHICmdList, RestTransforms, LockMode);
+		PrevTransformBuffer.UpdateDynamicData(RHICmdList, DynamicData->PrevTransforms, LockMode);
 	}
 	else
 	{
 		// Initialize CPU skinning buffer with rest transforms.
 		SkinnedPositionVertexBuffer.Init(MeshResource.PositionVertexBuffer.GetNumVertices(), false);
 		SkinnedPositionVertexBuffer.InitResource(RHICmdList);
-		UpdateSkinnedPositions(RHICmdList, RestTransforms);
+		UpdateSkinnedPositions(RHICmdList, DynamicData->Transforms);
 	}
 
 	SetupVertexFactory(RHICmdList, VertexFactory);
@@ -1133,10 +1135,7 @@ FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeomet
 	TArray<FMatrix44f> RestTransforms;
 	Component->GetRestTransforms(RestTransforms);
 
-	FGeometryCollectionDynamicData* DynamicData = GDynamicDataPool.Allocate();
-	DynamicData->IsDynamic = true;
-	DynamicData->Transforms = RestTransforms;
-	DynamicData->PrevTransforms = RestTransforms;
+	FGeometryCollectionDynamicData* DynamicData = Component->InitDynamicData(true);
 	SetDynamicData_RenderThread(DynamicData, Component->GetRenderMatrix());
 }
 
