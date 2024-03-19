@@ -733,7 +733,7 @@ FSubstrateIrradianceAndOcclusion SubstrateUnpackIrradianceAndOcclusion(uint In /
 
 struct FSubstrateTopLayerData
 {
-	float3 BaseColor; // This data is only available during the base pass. It is not packed/stored otherwise.
+	float3 UnlitViewBaseColor; // This data is only available during the base pass. It is not packed/stored otherwise.
 	float3 WorldNormal;
 	float  Roughness;
 	uint   Material;
