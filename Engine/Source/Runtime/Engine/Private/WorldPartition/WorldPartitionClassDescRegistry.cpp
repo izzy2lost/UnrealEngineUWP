@@ -44,6 +44,10 @@
  *
  *	[Saving a existing Blueprint]
  *	  - Create or update the class descriptor.
+ * 
+ *	[Saving a Blueprint Actor]
+ *	  - Prefetch the class descriptor for the Blueprint Actor Class
+ * 
  */
 
 static FAutoConsoleCommand DumpClassDescs(
@@ -524,6 +528,14 @@ void FWorldPartitionClassDescRegistry::OnObjectPreSave(UObject* InObject, FObjec
 					UpdateClassDescriptor(Blueprint, false);
 				}
 			}
+		}
+	}
+
+	if (InObject->IsA<AActor>())
+	{
+		if (UBlueprintGeneratedClass* BlueprintGeneratedClass = Cast<UBlueprintGeneratedClass>(InObject->GetClass()))
+		{			
+			PrefetchClassDesc(BlueprintGeneratedClass);
 		}
 	}
 }
