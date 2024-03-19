@@ -317,6 +317,50 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 
 	bool bSkipObjectNoReplace = false;
 	UObject* ExistingAsset = nullptr;
+
+	auto FollowRedirectorCode = [AsyncHelper, &Pkg, &PackageName, &AssetName]()
+		{
+			if (AsyncHelper->TaskData.bFollowRedirectors)
+			{
+				if (UObjectRedirector* Redirector = FindObject<UObjectRedirector>(Pkg, *AssetName))
+				{
+					if (Redirector->DestinationObject)
+					{
+						Pkg = Redirector->DestinationObject->GetPackage();
+						if (FPackageName::GetLongPackageAssetName(PackageName) == AssetName)
+						{
+							AssetName = FPackageName::GetLongPackageAssetName(Pkg->GetName());
+						}
+					}
+				}
+			}
+		};
+
+	//If the factory node is disable see if there is an existing UObject for it
+	if (!FactoryNode->IsEnabled())
+	{
+		Private::InternalGetPackageName(*AsyncHelper, SourceIndex, PackageBasePath, FactoryNode, PackageName, AssetName);
+		if (!FPackageUtils::IsMapPackageAsset(PackageName))
+		{
+			Pkg = FindPackage(nullptr, *PackageName);
+			if (Pkg)
+			{
+				FollowRedirectorCode();
+				ExistingAsset = StaticFindObject(nullptr, Pkg, *AssetName);
+				if (ExistingAsset)
+				{
+					//Do not call factory for a disabled node but ensure a valid custom reference object for other nodes that depend on this one
+					FSoftObjectPath Reference;
+					if (!FactoryNode->GetCustomReferenceObject(Reference))
+					{
+						FactoryNode->SetCustomReferenceObject(ExistingAsset);
+					}
+				}
+			}
+		}
+		//The node is disabled return now
+		return;
+	}
 	//If we do a reimport no need to create a package
 	if (ObjectToReimport)
 	{
@@ -388,19 +432,9 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 			return;
 		}
 
-		if (!bPackageWasCreated && AsyncHelper->TaskData.bFollowRedirectors)
+		if (!bPackageWasCreated)
 		{
-			if (UObjectRedirector* Redirector = FindObject<UObjectRedirector>(Pkg, *AssetName))
-			{
-				if (Redirector->DestinationObject)
-				{
-					Pkg = Redirector->DestinationObject->GetPackage();
-					if (FPackageName::GetLongPackageAssetName(PackageName) == AssetName)
-					{
-						AssetName = FPackageName::GetLongPackageAssetName(Pkg->GetName());
-					}
-				}
-			}
+			FollowRedirectorCode();
 		}
 		ExistingAsset = StaticFindObject(nullptr, Pkg, *AssetName);
 		if (!bSkipObjectNoReplace && ExistingAsset && !AsyncHelper->TaskData.bReplaceExisting)

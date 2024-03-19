@@ -943,22 +943,6 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::Beg
 		return ImportAssetResult;
 	}
 
-	FString SkeletalMeshFactoryNodeUid;
-	if (SkeletonFactoryNode->GetCustomSkeletalMeshFactoryNodeUid(SkeletalMeshFactoryNodeUid))
-	{
-		const UInterchangeSkeletalMeshFactoryNode* SkeletalMeshFactoryNode = Cast<const UInterchangeSkeletalMeshFactoryNode>(Arguments.NodeContainer->GetFactoryNode(SkeletalMeshFactoryNodeUid));
-
-		FSoftObjectPath SkeletalMesh;
-		SkeletalMeshFactoryNode->GetCustomReferenceObject(SkeletalMesh);
-
-		if (NewAnimSequence == nullptr && !SkeletalMesh.IsValid())
-		{
-			//For AnimSequence (single) Re-Imports the SkeletalMesh is not created in the pipeline.
-			UE_LOG(LogInterchangeImport, Error, TEXT("SkeletalMesh does not exist, the skeleton and skeletal mesh is obligatory to import this animsequence [%s]!"), *Arguments.AssetName);
-			return ImportAssetResult;
-		}
-	}
-
 	FSoftObjectPath SkeletonFactoryNodeReferenceObject;
 	SkeletonFactoryNode->GetCustomReferenceObject(SkeletonFactoryNodeReferenceObject);
 
@@ -987,9 +971,15 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::Beg
 
 		if (!ensure(Skeleton))
 		{
-			UE_LOG(LogInterchangeImport, Error, TEXT("Invalid Skeleton when importing animation sequence asset %s."), *Arguments.AssetName);
+			UE_LOG(LogInterchangeImport, Error, TEXT("Invalid skeleton when importing animation sequence asset %s."), *Arguments.AssetName);
 			return ImportAssetResult;
 		}
+	}
+
+	if (Skeleton->GetReferenceSkeleton().GetRawBoneNum() == 0)
+	{
+		UE_LOG(LogInterchangeImport, Error, TEXT("Invalid empty skeleton when importing animation sequence asset %s."), *Arguments.AssetName);
+		return ImportAssetResult;
 	}
 
 	//Verify if the bone track animation is valid (sequence length versus framerate ...)

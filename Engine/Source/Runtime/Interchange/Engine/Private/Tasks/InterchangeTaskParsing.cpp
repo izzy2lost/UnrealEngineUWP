@@ -140,12 +140,6 @@ void UE::Interchange::FTaskParsing::DoTask(ENamedThreads::Type CurrentThread, co
 			const bool bCanImportSceneNode = AsyncHelper->TaskData.ImportType == EImportType::ImportType_Scene;
 			BaseNodeContainer->IterateNodesOfType<UInterchangeFactoryBaseNode>([&](const FString& NodeUID, UInterchangeFactoryBaseNode* FactoryNode)
 			{
-				if (!FactoryNode->IsEnabled())
-				{
-					//Do not call factory for a disabled node
-					return;
-				}
-
 				UClass* ObjectClass = FactoryNode->GetObjectClass();
 				if (ObjectClass != nullptr)
 				{
