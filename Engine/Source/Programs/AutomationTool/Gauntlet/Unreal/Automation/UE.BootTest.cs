@@ -85,6 +85,7 @@ namespace UE
 		/// <returns></returns>
 		protected virtual string GetCompletionString()
 		{
+			// Intentionally setup with no completion string as UnrealTestNode verified initialization string already
 			return null;
 		}
 
