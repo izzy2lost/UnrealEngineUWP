@@ -846,22 +846,13 @@ void FTextHistory_Base::Serialize(FStructuredArchive::FRecord Record)
 			}
 #endif // USE_STABLE_LOCALIZATION_KEYS
 
+#if WITH_EDITOR
 			// If this has no key, give it a GUID for a key
-			if (GIsEditor && TextId.IsEmpty() && (BaseArchive.IsPersistent() && !BaseArchive.HasAnyPortFlags(PPF_Duplicate)))
+			if (GIsEditor && Key.IsEmpty() && (BaseArchive.IsPersistent() && !BaseArchive.HasAnyPortFlags(PPF_Duplicate)))
 			{
 				Key = FGuid::NewGuid().ToString();
-				if (FTextLocalizationManager::Get().AddDisplayString(MakeTextDisplayString(CopyTemp(SourceString)), Namespace, Key))
-				{
-					TextId = FTextId(Namespace, Key);
-					MarkDisplayStringOutOfDate();
-				}
-				else
-				{
-					// Could not add display string, reset namespace and key.
-					Namespace.Reset();
-					Key.Reset();
-				}
 			}
+#endif // WITH_EDITOR
 		}
 
 		// Serialize the Namespace
