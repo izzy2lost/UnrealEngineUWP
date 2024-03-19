@@ -209,7 +209,7 @@ public:
 	}
 
 	/** Hash function. */
-	FORCEINLINE friend uint32 GetTypeHash(const TWeakFieldPtr& WeakObjectPtr)
+	[[nodiscard]] FORCEINLINE friend uint32 GetTypeHash(const TWeakFieldPtr& WeakObjectPtr)
 	{
 		return GetTypeHash(WeakObjectPtr.Field);
 	}

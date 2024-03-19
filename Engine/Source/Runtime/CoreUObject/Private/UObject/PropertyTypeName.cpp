@@ -275,7 +275,7 @@ bool FPropertyTypeName::IsEnum(FName EnumName) const
 	return First->InnerCount > 0 && (First->Name == NAME_EnumProperty || First->Name == NAME_ByteProperty) && First[1].Name == EnumName;
 }
 
-uint32 GetTypeHash(const FPropertyTypeName& TypeName)
+[[nodiscard]] uint32 GetTypeHash(const FPropertyTypeName& TypeName)
 {
 	const FPropertyTypeNameNode* First = GPropertyTypeNameTable.ResolveByIndex(TypeName.Index);
 	return GetTypeHash(FPropertyTypeNameNodeProxy{First});

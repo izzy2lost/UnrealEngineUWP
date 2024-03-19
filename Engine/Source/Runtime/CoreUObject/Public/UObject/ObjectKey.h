@@ -134,7 +134,7 @@ public:
 	}
 
 	/** Hash function */
-	friend uint32 GetTypeHash(const FObjectKey& Key)
+	[[nodiscard]] friend uint32 GetTypeHash(const FObjectKey& Key)
 	{
 		return HashCombine(Key.ObjectIndex, Key.ObjectSerialNumber);
 	}
@@ -208,7 +208,7 @@ public:
 	}
 
 	//** Hash function */
-	friend uint32 GetTypeHash(const TObjectKey& Key)
+	[[nodiscard]] friend uint32 GetTypeHash(const TObjectKey& Key)
 	{
 		return GetTypeHash(Key.ObjectKey);
 	}

@@ -162,7 +162,7 @@ struct FTopLevelAssetPath
 		return AssetName.CompareIndexes(Other.AssetName);
 	}
 
-	friend uint32 GetTypeHash(FTopLevelAssetPath const& This)
+	[[nodiscard]] friend uint32 GetTypeHash(FTopLevelAssetPath const& This)
 	{
 		return HashCombineFast(GetTypeHash(This.PackageName), GetTypeHash(This.AssetName));
 	}

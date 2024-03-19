@@ -173,7 +173,7 @@ public:
 		}
 	}
 
-	FORCEINLINE_DEBUGGABLE friend uint32 GetTypeHash(const TStrongObjectPtr& InStrongObjectPtr)
+	[[nodiscard]] FORCEINLINE_DEBUGGABLE friend uint32 GetTypeHash(const TStrongObjectPtr& InStrongObjectPtr)
 	{
 		return GetTypeHash(InStrongObjectPtr.Get());
 	}

@@ -323,7 +323,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	/** Fixes soft object path for CoreRedirects to handle renamed native objects, returns true if it was modified */
 	COREUOBJECT_API bool FixupCoreRedirects();
 
-	FORCEINLINE friend uint32 GetTypeHash(FSoftObjectPath const& This)
+	[[nodiscard]] FORCEINLINE friend uint32 GetTypeHash(FSoftObjectPath const& This)
 	{
 		uint32 Hash = 0;
 

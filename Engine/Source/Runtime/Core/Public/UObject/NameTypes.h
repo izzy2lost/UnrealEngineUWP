@@ -1744,7 +1744,7 @@ private:
 #endif
 	friend bool operator==(FNameEntryId A, FDisplayNameEntryId B) { return A == B.GetDisplayId(); }
 	friend bool operator==(FDisplayNameEntryId A, FNameEntryId B) { return A.GetDisplayId() == B; }
-	friend uint32 GetTypeHash(FDisplayNameEntryId InId) { return GetTypeHash(InId.GetDisplayId()); }
+	[[nodiscard]] friend uint32 GetTypeHash(FDisplayNameEntryId InId) { return GetTypeHash(InId.GetDisplayId()); }
 
 public: // Internal functions for batch serialization code - intentionally lacking CORE_API
 	static FDisplayNameEntryId FromComparisonId(FNameEntryId ComparisonId);

@@ -150,7 +150,7 @@ public:
 		Slot << Value.Index;
 	}
 
-	FORCEINLINE friend uint32 GetTypeHash(const FPackageIndex& In)
+	[[nodiscard]] FORCEINLINE friend uint32 GetTypeHash(const FPackageIndex& In)
 	{
 		return uint32(In.Index);
 	}

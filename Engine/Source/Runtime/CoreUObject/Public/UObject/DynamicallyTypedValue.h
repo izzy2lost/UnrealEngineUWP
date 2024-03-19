@@ -113,7 +113,7 @@ namespace UE
 		}
 
 		// Returns hash of the underlying FDynamicallyTypedValue's value. Added to allow for FDynamicallyTypedValue to be used as TMap keys.
-		friend uint32 GetTypeHash(const FDynamicallyTypedValue& DynamicallyTypedValue)
+		[[nodiscard]] friend uint32 GetTypeHash(const FDynamicallyTypedValue& DynamicallyTypedValue)
 		{
 			return DynamicallyTypedValue.GetType().GetValueHash(DynamicallyTypedValue.GetDataPointer());
 		}

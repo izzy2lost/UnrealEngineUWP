@@ -435,7 +435,7 @@ public:
 #endif
 
 	/** Support comparison functions that make this usable as a KeyValue for a TSet<> */
-	friend uint32 GetTypeHash(const FFieldVariant& InFieldVariant)
+	[[nodiscard]] friend uint32 GetTypeHash(const FFieldVariant& InFieldVariant)
 	{
 		return GetTypeHash(InFieldVariant.GetRawPointer());
 	}

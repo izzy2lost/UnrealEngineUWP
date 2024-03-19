@@ -447,7 +447,7 @@ public:
 		ObjectPtr->ProcessEvent(Function, Parameters);
 	}
 
-	friend uint32 GetTypeHash(const TScriptDelegate& Delegate)
+	[[nodiscard]] friend uint32 GetTypeHash(const TScriptDelegate& Delegate)
 	{
 		FReadAccessScope ReadScope = Delegate.GetReadAccessScope();
 

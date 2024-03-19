@@ -159,7 +159,7 @@ public:
 		Slot << Class;
 	}
 
-	friend uint32 GetTypeHash(const TSubclassOf& SubclassOf)
+	[[nodiscard]] friend uint32 GetTypeHash(const TSubclassOf& SubclassOf)
 	{
 		return GetTypeHash(SubclassOf.Class);
 	}

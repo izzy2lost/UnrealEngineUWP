@@ -92,7 +92,7 @@ void FPropertyPathName::ToString(FStringBuilderBase& Out, FStringView Separator)
 	}
 }
 
-uint32 GetTypeHash(const FPropertyPathName& Path)
+[[nodiscard]] uint32 GetTypeHash(const FPropertyPathName& Path)
 {
 	uint32 Hash = 0;
 	for (const FPropertyPathName::FSegment& Segment : Path.Segments)
