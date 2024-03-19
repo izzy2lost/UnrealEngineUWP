@@ -12,14 +12,12 @@ namespace Horde.Server.Ddc
 	[AttributeUsage(AttributeTargets.Method)]
 	public sealed class RequiredContentTypeAttribute : Attribute, IActionConstraint
 	{
-		private readonly string _mediaTypeName;
+		public string[] MediaTypeNames { get; }
 
-		public RequiredContentTypeAttribute(string mediaTypeName)
+		public RequiredContentTypeAttribute(params string[] mediaTypeNames)
 		{
-			_mediaTypeName = mediaTypeName;
+			MediaTypeNames = mediaTypeNames;
 		}
-
-		public string MediaTypeName => _mediaTypeName;
 
 		public int Order => 0;
 
@@ -27,7 +25,7 @@ namespace Horde.Server.Ddc
 		{
 			StringValues contentTypeHeader = context.RouteContext.HttpContext.Request.Headers["Content-Type"];
 
-			bool valid = contentTypeHeader.ToList().Contains(_mediaTypeName, StringComparer.InvariantCultureIgnoreCase);
+			bool valid = contentTypeHeader.Any(s => MediaTypeNames.Contains(s, StringComparer.InvariantCultureIgnoreCase));
 			return valid;
 		}
 	}

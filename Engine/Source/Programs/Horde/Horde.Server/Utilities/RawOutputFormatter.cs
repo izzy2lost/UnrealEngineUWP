@@ -10,9 +10,11 @@ using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 
+#pragma warning disable CS1591
+
 namespace Horde.Server.Utilities
 {
-	class RawOutputFormatter : OutputFormatter
+	public class RawOutputFormatter : OutputFormatter
 	{
 		private readonly ILogger _logger;
 

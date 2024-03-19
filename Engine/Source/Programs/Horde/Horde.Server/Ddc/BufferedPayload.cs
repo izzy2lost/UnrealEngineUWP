@@ -2,95 +2,66 @@
 
 using System;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
+#pragma warning disable CS1591
+
 namespace Horde.Server.Ddc
 {
-	/// <summary>
-	/// Base class for a payload stream that supports seeking
-	/// </summary>
-	public abstract class BufferedPayload : IDisposable
+	public interface IBufferedPayload : IDisposable
 	{
-		/// <summary>
-		/// Length of the payload
-		/// </summary>
-		public long Length { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		protected BufferedPayload(long length)
-		{
-			Length = length;
-		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			Dispose(true);
-			GC.SuppressFinalize(this);
-		}
-
-		/// <summary>
-		/// Overridable implementation of <see cref="Dispose()"/>
-		/// </summary>
-		protected virtual void Dispose(bool disposing)
-		{
-		}
-
-		/// <summary>
-		/// Opens a stream to the payload
-		/// </summary>
-		public abstract Stream GetStream();
+		Stream GetStream();
+		long Length { get; }
 	}
 
 	/// <summary>
 	/// Streaming request that is streamed into memory
 	/// </summary>
-	public sealed class MemoryBufferedPayload : BufferedPayload
+	public sealed class MemoryBufferedPayload : IBufferedPayload
 	{
-		private readonly ReadOnlyMemory<byte> _buffer;
+		private readonly byte[] _buffer;
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public MemoryBufferedPayload(ReadOnlyMemory<byte> source)
-			: base(source.Length)
+		public MemoryBufferedPayload(byte[] source)
 		{
 			_buffer = source;
 		}
 
-		/// <summary>
-		/// Create a buffered payload from a stream
-		/// </summary>
-		public static async Task<MemoryBufferedPayload> CreateAsync(Tracer tracer, Stream s, CancellationToken cancellationToken = default)
+		public static async Task<MemoryBufferedPayload> CreateAsync(Tracer tracer, Stream s)
 		{
 			using TelemetrySpan scope = tracer.StartActiveSpan("payload.buffer")
 				.SetAttribute("operation.name", "payload.buffer")
 				.SetAttribute("bufferType", "Memory");
-			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArrayAsync(cancellationToken));
+			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArrayAsync());
+
 			return payload;
 		}
 
-		/// <inheritdoc/>
-		public override Stream GetStream() => new ReadOnlyMemoryStream(_buffer);
+		public void Dispose()
+		{
+
+		}
+
+		public Stream GetStream()
+		{
+			return new MemoryStream(_buffer);
+		}
+
+		public long Length => _buffer.LongLength;
 	}
 
 	/// <summary>
 	/// Helper to generate a filesystem buffered payload from a stream 
 	/// </summary>
-	sealed class FilesystemBufferedPayloadWriter : IDisposable
+	public sealed class FilesystemBufferedPayloadWriter : IDisposable
 	{
 		private FileInfo? _tempFile;
 
-		public FilesystemBufferedPayloadWriter()
+		private FilesystemBufferedPayloadWriter(string filesystemRoot)
 		{
-			_tempFile = new FileInfo(Path.GetTempFileName());
+			_tempFile = new FileInfo(Path.Combine(filesystemRoot, Path.GetRandomFileName()));
 		}
 
 		public void Dispose()
@@ -123,88 +94,96 @@ namespace Horde.Server.Ddc
 
 			return _tempFile.OpenWrite();
 		}
+
+		public static FilesystemBufferedPayloadWriter Create(string filesystemTempPayloadRoot)
+		{
+			return new FilesystemBufferedPayloadWriter(filesystemTempPayloadRoot);
+		}
 	}
 
 	/// <summary>
 	/// A streaming request backed by a temporary file on disk
 	/// </summary>
-	public sealed class FilesystemBufferedPayload : BufferedPayload
+	public sealed class FilesystemBufferedPayload : IBufferedPayload
 	{
 		private readonly FileInfo _tempFile;
+		private long _length;
 
-		internal FilesystemBufferedPayload(FileInfo tempFile)
-			: base(tempFile.Length)
+		public FileInfo TempFile => _tempFile;
+
+		private FilesystemBufferedPayload(string filesystemRoot)
 		{
-			_tempFile = tempFile;
+			_tempFile = new FileInfo(Path.Combine(filesystemRoot, Path.GetRandomFileName()));
 		}
 
-		/// <summary>
-		/// Create a new payload instance backed by the filesystem
-		/// </summary>
-		public static async Task<FilesystemBufferedPayload> CreateAsync(Tracer tracer, Stream s, CancellationToken cancellationToken)
+		internal FilesystemBufferedPayload(FileInfo bufferFile)
 		{
-			FileInfo tempFile = new FileInfo(Path.GetTempFileName());
+			_tempFile = bufferFile;
+			_tempFile.Refresh();
+			_length = _tempFile.Length;
+		}
+
+		public static async Task<FilesystemBufferedPayload> CreateAsync(Tracer tracer, Stream s, string filesystemRoot)
+		{
+			FilesystemBufferedPayload payload = new FilesystemBufferedPayload(filesystemRoot);
 
 			{
 				using TelemetrySpan? scope = tracer.StartActiveSpan("payload.buffer")
 					.SetAttribute("operation.name", "payload.buffer")
 					.SetAttribute("bufferType", "Filesystem");
-				await using FileStream fs = tempFile.OpenWrite();
-				await s.CopyToAsync(fs, cancellationToken);
+				await using FileStream fs = payload._tempFile.OpenWrite();
+				await s.CopyToAsync(fs);
 			}
 
-			tempFile.Refresh();
+			payload._tempFile.Refresh();
+			payload._length = payload._tempFile.Length;
 
-			return new FilesystemBufferedPayload(tempFile);
+			return payload;
 		}
 
-		/// <inheritdoc/>
-		protected override void Dispose(bool disposing)
+		public void Dispose()
 		{
-			base.Dispose(disposing);
-
 			if (_tempFile.Exists)
 			{
 				_tempFile.Delete();
 			}
 		}
 
-		/// <inheritdoc/>
-		public override Stream GetStream() => _tempFile.OpenRead();
+		public Stream GetStream()
+		{
+			return _tempFile.OpenRead();
+		}
+
+		public long Length => _length;
 	}
 
-	/// <summary>
-	/// Options for creating <see cref="BufferedPayload"/> instances
-	/// </summary>
 	public class BufferedPayloadOptions
 	{
 		/// <summary>
 		/// If the request is smaller then MemoryBufferSize we buffer it in memory rather then as a file
 		/// </summary>
-		public long MemoryBufferSize { get; set; } = 128 * 1024 * 1024;
+		public long MemoryBufferSize { get; set; } = int.MaxValue;
+
+		/// <summary>
+		/// The default root to create temporary buffered files under, defaults to %TEMP% or /tmp
+		/// </summary>
+		public string FilesystemTempPayloadRoot { get; set; } = Path.GetTempPath();
 	}
 
-	/// <summary>
-	/// Factory for creating <see cref="BufferedPayload"/> instances
-	/// </summary>
 	public class BufferedPayloadFactory
 	{
 		private readonly IOptionsMonitor<BufferedPayloadOptions> _options;
 		private readonly Tracer _tracer;
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
 		public BufferedPayloadFactory(IOptionsMonitor<BufferedPayloadOptions> options, Tracer tracer)
 		{
 			_options = options;
 			_tracer = tracer;
+
+			Directory.CreateDirectory(options.CurrentValue.FilesystemTempPayloadRoot);
 		}
 
-		/// <summary>
-		/// Create a new buffered payload from an HTTP request
-		/// </summary>
-		public Task<BufferedPayload> CreateFromRequestAsync(HttpRequest request)
+		public Task<IBufferedPayload> CreateFromRequest(HttpRequest request)
 		{
 			long? contentLength = request.ContentLength;
 
@@ -216,18 +195,25 @@ namespace Horde.Server.Ddc
 			return CreateFromStreamAsync(request.Body, contentLength.Value);
 		}
 
-		/// <summary>
-		/// Create a new buffered payload instance from a stream
-		/// </summary>
-		public async Task<BufferedPayload> CreateFromStreamAsync(Stream s, long contentLength, CancellationToken cancellationToken = default)
+		public async Task<IBufferedPayload> CreateFromStreamAsync(Stream s, long contentLength)
 		{
 			// blob is small enough to fit into memory we just read it as is
 			if (contentLength < _options.CurrentValue.MemoryBufferSize)
 			{
-				return await MemoryBufferedPayload.CreateAsync(_tracer, s, cancellationToken);
+				return await MemoryBufferedPayload.CreateAsync(_tracer, s);
 			}
 
-			return await FilesystemBufferedPayload.CreateAsync(_tracer, s, cancellationToken);
+			return await FilesystemBufferedPayload.CreateAsync(_tracer, s, _options.CurrentValue.FilesystemTempPayloadRoot);
+		}
+
+		public async Task<IBufferedPayload> CreateFilesystemBufferedPayloadAsync(Stream s)
+		{
+			return await FilesystemBufferedPayload.CreateAsync(_tracer, s, _options.CurrentValue.FilesystemTempPayloadRoot);
+		}
+
+		public FilesystemBufferedPayloadWriter CreateFilesystemBufferedPayloadWriter()
+		{
+			return FilesystemBufferedPayloadWriter.Create(_options.CurrentValue.FilesystemTempPayloadRoot);
 		}
 	}
 }

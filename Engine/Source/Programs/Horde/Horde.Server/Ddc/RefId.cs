@@ -3,91 +3,136 @@
 using System;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Serialization;
 
+#pragma warning disable CS1591
+
 namespace Horde.Server.Ddc
 {
-	/// <summary>
-	/// Identifier for a DDC ref. Wrapper around an IoHash.
-	/// </summary>
-	[JsonConverter(typeof(RefIdJsonConverter))]
-	[TypeConverter(typeof(RefIdTypeConverter))]
-	[CbConverter(typeof(RefIdCbConverter))]
+	[TypeConverter(typeof(IoHashKeyTypeConverter))]
+	[JsonConverter(typeof(IoHashKeyJsonConverter))]
+	[CbConverter(typeof(IoHashKeyCbConverter))]
 	public readonly struct RefId : IEquatable<RefId>
 	{
-		/// <summary>
-		/// Hash of the ref name
-		/// </summary>
-		public IoHash Hash { get; }
+		public RefId(string key)
+		{
+			_text = key.ToLower();
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public RefId(IoHash hash) => Hash = hash;
+			if (_text.Length != 40)
+			{
+				throw new ArgumentException("IoHashKeys must be exactly 40 bytes.");
+			}
 
-		/// <summary>
-		/// Parses a ref id from a string
-		/// </summary>
-		public static RefId Parse(string str) => new RefId(IoHash.Parse(str));
+			for (int idx = 0; idx < _text.Length; idx++)
+			{
+				if (!IsValidCharacter(_text[idx]))
+				{
+					throw new ArgumentException($"{_text} is not a valid namespace id");
+				}
+			}
+		}
 
-		/// <inheritdoc/>
-		public override readonly bool Equals(object? obj) => obj is RefId id && Hash.Equals(id.Hash);
+		static bool IsValidCharacter(char c)
+		{
+			if (c >= 'a' && c <= 'z')
+			{
+				return true;
+			}
+			if (c >= '0' && c <= '9')
+			{
+				return true;
+			}
+			return false;
+		}
+		readonly string _text;
 
-		/// <inheritdoc/>
-		public override readonly int GetHashCode() => Hash.GetHashCode();
+		public bool Equals(RefId other)
+		{
+			return string.Equals(_text, other._text, StringComparison.Ordinal);
+		}
 
-		/// <inheritdoc/>
-		public readonly bool Equals(RefId other) => Hash.Equals(other.Hash);
+		public override bool Equals(object? obj)
+		{
+			return obj is RefId other && Equals(other);
+		}
 
-		/// <inheritdoc/>
-		public override readonly string ToString() => Hash.ToString();
+		public override int GetHashCode()
+		{
+			return _text.GetHashCode(StringComparison.Ordinal);
+		}
 
-		/// <inheritdoc cref="IoHash.op_Equality"/>
-		public static bool operator ==(RefId left, RefId right) => left.Hash == right.Hash;
+		public override string ToString()
+		{
+			return _text;
+		}
 
-		/// <inheritdoc cref="IoHash.op_Inequality"/>
-		public static bool operator !=(RefId left, RefId right) => left.Hash != right.Hash;
+		public static bool operator ==(RefId left, RefId right)
+		{
+			return left.Equals(right);
+		}
 
-		/// <summary>
-		/// Creates a RefId by hashing a string
-		/// </summary>
-		public static RefId FromName(string name) => new RefId(IoHash.Compute(Encoding.UTF8.GetBytes(name)));
+		public static bool operator !=(RefId left, RefId right)
+		{
+			return !left.Equals(right);
+		}
+
+		public static RefId FromName(string s)
+		{
+			return new RefId(ContentHash.FromBlob(Encoding.UTF8.GetBytes(s)).ToString());
+		}
 	}
 
-	/// <summary>
-	/// Type converter for RefId to and from JSON
-	/// </summary>
-	sealed class RefIdJsonConverter : JsonConverter<RefId>
+	public sealed class IoHashKeyTypeConverter : TypeConverter
 	{
 		/// <inheritdoc/>
-		public override RefId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => RefId.Parse(reader.GetString() ?? String.Empty);
+		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
+		{
+			if (sourceType == typeof(string))
+			{
+				return true;
+			}
 
-		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, RefId value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
+			return base.CanConvertFrom(context, sourceType);
+		}
+
+		public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
+		{
+			if (value is string s)
+			{
+				return new RefId(s);
+			}
+
+			return base.ConvertFrom(context, culture, value);
+		}
 	}
 
-	/// <summary>
-	/// Type converter from strings to RefId objects
-	/// </summary>
-	sealed class RefIdTypeConverter : TypeConverter
+	public class IoHashKeyJsonConverter : JsonConverter<RefId>
 	{
-		/// <inheritdoc/>
-		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type? sourceType) => sourceType == typeof(string);
+		public override RefId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			string? str = reader.GetString();
+			if (str == null)
+			{
+				throw new InvalidDataException("Unable to parse io hash key");
+			}
 
-		/// <inheritdoc/>
-		public override object ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object? value) => RefId.Parse((string)value!);
+			return new RefId(str);
+		}
+
+		public override void Write(Utf8JsonWriter writer, RefId value, JsonSerializerOptions options)
+		{
+			writer.WriteStringValue(value.ToString());
+		}
 	}
 
-	/// <summary>
-	/// Type converter to compact binary objects
-	/// </summary>
-	sealed class RefIdCbConverter : CbConverter<RefId>
+	sealed class IoHashKeyCbConverter : CbConverter<RefId>
 	{
-		public override RefId Read(CbField field) => RefId.Parse(field.AsString());
+		public override RefId Read(CbField field) => new RefId(field.AsString());
 
 		/// <inheritdoc/>
 		public override void Write(CbWriter writer, RefId value) => writer.WriteStringValue(value.ToString());
@@ -96,3 +141,4 @@ namespace Horde.Server.Ddc
 		public override void WriteNamed(CbWriter writer, CbFieldName name, RefId value) => writer.WriteString(name, value.ToString());
 	}
 }
+

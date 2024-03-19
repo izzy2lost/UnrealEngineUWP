@@ -9,8 +9,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text;
-using System.Text.Json;
-using System.Threading;
 using System.Threading.Tasks;
 using Blake3;
 using EpicGames.AspNet;
@@ -21,9 +19,9 @@ using Horde.Server.Ddc;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Serilog;
 
 namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 {
@@ -54,24 +52,27 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 		[TestMethod]
 		[DataTestMethod]
 		[DataRow("7835c353d7dc67e8a0531c88fbc75ddfda10dee4", "7835c353d7dc67e8a0531c88fbc75ddfda10dee4")]
-		/*        [DataRow("4958689fe783e02fb35b13c14b0c3d7beb91e50c", "4958689fe783e02fb35b13c14b0c3d7beb91e50c")]
-				[DataRow("dce31eb416f3dcb4c8250ac545eda3930919d3ff", "dce31eb416f3dcb4c8250ac545eda3930919d3ff")]
-				[DataRow("05d7c699a2668efdecbe48f10db0d621d736f449.uecomp", "05D7C699A2668EFDECBE48F10DB0D621D736F449")]
-				[DataRow("dce31eb416f3dcb4c8250ac545eda3930919d3ff", "dce31eb416f3dcb4c8250ac545eda3930919d3ff")]
-				[DataRow("UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd", "DEA81B6C3B565BB5089695377C98CE0F1C13B0C3")]
-				[DataRow("Oodle-f895ea954b37217270e88d8b728bd3c09152689c", "F895EA954B37217270E88D8B728BD3C09152689C")]
-				[DataRow("Oodle-f0b9c675fe21951ca27699f9baab9f9f5040b202", "F0B9C675FE21951CA27699F9BAAB9F9F5040B202")]
-				[DataRow("OodleTexture_CAS_dbda9040e75c4674fcec173f982fddf12b021e24.udd", "DBDA9040E75C4674FCEC173F982FDDF12B021E24")]
-		*/
+		[DataRow("4958689fe783e02fb35b13c14b0c3d7beb91e50c", "4958689fe783e02fb35b13c14b0c3d7beb91e50c")]
+		[DataRow("dce31eb416f3dcb4c8250ac545eda3930919d3ff", "dce31eb416f3dcb4c8250ac545eda3930919d3ff")]
+		[DataRow("05d7c699a2668efdecbe48f10db0d621d736f449.uecomp", "05D7C699A2668EFDECBE48F10DB0D621D736F449")]
+		[DataRow("dce31eb416f3dcb4c8250ac545eda3930919d3ff", "dce31eb416f3dcb4c8250ac545eda3930919d3ff")]
+		[DataRow("UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd", "DEA81B6C3B565BB5089695377C98CE0F1C13B0C3")]
+		[DataRow("Oodle-f895ea954b37217270e88d8b728bd3c09152689c", "F895EA954B37217270E88D8B728BD3C09152689C")]
+		[DataRow("Oodle-f0b9c675fe21951ca27699f9baab9f9f5040b202", "F0B9C675FE21951CA27699F9BAAB9F9F5040B202")]
+		[DataRow("OodleTexture_CAS_dbda9040e75c4674fcec173f982fddf12b021e24.udd", "DBDA9040E75C4674FCEC173F982FDDF12B021E24")]
 		public async Task PutPayloadsAsync(string payloadFilename, string uncompressedHash)
 		{
 			byte[] texturePayload = await File.ReadAllBytesAsync($"Ddc/Functional/ContentId/Payloads/{payloadFilename}");
 			BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
-			BlobId uncompressedPayloadIdentifier = BlobId.Parse(uncompressedHash);
+			BlobId uncompressedPayloadIdentifier = new BlobId(uncompressedHash);
 
 			using ByteArrayContent content = new(texturePayload);
 			content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);
 			HttpResponseMessage result = await Client!.PutAsync(new Uri($"api/v1/compressed-blobs/{TestNamespace}/{uncompressedPayloadIdentifier}", UriKind.Relative), content);
+			if (result.StatusCode == HttpStatusCode.InternalServerError)
+			{
+				Assert.Fail($"Internal server error with message: {await result.Content.ReadAsStringAsync()}");
+			}
 			result.EnsureSuccessStatusCode();
 
 			InsertResponse? response = await result.Content.ReadFromJsonAsync<InsertResponse>();
@@ -85,7 +86,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 		{
 			byte[] texturePayload = await File.ReadAllBytesAsync("Ddc/Functional/ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
 			BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
-			ContentId uncompressedPayloadIdentifier = ContentId.Parse("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
+			ContentId uncompressedPayloadIdentifier = new ContentId("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
 
 			{
 				using ByteArrayContent content = new(texturePayload);
@@ -97,7 +98,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 				Assert.IsNotNull(response);
 				Assert.IsNotNull(response.Identifier);
 				Assert.AreNotEqual(compressedPayloadIdentifier, response.Identifier);
-				Assert.AreEqual(uncompressedPayloadIdentifier, ContentId.FromBlobId(response.Identifier.Value));
+				Assert.AreEqual(uncompressedPayloadIdentifier, ContentId.FromBlobIdentifier(response.Identifier));
 			}
 
 			{
@@ -135,14 +136,16 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 		public async Task PutGetLargeCompressedPayloadAsync()
 		{
 			// we submit a blob so large that it can not fit using the memory blob store
+			IBlobStore? blobStore = ServiceProvider.GetRequiredService<IBlobStore>();
+
 			FileInfo tempOutputFile = new FileInfo(Path.GetTempFileName());
 			FileInfo tempCompressedFile = new FileInfo(Path.GetTempFileName());
 
-			ILogger logger = ServiceProvider.GetRequiredService<ILogger<CompressedBlobTests>>()!;
+			ILogger logger = ServiceProvider.GetRequiredService<ILogger>()!;
 
 			try
 			{
-				logger.LogInformation("Generating large file");
+				logger.Information("Generating large file");
 				int blockSize = 1024 * 1024;
 				// we want a file larger then 6GB, each block is 1 MB
 				int countOfBlocks = 6500;
@@ -168,15 +171,15 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 					bufferUtils.CompressContent(fs, OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.HyperFast4, blocksToCompress, blockSize);
 				}
 
-				logger.LogInformation("Hashing generated file");
+				logger.Information("Hashing generated file");
 				BlobId blobIdentifier = BlobId.FromIoHash(uncompressedContentHash);
 				BlobId compressedContentHash;
 				{
 					await using FileStream fs = tempCompressedFile.OpenRead();
-					compressedContentHash = await BlobId.FromStreamAsync(fs, CancellationToken.None);
+					compressedContentHash = await BlobId.FromStreamAsync(fs);
 				}
 
-				logger.LogInformation("Uploading large file");
+				logger.Information("Uploading large file");
 
 				// it takes a long time to upload this content and we will not get any response while it happens so we have to bump the timeout
 				Client!.Timeout = TimeSpan.FromMinutes(5.0);
@@ -192,8 +195,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 					Assert.AreEqual(blobIdentifier, response.Identifier);
 				}
 
-				logger.LogInformation("Large file uploaded");
-				logger.LogInformation("Downloading large file");
+				logger.Information("Large file uploaded");
+				logger.Information("Downloading large file");
 
 				{
 					// verify we can fetch the blob again
@@ -210,11 +213,11 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 
 					await using FileStream downloadedFile = tempOutputFile.OpenRead();
 
-					BlobId downloadedBlobIdentifier = await BlobId.FromStreamAsync(downloadedFile, CancellationToken.None);
+					BlobId downloadedBlobIdentifier = await BlobId.FromStreamAsync(downloadedFile);
 					Assert.AreEqual(compressedContentHash, downloadedBlobIdentifier);
 				}
 
-				logger.LogInformation("Download completed");
+				logger.Information("Download completed");
 			}
 			finally
 			{
@@ -234,7 +237,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 		[TestMethod]
 		public async Task RecompressionTestAsync()
 		{
-			ContentId uncompressedPayloadIdentifier = ContentId.Parse("A2AC0ECED768698F7413F131D064D36B7EC6F7DA");
+			ContentId uncompressedPayloadIdentifier = new ContentId("A2AC0ECED768698F7413F131D064D36B7EC6F7DA");
 			byte[] texturePayloadSmaller = await File.ReadAllBytesAsync("Ddc/Functional/ContentId/Payloads/smallerfile");
 			BlobId compressedPayloadIdentifierSmaller = BlobId.FromBlob(texturePayloadSmaller);
 
@@ -244,13 +247,13 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 				HttpResponseMessage result = await Client!.PutAsync(new Uri($"api/v1/compressed-blobs/{TestNamespace}/{uncompressedPayloadIdentifier}", UriKind.Relative), content);
 				result.EnsureSuccessStatusCode();
 
-				InsertResponse response = JsonSerializer.Deserialize<InsertResponse>(await result.Content.ReadAsByteArrayAsync())!;
+				InsertResponse response = (await result.Content.ReadFromJsonAsync<InsertResponse>())!;
 				Assert.IsNotNull(response.Identifier);
 				Assert.AreNotEqual(compressedPayloadIdentifierSmaller, response.Identifier);
-				Assert.AreEqual(uncompressedPayloadIdentifier, ContentId.FromBlobId(response.Identifier.Value));
+				Assert.AreEqual(uncompressedPayloadIdentifier, ContentId.FromBlobIdentifier(response.Identifier));
 			}
 
-			byte[] texturePayloadLarger = await File.ReadAllBytesAsync("Ddc/Functional/ContentId/Payloads/largerfile");
+			byte[] texturePayloadLarger = await File.ReadAllBytesAsync("ContentId/Payloads/largerfile");
 			BlobId compressedPayloadIdentifierLarger = BlobId.FromBlob(texturePayloadLarger);
 
 			{
@@ -259,10 +262,10 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 				HttpResponseMessage result = await Client!.PutAsync(new Uri($"api/v1/compressed-blobs/{TestNamespace}/{uncompressedPayloadIdentifier}", UriKind.Relative), content);
 				result.EnsureSuccessStatusCode();
 
-				InsertResponse response = JsonSerializer.Deserialize<InsertResponse>(await result.Content.ReadAsByteArrayAsync())!;
+				InsertResponse response = (await result.Content.ReadFromJsonAsync<InsertResponse>())!;
 				Assert.IsNotNull(response.Identifier);
 				Assert.AreNotEqual(compressedPayloadIdentifierLarger, response.Identifier);
-				Assert.AreEqual(uncompressedPayloadIdentifier, ContentId.FromBlobId(response.Identifier.Value));
+				Assert.AreEqual(uncompressedPayloadIdentifier, ContentId.FromBlobIdentifier(response.Identifier));
 			}
 
 			{
@@ -298,7 +301,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 		{
 			byte[] texturePayload = await File.ReadAllBytesAsync("Ddc/Functional/ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
 			BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
-			BlobId uncompressedPayloadIdentifier = BlobId.Parse("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
+			BlobId uncompressedPayloadIdentifier = new BlobId("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
 			{
 				using ByteArrayContent content = new(texturePayload);
 				content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);

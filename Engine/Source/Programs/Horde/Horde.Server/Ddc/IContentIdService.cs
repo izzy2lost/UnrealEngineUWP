@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Storage;
 using System;
 using System.Threading.Tasks;
-using EpicGames.Horde.Storage;
 
 #pragma warning disable CS1591
 
 namespace Horde.Server.Ddc
 {
-	public interface IContentIdService
+	public interface IContentIdStore
 	{
 		/// <summary>
 		/// Resolve a content id from its hash into the actual blob (that can in turn be chunked into a set of blobs)

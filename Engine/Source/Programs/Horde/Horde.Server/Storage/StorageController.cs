@@ -16,7 +16,6 @@ using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Serialization;
-using Horde.Server.Ddc;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
@@ -27,6 +26,8 @@ using Microsoft.Extensions.Options;
 
 namespace Horde.Server.Storage
 {
+	using DdcRefNode = Horde.Server.Ddc.DdcRefNode;
+
 	/// <summary>
 	/// Controller for the /api/v1/storage endpoint
 	/// </summary>

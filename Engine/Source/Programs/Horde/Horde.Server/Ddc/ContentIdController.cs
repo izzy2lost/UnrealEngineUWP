@@ -4,7 +4,6 @@ using System.Net.Mime;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
-using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -22,9 +21,9 @@ namespace Horde.Server.Ddc
 	public class ContentIdController : ControllerBase
 	{
 		private readonly IRequestHelper _requestHelper;
-		private readonly IContentIdService _contentIdStore;
+		private readonly IContentIdStore _contentIdStore;
 
-		public ContentIdController(IRequestHelper requestHelper, IContentIdService contentIdStore)
+		public ContentIdController(IRequestHelper requestHelper, IContentIdStore contentIdStore)
 		{
 			_requestHelper = requestHelper;
 			_contentIdStore = contentIdStore;
@@ -40,7 +39,7 @@ namespace Horde.Server.Ddc
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
 		public async Task<IActionResult> ResolveAsync(NamespaceId ns, ContentId contentId)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -67,7 +66,7 @@ namespace Horde.Server.Ddc
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
 		public async Task<IActionResult> UpdateContentIdMappingAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;

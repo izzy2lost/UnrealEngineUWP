@@ -619,7 +619,7 @@ namespace Horde.Server
 			services.AddScoped<IBlobService, BlobService>();
 			services.AddScoped<IRefService, RefService>();
 			services.AddScoped<IReferenceResolver, ReferenceResolver>();
-			services.AddScoped<IContentIdService, ContentIdService>();
+			services.AddScoped<IContentIdStore, ContentIdStore>();
 			services.AddSingleton<BufferedPayloadFactory>();
 			services.AddSingleton<NginxRedirectHelper>();
 			services.AddSingleton<FormatResolver>();

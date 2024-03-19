@@ -7,11 +7,11 @@ using EpicGames.Horde.Storage;
 
 namespace Horde.Server.Ddc
 {
-	class ContentIdService : IContentIdService
+	class ContentIdStore : IContentIdStore
 	{
 		readonly IStorageClientFactory _storageClientFactory;
 
-		public ContentIdService(IStorageClientFactory storageService)
+		public ContentIdStore(IStorageClientFactory storageService)
 		{
 			_storageClientFactory = storageService;
 		}
