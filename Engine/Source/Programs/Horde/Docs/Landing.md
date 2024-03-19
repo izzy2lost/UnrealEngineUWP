@@ -2,7 +2,7 @@
 
 **Horde** has been installed successfully. To continue setting up your installation, see the following guides:
 
-* **[Installing Horde](Docs/Tutorials/InstallHorde.md)**
+* **[Installing Horde](Tutorials/InstallHorde.md)**
 * **[Set up remote C++ compilation](Tutorials/RemoteCompilation.md)**
 * **[Set up build automation](Tutorials/BuildAutomation.md)**
 * **[Set up test automation](Tutorials/TestAutomation.md)**
