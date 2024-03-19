@@ -758,6 +758,8 @@ void UCommonSessionSubsystem::FindSessionsInternalOSSv1(ULocalPlayer* LocalPlaye
 	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
 	check(Sessions);
 
+	SearchSettings->QuerySettings.Set(SETTING_SESSION_TEMPLATE_NAME, FString("GameSession"), EOnlineComparisonOp::Equals);
+
 	if (!Sessions->FindSessions(*LocalPlayer->GetPreferredUniqueNetId().GetUniqueNetId(), StaticCastSharedRef<FCommonOnlineSearchSettingsOSSv1>(SearchSettings.ToSharedRef())))
 	{
 		// Some session search failures will call this delegate inside the function, others will not
