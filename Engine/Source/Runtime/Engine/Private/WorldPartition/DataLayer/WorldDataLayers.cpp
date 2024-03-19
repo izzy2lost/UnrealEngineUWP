@@ -1021,6 +1021,11 @@ bool AWorldDataLayers::ContainsDataLayer(const UDataLayerInstance* InDataLayerIn
 
 const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const FName& InDataLayerInstanceName) const
 {
+	if (InDataLayerInstanceName.IsNone())
+	{
+		return nullptr;
+	}
+
 #if WITH_EDITOR	
 	{
 		const UDataLayerInstance* FoundDataLayerInstance = nullptr;
