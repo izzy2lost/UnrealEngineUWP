@@ -14,14 +14,15 @@ namespace Chaos
 	FWheelSimModule::FWheelSimModule(const FWheelSettings& Settings)
 		: TSimModuleSettings<FWheelSettings>(Settings)
 		, BrakeTorque(0.0f)
-		, ForceIntoSurface(0.0f)
-		, SurfaceFriction(1.0f)
-		, SuspensionSimTreeIndex(INVALID_IDX)
 		, ForceFromFriction(FVector::ZeroVector)
 		, MassPerWheel(500.0f)
 		, SteerAngleDegrees(0.0f)
 	{
-
+		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
+		{
+			static TSharedPtr<FSimFactoryModule<FWheelSimModuleDatas>> SharedFactory = MakeShared<FSimFactoryModule<FWheelSimModuleDatas>>(GetDebugName());
+			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
+		}
 	}
 
 	void FWheelSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)

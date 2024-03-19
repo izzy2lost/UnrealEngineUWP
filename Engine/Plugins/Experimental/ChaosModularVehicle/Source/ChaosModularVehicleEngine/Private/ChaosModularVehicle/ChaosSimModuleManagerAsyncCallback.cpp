@@ -8,8 +8,10 @@
 #include "Chaos/ParticleHandleFwd.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 #include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
+#include "SimModule/ModuleFactoryRegister.h"
 
 FSimModuleDebugParams GSimModuleDebugParams;
+
 
 DECLARE_CYCLE_STAT(TEXT("AsyncCallback:OnPreSimulate_Internal"), STAT_AsyncCallback_OnPreSimulate, STATGROUP_ChaosSimModuleManager);
 
@@ -277,63 +279,16 @@ bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap*
 				if (ModuleData.Num() != NumNetModules)
 				{
 					ModuleData.Reserve(NumNetModules);
-					switch (ModuleType)
-					{
-					case Chaos::eSimType::Suspension:
-					{
-						ModuleData.Emplace(MakeShared<Chaos::FSuspensionSimModuleDatas>(SimArrayIndex
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-							, FString()
-#endif
-						));
-					}
-					break;
 
-					case Chaos::eSimType::Transmission:
+					if (TSharedPtr<Chaos::FModuleNetData> Data = Chaos::FModuleFactoryRegister::Get().GenerateNetData(ModuleType, SimArrayIndex))
 					{
-						ModuleData.Emplace(MakeShared<Chaos::FTransmissionSimModuleDatas>(SimArrayIndex
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-							, FString()
-#endif
-						));
+						ModuleData.Emplace(Data);
 					}
-					break;
+					else
+					{
+						checkf(false, TEXT("Module net data factory has not been registered, use FModuleFactoryRegister::Get().RegisterFactory()"));
+					}
 
-					case Chaos::eSimType::Engine:
-					{
-						ModuleData.Emplace(MakeShared<Chaos::FEngineSimModuleDatas>(SimArrayIndex
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-							, FString()
-#endif
-						));
-					}
-					break;
-
-					case Chaos::eSimType::Clutch:
-					{
-						ModuleData.Emplace(MakeShared<Chaos::FClutchSimModuleDatas>(SimArrayIndex
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-							, FString()
-#endif
-						));
-					}
-					break;
-
-					case Chaos::eSimType::Wheel:
-					{
-						ModuleData.Emplace(MakeShared<Chaos::FWheelSimModuleDatas>(SimArrayIndex
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-							, FString()
-#endif
-						));
-					}
-					break;
-
-					default:
-					{
-						checkf(false, TEXT("Unhandled NetModuleType case"));
-					}
-					}
 				}
 			}
 		}

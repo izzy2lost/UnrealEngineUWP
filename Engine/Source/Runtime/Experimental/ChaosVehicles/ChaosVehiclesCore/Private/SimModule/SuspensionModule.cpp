@@ -28,6 +28,13 @@ namespace Chaos
 		, WheelInContact(false)
 	{
 		AccessSetup().MaxLength = FMath::Abs(Settings.MaxRaise + Settings.MaxDrop);
+
+		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
+		{
+			static TSharedPtr<FSimFactoryModule<FSuspensionSimModuleDatas>> SharedFactory = MakeShared<FSimFactoryModule<FSuspensionSimModuleDatas>>(GetDebugName());
+			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
+		}
+
 	}
 
 	float FSuspensionSimModule::GetSpringLength() const

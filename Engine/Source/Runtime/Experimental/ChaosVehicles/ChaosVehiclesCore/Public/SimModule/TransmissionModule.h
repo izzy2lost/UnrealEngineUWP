@@ -105,14 +105,7 @@ namespace Chaos
 
 	public:
 
-		FTransmissionSimModule(const FTransmissionSettings& Settings)
-			: TSimModuleSettings<FTransmissionSettings>(Settings)
-			, CurrentGear(1)
-			, TargetGear(1)
-			, CurrentGearChangeTime(0.f)
-			, AllowedToChangeGear(true)
-		{
-		}
+		FTransmissionSimModule(const FTransmissionSettings& Settings);
 
 		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
 		{

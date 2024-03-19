@@ -6,11 +6,24 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION_SHIP
 #endif
 
 namespace Chaos
 {
+	FTransmissionSimModule::FTransmissionSimModule(const FTransmissionSettings& Settings)
+		: TSimModuleSettings<FTransmissionSettings>(Settings)
+		, CurrentGear(1)
+		, TargetGear(1)
+		, CurrentGearChangeTime(0.f)
+		, AllowedToChangeGear(true)
+	{
+		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
+		{
+			static TSharedPtr<FSimFactoryModule<FTransmissionSimModuleDatas>> SharedFactory = MakeShared<FSimFactoryModule<FTransmissionSimModuleDatas>>(GetDebugName());
+			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
+		}
+	}
 
 	void FTransmissionSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{
@@ -226,5 +239,5 @@ namespace Chaos
 } // namespace Chaos
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION_SHIP
 #endif

@@ -54,15 +54,7 @@ namespace Chaos
 	{
 	public:
 
-		FAerofoilSimModule(const FAerofoilSettings& Settings) : TSimModuleSettings<FAerofoilSettings>(Settings)
-			, CurrentAirDensity(RealWorldConsts::AirDensity())
-			, AngleOfAttack(0.f)
-			, ControlSurfaceAngle(0.f)
-			, AirflowNormal(FVector::ZeroVector)
-			, AerofoilId(0)
-		{
-
-		}
+		FAerofoilSimModule(const FAerofoilSettings& Settings);
 
 		virtual ~FAerofoilSimModule() {}
 

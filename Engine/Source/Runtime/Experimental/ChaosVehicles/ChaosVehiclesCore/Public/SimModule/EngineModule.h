@@ -86,12 +86,7 @@ namespace Chaos
 	{
 	public:
 
-		FEngineSimModule(const FEngineSettings& Settings) : TSimModuleSettings<FEngineSettings>(Settings)
-			, EngineIdleSpeed(RPMToOmega(Setup().IdleRPM))
-			, MaxEngineSpeed(RPMToOmega(Setup().MaxRPM))
-			, EngineStarted(true)
-		{
-		}
+		FEngineSimModule(const FEngineSettings& Settings);
 
 		virtual ~FEngineSimModule() {}
 

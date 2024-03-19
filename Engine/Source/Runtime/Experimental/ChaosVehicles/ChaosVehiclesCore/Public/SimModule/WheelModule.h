@@ -9,12 +9,7 @@ namespace Chaos
 	struct FAllInputs;
 	class FSimModuleTree;
 	class FClusterUnionPhysicsProxy;
-
-	enum CHAOSVEHICLESCORE_API EWheelAxis
-	{
-		X,	// X forward
-		Y	// Y forward
-	};
+	struct FModuleNetData;
 
 	struct CHAOSVEHICLESCORE_API FWheelSimModuleDatas : public FTorqueSimModuleDatas
 	{
@@ -120,7 +115,7 @@ namespace Chaos
 		bool ReverseDirection;
 	};
 
-	class CHAOSVEHICLESCORE_API FWheelSimModule : public FTorqueSimModule, public TSimModuleSettings<FWheelSettings>
+	class CHAOSVEHICLESCORE_API FWheelSimModule : public FWheelBaseInterface, public TSimModuleSettings<FWheelSettings>
 	{
 		friend FWheelOutputData;
 
@@ -155,16 +150,13 @@ namespace Chaos
 
 		virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override { return (InType & TorqueBased) || (InType & Velocity); }
 
-		void SetSuspensionSimTreeIndex(int IndexIn) { SuspensionSimTreeIndex = IndexIn; }
-		int GetSuspensionSimTreeIndex() const { return SuspensionSimTreeIndex; }
+		virtual float GetWheelRadius() const override { return Setup().Radius; }
 
 		float GetSteerAngleDegrees() const { return SteerAngleDegrees; }
 
-		void SetForceIntoSurface(float ForceIntoSurfaceIn) { ForceIntoSurface = ForceIntoSurfaceIn; }
-		float GetForceIntoSurface() const { return ForceIntoSurface; }
 		FVector GetForceFromFriction() const { return ForceFromFriction; }
-		void SetSurfaceFriction(float FrictionIn) { SurfaceFriction = FrictionIn; }
 		
+
 		/** set wheel rotational speed to match the specified linear forwards speed */
 		void SetLinearSpeed(float LinearMetersPerSecondIn)
 		{
@@ -186,9 +178,6 @@ namespace Chaos
 	private:
 
 		float BrakeTorque;				// [N.m]
-		float ForceIntoSurface;			// [N]
-		float SurfaceFriction;
-		int SuspensionSimTreeIndex;
 
 		FVector ForceFromFriction;
 		float MassPerWheel;

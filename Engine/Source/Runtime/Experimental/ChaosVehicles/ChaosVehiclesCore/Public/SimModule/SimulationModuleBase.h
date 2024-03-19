@@ -6,7 +6,7 @@
 #include "Logging/LogMacros.h"
 #include "Chaos/ParticleHandleFwd.h"
 #include "Chaos/GeometryParticlesfwd.h"
-
+#include "SimModule/ModuleFactoryRegister.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSimulationModule, Warning, All);
 
@@ -123,13 +123,13 @@ namespace Chaos
 	};
 
 
-	enum eSimModuleState
+	enum CHAOSVEHICLESCORE_API eSimModuleState
 	{
 		Disabled,
 		Enabled
 	};
 
-	enum eSimModuleTypeFlags
+	enum CHAOSVEHICLESCORE_API eSimModuleTypeFlags
 	{
 		NonFunctional = (1 << 0),	// bitmask 1,2,4,8
 		Raycast = (1 << 1),	// requires raycast data
@@ -137,7 +137,7 @@ namespace Chaos
 		Velocity = (1 << 3),	// requires velocity data
 	};
 
-	enum eSimType
+	enum CHAOSVEHICLESCORE_API eSimType
 	{
 		Undefined = 0,
 		Chassis,		// linear/angular damping can be applied here
@@ -155,6 +155,12 @@ namespace Chaos
 		Elevator,		// controls aircraft pitch
 		Propeller,		// generates thrust when connected to a motor/engine
 		TorqueSim
+	};
+
+	enum CHAOSVEHICLESCORE_API EWheelAxis
+	{
+		X,	// X forward
+		Y	// Y forward
 	};
 
 	/**
@@ -428,7 +434,40 @@ namespace Chaos
 #endif
 	};
 
+	class CHAOSVEHICLESCORE_API IFactoryModule
+	{
+	public:
+		virtual ~IFactoryModule() {}
+		virtual TSharedPtr<Chaos::FModuleNetData> GenerateNetData(int32 SimArrayIndex) const = 0;
+
+	};
+
+	template <typename T>
+	class CHAOSVEHICLESCORE_API FSimFactoryModule : public IFactoryModule
+	{
+	public:
+		FSimFactoryModule(const FString& DebugNameIn)
+		{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			DebugString = DebugNameIn;
+#endif
+		}
+
+
+		TSharedPtr<Chaos::FModuleNetData> GenerateNetData(int32 SimArrayIndex) const
+		{
+			return MakeShared<T>(
+				SimArrayIndex
+	#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				, DebugString
+	#endif			
+			);
+		}
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		FString DebugString;
+#endif
+
+	};
 
 } // namespace Chaos
-
-

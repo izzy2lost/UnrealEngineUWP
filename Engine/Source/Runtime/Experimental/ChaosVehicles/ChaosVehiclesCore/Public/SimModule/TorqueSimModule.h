@@ -118,5 +118,30 @@ namespace Chaos
 		float AngularPosition;
 	};
 
+	class CHAOSVEHICLESCORE_API FWheelBaseInterface : public FTorqueSimModule
+	{
+	public:
+		FWheelBaseInterface()
+			: SuspensionSimTreeIndex(ISimulationModuleBase::INVALID_IDX)
+			, SurfaceFriction(1.0f)
+			, ForceIntoSurface(0.0f)
+		{}
+
+		void SetSuspensionSimTreeIndex(int IndexIn) { SuspensionSimTreeIndex = IndexIn; }
+		int GetSuspensionSimTreeIndex() const { return SuspensionSimTreeIndex; }
+		void SetSurfaceFriction(float FrictionIn) { SurfaceFriction = FrictionIn; }
+		void SetForceIntoSurface(float ForceIntoSurfaceIn) { ForceIntoSurface = ForceIntoSurfaceIn; }
+		float GetForceIntoSurface() const { return ForceIntoSurface; }
+		float GetSurfaceFriction() const { return SurfaceFriction; }
+
+		virtual float GetWheelRadius() const = 0;
+
+	protected:
+		int SuspensionSimTreeIndex;
+		float SurfaceFriction;
+		float ForceIntoSurface;
+
+	};
+
 
 } // namespace Chaos

@@ -5,11 +5,20 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION_SHIP
 #endif
 
 namespace Chaos
 {
+
+	FAerofoilSimModule::FAerofoilSimModule(const FAerofoilSettings& Settings) : TSimModuleSettings<FAerofoilSettings>(Settings)
+		, CurrentAirDensity(RealWorldConsts::AirDensity())
+		, AngleOfAttack(0.f)
+		, ControlSurfaceAngle(0.f)
+		, AirflowNormal(FVector::ZeroVector)
+		, AerofoilId(0)
+	{
+	}
 
 	void FAerofoilSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{
@@ -153,5 +162,5 @@ namespace Chaos
 } // namespace Chaos
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION_SHIP
 #endif
