@@ -1335,6 +1335,11 @@ bool FMovieSceneEntitySystemRunner::FlushSingleEvaluationPhase()
 
 	Linker->EntityManager.LockDown();
 
+	if (FEntitySystemScheduler::IsCustomSchedulingEnabled())
+	{
+		Linker->SystemGraph.ScheduleTasks(&Linker->EntityManager);
+	}
+
 	FGraphEventArray AllTasks;
 	Linker->SystemGraph.ExecutePhase(ESystemPhase::Evaluation, Linker, AllTasks);
 

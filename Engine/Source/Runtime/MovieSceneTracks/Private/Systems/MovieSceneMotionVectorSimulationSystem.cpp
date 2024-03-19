@@ -102,6 +102,10 @@ void UMovieSceneMotionVectorSimulationSystem::ComputeSimulatedMotion()
 		EvalTime->Disable();
 	}
 
+	// Simulate a structure change to force the persistent tasks to be re-scheduled without
+	// the systems we just disabled.
+	Linker->EntityManager.MimicStructureChanged();
+
 	FEntityComponentFilter* GlobalFilter     = &Linker->EntityManager.ModifyGlobalIterationFilter();
 	FEntityComponentFilter  GlobalFilterCopy = *GlobalFilter;
 
@@ -191,6 +195,9 @@ void UMovieSceneMotionVectorSimulationSystem::ComputeSimulatedMotion()
 		EvalTime->Enable();
 	}
 	Enable();
+
+	// Force persistent tasks to be re-created again (see previous comment).
+	Linker->EntityManager.MimicStructureChanged();
 
 	bSimulateTransformsRequested = false;
 }
