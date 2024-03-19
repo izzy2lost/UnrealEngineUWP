@@ -82,14 +82,6 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeSpatialFilter(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
-int32 GTranslucencyVolumeSpatialFilterNumPasses = 2;
-FAutoConsoleVariableRef CVarTranslucencyVolumeSpatialFilterNumPasses(
-	TEXT("r.Lumen.TranslucencyVolume.SpatialFilter.NumPasses"),
-	GTranslucencyVolumeSpatialFilterNumPasses,
-	TEXT("How many passes of the spatial filter to do"),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-	);
-
 int32 GTranslucencyVolumeSpatialFilterSampleCount = 3;
 FAutoConsoleVariableRef CVarTranslucencyVolumeSpatialFilterSampleCount(
 	TEXT("r.Lumen.TranslucencyVolume.SpatialFilter.SampleCount"),
