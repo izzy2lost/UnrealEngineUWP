@@ -376,7 +376,6 @@ void UDataAssetLink::SetDataAsset(TSoftObjectPtr<UDataAsset> InDataAsset)
 {
 	InvalidateCache();
 	DataAsset = InDataAsset;
-	DataAsset.LoadSynchronous();
 	DataAssetCached = InDataAsset.Get();
 
 	if(NameSpace.IsEmpty() && DataAssetCached)
@@ -461,7 +460,6 @@ void UDataAssetLink::PostLoad()
 {
 	Super::PostLoad();
 
-	DataAsset.LoadSynchronous();
 	DataAssetCached = DataAsset.Get();
 }
 
