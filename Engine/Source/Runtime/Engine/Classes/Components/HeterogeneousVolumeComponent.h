@@ -24,7 +24,6 @@ class UHeterogeneousVolumeComponent : public UMeshComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Volume)
 	FIntVector VolumeResolution;
 
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animation, AdvancedDisplay, meta = (EditCondition = "false"))
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Animation, AdvancedDisplay)
 	FTransform FrameTransform;
 
@@ -46,8 +45,10 @@ class UHeterogeneousVolumeComponent : public UMeshComponent
 	UPROPERTY(EditAnywhere, Category = Animation)
 	uint32 bLooping : 1;
 
+	// Bias to apply to the calculated mip level to stream at. This property essentially influences the distance from the
+	// volume at which certain mip levels are no longer requested. Higher values result in earlier mip level transitions.
 	UPROPERTY(EditAnywhere, Category = SparseVolumeTextureStreaming, AdvancedDisplay)
-	uint32 MipLevel = 0;
+	float StreamingMipBias;
 
 	UPROPERTY(EditAnywhere, Category = SparseVolumeTextureStreaming)
 	uint32 bIssueBlockingRequests : 1;
@@ -90,6 +91,9 @@ class UHeterogeneousVolumeComponent : public UMeshComponent
 
 	UFUNCTION(BlueprintCallable, Category = "Animation")
 	ENGINE_API void Play();
+
+	UFUNCTION(BlueprintCallable, Category = "SparseVolumeTextureStreaming")
+	ENGINE_API void SetStreamingMipBias(int32 NewValue);
 
 	~UHeterogeneousVolumeComponent() {}
 

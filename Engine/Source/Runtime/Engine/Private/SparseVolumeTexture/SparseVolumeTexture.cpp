@@ -19,6 +19,7 @@
 #include "SparseVolumeTexture/SparseVolumeTextureData.h"
 #include "SparseVolumeTexture/SparseVolumeTextureUtility.h"
 #include "SparseVolumeTexture/ISparseVolumeTextureStreamingManager.h"
+#include "ContentStreaming.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Misc/ScopedSlowTask.h"
@@ -51,6 +52,15 @@ static FAutoConsoleVariableRef CVarSVTRemoteDDCBehavior(
 	TEXT("r.SparseVolumeTexture.RemoteDDCBehavior"),
 	GSVTRemoteDDCBehavior,
 	TEXT("Controls how SVTs use remote DDC. 0: The bLocalDDCOnly property controls per-SVT caching behavior, 1: Force local DDC only usage for all SVTs, 2: Force local + remote DDC usage for all SVTs"),
+	ECVF_Default
+);
+
+static float GSVTStreamingRequestMipBias = 1.0f;
+static FAutoConsoleVariableRef CVarSVTStreamingRequestMipBias(
+	TEXT("r.SparseVolumeTexture.Streaming.RequestMipBias"),
+	GSVTStreamingRequestMipBias,
+	TEXT("Bias to apply the calculated mip level to stream at. This is used to account for the mip estimation based on projected screen space size being very conservative. ")
+	TEXT("The default value of 1.0 was found empirically to roughly result in a 1:1 voxel to pixel ratio."),
 	ECVF_Default
 );
 
@@ -871,6 +881,40 @@ void FTileStreamingMetaData::GetNumVoxelsInTileRange(uint32 TileOffset, uint32 T
 USparseVolumeTexture::USparseVolumeTexture(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+}
+
+float USparseVolumeTexture::GetOptimalStreamingMipLevel(const FBoxSphereBounds& Bounds, float MipBias) const
+{
+	check(IsInGameThread());
+	float ResultMipLevel = 0.0f;
+	if (IStreamingManager* StreamingManager = IStreamingManager::Get_Concurrent())
+	{
+		ResultMipLevel = FLT_MAX;
+		const int32 NumViews = StreamingManager->GetNumViews();
+		for (int32 ViewIndex = 0; ViewIndex < NumViews; ++ViewIndex)
+		{
+			const FStreamingViewInfo& ViewInfo = StreamingManager->GetViewInformation(ViewIndex);
+
+			// Determine the pixel-width at the near-plane.
+			const float PixelWidth = 1.0f / (ViewInfo.FOVScreenSize * 0.5f); // FOVScreenSize = ViewRect.Width / Tan(FOV * 0.5)
+
+			// Project to nearest distance of volume bounds.
+			const float Distance = FMath::Max<float>(1.0f, ((ViewInfo.ViewOrigin - Bounds.Origin).GetAbs() - Bounds.BoxExtent).Length());
+			const float VoxelWidth = Distance * PixelWidth;
+
+			// MIP is defined as the log of the ratio of native voxel resolution to pixel-coverage of volume bounds.
+			// We want to be conservative here (use potentially lower mip), so try to minimize the term we pass into Log2() by using
+			// the maximum dimension of the bounds and the minimum extent of the volume resolution. The bounds are axis aligned, so
+			// we can't assume that a given dimension in SVT UV space aligns with any particular dimension of the axis aligned bounds.
+			const float PixelWidthCoverage = (2.0f * Bounds.BoxExtent.GetMax()) / VoxelWidth;
+			const float VoxelResolution = GetVolumeResolution().GetMin();
+			float ViewMipLevel = FMath::Log2(VoxelResolution / PixelWidthCoverage) + MipBias + GSVTStreamingRequestMipBias;
+			ViewMipLevel = FMath::Clamp(ViewMipLevel, 0.0f, GetNumMipLevels() - 1.0f);
+
+			ResultMipLevel = FMath::Min(ViewMipLevel, ResultMipLevel);
+		}
+	}
+	return ResultMipLevel;
 }
 
 UE::Shader::EValueType USparseVolumeTexture::GetUniformParameterType(int32 Index)

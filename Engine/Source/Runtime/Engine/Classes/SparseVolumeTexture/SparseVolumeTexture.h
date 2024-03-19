@@ -330,6 +330,8 @@ public:
 	virtual TextureAddress GetTextureAddressY() const { return TA_Wrap; }
 	virtual TextureAddress GetTextureAddressZ() const { return TA_Wrap; }
 	virtual const UE::SVT::FTextureRenderResources* GetTextureRenderResources() const { return nullptr; }
+	// Computes the optimal mip level to stream the SVT at, based on projected screen space size and voxel resolution.
+	float GetOptimalStreamingMipLevel(const FBoxSphereBounds& Bounds, float MipBias) const;
 
 	/** Getter for the shader uniform parameters with index as ESparseVolumeTextureShaderUniform. */
 	FVector4 GetUniformParameter(int32 Index) const { return FVector4(ForceInitToZero); } // SVT_TODO: This mechanism is no longer needed and can be removed

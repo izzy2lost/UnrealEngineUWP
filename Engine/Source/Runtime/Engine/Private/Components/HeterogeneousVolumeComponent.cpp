@@ -256,10 +256,20 @@ UHeterogeneousVolumeComponent::UHeterogeneousVolumeComponent(const FObjectInitia
 	ShadowStepFactor = 2.0f;
 	ShadowBiasFactor = 0.5f;
 	LightingDownsampleFactor = 2.0f;
-	MipLevel = 0;
+	StreamingMipBias = 0.0f;
 	bIssueBlockingRequests = false;
 	bPivotAtCentroid = false;
 	PreviousSVT = nullptr;
+}
+
+void UHeterogeneousVolumeComponent::SetStreamingMipBias(int32 NewValue)
+{
+	if (AreDynamicDataChangesAllowed()
+		&& StreamingMipBias != NewValue)
+	{
+		StreamingMipBias = NewValue;
+		MarkRenderStateDirty();
+	}
 }
 
 void UHeterogeneousVolumeComponent::SetFrame(float NewValue)
@@ -584,6 +594,7 @@ void UHeterogeneousVolumeComponent::TickComponent(float DeltaTime, ELevelTick Ti
 
 			const bool bIsBlocking = bIssueBlockingRequests != 0;
 			const bool bHasValidFrameRate = bPlaying != 0;
+			const float MipLevel = SparseVolumeTexture->GetOptimalStreamingMipLevel(Bounds, StreamingMipBias);
 			USparseVolumeTextureFrame* SparseVolumeTextureFrame = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexture, GetTypeHash(this), FrameRate, Frame, MipLevel, bIsBlocking, bHasValidFrameRate);
 			if (SparseVolumeTextureFrame)
 			{
