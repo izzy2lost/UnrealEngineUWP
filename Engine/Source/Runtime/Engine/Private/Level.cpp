@@ -118,6 +118,7 @@ static FAutoConsoleVariableRef CVarRouteActorInitializationWorkUnitWeighting(
 
 TArray<ULevel::FLevelExternalActorsPathsProviderDelegate> ULevel::LevelExternalActorsPathsProviders;
 TArray<ULevel::FLevelMountPointResolverDelegate> ULevel::LevelMountPointResolvers;
+TWeakObjectPtr<const UObject> ULevel::OverrideSpawningLevelMountPointObject;
 
 void FLevelActorFoldersHelper::SetUseActorFolders(ULevel* InLevel, bool bInEnabled)
 {

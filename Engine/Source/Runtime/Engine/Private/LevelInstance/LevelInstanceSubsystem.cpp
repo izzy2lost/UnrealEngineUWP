@@ -15,7 +15,6 @@
 
 #if WITH_EDITOR
 #include "Settings/LevelEditorMiscSettings.h"
-#include "ActorEditorContext/ScopedActorEditorContextSetExternalDataLayerAsset.h"
 #include "LevelInstance/LevelInstanceEditorLevelStreaming.h"
 #include "LevelInstance/LevelInstanceEditorPropertyOverrideLevelStreaming.h"
 #include "LevelInstance/ILevelInstanceEditorModule.h"
@@ -1462,7 +1461,7 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 	{
 		ExternalDataLayerInstance->bSkipCheckReadOnlyForSubLevels = true;
 	}
-	FScopedActorEditorContextSetExternalDataLayerAsset EDLScope(ExternalDataLayerAsset);
+	FScopedOverrideSpawningLevelMountPointObject EDLScope(ExternalDataLayerAsset);
 
 	if (!ActorClass->IsChildOf<APackedLevelActor>())
 	{
@@ -1875,6 +1874,15 @@ bool ULevelInstanceSubsystem::CanMoveActorToLevel(const AActor* Actor, FText* Ou
 {
 	if (Actor->IsA<ALevelInstancePivot>())
 	{
+		return false;
+	}
+
+	if (Actor->GetExternalDataLayerAsset())
+	{
+		if (OutReason != nullptr)
+		{
+			*OutReason = LOCTEXT("CantMoveActorUsingExternalDataLayer", "Can't move Level Instance actor using External Data Layer");
+		}
 		return false;
 	}
 

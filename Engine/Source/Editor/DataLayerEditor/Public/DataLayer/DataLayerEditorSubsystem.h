@@ -15,6 +15,7 @@
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 #include "Tickable.h"
+#include "Misc/Optional.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
@@ -801,6 +802,9 @@ private:
 
 	/** Delegate handle for world's AddOnActorPreSpawnInitialization */
 	FDelegateHandle OnActorPreSpawnInitializationDelegate;
+
+	/** Last pushed warning to be send to the notification manager at next tick */
+	TOptional<FText> LastWarningNotification;
 
 	friend class FDataLayersBroadcast;
 	friend struct FExternalDataLayerWorldSurrogateReferencingObject;

@@ -2,7 +2,6 @@
 
 #include "DataLayer/DataLayerEditorSubsystem.h"
 #include "DataLayer/DataLayerAction.h"
-#include "ActorEditorContext/ScopedActorEditorContextSetExternalDataLayerAsset.h"
 #include "Containers/EnumAsByte.h"
 #include "Containers/StringConv.h"
 #include "Containers/UnrealString.h"
@@ -31,6 +30,7 @@
 #include "Misc/Optional.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Algo/Transform.h"
+#include "Algo/RemoveIf.h"
 #include "Algo/AnyOf.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Selection.h"
@@ -49,12 +49,17 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Framework/Docking/TabManager.h"
+#include "DataLayerEditorModule.h"
 #include "WorldPartition/DataLayer/DataLayerAsset.h"
 #include "WorldPartition/DataLayer/DataLayerInstancePrivate.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
 #include "WorldPartition/DataLayer/DataLayerUtils.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/DataLayer/DeprecatedDataLayerInstance.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerManager.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerEngineSubsystem.h"
@@ -365,18 +370,28 @@ void UDataLayerEditorSubsystem::Deinitialize()
 
 void UDataLayerEditorSubsystem::OnActorPreSpawnInitialization(AActor* InActor)
 {
+	check(!InActor->GetExternalDataLayerAsset());
 	if (InActor->bIsEditorPreviewActor || !InActor->IsPackageExternal())
 	{
 		return;
 	}
 
-	UWorld* OwningWorld = InActor->GetWorld();
+	const UWorld* OwningWorld = InActor->GetWorld();
 	if (OwningWorld && (OwningWorld == GetWorld()))
 	{
-		if (const UExternalDataLayerAsset* ExternalDataLayerAsset = GetActorEditorContextCurrentExternalDataLayer())
+		// Prefer override spawning External Data Layer over actor editor context External Data Layer
+		const UExternalDataLayerAsset* OverrideSpawningExternalDataLayer = Cast<UExternalDataLayerAsset>(ULevel::GetOverrideSpawningLevelMountPointObject());
+		const UExternalDataLayerAsset* ExternalDataLayerAsset = OverrideSpawningExternalDataLayer ? OverrideSpawningExternalDataLayer : GetActorEditorContextCurrentExternalDataLayer();
+
+		UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(OwningWorld);
+		if (const UExternalDataLayerInstance* ExternalDataLayerInstance = ExternalDataLayerAsset ? ExternalDataLayerManager->GetExternalDataLayerInstance(ExternalDataLayerAsset) : nullptr)
 		{
-			UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(OwningWorld);
-			ExternalDataLayerManager->OnActorPreSpawnInitialization(InActor, ExternalDataLayerAsset);
+			FText FailureReason;
+			if (!FExternalDataLayerHelper::MoveActorsToExternalDataLayer({ InActor }, ExternalDataLayerInstance, &FailureReason))
+			{
+				UE_LOG(LogWorldPartition, Warning, TEXT("%s"), *FailureReason.ToString());
+				LastWarningNotification = FailureReason;
+			}
 		}
 	}
 }
@@ -393,7 +408,7 @@ ETickableTickType UDataLayerEditorSubsystem::GetTickableTickType() const
 
 bool UDataLayerEditorSubsystem::IsAllowedToTick() const
 {
-	return GetWorld() && (bAsyncBroadcastDataLayerChanged || bAsyncUpdateAllActorsVisibility || bAsyncInvalidateViewports);
+	return GetWorld() && (bAsyncBroadcastDataLayerChanged || bAsyncUpdateAllActorsVisibility || bAsyncInvalidateViewports || LastWarningNotification.IsSet());
 }
 
 void UDataLayerEditorSubsystem::Tick(float DeltaTime)
@@ -414,6 +429,17 @@ void UDataLayerEditorSubsystem::Tick(float DeltaTime)
 	{
 		GEditor->RedrawLevelEditingViewports();
 		bAsyncInvalidateViewports = false;
+	}
+
+	if (LastWarningNotification.IsSet())
+	{
+		// Trigger a notification with the last pushed warning (avoids spamming notification manager)
+		FNotificationInfo WarningInfo(LastWarningNotification.GetValue());
+		WarningInfo.ExpireDuration = 3.0f;
+		WarningInfo.Hyperlink = FSimpleDelegate::CreateLambda([]() { FGlobalTabmanager::Get()->TryInvokeTab(FName("OutputLog")); });
+		WarningInfo.HyperlinkText = LOCTEXT("ShowMessageLogHyperlink", "Show Output Log");
+		FSlateNotificationManager::Get().AddNotification(WarningInfo);
+		LastWarningNotification.Reset();
 	}
 }
 
@@ -438,7 +464,36 @@ void UDataLayerEditorSubsystem::OnExecuteActorEditorContextAction(UWorld* InWorl
 		case EActorEditorContextAction::ApplyContext:
 			check(InActor && InActor->GetWorld() == InWorld);
 			{
-				AddActorToDataLayers(InActor, DataLayerManager->GetActorEditorContextDataLayers());
+				// Try to apply context External Data Layer (this operation can fail if asset referencing validation fails)
+				// Don't apply if there's a valid override spawning External Data Layer (see OnActorPreSpawnInitialization)
+				const UExternalDataLayerAsset* OverrideSpawningExternalDataLayer = Cast<UExternalDataLayerAsset>(ULevel::GetOverrideSpawningLevelMountPointObject());
+				if (!OverrideSpawningExternalDataLayer)
+				{
+					const UExternalDataLayerAsset* CurrentExternalDataLayer = GetActorEditorContextCurrentExternalDataLayer();
+					const UExternalDataLayerAsset* ActorExternalDataLayerAsset = InActor->GetExternalDataLayerAsset();
+					if (CurrentExternalDataLayer && (ActorExternalDataLayerAsset != CurrentExternalDataLayer))
+					{
+						UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(InActor);
+						if (const UExternalDataLayerInstance* CurrentExternalDataLayerInstance = CurrentExternalDataLayer ? ExternalDataLayerManager->GetExternalDataLayerInstance(CurrentExternalDataLayer) : nullptr)
+						{
+							FText FailureReason;
+							if (!FExternalDataLayerHelper::MoveActorsToExternalDataLayer({ InActor }, CurrentExternalDataLayerInstance, &FailureReason))
+							{
+								UE_LOG(LogWorldPartition, Warning, TEXT("%s"), *FailureReason.ToString());
+								LastWarningNotification = FailureReason;
+							}
+						}
+					}
+				}
+
+				// Apply context Data Layers (except External Data Layer)
+				TArray<UDataLayerInstance*> DataLayerInstances = DataLayerManager->GetActorEditorContextDataLayers();
+				if (!DataLayerInstances.IsEmpty())
+				{
+					DataLayerInstances.SetNum(Algo::RemoveIf(DataLayerInstances, [](UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->IsA<UExternalDataLayerInstance>(); }));
+					AddActorToDataLayers(InActor, DataLayerInstances);
+					InActor->FixupDataLayers();
+				}
 			}
 			break;
 		case EActorEditorContextAction::ResetContext:
@@ -1523,7 +1578,8 @@ UDataLayerInstance* UDataLayerEditorSubsystem::CreateDataLayerInstance(const FDa
 			{
 				NewDataLayerInstance = CreateDataLayerInstance<UDataLayerInstancePrivate>(WorldDataLayers);
 			}
-			else
+			// Don't create an instance if no valid asset is provided
+			else if (Parameters.DataLayerAsset)
 			{
 				if (UExternalDataLayerAsset* ExternalDataLayerAsset = Cast<UExternalDataLayerAsset>(Parameters.DataLayerAsset))
 				{
@@ -1712,8 +1768,8 @@ public:
 		UWorld* ReferencingWorld = CurrentLevelOuterWorld ? CurrentLevelOuterWorld : World;
 		
 		const UExternalDataLayerAsset* ExternalDataLayerAsset = UDataLayerEditorSubsystem::GetReferencingWorldSurrogateObjectForObject(ReferencingWorld, FSoftObjectPath(DroppedObjects[0]));
-		EDLContext = ExternalDataLayerAsset ? TUniquePtr<FScopedActorEditorContextSetExternalDataLayerAsset>(new FScopedActorEditorContextSetExternalDataLayerAsset(ExternalDataLayerAsset)) : nullptr;
-		return EDLContext.IsValid() && (UDataLayerEditorSubsystem::Get()->GetActorEditorContextCurrentExternalDataLayer() == ExternalDataLayerAsset);
+		EDLContext = ExternalDataLayerAsset ? TUniquePtr<FScopedOverrideSpawningLevelMountPointObject>(new FScopedOverrideSpawningLevelMountPointObject(ExternalDataLayerAsset)) : nullptr;
+		return EDLContext.IsValid() && (ULevel::GetOverrideSpawningLevelMountPointObject() == ExternalDataLayerAsset);
 	}
 
 	virtual bool OnPostDropObjects(UWorld* World, const TArray<UObject*>& DroppedObjects)
@@ -1727,7 +1783,7 @@ public:
 	}
 
 private:
-	TUniquePtr<FScopedActorEditorContextSetExternalDataLayerAsset> EDLContext;
+	TUniquePtr<FScopedOverrideSpawningLevelMountPointObject> EDLContext;
 };
 
 TUniquePtr<FLevelEditorDragDropWorldSurrogateReferencingObject> UDataLayerEditorSubsystem::OnLevelEditorDragDropWorldSurrogateReferencingObject(UWorld* ReferencingWorld, const FSoftObjectPath& Object)

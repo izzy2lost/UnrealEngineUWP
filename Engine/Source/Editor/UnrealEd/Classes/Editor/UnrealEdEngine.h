@@ -865,6 +865,14 @@ public:
 	DECLARE_DELEGATE_RetVal(const TArray<FTemplateMapInfo>&, FGetTemplateMapInfos);
 	FGetTemplateMapInfos& OnGetTemplateMapInfos() { return GetTemplateMapInfosDelegate; }
 
+	/** Delegate called when UUnrealEdEngine::PasteActors starts executing */
+	DECLARE_MULTICAST_DELEGATE(FOnPasteActorsBegin);
+	FOnPasteActorsBegin& OnPasteActorsBegin() { return OnPasteActorsBeginDelegate; }
+
+	/** Delegate called when UUnrealEdEngine::PasteActors is done executing */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPasteActorsEnd, const TArray<AActor*>&)
+	FOnPasteActorsEnd& OnPasteActorsEnd() { return OnPasteActorsEndDelegate; }
+
 	/** Gets the canonical list of map templates that should be visible in new level picker. This function calls OnGetTemplateMapInfos to allow runtime override of the default maps */
 	UNREALED_API const TArray<FTemplateMapInfo>& GetTemplateMapInfos() const;
 
@@ -922,6 +930,12 @@ private:
 
 	/* Delegate to override TemplateMapInfos */
 	FGetTemplateMapInfos GetTemplateMapInfosDelegate;
+
+	/** Delegate called when UUnrealEdEngine::PasteActors starts executing */
+	FOnPasteActorsBegin OnPasteActorsBeginDelegate;
+
+	/** Delegate called when UUnrealEdEngine::PasteActors is done executing */
+	FOnPasteActorsEnd OnPasteActorsEndDelegate;
 
 	/** Transient unsaved version of template map infos used by the editor. */
 	TArray<FTemplateMapInfo> TemplateMapInfoCache;

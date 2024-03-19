@@ -1740,11 +1740,25 @@ void AActor::FixupDataLayers(bool bRevertChangesOnLockedDataLayer /*= false*/)
 	{ 
 		return;
 	}
+
+	// Remove any data layer with a Root external data layer different from the actor's external data layer
+	// This case can happen after duplicating an actor using the actor editor context with a different external data layer
+	TSet<TSoftObjectPtr<const UDataLayerAsset>> InvalidDataLayerAssets;
+	if (ExternalDataLayerAsset && !DataLayerAssets.IsEmpty())
+	{
+		for (const UDataLayerInstance* DataLayerInstance : GetDataLayerInstances())
+		{
+			if (const UExternalDataLayerInstance* RootExternalDataLayerInstance = DataLayerInstance->GetRootExternalDataLayerInstance(); RootExternalDataLayerInstance && (RootExternalDataLayerInstance->GetAsset() != ExternalDataLayerAsset))
+			{
+				InvalidDataLayerAssets.Add(DataLayerInstance->GetAsset());
+			}
+		}
+	}
 	
 	// Cleanup Data Layer assets we can't reference (Private DLs)
-	DataLayerAssets.SetNum(Algo::RemoveIf(DataLayerAssets, [this](const TSoftObjectPtr<UDataLayerAsset>& AssetPath)
+	DataLayerAssets.SetNum(Algo::RemoveIf(DataLayerAssets, [this, &InvalidDataLayerAssets](const TSoftObjectPtr<UDataLayerAsset>& AssetPath)
 	{
-		return !UDataLayerAsset::CanBeReferencedByActor(AssetPath, this);
+		return InvalidDataLayerAssets.Contains(AssetPath) || !UDataLayerAsset::CanBeReferencedByActor(AssetPath, this);
 	}));
 
 	// Use Actor's DataLayerManager since the fixup is relative to this level

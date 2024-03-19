@@ -4227,7 +4227,6 @@ private:
 	friend struct FSetActorInstanceGuid;
 	friend struct FSetActorContentBundleGuid;
 	friend struct FAssignActorDataLayer;
-	friend struct FScopeRawAssignActorExternalDataLayer;
 	friend struct FSetActorSelectable;
 	friend struct FSetActorFolderPath;
 #endif

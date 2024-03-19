@@ -5,6 +5,9 @@
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
 #include "WorldPartition/ContentBundle/ContentBundle.h"
 #include "WorldPartition/ContentBundle/ContentBundleEditor.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerManager.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/WorldPartition.h"
 #include "Subsystems/ActorEditorContextSubsystem.h"
 #include "Engine/Selection.h"
@@ -20,6 +23,8 @@ void UContentBundleEditingSubmodule::DoInitialize()
 {
 	check(GEditor);
 	UActorEditorContextSubsystem::Get()->RegisterClient(this);
+	// For backward compatibility, Content Bundle will be applied right when LevelActorAdded is called
+	GEditor->OnLevelActorAdded().AddUObject(this, &UContentBundleEditingSubmodule::ApplyContext);
 }
 
 void UContentBundleEditingSubmodule::DoDenitialize()
@@ -27,6 +32,7 @@ void UContentBundleEditingSubmodule::DoDenitialize()
 	if (GEditor)
 	{
 		UActorEditorContextSubsystem::Get()->UnregisterClient(this);
+		GEditor->OnLevelActorAdded().RemoveAll(this);
 	}
 
 	EditingContentBundleGuid.Invalidate();
@@ -66,15 +72,33 @@ void UContentBundleEditingSubmodule::PostEditUndo()
 	PreUndoRedoEditingContentBundleGuid.Invalidate();
 }
 
+void UContentBundleEditingSubmodule::ApplyContext(AActor* InActor)
+{
+	if (GIsReinstancing || !InActor || (InActor->GetWorld() != GetWorld()) || InActor->HasAnyFlags(RF_Transient) || InActor->IsChildActor() || !EditingContentBundleGuid.IsValid() || (InActor->GetContentBundleGuid() == EditingContentBundleGuid))
+	{
+		return;
+	}
+
+	// Prefer override spawning External Data Layer over Content Bundles
+	const UExternalDataLayerAsset* ExternalDataLayerAsset = Cast<UExternalDataLayerAsset>(ULevel::GetOverrideSpawningLevelMountPointObject());
+	const UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(InActor);
+	if (const UExternalDataLayerInstance* OverrideSpawningExternalDataLayerInstance = (ExternalDataLayerAsset && ExternalDataLayerManager) ? ExternalDataLayerManager->GetExternalDataLayerInstance(ExternalDataLayerAsset) : nullptr)
+	{
+		return;
+	}
+
+	if (TSharedPtr<FContentBundleEditor> EditingContentBundle = GetEditorContentBundle(EditingContentBundleGuid))
+	{
+		EditingContentBundle->AddActor(InActor);
+	}
+}
+
 void UContentBundleEditingSubmodule::OnExecuteActorEditorContextAction(UWorld* InWorld, const EActorEditorContextAction& InType, AActor* InActor /* = nullptr */)
 {
 	switch (InType)
 	{
 	case EActorEditorContextAction::ApplyContext:
-		if (TSharedPtr<FContentBundleEditor> EditingContentBundle = GetEditorContentBundle(EditingContentBundleGuid))
-		{
-			EditingContentBundle->AddActor(InActor);
-		}
+		ApplyContext(InActor);
 		break;
 	case EActorEditorContextAction::ResetContext:
 		if (TSharedPtr<FContentBundleEditor> EditingContentBundle = GetEditorContentBundle(EditingContentBundleGuid))

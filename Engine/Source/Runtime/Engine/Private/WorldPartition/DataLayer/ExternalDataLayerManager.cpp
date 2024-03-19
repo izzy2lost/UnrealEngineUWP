@@ -832,45 +832,6 @@ FString UExternalDataLayerManager::GetActorPackageName(const UExternalDataLayerA
 	return ActorPackageName;
 }
 
-bool UExternalDataLayerManager::SetupActorPackageForExternalDataLayerAsset(AActor* InActor, const UExternalDataLayerAsset* InExternalDataLayerAsset)
-{
-	check(InActor);
-	check(InActor->IsPackageExternal());
-
-	// First check if we really need to rename the package at all.
-	// For example, when reinstancing (after compiling a BP), we reuse the old actor package.
-	const FString OldActorPackageName = InActor->GetPackage()->GetName();
-	const FString NewActorPackageName = GetActorPackageName(InExternalDataLayerAsset, InActor->GetLevel(), InActor->GetPathName());
-	if (OldActorPackageName == NewActorPackageName)
-	{
-		return true;
-	}
-
-	check(InActor->GetExternalPackage()->HasAnyPackageFlags(PKG_NewlyCreated));
-	UExternalDataLayerInstance* ExternalDataLayerInstance = GetExternalDataLayerInstance(InExternalDataLayerAsset);
-	if (!ExternalDataLayerInstance)
-	{
-		UE_LOG(LogWorldPartition, Warning, TEXT("[EDL: %s] Can't find External Data Layer instance, package of actor %s won't be moved under External Data Layer root."), *InExternalDataLayerAsset->GetName(), *InActor->GetActorNameOrLabel());
-		return false;
-	}
-	
-	bool bSuccess = InActor->GetPackage()->Rename(*NewActorPackageName);
-	UE_LOG(LogWorldPartition, Verbose, TEXT("[EDL: %s] Set new actor %s Package %s."), *InExternalDataLayerAsset->GetName(), *InActor->GetActorNameOrLabel(), *InActor->GetPackage()->GetName());
-	FText FailureReason;
-	if (!ExternalDataLayerInstance->CanAddActor(InActor, &FailureReason))
-	{
-		InActor->GetPackage()->Rename(*OldActorPackageName);
-		UE_LOG(LogWorldPartition, Warning, TEXT("[EDL: %s] Can't rename package for actor %s. %s"), *InExternalDataLayerAsset->GetName(), *InActor->GetActorNameOrLabel(), *FailureReason.ToString());
-		return false;
-	}
-	return bSuccess;
-}
-
-bool UExternalDataLayerManager::OnActorPreSpawnInitialization(AActor* InActor, const UExternalDataLayerAsset* InExternalDataLayerAsset)
-{
-	return SetupActorPackageForExternalDataLayerAsset(InActor, InExternalDataLayerAsset);
-}
-
 bool UExternalDataLayerManager::ValidateOnActorExternalDataLayerAssetChanged(AActor* InActor)
 {
 	check(InActor);

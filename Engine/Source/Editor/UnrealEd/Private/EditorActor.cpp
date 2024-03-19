@@ -324,6 +324,10 @@ void UUnrealEdEngine::PasteActors(TArray<AActor*>& OutPastedActors, UWorld* InWo
 		return;
 	}
 
+	OnPasteActorsBeginDelegate.Broadcast();
+
+	ON_SCOPE_EXIT{ OnPasteActorsEndDelegate.Broadcast(OutPastedActors); };
+
 	const FScopedBusyCursor BusyCursor;
 
 	FCachedActorLabels ActorLabels(InWorld);

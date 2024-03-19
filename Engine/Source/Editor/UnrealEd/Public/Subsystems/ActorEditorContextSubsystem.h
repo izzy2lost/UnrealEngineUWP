@@ -43,6 +43,10 @@ private:
 	UNREALED_API void OnActorEditorContextClientChanged(IActorEditorContextClient* Client);
 	UNREALED_API void ApplyContext(AActor* InActor);
 
+	void OnPasteActorsBegin();
+	void OnPasteActorsEnd(const TArray<AActor*>& InActors);
+
 	FOnActorEditorContextSubsystemChanged ActorEditorContextSubsystemChanged;
 	TArray<IActorEditorContextClient*> Clients;
+	bool bIsApplyEnabled = true;
 };

@@ -1374,6 +1374,8 @@ public:
 	static ENGINE_API FDelegateHandle RegisterLevelMountPointResolver(const FLevelMountPointResolverDelegate& Resolver);
 	/** Unregisters a level mount point resolver */
 	static ENGINE_API void UnregisterLevelMountPointResolver(const FDelegateHandle& ResolverDelegateHandle);
+	/** Returns override spawning level mount point object */
+	static ENGINE_API const UObject* GetOverrideSpawningLevelMountPointObject() { return ULevel::OverrideSpawningLevelMountPointObject.Get(); }
 #endif
 
 private:
@@ -1387,6 +1389,9 @@ private:
 
 	/** Array of registered delegates used by GetExternalActorsPaths. */
 	static TArray<FLevelMountPointResolverDelegate> LevelMountPointResolvers;
+
+	/** Override spawning Level Mount Point object used when spawning an actor using external packaging */
+	static ENGINE_API TWeakObjectPtr<const UObject> OverrideSpawningLevelMountPointObject;
 private:
 	/**
 	 * Potentially defer the running of an actor's construction script on load
@@ -1414,6 +1419,7 @@ private:
 	/** Returns unreferenced actor folders that are marked as deleted. */
 	TSet<FGuid> GetDeletedAndUnreferencedActorFolders() const;
 
+	friend struct FScopedOverrideSpawningLevelMountPointObject;
 	friend struct FLevelActorFoldersHelper;
 	friend struct FSetWorldPartitionRuntimeCell;
 	friend class FWorldPartitionLevelHelper;
@@ -1435,6 +1441,21 @@ private:
 };
 
 #if WITH_EDITOR
+struct ENGINE_API FScopedOverrideSpawningLevelMountPointObject
+{
+	FScopedOverrideSpawningLevelMountPointObject(const UObject* InObject)
+	{
+		PreviousValue = ULevel::OverrideSpawningLevelMountPointObject;
+		ULevel::OverrideSpawningLevelMountPointObject = InObject;
+	}
+	~FScopedOverrideSpawningLevelMountPointObject()
+	{
+		ULevel::OverrideSpawningLevelMountPointObject = PreviousValue;
+	}
+private:
+	TWeakObjectPtr<const UObject> PreviousValue;
+};
+
 struct FSetWorldPartitionRuntimeCell
 {
 private:

@@ -74,6 +74,7 @@ private:
 	void PopContentBundleEditing();
 	void StartEditing(TSharedPtr<FContentBundleEditor>& ContentBundleEditor);
 	void StopEditing(TSharedPtr<FContentBundleEditor>& ContentBundleEditor);
+	void ApplyContext(AActor* InActor);
 	virtual void PreEditUndo() override;
 	virtual void PostEditUndo() override;
 

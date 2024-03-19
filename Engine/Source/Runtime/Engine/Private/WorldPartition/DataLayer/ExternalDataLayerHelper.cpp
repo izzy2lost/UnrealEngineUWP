@@ -103,20 +103,15 @@ void FExternalDataLayerHelper::GetExternalDataLayerUIDs(const FAssetData& Asset,
 
 namespace UE::Private::ExternalDataLayerHelper
 {
-	static bool ValidateAssetUsingAssetReferenceRestrictions(const UObject* InAsset, TSet<FString>& OutInvalidReferenceReasons)
+	static bool ValidateAssetUsingAssetReferenceRestrictions(const UObject* InAsset, const TSet<UObject*>& InReferencedAssets, TSet<FString>& OutInvalidReferenceReasons)
 	{
 		if (!InAsset)
 		{
 			return false;
 		}
 
-		TArray<UClass*> IgnoreClasses;
-		TArray<UPackage*> IgnorePackages;
-		TSet<UObject*> ReferencedAssets;
-		FFindReferencedAssets::BuildAssetList(const_cast<UObject*>(InAsset), IgnoreClasses, IgnorePackages, ReferencedAssets);
-
 		uint32 ErrorCount = 0;
-		if (ReferencedAssets.Num() > 0)
+		if (InReferencedAssets.Num() > 0)
 		{
 			FAssetData ReferencingAssetData = FAssetData(InAsset);
 			FAssetReferenceFilterContext AssetReferenceFilterContext;
@@ -124,7 +119,7 @@ namespace UE::Private::ExternalDataLayerHelper
 			TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor ? GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext) : nullptr;
 			if (ensure(AssetReferenceFilter.IsValid()))
 			{
-				for (UObject* ReferencedAsset : ReferencedAssets)
+				for (UObject* ReferencedAsset : InReferencedAssets)
 				{
 					FText FailureReason;
 					if (!AssetReferenceFilter->PassesFilter(FAssetData(ReferencedAsset), &FailureReason))
@@ -139,58 +134,45 @@ namespace UE::Private::ExternalDataLayerHelper
 	}
 }
 
-// Only meant to be used by FExternalDataLayerHelper on stack
-struct FScopeRawAssignActorExternalDataLayer
-{
-private:
-	FScopeRawAssignActorExternalDataLayer(AActor* InActor, const UExternalDataLayerAsset* InExternalDataLayerAsset)
-		: Actor(InActor)
-		, ExternalDataLayerAsset(InActor->ExternalDataLayerAsset)
-	{
-		check(Actor);
-		Actor->ExternalDataLayerAsset = InExternalDataLayerAsset;
-	}
-
-	~FScopeRawAssignActorExternalDataLayer()
-	{
-		Actor->ExternalDataLayerAsset = ExternalDataLayerAsset;
-	}
-
-	AActor* Actor;
-	const UExternalDataLayerAsset* ExternalDataLayerAsset;
-
-	friend class FExternalDataLayerHelper;
-};
-
 bool FExternalDataLayerHelper::CanMoveActorsToExternalDataLayer(const TArray<AActor*>& InActors, const UExternalDataLayerInstance* InExternalDataLayerInstance, FText* OutFailureReason)
 {
 	auto CanMoveActorToExternalDataLayer = [](AActor* InActor, const UExternalDataLayerInstance* InExternalDataLayerInstance, FText& OutFailureReason)
 	{
+		const TArray<UClass*> IgnoreClasses;
+		const TArray<UPackage*> IgnorePackages;
+
 		check(!InActor->IsTemplate());
 		check(InActor->GetLevel());
 
+		const UExternalDataLayerAsset* OldExternalDataLayerAsset = InActor->GetExternalDataLayerAsset();
 		const UExternalDataLayerAsset* NewExternalDataLayerAsset = InExternalDataLayerInstance ? InExternalDataLayerInstance->GetExternalDataLayerAsset() : nullptr;
 		if (!InActor->IsPackageExternal())
 		{
 			OutFailureReason = FText::Format(LOCTEXT("CantMoveActorToEDL_NotPackageExternal", "Actor {0} is not using external package."), FText::FromString(InActor->GetName()));
 			return false;
 		}
-		
-		if (!InActor->IsUserManaged())
+
+		if (!InActor->IsUserManaged() && !InActor->GetExternalPackage()->HasAnyPackageFlags(PKG_NewlyCreated))
 		{
 			OutFailureReason = FText::Format(LOCTEXT("CantMoveActorToEDL_NotUserManaged", "Actor {0} cannot be manually modified."), FText::FromString(InActor->GetName()));
 			return false;
 		}
 
-		if (!InActor->GetExternalDataLayerAsset() && !NewExternalDataLayerAsset)
+		if (!OldExternalDataLayerAsset && !NewExternalDataLayerAsset)
 		{
 			OutFailureReason = FText::Format(LOCTEXT("CantMoveActorToEDL_NoExternalDataLayer", "Actor {0} has already no External Data Layer."), FText::FromString(InActor->GetName()));
 			return false;
 		}
 
-		if (InActor->GetExternalDataLayerAsset() == NewExternalDataLayerAsset)
+		if (OldExternalDataLayerAsset == NewExternalDataLayerAsset)
 		{
 			OutFailureReason = FText::Format(LOCTEXT("CantMoveActorToEDL_SameExternalDataLayer", "Actor {0} is already assigned to this External Data Layer."), FText::FromString(InActor->GetName()));
+			return false;
+		}
+
+		if (NewExternalDataLayerAsset && !InActor->SupportsDataLayerType(UExternalDataLayerInstance::StaticClass()))
+		{
+			OutFailureReason = FText::Format(LOCTEXT("CantMoveActorToEDL_EDLNotSupported", "Actor {0} doesn't support External Data Layers."), FText::FromString(InActor->GetName()));
 			return false;
 		}
 
@@ -207,27 +189,26 @@ bool FExternalDataLayerHelper::CanMoveActorsToExternalDataLayer(const TArray<AAc
 			return false;
 		}
 
-		// Create a temporary transient copy of the actor
-		AActor* DuplicatedActorToValidate = nullptr;
+		// Gather actor asset references
+		TSet<UObject*> ActorReferencedAssets;
+		FFindReferencedAssets::BuildAssetList(InActor, IgnoreClasses, IgnorePackages, ActorReferencedAssets, true);
+		TArray<UObject*> ReferencedContent;
+		InActor->GetReferencedContentObjects(ReferencedContent);
+		// Remove itself and its data layer assets from the list
+		ActorReferencedAssets.Append(ReferencedContent);
+		ActorReferencedAssets.Remove(InActor);
+		for (auto It = ActorReferencedAssets.CreateIterator(); It; ++It)
 		{
-			// Avoid triggering any dirty package notifications as this is a transient object
-			TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+			if (!(*It)->IsAsset() || (*It)->IsA<UDataLayerAsset>())
 			{
-				UWorld* World = InActor->GetWorld();
-				// Temporarily set actor to target value for the duplication to use this value
-				FScopeRawAssignActorExternalDataLayer ScopeSetActorExternalDataLayer(InActor, NewExternalDataLayerAsset);
-				// Flag the temporary actor transient to make sure IsAsset returns false (to avoid considering this temporary actor by any other systems)
-				FDelegateHandle PreSpawnDelegateHandle = World->AddOnActorPreSpawnInitialization(FOnActorSpawned::FDelegate::CreateLambda([](AActor* DuplicatedActorToValidate) { DuplicatedActorToValidate->SetFlags(RF_Transient); }));
-				DuplicatedActorToValidate = EditorActorSubsystem->DuplicateActor(InActor);
-				World->RemoveOnActorPreSpawnInitialization(PreSpawnDelegateHandle);
+				It.RemoveCurrent();
 			}
 		}
-		// Destroy the temporary actor
-		ON_SCOPE_EXIT{ DuplicatedActorToValidate->GetWorld()->EditorDestroyActor(DuplicatedActorToValidate, false); };
 
-		// Validate the temporary actor's asset references
+		// Validate if there are restrictions between the world or the new data layer asset and the actor asset references
 		TSet<FString> InvalidReferenceReasons;
-		if (!UE::Private::ExternalDataLayerHelper::ValidateAssetUsingAssetReferenceRestrictions(DuplicatedActorToValidate, InvalidReferenceReasons))
+		const UObject* Referencer = NewExternalDataLayerAsset ? (UObject*)NewExternalDataLayerAsset : (UObject*)InActor->GetLevel();
+		if (!UE::Private::ExternalDataLayerHelper::ValidateAssetUsingAssetReferenceRestrictions(Referencer, ActorReferencedAssets, InvalidReferenceReasons))
 		{
 			const FString JoinedReasons = FString::Join(InvalidReferenceReasons, TEXT("\n"));
 			if (NewExternalDataLayerAsset)
@@ -236,7 +217,6 @@ bool FExternalDataLayerHelper::CanMoveActorsToExternalDataLayer(const TArray<AAc
 			}
 			else
 			{
-				const UExternalDataLayerAsset* OldExternalDataLayerAsset = InActor->GetExternalDataLayerAsset();
 				check(OldExternalDataLayerAsset);
 				OutFailureReason = FText::Format(LOCTEXT("CantRemoveEDLFromActorReferenceRestrictions", "Can't remove External Data Layer {0} from Actor {1}. Reason: {2}."), FText::FromString(OldExternalDataLayerAsset->GetName()), FText::FromString(InActor->GetName()), FText::FromString(JoinedReasons));
 			}
