@@ -120,6 +120,9 @@ void UInterchangeGenericMeshPipeline::ExecutePreImportPipelineSkeletalMesh()
 		}
 	};
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const bool bCombineSkeletalMeshes = bCombineSkeletalMeshes_DEPRECATED;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	if (bCombineSkeletalMeshes)
 	{
 		//////////////////////////////////////////////////////////////////////////

@@ -152,9 +152,24 @@ public:
 	UPROPERTY()
 	EInterchangeSkeletalMeshContentType LastSkeletalMeshImportContentType;
 
+	UE_DEPRECATED(5.5, "bCombineSkeletalMeshes is no longer used")
+	UFUNCTION(BlueprintGetter, meta = (DeprecatedFunction, DeprecationMessage = "bCombineSkeletalMeshes is no longer used"))
+	bool GetCombineSkeletalMeshes() const
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return bCombineSkeletalMeshes_DEPRECATED;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	UE_DEPRECATED(5.5, "bCombineSkeletalMeshes is no longer used")
+	UFUNCTION(BlueprintSetter, meta = (DeprecatedFunction, DeprecationMessage = "bCombineSkeletalMeshes is no longer used"))
+	void SetCombineSkeletalMeshes(bool InbCombineSkeletalMeshes) {}
+
 	/** If enabled, all skinned mesh nodes that belong to the same skeleton root joint are combined into a single skeletal mesh. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Meshes")
-	bool bCombineSkeletalMeshes = true;
+	UE_DEPRECATED(5.5, "Please do not access this member. It will be remove in the next version.")
+	UPROPERTY(BlueprintReadWrite, BlueprintGetter = GetCombineSkeletalMeshes, BlueprintSetter = SetCombineSkeletalMeshes, Category = "Skeletal Meshes")
+	bool bCombineSkeletalMeshes_DEPRECATED = true;
+
 
 	/** If enabled, imports all morph target shapes found in the source. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Meshes")
