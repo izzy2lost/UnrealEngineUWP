@@ -487,6 +487,12 @@ public:
 	bool bCookMapsOnly;
 
 	/**
+	 * Cook with Warnings As Errors
+	 */
+	UPROPERTY(config, EditAnywhere, Category=Packaging, AdvancedDisplay, meta=(DisplayName="Cook with Warnings As Errors enabled"))
+	bool bTreatWarningsAsErrorsOnCook;
+
+	/**
 	* Encrypt ini files inside of the pak file
 	* NOTE: Replaced by the settings inside the cryptokeys system. Kept here for legacy migration purposes.
 	*/

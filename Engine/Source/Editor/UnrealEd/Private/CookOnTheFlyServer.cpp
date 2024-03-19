@@ -7137,6 +7137,12 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 	CookerIdleWarningSeverity = ParseLogVerbosityFromString(Severity);
 
 	bCookFastStartup = FParse::Param(FCommandLine::Get(), TEXT("cookfaststartup"));
+
+	const UProjectPackagingSettings* PackagingSettings = Cast<UProjectPackagingSettings>(UProjectPackagingSettings::StaticClass()->GetDefaultObject());
+	if (PackagingSettings->bTreatWarningsAsErrorsOnCook)
+	{
+		GWarn->TreatWarningsAsErrors = true;
+	}
 }
 
 void UCookOnTheFlyServer::ParseCookFilters()
