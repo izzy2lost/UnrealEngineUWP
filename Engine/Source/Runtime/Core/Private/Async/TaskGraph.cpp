@@ -120,7 +120,7 @@ static FAutoConsoleVariableRef CVarTaskOversubscriptionRatio(
 	ECVF_ReadOnly
 );
 
-CORE_API bool GTaskGraphUseDynamicThreadCreation = true;
+CORE_API bool GTaskGraphUseDynamicThreadCreation = (PLATFORM_DESKTOP == 1);
 static FAutoConsoleVariableRef CVarTaskDynamicThreadCreation(
 	TEXT("TaskGraph.UseDynamicThreadCreation"),
 	GTaskGraphUseDynamicThreadCreation,
