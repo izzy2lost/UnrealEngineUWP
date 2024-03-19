@@ -8,8 +8,8 @@ Horde implements a build automation system using BuildGraph as a scripting langu
 Linux. It integrates closely with Horde's remote execution capabilities, UnrealGameSync, and other tools
 in the Unreal Engine ecosystem.
 
-The terms Continuous Integration (CI) and Continuous Delivery (CD) are common monikers for build automation, 
-ensuring that the state of a project is continuously being monitored and that builds are produced regularly. 
+The terms Continuous Integration (CI) and Continuous Delivery (CD) are common monikers for build automation,
+ensuring that the state of a project is continuously being monitored and that builds are produced regularly.
 
 ## Prerequisites
 
@@ -85,7 +85,7 @@ to group related job types. There are several predefined jobs on different tabs.
 ### Incremental
 
 * **Incremental Build** - Builds the editor for your project and uploads editor builds to Horde that can be synced with
-  UnrealGameSync. These jobs are designed to be fast, run frequently during the day, and use incremental workspaces that 
+  UnrealGameSync. These jobs are designed to be fast, run frequently during the day, and use incremental workspaces that
   are not cleaned between runs. This allows them to start quickly and use intermediate artifacts produced on previous runs.
 
 ### Packaged Builds

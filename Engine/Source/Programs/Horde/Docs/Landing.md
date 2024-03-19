@@ -2,8 +2,12 @@
 
 **Horde** has been installed successfully. To continue setting up your installation, see the following guides:
 
+* **[Installing Horde](Docs/Tutorials/InstallHorde.md)**
 * **[Set up remote C++ compilation](Tutorials/RemoteCompilation.md)**
 * **[Set up build automation](Tutorials/BuildAutomation.md)**
+* **[Set up test automation](Tutorials/TestAutomation.md)**
+* **[Set up studio analytics](Tutorials/Analytics.md)**
+* **[Set up device manager](Tutorials/DeviceManager.md)**
 
 Alternatively, check out the full documentation through the `Help` menu at the top right of the page.
 

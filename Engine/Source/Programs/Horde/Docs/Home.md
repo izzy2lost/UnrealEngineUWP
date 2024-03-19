@@ -2,8 +2,12 @@
 
 ## Getting Started
 
+* **[Installing Horde](Docs/Tutorials/InstallHorde.md)**
 * **[Set up remote C++ compilation](Tutorials/RemoteCompilation.md)**
 * **[Set up build automation](Tutorials/BuildAutomation.md)**
+* **[Set up test automation](Tutorials/TestAutomation.md)**
+* **[Set up studio analytics](Tutorials/Analytics.md)**
+* **[Set up device manager](Tutorials/DeviceManager.md)**
 
 ## Status
 
