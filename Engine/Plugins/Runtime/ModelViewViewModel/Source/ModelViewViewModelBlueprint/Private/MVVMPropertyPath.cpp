@@ -100,6 +100,12 @@ FMVVMBlueprintFieldPath::FMVVMBlueprintFieldPath(const UBlueprint* InContext, UE
 }
 
 
+FName FMVVMBlueprintFieldPath::GetRawFieldName() const
+{
+	return BindingReference.GetMemberName();
+}
+
+
 FName FMVVMBlueprintFieldPath::GetFieldName(const UClass* InContext) const
 {
 	UE::MVVM::FMVVMConstFieldVariant Result = GetField(InContext);

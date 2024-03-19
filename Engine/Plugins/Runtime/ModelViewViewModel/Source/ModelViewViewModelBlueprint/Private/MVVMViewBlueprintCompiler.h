@@ -239,6 +239,7 @@ private:
 		TSharedPtr<FCompilerBindingSource> Source;
 		TArray<UE::MVVM::FMVVMConstFieldVariant> GeneratedFields; // the string path converted into field
 		TArray<UE::MVVM::FMVVMConstFieldVariant> SkeletalGeneratedFields; // the field path converted with getter and setter
+		EMVVMBlueprintFieldPathSource GeneratedFrom = EMVVMBlueprintFieldPathSource::None;
 
 		TSharedPtr<FCompilerNotifyFieldId> NotificationField;
 		FCompiledBindingLibraryCompiler::FFieldPathHandle LibraryCompilerHandle;
@@ -366,11 +367,13 @@ private:
 	struct FGetFieldsResult
 	{
 		TSharedPtr<FCompilerBindingSource> OptionalSource;
+		EMVVMBlueprintFieldPathSource GeneratedFrom = EMVVMBlueprintFieldPathSource::None;
 		TArray<FMVVMConstFieldVariant> GeneratedFields;
 	};
 	struct FCreateFieldsResult
 	{
 		TSharedPtr<FCompilerBindingSource> OptionalSource;
+		EMVVMBlueprintFieldPathSource GeneratedFrom = EMVVMBlueprintFieldPathSource::None;
 		TArray<UE::MVVM::FMVVMConstFieldVariant> GeneratedFields;
 		TArray<UE::MVVM::FMVVMConstFieldVariant> SkeletalGeneratedFields;
 	};
