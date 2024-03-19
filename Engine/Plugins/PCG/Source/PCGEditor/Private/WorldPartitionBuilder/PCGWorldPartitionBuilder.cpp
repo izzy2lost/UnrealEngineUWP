@@ -238,7 +238,7 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 	if (!bGeneratedAnyComponent)
 	{
 		UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("Dirty package detection and save skipped due to trivial run"));
-		return false;
+		return !bErrorOccurredWhileGenerating;
 	}
 
 	// TODO: Review the save flow when we have iterative loading.
