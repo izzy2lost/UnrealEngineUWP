@@ -696,11 +696,6 @@ void UModularVehicleBaseComponent::ParallelUpdate(float DeltaTime)
 	{
 		if (CurrentOutput->bValid && PVehicleOutput)
 		{
-			if (const FModularVehicleAsyncOutput* NextOutput = static_cast<FModularVehicleAsyncOutput*>(NextAsyncOutput))
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Next output is valid"));
-			}
-
 			PVehicleOutput->Clean();
 			int NumItems = CurrentOutput->VehicleSimOutput.SimTreeOutputData.Num();
 			PVehicleOutput->SimTreeOutputData.Reserve(NumItems);
