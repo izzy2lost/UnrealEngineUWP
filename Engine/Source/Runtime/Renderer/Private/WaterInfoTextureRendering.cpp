@@ -714,7 +714,7 @@ static void AddWaterInfoTextureDraws(const FScene* Scene, const TArrayView<FWate
 						const bool bUseInDepthPass = (PassType == EWaterInfoTextureMeshPass::TerrainDepth || PassType == EWaterInfoTextureMeshPass::DilatedWaterBodyDepth) && StaticMeshRelevance.bUseForWaterInfoTextureDepth;
 						const bool bUseInColorPass = (PassType == EWaterInfoTextureMeshPass::WaterBody) && StaticMeshRelevance.bUseForMaterial;
 
-						if ((bUseInDepthPass || bUseInColorPass) && StaticMeshRelevance.LODIndex == 0)
+						if ((bUseInDepthPass || bUseInColorPass) && StaticMeshRelevance.GetLODIndex() == 0)
 						{
 							const int32 StaticMeshCommandInfoIndex = StaticMeshRelevance.GetStaticMeshCommandInfoIndex(Draws.MeshPass);
 							if (StaticMeshCommandInfoIndex >= 0)

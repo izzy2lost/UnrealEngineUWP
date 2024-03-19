@@ -1420,8 +1420,8 @@ static void GetRuntimeVirtualTextureLODRange(TArray<class FStaticMeshBatchReleva
 		const FStaticMeshBatchRelevance& MeshRelevance = MeshRelevances[MeshIndex];
 		if (MeshRelevance.bRenderToVirtualTexture)
 		{
-			OutMinLOD = FMath::Min(OutMinLOD, MeshRelevance.LODIndex);
-			OutMaxLOD = FMath::Max(OutMaxLOD, MeshRelevance.LODIndex);
+			OutMinLOD = FMath::Min(OutMinLOD, MeshRelevance.GetLODIndex());
+			OutMaxLOD = FMath::Max(OutMaxLOD, MeshRelevance.GetLODIndex());
 		}
 	}
 
@@ -2347,8 +2347,8 @@ void FPrimitiveSceneInfo::GetStaticMeshesLODRange(int8& OutMinLOD, int8& OutMaxL
 	for (int32 MeshIndex = 0; MeshIndex < StaticMeshRelevances.Num(); ++MeshIndex)
 	{
 		const FStaticMeshBatchRelevance& MeshRelevance = StaticMeshRelevances[MeshIndex];
-		OutMinLOD = FMath::Min(OutMinLOD, MeshRelevance.LODIndex);
-		OutMaxLOD = FMath::Max(OutMaxLOD, MeshRelevance.LODIndex);
+		OutMinLOD = FMath::Min(OutMinLOD, MeshRelevance.GetLODIndex());
+		OutMaxLOD = FMath::Max(OutMaxLOD, MeshRelevance.GetLODIndex());
 	}
 }
 
