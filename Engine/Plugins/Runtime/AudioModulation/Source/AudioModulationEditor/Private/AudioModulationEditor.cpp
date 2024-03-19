@@ -13,8 +13,10 @@
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
+#include "IAudioInsightsModule.h"
 #include "IAudioModulation.h"
 #include "ICurveEditorModule.h"
+#include "Insights/Views/ModulationDashboardViewFactory.h"
 #include "Internationalization/Internationalization.h"
 #include "Layouts/SoundControlBusMixStageLayout.h"
 #include "Layouts/SoundControlModulationPatchLayout.h"
@@ -36,7 +38,6 @@
 
 DEFINE_LOG_CATEGORY(LogAudioModulationEditor);
 
-
 namespace AudioModulationEditor
 {
 	static const FName ToolName = TEXT("AssetTools");
@@ -51,6 +52,55 @@ namespace AudioModulationEditor
 	}
 } // namespace AudioModulationEditor
 
+namespace
+{
+
+	static bool bIsModulationRegisteredInAudioInsights = false;
+
+	void RegisterModulationInAudioInsights()
+	{
+		if (!bIsModulationRegisteredInAudioInsights)
+		{
+			IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
+			InsightsModule.RegisterDashboardViewFactory(MakeShared<AudioModulationEditor::FAudioModulationDashboardViewFactory>());
+
+			bIsModulationRegisteredInAudioInsights = true;
+		}
+	}
+
+	void UnregisterModulationInAudioInsights()
+	{
+		if (bIsModulationRegisteredInAudioInsights)
+		{
+			IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
+			InsightsModule.UnregisterDashboardViewFactory("AudioModulation");
+
+			bIsModulationRegisteredInAudioInsights = false;
+		}
+	}
+
+	void OnModulationInsightsCVarValueChanged(int32 CVarValue)
+	{
+		if (CVarValue)
+		{
+			RegisterModulationInAudioInsights();
+		}
+		else
+		{
+			UnregisterModulationInAudioInsights();
+		}
+	}
+
+}
+
+static int32 AudioModulationInsightsTabCVar = 0;
+static FAutoConsoleVariableRef AudioModulationEnableInsightsTab(
+	TEXT("au.Modulation.AudioInsightsTab"),
+	AudioModulationInsightsTabCVar,
+	TEXT("Enable/disable the Audio Modulation Tab in Audio Insights. 1 = enable, 0 = disable\n")
+	TEXT("Requires closing and Reopening Insights to take effect.\n"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Var) { ::OnModulationInsightsCVarValueChanged(AudioModulationInsightsTabCVar); }),
+	ECVF_Default);
 
 FAudioModulationEditorModule::FAudioModulationEditorModule()
 {
@@ -153,6 +203,12 @@ void FAudioModulationEditorModule::StartupModule()
 			Parameter->RemoveFromRoot();
 		}
 	});
+
+
+	if (AudioModulationInsightsTabCVar)
+	{
+		::RegisterModulationInAudioInsights();
+	}
 }
 
 void FAudioModulationEditorModule::RegisterCustomPropertyLayouts()
@@ -195,6 +251,11 @@ void FAudioModulationEditorModule::ShutdownModule()
 	FModPatchCurveEditorModel::ModPatchViewId = ECurveEditorViewID::Invalid;
 
 	FSlateStyleRegistry::UnRegisterSlateStyle(*StyleSet.Get());
+
+	if (AudioModulationInsightsTabCVar)
+	{
+		::UnregisterModulationInAudioInsights();
+	}
 }
 
 IMPLEMENT_MODULE(FAudioModulationEditorModule, AudioModulationEditor);

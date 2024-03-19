@@ -28,6 +28,7 @@ public class AudioModulationEditor : ModuleRules
 				"InputCore",				
 				"AudioEditor",
 				"AudioExtensions",
+				"AudioInsights",
 				"AudioModulation",
 				"CurveEditor",
 				"EditorWidgets",

@@ -35,6 +35,10 @@
 		{
 			"Name": "WaveTable",
 			"Enabled": true
+		},
+		{
+			"Name": "AudioInsights",
+			"Enabled": true
 		}
 	]
 }
