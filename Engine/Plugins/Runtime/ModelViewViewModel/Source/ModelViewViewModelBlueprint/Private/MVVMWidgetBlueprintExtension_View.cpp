@@ -2,6 +2,8 @@
 
 #include "MVVMWidgetBlueprintExtension_View.h"
 
+#include "Blueprint/WidgetTree.h"
+#include "Extensions/MVVMBlueprintViewExtension.h"
 #include "FindInBlueprintManager.h"
 #include "MVVMBlueprintInstancedViewModel.h"
 #include "MVVMBlueprintView.h"
@@ -56,6 +58,101 @@ void UMVVMWidgetBlueprintExtension_View::PostLoad()
 	Super::PostLoad();
 }
 
+UMVVMBlueprintViewExtension* UMVVMWidgetBlueprintExtension_View::CreateBlueprintWidgetExtension(TSubclassOf<UMVVMBlueprintViewExtension> ExtensionClass, FName WidgetName)
+{
+	if (ensure(ExtensionClass.Get()))
+	{
+		UObject* ExtensionObj = NewObject<UObject>(this, ExtensionClass.Get(), NAME_None, RF_Transactional);
+		UMVVMBlueprintViewExtension* NewExtension = CastChecked<UMVVMBlueprintViewExtension>(ExtensionObj);
+		NewExtension->Modify();
+
+		FMVVMExtensionItem ExtensionToAdd;
+		ExtensionToAdd.WidgetName = WidgetName;
+		ExtensionToAdd.ExtensionObj = NewExtension;
+		BlueprintExtensions.Add(ExtensionToAdd);
+
+		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetWidgetBlueprint());
+		return NewExtension;
+	}
+	return nullptr;
+}
+
+void UMVVMWidgetBlueprintExtension_View::RemoveBlueprintWidgetExtension(UMVVMBlueprintViewExtension* ExtensionToRemove, FName WidgetName)
+{
+	FMVVMExtensionItem Extension;
+	Extension.WidgetName = WidgetName;
+	Extension.ExtensionObj = ExtensionToRemove;
+	BlueprintExtensions.Remove(Extension);
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetWidgetBlueprint());
+}
+
+TArray<UMVVMBlueprintViewExtension*> UMVVMWidgetBlueprintExtension_View::GetBlueprintExtensionsForWidget(FName WidgetName) const
+{
+	TArray<UMVVMBlueprintViewExtension*> ThisWidgetExtensions;
+	for (const FMVVMExtensionItem& Extension : BlueprintExtensions)
+	{
+		if (Extension.WidgetName == WidgetName)
+		{
+			ThisWidgetExtensions.Add(Extension.ExtensionObj);
+		}
+	}
+	return ThisWidgetExtensions;
+}
+
+void UMVVMWidgetBlueprintExtension_View::VerifyWidgetExtensions()
+{
+	if (const UWidgetBlueprint* WidgetBlueprint = GetWidgetBlueprint())
+	{
+		if (const UWidgetTree* WidgetTree = WidgetBlueprint->WidgetTree)
+		{
+			TArray <FName, TInlineAllocator<4>> WidgetNamesToRemove;
+			for (const FMVVMExtensionItem& Extension : BlueprintExtensions)
+			{
+				if (!Extension.WidgetName.IsNone())
+				{
+					WidgetNamesToRemove.Add(Extension.WidgetName);
+				}
+			}
+			// Find widgets that are no longer in the tree and delete their extensions.
+			WidgetTree->ForEachWidget([&WidgetNamesToRemove, this](TObjectPtr<UWidget> Widget) {
+				if (Widget)
+				{
+					for (int32 Index = WidgetNamesToRemove.Num() - 1; Index >= 0; Index--)
+					{
+						const FName WidgetName = WidgetNamesToRemove[Index];
+						if (WidgetName == Widget->GetFName())
+						{
+							WidgetNamesToRemove.Remove(WidgetName);
+						}
+					}
+				}
+			});
+
+			for (int32 Index = BlueprintExtensions.Num() - 1; Index >= 0; Index--)
+			{
+				if (WidgetNamesToRemove.Contains(BlueprintExtensions[Index].WidgetName))
+				{
+					BlueprintExtensions.RemoveAt(Index);
+				}
+			}
+		}
+	}
+}
+
+void UMVVMWidgetBlueprintExtension_View::RenameWidgetExtensions(FName OldName, FName NewName)
+{
+	for (FMVVMExtensionItem& Extension : BlueprintExtensions)
+	{
+		if (Extension.WidgetName == OldName)
+		{
+			Extension.WidgetName = NewName;
+			if (Extension.ExtensionObj)
+			{
+				Extension.ExtensionObj->WidgetRenamed(OldName, NewName);
+			}
+		}
+	}
+}
 
 void UMVVMWidgetBlueprintExtension_View::HandlePreloadObjectsForCompilation(UBlueprint* OwningBlueprint)
 {
@@ -92,6 +189,8 @@ void UMVVMWidgetBlueprintExtension_View::HandlePreloadObjectsForCompilation(UBlu
 
 void UMVVMWidgetBlueprintExtension_View::HandleBeginCompilation(FWidgetBlueprintCompilerContext& InCreationContext)
 {
+	VerifyWidgetExtensions();
+
 	for (const FMVVMBlueprintViewModelContext& AvailableViewModel : BlueprintView->GetViewModels())
 	{
 		if (AvailableViewModel.InstancedViewModel)

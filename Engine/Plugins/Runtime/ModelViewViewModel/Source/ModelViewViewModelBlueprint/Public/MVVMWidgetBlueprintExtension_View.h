@@ -8,6 +8,7 @@
 #include "MVVMWidgetBlueprintExtension_View.generated.h"
 
 class UMVVMBlueprintView;
+class UMVVMBlueprintViewExtension;
 class FWidgetBlueprintCompilerContext;
 class UWidgetBlueprintGeneratedClass;
 
@@ -15,6 +16,28 @@ namespace UE::MVVM::Private
 {
 	struct FMVVMViewBlueprintCompiler;
 } //namespace
+
+USTRUCT()
+struct FMVVMExtensionItem
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName WidgetName = NAME_None;
+
+	UPROPERTY()
+	FGuid ViewmodelId = FGuid();
+
+	UPROPERTY()
+	TObjectPtr<UMVVMBlueprintViewExtension> ExtensionObj;
+
+	bool operator==(const FMVVMExtensionItem& OtherExt) const
+	{
+		return OtherExt.WidgetName == WidgetName 
+			&&	OtherExt.ExtensionObj == ExtensionObj
+			&&	OtherExt.ViewmodelId == ViewmodelId;
+	}
+};
 
 /**
  *
@@ -62,6 +85,12 @@ public:
 	virtual FSearchData HandleGatherSearchData(const UBlueprint* OwningBlueprint) const override;
 	//~ End UWidgetBlueprintExtension interface
 
+	void VerifyWidgetExtensions();
+	void RenameWidgetExtensions(FName OldName, FName NewName);
+	UMVVMBlueprintViewExtension* CreateBlueprintWidgetExtension(TSubclassOf<UMVVMBlueprintViewExtension> ExtensionClass, FName WidgetName);
+	void RemoveBlueprintWidgetExtension(UMVVMBlueprintViewExtension* ExtensionToRemove, FName WidgetName);
+	TArray<UMVVMBlueprintViewExtension*> GetBlueprintExtensionsForWidget(FName WidgetName) const;
+
 	void SetFilterSettings(FMVVMViewBindingFilterSettings InFilterSettings);
 	FMVVMViewBindingFilterSettings GetFilterSettings() const
 	{
@@ -80,6 +109,11 @@ private:
 
 	FSimpleMulticastDelegate BlueprintViewChangedDelegate;
 	TPimplPtr<UE::MVVM::Private::FMVVMViewBlueprintCompiler> CurrentCompilerContext;
+
+	UPROPERTY()
+	TArray<FMVVMExtensionItem> BlueprintExtensions;
+
+	friend UE::MVVM::Private::FMVVMViewBlueprintCompiler;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
