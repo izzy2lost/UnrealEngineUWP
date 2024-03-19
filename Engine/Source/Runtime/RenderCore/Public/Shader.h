@@ -807,9 +807,9 @@ ENUM_CLASS_FLAGS(EShaderPermutationFlags);
 
 enum class EShaderPermutationPrecacheRequest : uint8
 {
-	Required,
-	DevelopmentOnly,
-	NotRequired,
+	Precached,			//< Permutation should be precached because it can be used at runtime
+	NotPrecached,		//< Permutation doesn't have to be precached (debug feature only for example)
+	NotUsed,			//< Permutation is not used with current cvar/configuration/feature level
 };
 
 RENDERCORE_API EShaderPermutationFlags GetShaderPermutationFlags(const FPlatformTypeLayoutParameters& LayoutParams);
@@ -875,7 +875,7 @@ public:
 	static bool ShouldCompilePermutation(const FShaderPermutationParameters&) { return true; }
 
 	/** Can be overridden by FShader subclasses to determine whether a specific permutation should be precached. */
-	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) { return ShouldCompilePermutation(Parameters) ? EShaderPermutationPrecacheRequest::Required : EShaderPermutationPrecacheRequest::NotRequired; }
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) { return ShouldCompilePermutation(Parameters) ? EShaderPermutationPrecacheRequest::Precached : EShaderPermutationPrecacheRequest::NotUsed; }
 
 	/** Can be overridden by FShader subclasses to determine whether compilation is valid. */
 	static bool ValidateCompiledResult(EShaderPlatform InPlatform, const FShaderParameterMap& InParameterMap, TArray<FString>& OutError) { return true; }

@@ -426,7 +426,7 @@ bool FShaderType::ShouldCompilePermutation(const FShaderPermutationParameters& P
 
 EShaderPermutationPrecacheRequest FShaderType::ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) const
 {
-	return ShouldCompileShaderFrequency((EShaderFrequency)Frequency, Parameters.Platform) ? (*ShouldPrecachePermutationRef)(Parameters) : EShaderPermutationPrecacheRequest::NotRequired;
+	return ShouldCompileShaderFrequency((EShaderFrequency)Frequency, Parameters.Platform) ? (*ShouldPrecachePermutationRef)(Parameters) : EShaderPermutationPrecacheRequest::NotUsed;
 }
 
 #if WITH_EDITOR
@@ -1158,15 +1158,15 @@ bool FShaderPipelineType::ShouldCompilePermutation(const FShaderPermutationParam
 
 EShaderPermutationPrecacheRequest FShaderPipelineType::ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) const
 {
-	EShaderPermutationPrecacheRequest Result = EShaderPermutationPrecacheRequest::NotRequired;
+	EShaderPermutationPrecacheRequest Result = EShaderPermutationPrecacheRequest::NotUsed;
 	for (const FShaderType* ShaderType : Stages)
 	{
 		EShaderPermutationPrecacheRequest ShaderTypeRequest = ShaderType->ShouldPrecachePermutation(Parameters);
-		if (ShaderTypeRequest == EShaderPermutationPrecacheRequest::Required)
+		if (ShaderTypeRequest == EShaderPermutationPrecacheRequest::Precached)
 		{
 			return ShaderTypeRequest;
 		}
-		else if (ShaderTypeRequest == EShaderPermutationPrecacheRequest::DevelopmentOnly)
+		else if (ShaderTypeRequest == EShaderPermutationPrecacheRequest::NotPrecached)
 		{
 			Result = ShaderTypeRequest;
 		}
