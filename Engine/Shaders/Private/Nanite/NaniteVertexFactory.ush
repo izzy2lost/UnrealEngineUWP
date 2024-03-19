@@ -90,7 +90,7 @@ float3x3 VertexFactoryGetTangentToLocal(FVertexFactoryInput Input, FVertexFactor
 	return Intermediates.TangentToLocal;
 }
 
-FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, float3x3 TangentToLocal, bool bIsPreviousFrame = false)
+FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, float3x3 TangentToLocal)
 {
 	FMaterialVertexParameters Result = MakeInitializedMaterialVertexParameters();
 
@@ -226,11 +226,8 @@ void SetVertexParameterInstanceData(inout FMaterialVertexParameters VertexParame
 void SetVertexParameterAttributeData(inout FMaterialVertexParameters VertexParameters, FNanitePostDeformVertex Vert, float4x4 LocalToTranslatedWorld, float3x3 LocalToWorldNoScale)
 {
 	half3x3 TangentToLocal = CalcVertexTangentToLocal(VertexParameters.SceneData.Primitive, VertexParameters.SceneData.InstanceData, Vert);
-	float4x4 TranslatedWorldToPrimitive = DFFastToTranslatedWorld(VertexParameters.SceneData.Primitive.WorldToLocal, ResolvedView.PreViewTranslation);
 
 	VertexParameters.WorldPosition		= mul(float4(Vert.Position, 1), LocalToTranslatedWorld).xyz;
-	VertexParameters.PositionInstanceSpace = Vert.Position;
-	VertexParameters.PositionPrimitiveSpace = mul(float4(VertexParameters.WorldPosition, 1), TranslatedWorldToPrimitive).xyz;
 	VertexParameters.TangentToWorld		= mul(TangentToLocal, LocalToWorldNoScale);
 	VertexParameters.VertexColor		= Vert.RawAttributeData.Color;
 	VertexParameters.PreSkinnedPosition = Vert.Position;
@@ -960,17 +957,7 @@ float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIn
 	return 0.0f;
 }
 
-float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
-{
-	return 0.0f;
-}
-
-float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
-{
-	return 0.0f;
-}
-
-FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, half3x3 TangentToLocal, bool bIsPreviousFrame = false)
+FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, half3x3 TangentToLocal)
 {
 	FMaterialVertexParameters Result = MakeInitializedMaterialVertexParameters();
 	return Result;

@@ -326,31 +326,12 @@ FInstanceSceneData GetInstanceData(FVertexFactoryIntermediates Intermediates)
 	return Intermediates.SceneData.InstanceData;
 }
 
-float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
-float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
-
 /** Converts from vertex factory specific input to a FMaterialVertexParameters, which is used by vertex shader material inputs. */
-FMaterialVertexParameters GetMaterialVertexParameters(
-	FVertexFactoryInput Input, 
-	FVertexFactoryIntermediates Intermediates, 
-	float3 WorldPosition, 
-	float3x3 TangentToLocal,
-	bool bIsPreviousFrame = false)
+FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, float3x3 TangentToLocal)
 {
 	FMaterialVertexParameters Result = MakeInitializedMaterialVertexParameters();
 	Result.SceneData = Intermediates.SceneData;
-	
 	Result.WorldPosition = WorldPosition;
-	if (bIsPreviousFrame)
-	{
-		Result.PositionInstanceSpace = VertexFactoryGetPreviousInstanceSpacePosition(Input, Intermediates);
-	}
-	else
-	{
-		Result.PositionInstanceSpace = VertexFactoryGetInstanceSpacePosition(Input, Intermediates);
-	}
-	Result.PositionPrimitiveSpace = Result.PositionInstanceSpace; // No support for instancing, so instance == primitive
-
 	Result.VertexColor = Intermediates.Color;
 	Result.TangentToWorld = mul(TangentToLocal, DFToFloat3x3(Intermediates.LocalToWorld));
 	Result.PreSkinnedPosition = Intermediates.UnpackedPosition.xyz;
@@ -817,6 +798,20 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 	return Intermediates;
 }
 
+float4 CalcWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	float3 SkinnedPosition = SkinPosition(Input, Intermediates);
+#if GPUSKIN_APEX_CLOTH
+	if (IsSimulatedVertex(Intermediates.ClothVertexInfluences[0]))
+	{
+		// Transform simulated position from cloth space into local space and blend with skinned position
+		float4 TransformedSimulatedPos = mul(float4(Intermediates.SimulatedPosition.xyz, 1), ClothToLocal);
+		SkinnedPosition = lerp(SkinnedPosition, TransformedSimulatedPos.xyz, ClothBlendWeight * Intermediates.SimulatedPosition.w);
+	}
+#endif
+	return TransformLocalToTranslatedWorld(SkinnedPosition, Intermediates.LocalToWorld);
+}
+
 /**
 * Get the 3x3 tangent basis vectors for this vertex factory
 *
@@ -828,23 +823,9 @@ float3x3 VertexFactoryGetTangentToLocal( FVertexFactoryInput Input, FVertexFacto
 	return Intermediates.TangentToLocal;
 }
 
-float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
-{
-	float3 SkinnedPosition = SkinPosition(Input, Intermediates);
-	#if GPUSKIN_APEX_CLOTH
-	if (IsSimulatedVertex(Intermediates.ClothVertexInfluences[0]))
-	{
-		// Transform simulated position from cloth space into local space and blend with skinned position
-		float4 TransformedSimulatedPos = mul(float4(Intermediates.SimulatedPosition.xyz, 1), ClothToLocal);
-		SkinnedPosition = lerp(SkinnedPosition, TransformedSimulatedPos.xyz, ClothBlendWeight * Intermediates.SimulatedPosition.w);
-	}
-	#endif
-	return SkinnedPosition;
-}
-
 float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {
-	return TransformLocalToTranslatedWorld(VertexFactoryGetInstanceSpacePosition(Input, Intermediates), Intermediates.LocalToWorld);
+	return CalcWorldPosition(Input, Intermediates);
 }
 
 float4 VertexFactoryGetRasterizedWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float4 InWorldPosition)
@@ -924,9 +905,9 @@ FVertexFactoryInterpolantsVSToPS VertexFactoryGetInterpolantsVSToPS(FVertexFacto
 	return Interpolants;
 }
 
-// local position relative to instance
-float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
-{
+// @return previous translated world position
+float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{	
 	float3 PrevSkinnedPosition = SkinPreviousPosition(Input, Intermediates);
 #if GPUSKIN_APEX_CLOTH
 #if GPUSKIN_APEX_CLOTH_PREVIOUS
@@ -938,13 +919,6 @@ float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, 
 	}
 #endif // GPUSKIN_APEX_CLOTH_PREVIOUS
 #endif // GPUSKIN_APEX_CLOTH
-	return PrevSkinnedPosition;
-}
-
-// @return previous translated world position
-float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
-{	
-	float3 PrevSkinnedPosition = VertexFactoryGetPreviousInstanceSpacePosition(Input, Intermediates);
 	return TransformPreviousLocalPositionToTranslatedWorld(PrevSkinnedPosition, Intermediates.PrevLocalToWorld);
 }
 
