@@ -27,7 +27,8 @@ int32 FWorkerRequestsLocal::GetNumExternalRequests() const
 	return ExternalRequests.GetNumRequests();
 }
 
-EExternalRequestType FWorkerRequestsLocal::DequeueNextCluster(TArray<FSchedulerCallback>& OutCallbacks, TArray<FFilePlatformRequest>& OutBuildRequests)
+EExternalRequestType FWorkerRequestsLocal::DequeueNextCluster(TArray<FSchedulerCallback>& OutCallbacks,
+	TArray<FFilePlatformRequest>& OutBuildRequests)
 {
 	return ExternalRequests.DequeueNextCluster(OutCallbacks, OutBuildRequests);
 }
@@ -37,7 +38,8 @@ bool FWorkerRequestsLocal::DequeueSchedulerCallbacks(TArray<FSchedulerCallback>&
 	return ExternalRequests.DequeueCallbacks(OutCallbacks);
 }
 
-void FWorkerRequestsLocal::DequeueAllExternal(TArray<FSchedulerCallback>& OutCallbacks, TArray<FFilePlatformRequest>& OutCookRequests)
+void FWorkerRequestsLocal::DequeueAllExternal(TArray<FSchedulerCallback>& OutCallbacks,
+	TArray<FFilePlatformRequest>& OutCookRequests)
 {
 	ExternalRequests.DequeueAll(OutCallbacks, OutCookRequests);
 }
@@ -118,7 +120,8 @@ void FWorkerRequestsLocal::GetInitializeConfigSettings(UCookOnTheFlyServer& COTF
 	Settings.LoadLocal(OutputDirectoryOverride);
 }
 
-void FWorkerRequestsLocal::GetBeginCookConfigSettings(UCookOnTheFlyServer& COTFS, FBeginCookContext& BeginContext, UE::Cook::FBeginCookConfigSettings& Settings)
+void FWorkerRequestsLocal::GetBeginCookConfigSettings(UCookOnTheFlyServer& COTFS, FBeginCookContext& BeginContext,
+	UE::Cook::FBeginCookConfigSettings& Settings)
 {
 	Settings.LoadLocal(BeginContext);
 }

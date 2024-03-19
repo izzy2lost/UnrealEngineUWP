@@ -77,9 +77,15 @@ public:
 	void TickFromSchedulerThread();
 	/** Periodic display function, called from CookOnTheFlyServer.UpdateDisplay. */
 	void UpdateDisplayDiagnostics() const;
-	/** Called when the COTFS Server has detected all packages are complete. Tells the CookWorkers to flush messages and exit. */
+	/**
+	 * Called when the COTFS Server has detected all packages are complete. Tells the CookWorkers to flush messages
+	 * and exit.
+	 */
 	void PumpCookComplete(bool& bOutCompleted);
-	/** Called when a session ends. The Director blocks on shutdown of all CookWorkers and returns state to before session started. */
+	/**
+	 * Called when a session ends. The Director blocks on shutdown of all CookWorkers and returns state to before
+	 * session started.
+	 */
 	void ShutdownCookSession();
 
 	/** Enum specifying how CookWorker log output should be shown. */
@@ -150,7 +156,10 @@ private:
 	 * The CookWorkerServers are constructed to Uninitialized; the worker process is created later.
 	 */
 	void InitializeWorkers();
-	/** Copy to snapshot variables the data required on the communication thread that can only be read from the scheduler thread. */
+	/**
+	 * Copy to snapshot variables the data required on the communication thread that can only be read from the
+	 * scheduler thread.
+	 */
 	void ConstructReadonlyThreadVariables();
 	/** Construct CookWorkerServers if necessary to replace workers that have crashed. */
 	void RecreateWorkers();

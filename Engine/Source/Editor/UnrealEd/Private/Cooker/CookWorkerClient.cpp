@@ -57,7 +57,8 @@ FCookWorkerClient::~FCookWorkerClient()
 	if (ConnectStatus == EConnectStatus::Connected ||
 		(EConnectStatus::FlushAndAbortFirst <= ConnectStatus && ConnectStatus <= EConnectStatus::FlushAndAbortLast))
 	{
-		UE_LOG(LogCook, Warning, TEXT("CookWorker was destroyed before it finished Disconnect. The CookDirector may be missing some information."));
+		UE_LOG(LogCook, Warning,
+			TEXT("CookWorker was destroyed before it finished Disconnect. The CookDirector may be missing some information."));
 	}
 	Sockets::CloseSocket(ServerSocket);
 
@@ -206,8 +207,8 @@ void FCookWorkerClient::ReportPromoteToSaveComplete(FPackageData& PackageData)
 		FPackagePlatformData& PackagePlatformData = PackageData.FindOrAddPlatformData(TargetPlatform);
 		if (!PackagePlatformData.IsCookAttempted() || PackagePlatformData.IsReportedToDirector())
 		{
-			// We didn't attempt to cook this platform for this package, or we cooked it previously and already sent the
-			// information about it
+			// We didn't attempt to cook this platform for this package, or we cooked it previously and already sent
+			// the information about it
 			PlatformResults.SetCookResults(ECookResult::Invalid);
 		}
 		else
@@ -360,7 +361,8 @@ void FCookWorkerClient::CreateServerSocket(const FDirectorConnectionInfo& Connec
 	ISocketSubsystem* SocketSubsystem = ISocketSubsystem::Get();
 	if (!SocketSubsystem)
 	{
-		UE_LOG(LogCook, Error, TEXT("CookWorker initialization failure: platform does not support network sockets, cannot connect to CookDirector."));
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorker initialization failure: platform does not support network sockets, cannot connect to CookDirector."));
 		SendToState(EConnectStatus::LostConnection);
 		return;
 	}
@@ -368,7 +370,8 @@ void FCookWorkerClient::CreateServerSocket(const FDirectorConnectionInfo& Connec
 	DirectorAddr = Sockets::GetAddressFromStringWithPort(DirectorURI);
 	if (!DirectorAddr)
 	{
-		UE_LOG(LogCook, Error, TEXT("CookWorker initialization failure: could not convert -CookDirectorHost=%s into an address, cannot connect to CookDirector."),
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorker initialization failure: could not convert -CookDirectorHost=%s into an address, cannot connect to CookDirector."),
 			*DirectorURI);
 		SendToState(EConnectStatus::LostConnection);
 		return;
@@ -386,10 +389,12 @@ void FCookWorkerClient::CreateServerSocket(const FDirectorConnectionInfo& Connec
 
 	constexpr float WaitForConnectTimeout = 60.f * 10;
 	float ConditionalTimeoutSeconds = IsCookIgnoreTimeouts() ? MAX_flt : WaitForConnectTimeout;
-	bool bServerSocketReady = ServerSocket->Wait(ESocketWaitConditions::WaitForWrite, FTimespan::FromSeconds(ConditionalTimeoutSeconds));
+	bool bServerSocketReady = ServerSocket->Wait(ESocketWaitConditions::WaitForWrite,
+		FTimespan::FromSeconds(ConditionalTimeoutSeconds));
 	if (!bServerSocketReady)
 	{
-		UE_LOG(LogCook, Error, TEXT("CookWorker initialization failure: Timed out after %.0f seconds trying to connect to CookDirector."),
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorker initialization failure: Timed out after %.0f seconds trying to connect to CookDirector."),
 			ConditionalTimeoutSeconds);
 		SendToState(EConnectStatus::LostConnection);
 		return;
@@ -424,7 +429,8 @@ void FCookWorkerClient::PollWriteConnectMessage()
 		if (FPlatformTime::Seconds() - ConnectStartTimeSeconds > CookWorkerClient::WaitForConnectReplyTimeout &&
 			!IsCookIgnoreTimeouts())
 		{
-			UE_LOG(LogCook, Error, TEXT("CookWorker initialization failure: timed out waiting for %fs to send ConnectMessage."),
+			UE_LOG(LogCook, Error,
+				TEXT("CookWorker initialization failure: timed out waiting for %fs to send ConnectMessage."),
 				CookWorkerClient::WaitForConnectReplyTimeout);
 			SendToState(EConnectStatus::LostConnection);
 		}
@@ -456,7 +462,8 @@ void FCookWorkerClient::PollReceiveConfigMessage()
 		if (FPlatformTime::Seconds() - ConnectStartTimeSeconds > CookWorkerClient::WaitForConnectReplyTimeout &&
 			!IsCookIgnoreTimeouts())
 		{
-			UE_LOG(LogCook, Error, TEXT("CookWorker initialization failure: timed out waiting for %fs to receive InitialConfigMessage."),
+			UE_LOG(LogCook, Error,
+				TEXT("CookWorker initialization failure: timed out waiting for %fs to receive InitialConfigMessage."),
 				CookWorkerClient::WaitForConnectReplyTimeout);
 			SendToState(EConnectStatus::LostConnection);
 		}
@@ -465,7 +472,8 @@ void FCookWorkerClient::PollReceiveConfigMessage()
 	
 	if (Messages[0].MessageType != FInitialConfigMessage::MessageType)
 	{
-		UE_LOG(LogCook, Warning, TEXT("CookWorker initialization failure: Director sent a different message before sending an InitialConfigMessage. MessageType: %s."),
+		UE_LOG(LogCook, Warning,
+			TEXT("CookWorker initialization failure: Director sent a different message before sending an InitialConfigMessage. MessageType: %s."),
 			*Messages[0].MessageType.ToString());
 		SendToState(EConnectStatus::LostConnection);
 		return;
@@ -474,7 +482,8 @@ void FCookWorkerClient::PollReceiveConfigMessage()
 	InitialConfigMessage = MakeUnique<FInitialConfigMessage>();
 	if (!InitialConfigMessage->TryRead(Messages[0].Object))
 	{
-		UE_LOG(LogCook, Warning, TEXT("CookWorker initialization failure: Director sent an invalid InitialConfigMessage."));
+		UE_LOG(LogCook, Warning,
+			TEXT("CookWorker initialization failure: Director sent an invalid InitialConfigMessage."));
 		SendToState(EConnectStatus::LostConnection);
 		return;
 	}
@@ -515,7 +524,8 @@ void FCookWorkerClient::PollReceiveConfigMessage()
 	{
 		TStringBuilder<512> StringBuilder;
 		GetPlatformDetails(StringBuilder);
-		UE_LOG(LogCook, Error, TEXT("CookWorker initialization failure: Director sent a mismatch in session platform quantity.\n%s"), *StringBuilder);
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorker initialization failure: Director sent a mismatch in session platform quantity.\n%s"), *StringBuilder);
 		SendToState(EConnectStatus::LostConnection);
 		return;
 	}
@@ -534,7 +544,8 @@ void FCookWorkerClient::PollReceiveConfigMessage()
 	{
 		TStringBuilder<512> StringBuilder;
 		GetPlatformDetails(StringBuilder);
-		UE_LOG(LogCook, Error, TEXT("CookWorker initialization failure: Director sent a mismatch in session platform contents.\n%s"), *StringBuilder);
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorker initialization failure: Director sent a mismatch in session platform contents.\n%s"), *StringBuilder);
 		SendToState(EConnectStatus::LostConnection);
 		return;
 	}
@@ -555,7 +566,8 @@ void FCookWorkerClient::PumpSendMessages()
 	UE::CompactBinaryTCP::EConnectionStatus Status = UE::CompactBinaryTCP::TryFlushBuffer(ServerSocket, SendBuffer);
 	if (Status == UE::CompactBinaryTCP::EConnectionStatus::Failed)
 	{
-		UE_LOG(LogCook, Error, TEXT("CookWorkerClient failed to write message to Director. We will abort the CookAsCookWorker commandlet."));
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorkerClient failed to write message to Director. We will abort the CookAsCookWorker commandlet."));
 		SendToState(EConnectStatus::LostConnection);
 	}
 }
@@ -597,7 +609,8 @@ void FCookWorkerClient::PumpReceiveMessages()
 	EConnectionStatus SocketStatus = TryReadPacket(ServerSocket, ReceiveBuffer, Messages);
 	if (SocketStatus != EConnectionStatus::Okay && SocketStatus != EConnectionStatus::Incomplete)
 	{
-		UE_LOG(LogCook, Error, TEXT("CookWorkerClient failed to read from Director. We will abort the CookAsCookWorker commandlet."));
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorkerClient failed to read from Director. We will abort the CookAsCookWorker commandlet."));
 		SendToState(EConnectStatus::LostConnection);
 		return;
 	}
@@ -612,11 +625,13 @@ void FCookWorkerClient::HandleReceiveMessages(TArray<UE::CompactBinaryTCP::FMars
 		{
 			if (Message.MessageType == FAbortWorkerMessage::MessageType)
 			{
-				UE_LOG(LogCook, Display, TEXT("CookWorkerClient received AbortWorker message from Director. Terminating flush and shutting down."));
+				UE_LOG(LogCook, Display,
+					TEXT("CookWorkerClient received AbortWorker message from Director. Terminating flush and shutting down."));
 				SendToState(EConnectStatus::LostConnection);
 				break;
 			}
-			UE_LOG(LogCook, Error, TEXT("CookWorkerClient received message %s from Director after receiving Abort message. Message will be ignored."),
+			UE_LOG(LogCook, Error,
+				TEXT("CookWorkerClient received message %s from Director after receiving Abort message. Message will be ignored."),
 			*Message.MessageType.ToString());
 		}
 		else
@@ -627,19 +642,22 @@ void FCookWorkerClient::HandleReceiveMessages(TArray<UE::CompactBinaryTCP::FMars
 				AbortMessage.TryRead(Message.Object);
 				if (AbortMessage.Type == FAbortWorkerMessage::EType::CookComplete)
 				{
-					UE_LOG(LogCook, Display, TEXT("CookWorkerClient received CookComplete message from Director. Flushing messages and shutting down."));
+					UE_LOG(LogCook, Display,
+						TEXT("CookWorkerClient received CookComplete message from Director. Flushing messages and shutting down."));
 					SendToState(EConnectStatus::FlushAndAbortFirst);
 				}
 				else
 				{
-					UE_LOG(LogCook, Display, TEXT("CookWorkerClient received AbortWorker message from Director. Shutting down."));
+					UE_LOG(LogCook, Display,
+						TEXT("CookWorkerClient received AbortWorker message from Director. Shutting down."));
 					SendToState(EConnectStatus::LostConnection);
 					break;
 				}
 			}
 			else if (Message.MessageType == FInitialConfigMessage::MessageType)
 			{
-				UE_LOG(LogCook, Warning, TEXT("CookWorkerClient received unexpected repeat of InitialConfigMessage. Ignoring it."));
+				UE_LOG(LogCook, Warning,
+					TEXT("CookWorkerClient received unexpected repeat of InitialConfigMessage. Ignoring it."));
 			}
 			else if (Message.MessageType == FAssignPackagesMessage::MessageType)
 			{
@@ -666,7 +684,8 @@ void FCookWorkerClient::HandleReceiveMessages(TArray<UE::CompactBinaryTCP::FMars
 				}
 				else
 				{
-					UE_LOG(LogCook, Error, TEXT("CookWorkerClient received message of unknown type %s from CookDirector. Ignoring it."),
+					UE_LOG(LogCook, Error,
+						TEXT("CookWorkerClient received message of unknown type %s from CookDirector. Ignoring it."),
 						*Message.MessageType.ToString());
 				}
 			}
@@ -698,9 +717,11 @@ void FCookWorkerClient::PumpDisconnect(FTickStackData& StackData)
 				PumpSendMessages();
 
 				constexpr float WaitForDisconnectTimeout = 60.f;
-				if (FPlatformTime::Seconds() - ConnectStartTimeSeconds > WaitForDisconnectTimeout && !IsCookIgnoreTimeouts())
+				if (FPlatformTime::Seconds() - ConnectStartTimeSeconds > WaitForDisconnectTimeout
+					&& !IsCookIgnoreTimeouts())
 				{
-					UE_LOG(LogCook, Warning, TEXT("Timedout after %.0fs waiting to send disconnect message to CookDirector."),
+					UE_LOG(LogCook, Warning,
+						TEXT("Timedout after %.0fs waiting to send disconnect message to CookDirector."),
 						WaitForDisconnectTimeout);
 					SendToState(EConnectStatus::LostConnection);
 					check(ConnectStatus == EConnectStatus::LostConnection);
@@ -753,7 +774,8 @@ void FCookWorkerClient::SendToState(EConnectStatus TargetStatus)
 
 void FCookWorkerClient::LogInvalidMessage(const TCHAR* MessageTypeName)
 {
-	UE_LOG(LogCook, Error, TEXT("CookWorkerClient received invalidly formatted message for type %s from CookDirector. Ignoring it."),
+	UE_LOG(LogCook, Error,
+		TEXT("CookWorkerClient received invalidly formatted message for type %s from CookDirector. Ignoring it."),
 		MessageTypeName);
 }
 
@@ -770,7 +792,8 @@ void FCookWorkerClient::AssignPackages(FAssignPackagesMessage& Message)
 		FPackageData& PackageData = COTFS.PackageDatas->FindOrAddPackageData(AssignData.ConstructData.PackageName,
 			AssignData.ConstructData.NormalizedFileName);
 		TConstArrayView<const ITargetPlatform*> NeedCookPlatforms = 
-			AssignData.NeedCookPlatforms.GetPlatforms(COTFS, nullptr, OrderedSessionPlatforms, &NeedCookPlatformsBuffer);
+			AssignData.NeedCookPlatforms.GetPlatforms(COTFS, nullptr, OrderedSessionPlatforms,
+				&NeedCookPlatformsBuffer);
 		if (PackageData.IsInProgress())
 		{
 			// If already in progress and no new platforms, ignore the duplicate
@@ -785,15 +808,16 @@ void FCookWorkerClient::AssignPackages(FAssignPackagesMessage& Message)
 			continue;
 		}
 
-		// We do not want CookWorkers to explore dependencies in CookRequestCluster because the Director did it already.
-		// Mark the PackageDatas we get from the Director as already explored.
+		// We do not want CookWorkers to explore dependencies in CookRequestCluster because the Director did it
+		// already. Mark the PackageDatas we get from the Director as already explored.
 		for (const ITargetPlatform* TargetPlatform : NeedCookPlatforms)
 		{
 			PackageData.FindOrAddPlatformData(TargetPlatform).MarkCookableForWorker(*this);
 		}
 		PackageData.FindOrAddPlatformData(CookerLoadingPlatformKey).MarkCookableForWorker(*this);
 		PackageData.SetInstigator(*this, FInstigator(AssignData.Instigator));
-		PackageData.SendToState(EPackageState::Request, ESendFlags::QueueAddAndRemove, EStateChangeReason::DirectorRequest);
+		PackageData.SendToState(EPackageState::Request, ESendFlags::QueueAddAndRemove,
+			EStateChangeReason::DirectorRequest);
 	}
 
 	// Clear the SoftGC diagnostic ExpectedNeverLoadPackages because we have new assigned packages
@@ -806,7 +830,8 @@ void FCookWorkerClient::Register(IMPCollector* Collector)
 	TRefCountPtr<IMPCollector>& Existing = Collectors.FindOrAdd(Collector->GetMessageType());
 	if (Existing)
 	{
-		UE_LOG(LogCook, Error, TEXT("Duplicate IMPCollectors registered. Guid: %s, Existing: %s, Registering: %s. Keeping the Existing."),
+		UE_LOG(LogCook, Error,
+			TEXT("Duplicate IMPCollectors registered. Guid: %s, Existing: %s, Registering: %s. Keeping the Existing."),
 			*Collector->GetMessageType().ToString(), Existing->GetDebugName(), Collector->GetDebugName());
 		return;
 	}
@@ -819,7 +844,8 @@ void FCookWorkerClient::Unregister(IMPCollector* Collector)
 	Collectors.RemoveAndCopyValue(Collector->GetMessageType(), Existing);
 	if (Existing && Existing.GetReference() != Collector)
 	{
-		UE_LOG(LogCook, Error, TEXT("Duplicate IMPCollector during Unregister. Guid: %s, Existing: %s, Unregistering: %s. Ignoring the Unregister."),
+		UE_LOG(LogCook, Error,
+			TEXT("Duplicate IMPCollector during Unregister. Guid: %s, Existing: %s, Unregistering: %s. Ignoring the Unregister."),
 			*Collector->GetMessageType().ToString(), Existing->GetDebugName(), Collector->GetDebugName());
 		Collectors.Add(Collector->GetMessageType(), MoveTemp(Existing));
 	}
@@ -893,7 +919,8 @@ void FCookWorkerClient::HandleAbortPackagesMessage(FMPCollectorClientMessageCont
 		FPackageData* PackageData = COTFS.PackageDatas->FindPackageDataByPackageName(PackageName);
 		if (PackageData)
 		{
-			COTFS.DemoteToIdle(*PackageData, ESendFlags::QueueAddAndRemove, ESuppressCookReason::RetractedByCookDirector);
+			COTFS.DemoteToIdle(*PackageData, ESendFlags::QueueAddAndRemove,
+				ESuppressCookReason::RetractedByCookDirector);
 		}
 	}
 }
@@ -931,7 +958,8 @@ void FCookWorkerClient::HandleHeartbeatMessage(FMPCollectorClientMessageContext&
 		return;
 	}
 
-	UE_LOG(LogCook, Display, TEXT("%.*s %d"), HeartbeatCategoryText.Len(), HeartbeatCategoryText.GetData(), Message.HeartbeatNumber);
+	UE_LOG(LogCook, Display, TEXT("%.*s %d"),
+		HeartbeatCategoryText.Len(), HeartbeatCategoryText.GetData(), Message.HeartbeatNumber);
 	SendMessage(FHeartbeatMessage(Message.HeartbeatNumber));
 }
 

@@ -39,9 +39,11 @@ FCookWorkerServer::~FCookWorkerServer()
 	checkf(PendingPackages.IsEmpty() && PackagesToAssign.IsEmpty(),
 		TEXT("CookWorkerServer still has assigned packages when it is being destroyed; we will leak them and block the cook."));
 
-	if (ConnectStatus == EConnectStatus::Connected || ConnectStatus == EConnectStatus::PumpingCookComplete || ConnectStatus == EConnectStatus::WaitForDisconnect)
+	if (ConnectStatus == EConnectStatus::Connected || ConnectStatus == EConnectStatus::PumpingCookComplete
+		|| ConnectStatus == EConnectStatus::WaitForDisconnect)
 	{
-		UE_LOG(LogCook, Error, TEXT("CookWorkerServer %d was destroyed before it finished Disconnect. The remote process may linger and may interfere with writes of future packages."),
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorkerServer %d was destroyed before it finished Disconnect. The remote process may linger and may interfere with writes of future packages."),
 			ProfileId);
 	}
 	DetachFromRemoteProcess();
@@ -66,7 +68,8 @@ void FCookWorkerServer::DetachFromRemoteProcess()
 	}
 }
 
-bool TryParseLogCategoryVerbosityMessage(FStringView Line, FName& OutCategory, ELogVerbosity::Type& OutVerbosity, FStringView& OutMessage)
+bool TryParseLogCategoryVerbosityMessage(FStringView Line, FName& OutCategory, ELogVerbosity::Type& OutVerbosity,
+	FStringView& OutMessage)
 {
 	TPair<FStringView, ELogVerbosity::Type> VerbosityMarkers[]{
 		{ TEXTVIEW(": Fatal:"), ELogVerbosity::Fatal },
@@ -77,7 +80,8 @@ bool TryParseLogCategoryVerbosityMessage(FStringView Line, FName& OutCategory, E
 	};
 
 
-	// Find the first colon not in brackets and look for ": <Verbosity>:". This is complicated by Log verbosity not printing out the Verbosity:
+	// Find the first colon not in brackets and look for ": <Verbosity>:". This is complicated by Log verbosity not
+	// printing out the Verbosity:
 	// [2023.03.20-16.32.48:878][  0]LogCook: MessageText
 	// [2023.03.20-16.32.48:878][  0]LogCook: Display: MessageText
 
@@ -139,9 +143,12 @@ bool TryParseLogCategoryVerbosityMessage(FStringView Line, FName& OutCategory, E
 void FCookWorkerServer::SendCrashDiagnostics()
 {
 	FString LogFileName = Director.GetWorkerLogFileName(ProfileId);
-	UE_LOG(LogCook, Display, TEXT("LostConnection to CookWorker %d. Log messages written after communication loss:"), ProfileId);
+	UE_LOG(LogCook, Display,
+		TEXT("LostConnection to CookWorker %d. Log messages written after communication loss:"), ProfileId);
 	FString LogText;
-	int32 ReadFlags = FILEREAD_AllowWrite; // To be able to open a file for read that might be open for write from another process, we have to specify FILEREAD_AllowWrite
+	// To be able to open a file for read that might be open for write from another process,
+	// we have to specify FILEREAD_AllowWrite
+	int32 ReadFlags = FILEREAD_AllowWrite;
 	bool bLoggedErrorMessage = false;
 	if (!FFileHelper::LoadFileToString(LogText, *LogFileName, FFileHelper::EHashOptions::None, ReadFlags))
 	{
@@ -149,8 +156,8 @@ void FCookWorkerServer::SendCrashDiagnostics()
 	}
 	else
 	{
-		FString LastSentHeartbeat = FString::Printf(TEXT("%.*s %d"), HeartbeatCategoryText.Len(), HeartbeatCategoryText.GetData(),
-			LastReceivedHeartbeatNumber);
+		FString LastSentHeartbeat = FString::Printf(TEXT("%.*s %d"), HeartbeatCategoryText.Len(),
+			HeartbeatCategoryText.GetData(), LastReceivedHeartbeatNumber);
 		int32 StartIndex = INDEX_NONE;
 		for (FStringView MarkerText : { FStringView(LastSentHeartbeat),
 			HeartbeatCategoryText, TEXTVIEW("Connection to CookDirector successful") })
@@ -206,8 +213,8 @@ void FCookWorkerServer::SendCrashDiagnostics()
 		}
 		else
 		{
-			// When we already logged an error from the crashed worker, log the what-went-wrong as a warning rather than an error,
-			// to avoid making it seem like a separate issue.
+			// When we already logged an error from the crashed worker, log the what-went-wrong as a warning rather
+			// than an error, to avoid making it seem like a separate issue.
 			UE_LOG(LogCook, Warning, TEXT("%s"), *CrashDiagnosticsError);
 		}
 	}
@@ -351,7 +358,8 @@ bool FCookWorkerServer::IsConnected() const
 bool FCookWorkerServer::IsShuttingDown() const
 {
 	FScopeLock CommunicationScopeLock(&CommunicationLock);
-	return ConnectStatus == EConnectStatus::PumpingCookComplete || ConnectStatus == EConnectStatus::WaitForDisconnect || ConnectStatus == EConnectStatus::LostConnection;
+	return ConnectStatus == EConnectStatus::PumpingCookComplete || ConnectStatus == EConnectStatus::WaitForDisconnect
+		|| ConnectStatus == EConnectStatus::LostConnection;
 }
 
 bool FCookWorkerServer::IsFlushingBeforeShutdown() const
@@ -401,7 +409,8 @@ int32 FCookWorkerServer::GetPackagesRetiredFenceMarker() const
 	return PackagesRetiredFenceMarker;
 }
 
-bool FCookWorkerServer::TryHandleConnectMessage(FWorkerConnectMessage& Message, FSocket* InSocket, TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& OtherPacketMessages, ECookDirectorThread TickThread)
+bool FCookWorkerServer::TryHandleConnectMessage(FWorkerConnectMessage& Message, FSocket* InSocket,
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& OtherPacketMessages, ECookDirectorThread TickThread)
 {
 	FCommunicationScopeLock ScopeLock(this, TickThread, ETickAction::Tick);
 
@@ -463,11 +472,13 @@ void FCookWorkerServer::TickCommunication(ECookDirectorThread TickThread)
 			{
 				PumpSendMessages();
 				constexpr float WaitForPumpCompleteTimeout = 10.f * 60;
-				if (FPlatformTime::Seconds() - ConnectStartTimeSeconds <= WaitForPumpCompleteTimeout || IsCookIgnoreTimeouts())
+				if (FPlatformTime::Seconds() - ConnectStartTimeSeconds <= WaitForPumpCompleteTimeout 
+					|| IsCookIgnoreTimeouts())
 				{
 					return; // Try again later
 				}
-				UE_LOG(LogCook, Error, TEXT("CookWorker process of CookWorkerServer %d failed to finalize its cook within %.0f seconds; we will tell it to shutdown."),
+				UE_LOG(LogCook, Error,
+					TEXT("CookWorker process of CookWorkerServer %d failed to finalize its cook within %.0f seconds; we will tell it to shutdown."),
 					ProfileId, WaitForPumpCompleteTimeout);
 				SendMessageInLock(FAbortWorkerMessage(FAbortWorkerMessage::EType::Abort));
 				SendToState(EConnectStatus::WaitForDisconnect);
@@ -534,7 +545,8 @@ void FCookWorkerServer::LaunchProcess()
 		nullptr /* PipeWriteChild */);
 	if (CookWorkerHandle.IsValid())
 	{
-		UE_LOG(LogCook, Display, TEXT("CookWorkerServer %d launched CookWorker as WorkerId %d and PID %u with commandline \"%s\"."),
+		UE_LOG(LogCook, Display,
+			TEXT("CookWorkerServer %d launched CookWorker as WorkerId %d and PID %u with commandline \"%s\"."),
 			ProfileId, WorkerId.GetRemoteIndex(), CookWorkerProcessId, *LaunchInfo.WorkerCommandLine);
 		FCoreDelegates::OnMultiprocessWorkerCreated.Broadcast({WorkerId.GetMultiprocessId()});
 		SendToState(EConnectStatus::WaitForConnect);
@@ -542,7 +554,8 @@ void FCookWorkerServer::LaunchProcess()
 	else
 	{
 		// GetLastError information was logged by CreateProc
-		CrashDiagnosticsError = FString::Printf(TEXT("CookWorkerCrash: Failed to create process for CookWorker %d. Assigned packages will be returned to the director."),
+		CrashDiagnosticsError = FString::Printf(
+			TEXT("CookWorkerCrash: Failed to create process for CookWorker %d. Assigned packages will be returned to the director."),
 			ProfileId);
 		bNeedCrashDiagnostics = true;
 		SendToState(EConnectStatus::LostConnection);
@@ -554,14 +567,16 @@ void FCookWorkerServer::TickWaitForConnect()
 	constexpr float TestProcessExistencePeriod = 1.f;
 	constexpr float WaitForConnectTimeout = 60.f * 20;
 
-	check(!Socket); // When the Socket is assigned we leave the WaitForConnect state, and we set it to null before entering
+	// When the Socket is assigned we leave the WaitForConnect state, and we set it to null before entering
+	check(!Socket);
 
 	double CurrentTime = FPlatformTime::Seconds();
 	if (CurrentTime - ConnectTestStartTimeSeconds > TestProcessExistencePeriod)
 	{
 		if (!FPlatformProcess::IsProcRunning(CookWorkerHandle))
 		{
-			CrashDiagnosticsError = FString::Printf(TEXT("CookWorkerCrash: CookWorker %d process terminated before connecting. Assigned packages will be returned to the director."),
+			CrashDiagnosticsError = FString::Printf(
+				TEXT("CookWorkerCrash: CookWorker %d process terminated before connecting. Assigned packages will be returned to the director."),
 				ProfileId);
 			bNeedCrashDiagnostics = true;
 			SendToState(EConnectStatus::LostConnection);
@@ -572,7 +587,8 @@ void FCookWorkerServer::TickWaitForConnect()
 
 	if (CurrentTime - ConnectStartTimeSeconds > WaitForConnectTimeout && !IsCookIgnoreTimeouts())
 	{
-		CrashDiagnosticsError = FString::Printf(TEXT("CookWorkerCrash: CookWorker %d process failed to connect within %.0f seconds. Assigned packages will be returned to the director."),
+		CrashDiagnosticsError = FString::Printf(
+			TEXT("CookWorkerCrash: CookWorker %d process failed to connect within %.0f seconds. Assigned packages will be returned to the director."),
 			ProfileId, WaitForConnectTimeout);
 		bNeedCrashDiagnostics = true;
 		ShutdownRemoteProcess();
@@ -602,7 +618,8 @@ void FCookWorkerServer::TickWaitForDisconnect()
 	TArray<UE::CompactBinaryTCP::FMarshalledMessage> Messages;
 	TryReadPacket(Socket, ReceiveBuffer, Messages);
 
-	if (bTerminateImmediately || (CurrentTime - ConnectStartTimeSeconds > WaitForDisconnectTimeout && !IsCookIgnoreTimeouts()))
+	if (bTerminateImmediately ||
+		(CurrentTime - ConnectStartTimeSeconds > WaitForDisconnectTimeout && !IsCookIgnoreTimeouts()))
 	{
 		UE_CLOG(!bTerminateImmediately, LogCook, Warning,
 			TEXT("CookWorker process of CookWorkerServer %d failed to disconnect within %.0f seconds; we will terminate it."),
@@ -617,7 +634,8 @@ void FCookWorkerServer::PumpSendMessages()
 	UE::CompactBinaryTCP::EConnectionStatus Status = UE::CompactBinaryTCP::TryFlushBuffer(Socket, SendBuffer);
 	if (Status == UE::CompactBinaryTCP::EConnectionStatus::Failed)
 	{
-		UE_LOG(LogCook, Error, TEXT("CookWorkerCrash: CookWorker %d failed to write to socket, we will shutdown the remote process. Assigned packages will be returned to the director."),
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorkerCrash: CookWorker %d failed to write to socket, we will shutdown the remote process. Assigned packages will be returned to the director."),
 			ProfileId);
 		bNeedCrashDiagnostics = true;
 		SendToState(EConnectStatus::WaitForDisconnect);
@@ -666,7 +684,8 @@ void FCookWorkerServer::PumpReceiveMessages()
 	EConnectionStatus SocketStatus = TryReadPacket(Socket, ReceiveBuffer, Messages);
 	if (SocketStatus != EConnectionStatus::Okay && SocketStatus != EConnectionStatus::Incomplete)
 	{
-		CrashDiagnosticsError = FString::Printf(TEXT("CookWorkerCrash: CookWorker %d failed to read from socket, we will shutdown the remote process. Assigned packages will be returned to the director."),
+		CrashDiagnosticsError = FString::Printf(
+			TEXT("CookWorkerCrash: CookWorker %d failed to read from socket, we will shutdown the remote process. Assigned packages will be returned to the director."),
 			ProfileId);
 		bNeedCrashDiagnostics = true;
 		SendToState(EConnectStatus::WaitForDisconnect);
@@ -695,9 +714,11 @@ void FCookWorkerServer::HandleReceiveMessagesInternal()
 		if (PeekMessage.MessageType == FAbortWorkerMessage::MessageType)
 		{
 			UE::CompactBinaryTCP::FMarshalledMessage Message = ReceiveMessages.PopFrontValue();
-			if (ConnectStatus != EConnectStatus::PumpingCookComplete && ConnectStatus != EConnectStatus::WaitForDisconnect)
+			if (ConnectStatus != EConnectStatus::PumpingCookComplete
+				&& ConnectStatus != EConnectStatus::WaitForDisconnect)
 			{
-				CrashDiagnosticsError = FString::Printf(TEXT("CookWorkerCrash: CookWorker %d remote process shut down unexpectedly. Assigned packages will be returned to the director."),
+				CrashDiagnosticsError = FString::Printf(
+					TEXT("CookWorkerCrash: CookWorker %d remote process shut down unexpectedly. Assigned packages will be returned to the director."),
 					ProfileId);
 				bNeedCrashDiagnostics = true;
 			}
@@ -756,15 +777,16 @@ void FCookWorkerServer::HandleReceiveMessagesInternal()
 			}
 			else
 			{
-				UE_LOG(LogCook, Error, TEXT("CookWorkerServer received message of unknown type %s from CookWorker. Ignoring it."),
+				UE_LOG(LogCook, Error,
+					TEXT("CookWorkerServer received message of unknown type %s from CookWorker. Ignoring it."),
 					*Message.MessageType.ToString());
 			}
 		}
 	}
 }
 
-void FCookWorkerServer::HandleReceivedPackagePlatformMessages(FPackageData& PackageData, const ITargetPlatform* TargetPlatform,
-	TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages)
+void FCookWorkerServer::HandleReceivedPackagePlatformMessages(FPackageData& PackageData,
+	const ITargetPlatform* TargetPlatform, TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages)
 {
 	check(TickState.TickThread == ECookDirectorThread::SchedulerThread);
 	if (Messages.IsEmpty())
@@ -790,7 +812,8 @@ void FCookWorkerServer::HandleReceivedPackagePlatformMessages(FPackageData& Pack
 		}
 		else
 		{
-			UE_LOG(LogCook, Error, TEXT("CookWorkerServer received PackageMessage of unknown type %s from CookWorker. Ignoring it."),
+			UE_LOG(LogCook, Error,
+				TEXT("CookWorkerServer received PackageMessage of unknown type %s from CookWorker. Ignoring it."),
 				*Message.MessageType.ToString());
 		}
 	}
@@ -825,21 +848,23 @@ void FCookWorkerServer::RecordResults(FPackageResultsMessage& Message)
 		FPackageData* PackageData = COTFS.PackageDatas->FindPackageDataByPackageName(Result.GetPackageName());
 		if (!PackageData)
 		{
-			UE_LOG(LogCook, Warning, TEXT("CookWorkerServer %d received FPackageResultsMessage for invalid package %s. Ignoring it."),
+			UE_LOG(LogCook, Warning,
+				TEXT("CookWorkerServer %d received FPackageResultsMessage for invalid package %s. Ignoring it."),
 				ProfileId, *Result.GetPackageName().ToString());
 			continue;
 		}
 		if (PendingPackages.Remove(PackageData) != 1)
 		{
-			UE_LOG(LogCook, Display, TEXT("CookWorkerServer %d received FPackageResultsMessage for package %s which is not a pending package. Ignoring it."),
+			UE_LOG(LogCook, Display,
+				TEXT("CookWorkerServer %d received FPackageResultsMessage for package %s which is not a pending package. Ignoring it."),
 				ProfileId, *Result.GetPackageName().ToString());
 			continue;
 		}
 		bRetiredAnyPackages = true;
 		PackageData->SetWorkerAssignment(FWorkerId::Invalid(), ESendFlags::QueueNone);
 
-		// MPCOOKTODO: Refactor FSaveCookedPackageContext::FinishPlatform and ::FinishPackage so we can call them from here
-		// to reduce duplication
+		// MPCOOKTODO: Refactor FSaveCookedPackageContext::FinishPlatform and ::FinishPackage so we can call them from
+		// here to reduce duplication
 		if (Result.GetSuppressCookReason() == ESuppressCookReason::NotSuppressed)
 		{
 			int32 NumPlatforms = OrderedSessionPlatforms.Num();
@@ -873,7 +898,8 @@ void FCookWorkerServer::RecordResults(FPackageResultsMessage& Message)
 					{
 						PackageData->SetPlatformCooked(TargetPlatform, PlatformResult.GetCookResults());
 					}
-					HandleReceivedPackagePlatformMessages(*PackageData, TargetPlatform, PlatformResult.ReleaseMessages());
+					HandleReceivedPackagePlatformMessages(*PackageData, TargetPlatform,
+						PlatformResult.ReleaseMessages());
 				}
 			}
 			COTFS.RecordExternalActorDependencies(Result.GetExternalActorDependencies());
@@ -897,7 +923,8 @@ void FCookWorkerServer::RecordResults(FPackageResultsMessage& Message)
 
 void FCookWorkerServer::LogInvalidMessage(const TCHAR* MessageTypeName)
 {
-	UE_LOG(LogCook, Error, TEXT("CookWorkerServer received invalidly formatted message for type %s from CookWorker. Ignoring it."),
+	UE_LOG(LogCook, Error,
+		TEXT("CookWorkerServer received invalidly formatted message for type %s from CookWorker. Ignoring it."),
 		MessageTypeName);
 }
 
@@ -919,7 +946,8 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 	}
 	else
 	{
-		DiscoveredPlatforms = Platforms.GetPlatforms(COTFS, &Instigator, OrderedSessionAndSpecialPlatforms, &BufferPlatforms);
+		DiscoveredPlatforms = Platforms.GetPlatforms(COTFS, &Instigator, OrderedSessionAndSpecialPlatforms,
+			&BufferPlatforms);
 	}
 
 	if (Instigator.Category != EInstigator::ForceExplorableSaveTimeSoftDependency &&
@@ -952,7 +980,8 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 	}
 	Director.ResetFinalIdleHeartbeatFence();
 	Platforms.ConvertFromBitfield(OrderedSessionAndSpecialPlatforms);
-	COTFS.QueueDiscoveredPackageOnDirector(PackageData, MoveTemp(Instigator), MoveTemp(Platforms), false /* bUrgent */);
+	COTFS.QueueDiscoveredPackageOnDirector(PackageData, MoveTemp(Instigator), MoveTemp(Platforms),
+		false /* bUrgent */);
 }
 
 FCookWorkerServer::FTickState::FTickState()
@@ -961,7 +990,8 @@ FCookWorkerServer::FTickState::FTickState()
 	TickAction = ETickAction::Invalid;
 }
 
-FCookWorkerServer::FCommunicationScopeLock::FCommunicationScopeLock(FCookWorkerServer* InServer, ECookDirectorThread TickThread, ETickAction TickAction)
+FCookWorkerServer::FCommunicationScopeLock::FCommunicationScopeLock(FCookWorkerServer* InServer,
+	ECookDirectorThread TickThread, ETickAction TickAction)
 	: ScopeLock(&InServer->CommunicationLock)
 	, Server(*InServer)
 {
@@ -1323,7 +1353,8 @@ void FLogMessagesMessageHandler::ClientTick(FMPCollectorClientTickContext& Conte
 	}
 }
 
-void FLogMessagesMessageHandler::ServerReceiveMessage(FMPCollectorServerMessageContext& Context, FCbObjectView InMessage)
+void FLogMessagesMessageHandler::ServerReceiveMessage(FMPCollectorServerMessageContext& Context,
+	FCbObjectView InMessage)
 {
 	TArray<FReplicatedLogData> Messages;
 	if (!LoadFromCompactBinary(InMessage["Messages"], Messages))
@@ -1403,7 +1434,8 @@ void FPackageWriterMPCollector::ServerReceiveMessage(FMPCollectorServerMessageCo
 	ICookedPackageWriter& PackageWriter = COTFS.FindOrCreatePackageWriter(TargetPlatform);
 	if (!PackageWriter.TryReadMPCookMessageForPackage(PackageName, Message))
 	{
-		UE_LOG(LogCook, Error, TEXT("CookWorkerServer received invalidly formatted PackageWriter message from CookWorker %d. Ignoring it."),
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorkerServer received invalidly formatted PackageWriter message from CookWorker %d. Ignoring it."),
 			Context.GetProfileId());
 	}
 }

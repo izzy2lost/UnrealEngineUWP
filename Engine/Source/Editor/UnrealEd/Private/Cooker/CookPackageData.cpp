@@ -216,7 +216,8 @@ void FPackageData::AddReachablePlatforms(FRequestCluster& RequestCluster,
 void FPackageData::AddReachablePlatformsInternal(FPackageData& PackageData,
 	TConstArrayView<const ITargetPlatform*> Platforms, FInstigator&& InInstigator)
 {
-	// This is a static helper function to make it impossible to make a typo and use this->Instigator instead of InInstigator
+	// This is a static helper function to make it impossible to make a typo and use this->Instigator instead of
+	// InInstigator
 	bool bSessionPlatformModified = false;
 	for (const ITargetPlatform* Platform : Platforms)
 	{
@@ -230,7 +231,8 @@ void FPackageData::AddReachablePlatformsInternal(FPackageData& PackageData,
 	}
 }
 
-void FPackageData::QueueAsDiscovered(FInstigator&& InInstigator, FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent)
+void FPackageData::QueueAsDiscovered(FInstigator&& InInstigator, FDiscoveredPlatformSet&& ReachablePlatforms,
+	bool bUrgent)
 {
 	QueueAsDiscoveredInternal(*this, MoveTemp(InInstigator), MoveTemp(ReachablePlatforms), bUrgent);
 }
@@ -238,7 +240,8 @@ void FPackageData::QueueAsDiscovered(FInstigator&& InInstigator, FDiscoveredPlat
 void FPackageData::QueueAsDiscoveredInternal(FPackageData& PackageData, FInstigator&& InInstigator,
 	FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent)
 {
-	// This is a static helper function to make it impossible to make a typo and use this->Instigator instead of InInstigator
+	// This is a static helper function to make it impossible to make a typo and use this->Instigator instead of
+	// InInstigator
 	TRingBuffer<FDiscoveryQueueElement>& Queue = PackageData.PackageDatas.GetRequestQueue().GetDiscoveryQueue();
 	Queue.Add(FDiscoveryQueueElement{ &PackageData, MoveTemp(InInstigator), MoveTemp(ReachablePlatforms), bUrgent });
 }
@@ -444,12 +447,14 @@ void FPackageData::ClearCookResults(const ITargetPlatform* TargetPlatform)
 	}
 }
 
-const TSortedMap<const ITargetPlatform*, FPackagePlatformData, TInlineAllocator<1>>& FPackageData::GetPlatformDatas() const
+const TSortedMap<const ITargetPlatform*, FPackagePlatformData, TInlineAllocator<1>>&
+FPackageData::GetPlatformDatas() const
 {
 	return PlatformDatas;
 }
 
-TSortedMap<const ITargetPlatform*, FPackagePlatformData, TInlineAllocator<1>>& FPackageData::GetPlatformDatasConstKeysMutableValues()
+TSortedMap<const ITargetPlatform*, FPackagePlatformData, TInlineAllocator<1>>&
+FPackageData::GetPlatformDatasConstKeysMutableValues()
 {
 	return PlatformDatas;
 }
@@ -777,7 +782,8 @@ void FPackageData::CheckInContainer() const
 		break;
 	case EPackageState::Save:
 		// The save queue is huge and often pushed at end. Check last element first and then scan.
-		check(PackageDatas.GetSaveQueue().Num() && (PackageDatas.GetSaveQueue().Last() == this || Algo::Find(PackageDatas.GetSaveQueue(), this)));
+		check(PackageDatas.GetSaveQueue().Num() && (PackageDatas.GetSaveQueue().Last() == this
+			|| Algo::Find(PackageDatas.GetSaveQueue(), this)));
 		break;
 	default:
 		check(false);
@@ -820,7 +826,8 @@ void FPackageData::SetWorkerAssignment(FWorkerId InWorkerAssignment, ESendFlags 
 {
 	if (WorkerAssignment.IsValid())
 	{
-		checkf(InWorkerAssignment.IsInvalid(), TEXT("Package %s is being assigned to worker %d while it is already assigned to worker %d."),
+		checkf(InWorkerAssignment.IsInvalid(),
+			TEXT("Package %s is being assigned to worker %d while it is already assigned to worker %d."),
 			*GetPackageName().ToString(), WorkerAssignment.GetRemoteIndex(), WorkerAssignment.GetRemoteIndex());
 		if (EnumHasAnyFlags(SendFlags, ESendFlags::QueueRemove))
 		{
@@ -832,7 +839,8 @@ void FPackageData::SetWorkerAssignment(FWorkerId InWorkerAssignment, ESendFlags 
 	{
 		if (InWorkerAssignment.IsValid())
 		{
-			checkf(GetState() == EPackageState::AssignedToWorker, TEXT("Package %s is being assigned to worker %d while in a state other than AssignedToWorker. This is invalid."),
+			checkf(GetState() == EPackageState::AssignedToWorker,
+				TEXT("Package %s is being assigned to worker %d while in a state other than AssignedToWorker. This is invalid."),
 				*GetPackageName().ToString(), GetWorkerAssignment().GetRemoteIndex());
 		}
 		WorkerAssignment = InWorkerAssignment;
@@ -975,8 +983,8 @@ bool FPackageData::TryPreload()
 	{
 		if (AsyncRequest && !AsyncRequest->bHasFinished)
 		{
-			// In case of async loading, the object can be found while still being asynchronously serialized, we need to wait until 
-			// the callback is called and the async request is completely done.
+			// In case of async loading, the object can be found while still being asynchronously serialized, we need
+			// to wait until the callback is called and the async request is completely done.
 			return false;
 		}
 
@@ -1001,13 +1009,17 @@ bool FPackageData::TryPreload()
 			AsyncRequest->RequestID = LoadPackageAsync(
 				GetFileName().ToString(), 
 				FLoadPackageAsyncDelegate::CreateLambda(
-					[AsyncRequest = AsyncRequest](const FName&, UPackage*, EAsyncLoadingResult::Type) { AsyncRequest->bHasFinished = true; }
+					[AsyncRequest = AsyncRequest](const FName&, UPackage*, EAsyncLoadingResult::Type) 
+					{
+						AsyncRequest->bHasFinished = true;
+					}
 				),
 				32 /* Use arbitrary higher priority for preload as we're going to need them very soon */
 			);
 		}
 
-		// always return false so we continue to check the status of the load until FindObjectFast above finds the loaded object
+		// always return false so we continue to check the status of the load until FindObjectFast above finds the
+		// loaded object
 		return false;
 	}
 	if (!PreloadableFile.Get())
@@ -1028,7 +1040,8 @@ bool FPackageData::TryPreload()
 				// not change until this is destructed, and the destructor does not run and other threads do not read
 				// or write PreloadableFileOpenResult until after PreloadableFile.Get() has finished initialization
 				// and this callback is therefore complete.
-				// The code that accomplishes that waiting is in TryPreload (IsInitialized) and ClearPreload (ReleaseCache)
+				// The code that accomplishes that waiting is in TryPreload (IsInitialized) and ClearPreload
+				// (ReleaseCache)
 				this->GetFileName().ToString(FileNameString);
 				FPackagePath PackagePath = FPackagePath::FromLocalPath(FileNameString);
 				FOpenPackageResult Result = IPackageResourceManager::Get().OpenReadPackage(PackagePath);
@@ -1121,7 +1134,8 @@ void FPackageData::ClearPreload()
 		GetFileName().ToString(FileNameString);
 		if (IPackageResourceManager::UnRegisterPreloadableArchive(FPackagePath::FromLocalPath(FileNameString)))
 		{
-			UE_LOG(LogCook, Display, TEXT("PreloadableFile was created for %s but never used. This is wasteful and bad for cook performance."),
+			UE_LOG(LogCook, Display,
+				TEXT("PreloadableFile was created for %s but never used. This is wasteful and bad for cook performance."),
 				*PackageName.ToString());
 		}
 		FilePtr->ReleaseCache(); // ReleaseCache to conserve memory if the Linker still has a pointer to it
@@ -1175,12 +1189,14 @@ void FPackageData::CreateObjectCache()
 		TArray<UObject*> ObjectsInOuter;
 		// ignore RF_Garbage objects; they will not be serialized out so we don't need to call
 		// BeginCacheForCookedPlatformData on them
-		GetObjectsWithOuter(LocalPackage, ObjectsInOuter, true /* bIncludeNestedObjects */, RF_NoFlags, EInternalObjectFlags::Garbage);
+		GetObjectsWithOuter(LocalPackage, ObjectsInOuter, true /* bIncludeNestedObjects */, RF_NoFlags,
+			EInternalObjectFlags::Garbage);
 		CachedObjectsInOuter.Reset(ObjectsInOuter.Num());
 		for (UObject* Object : ObjectsInOuter)
 		{
 			FWeakObjectPtr ObjectWeakPointer(Object);
-			check(ObjectWeakPointer.Get()); // GetObjectsWithOuter with Garbage filtered out should only return valid-for-weakptr objects
+			// GetObjectsWithOuter with Garbage filtered out should only return valid-for-weakptr objects
+			check(ObjectWeakPointer.Get());
 			CachedObjectsInOuter.Emplace(ObjectWeakPointer);
 		}
 
@@ -1257,7 +1273,8 @@ EPollStatus FPackageData::RefreshObjectCache(bool& bOutFoundNewObjects)
 		}
 	}
 	TArray<UObject*> CurrentObjects;
-	GetObjectsWithOuter(Package.Get(), CurrentObjects, true /* bIncludeNestedObjects */, RF_NoFlags, EInternalObjectFlags::Garbage);
+	GetObjectsWithOuter(Package.Get(), CurrentObjects, true /* bIncludeNestedObjects */, RF_NoFlags, 
+		EInternalObjectFlags::Garbage);
 
 	TArray<UObject*> NewObjects = SetDifference(CurrentObjects, OldObjects);
 	bOutFoundNewObjects = NewObjects.Num() > 0;
@@ -1267,16 +1284,18 @@ EPollStatus FPackageData::RefreshObjectCache(bool& bOutFoundNewObjects)
 		for (UObject* Object : NewObjects)
 		{
 			FWeakObjectPtr ObjectWeakPointer(Object);
-			check(ObjectWeakPointer.Get()); // GetObjectsWithOuter with Garbage filtered out should only return valid-for-weakptr objects
+			// GetObjectsWithOuter with Garbage filtered out should only return valid-for-weakptr objects
+			check(ObjectWeakPointer.Get());
 			CachedObjectsInOuter.Emplace(MoveTemp(ObjectWeakPointer));
 		}
-		// GetCookedPlatformDataNextIndex is already where it should be, pointing at the first of the objects we have added
-		// Change our state back so we know we need to CallBeginCacheOnObjects again 
+		// GetCookedPlatformDataNextIndex is already where it should be, pointing at the first of the objects we have
+		// added Change our state back so we know we need to CallBeginCacheOnObjects again 
 		SetCookedPlatformDataCalled(false);
 
 		if (++GetNumRetriesBeginCacheOnObjects() > FPackageData::GetMaxNumRetriesBeginCacheOnObjects())
 		{
-			UE_LOG(LogCook, Error, TEXT("Cooker has repeatedly tried to call BeginCacheForCookedPlatformData on all objects in the package, but keeps finding new objects.\n")
+			UE_LOG(LogCook, Error,
+				TEXT("Cooker has repeatedly tried to call BeginCacheForCookedPlatformData on all objects in the package, but keeps finding new objects.\n")
 				TEXT("Aborting the save of the package; programmer needs to debug why objects keep getting added to the package.\n")
 				TEXT("Package: %s. Most recent created object: %s."),
 				*GetPackageName().ToString(), *NewObjects[0]->GetFullName());
@@ -1375,8 +1394,8 @@ void FPackageData::RemapTargetPlatforms(const TMap<ITargetPlatform*, ITargetPlat
 		NewPlatformDatas.FindOrAdd(NewKey) = MoveTemp(ExistingPair.Value);
 	}
 
-	// The save state (and maybe more in the future) by contract can depend on the order of the request platforms remaining
-	// unchanged. If we change that order due to the remap, we need to demote back to request.
+	// The save state (and maybe more in the future) by contract can depend on the order of the request platforms
+	// remaining unchanged. If we change that order due to the remap, we need to demote back to request.
 	if (IsInProgress() && GetState() != EPackageState::Request)
 	{
 		bool bDemote = true;
@@ -1567,7 +1586,8 @@ void FGenerationHelper::InitializeSave(const UObject* InSplitDataObject,
 		FName InSplitDataObjectName = *InSplitDataObject->GetFullName();
 		check(SplitDataObjectName.IsNone() || SplitDataObjectName == InSplitDataObjectName);
 		SplitDataObjectName = InSplitDataObjectName;
-		bUseInternalReferenceToAvoidGarbageCollect = CookPackageSplitterInstance->UseInternalReferenceToAvoidGarbageCollect();
+		bUseInternalReferenceToAvoidGarbageCollect =
+			CookPackageSplitterInstance->UseInternalReferenceToAvoidGarbageCollect();
 		SetOwnerPackage(GetOwner().GetPackage());
 	}
 }
@@ -1978,7 +1998,8 @@ bool FGenerationHelper::IsComplete() const
 	return RemainingToPopulate == 0;
 }
 
-void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Package, EStateChangeReason ReleaseSaveReason)
+void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Package,
+	EStateChangeReason ReleaseSaveReason)
 {
 	check(IsInitialized());
 	if (Info.GetSaveState() > FCookGenerationInfo::ESaveState::CallPopulate)
@@ -2043,8 +2064,9 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 	{
 		if (Info.PackageData && Info.PackageData->GetCachedObjectsInOuter().Num() != 0 &&
 			IsUseInternalReferenceToAvoidGarbageCollect() &&
-			(ReleaseSaveReason != EStateChangeReason::Completed && ReleaseSaveReason != EStateChangeReason::DoneForNow &&
-			 ReleaseSaveReason != EStateChangeReason::SaveError && ReleaseSaveReason != EStateChangeReason::CookerShutdown))
+			(ReleaseSaveReason != EStateChangeReason::Completed && ReleaseSaveReason != EStateChangeReason::DoneForNow
+				&& ReleaseSaveReason != EStateChangeReason::SaveError
+				&& ReleaseSaveReason != EStateChangeReason::CookerShutdown))
 		{
 			UE_LOG(LogCook, Error,
 				TEXT("CookPackageSplitter failure: We are demoting a %s package from save and removing our references that keep its objects loaded.\n")
@@ -2301,7 +2323,8 @@ void FCookGenerationInfo::CreatePackageHash()
 	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 	for (const FAssetDependency& Dependency : PackageDependencies)
 	{
-		TOptional<FAssetPackageData> DependencyData = AssetRegistry.GetAssetPackageDataCopy(Dependency.AssetId.PackageName);
+		TOptional<FAssetPackageData> DependencyData =
+			AssetRegistry.GetAssetPackageDataCopy(Dependency.AssetId.PackageName);
 		if (DependencyData)
 		{
 			Blake3.Update(&DependencyData->GetPackageSavedHash().GetBytes(),
@@ -2316,7 +2339,8 @@ void FCookGenerationInfo::CreatePackageHash()
 	constexpr int SizeDifference = sizeof(PackageHash) - sizeof(decltype(DeclVal<UPackage>().GetGuid()));
 	if (SizeDifference > 0)
 	{
-		FMemory::Memset(((uint8*)&PackageHash.GetBytes()) + (sizeof(decltype(PackageHash.GetBytes())) - SizeDifference),
+		FMemory::Memset(((uint8*)&PackageHash.GetBytes())
+			+ (sizeof(decltype(PackageHash.GetBytes())) - SizeDifference),
 			0, SizeDifference);
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
@@ -2334,7 +2358,8 @@ void FCookGenerationInfo::IterativeCookValidateOrClear(FGenerationHelper& Genera
 		// were detected as modified during PopulateCookedPackages.
 		for (const FAssetDependency& Dependency : this->PackageDependencies)
 		{
-			FPackageData* DependencyData = COTFS.PackageDatas->FindPackageDataByPackageName(Dependency.AssetId.PackageName);
+			FPackageData* DependencyData =
+				COTFS.PackageDatas->FindPackageDataByPackageName(Dependency.AssetId.PackageName);
 			if (!DependencyData)
 			{
 				bOutIterativelyUnmodified = false;
@@ -2428,7 +2453,8 @@ bool FPendingCookedPlatformData::PollIsComplete()
 		return true;
 	}
 	UCookOnTheFlyServer& COTFS = PackageData.GetPackageDatas().GetCookOnTheFlyServer();
-	if (COTFS.RouteIsCachedCookedPlatformDataLoaded(PackageData, LocalObject, TargetPlatform, nullptr /* ExistingEvent */))
+	if (COTFS.RouteIsCachedCookedPlatformDataLoaded(PackageData, LocalObject, TargetPlatform,
+		nullptr /* ExistingEvent */))
 	{
 		Release();
 		return true;
@@ -2442,7 +2468,8 @@ bool FPendingCookedPlatformData::PollIsComplete()
 		{
 			if (GShaderCompilingManager->HasShaderJobs() == false)
 			{
-				UE_LOG(LogCook, Warning, TEXT("Shader compiler is in a bad state!  Shader %s is finished compile but shader compiling manager did not notify shader.  "),
+				UE_LOG(LogCook, Warning,
+				TEXT("Shader compiler is in a bad state!  Shader %s is finished compile but shader compiling manager did not notify shader.  "),
 					*LocalObject->GetPathName());
 			}
 		}*/
@@ -2713,7 +2740,8 @@ void FPackageDatas::SetBeginCookConfigSettings(FStringView CookShowInstigator)
 	{
 		FString LocalPath;
 		FString PackageName;
-		if (!FPackageName::TryConvertToMountedPath(CookShowInstigator, &LocalPath, &PackageName, nullptr, nullptr, nullptr))
+		if (!FPackageName::TryConvertToMountedPath(CookShowInstigator, &LocalPath, &PackageName,
+			nullptr, nullptr, nullptr))
 		{
 			UE_LOG(LogCook, Fatal, TEXT("-CookShowInstigator argument %.*s is not a mounted filename or packagename"),
 				CookShowInstigator.Len(), CookShowInstigator.GetData());
@@ -2779,12 +2807,15 @@ FPackageData& FPackageDatas::FindOrAddPackageData(const FName& PackageName, cons
 		if (PackageDataMapAddr != nullptr)
 		{
 			FPackageData** FileNameMapAddr = FileNameToPackageData.Find(NormalizedFileName);
-			checkf(FileNameMapAddr, TEXT("Package %s is being added with filename %s, but it already exists with filename %s, ")
+			checkf(FileNameMapAddr,
+				TEXT("Package %s is being added with filename %s, but it already exists with filename %s, ")
 				TEXT("and it is not present in FileNameToPackageData map under the new name."),
-				*PackageName.ToString(), *NormalizedFileName.ToString(), *(*PackageDataMapAddr)->GetFileName().ToString());
+				*PackageName.ToString(), *NormalizedFileName.ToString(),
+				*(*PackageDataMapAddr)->GetFileName().ToString());
 			checkf(*FileNameMapAddr == *PackageDataMapAddr,
 				TEXT("Package %s is being added with filename %s, but that filename maps to a different package %s."),
-				*PackageName.ToString(), *NormalizedFileName.ToString(), *(*FileNameMapAddr)->GetPackageName().ToString());
+				*PackageName.ToString(), *NormalizedFileName.ToString(),
+				*(*FileNameMapAddr)->GetPackageName().ToString());
 			return **PackageDataMapAddr;
 		}
 
@@ -2904,7 +2935,8 @@ FPackageData* FPackageDatas::TryAddPackageDataByStandardFileName(const FName& Fi
 				return *PackageDataMapAddr;
 			}
 		}
-		UE_LOG(LogCook, Warning, TEXT("Unexpected failure to cook filename '%s'. It is mapped to PackageName '%s', but does not exist on disk and we cannot verify the extension."),
+		UE_LOG(LogCook, Warning,
+			TEXT("Unexpected failure to cook filename '%s'. It is mapped to PackageName '%s', but does not exist on disk and we cannot verify the extension."),
 			*FileName.ToString(), *PackageName.ToString());
 		return nullptr;
 	}
@@ -2966,7 +2998,8 @@ FName FPackageDatas::LookupFileNameOnDisk(FName PackageName, bool bRequireExists
 	}
 	else if (!bRequireExists)
 	{
-		FString Extension = bCreateAsMap ? FPackageName::GetMapPackageExtension() : FPackageName::GetAssetPackageExtension();
+		FString Extension = bCreateAsMap ? FPackageName::GetMapPackageExtension() :
+			FPackageName::GetAssetPackageExtension();
 		if (!FPackageName::TryConvertLongPackageNameToFilename(PackageName.ToString(), FilenameOnDisk, Extension))
 		{
 			return NAME_None;
@@ -2995,7 +3028,8 @@ bool FPackageDatas::TryLookupFileNameOnDisk(FName PackageName, FString& OutFileN
 			if (!FPackageName::TryConvertLongPackageNameToFilename(PackageNameStr, OutFileName,
 				FPackageName::GetAssetPackageExtension()))
 			{
-				UE_LOG(LogCook, Warning, TEXT("Package %s exists in memory but its PackageRoot is not mounted. It will not be cooked."),
+				UE_LOG(LogCook, Warning,
+					TEXT("Package %s exists in memory but its PackageRoot is not mounted. It will not be cooked."),
 					*PackageNameStr);
 				return false;
 			}
@@ -3189,7 +3223,8 @@ int32 FPackageDatas::GetNumCooked(ECookResult CookResult)
 	return Monitor.GetNumCooked(CookResult);
 }
 
-void FPackageDatas::GetCookedPackagesForPlatform(const ITargetPlatform* Platform, TArray<FPackageData*>& SucceededPackages,
+void FPackageDatas::GetCookedPackagesForPlatform(const ITargetPlatform* Platform,
+	TArray<FPackageData*>& SucceededPackages,
 	TArray<FPackageData*>& FailedPackages)
 {
 	LockAndEnumeratePackageDatas(
@@ -3250,7 +3285,9 @@ void FPackageDatas::ClearCookResultsForPackages(const TSet<FName>& InPackages)
 			}
 		});
 
-	UE_LOG(LogCook, Display, TEXT("Cleared the cook results of %d packages because ClearCookResultsForPackages requested them to be recooked."), AffectedPackagesCount);
+	UE_LOG(LogCook, Display,
+		TEXT("Cleared the cook results of %d packages because ClearCookResultsForPackages requested them to be recooked."),
+		AffectedPackagesCount);
 }
 
 void FPackageDatas::OnRemoveSessionPlatform(const ITargetPlatform* TargetPlatform)
@@ -3324,7 +3361,8 @@ void FPackageDatas::PollPendingCookedPlatformDatas(bool bForce, double& LastCook
 		{
 			if (bEntering)
 			{
-				CookOnTheFlyServer.SetActivePackage(Package->GetFName(), PackageAccessTrackingOps::NAME_CookerBuildObject);
+				CookOnTheFlyServer.SetActivePackage(Package->GetFName(),
+					PackageAccessTrackingOps::NAME_CookerBuildObject);
 			}
 			else
 			{
@@ -3337,7 +3375,8 @@ void FPackageDatas::PollPendingCookedPlatformDatas(bool bForce, double& LastCook
 	if (LastCookableObjectTickTime + TickCookableObjectsFrameTime <= CurrentTime)
 	{
 		UE_SCOPED_COOKTIMER(TickCookableObjects);
-		FTickableCookObject::TickObjects(static_cast<float>(CurrentTime - LastCookableObjectTickTime), false /* bTickComplete */);
+		FTickableCookObject::TickObjects(static_cast<float>(CurrentTime - LastCookableObjectTickTime),
+			false /* bTickComplete */);
 		LastCookableObjectTickTime = CurrentTime;
 	}
 
@@ -3353,7 +3392,8 @@ void FPackageDatas::PollPendingCookedPlatformDatas(bool bForce, double& LastCook
 			}
 			else
 			{
-				Data.UpdatePeriodMultiplier = FMath::Clamp(Data.UpdatePeriodMultiplier*2, 1, PendingPlatformDataMaxUpdatePeriod);
+				Data.UpdatePeriodMultiplier = FMath::Clamp(Data.UpdatePeriodMultiplier*2, 1,
+					PendingPlatformDataMaxUpdatePeriod);
 				int32 ContainerIndex = Data.UpdatePeriodMultiplier - 1;
 				while (PendingCookedPlatformDataLists.Num() <= ContainerIndex)
 				{
@@ -3433,7 +3473,8 @@ void FPackageDatas::DebugInstigator(FPackageData& PackageData)
 			ChainText << TEXT("{ ") << Instigator.ToString() << TEXT(" }");
 			bFirst = false;
 		}
-		UE_LOG(LogCook, Display, TEXT("Instigator chain of %s: %s"), *PackageData.GetPackageName().ToString(), ChainText.ToString());
+		UE_LOG(LogCook, Display, TEXT("Instigator chain of %s: %s"),
+			*PackageData.GetPackageName().ToString(), ChainText.ToString());
 	}
 	UpdateThreadsafePackageData(PackageData);
 }
@@ -3621,17 +3662,24 @@ const TCHAR* LexToString(ECachedCookedPlatformDataEvent Value)
 {
 	switch (Value)
 	{
-	case ECachedCookedPlatformDataEvent::None: return TEXT("None");
-	case ECachedCookedPlatformDataEvent::BeginCacheForCookedPlatformDataCalled: return TEXT("BeginCacheForCookedPlatformDataCalled");
-	case ECachedCookedPlatformDataEvent::IsCachedCookedPlatformDataLoadedCalled: return TEXT("IsCachedCookedPlatformDataLoadedCalled");
-	case ECachedCookedPlatformDataEvent::IsCachedCookedPlatformDataLoadedReturnedTrue: return TEXT("IsCachedCookedPlatformDataLoadedReturnedTrue");
-	case ECachedCookedPlatformDataEvent::ClearCachedCookedPlatformDataCalled: return TEXT("ClearCachedCookedPlatformDataCalled");
-	case ECachedCookedPlatformDataEvent::ClearAllCachedCookedPlatformDataCalled: return TEXT("ClearAllCachedCookedPlatformDataCalled");
+	case ECachedCookedPlatformDataEvent::None:
+		return TEXT("None");
+	case ECachedCookedPlatformDataEvent::BeginCacheForCookedPlatformDataCalled:
+		return TEXT("BeginCacheForCookedPlatformDataCalled");
+	case ECachedCookedPlatformDataEvent::IsCachedCookedPlatformDataLoadedCalled:
+		return TEXT("IsCachedCookedPlatformDataLoadedCalled");
+	case ECachedCookedPlatformDataEvent::IsCachedCookedPlatformDataLoadedReturnedTrue:
+		return TEXT("IsCachedCookedPlatformDataLoadedReturnedTrue");
+	case ECachedCookedPlatformDataEvent::ClearCachedCookedPlatformDataCalled:
+		return TEXT("ClearCachedCookedPlatformDataCalled");
+	case ECachedCookedPlatformDataEvent::ClearAllCachedCookedPlatformDataCalled:
+		return TEXT("ClearAllCachedCookedPlatformDataCalled");
 	default: return TEXT("Invalid");
 	}
 }
 
-void FPackageDatas::CachedCookedPlatformDataObjectsPostGarbageCollect(const TSet<UObject*>& SaveQueueObjectsThatStillExist)
+void FPackageDatas::CachedCookedPlatformDataObjectsPostGarbageCollect(
+	const TSet<UObject*>& SaveQueueObjectsThatStillExist)
 {
 	for (TMap<UObject*, FCachedCookedPlatformDataState>::TIterator Iter(this->CachedCookedPlatformDataObjects);
 		Iter; ++Iter)

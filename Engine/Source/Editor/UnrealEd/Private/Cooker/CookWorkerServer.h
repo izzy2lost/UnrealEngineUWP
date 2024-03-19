@@ -61,10 +61,14 @@ public:
 	 * Report all packages that were removed.
 	 */
 	void AbortAllAssignments(TSet<FPackageData*>& OutPendingPackages, ECookDirectorThread TickThread);
-	/** AbortAllAssignments and tell the connected Client to gracefully terminate. Report all packages that were unassigned. */
+	/**
+	 * AbortAllAssignments and tell the connected Client to gracefully terminate. Report all packages that were
+	 * unassigned.
+	 */
 	void AbortWorker(TSet<FPackageData*>& OutPendingPackages, ECookDirectorThread TickThread);
 	/** Take over the Socket for a CookWorker that has just connected. */
-	bool TryHandleConnectMessage(FWorkerConnectMessage& Message, FSocket* InSocket, TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& OtherPacketMessages, ECookDirectorThread TickThread);
+	bool TryHandleConnectMessage(FWorkerConnectMessage& Message, FSocket* InSocket,
+		TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& OtherPacketMessages, ECookDirectorThread TickThread);
 
 	/** Send the message immediately to the Socket. If cannot complete immediately, it will be finished during Tick. */
 	void SendMessage(const IMPCollectorMessage& Message, ECookDirectorThread TickThread);
@@ -73,7 +77,7 @@ public:
 	void TickCommunication(ECookDirectorThread TickThread);
 	/** Called when the COTFS wants to send a heartbeat message to the Client. */
 	void SignalHeartbeat(ECookDirectorThread TickThread, int32 HeartbeatNumber);
-	/** Called when the COTFS Server has detected all packages are complete. Tell the CookWorker to flush messages and exit. */
+	/** Called when the Server detects all packages are complete. Tell the CookWorker to flush messages and exit. */
 	void SignalCookComplete(ECookDirectorThread TickThread);
 	/**
 	 * Execute the respond for all messages that have been received and that can be executed from the given thread. 
@@ -85,7 +89,7 @@ public:
 	bool IsConnected() const;
 	/** Is this either shutting down or completed shutdown of its remote Client? */
 	bool IsShuttingDown() const;
-	/** Is this executing the portion of graceful shutdown where it waits for the CookWorker to transfer remaining messages? */
+	/** Is this executing graceful shutdown and is waiting for the CookWorker to transfer remaining messages? */
 	bool IsFlushingBeforeShutdown() const;
 	/** Is this not yet or no longer connected to a remote Client? */
 	bool IsShutdownComplete() const;
@@ -96,7 +100,10 @@ public:
 
 	/** Get the LastReceivedHeartbeatNumber. */
 	int32 GetLastReceivedHeartbeatNumber() const;
-	/** Set the LastReceivedHeartbeatNumber. Assumes lock is already entered; can only be called from with a HandleReceivedMessages callback */
+	/**
+	 * Set the LastReceivedHeartbeatNumber. Assumes lock is already entered; can only be called from with a
+	 * HandleReceivedMessages callback.
+	 */
 	void SetLastReceivedHeartbeatNumberInLock(int32 InHeartbeatNumber);
 
 	int32 GetPackagesAssignedFenceMarker() const;
@@ -166,7 +173,8 @@ private:
 	/** The main implementation of HandleReceiveMessages, only callable from inside the lock. */
 	void HandleReceiveMessagesInternal();
 	/** Helper for PumpReceiveMessages: dispatch the messages received from the socket. */
-	void HandleReceivedPackagePlatformMessages(FPackageData& PackageData, const ITargetPlatform* TargetPlatform, TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages);
+	void HandleReceivedPackagePlatformMessages(FPackageData& PackageData, const ITargetPlatform* TargetPlatform,
+		TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages);
 	/** Add results from the client to the local CookOnTheFlyServer. */
 	void RecordResults(FPackageResultsMessage& Message);
 	void LogInvalidMessage(const TCHAR* MessageTypeName);
@@ -376,7 +384,8 @@ public:
 
 	// FOutputDevice
 	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category) override;
-	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category, const double Time) override;
+	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category,
+		const double Time) override;
 	virtual bool CanBeUsedOnAnyThread() const override { return true; }
 	virtual bool CanBeUsedOnMultipleThreads() const override { return true; }
 
@@ -390,10 +399,10 @@ private:
 };
 
 /**
- * Message from Director to CookWorker or CookWorker to Director that reports a heartbeat number, in addition to reporting the
- * machine is still alive just by the presence of the message.
- * The Director intiates a heartbeat message; the CookWorker always responds to a heartbeat message with its own heartbeat message
- * in reply, with the same number.
+ * Message from Director to CookWorker or CookWorker to Director that reports a heartbeat number, in addition to
+ * reporting the machine is still alive just by the presence of the message.
+ * The Director intiates a heartbeat message; the CookWorker always responds to a heartbeat message with its own
+ * heartbeat message in reply, with the same number.
  */
 struct FHeartbeatMessage : public IMPCollectorMessage
 {

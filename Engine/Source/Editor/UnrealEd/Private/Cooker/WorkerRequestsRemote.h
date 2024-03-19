@@ -22,7 +22,10 @@ namespace UE::Cook
 struct FInstigator;
 struct FPackageData;
 
-/** An IWorkerRequests for CookWorkers in MultiProcess cooks: functions are implemented as interprocess messages to/from the CookDirector. */
+/**
+ * An IWorkerRequests for CookWorkers in MultiProcess cooks: functions are implemented as interprocess messages
+ * to/from the CookDirector.
+ */
 class FWorkerRequestsRemote : public IWorkerRequests
 {
 public:

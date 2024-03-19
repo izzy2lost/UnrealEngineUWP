@@ -48,7 +48,8 @@ bool FWorkerRequestsRemote::DequeueSchedulerCallbacks(TArray<FSchedulerCallback>
 	return ExternalRequests.DequeueCallbacks(OutCallbacks);
 }
 
-void FWorkerRequestsRemote::DequeueAllExternal(TArray<FSchedulerCallback>& OutCallbacks, TArray<FFilePlatformRequest>& OutCookRequests)
+void FWorkerRequestsRemote::DequeueAllExternal(TArray<FSchedulerCallback>& OutCallbacks,
+	TArray<FFilePlatformRequest>& OutCookRequests)
 {
 	ExternalRequests.DequeueAll(OutCallbacks, OutCookRequests);
 }
@@ -121,7 +122,8 @@ void FWorkerRequestsRemote::GetInitializeConfigSettings(UCookOnTheFlyServer& COT
 	Settings = CookWorkerClient.ConsumeInitializeConfigSettings();
 }
 
-void FWorkerRequestsRemote::GetBeginCookConfigSettings(UCookOnTheFlyServer& COTFS, FBeginCookContext& BeginContext, UE::Cook::FBeginCookConfigSettings& Settings)
+void FWorkerRequestsRemote::GetBeginCookConfigSettings(UCookOnTheFlyServer& COTFS, FBeginCookContext& BeginContext,
+	UE::Cook::FBeginCookConfigSettings& Settings)
 {
 	Settings = CookWorkerClient.ConsumeBeginCookConfigSettings();
 }
@@ -138,7 +140,8 @@ void FWorkerRequestsRemote::GetBeginCookIterativeFlags(UCookOnTheFlyServer& COTF
 			{
 				return Platform.TargetPlatform == TargetPlatform;
 			});
-		checkf(DirectorPlatformContext, TEXT("Director sent TargetPlatform %s, but this platform is not found in the DirectorBeginContext."),
+		checkf(DirectorPlatformContext,
+			TEXT("Director sent TargetPlatform %s, but this platform is not found in the DirectorBeginContext."),
 			*TargetPlatform->PlatformName());
 
 		UE::Cook::FPlatformData* PlatformData = PlatformContext.PlatformData;
@@ -163,7 +166,8 @@ ECookMode::Type FWorkerRequestsRemote::GetDirectorCookMode(UCookOnTheFlyServer& 
 void FWorkerRequestsRemote::LogCalledCookByTheBookError(const TCHAR* FunctionName) const
 {
 	check(FunctionName);
-	UE_LOG(LogCook, Error, TEXT("Calling %s (a CookByTheBook function) is not allowed in a CookWorker."), FunctionName);
+	UE_LOG(LogCook, Error, TEXT("Calling %s (a CookByTheBook function) is not allowed in a CookWorker."),
+		FunctionName);
 }
 
 void FWorkerRequestsRemote::LogCalledCookOnTheFlyError(const TCHAR* FunctionName) const
@@ -175,13 +179,16 @@ void FWorkerRequestsRemote::LogCalledCookOnTheFlyError(const TCHAR* FunctionName
 void FWorkerRequestsRemote::LogCalledPublicInterfaceError(const TCHAR* FunctionName) const
 {
 	check(FunctionName);
-	UE_LOG(LogCook, Error, TEXT("Calling %s (a CookOnTheFlyServer public interface function) is not allowed in a CookWorker."), FunctionName);
+	UE_LOG(LogCook, Error,
+		TEXT("Calling %s (a CookOnTheFlyServer public interface function) is not allowed in a CookWorker."),
+		FunctionName);
 }
 
 void FWorkerRequestsRemote::LogCalledEditorActionError(const TCHAR* FunctionName) const
 {
 	check(FunctionName);
-	UE_LOG(LogCook, Error, TEXT("Calling %s (an editor-mode-only function) is not allowed in a CookWorker."), FunctionName);
+	UE_LOG(LogCook, Error, TEXT("Calling %s (an editor-mode-only function) is not allowed in a CookWorker."),
+		FunctionName);
 }
 
 void FWorkerRequestsRemote::LogAllRequestedFiles()

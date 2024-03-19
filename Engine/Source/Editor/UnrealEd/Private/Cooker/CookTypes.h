@@ -79,7 +79,8 @@ struct TFastPointerMapKeyFuncs : public TDefaultMapKeyFuncs<KeyType, ValueType, 
 
 /** A TMap which uses TFastPointerMapKeyFuncs instead of TDefaultMapKeyFuncs */
 template<typename KeyType, typename ValueType, typename SetAllocator = FDefaultSetAllocator>
-class TFastPointerMap : public TMap<KeyType, ValueType, SetAllocator, TFastPointerMapKeyFuncs<KeyType, ValueType, false>>
+class TFastPointerMap : public TMap<KeyType, ValueType, SetAllocator,
+	TFastPointerMapKeyFuncs<KeyType, ValueType, false>>
 {};
 
 /** A TSet which uses TFastPointerSetKeyFuncs instead of DefaultKeyFuncs */
@@ -100,7 +101,10 @@ namespace UE::Cook
 		using TFastPointerSet<FPackageData*>::TFastPointerSet;
 	};
 
-	/** External Requests to the cooker can either by cook requests for a specific file, or arbitrary callbacks that need to execute within the Scheduler's lock. */
+	/**
+	 * External Requests to the cooker can either by cook requests for a specific file, or arbitrary callbacks that
+	 * need to execute within the Scheduler's lock.
+	 */
 	enum class EExternalRequestType
 	{
 		None,
@@ -168,25 +172,51 @@ namespace UE::Cook
 	/** Which phase of cooking a Package is in.  */
 	enum class EPackageState
 	{
-		Idle = 0,	  /* The Package is not being operated on by the cooker, and is not in any queues.  This is the state both for packages that have never been requested and for packages that have finished cooking. */
-		Request,	  /* The Package is in the RequestQueue; it is requested for cooking but has not had any operations performed on it. */
-		AssignedToWorker, /* The Package is in the AssignedToWorkerSet; it has been sent a remote CookWorker for cooking and has not had any operations performed on it locally. */
-		LoadPrepare,  /* The Package is in the LoadPrepareQueue. Preloading is in progress. */
-		LoadReady,	  /* The package is in the LoadReadyQueue. Preloading is complete and it will be loaded when its turn comes up. */
-		Save,		  /* The Package is in the SaveQueue; it has been fully loaded and some target data may have been calculated. */
+		/**
+		 * The Package is not being operated on by the cooker, and is not in any queues. This is the state both for
+		 * packages that have never been requested and for packages that have finished cooking.
+		 */
+		Idle = 0,
+		/**
+		 * The Package is in the RequestQueue; it is requested for cooking but has not had any operations performed
+		 * on it.
+		*/
+		Request,
+		/**
+		 * The Package is in the AssignedToWorkerSet; it has been sent a remote CookWorker for cooking and has not
+		 * had any operations performed on it locally.
+		 */
+		AssignedToWorker,
+		/** The Package is in the LoadPrepareQueue. Preloading is in progress. */
+		LoadPrepare,
+		/**
+		 * The package is in the LoadReadyQueue. Preloading is complete and it will be loaded when its turn
+		 * comes up.
+		 */
+		LoadReady,
+		/** The Package is in the SaveQueue; it has been fully loaded and some target data may have been calculated. */
+		Save,
 
 		Min = Idle,
 		Max = Save,
-		Count = Max + 1, /* Number of values in this enum, not a valid value for any EPackageState variable. */
-		BitCount = 3, /* Number of bits required to store a valid EPackageState */
+		/** Number of values in this enum, not a valid value for any EPackageState variable. */
+		Count = Max + 1,
+		/** Number of bits required to store a valid EPackageState */
+		BitCount = 3,
 	};
 
 	enum class EPackageStateProperty // Bitfield
 	{
 		None		= 0,
-		InProgress	= 0x1, /* The package is being worked on by the cooker. */
-		Loading		= 0x2, /* The package is in one of the loading states and has preload data. */
-		HasPackage	= 0x4, /* The package has progressed past the loading state, and the UPackage pointer is available on the FPackageData. */
+		/** The package is being worked on by the cooker. */
+		InProgress	= 0x1,
+		/** The package is in one of the loading states and has preload data. */
+		Loading		= 0x2,
+		/**
+		 * The package has progressed past the loading state, and the UPackage pointer is available on the
+		 * FPackageData.
+		 */
+		HasPackage	= 0x4,
 
 		Min = InProgress,
 		Max = HasPackage
@@ -241,7 +271,10 @@ namespace UE::Cook
 		double LoopStartTime = 0.;
 		/** A bitmask of flags of type enum ECookOnTheSideResult that were set during the tick. */
 		uint32 ResultFlags = 0;
-		/** The CookerTimer for the current tick. Used by slow reentrant operations that need to check whether they have timed out. */
+		/**
+		 * The CookerTimer for the current tick. Used by slow reentrant operations that need to check whether they
+		 * have timed out.
+		 */
 		FCookerTimer Timer;
 		/** CookFlags describing details of the caller's desired behavior for the current tick. */
 		ECookTickFlags TickFlags;
@@ -326,7 +359,8 @@ namespace UE::Cook
 		int32 SoftGCStartNumerator;
 		int32 SoftGCDenominator;
 		TArray<FString> ConfigSettingDenyList;
-		TMap<FName, int32> MaxAsyncCacheForType; // max number of objects of a specific type which are allowed to async cache at once
+		/** max number of objects of a specific type which are allowed to async cache at once */
+		TMap<FName, int32> MaxAsyncCacheForType;
 		bool bUseSoftGC = false;
 
 		friend FCbWriter& ::operator<<(FCbWriter& Writer, const UE::Cook::FInitializeConfigSettings& Value);
@@ -382,10 +416,16 @@ public:
 	/** Create a release from this manifest and store it in the releases directory for this cgame */
 	FString							CreateReleaseVersion;
 
-	/** If we are based on a release version of the game this is the set of packages which were cooked in that release. Map from platform name to list of uncooked package filenames */
+	/**
+	 * If we are based on a release version of the game this is the set of packages which were cooked in that release.
+	 * Map from platform name to list of uncooked package filenames.
+	 */
 	TMap<FName, TArray<FName>>		BasedOnReleaseCookedPackages;
 
-	/** Mapping from source packages to their localized variants (based on the culture list in FCookByTheBookStartupOptions) */
+	/**
+	 * Mapping from source packages to their localized variants (based on the culture list in
+	 * FCookByTheBookStartupOptions)
+	 */
 	TMap<FName, TArray<FName>>		SourceToLocalizedPackageVariants;
 	/** List of all the cultures (e.g. "en") that need to be cooked */
 	TArray<FString>					AllCulturesToCook;
@@ -404,7 +444,8 @@ public:
 
 	/** error when detecting engine content being used in this cook */
 	bool							bErrorOnEngineContentUse = false;
-	bool							bAllowUncookedAssetReferences = false; // this is a flag for dlc, will allow DLC to be cook when the fixed base might be missing references.
+	/** this is a flag for dlc, will allow DLC to be cook when the fixed base might be missing references. */
+	bool							bAllowUncookedAssetReferences = false;
 	bool							bSkipHardReferences = false;
 	bool							bSkipSoftReferences = false;
 	bool							bCookAgainstFixedBase = false;
@@ -428,7 +469,10 @@ struct FCookOnTheFlyOptions
 {
 	/** Wether the network file server or the I/O store connection server should bind to any port */
 	bool bBindAnyPort = false;
-	/** Whether the network file server should use a platform-specific communication protocol instead of TCP (used when bZenStore == false) */
+	/**
+	 * Whether the network file server should use a platform-specific communication protocol instead of TCP (used when
+	 * bZenStore == false)
+	 */
 	bool bPlatformProtocol = false;
 
 	friend FCbWriter& ::operator<<(FCbWriter& Writer, const UE::Cook::FCookOnTheFlyOptions& Value);
@@ -469,7 +513,10 @@ struct FDiscoveredPlatformSet
 		TArray<const ITargetPlatform*, TInlineAllocator<ExpectedMaxNumPlatforms>>* OutBuffer);
 	/** If the current type is EmbeddedBitField, change it to EmbeddedList. */
 	void ConvertFromBitfield(TConstArrayView<const ITargetPlatform*> OrderedPlatforms);
-	/** If the current type is EmbeddedList, change it to EmbeddedBitfield. Asserts if the type is already EmbeddedBitfield. */
+	/**
+	 * If the current type is EmbeddedList, change it to EmbeddedBitfield. Asserts if the type is already
+	 * EmbeddedBitfield.
+	 */
 	void ConvertToBitfield(TConstArrayView<const ITargetPlatform*> OrderedPlatforms);
 
 private:
@@ -509,17 +556,29 @@ struct FBeginCookContextPlatform
 	bool bHasMemoryResults = false;
 	/** If true, we should delete the in-memory results from an earlier cook in the same process, if we have any. */
 	bool bClearMemoryResults = false;
-	/** If true, we should load results that previous cooks left on disk into the current cook's results; this is one way to cook iteratively. */
+	/**
+	 * If true, we should load results that previous cooks left on disk into the current cook's results; this is one
+	 * way to cook iteratively.
+	 */
 	bool bPopulateMemoryResultsFromDiskResults = false;
-	/** If true we are cooking iteratively, from results in a shared build (e.g. from buildfarm) rather than from our previous cook. */
+	/**
+	 * If true we are cooking iteratively, from results in a shared build (e.g. from buildfarm) rather than from our
+	 * previous cook.
+	 */
 	bool bIterateSharedBuild = false;
-	/** If true we are a CookWorker, and we are working on a Sandbox directory that has already been populated by a remote Director process. */
+	/**
+	 * If true we are a CookWorker, and we are working on a Sandbox directory that has already been populated by a
+	 * remote Director process.
+	 */
 	bool bWorkerOnSharedSandbox = false;
 };
 FCbWriter& operator<<(FCbWriter& Writer, const FBeginCookContextPlatform& Value);
 bool LoadFromCompactBinary(FCbFieldView Field, FBeginCookContextPlatform& Value);
 
-/** Data held on the stack and shared with multiple subfunctions when running StartCookByTheBook or StartCookOnTheFly */
+/**
+ * Data held on the stack and shared with multiple subfunctions when running StartCookByTheBook or 
+ * StartCookOnTheFly
+ */
 struct FBeginCookContext
 {
 	FBeginCookContext(UCookOnTheFlyServer& InCOTFS)
@@ -541,7 +600,10 @@ struct FBeginCookContextForWorkerPlatform
 	void Set(const FBeginCookContextPlatform& InContext);
 
 	const ITargetPlatform* TargetPlatform = nullptr;
-	/** If true, we are deleting all old results from disk and rebuilding every package. If false, we are building iteratively. */
+	/**
+	 * If true, we are deleting all old results from disk and rebuilding every package. If false, we are building
+	 * iteratively.
+	 */
 	bool bFullBuild = false;
 };
 FCbWriter& operator<<(FCbWriter& Writer, const FBeginCookContextForWorkerPlatform& Value);

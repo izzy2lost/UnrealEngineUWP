@@ -76,7 +76,8 @@ FRequestCluster::FRequestCluster(UCookOnTheFlyServer& InCOTFS)
 		{
 			if (PlatformData->bAllowIterativeResults != bAllowIterativeResults)
 			{
-				UE_LOG(LogCook, Warning, TEXT("Full build is requested for some platforms but not others, but this is not supported. All platforms will be built full."));
+				UE_LOG(LogCook, Warning,
+					TEXT("Full build is requested for some platforms but not others, but this is not supported. All platforms will be built full."));
 				bAllowIterativeResults = false;
 			}
 		}
@@ -153,7 +154,8 @@ FRequestCluster::FRequestCluster(UCookOnTheFlyServer& InCOTFS, TRingBuffer<FDisc
 			Discovery = &PoppedDiscovery;
 			if (!PackageData.IsInProgress() && PackageData.GetPlatformsNeedingCookingNum() == 0)
 			{
-				PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::RequestCluster);
+				PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove,
+					EStateChangeReason::RequestCluster);
 				OwnedPackageDatas.Add(&PackageData, ESuppressCookReason::NotSuppressed);
 			}
 			continue;
@@ -253,7 +255,8 @@ void FRequestCluster::FetchPackageNames(const FCookerTimer& CookerTimer, bool& b
 		// The input filenames are normalized, but might be missing their extension, so allow PackageDatas
 		// to correct the filename if the package is found with a different filename
 		bool bExactMatchRequired = false;
-		FPackageData* PackageData = PackageDatas.TryAddPackageDataByStandardFileName(OriginalName, bExactMatchRequired);
+		FPackageData* PackageData = PackageDatas.TryAddPackageDataByStandardFileName(OriginalName,
+			bExactMatchRequired);
 		if (!PackageData)
 		{
 			LogCookerMessage(FString::Printf(TEXT("Could not find package at file %s!"),
@@ -320,7 +323,8 @@ void FRequestCluster::PullIntoCluster(FPackageData& PackageData)
 		}
 		else
 		{
-			PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::RequestCluster);
+			PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove,
+				EStateChangeReason::RequestCluster);
 		}
 		Existing = ESuppressCookReason::NotSuppressed;
 	}
@@ -408,7 +412,8 @@ void FRequestCluster::OnRemoveSessionPlatform(const ITargetPlatform* TargetPlatf
 		bool bComplete;
 		while (PumpExploration(CookerTimer, bComplete), !bComplete)
 		{
-			UE_LOG(LogCook, Display, TEXT("Waiting for RequestCluster to finish before removing platform from session."));
+			UE_LOG(LogCook, Display,
+				TEXT("Waiting for RequestCluster to finish before removing platform from session."));
 			FPlatformProcess::Sleep(.001f);
 		}
 	}
@@ -483,7 +488,8 @@ void FRequestCluster::PumpExploration(const FCookerTimer& CookerTimer, bool& bOu
 		}
 		else
 		{
-			TraversalTier = bAllowHardDependencies ? ETraversalTier::FollowDependencies : ETraversalTier::FetchEdgeData;
+			TraversalTier = bAllowHardDependencies ? ETraversalTier::FollowDependencies :
+				ETraversalTier::FetchEdgeData;
 		}
 		GraphSearch.Reset(new FGraphSearch(*this, TraversalTier));
 
@@ -620,8 +626,8 @@ void FRequestCluster::FGraphSearch::StartSearch()
 	{
 		FVertexData& Vertex = FindOrAddVertex(Pair.Key->GetPackageName(), *Pair.Key);
 		check(Vertex.PackageData);
-		// We're iterating over OwnedPackageDatas and the Vertex is already in the Cluster so we don't need to call AddToFrontier;
-		// just add it directly.
+		// We're iterating over OwnedPackageDatas and the Vertex is already in the Cluster so we don't need to call
+		// AddToFrontier; just add it directly.
 		check(Pair.Value != ESuppressCookReason::Invalid);
 		Frontier.Add(&Vertex);
 	}
@@ -638,8 +644,8 @@ FRequestCluster::FGraphSearch::~FGraphSearch()
 			bAsyncBatchesEmpty = AsyncQueueBatches.IsEmpty();
 			if (!bAsyncBatchesEmpty)
 			{
-				// It is safe to Reset AsyncResultsReadyEvent and wait on it later because we are inside the lock and there is a
-				// remaining batch, so it will be triggered after the Reset when that batch completes.
+				// It is safe to Reset AsyncResultsReadyEvent and wait on it later because we are inside the lock and
+				// there is a remaining batch, so it will be triggered after the Reset when that batch completes.
 				AsyncResultsReadyEvent->Reset();
 			}
 		}
@@ -698,7 +704,8 @@ void FRequestCluster::FGraphSearch::OnNewReachablePlatforms(FPackageData* Packag
 	Frontier.Add(*VertexPtr);
 }
 
-void FRequestCluster::FGraphSearch::QueueEdgesFetch(FVertexData& Vertex, TConstArrayView<const ITargetPlatform*> Platforms)
+void FRequestCluster::FGraphSearch::QueueEdgesFetch(FVertexData& Vertex,
+	TConstArrayView<const ITargetPlatform*> Platforms)
 {
 	check(!Vertex.QueryData);
 	FVertexQueryData& QueryData = *AllocateQueryData();
@@ -711,7 +718,10 @@ void FRequestCluster::FGraphSearch::QueueEdgesFetch(FVertexData& Vertex, TConstA
 	bool bHasPlatformAgnostic = false;
 	for (const ITargetPlatform* Platform : Platforms)
 	{
-		int32 Index = Algo::BinarySearchBy(FetchPlatforms, Platform, [](const FFetchPlatformData& D) { return D.Platform; });
+		int32 Index = Algo::BinarySearchBy(FetchPlatforms, Platform, [](const FFetchPlatformData& D) 
+			{
+				return D.Platform;
+			});
 		check(Index != INDEX_NONE);
 		QueryData.Platforms[Index].bActive = true;
 		if (Platform != CookerLoadingPlatformKey)
@@ -759,7 +769,8 @@ void FRequestCluster::FGraphSearch::TickExploration(bool& bOutDone)
 		{
 			if (Vertex->QueryData)
 			{
-				// Vertices that are already in the AsyncQueue can not be added again; we would clobber their QueryData. Postpone them.
+				// Vertices that are already in the AsyncQueue can not be added again; we would clobber their
+				// QueryData. Postpone them.
 				BusyVertices.Add(Vertex);
 			}
 			else
@@ -834,7 +845,8 @@ void FRequestCluster::FGraphSearch::UpdateDisplay()
 			NumVertices += Batch->PendingVertices;
 		}
 
-		UE_LOG(LogCook, Warning, TEXT("FRequestCluster waited more than %.0lfs for previous build results from the oplog. ")
+		UE_LOG(LogCook, Warning,
+			TEXT("FRequestCluster waited more than %.0lfs for previous build results from the oplog. ")
 			TEXT("NumPendingBatches == %d, NumPendingVertices == %d. Continuing to wait..."),
 			WarningTimeout, NumBatches, NumVertices);
 		LastActivityTime = FPlatformTime::Seconds();
@@ -858,7 +870,8 @@ void FRequestCluster::FGraphSearch::VisitVertex(FVertexData& Vertex)
 	const ITargetPlatform* FirstReachableSessionPlatform = nullptr;
 	ESuppressCookReason SuppressCookReason = ESuppressCookReason::Invalid;
 	bool bAllReachablesUncookable = true;
-	for (TPair<const ITargetPlatform*, FPackagePlatformData>& Pair : Vertex.PackageData->GetPlatformDatasConstKeysMutableValues())
+	for (TPair<const ITargetPlatform*, FPackagePlatformData>& Pair :
+		Vertex.PackageData->GetPlatformDatasConstKeysMutableValues())
 	{
 		FPackagePlatformData& PlatformData = Pair.Value;
 		if (Pair.Key == CookerLoadingPlatformKey)
@@ -917,8 +930,8 @@ void FRequestCluster::FGraphSearch::VisitVertex(FVertexData& Vertex)
 		Vertex.bAnyCookable = bAnyCookable;
 	}
 
-	// If any target platform is cookable, then we need to mark the CookerLoadingPlatform as reachable because we will need
-	// to load the package to cook it
+	// If any target platform is cookable, then we need to mark the CookerLoadingPlatform as reachable because we will
+	// need to load the package to cook it
 	if (bAnyCookable)
 	{
 		if (!CookerLoadingPlatform)
@@ -961,7 +974,8 @@ void FRequestCluster::FGraphSearch::VisitVertexForPlatform(FVertexData& Vertex, 
 	}
 	else
 	{
-		check(SuppressCookReason != ESuppressCookReason::Invalid && SuppressCookReason != ESuppressCookReason::NotSuppressed);
+		check(SuppressCookReason != ESuppressCookReason::Invalid
+			&& SuppressCookReason != ESuppressCookReason::NotSuppressed);
 		if (AccumulatedSuppressCookReason == ESuppressCookReason::Invalid)
 		{
 			AccumulatedSuppressCookReason = SuppressCookReason;
@@ -1059,7 +1073,8 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 		}
 		PlatformDependencyBits.HasPlatformByIndex[PlatformIndex] = true;
 
-		// Calculate PlatformDependencyType.InstigatorType == Max(InstigatorType, PlatformDependencyType.InstigatorType)
+		// Calculate PlatformDependencyType.InstigatorType == 
+		// Max(InstigatorType, PlatformDependencyType.InstigatorType)
 		// based on the enum values, from least required to most: [ Soft, HardEditorOnly, Hard ]
 		switch (InstigatorType)
 		{
@@ -1094,9 +1109,11 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 
 	FQueryPlatformData& PlatformAgnosticQueryPlatformData = Vertex.QueryData->Platforms[PlatformAgnosticPlatformIndex];
 
-	auto ProcessPlatformAttachments = [this, PackageName, &PackageData, &PlatformAgnosticQueryPlatformData, &AddPlatformDependencyRange]
+	auto ProcessPlatformAttachments =
+		[this, PackageName, &PackageData, &PlatformAgnosticQueryPlatformData, &AddPlatformDependencyRange]
 		(int32 PlatformIndex, const ITargetPlatform* TargetPlatform, FFetchPlatformData& FetchPlatformData,
-			FPackagePlatformData& PackagePlatformData, FCookAttachments& PlatformAttachments, bool bExploreDependencies)
+			FPackagePlatformData& PackagePlatformData, FCookAttachments& PlatformAttachments,
+			bool bExploreDependencies)
 	{
 		bool bFoundBuildDefinitions = false;
 		ICookedPackageWriter* PackageWriter = FetchPlatformData.Writer;
@@ -1131,7 +1148,8 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 				}
 			}
 			bool bShouldIterativelySkip = bIterativelyUnmodified;
-			PackageWriter->UpdatePackageModificationStatus(PackageName, bIterativelyUnmodified, bShouldIterativelySkip);
+			PackageWriter->UpdatePackageModificationStatus(PackageName, bIterativelyUnmodified,
+				bShouldIterativelySkip);
 			if (bShouldIterativelySkip)
 			{
 				// Call SetPlatformCooked instead of just PackagePlatformData.SetCookResults because we might also need
@@ -1192,17 +1210,20 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 
 			// ITERATIVECOOK_TODO: Build dependencies need to be stored and used to mark package loads as expected
 			// But we can't use them to explore packages that will be loaded during cook because they might not be;
-			// some build dependencies might be a conservative list but unused by the asset, or unused on targetplatform
+			// some build dependencies might be a conservative list but unused by the asset, or unused on
+			// targetplatform.
 			// Adding BuildDependencies also sets up many circular dependencies, because maps declare their external
 			// actors as build dependencies and the external actors declare the map as a build or hard dependency.
-			// Topological sort done at the end of the Cluster has poor performance when there are 100k+ circular dependencies.
+			// Topological sort done at the end of the Cluster has poor performance when there are 100k+ circular
+			// dependencies.
 			constexpr bool bAddBuildDependenciesToGraph = false;
 			if (bAddBuildDependenciesToGraph)
 			{
-				Cluster.AssetRegistry.GetDependencies(PackageName, CookerLoadingDependencies, EDependencyCategory::Package,
-					EDependencyQuery::Build);
+				Cluster.AssetRegistry.GetDependencies(PackageName, CookerLoadingDependencies,
+					EDependencyCategory::Package, EDependencyQuery::Build);
 			}
-			// CookerLoadingPlatform does not cause SetInstigator so it does not modify the platformdependency's InstigatorType
+			// CookerLoadingPlatform does not cause SetInstigator so it does not modify the platformdependency's
+			// InstigatorType
 			AddPlatformDependencyRange(CookerLoadingDependencies, PlatformIndex, EInstigator::InvalidCategory);
 		}
 		else
@@ -1478,9 +1499,12 @@ void FRequestCluster::FQueryVertexBatch::Send()
 		}
 		FFetchPlatformData& FetchPlatformData = ThreadSafeOnlyVars.FetchPlatforms[PlatformIndex];
 
-		if (ThreadSafeOnlyVars.Cluster.IsIncrementalCook() // Only FetchCookAttachments if our cookmode supports it. Otherwise keep them all empty
-			&& !FetchPlatformData.bIsPlatformAgnosticPlatform // The PlatformAgnosticPlatform has no stored CookAttachments; always use empty
-			&& !FetchPlatformData.bIsCookerLoadingPlatform // The CookerLoadingPlatform has no stored CookAttachments; always use empty
+		if (ThreadSafeOnlyVars.Cluster.IsIncrementalCook() // Only FetchCookAttachments if our cookmode supports it.
+															// Otherwise keep them all empty
+			&& !FetchPlatformData.bIsPlatformAgnosticPlatform // The PlatformAgnosticPlatform has no stored
+															// CookAttachments; always use empty
+			&& !FetchPlatformData.bIsCookerLoadingPlatform // The CookerLoadingPlatform has no stored CookAttachments;
+															// always use empty
 			)
 		{
 			TUniqueFunction<void(FName PackageName, UE::TargetDomain::FCookAttachments&& Result)> Callback =
@@ -1565,13 +1589,16 @@ void FRequestCluster::IsRequestCookable(const ITargetPlatform* Platform, FName P
 }
 
 void FRequestCluster::IsRequestCookable(const ITargetPlatform* Platform, FName PackageName, FPackageData& PackageData,
-	UCookOnTheFlyServer& InCOTFS, FStringView InDLCPath, ESuppressCookReason& OutReason, bool& bOutCookable, bool& bOutExplorable)
+	UCookOnTheFlyServer& InCOTFS, FStringView InDLCPath, ESuppressCookReason& OutReason, bool& bOutCookable,
+	bool& bOutExplorable)
 {
-	check(Platform != CookerLoadingPlatformKey); // IsRequestCookable should not be called for The CookerLoadingPlatform; it has different rules
+	// IsRequestCookable should not be called for The CookerLoadingPlatform; it has different rules
+	check(Platform != CookerLoadingPlatformKey);
 
 	TStringBuilder<256> NameBuffer;
-	// We need to reject packagenames from adding themselves or their transitive dependencies using all the same rules that
-	// UCookOnTheFlyServer::ProcessRequest uses. Packages that are rejected from cook do not add their dependencies to the cook.
+	// We need to reject packagenames from adding themselves or their transitive dependencies using all the same rules
+	// that UCookOnTheFlyServer::ProcessRequest uses. Packages that are rejected from cook do not add their 
+	// dependencies to the cook.
 	PackageName.ToString(NameBuffer);
 	if (FPackageName::IsScriptPackage(NameBuffer))
 	{
@@ -1591,7 +1618,8 @@ void FRequestCluster::IsRequestCookable(const ITargetPlatform* Platform, FName P
 	FName FileName = PackageData.GetFileName();
 	if (InCOTFS.PackageTracker->NeverCookPackageList.Contains(FileName))
 	{
-		if (INDEX_NONE != UE::String::FindFirst(NameBuffer, ULevel::GetExternalActorsFolderName(), ESearchCase::IgnoreCase))
+		if (INDEX_NONE != UE::String::FindFirst(NameBuffer, ULevel::GetExternalActorsFolderName(), 
+			ESearchCase::IgnoreCase))
 		{
 			// EXTERNALACTOR_TODO: Add a separate category for ExternalActors rather than putting them in
 			// NeverCookPackageList and checking naming convention here.
@@ -1600,14 +1628,17 @@ void FRequestCluster::IsRequestCookable(const ITargetPlatform* Platform, FName P
 
 			// EXTERNALACTOR_TODO: We want to explore externalactors, because they add references to the cook that will
 			// otherwise not be found until the map package loads them and adds them as unsolicited packages
-			// But some externalactor packages will never be loaded by the generator, and we don't have a way to discover which
-			// ones will not be loaded until we load the Map and WorldPartition object.
-			// So set them to explorable = false until we implement an interface to determine which actors will be loaded up front.
+			// But some externalactor packages will never be loaded by the generator, and we don't have a way to
+			// discover which ones will not be loaded until we load the Map and WorldPartition object.
+			// So set them to explorable = false until we implement an interface to determine which actors will be
+			// loaded up front.
 			bOutExplorable = false;
 		}
 		else
 		{
-			UE_LOG(LogCook, Verbose, TEXT("Package %s is referenced but is in the never cook package list, discarding request"), *NameBuffer);
+			UE_LOG(LogCook, Verbose,
+				TEXT("Package %s is referenced but is in the never cook package list, discarding request"),
+				*NameBuffer);
 			OutReason = ESuppressCookReason::NeverCook;
 			bOutCookable = false;
 			bOutExplorable = false;
@@ -1638,11 +1669,13 @@ void FRequestCluster::IsRequestCookable(const ITargetPlatform* Platform, FName P
 			{
 				if (!PackageData.HasCookedPlatform(Platform, true /* bIncludeFailed */))
 				{
-					// AllowUncookedAssetReferences should only be used when the DLC plugin to cook is going to be mounted where uncooked packages are available.
-					// This will allow a DLC plugin to be recooked continually and mounted in an uncooked editor which is useful for CI.
+					// AllowUncookedAssetReferences should only be used when the DLC plugin to cook is going to be
+					// mounted where uncooked packages are available. This will allow a DLC plugin to be recooked 
+					// continually and mounted in an uncooked editor which is useful for CI.
 					if (!InCOTFS.CookByTheBookOptions->bAllowUncookedAssetReferences)
 					{
-						UE_LOG(LogCook, Error, TEXT("Uncooked Engine or Game content %s is being referenced by DLC!"), *NameBuffer);
+						UE_LOG(LogCook, Error,
+							TEXT("Uncooked Engine or Game content %s is being referenced by DLC!"), *NameBuffer);
 					}
 				}
 				OutReason = ESuppressCookReason::NotInCurrentPlugin;
@@ -1826,8 +1859,8 @@ void FRequestCluster::RandomizeCookOrder(TArray<FPackageData*>& InOutLeafToRootO
 	// 
 	// Notes on the practical solution:
 	// Cycles are not supposed to be a large part of our graph, so we will not seek to do a good job of randomizing
-	// them. We do a DFS as we would in an acyclic graph, and when we encounter an already-visited vertex due to a cycle
-	// we just pretend that edge does not exist.
+	// them. We do a DFS as we would in an acyclic graph, and when we encounter an already-visited vertex due to a
+	// cycle we just pretend that edge does not exist.
 	//
 	// Two DFS passes
 	// Pass 1, find all roots by iterating from root to leaf and DFSing each remaining head element.
@@ -1875,7 +1908,8 @@ void FRequestCluster::RandomizeCookOrder(TArray<FPackageData*>& InOutLeafToRootO
 	TSet<FPackageData*> ValidVertices;
 	ValidVertices.Append(InOutLeafToRootOrder);
 
-	TArray<FPackageData*> Roots = FindRootsFromLeafToRootOrderList<FPackageData*>(InOutLeafToRootOrder, Edges, ValidVertices);
+	TArray<FPackageData*> Roots = FindRootsFromLeafToRootOrderList<FPackageData*>(InOutLeafToRootOrder, Edges, 
+		ValidVertices);
 	ArrayShuffle(Roots);
 
 	TSet<FPackageData*> Visited;
@@ -1910,7 +1944,8 @@ void FRequestCluster::RandomizeCookOrder(TArray<FPackageData*>& InOutLeafToRootO
 			}
 			if (!bPushed)
 			{
-				// Add this vertex now as the most rootwards encountered; it is farther toward the root than any of the vertices it depends on
+				// Add this vertex now as the most rootwards encountered; it is farther toward the root than any of the
+				// vertices it depends on
 				OutputVisitOrder.Add(Entry.Vertex);
 				Pop();
 			}

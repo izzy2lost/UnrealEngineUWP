@@ -664,7 +664,10 @@ public:
 	/** Get the workerid that is the only worker allowed to cook this package; InvalidId means no constraint. */
 	FWorkerId GetWorkerAssignmentConstraint() const { return WorkerAssignmentConstraint; }
 	/** Set the workerid that is the only worker allowed to cook this package; default is InvalidId; */
-	void SetWorkerAssignmentConstraint(FWorkerId InWorkerAssignment) { WorkerAssignmentConstraint = InWorkerAssignment; }
+	void SetWorkerAssignmentConstraint(FWorkerId InWorkerAssignment)
+	{
+		WorkerAssignmentConstraint = InWorkerAssignment;
+	}
 
 	/** Marshall this PackageData to a ConstructData that is used later or on a remote machine to reconstruct it. */
 	FConstructPackageData CreateConstructData();
@@ -943,7 +946,11 @@ public:
 	void FetchExternalActorDependencies();
 
 	/** Accessor for the packages to generate */
-	TArrayView<UE::Cook::FCookGenerationInfo> GetPackagesToGenerate() { check(IsInitialized()); return PackagesToGenerate; }
+	TArrayView<UE::Cook::FCookGenerationInfo> GetPackagesToGenerate()
+	{
+		check(IsInitialized());
+		return PackagesToGenerate;
+	}
 	/** Return the GenerationInfo used to save the generator package's UPackage */
 	UE::Cook::FCookGenerationInfo& GetOwnerInfo() { check(IsInitialized()); return OwnerInfo; }
 	/** Return owner FPackageData. */
@@ -989,10 +996,16 @@ public:
 
 	UPackage* GetOwnerPackage() const { return OwnerPackage.Get(); };
 	void SetOwnerPackage(UPackage* InPackage) { OwnerPackage = InPackage; }
-	void SetPreviousGeneratedPackages(TMap<FName, FIoHash>&& Packages) { PreviousGeneratedPackages = MoveTemp(Packages); }
+	void SetPreviousGeneratedPackages(TMap<FName, FIoHash>&& Packages)
+	{
+		PreviousGeneratedPackages = MoveTemp(Packages);
+	}
 
 	TConstArrayView<FName> GetExternalActorDependencies() { check(IsInitialized()); return ExternalActorDependencies; }
-	TArray<FName> ReleaseExternalActorDependencies() { TArray<FName> Result = MoveTemp(ExternalActorDependencies); return Result; }
+	TArray<FName> ReleaseExternalActorDependencies()
+	{
+		TArray<FName> Result = MoveTemp(ExternalActorDependencies); return Result;
+	}
 
 private:
 	void ConditionalNotifyCompletion(ICookPackageSplitter::ETeardown Status);
