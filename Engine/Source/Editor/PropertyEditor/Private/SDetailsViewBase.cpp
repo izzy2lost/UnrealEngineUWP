@@ -488,7 +488,7 @@ EVisibility SDetailsViewBase::GetTreeVisibility() const
 		}
 	}
 
-	return EVisibility::Collapsed;
+	return DetailTree->IsPendingRefresh() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SDetailsViewBase::GetScrollBarVisibility() const

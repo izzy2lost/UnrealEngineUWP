@@ -176,6 +176,14 @@ public:
 	{
 	}
 
+	virtual ~SSpinBox()
+	{
+		if (bDragging || PointerDraggingSliderIndex != INDEX_NONE)
+		{
+			CancelMouseCapture();
+		}
+	}
+
 	/**
 	 * Construct the widget
 	 *
@@ -772,11 +780,7 @@ public:
 		const FKey Key = InKeyEvent.GetKey();
 		if (Key == EKeys::Escape && HasMouseCapture())
 		{
-			bDragging = false;
-			PointerDraggingSliderIndex = INDEX_NONE;
-
-			InternalValue = (double)PreDragValue;
-			NotifyValueCommitted(PreDragValue);
+			CancelMouseCapture();
 			return FReply::Handled().ReleaseMouseCapture().SetMousePos(CachedMousePosition);
 		}
 		else if (Key == EKeys::Up || Key == EKeys::Right)
@@ -1223,6 +1227,15 @@ private:
 		{
 			return (NumericType)FMath::Clamp<double>(ValueToRound, (double)std::numeric_limits<NumericType>::lowest(), (double)std::numeric_limits<NumericType>::max());
 		}
+	}
+
+	void CancelMouseCapture()
+	{
+		bDragging = false;
+		PointerDraggingSliderIndex = INDEX_NONE;
+
+		InternalValue = (double)PreDragValue;
+		NotifyValueCommitted(PreDragValue);
 	}
 
 	/** Tracks which cursor is currently dragging the slider (e.g., the mouse cursor or a specific finger) */
