@@ -1336,19 +1336,7 @@ export class Backend {
         }
 
     }
-
-    downloadAgentZip() {
-        try {
-            const url = `${this.serverUrl}/api/v1/agentsoftware/default/zip`;
-            const link = document.createElement('a');
-            link.href = url;
-            document.body.appendChild(link);
-            link.click();
-        } catch (reason) {
-            console.error(reason);
-        }
-    }
-
+    
     updateJobStep(jobId: string, batchId: string, stepId: string, request: UpdateStepRequest): Promise<UpdateStepResponse> {
         return new Promise<UpdateStepResponse>((resolve, reject) => {
             this.backend.put(`api/v1/jobs/${jobId}/batches/${batchId}/steps/${stepId}`, request).then((value) => {
