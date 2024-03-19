@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma autortfm
-
 #include "MyAutoRTFMTestObject.h"
 #include "Catch2Includes.h"
 #include <AutoRTFM/AutoRTFM.h>
