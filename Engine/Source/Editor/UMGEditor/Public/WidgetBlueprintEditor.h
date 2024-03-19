@@ -25,6 +25,7 @@ class UWidgetAnimation;
 class UWidgetBlueprint;
 class FPaletteViewModel;
 class FLibraryViewModel;
+struct FPropertyChangedEvent;
 namespace UE::UMG::Editor { class FPreviewMode; }
 
 struct FNamedSlotSelection
@@ -178,8 +179,12 @@ public:
 
 	TSharedPtr<class FWidgetBlueprintEditorToolbar> GetWidgetToolbarBuilder() { return WidgetToolbar; }
 
+	UE_DEPRECATED(5.5, "Use MigrateFromChain with a FPropertyChangedEvent and a FEditPropertyChain")
 	/** Migrate a property change from the preview GUI to the template GUI. */
 	void MigrateFromChain(FEditPropertyChain* PropertyThatChanged, bool bIsModify);
+
+	/** Migrate a property change from the preview GUI to the template GUI. */
+	void MigrateFromChain(const FPropertyChangedEvent* PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged, bool bIsModify);
 
 	/** Event called when an undo/redo transaction occurs */
 	DECLARE_EVENT(FWidgetBlueprintEditor, FOnWidgetBlueprintTransaction)

@@ -624,7 +624,7 @@ void SWidgetDetailsView::NotifyPreChange(FEditPropertyChain* PropertyAboutToChan
 		TSharedPtr<FWidgetBlueprintEditor> Editor = BlueprintEditor.Pin();
 
 		const bool bIsModify = true;
-		Editor->MigrateFromChain(PropertyAboutToChange, bIsModify);
+		Editor->MigrateFromChain(nullptr, PropertyAboutToChange, bIsModify);
 	}
 }
 
@@ -637,7 +637,7 @@ void SWidgetDetailsView::NotifyPostChange(const FPropertyChangedEvent& PropertyC
 		TSharedPtr<FWidgetBlueprintEditor> Editor = BlueprintEditor.Pin();
 
 		const bool bIsModify = false;
-		Editor->MigrateFromChain(PropertyThatChanged, bIsModify);
+		Editor->MigrateFromChain(&PropertyChangedEvent, PropertyThatChanged, bIsModify);
 
 		// Any time we migrate a property value we need to mark the blueprint as structurally modified so users don't need 
 		// to recompile it manually before they see it play in game using the latest version.

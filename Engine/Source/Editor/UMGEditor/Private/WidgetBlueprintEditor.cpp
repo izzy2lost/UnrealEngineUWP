@@ -1073,19 +1073,164 @@ void FWidgetBlueprintEditor::AddReferencedObjects( FReferenceCollector& Collecto
 	Collector.AddReferencedObject(PreviewWidgetPtr);
 }
 
+static void PropagateDefaultPropertyChange(const FPropertyChangedEvent& PropertyChangedEvent, const FEditPropertyChain& PropertyThatChanged, UObject* UnmodifiedCDOObject, UObject* ModifedProxyObject)
+{
+	if (!UnmodifiedCDOObject || !ModifedProxyObject || !UnmodifiedCDOObject->HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return;
+	}
+
+	// This is a kit bashed version of what happens in FPropertyNode::PropagatePropertyChange to migrate the CDO edits to the live instances.
+	// We don't have PropertyHandles outside of the details view, and so we need to do the equivalent work with property paths.
+	FCachedPropertyPath ChangedPropertyPath(PropertyChangedEvent, PropertyThatChanged);
+
+	FCachedPropertyPath ResolvedCDOPath = FCachedPropertyPath::MakeUnresolvedCopy(ChangedPropertyPath);
+	ResolvedCDOPath.Resolve(UnmodifiedCDOObject);
+
+	if (ResolvedCDOPath.IsFullyResolved())
+	{
+		FProperty* Prop = ResolvedCDOPath.GetFProperty();
+		FProperty* ParentProp = nullptr;
+		if (ResolvedCDOPath.GetNumSegments() > 1)
+		{
+			ParentProp = CastField<FProperty>(ResolvedCDOPath.GetSegment(ResolvedCDOPath.GetNumSegments() - 2).GetField().ToField());
+		}
+
+		FArrayProperty* ParentArrayProp = CastField<FArrayProperty>(ParentProp);
+		FMapProperty* ParentMapProp = CastField<FMapProperty>(ParentProp);
+		FSetProperty* ParentSetProp = CastField<FSetProperty>(ParentProp);
+
+		if (ParentArrayProp && ParentArrayProp->Inner != Prop)
+		{
+			ParentArrayProp = nullptr;
+		}
+
+		if (ParentMapProp && ParentMapProp->KeyProp != Prop && ParentMapProp->ValueProp != Prop)
+		{
+			ParentMapProp = nullptr;
+		}
+
+		if (ParentSetProp && ParentSetProp->ElementProp != Prop)
+		{
+			ParentSetProp = nullptr;
+		}
+
+		FCachedPropertyPath ResolvedComparisonPath = ResolvedCDOPath;
+		if (ParentArrayProp || ParentMapProp || ParentSetProp)
+		{
+			ResolvedComparisonPath = ResolvedComparisonPath.MakeParentPath();
+		}
+
+		TArray<UObject*> ArchetypeInstances;
+		UnmodifiedCDOObject->GetArchetypeInstances(ArchetypeInstances);
+
+		void* CDOPristineValueAddr = ResolvedComparisonPath.GetCachedAddress();
+
+		FString OldValue;
+		FString NewValue;
+
+		bool bHasCopyableValue = true;
+		bHasCopyableValue &= PropertyPathHelpers::GetPropertyValueAsString(UnmodifiedCDOObject, ChangedPropertyPath, OldValue);
+		bHasCopyableValue &= PropertyPathHelpers::GetPropertyValueAsString(ModifedProxyObject, ChangedPropertyPath, NewValue);
+
+		if (bHasCopyableValue)
+		{
+			FCachedPropertyPath Instance_ComparisonPath = FCachedPropertyPath::MakeUnresolvedCopy(ResolvedComparisonPath);
+			for (UObject* ArchetypeInstance : ArchetypeInstances)
+			{
+				if (ArchetypeInstance != ModifedProxyObject)
+				{
+					Instance_ComparisonPath.Resolve(ArchetypeInstance);
+
+					if (Instance_ComparisonPath.IsFullyResolved())
+					{
+						void* Instance_DestValueAddr = Instance_ComparisonPath.GetCachedAddress();
+						const bool bShouldImport = ResolvedComparisonPath.GetFProperty()->Identical(CDOPristineValueAddr, Instance_DestValueAddr, PPF_DeepComparison);
+
+						if (bShouldImport)
+						{
+							// Note: We use the original change path to apply the actual edit - the comparison path might be shortened due to checking
+							// maps or arrays or sets, but if the array|map|set matches as a whole, then we can mod a specific index.
+							PropertyPathHelpers::SetPropertyValueFromString(ArchetypeInstance, ChangedPropertyPath, NewValue, PPF_InstanceSubobjects);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 void FWidgetBlueprintEditor::MigrateFromChain(FEditPropertyChain* PropertyThatChanged, bool bIsModify)
+{
+	MigrateFromChain(nullptr, PropertyThatChanged, bIsModify); 
+}
+
+void FWidgetBlueprintEditor::MigrateFromChain(const FPropertyChangedEvent* PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged, bool bIsModify)
 {
 	UWidgetBlueprint* Blueprint = GetWidgetBlueprintObj();
 
 	UUserWidget* PreviewUserWidget = GetPreview();
 	if ( PreviewUserWidget != nullptr )
 	{
+		// The selected objects is always the root widget, which is a copy of the CDO instanced for preview purposes.
+		// if it's modified we need to copy the values back to the CDO - but we ALSO need to do what the details panel
+		// normally does when modifying a CDO, which is to copy the values to any live instances of the widget with matching
+		// previous values so that defaults stay in-sync with the CDO.
 		for ( TWeakObjectPtr<UObject> ObjectRef : SelectedObjects )
 		{
-			// dealing with root widget here
+			//TODO: We should probably ensure that the objectref is in fact the proxy CDO for the Widget, we should
+			// probably keep track of that somewhere and vet this - you never know if someone might make new changes
+			// that invalidate this assumption.
+
 			FEditPropertyChain::TDoubleLinkedListNode* PropertyChainNode = PropertyThatChanged->GetHead();
 			UObject* WidgetCDO = ObjectRef.Get()->GetClass()->GetDefaultObject(true);
+
+			if (PropertyChangedEvent == nullptr && WidgetCDO)
+			{
+				WidgetCDO->SetEditChangePropagationFlags(EEditChangePropagationFlags::OnlyMarkRealignedInstancesAsDirty);
+				WidgetCDO->PreEditChange(*PropertyThatChanged);
+			}
+
+			if (PropertyChangedEvent && PropertyThatChanged)
+			{
+				// We have to do this before we call MigratePropertyValue, because that will change the CDO, and we won't be
+				// able cheat like we do still having a pristine CDO copy.  The details panel has to do shenanigans where it copies
+				// the data into a temp property piece of memory, but we don't need to do that since we've got the actual unmodified
+				// CDO still - but we're going to propagate the proxy's value that users modified instead of the CDO's value,
+				// then MigratePropertyValue will update the CDO's value.
+				PropagateDefaultPropertyChange(*PropertyChangedEvent, *PropertyThatChanged, WidgetCDO, ObjectRef.Get());
+			}
+
+			// dealing with root widget here
 			MigratePropertyValue(ObjectRef.Get(), WidgetCDO, PropertyChainNode, PropertyChainNode->GetValue(), bIsModify);
+
+			if (PropertyChangedEvent && WidgetCDO)
+			{
+				// 
+				TArray<UObject*> CDOArray = { WidgetCDO };
+				FPropertyChangedEvent ChangeEvent(PropertyChangedEvent->Property, PropertyChangedEvent->ChangeType, CDOArray);
+				ChangeEvent.SetActiveMemberProperty(PropertyChangedEvent->MemberProperty);
+
+				TArray<TMap<FString, int32>> ArrayIndexForProperty;
+				for (TDoubleLinkedList<FProperty*>::TIterator It(PropertyThatChanged->GetHead()); It; ++It)
+				{
+					FProperty* Property = *It;
+
+					const FString PropertyName = Property->GetName();
+					const int32 ArrayIndex = PropertyChangedEvent->GetArrayIndex(PropertyName);
+					if (ArrayIndex != INDEX_NONE)
+					{
+						ArrayIndexForProperty.AddDefaulted();
+						ArrayIndexForProperty.Last().Add(PropertyName, ArrayIndex);
+					}
+				}
+				ChangeEvent.ObjectIteratorIndex = 0;
+				ChangeEvent.SetArrayIndexPerObject(ArrayIndexForProperty);
+
+				FPropertyChangedChainEvent ChainEvent(*PropertyThatChanged, ChangeEvent);
+				WidgetCDO->PostEditChangeChainProperty(ChainEvent);
+				WidgetCDO->SetEditChangePropagationFlags(EEditChangePropagationFlags::None);
+			}
 		}
 
 		for ( FWidgetReference& WidgetRef : SelectedWidgets )
