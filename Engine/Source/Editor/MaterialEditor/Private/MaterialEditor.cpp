@@ -7282,13 +7282,14 @@ FMatExpressionPreview* FMaterialEditor::GetExpressionPreview(UMaterialExpression
 			}
 		}
 
-		if( !Preview )
+		if (!Preview && MaterialExpression->Material->GetExpressions().Contains(MaterialExpression))
 		{
 			bNewlyCreated = true;
 			Preview = new FMatExpressionPreview(MaterialExpression);
 			ExpressionPreviews.Add(Preview);
 			Preview->CacheShaders(GMaxRHIShaderPlatform, EMaterialShaderPrecompileMode::None);
 		}
+
 		return Preview;
 	}
 
