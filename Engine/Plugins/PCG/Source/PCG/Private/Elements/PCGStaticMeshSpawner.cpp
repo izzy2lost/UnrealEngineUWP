@@ -418,9 +418,13 @@ void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGStaticMeshSpawne
 	check(Settings);
 
 	UPCGManagedISMComponent* MISMC = UPCGActorHelpers::GetOrCreateManagedISMC(TargetActor, Context->SourceComponent.Get(), Settings->UID, Params);
-	
+
 	check(MISMC);
 	MISMC->SetCrc(Context->DependenciesCrc);
+
+	// Keep track of all touched resources in the context, because if the execution is cancelled during the SMS execution
+	// we cannot easily guarantee that the state (esp. vs CRCs) is going to be entirely valid
+	Context->TouchedResources.Emplace(MISMC);
 
 	UInstancedStaticMeshComponent* ISMC = MISMC->GetComponent();
 	check(ISMC);
@@ -453,6 +457,23 @@ void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGStaticMeshSpawne
 	{
 		PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("GenerationInfo", "Added {0} instances of '{1}' on actor '{2}'"),
 			InstanceList.Instances.Num(), FText::FromString(InstanceList.Descriptor.StaticMesh->GetFName().ToString()), FText::FromString(TargetActor->GetFName().ToString())));
+	}
+}
+
+void FPCGStaticMeshSpawnerElement::AbortInternal(FPCGContext* InContext) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGStaticMeshSpawnerElement::Execute);
+	FPCGStaticMeshSpawnerContext* Context = static_cast<FPCGStaticMeshSpawnerContext*>(InContext);
+
+	// Any resources we've touched during the execution of this node can potentially be in a "not-quite complete state" especially if we have multiple sources of data writing to the same ISMC.
+	// In this case, we're aiming to mark the resources as "Unused" so they are picked up to be removed during the component's OnProcessGraphAborted, which is why we call Release here.
+	for (TWeakObjectPtr<UPCGManagedISMComponent> ManagedResource : Context->TouchedResources)
+	{
+		if(ManagedResource.IsValid())
+		{
+			TSet<TSoftObjectPtr<AActor>> Dummy;
+			ManagedResource->Release(/*bHardRelease=*/false, Dummy);
+		}
 	}
 }
 
