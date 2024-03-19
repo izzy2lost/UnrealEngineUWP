@@ -28,6 +28,7 @@ public:
 
 	virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const override;
 	virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const override;
+	void UpdateShapeLibraryCache() const;
 
 	virtual void PostLoad() override;
 #if WITH_EDITOR
@@ -37,10 +38,10 @@ public:
 protected:
 
 	UPROPERTY(transient)
-	TArray<FName> ShapeNames;
+	mutable TArray<FName> ShapeNames;
 
 	UPROPERTY(transient)
-	TObjectPtr<UControlRigShapeLibrary> ShapeLibraryCached;
+	mutable TObjectPtr<UControlRigShapeLibrary> ShapeLibraryCached;
 	
 
 	static inline constexpr TCHAR DefaultShapePath[] = TEXT("DefaultShape");
