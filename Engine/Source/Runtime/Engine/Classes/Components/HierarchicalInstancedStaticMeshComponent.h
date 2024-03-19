@@ -382,14 +382,19 @@ protected:
 
 	ENGINE_API static FBox GetClusterTreeBounds(TArray<FClusterNode> const& InClusterTree, const FVector& InOffset);
 
+	UE_DEPRECATED(5.4, "UHierarchicalInstancedStaticMeshComponent is no longer overriding UInstancedStaticMeshComponent::GetNavigationPerInstanceTransforms.")
 	ENGINE_API virtual void GetNavigationPerInstanceTransforms(const FBox& AreaBox, TArray<FTransform>& InstanceData) const override;
+	UE_DEPRECATED(5.4, "UHierarchicalInstancedStaticMeshComponent is no longer overriding UInstancedStaticMeshComponent::PartialNavigationUpdate.")
 	ENGINE_API virtual void PartialNavigationUpdate(int32 InstanceIdx) override;
-	virtual bool SupportsPartialNavigationUpdate() const override { return true; }
+	UE_DEPRECATED(5.4, "UHierarchicalInstancedStaticMeshComponent is no longer overriding UInstancedStaticMeshComponent::SupportsPartialNavigationUpdate.")
+	virtual bool SupportsPartialNavigationUpdate() const override { return Super::SupportsPartialNavigationUpdate(); }
+	UE_DEPRECATED(5.4, "FlushAccumulatedNavigationUpdates has been deprecated. Use UInstancedStaticMeshComponent::PartialNavigationUpdates if you want to manually update the navigation data.")
 	ENGINE_API void FlushAccumulatedNavigationUpdates();
 
-	UE_DEPRECATED(5.4, "Use AccumulatedNavigationDirtyAreas instead.")
+	UE_DEPRECATED(5.4, "AccumulatedNavigationDirtyArea has been deprecated.")
     mutable FBox AccumulatedNavigationDirtyArea;
-	mutable TArray<FBox> AccumulatedNavigationDirtyAreas;
+	UE_DEPRECATED(5.4, "AccumulatedNavigationDirtyAreas has been deprecated.")
+	mutable TArray<FBox> AccumulatedNavigationDirtyAreas;	//Remember to also remove the disable deprecation macro wrapper around ~UHierarchicalInstancedStaticMeshComponent() when removing the variable
 
 	FGraphEventArray BuildTreeAsyncTasks;
 	EHISMViewRelevanceType ViewRelevanceType = EHISMViewRelevanceType::HISM;

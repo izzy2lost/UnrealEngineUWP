@@ -2046,6 +2046,8 @@ UHierarchicalInstancedStaticMeshComponent::UHierarchicalInstancedStaticMeshCompo
 	bUseAsOccluder = false;
 }
 
+//We deprecated a TArray and that's being referenced by the dtor as TArray has a non-trivial dtor which will trigger the deprecation warning.
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UHierarchicalInstancedStaticMeshComponent::~UHierarchicalInstancedStaticMeshComponent()
 {
 	if (ProxySize)
@@ -2054,6 +2056,7 @@ UHierarchicalInstancedStaticMeshComponent::~UHierarchicalInstancedStaticMeshComp
 	}
 	ProxySize = 0;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if WITH_EDITOR
 
@@ -2730,7 +2733,6 @@ void UHierarchicalInstancedStaticMeshComponent::ApplyBuildTree(FClusterBuilder& 
 	// BUT: the hitproxy data was rebuilt right here & the per instance random is handled differently inside the tree builder so, nope.
 	PrimitiveInstanceDataManager.MarkForRebuildFromLegacy(MoveTemp(BuiltInstanceData), InstanceReorderTable, HitProxies);
 
-	FlushAccumulatedNavigationUpdates();
 	PostBuildStats();
 	MarkRenderStateDirty();
 
@@ -3229,62 +3231,16 @@ FVector UHierarchicalInstancedStaticMeshComponent::GetAverageScale() const
 
 void UHierarchicalInstancedStaticMeshComponent::GetNavigationPerInstanceTransforms(const FBox& AreaBox, TArray<FTransform>& InstanceData) const
 {
-	if (IsTreeFullyBuilt())
-	{
-		const TArray<FClusterNode>& ClusterTree = *ClusterTreePtr;
-		if (ClusterTree.Num())
-		{
-			GetOverlappingBoxTransforms(AreaBox, InstanceData);
-		}
-	}
-	else
-	{
-		// This area should be processed again by navigation system when cluster tree is available
-		// Store smaller tile box in accumulated dirty area, so we will not unintentionally mark as dirty neighbor tiles 
-		AccumulatedNavigationDirtyAreas.Emplace(AreaBox.ExpandBy(-AreaBox.GetExtent()/2.f));
-	}
+	Super::GetNavigationPerInstanceTransforms(AreaBox, InstanceData);
 }
 
 void UHierarchicalInstancedStaticMeshComponent::PartialNavigationUpdate(const int32 InstanceIdx)
 {
-	if (InstanceIdx == INDEX_NONE)
-	{
-		AccumulatedNavigationDirtyAreas.Reset();
-		FNavigationSystem::UpdateComponentData(*this);
-	}
-	else if (GetStaticMesh() && FNavigationSystem::HasComponentData(*this))
-	{
-		// Accumulate dirty areas and send them to navigation system once cluster tree is rebuilt
-		FTransform InstanceTransformInWorldSpace;
-		if (GetInstanceTransform(InstanceIdx, InstanceTransformInWorldSpace, /*bWorldSpace*/true))
-		{
-			const FBox InstanceBounds = GetInstanceNavigationBounds();
-			if (InstanceBounds.IsValid)
-			{
-				AccumulatedNavigationDirtyAreas.Emplace(InstanceBounds.TransformBy(InstanceTransformInWorldSpace));
-			}
-		}
-	}
-
-	CalcAndCacheNavigationBounds();
+	Super::PartialNavigationUpdate(InstanceIdx);
 }
 
 void UHierarchicalInstancedStaticMeshComponent::FlushAccumulatedNavigationUpdates()
-{
-	if (AccumulatedNavigationDirtyAreas.Num() > 0)
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_UHierarchicalInstancedStaticMeshComponent_FlushAccumulatedNavigationUpdates);
-
-		const TArray<FClusterNode>& ClusterTree = *ClusterTreePtr;
-		if (ClusterTree.Num())
-		{
-			const FBox NewBounds = GetClusterTreeBounds(ClusterTree, TranslatedInstanceSpaceOrigin).TransformBy(GetComponentTransform());
-			FNavigationSystem::OnObjectBoundsChanged(*this, NewBounds, AccumulatedNavigationDirtyAreas);
-		}
-
-		AccumulatedNavigationDirtyAreas.Reset();
-	}
-}
+{}
 
 // recursive helper to gather all instances with locations inside the specified area. Supply a Filter to exclude leaf nodes based on the instance transform.
 static void GatherInstancesOverlappingArea(const UHierarchicalInstancedStaticMeshComponent& Component, const FBox& AreaBox, int32 Child, TFunctionRef<bool(const FMatrix&)> Filter, TArray<int32>& OutInstanceIndices)
