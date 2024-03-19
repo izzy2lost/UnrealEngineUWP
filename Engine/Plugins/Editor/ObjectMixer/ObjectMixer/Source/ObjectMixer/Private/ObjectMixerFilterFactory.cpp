@@ -46,4 +46,14 @@ uint32 UObjectMixerBlueprintFilterFactory::GetMenuCategories() const
 	return EAssetTypeCategories::Misc;
 }
 
+FText UObjectMixerBlueprintFilterFactory::GetToolTip() const
+{
+	return LOCTEXT("ObjectMixerFilterFactoryTooltip", "Creates a new Object Mixer Filter that can be used to define rules that govern what objects, columns and properties appear in Object Mixer.");
+}
+
+FString UObjectMixerBlueprintFilterFactory::GetToolTipDocumentationExcerpt() const
+{
+	return TEXT("UObjectMixerBlueprintFilter");
+}
+
 #undef LOCTEXT_NAMESPACE
