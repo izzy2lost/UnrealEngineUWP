@@ -258,6 +258,14 @@ UE_AUTORTFM_AUTORTFM("RTFM_OnAbort") void OnAbort(TFunction<void()> && Work)
 {
 }
 
+UE_AUTORTFM_AUTORTFM("RTFM_PushOnAbortHandler") void PushOnAbortHandler(const void* Key, TFunction<void()> && Work)
+{
+}
+
+UE_AUTORTFM_AUTORTFM("RTFM_PopOnAbortHandler") void PopOnAbortHandler(const void* Key)
+{
+}
+
 void OpenCommit(TFunction<void()>&& Work)
 {
 	OnCommit(MoveTemp(Work));
@@ -268,12 +276,20 @@ void OpenAbort(TFunction<void()>&& Work)
 	OnAbort(MoveTemp(Work));
 }
 
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_on_commit") void autortfm_on_commit(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_on_commit") void autortfm_on_commit(void (*Work)(void*), void* Arg)
 {
     Work(Arg);
 }
 
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_on_abort") void autortfm_on_abort(void (*Work)(void* arg), void* Arg)
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_on_abort") void autortfm_on_abort(void (*Work)(void*), void* Arg)
+{
+}
+
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_push_on_abort_handler") void autortfm_push_on_abort_handler(const void* Key, void (*Work)(void*), void* Arg)
+{
+}
+
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_pop_on_abort_handler") void autortfm_pop_on_abort_handler(const void* Key)
 {
 }
 
@@ -469,14 +485,38 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_OnAbort(TFunction<void()>&& Work)
     Context->GetCurrentTransaction()->DeferUntilAbort(MoveTemp(Work));
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_on_commit(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_PushOnAbortHandler(const void* Key, TFunction<void()>&& Work)
+{
+	FContext* Context = FContext::Get();
+    ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
+    Context->GetCurrentTransaction()->PushDeferUntilAbortHandler(Key, MoveTemp(Work));
+}
+
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_PopOnAbortHandler(const void* Key)
+{
+	FContext* Context = FContext::Get();
+    ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
+    Context->GetCurrentTransaction()->PopDeferUntilAbortHandler(Key);
+}
+
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_on_commit(void (*Work)(void*), void* Arg)
 {
     RTFM_OnCommit([Work, Arg] { Work(Arg); });
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_on_abort(void (*Work)(void* arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_on_abort(void (*Work)(void*), void* Arg)
 {
     RTFM_OnAbort([Work, Arg] { Work(Arg); });
+}
+
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_push_on_abort_handler(const void* Key, void (*Work)(void*), void* Arg)
+{
+    RTFM_PushOnAbortHandler(Key, [Work, Arg] { Work(Arg); });
+}
+
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_pop_on_abort_handler(const void* Key)
+{
+    RTFM_PopOnAbortHandler(Key);
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void* RTFM_autortfm_did_allocate(void* Ptr, size_t Size)

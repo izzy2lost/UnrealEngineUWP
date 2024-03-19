@@ -238,6 +238,23 @@ UE_AUTORTFM_FORCEINLINE void autortfm_on_abort(void (*work)(void* arg), void* ar
 }
 #endif
 
+#if UE_AUTORTFM
+UE_AUTORTFM_API void autortfm_push_on_abort_handler(const void* key, void (*work)(void* arg), void* arg);
+UE_AUTORTFM_API void autortfm_pop_on_abort_handler(const void* key);
+#else
+UE_AUTORTFM_FORCEINLINE void autortfm_push_on_abort_handler(const void* key, void (*work)(void* arg), void* arg)
+{
+	UE_AUTORTFM_UNUSED(key);
+	UE_AUTORTFM_UNUSED(work);
+	UE_AUTORTFM_UNUSED(arg);
+}
+
+UE_AUTORTFM_FORCEINLINE void autortfm_pop_on_abort_handler(const void* key)
+{
+	UE_AUTORTFM_UNUSED(key);
+}
+#endif
+
 [[deprecated("Use autortfm_on_abort instead.")]]
 UE_AUTORTFM_FORCEINLINE void autortfm_open_abort(void (*work)(void* arg), void* arg)
 {
@@ -468,10 +485,30 @@ template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void OnCommit(const TFunctor
 // Have some work happen when this transaction aborts. If this is called
 // outside a transaction or from an open nest then the work is ignored.
 UE_AUTORTFM_API void OnAbort(TFunction<void()>&& Work);
+
+// Register a handler for transaction abort. Takes a key parameter so that
+// the handler can be unregistered (see PopOnAbortHandler). This is useful
+// for scoped mutations that need an abort handler present unless execution
+// reaches the end of the relevant scope.
+UE_AUTORTFM_API void PushOnAbortHandler(const void* Key, TFunction<void()>&& Work);
+
+// Unregister all handlers for transaction abort that were previously pushed
+// via PushOnAbortHandler with the given key
+UE_AUTORTFM_API void PopOnAbortHandler(const void* Key);
 #else
 // Have some work happen when this transaction aborts. If this is called
 // outside a transaction or from an open nest then the work is ignored.
 template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void OnAbort(const TFunctor&) {}
+
+// Register a handler for transaction abort. Takes a key parameter so that
+// the handler can be unregistered (see PopOnAbortHandler). This is useful
+// for scoped mutations that need an abort handler present unless execution
+// reaches the end of the relevant scope.
+template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void PushOnAbortHandler(const void* Key, const TFunctor&) {}
+
+// Unregister all handlers for transaction abort that were previously pushed
+// via PushOnAbortHandler with the given key
+UE_AUTORTFM_FORCEINLINE void PopOnAbortHandler(const void* Key) {}
 #endif
 
 #if UE_AUTORTFM
@@ -758,7 +795,7 @@ UE_AUTORTFM_FORCEINLINE void CheckConsistencyAssumingNoRaces() { return ForTheRu
 #define UE_AUTORTFM_CONCAT(A, B) UE_AUTORTFM_CONCAT_IMPL(A, B)
 
 #if UE_AUTORTFM
-#define UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT_IMPL(OriginalFunction, NewFunction) static const ForTheRuntime::FRegisterOpenFunction UE_AUTORTFM_CONCAT(AutoRTFMFunctionRegistration, __COUNTER__)(reinterpret_cast<void*>(OriginalFunction), reinterpret_cast<void*>(NewFunction))
+#define UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT_IMPL(OriginalFunction, NewFunction) static const AutoRTFM::ForTheRuntime::FRegisterOpenFunction UE_AUTORTFM_CONCAT(AutoRTFMFunctionRegistration, __COUNTER__)(reinterpret_cast<void*>(OriginalFunction), reinterpret_cast<void*>(NewFunction))
 #define UE_AUTORTFM_REGISTER_OPEN_FUNCTION_IMPL(OriginalFunction) UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(OriginalFunction, RTFM_ ## OriginalFunction)
 #define UE_AUTORTFM_REGISTER_SELF_FUNCTION_IMPL(OriginalFunction) UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(OriginalFunction, OriginalFunction)
 #else

@@ -522,7 +522,8 @@ public:
 		if (!(IsGarbageCollectingAndLockingUObjectHashTables() && IsInGameThread()))
 		{
 			Tables = &InTables;
-			InTables.Lock();
+			UE_AUTORTFM_OPEN({ InTables.Lock(); });
+			AutoRTFM::PushOnAbortHandler(this, [this](){ if (this->Tables){ this->Tables->Unlock(); }});
 		}
 		else
 		{
@@ -537,7 +538,8 @@ public:
 #if THREADSAFE_UOBJECTS
 		if (Tables)
 		{
-			Tables->Unlock();
+			UE_AUTORTFM_OPEN({ Tables->Unlock(); });
+			AutoRTFM::PopOnAbortHandler(this);
 		}
 #endif
 	}

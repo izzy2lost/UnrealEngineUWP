@@ -198,3 +198,137 @@ TEST_CASE("Abort.CascadeThroughManualTransaction")
 	REQUIRE(AutoRTFM::ETransactionResult::AbortedByCascade == Result);
 	REQUIRE(false == bTouched);
 }
+
+inline void* UIntToPointer(uint64 Value)
+{
+	union
+	{
+		uint64 Int;
+		void* Ptr;
+	};
+
+	Int = Value;
+	return Ptr;
+}
+
+TEST_CASE("Abort.PushOnAbortHandler_NoAbort")
+{
+	int Value = 55;
+
+	AutoRTFM::Commit([&]
+	{
+		Value = 66;
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 77; });
+	});
+
+	REQUIRE(Value == 66);
+}
+
+TEST_CASE("Abort.PushOnAbortHandler_WithAbort")
+{
+	int Value = 55;
+
+	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+	{
+		Value = 66;
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 77; });
+
+		AutoRTFM::AbortTransaction();
+	});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	REQUIRE(Value == 77);
+}
+
+TEST_CASE("Abort.PushOnAbortHandler_WithPop_NoAbort")
+{
+	int Value = 55;
+
+	AutoRTFM::Commit([&]
+	{
+		Value = 66;
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 77; });
+		Value = 88;
+
+		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
+	});
+
+	REQUIRE(Value == 88);
+}
+
+TEST_CASE("Abort.PushOnAbortHandler_WithPop_WithAbort")
+{
+	int Value = 55;
+
+	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+	{
+		Value = 66;
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 77; });
+		Value = 88;
+
+		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
+
+		AutoRTFM::AbortTransaction();
+	});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	REQUIRE(Value == 55);
+}
+
+TEST_CASE("Abort.PushOnAbortHandler_Duplicates1")
+{
+	int Value = 55;
+
+	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+	{
+		Value = 66;
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 77; });
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 88; });
+		Value = 99;
+
+		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
+
+		AutoRTFM::AbortTransaction();
+	});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	REQUIRE(Value == 55);
+}
+
+TEST_CASE("Abort.PushOnAbortHandler_Duplicates2")
+{
+	int Value = 55;
+
+	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+	{
+		Value = 66;
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 77; });
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 88; });
+		Value = 99;
+
+		AutoRTFM::AbortTransaction();
+	});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	REQUIRE(Value == 77);
+}
+
+TEST_CASE("Abort.PushOnAbortHandler_MultiplePops")
+{
+	int Value = 55;
+
+	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+	{
+		Value = 66;
+		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
+		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
+		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
+		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
+		Value = 99;
+
+		AutoRTFM::AbortTransaction();
+	});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	REQUIRE(Value == 55);
+}

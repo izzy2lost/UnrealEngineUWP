@@ -158,6 +158,20 @@ UE_AUTORTFM_FORCEINLINE void FTransaction::DeferUntilAbort(TFunction<void()>&& C
     AbortTasks.Add(MoveTemp(Copy));
 }
 
+UE_AUTORTFM_FORCEINLINE void FTransaction::PushDeferUntilAbortHandler(const void* Key, TFunction<void()>&& Callback)
+{
+	// We explicitly must copy the function here because the original was allocated
+	// within a transactional context, and thus the memory is allocating under
+	// transactionalized conditions. By copying, we create an open copy of the callback.
+	TFunction<void()> Copy(Callback);
+    AbortTasks.AddKeyed(Key, MoveTemp(Copy));
+}
+
+UE_AUTORTFM_FORCEINLINE void FTransaction::PopDeferUntilAbortHandler(const void* Key)
+{
+    AbortTasks.DeleteKey(Key);
+}
+
 UE_AUTORTFM_FORCEINLINE void FTransaction::CollectStats() const
 {
     Stats.Collect<EStatsKind::AverageWriteLogEntries>(WriteLog.Num());
