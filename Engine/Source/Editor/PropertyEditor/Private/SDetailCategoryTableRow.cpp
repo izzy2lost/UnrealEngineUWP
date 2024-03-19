@@ -108,18 +108,31 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 	}
 
 	OwnerTableViewWeak = InOwnerTableView;
-	PropertyUpdatedWidgetBuilder = DisplayManager->GetPropertyUpdatedWidget(FExecuteAction::CreateLambda( [this]
+
+
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DisplayManager->CanConstructPropertyUpdatedWidgetBuilder())
+	{
+		FConstructPropertyUpdatedWidgetBuilderArgs Args;
+		Args.ResetToDefaultAction = FExecuteAction::CreateLambda( [this]
 		{
 			if( ResetToDefault.CanExecute())
 			{
 				ResetToDefault.Execute();
 			}
-		}), true, ObjectName );
-	if (PropertyUpdatedWidgetBuilder.IsValid())
-	{
-		TAttribute<bool> IsHovered = TAttribute<bool>::CreateSP( this, &SDetailCategoryTableRow::IsHovered);
-		PropertyUpdatedWidgetBuilder->Bind_IsRowHovered(IsHovered);
+		});
+		Args.PropertyPath = nullptr;
+		Args.CategoryObjectName = ObjectName;
+		
+		PropertyUpdatedWidgetBuilder = DisplayManager->ConstructPropertyUpdatedWidgetBuilder(Args);
+		if (PropertyUpdatedWidgetBuilder.IsValid())
+		{
+			TAttribute<bool> IsHovered = TAttribute<bool>::CreateSP( this, &SDetailCategoryTableRow::IsHovered);
+			PropertyUpdatedWidgetBuilder->Bind_IsRowHovered(IsHovered);
+		}
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	this->ChildSlot
 	[

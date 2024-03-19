@@ -12,6 +12,7 @@
 #include "IDetailPropertyExtensionHandler.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
+#include "ObjectPropertyNode.h"
 #include "PropertyEditorClipboard.h"
 #include "PropertyEditorClipboardPrivate.h"
 #include "PropertyEditorCopyPastePrivate.h"
@@ -634,18 +635,27 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				DetailsView &&
 				DetailsView->GetDisplayManager().IsValid())
 			{
-				TSharedPtr<FPropertyNode>  PropertyNode = GetPropertyNode(); 	
-				Property = PropertyNode->GetProperty();
-				DisplayManager = DetailsView->GetDisplayManager();
-				TSharedRef<FEditPropertyChain> EditPropertyChain = PropertyNode->BuildPropertyChain( Property ); 
-				PropertyUpdatedWidgetBuilder = DisplayManager->GetPropertyUpdatedWidget(
-					FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked), EditPropertyChain, Category->GetObjectName());
+				TSharedPtr<FDetailsDisplayManager> DisplayManagerLocal = DetailsView->GetDisplayManager();
 
-				if (PropertyUpdatedWidgetBuilder.IsValid())
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				if (DisplayManagerLocal->CanConstructPropertyUpdatedWidgetBuilder())
 				{
-					TAttribute<bool> IsHovered = TAttribute<bool>::CreateSP( this, &SDetailSingleItemRow::IsHovered);
-					PropertyUpdatedWidgetBuilder->Bind_IsRowHovered(IsHovered);
+					DisplayManager = MoveTemp(DisplayManagerLocal);
+				
+					FConstructPropertyUpdatedWidgetBuilderArgs Args;
+					Args.ResetToDefaultAction = FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked);
+					Args.PropertyPath = MakeShared<FPropertyPath>(InOwnerTreeNode->GetPropertyPath());
+					Args.CategoryObjectName = Category->GetObjectName();
+					
+					PropertyUpdatedWidgetBuilder = DisplayManager->ConstructPropertyUpdatedWidgetBuilder(Args);
+
+					if (PropertyUpdatedWidgetBuilder.IsValid())
+					{
+						TAttribute<bool> IsHovered = TAttribute<bool>::CreateSP( this, &SDetailSingleItemRow::IsHovered);
+						PropertyUpdatedWidgetBuilder->Bind_IsRowHovered(IsHovered);
+					}
 				}
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
 			Splitter->AddSlot()
