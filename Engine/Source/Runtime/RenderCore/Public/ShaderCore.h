@@ -1168,8 +1168,19 @@ extern RENDERCORE_API void GetShaderIncludes(const TCHAR* EntryPointVirtualFileP
  * Calculates a Hash for the given filename if it does not already exist in the Hash cache.
  * @param Filename - shader file to Hash
  * @param ShaderPlatform - shader platform to Hash
+ * @return Reference to the Hash created and stored for the file, or to an empty FSHAHash if not found.
+ * Logs an error if the file is not loadable.
  */
 extern RENDERCORE_API const class FSHAHash& GetShaderFileHash(const TCHAR* VirtualFilePath, EShaderPlatform ShaderPlatform);
+/**
+ * Calculates a Hash for the given filename if it does not already exist in the Hash cache.
+ * @param Filename - shader file to Hash
+ * @param ShaderPlatform - shader platform to Hash
+ * @param OutErrorMessage - If non-null, receives the errormessage if nullptr is returned.
+ * @return Pointer to the Hash created and stored for the file, or nullptr if not found.
+ */
+extern RENDERCORE_API const FSHAHash* TryGetShaderFileHash(const TCHAR* VirtualFilePath,
+	EShaderPlatform ShaderPlatform, FString* OutErrorMessage = nullptr);
 
 /**
  * Calculates a hash for the given source file and all files included from it.
