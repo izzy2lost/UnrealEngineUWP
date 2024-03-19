@@ -256,12 +256,32 @@ FPrimitiveSceneData GetPrimitiveData(FVertexFactoryIntermediates Intermediates)
 	return Intermediates.SceneData.Primitive;
 }
 
+float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
+float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
+
 /** Converts from vertex factory specific input to a FMaterialVertexParameters, which is used by vertex shader material inputs. */
-FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, float3x3 TangentToLocal)
+FMaterialVertexParameters GetMaterialVertexParameters(
+	FVertexFactoryInput Input, 
+	FVertexFactoryIntermediates Intermediates, 
+	float3 WorldPosition, 
+	float3x3 TangentToLocal,
+	bool bIsPreviousFrame = false)
 {
 	FMaterialVertexParameters Result = MakeInitializedMaterialVertexParameters();
 	Result.SceneData = Intermediates.SceneData;
 	Result.WorldPosition = WorldPosition;
+	
+	if (bIsPreviousFrame)
+	{
+		Result.PositionInstanceSpace = VertexFactoryGetPreviousInstanceSpacePosition(Input, Intermediates);
+		Result.PositionPrimitiveSpace = mul(float4(WorldPosition, 1), DFFastToTranslatedWorld(Intermediates.SceneData.Primitive.PreviousWorldToLocal, ResolvedView.PrevPreViewTranslation)).xyz;
+	}
+	else
+	{
+		Result.PositionInstanceSpace = VertexFactoryGetInstanceSpacePosition(Input, Intermediates);
+		Result.PositionPrimitiveSpace = mul(float4(WorldPosition, 1), DFFastToTranslatedWorld(Intermediates.SceneData.Primitive.WorldToLocal, ResolvedView.PreViewTranslation)).xyz;
+	}
+
 	Result.VertexColor = Intermediates.Color;
 	Result.TangentToWorld = Intermediates.TangentToWorld;
 	Result.PreSkinnedPosition = Intermediates.UnpackedPosition.xyz;
@@ -378,6 +398,12 @@ float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIn
 	return TransformLocalToTranslatedWorld(Intermediates.UnpackedPosition, Intermediates.SceneData.InstanceData.LocalToWorld);
 }
 
+// local position relative to instance
+float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return Intermediates.UnpackedPosition;
+}
+
 float4 VertexFactoryGetRasterizedWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float4 InWorldPosition)
 {
 	return InWorldPosition;
@@ -447,6 +473,11 @@ float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexF
 	return TransformPreviousLocalPositionToTranslatedWorld(CalcPreviousPosition(Input, Intermediates), GetPrimitiveData(Intermediates).PreviousLocalToWorld);
 }
 
+// local position relative to instance
+float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return CalcPreviousPosition(Input, Intermediates);
+}
 
 #if NEEDS_VERTEX_FACTORY_INTERPOLATION
 float2 VertexFactoryGetRayTracingTextureCoordinate( FVertexFactoryRayTracingInterpolants Interpolants )

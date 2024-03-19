@@ -86,6 +86,8 @@ void Main(
 		VelocityScale = saturate(max(abs(ScreenVelocity.x), abs(ScreenVelocity.y)) / HairRenderInfo.VelocityMagnitudeScale);
 	}
 	#endif
+	
+	float3x3 TangentToLocal = VertexFactoryGetTangentToLocal(Input, VFIntermediates);
 
 #if HAIR_STRAND_MESH_FACTORY
 	FHairViewInfo HairViewInfo;
@@ -95,13 +97,12 @@ void Main(
 	HairViewInfo.bIsOrthoView = HairRenderInfo.bIsOrthoView;
 
 	float4 WorldPosition = VertexFactoryGetWorldPosition(Input, VFIntermediates, HairViewInfo);
+	FMaterialVertexParameters VertexParameters = GetMaterialVertexParameters(Input, VFIntermediates, WorldPosition.xyz, TangentToLocal, HairViewInfo);
 #else
 	float4 WorldPosition = VertexFactoryGetWorldPosition(Input, VFIntermediates);
+	FMaterialVertexParameters VertexParameters = GetMaterialVertexParameters(Input, VFIntermediates, WorldPosition.xyz, TangentToLocal);
 #endif
 
-	float3x3 TangentToLocal = VertexFactoryGetTangentToLocal(Input, VFIntermediates);	
-
-	FMaterialVertexParameters VertexParameters = GetMaterialVertexParameters(Input, VFIntermediates, WorldPosition.xyz, TangentToLocal);
 	// Isolate instructions used for world position offset on xbox 360, 
 	// As these cause the optimizer to generate different position calculating instructions in each pass, resulting in self-z-fighting.
 	// This is only necessary for shaders used in passes that have depth testing enabled.
