@@ -154,11 +154,11 @@ struct VClass : VType
 
 	/// Allocate a new VObject. Also returns a sequence of VProcedures to invoke to finish the object's construction.
 	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
-	VObject& NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers);
+	COREUOBJECT_API VObject& NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers);
 
 	/// Allocate a new UObject. Also returns a sequence of VProcedures to invoke to finish the object's construction.
 	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
-	UObject* NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers);
+	COREUOBJECT_API UObject* NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers);
 
 private:
 	// Helper to find initializer procedures after archetype fields have been set on an object
@@ -166,9 +166,9 @@ private:
 
 public:
 	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
-	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames, VCppClassInfo* CppClassInfo);
+	COREUOBJECT_API VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames, VCppClassInfo* CppClassInfo);
 
-	UClass* GetOrCreateUClass(FAllocationContext Context);
+	COREUOBJECT_API UClass* GetOrCreateUClass(FAllocationContext Context);
 
 	/// Creates an associated UClass for this VClass
 	COREUOBJECT_API UClass* CreateUClass(FAllocationContext Context);
@@ -185,7 +185,7 @@ public:
 	 * @param Inherited     An array of base classes in order of inheritance.
 	 * @param Constructor   The sequence of fields and blocks in the class body.
 	 */
-	static VClass& New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, VUTF8String* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass);
+	COREUOBJECT_API static VClass& New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, VUTF8String* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass);
 
 private:
 	VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* InName, VUTF8String* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor, UClass* InImportClass);
