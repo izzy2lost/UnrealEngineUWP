@@ -10,7 +10,7 @@
 #include "MuR/MutableTrace.h"
 
 
-namespace impl_deprecated
+namespace CustomizableObjectSystem::ImplDeprecated
 {
 	void Subtask_Mutable_GetImages(const TSharedRef<FUpdateContextPrivate>& OperationData)
 	{
@@ -135,7 +135,7 @@ namespace impl_deprecated
 	}
 
 
-	void Task_Mutable_Update_GetImages(const TSharedRef<FUpdateContextPrivate>& OperationData)
+	void Task_Mutable_GetImages(const TSharedRef<FUpdateContextPrivate>& OperationData)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_GetImages)
 		FMutableScopeTimer Timer(OperationData->TaskGetImagesTime);
@@ -156,7 +156,7 @@ namespace impl_deprecated
 	}
 
 
-	void Subtask_Mutable_BeginUpdate_GetMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, TSharedPtr<mu::Model> Model)
+	void Subtask_Mutable_BeginUpdate_GetMesh(const TSharedRef<FUpdateContextPrivate>& OperationData)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Subtask_Mutable_BeginUpdate_GetMesh)
 
@@ -396,17 +396,16 @@ namespace impl_deprecated
 	}
 
 
-	void Task_Mutable_Update_GetMesh(const TSharedRef<FUpdateContextPrivate>& OperationData,
-		const TSharedPtr<mu::Model>& Model)
+	void Task_Mutable_GetMeshes(const TSharedRef<FUpdateContextPrivate>& OperationData)
 	{
-		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_Update_GetMesh)
+		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_GetMesh)
 		FMutableScopeTimer Timer(OperationData->TaskGetMeshTime);
 			
 #if WITH_EDITOR
 		const uint32 StartCycles = FPlatformTime::Cycles();
 #endif
 
-		Subtask_Mutable_BeginUpdate_GetMesh(OperationData, Model);
+		Subtask_Mutable_BeginUpdate_GetMesh(OperationData);
 
 		// TODO: Not strictly mutable: move to another worker thread task to free mutable access?
 		impl::Subtask_Mutable_PrepareSkeletonData(OperationData);

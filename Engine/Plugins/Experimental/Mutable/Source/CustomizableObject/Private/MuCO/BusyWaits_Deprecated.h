@@ -4,6 +4,8 @@
 // THIS FILE SHOULD ONLY CONTAIN CODE BEING DEPRECATED BY UE-207754
 // ---------------------------------------------------------------
 
+#pragma once
+
 #include "Templates/SharedPointer.h"
 
 class FUpdateContextPrivate;
@@ -14,21 +16,21 @@ namespace mu
 }
 
 
-namespace impl_deprecated
+namespace CustomizableObjectSystem::ImplDeprecated
 {
 	// This runs in the mutable thread.
 	void Subtask_Mutable_GetImages(const TSharedRef<FUpdateContextPrivate>& OperationData);
 
 	// This runs in a worker thread.
-	void Task_Mutable_Update_GetImages(const TSharedRef<FUpdateContextPrivate>& OperationData);
+	void Task_Mutable_GetImages(const TSharedRef<FUpdateContextPrivate>& OperationData);
 
 	// This runs in the mutable thread.
 	void Subtask_Mutable_BeginUpdate_GetMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, TSharedPtr<mu::Model> Model);
 
 	// This runs in a worker thread.
-	void Task_Mutable_Update_GetMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, const TSharedPtr<mu::Model>& Model);
-
+	void Task_Mutable_GetMeshes(const TSharedRef<FUpdateContextPrivate>& OperationData);
 }
+
 
 namespace CustomizableObjectMipDataProvider::ImplDeprecated
 {
