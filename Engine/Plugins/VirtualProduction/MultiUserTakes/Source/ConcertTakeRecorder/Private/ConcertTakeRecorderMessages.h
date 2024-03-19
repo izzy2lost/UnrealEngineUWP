@@ -18,7 +18,7 @@ public:
 	bool bSyncTakeRecordingTransactions = true;
 
 	UPROPERTY(config,EditAnywhere,BlueprintReadWrite,Category="Multi-user Take Synchronization")
-	bool bTransactTakeMetadata = false;
+	bool bTransactTakeMetadata = true;
 };
 
 USTRUCT()
