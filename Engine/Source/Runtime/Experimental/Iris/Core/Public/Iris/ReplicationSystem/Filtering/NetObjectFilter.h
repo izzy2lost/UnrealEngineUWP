@@ -167,6 +167,9 @@ struct FNetObjectFilterAddObjectParams
 	/** The info is zeroed before the AddObject() call. Fill in with filter specifics, like offsets to tags. */
 	FNetObjectFilteringInfo& OutInfo;
 
+	/** Name of a specialized configuration profile. When none, the default settings are expected. */
+	FName ProfileName;
+
 	/** The FReplicationInstanceProtocol which describes the source state data. */
 	const UE::Net::FReplicationInstanceProtocol* InstanceProtocol;
 
