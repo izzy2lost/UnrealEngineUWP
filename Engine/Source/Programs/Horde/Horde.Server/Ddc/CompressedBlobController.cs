@@ -13,6 +13,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Primitives;
 
@@ -25,6 +26,7 @@ namespace Horde.Server.Ddc
 	[ApiController]
 	[Authorize]
 	[Route("api/v1/compressed-blobs")]
+	[Tags("DDC Compressed Blobs")]
 	public class CompressedBlobController : ControllerBase
 	{
 		private readonly IBlobService _storage;

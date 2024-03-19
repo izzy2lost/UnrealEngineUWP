@@ -38,6 +38,7 @@ namespace Horde.Server.Ddc
 	[FormatFilter]
 	[Produces(MediaTypeNames.Application.Json, MediaTypeNames.Application.Octet, CustomMediaTypeNames.UnrealCompactBinary)]
 	[Route("api/v1/refs")]
+	[Tags("DDC Refs")]
 	[Authorize]
 	public class RefsController : ControllerBase
 	{

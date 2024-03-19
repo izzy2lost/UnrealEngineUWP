@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using EpicGames.Horde.Server;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -59,6 +60,7 @@ public class ServerStatusUpdatesViewModel
 /// </summary>
 [ApiController]
 [Authorize]
+[Tags("Server")]
 public class ServerStatusController : Controller
 {
 	private readonly ServerStatusService _serverStatus;

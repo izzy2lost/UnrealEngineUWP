@@ -251,6 +251,7 @@ namespace Horde.Server.Server
 	/// </summary>
 	[ApiController]
 	[Authorize]
+	[Tags("Debug")]
 	public class SecureDebugController : HordeControllerBase
 	{
 		private static readonly Random s_random = new();
@@ -334,7 +335,7 @@ namespace Horde.Server.Server
 		/// Converts all legacy pools into config entries
 		/// </summary>
 		[HttpGet]
-		[Route("/api/v1/server/debug/aclscopes")]
+		[Route("/api/v1/debug/aclscopes")]
 		public ActionResult<object> GetAclScopes()
 		{
 			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
@@ -349,7 +350,7 @@ namespace Horde.Server.Server
 		/// Returns the fully parsed config object.
 		/// </summary>
 		[HttpGet]
-		[Route("/api/v1/server/debug/appsettings")]
+		[Route("/api/v1/debug/appsettings")]
 		public ActionResult<object> GetAppSettings()
 		{
 			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
@@ -364,7 +365,7 @@ namespace Horde.Server.Server
 		/// Returns the fully parsed config object.
 		/// </summary>
 		[HttpGet]
-		[Route("/api/v1/server/debug/config")]
+		[Route("/api/v1/debug/config")]
 		public ActionResult<object> GetConfig()
 		{
 			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))

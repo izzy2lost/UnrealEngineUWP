@@ -6,6 +6,7 @@ using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 #pragma warning disable CS1591
@@ -15,6 +16,7 @@ namespace Horde.Server.Ddc
 	[ApiController]
 	[FormatFilter]
 	[Produces(MediaTypeNames.Application.Json, MediaTypeNames.Application.Octet, CustomMediaTypeNames.UnrealCompactBinary)]
+	[Tags("DDC ContentId")]
 	[Route("api/v1/content-id")]
 	[Authorize]
 	public class ContentIdController : ControllerBase

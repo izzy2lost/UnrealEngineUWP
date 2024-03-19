@@ -14,6 +14,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -25,6 +26,7 @@ namespace Horde.Server.Ddc
 
 	[ApiController]
 	[Route("api/v1/objects", Order = 0)]
+	[Tags("DDC Objects")]
 	[Authorize]
 	[Produces(CustomMediaTypeNames.UnrealCompactBinary, MediaTypeNames.Application.Json)]
 	public class ObjectsController : ControllerBase

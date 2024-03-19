@@ -307,7 +307,8 @@ namespace Horde.Server
 			public void OnActionExecuting(ActionExecutingContext context)
 			{
 				ControllerActionDescriptor? actionDescriptor = context.ActionDescriptor as ControllerActionDescriptor;
-				if (actionDescriptor?.MethodInfo.GetCustomAttribute<ObsoleteAttribute>() != null)
+				if (actionDescriptor?.MethodInfo.GetCustomAttribute<ObsoleteAttribute>() != null
+					|| actionDescriptor?.MethodInfo?.DeclaringType?.GetCustomAttribute<ObsoleteAttribute>() != null)
 				{
 					ILogger? logger = context.HttpContext.RequestServices.GetService<ILogger<ObsoleteLoggingFilter>>();
 					logger?.LogWarning("Using obsolete endpoint for request: {Request}", context.HttpContext.Request.GetDisplayUrl());

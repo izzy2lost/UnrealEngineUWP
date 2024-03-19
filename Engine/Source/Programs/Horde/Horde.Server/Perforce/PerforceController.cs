@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Server;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -251,6 +252,7 @@ namespace Horde.Server.Perforce
 	/// Controller for Perforce triggers and callbacks
 	/// </summary>
 	[ApiController]
+	[Tags("Perforce")]
 	[Route("[controller]")]
 	public class PublicPerforceController : ControllerBase
 	{

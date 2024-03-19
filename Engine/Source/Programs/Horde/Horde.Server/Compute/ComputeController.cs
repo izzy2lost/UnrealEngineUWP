@@ -24,7 +24,7 @@ namespace Horde.Server.Compute
 	[ApiController]
 	[Authorize]
 	[Route("[controller]")]
-	public class ComputeControllerV2 : HordeControllerBase
+	public class ComputeController : HordeControllerBase
 	{
 		readonly ComputeService _computeService;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
@@ -32,7 +32,7 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeControllerV2(ComputeService computeService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public ComputeController(ComputeService computeService, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_computeService = computeService;
 			_globalConfig = globalConfig;

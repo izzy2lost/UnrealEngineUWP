@@ -28,7 +28,7 @@ namespace Horde.Server.Parameters
 		}
 
 		/// <summary>
-		/// Query all the parameters
+		/// Query side-wide parameters published for automatic configuration of external tools.
 		/// </summary>
 		/// <param name="path">Base path for the object to return</param>
 		/// <param name="filter">Filter for the properties to return</param>

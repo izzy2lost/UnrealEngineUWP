@@ -26,6 +26,7 @@ namespace Horde.Server.Ddc
 	using IDiagnosticContext = Serilog.IDiagnosticContext;
 
 	[ApiController]
+	[Tags("DDC Blobs")]
 	[Route("api/v1/s", Order = 1)]
 	[Route("api/v1/blobs", Order = 0)]
 	[Authorize]
