@@ -57,9 +57,9 @@ namespace LowLevelTasks
 			uint32 CpusInGroup = FMath::CountBits(ProcessorGroups.ThreadAffinities[GroupIndex]);
 			if (GroupWorkerId < CpusInGroup)
 			{
-				if (CpuGroup != 0) //pin larger groups workers to a core and leave first group as is for legacy reasons
+				if (CpuGroup != 0) // don't pin larger groups workers to a core and leave first group as is for legacy reasons
 				{
-					ThreadAffinityMask = 1ull << GroupWorkerId;
+					ThreadAffinityMask = MAX_uint64;
 				}
 				break;
 			}
