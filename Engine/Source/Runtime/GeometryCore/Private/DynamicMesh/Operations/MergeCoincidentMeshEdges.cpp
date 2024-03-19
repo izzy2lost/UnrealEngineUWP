@@ -166,32 +166,40 @@ bool FMergeCoincidentMeshEdges::Apply()
 				continue;
 			}
 
-			FDynamicMesh3::FMergeEdgesInfo mergeInfo;
-			EMeshResult result = Mesh->MergeEdges(eid, other_eid, mergeInfo);
-			if (result != EMeshResult::Ok) 
+			// When there is no geometry selection, EdgesToMerge is never initialized
+			bool bWeldingAcrossEntireMesh = (EdgesToMerge == nullptr);
+
+			// Edges only considered for merging if we're welding the entire mesh or, when using a geometry selection,
+			// if EITHER edge in the Match are a part of the selection
+			if (bWeldingAcrossEntireMesh || EdgesToMerge->Contains(eid) || EdgesToMerge->Contains(other_eid))
 			{
-				// if the operation failed we remove this edge from the equivalence set
-				Matches.RemoveAt(i);
-				i--;
+				FDynamicMesh3::FMergeEdgesInfo MergeInfo;
+				EMeshResult Result = Mesh->MergeEdges(eid, other_eid, MergeInfo);
+				if (Result != EMeshResult::Ok) 
+				{
+					// if the operation failed we remove this edge from the equivalence set
+					Matches.RemoveAt(i);
+					i--;
 
-				EquivalenceSets[other_eid]->Remove(eid);
-				//DuplicatesQueue.UpdatePriority(...);  // should we do this?
+					EquivalenceSets[other_eid]->Remove(eid);
+					//DuplicatesQueue.UpdatePriority(...);  // should we do this?
 
-				FailedCount++;
-			}
-			else 
-			{
-				// ok we merged, other edge is no longer free
-				bMerged = true;
-				delete EquivalenceSets[other_eid];
-				EquivalenceSets[other_eid] = nullptr;
-				RemainingEdges.Remove(other_eid);
+					FailedCount++;
+				}
+				else 
+				{
+					// ok we merged, other edge is no longer free
+					bMerged = true;
+					delete EquivalenceSets[other_eid];
+					EquivalenceSets[other_eid] = nullptr;
+					RemainingEdges.Remove(other_eid);
 
-				// weld attributes 
-				if (bWeldAttrsOnMergedEdges)
-				{ 
-					SplitAttributeWelder.WeldSplitElements(*Mesh, mergeInfo.KeptVerts[0]);
-					SplitAttributeWelder.WeldSplitElements(*Mesh, mergeInfo.KeptVerts[1]);
+					// weld attributes 
+					if (bWeldAttrsOnMergedEdges)
+					{ 
+						SplitAttributeWelder.WeldSplitElements(*Mesh, MergeInfo.KeptVerts[0]);
+						SplitAttributeWelder.WeldSplitElements(*Mesh, MergeInfo.KeptVerts[1]);
+					}
 				}
 			}
 		}

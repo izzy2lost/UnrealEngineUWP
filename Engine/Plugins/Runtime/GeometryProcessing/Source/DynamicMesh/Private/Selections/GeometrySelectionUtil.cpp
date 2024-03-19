@@ -775,6 +775,192 @@ bool UE::Geometry::EnumeratePolygroupSelectionTriangles(
 	return true;
 }
 
+bool UE::Geometry::EnumerateSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	TFunctionRef<void(int32)> EdgeFunc,
+	const UE::Geometry::FPolygroupSet* UseGroupSet
+)
+{
+	if (MeshSelection.TopologyType == EGeometryTopologyType::Triangle)
+	{
+		return EnumerateTriangleSelectionEdges(MeshSelection, Mesh, EdgeFunc);
+	}
+	else if (MeshSelection.TopologyType == EGeometryTopologyType::Polygroup)
+	{
+		return EnumeratePolygroupSelectionEdges(MeshSelection, Mesh, 
+			(UseGroupSet != nullptr) ? *UseGroupSet : FPolygroupSet(&Mesh), 
+			EdgeFunc);
+	}
+	return false;
+}
+
+
+bool UE::Geometry::EnumerateTriangleSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	TFunctionRef<void(int32)> EdgeFunc)
+{
+	if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Triangle ) == false )
+	{
+		return false;
+	}
+
+	if (MeshSelection.ElementType == EGeometryElementType::Face)
+	{
+		for (const uint64 TriangleID : MeshSelection.Selection)
+		{
+			if (Mesh.IsTriangle((int32)TriangleID))
+			{
+				FIndex3i TriEdges = Mesh.GetTriEdges((int32)TriangleID);
+				EdgeFunc(TriEdges[0]);
+				EdgeFunc(TriEdges[1]);
+				EdgeFunc(TriEdges[2]);
+			}
+		}
+	}
+	else if (MeshSelection.ElementType == EGeometryElementType::Edge)
+	{
+		for (const uint64 EncodedID : MeshSelection.Selection)
+		{
+			const FMeshTriEdgeID TriEdgeID( FGeoSelectionID(EncodedID).GeometryID );
+			const int32 EdgeID = Mesh.IsTriangle(TriEdgeID.TriangleID) ? Mesh.GetTriEdge(TriEdgeID.TriangleID, TriEdgeID.TriEdgeIndex) : IndexConstants::InvalidID;
+			if (Mesh.IsEdge((int32)EdgeID))
+			{
+				EdgeFunc((int32)EdgeID);
+			}
+		}
+	}
+	else if (MeshSelection.ElementType == EGeometryElementType::Vertex)
+	{
+		for (const uint64 VertexID : MeshSelection.Selection)
+		{
+			Mesh.EnumerateVertexEdges((int32)VertexID, [&EdgeFunc](int32 EdgeID)
+			{
+				EdgeFunc(EdgeID);
+			});
+		}
+	}
+	else
+	{
+		return false;
+	}
+
+	return true;
+}
+
+
+bool UE::Geometry::EnumeratePolygroupSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const UE::Geometry::FPolygroupSet& GroupSet,
+	TFunctionRef<void(int32)> EdgeFunc
+)
+{
+	if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Polygroup ) == false )
+	{
+		return false;
+	}
+
+	TArray<int32> SeedGroups;
+	TArray<int32> SeedTriangles;
+	TSet<int32> UniqueSeedGroups;
+
+	// TODO: the code below will not work correctly if the selection contains
+	// multiple disconnected-components with the same GroupID. They will be
+	// filtered out by the UniqueSeedGroups test. Seems like it will be necessary
+	// to detect this case up-front and do something more expensive, like filtering
+	// out duplicates inside the connected-components loop instead of up-front
+
+	if (MeshSelection.ElementType == EGeometryElementType::Face)
+	{
+		for (const uint64 EncodedID : MeshSelection.Selection)
+		{
+			const FGeoSelectionID SelectionID(EncodedID);
+			int32 SeedTriangleID = (int32)SelectionID.GeometryID;
+			if (Mesh.IsTriangle(SeedTriangleID))
+			{
+				int32 GroupID = GroupSet.GetGroup(SeedTriangleID);
+				check(GroupID == (int32)SelectionID.TopologyID);		// sanity-check that we are using the right group
+				if ( GroupID >= 0 && UniqueSeedGroups.Contains(GroupID) == false)
+				{
+					UniqueSeedGroups.Add(GroupID);
+					SeedGroups.Add(GroupID);
+					SeedTriangles.Add(SeedTriangleID);
+				}
+			}
+		}
+	}
+	else if (MeshSelection.ElementType == EGeometryElementType::Edge)
+	{
+		for (const uint64 EncodedID : MeshSelection.Selection)
+		{
+			const FMeshTriEdgeID TriEdgeID( FGeoSelectionID(EncodedID).GeometryID );
+			const int32 SeedEdgeID = Mesh.IsTriangle(TriEdgeID.TriangleID) ? Mesh.GetTriEdge(TriEdgeID.TriangleID, TriEdgeID.TriEdgeIndex) : IndexConstants::InvalidID;
+			if (Mesh.IsEdge(SeedEdgeID))
+			{
+				Mesh.EnumerateEdgeTriangles(SeedEdgeID, [&](int32 TriangleID)
+				{
+					const int32 GroupID = GroupSet.GetGroup(TriangleID);
+					if (GroupID >= 0 && UniqueSeedGroups.Contains(GroupID) == false)
+					{
+						UniqueSeedGroups.Add(GroupID);
+						SeedGroups.Add(GroupID);
+						SeedTriangles.Add(TriangleID);
+					}
+				});
+			}
+		}
+	}
+	else if (MeshSelection.ElementType == EGeometryElementType::Vertex)
+	{
+		for (const uint64 EncodedID : MeshSelection.Selection)
+		{
+			const int32 VertexID = (int32)FGeoSelectionID(EncodedID).GeometryID;
+			if (Mesh.IsVertex(VertexID))
+			{
+				Mesh.EnumerateVertexTriangles(VertexID, [&](int32 TriangleID)
+				{
+					const int32 GroupID = GroupSet.GetGroup(TriangleID);
+					if (GroupID >= 0 && UniqueSeedGroups.Contains(GroupID) == false)
+					{
+						UniqueSeedGroups.Add(GroupID);
+						SeedGroups.Add(GroupID);
+						SeedTriangles.Add(TriangleID);
+					}
+				});
+			}
+		}
+	}
+	else
+	{
+		return false;
+	}
+
+
+	TSet<int> TempROI;		// if we could provide this as input we would not need a temporary roi...
+	TArray<int32> QueueBuffer;
+	const int32 NumGroups = SeedGroups.Num();
+	for (int32 k = 0; k < NumGroups; ++k)
+	{
+		check(GroupSet.GetGroup(SeedTriangles[k]) == SeedGroups[k]);
+		int32 GroupID = SeedGroups[k];
+		FMeshConnectedComponents::GrowToConnectedTriangles(&Mesh, 
+			TArray<int>{SeedTriangles[k]}, TempROI, &QueueBuffer, 
+			[&](const int32 T1, const int32 T2) { return GroupSet.GetGroup(T2) == GroupID; });
+
+		// EnumeratePolygroupSelectionEdges is the same as EnumeratePolygroupSelectionTriangles up until this point
+		for (const int32 TID : TempROI)
+		{
+			FIndex3i TriEdges = Mesh.GetTriEdges((int32)TID);
+			EdgeFunc(TriEdges[0]);
+			EdgeFunc(TriEdges[1]);
+			EdgeFunc(TriEdges[2]);
+		}
+	}
+
+	return true;
+}
 
 
 

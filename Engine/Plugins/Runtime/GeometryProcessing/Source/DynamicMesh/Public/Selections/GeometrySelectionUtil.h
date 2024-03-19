@@ -143,6 +143,40 @@ DYNAMICMESH_API bool EnumeratePolygroupSelectionTriangles(
 	const UE::Geometry::FPolygroupSet& GroupSet,
 	TFunctionRef<void(int32)> TriangleFunc
 );
+/**
+ * Call EdgeFunc for each mesh EdgeID included in MeshSelection.
+ * EdgeFunc may be called multiple times for the same EdgeID.
+ * This will forward to EnumerateTriangleSelectionEdges() or 
+ * EnumeratePolygroupSelectionEdges() depending on the selection topology type.
+ * If UseGroupSet and MeshSelection is for polygroups, the default Mesh group layer will be used.
+ */
+DYNAMICMESH_API bool EnumerateSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	TFunctionRef<void(int32)> EdgeFunc,
+	const UE::Geometry::FPolygroupSet* UseGroupSet = nullptr
+);
+/**
+ * Call EdgeFunc for each mesh EdgeID included in MeshSelection.
+ * For Triangles, all 3 edges are included.
+ * For Vertices, all edges touching each selected vertex are included.
+ */
+DYNAMICMESH_API bool EnumerateTriangleSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	TFunctionRef<void(int32)> EdgeFunc
+);
+/**
+ * Call EdgeFunc for each mesh EdgeID included in MeshSelection, where MeshSelection has polygroup topology.
+ * For Polygroup Faces, all edges in the face are included.
+ * For Polygroup Corners, currently includes all edges in any group touching the corner
+ */
+DYNAMICMESH_API bool EnumeratePolygroupSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const UE::Geometry::FPolygroupSet& GroupSet,
+	TFunctionRef<void(int32)> EdgeFunc
+);
 
 
 /**

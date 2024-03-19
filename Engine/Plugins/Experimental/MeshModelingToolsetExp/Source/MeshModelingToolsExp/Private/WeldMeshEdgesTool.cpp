@@ -13,6 +13,7 @@
 #include "Operations/MeshResolveTJunctions.h"
 
 #include "Math/UnrealMathUtility.h"
+#include "Selections/GeometrySelectionUtil.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WeldMeshEdgesTool)
 
@@ -24,7 +25,7 @@ using namespace UE::Geometry;
  * ToolBuilder
  */
 
-USingleSelectionMeshEditingTool* UWeldMeshEdgesToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
+USingleTargetWithSelectionTool* UWeldMeshEdgesToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	return NewObject<UWeldMeshEdgesTool>(SceneState.ToolManager);
 }
@@ -48,6 +49,7 @@ public:
 
 	// parameters set by the tool
 	TSharedPtr<FDynamicMesh3, ESPMode::ThreadSafe> SourceMesh;
+	TSet<int32> SelectedEdges;
 	double Tolerance;
 	bool bOnlyUnique;
 	bool bResolveTJunctions;
@@ -99,6 +101,10 @@ public:
 		FinalNumBoundaryEdges = InitialNumBoundaryEdges;
 
 		FMergeCoincidentMeshEdges Merger(ResultMesh.Get());
+		if (!SelectedEdges.IsEmpty())
+		{
+			Merger.EdgesToMerge = &SelectedEdges;	
+		}
 		Merger.MergeVertexTolerance = Tolerance;
 		Merger.MergeSearchTolerance = 2 * Merger.MergeVertexTolerance;
 		Merger.OnlyUniquePairs = bOnlyUnique;
@@ -186,6 +192,15 @@ void UWeldMeshEdgesTool::Setup()
 
 
 	SourceMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Target, true));
+
+	// initialize selection if exists
+	if (HasGeometrySelection())
+	{
+		const FGeometrySelection& InputSelection = GetGeometrySelection();
+
+		UE::Geometry::EnumerateSelectionEdges(InputSelection, *SourceMesh,
+			[&](const int32 EdgeID) { SelectedEdges.Add(EdgeID); });
+	}
 
 	FTransform MeshTransform = (FTransform)UE::ToolTarget::GetLocalToWorldTransform(Target);
 
@@ -331,6 +346,7 @@ void UWeldMeshEdgesTool::UpdateOpParameters(FWeldMeshEdgesOp& Op) const
 	Op.SplitTangentsThreshold = Settings->SplitTangentsThreshold;
 	
 	Op.SourceMesh = SourceMesh;
+	Op.SelectedEdges = SelectedEdges;
 
 	FTransform LocalToWorld = (FTransform)UE::ToolTarget::GetLocalToWorldTransform(Target);
 	Op.SetTransform(LocalToWorld);

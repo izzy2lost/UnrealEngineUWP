@@ -58,7 +58,9 @@ public:
 
 	/** Used to weld attributes at the merged edges */
 	FSplitAttributeWelder  SplitAttributeWelder;
-
+	
+	/** Set of EdgesIds to merge. If null, perform merge operation across entire mesh */
+	TSet<int32>* EdgesToMerge = nullptr;
 
 public:
 	FMergeCoincidentMeshEdges(FDynamicMesh3* mesh) : Mesh(mesh)
