@@ -251,12 +251,11 @@ void FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(FMinimalViewI
 		// Enforce a particular aspect ratio for the render of the scene. 
 		// Results in black bars at top/bottom etc.
 		InOutProjectionData.SetConstrainedViewRectangle(ConstrainedViewRectangle);
-		InOutProjectionData.ProjectionMatrix = ViewInfo.CalculateProjectionMatrix();
-		if (bOrthographicNearPlaneCorrection)
+		if(bOrthographicNearPlaneCorrection)
 		{
-			float NearPlane = ViewInfo.OrthoNearClipPlane;
-			InOutProjectionData.UpdateOrthoNearPlane(NearPlane, true);
+			InOutProjectionData.UpdateOrthoPlanes(ViewInfo);
 		}
+		InOutProjectionData.ProjectionMatrix = ViewInfo.CalculateProjectionMatrix();
 	}
 	else
 	{
@@ -309,11 +308,11 @@ void FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(FMinimalViewI
 			const float OrthoWidth = ViewInfo.OrthoWidth / 2.0f * XAxisMultiplier;
 			const float OrthoHeight = (ViewInfo.OrthoWidth / 2.0f) / YAxisMultiplier;
 
-			const float FarPlane = ViewInfo.OrthoFarClipPlane;
+			float FarPlane = ViewInfo.OrthoFarClipPlane;
 			float NearPlane = ViewInfo.OrthoNearClipPlane;
 			if (bOrthographicNearPlaneCorrection)
 			{
-				InOutProjectionData.UpdateOrthoNearPlane(NearPlane);
+				InOutProjectionData.UpdateOrthoPlanes(NearPlane, FarPlane);
 			}
 
 			const float ZScale = 1.0f / (FarPlane - NearPlane);
@@ -357,7 +356,7 @@ void FMinimalViewInfo::CalculateProjectionMatrixGivenView(FMinimalViewInfo& View
 	CalculateProjectionMatrixGivenViewRectangle(ViewInfo, AspectRatioAxisConstraint, ViewExtents, InOutProjectionData);
 }
 
-bool FMinimalViewInfo::AutoCalculateOrthoPlanes(const FSceneViewProjectionData& InOutProjectionData)
+bool FMinimalViewInfo::AutoCalculateOrthoPlanes(FSceneViewProjectionData& InOutProjectionData)
 {	
 	if (ProjectionMode == ECameraProjectionMode::Orthographic && CVarOrthoAllowAutoPlanes.GetValueOnAnyThread() && bAutoCalculateOrthoPlanes)
 	{
@@ -380,7 +379,7 @@ bool FMinimalViewInfo::AutoCalculateOrthoPlanes(const FSceneViewProjectionData& 
 		//Get the normalized view forward vector of the camera
 		const FRotationMatrix RotMat(Rotation);
 		FVector ViewForward = RotMat.GetColumn(2);
-		ViewForward.Normalize();	
+		ViewForward.Normalize();
 
 		/**
 		 * The CosAngle is the cosine of the angle between the ViewForward and camera down.
@@ -421,7 +420,7 @@ bool FMinimalViewInfo::AutoCalculateOrthoPlanes(const FSceneViewProjectionData& 
 		* The camera arm length is adjusted depending on the CosAngle as the horizontal view typically has a significantly larger plane range, 
 		* so it becomes irrelevant, whereas it is necessary to account for in a top down view. Note: a small scene camera arm length will become irrelevant for a large ortho width.
 		*/
-		float CameraArmLength = OrthoCameraArmLength * CosAngle;
+		float CameraArmLength = static_cast<float>(CameraToViewTarget.Length()) * CosAngle;
 
 		/**
 		 * The NearPlane calculation is a scaled OrthoHeight depending on the camera angle, 
@@ -432,14 +431,15 @@ bool FMinimalViewInfo::AutoCalculateOrthoPlanes(const FSceneViewProjectionData& 
 		 * We clamp this to remove the Near plane difference, and also max out at the previously set maximum FPValue. 
 		 * This setup should help for possible future implementations where we can increase the depth range (i.e. LWC + double float depth buffers).
 		 */
-		float SinAngle = FMath::Clamp(1.0f - CosAngle, 0.707f, 1.0f);
-		float NearPlane = OrthoHeight * (FMath::Clamp(CosAngle, 0.707f, 1.0f) - (1.0f/SinAngle)) - CameraArmLength;
+		float SinAngle = FMath::Clamp(1.0f - CosAngle, 0.707107f, 1.0f);
+		float NearPlane = FMath::Max(OrthoWidth, OrthoHeight) * FMath::Max((FMath::Clamp(CosAngle, 0.707107f, 1.0f) - (1.0f/SinAngle)), -0.5f) - CameraArmLength;
 		FarPlane = FMath::Clamp(FarPlane, OrthoHeight, MaxFPValue + NearPlane);
 
 		//The Planes can be scaled in the Z axis without restriction to ensure a user can capture their entire view.
 		const float AutoPlaneShift = CVarOrthoAutoPlaneShift.GetValueOnAnyThread();
 		OrthoNearClipPlane = NearPlane + AutoPlaneShift;
 		OrthoFarClipPlane = FarPlane + AutoPlaneShift;
+		InOutProjectionData.CameraToViewTarget = CameraToViewTarget;
 		return true;
 	}
 	return false;

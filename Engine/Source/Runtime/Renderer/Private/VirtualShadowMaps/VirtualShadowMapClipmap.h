@@ -109,7 +109,7 @@ public:
 
 private:
 	FVirtualShadowMapProjectionShaderData ComputeProjectionShaderData(int32 ClipmapIndex) const;
-	void ComputeBoundingVolumes(const FViewMatrices& CameraViewMatrices);
+	void ComputeBoundingVolumes(const FVector CameraOrigin);
 
 	const FLightSceneInfo& LightSceneInfo;
 
@@ -124,6 +124,7 @@ private:
 	* Note that the centers of each of the levels can be different as they are snapped to page alignment at their respective scales
 	* */
 	FVector WorldOrigin;
+	FVector CameraToViewTarget;
 
 	FVector LightDirection;
 

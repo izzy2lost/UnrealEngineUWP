@@ -15,6 +15,9 @@ VirtualShadowMapClipmap.cpp
 #include "VirtualShadowMapArray.h"
 #include "VirtualShadowMapCacheManager.h"
 #include "VirtualShadowMapDefinitions.h"
+#include "CollisionQueryParams.h"
+#include "Engine/HitResult.h"
+#include "Engine/World.h"
 
 extern int32 GForceInvalidateDirectionalVSM;
 
@@ -90,6 +93,34 @@ static TAutoConsoleVariable<int32> CVarClipmapWPODisableDistanceLodBias(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<bool> CVarOrthoVSMEstimateClipmapLevels(
+	TEXT("r.Ortho.VSM.EstimateClipmapLevels"),
+	true,
+	TEXT("Enable/Disable calculating the FirstLevel VSM based on the current camera OrthoWidth"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarOrthoVSMClipmapLODBias(
+	TEXT("r.Ortho.VSM.ClipmapLODBias"),
+	0,
+	TEXT("LOD setting for adjusting the VSM first level from it's OrthoWidth based value."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<bool> CVarOrthoVSMProjectViewOrigin(
+	TEXT("r.Ortho.VSM.ProjectViewOrigin"),
+	true,
+	TEXT("Enable/Disable moving the WorldOrigin of the VSM clipmaps to focus around the ViewTarget (if present)"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<bool> CVarOrthoVSMRayCastViewOrigin(
+	TEXT("r.Ortho.VSM.RayCastViewOrigin"),
+	true,
+	TEXT("Enable/Disable whether the ViewOrigin should be estimated with a raycast if the ViewTarget is not present (i.e. standalone camera)"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 // "Virtual" clipmap level to clipmap radius
 // NOTE: This is the radius of around the clipmap origin that this level must cover
 // The actual clipmap dimensions will be larger due to snapping and other accomodations
@@ -125,9 +156,21 @@ FVirtualShadowMapClipmap::FVirtualShadowMapClipmap(
 	// Pure rotation matrix
 	FMatrix ViewToWorldRotationMatrix = WorldToLightViewRotationMatrix.GetTransposed();
 	
-	// Optionally clamp camera viewport to avoid excessively low resolution shadows with dynamic resolution
-	const int32 MinCameraViewportWidth = CVarVirtualShadowMapClipmapMinCameraViewportWidth.GetValueOnRenderThread();
-	const int32 CameraViewportWidth = FMath::Max(MinCameraViewportWidth, CameraViewRectSize.X);
+	// Optionally clamp camera viewport to avoid excessively low resolution shadows with dynamic resolution	
+	const int32 MinCameraViewportWidth = CVarVirtualShadowMapClipmapMinCameraViewportWidth.GetValueOnRenderThread();	
+	bool bIsOrthographicCamera = !CameraViewMatrices.IsPerspectiveProjection();
+
+	int32 CameraViewportWidth = CameraViewRectSize.X;
+	if (bIsOrthographicCamera)
+	{
+		/**
+		 * Orthographic cameras have uniform depth, so basing the LodScale on the width alone can cause issues when selecting the clipmap area to resolve
+		 * at larger scale views. Instead we use the OrthoWidth. This gives a larger area for the shadows to be drawn to and ensures shadows further away/in 
+		 * the corners of the view rect have the correct LOD resolution. We default to the viewport as a minimum.
+		 */	
+		CameraViewportWidth = FMath::Max(FMath::CeilToInt(CameraViewMatrices.GetInvProjectionMatrix().M[0][0] * 2.0f), CameraViewportWidth);
+	}
+	CameraViewportWidth = FMath::Max(MinCameraViewportWidth, CameraViewportWidth);
 
 	// NOTE: Rotational (roll) invariance of the directional light depends on square pixels so we just base everything on the camera X scales/resolution
 	// NOTE: 0.5 because we double the size of the clipmap region below to handle snapping
@@ -142,8 +185,64 @@ FVirtualShadowMapClipmap::FVirtualShadowMapClipmap(
 	// Clamp negative absolute resolution biases as they would exceed the maximum resolution/ranges allocated
 	ResolutionLodBias = FMath::Max(0.0f, ResolutionLodBias);
 
+	WorldOrigin = CameraViewMatrices.GetViewOrigin();
+	CameraToViewTarget = FVector::ZeroVector;
+	if (bIsOrthographicCamera && CVarOrthoVSMProjectViewOrigin.GetValueOnRenderThread())
+	{
+		/**
+		* If enabled, use the ViewTarget location as the WorldOrigin location, this helps with scaling VSMs in Ortho
+		* as the clipmaps emanate more evenly from the focus of the view.
+		* A ViewTarget is not always necessarily present, but there isn't really an alternative way to estimate the best
+		* WorldOrigin for this effect to work well right now without the ViewTarget set.
+		*/
+		CameraToViewTarget = CameraViewMatrices.GetCameraToViewTarget();
+		if (CameraToViewTarget.Length() == 0.0f && CVarOrthoVSMRayCastViewOrigin.GetValueOnRenderThread()
+			&& DependentView && DependentView->Family && DependentView->Family->Scene)
+		{
+			if (UWorld* World = DependentView->Family->Scene->GetWorld())
+			{
+				FVector ViewForward = CameraViewMatrices.GetViewMatrix().GetColumn(2);
+				FCollisionObjectQueryParams ObjectParams = FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllObjects);
+				FCollisionQueryParams CollisionParams = FCollisionQueryParams(FName(TEXT("OrthoCamera_VSMTrace")), true, DependentView->ViewActor);
+				FHitResult Hit(ForceInit);
+
+				if (World->LineTraceSingleByObjectType(
+					Hit,		//result
+					WorldOrigin,	//start
+					WorldOrigin + ViewForward * FMath::Abs(CameraViewMatrices.GetInvProjectionMatrix().M[2][2]), //end
+					ObjectParams,//collision channel
+					CollisionParams
+				))
+				{
+					CameraToViewTarget = ViewForward * Hit.Distance;
+				}
+			}
+		}
+		WorldOrigin += CameraToViewTarget;
+	}
+
 	FirstLevel = GetFirstLevel();
-	int32 LastLevel = CVarVirtualShadowMapClipmapLastLevel.GetValueOnRenderThread();
+	int32 LastLevel = CVarVirtualShadowMapClipmapLastLevel.GetValueOnRenderThread();	
+	if (bIsOrthographicCamera && CVarOrthoVSMEstimateClipmapLevels.GetValueOnRenderThread())
+	{
+		/**
+		* For Ortho projections, this branch bases the first level VSM on the set OrthoWidth. This reduces the number of clipmaps generated
+		* and also scales the precision of the clipmaps depending on the scene.
+		* 
+		* To be on the safe side, we output -1 FirstLevel compared to what the full OrthoWidth would output. The InvProjectionMatrix outputs
+		* half the OrthoWidth in the [0][0] position, and as we are using Log2, we can just use that raw value, rather than multiplying it then
+		* subtracting a level.
+		*/
+		int32 OrthoFirstLevel = FMath::FloorToInt(FMath::Log2(static_cast<float>(CameraViewMatrices.GetInvProjectionMatrix().M[0][0])));
+		if (OrthoFirstLevel > FirstLevel)
+		{
+			//Only apply the ortho level if it above the desired minimum first level.
+			FirstLevel = OrthoFirstLevel;
+		}
+		//Allow manual correction using the Ortho only FirstLevel bias.
+		FirstLevel = FMath::Max(FirstLevel + CVarOrthoVSMClipmapLODBias.GetValueOnRenderThread(), 0);
+	}
+
 	LastLevel = FMath::Max(FirstLevel, LastLevel);
 	int32 LevelCount = LastLevel - FirstLevel + 1;
 
@@ -152,8 +251,6 @@ FVirtualShadowMapClipmap::FVirtualShadowMapClipmap(
 	LevelData.AddDefaulted(LevelCount);
 
 	VirtualShadowMapId = VirtualShadowMapArray.Allocate(false, LevelCount);
-
-	WorldOrigin = CameraViewMatrices.GetLODViewOrigin();
 
 	// TODO: We need a light/cache entry for every light/VSM now, but scene captures may not have persistent view state for indexing
 	// This is likely to all change as we refactor the multiple cache managers stuff anyways; for now this is hopefully safe since they do have separate copies
@@ -275,7 +372,7 @@ FVirtualShadowMapClipmap::FVirtualShadowMapClipmap(
 		ClipmapLevelEntry->ProjectionData = ComputeProjectionShaderData(Index);
 	}
 
-	ComputeBoundingVolumes(CameraViewMatrices);
+	ComputeBoundingVolumes(WorldOrigin);
 }
 
 const FVirtualShadowMapProjectionShaderData& FVirtualShadowMapClipmap::GetProjectionShaderData(int32 ClipmapIndex) const
@@ -283,7 +380,7 @@ const FVirtualShadowMapProjectionShaderData& FVirtualShadowMapClipmap::GetProjec
 	return PerLightCacheEntry->ShadowMapEntries[ClipmapIndex].ProjectionData;
 }
 
-void FVirtualShadowMapClipmap::ComputeBoundingVolumes(const FViewMatrices& CameraViewMatrices)
+void FVirtualShadowMapClipmap::ComputeBoundingVolumes(const FVector ViewOrigin)
 {
 	// We don't really do much CPU culling with clipmaps. After various testing the fact that we are culling
 	// a single frustum that goes out and basically the entire map, and we have to extrude towards (and away!) from
@@ -291,14 +388,10 @@ void FVirtualShadowMapClipmap::ComputeBoundingVolumes(const FViewMatrices& Camer
 	// into a page that then gets cached with incomplete geometry), in many situations there is effectively no
 	// culling that happens. For instance, as soon as the camera looks vaguely towards or away from the light direction,
 	// the extruded frustum effectively covers the whole world.
-
-	const FVector CameraOrigin = CameraViewMatrices.GetViewOrigin();
-	const FVector CameraDirection = CameraViewMatrices.GetViewMatrix().GetColumn(2);
-
 	// Thus we don't spend a lot of time trying to optimize for the easy cases and instead just pick an extremely
 	// conservative frustum.
 	ViewFrustumBounds = FConvexVolume();
-	BoundingSphere = FSphere(CameraOrigin, GetMaxRadius());
+	BoundingSphere = FSphere(ViewOrigin, GetMaxRadius());
 }
 
 float FVirtualShadowMapClipmap::GetMaxRadius() const

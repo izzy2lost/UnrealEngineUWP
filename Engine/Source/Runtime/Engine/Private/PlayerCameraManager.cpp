@@ -453,7 +453,7 @@ void APlayerCameraManager::UpdateViewTarget(FTViewTarget& OutVT, float DeltaTime
 	SetActorLocationAndRotation(OutVT.POV.Location, OutVT.POV.Rotation, false);
 	if (bAutoCalculateOrthoPlanes && OutVT.Target)
 	{
-		OutVT.POV.SetOrthoCameraArmLengthFromOwnerLocation(OutVT.Target->GetActorLocation());
+		OutVT.POV.SetCameraToViewTarget(OutVT.Target->GetActorLocation());
 	}
 
 	UpdateCameraLensEffects(OutVT);

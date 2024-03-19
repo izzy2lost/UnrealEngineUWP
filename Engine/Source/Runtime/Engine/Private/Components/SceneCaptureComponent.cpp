@@ -706,7 +706,7 @@ void USceneCaptureComponent2D::GetCameraView(float DeltaTime, FMinimalViewInfo& 
 	{
 		if(const AActor* ViewTarget = GetOwner())
 		{
-			OutMinimalViewInfo.SetOrthoCameraArmLengthFromOwnerLocation(ViewTarget->GetActorLocation());
+			OutMinimalViewInfo.SetCameraToViewTarget(ViewTarget->GetActorLocation());
 		}
 	}
 }

@@ -109,7 +109,7 @@ struct FMinimalViewInfo
 
 private:
 	// Only used for Ortho camera auto plane calculations, tells the Near plane of the extra distance that needs to be added.
-	float OrthoCameraArmLength;
+	FVector CameraToViewTarget;
 
 public:
 
@@ -129,7 +129,7 @@ public:
 		, ProjectionMode(ECameraProjectionMode::Perspective)
 		, PostProcessBlendWeight(0.0f)
 		, OffCenterProjectionOffset(ForceInitToZero)
-		, OrthoCameraArmLength(0.0f)
+		, CameraToViewTarget(FVector::ZeroVector)
 	{
 	}
 
@@ -161,12 +161,12 @@ public:
 	}
 
 	/** Automatically calculates the Near/Far plane values for an Ortho camera */
-	ENGINE_API bool AutoCalculateOrthoPlanes(const FSceneViewProjectionData& InOutProjectionData);
+	ENGINE_API bool AutoCalculateOrthoPlanes(FSceneViewProjectionData& InOutProjectionData);
 
 	/** Sets the camera distance from view target for AutoCalculateOrthoPlanes */
-	ENGINE_API inline void SetOrthoCameraArmLengthFromOwnerLocation(const FVector ActorLocation)
+	ENGINE_API inline void SetCameraToViewTarget(const FVector ActorLocation)
 	{
-		OrthoCameraArmLength = static_cast<float>((ActorLocation - Location).Length());
+		CameraToViewTarget = ActorLocation - Location;
 	}
 };
 

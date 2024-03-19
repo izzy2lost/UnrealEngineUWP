@@ -894,7 +894,6 @@ void FEditorViewportClient::CenterViewportAtPoint(const FVector& NewLookAt, bool
 //////////////////////////////////////////////////////////////////////////
 //
 // Configures the specified FSceneView object with the view and projection matrices for this viewport.
-
 FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, const int32 StereoViewIndex)
 {
     const bool bStereoRendering = StereoViewIndex != INDEX_NONE;
@@ -1127,14 +1126,24 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 		else
 		{
 			static_assert((bool)ERHIZBuffer::IsInverted, "Check all the Rotation Matrix transformations!");
-			FMatrix::FReal ZScale = 0.5f / UE_OLD_WORLD_MAX;
-			FMatrix::FReal ZOffset = UE_OLD_WORLD_MAX;
 
 			//The divisor for the matrix needs to match the translation code.
 			const float Zoom = GetOrthoUnitsPerPixel(Viewport);
+			const float OrthoZoom = FMath::Clamp(Zoom * 500.0f, 0.0f, UE_LARGE_HALF_WORLD_MAX);
 
-			float OrthoWidth = Zoom * ViewportSize.X / 2.0f;
-			float OrthoHeight = Zoom * ViewportSize.Y / 2.0f;
+			float ViewportAspectRatio = float(ViewportSize.X) / (ViewportSize.Y > 0 ? ViewportSize.Y : 1);
+
+			float OrthoWidth, OrthoHeight;
+			if(ViewportAspectRatio >= 1.0f)
+			{
+				OrthoWidth = OrthoZoom;
+				OrthoHeight = OrthoWidth / ViewportAspectRatio;
+			}
+			else
+			{
+				OrthoHeight = OrthoZoom;
+				OrthoWidth = OrthoHeight * ViewportAspectRatio;
+			}
 
 			if (EffectiveViewportType == LVT_OrthoXY)
 			{
@@ -1198,25 +1207,28 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 				check(false);
 			}
 
+			FMinimalViewInfo CalculatePlanesViewInfo;
+			CalculatePlanesViewInfo.ProjectionMode = ECameraProjectionMode::Orthographic;
+			CalculatePlanesViewInfo.bAutoCalculateOrthoPlanes = true;
+			CalculatePlanesViewInfo.OrthoWidth = OrthoWidth;
+			CalculatePlanesViewInfo.Rotation = ViewInitOptions.ViewRotationMatrix.Rotator();
+			CalculatePlanesViewInfo.AspectRatio = ViewportAspectRatio;
+			CalculatePlanesViewInfo.bConstrainAspectRatio = false;
+			CalculatePlanesViewInfo.OrthoNearClipPlane = OrthoWidth * -CVarOrthoEditorDebugClipPlaneScale.GetValueOnAnyThread();
+			CalculatePlanesViewInfo.OrthoFarClipPlane = FarPlane - NearPlane + CalculatePlanesViewInfo.OrthoNearClipPlane;
+			CalculatePlanesViewInfo.AutoCalculateOrthoPlanes(ViewInitOptions);
+
+			ViewInitOptions.UpdateOrthoPlanes(CalculatePlanesViewInfo);
+
+			const float ZScale = 1.0f / (CalculatePlanesViewInfo.OrthoFarClipPlane - CalculatePlanesViewInfo.OrthoNearClipPlane);
+			const float ZOffset = -CalculatePlanesViewInfo.OrthoNearClipPlane;
+
 			ViewInitOptions.ProjectionMatrix = FReversedZOrthoMatrix(
 				OrthoWidth,
 				OrthoHeight,
 				ZScale,
 				ZOffset
-				);
-
-			if(!ViewFamily->EngineShowFlags.Wireframe)
-			{
-				/**
-				* Update the ortho near plane and view origin to a position that is proportional to the OrthoWidth
-				* and a User specified multiplier which allows adjusting of the NearPlane location. 
-				* This ensures lighting works more appropriately on meshes in Lit mode, but introduces more abrupt NearPlane clipping.
-				*
-				* Not needed for Wireframe view; NearPlane clipping is unnecessary outside of Lit modes.
-				*/
-				float OrthoNearPlane = OrthoWidth * -CVarOrthoEditorDebugClipPlaneScale.GetValueOnAnyThread();
-				ViewInitOptions.UpdateOrthoNearPlane(OrthoNearPlane, true);
-			}
+			);
 		}
 
 		if (bConstrainAspectRatio)

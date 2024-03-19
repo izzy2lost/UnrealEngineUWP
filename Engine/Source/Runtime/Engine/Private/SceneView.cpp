@@ -24,6 +24,7 @@
 #include "StereoRenderUtils.h"
 #include "SceneRelativeViewMatrices.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/CameraTypes.h"
 #include "UObject/Interface.h"
 
 DEFINE_LOG_CATEGORY(LogBufferVisualization);
@@ -320,7 +321,7 @@ static TAutoConsoleVariable<int32> CVarOrthoCalculateDepthThicknessScaling(
 	TEXT("r.Ortho.CalculateDepthThicknessScaling"),
 	1,
 	TEXT("Whether to automatically derive the depth thickness test scale from the Near/FarPlane difference.\n")
-	TEXT("0: Disabled (use scaling specified by r.Ortho.DepthTicknessScale)\n")
+	TEXT("0: Disabled (use scaling specified by r.Ortho.DepthThicknessScale)\n")
 	TEXT("1: Enabled (default)"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
@@ -339,6 +340,13 @@ static FAutoConsoleVariableRef CVarDefaultUpdateOrthoNearPlane(
 	TEXT("Ortho near clip plane value to correct to when using ortho near clip correction"),
 	ECVF_RenderThreadSafe
 );
+
+static TAutoConsoleVariable<bool> CVarOrthoCameraHeightAsViewTarget(
+	TEXT("r.Ortho.CameraHeightAsViewTarget"),
+	true,
+	TEXT("Sets whether to use the camera height as a pseudo camera to view target.\n")
+	TEXT("Primarily helps with VSM clipmap selection and avoids overcorrecting NearPlanes.\n"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 int32 GVirtualTextureFeedbackFactor = 16;
 static FAutoConsoleVariableRef CVarVirtualTextureFeedbackFactor(
@@ -552,17 +560,9 @@ FVector4f CreateInvDeviceZToWorldZTransform(const FMatrix& ProjMatrix)
 	}
 }
 
-bool FSceneViewProjectionData::UpdateOrthoNearPlane(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, bool bUpdateOrthoProjectionMatrix)
+bool FSceneViewProjectionData::UpdateOrthoPlanes(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, float& FarPlane)
 {
 	if (!InOutProjectionData)
-	{
-		return false;
-	}
-
-	//Store the original ViewOrigin for LOD location resolving regardless of if we early out.
-	InOutProjectionData->LODViewOrigin = InOutProjectionData->ViewOrigin;
-
-	if (NearPlane >= 0.0f)
 	{
 		return false;
 	}
@@ -571,31 +571,66 @@ bool FSceneViewProjectionData::UpdateOrthoNearPlane(FSceneViewProjectionData* In
 	FVector ViewForward = InOutProjectionData->ViewRotationMatrix.GetColumn(2);
 	ViewForward.Normalize();
 
-	//OrthoNearClipPlane is negative at this point + we are moving the theoretical camera position backwards.
-	InOutProjectionData->ViewOrigin += ViewForward * NearPlane;
-
-	//If required, recalculate the new projection matrix from the old one using the new NearClip value
-	if (bUpdateOrthoProjectionMatrix)
+	float PlaneDifference = FarPlane - NearPlane;
+	if(InOutProjectionData->CameraToViewTarget.Length() > 0)
 	{
-		const FMatrix InvProjectionMatrix = InOutProjectionData->ProjectionMatrix.InverseFast();
-		const float OrthoWidth = InvProjectionMatrix.M[0][0];
-		const float OrthoHeight = InvProjectionMatrix.M[1][1];
-
-		const float FarPlane = NearPlane - (InvProjectionMatrix.M[2][2]);
-		NearPlane = GDefaultUpdateOrthoNearPlane;
-		const float ZScale = 1.0f / (FarPlane - NearPlane);
-
-		InOutProjectionData->ProjectionMatrix = FReversedZOrthoMatrix(
-			OrthoWidth,
-			OrthoHeight,
-			ZScale,
-			-NearPlane
-		);
+		//Store the ViewTargetLocation to correct it for the repositioned ViewOrigin.
+		FVector ViewTargetLocation = InOutProjectionData->ViewOrigin + InOutProjectionData->CameraToViewTarget;
+		//OrthoNearClipPlane is negative at this point + we are moving the theoretical camera position backwards.
+		InOutProjectionData->ViewOrigin += InOutProjectionData->CameraToViewTarget +(ViewForward * NearPlane);
+		//Save out the new CameraToViewTarget vector.
+		InOutProjectionData->CameraToViewTarget = ViewTargetLocation - InOutProjectionData->ViewOrigin;
 	}
 	else
-	{
-		NearPlane = GDefaultUpdateOrthoNearPlane;
+	{	
+		/**
+		* Use the height of the camera as a sort of pseudo CameraToViewTarget to remove camera position as much as possible so we minimise the near clip plane distance.
+		* Depends on view direction being top down as when we get to a side view, the scale grows much larger and it becomes redundant.
+		*/
+		float CameraHeightAdjustment = CVarOrthoCameraHeightAsViewTarget.GetValueOnAnyThread() ? FMath::Abs(InOutProjectionData->ViewOrigin.Z) * FMath::Abs((ViewForward.Dot(FVector(0, 0, -1.0f)))) : 0.0f;
+		InOutProjectionData->ViewOrigin += ViewForward * (CameraHeightAdjustment + NearPlane);
 	}
+	NearPlane = GDefaultUpdateOrthoNearPlane;
+	FarPlane = NearPlane + PlaneDifference;
+
+	return true;
+}
+
+bool FSceneViewProjectionData::UpdateOrthoPlanes(FMinimalViewInfo& MinimalViewInfo)
+{
+	return UpdateOrthoPlanes(MinimalViewInfo.OrthoNearClipPlane, MinimalViewInfo.OrthoFarClipPlane);
+}
+
+bool FSceneViewProjectionData::UpdateOrthoPlanes()
+{
+	/**
+	* This function takes the existing projection matrix and moves the nearplane + view origin.
+	* Separating this step from the near plane calculation logic itself helps avoid applying the NearPlane correctiontwice /makes it easier to read.
+	*/
+	if(IsPerspectiveProjection() 
+		|| ProjectionMatrix.M[2][2] == 0.0 
+		|| ProjectionMatrix.M[2][2] == ProjectionMatrix.M[2][3])
+	{ 
+		return false;	
+	}
+
+	//Get existing Near and Far plane + their difference
+	float NearPlane = static_cast<float>(ProjectionMatrix.M[3][3] - ProjectionMatrix.M[3][2]) / (ProjectionMatrix.M[2][2] - ProjectionMatrix.M[2][3]);
+	float FarPlane = NearPlane - 1.0f/static_cast<float>(ProjectionMatrix.M[2][2]);
+	float PlaneDifference = FarPlane - NearPlane;
+	if (FarPlane - NearPlane == 0.0f)
+	{
+		return false;
+	}
+
+	UpdateOrthoPlanes(NearPlane, FarPlane);
+
+	const float ZScale = 1.0f / (FarPlane - NearPlane);
+	const float ZOffset = -NearPlane;
+
+	//Only the Near/Far plane elements need correcting, OrthoWidth/Height remains the same
+	ProjectionMatrix.M[2][2] = -ZScale;
+	ProjectionMatrix.M[2][3] = 1.0f - (ZOffset * ZScale);
 
 	return true;
 }
@@ -631,6 +666,7 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 	// Translate world-space so its origin is at ViewOrigin for improved precision.
 	ViewOrigin = LocalViewOrigin;
 	PreViewTranslation = -LocalViewOrigin;
+	CameraToViewTarget = Initializer.CameraToViewTarget;
 
 	FMatrix LocalTranslatedViewMatrix = ViewRotationMatrix;
 	FMatrix LocalInvTranslatedViewMatrix = LocalTranslatedViewMatrix.GetTransposed();
@@ -654,7 +690,6 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 		ProjectionScale.X = ScreenXScale * FMath::Abs(ProjectionMatrix.M[0][0]);
 		ProjectionScale.Y = FMath::Abs(ProjectionMatrix.M[1][1]);
 		PerProjectionDepthThicknessScale = 1.0f;
-		LODViewOrigin = ViewOrigin;
 	}
 	else
 	{
@@ -670,8 +705,6 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 		{
 			PerProjectionDepthThicknessScale = GOrthographicDepthThicknessScale;
 		}
-
-		LODViewOrigin = Initializer.LODViewOrigin;
 	}
 	ScreenScale = FMath::Max(
 		Initializer.ConstrainedViewRect.Size().X * 0.5f * ProjectionScale.X,
@@ -686,7 +719,7 @@ FViewMatrices::FViewMatrices(const FSceneViewInitOptions& InitOptions) : FViewMa
 	Initializer.ViewRotationMatrix   = InitOptions.ViewRotationMatrix;
 	Initializer.ProjectionMatrix     = InitOptions.ProjectionMatrix;
 	Initializer.ViewOrigin           = InitOptions.ViewOrigin;
-	Initializer.LODViewOrigin        = InitOptions.LODViewOrigin;
+	Initializer.CameraToViewTarget	 = InitOptions.CameraToViewTarget;
 	Initializer.ConstrainedViewRect  = InitOptions.GetConstrainedViewRect();
 	Initializer.StereoPass           = InitOptions.StereoPass;
 
@@ -2657,7 +2690,8 @@ void FSceneView::SetupCommonViewUniformBufferParameters(
 	// FrameCounter is incremented once per engine tick, so multi views of the same frame have the same value.
 	ViewUniformShaderParameters.FrameCounter = Family->FrameCounter;
 	ViewUniformShaderParameters.WorldIsPaused = Family->bWorldIsPaused;
-	ViewUniformShaderParameters.CameraCut = bCameraCut ? 1 : 0;
+	//Set bCameraCut if we switch projection type to ensure histories are updated.
+	ViewUniformShaderParameters.CameraCut = bCameraCut ? 1 : (InViewMatrices.IsPerspectiveProjection() != InPrevViewMatrices.IsPerspectiveProjection());
 
 	ViewUniformShaderParameters.MinRoughness = FMath::Clamp(CVarGlobalMinRoughnessOverride.GetValueOnRenderThread(), 0.02f, 1.0f);
 
