@@ -76,23 +76,7 @@ namespace UnrealBuildToolTests
 			ArtifactAction[] readBack2 = await cache.QueryArtifactActionsAsync(new IoHash[] { bundle1.Key }, cancellationToken);
 			Assert.AreEqual(2, readBack2.Length);
 
-			await cache.FlushChangesAsync(cancellationToken);
+			//await cache.FlushChangesAsync(cancellationToken);
 		}
-
-#if DISABLED
-		[TestMethod]
-		public void ArtifactBundleStorageTest2()
-		{
-			CancellationToken cancellationToken = default;
-
-			IArtifactCache cache = HordeStorageArtifactCache.CreateMemoryCache(NullLogger.Instance);
-
-			cache.WaitForReadyAsync().Wait(cancellationToken);
-
-			ArtifactBundle bundle1 = MakeBundle1();
-			ArtifactBundle[] readBack2 = cache.QueryArtifactBundles(new IoHash[] { bundle1.Key }, cancellationToken);
-			Assert.AreEqual(2, readBack2.Length);
-		}
-#endif
 	}
 }
