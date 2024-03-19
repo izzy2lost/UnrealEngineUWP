@@ -284,10 +284,10 @@ bool FCookDependency::Load(FCbFieldView Value)
 		return true;
 	}
 	default:
-		return false;
+		break;
 	}
 	checkNoEntry();
-	return true;
+	return false;
 }
 
 void FCookDependencyContext::Update(const void* Data, uint64 Size)
