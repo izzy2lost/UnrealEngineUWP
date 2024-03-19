@@ -3526,14 +3526,6 @@ void UAssetManager::PostInitialAssetScan()
 
 	bIsPrimaryAssetDirectoryCurrent = true;
 
-#if WITH_EDITOR
-	if (bUpdateManagementDatabaseAfterScan)
-	{
-		bUpdateManagementDatabaseAfterScan = false;
-		UpdateManagementDatabase(true);
-	}
-#endif
-
 	if (!bHasCompletedInitialScan)
 	{
 		// Done with initial scan, fire delegate exactly once. This does not happen on editor refreshes
@@ -3541,6 +3533,14 @@ void UAssetManager::PostInitialAssetScan()
 		OnCompletedInitialScanDelegate.Broadcast();
 		OnCompletedInitialScanDelegate.Clear();
 	}
+
+#if WITH_EDITOR
+	if (bUpdateManagementDatabaseAfterScan)
+	{
+		bUpdateManagementDatabaseAfterScan = false;
+		UpdateManagementDatabase(true);
+	}
+#endif
 }
 
 bool UAssetManager::GetManagedPackageList(FPrimaryAssetId PrimaryAssetId, TArray<FName>& PackagePathList) const
@@ -4048,12 +4048,9 @@ void UAssetManager::UpdateManagementDatabase(bool bForceRefresh)
 		AssetRegistry.SetManageReferences(NoReferenceManagementMap, false, UE::AssetRegistry::EDependencyCategory::None, ExistingManagedNodes);
 	}
 
-
 	TMultiMap<FAssetIdentifier, FAssetIdentifier> PrimaryAssetIdManagementMap;
 	TArray<int32> ChunkList;
 	TArray<int32> ExistingChunkList;
-
-	CachedChunkMap.Empty(); // Remove previous entries before we start adding to it
 
 	// Update management parent list, which is PrimaryAssetId -> PrimaryAssetId
 	for (const TPair<FName, TSharedRef<FPrimaryAssetTypeData>>& TypePair : AssetTypeMap)
@@ -4099,8 +4096,6 @@ void UAssetManager::UpdateManagementDatabase(bool bForceRefresh)
 			for (int32 ChunkId : ChunkList)
 			{
 				FPrimaryAssetId ChunkPrimaryAsset = CreatePrimaryAssetIdFromChunkId(ChunkId);
-
-				CachedChunkMap.FindOrAdd(ChunkId).ExplicitAssets.Add(PrimaryAssetId);
 				PrimaryAssetIdManagementMap.Add(ChunkPrimaryAsset, PrimaryAssetId);
 			}
 		}
@@ -4114,29 +4109,7 @@ void UAssetManager::UpdateManagementDatabase(bool bForceRefresh)
 	UProjectPackagingSettings* ProjectPackagingSettings = GetMutableDefault<UProjectPackagingSettings>();
 	if (ProjectPackagingSettings && ProjectPackagingSettings->bGenerateChunks)
 	{
-		// Update the editor preview chunk package list for all chunks, but only if we actually care about chunks
-		// bGenerateChunks is settable per platform, but should be enabled on the default platform for preview to work
-		TArray<int32> OverrideChunkList;
-		for (FName PackageName : PackagesToUpdateChunksFor)
-		{
-			ChunkList.Reset();
-			OverrideChunkList.Reset();
-			GetPackageChunkIds(PackageName, nullptr, ExistingChunkList, ChunkList, &OverrideChunkList);
-
-			if (ChunkList.Num() > 0)
-			{
-				for (int32 ChunkId : ChunkList)
-				{
-					CachedChunkMap.FindOrAdd(ChunkId).AllAssets.Add(PackageName);
-
-					if (OverrideChunkList.Contains(ChunkId))
-					{
-						// This was in the override list, so add an explicit dependency
-						CachedChunkMap.FindOrAdd(ChunkId).ExplicitAssets.Add(PackageName);
-					}
-				}
-			}
-		}
+		CachedChunkMap = BuildChunkMap(PackagesToUpdateChunksFor);
 	}
 
 	bIsManagementDatabaseCurrent = true;
@@ -4678,6 +4651,74 @@ void UAssetManager::EndPIE(bool bStartSimulate)
 			}
 		}
 	}
+}
+
+TMap<int32, FAssetManagerChunkInfo> UAssetManager::BuildChunkMap(const TSet<FName>& PackagesToUpdateChunksFor) const
+{
+	TMap<int32, FAssetManagerChunkInfo> ReturnChunkMap;
+
+	TArray<int32> ChunkList;
+	TArray<int32> ExistingChunkList;
+
+	// Update management parent list, which is PrimaryAssetId -> PrimaryAssetId
+	for (const TPair<FName, TSharedRef<FPrimaryAssetTypeData>>& TypePair : AssetTypeMap)
+	{
+		const FPrimaryAssetTypeData& TypeData = TypePair.Value.Get();
+		for (const TPair<FName, FPrimaryAssetData>& NamePair : TypeData.GetAssets())
+		{
+			const FPrimaryAssetData& NameData = NamePair.Value;
+			FPrimaryAssetId PrimaryAssetId(TypePair.Key, NamePair.Key);
+			const FSoftObjectPath& AssetRef = NameData.GetAssetPtr().ToSoftObjectPath();
+
+			TSet<FPrimaryAssetId> Managers;
+			if (AssetRef.IsValid())
+			{
+				FName PackageName = FName(*AssetRef.GetLongPackageName());
+				GetPackageManagers(PackageName, false, Managers);
+			}
+			else
+			{
+				Managers.Add(PrimaryAssetId);
+			}
+
+			// Compute chunk assignment and store those as manager references
+			ChunkList.Reset();
+			GetPrimaryAssetSetChunkIds(Managers, nullptr, ExistingChunkList, ChunkList);
+
+			for (int32 ChunkId : ChunkList)
+			{
+				FPrimaryAssetId ChunkPrimaryAsset = CreatePrimaryAssetIdFromChunkId(ChunkId);
+
+				ReturnChunkMap.FindOrAdd(ChunkId).ExplicitAssets.Add(PrimaryAssetId);
+			}
+		}
+	}
+
+	// Update the editor preview chunk package list for all chunks, but only if we actually care about chunks
+	// bGenerateChunks is settable per platform, but should be enabled on the default platform for preview to work
+	TArray<int32> OverrideChunkList;
+	for (FName PackageName : PackagesToUpdateChunksFor)
+	{
+		ChunkList.Reset();
+		OverrideChunkList.Reset();
+		GetPackageChunkIds(PackageName, nullptr, ExistingChunkList, ChunkList, &OverrideChunkList);
+
+		if (ChunkList.Num() > 0)
+		{
+			for (int32 ChunkId : ChunkList)
+			{
+				ReturnChunkMap.FindOrAdd(ChunkId).AllAssets.Add(PackageName);
+
+				if (OverrideChunkList.Contains(ChunkId))
+				{
+					// This was in the override list, so add an explicit dependency
+					ReturnChunkMap.FindOrAdd(ChunkId).ExplicitAssets.Add(PackageName);
+				}
+			}
+		}
+	}
+
+	return ReturnChunkMap;
 }
 
 void UAssetManager::ReinitializeFromConfig()

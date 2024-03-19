@@ -53,13 +53,18 @@ class UChunkDependencyInfo : public UObject
 	GENERATED_UCLASS_BODY()
 
 	/** Will return an existing dependency graph, or build if it necessary */
-	UNREALED_API const FChunkDependencyTreeNode* GetOrBuildChunkDependencyGraph(int32 HighestChunk = 0);
+	UNREALED_API const FChunkDependencyTreeNode* GetOrBuildChunkDependencyGraph(int32 HighestChunk = 0, bool bForceRebuild = false);
 
 	/** Will create a dependency tree starting with RootTreeNode. If HighestChunk is == 0 it will only add dependencies on 0 for chunks already in the dependencies list */
 	UNREALED_API const FChunkDependencyTreeNode* BuildChunkDependencyGraph(int32 HighestChunk);
 
 	/** Removes redundant chunks from a chunk list */
 	UNREALED_API void RemoveRedundantChunks(TArray<int32>& ChunkIDs) const;
+
+	/** Given a set of chunk Ids will use the dependencies to find which chunk is shared among all the given chunks.
+	All chunks should converge to the 0 startup chunk.
+	Potentially will return a chunk that is not in the given input array */
+	UNREALED_API int32 FindHighestSharedChunk(const TArray<int32>& ChunkIDs) const;
 
 	/** List of dependencies used to remove redundant chunks */
 	UPROPERTY(config)

@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Commandlets/ChunkDependencyInfo.h"
+#include "Algo/Unique.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogChunkDependencyInfo, Log, All);
+
 
 UChunkDependencyInfo::UChunkDependencyInfo(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -8,11 +12,15 @@ UChunkDependencyInfo::UChunkDependencyInfo(const FObjectInitializer& ObjectIniti
 	CachedHighestChunk = -1;
 }
 
-const FChunkDependencyTreeNode* UChunkDependencyInfo::GetOrBuildChunkDependencyGraph(int32 HighestChunk)
+const FChunkDependencyTreeNode* UChunkDependencyInfo::GetOrBuildChunkDependencyGraph(int32 HighestChunk, bool bForceRebuild)
 {
 	if (HighestChunk > CachedHighestChunk)
 	{
 		return BuildChunkDependencyGraph(HighestChunk);
+	}
+	else if (bForceRebuild)
+	{
+		return BuildChunkDependencyGraph(CachedHighestChunk);
 	}
 	return &RootTreeNode;
 }
@@ -113,5 +121,58 @@ void UChunkDependencyInfo::RemoveRedundantChunks(TArray<int32>& ChunkIDs) const
 				}
 			}
 		}
+	}
+}
+
+const FChunkDependencyTreeNode* LowestCommonAncestor(const FChunkDependencyTreeNode* RootNode, TSet<int32>& FoundSet, const TSet<int32>& FindSet)
+{
+	if (RootNode)
+	{
+		for (const FChunkDependencyTreeNode& ChildNode : RootNode->ChildNodes)
+		{
+			if (const FChunkDependencyTreeNode* ReturnNode = LowestCommonAncestor(&ChildNode, FoundSet, FindSet))
+			{
+				return ReturnNode;
+			}
+		}
+
+		FoundSet.Add(RootNode->ChunkID);
+
+		for (int32 Item : FindSet)
+		{
+			if (!FoundSet.Contains(Item))
+			{
+				return nullptr;
+			}
+		}
+
+		return RootNode;
+	}
+	return nullptr;
+}
+
+
+int32 UChunkDependencyInfo::FindHighestSharedChunk(const TArray<int32>& ChunkIDs) const
+{
+	if (ChunkIDs.Num() == 0)
+	{
+		return 0;
+	}
+	if (ChunkIDs.Num() == 1)
+	{
+		return ChunkIDs[0];
+	}
+
+	TSet<int32> FoundSet;
+	TSet<int32> FindSet;
+	FindSet.Append(ChunkIDs);
+	if (const FChunkDependencyTreeNode* BestParent = LowestCommonAncestor(&RootTreeNode, FoundSet, FindSet))
+	{
+		return BestParent->ChunkID;
+	}
+	else
+	{
+		UE_LOG(LogChunkDependencyInfo, Error, TEXT("Unable to find parent."));
+		return 0;
 	}
 }

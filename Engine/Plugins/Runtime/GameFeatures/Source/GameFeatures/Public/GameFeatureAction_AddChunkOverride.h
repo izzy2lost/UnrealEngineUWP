@@ -37,16 +37,14 @@ public:
 #if WITH_EDITOR
 	/**
 	 * Given the package name will check if this is a package from a GFP that we want to assign a specific chunk to.
-	 * Will modify the given OutChunkList removing entries so that the package prefers to go into the specified override chunk.
-	 * When multiple GFPs reference a /Game package the DefaultGameChunk will be preferred.
-	 * /Engine packages are ignored by the function
+	 * returns the override chunk for this package if one is set.
 	 * 
+	 * Should be used in combination with overriding UAssetManager::GetPackageChunkIds so that you are able to reassign a startup package.
 	 * This can be necessary to reassign startup packages such as the GameFeatureData asset.
 	 */
-	GAMEFEATURES_API static void GetChunkForPackage(const FName PackageName, const int32 DefaultGameChunk, TArray<int32>& OutChunkList);
-	GAMEFEATURES_API static void GetChunkForPackage(const FString& PackageName, const TSet<FPrimaryAssetId>& Managers, const int32 DefaultGameChunk, TArray<int32>& OutChunkList);
+	GAMEFEATURES_API static TOptional<int32> GetChunkForPackage(const FString& PackageName);
 
-	GAMEFEATURES_API static FString GetPluginNameFromChunkID(int32 ChunkID);
+	GAMEFEATURES_API static TArray<FString> GetPluginNameFromChunkID(int32 ChunkID);
 
 	/** UObject overrides */
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
@@ -73,6 +71,13 @@ private:
 	 */
 	UPROPERTY(EditAnywhere, Category = "Asset Management", meta=(EditCondition="bShouldOverrideChunk"))
 	int32 ChunkId = -1;
+
+	/**
+	 * What Chunk we are parented to.
+	 * This is used by the ChunkDependencyInfo for when mutiple chunk overrides might conflict requiring assets to be pulled into a lower chunk
+	 */
+	UPROPERTY(EditAnywhere, Category = "Asset Management", meta=(EditCondition="bShouldOverrideChunk"))
+	int32 ParentChunk = 10;
 
 	/**
 	 * Internal tracking variable to remove the chunkId used when the ChunkId property changes.

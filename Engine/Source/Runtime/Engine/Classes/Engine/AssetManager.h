@@ -741,6 +741,15 @@ protected:
 	/** Called after PIE ends, resets loading state */
 	ENGINE_API virtual void EndPIE(bool bStartSimulate);
 
+	/**
+	 * Used by UpdateManagementDatabase to build the CachedChunkMap.
+	 * Should return a new cachedChunkMap.
+	 * 
+	 * @param PackagesToUpdateChunksFor - the packages needing chunk assignment as part of the management database update.
+	 * @return a new CachedChunkMap to be used.
+	 */
+	ENGINE_API virtual TMap<int32, FAssetManagerChunkInfo> BuildChunkMap(const TSet<FName>& PackagesToUpdateChunksFor) const;
+
 	/** Copy of the asset state before PIE was entered, return to that when PIE completes */
 	TMap<FPrimaryAssetId, TArray<FName>> PrimaryAssetStateBeforePIE;
 
