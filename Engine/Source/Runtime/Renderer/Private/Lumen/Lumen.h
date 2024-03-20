@@ -86,6 +86,7 @@ namespace Lumen
 	bool UseHeightfieldTracing(const FSceneViewFamily& ViewFamily, const FLumenSceneData& LumenSceneData);
 	bool UseHeightfieldTracingForVoxelLighting(const FLumenSceneData& LumenSceneData);
 	int32 GetHeightfieldMaxTracingSteps();
+	bool IsUsingGlobalSDF(const FSceneViewFamily& ViewFamily);
 
 	// Hardware ray tracing
 	bool AnyLumenHardwareRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View);

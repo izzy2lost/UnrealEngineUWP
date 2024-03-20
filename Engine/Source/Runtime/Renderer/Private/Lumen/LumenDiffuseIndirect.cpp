@@ -207,6 +207,12 @@ bool Lumen::UseGlobalSDFSimpleCoverageBasedExpand()
 	return GLumenSceneGlobalSDFSimpleCoverageBasedExpand != 0;
 }
 
+bool Lumen::IsUsingGlobalSDF(const FSceneViewFamily& ViewFamily)
+{
+	return UseGlobalSDFTracing(ViewFamily)
+		&& !UseHardwareRayTracing(ViewFamily);
+}
+
 float Lumen::GetMaxTraceDistance(const FViewInfo& View)
 {
 	return FMath::Clamp(View.FinalPostProcessSettings.LumenMaxTraceDistance * GLumenTraceDistanceScale, .01f, Lumen::MaxTraceDistance);

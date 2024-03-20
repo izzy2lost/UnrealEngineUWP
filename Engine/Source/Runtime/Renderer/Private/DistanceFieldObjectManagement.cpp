@@ -22,6 +22,7 @@
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "UnrealEngine.h"
 #include "InstanceDataSceneProxy.h"
+#include "Lumen/Lumen.h"
 
 DECLARE_GPU_STAT(DistanceFields);
 
@@ -954,7 +955,9 @@ void FSceneRenderer::PrepareDistanceFieldScene(FRDGBuilder& GraphBuilder, FRDGEx
 					OcclusionMaxDistance = Scene->SkyLight->OcclusionMaxDistance;
 				}
 
-				UpdateGlobalDistanceFieldVolume(GraphBuilder, ExternalAccessQueue, View, Scene, OcclusionMaxDistance, IsLumenEnabled(View), View.GlobalDistanceFieldInfo);
+				const bool bUseLumenGlobalDistanceFieldSettings = IsLumenEnabled(View) && Lumen::IsUsingGlobalSDF(*View.Family);
+
+				UpdateGlobalDistanceFieldVolume(GraphBuilder, ExternalAccessQueue, View, Scene, OcclusionMaxDistance, bUseLumenGlobalDistanceFieldSettings, View.GlobalDistanceFieldInfo);
 			}
 		}
 	}
