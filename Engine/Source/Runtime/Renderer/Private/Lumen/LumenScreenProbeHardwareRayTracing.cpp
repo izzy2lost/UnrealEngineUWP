@@ -212,8 +212,9 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingScreenProbeGat
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FAvoidSelfIntersections>(CVarLumenScreenProbeGatherHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FRadianceCache>(bUseRadianceCache);
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FStructuredImportanceSamplingDim>(LumenScreenProbeGather::UseImportanceSampling(View));
-			TShaderRef<FLumenScreenProbeGatherHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenScreenProbeGatherHardwareRayTracingRGS>(PermutationVector);
+			PermutationVector = FLumenScreenProbeGatherHardwareRayTracingRGS::RemapPermutation(PermutationVector);
 
+			TShaderRef<FLumenScreenProbeGatherHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenScreenProbeGatherHardwareRayTracingRGS>(PermutationVector);
 			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
 		}
 
@@ -225,6 +226,8 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingScreenProbeGat
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FAvoidSelfIntersections>(CVarLumenScreenProbeGatherHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FRadianceCache>(false);
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FStructuredImportanceSamplingDim>(LumenScreenProbeGather::UseImportanceSampling(View));
+			PermutationVector = FLumenScreenProbeGatherHardwareRayTracingRGS::RemapPermutation(PermutationVector);
+
 			TShaderRef<FLumenScreenProbeGatherHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenScreenProbeGatherHardwareRayTracingRGS>(PermutationVector);
 
 			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
