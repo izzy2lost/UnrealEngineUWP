@@ -8,6 +8,7 @@
 #include "Templates/UnrealTemplate.h"
 
 #include "MuR/OpImageBlend.h"
+#include "MuR/MutableRuntimeModule.h"
 
 namespace mu
 {

@@ -5,6 +5,7 @@
 #include "PrimitiveComponentId.h"
 #include "PrimitiveSceneInfoData.h"
 #include "Engine/EngineTypes.h"
+#include "Math/BoxSphereBounds.h"
 
 class FPrimitiveSceneProxy;
 struct FPrimitiveSceneProxyDesc;

@@ -19,13 +19,17 @@ namespace LibRtc
             static constexpr const TCHAR* kDefaultStunServerUrl = TEXT("stun:stun.l.google.com:19302");
 
             FString StunServerUrl = kDefaultStunServerUrl;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
             TOptional<FAudioCodec> CustomAudioCodec;
-        };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		};
 
         static FData& Get()
         {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
             static FData Instance;
             return Instance;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
         }
     };
 }
