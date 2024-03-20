@@ -8,6 +8,7 @@ import 'package:epic_common/unreal_beacon.dart';
 import 'package:logging/logging.dart';
 
 import '../models/engine_connection.dart';
+import '../models/unreal_types.dart';
 
 /// The configuration to use for the beacon that detects compatible Unreal Engine instances.
 final unrealEngineBeaconConfig = UnrealEngineBeaconConfig(
@@ -229,4 +230,48 @@ class MessageTimeoutRetryHelper {
       logger?.info('Abandoned "$logDescription" after $timeoutCount failed attempt(s)');
     }
   }
+}
+
+/// Given a list of [componentPaths], query the engine via the [connectionManager] and create local UnrealObjects for
+/// all components whose class path exactly matches the [classPath].
+Future<List<UnrealObject>> getComponentsOfType({
+  required EngineConnectionManager connectionManager,
+  required List<String> componentPaths,
+  required String classPath,
+}) async {
+  // Request description of each object so we can determine their classes and names
+  final List<UnrealHttpRequest> describeRequests = [];
+  for (final dynamic componentPath in componentPaths) {
+    if (componentPath is! String) {
+      continue;
+    }
+
+    describeRequests.add(UnrealHttpRequest(url: '/remote/object/describe', verb: 'PUT', body: {
+      'objectPath': componentPath,
+      'access': 'READ_ACCESS',
+    }));
+  }
+
+  final UnrealHttpResponse batchDescribeResponse = await connectionManager.sendBatchedHttpRequest(describeRequests);
+  if (batchDescribeResponse.code != 200) {
+    return [];
+  }
+
+  // Create UnrealObjects only for the objects whose classes match
+  final List<UnrealObject> cameras = [];
+  for (int componentIndex = 0; componentIndex < componentPaths.length; ++componentIndex) {
+    final UnrealHttpResponse? describeResponse = batchDescribeResponse.body[componentIndex];
+    if (describeResponse == null || describeResponse.code != 200) {
+      continue;
+    }
+
+    if (describeResponse.body?['Class'] == classPath) {
+      cameras.add(UnrealObject(
+        path: componentPaths[componentIndex],
+        name: describeResponse.body?['Name'],
+      ));
+    }
+  }
+
+  return cameras;
 }

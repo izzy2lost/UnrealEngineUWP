@@ -141,6 +141,10 @@ class _EpicStageAppState extends State<EpicStageApp> with TickerProviderStateMix
       case AppLifecycleState.resumed:
         _log.info('App resumed');
         break;
+
+      case AppLifecycleState.hidden:
+        _log.info('App hidden');
+        break;
     }
   }
 

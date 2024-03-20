@@ -22,6 +22,7 @@ import '../../../../models/unreal_actor_manager.dart';
 import '../../../../models/unreal_transaction_manager.dart';
 import '../../../../models/unreal_types.dart';
 import '../../../../utilities/constants.dart';
+import '../../../../utilities/net_utilities.dart';
 import '../../../../utilities/unreal_utilities.dart';
 import '../../../elements/delta_slider.dart';
 import '../../../elements/dropdown_text.dart';
@@ -462,43 +463,17 @@ class _ColorGradingTabState extends State<ColorGradingTab> {
       return;
     }
 
-    // Try to get the per-node color grading settings from each component as if it's an ICVFX camera. If it succeeds,
-    // we can treat it as one and add all its targets to the list.
-    final List<UnrealHttpRequest> describeRequests = [];
-    for (final dynamic componentPath in componentPaths) {
-      if (componentPath is! String) {
-        continue;
-      }
-
-      describeRequests.add(UnrealHttpRequest(url: '/remote/object/describe', verb: 'PUT', body: {
-        'objectPath': componentPath,
-        'access': 'READ_ACCESS',
-      }));
-    }
-
-    final UnrealHttpResponse batchDescribeResponse = await _connectionManager.sendBatchedHttpRequest(describeRequests);
-    if (batchDescribeResponse.code != 200 || !mounted) {
-      return;
-    }
-
-    // Find which of the described responses are actually cameras
-    final List<String> cameraPaths = [];
-    for (int componentIndex = 0; componentIndex < componentPaths.length; ++componentIndex) {
-      final UnrealHttpResponse? describeResponse = batchDescribeResponse.body[componentIndex];
-      if (describeResponse == null || describeResponse.code != 200) {
-        continue;
-      }
-
-      if (describeResponse.body?['Class'] == '/Script/DisplayCluster.DisplayClusterICVFXCameraComponent') {
-        cameraPaths.add(componentPaths[componentIndex]);
-      }
-    }
+    final List<UnrealObject> cameras = await getComponentsOfType(
+      connectionManager: _connectionManager,
+      componentPaths: componentPaths.map((e) => e.toString()).toList(growable: false),
+      classPath: '/Script/DisplayCluster.DisplayClusterICVFXCameraComponent',
+    );
 
     // Now that we know which are cameras, query them all for their color grading targets and add them to the list
     final List<UnrealHttpRequest> propertyRequests = [];
-    for (final String cameraPath in cameraPaths) {
+    for (final UnrealObject camera in cameras) {
       propertyRequests.add(UnrealHttpRequest(url: '/remote/object/property', verb: 'PUT', body: {
-        'objectPath': cameraPath,
+        'objectPath': camera.path,
         'propertyName': 'CameraSettings.PerNodeColorGrading',
         'access': 'READ_ACCESS',
       }));
@@ -509,16 +484,16 @@ class _ColorGradingTabState extends State<ColorGradingTab> {
       return;
     }
 
-    for (int cameraIndex = 0; cameraIndex < cameraPaths.length; ++cameraIndex) {
+    for (int cameraIndex = 0; cameraIndex < cameras.length; ++cameraIndex) {
       final UnrealHttpResponse? propertyResponse = batchPropertyResponse.body[cameraIndex];
-      _addTargetsForICVFXCameraResponse(cameraPaths[cameraIndex], propertyResponse, parent);
+      _addTargetsForICVFXCameraResponse(cameras[cameraIndex], propertyResponse, parent);
     }
   }
 
   /// Given a response from querying an ICVFX camera's list of per-node color grading settings, add all of its color
   /// grading targets to the target list.
   void _addTargetsForICVFXCameraResponse(
-      String cameraPath, UnrealHttpResponse? response, _ColorGradingObjectEntryData parent) {
+      UnrealObject camera, UnrealHttpResponse? response, _ColorGradingObjectEntryData parent) {
     if (response?.code != 200) {
       return;
     }
@@ -527,7 +502,7 @@ class _ColorGradingTabState extends State<ColorGradingTab> {
 
     // All nodes color grading is always available
     final allNodesRootProperty = UnrealProperty(
-      objectPath: cameraPath,
+      objectPath: camera.path,
       propertyName: 'CameraSettings.AllNodesColorGrading',
     );
 
@@ -552,7 +527,7 @@ class _ColorGradingTabState extends State<ColorGradingTab> {
       }
 
       final targetRootProperty = UnrealProperty(
-        objectPath: cameraPath,
+        objectPath: camera.path,
         propertyName: 'CameraSettings.PerNodeColorGrading[$entryIndex]',
       );
 
@@ -565,11 +540,11 @@ class _ColorGradingTabState extends State<ColorGradingTab> {
       ));
     }
 
-    final int lastDotIndex = cameraPath.lastIndexOf('.');
-    final String cameraName = cameraPath.substring(lastDotIndex + 1);
+    final int lastDotIndex = camera.path.lastIndexOf('.');
+    final String cameraName = camera.path.substring(lastDotIndex + 1);
 
     _entries.add(_ColorGradingObjectEntryData(
-      path: cameraPath,
+      path: camera.path,
       name: cameraName,
       type: _ColorGradingObjectEntryType.icvfxCamera,
       targetListTitle: AppLocalizations.of(context)!.colorGradingOutlinerTargetListTitlePerNode,

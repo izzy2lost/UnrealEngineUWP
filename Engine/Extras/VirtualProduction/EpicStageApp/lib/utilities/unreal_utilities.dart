@@ -121,6 +121,8 @@ Map<String, _UnrealTypeConversionData> _typeConverters = {
     },
     dartToJson: (dynamic dartValue, Map<String, dynamic> conversionMetadata) => dartValue.toJson(),
   ),
+  'TSoftObjectPtr<ACineCameraActor>': _noConversion,
+  'TSoftObjectPtr<AActor>': _noConversion,
   unrealEnumTypeName: _noConversion,
 };
 

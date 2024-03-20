@@ -4,6 +4,7 @@ import 'dart:collection';
 
 import 'package:flutter/material.dart';
 
+import 'camera_settings_tab.dart';
 import 'color_grading_tab.dart';
 import 'details_tab.dart';
 import 'stage_map_tab.dart';
@@ -22,6 +23,11 @@ class MainScreenTabs {
       getTitle: DetailsTab.getTitle,
       iconPath: DetailsTab.iconPath,
       createTabContents: (context) => const DetailsTab(),
+    ),
+    MainScreenTabConfig(
+      getTitle: CameraSettingsTab.getTitle,
+      iconPath: CameraSettingsTab.iconPath,
+      createTabContents: (context) => const CameraSettingsTab(),
     ),
     MainScreenTabConfig(
       getTitle: ColorGradingTab.getTitle,

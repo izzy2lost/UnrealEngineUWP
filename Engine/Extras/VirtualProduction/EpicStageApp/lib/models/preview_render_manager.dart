@@ -660,7 +660,7 @@ class PreviewActorData {
 }
 
 /// Mixin for classes that want to receive renders from [PreviewRenderManager].
-abstract class PreviewRenderConsumer {
+mixin PreviewRenderConsumer {
   /// Called when a preview render from the engine completes.
   /// [bIsForLatestRequest] is true if this contains the latest available preview and actor position data, or false if
   /// the engine is expected to send more recent data after this.
