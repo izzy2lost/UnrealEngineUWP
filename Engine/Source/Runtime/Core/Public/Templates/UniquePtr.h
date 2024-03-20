@@ -34,16 +34,16 @@ struct TDefaultDelete
 	~TDefaultDelete() = default;
 
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T*>((U*)nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T*>((U*)nullptr)))
 	>
 	TDefaultDelete(const TDefaultDelete<U>&)
 	{
 	}
 
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T*>((U*)nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T*>((U*)nullptr)))
 	>
 	TDefaultDelete& operator=(const TDefaultDelete<U>&)
 	{
@@ -76,16 +76,16 @@ struct TDefaultDelete<T[]>
 	~TDefaultDelete() = default;
 
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T(*)[]>((U(*)[])nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T(*)[]>((U(*)[])nullptr)))
 	>
 	TDefaultDelete(const TDefaultDelete<U[]>&)
 	{
 	}
 
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T(*)[]>((U(*)[])nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T(*)[]>((U(*)[])nullptr)))
 	>
 	TDefaultDelete& operator=(const TDefaultDelete<U[]>&)
 	{
@@ -93,8 +93,8 @@ struct TDefaultDelete<T[]>
 	}
 
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T(*)[]>((U(*)[])nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T(*)[]>((U(*)[])nullptr)))
 	>
 	void operator()(U* Ptr) const
 	{
@@ -132,8 +132,8 @@ public:
 	 * @param InPtr The pointed-to object to take ownership of.
 	 */
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T*>((U*)nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T*>((U*)nullptr)))
 	>
 	explicit FORCEINLINE TUniquePtr(U* InPtr)
 		: Deleter()
@@ -147,8 +147,8 @@ public:
 	 * @param InPtr The pointed-to object to take ownership of.
 	 */
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T*>((U*)nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T*>((U*)nullptr)))
 	>
 	explicit FORCEINLINE TUniquePtr(U* InPtr, Deleter&& InDeleter)
 		: Deleter(MoveTemp(InDeleter))
@@ -162,8 +162,8 @@ public:
 	 * @param InPtr The pointed-to object to take ownership of.
 	 */
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T*>((U*)nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T*>((U*)nullptr)))
 	>
 	explicit FORCEINLINE TUniquePtr(U* InPtr, const Deleter& InDeleter)
 		: Deleter(InDeleter)
@@ -195,9 +195,11 @@ public:
 	 */
 	template <
 		typename OtherT,
-		typename OtherDeleter,
-		typename = decltype(ImplicitConv<T*>((OtherT*)nullptr))
-		UE_REQUIRES(!std::is_array_v<OtherT>)
+		typename OtherDeleter
+		UE_REQUIRES(
+			!std::is_array_v<OtherT> &&
+			UE_REQUIRES_EXPR(ImplicitConv<T*>((OtherT*)nullptr))
+		)
 	>
 	FORCEINLINE TUniquePtr(TUniquePtr<OtherT, OtherDeleter>&& Other)
 		: Deleter(MoveTemp(Other.GetDeleter()))
@@ -230,9 +232,11 @@ public:
 	 */
 	template <
 		typename OtherT,
-		typename OtherDeleter,
-		typename = decltype(ImplicitConv<T*>((OtherT*)nullptr))
-		UE_REQUIRES(!std::is_array_v<OtherT>)
+		typename OtherDeleter
+		UE_REQUIRES(
+			!std::is_array_v<OtherT> &&
+			UE_REQUIRES_EXPR(ImplicitConv<T*>((OtherT*)nullptr))
+		)
 	>
 	FORCEINLINE TUniquePtr& operator=(TUniquePtr<OtherT, OtherDeleter>&& Other)
 	{
@@ -304,8 +308,8 @@ public:
 	 * @return A reference to the object owned by the TUniquePtr.
 	 */
 	template <
-		typename DummyT = T,
-		decltype((int&)*(DummyT*)nullptr, 0) = 0 // this construct means that operator* is only considered for overload resolution if T is dereferenceable
+		typename DummyT = T
+		UE_REQUIRES(UE_REQUIRES_EXPR(*(DummyT*)nullptr)) // this construct means that operator* is only considered for overload resolution if T is dereferenceable
 	>
 	[[nodiscard]] FORCEINLINE DummyT& operator*() const
 	{
@@ -458,8 +462,8 @@ public:
 	 * @param InPtr The pointed-to array to take ownership of.
 	 */
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T(*)[]>((U(*)[])nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T(*)[]>((U(*)[])nullptr)))
 	>
 	explicit FORCEINLINE TUniquePtr(U* InPtr)
 		: Deleter()
@@ -473,8 +477,8 @@ public:
 	 * @param InPtr The pointed-to array to take ownership of.
 	 */
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T(*)[]>((U(*)[])nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T(*)[]>((U(*)[])nullptr)))
 	>
 	explicit FORCEINLINE TUniquePtr(U* InPtr, Deleter&& InDeleter)
 		: Deleter(MoveTemp(InDeleter))
@@ -488,8 +492,8 @@ public:
 	 * @param InPtr The pointed-to array to take ownership of.
 	 */
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T(*)[]>((U(*)[])nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T(*)[]>((U(*)[])nullptr)))
 	>
 	explicit FORCEINLINE TUniquePtr(U* InPtr, const Deleter& InDeleter)
 		: Deleter(InDeleter)
@@ -521,8 +525,8 @@ public:
 	 */
 	template <
 		typename OtherT,
-		typename OtherDeleter,
-		typename = decltype(ImplicitConv<T(*)[]>((OtherT(*)[])nullptr))
+		typename OtherDeleter
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T(*)[]>((OtherT(*)[])nullptr)))
 	>
 	FORCEINLINE TUniquePtr(TUniquePtr<OtherT, OtherDeleter>&& Other)
 		: Deleter(MoveTemp(Other.GetDeleter()))
@@ -555,8 +559,8 @@ public:
 	 */
 	template <
 		typename OtherT,
-		typename OtherDeleter,
-		typename = decltype(ImplicitConv<T(*)[]>((OtherT(*)[])nullptr))
+		typename OtherDeleter
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T(*)[]>((OtherT(*)[])nullptr)))
 	>
 	FORCEINLINE TUniquePtr& operator=(TUniquePtr<OtherT, OtherDeleter>&& Other)
 	{
@@ -650,8 +654,8 @@ public:
 	 * @param InPtr A pointer to the array to take ownership of.
 	 */
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T(*)[]>((U(*)[])nullptr))
+		typename U
+		UE_REQUIRES(UE_REQUIRES_EXPR(ImplicitConv<T(*)[]>((U(*)[])nullptr)))
 	>
 	FORCEINLINE void Reset(U* InPtr)
 	{
