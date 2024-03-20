@@ -28,7 +28,8 @@
 //			"name": "Default",
 //
 //			// Default account to use inside the Horde Server for querying submitted changes etc..
-//			"serviceAccount": "test.user",
+//			// If this value is not specified, the first item from the credentials below will be used.
+//			"serviceAccount": null,
 //
 //			// Whether the service account supports generating login tickets for other users, which requires a priviledged account on the server. Impersonating other users
 //			// allows Horde to submit changes on behalf of users.
@@ -40,17 +41,6 @@
 //				{
 //					// DNS name and port for the server
 //					"serverAndPort": "perforce:1666",
-//
-//					// Whether the server is running a health check service at http://server:5000/healthcheck. Horde can periodically poll this service to determine whether the
-//					// server is under heavy load and/or is being taken out of service.
-//					"healthCheck": false,
-//
-//					// Whether to manually resolve the DNS entry for serverAndPort above, and treat all records as a separate record. Putting multiple servers under a single DNS 
-//					// record is useful to allow Perforce configuration outside of the Horde configuration file.
-//					"resolveDns": false,
-//
-//					// Maximum number of agents that can be running conforms at once.
-//					"maxConformCount" : 1
 //				}
 //			],
 //
@@ -59,6 +49,8 @@
 //			[
 //				{
 //					"userName": "test.user",
+//
+//					// Specify either the password or ticket property below (not both)
 //					"password": "password123",
 //					"ticket": "ticket if not using password"
 //				}

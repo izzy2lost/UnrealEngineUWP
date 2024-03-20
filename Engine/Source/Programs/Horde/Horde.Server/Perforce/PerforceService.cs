@@ -398,7 +398,15 @@ namespace Horde.Server.Perforce
 			}
 			else
 			{
-				return new Credentials(PerforceSettings.Default.UserName, null, null, null);
+				PerforceCredentials? credentials = cluster.Credentials.FirstOrDefault();
+				if (credentials != null)
+				{
+					return new Credentials(credentials.UserName, credentials.Password, credentials.Ticket, null);
+				}
+				else
+				{
+					return new Credentials(PerforceSettings.Default.UserName, null, null, null);
+				}
 			}
 		}
 
