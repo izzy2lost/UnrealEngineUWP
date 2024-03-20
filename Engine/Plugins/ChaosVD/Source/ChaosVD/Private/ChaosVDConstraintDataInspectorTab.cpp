@@ -2,6 +2,7 @@
 
 #include "ChaosVDConstraintDataInspectorTab.h"
 
+#include "ChaosVDStyle.h"
 #include "Widgets/SChaosVDConstraintDataInspector.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
@@ -29,6 +30,8 @@ TSharedRef<SDockTab> FChaosVDConstraintDataInspectorTab::HandleTabSpawnRequest(c
 	{
 		DetailsPanelTab->SetContent(GenerateErrorWidget());
 	}
+
+	DetailsPanelTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("ConnectionIcon"));
 
 	HandleTabSpawned(DetailsPanelTab);
 
