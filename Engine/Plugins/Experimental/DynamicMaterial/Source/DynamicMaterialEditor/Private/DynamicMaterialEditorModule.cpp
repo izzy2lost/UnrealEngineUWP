@@ -15,6 +15,7 @@
 #include "Components/MaterialValues/DMMaterialValueFloat3XYZ.h"
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
+#include "Components/ActorComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "DetailsPanel/DMMaterialInterfaceTypeCustomizer.h"
 #include "DetailsPanel/DMPropertyTypeCustomizer.h"
@@ -26,13 +27,16 @@
 #include "DynamicMaterialEditorStyle.h"
 #include "DynamicMaterialModule.h"
 #include "Engine/World.h"
+#include "GameFramework/Actor.h"
 #include "LevelEditor/DMLevelEditorIntegration.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "MaterialList.h"
+#include "Model/DMMaterialModelDefaults.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "Model/DMModelCreatedCallback.h"
 #include "Slate/Properties/Editors/SDMPropertyEditBoolValue.h"
 #include "Slate/Properties/Editors/SDMPropertyEditFloat1Value.h"
 #include "Slate/Properties/Editors/SDMPropertyEditFloat2Value.h"
@@ -78,6 +82,7 @@ TMap<UClass*, FDMCreateValueEditWidgetDelegate> FDynamicMaterialEditorModule::Va
 TMap<UClass*, FDMComponentPropertyRowGeneratorDelegate> FDynamicMaterialEditorModule::ComponentPropertyRowGenerators;
 TMap<UClass*, FDMGetObjectMaterialPropertiesDelegate> FDynamicMaterialEditorModule::CustomMaterialPropertyGenerators;
 FDMOnUIValueUpdate FDynamicMaterialEditorModule::OnUIValueUpdate;
+TArray<TSharedRef<IDMMaterialModelCreatedCallback>> FDynamicMaterialEditorModule::OnCreatedCallbacks;
 
 void FDynamicMaterialEditorModule::RegisterValueEditWidgetDelegate(UClass* InClass, FDMCreateValueEditWidgetDelegate ValueEditBodyDelegate)
 {
@@ -182,6 +187,49 @@ void FDynamicMaterialEditorModule::RegisterCustomMaterialPropertyGenerator(UClas
 	CustomMaterialPropertyGenerators.FindOrAdd(InClass) = InGenerator;
 }
 
+void FDynamicMaterialEditorModule::RegisterMaterialModelCreatedCallback(const TSharedRef<IDMMaterialModelCreatedCallback> InCallback)
+{
+	OnCreatedCallbacks.Add(InCallback);
+
+	OnCreatedCallbacks.StableSort(
+		[](const TSharedRef<IDMMaterialModelCreatedCallback>& InA, const TSharedRef<IDMMaterialModelCreatedCallback>& InB)
+		{
+			return InA.Get() < InB.Get();
+		}
+	);
+}
+
+void FDynamicMaterialEditorModule::UnregisterMaterialModelCreatedCallback(const TSharedRef<IDMMaterialModelCreatedCallback> InCallback)
+{
+	OnCreatedCallbacks.Remove(InCallback);
+}
+
+void FDynamicMaterialEditorModule::OnMaterialModelCreated(UDynamicMaterialModel* InModel)
+{
+	if (!IsValid(InModel))
+	{
+		return;
+	}
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InModel);
+	UObject* Outer = InModel->GetOuter();
+	UActorComponent* OuterComponent = InModel->GetTypedOuter<UActorComponent>();
+	AActor* OuterActor = InModel->GetTypedOuter<AActor>();
+
+	const FDMMaterialModelCreatedCallbackParams Params = {
+		InModel,
+		EditorOnlyData,
+		Outer,
+		OuterComponent,
+		OuterActor
+	};
+
+	for (const TSharedRef<IDMMaterialModelCreatedCallback>& OnCreatedCallback : OnCreatedCallbacks)
+	{
+		OnCreatedCallback->OnModelCreated(Params);
+	}
+}
+
 FDMGetObjectMaterialPropertiesDelegate FDynamicMaterialEditorModule::GetCustomMaterialPropertyGenerator(UClass* InClass)
 {
 	if (InClass)
@@ -224,6 +272,8 @@ void FDynamicMaterialEditorModule::StartupModule()
 	MateriaListWidgetsDelegate = FMaterialList::OnAddMaterialItemViewExtraBottomWidget.AddStatic(&AddMaterialListWidgets);
 
 	FDMLevelEditorIntegration::Initialize();
+
+	FDMMaterialModelDefaults::RegisterDefaultsDelegates();
 
 	RegisterValueEditWidgetDelegate<UDMMaterialValueBool,      SDMPropertyEditBoolValue>();
 	RegisterValueEditWidgetDelegate<UDMMaterialValueFloat1,    SDMPropertyEditFloat1Value>();
@@ -271,6 +321,8 @@ void FDynamicMaterialEditorModule::ShutdownModule()
 	FMaterialList::OnAddMaterialItemViewExtraBottomWidget.Remove(MateriaListWidgetsDelegate);
 
 	FDMLevelEditorIntegration::Shutdown();
+
+	FDMMaterialModelDefaults::UnregsiterDefaultsDelegates();
 
 	BuildRequestList.Empty();
 

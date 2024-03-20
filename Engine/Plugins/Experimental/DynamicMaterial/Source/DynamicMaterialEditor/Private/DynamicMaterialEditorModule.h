@@ -90,6 +90,8 @@ public:
 	//~ Begin IDynamicMaterialEditorModule
 	virtual void OpenEditor(UWorld* InWorld) override;
 	virtual void RegisterCustomMaterialPropertyGenerator(UClass* InClass, FDMGetObjectMaterialPropertiesDelegate InGenerator) override;
+	virtual void RegisterMaterialModelCreatedCallback(const TSharedRef<IDMMaterialModelCreatedCallback> InCallback)  override;
+	virtual void UnregisterMaterialModelCreatedCallback(const TSharedRef<IDMMaterialModelCreatedCallback> InCallback) override;
 	//~ End IDynamicMaterialEditorModule
 
 	//~ Begin IModuleInterface
@@ -117,11 +119,14 @@ public:
 
 	const TSharedRef<FUICommandList>& GetCommandList() const { return CommandList; }
 
+	void OnMaterialModelCreated(UDynamicMaterialModel* InModel);
+
 protected:
 	static TMap<UClass*, FDMCreateValueEditWidgetDelegate> ValueEditWidgetDelegates;
 	static TMap<UClass*, FDMComponentPropertyRowGeneratorDelegate> ComponentPropertyRowGenerators;
 	static TMap<UClass*, FDMGetObjectMaterialPropertiesDelegate> CustomMaterialPropertyGenerators;
 	static FDMOnUIValueUpdate OnUIValueUpdate;
+	static TArray<TSharedRef<IDMMaterialModelCreatedCallback>> OnCreatedCallbacks;
 
 	TSet<FDMBuildRequestEntry> BuildRequestList;
 	TSharedRef<FUICommandList> CommandList;

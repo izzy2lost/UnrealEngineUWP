@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "DynamicMaterialEditorModule.h"
 #include "Components/DMMaterialComponent.h"
 #include "Model/DynamicMaterialModelFactory.h"
 #include "Model/DynamicMaterialModel.h"
@@ -39,6 +40,8 @@ UObject* UDynamicMaterialModelFactory::FactoryCreateNew(UClass* Class, UObject* 
 
 	const FDMInitializationGuard InitGuard;
 	ModelEditorOnlyData->AddSlot();
+
+	FDynamicMaterialEditorModule::Get().OnMaterialModelCreated(NewModel);
 
 	return NewModel;
 }

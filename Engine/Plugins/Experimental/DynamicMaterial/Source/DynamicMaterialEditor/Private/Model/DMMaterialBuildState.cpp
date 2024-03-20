@@ -384,7 +384,7 @@ void FDMMaterialBuildState::AddStageSourceExpressions(const UDMMaterialStageSour
 {
 	if (ensure(!HasStageSource(InStageSource)))
 	{
-		if (ensure(!InStageSourceExpressions.IsEmpty()))
+		if (!InStageSourceExpressions.IsEmpty())
 		{
 			StageSources.Emplace(InStageSource, InStageSourceExpressions);
 		}

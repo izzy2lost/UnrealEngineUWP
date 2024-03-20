@@ -7,8 +7,10 @@
 #include "Modules/ModuleManager.h"
 
 class UClass;
+class UDynamicMaterialModel;
 class UObject;
 struct FDMObjectMaterialProperty;
+struct IDMMaterialModelCreatedCallback;
 
 DECLARE_DELEGATE_RetVal_OneParam(TArray<FDMObjectMaterialProperty>, FDMGetObjectMaterialPropertiesDelegate, UObject* InObject)
 
@@ -32,4 +34,17 @@ public:
 	virtual void OpenEditor(UWorld* InWorld) = 0;
 
 	virtual void RegisterCustomMaterialPropertyGenerator(UClass* InClass, FDMGetObjectMaterialPropertiesDelegate InGenerator) = 0;
+
+	virtual void RegisterMaterialModelCreatedCallback(const TSharedRef<IDMMaterialModelCreatedCallback> InCallback) = 0;
+
+	virtual void UnregisterMaterialModelCreatedCallback(const TSharedRef<IDMMaterialModelCreatedCallback> InCallback) = 0;
+
+	template<typename InCallbackType, typename... InArgsType
+		UE_REQUIRES(std::is_base_of_v<IDMMaterialModelCreatedCallback, InCallbackType>)>
+	TSharedRef<InCallbackType> RegisterMaterialModelCreatedCallback(InArgsType&&... InArgs)
+	{
+		TSharedRef<InCallbackType> NewCallback = MakeShared<InCallbackType>(Forward<InArgsType>(InArgs)...);
+		RegisterMaterialModelCreatedCallback(NewCallback);
+		return NewCallback;
+	}
 };
