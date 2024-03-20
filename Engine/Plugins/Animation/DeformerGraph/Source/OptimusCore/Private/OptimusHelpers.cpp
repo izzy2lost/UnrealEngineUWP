@@ -308,3 +308,15 @@ FString Optimus::MakeUniqueValueName(const FString& InValueName, int32 InUniqueI
 {
 	return InValueName + TEXT("_") + FString::FromInt(InUniqueIndex);
 }
+
+FString Optimus::ExtractSourceValueName(const FString& InUniqueValueName)
+{
+	int32 LastUnderscoreIndex;
+	InUniqueValueName.FindLastChar(TEXT('_'), LastUnderscoreIndex);
+	if (ensure(LastUnderscoreIndex != INDEX_NONE))
+	{
+		return InUniqueValueName.Left(LastUnderscoreIndex);
+	}
+
+	return InUniqueValueName;
+}

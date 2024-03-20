@@ -128,4 +128,5 @@ namespace Optimus
 	FName GenerateUniqueNameFromExistingNames(FName InBaseName, const TArray<FName>& InExistingNames);
 
 	FString MakeUniqueValueName(const FString& InValueName, int32 InUniqueIndex);
+	FString ExtractSourceValueName(const FString& InUniqueValueName);
 }

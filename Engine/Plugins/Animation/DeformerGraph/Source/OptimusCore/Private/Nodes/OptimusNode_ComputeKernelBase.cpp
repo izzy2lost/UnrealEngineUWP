@@ -415,7 +415,7 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 				// Value nodes bind the single graph data interface.
 				DataInterfaceFuncIndex = InValueNodes.Find(OutputNode);
 				check(DataInterfaceFuncIndex != INDEX_NONE);
-				DataFunctionName = Optimus::MakeUniqueValueName(ValueProvider->GetValueDebugName(), DataInterfaceFuncIndex);
+				DataFunctionName = Optimus::MakeUniqueValueName(ValueProvider->GetValueName(), DataInterfaceFuncIndex);
 			}
 		}
 		else if (Cast<const UOptimusNode_LoopTerminal>(OutputNode))

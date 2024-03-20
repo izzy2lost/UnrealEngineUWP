@@ -7,6 +7,7 @@
 #include "ComputeFramework/ShaderParameterMetadataAllocation.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
 #include "OptimusDeformerInstance.h"
+#include "OptimusHelpers.h"
 #include "OptimusVariableDescription.h"
 #include "ShaderParameterMetadataBuilder.h"
 
@@ -93,6 +94,17 @@ UComputeDataProvider* UOptimusGraphDataInterface::CreateDataProvider(TObjectPtr<
 	UOptimusGraphDataProvider* Provider = NewObject<UOptimusGraphDataProvider>();
 	Provider->MeshComponent = Cast<UMeshComponent>(InBinding);
 	Provider->Variables = Variables;
+
+	for (FOptimusGraphVariableDescription& Variable : Provider->Variables)
+	{
+		// When source object was introduced, we also appended a unique index to the value name provided by each value provider
+		// so instead of using the name directly, we need to do this extra step
+		if (!Variable.SourceObject.IsNull())
+		{
+			Variable.CachedSourceValueName = Optimus::ExtractSourceValueName(Variable.Name);
+		}
+	}
+	
 	Provider->ParameterBufferSize = ParameterBufferSize;
 	return Provider;
 }
@@ -157,7 +169,33 @@ FOptimusGraphDataProviderProxy::FOptimusGraphDataProviderProxy(UOptimusDeformerI
 			{
 				if (VariableValue != nullptr)
 				{
-					if (Variable.ValueType == VariableValue->DataType->ShaderValueType && Variable.Name == VariableValue->VariableName.GetPlainNameString())
+					if (Variable.ValueType != VariableValue->DataType->ShaderValueType)
+					{
+						continue;
+					}
+
+					bool bNameMatch = false;
+					
+					// Once upon a time when these values had no source objects, they also just have simple names
+					// so we can directly use the name to find the matching variable
+					if (Variable.SourceObject.IsNull())
+					{
+						if (Variable.Name == VariableValue->VariableName.GetPlainNameString())
+						{
+							bNameMatch = true;
+						}	
+					}
+					else
+					{
+						// When source object was introduced, we also appended a unique index to the value name
+						// so instead of using the name directly we use the source value name
+						if (Variable.CachedSourceValueName == VariableValue->VariableName.GetPlainNameString())
+						{
+							bNameMatch = true;
+						}	
+					}
+
+					if (bNameMatch)
 					{
 						if (ensure(ParameterData.Num() >= Variable.Offset + VariableValue->ValueData.Num()))
 						{
