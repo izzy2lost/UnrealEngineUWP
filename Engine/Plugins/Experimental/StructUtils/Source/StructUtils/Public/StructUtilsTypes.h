@@ -25,6 +25,17 @@ namespace UE::StructUtils
 	extern STRUCTUTILS_API uint32 GetStructCrc32(const FSharedStruct& SharedView, const uint32 CRC = 0);
 	extern STRUCTUTILS_API uint32 GetStructCrc32(const FConstSharedStruct& SharedView, const uint32 CRC = 0);
 
+	/** 
+	 * CityHash64-based struct hashing functions.
+	 * Note that these are relatively slow due to using either UScriptStruct.GetStructTypeHash (if implemented) or
+	 * a serialization path. 
+	 */
+	extern STRUCTUTILS_API uint64 GetStructHash64(const UScriptStruct& ScriptStruct, const uint8* StructMemory);
+	extern STRUCTUTILS_API uint64 GetStructHash64(const FStructView& StructView);
+	extern STRUCTUTILS_API uint64 GetStructHash64(const FConstStructView& StructView);
+	extern STRUCTUTILS_API uint64 GetStructHash64(const FSharedStruct& SharedView);
+	extern STRUCTUTILS_API uint64 GetStructHash64(const FConstSharedStruct& SharedView);
+
 	template <typename T>
 	typename TEnableIf<!TIsDerivedFrom<T, UObject>::IsDerived, UScriptStruct*>::Type GetAsUStruct()
 	{
