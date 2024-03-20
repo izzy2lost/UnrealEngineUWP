@@ -58,19 +58,19 @@ struct METASOUNDENGINE_API FMetaSoundQualitySettings
 	UPROPERTY()
 	FGuid UniqueId = {};
 
-#endif //WITH_EDITORONLY_DATA
-
 	/** Name of this quality setting. This will appear in the quality dropdown list.
 		The names should be unique and adequately describe the Entry. "High", "Low" etc. **/
 	UPROPERTY(EditAnywhere, Category = "Quality")
 	FName Name = {};
+	
+#endif //WITH_EDITORONLY_DATA	
 
 	/** Sample Rate (in Hz). NOTE: A Zero value will have no effect and use the Device Rate. **/
-	UPROPERTY(EditAnywhere, Category = "Quality", meta = (ClampMin = "0", ClampMax="96000"))
+	UPROPERTY(EditAnywhere, config, Category = "Quality", meta = (ClampMin = "0", ClampMax="96000"))
 	FPerPlatformInt SampleRate = 0;
 
 	/** Block Rate (in Hz). NOTE: A Zero value will have no effect and use the Default (100)  **/
-	UPROPERTY(EditAnywhere, Category = "Quality", meta = (ClampMin = "0", ClampMax="1000"))
+	UPROPERTY(EditAnywhere, config, Category = "Quality", meta = (ClampMin = "0", ClampMax="1000"))
 	FPerPlatformFloat BlockRate = 0.f;
 };
 
@@ -105,17 +105,26 @@ public:
 	  */
 	UPROPERTY(EditAnywhere, config, Category = Registration, meta = (RelativePath, LongPackageName))
 	TArray<FDirectoryPath> DirectoriesToRegister;
-	
-	/** Array of possible quality settings for Metasounds to chose from */
-	UPROPERTY(EditAnywhere, config, Category = Quality)
-	TArray<FMetaSoundQualitySettings> QualitySettings;
 		
 	UPROPERTY(Transient)
 	int32 DenyListCacheChangeID = 0;	
 
+#if WITH_EDITORONLY_DATA
+	const TArray<FMetaSoundQualitySettings>& GetQualitySettings() const { return QualitySettings; }
+	static FName GetQualitySettingPropertyName(); 
+#endif //WITH_EDITORONLY_DATA
+
+private:
+
+	/** Array of possible quality settings for Metasounds to chose from */
+	// NOTE: Ideally this would be wrapped with WITH_EDITORONLY_DATA, but standalone "-game" requires
+	// it to exist. Access is limited to the accessor above, which enforces it correctly.
+	UPROPERTY(EditAnywhere, config, Category = Quality)
+	TArray<FMetaSoundQualitySettings> QualitySettings;
+
 #if WITH_EDITOR
 private:
-	
+
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

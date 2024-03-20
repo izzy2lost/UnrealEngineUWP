@@ -8,6 +8,7 @@
 #include "AudioDeviceManager.h"
 #include "Containers/Ticker.h"
 #include "IAudioParameterInterfaceRegistry.h"
+#include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/MetasoundOutputFormatInterfaces.h"
 #include "Interfaces/MetasoundFrontendSourceInterface.h"
 #include "Internationalization/Text.h"
@@ -59,6 +60,18 @@ namespace Metasound
 
 	namespace SourcePrivate
 	{
+		static constexpr float DefaultBlockRateConstant = 100.f;
+		static constexpr float DefaultSampleRateConstant = 48000.f;
+
+		static bool IsCookedForEditor(const FArchive& InArchive, const UObject* InObj)
+		{
+#if WITH_EDITORONLY_DATA
+			return ((InArchive.GetPortFlags() & PPF_Duplicate) == 0) && InObj->GetPackage()->HasAnyPackageFlags(PKG_Cooked);
+#else //WITH_EDITORONLY_DATA
+			return false;
+#endif //WITH_EDITORONLY_DATA
+		}
+		
 		static const FLazyName TriggerName = "Trigger";
 
 		// Holds onto a global static TSet for tracking which error/warning logs have been
@@ -366,8 +379,8 @@ void UMetaSoundSource::PostEditChangeProperty(FPropertyChangedEvent& InEvent)
 	{
 		PostEditChangeOutputFormat();
 	}
-	if (InEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSource, SampleRateOverride) ||
-		InEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSource, BlockRateOverride) ||
+	if (InEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSource, SampleRateOverride) ||
+		InEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSource, BlockRateOverride) ||
 		InEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSource, QualitySetting) )
 	{
 		PostEditChangeQualitySettings();
@@ -444,9 +457,6 @@ void UMetaSoundSource::PostEditChangeOutputFormat()
 
 void UMetaSoundSource::PostEditChangeQualitySettings()
 {
-	// Re-cache Operator settings by clearing the Optional.
-	OperatorSettings.Reset();
-
 	// Refresh the SampleRate (which is what the engine sees from the operator settings).
 	SampleRate = GetOperatorSettings(CachedAudioDeviceSampleRate).GetSampleRate();
 
@@ -454,7 +464,7 @@ void UMetaSoundSource::PostEditChangeQualitySettings()
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())	
 	{
 		auto FindByName = [&Name = QualitySetting](const FMetaSoundQualitySettings& Q) -> bool { return Q.Name == Name; };
-		if (const FMetaSoundQualitySettings* Found = Settings->QualitySettings.FindByPredicate(FindByName))
+		if (const FMetaSoundQualitySettings* Found = Settings->GetQualitySettings().FindByPredicate(FindByName))
 		{
 			QualitySettingGuid = Found->UniqueId;
 		}
@@ -515,6 +525,89 @@ void UMetaSoundSource::Serialize(FArchive& InArchive)
 {
 	Super::Serialize(InArchive);
 	Metasound::FMetaSoundEngineAssetHelper::SerializeToArchive(*this, InArchive);
+	
+	using namespace Metasound::SourcePrivate;	
+	
+	// Load/Save cooked data.
+	if (InArchive.IsCooking() || (FPlatformProperties::RequiresCookedData() && InArchive.IsLoading()) || IsCookedForEditor(InArchive, this))
+	{
+		const FName PlatformName = InArchive.CookingTarget() ? *InArchive.CookingTarget()->IniPlatformName() : FName(FPlatformProperties::IniPlatformName());
+		SerializeCookedQualitySettings(PlatformName, InArchive);
+	}
+}
+
+bool UMetaSoundSource::GetQualitySettings(
+	const FName InPlatformName, Metasound::SourcePrivate::FCookedQualitySettings& OutQualitySettings) const
+{
+#if WITH_EDITORONLY_DATA
+	
+	// Query Project settings. 
+	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+	{
+		if (const FMetaSoundQualitySettings* Found = Settings->GetQualitySettings().FindByPredicate([&QT = QualitySetting](const FMetaSoundQualitySettings& Q) -> bool { return Q.Name == QT; }))
+		{
+			// Allow partial applications of settings, if some are non-zero.
+			if (const float Value = Found->BlockRate.GetValueForPlatform(InPlatformName); Value > 0.f)
+			{
+				UE_LOG(LogMetaSound, VeryVerbose, TEXT("Metasound [%s] using Quality '%s', BlockRate=%3.3f" ), *GetName(), *QualitySetting.ToString(), Value);
+				OutQualitySettings.BlockRate = Value;
+			}
+			if (const int32 Value = Found->SampleRate.GetValueForPlatform(InPlatformName); Value > 0)
+			{
+				UE_LOG(LogMetaSound, VeryVerbose, TEXT("Metasound [%s] using Quality '%s', SampleRate=%d" ), *GetName(), *QualitySetting.ToString(), Value);
+				OutQualitySettings.SampleRate = Value;
+			}
+		}
+	}
+
+	// Query overrides defined on this asset.
+	if (const float SerializedBlockRate = BlockRateOverride.GetValueForPlatform(InPlatformName); SerializedBlockRate > 0.0f)
+	{
+		UE_LOG(LogMetaSound, VeryVerbose, TEXT("Metasound [%s] BlockRate Override: %3.3f"), *GetName(), SerializedBlockRate);
+		OutQualitySettings.BlockRate = SerializedBlockRate;
+	}
+	if (const int32 SerializedSampleRate = SampleRateOverride.GetValueForPlatform(InPlatformName); SerializedSampleRate > 0)
+	{
+		UE_LOG(LogMetaSound, VeryVerbose, TEXT("Metasound [%s] SampleRate Override: %d"), *GetName(), SerializedSampleRate);
+		OutQualitySettings.SampleRate = SerializedSampleRate;
+	}
+	
+	// Success.
+	UE_LOG(LogMetaSound, Verbose, TEXT("Metasound [%s] using SampleRate=%d, BlockRate=%2.3f (not-cooked)"),
+	 	*GetName(), OutQualitySettings.SampleRate.GetValue(), OutQualitySettings.BlockRate.GetValue()) ;
+	
+	return true;
+
+#else //WITH_EDITORONLY_DATA	
+
+	// If we've been cooked, this should contain the quality settings.
+	if (CookedQualitySettings)
+	{
+		OutQualitySettings = *CookedQualitySettings;
+		UE_LOG(LogMetaSound, Verbose, TEXT("Metasound [%s] using SampleRate=%d, BlockRate=%2.3f (cooked)"),
+			*GetName(), OutQualitySettings.SampleRate.GetValue(), OutQualitySettings.BlockRate.GetValue()) ;
+		return true;
+	}
+	
+	// Fail.
+	return false;
+	
+#endif //WITH_EDITORONLY_DATA
+}
+void UMetaSoundSource::SerializeCookedQualitySettings(const FName PlatformName, FArchive& Ar)
+{
+	Metasound::SourcePrivate::FCookedQualitySettings Settings;
+	if (Ar.IsSaving())
+	{
+		GetQualitySettings(PlatformName, Settings);
+	}
+	// Use Struct Serializer.
+	FMetaSoundQualitySettings::StaticStruct()->SerializeItem(Ar,&Settings,nullptr);
+		
+	if (Ar.IsLoading())
+	{
+		CookedQualitySettings = MakePimpl<Metasound::SourcePrivate::FCookedQualitySettings>(Settings);
+	}
 }
 
 #if WITH_EDITOR
@@ -601,7 +694,7 @@ void UMetaSoundSource::PostLoadQualitySettings()
 		{
 			if (
 				WeakSource.IsValid() &&
-				InEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSettings, QualitySettings)
+				InEvent.GetMemberPropertyName() == UMetaSoundSettings::GetQualitySettingPropertyName()
 			)
 			{
 				WeakSource->ResolveQualitySettings(CastChecked<UMetaSoundSettings>(InObj));
@@ -616,8 +709,6 @@ void UMetaSoundSource::PostLoadQualitySettings()
 			{
 				WeakSource->ResolveQualitySettings(GetMutableDefault<UMetaSoundSettings>());
 			
-				WeakSource->OperatorSettings.Reset();
-						
 				// Override SampleRate with the Operator settings version which uses our Quality settings.
 				WeakSource->SampleRate = WeakSource->GetOperatorSettings(WeakSource->CachedAudioDeviceSampleRate).GetSampleRate();
 			}
@@ -630,19 +721,20 @@ void UMetaSoundSource::PostLoadQualitySettings()
 
 void UMetaSoundSource::ResolveQualitySettings(const UMetaSoundSettings* Settings)
 {
+#if WITH_EDITORONLY_DATA
+
 	const FMetaSoundQualitySettings* Resolved = nullptr;
 
 	// 1. Try and resolve by name. (most should resolve unless its been renamed, deleted).
 	auto FindByName = [&Name = QualitySetting](const FMetaSoundQualitySettings& Q) -> bool { return Q.Name == Name; };
-	Resolved = Settings->QualitySettings.FindByPredicate(FindByName);
+	Resolved = Settings->GetQualitySettings().FindByPredicate(FindByName);
 
-#if WITH_EDITORONLY_DATA
 
 	// 2. If that failed, try by guid (if its been renamed in the settings, we can still find it).
 	if (!Resolved && QualitySettingGuid.IsValid())
 	{
 		auto FindByGuid = [&Guid = QualitySettingGuid](const FMetaSoundQualitySettings& Q) -> bool { return Q.UniqueId == Guid; };
-		Resolved = Settings->QualitySettings.FindByPredicate(FindByName);
+		Resolved = Settings->GetQualitySettings().FindByPredicate(FindByName);
 	}
 
 	// 3. If still failed to resolve, use defaults and warn.
@@ -654,11 +746,11 @@ void UMetaSoundSource::ResolveQualitySettings(const UMetaSoundSettings* Settings
 		// Reset to defaults. (and make sure they are sane)
 		QualitySetting = GetDefault<UMetaSoundSource>()->QualitySetting;
 		QualitySettingGuid = GetDefault<UMetaSoundSource>()->QualitySettingGuid;
-		if (!Settings->QualitySettings.FindByPredicate(FindByName) && !Settings->QualitySettings.IsEmpty())
+		if (!Settings->GetQualitySettings().FindByPredicate(FindByName) && !Settings->GetQualitySettings().IsEmpty())
 		{
 			// Default doesn't point to anything, use first one in the list.
-			QualitySetting = Settings->QualitySettings[0].Name;
-			QualitySettingGuid = Settings->QualitySettings[0].UniqueId;
+			QualitySetting = Settings->GetQualitySettings()[0].Name;
+			QualitySettingGuid = Settings->GetQualitySettings()[0].UniqueId;
 		}				
 	}
 
@@ -1324,79 +1416,41 @@ TSharedPtr<Audio::IParameterTransmitter> UMetaSoundSource::CreateParameterTransm
 
 Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FSampleRate InDeviceSampleRate) const
 {	
-	// We should recache the operator settings if the device rate has changed.
-	if (InDeviceSampleRate != CachedAudioDeviceSampleRate)
-	{
-		OperatorSettings.Reset();
-	}
+	using namespace Metasound;
+	using namespace Metasound::SourcePrivate;
 	
-	if (!OperatorSettings)
+	// Default sensibly.
+	FCookedQualitySettings Settings;
+	Settings.BlockRate = DefaultBlockRateConstant;
+	Settings.SampleRate = InDeviceSampleRate > 0 ? InDeviceSampleRate : DefaultSampleRateConstant;
+
+	// Fetch our quality settings.
+	// If we are cooked these are baked, if we are editor these are queried from the project settings and this assets overrides.
+	ensure(GetQualitySettings(FPlatformProperties::IniPlatformName(), Settings));
+	
+	// Query CVars. (Override with CVars if they are > 0)
+	using namespace Metasound::Frontend;
+	const float BlockRateCVar = GetBlockRateOverride();
+	const int32 SampleRateCvar = GetSampleRateOverride();
+
+	if (SampleRateCvar > 0)
 	{
-		using namespace Metasound;
-		using namespace Metasound::SourcePrivate;
-		
-		// Lazy Query and cache on the optional.
-		auto QueryQualitySettings = [&](Metasound::FSampleRate InSampleRate) -> Metasound::FOperatorSettings
-		{
-			static const float DefaultBlockRateConstant = 100.f;
-			static const float DefaultSampleRateConstant = 48000.f;
-			
-			// 1. Sensible defaults. (If Device SampleRate is sensible use that as default).
-			FSampleRate MetasoundSampleRate = InSampleRate > 0 ? InDeviceSampleRate : DefaultSampleRateConstant;
-			float MetasoundBlockRate = DefaultBlockRateConstant;
-
-			// 2. Query our quality settings.
-			if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
-			{
-				if (const FMetaSoundQualitySettings* Found = Settings->QualitySettings.FindByPredicate([&QT = QualitySetting](const FMetaSoundQualitySettings& Q) -> bool { return Q.Name == QT; }))
-				{
-					// Allow partial applications of settings, if some are non-zero.
-					if (const float Value = Found->BlockRate.GetValue(); Value > 0.f)
-					{
-						MetasoundBlockRate = Value;
-					}
-					if (const float Value = Found->SampleRate.GetValue(); Value > 0.f)
-					{
-						MetasoundSampleRate = Value;
-					}
-				}
-			}
-
-			// 3. Do per asset overrides.
-			if (const float SerializedBlockRate = BlockRateOverride.GetValue(); SerializedBlockRate > 0.0f)
-			{
-				MetasoundBlockRate = SerializedBlockRate;
-			}
-			if (const int32 SerializedSampleRate = SampleRateOverride.GetValue(); SerializedSampleRate > 0)
-			{
-				MetasoundSampleRate = SerializedSampleRate;
-			}
-
-			// 4. Query CVars. (Override with CVars if they are > 0)
-			using namespace Metasound::Frontend;
-			const float BlockRateCVar = GetBlockRateOverride();
-			const int32 SampleRateCvar = GetSampleRateOverride();
-
-			if (SampleRateCvar > 0)
-			{
-				MetasoundSampleRate = SampleRateCvar;
-			}
-			if (BlockRateCVar > 0)
-			{
-				MetasoundBlockRate = BlockRateCVar;
-			}
-
-			// 5. Sanity clamps.
-			const TRange<float> BlockRange = GetBlockRateClampRange();
-			const TRange<int32> RateRange = GetSampleRateClampRange();
-			MetasoundBlockRate = FMath::Clamp(MetasoundBlockRate, BlockRange.GetLowerBoundValue(), BlockRange.GetUpperBoundValue());
-			MetasoundSampleRate = FMath::Clamp(MetasoundSampleRate, RateRange.GetLowerBoundValue(), RateRange.GetUpperBoundValue());
-
-			return Metasound::FOperatorSettings(MetasoundSampleRate, MetasoundBlockRate);
-		};
-		OperatorSettings = QueryQualitySettings(InDeviceSampleRate);
+		Settings.SampleRate = SampleRateCvar;
 	}
-	return *OperatorSettings;
+	if (BlockRateCVar > 0)
+	{
+		Settings.BlockRate = BlockRateCVar;
+	}
+
+	// Sanity clamps.
+	const TRange<float> BlockRange = GetBlockRateClampRange();
+	const TRange<int32> RateRange = GetSampleRateClampRange();
+	Settings.BlockRate = FMath::Clamp(Settings.BlockRate.GetValue(), BlockRange.GetLowerBoundValue(), BlockRange.GetUpperBoundValue());
+	Settings.SampleRate = FMath::Clamp(Settings.SampleRate.GetValue(), RateRange.GetLowerBoundValue(), RateRange.GetUpperBoundValue());
+
+	return Metasound::FOperatorSettings(
+		/* SampleRate */ Settings.SampleRate.GetValue(),
+		/* BlockRate */ Settings.BlockRate.GetValue());
 }
 
 Metasound::FMetasoundEnvironment UMetaSoundSource::CreateEnvironment() const

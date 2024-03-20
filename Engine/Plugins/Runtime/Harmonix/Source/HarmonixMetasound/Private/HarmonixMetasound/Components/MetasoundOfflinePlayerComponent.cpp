@@ -40,10 +40,6 @@ UMetasoundGeneratorHandle* UMetasoundOfflinePlayerComponent::CreateGeneratorBase
 
 	TArray<FAudioParameter> DefaultParams;
 
-	// HACK: Override the MetaSound Source's sample rate to work around the bug in UMetaSoundSource::GetOperatorSettings
-	// where it will use the hard-coded default sample rate of 48000 instead of whatever you pass in.
-	MetasoundSource->SampleRateOverride = SampleRate;
-
 	Generator = MetasoundSource->CreateSoundGenerator(InitParams, TArray<FAudioParameter>());
 	if (!Generator)
 	{
@@ -93,10 +89,7 @@ TSharedPtr<Metasound::FMetasoundGeneratorHandle> UMetasoundOfflinePlayerComponen
 
 	TArray<FAudioParameter> DefaultParams;
 
-	// HACK: Override the MetaSound Source's sample rate to work around the bug in UMetaSoundSource::GetOperatorSettings
-	// where it will use the hard-coded default sample rate of 48000 instead of whatever you pass in.
-	MetasoundSource->SampleRateOverride = SampleRate;
-
+	
 	Generator = MetasoundSource->CreateSoundGenerator(InitParams, TArray<FAudioParameter>());
 	if (!Generator)
 	{
