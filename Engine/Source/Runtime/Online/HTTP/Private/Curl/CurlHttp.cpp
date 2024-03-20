@@ -11,7 +11,6 @@
 #include "Misc/Paths.h"
 #include "Curl/CurlHttpManager.h"
 #include "Misc/ScopeLock.h"
-#include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Internationalization/Regex.h"
 
@@ -332,18 +331,9 @@ bool FCurlHttpRequest::SetContentAsStreamedFile(const FString& Filename)
 		return false;
 	}
 
-	FArchive* File = IFileManager::Get().CreateFileReader(*Filename);
-	if (File)
-	{
-		RequestPayload = MakeUnique<FRequestPayloadInFileStream>(MakeShareable(File), true/*bInCloseWhenComplete*/);
-	}
-	else
-	{
-		UE_LOG(LogHttp, Warning, TEXT("FCurlHttpRequest::SetContentAsStreamedFile Failed to open %s for reading"), *Filename);
-		RequestPayload.Reset();
-	}
+	RequestPayload = MakeUnique<FRequestPayloadInFileStream>(*Filename);
 	bIsRequestPayloadSeekable = false;
-	return RequestPayload.IsValid();
+	return true;
 }
 
 bool FCurlHttpRequest::SetContentFromStream(TSharedRef<FArchive, ESPMode::ThreadSafe> Stream)
@@ -818,19 +808,24 @@ bool FCurlHttpRequest::SetupRequest()
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_SetupRequest);
 	check(EasyHandle);
 
-	if ((GetVerb().IsEmpty() || GetVerb().Equals(TEXT("GET"), ESearchCase::IgnoreCase))
-		&& (RequestPayload.IsValid() && RequestPayload->GetContentLength() > 0))
-	{
-		UE_LOG(LogHttp, Warning, TEXT("An HTTP Get request cannot contain a payload."));
-		return false;
-	}
-
 	// set up request
 
 	if (!RequestPayload.IsValid())
 	{
 		RequestPayload = MakeUnique<FRequestPayloadInMemory>(TArray<uint8>());
 		bIsRequestPayloadSeekable = true;
+	}
+
+	if (!RequestPayload->Open())
+	{
+		UE_LOG(LogHttp, Warning, TEXT("Failed to open request payload."));
+		return false;
+	}
+
+	if ((GetVerb().IsEmpty() || GetVerb().Equals(TEXT("GET"), ESearchCase::IgnoreCase)) && RequestPayload->GetContentLength() > 0)
+	{
+		UE_LOG(LogHttp, Warning, TEXT("An HTTP Get request cannot contain a payload."));
+		return false;
 	}
 
 	bCurlRequestCompleted = false;
