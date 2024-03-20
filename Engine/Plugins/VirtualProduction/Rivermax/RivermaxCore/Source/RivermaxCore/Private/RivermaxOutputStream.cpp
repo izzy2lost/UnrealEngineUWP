@@ -112,9 +112,8 @@ namespace UE::RivermaxCore::Private
 		TEXT("Optimization used to prefill every RTP headers with known data."),
 		ECVF_Default);
 
-
 	static TAutoConsoleVariable<bool> CVarRivermaxOutputForceSkip(
-		TEXT("Rivermax.Output.ForceSkip"), true,
+		TEXT("Rivermax.Output.ForceSkip"), false,
 		TEXT("Used to prevent enforced blank window when multiplier is used to prevent timing issues.")
 		TEXT("Only affects alignment point method."),
 		ECVF_Default);
