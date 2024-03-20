@@ -103,6 +103,9 @@ class Platform(unreal.Platform):
         if target == "game":   return "Android_ASTC"
         if target == "client": return "Android_ASTCClient"
 
+    def _get_cook_flavor(self):
+        return "ASTC"
+
     def _get_package_name(self):
         config = self.get_unreal_context().get_config()
         if ret := str(config.get("Engine", Platform.config_section, "PackageName")):

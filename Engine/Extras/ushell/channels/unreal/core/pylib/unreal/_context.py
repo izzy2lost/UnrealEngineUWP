@@ -622,7 +622,7 @@ class Context(object):
         iter_dir:Path = uproj_path.parent.parent
         while not iter_dir.samefile(iter_dir.anchor):
             candidate = iter_dir / "Engine"
-            if candidate.is_dir():
+            if candidate.is_dir() and (candidate / "Config").is_dir():
                 self._type = ContextType.PROJECT
                 self._engine_dir = candidate
                 return

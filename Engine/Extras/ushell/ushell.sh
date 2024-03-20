@@ -2,8 +2,8 @@
 
 # Check whether this script has been "sourced" into a host shell
 if [ $0 = "$BASH_SOURCE" ]; then
-    
-    # The script was not sourced, so source it in a child shell and propagate any arguments
+    # The script was not sourced, so source it in a child shell and propagate
+    # any arguments
     args=""
     for arg in "$@"
     do
@@ -12,7 +12,6 @@ if [ $0 = "$BASH_SOURCE" ]; then
     done
     bash --init-file <(echo "source \"$HOME/.bashrc\"; source \"$BASH_SOURCE\" $args")
     exit $?
-    
 fi
 
 # Determine the host shell
