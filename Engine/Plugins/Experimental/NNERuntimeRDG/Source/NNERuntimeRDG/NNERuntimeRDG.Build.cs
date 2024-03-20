@@ -46,7 +46,7 @@ public class NNERuntimeRDG : ModuleRules
 			)
 		{
 			PrivateDefinitions.Add("NNE_UTILITIES_AVAILABLE");
-			PrivateDependencyModuleNames.Add("NNEUtilities");
+			PrivateDependencyModuleNames.Add("NNERuntimeRDGUtils");
 		}
 	}
 }

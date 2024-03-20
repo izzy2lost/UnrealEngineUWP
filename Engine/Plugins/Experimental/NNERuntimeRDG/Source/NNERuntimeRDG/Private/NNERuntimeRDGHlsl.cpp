@@ -13,7 +13,7 @@
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNERuntimeRDGModelHlsl.h"
 #ifdef NNE_UTILITIES_AVAILABLE
-#include "NNEUtilitiesModelOptimizer.h"
+#include "NNERuntimeRDGUtilsModelOptimizer.h"
 #endif // NNE_UTILITIES_AVAILABLE
 #include "HAL/IConsoleManager.h"
 #include "Hlsl/NNERuntimeRDGBatchNormalization.h"
@@ -110,7 +110,7 @@ UNNERuntimeRDGHlslImpl::ECanCreateModelDataStatus UNNERuntimeRDGHlslImpl::CanCre
 #ifdef NNE_UTILITIES_AVAILABLE
 	return FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0 ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::FailFileIdNotSupported;
 #else
-	UE_LOG(LogNNE, Display, TEXT("NNEUtilities is not available on this platform"));
+	UE_LOG(LogNNE, Display, TEXT("NNERuntimeRDGUtils is not available on this platform"));
 	return ECanCreateModelDataStatus::Fail;
 #endif
 }
@@ -147,7 +147,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeRDGHlslImpl::CreateModelData(co
 	}
 
 #ifdef NNE_UTILITIES_AVAILABLE
-	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtilities::Internal::CreateONNXToNNEModelOptimizer();
+	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNERuntimeRDGUtils::Internal::CreateONNXToNNEModelOptimizer();
 	Optimizer->AddValidator(MakeShared<FModelValidatorHlsl>());
 
 	FNNEModelRaw InputModel;

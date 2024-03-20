@@ -30,12 +30,12 @@
 			"Type": "RuntimeAndProgram",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
-		}
-	],
-	"Plugins": [
+		},
 		{
-			"Name": "NNERuntimeORT",
-			"Enabled": true
+			"Name": "NNERuntimeRDGUtils",
+			"Type": "EditorAndProgram",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		}
 	]
 }
