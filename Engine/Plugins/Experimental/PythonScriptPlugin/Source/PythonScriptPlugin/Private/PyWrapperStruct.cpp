@@ -1668,6 +1668,10 @@ void UPythonGeneratedStruct::ReleasePythonResources()
 	if (Py_IsInitialized())
 	{
 		FPyScopedGIL GIL;
+		if (PyType)
+		{
+			FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
+		}
 		PyType.Reset();
 		PyPostInitFunction.Reset();
 	}
