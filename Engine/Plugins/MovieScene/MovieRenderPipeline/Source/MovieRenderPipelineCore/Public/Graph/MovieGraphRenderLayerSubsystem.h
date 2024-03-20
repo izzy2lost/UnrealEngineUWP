@@ -163,6 +163,9 @@ private:
 #if WITH_EDITOR
 	static const FSlateBrush* GetRowIcon(TSharedPtr<TSoftObjectPtr<AActor>> InActor);
 	static FText GetRowText(TSharedPtr<TSoftObjectPtr<AActor>> InActor);
+
+	/** Adds the provided actors to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddActors(const TArray<AActor*>& InActors, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
 #endif
 
 public:
@@ -277,6 +280,9 @@ private:
 #if WITH_EDITOR
 	static const FSlateBrush* GetRowIcon(UClass* InActorType);
 	static FText GetRowText(UClass* InActorType);
+	
+	/** Adds the provided actor types to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddActorTypes(const TArray<UClass*>& InActorTypes, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
 
 	/** Displays the actor types which have been chosen. */
 	TSharedPtr<SMovieGraphSimpleList<UClass*>> ActorTypesList;
@@ -377,6 +383,9 @@ private:
 	static const FSlateBrush* GetRowIcon(FName InFolderPath);
 	static FText GetRowText(FName InFolderPath);
 
+	/** Adds the provided folders to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddFolders(const TArray<FName>& InFolderPaths, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
+
 	/** Displays the paths of folders which have been chosen. */
 	TSharedPtr<SMovieGraphSimpleList<FName>> FolderPathsList;
 
@@ -411,6 +420,9 @@ private:
 #if WITH_EDITOR
 	static const FSlateBrush* GetRowIcon(TSharedPtr<TSoftObjectPtr<UWorld>> InSublevel);
 	static FText GetRowText(TSharedPtr<TSoftObjectPtr<UWorld>> InSublevel);
+
+	/** Adds the provided levels to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddLevels(const TArray<UWorld*>& InLevels, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
 
 	/** Displays the names of sublevels which have been chosen. */
 	TSharedPtr<SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<UWorld>>>> SublevelsList;

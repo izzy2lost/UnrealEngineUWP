@@ -46,6 +46,8 @@ public class MovieRenderPipelineCore : ModuleRules
 		        new string[]
 		        {
 			        "ClassViewer",
+			        "ContentBrowserData",
+			        "EditorWidgets",
 			        "SceneOutliner",
 			        "UnrealEd",
 		        });
