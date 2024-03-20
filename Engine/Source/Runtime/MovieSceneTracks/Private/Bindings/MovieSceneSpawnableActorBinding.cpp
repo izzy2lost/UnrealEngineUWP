@@ -128,7 +128,12 @@ UObject* UMovieSceneSpawnableActorBindingBase::SpawnObjectInternal(UWorld* World
 	if (WorldContext->WorldType == EWorldType::Editor)
 	{
 		FString BindingName = GetDesiredBindingName();
-		SpawnedActor->SetActorLabel(!BindingName.IsEmpty() ? BindingName : SpawnName.ToString());
+		FString ActorLabel = !BindingName.IsEmpty() ? BindingName : SpawnName.ToString();
+		if (FMovieScenePossessable* Possessable = MovieScene.FindPossessable(BindingId))
+		{
+			ActorLabel = Possessable->GetName();
+		}
+		SpawnedActor->SetActorLabel(ActorLabel);
 	}
 #endif
 
@@ -431,8 +436,6 @@ UMovieSceneCustomBinding* UMovieSceneSpawnableActorBinding::CreateNewCustomBindi
 
 	UMovieSceneSpawnableActorBinding* NewCustomBinding = nullptr;
 
-	FString BindingNameToSet = MovieSceneHelpers::MakeUniqueBindingName(&OwnerMovieScene, FName::NameToDisplayString(SourceObject->GetName(), false));
-
 	const FName TemplateName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), SourceObject->GetFName());
 	const FName InstancedBindingName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), *FString(TemplateName.ToString() + TEXT("_CustomBinding")));
 
@@ -467,9 +470,6 @@ UMovieSceneCustomBinding* UMovieSceneSpawnableActorBinding::CreateNewCustomBindi
 #endif
 			NewCustomBinding->SetObjectTemplate(SpawnedActor);
 
-#if WITH_EDITOR
-			BindingNameToSet = Actor->GetActorLabel();
-#endif
 			if (!bWasTransactional)
 			{
 				Actor->ClearFlags(RF_Transactional);
@@ -524,11 +524,6 @@ UMovieSceneCustomBinding* UMovieSceneSpawnableActorBinding::CreateNewCustomBindi
 				NewCustomBinding->SetObjectTemplate(NewObject<UObject>(&OwnerMovieScene, InClass, TemplateName, RF_Transactional));
 			}
 		}
-	}
-
-	if (NewCustomBinding)
-	{
-		NewCustomBinding->BindingName = BindingNameToSet;
 	}
 
 	return NewCustomBinding;

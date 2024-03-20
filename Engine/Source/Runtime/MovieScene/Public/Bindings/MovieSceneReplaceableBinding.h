@@ -74,16 +74,12 @@ protected:
 	TObjectPtr<UMovieSceneSpawnableBindingBase> PreviewSpawnable = nullptr;
 #endif
 
-	UPROPERTY()
-	FString BindingName;
-
 protected:
 
 	/* UMovieSceneCustomBinding overrides*/
 	bool WillSpawnObject(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override final;
 	FMovieSceneBindingResolveResult ResolveBinding(const FMovieSceneBindingResolveParams& ResolveParams, int32 BindingIndex, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override final;
 	const UMovieSceneSpawnableBindingBase* AsSpawnable(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override final;
-	FString GetDesiredBindingName() const override { return BindingName; }
 
 	/* 
 	*  Note that we choose to implement CreateCustomBinding here rather than in subclasses.

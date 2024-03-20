@@ -2384,6 +2384,7 @@ FGuid TryCreateCustomBinding(TSharedRef<ISequencer> Sequencer, UObject* CustomBi
 	{
 		FString DesiredBindingName = NewCustomBinding->GetDesiredBindingName();
 		FString CurrentName = DesiredBindingName.IsEmpty() ? InParams.BindingNameOverride : DesiredBindingName;
+		CurrentName = MovieSceneHelpers::MakeUniqueBindingName(OwnerMovieScene, CurrentName);
 
 		FMovieScenePossessable* NewPossessable = nullptr;
 		FGuid NewID;

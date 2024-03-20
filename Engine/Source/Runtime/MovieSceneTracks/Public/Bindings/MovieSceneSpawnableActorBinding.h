@@ -131,7 +131,6 @@ public:
 	/* MovieSceneCustomBinding overrides*/
 	bool SupportsBindingCreationFromObject(const UObject* SourceObject) const override;
 	UMovieSceneCustomBinding* CreateNewCustomBinding(UObject* SourceObject, UMovieScene& OwnerMovieScene) override;
-	FString GetDesiredBindingName() const override { return BindingName; }
 
 #if WITH_EDITOR
 	bool SupportsConversionFromBinding(const FMovieSceneBindingReference& BindingReference, const UObject* SourceObject) const override;
@@ -152,10 +151,7 @@ protected:
 private:
 
 	UPROPERTY()
-	TObjectPtr<AActor> ActorTemplate;	
-
-	UPROPERTY()
-	FString BindingName;
+		TObjectPtr<AActor> ActorTemplate;
 
 
 };

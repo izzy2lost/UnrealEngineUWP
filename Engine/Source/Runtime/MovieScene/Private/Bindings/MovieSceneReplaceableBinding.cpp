@@ -163,13 +163,10 @@ UMovieSceneCustomBinding* UMovieSceneReplaceableBindingBase::CreateNewCustomBind
 
 	UMovieSceneReplaceableBindingBase* NewCustomBinding = nullptr;
 
-	FString BindingNameToSet = MovieSceneHelpers::MakeUniqueBindingName(&OwnerMovieScene, FName::NameToDisplayString(SourceObject->GetName(), false));
-
 	const FName TemplateName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), SourceObject->GetFName());
 	const FName InstancedBindingName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), *FString(TemplateName.ToString() + TEXT("_CustomBinding")));
 
 	NewCustomBinding = NewObject<UMovieSceneReplaceableBindingBase>(&OwnerMovieScene, GetClass(), InstancedBindingName, RF_Transactional);
-	NewCustomBinding->BindingName = BindingNameToSet;
 #if WITH_EDITORONLY_DATA
 	NewCustomBinding->PreviewSpawnable = NewCustomBinding->CreateInnerSpawnable(SourceObject, OwnerMovieScene);
 #endif
