@@ -317,6 +317,11 @@ void FImgMediaLoader::ResetFetchLogic()
 	SkipFramesLevel = 0;
 }
 
+bool FImgMediaLoader::HasMipsOrTilesEnabled() const
+{
+	return MipMapInfo.IsValid() && (NumMipLevels > 1 || IsTiled());
+}
+
 void FImgMediaLoader::SetIsPlaybackBlocking(bool bIsBlocking)
 {
 	bIsPlaybackBlocking = bIsBlocking;
@@ -900,6 +905,13 @@ bool FImgMediaLoader::LoadSequence(const FString& SequencePath, const FFrameRate
 	SequenceDuration = FrameNumberToTime(GetNumImages());
 	SIZE_T UncompressedSize = FirstFrameInfo.UncompressedSize;
 
+	// With mips in separate folders, we scale the uncompressed size by its mip chain approximation.
+	// With mips in each frame, the readers already return a value that incorporates their size.
+	if (ImagePaths.Num() > 1)
+	{
+		UncompressedSize = (UncompressedSize * 4) / 3;
+	}
+
 	if (FirstFrameInfo.bHasTiles)
 	{
 		TilingDescription.TileBorderSize = FirstFrameInfo.TileBorder;
@@ -916,22 +928,10 @@ bool FImgMediaLoader::LoadSequence(const FString& SequencePath, const FFrameRate
 	}
 #endif
 
-	// If we have no mips or tiles, then get rid of our MipMapInfoObject.
-	// Otherwise, set it up.
-	if (MipMapInfo.IsValid())
+	// If we have mips or tiles, set up our MipMapInfoObject.
+	if (HasMipsOrTilesEnabled())
 	{
-		if ((GetNumMipLevels() == 1) && (IsTiled() == false))
-		{
-			MipMapInfo.Reset();
-		}
-		else
-		{
-			MipMapInfo->SetTextureInfo(SequenceName, GetNumMipLevels(), SequenceDim, TilingDescription);
-			if (GetNumMipLevels() > 1)
-			{
-				UncompressedSize = (UncompressedSize * 4) / 3;
-			}
-		}
+		MipMapInfo->SetTextureInfo(SequenceName, NumMipLevels, SequenceDim, TilingDescription);
 	}
 
 	// initialize loader
@@ -1467,7 +1467,8 @@ void FImgMediaLoader::AddFrameToCache(int32 FrameNumber, const TSharedPtr<FImgMe
 			ExistingFrame = GlobalCache->FindAndTouch(SequenceName, FrameNumber);
 			if (ExistingFrame == nullptr)
 			{
-				GlobalCache->AddFrame(ImagePaths[0][FrameNumber], SequenceName, FrameNumber, Frame, MipMapInfo.IsValid());
+				const bool bHasMipMapsInSeparateFolders = ImagePaths.Num() > 1;
+				GlobalCache->AddFrame(ImagePaths[0][FrameNumber], SequenceName, FrameNumber, Frame, bHasMipMapsInSeparateFolders);
 			}
 		}
 		else
@@ -1480,8 +1481,8 @@ void FImgMediaLoader::AddFrameToCache(int32 FrameNumber, const TSharedPtr<FImgMe
 void FImgMediaLoader::GetDesiredMipTiles(int32 FrameIndex, TMap<int32, FImgMediaTileSelection>& OutMipsAndTiles)
 {
 	// note: While currently unused, FrameIndex could become useful for recorded frames.
-
-	if(MipMapInfo.IsValid() && MipMapInfo->HasObjects())
+	
+	if(HasMipsOrTilesEnabled() && MipMapInfo->HasObjects())
 	{
 		OutMipsAndTiles = MipMapInfo->GetVisibleTiles();
 	}
@@ -1497,7 +1498,7 @@ void FImgMediaLoader::GetDesiredMipTiles(int32 FrameIndex, TMap<int32, FImgMedia
 
 int32 FImgMediaLoader::GetDesiredMinimumMipLevelToUpscale()
 {
-	if (MipMapInfo.IsValid())
+	if (HasMipsOrTilesEnabled())
 	{
 		return MipMapInfo->GetMinimumMipLevelToUpscale();
 	}
