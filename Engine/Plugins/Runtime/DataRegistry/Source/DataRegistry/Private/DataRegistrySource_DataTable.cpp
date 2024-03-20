@@ -27,12 +27,10 @@ void UDataRegistrySource_DataTable::SetSourceTable(const TSoftObjectPtr<UDataTab
 
 void UDataRegistrySource_DataTable::SetCachedTable(bool bForceLoad /*= false*/)
 {
-#if WITH_EDITOR
-	if (CachedTable && GIsEditor)
+	if (CachedTable)
 	{
 		CachedTable->OnDataTableChanged().RemoveAll(this);
 	}
-#endif
 
 	CachedTable = nullptr;
 	UDataTable* FoundTable = SourceTable.Get();
@@ -88,13 +86,8 @@ void UDataRegistrySource_DataTable::SetCachedTable(bool bForceLoad /*= false*/)
 			CachedTable = FoundTable;
 			bInvalidSourceTable = false;
 
-#if WITH_EDITOR
-			if (GIsEditor)
-			{
-				// Listen for changes like row 
-				CachedTable->OnDataTableChanged().AddUObject(this, &UDataRegistrySource_DataTable::EditorRefreshSource);
-			}
-#endif
+			// Listen for changes like row 
+			CachedTable->OnDataTableChanged().AddUObject(this, &UDataRegistrySource_DataTable::OnDataTableChanged);
 		}
 	}
 
@@ -321,12 +314,22 @@ void UDataRegistrySource_DataTable::OnTableLoaded()
 	HandlePendingAcquires();
 }
 
-#if WITH_EDITOR
-
-void UDataRegistrySource_DataTable::EditorRefreshSource()
+void UDataRegistrySource_DataTable::OnDataTableChanged()
 {
-	SetCachedTable(false);
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		SetCachedTable(false);
+	}
+#endif
+
+	if (IsInitialized())
+	{
+		GetRegistry()->InvalidateCacheVersion();
+	}
 }
+
+#if WITH_EDITOR
 
 void UDataRegistrySource_DataTable::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {
