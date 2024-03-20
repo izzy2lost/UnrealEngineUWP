@@ -362,7 +362,7 @@ void FNiagaraRendererVolumes::GetDynamicMeshElements(const TArray<const FSceneVi
 			HeterogeneousVolumeData->LightingDownsampleFactor = VolumeDynamicData->LightingDownsampleFactor;
 			BatchElement.UserData = HeterogeneousVolumeData;
 
-			Collector.AddMesh(0, Mesh);
+			Collector.AddMesh(ViewIndex, Mesh);
 		}
 	}
 }
