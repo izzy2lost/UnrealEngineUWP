@@ -64,6 +64,8 @@ public:
 	void HandleColorsSettingsUpdated();
 	void RemoveSolverFolders(UWorld* World);
 
+	bool IsVisible() const;
+
 #if WITH_EDITOR
 	void SetIsTemporarilyHiddenInEditor(bool bIsHidden) override;
 #endif

@@ -37,15 +37,16 @@ struct HChaosVDContactPointProxy : public HComponentVisProxy
 UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EChaosVDCollisionVisualizationFlags: uint32
 {
-	None					= 0 UMETA(Hidden),
-	ContactPoints			= 1 << 0,
-	ContactInfo				= 1 << 1,
-	NetPushOut				= 1 << 2,
-	NetImpulse				= 1 << 3,
-	ContactNormal			= 1 << 4,
-	AccumulatedImpulse		= 1 << 5,
-	DrawInactiveContacts	= 1 << 6,
-	EnableDrawForAllParticles	= 1 << 7,
+	None							= 0 UMETA(Hidden),
+	ContactPoints					= 1 << 0,
+	ContactInfo						= 1 << 1,
+	NetPushOut						= 1 << 2,
+	NetImpulse						= 1 << 3,
+	ContactNormal					= 1 << 4,
+	AccumulatedImpulse				= 1 << 5,
+	DrawInactiveContacts			= 1 << 6,
+	DrawDataOnlyForSelectedParticle	= 1 << 7,
+	EnableDraw						= 1 << 8,
 };
 ENUM_CLASS_FLAGS(EChaosVDCollisionVisualizationFlags);
 

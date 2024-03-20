@@ -17,8 +17,6 @@ struct FChaosVDQueryDataWrapper;
 struct FChaosVDSceneQueryVisualizationDataContext : public FChaosVDVisualizationContext
 {
 	FChaosVDSceneQuerySelectionHandle DataSelectionHandle = FChaosVDSceneQuerySelectionHandle(nullptr, INDEX_NONE);
-	bool bIsServerVisualizationEnabled = false;
-	bool bIsClientVisualizationEnabled = false;
 
 	/** Generates a random color based on the selection state and query ID, which will be used to debug draw the scene query */
 	void GenerateColor(int32 QueryID, bool bIsSelected)
@@ -65,11 +63,9 @@ enum class EChaosVDSceneQueryVisualizationFlags: uint32
 	DrawSweepQueries		= 1 << 2,
 	DrawOverlapQueries		= 1 << 3,
 	DrawHits				= 1 << 4,
-	DrawServerQueries		= 1 << 5,
-	DrawClientQueries		= 1 << 6,
-	OnlyDrawSelectedQuery	= 1 << 7,
-	HideEmptyQueries		= 1 << 8,
-	HideSubQueries			= 1 << 9,
+	OnlyDrawSelectedQuery	= 1 << 5,
+	HideEmptyQueries		= 1 << 6,
+	HideSubQueries			= 1 << 7,
 };
 ENUM_CLASS_FLAGS(EChaosVDSceneQueryVisualizationFlags);
 

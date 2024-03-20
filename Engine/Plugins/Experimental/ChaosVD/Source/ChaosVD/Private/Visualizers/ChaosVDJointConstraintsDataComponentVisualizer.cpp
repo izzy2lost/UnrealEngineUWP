@@ -111,6 +111,11 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawVisualization(const UA
 		return;
 	}
 
+	if (!SolverInfoActor->IsVisible())
+	{
+		return;
+	}
+
 	const TSharedPtr<FChaosVDScene> CVDScene = SolverInfoActor->GetScene().Pin();
 	if (!CVDScene)
 	{
@@ -136,14 +141,6 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawVisualization(const UA
 	}
 
 	if (!VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::EnableDraw))
-	{
-		return;
-	}
-
-	bool bCanDrawRecordedSolverInstance = (SolverInfoActor->GetIsServer() && VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::EnableServerDraw)) ||
-											(!SolverInfoActor->GetIsServer() && VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::EnableClientDraw));
-	
-	if (!bCanDrawRecordedSolverInstance)
 	{
 		return;
 	}
@@ -200,7 +197,7 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DebugDrawAllAxis(const FCh
 {
 	for(int32 AxisIndex = 0; AxisIndex < 3 ; AxisIndex++)
 	{
-		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, InPosition, InPosition + VisualizationContext.DebugDrawSettings->GeneralScale * VisualizationContext.DebugDrawSettings->ConstraintAxisLength * VisualizationContext.SpaceTransform.TransformVector(InRotationMatrix.GetAxis(AxisIndex)),nullptr, Chaos::VisualDebugger::Utils::GenerateSelectionAwareDebugColor(AxisColors[AxisIndex], InJointConstraintData.bIsSelectedInEditor), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness * 0.2f);
+		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, InPosition, InPosition + VisualizationContext.DebugDrawSettings->GeneralScale * VisualizationContext.DebugDrawSettings->ConstraintAxisLength * VisualizationContext.SpaceTransform.TransformVector(InRotationMatrix.GetAxis(AxisIndex)),FText::GetEmpty(), Chaos::VisualDebugger::Utils::GenerateSelectionAwareDebugColor(AxisColors[AxisIndex], InJointConstraintData.bIsSelectedInEditor), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness * 0.2f);
 	}
 }
 
@@ -326,10 +323,10 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawJointConstraint(const 
 			Sb = FMath::Lerp(Pb, Xb, FMath::Clamp<double>(CoMSize / Lena, 0., 1.));
 		}
 
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Pa, Sa, GenerateSelectionAwareDebugColor(White, InJointConstraintData.bIsSelectedInEditor), nullptr, VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Pb, Sb, GenerateSelectionAwareDebugColor(White, InJointConstraintData.bIsSelectedInEditor), nullptr, VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Sa, Xa, GenerateSelectionAwareDebugColor(Red, InJointConstraintData.bIsSelectedInEditor), nullptr, VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Sb, Xb, GenerateSelectionAwareDebugColor(Cyan, InJointConstraintData.bIsSelectedInEditor), nullptr, VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Pa, Sa, GenerateSelectionAwareDebugColor(White, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Pb, Sb, GenerateSelectionAwareDebugColor(White, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Sa, Xa, GenerateSelectionAwareDebugColor(Red, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Sb, Xb, GenerateSelectionAwareDebugColor(Cyan, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
 	}
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::CenterOfMassConnector))
@@ -350,16 +347,16 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawJointConstraint(const 
 			Sb = FMath::Lerp(Cb, Xb, FMath::Clamp<double>(CoMSize / Lena, 0., 1.));
 		}
 
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Ca, Sa, GenerateSelectionAwareDebugColor(Black, InJointConstraintData.bIsSelectedInEditor), nullptr, VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Cb, Sb, GenerateSelectionAwareDebugColor(Black, InJointConstraintData.bIsSelectedInEditor), nullptr, VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Sa, Xa, GenerateSelectionAwareDebugColor(Red, InJointConstraintData.bIsSelectedInEditor), nullptr, VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Sb, Xb, GenerateSelectionAwareDebugColor(Cyan, InJointConstraintData.bIsSelectedInEditor), nullptr, VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Ca, Sa, GenerateSelectionAwareDebugColor(Black, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Cb, Sb, GenerateSelectionAwareDebugColor(Black, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Sa, Xa, GenerateSelectionAwareDebugColor(Red, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Sb, Xb, GenerateSelectionAwareDebugColor(Cyan, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
 	}
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::Stretch))
 	{
 		const float StretchThickness = 3.0f * LineThickness;
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Xa, Xb, GenerateSelectionAwareDebugColor(Magenta, InJointConstraintData.bIsSelectedInEditor), nullptr, VisualizationContext.DebugDrawSettings->DepthPriority, StretchThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Xa, Xb, GenerateSelectionAwareDebugColor(Magenta, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, StretchThickness);
 	}
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::Axes))
@@ -374,7 +371,7 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawJointConstraint(const 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::PushOut))
 	{
 		FLinearColor PushOutImpulseColor = FColor(0, 250, 250);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Xa, Xa + VisualizationContext.DebugDrawSettings->LinearImpulseScale * VisualizationContext.SpaceTransform.TransformVectorNoScale(InJointConstraintData.JointState.LinearImpulse), GenerateSelectionAwareDebugColor(PushOutImpulseColor, InJointConstraintData.bIsSelectedInEditor), nullptr, VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Xa, Xa + VisualizationContext.DebugDrawSettings->LinearImpulseScale * VisualizationContext.SpaceTransform.TransformVectorNoScale(InJointConstraintData.JointState.LinearImpulse), GenerateSelectionAwareDebugColor(PushOutImpulseColor, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
 	}
 
 	//TODO: Should we draw the Angular Impulse

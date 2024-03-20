@@ -51,6 +51,9 @@ void UChaosVDSceneQueryDataComponent::UpdateQueriesFromFrameData(const FChaosVDG
 	RecordedQueriesByID.Empty(RecordedQueriesNum);
 	RecordedQueries.Empty(RecordedQueriesNum);
 
+	// Until we have a way to track and auto-select new queries instances between frames, just clear the selection
+	SelectQuery(FChaosVDSceneQuerySelectionHandle());
+
 	for (const TPair<int32, TSharedPtr<FChaosVDQueryDataWrapper>>& QueryIDPair : InGameFrameData.RecordedSceneQueries)
 	{
 		if (TSharedPtr<FChaosVDQueryDataWrapper> QueryData = QueryIDPair.Value)
