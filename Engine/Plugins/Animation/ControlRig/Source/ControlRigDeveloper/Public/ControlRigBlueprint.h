@@ -307,6 +307,8 @@ public:
 	void OnModularDependencyVMCompiled(UObject* InBlueprint, URigVM* InVM, FRigVMExtendedExecuteContext& InExecuteContext);
 	void OnModularDependencyChanged(URigVMBlueprint* InBlueprint);
 	void RequestConstructionOnAllModules();
+	void RefreshModuleVariables();
+	void RefreshModuleVariables(const FRigModuleReference* InModule);
 	void RefreshModuleConnectors();
 	void RefreshModuleConnectors(const FRigModuleReference* InModule);
 
