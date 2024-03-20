@@ -4,6 +4,7 @@
 #include "VerseVM/VVMVerse.h"
 #include "AutoRTFM/AutoRTFM.h"
 #include "UObject/CoreRedirects.h"
+#include "UObject/VerseValueProperty.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
 #include "VerseVM/VVMFalse.h"
 #include "VerseVM/VVMHeap.h"
@@ -23,6 +24,10 @@ void VerseVM::Startup()
 #if UE_AUTORTFM || defined(__INTELLISENSE__)
 	AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime(AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_Enabled);
 #endif
+
+	// Register our property types
+	FVValueProperty::StaticClass();
+	FVRestValueProperty::StaticClass();
 
 	TArray<FCoreRedirect> Redirects;
 	Redirects.Emplace(ECoreRedirectFlags::Type_Class, TEXT("/Script/Solaris.VerseClass"), TEXT("/Script/CoreUObject.VerseVMClass"));
