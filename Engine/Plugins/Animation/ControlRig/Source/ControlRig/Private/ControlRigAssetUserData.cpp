@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ControlRigAssetUserData.h"
-#include "Misc/PackageName.h"
 
 void UControlRigShapeLibraryLink::SetShapeLibrary(TSoftObjectPtr<UControlRigShapeLibrary> InShapeLibrary)
 {
@@ -26,12 +25,7 @@ const UNameSpacedUserData::FUserData* UControlRigShapeLibraryLink::GetUserData(c
 		return ResultFromSuper;
 	}
 
-	if(!ShapeLibraryCached)
-	{
-		UpdateShapeLibraryCache();
-	}
-
-	if(ShapeLibraryCached)
+	if(ShapeLibrary)
 	{
 		if(InPath.Equals(GET_MEMBER_NAME_STRING_CHECKED(UControlRigShapeLibraryLink, ShapeLibrary), ESearchCase::CaseSensitive))
 		{
@@ -70,12 +64,7 @@ const TArray<const UNameSpacedUserData::FUserData*>& UControlRigShapeLibraryLink
 		return ResultFromSuper;
 	}
 
-	if (!ShapeLibraryCached)
-	{
-		UpdateShapeLibraryCache();
-	}
-
-	if(ShapeLibraryCached)
+	if(ShapeLibrary)
 	{
 		// UControlRigShapeLibraryLink doesn't offer any arrays other than the top level 
 		if(InParentPath.IsEmpty())
@@ -96,26 +85,6 @@ const TArray<const UNameSpacedUserData::FUserData*>& UControlRigShapeLibraryLink
 		(*OutErrorMessage) = FString::Printf(ShapeLibraryNullFormat, *InParentPath);
 	}
 	return EmptyUserDatas;
-}
-
-void UControlRigShapeLibraryLink::UpdateShapeLibraryCache() const
-{
-	const FString PackagePath = ShapeLibrary.ToSoftObjectPath().GetLongPackageName();
-	const FName PluginMountPoint = FPackageName::GetPackageMountPoint(PackagePath, false);
-	if (FPackageName::MountPointExists(PluginMountPoint.ToString()))
-	{
-		ShapeLibrary.LoadSynchronous();
-		ShapeLibraryCached = ShapeLibrary.Get();
-
-		if (ShapeLibraryCached)
-		{
-			ShapeNames.Reset();
-			for(const FControlRigShapeDefinition& Shape : ShapeLibraryCached->Shapes)
-			{
-				ShapeNames.Add(Shape.ShapeName);
-			}
-		}
-	}
 }
 
 void UControlRigShapeLibraryLink::PostLoad()

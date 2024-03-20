@@ -133,7 +133,7 @@ public:
 
 	/** The namespace to use when looking up values inside of the user data. */
 	UPROPERTY(EditAnywhere, Category = General)
-	mutable FString NameSpace;
+	FString NameSpace;
 
 	/** Returns true if userdata exists for a given path */
 	bool ContainsUserData(const FString& InPath) const { return GetUserData(InPath) != nullptr; }
@@ -202,7 +202,6 @@ public:
 
 	virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const override;
 	virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const override;
-	void UpdateDataAssetCache() const;
 
 	virtual void PostLoad() override;
 #if WITH_EDITOR
@@ -211,7 +210,7 @@ public:
 
 protected:
 	UPROPERTY(transient)
-	mutable TObjectPtr<UDataAsset> DataAssetCached;
+	TObjectPtr<UDataAsset> DataAssetCached;
 	
 	static inline constexpr TCHAR DataAssetNullFormat[] = TEXT("User data path '%s' could not be found (DataAsset not provided)");
 };
