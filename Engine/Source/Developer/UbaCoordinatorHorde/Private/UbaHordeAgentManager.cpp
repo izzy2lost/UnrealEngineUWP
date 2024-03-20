@@ -3,6 +3,7 @@
 #include "UbaHordeAgentManager.h"
 #include "HAL/Event.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -14,33 +15,29 @@
 #include "Storage/Nodes/ChunkNode.h"
 #include "Storage/Nodes/DirectoryNode.h"
 #include "Storage/BlobWriter.h"
-#include "UbaControllerModule.h"
-#include "UbaExports.h"
+#include "UbaBase.h"
+#include "UbaHordeAgent.h"
 #include <filesystem>
 #include <fstream>
 
-namespace UbaControllerModule
+namespace UbaCoordinatorHordeModule
 {
 	static bool bHordeForwardAgentLogs = false;
 	static FAutoConsoleVariableRef CVarUbaControllerHordeForwardAgentLogs(
-		TEXT("r.UbaController.HordeForwardAgentLogs"),
+		TEXT("r.UbaHorde.ForwardAgentLogs"),
 		bHordeForwardAgentLogs,
-		TEXT("Enables or disables the use of UBA as controller for distributed help in the engine.\n")
-		TEXT("false: UBA will not be used as controller \n")
-		TEXT("true: Distribute builds using UBA (default) is no other controller is available."),
-		ECVF_ReadOnly); // Must be set on start-up, e.g. via config ini
+		TEXT("Enables or disables logging of stdout on agent side to show in controller log."));
 }
 
-FUbaHordeAgentManager::FUbaHordeAgentManager(const FString& InWorkingDir, uba::NetworkServer* InServer)
+FUbaHordeAgentManager::FUbaHordeAgentManager(const FString& InWorkingDir, const FString& InBinariesPath)
 	:	WorkingDir(InWorkingDir)
-	,	UbaServer(InServer)
+	,	BinariesPath(InBinariesPath)
 	,	LastRequestFailTime(1)
 	,	TargetCoreCount(0)
 	,	EstimatedCoreCount(0)
 	,   ActiveCoreCount(0)
 	,	AskForAgents(true)
 {
-	ParseConfig();
 }
 
 FUbaHordeAgentManager::~FUbaHordeAgentManager()
@@ -70,7 +67,7 @@ void FUbaHordeAgentManager::SetTargetCoreCount(uint32 Count)
 			return;
 		}
 
-		//UE_LOG(LogUbaController, Display, TEXT("Requested new agent. Estimated core count: %u, Target core count: %u"), EstimatedCoreCount.Load(), TargetCoreCount.Load());
+		//UE_LOG(LogUbaHorde, Display, TEXT("Requested new agent. Estimated core count: %u, Target core count: %u"), EstimatedCoreCount.Load(), TargetCoreCount.Load());
 		RequestAgent();
 	}
 
@@ -87,6 +84,12 @@ void FUbaHordeAgentManager::SetTargetCoreCount(uint32 Count)
 	}
 }
 
+void FUbaHordeAgentManager::SetAddClientCallback(AddClientCallback* callback, void* userData)
+{
+	m_callback = callback;
+	m_userData = userData;
+}
+
 int32 FUbaHordeAgentManager::GetAgentCount() const
 {
 	FScopeLock AgentsScopeLock(&AgentsLock);
@@ -101,11 +104,13 @@ uint32 FUbaHordeAgentManager::GetActiveCoreCount() const
 // Creates a bundle blob (one of several chunks of a file) to be uploaded to Horde
 // This code has been adopted from the HordeTest project.
 // See 'Engine/Source/Programs/Horde/Samples/HordeTest/Main.cpp'.
-static FBlobHandleWithHash CreateHordeBundleBlob(std::ifstream& Stream, FBlobWriter& Writer, int64& OutLength, FIoHash& OutStreamHash)
+static FBlobHandleWithHash CreateHordeBundleBlob(const std::filesystem::path& Path, FBlobWriter& Writer, int64& OutLength, FIoHash& OutStreamHash)
 {
 	OutLength = 0;
 
 	FChunkNodeWriter ChunkWriter(Writer);
+
+	std::ifstream Stream(Path, std::ios::binary);
 
 	char ReadBuffer[4096];
 	while (!Stream.eof())
@@ -125,23 +130,17 @@ static FBlobHandleWithHash CreateHordeBundleBlob(std::ifstream& Stream, FBlobWri
 	return ChunkWriter.Flush(OutStreamHash);
 }
 
-static FFileEntry CreateHordeBundleFileEntry(const std::filesystem::path& Path, FBlobWriter& Writer)
-{
-	std::ifstream InputStream(Path, std::ios::binary);
-	check(InputStream.good());
-
-	int64 Length = 0;
-	FIoHash StreamHash;
-	FBlobHandleWithHash Target = CreateHordeBundleBlob(InputStream, Writer, Length, StreamHash);
-
-	return FFileEntry(Target, FUtf8String(Path.filename().string().c_str()), EFileEntryFlags::None, Length, StreamHash, FSharedBufferView());
-}
-
 static FDirectoryEntry CreateHordeBundleDirectoryEntry(const std::filesystem::path& Path, FBlobWriter& Writer)
 {
 	FDirectoryNode DirectoryNode;
 
-	FFileEntry NewEntry = CreateHordeBundleFileEntry(Path, Writer);
+	int64 BlobLength = 0;
+	FIoHash StreamHash;
+	FBlobHandleWithHash Target = CreateHordeBundleBlob(Path, Writer, BlobLength, StreamHash);
+
+	EFileEntryFlags Flags = EFileEntryFlags::Executable;
+	FFileEntry NewEntry(Target, FUtf8String(Path.filename().string().c_str()), Flags, BlobLength, StreamHash, FSharedBufferView());
+
 	const FUtf8String Name = NewEntry.Name;
 	const int64 Length = NewEntry.Length;
 	DirectoryNode.NameToFile.Add(Name, MoveTemp(NewEntry));
@@ -163,8 +162,6 @@ bool CreateHordeBundleFromFile(const std::filesystem::path& InputFilename, const
 	FFileStorageClient::WriteRefToFile(OutputFilename, RootEntry.Target->GetLocator());
 	return true;
 }
-
-FString GetUbaBinariesPath();
 
 void FUbaHordeAgentManager::RequestAgent()
 {
@@ -194,23 +191,44 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 	};
 
 	int MachineCoreCount = 0;
+	uint32 ListenPort = 7001;
 
 	{
 		ON_SCOPE_EXIT{ EstimatedCoreCount -= 32; };
 
-		FScopeLock ScopeLock(&UbaAgentBundleFilePathLock);
-		if (UbaAgentBundleFilePath.IsEmpty())
-		{
-			const FString UbaAgentFilePath = FPaths::Combine(GetUbaBinariesPath(), TEXT("UbaAgent.exe"));
-			UbaAgentBundleFilePath = FPaths::Combine(WorkingDir, TEXT("UbaAgent.Bundle.ref"));
+		#if PLATFORM_WINDOWS
+		const char* AppName = "UbaAgent.exe";
+		#else
+		const char* AppName = "UbaAgent";
+		#endif
 
-			if (!CreateHordeBundleFromFile(*UbaAgentFilePath, *UbaAgentBundleFilePath))
+		FScopeLock ScopeLock(&BundleRefPathsLock);
+		if (BundleRefPaths.IsEmpty())
+		{
+			struct BundleRec { const char* File; const TCHAR* BundleRef; };
+			BundleRec BundleRecs[] =
 			{
-				UE_LOG(LogUbaController, Error, TEXT("Failed to create Horde bundle for UbaAgent executable: %s"), *UbaAgentFilePath);
-				AskForAgents = false;
-				return;
+				{ AppName, TEXT("UbaAgent.Bundle.ref") },
+#if PLATFORM_LINUX
+				{ "UbaAgent.debug", TEXT("UbaAgent.debug.Bundle.ref") },
+				{ "libclang_rt.tsan.so", TEXT("Tsan.Bundle.ref") },
+#endif
+			};
+
+			for (const BundleRec& Rec : BundleRecs)
+			{
+				const FString FilePath = FPaths::Combine(BinariesPath, ANSI_TO_TCHAR(Rec.File));
+				FString BundlePath = FPaths::Combine(WorkingDir, Rec.BundleRef);
+
+				if (!CreateHordeBundleFromFile(*FilePath, *BundlePath))
+				{
+					UE_LOG(LogUbaHorde, Error, TEXT("Failed to create Horde bundle for: %s"), *FilePath);
+					AskForAgents = false;
+					return;
+				}
+				UE_LOG(LogUbaHorde, Display, TEXT("Created Horde bundle for: %s"), *FilePath);
+				BundleRefPaths.Add(BundlePath);
 			}
-			UE_LOG(LogUbaController, Display, TEXT("Created Horde bundle for UbaAgent executable: %s"), *UbaAgentFilePath);
 		}
 
 		if (!HordeMetaClient)
@@ -219,7 +237,7 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 			HordeMetaClient = MakeUnique<FUbaHordeMetaClient>(Url, Oidc);
 			if (!HordeMetaClient->RefreshHttpClient())
 			{
-				UE_LOG(LogUbaController, Error, TEXT("Failed to create HttpClient for UbaAgent"));
+				UE_LOG(LogUbaHorde, Error, TEXT("Failed to create HttpClient for UbaAgent"));
 				AskForAgents = false;
 				return;
 			}
@@ -238,7 +256,7 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 		{
 			// Try to reduce pressure on horde by not asking for machines more frequent than every 5 seconds if failed to retrieve last time
 			uint64 CurrentTime = FPlatformTime::Cycles64();
-			uint32 MsSinceLastFail = uint32((CurrentTime - LastRequestFailTime) * FPlatformTime::GetSecondsPerCycle() * 1000);
+			uint32 MsSinceLastFail = uint32(double(CurrentTime - LastRequestFailTime) * FPlatformTime::GetSecondsPerCycle() * 1000);
 			if (MsSinceLastFail < 5000)
 			{
 				if (ShouldExit.Wait(5000 - MsSinceLastFail))
@@ -251,7 +269,7 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 		TSharedPtr<FUbaHordeMetaClient::HordeMachinePromise, ESPMode::ThreadSafe> Promise = HordeMetaClient->RequestMachine(Pool);
 		if (!Promise)
 		{
-			//UE_LOG(LogUbaController, Error, TEXT("Failed to create Horde bundle for UbaAgent executable: %s"), *UbaAgentFilePath);
+			//UE_LOG(LogUbaHorde, Error, TEXT("Failed to create Horde bundle for UbaAgent executable: %s"), *UbaAgentFilePath);
 			return;
 		}
 		TFuture<TTuple<FHttpResponsePtr, FHordeRemoteMachineInfo>> Future = Promise->GetFuture();
@@ -285,28 +303,28 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 			return;
 		}
 
-		TArray<uint8> Locator;
-		if (!FFileHelper::LoadFileToArray(Locator, *UbaAgentBundleFilePath))
+		for (const FString& Bundle : BundleRefPaths)
 		{
-			UE_LOG(LogUbaController, Error, TEXT("Cannot launch Horde processes for UBA controller because bundle path could not be found: %s"), *UbaAgentBundleFilePath);
-			return;
+			TArray<uint8> Locator;
+			if (!FFileHelper::LoadFileToArray(Locator, *Bundle))
+			{
+				UE_LOG(LogUbaHorde, Error, TEXT("Cannot launch Horde processes for UBA controller because bundle path could not be found: %s"), *Bundle);
+				return;
+			}
+			Locator.Add('\0');
+
+			FString BundleDirectory = FPaths::GetPath(Bundle);
+
+			if (ShouldExit.Wait(0))
+			{
+				return;
+			}
+
+			if (!Agent->UploadBinaries(BundleDirectory, reinterpret_cast<const char*>(Locator.GetData())))
+			{
+				return;
+			}
 		}
-
-		Locator.Add('\0');
-
-		FString BundleDirectory = FPaths::GetPath(UbaAgentBundleFilePath);
-
-		if (ShouldExit.Wait(0))
-		{
-			return;
-		}
-
-		if (!Agent->UploadBinaries(BundleDirectory, reinterpret_cast<const char*>(Locator.GetData())))
-		{
-			return;
-		}
-
-		uint32 ListenPort = 7001;
 
 		// Start the UBA Agent that will connect to us, requesting for work
 		const std::string ListenPortArg = "-listen=" + std::to_string(ListenPort);
@@ -318,82 +336,59 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 			"-listenTimeout=5",		// Agent will wait 5 seconds for this thread to connect (Server_AddClient does the connect)
 			"-quiet",				// Skip all the agent logging that would be sent over to here
 			"-maxidle=15",			// After 15 seconds of idling agent will automatically disconnect
+			"-Dir=%UE_HORDE_SHARED_DIR%\\Uba",
+			"-Eventfile=%UE_HORDE_TERMINATION_SIGNAL_FILE%",
 		};
 
 		// If the machine does not run Windows, enable the compatibility layer Wine to run UbaAgent.exe on POSIX systems
+		#if PLATFORM_WINDOWS
 		const bool bRunsWindowsOS = Agent->GetMachineInfo().bRunsWindowOS;
 		const bool bUseWine = !bRunsWindowsOS;
+		#else
+		const bool bUseWine = false;
+		#endif
 
 		if (ShouldExit.Wait(0))
 		{
 			return;
 		}
 
-		Agent->Execute("UbaAgent.exe", UbaAgentArgs, UE_ARRAY_COUNT(UbaAgentArgs), nullptr, nullptr, 0, bUseWine);
-
-		// Add this machine as client to the remote agent
-		const FString& IpAddress = Agent->GetMachineInfo().Ip;
-		auto IpAddressStr = StringCast<uba::tchar>(*IpAddress);
-		const bool bAddClientSuccess = Server_AddClient(UbaServer, IpAddressStr.Get(), ListenPort, nullptr);
-
-		if (!bAddClientSuccess)
-		{
-			UE_LOG(LogUbaController, Display, TEXT("Server_AddClient(%s:%d) failed"), *IpAddress, ListenPort);
-			return;
-		}
+		Agent->Execute(AppName, UbaAgentArgs, UE_ARRAY_COUNT(UbaAgentArgs), nullptr, nullptr, 0, bUseWine);
 
 		// Log remote execution
-		FString UbaAgentCmdArgs = TEXT("UbaAgent.exe");
+		FString UbaAgentCmdArgs = ANSI_TO_TCHAR(AppName);
 		for (const char* Arg : UbaAgentArgs)
 		{
 			UbaAgentCmdArgs += TEXT(" ");
 			UbaAgentCmdArgs += ANSI_TO_TCHAR(Arg);
 		}
-		UE_LOG(LogUbaController, Log, TEXT("Remote execution on Horde machine [%s:%d]: %s"), *IpAddress, ListenPort, *UbaAgentCmdArgs);
+		UE_LOG(LogUbaHorde, Log, TEXT("Remote execution on Horde machine [%s:%d]: %s"), *Agent->GetMachineInfo().Ip, ListenPort, *UbaAgentCmdArgs);
 
 		MachineCoreCount = MachineInfo.LogicalCores;
 		EstimatedCoreCount += MachineCoreCount;
 		ActiveCoreCount += MachineCoreCount;
 	}
 
+	uint32 callCounter = 0; // TODO: This should react on the listen string instead of waiting for two text messages :)
+
 	while (Agent->IsValid() && !ShouldExit.Wait(100))
 	{
-		Agent->Poll(UbaControllerModule::bHordeForwardAgentLogs);
+		Agent->Poll(UbaCoordinatorHordeModule::bHordeForwardAgentLogs);
+
+		if (callCounter++ == 2)
+		{
+			// Add this machine as client to the remote agent
+			const FString& IpAddress = Agent->GetMachineInfo().Ip;
+			const bool bAddClientSuccess = 	m_callback(m_userData, StringCast<uba::tchar>(*IpAddress).Get(), (uint16)ListenPort);
+
+			if (!bAddClientSuccess)
+			{
+				UE_LOG(LogUbaHorde, Display, TEXT("Server_AddClient(%s:%d) failed"), *IpAddress, ListenPort);
+				return;
+			}
+		}
 	}
 
 	ActiveCoreCount -= MachineCoreCount;
 	EstimatedCoreCount -= MachineCoreCount;
-}
-
-void FUbaHordeAgentManager::ParseConfig()
-{
-	// Try to read authentication provider identifier.
-	FString HordeConfig;
-	if (GConfig->GetString(TEXT("UbaController"), TEXT("Horde"), HordeConfig, GEngineIni))
-	{
-		HordeConfig.TrimStartInline();
-		HordeConfig.TrimEndInline();
-		HordeConfig.RemoveFromStart(TEXT("("));
-		HordeConfig.RemoveFromEnd(TEXT(")"));
-
-		if (FParse::Value(*HordeConfig, TEXT("Url="), Url))
-		{
-			UE_LOG(LogUbaHorde, Log, TEXT("Found UBA controller Url: \"%s\""), *Url);
-		}
-
-		if (FParse::Value(*HordeConfig, TEXT("Pool="), Pool))
-		{
-			UE_LOG(LogUbaHorde, Log, TEXT("Found UBA controller Pool: \"%s\""), *Pool);
-		}
-
-		if (FParse::Value(*HordeConfig, TEXT("Oidc="), Oidc))
-		{
-			UE_LOG(LogUbaHorde, Log, TEXT("Found UBA controller Oidc: \"%s\""), *Oidc);
-		}
-
-		if (FParse::Value(*HordeConfig, TEXT("MaxCores="), MaxCores))
-		{
-			UE_LOG(LogUbaHorde, Log, TEXT("Found UBA controller MaxCores: \"%u\""), MaxCores);
-		}
-	}
 }

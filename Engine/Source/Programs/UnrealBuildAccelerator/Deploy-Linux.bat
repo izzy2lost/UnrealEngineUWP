@@ -24,7 +24,8 @@ call Engine/Build/BatchFiles/RunUBT.bat -NoUba -NoUbaLocal -NoSNDBS -NoXGE ^
 	-Target="UbaDetours Linux %config%" ^
 	-Target="UbaHost Linux %config%" ^
 	-Target="UbaTest Linux %config% %options%" ^
-	-Target="UbaTestApp Linux %config% %options%" ^
+	-Target="UbaTestApp Linux %config%" ^
+	-Target="UbaCoordinatorHorde Linux %config% %options%"
 
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 popd

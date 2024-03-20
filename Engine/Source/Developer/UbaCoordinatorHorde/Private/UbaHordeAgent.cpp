@@ -52,7 +52,7 @@ bool FUbaHordeAgent::BeginCommunication()
 
 	// Let's try to read the response from the server. It should be an Attach message.
 	EAgentMessageType Type = AgentChannel->ReadResponse(5000);
-	UE_LOG(LogUbaHordeAgent, Log, TEXT("Got a response from the server: Type=0x%08X"), (int)Type);
+	UE_LOG(LogUbaHordeAgent, Verbose, TEXT("Got a response from the server: Type=0x%08X"), (int)Type);
 
 	if (Type == EAgentMessageType::None) // Timed out
 	{
@@ -139,7 +139,7 @@ bool FUbaHordeAgent::UploadBinaries(const FString& BundleDirectory, const char* 
 
 		TArray<UTF8CHAR> LocatorData(BlobRequest.Locator.GetData(), BlobRequest.Locator.Len());
 		LocatorData.Add(UTF8CHAR('\0'));
-		UE_LOG(LogUbaHordeAgent, Log, TEXT("Response [ReadBlob]: Locator=%s, Offset=%d, Length=%d"), UTF8_TO_TCHAR(LocatorData.GetData()), BlobRequest.Offset, BlobRequest.Length);
+		UE_LOG(LogUbaHordeAgent, Verbose, TEXT("Response [ReadBlob]: Locator=%s, Offset=%d, Length=%d"), UTF8_TO_TCHAR(LocatorData.GetData()), BlobRequest.Offset, BlobRequest.Length);
 
 		FArchive* Archive = FindOrAddBlobFile(BlobRequest);
 		if (Archive == nullptr)
@@ -150,7 +150,7 @@ bool FUbaHordeAgent::UploadBinaries(const FString& BundleDirectory, const char* 
 		Archive->Seek(BlobRequest.Offset);
 
 		TArray<uint8> SerializedBytes;
-		SerializedBytes.SetNum(Archive->TotalSize() - BlobRequest.Offset);
+		SerializedBytes.SetNum(int(Archive->TotalSize() - BlobRequest.Offset));
 		Archive->Serialize(SerializedBytes.GetData(), SerializedBytes.Num());
 
 		// Send the blob data.
@@ -225,6 +225,15 @@ void FUbaHordeAgent::Poll(bool LogReports)
 				}
 				bIsValid = false;
 			}
+		}
+		break;
+
+		case EAgentMessageType::Exception:
+		{
+			AgentMessage::FException Ex;
+			ChildChannel->ReadException(Ex);
+			UE_LOG(LogUbaHorde, Log, TEXT("EXCEPTION Message: %s"), *FString(Ex.Message));
+			UE_LOG(LogUbaHorde, Log, TEXT("EXCEPTION Description: %s"), *FString(Ex.Description));
 		}
 		break;
 

@@ -17,6 +17,7 @@ public class UbaController : ModuleRules
 			"Horde",
 			"HTTP",
 			"Sockets",
+			"UbaCoordinatorHorde",
 			"Json"
 		});
 

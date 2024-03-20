@@ -23,15 +23,17 @@ public class DesktopPlatform : ModuleRules
 			}
 		);
 		
-
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Linux))
 		{
 			if(Target.Type == TargetType.Editor)
 			{
 				DynamicallyLoadedModuleNames.Add("SlateFontDialog");
 			}
-			
-			DynamicallyLoadedModuleNames.Add("SlateFileDialogs");
+
+			if (Target.bCompileAgainstCoreUObject && Target.bUsesSlate)
+			{
+				DynamicallyLoadedModuleNames.Add("SlateFileDialogs");
+			}
 
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "SDL2");
 		}

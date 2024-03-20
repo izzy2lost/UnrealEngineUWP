@@ -20,7 +20,6 @@ FUbaHordeComputeTransport::FUbaHordeComputeTransport(const FHordeRemoteMachineIn
 	if (!Socket->Connect(*Address))
 	{
 		UE_LOG(LogUbaHorde, Warning, TEXT("Failed to connect to Horde Agent"));
-		ensure(false);
 
 		SocketSubsystem->DestroySocket(Socket);
 
@@ -83,10 +82,11 @@ void FUbaHordeComputeTransport::MarkComplete()
 void FUbaHordeComputeTransport::Close()
 {
 	bIsClosed = true;
-	Socket->Close();
+	//Socket->Close();
+	Socket->Shutdown(ESocketShutdownMode::ReadWrite);
 }
 
 bool FUbaHordeComputeTransport::IsValid()
 {
-	return Socket != nullptr && !bHasErrors;
+	return Socket != nullptr && !bHasErrors && !bIsClosed;
 }

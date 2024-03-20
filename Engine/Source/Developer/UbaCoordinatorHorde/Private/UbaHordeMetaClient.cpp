@@ -134,7 +134,7 @@ TSharedPtr<FUbaHordeMetaClient::HordeMachinePromise, ESPMode::ThreadSafe> FUbaHo
 					}
 					if (PropertyElementString.StartsWith(TEXT("LogicalCores=")))
 					{
-						Info.LogicalCores = FCString::Atoi(*PropertyElementString + 13);
+						Info.LogicalCores = (uint16)FCString::Atoi(*PropertyElementString + 13);
 					}
 				}
 			}

@@ -5,6 +5,7 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/CoreMisc.h"
 #include "UbaHordeAgentManager.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "UbaControllerModule.h"
@@ -287,6 +288,8 @@ void FUbaJobProcessor::RunTaskWithUba(FTask* Task)
 	Scheduler_EnqueueProcess(UbaScheduler, ProcessInfo, 1.0f, KnownInputsBuffer.GetData(), KnownInputsBuffer.Num()*sizeof(uba::tchar), KnownInputsCount);
 }
 
+FString GetUbaBinariesPath();
+
 void FUbaJobProcessor::StartUba()
 {
 	checkf(UbaServer == nullptr, TEXT("FUbaJobProcessor::StartUba() was called twice before FUbaJobProcessor::ShutDownUba()"));
@@ -333,7 +336,51 @@ void FUbaJobProcessor::StartUba()
 		Server_StartListen(UbaServer, uba::DefaultPort, nullptr); // Start listen so any helper on the LAN can join in
 	}
 
-	HordeAgentManager = MakeUnique<FUbaHordeAgentManager>(ControllerModule.GetWorkingDirectory(), UbaServer);
+	HordeAgentManager = MakeUnique<FUbaHordeAgentManager>(ControllerModule.GetWorkingDirectory(), GetUbaBinariesPath());
+
+	auto AddClientCallback = [](void* userData, const uba::tchar* ip, uint16 port)
+		{
+			return Server_AddClient((uba::NetworkServer*)userData, ip, port, nullptr);
+		};
+	HordeAgentManager->SetAddClientCallback(AddClientCallback, UbaServer);
+
+	FString HordeConfig;
+	if (GConfig->GetString(TEXT("UbaController"), TEXT("Horde"), HordeConfig, GEngineIni))
+	{
+		HordeConfig.TrimStartInline();
+		HordeConfig.TrimEndInline();
+		HordeConfig.RemoveFromStart(TEXT("("));
+		HordeConfig.RemoveFromEnd(TEXT(")"));
+
+		FString Url;
+		if (FParse::Value(*HordeConfig, TEXT("Url="), Url))
+		{
+			UE_LOG(LogUbaController, Log, TEXT("Found UBA controller Url: \"%s\""), *Url);
+			HordeAgentManager->SetUrl(Url);
+		}
+
+		FString Pool;
+		if (FParse::Value(*HordeConfig, TEXT("Pool="), Pool))
+		{
+			UE_LOG(LogUbaController, Log, TEXT("Found UBA controller Pool: \"%s\""), *Pool);
+			HordeAgentManager->SetPool(Pool);
+		}
+
+		FString Oidc;
+		if (FParse::Value(*HordeConfig, TEXT("Oidc="), Oidc))
+		{
+			UE_LOG(LogUbaController, Log, TEXT("Found UBA controller Oidc: \"%s\""), *Oidc);
+			HordeAgentManager->SetOidc(Oidc);
+		}
+
+		uint32 MaxCores = 0;
+		if (FParse::Value(*HordeConfig, TEXT("MaxCores="), MaxCores))
+		{
+			UE_LOG(LogUbaController, Log, TEXT("Found UBA controller MaxCores: \"%u\""), MaxCores);
+			HordeAgentManager->SetMaxCoreCount(MaxCores);
+		}
+	}
+
 
 	UE_LOG(LogUbaController, Display, TEXT("Created UBA storage server: RootDir=%s"), *RootDir);
 }
