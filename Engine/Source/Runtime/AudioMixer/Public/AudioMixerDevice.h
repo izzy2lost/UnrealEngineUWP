@@ -464,7 +464,7 @@ namespace Audio
 		mutable int32 GameOrAudioThreadId;
 
 		/** ThreadId for the low-level platform audio mixer. */
-		mutable int32 AudioPlatformThreadId;
+		mutable std::atomic<int32> AudioPlatformThreadId;
 
 		/** Command queue to send commands to audio render thread from game thread or audio thread. */
 		TQueue<TFunction<void()>> CommandQueue;
