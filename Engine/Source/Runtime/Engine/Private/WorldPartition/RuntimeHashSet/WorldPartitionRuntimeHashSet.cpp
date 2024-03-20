@@ -23,7 +23,7 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 			{
 				return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(Cell->GetStreamingBounds(), Cell);
 			});
-			SpatialIndex->Init(PartitionsElements);
+			SpatialIndex->Init(MoveTemp(PartitionsElements));
 		}
 		
 		SpatialIndex2D = MakeUnique<FStaticSpatialIndexType>();
@@ -36,7 +36,7 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 				CellBounds.Max.Z = HALF_WORLD_MAX;
 				return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(CellBounds, Cell);
 			});
-			SpatialIndex2D->Init(PartitionsElements);
+			SpatialIndex2D->Init(MoveTemp(PartitionsElements));
 		}
 	}
 }

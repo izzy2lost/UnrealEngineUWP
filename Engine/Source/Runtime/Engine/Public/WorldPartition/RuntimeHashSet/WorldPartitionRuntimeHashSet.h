@@ -11,7 +11,8 @@ class UHLODLayer;
 class URuntimePartitionPersistent;
 struct FPropertyChangedChainEvent;
 
-using FStaticSpatialIndexType = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartitionRuntimeCell>>;
+using FStaticSpatialIndexSorter = FStaticSpatialIndex::TNodeSorterMorton<65536>;
+using FStaticSpatialIndexType = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartitionRuntimeCell>, FStaticSpatialIndexSorter>;
 
 /** Holds an HLOD setup for a particular partition class. */
 USTRUCT()
