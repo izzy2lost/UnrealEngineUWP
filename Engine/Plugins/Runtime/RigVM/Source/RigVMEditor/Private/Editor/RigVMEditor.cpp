@@ -1129,12 +1129,16 @@ void FRigVMEditor::SaveAsset_Execute()
 {
 	LastDebuggedHost = GetCustomDebugObjectLabel(GetBlueprintObj()->GetObjectBeingDebugged());
 	FBlueprintEditor::SaveAsset_Execute();
+
+	UpdateRigVMHost();
 }
 
 void FRigVMEditor::SaveAssetAs_Execute()
 {
 	LastDebuggedHost = GetCustomDebugObjectLabel(GetBlueprintObj()->GetObjectBeingDebugged());
 	FBlueprintEditor::SaveAssetAs_Execute();
+
+	UpdateRigVMHost();
 }
 
 bool FRigVMEditor::IsEditable(UEdGraph* InGraph) const
