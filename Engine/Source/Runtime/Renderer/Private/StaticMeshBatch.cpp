@@ -45,7 +45,8 @@ FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(
 	, ScreenSize(InScreenSize)
 	, NumElements(StaticMesh.Elements.Num())
 	, CommandInfosBase(0)
-	, LODIndex(StaticMesh.LODIndex)
+	, UnsignedLODIndex(StaticMesh.LODIndex)
+	, bInvalidLODIndex(StaticMesh.LODIndex < 0)
 	, bDitheredLODTransition(StaticMesh.bDitheredLODTransition)
 	, bSelectable(StaticMesh.bSelectable)
 	, CastShadow(StaticMesh.CastShadow)
@@ -66,6 +67,7 @@ FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(
 	, bUseForLumenSceneCapture(bInUseForLumenSceneCapture)
 	, DecalRenderTargetModeMask(InDecalRenderTargetModeMask)
 {
+	check(GetLODIndex() == StaticMesh.LODIndex);
 }
 
 int32 FStaticMeshBatchRelevance::GetStaticMeshCommandInfoIndex(EMeshPass::Type MeshPass) const

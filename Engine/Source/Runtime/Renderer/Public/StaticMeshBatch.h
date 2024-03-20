@@ -54,9 +54,7 @@ public:
 		uint8 InDecalRenderTargetModeMask,
 		ERHIFeatureLevel::Type FeatureLevel);
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	int8 GetLODIndex() const { return LODIndex; }
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	int8 GetLODIndex() const { return bInvalidLODIndex ? -1 : int8(UnsignedLODIndex); }
 
 	/** Starting offset into continuous array of command infos for this mesh in FPrimitiveSceneInfo::CachedMeshDrawCommandInfos. */
 	FMeshPassMask CommandInfosMask;
@@ -73,9 +71,19 @@ public:
 	/* Every bit corresponds to one MeshPass. If bit is set, then FPrimitiveSceneInfo::CachedMeshDrawCommandInfos contains this mesh pass. */
 	uint16 CommandInfosBase;
 
+private:
+
+	/** LOD index of the mesh, used for fading LOD transitions - unsigned and clamped for packing. */
+	uint8 UnsignedLODIndex : 4;
+
+	/** Original LOD index is negative */
+	uint8 bInvalidLODIndex : 1;
+
+public:
+
 	/** LOD index of the mesh, used for fading LOD transitions. */
-	UE_DEPRECATED(5.4, "Public LODIndex member is deprecated, use GetLODIndex() function instead.")
-	int8 LODIndex;
+	UE_DEPRECATED(5.4, "Public LODIndex member is deprecated and doesn't contain valid data anymore! Use GetLODIndex() function instead.")
+	int8 LODIndex : 1;
 
 	/** Whether the mesh batch should apply dithered LOD. */
 	uint8 bDitheredLODTransition : 1;
