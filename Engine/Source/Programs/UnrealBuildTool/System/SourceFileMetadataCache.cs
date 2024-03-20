@@ -392,6 +392,10 @@ namespace UnrealBuildTool
 						++InsideDeprecationScope;
 					}
 				}
+				else if (LineSpan.StartsWith("UE_DEPRECATED_HEADER"))
+				{
+					HeaderFileInfo.UnitType = HeaderUnitType.Skip;
+				}
 				else
 				{
 					int HeaderUnitIndex = Line.IndexOf("HEADER_UNIT_");
