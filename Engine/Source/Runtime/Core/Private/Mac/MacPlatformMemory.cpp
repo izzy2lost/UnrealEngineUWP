@@ -43,6 +43,8 @@ void* CFNetwork_CFAllocatorOperatorNew_Replacement(unsigned long Size, CFAllocat
 }
 #endif // PLATFORM_MAC_X86
 
+FGenericPlatformMemoryStats::EMemoryPressureStatus FMacPlatformMemory::MemoryPressureStatus = FGenericPlatformMemoryStats::EMemoryPressureStatus::Unknown;
+
 static bool HasArg(const char *Arg)
 {
 	if (_NSGetArgc() && _NSGetArgv())
@@ -64,6 +66,19 @@ static bool HasArg(const char *Arg)
 
 FMalloc* FMacPlatformMemory::BaseAllocator()
 {
+	auto dispatch_source = dispatch_source_create(DISPATCH_SOURCE_TYPE_MEMORYPRESSURE, 0, DISPATCH_MEMORYPRESSURE_NORMAL, dispatch_get_main_queue());
+	dispatch_source_set_event_handler(dispatch_source, ^{FMacPlatformMemory::MemoryPressureStatus = FGenericPlatformMemoryStats::EMemoryPressureStatus::Nominal;});
+	dispatch_activate(dispatch_source);
+	dispatch_retain(dispatch_source);
+	dispatch_source = dispatch_source_create(DISPATCH_SOURCE_TYPE_MEMORYPRESSURE, 0, DISPATCH_MEMORYPRESSURE_WARN, dispatch_get_main_queue());
+	dispatch_source_set_event_handler(dispatch_source, ^{FMacPlatformMemory::MemoryPressureStatus = FGenericPlatformMemoryStats::EMemoryPressureStatus::Warning;});
+	dispatch_activate(dispatch_source);
+	dispatch_retain(dispatch_source);
+	dispatch_source = dispatch_source_create(DISPATCH_SOURCE_TYPE_MEMORYPRESSURE, 0, DISPATCH_MEMORYPRESSURE_CRITICAL, dispatch_get_main_queue());
+	dispatch_source_set_event_handler(dispatch_source, ^{FMacPlatformMemory::MemoryPressureStatus = FGenericPlatformMemoryStats::EMemoryPressureStatus::Critical;});
+	dispatch_activate(dispatch_source);
+	dispatch_retain(dispatch_source);
+	
 	static FMalloc* Instance = nullptr;
 	if (Instance != nullptr)
 	{
@@ -179,7 +194,7 @@ FPlatformMemoryStats FMacPlatformMemory::GetStats()
 	{
 		MemoryStats.PeakUsedVirtual = MemoryStats.UsedVirtual;
 	}
-	
+	MemoryStats.MemoryPressureStatus = MemoryPressureStatus;
 
 	return MemoryStats;
 }

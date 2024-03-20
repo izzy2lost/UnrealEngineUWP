@@ -55,7 +55,27 @@ OBJC_EXPORT @interface FApplePlatformObject : NSObject
  *	Max implementation of the FGenericPlatformMemoryStats.
  */
 struct FPlatformMemoryStats : public FGenericPlatformMemoryStats
-{};
+{
+	FPlatformMemoryStats()
+		: FGenericPlatformMemoryStats()
+		, MemoryPressureStatus(EMemoryPressureStatus::Unknown)
+	{}
+	
+	EMemoryPressureStatus GetMemoryPressureStatus() const
+	{
+		if (MemoryPressureStatus == EMemoryPressureStatus::Unknown)
+		{
+			// if platform doesn't make use of MemoryPressureStatus, use default implementation
+			return FGenericPlatformMemoryStats::GetMemoryPressureStatus();
+		}
+		else
+		{
+			return MemoryPressureStatus;
+		}
+	}
+	
+	EMemoryPressureStatus MemoryPressureStatus;
+};
 
 /**
  * Common Apple platform memory functions.

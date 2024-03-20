@@ -18,6 +18,8 @@ struct CORE_API FMacPlatformMemory : public FApplePlatformMemory
 	static FPlatformMemoryStats GetStats();
 	static const FPlatformMemoryConstants& GetConstants();
 	static FMalloc* BaseAllocator();
+	
+	static FGenericPlatformMemoryStats::EMemoryPressureStatus MemoryPressureStatus;
 	//~ End FGenericPlatformMemory Interface
 };
 
