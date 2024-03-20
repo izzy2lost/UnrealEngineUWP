@@ -42,7 +42,8 @@ protected:
 	const FAvaRundownPage& GetSelectedPage() const;
 	FAvaRundownPage& GetMutableSelectedPage() const;
 
-	void RefreshSelectedPage();
+	void QueueRefreshSelectedPage();
+	void QueueUpdateAndRefreshSelectedPage();
 
 	bool HasSelectedPage() const;
 
@@ -68,6 +69,7 @@ private:
 	TSharedPtr<SAvaRundownRCControllerPanel> RCControllerPanel;
 
 	bool bRefreshSelectedPageQueued = false;
+	bool bUpdateAndRefreshSelectedPageQueued = false;
 
 	int32 ActivePageId;
 };
