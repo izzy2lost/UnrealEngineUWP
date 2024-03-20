@@ -5321,7 +5321,9 @@ bool FNiagaraHlslTranslator::IsWriteAllowedForNamespace(const FNiagaraVariable& 
 template<typename GraphBridge>
 bool FNiagaraHlslTranslationStage::IsRelevantToSpawnForStage(const typename GraphBridge::FParamMapHistory& InHistory, const FNiagaraVariable& InAliasedVar, const FNiagaraVariable& InVar) const
 {
-	if (InHistory.IsPrimaryDataSetOutput(InAliasedVar, ScriptUsage) && (UNiagaraScript::IsSpawnScript(ScriptUsage) || bShouldUpdateInitialAttributeValues))
+	const FNiagaraVariableBase DataSetVariable = InAliasedVar.IsInNameSpace(FNiagaraConstants::StackContextNamespace) ? InVar : InAliasedVar;
+
+	if (InHistory.IsPrimaryDataSetOutput(DataSetVariable, ScriptUsage) && (UNiagaraScript::IsSpawnScript(ScriptUsage) || bShouldUpdateInitialAttributeValues))
 	{
 		return true;
 	}
@@ -5330,7 +5332,7 @@ bool FNiagaraHlslTranslationStage::IsRelevantToSpawnForStage(const typename Grap
 	{
 		switch (IterationSourceType)
 		{
-			case ENiagaraIterationSource::Particles:		return InHistory.IsPrimaryDataSetOutput(InAliasedVar, ENiagaraScriptUsage::EmitterSpawnScript); 
+			case ENiagaraIterationSource::Particles:		return InHistory.IsPrimaryDataSetOutput(DataSetVariable, ENiagaraScriptUsage::EmitterSpawnScript);
 			case ENiagaraIterationSource::DataInterface:	return InVar.IsInNameSpace(IterationDataInterface) && !InVar.IsDataInterface();
 			case ENiagaraIterationSource::DirectSet:		return false;
 			default:										check(false);

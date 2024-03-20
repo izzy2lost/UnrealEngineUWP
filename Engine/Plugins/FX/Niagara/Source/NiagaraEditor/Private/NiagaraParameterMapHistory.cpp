@@ -755,13 +755,13 @@ FName FNiagaraParameterUtilities::GetSourceForPreviousValue(const FName& InVaria
 }
 
 template<typename GraphBridge>
-bool TNiagaraParameterMapHistory<GraphBridge>::IsPrimaryDataSetOutput(const FNiagaraVariable& InVar, const UNiagaraScript* InScript,  bool bAllowDataInterfaces, bool bAllowStatics) const
+bool TNiagaraParameterMapHistory<GraphBridge>::IsPrimaryDataSetOutput(const FNiagaraVariableBase& InVar, const UNiagaraScript* InScript,  bool bAllowDataInterfaces, bool bAllowStatics) const
 {
 	return IsPrimaryDataSetOutput(InVar, InScript->GetUsage(),  bAllowDataInterfaces);
 }
 
 template<typename GraphBridge>
-bool TNiagaraParameterMapHistory<GraphBridge>::IsPrimaryDataSetOutput(const FNiagaraVariable& InVar, ENiagaraScriptUsage Usage, bool bAllowDataInterfaces, bool bAllowStatics) const
+bool TNiagaraParameterMapHistory<GraphBridge>::IsPrimaryDataSetOutput(const FNiagaraVariableBase& InVar, ENiagaraScriptUsage Usage, bool bAllowDataInterfaces, bool bAllowStatics) const
 {
 	if (bAllowDataInterfaces == false && InVar.GetType().GetClass() != nullptr)
 	{
@@ -778,20 +778,20 @@ bool TNiagaraParameterMapHistory<GraphBridge>::IsPrimaryDataSetOutput(const FNia
 	{
 		// In the case of system/emitter scripts we must include the variables in the overall system namespace as well as any of 
 		// the child emitters that were encountered.
-		for (FString EmitterEncounteredNamespace : EmitterNamespacesEncountered)
+		for (const FString& EmitterEncounteredNamespace : EmitterNamespacesEncountered)
 		{
-			if (FNiagaraParameterUtilities::IsInNamespace(InVar, EmitterEncounteredNamespace))
+			if (InVar.IsInNameSpace(EmitterEncounteredNamespace))
 			{
 				return true;
 			}
 		}
-		return FNiagaraParameterUtilities::IsInNamespace(InVar, PARAM_MAP_SYSTEM_STR) || FNiagaraParameterUtilities::IsInNamespace(InVar, PARAM_MAP_EMITTER_STR);
+		return InVar.IsInNameSpace(FStringView(PARAM_MAP_SYSTEM_STR)) || InVar.IsInNameSpace(FStringView(PARAM_MAP_EMITTER_STR));
 	}
 	else if (Usage == ENiagaraScriptUsage::Module || Usage == ENiagaraScriptUsage::Function)
 	{
-		return FNiagaraParameterUtilities::IsInNamespace(InVar, PARAM_MAP_MODULE_STR);
+		return InVar.IsInNameSpace(FStringView(PARAM_MAP_MODULE_STR));
 	}
-	return FNiagaraParameterUtilities::IsInNamespace(InVar, PARAM_MAP_ATTRIBUTE_STR);
+	return InVar.IsInNameSpace(FStringView(PARAM_MAP_ATTRIBUTE_STR));
 }
 
 bool FNiagaraParameterUtilities::IsWrittenToScriptUsage(const FNiagaraVariable& InVar, ENiagaraScriptUsage Usage, bool bAllowDataInterfaces)
