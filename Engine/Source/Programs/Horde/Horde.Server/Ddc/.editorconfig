@@ -1,9 +1,3 @@
 # EditorConfig is awesome: http://EditorConfig.org
 
 [*.cs]
-
-# MA0032: Use an overload with a CancellationToken
-dotnet_diagnostic.MA0032.severity = none
-
-# VSTHRD200: Use "Async" suffix in names of methods that return an awaitable type
-dotnet_diagnostic.VSTHRD200.severity = none

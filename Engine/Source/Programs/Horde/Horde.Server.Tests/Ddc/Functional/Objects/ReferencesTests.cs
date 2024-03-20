@@ -12,6 +12,7 @@ using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Core;
@@ -46,8 +47,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
 		private IBlobService Service => BlobService;
 
-		[Obsolete]
-		protected IReferencesStore ReferencesStore => null!;
+		protected IReferencesStore ReferencesStore => throw new NotImplementedException();
 		protected NamespaceId TestNamespace { get; } = new NamespaceId("test-namespace");
 
 		public ReferencesTests()
@@ -79,8 +79,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
 		public async Task PutGetBlobAsync()
 		{
-			const string objectContents = $"This is treated as a opaque blob in {nameof(PutGetBlobAsync)}";
-			byte[] data = Encoding.ASCII.GetBytes(objectContents);
+			const string ObjectContents = $"This is treated as a opaque blob in {nameof(PutGetBlobAsync)}";
+			byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
 			BlobId objectHash = BlobId.FromBlob(data);
 			RefId key = RefId.FromName("newBlobObject");
 			using HttpContent requestContent = new ByteArrayContent(data);
@@ -99,7 +99,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 				byte[] roundTrippedBuffer = ms.ToArray();
 				string roundTrippedPayload = Encoding.ASCII.GetString(roundTrippedBuffer);
 
-				Assert.AreEqual(objectContents, roundTrippedPayload);
+				Assert.AreEqual(ObjectContents, roundTrippedPayload);
 				CollectionAssert.AreEqual(data, roundTrippedBuffer);
 				Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
 			}
@@ -131,7 +131,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 					byte[] roundTrippedBuffer = ms.ToArray();
 					string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
 
-					Assert.AreEqual(objectContents, roundTrippedString);
+					Assert.AreEqual(ObjectContents, roundTrippedString);
 					Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
 				}
 			}
@@ -181,13 +181,12 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
 				string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
 
-				Assert.AreEqual(objectContents, roundTrippedString);
+				Assert.AreEqual(ObjectContents, roundTrippedString);
 				Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
 			}
 		}
 
 		[Ignore]
-		[Obsolete]
 		[TestMethod]
 		public async Task PutGetCompactBinaryAsync()
 		{
@@ -275,7 +274,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		}
 
 		[Ignore]
-		[Obsolete]
 		[TestMethod]
 		public async Task PutGetCompactBinaryFilteringAsync()
 		{
@@ -354,7 +352,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		}
 
 		[Ignore]
-		[Obsolete]
 		[TestMethod]
 		public async Task PutGetCompactBinaryHierarchyAsync()
 		{
@@ -508,8 +505,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
 		public async Task ExistsChecksAsync()
 		{
-			const string objectContents = $"This is treated as a opaque blob in {nameof(ExistsChecksAsync)}";
-			byte[] data = Encoding.ASCII.GetBytes(objectContents);
+			const string ObjectContents = $"This is treated as a opaque blob in {nameof(ExistsChecksAsync)}";
+			byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
 			BlobId objectHash = BlobId.FromBlob(data);
 			RefId key = RefId.FromName("newObject");
 			using HttpContent requestContent = new ByteArrayContent(data);
@@ -540,8 +537,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 			BucketId bucket = new BucketId("bucket");
 			RefId existingObject = RefId.FromName("existingObjectMultiple");
 
-			const string objectContents = $"This is treated as a opaque blob in {nameof(ExistsChecksMultipleAsync)}";
-			byte[] data = Encoding.ASCII.GetBytes(objectContents);
+			const string ObjectContents = $"This is treated as a opaque blob in {nameof(ExistsChecksMultipleAsync)}";
+			byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
 			BlobId objectHash = BlobId.FromBlob(data);
 			using HttpContent requestContent = new ByteArrayContent(data);
 			requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
@@ -569,19 +566,20 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		}
 
 		[Ignore]
-		[Obsolete]
 		[TestMethod]
 		public async Task PutGetObjectHierarchyAsync()
 		{
+			CancellationToken cancellationToken = CancellationToken.None;
+
 			string blobContents = $"This is a string that is referenced as a blob in {nameof(PutGetObjectHierarchyAsync)}";
 			byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
 			BlobId blobHash = BlobId.FromBlob(blobData);
-			await Service.PutObjectAsync(TestNamespace, blobData, blobHash);
+			await Service.PutObjectAsync(TestNamespace, blobData, blobHash, cancellationToken);
 
 			string blobContentsChild = $"This string is also referenced as a blob but from a child object in {nameof(PutGetObjectHierarchyAsync)}";
 			byte[] dataChild = Encoding.ASCII.GetBytes(blobContentsChild);
 			BlobId blobHashChild = BlobId.FromBlob(dataChild);
-			await Service.PutObjectAsync(TestNamespace, dataChild, blobHashChild);
+			await Service.PutObjectAsync(TestNamespace, dataChild, blobHashChild, cancellationToken);
 
 			CbWriter writerChild = new CbWriter();
 			writerChild.BeginObject();
@@ -590,7 +588,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
 			byte[] childDataObject = writerChild.ToByteArray();
 			BlobId childDataObjectHash = BlobId.FromBlob(childDataObject);
-			await Service.PutObjectAsync(TestNamespace, childDataObject, childDataObjectHash);
+			await Service.PutObjectAsync(TestNamespace, childDataObject, childDataObjectHash, cancellationToken);
 
 			CbWriter writerParent = new CbWriter();
 			writerParent.BeginObject();
@@ -732,6 +730,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
 		public async Task PutPartialHierarchyAsync()
 		{
+			CancellationToken cancellationToken = CancellationToken.None;
+
 			// do not submit the content of the blobs, which should be reported in the response of the put
 			string blobContents = $"This is a string that is referenced as a blob in {nameof(PutPartialHierarchyAsync)}";
 			byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
@@ -748,7 +748,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
 			byte[] childDataObject = writerChild.ToByteArray();
 			BlobId childDataObjectHash = BlobId.FromBlob(childDataObject);
-			await Service.PutObjectAsync(TestNamespace, childDataObject, childDataObjectHash);
+			await Service.PutObjectAsync(TestNamespace, childDataObject, childDataObjectHash, cancellationToken);
 
 			CbWriter writerParent = new CbWriter();
 			writerParent.BeginObject();
@@ -812,7 +812,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		}
 
 		[Ignore]
-		[Obsolete]
 		[TestMethod]
 		public async Task PutContentIdMissingBlobAsync()
 		{
@@ -886,7 +885,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 			}
 		}
 
-
 		[TestMethod]
 		public async Task PutMissingAttachmentComplexAsync()
 		{
@@ -935,10 +933,11 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		}
 
 		[Ignore]
-		[Obsolete]
 		[TestMethod]
 		public async Task PutAndFinalizeAsync()
 		{
+			CancellationToken cancellationToken = CancellationToken.None;
+
 			BucketId bucket = new BucketId("bucket");
 			RefId key = RefId.FromName("willFinalizeObject");
 
@@ -958,7 +957,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
 			byte[] childDataObject = writerChild.ToByteArray();
 			BlobId childDataObjectHash = BlobId.FromBlob(childDataObject);
-			await Service.PutObjectAsync(TestNamespace, childDataObject, childDataObjectHash);
+			await Service.PutObjectAsync(TestNamespace, childDataObject, childDataObjectHash, cancellationToken);
 
 			CbWriter writerParent = new CbWriter();
 			writerParent.BeginObject();
@@ -1003,8 +1002,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
 			// upload missing pieces
 			{
-				await Service.PutObjectAsync(TestNamespace, blobData, blobHash);
-				await Service.PutObjectAsync(TestNamespace, dataChild, blobHashChild);
+				await Service.PutObjectAsync(TestNamespace, blobData, blobHash, cancellationToken);
+				await Service.PutObjectAsync(TestNamespace, dataChild, blobHashChild, cancellationToken);
 			}
 
 			// finalize the object as no pieces is now missing
@@ -1040,6 +1039,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
 		public async Task GetMissingContentIdRecordAsync()
 		{
+			CancellationToken cancellationToken = CancellationToken.None;
+			
 			string blobContents = $"This is a blob in {nameof(GetMissingContentIdRecordAsync)}";
 			byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
 			BlobId uncompressedHash = BlobId.FromBlob(blobData);
@@ -1118,7 +1119,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
 			{
 				// delete the blob referenced by the compressed buffer
-				await Service.DeleteObjectAsync(TestNamespace, compressedHash);
+				await Service.DeleteObjectAsync(TestNamespace, compressedHash, cancellationToken);
 			}
 
 			{
@@ -1150,6 +1151,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
 		public async Task GetMissingCompressedBufferAttachmentAsync()
 		{
+			CancellationToken cancellationToken = CancellationToken.None;
+
 			CbObject cbObjectAttachment = CbObject.Build(writer => writer.WriteString("ValueField", "This field has a value"));
 			byte[] cbAttachmentData = cbObjectAttachment.GetView().ToArray();
 			BlobId cbAttachmentHash = BlobId.FromBlob(cbAttachmentData);
@@ -1222,7 +1225,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
 			{
 				// delete the blob referenced by the compressed buffer
-				await Service.DeleteObjectAsync(TestNamespace, cbAttachmentHash);
+				await Service.DeleteObjectAsync(TestNamespace, cbAttachmentHash, cancellationToken);
 			}
 
 			{
@@ -1254,6 +1257,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
 		public async Task GetMissingBlobRecordAsync()
 		{
+			CancellationToken cancellationToken = CancellationToken.None;
+
 			string blobContents = $"This is a blob in {nameof(GetMissingBlobRecordAsync)}";
 			byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
 			BlobId blobHash = BlobId.FromBlob(blobData);
@@ -1310,7 +1315,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
 			{
 				// delete the blob 
-				await Service.DeleteObjectAsync(TestNamespace, blobHash);
+				await Service.DeleteObjectAsync(TestNamespace, blobHash, cancellationToken);
 			}
 
 			{
@@ -1359,8 +1364,8 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		[TestMethod]
 		public async Task DeleteObjectAsync()
 		{
-			const string objectContents = $"This is treated as a opaque blob in {nameof(DeleteObjectAsync)}";
-			byte[] data = Encoding.ASCII.GetBytes(objectContents);
+			const string ObjectContents = $"This is treated as a opaque blob in {nameof(DeleteObjectAsync)}";
+			byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
 			BlobId objectHash = BlobId.FromBlob(data);
 
 			using HttpContent requestContent = new ByteArrayContent(data);
@@ -1400,14 +1405,13 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 		}
 
 		[Ignore]
-		[Obsolete]
 		[TestMethod]
 		public async Task DropBucketAsync()
 		{
 			const string BucketToDelete = "delete-bucket";
 
-			const string objectContents = $"This is treated as a opaque blob in {nameof(DropBucketAsync)}";
-			byte[] data = Encoding.ASCII.GetBytes(objectContents);
+			const string ObjectContents = $"This is treated as a opaque blob in {nameof(DropBucketAsync)}";
+			byte[] data = Encoding.ASCII.GetBytes(ObjectContents);
 			BlobId objectHash = BlobId.FromBlob(data);
 
 			using HttpContent requestContent = new ByteArrayContent(data);
@@ -1724,7 +1728,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 			getObjectOp2.WriteString("bucket", bucket.ToString());
 			getObjectOp2.WriteString("key", newReferenceObjectKey.ToString());
 			getObjectOp2.EndObject();
-
 
 			CbWriter getObjectOp3 = new CbWriter();
 			getObjectOp3.BeginObject();

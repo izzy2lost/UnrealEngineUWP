@@ -19,10 +19,8 @@ namespace Horde.Server.Ddc
 		static string GetAlias(BlobId blobId) => BlobService.GetAlias(blobId);
 		static string GetAlias(ContentId contentId) => $"cid:{contentId}";
 
-		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId = false)
+		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId = false, CancellationToken cancellationToken = default)
 		{
-			CancellationToken cancellationToken = CancellationToken.None;
-
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			BlobAlias? blobAlias = await storageClient.FindAliasAsync(GetAlias(contentId), cancellationToken);
@@ -39,10 +37,8 @@ namespace Horde.Server.Ddc
 			return new[] { BlobId.FromIoHash(hash) };
 		}
 
-		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobId, int contentWeight)
+		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobId, int contentWeight, CancellationToken cancellationToken)
 		{
-			CancellationToken cancellationToken = CancellationToken.None;
-
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			BlobAlias? blobAlias = await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken);

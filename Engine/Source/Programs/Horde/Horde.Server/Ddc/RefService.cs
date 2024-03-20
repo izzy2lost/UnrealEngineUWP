@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
@@ -24,30 +25,30 @@ namespace Horde.Server.Ddc
 
 		static RefName GetRefName(BucketId bucketId, RefId refId) => $"{bucketId}/{refId}";
 
-		public async Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public async Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
-			return await storageClient.DeleteRefAsync(GetRefName(bucket, key));
+			return await storageClient.DeleteRefAsync(GetRefName(bucket, key), cancellationToken);
 		}
 
-		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
-			return await storageClient.RefExistsAsync(GetRefName(bucket, key));
+			return await storageClient.RefExistsAsync(GetRefName(bucket, key), cancellationToken: cancellationToken);
 		}
 
-		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash)
+		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CancellationToken cancellationToken)
 		{
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
-			BlobAlias? blobAlias = await storageClient.FindAliasAsync(BlobService.GetAlias(blobHash));
+			BlobAlias? blobAlias = await storageClient.FindAliasAsync(BlobService.GetAlias(blobHash), cancellationToken);
 			if (blobAlias == null)
 			{
 				throw new BlobNotFoundException(ns, blobHash);
 			}
 
 			IBlobHandle blobHandle = blobAlias.Target;
-			using BlobData blobContents = await blobHandle.ReadBlobDataAsync();
+			using BlobData blobContents = await blobHandle.ReadBlobDataAsync(cancellationToken);
 			CbObject payload = new CbObject(blobContents.Data);
 
 			BlobId[] referencedBlobs = Array.Empty<BlobId>();
@@ -59,7 +60,7 @@ namespace Horde.Server.Ddc
 			{
 				try
 				{
-					referencedBlobs = await _referenceResolver.GetReferencedBlobsAsync(ns, payload).ToArrayAsync();
+					referencedBlobs = await _referenceResolver.GetReferencedBlobsAsync(ns, payload, cancellationToken: cancellationToken).ToArrayAsync(cancellationToken);
 				}
 				catch (PartialReferenceResolveException e)
 				{
@@ -83,13 +84,13 @@ namespace Horde.Server.Ddc
 					refNode.References.Add(BlobRef.Create(blobHash.AsIoHash(), blobHandle));
 					foreach (BlobId referencedBlob in referencedBlobs)
 					{
-						BlobAlias? alias = await storageClient.FindAliasAsync(BlobService.GetAlias(referencedBlob));
+						BlobAlias? alias = await storageClient.FindAliasAsync(BlobService.GetAlias(referencedBlob), cancellationToken);
 						refNode.References.Add(BlobRef.Create(referencedBlob.AsIoHash(), alias!.Target));
 					}
-					refNodeRef = await writer.WriteBlobAsync(refNode);
+					refNodeRef = await writer.WriteBlobAsync(refNode, cancellationToken);
 				}
 
-				await storageClient.WriteRefAsync(refName, refNodeRef);
+				await storageClient.WriteRefAsync(refName, refNodeRef, cancellationToken: cancellationToken);
 			}
 
 			return (missingReferences, missingBlobs);
@@ -126,28 +127,28 @@ namespace Horde.Server.Ddc
 			return payload.Any(FieldHasAttachments);
 		}
 
-		public async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking)
+		public async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking, CancellationToken cancellationToken)
 		{
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
-			DdcRefNode? node = await storageClient.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key));
+			DdcRefNode? node = await storageClient.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);
 			}
 
-			BlobData data = await node.References.First(x => x.Hash == node.RootHash).ReadBlobDataAsync();
+			BlobData data = await node.References.First(x => x.Hash == node.RootHash).ReadBlobDataAsync(cancellationToken);
 			BlobContents contents = new BlobContents(data.Data.ToArray());
 
 			RefRecord record = new RefRecord(ns, bucket, key, DateTime.UtcNow, null, BlobId.FromIoHash(node.RootHash), true);
 			return (record, contents);
 		}
 
-		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
-			DdcRefNode? node = await storageClient.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key));
+			DdcRefNode? node = await storageClient.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);
@@ -156,28 +157,28 @@ namespace Horde.Server.Ddc
 			return node.References.Select(x => BlobId.FromIoHash(x.Hash)).ToList();
 		}
 
-		public async Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
+		public async Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload, CancellationToken cancellationToken)
 		{
-			await _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash);
-			return await FinalizeAsync(ns, bucket, key, blobHash);
+			await _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash, cancellationToken);
+			return await FinalizeAsync(ns, bucket, key, blobHash, cancellationToken);
 		}
 
-		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
-		{
-			throw new NotImplementedException();
-		}
-
-		public Task<long> DropNamespaceAsync(NamespaceId ns)
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync(CancellationToken cancellationToken)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
+		public Task<long> DropNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, bool ignoreMissingBlobs)
+		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
+		{
+			throw new NotImplementedException();
+		}
+
+		public Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, bool ignoreMissingBlobs, CancellationToken cancellationToken)
 		{
 			throw new NotImplementedException();
 		}

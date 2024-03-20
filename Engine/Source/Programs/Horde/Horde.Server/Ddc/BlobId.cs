@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using Blake3;
 using EpicGames.Core;
@@ -127,7 +128,7 @@ namespace Horde.Server.Ddc
 			return new BlobId(testObjectHash.HashData);
 		}
 
-		public static async Task<BlobId> FromStreamAsync(Stream stream)
+		public static async Task<BlobId> FromStreamAsync(Stream stream, CancellationToken cancellationToken)
 		{
 			using Hasher hasher = Hasher.New();
 
@@ -136,11 +137,11 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				int read = await stream.ReadAsync(buffer, 0, buffer.Length);
+				int read = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
 				while (read > 0)
 				{
 					hasher.UpdateWithJoin(new ReadOnlySpan<byte>(buffer, 0, read));
-					read = await stream.ReadAsync(buffer, 0, buffer.Length);
+					read = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
 				}
 				Hash blake3Hash = hasher.Finalize();
 

@@ -9,6 +9,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Blake3;
 using EpicGames.AspNet;
@@ -135,8 +136,9 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 		[TestCategory("SlowTests")]
 		public async Task PutGetLargeCompressedPayloadAsync()
 		{
+			CancellationToken cancellationToken = CancellationToken.None;
+
 			// we submit a blob so large that it can not fit using the memory blob store
-			IBlobStore? blobStore = ServiceProvider.GetRequiredService<IBlobStore>();
 
 			FileInfo tempOutputFile = new FileInfo(Path.GetTempFileName());
 			FileInfo tempCompressedFile = new FileInfo(Path.GetTempFileName());
@@ -176,7 +178,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 				BlobId compressedContentHash;
 				{
 					await using FileStream fs = tempCompressedFile.OpenRead();
-					compressedContentHash = await BlobId.FromStreamAsync(fs);
+					compressedContentHash = await BlobId.FromStreamAsync(fs, cancellationToken);
 				}
 
 				logger.Information("Uploading large file");
@@ -213,7 +215,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
 
 					await using FileStream downloadedFile = tempOutputFile.OpenRead();
 
-					BlobId downloadedBlobIdentifier = await BlobId.FromStreamAsync(downloadedFile);
+					BlobId downloadedBlobIdentifier = await BlobId.FromStreamAsync(downloadedFile, cancellationToken);
 					Assert.AreEqual(compressedContentHash, downloadedBlobIdentifier);
 				}
 

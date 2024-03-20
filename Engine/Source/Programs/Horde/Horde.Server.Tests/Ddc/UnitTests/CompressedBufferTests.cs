@@ -2,6 +2,7 @@
 
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Horde.Server.Ddc;
@@ -33,7 +34,7 @@ namespace Horde.Server.Tests.Ddc.UnitTests
 			IoHash uncompressedHash = bufferUtils.CompressContent(ms, OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.VeryFast, bytes);
 			ms.Position = 0;
 
-			using IBufferedPayload bufferedPayload = await bufferUtils.DecompressContentAsync(ms, (ulong)ms.Length);
+			using IBufferedPayload bufferedPayload = await bufferUtils.DecompressContentAsync(ms, (ulong)ms.Length, CancellationToken.None);
 			await using Stream s = bufferedPayload.GetStream();
 			byte[] roundTrippedBytes = await s.ReadAllBytesAsync();
 			CollectionAssert.AreEqual(bytes, roundTrippedBytes);
