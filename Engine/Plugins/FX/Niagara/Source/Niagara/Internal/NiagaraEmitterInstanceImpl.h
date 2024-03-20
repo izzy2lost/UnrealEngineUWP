@@ -50,6 +50,7 @@ public:
 	// FNiagaraEmitterInstance Impl
 	virtual void Init(int32 InEmitterIndex) override;
 	virtual void ResetSimulation(bool bKillExisting = true) override;
+	virtual void SetEmitterEnable(bool bNewEnableState) override;
 	virtual bool HandleCompletion(bool bForce = false) override;
 	virtual void OnPooledReuse() override;
 	virtual FNiagaraEmitterInstanceImpl* AsStateful() override { return this; }
@@ -158,7 +159,12 @@ private:
 	uint32 MaxInstanceCount = 0;
 
 	/** Typical resets must be deferred until the tick as the RT could still be using the current buffer. */
-	uint32 bResetPending : 1;
+	uint32 bResetPending : 1 = false;
+
+	/** Used with SetEmitterEnable */
+	uint32 bAllowSpawning_GT : 1 = true;
+	/** Used with SetEmitterEnable */
+	uint32 bAllowSpawning_CNC : 1 = true;
 
 	// This is used to keep track which particles have spawned a component. This is needed when the bOnlyCreateComponentsOnParticleSpawn flag is set in the renderer.
 	// Without this bookkeeping, the particles would lose their components when the render state is recreated or the visibility tag flips them off and on again.

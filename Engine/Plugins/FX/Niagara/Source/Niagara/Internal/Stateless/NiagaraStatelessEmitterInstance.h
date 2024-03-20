@@ -56,6 +56,7 @@ public:
 	// FNiagaraEmitterInstance Impl
 	virtual void Init(int32 InEmitterIndex) override;
 	virtual void ResetSimulation(bool bKillExisting) override;
+	virtual void SetEmitterEnable(bool bNewEnableState) override;
 	virtual void OnPooledReuse() override {}
 	virtual bool HandleCompletion(bool bForce) override;
 	virtual int32 GetNumParticles() const override;
@@ -78,6 +79,7 @@ private:
 	void InitEmitterState();
 	void TickEmitterState();
 	void CalculateBounds();
+	void SendRenderData();
 
 	void InitSpawnInfos();
 	void InitSpawnInfosForLoop();
@@ -87,7 +89,10 @@ private:
 	void SetExecutionStateInternal(ENiagaraExecutionState InExecutionState);
 
 private:
-	bool										bCanEverExecute = false;
+	uint32										bCanEverExecute : 1 = false;
+	uint32										bEmitterEnabled_GT : 1 = true;
+	uint32										bEmitterEnabled_CNC : 1 = true;
+	uint32										bSpawnInfosDirty : 1 = false;
 
 	int32										RandomSeed = 0;
 	FRandomStream								RandomStream;

@@ -32,6 +32,7 @@ public:
 	//~Begin: Define Emitter Interface
 	virtual void Init(int32 InEmitterIdx);
 	virtual void ResetSimulation(bool bKillExisting = true) = 0;
+	virtual void SetEmitterEnable(bool bNewEnableState) = 0;
 	virtual void OnPooledReuse() = 0;
 	virtual bool HandleCompletion(bool bForce = false) = 0;
 
@@ -150,13 +151,6 @@ protected:
 
 public:
 	////////////////////////////////////////////////////////////////////////////////////////////////////
-	//-TODO: Functionality that needs implementing for stateless
-	void SetEmitterEnable(bool bNewEnableState)
-	{
-		bAllowSpawning_GT = bNewEnableState;
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Deprecated functionality code needs to be updated
 	UE_DEPRECATED(5.4, "Please update your code to handle execution path for different emitter types")
 	NIAGARA_API FNiagaraScriptExecutionContext& GetSpawnExecutionContext();
@@ -224,8 +218,6 @@ protected:
 	uint8								bDeterministic : 1 = true;
 	uint8								bNeedsPartialDepthTexture : 1 = false;
 	uint8								bNeedsEarlyViewUniformBuffer : 1 = false;
-	uint8								bAllowSpawning_GT : 1 = true;
-	uint8								bAllowSpawning_CNC : 1 = true;
 	ENiagaraSimTarget					SimTarget = ENiagaraSimTarget::CPUSim;
 	ENiagaraExecutionState				ExecutionState = ENiagaraExecutionState::Active;
 
