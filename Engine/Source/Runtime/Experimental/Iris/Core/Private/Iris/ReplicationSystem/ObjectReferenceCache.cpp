@@ -419,7 +419,7 @@ bool FObjectReferenceCache::CreateObjectReferenceInternal(const UObject* Object,
 	return true;
 }
 
-FNetRefHandle FObjectReferenceCache::GetObjectReferenceHandleFromObject(const UObject* Object) const
+FNetRefHandle FObjectReferenceCache::GetObjectReferenceHandleFromObject(const UObject* Object, EGetRefHandleFlags GetRefHandleFlags) const
 {
 	if (Object == nullptr)
 	{
@@ -441,7 +441,8 @@ FNetRefHandle FObjectReferenceCache::GetObjectReferenceHandleFromObject(const UO
 
 		const FCachedNetObjectReference& CachedObject = *CachedObjectPtr;
 
-		const UObject* ExistingObject = CachedObject.Object.Get();
+		const bool bEvenIfGarbage = EnumHasAnyFlags(GetRefHandleFlags, EGetRefHandleFlags::EvenIfGarbage);
+		const UObject* ExistingObject = CachedObject.Object.Get(bEvenIfGarbage);
 		if (ExistingObject == Object)
 		{
 			UE_LOG_REFERENCECACHE(VeryVerbose, TEXT("ObjectReferenceCache::GetObjectReferenceHandleFromObject Found existing %s for Object %s, OuterNetRefHandle: %s"), *CachedObject.NetRefHandle.ToString(), ToCStr(Object->GetPathName()), *CachedObject.OuterNetRefHandle.ToString());

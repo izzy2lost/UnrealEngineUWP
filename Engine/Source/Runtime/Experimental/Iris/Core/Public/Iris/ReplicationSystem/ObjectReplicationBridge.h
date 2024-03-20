@@ -44,6 +44,7 @@ class UObjectReplicationBridge : public UReplicationBridge
 
 public:
 	using UReplicationBridge::EndReplication;
+	using EGetRefHandleFlags = UE::Net::EGetRefHandleFlags;
 
 	struct FCreateNetRefHandleParams
 	{
@@ -89,7 +90,7 @@ public:
 	IRISCORE_API UObject* GetReplicatedObject(FNetRefHandle Handle) const;
 
 	/** Get NetRefHandle from a replicated UObject. */
-	IRISCORE_API FNetRefHandle GetReplicatedRefHandle(const UObject* Object) const;
+	IRISCORE_API FNetRefHandle GetReplicatedRefHandle(const UObject* Object, EGetRefHandleFlags GetRefHandleFlags = EGetRefHandleFlags::None) const;
 
 	/** Get NetRefHandle from a NetHandle. */
 	IRISCORE_API FNetRefHandle GetReplicatedRefHandle(FNetHandle Handle) const;

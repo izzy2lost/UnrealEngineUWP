@@ -285,25 +285,20 @@ void FReplicationSystemUtil::BeginReplicationForActorComponentSubObject(UActorCo
 	}
 }
 
-void FReplicationSystemUtil::EndReplicationForActorComponent(UActorComponent* SubObject)
+void FReplicationSystemUtil::EndReplicationForActorComponent(UActorComponent* ActorComponent)
 {
-	ReplicationSystemUtil::ForEachReplicationSystem([SubObject](UReplicationSystem* ReplicationSystem)
+	ReplicationSystemUtil::ForEachReplicationSystem([ActorComponent](UReplicationSystem* ReplicationSystem)
 	{
 		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 		{
 			constexpr EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::DestroyNetHandle | EEndReplicationFlags::ClearNetPushId;
-			Bridge->EndReplicationForActorComponent(SubObject, EndReplicationFlags);
+			Bridge->EndReplicationForActorComponent(ActorComponent, EndReplicationFlags);
 		}
 	});
 }
 
 void FReplicationSystemUtil::EndReplicationForActorSubObject(const AActor* Actor, UObject* SubObject)
 {
-	if (!IsValid(SubObject))
-	{
-		return;
-	}
-
 	ReplicationSystemUtil::ForEachReplicationSystem([SubObject](UReplicationSystem* ReplicationSystem)
 	{
 		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
