@@ -344,6 +344,7 @@ public:
 			if (ensure(RenderBufferSets.Num() == 1))
 			{
 				FMeshRenderBufferSet* BufferSet = RenderBufferSets[0];
+				FScopeLock BuffersLock(&BufferSet->BuffersLock);
 				if (BufferSet->TriangleCount != Mesh->TriangleCount())
 				{
 					return false;
@@ -361,6 +362,7 @@ public:
 		{
 			for (FMeshRenderBufferSet* BufferSet : RenderBufferSets)
 			{
+				FScopeLock BuffersLock(&BufferSet->BuffersLock);
 				if (ensure(BufferSet->Triangles))
 				{
 					int NumTriangles = BufferSet->Triangles->Num();
@@ -418,6 +420,7 @@ public:
 			if (ensure(RenderBufferSets.Num() == 1))
 			{
 				FMeshRenderBufferSet* Buffers = RenderBufferSets[0];
+				FScopeLock BuffersLock(&Buffers->BuffersLock);
 				if (bPositions || bNormals || bColors)
 				{
 					UpdateVertexBuffersFromOverlays(Buffers, Mesh,
@@ -444,6 +447,7 @@ public:
 			ParallelFor(RenderBufferSets.Num(), [&](int i)
 			{
 				FMeshRenderBufferSet* Buffers = RenderBufferSets[i];
+				FScopeLock BuffersLock(&Buffers->BuffersLock);
 				if (Buffers->TriangleCount == 0)
 				{
 					return;
@@ -521,11 +525,16 @@ public:
 		ParallelFor(WhichBuffers.Num(), [&](int idx)
 		{
 			int32 BufferIndex = WhichBuffers[idx];
-			if ( RenderBufferSets.IsValidIndex(BufferIndex) == false || RenderBufferSets[BufferIndex]->TriangleCount == 0)
+			if ( RenderBufferSets.IsValidIndex(BufferIndex) == false)
 			{
 				return;
 			}
 			FMeshRenderBufferSet* Buffers = RenderBufferSets[BufferIndex];
+			FScopeLock BuffersLock(&Buffers->BuffersLock);
+			if (Buffers->TriangleCount == 0)
+			{
+				return;
+			}
 			if (ensure(Buffers->Triangles.IsSet()))
 			{
 				if (bPositions || bNormals || bColors)

@@ -519,6 +519,14 @@ protected:
 				BlueprintSetter=SetMeshDrawPath, BlueprintGetter=GetMeshDrawPath,
 				 Category = "Dynamic Mesh Component|Rendering")
 	EDynamicMeshDrawPath DrawPath = EDynamicMeshDrawPath::DynamicDraw;
+
+	// Whether the fast update paths will be used for the mesh.
+	// If false, fast update methods can still be called, but will fall back to recreating the render proxy
+	virtual bool AllowFastUpdate()
+	{
+		// note: fast update is not compatible with static draw path
+		return DrawPath == EDynamicMeshDrawPath::DynamicDraw;
+	}
 	
 public:
 

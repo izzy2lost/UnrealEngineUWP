@@ -416,7 +416,7 @@ void UDynamicMeshComponent::FastNotifyColorsUpdated()
 	}
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (Proxy)
+	if (Proxy && AllowFastUpdate())
 	{
 		if (HasTriangleColorFunction() && Proxy->bUsePerTriangleColor == false )
 		{
@@ -462,7 +462,7 @@ void UDynamicMeshComponent::FastNotifyPositionsUpdated(bool bNormals, bool bColo
 	}
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (Proxy)
+	if (Proxy && AllowFastUpdate())
 	{
 		// calculate bounds while we are updating vertices
 		TFuture<void> UpdateBoundsCalc;
@@ -499,7 +499,7 @@ void UDynamicMeshComponent::FastNotifyVertexAttributesUpdated(bool bNormals, boo
 	}
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (Proxy && ensure(bNormals || bColors || bUVs) )
+	if (Proxy && ensure(bNormals || bColors || bUVs) && AllowFastUpdate())
 	{
 		GetCurrentSceneProxy()->FastUpdateVertices(false, bNormals, bColors, bUVs);
 		//MarkRenderDynamicDataDirty();
@@ -525,7 +525,7 @@ void UDynamicMeshComponent::FastNotifyVertexAttributesUpdated(EMeshRenderAttribu
 	}
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (Proxy && ensure(UpdatedAttributes != EMeshRenderAttributeFlags::None))
+	if (Proxy && ensure(UpdatedAttributes != EMeshRenderAttributeFlags::None) && AllowFastUpdate())
 	{
 		bool bPositions = (UpdatedAttributes & EMeshRenderAttributeFlags::Positions) != EMeshRenderAttributeFlags::None;
 
@@ -606,7 +606,7 @@ void UDynamicMeshComponent::FastNotifySecondaryTrianglesChanged()
 	}
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (Proxy)
+	if (Proxy && AllowFastUpdate())
 	{
 		GetCurrentSceneProxy()->FastUpdateAllIndexBuffers();
 		GetDynamicMesh()->PostRealtimeUpdate();
@@ -632,7 +632,7 @@ void UDynamicMeshComponent::FastNotifyTriangleVerticesUpdated(const TArray<int32
 		((UpdatedAttributes & EMeshRenderAttributeFlags::SecondaryIndexBuffers) != EMeshRenderAttributeFlags::None);
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (!Proxy)
+	if (!Proxy || !AllowFastUpdate())
 	{
 		ResetProxy();
 	}
@@ -714,7 +714,7 @@ void UDynamicMeshComponent::FastNotifyTriangleVerticesUpdated(const TSet<int32>&
 		((UpdatedAttributes & EMeshRenderAttributeFlags::SecondaryIndexBuffers) != EMeshRenderAttributeFlags::None);
 
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
-	if (!Proxy)
+	if (!Proxy || !AllowFastUpdate())
 	{
 		ResetProxy();
 	}
@@ -827,7 +827,7 @@ TFuture<bool> UDynamicMeshComponent::FastNotifyTriangleVerticesUpdated_TryPrecom
 	TArray<int32>& UpdateSetsOut,
 	FAxisAlignedBox3d& BoundsOut)
 {
-	if ((!!RenderMeshPostProcessor) || (GetCurrentSceneProxy() == nullptr) || (!Decomposition))
+	if ((!!RenderMeshPostProcessor) || (GetCurrentSceneProxy() == nullptr) || (!Decomposition) || !AllowFastUpdate())
 	{
 		// is there a simpler way to do this? cannot seem to just make a TFuture<bool>...
 		return Async(DynamicMeshComponentAsyncExecTarget, []() { return false; });
@@ -885,7 +885,7 @@ void UDynamicMeshComponent::FastNotifyTriangleVerticesUpdated_ApplyPrecompute(
 	Precompute.Wait();
 
 	bool bPrecomputeOK = Precompute.Get();
-	if (bPrecomputeOK == false || GetCurrentSceneProxy() == nullptr )
+	if (bPrecomputeOK == false || GetCurrentSceneProxy() == nullptr || !AllowFastUpdate())
 	{
 		FastNotifyTriangleVerticesUpdated(Triangles, UpdatedAttributes);
 		return;

@@ -503,6 +503,11 @@ void FBaseDynamicMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterfac
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_BaseDynamicMeshSceneProxy_DrawStaticElements);
 
+	if (!bPreferStaticDrawPath)
+	{
+		return;
+	}
+
 	UMaterialInterface* UseSecondaryMaterial = nullptr;
 	if (ParentBaseComponent->HasSecondaryRenderMaterial())
 	{
