@@ -101,6 +101,27 @@ void SaveCVarForNextBoot(const TCHAR* Key, const TCHAR* Value)
 	FString StrKey(Key);
 	FString StrValue(Value);
 
+#if PLATFORM_WRITES_ARE_SLOW
+	AsyncPool(*GIOThreadPool, [StrKey, StrValue] {
+		TMap<FString, FString> CVarsToSave;
+
+		// Read from file, in case there are more than one cvar hotfix event in same run
+		LoadCVarsFromFileForNextBoot(CVarsToSave);
+
+		CVarsToSave.FindOrAdd(StrKey) = StrValue;
+
+		FString ContentToSave;
+		for (const TPair<FString, FString>& CVarPair : CVarsToSave)
+		{
+			ContentToSave.Append(FString::Format(TEXT("{0}={1}\r\n"), { CVarPair.Key, CVarPair.Value }));
+		}
+
+		const FString FullPath = FPaths::ProjectPersistentDownloadDir() / UE_HOTFIX_FOR_NEXT_BOOT_FILENAME;
+		FFileHelper::SaveStringToFile(ContentToSave, *FullPath);
+
+		UE_LOG(LogConfig, Log, TEXT("Local boot hotfix file [%s] saved with hotfixed CVar: %s=%s"), *FullPath, *StrKey, *StrValue);
+		});
+#else
 	AsyncTaskPipe.Launch(UE_SOURCE_LOCATION, [StrKey, StrValue] {
 		TMap<FString, FString> CVarsToSave;
 
@@ -120,6 +141,7 @@ void SaveCVarForNextBoot(const TCHAR* Key, const TCHAR* Value)
 
 		UE_LOG(LogConfig, Log, TEXT("Local boot hotfix file [%s] saved with hotfixed CVar: %s=%s"), *FullPath, *StrKey, *StrValue);
 	}, LowLevelTasks::ETaskPriority::BackgroundLow);
+#endif // PLATFORM_WRITES_ARE_SLOW
 #endif // !UE_SERVER
 }
 
