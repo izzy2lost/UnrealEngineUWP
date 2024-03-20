@@ -54,6 +54,11 @@ static FAutoConsoleCommand DumpStreamingGenerationLog(
 				UWorldPartition::FGenerateStreamingContext Context;
 				WorldPartition->GenerateStreaming(Params, Context);
 				WorldPartition->FlushStreaming();
+
+				if (Context.OutputLogFilename.IsSet())
+				{
+					UE_LOG(LogWorldPartition, Display, TEXT("Streaming generation details logged to '%s'"), *FPaths::ConvertRelativePathToFull(Context.OutputLogFilename.GetValue()));
+				}
 			}
 		}
 	})
