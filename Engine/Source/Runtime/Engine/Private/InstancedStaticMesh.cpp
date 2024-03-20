@@ -2701,7 +2701,7 @@ FBoxSphereBounds UInstancedStaticMeshComponent::CalcBoundsImpl(const FTransform&
 
 void UInstancedStaticMeshComponent::UpdateBounds()
 {
-	if (PerInstanceSMData.Num() == 0)
+	if (GetNumRenderInstances() == 0)
 	{
 		Bounds = FBoxSphereBounds(GetComponentTransform().GetLocation(), FVector::ZeroVector, 0.f);
 	}
