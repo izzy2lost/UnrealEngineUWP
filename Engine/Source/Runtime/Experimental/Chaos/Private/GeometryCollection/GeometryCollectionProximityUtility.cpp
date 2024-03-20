@@ -469,13 +469,12 @@ void BuildProximityFromConvexHulls(FGeometryCollection* Collection, const UE::Ge
 					//	const VectorRegister4Float InitialDirSimd = MakeVectorRegisterFloat(1.f, 0.f, 0.f, 0.f);
 					//	if (GJKIntersectionSameSpaceSimd(Hull, CandidateHull, DistanceThreshold, InitialDirSimd))
 
-					const Chaos::FRigidTransform3 IdentityTransform = Chaos::FRigidTransform3::Identity;
 					Chaos::FReal Distance;
 					Chaos::TVec3<Chaos::FReal> NearestA, NearestB, Normal; // All unused
 					Chaos::EGJKDistanceResult Result = Chaos::GJKDistance<Chaos::FReal>(
 						Chaos::TGJKShape(Hull),
 						Chaos::TGJKShape(CandidateHull),
-						Chaos::GJKDistanceInitialV(Hull, CandidateHull, IdentityTransform),
+						Chaos::GJKDistanceInitialVFromDirection(Hull, CandidateHull, CandidateHull.GetCenterOfMass() - Hull.GetCenterOfMass()),
 						Distance, NearestA, NearestB, Normal);
 					if (Result == Chaos::EGJKDistanceResult::Contact || Result == Chaos::EGJKDistanceResult::DeepContact
 						|| (Result == Chaos::EGJKDistanceResult::Separated && Distance <= DistanceThreshold))
