@@ -238,7 +238,7 @@ namespace Jupiter.Controllers
 							byte[] blobMemory = await blob.Stream.ToByteArrayAsync();
 							CbObject cb = new CbObject(blobMemory);
 
-							IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachments(ns, cb);
+							IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachmentsAsync(ns, cb);
 
 							using CbPackageBuilder writer = new CbPackageBuilder();
 							writer.AddAttachment(objectRecord.BlobIdentifier.AsIoHash(), CbPackageAttachmentFlags.IsObject, blobMemory);
@@ -338,7 +338,7 @@ namespace Jupiter.Controllers
 								List<BlobId> referencedBlobs;
 								try
 								{
-									IAsyncEnumerable<BlobId> referencedBlobsEnumerable = _referenceResolver.GetReferencedBlobs(ns, cb);
+									IAsyncEnumerable<BlobId> referencedBlobsEnumerable = _referenceResolver.GetReferencedBlobsAsync(ns, cb);
 									referencedBlobs = await referencedBlobsEnumerable.ToListAsync();
 								}
 								catch (PartialReferenceResolveException)
@@ -427,8 +427,6 @@ namespace Jupiter.Controllers
 				return NotFound(new ProblemDetails { Title = $"Object {e.Blob} in {e.Ns} not found" });
 			}
 		}
-
-
 
 		/// <summary>
 		/// Returns the metadata about a ref key

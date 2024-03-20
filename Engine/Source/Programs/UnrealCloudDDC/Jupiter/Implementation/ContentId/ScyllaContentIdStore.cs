@@ -100,7 +100,6 @@ namespace Jupiter.Implementation
 				}
 			}
 
-
 			if (!mustBeContentId)
 			{
 				// if no content id is found, but we have a blob that matches the content id (so a unchunked and uncompressed version of the data) we use that instead
@@ -156,7 +155,6 @@ namespace Jupiter.Implementation
 
 		public ScyllaBlobIdentifier[] Chunks { get; set; } = Array.Empty<ScyllaBlobIdentifier>();
 	}
-
 
 	[Cassandra.Mapping.Attributes.Table("content_id")]
 	public class CassandraContentId

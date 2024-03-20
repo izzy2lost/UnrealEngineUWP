@@ -306,7 +306,6 @@ namespace Jupiter.Implementation
 		}
 	}
 
-
 	[Cassandra.Mapping.Attributes.Table("replication_log")]
 	class ScyllaReplicationLogEvent
 	{

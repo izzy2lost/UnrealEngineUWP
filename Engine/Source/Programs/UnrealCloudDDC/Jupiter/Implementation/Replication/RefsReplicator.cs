@@ -572,7 +572,6 @@ namespace Jupiter.Implementation
 						}
 					}
 
-
 					if (blobResponse == null)
 					{
 						throw new Exception("Blob response never set", lastException);

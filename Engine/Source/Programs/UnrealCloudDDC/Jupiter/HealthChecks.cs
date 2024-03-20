@@ -69,7 +69,6 @@ namespace Jupiter
 		}
 	}
 
-
 	public class LastAccessServiceCheck : IHealthCheck
 	{
 		private readonly LastAccessServiceReferences _lastAccessService;

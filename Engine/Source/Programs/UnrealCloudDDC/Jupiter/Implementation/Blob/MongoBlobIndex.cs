@@ -33,7 +33,6 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 				Name = "CompoundIndex"
 			});
 
-
 		AddIndexFor<MongoBlobIndexModelV0>().CreateMany(new[] {
 			indexModel,
 		});

@@ -54,7 +54,6 @@ namespace Jupiter.Controllers
 			return Ok(new ReplicationLogSnapshots(await _replicationLog.GetSnapshotsAsync(ns).ToListAsync()));
 		}
 
-
 		[HttpPost("snapshots/{ns}/create")]
 		[ProducesDefaultResponseType]
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]

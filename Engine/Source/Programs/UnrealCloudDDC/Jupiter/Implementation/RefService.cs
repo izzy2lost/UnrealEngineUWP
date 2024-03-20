@@ -201,7 +201,6 @@ namespace Jupiter.Implementation
 			return await DoFinalizeAsync(ns, bucket, key, blobHash, payload);
 		}
 
-
 		private async Task<(ContentId[], BlobId[])> DoFinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
 		{
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();

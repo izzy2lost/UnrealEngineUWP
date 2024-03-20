@@ -172,6 +172,8 @@ namespace Jupiter.Implementation
 		/// <returns></returns>
 		public async Task<ulong> CleanupInternalAsync(CancellationToken cancellationToken, int batchSize = 1_000_000)
 		{
+			_ = batchSize;
+
 			using TelemetrySpan scope = _tracer.StartActiveSpan("gc.filesystem")
 				.SetAttribute("operation.name", "gc.filesystem");
 

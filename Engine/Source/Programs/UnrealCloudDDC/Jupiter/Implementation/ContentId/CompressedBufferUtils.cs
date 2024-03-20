@@ -149,7 +149,6 @@ namespace Jupiter.Implementation
 				throw new InvalidHashException(header.Crc32, calculatedCrc);
 			}
 
-
 			return (header, blocks);
 		}
 

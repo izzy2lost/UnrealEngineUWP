@@ -266,7 +266,6 @@ namespace Jupiter.Controllers
 			return NoContent();
 		}
 
-
 		[HttpDelete("{ns}")]
 		public async Task<IActionResult> DeleteNamespaceAsync(
 			[Required] NamespaceId ns)

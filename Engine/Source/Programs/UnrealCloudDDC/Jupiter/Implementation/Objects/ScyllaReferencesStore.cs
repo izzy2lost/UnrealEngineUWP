@@ -280,7 +280,6 @@ namespace Jupiter.Implementation
 			}
 		}
 
-
 		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync()
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_records_no_access_time");
@@ -731,7 +730,6 @@ namespace Jupiter.Implementation
 		[Cassandra.Mapping.Attributes.ClusteringKey]
 		public string? Bucket { get; set; }
 	}
-
 
 	[Cassandra.Mapping.Attributes.Table("object_last_access_v2")]
 	public class ScyllaObjectLastAccess

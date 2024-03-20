@@ -266,7 +266,6 @@ namespace Jupiter.Implementation
 		}
 	}
 
-
 	// we do versioning by writing a discriminator into object
 	[BsonDiscriminator("ref.v0")]
 	[BsonIgnoreExtraElements]
