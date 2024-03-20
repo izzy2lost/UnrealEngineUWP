@@ -3,6 +3,9 @@
 #include "InstancedStructDetails.h"
 #include "DetailWidgetRow.h"
 #include "DetailLayoutBuilder.h"
+#include "Editor.h"
+#include "Editor/AssetReferenceFilter.h"
+#include "Editor/EditorEngine.h"
 #include "IDetailChildrenBuilder.h"
 #include "IPropertyUtilities.h"
 #include "UObject/Package.h"
@@ -175,6 +178,14 @@ bool FInstancedStructFilter::IsStructAllowed(const FStructViewerInitializationOp
 	if (InStruct->HasMetaData(TEXT("Hidden")))
 	{
 		return false;
+	}
+
+	if (AssetReferenceFilter.IsValid())
+	{
+		if (!AssetReferenceFilter->PassesFilter(FAssetData(InStruct)))
+		{
+			return false;
+		}
 	}
 
 	// Query the native struct to see if it has the correct parent type (if any)
@@ -494,6 +505,20 @@ TSharedRef<SWidget> FInstancedStructDetails::GenerateStructPicker()
 	StructFilter->BaseStruct = BaseScriptStruct;
 	StructFilter->bAllowUserDefinedStructs = BaseScriptStruct == nullptr; // Only allow user defined structs when BaseStruct is not set.
 	StructFilter->bAllowBaseStruct = !bExcludeBaseStruct;
+
+	if (GEditor && StructProperty)
+	{
+		FAssetReferenceFilterContext AssetReferenceFilterContext;
+		
+		TArray<UPackage*> OuterPackages;
+		StructProperty->GetOuterPackages(OuterPackages);
+		for (UPackage* OuterPackage : OuterPackages)
+		{
+			AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(OuterPackage));
+		}
+
+		StructFilter->AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
+	}
 
 	const UScriptStruct* SelectedStruct = nullptr;
 	const FPropertyAccess::Result Result = UE::StructUtils::Private::GetCommonScriptStruct(StructProperty, SelectedStruct);
