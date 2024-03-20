@@ -200,7 +200,7 @@ struct FLocalUserEOS
 	/** Online Account information for the local user */
 	FUserOnlineAccountEOSPtr UserOnlineAccount;
 
-	/** Friends information for the local user */
+	/** Friends information for the local user. Populated by ReadFriendsList */
 	FFriendsListEOSPtr FriendsList;
 
 	/** Epic ids for users with ongoing queries */
