@@ -262,6 +262,14 @@ namespace UnrealBuildTool.Matchers
 						return true;
 					}
 				}
+				else if (codeGroup.Value.StartsWith("C", StringComparison.Ordinal))
+				{
+					if (codeGroup.Value.Equals("C1060", StringComparison.Ordinal))
+					{
+						outEvent = builder.ToMatch(LogEventPriority.High, LogLevel.Error, KnownLogEvents.Systemic_MSBuild);
+						return true;
+					}
+				}
 			}
 
 			builder.AnnotateSourceFile(match.Groups["file"], sourceFileBaseDir);
