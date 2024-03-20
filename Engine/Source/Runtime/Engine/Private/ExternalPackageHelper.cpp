@@ -136,7 +136,7 @@ FString FExternalPackageHelper::GetExternalObjectPackageInstanceName(const FStri
 	return FLinkerInstancingContext::GetInstancedPackageName(OuterPackageName, ObjectPackageName);
 }
 
-void FExternalPackageHelper::GetExternalSaveableObjects(UObject* InOuter, TArray<UObject*>& OutObjects)
+void FExternalPackageHelper::GetExternalSaveableObjects(UObject* InOuter, TArray<UObject*>& OutObjects, EGetExternalSaveableObjectsFlags InFlags)
 {
 	// Get external packages
 	TSet<UPackage*> ExternalObjectPackages;
@@ -145,7 +145,8 @@ void FExternalPackageHelper::GetExternalSaveableObjects(UObject* InOuter, TArray
 	// Find assets for external packages
 	for (UPackage* ExternalPackage : ExternalObjectPackages)
 	{
-		if(FPackageName::IsValidLongPackageName(ExternalPackage->GetName()) && ExternalPackage->IsDirty())
+		const bool bPassesDirtyCheck = !EnumHasAnyFlags(InFlags, EGetExternalSaveableObjectsFlags::CheckDirty) || ExternalPackage->IsDirty();
+		if(bPassesDirtyCheck && FPackageName::IsValidLongPackageName(ExternalPackage->GetName()))
 		{
 			if(UObject* Asset = ExternalPackage->FindAssetInPackage())
 			{

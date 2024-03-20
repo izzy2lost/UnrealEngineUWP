@@ -79,12 +79,24 @@ public:
 	template<typename T>
 	static void LoadObjectsFromExternalPackages(UObject* InOuter, TFunctionRef<void(T*)> Operation);
 
+	enum class EGetExternalSaveableObjectsFlags : uint32
+	{
+		// No flags
+		None                   = 0,
+
+		// Whether to check the object's package dirty flag. Controls whether only dirty or all external objects are returned.
+		CheckDirty             = (1 << 0) 
+	};
+
+	FRIEND_ENUM_CLASS_FLAGS(EGetExternalSaveableObjectsFlags);
+
 	/**
 	 * Get the saveable external objects that should be saved alongside this outer's package
 	 * @param InOuter		The external object's outer
 	 * @param OutObjects	The objects that should be saved
+	 * @param InFlags		Flags controlling behavior @see EGetExternalSaveableObjectsFlags
 	 */
-	static ENGINE_API void GetExternalSaveableObjects(UObject* InOuter, TArray<UObject*>& OutObjects);
+	static ENGINE_API void GetExternalSaveableObjects(UObject* InOuter, TArray<UObject*>& OutObjects, EGetExternalSaveableObjectsFlags InFlags = EGetExternalSaveableObjectsFlags::CheckDirty);
 
 	/**
 	 * Returns an array of external package file paths for the provided objects
