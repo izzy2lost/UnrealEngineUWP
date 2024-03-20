@@ -28,6 +28,11 @@
 
 #define LOCTEXT_NAMESPACE "MVVMViewBlueprintCompiler"
 
+namespace UE::MVVM::Compiler
+{
+int32 FCompilerBindingHandle::IdGenerator = 0;
+}
+
 /**
 When compiling the skeletal class
 	CreateVariables()

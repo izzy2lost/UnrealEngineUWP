@@ -54,8 +54,6 @@ private:
 	int32 Id;
 };
 
-int32 FCompilerBindingHandle::IdGenerator = 0;
-
 enum class EMessageType
 {
 	Info = 0, 
