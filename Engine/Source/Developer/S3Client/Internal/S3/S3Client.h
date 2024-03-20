@@ -100,15 +100,54 @@ struct FS3Object
 /** Basic response parameters. */
 struct FS3Response
 {
-	/** Returns whether the request is considered successful. */
-	bool IsOk() const { return StatusCode > 199 && StatusCode < 299; }
+public:
+
+	FS3Response();
+	
+	FS3Response(const FS3Response& Other);
+	FS3Response(FS3Response&& Other);
+
+	FS3Response(uint32 InHttpStatusCode, uint32 InApiStatusCode);
+	FS3Response(uint32 InHttpStatusCode, uint32 InApiStatusCode, FSharedBuffer&& InBody);
+	FS3Response(uint32 InHttpStatusCode, FS3Response&& Other);
+
+public:
+
+	UE_API ~FS3Response() = default;
+
+	UE_API FS3Response& operator=(const FS3Response& Other);
+	UE_API FS3Response& operator=(FS3Response&& Other);
+
+	/** Returns whether the request is considered successful or not. */
+	UE_API bool IsOk() const;
+
 	/** Returns the body as text. */
-	FString ToString() const { return FString(reinterpret_cast<const ANSICHAR*>(Body.GetData())); }
+	UE_API FString ToString() const;
 
-	UE_API void GetErrorMsg(FStringBuilderBase& OutErrorMsg) const;
+	/** Returns the body as a raw buffer */
+	UE_API FSharedBuffer GetBody() const;
 
-	/** HTTP status code. */
-	uint32 StatusCode = 0;
+	/** 
+	 * Returns an error message comprised of the api/http status code and any error
+	 * that might have been returned as part of the response body.
+	 * If there response had no errors it the message will be "Success"
+	 */
+	UE_API void GetErrorResponse(FStringBuilderBase& OutErrorMsg) const;
+	
+	/** 
+	 * Returns a short error message comprised of the api/http status code
+	 * If there response had no errors it the message will be "Success"
+	 */
+	UE_API FString GetErrorStatus() const;
+
+private:
+
+	/** Status code returned by the HTTP request. */
+	uint32 HttpStatusCode = 0;
+
+	/** Status code returned by the API */
+	uint32 ApiStatusCode = 0;
+
 	/** HTTP response body. */
 	FSharedBuffer Body;
 };
