@@ -573,6 +573,9 @@ UTexture2D* FSVGImporterUtils::CreateSVGTexture(const FString& InSVGString, UObj
 	const float TextureDim = FMath::RoundUpToPowerOfTwo(MaxDim);
 
 	const float Scale = TextureDim/MaxDim;
+	const float XOffset = Scale * FMath::Max(0, (MaxDim - Image->width)/2.0f);
+	const float YOffset = Scale * FMath::Max(0, (MaxDim - Image->height)/2.0f);
+
 	TArray<uint8> PixelData;
 	PixelData.AddUninitialized(TextureDim * TextureDim * SVG_BPP);
 	const int32 Stride = TextureDim * SVG_BPP;
@@ -583,7 +586,7 @@ UTexture2D* FSVGImporterUtils::CreateSVGTexture(const FString& InSVGString, UObj
 		return nullptr;
 	}
 
-	nsvgRasterizeFull(Rasterizer, Image, 0, 0, Scale, Scale, PixelData.GetData(), TextureDim, TextureDim, Stride);
+	nsvgRasterizeFull(Rasterizer, Image, XOffset, YOffset, Scale, Scale, PixelData.GetData(), TextureDim, TextureDim, Stride);
 
 	nsvgDeleteRasterizer(Rasterizer);
 	nsvgDelete(Image);
