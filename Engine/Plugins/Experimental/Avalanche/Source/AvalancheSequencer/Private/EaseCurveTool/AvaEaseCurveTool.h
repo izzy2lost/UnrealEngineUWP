@@ -74,22 +74,21 @@ public:
 
 	FAvaEaseCurveTangents GetEaseCurveTangents() const;
 
-	void SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation,
-		const bool bBroadcastUpdate, const bool bInSetSequencerTangents);
+	/**
+	 * Sets the internal ease curve tangents and optionally broadcasts a change event for the curve object.
+	 * This is different from SetEaseCurveTangents_Internal in that it performs undo/redo transactions and
+	 * optionally sets the selected tangents in the actual sequence.
+	 */
+	void SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents);
 
 	void ResetEaseCurveTangents(const EOperation InOperation);
 
 	void FlattenOrStraightenTangents(const EOperation InOperation, const bool bInFlattenTangents) const;
 
-	FORCEINLINE EOperation GetOperation() const { return OperationMode; }
-	FORCEINLINE void SetOperation(const EOperation InOperation) { OperationMode = InOperation; }
-
 	/** Creates a new external float curve from the internet curve editor curve. */
 	UCurveBase* CreateCurveAsset() const;
 
 	void SetSequencerKeySelectionTangents(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation = EOperation::InOut);
-
-	void ApplyEaseCurveToSequencerKeySelections();
 
 	void ApplyQuickEaseToSequencerKeySelections(const EOperation InOperation = EOperation::InOut);
 
@@ -122,6 +121,8 @@ public:
 	void SelectNextChannelKey();
 	void SelectPreviousChannelKey();
 
+	bool HasCachedKeysToEase();
+
 	//~ Begin FGCObject
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override;
@@ -133,6 +134,12 @@ public:
 	//~ End FEditorUndoClient
 
 protected:
+	/** 
+	 * Sets the internal ease curve tangents and optionally broadcasts a change event for the curve object.
+	 * Changing the internal ease curve tangents will be directly reflected in the ease curve editor graph.
+	 */
+	void SetEaseCurveTangents_Internal(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation, const bool bInBroadcastUpdate);
+
 	TWeakPtr<FAvaSequencer> AvaSequencerWeak;
 	TWeakPtr<UE::Sequencer::FSequencerSelection> SequencerSelectionWeak;
 
@@ -154,6 +161,9 @@ protected:
 			TArray<FKeyHandle> KeyHandles;
 		};
 
+		void ForEachEaseableKey(const bool bInIncludeEqualValueKeys
+			, TFunctionRef<bool(const FKeyHandle& /*InKeyHandle*/, const FKeyHandle& /*InNextKeyHandle*/, const FChannelData&)> InCallable);
+
 		TMap<FName, FChannelData> ChannelKeyData;
 
 		int32 TotalSelectedKeys = 0;
@@ -165,7 +175,6 @@ protected:
 		bool bIsLastOnlySelectedKey = false;
 	};
 	FKeyDataCache KeyCache;
-	bool bAreKeysCached = false;
 
 private:
 	void CacheSelectionData();

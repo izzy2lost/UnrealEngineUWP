@@ -67,6 +67,7 @@ public:
 		SLATE_ARGUMENT(float, CurveThickness)
 		SLATE_ARGUMENT(FLinearColor, CurveColor)
 		SLATE_ATTRIBUTE(FAvaEaseCurveTool::EOperation, Operation)
+		SLATE_ATTRIBUTE(bool, ShowEqualValueKeyError)
 
 		SLATE_ATTRIBUTE(FText, StartText)
 		SLATE_ATTRIBUTE(FText, StartTooltipText)
@@ -222,7 +223,7 @@ protected:
 	void SetOutputMinMax(const float InNewMin, const float InNewMax);
 
 	bool HitTestCurves(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const;
-	FSelectedTangent HitTestTangentHandle(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const;
+	FSelectedTangent HitTestTangentHandles(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const;
 	bool HitTestKey(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent, const FVector2D& InInputPosition) const;
 
 	TObjectPtr<UAvaEaseCurve> EaseCurve;
@@ -246,6 +247,7 @@ protected:
 	float CurveThickness = 1.f;
 	FLinearColor CurveColor;
 	TAttribute<FAvaEaseCurveTool::EOperation> Operation;
+	TAttribute<bool> ShowEqualValueKeyError;
 
 	TAttribute<FText> StartText;
 	TAttribute<FText> StartTooltipText;

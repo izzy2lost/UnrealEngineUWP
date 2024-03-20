@@ -1731,12 +1731,4 @@ TSharedRef<FAvaEaseCurveTool> FAvaSequencer::GetEaseCurveTool() const
 	return EaseCurveTool.ToSharedRef(); 
 }
 
-void FAvaSequencer::UpdateEaseCurveTool() const
-{
-	if (EaseCurveTool.IsValid())
-	{
-		EaseCurveTool->UpdateEaseCurveFromSequencerKeySelections();
-	}
-}
-
 #undef LOCTEXT_NAMESPACE

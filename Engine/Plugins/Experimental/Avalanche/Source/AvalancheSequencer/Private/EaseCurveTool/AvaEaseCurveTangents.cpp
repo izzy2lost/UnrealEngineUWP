@@ -56,6 +56,14 @@ FAvaEaseCurveTangents::FAvaEaseCurveTangents(const FString& InTangentsString)
 	FAvaEaseCurveTangents::FromString(InTangentsString, *this);
 }
 
+bool FAvaEaseCurveTangents::IsNearlyEqual(const FAvaEaseCurveTangents& InOther, const double InErrorTolerance) const
+{
+	return FMath::IsNearlyEqual(Start, InOther.Start, InErrorTolerance)
+		&& FMath::IsNearlyEqual(StartWeight, InOther.StartWeight, InErrorTolerance)
+		&& FMath::IsNearlyEqual(End, InOther.End, InErrorTolerance)
+		&& FMath::IsNearlyEqual(EndWeight, InOther.EndWeight, InErrorTolerance);
+}
+
 FText FAvaEaseCurveTangents::ToDisplayText() const
 {
 	const FNumberFormattingOptions NumberFormat = DefaultNumberFormattingOptions();

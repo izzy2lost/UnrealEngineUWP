@@ -36,11 +36,13 @@
 namespace UE::EaseCurveTool::Private
 {
 	static const FVector2D KeyHitSize = FVector2D(8.f);
-	static const FVector2D TangentHitSize = FVector2D(16.f);
+	static const FVector2D TangentHitSize = FVector2D(20.f);
+	static const FVector2D TangentDrawSize = FVector2D(16.f);
 	static const FVector2D CurveHitSize = FVector2D(6.f);
 
 	static const FVector2D HalfKeyHitSize = KeyHitSize * 0.5f;
 	static const FVector2D HalfTangentHitSize = TangentHitSize * 0.5f;
+	static const FVector2D HalfTangentDrawSize = TangentDrawSize * 0.5f;
 	static const FVector2D HalfCurveHitSize = CurveHitSize * 0.5f;
 
 	static constexpr float FitMargin = 0.1f;
@@ -87,6 +89,7 @@ void SAvaEaseCurveEditor::Construct(const FArguments& InArgs, const TObjectPtr<U
 	CurveThickness = InArgs._CurveThickness;
 	CurveColor = InArgs._CurveColor;
 	Operation = InArgs._Operation;
+	ShowEqualValueKeyError = InArgs._ShowEqualValueKeyError;
 
 	StartText = InArgs._StartText;
 	StartTooltipText = InArgs._StartTooltipText;
@@ -176,51 +179,71 @@ int32 SAvaEaseCurveEditor::OnPaint(const FPaintArgs& InArgs, const FGeometry& In
 			WhiteBrush, DrawEffects, NormalAreaColor);
 	}
 
-	InLayerId = PaintGrid(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects);
-
-	if (StartText.IsSet() || EndText.IsSet())
+	if (ShowEqualValueKeyError.Get(false))
 	{
-		const FSlateFontInfo FontInfo = FAvaEaseCurveStyle::Get().GetFontStyle(TEXT("Editor.LabelFont"));
-		const FLinearColor TextColor = FLinearColor(0.1f, 0.1f, 0.1f, 1.f);
-		const FVector2D TextOffset = FVector2D(4.f);
+		InLayerId = PaintGrid(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects);
 
-		if (StartText.IsSet())
+		if (StartText.IsSet() || EndText.IsSet())
 		{
-			const FText& Text = StartText.Get();
-			const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-			const FVector2D TextSize = FontMeasure->Measure(Text, FontInfo);
+			const FSlateFontInfo FontInfo = FAvaEaseCurveStyle::Get().GetFontStyle(TEXT("Editor.LabelFont"));
+			const FLinearColor TextColor = FLinearColor(0.1f, 0.1f, 0.1f, 1.f);
+			const FVector2D TextOffset = FVector2D(4.f);
 
-			const FVector2D ActualOffset(ZeroInputX - (TextOffset.X + TextSize.X), ZeroOutputY - (TextOffset.Y + TextSize.Y));
+			if (StartText.IsSet())
+			{
+				const FText& Text = StartText.Get();
+				const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+				const FVector2D TextSize = FontMeasure->Measure(Text, FontInfo);
 
-			FSlateDrawElement::MakeText(OutDrawElements, ++InLayerId
-				, InAllottedGeometry.ToPaintGeometry(InAllottedGeometry.Size, FSlateLayoutTransform(ActualOffset))
-				, Text, FontInfo, DrawEffects, TextColor);
+				const FVector2D ActualOffset(ZeroInputX - (TextOffset.X + TextSize.X), ZeroOutputY - (TextOffset.Y + TextSize.Y));
+
+				FSlateDrawElement::MakeText(OutDrawElements, ++InLayerId
+					, InAllottedGeometry.ToPaintGeometry(InAllottedGeometry.Size, FSlateLayoutTransform(ActualOffset))
+					, Text, FontInfo, DrawEffects, TextColor);
+			}
+
+			if (EndText.IsSet())
+			{
+				const FVector2D ActualOffset(OneInputX + TextOffset.X, OneOutputY + TextOffset.Y);
+
+				FSlateDrawElement::MakeText(OutDrawElements, ++InLayerId
+					, InAllottedGeometry.ToPaintGeometry(InAllottedGeometry.Size, FSlateLayoutTransform(ActualOffset))
+					, EndText.Get(), FontInfo, DrawEffects, TextColor);
+			}
 		}
 
-		if (EndText.IsSet())
-		{
-			const FVector2D ActualOffset(OneInputX + TextOffset.X, OneOutputY + TextOffset.Y);
+		PaintNormalBounds(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects, InWidgetStyle);
 
-			FSlateDrawElement::MakeText(OutDrawElements, ++InLayerId
-				, InAllottedGeometry.ToPaintGeometry(InAllottedGeometry.Size, FSlateLayoutTransform(ActualOffset))
-				, EndText.Get(), FontInfo, DrawEffects, TextColor);
+		PaintCurve(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects, InWidgetStyle);
+
+		InLayerId = PaintKeys(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects, InWidgetStyle);
+
+		if (DragState == EDragState::MarqueeSelect)
+		{
+			const FVector2D MarqueTopLeft(FMath::Min(MouseDownLocation.X, MouseMoveLocation.X), FMath::Min(MouseDownLocation.Y, MouseMoveLocation.Y));
+			const FVector2D MarqueBottomRight(FMath::Max(MouseDownLocation.X, MouseMoveLocation.X), FMath::Max(MouseDownLocation.Y, MouseMoveLocation.Y));
+
+			FSlateDrawElement::MakeBox(OutDrawElements, ++InLayerId
+				, InAllottedGeometry.ToPaintGeometry(MarqueBottomRight - MarqueTopLeft, FSlateLayoutTransform(MarqueTopLeft))
+				, FAppStyle::GetBrush(TEXT("MarqueeSelection")));
 		}
 	}
-
-	PaintNormalBounds(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects, InWidgetStyle);
-
-	PaintCurve(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects, InWidgetStyle);
-
-	InLayerId = PaintKeys(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects, InWidgetStyle);
-
-	if (DragState == EDragState::MarqueeSelect)
+	else
 	{
-		const FVector2D MarqueTopLeft(FMath::Min(MouseDownLocation.X, MouseMoveLocation.X), FMath::Min(MouseDownLocation.Y, MouseMoveLocation.Y));
-		const FVector2D MarqueBottomRight(FMath::Max(MouseDownLocation.X, MouseMoveLocation.X), FMath::Max(MouseDownLocation.Y, MouseMoveLocation.Y));
+		const FSlateFontInfo FontInfo = FAvaEaseCurveStyle::Get().GetFontStyle(TEXT("Editor.ErrorFont"));
+		const FText Text = LOCTEXT("EqualValueKeys", "No different key values to create ease curve!");
 
-		FSlateDrawElement::MakeBox(OutDrawElements, ++InLayerId
-			, InAllottedGeometry.ToPaintGeometry(MarqueBottomRight - MarqueTopLeft, FSlateLayoutTransform(MarqueTopLeft))
-			, FAppStyle::GetBrush(TEXT("MarqueeSelection")));
+		const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		const FVector2D TextSize = FontMeasure->Measure(Text, FontInfo);
+
+		const float HalfInputX = ScaleInfo.InputToLocalX(0.5f);
+		const float HalfOutputY = ScaleInfo.OutputToLocalY(0.5f);
+
+		const FVector2D ActualOffset(HalfInputX - (TextSize.X * 0.5f), HalfOutputY - (TextSize.Y * 0.5f));
+
+		FSlateDrawElement::MakeText(OutDrawElements, ++InLayerId
+			, InAllottedGeometry.ToPaintGeometry(InAllottedGeometry.Size, FSlateLayoutTransform(ActualOffset))
+			, Text, FontInfo, DrawEffects, FStyleColors::Foreground.GetSpecifiedColor());
 	}
 
 	return InLayerId;
@@ -354,7 +377,6 @@ void SAvaEaseCurveEditor::PaintCurve(const FTrackScaleInfo& InScaleInfo, const F
 	int32 LayerId, const FSlateRect& MyCullingRect, ESlateDrawEffect DrawEffects, const FWidgetStyle& InWidgetStyle) const
 {
 	const float NumKeys = EaseCurve->FloatCurve.GetNumKeys();
-	
 	if (NumKeys != 2)
 	{
 		return;
@@ -550,11 +572,11 @@ int32 SAvaEaseCurveEditor::PaintTangentHandle(const FGeometry& InAllottedGeometr
 	// Draw tangent handle
 	{
 		const FSlateBrush* ImageBrush = FAppStyle::GetBrush(TEXT("Icons.BulletPoint"));
-		const FVector2D TangentIconLocation = InTangentLocation - HalfTangentHitSize;
+		const FVector2D TangentIconLocation = InTangentLocation - HalfTangentDrawSize;
 		const FLinearColor HandleColor = bInSelected ? FStyleColors::AccentBlue.GetSpecifiedColor() : FLinearColor::White;
 
 		FSlateDrawElement::MakeBox(OutDrawElements, InLayerId++
-			, InAllottedGeometry.ToPaintGeometry(TangentHitSize, FSlateLayoutTransform(TangentIconLocation))
+			, InAllottedGeometry.ToPaintGeometry(TangentDrawSize, FSlateLayoutTransform(TangentIconLocation))
 			, ImageBrush, InDrawEffects, HandleColor * InWidgetStyle.GetColorAndOpacityTint());
 	}
 
@@ -579,8 +601,6 @@ TOptional<bool> SAvaEaseCurveEditor::OnQueryShowFocus(const EFocusCause InFocusC
 FReply SAvaEaseCurveEditor::OnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
 	const FKey EffectingButton = InMouseEvent.GetEffectingButton();
-	
-	OnDragEnd.ExecuteIfBound();
 
 	DragState = EDragState::PreDrag;
 
@@ -592,8 +612,6 @@ FReply SAvaEaseCurveEditor::OnMouseButtonDown(const FGeometry& InMyGeometry, con
 		{
 			FSlateApplication::Get().SetKeyboardFocus(SharedThis(this), EFocusCause::SetDirectly);
 		}
-
-		OnMouseMove(InMyGeometry, InMouseEvent);
 
 		return FReply::Handled().CaptureMouse(SharedThis(this));
 	}
@@ -873,7 +891,7 @@ void SAvaEaseCurveEditor::TryStartDrag(const FGeometry& InMyGeometry, const FPoi
 		if (bLeftMouseButton)
 		{
 			// Check if we should start dragging a tangent.
-			const FSelectedTangent HitTangent = HitTestTangentHandle(InMyGeometry, InMouseEvent);
+			const FSelectedTangent HitTangent = HitTestTangentHandles(InMyGeometry, InMouseEvent);
 			if (HitTangent.IsValid())
 			{
 				SelectedTangent = HitTangent;
@@ -970,7 +988,7 @@ void SAvaEaseCurveEditor::ProcessClick(const FGeometry& InMyGeometry, const FPoi
 
 	if (EffectingButton == EKeys::LeftMouseButton)
 	{
-		const FSelectedTangent HitTangent = HitTestTangentHandle(InMyGeometry, InMouseEvent);
+		const FSelectedTangent HitTangent = HitTestTangentHandles(InMyGeometry, InMouseEvent);
 		if (HitTangent.IsValid())
 		{
 			SelectedTangent = HitTangent;
@@ -1133,45 +1151,56 @@ bool SAvaEaseCurveEditor::HitTestCurves(const FGeometry& InMyGeometry, const FPo
 	return false;
 }
 
-SAvaEaseCurveEditor::FSelectedTangent SAvaEaseCurveEditor::HitTestTangentHandle(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const
+SAvaEaseCurveEditor::FSelectedTangent SAvaEaseCurveEditor::HitTestTangentHandles(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const
 {
 	const FTrackScaleInfo ScaleInfo(ViewMinInput, ViewMaxInput, ViewMinOutput, ViewMaxOutput, InMyGeometry.GetLocalSize());
 	const FVector2D MousePosition = InMyGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
 
-	auto IsInside = [&MousePosition](const FVector2D& InTangent) -> bool
+	auto IsInside = [&MousePosition](const FVector2D& InPosition) -> bool
 		{
-			return MousePosition.Y > (InTangent.Y - HalfTangentHitSize.Y)
-				&& MousePosition.Y < (InTangent.Y + HalfTangentHitSize.Y)
-				&& MousePosition.X > (InTangent.X - HalfTangentHitSize.X)
-				&& MousePosition.X < (InTangent.X + HalfTangentHitSize.X);
+			return MousePosition.Y > (InPosition.Y - HalfTangentHitSize.Y)
+				&& MousePosition.Y < (InPosition.Y + HalfTangentHitSize.Y)
+				&& MousePosition.X > (InPosition.X - HalfTangentHitSize.X)
+				&& MousePosition.X < (InPosition.X + HalfTangentHitSize.X);
 		};
 
 	FSelectedTangent OutTangent;
 
-	for (auto It(EaseCurve->FloatCurve.GetKeyHandleIterator()); It; ++It)
-	{
-		const FKeyHandle KeyHandle = *It;
-		const int32 KeyIndex = EaseCurve->FloatCurve.GetIndexSafe(KeyHandle);
-		check(KeyIndex != INDEX_NONE)
+	const FKeyHandle StartKeyHandle = EaseCurve->FloatCurve.GetFirstKeyHandle();
+	check(StartKeyHandle != FKeyHandle::Invalid());
+	const FKeyHandle EndKeyHandle = EaseCurve->FloatCurve.GetLastKeyHandle();
+	check(EndKeyHandle != FKeyHandle::Invalid());
 
-		if (KeyIndex == 0)
+	const FVector2D StartTangentScreenLocation = GetLeaveTangentScreenLocation(ScaleInfo, StartKeyHandle);
+	const FVector2D EndTangentScreenLocation = GetArriveTangentScreenLocation(ScaleInfo, EndKeyHandle);
+
+	const FVector2D StartKeyPosition(EaseCurve->FloatCurve.GetKeyTime(StartKeyHandle), EaseCurve->FloatCurve.GetKeyValue(StartKeyHandle));
+	const FVector2D EndKeyPosition(EaseCurve->FloatCurve.GetKeyTime(EndKeyHandle), EaseCurve->FloatCurve.GetKeyValue(EndKeyHandle));
+
+	const float StartDeltaPosition = (StartKeyPosition - StartTangentScreenLocation).Size();
+	const float EndDeltaPosition = (EndKeyPosition - EndTangentScreenLocation).Size();
+
+	const bool bIsInsideStartHandle = IsInside(StartTangentScreenLocation);
+	const bool bIsInsideEndHandle = IsInside(EndTangentScreenLocation);
+
+	if (bIsInsideStartHandle && bIsInsideEndHandle)
+	{
+		if (StartDeltaPosition < EndDeltaPosition)
 		{
-			const FVector2D LeaveTangentScreenLocation = GetLeaveTangentScreenLocation(ScaleInfo, KeyHandle);
-			if (IsInside(LeaveTangentScreenLocation))
-			{
-				OutTangent = FSelectedTangent(KeyHandle, false);
-				break;
-			}
+			OutTangent = FSelectedTangent(StartKeyHandle, false);
 		}
-		else if (KeyIndex == 1)
+		else if (EndDeltaPosition < StartDeltaPosition)
 		{
-			const FVector2D ArriveTangentScreenLocation = GetArriveTangentScreenLocation(ScaleInfo, KeyHandle);
-			if (IsInside(ArriveTangentScreenLocation))
-			{
-				OutTangent = FSelectedTangent(KeyHandle, true);
-				break;
-			}
+			OutTangent = FSelectedTangent(EndKeyHandle, true);
 		}
+	}
+	else if (bIsInsideStartHandle)
+	{
+		OutTangent = FSelectedTangent(StartKeyHandle, false);
+	}
+	else if (bIsInsideEndHandle)
+	{
+		OutTangent = FSelectedTangent(EndKeyHandle, true);
 	}
 
 	return OutTangent;

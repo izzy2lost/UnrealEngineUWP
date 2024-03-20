@@ -182,8 +182,6 @@ public:
 	void FixBindingHierarchy();
 
 	TSharedRef<FAvaEaseCurveTool> GetEaseCurveTool() const;
-
-	void UpdateEaseCurveTool() const;
 	
 	TArrayView<TWeakObjectPtr<>> ResolveBoundObjects(const FGuid& InBindingId, class UMovieSceneSequence* Sequence) const;
 

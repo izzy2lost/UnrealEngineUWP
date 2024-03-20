@@ -84,6 +84,10 @@ protected:
 
 	void ResetToDefaultPresets();
 
+	void ApplyTangents();
+
+	void ResetTangentsAndNotify() const;
+
 	//~ Begin SWidget
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 	//~ End SWidget

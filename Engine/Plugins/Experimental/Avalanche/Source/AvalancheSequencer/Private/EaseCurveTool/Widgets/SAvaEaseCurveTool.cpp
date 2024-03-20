@@ -166,6 +166,8 @@ void SAvaEaseCurveTool::Construct(const FArguments& InArgs, const TSharedRef<FAv
 	{
 		GEditor->RegisterForUndo(this);
 	}
+
+	CurvePresetWidget->SetSelectedItem(InArgs._InitialTangents);
 }
 
 TSharedRef<SWidget> SAvaEaseCurveTool::ConstructCurveEditorPanel()
@@ -181,10 +183,14 @@ TSharedRef<SWidget> SAvaEaseCurveTool::ConstructCurveEditorPanel()
 			[
 				SAssignNew(CurveEaseEditorWidget, SAvaEaseCurveEditor, EaseCurveTool->GetToolCurve())
 				.DisplayRate(EaseCurveToolRef, &FAvaEaseCurveTool::GetDisplayRate)
-				.Operation(EaseCurveToolRef, &FAvaEaseCurveTool::GetOperation)
+				.Operation(EaseCurveToolRef, &FAvaEaseCurveTool::GetToolOperation)
 				.DesiredSize_Lambda([this]() -> FVector2D
 					{
 						return FVector2D(CurrentGraphSize);
+					})
+				.ShowEqualValueKeyError_Lambda([this]() -> bool
+					{
+						return EaseCurveTool->HasCachedKeysToEase();
 					})
 				.OnTangentsChanged(this, &SAvaEaseCurveTool::HandleEditorTangentsChanged)
 				.GridSnap_UObject(GetDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::GetGridSnap)
@@ -403,17 +409,19 @@ void SAvaEaseCurveTool::OnEditorDragStart() const
 void SAvaEaseCurveTool::OnEditorDragEnd() const
 {
 	EaseCurveTool->EndTransaction();
+
+	if (!EaseCurveTool->HasCachedKeysToEase())
+	{
+		ResetTangentsAndNotify();
+	}
 }
 
 void SAvaEaseCurveTool::SetTangents(const FAvaEaseCurveTangents& InTangents, FAvaEaseCurveTool::EOperation InOperation
 	, const bool bInSetEaseCurve, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents) const
 {
-	if (CurvePresetWidget.IsValid())
+	if (CurvePresetWidget.IsValid() && !CurvePresetWidget->SetSelectedItem(InTangents))
 	{
-		if (!CurvePresetWidget->SetSelectedItem(InTangents))
-		{
-			CurvePresetWidget->ClearSelection();
-		}
+		CurvePresetWidget->ClearSelection();
 	}
 
 	// To change the graph UI tangents, we need to change the ease curve object tangents and the graph will reflect.
@@ -478,6 +486,12 @@ void SAvaEaseCurveTool::OnEndTangentWeightSpinBoxChanged(const float InNewValue)
 
 void SAvaEaseCurveTool::OnPresetChanged(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const
 {
+	if (!EaseCurveTool->HasCachedKeysToEase())
+	{
+		ResetTangentsAndNotify();
+		return;
+	}
+
 	SetTangents(InPreset->Tangents, ToolOperation.Get(), true, true, true);
 
 	FSlateApplication::Get().SetAllUserFocus(CurveEaseEditorWidget);
@@ -521,7 +535,7 @@ void SAvaEaseCurveTool::BindCommands()
 
 	CommandList->MapAction(EaseCurveToolCommands.Refresh, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::UpdateEaseCurveFromSequencerKeySelections));
 	
-	CommandList->MapAction(EaseCurveToolCommands.Apply, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ApplyEaseCurveToSequencerKeySelections));
+	CommandList->MapAction(EaseCurveToolCommands.Apply, FExecuteAction::CreateSP(this, &SAvaEaseCurveTool::ApplyTangents));
 
 	CommandList->MapAction(EaseCurveToolCommands.ZoomToFit, FExecuteAction::CreateSP(this, &SAvaEaseCurveTool::ZoomToFit));
 
@@ -977,6 +991,20 @@ void SAvaEaseCurveTool::ResetToDefaultPresets()
 	{
 		UAvaEaseCurveSubsystem::Get().ResetToDefaultPresets(false);
 	}
+}
+
+void SAvaEaseCurveTool::ApplyTangents()
+{
+	EaseCurveTool->SetEaseCurveTangents(EaseCurveTool->GetEaseCurveTangents(), EaseCurveTool->GetToolOperation(), /*bInBroadcastUpdate=*/true, /*bInSetSequencerTangents=*/true);
+}
+
+void SAvaEaseCurveTool::ResetTangentsAndNotify() const
+{
+	CurvePresetWidget->ClearSelection();
+
+	SetTangents(FAvaEaseCurveTangents(), FAvaEaseCurveTool::EOperation::InOut, true, true, false);
+
+	FAvaEaseCurveTool::ShowNotificationMessage(LOCTEXT("EqualValueKeys", "No different key values to create ease curve!"));
 }
 
 #undef LOCTEXT_NAMESPACE

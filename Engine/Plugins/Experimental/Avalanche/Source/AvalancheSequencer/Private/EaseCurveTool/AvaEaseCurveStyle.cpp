@@ -58,6 +58,7 @@ FAvaEaseCurveStyle::FAvaEaseCurveStyle()
 	Set("ToolToggleButton", ToolToggleButtonStyle);
 
 	Set("Editor.LabelFont", FSlateFontInfo(FCoreStyle::GetDefaultFont(), 7, TEXT("Regular")));
+	Set("Editor.ErrorFont", FSlateFontInfo(FCoreStyle::GetDefaultFont(), 9, TEXT("Italic")));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }

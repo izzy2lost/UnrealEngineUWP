@@ -4,6 +4,7 @@
 
 #include "Curves/RichCurve.h"
 #include "Channels/MovieSceneDoubleChannel.h"
+#include "Math/UnrealMathUtility.h"
 #include "AvaEaseCurveTangents.generated.h"
 
 class FString;
@@ -56,6 +57,8 @@ public:
 	{
 		return !(*this == InRhs);
 	}
+
+	bool IsNearlyEqual(const FAvaEaseCurveTangents& InOther, const double InErrorTolerance = UE_DOUBLE_SMALL_NUMBER) const;
 
 	FText ToDisplayText() const;
 	FString ToDisplayString() const;
