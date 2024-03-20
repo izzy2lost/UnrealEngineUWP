@@ -27,6 +27,7 @@ public:
 	FResolveDepthPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer);
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 
 	RENDERCORE_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, FParameter);
 
@@ -44,6 +45,10 @@ public:
 	FResolveDepth2XPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer);
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return true;
+	}
 };
 
 class FResolveDepth4XPS : public FResolveDepthPS
@@ -56,6 +61,10 @@ public:
 	FResolveDepth4XPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer);
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return true;
+	}
 };
 
 class FResolveDepth8XPS : public FResolveDepthPS
@@ -69,22 +78,13 @@ public:
 
 	static bool ShouldCache(EShaderPlatform Platform);
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return true;
+	}
 };
 
-class FResolveDepthArrayPS : public FResolveDepthPS
-{
-	DECLARE_EXPORTED_GLOBAL_SHADER(FResolveDepthArrayPS, RENDERCORE_API);
-public:
-	typedef FDummyResolveParameter FParameter;
-
-	FResolveDepthArrayPS();
-	FResolveDepthArrayPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer);
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
-};
-
-class FResolveDepthArray2XPS : public FResolveDepthArrayPS
+class FResolveDepthArray2XPS : public FResolveDepthPS
 {
 	DECLARE_EXPORTED_GLOBAL_SHADER(FResolveDepthArray2XPS, RENDERCORE_API);
 public:
@@ -97,7 +97,7 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
 };
 
-class FResolveDepthArray4XPS : public FResolveDepthArrayPS
+class FResolveDepthArray4XPS : public FResolveDepthPS
 {
 	DECLARE_EXPORTED_GLOBAL_SHADER(FResolveDepthArray4XPS, RENDERCORE_API);
 public:
@@ -110,7 +110,7 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
 };
 
-class FResolveDepthArray8XPS : public FResolveDepthArrayPS
+class FResolveDepthArray8XPS : public FResolveDepthPS
 {
 	DECLARE_EXPORTED_GLOBAL_SHADER(FResolveDepthArray8XPS, RENDERCORE_API);
 public:
@@ -119,7 +119,6 @@ public:
 	FResolveDepthArray8XPS();
 	FResolveDepthArray8XPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer);
 
-	RENDERCORE_API static bool ShouldCache(EShaderPlatform Platform);
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
 };
