@@ -31,7 +31,8 @@ public class FoundationTests : TestModuleRules
 				"CoreUObject",
 				"TelemetryUtils",
 				"AssetRegistry",
-				"ColorManagement"
+				"ColorManagement",
+				"Serialization",
 			});
 
 		if (Target.bBuildWithEditorOnlyData)
