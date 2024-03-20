@@ -112,7 +112,7 @@ namespace Jupiter.Implementation
 			throw new NotImplementedException("GetNamespaces not supported on a cached reference store");
 		}
 
-		public IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		public IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns)
 		{
 			throw new NotImplementedException("GetBuckets not supported on a cached reference store");
 		}
@@ -254,7 +254,7 @@ namespace Jupiter.Implementation
 			throw new NotImplementedException("GetNamespaces is not supported on a upstream reference store");
 		}
 
-		public IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		public IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns)
 		{
 			throw new NotImplementedException("GetBuckets is not supported on a upstream reference store");
 		}

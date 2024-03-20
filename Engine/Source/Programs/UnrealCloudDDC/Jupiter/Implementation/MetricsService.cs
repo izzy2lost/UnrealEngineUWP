@@ -90,7 +90,7 @@ namespace Jupiter.Implementation
 			{
 				await foreach (NamespaceId ns in _referencesStore.GetNamespacesAsync().WithCancellation(cancellationToken))
 				{
-					await foreach (BucketId bucket in _referencesStore.GetBuckets(ns).WithCancellation(cancellationToken))
+					await foreach (BucketId bucket in _referencesStore.GetBucketsAsync(ns).WithCancellation(cancellationToken))
 					{
 						DateTime start = DateTime.UtcNow;
 						_logger.LogInformation("Calculating stats for {Namespace} {Bucket}", ns, bucket);

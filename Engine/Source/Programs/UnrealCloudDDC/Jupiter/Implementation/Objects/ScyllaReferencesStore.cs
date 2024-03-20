@@ -514,7 +514,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		public async IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns)
 		{
 			foreach (ScyllaBucket scyllaBucket in await _mapper.FetchAsync<ScyllaBucket>("WHERE namespace=?", ns.ToString()))
 			{

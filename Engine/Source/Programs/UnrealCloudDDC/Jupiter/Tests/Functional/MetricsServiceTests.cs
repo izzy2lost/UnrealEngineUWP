@@ -178,7 +178,7 @@ namespace Jupiter.FunctionalTests.Metrics
 		{
 			IReferencesStore referenceStore = (IReferencesStore)_server!.Services.GetService(typeof(IReferencesStore))!;
 
-			IAsyncEnumerable<BucketId> buckets = referenceStore.GetBuckets(TestNamespace);
+			IAsyncEnumerable<BucketId> buckets = referenceStore.GetBucketsAsync(TestNamespace);
 			List<BucketId> _ = await buckets.ToListAsync();
 		}
 

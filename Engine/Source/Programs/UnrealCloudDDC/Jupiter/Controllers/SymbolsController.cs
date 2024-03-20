@@ -177,7 +177,7 @@ namespace Jupiter.Controllers
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 			CompressedBufferUtils utils = new CompressedBufferUtils(_tracer, _bufferedPayloadFactory);
 
-			IBufferedPayload payloadToUse = await _bufferedPayloadFactory.CreateFromRequest(Request);
+			IBufferedPayload payloadToUse = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
 			if (Request.ContentType == MediaTypeNames.Application.Octet)
 			{
 				await using Stream s = payloadToUse.GetStream();

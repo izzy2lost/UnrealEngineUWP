@@ -223,7 +223,7 @@ namespace Jupiter.Implementation
 				using TelemetrySpan _ = _tracer.StartActiveSpan("ObjectService.ResolveReferences").SetAttribute("operation.name", "ObjectService.ResolveReferences");
 				try
 				{
-					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, payload);
+					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, payload);
 
 					await foreach (BlobId blobId in references)
 					{
@@ -335,7 +335,7 @@ namespace Jupiter.Implementation
 
 			CbObject cbObject = new CbObject(blob);
 
-			List<BlobId> referencedBlobs = await _referenceResolver.GetReferencedBlobs(ns, cbObject, ignoreMissingBlobs).ToListAsync();
+			List<BlobId> referencedBlobs = await _referenceResolver.GetReferencedBlobsAsync(ns, cbObject, ignoreMissingBlobs).ToListAsync();
 			return referencedBlobs;
 		}
 	}

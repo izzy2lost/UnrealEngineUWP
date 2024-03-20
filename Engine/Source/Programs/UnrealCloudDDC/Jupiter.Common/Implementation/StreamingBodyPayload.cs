@@ -182,7 +182,7 @@ namespace Jupiter.Common.Implementation
 			Directory.CreateDirectory(options.CurrentValue.FilesystemTempPayloadRoot);
 		}
 
-		public Task<IBufferedPayload> CreateFromRequest(HttpRequest request)
+		public Task<IBufferedPayload> CreateFromRequestAsync(HttpRequest request)
 		{
 			long? contentLength = request.ContentLength;
 

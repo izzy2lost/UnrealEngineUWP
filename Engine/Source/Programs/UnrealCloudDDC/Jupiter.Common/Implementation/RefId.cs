@@ -27,9 +27,9 @@ namespace Jupiter.Implementation
 				throw new ArgumentException("IoHashKeys must be exactly 40 bytes.");
 			}
 
-			for (int Idx = 0; Idx < _text.Length; Idx++)
+			for (int idx = 0; idx < _text.Length; idx++)
 			{
-				if (!IsValidCharacter(_text[Idx]))
+				if (!IsValidCharacter(_text[idx]))
 				{
 					throw new ArgumentException($"{_text} is not a valid namespace id");
 				}

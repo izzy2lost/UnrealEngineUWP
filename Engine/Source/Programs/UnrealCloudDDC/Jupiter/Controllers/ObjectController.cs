@@ -160,7 +160,7 @@ namespace Jupiter.Controllers
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 			try
 			{
-				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
 
 				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id);
 				return Ok(new PutBlobResponse(identifier));
@@ -210,7 +210,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				BlobId[] references = await _referenceResolver.GetReferencedBlobs(ns, compactBinaryObject).ToArrayAsync();
+				BlobId[] references = await _referenceResolver.GetReferencedBlobsAsync(ns, compactBinaryObject).ToArrayAsync();
 				return Ok(new ResolvedReferencesResult(references));
 			}
 			catch (PartialReferenceResolveException e)

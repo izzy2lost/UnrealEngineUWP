@@ -108,7 +108,7 @@ namespace Jupiter.Implementation
 			return _namespaces.ToAsyncEnumerable();
 		}
 
-		public async IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		public async IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns)
 		{
 			HashSet<BucketId> buckets = new HashSet<BucketId>();
 			foreach (MemoryStoreObject o in _objects.Values.Where(o => o.Namespace == ns))

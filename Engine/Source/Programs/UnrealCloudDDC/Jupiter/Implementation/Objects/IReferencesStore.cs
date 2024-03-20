@@ -38,7 +38,7 @@ namespace Jupiter.Implementation
 		IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket);
 
 		IAsyncEnumerable<NamespaceId> GetNamespacesAsync();
-		IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns);
+		IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns);
 		Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key);
 		Task<long> DropNamespaceAsync(NamespaceId ns);
 		Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket);
