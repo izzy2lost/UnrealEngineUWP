@@ -24,11 +24,6 @@ void UInstancedActorsComponent::InitializeComponentForInstance(FInstancedActorsI
 	InstanceHandle = InInstanceHandle;
 }
 
-void UInstancedActorsComponent::OnClientRegisteredForInstance(FInstancedActorsInstanceHandle InInstanceHandle)
-{
-	InstanceHandle = InInstanceHandle;
-}
-
 void UInstancedActorsComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
