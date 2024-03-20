@@ -471,54 +471,72 @@ bool UAnimationAsset::ReplaceSkeleton(USkeleton* NewSkeleton, bool bConvertSpace
 		// get all sequences that need to change
 		TArray<UAnimationAsset*> AnimAssetsToReplace;
 
-		// Always add 'this' asset
-		AnimAssetsToReplace.Add(this);
-
-		// We dont use the return value from this function because we always add 'this' above
-		GetAllAnimationSequencesReferred(AnimAssetsToReplace);
-
-		TArray<UAnimSequence*> Sequences;
-
-		//Firstly need to remap
-		for (UAnimationAsset* AnimAsset : AnimAssetsToReplace)
+		if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(this))
 		{
-			//Make sure animation has finished loading before we start messing with it
-			if (FLinkerLoad* AnimLinker = AnimAsset->GetLinker())
+			AnimAssetsToReplace.AddUnique(AnimSequence);
+		}
+		if (GetAllAnimationSequencesReferred(AnimAssetsToReplace))
+		{
+			TArray<UAnimSequence*> Sequences;
+			
+			//Firstly need to remap
+			for (UAnimationAsset* AnimAsset : AnimAssetsToReplace)
 			{
-				AnimLinker->Preload(AnimAsset);
-			}
-			AnimAsset->ConditionalPostLoad();
+				//Make sure animation has finished loading before we start messing with it
+				if (FLinkerLoad* AnimLinker = AnimAsset->GetLinker())
+				{
+					AnimLinker->Preload(AnimAsset);
+				}
+				AnimAsset->ConditionalPostLoad();
 
-			if (AnimAsset->GetSkeleton() != GetSkeleton())
+				if (AnimAsset->GetSkeleton() != GetSkeleton())
+				{
+					UE_LOG(LogAnimation, Warning, TEXT("AnimationAsset referencing asset using different skeleton. This will generate undeterministic builds. Please Fix the Asset : AnimationAsset: [%s] - ReferencedAsset : [%s]"), *GetName(), *AnimAsset->GetName());
+				}
+
+				// This ensure that in subsequent behaviour the RawData GUID is never 'new-ed' but always calculated from the 
+				// raw animation data itself.
+				if (UAnimSequence* Sequence = Cast<UAnimSequence>(AnimAsset))
+				{
+					Sequences.Add(Sequence);				
+				}
+				else
+				{
+					// these two are different functions for now
+					// technically if you have implementation for Remap, it will also set skeleton 
+					AnimAsset->RemapTracksToNewSkeleton(NewSkeleton, bConvertSpaces);
+				}
+			}
+
+			UE::Anim::FAnimSequenceCompilingManager::Get().FinishCompilation(Sequences);
+			for (UAnimSequence* Sequence : Sequences)
 			{
-				UE_LOG(LogAnimation, Warning, TEXT("AnimationAsset referencing asset using different skeleton. This will generate undeterministic builds. Please Fix the Asset : AnimationAsset: [%s] - ReferencedAsset : [%s]"), *GetName(), *AnimAsset->GetName());
+				Sequence->GetController().OpenBracket(LOCTEXT("ReplaceSkeleton_Bracket", "Replacing USkeleton"));
+				Sequence->RemapTracksToNewSkeleton(NewSkeleton, bConvertSpaces);
 			}
 
+			//Second need to process anim sequences themselves. This is done in two stages as additives can rely on other animations.
+			for (UAnimSequence* Sequence : Sequences)
+			{
+				Sequence->GetController().CloseBracket();
+			}
+		}
+
+		UAnimSequence* Seq = Cast<UAnimSequence>(this);
+		{			
 			// This ensure that in subsequent behaviour the RawData GUID is never 'new-ed' but always calculated from the 
 			// raw animation data itself.
-			if (UAnimSequence* Sequence = Cast<UAnimSequence>(AnimAsset))
+			if (Seq)
 			{
-				Sequences.Add(Sequence);
+				Seq->GetController().OpenBracket(LOCTEXT("ReplaceSkeleton_Bracket", "Replacing USkeleton"));
 			}
-			else
+  
+			RemapTracksToNewSkeleton(NewSkeleton, bConvertSpaces);
+
+			if (Seq)
 			{
-				// these two are different functions for now
-				// technically if you have implementation for Remap, it will also set skeleton 
-				AnimAsset->RemapTracksToNewSkeleton(NewSkeleton, bConvertSpaces);
+				Seq->GetController().CloseBracket();
 			}
-		}
-
-		UE::Anim::FAnimSequenceCompilingManager::Get().FinishCompilation(Sequences);
-		for (UAnimSequence* Sequence : Sequences)
-		{
-			Sequence->GetController().OpenBracket(LOCTEXT("ReplaceSkeleton_Bracket", "Replacing USkeleton"));
-			Sequence->RemapTracksToNewSkeleton(NewSkeleton, bConvertSpaces);
-		}
-
-		//Second need to process anim sequences themselves. This is done in two stages as additives can rely on other animations.
-		for (UAnimSequence* Sequence : Sequences)
-		{
-			Sequence->GetController().CloseBracket();
 		}
 
 		return true;
