@@ -2077,9 +2077,9 @@ void ModifyVulkanCompilerInput(FShaderCompilerInput& Input)
 		Input.Environment.SetDefine(TEXT("VULKAN_SUPPORTS_SUBGROUP_SIZE_CONTROL"), 1);
 	}
 
-	Input.Environment.SetDefine(TEXT("VULKAN_BINDLESS_SRV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSRVArrayPrefix);
-	Input.Environment.SetDefine(TEXT("VULKAN_BINDLESS_UAV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessUAVArrayPrefix);
-	Input.Environment.SetDefine(TEXT("VULKAN_BINDLESS_SAMPLER_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSamplerArrayPrefix);
+	Input.Environment.SetDefine(TEXT("BINDLESS_SRV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSRVArrayPrefix);
+	Input.Environment.SetDefine(TEXT("BINDLESS_UAV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessUAVArrayPrefix);
+	Input.Environment.SetDefine(TEXT("BINDLESS_SAMPLER_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSamplerArrayPrefix);
 	Input.Environment.SetDefine(TEXT("VULKAN_MAX_BINDLESS_UNIFORM_BUFFERS_PER_STAGE"), VulkanBindless::MaxUniformBuffersPerStage);
 
 	if (IsAndroidShaderFormat(Input.ShaderFormat))
@@ -2362,9 +2362,9 @@ static bool CompileShaderGroup(
 	return bSuccess;
 }
 
-struct FPS5ShaderParameterParserPlatformConfiguration : public FShaderParameterParser::FPlatformConfiguration
+struct FVulkanShaderParameterParserPlatformConfiguration : public FShaderParameterParser::FPlatformConfiguration
 {
-	FPS5ShaderParameterParserPlatformConfiguration(const FShaderCompilerInput& Input)
+	FVulkanShaderParameterParserPlatformConfiguration(const FShaderCompilerInput& Input)
 		: FShaderParameterParser::FPlatformConfiguration()
 	{
 		EnumAddFlags(Flags, EShaderParameterParserConfigurationFlags::SupportsBindless | EShaderParameterParserConfigurationFlags::BindlessUsesArrays);
@@ -2377,10 +2377,12 @@ struct FPS5ShaderParameterParserPlatformConfiguration : public FShaderParameterP
 		}
 	}
 
-	virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView ShaderTypeString, FStringView IndexString) const final
+	virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView FullTypeString, FStringView ArrayNameOverride, FStringView IndexString) const final
 	{
-		checkf(false, TEXT("Vulkan does not use GenerateBindlessAccess"));
-		return FString();
+		// Heap[Index]
+		return FString::Printf(TEXT("%.*s[%.*s]"),
+			ArrayNameOverride.Len(), ArrayNameOverride.GetData(),
+			IndexString.Len(), IndexString.GetData());
 	}
 };
 
@@ -2391,7 +2393,7 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreproc
 	FString EntryPointName = Input.EntryPointName;
 	FString PreprocessedSource(InPreprocessOutput.GetSourceViewWide());
 
-	FPS5ShaderParameterParserPlatformConfiguration PlatformConfiguration(Input);
+	FVulkanShaderParameterParserPlatformConfiguration PlatformConfiguration(Input);
 	FShaderParameterParser ShaderParameterParser(PlatformConfiguration);
 	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource))
 	{

@@ -956,29 +956,27 @@ FString FShaderParameterParser::GenerateBindlessParameterDeclaration(const FPars
 	TStringBuilder<64> FullType;
 	FullType << StorageClass << TypedefName;
 
+	TStringBuilder<64> HeapName;
+
 	if (EnumHasAnyFlags(PlatformConfiguration.Flags, EShaderParameterParserConfigurationFlags::BindlessUsesArrays))
 	{
 		const FStringView HeapPrefix = GetBindlessArrayHeapPrefix(ParsedParameter.BindlessConversionType);
 
+		HeapName << HeapPrefix << TypedefName;
+
 		// Declare a heap for the RewriteType
 		// e.g. `SafeType##Name ResourceDescriptorHeap_SafeType##Name[];`
-		Result << FullType << TEXT(" ") << HeapPrefix << TypedefName << TEXT("[]; ");
+		Result << FullType << TEXT(" ") << HeapName << TEXT("[]; ");
 		// :todo-jn: specify the descriptor set and binding directly in source instead of patching SPIRV
-
-		// e.g. `static const SafeType##Name Name = ResourceDescriptorHeap_SafeType##Name[BindlessResource_##Name];`
-		Result << TEXT("static const ") << FullType << TEXT(" ") << Name << TEXT(" = ") << HeapPrefix << TypedefName << TEXT("[") << IndexString << TEXT("];");
 	}
-	else
-	{
-		const FString BindlessAccess = PlatformConfiguration.GenerateBindlessAccess(ParsedParameter.BindlessConversionType, FullType, IndexString);
 
-		const TCHAR* Kind = bIsSampler ? TEXT("Sampler") : TEXT("Resource");
+	const FString BindlessAccess = PlatformConfiguration.GenerateBindlessAccess(ParsedParameter.BindlessConversionType, FullType, HeapName, IndexString);
+	const TCHAR* FunctionPrefix = bIsSampler ? TEXT("GetBindlessSampler") : TEXT("GetBindlessResource");
 
-		// e.g. `Type GetBindlessResource##Name() { return GetResourceFromHeap(Type, BindlessResource_##Name); } static const Type Name = GetBindlessResource##Name()`
-		// or   `Type GetBindlessSampler##Name() { return GetSamplerFromHeap(Type, BindlessSampler_##Name); } static const Type Name = GetBindlessSampler##Name()`
-		Result << FullType << TEXT(" GetBindless") << Kind << Name << TEXT("() { return ") << BindlessAccess << TEXT("; } ");
-		Result << TEXT("static const ") << FullType << TEXT(" ") << Name << TEXT(" = GetBindless") << Kind << Name << TEXT("();");
-	}
+	// e.g. `Type GetBindlessResource##Name() { return GetResourceFromHeap(Type, BindlessResource_##Name); } static const Type Name = GetBindlessResource##Name()`
+	// or   `Type GetBindlessSampler##Name() { return GetSamplerFromHeap(Type, BindlessSampler_##Name); } static const Type Name = GetBindlessSampler##Name()`
+	Result << FullType << TEXT(" ") << FunctionPrefix << Name << TEXT("() { return ") << BindlessAccess << TEXT("; } ");
+	Result << TEXT("static const ") << FullType << TEXT(" ") << Name << TEXT(" = ") << FunctionPrefix << Name << TEXT("();");
 
 	return Result.ToString();
 }

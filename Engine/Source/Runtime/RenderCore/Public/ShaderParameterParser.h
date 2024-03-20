@@ -50,7 +50,7 @@ public:
 		}
 
 		/** Generate shader code for accessing a bindless resource or sampler */
-		virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView ShaderTypeString, FStringView IndexString) const
+		virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView FullTypeString, FStringView ArrayNameOverride, FStringView IndexString) const
 		{
 			checkf(false, TEXT("Platforms that support bindless must override GenerateBindlessAccess"));
 			return FString();
