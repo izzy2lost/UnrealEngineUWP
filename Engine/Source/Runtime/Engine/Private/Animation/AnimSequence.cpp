@@ -4542,7 +4542,7 @@ FIoHash UAnimSequence::CreateDerivedDataKeyHash(const ITargetPlatform* TargetPla
 		bPerformFrameStripping = ShouldPerformStripping(bPerformFrameStripping, bPerformFrameStrippingOnOddNumberedFrames);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
-
+		
 	FArcToHexString ArcToHexString;
 
 	ArcToHexString.Ar << CompressionErrorThresholdScale;
@@ -4550,17 +4550,7 @@ FIoHash UAnimSequence::CreateDerivedDataKeyHash(const ITargetPlatform* TargetPla
 	BoneCompressionSettings->PopulateDDCKey(UE::Anim::Compression::FAnimDDCKeyArgs(*this, TargetPlatform), ArcToHexString.Ar);
 	CurveCompressionSettings->PopulateDDCKey(ArcToHexString.Ar);
 	VariableFrameStrippingSettings->PopulateDDCKey(UE::Anim::Compression::FAnimDDCKeyArgs(*this, TargetPlatform), ArcToHexString.Ar);
-
-	if (bIsValidAdditive)
-	{
-		// Additive sequences are compressed in re-targeted space, as such we need to include the re-targeting transforms in our key
-		const TArray<FTransform>& RetargetTransforms = GetRetargetTransforms();
-		for (FTransform RetargetTransform : RetargetTransforms)	// Copy the transform to allow us to use the non-const << operator below
-		{
-			ArcToHexString.Ar << RetargetTransform;
-		}
-	}
-
+	
 	const FFrameRate FrameRate = PlatformTargetFrameRate.GetValueForPlatform(TargetPlatform->GetPlatformInfo().IniPlatformName);
 
 	FString Ret = FString::Printf(TEXT("%i_%s%s%s_%c%c%i_%s_%s_%i_%i_%s"),

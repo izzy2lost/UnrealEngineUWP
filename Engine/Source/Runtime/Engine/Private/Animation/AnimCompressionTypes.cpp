@@ -244,13 +244,7 @@ void FCompressibleAnimData::BakeOutAdditiveIntoRawData(const FFrameRate& SampleR
 	}
 
 	FMemMark Mark(FMemStack::Get());
-
 	FByFramePoseEvalContext EvalContext(AnimSequence);
-
-	// Enable re-targeting as we wish for both the base and additive sequences to use the same frame of reference.
-	EvalContext.RequiredBones.SetDisableRetargeting(false);
-	EvalContext.RequiredBones.SetUseRAWData(true);
-	EvalContext.RequiredBones.SetUseSourceData(false);
 
 	TScriptInterface<IAnimationDataModel> DataModelInterface = AnimSequence->GetDataModelInterface();
 	// We actually need to resample bone transforms
@@ -451,10 +445,7 @@ void FCompressibleAnimData::ResampleAnimationTrackData(const FFrameRate& SampleR
             }
 
 			FMemMark Mark(FMemStack::Get());
-
 			FByFramePoseEvalContext EvalContext(AnimSequence);
-
-			// Disable re-targeting since we wish to compress pre-retargeting data. Retargeting is performed at runtime.
 			EvalContext.RequiredBones.SetDisableRetargeting(true);
 			EvalContext.RequiredBones.SetUseRAWData(true);
 			EvalContext.RequiredBones.SetUseSourceData(false);
