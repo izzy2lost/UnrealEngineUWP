@@ -113,6 +113,9 @@ namespace UE::Tasks
 		UE_DEPRECATED(5.1, "You should not use this function as it exists only to patch another system and can be removed any time.")
 		CORE_API bool IsThreadRetractingTask();
 
+		// For workaround: see Private::FTaskBase::TryUnlock
+		extern CORE_API bool GAddReferenceInTryUnlock;
+
 		// An abstract base class for task implementation. 
 		// Implements internal logic of task prerequisites, nested tasks and deep task retraction.
 		// Implements intrusive ref-counting and so can be used with TRefCountPtr.
@@ -557,6 +560,21 @@ public:
 				TASKGRAPH_VERBOSE_EVENT_SCOPE(FTaskBase::TryUnlock);
 
 				FPipe* LocalPipe = GetPipe(); // cache data locally so we won't need to touch the member (read below)
+
+				// TEMP: Patch to prevent the task getting destroyed. If NumLocks reaches 0 and retraction wins the execution, it could end
+				// up releasing the last reference before we continue and exit this function.
+				const bool bHasAddedReference = GAddReferenceInTryUnlock;
+				if (bHasAddedReference)
+				{
+					AddRef();
+				}
+				ON_SCOPE_EXIT
+				{
+					if (bHasAddedReference)
+					{
+						Release();
+					}
+				};
 
 				uint32 PrevNumLocks = NumLocks.fetch_sub(1, std::memory_order_acq_rel); // `acq_rel` to make it happen after task 
 				// preparation and before launching it
