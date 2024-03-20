@@ -270,11 +270,13 @@ private:
 	void CompressCode() 
 	{
 		PreprocessedSource.Compress();
+		OriginalPreprocessedSource.Compress();
 	}
 
 	void DecompressCode()
 	{
 		PreprocessedSource.Decompress();
+		OriginalPreprocessedSource.Decompress();
 	}
 
 	void RemapErrors(FShaderCompilerOutput& Output) const;
