@@ -987,7 +987,7 @@ void FImgMediaLoader::WarmupSequence(const FImgMediaFrameInfo& InFirstFrameInfo,
 	// Giving our reader a chance to handle RAM allocation.
 	// Not all readers use this, only those that need to handle large files 
 	// or need to be as efficient as possible.
-	Reader->PreAllocateMemoryPool(NumFramesToLoad, InFirstFrameInfo, InFirstFrameInfo.FormatName == TEXT("EXR CUSTOM"));
+	Reader->PreAllocateMemoryPool(NumFramesToLoad, InFirstFrameInfo);
 
 	FScopeLock Lock(&CriticalSection);
 

@@ -126,7 +126,7 @@ FExrImgMediaReader::EReadResult FExrImgMediaReaderGpu::ReadMip
 	int MipLevelDiv = 1 << CurrentMipLevel;
 	FIntPoint CurrentMipDim = ConverterParams.FullResolution / MipLevelDiv;
 	const FImgMediaFrameInfo& FrameInfo = ConverterParams.FrameInfo;
-	const SIZE_T BufferSize = GetBufferSize(CurrentMipDim, FrameInfo.NumChannels, FrameInfo.bHasTiles, FrameInfo.NumTiles / MipLevelDiv, ConverterParams.bCustomExr);
+	const SIZE_T BufferSize = GetBufferSize(CurrentMipDim, FrameInfo.NumChannels, FrameInfo.bHasTiles, FrameInfo.NumTiles / MipLevelDiv);
 	
 	FStructuredBufferPoolItemSharedPtr BufferData = SampleConverter->GetOrCreateMipLevelBuffer(
 		CurrentMipLevel,
@@ -144,7 +144,7 @@ FExrImgMediaReader::EReadResult FExrImgMediaReaderGpu::ReadMip
 	{
 		TArray<UE::Math::TIntPoint<int64>> BufferRegionsToCopy;
 		// read frame data
-		if (FrameInfo.bHasTiles || ConverterParams.bCustomExr)
+		if (FrameInfo.bHasTiles)
 		{
 			TArray<FIntRect> TileRegionsToRead;
 			{
@@ -247,7 +247,6 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 	ConverterParams.PixelSize = sizeof(uint16) * ConverterParams.FrameInfo.NumChannels;
 	ConverterParams.TileDimWithBorders = FrameInfo.TileDimensions + FrameInfo.TileBorder * 2;
 	ConverterParams.NumMipLevels = Loader->GetNumMipLevels();
-	ConverterParams.bCustomExr = FrameInfo.FormatName == TEXT("EXR CUSTOM");
 	ConverterParams.bMipsInSeparateFiles = Loader->MipsInSeparateFiles();
 
 	{
@@ -342,7 +341,7 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 			for (const FIntRect& TileRegion : CurrentTileSelection.GetVisibleRegions())
 			{
 				FIntRect Viewport;
-				if (ConverterParams.FrameInfo.bHasTiles || ConverterParams.bCustomExr)
+				if (ConverterParams.FrameInfo.bHasTiles)
 				{
 					Viewport.Min = FIntPoint(ConverterParams.TileDimWithBorders.X * TileRegion.Min.X, ConverterParams.TileDimWithBorders.Y * TileRegion.Min.Y);
 					Viewport.Max = FIntPoint(ConverterParams.TileDimWithBorders.X * TileRegion.Max.X, ConverterParams.TileDimWithBorders.Y * TileRegion.Max.Y);
@@ -369,10 +368,10 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 	return true;
 }
 
-void FExrImgMediaReaderGpu::PreAllocateMemoryPool(int32 NumFrames, const FImgMediaFrameInfo& FrameInfo, const bool bCustomExr)
+void FExrImgMediaReaderGpu::PreAllocateMemoryPool(int32 NumFrames, const FImgMediaFrameInfo& FrameInfo)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.PreAllocateMemoryPool")));
-	SIZE_T AllocSize = GetBufferSize(FrameInfo.Dim, FrameInfo.NumChannels, FrameInfo.bHasTiles, FrameInfo.NumTiles, bCustomExr);
+	SIZE_T AllocSize = GetBufferSize(FrameInfo.Dim, FrameInfo.NumChannels, FrameInfo.bHasTiles, FrameInfo.NumTiles);
 	for (int32 FrameCacheNum = 0; FrameCacheNum < NumFrames; FrameCacheNum++)
 	{
 		AllocateGpuBufferFromPool(AllocSize);
@@ -397,7 +396,7 @@ FExrImgMediaReaderGpu::EReadResult FExrImgMediaReaderGpu::ReadInChunks(uint16* B
 	const int32 NumLevels = 1;
 	TArray<int32> NumTOffsetsPerLevel;
 	NumTOffsetsPerLevel.Add(Dim.Y);
-	if (!ChunkReader.OpenExrAndPrepareForPixelReading(ImagePath, NumTOffsetsPerLevel, TArray<TArray<int64>>()))
+	if (!ChunkReader.OpenExrAndPrepareForPixelReading(ImagePath, NumTOffsetsPerLevel))
 	{
 		return Fail;
 	}
@@ -437,9 +436,9 @@ FExrImgMediaReaderGpu::EReadResult FExrImgMediaReaderGpu::ReadInChunks(uint16* B
 	return bResult;
 }
 
-SIZE_T FExrImgMediaReaderGpu::GetBufferSize(const FIntPoint& Dim, int32 NumChannels, bool bHasTiles, const FIntPoint& TileNum, const bool bCustomExr)
+SIZE_T FExrImgMediaReaderGpu::GetBufferSize(const FIntPoint& Dim, int32 NumChannels, bool bHasTiles, const FIntPoint& TileNum)
 {
-	if (!bHasTiles && !bCustomExr)
+	if (!bHasTiles)
 	{
 		/** 
 		* Reading scanlines.
@@ -459,7 +458,7 @@ SIZE_T FExrImgMediaReaderGpu::GetBufferSize(const FIntPoint& Dim, int32 NumChann
 		* At the beginning of each tile there is 20 byte data that has information
 		* about number contents of tiles.
 		*/
-		const uint16 Padding = bCustomExr ? 0 : FExrReader::TILE_PADDING;
+		const uint16 Padding = FExrReader::TILE_PADDING;
 		SIZE_T BufferSize = Dim.X * Dim.Y * sizeof(uint16) * NumChannels + (TileNum.X * TileNum.Y) * Padding;
 		return BufferSize;
 	}
@@ -492,8 +491,7 @@ void FExrImgMediaReaderGpu::CreateSampleConverterCallback(TSharedPtr<FExrMediaTe
 
 			FExrSwizzlePS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FExrSwizzlePS::FRgbaSwizzle>(ConverterParams.FrameInfo.NumChannels - 1);
-			PermutationVector.Set<FExrSwizzlePS::FRenderTiles>(ConverterParams.FrameInfo.bHasTiles || ConverterParams.bCustomExr);
-			PermutationVector.Set<FExrSwizzlePS::FCustomExr>(ConverterParams.bCustomExr);
+			PermutationVector.Set<FExrSwizzlePS::FRenderTiles>(ConverterParams.FrameInfo.bHasTiles);
 			PermutationVector.Set<FExrSwizzlePS::FPartialTiles>(false);
 
 			FExrSwizzlePS::FParameters Parameters = FExrSwizzlePS::FParameters();

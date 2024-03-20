@@ -30,9 +30,6 @@ static TAutoConsoleVariable<bool> CVarEnableUncompressedExrGpuReader(
 
 FExrImgMediaReader::FExrImgMediaReader(const TSharedRef<FImgMediaLoader, ESPMode::ThreadSafe>& InLoader)
 	: LoaderPtr(InLoader)
-	, bIsCustomFormat(false)
-	, bIsCustomFormatTiled(false)
-	, CustomFormatTileSize(EForceInit::ForceInitToZero)
 {
 	const UImgMediaSettings* Settings = GetDefault<UImgMediaSettings>();
 	
@@ -77,29 +74,26 @@ FExrImgMediaReader::EReadResult FExrImgMediaReader::ReadTiles
 		, FMath::CeilToInt(float(MipResolution.Y) / ConverterParams.TileDimWithBorders.Y));
 
 	TArray<int32> NumTilesPerLevel;
-	TArray<TArray<int64>> CustomOffsets;
 	int32 NumMipLevels = ConverterParams.bMipsInSeparateFiles ? 1 : ConverterParams.NumMipLevels;
 
 	FExrReader::CalculateTileOffsets(
 		NumTilesPerLevel,
-		CustomOffsets,
 		ConverterParams.TileInfoPerMipLevel,
 		ConverterParams.FullResolution,
 		ConverterParams.TileDimWithBorders,
 		NumMipLevels,
-		ConverterParams.PixelSize,
-		ConverterParams.bCustomExr);
+		ConverterParams.PixelSize);
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FExrImgMediaReader_ReadTilesCustom_OpenFile")));
-		if (!ChunkReader.OpenExrAndPrepareForPixelReading(ImagePath, NumTilesPerLevel, MoveTemp(CustomOffsets), ConverterParams.bCustomExr))
+		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FExrImgMediaReader_ReadTiles_OpenFile")));
+		if (!ChunkReader.OpenExrAndPrepareForPixelReading(ImagePath, NumTilesPerLevel))
 		{
 			return Fail;
 		}
 	}
 	{
 		int64 CurrentBufferPos = 0;
-		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FExrImgMediaReader_ReadTilesCustom_ReadTiles")));
+		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FExrImgMediaReader_ReadTiles_ReadTiles")));
 		for (const FIntRect& RawTileRegion : TileRegions)
 		{
 			// This clamp is to make sure that tile region is not out of bounds in case the region wasn't calculated incorrectly for some reason.
@@ -120,8 +114,7 @@ FExrImgMediaReader::EReadResult FExrImgMediaReader::ReadTiles
 					}
 				}
 
-				const uint16 Padding = ConverterParams.bCustomExr ? 0 : FExrReader::TILE_PADDING;
-				const int64 TileByteStride = ConverterParams.PixelSize * ConverterParams.TileDimWithBorders.X * ConverterParams.TileDimWithBorders.Y + Padding;
+				const uint16 Padding = FExrReader::TILE_PADDING;
 				const int StartTileIndex = TileRow * DimensionInTiles.X + TileRegion.Min.X;
 
 				bool bLastTile = TileRow + 1 == DimensionInTiles.Y && TileRegion.Max.X == DimensionInTiles.X;
@@ -263,39 +256,7 @@ bool FExrImgMediaReader::ReadFrame(int32 FrameId, const TMap<int32, FImgMediaTil
 				FString Image = Loader->GetImagePath(FrameId, CurrentMipLevel);
 				FString BaseImage;
 
-				if (FrameInfo.FormatName == TEXT("EXR CUSTOM"))
-				{
-#if defined(PLATFORM_WINDOWS) && PLATFORM_WINDOWS
-					TArray<FIntRect> TileRegions = CurrentTileSelection.GetVisibleRegions();
-					int32 PixelSize = sizeof(uint16) * FrameInfo.NumChannels;
-					FSampleConverterParameters ConverterParams;
-					ConverterParams.FrameInfo = FrameInfo;
-					ConverterParams.PixelSize = sizeof(uint16) * ConverterParams.FrameInfo.NumChannels;
-					ConverterParams.TileDimWithBorders = FrameInfo.TileDimensions + FrameInfo.TileBorder * 2;
-					ConverterParams.NumMipLevels = Loader->GetNumMipLevels();
-					ConverterParams.bCustomExr = FrameInfo.FormatName == TEXT("EXR CUSTOM");
-					ConverterParams.FrameId = FrameId;
-
-					TArray<UE::Math::TIntPoint<int64>> OutBufferRegionsToCopy;
-					EReadResult ReadResult = ReadTiles((uint16*)MipDataPtr, FrameInfo.UncompressedSize / MipLevelDiv, Image, TileRegions, ConverterParams, CurrentMipLevel, OutBufferRegionsToCopy);
-					if (ReadResult != Fail)
-					{
-						OutFrame->MipTilesPresent.Emplace(CurrentMipLevel, CurrentTileSelection);
-						
-						for (const FIntRect& Region : TileRegions)
-						{
-							OutFrame->NumTilesRead += Region.Area();
-						}
-					}
-					else
-					{
-						UE_LOG(LogImgMedia, Error, TEXT("Could not load %s"), *Image);
-					}
-#else
-					UE_LOG(LogImgMedia, Error, TEXT("Current platform doesn't support custom EXR file %s"), *Image);
-#endif
-				}
-				else if (bHasTiles)
+				if (bHasTiles)
 				{
 					UE_LOG(LogImgMedia, Error, TEXT("Non-GPU reader doesn't currently support natively-tiled EXR file %s"), *Image);
 				}
@@ -343,10 +304,6 @@ void FExrImgMediaReader::UncancelFrame(int32 FrameNumber)
 /** Gets reader type (GPU vs CPU) depending on size of EXR and its compression. */
 TSharedPtr<IImgMediaReader, ESPMode::ThreadSafe> FExrImgMediaReader::GetReader(const TSharedRef <FImgMediaLoader, ESPMode::ThreadSafe>& InLoader, FString FirstImageInSequencePath)
 {
-	bool bIsCustomFormat = false;
-	bool bIsOptimizedForGpu = false;
-	FIntPoint TileSize(EForceInit::ForceInitToZero);
-
 #if defined(PLATFORM_WINDOWS) && PLATFORM_WINDOWS
 	if (!FPaths::FileExists(FirstImageInSequencePath))
 	{
@@ -359,30 +316,21 @@ TSharedPtr<IImgMediaReader, ESPMode::ThreadSafe> FExrImgMediaReader::GetReader(c
 		return MakeShareable(new FExrImgMediaReader(InLoader));
 	}
 
-	bIsCustomFormat = Info.FormatName.Equals(TEXT("EXR CUSTOM"));
-	bIsOptimizedForGpu = Info.FormatName.Equals(TEXT("EXR GPU")) || bIsCustomFormat;
-	if (bIsCustomFormat)
-	{
-		TileSize = Info.TileDimensions;
-	}
-
 	// Check GetCompressionName of OpenExrWrapper for other compression names.
 	// todo: Add and test Vulkan support
 	if (GDynamicRHI && GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D12
 		&& Info.CompressionName == "Uncompressed" 
 		&& CVarEnableUncompressedExrGpuReader.GetValueOnAnyThread()
-		&& bIsOptimizedForGpu
+		&& Info.FormatName.Equals(TEXT("EXR GPU"))
 		)
 	{
 		TSharedRef<FExrImgMediaReaderGpu, ESPMode::ThreadSafe> GpuReader = 
 			MakeShared<FExrImgMediaReaderGpu, ESPMode::ThreadSafe>(InLoader);
-		GpuReader->SetCustomFormatInfo(bIsCustomFormat, TileSize);
 		return GpuReader;
 	}
 #endif
-	FExrImgMediaReader* Reader = new FExrImgMediaReader(InLoader);
-	Reader->SetCustomFormatInfo(bIsCustomFormat, TileSize);
-	return MakeShareable(Reader);
+
+	return MakeShareable(new FExrImgMediaReader(InLoader));
 }
 
 /* FExrImgMediaReader implementation
@@ -461,14 +409,6 @@ bool FExrImgMediaReader::GetInfo(const FString& FilePath, FImgMediaFrameInfo& Ou
 	}
 
 	return (OutInfo.UncompressedSize > 0) && (OutInfo.Dim.GetMin() > 0);
-}
-
-
-void FExrImgMediaReader::SetCustomFormatInfo(bool bInIsCustomFormat, const FIntPoint& InTileSize)
-{
-	bIsCustomFormat = bInIsCustomFormat;
-	CustomFormatTileSize = InTileSize;
-	bIsCustomFormatTiled = InTileSize.X != 0;
 }
 
 SIZE_T FExrImgMediaReader::GetMipBufferTotalSize(FIntPoint Dim, bool bInHasMips)

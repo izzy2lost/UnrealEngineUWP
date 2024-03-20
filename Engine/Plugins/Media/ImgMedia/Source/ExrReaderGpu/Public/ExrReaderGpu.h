@@ -51,9 +51,7 @@ public:
 	FExrReader() 
 		: FileHandle(nullptr)
 		, FileLength(0)
-		, bCustomExr(false)
 		, LineOrTileOffsetsPerLevel()
-		, PixelStartByteOffset(0)
 	{};
 private:
 
@@ -80,20 +78,18 @@ public:
 	*/
 	static void CalculateTileOffsets
 		( TArray<int32>& OutNumTilesPerLevel
-		, TArray<TArray<int64>>& OutCustomOffsets
 		, TArray<TArray<FTileDesc>>& OutPartialTileInfo
 		, const FIntPoint& FullTextureResolution
 		, const FIntPoint& TileDimWithBorders
 		, int32 NumMipLevels
-		, int64 PixelSize
-		, bool bCustomExr);
+		, int64 PixelSize);
 
 	/** 
 	* This function is used to open file and keep a handle to it so the file can be read in chunks.
 	* Reading in chunks allows the process of reading to be canceled midway through reading. 
 	* This function reads and discards the header and keeps the pointers to the scanlines or tiles. 
 	*/
-	bool OpenExrAndPrepareForPixelReading(FString FilePath, const TArray<int32>& NumOffsetsPerLevel, TArray<TArray<int64>>&& CustomOffsets, bool bInCustomExr = false);
+	bool OpenExrAndPrepareForPixelReading(FString FilePath, const TArray<int32>& NumOffsetsPerLevel);
 
 	/** 
 	* Read a chunk of an Exr file previously open via OpenExrAndPrepareForPixelReading.
@@ -131,18 +127,8 @@ private:
 	int64 FileLength;
 
 	/**
-	* Is this exr a custom exr with swizzled data.
-	*/
-	bool bCustomExr;
-
-	/**
 	* These are byte offsets pointing to scanlines or tiles from the begining of the file.
 	*/
 	TArray<TArray<int64>> LineOrTileOffsetsPerLevel;
-
-	/** 
-	* Byte offset of the first pixel in file. This is equal to the size of the header.
-	*/
-	int64 PixelStartByteOffset;
 };
 #endif

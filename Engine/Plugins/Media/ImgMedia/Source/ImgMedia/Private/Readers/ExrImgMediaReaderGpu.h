@@ -72,7 +72,7 @@ public:
 	/**
 	* For performance reasons we want to pre-allocate structured buffers to at least the number of concurrent frames.
 	*/
-	virtual void PreAllocateMemoryPool(int32 NumFrames, const FImgMediaFrameInfo& FrameInfo, const bool bCustomExr) override;
+	virtual void PreAllocateMemoryPool(int32 NumFrames, const FImgMediaFrameInfo& FrameInfo) override;
 
 protected:
 
@@ -88,7 +88,7 @@ protected:
 	 * @param Dim Dimensions of the image.
 	 * @param NumChannels Number of channels in the image.
 	 */
-	static SIZE_T GetBufferSize(const FIntPoint& Dim, int32 NumChannels, bool bHasTiles, const FIntPoint& TileNum, const bool bCustomExr);
+	static SIZE_T GetBufferSize(const FIntPoint& Dim, int32 NumChannels, bool bHasTiles, const FIntPoint& TileNum);
 
 	/**
 	* Creates Sample converter to be used by Media Texture Resource.
@@ -167,9 +167,6 @@ struct FSampleConverterParameters
 
 	/** Pixel stride in bytes. I.e. 2 bytes per pixel x 3 channels = 6. */
 	int32 PixelSize;
-
-	/** Identifies this exr as custom, therefore all data should be swizzled. */
-	bool bCustomExr;
 
 	/** Indicates if mips stored in individual files.*/
 	bool bMipsInSeparateFiles;
