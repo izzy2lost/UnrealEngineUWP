@@ -201,38 +201,65 @@ namespace Jupiter.Implementation
 				}
 				
 				_logger.LogInformation("Filesystem cleanup running. Disksize used: {UsedDiskSize} . Trigger size was {TriggerSize}", size, triggerSize);
-				IEnumerable<FileInfo> fileInfos = GetLeastRecentlyAccessedObjects(maxResults: batchSize);
+
+				// define progressively shorter windows of how long we keep data around for, based on their last write time
+				DateTime[] cutoffPeriods = new DateTime[]
+				{
+					DateTime.Now.AddDays(-14),
+					DateTime.Now.AddDays(-7),
+					DateTime.Now.AddDays(-3),
+					DateTime.Now.AddDays(-1),
+					DateTime.Now.AddHours(-12),
+					DateTime.Now /* This is a bit extreme as it will just throw out any object that exists right now, but if we get this far we need to really remove something */
+				};
 
 				bool hadFiles = false;
 				long totalBytesDeleted = 0;
-				foreach (FileInfo fi in fileInfos)
-				{
-					hadFiles = true;
-					try
-					{
-						totalBytesDeleted += fi.Length;
-						fi.Delete();
-						++countOfBlobsRemoved;
 
-						long currentSize = size - totalBytesDeleted;
-						if (currentSize <= targetSize || cancellationToken.IsCancellationRequested)
+				foreach (DateTime cutoff in cutoffPeriods)
+				{
+					IEnumerable<FileInfo> fileInfos = GetObjectsOlderThen(cutoff);
+
+					foreach (FileInfo fi in fileInfos)
+					{
+						hadFiles = true;
+						try
 						{
-							return countOfBlobsRemoved;
+							totalBytesDeleted += fi.Length;
+							fi.Delete();
+							++countOfBlobsRemoved;
+
+							long currentSize = size - totalBytesDeleted;
+							if (currentSize <= targetSize || cancellationToken.IsCancellationRequested)
+							{
+								return countOfBlobsRemoved;
+							}
+						}
+						catch (FileNotFoundException)
+						{
+							// if the file was gced while running we can just ignore it
 						}
 					}
-					catch (FileNotFoundException)
+
+					if (!hadFiles)
 					{
-						// if the file was gced while running we can just ignore it
+						return countOfBlobsRemoved;
 					}
 				}
-
-				if (!hadFiles)
-				{
-					return countOfBlobsRemoved;
-				}
 			}
-			
+
 			return countOfBlobsRemoved;
+		}
+
+		public IEnumerable<FileInfo> GetObjectsOlderThen(DateTime cutoff, NamespaceId? ns = null)
+		{
+			string path = ns != null ? Path.Combine(GetRootDir(), ns.ToString()!) : GetRootDir();
+			DirectoryInfo di = new DirectoryInfo(path);
+			if (!di.Exists)
+			{
+				return Array.Empty<FileInfo>();
+			}
+			return di.EnumerateFiles("*", SearchOption.AllDirectories).Where(x => x.LastWriteTime < cutoff);
 		}
 
 		/// <summary>

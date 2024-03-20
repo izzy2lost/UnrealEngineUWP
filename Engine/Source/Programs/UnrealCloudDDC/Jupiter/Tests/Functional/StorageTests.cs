@@ -428,9 +428,9 @@ namespace Jupiter.FunctionalTests.Storage
 			Assert.IsTrue(fooFiles[1].Exists);
 			Assert.IsTrue(fooFiles[2].Exists);
 			Assert.IsTrue(fooFiles[3].Exists);
-			Assert.IsTrue(fooFiles[4].Exists);
+			Assert.IsFalse(fooFiles[4].Exists);
 			Assert.IsFalse(fooFiles[5].Exists);
-			Assert.IsFalse(fooFiles[6].Exists);
+			Assert.IsTrue(fooFiles[6].Exists); // this is left around because its the lexicographically last object that could be deleted and is not needed because target size has been reached
 			Assert.IsFalse(fooFiles[7].Exists);
 			Assert.IsFalse(fooFiles[8].Exists);
 			Assert.IsFalse(fooFiles[9].Exists); // Least recently accessed/modified
@@ -452,6 +452,24 @@ namespace Jupiter.FunctionalTests.Storage
 			Assert.AreEqual(fooFiles[7].LastAccessTime, results[2].LastAccessTime);
 			Assert.AreEqual(fooFiles[8].LastAccessTime, results[1].LastAccessTime);
 			Assert.AreEqual(fooFiles[9].LastAccessTime, results[0].LastAccessTime);
+		}
+
+		[TestMethod]
+		public void GetObjectsOlderThen()
+		{
+			FileInfo[] fooFiles = CreateFilesInNamespace(_fooNamespace, 10);
+			CreateFilesInNamespace(new NamespaceId("bar"), 10);
+
+			FileSystemStore? fsStore = Server!.Services.GetService<FileSystemStore>();
+			Assert.IsNotNull(fsStore);
+
+			Assert.AreEqual(10, fsStore.GetObjectsOlderThen(DateTime.Now, _fooNamespace).ToArray().Length);
+
+			FileInfo[] results = fsStore.GetObjectsOlderThen(DateTime.Now.AddDays(-7), _fooNamespace).ToArray();
+			Assert.AreEqual(3, results.Length);
+			Assert.AreEqual(fooFiles[8].LastAccessTime, results[0].LastAccessTime);
+			Assert.AreEqual(fooFiles[9].LastAccessTime, results[1].LastAccessTime);
+			Assert.AreEqual(fooFiles[7].LastAccessTime, results[2].LastAccessTime);
 		}
 		
 		[TestMethod]
