@@ -267,6 +267,16 @@ private:
 	// and saving the original source in the OriginalPreprocessedSource member
 	void StripCode(bool bCopyOriginalPreprocessdSource);
 
+	void CompressCode() 
+	{
+		PreprocessedSource.Compress();
+	}
+
+	void DecompressCode()
+	{
+		PreprocessedSource.Decompress();
+	}
+
 	void RemapErrors(FShaderCompilerOutput& Output) const;
 
 	// Output of preprocessing; should be set by IShaderFormat::PreprocessShader
