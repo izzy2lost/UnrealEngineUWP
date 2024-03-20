@@ -388,10 +388,12 @@ FSceneViewState::FSceneViewState(ERHIFeatureLevel::Type FeatureLevel, FSceneView
 	if (ShareOriginTarget)
 	{
 		GlobalDistanceFieldData = ShareOriginTarget->GlobalDistanceFieldData;
+		ShareOriginUniqueID = ShareOriginTarget->UniqueID;
 	}
 	else
 	{
 		GlobalDistanceFieldData = new FPersistentGlobalDistanceFieldData;
+		ShareOriginUniqueID = UniqueID;
 	}
 
 	ShadowOcclusionQueryMaps.Empty(FOcclusionQueryHelpers::MaxBufferedOcclusionFrames);
@@ -742,7 +744,7 @@ static uint64 GetTextureGPUSizeBytes(const FTextureRHIRef& Target, bool bLogSize
 	uint64 Size = Target.IsValid() ? Target->GetDesc().CalcMemorySizeEstimate() : 0;
 	if (bLogSizes && Size)
 	{
-		UE_LOG(LogRenderer, Log, TEXT("LogSizes\tTexture\t%s\t%llu"), *Target->GetName().ToString(), Size);
+		UE_LOG(LogRenderer, Log, TEXT("LogSizes\tTexture\t0x%p\t%s\t%llu"), Target.GetReference(), *Target->GetName().ToString(), Size);
 	}
 	return Size;
 }
@@ -752,7 +754,7 @@ static uint64 GetRenderTargetGPUSizeBytes(const TRefCountPtr<IPooledRenderTarget
 	uint64 Size = Target.IsValid() ? Target->ComputeMemorySize() : 0;
 	if (bLogSizes && Size)
 	{
-		UE_LOG(LogRenderer, Log, TEXT("LogSizes\tRenderTarget\t%s\t%llu"), Target->GetDesc().DebugName, Size);
+		UE_LOG(LogRenderer, Log, TEXT("LogSizes\tRenderTarget\t0x%p\t%s\t%llu"), Target.GetReference(), Target->GetDesc().DebugName, Size);
 	}
 	return Size;
 }
@@ -763,7 +765,7 @@ static uint64 GetBufferGPUSizeBytes(const TRefCountPtr<FRDGPooledBuffer>& Buffer
 	if (bLogSizes && Size)
 	{
 		const TCHAR* Name = Buffer->GetName();
-		UE_LOG(LogRenderer, Log, TEXT("LogSizes\tBuffer\t%s\t%llu"), Name ? Name : TEXT("UNKNOWN"), Size);
+		UE_LOG(LogRenderer, Log, TEXT("LogSizes\tBuffer\t0x%p\t%s\t%llu"), Buffer.GetReference(), Name ? Name : TEXT("UNKNOWN"), Size);
 	}
 	return Size;
 }
@@ -773,7 +775,7 @@ static uint64 GetTextureReadbackGPUSizeBytes(const FRHIGPUTextureReadback* Textu
 	uint64 Size = TextureReadback ? TextureReadback->GetGPUSizeBytes() : 0;
 	if (bLogSizes && Size)
 	{
-		UE_LOG(LogRenderer, Log, TEXT("LogSizes\tTextureReadback\t%s\t%llu"), *TextureReadback->GetName().ToString(), Size);
+		UE_LOG(LogRenderer, Log, TEXT("LogSizes\tTextureReadback\t0x%p\t%s\t%llu"), TextureReadback, *TextureReadback->GetName().ToString(), Size);
 	}
 	return Size;
 }
@@ -783,7 +785,7 @@ static uint64 GetBufferReadbackGPUSizeBytes(const FRHIGPUBufferReadback* BufferR
 	uint64 Size = BufferReadback ? BufferReadback->GetGPUSizeBytes() : 0;
 	if (bLogSizes && Size)
 	{
-		UE_LOG(LogRenderer, Log, TEXT("LogSizes\tBufferReadback\t%s\t%llu"), *BufferReadback->GetName().ToString(), Size);
+		UE_LOG(LogRenderer, Log, TEXT("LogSizes\tBufferReadback\t%p\t%s\t%llu"), BufferReadback, *BufferReadback->GetName().ToString(), Size);
 	}
 	return Size;
 }
@@ -961,6 +963,7 @@ uint64 FLumenViewState::GetGPUSizeBytes(bool bLogSizes) const
 		ReflectionState.GetGPUSizeBytes(bLogSizes) +
 		TranslucentReflectionState.GetGPUSizeBytes(bLogSizes) +
 		GetRenderTargetGPUSizeBytes(DepthHistoryRT, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(NormalHistoryRT, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(TranslucencyVolume0, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(TranslucencyVolume1, bLogSizes) +
 		RadianceCacheState.GetGPUSizeBytes(bLogSizes) +
@@ -1010,6 +1013,15 @@ uint64 FLumenSceneData::GetGPUSizeBytes(bool bLogSizes) const
 		SurfaceCacheFeedback.GetGPUSizeBytes(bLogSizes) +
 		GetBufferGPUSizeBytes(PageTableBuffer, bLogSizes) +
 		PageTableUploadBuffer.GetNumBytes();
+}
+
+uint64 FManyLightsViewState::GetGPUSizeBytes(bool bLogSizes) const
+{
+	return
+		GetRenderTargetGPUSizeBytes(DiffuseLightingAndSecondMomentHistory, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(SpecularLightingAndSecondMomentHistory, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(SceneDepthHistory, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(NumFramesAccumulatedHistory, bLogSizes);
 }
 
 uint64 FPersistentGlobalDistanceFieldData::GetGPUSizeBytes(bool bLogSizes) const
@@ -1115,6 +1127,7 @@ uint64 FSceneViewState::GetGPUSizeBytes(bool bLogSizes) const
 	TotalSize += GetRenderTargetGPUSizeBytes(DistanceFieldIrradianceHistoryRT, bLogSizes);
 	TotalSize += GetRenderTargetGPUSizeBytes(SubsurfaceScatteringQualityHistoryRT, bLogSizes);
 	TotalSize += Lumen.GetGPUSizeBytes(bLogSizes);
+	TotalSize += ManyLights.GetGPUSizeBytes(bLogSizes);
 	TotalSize += GetRenderTargetGPUSizeBytes(BloomFFTKernel.Spectral, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(BloomFFTKernel.ConstantsBuffer, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(FilmGrainCache.ConstantsBuffer, bLogSizes);

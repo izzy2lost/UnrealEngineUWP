@@ -853,6 +853,7 @@ void UpdateHistoryReflections(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View, 
 	const FSceneTextures& SceneTextures,
+	FLumenSceneFrameTemporaries& FrameTemporaries,
 	const FLumenReflectionTileParameters& ReflectionTileParameters,
 	const FLumenReflectionTracingParameters& ReflectionTracingParameters,
 	bool bUseBilaterialFilter,
@@ -871,10 +872,12 @@ void UpdateHistoryReflections(
 	FRDGTextureRef VelocityTexture = GetIfProduced(SceneTextures.Velocity, SystemTextures.Black);
 
 	const FIntPoint EffectiveResolution = bTranslucentReflection ? SceneTextures.Config.Extent : Substrate::GetSubstrateTextureResolution(View, SceneTextures.Config.Extent);
+	const FIntPoint EffectiveViewExtent = FrameTemporaries.ViewExtent;
 	const uint32 ClosureCount = bTranslucentReflection ? 1 : Substrate::GetSubstrateMaxClosureCount(View);
 
 	FRDGTextureDesc NumHistoryFramesAccumulatedDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_G8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
-	FRDGTextureRef NewNumHistoryFramesAccumulated = GraphBuilder.CreateTexture(NumHistoryFramesAccumulatedDesc, TEXT("Lumen.Reflections.NumHistoryFramesAccumulated"));
+	FRDGTextureRef NewNumHistoryFramesAccumulated = FrameTemporaries.ReflectNumHistoryFrames.CreateSharedRT(GraphBuilder,
+		NumHistoryFramesAccumulatedDesc, EffectiveViewExtent, TEXT("Lumen.Reflections.NumHistoryFramesAccumulated"));
 
 	FReflectionTemporalState* ReflectionState = nullptr;
 	if (View.ViewState)
@@ -1028,7 +1031,7 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 	FRDGBuilder& GraphBuilder, 
 	const FViewInfo& View,
 	const FSceneTextures& SceneTextures,
-	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	FLumenSceneFrameTemporaries& FrameTemporaries,
 	const FLumenMeshSDFGridParameters& MeshSDFGridParameters,
 	const LumenRadianceCache::FRadianceCacheInterpolationParameters& ScreenProbeRadianceCacheParameters,
 	ELumenReflectionPass ReflectionPass,
@@ -1222,6 +1225,7 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 	}
 
 	const FIntPoint EffectiveTextureResolution = (bFrontLayer || bSingleLayerWater) ? SceneTextures.Config.Extent : Substrate::GetSubstrateTextureResolution(View, SceneTextures.Config.Extent);
+	const FIntPoint EffectiveViewExtent = FrameTemporaries.ViewExtent;
 
 	FRDGTextureRef ResolvedSpecularIndirect = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2DArray(EffectiveTextureResolution, PF_FloatRGB, FClearValueBinding::Transparent, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount),
@@ -1283,11 +1287,13 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 	if (bDenoise)
 	{
 		// Slowly accumulated specular history, must be in at least Float16 precision
-		SpecularIndirect = GraphBuilder.CreateTexture(
+		SpecularIndirect = FrameTemporaries.ReflectSpecularIndirect.CreateSharedRT(GraphBuilder,
 			FRDGTextureDesc::Create2DArray(EffectiveTextureResolution, PF_FloatRGBA, FClearValueBinding::Transparent, TexCreate_ShaderResource | TexCreate_UAV | TexCreate_RenderTargetable, ClosureCount),
+			EffectiveViewExtent,
 			TEXT("Lumen.Reflections.SpecularIndirect"));
 		EnumAddFlags(ResolveVarianceDesc.Flags, TexCreate_RenderTargetable);
-		FRDGTextureRef AccumulatedResolveVariance = GraphBuilder.CreateTexture(ResolveVarianceDesc, TEXT("Lumen.Reflections.AccumulatedResolveVariance"));
+		FRDGTextureRef AccumulatedResolveVariance = FrameTemporaries.ReflectResolveVariance.CreateSharedRT(GraphBuilder,
+			ResolveVarianceDesc, EffectiveViewExtent, TEXT("Lumen.Reflections.AccumulatedResolveVariance"));
 
 		AddClearRenderTargetPass(GraphBuilder, SpecularIndirect, FLinearColor::Transparent);
 		AddClearRenderTargetPass(GraphBuilder, AccumulatedResolveVariance, FLinearColor::Transparent);
@@ -1296,6 +1302,7 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 			GraphBuilder,
 			View,
 			SceneTextures,
+			FrameTemporaries,
 			ReflectionTileParameters,
 			ReflectionTracingParameters,
 			bUseBilaterialFilter,

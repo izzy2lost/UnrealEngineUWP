@@ -1014,6 +1014,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
 			}
 		}
+
+		//  Cube maps need to share eye adaptation to avoid seams.
+		if (bIsSceneCaptureCube && Family->EngineShowFlags.PostProcessing && Family->Views.Num())
+		{
+			EyeAdaptationViewState = Family->Views[0]->State;
+		}
 	}
 
 	check(VerifyMembersChecks());

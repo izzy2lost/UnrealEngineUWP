@@ -367,6 +367,7 @@ public:
 			if (NAME) OutTransfers.Add(FTransferResourceParams(NAME->GetRHI(), SourceGPUIndex, DestGPUIndex, false, false))
 
 		TRANSFER_LUMEN_RESOURCE(DepthHistoryRT);
+		TRANSFER_LUMEN_RESOURCE(NormalHistoryRT);
 		TRANSFER_LUMEN_RESOURCE(TranslucencyVolume0);
 		TRANSFER_LUMEN_RESOURCE(TranslucencyVolume1);
 

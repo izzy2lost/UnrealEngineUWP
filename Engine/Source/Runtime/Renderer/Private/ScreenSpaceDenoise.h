@@ -330,6 +330,16 @@ public:
 
 	/** Returns the denoising mode. */
 	static RENDERER_API EMode GetDenoiserMode(const TAutoConsoleVariable<int32>& CVar);
+
+	/** Variations of API that more efficiently support multiple split screen views. */
+	static RENDERER_API FDiffuseIndirectOutputs DenoiseSkyLight(
+		FRDGBuilder& GraphBuilder,
+		TConstArrayView<FViewInfo> Views,
+		FPreviousViewInfo* PreviousViewInfos,
+		const FSceneTextureParameters& SceneTextures,
+		const FDiffuseIndirectInputs& Inputs,
+		const FAmbientOcclusionRayTracingConfig Config);
+
 }; // class IScreenSpaceDenoiser
 
 

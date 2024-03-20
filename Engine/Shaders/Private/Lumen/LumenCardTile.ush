@@ -115,7 +115,7 @@ uint2 PackLightTileForLightPass(FLightTileForLightPass Tile)
 	return PackedTile;
 }
 
-float4x4 WorldToClip[LUMEN_MAX_VIEWS]; // LUMEN_LWC_TODO
+float4x4 FrustumWorldToClip[LUMEN_MAX_VIEWS]; // LUMEN_LWC_TODO
 float4 PreViewTranslation[LUMEN_MAX_VIEWS]; // LUMEN_LWC_TODO
 float2 ViewExposure;
 
@@ -139,14 +139,14 @@ uint GetCardViewIndex(FLumenCardPageData CardPage, FLumenCardData Card, float2 U
 #if IN_FRUSTUM_DISTANCE
 		if (bPrioritizeWhenInFrustum)
 		{
-			float4 CardOriginClipSpace0 = mul(float4(CardPageWorldCenter, 1.0f), WorldToClip[0]);
+			float4 CardOriginClipSpace0 = mul(float4(CardPageWorldCenter, 1.0f), FrustumWorldToClip[0]);
 
 			if (all(CardOriginClipSpace0.xy >= CardOriginClipSpace0.w) && all(CardOriginClipSpace0.xy <= CardOriginClipSpace0.w) && CardOriginClipSpace0.z < 1.0f)
 			{
 				View0Distance = .5f * CardOriginClipSpace0.w;
 			}
 
-			float4 CardOriginClipSpace1 = mul(float4(CardPageWorldCenter, 1.0f), WorldToClip[1]);
+			float4 CardOriginClipSpace1 = mul(float4(CardPageWorldCenter, 1.0f), FrustumWorldToClip[1]);
 
 			if (all(CardOriginClipSpace1.xy >= CardOriginClipSpace1.w) && all(CardOriginClipSpace1.xy <= CardOriginClipSpace1.w) && CardOriginClipSpace1.z < 1.0f)
 			{

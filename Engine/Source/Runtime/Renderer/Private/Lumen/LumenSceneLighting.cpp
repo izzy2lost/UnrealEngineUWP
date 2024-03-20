@@ -586,6 +586,8 @@ void Lumen::BuildCardUpdateContext(
 			GroupSize);
 	}
 
+	int32 NumViewOrigins = FrameTemporaries.ViewOrigins.Num();
+
 	// Prepare update priority histogram
 	{
 		FBuildPageUpdatePriorityHistogramCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FBuildPageUpdatePriorityHistogramCS::FParameters>();
@@ -597,12 +599,12 @@ void Lumen::BuildCardUpdateContext(
 		PassParameters->SurfaceCacheUpdateFrameIndex = UpdateFrameIndex;
 		PassParameters->FreezeUpdateFrame = FreezeUpdateFrame;
 		PassParameters->FirstClipmapWorldExtentRcp = FirstClipmapWorldExtentRcp;
-		PassParameters->NumCameraOrigins = Views.Num();
-		check(Views.Num() <= PassParameters->WorldCameraOrigins.Num());
+		PassParameters->NumCameraOrigins = NumViewOrigins;
+		check(NumViewOrigins <= PassParameters->WorldCameraOrigins.Num());
 
-		for (int32 i = 0; i < Views.Num(); i++)
+		for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
 		{
-			PassParameters->WorldCameraOrigins[i] = FVector4f((FVector3f)Views[i].ViewMatrices.GetViewOrigin(), 0.0f);
+			PassParameters->WorldCameraOrigins[OriginIndex] = FrameTemporaries.ViewOrigins[OriginIndex].WorldCameraOrigin;
 		}
 
 		PassParameters->DirectLightingUpdateFactor = DirectLightingCardUpdateContext.UpdateFactor;
@@ -661,13 +663,13 @@ void Lumen::BuildCardUpdateContext(
 		PassParameters->SurfaceCacheUpdateFrameIndex = UpdateFrameIndex;
 		PassParameters->FreezeUpdateFrame = FreezeUpdateFrame;
 		PassParameters->FirstClipmapWorldExtentRcp = FirstClipmapWorldExtentRcp;
-		PassParameters->NumCameraOrigins = Views.Num();
+		PassParameters->NumCameraOrigins = NumViewOrigins;
 		PassParameters->IndirectLightingHistoryValid = bIndirectLightingHistoryValid ? 1 : 0;
-		check(Views.Num() <= PassParameters->WorldCameraOrigins.Num());
+		check(NumViewOrigins <= PassParameters->WorldCameraOrigins.Num());
 
-		for (int32 i = 0; i < Views.Num(); i++)
+		for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
 		{
-			PassParameters->WorldCameraOrigins[i] = FVector4f((FVector3f)Views[i].ViewMatrices.GetViewOrigin(), 0.0f);
+			PassParameters->WorldCameraOrigins[OriginIndex] = FrameTemporaries.ViewOrigins[OriginIndex].WorldCameraOrigin;
 		}
 
 		PassParameters->MaxDirectLightingTilesToUpdate = DirectLightingCardUpdateContext.MaxUpdateTiles;

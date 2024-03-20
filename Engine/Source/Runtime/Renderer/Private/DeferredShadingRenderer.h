@@ -588,7 +588,7 @@ private:
 	void UpdateLumenScene(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries);
 	void RenderLumenSceneLighting(FRDGBuilder& GraphBuilder, const FLumenSceneFrameTemporaries& FrameTemporaries, const FLumenDirectLightingTaskData* DirectLightingTaskData);
 
-	void BeginGatherLumenLights(FLumenDirectLightingTaskData*& TaskData, IVisibilityTaskData* VisibilityTaskData);
+	void BeginGatherLumenLights(const FLumenSceneFrameTemporaries& FrameTemporaries, FLumenDirectLightingTaskData*& TaskData, IVisibilityTaskData* VisibilityTaskData);
 
 	void RenderDirectLightingForLumenScene(
 		FRDGBuilder& GraphBuilder,
@@ -665,7 +665,7 @@ private:
 		class FCompositionLighting& CompositionLighting,
 		FSceneTextures& SceneTextures,
 		FInstanceCullingManager& InstanceCullingManager,
-		const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+		FLumenSceneFrameTemporaries& LumenFrameTemporaries,
 		FDynamicShadowsTaskData* DynamicShadowsTaskData,
 		FRDGTextureRef LightingChannelsTexture,
 		bool bHasLumenLights,
@@ -675,7 +675,7 @@ private:
 	void RenderDiffuseIndirectAndAmbientOcclusion(
 		FRDGBuilder& GraphBuilder,
 		FSceneTextures& SceneTextures,
-		const FLumenSceneFrameTemporaries& FrameTemporaries,
+		FLumenSceneFrameTemporaries& FrameTemporaries,
 		FRDGTextureRef LightingChannelsTexture,
 		bool bHasLumenLights,
 		bool bCompositeRegularLumenOnly,
@@ -686,7 +686,7 @@ private:
 	void RenderDeferredReflectionsAndSkyLighting(
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
-		const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+		FLumenSceneFrameTemporaries& LumenFrameTemporaries,
 		TArray<FRDGTextureRef>& DynamicBentNormalAOTexture);
 
 	void RenderDeferredReflectionsAndSkyLightingHair(FRDGBuilder& GraphBuilder);
@@ -732,7 +732,7 @@ private:
 	FSSDSignalTextures RenderLumenFinalGather(
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
-		const FLumenSceneFrameTemporaries& FrameTemporaries,
+		FLumenSceneFrameTemporaries& FrameTemporaries,
 		FRDGTextureRef LightingChannelsTexture,
 		FViewInfo& View,
 		FPreviousViewInfo* PreviousViewInfos,
@@ -745,7 +745,7 @@ private:
 	FSSDSignalTextures RenderLumenScreenProbeGather(
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
-		const FLumenSceneFrameTemporaries& FrameTemporaries,
+		FLumenSceneFrameTemporaries& FrameTemporaries,
 		FRDGTextureRef LightingChannelsTexture,
 		FViewInfo& View,
 		FPreviousViewInfo* PreviousViewInfos,
@@ -759,14 +759,14 @@ private:
 	FSSDSignalTextures RenderLumenReSTIRGather(
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
-		const FLumenSceneFrameTemporaries& FrameTemporaries,
+		FLumenSceneFrameTemporaries& FrameTemporaries,
 		FRDGTextureRef LightingChannelsTexture,
 		FViewInfo& View,
 		FPreviousViewInfo* PreviousViewInfos,
 		ERDGPassFlags ComputePassFlags,
 		FLumenScreenSpaceBentNormalParameters& ScreenSpaceBentNormalParameters);
 
-	void StoreLumenDepthHistory(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures, FViewInfo& View);
+	void StoreLumenDepthHistory(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures, FLumenSceneFrameTemporaries& FrameTemporaries, FViewInfo& View);
 
 	FSSDSignalTextures RenderLumenIrradianceFieldGather(
 		FRDGBuilder& GraphBuilder,
@@ -780,7 +780,7 @@ private:
 		FRDGBuilder& GraphBuilder,
 		const FViewInfo& View,
 		const FSceneTextures& SceneTextures,
-		const FLumenSceneFrameTemporaries& FrameTemporaries,
+		FLumenSceneFrameTemporaries& FrameTemporaries,
 		const class FLumenMeshSDFGridParameters& MeshSDFGridParameters,
 		const LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 		ELumenReflectionPass ReflectionPass,
@@ -792,7 +792,7 @@ private:
 		FRDGBuilder& GraphBuilder,
 		FViewInfo& View,
 		const FSceneTextures& SceneTextures,
-		const FLumenSceneFrameTemporaries& LumenFrameTemporaries, 
+		FLumenSceneFrameTemporaries& LumenFrameTemporaries, 
 		const FFrontLayerTranslucencyData& FrontLayerTranslucencyData);
 	
 	FFrontLayerTranslucencyData RenderFrontLayerTranslucency(

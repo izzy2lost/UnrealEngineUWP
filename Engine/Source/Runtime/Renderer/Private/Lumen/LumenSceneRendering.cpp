@@ -1917,14 +1917,13 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 			(ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen
 				// Don't update scene lighting for secondary views
 				&& !View.bIsPlanarReflection 
-				&& !View.bIsSceneCaptureCube
 				&& !View.bIsReflectionCapture
 				&& View.ViewState);
 
 		bAnyLumenActive = bAnyLumenActive || bLumenActive;
 
 		// Cache LumenSceneData pointer per view for efficient lookup of the view specific Lumen scene (also nice for debugging)
-		View.ViewLumenSceneData = Scene->FindLumenSceneData(View.ViewState ? View.ViewState->GetViewKey() : 0, View.GPUMask.GetFirstIndex());
+		View.ViewLumenSceneData = Scene->FindLumenSceneData(View.ViewState ? View.ViewState->GetShareOriginViewKey() : 0, View.GPUMask.GetFirstIndex());
 
 #if WITH_MGPU
 		if (bLumenActive)
@@ -2403,4 +2402,75 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 	LumenSceneData.HeightfieldIndicesToUpdateInBuffer.Empty(1024);
 	LumenSceneData.PrimitivesToUpdateMeshCards.Empty(1024);
 	LumenSceneData.PrimitiveGroupIndicesToUpdateInBuffer.Empty(1024);
+}
+
+void FLumenViewOrigin::Init(const FViewInfo& View)
+{
+	Family = View.Family;
+
+	LumenSceneViewOrigin = Lumen::GetLumenSceneViewOrigin(View, Lumen::GetNumGlobalDFClipmaps(View) - 1);
+	WorldCameraOrigin = FVector4f((FVector3f)View.ViewMatrices.GetViewOrigin(), 0.0f);
+	PreViewTranslation = FVector4f((FVector3f)View.ViewMatrices.GetPreViewTranslation(), 0.0f);
+	FrustumWorldToClip = FMatrix44f(View.ViewMatrices.GetViewProjectionMatrix());
+
+	ViewUniformBuffer = View.ViewUniformBuffer;
+	SubstrateGlobalUniformParameters = Substrate::BindSubstrateGlobalUniformParameters(View);
+
+	OrthoMaxDimension = View.ViewMatrices.GetOrthoDimensions().GetMax();			// Returns zero if not orthographic
+	LastEyeAdaptationExposure = View.GetLastEyeAdaptationExposure();
+	MaxTraceDistance = Lumen::GetMaxTraceDistance(View);
+	CardMaxDistance = LumenScene::GetCardMaxDistance(View);
+	LumenSceneDetail = FMath::Clamp<float>(View.FinalPostProcessSettings.LumenSceneDetail, .125f, 8.0f);
+
+	ReferenceView = &View;
+}
+
+FLumenSceneFrameTemporaries::FLumenSceneFrameTemporaries(const TArray<FViewInfo>& Views)
+{
+	if (Views[0].bIsSceneCaptureCube)
+	{
+		// Cube captures use a single origin
+		ViewOrigins.SetNum(1);
+		ViewOrigins[0].Init(Views[0]);
+
+		// Cube captures are omnidirectional, so we want a matrix that will pass anything as in-frustum.  An all zero matrix
+		// will produce a clip position of [0,0,0,1] for any input vector, accomplishing that goal.
+		FVector3f ZeroVector(ForceInitToZero);
+		ViewOrigins[0].FrustumWorldToClip = FMatrix44f(ZeroVector, ZeroVector, ZeroVector, ZeroVector);
+	}
+	else
+	{
+		ViewOrigins.SetNum(Views.Num());
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+		{
+			ViewOrigins[ViewIndex].Init(Views[ViewIndex]);
+		}
+	}
+
+	// Actual extent of viewports -- useful for passing to EncloseVisualizeExtent (used by VisualizeTexture debug feature)
+	ViewExtent = FIntPoint(0,0);
+	for (const FViewInfo& View : Views)
+	{
+		ViewExtent.X = FMath::Max(ViewExtent.X, View.ViewRect.Max.X);
+		ViewExtent.Y = FMath::Max(ViewExtent.Y, View.ViewRect.Max.Y);
+	}
+}
+
+FRDGTextureRef FLumenSharedRT::CreateSharedRT(
+	FRDGBuilder& Builder,
+	const FRDGTextureDesc& Desc,
+	FIntPoint VisibleExtent,
+	const TCHAR* Name,
+	ERDGTextureFlags Flags)
+{
+	if (RenderTarget)
+	{
+		check(Desc.Extent == RenderTarget->Desc.Extent);
+		return RenderTarget;
+	}
+
+	RenderTarget = Builder.CreateTexture(Desc, Name, Flags);
+	RenderTarget->EncloseVisualizeExtent(VisibleExtent);
+
+	return RenderTarget;
 }

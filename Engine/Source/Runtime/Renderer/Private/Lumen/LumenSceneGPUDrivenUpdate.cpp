@@ -327,18 +327,21 @@ void LumenScene::GPUDrivenUpdate(FRDGBuilder& GraphBuilder, const FScene* Scene,
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ReadbackBuffers.AddOps), 0);
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ReadbackBuffers.RemoveOps), 0);
 
+	int32 NumViewOrigins = FrameTemporaries.ViewOrigins.Num();
+
 	{
 		TArray<FVector, TInlineAllocator<LUMEN_MAX_VIEWS>> LumenSceneCameraOrigins;
 		float CardMaxDistance = 0.0f;
 		float LumenSceneDetail = 0.0f;
 		bool bHasOrthographicView = false;
 
-		for (const FViewInfo& View : Views)
+		for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
 		{
-			LumenSceneCameraOrigins.Add(Lumen::GetLumenSceneViewOrigin(View, Lumen::GetNumGlobalDFClipmaps(View) - 1));
-			CardMaxDistance = FMath::Max(CardMaxDistance, LumenScene::GetCardMaxDistance(View));
-			LumenSceneDetail = FMath::Max(LumenSceneDetail, FMath::Clamp<float>(View.FinalPostProcessSettings.LumenSceneDetail, .125f, 8.0f));
-			if (!bHasOrthographicView && !View.IsPerspectiveProjection())
+			const FLumenViewOrigin& ViewOrigin = FrameTemporaries.ViewOrigins[OriginIndex];
+			LumenSceneCameraOrigins.Add(ViewOrigin.LumenSceneViewOrigin);
+			CardMaxDistance = FMath::Max(CardMaxDistance, ViewOrigin.CardMaxDistance);
+			LumenSceneDetail = FMath::Max(LumenSceneDetail, ViewOrigin.LumenSceneDetail);
+			if (!bHasOrthographicView && !ViewOrigin.IsPerspectiveProjection())
 			{
 				bHasOrthographicView = true;
 			}
@@ -356,11 +359,11 @@ void LumenScene::GPUDrivenUpdate(FRDGBuilder& GraphBuilder, const FScene* Scene,
 		PassParameters->FarFieldCardMaxDistanceSq = LumenScene::GetFarFieldCardMaxDistance() * LumenScene::GetFarFieldCardMaxDistance();
 		PassParameters->FarFieldCardTexelDensity = LumenScene::GetFarFieldCardTexelDensity();
 		PassParameters->MinCardResolution = FMath::Clamp(FMath::RoundToInt(LumenScene::GetCardMinResolution(bHasOrthographicView) / LumenSceneDetail), 1, 1024);
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+		for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
 		{
-			PassParameters->WorldCameraOrigins[ViewIndex] = FVector4f((FVector3f)Views[ViewIndex].ViewMatrices.GetViewOrigin(), 0.0f);
+			PassParameters->WorldCameraOrigins[OriginIndex] = FrameTemporaries.ViewOrigins[OriginIndex].WorldCameraOrigin;
 		}
-		PassParameters->NumCameraOrigins = Views.Num();
+		PassParameters->NumCameraOrigins = NumViewOrigins;
 
 		auto ComputeShader = Views[0].ShaderMap->GetShader<FLumenSceneUpdateCS>();
 

@@ -174,8 +174,12 @@ extern void CullForCardTracing(
 	FLumenMeshSDFGridParameters& MeshSDFGridParameters,
 	ERDGPassFlags ComputePassFlags = ERDGPassFlags::Compute);
 
+extern void SetupLumenDiffuseTracingParameters(float MaxTraceDistance, float OrthoMaxDimension, FLumenIndirectTracingParameters& OutParameters);
+extern void SetupLumenDiffuseTracingParametersForProbe(float MaxTraceDistance, float OrthoMaxDimension, FLumenIndirectTracingParameters& OutParameters, float DiffuseConeHalfAngle);
+
 extern void SetupLumenDiffuseTracingParameters(const FViewInfo& View, FLumenIndirectTracingParameters& OutParameters);
 extern void SetupLumenDiffuseTracingParametersForProbe(const FViewInfo& View, FLumenIndirectTracingParameters& OutParameters, float DiffuseConeAngle);
+
 extern void SetupLumenMeshSDFTracingParameters(FRDGBuilder& GraphBuilder, const FScene* Scene, const FViewInfo& View,FLumenMeshSDFTracingParameters& OutParameters);
 
 extern FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(

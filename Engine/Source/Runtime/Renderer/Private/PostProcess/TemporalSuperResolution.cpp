@@ -1362,7 +1362,8 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		FIntPoint QuantizedPrimaryUpscaleViewSize;
 		QuantizeSceneBufferSize(OutputRect.Max, QuantizedPrimaryUpscaleViewSize);
 
-		if (GIsEditor)
+		// Don't pad history buffers for scene captures in editor -- for cube captures, this saves 1 GB in a typical use case
+		if (GIsEditor && !View.bIsSceneCapture)
 		{
 			OutputExtent = FIntPoint(
 				FMath::Max(InputExtent.X, QuantizedPrimaryUpscaleViewSize.X),
@@ -1396,7 +1397,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		FIntPoint QuantizedMaxGuideSize;
 		QuantizeSceneBufferSize(MaxRenderingViewSize, QuantizedMaxGuideSize);
 
-		if (GIsEditor)
+		if (GIsEditor && !View.bIsSceneCapture)
 		{
 			HistoryGuideExtent = FIntPoint(
 				FMath::Max(InputExtent.X, QuantizedMaxGuideSize.X),
@@ -1426,7 +1427,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		FIntPoint QuantizedHistoryViewSize;
 		QuantizeSceneBufferSize(HistorySize, QuantizedHistoryViewSize);
 
-		if (GIsEditor)
+		if (GIsEditor && !View.bIsSceneCapture)
 		{
 			HistoryExtent = FIntPoint(
 				FMath::Max(InputExtent.X, QuantizedHistoryViewSize.X),

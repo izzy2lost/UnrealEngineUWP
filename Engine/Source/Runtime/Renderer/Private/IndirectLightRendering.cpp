@@ -862,7 +862,7 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 	FCompositionLighting& CompositionLighting,
 	FSceneTextures& SceneTextures,
 	FInstanceCullingManager& InstanceCullingManager,
-	const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+	FLumenSceneFrameTemporaries& LumenFrameTemporaries,
 	FDynamicShadowsTaskData* DynamicShadowsTaskData,
 	FRDGTextureRef LightingChannelsTexture,
 	bool bHasLumenLights,
@@ -947,7 +947,7 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 					nullptr,
 					ERDGPassFlags::AsyncCompute);
 
-				StoreLumenDepthHistory(GraphBuilder, SceneTextures, View);
+				StoreLumenDepthHistory(GraphBuilder, SceneTextures, LumenFrameTemporaries, View);
 			}
 
 		}
@@ -957,7 +957,7 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 	FRDGBuilder& GraphBuilder,
 	FSceneTextures& SceneTextures,
-	const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+	FLumenSceneFrameTemporaries& LumenFrameTemporaries,
 	FRDGTextureRef LightingChannelsTexture,
 	bool bHasLumenLights,
 	bool bCompositeRegularLumenOnly,
@@ -1112,7 +1112,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 
 			if (EnumHasAnyFlags(StepsLeft, ELumenIndirectLightingSteps::StoreDepthHistory))
 			{
-				StoreLumenDepthHistory(GraphBuilder, SceneTextures, View);
+				StoreLumenDepthHistory(GraphBuilder, SceneTextures, LumenFrameTemporaries, View);
 			}
 
 			if (!bDoComposite)
@@ -1921,7 +1921,7 @@ static void AddSkyReflectionPass(
 void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
-	const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+	FLumenSceneFrameTemporaries& LumenFrameTemporaries,
 	TArray<FRDGTextureRef>& DynamicBentNormalAOTextures)
 {
 	extern int32 GLumenVisualizeIndirectDiffuse;
@@ -2019,7 +2019,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 				nullptr,
 				ERDGPassFlags::Compute);
 
-			StoreLumenDepthHistory(GraphBuilder, SceneTextures, View);
+			StoreLumenDepthHistory(GraphBuilder, SceneTextures, LumenFrameTemporaries, View);
 		}
 		else if (ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR)
 		{

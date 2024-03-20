@@ -722,6 +722,7 @@ void DispatchTemporalAccumulation(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View, 
 	const FSceneTextures& SceneTextures,
+	FLumenSceneFrameTemporaries& FrameTemporaries,
 	bool bPropagateGlobalLightingChange,
 	bool bUseBilaterialFilter,
 	FRDGTextureRef& DiffuseIndirect,
@@ -744,6 +745,7 @@ void DispatchTemporalAccumulation(
 
 		// If the scene render targets reallocate, toss the history so we don't read uninitialized data
 		const FIntPoint EffectiveResolution = Substrate::GetSubstrateTextureResolution(View, SceneTextures.Config.Extent);
+		const FIntPoint EffectiveViewExtent = FrameTemporaries.ViewExtent;
 		const uint32 ClosureCount = Substrate::GetSubstrateMaxClosureCount(View);
 		const FIntPoint HistoryEffectiveResolution = TemporalAccumulationState.HistoryEffectiveResolution;
 		const bool bSceneTextureExtentMatchHistory = TemporalAccumulationState.HistorySceneTexturesExtent == SceneTextures.Config.Extent;
@@ -762,9 +764,9 @@ void DispatchTemporalAccumulation(
 			FRDGTextureDesc RoughSpecularIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
 			FRDGTextureDesc ResolveVarianceDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_R16F, FClearValueBinding::Transparent, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
 
-			FRDGTextureRef NewDiffuseIndirect = GraphBuilder.CreateTexture(DiffuseIndirectDesc, TEXT("Lumen.ReSTIRGather.DiffuseIndirect"));
-			FRDGTextureRef NewRoughSpecularIndirect = GraphBuilder.CreateTexture(RoughSpecularIndirectDesc, TEXT("Lumen.ReSTIRGather.RoughSpecularIndirect"));
-			FRDGTextureRef NewResolveVariance = GraphBuilder.CreateTexture(ResolveVarianceDesc, TEXT("Lumen.ReSTIRGather.ResolveVariance"));
+			FRDGTextureRef NewDiffuseIndirect = FrameTemporaries.NewDiffuseIndirect.CreateSharedRT(GraphBuilder, DiffuseIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ReSTIRGather.DiffuseIndirect"));
+			FRDGTextureRef NewRoughSpecularIndirect = FrameTemporaries.NewRoughSpecularIndirect.CreateSharedRT(GraphBuilder, RoughSpecularIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ReSTIRGather.RoughSpecularIndirect"));
+			FRDGTextureRef NewResolveVariance = FrameTemporaries.NewResolveVariance.CreateSharedRT(GraphBuilder, ResolveVarianceDesc, EffectiveViewExtent, TEXT("Lumen.ReSTIRGather.ResolveVariance"));
 
 			FRDGTextureRef OldDiffuseIndirectHistory = GraphBuilder.RegisterExternalTexture(TemporalAccumulationState.DiffuseIndirectHistoryRT);
 			FRDGTextureRef OldRoughSpecularIndirectHistory = GraphBuilder.RegisterExternalTexture(TemporalAccumulationState.RoughSpecularIndirectHistoryRT);
@@ -894,24 +896,24 @@ void DispatchTemporalAccumulation(
 	}
 }
 
-FReservoirTextures AllocateReservoirTextures(FRDGBuilder& GraphBuilder, FIntPoint ReservoirBufferSize)
+FReservoirTextures AllocateReservoirTextures(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries, FIntPoint ReservoirBufferSize, FIntPoint ReservoirViewExtent)
 {
 	FReservoirTextures Textures;
 
 	FRDGTextureDesc RayDirectionDesc(FRDGTextureDesc::Create2D(ReservoirBufferSize, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
-	Textures.ReservoirRayDirection = GraphBuilder.CreateTexture(RayDirectionDesc, TEXT("Lumen.ReSTIRGather.ReservoirRayDirection"));
+	Textures.ReservoirRayDirection = FrameTemporaries.ReservoirRayDirection.CreateSharedRT(GraphBuilder, RayDirectionDesc, ReservoirViewExtent, TEXT("Lumen.ReSTIRGather.ReservoirRayDirection"));
 
 	FRDGTextureDesc TraceRadianceDesc(FRDGTextureDesc::Create2D(ReservoirBufferSize, PF_FloatR11G11B10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
-	Textures.ReservoirTraceRadiance = GraphBuilder.CreateTexture(TraceRadianceDesc, TEXT("Lumen.ReSTIRGather.ReservoirTraceRadiance"));
+	Textures.ReservoirTraceRadiance = FrameTemporaries.ReservoirTraceRadiance.CreateSharedRT(GraphBuilder, TraceRadianceDesc, ReservoirViewExtent, TEXT("Lumen.ReSTIRGather.ReservoirTraceRadiance"));
 
 	FRDGTextureDesc TraceHitDistanceDesc(FRDGTextureDesc::Create2D(ReservoirBufferSize, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
-	Textures.ReservoirTraceHitDistance = GraphBuilder.CreateTexture(TraceHitDistanceDesc, TEXT("Lumen.ReSTIRGather.ReservoirTraceHitDistance"));
+	Textures.ReservoirTraceHitDistance = FrameTemporaries.ReservoirTraceHitDistance.CreateSharedRT(GraphBuilder, TraceHitDistanceDesc, ReservoirViewExtent, TEXT("Lumen.ReSTIRGather.ReservoirTraceHitDistance"));
 
 	FRDGTextureDesc TraceHitNormalDesc(FRDGTextureDesc::Create2D(ReservoirBufferSize, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
-	Textures.ReservoirTraceHitNormal = GraphBuilder.CreateTexture(TraceHitNormalDesc, TEXT("Lumen.ReSTIRGather.ReservoirTraceHitNormal"));
+	Textures.ReservoirTraceHitNormal = FrameTemporaries.ReservoirTraceHitNormal.CreateSharedRT(GraphBuilder, TraceHitNormalDesc, ReservoirViewExtent, TEXT("Lumen.ReSTIRGather.ReservoirTraceHitNormal"));
 
 	FRDGTextureDesc ReservoirWeightsDesc(FRDGTextureDesc::Create2D(ReservoirBufferSize, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
-	Textures.ReservoirWeights = GraphBuilder.CreateTexture(ReservoirWeightsDesc, TEXT("Lumen.ReSTIRGather.ReservoirWeights"));
+	Textures.ReservoirWeights = FrameTemporaries.ReservoirWeights.CreateSharedRT(GraphBuilder, ReservoirWeightsDesc, ReservoirViewExtent, TEXT("Lumen.ReSTIRGather.ReservoirWeights"));
 	return Textures;
 }
 
@@ -929,7 +931,7 @@ FReservoirUAVs CreateReservoirUAVs(FRDGBuilder& GraphBuilder, const FReservoirTe
 FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenReSTIRGather(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
-	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	FLumenSceneFrameTemporaries& FrameTemporaries,
 	FRDGTextureRef LightingChannelsTexture,
 	FViewInfo& View,
 	FPreviousViewInfo* PreviousViewInfos,
@@ -949,6 +951,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenReSTIRGather(
 
 	const FIntPoint ViewSize = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), (int32)ReSTIRParameters.ReservoirDownsampleFactor);
 	FIntPoint ReservoirBufferSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, (int32)ReSTIRParameters.ReservoirDownsampleFactor);
+	FIntPoint ReservoirViewExtent = FIntPoint::DivideAndRoundUp(FrameTemporaries.ViewExtent, (int32)ReSTIRParameters.ReservoirDownsampleFactor);
 
 	ReSTIRParameters.ReservoirViewSize = ViewSize;
 	ReSTIRParameters.ReservoirBufferSize = ReservoirBufferSize;
@@ -956,14 +959,14 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenReSTIRGather(
 	ReSTIRParameters.ResamplingNormalDotThreshold = FMath::Cos(GLumenReSTIRResamplingAngleThreshold * PI / 180.0f);
 	ReSTIRParameters.ResamplingDepthErrorThreshold = GLumenReSTIRResamplingDepthErrorThreshold;
 
-	ReSTIRParameters.Textures = AllocateReservoirTextures(GraphBuilder, ReservoirBufferSize);
+	ReSTIRParameters.Textures = AllocateReservoirTextures(GraphBuilder, FrameTemporaries, ReservoirBufferSize, ReservoirViewExtent);
 	ReSTIRParameters.UAVs = CreateReservoirUAVs(GraphBuilder, ReSTIRParameters.Textures);
 	
 	FRDGTextureDesc DownsampledSceneDepthDesc(FRDGTextureDesc::Create2D(ReservoirBufferSize, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
-	ReSTIRParameters.DownsampledSceneDepth = GraphBuilder.CreateTexture(DownsampledSceneDepthDesc, TEXT("Lumen.ReSTIRGather.DownsampledSceneDepth"));
+	ReSTIRParameters.DownsampledSceneDepth = FrameTemporaries.DownsampledSceneDepth.CreateSharedRT(GraphBuilder, DownsampledSceneDepthDesc, ReservoirViewExtent, TEXT("Lumen.ReSTIRGather.DownsampledSceneDepth"));
 
 	FRDGTextureDesc DownsampledWorldNormalDesc(FRDGTextureDesc::Create2D(ReservoirBufferSize, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
-	ReSTIRParameters.DownsampledWorldNormal = GraphBuilder.CreateTexture(DownsampledWorldNormalDesc, TEXT("Lumen.ReSTIRGather.DownsampledWorldNormal"));
+	ReSTIRParameters.DownsampledWorldNormal = FrameTemporaries.DownsampledWorldNormal.CreateSharedRT(GraphBuilder, DownsampledWorldNormalDesc, ReservoirViewExtent, TEXT("Lumen.ReSTIRGather.DownsampledWorldNormal"));
 
 	FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 	ReSTIRParameters.BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleFrame);
@@ -1072,7 +1075,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenReSTIRGather(
 	{
 		FReSTIRTemporalResamplingState& TemporalResamplingState = View.ViewState->Lumen.ReSTIRGatherState.TemporalResamplingState;
 
-		FReservoirTextures TemporalReservoirTextures = AllocateReservoirTextures(GraphBuilder, ReservoirBufferSize);
+		FReservoirTextures TemporalReservoirTextures = AllocateReservoirTextures(GraphBuilder, FrameTemporaries, ReservoirBufferSize, ReservoirViewExtent);
 		FReservoirUAVs TemporalReservoirUAVs = CreateReservoirUAVs(GraphBuilder, TemporalReservoirTextures);
 
 		if (TemporalResamplingState.TemporalReservoirRayDirectionRT
@@ -1174,7 +1177,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenReSTIRGather(
 
 	for (int32 SpatialResamplingPassIndex = 0; SpatialResamplingPassIndex < NumSpatialResamplingPasses; SpatialResamplingPassIndex++)
 	{
-		FReservoirTextures SpatialReservoirTextures = AllocateReservoirTextures(GraphBuilder, ReservoirBufferSize);
+		FReservoirTextures SpatialReservoirTextures = AllocateReservoirTextures(GraphBuilder, FrameTemporaries, ReservoirBufferSize, ReservoirViewExtent);
 		ReSTIRParameters.UAVs = CreateReservoirUAVs(GraphBuilder, SpatialReservoirTextures);
 
 		FSpatialResamplingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSpatialResamplingCS::FParameters>();
@@ -1203,13 +1206,13 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenReSTIRGather(
 	}
 
 	FRDGTextureDesc DiffuseIndirectDesc = FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV);
-	FRDGTextureRef DiffuseIndirect = GraphBuilder.CreateTexture(DiffuseIndirectDesc, TEXT("Lumen.ReSTIRGather.DiffuseIndirect"));
+	FRDGTextureRef DiffuseIndirect = FrameTemporaries.DiffuseIndirect.CreateSharedRT(GraphBuilder, DiffuseIndirectDesc, FrameTemporaries.ViewExtent, TEXT("Lumen.ReSTIRGather.DiffuseIndirect"));
 
 	FRDGTextureDesc RoughSpecularIndirectDesc = FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV);
-	FRDGTextureRef RoughSpecularIndirect = GraphBuilder.CreateTexture(RoughSpecularIndirectDesc, TEXT("Lumen.ReSTIRGather.RoughSpecularIndirect"));
+	FRDGTextureRef RoughSpecularIndirect = FrameTemporaries.RoughSpecularIndirect.CreateSharedRT(GraphBuilder, RoughSpecularIndirectDesc, FrameTemporaries.ViewExtent, TEXT("Lumen.ReSTIRGather.RoughSpecularIndirect"));
 
 	FRDGTextureDesc ResolveVarianceDesc = FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV);
-	FRDGTextureRef ResolveVariance = GraphBuilder.CreateTexture(ResolveVarianceDesc, TEXT("Lumen.ReSTIRGather.ResolveVariance"));
+	FRDGTextureRef ResolveVariance = FrameTemporaries.ResolveVariance.CreateSharedRT(GraphBuilder, ResolveVarianceDesc, FrameTemporaries.ViewExtent, TEXT("Lumen.ReSTIRGather.ResolveVariance"));
 
 	const bool bBilateralFilter = GLumenReSTIRGatherBilateralFilter != 0;
 
@@ -1246,6 +1249,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenReSTIRGather(
 			GraphBuilder,
 			View,
 			SceneTextures,
+			FrameTemporaries,
 			LumenCardRenderer.bPropagateGlobalLightingChange,
 			bBilateralFilter,
 			DiffuseIndirect,

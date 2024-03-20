@@ -298,16 +298,16 @@ bool ShouldUseStereoLumenOptimizations()
 	return GLumenShouldUseStereoOptimizations != 0;
 }
 
-void SetupLumenDiffuseTracingParameters(const FViewInfo& View, FLumenIndirectTracingParameters& OutParameters)
+void SetupLumenDiffuseTracingParameters(float MaxTraceDistance, float OrthoMaxDimension, FLumenIndirectTracingParameters& OutParameters)
 {
 	OutParameters.StepFactor = FMath::Clamp(GDiffuseTraceStepFactor, .1f, 10.0f);
 	
 	OutParameters.MinSampleRadius = FMath::Clamp(GLumenDiffuseMinSampleRadius, .01f, 100.0f);
 	OutParameters.MinTraceDistance = FMath::Clamp(GLumenDiffuseMinTraceDistance, .01f, 1000.0f);
-	OutParameters.MaxTraceDistance = Lumen::GetMaxTraceDistance(View);
-	if (!View.IsPerspectiveProjection() && CVarOrthoOverrideMeshDFTraceDistances.GetValueOnAnyThread())
+	OutParameters.MaxTraceDistance = MaxTraceDistance;
+	if (OrthoMaxDimension != 0.0f && CVarOrthoOverrideMeshDFTraceDistances.GetValueOnAnyThread())
 	{
-		float TraceSDFDistance = FMath::Clamp(View.ViewMatrices.GetOrthoDimensions().GetMax(), OutParameters.MinTraceDistance, OutParameters.MaxTraceDistance);
+		float TraceSDFDistance = FMath::Clamp(OrthoMaxDimension, OutParameters.MinTraceDistance, OutParameters.MaxTraceDistance);
 		OutParameters.MaxMeshSDFTraceDistance = TraceSDFDistance;
 		OutParameters.CardTraceEndDistanceFromCamera = FMath::Max(GDiffuseCardTraceEndDistanceFromCamera, TraceSDFDistance);
 	}
@@ -327,9 +327,9 @@ void SetupLumenDiffuseTracingParameters(const FViewInfo& View, FLumenIndirectTra
 	OutParameters.SpecularFromDiffuseRoughnessEnd = 0.0f;
 }
 
-void SetupLumenDiffuseTracingParametersForProbe(const FViewInfo& View, FLumenIndirectTracingParameters& OutParameters, float DiffuseConeHalfAngle)
+void SetupLumenDiffuseTracingParametersForProbe(float MaxTraceDistance, float OrthoMaxDimension, FLumenIndirectTracingParameters& OutParameters, float DiffuseConeHalfAngle)
 {
-	SetupLumenDiffuseTracingParameters(View, OutParameters);
+	SetupLumenDiffuseTracingParameters(MaxTraceDistance, OrthoMaxDimension, OutParameters);
 
 	// Probe tracing doesn't have surface bias, but should bias MinTraceDistance due to the mesh SDF world space error
 	OutParameters.SurfaceBias = 0.0f;
@@ -340,6 +340,16 @@ void SetupLumenDiffuseTracingParametersForProbe(const FViewInfo& View, FLumenInd
 		OutParameters.DiffuseConeHalfAngle = DiffuseConeHalfAngle;
 		OutParameters.TanDiffuseConeHalfAngle = FMath::Tan(DiffuseConeHalfAngle);
 	}
+}
+
+void SetupLumenDiffuseTracingParameters(const FViewInfo& View, FLumenIndirectTracingParameters& OutParameters)
+{
+	SetupLumenDiffuseTracingParameters(Lumen::GetMaxTraceDistance(View), View.ViewMatrices.GetOrthoDimensions().GetMax(), OutParameters);
+}
+
+void SetupLumenDiffuseTracingParametersForProbe(const FViewInfo& View, FLumenIndirectTracingParameters& OutParameters, float DiffuseConeHalfAngle)
+{
+	SetupLumenDiffuseTracingParametersForProbe(Lumen::GetMaxTraceDistance(View), View.ViewMatrices.GetOrthoDimensions().GetMax(), OutParameters, DiffuseConeHalfAngle);
 }
 
 void GetCardGridZParams(float InNearPlane, float InFarPlane, FVector& OutZParams, int32& OutGridSizeZ)

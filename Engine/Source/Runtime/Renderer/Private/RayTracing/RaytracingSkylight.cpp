@@ -426,13 +426,9 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 	// Fill Scene Texture parameters
 	FSceneTextureParameters SceneTextures = GetSceneTextureParameters(GraphBuilder, Views[0]);
 
-	int32 ViewIndex = 0;
-	int32 LastViewIndex = Views.Num() - 1;
 	for (FViewInfo& View : Views)
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
-
-		FSceneViewState* SceneViewState = (FSceneViewState*)View.State;
 
 		FRayTracingSkyLightRGS::FParameters *PassParameters = GraphBuilder.AllocParameters<FRayTracingSkyLightRGS::FParameters>();
 		PassParameters->RWSkyOcclusionMaskUAV = SkyLightkUAV;
@@ -500,21 +496,63 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 
 			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 		});
+	}
 
-		// Denoising
-		if (GRayTracingSkyLightDenoiser != 0)
+	// Denoising
+	if (GRayTracingSkyLightDenoiser != 0)
+	{
+		const IScreenSpaceDenoiser* DefaultDenoiser = IScreenSpaceDenoiser::GetDefaultDenoiser();
+		const IScreenSpaceDenoiser* DenoiserToUse = DefaultDenoiser;
+
+		IScreenSpaceDenoiser::FDiffuseIndirectInputs DenoiserInputs;
+		DenoiserInputs.Color = OutSkyLightTexture;
+		DenoiserInputs.RayHitDistance = OutHitDistanceTexture;
+
+		IScreenSpaceDenoiser::FAmbientOcclusionRayTracingConfig RayTracingConfig;
+		RayTracingConfig.ResolutionFraction = ResolutionFraction;
+		RayTracingConfig.RayCountPerPixel = GetSkyLightSamplesPerPixel(SkyLight);
+
+		bool bAllViewsSameGPU = true;
+#if WITH_MGPU
+		for (int32 ViewIndex = 1; ViewIndex < Views.Num(); ViewIndex++)
 		{
-			const IScreenSpaceDenoiser* DefaultDenoiser = IScreenSpaceDenoiser::GetDefaultDenoiser();
-			const IScreenSpaceDenoiser* DenoiserToUse = DefaultDenoiser;
-
-			IScreenSpaceDenoiser::FDiffuseIndirectInputs DenoiserInputs;
-			DenoiserInputs.Color = OutSkyLightTexture;
-			DenoiserInputs.RayHitDistance = OutHitDistanceTexture;
-
+			if (Views[ViewIndex].GPUMask != Views[0].GPUMask)
 			{
-				IScreenSpaceDenoiser::FAmbientOcclusionRayTracingConfig RayTracingConfig;
-				RayTracingConfig.ResolutionFraction = ResolutionFraction;
-				RayTracingConfig.RayCountPerPixel = GetSkyLightSamplesPerPixel(SkyLight);
+				bAllViewsSameGPU = false;
+			}
+		}
+#endif
+
+		if (bAllViewsSameGPU && DenoiserToUse == DefaultDenoiser)
+		{
+			RDG_GPU_MASK_SCOPE(GraphBuilder, Views[0].GPUMask);
+
+			RDG_EVENT_SCOPE(GraphBuilder, "%s(SkyLight) %s",
+				DenoiserToUse->GetDebugName(),
+				Views.Num() > 1 ?
+					*FString::Printf(TEXT("%d views"), Views.Num()) :
+					*FString::Printf(TEXT("%dx%d"), Views[0].ViewRect.Width(), Views[0].ViewRect.Height()));
+
+			// Multi-view version of DenoiseSkyLight, which saves memory by sharing persistent render targets across views.
+			// Persistent render targets are stored on the first view, so PrevViewInfo for the first view is passed in.
+			IScreenSpaceDenoiser::FDiffuseIndirectOutputs DenoiserOutputs = IScreenSpaceDenoiser::DenoiseSkyLight(
+				GraphBuilder,
+				Views,
+				&Views[0].PrevViewInfo,
+				SceneTextures,
+				DenoiserInputs,
+				RayTracingConfig);
+
+			OutSkyLightTexture = DenoiserOutputs.Color;
+		}
+		else
+		{
+			int32 ViewIndex = 0;
+			int32 LastViewIndex = Views.Num() - 1;
+
+			for (FViewInfo& View : Views)
+			{
+				RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
 
 				RDG_EVENT_SCOPE(GraphBuilder, "%s%s(SkyLight) %dx%d",
 					DenoiserToUse != DefaultDenoiser ? TEXT("ThirdParty ") : TEXT(""),
@@ -534,9 +572,15 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 				{
 					OutSkyLightTexture = DenoiserOutputs.Color;
 				}
+
+				++ViewIndex;
 			}
 		}
+	}
 
+	for (FViewInfo& View : Views)
+	{
+		FSceneViewState* SceneViewState = (FSceneViewState*)View.State;
 		if (SceneViewState != nullptr)
 		{
 			if (CVarRayTracingSkyLightDecoupleSampleGeneration.GetValueOnRenderThread() == 1)
@@ -552,8 +596,6 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 				SceneViewState->SkyLightVisibilityRaysDimensions = FIntVector(1);
 			}
 		}
-
-		++ViewIndex;
 	}
 }
 

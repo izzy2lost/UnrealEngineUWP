@@ -255,9 +255,8 @@ void FSceneRenderer::RenderVelocities(
 	SCOPED_NAMED_EVENT(FSceneRenderer_RenderVelocities, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_RenderVelocities);
 
-	ERenderTargetLoadAction VelocityLoadAction = HasBeenProduced(SceneTextures.Velocity)
-		? ERenderTargetLoadAction::ELoad
-		: ERenderTargetLoadAction::EClear;
+	// Create mask for which GPUs we need clearing on
+	uint32 bNeedsClearMask = HasBeenProduced(SceneTextures.Velocity) ? 0 : ((1u << GNumExplicitGPUsForRendering) - 1);
 
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RenderVelocities);
 
@@ -286,17 +285,13 @@ void FSceneRenderer::RenderVelocities(
 
 			// Clear velocity render target explicitly when velocity rendering in parallel or no draw but force to.
 			// Avoid adding a separate clear pass in non parallel rendering.
-			const bool bExplicitlyClearVelocity = (VelocityLoadAction == ERenderTargetLoadAction::EClear) && (bIsParallelVelocity || (bForceVelocity && !bHasAnyDraw));
+			const bool bExplicitlyClearVelocity = (bNeedsClearMask & View.GPUMask.GetNative()) && (bIsParallelVelocity || (bForceVelocity && !bHasAnyDraw));
 
 			if (bExplicitlyClearVelocity)
 			{
 				AddClearRenderTargetPass(GraphBuilder, SceneTextures.Velocity);
-
-				// Parallel render need to use Load action in any case.
-				VelocityLoadAction = ERenderTargetLoadAction::ELoad;
+				bNeedsClearMask &= ~View.GPUMask.GetNative();
 			}
-
-			VelocityLoadAction = View.DecayLoadAction(VelocityLoadAction);
 
 			if (!bHasAnyDraw)
 			{
@@ -315,7 +310,8 @@ void FSceneRenderer::RenderVelocities(
 				ERenderTargetLoadAction::ELoad,
 				ExclusiveDepthStencil);
 
-			PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.Velocity, ViewIndex > 0 ? ERenderTargetLoadAction::ELoad : VelocityLoadAction);
+			PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.Velocity, (bNeedsClearMask & View.GPUMask.GetNative()) ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad);
+			bNeedsClearMask &= ~View.GPUMask.GetNative();
 
 			if (bIsParallelVelocity)
 			{
@@ -349,7 +345,7 @@ void FSceneRenderer::RenderVelocities(
 	if (!bForwardShadingEnabled)
 	{
 		FRenderTargetBindingSlots VelocityRenderTargets;
-		VelocityRenderTargets[0] = FRenderTargetBinding(SceneTextures.Velocity, VelocityLoadAction);
+		VelocityRenderTargets[0] = FRenderTargetBinding(SceneTextures.Velocity, bNeedsClearMask ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad);
 		VelocityRenderTargets.DepthStencil = FDepthStencilBinding(
 			SceneTextures.Depth.Resolve,
 			ERenderTargetLoadAction::ELoad,

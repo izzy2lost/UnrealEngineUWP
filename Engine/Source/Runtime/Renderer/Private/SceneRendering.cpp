@@ -2370,6 +2370,18 @@ void FViewInfo::EnqueueEyeAdaptationExposureBufferReadback(FRDGBuilder& GraphBui
 	}
 }
 
+bool FViewInfo::ShouldUpdateEyeAdaptationBuffer() const
+{
+	// If this view owns its eye adaptation view state (no secondary view state set, or secondary view state is equal), it should update
+	if (!EyeAdaptationViewState || EyeAdaptationViewState == reinterpret_cast<const FSceneViewStateInterface*>(ViewState))
+	{
+		return true;
+	}
+
+	// Otherwise, update the eye adaptation view state if none is available whatsoever
+	return EyeAdaptationViewState->HasValidEyeAdaptationBuffer() == false;
+}
+
 float FViewInfo::GetLastEyeAdaptationExposure() const
 {
 	if (const FSceneViewState* EffectiveViewState = GetEyeAdaptationViewState())

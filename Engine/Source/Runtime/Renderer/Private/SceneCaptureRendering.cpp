@@ -53,6 +53,14 @@ static FAutoConsoleVariableRef CVarSceneCaptureAllowRenderInMainRenderer(
 	TEXT("1: render as part of the main renderer if Render in Main Renderer is enabled on scene capture component.\n"),
 	ECVF_Scalability);
 
+bool GSceneCaptureCubeSinglePass = true;
+static FAutoConsoleVariableRef CVarSceneCaptureCubeSinglePass(
+	TEXT("r.SceneCapture.CubeSinglePass"),
+	GSceneCaptureCubeSinglePass,
+	TEXT("Whether to run all 6 faces of cube map capture in a single scene renderer pass."),
+	ECVF_Scalability);
+
+
 #if WITH_EDITOR
 // All scene captures on the given render thread frame will be dumped
 uint32 GDumpSceneCaptureMemoryFrame = INDEX_NONE;
@@ -188,7 +196,7 @@ static bool CaptureNeedsSceneColor(ESceneCaptureSource CaptureSource)
 	return CaptureSource != SCS_FinalColorLDR && CaptureSource != SCS_FinalColorHDR && CaptureSource != SCS_FinalToneCurveHDR;
 }
 
-static TFunction<void(FRHICommandList& RHICmdList)> CopyCaptureToTargetSetViewportFn = [](FRHICommandList& RHICmdList) {};
+static TFunction<void(FRHICommandList& RHICmdList, int32 ViewIndex)> CopyCaptureToTargetSetViewportFn = [](FRHICommandList& RHICmdList, int32 ViewIndex) {};
 
 void CopySceneCaptureComponentToTarget(
 	FRDGBuilder& GraphBuilder,
@@ -217,7 +225,8 @@ void CopySceneCaptureComponentToTarget(
 	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 
 	const bool bForwardShadingEnabled = IsForwardShadingEnabled(ViewFamily.GetShaderPlatform());
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	int32 NumViews = Views.Num();
+	for (int32 ViewIndex = 0; ViewIndex < NumViews; ViewIndex++)
 	{
 		const FViewInfo& View = *Views[ViewIndex];
 
@@ -268,18 +277,22 @@ void CopySceneCaptureComponentToTarget(
 		GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 		GraphicsPSOInit.PrimitiveType = PT_TriangleList;
 
+		// Need to use the extent from the actual target texture for cube captures.  Although perhaps we should use the actual texture
+		// extent across the board?  Would it ever be incorrect to do so?
+		FIntPoint TargetSize = View.bIsSceneCaptureCube && NumViews == 6 ? ViewFamilyTexture->Desc.Extent : View.UnconstrainedViewRect.Size();
+
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("View(%d)", ViewIndex),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, GraphicsPSOInit, VertexShader, PixelShader, &View] (FRHICommandList& RHICmdList)
+			[PassParameters, GraphicsPSOInit, VertexShader, PixelShader, &View, ViewIndex, TargetSize] (FRHICommandList& RHICmdList)
 		{
 			FGraphicsPipelineStateInitializer LocalGraphicsPSOInit = GraphicsPSOInit;
 			RHICmdList.ApplyCachedRenderTargets(LocalGraphicsPSOInit);
 			SetGraphicsPipelineState(RHICmdList, LocalGraphicsPSOInit, 0);
 			SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParameters);
 			
-			CopyCaptureToTargetSetViewportFn(RHICmdList);
+			CopyCaptureToTargetSetViewportFn(RHICmdList, ViewIndex);
 
 			DrawRectangle(
 				RHICmdList,
@@ -287,7 +300,7 @@ void CopySceneCaptureComponentToTarget(
 				View.ViewRect.Width(), View.ViewRect.Height(),
 				View.ViewRect.Min.X, View.ViewRect.Min.Y,
 				View.ViewRect.Width(), View.ViewRect.Height(),
-				View.UnconstrainedViewRect.Size(),
+				TargetSize,
 				View.GetSceneTexturesConfig().Extent,
 				VertexShader,
 				EDRF_UseTriangleOptimization);
@@ -317,7 +330,7 @@ static void UpdateSceneCaptureContentDeferred_RenderThread(
 	FRenderTarget* RenderTarget, 
 	FTexture* RenderTargetTexture, 
 	const FString& EventName, 
-	const FRHICopyTextureInfo& CopyInfo,
+	TConstArrayView<FRHICopyTextureInfo> CopyInfos,
 	bool bGenerateMips,
 	const FGenerateMipsParams& GenerateMipsParams,
 	bool bClearRenderTarget,
@@ -340,20 +353,26 @@ static void UpdateSceneCaptureContentDeferred_RenderThread(
 #endif
 
 	{
+		// The target texture is what gets rendered to, while OutputTexture is the final output.  For 2D scene captures, these textures
+		// are the same.  For cube captures, OutputTexture will be a cube map, while TargetTexture will be a 2D render target containing either
+		// one face of the cube map (when GSceneCaptureCubeSinglePass=0) or the six faces of the cube map tiled in a split screen configuration.
 		FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder, RenderTarget->GetRenderTargetTexture(), TEXT("SceneCaptureTarget"));
-		FRDGTextureRef ShaderResourceTexture = RegisterExternalTexture(GraphBuilder, RenderTargetTexture->TextureRHI, TEXT("SceneCaptureTexture"));
+		FRDGTextureRef OutputTexture = RegisterExternalTexture(GraphBuilder, RenderTargetTexture->TextureRHI, TEXT("SceneCaptureTexture"));
 
 		if (bClearRenderTarget)
 		{
 			AddClearRenderTargetPass(GraphBuilder, TargetTexture, FLinearColor::Black, SceneRenderer->Views[0].UnscaledViewRect);
 		}
 
-		const FIntRect CopyDestRect = CopyInfo.GetDestRect();
-
-		if (!CopyDestRect.IsEmpty())
+		// The lambda below applies to tiled orthographic rendering, where the captured result is blitted from the origin in a scene texture
+		// to a viewport on a larger output texture.  It specifically doesn't apply to cube maps, where the output texture has the same tiling
+		// as the scene textures, and no viewport remapping is required.
+		if (!CopyInfos[0].Size.IsZero() && !OutputTexture->Desc.IsTextureCube())
 		{
-			CopyCaptureToTargetSetViewportFn = [CopyDestRect](FRHICommandList& RHICmdList)
+			CopyCaptureToTargetSetViewportFn = [&CopyInfos](FRHICommandList& RHICmdList, int32 ViewIndex)
 			{
+				const FIntRect CopyDestRect = CopyInfos[ViewIndex].GetDestRect();
+
 				RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 				RHICmdList.SetViewport
 				(
@@ -368,7 +387,7 @@ static void UpdateSceneCaptureContentDeferred_RenderThread(
 		}
 		else
 		{
-			CopyCaptureToTargetSetViewportFn = [](FRHICommandList& RHICmdList) {};
+			CopyCaptureToTargetSetViewportFn = [](FRHICommandList& RHICmdList, int32 ViewIndex) {};
 		}
 
 
@@ -386,12 +405,18 @@ static void UpdateSceneCaptureContentDeferred_RenderThread(
 			SceneRenderer->Render(GraphBuilder);
 		}
 
-		if (bGenerateMips)
+		// These copies become a no-op (function returns immediately) if TargetTexture and OutputTexture are the same, which
+		// is true for 2D scene captures.  Actual copies only occur for cube captures, where copying is necessary to get
+		// result data to specific slices.
+		for (const FRHICopyTextureInfo& CopyInfo : CopyInfos)
 		{
-			FGenerateMips::Execute(GraphBuilder, SceneRenderer->FeatureLevel, TargetTexture, GenerateMipsParams);
+			AddCopyTexturePass(GraphBuilder, TargetTexture, OutputTexture, CopyInfo);
 		}
 
-		AddCopyTexturePass(GraphBuilder, TargetTexture, ShaderResourceTexture, CopyInfo);
+		if (bGenerateMips)
+		{
+			FGenerateMips::Execute(GraphBuilder, SceneRenderer->FeatureLevel, OutputTexture, GenerateMipsParams);
+		}
 
 		GraphBuilder.Execute();
 	}
@@ -399,13 +424,13 @@ static void UpdateSceneCaptureContentDeferred_RenderThread(
 	SceneRenderer->RenderThreadEnd(RHICmdList);
 }
 
-void UpdateSceneCaptureContentMobile_RenderThread(
+static void UpdateSceneCaptureContentMobile_RenderThread(
 	FRHICommandListImmediate& RHICmdList,
 	FSceneRenderer* SceneRenderer,
 	FRenderTarget* RenderTarget,
 	FTexture* RenderTargetTexture,
 	const FString& EventName,
-	const FRHICopyTextureInfo& CopyInfo,
+	TConstArrayView<FRHICopyTextureInfo> CopyInfos,
 	bool bGenerateMips,
 	const FGenerateMipsParams& GenerateMipsParams)
 {
@@ -423,25 +448,22 @@ void UpdateSceneCaptureContentMobile_RenderThread(
 #endif
 
 	{
-		FViewInfo& View = SceneRenderer->Views[0];
+		// The target texture is what gets rendered to, while OutputTexture is the final output.  For 2D scene captures, these textures
+		// are the same.  For cube captures, OutputTexture will be a cube map, while TargetTexture will be a 2D render target containing either
+		// one face of the cube map (when GSceneCaptureCubeSinglePass=0) or the six faces of the cube map tiled in a split screen configuration.
+		FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder, RenderTarget->GetRenderTargetTexture(), TEXT("SceneCaptureTarget"));
+		FRDGTextureRef OutputTexture = RegisterExternalTexture(GraphBuilder, RenderTargetTexture->TextureRHI, TEXT("SceneCaptureTexture"));
 
-		// Intermediate render target that will need to be flipped (needed on !IsMobileHDR())
-		FRDGTextureRef FlippedOutputTexture{};
-
-		const FRenderTarget* Target = SceneRenderer->ViewFamily.RenderTarget;
-
-		// We don't support screen percentage in scene capture.
-		FIntRect ViewRect = View.UnscaledViewRect;
-		FIntRect UnconstrainedViewRect = View.UnconstrainedViewRect;
-
-		const FIntRect CopyDestRect = CopyInfo.GetDestRect();
-
-		if (!CopyDestRect.IsEmpty())
+		// The lambda below applies to tiled orthographic rendering, where the captured result is blitted from the origin in a scene texture
+		// to a viewport on a larger output texture.  It specifically doesn't apply to cube maps, where the output texture has the same tiling
+		// as the scene textures, and no viewport remapping is required.
+		if (!CopyInfos[0].Size.IsZero() && !OutputTexture->Desc.IsTextureCube())
 		{
-			CopyCaptureToTargetSetViewportFn = [CopyDestRect, ViewRect, FlippedOutputTexture](FRHICommandList& RHICmdList)
+			CopyCaptureToTargetSetViewportFn = [&CopyInfos](FRHICommandList& RHICmdList, int32 ViewIndex)
 			{
-				RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+				const FIntRect CopyDestRect = CopyInfos[ViewIndex].GetDestRect();
 
+				RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 				RHICmdList.SetViewport
 				(
 					float(CopyDestRect.Min.X),
@@ -455,7 +477,7 @@ void UpdateSceneCaptureContentMobile_RenderThread(
 		}
 		else
 		{
-			CopyCaptureToTargetSetViewportFn = [](FRHICommandList& RHICmdList) {};
+			CopyCaptureToTargetSetViewportFn = [](FRHICommandList& RHICmdList, int32 ViewIndex) {};
 		}
 
 		// Render the scene normally
@@ -464,19 +486,28 @@ void UpdateSceneCaptureContentMobile_RenderThread(
 			SceneRenderer->Render(GraphBuilder);
 		}
 
-		FRDGTextureRef OutputTexture = RegisterExternalTexture(GraphBuilder, Target->GetRenderTargetTexture(), TEXT("OutputTexture"));
-		const FMinimalSceneTextures& SceneTextures = SceneRenderer->GetActiveSceneTextures();
-
-		const FIntPoint TargetSize(UnconstrainedViewRect.Width(), UnconstrainedViewRect.Height());
 		{
-			// We need to flip this texture upside down (since we depended on tonemapping to fix this on the hdr path)
+			// Handles copying the SceneColor render target to the output if necessary (this happens inside the renderer for the deferred path).
+			// Other scene captures are automatically written directly to the output, in which case this function returns and does nothing.
+			const FRenderTarget* FamilyTarget = SceneRenderer->ViewFamily.RenderTarget;
+			FRDGTextureRef FamilyTexture = RegisterExternalTexture(GraphBuilder, FamilyTarget->GetRenderTargetTexture(), TEXT("OutputTexture"));
+			const FMinimalSceneTextures& SceneTextures = SceneRenderer->GetActiveSceneTextures();
+
 			RDG_EVENT_SCOPE(GraphBuilder, "CaptureSceneColor");
 			CopySceneCaptureComponentToTarget(
 				GraphBuilder,
 				SceneTextures,
-				OutputTexture,
+				FamilyTexture,
 				SceneRenderer->ViewFamily,
 				SceneRenderer->Views);
+		}
+
+		// These copies become a no-op (function returns immediately) if TargetTexture and OutputTexture are the same, which
+		// is true for 2D scene captures.  Actual copies only occur for cube captures, where copying is necessary to get
+		// result data to specific slices.
+		for (const FRHICopyTextureInfo& CopyInfo : CopyInfos)
+		{
+			AddCopyTexturePass(GraphBuilder, TargetTexture, OutputTexture, CopyInfo);
 		}
 
 		if (bGenerateMips)
@@ -496,7 +527,7 @@ static void UpdateSceneCaptureContent_RenderThread(
 	FRenderTarget* RenderTarget,
 	FTexture* RenderTargetTexture,
 	const FString& EventName,
-	const FRHICopyTextureInfo& CopyInfo,
+	TConstArrayView<FRHICopyTextureInfo> CopyInfos,
 	bool bGenerateMips,
 	const FGenerateMipsParams& GenerateMipsParams,
 	bool bClearRenderTarget,
@@ -514,7 +545,7 @@ static void UpdateSceneCaptureContent_RenderThread(
 				RenderTarget,
 				RenderTargetTexture,
 				EventName,
-				CopyInfo,
+				CopyInfos,
 				bGenerateMips,
 				GenerateMipsParams);
 			break;
@@ -527,7 +558,7 @@ static void UpdateSceneCaptureContent_RenderThread(
 				RenderTarget,
 				RenderTargetTexture,
 				EventName,
-				CopyInfo,
+				CopyInfos,
 				bGenerateMips,
 				GenerateMipsParams,
 				bClearRenderTarget,
@@ -711,8 +742,9 @@ void SetupViewFamilyForSceneCapture(
 {
 	check(!ViewFamily.GetScreenPercentageInterface());
 
-	// For cube map capture, CubeMapFaceIndex takes precedence over view index, so we must have only one view for that case
-	check(CubemapFaceIndex == INDEX_NONE || Views.Num() == 1);
+	// For cube map capture, CubeMapFaceIndex takes precedence over view index, so we must have only one view for that case.
+	// Or if CubemapFaceIndex == CubeFace_MAX (6), it's a renderer for all 6 cube map faces.
+	check(CubemapFaceIndex == INDEX_NONE || Views.Num() == 1 || (CubemapFaceIndex == CubeFace_MAX && Views.Num() == CubeFace_MAX));
 
 	// Initialize frame number
 	ViewFamily.FrameNumber = ViewFamily.Scene->GetFrameNumber();
@@ -734,7 +766,10 @@ void SetupViewFamilyForSceneCapture(
 		ViewInitOptions.OverrideFarClippingPlaneDistance = MaxViewDistance;
 		ViewInitOptions.StereoPass = SceneCaptureViewInfo.StereoPass;
 		ViewInitOptions.StereoViewIndex = SceneCaptureViewInfo.StereoViewIndex;
-		ViewInitOptions.SceneViewStateInterface = SceneCaptureComponent->GetViewState(CubemapFaceIndex != INDEX_NONE ? CubemapFaceIndex : ViewIndex);
+		
+		// Use CubemapFaceIndex if in range [0..CubeFace_MAX), otherwise use ViewIndex.  Casting to unsigned treats -1 as a large value, choosing ViewIndex.
+		ViewInitOptions.SceneViewStateInterface = SceneCaptureComponent->GetViewState((uint32)CubemapFaceIndex < CubeFace_MAX ? CubemapFaceIndex : ViewIndex);
+		
 		ViewInitOptions.ProjectionMatrix = SceneCaptureViewInfo.ProjectionMatrix;
 		ViewInitOptions.LODDistanceFactor = FMath::Clamp(SceneCaptureComponent->LODDistanceFactor, .01f, 100.0f);
 		ViewInitOptions.bIsSceneCapture = true;
@@ -767,6 +802,17 @@ void SetupViewFamilyForSceneCapture(
 
 		// Default surface cache to lower resolution for Scene Capture.  Can be overridden via post process settings.
 		View->FinalPostProcessSettings.LumenSurfaceCacheResolution = 0.5f;
+
+		if (SceneCaptureComponent->IsCube())
+		{
+			// Disable vignette by default for cube maps -- darkened borders don't make sense for an omnidirectional projection.
+			View->FinalPostProcessSettings.VignetteIntensity = 0.0f;
+
+			// Disable screen traces by default for cube maps -- these don't blend well across face boundaries, creating major lighting seams.
+			// Lumen lighting still has some seams with these disabled, but it's an order of magnitude better.
+			View->FinalPostProcessSettings.LumenReflectionsScreenTraces = 0;
+			View->FinalPostProcessSettings.LumenFinalGatherScreenTraces = 0;
+		}
 
 		View->OverridePostProcessSettings(*PostProcessSettings, PostProcessBlendWeight);
 		View->EndFinalPostprocessSettings(ViewInitOptions);
@@ -1141,7 +1187,8 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 
 				VISUALIZE_TEXTURE_BEGIN_VIEW(SceneRenderer->FeatureLevel, SceneRenderer->Views[0].GetViewKey(), *EventName, true);
 
-				UpdateSceneCaptureContent_RenderThread(RHICmdList, SceneRenderer, TextureRenderTargetResource, TextureRenderTargetResource, EventName, CopyInfo, bGenerateMips, GenerateMipsParams, bClearRenderTarget, bOrthographicCamera);
+				UpdateSceneCaptureContent_RenderThread(RHICmdList, SceneRenderer, TextureRenderTargetResource, TextureRenderTargetResource, EventName,
+					TConstArrayView<FRHICopyTextureInfo>(&CopyInfo, 1), bGenerateMips, GenerateMipsParams, bClearRenderTarget, bOrthographicCamera);
 
 				VISUALIZE_TEXTURE_END_VIEW();
 
@@ -1164,6 +1211,17 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 		);
 	}
 }
+
+// Split screen cube map faces are rendered as 3x2 tiles.
+static const int32 GCubeFaceViewportOffsets[6][2] =
+{
+	{ 0,0 },
+	{ 1,0 },
+	{ 2,0 },
+	{ 0,1 },
+	{ 1,1 },
+	{ 2,1 },
+};
 
 void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureComponent)
 {
@@ -1225,39 +1283,245 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 
 	if (TextureTarget)
 	{
-		bool bIsMultipleSceneCapture = CaptureComponent->SetFrameUpdated();
+		FTextureRenderTargetCubeResource* TextureRenderTarget = static_cast<FTextureRenderTargetCubeResource*>(TextureTarget->GameThread_GetRenderTargetResource());
 
-		const float FOV = 90 * (float)PI / 360.0f;
-		for (int32 faceidx = 0; faceidx < (int32)ECubeFace::CubeFace_MAX; faceidx++)
+		FString EventName;
+		if (!CaptureComponent->ProfilingEventName.IsEmpty())
 		{
-			const ECubeFace TargetFace = (ECubeFace)faceidx;
-			const FVector Location = CaptureComponent->GetComponentToWorld().GetTranslation();
+			EventName = CaptureComponent->ProfilingEventName;
+		}
+		else if (CaptureComponent->GetOwner())
+		{
+			// The label might be non-unique, so include the actor name as well
+			EventName = CaptureComponent->GetOwner()->GetActorNameOrLabel();
 
-			FMatrix ViewRotationMatrix;
+			FName ActorName = CaptureComponent->GetOwner()->GetFName();
+			if (ActorName != EventName)
+			{
+				EventName.Appendf(TEXT(" (%s)"), *ActorName.ToString());
+			}
+		}
 
+		FIntPoint CaptureSize(TextureTarget->GetSurfaceWidth(), TextureTarget->GetSurfaceHeight());
+		const float FOV = 90 * (float)PI / 360.0f;
+
+		auto ComputeProjectionMatrix = [CaptureComponent, Transform, CaptureSize, FOV](ECubeFace TargetFace, FMatrix& OutViewRotationMatrix, FMatrix& OutProjectionMatrix)
+		{
 			if (CaptureComponent->bCaptureRotation)
 			{
-				ViewRotationMatrix = Transform.ToInverseMatrixWithScale() * FLocal::CalcCubeFaceTransform(TargetFace);
+				OutViewRotationMatrix = Transform.ToInverseMatrixWithScale() * FLocal::CalcCubeFaceTransform(TargetFace);
 			}
 			else
 			{
-				ViewRotationMatrix = FLocal::CalcCubeFaceTransform(TargetFace);
+				OutViewRotationMatrix = FLocal::CalcCubeFaceTransform(TargetFace);
 			}
-			FIntPoint CaptureSize(TextureTarget->GetSurfaceWidth(), TextureTarget->GetSurfaceHeight());
-			FMatrix ProjectionMatrix;
-			BuildProjectionMatrix(CaptureSize, FOV, GNearClippingPlane, ProjectionMatrix);
-			FPostProcessSettings PostProcessSettings;
+			BuildProjectionMatrix(CaptureSize, FOV, GNearClippingPlane, OutProjectionMatrix);
+		};
 
-			bool bCaptureSceneColor = CaptureNeedsSceneColor(CaptureComponent->CaptureSource);
+		const FVector Location = CaptureComponent->GetComponentToWorld().GetTranslation();
 
-			FSceneRenderer* SceneRenderer = CreateSceneRendererForSceneCapture(this, CaptureComponent,
-				TextureTarget->GameThread_GetRenderTargetResource(), CaptureSize, ViewRotationMatrix,
-				Location, ProjectionMatrix, CaptureComponent->MaxViewDistanceOverride,
-				bCaptureSceneColor, &PostProcessSettings, 0, CaptureComponent->GetViewOwner(), faceidx);
+		bool bIsMultipleSceneCapture = CaptureComponent->SetFrameUpdated();
+		bool bCaptureSceneColor = CaptureNeedsSceneColor(CaptureComponent->CaptureSource);
 
-			// When bIsMultipleSceneCapture is true, set bIsFirstSceneRenderer to false, which tells the scene renderer it can skip RHI resource flush, saving performance.
-			// We can also skip RHI resource flush on faces after the first.
-			SceneRenderer->bIsFirstSceneRenderer = (faceidx == 0) && !bIsMultipleSceneCapture;
+		if (GSceneCaptureCubeSinglePass == false)
+		{
+			for (int32 faceidx = 0; faceidx < (int32)ECubeFace::CubeFace_MAX; faceidx++)
+			{
+				const ECubeFace TargetFace = (ECubeFace)faceidx;
+
+				FMatrix ViewRotationMatrix;
+				FMatrix ProjectionMatrix;
+				ComputeProjectionMatrix(TargetFace, ViewRotationMatrix, ProjectionMatrix);
+
+				FSceneRenderer* SceneRenderer = CreateSceneRendererForSceneCapture(this, CaptureComponent,
+					TextureTarget->GameThread_GetRenderTargetResource(), CaptureSize, ViewRotationMatrix,
+					Location, ProjectionMatrix, CaptureComponent->MaxViewDistanceOverride,
+					bCaptureSceneColor, &CaptureComponent->PostProcessSettings, CaptureComponent->PostProcessBlendWeight, CaptureComponent->GetViewOwner(), faceidx);
+
+				// When bIsMultipleSceneCapture is true, set bIsFirstSceneRenderer to false, which tells the scene renderer it can skip RHI resource flush, saving performance.
+				// We can also skip RHI resource flush on faces after the first.
+				SceneRenderer->bIsFirstSceneRenderer = (faceidx == 0) && !bIsMultipleSceneCapture;
+
+				for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
+				{
+					Extension->SetupViewFamily(SceneRenderer->ViewFamily);
+
+					for (FSceneView& View : SceneRenderer->Views)
+					{
+						Extension->SetupView(SceneRenderer->ViewFamily, View);
+					}
+				}
+
+				for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
+				{
+					Extension->BeginRenderViewFamily(SceneRenderer->ViewFamily);
+				}
+
+				// Include the cube face index in the event name
+				EventName.Appendf(TEXT(" [%d]"), faceidx);
+
+				UE::RenderCommandPipe::FSyncScope SyncScope;
+
+				ENQUEUE_RENDER_COMMAND(CaptureCommand)(
+					[SceneRenderer, TextureRenderTarget, EventName, TargetFace](FRHICommandListImmediate& RHICmdList)
+					{
+#if WITH_EDITOR
+						// Scene renderer may be deleted in UpdateSceneCaptureContent_RenderThread, grab view state pointer first
+						const FSceneViewState* ViewState = SceneRenderer->Views[0].ViewState;
+#endif  // WITH_EDITOR
+
+						VISUALIZE_TEXTURE_BEGIN_VIEW(SceneRenderer->FeatureLevel, SceneRenderer->Views[0].GetViewKey(), *EventName, true);
+
+						FRHICopyTextureInfo CopyInfo;
+						CopyInfo.DestSliceIndex = TargetFace;
+						UpdateSceneCaptureContent_RenderThread(RHICmdList, SceneRenderer, TextureRenderTarget, TextureRenderTarget, EventName,
+							TConstArrayView<FRHICopyTextureInfo>(&CopyInfo, 1), false, FGenerateMipsParams(), true, false);
+
+						VISUALIZE_TEXTURE_END_VIEW();
+
+#if WITH_EDITOR
+						if (ViewState)
+						{
+							const bool bLogSizes = GDumpSceneCaptureMemoryFrame == GFrameNumberRenderThread;
+							if (bLogSizes)
+							{
+								UE_LOG(LogRenderer, Log, TEXT("LogSizes\tSceneCaptureCube[%d]\t%s\t%dx%d"), TargetFace, *EventName, TextureRenderTarget->GetSizeX(), TextureRenderTarget->GetSizeY());
+								ViewState->GetGPUSizeBytes(bLogSizes);
+							}
+						}
+#endif  // WITH_EDITOR
+					}
+				);
+
+				// Trim the cube face index from the event name
+				EventName.LeftChopInline(4, EAllowShrinking::No);
+			}
+		}
+		else
+		{
+			TStaticArray<FSceneCaptureViewInfo, (int32)ECubeFace::CubeFace_MAX> SceneCaptureViewInfos;
+			for (int32 faceidx = 0; faceidx < (int32)ECubeFace::CubeFace_MAX; faceidx++)
+			{
+				const ECubeFace TargetFace = (ECubeFace)faceidx;
+
+				FMatrix ViewRotationMatrix;
+				FMatrix ProjectionMatrix;
+				ComputeProjectionMatrix(TargetFace, ViewRotationMatrix, ProjectionMatrix);
+
+				FIntPoint ViewportOffset(GCubeFaceViewportOffsets[faceidx][0] * CaptureSize.X, GCubeFaceViewportOffsets[faceidx][1] * CaptureSize.Y);
+
+				SceneCaptureViewInfos[faceidx].ViewRotationMatrix = ViewRotationMatrix;
+				SceneCaptureViewInfos[faceidx].ViewOrigin = ViewLocation;
+				SceneCaptureViewInfos[faceidx].ProjectionMatrix = ProjectionMatrix;
+				SceneCaptureViewInfos[faceidx].StereoPass = EStereoscopicPass::eSSP_FULL;
+				SceneCaptureViewInfos[faceidx].StereoViewIndex = INDEX_NONE;
+				SceneCaptureViewInfos[faceidx].ViewRect = FIntRect(ViewportOffset.X, ViewportOffset.Y, ViewportOffset.X + CaptureSize.X, ViewportOffset.Y + CaptureSize.Y);
+			}
+
+			// Render target that includes all six tiled faces of the cube map
+			class FCubeFaceRenderTarget final : public FRenderTarget
+			{
+			public:
+				FCubeFaceRenderTarget(FTextureRenderTargetCubeResource* InTextureRenderTarget)
+				{
+					// Cache a pointer to the output texture so we can get the pixel format later (InitRHI may not have been called on InTextureRenderTarget)
+					TextureRenderTarget = InTextureRenderTarget;
+
+					// Assume last cube face viewport offset is the furthest corner of the tiled cube face render target.
+					// Add one to include the dimensions of the tile in addition to the offset.
+					FIntPoint Size;
+					Size.X = InTextureRenderTarget->GetSizeX() * (GCubeFaceViewportOffsets[(int32)ECubeFace::CubeFace_MAX - 1][0] + 1);
+					Size.Y = InTextureRenderTarget->GetSizeY() * (GCubeFaceViewportOffsets[(int32)ECubeFace::CubeFace_MAX - 1][1] + 1);
+
+					CubeFaceDesc = FPooledRenderTargetDesc::Create2DDesc(
+						Size,
+						PF_Unknown,							// Initialized in InitRHI below
+						FClearValueBinding::Green,
+						TexCreate_None,
+						TexCreate_ShaderResource | TexCreate_RenderTargetable,
+						false);
+				}
+
+				void InitRHI(FRHICommandListImmediate& RHICmdList)
+				{
+					// Set the format now that it's available
+					CubeFaceDesc.Format = TextureRenderTarget->GetRenderTargetTexture()->GetFormat();
+
+					GRenderTargetPool.FindFreeElement(RHICmdList, CubeFaceDesc, RenderTarget, TEXT("SceneCaptureTarget"));
+					check(RenderTarget);
+
+					RenderTargetTexture = RenderTarget->GetRHI();
+				}
+
+				// FRenderTarget interface
+				const FTextureRHIRef& GetRenderTargetTexture() const override
+				{
+					return RenderTargetTexture;
+				}
+
+				FIntPoint GetSizeXY() const override { return CubeFaceDesc.Extent; }
+				float GetDisplayGamma() const override { return 1.0f; }
+
+			private:
+				FTextureRenderTargetCubeResource* TextureRenderTarget;
+				FPooledRenderTargetDesc CubeFaceDesc;
+				TRefCountPtr<IPooledRenderTarget> RenderTarget;
+				FTextureRHIRef RenderTargetTexture;
+			};
+
+			FCubeFaceRenderTarget* CubeFaceTarget = new FCubeFaceRenderTarget(TextureRenderTarget);
+
+			// Copied from CreateSceneRendererForSceneCapture
+			FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
+				CubeFaceTarget,
+				this,
+				CaptureComponent->ShowFlags)
+				.SetResolveScene(!bCaptureSceneColor)
+				.SetRealtimeUpdate(CaptureComponent->bCaptureEveryFrame || CaptureComponent->bAlwaysPersistRenderingState));
+
+			FSceneViewExtensionContext ViewExtensionContext(this);
+			ViewFamily.ViewExtensions = GEngine->ViewExtensions->GatherActiveExtensions(ViewExtensionContext);
+
+			SetupViewFamilyForSceneCapture(
+				ViewFamily,
+				CaptureComponent,
+				SceneCaptureViewInfos,
+				CaptureComponent->MaxViewDistanceOverride,
+				bCaptureSceneColor,
+				/* bIsPlanarReflection = */ false,
+				&CaptureComponent->PostProcessSettings,
+				CaptureComponent->PostProcessBlendWeight,
+				CaptureComponent->GetViewOwner(),
+				(int32)ECubeFace::CubeFace_MAX);			// Passing max cube face count indicates a view family with all faces
+
+			// Scene capture source is used to determine whether to disable occlusion queries inside FSceneRenderer constructor
+			ViewFamily.SceneCaptureSource = CaptureComponent->CaptureSource;
+
+			// Screen percentage is still not supported in scene capture.
+			ViewFamily.EngineShowFlags.ScreenPercentage = false;
+			ViewFamily.SetScreenPercentageInterface(new FLegacyScreenPercentageDriver(
+				ViewFamily, /* GlobalResolutionFraction = */ 1.0f));
+
+			FSceneRenderer* SceneRenderer = FSceneRenderer::CreateSceneRenderer(&ViewFamily, nullptr);
+
+			// Need view state interface to be allocated for Lumen, as it requires persistent data.  This means
+			// "bCaptureEveryFrame" or "bAlwaysPersistRenderingState" must be enabled.
+			FSceneViewStateInterface* ViewStateInterface = CaptureComponent->GetViewState(0);
+
+			if (ViewStateInterface &&
+				(SceneRenderer->Views[0].FinalPostProcessSettings.DynamicGlobalIlluminationMethod == EDynamicGlobalIlluminationMethod::Lumen ||
+				 SceneRenderer->Views[0].FinalPostProcessSettings.ReflectionMethod == EReflectionMethod::Lumen))
+			{
+				// It's OK to call these every frame -- they are no-ops if the correct data is already there
+				ViewStateInterface->AddLumenSceneData(this, SceneRenderer->Views[0].FinalPostProcessSettings.LumenSurfaceCacheResolution);
+			}
+			else if (ViewStateInterface)
+			{
+				ViewStateInterface->RemoveLumenSceneData(this);
+			}
+
+			// When bIsMultipleSceneCapture is true, set bIsFirstSceneRenderer to false, which tells the scene renderer it can skip RHI resource flush, saving performance
+			SceneRenderer->bIsFirstSceneRenderer = !bIsMultipleSceneCapture;
 
 			for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
 			{
@@ -1269,27 +1533,6 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 				}
 			}
 
-			FTextureRenderTargetCubeResource* TextureRenderTarget = static_cast<FTextureRenderTargetCubeResource*>(TextureTarget->GameThread_GetRenderTargetResource());
-			FString EventName;
-			if (!CaptureComponent->ProfilingEventName.IsEmpty())
-			{
-				EventName = CaptureComponent->ProfilingEventName;
-			}
-			else if (CaptureComponent->GetOwner())
-			{
-				// The label might be non-unique, so include the actor name as well
-				EventName = CaptureComponent->GetOwner()->GetActorNameOrLabel();
-
-				FName ActorName = CaptureComponent->GetOwner()->GetFName();
-				if (ActorName != EventName)
-				{
-					EventName.Appendf(TEXT(" (%s)"), *ActorName.ToString());
-				}
-			}
-
-			// Include the cube face index in the event name
-			EventName.Appendf(TEXT(" [%d]"), faceidx);
-
 			for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
 			{
 				Extension->BeginRenderViewFamily(SceneRenderer->ViewFamily);
@@ -1297,16 +1540,53 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 
 			UE::RenderCommandPipe::FSyncScope SyncScope;
 
-			ENQUEUE_RENDER_COMMAND(CaptureCommand)(
-				[SceneRenderer, TextureRenderTarget, EventName, TargetFace](FRHICommandListImmediate& RHICmdList)
+			ENQUEUE_RENDER_COMMAND(CaptureAllCubeFaces)(
+				[SceneRenderer, CubeFaceTarget, TextureRenderTarget, EventName, CaptureSize](FRHICommandListImmediate& RHICmdList)
 				{
+					TStaticArray<FRHICopyTextureInfo, (int32)ECubeFace::CubeFace_MAX> CopyInfos;
+					for (int32 faceidx = 0; faceidx < (int32)ECubeFace::CubeFace_MAX; faceidx++)
+					{
+						CopyInfos[faceidx].Size.X = CaptureSize.X;
+						CopyInfos[faceidx].Size.Y = CaptureSize.Y;
+						CopyInfos[faceidx].SourcePosition.X = GCubeFaceViewportOffsets[faceidx][0] * CaptureSize.X;
+						CopyInfos[faceidx].SourcePosition.Y = GCubeFaceViewportOffsets[faceidx][1] * CaptureSize.Y;
+						CopyInfos[faceidx].DestSliceIndex = faceidx;
+					}
+
+					CubeFaceTarget->InitRHI(RHICmdList);
+
+#if WITH_EDITOR
+					// Scene renderer may be deleted in UpdateSceneCaptureContent_RenderThread, grab view state pointer first
+					TStaticArray<const FSceneViewState*, (int32)ECubeFace::CubeFace_MAX> SceneViewStates;
+					for (int32 FaceIdx = 0; FaceIdx < (int32)ECubeFace::CubeFace_MAX; FaceIdx++)
+					{
+						SceneViewStates[FaceIdx] = SceneRenderer->Views[FaceIdx].ViewState;
+					}
+#endif  // WITH_EDITOR
+
 					VISUALIZE_TEXTURE_BEGIN_VIEW(SceneRenderer->FeatureLevel, SceneRenderer->Views[0].GetViewKey(), *EventName, true);
 
-					FRHICopyTextureInfo CopyInfo;
-					CopyInfo.DestSliceIndex = TargetFace;
-					UpdateSceneCaptureContent_RenderThread(RHICmdList, SceneRenderer, TextureRenderTarget, TextureRenderTarget, EventName, CopyInfo, false, FGenerateMipsParams(), true, false);
+					UpdateSceneCaptureContent_RenderThread(RHICmdList, SceneRenderer, CubeFaceTarget, TextureRenderTarget, EventName,
+						CopyInfos, false, FGenerateMipsParams(), true, false);
 
 					VISUALIZE_TEXTURE_END_VIEW();
+
+#if WITH_EDITOR
+					if (SceneViewStates[0])
+					{
+						const bool bLogSizes = GDumpSceneCaptureMemoryFrame == GFrameNumberRenderThread;
+						if (bLogSizes)
+						{
+							UE_LOG(LogRenderer, Log, TEXT("LogSizes\tSceneCaptureCube\t%s\t%dx%d"), *EventName, CubeFaceTarget->GetSizeXY().X, CubeFaceTarget->GetSizeXY().Y);
+							for (int32 FaceIdx = 0; FaceIdx < (int32)ECubeFace::CubeFace_MAX; FaceIdx++)
+							{
+								SceneViewStates[FaceIdx]->GetGPUSizeBytes(bLogSizes);
+							}
+						}
+					}
+#endif  // WITH_EDITOR
+
+					delete CubeFaceTarget;
 				}
 			);
 		}

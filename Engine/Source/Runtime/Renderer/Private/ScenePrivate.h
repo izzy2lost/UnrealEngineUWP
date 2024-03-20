@@ -814,6 +814,12 @@ public:
 	uint32 UniqueID;
 
 	/**
+	 * Cube map captures share an origin, allowing them to share things like global distance fields and Lumen scene data.  Otherwise,
+	 * this will just be the same as UniqueID.
+	 */
+	uint32 ShareOriginUniqueID;
+
+	/**
 	 * The scene pointer may be NULL -- it's filled in by certain API calls that require a FSceneViewState and FScene to know about each other,
 	 * Whenever a ViewState and Scene get linked, this pointer is set, and a pointer to the ViewState is added to an array in the Scene.
 	 * The linking is necessary in cases where incremental FScene updates need to be reflected in cached data stored in FSceneViewState.
@@ -1605,6 +1611,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	uint32 GetViewKey() const override
 	{
 		return UniqueID;
+	}
+
+	uint32 GetShareOriginViewKey() const
+	{
+		return ShareOriginUniqueID;
 	}
 
 	uint32 GetOcclusionFrameCounter() const
@@ -3392,7 +3403,7 @@ public:
 		}
 		else
 		{
-			return FindLumenSceneData(View.ViewState ? View.ViewState->GetViewKey() : 0, View.GPUMask.GetFirstIndex());
+			return FindLumenSceneData(View.ViewState ? View.ViewState->GetShareOriginViewKey() : 0, View.GPUMask.GetFirstIndex());
 		}
 	}
 	inline FLumenSceneData* GetLumenSceneData(const FSceneView& View) const
@@ -3404,7 +3415,7 @@ public:
 		}
 		else
 		{
-			return FindLumenSceneData(View.State ? View.State->GetViewKey() : 0, View.GPUMask.GetFirstIndex());
+			return FindLumenSceneData(View.State ? ((const FSceneViewState*)View.State)->GetShareOriginViewKey() : 0, View.GPUMask.GetFirstIndex());
 		}
 	}
 	virtual void AddPrimitive(FPrimitiveSceneDesc* Primitive) override;

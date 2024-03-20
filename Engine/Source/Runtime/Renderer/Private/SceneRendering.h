@@ -1004,8 +1004,8 @@ struct FScreenSpaceDenoiserHistory
 	// Number of history render target to store.
 	static constexpr int32 RTCount = 3;
 
-	// Scissor of valid data in the render target;
-	FIntRect Scissor;
+	// Scissors of valid data in the render target (can be multiple if there are split screen views)
+	TArray<FIntRect, TInlineAllocator<1>> Scissors;
 
 	// Render target specific to the history.
 	TStaticArray<TRefCountPtr<IPooledRenderTarget>, RTCount> RT;
@@ -1734,6 +1734,9 @@ public:
 
 	/** Enqueue a pass to readback current exposure */
 	void EnqueueEyeAdaptationExposureBufferReadback(FRDGBuilder& GraphBuilder) const;
+
+	/** Returns whether the current view should update the eye adaptation state */
+	bool ShouldUpdateEyeAdaptationBuffer() const;
 	
 	/** Informs sceneinfo that tonemapping LUT has queued commands to compute it at least once */
 	void SetValidTonemappingLUT() const;

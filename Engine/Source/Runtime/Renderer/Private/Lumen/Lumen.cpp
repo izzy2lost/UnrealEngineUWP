@@ -117,7 +117,7 @@ bool ShouldRenderLumenForViewFamily(const FScene* Scene, const FSceneViewFamily&
 {
 	return Scene
 		&& Scene->GetLumenSceneData(*ViewFamily.Views[0])
-		&& ViewFamily.Views.Num() <= LUMEN_MAX_VIEWS
+		&& (ViewFamily.Views.Num() <= LUMEN_MAX_VIEWS || ViewFamily.Views[0]->bIsSceneCaptureCube)
 		&& DoesPlatformSupportLumenGI(Scene->GetShaderPlatform(), bSkipProjectCheck);
 }
 
@@ -133,7 +133,6 @@ bool Lumen::IsLumenFeatureAllowedForView(const FScene* Scene, const FSceneView& 
 		&& ShouldRenderLumenForViewFamily(Scene, *View.Family, bSkipProjectCheck)
 		// Don't update scene lighting for secondary views
 		&& !View.bIsPlanarReflection
-		&& !View.bIsSceneCaptureCube
 		&& !View.bIsReflectionCapture
 		&& View.State
 		&& (bSkipTracingDataCheck || Lumen::UseHardwareRayTracing(*View.Family) || IsSoftwareRayTracingSupported());

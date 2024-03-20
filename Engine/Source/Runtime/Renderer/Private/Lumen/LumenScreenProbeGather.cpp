@@ -1386,6 +1386,7 @@ void UpdateHistoryScreenProbeGather(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View, 
 	const FSceneTextures& SceneTextures,
+	FLumenSceneFrameTemporaries& FrameTemporaries,
 	bool bPropagateGlobalLightingChange,
 	FRDGTextureRef& DiffuseIndirect,
 	FRDGTextureRef& BackfaceDiffuseIndirect,
@@ -1415,6 +1416,7 @@ void UpdateHistoryScreenProbeGather(
 
 		// If the scene render targets reallocate, toss the history so we don't read uninitialized data
 		const FIntPoint EffectiveResolution = Substrate::GetSubstrateTextureResolution(View, SceneTextures.Config.Extent);
+		const FIntPoint EffectiveViewExtent = FrameTemporaries.ViewExtent;
 		const FIntPoint HistoryEffectiveResolution = ScreenProbeGatherState.HistoryEffectiveResolution;
 		const bool bSceneTextureExtentMatchHistory = ScreenProbeGatherState.HistorySceneTexturesExtent == SceneTextures.Config.Extent;
 
@@ -1432,16 +1434,16 @@ void UpdateHistoryScreenProbeGather(
 			FRDGTextureDesc DiffuseIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
 			FRDGTextureDesc RoughSpecularIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
 
-			FRDGTextureRef NewDiffuseIndirect = GraphBuilder.CreateTexture(DiffuseIndirectDesc, TEXT("Lumen.ScreenProbeGather.DiffuseIndirect"));
-			FRDGTextureRef NewBackfaceDiffuseIndirect = bSupportBackfaceDiffuse ? GraphBuilder.CreateTexture(RoughSpecularIndirectDesc, TEXT("Lumen.ScreenProbeGather.BackfaceDiffuseIndirect")) : nullptr;
+			FRDGTextureRef NewDiffuseIndirect = FrameTemporaries.NewDiffuseIndirect.CreateSharedRT(GraphBuilder, DiffuseIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.DiffuseIndirect"));
+			FRDGTextureRef NewBackfaceDiffuseIndirect = bSupportBackfaceDiffuse ? FrameTemporaries.NewBackfaceDiffuseIndirect.CreateSharedRT(GraphBuilder, RoughSpecularIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.BackfaceDiffuseIndirect")) : nullptr;
 
 			FRDGTextureRef OldDiffuseIndirectHistory = GraphBuilder.RegisterExternalTexture(ScreenProbeGatherState.DiffuseIndirectHistoryRT);
 			FRDGTextureRef OldBackfaceDiffuseIndirectHistory = bSupportBackfaceDiffuse ? GraphBuilder.RegisterExternalTexture(ScreenProbeGatherState.BackfaceDiffuseIndirectHistoryRT) : nullptr;
-			FRDGTextureRef NewRoughSpecularIndirect = GraphBuilder.CreateTexture(RoughSpecularIndirectDesc, TEXT("Lumen.ScreenProbeGather.RoughSpecularIndirect"));
+			FRDGTextureRef NewRoughSpecularIndirect = FrameTemporaries.NewRoughSpecularIndirect.CreateSharedRT(GraphBuilder, RoughSpecularIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.RoughSpecularIndirect"));
 
 			FRDGTextureDesc NumHistoryFramesAccumulatedDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_R8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
-			FRDGTextureRef NewNumHistoryFramesAccumulated = GraphBuilder.CreateTexture(NumHistoryFramesAccumulatedDesc, TEXT("Lumen.ScreenProbeGather.NumHistoryFramesAccumulated"));
-			FRDGTextureRef NewHistoryFastUpdateMode = GraphBuilder.CreateTexture(NumHistoryFramesAccumulatedDesc, TEXT("Lumen.ScreenProbeGather.FastUpdateMode"));
+			FRDGTextureRef NewNumHistoryFramesAccumulated = FrameTemporaries.NewNumHistoryFrames.CreateSharedRT(GraphBuilder, NumHistoryFramesAccumulatedDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.NumHistoryFramesAccumulated"));
+			FRDGTextureRef NewHistoryFastUpdateMode = FrameTemporaries.NewHistoryFastUpdateMode.CreateSharedRT(GraphBuilder, NumHistoryFramesAccumulatedDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.FastUpdateMode"));
 
 			{
 				FRDGTextureRef OldRoughSpecularIndirectHistory = GraphBuilder.RegisterExternalTexture(*RoughSpecularIndirectHistoryState);
@@ -1660,7 +1662,7 @@ IMPLEMENT_GLOBAL_SHADER(FStoreLumenDepthCS, "/Engine/Private/Lumen/LumenDenoisin
 /**
  * Copy depth and normal for opaque before it gets possibly overwritten by water or other translucency writing depth
  */
-void FDeferredShadingSceneRenderer::StoreLumenDepthHistory(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures, FViewInfo& View)
+void FDeferredShadingSceneRenderer::StoreLumenDepthHistory(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures, FLumenSceneFrameTemporaries& FrameTemporaries, FViewInfo& View)
 {
 	if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly)
 	{
@@ -1668,12 +1670,14 @@ void FDeferredShadingSceneRenderer::StoreLumenDepthHistory(FRDGBuilder& GraphBui
 		const FSceneTextureParameters& SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, SceneTextures);
 		const bool bStoreNormal = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && LumenScreenProbeGather::UseRejectBasedOnNormal();
 
-		FRDGTextureRef DepthHistory = GraphBuilder.CreateTexture(
+		FRDGTextureRef DepthHistory = FrameTemporaries.DepthHistory.CreateSharedRT(GraphBuilder,
 			FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			FrameTemporaries.ViewExtent,
 			TEXT("Lumen.DepthHistory"));
 
-		FRDGTextureRef NormalHistory = bStoreNormal ? GraphBuilder.CreateTexture(
+		FRDGTextureRef NormalHistory = bStoreNormal ? FrameTemporaries.NormalHistory.CreateSharedRT(GraphBuilder,
 			FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			FrameTemporaries.ViewExtent,
 			TEXT("Lumen.NormalHistory")) : nullptr;
 
 		FStoreLumenDepthCS::FPermutationDomain PermutationVector;
@@ -1773,7 +1777,7 @@ DECLARE_GPU_STAT(LumenScreenProbeGather);
 FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenFinalGather(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
-	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	FLumenSceneFrameTemporaries& FrameTemporaries,
 	FRDGTextureRef LightingChannelsTexture,
 	FViewInfo& View,
 	FPreviousViewInfo* PreviousViewInfos,
@@ -1834,7 +1838,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenFinalGather(
 FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
-	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	FLumenSceneFrameTemporaries& FrameTemporaries,
 	FRDGTextureRef LightingChannelsTexture,
 	FViewInfo& View,
 	FPreviousViewInfo* PreviousViewInfos,
@@ -2249,9 +2253,10 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 	}
 
 	const FIntPoint EffectiveResolution = Substrate::GetSubstrateTextureResolution(View, SceneTextures.Config.Extent);
+	const FIntPoint EffectiveViewExtent = FrameTemporaries.ViewExtent;
 	const uint32 ClosureCount = Substrate::GetSubstrateMaxClosureCount(View);
 	FRDGTextureDesc DiffuseIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
-	FRDGTextureRef DiffuseIndirect = GraphBuilder.CreateTexture(DiffuseIndirectDesc, TEXT("Lumen.ScreenProbeGather.DiffuseIndirect"));
+	FRDGTextureRef DiffuseIndirect = FrameTemporaries.DiffuseIndirect.CreateSharedRT(GraphBuilder, DiffuseIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.DiffuseIndirect"));
 
 	const bool bSupportBackfaceDiffuse = GLumenScreenProbeSupportTwoSidedFoliageBackfaceDiffuse != 0;
 	FRDGTextureRef BackfaceDiffuseIndirect = nullptr;
@@ -2259,11 +2264,11 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 	if (bSupportBackfaceDiffuse)
 	{
 		FRDGTextureDesc BackfaceDiffuseIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
-		BackfaceDiffuseIndirect = GraphBuilder.CreateTexture(BackfaceDiffuseIndirectDesc, TEXT("Lumen.ScreenProbeGather.BackfaceDiffuseIndirect"));
+		BackfaceDiffuseIndirect = FrameTemporaries.BackfaceDiffuseIndirect.CreateSharedRT(GraphBuilder, BackfaceDiffuseIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.BackfaceDiffuseIndirect"));
 	}
 
 	FRDGTextureDesc RoughSpecularIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
-	FRDGTextureRef RoughSpecularIndirect = GraphBuilder.CreateTexture(RoughSpecularIndirectDesc, TEXT("Lumen.ScreenProbeGather.RoughSpecularIndirect"));
+	FRDGTextureRef RoughSpecularIndirect = FrameTemporaries.RoughSpecularIndirect.CreateSharedRT(GraphBuilder, RoughSpecularIndirectDesc, EffectiveViewExtent, TEXT("Lumen.ScreenProbeGather.RoughSpecularIndirect"));
 
 	const bool bSSREnabled = GetViewPipelineState(View).ReflectionsMethod == EReflectionsMethod::SSR;
 
@@ -2295,6 +2300,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 			GraphBuilder,
 			View,
 			SceneTextures,
+			FrameTemporaries,
 			LumenCardRenderer.bPropagateGlobalLightingChange,
 			DiffuseIndirect,
 			BackfaceDiffuseIndirect,

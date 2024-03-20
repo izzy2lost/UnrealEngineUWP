@@ -27,6 +27,13 @@ class USceneCaptureComponentCube : public USceneCaptureComponent
 	bool bCaptureRotation;
 
 public:
+	UPROPERTY(interp, Category = PostProcessVolume, meta = (ShowOnlyInnerProperties))
+	struct FPostProcessSettings PostProcessSettings;
+
+	/** Range (0.0, 1.0) where 0 indicates no effect, 1 indicates full effect. */
+	UPROPERTY(interp, Category = PostProcessVolume, BlueprintReadWrite, meta = (UIMin = "0.0", UIMax = "1.0"))
+	float PostProcessBlendWeight;
+
 	//~ Begin UActorComponent Interface
 	ENGINE_API virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
 	ENGINE_API virtual void OnRegister() override;

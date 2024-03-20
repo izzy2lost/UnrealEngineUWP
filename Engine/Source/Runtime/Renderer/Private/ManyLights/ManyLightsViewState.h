@@ -24,4 +24,6 @@ public:
 		SceneDepthHistory.SafeRelease();
 		NumFramesAccumulatedHistory.SafeRelease();
 	}
+
+	uint64 GetGPUSizeBytes(bool bLogSizes) const;
 };
