@@ -399,6 +399,11 @@ public:
 	CORE_API static const TCHAR* const PortableCallStackHashTag;
 	CORE_API static const TCHAR* const IsRequestingExitTag;
 	CORE_API static const TCHAR* const LogFilePathTag;
+	CORE_API static const TCHAR* const ProcessIdTag;
+	CORE_API static const TCHAR* const IsInternalBuildTag;
+	CORE_API static const TCHAR* const IsPerforceBuildTag;
+	CORE_API static const TCHAR* const IsWithDebugInfoTag;
+	CORE_API static const TCHAR* const IsSourceDistributionTag;
 
 	static constexpr inline int32 CrashGUIDLength = 128;
 
