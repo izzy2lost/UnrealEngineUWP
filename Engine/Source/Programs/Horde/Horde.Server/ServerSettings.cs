@@ -194,11 +194,6 @@ namespace Horde.Server
 	public class BaseTelemetryConfig
 	{
 		/// <summary>
-		/// Unique ID for this sink config (any arbitrary string)
-		/// </summary>
-		public string? Id { get; set; }
-
-		/// <summary>
 		/// Type of telemetry sink
 		/// </summary>
 		public TelemetrySinkType Type { get; set; } = TelemetrySinkType.None;
