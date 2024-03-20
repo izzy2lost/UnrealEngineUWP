@@ -427,11 +427,7 @@ namespace Jupiter.FunctionalTests.Storage
 			Assert.IsTrue(fooFiles[0].Exists); // Most recently accessed/modified
 			Assert.IsTrue(fooFiles[1].Exists);
 			Assert.IsTrue(fooFiles[2].Exists);
-			Assert.IsTrue(fooFiles[3].Exists);
-			Assert.IsFalse(fooFiles[4].Exists);
-			Assert.IsFalse(fooFiles[5].Exists);
-			Assert.IsTrue(fooFiles[6].Exists); // this is left around because its the lexicographically last object that could be deleted and is not needed because target size has been reached
-			Assert.IsFalse(fooFiles[7].Exists);
+			// the files in the middle could have been deleted or not depending on sorting order, most recent and oldest objects are guaranteed to still be around / be deleted
 			Assert.IsFalse(fooFiles[8].Exists);
 			Assert.IsFalse(fooFiles[9].Exists); // Least recently accessed/modified
 		}
