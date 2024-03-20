@@ -579,7 +579,10 @@ namespace Chaos
 				MSolver->GetEvolution()->EndFrame(MDeltaTime);
 			}
 
-			MSolver->FinalizeCallbackData_Internal();
+			{
+				SCOPE_CYCLE_COUNTER(STAT_FinalizeCallbacks);
+				MSolver->FinalizeCallbackData_Internal();
+			}
 
 			MSolver->SetSolverTime(MSolver->GetSolverTime() + MDeltaTime );
 			MSolver->GetCurrentFrame()++;
@@ -594,10 +597,14 @@ namespace Chaos
 				MSolver->CompleteSceneSimulation();
 			}
 
-			// reset all clustering events needs to be after CompleteSceneSimulation to make sure the cache recording gets them before they get removed
-			// they cannot be right after the presolve callback ( as they were before ) because they will cause geometry collection replicated clients to miss them
-			// Todo(chaos) we should probably move all of the solver event reset here in the future
-			MSolver->GetEvolution()->GetRigidClustering().ResetAllEvents();
+			{
+				SCOPE_CYCLE_COUNTER(STAT_ResetClusteringEvents);
+
+				// reset all clustering events needs to be after CompleteSceneSimulation to make sure the cache recording gets them before they get removed
+				// they cannot be right after the presolve callback ( as they were before ) because they will cause geometry collection replicated clients to miss them
+				// Todo(chaos) we should probably move all of the solver event reset here in the future
+				MSolver->GetEvolution()->GetRigidClustering().ResetAllEvents();
+			}
 
 			// Recover unused memory from particle arrays, based on the array shrink policy
 			if (bChaosSolverShrinkArrays)
@@ -608,6 +615,7 @@ namespace Chaos
 
 			if (FRewindData* RewindData = MSolver->GetRewindData())
 			{
+				SCOPE_CYCLE_COUNTER(STAT_RewindFinishFrame);
 				RewindData->FinishFrame();
 			}
 		}
@@ -1380,6 +1388,7 @@ namespace Chaos
 
 		if (MLastDt > 0)
 		{
+			SCOPE_CYCLE_COUNTER(STAT_FinalizePullData);
 			//pass information back to external thread
 			//we skip dt=0 case because sync data should be identical if dt = 0
 			MarshallingManager.FinalizePullData_Internal(MEvolution->LatestExternalTimestampConsumed_Internal, StartSimTime, MLastDt);
@@ -1387,6 +1396,7 @@ namespace Chaos
 
 		if(SubStepInfo.Step == SubStepInfo.NumSteps - 1)
 		{
+			SCOPE_CYCLE_COUNTER(STAT_DestroyPendingProxies);
 			//final step so we can destroy proxies
 			DestroyPendingProxies_Internal();
 		}

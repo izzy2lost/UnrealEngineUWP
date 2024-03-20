@@ -169,10 +169,16 @@ namespace Chaos
 
 		Solver.AdvanceSolverBy(FSubStepInfo{ PseudoFraction, PushData->IntervalStep, PushData->IntervalNumSteps, PushData->bSolverSubstepped });
 
-		Solver.GetMarshallingManager().FreeDataToHistory_Internal(PushData);	//cannot use push data after this point
-		PushData = nullptr;
+		{
+			SCOPE_CYCLE_COUNTER(STAT_ResetMarshallingData);
+			Solver.GetMarshallingManager().FreeDataToHistory_Internal(PushData);	//cannot use push data after this point
+			PushData = nullptr;
+		}
 
-		Solver.ConditionalApplyRewind_Internal();
+		{
+			SCOPE_CYCLE_COUNTER(STAT_ConditionalApplyRewind);
+			Solver.ConditionalApplyRewind_Internal();
+		}
 
 		Solver.NumPendingSolverAdvanceTasks--;
 	}
