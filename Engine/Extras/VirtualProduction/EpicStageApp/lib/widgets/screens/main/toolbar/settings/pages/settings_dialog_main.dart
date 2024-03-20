@@ -23,8 +23,12 @@ class SettingsDialogMain extends StatelessWidget {
 
   const SettingsDialogMain({Key? key}) : super(key: key);
 
+  /// URI for Unreal Stage documentation
   final String _documentationUri =
       'https://dev.epicgames.com/community/learning/courses/OKO/unreal-engine-unreal-stage-ios-app/';
+
+  /// URI for privacy policy
+  final String _privacyPolicyUri = 'https://www.epicgames.com/site/en-US/privacypolicy';
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +75,11 @@ class SettingsDialogMain extends StatelessWidget {
             title: localizations.settingsDialogApplicationAboutLabel,
             iconPath: 'packages/epic_common/assets/icons/info.svg',
             onTap: () => rootNavigatorKey.currentState?.pushNamed(EulaScreen.route, arguments: {'onPressed': () {}}),
+          ),
+          SettingsMenuItem(
+            title: localizations.settingsDialogPrivacyPolicyLabel,
+            iconPath: 'packages/epic_common/assets/icons/info.svg',
+            onTap: () => launchUrl(Uri.parse(_privacyPolicyUri)),
           ),
           const SettingsMenuDivider(),
           Container(
