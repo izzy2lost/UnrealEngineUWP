@@ -6,7 +6,7 @@
 	// Include default settings from the Horde installation folder
 	"include": [
 		{
-			"path": "$(HordeDir)/Defaults/defaults.json"
+			"path": "$(HordeDir)/Defaults/default.global.json"
 		}
 	],
 

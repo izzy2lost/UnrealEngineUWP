@@ -24,6 +24,16 @@
 //			}
 		],
 
+		// Configure an editor telemetry sink that stores data in the bundled MongoDB instance.
+		// This stores raw telemetry data; aggregated metrics can be computed dynamically without
+		// needing to scan this data, and is expired separately.
+		"Telemetry": [
+			{
+				"Type": "Mongo",
+				"RetainDays": 1
+			}
+		],
+
 		// Whether to use the local Perforce environment for reading configuration data
 		"UseLocalPerforceEnv": false
 	}
