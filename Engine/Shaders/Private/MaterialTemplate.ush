@@ -619,6 +619,12 @@ struct FMaterialVertexParameters
 	// Previous position in the translated world (VertexFactoryGetPreviousWorldPosition) if
 	//    computing material's output for previous frame (See {BasePassVertex,Velocity}Shader.usf).
 	float3 WorldPosition;
+	
+	// Local position relative to the primitive, i.e. before transformation into worldspace. 
+	float3 PositionPrimitiveSpace;
+	// Local position relative to the instance. If instancing is disabled, this is the same as PositionPrimitiveSpace.
+	float3 PositionInstanceSpace;
+
 	// TangentToWorld[2] is WorldVertexNormal
 	half3x3 TangentToWorld;
 
@@ -635,7 +641,6 @@ struct FMaterialVertexParameters
 #endif
 #if USE_INSTANCING || USE_INSTANCE_CULLING || IS_NANITE_PASS
 	/** Per-instance properties. */
-	float3 InstanceLocalPosition;
 	float4 PerInstanceParams;
 #if !USE_INSTANCE_CULLING
 	uint InstanceId;
@@ -895,6 +900,9 @@ FWSVector3 GetPrevWorldCameraOrigin(FMaterialPixelParameters Parameters)
 	return Parameters.LWCData.PrevWorldCameraOrigin;
 }
 
+
+// World position
+
 float3 GetTranslatedWorldPosition(FMaterialVertexParameters Parameters)
 {
 	return Parameters.WorldPosition;
@@ -959,6 +967,58 @@ FWSVector3 GetPrevParticleWorldPosition(FMaterialPixelParameters Parameters)
 {
 	return Parameters.LWCData.PrevParticleWorldPosition;
 }
+
+// Local position
+
+float3 GetPrimitiveSpacePosition(FMaterialPixelParameters Parameters)
+{
+	return DFFastMultiplyDemote(Parameters.AbsoluteWorldPosition, GetPrimitiveData(Parameters).WorldToLocal);
+}
+
+float3 GetPrimitiveSpacePosition(FMaterialVertexParameters Parameters)
+{
+	return Parameters.PositionPrimitiveSpace;
+}
+
+float3 GetPrevPrimitiveSpacePosition(FMaterialVertexParameters Parameters)
+{
+	// Previous position and current position are sharing the
+	// same attribute in Parameters, because in BasePassVertexShader.usf
+	// and in VelocityShader.usf, we are regenerating a Parameters with
+	// GetMaterialVertexParameters(..., bIsPreviousFrame=true)
+	return Parameters.PositionPrimitiveSpace;
+}
+
+float3 GetPrimitiveSpacePosition_NoMaterialOffsets(FMaterialPixelParameters Parameters)
+{
+	return DFFastMultiplyDemote(Parameters.WorldPosition_NoOffsets, GetPrimitiveData(Parameters).WorldToLocal);
+}
+
+float3 GetInstanceSpacePosition(FMaterialPixelParameters Parameters)
+{
+	return DFFastMultiplyDemote(Parameters.AbsoluteWorldPosition, GetWorldToInstanceDF(Parameters));
+}
+
+float3 GetInstanceSpacePosition(FMaterialVertexParameters Parameters)
+{
+	return Parameters.PositionInstanceSpace;
+}
+
+float3 GetPrevInstanceSpacePosition(FMaterialVertexParameters Parameters)
+{
+	// Previous position and current position are sharing the
+	// same attribute in Parameters, because in BasePassVertexShader.usf
+	// and in VelocityShader.usf, we are regenerating a Parameters with
+	// GetMaterialVertexParameters(..., bIsPreviousFrame=true)
+	return Parameters.PositionInstanceSpace;
+}
+
+float3 GetInstanceSpacePosition_NoMaterialOffsets(FMaterialPixelParameters Parameters)
+{
+	return DFFastMultiplyDemote(Parameters.WorldPosition_NoOffsets, GetWorldToInstanceDF(Parameters));
+}
+
+// Screen position
 
 float4 GetScreenPosition(FMaterialVertexParameters Parameters)
 {
@@ -2623,7 +2683,7 @@ float3 GetSpeedTreeVertexOffsetInner(FMaterialVertexParameters Parameters, int G
 
 	#if USE_INSTANCING || USE_INSTANCE_CULLING
 		float3x3 LocalToWorld = DFToFloat3x3(Parameters.InstanceLocalToWorld);
-		float3 LocalPosition = Parameters.InstanceLocalPosition;
+		float3 LocalPosition = Parameters.PositionInstanceSpace;
 
 		// skip if this instance is hidden
 		if (Parameters.PerInstanceParams.y < 1.f)
