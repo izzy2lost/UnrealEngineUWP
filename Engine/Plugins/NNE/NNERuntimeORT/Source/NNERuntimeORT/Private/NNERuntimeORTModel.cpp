@@ -772,7 +772,7 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 	}
 	for (const NNE::FTensorBindingRDG& Binding : Outputs)
 	{
-		PassParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopySrc);
+		PassParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopyDest);
 	}
 
 	GraphBuilder.AddPass(RDG_EVENT_NAME("FModelInstanceORTDmlRDG::EnqueueRDG.AddPass"), PassParameters, ERDGPassFlags::Readback,
