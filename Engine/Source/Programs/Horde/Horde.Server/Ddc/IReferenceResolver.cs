@@ -76,7 +76,7 @@ namespace Horde.Server.Ddc
 		/// <param name="cb">The compact binary object to resolve references for</param>
 		/// <param name="ignoreMissingBlobs">Set to true to always returned the blobs found, ignoring anything that is missing rather then throwing</param>
 		/// <returns></returns>
-		IAsyncEnumerable<BlobId> GetReferencedBlobs(NamespaceId ns, CbObject cb, bool ignoreMissingBlobs = false);
+		IAsyncEnumerable<BlobId> GetReferencedBlobsAsync(NamespaceId ns, CbObject cb, bool ignoreMissingBlobs = false);
 
 		/// <summary>
 		/// Returns which attachments exist in the cb object or any children
@@ -85,7 +85,7 @@ namespace Horde.Server.Ddc
 		/// <param name="ns">The namespace to check</param>
 		/// <param name="cb">The compact binary object to resolve references for</param>
 		/// <returns></returns>
-		IAsyncEnumerable<Attachment> GetAttachments(NamespaceId ns, CbObject cb);
+		IAsyncEnumerable<Attachment> GetAttachmentsAsync(NamespaceId ns, CbObject cb);
 	}
 
 	public class ReferenceResolver : IReferenceResolver
@@ -101,7 +101,7 @@ namespace Horde.Server.Ddc
 			_tracer = tracer;
 		}
 
-		public async IAsyncEnumerable<Attachment> GetAttachments(NamespaceId ns, CbObject cb)
+		public async IAsyncEnumerable<Attachment> GetAttachmentsAsync(NamespaceId ns, CbObject cb)
 		{
 			Queue<CbObject> objectsToVisit = new Queue<CbObject>();
 			objectsToVisit.Enqueue(cb);
@@ -235,7 +235,7 @@ namespace Horde.Server.Ddc
 			}
 		}
 
-		public async IAsyncEnumerable<BlobId> GetReferencedBlobs(NamespaceId ns, CbObject cb, bool ignoreMissingBlobs = false)
+		public async IAsyncEnumerable<BlobId> GetReferencedBlobsAsync(NamespaceId ns, CbObject cb, bool ignoreMissingBlobs = false)
 		{
 			List<Task<(BlobId, bool)>> pendingBlobExistsChecks = new();
 			List<Task<(ContentIdAttachment, bool)>> pendingContentIdChecks = new();
@@ -243,7 +243,7 @@ namespace Horde.Server.Ddc
 			List<BlobId> unresolvedBlobReferences = new List<BlobId>();
 
 			// Resolve all the attachments
-			await foreach (Attachment attachment in GetAttachments(ns, cb))
+			await foreach (Attachment attachment in GetAttachmentsAsync(ns, cb))
 			{
 				if (attachment is BlobAttachment blobAttachment)
 				{

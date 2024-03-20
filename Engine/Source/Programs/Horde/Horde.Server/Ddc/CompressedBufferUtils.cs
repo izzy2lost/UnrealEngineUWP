@@ -232,31 +232,42 @@ namespace Horde.Server.Ddc
 			}
 
 			// not using the buffered payload as we transfer the ownership to the caller of this method
-			FilesystemBufferedPayload finalizedBufferedPayload = bufferedPayloadWriter.Done();
-
-			if (header.TotalRawSize != (ulong)finalizedBufferedPayload.Length)
+			FilesystemBufferedPayload? finalizedBufferedPayload = null;
+			try
 			{
-				throw new Exception("Did not decompress the full payload");
-			}
+#pragma warning disable CA2000
+				finalizedBufferedPayload = bufferedPayloadWriter.Done();
+#pragma warning restore CA2000
 
-			{
-				using TelemetrySpan _ = _tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
-
-				// only read the first 20 bytes of the hash field as IoHashes are 20 bytes and not 32 bytes
-				byte[] slicedHash = new byte[20];
-				Array.Copy(header.RawHash, 0, slicedHash, 0, 20);
-
-				BlobId headerIdentifier = new BlobId(slicedHash);
-				await using Stream hashStream = finalizedBufferedPayload.GetStream();
-				BlobId contentHash = await BlobId.FromStreamAsync(hashStream);
-
-				if (!headerIdentifier.Equals(contentHash))
+				if (header.TotalRawSize != (ulong)finalizedBufferedPayload.Length)
 				{
-					throw new Exception($"Payload was expected to be {headerIdentifier} but was {contentHash}");
+					throw new Exception("Did not decompress the full payload");
 				}
-			}
 
-			return finalizedBufferedPayload;
+				{
+					using TelemetrySpan _ = _tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
+
+					// only read the first 20 bytes of the hash field as IoHashes are 20 bytes and not 32 bytes
+					byte[] slicedHash = new byte[20];
+					Array.Copy(header.RawHash, 0, slicedHash, 0, 20);
+
+					BlobId headerIdentifier = new BlobId(slicedHash);
+					await using Stream hashStream = finalizedBufferedPayload.GetStream();
+					BlobId contentHash = await BlobId.FromStreamAsync(hashStream);
+
+					if (!headerIdentifier.Equals(contentHash))
+					{
+						throw new Exception($"Payload was expected to be {headerIdentifier} but was {contentHash}");
+					}
+				}
+
+				return finalizedBufferedPayload;
+			}
+			catch
+			{
+				finalizedBufferedPayload?.Dispose();
+				throw;
+			}
 		}
 
 		private static int DecompressPayload(ReadOnlySpan<byte> compressedPayload, CompressedBufferHeader header, ulong rawBlockSize, Stream target)
