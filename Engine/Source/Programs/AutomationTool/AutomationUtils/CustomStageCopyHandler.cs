@@ -14,6 +14,15 @@ public abstract class CustomStageCopyHandler
 	/// <summary>
 	/// Called when copying files to the staging directory.
 	/// </summary>
+	/// <returns>true if the file copy can be handled.</returns>
+	public virtual bool CanCopyFile(string SourceName)
+	{
+		return false;
+	}
+
+	/// <summary>
+	/// Called when copying files to the staging directory.
+	/// </summary>
 	/// <returns>true if the file was handled. false to fallback on the default stage copy implementation</returns>
 	public virtual bool StageFile(ILogger Logger, string SourceName, string TargetName)
 	{ 

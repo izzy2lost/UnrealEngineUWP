@@ -2764,6 +2764,19 @@ namespace AutomationScripts
 					Src = NewIniFilename;
 				}
 
+				// Allow the custom stage copy handler to copy the file.
+				if (SC.CustomStageCopyHandler != null && SC.CustomStageCopyHandler.CanCopyFile(Src.FullName))
+				{
+					string SubFolder = Pair.Key.Name.Replace('/', Path.DirectorySeparatorChar);
+					FileReference NewFilename = FileReference.Combine(SC.ProjectRoot, "Saved", "Temp", SC.PlatformDir, SubFolder);
+					InternalUtils.SafeCreateDirectory(NewFilename.Directory.FullName, true);
+
+					if (SC.CustomStageCopyHandler.StageFile(Logger, Src.FullName, NewFilename.FullName))
+					{
+						Src = NewFilename;
+					}
+				}
+
 				// there can be files that only differ in case only, we don't support that in paks as paks are case-insensitive
 				if (UnrealPakResponseFile.ContainsKey(Src.FullName))
 				{
