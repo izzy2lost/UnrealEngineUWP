@@ -376,7 +376,7 @@ struct GAMEPLAYABILITIES_API FPredictionKey
 
 	FString ToString() const
 	{
-		return FString::Printf(TEXT("[%d/%d]"), Current, Base);
+		return bIsServerInitiated ? FString::Printf(TEXT("[Srv: %d]"), Current) : FString::Printf(TEXT("[%d/%d]"), Current, Base);
 	}
 
 	friend uint32 GetTypeHash(const FPredictionKey& InKey)

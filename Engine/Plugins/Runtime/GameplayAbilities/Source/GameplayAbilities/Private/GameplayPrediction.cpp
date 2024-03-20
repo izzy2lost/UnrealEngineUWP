@@ -216,6 +216,16 @@ FPredictionKey FPredictionKey::CreateNewServerInitiatedKey(const UAbilitySystemC
 	{
 		NewKey.GenerateNewPredictionKey();
 		NewKey.bIsServerInitiated = true;
+
+#if !UE_BUILD_SHIPPING
+		// Make sure the Server and Client aren't synchronized in terms of key generation or it can hide bugs.
+		const uint32 ServerDifferential = static_cast<uint32>(reinterpret_cast<intptr_t>(OwningComponent));
+		NewKey.Current = (NewKey.Current + ServerDifferential) % std::numeric_limits<FPredictionKey::KeyType>::max();
+		if (NewKey.Current < 1)
+		{
+			NewKey.Current = 1;
+		}
+#endif
 	}
 	return NewKey;
 }
@@ -496,6 +506,13 @@ void FReplicatedPredictionKeyItem::OnRep(const FReplicatedPredictionKeyMap& InAr
 	if (!UE_LOG_ACTIVE(LogAbilitySystem, Verbose))
 	{
 		UE_LOG(LogPredictionKey, Verbose, TEXT("FReplicatedPredictionKeyItem::OnRep %s"), *PredictionKey.ToString());
+	}
+
+	// We should only run catch-up logic to locally predicted keys.  Otherwise, there will eventually be a case where the server
+	// initiates a key that matches a local value.  Then we catch-up to a local value, even though the server was not specifically acknowledging it.
+	if (PredictionKey.bIsServerInitiated)
+	{
+		return;
 	}
 
 	// Every predictive action we've done in the current chain of dependencies (including the current value) of ReplicatedPredictionKey needs to be acknowledged
