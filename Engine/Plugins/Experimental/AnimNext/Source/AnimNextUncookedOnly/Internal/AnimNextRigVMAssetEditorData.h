@@ -225,7 +225,7 @@ protected:
 
 	// Find an entry that corresponds to the specified RigVMGraph. This uses the name of the graph to match the entry 
 	UAnimNextRigVMAssetEntry* FindEntryForRigVMGraph(URigVMGraph* InRigVMGraph) const;
-
+	
 	/** All entries in this asset - not saved, either serialized or discovered at load time */
 	UPROPERTY(transient)
 	TArray<TObjectPtr<UAnimNextRigVMAssetEntry>> Entries;
@@ -269,9 +269,9 @@ protected:
 	// Delegate to subscribe to modifications to this editor data
 	UE::AnimNext::UncookedOnly::FOnEditorDataModified ModifiedDelegate;
 
-	// Cached exports, generated on compilation
-	FAnimNextParameterProviderAssetRegistryExports CachedExports;
-	
+	// Cached exports, generated lazily or on compilation
+	mutable TOptional<FAnimNextParameterProviderAssetRegistryExports> CachedExports;
+
 	bool bAutoRecompileVM = true;
 	bool bErrorsDuringCompilation = false;
 	bool bSuspendModelNotificationsForSelf = false;

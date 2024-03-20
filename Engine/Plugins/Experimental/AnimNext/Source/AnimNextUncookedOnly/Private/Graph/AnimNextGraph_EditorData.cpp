@@ -129,7 +129,8 @@ void UAnimNextGraph_EditorData::PostLoad()
 
 void UAnimNextGraph_EditorData::RecompileVM()
 {
-	UE::AnimNext::UncookedOnly::FUtils::GetAssetParameters(this, CachedExports);
+	CachedExports = FAnimNextParameterProviderAssetRegistryExports();
+	UE::AnimNext::UncookedOnly::FUtils::GetAssetParameters(this, CachedExports.GetValue());
 	UE::AnimNext::UncookedOnly::FUtils::Compile(GetTypedOuter<UAnimNextGraph>());
 }
 

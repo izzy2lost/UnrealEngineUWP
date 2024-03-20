@@ -43,6 +43,7 @@ namespace UnrealBuildTool.Rules
 					"Settings",
 					"EditorWidgets",
 					"WorkspaceEditor",
+					"ContentBrowser",
 				}
 			);
 		}
