@@ -3319,10 +3319,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	DelinquentAsyncLoads.MaxConcurrentAsyncLoads = FMath::Max<uint32>(DelinquentAsyncLoads.MaxConcurrentAsyncLoads, PendingAsyncLoadRequests.Num());
 
-	LoadPackageAsync(CacheObject.PathName.ToString(), FLoadPackageAsyncDelegate::CreateRaw(this, &FNetGUIDCache::AsyncPackageCallback));
+	FLoadPackageAsyncDelegate LoadPackageCompleteDelegate = FLoadPackageAsyncDelegate::CreateWeakLambda(Driver, [NetDriver = Driver](const FName& PackageName, UPackage* Package, EAsyncLoadingResult::Type Result)
+	{
+		if (NetDriver->GuidCache.IsValid())
+		{
+			NetDriver->GuidCache->AsyncPackageCallback(PackageName, Package, Result);
+		}
+	});
+
+	LoadPackageAsync(CacheObject.PathName.ToString(), LoadPackageCompleteDelegate);
 }
 
-void FNetGUIDCache::AsyncPackageCallback(const FName& PackageName, UPackage * Package, EAsyncLoadingResult::Type Result)
+void FNetGUIDCache::AsyncPackageCallback(const FName& PackageName, UPackage* Package, EAsyncLoadingResult::Type Result)
 {
 	LLM_SCOPE_BYTAG(GuidCache);
 
