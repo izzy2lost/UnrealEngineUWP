@@ -457,7 +457,7 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 
 TEST_CASE_NAMED(FPropertyTypeNameConcurrencyTest, "CoreUObject::PropertyTypeName::Concurrency", "[Core][UObject][EngineFilter]")
 {
-	ParallelFor(TEXT("PropertyTypeNameConcurrencyTest"), 64 * 1024, 1, [](int32 Index)
+	ParallelFor(TEXT("PropertyTypeNameConcurrencyTest"), 64 * 1024, 1, [NAME_TestStruct = FName(ANSITEXTVIEW("TestStruct"))](int32 Index)
 	{
 		FPropertyTypeNameBuilder Builder;
 
@@ -474,7 +474,7 @@ TEST_CASE_NAMED(FPropertyTypeNameConcurrencyTest, "CoreUObject::PropertyTypeName
 
 		Builder.AddName(NAME_StructProperty);
 		Builder.BeginParameters();
-		Builder.AddName(FName(WriteToString<32>(TEXTVIEW("TestStruct"), Index)));
+		Builder.AddName(FName(NAME_TestStruct, NAME_EXTERNAL_TO_INTERNAL(Index)));
 		Builder.EndParameters();
 
 		if (Index % 4 == 0)
