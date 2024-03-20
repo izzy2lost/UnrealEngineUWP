@@ -44,6 +44,16 @@ namespace UnrealConversionUtils
 		const int32 InFirstBoneMapIndex);
 
 
+	/** Initializes the LODResource's VertexBuffers with dummy data to prepare it for streaming.
+	 * @param LODResource - LODRenderData to update
+	 * @param InMutableMesh - Mutable mesh to be used as reference for the section data update on the Skeletal Mesh
+	 * @param bAllowCPUAccess - Keeps this LODs data on the CPU so it can be used for things such as sampling in FX.
+	 */
+	CUSTOMIZABLEOBJECT_API void InitVertexBuffersWithDummyData(
+		FSkeletalMeshLODRenderData& LODResource,
+		const mu::Ptr<const mu::Mesh> InMutableMesh,
+		const bool bAllowCPUAccess);
+
 	/** Performs a copy of the data found on the vertex buffers on the mutable mesh to the buffers of the skeletal mesh
 	 * @param LODResource - LODRenderData to update
 	 * @param InMutableMesh - Mutable mesh to be used as reference for the section data update on the Skeletal Mesh
@@ -55,6 +65,15 @@ namespace UnrealConversionUtils
 		const bool bAllowCPUAccess);
 
 	
+	/**
+	 * Initializes the LODResource's IndexBuffers with dummy data to prepare it for streaming.
+	 * @param LODResource - LODRenderData to be updated.
+	 * @param InMutableMesh - The mutable mesh whose index buffers you want to work with
+	 */
+	CUSTOMIZABLEOBJECT_API void InitIndexBuffersWithDummyData(
+		FSkeletalMeshLODRenderData& LODResource,
+		const mu::Ptr<const mu::Mesh> InMutableMesh);
+
 	/**
 	 *Performs a copy of the data found on the index buffers on the mutable mesh to the buffers of the skeletal mesh
 	 * @param LODResource - LODRenderData to be updated.

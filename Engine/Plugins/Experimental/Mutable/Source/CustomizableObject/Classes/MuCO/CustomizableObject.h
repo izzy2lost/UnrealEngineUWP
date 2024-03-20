@@ -544,6 +544,11 @@ public:
 	 * USkeletalMeshes are only reused between the same CO. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	bool bEnableMeshCache = false;
+
+	/** If true, Mesh LODs will be streamed on demand. It requires streaming of SkeletalMeshes and Mutable.StreamMeshLODsEnabled to be enabled.
+	 *  Does not support Clothing, Morphs, and alternative SkinWeightProfiles yet. */
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	bool bEnableMeshStreaming = false;
 	
 #if WITH_EDITORONLY_DATA
 	// Compilation options to use in editor and for packaging for this object.

@@ -21,6 +21,7 @@
 #include "Tasks/Task.h"
 
 #include "MuCO/CustomizableObjectSystemPrivate.h"
+#include "MuCO/CustomizableObjectSkeletalMesh.h"
 #include "MuCO/CustomizableInstanceLODManagement.h"
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectExtension.h"
@@ -223,7 +224,8 @@ void UCustomizableInstancePrivate::InitCustomizableObjectData(const UCustomizabl
 	// Init LOD Data
 	NumLODsAvailable = InCustomizableObject->GetNumLODs();
 	FirstLODAvailable = InCustomizableObject->LODSettings.FirstLODAvailable;
-	NumMaxLODsToStream = InCustomizableObject->LODSettings.bLODStreamingEnabled ? InCustomizableObject->LODSettings.NumLODsToStream : 0;
+	FirstResidentLOD = InCustomizableObject->LODSettings.bLODStreamingEnabled ? InCustomizableObject->LODSettings.NumLODsToStream : 0;
+	FirstResidentLOD = FMath::Clamp(FirstResidentLOD, FirstLODAvailable, NumLODsAvailable);
 
 	// Init Component Data
 	FCustomizableInstanceComponentData TemplateComponentData;
@@ -1820,7 +1822,14 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 		// Create and initialize the SkeletalMesh for this component
 		MUTABLE_CPUPROFILER_SCOPE(ConstructMesh);
 
-		SkeletalMeshes[Component.Id] = NewObject<USkeletalMesh>(GetTransientPackage(), NAME_None, RF_Transient);
+		if (OperationData->bStreamMeshLODs)
+		{
+			SkeletalMeshes[Component.Id] = UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(OperationData, *Public, Component.Id);
+		}
+		else
+		{
+			SkeletalMeshes[Component.Id] = NewObject<USkeletalMesh>(GetTransientPackage(), NAME_None, RF_Transient);
+		}
 
 		USkeletalMesh* SkeletalMesh = SkeletalMeshes[Component.Id];
 		check(SkeletalMesh);
@@ -2036,8 +2045,14 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 				BuildOrCopyMorphTargetsData(OperationData, SkeletalMesh, OldSkeletalMesh, Public, ComponentIndex);
 				BuildOrCopyClothingData(OperationData, SkeletalMesh, OldSkeletalMesh, Public, ComponentIndex);
 
-				ensure(SkeletalMesh->GetResourceForRendering()->LODRenderData.Num() > 0);
+				FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
+				ensure(RenderData && RenderData->LODRenderData.Num() > 0);
 				ensure(SkeletalMesh->GetLODInfoArray().Num() > 0);
+
+				for (FSkeletalMeshLODRenderData& LODResource : RenderData->LODRenderData)
+				{
+					UnrealConversionUtils::UpdateSkeletalMeshLODRenderDataBuffersSize(LODResource);
+				}
 			}
 
 			if (OperationData->bUseMeshCache)
@@ -2054,18 +2069,6 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	}
 
 	return bSuccess;
-}
-
-
-UCustomizableInstancePrivate::UCustomizableInstancePrivate()
-{
-	MinSquareDistFromComponentToPlayer = FLT_MAX;
-	LastMinSquareDistFromComponentToPlayer = FLT_MAX;
-	
-	NumLODsAvailable = INT32_MAX;
-	FirstLODAvailable = 0;
-
-	NumMaxLODsToStream = MAX_MESH_LOD_COUNT;
 }
 
 
@@ -3168,8 +3171,7 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 
 	check(SkeletalMesh);
 
-	// Mutable skeletal meshes are generated dynamically in-game and cannot be streamed from disk
-	SkeletalMesh->NeverStream = 1;
+	SkeletalMesh->NeverStream = !OperationData->bStreamMeshLODs;
 
 	SkeletalMesh->SetImportedBounds(RefSkeletalMeshData.Bounds);
 	SkeletalMesh->SetPostProcessAnimBlueprint(RefSkeletalMeshData.PostProcessAnimInst.Get());
@@ -3223,12 +3225,20 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 		SkeletalMesh->AllocateResourceForRendering();
 
 		FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
+		RenderData->NumInlinedLODs = OperationData->NumLODsAvailable - OperationData->FirstResidentLOD;
+		RenderData->NumNonOptionalLODs = OperationData->NumLODsAvailable - OperationData->FirstLODAvailable;
+		RenderData->CurrentFirstLODIdx = OperationData->FirstResidentLOD;
+		RenderData->LODBiasModifier = 0;
+
 		for (int32 LODIndex = 0; LODIndex < OperationData->NumLODsAvailable; ++LODIndex)
 		{
 			RenderData->LODRenderData.Add(new FSkeletalMeshLODRenderData());
+			
+			FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[LODIndex];
+			LODRenderData.bIsLODOptional = LODIndex < OperationData->FirstLODAvailable;
+			LODRenderData.bStreamedDataInlined = LODIndex >= OperationData->FirstResidentLOD;
 
 			const FMutableRefLODData& LODData = RefSkeletalMeshData.LODData[LODIndex];
-
 			FSkeletalMeshLODInfo& LODInfo = SkeletalMesh->AddLODInfo();
 			LODInfo.ScreenSize = LODData.LODInfo.ScreenSize;
 			LODInfo.LODHysteresis = LODData.LODInfo.LODHysteresis;
@@ -4687,17 +4697,91 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 
 		FSkeletalMeshLODRenderData& LODResource = RenderData->LODRenderData[LODIndex];
 
+		// Set active and required bones
+		LODResource.ActiveBoneIndices.Append(Component.ActiveBones);
+		LODResource.RequiredBones.Append(Component.ActiveBones);
+
+		// Set RenderSections
 		UnrealConversionUtils::SetupRenderSections(
 			LODResource,
 			Component.Mesh,
 			OperationData->InstanceUpdateData.BoneMaps,
 			Component.FirstBoneMap);
 
-		UnrealConversionUtils::CopyMutableVertexBuffers(
-			LODResource,
-			Component.Mesh,
-			SkeletalMesh->GetLODInfo(LODIndex)->bAllowCPUAccess);
+		if (LODResource.bStreamedDataInlined) // Non-streamable LOD
+		{
+			// Copy Vertices
+			UnrealConversionUtils::CopyMutableVertexBuffers(
+				LODResource,
+				Component.Mesh,
+				SkeletalMesh->GetLODInfo(LODIndex)->bAllowCPUAccess);
 
+			// Copy indices.
+			if (!UnrealConversionUtils::CopyMutableIndexBuffers(LODResource, Component.Mesh))
+			{
+				// End with failure
+				return false;
+			}
+
+			// Copy SkinWeightProfiles
+			if (!ModelResources.SkinWeightProfilesInfo.IsEmpty())
+			{
+				bool bHasSkinWeightProfiles = false;
+
+				const mu::FMeshBufferSet& MutableMeshVertexBuffers = Component.Mesh->GetVertexBuffers();
+
+				const int32 SkinWeightProfilesCount = ModelResources.SkinWeightProfilesInfo.Num();
+				for (int32 ProfileIndex = 0; ProfileIndex < SkinWeightProfilesCount; ++ProfileIndex)
+				{
+					const int32 ProfileSemanticsIndex = ProfileIndex + 10;
+					int32 BoneIndicesBufferIndex, BoneIndicesBufferChannelIndex;
+					MutableMeshVertexBuffers.FindChannel(mu::MBS_BONEINDICES, ProfileSemanticsIndex, &BoneIndicesBufferIndex, &BoneIndicesBufferChannelIndex);
+
+					int32 BoneWeightsBufferIndex, BoneWeightsBufferChannelIndex;
+					MutableMeshVertexBuffers.FindChannel(mu::MBS_BONEWEIGHTS, ProfileSemanticsIndex, &BoneWeightsBufferIndex, &BoneWeightsBufferChannelIndex);
+
+					if (BoneIndicesBufferIndex < 0 || BoneIndicesBufferIndex != BoneWeightsBufferIndex)
+					{
+						continue;
+					}
+
+					if (!bHasSkinWeightProfiles)
+					{
+						LODResource.SkinWeightProfilesData.Init(&LODResource.SkinWeightVertexBuffer);
+						bHasSkinWeightProfiles = true;
+					}
+
+					const FMutableSkinWeightProfileInfo& Profile = ModelResources.SkinWeightProfilesInfo[ProfileIndex];
+
+					const FSkinWeightProfileInfo* ExistingProfile = SkeletalMesh->GetSkinWeightProfiles().FindByPredicate(
+						[&Profile](const FSkinWeightProfileInfo& P) { return P.Name == Profile.Name; });
+
+					if (!ExistingProfile)
+					{
+						SkeletalMesh->AddSkinWeightProfile({ Profile.Name, Profile.DefaultProfile, Profile.DefaultProfileFromLODIndex });
+					}
+
+					UnrealConversionUtils::CopyMutableSkinWeightProfilesBuffers(
+						LODResource,
+						Profile.Name,
+						MutableMeshVertexBuffers,
+						BoneIndicesBufferIndex);
+				}
+			}
+		}
+		else // Streamable LOD. 
+		{
+			// Init VertexBuffers for streaming
+			UnrealConversionUtils::InitVertexBuffersWithDummyData(
+				LODResource,
+				Component.Mesh,
+				SkeletalMesh->GetLODInfo(LODIndex)->bAllowCPUAccess);
+
+			// Init IndexBuffers for streaming
+			UnrealConversionUtils::InitIndexBuffersWithDummyData(LODResource, Component.Mesh);
+
+			// SkinWeightProfilesInfo Not supported yet
+		}
 
 		if (LODResource.StaticVertexBuffers.ColorVertexBuffer.GetNumVertices())
 		{
@@ -4720,72 +4804,6 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 			FSlateNotificationManager::Get().AddNotification(Info);
 #endif
 		}
-
-		// Update active and required bones
-		LODResource.ActiveBoneIndices.Append(Component.ActiveBones);
-		LODResource.RequiredBones.Append(Component.ActiveBones);
-
-		if (!ModelResources.SkinWeightProfilesInfo.IsEmpty())
-		{
-			bool bHasSkinWeightProfiles = false;
-
-			const mu::FMeshBufferSet& MutableMeshVertexBuffers = Component.Mesh->GetVertexBuffers();
-			
-			const int32 SkinWeightProfilesCount = ModelResources.SkinWeightProfilesInfo.Num();
-			for (int32 ProfileIndex = 0; ProfileIndex < SkinWeightProfilesCount; ++ProfileIndex)
-			{
-				const int32 ProfileSemanticsIndex = ProfileIndex + 10;
-				int32 BoneIndicesBufferIndex, BoneIndicesBufferChannelIndex;
-				MutableMeshVertexBuffers.FindChannel(mu::MBS_BONEINDICES, ProfileSemanticsIndex, &BoneIndicesBufferIndex, &BoneIndicesBufferChannelIndex);
-
-				int32 BoneWeightsBufferIndex, BoneWeightsBufferChannelIndex;
-				MutableMeshVertexBuffers.FindChannel(mu::MBS_BONEWEIGHTS, ProfileSemanticsIndex, &BoneWeightsBufferIndex, &BoneWeightsBufferChannelIndex);
-
-				if (BoneIndicesBufferIndex < 0 || BoneIndicesBufferIndex != BoneWeightsBufferIndex)
-				{
-					continue;
-				}
-
-				if (!bHasSkinWeightProfiles)
-				{
-					LODResource.SkinWeightProfilesData.Init(&LODResource.SkinWeightVertexBuffer);
-					bHasSkinWeightProfiles = true;
-				}
-
-				const FMutableSkinWeightProfileInfo& Profile = ModelResources.SkinWeightProfilesInfo[ProfileIndex];
-
-				const FSkinWeightProfileInfo* ExistingProfile = SkeletalMesh->GetSkinWeightProfiles().FindByPredicate(
-					[&Profile](const FSkinWeightProfileInfo& P) { return P.Name == Profile.Name; });
-
-				if (!ExistingProfile)
-				{
-					SkeletalMesh->AddSkinWeightProfile({ Profile.Name, Profile.DefaultProfile, Profile.DefaultProfileFromLODIndex });
-				}
-
-				UnrealConversionUtils::CopyMutableSkinWeightProfilesBuffers(
-					LODResource,
-					Profile.Name,
-					MutableMeshVertexBuffers,
-					BoneIndicesBufferIndex);
-			}
-		}
-
-		// Copy indices.
-		if (!UnrealConversionUtils::CopyMutableIndexBuffers(LODResource, Component.Mesh))
-		{
-			// End with failure
-			return false;
-		}
-
-		// Update LOD and streaming data
-		const FMutableRefLODRenderData& RefLODRenderData = ModelResources.ReferenceSkeletalMeshesData[Component.Id].LODData[LODIndex].RenderData;
-		LODResource.bIsLODOptional = RefLODRenderData.bIsLODOptional;
-		LODResource.bStreamedDataInlined = RefLODRenderData.bStreamedDataInlined;
-
-		// WARNING! BufferSize must be > 0 or all texture mips in this LOD will be requested at once. 
-		// USkeletalMesh::IsMaterialUsed checks this size to see if a material is being used. If it fails the textures used by it won't be included 
-		// in the map of textures to stream.
-		LODResource.BuffersSize = 1;
 	}
 
 	// Copy LODRenderData from the FirstGeneratedLOD to the LODs below
@@ -6375,7 +6393,7 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 , const
 	bool bUpdateRequestedLODs = false;
 	if (UCustomizableObjectSystem::GetInstance()->IsOnlyGenerateRequestedLODsEnabled())
 	{
-		const uint16 FirstNonStreamedLODIndex = FMath::Clamp(PrivateData->NumMaxLODsToStream, 0, MaxLODIdx);
+		const uint16 FirstNonStreamedLODIndex = FMath::Clamp(PrivateData->FirstResidentLOD, 0, MaxLODIdx);
 
 		const int32 ComponentCount = GetNumComponents();
 		if (ComponentCount != MutableUpdateCandidate.RequestedLODLevels.Num())

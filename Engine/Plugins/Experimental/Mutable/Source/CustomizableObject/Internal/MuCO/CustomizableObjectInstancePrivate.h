@@ -168,8 +168,6 @@ class CUSTOMIZABLEOBJECT_API UCustomizableInstancePrivate : public UObject
 public:
 	GENERATED_BODY()
 
-	UCustomizableInstancePrivate();
-
 	/** The generated skeletal meshes for this Instance, one for each component */
 	UPROPERTY(Transient, VisibleAnywhere, Category = NoCategory)
 	TArray<TObjectPtr<USkeletalMesh>> SkeletalMeshes;
@@ -308,17 +306,17 @@ public:
 	UCustomizableObjectInstance* GetPublic() const;
 
 	// If any components are using this instance, they will store the min of their distances to the player here every frame for LOD purposes
-	float MinSquareDistFromComponentToPlayer;
-	float LastMinSquareDistFromComponentToPlayer; // The same as the previous dist for last frame
+	float MinSquareDistFromComponentToPlayer = FLT_MAX;
+	float LastMinSquareDistFromComponentToPlayer = FLT_MAX; // The same as the previous dist for last frame
 												
 	// This is the LODs that the Customizable Object has
-	int32 NumLODsAvailable;
+	int32 NumLODsAvailable = INT32_MAX;
 
 	// First SkeletalMesh LOD we can generate on the running platform
-	uint8 FirstLODAvailable;
+	uint8 FirstLODAvailable = 0;
 
-	// Maximum number of SkeletalMesh LODs to stream
-	uint8 NumMaxLODsToStream;
+	// First Non-streamable SkeletalMesh LOD
+	uint8 FirstResidentLOD = MAX_MESH_LOD_COUNT;
 	
 	UPROPERTY(Transient)
 	TArray<FCustomizableInstanceComponentData> ComponentsData;
