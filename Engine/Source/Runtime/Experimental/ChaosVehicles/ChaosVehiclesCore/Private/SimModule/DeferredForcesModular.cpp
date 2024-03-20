@@ -393,7 +393,9 @@ void FDeferredForcesModular::AddForceAtPosition(Chaos::FPBDRigidParticleHandle* 
 {
 	if (ensure(RigidHandle))
 	{
-		AddForce_Implementation(RigidHandle, DataIn.OffsetTransform, DataIn.Force, OffsetTransform, (DataIn.Flags & EForceFlags::LevelSlope) == EForceFlags::LevelSlope, DataIn.DebugColor);
+		FTransform FinalOffsetTransform = OffsetTransform;
+		FinalOffsetTransform.AddToTranslation(DataIn.Position);
+		AddForce_Implementation(RigidHandle, FinalOffsetTransform, DataIn.Force, FinalOffsetTransform, (DataIn.Flags & EForceFlags::LevelSlope) == EForceFlags::LevelSlope, DataIn.DebugColor);
 	}
 }
 
