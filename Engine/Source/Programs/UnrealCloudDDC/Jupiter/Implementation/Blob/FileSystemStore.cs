@@ -240,11 +240,11 @@ namespace Jupiter.Implementation
 							// if the file was gced while running we can just ignore it
 						}
 					}
+				}
 
-					if (!hadFiles)
-					{
-						return countOfBlobsRemoved;
-					}
+				if (!hadFiles)
+				{
+					return countOfBlobsRemoved;
 				}
 			}
 
