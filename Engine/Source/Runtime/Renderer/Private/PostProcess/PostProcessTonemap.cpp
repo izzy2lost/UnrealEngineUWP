@@ -23,6 +23,7 @@
 #include "HDRHelper.h"
 #include "VariableRateShadingImageManager.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "CommonRenderResources.h"
 
 
 bool SupportsFilmGrain(EShaderPlatform Platform)
@@ -1091,7 +1092,7 @@ void RenderMobileCustomResolve(FRHICommandList& RHICmdList, const FViewInfo& Vie
 	const float LUTSize = ColorGradingLUT ? (float)ColorGradingLUT->GetDesc().GetSize().Y : /* unused (default): */ 32.0f;
 	const FPostProcessSettings& Settings = View.FinalPostProcessSettings;
 	
-	TShaderMapRef<FScreenVS> VertexShader(View.ShaderMap);
+	TShaderMapRef<FMobileMultiViewVertexShaderVS> VertexShader(View.ShaderMap);
 	
 	FMobileCustomResolvePS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FMobileCustomResolvePS::FTonemapperSubpassMsaaDim>(SubpassMSAASamples);
@@ -1137,7 +1138,8 @@ void RenderMobileCustomResolve(FRHICommandList& RHICmdList, const FViewInfo& Vie
 		TargetSize,
 		TargetSize,
 		VertexShader,
-		EDRF_UseTriangleOptimization);
+		EDRF_UseTriangleOptimization,
+		View.InstanceFactor);
 }
 
 BEGIN_SHADER_PARAMETER_STRUCT(FMobileCustomResolveParameters, )
@@ -1156,6 +1158,8 @@ void AddMobileCustomResolvePass(FRDGBuilder& GraphBuilder, const FViewInfo& View
 	PassParameters->ColorTexture = SceneTextures.Color.Resolve;
 	PassParameters->ColorGradingLUT = ColorGradingLUT;
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(ViewFamilyTexture, ERenderTargetLoadAction::EClear);
+	// Need to specify multi view count for when the custom resolve pass is a separate pass and is not within the main pass.
+	PassParameters->RenderTargets.MultiViewCount = View.bIsMobileMultiViewEnabled ? 2 : 0;
 
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("MobileCustomResolvePass"),

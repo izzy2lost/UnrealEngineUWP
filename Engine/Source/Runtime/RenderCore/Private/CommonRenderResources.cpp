@@ -17,6 +17,7 @@ TGlobalResource<FScreenRectangleIndexBuffer, FRenderResource::EInitPhase::Pre> G
 
 IMPLEMENT_GLOBAL_SHADER(FScreenVertexShaderVS, "/Engine/Private/Tools/FullscreenVertexShader.usf", "MainVS", SF_Vertex);
 IMPLEMENT_GLOBAL_SHADER(FInstancedScreenVertexShaderVS, "/Engine/Private/Tools/FullscreenVertexShader.usf", "MainVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FMobileMultiViewVertexShaderVS, "/Engine/Private/Tools/FullscreenVertexShader.usf", "MainVS", SF_Vertex);
 IMPLEMENT_GLOBAL_SHADER(FCopyRectPS, "/Engine/Private/ScreenPass.usf", "CopyRectPS", SF_Pixel);
 IMPLEMENT_GLOBAL_SHADER(FImagePreTransformVS, "/Engine/Private/Tools/FullscreenVertexShader.usf", "MainForPreTransform", SF_Vertex);
 
@@ -24,6 +25,12 @@ bool FInstancedScreenVertexShaderVS::ShouldCompilePermutation(const FGlobalShade
 {
 	UE::StereoRenderUtils::FStereoShaderAspects Aspects(Parameters.Platform);
 	return Aspects.IsInstancedMultiViewportEnabled();
+}
+
+bool FMobileMultiViewVertexShaderVS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+{
+	UE::StereoRenderUtils::FStereoShaderAspects Aspects(Parameters.Platform);
+	return Aspects.IsMobileMultiViewEnabled();
 }
 
 void FScreenRectangleVertexBuffer::InitRHI(FRHICommandListBase& RHICmdList)

@@ -1504,7 +1504,6 @@ void FRHIRenderPassInfo::ConvertToRenderTargetsInfo(FRHISetRenderTargetsInfo& Ou
 
 		OutRTInfo.bClearColor |= (LoadAction == ERenderTargetLoadAction::EClear);
 
-		ensure(!OutRTInfo.bHasResolveAttachments || ColorRenderTargets[Index].RenderTarget->GetNumSamples() == 1);
 		if (ColorRenderTargets[Index].ResolveTarget)
 		{
 			OutRTInfo.bHasResolveAttachments = true;
