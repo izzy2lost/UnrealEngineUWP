@@ -5,16 +5,26 @@
 #include "AvaEditorActorUtils.h"
 #include "AvaEditorCommands.h"
 #include "AvaEditorIntegration.h"
+#include "AvaSceneRigSubsystem.h"
 #include "AvaShapeActor.h"
+#include "Camera/CameraActor.h"
+#include "CineCameraActor.h"
 #include "ColorPicker/AvaViewportColorPickerActorClassRegistry.h"
 #include "ColorPicker/IAvaViewportColorPickerAdapter.h"
 #include "Components/LightComponentBase.h"
+#include "Containers/Set.h"
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
 #include "Editor/UnrealEdEngine.h"
+#include "Engine/DirectionalLight.h"
 #include "Engine/Light.h"
+#include "Engine/PointLight.h"
+#include "Engine/PostProcessVolume.h"
+#include "Engine/RectLight.h"
 #include "Engine/SkyLight.h"
+#include "Engine/SpotLight.h"
 #include "Engine/Texture2D.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/AvaNullActor.h"
 #include "IAssetTools.h"
 #include "IAvaOutlinerModule.h"
 #include "Icon/AvaOutlinerObjectIconCustomization.h"
@@ -24,6 +34,7 @@
 #include "SVGImporter/AvaOutlinerSVGActorContextMenu.h"
 #include "Styling/SlateIconFinder.h"
 #include "UnrealEdGlobals.h"
+#include "Viewport/AvaCineCameraActor.h"
 #include "Viewport/AvaViewportQualitySettings.h"
 
 // Details View
@@ -105,6 +116,8 @@ void FAvaEditorModule::StartupModule()
 	// Note: ASkylight Does not extend from ALight
 	FAvaViewportColorPickerActorClassRegistry::RegisterClassAdapter<ALight, FAvaViewportColorPickerLightAdapter>();
 	FAvaViewportColorPickerActorClassRegistry::RegisterClassAdapter<ASkyLight, FAvaViewportColorPickerLightAdapter>();
+
+	UAvaSceneRigSubsystem::RegisterSupportedActorClasses(DefaultSceneRigActorClasses());
 }
 
 void FAvaEditorModule::ShutdownModule()
@@ -123,6 +136,8 @@ void FAvaEditorModule::ShutdownModule()
 			IAvaOutlinerModule::Get().UnregisterOverriddenIcon<FAvaOutlinerActor>(AAvaShapeActor::StaticClass()->GetFName());
 		}
 	}
+
+	UAvaSceneRigSubsystem::UnregisterSupportedActorClasses(DefaultSceneRigActorClasses());
 }
 
 void FAvaEditorModule::CreateAvaLevelEditor()
@@ -374,6 +389,27 @@ void FAvaEditorModule::RegisterLevelTemplates()
 			GUnrealEd->AppendTemplateMaps(TemplateMaps);
 		}
 	}
+}
+
+const TSet<TSubclassOf<AActor>>& FAvaEditorModule::DefaultSceneRigActorClasses()
+{
+	static const TSet<TSubclassOf<AActor>> Classes =
+	{
+		// Cameras
+		ACameraActor::StaticClass(),
+		ACineCameraActor::StaticClass(),
+		AAvaCineCameraActor::StaticClass(),
+		// Lights
+		ASkyLight::StaticClass(),
+		ADirectionalLight::StaticClass(),
+		APointLight::StaticClass(),
+		ARectLight::StaticClass(),
+		ASpotLight::StaticClass(),
+		// Misc
+		AAvaNullActor::StaticClass(),
+		APostProcessVolume::StaticClass()
+	};
+	return Classes;
 }
 
 #undef LOCTEXT_NAMESPACE

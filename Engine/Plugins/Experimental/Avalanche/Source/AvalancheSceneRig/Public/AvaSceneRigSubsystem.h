@@ -7,6 +7,7 @@
 #include "Engine/AssetUserData.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Templates/Function.h"
+#include "Templates/SubclassOf.h"
 #include "AvaSceneRigSubsystem.generated.h"
 
 class AActor;
@@ -39,14 +40,17 @@ public:
 	/** Returns the Scene Rig level suffix string. Recommended to append to level asset name to differentiate them from other levels. */
 	AVALANCHESCENERIG_API static FString GetSceneRigAssetSuffix();
 
-	/** Get the list of supported object class names that are allowed to be instanced into a scene rig level. */
-	AVALANCHESCENERIG_API static TSet<FName> GetSupportedActorClassNames();
+	/** Registers actor classes that are allowed to be added to a Scene Rig. */
+	AVALANCHESCENERIG_API static void RegisterSupportedActorClasses(const TSet<TSubclassOf<AActor>>& InClasses);
 
-	/** Returns true if the class name is a supported Scene Rig class. */
-	AVALANCHESCENERIG_API static bool IsSupportedActorClassName(const FName InName);
+	/** Unregisters actor classes that are allowed to be added to a Scene Rig. */
+	AVALANCHESCENERIG_API static void UnregisterSupportedActorClasses(const TSet<TSubclassOf<AActor>>& InClasses);
+
+	/** Returns the list of supported object classes that are allowed to be added to a scene rig level. */
+	AVALANCHESCENERIG_API static const TSet<TSubclassOf<AActor>>& GetSupportedActorClasses();
 
 	/** Returns true if the class is a supported Scene Rig class. */
-	AVALANCHESCENERIG_API static bool IsSupportedActorClass(const UClass* InClass);
+	AVALANCHESCENERIG_API static bool IsSupportedActorClass(const TSubclassOf<AActor>& InClass);
 
 	/** Returns true if the list of actors are supported Scene Rig classes. */
 	AVALANCHESCENERIG_API static bool AreActorsSupported(const TArray<AActor*>& InActors);
@@ -91,4 +95,6 @@ private:
 #if WITH_EDITOR
 	FDelegateHandle WorldTagGetterDelegate;
 #endif
+
+	static TSet<TSubclassOf<AActor>> SupportedActorClasses;
 };

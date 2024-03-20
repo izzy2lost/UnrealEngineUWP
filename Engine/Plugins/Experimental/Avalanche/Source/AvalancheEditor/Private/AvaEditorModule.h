@@ -3,8 +3,10 @@
 #pragma once
 
 #include "AssetTypeCategories.h"
+#include "Containers/ContainersFwd.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
+#include "Templates/SubclassOf.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
 class FAvaOutlinerItem;
@@ -25,6 +27,8 @@ public:
 	//~ End IAvaEditorModule
 
 	static FSlateIcon GetOutlinerShapeActorIcon(TSharedPtr<const FAvaOutlinerItem> InItem);
+
+	static const TSet<TSubclassOf<AActor>>& DefaultSceneRigActorClasses();
 	
 private:
 	/** Motion Design Level Editor */

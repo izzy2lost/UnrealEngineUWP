@@ -18,6 +18,8 @@ DEFINE_LOG_CATEGORY(AvaSceneRigSubsystemLog);
 
 #define LOCTEXT_NAMESPACE "AvaSceneRigSubsystem"
 
+TSet<TSubclassOf<AActor>> UAvaSceneRigSubsystem::SupportedActorClasses = {};
+
 void UAvaSceneRigSubsystem::Initialize(FSubsystemCollectionBase& InOutCollection)
 {
 	Super::Initialize(InOutCollection);
@@ -114,39 +116,34 @@ FString UAvaSceneRigSubsystem::GetSceneRigAssetSuffix()
 	return Suffix;
 }
 
-TSet<FName> UAvaSceneRigSubsystem::GetSupportedActorClassNames()
+void UAvaSceneRigSubsystem::RegisterSupportedActorClasses(const TSet<TSubclassOf<AActor>>& InClasses)
 {
-	static const TSet<FName> ClassNames =
-		{
-			// Cameras
-			TEXT("CameraActor"),
-			TEXT("CineCameraActor"),
-			TEXT("AvaCineCameraActor"),
-			// Lights
-			TEXT("SkyLight"),
-			TEXT("DirectionalLight"),
-			TEXT("PointLight"),
-			TEXT("RectLight"),
-			TEXT("SpotLight"),
-			// Misc
-			TEXT("AvaNullActor"),
-			TEXT("PostProcessVolume")
-		};
-	return ClassNames;
-}
-
-bool UAvaSceneRigSubsystem::IsSupportedActorClassName(const FName InName)
-{
-	return GetSupportedActorClassNames().Contains(InName);
-}
-
-bool UAvaSceneRigSubsystem::IsSupportedActorClass(const UClass* InClass)
-{
-	if (IsValid(InClass))
+	for (const TSubclassOf<AActor>& Class : InClasses)
 	{
-		return GetSupportedActorClassNames().Contains(InClass->GetFName());
+		SupportedActorClasses.Add(Class);
 	}
-	return false;
+}
+
+void UAvaSceneRigSubsystem::UnregisterSupportedActorClasses(const TSet<TSubclassOf<AActor>>& InClasses)
+{
+	for (const TSubclassOf<AActor>& Class : InClasses)
+	{
+		const FSetElementId SetId = SupportedActorClasses.FindId(Class);
+		if (SetId.IsValidId())
+		{
+			SupportedActorClasses.Remove(SetId);
+		}
+	}
+}
+
+const TSet<TSubclassOf<AActor>>& UAvaSceneRigSubsystem::GetSupportedActorClasses()
+{
+	return SupportedActorClasses;
+}
+
+bool UAvaSceneRigSubsystem::IsSupportedActorClass(const TSubclassOf<AActor>& InClass)
+{
+	return GetSupportedActorClasses().Contains(InClass);
 }
 
 bool UAvaSceneRigSubsystem::AreActorsSupported(const TArray<AActor*>& InActors)
