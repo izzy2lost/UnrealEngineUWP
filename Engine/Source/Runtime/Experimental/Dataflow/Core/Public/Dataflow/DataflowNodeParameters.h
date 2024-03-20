@@ -18,6 +18,10 @@ struct FDataflowConnection;
 
 namespace Dataflow
 {
+	class FContext;
+
+	typedef uint32 FContextCacheKey;
+
 	struct FTimestamp
 	{
 		typedef uint64 Type;
@@ -45,17 +49,42 @@ namespace Dataflow
 
 	struct FContextCacheElementBase 
 	{
-		FContextCacheElementBase(FGuid InNodeGuid = FGuid(), const FProperty* InProperty = nullptr, uint32 InNodeHash = 0, FTimestamp InTimestamp = FTimestamp::Invalid)
-			: NodeGuid(InNodeGuid)
+		enum EType
+		{
+			CacheElementTyped,
+			CacheElementReference
+		};
+
+		FContextCacheElementBase(EType CacheElementType, FGuid InNodeGuid = FGuid(), const FProperty* InProperty = nullptr, uint32 InNodeHash = 0, FTimestamp InTimestamp = FTimestamp::Invalid)
+			: Type(CacheElementType)
+			, NodeGuid(InNodeGuid)
 			, Property(InProperty)
 			, NodeHash(InNodeHash)
 			, Timestamp(InTimestamp)
 		{}
 		virtual ~FContextCacheElementBase() {}
 
+		// InReferenceDataKey is the key of the cache element this function is called on 
+		virtual TUniquePtr<FContextCacheElementBase> CreateReference(FContextCacheKey InReferenceDataKey) const = 0;
+
 		template<typename T>
-		const T& GetTypedData(const FProperty* PropertyIn) const;
+		const T& GetTypedData(FContext& Context, const FProperty* PropertyIn, const T& Default) const;
 		
+		EType GetType() const {	return Type; }
+
+		const FProperty* GetProperty() const { return Property; }
+		const FTimestamp& GetTimestamp() const { return Timestamp; }
+
+		const FGuid& GetNodeGuid() const { return NodeGuid; }
+		const uint32 GetNodeHash() const { return NodeHash; }
+
+		// use this with caution: setting the property of a wrong type may cause problems
+		void SetProperty(const FProperty* NewProperty) { Property = NewProperty; }
+
+	private:
+		friend struct FContextCache;
+
+		EType Type;
 		FGuid NodeGuid;
 		const FProperty* Property = nullptr;
 		uint32 NodeHash = 0;
@@ -66,24 +95,55 @@ namespace Dataflow
 	struct FContextCacheElement : public FContextCacheElementBase 
 	{
 		FContextCacheElement(FGuid InNodeGuid, const FProperty* InProperty, T&& InData, uint32 InNodeHash, FTimestamp Timestamp)
-			: FContextCacheElementBase(InNodeGuid, InProperty, InNodeHash, Timestamp)
+			: FContextCacheElementBase(EType::CacheElementTyped, InNodeGuid, InProperty, InNodeHash, Timestamp)
 			, Data(Forward<T>(InData))
 		{}
 		
+		const T& GetData(FContext& Context, const FProperty* PropertyIn, const T& Default) const;
+
+		const T& GetDataDirect() const { return Data; }
+
+		virtual TUniquePtr<FContextCacheElementBase> CreateReference(FContextCacheKey InReferenceDataKey) const override;
+
+	private:
 		typedef typename TDecay<T>::Type FDataType;  // Using universal references here means T could be either const& or an rvalue reference
 		const FDataType Data;                        // Decaying T removes any reference and gets the correct underlying storage data type
 	};
 
 	template<class T>
-	const T& FContextCacheElementBase::GetTypedData(const FProperty* InProperty) const
+	struct FContextCacheElementReference : public FContextCacheElementBase
 	{
-		check(InProperty);
-		check(Property->SameType(InProperty));
-		return static_cast<const FContextCacheElement<T>&>(*this).Data;
-	}
+		FContextCacheElementReference(FGuid InNodeGuid, const FProperty* InProperty, FContextCacheKey InDataKey, uint32 InNodeHash, FTimestamp Timestamp)
+			: FContextCacheElementBase(EType::CacheElementReference, InNodeGuid, InProperty, InNodeHash, Timestamp)
+			, DataKey(InDataKey)
+		{}
 
-	typedef uint32 FContextCacheKey;
-	
+		const T& GetData(FContext& Context, const FProperty* PropertyIn, const T& Default) const;
+
+		virtual TUniquePtr<FContextCacheElementBase> CreateReference(FContextCacheKey InReferenceDataKey) const override;
+
+	private:
+		const FContextCacheKey DataKey; // this is a key to another cache element
+	};
+
+	// cache element method implementation 
+	template<class T>
+	const T& FContextCacheElementBase::GetTypedData(FContext& Context, const FProperty* PropertyIn, const T& Default) const
+	{
+		check(PropertyIn);
+		// check(PropertyIn->IsA<T>()); // @todo(dataflow) compile error for non-class T; find alternatives
+		check(Property->SameType(PropertyIn));
+		if (Type == EType::CacheElementTyped)
+		{
+			return static_cast<const FContextCacheElement<T>&>(*this).GetData(Context, PropertyIn, Default);
+		}
+		if (Type == EType::CacheElementReference)
+		{
+			return static_cast<const FContextCacheElementReference<T>&>(*this).GetData(Context, PropertyIn, Default);
+		}
+		check(false); // should never happen
+		return Default;
+	}
 
 	struct FContextCache : public TMap<FContextCacheKey, TUniquePtr<FContextCacheElementBase>>
 	{
@@ -149,12 +209,25 @@ namespace Dataflow
 		virtual void SetDataImpl(FContextCacheKey Key, TUniquePtr<FContextCacheElementBase>&& DataStoreEntry) = 0;
 		
 		template<typename T>
-		void SetData(FContextCacheKey Key, FContextCacheElementBase&& Data, T&& Value)
+		void SetData(FContextCacheKey InKey, const FProperty* InProperty, T&& InValue, const FGuid& InNodeGuid, uint32 InNodeHash, const FTimestamp& InTimestamp)
 		{
-			FContextCacheKey IntKey = (FContextCacheKey)Key;
-			TUniquePtr<FContextCacheElement<T>> DataStoreEntry = MakeUnique<FContextCacheElement<T>>(Data.NodeGuid, Data.Property, Forward<T>(Value), Data.NodeHash, Data.Timestamp);
+			TUniquePtr<FContextCacheElement<T>> DataStoreEntry = MakeUnique<FContextCacheElement<T>>(InNodeGuid, InProperty, Forward<T>(InValue), InNodeHash, InTimestamp);
 
-			SetDataImpl(IntKey, MoveTemp(DataStoreEntry));
+			SetDataImpl(InKey, MoveTemp(DataStoreEntry));
+		}
+
+		void SetDataReference(FContextCacheKey Key, const FProperty* Property, FContextCacheKey ReferenceKey)
+		{
+			// find the reference key to get 
+			if (TUniquePtr<FContextCacheElementBase>* CacheElement = GetDataImpl(ReferenceKey))
+			{
+				TUniquePtr<FContextCacheElementBase> CacheReferenceElement = (*CacheElement)->CreateReference(ReferenceKey);
+				SetDataImpl(Key, MoveTemp(CacheReferenceElement));
+			}
+			else
+			{
+				ensure(false); // could not find the original cache element 
+			}
 		}
 
 		virtual TUniquePtr<FContextCacheElementBase>* GetDataImpl(FContextCacheKey Key) = 0;
@@ -164,7 +237,7 @@ namespace Dataflow
 		{
 			if (TUniquePtr<FContextCacheElementBase>* Cache = GetDataImpl(Key))
 			{
-				return (*Cache)->GetTypedData<T>(InProperty);
+				return (*Cache)->GetTypedData<T>(*this, InProperty, Default);
 			}
 			return Default;
 		}
@@ -249,7 +322,7 @@ namespace Dataflow
 
 		virtual bool HasDataImpl(FContextCacheKey Key, FTimestamp InTimestamp = FTimestamp::Invalid) override
 		{
-			return DataStore.Contains(Key) && DataStore[Key]->Timestamp >= InTimestamp;
+			return DataStore.Contains(Key) && DataStore[Key]->GetTimestamp() >= InTimestamp;
 		}
 
 		virtual bool IsEmptyImpl() const override
@@ -294,7 +367,7 @@ namespace Dataflow
 		{
 			CacheLock->Lock(); ON_SCOPE_EXIT { CacheLock->Unlock(); };
 			
-			return DataStore.Contains(Key) && DataStore[Key]->Timestamp >= InTimestamp;
+			return DataStore.Contains(Key) && DataStore[Key]->GetTimestamp() >= InTimestamp;
 		}
 
 		virtual bool IsEmptyImpl() const override
@@ -307,4 +380,30 @@ namespace Dataflow
 
 	};
 
+	// cache classes implemetation 
+	// this needs to be after the FContext definition because they access its methods
+
+	template<class T>
+	const T& FContextCacheElement<T>::GetData(FContext& Context, const FProperty* PropertyIn, const T& Default) const
+	{
+		return Data;
+	}
+
+	template<class T>
+	TUniquePtr<FContextCacheElementBase> FContextCacheElement<T>::CreateReference(FContextCacheKey InReferenceDataKey) const
+	{
+		return MakeUnique<FContextCacheElementReference<T>>(GetNodeGuid(), GetProperty(), InReferenceDataKey, GetNodeHash(), GetTimestamp());
+	}
+
+	template<class T>
+	const T& FContextCacheElementReference<T>::GetData(FContext& Context, const FProperty* PropertyIn, const T& Default) const
+	{
+		return Context.GetData(DataKey, PropertyIn, Default);
+	}
+
+	template<class T>
+	TUniquePtr<FContextCacheElementBase> FContextCacheElementReference<T>::CreateReference(FContextCacheKey InReferenceDataKey) const
+	{
+		return MakeUnique<FContextCacheElementReference<T>>(GetNodeGuid(), GetProperty(), InReferenceDataKey, GetNodeHash(), GetTimestamp());
+	}
 }

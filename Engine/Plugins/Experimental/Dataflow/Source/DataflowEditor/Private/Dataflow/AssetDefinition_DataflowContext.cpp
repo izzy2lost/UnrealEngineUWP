@@ -50,15 +50,15 @@ namespace DataflowContextDefinitionHelpers
 
 			if (TUniquePtr<FContextCacheElementBase>* Data = Context->GetBaseData(Key))
 			{
-				if ((*Data) && !(*Data)->Property)
+				if ((*Data) && !(*Data)->GetProperty())
 				{
-					if (TSharedPtr<FDataflowNode> Node = Dataflow->FindBaseNode((*Data)->NodeGuid))
+					if (TSharedPtr<FDataflowNode> Node = Dataflow->FindBaseNode((*Data)->GetNodeGuid()))
 					{
 						if (FDataflowOutput* Output = Node->FindOutput(Key))
 						{
 							if (const FProperty* Property = Output->GetProperty())
 							{
-								(*Data)->Property = Property;
+								(*Data)->SetProperty(Property);
 								bValidKey = true;
 							}
 						}
@@ -105,11 +105,10 @@ namespace DataflowContextDefinitionHelpers
 			if (TUniquePtr<FContextCacheElementBase>* Data = Context->GetBaseData(Key))
 			{
 				if (!(*Data)) return false;
-				if (!(*Data)->Property) return false;
-				if(TSharedPtr<FDataflowNode> Node = Dataflow->FindBaseNode((*Data)->NodeGuid))
+				if (!(*Data)->GetProperty()) return false;
+				if(TSharedPtr<FDataflowNode> Node = Dataflow->FindBaseNode((*Data)->GetNodeGuid()))
 				{
-					uint32 Hash = Node->GetValueHash();
-					if ((*Data)->NodeHash != Node->GetValueHash())
+					if ((*Data)->GetNodeHash() != Node->GetValueHash())
 					{
 						return false;
 					}

@@ -113,7 +113,8 @@ namespace Dataflow
 
 			for (TPair<FContextCacheKey, TUniquePtr<FContextCacheElementBase>>& Elem : Pairs)
 			{
-				if (Elem.Value && Elem.Value->Property)
+				// note : we only serialize typed cache element and ignore the reference ones ( since they don't hold data per say )
+				if (Elem.Value && Elem.Value->Property && Elem.Value->Type == FContextCacheElementBase::EType::CacheElementTyped)
 				{
 					FProperty* Property = (FProperty*)Elem.Value->Property;
 					FName TypeName(Elem.Value->Property->GetCPPType());

@@ -129,7 +129,7 @@ public:
 	{
 		if (Property)
 		{
-			Context.SetData(CacheKey(), { GetOwningNodeGuid(), Property, GetOwningNodeValueHash(), Dataflow::FTimestamp::Current() }, Forward<T>(InVal));
+			Context.SetData(CacheKey(), Property, Forward<T>(InVal), GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
 		}
 	}
 
@@ -137,7 +137,7 @@ public:
 	{
 		if (!this->Evaluate<T>(Context))
 		{
-			Context.SetData(CacheKey(), { GetOwningNodeGuid(), Property,GetOwningNodeValueHash(), Dataflow::FTimestamp::Current() }, Default);
+			Context.SetData(CacheKey(), Property, Default, GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
 		}
 
 		if (Context.HasData(CacheKey()))
@@ -147,6 +147,10 @@ public:
 
 		return Default;
 	}
+
+	// there's no need for a templatized version as the parameter will not be used
+	// the method do check if the type of the input is the same as the output type though 
+	DATAFLOWCORE_API void ForwardInput(const void* InputReference, Dataflow::FContext& Context) const;
 
 	DATAFLOWCORE_API bool EvaluateImpl(Dataflow::FContext& Context) const;
 	
@@ -172,7 +176,7 @@ const T& FDataflowInput::GetValue(Dataflow::FContext& Context, const T& Default)
 		{
 			if (!ConnectionOut->Evaluate<T>(Context))
 			{
-				Context.SetData(ConnectionOut->CacheKey(), { GetOwningNodeGuid(), Property, GetOwningNodeValueHash(), Dataflow::FTimestamp::Current() }, Default);
+				Context.SetData(ConnectionOut->CacheKey(), Property, Default, GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
 			}
 			if (Context.HasData(ConnectionOut->CacheKey()))
 			{

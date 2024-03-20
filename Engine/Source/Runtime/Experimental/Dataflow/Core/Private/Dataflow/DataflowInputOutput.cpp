@@ -161,3 +161,19 @@ const FDataflowInput* FDataflowOutput::GetPassthroughInput() const
 	return OwningNode ? OwningNode->FindInput(GetPassthroughRealAddress()) : nullptr;
 }
 
+void FDataflowOutput::ForwardInput(const void* InputReference, Dataflow::FContext& Context) const
+{
+	if (Property && OwningNode)
+	{
+		const FDataflowInput* InputToForward = OwningNode->FindInput(InputReference);
+		if (InputToForward->GetConnectedOutputs().Num())
+		{
+			ensure(InputToForward->GetType() == GetType());
+			ensure(InputToForward->GetConnectedOutputs().Num() == 1);
+			if (const FDataflowOutput* ConnectionOut = InputToForward->GetConnection())
+			{
+				Context.SetDataReference(CacheKey(), Property, ConnectionOut->CacheKey());
+			}
+		}
+	}
+}

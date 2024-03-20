@@ -26,7 +26,9 @@ namespace Dataflow
 				{
 					check(Element!=nullptr); // read from a explicit type and return a null element
 					
-					FManagedArrayCollection& Collection = FContextCachingFactory::GetTypedElement<FManagedArrayCollection>(Element);
+					const FManagedArrayCollection EmptyCollection;
+					// cache always return const data , because they are immutable, however the serialize method is not const and require a const_cast
+					FManagedArrayCollection& Collection = const_cast<FManagedArrayCollection&>(FContextCachingFactory::GetTypedElement<FManagedArrayCollection>(Element, EmptyCollection));
 					Chaos::FChaosArchive ChaosAr(Ar);
 					Collection.Serialize(ChaosAr);
 

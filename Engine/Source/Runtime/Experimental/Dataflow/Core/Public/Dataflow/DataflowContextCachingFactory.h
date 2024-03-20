@@ -48,9 +48,16 @@ namespace Dataflow
 		void RegisterSerializeFunction(const FName& Type, FSerializeFunction InSerializeFunc);
 
 		template<class T>
-		static T& GetTypedElement(FContextCacheElementBase* InElement)
+		static const T& GetTypedElement(const FContextCacheElementBase* InElement, const T& Default)
 		{
-			return (T&)InElement->GetTypedData<T>(InElement->Property);
+			// we only support typed cache element and not cache reference
+			if (InElement && InElement->GetType() == FContextCacheElementBase::EType::CacheElementTyped)
+			{
+				// it is assumed the type requested matches the cache entry 
+				const FContextCacheElement<T>* TypedElement = static_cast<const FContextCacheElement<T>*>(InElement);
+				return TypedElement->GetDataDirect();
+			}
+			return Default;
 		}
 
 		template<class T>
