@@ -54,13 +54,6 @@ struct GAMEINPUTBASE_API FGameInputKeys
 	//
 
 	// Button Types
-	static const FKey ArcadeStick_None;
-	static const FKey ArcadeStick_Menu;
-	static const FKey ArcadeStick_View;
-	static const FKey ArcadeStick_Up;
-	static const FKey ArcadeStick_Down;
-	static const FKey ArcadeStick_Left;
-	static const FKey ArcadeStick_Right;
 	static const FKey ArcadeStick_Action1;
 	static const FKey ArcadeStick_Action2;
 	static const FKey ArcadeStick_Action3;

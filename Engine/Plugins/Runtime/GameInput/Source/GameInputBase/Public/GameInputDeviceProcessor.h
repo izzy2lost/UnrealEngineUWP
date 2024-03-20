@@ -495,4 +495,32 @@ protected:
 	double RepeatTime[MaxSupportedButtons];
 };
 
+
+/**
+* Processor for the GameInputKindArcadeStick type.
+* 
+* These are typically accessories to "fighting" style games, or other arcade style games.
+*/
+class GAMEINPUTBASE_API FGameInputArcadeStickProcessor : public IGameInputDeviceProcessor
+{
+public:
+	FGameInputArcadeStickProcessor();
+
+protected:
+
+	virtual bool ProcessInput(const FGameInputEventParams& Params) override;
+	virtual void ClearState(const FGameInputEventParams& Params) override;
+	virtual GameInputKind GetSupportedReadingKind() const override;
+
+	/** The previously processed arcade stick state. */
+	GameInputArcadeStickState PreviousState;
+
+	/**
+	* Array of repeat times to calculate if a button has been held long enough
+	* to receive an IE_REPEAT event.
+	*/
+	static const uint32 MaxSupportedButtons = 16;
+	double RepeatTime[MaxSupportedButtons];
+};
+
 #endif	// GAME_INPUT_SUPPORT

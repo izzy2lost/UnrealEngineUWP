@@ -43,13 +43,6 @@ const FKey FGameInputKeys::FlightStick_FireSecondary("GameInput_FlightStick_Fire
 //
 
 // Button Types
-const FKey FGameInputKeys::ArcadeStick_None("GameInput_ArcadeStick_None");
-const FKey FGameInputKeys::ArcadeStick_Menu("GameInput_ArcadeStick_Menu");
-const FKey FGameInputKeys::ArcadeStick_View("GameInput_ArcadeStick_View");
-const FKey FGameInputKeys::ArcadeStick_Up("GameInput_ArcadeStick_Up");
-const FKey FGameInputKeys::ArcadeStick_Down("GameInput_ArcadeStick_Down");
-const FKey FGameInputKeys::ArcadeStick_Left("GameInput_ArcadeStick_Left");
-const FKey FGameInputKeys::ArcadeStick_Right("GameInput_ArcadeStick_Right");
 const FKey FGameInputKeys::ArcadeStick_Action1("GameInput_ArcadeStick_Action1");
 const FKey FGameInputKeys::ArcadeStick_Action2("GameInput_ArcadeStick_Action2");
 const FKey FGameInputKeys::ArcadeStick_Action3("GameInput_ArcadeStick_Action3");

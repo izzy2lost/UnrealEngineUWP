@@ -379,6 +379,16 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, Config, Category = "Device Settings|Racing Wheel", meta=(EditCondition="bProcessRacingWheel"))
 	float RacingWheelDeadzone = DefaultRacingWheelDeadzone;
+
+	/**
+	* If true, then we will process the GameInputKindArcadeStick type.
+	* 
+	* Note: This is experimental!
+	* 
+	* Default: False
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = "Processing Options", meta=(ConfigRestartRequired = true, DisplayName="Process Arcade Sticks (Experimental)"))
+	bool bProcessArcadeStick = false;
 };
 
 /**

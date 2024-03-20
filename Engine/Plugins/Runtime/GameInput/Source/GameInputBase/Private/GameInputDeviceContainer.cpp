@@ -157,14 +157,15 @@ void FGameInputDeviceContainer::InitalizeDeviceProcessors_Impl()
 		Processors.Emplace(MakeShared<FGameInputRacingWheelProcessor>());
 	}
 
+	// Arcade sticks
+	if (DeviceKind & AllowedGameInputKinds & GameInputKindArcadeStick)
+	{
+		Processors.Emplace(MakeShared<FGameInputArcadeStickProcessor>());
+	}
+
 	// TODO: Implement these kinds of input! 
 
 	//if (DeviceKind & AllowedGameInputKinds & GameInputKindFlightStick)
-	//{
-
-	//}
-
-	//if (DeviceKind & AllowedGameInputKinds & GameInputKindArcadeStick)
 	//{
 
 	//}

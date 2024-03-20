@@ -286,6 +286,11 @@ GameInputKind IGameInputDeviceInterface::GetCurrentGameInputKindSupport() const
 		RegisterInputKindMask |= GameInputKindRacingWheel;
 	}
 
+	if (PlatformSettings->bProcessArcadeStick)
+	{
+		RegisterInputKindMask |= GameInputKindArcadeStick;
+	}
+
 	// TODO: Future expansion of GameInput devices!
 	/*if (Settings->bProcessArcadeStick)
 	{
